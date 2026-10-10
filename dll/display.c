@@ -477,6 +477,170 @@ static int install_windowed_present(void) {
     return n;
 }
 
+// Windowed input. Fullscreen-era behaviour that breaks a window:
+// - the mouse is a DirectInput device in exclusive mode (ISMouse::Resume, Low-Level Engine.dll +0x4C837
+//   SetCooperativeLevel(hwnd, 5 = EXCLUSIVE|FOREGROUND)): Windows hides its cursor and gets no mouse messages,
+//   so the title bar can't be clicked. Windowed we take it non-exclusive (6), like the keyboard already is.
+// - the game cursor (RTSMouse [0x9197A8], +4/+8 position floats, x range +0x18..+0x1C, y +0x20..+0x14) moves
+//   by the raw DirectInput deltas, scaled by the desktop size and divided by the smallest delta seen so far
+//   (0x510E5D, "MinXValue") - not the Windows pointer speed/acceleration. Windowed it follows the real cursor:
+//   client position mapped to the game's range (the window may be scaled), wheel still from the original.
+// - the window procedure 0x6622DD hides the cursor on every WM_SETCURSOR (also over the title bar and when the
+//   window is in the background) and minimizes the window (CloseWindow, 0x662670) when the app loses focus.
+// - non-exclusive, the device sees every click while the window is in front, also on the title bar or other
+//   windows: the mouse is unacquired while the cursor is outside the client area (and no button is held).
+// aimod.ini [display] lock_mouse = 1 keeps the cursor inside the window while the game is in front.
+#define FN_MOUSE_UPDATE  0x00510E5D
+#define FN_MOUSE_CLAMP   0x00510DAD
+#define G_GAME_WINDOW    0x009197A4   // GEWindow* (+0 HWND)
+#define IMP_IS_MOUSE     0x008235CC   // import: &ISMouse* in Low-Level Engine.dll
+#define SITE_CLOSE_WINDOW_JE 0x00662666   // je over the CloseWindow call on WM_ACTIVATEAPP(0)
+typedef void (__thiscall *ThisFn)(void *);
+static ThisFn g_recompute_buttons;   // ISMouse::RecomputeCurrentButtonState
+static int g_lock_mouse;
+static WNDPROC g_game_wndproc;
+static HWND g_subclassed;
+static volatile LONG g_mouse_updates, g_mouse_unacq, g_mouse_reacq;
+
+static void os_cursor_visible(void) {   // display count back to 0 for this thread
+    int c = ShowCursor(TRUE);
+    while (c < 0) c = ShowCursor(TRUE);
+    while (c > 0) c = ShowCursor(FALSE);
+}
+
+static LRESULT CALLBACK window_proc(HWND h, UINT msg, WPARAM w, LPARAM l) {
+    switch (msg) {
+    case WM_SETCURSOR:   // game cursor in the client area while in front, Windows' cursor everywhere else
+        if (LOWORD(l) == HTCLIENT && GetForegroundWindow() == h) { SetCursor(NULL); return TRUE; }
+        os_cursor_visible();
+        if (LOWORD(l) == HTCLIENT) { SetCursor(LoadCursorA(NULL, (LPCSTR)IDC_ARROW)); return TRUE; }
+        return DefWindowProcA(h, msg, w, l);
+    case WM_ACTIVATE: {   // the original returns without DefWindowProc, which would set the keyboard focus
+        LRESULT r = CallWindowProcA(g_game_wndproc, h, msg, w, l);
+        if (LOWORD(w) != WA_INACTIVE && GetFocus() != h) SetFocus(h);
+        return r;
+    }
+    case WM_ACTIVATEAPP:
+        if (!w) ClipCursor(NULL);
+        break;
+    }
+    return CallWindowProcA(g_game_wndproc, h, msg, w, l);
+}
+
+static uint8_t *is_mouse(void) {
+    uint8_t **p = *(uint8_t ***)IMP_IS_MOUSE;
+    return p ? *p : NULL;
+}
+
+// clicks outside the client area must not reach the game; Acquire again re-reads the button state
+static void mouse_acquire(int want) {
+    static int unacquired, up_frames;
+    uint8_t *ms = is_mouse();
+    if (!ms) return;
+    void **dev = FIELD(ms, 0x44, void **);
+    if (!dev || ms[4]) { unacquired = 0; return; }   // +4: suspended by the game (window inactive)
+    typedef HRESULT (__stdcall *DevFn)(void *);
+    if (want) {
+        up_frames = 0;
+        if (unacquired) {
+            ((DevFn)(*(void ***)dev)[7])(dev);   // Acquire
+            if (g_recompute_buttons) g_recompute_buttons(ms);
+            unacquired = 0;
+            InterlockedIncrement(&g_mouse_reacq);
+        }
+    } else if (!unacquired && ++up_frames > 2) {   // a release just before leaving is still read first
+        ((DevFn)(*(void ***)dev)[8])(dev);   // Unacquire
+        unacquired = 1;
+        InterlockedIncrement(&g_mouse_unacq);
+    }
+}
+
+// The devices are resumed on WM_ACTIVATEAPP/WM_ACTIVATE, but Acquire (DISCL_FOREGROUND) fails while Windows hasn't
+// made the window foreground yet - a click into the window then leaves mouse and keyboard dead until it's minimized
+// and restored. The intro sequence (0x538xxx) also ends with Suspend. In front, a suspended device is resumed.
+#define IMP_IS_KEYBOARD  0x00823AF8   // import: &ISKeyboard* in Low-Level Engine.dll
+static volatile LONG g_input_resumes;
+static void resume_if_suspended(uintptr_t imp, DWORD *last) {
+    uint8_t **p = *(uint8_t ***)imp, *d = p ? *p : NULL;
+    if (!d || !d[4] || GetTickCount() - *last < 250) return;   // +4: suspended
+    *last = GetTickCount();
+    ((ThisFn)(*(void ***)d)[4])(d);   // Resume (vtable +0x10)
+    InterlockedIncrement(&g_input_resumes);
+}
+
+static void window_mouse(uint8_t *m, int frozen) {
+    uint8_t *win = *(uint8_t **)G_GAME_WINDOW;
+    HWND hwnd = win ? FIELD(win, 0, HWND) : NULL;
+    if (!hwnd) return;
+    if (g_subclassed != hwnd) {
+        g_game_wndproc = (WNDPROC)SetWindowLongA(hwnd, GWL_WNDPROC, (LONG)(uintptr_t)window_proc);
+        g_subclassed = hwnd;
+    }
+    POINT pt, c;
+    RECT rc;
+    if (!GetCursorPos(&pt) || !GetClientRect(hwnd, &rc) || rc.right < 2 || rc.bottom < 2) return;
+    c = pt;
+    ScreenToClient(hwnd, &c);
+    int fg = GetForegroundWindow() == hwnd;
+    int inside = PtInRect(&rc, c);
+    int held = ((GetAsyncKeyState(VK_LBUTTON) | GetAsyncKeyState(VK_RBUTTON) | GetAsyncKeyState(VK_MBUTTON)) & 0x8000) != 0;
+    if (fg && !IsIconic(hwnd)) {
+        static DWORD last_mouse, last_keyboard;
+        resume_if_suspended(IMP_IS_MOUSE, &last_mouse);
+        resume_if_suspended(IMP_IS_KEYBOARD, &last_keyboard);
+    }
+    mouse_acquire(inside || held);
+    if (g_lock_mouse && fg && inside) {
+        RECT want = rc, cur;
+        MapWindowPoints(hwnd, NULL, (POINT *)&want, 2);
+        if (!GetClipCursor(&cur) || !EqualRect(&cur, &want)) ClipCursor(&want);
+    }
+    if (frozen || !fg) return;
+    if (!inside && !held && WindowFromPoint(pt) == hwnd) return;   // on the title bar or frame: leave it
+    // outside the window (or dragging out of it) the position clamps to the edge: edge scrolling works by
+    // pushing past the border; the last pixel maps to the end of the range (clamped to end - 1, like fullscreen)
+    float x0 = FIELD(m, 0x18, float), x1 = FIELD(m, 0x1C, float), y0 = FIELD(m, 0x20, float), y1 = FIELD(m, 0x14, float);
+    FIELD(m, 4, float) = x0 + (float)c.x * (x1 - x0) / (float)(rc.right - 1);
+    FIELD(m, 8, float) = y0 + (float)c.y * (y1 - y0) / (float)(rc.bottom - 1);
+    ((ThisFn)FN_MOUSE_CLAMP)(m);
+    InterlockedIncrement(&g_mouse_updates);
+}
+
+static void __fastcall hook_mouse_update(uint8_t *m, void *edx) {
+    (void)edx;
+    uint8_t frozen = m[0xA4];
+    m[0xA4] = 1;   // the original then only reads the wheel
+    ((ThisFn)FN_MOUSE_UPDATE)(m);
+    m[0xA4] = frozen;
+    window_mouse(m, frozen);
+}
+
+static int patch_byte(uintptr_t at, uint8_t expected, uint8_t val) {
+    uint8_t *p = (uint8_t *)at;
+    DWORD old;
+    if (*p != expected || !VirtualProtect(p, 1, PAGE_EXECUTE_READWRITE, &old)) return 0;
+    *p = val;
+    VirtualProtect(p, 1, old, &old);
+    FlushInstructionCache(GetCurrentProcess(), p, 1);
+    return 1;
+}
+
+static int install_windowed_input(void) {
+    int n = 0;
+    HMODULE lle = GetModuleHandleA("Low-Level Engine.dll");
+    if (lle) {
+        uint8_t *b = (uint8_t *)lle;
+        // push 5 -> push 6 before SetCooperativeLevel: ISMouse::Resume and the device setup in ISInitialize
+        if (b[0x4C837] == 0x6A) n += patch_byte((uintptr_t)b + 0x4C838, 5, 6);
+        if (b[0x4A76E] == 0x6A) n += patch_byte((uintptr_t)b + 0x4A76F, 5, 6);
+        g_recompute_buttons = (ThisFn)(void *)GetProcAddress(lle, "?RecomputeCurrentButtonState@ISMouse@@AAEXXZ");
+    }
+    static const uintptr_t sites[] = { 0x004B8ABB, 0x0050FEC8, 0x005111CF, 0x006618B8 };
+    for (size_t i = 0; i < sizeof sites / sizeof *sites; i++) n += patch_call(sites[i], FN_MOUSE_UPDATE, hook_mouse_update);
+    n += patch_byte(SITE_CLOSE_WINDOW_JE, 0x74, 0xEB);   // no minimize on focus loss
+    return n;
+}
+
 static void display_install(const char *aimod_ini, const char *autotest_ini) {
     char mode[32], tmp[32];
     int windowed = GetPrivateProfileIntA("display", "windowed", 0, aimod_ini);
@@ -488,6 +652,8 @@ static void display_install(const char *aimod_ini, const char *autotest_ini) {
         uint8_t was = *(uint8_t *)G_FULLSCREEN;
         if (was == 1) *(uint8_t *)G_FULLSCREEN = g_fullscreen = 0;
         int hooks = install_windowed_present();
+        g_lock_mouse = GetPrivateProfileIntA("display", "lock_mouse", 0, aimod_ini);
+        int input = install_windowed_input();
         // loading splash: started (0x5343F8) while the flag is still 1 - before the DLLs load - but its stop
         // (0x534433) checks the flag again and would leave it on screen; stop it in windowed mode too
         uint8_t *jne = (uint8_t *)0x0053443D;
@@ -500,8 +666,8 @@ static void display_install(const char *aimod_ini, const char *autotest_ini) {
             FlushInstructionCache(GetCurrentProcess(), jne, 2);
             splash = 1;
         }
-        if (g_log) fprintf(g_log, "# display: windowed %s, present hooks %d, splash stop %s\n",
-                           was == 1 ? "on" : "NOT set (unexpected fullscreen flag)", hooks, splash ? "ok" : "FAILED");
+        if (g_log) fprintf(g_log, "# display: windowed %s, present hooks %d, input patches %d/7, splash stop %s\n",
+                           was == 1 ? "on" : "NOT set (unexpected fullscreen flag)", hooks, input, splash ? "ok" : "FAILED");
     } else if (g_diag) {
         int hooks = install_windowed_present();   // all pass through in fullscreen; for the ddinfo counters
         if (g_log) fprintf(g_log, "# display: fullscreen, diagnostic hooks %d\n", hooks);
@@ -622,7 +788,16 @@ static void cmd_ddpoke(char *out, const char *args) {
         IDirectDraw7 *dd = FIELD(scr, 0x30, IDirectDraw7 *);
         DDSURFACEDESC2 m = { .dwSize = sizeof m };
         REPLY("GetDisplayMode hr=%08lx\n", dd->lpVtbl->GetDisplayMode(dd, &m));
-    } else REPLY("usage: ddpoke z|back|front|mode\n");
+    } else if (!strncmp(args, "cursor", 6)) {   // cursor <client x> <client y>: place the Windows cursor (game's coordinates)
+        uint8_t *win = *(uint8_t **)G_GAME_WINDOW;
+        POINT p = { 0, 0 }, q;
+        RECT rc = { 0 };
+        sscanf(args + 6, "%ld %ld", &p.x, &p.y);
+        if (win) { GetClientRect(FIELD(win, 0, HWND), &rc); ClientToScreen(FIELD(win, 0, HWND), &p); }
+        SetCursorPos(p.x, p.y);
+        GetCursorPos(&q);
+        REPLY("client %ldx%ld, cursor set to screen %ld,%ld, now at %ld,%ld\n", rc.right, rc.bottom, p.x, p.y, q.x, q.y);
+    } else REPLY("usage: ddpoke z|back|front|mode|cursor x y\n");
 }
 
 static void cmd_ddinfo(char *out, const char *args) {
@@ -696,6 +871,11 @@ static void cmd_ddinfo(char *out, const char *args) {
     }
     REPLY("windowed present: %ld frames, %ld failed; back buffer before ShowScene: %ld samples, %ld lit of 1024 avg, lock failed %ld\n",
           g_present_frames, g_present_fail, g_lit_frames, g_lit_frames ? g_lit_samples / g_lit_frames : 0, g_lock_fail);
+    uint8_t *rm = *(uint8_t **)0x009197A8, *ms = is_mouse();
+    if (rm) REPLY("mouse: game cursor %.1f,%.1f of x %.0f..%.0f y %.0f..%.0f, updates %ld, unacquired %ld, reacquired %ld, "
+                  "device %s, resumed by us %ld, subclassed %p\n", FIELD(rm, 4, float), FIELD(rm, 8, float), FIELD(rm, 0x18, float),
+                  FIELD(rm, 0x1C, float), FIELD(rm, 0x20, float), FIELD(rm, 0x14, float), g_mouse_updates, g_mouse_unacq,
+                  g_mouse_reacq, ms ? (ms[4] ? "suspended" : "active") : "-", g_input_resumes, (void *)g_subclassed);
     if (!strncmp(args, "blit", 4) && front && back) {
         IDirectDrawSurface7 *f = FIELD(front, 0x48, IDirectDrawSurface7 *), *b = FIELD(back, 0x48, IDirectDrawSurface7 *);
         RECT dst = { o.x, o.y, o.x + cr.right, o.y + cr.bottom };

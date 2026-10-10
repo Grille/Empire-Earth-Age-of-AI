@@ -135,6 +135,8 @@ Settings in `aimod.ini`:
   mod switches it on and fixes what broke on current Windows (presentation, crashes, terrain, editor).
   The window has the game resolution from the game settings. A DirectDraw wrapper such as dgVoodoo is
   still needed for the game to start on current Windows; pass-through mode is enough.
+  The mouse follows the Windows cursor (your pointer speed), the window can be moved and switched like
+  any other; `lock_mouse=1` keeps the cursor inside while the game is in front.
 - `[editor] resolution=aoc`: scenario editor at 1024x768 with The Art of Conquest's layout.
 - `[camera] scroll=aoc`: AoC's smooth camera scrolling.
 - `[general] skip_intro=1`: skip the intro movies.
