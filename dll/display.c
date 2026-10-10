@@ -4,10 +4,12 @@
 //   aoc  = 1024 x 768 (what The Art of Conquest uses)
 //   game = the resolution chosen for games in the settings
 //
-// Entering the editor (0x65FD21, called from the interface state machine 0x660C45) switches the screen with
-// SetResolution 0x65F314(width, height, force, flag) - stdcall (ret 0x10; ECX unused) - with a fixed 800 x 600
-// at 0x65FD6D. AoC calls the same function with 1024 x 768 there; games use [0x9193FC] x [0x9193F8].
+// The editor is entered from the main menu (0x6601D9) and on return from test play (0x65FD21, ScenDefault);
+// both switch the screen with SetResolution 0x65F314(width, height, force, flag) - stdcall (ret 0x10; ECX
+// unused) - with a fixed 800 x 600 (call sites 0x6601F1 and 0x65FD6D). AoC uses 1024 x 768 in both places;
+// games use [0x9193FC] x [0x9193F8].
 
+#define SITE_EDITOR_MENU  0x006601F1
 #define SITE_EDITOR_RES   0x0065FD6D
 #define FN_SET_RESOLUTION 0x0065F314
 #define G_GAME_RES_W      0x009193FC
@@ -38,6 +40,7 @@ static void display_install(const char *aimod_ini, const char *autotest_ini) {
         if (g_log) fprintf(g_log, "# editor: bad resolution '%s' in aimod.ini, left at 800x600\n", mode);
         return;
     }
-    int ok = patch_call(SITE_EDITOR_RES, FN_SET_RESOLUTION, hook_editor_resolution);
-    if (g_log) fprintf(g_log, "# editor: resolution=%s hook %s\n", mode, ok ? "ok" : "FAILED");
+    int ok = patch_call(SITE_EDITOR_MENU, FN_SET_RESOLUTION, hook_editor_resolution)
+           + patch_call(SITE_EDITOR_RES, FN_SET_RESOLUTION, hook_editor_resolution);
+    if (g_log) fprintf(g_log, "# editor: resolution=%s hooks %d/2\n", mode, ok);
 }
