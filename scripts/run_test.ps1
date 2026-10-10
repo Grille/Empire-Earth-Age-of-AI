@@ -17,9 +17,15 @@ $key = 'HKCU:\Software\SSSI\Empire Earth'
 $backup = "$g\_aimod\work\sound_settings_backup.json"
 $names = 'Sound Volume', 'Music Volume', 'Music Enabled'
 
+# $userCopy keeps the last settings that weren't muted, so a backup taken in a muted state (overlapping runs)
+# can't lose the player's real volumes.
+$userCopy = "$g\_aimod\work\sound_settings_user.json"
 function Restore-Sound {
     if (Test-Path $backup) {
         $b = Get-Content $backup -Raw | ConvertFrom-Json
+        if (([int]$b.'Sound Volume' + [int]$b.'Music Volume') -eq 0 -and (Test-Path $userCopy)) {
+            $b = Get-Content $userCopy -Raw | ConvertFrom-Json
+        }
         foreach ($n in $names) { Set-ItemProperty $key -Name $n -Value ([int]$b.$n) }
         Remove-Item $backup -Confirm:$false
     }
@@ -45,6 +51,7 @@ if ($Mute) {
     $cur = Get-ItemProperty $key
     $o = @{}; foreach ($n in $names) { $o[$n] = $cur.$n }
     $o | ConvertTo-Json | Set-Content $backup
+    if (([int]$o['Sound Volume'] + [int]$o['Music Volume']) -gt 0) { $o | ConvertTo-Json | Set-Content $userCopy }
     foreach ($n in $names) { Set-ItemProperty $key -Name $n -Value 0 }
 }
 # test ini = autotest.ini + -IniExtra; an extra key replaces the same key from autotest.ini (the DLL reads the
