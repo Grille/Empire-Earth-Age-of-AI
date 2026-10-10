@@ -100,6 +100,7 @@ Random-map suite: Continental, Plains, Highlands, Mediterranean, fixed seeds, 2�
 | fewer/bigger waves (Continental, 75 min) | 7 waves instead of 10, about 9 more workers per AI, same epochs |
 | avoid towers + weak spots (Continental) | routes through tower range: 1 of 18 instead of 6 of 22; 13 attacks retargeted |
 | budget leak fixed (Continental, 75 min) | soldiers per AI peak at 15–21 instead of 0–6; kills 53/94/88 instead of 21/10/21; first buildings destroyed; economy unchanged (~55 workers, Copper Age at 30–45 min) |
+| 4-map suite with real armies (75 min, 12 AIs): original routes vs avoid towers + weak spots | original: 3 of 12 AIs eliminated, per AI 72.7 kills / 73.7 losses / 6.8 buildings destroyed; smart: none eliminated, 53.5 / 59.9 / 3.3, more workers at the end (48.6 vs 37.2). In AI-vs-AI the smarter routes make attacks less deadly (detours, split targets); the two features are being tested separately |
 
 Open points:
 - The army budget fix (unit cap leak) still needs a 4-map suite.
