@@ -95,6 +95,8 @@ Helpers working on the dump and the exe:
 - `scripts/pdis.py <hex>`: disassemble at an address.
 
 [docs/engine-notes.md](docs/engine-notes.md) collects the verified addresses and data layouts.
+[docs/ai-analysis.md](docs/ai-analysis.md) explains how the original AI works, where it fails, and the test
+results so far.
 
 ## Testing
 
@@ -122,7 +124,7 @@ config/         aimod.ini template shipped to players
 scripts/        test runner, suite, log analysis, control client, MCP server, RE helpers
 ghidra_scripts/ Ghidra headless script that names and decompiles the exe
 mod/            generator for a tuned dbcpbehavior.dat (AI settings table; superseded by aimod.ini)
-docs/           engine notes, testing guide
+docs/           engine notes, AI analysis, testing guide
 ```
 
 ## Status

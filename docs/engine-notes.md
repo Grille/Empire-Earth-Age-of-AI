@@ -126,3 +126,51 @@ Guard towers 47, 461..466; AA 145/147; town center 35; house 37; citizen 32.
   10/14 per step + 750/3750 for owned territory + 1.85 × the target player's influence in the step's cell.
   - Influence table [0x918E20]: 9-tile cells, per player the sum of type data +0x540 of its units.
   - A tower counts 175, a house 90. Defences are hardly distinguished from any other base, so routes cross tower lines.
+
+## Data files
+
+- `Data\data.ssa`: "rass" archive. Each file is "PK01" + u32 size + 4 bytes, then a PKWARE DCL stream (decoder:
+  `scripts/blast.py`, extractor: `scripts/extract_all.py`). Loose files under `Data\` override the archive.
+- `.scn`/`.ees`: PK01 (DCL) blocks (`scripts/unpack_save.py`).
+- `dbcpbehavior.dat` (AI settings): u32 count + 56-byte records [name string id, index, min1, max1, val1, min2,
+  max2, val2, ?, minF, maxF, scaleF, fval, flag] -> global 0x8CFA80 + index*0x38, copied into player fields by
+  0x431697. Record names = Language.dll string 28000 + name id. Cheat percentage: record 96 val1 (easy) / val2
+  (hard), record 67 fval (medium); the default is 1%.
+- Object/unit type names: `data/db/converteroutput.log` (from the data files).
+- Language.dll string table: `scripts/strtab.py`. The statistics names are 31201.., the AI settings names 28000..
+
+## Resource manager details
+
+- Update 0x48D263: ComputeTargets 0x48D0A2 every 5 s (call site 0x48D347), AssignCitizens 0x48A554 every 10 s
+  (call site 0x48D36A). Timers at +0x16C..+0x17C, serializer 0x48C5B2.
+- ComputeTargets: targets proportional to each resource's share of the demand, times all citizens. A negative
+  minimum shift permanently rewrites the demand, and the mine cap counter isn't reset per type (bugs).
+- AssignCitizens: fills deficits per type. Mines go via 0x48C204 (free slot, no enemy near, same continent),
+  leftovers via 0x48A1AE (mines, then wood 0x48C060). Surplus workers are never taken back.
+- Demand: added by 0x48B9E9 (costs via AdjustCost), subtracted by 0x48D050 / 0x48B6E8 and by AddResource.
+- Citizens wanted = citizen share (player+0xBDC, 0.45 by default) x population cap (0x48EDDB); trained in
+  batches of up to 10.
+- Resource zones (player+0xB50, map-wide, shared by all players, 0x28 bytes, +0x18 active for this AI, +8 vector
+  of sites). 0x4886F2(zone, 2) returns a site.
+
+## Civilization manager details
+
+- cm (player+0xB90, Update 0x46E2C7): +0x4C player, +0x50 current build project, timers +0x58 next epoch attempt,
+  +0x5C, +0x60 military buildings (31 s), +0x64 build, +0x68, +0x6C (59 s), +0x75 one-time setup done,
+  +0x76 epoch requirement pending.
+- Epoch: SetNextEpochAdvanceTime 0x46DE8C = random(record 28 min..max) minutes x difficulty factor, x2 when
+  ahead of / /2 when behind the highest human epoch; AttemptEpochAdvance 0x46C966 asks the research manager
+  once for the required techs (0x4860D6).
+- Build manager (cm+0x3C): init 0x465E4F (placement area at +0x11C, per-epoch build lists at +4 + i*0x14);
+  base position +0x12C/+0x130; enemy near 0x4660B9(x, y).
+- Research manager (cm+0x40): +0x110 next research, +0x118 initialised.
+
+## Misc
+
+- Civ selection: the civ timer (EEMCivTimerExpired 0x4B4F9C) opens the civ dialog when the local player
+  has +0xB46 == 0 and +0x467 == 0. The dialog freezes game time (not the pause flag).
+- Command line: only `hostgame`, `joinbyip`, `update_saved_games` and `-loadgame "name.ees"` (no space after
+  the name, no '-' or '/' in it; parser 0x522A36, loader 0x521F94).
+- Intro movies: AddMovie calls at 0x538909/0x53892A/0x538945.
+- Saving: EEASaveGame (vtable 0x825084, 0x30 bytes, ctor 0x404FA1(const UString &file, bool, UString folder
+  by value)), queued like the pause action; the folder is relative to the game folder ("data\Saved Games\").
