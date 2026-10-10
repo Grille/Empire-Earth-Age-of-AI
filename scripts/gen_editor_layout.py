@@ -16,6 +16,12 @@ EXCLUDE = {
     0x561100, 0x561130, 0x561160,   # EESEInstructions: assert line numbers
     0x5630DC, 0x563148, 0x563176,   # window message ids (WM_USER + n)
 }
+# our own corrections to AoC's values: operand address -> value
+OVERRIDE = {
+    # trigger "hide UI" checkbox (19x19, constructor 0x58D3E1): AoC moves it right by 224 like the panels, but the
+    # minimap's left edge only moves 192 (662 -> 854), so it ends up half hidden - 19 px left, above the exit button
+    0x58DA04: 830.0, 0x58DA0B: 849.0,
+}
 
 def u32f(f):
     return struct.unpack('<I', struct.pack('<f', f))[0]
@@ -36,6 +42,7 @@ for line in (l for f in sys.argv[1:-1] for l in open(f)):
         keep = True
     if keep:
         seen.add(opaddr)
+        new = OVERRIDE.get(opaddr, new)
         rows.append((kind, opaddr, vk, old, new, name, text))
 for addr, old, new in MANUAL:
     if addr not in seen:

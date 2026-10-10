@@ -313,8 +313,8 @@ static const struct { uint32_t addr; uint8_t kind; uint32_t old, val; } k_editor
     { 0x58D5B3, 0, 0x4446C000, 0x447FC000 },   // FUN_0058d3e1 (minimap): manual  795 -> 1023
     { 0x58D5BA, 0, 0x43E30000, 0x44158A3D },   // FUN_0058d3e1 (minimap): manual  454 -> 598.16
     { 0x58D5C1, 0, 0x4412C000, 0x443FC000 },   // FUN_0058d3e1 (minimap): manual  587 -> 767
-    { 0x58DA04, 0, 0x441C4000, 0x44544000 },   // FUN_0058d3e1: mov dword ptr [ebp - 0x14], 0x441c4000  625 -> 849
-    { 0x58DA0B, 0, 0x44210000, 0x44590000 },   // FUN_0058d3e1: mov dword ptr [ebp - 0x10], 0x44210000  644 -> 868
+    { 0x58DA04, 0, 0x441C4000, 0x444F8000 },   // FUN_0058d3e1: mov dword ptr [ebp - 0x14], 0x441c4000  625 -> 830
+    { 0x58DA0B, 0, 0x44210000, 0x44544000 },   // FUN_0058d3e1: mov dword ptr [ebp - 0x10], 0x44210000  644 -> 849
     { 0x58DA12, 0, 0x44110000, 0x44338000 },   // FUN_0058d3e1: mov dword ptr [ebp - 0xc], 0x44110000  580 -> 718
     { 0x58DA19, 0, 0x4415C000, 0x44384000 },   // FUN_0058d3e1: mov dword ptr [ebp - 0x18], 0x4415c000  599 -> 737
     { 0x58E560, 0, 0x43DB0000, 0x44178000 },   // FUN_0058e400: mov dword ptr [eax + 0xc], 0x43db0000  438 -> 606
