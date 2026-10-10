@@ -281,9 +281,20 @@ static void sample_alpha(uint8_t *src, uint8_t *dst) {
     }
     d7->lpVtbl->Unlock(d7, NULL);
 }
+static volatile LONG g_front_copies_skipped;
 static int __fastcall hook_copy_to(void *s, void *edx, void *dst, void *r1, void *r2, int f) {
     (void)edx;
-    int r = ((int (__thiscall *)(void *, void *, void *, void *, int))g_cnt[0].orig[DISPLAY_DLL(s)])(s, dst, r1, r2, f);
+    // windowed: the UI's "copy dirty rectangles" restore regions from the front surface - after a page flip the
+    // back buffer holds an older frame. Windowed the front is the emulated primary that never gets our frames
+    // (garbage/scanlines in the editor where the mouse moved) and the back buffer is never flipped, so it still
+    // holds the last frame: copies from or to the front are skipped.
+    if (!g_fullscreen) {
+        uint8_t *ras = *(uint8_t **)0x00919794;
+        uint8_t *st = ras ? FIELD(ras, 0x20, uint8_t **)[*(int *)0x00919428] : NULL;
+        uint8_t *front = st ? FIELD(st, 0x2AC, uint8_t *) : NULL;
+        if (front && (s == front || dst == front)) { InterlockedIncrement(&g_front_copies_skipped); return 0; }
+    }
+    int r =((int (__thiscall *)(void *, void *, void *, void *, int))g_cnt[0].orig[DISPLAY_DLL(s)])(s, dst, r1, r2, f);
     cnt_note(0, r);
     if (g_diag && !r) sample_alpha(s, dst);
     return r;
@@ -641,6 +652,7 @@ static void cmd_ddinfo(char *out, const char *args) {
     dd_surface(out, "back ", back);
     GetErrFn ge = (GetErrFn)GetProcAddress(GetModuleHandleA("Low-Level Engine.dll"), "?ESGetNativeError@@YAKXZ");
     if (ge) REPLY("last native error %08lx\n", ge());
+    REPLY("copies from/to the front surface skipped (windowed): %ld\n", g_front_copies_skipped);
     REPLY("terrain draws: %ld, failed %ld, last error %08lx, visible tile rows %ld\n", g_terrain_calls, g_terrain_fail,
           g_terrain_last_err, g_terrain_rows);
     REPLY("Clear: %ld calls, %ld failed, rect %.0f %.0f %.0f %.0f; ClearZBuffer: %ld calls, %ld failed, depth %g rect %.0f %.0f %.0f %.0f\n",
