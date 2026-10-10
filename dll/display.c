@@ -104,29 +104,52 @@ static int present_to_window(uint8_t *ras, unsigned screen) {
     IDirectDrawSurface7 *s = FIELD(back, 0x48, IDirectDrawSurface7 *);
     HWND hwnd = FIELD(win, 0, HWND);
     if (!s || !hwnd) return 0;
+    // Lock, not GetDC: the GDI view of the 3D render target reads back black under current Windows' DirectDraw
     DDSURFACEDESC2 d = { .dwSize = sizeof d };
-    HDC sdc;
-    if (s->lpVtbl->GetSurfaceDesc(s, &d) != DD_OK || s->lpVtbl->GetDC(s, &sdc) != DD_OK) {
+    if (s->lpVtbl->Lock(s, NULL, &d, DDLOCK_WAIT | DDLOCK_READONLY, NULL) != DD_OK) {
         InterlockedIncrement(&g_present_fail);
         return 0;
     }
+    int bpp = (int)d.ddpfPixelFormat.dwRGBBitCount;
+    struct { BITMAPINFOHEADER h; DWORD masks[3]; } bi = {
+        { sizeof bi.h, d.lPitch / (bpp / 8), -(LONG)d.dwHeight, 1, (WORD)bpp, bpp == 16 ? BI_BITFIELDS : BI_RGB, 0, 0, 0, 0, 0 },
+        { d.ddpfPixelFormat.dwRBitMask, d.ddpfPixelFormat.dwGBitMask, d.ddpfPixelFormat.dwBBitMask },
+    };
     HDC wdc = GetDC(hwnd);
     RECT cr;
     GetClientRect(hwnd, &cr);
-    if (cr.right == (LONG)d.dwWidth && cr.bottom == (LONG)d.dwHeight)
-        BitBlt(wdc, 0, 0, cr.right, cr.bottom, sdc, 0, 0, SRCCOPY);
-    else {
-        SetStretchBltMode(wdc, COLORONCOLOR);
-        StretchBlt(wdc, 0, 0, cr.right, cr.bottom, sdc, 0, 0, d.dwWidth, d.dwHeight, SRCCOPY);
-    }
+    SetStretchBltMode(wdc, COLORONCOLOR);
+    StretchDIBits(wdc, 0, 0, cr.right, cr.bottom, 0, 0, (int)d.dwWidth, (int)d.dwHeight, d.lpSurface,
+                  (BITMAPINFO *)&bi, DIB_RGB_COLORS, SRCCOPY);
     ReleaseDC(hwnd, wdc);
-    s->lpVtbl->ReleaseDC(s, sdc);
+    s->lpVtbl->Unlock(s, NULL);
     InterlockedIncrement(&g_present_frames);
     return 1;
 }
 
+// diagnostics: share of non-black pixels in the back buffer (sampled) before the original ShowScene
+static volatile LONG g_lit_samples, g_lit_frames, g_lock_fail;
+static void sample_back(uint8_t *ras, unsigned screen) {
+    uint8_t *st = FIELD(ras, 0x20, uint8_t **)[screen];
+    uint8_t *back = FIELD(st, 0x2B0, uint8_t *);
+    IDirectDrawSurface7 *s = back ? FIELD(back, 0x48, IDirectDrawSurface7 *) : NULL;
+    if (!s) return;
+    DDSURFACEDESC2 d = { .dwSize = sizeof d };
+    if (s->lpVtbl->Lock(s, NULL, &d, DDLOCK_WAIT | DDLOCK_READONLY, NULL) != DD_OK) { InterlockedIncrement(&g_lock_fail); return; }
+    int lit = 0, bpp = (int)d.ddpfPixelFormat.dwRGBBitCount / 8;
+    for (int y = 0; y < 32; y++)
+        for (int x = 0; x < 32; x++) {
+            uint8_t *p = (uint8_t *)d.lpSurface + (size_t)(y * (int)d.dwHeight / 32) * d.lPitch + (size_t)(x * (int)d.dwWidth / 32) * bpp;
+            if (bpp == 4 ? (*(uint32_t *)p & 0xFFFFFF) != 0 : *(uint16_t *)p != 0) lit++;
+        }
+    s->lpVtbl->Unlock(s, NULL);
+    InterlockedExchangeAdd(&g_lit_samples, lit);
+    InterlockedIncrement(&g_lit_frames);
+}
+
 static int __fastcall hook_show_scene(void *ras, void *edx, unsigned screen) {
     (void)edx;
+    if (!g_fullscreen && (g_present_frames & 63) == 0) sample_back(ras, screen);
     int r = g_show[DISPLAY_DLL(ras)].show(ras, screen);   // windowed: its Blt to the emulated primary fails, harmless
     if (!g_fullscreen && present_to_window(ras, screen)) r = 0;
     return r;
@@ -137,6 +160,21 @@ static int __fastcall hook_set_mode(void *scr, void *edx, unsigned mode) {
     if (((uint8_t *)scr)[0x3D]) return g_show[DISPLAY_DLL(scr)].set_mode(scr, mode);
     FIELD(scr, 0x38, unsigned) = mode;
     return 0;
+}
+
+// GetCurrentMode / GetCurrentModeIndex: the index the constructor takes from the mode enumeration can be out of
+// range windowed (the game reads the current mode before its first SetMode - crash at 0x535958); clamp it.
+// Modes: vector of 0x14-byte GEVideoMode at +0x10 (begin) / +0x14 (end).
+static unsigned screen_mode_index(uint8_t *scr) {
+    unsigned n = (FIELD(scr, 0x14, uintptr_t) - FIELD(scr, 0x10, uintptr_t)) / 0x14;
+    if (!scr[0x3D] && FIELD(scr, 0x38, unsigned) >= n) FIELD(scr, 0x38, unsigned) = 0;
+    return FIELD(scr, 0x38, unsigned);
+}
+static void *__fastcall hook_get_current_mode(uint8_t *scr) {
+    return FIELD(scr, 0x10, uint8_t *) + screen_mode_index(scr) * 0x14;
+}
+static unsigned __fastcall hook_get_current_mode_index(uint8_t *scr) {
+    return screen_mode_index(scr);
 }
 
 static int replace_rdata_ptr(HMODULE m, void *fn, void *hook) {
@@ -171,6 +209,10 @@ static int install_windowed_present(void) {
         g_show[i].show = (ShowSceneFn)show;
         g_show[i].set_mode = (SetModeFn)set_mode;
         n += replace_rdata_ptr(m, show, (void *)hook_show_scene) + replace_rdata_ptr(m, set_mode, (void *)hook_set_mode);
+        void *gcm = (void *)GetProcAddress(m, "?GetCurrentMode@DX7Screen@@UBEABUGEVideoMode@@XZ");
+        void *gcmi = (void *)GetProcAddress(m, "?GetCurrentModeIndex@DX7Screen@@UBEKXZ");
+        if (gcm) n += replace_rdata_ptr(m, gcm, (void *)hook_get_current_mode);
+        if (gcmi) n += replace_rdata_ptr(m, gcmi, (void *)hook_get_current_mode_index);
     }
     return n;
 }
@@ -209,6 +251,35 @@ static void display_install(const char *aimod_ini, const char *autotest_ini) {
 // per-screen state +0x20[screen [0x919428]]: +0x2A8 DX7Screen (+0x30 IDirectDraw7, +0x3C attached to desktop,
 // +0x3D fullscreen), +0x2AC front GESurface, +0x2B0 back GESurface (DX7Surface +0x48 IDirectDrawSurface7),
 // +0x2BC GEWindow (+0 HWND, +4/+8 client origin floats, +0xC/+0x10 size). "blit" repeats ShowScene's Blt.
+static int dump_surface(IDirectDrawSurface7 *s, const char *path) {
+    DDSURFACEDESC2 d = { .dwSize = sizeof d };
+    if (s->lpVtbl->Lock(s, NULL, &d, DDLOCK_WAIT | DDLOCK_READONLY, NULL) != DD_OK) return 0;
+    int w = (int)d.dwWidth, h = (int)d.dwHeight, stride = (w * 3 + 3) & ~3, sbpp = (int)d.ddpfPixelFormat.dwRGBBitCount;
+    BITMAPINFOHEADER bi = { sizeof bi, w, h, 1, 24, BI_RGB, (DWORD)(stride * h), 0, 0, 0, 0 };
+    struct { BITMAPINFOHEADER h; DWORD masks[3]; } src = {
+        { sizeof src.h, d.lPitch / (sbpp / 8), -h, 1, (WORD)sbpp, sbpp == 16 ? BI_BITFIELDS : BI_RGB, 0, 0, 0, 0, 0 },
+        { d.ddpfPixelFormat.dwRBitMask, d.ddpfPixelFormat.dwGBitMask, d.ddpfPixelFormat.dwBBitMask },
+    };
+    void *bits = NULL;
+    HDC mdc = CreateCompatibleDC(NULL);
+    HBITMAP bmp = CreateDIBSection(mdc, (BITMAPINFO *)&bi, DIB_RGB_COLORS, &bits, NULL, 0);
+    HGDIOBJ prev = SelectObject(mdc, bmp);
+    StretchDIBits(mdc, 0, 0, w, h, 0, 0, w, h, d.lpSurface, (BITMAPINFO *)&src, DIB_RGB_COLORS, SRCCOPY);
+    s->lpVtbl->Unlock(s, NULL);
+    FILE *f = fopen(path, "wb");
+    if (f) {
+        BITMAPFILEHEADER fh = { 0x4D42, (DWORD)(sizeof fh + sizeof bi + bi.biSizeImage), 0, 0, sizeof fh + sizeof bi };
+        fwrite(&fh, sizeof fh, 1, f);
+        fwrite(&bi, sizeof bi, 1, f);
+        fwrite(bits, bi.biSizeImage, 1, f);
+        fclose(f);
+    }
+    SelectObject(mdc, prev);
+    DeleteObject(bmp);
+    DeleteDC(mdc);
+    return f != NULL;
+}
+
 static void dd_surface(char *out, const char *name, uint8_t *ges) {
     IDirectDrawSurface7 *s = ges ? FIELD(ges, 0x48, IDirectDrawSurface7 *) : NULL;
     if (!s) { REPLY("%s: none\n", name); return; }
@@ -247,11 +318,46 @@ static void cmd_ddinfo(char *out, const char *args) {
     typedef DWORD (*GetErrFn)(void);
     GetErrFn ge = (GetErrFn)GetProcAddress(GetModuleHandleA("Low-Level Engine.dll"), "?ESGetNativeError@@YAKXZ");
     if (ge) REPLY("last native error %08lx\n", ge());
-    REPLY("windowed present: %ld frames, %ld failed\n", g_present_frames, g_present_fail);
+    REPLY("windowed present: %ld frames, %ld failed; back buffer before ShowScene: %ld samples, %ld lit of 1024 avg, lock failed %ld\n",
+          g_present_frames, g_present_fail, g_lit_frames, g_lit_frames ? g_lit_samples / g_lit_frames : 0, g_lock_fail);
     if (!strncmp(args, "blit", 4) && front && back) {
         IDirectDrawSurface7 *f = FIELD(front, 0x48, IDirectDrawSurface7 *), *b = FIELD(back, 0x48, IDirectDrawSurface7 *);
         RECT dst = { o.x, o.y, o.x + cr.right, o.y + cr.bottom };
         HRESULT hr = f->lpVtbl->Blt(f, &dst, b, NULL, DDBLT_WAIT, NULL);
         REPLY("blit to %ld,%ld-%ld,%ld: hr=%08lx\n", dst.left, dst.top, dst.right, dst.bottom, hr);
+    }
+    if (!strncmp(args, "dump", 4)) {   // surfaces to aimod_dumps/dd_<name>.bmp
+        uint8_t *ges[2] = { front, back };
+        const char *names[2] = { "front", "back" };
+        for (int i = 0; i < 2; i++) {
+            IDirectDrawSurface7 *s = ges[i] ? FIELD(ges[i], 0x48, IDirectDrawSurface7 *) : NULL;
+            char path[MAX_PATH];
+            snprintf(path, sizeof path, "%s/dd_%s.bmp", g_dump_dir, names[i]);
+            REPLY("dump %s: %s\n", names[i], s && dump_surface(s, path) ? path : "failed");
+        }
+        if (hwnd) {   // what the window shows (its DWM redirection surface, readable even when covered)
+            char path[MAX_PATH];
+            snprintf(path, sizeof path, "%s/dd_window.bmp", g_dump_dir);
+            int w = cr.right, h = cr.bottom, stride = (w * 3 + 3) & ~3;
+            BITMAPINFOHEADER bi = { sizeof bi, w, h, 1, 24, BI_RGB, (DWORD)(stride * h), 0, 0, 0, 0 };
+            void *bits = NULL;
+            HDC wdc = GetDC(hwnd), mdc = CreateCompatibleDC(wdc);
+            HBITMAP bmp = CreateDIBSection(mdc, (BITMAPINFO *)&bi, DIB_RGB_COLORS, &bits, NULL, 0);
+            HGDIOBJ prev = SelectObject(mdc, bmp);
+            BitBlt(mdc, 0, 0, w, h, wdc, 0, 0, SRCCOPY);
+            FILE *f = fopen(path, "wb");
+            if (f) {
+                BITMAPFILEHEADER fh = { 0x4D42, (DWORD)(sizeof fh + sizeof bi + bi.biSizeImage), 0, 0, sizeof fh + sizeof bi };
+                fwrite(&fh, sizeof fh, 1, f);
+                fwrite(&bi, sizeof bi, 1, f);
+                fwrite(bits, bi.biSizeImage, 1, f);
+                fclose(f);
+            }
+            SelectObject(mdc, prev);
+            DeleteObject(bmp);
+            DeleteDC(mdc);
+            ReleaseDC(hwnd, wdc);
+            REPLY("dump window: %s\n", f ? path : "failed");
+        }
     }
 }
