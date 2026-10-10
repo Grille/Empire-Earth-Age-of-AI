@@ -35,10 +35,9 @@ Game start: 0x52599B(state, setup). The setup has 16 slots of 0x38 bytes (+0 typ
 |---|---|
 | +0x45C | index |
 | +0x465 | explore all (no fog) |
-| +0x4A8 | EEPlayerStatistics (0x55DCD3 = latest value of series n) |
+| +0x4A8 | EEPlayerStatistics: 31 series at +0x18 + n*0x18 {?, begin, end} of 8-byte samples, latest = 0x55DCD3(n). Series n = Language.dll string 31201+n: 1 buildings lost, 2 buildings destroyed, 3 units killed, 4 units lost, 5 conversions, 6 calamities, 7..11 food, wood, gold, stone, iron, 12 epoch, 13 army, 14 citizens. Add 0x55DBCF(n, d). |
 | +0x9D4 → +0x4E4 | current epoch (0 = Prehistoric) |
 | +0x9E4 + i*4 | diplomacy towards player i: 0 allied, 1 enemy (setter EEPlayer::SetDiplomacy 0x55B8E1(i, stance, 0)) |
-| +0xAB8..+0xADC | battle counters (scenario variables 0x15..0x1E via 0x5AACC4: buildings lost/destroyed, units killed/lost) |
 | +0xAF0 | int stock[7] (2 food, 3 wood, 4..6 stone, gold, iron) |
 | +0xB46 | civilization chosen (civ dialog opens at the civ timer if 0) |
 | +0xB50 | vector of resource zones (map-wide, shared by all players) |

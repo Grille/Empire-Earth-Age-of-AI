@@ -247,8 +247,8 @@ static void __fastcall hook_asg_route_done(uint8_t *self, void *edx) {
 
 static void attack_tick(void *pl, uint32_t now) {
     threat_refresh(pl, now);   // also with avoid_towers=0: the route log compares both
-    // battle counters every 10 min (player +0xAB8..+0xADC, read by the scenario trigger variables 0x15..0x1E
-    // via 0x5AACC4; pairs +0xAB8/+0xACC, +0xABC/+0xAD0, ... meaning still to be confirmed)
+    // battle statistics every 10 min: series n = Language.dll string 31201+n (1 buildings lost, 2 buildings
+    // destroyed, 3 units killed, 4 units lost, 5 conversions, 7..11 resources, 12 epoch, 13 army, 14 citizens)
     static uint32_t last_stats[16];
     unsigned pi = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     if (g_log && now / 600000 != last_stats[pi] / 600000) {

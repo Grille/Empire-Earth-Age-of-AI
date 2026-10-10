@@ -1,6 +1,6 @@
 # Score suite runs: per run and AI player - survival, epoch, workers, food, battle statistics; then averages
-# per variant. Battle = last '# battle:' line (EEPlayerStatistics series; 3 kills, 4 losses, 5 buildings
-# destroyed - meanings inferred from play, not yet confirmed in code).
+# per variant. Battle = last '# battle:' line (EEPlayerStatistics series i = Language.dll string 31201+i:
+# 1 buildings lost, 2 buildings destroyed, 3 units killed, 4 units lost, 5 conversions).
 # File names: autotest_<stamp>_suite<id>_<variant>_<map>.csv
 import csv, re, sys
 from collections import defaultdict
@@ -34,7 +34,8 @@ def load(path):
             workers_end=workers(last),
             workers_max=max(workers(r) for r in rs),
             food_end=int(last['stock2']),
-            kills=battle.get(p, [0] * 6)[3], losses=battle.get(p, [0] * 6)[4], razed=battle.get(p, [0] * 6)[5],
+            kills=battle.get(p, [0] * 6)[3], losses=battle.get(p, [0] * 6)[4], razed=battle.get(p, [0] * 6)[2],
+            blost=battle.get(p, [0] * 6)[1],
         )
     return end, out
 
@@ -52,13 +53,13 @@ for variant, maps in runs.items():
     for mapname, (end, players) in sorted(maps.items()):
         print('  %-14s end %4.1f min' % (mapname, end / 60000))
         for p, s in sorted(players.items()):
-            print('    P%d %-5s epoch %d  workers end %3d max %3d  food end %6d  last seen %5.1f  kills %3d losses %3d razed %3d' % (
+            print('    P%d %-5s epoch %d  workers end %3d max %3d  food end %6d  last seen %5.1f  kills %3d losses %3d razed %3d bldg lost %3d' % (
                 p, 'alive' if s['alive'] else 'DEAD', s['epoch'], s['workers_end'], s['workers_max'], s['food_end'], s['last_min'],
-                s['kills'], s['losses'], s['razed']))
+                s['kills'], s['losses'], s['razed'], s['blost']))
             tot['alive'] += s['alive']; tot['epoch'] += s['epoch']; tot['workers_end'] += s['workers_end']
             tot['workers_max'] += s['workers_max']; n += 1
-            for k in ('kills', 'losses', 'razed'): tot[k] += s[k]
+            for k in ('kills', 'losses', 'razed', 'blost'): tot[k] += s[k]
     if n:
-        print('  AVERAGE per AI: alive %.0f%%  epoch %.2f  workers end %.1f  max %.1f  kills %.1f losses %.1f razed %.1f' % (
+        print('  AVERAGE per AI: alive %.0f%%  epoch %.2f  workers end %.1f  max %.1f  kills %.1f losses %.1f razed %.1f bldg lost %.1f' % (
             100 * tot['alive'] / n, tot['epoch'] / n, tot['workers_end'] / n, tot['workers_max'] / n,
-            tot['kills'] / n, tot['losses'] / n, tot['razed'] / n))
+            tot['kills'] / n, tot['losses'] / n, tot['razed'] / n, tot['blost'] / n))
