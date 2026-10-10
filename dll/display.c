@@ -76,6 +76,7 @@ static void __stdcall hook_editor_resolution(int w, int h, int force, int flag) 
 // aimod.ini [display] windowed = 0 | 1
 #define G_FULLSCREEN 0x0091945A
 static uint8_t g_fullscreen = 1;
+static int g_diag;   // diagnostic sampling (aimod.ini [display] diag=1 or autotest diag_hooks=1)
 
 // Windowed present: ShowScene (DX7Rasterizer vtable slot 66, in DX7HRDisplay.dll and DX7HRTnLDisplay.dll)
 // blits the back buffer to the primary surface at the window's screen position. On current Windows the primary a
@@ -149,7 +150,7 @@ static void sample_back(uint8_t *ras, unsigned screen) {
 
 static int __fastcall hook_show_scene(void *ras, void *edx, unsigned screen) {
     (void)edx;
-    if (!g_fullscreen && (g_present_frames & 63) == 0) sample_back(ras, screen);
+    if (g_diag && !g_fullscreen && (g_present_frames & 63) == 0) sample_back(ras, screen);
     int r = g_show[DISPLAY_DLL(ras)].show(ras, screen);   // windowed: its Blt to the emulated primary fails, harmless
     if (!g_fullscreen && present_to_window(ras, screen)) r = 0;
     return r;
@@ -219,7 +220,7 @@ static void cnt_note(int k, int r) {
     }
 }
 // alpha left in copy destinations that have an alpha channel (sampled, first 400 such copies)
-static volatile LONG g_alpha_copies, g_alpha_samples, g_alpha_zero;
+static volatile LONG g_alpha_copies, g_alpha_samples, g_alpha_zero, g_alpha_src_zero;
 static char g_alpha_last[200];
 static void sample_alpha(uint8_t *src, uint8_t *dst) {
     IDirectDrawSurface7 *d7 = dst ? FIELD(dst, 0x48, IDirectDrawSurface7 *) : NULL;
@@ -238,6 +239,19 @@ static void sample_alpha(uint8_t *src, uint8_t *dst) {
                 InterlockedIncrement(&g_alpha_samples);
                 if (!(v & am)) InterlockedIncrement(&g_alpha_zero);
             }
+        DDSURFACEDESC2 sl = { .dwSize = sizeof sl };   // the same sample points in the source
+        if (s7 && s7->lpVtbl->Lock(s7, NULL, &sl, DDLOCK_WAIT | DDLOCK_READONLY, NULL) == DD_OK) {
+            DWORD sam = sl.ddpfPixelFormat.dwRGBAlphaBitMask;
+            int sb = (int)sl.ddpfPixelFormat.dwRGBBitCount / 8;
+            if (sam && (sb == 2 || sb == 4))
+                for (int y = 0; y < 4; y++)
+                    for (int x = 0; x < 4; x++) {
+                        uint8_t *p = (uint8_t *)sl.lpSurface + (size_t)((y * 2 + 1) * (int)sl.dwHeight / 8) * sl.lPitch + (size_t)((x * 2 + 1) * (int)sl.dwWidth / 8) * sb;
+                        DWORD v = sb == 4 ? *(uint32_t *)p : *(uint16_t *)p;
+                        if (!(v & sam)) InterlockedIncrement(&g_alpha_src_zero);
+                    }
+            s7->lpVtbl->Unlock(s7, NULL);
+        }
         if (s7) s7->lpVtbl->GetSurfaceDesc(s7, &sd);
         snprintf(g_alpha_last, sizeof g_alpha_last, "src %lux%lu %lubpp amask %08lx caps %08lx -> dst %lux%lu %lubpp amask %08lx caps %08lx",
                  sd.dwWidth, sd.dwHeight, sd.ddpfPixelFormat.dwRGBBitCount, sd.ddpfPixelFormat.dwRGBAlphaBitMask, sd.ddsCaps.dwCaps,
@@ -249,7 +263,7 @@ static int __fastcall hook_copy_to(void *s, void *edx, void *dst, void *r1, void
     (void)edx;
     int r = ((int (__thiscall *)(void *, void *, void *, void *, int))g_cnt[0].orig[DISPLAY_DLL(s)])(s, dst, r1, r2, f);
     cnt_note(0, r);
-    if (!r) sample_alpha(s, dst);
+    if (g_diag && !r) sample_alpha(s, dst);
     return r;
 }
 static int __fastcall hook_copy_filter(void *s, void *edx, void *dst, void *r1, void *r2) {
@@ -265,7 +279,7 @@ static uintptr_t g_surf16_stack[8];
 static int __fastcall hook_create_surface(void *s, void *edx, void *desc, void **out) {
     (void)edx;
     unsigned type = ((unsigned *)desc)[0], fmt_req = ((unsigned *)desc)[1];
-    if ((type == 5 || type == 6) && (fmt_req == 2 || fmt_req == 7) && !g_surf16_stack[0]) {   // who asks for 16-bit textures
+    if (g_diag && (type == 5 || type == 6) && (fmt_req == 2 || fmt_req == 7) && !g_surf16_stack[0]) {   // who asks for 16-bit textures
         uintptr_t *fp = (uintptr_t *)__builtin_frame_address(0);
         for (int d = 0; d < 8 && fp; d++) {
             g_surf16_stack[d] = fp[1];
@@ -275,7 +289,7 @@ static int __fastcall hook_create_surface(void *s, void *edx, void *desc, void *
     }
     int r = ((int (__thiscall *)(void *, void *, void **))g_cnt[2].orig[DISPLAY_DLL(s)])(s, desc, out);
     cnt_note(2, r);
-    if (!r && out && *out) {
+    if (g_diag && !r && out && *out) {
         IDirectDrawSurface7 *dds = FIELD(*out, 0x48, IDirectDrawSurface7 *);
         DDSURFACEDESC2 d = { .dwSize = sizeof d };
         if (dds) dds->lpVtbl->GetSurfaceDesc(dds, &d);
@@ -382,6 +396,76 @@ static int replace_rdata_ptr(HMODULE m, void *fn, void *hook) {
     return n;
 }
 
+// GetDisplayMode: windowed (DDSCL_NORMAL), DirectDraw - Windows' emulation as well as dgVoodoo - reports a 16-bit
+// display, and the engine's texture loading then produces textures without alpha (the land terrain disappears;
+// fullscreen reports the 32-bit mode it set). Windowed we report the real desktop format. Hooked on every
+// IDirectDraw7 the display DLLs create (DirectDrawCreateEx import), vtable slot 12.
+typedef HRESULT (WINAPI *GetDisplayModeFn)(IDirectDraw7 *, DDSURFACEDESC2 *);
+typedef HRESULT (WINAPI *DDCreateExFn)(GUID *, void **, REFIID, IUnknown *);
+static GetDisplayModeFn g_get_display_mode;
+static DDCreateExFn g_dd_create_ex;
+static volatile LONG g_display_mode_fixed;
+
+static HRESULT WINAPI hook_get_display_mode(IDirectDraw7 *dd, DDSURFACEDESC2 *d) {
+    HRESULT hr = g_get_display_mode(dd, d);
+    if (hr == DD_OK && !g_fullscreen && d && d->ddpfPixelFormat.dwRGBBitCount != 32) {
+        HDC dc = GetDC(NULL);
+        int bpp = GetDeviceCaps(dc, BITSPIXEL);
+        ReleaseDC(NULL, dc);
+        if (bpp == 32) {
+            d->ddpfPixelFormat.dwFlags = DDPF_RGB;
+            d->ddpfPixelFormat.dwRGBBitCount = 32;
+            d->ddpfPixelFormat.dwRBitMask = 0xFF0000;
+            d->ddpfPixelFormat.dwGBitMask = 0x00FF00;
+            d->ddpfPixelFormat.dwBBitMask = 0x0000FF;
+            d->ddpfPixelFormat.dwRGBAlphaBitMask = 0;
+            d->lPitch = (LONG)d->dwWidth * 4;
+            InterlockedIncrement(&g_display_mode_fixed);
+        }
+    }
+    return hr;
+}
+
+static void hook_dd_vtable(void *dd) {
+    void **vt = *(void ***)dd;
+    if (vt[12] == (void *)hook_get_display_mode) return;
+    g_get_display_mode = (GetDisplayModeFn)vt[12];
+    DWORD old;
+    VirtualProtect(&vt[12], 4, PAGE_EXECUTE_READWRITE, &old);
+    vt[12] = (void *)hook_get_display_mode;
+    VirtualProtect(&vt[12], 4, old, &old);
+}
+
+static HRESULT WINAPI hook_dd_create_ex(GUID *g, void **out, REFIID iid, IUnknown *outer) {
+    HRESULT hr = g_dd_create_ex(g, out, iid, outer);
+    if (hr == DD_OK && out && *out) hook_dd_vtable(*out);
+    return hr;
+}
+
+// replace an import of module m (by DLL name and function name) - returns 1 when found
+static int patch_import(HMODULE m, const char *dll, const char *fn, void *hook, void **orig) {
+    IMAGE_NT_HEADERS *nt = (IMAGE_NT_HEADERS *)((uint8_t *)m + ((IMAGE_DOS_HEADER *)m)->e_lfanew);
+    IMAGE_DATA_DIRECTORY dir = nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT];
+    if (!dir.VirtualAddress) return 0;
+    for (IMAGE_IMPORT_DESCRIPTOR *imp = (IMAGE_IMPORT_DESCRIPTOR *)((uint8_t *)m + dir.VirtualAddress); imp->Name; imp++) {
+        if (lstrcmpiA((char *)m + imp->Name, dll)) continue;
+        IMAGE_THUNK_DATA *names = (IMAGE_THUNK_DATA *)((uint8_t *)m + (imp->OriginalFirstThunk ? imp->OriginalFirstThunk : imp->FirstThunk));
+        IMAGE_THUNK_DATA *addrs = (IMAGE_THUNK_DATA *)((uint8_t *)m + imp->FirstThunk);
+        for (; names->u1.AddressOfData; names++, addrs++) {
+            if (IMAGE_SNAP_BY_ORDINAL(names->u1.Ordinal)) continue;
+            IMAGE_IMPORT_BY_NAME *ibn = (IMAGE_IMPORT_BY_NAME *)((uint8_t *)m + names->u1.AddressOfData);
+            if (strcmp((char *)ibn->Name, fn)) continue;
+            DWORD old;
+            if (!*orig) *orig = (void *)addrs->u1.Function;
+            VirtualProtect(&addrs->u1.Function, 4, PAGE_READWRITE, &old);
+            addrs->u1.Function = (uintptr_t)hook;
+            VirtualProtect(&addrs->u1.Function, 4, old, &old);
+            return 1;
+        }
+    }
+    return 0;
+}
+
 static int install_windowed_present(void) {
     int n = 0;
     for (int i = 0; i < 2; i++) {
@@ -395,6 +479,7 @@ static int install_windowed_present(void) {
         g_show[i].show = (ShowSceneFn)show;
         g_show[i].set_mode = (SetModeFn)set_mode;
         n += replace_rdata_ptr(m, show, (void *)hook_show_scene) + replace_rdata_ptr(m, set_mode, (void *)hook_set_mode);
+        n += patch_import(m, "DDRAW.dll", "DirectDrawCreateEx", (void *)hook_dd_create_ex, (void **)&g_dd_create_ex);
         void *gcm = (void *)GetProcAddress(m, "?GetCurrentMode@DX7Screen@@UBEABUGEVideoMode@@XZ");
         void *gcmi = (void *)GetProcAddress(m, "?GetCurrentModeIndex@DX7Screen@@UBEKXZ");
         if (gcm) n += replace_rdata_ptr(m, gcm, (void *)hook_get_current_mode);
@@ -435,13 +520,15 @@ static void display_install(const char *aimod_ini, const char *autotest_ini) {
     int windowed = GetPrivateProfileIntA("display", "windowed", 0, aimod_ini);
     if (autotest_ini) windowed = GetPrivateProfileIntA("autotest", "windowed", windowed, autotest_ini);
     if (autotest_ini) g_diag_skip = GetPrivateProfileIntA("autotest", "diag_skip", 0, autotest_ini);
+    g_diag = (autotest_ini && GetPrivateProfileIntA("autotest", "diag_hooks", 0, autotest_ini))
+             || GetPrivateProfileIntA("display", "diag", 0, aimod_ini);
     if (windowed) {
         uint8_t was = *(uint8_t *)G_FULLSCREEN;
         if (was == 1) *(uint8_t *)G_FULLSCREEN = g_fullscreen = 0;
         int hooks = install_windowed_present();
         if (g_log) fprintf(g_log, "# display: windowed %s, present hooks %d\n",
                            was == 1 ? "on" : "NOT set (unexpected fullscreen flag)", hooks);
-    } else if (autotest_ini && GetPrivateProfileIntA("autotest", "diag_hooks", 0, autotest_ini)) {
+    } else if (g_diag) {
         int hooks = install_windowed_present();   // all pass through in fullscreen; for the ddinfo counters
         if (g_log) fprintf(g_log, "# display: fullscreen, diagnostic hooks %d\n", hooks);
     }
@@ -574,8 +661,8 @@ static void cmd_ddinfo(char *out, const char *args) {
         REPLY("surfaces type %u fmt %u: %u created, last %ux%u %u bpp alpha mask %08x pf flags %08x\n", g_surf_kinds[k].type,
               g_surf_kinds[k].fmt, g_surf_kinds[k].count, g_surf_kinds[k].w, g_surf_kinds[k].h, g_surf_kinds[k].bpp,
               g_surf_kinds[k].amask, g_surf_kinds[k].flags);
-    REPLY("copies into alpha surfaces: %ld, alpha samples %ld, zero alpha %ld; last: %s\n", g_alpha_copies, g_alpha_samples,
-          g_alpha_zero, g_alpha_last);
+    REPLY("copies into alpha surfaces: %ld, alpha samples %ld, zero alpha %ld (in the sources %ld); last: %s\n", g_alpha_copies,
+          g_alpha_samples, g_alpha_zero, g_alpha_src_zero, g_alpha_last);
     if (g_surf16_stack[0]) {
         REPLY("first 16-bit texture requested from:");
         for (int d = 0; d < 8 && g_surf16_stack[d]; d++) {
@@ -600,6 +687,8 @@ static void cmd_ddinfo(char *out, const char *args) {
         HRESULT hr = dd->lpVtbl->GetDisplayMode(dd, &m);
         DEVMODEA dm = { .dmSize = sizeof dm };
         EnumDisplaySettingsA(NULL, ENUM_CURRENT_SETTINGS, &dm);
+        REPLY("display mode reported as 32-bit %ld times (hook %s)\n", g_display_mode_fixed,
+              (*(void ***)dd)[12] == (void *)hook_get_display_mode ? "on" : "OFF");
         REPLY("ddraw display mode: hr=%08lx %lux%lu %lu bpp; real desktop %lux%lu %lu bpp; mode index %u of %u\n", hr,
               m.dwWidth, m.dwHeight, m.ddpfPixelFormat.dwRGBBitCount, dm.dmPelsWidth, dm.dmPelsHeight, dm.dmBitsPerPel,
               FIELD(scr, 0x38, unsigned), (unsigned)((FIELD(scr, 0x14, uintptr_t) - FIELD(scr, 0x10, uintptr_t)) / 0x14));
