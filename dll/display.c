@@ -105,6 +105,19 @@ static int present_to_window(uint8_t *ras, unsigned screen) {
     IDirectDrawSurface7 *s = FIELD(back, 0x48, IDirectDrawSurface7 *);
     HWND hwnd = FIELD(win, 0, HWND);
     if (!s || !hwnd) return 0;
+    // the z-buffer of a new windowed back buffer starts out unusable for the terrain (it fails the depth test while
+    // models draw); one Lock/Unlock syncs it and it stays fine - found by elimination (ddpoke z)
+    static IDirectDrawSurface7 *z_synced_for;
+    if (z_synced_for != s) {
+        DDSCAPS2 zc = { .dwCaps = DDSCAPS_ZBUFFER };
+        IDirectDrawSurface7 *z = NULL;
+        if (s->lpVtbl->GetAttachedSurface(s, &zc, &z) == DD_OK && z) {
+            DDSURFACEDESC2 zd = { .dwSize = sizeof zd };
+            if (z->lpVtbl->Lock(z, NULL, &zd, DDLOCK_WAIT | DDLOCK_READONLY, NULL) == DD_OK) z->lpVtbl->Unlock(z, NULL);
+            z->lpVtbl->Release(z);
+        }
+        z_synced_for = s;
+    }
     // Lock, not GetDC: the GDI view of the 3D render target reads back black under current Windows' DirectDraw
     DDSURFACEDESC2 d = { .dwSize = sizeof d };
     if (s->lpVtbl->Lock(s, NULL, &d, DDLOCK_WAIT | DDLOCK_READONLY, NULL) != DD_OK) {
@@ -402,76 +415,6 @@ static int replace_rdata_ptr(HMODULE m, void *fn, void *hook) {
     return n;
 }
 
-// GetDisplayMode: windowed (DDSCL_NORMAL), DirectDraw - Windows' emulation as well as dgVoodoo - reports a 16-bit
-// display, and the engine's texture loading then produces textures without alpha (the land terrain disappears;
-// fullscreen reports the 32-bit mode it set). Windowed we report the real desktop format. Hooked on every
-// IDirectDraw7 the display DLLs create (DirectDrawCreateEx import), vtable slot 12.
-typedef HRESULT (WINAPI *GetDisplayModeFn)(IDirectDraw7 *, DDSURFACEDESC2 *);
-typedef HRESULT (WINAPI *DDCreateExFn)(GUID *, void **, REFIID, IUnknown *);
-static GetDisplayModeFn g_get_display_mode;
-static DDCreateExFn g_dd_create_ex;
-static volatile LONG g_display_mode_fixed;
-
-static HRESULT WINAPI hook_get_display_mode(IDirectDraw7 *dd, DDSURFACEDESC2 *d) {
-    HRESULT hr = g_get_display_mode(dd, d);
-    if (hr == DD_OK && !g_fullscreen && d && d->ddpfPixelFormat.dwRGBBitCount != 32) {
-        HDC dc = GetDC(NULL);
-        int bpp = GetDeviceCaps(dc, BITSPIXEL);
-        ReleaseDC(NULL, dc);
-        if (bpp == 32) {
-            d->ddpfPixelFormat.dwFlags = DDPF_RGB;
-            d->ddpfPixelFormat.dwRGBBitCount = 32;
-            d->ddpfPixelFormat.dwRBitMask = 0xFF0000;
-            d->ddpfPixelFormat.dwGBitMask = 0x00FF00;
-            d->ddpfPixelFormat.dwBBitMask = 0x0000FF;
-            d->ddpfPixelFormat.dwRGBAlphaBitMask = 0;
-            d->lPitch = (LONG)d->dwWidth * 4;
-            InterlockedIncrement(&g_display_mode_fixed);
-        }
-    }
-    return hr;
-}
-
-static void hook_dd_vtable(void *dd) {
-    void **vt = *(void ***)dd;
-    if (vt[12] == (void *)hook_get_display_mode) return;
-    g_get_display_mode = (GetDisplayModeFn)vt[12];
-    DWORD old;
-    VirtualProtect(&vt[12], 4, PAGE_EXECUTE_READWRITE, &old);
-    vt[12] = (void *)hook_get_display_mode;
-    VirtualProtect(&vt[12], 4, old, &old);
-}
-
-static HRESULT WINAPI hook_dd_create_ex(GUID *g, void **out, REFIID iid, IUnknown *outer) {
-    HRESULT hr = g_dd_create_ex(g, out, iid, outer);
-    if (hr == DD_OK && out && *out) hook_dd_vtable(*out);
-    return hr;
-}
-
-// replace an import of module m (by DLL name and function name) - returns 1 when found
-static int patch_import(HMODULE m, const char *dll, const char *fn, void *hook, void **orig) {
-    IMAGE_NT_HEADERS *nt = (IMAGE_NT_HEADERS *)((uint8_t *)m + ((IMAGE_DOS_HEADER *)m)->e_lfanew);
-    IMAGE_DATA_DIRECTORY dir = nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT];
-    if (!dir.VirtualAddress) return 0;
-    for (IMAGE_IMPORT_DESCRIPTOR *imp = (IMAGE_IMPORT_DESCRIPTOR *)((uint8_t *)m + dir.VirtualAddress); imp->Name; imp++) {
-        if (lstrcmpiA((char *)m + imp->Name, dll)) continue;
-        IMAGE_THUNK_DATA *names = (IMAGE_THUNK_DATA *)((uint8_t *)m + (imp->OriginalFirstThunk ? imp->OriginalFirstThunk : imp->FirstThunk));
-        IMAGE_THUNK_DATA *addrs = (IMAGE_THUNK_DATA *)((uint8_t *)m + imp->FirstThunk);
-        for (; names->u1.AddressOfData; names++, addrs++) {
-            if (IMAGE_SNAP_BY_ORDINAL(names->u1.Ordinal)) continue;
-            IMAGE_IMPORT_BY_NAME *ibn = (IMAGE_IMPORT_BY_NAME *)((uint8_t *)m + names->u1.AddressOfData);
-            if (strcmp((char *)ibn->Name, fn)) continue;
-            DWORD old;
-            if (!*orig) *orig = (void *)addrs->u1.Function;
-            VirtualProtect(&addrs->u1.Function, 4, PAGE_READWRITE, &old);
-            addrs->u1.Function = (uintptr_t)hook;
-            VirtualProtect(&addrs->u1.Function, 4, old, &old);
-            return 1;
-        }
-    }
-    return 0;
-}
-
 static int install_windowed_present(void) {
     int n = 0;
     for (int i = 0; i < 2; i++) {
@@ -485,7 +428,6 @@ static int install_windowed_present(void) {
         g_show[i].show = (ShowSceneFn)show;
         g_show[i].set_mode = (SetModeFn)set_mode;
         n += replace_rdata_ptr(m, show, (void *)hook_show_scene) + replace_rdata_ptr(m, set_mode, (void *)hook_set_mode);
-        n += patch_import(m, "DDRAW.dll", "DirectDrawCreateEx", (void *)hook_dd_create_ex, (void **)&g_dd_create_ex);
         void *gcm = (void *)GetProcAddress(m, "?GetCurrentMode@DX7Screen@@UBEABUGEVideoMode@@XZ");
         void *gcmi = (void *)GetProcAddress(m, "?GetCurrentModeIndex@DX7Screen@@UBEKXZ");
         if (gcm) n += replace_rdata_ptr(m, gcm, (void *)hook_get_current_mode);
@@ -532,8 +474,20 @@ static void display_install(const char *aimod_ini, const char *autotest_ini) {
         uint8_t was = *(uint8_t *)G_FULLSCREEN;
         if (was == 1) *(uint8_t *)G_FULLSCREEN = g_fullscreen = 0;
         int hooks = install_windowed_present();
-        if (g_log) fprintf(g_log, "# display: windowed %s, present hooks %d\n",
-                           was == 1 ? "on" : "NOT set (unexpected fullscreen flag)", hooks);
+        // loading splash: started (0x5343F8) while the flag is still 1 - before the DLLs load - but its stop
+        // (0x534433) checks the flag again and would leave it on screen; stop it in windowed mode too
+        uint8_t *jne = (uint8_t *)0x0053443D;
+        int splash = 0;
+        if (jne[0] == 0x75 && jne[1] == 0x19) {
+            DWORD old;
+            VirtualProtect(jne, 2, PAGE_EXECUTE_READWRITE, &old);
+            jne[0] = jne[1] = 0x90;
+            VirtualProtect(jne, 2, old, &old);
+            FlushInstructionCache(GetCurrentProcess(), jne, 2);
+            splash = 1;
+        }
+        if (g_log) fprintf(g_log, "# display: windowed %s, present hooks %d, splash stop %s\n",
+                           was == 1 ? "on" : "NOT set (unexpected fullscreen flag)", hooks, splash ? "ok" : "FAILED");
     } else if (g_diag) {
         int hooks = install_windowed_present();   // all pass through in fullscreen; for the ddinfo counters
         if (g_log) fprintf(g_log, "# display: fullscreen, diagnostic hooks %d\n", hooks);
@@ -631,6 +585,32 @@ static void dd_surface(char *out, const char *name, uint8_t *ges) {
     } else REPLY("  no clipper (hr=%08lx)\n", hr);
 }
 
+// ddpoke z|back|front|mode: one of the side effects ddinfo has, alone (which one makes the windowed terrain appear?)
+static void lock_unlock(char *out, const char *name, IDirectDrawSurface7 *s) {
+    DDSURFACEDESC2 d = { .dwSize = sizeof d };
+    HRESULT hr = s ? s->lpVtbl->Lock(s, NULL, &d, DDLOCK_WAIT | DDLOCK_READONLY, NULL) : E_POINTER;
+    if (hr == DD_OK) s->lpVtbl->Unlock(s, NULL);
+    REPLY("%s lock/unlock hr=%08lx\n", name, hr);
+}
+static void cmd_ddpoke(char *out, const char *args) {
+    uint8_t *ras = *(uint8_t **)0x00919794;
+    uint8_t *st = ras ? FIELD(ras, 0x20, uint8_t **)[*(int *)0x00919428] : NULL;
+    if (!st) { REPLY("error: no rasterizer\n"); return; }
+    uint8_t *scr = FIELD(st, 0x2A8, uint8_t *), *front = FIELD(st, 0x2AC, uint8_t *), *back = FIELD(st, 0x2B0, uint8_t *);
+    IDirectDrawSurface7 *b7 = back ? FIELD(back, 0x48, IDirectDrawSurface7 *) : NULL;
+    if (!strcmp(args, "z") && b7) {
+        DDSCAPS2 zc = { .dwCaps = DDSCAPS_ZBUFFER };
+        IDirectDrawSurface7 *z = NULL;
+        if (b7->lpVtbl->GetAttachedSurface(b7, &zc, &z) == DD_OK) { lock_unlock(out, "z-buffer", z); z->lpVtbl->Release(z); }
+    } else if (!strcmp(args, "back")) lock_unlock(out, "back", b7);
+    else if (!strcmp(args, "front")) lock_unlock(out, "front", front ? FIELD(front, 0x48, IDirectDrawSurface7 *) : NULL);
+    else if (!strcmp(args, "mode")) {
+        IDirectDraw7 *dd = FIELD(scr, 0x30, IDirectDraw7 *);
+        DDSURFACEDESC2 m = { .dwSize = sizeof m };
+        REPLY("GetDisplayMode hr=%08lx\n", dd->lpVtbl->GetDisplayMode(dd, &m));
+    } else REPLY("usage: ddpoke z|back|front|mode\n");
+}
+
 static void cmd_ddinfo(char *out, const char *args) {
     uint8_t *ras = *(uint8_t **)0x00919794;
     int idx = *(int *)0x00919428;
@@ -693,8 +673,6 @@ static void cmd_ddinfo(char *out, const char *args) {
         HRESULT hr = dd->lpVtbl->GetDisplayMode(dd, &m);
         DEVMODEA dm = { .dmSize = sizeof dm };
         EnumDisplaySettingsA(NULL, ENUM_CURRENT_SETTINGS, &dm);
-        REPLY("display mode reported as 32-bit %ld times (hook %s)\n", g_display_mode_fixed,
-              (*(void ***)dd)[12] == (void *)hook_get_display_mode ? "on" : "OFF");
         REPLY("ddraw display mode: hr=%08lx %lux%lu %lu bpp; real desktop %lux%lu %lu bpp; mode index %u of %u\n", hr,
               m.dwWidth, m.dwHeight, m.ddpfPixelFormat.dwRGBBitCount, dm.dmPelsWidth, dm.dmPelsHeight, dm.dmBitsPerPel,
               FIELD(scr, 0x38, unsigned), (unsigned)((FIELD(scr, 0x14, uintptr_t) - FIELD(scr, 0x10, uintptr_t)) / 0x14));
