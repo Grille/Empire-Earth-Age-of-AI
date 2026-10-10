@@ -9,6 +9,10 @@ The current focus is the **computer player**. The tooling here works for any par
 control pipe, automated tests and the engine notes. Further fixes and tuning will live in the same DLL,
 each as its own module with its own settings.
 
+Retail/Gold and the **Steam Gold Edition** (`steamapps\common\Empire Earth Gold Edition\Empire Earth`)
+both work: the Steam exe has the same code, only a signature and a DPI manifest are added, and there's no
+DRM wrapper. Art of Conquest (`EE-AOC.exe`) isn't supported yet.
+
 The mod coexists with community DLL patches such as *Empire Earth Tweaks* (widescreen, map sizes),
 which patch different places.
 
