@@ -209,3 +209,26 @@ physics/movement models EEP 107/49, interface EEUI 819/31, scenario EES 611/12, 
 - Movement models (EEPMNaval/Helicopter/Land/Airplane/SubmergedNaval) and unit classes changed most outside the AI.
   Caution: where a base class gained virtual functions the vfN numbering shifts, so EEUnitClass/EEComplexUnit
   "changes" are partly numbering artifacts and need matching by code, not by name.
+
+## Scenario / save file format (.scn / .ees)
+
+From the author's earlier C# project EEScnEdit (GitHub, `EEScnEdit/Headers`, `EEScnEdit/Data`), which reads and
+writes the header and the lump container and parses terrain. Strings are length-prefixed.
+
+- Header: u32 size, name, description, u64 **version** (candidate for telling EE and AoC files apart), player
+  names, date, u8, 16 x PlayerHeader, Settings, campaign name, scenario name, u32, u8, forced name, u32,
+  u32 n + n x u32 lump types, scenario texts, u32 system uptime.
+- PlayerHeader: u8, u8, bool shared line of sight, u32 flags, name, float, u32 id, u32 color, u32 team,
+  u32 starting citizens - the same order as the in-memory game setup slots (+0x20 index, +0x24 color,
+  +0x28 team, +0x2C citizens, +0x34 flags).
+- Settings: u8 x3, u32 game speed, u32, u32 game variant, u32 map size, u32 start epoch, u32 end epoch,
+  u32 resources, u32 unit limit, u32 wonders for victory, u32 AI difficulty, bools victory allowed, lock teams,
+  lock speed, reveal map, cheats, u8, custom civs, u8 - matches setup +0x3D8.. (mode, epochs, map size, limit,
+  difficulty).
+- Lumps: u64 version, u32 type (1 unknown, 2 seed, 3 camera, 4 terrain, 5 player data/entities, 6 triggers,
+  7 misc, 8 unknown, 10 gfx effects, 11 calamities, 12 unknown), u32 size, then a compression header (bool
+  compressed, u32 size, u32) and the (PKWARE DCL) data.
+- Player data lump (started): a list of "PlayerEnabler" records {u32 id, bool, u32, u32 per player x16, u32} -
+  probably the per-player enable state of units/techs; the lever for locking AoC-only content in EE scenarios.
+- Triggers: name, description, bools active/looping/fired/active in cinematic, u32 conditions-true-for,
+  u32 seconds true, u32 id, then condition and effect bindings.
