@@ -214,11 +214,54 @@ static void budget_reserve(void *pl, int reserve[7]) {
 
 static void trace_train(void *pl, int *req, uintptr_t r, const int *before, const int *reserve);
 
+static int unit_cost(void *pl, int type, int r);
+
+// Military request statistics, logged every 5 minutes: how often the AI asks for soldiers, how many it gets
+// and which resource was short when a request failed (unit cost = object data 0x9418A0[type] +0x24..).
+static struct { unsigned req, trained, short_of[7]; uint32_t last_log; int ftype[4]; unsigned fcount[4]; } g_mil[16];
+static void mil_note(void *pl, unsigned idx, const int *req, const int *visible, int spent, uintptr_t site) {
+    g_mil[idx].req++;
+    if (spent) { g_mil[idx].trained += req[1] > 0 ? (unsigned)req[1] : 1; return; }
+    int k = 0;   // most requested failing types (4 slots, the rarest one is replaced)
+    int key = (int)((site & 0xFFFFF) << 11) | (req[0] & 0x7FF);   // call site + unit type
+    while (k < 4 && g_mil[idx].fcount[k] && g_mil[idx].ftype[k] != key) k++;
+    if (k == 4) { k = 0; for (int j = 1; j < 4; j++) if (g_mil[idx].fcount[j] < g_mil[idx].fcount[k]) k = j; g_mil[idx].fcount[k] = 0; }
+    g_mil[idx].ftype[k] = key;
+    g_mil[idx].fcount[k]++;
+    for (int r = 2; r < 7; r++)
+        if (visible[r] < unit_cost(pl, req[0], r)) g_mil[idx].short_of[r]++;
+}
+
+// Price of a unit for this player: the unit's tech (object data 0x9418A0[type] +0x4E0 = tech id, looked up with
+// 0x4019A1 on the player's tech tree +0x9D4; tech +8 = data, costs +0x24.. food..iron, like the epoch techs)
+// x the AdjustCost percentage (vtable slot 27 0x430FBD: only while the Cheat toggle is on; easy +0xD48 int,
+// medium +0xBB4 float, hard +0xD4C int).
+#define FN_TECH_LOOKUP 0x004019A1
+static int unit_cost(void *pl, int type, int r) {
+    uint8_t *obj = (type >= 0 && type < 2048) ? ((uint8_t **)0x009418A0)[type] : NULL;
+    uint8_t *tt = FIELD(pl, PL_TECHTREE, uint8_t *);
+    if (!obj || !tt || r < 2 || r > 6) return 0;
+    uint8_t *tech = ((uint8_t *(__thiscall *)(void *, int))FN_TECH_LOOKUP)(tt, FIELD(obj, 0x4E0, int));
+    uint8_t *data = tech ? FIELD(tech, 8, uint8_t *) : NULL;
+    if (!data) return 0;
+    float c = (float)FIELD(data, 0x24 + (r - 2) * 4, int);
+    if (FIELD(pl, PL_CHEAT, uint8_t)) {
+        int d = FIELD(pl, PL_DIFFICULTY, int);
+        float pct = d == 0 ? (float)FIELD(pl, 0xD48, int) : d == 2 ? (float)FIELD(pl, 0xD4C, int) : FIELD(pl, 0xBB4, float);
+        c = c * pct * 0.01f;
+    }
+    return (int)c;
+}
+
+// The budget decides before the game does: a request it doesn't allow is refused here and the original is not
+// called. (Hiding stock during the call leaked: 0x49014F counts the unit as "in production" (unit manager
+// +0x13C) even when the building queue 0x5E8908 then refuses it for lack of resources, and that counter is
+// subtracted from the population cap - after a while the AI could train nothing at all.)
 static uintptr_t __fastcall hook_train_units(void *um, void *edx, int *req, uintptr_t b) {
     (void)edx;
     void *pl = um_owner(um);
     int *stock = pl ? (int *)((uint8_t *)pl + PL_STOCK) : NULL;
-    int before[7] = { 0 }, reserve[7] = { 0 }, hidden[7] = { 0 };
+    int before[7] = { 0 }, reserve[7] = { 0 }, visibles[7] = { 0 }, blocked = 0, afford = 0;
     if (stock) memcpy(before, stock, sizeof before);
     unsigned idx = pl ? (unsigned)FIELD(pl, PL_INDEX, int) & 15 : 0;
     int military = !is_citizen_type(req[0]);
@@ -267,18 +310,34 @@ static uintptr_t __fastcall hook_train_units(void *um, void *edx, int *req, uint
             if (no_work) visible = 0;
             if (visible < 0) visible = 0;
             if (visible > stock[r]) visible = stock[r];
-            hidden[r] = stock[r] - visible;
-            stock[r] = visible;
+            visibles[r] = visible;
         }
         if (no_work) g_bud[idx].cit_blocked++;
-    }
-    uintptr_t res = ((uintptr_t (__thiscall *)(void *, int *, uintptr_t))FN_TRAIN_UNITS)(um, req, b);
-    if (stock) {
+        // as many of the requested units as the budget pays for (citizens come in batches of 10)
+        int want = req[1] > 0 ? req[1] : 1;
+        afford = want;
         for (int r = 2; r < 7; r++) {
-            stock[r] += hidden[r];
+            int c = unit_cost(pl, req[0], r);
+            if (c > 0 && visibles[r] / c < afford) afford = visibles[r] / c;
+        }
+        blocked = afford <= 0;
+    } else if (stock) memcpy(visibles, stock, sizeof visibles);
+    uintptr_t res = 0;
+    if (blocked) { if (b) *(unsigned *)b = 0; }
+    else {
+        int saved_count = req[1];
+        if (afford > 0 && afford < req[1]) req[1] = afford;   // the caller reads back how many via *b
+        res = ((uintptr_t (__thiscall *)(void *, int *, uintptr_t))FN_TRAIN_UNITS)(um, req, b);
+        req[1] = saved_count;
+    }
+    if (stock) {
+        int any = 0;
+        for (int r = 2; r < 7; r++) {
             int spent = before[r] - stock[r];
+            any |= spent > 0;
             if (cfg->budget && military && spent > 0) { g_bud[idx].mil[r] -= spent; g_bud[idx].mil_spent[r] += spent; }
         }
+        if (military) mil_note(pl, idx, req, visibles, any, (uintptr_t)__builtin_return_address(0) - 5);
         trace_train(pl, req, res, before, reserve);
         static uint32_t last_log[16];
         uint32_t now = game_time();

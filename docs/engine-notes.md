@@ -68,7 +68,17 @@ copied into player fields by 0x431697:
 
 EECPCivilizationManager `cm` = player+0xB90 (Update 0x46E2C7):
 - +0x38 resource manager, +0x3C build manager (Update 0x468540), +0x40 research manager (0x486A74),
-  +0x44 unit manager (training 0x49014F(req{type, count}), 5 call sites).
+  +0x44 unit manager (Update 0x490AD6, training 0x49014F(req{type, count}, &trained), 5 call sites).
+- Unit manager: 14 request lists (deques at +0xC + i*0x14, 16-byte entries {type, count, ..}), +0x13C units in
+  production. Room for new units = cap (EEComputerPlayer vf31: own cap +0xCCC unless Ignorieren, else game
+  unit limit [0x9183D4] + player +0xB1C/+0xB20) - in production - population (0x556E11). 0x49014F adds the
+  requested count to +0x13C even when the building queue (0x5E8908, which re-checks affordability) refuses
+  the unit; finished units (0x4905DF) and cancelled requests (0x48EB80) subtract. Anything that makes 0x5E8908
+  refuse after the unit manager's own check (vf 0x80) leaks room until the AI trains nothing.
+- AI requests include untrainable campaign heroes (e.g. 611 Golden Hind, 196 Court Jester, 33 Grigor II); they
+  just fail (no producing building), and cost nothing.
+- Unit price: object data +0x4E0 = tech id -> tech 0x4019A1(tech tree player+0x9D4, id) -> +8 data, costs +0x24..
+  (food..iron); the object data itself has no prices at +0x24.
 - +0x58 next epoch attempt time, +0x76 epoch requirement pending; AttemptEpochAdvance 0x46C966.
 - Epoch techs: tech tree +8 + epoch*0x54 → +8 data: costs +0x24.. (food..iron), +0x40 needed / +0x48 researched
   requirement techs. Stone Age 850 food; Copper Age 750 food, 400 gold, 400 iron. Farms and granaries arrive in

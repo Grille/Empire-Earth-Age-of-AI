@@ -25,8 +25,21 @@ function Restore-Sound {
     }
 }
 
-if (Get-Process -Name "Empire Earth" -ErrorAction SilentlyContinue) { "game already running - aborting"; exit 1 }
 if ($Save -match '[-/]') { "save name must not contain - or /"; exit 1 }
+# One run at a time: the lock holds the owner's PID; only the owner restores sound and removes the test ini,
+# so a run that was interrupted (or is still waiting for its game) can't clean up under a newer run.
+$lock = "$g\_aimod\work\run_test.lock"
+New-Item -ItemType Directory -Force "$g\_aimod\work" | Out-Null
+if (Test-Path $lock) {
+    $owner = [int](Get-Content $lock -Raw -ErrorAction SilentlyContinue)
+    if ($owner -and $owner -ne $PID -and (Get-Process -Id $owner -ErrorAction SilentlyContinue)) {
+        "another test run (PID $owner) is active - aborting"; exit 1
+    }
+}
+Set-Content $lock $PID
+if (Get-Process -Name "Empire Earth" -ErrorAction SilentlyContinue) {
+    Remove-Item $lock -Confirm:$false; "game already running - aborting"; exit 1
+}
 Restore-Sound   # leftover from an interrupted run
 if ($Mute) {
     $cur = Get-ItemProperty $key
@@ -34,10 +47,13 @@ if ($Mute) {
     $o | ConvertTo-Json | Set-Content $backup
     foreach ($n in $names) { Set-ItemProperty $key -Name $n -Value 0 }
 }
-Copy-Item "$g\_aimod\autotest.ini" "$g\aimod_autotest.ini" -Force
-if ($Scenario) { Add-Content "$g\aimod_autotest.ini" "scenario_mode=1" }
-# (-File passes "a=1,b=2" as one string, so split on commas as well)
-foreach ($l in ($IniExtra -join ',').Split(',')) { if ($l) { Add-Content "$g\aimod_autotest.ini" $l } }
+# test ini = autotest.ini + -IniExtra; an extra key replaces the same key from autotest.ini (the DLL reads the
+# first occurrence). (-File passes "a=1,b=2" as one string, so split on commas as well)
+$extra = @(($IniExtra -join ',').Split(',') | Where-Object { $_ })
+if ($Scenario) { $extra += "scenario_mode=1" }
+$keys = $extra | ForEach-Object { ($_ -split '=', 2)[0].Trim() }
+$lines = Get-Content "$g\_aimod\autotest.ini" | Where-Object { $keys -notcontains (($_ -split '=', 2)[0].Trim()) }
+Set-Content "$g\aimod_autotest.ini" (@($lines) + $extra)
 try {
     Remove-Item "$g\aimod_econ.csv" -Confirm:$false -ErrorAction SilentlyContinue
     $psi = New-Object System.Diagnostics.ProcessStartInfo
@@ -45,11 +61,22 @@ try {
     $psi.WorkingDirectory = $g; $psi.UseShellExecute = $false
     $t0 = Get-Date
     $p = [System.Diagnostics.Process]::Start($psi)
-    if (-not $p.WaitForExit($TimeoutSec * 1000)) { $p.Kill(); $p.WaitForExit(); "TIMEOUT after $TimeoutSec s - killed" }
+    # safety: the DLL logs "# autotest:" at load when it found the test ini; without it the game would run at
+    # normal speed with intros and (if the ini vanished) sound - kill it instead
+    $ok = $false
+    for ($i = 0; $i -lt 40 -and -not $p.HasExited; $i++) {
+        Start-Sleep -Milliseconds 250
+        if ((Test-Path "$g\aimod_econ.csv") -and (Select-String -Path "$g\aimod_econ.csv" -Pattern '^# autotest:' -Quiet)) { $ok = $true; break }
+    }
+    if (-not $ok -and -not $p.HasExited) { $p.Kill(); $p.WaitForExit(); "ABORTED: the DLL did not start in autotest mode (test ini missing?)" }
+    elseif (-not $p.WaitForExit($TimeoutSec * 1000)) { $p.Kill(); $p.WaitForExit(); "TIMEOUT after $TimeoutSec s - killed" }
     $secs = [int]((Get-Date) - $t0).TotalSeconds
 } finally {
-    Restore-Sound
-    Remove-Item "$g\aimod_autotest.ini" -Confirm:$false -ErrorAction SilentlyContinue
+    if ((Get-Content $lock -Raw -ErrorAction SilentlyContinue) -match "^$PID") {
+        Restore-Sound
+        Remove-Item "$g\aimod_autotest.ini" -Confirm:$false -ErrorAction SilentlyContinue
+        Remove-Item $lock -Confirm:$false -ErrorAction SilentlyContinue
+    }
 }
 $stamp = Get-Date -Format "yyyyMMdd_HHmmss"
 $dest = "$g\_aimod\work\autotest_${stamp}${Tag}.csv"

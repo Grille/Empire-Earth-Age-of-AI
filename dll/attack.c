@@ -245,8 +245,49 @@ static void __fastcall hook_asg_route_done(uint8_t *self, void *edx) {
     ((AsgFn)FN_ASG_ROUTE_DONE)(self);
 }
 
+// Soldiers (not buildings, walls, citizens) of a player, from the unit grid.
+static int army_size(void *pl) {
+    uint8_t *map = *(uint8_t **)G_MAP;
+    uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
+    if (!grid) return -1;
+    uint8_t *cells = FIELD(grid, 4, uint8_t *);
+    unsigned count = FIELD(grid, 0x10, unsigned) * FIELD(grid, 0x14, unsigned);
+    int n = 0;
+    for (unsigned c = 0; cells && c < count; c++)
+        for (uint8_t **b = FIELD(cells + c * 16, 4, uint8_t **); b && b < FIELD(cells + c * 16, 8, uint8_t **); b++) {
+            uint8_t *u = *b, *td = u ? FIELD(u, 0x2C, uint8_t *) : NULL;
+            if (!td || FIELD(u, 0x18, void *) != pl) continue;
+            // units only sit in the cell of their position; families as in the statistics code 0x5EB000/0x55DD66
+            if (FIELD(u, 0x1C, int) / FIELD(grid, 8, int) != (int)(c / FIELD(grid, 0x14, unsigned)) ||
+                FIELD(u, 0x20, int) / FIELD(grid, 8, int) != (int)(c % FIELD(grid, 0x14, unsigned))) continue;
+            int fam = FIELD(td, 0x4B4, int);
+            if (fam == 2 || fam == 6 || fam == 0x13 || fam == 0x16 || fam == 0x18 || fam == 0x19 || fam == 0x1D || fam == 0 || fam == 1)
+                continue;
+            n++;
+        }
+    return n;
+}
+
 static void attack_tick(void *pl, uint32_t now) {
     threat_refresh(pl, now);   // also with avoid_towers=0: the route log compares both
+    {
+        unsigned i = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
+        if (g_log && now / 300000 != g_mil[i].last_log / 300000) {
+            fprintf(g_log, "# army: P%u at %u min: %d soldiers; military requests %u, trained %u, failed short of "
+                    "food %u wood %u stone %u gold %u iron %u; budget left %d/%d/%d/%d/%d\n", i, now / 60000,
+                    army_size(pl), g_mil[i].req, g_mil[i].trained, g_mil[i].short_of[2], g_mil[i].short_of[3],
+                    g_mil[i].short_of[4], g_mil[i].short_of[5], g_mil[i].short_of[6], (int)g_bud[i].mil[2],
+                    (int)g_bud[i].mil[3], (int)g_bud[i].mil[4], (int)g_bud[i].mil[5], (int)g_bud[i].mil[6]);
+            fprintf(g_log, "# army: P%u failed types:", i);
+            for (int k = 0; k < 4; k++)
+                if (g_mil[i].fcount[k])
+                    fprintf(g_log, " type %d from %06x x%u", g_mil[i].ftype[k] & 0x7FF,
+                            (unsigned)g_mil[i].ftype[k] >> 11, g_mil[i].fcount[k]);
+            fputc('\n', g_log);
+            memset(&g_mil[i], 0, sizeof g_mil[i]);
+        }
+        g_mil[i].last_log = now;
+    }
     // battle statistics every 10 min: series n = Language.dll string 31201+n (1 buildings lost, 2 buildings
     // destroyed, 3 units killed, 4 units lost, 5 conversions, 7..11 resources, 12 epoch, 13 army, 14 citizens)
     static uint32_t last_stats[16];

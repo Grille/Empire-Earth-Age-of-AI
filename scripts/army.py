@@ -32,7 +32,8 @@ for c in range(nx * ny):
         p = mem.i32(owner + 0x45C)
         fam, typ = struct.unpack('<ii', mem.rd(td + 0x4B4, 8))
         per[p][(fam, typ)] += 1
-want = int(sys.argv[1]) if len(sys.argv) > 1 else None
+args = [a for a in sys.argv[1:] if a != "-b"]
+want = int(args[0]) if args else None
 for p in sorted(per):
     if want is not None and p != want:
         continue
@@ -41,5 +42,5 @@ for p in sorted(per):
         fams[fam] += n
     print('P%d: %s' % (p, ', '.join('family %d: %d' % kv for kv in sorted(fams.items()))))
     for (fam, typ), n in sorted(per[p].items(), key=lambda kv: (kv[0][0], -kv[1])):
-        if fam != 2:
+        if fam != 2 or "-b" in sys.argv:
             print('    %3d x %-32s (type %d, family %d)' % (n, NAMES.get(typ, '?'), typ, fam))

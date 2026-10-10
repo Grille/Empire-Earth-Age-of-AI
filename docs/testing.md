@@ -12,6 +12,7 @@ The `[autotest]` keys:
 |---|---|
 | `skip_intro=1` | skips the intro movies |
 | `quit_minutes=75` | ends the game after this many game minutes |
+| `start_epoch=N` | (random maps) starting epoch, e.g. 2 = Copper Age, for tests that should begin later in the game |
 | `speed=7.5` | game speed (normal 2.5). Up to 7.5 the simulation step stays normal, so a run is ~7x faster than real time and behaves identically. Higher speeds enlarge the steps. |
 | `random_map=Continental` | starts a random map instead of the save. Also: `map_size` (0 tiny..), `ai_count`, `seed`, `teams=ffa\|pairs`, `start_epoch`, `citizens`, `ai_cheat`, `ai_ignore`, `epoch_min`/`epoch_max` (test epoch timer). The human player (slot 0) idles, sees the whole map and is allied with every AI. |
 | `scenario_mode=1` | starts `Data\Scenarios\<save>.scn` through the real scenario path (set by `-Scenario`) |
@@ -33,7 +34,10 @@ powershell -ExecutionPolicy Bypass -File scripts/run_test.ps1 -Save newgame.ees 
 - Sound and music are muted for the run and restored afterwards (a backup in `work/` covers interrupted runs).
 - The log is moved to `work/autotest_<stamp><tag>.csv`.
 - `-Scenario <name>` plays `Data\Scenarios\<name>.scn` instead.
-- Only one game can run at a time. Kill a hung game before starting another (`taskkill /im "Empire Earth.exe"`).
+- `-IniExtra` keys replace the same keys from `autotest.ini`.
+- Only one run at a time: `work/run_test.lock` holds the owner's PID, and a second run refuses to start. Only the owner restores sound and removes the test ini.
+- Safety: if the DLL doesn't report autotest mode within 10 s, the game is killed (no unmuted game with intros at normal speed).
+- Fixtures: start a random map with the wanted settings (`start_epoch`, `citizens`, ...), let it run, `eectl.py save copper40` at the interesting moment, then run tests from that save.
 
 Suite: 4 land maps with fixed seeds (Continental, Plains, Highlands, Mediterranean), one run per variant
 and map, then scored (survival, epoch, workers, food):
@@ -74,6 +78,7 @@ venv/Scripts/python scripts/eectl.py <command>
 | `costs P [types]` | next epoch and unit costs |
 | `threat P` | enemy defences AI player P knows about |
 | `watch <hex> [len]` | set the hardware watchpoint at runtime |
+| `save <name>` | save the running game to `Data\Saved Games\<name>.ees`, a fixture for later runs (`run_test.ps1 -Save <name>.ees`, without `random_map`) |
 
 `scripts/mem.py` wraps `peek` for Python (`mem.u32(addr)`, `mem.rd(addr, n)`).
 `scripts/screenshot.ps1` captures the game window to `work/screen.png`, even while it's covered.

@@ -77,6 +77,38 @@ static int queue_pause_toggle(void) {
     return 1;
 }
 
+// save <name>: same as the save dialog (EEUIESLESaveFile::vf1 0x5D60CD) - queues an EEASaveGame
+// action (ctor 0x404FA1: thiscall(const UString &file, bool, UString folder by value), 0x30 bytes) for
+// <game>\data\Saved Games\<name>.ees; the file can then be started with run_test.ps1 -Save <name>.ees.
+#define FN_SAVE_ACTION_CTOR 0x00404FA1
+#define IAT_USTRING_CTOR    0x008231E4   // UString::UString()
+#define IAT_USTRING_SETC    0x00823228   // UString::operator=(const char *)
+#define IAT_USTRING_DTOR    0x008245BC   // UString::~UString()
+struct ustring { uint8_t raw[16]; };
+static void cmd_save(char *out, const char *args) {
+    char name[96] = "", path[MAX_PATH];
+    int n = 0;
+    sscanf(args, "%95s %n", name, &n);
+    if (!name[0] || strpbrk(name, "\\/:-")) { REPLY("error: usage: save <name> (no \\ / : -)\n"); return; }
+    (void)n;
+    // bare file name; 0x540B4A joins <startup dir> + folder + file
+    wsprintfA(path, "%s%s", name, strstr(name, ".ees") ? "" : ".ees");
+    void (__thiscall *uctor)(void *) = *(void **)IAT_USTRING_CTOR;
+    void *(__thiscall *uset)(void *, const char *) = *(void **)IAT_USTRING_SETC;
+    void (__thiscall *udtor)(void *) = *(void **)IAT_USTRING_DTOR;
+    struct ustring upath, udir;
+    uctor(&upath); uset(&upath, path);
+    uctor(&udir); uset(&udir, "data\\Saved Games\\");   // relative to the game folder
+    uint8_t *act = ((void *(__cdecl *)(size_t))FN_GAME_NEW)(0x30);
+    if (!act) { udtor(&upath); udtor(&udir); REPLY("error: out of memory\n"); return; }
+    // the ctor takes the folder by value and destroys its copy: ownership passes with the bytes
+    ((void *(__thiscall *)(void *, void *, int, struct ustring))FN_SAVE_ACTION_CTOR)(act, &upath, 1, udir);
+    udtor(&upath);
+    queue_action(act);
+    REPLY("ok: saving %s\n", path);
+    ctl_log("save queued: %s", path);
+}
+
 static void cmd_status(char *out) {
     REPLY("time_ms=%u speed=%.2f paused=%d game_type=%d\n", game_time(), *(float *)G_GAME_SPEED,
         *(uint8_t *)G_PAUSED, *(int *)G_GAME_TYPE);
@@ -209,7 +241,9 @@ static void cmd_costs(char *out, const char *args) {
     while (sscanf(a, "%d%n", &type, &k) == 1) {
         char tag[32];
         wsprintfA(tag, "unit %d", type);
-        print_costs(out, tag, (type >= 0 && type < 2048) ? ((uint8_t **)G_OBJECT_DATA)[type] : NULL);
+        uint8_t *obj = (type >= 0 && type < 2048) ? ((uint8_t **)G_OBJECT_DATA)[type] : NULL;
+        uint8_t *tech = obj ? ((uint8_t *(__thiscall *)(void *, int))0x004019A1)(tt, FIELD(obj, 0x4E0, int)) : NULL;
+        print_costs(out, tag, tech ? FIELD(tech, 8, uint8_t *) : NULL);   // costs live in the unit's tech
         a += k;
     }
 }
@@ -282,6 +316,7 @@ static void execute(const char *cmd, char *out) {
     else if (!strcmp(verb, "foodcheck")) cmd_foodcheck(out, args);
     else if (!strcmp(verb, "costs")) cmd_costs(out, args);
     else if (!strcmp(verb, "threat")) cmd_threat(out, args);
+    else if (!strcmp(verb, "save")) cmd_save(out, args);
     else if (!strcmp(verb, "watch")) { unsigned a = 0; int l = 4; sscanf(args, "%x %d", &a, &l); watch_set(a, l); REPLY("ok: watching %08x len %d\n", a, l); }
     else if (!strcmp(verb, "speed")) {
         float s = (float)atof(args);
