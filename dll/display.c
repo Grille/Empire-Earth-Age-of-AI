@@ -597,11 +597,14 @@ static void window_mouse(uint8_t *m, int frozen) {
     }
     if (frozen || !fg) return;
     if (!inside && !held && WindowFromPoint(pt) == hwnd) return;   // on the title bar or frame: leave it
-    // outside the window (or dragging out of it) the position clamps to the edge: edge scrolling works by
-    // pushing past the border; the last pixel maps to the end of the range (clamped to end - 1, like fullscreen)
-    float x0 = FIELD(m, 0x18, float), x1 = FIELD(m, 0x1C, float), y0 = FIELD(m, 0x20, float), y1 = FIELD(m, 0x14, float);
-    FIELD(m, 4, float) = x0 + (float)c.x * (x1 - x0) / (float)(rc.right - 1);
-    FIELD(m, 8, float) = y0 + (float)c.y * (y1 - y0) / (float)(rc.bottom - 1);
+    // client position -> game resolution (GEWindow +0xC/+0x10; the window may be scaled). The cursor range
+    // (+0x18..) is only the clamp: while dragging in the 3D view the game narrows it to the map area.
+    // Outside the window (or dragging out of it) the position clamps to the edge: edge scrolling works by
+    // pushing past the border; the last pixel maps to the full width (clamped to end - 1, like fullscreen)
+    unsigned gw = FIELD(win, 0xC, unsigned), gh = FIELD(win, 0x10, unsigned);
+    if (gw < 2 || gh < 2) return;
+    FIELD(m, 4, float) = (float)c.x * (float)gw / (float)(rc.right - 1);
+    FIELD(m, 8, float) = (float)c.y * (float)gh / (float)(rc.bottom - 1);
     ((ThisFn)FN_MOUSE_CLAMP)(m);
     InterlockedIncrement(&g_mouse_updates);
 }
