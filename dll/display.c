@@ -177,6 +177,192 @@ static unsigned __fastcall hook_get_current_mode_index(uint8_t *scr) {
     return screen_mode_index(scr);
 }
 
+// diagnostics: terrain draw results (DX7Rasterizer::Draw(GETerrainMesh&, screen, bool))
+typedef int (__thiscall *DrawTerrainFn)(void *ras, void *mesh, unsigned screen, int flag);
+static DrawTerrainFn g_draw_terrain[2];
+static volatile LONG g_terrain_calls, g_terrain_fail, g_terrain_last_err, g_terrain_rows;
+typedef DWORD (*GetErrFn)(void);
+static GetErrFn g_get_native_error;
+static int g_diag_skip;   // autotest diag_skip: 1 = no terrain, 2 = no water (diagnostics)
+static DrawTerrainFn g_draw_water[2];
+static int __fastcall hook_draw_water(void *ras, void *edx, void *mesh, unsigned screen, int flag) {
+    (void)edx;
+    return g_diag_skip == 2 ? 0 : g_draw_water[DISPLAY_DLL(ras)](ras, mesh, screen, flag);
+}
+static int __fastcall hook_draw_terrain(void *ras, void *edx, void *mesh, unsigned screen, int flag) {
+    (void)edx;
+    if (g_diag_skip == 1) return 0;
+    static unsigned (__thiscall *rows_fn)(void *);
+    if (!rows_fn) rows_fn = (unsigned (__thiscall *)(void *))GetProcAddress(GetModuleHandleA("Low-Level Engine.dll"),
+                                                                             "?GetNumVisibleTileRows@GETerrainMesh@@QBEKXZ");
+    if (rows_fn) g_terrain_rows = rows_fn(mesh);
+    int r = g_draw_terrain[DISPLAY_DLL(ras)](ras, mesh, screen, flag);
+    InterlockedIncrement(&g_terrain_calls);
+    if (r) {
+        InterlockedIncrement(&g_terrain_fail);
+        if (g_get_native_error) g_terrain_last_err = (LONG)g_get_native_error();
+    }
+    return r;
+}
+
+// diagnostics: surface copies / creation (DX7Surface::CopyTo, ::CopyWithFilter, DX7Screen::CreateSurface)
+static struct { const char *name; volatile LONG calls, fail, last_err, last_ret; void *orig[2]; } g_cnt[3] = {
+    { "CopyTo", 0, 0, 0, 0, { NULL, NULL } }, { "CopyWithFilter", 0, 0, 0, 0, { NULL, NULL } },
+    { "CreateSurface", 0, 0, 0, 0, { NULL, NULL } },
+};
+static void cnt_note(int k, int r) {
+    InterlockedIncrement(&g_cnt[k].calls);
+    if (r) {
+        InterlockedIncrement(&g_cnt[k].fail);
+        g_cnt[k].last_ret = r;
+        if (g_get_native_error) g_cnt[k].last_err = (LONG)g_get_native_error();
+    }
+}
+// alpha left in copy destinations that have an alpha channel (sampled, first 400 such copies)
+static volatile LONG g_alpha_copies, g_alpha_samples, g_alpha_zero;
+static char g_alpha_last[200];
+static void sample_alpha(uint8_t *src, uint8_t *dst) {
+    IDirectDrawSurface7 *d7 = dst ? FIELD(dst, 0x48, IDirectDrawSurface7 *) : NULL;
+    IDirectDrawSurface7 *s7 = src ? FIELD(src, 0x48, IDirectDrawSurface7 *) : NULL;
+    if (!d7 || g_alpha_copies >= 400) return;
+    DDSURFACEDESC2 d = { .dwSize = sizeof d }, sd = { .dwSize = sizeof sd };
+    if (d7->lpVtbl->Lock(d7, NULL, &d, DDLOCK_WAIT | DDLOCK_READONLY, NULL) != DD_OK) return;
+    DWORD am = d.ddpfPixelFormat.dwRGBAlphaBitMask;
+    int bpp = (int)d.ddpfPixelFormat.dwRGBBitCount / 8;
+    if (am && (bpp == 2 || bpp == 4)) {
+        InterlockedIncrement(&g_alpha_copies);
+        for (int y = 0; y < 4; y++)
+            for (int x = 0; x < 4; x++) {
+                uint8_t *p = (uint8_t *)d.lpSurface + (size_t)((y * 2 + 1) * (int)d.dwHeight / 8) * d.lPitch + (size_t)((x * 2 + 1) * (int)d.dwWidth / 8) * bpp;
+                DWORD v = bpp == 4 ? *(uint32_t *)p : *(uint16_t *)p;
+                InterlockedIncrement(&g_alpha_samples);
+                if (!(v & am)) InterlockedIncrement(&g_alpha_zero);
+            }
+        if (s7) s7->lpVtbl->GetSurfaceDesc(s7, &sd);
+        snprintf(g_alpha_last, sizeof g_alpha_last, "src %lux%lu %lubpp amask %08lx caps %08lx -> dst %lux%lu %lubpp amask %08lx caps %08lx",
+                 sd.dwWidth, sd.dwHeight, sd.ddpfPixelFormat.dwRGBBitCount, sd.ddpfPixelFormat.dwRGBAlphaBitMask, sd.ddsCaps.dwCaps,
+                 d.dwWidth, d.dwHeight, d.ddpfPixelFormat.dwRGBBitCount, am, d.ddsCaps.dwCaps);
+    }
+    d7->lpVtbl->Unlock(d7, NULL);
+}
+static int __fastcall hook_copy_to(void *s, void *edx, void *dst, void *r1, void *r2, int f) {
+    (void)edx;
+    int r = ((int (__thiscall *)(void *, void *, void *, void *, int))g_cnt[0].orig[DISPLAY_DLL(s)])(s, dst, r1, r2, f);
+    cnt_note(0, r);
+    if (!r) sample_alpha(s, dst);
+    return r;
+}
+static int __fastcall hook_copy_filter(void *s, void *edx, void *dst, void *r1, void *r2) {
+    (void)edx;
+    int r = ((int (__thiscall *)(void *, void *, void *, void *))g_cnt[1].orig[DISPLAY_DLL(s)])(s, dst, r1, r2);
+    cnt_note(1, r);
+    return r;
+}
+// histogram of created surfaces by GESurfaceDescription type (+0) and pixel format index (+4) - after the call
+// the format is the resolved one; also the DirectDraw pixel format of the last surface per bucket
+static struct { unsigned type, fmt, count, w, h, bpp, amask, flags; } g_surf_kinds[24];
+static uintptr_t g_surf16_stack[8];
+static int __fastcall hook_create_surface(void *s, void *edx, void *desc, void **out) {
+    (void)edx;
+    unsigned type = ((unsigned *)desc)[0], fmt_req = ((unsigned *)desc)[1];
+    if ((type == 5 || type == 6) && (fmt_req == 2 || fmt_req == 7) && !g_surf16_stack[0]) {   // who asks for 16-bit textures
+        uintptr_t *fp = (uintptr_t *)__builtin_frame_address(0);
+        for (int d = 0; d < 8 && fp; d++) {
+            g_surf16_stack[d] = fp[1];
+            if ((uintptr_t *)fp[0] <= fp) break;
+            fp = (uintptr_t *)fp[0];
+        }
+    }
+    int r = ((int (__thiscall *)(void *, void *, void **))g_cnt[2].orig[DISPLAY_DLL(s)])(s, desc, out);
+    cnt_note(2, r);
+    if (!r && out && *out) {
+        IDirectDrawSurface7 *dds = FIELD(*out, 0x48, IDirectDrawSurface7 *);
+        DDSURFACEDESC2 d = { .dwSize = sizeof d };
+        if (dds) dds->lpVtbl->GetSurfaceDesc(dds, &d);
+        for (int k = 0; k < 24; k++) {
+            if (g_surf_kinds[k].count && (g_surf_kinds[k].type != type || g_surf_kinds[k].fmt != fmt_req)) continue;
+            g_surf_kinds[k].type = type;
+            g_surf_kinds[k].fmt = fmt_req;
+            g_surf_kinds[k].count++;
+            g_surf_kinds[k].w = d.dwWidth;
+            g_surf_kinds[k].h = d.dwHeight;
+            g_surf_kinds[k].bpp = d.ddpfPixelFormat.dwRGBBitCount;
+            g_surf_kinds[k].amask = d.ddpfPixelFormat.dwRGBAlphaBitMask;
+            g_surf_kinds[k].flags = d.ddpfPixelFormat.dwFlags;
+            break;
+        }
+    }
+    return r;
+}
+
+// diagnostics: render target switches (DX7Rasterizer::SetRenderTarget(GESurface*, screen), void)
+typedef void (__thiscall *SetRTFn)(void *ras, void *surf, unsigned screen);
+static SetRTFn g_set_rt[2];
+static volatile LONG g_rt_calls, g_rt_back;
+static char g_rt_last[160];
+static void __fastcall hook_set_rt(void *ras, void *edx, uint8_t *surf, unsigned screen) {
+    (void)edx;
+    g_set_rt[DISPLAY_DLL(ras)](ras, surf, screen);
+    InterlockedIncrement(&g_rt_calls);
+    uint8_t *st = FIELD(ras, 0x20, uint8_t **)[screen];
+    if (surf == FIELD(st, 0x2B0, uint8_t *)) { InterlockedIncrement(&g_rt_back); return; }
+    IDirectDrawSurface7 *s = surf ? FIELD(surf, 0x48, IDirectDrawSurface7 *) : NULL;
+    DDSURFACEDESC2 d = { .dwSize = sizeof d };
+    if (s && s->lpVtbl->GetSurfaceDesc(s, &d) == DD_OK)
+        snprintf(g_rt_last, sizeof g_rt_last, "%lux%lu caps=%08lx bpp=%lu", d.dwWidth, d.dwHeight, d.ddsCaps.dwCaps,
+                 d.ddpfPixelFormat.dwRGBBitCount);
+}
+
+// diagnostics: Clear(color, rect, screen) / ClearZBuffer(depth, rect, screen) results and the last rect
+typedef int (__thiscall *ClearFn)(void *ras, void *a, float *rect, unsigned screen);
+typedef int (__thiscall *ClearZFn)(void *ras, float depth, float *rect, unsigned screen);
+static ClearFn g_clear[2];
+static ClearZFn g_clearz[2];
+static volatile LONG g_clear_calls, g_clear_fail, g_clearz_calls, g_clearz_fail;
+static float g_clear_rect[4], g_clearz_rect[4], g_clearz_depth;
+static int __fastcall hook_clear(void *ras, void *edx, void *color, float *rect, unsigned screen) {
+    (void)edx;
+    int r = g_clear[DISPLAY_DLL(ras)](ras, color, rect, screen);
+    InterlockedIncrement(&g_clear_calls);
+    if (r) InterlockedIncrement(&g_clear_fail);
+    memcpy(g_clear_rect, rect, sizeof g_clear_rect);
+    return r;
+}
+static int __fastcall hook_clearz(void *ras, void *edx, float depth, float *rect, unsigned screen) {
+    (void)edx;
+    int r = g_clearz[DISPLAY_DLL(ras)](ras, depth, rect, screen);
+    InterlockedIncrement(&g_clearz_calls);
+    if (r) InterlockedIncrement(&g_clearz_fail);
+    memcpy(g_clearz_rect, rect, sizeof g_clearz_rect);
+    g_clearz_depth = depth;
+    return r;
+}
+
+// diagnostics: fog settings (SetFog(on, screen), SetFogRange(start, end, screen), SetFogType(type, screen))
+typedef void (__thiscall *SetFogFn)(void *ras, unsigned v, unsigned screen);
+typedef void (__thiscall *SetFogRangeFn)(void *ras, float a, float b, unsigned screen);
+static SetFogFn g_set_fog[2], g_set_fog_type[2];
+static SetFogRangeFn g_set_fog_range[2];
+static volatile LONG g_fog_on = -1, g_fog_type = -1, g_fog_calls;
+static float g_fog_start, g_fog_end;
+static void __fastcall hook_set_fog(void *ras, void *edx, unsigned on, unsigned screen) {
+    (void)edx;
+    g_fog_on = (LONG)on;
+    InterlockedIncrement(&g_fog_calls);
+    g_set_fog[DISPLAY_DLL(ras)](ras, g_diag_skip == 3 ? 0 : on, screen);
+}
+static void __fastcall hook_set_fog_type(void *ras, void *edx, unsigned t, unsigned screen) {
+    (void)edx;
+    g_fog_type = (LONG)t;
+    g_set_fog_type[DISPLAY_DLL(ras)](ras, t, screen);
+}
+static void __fastcall hook_set_fog_range(void *ras, void *edx, float a, float b, unsigned screen) {
+    (void)edx;
+    g_fog_start = a;
+    g_fog_end = b;
+    g_set_fog_range[DISPLAY_DLL(ras)](ras, a, b, screen);
+}
+
 static int replace_rdata_ptr(HMODULE m, void *fn, void *hook) {
     IMAGE_NT_HEADERS *nt = (IMAGE_NT_HEADERS *)((uint8_t *)m + ((IMAGE_DOS_HEADER *)m)->e_lfanew);
     IMAGE_SECTION_HEADER *sec = IMAGE_FIRST_SECTION(nt);
@@ -213,6 +399,33 @@ static int install_windowed_present(void) {
         void *gcmi = (void *)GetProcAddress(m, "?GetCurrentModeIndex@DX7Screen@@UBEKXZ");
         if (gcm) n += replace_rdata_ptr(m, gcm, (void *)hook_get_current_mode);
         if (gcmi) n += replace_rdata_ptr(m, gcmi, (void *)hook_get_current_mode_index);
+        void *dt = (void *)GetProcAddress(m, "?Draw@DX7Rasterizer@@UAEJAAVGETerrainMesh@@K_N@Z");
+        if (dt) { g_draw_terrain[i] = (DrawTerrainFn)dt; n += replace_rdata_ptr(m, dt, (void *)hook_draw_terrain); }
+        void *dw = (void *)GetProcAddress(m, "?DrawWater@DX7Rasterizer@@UAEJAAVGETerrainMesh@@K_N@Z");
+        if (dw) { g_draw_water[i] = (DrawTerrainFn)dw; n += replace_rdata_ptr(m, dw, (void *)hook_draw_water); }
+        g_get_native_error = (GetErrFn)GetProcAddress(GetModuleHandleA("Low-Level Engine.dll"), "?ESGetNativeError@@YAKXZ");
+        static const char *cnt_exports[3] = {
+            "?CopyTo@DX7Surface@@UAEJPAVGESurface@@AAVGERectangle@@1_N@Z",
+            "?CopyWithFilter@DX7Surface@@UAEJPAVGESurface@@AAVGERectangle@@1@Z",
+            "?CreateSurface@DX7Screen@@UAEJAAUGESurfaceDescription@@PAPAVGESurface@@@Z",
+        };
+        void *sf = (void *)GetProcAddress(m, "?SetFog@DX7Rasterizer@@UAEXKK@Z");
+        void *sft = (void *)GetProcAddress(m, "?SetFogType@DX7Rasterizer@@UAEXKK@Z");
+        void *sfr = (void *)GetProcAddress(m, "?SetFogRange@DX7Rasterizer@@UAEXMMK@Z");
+        if (sf) { g_set_fog[i] = (SetFogFn)sf; n += replace_rdata_ptr(m, sf, (void *)hook_set_fog); }
+        if (sft) { g_set_fog_type[i] = (SetFogFn)sft; n += replace_rdata_ptr(m, sft, (void *)hook_set_fog_type); }
+        if (sfr) { g_set_fog_range[i] = (SetFogRangeFn)sfr; n += replace_rdata_ptr(m, sfr, (void *)hook_set_fog_range); }
+        void *cl = (void *)GetProcAddress(m, "?Clear@DX7Rasterizer@@UAEJABVGEColor@@ABVGERectangle@@K@Z");
+        void *clz = (void *)GetProcAddress(m, "?ClearZBuffer@DX7Rasterizer@@UAEJMABVGERectangle@@K@Z");
+        if (cl) { g_clear[i] = (ClearFn)cl; n += replace_rdata_ptr(m, cl, (void *)hook_clear); }
+        if (clz) { g_clearz[i] = (ClearZFn)clz; n += replace_rdata_ptr(m, clz, (void *)hook_clearz); }
+        void *srt = (void *)GetProcAddress(m, "?SetRenderTarget@DX7Rasterizer@@MAEXPAVGESurface@@K@Z");
+        if (srt) { g_set_rt[i] = (SetRTFn)srt; n += replace_rdata_ptr(m, srt, (void *)hook_set_rt); }
+        void *cnt_hooks[3] = { (void *)hook_copy_to, (void *)hook_copy_filter, (void *)hook_create_surface };
+        for (int k = 0; k < 3; k++) {
+            void *f = (void *)GetProcAddress(m, cnt_exports[k]);
+            if (f) { g_cnt[k].orig[i] = f; n += replace_rdata_ptr(m, f, cnt_hooks[k]); }
+        }
     }
     return n;
 }
@@ -221,12 +434,16 @@ static void display_install(const char *aimod_ini, const char *autotest_ini) {
     char mode[32], tmp[32];
     int windowed = GetPrivateProfileIntA("display", "windowed", 0, aimod_ini);
     if (autotest_ini) windowed = GetPrivateProfileIntA("autotest", "windowed", windowed, autotest_ini);
+    if (autotest_ini) g_diag_skip = GetPrivateProfileIntA("autotest", "diag_skip", 0, autotest_ini);
     if (windowed) {
         uint8_t was = *(uint8_t *)G_FULLSCREEN;
         if (was == 1) *(uint8_t *)G_FULLSCREEN = g_fullscreen = 0;
         int hooks = install_windowed_present();
         if (g_log) fprintf(g_log, "# display: windowed %s, present hooks %d\n",
                            was == 1 ? "on" : "NOT set (unexpected fullscreen flag)", hooks);
+    } else if (autotest_ini && GetPrivateProfileIntA("autotest", "diag_hooks", 0, autotest_ini)) {
+        int hooks = install_windowed_present();   // all pass through in fullscreen; for the ddinfo counters
+        if (g_log) fprintf(g_log, "# display: fullscreen, diagnostic hooks %d\n", hooks);
     }
 
     GetPrivateProfileStringA("editor", "resolution", "ee", mode, sizeof mode, aimod_ini);
@@ -288,6 +505,29 @@ static void dd_surface(char *out, const char *name, uint8_t *ges) {
     REPLY("%s: %p hr=%08lx %lux%lu caps=%08lx bpp=%lu masks=%06lx/%06lx/%06lx lost=%08lx\n", name, (void *)s, hr,
           d.dwWidth, d.dwHeight, d.ddsCaps.dwCaps, d.ddpfPixelFormat.dwRGBBitCount, d.ddpfPixelFormat.dwRBitMask,
           d.ddpfPixelFormat.dwGBitMask, d.ddpfPixelFormat.dwBBitMask, s->lpVtbl->IsLost(s));
+    DDSCAPS2 zc = { .dwCaps = DDSCAPS_ZBUFFER };
+    IDirectDrawSurface7 *z = NULL;
+    hr = s->lpVtbl->GetAttachedSurface(s, &zc, &z);
+    if (hr == DD_OK && z) {
+        DDSURFACEDESC2 zd = { .dwSize = sizeof zd };
+        z->lpVtbl->GetSurfaceDesc(z, &zd);
+        REPLY("  z-buffer %p %lux%lu depth %lu bits caps=%08lx\n", (void *)z, zd.dwWidth, zd.dwHeight,
+              zd.ddpfPixelFormat.dwZBufferBitDepth, zd.ddsCaps.dwCaps);
+        DDSURFACEDESC2 ld = { .dwSize = sizeof ld };
+        HRESULT lhr = z->lpVtbl->Lock(z, NULL, &ld, DDLOCK_WAIT | DDLOCK_READONLY, NULL);
+        if (lhr == DD_OK) {   // sample a 5x5 grid of raw depth values
+            REPLY("  z samples:");
+            for (int y = 0; y < 5; y++)
+                for (int x = 0; x < 5; x++) {
+                    uint8_t *p = (uint8_t *)ld.lpSurface + (size_t)((y * 2 + 1) * (int)ld.dwHeight / 10) * ld.lPitch
+                                 + (size_t)((x * 2 + 1) * (int)ld.dwWidth / 10) * (ld.ddpfPixelFormat.dwZBufferBitDepth / 8);
+                    REPLY(" %08lx", ld.ddpfPixelFormat.dwZBufferBitDepth == 16 ? (unsigned long)*(uint16_t *)p : (unsigned long)*(uint32_t *)p);
+                }
+            REPLY("\n");
+            z->lpVtbl->Unlock(z, NULL);
+        } else REPLY("  z-buffer lock failed hr=%08lx\n", lhr);
+        z->lpVtbl->Release(z);
+    } else REPLY("  no z-buffer attached (hr=%08lx)\n", hr);
     IDirectDrawClipper *c = NULL;
     hr = s->lpVtbl->GetClipper(s, &c);
     if (hr == DD_OK && c) {
@@ -304,7 +544,15 @@ static void cmd_ddinfo(char *out, const char *args) {
     uint8_t *st = ras ? FIELD(ras, 0x20, uint8_t **)[idx] : NULL;
     if (!st) { REPLY("error: no rasterizer\n"); return; }
     uint8_t *scr = FIELD(st, 0x2A8, uint8_t *), *win = FIELD(st, 0x2BC, uint8_t *);
-    REPLY("screen %p fullscreen=%d desktop=%d flag=%d\n", (void *)scr, scr[0x3D], scr[0x3C], g_fullscreen);
+    REPLY("screen %p fullscreen=%d desktop=%d flag=%d renderer %s\n", (void *)scr, scr[0x3D], scr[0x3C], g_fullscreen,
+          g_show[DISPLAY_DLL(ras)].dll);
+    {
+        void **svt = *(void ***)scr;
+        char d32 = ((char (__thiscall *)(void *))svt[3])(scr), t32 = ((char (__thiscall *)(void *))svt[4])(scr);
+        REPLY("32-bit device support %d, 32-bit texture support %d; screen bytes 0x30..0x40:", d32, t32);
+        for (int k = 0x30; k < 0x40; k++) REPLY(" %02x", scr[k]);
+        REPLY("\n");
+    }
     HWND hwnd = win ? FIELD(win, 0, HWND) : NULL;
     RECT cr = {0};
     POINT o = {0, 0};
@@ -315,9 +563,49 @@ static void cmd_ddinfo(char *out, const char *args) {
     uint8_t *front = FIELD(st, 0x2AC, uint8_t *), *back = FIELD(st, 0x2B0, uint8_t *);
     dd_surface(out, "front", front);
     dd_surface(out, "back ", back);
-    typedef DWORD (*GetErrFn)(void);
     GetErrFn ge = (GetErrFn)GetProcAddress(GetModuleHandleA("Low-Level Engine.dll"), "?ESGetNativeError@@YAKXZ");
     if (ge) REPLY("last native error %08lx\n", ge());
+    REPLY("terrain draws: %ld, failed %ld, last error %08lx, visible tile rows %ld\n", g_terrain_calls, g_terrain_fail,
+          g_terrain_last_err, g_terrain_rows);
+    REPLY("Clear: %ld calls, %ld failed, rect %.0f %.0f %.0f %.0f; ClearZBuffer: %ld calls, %ld failed, depth %g rect %.0f %.0f %.0f %.0f\n",
+          g_clear_calls, g_clear_fail, g_clear_rect[0], g_clear_rect[1], g_clear_rect[2], g_clear_rect[3],
+          g_clearz_calls, g_clearz_fail, g_clearz_depth, g_clearz_rect[0], g_clearz_rect[1], g_clearz_rect[2], g_clearz_rect[3]);
+    for (int k = 0; k < 24 && g_surf_kinds[k].count; k++)
+        REPLY("surfaces type %u fmt %u: %u created, last %ux%u %u bpp alpha mask %08x pf flags %08x\n", g_surf_kinds[k].type,
+              g_surf_kinds[k].fmt, g_surf_kinds[k].count, g_surf_kinds[k].w, g_surf_kinds[k].h, g_surf_kinds[k].bpp,
+              g_surf_kinds[k].amask, g_surf_kinds[k].flags);
+    REPLY("copies into alpha surfaces: %ld, alpha samples %ld, zero alpha %ld; last: %s\n", g_alpha_copies, g_alpha_samples,
+          g_alpha_zero, g_alpha_last);
+    if (g_surf16_stack[0]) {
+        REPLY("first 16-bit texture requested from:");
+        for (int d = 0; d < 8 && g_surf16_stack[d]; d++) {
+            HMODULE hm = NULL;
+            char mp[MAX_PATH] = "?";
+            if (GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                                   (LPCSTR)g_surf16_stack[d], &hm))
+                GetModuleFileNameA(hm, mp, sizeof mp);
+            const char *b = strrchr(mp, 0x5C);
+            REPLY(" %s+%lx", b ? b + 1 : mp, (unsigned long)(g_surf16_stack[d] - (uintptr_t)hm));
+        }
+        REPLY("\n");
+    }
+    REPLY("fog: on=%ld type=%ld range %g..%g (%ld SetFog calls)\n", g_fog_on, g_fog_type, g_fog_start, g_fog_end, g_fog_calls);
+    REPLY("SetRenderTarget: %ld calls, %ld to the back buffer, last other target: %s\n", g_rt_calls, g_rt_back, g_rt_last);
+    for (int k = 0; k < 3; k++)
+        REPLY("%s: %ld calls, %ld failed, last ret %ld err %08lx\n", g_cnt[k].name, g_cnt[k].calls, g_cnt[k].fail,
+              g_cnt[k].last_ret, g_cnt[k].last_err);
+    IDirectDraw7 *dd = FIELD(scr, 0x30, IDirectDraw7 *);
+    if (dd) {
+        DDSURFACEDESC2 m = { .dwSize = sizeof m };
+        HRESULT hr = dd->lpVtbl->GetDisplayMode(dd, &m);
+        DEVMODEA dm = { .dmSize = sizeof dm };
+        EnumDisplaySettingsA(NULL, ENUM_CURRENT_SETTINGS, &dm);
+        REPLY("ddraw display mode: hr=%08lx %lux%lu %lu bpp; real desktop %lux%lu %lu bpp; mode index %u of %u\n", hr,
+              m.dwWidth, m.dwHeight, m.ddpfPixelFormat.dwRGBBitCount, dm.dmPelsWidth, dm.dmPelsHeight, dm.dmBitsPerPel,
+              FIELD(scr, 0x38, unsigned), (unsigned)((FIELD(scr, 0x14, uintptr_t) - FIELD(scr, 0x10, uintptr_t)) / 0x14));
+        uint32_t *md = (uint32_t *)(FIELD(scr, 0x10, uint8_t *) + FIELD(scr, 0x38, unsigned) * 0x14);
+        REPLY("current GEVideoMode: %u %u %u %u %u\n", md[0], md[1], md[2], md[3], md[4]);
+    }
     REPLY("windowed present: %ld frames, %ld failed; back buffer before ShowScene: %ld samples, %ld lit of 1024 avg, lock failed %ld\n",
           g_present_frames, g_present_fail, g_lit_frames, g_lit_frames ? g_lit_samples / g_lit_frames : 0, g_lock_fail);
     if (!strncmp(args, "blit", 4) && front && back) {
@@ -325,6 +613,12 @@ static void cmd_ddinfo(char *out, const char *args) {
         RECT dst = { o.x, o.y, o.x + cr.right, o.y + cr.bottom };
         HRESULT hr = f->lpVtbl->Blt(f, &dst, b, NULL, DDBLT_WAIT, NULL);
         REPLY("blit to %ld,%ld-%ld,%ld: hr=%08lx\n", dst.left, dst.top, dst.right, dst.bottom, hr);
+    }
+    if (!strncmp(args, "notex", 5)) {   // engine debug switch: draw without textures
+        void (__thiscall *fn)(void *, int, unsigned) = (void (__thiscall *)(void *, int, unsigned))
+            GetProcAddress(GetModuleHandleA(g_show[DISPLAY_DLL(ras)].dll), "?SetDisplayNoTextureMode@DX7Rasterizer@@UAEX_NK@Z");
+        if (fn) fn(ras, args[5] != '0', (unsigned)idx);
+        REPLY("no-texture mode %s\n", fn ? (args[5] != '0' ? "on" : "off") : "not found");
     }
     if (!strncmp(args, "dump", 4)) {   // surfaces to aimod_dumps/dd_<name>.bmp
         uint8_t *ges[2] = { front, back };

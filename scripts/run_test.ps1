@@ -7,7 +7,7 @@
 # path: the file is copied to Saved Games\<name>.ees for -loadgame, and the DLL (scenario_mode=1) switches
 # the game start over to Scenarios\<name>.scn.
 param([string]$Save = "aitest.ees", [int]$TimeoutSec = 900, [string]$Tag = "", [bool]$Mute = $true,
-      [string]$Scenario = "", [string[]]$IniExtra = @())
+      [string]$Scenario = "", [string[]]$IniExtra = @(), [string]$Exe = "Empire Earth.exe")
 $g = (Resolve-Path "$PSScriptRoot\..\..").Path   # game folder; the repository lives in <game>\_aimod
 if ($Scenario) {
     Copy-Item "$g\Data\Scenarios\$Scenario.scn" "$g\Data\Saved Games\$Scenario.ees" -Force
@@ -64,7 +64,7 @@ Set-Content "$g\aimod_autotest.ini" (@($lines) + $extra)
 try {
     Remove-Item "$g\aimod_econ.csv" -Confirm:$false -ErrorAction SilentlyContinue
     $psi = New-Object System.Diagnostics.ProcessStartInfo
-    $psi.FileName = "$g\Empire Earth.exe"; $psi.Arguments = "-loadgame `"$Save`""
+    $psi.FileName = "$g\$Exe";$psi.Arguments = "-loadgame `"$Save`""
     $psi.WorkingDirectory = $g; $psi.UseShellExecute = $false
     $t0 = Get-Date
     $p = [System.Diagnostics.Process]::Start($psi)

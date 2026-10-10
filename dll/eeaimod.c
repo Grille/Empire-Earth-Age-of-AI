@@ -449,7 +449,11 @@ static BOOL is_game_process(void) {
     char path[MAX_PATH];
     GetModuleFileNameA(NULL, path, MAX_PATH);
     const char *name = strrchr(path, '\\');
-    return name && lstrcmpiA(name + 1, "Empire Earth.exe") == 0;
+    if (name && lstrcmpiA(name + 1, "Empire Earth.exe") == 0) return TRUE;
+    // a renamed copy of the 1.04 exe (same build timestamp as the CD/GOG/Steam 1.04 exe)
+    uint8_t *base = (uint8_t *)GetModuleHandleA(NULL);
+    IMAGE_NT_HEADERS *nt = (IMAGE_NT_HEADERS *)(base + ((IMAGE_DOS_HEADER *)base)->e_lfanew);
+    return nt->FileHeader.TimeDateStamp == 0x594D0000;
 }
 
 static void install(HMODULE self) {
