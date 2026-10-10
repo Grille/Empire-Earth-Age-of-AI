@@ -196,3 +196,16 @@ also loads every `*.dll` in its folder, so the mod gets in the same way.
 | EEASaveGame / EEAUserPauseGame vtable | 0x825084 / 0x830E94 | 0x839060 / 0x846790 |
 
 `scripts/vtables.py` (with `EE_EXE=<exe>`) prints vtables and slots for any class.
+
+### What AoC changed in the code (scripts/diff_exes.py)
+
+Of the 6030 functions both exes name via RTTI (`Class::vfN`), 5654 (94%) have the same size; 376 changed.
+By subsystem (same/changed): computer player EECP 408/70, AI framework/pathfinding EEAI 127/13, units EEU 336/73,
+physics/movement models EEP 107/49, interface EEUI 819/31, scenario EES 611/12, effects EEE 389/20.
+- EEComputerPlayer::vf6 is the AI's save/load serializer: +7 KB = more AI state (matches the field shifts).
+- Attack subgroups (EECPASGLand 19, EECPASGAir 10, EECPAttackSubGroup 10 changed): the samples read so far add
+  checks for new unit types (e.g. types 0x2D6/0x2D9/0x2DD) and continent-chain routing (the new A* continent graph,
+  EEAIAStarGraphContinentalChainGoal) - mostly support for the new content and multi-continent paths.
+- Movement models (EEPMNaval/Helicopter/Land/Airplane/SubmergedNaval) and unit classes changed most outside the AI.
+  Caution: where a base class gained virtual functions the vfN numbering shifts, so EEUnitClass/EEComplexUnit
+  "changes" are partly numbering artifacts and need matching by code, not by name.
