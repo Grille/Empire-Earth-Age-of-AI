@@ -3,6 +3,18 @@
 // kind 0: imm32 operand at addr (old -> new); kind 1: float constant read through the absolute operand
 // at addr - the operand is redirected to a new float.
 static const struct { uint32_t addr; uint8_t kind; uint32_t old, val; } k_editor_layout[] = {
+    { 0x56127A, 0, 0x43A28000, 0x43DA8000 },   // EESEInstructions_00560ec7: mov dword ptr [ebp - 0xc], 0x43a28000  325 -> 437
+    { 0x56135B, 0, 0x441D8000, 0x44558000 },   // EESEInstructions_00560ec7: mov dword ptr [ebp - 0xc], 0x441d8000  630 -> 854
+    { 0x56145C, 1, 0x443DC000, 0x4475C000 },   // EESEInstructions_00560ec7: fadd dword ptr [0x82d47c]  759 -> 983
+    { 0x56153D, 1, 0x443DC000, 0x4475C000 },   // EESEInstructions_00560ec7: fadd dword ptr [0x82d47c]  759 -> 983
+    { 0x561628, 1, 0x443DC000, 0x4475C000 },   // EESEInstructions_00560ec7: fadd dword ptr [0x82d47c]  759 -> 983
+    { 0x561709, 1, 0x443DC000, 0x4475C000 },   // EESEInstructions_00560ec7: fadd dword ptr [0x82d47c]  759 -> 983
+    { 0x5617D5, 1, 0x443DC000, 0x4475C000 },   // EESEInstructions_00560ec7: fadd dword ptr [0x82d47c]  759 -> 983
+    { 0x56189E, 1, 0x443DC000, 0x4475C000 },   // EESEInstructions_00560ec7: fadd dword ptr [0x82d47c]  759 -> 983
+    { 0x561971, 1, 0x443DC000, 0x4475C000 },   // EESEInstructions_00560ec7: fadd dword ptr [0x82d47c]  759 -> 983
+    { 0x561A3A, 1, 0x443DC000, 0x4475C000 },   // EESEInstructions_00560ec7: fadd dword ptr [0x82d47c]  759 -> 983
+    { 0x561BFB, 0, 0x43A28000, 0x43DA8000 },   // EESEInstructions_00560ec7: mov dword ptr [ebp - 0xc], 0x43a28000  325 -> 437
+    { 0x561D05, 0, 0x441D8000, 0x44558000 },   // EESEInstructions_00560ec7: mov dword ptr [ebp - 0xc], 0x441d8000  630 -> 854
     { 0x568399, 1, 0x43220000, 0x43890000 },   // FUN_0056835a: fadd dword ptr [0x82db54]  162 -> 274
     { 0x5685F0, 1, 0x43220000, 0x43890000 },   // FUN_005685a3: fadd dword ptr [0x82db54]  162 -> 274
     { 0x568746, 0, 0x43090000, 0x43790000 },   // FUN_005685a3: mov dword ptr [ebp - 0x28], 0x43090000  137 -> 249
@@ -308,8 +320,6 @@ static const struct { uint32_t addr; uint8_t kind; uint32_t old, val; } k_editor
     { 0x58E560, 0, 0x43DB0000, 0x44178000 },   // FUN_0058e400: mov dword ptr [eax + 0xc], 0x43db0000  438 -> 606
     { 0x58E566, 0, 0x4415C000, 0x443FC000 },   // FUN_0058e400: mov dword ptr [eax], 0x4415c000  599 -> 767
     { 0x58E56D, 0, 0x4447C000, 0x447FC000 },   // FUN_0058e400: mov dword ptr [eax + 8], 0x4447c000  799 -> 1023
-    { 0x58E58C, 0, 0x00000258, 0x00000300 },   // FUN_0058e400: push 0x258  600 -> 768
-    { 0x58E591, 0, 0x00000320, 0x00000400 },   // FUN_0058e400: push 0x320  800 -> 1024
     { 0x58E60C, 0, 0x43E00000, 0x441A0000 },   // FUN_0058e5ec: mov dword ptr [ebp - 4], 0x43e00000  448 -> 616
     { 0x58E64B, 0, 0x44098000, 0x44338000 },   // FUN_0058e5ec: mov dword ptr [ebp - 4], 0x44098000  550 -> 718
     { 0x58E6D6, 0, 0x44098000, 0x44338000 },   // FUN_0058e5ec: mov dword ptr [ebp - 4], 0x44098000  550 -> 718
