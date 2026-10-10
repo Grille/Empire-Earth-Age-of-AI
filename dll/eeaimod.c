@@ -508,7 +508,7 @@ static void install(HMODULE self) {
     camera_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
     display_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
     ctl_start();
-    if (g_auto.enabled) { watch_start(g_ini); trace_start(g_ini); }
+    if (g_auto.enabled) { watch_start(g_ini); trace_start(g_ini); AddVectoredExceptionHandler(1, crash_handler); }
 }
 
 BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, LPVOID reserved) {

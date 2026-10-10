@@ -127,3 +127,45 @@ static void watch_start(const char *ini) {
     CloseHandle(CreateThread(NULL, 0, watch_thread, NULL, 0, NULL));
     if (g_log) fprintf(g_log, "# watch: write watchpoint on %08lx len %d\n", (unsigned long)g_watch_addr, g_watch_len);
 }
+
+// Crash log (autotest): the first access violations / illegal instructions with module+offset and an EBP-chain
+// backtrace. First-chance, so exceptions the game handles itself show up too (hence the cap).
+static volatile LONG g_crash_logged;
+
+static void crash_addr(char *buf, size_t cap, uintptr_t a) {
+    HMODULE hm = NULL;
+    char path[MAX_PATH];
+    if (GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                           (LPCSTR)a, &hm) && GetModuleFileNameA(hm, path, sizeof path)) {
+        const char *b = strrchr(path, 0x5C);
+        snprintf(buf, cap, "%08lx(%s+%lx)", (unsigned long)a, b ? b + 1 : path, (unsigned long)(a - (uintptr_t)hm));
+    } else snprintf(buf, cap, "%08lx", (unsigned long)a);
+}
+
+static LONG CALLBACK crash_handler(EXCEPTION_POINTERS *ep) {
+    DWORD code = ep->ExceptionRecord->ExceptionCode;
+    if (code != EXCEPTION_ACCESS_VIOLATION && code != EXCEPTION_ILLEGAL_INSTRUCTION && code != EXCEPTION_PRIV_INSTRUCTION)
+        return EXCEPTION_CONTINUE_SEARCH;
+    if (InterlockedIncrement(&g_crash_logged) > 8 || !g_log) return EXCEPTION_CONTINUE_SEARCH;
+    CONTEXT *c = ep->ContextRecord;
+    char at[160], line[1200];
+    crash_addr(at, sizeof at, c->Eip);
+    int n = snprintf(line, sizeof line, "# exception %08lx at %s thread %lu, %s %08lx; eax=%08lx ecx=%08lx edx=%08lx esi=%08lx edi=%08lx; stack:",
+                     code, at, GetCurrentThreadId(), ep->ExceptionRecord->ExceptionInformation[0] ? "write" : "read",
+                     (unsigned long)ep->ExceptionRecord->ExceptionInformation[1], c->Eax, c->Ecx, c->Edx, c->Esi, c->Edi);
+    uintptr_t *fp = (uintptr_t *)c->Ebp;
+    for (int d = 0; d < 10 && fp && n < (int)sizeof line - 80; d++) {
+        uintptr_t pair[2];
+        SIZE_T got;
+        if (!ReadProcessMemory(GetCurrentProcess(), fp, pair, sizeof pair, &got)) break;
+        crash_addr(at, sizeof at, pair[1]);
+        n += snprintf(line + n, sizeof line - n, " %s", at);
+        if (pair[0] <= (uintptr_t)fp) break;
+        fp = (uintptr_t *)pair[0];
+    }
+    EnterCriticalSection(&g_lock);
+    fprintf(g_log, "%s\n", line);
+    fflush(g_log);
+    LeaveCriticalSection(&g_lock);
+    return EXCEPTION_CONTINUE_SEARCH;
+}

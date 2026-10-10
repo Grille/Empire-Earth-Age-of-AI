@@ -21,6 +21,7 @@ static void *g_players[16];         // EEComputerPlayer seen by the AI hooks, by
 static void watch_set(uintptr_t addr, int len);
 static void cmd_threat(char *out, const char *args);
 static void cmd_scrolltest(char *out, const char *args);
+static void cmd_ddinfo(char *out, const char *args);
 static struct {
     char cmd[512];
     char out[16384];
@@ -319,6 +320,7 @@ static void execute(const char *cmd, char *out) {
     else if (!strcmp(verb, "threat")) cmd_threat(out, args);
     else if (!strcmp(verb, "save")) cmd_save(out, args);
     else if (!strcmp(verb, "scrolltest")) cmd_scrolltest(out, args);
+    else if (!strcmp(verb, "ddinfo")) cmd_ddinfo(out, args);
     else if (!strcmp(verb, "watch")) { unsigned a = 0; int l = 4; sscanf(args, "%x %d", &a, &l); watch_set(a, l); REPLY("ok: watching %08x len %d\n", a, l); }
     else if (!strcmp(verb, "speed")) {
         float s = (float)atof(args);
