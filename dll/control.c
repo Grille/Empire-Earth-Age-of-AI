@@ -447,6 +447,17 @@ static DWORD WINAPI pipe_thread(LPVOID unused) {
             if (!strcmp(verb, "peek") || !strcmp(verb, "poke")) {
                 char *out = reply;
                 mem_command(verb, cmd + n, out);
+            } else if (!strcmp(verb, "uipost")) {
+                // uipost <hex msg> [hex p1]: post to the UI thread's queue (TSThread [0x91977C]+0x40), works in the
+                // menus where no simulation runs - e.g. 413 opens the scenario editor from the main menu
+                unsigned msg = 0, p1 = 0;
+                sscanf(cmd + n, "%x %x", &msg, &p1);
+                uint8_t *ui = *(uint8_t **)0x0091977C;
+                void *thread = ui ? *(void **)(ui + 0x40) : NULL;
+                typedef long (__thiscall *PostFn)(void *, unsigned long, void *, void *, int);
+                PostFn post = (PostFn)GetProcAddress(GetModuleHandleA("Low-Level Engine.dll"), "?Post@TSThread@@QAEJKPAX0_N@Z");
+                if (thread && post && msg) wsprintfA(reply, "ok: posted %x (result %ld)\n", msg, post(thread, msg, (void *)(uintptr_t)p1, NULL, 1));
+                else lstrcpyA(reply, "error: no UI thread\n");
             } else {
                 run_on_game_thread(cmd, reply, sizeof reply);
             }

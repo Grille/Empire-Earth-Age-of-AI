@@ -128,7 +128,7 @@ static void watch_start(const char *ini) {
     if (g_log) fprintf(g_log, "# watch: write watchpoint on %08lx len %d\n", (unsigned long)g_watch_addr, g_watch_len);
 }
 
-// Crash log (autotest): the first access violations / illegal instructions with module+offset and an EBP-chain
+// Crash log: the first access violations / illegal instructions with module+offset and an EBP-chain
 // backtrace. First-chance, so exceptions the game handles itself show up too (hence the cap).
 static volatile LONG g_crash_logged;
 
