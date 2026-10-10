@@ -241,3 +241,11 @@ writes the header and the lump container and parses terrain. Strings are length-
   from test play 0x65FD21 (call 0x65FD6D). AoC uses 1024x768 in both. The mod redirects both calls
   (aimod.ini [editor] resolution).
 - Camera scrolling: see dll/camera.c (EEAScroll, AoC smooth scrolling).
+- Editor at 1024x768 (work in progress): AoC also moved the whole editor layout (constructor 0x58D3E1 ->
+  AoC 0x59D615: bounds 599/799 -> 767/1023, minimap 587-795 x 454-662 -> 854-1023 x 598-767, buttons
+  625-644 x 580-599 -> 849-868 x 718-737; layout 0x58E400 -> 0x59E80F: map view bottom 438 -> 606) and the
+  panel code (~0x58E000-0x5B1000, many hard-coded positions), and ships a 1024x768 background
+  (textures\scenfull_R_C.tga, 4x3 tiles of 256x256 32-bit; base: .sst 800x600). The editor background is a
+  UIFullBackground("textures\Scenfull", 4, 3, parent, 800, 600) from Low-Level Engine.dll.
+- .sst textures = 15-byte header (00 01 01 00 | 00 00 00 01 | 00 00 00 01 | 00 00 00) + a plain 24-bit TGA.
+  The base Low-Level Engine.dll only loads .sst; AoC's also loads .tga.
