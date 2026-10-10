@@ -169,10 +169,13 @@ static void sample_back(uint8_t *ras, unsigned screen) {
 
 static int __fastcall hook_show_scene(void *ras, void *edx, unsigned screen) {
     (void)edx;
-    if (g_diag && !g_fullscreen && (g_present_frames & 63) == 0) sample_back(ras, screen);
-    int r = g_show[DISPLAY_DLL(ras)].show(ras, screen);   // windowed: its Blt to the emulated primary fails, harmless
-    if (!g_fullscreen && present_to_window(ras, screen)) r = 0;
-    return r;
+    if (g_fullscreen) return g_show[DISPLAY_DLL(ras)].show(ras, screen);
+    // windowed: the original is not called. Its Blt to the emulated primary at the window's screen position is
+    // rejected while the back buffer is larger than that 1024x768 surface, but at 1024x768 (scenario editor) the
+    // rect only overhangs by the title bar height and the copy runs past the end of the surface (crash in DDRAW.dll).
+    // It also keeps the frame statistics, which only the debug FPS display reads.
+    if (g_diag && (g_present_frames & 63) == 0) sample_back(ras, screen);
+    return present_to_window(ras, screen) ? 0 : 1;
 }
 
 static int __fastcall hook_set_mode(void *scr, void *edx, unsigned mode) {
