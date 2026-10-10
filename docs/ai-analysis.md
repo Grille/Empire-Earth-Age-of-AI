@@ -99,9 +99,10 @@ Random-map suite: Continental, Plains, Highlands, Mediterranean, fixed seeds, 2�
 | copper plan | Stone Age at minute 17–23, Copper Age for 9 of 12 AIs by minute 36–50, all AIs alive, ~39 workers |
 | fewer/bigger waves (Continental, 75 min) | 7 waves instead of 10, about 9 more workers per AI, same epochs |
 | avoid towers + weak spots (Continental) | routes through tower range: 1 of 18 instead of 6 of 22; 13 attacks retargeted |
+| budget leak fixed (Continental, 75 min) | soldiers per AI peak at 15–21 instead of 0–6; kills 53/94/88 instead of 21/10/21; first buildings destroyed; economy unchanged (~55 workers, Copper Age at 30–45 min) |
 
 Open points:
-- The army budget fix (unit cap leak) still needs a full suite.
+- The army budget fix (unit cap leak) still needs a 4-map suite.
 - Attack effectiveness against a human player needs playtesting.
 
 ## Lessons for testing
