@@ -17,6 +17,36 @@
 
 static int g_editor_w, g_editor_h, g_editor_game;   // 0 = leave
 
+// aoc: the editor layout for 1024x768 (map view 1024x606, panels moved down 168 px, right side 224 px), as
+// Art of Conquest has it - generated from a comparison of both exes (scripts/layout_diff.py, gen_editor_layout.py).
+#include "editor_layout.h"
+#define N_LAYOUT (sizeof k_editor_layout / sizeof *k_editor_layout)
+static uint32_t g_layout_consts[N_LAYOUT];
+
+static int apply_editor_layout(void) {
+    int ok = 0, bad = 0;
+    for (size_t i = 0; i < N_LAYOUT; i++) {
+        uint32_t *p = (uint32_t *)k_editor_layout[i].addr;
+        DWORD old;
+        if (k_editor_layout[i].kind == 0) {
+            if (*p != k_editor_layout[i].old) { bad++; continue; }
+            VirtualProtect(p, 4, PAGE_EXECUTE_READWRITE, &old);
+            *p = k_editor_layout[i].val;
+        } else {   // redirect the absolute operand to our own constant
+            uint32_t *c = (uint32_t *)*p;
+            if ((uintptr_t)c < 0x401000 || (uintptr_t)c >= 0xA00000 || *c != k_editor_layout[i].old) { bad++; continue; }
+            g_layout_consts[i] = k_editor_layout[i].val;
+            VirtualProtect(p, 4, PAGE_EXECUTE_READWRITE, &old);
+            *p = (uint32_t)(uintptr_t)&g_layout_consts[i];
+        }
+        VirtualProtect(p, 4, old, &old);
+        FlushInstructionCache(GetCurrentProcess(), p, 4);
+        ok++;
+    }
+    if (g_log && bad) fprintf(g_log, "# editor: %d layout patch sites did not match and were skipped\n", bad);
+    return ok;
+}
+
 typedef void (__stdcall *SetResolutionFn)(int w, int h, int force, int flag);
 static void __stdcall hook_editor_resolution(int w, int h, int force, int flag) {
     int nw = g_editor_game ? *(int *)G_GAME_RES_W : g_editor_w;
@@ -42,5 +72,6 @@ static void display_install(const char *aimod_ini, const char *autotest_ini) {
     }
     int ok = patch_call(SITE_EDITOR_MENU, FN_SET_RESOLUTION, hook_editor_resolution)
            + patch_call(SITE_EDITOR_RES, FN_SET_RESOLUTION, hook_editor_resolution);
-    if (g_log) fprintf(g_log, "# editor: resolution=%s hooks %d/2\n", mode, ok);
+    int lay = g_editor_w == 1024 && g_editor_h == 768 ? apply_editor_layout() : 0;
+    if (g_log) fprintf(g_log, "# editor: resolution=%s hooks %d/2, layout patches %d/%d\n", mode, ok, lay, (int)N_LAYOUT);
 }
