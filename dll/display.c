@@ -116,6 +116,11 @@ static int present_to_window(uint8_t *ras, unsigned screen) {
         { sizeof bi.h, d.lPitch / (bpp / 8), -(LONG)d.dwHeight, 1, (WORD)bpp, bpp == 16 ? BI_BITFIELDS : BI_RGB, 0, 0, 0, 0, 0 },
         { d.ddpfPixelFormat.dwRBitMask, d.ddpfPixelFormat.dwGBitMask, d.ddpfPixelFormat.dwBBitMask },
     };
+    static HWND erase_off;
+    if (erase_off != hwnd) {   // no background erase between our frames (flicker)
+        SetClassLongA(hwnd, GCL_HBRBACKGROUND, 0);
+        erase_off = hwnd;
+    }
     HDC wdc = GetDC(hwnd);
     RECT cr;
     GetClientRect(hwnd, &cr);
@@ -123,6 +128,7 @@ static int present_to_window(uint8_t *ras, unsigned screen) {
     StretchDIBits(wdc, 0, 0, cr.right, cr.bottom, 0, 0, (int)d.dwWidth, (int)d.dwHeight, d.lpSurface,
                   (BITMAPINFO *)&bi, DIB_RGB_COLORS, SRCCOPY);
     ReleaseDC(hwnd, wdc);
+    ValidateRect(hwnd, NULL);   // the frame is drawn - no WM_PAINT/erase for it
     s->lpVtbl->Unlock(s, NULL);
     InterlockedIncrement(&g_present_frames);
     return 1;
