@@ -1,8 +1,18 @@
-# eeaimod: a fairer, smarter computer player for Empire Earth
+# Empire Earth tuning mod
 
-`eeaimod.dll` is a mod for **Empire Earth 1.04 (base game, not Art of Conquest)**. It patches the computer
-player at runtime. The game's files stay unchanged: you drop the DLL into the game folder, and the
-engine loads it like one of its own plugins.
+A runtime mod for **Empire Earth 1.04 with the Difficulty Setting & Multiplayer Lobby add-on** (the
+last official base-game exe; not Art of Conquest). It fixes and tunes the game from inside: a DLL in the
+game folder patches the running exe, and the game's files stay unchanged. The engine loads every DLL
+in its folder, so dropping the file there is enough.
+
+The current focus is the **computer player**. The tooling here works for any part of the game: hooks,
+control pipe, automated tests and the engine notes. Further fixes and tuning will live in the same DLL,
+each as its own module with its own settings.
+
+The mod coexists with community DLL patches such as *Empire Earth Tweaks* (widescreen, map sizes),
+which patch different places.
+
+## Computer player (current focus)
 
 The original AI cheats: by default it pays about 1% of the real prices. With cheating switched off, it
 can't run its economy. It spends its food on soldiers before it has farms, sends citizens through enemy
