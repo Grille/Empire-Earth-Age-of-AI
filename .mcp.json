@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "empire-earth": {
+      "command": "venv/Scripts/python.exe",
+      "args": ["scripts/ee_mcp.py"]
+    }
+  }
+}

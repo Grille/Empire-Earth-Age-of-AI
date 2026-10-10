@@ -1,0 +1,25 @@
+# Third-party toolchains and environments (see README "Setup")
+/tools/
+/venv/
+__pycache__/
+*.pyc
+
+# Derived from the game's copyrighted files - regenerate locally, never commit:
+# Ghidra C dump and project of Empire Earth.exe
+/decomp/
+/ghidra_proj/
+# files extracted from data.ssa / Language.dll
+/data/
+/strings_de.json
+/cpbehavior_annotated.txt
+# AI settings tables generated from the game's dbcpbehavior.dat
+/mod/*.dat
+*.exe
+*.ees
+*.scn
+
+# Build output and test results
+/dll/*.dll
+/work/
+*.csv
+*.png
