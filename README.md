@@ -127,9 +127,23 @@ mod/            generator for a tuned dbcpbehavior.dat (AI settings table; super
 docs/           engine notes, AI analysis, testing guide
 ```
 
+## Display and interface
+
+Settings in `aimod.ini`:
+
+- `[display] windowed=1`: native windowed mode. The engine still contains SSSI's own windowed path; the
+  mod switches it on and fixes what broke on current Windows (presentation, crashes, terrain, editor).
+  The window has the game resolution from the game settings. A DirectDraw wrapper such as dgVoodoo is
+  still needed for the game to start on current Windows; pass-through mode is enough.
+- `[editor] resolution=aoc`: scenario editor at 1024x768 with The Art of Conquest's layout.
+- `[camera] scroll=aoc`: AoC's smooth camera scrolling.
+- `[general] skip_intro=1`: skip the intro movies.
+
 ## Status
 
 - Scenario fix and economy: done and confirmed in play.
+- Windowed mode, editor resolution, camera scrolling: working; window size option and an Alt+Enter
+  toggle are planned.
 - Attack tuning: settings are in `aimod.ini`.
 - Attack routing: in development.
 - An Art of Conquest port is planned (the AI classes are the same, the addresses differ).

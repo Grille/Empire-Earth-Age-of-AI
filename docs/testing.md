@@ -79,6 +79,18 @@ venv/Scripts/python scripts/eectl.py <command>
 | `threat P` | enemy defences AI player P knows about |
 | `watch <hex> [len]` | set the hardware watchpoint at runtime |
 | `save <name>` | save the running game to `Data\Saved Games\<name>.ees`, a fixture for later runs (`run_test.ps1 -Save <name>.ees`, without `random_map`) |
+| `ddinfo [dump\|blit\|notex1]` | DirectDraw state (screen, surfaces, z-buffer, display mode, counters); `dump` writes front/back/window to `aimod_dumps/dd_*.bmp`. Note: it locks the z-buffer, which changes the windowed rendering state |
+| `ddpoke z\|back\|front\|mode` | one of ddinfo's side effects alone (lock a surface, query the display mode) |
+| `uipost <hex msg> [hex p1]` | post a message to the UI thread's queue; runs on the pipe thread, so it also works in the menus |
+
+`run_test.ps1 -Exe <name>` starts a renamed copy of the exe (the DLL accepts any copy of the 1.04 exe).
+Autotest keys for the display work: `windowed`, `diag_hooks=1` (counters in `ddinfo`, also fullscreen),
+`diag_skip` (1 terrain, 2 water, 3 fog off). In normal play `[display] diag=1` enables the counters.
+
+Screenshots of DirectDraw output: PrintWindow (`screenshot.ps1`) returns black. Put the game window on top
+(SetWindowPos HWND_TOPMOST without activating) and use a screen capture; find the window by title
+"Empire Earth" with a caption style - `MainWindowHandle` is the loading splash. Don't run `ddinfo` before
+judging the windowed image (see above).
 
 `scripts/mem.py` wraps `peek` for Python (`mem.u32(addr)`, `mem.rd(addr, n)`).
 `scripts/screenshot.ps1` captures the game window to `work/screen.png`, even while it's covered.

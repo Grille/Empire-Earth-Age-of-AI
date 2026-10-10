@@ -241,7 +241,7 @@ writes the header and the lump container and parses terrain. Strings are length-
   from test play 0x65FD21 (call 0x65FD6D). AoC uses 1024x768 in both. The mod redirects both calls
   (aimod.ini [editor] resolution).
 - Camera scrolling: see dll/camera.c (EEAScroll, AoC smooth scrolling).
-- Editor at 1024x768 (work in progress): AoC also moved the whole editor layout (constructor 0x58D3E1 ->
+- Editor at 1024x768 (done, dll/editor_layout.h generated from the AoC diff): AoC also moved the whole editor layout (constructor 0x58D3E1 ->
   AoC 0x59D615: bounds 599/799 -> 767/1023, minimap 587-795 x 454-662 -> 854-1023 x 598-767, buttons
   625-644 x 580-599 -> 849-868 x 718-737; layout 0x58E400 -> 0x59E80F: map view bottom 438 -> 606) and the
   panel code (~0x58E000-0x5B1000, many hard-coded positions), and ships a 1024x768 background
@@ -249,3 +249,34 @@ writes the header and the lump container and parses terrain. Strings are length-
   UIFullBackground("textures\Scenfull", 4, 3, parent, 800, 600) from Low-Level Engine.dll.
 - .sst textures = 15-byte header (00 01 01 00 | 00 00 00 01 | 00 00 00 01 | 00 00 00) + a plain 24-bit TGA.
   The base Low-Level Engine.dll only loads .sst; AoC's also loads .tga.
+
+### Windowed mode (dll/display.c)
+
+The engine keeps the windowed path SSSI used during development; the byte 0x91945A (1 = fullscreen)
+selects it. It is already 1 when the DLLs load and nothing writes it later. Windowed (0), the game:
+
+- creates a titled, resizable window: DX7Screen::CreateAWindow mode 1 (WS_OVERLAPPEDWINDOW), the window is
+  resized to each video mode (GEWindow::Resize);
+- takes DirectDraw with DDSCL_NORMAL (DX7Screen::Capture flags 0x408 instead of 0x413) and never changes the
+  display mode (DX7Screen::SetMode only acts when the screen's fullscreen byte +0x3D is set);
+- renders into an offscreen back buffer of window size with an attached z-buffer (ActivateScreen) and
+  presents it with a Blt to the primary at the window's client origin (DX7Rasterizer::ShowScene, vtable
+  slot 66; fullscreen: Flip);
+- hides/restores the window on deactivation instead of releasing surfaces (0x67DE3E / 0x67E542).
+
+What breaks on current Windows and what the mod does (all hooks are installed by replacing every pointer
+to the function in the read-only data of DX7HRDisplay.dll / DX7HRTnLDisplay.dll, because the live objects
+are subclasses with their own vtables):
+
+| Problem | Cause | Fix |
+|---|---|---|
+| black window | the DDSCL_NORMAL primary is an emulated 1024x768 16-bit surface (Windows and dgVoodoo pass-through alike); the Blt to it fails with DDERR_INVALIDRECT. GetDC on the 3D back buffer also reads black | present by Lock + StretchDIBits into the window; the original ShowScene is not called windowed |
+| editor crash | at 1024x768 that Blt only overhangs by the title bar and copies past the end of the surface (DDRAW.dll) | as above: original ShowScene skipped |
+| intermittent crashes at start | SetMode skips recording the mode index (+0x38) when windowed: GetCurrentMode reads garbage (0x535958), ActivateScreen builds the primary with a garbage pixel format (CreateSurface) | SetMode only records the index; GetCurrentMode/Index clamp it |
+| land terrain invisible (water, models fine) | the z-buffer of a new windowed back buffer starts out unusable for the terrain | one Lock/Unlock of the attached z-buffer per new back buffer |
+| editor: scanlines where the mouse moved | the UI's copy-dirty rectangles restore regions from the front surface (page-flip logic); windowed that is the emulated primary | copies from/to the front surface skipped (the back buffer is never flipped) |
+| loading splash stays | started (0x5343F8) while the flag is still 1, its stop (0x534433) checks the flag again | jne at 0x53443D removed when windowed |
+
+dreXmod.dll briefly hooks 0x534433 while the DLLs load (a JMP at the function start, restored later).
+Plain Windows ddraw.dll crashed EE at startup here; with dgVoodoo's ddraw.dll in the folder (even in
+pass-through) it starts.
