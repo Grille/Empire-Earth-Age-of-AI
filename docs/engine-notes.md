@@ -232,3 +232,12 @@ writes the header and the lump container and parses terrain. Strings are length-
   probably the per-player enable state of units/techs; the lever for locking AoC-only content in EE scenarios.
 - Triggers: name, description, bools active/looping/fired/active in cinematic, u32 conditions-true-for,
   u32 seconds true, u32 id, then condition and effect bindings.
+
+## Display
+
+- SetResolution 0x65F314(width, height, force, flag): stdcall, ECX unused. Menus use 1024x768; games use
+  [0x9193FC] x [0x9193F8].
+- The scenario editor is fixed at 800x600 in both entries: main menu 0x6601D9 (call 0x6601F1) and return
+  from test play 0x65FD21 (call 0x65FD6D). AoC uses 1024x768 in both. The mod redirects both calls
+  (aimod.ini [editor] resolution).
+- Camera scrolling: see dll/camera.c (EEAScroll, AoC smooth scrolling).
