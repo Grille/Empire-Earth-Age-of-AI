@@ -23,3 +23,6 @@ __pycache__/
 /work/
 *.csv
 *.png
+
+# Art of Conquest analysis workspace (derived from EE-AOC.exe)
+/aoc/
