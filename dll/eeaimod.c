@@ -507,6 +507,11 @@ static void install(HMODULE self) {
                     g_auto.quit_minutes, GetCommandLineA());
         fflush(g_log);
     }
+    // normal play: aimod.ini [general] skip_intro = 1 skips the intro movies (autotest has its own key)
+    if (!g_auto.enabled && GetPrivateProfileIntA("general", "skip_intro", 0, g_aimod_ini)) {
+        BOOL ok = skip_intro_movies();
+        if (g_log) fprintf(g_log, "# skip_intro: %s\n", ok ? "ok" : "FAILED");
+    }
     econ_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
     attack_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
     camera_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
