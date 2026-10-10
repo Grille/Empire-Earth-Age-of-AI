@@ -43,6 +43,15 @@ static int apply_editor_layout(void) {
         FlushInstructionCache(GetCurrentProcess(), p, 4);
         ok++;
     }
+    // the file buttons (load, save, test, exit ...) come from a data table, not code: 0x8AE0A0, 6 entries of
+    // {id, x, y, texture u0, v0, u1, v1, tooltip}; AoC (0x8C47B0) has them at x 647.. (step 35), y 736
+    int32_t *t = (int32_t *)0x008AE0A0;
+    for (int i = 0; i < 6; i++, t += 8) {
+        if (t[1] != 415 + 35 * i || t[2] != 567) { bad++; continue; }
+        t[1] = 647 + 35 * i;
+        t[2] = 736;
+        ok++;
+    }
     if (g_log && bad) fprintf(g_log, "# editor: %d layout patch sites did not match and were skipped\n", bad);
     return ok;
 }
@@ -73,5 +82,5 @@ static void display_install(const char *aimod_ini, const char *autotest_ini) {
     int ok = patch_call(SITE_EDITOR_MENU, FN_SET_RESOLUTION, hook_editor_resolution)
            + patch_call(SITE_EDITOR_RES, FN_SET_RESOLUTION, hook_editor_resolution);
     int lay = g_editor_w == 1024 && g_editor_h == 768 ? apply_editor_layout() : 0;
-    if (g_log) fprintf(g_log, "# editor: resolution=%s hooks %d/2, layout patches %d/%d\n", mode, ok, lay, (int)N_LAYOUT);
+    if (g_log) fprintf(g_log, "# editor: resolution=%s hooks %d/2, layout patches %d/%d\n", mode, ok, lay, (int)N_LAYOUT + 6);
 }
