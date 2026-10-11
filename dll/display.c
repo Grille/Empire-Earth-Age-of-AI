@@ -292,12 +292,115 @@ static uint32_t *scale_frame(const DDSURFACEDESC2 *d, int dw, int dh) {
     return buf;
 }
 
-#include "present_d3d.c"
-
-// timing of the windowed present (ddinfo): readback (Lock), copy to the window (GDI or Direct3D), frame interval
+// timing of the windowed present (ddinfo): readback (Lock), copy to the window (GDI, Direct3D or primary Blt), frame interval
 static volatile LONG64 g_t_lock, g_t_blit, g_t_frame;
 static volatile LONG g_t_count;
 static LONGLONG qpc(void) { LARGE_INTEGER t; QueryPerformanceCounter(&t); return t.QuadPart; }
+
+#include "present_d3d.c"
+
+// present = auto (default): with DDrawCompat as ddraw.dll the frame goes onto the primary surface - DDrawCompat
+// shows the primary over the game window itself (a frame drawn into the window directly stays hidden: black
+// window), and unlike dgVoodoo's pass-through its windowed primary is desktop sized, so the Blt is safe. A GPU
+// copy (back buffer -> primary at the window's client area, scaled, bars filled black, clipped to the window);
+// the back buffer is only locked for a "shot". Otherwise Direct3D 11 (present_d3d.c), or gdi when set.
+static int g_present_mode;   // 0 auto, 1 d3d, 2 gdi, 3 primary
+static int ddrawcompat_loaded(void) {
+    static int known = -1;
+    if (known >= 0) return known;
+    known = 0;
+    HMODULE m = GetModuleHandleA("ddraw.dll");
+    if (!m) return 0;
+    IMAGE_NT_HEADERS *nt = (IMAGE_NT_HEADERS *)((uint8_t *)m + ((IMAGE_DOS_HEADER *)m)->e_lfanew);
+    const uint8_t *p = (const uint8_t *)m, *end = p + nt->OptionalHeader.SizeOfImage - 16;
+    MEMORY_BASIC_INFORMATION mbi;
+    for (const uint8_t *q = p; q < end; ) {   // readable pages only
+        if (!VirtualQuery(q, &mbi, sizeof mbi)) break;
+        const uint8_t *re = (const uint8_t *)mbi.BaseAddress + mbi.RegionSize;
+        if (mbi.State == MEM_COMMIT && !(mbi.Protect & (PAGE_NOACCESS | PAGE_GUARD)))
+            for (; q < re && q < end; q++)
+                if (*q == 'D' && !memcmp(q, "DDrawCompat version", 19)) { known = 1; return 1; }
+        q = re;
+    }
+    return 0;
+}
+
+static volatile LONG g_primary_frames, g_primary_fail;
+static HRESULT g_primary_hr;
+static int present_primary(uint8_t *ras, unsigned screen, uint8_t *scr, uint8_t *back, IDirectDrawSurface7 *b, HWND hwnd) {
+    (void)ras; (void)screen;
+    if (g_present_mode != 3 && !(g_present_mode == 0 && ddrawcompat_loaded())) return 0;
+    uint8_t *st = FIELD(ras, 0x20, uint8_t **)[screen];
+    uint8_t *front = FIELD(st, 0x2AC, uint8_t *);
+    IDirectDrawSurface7 *f = front ? FIELD(front, 0x48, IDirectDrawSurface7 *) : NULL;
+    IDirectDraw7 *dd = FIELD(scr, 0x30, IDirectDraw7 *);
+    if (!f || !dd) return 0;
+    (void)back;
+    window_hook(hwnd);
+    static LONGLONG t_last;
+    LONGLONG t0 = qpc();
+    DDSURFACEDESC2 d = { .dwSize = sizeof d };
+    if (g_shot_req && b->lpVtbl->Lock(b, NULL, &d, DDLOCK_WAIT | DDLOCK_READONLY, NULL) == DD_OK) {
+        write_desc_bmp(&d, g_shot_path);
+        b->lpVtbl->Unlock(b, NULL);
+        g_shot_req = 0;
+        InterlockedIncrement(&g_shot_done);
+    }
+    d.dwFlags = 0;
+    b->lpVtbl->GetSurfaceDesc(b, &d);
+    static HWND clipped;
+    if (clipped != hwnd) {   // clip the primary to the game window (other windows stay untouched)
+        IDirectDrawClipper *c = NULL;
+        if (dd->lpVtbl->CreateClipper(dd, 0, &c, NULL) == DD_OK) {
+            c->lpVtbl->SetHWnd(c, 0, hwnd);
+            f->lpVtbl->SetClipper(f, c);
+            c->lpVtbl->Release(c);
+        }
+        clipped = hwnd;
+    }
+    void *dpi = dpi_enter(hwnd);
+    RECT cr;
+    GetClientRect(hwnd, &cr);
+    RECT v = view_rect(&cr, (int)d.dwWidth, (int)d.dwHeight);
+    POINT o = { 0, 0 };
+    ClientToScreen(hwnd, &o);
+    dpi_leave(dpi);
+    if (v.left > 0 || v.top > 0) {   // bars
+        DDBLTFX fx = { .dwSize = sizeof fx, .dwFillColor = 0 };
+        RECT b1 = { o.x, o.y, o.x + (v.left > 0 ? v.left : cr.right), o.y + (v.left > 0 ? cr.bottom : v.top) };
+        RECT b2 = { o.x + (v.left > 0 ? v.right : 0), o.y + (v.left > 0 ? 0 : v.bottom), o.x + cr.right, o.y + cr.bottom };
+        f->lpVtbl->Blt(f, &b1, NULL, NULL, DDBLT_COLORFILL | DDBLT_WAIT, &fx);
+        f->lpVtbl->Blt(f, &b2, NULL, NULL, DDBLT_COLORFILL | DDBLT_WAIT, &fx);
+    }
+    // the part of the image that lies on the primary (a window partly off the screen would fail the whole Blt
+    // with DDERR_INVALIDRECT); the source rect is cut to match
+    RECT dst = { o.x + v.left, o.y + v.top, o.x + v.right, o.y + v.bottom };
+    DDSURFACEDESC2 fd = { .dwSize = sizeof fd };
+    f->lpVtbl->GetSurfaceDesc(f, &fd);
+    RECT on = { 0, 0, (LONG)fd.dwWidth, (LONG)fd.dwHeight }, dc;
+    HRESULT hr = DD_OK;
+    if (IntersectRect(&dc, &dst, &on)) {
+        double sx = (double)d.dwWidth / (dst.right - dst.left), sy = (double)d.dwHeight / (dst.bottom - dst.top);
+        RECT src = { (LONG)((dc.left - dst.left) * sx), (LONG)((dc.top - dst.top) * sy),
+                     (LONG)((dc.right - dst.left) * sx + 0.5), (LONG)((dc.bottom - dst.top) * sy + 0.5) };
+        if (src.right > (LONG)d.dwWidth) src.right = (LONG)d.dwWidth;
+        if (src.bottom > (LONG)d.dwHeight) src.bottom = (LONG)d.dwHeight;
+        hr = f->lpVtbl->Blt(f, &dc, b, &src, DDBLT_WAIT, NULL);
+    }
+    g_primary_hr = hr;
+    if (hr != DD_OK) InterlockedIncrement(&g_primary_fail);
+    LONGLONG t1 = qpc();
+    if (t_last) {
+        InterlockedAdd64(&g_t_blit, t1 - t0);
+        InterlockedAdd64(&g_t_frame, t0 - t_last);
+        InterlockedIncrement(&g_t_count);
+    }
+    t_last = t0;
+    ValidateRect(hwnd, NULL);
+    InterlockedIncrement(&g_primary_frames);
+    InterlockedIncrement(&g_present_frames);
+    return 1;
+}
 
 static int present_to_window(uint8_t *ras, unsigned screen) {
     uint8_t *st = FIELD(ras, 0x20, uint8_t **)[screen];
@@ -319,6 +422,7 @@ static int present_to_window(uint8_t *ras, unsigned screen) {
         }
         z_synced_for = s;
     }
+    if (present_primary(ras, screen, scr, back, s, hwnd)) return 1;
     // Lock, not GetDC: the GDI view of the 3D render target reads back black under current Windows' DirectDraw
     DDSURFACEDESC2 d = { .dwSize = sizeof d };
     static LONGLONG t_last;
@@ -1129,9 +1233,10 @@ static void display_install(const char *aimod_ini, const char *autotest_ini) {
         g_lock_mouse = GetPrivateProfileIntA("display", "lock_mouse", 0, aimod_ini);
         int input = install_windowed_input();
         g_smooth = GetPrivateProfileIntA("display", "smooth", 0, aimod_ini);
-        GetPrivateProfileStringA("display", "present", "d3d", tmp, sizeof tmp, aimod_ini);
+        GetPrivateProfileStringA("display", "present", "auto", tmp, sizeof tmp, aimod_ini);
         if (autotest_ini) { char at[32]; lstrcpynA(at, tmp, sizeof at); GetPrivateProfileStringA("autotest", "present", at, tmp, sizeof tmp, autotest_ini); }
-        g_present_d3d = lstrcmpiA(tmp, "gdi") != 0;
+        g_present_mode = !lstrcmpiA(tmp, "d3d") ? 1 : !lstrcmpiA(tmp, "gdi") ? 2 : !lstrcmpiA(tmp, "primary") ? 3 : 0;
+        g_present_d3d = g_present_mode <= 1;
         g_vsync = GetPrivateProfileIntA("display", "vsync", 0, aimod_ini);
         int dpi = 0;
         if (GetPrivateProfileIntA("display", "dpi_aware", 1, aimod_ini)) {
@@ -1636,6 +1741,10 @@ static void cmd_ddinfo(char *out, const char *args) {
                      n, tf * ms / n, tl * ms / n, tb * ms / n, (tf - tl - tb) * ms / n);
     }
     REPLY("frame stats (FPS display): %.1f frames/s, %.1f / %.1f per s\n", FIELD(st, 0x2D8, float), FIELD(st, 0x2D4, float), FIELD(st, 0x2E0, float));
+    REPLY("present path: %s (DDrawCompat %s); primary Blt %ld frames, %ld failed, last hr %08lx\n",
+          g_present_mode == 3 || (g_present_mode == 0 && ddrawcompat_loaded()) ? "primary Blt"
+          : g_present_d3d && !g_d3d.failed ? "Direct3D 11" : "GDI", ddrawcompat_loaded() ? "loaded" : "not loaded",
+          g_primary_frames, g_primary_fail, (unsigned long)g_primary_hr);
     if (g_subclassed) {
         typedef UINT (WINAPI *GetDpiFn)(HWND);
         GetDpiFn get_dpi = (GetDpiFn)(void *)GetProcAddress(GetModuleHandleA("user32.dll"), "GetDpiForWindow");
