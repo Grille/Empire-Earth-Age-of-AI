@@ -297,13 +297,42 @@ static void sample_back(uint8_t *ras, unsigned screen) {
     InterlockedIncrement(&g_lit_frames);
 }
 
+// The frame statistics the original ShowScene keeps before presenting (DX7HRDisplay +0xBADD; the TnL variant is
+// the same class), read by the FPS display. Per-screen state: +0x32C frames, +0x328/+0x330/+0x338 counters,
+// +0x2C4 float sum; every 12 frames the averages (+0x2C8 +0x2D0 +0x2DC +0x2E4) and the rates per second over
+// TMGetTime (ms): +0x2CC, +0x2D4, +0x2D8 = frames per second, +0x2E0; then all counters restart.
+typedef DWORD (__cdecl *TMGetTimeFn)(void);
+static TMGetTimeFn g_tm_get_time;
+static void frame_stats(uint8_t *ras, unsigned screen) {
+    uint8_t *st = FIELD(ras, 0x20, uint8_t **)[screen];
+    if (!st || ++FIELD(st, 0x32C, unsigned) != 12) return;
+    if (!g_tm_get_time) g_tm_get_time = (TMGetTimeFn)(void *)GetProcAddress(GetModuleHandleA("Low-Level Engine.dll"), "?TMGetTime@@YAKXZ");
+    if (!g_tm_get_time) return;
+    float sum = FIELD(st, 0x2C4, float);
+    unsigned a = FIELD(st, 0x328, unsigned), frames = FIELD(st, 0x32C, unsigned), b = FIELD(st, 0x330, unsigned), c = FIELD(st, 0x338, unsigned);
+    FIELD(st, 0x2C8, float) = sum / 12.0f;
+    FIELD(st, 0x2D0, float) = (float)a / 12.0f;
+    FIELD(st, 0x2DC, float) = (float)b / 12.0f;
+    FIELD(st, 0x2E4, float) = (float)c / 12.0f;
+    DWORD now = g_tm_get_time(), dt = now - FIELD(st, 0x334, DWORD);
+    float k = dt ? 1000.0f / (float)dt : 0.0f;
+    FIELD(st, 0x2CC, float) = sum * k;
+    FIELD(st, 0x2D4, float) = (float)a * k;
+    FIELD(st, 0x2D8, float) = (float)frames * k;
+    FIELD(st, 0x2E0, float) = (float)b * k;
+    FIELD(st, 0x334, DWORD) = now;
+    FIELD(st, 0x2C4, float) = 0.0f;
+    FIELD(st, 0x328, unsigned) = FIELD(st, 0x32C, unsigned) = FIELD(st, 0x330, unsigned) = FIELD(st, 0x338, unsigned) = 0;
+}
+
 static int __fastcall hook_show_scene(void *ras, void *edx, unsigned screen) {
     (void)edx;
     if (g_fullscreen) return g_show[DISPLAY_DLL(ras)].show(ras, screen);
     // windowed: the original is not called. Its Blt to the emulated primary at the window's screen position is
     // rejected while the back buffer is larger than that 1024x768 surface, but at 1024x768 (scenario editor) the
     // rect only overhangs by the title bar height and the copy runs past the end of the surface (crash in DDRAW.dll).
-    // It also keeps the frame statistics, which only the debug FPS display reads.
+    // Its frame statistics (FPS display) are kept here instead.
+    frame_stats(ras, screen);
     if (g_diag && (g_present_frames & 63) == 0) sample_back(ras, screen);
     return present_to_window(ras, screen) ? 0 : 1;
 }
@@ -1270,6 +1299,7 @@ static void cmd_ddinfo(char *out, const char *args) {
                   "device %s, resumed by us %ld, subclassed %p\n", FIELD(rm, 4, float), FIELD(rm, 8, float), FIELD(rm, 0x18, float),
                   FIELD(rm, 0x1C, float), FIELD(rm, 0x20, float), FIELD(rm, 0x14, float), g_mouse_updates, g_mouse_unacq,
                   g_mouse_reacq, ms ? (ms[4] ? "suspended" : "active") : "-", g_input_resumes, (void *)g_subclassed);
+    REPLY("frame stats (FPS display): %.1f frames/s, %.1f / %.1f per s\n", FIELD(st, 0x2D8, float), FIELD(st, 0x2D4, float), FIELD(st, 0x2E0, float));
     if (g_subclassed) {
         typedef UINT (WINAPI *GetDpiFn)(HWND);
         GetDpiFn get_dpi = (GetDpiFn)(void *)GetProcAddress(GetModuleHandleA("user32.dll"), "GetDpiForWindow");
