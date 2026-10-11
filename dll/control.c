@@ -40,6 +40,7 @@ static void cmd_spawnline(char *out, const char *args);
 static volatile int g_turbo;           // autotest turbo: the simulation loop skips its timer wait
 static void cmd_scrolltest(char *out, const char *args);
 static void cmd_ddinfo(char *out, const char *args);
+static void cmd_topbar(char *out, const char *args);
 static void cmd_ddpoke(char *out, const char *args);
 static void cmd_headless(const char *verb, const char *args, char *out);
 static void cmd_profile(const char *args, char *out);
@@ -360,6 +361,7 @@ static void execute(const char *cmd, char *out) {
     else if (!strcmp(verb, "save")) cmd_save(out, args);
     else if (!strcmp(verb, "scrolltest")) cmd_scrolltest(out, args);
     else if (!strcmp(verb, "ddinfo")) cmd_ddinfo(out, args);
+    else if (!strcmp(verb, "topbar")) cmd_topbar(out, args);
     else if (!strcmp(verb, "ddpoke")) cmd_ddpoke(out, args);
     else if (!strcmp(verb, "watch")) { unsigned a = 0; int l = 4; sscanf(args, "%x %d", &a, &l); watch_set(a, l); REPLY("ok: watching %08x len %d\n", a, l); }
     else if (!strcmp(verb, "speed")) {

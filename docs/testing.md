@@ -141,7 +141,14 @@ venv/Scripts/python scripts/eectl.py <command>
 - `ddpoke bench [w h]`: CPU cost of the copy/scaling methods for a window of w x h.
 - `profile [ms]`: sampling profiler over all game threads (busy threads, modules, hot addresses);
   `profile <ms> render`: only the render thread, waits included, with the game function each sample is in or
-  called from.
+  called from (only real return addresses: the bytes before them are a CALL), and for the time in GDI which
+  non-Windows code called it.
+- `topbar [0|1|2]`: what the game's top bar shows - the age, the game clock, or "FPS: n".
+
+Findings 2026-10-12 (user report: 25 fps in a long game, window mode): in the user's game the render thread was
+64% in GDI (gdi32full); in test games 11-18%, all GDI calls from DDrawCompat itself (its ddraw.dll +0x46CB6,
++0x47544). Not the cause: scaling into a smaller window, the FPS display, Alt+Enter switches. Test frame times
+vary 7-33 ms between and within runs in the same save - the slow state is not reproduced yet.
 - Autotest `present_every=N` presents only every Nth frame (to separate present cost from game cost).
 
 Findings 2026-10-11 (2560x1440, RTX 3080, dgVoodoo DirectX pass-through): ~80 fps; the render thread is CPU

@@ -62,7 +62,12 @@ $keys = $extra | ForEach-Object { ($_ -split '=', 2)[0].Trim() }
 $lines = Get-Content "$g\_aimod\autotest.ini" | Where-Object { $keys -notcontains (($_ -split '=', 2)[0].Trim()) }
 Set-Content "$g\aimod_autotest.ini" (@($lines) + $extra)
 try {
-    Remove-Item "$g\aimod_econ.csv" -Confirm:$false -ErrorAction SilentlyContinue
+    # an existing log is from normal play (tests archive theirs below): keep it, never delete it
+    if (Test-Path "$g\aimod_econ.csv") {
+        $kept = "$g\_aimod\work\play_$(Get-Date -Format yyyyMMdd_HHmmss).csv"
+        Move-Item "$g\aimod_econ.csv" $kept -Force
+        "kept the previous log (normal play): $kept"
+    }
     $t0 = Get-Date
     if ($extra -contains "headless=1") {
         # headless: start suspended and switch off the loading splash before the game runs - it comes up before

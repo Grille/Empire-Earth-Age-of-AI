@@ -1431,15 +1431,49 @@ static int is_game_code(uintptr_t a) {
     return m == GetModuleHandleA(NULL) || m == GetModuleHandleA("Low-Level Engine.dll") || m == GetModuleHandleA("DX7HRDisplay.dll")
         || m == GetModuleHandleA("DX7HRTnLDisplay.dll");
 }
+// a stack value that is a return address: the bytes before it are a CALL (E8 rel32, FF /2 with register, [reg],
+// [reg+disp8], [reg+disp32] or [disp32] operand, with or without SIB). Filters the data values on the stack
+// that only happen to point into a module.
+static int is_return_address(uintptr_t a) {
+    HMODULE m = NULL;
+    if (a < 0x10000 || !GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, (LPCSTR)a, &m))
+        return 0;
+    if (a - (uintptr_t)m < 0x1000) return 0;   // headers, not code (and the 7 bytes before must lie in the module)
+    const uint8_t *p = (const uint8_t *)a;
+    if (p[-5] == 0xE8) return 1;
+    for (int len = 2; len <= 7; len++) {
+        if (p[-len] != 0xFF) continue;
+        uint8_t modrm = p[-len + 1];
+        if ((modrm & 0x38) != 0x10) continue;   // /2 = call
+        int mod = modrm >> 6, rm = modrm & 7, need = 2;
+        if (mod != 3 && rm == 4) need++;        // SIB
+        if (mod == 1) need += 1;
+        else if (mod == 2 || (mod == 0 && rm == 5)) need += 4;
+        if (need == len) return 1;
+    }
+    return 0;
+}
+static int is_system_module(HMODULE m) {
+    char path[MAX_PATH];
+    if (!m || !GetModuleFileNameA(m, path, sizeof path)) return 1;
+    const char *b = strrchr(path, 0x5C);
+    b = b ? b + 1 : path;
+    static const char *const sys[] = { "ntdll.dll", "kernel32.dll", "KERNELBASE.dll", "user32.dll", "win32u.dll",
+                                       "gdi32.dll", "gdi32full.dll", "msvcrt.dll", "ucrtbase.dll" };
+    for (size_t i = 0; i < sizeof sys / sizeof *sys; i++) if (!lstrcmpiA(b, sys[i])) return 1;
+    return 0;
+}
+
 static void cmd_profile_render(int dur, char *out) {
     DWORD tid = g_render_thread;
     HANDLE h = tid ? OpenThread(THREAD_SUSPEND_RESUME | THREAD_GET_CONTEXT, FALSE, tid) : NULL;
     if (!h) { REPLY("error: render thread unknown (windowed mode only)\n"); return; }
     enum { HB = 4096 };
-    static struct { uintptr_t a; int n; } callers[HB];
+    static struct { uintptr_t a; int n; } callers[HB], gdi_callers[HB];
     struct { HMODULE m; int n; } tops[24];
-    int nt = 0, samples = 0;
+    int nt = 0, samples = 0, gdi_samples = 0;
     memset(callers, 0, sizeof callers);
+    memset(gdi_callers, 0, sizeof gdi_callers);
     DWORD end = GetTickCount() + (DWORD)dur;
     timeBeginPeriod(1);
     while ((LONG)(end - GetTickCount()) > 0) {
@@ -1459,11 +1493,25 @@ static void cmd_profile_render(int dur, char *out) {
                 if (j == nt && nt < 24) { tops[nt].m = m; tops[nt].n = 0; nt++; }
                 if (j < nt) tops[j].n++;
                 uintptr_t caller = is_game_code(c.Eip) ? c.Eip : 0;
-                for (size_t i = 0; !caller && i < got / sizeof *stack; i++) if (is_game_code(stack[i])) caller = stack[i];
+                for (size_t i = 0; !caller && i < got / sizeof *stack; i++)
+                    if (is_game_code(stack[i]) && is_return_address(stack[i])) caller = stack[i];
                 uintptr_t a = caller & ~(uintptr_t)15;
                 unsigned k = (unsigned)(a >> 4) * 2654435761u % HB;
                 for (int p = 0; p < HB; p++, k = (k + 1) % HB)
                     if (!callers[k].a || callers[k].a == a) { callers[k].a = a; callers[k].n++; break; }
+                if (m && (m == GetModuleHandleA("gdi32full.dll") || m == GetModuleHandleA("gdi32.dll") || m == GetModuleHandleA("win32u.dll"))) {
+                    gdi_samples++;   // who called into GDI: the first return address outside Windows' own DLLs
+                    uintptr_t g = 0;
+                    for (size_t i = 0; !g && i < got / sizeof *stack; i++) {
+                        HMODULE sm = NULL;
+                        if (is_return_address(stack[i]) &&
+                            GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, (LPCSTR)stack[i], &sm) &&
+                            !is_system_module(sm)) g = stack[i];
+                    }
+                    unsigned q = (unsigned)(g >> 2) * 2654435761u % HB;
+                    for (int p = 0; p < HB; p++, q = (q + 1) % HB)
+                        if (!gdi_callers[q].a || gdi_callers[q].a == g) { gdi_callers[q].a = g; gdi_callers[q].n++; break; }
+                }
             }
         }
         Sleep(1);
@@ -1486,6 +1534,17 @@ static void cmd_profile_render(int dur, char *out) {
         if (callers[best].a) crash_addr(at, sizeof at, callers[best].a); else lstrcpyA(at, "(no game code on the stack)");
         REPLY("    %5.1f%%  %s\n", samples ? callers[best].n * 100.0 / samples : 0.0, at);
         callers[best].n = -callers[best].n;
+    }
+    if (!gdi_samples) return;
+    REPLY("  in GDI %d samples (%d%%), called from (exact return addresses):\n", gdi_samples, samples ? gdi_samples * 100 / samples : 0);
+    for (int r = 0; r < 12; r++) {
+        int best = -1;
+        for (int k = 0; k < HB; k++) if (gdi_callers[k].n > 0 && (best < 0 || gdi_callers[k].n > gdi_callers[best].n)) best = k;
+        if (best < 0) break;
+        char at[160];
+        if (gdi_callers[best].a) crash_addr(at, sizeof at, gdi_callers[best].a); else lstrcpyA(at, "(only Windows code on the stack)");
+        REPLY("    %5.1f%%  %s\n", gdi_samples ? gdi_callers[best].n * 100.0 / gdi_samples : 0.0, at);
+        gdi_callers[best].n = -gdi_callers[best].n;
     }
 }
 
@@ -1744,6 +1803,19 @@ static void cmd_ddpoke(char *out, const char *args) {
         DeleteObject(bmp);
         DeleteDC(mdc);
     } else REPLY("usage: ddpoke z|back|front|mode|cursor x y|bench [w h]\n");
+}
+
+// topbar [0|1|2]: the in-game top bar, drawn by FUN_0064FD4E of EEUIFMainGame (the current form of the UI manager
+// [0x9197A0] while playing, UIManager::GetCurrentForm import 0x823D60): +0x5D8 = 0 the age, 1 the game clock,
+// 2 "FPS: n" (relabelled every update - each new text is drawn with GDI)
+static void cmd_topbar(char *out, const char *args) {
+    void *uim = *(void **)0x009197A0;
+    uint8_t *form = uim ? ((uint8_t *(__thiscall *)(void *))*(void **)0x00823D60)(uim) : NULL;
+    const char *rn = form ? rtti_name(form) : "";
+    if (!form || !strstr(rn, "EEUIFMainGame")) { REPLY("error: the current form is %s, not the game screen\n", form ? rn : "none"); return; }
+    int v = -1;
+    if (sscanf(args, "%d", &v) == 1 && v >= 0 && v <= 2) FIELD(form, 0x5D8, int) = v;
+    REPLY("in-game form %p: top bar mode %d (0 age, 1 clock, 2 FPS)\n", (void *)form, FIELD(form, 0x5D8, int));
 }
 
 static void cmd_ddinfo(char *out, const char *args) {
