@@ -282,7 +282,7 @@ are subclasses with their own vtables):
 | window minimizes on focus loss | WM_ACTIVATEAPP(0) calls CloseWindow (0x662670) | the je at 0x662666 made a jmp |
 | clicking into the window doesn't give it input | WM_ACTIVATEAPP/WM_ACTIVATE resume the devices, but Acquire (FOREGROUND) fails before the window is foreground; the intro sequence (0x538xxx) also ends with Suspend. WM_ACTIVATE returns without DefWindowProc (no keyboard focus) | in front, a suspended device (+4) is resumed (vtable +0x10, every 250 ms at most); SetFocus after WM_ACTIVATE |
 
-Borderless (`windowed=borderless`) and Alt+Enter: the window is subclassed; borderless swaps
+Borderless (`mode=borderless`) and Alt+Enter: the window is subclassed; borderless swaps
 WS_OVERLAPPEDWINDOW for WS_POPUP and covers the monitor. The game sizes the window itself (GEWindow::Resize,
 LLE +0x49E0D: AdjustWindowRect(0xCF0000) + SetWindowPos with SWP_NOMOVE, stores the game size at GEWindow
 +0xC/+0x10), so WM_WINDOWPOSCHANGING sets the size on every change: monitor rect when borderless, client =

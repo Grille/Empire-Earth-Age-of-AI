@@ -814,14 +814,25 @@ static int install_windowed_input(void) {
 
 static void display_install(const char *aimod_ini, const char *autotest_ini) {
     char mode[32], tmp[32];
+    // [display] mode = native | windowed | borderless (or 0 | 1 | 2); the older key windowed = 0 | 1 | borderless
+    // is read when mode is missing; autotest: mode (or windowed)
     char wmode[32];
-    GetPrivateProfileStringA("display", "windowed", "0", wmode, sizeof wmode, aimod_ini);
+    GetPrivateProfileStringA("display", "windowed", "0", tmp, sizeof tmp, aimod_ini);
+    GetPrivateProfileStringA("display", "mode", tmp, wmode, sizeof wmode, aimod_ini);
     if (autotest_ini) {
         lstrcpynA(tmp, wmode, sizeof tmp);
         GetPrivateProfileStringA("autotest", "windowed", tmp, wmode, sizeof wmode, autotest_ini);
+        lstrcpynA(tmp, wmode, sizeof tmp);
+        GetPrivateProfileStringA("autotest", "mode", tmp, wmode, sizeof wmode, autotest_ini);
     }
-    g_borderless = !lstrcmpiA(wmode, "borderless");
-    int windowed = g_borderless || atoi(wmode) != 0;
+    int dmode = !lstrcmpiA(wmode, "borderless") ? 2 : !lstrcmpiA(wmode, "windowed") || !lstrcmpiA(wmode, "window") ? 1
+              : !lstrcmpiA(wmode, "native") || !lstrcmpiA(wmode, "fullscreen") ? 0 : atoi(wmode);
+    if (dmode < 0 || dmode > 2) {
+        if (g_log) fprintf(g_log, "# display: unknown mode '%s' in aimod.ini, using native\n", wmode);
+        dmode = 0;
+    }
+    g_borderless = dmode == 2;
+    int windowed = dmode != 0;
     if (autotest_ini) g_diag_skip = GetPrivateProfileIntA("autotest", "diag_skip", 0, autotest_ini);
     g_diag = (autotest_ini && GetPrivateProfileIntA("autotest", "diag_hooks", 0, autotest_ini))
              || GetPrivateProfileIntA("display", "diag", 0, aimod_ini);

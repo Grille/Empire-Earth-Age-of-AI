@@ -84,7 +84,7 @@ venv/Scripts/python scripts/eectl.py <command>
 | `uipost <hex msg> [hex p1]` | post a message to the UI thread's queue; runs on the pipe thread, so it also works in the menus |
 
 `run_test.ps1 -Exe <name>` starts a renamed copy of the exe (the DLL accepts any copy of the 1.04 exe).
-Autotest keys for the display work: `windowed`, `diag_hooks=1` (counters in `ddinfo`, also fullscreen),
+Autotest keys for the display work: `mode` (native|windowed|borderless, or the older `windowed`), `diag_hooks=1` (counters in `ddinfo`, also fullscreen),
 `diag_skip` (1 terrain, 2 water, 3 fog off). In normal play `[display] diag=1` enables the counters.
 
 Screenshots of DirectDraw output: PrintWindow (`screenshot.ps1`) returns black. Put the game window on top

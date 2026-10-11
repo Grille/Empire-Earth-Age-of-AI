@@ -131,13 +131,13 @@ docs/           engine notes, AI analysis, testing guide
 
 Settings in `aimod.ini`:
 
-- `[display] windowed=1`: native windowed mode. The engine still contains SSSI's own windowed path; the
+- `[display] mode=windowed`: native windowed mode. The engine still contains SSSI's own windowed path; the
   mod switches it on and fixes what broke on current Windows (presentation, crashes, terrain, editor).
   The window has the game resolution from the game settings. A DirectDraw wrapper such as dgVoodoo is
   still needed for the game to start on current Windows; pass-through mode is enough.
   The mouse follows the Windows cursor (your pointer speed), the window can be moved and switched like
   any other; `lock_mouse=1` keeps the cursor inside while the game is in front.
-- `[display] windowed=borderless`: a frameless window over the whole monitor, the game image scaled to it
+- `[display] mode=borderless`: a frameless window over the whole monitor, the game image scaled to it
   (aspect kept). Alt+Enter switches between window and borderless. The window is DPI-aware (`dpi_aware`),
   so Windows display scaling doesn't blur it; `smooth=1` filters the scaled image.
 - `[editor] resolution=aoc`: scenario editor at 1024x768 with The Art of Conquest's layout.
