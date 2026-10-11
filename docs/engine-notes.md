@@ -169,6 +169,22 @@ Guard towers 47, 461..466; AA 145/147; town center 35; house 37; citizen 32.
   - vf4 0x4620DF: scores every enemy in the subgroup's lists (subgroup +0x30/+0x40) with vf2, keeps the best.
   - vf2 0x461854: `float thiscall(info)`, info+4 = the enemy unit; 0.0 = not a target.
   - Units fight enemies on the way this way (enemies waiting next to their towers draw the army in).
+- **Attack groups:** combat manager (player +0xB8C) +0x48 = EECPAttackCommander (vtable 0x827530): a deque of
+  EECPAttackGroup* at +4 (+8 block map, +0xC map size, +0x10 start, +0x14 count; 0x400 pointers per block), +0x18
+  player, +0x1C unit pool. Update 0x4516C6 (round robin, from the combat manager update 0x4720D8).
+  - EECPAttackGroup (vtable 0x8275A8, 0x6C bytes): +8/+0xC vector of subgroups, goal struct at +0x28 (target unit
+    +0x1C, player +0x20), **+0x48 target player** (chosen once at the launch), +0x6A finished (deleted by 0x45113F).
+  - Subgroup goal struct at sg+0xFC: +0x100 location (the target struct above), +0x118 target unit (refcounted,
+    0x442246), +0x11C target player, +0x124 mission (7/12 attack the goal unit, 8 go home); +0x18C group, +0x1D0 state
+    (0x1776 attack the goal, 0x1777 going home, 3000 combat, 0xBBC retreat).
+  - Nothing re-checks the stance of the target player: units only fight enemies (0x461854, vf112), but the goal
+    stays until the target unit is dead - after peace the army keeps marching on the new ally. New launches
+    (0x46F4FF) only pick enemies.
+  - **Calling attacks off:** EEComputerPlayer::vf22 (0x43033E) thiscall(player, target EEPlayer*, 1) -> 0x46FD01
+    (combat manager) -> 0x4510F2 (commander): every group aimed at that player orders its units home, releases them
+    to the pool and is deleted (0x454B90). Flag 0 (the only use in the game: the scenario stance trigger 0x5AD29B
+    after 0x52D5D7) only freezes the units. Deletes subgroups - never call it from a subgroup/commander callback.
+    dll/diplo.c queues it for the safe point between simulation steps.
 - **EEUGAttackUnit** (vtable 0x831968, ctor 0x60AD45(attacker, target, ?), 0x40 bytes): +0x2C attacker,
   +0x30 target unit, +0x34/+0x38 target tile.
 - Unit goal: unit+0x1EC (EEUGLocation = move, EEUGAttackUnit, EEUGExplore, ...; null = idle).

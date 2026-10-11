@@ -219,6 +219,12 @@ static void breach_note(void *sg, int x, int y) {
     g_breaches[free_k].sg = sg; g_breaches[free_k].x = x; g_breaches[free_k].y = y;
 }
 
+// before the game deletes subgroups of player pl (diplo.c: attacks called off): forget their breaches
+static void breach_forget(void *pl) {
+    for (int k = 0; k < 64; k++)
+        if (g_breaches[k].sg && FIELD(g_breaches[k].sg, 0x190, void *) == pl) g_breaches[k].sg = NULL;
+}
+
 static int breach_of(void *sg, int *x, int *y) {
     for (int k = 0; k < 64; k++)
         if (g_breaches[k].sg == sg) { *x = g_breaches[k].x; *y = g_breaches[k].y; return 1; }
@@ -283,6 +289,7 @@ static uint8_t *find_breach(void *pl, unsigned pi, const int *start, const int *
     return best;
 }
 
+static void diplo_cancel_attacks(int ai, int j);   // diplo.c
 typedef void (__thiscall *AsgRouteFn)(void *self, int *start, int *dest);
 static void __fastcall hook_asg_route(uint8_t *self, void *edx, int *start, int *dest) {
     (void)edx;
@@ -342,10 +349,13 @@ static void __fastcall hook_asg_route(uint8_t *self, void *edx, int *start, int 
                 threat_at(pi, dest[0], dest[1]), g_route_stats[pi].calls, g_route_stats[pi].penalised);
         fflush(g_log);
     }
-    // the target player is chosen once, at the launch (0x46F4FF): after peace or an alliance the march goes on
+    // the target player is chosen once, at the launch (0x46F4FF): after peace or an alliance the march goes on -
+    // diplo.c calls such attacks off at the next safe point (never here: it deletes this subgroup)
     int hostile = target && FIELD(pl, 0x9E4 + (FIELD(target, PL_INDEX, int) & 15) * 4, int);
-    if (pl && target && !hostile && g_log)
-        fprintf(g_log, "# route: P%d marches on P%d, no enemy any more\n", FIELD(pl, PL_INDEX, int), FIELD(target, PL_INDEX, int));
+    if (pl && target && !hostile) {
+        if (g_log) fprintf(g_log, "# route: P%d marches on P%d, no enemy any more\n", FIELD(pl, PL_INDEX, int), FIELD(target, PL_INDEX, int));
+        diplo_cancel_attacks(FIELD(pl, PL_INDEX, int) & 15, FIELD(target, PL_INDEX, int) & 15);
+    }
     if (pl && hostile) persona_attack(pl, target);
     if (g_chat && pl && start && dest) {
         unsigned pi = (unsigned)FIELD(pl, PL_INDEX, int) & 15;

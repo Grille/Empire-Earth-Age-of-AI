@@ -45,6 +45,10 @@
 // and never betrays him; otherwise capitulate_refused and war again. An AI conqueror decides at once: peace score
 // + the tribute's worth to it (as tribute) > 0.
 //
+// PEACE ENDS ATTACKS: an attack keeps its target player from the launch. Whenever an AI's own stance towards a
+// player turns allied (peace, alliance, capitulation) - or an attack group still marches on a non-enemy (attack.c
+// route hook) - its attacks on that player are called off at the next safe point (diplo_safe_point).
+//
 // SITUATIONS (personality lines, persona.c): greeting, under attack (5+ enemy soldiers within 20 tiles of the
 // base, when it starts), building lost, new age, an enemy a whole age ahead, winning / losing (power x2 / x0.5 against the
 // strongest enemy), desperate (buildings under 40% of their peak), a player defeated (+0x467), tribute thanks.
@@ -79,6 +83,7 @@ static uint8_t g_offer_kind[16][16];    // [ai][j]: the pending offer to a human
 static int g_promise[16][7];            // [ai]: resources offered with a capitulation (food..iron = 2..6)
 static uint32_t g_capit_last[16];       // [ai]: last capitulation offer (one per 10 minutes)
 static int g_lord[16];                  // [ai]: the player it capitulated to (0 none) - never betrayed
+static int g_own_prev[16][16];          // [ai][j]: the AI's own stance towards j at the last look
 
 // world scan (every 10 s): power, soldiers, buildings per player; enemy soldiers near each AI base
 static struct {
@@ -400,7 +405,35 @@ static void check_surrender(void *pl, int ai, uint32_t now) {
                        can_train ? "could still train" : g_ws.centers[ai] ? "can't pay a citizen" : "no Town Center",
                        g_ws.power[ai], lead, g_ws.power[lead]);
 }
+// Attacks on a player who is no enemy any more: EEComputerPlayer::vf22 (0x43033E) thiscall(player, target player,
+// 1) -> 0x46FD01 (combat manager) -> 0x4510F2 (attack commander cbm+0x48): every attack group whose target (+0x48) is
+// that player sends its units home, hands them back and is deleted. (The game itself calls it only with 0 - freeze -
+// from the scenario trigger that sets a stance.) Queued, because it deletes subgroups: at the next safe point.
+static volatile LONG g_cancel_queue[16];   // [ai]: bit per target player
+static void diplo_cancel_attacks(int ai, int j) {
+    if (ai > 0 && ai < 16 && j > 0 && j < 16 && g_players[ai]) InterlockedOr(&g_cancel_queue[ai], 1 << j);
+}
+static int attack_groups(void *pl) {   // the attack commander's deque count
+    uint8_t *cbm = FIELD(pl, 0xB8C, uint8_t *), *cmd = cbm ? FIELD(cbm, 0x48, uint8_t *) : NULL;
+    return cmd ? FIELD(cmd, 0x14, int) : -1;
+}
+
 static void diplo_safe_point(void) {
+    for (int i = 1; i < 16; i++) {
+        if (!g_cancel_queue[i]) continue;
+        LONG q = InterlockedExchange(&g_cancel_queue[i], 0);
+        void *p = player_at(i);
+        if (!p || !g_players[i] || is_out(p)) continue;
+        for (int j = 1; j < 16; j++) {
+            void *pj = player_at(j);
+            if (!(q & (1 << j)) || !pj || stance_of(p, j)) continue;   // enemies again: the attack stays
+            int before = attack_groups(p);
+            breach_forget(p);
+            ((void (__thiscall *)(void *, void *, int))0x0043033E)(p, pj, 1);
+            if (g_log) { fprintf(g_log, "# diplomacy: P%d calls off its attacks on P%d (attack groups %d -> %d)\n", i, j, before,
+                                 attack_groups(p)); fflush(g_log); }
+        }
+    }
     if (!g_resign_queue) return;
     LONG q = InterlockedExchange(&g_resign_queue, 0);
     for (int i = 1; i < 16; i++) {
@@ -427,6 +460,8 @@ static void diplo_tick(void *pl, unsigned ai, uint32_t now) {
             g_opinion[ai][j] = mine ? -10.0f : 20.0f;
             if (!mine && !s) g_ally_since[ai][j] = now ? now : 1;
         }
+        if (g_diplo_seen[ai] && !mine && g_own_prev[ai][j]) diplo_cancel_attacks((int)ai, j);   // the AI made peace
+        g_own_prev[ai][j] = mine;
         if (g_diplo_seen[ai] && s && !g_diplo_prev[ai][j]) {   // j turned hostile
             int betrayal = !mine && g_ally_since[ai][j] && now - g_ally_since[ai][j] > 120000;
             opinion_add(ai, j, (betrayal ? -60.0f : -40.0f) * (0.5f + trait(pl, T_PRIDE) / 100.0f));
@@ -538,6 +573,8 @@ static void diplo_new_game(void) {
     memset(g_promise, 0, sizeof g_promise);
     memset(g_capit_last, 0, sizeof g_capit_last);
     memset(g_lord, 0, sizeof g_lord);
+    memset(g_own_prev, 0, sizeof g_own_prev);
+    for (int i = 0; i < 16; i++) g_cancel_queue[i] = 0;
     g_resign_queue = 0;
     for (int i = 0; i < 16; i++) g_sit.last_epoch[i] = -1;
 }
