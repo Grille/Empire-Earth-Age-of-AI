@@ -82,12 +82,14 @@ static int g_clear_scenario_flag;
 #define CALL_CP_UPDATE 0x0042F3CD
 #define FN_CP_UPDATE   0x0043F91A
 static int g_fix_scenario_ai = 1;    // aimod.ini [fixes] scenario_ai=0 turns it off
+static uint8_t g_is_scenario;        // the flag as the game set it (it reads 0 inside the AI update)
 typedef void (__thiscall *CpUpdateFn)(void *pl, uint32_t now);
 
 static void __fastcall hook_cp_update(void *pl, void *edx, uint32_t now) {
     (void)edx;
     uint8_t *flag = (uint8_t *)G_SCENARIO_FLAG;
     uint8_t saved = *flag;
+    g_is_scenario = saved;
     if (g_fix_scenario_ai) *flag = 0;
     ((CpUpdateFn)FN_CP_UPDATE)(pl, now);
     *flag = saved;
@@ -475,6 +477,7 @@ static char __fastcall hook_game_start(void *state, void *edx, uint8_t *setup, v
 #include "econ.c"
 #include "attack.c"
 #include "defence.c"
+#include "persona.c"
 #include "diplo.c"
 #include "camera.c"
 #include "display.c"
@@ -574,6 +577,7 @@ static void install(HMODULE self) {
     attack_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
     defence_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
     chat_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
+    persona_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
     diplo_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
     camera_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
     display_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);

@@ -2,82 +2,429 @@
 // changes its stance. Stances are one-way (player +0x9E4 + i*4: 0 allied, 1 enemy towards player i): a player who
 // declares war on an AI (EEMSetDiplomaticStance -> 0x52D5D7) is an enemy to the AI's units only in his own eyes -
 // the AI stays allied, does not fight back, and its revenge reaction (0x46FFB7: attack + "Sie wollen ein Problem?")
-// waits for an enemy stance that never comes. Included by eeaimod.c after defence.c.
+// waits for an enemy stance that never comes. Included by eeaimod.c after persona.c.
 //
-// ANSWER WAR (aimod.ini [all] answer_war, default 1): a player who turns hostile towards an AI that is still allied
-// with him gets war back 3-6 s later: 0x52D5D7 thiscall(game state 0x918300, from, to, stance 1) - the same call the
-// stance message makes, with the team bookkeeping (0x530F24) - the game's stance line in the chat ("<AI> wechselt
-// diplomatische Haltung zu Feindselig"), then the revenge reaction 0x46FFB7 thiscall(combat manager player +0xB8C,
-// declaring player): it picks his most attractive unit or building (0x470FF5), plans an attack on it (0x472427) and
-// taunts (12500 + 0..9). Only changes during the game count (the first look takes the stances as they are, e.g. a
-// scenario's one-way stances).
-#define GAME_STATE   ((void *)0x00918300)
+// Stance changes: 0x52D5D7 thiscall(game state 0x918300, from, to, stance) - the call the stance message makes,
+// with the team bookkeeping (0x530F24 / 0x52D27F). Locked teams: [0x918E9F] (the diplomacy screen then sends none).
+//
+// ANSWER WAR ([all] answer_war, default 1): whoever turns hostile towards an AI that is still allied with him gets
+// war back 3-6 s later: the game's stance line ("<AI> wechselt diplomatische Haltung zu Feindselig"), the
+// personality's line (war_declared, or betrayed after 2+ minutes of alliance), then the revenge reaction 0x46FFB7
+// thiscall(combat manager player +0xB8C, declaring player): attack on his most attractive object (0x470FF5 ->
+// 0x472427). Only changes during the game count (the first look takes the stances as they are).
+//
+// OPINION of every AI about every player (-100..100): starts at +20 for allies, -10 for enemies; war declared on
+// it -40 (betrayal -60, x pride); tribute + value / (20 + 0.8 x (100 - greed)); per minute allied +loyalty/100,
+// per minute at war -pride/200, a common enemy (both at war with the strongest player) +0.5; a grudge (below 0)
+// fades with forgiveness.
+//
+// PEACE: a player who turns allied towards an AI at war with him offers peace (in this game peace = alliance).
+// 4-8 s later the AI decides (and then every 2 minutes while the offer stands, silently unless it accepts):
+//   no peace within pride/20 minutes of his declaration; otherwise
+//   score = opinion + 25 x log2(his power / own power) (at most +-40) + 0.4 x (50 - aggression) - 0.3 x (pride - 50)
+//           + 15 if he fights the AI's strongest enemy        accept if score > 0.
+// Power = sum of soldier hit points + 30 per building (scan every 10 s).
+//
+// AI INITIATIVE ([all] ai_diplomacy, default 1; not in scenarios/campaigns, not with locked teams), per AI every
+// 60 s from minute 10:
+//   alliance: at war with a leader (power > 1.5 x own) - offer an alliance to another enemy of the leader it is at
+//     war with (opinion > -20): an AI decides like a peace offer (+15 common enemy); a human gets the AI's allied
+//     stance at once (its units stop attacking) and 2 minutes to answer, otherwise the offer is withdrawn.
+//   betrayal: allied for 10+ minutes with a player of under half its power, opinion < 30: chance per minute
+//     (100 - loyalty) x aggression / 100000 - then war (betray line).
+//
+// SITUATIONS (personality lines, persona.c): greeting, under attack (5+ enemy soldiers within 20 tiles of the
+// base, when it starts), building lost, new age, an enemy a whole age ahead, winning / losing (power x2 / x0.5 against the
+// strongest enemy), desperate (buildings under 40% of their peak), a player defeated (+0x467), tribute thanks.
+#define GAME_STATE    ((void *)0x00918300)
 #define FN_SET_STANCE 0x0052D5D7
 #define FN_REVENGE    0x0046FFB7
-static int g_answer_war = 1;
+#define TEAMS_LOCKED  (*(uint8_t *)0x00918E9F)
+static int g_answer_war = 1, g_ai_diplomacy = 1;
 static int g_diplo_seen[16];
 static int g_diplo_prev[16][16];        // [ai][j]: player j's stance towards the AI at the last look
 static uint32_t g_diplo_due[16][16];    // [ai][j]: answer war at this time (0 = nothing pending)
+static uint32_t g_war_since[16][16];    // [ai][j]: when j declared war on the AI
+static uint32_t g_ally_since[16][16];   // [ai][j]: allied (both ways) since
+static uint32_t g_peace_due[16][16];    // [ai][j]: decide j's peace offer at this time
+static int g_peace_refused[16][16];
+static uint32_t g_offer_t[16][16];      // [ai][j]: AI offered j an alliance at (0 none), withdrawn after 2 min
+static uint32_t g_offer_last[16][16];
+static float g_opinion[16][16];
+static uint8_t g_war_betrayal[16][16];  // [ai][j]: the pending answer is to a betrayal
 static unsigned g_diplo_answers[16];
+
+// world scan (every 10 s): power, soldiers, buildings per player; enemy soldiers near each AI base
+static struct {
+    uint32_t t;
+    float power[16];
+    int soldiers[16], buildings[16], peak[16], close[16], epoch[16], out[16];
+    int bx[16], by[16];
+} g_ws;
 
 static void *player_at(int i) {
     unsigned n = *(unsigned *)0x009183CC;
     return i > 0 && (unsigned)i < n && i < 16 ? ((void **)0x00918374)[i] : NULL;
 }
+static int nplayers(void) { unsigned n = *(unsigned *)0x009183CC; return n > 16 ? 16 : (int)n; }
 static int stance_of(void *a, int b) { return FIELD(a, 0x9E4 + b * 4, int); }
+static int is_out(void *p) { return !p || FIELD(p, 0x467, uint8_t); }
+static int pidx(void *p) { return (int)((unsigned)FIELD(p, PL_INDEX, int) & 15); }
+static int scenario_game(void) { return g_is_scenario != 0; }
+
+static void set_stance(int from, int to, int s) {
+    ((void (__thiscall *)(void *, int, int, int))FN_SET_STANCE)(GAME_STATE, from, to, s);
+}
+
+static void ws_unit(uint8_t *u, void *ctx) {
+    (void)ctx;
+    void *owner = FIELD(u, 0x18, void *);
+    if (!owner || FIELD(u, 0x3C, int) <= 0) return;
+    int o = pidx(owner);
+    uint8_t *td = FIELD(u, 0x2C, uint8_t *);
+    int fam = FIELD(td, 0x4B4, int);
+    if (fam == 2 || fam == 29) { g_ws.buildings[o]++; g_ws.power[o] += 30; return; }
+    if (!is_soldier(td)) return;
+    g_ws.soldiers[o]++;
+    g_ws.power[o] += (float)FIELD(u, 0x3C, int);
+    int x = FIELD(u, 0x1C, int), y = FIELD(u, 0x20, int);
+    for (int a = 1; a < 16; a++) {
+        void *pa = g_players[a];
+        if (!pa || a == o || g_ws.bx[a] == -10000 || !stance_of(pa, o)) continue;
+        int dx = x - g_ws.bx[a], dy = y - g_ws.by[a];
+        g_ws.close[a] += dx * dx + dy * dy <= 400;
+    }
+}
+static void world_scan(uint32_t now) {
+    if (g_ws.t && now - g_ws.t < 10000) return;
+    g_ws.t = now ? now : 1;
+    for (int i = 0; i < 16; i++) {
+        g_ws.power[i] = 0; g_ws.soldiers[i] = g_ws.buildings[i] = g_ws.close[i] = 0;
+        g_ws.bx[i] = -10000;
+        void *cm = g_players[i] ? FIELD(g_players[i], 0xB90, void *) : NULL;
+        uint8_t *bm = cm ? FIELD(cm, 0x3C, uint8_t *) : NULL;
+        if (bm && FIELD(bm, 0x12C, int) != -10000) { g_ws.bx[i] = FIELD(bm, 0x12C, int); g_ws.by[i] = FIELD(bm, 0x130, int); }
+    }
+    grid_each(ws_unit, NULL);
+    for (int i = 1; i < nplayers(); i++) {
+        void *p = player_at(i);
+        if (!p) continue;
+        if (g_ws.buildings[i] > g_ws.peak[i]) g_ws.peak[i] = g_ws.buildings[i];
+        g_ws.epoch[i] = current_epoch(p);
+    }
+}
+static float power_of(int i) { return g_ws.power[i] > 1.0f ? g_ws.power[i] : 1.0f; }
+// the strongest player the AI is at war with (or 0)
+static int strongest_enemy(void *pl, int ai) {
+    int best = 0;
+    for (int j = 1; j < nplayers(); j++) {
+        void *pj = player_at(j);
+        if (!pj || j == ai || is_out(pj) || !stance_of(pl, j)) continue;
+        if (!best || g_ws.power[j] > g_ws.power[best]) best = j;
+    }
+    return best;
+}
+
+static void opinion_add(int ai, int j, float d) {
+    float v = g_opinion[ai][j] + d;
+    g_opinion[ai][j] = v < -100 ? -100 : v > 100 ? 100 : v;
+}
+
+// would AI pl make peace / an alliance with player j now? (score > 0)
+static float peace_score(void *pl, int ai, int j, uint32_t now) {
+    if (g_war_since[ai][j] && now - g_war_since[ai][j] < (uint32_t)trait(pl, T_PRIDE) * 3000u) return -1000;
+    float r = power_of(j) / power_of(ai);
+    int lead = strongest_enemy(pl, ai);
+    void *pj = player_at(j);
+    float pw = 25.0f * log2f(r);
+    if (pw > 40) pw = 40; else if (pw < -40) pw = -40;   // a much weaker player can still buy peace
+    float s = g_opinion[ai][j] + pw + 0.4f * (float)(50 - trait(pl, T_AGGRESSION)) - 0.3f * (float)(trait(pl, T_PRIDE) - 50);
+    if (lead && lead != j && pj && stance_of(pj, lead)) s += 15;
+    return s;
+}
+
+static void make_peace(int ai, int j, uint32_t now) {
+    void *pl = player_at(ai), *pj = player_at(j);
+    if (!pl || !pj) return;
+    if (stance_of(pl, j)) set_stance(ai, j, 0);
+    chat_stance_line(pl, 0);
+    g_ally_since[ai][j] = g_ally_since[j][ai] = now ? now : 1;
+    g_war_since[ai][j] = g_war_since[j][ai] = 0;
+    g_peace_due[ai][j] = 0;
+    g_peace_refused[ai][j] = 0;
+    opinion_add(ai, j, 10);
+}
+
+static void declare_war(int ai, int j, uint32_t now) {
+    void *pl = player_at(ai);
+    if (!pl || stance_of(pl, j)) return;
+    set_stance(ai, j, 1);
+    chat_stance_line(pl, 1);
+    g_ally_since[ai][j] = g_ally_since[j][ai] = 0;
+    g_war_since[j][ai] = now ? now : 1;   // the other side: war was declared on j
+    g_offer_t[ai][j] = 0;
+}
+
+// A pending peace offer of j (allied towards the AI while the AI is at war with him)
+static void peace_offer(void *pl, int ai, int j, uint32_t now) {
+    void *pj = player_at(j);
+    float s = peace_score(pl, ai, j, now);
+    if (g_log) fprintf(g_log, "# diplomacy: P%d at %.1f min: peace offer of P%d, score %.0f (opinion %.0f, power %.0f vs %.0f)\n",
+                       ai, now / 60000.0, j, s, g_opinion[ai][j], g_ws.power[j], g_ws.power[ai]);
+    if (s > 0 && !TEAMS_LOCKED) {
+        make_peace(ai, j, now);
+        persona_say(pl, L_PEACE_ACCEPT, pj, NULL);
+        return;
+    }
+    if (!g_peace_refused[ai][j]) persona_say(pl, L_PEACE_REFUSE, pj, NULL);
+    g_peace_refused[ai][j] = 1;
+    g_peace_due[ai][j] = now + 120000;
+}
+
+// AI ai's own initiative (every 60 s)
+static void diplo_initiative(void *pl, int ai, uint32_t now) {
+    if (!g_ai_diplomacy || TEAMS_LOCKED || scenario_game() || now < 600000) return;
+    int lead = strongest_enemy(pl, ai);
+    // alliance against the leader
+    if (lead && g_ws.power[lead] > 1.5f * power_of(ai)) {
+        int best = 0;
+        float bs = -20;
+        for (int j = 1; j < nplayers(); j++) {
+            void *pj = player_at(j);
+            if (!pj || j == ai || j == lead || is_out(pj) || !stance_of(pl, j) || !stance_of(pj, lead)) continue;
+            if (g_offer_t[ai][j] || (g_offer_last[ai][j] && now - g_offer_last[ai][j] < 600000)) continue;
+            if (g_opinion[ai][j] > bs) { bs = g_opinion[ai][j]; best = j; }
+        }
+        if (best) {
+            void *pj = player_at(best);
+            g_offer_last[ai][best] = now;
+            persona_say(pl, L_ALLIANCE_OFFER, pj, player_at(lead));
+            if (g_players[best]) {   // an AI decides at once (its turn of peace_offer)
+                float s = peace_score(pj, best, ai, now) + 15;
+                if (g_log) fprintf(g_log, "# diplomacy: P%d offers P%d (AI) an alliance against P%d: score %.0f\n", ai, best, lead, s);
+                if (s > 0) {
+                    make_peace(ai, best, now);
+                    make_peace(best, ai, now);
+                    persona_say(pj, L_OFFER_ACCEPTED, pl, player_at(lead));
+                } else persona_say(pj, L_PEACE_REFUSE, pl, NULL);
+            } else {                 // a human: the AI's stance now, his answer within 2 minutes
+                set_stance(ai, best, 0);
+                chat_stance_line(pl, 0);
+                g_offer_t[ai][best] = now ? now : 1;
+                if (g_log) fprintf(g_log, "# diplomacy: P%d offers P%d (human) an alliance against P%d\n", ai, best, lead);
+            }
+            return;
+        }
+    }
+    // betrayal of a weak ally
+    for (int j = 1; j < nplayers(); j++) {
+        void *pj = player_at(j);
+        if (!pj || j == ai || is_out(pj) || stance_of(pl, j) || !g_ally_since[ai][j] || now - g_ally_since[ai][j] < 600000) continue;
+        if (power_of(j) * 2 > power_of(ai) || g_opinion[ai][j] >= 30) continue;
+        int chance = (100 - trait(pl, T_LOYALTY)) * trait(pl, T_AGGRESSION);   // per 100000
+        if ((int)(rnd32() % 100000u) >= chance) continue;
+        if (g_log) fprintf(g_log, "# diplomacy: P%d at %.1f min betrays P%d (opinion %.0f, power %.0f vs %.0f)\n",
+                           ai, now / 60000.0, j, g_opinion[ai][j], g_ws.power[ai], g_ws.power[j]);
+        persona_say(pl, L_BETRAY, pj, NULL);
+        declare_war(ai, j, now);
+        return;
+    }
+}
+
+// situations worth a line (every 10 s, after the scan)
+static void diplo_situations(void *pl, int ai, uint32_t now) {
+    static int last_epoch[16] = { -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 };
+    static int last_buildings[16], said_desperate[16], said_greeting[16], was_out[16], attacked[16], was_ahead[16];
+    static int mood[16];   // -1 losing, 0, 1 winning (lines when it changes)
+    if (!said_greeting[ai] && now >= 20000 + (uint32_t)ai * 4000u) {
+        said_greeting[ai] = 1;
+        persona_say(pl, L_GREETING, NULL, NULL);
+    }
+    int e = current_epoch(pl);
+    if (last_epoch[ai] >= 0 && e > last_epoch[ai]) persona_say(pl, L_EPOCH_UP, NULL, NULL);
+    last_epoch[ai] = e;
+    if (g_ws.close[ai] >= 5 && !attacked[ai]) persona_say(pl, L_UNDER_ATTACK, NULL, NULL);   // when it starts
+    attacked[ai] = g_ws.close[ai] >= 3;
+    if (last_buildings[ai] && g_ws.buildings[ai] < last_buildings[ai]) persona_say(pl, L_BUILDING_LOST, NULL, NULL);
+    last_buildings[ai] = g_ws.buildings[ai];
+    if (!said_desperate[ai] && g_ws.peak[ai] >= 10 && g_ws.buildings[ai] * 10 < g_ws.peak[ai] * 4) {
+        said_desperate[ai] = 1;
+        persona_say(pl, L_DESPERATE, NULL, NULL);
+    }
+    int lead = strongest_enemy(pl, ai);
+    if (lead) {
+        float r = power_of(ai) / power_of(lead);
+        int m = r > 2.0f ? 1 : r < 0.5f ? -1 : (mood[ai] == 1 && r > 1.5f) ? 1 : (mood[ai] == -1 && r < 0.67f) ? -1 : 0;
+        if (m != mood[ai] && m) persona_say(pl, m > 0 ? L_WINNING : L_LOSING, player_at(lead), NULL);
+        mood[ai] = m;
+        int ahead = g_ws.epoch[lead] > e;   // when the strongest enemy gets ahead
+        if (ahead && !was_ahead[ai]) persona_say(pl, L_ENEMY_AHEAD, player_at(lead), NULL);
+        was_ahead[ai] = ahead;
+    }
+    for (int j = 1; j < nplayers(); j++) {
+        void *pj = player_at(j);
+        int out = is_out(pj);
+        if (out && !(was_out[ai] & (1 << j)) && pj && j != ai)
+            persona_say(pl, stance_of(pl, j) ? L_ENEMY_DEFEATED : L_ALLY_DEFEATED, pj, NULL);
+        if (out) was_out[ai] |= 1 << j;
+    }
+}
 
 static void diplo_tick(void *pl, unsigned ai, uint32_t now) {
-    if (!g_answer_war || FIELD(pl, 0x467, uint8_t)) return;
-    unsigned n = *(unsigned *)0x009183CC;
-    for (int j = 1; j < (int)n && j < 16; j++) {
+    persona_assign(pl);
+    if (FIELD(pl, 0x467, uint8_t)) {   // defeated: last words once
+        static int said[16];
+        if (!said[ai]) { said[ai] = 1; persona_say(pl, L_DEFEATED, NULL, NULL); }
+        return;
+    }
+    int n = nplayers();
+    for (int j = 1; j < n; j++) {
         void *pj = player_at(j);
         if (!pj || j == (int)ai) continue;
-        int s = stance_of(pj, (int)ai);
-        if (g_diplo_seen[ai] && s != 0 && g_diplo_prev[ai][j] == 0 && !stance_of(pl, j)) {
-            g_diplo_due[ai][j] = now + 3000 + (uint32_t)((ai * 7 + (unsigned)j * 3) % 4) * 1000;
-            if (g_log) fprintf(g_log, "# diplomacy: P%u at %.1f min: P%d declared war on it\n", ai, now / 60000.0, j);
+        int s = stance_of(pj, (int)ai), mine = stance_of(pl, j);
+        if (!g_diplo_seen[ai]) {
+            g_opinion[ai][j] = mine ? -10.0f : 20.0f;
+            if (!mine && !s) g_ally_since[ai][j] = now ? now : 1;
         }
+        if (g_diplo_seen[ai] && s && !g_diplo_prev[ai][j]) {   // j turned hostile
+            int betrayal = !mine && g_ally_since[ai][j] && now - g_ally_since[ai][j] > 120000;
+            opinion_add(ai, j, (betrayal ? -60.0f : -40.0f) * (0.5f + trait(pl, T_PRIDE) / 100.0f));
+            g_war_since[ai][j] = now ? now : 1;
+            g_ally_since[ai][j] = 0;
+            g_peace_due[ai][j] = 0;
+            g_offer_t[ai][j] = 0;
+            if (g_answer_war && !mine) {
+                g_diplo_due[ai][j] = now + 3000 + (uint32_t)((ai * 7 + (unsigned)j * 3) % 4) * 1000;
+                g_war_betrayal[ai][j] = (uint8_t)betrayal;
+            }
+            if (g_log) fprintf(g_log, "# diplomacy: P%u at %.1f min: P%d declared war on it%s\n", ai, now / 60000.0, j,
+                               betrayal ? " (betrayal)" : "");
+        }
+        if (g_diplo_seen[ai] && !s && g_diplo_prev[ai][j] && mine) {   // j offers peace
+            g_peace_due[ai][j] = now + 4000 + (uint32_t)((ai * 5 + (unsigned)j) % 5) * 1000;
+            g_peace_refused[ai][j] = 0;
+        }
+        if (!s && !mine && !g_ally_since[ai][j]) g_ally_since[ai][j] = now ? now : 1;
         g_diplo_prev[ai][j] = s;
         if (g_diplo_due[ai][j] && now >= g_diplo_due[ai][j]) {
             g_diplo_due[ai][j] = 0;
-            if (!s || stance_of(pl, j) || FIELD(pj, 0x467, uint8_t)) continue;   // peace again, or already at war
-            ((void (__thiscall *)(void *, int, int, int))FN_SET_STANCE)(GAME_STATE, (int)ai, j, 1);
+            if (!s || stance_of(pl, j) || is_out(pj)) continue;   // peace again, or already at war
+            set_stance((int)ai, j, 1);
             chat_stance_line(pl, 1);
+            if (!persona_say(pl, g_war_betrayal[ai][j] ? L_BETRAYED : L_WAR_DECLARED, pj, NULL) && g_war_betrayal[ai][j])
+                persona_say(pl, L_WAR_DECLARED, pj, NULL);
             void *cbm = FIELD(pl, 0xB8C, void *);
             if (cbm) ((void (__thiscall *)(void *, void *))FN_REVENGE)(cbm, pj);
             g_diplo_answers[ai]++;
             if (g_log) fprintf(g_log, "# diplomacy: P%u at %.1f min answers war: now enemy of P%d (stance %d)\n",
                                ai, now / 60000.0, j, stance_of(pl, j));
         }
+        if (g_peace_due[ai][j] && now >= g_peace_due[ai][j]) {
+            g_peace_due[ai][j] = 0;
+            if (!s && stance_of(pl, j) && !is_out(pj)) peace_offer(pl, (int)ai, j, now);
+        }
+        if (g_offer_t[ai][j]) {   // the AI's alliance offer to a human
+            if (!s) {
+                g_offer_t[ai][j] = 0;
+                g_ally_since[ai][j] = now ? now : 1;
+                persona_say(pl, L_OFFER_ACCEPTED, pj, NULL);
+            } else if (now - g_offer_t[ai][j] > 120000) {
+                g_offer_t[ai][j] = 0;
+                persona_say(pl, L_OFFER_WITHDRAWN, pj, NULL);
+                set_stance((int)ai, j, 1);
+                chat_stance_line(pl, 1);
+            }
+        }
     }
     g_diplo_seen[ai] = 1;
+    // once a minute: opinions drift; the AI's own moves
+    static uint32_t last_min[16];
+    if (!last_min[ai] || now - last_min[ai] >= 60000) {
+        int first = !last_min[ai];
+        last_min[ai] = now ? now : 1;
+        world_scan(now);
+        int lead = strongest_enemy(pl, (int)ai);
+        for (int j = 1; j < n && !first; j++) {
+            void *pj = player_at(j);
+            if (!pj || j == (int)ai || is_out(pj)) continue;
+            float d = 0;
+            if (!stance_of(pl, j) && !stance_of(pj, (int)ai)) d += trait(pl, T_LOYALTY) / 100.0f;
+            if (stance_of(pl, j)) d -= trait(pl, T_PRIDE) / 200.0f;
+            if (lead && lead != j && stance_of(pj, lead) && stance_of(pl, lead)) d += 0.5f;
+            if (g_opinion[ai][j] < 0) d -= g_opinion[ai][j] * trait(pl, T_FORGIVENESS) / 2000.0f;
+            opinion_add((int)ai, j, d);
+        }
+        if (!first) diplo_initiative(pl, (int)ai, now);
+    }
+    static uint32_t last_sit[16];
+    if (!last_sit[ai] || now - last_sit[ai] >= 10000) {
+        last_sit[ai] = now ? now : 1;
+        world_scan(now);
+        diplo_situations(pl, (int)ai, now);
+    }
+}
+
+// Tribute (EEMPayTribute::vf10 0x4BA6BE, vtable 0x8289C0 slot 10): sender id +0xA (0x52E6EF), receiver index
+// +0x24, amounts +0x10 food, +0x14 gold, +0x18 iron, +0x1C stone, +0x20 wood.
+#define VT_PAY_TRIBUTE 0x008289C0
+#define FN_PAY_TRIBUTE 0x004BA6BE
+static void diplo_tribute(void *to, void *from, int total) {
+    if (!to || !from || to == from || !g_players[pidx(to)] || total <= 0) return;
+    int ai = pidx(to), j = pidx(from);
+    float gain = (float)total / (20.0f + 0.8f * (float)(100 - trait(to, T_GREED)));
+    opinion_add(ai, j, gain);
+    if (g_log) fprintf(g_log, "# diplomacy: P%d receives %d tribute from P%d: opinion +%.0f -> %.0f\n", ai, total, j, gain, g_opinion[ai][j]);
+    persona_say(to, gain >= 5 ? L_TRIBUTE_THANKS : L_TRIBUTE_SMALL, from, NULL);
+    if (!stance_of(from, ai) && stance_of(to, j)) g_peace_due[ai][j] = game_time() + 3000;   // ask again now
+}
+static void __fastcall hook_tribute(uint8_t *msg, void *edx) {
+    (void)edx;
+    int total = FIELD(msg, 0x10, int) + FIELD(msg, 0x14, int) + FIELD(msg, 0x18, int) + FIELD(msg, 0x1C, int) + FIELD(msg, 0x20, int);
+    void *to = player_at(msg[0x24]);
+    void *from = ((void *(__thiscall *)(void *, int))0x0052E6EF)(GAME_STATE, (int)(int8_t)msg[0xA]);
+    ((void (__thiscall *)(void *))FN_PAY_TRIBUTE)(msg);
+    diplo_tribute(to, from, total);
 }
 
 // diplo: the stance matrix; diplo A B S: player A takes stance S (0 allied, 1 enemy) towards B, as the stance
 // message does (tests: what a human's declaration does)
 static void cmd_diplo(char *out, const char *args) {
     int a = -1, b = -1, s = -1;
+    if (sscanf(args, "tribute %d %d %d", &a, &b, &s) == 3) {   // diplo tribute A B N: A's tribute of N reaches AI B
+        diplo_tribute(player_at(b), player_at(a), s);
+        REPLY("P%d -> P%d: tribute %d, opinion %.0f\n", a, b, s, b > 0 && b < 16 && a > 0 && a < 16 ? g_opinion[b][a] : 0.0f);
+        return;
+    }
     sscanf(args, "%d %d %d", &a, &b, &s);
     if (player_at(a) && player_at(b) && a != b && (s == 0 || s == 1)) {
-        ((void (__thiscall *)(void *, int, int, int))FN_SET_STANCE)(GAME_STATE, a, b, s);
+        set_stance(a, b, s);
         REPLY("P%d -> P%d: %d\n", a, b, stance_of(player_at(a), b));
         return;
     }
-    unsigned n = *(unsigned *)0x009183CC;
-    REPLY("stance of row towards column (0 allied, 1 enemy); answered wars per AI in []\n    ");
-    for (unsigned j = 1; j < n && j < 16; j++) REPLY(" P%-2u", j);
-    REPLY("\n");
-    for (unsigned i = 1; i < n && i < 16; i++) {
-        void *pi = player_at((int)i);
+    int n = nplayers();
+    REPLY("stance of row towards column (0 allied, 1 enemy) / opinion; teams locked %d, scenario %d\n    ", TEAMS_LOCKED, scenario_game());
+    for (int j = 1; j < n; j++) REPLY("      P%-2d", j);
+    REPLY("  power  wars answered\n");
+    for (int i = 1; i < n; i++) {
+        void *pi = player_at(i);
         if (!pi) continue;
-        REPLY("P%-2u ", i);
-        for (unsigned j = 1; j < n && j < 16; j++) REPLY("  %c ", i == j ? '-' : '0' + stance_of(pi, (int)j));
-        REPLY(" [%u]%s\n", g_diplo_answers[i], FIELD(pi, 0x467, uint8_t) ? " (out)" : "");
+        REPLY("P%-2d ", i);
+        for (int j = 1; j < n; j++) {
+            if (i == j) REPLY("        -");
+            else if (g_players[i]) REPLY("  %d/%5.0f", stance_of(pi, j), g_opinion[i][j]);
+            else REPLY("  %d      ", stance_of(pi, j));
+        }
+        REPLY("  %6.0f  %u%s\n", g_ws.power[i], g_diplo_answers[i], is_out(pi) ? " (out)" : "");
     }
 }
 
 static void diplo_install(const char *ini, const char *test_ini) {
     g_answer_war = GetPrivateProfileIntA("all", "answer_war", 1, ini);
-    if (test_ini) g_answer_war = GetPrivateProfileIntA("autotest", "answer_war", g_answer_war, test_ini);
-    if (g_log) fprintf(g_log, "# diplomacy: answer_war=%d\n", g_answer_war);
+    g_ai_diplomacy = GetPrivateProfileIntA("all", "ai_diplomacy", 1, ini);
+    if (test_ini) {
+        g_answer_war = GetPrivateProfileIntA("autotest", "answer_war", g_answer_war, test_ini);
+        g_ai_diplomacy = GetPrivateProfileIntA("autotest", "ai_diplomacy", g_ai_diplomacy, test_ini);
+    }
+    int ok = patch_vtable(VT_PAY_TRIBUTE, 10, FN_PAY_TRIBUTE, (void *)hook_tribute);
+    if (g_log) fprintf(g_log, "# diplomacy: answer_war=%d ai_diplomacy=%d, tribute hook %d\n", g_answer_war, g_ai_diplomacy, ok);
 }

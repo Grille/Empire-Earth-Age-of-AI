@@ -42,7 +42,11 @@ the AI has seen.
 2. Copy [`config/aimod.ini`](config/aimod.ini) into the same folder and adjust it. Every option is
    explained in the file. Settings can differ per difficulty (`[easy]`, `[medium]`, `[hard]` override
    `[all]`).
-3. Start the game normally. Changes to `aimod.ini` take effect when a game starts or a save is loaded.
+3. Optional: copy the folder [`config/aimod_ai`](config/aimod_ai) into the same folder. Every AI then gets
+   one of its personalities: a name, character traits that decide its diplomacy (peace, alliances,
+   betrayal, what tribute is worth to it) and its own lines in the chat. Add or edit `.ini` files there to
+   make your own (the format is described in `eroberer.ini`); they are read when Empire Earth starts.
+4. Start the game normally. Changes to `aimod.ini` take effect when a game starts or a save is loaded.
 
 To uninstall, delete `eeaimod.dll`. If you delete only `aimod.ini`, the original AI comes back and
 only the scenario fix stays on. The DLL writes a log to `aimod_econ.csv` in the game folder.

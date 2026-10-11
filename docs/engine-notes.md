@@ -277,6 +277,13 @@ Guard towers 47, 461..466; AA 145/147; town center 35; house 37; citizen 32.
   0x52D5D7 is thiscall(game state 0x918300 - players at +0x74, count +0xCC, teams +0x9B4); 0x46FFB7 is
   thiscall(combat manager = player +0xB8C, declaring player): target = his most attractive object (0x470FF5, none ->
   nothing), attack on it (0x472427), taunt through the interaction manager (player +0xB9C). dll/diplo.c answers war.
+- Locked teams: byte 0x918E9F (the diplomacy screen disables its stance boxes, its OK button sends no stance).
+- The native AI lines are called at 0x470040 (12500), 0x4715F8, 0x47166E, 0x47280E, 0x472B9D (rel32 calls).
+- Tribute: EEMPayTribute::vf10 0x4BA6BE (vtable 0x8289C0 slot 10): sender id +0xA (player by id 0x52E6EF on the
+  game state, compares +0x464), receiver index +0x24, amounts +0x10 food, +0x14 gold, +0x18 iron, +0x1C stone,
+  +0x20 wood; paid through player vtable +0x48(resource, amount).
+- Player name: +0x24 UWideString (char data at +0x28); assigning it renames the player everywhere (chat, scores).
+  Localized epoch names: strings 30145 + epoch (Vorzeit ... Nano-Zeitalter).
 
 ## Art of Conquest (EE-AOC.exe) - first overview
 

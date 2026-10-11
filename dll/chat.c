@@ -29,6 +29,8 @@ static const char *const k_epoch_names[15] = { "Prehistoric", "Stone", "Copper",
     "Space" };
 static const char *epoch_name(int e) { return e >= 0 && e < 15 ? k_epoch_names[e] : "?"; }
 
+static void persona_attack(void *pl, void *target);   // persona.c: the attack line
+
 // one chat line from player pl (name and colour from the player), shown for ms milliseconds
 static void chat_line(void *pl, const char *text, int ms) {
     void *ui = *(void **)0x0091977C;
