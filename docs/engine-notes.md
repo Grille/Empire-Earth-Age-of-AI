@@ -283,6 +283,12 @@ are subclasses with their own vtables):
 | clicking into the window doesn't give it input | WM_ACTIVATEAPP/WM_ACTIVATE resume the devices, but Acquire (FOREGROUND) fails before the window is foreground; the intro sequence (0x538xxx) also ends with Suspend. WM_ACTIVATE returns without DefWindowProc (no keyboard focus) | in front, a suspended device (+4) is resumed (vtable +0x10, every 250 ms at most); SetFocus after WM_ACTIVATE |
 | crash in DDRAW.dll+2B133 (dgVoodoo) at a resolution as big as the screen | the window (client + frame) is larger than the desktop; Windows cuts it and dgVoodoo then reads past a surface in the UI's CopyTo | LLE's SetWindowPos (GEWindow::Resize) wrapped: the window always fits the work area, the client scaled down with the aspect kept |
 
+Editor minimap: EEUIMiniMap (0x65DF30..) sizes its picture as screen width * 1/800 and height * 1/600
+(0x8358A8 / 0x82CBCC, also for mapping clicks) - right for the in-game frame, which scales with the screen,
+too big for the editor's fixed AoC frame at resolutions above 1024x768. The 6 operands read the mod's factors:
+1.28 / width and 1.28 / height while the editor is active (set by its SetResolution hooks), the originals after
+every other SetResolution call (7 sites).
+
 Borderless (`mode=borderless`) and Alt+Enter: the window is subclassed; borderless swaps
 WS_OVERLAPPEDWINDOW for WS_POPUP and covers the monitor. The game sizes the window itself (GEWindow::Resize,
 LLE +0x49E0D: AdjustWindowRect(0xCF0000) + SetWindowPos with SWP_NOMOVE, stores the game size at GEWindow

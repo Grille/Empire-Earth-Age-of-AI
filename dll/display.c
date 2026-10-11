@@ -80,12 +80,39 @@ static void editor_size(int *w, int *h) {
 }
 
 typedef void (__stdcall *SetResolutionFn)(int w, int h, int force, int flag);
+// Minimap picture: EEUIMiniMap (0x65DF30..) sizes it as screen width * 1/800 and height * 1/600 (constants
+// 0x8358A8 / 0x82CBCC, also used to map clicks on it) - built for frames that scale with the screen like the
+// in-game one. The editor's frame has AoC's fixed size (1.28 x the 800x600 one), so at other resolutions the
+// picture overshot it (only its upper left part visible). The 6 operands read our factors instead: in the
+// editor 1.28 / width and 1.28 / height (= the originals at 1024x768), elsewhere the originals.
+static float g_mm_fx = 1.0f / 800.0f, g_mm_fy = 1.0f / 600.0f;
+static const uintptr_t k_mm_fx_ops[] = { 0x0065E01D, 0x0065E8A3, 0x0065EB3E };
+static const uintptr_t k_mm_fy_ops[] = { 0x0065E032, 0x0065E8CE, 0x0065EB68 };
+static int redirect_minimap_scale(void) {
+    int n = 0;
+    for (int i = 0; i < 3; i++) {
+        if (*(uint32_t *)k_mm_fx_ops[i] == 0x008358A8) { write_code32((uint32_t *)k_mm_fx_ops[i], (uint32_t)(uintptr_t)&g_mm_fx); n++; }
+        if (*(uint32_t *)k_mm_fy_ops[i] == 0x0082CBCC) { write_code32((uint32_t *)k_mm_fy_ops[i], (uint32_t)(uintptr_t)&g_mm_fy); n++; }
+    }
+    return n;
+}
+
 static void __stdcall hook_editor_resolution(int w, int h, int force, int flag) {
     editor_size(&w, &h);
     int lay = apply_editor_layout(w, h);
+    g_mm_fx = 1.28f / (float)w;
+    g_mm_fy = 1.28f / (float)h;
     if (g_log) { fprintf(g_log, "# editor: resolution %dx%d, layout patches %d/%d\n", w, h, lay, (int)N_LAYOUT + 6); fflush(g_log); }
     ((SetResolutionFn)FN_SET_RESOLUTION)(w, h, force, flag);
 }
+
+// every other resolution switch (game, menus, test play from the editor): the original minimap factors
+static void __stdcall hook_other_resolution(int w, int h, int force, int flag) {
+    g_mm_fx = 1.0f / 800.0f;
+    g_mm_fy = 1.0f / 600.0f;
+    ((SetResolutionFn)FN_SET_RESOLUTION)(w, h, force, flag);
+}
+static const uintptr_t k_other_resolution_sites[] = { 0x0065F30A, 0x0065F61B, 0x0065F945, 0x0065FAD4, 0x00660CD3, 0x00661329, 0x00661363 };
 
 // The editor's main form (constructor 0x58D3E1) is built once, on first use (0x65B9F5) - before the resolution
 // switch - and keeps its layout; its sub-pages are built later. The layout is computed right before it.
@@ -1331,6 +1358,11 @@ static void display_install(const char *aimod_ini, const char *autotest_ini) {
     int ok = patch_call(SITE_EDITOR_MENU, FN_SET_RESOLUTION, hook_editor_resolution)
            + patch_call(SITE_EDITOR_RES, FN_SET_RESOLUTION, hook_editor_resolution)
            + patch_call(SITE_EDITOR_FORM, FN_EDITOR_FORM, hook_editor_form);
+    int other = 0;
+    for (size_t i = 0; i < sizeof k_other_resolution_sites / sizeof *k_other_resolution_sites; i++)
+        other += patch_call(k_other_resolution_sites[i], FN_SET_RESOLUTION, hook_other_resolution);
+    int mm = redirect_minimap_scale();
+    if (g_log) fprintf(g_log, "# editor: minimap scale operands %d/6, other resolution switches %d/7\n", mm, other);
     if (g_log) fprintf(g_log, "# editor: resolution=%s hooks %d/3\n", mode, ok);
 }
 
