@@ -39,6 +39,7 @@ def load(path):
         )
     return end, out
 
+quiet = '-q' in sys.argv     # averages only
 runs = defaultdict(dict)
 for path in sys.argv[1:]:
     m = re.search(r'_suite[0-9_]+_([^_]+)_(.+)\.csv$', path)
@@ -49,17 +50,23 @@ for path in sys.argv[1:]:
 
 for variant, maps in runs.items():
     print('==== variant', variant)
-    tot = defaultdict(float); n = 0
+    tot = defaultdict(float); n = 0; vals = defaultdict(list)
     for mapname, (end, players) in sorted(maps.items()):
-        print('  %-14s end %4.1f min' % (mapname, end / 60000))
+        if not quiet: print('  %-14s end %4.1f min' % (mapname, end / 60000))
         for p, s in sorted(players.items()):
-            print('    P%d %-5s epoch %d  workers end %3d max %3d  food end %6d  last seen %5.1f  kills %3d losses %3d razed %3d bldg lost %3d' % (
+            if not quiet: print('    P%d %-5s epoch %d  workers end %3d max %3d  food end %6d  last seen %5.1f  kills %3d losses %3d razed %3d bldg lost %3d' % (
                 p, 'alive' if s['alive'] else 'DEAD', s['epoch'], s['workers_end'], s['workers_max'], s['food_end'], s['last_min'],
                 s['kills'], s['losses'], s['razed'], s['blost']))
             tot['alive'] += s['alive']; tot['epoch'] += s['epoch']; tot['workers_end'] += s['workers_end']
             tot['workers_max'] += s['workers_max']; n += 1
             for k in ('kills', 'losses', 'razed', 'blost'): tot[k] += s[k]
+            for k in ('alive', 'epoch', 'workers_end', 'kills', 'losses', 'razed'): vals[k].append(float(s[k]))
     if n:
         print('  AVERAGE per AI: alive %.0f%%  epoch %.2f  workers end %.1f  max %.1f  kills %.1f losses %.1f razed %.1f bldg lost %.1f' % (
             100 * tot['alive'] / n, tot['epoch'] / n, tot['workers_end'] / n, tot['workers_max'] / n,
             tot['kills'] / n, tot['losses'] / n, tot['razed'] / n, tot['blost'] / n))
+        # standard error of the mean per AI: differences smaller than about 2x this are noise
+        se = lambda v: (sum((x - sum(v) / len(v)) ** 2 for x in v) / max(len(v) - 1, 1) / len(v)) ** 0.5
+        print('  (%d AIs in %d runs; std. error: alive %.0f%%  epoch %.2f  workers end %.1f  kills %.1f losses %.1f razed %.1f)' % (
+            n, len(maps), 100 * se(vals['alive']), se(vals['epoch']), se(vals['workers_end']), se(vals['kills']),
+            se(vals['losses']), se(vals['razed'])))

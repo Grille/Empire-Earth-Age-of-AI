@@ -34,7 +34,7 @@ static struct {
 
 static int g_avoid_towers = 1;        // aimod.ini [all] avoid_towers
 static int g_avoid_weight = 2000;     // route cost per tower covering a step (a step costs 10-14)
-static int g_avoid_margin = 3;        // tiles added to the tower's range
+static int g_avoid_margin = 6;        // tiles added to the tower's range
 
 static int is_enemy(void *pl, void *other) {
     if (!other || other == pl) return 0;
@@ -360,7 +360,7 @@ static int patch_vtable(uintptr_t vt, int slot, uintptr_t expected, void *hook) 
 static void attack_install(const char *aimod_ini, const char *autotest_ini) {
     g_avoid_towers = cfg_int(aimod_ini, autotest_ini, 1, "avoid_towers", 1);
     g_avoid_weight = cfg_int(aimod_ini, autotest_ini, 1, "avoid_towers_weight", 2000);
-    g_avoid_margin = cfg_int(aimod_ini, autotest_ini, 1, "avoid_towers_margin", 3);
+    g_avoid_margin = cfg_int(aimod_ini, autotest_ini, 1, "avoid_towers_margin", 6);
     g_weak_spots = cfg_int(aimod_ini, autotest_ini, 1, "attack_weak_spots", 1);
     g_weak_radius = cfg_int(aimod_ini, autotest_ini, 1, "attack_weak_spot_radius", 60);
     g_leash = cfg_int(aimod_ini, autotest_ini, 1, "attack_leash", 1);

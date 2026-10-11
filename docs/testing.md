@@ -16,6 +16,7 @@ The `[autotest]` keys:
 | `speed=7.5` | game speed (normal 2.5). The simulation runs a fixed number of steps per real second (the lockstep server grants 15 steps every 350 ms); the speed only sets the game time per step, `1000 * speed / 44` ms (57 ms at 2.5, 170 ms at 7.5). Higher speeds make the steps coarser (movement artifacts). |
 | `turbo=1` | the steps follow each other as fast as the CPU allows instead of 43 per second: the server sends the next tick as soon as the simulation has used up the last one, the simulation loop skips its 22 ms timer, and a headless window renders only a few frames a second. Same steps, same game: a 75-minute game takes ~15 s instead of ~10 min. Pipe: `turbo 0\|1` |
 | `random_map=Continental` | starts a random map instead of the save. Also: `map_size` (0 tiny..), `ai_count`, `seed`, `teams=ffa\|pairs`, `start_epoch`, `citizens`, `ai_cheat`, `ai_ignore`, `epoch_min`/`epoch_max` (test epoch timer). The human player (slot 0) idles, sees the whole map and is allied with every AI. |
+| `game_seed=N` | the game's random seed at game start (otherwise the clock: `srand(TMGetTime())`, then `rand()` goes into the start message). Removes one source of run-to-run differences on random maps, not all yet (the AI still diverges after ~10 s) |
 | `scenario_mode=1` | starts `Data\Scenarios\<save>.scn` through the real scenario path (set by `-Scenario`) |
 | any `aimod.ini` key | overrides that setting for all difficulties, e.g. `avoid_towers=0` |
 | `watch=<hex>`, `watch_len` | hardware write-watchpoint, logs every writer of an address |
@@ -42,11 +43,13 @@ powershell -ExecutionPolicy Bypass -File scripts/run_test.ps1 -Save newgame.ees 
 - Safety: if the DLL doesn't report autotest mode within 10 s, the game is killed (no unmuted game with intros at normal speed).
 - Fixtures: start a random map with the wanted settings (`start_epoch`, `citizens`, ...), let it run, `eectl.py save copper40` at the interesting moment, then run tests from that save.
 
-Suite: 4 land maps with fixed seeds (Continental, Plains, Highlands, Mediterranean), one run per variant
-and map, then scored (survival, epoch, workers, food):
+Suite: 4 land maps with fixed seeds (Continental, Plains, Highlands, Mediterranean), headless with turbo,
+one or more runs per variant and map, then scored (survival, epoch, workers, food; with the standard error
+per AI):
 
 ```sh
 sh scripts/suite.sh <minutes> "name:key=value,key=value" ...    # names without underscores
+REPEAT=5 QUIET=1 sh scripts/suite.sh 75 "a:" "b:key=1"       # 5 runs per map (game_seed 1..5), averages only
 EPOCHS="" sh scripts/suite.sh 50 "base:" "plan:copper_plan=1"     # EPOCHS="" = the game's real epoch timer
 ```
 

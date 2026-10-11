@@ -66,6 +66,7 @@ static void econ_targets(uint8_t *rm);
 static void attack_tick(void *pl, uint32_t now);
 static void log_line(const char *fmt, const char *a, int b);
 static BOOL patch_call(uintptr_t site, uintptr_t expected, void *hook);
+static BOOL patch_srand(void);
 #define G_SCENARIO_FLAG 0x00918819   // byte: game is a scenario/campaign (settings 0x918410 + 0x409)
 static int g_clear_scenario_flag;
 
@@ -271,7 +272,7 @@ static void __fastcall hook_rm_update(void *rm, void *edx, uint32_t now) {
 #define FN_ADD_MOVIE     0x00441432                               // __thiscall, ret 4
 #define G_GAME_SPEED     0x009183C0   // float; set like EEMGameSpeed::Apply (0x4B6BD4)
 #define G_SPEED_NOTIFY   0x00918300   // object; vtable slot 11 called after a speed change
-static struct { int enabled, skip_intro, quit_minutes, scenario_mode, turbo; float speed; } g_auto;
+static struct { int enabled, skip_intro, quit_minutes, scenario_mode, turbo, game_seed; float speed; } g_auto;
 
 #include "randmap.c"
 
@@ -286,6 +287,7 @@ static void load_autotest(const char *ini) {
     g_auto.quit_minutes = GetPrivateProfileIntA("autotest", "quit_minutes", 0, ini);
     g_auto.scenario_mode = GetPrivateProfileIntA("autotest", "scenario_mode", 0, ini);
     g_auto.turbo = GetPrivateProfileIntA("autotest", "turbo", 0, ini);
+    g_auto.game_seed = GetPrivateProfileIntA("autotest", "game_seed", 0, ini);
     g_clear_scenario_flag = GetPrivateProfileIntA("autotest", "clear_scenario_flag", 0, ini);
     randmap_load(ini);
     char buf[32];
@@ -518,8 +520,33 @@ static void install(HMODULE self) {
     camera_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
     display_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
     ctl_start();
+    if (g_auto.enabled && g_auto.game_seed) {
+        BOOL ok = patch_srand();
+        if (g_log) fprintf(g_log, "# autotest: game_seed=%d (srand hook %s)\n", g_auto.game_seed, ok ? "ok" : "FAILED");
+    }
     if (g_auto.enabled) { watch_start(g_ini); trace_start(g_ini); }
     AddVectoredExceptionHandler(1, crash_handler);   // logs the first exceptions (module+offset, backtrace) - also in normal play
+}
+
+// Autotest game_seed: starting a game from the menu (EEUIELEStart::vf1 0x5C9B91, 0x67E1D6) seeds the C library
+// with the clock, srand(TMGetTime()), and sends rand() along with the start message (0x5D, +0x14) - the game's
+// random seed, so random-map runs differ even with the same map seed. With game_seed every srand uses that seed.
+#define IAT_SRAND 0x00824644
+typedef void (__cdecl *SrandFn)(unsigned);
+static SrandFn g_srand;
+static void __cdecl hook_srand(unsigned seed) {
+    (void)seed;
+    g_srand((unsigned)g_auto.game_seed);
+}
+
+static BOOL patch_srand(void) {
+    void **p = (void **)IAT_SRAND;
+    DWORD old;
+    if (!VirtualProtect(p, 4, PAGE_READWRITE, &old)) return FALSE;
+    g_srand = (SrandFn)*p;
+    *p = (void *)hook_srand;
+    VirtualProtect(p, 4, old, &old);
+    return g_srand != NULL;
 }
 
 BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, LPVOID reserved) {
