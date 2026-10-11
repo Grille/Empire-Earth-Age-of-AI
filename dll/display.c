@@ -970,12 +970,17 @@ static void apply_window_mode(HWND h) {
     if (g_log) { fprintf(g_log, "# display: %s %ldx%ld\n", g_borderless ? "borderless" : "window", r.right - r.left, r.bottom - r.top); fflush(g_log); }
 }
 
+static void modern_frame(HWND h);
+#define WM_AIMOD_FRAME (WM_APP + 0x2E46)
 static LRESULT CALLBACK window_proc(HWND h, UINT msg, WPARAM w, LPARAM l) {
     if (g_headless) {   // the game never learns about focus: no suspend, no pause, no activation
         if (msg == WM_ACTIVATEAPP || msg == WM_ACTIVATE || msg == WM_SETCURSOR) return msg == WM_SETCURSOR;
         if (msg == WM_MOUSEACTIVATE) return MA_NOACTIVATE;
     }
     switch (msg) {
+    case WM_AIMOD_FRAME:
+        modern_frame(h);
+        return 0;
     case WM_AIMOD_MODE:
         apply_window_mode(h);
         return 0;
@@ -1019,6 +1024,44 @@ static LRESULT CALLBACK window_proc(HWND h, UINT msg, WPARAM w, LPARAM l) {
     return CallWindowProcA(g_game_wndproc, h, msg, w, l);
 }
 
+// DDrawCompat switches the modern window frame off for the game (DWM non-client rendering and/or visual styles),
+// leaving the Windows 98 look; switched on again for the game window (posted to the window's thread).
+static void modern_frame(HWND h) {
+    typedef DWORD (WINAPI *GetThemeAppPropsFn)(void);
+    typedef void (WINAPI *SetThemeAppPropsFn)(DWORD);
+    typedef HRESULT (WINAPI *SetWindowThemeFn)(HWND, LPCWSTR, LPCWSTR);
+    typedef HRESULT (WINAPI *DwmSetAttrFn)(HWND, DWORD, const void *, DWORD);
+    HMODULE ux = LoadLibraryA("uxtheme.dll"), dw = LoadLibraryA("dwmapi.dll");
+    GetThemeAppPropsFn gp = ux ? (GetThemeAppPropsFn)(void *)GetProcAddress(ux, "GetThemeAppProperties") : NULL;
+    SetThemeAppPropsFn sp = ux ? (SetThemeAppPropsFn)(void *)GetProcAddress(ux, "SetThemeAppProperties") : NULL;
+    SetWindowThemeFn swt = ux ? (SetWindowThemeFn)(void *)GetProcAddress(ux, "SetWindowTheme") : NULL;
+    DwmSetAttrFn sa = dw ? (DwmSetAttrFn)(void *)GetProcAddress(dw, "DwmSetWindowAttribute") : NULL;
+    if (gp && sp && !(gp() & 1)) sp(gp() | 1 | 2 | 4);   // STAP_ALLOW_NONCLIENT | CONTROLS | WEBCONTENT
+    if (swt) swt(h, NULL, NULL);                          // the window's default theme
+    SetWindowRgn(h, NULL, FALSE);                         // DDrawCompat's window region: DWM draws no modern frame with one
+    DWORD policy = 2;                                     // DWMNCRP_ENABLED
+    HRESULT hr = sa ? sa(h, 2 /* DWMWA_NCRENDERING_POLICY */, &policy, sizeof policy) : E_NOTIMPL;
+    SetWindowPos(h, NULL, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
+    typedef HRESULT (WINAPI *DwmGetAttrFn)(HWND, DWORD, void *, DWORD);
+    DwmGetAttrFn ga = dw ? (DwmGetAttrFn)(void *)GetProcAddress(dw, "DwmGetWindowAttribute") : NULL;
+    BOOL nc = -1;
+    if (ga) ga(h, 1, &nc, sizeof nc);
+    if (g_log) {
+        char at[160] = "-";
+        if (sa) crash_addr(at, sizeof at, (uintptr_t)sa);
+        const uint8_t *pb = (const uint8_t *)sa;
+        HRGN rgn = CreateRectRgn(0, 0, 0, 0);
+        int rk = GetWindowRgn(h, rgn);
+        RECT rb = { 0 };
+        GetRgnBox(rgn, &rb);
+        DeleteObject(rgn);
+        fprintf(g_log, "# display: modern frame - set DWM policy hr %08lx, frame rendering now %d, ex style %08lx, window region %d (%ld,%ld-%ld,%ld), DwmSetWindowAttribute %s bytes %02x %02x %02x %02x %02x\n",
+                (unsigned long)hr, nc, (unsigned long)GetWindowLongA(h, GWL_EXSTYLE), rk, rb.left, rb.top, rb.right, rb.bottom, at,
+                pb ? pb[0] : 0, pb ? pb[1] : 0, pb ? pb[2] : 0, pb ? pb[3] : 0, pb ? pb[4] : 0);
+        fflush(g_log);
+    }
+}
+
 static void window_hook(HWND hwnd) {   // subclass once per window (present and mouse threads both call this)
     static volatile LONG busy;
     if (g_subclassed == hwnd || InterlockedExchange(&busy, 1)) return;
@@ -1027,6 +1070,7 @@ static void window_hook(HWND hwnd) {   // subclass once per window (present and 
         SetWindowLongA(hwnd, GWL_WNDPROC, (LONG)(uintptr_t)window_proc);
         g_subclassed = hwnd;
         if (g_borderless) PostMessageA(hwnd, WM_AIMOD_MODE, 0, 0);   // initial style/size, on the window's thread
+        // (modern_frame: no effect - DDrawCompat covers the whole window, frame included, with its presentation window)
     }
     busy = 0;
 }
@@ -1741,6 +1785,25 @@ static void cmd_ddinfo(char *out, const char *args) {
                      n, tf * ms / n, tl * ms / n, tb * ms / n, (tf - tl - tb) * ms / n);
     }
     REPLY("frame stats (FPS display): %.1f frames/s, %.1f / %.1f per s\n", FIELD(st, 0x2D8, float), FIELD(st, 0x2D4, float), FIELD(st, 0x2E0, float));
+    if (g_subclassed) {   // window frame state (DDrawCompat switches the modern frame off)
+        typedef DWORD (WINAPI *GetThemeAppPropsFn)(void);
+        typedef BOOL (WINAPI *IsThemeFn)(void);
+        typedef HANDLE (WINAPI *GetWindowThemeFn)(HWND);
+        typedef HRESULT (WINAPI *DwmGetAttrFn)(HWND, DWORD, void *, DWORD);
+        HMODULE ux = LoadLibraryA("uxtheme.dll"), dw = LoadLibraryA("dwmapi.dll");
+        GetThemeAppPropsFn props = ux ? (GetThemeAppPropsFn)(void *)GetProcAddress(ux, "GetThemeAppProperties") : NULL;
+        IsThemeFn active = ux ? (IsThemeFn)(void *)GetProcAddress(ux, "IsThemeActive") : NULL;
+        IsThemeFn app = ux ? (IsThemeFn)(void *)GetProcAddress(ux, "IsAppThemed") : NULL;
+        GetWindowThemeFn wt = ux ? (GetWindowThemeFn)(void *)GetProcAddress(ux, "GetWindowTheme") : NULL;
+        DwmGetAttrFn ga = dw ? (DwmGetAttrFn)(void *)GetProcAddress(dw, "DwmGetWindowAttribute") : NULL;
+        BOOL nc = -1;
+        if (ga) ga(g_subclassed, 1 /* DWMWA_NCRENDERING_ENABLED */, &nc, sizeof nc);
+        HRGN rgn = CreateRectRgn(0, 0, 0, 0);
+        int rk = GetWindowRgn(g_subclassed, rgn);
+        DeleteObject(rgn);
+        REPLY("frame: theme app properties %lx, theme active %d, app themed %d, window theme %p, DWM frame rendering %d, window region %d\n",
+              props ? props() : 0xFFFF, active ? active() : -1, app ? app() : -1, wt ? (void *)wt(g_subclassed) : NULL, nc, rk);
+    }
     REPLY("present path: %s (DDrawCompat %s); primary Blt %ld frames, %ld failed, last hr %08lx\n",
           g_present_mode == 3 || (g_present_mode == 0 && ddrawcompat_loaded()) ? "primary Blt"
           : g_present_d3d && !g_d3d.failed ? "Direct3D 11" : "GDI", ddrawcompat_loaded() ? "loaded" : "not loaded",
