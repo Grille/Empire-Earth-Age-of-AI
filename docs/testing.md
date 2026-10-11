@@ -83,6 +83,24 @@ venv/Scripts/python scripts/eectl.py <command>
 | `ddpoke z\|back\|front\|mode` | one of ddinfo's side effects alone (lock a surface, query the display mode); `ddpoke cursor x y` puts the Windows cursor at a client position in the game's own (DPI-virtualised) coordinates - `ddinfo` shows the game cursor and the mouse device state |
 | `uipost <hex msg> [hex p1]` | post a message to the UI thread's queue; runs on the pipe thread, so it also works in the menus |
 
+### Headless UI tests (menus, editor)
+
+Autotest key `headless=1`: the game window is created off-screen, never activates and ignores focus
+changes, so nothing on the desktop, the mouse or the keyboard is touched. Drive it through the pipe:
+
+| Command | |
+|---|---|
+| `vmouse x y` | game cursor to x, y (game pixels); `vmouse off` = real mouse again |
+| `vclick x y [right\|mid]` | move there and click (button held ~150 ms). Move there with `vmouse` first and wait a moment; screens ignore clicks while they load |
+| `wclick x y` | click by posted window messages, for screens on the WONAPI UI (civ builder) that read Windows messages instead of the game cursor |
+| `shot <name>` | the next presented frame to `aimod_dumps/<name>.bmp` (game resolution) |
+
+`sh scripts/editor_headless.sh [game|aoc|WxH]` starts headless and opens the scenario editor (main menu →
+game tools → scenario editor, retried until the log says `# editor: building`). `scripts/bmp2png.ps1` and
+`scripts/crop.ps1` turn shots into PNGs. Menu buttons (1024x768): game tools 512,472; scenario editor 512,370.
+Editor icons at 2560x1440: y 1420, x 14 map, 60 elevation, 103 terrain, 147 units, 193 triggers, 237 players,
+280 texts, 322 civilizations.
+
 `run_test.ps1 -Exe <name>` starts a renamed copy of the exe (the DLL accepts any copy of the 1.04 exe).
 Autotest keys for the display work: `mode` (native|windowed|borderless, or the older `windowed`), `diag_hooks=1` (counters in `ddinfo`, also fullscreen),
 `diag_skip` (1 terrain, 2 water, 3 fog off). In normal play `[display] diag=1` enables the counters.

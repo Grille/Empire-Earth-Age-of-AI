@@ -140,7 +140,9 @@ Settings in `aimod.ini`:
 - `[display] mode=borderless`: a frameless window over the whole monitor, the game image scaled to it
   (aspect kept). Alt+Enter switches between window and borderless. The window is DPI-aware (`dpi_aware`),
   so Windows display scaling doesn't blur it; `smooth=1` filters the scaled image.
-- `[editor] resolution=aoc`: scenario editor at 1024x768 with The Art of Conquest's layout.
+- `[editor] resolution=aoc`: scenario editor at 1024x768 with The Art of Conquest's layout; `game` or any
+  `WIDTHxHEIGHT` extends that layout to the resolution (map view fills the screen, panels at the bottom,
+  minimap and file buttons at the bottom right).
 - `[camera] scroll=aoc`: AoC's smooth camera scrolling.
 - `[general] skip_intro=1`: skip the intro movies.
 

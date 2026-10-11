@@ -23,6 +23,7 @@ static void cmd_threat(char *out, const char *args);
 static void cmd_scrolltest(char *out, const char *args);
 static void cmd_ddinfo(char *out, const char *args);
 static void cmd_ddpoke(char *out, const char *args);
+static void cmd_headless(const char *verb, const char *args, char *out);
 static struct {
     char cmd[512];
     char out[16384];
@@ -447,6 +448,9 @@ static DWORD WINAPI pipe_thread(LPVOID unused) {
             if (!strcmp(verb, "peek") || !strcmp(verb, "poke")) {
                 char *out = reply;
                 mem_command(verb, cmd + n, out);
+            } else if (!strcmp(verb, "vmouse") || !strcmp(verb, "vclick") || !strcmp(verb, "wclick") || !strcmp(verb, "shot")) {
+                char *out = reply;
+                cmd_headless(verb, cmd + n, out);
             } else if (!strcmp(verb, "uipost")) {
                 // uipost <hex msg> [hex p1]: post to the UI thread's queue (TSThread [0x91977C]+0x40), works in the
                 // menus where no simulation runs - e.g. 413 opens the scenario editor from the main menu

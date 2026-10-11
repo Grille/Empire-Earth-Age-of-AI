@@ -19,52 +19,85 @@
 
 static int g_editor_w, g_editor_h, g_editor_game;   // 0 = leave
 
-// aoc: the editor layout for 1024x768 (map view 1024x606, panels moved down 168 px, right side 224 px), as
-// Art of Conquest has it - generated from a comparison of both exes (scripts/layout_diff.py, gen_editor_layout.py).
+// The editor layout for any resolution from 800x600 up: Art of Conquest's 1024x768 values (generated from a
+// comparison of both exes, scripts/layout_diff.py + gen_editor_layout.py), each moved with the screen size the way
+// AoC moved it from EE's 800x600: anchored right/bottom, stretched, or centred. Computed when the editor is entered.
 #include "editor_layout.h"
 #define N_LAYOUT (sizeof k_editor_layout / sizeof *k_editor_layout)
 static uint32_t g_layout_consts[N_LAYOUT];
+static int8_t g_layout_state[N_LAYOUT];   // 0 unchecked, 1 patched, -1 didn't match (skipped)
+static int g_buttons_state;
 
-static int apply_editor_layout(void) {
+static void write_code32(uint32_t *p, uint32_t v) {
+    DWORD old;
+    VirtualProtect(p, 4, PAGE_EXECUTE_READWRITE, &old);
+    *p = v;
+    VirtualProtect(p, 4, old, &old);
+    FlushInstructionCache(GetCurrentProcess(), p, 4);
+}
+
+static int apply_editor_layout(int w, int h) {
     int ok = 0, bad = 0;
     for (size_t i = 0; i < N_LAYOUT; i++) {
         uint32_t *p = (uint32_t *)k_editor_layout[i].addr;
-        DWORD old;
-        if (k_editor_layout[i].kind == 0) {
-            if (*p != k_editor_layout[i].old) { bad++; continue; }
-            VirtualProtect(p, 4, PAGE_EXECUTE_READWRITE, &old);
-            *p = k_editor_layout[i].val;
-        } else {   // redirect the absolute operand to our own constant
-            uint32_t *c = (uint32_t *)*p;
-            if ((uintptr_t)c < 0x401000 || (uintptr_t)c >= 0xA00000 || *c != k_editor_layout[i].old) { bad++; continue; }
-            g_layout_consts[i] = k_editor_layout[i].val;
-            VirtualProtect(p, 4, PAGE_EXECUTE_READWRITE, &old);
-            *p = (uint32_t)(uintptr_t)&g_layout_consts[i];
+        if (!g_layout_state[i]) {   // first time: the original value must be there
+            uint32_t *c = k_editor_layout[i].kind ? (uint32_t *)*p : p;
+            int match = k_editor_layout[i].kind
+                ? (uintptr_t)c >= 0x401000 && (uintptr_t)c < 0xA00000 && *c == k_editor_layout[i].old
+                : *p == k_editor_layout[i].old;
+            g_layout_state[i] = match ? 1 : -1;
+            if (match && k_editor_layout[i].kind) write_code32(p, (uint32_t)(uintptr_t)&g_layout_consts[i]);
         }
-        VirtualProtect(p, 4, old, &old);
-        FlushInstructionCache(GetCurrentProcess(), p, 4);
+        if (g_layout_state[i] < 0) { bad++; continue; }
+        float v = k_editor_layout[i].aoc + k_editor_layout[i].fx * 0.5f * (float)(w - 1024)
+                + k_editor_layout[i].fy * 0.5f * (float)(h - 768);
+        uint32_t bits;
+        if (k_editor_layout[i].isf) memcpy(&bits, &v, 4);
+        else bits = (uint32_t)(int32_t)lroundf(v);
+        if (k_editor_layout[i].kind) g_layout_consts[i] = bits;
+        else if (*p != bits) write_code32(p, bits);
         ok++;
     }
     // the file buttons (load, save, test, exit ...) come from a data table, not code: 0x8AE0A0, 6 entries of
-    // {id, x, y, texture u0, v0, u1, v1, tooltip}; AoC (0x8C47B0) has them at x 647.. (step 35), y 736
+    // {id, x, y, texture u0, v0, u1, v1, tooltip}; AoC (0x8C47B0) has them at x 647.. (step 35), y 736 for 1024x768
     int32_t *t = (int32_t *)0x008AE0A0;
-    for (int i = 0; i < 6; i++, t += 8) {
-        if (t[1] != 415 + 35 * i || t[2] != 567) { bad++; continue; }
-        t[1] = 647 + 35 * i;
-        t[2] = 736;
-        ok++;
-    }
+    if (!g_buttons_state) g_buttons_state = t[1] == 415 && t[2] == 567 ? 1 : -1;
+    if (g_buttons_state > 0)
+        for (int i = 0; i < 6; i++, t += 8) {
+            t[1] = 647 + 35 * i + (w - 1024);
+            t[2] = 736 + (h - 768);
+            ok++;
+        }
+    else bad++;
     if (g_log && bad) fprintf(g_log, "# editor: %d layout patch sites did not match and were skipped\n", bad);
     return ok;
 }
 
-typedef void (__stdcall *SetResolutionFn)(int w, int h, int force, int flag);
-static void __stdcall hook_editor_resolution(int w, int h, int force, int flag) {
+static void editor_size(int *w, int *h) {
     int nw = g_editor_game ? *(int *)G_GAME_RES_W : g_editor_w;
     int nh = g_editor_game ? *(int *)G_GAME_RES_H : g_editor_h;
-    if (nw >= 640 && nh >= 480) { w = nw; h = nh; }
-    if (g_log) { fprintf(g_log, "# editor: resolution %dx%d\n", w, h); fflush(g_log); }
+    if (nw >= 800 && nh >= 600) { *w = nw; *h = nh; }
+}
+
+typedef void (__stdcall *SetResolutionFn)(int w, int h, int force, int flag);
+static void __stdcall hook_editor_resolution(int w, int h, int force, int flag) {
+    editor_size(&w, &h);
+    int lay = apply_editor_layout(w, h);
+    if (g_log) { fprintf(g_log, "# editor: resolution %dx%d, layout patches %d/%d\n", w, h, lay, (int)N_LAYOUT + 6); fflush(g_log); }
     ((SetResolutionFn)FN_SET_RESOLUTION)(w, h, force, flag);
+}
+
+// The editor's main form (constructor 0x58D3E1) is built once, on first use (0x65B9F5) - before the resolution
+// switch - and keeps its layout; its sub-pages are built later. The layout is computed right before it.
+#define SITE_EDITOR_FORM 0x0065BA13
+#define FN_EDITOR_FORM   0x0058D3E1
+static void *__fastcall hook_editor_form(void *form, void *edx, void *owner) {
+    (void)edx;
+    int w = 800, h = 600;
+    editor_size(&w, &h);
+    int lay = apply_editor_layout(w, h);
+    if (g_log) { fprintf(g_log, "# editor: building the editor for %dx%d, layout patches %d/%d\n", w, h, lay, (int)N_LAYOUT + 6); fflush(g_log); }
+    return ((void *(__thiscall *)(void *, void *))FN_EDITOR_FORM)(form, owner);
 }
 
 // Windowed mode: the engine still has the windowed path SSSI used during development - with the flag byte
@@ -103,6 +136,13 @@ static volatile LONG g_present_frames, g_present_fail;
 // and the image is scaled into the window (aspect kept, black bars). dpi_aware = 1 (default): the window is
 // created DPI-aware (CreateWindowExA in the display DLLs, per-thread context), so Windows doesn't stretch it
 // (blurry at 125/150 % display scaling) and its pixels are real screen pixels.
+// Headless tests (autotest headless=1): the window is created off-screen, never activates and ignores focus
+// changes; the game cursor and clicks come from the control pipe (vmouse/vclick) and screenshots are taken from
+// the presented frame (shot) - nothing on the user's screen, mouse or keyboard is touched.
+static int g_headless;
+static volatile LONG g_shot_req, g_shot_done;
+static char g_shot_path[MAX_PATH];
+static int write_desc_bmp(const DDSURFACEDESC2 *d, const char *path);
 static int g_borderless;   // current mode: 1 borderless, 0 normal window
 static int g_smooth;       // [display] smooth = 1: filtered scaling (HALFTONE) instead of nearest pixel
 static int g_dpi_windows;
@@ -119,6 +159,11 @@ static void dpi_leave(void *prev) { if (prev) g_set_thread_dpi(prev); }
 typedef HWND (WINAPI *CreateWindowExAFn)(DWORD, LPCSTR, LPCSTR, DWORD, int, int, int, int, HWND, HMENU, HINSTANCE, LPVOID);
 static HWND WINAPI hook_create_window(DWORD ex, LPCSTR cls, LPCSTR name, DWORD style, int x, int y, int w, int h,
                                       HWND parent, HMENU menu, HINSTANCE inst, LPVOID param) {
+    if (g_headless && (style & WS_CAPTION)) {   // the game window: off-screen, never activated
+        ex |= WS_EX_NOACTIVATE;
+        x = GetSystemMetrics(SM_XVIRTUALSCREEN) - 8000;
+        y = 0;
+    }
     void *prev = g_set_thread_dpi ? g_set_thread_dpi((void *)(intptr_t)-4) : NULL;   // PER_MONITOR_AWARE_V2
     if (!prev && g_set_thread_dpi) prev = g_set_thread_dpi((void *)(intptr_t)-3);     // PER_MONITOR_AWARE
     HWND r = CreateWindowExA(ex, cls, name, style, x, y, w, h, parent, menu, inst, param);
@@ -188,6 +233,11 @@ static int present_to_window(uint8_t *ras, unsigned screen) {
     if (s->lpVtbl->Lock(s, NULL, &d, DDLOCK_WAIT | DDLOCK_READONLY, NULL) != DD_OK) {
         InterlockedIncrement(&g_present_fail);
         return 0;
+    }
+    if (g_shot_req) {   // control pipe "shot": the finished frame as BMP
+        write_desc_bmp(&d, g_shot_path);
+        g_shot_req = 0;
+        InterlockedIncrement(&g_shot_done);
     }
     int bpp = (int)d.ddpfPixelFormat.dwRGBBitCount;
     struct { BITMAPINFOHEADER h; DWORD masks[3]; } bi = {
@@ -661,6 +711,10 @@ static void apply_window_mode(HWND h) {
 }
 
 static LRESULT CALLBACK window_proc(HWND h, UINT msg, WPARAM w, LPARAM l) {
+    if (g_headless) {   // the game never learns about focus: no suspend, no pause, no activation
+        if (msg == WM_ACTIVATEAPP || msg == WM_ACTIVATE || msg == WM_SETCURSOR) return msg == WM_SETCURSOR;
+        if (msg == WM_MOUSEACTIVATE) return MA_NOACTIVATE;
+    }
     switch (msg) {
     case WM_AIMOD_MODE:
         apply_window_mode(h);
@@ -727,7 +781,9 @@ static BOOL WINAPI hook_set_window_pos(HWND h, HWND after, int x, int y, int cx,
     int cw = cx - (f96.right - f96.left), ch = cy - (f96.bottom - f96.top);
     void *prev = dpi_enter(h);
     RECT r = normal_window_rect(h, cw, ch);
-    BOOL ok = SetWindowPos(h, after, r.left, r.top, r.right - r.left, r.bottom - r.top, flags & ~SWP_NOMOVE);
+    if (g_headless) flags |= SWP_NOMOVE | SWP_NOACTIVATE | SWP_NOZORDER;   // fitted size, but stays off-screen
+    else flags &= ~SWP_NOMOVE;
+    BOOL ok = SetWindowPos(h, after, r.left, r.top, r.right - r.left, r.bottom - r.top, flags);
     dpi_leave(prev);
     return ok;
 }
@@ -773,12 +829,40 @@ static void resume_if_suspended(uintptr_t imp, DWORD *last) {
     InterlockedIncrement(&g_input_resumes);
 }
 
+// virtual mouse (headless): position in game coordinates from the control pipe; a click increments the button's
+// transition counter (ISMouse +0x18 + button: odd = down; JustPressed compares it with last frame's copy +0x1C,
+// which Refresh takes just before this hook) - down now, up 3 updates later. The device is never acquired
+// (the window is never in front), so no real input interferes.
+static volatile LONG g_vm_x = -1, g_vm_y = -1, g_vm_button = -1, g_vm_step, g_vm_clicks;
+static void virtual_mouse(uint8_t *m, int frozen) {
+    if (g_vm_x >= 0 && !frozen) {
+        FIELD(m, 4, float) = (float)g_vm_x;
+        FIELD(m, 8, float) = (float)g_vm_y;
+        ((ThisFn)FN_MOUSE_CLAMP)(m);
+    }
+    uint8_t *ms = is_mouse();
+    LONG b = g_vm_button;
+    if (!ms || b < 0 || b > 3) return;
+    uint8_t *st = ms + 0x18 + b;
+    static DWORD down_at;
+    LONG step = g_vm_step++;
+    if (step == 0) {                                // down, held ~150 ms like a real click
+        if (!(*st & 1)) (*st)++;
+        down_at = GetTickCount();
+    } else if (GetTickCount() - down_at >= 150) {
+        if (*st & 1) (*st)++;                      // up
+        g_vm_button = -1;
+        InterlockedIncrement(&g_vm_clicks);
+    }
+}
+
 static void window_mouse_in(uint8_t *m, int frozen, uint8_t *win, HWND hwnd);
 static void window_mouse(uint8_t *m, int frozen) {
     uint8_t *win = *(uint8_t **)G_GAME_WINDOW;
     HWND hwnd = win ? FIELD(win, 0, HWND) : NULL;
     if (!hwnd) return;
     window_hook(hwnd);
+    if (g_headless) { virtual_mouse(m, frozen); return; }
     void *dpi = dpi_enter(hwnd);
     window_mouse_in(m, frozen, win, hwnd);
     dpi_leave(dpi);
@@ -874,6 +958,8 @@ static void display_install(const char *aimod_ini, const char *autotest_ini) {
         if (g_log) fprintf(g_log, "# display: unknown mode '%s' in aimod.ini, using native\n", wmode);
         dmode = 0;
     }
+    if (autotest_ini) g_headless = GetPrivateProfileIntA("autotest", "headless", 0, autotest_ini);
+    if (g_headless) dmode = 1;   // a normal (off-screen) window
     g_borderless = dmode == 2;
     int windowed = dmode != 0;
     if (autotest_ini) g_diag_skip = GetPrivateProfileIntA("autotest", "diag_skip", 0, autotest_ini);
@@ -891,10 +977,11 @@ static void display_install(const char *aimod_ini, const char *autotest_ini) {
             HMODULE u = GetModuleHandleA("user32.dll");
             g_set_thread_dpi = (SetThreadDpiFn)(void *)GetProcAddress(u, "SetThreadDpiAwarenessContext");
             g_get_window_dpi = (GetWindowDpiFn)(void *)GetProcAddress(u, "GetWindowDpiAwarenessContext");
-            for (int i = 0; i < 2 && g_set_thread_dpi && g_get_window_dpi; i++) {
-                HMODULE m = GetModuleHandleA(g_show[i].dll);
-                if (m) dpi += patch_iat(m, "USER32.dll", "CreateWindowExA", (void *)hook_create_window);
-            }
+            if (!g_set_thread_dpi || !g_get_window_dpi) g_set_thread_dpi = NULL, g_get_window_dpi = NULL;
+        }
+        for (int i = 0; i < 2 && (g_set_thread_dpi || g_headless); i++) {
+            HMODULE m = GetModuleHandleA(g_show[i].dll);
+            if (m) dpi += patch_iat(m, "USER32.dll", "CreateWindowExA", (void *)hook_create_window);
         }
         HMODULE lle = GetModuleHandleA("Low-Level Engine.dll");
         int fit = lle ? patch_iat(lle, "USER32.dll", "SetWindowPos", (void *)hook_set_window_pos) : 0;
@@ -910,6 +997,7 @@ static void display_install(const char *aimod_ini, const char *autotest_ini) {
             FlushInstructionCache(GetCurrentProcess(), jne, 2);
             splash = 1;
         }
+        if (g_log && g_headless) fprintf(g_log, "# display: headless (off-screen window, virtual mouse)\n");
         if (g_log) fprintf(g_log, "# display: windowed %s (%s), present hooks %d, input patches %d/7, dpi hooks %d/2, window fit %s, splash stop %s\n",
                            was == 1 ? "on" : "NOT set (unexpected fullscreen flag)", g_borderless ? "borderless" : "window",
                            hooks, input, dpi, fit ? "ok" : "FAILED", splash ? "ok" : "FAILED");
@@ -926,14 +1014,14 @@ static void display_install(const char *aimod_ini, const char *autotest_ini) {
     if (!lstrcmpiA(mode, "ee")) return;
     if (!lstrcmpiA(mode, "aoc")) { g_editor_w = 1024; g_editor_h = 768; }
     else if (!lstrcmpiA(mode, "game")) g_editor_game = 1;
-    else if (sscanf(mode, "%dx%d", &g_editor_w, &g_editor_h) != 2 || g_editor_w < 640 || g_editor_h < 480) {
+    else if (sscanf(mode, "%dx%d", &g_editor_w, &g_editor_h) != 2 || g_editor_w < 800 || g_editor_h < 600) {
         if (g_log) fprintf(g_log, "# editor: bad resolution '%s' in aimod.ini, left at 800x600\n", mode);
         return;
     }
     int ok = patch_call(SITE_EDITOR_MENU, FN_SET_RESOLUTION, hook_editor_resolution)
-           + patch_call(SITE_EDITOR_RES, FN_SET_RESOLUTION, hook_editor_resolution);
-    int lay = g_editor_w == 1024 && g_editor_h == 768 ? apply_editor_layout() : 0;
-    if (g_log) fprintf(g_log, "# editor: resolution=%s hooks %d/2, layout patches %d/%d\n", mode, ok, lay, (int)N_LAYOUT + 6);
+           + patch_call(SITE_EDITOR_RES, FN_SET_RESOLUTION, hook_editor_resolution)
+           + patch_call(SITE_EDITOR_FORM, FN_EDITOR_FORM, hook_editor_form);
+    if (g_log) fprintf(g_log, "# editor: resolution=%s hooks %d/3\n", mode, ok);
 }
 
 // ddinfo [blit]: state of the DirectDraw presentation (for the windowed mode work). Rasterizer [0x919794],
@@ -943,6 +1031,13 @@ static void display_install(const char *aimod_ini, const char *autotest_ini) {
 static int dump_surface(IDirectDrawSurface7 *s, const char *path) {
     DDSURFACEDESC2 d = { .dwSize = sizeof d };
     if (s->lpVtbl->Lock(s, NULL, &d, DDLOCK_WAIT | DDLOCK_READONLY, NULL) != DD_OK) return 0;
+    int r = write_desc_bmp(&d, path);
+    s->lpVtbl->Unlock(s, NULL);
+    return r;
+}
+
+static int write_desc_bmp(const DDSURFACEDESC2 *dp, const char *path) {   // locked surface -> 24-bit BMP
+    const DDSURFACEDESC2 d = *dp;
     int w = (int)d.dwWidth, h = (int)d.dwHeight, stride = (w * 3 + 3) & ~3, sbpp = (int)d.ddpfPixelFormat.dwRGBBitCount;
     BITMAPINFOHEADER bi = { sizeof bi, w, h, 1, 24, BI_RGB, (DWORD)(stride * h), 0, 0, 0, 0 };
     struct { BITMAPINFOHEADER h; DWORD masks[3]; } src = {
@@ -954,7 +1049,6 @@ static int dump_surface(IDirectDrawSurface7 *s, const char *path) {
     HBITMAP bmp = CreateDIBSection(mdc, (BITMAPINFO *)&bi, DIB_RGB_COLORS, &bits, NULL, 0);
     HGDIOBJ prev = SelectObject(mdc, bmp);
     StretchDIBits(mdc, 0, 0, w, h, 0, 0, w, h, d.lpSurface, (BITMAPINFO *)&src, DIB_RGB_COLORS, SRCCOPY);
-    s->lpVtbl->Unlock(s, NULL);
     FILE *f = fopen(path, "wb");
     if (f) {
         BITMAPFILEHEADER fh = { 0x4D42, (DWORD)(sizeof fh + sizeof bi + bi.biSizeImage), 0, 0, sizeof fh + sizeof bi };
@@ -967,6 +1061,61 @@ static int dump_surface(IDirectDrawSurface7 *s, const char *path) {
     DeleteObject(bmp);
     DeleteDC(mdc);
     return f != NULL;
+}
+
+// headless test commands (pipe thread, also in the menus and the editor):
+//   vmouse <x> <y>               game cursor to x, y (game coordinates; "vmouse off" = back to the real mouse)
+//   vclick <x> <y> [right|mid]   move there and click
+//   shot <name>                  next presented frame -> aimod_dumps/<name>.bmp
+static void cmd_headless(const char *verb, const char *args, char *out) {
+    if (!strcmp(verb, "shot")) {
+        char name[64] = "shot";
+        sscanf(args, "%63s", name);
+        CreateDirectoryA("aimod_dumps", NULL);
+        GetFullPathNameA("aimod_dumps", sizeof g_shot_path, g_shot_path, NULL);
+        lstrcatA(g_shot_path, "\\");
+        lstrcatA(g_shot_path, name);
+        lstrcatA(g_shot_path, ".bmp");
+        LONG before = g_shot_done;
+        g_shot_req = 1;
+        for (int i = 0; i < 300 && g_shot_done == before; i++) Sleep(10);
+        if (g_shot_done != before) REPLY("ok: %s\n", g_shot_path);
+        else { g_shot_req = 0; REPLY("error: no frame presented within 3 s\n"); }
+        return;
+    }
+    if (!strncmp(args, "off", 3)) { g_vm_x = g_vm_y = -1; REPLY("ok: real mouse\n"); return; }
+    int x = -1, y = -1;
+    char which[16] = "";
+    if (sscanf(args, "%d %d %15s", &x, &y, which) < 2 || x < 0 || y < 0) { REPLY("usage: %s x y%s\n", verb, *verb == 'v' && verb[1] == 'c' ? " [right|mid]" : ""); return; }
+    if (!strcmp(verb, "wclick")) {   // window messages (WONAPI screens such as the civ builder read those, not the game cursor)
+        uint8_t *win = *(uint8_t **)G_GAME_WINDOW;
+        HWND hwnd = win ? FIELD(win, 0, HWND) : NULL;
+        if (!hwnd) { REPLY("error: no window\n"); return; }
+        RECT cr;
+        GetClientRect(hwnd, &cr);
+        RECT v = view_rect(&cr, FIELD(win, 0xC, int), FIELD(win, 0x10, int));
+        int cx = v.left + x * (v.right - v.left) / FIELD(win, 0xC, int), cy = v.top + y * (v.bottom - v.top) / FIELD(win, 0x10, int);
+        LPARAM lp = MAKELPARAM(cx, cy);
+        PostMessageA(hwnd, WM_MOUSEMOVE, 0, lp);
+        Sleep(100);
+        PostMessageA(hwnd, WM_LBUTTONDOWN, MK_LBUTTON, lp);
+        Sleep(150);
+        PostMessageA(hwnd, WM_LBUTTONUP, 0, lp);
+        REPLY("ok: posted click at client %d,%d\n", cx, cy);
+        return;
+    }
+    g_vm_x = x;
+    g_vm_y = y;
+    if (!strcmp(verb, "vclick")) {
+        Sleep(50);   // a frame at the new position first (hover)
+        LONG before = g_vm_clicks;
+        g_vm_step = 0;
+        g_vm_button = !strcmp(which, "right") ? 1 : !strcmp(which, "mid") ? 2 : 0;
+        for (int i = 0; i < 300 && g_vm_clicks == before; i++) Sleep(10);
+        REPLY(g_vm_clicks != before ? "ok: clicked %d,%d\n" : "error: click not taken within 3 s (%d,%d)\n", x, y);
+        return;
+    }
+    REPLY("ok: cursor %d,%d\n", x, y);
 }
 
 static void dd_surface(char *out, const char *name, uint8_t *ges) {
