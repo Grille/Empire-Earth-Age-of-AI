@@ -387,10 +387,13 @@ static void econ_tick(void *pl, uint32_t now) {
     defence_tick(pl, ai, now);
     counter_siege(pl, ai, now);
     home_guard(pl, ai, now);
+    chat_tick(pl, ai, now);
     uint32_t t_attack = FIELD(pl, 0xED8, uint32_t);
     if (t_attack != last_attack_time[ai]) {
         if (last_attack_time[ai] && g_log)
             fprintf(g_log, "# attack: P%u at %.1f min, next at %.1f min\n", ai, now / 60000.0, t_attack / 60000.0);
+        if (last_attack_time[ai])
+            ai_say(pl, CHAT_ATTACK, "[ai] attack launched, next one in %.0f min", ((float)t_attack - (float)now) / 60000.0f);
         last_attack_time[ai] = t_attack;
     }
     int ep = current_epoch(pl);

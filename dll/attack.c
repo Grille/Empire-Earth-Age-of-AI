@@ -342,6 +342,12 @@ static void __fastcall hook_asg_route(uint8_t *self, void *edx, int *start, int 
                 threat_at(pi, dest[0], dest[1]), g_route_stats[pi].calls, g_route_stats[pi].penalised);
         fflush(g_log);
     }
+    if (g_chat && pl && start && dest) {
+        unsigned pi = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
+        int dx = dest[0] - start[0], dy = dest[1] - start[1];
+        ai_say(pl, CHAT_ROUTE, "[ai] marching on P%d at %d,%d (%.0f tiles), %d enemy defences known",
+               target ? FIELD(target, PL_INDEX, int) : -1, dest[0], dest[1], sqrt((double)(dx * dx + dy * dy)), g_threat[pi].n);
+    }
     ((AsgRouteFn)FN_ASG_ROUTE)(self, start, dest);
 }
 
@@ -609,6 +615,7 @@ static void siege_train(void *pl, unsigned pi, int have, uint32_t now) {
             int entry[3] = { 63, 0, 0 };
             ((void (__thiscall *)(void *, int *))0x00468C37)(bm + 4 + e * 0x14, entry);
             if (g_log) fprintf(g_log, "# siege: P%u at %.1f min queues a Siege Factory (wants %d siege, has %d)\n", pi, now / 60000.0, want, have);
+            ai_say(pl, CHAT_SIEGE, "[ai] need siege (%d of %d): queued a Siege Factory", have, want);
         }
         return;
     }
@@ -626,6 +633,7 @@ static void siege_train(void *pl, unsigned pi, int have, uint32_t now) {
             g_siege_train[pi].trained += got;
             if (g_log) fprintf(g_log, "# siege: P%u at %.1f min trains %u x type %d (has %d, wants %d)\n", pi, now / 60000.0, got,
                                req[0], have, want);
+            ai_say(pl, CHAT_SIEGE, "[ai] training %u siege (type %d), have %d of %d", got, req[0], have, want);
             return;
         }
     }

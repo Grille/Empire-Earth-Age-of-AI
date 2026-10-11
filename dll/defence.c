@@ -211,6 +211,7 @@ static void defence_tick(void *pl, unsigned idx, uint32_t now) {
             ((void (__thiscall *)(void *, int *))0x00468C37)(bm + 4 + e * 0x14, entry);
             last_tower[idx] = now ? now : 1;
             if (g_log) fprintf(g_log, "# defence: P%u queues tower %d at %d,%d (stone %d)\n", idx, ttype, x, y, stock[4]);
+            ai_say(pl, CHAT_TOWER, "[ai] extra tower (type %d) at %d,%d, stone %d", ttype, x, y, stock[4]);
         }
     }
     for (int k = 0; k < p->nf; k++) {
@@ -239,6 +240,7 @@ static void defence_tick(void *pl, unsigned idx, uint32_t now) {
         g_def_walls_built[idx]++;
         if (g_log) fprintf(g_log, "# defence: P%u wall %d from %d,%d to %d,%d in front of %d towers (front %d,%d)\n",
                            idx, wtype, a[0], a[1], b[0], b[1], ntow, f->fx, f->fy);
+        ai_say(pl, CHAT_WALL, "[ai] walling the front at %d,%d (%d towers there)", f->fx, f->fy, ntow);
         return;   // one order per tick
     }
 }
@@ -332,6 +334,9 @@ static void counter_siege(void *pl, unsigned idx, uint32_t now) {
             s.sold[pick[j]] = NULL;   // one target per unit per tick
         }
         g_csiege_orders[idx] += (unsigned)ordered;
+        if (ordered)
+            ai_say(pl, CHAT_COUNTER, "[ai] enemy siege at %d,%d - %d soldiers sent against it (%d guards)", x, y,
+                   ordered + already, guards);
         if (ordered && g_log)
             fprintf(g_log, "# counter-siege: P%u at %.1f min: enemy type %d at %d,%d (%d guards) <- %d soldiers (%d already on it)\n",
                     idx, now / 60000.0, FIELD(etd, 0x4B8, int), x, y, guards, ordered, already);
@@ -361,6 +366,11 @@ static int home_soldiers(void *pl, int bx, int by) {
     grid_each(home_unit, &h);
     return h.n;
 }
+static int home_soldiers_now(void *pl) {
+    void *cm = FIELD(pl, 0xB90, void *);
+    uint8_t *bm = cm ? FIELD(cm, 0x3C, uint8_t *) : NULL;
+    return bm && FIELD(bm, 0x12C, int) != -10000 ? home_soldiers(pl, FIELD(bm, 0x12C, int), FIELD(bm, 0x130, int)) : -1;
+}
 static void home_guard(void *pl, unsigned idx, uint32_t now) {
     static uint32_t last[16];
     if (!g_home_guard || g_def_off[idx] || (now >= last[idx] && now - last[idx] < 10000)) return;
@@ -383,6 +393,7 @@ static void home_guard(void *pl, unsigned idx, uint32_t now) {
     unsigned n = 0;
     hook_train_units(um, NULL, req, (uintptr_t)&n);
     g_home_trained[idx] += n;
+    if (n) ai_say(pl, CHAT_GUARD, "[ai] home guard %d of %d, training %u more", home, target, n);
     if (n && g_log) fprintf(g_log, "# home guard: P%u at %.1f min: %d of %d soldiers at home, %u more (type %d asked)\n",
                             idx, now / 60000.0, home, target, n, type);
 }

@@ -121,6 +121,8 @@ venv/Scripts/python scripts/eectl.py <command>
 | `basemap P [r]` | map of AI player P's base, 2 characters per tile: T tower, W wall, G gate, C town center/settlement, b building, c citizen, s soldier, m mine, o planned tower slot, digits = other players |
 | `defence P [0\|1]` | defence layout off/on for one player (A/B scenarios) |
 | `tinfo P type...` | type data (family, hit points, attack, range) and whether player P can train/build it now |
+| `chat [0\|1\|2]` | AI chat level (0 off, 1 debug lines, 2 also the 5-minute status); lines shown/dropped per player |
+| `say P text` | AI player P writes text in the game's chat (no rate limit) |
 | `spawn P type x y [n]` | create n units of a type for player P around tile x, y (2-tile grid), through the game's own debug spawner (EEMHackANewUnit, executed in the next tick like a player command). Type ids: `data/db/converteroutput.log` |
 | `spawnline P type x0 y0 x1 y1 [step]` | one unit every step tiles along a line, e.g. a wall |
 | `watch <hex> [len]` | set the hardware watchpoint at runtime |

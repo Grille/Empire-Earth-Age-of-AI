@@ -470,6 +470,7 @@ static char __fastcall hook_game_start(void *state, void *edx, uint8_t *setup, v
 #include "watch.c"
 #include "trace.c"
 #include "settings.c"
+#include "chat.c"
 #include "sites.c"
 #include "econ.c"
 #include "attack.c"
@@ -571,6 +572,7 @@ static void install(HMODULE self) {
     econ_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
     attack_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
     defence_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
+    chat_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
     camera_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
     display_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
     ctl_start();

@@ -261,6 +261,14 @@ Guard towers 47, 461..466; AA 145/147; town center 35; house 37; citizen 32.
 - Intro movies: AddMovie calls at 0x538909/0x53892A/0x538945.
 - Saving: EEASaveGame (vtable 0x825084, 0x30 bytes, ctor 0x404FA1(const UString &file, bool, UString folder
   by value)), queued like the pause action; the folder is relative to the game folder ("data\Saved Games\").
+- Chat line: 0x661E91 thiscall(ui [0x91977C], const int colour[3] (player +0x438), UWideString *name (player
+  +0x24), UWideString *text, display ms, 0; ret 0x14) posts message 0x418 to the UI thread - callable from any
+  thread. Shows "name text" top left in the player's colour. UWideString through EE.exe's imports: ctor
+  [0x8231A4], operator=(const char *) [0x823224], dtor [0x823AEC].
+- The AI's own chat: EECPPlayerInteractionManager 0x484EB3 thiscall(pim, base string id, ms) shows string
+  base + 0..9 (not the variant used last). Bases: 12000 wonder threatened, 12100/12200 help for an ally's wonder
+  / none, 12300/12330/12360 land/air/naval help on a flare, 12400 no help, 12500 war declared on the AI
+  (0x46FFB7). Nothing else in the AI talks; dll/chat.c adds the mod's own lines.
 
 ## Art of Conquest (EE-AOC.exe) - first overview
 
