@@ -111,6 +111,18 @@ Type data (0x9418A0[type]): +0x4B4 family (2 building, 29 fortress, 5/6 units), 
 +0x460 line of sight, +0x510 attack, +0x55C hit points, +0x540 influence. Type names: `data/db/converteroutput.log`.
 Guard towers 47, 461..466; AA 145/147; town center 35; house 37; citizen 32.
 
+## Simulation pacing
+
+- RTSPhysics::Main 0x5532FB (simulation thread): each pass waits for a TMTimer event (TSEvent::Wait at
+  0x5533C5, period thread+0x54 = 22 ms), takes the write lock and runs up to 2 steps (EEPhysics vf8 0x546C63).
+- A step needs a grant: EEPhysics ([0x919774]) +0xB8 steps left. Grants come as "turn" messages (type 0x28,
+  +0x10 steps) that EEServer::vf27 0x4C3839 makes from the lockstep server's communications ticks.
+- EEServer ([0x91984C]) is a NESynchronousServer (low-level engine.dll): its Send thread (module+0x55D2E) sends a
+  tick every SendInterval ms (+0x198, 350) with PTs-per-CT steps (+0x1F9, 15) = ~43 steps a second, the real
+  limit even in single player. +0x190 ticks sent, +0x10 ticks processed in physics.
+- Step length: EEPhysics vf3 0x5476C1: +0x98 = 1000 * speed / +0x58 (44) ms game time. The game speed only
+  makes the steps longer.
+
 ## Attacks
 
 - **Launch:** 0x46F4FF, when 0x43121E says the attack time has come. It picks an enemy player via the

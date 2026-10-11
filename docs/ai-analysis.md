@@ -101,6 +101,8 @@ Random-map suite: Continental, Plains, Highlands, Mediterranean, fixed seeds, 2�
 | avoid towers + weak spots (Continental) | routes through tower range: 1 of 18 instead of 6 of 22; 13 attacks retargeted |
 | budget leak fixed (Continental, 75 min) | soldiers per AI peak at 15–21 instead of 0–6; kills 53/94/88 instead of 21/10/21; first buildings destroyed; economy unchanged (~55 workers, Copper Age at 30–45 min) |
 | 4-map suite with real armies (75 min, 12 AIs): original routes vs avoid towers + weak spots | original: 3 of 12 AIs eliminated, per AI 72.7 kills / 73.7 losses / 6.8 buildings destroyed; smart: none eliminated, 53.5 / 59.9 / 3.3, more workers at the end (48.6 vs 37.2). In AI-vs-AI the smarter routes make attacks less deadly (detours, split targets); the two features are being tested separately |
+| player-style defences (`pathtest.scn`: guard towers, walls, 3 lasers around a building in the open; the long way round to the main base is free), attacker at 10 min | original: goal inside the lasers, weak-spot search (25 tiles) finds nothing, defenders waiting next to the lasers draw the army in: 25 kills / 104 losses / 0 buildings, 0 soldiers left. Weak-spot radius 60 + leash (enemies in tower range are no targets) + margin 6: goal switched to the main base, long route, 42 / 64 / 2 buildings, 40 soldiers left; by minute 20 the defender is down to 4 soldiers and 10 citizens |
+| 4-map suite, original vs radius 60 + leash + margin 6 | economy unchanged; none eliminated instead of 2 of 12; fewer kills (49.6 vs 57.0) and buildings razed (3.5 vs 5.2). Like above: AI-vs-AI shows the side effects only - the AI doesn't build focused defences like a player, so the situation these features are for hardly occurs |
 
 Open points:
 - The army budget fix (unit cap leak) still needs a 4-map suite.
@@ -108,8 +110,11 @@ Open points:
 
 ## Lessons for testing
 
-- Runs at the same speed (up to 7.5) are byte-identical, so A/B tests are exact. Check several maps all the
-  same: one map overfits.
+- Scenario and save runs are byte-identical (same speed), so those A/B tests are exact. Random-map runs
+  differ between runs even with the same seed: compare averages over several runs. Check several maps
+  all the same: one map overfits.
+- Tower-handling features need a map with player-style defences (`pathtest.scn`); AI-vs-AI suites only show
+  whether they hurt.
 - A short test epoch timer hides economy problems. Use the real timer for anything about pacing.
 - Without the cheat, look at the soldier count before judging attacks. Tiny armies make every attack look
   pointless.

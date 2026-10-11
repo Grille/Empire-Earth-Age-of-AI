@@ -77,6 +77,8 @@ venv/Scripts/python scripts/eectl.py <command>
 | `sites P`, `foodcheck P`, `units P` | resource sites, food search, citizens by job for AI player P |
 | `costs P [types]` | next epoch and unit costs |
 | `threat P` | enemy defences AI player P knows about |
+| `targets P` | all enemy buildings of AI player P: owner, tile, seen by P or not, known tower threat on them |
+| `army P` | soldiers of player P grouped by current goal (EEUGLocation = marching, EEUGAttackUnit = fighting; goal +0x30 = target unit), with centre and the goal's first dwords |
 | `watch <hex> [len]` | set the hardware watchpoint at runtime |
 | `save <name>` | save the running game to `Data\Saved Games\<name>.ees`, a fixture for later runs (`run_test.ps1 -Save <name>.ees`, without `random_map`) |
 | `ddinfo [dump\|blit\|notex1]` | DirectDraw state (screen, surfaces, z-buffer, display mode, counters); `dump` writes front/back/window to `aimod_dumps/dd_*.bmp`. Note: it locks the z-buffer, which changes the windowed rendering state |

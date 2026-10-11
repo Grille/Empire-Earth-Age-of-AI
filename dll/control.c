@@ -20,6 +20,9 @@
 static void *g_players[16];         // EEComputerPlayer seen by the AI hooks, by player index
 static void watch_set(uintptr_t addr, int len);
 static void cmd_threat(char *out, const char *args);
+static void cmd_targets(char *out, const char *args);
+static void cmd_army(char *out, const char *args);
+static volatile int g_turbo;           // autotest turbo: the simulation loop skips its timer wait
 static void cmd_scrolltest(char *out, const char *args);
 static void cmd_ddinfo(char *out, const char *args);
 static void cmd_ddpoke(char *out, const char *args);
@@ -321,6 +324,8 @@ static void execute(const char *cmd, char *out) {
     else if (!strcmp(verb, "foodcheck")) cmd_foodcheck(out, args);
     else if (!strcmp(verb, "costs")) cmd_costs(out, args);
     else if (!strcmp(verb, "threat")) cmd_threat(out, args);
+    else if (!strcmp(verb, "targets")) cmd_targets(out, args);
+    else if (!strcmp(verb, "army")) cmd_army(out, args);
     else if (!strcmp(verb, "save")) cmd_save(out, args);
     else if (!strcmp(verb, "scrolltest")) cmd_scrolltest(out, args);
     else if (!strcmp(verb, "ddinfo")) cmd_ddinfo(out, args);
