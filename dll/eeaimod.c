@@ -7,6 +7,7 @@
 #include <windows.h>
 #include <stdio.h>
 #include <stdint.h>
+#include <stddef.h>
 #include <stdarg.h>
 #include <math.h>
 #include <tlhelp32.h>
@@ -65,6 +66,7 @@ static void autotest_first_tick(void *pl);
 static void settings_apply(void *pl);
 static void econ_tick(void *pl, uint32_t now);
 static void persona_new_game(uint8_t *setup);
+static void persona_assign(void *pl);
 static void diplo_new_game(void);
 static void chat_new_game(void);
 static void econ_targets(uint8_t *rm);
@@ -213,7 +215,11 @@ static void __fastcall hook_rm_update(void *rm, void *edx, uint32_t now) {
         unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
         ctl_note_player(pl);
         static void *settings_done[16];   // players are recreated for every new or loaded game
-        if (settings_done[idx] != pl) { settings_done[idx] = pl; settings_apply(pl); }
+        if (settings_done[idx] != pl) {   // the personality first: its [style] (ai_style=1) is part of the settings
+            settings_done[idx] = pl;
+            persona_assign(pl);
+            settings_apply(pl);
+        }
         static int traced;
         if (!traced) {   // one-time EBP-chain walk to find the game's main loop
             traced = 1;

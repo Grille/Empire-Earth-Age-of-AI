@@ -8,6 +8,8 @@
 //   aggression=80 loyalty=30 pride=70 greed=40 forgiveness=20 caution=40 talk=60   (one per line)
 //   [lines]
 //   war_declared=Variant one|Variant two      variants separated by |, or the key repeated
+//   [style]                    EXPERIMENTAL, only with [general] ai_style=1 (default 0): aimod.ini keys
+//   first_attack_min=15        (settings.c k_style_keys) on top of the difficulty's settings for this AI
 // Placeholders: {name} the player the line is about, {me} the speaker, {enemy} a third player (alliances),
 // {epoch} the speaker's age. A situation without lines stays silent (the game's own lines for wonders, flares and
 // war remain where the personality has none).
@@ -48,6 +50,8 @@ struct persona {
     char file[40], name[48];
     int trait[T_N];
     int color[4], ncolor;   // favoured player colours, in order of preference
+    char *style_key[16], *style_val[16];   // [style]: aimod.ini settings for this personality (ai_style=1)
+    int nstyle;
     char *line[L_N][MAX_VARIANTS];
     uint8_t nline[L_N];
 };
@@ -56,6 +60,7 @@ static int g_npersonas;
 static int g_persona_of[16] = { -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 };
 static int g_persona_assigned[16];
 static int g_ai_talk = 1, g_ai_names = 1;
+static int g_ai_style;   // [general] ai_style: 1 = the personalities' [style] settings apply (default 0: off)
 static char g_persona_force[16][40];
 static uint32_t g_talk_last[16][L_N], g_talk_any[16];
 static uint8_t g_talk_variant[16][L_N];
@@ -128,11 +133,14 @@ static void persona_load(const char *path, const char *file) {
     char *dot = strrchr(p->file, '.');
     if (dot) *dot = 0;
     for (int t = 0; t < T_N; t++) p->trait[t] = 50;
-    int section = 0;   // 1 personality, 2 lines
+    int section = 0;   // 1 personality, 2 lines, 3 style
     for (char *ln = strtok(text, "\n"); ln; ln = strtok(NULL, "\n")) {
         char *s = trim(ln);
         if (!*s || *s == ';' || *s == '#') continue;
-        if (*s == '[') { section = !_strnicmp(s, "[personality]", 13) ? 1 : !_strnicmp(s, "[lines]", 7) ? 2 : 0; continue; }
+        if (*s == '[') {
+            section = !_strnicmp(s, "[personality]", 13) ? 1 : !_strnicmp(s, "[lines]", 7) ? 2 : !_strnicmp(s, "[style]", 7) ? 3 : 0;
+            continue;
+        }
         char *eq = strchr(s, '=');
         if (!eq) continue;
         *eq = 0;
@@ -149,6 +157,8 @@ static void persona_load(const char *path, const char *file) {
                 }
             for (int t = 0; t < T_N; t++)
                 if (!lstrcmpiA(key, k_trait_keys[t])) { int v = atoi(val); p->trait[t] = v < 0 ? 0 : v > 100 ? 100 : v; }
+        } else if (section == 3) {
+            if (p->nstyle < 16) { p->style_key[p->nstyle] = _strdup(key); p->style_val[p->nstyle++] = _strdup(val); }
         } else if (section == 2) {
             for (int k = 0; k < L_N; k++) {
                 if (lstrcmpiA(key, k_lines[k].key)) continue;
@@ -222,6 +232,7 @@ static void persona_new_game(uint8_t *setup) {
     memset(g_talk_last, 0, sizeof g_talk_last);
     memset(g_talk_any, 0, sizeof g_talk_any);
     memset(g_talk_lines, 0, sizeof g_talk_lines);
+    memset(g_cfg_pl_on, 0, sizeof g_cfg_pl_on);
     if (!g_npersonas || *(int *)(setup + 0x3D8) != 0) return;
     int used[17] = { 0 }, player = 0;
     for (int s = 0; s < 16; s++) {
@@ -301,6 +312,22 @@ static void persona_assign(void *pl) {
         fprintf(g_log, "# persona: P%u is %s (%s):", idx, p->file, p->name[0] ? p->name : "-");
         for (int t = 0; t < T_N; t++) fprintf(g_log, " %s %d", k_trait_keys[t], p->trait[t]);
         fprintf(g_log, "\n");
+    }
+    // PLAY STYLE (experimental, ai_style=1): the personality's [style] keys on top of the difficulty's settings,
+    // from now on what cfg_of() returns for this player; settings_apply runs right after (hook_rm_update).
+    if (g_ai_style && p->nstyle) {
+        struct ai_cfg c = *cfg_of(pl);
+        for (int k = 0; k < p->nstyle; k++)
+            if (!cfg_style_set(&c, p->style_key[k], p->style_val[k]) && g_log)
+                fprintf(g_log, "# persona: %s: [style] key '%s' unknown, ignored\n", p->file, p->style_key[k]);
+        cfg_style_fix(&c);
+        g_cfg_pl[idx] = c;
+        g_cfg_pl_on[idx] = 1;
+        if (g_log) {
+            fprintf(g_log, "# persona: P%u plays with %s's style:", idx, p->file);
+            for (int k = 0; k < p->nstyle; k++) fprintf(g_log, " %s=%s", p->style_key[k], p->style_val[k]);
+            fprintf(g_log, "\n");
+        }
     }
 }
 
@@ -393,19 +420,20 @@ static void cmd_persona(char *out, const char *args) {
         REPLY("error: no personality '%s'\n", name);
         return;
     }
-    REPLY("%d personalities loaded, talk %d, names %d\n", g_npersonas, g_ai_talk, g_ai_names);
+    REPLY("%d personalities loaded, talk %d, names %d, style %d\n", g_npersonas, g_ai_talk, g_ai_names, g_ai_style);
     for (int i = 0; i < 16; i++) {
         struct persona *q = g_persona_of[i] >= 0 ? &g_personas[g_persona_of[i]] : NULL;
         if (!q) continue;
         REPLY("P%d %-12s %-24s", i, q->file, q->name);
         for (int t = 0; t < T_N; t++) REPLY(" %c%d", k_trait_keys[t][0], q->trait[t]);
-        REPLY("  lines %u\n", g_talk_lines[i]);
+        REPLY("  lines %u%s\n", g_talk_lines[i], g_cfg_pl_on[i] ? "  (own style)" : "");
     }
 }
 
 static void persona_install(const char *ini, const char *test_ini) {
     g_ai_talk = GetPrivateProfileIntA("general", "ai_talk", 1, ini);
     g_ai_names = GetPrivateProfileIntA("general", "ai_names", 1, ini);
+    g_ai_style = GetPrivateProfileIntA("general", "ai_style", 0, ini);
     for (int i = 0; i < 16; i++) {
         char key[24];
         wsprintfA(key, "personality_P%d", i);
@@ -415,6 +443,7 @@ static void persona_install(const char *ini, const char *test_ini) {
     if (test_ini) {
         g_ai_talk = GetPrivateProfileIntA("autotest", "ai_talk", g_ai_talk, test_ini);
         g_ai_names = GetPrivateProfileIntA("autotest", "ai_names", g_ai_names, test_ini);
+        g_ai_style = GetPrivateProfileIntA("autotest", "ai_style", g_ai_style, test_ini);
     }
     g_rnd ^= test_ini ? 0x5EED : GetTickCount();
     if (!g_rnd) g_rnd = 1;

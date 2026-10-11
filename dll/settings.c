@@ -26,13 +26,58 @@ struct ai_cfg {
     int attack_group_percent;                                         // 0 = leave
     int attack_on_contact, attack_for_resources, attack_revenge;      // percent, -1 = leave
     float citizen_share;    // share of the population cap for citizens (+0xBDC, the rest is military), 0 = leave
+    float home_guard_share; // < 0 = [all] home_guard_share (defence.c)
 };
 static struct ai_cfg g_cfg[3];
 static const char *const k_diff_sections[3] = { "easy", "medium", "hard" };
 
+// Per player: the difficulty's settings with a personality's [style] on top (persona.c, only with ai_style=1).
+static struct ai_cfg g_cfg_pl[16];
+static uint8_t g_cfg_pl_on[16];
+
 static const struct ai_cfg *cfg_of(void *pl) {
+    if (pl) {
+        unsigned i = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
+        if (g_cfg_pl_on[i]) return &g_cfg_pl[i];
+    }
     int d = pl ? FIELD(pl, PL_DIFFICULTY, int) : 1;
     return &g_cfg[d < 0 ? 0 : d > 2 ? 2 : d];
+}
+
+// The settings a personality's [style] may change - the same keys as in aimod.ini. Not the structural ones
+// (copper_plan, budget, safe_sites, epoch_pacing) nor the ones that would cheat or bind to the human
+// (cost_percent, wait_for_player).
+static const struct { const char *key; size_t off; char is_float; } k_style_keys[] = {
+    { "military_start_share", offsetof(struct ai_cfg, mil_start_share), 1 },
+    { "military_income_share", offsetof(struct ai_cfg, mil_income_share), 1 },
+    { "military_income_share_farms", offsetof(struct ai_cfg, mil_income_share_farms), 1 },
+    { "epoch_min", offsetof(struct ai_cfg, epoch_min), 0 },
+    { "epoch_max", offsetof(struct ai_cfg, epoch_max), 0 },
+    { "first_attack_min", offsetof(struct ai_cfg, first_attack_min), 0 },
+    { "first_attack_max", offsetof(struct ai_cfg, first_attack_max), 0 },
+    { "attack_interval_min", offsetof(struct ai_cfg, attack_min), 0 },
+    { "attack_interval_max", offsetof(struct ai_cfg, attack_max), 0 },
+    { "attack_group_percent", offsetof(struct ai_cfg, attack_group_percent), 0 },
+    { "attack_on_contact", offsetof(struct ai_cfg, attack_on_contact), 0 },
+    { "attack_for_resources", offsetof(struct ai_cfg, attack_for_resources), 0 },
+    { "attack_revenge", offsetof(struct ai_cfg, attack_revenge), 0 },
+    { "citizen_share", offsetof(struct ai_cfg, citizen_share), 1 },
+    { "home_guard_share", offsetof(struct ai_cfg, home_guard_share), 1 },
+};
+// one key=value onto c; 0 = unknown key
+static int cfg_style_set(struct ai_cfg *c, const char *key, const char *val) {
+    for (size_t k = 0; k < sizeof k_style_keys / sizeof *k_style_keys; k++) {
+        if (lstrcmpiA(key, k_style_keys[k].key)) continue;
+        if (k_style_keys[k].is_float) *(float *)((uint8_t *)c + k_style_keys[k].off) = (float)atof(val);
+        else *(int *)((uint8_t *)c + k_style_keys[k].off) = atoi(val);
+        return 1;
+    }
+    return 0;
+}
+static void cfg_style_fix(struct ai_cfg *c) {   // a max below its min follows the min
+    if (c->epoch_max < c->epoch_min) c->epoch_max = c->epoch_min;
+    if (c->first_attack_max < c->first_attack_min) c->first_attack_max = c->first_attack_min;
+    if (c->attack_max < c->attack_min) c->attack_max = c->attack_min;
 }
 
 static int cfg_int(const char *ini, const char *test_ini, int d, const char *key, int def) {
@@ -81,6 +126,7 @@ static void settings_load(const char *ini, const char *test_ini) {
         c->attack_for_resources = cfg_int(ini, test_ini, d, "attack_for_resources", -1);
         c->attack_revenge = cfg_int(ini, test_ini, d, "attack_revenge", -1);
         c->citizen_share = cfg_float(ini, test_ini, d, "citizen_share", "0");
+        c->home_guard_share = cfg_float(ini, test_ini, d, "home_guard_share", "-1");
         if (g_log)
             fprintf(g_log, "# settings %-6s copper_plan=%d budget=%d (military %.2f/%.2f/%.2f) safe_sites=%d cost=%d%% "
                     "pacing=%s epoch=%d-%d wait_for_player=%d attacks first %d-%d every %d-%d group %d%% "

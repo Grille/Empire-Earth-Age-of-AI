@@ -382,7 +382,8 @@ static void home_guard(void *pl, unsigned idx, uint32_t now) {
     // and a share of the military room: population cap (vf31 - follows the human's population unless Ignorieren) x
     // (1 - citizen share +0xBDC)
     int cap = ((int (__thiscall *)(void *, int))(*(void ***)pl)[31])(pl, 0);
-    int room = (int)((float)cap * (1.0f - FIELD(pl, 0xBDC, float)) * g_home_share);
+    float share = cfg_of(pl)->home_guard_share;   // a difficulty's or personality's own, else [all]
+    int room = (int)((float)cap * (1.0f - FIELD(pl, 0xBDC, float)) * (share >= 0 ? share : g_home_share));
     if (room > target) target = room;
     int home = home_soldiers(pl, FIELD(bm, 0x12C, int), FIELD(bm, 0x130, int));
     if (home >= target) return;
