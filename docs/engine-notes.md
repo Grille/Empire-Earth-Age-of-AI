@@ -134,6 +134,18 @@ Guard towers 47, 461..466; AA 145/147; town center 35; house 37; citizen 32.
   - Slot 97 (0x44BDBF) receives it: waypoints in the deque at asg+0x60 ({x, y, ?}, 0x155 per block, +0x70 count),
     about 10 tiles apart.
   - asg+0x190 own player, asg+0x234/+0x238 current waypoint.
+  - Slot 7 (0x446C80 -> EECPAttackSubGroup::vf7 0x459CA3): order one unit to attack a target: new EEUGAttackUnit
+    (priority 0x7D4), then a move back to a position (8000).
+- **Subgroup unit record:** EECPAttackSubGroupUnit (vtable 0x827844; heroes, priests, prophets, air and sea have
+  their own vtables with the same slot 2). +0x44 unit, +0x48 current target, +0x4C subgroup.
+  - vf5 0x46286F: pick a target (vf4); if it changed, store it in +0x48 and call the subgroup's slot 7. Returns
+    "engaged" (+0x48 != 0); while units are engaged, the march waits.
+  - vf4 0x4620DF: scores every enemy in the subgroup's lists (subgroup +0x30/+0x40) with vf2, keeps the best.
+  - vf2 0x461854: `float thiscall(info)`, info+4 = the enemy unit; 0.0 = not a target.
+  - Units fight enemies on the way this way (enemies waiting next to their towers draw the army in).
+- **EEUGAttackUnit** (vtable 0x831968, ctor 0x60AD45(attacker, target, ?), 0x40 bytes): +0x2C attacker,
+  +0x30 target unit, +0x34/+0x38 target tile.
+- Unit goal: unit+0x1EC (EEUGLocation = move, EEUGAttackUnit, EEUGExplore, ...; null = idle).
 - **Step cost:** EEAIGPGModifierLandAttackSubGroupRoutePlanner (vtable 0x825CC4) slot 1 (0x4141E8) =
   10/14 per step + 750/3750 for owned territory + 1.85 × the target player's influence in the step's cell.
   - Influence table [0x918E20]: 9-tile cells, per player the sum of type data +0x540 of its units.

@@ -583,6 +583,10 @@ static void frame_stats(uint8_t *ras, unsigned screen) {
 static int __fastcall hook_show_scene(void *ras, void *edx, unsigned screen) {
     (void)edx;
     g_render_thread = GetCurrentThreadId();
+    // headless turbo: nobody watches, so only a few frames a second (CPU for the simulation); a shot still
+    // gets the next frame
+    if (g_headless && g_turbo && !g_shot_req)
+        for (int i = 0; i < 20 && !g_shot_req; i++) Sleep(10);
     if (g_fullscreen) return g_show[DISPLAY_DLL(ras)].show(ras, screen);
     // windowed: the original is not called. Its Blt to the emulated primary at the window's screen position is
     // rejected while the back buffer is larger than that 1024x768 surface, but at 1024x768 (scenario editor) the

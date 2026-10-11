@@ -336,6 +336,10 @@ static void execute(const char *cmd, char *out) {
         if (s > 0) { g_auto.speed = s; apply_game_speed(s); }   // also keeps autotest from reverting it
         REPLY("speed=%.2f\n", *(float *)G_GAME_SPEED);
     }
+    else if (!strcmp(verb, "turbo")) {
+        if (*args) g_turbo = atoi(args);
+        REPLY("turbo=%d\n", g_turbo);
+    }
     else if (!strcmp(verb, "pause") || !strcmp(verb, "resume")) {
         int want = verb[0] == 'p';
         if (*(uint8_t *)G_PAUSED == want) REPLY("ok: already %s\n", want ? "paused" : "running");
@@ -373,6 +377,77 @@ static BOOL patch_sim_loop(void) {
     if (!VirtualProtect(p, 6, PAGE_EXECUTE_READWRITE, &old)) return FALSE;
     p[0] = 0xE8;
     *(int32_t *)(p + 1) = (int32_t)((uintptr_t)hook_sim_receive - (SITE_SIM_RECEIVE + 5));
+    p[5] = 0x90;
+    VirtualProtect(p, 6, old, &old);
+    FlushInstructionCache(GetCurrentProcess(), p, 6);
+    return TRUE;
+}
+
+// Turbo (autotest): each pass of the simulation loop first waits for a TMTimer (thread +0x48, period +0x54 =
+// 22 ms) to set an event - TSEvent::Wait(3000) through `call [0x823688]` at 0x5533C5 (0 = signalled, 0x11 =
+// timeout) - then runs up to 2 steps of 1000 * speed / 44 ms game time each. So the game speed only makes the
+// steps coarser; the sim thread itself idles most of the time. With turbo the wait returns at once and the
+// steps follow each other as fast as the CPU allows, same step size, same results.
+#define SITE_SIM_WAIT    0x005533C5
+#define IAT_TS_WAIT      0x00823688
+typedef long (__thiscall *EventWaitFn)(void *ev, unsigned long ms);
+
+static long __fastcall hook_sim_wait(void *ev, void *edx, unsigned long ms) {
+    (void)edx;
+    if (g_turbo) return 0;
+    return (*(EventWaitFn *)IAT_TS_WAIT)(ev, ms);
+}
+
+static BOOL patch_sim_wait(void) {
+    uint8_t *p = (uint8_t *)SITE_SIM_WAIT;
+    if (p[0] != 0xFF || p[1] != 0x15 || *(uint32_t *)(p + 2) != IAT_TS_WAIT) return FALSE;
+    DWORD old;
+    if (!VirtualProtect(p, 6, PAGE_EXECUTE_READWRITE, &old)) return FALSE;
+    p[0] = 0xE8;
+    *(int32_t *)(p + 1) = (int32_t)((uintptr_t)hook_sim_wait - (SITE_SIM_WAIT + 5));
+    p[5] = 0x90;
+    VirtualProtect(p, 6, old, &old);
+    FlushInstructionCache(GetCurrentProcess(), p, 6);
+    return TRUE;
+}
+
+// Turbo, part 2: the steps themselves are granted by the lockstep server (EEServer [0x91984C], a
+// NESynchronousServer in low-level engine.dll): its Send thread sends a "communications tick" every
+// SendInterval ms (+0x198, 350) granting PTs-per-CT physics steps (+0x1F9, 15) - about 43 steps a second, the
+// real limit. Its wait is `call [WaitForMultipleObjects]` at module+0x55DF5 (3 events, timeout = next tick).
+// With turbo the wait times out as soon as the simulation has processed every tick sent (+0x10 processed in
+// physics == +0x190 current tick) and used up its steps (EEPhysics [0x919774] +0xB8 == 0): the next tick follows
+// at once. Ticks are thereby sent at the same points of the simulation as at normal pace, where the simulation
+// always finishes a tick long before the next one - player and AI inputs land in the same ticks.
+#define LLE_SEND_WAIT_RVA 0x55DF5
+#define LLE_IAT_WFMO_RVA  0x940EC
+#define G_SERVER          0x0091984C
+#define G_PHYSICS         0x00919774
+
+static int sim_drained(void) {
+    uint8_t *srv = *(uint8_t **)G_SERVER, *phys = *(uint8_t **)G_PHYSICS;
+    return srv && phys && FIELD(srv, 0x10, unsigned) == FIELD(srv, 0x190, unsigned) && FIELD(phys, 0xB8, unsigned) == 0;
+}
+
+static DWORD WINAPI hook_send_wait(DWORD n, const HANDLE *h, BOOL all, DWORD ms) {
+    if (!g_turbo || !game_time()) return WaitForMultipleObjects(n, h, all, ms);
+    for (;;) {
+        DWORD r = WaitForMultipleObjects(n, h, all, 0);
+        if (r != WAIT_TIMEOUT || !g_turbo) return r;
+        if (sim_drained()) return WAIT_TIMEOUT;
+        SwitchToThread();
+    }
+}
+
+static BOOL patch_send_wait(void) {
+    uint8_t *base = (uint8_t *)GetModuleHandleA("low-level engine.dll");
+    if (!base) return FALSE;
+    uint8_t *p = base + LLE_SEND_WAIT_RVA;
+    if (p[0] != 0xFF || p[1] != 0x15 || *(uint8_t **)(p + 2) != base + LLE_IAT_WFMO_RVA) return FALSE;
+    DWORD old;
+    if (!VirtualProtect(p, 6, PAGE_EXECUTE_READWRITE, &old)) return FALSE;
+    p[0] = 0xE8;
+    *(int32_t *)(p + 1) = (int32_t)((uintptr_t)hook_send_wait - ((uintptr_t)p + 5));
     p[5] = 0x90;
     VirtualProtect(p, 6, old, &old);
     FlushInstructionCache(GetCurrentProcess(), p, 6);
@@ -486,6 +561,11 @@ static DWORD WINAPI pipe_thread(LPVOID unused) {
 
 static void ctl_start(void) {
     ctl_log("sim loop hook %s", patch_sim_loop() ? "ok" : "FAILED");
+    if (g_auto.enabled) {
+        g_turbo = g_auto.turbo;
+        int a = patch_sim_wait(), b = patch_send_wait();
+        ctl_log("turbo hooks: sim wait %s, tick send %s; turbo %d", a ? "ok" : "FAILED", b ? "ok" : "FAILED", g_turbo);
+    }
     g_req.done = CreateEventA(NULL, TRUE, FALSE, NULL);
     CloseHandle(CreateThread(NULL, 0, pipe_thread, NULL, 0, NULL));
 }

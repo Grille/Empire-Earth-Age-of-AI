@@ -13,15 +13,18 @@ The `[autotest]` keys:
 | `skip_intro=1` | skips the intro movies |
 | `quit_minutes=75` | ends the game after this many game minutes |
 | `start_epoch=N` | (random maps) starting epoch, e.g. 2 = Copper Age, for tests that should begin later in the game |
-| `speed=7.5` | game speed (normal 2.5). Up to 7.5 the simulation step stays normal, so a run is ~7x faster than real time and behaves identically. Higher speeds enlarge the steps. |
+| `speed=7.5` | game speed (normal 2.5). The simulation runs a fixed number of steps per real second (the lockstep server grants 15 steps every 350 ms); the speed only sets the game time per step, `1000 * speed / 44` ms (57 ms at 2.5, 170 ms at 7.5). Higher speeds make the steps coarser (movement artifacts). |
+| `turbo=1` | the steps follow each other as fast as the CPU allows instead of 43 per second: the server sends the next tick as soon as the simulation has used up the last one, the simulation loop skips its 22 ms timer, and a headless window renders only a few frames a second. Same steps, same game: a 75-minute game takes ~15 s instead of ~10 min. Pipe: `turbo 0\|1` |
 | `random_map=Continental` | starts a random map instead of the save. Also: `map_size` (0 tiny..), `ai_count`, `seed`, `teams=ffa\|pairs`, `start_epoch`, `citizens`, `ai_cheat`, `ai_ignore`, `epoch_min`/`epoch_max` (test epoch timer). The human player (slot 0) idles, sees the whole map and is allied with every AI. |
 | `scenario_mode=1` | starts `Data\Scenarios\<save>.scn` through the real scenario path (set by `-Scenario`) |
 | any `aimod.ini` key | overrides that setting for all difficulties, e.g. `avoid_towers=0` |
 | `watch=<hex>`, `watch_len` | hardware write-watchpoint, logs every writer of an address |
 | `trace_player`, `trace_until_min` | logs the economy calls of one AI |
 
-Same speed, same settings, same seed: the run is byte-identical. A/B tests are therefore exact, and
-any difference comes from the change under test.
+Scenarios and saves: same speed, same settings - the run is byte-identical, with or without turbo, so
+A/B tests are exact. Random maps are not: the map is fixed by `seed`, but two runs of the same map
+still differ from the first minutes on (some random generator is seeded from the clock). Compare
+random-map variants by averages over several runs (cheap with turbo), not by single runs.
 
 ## Running
 

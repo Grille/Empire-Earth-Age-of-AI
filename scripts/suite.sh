@@ -15,7 +15,7 @@ for v in "$@"; do
 $m
 EOF2
         tag="_suite${STAMP}_${name}_${map}"
-        ini="random_map=$map,map_size=$size,ai_count=$ais,seed=$seed,teams=$teams,start_epoch=0,ai_cheat=0,ai_ignore=1${EPOCHS}"
+        ini="random_map=$map,map_size=$size,ai_count=$ais,seed=$seed,teams=$teams,start_epoch=0,ai_cheat=0,ai_ignore=1,headless=1,turbo=1${EPOCHS}"
         [ -n "$extra" ] && ini="$ini,$extra"
         powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run_test.ps1 -Save newgame.ees \
             -TimeoutSec $((MIN * 12 + 120)) -Tag "$tag" -IniExtra "$ini"

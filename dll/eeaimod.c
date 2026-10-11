@@ -271,7 +271,7 @@ static void __fastcall hook_rm_update(void *rm, void *edx, uint32_t now) {
 #define FN_ADD_MOVIE     0x00441432                               // __thiscall, ret 4
 #define G_GAME_SPEED     0x009183C0   // float; set like EEMGameSpeed::Apply (0x4B6BD4)
 #define G_SPEED_NOTIFY   0x00918300   // object; vtable slot 11 called after a speed change
-static struct { int enabled, skip_intro, quit_minutes, scenario_mode; float speed; } g_auto;
+static struct { int enabled, skip_intro, quit_minutes, scenario_mode, turbo; float speed; } g_auto;
 
 #include "randmap.c"
 
@@ -285,6 +285,7 @@ static void load_autotest(const char *ini) {
     g_auto.skip_intro = GetPrivateProfileIntA("autotest", "skip_intro", 1, ini);
     g_auto.quit_minutes = GetPrivateProfileIntA("autotest", "quit_minutes", 0, ini);
     g_auto.scenario_mode = GetPrivateProfileIntA("autotest", "scenario_mode", 0, ini);
+    g_auto.turbo = GetPrivateProfileIntA("autotest", "turbo", 0, ini);
     g_clear_scenario_flag = GetPrivateProfileIntA("autotest", "clear_scenario_flag", 0, ini);
     randmap_load(ini);
     char buf[32];
