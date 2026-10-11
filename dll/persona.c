@@ -132,7 +132,9 @@ static char *trim(char *s) {
 static char g_lang[16];
 static const char *const k_lang_alias[][4] = {
     { "de", "german", "deutsch", "" }, { "en", "english", "", "" }, { "fr", "french", "francais", "" },
-    { "es", "spanish", "espanol", "" }, { "it", "italian", "italiano", "" },
+    { "es", "spanish", "espanol", "" }, { "it", "italian", "italiano", "" }, { "pl", "polish", "polski", "" },
+    { "pt-br", "pt", "portuguese", "portugues" }, { "ru", "russian", "", "" }, { "ko", "korean", "", "" },
+    { "zh-cn", "zh", "chinese", "" }, { "zh-tw", "", "", "" },
 };
 static int lang_matches(const char *tag) {
     if (!g_lang[0]) return 0;
@@ -144,12 +146,24 @@ static int lang_matches(const char *tag) {
     }
     return 0;
 }
-// Verified 2026-10-11: retail German "Vorzeit" / "Feindselig", Steam Gold Edition (English) "Prehistoric Age" /
-// "Hostile". The other languages' first-age names are guesses (no Language.dll at hand).
+// The strings of all 12 languages from the community's translation sources (github.com/EE-modders/localized-text,
+// Game/<lang>/EE/Language.rc; de and en also checked in the retail German and the Steam English Language.dll):
+// the first age's name identifies each language exactly; "Hostile" (29514) only as a fallback where no other
+// language shares it (en/fr "Hostile" and es/pt-BR "Hostil" do).
 static void lang_detect(void) {
     static const struct { const wchar_t *first_age, *hostile; const char *code; } k_known[] = {
-        { L"Vorzeit", L"Feindselig", "de" }, { L"Prehistoric", L"Hostile", "en" }, { L"Préhistoire", NULL, "fr" },
-        { L"Prehistoria", NULL, "es" }, { L"Preistoria", NULL, "it" },
+        { L"Vorzeit", L"Feindselig", "de" },
+        { L"Prehistoric Age", NULL, "en" },
+        { L"I - Pr\u00e9histoire", NULL, "fr" },
+        { L"Edad Prehist\u00f3rica", NULL, "es" },
+        { L"I - Preistoria", L"Ostile", "it" },
+        { L"Prehistoria", L"Wrogi", "pl" },
+        { L"Pr\u00e9-Hist\u00f3ria", NULL, "pt-br" },
+        { L"\u0414\u043e\u0438\u0441\u0442\u043e\u0440\u0438\u0447\u0435\u0441\u043a\u0430\u044f \u044d\u043f\u043e\u0445\u0430 (I)",
+          L"\u0412\u0440\u0430\u0433", "ru" },
+        { L"\uc120\uc0ac \uc2dc\ub300", L"\uc801\ub300", "ko" },
+        { L"\u53f2\u524d\u65f6\u4ee3", L"\u654c\u5bf9", "zh-cn" },
+        { L"\u53f2\u524d\u6642\u4ee3", L"\u6575\u610f", "zh-tw" },
     };
     char path[MAX_PATH];
     GetModuleFileNameA(NULL, path, sizeof path);
@@ -159,9 +173,9 @@ static void lang_detect(void) {
     wchar_t age[64] = L"", hostile[64] = L"";
     if (h) { LoadStringW(h, 30145, age, 64); LoadStringW(h, 29514, hostile, 64); FreeLibrary(h); }
     for (size_t i = 0; i < sizeof k_known / sizeof *k_known && !g_lang[0]; i++)
-        if (!wcsncmp(age, k_known[i].first_age, wcslen(k_known[i].first_age)) ||
-            (k_known[i].hostile && !wcscmp(hostile, k_known[i].hostile)))
-            lstrcpyA(g_lang, k_known[i].code);
+        if (!wcscmp(age, k_known[i].first_age)) lstrcpyA(g_lang, k_known[i].code);
+    for (size_t i = 0; i < sizeof k_known / sizeof *k_known && !g_lang[0]; i++)
+        if (k_known[i].hostile && !wcscmp(hostile, k_known[i].hostile)) lstrcpyA(g_lang, k_known[i].code);
     if (g_log) fprintf(g_log, "# persona: Language.dll %s: first age \"%ls\", hostile \"%ls\" -> language '%s'\n",
                        h ? "read" : "NOT FOUND", age, hostile, g_lang);
 }
