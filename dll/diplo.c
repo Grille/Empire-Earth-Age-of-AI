@@ -31,7 +31,19 @@
 //     war with (opinion > -20): an AI decides like a peace offer (+15 common enemy); a human gets the AI's allied
 //     stance at once (its units stop attacking) and 2 minutes to answer, otherwise the offer is withdrawn.
 //   betrayal: allied for 10+ minutes with a player of under half its power, opinion < 30: chance per minute
-//     (100 - loyalty) x aggression / 100000 - then war (betray line).
+//     (100 - loyalty) x aggression / 100000 - then war (betray line). Never the player it capitulated to.
+//   Threat: per AI and player, that player's soldiers within 20 tiles of the AI's base, summed over the 10-s scans
+//   (x0.8 each scan: ~5 x the soldiers there now). An alliance is never offered to a player whose army is in the
+//   AI's base (threat 10+) - the strongest player isn't always the one doing the damage.
+//
+// CAPITULATION (with ai_diplomacy, from minute 10, at most every 10 minutes per AI): when the writing is on the wall -
+// the attacker (highest threat) has 5+ soldiers in its base and threat 15+, the AI has lost over 10% of its peak
+// buildings, and the attacker's power is at least 1.5 + pride/20 - caution/50 times its own (Khan 5.0x, a cautious
+// AI 2-3x) - it offers the attacker peace and tribute: 20% + caution/4 % + (100 - greed)/4 % of each resource
+// (line capitulate, {tribute} = the total). A human accepts by turning allied within 2 minutes (the AI turns allied
+// at once, so its units stop fighting): the AI pays (as far as its stock still has it), says capitulate_accepted
+// and never betrays him; otherwise capitulate_refused and war again. An AI conqueror decides at once: peace score
+// + the tribute's worth to it (as tribute) > 0.
 //
 // SITUATIONS (personality lines, persona.c): greeting, under attack (5+ enemy soldiers within 20 tiles of the
 // base, when it starts), building lost, new age, an enemy a whole age ahead, winning / losing (power x2 / x0.5 against the
@@ -62,12 +74,18 @@ static uint32_t g_offer_last[16][16];
 static float g_opinion[16][16];
 static uint8_t g_war_betrayal[16][16];  // [ai][j]: the pending answer is to a betrayal
 static unsigned g_diplo_answers[16];
+static float g_pressure[16][16];        // [ai][j]: j's soldiers near the AI's base, summed over scans (x0.8 per 10 s)
+static uint8_t g_offer_kind[16][16];    // [ai][j]: the pending offer to a human is 0 an alliance, 1 a capitulation
+static int g_promise[16][7];            // [ai]: resources offered with a capitulation (food..iron = 2..6)
+static uint32_t g_capit_last[16];       // [ai]: last capitulation offer (one per 10 minutes)
+static int g_lord[16];                  // [ai]: the player it capitulated to (0 none) - never betrayed
 
 // world scan (every 10 s): power, soldiers, buildings per player; enemy soldiers near each AI base
 static struct {
     uint32_t t;
     float power[16];
     int soldiers[16], buildings[16], peak[16], close[16], epoch[16], out[16], citizens[16], centers[16];
+    int close_by[16][16];   // [ai][j]: j's soldiers within 20 tiles of the AI's base
     int bx[16], by[16];
 } g_ws;
 
@@ -104,7 +122,7 @@ static void ws_unit(uint8_t *u, void *ctx) {
         void *pa = g_players[a];
         if (!pa || a == o || g_ws.bx[a] == -10000 || !stance_of(pa, o)) continue;
         int dx = x - g_ws.bx[a], dy = y - g_ws.by[a];
-        g_ws.close[a] += dx * dx + dy * dy <= 400;
+        if (dx * dx + dy * dy <= 400) { g_ws.close[a]++; g_ws.close_by[a][o]++; }
     }
 }
 static void world_scan(uint32_t now) {
@@ -117,7 +135,10 @@ static void world_scan(uint32_t now) {
         uint8_t *bm = cm ? FIELD(cm, 0x3C, uint8_t *) : NULL;
         if (bm && FIELD(bm, 0x12C, int) != -10000) { g_ws.bx[i] = FIELD(bm, 0x12C, int); g_ws.by[i] = FIELD(bm, 0x130, int); }
     }
+    memset(g_ws.close_by, 0, sizeof g_ws.close_by);
     grid_each(ws_unit, NULL);
+    for (int a = 0; a < 16; a++)
+        for (int j = 0; j < 16; j++) g_pressure[a][j] = g_pressure[a][j] * 0.8f + (float)g_ws.close_by[a][j];
     for (int i = 1; i < nplayers(); i++) {
         void *p = player_at(i);
         if (!p) continue;
@@ -204,6 +225,7 @@ static void diplo_initiative(void *pl, int ai, uint32_t now) {
         for (int j = 1; j < nplayers(); j++) {
             void *pj = player_at(j);
             if (!pj || j == ai || j == lead || is_out(pj) || !stance_of(pl, j) || !stance_of(pj, lead)) continue;
+            if (g_pressure[ai][j] >= 10) continue;   // not the one whose army is in its base right now
             if (g_offer_t[ai][j] || (g_offer_last[ai][j] && now - g_offer_last[ai][j] < 600000)) continue;
             if (g_opinion[ai][j] > bs) { bs = g_opinion[ai][j]; best = j; }
         }
@@ -223,6 +245,7 @@ static void diplo_initiative(void *pl, int ai, uint32_t now) {
                 set_stance(ai, best, 0);
                 chat_stance_line(pl, 0);
                 g_offer_t[ai][best] = now ? now : 1;
+                g_offer_kind[ai][best] = 0;
                 if (g_log) fprintf(g_log, "# diplomacy: P%d offers P%d (human) an alliance against P%d\n", ai, best, lead);
             }
             return;
@@ -232,6 +255,7 @@ static void diplo_initiative(void *pl, int ai, uint32_t now) {
     for (int j = 1; j < nplayers(); j++) {
         void *pj = player_at(j);
         if (!pj || j == ai || is_out(pj) || stance_of(pl, j) || !g_ally_since[ai][j] || now - g_ally_since[ai][j] < 600000) continue;
+        if (g_lord[ai] == j) continue;   // capitulated to j: keeps its word
         if (power_of(j) * 2 > power_of(ai) || g_opinion[ai][j] >= 30) continue;
         int chance = (100 - trait(pl, T_LOYALTY)) * trait(pl, T_AGGRESSION);   // per 100000
         if ((int)(rnd32() % 100000u) >= chance) continue;
@@ -283,6 +307,72 @@ static void diplo_situations(void *pl, int ai, uint32_t now) {
             persona_say(pl, stance_of(pl, j) ? L_ENEMY_DEFEATED : L_ALLY_DEFEATED, pj, NULL);
         if (out) g_sit.was_out[ai] |= 1 << j;
     }
+}
+
+// capitulation (every 10 s, after the scan; see the header)
+static int pay_promise(int ai, int j) {   // what was offered, as far as the stock still has it
+    void *pl = player_at(ai), *pj = player_at(j);
+    int total = 0;
+    if (pl && pj) {
+        int *from = (int *)((uint8_t *)pl + PL_STOCK), *to = (int *)((uint8_t *)pj + PL_STOCK);
+        for (int r = 2; r < 7; r++) {
+            int n = g_promise[ai][r] < from[r] ? g_promise[ai][r] : from[r];
+            if (n <= 0) continue;
+            from[r] -= n; to[r] += n; total += n;
+        }
+    }
+    memset(g_promise[ai], 0, sizeof g_promise[ai]);
+    return total;
+}
+static void capitulate(void *pl, int ai, int a, uint32_t now) {
+    void *pa = player_at(a);
+    int *stock = (int *)((uint8_t *)pl + PL_STOCK), total = 0;
+    float share = 0.2f + (float)trait(pl, T_CAUTION) / 400.0f + (float)(100 - trait(pl, T_GREED)) / 400.0f;
+    for (int r = 2; r < 7; r++) total += g_promise[ai][r] = stock[r] > 0 ? (int)((float)stock[r] * share) : 0;
+    g_capit_last[ai] = now ? now : 1;
+    g_say_tribute = total;
+    if (g_log) fprintf(g_log, "# diplomacy: P%d at %.1f min capitulates to P%d (%s): %d resources (%.0f%%), power %.0f vs %.0f, "
+                       "%d of its soldiers at home, buildings %d of %d at the peak\n", ai, now / 60000.0, a,
+                       g_players[a] ? "AI" : "human", total, share * 100, g_ws.power[ai], g_ws.power[a], g_ws.close_by[ai][a],
+                       g_ws.buildings[ai], g_ws.peak[ai]);
+    persona_say(pl, L_CAPITULATE, pa, NULL);
+    if (g_players[a]) {   // an AI conqueror decides at once: peace score + what the tribute is worth to it
+        float gain = (float)total / (20.0f + 0.8f * (float)(100 - trait(pa, T_GREED)));
+        float s = peace_score(pa, a, ai, now) + gain;
+        if (g_log) fprintf(g_log, "# diplomacy: P%d answers: score %.0f (tribute worth %.0f)\n", a, s, gain);
+        if (s > 0) {
+            make_peace(ai, a, now);
+            make_peace(a, ai, now);
+            pay_promise(ai, a);
+            opinion_add(a, ai, gain);
+            g_lord[ai] = a;
+            persona_say(pa, L_PEACE_ACCEPT, pl, NULL);
+        } else {
+            memset(g_promise[ai], 0, sizeof g_promise[ai]);
+            persona_say(pa, L_PEACE_REFUSE, pl, NULL);
+        }
+        return;
+    }
+    set_stance(ai, a, 0);   // a human: its units stop fighting; his answer (allied) within 2 minutes
+    chat_stance_line(pl, 0);
+    g_offer_t[ai][a] = now ? now : 1;
+    g_offer_kind[ai][a] = 1;
+}
+static void check_capitulation(void *pl, int ai, uint32_t now) {
+    if (!g_ai_diplomacy || TEAMS_LOCKED || scenario_game() || now < 600000) return;
+    if (g_capit_last[ai] && now - g_capit_last[ai] < 600000) return;
+    int a = 0;   // the attacker: whose soldiers have been in its base the most lately
+    for (int j = 1; j < nplayers(); j++) {
+        void *pj = player_at(j);
+        if (!pj || j == ai || is_out(pj) || !stance_of(pl, j) || !stance_of(pj, ai) || g_offer_t[ai][j]) continue;
+        if (!a || g_pressure[ai][j] > g_pressure[ai][a]) a = j;
+    }
+    if (!a || g_ws.close_by[ai][a] < 5 || g_pressure[ai][a] < 15) return;      // its army is in the base, and stays
+    if (g_ws.peak[ai] < 5 || g_ws.buildings[ai] * 10 >= g_ws.peak[ai] * 9) return;   // and it is losing buildings
+    float need = 1.5f + (float)trait(pl, T_PRIDE) / 20.0f - (float)trait(pl, T_CAUTION) / 50.0f;   // pride holds out
+    if (need < 1.5f) need = 1.5f;
+    if (power_of(a) < need * power_of(ai)) return;
+    capitulate(pl, ai, a, now);
 }
 
 // surrender (every 10 s, after the scan): queued here, carried out at the next safe point (diplo_safe_point)
@@ -374,14 +464,25 @@ static void diplo_tick(void *pl, unsigned ai, uint32_t now) {
             g_peace_due[ai][j] = 0;
             if (!s && stance_of(pl, j) && !is_out(pj)) peace_offer(pl, (int)ai, j, now);
         }
-        if (g_offer_t[ai][j]) {   // the AI's alliance offer to a human
+        if (g_offer_t[ai][j]) {   // the AI's alliance offer or capitulation to a human
+            int capit = g_offer_kind[ai][j];
             if (!s) {
                 g_offer_t[ai][j] = 0;
                 g_ally_since[ai][j] = now ? now : 1;
-                persona_say(pl, L_OFFER_ACCEPTED, pj, NULL);
+                if (capit) {
+                    g_say_tribute = pay_promise((int)ai, j);
+                    g_lord[ai] = j;
+                    g_war_since[ai][j] = g_war_since[j][ai] = 0;
+                    opinion_add((int)ai, j, 20);
+                    persona_say(pl, L_CAPITULATE_ACCEPTED, pj, NULL);
+                    if (g_log) fprintf(g_log, "# diplomacy: P%u at %.1f min: P%d accepts the capitulation, %d resources paid\n",
+                                       ai, now / 60000.0, j, g_say_tribute);
+                } else persona_say(pl, L_OFFER_ACCEPTED, pj, NULL);
             } else if (now - g_offer_t[ai][j] > 120000) {
                 g_offer_t[ai][j] = 0;
-                persona_say(pl, L_OFFER_WITHDRAWN, pj, NULL);
+                if (capit) memset(g_promise[ai], 0, sizeof g_promise[ai]);
+                if (capit && g_log) fprintf(g_log, "# diplomacy: P%u at %.1f min: P%d ignored the capitulation\n", ai, now / 60000.0, j);
+                persona_say(pl, capit ? L_CAPITULATE_REFUSED : L_OFFER_WITHDRAWN, pj, NULL);
                 set_stance((int)ai, j, 1);
                 chat_stance_line(pl, 1);
             }
@@ -410,6 +511,7 @@ static void diplo_tick(void *pl, unsigned ai, uint32_t now) {
         g_sit.last_sit[ai] = now ? now : 1;
         world_scan(now);
         diplo_situations(pl, (int)ai, now);
+        check_capitulation(pl, (int)ai, now);
         check_surrender(pl, (int)ai, now);
     }
 }
@@ -431,6 +533,11 @@ static void diplo_new_game(void) {
     memset(&g_ws, 0, sizeof g_ws);
     memset(&g_sit, 0, sizeof g_sit);
     memset(g_no_citizens_since, 0, sizeof g_no_citizens_since);
+    memset(g_pressure, 0, sizeof g_pressure);
+    memset(g_offer_kind, 0, sizeof g_offer_kind);
+    memset(g_promise, 0, sizeof g_promise);
+    memset(g_capit_last, 0, sizeof g_capit_last);
+    memset(g_lord, 0, sizeof g_lord);
     g_resign_queue = 0;
     for (int i = 0; i < 16; i++) g_sit.last_epoch[i] = -1;
 }
@@ -468,6 +575,13 @@ static void cmd_diplo(char *out, const char *args) {
               g_no_citizens_since[a] / 60000.0);
         return;
     }
+    if (sscanf(args, "capitulate %d %d", &a, &b) == 2) {   // diplo capitulate P A: AI P capitulates to A now (tests)
+        if (!g_players[a & 15] || !player_at(a) || !player_at(b) || a == b) { REPLY("error: P%d is no AI player or bad P%d\n", a, b); return; }
+        capitulate(player_at(a), a, b, game_time());
+        REPLY("P%d capitulates to P%d: %d %d %d %d %d offered%s\n", a, b, g_promise[a][2], g_promise[a][3], g_promise[a][4],
+              g_promise[a][5], g_promise[a][6], g_lord[a] == b ? " - accepted" : "");
+        return;
+    }
     if (sscanf(args, "tribute %d %d %d", &a, &b, &s) == 3) {   // diplo tribute A B N: A's tribute of N reaches AI B
         diplo_tribute(player_at(b), player_at(a), s);
         REPLY("P%d -> P%d: tribute %d, opinion %.0f\n", a, b, s, b > 0 && b < 16 && a > 0 && a < 16 ? g_opinion[b][a] : 0.0f);
@@ -492,7 +606,10 @@ static void cmd_diplo(char *out, const char *args) {
             else if (g_players[i]) REPLY("  %d/%5.0f", stance_of(pi, j), g_opinion[i][j]);
             else REPLY("  %d      ", stance_of(pi, j));
         }
-        REPLY("  %6.0f  %u%s\n", g_ws.power[i], g_diplo_answers[i], is_out(pi) ? " (out)" : "");
+        REPLY("  %6.0f  %u%s", g_ws.power[i], g_diplo_answers[i], is_out(pi) ? " (out)" : "");
+        if (g_lord[i]) REPLY("  capitulated to P%d", g_lord[i]);
+        for (int j = 1; j < n; j++) if (g_pressure[i][j] >= 1) REPLY("  threat P%d %.0f", j, g_pressure[i][j]);
+        REPLY("\n");
     }
 }
 

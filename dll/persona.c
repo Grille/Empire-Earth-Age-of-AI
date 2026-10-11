@@ -14,8 +14,8 @@
 //   [style]                    EXPERIMENTAL, only with [general] ai_style=1 (default 0): aimod.ini keys
 //   first_attack_min=15        (settings.c k_style_keys) on top of the difficulty's settings for this AI
 // Placeholders: {name} the player the line is about, {me} the speaker, {enemy} a third player (alliances),
-// {epoch} the speaker's age. A situation without lines stays silent (the game's own lines for wonders, flares and
-// war remain where the personality has none).
+// {epoch} the speaker's age, {tribute} the resources offered / paid (capitulation). A situation without lines stays
+// silent (the game's own lines for wonders, flares and war remain where the personality has none).
 //
 // Assignment at the AI's first update: aimod.ini [general] personality_P<n>=<file name without .ini>, otherwise
 // random, every personality once before any repeats (autotest: from the map seed, so runs repeat).
@@ -32,7 +32,8 @@ enum line_kind {
     L_GREETING, L_WAR_DECLARED, L_BETRAYED, L_PEACE_ACCEPT, L_PEACE_REFUSE, L_ALLIANCE_OFFER, L_OFFER_ACCEPTED,
     L_OFFER_WITHDRAWN, L_BETRAY, L_TRIBUTE_THANKS, L_TRIBUTE_SMALL, L_ATTACK, L_UNDER_ATTACK, L_BUILDING_LOST,
     L_EPOCH_UP, L_ENEMY_AHEAD, L_WINNING, L_LOSING, L_DESPERATE, L_ENEMY_DEFEATED, L_ALLY_DEFEATED, L_DEFEATED,
-    L_WONDER_THREAT, L_WONDER_HELP, L_WONDER_NOHELP, L_HELP_LAND, L_HELP_AIR, L_HELP_NAVAL, L_HELP_NONE, L_SURRENDER, L_N
+    L_WONDER_THREAT, L_WONDER_HELP, L_WONDER_NOHELP, L_HELP_LAND, L_HELP_AIR, L_HELP_NAVAL, L_HELP_NONE, L_SURRENDER,
+    L_CAPITULATE, L_CAPITULATE_ACCEPTED, L_CAPITULATE_REFUSED, L_N
 };
 static const struct { const char *key; int chance, cooldown; } k_lines[L_N] = {
     { "greeting", 60, 0 },          { "war_declared", 100, 20 },     { "betrayed", 100, 20 },
@@ -45,6 +46,7 @@ static const struct { const char *key; int chance, cooldown; } k_lines[L_N] = {
     { "defeated", 100, 0 },         { "wonder_threat", 100, 60 },    { "wonder_help", 100, 60 },
     { "wonder_nohelp", 100, 60 },   { "help_land", 100, 30 },        { "help_air", 100, 30 },
     { "help_naval", 100, 30 },      { "help_none", 100, 30 },        { "surrender", 100, 0 },
+    { "capitulate", 100, 0 },       { "capitulate_accepted", 100, 0 }, { "capitulate_refused", 100, 0 },
 };
 
 #define MAX_PERSONAS 32
@@ -422,6 +424,7 @@ static void epoch_text(void *pl, char *out, int cap) {
 }
 
 // say a line of situation k (other = {name}, third = {enemy}); returns 1 if said
+static int g_say_tribute;   // {tribute}: set by the caller (diplo.c capitulation)
 static int persona_say(void *pl, enum line_kind k, void *other, void *third) {
     struct persona *p = persona_of(pl);
     if (!p || !g_ai_talk || !p->nline[k] || (FIELD(pl, 0x467, uint8_t) && k != L_DEFEATED)) return 0;
@@ -442,6 +445,7 @@ static int persona_say(void *pl, enum line_kind k, void *other, void *third) {
             else if (!strncmp(s, "{me}", 4)) { rep = player_name(pl); s += 4; }
             else if (!strncmp(s, "{enemy}", 7)) { rep = player_name(third); s += 7; }
             else if (!strncmp(s, "{epoch}", 7)) { epoch_text(pl, ep, sizeof ep); rep = ep; s += 7; }
+            else if (!strncmp(s, "{tribute}", 9)) { wsprintfA(ep, "%d", g_say_tribute); rep = ep; s += 9; }
         }
         if (rep) while (*rep && o < (int)sizeof buf - 1) buf[o++] = *rep++;
         else buf[o++] = *s++;

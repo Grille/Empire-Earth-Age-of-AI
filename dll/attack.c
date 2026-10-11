@@ -342,7 +342,11 @@ static void __fastcall hook_asg_route(uint8_t *self, void *edx, int *start, int 
                 threat_at(pi, dest[0], dest[1]), g_route_stats[pi].calls, g_route_stats[pi].penalised);
         fflush(g_log);
     }
-    if (pl && target) persona_attack(pl, target);
+    // the target player is chosen once, at the launch (0x46F4FF): after peace or an alliance the march goes on
+    int hostile = target && FIELD(pl, 0x9E4 + (FIELD(target, PL_INDEX, int) & 15) * 4, int);
+    if (pl && target && !hostile && g_log)
+        fprintf(g_log, "# route: P%d marches on P%d, no enemy any more\n", FIELD(pl, PL_INDEX, int), FIELD(target, PL_INDEX, int));
+    if (pl && hostile) persona_attack(pl, target);
     if (g_chat && pl && start && dest) {
         unsigned pi = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
         int dx = dest[0] - start[0], dy = dest[1] - start[1];
