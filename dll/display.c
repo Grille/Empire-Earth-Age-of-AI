@@ -109,6 +109,8 @@ static void *__fastcall hook_editor_form(void *form, void *edx, void *owner) {
 // aimod.ini [display] windowed = 0 | 1
 #define G_FULLSCREEN 0x0091945A
 static uint8_t g_fullscreen = 1;
+static int g_present_every;   // autotest present_every (diagnostics)
+static volatile DWORD g_render_thread;   // thread that calls ShowScene (profile render)
 static int g_diag;   // diagnostic sampling (aimod.ini [display] diag=1 or autotest diag_hooks=1)
 
 // Windowed present: ShowScene (DX7Rasterizer vtable slot 66, in DX7HRDisplay.dll and DX7HRTnLDisplay.dll)
@@ -449,12 +451,15 @@ static void frame_stats(uint8_t *ras, unsigned screen) {
 
 static int __fastcall hook_show_scene(void *ras, void *edx, unsigned screen) {
     (void)edx;
+    g_render_thread = GetCurrentThreadId();
     if (g_fullscreen) return g_show[DISPLAY_DLL(ras)].show(ras, screen);
     // windowed: the original is not called. Its Blt to the emulated primary at the window's screen position is
     // rejected while the back buffer is larger than that 1024x768 surface, but at 1024x768 (scenario editor) the
     // rect only overhangs by the title bar height and the copy runs past the end of the surface (crash in DDRAW.dll).
     // Its frame statistics (FPS display) are kept here instead.
     frame_stats(ras, screen);
+    static unsigned skip_n;   // autotest present_every=N: diagnostics, present only every Nth frame
+    if (g_present_every > 1 && ++skip_n % (unsigned)g_present_every) return 0;
     if (g_diag && (g_present_frames & 63) == 0) sample_back(ras, screen);
     return present_to_window(ras, screen) ? 0 : 1;
 }
@@ -1113,6 +1118,7 @@ static void display_install(const char *aimod_ini, const char *autotest_ini) {
     if (g_headless) dmode = 1;   // a normal (off-screen) window
     g_borderless = dmode == 2;
     int windowed = dmode != 0;
+    if (autotest_ini) g_present_every = GetPrivateProfileIntA("autotest", "present_every", 0, autotest_ini);
     if (autotest_ini) g_diag_skip = GetPrivateProfileIntA("autotest", "diag_skip", 0, autotest_ini);
     g_diag = (autotest_ini && GetPrivateProfileIntA("autotest", "diag_hooks", 0, autotest_ini))
              || GetPrivateProfileIntA("display", "diag", 0, aimod_ini);
@@ -1216,6 +1222,154 @@ static int write_desc_bmp(const DDSURFACEDESC2 *dp, const char *path) {   // loc
     DeleteObject(bmp);
     DeleteDC(mdc);
     return f != NULL;
+}
+
+// profile [ms]: sampling profiler (pipe thread). Every ~1 ms each other thread of the game is suspended for a moment
+// and its EIP recorded; reports the busiest threads and code addresses (module+offset, 64-byte buckets).
+// profile <ms> render: only the thread that calls ShowScene, waits included; each sample is put on the innermost
+// return address on its stack that lies in the game's own code (exe, Low-Level Engine, DX7 display DLLs) - the game
+// function that waits or works - and the top frame's module is counted (where the time actually goes)
+static int is_game_code(uintptr_t a) {
+    HMODULE m = NULL;
+    if (a < 0x400000 || !GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, (LPCSTR)a, &m)) return 0;
+    return m == GetModuleHandleA(NULL) || m == GetModuleHandleA("Low-Level Engine.dll") || m == GetModuleHandleA("DX7HRDisplay.dll")
+        || m == GetModuleHandleA("DX7HRTnLDisplay.dll");
+}
+static void cmd_profile_render(int dur, char *out) {
+    DWORD tid = g_render_thread;
+    HANDLE h = tid ? OpenThread(THREAD_SUSPEND_RESUME | THREAD_GET_CONTEXT, FALSE, tid) : NULL;
+    if (!h) { REPLY("error: render thread unknown (windowed mode only)\n"); return; }
+    enum { HB = 4096 };
+    static struct { uintptr_t a; int n; } callers[HB];
+    struct { HMODULE m; int n; } tops[24];
+    int nt = 0, samples = 0;
+    memset(callers, 0, sizeof callers);
+    DWORD end = GetTickCount() + (DWORD)dur;
+    timeBeginPeriod(1);
+    while ((LONG)(end - GetTickCount()) > 0) {
+        if (SuspendThread(h) != (DWORD)-1) {
+            CONTEXT c = { .ContextFlags = CONTEXT_CONTROL };
+            uintptr_t stack[512];
+            SIZE_T got = 0;
+            BOOL ok = GetThreadContext(h, &c);
+            if (ok) ReadProcessMemory(GetCurrentProcess(), (void *)(uintptr_t)c.Esp, stack, sizeof stack, &got);
+            ResumeThread(h);
+            if (ok) {
+                samples++;
+                HMODULE m = NULL;
+                GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, (LPCSTR)(uintptr_t)c.Eip, &m);
+                int j = 0;
+                while (j < nt && tops[j].m != m) j++;
+                if (j == nt && nt < 24) { tops[nt].m = m; tops[nt].n = 0; nt++; }
+                if (j < nt) tops[j].n++;
+                uintptr_t caller = is_game_code(c.Eip) ? c.Eip : 0;
+                for (size_t i = 0; !caller && i < got / sizeof *stack; i++) if (is_game_code(stack[i])) caller = stack[i];
+                uintptr_t a = caller & ~(uintptr_t)15;
+                unsigned k = (unsigned)(a >> 4) * 2654435761u % HB;
+                for (int p = 0; p < HB; p++, k = (k + 1) % HB)
+                    if (!callers[k].a || callers[k].a == a) { callers[k].a = a; callers[k].n++; break; }
+            }
+        }
+        Sleep(1);
+    }
+    timeEndPeriod(1);
+    CloseHandle(h);
+    REPLY("render thread %lu: %d samples over %d ms\n  where the time is (top frame):\n", tid, samples, dur);
+    for (int j = 0; j < nt; j++) {
+        char path[MAX_PATH] = "?";
+        if (tops[j].m) GetModuleFileNameA(tops[j].m, path, sizeof path);
+        const char *b = strrchr(path, 0x5C);
+        if (tops[j].n * 50 >= samples) REPLY("    %-28s %3d%%\n", b ? b + 1 : path, samples ? tops[j].n * 100 / samples : 0);
+    }
+    REPLY("  game code it is in or called from (16-byte buckets):\n");
+    for (int r = 0; r < 25; r++) {
+        int best = -1;
+        for (int k = 0; k < HB; k++) if (callers[k].n > 0 && (best < 0 || callers[k].n > callers[best].n)) best = k;
+        if (best < 0) break;
+        char at[160];
+        if (callers[best].a) crash_addr(at, sizeof at, callers[best].a); else lstrcpyA(at, "(no game code on the stack)");
+        REPLY("    %5.1f%%  %s\n", samples ? callers[best].n * 100.0 / samples : 0.0, at);
+        callers[best].n = -callers[best].n;
+    }
+}
+
+static void cmd_profile(const char *args, char *out) {
+    int dur = atoi(args);
+    if (dur <= 0) dur = 2000;
+    if (strstr(args, "render")) { cmd_profile_render(dur, out); return; }
+    enum { MAXT = 64, HB = 8192 };
+    struct { DWORD id; HANDLE h; int samples, busy; } th[MAXT];
+    int nt = 0;
+    HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
+    THREADENTRY32 te = { .dwSize = sizeof te };
+    DWORD pid = GetCurrentProcessId(), self = GetCurrentThreadId();
+    if (snap != INVALID_HANDLE_VALUE && Thread32First(snap, &te))
+        do {
+            if (te.th32OwnerProcessID != pid || te.th32ThreadID == self || nt >= MAXT) continue;
+            HANDLE h = OpenThread(THREAD_SUSPEND_RESUME | THREAD_GET_CONTEXT | THREAD_QUERY_INFORMATION, FALSE, te.th32ThreadID);
+            if (h) { th[nt].id = te.th32ThreadID; th[nt].h = h; th[nt].samples = th[nt].busy = 0; nt++; }
+        } while (Thread32Next(snap, &te));
+    if (snap != INVALID_HANDLE_VALUE) CloseHandle(snap);
+    static struct { uintptr_t a; int n, t; } hist[HB];
+    memset(hist, 0, sizeof hist);
+    HMODULE ntdll = GetModuleHandleA("ntdll.dll"), win32u = GetModuleHandleA("win32u.dll");
+    DWORD end = GetTickCount() + (DWORD)dur;
+    int rounds = 0;
+    timeBeginPeriod(1);
+    while ((LONG)(end - GetTickCount()) > 0) {
+        for (int i = 0; i < nt; i++) {
+            if (SuspendThread(th[i].h) == (DWORD)-1) continue;
+            CONTEXT c = { .ContextFlags = CONTEXT_CONTROL };
+            BOOL ok = GetThreadContext(th[i].h, &c);
+            ResumeThread(th[i].h);
+            if (!ok) continue;
+            th[i].samples++;
+            HMODULE m = NULL;
+            GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, (LPCSTR)(uintptr_t)c.Eip, &m);
+            if (m == ntdll || m == win32u) continue;   // waiting (mostly)
+            th[i].busy++;
+            uintptr_t a = c.Eip & ~(uintptr_t)63;
+            unsigned k = (unsigned)(a >> 6) * 2654435761u % HB;
+            for (int p = 0; p < HB; p++, k = (k + 1) % HB)
+                if (!hist[k].a || hist[k].a == a) { hist[k].a = a; hist[k].n++; hist[k].t = i; break; }
+        }
+        rounds++;
+        Sleep(1);
+    }
+    timeEndPeriod(1);
+    REPLY("profile: %d rounds over %d ms, %d threads (busy = not in ntdll/win32u)\n", rounds, dur, nt);
+    for (int i = 0; i < nt; i++)
+        if (th[i].busy * 20 >= rounds)
+            REPLY("  thread %5lu: busy %3d%%\n", th[i].id, rounds ? th[i].busy * 100 / rounds : 0);
+    // module totals and top buckets
+    struct { HMODULE m; int n; } mods[32];
+    int nm = 0, total = 0;
+    for (int k = 0; k < HB; k++) {
+        if (!hist[k].a) continue;
+        total += hist[k].n;
+        HMODULE m = NULL;
+        GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, (LPCSTR)hist[k].a, &m);
+        int j = 0;
+        while (j < nm && mods[j].m != m) j++;
+        if (j == nm && nm < 32) { mods[nm].m = m; mods[nm].n = 0; nm++; }
+        if (j < nm) mods[j].n += hist[k].n;
+    }
+    for (int j = 0; j < nm; j++) {
+        char path[MAX_PATH] = "?";
+        if (mods[j].m) GetModuleFileNameA(mods[j].m, path, sizeof path);
+        const char *b = strrchr(path, 0x5C);
+        if (mods[j].n * 50 >= total) REPLY("  module %-28s %3d%%\n", b ? b + 1 : path, total ? mods[j].n * 100 / total : 0);
+    }
+    for (int r = 0; r < 30; r++) {
+        int best = -1;
+        for (int k = 0; k < HB; k++) if (hist[k].a && hist[k].n > 0 && (best < 0 || hist[k].n > hist[best].n)) best = k;
+        if (best < 0) break;
+        char at[160];
+        crash_addr(at, sizeof at, hist[best].a);
+        REPLY("  %5.1f%%  %s  (thread %lu)\n", total ? hist[best].n * 100.0 / total : 0.0, at, th[hist[best].t].id);
+        hist[best].n = -hist[best].n;
+    }
+    for (int i = 0; i < nt; i++) CloseHandle(th[i].h);
 }
 
 // headless test commands (pipe thread, also in the menus and the editor):

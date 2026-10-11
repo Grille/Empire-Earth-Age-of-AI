@@ -24,6 +24,7 @@ static void cmd_scrolltest(char *out, const char *args);
 static void cmd_ddinfo(char *out, const char *args);
 static void cmd_ddpoke(char *out, const char *args);
 static void cmd_headless(const char *verb, const char *args, char *out);
+static void cmd_profile(const char *args, char *out);
 static struct {
     char cmd[512];
     char out[16384];
@@ -448,6 +449,9 @@ static DWORD WINAPI pipe_thread(LPVOID unused) {
             if (!strcmp(verb, "peek") || !strcmp(verb, "poke")) {
                 char *out = reply;
                 mem_command(verb, cmd + n, out);
+            } else if (!strcmp(verb, "profile")) {
+                char *out = reply;
+                cmd_profile(cmd + n, out);
             } else if (!strcmp(verb, "vmouse") || !strcmp(verb, "vclick") || !strcmp(verb, "wclick") || !strcmp(verb, "shot")) {
                 char *out = reply;
                 cmd_headless(verb, cmd + n, out);

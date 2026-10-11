@@ -3,5 +3,5 @@
 # usage: sh build.sh [install]   - "install" also copies the DLL into the game folder (two levels up).
 cd "$(dirname "$0")"
 CC=${CC:-../tools/llvm-mingw/bin/i686-w64-mingw32-clang}
-"$CC" -O2 -Wall -Wextra -shared -static -o eeaimod.dll eeaimod.c -lgdi32 -ldxguid -Wl,--image-base,0x6E000000 || exit 1
+"$CC" -O2 -Wall -Wextra -shared -static -o eeaimod.dll eeaimod.c -lgdi32 -ldxguid -lwinmm -Wl,--image-base,0x6E000000 || exit 1
 if [ "$1" = install ]; then cp eeaimod.dll ../../eeaimod.dll && echo "installed to $(cd ../.. && pwd)/eeaimod.dll"; fi

@@ -83,6 +83,21 @@ venv/Scripts/python scripts/eectl.py <command>
 | `ddpoke z\|back\|front\|mode` | one of ddinfo's side effects alone (lock a surface, query the display mode); `ddpoke cursor x y` puts the Windows cursor at a client position in the game's own (DPI-virtualised) coordinates - `ddinfo` shows the game cursor and the mouse device state |
 | `uipost <hex msg> [hex p1]` | post a message to the UI thread's queue; runs on the pipe thread, so it also works in the menus |
 
+### Performance
+
+- `ddinfo` reports the windowed present timing since the last call (frame interval, readback, copy to the
+  window, rest = the game) and the game's own frame statistics (FPS display).
+- `ddpoke bench [w h]`: CPU cost of the copy/scaling methods for a window of w x h.
+- `profile [ms]`: sampling profiler over all game threads (busy threads, modules, hot addresses);
+  `profile <ms> render`: only the render thread, waits included, with the game function each sample is in or
+  called from.
+- Autotest `present_every=N` presents only every Nth frame (to separate present cost from game cost).
+
+Findings 2026-10-11 (2560x1440, RTX 3080, dgVoodoo DirectX pass-through): ~80 fps; the render thread is CPU
+bound in Windows' DirectX 7 layer and the driver (DDRAW.dll 35%, nvd3dum 26%, kernel calls 24%), i.e. per
+draw-call overhead, which grows with the visible map. The present costs ~15%. dgVoodoo's own DirectX
+translation (pass-through off) was twice as slow (20 ms per frame).
+
 ### Headless UI tests (menus, editor)
 
 Autotest key `headless=1`: the game window is created off-screen, never activates and ignores focus
