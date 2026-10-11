@@ -4,10 +4,13 @@
 //
 // File format (UTF-8 or ANSI; lines starting with ; or # are comments):
 //   [personality]
-//   name=Khan Temur            the player's name in the game (replaces "Computer"; empty = keep)
+//   name=Merchant Benedict     the player's name in the game (replaces "Computer"; empty = keep)
+//   name:de=Kaufherr Benedikt  ... in a game of that language (see lang_detect)
+//   color=yellow, lightyellow  favoured colours on random maps
 //   aggression=80 loyalty=30 pride=70 greed=40 forgiveness=20 caution=40 talk=60   (one per line)
-//   [lines]
+//   [lines]                    the default (English)
 //   war_declared=Variant one|Variant two      variants separated by |, or the key repeated
+//   [lines:de]                 in a game of that language these replace [lines] situation by situation
 //   [style]                    EXPERIMENTAL, only with [general] ai_style=1 (default 0): aimod.ini keys
 //   first_attack_min=15        (settings.c k_style_keys) on top of the difficulty's settings for this AI
 // Placeholders: {name} the player the line is about, {me} the speaker, {enemy} a third player (alliances),
@@ -123,6 +126,40 @@ static char *trim(char *s) {
     return s;
 }
 
+// The game's language, for [lines:<language>] and name:<language>: aimod.ini [general] language (a code such as
+// de, or a name such as german), else from the game's text - the first age's name (string 30145 in Language.dll;
+// its resources are all marked 0x409 whatever the language, so the language id says nothing). Unknown: [lines] only.
+static char g_lang[16];
+static const char *const k_lang_alias[][4] = {
+    { "de", "german", "deutsch", "" }, { "en", "english", "", "" }, { "fr", "french", "francais", "" },
+    { "es", "spanish", "espanol", "" }, { "it", "italian", "italiano", "" },
+};
+static int lang_matches(const char *tag) {
+    if (!g_lang[0]) return 0;
+    if (!lstrcmpiA(tag, g_lang)) return 1;
+    for (size_t r = 0; r < sizeof k_lang_alias / sizeof *k_lang_alias; r++) {
+        int row = 0;
+        for (int k = 0; k < 4 && k_lang_alias[r][k][0]; k++) row |= !lstrcmpiA(g_lang, k_lang_alias[r][k]);
+        for (int k = 0; k < 4 && row && k_lang_alias[r][k][0]; k++) if (!lstrcmpiA(tag, k_lang_alias[r][k])) return 1;
+    }
+    return 0;
+}
+static void lang_detect(void) {
+    static const struct { const wchar_t *first_age; const char *code; } k_known[] = {
+        { L"Vorzeit", "de" }, { L"Prehistoric", "en" }, { L"Préhistoire", "fr" }, { L"Prehistoria", "es" },
+        { L"Preistoria", "it" },
+    };
+    char path[MAX_PATH];
+    GetModuleFileNameA(NULL, path, sizeof path);
+    char *bs = strrchr(path, '\\');
+    if (bs) lstrcpyA(bs + 1, "Language.dll");
+    HMODULE h = LoadLibraryExA(path, NULL, LOAD_LIBRARY_AS_DATAFILE);
+    wchar_t w[64] = L"";
+    if (h) { LoadStringW(h, 30145, w, 64); FreeLibrary(h); }
+    for (size_t i = 0; i < sizeof k_known / sizeof *k_known && !g_lang[0]; i++)
+        if (!wcsncmp(w, k_known[i].first_age, wcslen(k_known[i].first_age))) lstrcpyA(g_lang, k_known[i].code);
+}
+
 static void persona_load(const char *path, const char *file) {
     if (g_npersonas >= MAX_PERSONAS) return;
     char *text = read_text_acp(path);
@@ -133,12 +170,18 @@ static void persona_load(const char *path, const char *file) {
     char *dot = strrchr(p->file, '.');
     if (dot) *dot = 0;
     for (int t = 0; t < T_N; t++) p->trait[t] = 50;
-    int section = 0;   // 1 personality, 2 lines, 3 style
+    static char *ll[L_N][MAX_VARIANTS];   // [lines:<game language>]: replace [lines] situation by situation
+    uint8_t nll[L_N] = { 0 };
+    int lang_name = 0;   // name:<game language> seen (wins over name=)
+    int section = 0;   // 1 personality, 2 lines, 3 style, 4 lines in the game's language
     for (char *ln = strtok(text, "\n"); ln; ln = strtok(NULL, "\n")) {
         char *s = trim(ln);
         if (!*s || *s == ';' || *s == '#') continue;
         if (*s == '[') {
-            section = !_strnicmp(s, "[personality]", 13) ? 1 : !_strnicmp(s, "[lines]", 7) ? 2 : !_strnicmp(s, "[style]", 7) ? 3 : 0;
+            char *close = strchr(s, ']');
+            if (close) *close = 0;
+            section = !lstrcmpiA(s, "[personality") ? 1 : !lstrcmpiA(s, "[lines") ? 2 : !lstrcmpiA(s, "[style") ? 3 :
+                      !_strnicmp(s, "[lines:", 7) && lang_matches(s + 7) ? 4 : 0;
             continue;
         }
         char *eq = strchr(s, '=');
@@ -146,7 +189,8 @@ static void persona_load(const char *path, const char *file) {
         *eq = 0;
         char *key = trim(s), *val = trim(eq + 1);
         if (section == 1) {
-            if (!lstrcmpiA(key, "name")) lstrcpynA(p->name, val, sizeof p->name);
+            if (!lstrcmpiA(key, "name") && !lang_name) lstrcpynA(p->name, val, sizeof p->name);
+            if (!_strnicmp(key, "name:", 5) && lang_matches(key + 5)) { lstrcpynA(p->name, val, sizeof p->name); lang_name = 1; }
             if (!lstrcmpiA(key, "color") || !lstrcmpiA(key, "colour") || !lstrcmpiA(key, "farbe"))
                 for (char *t = val; t && *t && p->ncolor < 4;) {   // not strtok: the line loop uses it
                     char *sep = strpbrk(t, ",|");
@@ -159,20 +203,28 @@ static void persona_load(const char *path, const char *file) {
                 if (!lstrcmpiA(key, k_trait_keys[t])) { int v = atoi(val); p->trait[t] = v < 0 ? 0 : v > 100 ? 100 : v; }
         } else if (section == 3) {
             if (p->nstyle < 16) { p->style_key[p->nstyle] = _strdup(key); p->style_val[p->nstyle++] = _strdup(val); }
-        } else if (section == 2) {
+        } else if (section == 2 || section == 4) {
             for (int k = 0; k < L_N; k++) {
                 if (lstrcmpiA(key, k_lines[k].key)) continue;
-                for (char *v = val; v && *v && p->nline[k] < MAX_VARIANTS;) {
+                char **dst = section == 2 ? p->line[k] : ll[k];
+                uint8_t *n = section == 2 ? &p->nline[k] : &nll[k];
+                for (char *v = val; v && *v && *n < MAX_VARIANTS;) {
                     char *bar = strchr(v, '|');
                     if (bar) *bar = 0;
                     char *t = trim(v);
-                    if (*t) p->line[k][p->nline[k]++] = _strdup(t);
+                    if (*t) dst[(*n)++] = _strdup(t);
                     v = bar ? bar + 1 : NULL;
                 }
             }
         }
     }
     free(text);
+    for (int k = 0; k < L_N; k++)   // the language's lines where it has them, [lines] for the rest
+        if (nll[k]) {
+            for (int v = 0; v < p->nline[k]; v++) free(p->line[k][v]);
+            memcpy(p->line[k], ll[k], nll[k] * sizeof *ll[k]);
+            p->nline[k] = nll[k];
+        }
     g_npersonas++;
 }
 
@@ -420,7 +472,7 @@ static void cmd_persona(char *out, const char *args) {
         REPLY("error: no personality '%s'\n", name);
         return;
     }
-    REPLY("%d personalities loaded, talk %d, names %d, style %d\n", g_npersonas, g_ai_talk, g_ai_names, g_ai_style);
+    REPLY("%d personalities loaded, language '%s', talk %d, names %d, style %d\n", g_npersonas, g_lang, g_ai_talk, g_ai_names, g_ai_style);
     for (int i = 0; i < 16; i++) {
         struct persona *q = g_persona_of[i] >= 0 ? &g_personas[g_persona_of[i]] : NULL;
         if (!q) continue;
@@ -447,9 +499,12 @@ static void persona_install(const char *ini, const char *test_ini) {
     }
     g_rnd ^= test_ini ? 0x5EED : GetTickCount();
     if (!g_rnd) g_rnd = 1;
+    GetPrivateProfileStringA("general", "language", "", g_lang, sizeof g_lang, ini);
+    if (test_ini) GetPrivateProfileStringA("autotest", "language", g_lang, g_lang, sizeof g_lang, test_ini);
+    if (!g_lang[0]) lang_detect();
     personas_load();
     int okc = patch_call(CALL_PLAYER_COLOR, FN_COLOR_RGB, (void *)hook_player_color), ok = 0;
     static const uintptr_t sites[] = { 0x470040, 0x4715F8, 0x47166E, 0x47280E, 0x472B9D };
     for (size_t i = 0; i < sizeof sites / sizeof *sites; i++) ok += patch_call(sites[i], FN_NATIVE_CHAT, (void *)hook_native_chat);
-    if (g_log) fprintf(g_log, "# persona: %d personalities, talk %d, names %d, native line hooks %d/5, colour hook %d\n", g_npersonas, g_ai_talk, g_ai_names, ok, okc);
+    if (g_log) fprintf(g_log, "# persona: %d personalities, language '%s', talk %d, names %d, native line hooks %d/5, colour hook %d\n", g_npersonas, g_lang, g_ai_talk, g_ai_names, ok, okc);
 }

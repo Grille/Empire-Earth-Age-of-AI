@@ -81,6 +81,7 @@ static void ws_unit(uint8_t *u, void *ctx) {
     void *owner = FIELD(u, 0x18, void *);
     if (!owner || FIELD(u, 0x3C, int) <= 0) return;
     int o = pidx(owner);
+    if (o == 0) return;   // nature (wild animals): hostile to everyone, not an attack
     uint8_t *td = FIELD(u, 0x2C, uint8_t *);
     int fam = FIELD(td, 0x4B4, int);
     if (fam == 2 || fam == 29) { g_ws.buildings[o]++; g_ws.power[o] += 30; return; }

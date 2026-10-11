@@ -46,6 +46,8 @@ the AI has seen.
    one of its personalities: a name, a favoured colour (random maps), character traits that decide its diplomacy (peace, alliances,
    betrayal, what tribute is worth to it) and its own lines in the chat. Add or edit `.ini` files there to
    make your own (the format is described in `eroberer.ini`); they are read when Empire Earth starts.
+   Lines and names are English by default; `[lines:de]` / `name:de=` replace them in a German game
+   (the shipped personalities have both).
 4. Start the game normally. Changes to `aimod.ini` take effect when a game starts or a save is loaded.
 
 To uninstall, delete `eeaimod.dll`. If you delete only `aimod.ini`, the original AI comes back and
