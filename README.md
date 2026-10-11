@@ -118,7 +118,8 @@ Settings in `aimod.ini`:
   `[display] present=auto` picks the matching way to show the picture (DDrawCompat: its primary surface;
   otherwise Direct3D 11).
   The mouse follows the Windows cursor (your pointer speed), the window can be moved and switched like
-  any other; `lock_mouse=1` keeps the cursor inside while the game is in front.
+  any other. `lock_mouse` keeps the cursor inside while the game is in front: `auto` (default) only in
+  borderless, so edge scrolling doesn't slide onto a second monitor, while a window stays free; `1` always, `0` never.
 - `[display] mode=borderless`: a frameless window over the whole monitor, the game image scaled to it
   (aspect kept). Alt+Enter switches between window and borderless. The window is DPI-aware (`dpi_aware`),
   so Windows display scaling doesn't blur it; `smooth=1` filters the scaled image.

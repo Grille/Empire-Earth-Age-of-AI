@@ -912,7 +912,9 @@ static int install_windowed_present(void) {
 //   window is in the background) and minimizes the window (CloseWindow, 0x662670) when the app loses focus.
 // - non-exclusive, the device sees every click while the window is in front, also on the title bar or other
 //   windows: the mouse is unacquired while the cursor is outside the client area (and no button is held).
-// aimod.ini [display] lock_mouse = 1 keeps the cursor inside the window while the game is in front.
+// aimod.ini [display] lock_mouse = 1 keeps the cursor inside the window while the game is in front; auto (default)
+// only in borderless (a full-screen picture: edge scrolling must not slide onto another monitor), not in a window
+// (Alt+Enter switches both). Native fullscreen needs nothing: the exclusive DirectInput mouse never leaves.
 #define FN_MOUSE_UPDATE  0x00510E5D
 #define FN_MOUSE_CLAMP   0x00510DAD
 #define G_GAME_WINDOW    0x009197A4   // GEWindow* (+0 HWND)
@@ -920,7 +922,8 @@ static int install_windowed_present(void) {
 #define SITE_CLOSE_WINDOW_JE 0x00662666   // je over the CloseWindow call on WM_ACTIVATEAPP(0)
 typedef void (__thiscall *ThisFn)(void *);
 static ThisFn g_recompute_buttons;   // ISMouse::RecomputeCurrentButtonState
-static int g_lock_mouse;
+static int g_lock_mouse = 2;   // 0 never, 1 always, 2 auto (borderless only)
+static int mouse_locked(void) { return g_lock_mouse == 1 || (g_lock_mouse == 2 && g_borderless); }
 static WNDPROC g_game_wndproc;
 static HWND g_subclassed;
 static volatile LONG g_mouse_updates, g_mouse_unacq, g_mouse_reacq;
@@ -1000,7 +1003,9 @@ static void apply_window_mode(HWND h) {
     st = g_borderless ? (st & ~WS_OVERLAPPEDWINDOW) | WS_POPUP : (st & ~WS_POPUP) | WS_OVERLAPPEDWINDOW;
     SetWindowLongA(h, GWL_STYLE, st);
     SetWindowPos(h, HWND_TOP, r.left, r.top, r.right - r.left, r.bottom - r.top, SWP_FRAMECHANGED | SWP_NOOWNERZORDER | SWP_SHOWWINDOW);
-    if (g_log) { fprintf(g_log, "# display: %s %ldx%ld\n", g_borderless ? "borderless" : "window", r.right - r.left, r.bottom - r.top); fflush(g_log); }
+    ClipCursor(NULL);   // new rectangle, maybe no lock any more (lock_mouse=auto); the next frame clips again if locked
+    if (g_log) { fprintf(g_log, "# display: %s %ldx%ld, mouse %s\n", g_borderless ? "borderless" : "window", r.right - r.left,
+                         r.bottom - r.top, mouse_locked() ? "locked" : "free"); fflush(g_log); }
 }
 
 static void modern_frame(HWND h);
@@ -1220,7 +1225,7 @@ static void window_mouse_in(uint8_t *m, int frozen, uint8_t *win, HWND hwnd) {
         resume_if_suspended(IMP_IS_KEYBOARD, &last_keyboard);
     }
     mouse_acquire(inside || held);
-    if (g_lock_mouse && fg && inside) {
+    if (mouse_locked() && fg && inside) {
         RECT want = rc, cur;
         MapWindowPoints(hwnd, NULL, (POINT *)&want, 2);
         if (!GetClipCursor(&cur) || !EqualRect(&cur, &want)) ClipCursor(&want);
@@ -1307,7 +1312,8 @@ static void display_install(const char *aimod_ini, const char *autotest_ini) {
         uint8_t was = *(uint8_t *)G_FULLSCREEN;
         if (was == 1) *(uint8_t *)G_FULLSCREEN = g_fullscreen = 0;
         int hooks = install_windowed_present();
-        g_lock_mouse = GetPrivateProfileIntA("display", "lock_mouse", 0, aimod_ini);
+        GetPrivateProfileStringA("display", "lock_mouse", "auto", tmp, sizeof tmp, aimod_ini);
+        g_lock_mouse = !lstrcmpiA(tmp, "auto") ? 2 : atoi(tmp) ? 1 : 0;
         int input = install_windowed_input();
         g_smooth = GetPrivateProfileIntA("display", "smooth", 0, aimod_ini);
         GetPrivateProfileStringA("display", "present", "auto", tmp, sizeof tmp, aimod_ini);
