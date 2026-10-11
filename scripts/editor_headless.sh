@@ -12,6 +12,13 @@ if tasklist | grep -qi "empire earth"; then echo "a game is running - close it f
 for i in $(seq 1 60); do sleep 2; $py scripts/eectl.py shot menu >/dev/null 2>&1 && break; done
 sleep 3
 log=../aimod_econ.csv
+if [ "$res" = "ee" ]; then   # original editor: the mod hooks nothing, so no log line - click once, check by shot
+    $py scripts/eectl.py vmouse 500 460 >/dev/null; sleep 1
+    $py scripts/eectl.py vclick 512 472 >/dev/null; sleep 4
+    $py scripts/eectl.py vmouse 500 360 >/dev/null; sleep 1
+    $py scripts/eectl.py vclick 512 370 >/dev/null; sleep 20
+    echo "clicked into the editor (original layout) - check with: eectl.py shot <name>"; exit 0
+fi
 for try in 1 2 3 4 5; do
     $py scripts/eectl.py vmouse 500 460 >/dev/null; sleep 1
     $py scripts/eectl.py vclick 512 472 >/dev/null; sleep 4     # main menu: game tools
