@@ -1,0 +1,8 @@
+# Continental seed 101, 2 AIs, Prehistoric start (test epoch timer 15-20 via the base ini): P3 base ~38,38.
+# A raid on a grown base: at minute 46 P2 gets 15 spearmen and 10 bowmen at the edge of P3's base. P2 doesn't use
+# the defence features (defence 2 0). Measure P3's buildings lost / soldiers by the end (count at 54).
+# A/B e.g. "noguard:home_guard=0" vs "guard:".
+defence 2 0
+@46 spawn 2 24 48 44 15
+@46 spawn 2 10 50 46 10
+@54 count 3

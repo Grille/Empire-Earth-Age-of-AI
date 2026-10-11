@@ -338,6 +338,49 @@ static void counter_siege(void *pl, unsigned idx, uint32_t now) {
     }
 }
 
+// HOME GUARD (aimod.ini [all] home_guard = soldiers per epoch, default 4; 0 = off): the unit manager (0x490AD6)
+// only trains what is ordered into its request queues - mostly the next attack's group, ordered shortly before the
+// attack. Between attacks nothing is trained: at minute 45 a Bronze Age AI had 10 soldiers, 25 requests in 5
+// minutes and 1555 food + 1554 wood in its military account; a raid met 2-5 defenders. A player keeps a force at
+// home. Every 10 s: fewer than 6 + home_guard x epoch own soldiers within 25 tiles of the base -> up to 5 more through
+// the train hook (budget applies), type: the strongest trainable land soldier (substitution picks what the budget
+// pays for).
+static int g_home_guard = 4;
+static unsigned g_home_trained[16];
+struct home_scan { void *pl; int bx, by, n; };
+static void home_unit(uint8_t *u, void *ctx) {
+    struct home_scan *h = ctx;
+    if (FIELD(u, 0x18, void *) != h->pl || FIELD(u, 0x3C, int) <= 0 || !is_soldier(FIELD(u, 0x2C, uint8_t *))) return;
+    int dx = FIELD(u, 0x1C, int) - h->bx, dy = FIELD(u, 0x20, int) - h->by;
+    h->n += dx * dx + dy * dy <= 625;
+}
+static int home_soldiers(void *pl, int bx, int by) {
+    struct home_scan h = { pl, bx, by, 0 };
+    grid_each(home_unit, &h);
+    return h.n;
+}
+static void home_guard(void *pl, unsigned idx, uint32_t now) {
+    static uint32_t last[16];
+    if (!g_home_guard || g_def_off[idx] || (now >= last[idx] && now - last[idx] < 10000)) return;
+    last[idx] = now;
+    void *cm = FIELD(pl, 0xB90, void *), *um = cm ? FIELD(cm, 0x44, void *) : NULL;
+    uint8_t *bm = cm ? FIELD(cm, 0x3C, uint8_t *) : NULL;
+    if (!um || !bm || FIELD(bm, 0x12C, int) == -10000) return;
+    int e = current_epoch(pl), target = 6 + g_home_guard * e;
+    if (target > 60) target = 60;
+    int home = home_soldiers(pl, FIELD(bm, 0x12C, int), FIELD(bm, 0x130, int));
+    if (home >= target) return;
+    int big[7] = { 0, 0, 1 << 20, 1 << 20, 1 << 20, 1 << 20, 1 << 20 }, got = 0;
+    int type = substitute_soldier(pl, idx, big, 1, &got);   // the strongest the game can train now
+    if (!type) return;
+    int req[4] = { type, target - home < 5 ? target - home : 5, 0, 0 };
+    unsigned n = 0;
+    hook_train_units(um, NULL, req, (uintptr_t)&n);
+    g_home_trained[idx] += n;
+    if (n && g_log) fprintf(g_log, "# home guard: P%u at %.1f min: %d of %d soldiers at home, %u more (type %d asked)\n",
+                            idx, now / 60000.0, home, target, n, type);
+}
+
 // basemap P [r]: the map around AI player P's base (build manager +0x12C/+0x130), 2 characters per tile:
 // T tower (own defence with a ground attack), W wall, G gate, C Town Center/Capitol/Settlement, b other own building,
 // c citizen, s soldier, m mine (stone/gold/iron site), digits = other players' buildings/units (player index),
@@ -461,7 +504,8 @@ static void defence_install(const char *aimod_ini, const char *autotest_ini) {
     g_def_walls = cfg_int(aimod_ini, autotest_ini, 1, "defence_walls", 1);
     g_def_more = cfg_int(aimod_ini, autotest_ini, 1, "defence_towers", 1);
     g_csiege = cfg_int(aimod_ini, autotest_ini, 1, "counter_siege", 1);
+    g_home_guard = cfg_int(aimod_ini, autotest_ini, 1, "home_guard", 4);
     BOOL guard = patch_call(CALL_DAMAGE_POINTS, FN_DAMAGE_POINTS, damage_points_thunk);
     if (g_log) fprintf(g_log, "# engine guard: damage points %s\n", guard ? "ok" : "FAILED");
-    if (g_log) fprintf(g_log, "# defence: layout=%d distance=%d walls=%d own towers=%d counter-siege=%d\n", g_def, g_def_dist, g_def_walls, g_def_more, g_csiege);
+    if (g_log) fprintf(g_log, "# defence: layout=%d distance=%d walls=%d own towers=%d counter-siege=%d home guard=%d/epoch\n", g_def, g_def_dist, g_def_walls, g_def_more, g_csiege, g_home_guard);
 }
