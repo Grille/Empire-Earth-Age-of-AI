@@ -65,6 +65,7 @@ static void autotest_first_tick(void *pl);
 static void settings_apply(void *pl);
 static void econ_tick(void *pl, uint32_t now);
 static void econ_targets(uint8_t *rm);
+static void econ_rebalance(uint8_t *rm);
 static void attack_tick(void *pl, uint32_t now);
 static void log_line(const char *fmt, const char *a, int b);
 static BOOL patch_call(uintptr_t site, uintptr_t expected, void *hook);
@@ -141,6 +142,7 @@ static char __fastcall hook_compute_targets(void *rm, void *edx) {
 static char __fastcall hook_assign_citizens(void *rm, void *edx) {
     (void)edx;
     char r = ((RmFn)FN_ASSIGN_CITIZENS)(rm);
+    econ_rebalance((uint8_t *)rm);
     log_state(rm, "post_assign", game_time());
     return r;
 }

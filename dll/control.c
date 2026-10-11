@@ -10,6 +10,7 @@
 #define G_WORLD         0x0091977C  // action queue owner: QueueAction 0x66192F (thiscall, takes action ptr)
 #define G_CAMERA        0x00918CD0  // EECameraControl; +0x78/+0x7C/+0x80 look-at x/y/z (tiles), +0xE0 zoom
 #define G_MAP           0x009183BC  // ptr; +0x1816FC = map size in tiles
+#define G_UNIT_GRID_OFS 0x181724    // map +: unit grid (see attack.c)
 #define FN_GAME_NEW     0x00683718  // operator new (cdecl)
 #define FN_QUEUE_ACTION 0x0066192F
 #define IAT_RELEASE     0x008231AC  // imported refcount release, thiscall on the action
@@ -23,6 +24,8 @@ static void cmd_threat(char *out, const char *args);
 static void cmd_targets(char *out, const char *args);
 static void cmd_army(char *out, const char *args);
 static void cmd_count(char *out, const char *args);
+static void cmd_drops(char *out, const char *args);
+static void cmd_bqueue(char *out, const char *args);
 static void cmd_spawn(char *out, const char *args);
 static void cmd_spawnline(char *out, const char *args);
 static volatile int g_turbo;           // autotest turbo: the simulation loop skips its timer wait
@@ -330,6 +333,8 @@ static void execute(const char *cmd, char *out) {
     else if (!strcmp(verb, "targets")) cmd_targets(out, args);
     else if (!strcmp(verb, "army")) cmd_army(out, args);
     else if (!strcmp(verb, "count")) cmd_count(out, args);
+    else if (!strcmp(verb, "drops")) cmd_drops(out, args);
+    else if (!strcmp(verb, "bqueue")) cmd_bqueue(out, args);
     else if (!strcmp(verb, "spawn")) cmd_spawn(out, args);
     else if (!strcmp(verb, "spawnline")) cmd_spawnline(out, args);
     else if (!strcmp(verb, "save")) cmd_save(out, args);
@@ -439,7 +444,16 @@ static int sim_drained(void) {
 }
 
 static DWORD WINAPI hook_send_wait(DWORD n, const HANDLE *h, BOOL all, DWORD ms) {
-    if (!g_turbo || !game_time()) return WaitForMultipleObjects(n, h, all, ms);
+    if (!g_turbo || !game_time()) {
+        // turbo off (or switched off over the pipe): the real wait, in slices so "turbo 1" takes effect at once
+        DWORD t0 = GetTickCount();
+        for (;;) {
+            DWORD spent = GetTickCount() - t0, left = ms == INFINITE ? 50 : spent >= ms ? 0 : ms - spent;
+            DWORD r = WaitForMultipleObjects(n, h, all, left < 50 ? left : 50);
+            if (r != WAIT_TIMEOUT || (ms != INFINITE && left <= 50)) return r;
+            if (g_turbo && game_time()) break;
+        }
+    }
     for (;;) {   // 1 ms waits, no spinning: the client thread must answer each tick before the next carries steps
         if (sim_drained()) return WAIT_TIMEOUT;
         DWORD r = WaitForMultipleObjects(n, h, all, 1);

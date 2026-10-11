@@ -15,7 +15,6 @@
 // Type data: +0x4B4 family (2 = building, 29 = fortress), +0x4B8 type id, +0x420 range, +0x510 attack,
 //   +0x55C hit points.
 
-#define G_UNIT_GRID_OFS   0x181724
 #define VT_ROUTE_PLANNER  0x00825CC4   // EEAIGPGModifierLandAttackSubGroupRoutePlanner
 #define FN_ROUTE_COST     0x004141E8   // its slot 1: int thiscall(edge*, node*)
 #define VT_ASG_LAND       0x00826CA8   // EECPASGLand
@@ -555,6 +554,27 @@ static const struct { int type, epoch; } k_siege_types[] = {
     { 603, 13 }, { 602, 10 }, { 107, 9 }, { 141, 7 }, { 105, 6 }, { 104, 4 } };
 static struct { uint32_t last_try, factory_req; unsigned trained, failed, no_factory; } g_siege_train[16];
 
+// Entry i of the build manager's queue for epoch e (bm +4 + e*0x14: deque of {type, x, y}, 0x155 per block), NULL
+// past the end. 14 queues (epochs 0..13); the placement area follows at +0x11C.
+static int *bq_entry(uint8_t *bm, int e, unsigned i) {
+    uint8_t *dq = bm + 4 + e * 0x14;
+    unsigned first = FIELD(dq, 0xC, unsigned), n = FIELD(dq, 0x10, unsigned), msz = FIELD(dq, 8, unsigned);
+    uint8_t **map = FIELD(dq, 4, uint8_t **);
+    if (e < 0 || e >= 14 || i >= n || !map || !msz || first >= msz * 0x155 || n > msz * 0x155) return NULL;
+    unsigned idx = first + i, blk = idx / 0x155;
+    if (blk >= msz) blk -= msz;
+    return map[blk] ? (int *)(map[blk] + (idx % 0x155) * 12) : NULL;
+}
+static int bq_has(uint8_t *bm, int type) {
+    for (int e = 0; e < 14; e++)
+        for (unsigned i = 0; ; i++) {
+            int *ent = bq_entry(bm, e, i);
+            if (!ent) break;
+            if (ent[0] == type) return 1;
+        }
+    return 0;
+}
+
 static void siege_train(void *pl, unsigned pi, int have, uint32_t now) {
     int want = g_threat[pi].n ? 2 + g_threat[pi].n / 4 : 0;
     for (int k = 0; k < 64 && !want; k++)
@@ -562,6 +582,9 @@ static void siege_train(void *pl, unsigned pi, int have, uint32_t now) {
     if (want > 4) want = 4;
     if (have >= want || (now >= g_siege_train[pi].last_try && now - g_siege_train[pi].last_try < 30000)) return;
     g_siege_train[pi].last_try = now;
+    // no siege weapon in this epoch yet (the catapult comes with the Bronze Age): no factory either - the build
+    // manager can't place it before and would keep the request in its queue for good
+    if (current_epoch(pl) + 1 < k_siege_types[sizeof k_siege_types / sizeof *k_siege_types - 1].epoch) return;
     // a Siege Factory (type 63) of our own
     uint8_t *map = *(uint8_t **)G_MAP;
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
@@ -580,7 +603,8 @@ static void siege_train(void *pl, unsigned pi, int have, uint32_t now) {
         void *cm = FIELD(pl, 0xB90, void *);
         uint8_t *bm = cm ? FIELD(cm, 0x3C, uint8_t *) : NULL;
         int e = current_epoch(pl);
-        if (bm && e >= 0 && e < 16 && (!g_siege_train[pi].factory_req || now - g_siege_train[pi].factory_req >= 300000)) {
+        if (bm && e >= 0 && e < 14 && !bq_has(bm, 63) &&
+            (!g_siege_train[pi].factory_req || now - g_siege_train[pi].factory_req >= 300000)) {
             g_siege_train[pi].factory_req = now ? now : 1;
             int entry[3] = { 63, 0, 0 };
             ((void (__thiscall *)(void *, int *))0x00468C37)(bm + 4 + e * 0x14, entry);
@@ -856,6 +880,24 @@ static void cmd_spawnline(char *out, const char *args) {
         n++;
     }
     REPLY("ok: %d x type %d for P%d from %d,%d to %d,%d queued\n", n, type, p, x0, y0, x1, y1);
+}
+
+// bqueue P: the build manager's per-epoch queues (bq_entry); $ = can be built now (0x555710, the build manager's
+// check: available in this epoch, affordable, a builder)
+static void cmd_bqueue(char *out, const char *args) {
+    int p = atoi(args);
+    void *pl = (p >= 0 && p < 16) ? g_players[p] : NULL;
+    void *cm = pl ? FIELD(pl, 0xB90, void *) : NULL;
+    uint8_t *bm = cm ? FIELD(cm, 0x3C, uint8_t *) : NULL;
+    if (!bm) { REPLY("error: no AI player %d\n", p); return; }
+    for (int e = 0; e < 14; e++) {
+        int *ent = bq_entry(bm, e, 0);
+        if (!ent) continue;
+        REPLY("epoch %d:", e);
+        for (unsigned i = 1; ent && i <= 60; ent = bq_entry(bm, e, i++))
+            REPLY(" %d%s", ent[0], ((char (__thiscall *)(void *, int, int, int))0x00555710)(pl, ent[0], 0x20, 0) ? "$" : "");
+        REPLY("\n");
+    }
 }
 
 // count P: all units and buildings of player P by type (type: count)

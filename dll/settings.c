@@ -25,6 +25,7 @@ struct ai_cfg {
     int first_attack_min, first_attack_max, attack_min, attack_max;   // minutes, 0 = leave
     int attack_group_percent;                                         // 0 = leave
     int attack_on_contact, attack_for_resources, attack_revenge;      // percent, -1 = leave
+    float citizen_share;    // share of the population cap for citizens (+0xBDC, the rest is military), 0 = leave
 };
 static struct ai_cfg g_cfg[3];
 static const char *const k_diff_sections[3] = { "easy", "medium", "hard" };
@@ -78,14 +79,15 @@ static void settings_load(const char *ini, const char *test_ini) {
         c->attack_on_contact = cfg_int(ini, test_ini, d, "attack_on_contact", -1);
         c->attack_for_resources = cfg_int(ini, test_ini, d, "attack_for_resources", -1);
         c->attack_revenge = cfg_int(ini, test_ini, d, "attack_revenge", -1);
+        c->citizen_share = cfg_float(ini, test_ini, d, "citizen_share", "0");
         if (g_log)
             fprintf(g_log, "# settings %-6s copper_plan=%d budget=%d (military %.2f/%.2f) safe_sites=%d cost=%d%% "
                     "pacing=%s epoch=%d-%d wait_for_player=%d attacks first %d-%d every %d-%d group %d%% "
-                    "contact %d resources %d revenge %d\n", k_diff_sections[d], c->copper_plan, c->budget,
+                    "contact %d resources %d revenge %d citizens %.2f\n", k_diff_sections[d], c->copper_plan, c->budget,
                     c->mil_start_share, c->mil_income_share, c->safe_sites, c->cost_percent,
                     c->pacing_fast ? "fast" : "timer", c->epoch_min, c->epoch_max, c->wait_for_player,
                     c->first_attack_min, c->first_attack_max, c->attack_min, c->attack_max, c->attack_group_percent,
-                    c->attack_on_contact, c->attack_for_resources, c->attack_revenge);
+                    c->attack_on_contact, c->attack_for_resources, c->attack_revenge, c->citizen_share);
     }
 }
 
@@ -128,5 +130,6 @@ static void settings_apply(void *pl) {
     if (c->attack_on_contact >= 0) FIELD(pl, 0xCD8, int) = c->attack_on_contact;
     if (c->attack_for_resources >= 0) FIELD(pl, 0xCDC, int) = c->attack_for_resources;
     if (c->attack_revenge >= 0) FIELD(pl, 0xCE0, int) = c->attack_revenge;
+    if (c->citizen_share > 0.0f && c->citizen_share < 1.0f) FIELD(pl, 0xBDC, float) = c->citizen_share;
     if (g_log) fprintf(g_log, "# settings applied: P%d difficulty %d\n", FIELD(pl, PL_INDEX, int), d);
 }

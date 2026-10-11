@@ -75,10 +75,16 @@ EPOCHS="" sh scripts/suite.sh 50 "base:" "plan:copper_plan=1"     # EPOCHS="" = 
 - `#` lines: events, for example settings, budget decisions (`# B`), epoch plan, attacks (`# attack:`),
   attack routes (`# route:` start/goal/known defences, `# route done:` waypoints, `!` = inside tower range),
   weak-spot choices (`# weak spot:`) and battle counters every 10 minutes (`# battle:`).
+- Economy lines every 5 minutes: `# gather:` workers per resource, mean distance of their sites to the nearest
+  drop site and income per worker-minute; `# spend:` what was paid, by caller (5e8a11 = production queue: units,
+  research; 62f076 = buildings), with the income so far; `# place:` the build manager's placements per type
+  (tries/failed/dropped).
 
 Scripts:
 - `scripts/summarize.py <csv> [minutes]`: per AI timeline.
 - `scripts/score.py <csv>...`: suite score.
+- `scripts/econ.py [-s min] <csv>`: per AI economy timeline (stock, demand, targets, workers, army lines).
+- `scripts/econsum.py [-m min] <csv>...`: economy per suite variant (income, soldiers trained, mine distances, rates).
 - `scripts/watch_deltas.py`: watchpoint hits grouped by code path.
 
 ## Control pipe
@@ -102,6 +108,8 @@ venv/Scripts/python scripts/eectl.py <command>
 | `targets P` | all enemy buildings of AI player P: owner, tile, seen by P or not, known tower threat on them |
 | `army P [type]` | soldiers of player P (optionally only one unit type) grouped by current goal (EEUGLocation = marching, EEUGAttackUnit = fighting; goal +0x30 = target unit), with centre and the goal's first dwords |
 | `count P` | all units and buildings of player P by type (type:count), e.g. whether an AI has a Siege Factory (63) |
+| `bqueue P` | the build manager's queues per epoch (building types; `$` = can be built now) |
+| `drops P` | drop sites of player P (Town Center, Capitol, Settlement; `g` = granary) |
 | `spawn P type x y [n]` | create n units of a type for player P around tile x, y (2-tile grid), through the game's own debug spawner (EEMHackANewUnit, executed in the next tick like a player command). Type ids: `data/db/converteroutput.log` |
 | `spawnline P type x0 y0 x1 y1 [step]` | one unit every step tiles along a line, e.g. a wall |
 | `watch <hex> [len]` | set the hardware watchpoint at runtime |

@@ -199,7 +199,16 @@ Guard towers 47, 461..466; AA 145/147; town center 35; house 37; citizen 32.
   leftovers via 0x48A1AE (mines, then wood 0x48C060). Surplus workers are never taken back.
 - Demand: added by 0x48B9E9 (costs via AdjustCost), subtracted by 0x48D050 / 0x48B6E8 and by AddResource.
 - Citizens wanted = citizen share (player+0xBDC, 0.45 by default) x population cap (0x48EDDB); trained in
-  batches of up to 10.
+  batches of up to 10. Military slots = (1 - share) x cap (0x47049E); set by 0x43F42E (scenario trigger).
+- Mine search 0x48C204 thiscall(rm, type, unit, reverse): first site in zone order (reverse = from the last zone)
+  with a free slot (gatherers 0x52E5F7 < table 0x48E817(0x16) = 6), amount > 0, explored, no enemy near, the unit's
+  continent - distance plays no part. Mines hold 300000.
+- Assign to site 0x48C81C thiscall(rm, unit, site, 0): new gather target (EEUGGather), moves the unit between the
+  resource lists (0x48B662 remove, 0x48A4EC add). AssignCitizens only hands out idle citizens (no goal, or a
+  finished gather goal).
+- Spending: EEComputerPlayer::vf45 0x43F53D (pay a unit/building/tech; skips record +0x4C epoch 0..13) -> vf46
+  0x43F526 (stock[type] -= amount). Units and research are paid from the production queue 0x5E8908, buildings
+  from 0x62EF8A. AddResource (vf18) is income only.
 - Resource zones (player+0xB50, map-wide, shared by all players, 0x28 bytes, +0x18 active for this AI, +8 vector
   of sites). 0x4886F2(zone, 2) returns a site.
 
@@ -212,6 +221,11 @@ Guard towers 47, 461..466; AA 145/147; town center 35; house 37; citizen 32.
   ahead of / /2 when behind the highest human epoch; AttemptEpochAdvance 0x46C966 asks the research manager
   once for the required techs (0x4860D6).
 - Build manager (cm+0x3C): init 0x465E4F (placement area at +0x11C, per-epoch build lists at +4 + i*0x14);
+  the lists are 14 deques of {type, x, y} (0x155 per block, front 0x44CD5E, pop 0x44CAAF, append 0x468C37);
+  Update 0x468540 every 3 s: the first list whose front 0x555710 (available, affordable, a builder) passes is
+  placed with 0x46580A(type, x, y) (one call site, 0x468629) and the round ends - a failed placement goes back
+  into its list, so an unplaceable front blocks every later list (type 395 "Single Player Settlement" on random
+  maps). 0x465A8E re-plans missing buildings every 120 s.
   base position +0x12C/+0x130; enemy near 0x4660B9(x, y).
 - Research manager (cm+0x40): +0x110 next research, +0x118 initialised.
 

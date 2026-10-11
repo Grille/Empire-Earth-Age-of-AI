@@ -19,9 +19,139 @@ static const uintptr_t k_train_sites[] = { 0x46cce6, 0x490cac, 0x490e12, 0x490f1
 // per-difficulty switches and military shares: settings.c (cfg_of)
 static int g_citizen_slack = 9999;   // idle-citizen check: off by default (stalled growth in tests)
 static int g_hoard_cap = 3000;   // stock above reserve + this is free for military too, aimod.ini [budget] hoard_cap
+// stone, gold, iron: hardly any civilian use besides the epoch cost (reserved anyway) and a few techs - with the
+// 3000 cap gold piled up (1000 in stock) while every soldier failed for gold; aimod.ini hoard_cap_mineral
+static int g_hoard_cap_mineral = 600;
 static struct { uint32_t last_t; int init; float mil[7]; int income[7], mil_spent[7], cit_blocked, mil_limited; } g_bud[16];
 
+// Spending by caller (diagnostic): what EEComputerPlayer::vf45 (pay) took, summed per player, resource and return
+// address, with the income so far; logged as "# spend:" every 5 minutes.
+static struct { uintptr_t site; int type; unsigned sum, n; } g_spend[16][24];
+static void spend_note(unsigned idx, int type, int amount, uintptr_t site) {
+    int k = 0;
+    while (k < 24 && g_spend[idx][k].n && (g_spend[idx][k].site != site || g_spend[idx][k].type != type)) k++;
+    if (k == 24) return;
+    g_spend[idx][k].site = site; g_spend[idx][k].type = type;
+    g_spend[idx][k].sum += (unsigned)amount; g_spend[idx][k].n++;
+}
+static void spend_log(unsigned idx, uint32_t now) {
+    static uint32_t last[16];
+    if (!g_log || now / 300000 == last[idx] / 300000) return;
+    last[idx] = now;
+    EnterCriticalSection(&g_lock);
+    fprintf(g_log, "# spend: P%u at %u min:", idx, now / 60000);
+    for (int k = 0; k < 24 && g_spend[idx][k].n; k++)
+        fprintf(g_log, " %06x/%c=%u(%u)", (unsigned)g_spend[idx][k].site, "..FWSGI"[g_spend[idx][k].type],
+                g_spend[idx][k].sum, g_spend[idx][k].n);
+    fprintf(g_log, "; income F%d W%d S%d G%d I%d\n", g_bud[idx].income[2], g_bud[idx].income[3], g_bud[idx].income[4],
+            g_bud[idx].income[5], g_bud[idx].income[6]);
+    fflush(g_log);
+    LeaveCriticalSection(&g_lock);
+}
+
+// BUILD QUEUE FIX: the build manager (0x468540, every 3 s) takes the first queue (one per epoch) whose front entry it
+// can afford, places it with 0x46580A(type, x, y) - one call site, 0x468629 - and stops for this round; an entry that
+// can't be placed goes back into its queue. The random-map build list starts with a "Single Player Settlement"
+// (type 395) that can never be placed, alone in the epoch-0 queue: it failed ~1000 times a game and took every round,
+// so nothing from the later queues was ever built - no Granary, Archery Range, Stable, Siege Factory, University...
+// build_fix (aimod.ini [all], default on): 395 is placed as a normal Settlement (43, a drop site), and an entry that
+// fails 3 times in a row is dropped (reported as placed; the planner 0x465A8E re-queues missing buildings every
+// 2 minutes). Attempts and failures per player and type are logged as "# place:" every 5 minutes.
+#define CALL_PLACE 0x00468629
+#define FN_PLACE   0x0046580A
+static int g_build_fix = 1;
+static struct { int type; unsigned tries, fails, dropped, streak; } g_place[16][64];   // every type the build lists hold
+static char __fastcall hook_place(uint8_t *bm, void *edx, int type, int x, int y) {
+    (void)edx;
+    int place_as = g_build_fix && type == 395 ? 43 : type;
+    char ok = ((char (__thiscall *)(void *, int, int, int))FN_PLACE)(bm, place_as, x, y);
+    void *pl = FIELD(bm, 0x138, void *);
+    unsigned idx = pl ? (unsigned)FIELD(pl, PL_INDEX, int) & 15 : 0;
+    int k = 0;
+    while (k < 64 && g_place[idx][k].tries && g_place[idx][k].type != type) k++;
+    if (k == 64) return ok;
+    g_place[idx][k].type = type;
+    g_place[idx][k].tries++;
+    if (ok) { g_place[idx][k].streak = 0; return ok; }
+    g_place[idx][k].fails++;
+    if (g_build_fix && ++g_place[idx][k].streak >= 3) {
+        g_place[idx][k].streak = 0;
+        g_place[idx][k].dropped++;
+        return 1;
+    }
+    return ok;
+}
+static void place_log(unsigned idx, uint32_t now) {
+    static uint32_t last[16];
+    if (!g_log || now / 300000 == last[idx] / 300000) return;
+    last[idx] = now;
+    EnterCriticalSection(&g_lock);
+    fprintf(g_log, "# place: P%u at %u min (type tries/failed/dropped):", idx, now / 60000);
+    for (int k = 0; k < 64 && g_place[idx][k].tries; k++)
+        fprintf(g_log, " %d %u/%u/%u", g_place[idx][k].type, g_place[idx][k].tries, g_place[idx][k].fails, g_place[idx][k].dropped);
+    fputc('\n', g_log);
+    fflush(g_log);
+    LeaveCriticalSection(&g_lock);
+}
+
+// drops P: the player's drop sites (x,y; g = granary, food only)
+static void cmd_drops(char *out, const char *args) {
+    int p = atoi(args);
+    void *pl = (p >= 0 && p < 16) ? g_players[p] : NULL;
+    if (!pl) { REPLY("error: no AI player %d\n", p); return; }
+    static int d[64][3];
+    int nd = drop_sites(pl, d, 64);
+    REPLY("P%d drop sites:", p);
+    for (int i = 0; i < nd; i++) REPLY(" %d,%d%s", d[i][0], d[i][1], d[i][2] ? "g" : "");
+    REPLY("\n");
+}
+
+// Gathering (diagnostic), every 5 minutes: per resource the workers, the mean distance from their gather site to the
+// nearest drop site, and the income per worker-minute since the last line.
+static void gather_log(void *pl, unsigned idx, uint32_t now) {
+    static uint32_t last[16];
+    static int last_income[16][7];
+    if (!g_log || now / 300000 == last[idx] / 300000) return;
+    last[idx] = now;
+    void *cm = FIELD(pl, 0xB90, void *);
+    uint8_t *rm = cm ? FIELD(cm, 0x38, uint8_t *) : NULL;
+    if (!rm) return;
+    static int d[64][3];
+    int nd = drop_sites(pl, d, 64), ndrop = 0;
+    for (int i = 0; i < nd; i++) ndrop += !d[i][2];
+    EnterCriticalSection(&g_lock);
+    fprintf(g_log, "# gather: P%u at %u min, drop sites %d (+%d granaries):", idx, now / 60000, ndrop, nd - ndrop);
+    for (int r = 2; r < 7; r++) {
+        uint8_t *dq = rm + RM_LISTS + r * 0x14;
+        unsigned first = FIELD(dq, 0xC, unsigned), n = FIELD(dq, 0x10, unsigned), m = 0;
+        int sum = 0;
+        for (unsigned k = 0; k < n; k++) {
+            uint8_t *u = deque_at(dq, first + k), *goal = u ? FIELD(u, 0x1EC, uint8_t *) : NULL;
+            uint8_t *site = goal && !strcmp(rtti_name(goal), "EEUGGather@@") ? FIELD(goal, 0x38, uint8_t *) : NULL;
+            if (!site) continue;
+            sum += drop_dist(d, nd, FIELD(site, 0x1C, int), FIELD(site, 0x20, int), r == 2);
+            m++;
+        }
+        int inc = g_bud[idx].income[r] - last_income[idx][r];
+        last_income[idx][r] = g_bud[idx].income[r];
+        fprintf(g_log, " %c %u/%u dist %.0f rate %.1f;", "..FWSGI"[r], m, n, m ? (float)sum / m : 0.0f, n ? inc / (5.0f * n) : 0.0f);
+    }
+    fputc('\n', g_log);
+    fflush(g_log);
+    LeaveCriticalSection(&g_lock);
+}
+
 #define VT_COMPUTER_PLAYER 0x008264C0
+#define FN_CP_PAY 0x0043F53D   // EEComputerPlayer::vf45(cost object, ?, ?): pays a unit/building/tech
+static void __fastcall hook_pay(void *pl, void *edx, void *what, int b, int c) {
+    (void)edx;
+    int *stock = (int *)((uint8_t *)pl + PL_STOCK), before[7];
+    memcpy(before, stock, sizeof before);
+    ((void (__thiscall *)(void *, void *, int, int))FN_CP_PAY)(pl, what, b, c);
+    uintptr_t site = (uintptr_t)__builtin_return_address(0);
+    for (int r = 2; r < 7; r++)
+        if (before[r] > stock[r]) spend_note((unsigned)FIELD(pl, PL_INDEX, int) & 15, r, before[r] - stock[r], site);
+}
 #define FN_CP_ADD_RESOURCE 0x0042F783   // EEComputerPlayer::vf18(type, amount)
 static void __fastcall hook_add_resource(void *pl, void *edx, int type, int amount) {
     (void)edx;
@@ -97,6 +227,9 @@ static void econ_tick(void *pl, uint32_t now) {
     // attack log: the next-attack time (+0xED8) is redrawn whenever an attack starts
     static uint32_t last_attack_time[16];
     unsigned ai = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
+    spend_log(ai, now);
+    gather_log(pl, ai, now);
+    place_log(ai, now);
     uint32_t t_attack = FIELD(pl, 0xED8, uint32_t);
     if (t_attack != last_attack_time[ai]) {
         if (last_attack_time[ai] && g_log)
@@ -186,6 +319,55 @@ static void econ_targets(uint8_t *rm) {
     }
     for (int r = 2; given < total; r = r == 6 ? 2 : r + 1)   // rounding leftovers to the largest needs
         if (need[r] > 0) { target[r]++; given++; }
+}
+
+// WORKER REBALANCE (after every AssignCitizens pass, 10 s): AssignCitizens only hands out idle citizens and never
+// takes a gatherer back, so workers stay wherever an old target sent them - 21 on iron with a target of 9 and
+// 1300 iron unused, while gold (target 17) had 5 and every soldier failed for gold. Move gathering citizens from
+// the resource with the largest surplus to a stone/gold/iron mine that is short, with the game's own site search
+// (0x48C204: free slot, explored, no enemy near, the citizen's continent) and assignment (0x48C81C: new gather
+// target, moves the citizen between the resource lists). Hysteresis: the targets jump with demand every 5 s.
+#define FN_ASSIGN_TO_SITE 0x0048C81C
+static int g_rebalance = 1;   // aimod.ini [all] rebalance_workers
+static unsigned g_moved[16][7];
+static int rm_count(uint8_t *rm, int t) { return FIELD(rm, RM_LISTS + t * 0x14 + 0x10, int); }
+static uint8_t *movable_gatherer(uint8_t *rm, int t) {
+    uint8_t *dq = rm + RM_LISTS + t * 0x14;
+    unsigned first = FIELD(dq, 0xC, unsigned), n = FIELD(dq, 0x10, unsigned);
+    for (unsigned k = n; k-- > 0; ) {   // the newest first
+        uint8_t *u = deque_at(dq, first + k);
+        if (!u || FIELD(u, 0x3C, int) <= 0 || FIELD(u, 0x33B, uint8_t) || FIELD(u, 0x341, uint8_t) || FIELD(u, 0x68, int))
+            continue;
+        void *goal = FIELD(u, 0x1EC, void *);
+        if (goal && !strcmp(rtti_name(goal), "EEUGGather@@")) return u;
+    }
+    return NULL;
+}
+static void econ_rebalance(uint8_t *rm) {
+    void *pl = rm_player(rm);
+    if (!g_rebalance || !pl) return;
+    unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
+    uint32_t *target = (uint32_t *)(rm + RM_TARGET);
+    int moves = 0, dry = 0;   // dry: donor lists without a movable citizen
+    for (int r = 4; r < 7 && moves < 2; r++) {
+        while (moves < 2 && (int)target[r] - rm_count(rm, r) >= 2) {
+            int d = -1, best = 2;
+            for (int t = 2; t < 7; t++) {
+                int s = rm_count(rm, t) - (int)target[t];
+                if (t != r && !(dry >> t & 1) && s > best) { best = s; d = t; }
+            }
+            if (d < 0) break;
+            uint8_t *u = movable_gatherer(rm, d);
+            if (!u) { dry |= 1 << d; continue; }
+            void *site = hook_find_mine(rm, NULL, r, u, 1);   // with mine_choice: nearest to a drop site
+            if (!site) break;   // no free, safe mine of this resource
+            int before = rm_count(rm, r);
+            ((void (__thiscall *)(void *, void *, void *, int))FN_ASSIGN_TO_SITE)(rm, u, site, 0);
+            if (rm_count(rm, r) == before) { dry |= 1 << d; continue; }
+            g_moved[idx][r]++;
+            moves++;
+        }
+    }
 }
 
 static int g_reserve_window_ms = 5 * 60000;   // aimod.ini [budget] reserve_window_min
@@ -304,7 +486,7 @@ static uintptr_t __fastcall hook_train_units(void *um, void *edx, int *req, uint
             }
             if (military && !g_priority_mil) {   // priority requests (siege) spend the stock above the reserve
                 int allowed = (int)g_bud[idx].mil[r];
-                int excess = stock[r] - reserve[r] - g_hoard_cap;   // never hoard beyond the cap
+                int excess = stock[r] - reserve[r] - (r >= 4 ? g_hoard_cap_mineral : g_hoard_cap);   // never hoard beyond the cap
                 if (excess > allowed) allowed = excess;
                 if (visible > allowed) visible = allowed;
             }
@@ -345,9 +527,9 @@ static uintptr_t __fastcall hook_train_units(void *um, void *edx, int *req, uint
         if (cfg->budget && g_log && (now < last_log[idx] || now - last_log[idx] >= 60000)) {
             last_log[idx] = now;
             EnterCriticalSection(&g_lock);
-            fprintf(g_log, "# B %u P%u food=%d reserve=%d mil_account=%.0f income=%d mil_spent=%d idle=%d cit_blocked=%d\n",
+            fprintf(g_log, "# B %u P%u food=%d reserve=%d mil_account=%.0f income=%d mil_spent=%d idle=%d cit_blocked=%d moved S%u G%u I%u\n",
                     now, idx, stock[2], reserve[2], g_bud[idx].mil[2], g_bud[idx].income[2], g_bud[idx].mil_spent[2],
-                    idle_citizens(pl), g_bud[idx].cit_blocked);
+                    idle_citizens(pl), g_bud[idx].cit_blocked, g_moved[idx][4], g_moved[idx][5], g_moved[idx][6]);
             fflush(g_log);
             LeaveCriticalSection(&g_lock);
         }
@@ -361,10 +543,20 @@ static void econ_install(const char *aimod_ini, const char *autotest_ini) {
     // finer tuning, same for all difficulties ([all] section; autotest may override)
     g_citizen_slack = cfg_int(aimod_ini, autotest_ini, 1, "idle_citizen_slack", 9999);
     g_hoard_cap = cfg_int(aimod_ini, autotest_ini, 1, "hoard_cap", 3000);
+    g_hoard_cap_mineral = cfg_int(aimod_ini, autotest_ini, 1, "hoard_cap_mineral", 600);
     g_min_workforce = cfg_int(aimod_ini, autotest_ini, 1, "min_workforce", 20);
     g_wild_share = cfg_float(aimod_ini, autotest_ini, 1, "wild_food_share", "0.6");
     g_reserve_window_ms = cfg_int(aimod_ini, autotest_ini, 1, "reserve_window_min", 5) * 60000;
+    g_rebalance = cfg_int(aimod_ini, autotest_ini, 1, "rebalance_workers", 1);
+    g_build_fix = cfg_int(aimod_ini, autotest_ini, 1, "build_fix", 1);
     int ok = 0;
+    void **sp = (void **)(VT_COMPUTER_PLAYER + 45 * 4);
+    if (*sp == (void *)FN_CP_PAY) {
+        DWORD old;
+        VirtualProtect(sp, 4, PAGE_READWRITE, &old);
+        *sp = (void *)hook_pay;
+        VirtualProtect(sp, 4, old, &old);
+    }
     void **slot = (void **)(VT_COMPUTER_PLAYER + 18 * 4);
     if (*slot == (void *)FN_CP_ADD_RESOURCE) {
         DWORD old;
@@ -373,6 +565,7 @@ static void econ_install(const char *aimod_ini, const char *autotest_ini) {
         VirtualProtect(slot, 4, old, &old);
         ok++;
     }
+    patch_call(CALL_PLACE, FN_PLACE, hook_place);
     for (size_t i = 0; i < sizeof k_train_sites / sizeof *k_train_sites; i++)
         ok += patch_call(k_train_sites[i], FN_TRAIN_UNITS, hook_train_units);
     if (g_log) fprintf(g_log, "# economy hooks: %d/%d\n", ok, (int)(sizeof k_train_sites / sizeof *k_train_sites) + 1);
