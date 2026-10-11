@@ -94,6 +94,132 @@ static void place_log(unsigned idx, uint32_t now) {
     LeaveCriticalSection(&g_lock);
 }
 
+// GATHERING RESEARCH (aimod.ini [all] gather_research, default on): the research manager (cm+0x40) researches what is
+// scheduled in its per-epoch lists (+0x18 + e*0x10); new techs come from a pool (+8) through a random planner
+// (0x4858D9) that prefers gathering upgrades - but only while its flag +0x11A is set, and the AI's "attention" pass
+// (0x42F912) switches on just player+0xE20 + 1 activities per period, research rarely among them. In the Bronze
+// Age the AIs still had Hafts, Hand Axe, Metal Working and Hardened Chisel (75-150 food, 50-100 wood, +15% each)
+// unresearched. Every 15 s one available (tech +6), unresearched (+4) pool tech with a gathering effect is scheduled
+// with the planner's 0x485F57 (requests the building if missing, adds the cost to the demand) and taken out of the
+// pool. Gathering effect: type 2 (+0x20), attribute +0x2C 0x1A..0x21 (wood, gold, stone, iron, ...), applied to
+// citizens (+0x14 = 32/480) or to all (-1) - the planner's own test misses the -1 ones, which most of these are.
+#define FN_RS_SCHEDULE 0x00485F57
+static int workforce(void *pl);
+static int g_gather_research = 1;
+static unsigned g_researched[16];
+static int is_gather_tech(uint8_t *tech) {
+    uint8_t *d = FIELD(tech, 8, uint8_t *);
+    int ei = d ? FIELD(d, 0x50, int) : -1;
+    if (ei < 0 || ei > 0x5DC) return 0;
+    uint8_t *list = (uint8_t *)0x0093B1B8 + ei * 0x10;
+    unsigned n = FIELD(list, 8, unsigned), *ids = FIELD(list, 4, unsigned *);
+    for (unsigned k = 0; ids && k < n && k < 64; k++) {
+        if (ids[k] >= 2000) continue;
+        uint8_t *ef = (uint8_t *)0x00919E70 + ids[k] * 0x44;
+        int a = FIELD(ef, 0x2C, int), on = FIELD(ef, 0x14, int);
+        if (FIELD(ef, 0x20, int) == 2 && (on == 0x20 || on == 0x1E0 || on == -1) && a >= 0x1A && a <= 0x21 && a != 0x1E) return 1;
+    }
+    return 0;
+}
+static void gather_research(void *pl, unsigned idx, uint32_t now) {
+    static uint32_t last[16];
+    if (!g_gather_research || (now >= last[idx] && now - last[idx] < 15000)) return;
+    last[idx] = now;
+    void *cm = FIELD(pl, 0xB90, void *);
+    uint8_t *rs = cm ? FIELD(cm, 0x40, uint8_t *) : NULL, *tt = FIELD(pl, PL_TECHTREE, uint8_t *);
+    if (!rs || !tt || workforce(pl) < 10) return;
+    int *b = FIELD(rs, 8, int *), *e = FIELD(rs, 0xC, int *);
+    for (int *q = b; b && q < e && e - b < 500; q++) {
+        uint8_t *t = ((uint8_t *(__thiscall *)(void *, int))0x004019A1)(tt, *q);   // FN_TECH_LOOKUP
+        if (!t || t[4] || !t[6] || !is_gather_tech(t)) continue;
+        int id = *q;
+        memmove(q, q + 1, (size_t)(e - q - 1) * sizeof *q);   // out of the pool, as the planner does
+        FIELD(rs, 0xC, int *) = e - 1;
+        ((void (__thiscall *)(void *, int))FN_RS_SCHEDULE)(rs, id);
+        g_researched[idx]++;
+        if (g_log) fprintf(g_log, "# research: P%u schedules gathering tech %d at %.1f min\n", idx, id, now / 60000.0);
+        return;
+    }
+}
+
+// Attention (diagnostic): 0x42F912 switches on only player+0xE20 + 1 of these activities per period (strategy
+// +0xA28 orders them): 0 cm+0x7A, 1 rm+0x188, 2 rs+0x11A (random research), 3 um+0x140, 4 cm+0x7B, 5 cm+0x7C,
+// 6 [b8c+0x4C]+0x48, 7 b98+0x2D, 8 b8c+0x62. Share of AI ticks each was on, logged as "# attention:" every 10 min.
+static struct { unsigned ticks, on[9]; } g_att[16];
+static void attention_note(void *pl, unsigned idx, uint32_t now) {
+    uint8_t *cm = FIELD(pl, 0xB90, uint8_t *), *b8c = FIELD(pl, 0xB8C, uint8_t *), *b98 = FIELD(pl, 0xB98, uint8_t *);
+    if (!cm || !b8c || !b98) return;
+    uint8_t *rm = FIELD(cm, 0x38, uint8_t *), *rs = FIELD(cm, 0x40, uint8_t *), *um = FIELD(cm, 0x44, uint8_t *);
+    uint8_t *b8c4c = FIELD(b8c, 0x4C, uint8_t *);
+    uint8_t f[9] = { cm[0x7A], rm ? rm[0x188] : 0, rs ? rs[0x11A] : 0, um ? um[0x140] : 0, cm[0x7B], cm[0x7C],
+                     b8c4c ? b8c4c[0x48] : 0, b98[0x2D], b8c[0x62] };
+    g_att[idx].ticks++;
+    for (int i = 0; i < 9; i++) g_att[idx].on[i] += f[i] != 0;
+    static uint32_t last[16];
+    if (!g_log || now / 600000 == last[idx] / 600000) return;
+    last[idx] = now;
+    EnterCriticalSection(&g_lock);
+    fprintf(g_log, "# attention: P%u at %u min, E20=%d A28=%d, on %%:", idx, now / 60000, FIELD(pl, 0xE20, int), FIELD(pl, 0xA28, int));
+    for (int i = 0; i < 9; i++) fprintf(g_log, " %d:%u", i, g_att[idx].ticks ? g_att[idx].on[i] * 100 / g_att[idx].ticks : 0);
+    fputc('\n', g_log);
+    fflush(g_log);
+    LeaveCriticalSection(&g_lock);
+    memset(&g_att[idx], 0, sizeof g_att[idx]);
+}
+
+// tech P id...: the player's tech record (tech tree lookup 0x4019A1): first bytes and the data's cost
+static void cmd_tech(char *out, const char *args) {
+    int p = 0, n = 0, id;
+    sscanf(args, "%d%n", &p, &n);
+    void *pl = (p >= 0 && p < 16) ? g_players[p] : NULL;
+    uint8_t *tt = pl ? FIELD(pl, PL_TECHTREE, uint8_t *) : NULL;
+    if (!tt) { REPLY("error: no player %d\n", p); return; }
+    args += n;
+    while (sscanf(args, "%d%n", &id, &n) == 1) {
+        args += n;
+        uint8_t *t = ((uint8_t *(__thiscall *)(void *, int))0x004019A1)(tt, id);   // FN_TECH_LOOKUP
+        if (!t) { REPLY("%d: none\n", id); continue; }
+        REPLY("%d:", id);
+        for (int i = 0; i < 0x20; i++) REPLY(" %02x", t[i]);
+        uint8_t *d = FIELD(t, 8, uint8_t *);
+        if (d) REPLY(" | cost %d,%d,%d,%d,%d", FIELD(d, 0x24, int), FIELD(d, 0x28, int), FIELD(d, 0x2C, int), FIELD(d, 0x30, int), FIELD(d, 0x34, int));
+        int ei = d ? FIELD(d, 0x50, int) : -1;
+        REPLY(" | effects %d:", ei);
+        if (ei >= 0 && ei <= 0x5DC) {   // effect list 0x93B1B8 + ei*0x10 (+4 ids, +8 count), effect 0x919E70 + id*0x44
+            uint8_t *list = (uint8_t *)0x0093B1B8 + ei * 0x10;
+            unsigned n = FIELD(list, 8, unsigned), *ids = FIELD(list, 4, unsigned *);
+            for (unsigned k = 0; ids && k < n && k < 16; k++) {
+                if (ids[k] >= 2000) { REPLY(" %u?", ids[k]); continue; }
+                uint8_t *ef = (uint8_t *)0x00919E70 + ids[k] * 0x44;
+                REPLY(" %u(%x/%x/%x)", ids[k], FIELD(ef, 0x14, int), FIELD(ef, 0x20, int), FIELD(ef, 0x2C, int));
+            }
+        }
+        REPLY("\n");
+    }
+}
+
+// rlist P: the research manager's per-epoch tech lists (cm+0x40: +0x18 + e*0x10 = vector begin/end of tech ids,
+// +0x114 current epoch); * = researched (tech +4)
+static void cmd_rlist(char *out, const char *args) {
+    int p = atoi(args);
+    void *pl = (p >= 0 && p < 16) ? g_players[p] : NULL;
+    void *cm = pl ? FIELD(pl, 0xB90, void *) : NULL;
+    uint8_t *rs = cm ? FIELD(cm, 0x40, uint8_t *) : NULL, *tt = pl ? FIELD(pl, PL_TECHTREE, uint8_t *) : NULL;
+    if (!rs || !tt) { REPLY("error: no AI player %d\n", p); return; }
+    int cur = FIELD(rs, 0x114, int);
+    REPLY("P%d research epoch %d\n", p, cur);
+    for (int e = -1; e <= 13; e++) {   // -1: the list at +8
+        int *b = FIELD(rs, 0x18 + e * 0x10, int *), *en = FIELD(rs, 0x1C + e * 0x10, int *);
+        if (!b || en <= b || en - b > 500) continue;
+        REPLY("list %d:", e);
+        for (int *q = b; q < en; q++) {
+            uint8_t *t = ((uint8_t *(__thiscall *)(void *, int))0x004019A1)(tt, *q);   // FN_TECH_LOOKUP
+            REPLY(" %d%s", *q, t && t[4] ? "*" : "");
+        }
+        REPLY("\n");
+    }
+}
+
 // drops P: the player's drop sites (x,y; g = granary, food only)
 static void cmd_drops(char *out, const char *args) {
     int p = atoi(args);
@@ -230,6 +356,8 @@ static void econ_tick(void *pl, uint32_t now) {
     spend_log(ai, now);
     gather_log(pl, ai, now);
     place_log(ai, now);
+    gather_research(pl, ai, now);
+    attention_note(pl, ai, now);
     uint32_t t_attack = FIELD(pl, 0xED8, uint32_t);
     if (t_attack != last_attack_time[ai]) {
         if (last_attack_time[ai] && g_log)
@@ -549,6 +677,7 @@ static void econ_install(const char *aimod_ini, const char *autotest_ini) {
     g_reserve_window_ms = cfg_int(aimod_ini, autotest_ini, 1, "reserve_window_min", 5) * 60000;
     g_rebalance = cfg_int(aimod_ini, autotest_ini, 1, "rebalance_workers", 1);
     g_build_fix = cfg_int(aimod_ini, autotest_ini, 1, "build_fix", 1);
+    g_gather_research = cfg_int(aimod_ini, autotest_ini, 1, "gather_research", 1);
     int ok = 0;
     void **sp = (void **)(VT_COMPUTER_PLAYER + 45 * 4);
     if (*sp == (void *)FN_CP_PAY) {

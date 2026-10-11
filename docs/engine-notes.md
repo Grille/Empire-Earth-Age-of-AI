@@ -198,6 +198,15 @@ Guard towers 47, 461..466; AA 145/147; town center 35; house 37; citizen 32.
 - AssignCitizens: fills deficits per type. Mines go via 0x48C204 (free slot, no enemy near, same continent),
   leftovers via 0x48A1AE (mines, then wood 0x48C060). Surplus workers are never taken back.
 - Demand: added by 0x48B9E9 (costs via AdjustCost), subtracted by 0x48D050 / 0x48B6E8 and by AddResource.
+- Research manager (cm+0x40, Update 0x486A74): +8 vector = pool of candidate techs; +0x18 + e*0x10 = scheduled
+  lists per epoch (vector begin/end), researched by 0x4865D3 one per tick; +0x114 epoch. Random planner 0x4858D9
+  (every player+0xE04 s x random) only while +0x11A is set; schedules with 0x485F57(tech) (requests the building,
+  adds demand). Tech record (tech tree lookup 0x4019A1): +4 researched, +6 available, +8 data (+0x24.. cost,
+  +0x50 effect list index: 0x93B1B8 + i*0x10, +4 ids, +8 count; effect 0x919E70 + id*0x44: +0x14 unit type
+  (-1 all), +0x20 kind (2 = attribute), +0x2C attribute (0x1A.. gathering rates)).
+- Attention 0x42F912: per period only player+0xE20 + 1 (4+1) activities are enabled, ordered by strategy +0xA28:
+  0 cm+0x7A (request epoch requirement techs), 1 rm+0x188, 2 rs+0x11A (random research), 3 um+0x140, 4 cm+0x7B
+  (build manager pass in 0x46CD18), 5 cm+0x7C, 6 [b8c+0x4C]+0x48, 7 b98+0x2D, 8 b8c+0x62.
 - Citizens wanted = citizen share (player+0xBDC, 0.45 by default) x population cap (0x48EDDB); trained in
   batches of up to 10. Military slots = (1 - share) x cap (0x47049E); set by 0x43F42E (scenario trigger).
 - Mine search 0x48C204 thiscall(rm, type, unit, reverse): first site in zone order (reverse = from the last zone)
