@@ -302,13 +302,17 @@ static void __fastcall hook_pay(void *pl, void *edx, void *what, int b, int c) {
         if (before[r] > stock[r]) spend_note((unsigned)FIELD(pl, PL_INDEX, int) & 15, r, before[r] - stock[r], site);
 }
 #define FN_CP_ADD_RESOURCE 0x0042F783   // EEComputerPlayer::vf18(type, amount)
+#define FARM_EPOCH 2   // farms and granaries come with epoch 2, the Copper Age
+static int current_epoch(void *pl);
 static void __fastcall hook_add_resource(void *pl, void *edx, int type, int amount) {
     (void)edx;
     ((void (__thiscall *)(void *, int, int))FN_CP_ADD_RESOURCE)(pl, type, amount);
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     if (amount > 0 && type >= 2 && type < 7 && g_bud[idx].init) {
         g_bud[idx].income[type] += amount;
-        g_bud[idx].mil[type] += amount * cfg_of(pl)->mil_income_share;
+        // from the Copper Age (farms: food no longer runs out) a player turns most of his income into army
+        const struct ai_cfg *c = cfg_of(pl);
+        g_bud[idx].mil[type] += amount * (current_epoch(pl) >= FARM_EPOCH ? c->mil_income_share_farms : c->mil_income_share);
     }
 }
 
@@ -344,7 +348,6 @@ static void *um_owner(void *um) {
 // remaining cost of getting there (Stone 850 food; Copper 750 food, 400 gold, 400 iron) against military
 // spending, and advances as soon as it can pay for the next epoch instead of waiting for its 50-70 minute
 // timer. From the Copper Age on the normal timer and the faded-in reserve apply.
-#define FARM_EPOCH 2
 static int g_min_workforce = 20;   // economy first: below this, citizens ignore the reserve and no early advance
 
 static int workforce(void *pl) {

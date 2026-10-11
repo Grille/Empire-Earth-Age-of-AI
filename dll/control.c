@@ -135,8 +135,10 @@ static void cmd_status(char *out) {
         void *pl = g_players[i];
         if (!pl) continue;
         void *tt = FIELD(pl, PL_TECHTREE, void *);
-        REPLY("P%d @%p epoch=%d difficulty=%d cheat=%d stock(food,wood,stone,gold,iron)=", i, pl,
-            tt ? FIELD(tt, TT_EPOCH, int) : -1, FIELD(pl, PL_DIFFICULTY, int), FIELD(pl, PL_CHEAT, uint8_t));
+        REPLY("P%d @%p epoch=%d difficulty=%d cheat=%d popcap=%d (own %d, game %d) citizen_share=%.2f stock(food,wood,stone,gold,iron)=", i, pl,
+            tt ? FIELD(tt, TT_EPOCH, int) : -1, FIELD(pl, PL_DIFFICULTY, int), FIELD(pl, PL_CHEAT, uint8_t),
+            ((int (__thiscall *)(void *, int))(*(void ***)pl)[31])(pl, 0), FIELD(pl, 0xCCC, int), *(int *)0x009183D4,
+            FIELD(pl, 0xBDC, float));
         for (int r = 2; r < 7; r++) REPLY("%d%s", ((int *)((uint8_t *)pl + PL_STOCK))[r], r < 6 ? "," : "");
         void *cm = FIELD(pl, 0xB90, void *);
         void *rm = cm ? FIELD(cm, 0x38, void *) : NULL;

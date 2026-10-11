@@ -17,7 +17,7 @@
 
 struct ai_cfg {
     int copper_plan, budget, safe_sites;
-    float mil_start_share, mil_income_share;
+    float mil_start_share, mil_income_share, mil_income_share_farms;   // income share before / from the Copper Age (farms)
     int cost_percent;       // 0 = leave the game's Cheat setting alone
     int pacing_fast;        // 1 = advance as soon as affordable (all epochs)
     int epoch_min, epoch_max;
@@ -61,6 +61,7 @@ static void settings_load(const char *ini, const char *test_ini) {
         c->safe_sites = cfg_int(ini, test_ini, d, "safe_sites", 0);
         c->mil_start_share = cfg_float(ini, test_ini, d, "military_start_share", "0.30");
         c->mil_income_share = cfg_float(ini, test_ini, d, "military_income_share", "0.40");
+        c->mil_income_share_farms = cfg_float(ini, test_ini, d, "military_income_share_farms", "0.65");
         c->cost_percent = cfg_int(ini, test_ini, d, "cost_percent", 0);
         char pacing[16];
         cfg_str(ini, test_ini, d, "epoch_pacing", "timer", pacing, sizeof pacing);
@@ -81,10 +82,10 @@ static void settings_load(const char *ini, const char *test_ini) {
         c->attack_revenge = cfg_int(ini, test_ini, d, "attack_revenge", -1);
         c->citizen_share = cfg_float(ini, test_ini, d, "citizen_share", "0");
         if (g_log)
-            fprintf(g_log, "# settings %-6s copper_plan=%d budget=%d (military %.2f/%.2f) safe_sites=%d cost=%d%% "
+            fprintf(g_log, "# settings %-6s copper_plan=%d budget=%d (military %.2f/%.2f/%.2f) safe_sites=%d cost=%d%% "
                     "pacing=%s epoch=%d-%d wait_for_player=%d attacks first %d-%d every %d-%d group %d%% "
                     "contact %d resources %d revenge %d citizens %.2f\n", k_diff_sections[d], c->copper_plan, c->budget,
-                    c->mil_start_share, c->mil_income_share, c->safe_sites, c->cost_percent,
+                    c->mil_start_share, c->mil_income_share, c->mil_income_share_farms, c->safe_sites, c->cost_percent,
                     c->pacing_fast ? "fast" : "timer", c->epoch_min, c->epoch_max, c->wait_for_player,
                     c->first_attack_min, c->first_attack_max, c->attack_min, c->attack_max, c->attack_group_percent,
                     c->attack_on_contact, c->attack_for_resources, c->attack_revenge, c->citizen_share);

@@ -8,15 +8,15 @@
 //   +0x3F4 wonders for victory, +0x3F8 difficulty (1 medium), +0x400 option bytes.
 //   Map seed: world (0x91977C) +0x54.
 // Ini keys: random_map=<script name>, map_size, ai_count (1..7), start_epoch, seed, teams=ffa|pairs,
-//   citizens. AI toggles at their first update: ai_cheat (0/1), ai_ignore (Ignorieren 0/1).
+//   citizens, unit_limit (500). AI toggles at their first update: ai_cheat (0/1), ai_ignore (Ignorieren 0/1).
 // Included by eeaimod.c.
 
 static struct {
     char map[64];
-    int size, ais, start_epoch, seed, pairs, citizens;
+    int size, ais, start_epoch, seed, pairs, citizens, unit_limit;
     int ai_cheat, ai_ignore;   // -1 = leave as the game sets them
     int epoch_min, epoch_max;  // test-only epoch timer in minutes (0 = game setting)
-} g_rm = { "", 0, 3, 0, 0, 0, 5, -1, -1, 0, 0 };
+} g_rm = { "", 0, 3, 0, 0, 0, 5, 500, -1, -1, 0, 0 };
 
 typedef void *(__thiscall *UStrAssignFn)(void *ustr, const char *s);
 #define IAT_USTRING_ASSIGN 0x00823228   // UString::operator=(const char *)
@@ -33,6 +33,7 @@ static void randmap_load(const char *ini) {
     GetPrivateProfileStringA("autotest", "teams", "ffa", t, sizeof t, ini);
     g_rm.pairs = !lstrcmpiA(t, "pairs");
     g_rm.citizens = GetPrivateProfileIntA("autotest", "citizens", 5, ini);
+    g_rm.unit_limit = GetPrivateProfileIntA("autotest", "unit_limit", 500, ini);   // the game's, shared by all players
     g_rm.ai_cheat = GetPrivateProfileIntA("autotest", "ai_cheat", -1, ini);
     g_rm.ai_ignore = GetPrivateProfileIntA("autotest", "ai_ignore", -1, ini);
     g_rm.epoch_min = GetPrivateProfileIntA("autotest", "epoch_min", 0, ini);
@@ -63,7 +64,7 @@ static void randmap_rewrite(uint8_t *setup) {
     *(int *)(setup + 0x3E4) = 13;
     *(int *)(setup + 0x3E8) = g_rm.size;
     *(int *)(setup + 0x3EC) = 3;
-    *(int *)(setup + 0x3F0) = 500;
+    *(int *)(setup + 0x3F0) = g_rm.unit_limit;
     *(int *)(setup + 0x3F4) = 3;
     *(int *)(setup + 0x3F8) = 1;
     *(int *)(setup + 0x3FC) = 0;

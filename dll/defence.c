@@ -342,10 +342,12 @@ static void counter_siege(void *pl, unsigned idx, uint32_t now) {
 // only trains what is ordered into its request queues - mostly the next attack's group, ordered shortly before the
 // attack. Between attacks nothing is trained: at minute 45 a Bronze Age AI had 10 soldiers, 25 requests in 5
 // minutes and 1555 food + 1554 wood in its military account; a raid met 2-5 defenders. A player keeps a force at
-// home. Every 10 s: fewer than 6 + home_guard x epoch own soldiers within 25 tiles of the base -> up to 5 more through
+// home. Every 10 s: fewer than max(6 + home_guard x epoch, home_guard_share x military room) own soldiers within 25
+// tiles of the base (room = population cap x (1 - citizen share): 0.35 x 166 x 0.55 = 32) -> up to 5 more through
 // the train hook (budget applies), type: the strongest trainable land soldier (substitution picks what the budget
 // pays for).
 static int g_home_guard = 4;
+static float g_home_share = 0.35f;   // aimod.ini home_guard_share: of the military room (cap x (1 - citizen share))
 static unsigned g_home_trained[16];
 struct home_scan { void *pl; int bx, by, n; };
 static void home_unit(uint8_t *u, void *ctx) {
@@ -367,7 +369,11 @@ static void home_guard(void *pl, unsigned idx, uint32_t now) {
     uint8_t *bm = cm ? FIELD(cm, 0x3C, uint8_t *) : NULL;
     if (!um || !bm || FIELD(bm, 0x12C, int) == -10000) return;
     int e = current_epoch(pl), target = 6 + g_home_guard * e;
-    if (target > 60) target = 60;
+    // and a share of the military room: population cap (vf31 - follows the human's population unless Ignorieren) x
+    // (1 - citizen share +0xBDC)
+    int cap = ((int (__thiscall *)(void *, int))(*(void ***)pl)[31])(pl, 0);
+    int room = (int)((float)cap * (1.0f - FIELD(pl, 0xBDC, float)) * g_home_share);
+    if (room > target) target = room;
     int home = home_soldiers(pl, FIELD(bm, 0x12C, int), FIELD(bm, 0x130, int));
     if (home >= target) return;
     int big[7] = { 0, 0, 1 << 20, 1 << 20, 1 << 20, 1 << 20, 1 << 20 }, got = 0;
@@ -505,7 +511,8 @@ static void defence_install(const char *aimod_ini, const char *autotest_ini) {
     g_def_more = cfg_int(aimod_ini, autotest_ini, 1, "defence_towers", 1);
     g_csiege = cfg_int(aimod_ini, autotest_ini, 1, "counter_siege", 1);
     g_home_guard = cfg_int(aimod_ini, autotest_ini, 1, "home_guard", 4);
+    g_home_share = cfg_float(aimod_ini, autotest_ini, 1, "home_guard_share", "0.35");
     BOOL guard = patch_call(CALL_DAMAGE_POINTS, FN_DAMAGE_POINTS, damage_points_thunk);
     if (g_log) fprintf(g_log, "# engine guard: damage points %s\n", guard ? "ok" : "FAILED");
-    if (g_log) fprintf(g_log, "# defence: layout=%d distance=%d walls=%d own towers=%d counter-siege=%d home guard=%d/epoch\n", g_def, g_def_dist, g_def_walls, g_def_more, g_csiege, g_home_guard);
+    if (g_log) fprintf(g_log, "# defence: layout=%d distance=%d walls=%d own towers=%d counter-siege=%d home guard=%d/epoch, %.2f of the military room\n", g_def, g_def_dist, g_def_walls, g_def_more, g_csiege, g_home_guard, g_home_share);
 }
