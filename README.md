@@ -167,3 +167,16 @@ Settings in `aimod.ini`:
 - Attack tuning: settings are in `aimod.ini`.
 - Attack routing: in development.
 - An Art of Conquest port is planned (the AI classes are the same, the addresses differ).
+
+## License
+
+Copyright (C) 2026 Paul Hirch.
+
+This mod is free software under the [GNU General Public License v3.0](LICENSE): you may use, share and change
+it, and anything you distribute that is built from it must be published under the same license, with its
+source code.
+
+Empire Earth and its files belong to their rights holders and are not part of this repository; files derived
+from them (decompilation, extracted strings and tables) are kept out of git (see `.gitignore`). Addresses,
+offsets and similar facts about the game, including those cross-checked with the community's GPL-3.0 projects
+at [EE-modders](https://github.com/EE-modders), are documented in `docs/`.
