@@ -293,6 +293,13 @@ client size - the back buffer follows the game resolution - so present scales it
 display DLLs' import tables runs in a per-monitor-aware thread context, so the window isn't bitmap-stretched
 by Windows; present and the mouse code switch their (unaware) threads to the window's context for geometry calls.
 
+Presenting (dll/present_d3d.c): by default the locked frame is uploaded to a Direct3D 11 texture and drawn
+by a flip-model swap chain on the game window (GPU scaling, tearing allowed when vsync=0); `present=gdi`
+keeps the CPU path (StretchDIBits, or for `smooth=1` a multithreaded bilinear scaler - GDI's HALFTONE took
+~35 ms per frame at 2560x1440). The GDI path into a visible window held 60 fps on a 120 Hz screen; headless
+measurements: game ~10 ms per frame at 2560x1440, Direct3D present ~1.3 ms, GDI ~2.4 ms (ddinfo "present
+timing", ddpoke bench).
+
 dreXmod.dll briefly hooks 0x534433 while the DLLs load (a JMP at the function start, restored later).
 Plain Windows ddraw.dll crashed EE at startup here; with dgVoodoo's ddraw.dll in the folder (even in
 pass-through) it starts.

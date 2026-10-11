@@ -290,7 +290,9 @@ static uint32_t *scale_frame(const DDSURFACEDESC2 *d, int dw, int dh) {
     return buf;
 }
 
-// timing of the windowed present (ddinfo): readback (Lock), GDI copy, whole frame interval, in QPC ticks
+#include "present_d3d.c"
+
+// timing of the windowed present (ddinfo): readback (Lock), copy to the window (GDI or Direct3D), frame interval
 static volatile LONG64 g_t_lock, g_t_blit, g_t_frame;
 static volatile LONG g_t_count;
 static LONGLONG qpc(void) { LARGE_INTEGER t; QueryPerformanceCounter(&t); return t.QuadPart; }
@@ -341,10 +343,25 @@ static int present_to_window(uint8_t *ras, unsigned screen) {
     }
     window_hook(hwnd);
     void *dpi = dpi_enter(hwnd);
-    HDC wdc = GetDC(hwnd);
     RECT cr;
     GetClientRect(hwnd, &cr);
     RECT v = view_rect(&cr, (int)d.dwWidth, (int)d.dwHeight);
+    if (present_d3d(&d, hwnd, &cr, &v)) {
+        LONGLONG t2 = qpc();
+        if (t_last) {
+            InterlockedAdd64(&g_t_lock, t1 - t0);
+            InterlockedAdd64(&g_t_blit, t2 - t1);
+            InterlockedAdd64(&g_t_frame, t0 - t_last);
+            InterlockedIncrement(&g_t_count);
+        }
+        t_last = t0;
+        dpi_leave(dpi);
+        ValidateRect(hwnd, NULL);
+        s->lpVtbl->Unlock(s, NULL);
+        InterlockedIncrement(&g_present_frames);
+        return 1;
+    }
+    HDC wdc = GetDC(hwnd);
     if (v.left > 0 || v.top > 0) {   // bars
         HBRUSH black = (HBRUSH)GetStockObject(BLACK_BRUSH);
         RECT b1 = { 0, 0, v.left > 0 ? v.left : cr.right, v.left > 0 ? cr.bottom : v.top };
@@ -1106,6 +1123,10 @@ static void display_install(const char *aimod_ini, const char *autotest_ini) {
         g_lock_mouse = GetPrivateProfileIntA("display", "lock_mouse", 0, aimod_ini);
         int input = install_windowed_input();
         g_smooth = GetPrivateProfileIntA("display", "smooth", 0, aimod_ini);
+        GetPrivateProfileStringA("display", "present", "d3d", tmp, sizeof tmp, aimod_ini);
+        if (autotest_ini) { char at[32]; lstrcpynA(at, tmp, sizeof at); GetPrivateProfileStringA("autotest", "present", at, tmp, sizeof tmp, autotest_ini); }
+        g_present_d3d = lstrcmpiA(tmp, "gdi") != 0;
+        g_vsync = GetPrivateProfileIntA("display", "vsync", 0, aimod_ini);
         int dpi = 0;
         if (GetPrivateProfileIntA("display", "dpi_aware", 1, aimod_ini)) {
             HMODULE u = GetModuleHandleA("user32.dll");
@@ -1457,7 +1478,7 @@ static void cmd_ddinfo(char *out, const char *args) {
         LONG n = InterlockedExchange(&g_t_count, 0);
         double ms = 1000.0 / (double)f.QuadPart;
         LONG64 tl = InterlockedExchange64(&g_t_lock, 0), tb = InterlockedExchange64(&g_t_blit, 0), tf = InterlockedExchange64(&g_t_frame, 0);
-        if (n) REPLY("present timing over %ld frames: frame %.2f ms, readback (Lock) %.2f ms, GDI copy %.2f ms, rest (game) %.2f ms\n",
+        if (n) REPLY("present timing over %ld frames: frame %.2f ms, readback (Lock) %.2f ms, to the window %.2f ms, rest (game) %.2f ms\n",
                      n, tf * ms / n, tl * ms / n, tb * ms / n, (tf - tl - tb) * ms / n);
     }
     REPLY("frame stats (FPS display): %.1f frames/s, %.1f / %.1f per s\n", FIELD(st, 0x2D8, float), FIELD(st, 0x2D4, float), FIELD(st, 0x2E0, float));
