@@ -349,7 +349,7 @@ static void *um_owner(void *um) {
 // remaining cost of getting there (Stone 850 food; Copper 750 food, 400 gold, 400 iron) against military
 // spending, and advances as soon as it can pay for the next epoch instead of waiting for its 50-70 minute
 // timer. From the Copper Age on the normal timer and the faded-in reserve apply.
-static int g_min_workforce = 20;   // economy first: below this, citizens ignore the reserve and no early advance
+static int g_min_workforce = 40;   // economy first: below this, citizens ignore the reserve and no early advance
 
 static int workforce(void *pl) {
     void *cm = FIELD(pl, 0xB90, void *);
@@ -775,7 +775,7 @@ static void econ_install(const char *aimod_ini, const char *autotest_ini) {
     g_citizen_slack = cfg_int(aimod_ini, autotest_ini, 1, "idle_citizen_slack", 9999);
     g_hoard_cap = cfg_int(aimod_ini, autotest_ini, 1, "hoard_cap", 3000);
     g_hoard_cap_mineral = cfg_int(aimod_ini, autotest_ini, 1, "hoard_cap_mineral", 600);
-    g_min_workforce = cfg_int(aimod_ini, autotest_ini, 1, "min_workforce", 20);
+    g_min_workforce = cfg_int(aimod_ini, autotest_ini, 1, "min_workforce", 40);
     g_wild_share = cfg_float(aimod_ini, autotest_ini, 1, "wild_food_share", "0.6");
     g_reserve_window_ms = cfg_int(aimod_ini, autotest_ini, 1, "reserve_window_min", 5) * 60000;
     g_rebalance = cfg_int(aimod_ini, autotest_ini, 1, "rebalance_workers", 1);
