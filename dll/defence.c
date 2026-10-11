@@ -1,0 +1,328 @@
+// Defences: how the AI fortifies its base. Included by eeaimod.c after attack.c (uses its defence_stats, is_wall).
+
+// Callback over every unit of the unit grid (each unit once: only in the cell of its own position).
+static void grid_each(void (*fn)(uint8_t *u, void *ctx), void *ctx) {
+    uint8_t *map = *(uint8_t **)G_MAP;
+    uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
+    if (!grid) return;
+    uint8_t *cells = FIELD(grid, 4, uint8_t *);
+    int cs = FIELD(grid, 8, int);
+    unsigned ny = FIELD(grid, 0x14, unsigned), count = FIELD(grid, 0x10, unsigned) * ny;
+    for (unsigned c = 0; cells && cs > 0 && c < count; c++)
+        for (uint8_t **b = FIELD(cells + c * 16, 4, uint8_t **); b && b < FIELD(cells + c * 16, 8, uint8_t **); b++) {
+            uint8_t *u = *b;
+            if (!u || !FIELD(u, 0x2C, uint8_t *)) continue;
+            if (FIELD(u, 0x1C, int) / cs != (int)(c / ny) || FIELD(u, 0x20, int) / cs != (int)(c % ny)) continue;
+            fn(u, ctx);
+        }
+}
+
+// DEFENCE LAYOUT (aimod.ini [all] defence_layout, default on). The game's AI decides when and how many towers to
+// build (its building plan, cm 0x46CD18) and puts each where its spot finder (0x466ED4) finds room along paths from
+// the base - observed: 4 bronze towers scattered one by one on the side away from the enemy, none at the mines. A
+// player masses towers where the attacks come from and guards his outlying mines. Here the AI's own tower requests
+// (build queue entries without a position) are placed instead:
+//   front: towards the nearest enemy building this AI has seen (up to 2 enemies; nothing seen yet -> the map centre),
+//          defence_distance (10) tiles from the base centre, slots 3 tiles apart across that direction - close
+//          enough that the towers cover each other (range 5+);
+//   outposts: one slot on the enemy side of every own drop site 12+ tiles from the base (settlements at mines).
+//   Order: 3 at the first front, 3 at the second, the outposts, then 2 more per front.
+// Each slot is checked with the game's own placement test (0x62E940, every tile of the footprint) within 2 tiles.
+// WALLS (defence_walls, default on): the game's wall manager (cm+0x48) works on a ring around the base one segment at
+// a time and in practice leaves one stray piece with a gate. Walls belong in front of towers: once 2 towers stand at a
+// front, an 11-tile wall arc goes up 3 tiles in front of them (the wall manager's own 0x497C3F(from, to, type): the
+// citizens get the same build-wall order a player gives). The ends stay open - own units walk round, attackers on
+// foot must break through or walk the length of it under tower fire.
+#define FN_CAN_PLACE   0x0062E940   // cdecl char(player, type, x, y, w, h, 0)
+#define FN_BUILD_WALL  0x00497C3F   // thiscall(wall manager, int from[2], int to[2], type, char)
+static int g_def = 1, g_def_dist = 10, g_def_walls = 1, g_def_more = 1;
+static uint8_t g_def_off[16];   // per player, pipe "defence P 0|1" (A/B scenarios)
+static unsigned g_def_towers[16], g_def_walls_built[16];
+struct front { int fx, fy, enemy; float dx, dy; int wall_tries; uint32_t wall_t; };
+static struct def_plan {
+    void *pl; uint32_t t; int bx, by, nf, nout;
+    struct front f[2];
+    int out[8][2];
+    struct { int x, y; uint32_t t; } pend[8];   // slots given out recently (the construction may not show yet)
+} g_plan[16];
+
+static int is_tower_type(int t) { return t == 47 || t == 328 || (t >= 461 && t <= 466); }
+static int can_place(void *pl, int type, int x, int y) {
+    uint8_t *td = (type >= 0 && type < 2048) ? ((uint8_t **)0x009418A0)[type] : NULL;
+    uint8_t *map = *(uint8_t **)G_MAP;
+    int n = map ? (int)FIELD(map, 0x1816FC, uint32_t) : 0, sz = td ? FIELD(td, 0x58C, int) : 0;
+    if (!td || x < 2 || y < 2 || x >= n - 2 || y >= n - 2) return 0;
+    if (sz < 1) sz = 1;
+    return ((char (__cdecl *)(void *, int, int, int, int, int, int))FN_CAN_PLACE)(pl, type, x, y, sz, sz, 0) != 0;
+}
+
+struct def_scan { void *pl; int bx, by; int d2[16], x[16], y[16]; int towers, tx[64], ty[64]; int walls, wx[256], wy[256]; };
+static void def_scan_unit(uint8_t *u, void *ctx) {
+    struct def_scan *s = ctx;
+    uint8_t *td = FIELD(u, 0x2C, uint8_t *);
+    void *owner = FIELD(u, 0x18, void *);
+    int fam = FIELD(td, 0x4B4, int), x = FIELD(u, 0x1C, int), y = FIELD(u, 0x20, int);
+    if (fam != 2 && fam != 29) return;
+    if (owner == s->pl) {
+        if (is_tower_type(FIELD(td, 0x4B8, int)) && s->towers < 64) { s->tx[s->towers] = x; s->ty[s->towers++] = y; }
+        else if (is_wall(FIELD(td, 0x4B8, int)) && s->walls < 256) { s->wx[s->walls] = x; s->wy[s->walls++] = y; }
+        return;
+    }
+    if (!owner || !is_enemy(s->pl, owner) || !seen_by(u, s->pl)) return;
+    unsigned pi = (unsigned)FIELD(owner, PL_INDEX, int) & 15;
+    int d2 = (x - s->bx) * (x - s->bx) + (y - s->by) * (y - s->by);
+    if (d2 < s->d2[pi]) { s->d2[pi] = d2; s->x[pi] = x; s->y[pi] = y; }
+}
+
+static struct def_scan g_scan;   // last scan (own towers), sim thread only
+static void def_refresh(void *pl, unsigned idx, uint32_t now) {
+    struct def_plan *p = &g_plan[idx];
+    if (p->pl == pl && now >= p->t && now - p->t < 30000) return;
+    if (p->pl != pl) memset(p, 0, sizeof *p);
+    p->pl = pl; p->t = now;
+    void *cm = FIELD(pl, 0xB90, void *);
+    uint8_t *bm = cm ? FIELD(cm, 0x3C, uint8_t *) : NULL;
+    p->nf = p->nout = 0;
+    if (!bm || FIELD(bm, 0x12C, int) == -10000) return;
+    p->bx = FIELD(bm, 0x12C, int); p->by = FIELD(bm, 0x130, int);
+    struct def_scan *s = &g_scan;
+    memset(s, 0, sizeof *s);
+    s->pl = pl; s->bx = p->bx; s->by = p->by;
+    for (int i = 0; i < 16; i++) s->d2[i] = 0x7FFFFFFF;
+    grid_each(def_scan_unit, s);
+    struct front old[2];
+    memcpy(old, p->f, sizeof old);
+    for (int k = 0; k < 2; k++) {   // the two nearest enemies
+        int best = -1;
+        for (int i = 0; i < 16; i++)
+            if (s->d2[i] != 0x7FFFFFFF && (best < 0 || s->d2[i] < s->d2[best]) && (k == 0 || i != p->f[0].enemy)) best = i;
+        float dx, dy;
+        if (best >= 0) { dx = (float)(s->x[best] - p->bx); dy = (float)(s->y[best] - p->by); }
+        else if (k == 0) {   // nothing seen yet: towards the map centre
+            uint8_t *map = *(uint8_t **)G_MAP;
+            int n = map ? (int)FIELD(map, 0x1816FC, uint32_t) : 0;
+            dx = (float)(n / 2 - p->bx); dy = (float)(n / 2 - p->by);
+        } else break;
+        float len = sqrtf(dx * dx + dy * dy);
+        if (len < 4.0f) break;
+        struct front *f = &p->f[p->nf];
+        f->dx = dx / len; f->dy = dy / len; f->enemy = best;
+        f->fx = p->bx + (int)lroundf(f->dx * (float)g_def_dist);
+        f->fy = p->by + (int)lroundf(f->dy * (float)g_def_dist);
+        // keep the wall state while the front stays where it was
+        f->wall_tries = 0; f->wall_t = 0;
+        for (int j = 0; j < 2; j++)
+            if (abs(old[j].fx - f->fx) <= 2 && abs(old[j].fy - f->fy) <= 2) { f->wall_tries = old[j].wall_tries; f->wall_t = old[j].wall_t; }
+        p->nf++;
+    }
+    static int d[64][3];
+    int nd = drop_sites(pl, d, 64);
+    for (int i = 0; i < nd && p->nout < 8; i++) {
+        int dx = d[i][0] - p->bx, dy = d[i][1] - p->by;
+        if (d[i][2] || dx * dx + dy * dy < 144 || !p->nf) continue;
+        p->out[p->nout][0] = d[i][0] + (int)lroundf(p->f[0].dx * 3.0f);
+        p->out[p->nout][1] = d[i][1] + (int)lroundf(p->f[0].dy * 3.0f);
+        p->nout++;
+    }
+}
+
+// Slot i of the plan in build order, 0 when there is none.
+static int def_slot(struct def_plan *p, int i, int *x, int *y) {
+    static const int first[3] = { 0, -1, 1 }, more[2] = { -2, 2 };
+    for (int k = 0; k < p->nf; k++, i -= 3)
+        if (i < 3) { *x = p->f[k].fx + (int)lroundf(-p->f[k].dy * 3.0f * first[i]); *y = p->f[k].fy + (int)lroundf(p->f[k].dx * 3.0f * first[i]); return 1; }
+    if (i < p->nout) { *x = p->out[i][0]; *y = p->out[i][1]; return 1; }
+    i -= p->nout;
+    for (int k = 0; k < p->nf; k++, i -= 2)
+        if (i < 2) { *x = p->f[k].fx + (int)lroundf(-p->f[k].dy * 3.0f * more[i]); *y = p->f[k].fy + (int)lroundf(p->f[k].dx * 3.0f * more[i]); return 1; }
+    return 0;
+}
+
+// From the build manager's placement (econ.c hook_place): a position for a tower request without one.
+static int defence_spot(void *pl, int type, int *ox, int *oy) {
+    if (!g_def || !pl || !is_tower_type(type)) return 0;
+    unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
+    if (g_def_off[idx]) return 0;
+    uint32_t now = game_time();
+    def_refresh(pl, idx, now);
+    struct def_plan *p = &g_plan[idx];
+    struct def_scan *s = &g_scan;
+    if (s->pl != pl) { p->t = now - 60000; def_refresh(pl, idx, now); }   // the scan belongs to another AI
+    int x, y;
+    for (int i = 0; def_slot(p, i, &x, &y); i++) {
+        int taken = 0;
+        for (int t = 0; t < s->towers && !taken; t++) taken = abs(s->tx[t] - x) <= 2 && abs(s->ty[t] - y) <= 2;
+        for (int t = 0; t < 8 && !taken; t++)
+            taken = p->pend[t].t && now - p->pend[t].t < 90000 && abs(p->pend[t].x - x) <= 2 && abs(p->pend[t].y - y) <= 2;
+        if (taken) continue;
+        for (int r = 0; r <= 2; r++)
+            for (int ax = -r; ax <= r; ax++)
+                for (int ay = -r; ay <= r; ay++) {
+                    if ((abs(ax) != r && abs(ay) != r) || !can_place(pl, type, x + ax, y + ay)) continue;
+                    *ox = x + ax; *oy = y + ay;
+                    int o = 0;
+                    for (int t = 1; t < 8; t++) if (p->pend[t].t < p->pend[o].t) o = t;
+                    p->pend[o].x = *ox; p->pend[o].y = *oy; p->pend[o].t = now ? now : 1;
+                    g_def_towers[idx]++;
+                    if (g_log) fprintf(g_log, "# defence: P%u tower %d at %d,%d (slot %d; base %d,%d, front %d,%d)\n",
+                                       idx, type, *ox, *oy, i, p->bx, p->by, p->nf ? p->f[0].fx : -1, p->nf ? p->f[0].fy : -1);
+                    return 1;
+                }
+    }
+    return 0;
+}
+
+// Tile (x, y) within 1 tile of the segment a-b (sampled at 11 points).
+static int on_segment(int x, int y, const int *a, const int *b) {
+    for (int j = 0; j <= 10; j++)
+        if (abs(x - (a[0] + (b[0] - a[0]) * j / 10)) <= 1 && abs(y - (a[1] + (b[1] - a[1]) * j / 10)) <= 1) return 1;
+    return 0;
+}
+
+// Walls: per AI every 20 s (econ_tick). Best wall type the player can build now (0x555710: available, affordable).
+static void defence_tick(void *pl, unsigned idx, uint32_t now) {
+    static uint32_t last[16];
+    if (!g_def || !g_def_walls || g_def_off[idx] || (now >= last[idx] && now - last[idx] < 20000)) return;
+    last[idx] = now;
+    def_refresh(pl, idx, now);
+    struct def_plan *p = &g_plan[idx];
+    struct def_scan *s = &g_scan;
+    if (s->pl != pl) return;
+    void *cm = FIELD(pl, 0xB90, void *), *wm = cm ? FIELD(cm, 0x48, void *) : NULL;
+    uint8_t *bm = cm ? FIELD(cm, 0x3C, uint8_t *) : NULL;
+    if (!wm || !bm) return;
+    int *stock = (int *)((uint8_t *)pl + PL_STOCK);
+    // Towers of our own: the game's plan asks for few (P3: none in the first 15 minutes of a Bronze start, with 685
+    // stone in stock - stone has hardly another use). While a slot of the plan is free and the stone allows (100 kept
+    // back), one tower per minute goes into the build queue with its position; nothing while one is still queued.
+    static uint32_t last_tower[16];
+    if (g_def_more && (!last_tower[idx] || now < last_tower[idx] || now - last_tower[idx] >= 60000)) {
+        int queued = 0;
+        for (int t = 461; t <= 466 && !queued; t++) queued = bq_has(bm, t);
+        if (!queued) queued = bq_has(bm, 47);
+        int ttype = 0;
+        for (int t = 466; t >= 461 && !ttype; t--)
+            if (((char (__thiscall *)(void *, int, int, int))0x00555710)(pl, t, 0x20, 0)) ttype = t;
+        if (!ttype && ((char (__thiscall *)(void *, int, int, int))0x00555710)(pl, 47, 0x20, 0)) ttype = 47;
+        int x, y, e = current_epoch(pl);
+        if (!queued && ttype && stock[4] >= unit_cost(pl, ttype, 4) + 100 && e >= 0 && e < 14 &&
+            defence_spot(pl, ttype, &x, &y)) {
+            int entry[3] = { ttype, x, y };
+            ((void (__thiscall *)(void *, int *))0x00468C37)(bm + 4 + e * 0x14, entry);
+            last_tower[idx] = now ? now : 1;
+            if (g_log) fprintf(g_log, "# defence: P%u queues tower %d at %d,%d (stone %d)\n", idx, ttype, x, y, stock[4]);
+        }
+    }
+    for (int k = 0; k < p->nf; k++) {
+        struct front *f = &p->f[k];
+        if (f->wall_tries >= 3 || (f->wall_t && now - f->wall_t < 180000)) continue;
+        int ntow = 0;
+        for (int t = 0; t < s->towers; t++)
+            ntow += abs(s->tx[t] - f->fx) <= 7 && abs(s->ty[t] - f->fy) <= 7;
+        if (ntow < 2) continue;
+        int wtype = 0;
+        for (int t = 472; t >= 467 && !wtype; t--)
+            if (((char (__thiscall *)(void *, int, int, int))0x00555710)(pl, t, 0x20, 0)) wtype = t;
+        if (!wtype) continue;
+        int ok = 1;
+        for (int r = 2; r < 7; r++) if (stock[r] < 11 * unit_cost(pl, wtype, r)) ok = 0;
+        if (!ok) continue;
+        int cx = f->fx + (int)lroundf(f->dx * 3.0f), cy = f->fy + (int)lroundf(f->dy * 3.0f);
+        int a[2] = { cx + (int)lroundf(-f->dy * 5.0f), cy + (int)lroundf(f->dx * 5.0f) };
+        int b[2] = { cx - (int)lroundf(-f->dy * 5.0f), cy - (int)lroundf(f->dx * 5.0f) };
+        int have = 0;   // wall pieces standing on the arc (then a new order only repairs)
+        for (int w = 0; w < s->walls; w++) have += on_segment(s->wx[w], s->wy[w], a, b);
+        if (have >= 8) continue;
+        ((void (__thiscall *)(void *, int *, int *, int, char))FN_BUILD_WALL)(wm, a, b, wtype, 0);
+        f->wall_tries++;
+        f->wall_t = now ? now : 1;
+        g_def_walls_built[idx]++;
+        if (g_log) fprintf(g_log, "# defence: P%u wall %d from %d,%d to %d,%d in front of %d towers (front %d,%d)\n",
+                           idx, wtype, a[0], a[1], b[0], b[1], ntow, f->fx, f->fy);
+        return;   // one order per tick
+    }
+}
+
+// basemap P [r]: the map around AI player P's base (build manager +0x12C/+0x130), 2 characters per tile:
+// T tower (own defence with a ground attack), W wall, G gate, C Town Center/Capitol/Settlement, b other own building,
+// c citizen, s soldier, m mine (stone/gold/iron site), digits = other players' buildings/units (player index),
+// o planned tower slot (defence layout).
+struct basemap { void *pl; int x0, y0, r; char *g; };
+static void basemap_unit(uint8_t *u, void *ctx) {
+    struct basemap *m = ctx;
+    int x = FIELD(u, 0x1C, int) - m->x0 + m->r, y = FIELD(u, 0x20, int) - m->y0 + m->r, w = 2 * m->r + 1;
+    if (x < 0 || y < 0 || x >= w || y >= w) return;
+    uint8_t *td = FIELD(u, 0x2C, uint8_t *);
+    void *owner = FIELD(u, 0x18, void *);
+    int type = FIELD(td, 0x4B8, int), fam = FIELD(td, 0x4B4, int);
+    char ch, *cell = &m->g[y * w + x];
+    float r, a;
+    if (owner != m->pl) {
+        if (!owner) return;
+        int pi = FIELD(owner, PL_INDEX, int);
+        if (pi <= 0) return;   // nature / gaia
+        ch = (char)('0' + pi % 10);
+    } else if (is_wall(type)) ch = (type == 454 || type == 473 || type == 294 || type == 442 || type == 443 || type == 444) ? 'G' : 'W';
+    else if (defence_stats(u, &r, &a)) ch = 'T';
+    else if (type == 35 || type == 41 || type == 43 || type == 395) ch = 'C';
+    else if (fam == 2 || fam == 29) ch = 'b';
+    else if (type == 32 || type == 480) ch = 'c';
+    else ch = 's';
+    static const char prio[] = ".mcs0123456789bWGCT";   // what wins when several things share a tile
+    if (strchr(prio, ch) > strchr(prio, *cell)) *cell = ch;
+}
+static void cmd_basemap(char *out, const char *args) {
+    int p = 0, r = 20;
+    sscanf(args, "%d %d", &p, &r);
+    if (r < 5) r = 5;
+    if (r > 40) r = 40;
+    void *pl = (p >= 0 && p < 16) ? g_players[p] : NULL;
+    void *cm = pl ? FIELD(pl, 0xB90, void *) : NULL;
+    uint8_t *bm = cm ? FIELD(cm, 0x3C, uint8_t *) : NULL;
+    if (!bm) { REPLY("error: no AI player %d\n", p); return; }
+    static char g[81 * 81];
+    int w = 2 * r + 1;
+    memset(g, '.', (size_t)(w * w));
+    struct basemap m = { pl, FIELD(bm, 0x12C, int), FIELD(bm, 0x130, int), r, g };
+    void **zb = FIELD(pl, 0xB50, void **), **ze = FIELD(pl, 0xB54, void **);   // mines
+    for (int z = 0; zb && zb + z < ze; z++)
+        for (int t = 4; zb[z] && t < 7; t++) {
+            uint8_t *s = ((uint8_t *(__thiscall *)(void *, int))FN_ZONE_SITE)(zb[z], t);
+            if (!s) continue;
+            int x = FIELD(s, 0x1C, int) - m.x0 + r, y = FIELD(s, 0x20, int) - m.y0 + r;
+            if (x >= 0 && y >= 0 && x < w && y < w) g[y * w + x] = 'm';
+        }
+    grid_each(basemap_unit, &m);
+    unsigned pi = (unsigned)p & 15;   // planned tower slots of the defence layout: o
+    if (g_plan[pi].pl == pl) {
+        int sx, sy;
+        for (int i = 0; def_slot(&g_plan[pi], i, &sx, &sy); i++) {
+            int gx = sx - m.x0 + r, gy = sy - m.y0 + r;
+            if (gx >= 0 && gy >= 0 && gx < w && gy < w && g[gy * w + gx] == '.') g[gy * w + gx] = 'o';
+        }
+    }
+    REPLY("P%d base %d,%d (x down, y right)\n", p, m.x0, m.y0);
+    for (int x = 0; x < w; x++) {
+        char line[2 * 81 + 2];
+        for (int y = 0; y < w; y++) { line[2 * y] = g[y * w + x]; line[2 * y + 1] = ' '; }
+        line[2 * w] = 0;
+        REPLY("%s\n", line);
+    }
+}
+
+static void defence_install(const char *aimod_ini, const char *autotest_ini) {
+    g_def = cfg_int(aimod_ini, autotest_ini, 1, "defence_layout", 1);
+    g_def_dist = cfg_int(aimod_ini, autotest_ini, 1, "defence_distance", 10);
+    g_def_walls = cfg_int(aimod_ini, autotest_ini, 1, "defence_walls", 1);
+    g_def_more = cfg_int(aimod_ini, autotest_ini, 1, "defence_towers", 1);
+    if (g_log) fprintf(g_log, "# defence: layout=%d distance=%d walls=%d own towers=%d\n", g_def, g_def_dist, g_def_walls, g_def_more);
+}
+
+// defence P [0|1]: switch the defence layout off/on for one player (scenario A/B tests)
+static void cmd_defence(char *out, const char *args) {
+    int p = -1, on = -1;
+    sscanf(args, "%d %d", &p, &on);
+    if (p < 0 || p > 15) { REPLY("error: defence P [0|1]\n"); return; }
+    if (on >= 0) g_def_off[p] = !on;
+    REPLY("defence P%d %s (towers placed %u, wall orders %u)\n", p, g_def_off[p] ? "off" : "on", g_def_towers[p], g_def_walls_built[p]);
+}

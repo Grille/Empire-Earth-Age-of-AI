@@ -57,6 +57,8 @@ static void spend_log(unsigned idx, uint32_t now) {
 // build_fix (aimod.ini [all], default on): 395 is placed as a normal Settlement (43, a drop site), and an entry that
 // fails 3 times in a row is dropped (reported as placed; the planner 0x465A8E re-queues missing buildings every
 // 2 minutes). Attempts and failures per player and type are logged as "# place:" every 5 minutes.
+static int defence_spot(void *pl, int type, int *ox, int *oy);   // defence.c
+static void defence_tick(void *pl, unsigned idx, uint32_t now);
 #define CALL_PLACE 0x00468629
 #define FN_PLACE   0x0046580A
 static int g_build_fix = 1;
@@ -64,6 +66,7 @@ static struct { int type; unsigned tries, fails, dropped, streak; } g_place[16][
 static char __fastcall hook_place(uint8_t *bm, void *edx, int type, int x, int y) {
     (void)edx;
     int place_as = g_build_fix && type == 395 ? 43 : type;
+    if (!x && !y) defence_spot(FIELD(bm, 0x138, void *), type, &x, &y);   // towers: where the defence plan wants them
     char ok = ((char (__thiscall *)(void *, int, int, int))FN_PLACE)(bm, place_as, x, y);
     void *pl = FIELD(bm, 0x138, void *);
     unsigned idx = pl ? (unsigned)FIELD(pl, PL_INDEX, int) & 15 : 0;
@@ -358,6 +361,7 @@ static void econ_tick(void *pl, uint32_t now) {
     place_log(ai, now);
     gather_research(pl, ai, now);
     attention_note(pl, ai, now);
+    defence_tick(pl, ai, now);
     uint32_t t_attack = FIELD(pl, 0xED8, uint32_t);
     if (t_attack != last_attack_time[ai]) {
         if (last_attack_time[ai] && g_log)

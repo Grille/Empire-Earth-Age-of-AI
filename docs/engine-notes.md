@@ -198,6 +198,14 @@ Guard towers 47, 461..466; AA 145/147; town center 35; house 37; citizen 32.
 - AssignCitizens: fills deficits per type. Mines go via 0x48C204 (free slot, no enemy near, same continent),
   leftovers via 0x48A1AE (mines, then wood 0x48C060). Surplus workers are never taken back.
 - Demand: added by 0x48B9E9 (costs via AdjustCost), subtracted by 0x48D050 / 0x48B6E8 and by AddResource.
+- Building plan: cm 0x46CD18 (attention flag 4) works through a list of {type, wanted count}; 0x2F = "the tower
+  of the epoch". Spot finder 0x467B1E: towers (47, 461-466, 328) 0x466ED4 (samples along paths from the base);
+  walls have no spot. Placement test 0x62E940 cdecl char(player, type, x, y, w, h, 0), w = h = typedata +0x58C.
+  A build queue entry with a position skips the spot finder.
+- Wall manager cm+0x48 (EECPWallManager, main 0x499E20, from the Copper Age): plans a ring around the base and
+  builds it segment by segment with 0x497C3F thiscall(wm, int from[2], int to[2], type, char register) - picks
+  citizens near `from` (0x48F463) and sends them an EEMBuildWall command like a player's; `register` = 1 puts
+  the new pieces into the ring plan (0x499C34).
 - Research manager (cm+0x40, Update 0x486A74): +8 vector = pool of candidate techs; +0x18 + e*0x10 = scheduled
   lists per epoch (vector begin/end), researched by 0x4865D3 one per tick; +0x114 epoch. Random planner 0x4858D9
   (every player+0xE04 s x random) only while +0x11A is set; schedules with 0x485F57(tech) (requests the building,

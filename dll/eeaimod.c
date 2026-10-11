@@ -356,36 +356,53 @@ static int __cdecl hook_load_saved(void *name) {
 
 // Autotest setup=<file> (path relative to the game folder): control-pipe commands, one per line (# comments), run
 // once at 2 s game time, when every AI has started - e.g. spawn lines that turn a map into a test scenario.
-static void run_setup(void) {
+// Setup file: control-pipe commands, run at 2 s game time; a line "@<minutes> <command>" waits until that game time.
+static struct { uint32_t at; char cmd[200]; } g_setup[64];
+static int g_setup_n = -1;
+static void run_setup(uint32_t now) {
     static char reply[16384];
-    FILE *f = fopen(g_setup_path, "r");
-    log_line(f ? "# setup: %s%.0d\n" : "# setup: %s - CANNOT OPEN%.0d\n", g_setup_path, 0);
-    if (!f) return;
-    char line[512];
-    while (fgets(line, sizeof line, f)) {
-        char *s = line, *e;
-        while (*s == ' ' || *s == '\t') s++;
-        for (e = s + strlen(s); e > s && (e[-1] == '\n' || e[-1] == '\r' || e[-1] == ' '); ) *--e = 0;
-        if (!*s || *s == '#') continue;
+    if (g_setup_n < 0) {
+        g_setup_n = 0;
+        FILE *f = fopen(g_setup_path, "r");
+        log_line(f ? "# setup: %s%.0d\n" : "# setup: %s - CANNOT OPEN%.0d\n", g_setup_path, 0);
+        if (!f) return;
+        char line[512];
+        while (fgets(line, sizeof line, f) && g_setup_n < 64) {
+            char *s = line, *e;
+            while (*s == ' ' || *s == '\t') s++;
+            for (e = s + strlen(s); e > s && (e[-1] == '\n' || e[-1] == '\r' || e[-1] == ' '); ) *--e = 0;
+            if (!*s || *s == '#') continue;
+            uint32_t at = 0;
+            if (*s == '@') {
+                at = (uint32_t)(atof(s + 1) * 60000.0);
+                while (*s && *s != ' ') s++;
+                while (*s == ' ') s++;
+            }
+            g_setup[g_setup_n].at = at;
+            lstrcpynA(g_setup[g_setup_n++].cmd, s, sizeof g_setup[0].cmd);
+        }
+        fclose(f);
+    }
+    for (int i = 0; i < g_setup_n; i++) {
+        if (!g_setup[i].cmd[0] || now < g_setup[i].at) continue;
         reply[0] = 0;
-        execute(s, reply);
+        execute(g_setup[i].cmd, reply);
         char *nl = strchr(reply, '\n');
         if (nl) *nl = 0;
         if (g_log) {
             EnterCriticalSection(&g_lock);
-            fprintf(g_log, "# setup: %s -> %s", s, reply);
+            fprintf(g_log, "# setup: %s -> %s", g_setup[i].cmd, reply);
             fputc(10, g_log);
             fflush(g_log);
             LeaveCriticalSection(&g_lock);
         }
+        g_setup[i].cmd[0] = 0;
     }
-    fclose(f);
 }
 
 static void autotest_tick(uint32_t now) {
     if (!g_auto.enabled) return;
-    static int setup_done;
-    if (g_setup_path[0] && !setup_done && now >= 2000) { setup_done = 1; run_setup(); }
+    if (g_setup_path[0] && now >= 2000) run_setup(now);
     float cur = *(float *)G_GAME_SPEED;
     if (g_auto.speed > 0 && (cur < g_auto.speed - 0.01f || cur > g_auto.speed + 0.01f)) {
         apply_game_speed(g_auto.speed);
@@ -456,6 +473,7 @@ static char __fastcall hook_game_start(void *state, void *edx, uint8_t *setup, v
 #include "sites.c"
 #include "econ.c"
 #include "attack.c"
+#include "defence.c"
 #include "camera.c"
 #include "display.c"
 static char g_ini[MAX_PATH], g_aimod_ini[MAX_PATH];
@@ -552,6 +570,7 @@ static void install(HMODULE self) {
     }
     econ_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
     attack_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
+    defence_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
     camera_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
     display_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
     ctl_start();

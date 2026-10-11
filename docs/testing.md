@@ -17,7 +17,7 @@ The `[autotest]` keys:
 | `turbo=1` | the steps follow each other as fast as the CPU allows instead of 43 per second: the server sends the next tick as soon as the simulation has used up the last one, the simulation loop skips its 22 ms timer, and a headless window renders only a few frames a second. Same steps, same game: a 75-minute game takes ~15 s instead of ~10 min. Pipe: `turbo 0\|1` |
 | `random_map=Continental` | starts a random map instead of the save. Also: `map_size` (0 tiny..), `ai_count`, `seed`, `teams=ffa\|pairs`, `start_epoch`, `citizens`, `ai_cheat`, `ai_ignore`, `epoch_min`/`epoch_max` (test epoch timer). The human player (slot 0) idles, sees the whole map and is allied with every AI. |
 | `game_seed=N` | the game's random seed at game start (otherwise the clock: `srand(TMGetTime())`, then `rand()` goes into the start message). Removes one source of run-to-run differences on random maps, not all yet (the AI still diverges after ~10 s) |
-| `setup=<file>` | control-pipe commands (one per line, `#` comments) run once at 2 s game time, path relative to the game folder - e.g. `spawn` lines that turn a map into a test scenario (see Scenarios) |
+| `setup=<file>` | control-pipe commands (one per line, `#` comments) run once at 2 s game time; `@<min> <command>` waits until that game minute, path relative to the game folder - e.g. `spawn` lines that turn a map into a test scenario (see Scenarios) |
 | `scenario_mode=1` | starts `Data\Scenarios\<save>.scn` through the real scenario path (set by `-Scenario`) |
 | any `aimod.ini` key | overrides that setting for all difficulties, e.g. `avoid_towers=0` |
 | `watch=<hex>`, `watch_len` | hardware write-watchpoint, logs every writer of an address |
@@ -58,6 +58,7 @@ sh scripts/scen.sh 30 towers_on_path "random_map=Continental,map_size=0,ai_count
 | `siege_towers` (Continental 101, 2 AIs) | same-era defences: 5 bronze guard towers in front of the defender, the attacker has 6 catapults (range 7 > 5) |
 | `towers_on_path` (Continental 101, 2 AIs) | a focused tower cluster in front of the defender, open ground around it, armies for both |
 | `wall_gap` (Continental 101, 2 AIs) | no way around: a wall across the continent, one gap guarded by towers and lasers; armies for both |
+| `assault` (Continental 101, 2 AIs, Bronze) | the defender builds for 15 min, then the attacker (no defence layout) gets 43 units incl. 3 catapults; base ini with `first_attack_min=16,first_attack_max=18,attack_interval_min=5,attack_interval_max=6` |
 
 Suite: 4 land maps with fixed seeds (Continental, Plains, Highlands, Mediterranean), headless with turbo,
 one or more runs per variant and map, then scored (survival, epoch, workers, food; with the standard error
@@ -115,6 +116,8 @@ venv/Scripts/python scripts/eectl.py <command>
 | `drops P` | drop sites of player P (Town Center, Capitol, Settlement; `g` = granary) |
 | `tech P id...` | tech records of player P: state bytes (+4 researched, +6 available), cost, effects |
 | `rlist P` | research manager: pool (list -1) and scheduled techs per epoch (`*` = researched) |
+| `basemap P [r]` | map of AI player P's base, 2 characters per tile: T tower, W wall, G gate, C town center/settlement, b building, c citizen, s soldier, m mine, o planned tower slot, digits = other players |
+| `defence P [0\|1]` | defence layout off/on for one player (A/B scenarios) |
 | `spawn P type x y [n]` | create n units of a type for player P around tile x, y (2-tile grid), through the game's own debug spawner (EEMHackANewUnit, executed in the next tick like a player command). Type ids: `data/db/converteroutput.log` |
 | `spawnline P type x0 y0 x1 y1 [step]` | one unit every step tiles along a line, e.g. a wall |
 | `watch <hex> [len]` | set the hardware watchpoint at runtime |
