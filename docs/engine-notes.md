@@ -274,6 +274,9 @@ Guard towers 47, 461..466; AA 145/147; town center 35; house 37; citizen 32.
   war on an AI (EEMSetDiplomaticStance::vf10 0x4BDDCC -> 0x52D5D7(from, to, stance) -> SetDiplomacy 0x55B8E1)
   changes only the human's side; the AI stays allied. 0x46FFB7 (revenge attack + 12500 taunt) runs only from
   EEMAttackPlayers (0x4B3851 -> 0x5346E4) and only if the AI already counts the player as enemy.
+  0x52D5D7 is thiscall(game state 0x918300 - players at +0x74, count +0xCC, teams +0x9B4); 0x46FFB7 is
+  thiscall(combat manager = player +0xB8C, declaring player): target = his most attractive object (0x470FF5, none ->
+  nothing), attack on it (0x472427), taunt through the interaction manager (player +0xB9C). dll/diplo.c answers war.
 
 ## Art of Conquest (EE-AOC.exe) - first overview
 

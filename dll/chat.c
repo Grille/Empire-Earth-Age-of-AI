@@ -41,6 +41,31 @@ static void chat_line(void *pl, const char *text, int ms) {
     ((void (__thiscall *)(void *))*(void **)0x00823AEC)(s);
 }
 
+// the game's own line for a stance change, as EEMSetDiplomaticStance::vf10 (0x4BDDCC) writes it: sprintf "%s %s %s"
+// (UWideString data +4) of the player's name, string 0x7B71 "wechselt diplomatische Haltung zu" and 0x734A
+// "Feindselig" / 0x7349 "Befreundet" (GetString thiscall(resource file [0x919770], id, UWideString &)), shown for
+// the chat time setting ([0x917BB8] +0x2CC). Shown whatever the chat level.
+static void chat_stance_line(void *pl, int stance) {
+    void *res = *(void **)0x00919770, *ui = *(void **)0x0091977C;
+    uint8_t *opt = *(uint8_t **)0x00917BB8;
+    if (!pl || !res || !ui || !opt) return;
+    __attribute__((aligned(8))) uint8_t verb[32], word[32], line[32];
+    void (__thiscall *ctor)(void *) = *(void **)0x008231A4, (__thiscall *dtor)(void *) = *(void **)0x00823AEC;
+    int (__thiscall *get)(void *, int, void *) = *(void **)0x0082319C;
+    ctor(verb);
+    ctor(word);
+    ((void (__thiscall *)(void *, unsigned long))*(void **)0x008235D0)(line, 0x400);
+    get(res, 0x7B71, verb);
+    get(res, stance ? 0x734A : 0x7349, word);
+    ((int (__cdecl *)(void *, const char *, ...))*(void **)0x008232C8)(line, "%s %s %s", FIELD(pl, 0x28, void *),
+                                                                       FIELD(verb, 4, void *), FIELD(word, 4, void *));
+    ((void (__thiscall *)(void *, void *, void *, void *, int, int))0x00661E91)(ui, (uint8_t *)pl + 0x438,
+                                                                              (uint8_t *)pl + 0x24, line, FIELD(opt, 0x2CC, int), 0);
+    dtor(line);
+    dtor(word);
+    dtor(verb);
+}
+
 // a line of kind `kind` if chat is on and the cooldowns allow it; returns 1 if it was shown
 static int ai_say(void *pl, enum chat_kind kind, const char *fmt, ...) {
     if (!pl || (!g_chat && kind != CHAT_SAY)) return 0;
