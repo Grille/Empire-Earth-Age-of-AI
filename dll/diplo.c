@@ -232,49 +232,51 @@ static void diplo_initiative(void *pl, int ai, uint32_t now) {
 }
 
 // situations worth a line (every 10 s, after the scan)
+static struct {   // per AI: what it has said / seen (reset by diplo_new_game)
+    int last_epoch[16], last_buildings[16], said_desperate[16], said_greeting[16], said_defeat[16], was_out[16];
+    int attacked[16], was_ahead[16];
+    int mood[16];   // -1 losing, 0, 1 winning (lines when it changes)
+    uint32_t last_min[16], last_sit[16];
+} g_sit;
 static void diplo_situations(void *pl, int ai, uint32_t now) {
-    static int last_epoch[16] = { -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 };
-    static int last_buildings[16], said_desperate[16], said_greeting[16], was_out[16], attacked[16], was_ahead[16];
-    static int mood[16];   // -1 losing, 0, 1 winning (lines when it changes)
-    if (!said_greeting[ai] && now >= 20000 + (uint32_t)ai * 4000u) {
-        said_greeting[ai] = 1;
+    if (!g_sit.said_greeting[ai] && now >= 20000 + (uint32_t)ai * 4000u) {
+        g_sit.said_greeting[ai] = 1;
         persona_say(pl, L_GREETING, NULL, NULL);
     }
     int e = current_epoch(pl);
-    if (last_epoch[ai] >= 0 && e > last_epoch[ai]) persona_say(pl, L_EPOCH_UP, NULL, NULL);
-    last_epoch[ai] = e;
-    if (g_ws.close[ai] >= 5 && !attacked[ai]) persona_say(pl, L_UNDER_ATTACK, NULL, NULL);   // when it starts
-    attacked[ai] = g_ws.close[ai] >= 3;
-    if (last_buildings[ai] && g_ws.buildings[ai] < last_buildings[ai]) persona_say(pl, L_BUILDING_LOST, NULL, NULL);
-    last_buildings[ai] = g_ws.buildings[ai];
-    if (!said_desperate[ai] && g_ws.peak[ai] >= 10 && g_ws.buildings[ai] * 10 < g_ws.peak[ai] * 4) {
-        said_desperate[ai] = 1;
+    if (g_sit.last_epoch[ai] >= 0 && e > g_sit.last_epoch[ai]) persona_say(pl, L_EPOCH_UP, NULL, NULL);
+    g_sit.last_epoch[ai] = e;
+    if (g_ws.close[ai] >= 5 && !g_sit.attacked[ai]) persona_say(pl, L_UNDER_ATTACK, NULL, NULL);   // when it starts
+    g_sit.attacked[ai] = g_ws.close[ai] >= 3;
+    if (g_sit.last_buildings[ai] && g_ws.buildings[ai] < g_sit.last_buildings[ai]) persona_say(pl, L_BUILDING_LOST, NULL, NULL);
+    g_sit.last_buildings[ai] = g_ws.buildings[ai];
+    if (!g_sit.said_desperate[ai] && g_ws.peak[ai] >= 10 && g_ws.buildings[ai] * 10 < g_ws.peak[ai] * 4) {
+        g_sit.said_desperate[ai] = 1;
         persona_say(pl, L_DESPERATE, NULL, NULL);
     }
     int lead = strongest_enemy(pl, ai);
     if (lead) {
         float r = power_of(ai) / power_of(lead);
-        int m = r > 2.0f ? 1 : r < 0.5f ? -1 : (mood[ai] == 1 && r > 1.5f) ? 1 : (mood[ai] == -1 && r < 0.67f) ? -1 : 0;
-        if (m != mood[ai] && m) persona_say(pl, m > 0 ? L_WINNING : L_LOSING, player_at(lead), NULL);
-        mood[ai] = m;
+        int m = r > 2.0f ? 1 : r < 0.5f ? -1 : (g_sit.mood[ai] == 1 && r > 1.5f) ? 1 : (g_sit.mood[ai] == -1 && r < 0.67f) ? -1 : 0;
+        if (m != g_sit.mood[ai] && m) persona_say(pl, m > 0 ? L_WINNING : L_LOSING, player_at(lead), NULL);
+        g_sit.mood[ai] = m;
         int ahead = g_ws.epoch[lead] > e;   // when the strongest enemy gets ahead
-        if (ahead && !was_ahead[ai]) persona_say(pl, L_ENEMY_AHEAD, player_at(lead), NULL);
-        was_ahead[ai] = ahead;
+        if (ahead && !g_sit.was_ahead[ai]) persona_say(pl, L_ENEMY_AHEAD, player_at(lead), NULL);
+        g_sit.was_ahead[ai] = ahead;
     }
     for (int j = 1; j < nplayers(); j++) {
         void *pj = player_at(j);
         int out = is_out(pj);
-        if (out && !(was_out[ai] & (1 << j)) && pj && j != ai)
+        if (out && !(g_sit.was_out[ai] & (1 << j)) && pj && j != ai)
             persona_say(pl, stance_of(pl, j) ? L_ENEMY_DEFEATED : L_ALLY_DEFEATED, pj, NULL);
-        if (out) was_out[ai] |= 1 << j;
+        if (out) g_sit.was_out[ai] |= 1 << j;
     }
 }
 
 static void diplo_tick(void *pl, unsigned ai, uint32_t now) {
     persona_assign(pl);
     if (FIELD(pl, 0x467, uint8_t)) {   // defeated: last words once
-        static int said[16];
-        if (!said[ai]) { said[ai] = 1; persona_say(pl, L_DEFEATED, NULL, NULL); }
+        if (!g_sit.said_defeat[ai]) { g_sit.said_defeat[ai] = 1; persona_say(pl, L_DEFEATED, NULL, NULL); }
         return;
     }
     int n = nplayers();
@@ -338,10 +340,9 @@ static void diplo_tick(void *pl, unsigned ai, uint32_t now) {
     }
     g_diplo_seen[ai] = 1;
     // once a minute: opinions drift; the AI's own moves
-    static uint32_t last_min[16];
-    if (!last_min[ai] || now - last_min[ai] >= 60000) {
-        int first = !last_min[ai];
-        last_min[ai] = now ? now : 1;
+    if (!g_sit.last_min[ai] || now - g_sit.last_min[ai] >= 60000) {
+        int first = !g_sit.last_min[ai];
+        g_sit.last_min[ai] = now ? now : 1;
         world_scan(now);
         int lead = strongest_enemy(pl, (int)ai);
         for (int j = 1; j < n && !first; j++) {
@@ -356,12 +357,30 @@ static void diplo_tick(void *pl, unsigned ai, uint32_t now) {
         }
         if (!first) diplo_initiative(pl, (int)ai, now);
     }
-    static uint32_t last_sit[16];
-    if (!last_sit[ai] || now - last_sit[ai] >= 10000) {
-        last_sit[ai] = now ? now : 1;
+    if (!g_sit.last_sit[ai] || now - g_sit.last_sit[ai] >= 10000) {
+        g_sit.last_sit[ai] = now ? now : 1;
         world_scan(now);
         diplo_situations(pl, (int)ai, now);
     }
+}
+
+// a new game (the game start hook): forget everything about the last one
+static void diplo_new_game(void) {
+    memset(g_diplo_seen, 0, sizeof g_diplo_seen);
+    memset(g_diplo_prev, 0, sizeof g_diplo_prev);
+    memset(g_diplo_due, 0, sizeof g_diplo_due);
+    memset(g_war_since, 0, sizeof g_war_since);
+    memset(g_ally_since, 0, sizeof g_ally_since);
+    memset(g_peace_due, 0, sizeof g_peace_due);
+    memset(g_peace_refused, 0, sizeof g_peace_refused);
+    memset(g_offer_t, 0, sizeof g_offer_t);
+    memset(g_offer_last, 0, sizeof g_offer_last);
+    memset(g_opinion, 0, sizeof g_opinion);
+    memset(g_war_betrayal, 0, sizeof g_war_betrayal);
+    memset(g_diplo_answers, 0, sizeof g_diplo_answers);
+    memset(&g_ws, 0, sizeof g_ws);
+    memset(&g_sit, 0, sizeof g_sit);
+    for (int i = 0; i < 16; i++) g_sit.last_epoch[i] = -1;
 }
 
 // Tribute (EEMPayTribute::vf10 0x4BA6BE, vtable 0x8289C0 slot 10): sender id +0xA (0x52E6EF), receiver index

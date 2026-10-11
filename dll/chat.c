@@ -97,9 +97,15 @@ static int ai_say(void *pl, enum chat_kind kind, const char *fmt, ...) {
 // every AI update (econ_tick): epoch changes, the 5-minute status line (chat=2)
 static int home_soldiers_now(void *pl);
 static int current_epoch(void *pl);
+static int g_chat_epoch[16] = { -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 };
+static uint32_t g_chat_status[16];
+static void chat_new_game(void) {
+    for (int i = 0; i < 16; i++) { g_chat_epoch[i] = -1; g_chat_status[i] = g_chat_last[i] = 0; }
+    memset(g_chat_kind_last, 0, sizeof g_chat_kind_last);
+}
 static void chat_tick(void *pl, unsigned idx, uint32_t now) {
-    static int last_epoch[16] = { -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 };
-    static uint32_t last_status[16];
+    int *last_epoch = g_chat_epoch;
+    uint32_t *last_status = g_chat_status;
     if (!g_chat) return;
     int e = current_epoch(pl);
     if (last_epoch[idx] >= 0 && e != last_epoch[idx])

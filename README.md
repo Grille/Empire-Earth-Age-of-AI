@@ -43,7 +43,7 @@ the AI has seen.
    explained in the file. Settings can differ per difficulty (`[easy]`, `[medium]`, `[hard]` override
    `[all]`).
 3. Optional: copy the folder [`config/aimod_ai`](config/aimod_ai) into the same folder. Every AI then gets
-   one of its personalities: a name, character traits that decide its diplomacy (peace, alliances,
+   one of its personalities: a name, a favoured colour (random maps), character traits that decide its diplomacy (peace, alliances,
    betrayal, what tribute is worth to it) and its own lines in the chat. Add or edit `.ini` files there to
    make your own (the format is described in `eroberer.ini`); they are read when Empire Earth starts.
 4. Start the game normally. Changes to `aimod.ini` take effect when a game starts or a save is loaded.

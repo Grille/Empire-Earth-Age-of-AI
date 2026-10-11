@@ -17,7 +17,7 @@ def _exchange(cmd, result):
             if not b:
                 break
             chunks.append(b)
-    result.append(b''.join(chunks).decode(errors='replace'))
+    result.append(b''.join(chunks).decode('cp1252', errors='replace'))   # the game's code page (personality names)
 
 
 def send(cmd, connect_timeout=10.0, reply_timeout=20.0):
@@ -43,4 +43,5 @@ def send(cmd, connect_timeout=10.0, reply_timeout=20.0):
 
 
 if __name__ == '__main__':
+    sys.stdout.reconfigure(errors='replace')
     print(send(' '.join(sys.argv[1:]) or 'status'), end='')

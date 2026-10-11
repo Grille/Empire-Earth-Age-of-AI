@@ -64,6 +64,9 @@ static void ctl_note_player(void *pl);
 static void autotest_first_tick(void *pl);
 static void settings_apply(void *pl);
 static void econ_tick(void *pl, uint32_t now);
+static void persona_new_game(uint8_t *setup);
+static void diplo_new_game(void);
+static void chat_new_game(void);
 static void econ_targets(uint8_t *rm);
 static void econ_rebalance(uint8_t *rm);
 static void attack_tick(void *pl, uint32_t now);
@@ -463,6 +466,9 @@ static char __fastcall hook_game_start(void *state, void *edx, uint8_t *setup, v
         *(int *)(setup + SETUP_MODE) = 1;
         log_line("# game start: switched to scenario mode, loading Scenarios\\%s%.0d\n", name, 0);
     }
+    persona_new_game(setup);   // personalities and their colours, before the game creates the players
+    diplo_new_game();
+    chat_new_game();
     char r = ((GameStartFn)FN_GAME_START)(state, setup, p2);
     log_line("# game start returned %s%d\n", "", r);
     return r;
@@ -554,13 +560,14 @@ static void install(HMODULE self) {
     BOOL b = patch_call(CALL_ASSIGN_CITIZENS, FN_ASSIGN_CITIZENS, hook_assign_citizens);
     BOOL c = patch_call(CALL_RM_UPDATE, FN_RM_UPDATE, hook_rm_update);
     BOOL f = patch_call(CALL_CP_UPDATE, FN_CP_UPDATE, hook_cp_update);
+    BOOL gs = patch_call(CALL_GAME_START, FN_GAME_START, hook_game_start);   // also personalities: always
     if (g_log) {
         fprintf(g_log, "# eeaimod loaded: hook targets=%s assign=%s update=%s\n",
                 a ? "ok" : "FAILED", b ? "ok" : "FAILED", c ? "ok" : "FAILED");
         fprintf(g_log, "# fix scenario_ai: %s (hook %s)\n", g_fix_scenario_ai ? "on" : "off", f ? "ok" : "FAILED");
         BOOL d = patch_call(CALL_PARSE_CMDLINE, FN_PARSE_CMDLINE, hook_parse_cmdline);
         BOOL e = patch_call(CALL_LOAD_SAVED, FN_LOAD_SAVED, hook_load_saved);
-        fprintf(g_log, "# game start hook: %s\n", patch_call(CALL_GAME_START, FN_GAME_START, hook_game_start) ? "ok" : "FAILED");
+        fprintf(g_log, "# game start hook: %s\n", gs ? "ok" : "FAILED");
         fprintf(g_log, "# cmdline hooks: parse=%s load=%s\n", d ? "ok" : "FAILED", e ? "ok" : "FAILED");
         if (g_auto.enabled)
             fprintf(g_log, "# autotest: skip_intro=%s quit_minutes=%d cmdline=%s\n",

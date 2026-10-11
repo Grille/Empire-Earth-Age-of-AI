@@ -47,6 +47,7 @@ static const struct { const char *key; int chance, cooldown; } k_lines[L_N] = {
 struct persona {
     char file[40], name[48];
     int trait[T_N];
+    int color[4], ncolor;   // favoured player colours, in order of preference
     char *line[L_N][MAX_VARIANTS];
     uint8_t nline[L_N];
 };
@@ -88,6 +89,28 @@ static char *read_text_acp(const char *path) {
     return a;
 }
 
+// Player colours: index into the game's colour table (0x8CFA74: pointers to {?, float r, g, b}); entries 0-16 are
+// player colours (17+ other engine colours). Names in English or German (cp1252 umlauts as \xFC).
+static const char *const k_color_names[17][3] = {
+    { "blue", "blau", "" }, { "red", "rot", "" }, { "yellow", "gelb", "" }, { "magenta", "lila", "" },
+    { "orange", "orange", "" }, { "green", "gruen", "gr\xFCn" }, { "cyan", "tuerkis", "t\xFCrkis" },
+    { "darkred", "dunkelrot", "" }, { "darkgrey", "dunkelgrau", "" }, { "purple", "violett", "" },
+    { "grey", "grau", "" }, { "silver", "silber", "" }, { "lightyellow", "hellgelb", "" },
+    { "lime", "hellgruen", "hellgr\xFCn" }, { "lightblue", "hellblau", "" }, { "pink", "rosa", "" },
+    { "darkgrey2", "dunkelgrau2", "" },
+};
+static int color_index(const char *s) {
+    if (*s >= '0' && *s <= '9') { int v = atoi(s); return v <= 16 ? v : -1; }
+    for (int c = 0; c < 17; c++)
+        for (int k = 0; k < 3; k++)
+            if (k_color_names[c][k][0] && !lstrcmpiA(s, k_color_names[c][k])) return c;
+    return -1;
+}
+static const float *color_rgb(int c) {
+    uint8_t **b = *(uint8_t ***)0x008CFA74, **e = *(uint8_t ***)0x008CFA78;
+    return b && c >= 0 && c < e - b && b[c] ? (const float *)(b[c] + 4) : NULL;
+}
+
 static char *trim(char *s) {
     while (*s == ' ' || *s == '\t') s++;
     char *e = s + strlen(s);
@@ -116,6 +139,14 @@ static void persona_load(const char *path, const char *file) {
         char *key = trim(s), *val = trim(eq + 1);
         if (section == 1) {
             if (!lstrcmpiA(key, "name")) lstrcpynA(p->name, val, sizeof p->name);
+            if (!lstrcmpiA(key, "color") || !lstrcmpiA(key, "colour") || !lstrcmpiA(key, "farbe"))
+                for (char *t = val; t && *t && p->ncolor < 4;) {   // not strtok: the line loop uses it
+                    char *sep = strpbrk(t, ",|");
+                    if (sep) *sep = 0;
+                    int c = color_index(trim(t));
+                    if (c >= 0) p->color[p->ncolor++] = c;
+                    t = sep ? sep + 1 : NULL;
+                }
             for (int t = 0; t < T_N; t++)
                 if (!lstrcmpiA(key, k_trait_keys[t])) { int v = atoi(val); p->trait[t] = v < 0 ? 0 : v > 100 ? 100 : v; }
         } else if (section == 2) {
@@ -160,24 +191,108 @@ static struct persona *persona_of(void *pl) {
 static int trait(void *pl, enum trait t) { struct persona *p = persona_of(pl); return p ? p->trait[t] : 50; }
 static int persona_has(void *pl, enum line_kind k) { struct persona *p = persona_of(pl); return p && g_ai_talk && p->nline[k]; }
 
-// once per AI (its first update): pick and apply the personality
+// Personalities in use this game (each once before any repeats)
+static int g_persona_used[MAX_PERSONAS];
+static const char *player_name(void *pl);
+static int g_plan_persona[16], g_plan_color[16];   // by setup slot, planned at the game start (-1 none)
+static int g_color_human[17], g_ai_colors[16], g_ai_color_n, g_ai_color_k;   // for hook_player_color
+static int persona_forced(int player) {
+    for (int i = 0; i < g_npersonas && player >= 0 && player < 16 && g_persona_force[player][0]; i++)
+        if (!lstrcmpiA(g_personas[i].file, g_persona_force[player])) return i;
+    return -1;
+}
+static int persona_random(void) {
+    int minuse = 1 << 30, n = 0, pick = -1;
+    for (int i = 0; i < g_npersonas; i++) if (g_persona_used[i] < minuse) minuse = g_persona_used[i];
+    for (int i = 0; i < g_npersonas; i++) n += g_persona_used[i] == minuse;
+    int r = rnd(n);
+    for (int i = 0; i < g_npersonas && pick < 0; i++) if (g_persona_used[i] == minuse && r-- == 0) pick = i;
+    return pick;
+}
+
+// A new game (the game start hook, before the game creates the players from the setup): forget the last game;
+// on a random map from the menu (setup +0x3D8 mode 0) pick every computer slot's personality now and give the
+// slot (+0x24) the personality's favoured colour - the first one no human and no other AI has - otherwise its own
+// colour if still free, otherwise any free one. Slots: 16 x 0x38 bytes, +0 type (1 human, 0 computer, 4 closed).
+// Scenarios and saved games keep their colours (a saved game finds its personalities again by name).
+static void persona_new_game(uint8_t *setup) {
+    for (int i = 0; i < 16; i++) { g_persona_of[i] = g_plan_persona[i] = g_plan_color[i] = -1; g_persona_assigned[i] = 0; }
+    memset(g_persona_used, 0, sizeof g_persona_used);
+    g_ai_color_n = g_ai_color_k = 0;
+    memset(g_talk_last, 0, sizeof g_talk_last);
+    memset(g_talk_any, 0, sizeof g_talk_any);
+    memset(g_talk_lines, 0, sizeof g_talk_lines);
+    if (!g_npersonas || *(int *)(setup + 0x3D8) != 0) return;
+    int used[17] = { 0 }, player = 0;
+    for (int s = 0; s < 16; s++) {
+        uint8_t *slot = setup + s * 0x38;
+        int type = FIELD(slot, 0, int), c = FIELD(slot, 0x24, int);
+        if (type != 0 && type != 1) continue;
+        player++;
+        if (type == 1) { if (c >= 0 && c < 17) used[c] = 1; continue; }
+        int pick = persona_forced(player);
+        if (pick < 0) pick = persona_random();
+        if (pick < 0) continue;
+        g_persona_used[pick]++;
+        g_plan_persona[s] = pick;
+    }
+    for (int pass = 0; pass < 2; pass++)   // favoured colours first, then the AIs without (or with taken ones)
+        for (int s = 0; s < 16; s++) {
+            if (g_plan_persona[s] < 0 || g_plan_color[s] >= 0) continue;
+            struct persona *p = &g_personas[g_plan_persona[s]];
+            int c = -1, own = FIELD(setup + s * 0x38, 0x24, int);
+            for (int k = 0; k < p->ncolor && c < 0; k++) if (!used[p->color[k]]) c = p->color[k];
+            if (c < 0 && pass == 0) continue;
+            if (c < 0 && own >= 0 && own < 17 && !used[own]) c = own;
+            for (int k = 0; k < 16 && c < 0; k++) if (!used[k]) c = k;
+            if (c < 0) continue;
+            used[c] = 1;
+            g_plan_color[s] = c;
+            FIELD(setup + s * 0x38, 0x24, int) = c;
+            if (g_log) fprintf(g_log, "# persona: setup slot %d -> %s, colour %d (%s, was %d)\n", s, p->file, c, k_color_names[c][0], own);
+        }
+    for (int c = 0; c < 17; c++) g_color_human[c] = 0;
+    g_ai_color_n = g_ai_color_k = 0;
+    for (int s = 0; s < 16; s++) {
+        uint8_t *slot = setup + s * 0x38;
+        int type = FIELD(slot, 0, int), c = FIELD(slot, 0x24, int);
+        if (type == 1 && c >= 0 && c < 17) g_color_human[c] = 1;
+        if (type == 0) g_ai_colors[g_ai_color_n++] = g_plan_color[s];
+    }
+}
+
+// The game ignores a computer slot's colour: the game start (0x52599B, random map / test play) gives humans their
+// slot's colour and every other player the next colour not taken by a human, in slot order (0x5262E4: the colour
+// table lookup 0x526B85(index) cdecl -> rgb, then 0x526B3A sets player +0x438). Here an AI's lookup returns its
+// planned colour instead. In the game everything shows the player's rgb (diplomacy screen, chat), not an index.
+#define CALL_PLAYER_COLOR 0x005262E4
+#define FN_COLOR_RGB      0x00526B85
+static void *__cdecl hook_player_color(unsigned idx) {
+    if (!(idx < 17 && g_color_human[idx]) && g_ai_color_k < g_ai_color_n) {
+        int c = g_ai_colors[g_ai_color_k++];
+        if (c >= 0) idx = (unsigned)c;
+    }
+    return ((void *(__cdecl *)(unsigned))FN_COLOR_RGB)(idx);
+}
+
+// once per AI (its first update): pick and apply the personality - pinned by aimod.ini, planned at the game start
+// (found by the player's colour, +0x438 = the colour table's rgb), the one with the player's name (a loaded game),
+// or a random one
 static void persona_assign(void *pl) {
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     if (g_persona_assigned[idx]) return;
     g_persona_assigned[idx] = 1;
     if (!g_npersonas) return;
-    int pick = -1;
-    for (int i = 0; i < g_npersonas && g_persona_force[idx][0]; i++)
-        if (!lstrcmpiA(g_personas[i].file, g_persona_force[idx])) pick = i;
-    if (pick < 0) {
-        int used[MAX_PERSONAS] = { 0 }, minuse = 1 << 30;
-        for (int j = 0; j < 16; j++) if (g_persona_of[j] >= 0) used[g_persona_of[j]]++;
-        for (int i = 0; i < g_npersonas; i++) if (used[i] < minuse) minuse = used[i];
-        int n = 0;
-        for (int i = 0; i < g_npersonas; i++) n += used[i] == minuse;
-        int r = rnd(n);
-        for (int i = 0; i < g_npersonas && pick < 0; i++) if (used[i] == minuse && r-- == 0) pick = i;
+    int pick = persona_forced((int)idx);
+    const float *rgb = (const float *)((uint8_t *)pl + 0x438);
+    for (int s = 0; s < 16 && pick < 0; s++) {
+        const float *c = g_plan_persona[s] >= 0 ? color_rgb(g_plan_color[s]) : NULL;
+        if (c && c[0] == rgb[0] && c[1] == rgb[1] && c[2] == rgb[2]) { pick = g_plan_persona[s]; g_plan_persona[s] = -1; }
     }
+    for (int i = 0; i < g_npersonas && pick < 0; i++)
+        if (g_personas[i].name[0] && !lstrcmpA(g_personas[i].name, player_name(pl))) pick = i;
+    if (pick < 0) { pick = persona_random(); if (pick >= 0) g_persona_used[pick]++; }
+    if (pick < 0) return;
     g_persona_of[idx] = pick;
     struct persona *p = &g_personas[pick];
     if (g_ai_names && p->name[0])
@@ -304,8 +419,8 @@ static void persona_install(const char *ini, const char *test_ini) {
     g_rnd ^= test_ini ? 0x5EED : GetTickCount();
     if (!g_rnd) g_rnd = 1;
     personas_load();
-    int ok = 0;
+    int okc = patch_call(CALL_PLAYER_COLOR, FN_COLOR_RGB, (void *)hook_player_color), ok = 0;
     static const uintptr_t sites[] = { 0x470040, 0x4715F8, 0x47166E, 0x47280E, 0x472B9D };
     for (size_t i = 0; i < sizeof sites / sizeof *sites; i++) ok += patch_call(sites[i], FN_NATIVE_CHAT, (void *)hook_native_chat);
-    if (g_log) fprintf(g_log, "# persona: %d personalities, talk %d, names %d, native line hooks %d/5\n", g_npersonas, g_ai_talk, g_ai_names, ok);
+    if (g_log) fprintf(g_log, "# persona: %d personalities, talk %d, names %d, native line hooks %d/5, colour hook %d\n", g_npersonas, g_ai_talk, g_ai_names, ok, okc);
 }

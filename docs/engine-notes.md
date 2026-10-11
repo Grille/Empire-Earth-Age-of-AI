@@ -284,6 +284,13 @@ Guard towers 47, 461..466; AA 145/147; town center 35; house 37; citizen 32.
   +0x20 wood; paid through player vtable +0x48(resource, amount).
 - Player name: +0x24 UWideString (char data at +0x28); assigning it renames the player everywhere (chat, scores).
   Localized epoch names: strings 30145 + epoch (Vorzeit ... Nano-Zeitalter).
+- Player colours: table at 0x8CFA74/0x8CFA78 (vector of pointers to {?, float r, g, b}); 0x526B85(index) cdecl ->
+  rgb (fallback 0x8CFA60), 0x526B3A thiscall(player, rgb) sets +0x438 rgb and +0x444 a darker copy. Entries 0-16
+  are player colours (0 blue, 1 red, 2 yellow, 3 magenta, 4 orange, 5 green, 6 cyan, 7 dark red, 8 dark grey,
+  9 purple, 10 grey, 11 silver, 12 light yellow, 13 lime, 14 light blue, 15 pink, 16 grey). The game start
+  (random map / test play) gives humans their slot's colour (+0x24) and every other player the next colour no
+  human has, in slot order - a computer slot's colour is ignored (call 0x5262E4, player in edi). In the game the
+  UI shows the player's rgb (diplomacy screen, chat), no index is kept.
 
 ## Art of Conquest (EE-AOC.exe) - first overview
 
