@@ -13,9 +13,9 @@ for i in $(seq 1 60); do sleep 2; $py scripts/eectl.py shot menu >/dev/null 2>&1
 sleep 3
 log=../aimod_econ.csv
 for try in 1 2 3 4 5; do
-    $py scripts/eectl.py vmouse 500 460 >/dev/null; sleep 0.5
+    $py scripts/eectl.py vmouse 500 460 >/dev/null; sleep 1
     $py scripts/eectl.py vclick 512 472 >/dev/null; sleep 4     # main menu: game tools
-    $py scripts/eectl.py vmouse 500 360 >/dev/null; sleep 0.5
+    $py scripts/eectl.py vmouse 500 360 >/dev/null; sleep 1
     $py scripts/eectl.py vclick 512 370 >/dev/null              # game tools: scenario editor
     for i in $(seq 1 15); do sleep 1; grep -aq "# editor: building" $log && break; done
     if grep -aq "# editor: building" $log; then

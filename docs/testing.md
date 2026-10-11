@@ -97,6 +97,9 @@ Findings 2026-10-11 (2560x1440, RTX 3080, dgVoodoo DirectX pass-through): ~80 fp
 bound in Windows' DirectX 7 layer and the driver (DDRAW.dll 35%, nvd3dum 26%, kernel calls 24%), i.e. per
 draw-call overhead, which grows with the visible map. The present costs ~15%. dgVoodoo's own DirectX
 translation (pass-through off) was twice as slow (20 ms per frame).
+DDrawCompat v0.7.1 (narzoul) instead of dgVoodoo's ddraw.dll: 7.9 ms per frame with its default
+`CpuAffinity = 1` (whole game on one core), **5.6 ms (~177 fps) with `CpuAffinity = all`**
+(`DDrawCompat-Empire Earth.ini`); game, editor and windowed/borderless present work.
 
 ### Headless UI tests (menus, editor)
 
