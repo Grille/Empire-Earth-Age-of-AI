@@ -100,7 +100,8 @@ venv/Scripts/python scripts/eectl.py <command>
 | `costs P [types]` | next epoch and unit costs |
 | `threat P` | enemy defences AI player P knows about |
 | `targets P` | all enemy buildings of AI player P: owner, tile, seen by P or not, known tower threat on them |
-| `army P` | soldiers of player P grouped by current goal (EEUGLocation = marching, EEUGAttackUnit = fighting; goal +0x30 = target unit), with centre and the goal's first dwords |
+| `army P [type]` | soldiers of player P (optionally only one unit type) grouped by current goal (EEUGLocation = marching, EEUGAttackUnit = fighting; goal +0x30 = target unit), with centre and the goal's first dwords |
+| `count P` | all units and buildings of player P by type (type:count), e.g. whether an AI has a Siege Factory (63) |
 | `spawn P type x y [n]` | create n units of a type for player P around tile x, y (2-tile grid), through the game's own debug spawner (EEMHackANewUnit, executed in the next tick like a player command). Type ids: `data/db/converteroutput.log` |
 | `spawnline P type x0 y0 x1 y1 [step]` | one unit every step tiles along a line, e.g. a wall |
 | `watch <hex> [len]` | set the hardware watchpoint at runtime |

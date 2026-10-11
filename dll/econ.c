@@ -257,6 +257,7 @@ static int unit_cost(void *pl, int type, int r) {
 // called. (Hiding stock during the call leaked: 0x49014F counts the unit as "in production" (unit manager
 // +0x13C) even when the building queue 0x5E8908 then refuses it for lack of resources, and that counter is
 // subtracted from the population cap - after a while the AI could train nothing at all.)
+static int g_priority_mil;   // set by the siege controller around its own requests
 static uintptr_t __fastcall hook_train_units(void *um, void *edx, int *req, uintptr_t b) {
     (void)edx;
     void *pl = um_owner(um);
@@ -301,7 +302,7 @@ static uintptr_t __fastcall hook_train_units(void *um, void *edx, int *req, uint
                     visible = stock[2];   // enough food on the map: grow the economy first
                 // else: workforce built (or the map is poor) -> save: the full reserve applies
             }
-            if (military) {
+            if (military && !g_priority_mil) {   // priority requests (siege) spend the stock above the reserve
                 int allowed = (int)g_bud[idx].mil[r];
                 int excess = stock[r] - reserve[r] - g_hoard_cap;   // never hoard beyond the cap
                 if (excess > allowed) allowed = excess;

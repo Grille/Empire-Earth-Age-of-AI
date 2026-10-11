@@ -359,12 +359,50 @@ static const uintptr_t g_asgu_vtables[] = {   // land unit records: base, hero, 
 static int g_leash = 1;               // aimod.ini [all] attack_leash
 static struct { unsigned skipped, logged; } g_leash_stats[16];
 
+static int g_siege = 1;               // aimod.ini [all] attack_siege (siege controller below; also rams here)
+static unsigned g_ram_waits;
+static int is_ram(int type) { return type == 102 || type == 287 || type == 158; }
+
+// Enemy soldiers (no citizens, no siege) of player pl's enemies within r tiles of (x, y)?
+static int guarded(void *pl, int x, int y, int r) {
+    uint8_t *map = *(uint8_t **)G_MAP;
+    uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
+    if (!pl || !grid) return 0;
+    int cs = FIELD(grid, 8, int), nx = FIELD(grid, 0x10, int), ny = FIELD(grid, 0x14, int);
+    uint8_t *cells = FIELD(grid, 4, uint8_t *);
+    if (cs <= 0 || !cells) return 0;
+    for (int cx = (x - r) / cs; cx <= (x + r) / cs; cx++)
+        for (int cy = (y - r) / cs; cy <= (y + r) / cs; cy++) {
+            if (cx < 0 || cy < 0 || cx >= nx || cy >= ny) continue;
+            uint8_t *cell = cells + (cx * ny + cy) * 16;
+            for (uint8_t **b = FIELD(cell, 4, uint8_t **); b && b < FIELD(cell, 8, uint8_t **); b++) {
+                uint8_t *u = *b, *td = u ? FIELD(u, 0x2C, uint8_t *) : NULL;
+                if (!td || FIELD(td, 0x4B4, int) != 5 || FIELD(u, 0x3C, int) <= 0 || !is_enemy(pl, FIELD(u, 0x18, void *)))
+                    continue;
+                int t = FIELD(td, 0x4B8, int);
+                if (t == 32 || t == 480 || is_ram(t) || (t >= 102 && t <= 107) || t == 141 || t == 142 || t == 602 || t == 603)
+                    continue;
+                int dx = FIELD(u, 0x1C, int) - x, dy = FIELD(u, 0x20, int) - y;
+                if (dx * dx + dy * dy <= r * r) return 1;
+            }
+        }
+    return 0;
+}
+
 typedef float (__thiscall *AsguScoreFn)(void *self, uint8_t *info);
 static float __fastcall hook_asgu_score(uint8_t *self, void *edx, uint8_t *info) {
     (void)edx;
     float s = ((AsguScoreFn)FN_ASGU_SCORE)(self, info);
     uint8_t *sg = FIELD(self, 0x4C, uint8_t *), *enemy = info ? FIELD(info, 4, uint8_t *) : NULL;
     if (!sg || !enemy || *(uintptr_t *)sg != VT_ASG_LAND) return s;
+    // rams (melee, helpless against soldiers): no building while enemy soldiers guard it - they wait with the
+    // army until the guards are dealt with
+    uint8_t *me = FIELD(self, 0x44, uint8_t *), *mtd = me ? FIELD(me, 0x2C, uint8_t *) : NULL;
+    if (g_siege && mtd && is_ram(FIELD(mtd, 0x4B8, int)) && s != 0.0f &&
+        guarded(FIELD(sg, 0x190, void *), FIELD(enemy, 0x1C, int), FIELD(enemy, 0x20, int), 5)) {
+        g_ram_waits++;
+        return 0.0f;
+    }
     // breach: the scorer rates walls below zero (never chosen while anything else is around); the subgroup's
     // breach segment and its neighbours become the best targets
     int bx, by;
@@ -453,7 +491,6 @@ static int army_size(void *pl) {
 // Orders are given like the subgroup's (EECPAttackSubGroup::vf57 0x45CBEA): unit 0x5F05BD(goal, append, 0),
 // 0x5EFCF0(priority), typedata slot 29 (unit). Goals: EEUGAttackUnit (new 0x40, ctor 0x60AD45(attacker, target,
 // 1)), EEUGLocation (new 0x38, ctor 0x614CE6(float xy[2], 1, 1, 0, 0.0, 0, 0); +0x20/+0x24 = xy).
-static int g_siege = 1;               // aimod.ini [all] attack_siege
 #define VT_GOAL_ATTACK   0x00831968
 #define VT_GOAL_LOCATION 0x00831E64
 static struct { int tx, ty, ttype, px, py; uint32_t last; unsigned logged; } g_siege_st[16];
@@ -509,6 +546,68 @@ static int covered(unsigned pi, float x, float y, int ex, int ey) {
     return 0;
 }
 
+// Siege training: the AI builds a Siege Factory now and then but hardly trains siege weapons. While it knows
+// enemy defences (or a wall to breach) and has fewer than 2..4 siege weapons, it requests the best one of its
+// epoch - through the train hook, so the budget applies (unit manager: player +0xB90 -> +0x44; request
+// {type, count, building 0 = any, area 0}). Types newest first with their tech epoch; a type the civ can't
+// train simply trains 0.
+static const struct { int type, epoch; } k_siege_types[] = {
+    { 603, 13 }, { 602, 10 }, { 107, 9 }, { 141, 7 }, { 105, 6 }, { 104, 4 } };
+static struct { uint32_t last_try, factory_req; unsigned trained, failed, no_factory; } g_siege_train[16];
+
+static void siege_train(void *pl, unsigned pi, int have, uint32_t now) {
+    int want = g_threat[pi].n ? 2 + g_threat[pi].n / 4 : 0;
+    for (int k = 0; k < 64 && !want; k++)
+        if (g_breaches[k].sg && FIELD(g_breaches[k].sg, 0x190, void *) == pl) want = 2;
+    if (want > 4) want = 4;
+    if (have >= want || (now >= g_siege_train[pi].last_try && now - g_siege_train[pi].last_try < 30000)) return;
+    g_siege_train[pi].last_try = now;
+    // a Siege Factory (type 63) of our own
+    uint8_t *map = *(uint8_t **)G_MAP;
+    uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
+    uint8_t *cells = grid ? FIELD(grid, 4, uint8_t *) : NULL;
+    unsigned count = grid ? FIELD(grid, 0x10, unsigned) * FIELD(grid, 0x14, unsigned) : 0;
+    int factory = 0;
+    for (unsigned c = 0; cells && c < count && !factory; c++)
+        for (uint8_t **b = FIELD(cells + c * 16, 4, uint8_t **); b && b < FIELD(cells + c * 16, 8, uint8_t **); b++) {
+            uint8_t *u = *b, *td = u ? FIELD(u, 0x2C, uint8_t *) : NULL;
+            if (td && FIELD(u, 0x18, void *) == pl && FIELD(td, 0x4B8, int) == 63) { factory = 1; break; }
+        }
+    if (!factory) {
+        // the build manager (cm +0x3C) works through per-epoch queues (+4 + epoch*0x14, 12-byte entries {type, x, y};
+        // 0,0 = it picks the place) every 3 s (0x468540); 0x468C37 appends an entry. Queue a Siege Factory.
+        g_siege_train[pi].no_factory++;
+        void *cm = FIELD(pl, 0xB90, void *);
+        uint8_t *bm = cm ? FIELD(cm, 0x3C, uint8_t *) : NULL;
+        int e = current_epoch(pl);
+        if (bm && e >= 0 && e < 16 && (!g_siege_train[pi].factory_req || now - g_siege_train[pi].factory_req >= 300000)) {
+            g_siege_train[pi].factory_req = now ? now : 1;
+            int entry[3] = { 63, 0, 0 };
+            ((void (__thiscall *)(void *, int *))0x00468C37)(bm + 4 + e * 0x14, entry);
+            if (g_log) fprintf(g_log, "# siege: P%u at %.1f min queues a Siege Factory (wants %d siege, has %d)\n", pi, now / 60000.0, want, have);
+        }
+        return;
+    }
+    void *cm = FIELD(pl, 0xB90, void *), *um = cm ? FIELD(cm, 0x44, void *) : NULL;
+    if (!um) return;
+    int epoch = current_epoch(pl) + 1;   // tech tree epoch 0 = Prehistoric; tech ids count from 1
+    for (size_t k = 0; k < sizeof k_siege_types / sizeof *k_siege_types; k++) {
+        if (k_siege_types[k].epoch > epoch) continue;
+        int req[4] = { k_siege_types[k].type, want - have, 0, 0 };
+        unsigned got = 0;
+        g_priority_mil = 1;
+        hook_train_units(um, NULL, req, (uintptr_t)&got);
+        g_priority_mil = 0;
+        if (got) {
+            g_siege_train[pi].trained += got;
+            if (g_log) fprintf(g_log, "# siege: P%u at %.1f min trains %u x type %d (has %d, wants %d)\n", pi, now / 60000.0, got,
+                               req[0], have, want);
+            return;
+        }
+    }
+    g_siege_train[pi].failed++;
+}
+
 static void siege_tick(void *pl, uint32_t now) {
     unsigned pi = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     if (!g_siege || (now >= g_siege_st[pi].last && now - g_siege_st[pi].last < 2000)) return;
@@ -530,6 +629,7 @@ static void siege_tick(void *pl, uint32_t now) {
             if (r < srange) srange = r;
             siege[ns++] = u; sx += (float)FIELD(u, 0x1C, int); sy += (float)FIELD(u, 0x20, int);
         }
+    siege_train(pl, pi, ns, now);
     if (ns < 2) return;
     sx /= (float)ns; sy /= (float)ns;
     // target: a breach wall of one of our subgroups, else the nearest known defence we outrange
@@ -612,8 +712,9 @@ static void attack_tick(void *pl, uint32_t now) {
                     fprintf(g_log, " type %d from %06x x%u", g_mil[i].ftype[k] & 0x7FF,
                             (unsigned)g_mil[i].ftype[k] >> 11, g_mil[i].fcount[k]);
             fputc('\n', g_log);
-            fprintf(g_log, "# leash: P%u: enemies in tower range skipped as targets %u times\n", i,
-                    g_leash_stats[i].skipped);
+            fprintf(g_log, "# leash: P%u: enemies in tower range skipped as targets %u times; rams held back %u (all), siege trained %u, "
+                    "failed %u, no factory %u\n", i, g_leash_stats[i].skipped, g_ram_waits, g_siege_train[i].trained,
+                    g_siege_train[i].failed, g_siege_train[i].no_factory);
             memset(&g_mil[i], 0, sizeof g_mil[i]);
         }
         g_mil[i].last_log = now;
@@ -755,6 +856,31 @@ static void cmd_spawnline(char *out, const char *args) {
         n++;
     }
     REPLY("ok: %d x type %d for P%d from %d,%d to %d,%d queued\n", n, type, p, x0, y0, x1, y1);
+}
+
+// count P: all units and buildings of player P by type (type: count)
+static void cmd_count(char *out, const char *args) {
+    int p = atoi(args);
+    static int n[0x300];
+    memset(n, 0, sizeof n);
+    uint8_t *map = *(uint8_t **)G_MAP;
+    uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
+    if (!grid) { REPLY("error: no map\n"); return; }
+    uint8_t *cells = FIELD(grid, 4, uint8_t *);
+    unsigned count = FIELD(grid, 0x10, unsigned) * FIELD(grid, 0x14, unsigned);
+    for (unsigned c = 0; cells && c < count; c++)
+        for (uint8_t **b = FIELD(cells + c * 16, 4, uint8_t **); b && b < FIELD(cells + c * 16, 8, uint8_t **); b++) {
+            uint8_t *u = *b, *td = u ? FIELD(u, 0x2C, uint8_t *) : NULL;
+            void *owner = u ? FIELD(u, 0x18, void *) : NULL;
+            if (!td || !owner || FIELD(owner, PL_INDEX, int) != p) continue;
+            if (FIELD(u, 0x1C, int) / FIELD(grid, 8, int) != (int)(c / FIELD(grid, 0x14, unsigned)) ||
+                FIELD(u, 0x20, int) / FIELD(grid, 8, int) != (int)(c % FIELD(grid, 0x14, unsigned))) continue;
+            int t = FIELD(td, 0x4B8, int);
+            if (t >= 0 && t < 0x300) n[t]++;
+        }
+    REPLY("P%d:", p);
+    for (int t = 0; t < 0x300; t++) if (n[t]) REPLY(" %d:%d", t, n[t]);
+    REPLY("\n");
 }
 
 // Soldiers of player P (any player, AI or not) grouped by current goal (unit+0x1EC): count, centre, and the

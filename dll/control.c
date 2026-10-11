@@ -22,6 +22,7 @@ static void watch_set(uintptr_t addr, int len);
 static void cmd_threat(char *out, const char *args);
 static void cmd_targets(char *out, const char *args);
 static void cmd_army(char *out, const char *args);
+static void cmd_count(char *out, const char *args);
 static void cmd_spawn(char *out, const char *args);
 static void cmd_spawnline(char *out, const char *args);
 static volatile int g_turbo;           // autotest turbo: the simulation loop skips its timer wait
@@ -328,6 +329,7 @@ static void execute(const char *cmd, char *out) {
     else if (!strcmp(verb, "threat")) cmd_threat(out, args);
     else if (!strcmp(verb, "targets")) cmd_targets(out, args);
     else if (!strcmp(verb, "army")) cmd_army(out, args);
+    else if (!strcmp(verb, "count")) cmd_count(out, args);
     else if (!strcmp(verb, "spawn")) cmd_spawn(out, args);
     else if (!strcmp(verb, "spawnline")) cmd_spawnline(out, args);
     else if (!strcmp(verb, "save")) cmd_save(out, args);
