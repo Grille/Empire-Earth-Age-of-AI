@@ -281,6 +281,7 @@ are subclasses with their own vtables):
 | clicks on the title bar / other windows reach the game | non-exclusive, the device sees every click while the window is in front | unacquired while the cursor is outside the client area and no button is held; Acquire + RecomputeCurrentButtonState on re-entry |
 | window minimizes on focus loss | WM_ACTIVATEAPP(0) calls CloseWindow (0x662670) | the je at 0x662666 made a jmp |
 | clicking into the window doesn't give it input | WM_ACTIVATEAPP/WM_ACTIVATE resume the devices, but Acquire (FOREGROUND) fails before the window is foreground; the intro sequence (0x538xxx) also ends with Suspend. WM_ACTIVATE returns without DefWindowProc (no keyboard focus) | in front, a suspended device (+4) is resumed (vtable +0x10, every 250 ms at most); SetFocus after WM_ACTIVATE |
+| crash in DDRAW.dll+2B133 (dgVoodoo) at a resolution as big as the screen | the window (client + frame) is larger than the desktop; Windows cuts it and dgVoodoo then reads past a surface in the UI's CopyTo | LLE's SetWindowPos (GEWindow::Resize) wrapped: the window always fits the work area, the client scaled down with the aspect kept |
 
 Borderless (`mode=borderless`) and Alt+Enter: the window is subclassed; borderless swaps
 WS_OVERLAPPEDWINDOW for WS_POPUP and covers the monitor. The game sizes the window itself (GEWindow::Resize,

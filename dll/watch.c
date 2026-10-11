@@ -163,6 +163,23 @@ static LONG CALLBACK crash_handler(EXCEPTION_POINTERS *ep) {
         if (pair[0] <= (uintptr_t)fp) break;
         fp = (uintptr_t *)pair[0];
     }
+    // code without frame pointers (DDRAW.dll, drivers) breaks the chain: also list stack words that point into
+    // a module's code, the likely return addresses
+    n += snprintf(line + n, sizeof line - n, "; scan:");
+    uintptr_t words[256];
+    SIZE_T got = 0;
+    ReadProcessMemory(GetCurrentProcess(), (void *)c->Esp, words, sizeof words, &got);
+    for (size_t i = 0, shown = 0; i < got / sizeof *words && shown < 12 && n < (int)sizeof line - 80; i++) {
+        HMODULE hm;
+        MEMORY_BASIC_INFORMATION mbi;
+        if (words[i] < 0x10000 || !VirtualQuery((void *)words[i], &mbi, sizeof mbi)
+            || !(mbi.Protect & (PAGE_EXECUTE_READ | PAGE_EXECUTE_READWRITE | PAGE_EXECUTE_WRITECOPY | PAGE_EXECUTE))
+            || !GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                                   (LPCSTR)words[i], &hm)) continue;
+        crash_addr(at, sizeof at, words[i]);
+        n += snprintf(line + n, sizeof line - n, " [%u]%s", (unsigned)i, at);
+        shown++;
+    }
     EnterCriticalSection(&g_lock);
     fprintf(g_log, "%s\n", line);
     fflush(g_log);

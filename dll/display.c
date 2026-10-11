@@ -588,37 +588,65 @@ static void os_cursor_visible(void) {   // display count back to 0 for this thre
     while (c > 0) c = ShowCursor(FALSE);
 }
 
-// The window's size: borderless = the monitor; normal = client of the game resolution. The game sizes the
-// window itself (GEWindow::Resize: AdjustWindowRect + SetWindowPos) from its DPI-unaware threads, which Windows
-// would scale up for a DPI-aware window - so the size is set here on every change (WM_WINDOWPOSCHANGING),
-// except while the user drags the frame or the window is maximized/minimized.
+// The window's size: borderless = the monitor, set here on every change (WM_WINDOWPOSCHANGING) except while
+// minimized; normal = client of the game resolution, which the game sets itself (GEWindow::Resize:
+// AdjustWindowRect + SetWindowPos; it stores the new size at +0xC/+0x10 only after the call, so it can't be
+// read during the change). Resize runs on DPI-unaware threads, so for a DPI-aware window its SetWindowPos is
+// wrapped (hook_set_window_pos): the requested client size is kept in real pixels.
 #define WM_AIMOD_MODE (WM_APP + 0x2E45)
-static int g_in_sizemove;
-static RECT window_rect_for(HWND h) {
+typedef UINT (WINAPI *GetDpiFn)(HWND);
+typedef BOOL (WINAPI *AdjustForDpiFn)(RECT *, DWORD, BOOL, DWORD, UINT);
+static GetDpiFn g_get_dpi;
+static AdjustForDpiFn g_adjust_for_dpi;
+static RECT frame_for_dpi(UINT dpi) {   // WS_OVERLAPPEDWINDOW frame around an empty client
+    RECT f = { 0 };
+    if (!g_get_dpi) {
+        HMODULE u = GetModuleHandleA("user32.dll");
+        g_get_dpi = (GetDpiFn)(void *)GetProcAddress(u, "GetDpiForWindow");
+        g_adjust_for_dpi = (AdjustForDpiFn)(void *)GetProcAddress(u, "AdjustWindowRectExForDpi");
+    }
+    if (g_adjust_for_dpi) g_adjust_for_dpi(&f, WS_OVERLAPPEDWINDOW, FALSE, 0, dpi);
+    else AdjustWindowRect(&f, WS_OVERLAPPEDWINDOW, FALSE);
+    return f;
+}
+static UINT window_dpi(HWND h) { frame_for_dpi(96); return g_get_dpi ? g_get_dpi(h) : 96; }
+
+// a normal window with client cw x ch (the game resolution), in the window's DPI context. It always fits the
+// monitor's work area: a resolution as big as the screen would make the window larger than the desktop, which
+// Windows cuts and dgVoodoo then crashes on (DDRAW.dll+2B133) - the client is scaled down (aspect kept), the
+// image is scaled into it. Position: kept (centered when coming from borderless), moved inside the work area.
+static RECT normal_window_rect(HWND h, int cw, int ch) {
     MONITORINFO mi = { .cbSize = sizeof mi };
     GetMonitorInfoA(MonitorFromWindow(h, MONITOR_DEFAULTTONEAREST), &mi);
-    if (g_borderless) return mi.rcMonitor;
-    uint8_t *win = *(uint8_t **)G_GAME_WINDOW;
-    RECT r = { 0, 0, win ? FIELD(win, 0xC, int) : 1024, win ? FIELD(win, 0x10, int) : 768 }, wr;
-    typedef UINT (WINAPI *GetDpiFn)(HWND);
-    typedef BOOL (WINAPI *AdjustForDpiFn)(RECT *, DWORD, BOOL, DWORD, UINT);
-    static GetDpiFn get_dpi;
-    static AdjustForDpiFn adjust;
-    if (!get_dpi) {
-        HMODULE u = GetModuleHandleA("user32.dll");
-        get_dpi = (GetDpiFn)(void *)GetProcAddress(u, "GetDpiForWindow");
-        adjust = (AdjustForDpiFn)(void *)GetProcAddress(u, "AdjustWindowRectExForDpi");
+    RECT f = frame_for_dpi(window_dpi(h)), wr, wa = mi.rcWork;
+    int fw = f.right - f.left, fh = f.bottom - f.top;
+    int maxw = wa.right - wa.left - fw, maxh = wa.bottom - wa.top - fh;
+    if (cw > maxw || ch > maxh) {
+        if ((long long)cw * maxh > (long long)ch * maxw) { ch = (int)((long long)ch * maxw / cw); cw = maxw; }
+        else { cw = (int)((long long)cw * maxh / ch); ch = maxh; }
     }
-    if (get_dpi && adjust) adjust(&r, WS_OVERLAPPEDWINDOW, FALSE, 0, get_dpi(h));
-    else AdjustWindowRect(&r, WS_OVERLAPPEDWINDOW, FALSE);
+    int w = cw + fw, hh = ch + fh;
     GetWindowRect(h, &wr);
-    int w = r.right - r.left, hh = r.bottom - r.top, x = wr.left, y = wr.top;
-    if (GetWindowLongA(h, GWL_STYLE) & WS_POPUP) {   // coming from borderless: centered in the work area
-        x = mi.rcWork.left + (mi.rcWork.right - mi.rcWork.left - w) / 2;
-        y = mi.rcWork.top + (mi.rcWork.bottom - mi.rcWork.top - hh) / 2;
+    int x = wr.left, y = wr.top;
+    if (GetWindowLongA(h, GWL_STYLE) & WS_POPUP) {   // coming from borderless: centered
+        x = wa.left + (wa.right - wa.left - w) / 2;
+        y = wa.top + (wa.bottom - wa.top - hh) / 2;
     }
-    if (y < mi.rcWork.top) y = mi.rcWork.top;   // title bar reachable
+    if (x + w > wa.right) x = wa.right - w;
+    if (y + hh > wa.bottom) y = wa.bottom - hh;
+    if (x < wa.left) x = wa.left;
+    if (y < wa.top) y = wa.top;   // title bar reachable
     return (RECT){ x, y, x + w, y + hh };
+}
+
+static RECT window_rect_for(HWND h) {
+    if (g_borderless) {
+        MONITORINFO mi = { .cbSize = sizeof mi };
+        GetMonitorInfoA(MonitorFromWindow(h, MONITOR_DEFAULTTONEAREST), &mi);
+        return mi.rcMonitor;
+    }
+    uint8_t *win = *(uint8_t **)G_GAME_WINDOW;
+    return normal_window_rect(h, win ? FIELD(win, 0xC, int) : 1024, win ? FIELD(win, 0x10, int) : 768);
 }
 
 static void apply_window_mode(HWND h) {
@@ -646,15 +674,15 @@ static LRESULT CALLBACK window_proc(HWND h, UINT msg, WPARAM w, LPARAM l) {
     case WM_SYSCHAR:
         if (w == '\r') return 0;   // no beep
         break;
-    case WM_ENTERSIZEMOVE: g_in_sizemove = 1; break;
-    case WM_EXITSIZEMOVE: g_in_sizemove = 0; break;
     case WM_WINDOWPOSCHANGING: {
         WINDOWPOS *p = (WINDOWPOS *)l;
         LONG st = GetWindowLongA(h, GWL_STYLE);
-        if (g_in_sizemove || (st & (WS_MINIMIZE | WS_MAXIMIZE)) || p->x <= -32000) break;
-        if ((p->flags & SWP_NOSIZE) && (!g_borderless || (p->flags & SWP_NOMOVE))) break;
+        if (!g_borderless || (st & WS_MINIMIZE) || p->x <= -32000) break;
+        if ((p->flags & SWP_NOSIZE) && (p->flags & SWP_NOMOVE)) break;
         RECT r = window_rect_for(h);
-        if (g_borderless) { p->x = r.left; p->y = r.top; p->flags &= ~SWP_NOMOVE; }
+        p->x = r.left;
+        p->y = r.top;
+        p->flags &= ~SWP_NOMOVE;
         p->cx = r.right - r.left;
         p->cy = r.bottom - r.top;
         p->flags &= ~SWP_NOSIZE;
@@ -684,9 +712,24 @@ static void window_hook(HWND hwnd) {   // subclass once per window (present and 
         g_game_wndproc = (WNDPROC)GetWindowLongA(hwnd, GWL_WNDPROC);
         SetWindowLongA(hwnd, GWL_WNDPROC, (LONG)(uintptr_t)window_proc);
         g_subclassed = hwnd;
-        PostMessageA(hwnd, WM_AIMOD_MODE, 0, 0);   // initial size/style, on the window's thread
+        if (g_borderless) PostMessageA(hwnd, WM_AIMOD_MODE, 0, 0);   // initial style/size, on the window's thread
     }
     busy = 0;
+}
+
+// Low-Level Engine's SetWindowPos (only GEWindow::Resize): its size comes from AdjustWindowRect at 96 DPI on an
+// unaware thread; for the DPI-aware game window the client it means is rebuilt at the window's DPI and set in
+// the window's context, so Windows doesn't scale it
+static BOOL WINAPI hook_set_window_pos(HWND h, HWND after, int x, int y, int cx, int cy, UINT flags) {
+    if ((flags & SWP_NOSIZE) || (GetWindowLongA(h, GWL_STYLE) & WS_POPUP) || IsIconic(h) || IsZoomed(h))
+        return SetWindowPos(h, after, x, y, cx, cy, flags);
+    RECT f96 = frame_for_dpi(96);   // the game's AdjustWindowRect ran on an unaware thread: 96 DPI frame
+    int cw = cx - (f96.right - f96.left), ch = cy - (f96.bottom - f96.top);
+    void *prev = dpi_enter(h);
+    RECT r = normal_window_rect(h, cw, ch);
+    BOOL ok = SetWindowPos(h, after, r.left, r.top, r.right - r.left, r.bottom - r.top, flags & ~SWP_NOMOVE);
+    dpi_leave(prev);
+    return ok;
 }
 
 static uint8_t *is_mouse(void) {
@@ -853,6 +896,8 @@ static void display_install(const char *aimod_ini, const char *autotest_ini) {
                 if (m) dpi += patch_iat(m, "USER32.dll", "CreateWindowExA", (void *)hook_create_window);
             }
         }
+        HMODULE lle = GetModuleHandleA("Low-Level Engine.dll");
+        int fit = lle ? patch_iat(lle, "USER32.dll", "SetWindowPos", (void *)hook_set_window_pos) : 0;
         // loading splash: started (0x5343F8) while the flag is still 1 - before the DLLs load - but its stop
         // (0x534433) checks the flag again and would leave it on screen; stop it in windowed mode too
         uint8_t *jne = (uint8_t *)0x0053443D;
@@ -865,9 +910,9 @@ static void display_install(const char *aimod_ini, const char *autotest_ini) {
             FlushInstructionCache(GetCurrentProcess(), jne, 2);
             splash = 1;
         }
-        if (g_log) fprintf(g_log, "# display: windowed %s (%s), present hooks %d, input patches %d/7, dpi hooks %d/2, splash stop %s\n",
+        if (g_log) fprintf(g_log, "# display: windowed %s (%s), present hooks %d, input patches %d/7, dpi hooks %d/2, window fit %s, splash stop %s\n",
                            was == 1 ? "on" : "NOT set (unexpected fullscreen flag)", g_borderless ? "borderless" : "window",
-                           hooks, input, dpi, splash ? "ok" : "FAILED");
+                           hooks, input, dpi, fit ? "ok" : "FAILED", splash ? "ok" : "FAILED");
     } else if (g_diag) {
         int hooks = install_windowed_present();   // all pass through in fullscreen; for the ddinfo counters
         if (g_log) fprintf(g_log, "# display: fullscreen, diagnostic hooks %d\n", hooks);
