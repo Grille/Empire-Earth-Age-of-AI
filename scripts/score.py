@@ -14,8 +14,12 @@ def load(path):
         elif hdr and len(r) == len(hdr):
             rows.append(dict(zip(hdr, r)))
     end = max((int(r['time_ms']) for r in rows), default=0)
-    battle = {}
+    battle, result = {}, {}
     for l in open(path, errors='replace'):
+        g = re.match(r'# autotest: game over at ([0-9.]+) min:(.*)', l)
+        if g:   # +0xA30 per player: 1 won, 2 lost
+            result = {int(k[1:]): int(v) for k, v in (x.split('=') for x in g.group(2).split())}
+            result['min'] = float(g.group(1))
         m = re.match(r'# battle: P(\d+) at \d+ min: (.*)', l)
         if m:
             battle[int(m.group(1))] = [int(x) for x in m.group(2).split()]
@@ -36,8 +40,9 @@ def load(path):
             food_end=int(last['stock2']),
             kills=battle.get(p, [0] * 6)[3], losses=battle.get(p, [0] * 6)[4], razed=battle.get(p, [0] * 6)[2],
             blost=battle.get(p, [0] * 6)[1],
+            won=result.get(p) == 1, lost=result.get(p) == 2,
         )
-    return end, out
+    return end, out, result
 
 quiet = '-q' in sys.argv     # averages only
 runs = defaultdict(dict)
@@ -51,8 +56,13 @@ for path in sys.argv[1:]:
 for variant, maps in runs.items():
     print('==== variant', variant)
     tot = defaultdict(float); n = 0; vals = defaultdict(list)
-    for mapname, (end, players) in sorted(maps.items()):
-        if not quiet: print('  %-14s end %4.1f min' % (mapname, end / 60000))
+    wins = defaultdict(int); decided = 0
+    for mapname, (end, players, result) in sorted(maps.items()):
+        if result:
+            decided += 1
+            for p, s in players.items(): wins[p] += s['won']
+        if not quiet: print('  %-14s end %4.1f min%s' % (mapname, end / 60000,
+            '  game over at %.1f min, won: %s' % (result['min'], ' '.join('P%d' % p for p, s in sorted(players.items()) if s['won'])) if result else ''))
         for p, s in sorted(players.items()):
             if not quiet: print('    P%d %-5s epoch %d  workers end %3d max %3d  food end %6d  last seen %5.1f  kills %3d losses %3d razed %3d bldg lost %3d' % (
                 p, 'alive' if s['alive'] else 'DEAD', s['epoch'], s['workers_end'], s['workers_max'], s['food_end'], s['last_min'],
@@ -67,6 +77,8 @@ for variant, maps in runs.items():
             tot['kills'] / n, tot['losses'] / n, tot['razed'] / n, tot['blost'] / n))
         # standard error of the mean per AI: differences smaller than about 2x this are noise
         se = lambda v: (sum((x - sum(v) / len(v)) ** 2 for x in v) / max(len(v) - 1, 1) / len(v)) ** 0.5
+        if decided:
+            print('  decided %d of %d runs; wins: %s' % (decided, len(maps), ' '.join('P%d %d' % (p, w) for p, w in sorted(wins.items()))))
         print('  (%d AIs in %d runs; std. error: alive %.0f%%  epoch %.2f  workers end %.1f  kills %.1f losses %.1f razed %.1f)' % (
             n, len(maps), 100 * se(vals['alive']), se(vals['epoch']), se(vals['workers_end']), se(vals['kills']),
             se(vals['losses']), se(vals['razed'])))

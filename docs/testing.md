@@ -11,7 +11,7 @@ The `[autotest]` keys:
 | Key | Meaning |
 |---|---|
 | `skip_intro=1` | skips the intro movies |
-| `quit_minutes=75` | ends the game after this many game minutes |
+| `quit_minutes=75` | ends the game after this many game minutes; a decided game (victory/defeat screen) ends the run at once and logs `# autotest: game over at <min>: P1=1 P2=1 P3=2` (1 won, 2 lost) |
 | `start_epoch=N` | (random maps) starting epoch, e.g. 2 = Copper Age, for tests that should begin later in the game |
 | `speed=7.5` | game speed (normal 2.5). The simulation runs a fixed number of steps per real second (the lockstep server grants 15 steps every 350 ms); the speed only sets the game time per step, `1000 * speed / 44` ms (57 ms at 2.5, 170 ms at 7.5). Higher speeds make the steps coarser (movement artifacts). |
 | `turbo=1` | the steps follow each other as fast as the CPU allows instead of 43 per second: the server sends the next tick as soon as the simulation has used up the last one, the simulation loop skips its 22 ms timer, and a headless window renders only a few frames a second. Same steps, same game: a 75-minute game takes ~15 s instead of ~10 min. Pipe: `turbo 0\|1` |
@@ -55,6 +55,7 @@ sh scripts/scen.sh 30 towers_on_path "random_map=Continental,map_size=0,ai_count
 | Scenario | Question |
 |---|---|
 | `pathtest` (`Data\Scenarios\pathtest.scn`, made in the editor, `-Scenario pathtest`) | towers, walls and lasers on the direct way, the long way round to the main base free |
+| `siege_towers` (Continental 101, 2 AIs) | same-era defences: 5 bronze guard towers in front of the defender, the attacker has 6 catapults (range 7 > 5) |
 | `towers_on_path` (Continental 101, 2 AIs) | a focused tower cluster in front of the defender, open ground around it, armies for both |
 | `wall_gap` (Continental 101, 2 AIs) | no way around: a wall across the continent, one gap guarded by towers and lasers; armies for both |
 
@@ -130,6 +131,9 @@ DDrawCompat v0.7.1 (narzoul) instead of dgVoodoo's ddraw.dll: 7.9 ms per frame w
 
 Autotest key `headless=1`: the game window is created off-screen, never activates and ignores focus
 changes, so nothing on the desktop, the mouse or the keyboard is touched. Drive it through the pipe:
+`run_test.ps1` starts headless runs suspended and switches off the loading splash before the game runs (it
+appears before the engine loads the DLL, centred on screen, and takes the focus); the display DLL's probe
+window is moved off-screen too. Nothing of the game should become visible or take the focus.
 
 | Command | |
 |---|---|

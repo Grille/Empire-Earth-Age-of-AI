@@ -25,7 +25,7 @@
 #define ASG_ROUTE_DONE_SLOT 97
 
 #define MAX_DEFENCES 256
-struct defence { int x, y, owner; float range, attack; int type; };
+struct defence { int x, y, owner; float range, attack; int type; uint8_t *u; };
 static struct {
     struct defence d[MAX_DEFENCES];
     int n;
@@ -89,6 +89,7 @@ static void threat_refresh(void *pl, uint32_t now) {
                 d->x = x; d->y = y; d->range = r; d->attack = a;
                 d->owner = FIELD(FIELD(u, 0x18, void *), PL_INDEX, int);
                 d->type = FIELD(FIELD(u, 0x2C, uint8_t *), 0x4B8, int);
+                d->u = u;
             }
         }
     }
@@ -444,8 +445,159 @@ static int army_size(void *pl) {
     return n;
 }
 
+// Siege like a player: the AI never sends its siege weapons into its attacks (they stay at home). Every 2 s each
+// AI picks a siege target - the nearest known enemy defence its siege outranges, or a wall segment one of its
+// subgroups is to breach - and a firing position at (siege range - 0.7) from it, on the side facing the siege,
+// where no other known defence reaches. The siege moves there and attacks; idle soldiers (1.5 per siege
+// weapon, at least 4) guard the firing position instead of charging in.
+// Orders are given like the subgroup's (EECPAttackSubGroup::vf57 0x45CBEA): unit 0x5F05BD(goal, append, 0),
+// 0x5EFCF0(priority), typedata slot 29 (unit). Goals: EEUGAttackUnit (new 0x40, ctor 0x60AD45(attacker, target,
+// 1)), EEUGLocation (new 0x38, ctor 0x614CE6(float xy[2], 1, 1, 0, 0.0, 0, 0); +0x20/+0x24 = xy).
+static int g_siege = 1;               // aimod.ini [all] attack_siege
+#define VT_GOAL_ATTACK   0x00831968
+#define VT_GOAL_LOCATION 0x00831E64
+static struct { int tx, ty, ttype, px, py; uint32_t last; unsigned logged; } g_siege_st[16];
+
+static int is_siege(int type) {
+    return type == 104 || type == 105 || type == 106 || type == 107 || type == 141 || type == 142 || type == 602 || type == 603;
+}
+
+static uint8_t *unit_at(int x, int y, int type) {
+    uint8_t *map = *(uint8_t **)G_MAP;
+    uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
+    if (!grid) return NULL;
+    int cs = FIELD(grid, 8, int), nx = FIELD(grid, 0x10, int), ny = FIELD(grid, 0x14, int);
+    uint8_t *cells = FIELD(grid, 4, uint8_t *);
+    if (cs <= 0 || !cells || x < 0 || y < 0 || x / cs >= nx || y / cs >= ny) return NULL;
+    uint8_t *cell = cells + ((x / cs) * ny + y / cs) * 16;
+    for (uint8_t **b = FIELD(cell, 4, uint8_t **); b && b < FIELD(cell, 8, uint8_t **); b++) {
+        uint8_t *u = *b, *td = u ? FIELD(u, 0x2C, uint8_t *) : NULL;
+        if (td && FIELD(u, 0x1C, int) == x && FIELD(u, 0x20, int) == y && FIELD(td, 0x4B8, int) == type && FIELD(u, 0x3C, int) > 0)
+            return u;
+    }
+    return NULL;
+}
+
+static int unit_goal(uint8_t *u, void *goal, int append, int prio) {
+    if (!goal || FIELD(u, 0x3C, int) <= 0 || FIELD(u, 0x1C, int) == -10000 || FIELD(u, 0x33B, char)) return 0;
+    ((void (__thiscall *)(void *, void *, char, int))0x005F05BD)(u, goal, (char)append, 0);
+    ((void (__thiscall *)(void *, int))0x005EFCF0)(u, prio);
+    uint8_t *td = FIELD(u, 0x2C, uint8_t *);
+    ((void (__thiscall *)(void *, void *))(*(void ***)td)[29])(td, u);
+    return 1;
+}
+
+static void *goal_attack(uint8_t *u, uint8_t *target) {
+    void *g = ((void *(__cdecl *)(unsigned))0x00683718)(0x40);
+    return g ? ((void *(__thiscall *)(void *, void *, void *, int))0x0060AD45)(g, u, target, 1) : NULL;
+}
+
+static void *goal_move(float x, float y) {
+    float xy[2] = { x, y };
+    void *g = ((void *(__cdecl *)(unsigned))0x00683718)(0x38);
+    return g ? ((void *(__thiscall *)(void *, float *, int, char, char, float, char, char))0x00614CE6)(g, xy, 1, 1, 0, 0.0f, 0, 0) : NULL;
+}
+
+// Known defences covering tile (x, y) by their real range (+1), not counting the one at (ex, ey).
+static int covered(unsigned pi, float x, float y, int ex, int ey) {
+    for (int k = 0; k < g_threat[pi].n; k++) {
+        struct defence *d = &g_threat[pi].d[k];
+        if (d->x == ex && d->y == ey) continue;
+        float dx = x - (float)d->x, dy = y - (float)d->y, r = d->range + 1.5f;
+        if (dx * dx + dy * dy <= r * r) return 1;
+    }
+    return 0;
+}
+
+static void siege_tick(void *pl, uint32_t now) {
+    unsigned pi = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
+    if (!g_siege || (now >= g_siege_st[pi].last && now - g_siege_st[pi].last < 2000)) return;
+    g_siege_st[pi].last = now;
+    uint8_t *map = *(uint8_t **)G_MAP;
+    uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
+    if (!grid) return;
+    uint8_t *cells = FIELD(grid, 4, uint8_t *);
+    unsigned count = FIELD(grid, 0x10, unsigned) * FIELD(grid, 0x14, unsigned);
+    // own siege weapons
+    enum { MAXS = 24, MAXE = 48 };
+    uint8_t *siege[MAXS]; int ns = 0; float sx = 0, sy = 0, srange = 99;
+    for (unsigned c = 0; cells && c < count && ns < MAXS; c++)
+        for (uint8_t **b = FIELD(cells + c * 16, 4, uint8_t **); b && b < FIELD(cells + c * 16, 8, uint8_t **) && ns < MAXS; b++) {
+            uint8_t *u = *b, *td = u ? FIELD(u, 0x2C, uint8_t *) : NULL;
+            if (!td || FIELD(u, 0x18, void *) != pl || !is_siege(FIELD(td, 0x4B8, int)) || FIELD(u, 0x3C, int) <= 0) continue;
+            uint8_t *st = FIELD(u, 0x34, uint8_t *);
+            float r = st ? FIELD(st, 0x9C, float) : FIELD(td, 0x420, float);
+            if (r < srange) srange = r;
+            siege[ns++] = u; sx += (float)FIELD(u, 0x1C, int); sy += (float)FIELD(u, 0x20, int);
+        }
+    if (ns < 2) return;
+    sx /= (float)ns; sy /= (float)ns;
+    // target: a breach wall of one of our subgroups, else the nearest known defence we outrange
+    uint8_t *t = NULL; float best = 1e30f;
+    for (int k = 0; k < 64; k++) {
+        if (!g_breaches[k].sg || FIELD(g_breaches[k].sg, 0x190, void *) != pl) continue;
+        uint8_t *w = wall_at(pl, g_breaches[k].x, g_breaches[k].y);
+        float dx = (float)g_breaches[k].x - sx, dy = (float)g_breaches[k].y - sy;
+        if (w && dx * dx + dy * dy < best) { best = dx * dx + dy * dy; t = w; }
+    }
+    if (!t) {
+        threat_refresh(pl, now);
+        for (int k = 0; k < g_threat[pi].n; k++) {
+            struct defence *d = &g_threat[pi].d[k];
+            if (d->range + 0.5f >= srange) continue;
+            float dx = (float)d->x - sx, dy = (float)d->y - sy;
+            if (dx * dx + dy * dy < best) { best = dx * dx + dy * dy; t = unit_at(d->x, d->y, d->type); }
+        }
+    }
+    if (!t) return;
+    int tx = FIELD(t, 0x1C, int), ty = FIELD(t, 0x20, int);
+    // firing position: range - 0.7 from the target, facing the siege, outside every other known defence
+    float dir = atan2f(sy - (float)ty, sx - (float)tx), r = srange - 0.7f, px = 0, py = 0;
+    int found = 0;
+    for (int k = 0; k <= 12 && !found; k++) {
+        float a = dir + (k & 1 ? 1.0f : -1.0f) * (float)((k + 1) / 2) * 0.2618f;   // 0, +-15, +-30 ... +-90 degrees
+        px = (float)tx + 0.5f + r * cosf(a); py = (float)ty + 0.5f + r * sinf(a);
+        found = !covered(pi, px, py, tx, ty);
+    }
+    if (!found) return;
+    int changed = tx != g_siege_st[pi].tx || ty != g_siege_st[pi].ty;
+    g_siege_st[pi].tx = tx; g_siege_st[pi].ty = ty; g_siege_st[pi].ttype = FIELD(FIELD(t, 0x2C, uint8_t *), 0x4B8, int);
+    g_siege_st[pi].px = (int)px; g_siege_st[pi].py = (int)py;
+    // siege: move to the firing position, then attack (orders only when not already doing that)
+    int ordered = 0;
+    for (int i = 0; i < ns; i++) {
+        uint8_t *u = siege[i], *g = FIELD(u, 0x1EC, uint8_t *);
+        if (g && *(uintptr_t *)g == VT_GOAL_ATTACK && FIELD(g, 0x30, uint8_t *) == t) continue;
+        float ux = (float)FIELD(u, 0x1C, int) + 0.5f - px, uy = (float)FIELD(u, 0x20, int) + 0.5f - py;
+        if (ux * ux + uy * uy > 4.0f) {
+            if (g && *(uintptr_t *)g == VT_GOAL_LOCATION && !changed) continue;   // on its way
+            ordered += unit_goal(u, goal_move(px, py), 0, 0x1F40) && unit_goal(u, goal_attack(u, t), 1, 0x1F40);
+        } else
+            ordered += unit_goal(u, goal_attack(u, t), 0, 0x1F40);
+    }
+    // escorts: idle soldiers (no goal) to the firing position
+    int want = ns * 3 / 2 < 4 ? 4 : ns * 3 / 2, escorts = 0;
+    for (unsigned c = 0; cells && c < count && escorts < want && escorts < MAXE; c++)
+        for (uint8_t **b = FIELD(cells + c * 16, 4, uint8_t **); b && b < FIELD(cells + c * 16, 8, uint8_t **) && escorts < want; b++) {
+            uint8_t *u = *b, *td = u ? FIELD(u, 0x2C, uint8_t *) : NULL;
+            if (!td || FIELD(u, 0x18, void *) != pl || FIELD(u, 0x1EC, void *) || FIELD(u, 0x3C, int) <= 0) continue;
+            int fam = FIELD(td, 0x4B4, int), type = FIELD(td, 0x4B8, int);
+            if (fam != 5 || is_siege(type) || type == 32 || type == 102 || type == 287) continue;   // soldiers only (no citizens, rams)
+            float ex = (float)FIELD(u, 0x1C, int) - px, ey = (float)FIELD(u, 0x20, int) - py;
+            if (ex * ex + ey * ey < 9.0f) { escorts++; continue; }   // already there
+            escorts += unit_goal(u, goal_move(px + (float)(escorts % 3) - 1.0f, py + (float)(escorts / 3 % 3) - 1.0f), 0, 0x1F40);
+        }
+    if (g_log && (changed || ordered) && g_siege_st[pi].logged < 40) {
+        g_siege_st[pi].logged++;
+        fprintf(g_log, "# siege: P%u at %.1f min: %d siege (range %.1f) at %.0f,%.0f -> type %d at %d,%d from %.0f,%.0f; %d ordered, %d escorts\n",
+                pi, now / 60000.0, ns, srange, sx, sy, g_siege_st[pi].ttype, tx, ty, px, py, ordered, escorts);
+        fflush(g_log);
+    }
+}
+
 static void attack_tick(void *pl, uint32_t now) {
     threat_refresh(pl, now);   // also with avoid_towers=0: the route log compares both
+    siege_tick(pl, now);
     {
         unsigned i = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
         if (g_log && now / 300000 != g_mil[i].last_log / 300000) {
@@ -504,6 +656,7 @@ static void attack_install(const char *aimod_ini, const char *autotest_ini) {
     g_weak_radius = cfg_int(aimod_ini, autotest_ini, 1, "attack_weak_spot_radius", 60);
     g_leash = cfg_int(aimod_ini, autotest_ini, 1, "attack_leash", 1);
     g_breach = cfg_int(aimod_ini, autotest_ini, 1, "attack_breach", 1);
+    g_siege = cfg_int(aimod_ini, autotest_ini, 1, "attack_siege", 1);
     int a = patch_vtable(VT_ROUTE_PLANNER, 1, FN_ROUTE_COST, hook_route_cost);
     int b = patch_vtable(VT_ASG_LAND, ASG_ROUTE_SLOT, FN_ASG_ROUTE, hook_asg_route);
     int c = patch_vtable(VT_ASG_LAND, ASG_ROUTE_DONE_SLOT, FN_ASG_ROUTE_DONE, hook_asg_route_done);
@@ -607,7 +760,8 @@ static void cmd_spawnline(char *out, const char *args) {
 // Soldiers of player P (any player, AI or not) grouped by current goal (unit+0x1EC): count, centre, and the
 // goal's first dwords of the first unit (to find what it is after).
 static void cmd_army(char *out, const char *args) {
-    int p = atoi(args);
+    int p = 0, only = -1;   // army P [type]: only that unit type
+    sscanf(args, "%d %d", &p, &only);
     uint8_t *map = *(uint8_t **)G_MAP;
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     if (!grid) { REPLY("error: no map\n"); return; }
@@ -625,6 +779,7 @@ static void cmd_army(char *out, const char *args) {
             int fam = FIELD(td, 0x4B4, int);
             if (fam == 2 || fam == 6 || fam == 0x13 || fam == 0x16 || fam == 0x18 || fam == 0x19 || fam == 0x1D || fam == 0 || fam == 1)
                 continue;
+            if (only >= 0 && FIELD(td, 0x4B8, int) != only) continue;
             const char *gn = rtti_name(FIELD(u, 0x1EC, void *));
             int j = 0;
             while (j < ng && g[j].goal != gn) j++;

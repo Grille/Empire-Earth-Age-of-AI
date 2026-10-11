@@ -63,11 +63,45 @@ $lines = Get-Content "$g\_aimod\autotest.ini" | Where-Object { $keys -notcontain
 Set-Content "$g\aimod_autotest.ini" (@($lines) + $extra)
 try {
     Remove-Item "$g\aimod_econ.csv" -Confirm:$false -ErrorAction SilentlyContinue
-    $psi = New-Object System.Diagnostics.ProcessStartInfo
-    $psi.FileName = "$g\$Exe";$psi.Arguments = "-loadgame `"$Save`""
-    $psi.WorkingDirectory = $g; $psi.UseShellExecute = $false
     $t0 = Get-Date
-    $p = [System.Diagnostics.Process]::Start($psi)
+    if ($extra -contains "headless=1") {
+        # headless: start suspended and switch off the loading splash before the game runs - it comes up before
+        # the engine loads our DLL, centred on screen, and takes the focus (jne at 0x534400 -> jmp, see display.c)
+        Add-Type @"
+using System; using System.Runtime.InteropServices;
+public static class SuspendedStart {
+  [StructLayout(LayoutKind.Sequential, CharSet=CharSet.Unicode)] struct SI { public int cb; public string a, b, c;
+    public int x, y, w, h, xc, yc, fill, flags; public short show, r2; public IntPtr r3, i, o, e; }
+  [StructLayout(LayoutKind.Sequential)] struct PI { public IntPtr hp, ht; public int pid, tid; }
+  [DllImport("kernel32", CharSet=CharSet.Unicode, SetLastError=true)] static extern bool CreateProcessW(string app,
+    string cmd, IntPtr pa, IntPtr ta, bool inh, int flags, IntPtr env, string dir, ref SI si, out PI pi);
+  [DllImport("kernel32")] static extern bool WriteProcessMemory(IntPtr p, IntPtr a, byte[] b, int n, out IntPtr w);
+  [DllImport("kernel32")] static extern bool ReadProcessMemory(IntPtr p, IntPtr a, byte[] b, int n, out IntPtr r);
+  [DllImport("kernel32")] static extern bool VirtualProtectEx(IntPtr p, IntPtr a, int n, int prot, out int old);
+  [DllImport("kernel32")] static extern int ResumeThread(IntPtr t);
+  [DllImport("kernel32")] static extern bool CloseHandle(IntPtr h);
+  public static int Start(string exe, string args, string dir, out bool patched) {
+    SI si = new SI(); si.cb = Marshal.SizeOf(si); PI pi;
+    if (!CreateProcessW(exe, "\"" + exe + "\" " + args, IntPtr.Zero, IntPtr.Zero, false, 4, IntPtr.Zero, dir, ref si, out pi))
+      throw new Exception("CreateProcess failed: " + Marshal.GetLastWin32Error());
+    IntPtr at = new IntPtr(0x534400); byte[] cur = new byte[2]; IntPtr n; int old;
+    patched = ReadProcessMemory(pi.hp, at, cur, 2, out n) && cur[0] == 0x75 && cur[1] == 0x2F &&
+              VirtualProtectEx(pi.hp, at, 1, 0x40, out old) && WriteProcessMemory(pi.hp, at, new byte[] { 0xEB }, 1, out n);
+    ResumeThread(pi.ht); CloseHandle(pi.ht); CloseHandle(pi.hp);
+    return pi.pid;
+  }
+}
+"@
+        $patched = $false
+        $p = Get-Process -Id ([SuspendedStart]::Start("$g\$Exe", "-loadgame `"$Save`"", $g, [ref]$patched))
+        $null = $p.Handle   # keep a handle, else ExitCode is lost
+        if (-not $patched) { "warning: loading splash not switched off (unexpected bytes at 0x534400)" }
+    } else {
+        $psi = New-Object System.Diagnostics.ProcessStartInfo
+        $psi.FileName = "$g\$Exe";$psi.Arguments = "-loadgame `"$Save`""
+        $psi.WorkingDirectory = $g; $psi.UseShellExecute = $false
+        $p = [System.Diagnostics.Process]::Start($psi)
+    }
     # safety: the DLL logs "# autotest:" at load when it found the test ini; without it the game would run at
     # normal speed with intros and (if the ini vanished) sound - kill it instead
     $ok = $false

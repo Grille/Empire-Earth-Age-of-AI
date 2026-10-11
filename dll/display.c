@@ -188,7 +188,9 @@ static void dpi_leave(void *prev) { if (prev) g_set_thread_dpi(prev); }
 typedef HWND (WINAPI *CreateWindowExAFn)(DWORD, LPCSTR, LPCSTR, DWORD, int, int, int, int, HWND, HMENU, HINSTANCE, LPVOID);
 static HWND WINAPI hook_create_window(DWORD ex, LPCSTR cls, LPCSTR name, DWORD style, int x, int y, int w, int h,
                                       HWND parent, HMENU menu, HINSTANCE inst, LPVOID param) {
-    if (g_headless && (style & WS_CAPTION)) {   // the game window: off-screen, never activated
+    // headless: every top-level window off-screen, never activated - the game window and the display DLL's
+    // 16x16 "TestWindowClass" probe window, which otherwise takes the foreground for a moment
+    if (g_headless && !parent) {
         ex |= WS_EX_NOACTIVATE;
         x = GetSystemMetrics(SM_XVIRTUALSCREEN) - 8000;
         y = 0;
@@ -1326,19 +1328,22 @@ static void display_install(const char *aimod_ini, const char *autotest_ini) {
         }
         HMODULE lle = GetModuleHandleA("Low-Level Engine.dll");
         int fit = lle ? patch_iat(lle, "USER32.dll", "SetWindowPos", (void *)hook_set_window_pos) : 0;
-        // loading splash: started (0x5343F8) while the flag is still 1 - before the DLLs load - but its stop
-        // (0x534433) checks the flag again and would leave it on screen; stop it in windowed mode too
-        uint8_t *jne = (uint8_t *)0x0053443D;
-        int splash = 0;
+        // loading splash (thread 0x5344FB, a popup centred on screen): started (0x5343F8, jne at 0x534400) while the
+        // flag is still 1 - before the engine loads the DLLs - but its stop (0x534433) checks the flag again and
+        // would leave it on screen; stop it in windowed mode too (jne at 0x53443D -> nop). Headless test runs
+        // (run_test.ps1) start the game suspended and patch the start to jmp, so there is no splash at all, and
+        // then the stop must be skipped as well (it waits for the splash thread without a time limit).
+        uint8_t *jne = (uint8_t *)0x0053443D, *jstart = (uint8_t *)0x00534400;
+        int splash = 0, nosplash = jstart[0] == 0xEB;
         if (jne[0] == 0x75 && jne[1] == 0x19) {
             DWORD old;
             VirtualProtect(jne, 2, PAGE_EXECUTE_READWRITE, &old);
-            jne[0] = jne[1] = 0x90;
+            if (nosplash) jne[0] = 0xEB; else jne[0] = jne[1] = 0x90;
             VirtualProtect(jne, 2, old, &old);
             FlushInstructionCache(GetCurrentProcess(), jne, 2);
             splash = 1;
         }
-        if (g_log && g_headless) fprintf(g_log, "# display: headless (off-screen window, virtual mouse)\n");
+        if (g_log && g_headless) fprintf(g_log, "# display: headless (off-screen window, virtual mouse, %s)\n", nosplash ? "no splash" : "splash NOT prevented - started before the DLL loads");
         if (g_log) fprintf(g_log, "# display: windowed %s (%s), present hooks %d, input patches %d/7, dpi hooks %d/2, window fit %s, splash stop %s\n",
                            was == 1 ? "on" : "NOT set (unexpected fullscreen flag)", g_borderless ? "borderless" : "window",
                            hooks, input, dpi, fit ? "ok" : "FAILED", splash ? "ok" : "FAILED");

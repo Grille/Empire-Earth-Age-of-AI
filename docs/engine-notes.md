@@ -111,6 +111,16 @@ Type data (0x9418A0[type]): +0x4B4 family (2 building, 29 fortress, 5/6 units), 
 +0x460 line of sight, +0x510 attack, +0x55C hit points, +0x540 influence. Type names: `data/db/converteroutput.log`.
 Guard towers 47, 461..466; AA 145/147; town center 35; house 37; citizen 32.
 
+## Orders, game end, splash
+
+- Give a unit a goal (as EECPAttackSubGroup::vf57 0x45CBEA): alive (+0x3C > 0, +0x1C != -10000, +0x33B == 0),
+  then unit 0x5F05BD(goal, append, 0), 0x5EFCF0(priority), typedata slot 29 (unit). EEUGAttackUnit: new 0x40,
+  0x60AD45(attacker, target, 1). EEUGLocation: new 0x38, 0x614CE6(float xy[2], 1, 1, 0, 0.0, 0, 0).
+- Game decided: player +0xA30 = 1 won, 2 lost. The end screen pauses the lockstep server (EEServer +0x2D), the
+  physics gets ticks without steps.
+- Loading splash: thread 0x5344FB (class "Loading Game Window"), started at 0x5343F8 (jne 0x534400) before the
+  engine loads the DLLs; the stop 0x534433 waits for the thread without a time limit.
+
 ## Creating units
 
 - In a running game: EEMHackANewUnit, the game's debug spawner (0x64C561): operator new 0x683718 (0x20 bytes),

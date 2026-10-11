@@ -398,8 +398,11 @@ typedef long (__thiscall *EventWaitFn)(void *ev, unsigned long ms);
 
 static long __fastcall hook_sim_wait(void *ev, void *edx, unsigned long ms) {
     (void)edx;
-    if (g_turbo) return 0;
-    return (*(EventWaitFn *)IAT_TS_WAIT)(ev, ms);
+    // only while steps are granted: otherwise a real (short) wait, so the client, server and pathfinding threads
+    // the simulation waits for get the CPU instead of a spinning loop
+    uint8_t *phys = *(uint8_t **)0x00919774;
+    if (g_turbo && phys && FIELD(phys, 0xB8, unsigned)) return 0;
+    return (*(EventWaitFn *)IAT_TS_WAIT)(ev, g_turbo ? 1 : ms);
 }
 
 static BOOL patch_sim_wait(void) {
@@ -435,11 +438,10 @@ static int sim_drained(void) {
 
 static DWORD WINAPI hook_send_wait(DWORD n, const HANDLE *h, BOOL all, DWORD ms) {
     if (!g_turbo || !game_time()) return WaitForMultipleObjects(n, h, all, ms);
-    for (;;) {
-        DWORD r = WaitForMultipleObjects(n, h, all, 0);
-        if (r != WAIT_TIMEOUT || !g_turbo) return r;
+    for (;;) {   // 1 ms waits, no spinning: the client thread must answer each tick before the next carries steps
         if (sim_drained()) return WAIT_TIMEOUT;
-        SwitchToThread();
+        DWORD r = WaitForMultipleObjects(n, h, all, 1);
+        if (r != WAIT_TIMEOUT || !g_turbo) return r;
     }
 }
 
@@ -563,8 +565,34 @@ static DWORD WINAPI pipe_thread(LPVOID unused) {
     }
 }
 
+// Autotest: when the game is decided (local player +0xA30 != 0, set when a game ends - 1 won, 2 lost; the end
+// screen then pauses the lockstep server, so the simulation never reaches quit_minutes), log it and exit.
+static DWORD WINAPI gameover_watch(LPVOID unused) {
+    (void)unused;
+    for (;;) {
+        Sleep(500);
+        unsigned me = *(unsigned *)0x00918E84;
+        uint8_t *pl = me < 16 ? ((uint8_t **)0x00918374)[me] : NULL;
+        if (!pl || !game_time() || !FIELD(pl, 0xA30, int)) continue;
+        if (g_log) {
+            EnterCriticalSection(&g_lock);
+            fprintf(g_log, "# autotest: game over at %.1f min:", game_time() / 60000.0);
+            for (int i = 1; i < 16; i++) {
+                uint8_t *p = ((uint8_t **)0x00918374)[i];
+                if (p) fprintf(g_log, " P%d=%d", i, FIELD(p, 0xA30, int));
+            }
+            fputc(10, g_log);
+            fclose(g_log);
+            g_log = NULL;
+            LeaveCriticalSection(&g_lock);
+        }
+        TerminateProcess(GetCurrentProcess(), 0);
+    }
+}
+
 static void ctl_start(void) {
     ctl_log("sim loop hook %s", patch_sim_loop() ? "ok" : "FAILED");
+    if (g_auto.enabled) CloseHandle(CreateThread(NULL, 0, gameover_watch, NULL, 0, NULL));
     if (g_auto.enabled) {
         g_turbo = g_auto.turbo;
         int a = patch_sim_wait(), b = patch_send_wait();

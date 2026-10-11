@@ -1,0 +1,17 @@
+# Continental seed 101, 2 AIs, start epoch 3: P2 base ~80,52, P3 base ~40,42.
+# No way around: a wall across the whole continent at x=60 with one 3-tile gap (y 45-47) on the direct line,
+# a tower cluster behind the gap on P3's side (the lasers cover the gap).
+spawnline 3 468 60 0 60 44
+spawnline 3 468 60 48 60 115
+spawn 3 462 57 43
+spawn 3 462 57 49
+spawn 3 462 55 46
+spawn 3 466 56 41
+spawn 3 466 56 51
+# Armies: P2 attacks with a real force (incl. 2 catapults), P3 has a few defenders behind the gap.
+spawn 2 24 76 50 20
+spawn 2 10 76 58 10
+spawn 2 137 82 58 6
+spawn 2 104 72 54 8
+spawn 3 24 50 44 8
+spawn 3 10 50 49 6
