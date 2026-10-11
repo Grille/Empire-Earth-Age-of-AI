@@ -200,6 +200,89 @@ static uint8_t *find_weak_spot(void *pl, unsigned pi, const int *start, const in
     return best;
 }
 
+// Breach: the route planner works on ~10-tile sectors and ignores walls, so an army marches straight to an enemy
+// wall and piles up in front of it - next to the towers that guard the gap. When the straight line to the goal
+// crosses a known enemy wall, the subgroup first attacks a wall segment outside known tower range, the one with
+// the shortest detour along that wall (find_breach); the scorer makes that segment the units' target (walls score
+// below zero otherwise). Walls are tough: without siege the breach takes long or fails.
+static int g_breach = 1;              // aimod.ini [all] attack_breach
+static struct { void *sg; int x, y; } g_breaches[64];   // subgroup -> wall tile it is to breach
+
+static void breach_note(void *sg, int x, int y) {
+    int free_k = -1;
+    for (int k = 0; k < 64; k++) {
+        if (g_breaches[k].sg == sg) { g_breaches[k].x = x; g_breaches[k].y = y; if (x < 0) g_breaches[k].sg = NULL; return; }
+        if (!g_breaches[k].sg && free_k < 0) free_k = k;
+    }
+    if (x < 0) return;
+    if (free_k < 0) free_k = (int)((uintptr_t)sg >> 4) & 63;   // full: overwrite one
+    g_breaches[free_k].sg = sg; g_breaches[free_k].x = x; g_breaches[free_k].y = y;
+}
+
+static int breach_of(void *sg, int *x, int *y) {
+    for (int k = 0; k < 64; k++)
+        if (g_breaches[k].sg == sg) { *x = g_breaches[k].x; *y = g_breaches[k].y; return 1; }
+    return 0;
+}
+
+static uint8_t *wall_at(void *pl, int x, int y) {
+    uint8_t *map = *(uint8_t **)G_MAP;
+    uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
+    if (!grid) return NULL;
+    int cs = FIELD(grid, 8, int), nx = FIELD(grid, 0x10, int), ny = FIELD(grid, 0x14, int);
+    uint8_t *cells = FIELD(grid, 4, uint8_t *);
+    if (cs <= 0 || !cells || x < 0 || y < 0 || x / cs >= nx || y / cs >= ny) return NULL;
+    uint8_t *cell = cells + ((x / cs) * ny + y / cs) * 16;
+    for (uint8_t **b = FIELD(cell, 4, uint8_t **); b && b < FIELD(cell, 8, uint8_t **); b++) {
+        uint8_t *u = *b, *td = u ? FIELD(u, 0x2C, uint8_t *) : NULL;
+        if (td && FIELD(u, 0x1C, int) == x && FIELD(u, 0x20, int) == y && is_wall(FIELD(td, 0x4B8, int)) &&
+            is_enemy(pl, FIELD(u, 0x18, void *)) && seen_by(u, pl))
+            return u;
+    }
+    return NULL;
+}
+
+// First known enemy wall tile on the straight line start -> dest (half-tile steps), or NULL.
+static uint8_t *wall_crossing(void *pl, const int *start, const int *dest) {
+    int dx = dest[0] - start[0], dy = dest[1] - start[1];
+    int n = 2 * (abs(dx) > abs(dy) ? abs(dx) : abs(dy));
+    for (int i = 1; i < n; i++) {
+        uint8_t *w = wall_at(pl, start[0] + (dx * i + (dx >= 0 ? n / 2 : -n / 2)) / n,
+                             start[1] + (dy * i + (dy >= 0 ? n / 2 : -n / 2)) / n);
+        if (w) return w;
+    }
+    return NULL;
+}
+
+// Follows the crossed wall (8-connected wall tiles) up to 60 tiles from the crossing and takes the segment outside
+// known tower range with the shortest detour start -> segment -> dest.
+static uint8_t *find_breach(void *pl, unsigned pi, const int *start, const int *dest, const uint8_t *cross) {
+    enum { MAXQ = 512 };
+    static int qx[MAXQ], qy[MAXQ];
+    int head = 0, tail = 0, cx = FIELD(cross, 0x1C, int), cy = FIELD(cross, 0x20, int);
+    qx[tail] = cx; qy[tail++] = cy;
+    uint8_t *best = NULL;
+    float best_score = 1e30f;
+    while (head < tail) {
+        int x = qx[head], y = qy[head++];
+        uint8_t *u = wall_at(pl, x, y);
+        if (!u) continue;
+        if (!(threat_at(pi, x, y) > 0)) {
+            float ax = (float)(x - start[0]), ay = (float)(y - start[1]), bx = (float)(dest[0] - x), by = (float)(dest[1] - y);
+            float score = sqrtf(ax * ax + ay * ay) + sqrtf(bx * bx + by * by);
+            if (score < best_score) { best_score = score; best = u; }
+        }
+        for (int ddx = -1; ddx <= 1; ddx++)
+            for (int ddy = -1; ddy <= 1; ddy++) {
+                int nx = x + ddx, ny = y + ddy, seen = 0;
+                if ((nx - cx) * (nx - cx) + (ny - cy) * (ny - cy) > 60 * 60 || tail >= MAXQ) continue;
+                for (int k = 0; k < tail && !seen; k++) seen = qx[k] == nx && qy[k] == ny;
+                if (!seen && wall_at(pl, nx, ny)) { qx[tail] = nx; qy[tail++] = ny; }
+            }
+    }
+    return best;
+}
+
 typedef void (__thiscall *AsgRouteFn)(void *self, int *start, int *dest);
 static void __fastcall hook_asg_route(uint8_t *self, void *edx, int *start, int *dest) {
     (void)edx;
@@ -219,6 +302,23 @@ static void __fastcall hook_asg_route(uint8_t *self, void *edx, int *start, int 
             dest[0] = FIELD(u, 0x1C, int); dest[1] = FIELD(u, 0x20, int);
             FIELD(tg, 4, int) = dest[0]; FIELD(tg, 8, int) = dest[1];
             FIELD(tg, 0xC, int) = FIELD(u, 0x60, int);
+            FIELD(tg, 0x10, int) = 1;
+        }
+    }
+    if (pl && start && dest && g_breach) {
+        unsigned pi = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
+        uint8_t *cross = wall_crossing(pl, start, dest);
+        uint8_t *w = cross ? find_breach(pl, pi, start, dest, cross) : NULL;
+        breach_note(self, w ? FIELD(w, 0x1C, int) : -1, w ? FIELD(w, 0x20, int) : -1);
+        if (w) {
+            uint8_t *tg = self + 0x100;
+            if (g_log)
+                fprintf(g_log, "# breach: P%u goal %d,%d: wall crossed at %d,%d (threat %.1f) -> attack wall at %d,%d\n",
+                        pi, dest[0], dest[1], FIELD(cross, 0x1C, int), FIELD(cross, 0x20, int),
+                        threat_at(pi, FIELD(cross, 0x1C, int), FIELD(cross, 0x20, int)), FIELD(w, 0x1C, int), FIELD(w, 0x20, int));
+            dest[0] = FIELD(w, 0x1C, int); dest[1] = FIELD(w, 0x20, int);
+            FIELD(tg, 4, int) = dest[0]; FIELD(tg, 8, int) = dest[1];
+            FIELD(tg, 0xC, int) = FIELD(w, 0x60, int);
             FIELD(tg, 0x10, int) = 1;
         }
     }
@@ -262,15 +362,23 @@ typedef float (__thiscall *AsguScoreFn)(void *self, uint8_t *info);
 static float __fastcall hook_asgu_score(uint8_t *self, void *edx, uint8_t *info) {
     (void)edx;
     float s = ((AsguScoreFn)FN_ASGU_SCORE)(self, info);
-    if (!g_leash || s == 0.0f || !info) return s;
-    uint8_t *sg = FIELD(self, 0x4C, uint8_t *), *enemy = FIELD(info, 4, uint8_t *);
+    uint8_t *sg = FIELD(self, 0x4C, uint8_t *), *enemy = info ? FIELD(info, 4, uint8_t *) : NULL;
     if (!sg || !enemy || *(uintptr_t *)sg != VT_ASG_LAND) return s;
+    // breach: the scorer rates walls below zero (never chosen while anything else is around); the subgroup's
+    // breach segment and its neighbours become the best targets
+    int bx, by;
+    uint8_t *etd = FIELD(enemy, 0x2C, uint8_t *);
+    if (etd && is_wall(FIELD(etd, 0x4B8, int)) && breach_of(sg, &bx, &by) &&
+        abs(FIELD(enemy, 0x1C, int) - bx) <= 1 && abs(FIELD(enemy, 0x20, int) - by) <= 1)
+        return FIELD(enemy, 0x1C, int) == bx && FIELD(enemy, 0x20, int) == by ? 1000.0f : 500.0f;
+    if (!g_leash || s == 0.0f) return s;
     void *pl = FIELD(sg, 0x190, void *);
     if (!pl) return s;
     unsigned pi = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     int ex = FIELD(enemy, 0x1C, int), ey = FIELD(enemy, 0x20, int);
     float t = threat_at(pi, ex, ey);
-    if (!(t > 0) || threat_at(pi, FIELD(sg, 0x104, int), FIELD(sg, 0x108, int)) > 0) return s;    g_leash_stats[pi].skipped++;
+    if (!(t > 0) || threat_at(pi, FIELD(sg, 0x104, int), FIELD(sg, 0x108, int)) > 0) return s;
+    g_leash_stats[pi].skipped++;
     if (g_log && g_leash_stats[pi].logged < 10) {
         g_leash_stats[pi].logged++;
         uint8_t *u = FIELD(self, 0x44, uint8_t *);
@@ -395,14 +503,15 @@ static void attack_install(const char *aimod_ini, const char *autotest_ini) {
     g_weak_spots = cfg_int(aimod_ini, autotest_ini, 1, "attack_weak_spots", 1);
     g_weak_radius = cfg_int(aimod_ini, autotest_ini, 1, "attack_weak_spot_radius", 60);
     g_leash = cfg_int(aimod_ini, autotest_ini, 1, "attack_leash", 1);
+    g_breach = cfg_int(aimod_ini, autotest_ini, 1, "attack_breach", 1);
     int a = patch_vtable(VT_ROUTE_PLANNER, 1, FN_ROUTE_COST, hook_route_cost);
     int b = patch_vtable(VT_ASG_LAND, ASG_ROUTE_SLOT, FN_ASG_ROUTE, hook_asg_route);
     int c = patch_vtable(VT_ASG_LAND, ASG_ROUTE_DONE_SLOT, FN_ASG_ROUTE_DONE, hook_asg_route_done);
     int d = 1;
     for (unsigned k = 0; k < sizeof g_asgu_vtables / sizeof *g_asgu_vtables; k++)
         d &= patch_vtable(g_asgu_vtables[k], 2, FN_ASGU_SCORE, hook_asgu_score);
-    if (g_log) fprintf(g_log, "# attack routing: avoid_towers=%d weight=%d margin=%d weak_spots=%d radius=%d leash=%d hooks %d/4\n",
-                       g_avoid_towers, g_avoid_weight, g_avoid_margin, g_weak_spots, g_weak_radius, g_leash, a + b + c + d);
+    if (g_log) fprintf(g_log, "# attack routing: avoid_towers=%d weight=%d margin=%d weak_spots=%d radius=%d leash=%d breach=%d hooks %d/4\n",
+                       g_avoid_towers, g_avoid_weight, g_avoid_margin, g_weak_spots, g_weak_radius, g_leash, g_breach, a + b + c + d);
 }
 
 // threat <player>: the enemy defences this AI knows about
@@ -469,6 +578,30 @@ static void cmd_spawn(char *out, const char *args) {
         ((void (__thiscall *)(void *, void *, int))(*(void ***)srv)[6])(srv, msg, 0xFF);
     }
     REPLY("ok: %d x type %d for P%d at %d,%d queued\n", n, type, p, x, y);
+}
+
+// spawnline <player> <type> <x0> <y0> <x1> <y1> [step]: one unit every <step> tiles (default 1) along the line,
+// e.g. a wall. Same spawner as spawn.
+static void cmd_spawnline(char *out, const char *args) {
+    int p, type, x0, y0, x1, y1, step = 1;
+    if (sscanf(args, "%d %d %d %d %d %d %d", &p, &type, &x0, &y0, &x1, &y1, &step) < 6 || p < 0 || p > 15 || type < 0 ||
+        type >= 0x300 || step < 1) {
+        REPLY("error: usage: spawnline <player> <type> <x0> <y0> <x1> <y1> [step]\n");
+        return;
+    }
+    void *srv = *(void **)G_SERVER_OBJ;
+    if (!((void **)G_TYPES)[type] || !srv) { REPLY("error: no type %d or no game\n", type); return; }
+    int dx = x1 - x0, dy = y1 - y0, len = abs(dx) > abs(dy) ? abs(dx) : abs(dy), n = 0;
+    for (int i = 0; i <= len; i += step) {
+        float xy[2] = { (float)x0 + (len ? (float)(dx * i) / (float)len : 0) + 0.5f,
+                        (float)y0 + (len ? (float)(dy * i) / (float)len : 0) + 0.5f };
+        void *msg = ((void *(__cdecl *)(unsigned))0x00683718)(0x20);
+        if (!msg) break;
+        ((void (__thiscall *)(void *, int *, float *, char))0x00650B3C)(msg, &type, xy, (char)p);
+        ((void (__thiscall *)(void *, void *, int))(*(void ***)srv)[6])(srv, msg, 0xFF);
+        n++;
+    }
+    REPLY("ok: %d x type %d for P%d from %d,%d to %d,%d queued\n", n, type, p, x0, y0, x1, y1);
 }
 
 // Soldiers of player P (any player, AI or not) grouped by current goal (unit+0x1EC): count, centre, and the
