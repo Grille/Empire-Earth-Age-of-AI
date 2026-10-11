@@ -96,9 +96,10 @@ siege, home guard.
    personalities. Add or edit `.ini` files there to make your own; they are read when Empire Earth starts.
 4. Start the game normally. Changes to `aimod.ini` take effect when a game starts or a save is loaded.
 
-To uninstall, delete `eeaimod.dll`. Keep `aimod.ini` next to it while the mod is installed: without the
-file the mod falls back to built-in defaults, which are not the same as the shipped file (most fixes on, the
-economy plan off). The DLL writes a log to `aimod_econ.csv` in the game folder.
+`aimod.ini` is required: without it Empire Earth shows an error and closes. To play the original game,
+set `enabled=0` at the top of `aimod.ini` (the mod then installs nothing), or delete `eeaimod.dll` to
+uninstall. A setting missing from an older `aimod.ini` takes its built-in default. The DLL writes a log to
+`aimod_econ.csv` in the game folder.
 
 ## Display and interface
 

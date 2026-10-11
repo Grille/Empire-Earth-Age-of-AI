@@ -1,6 +1,6 @@
 // User settings per AI difficulty (aimod.ini next to the DLL). Every key is looked up in the difficulty's
-// own section ([easy], [medium], [hard]), then in [all], then falls back to the original game behaviour,
-// so a missing file means an unmodified AI (only the scenario fix stays on). The autotest ini can override
+// own section ([easy], [medium], [hard]), then in [all], then falls back to the built-in default (for keys an
+// older file doesn't have yet; the file itself is required, see config_missing in eeaimod.c). The autotest ini can override
 // any key for all difficulties (A/B tests). Included by eeaimod.c before sites.c/econ.c.
 //
 // Difficulty = player+0xBA4 (0 easy, 1 medium, 2 hard).

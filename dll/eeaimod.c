@@ -529,6 +529,19 @@ static BOOL is_game_process(void) {
     return nt->FileHeader.TimeDateStamp == 0x594D0000;
 }
 
+// No aimod.ini next to the DLL: tell the player and stop, instead of running on built-in defaults nobody
+// tested as a whole (the defaults in the code are only for keys missing from an existing, older file).
+// Runs inside DllMain: the engine loads its DLLs at runtime (user32 is up), and TerminateProcess skips the
+// other DLLs' detach handlers, which would run under the loader lock.
+static void config_missing(const char *ini) {
+    char msg[MAX_PATH + 512];
+    wsprintfA(msg, "The Empire Earth AI mod (eeaimod.dll) needs its settings file:\n\n%s\n\n"
+                   "Copy aimod.ini from the mod's config folder next to Empire Earth.exe, or delete eeaimod.dll "
+                   "to play without the mod.\n\nEmpire Earth will close now.", ini);
+    MessageBoxA(NULL, msg, "Empire Earth AI mod: aimod.ini missing", MB_OK | MB_ICONERROR | MB_TOPMOST | MB_SETFOREGROUND);
+    TerminateProcess(GetCurrentProcess(), 1);
+}
+
 static void install(HMODULE self) {
     // The engine may FreeLibrary() DLLs that aren't render plugins; our hooks must outlive that.
     HMODULE pinned;
@@ -543,7 +556,14 @@ static void install(HMODULE self) {
         wsprintfA(g_dump_dir, "%s\\aimod_dumps", path);
         CreateDirectoryA(g_dump_dir, NULL);
         *slash = '\\';
-        lstrcpyA(slash + 1, "aimod.ini");   // optional user settings
+        lstrcpyA(slash + 1, "aimod.ini");   // required: missing -> error and quit; [general] enabled=0 -> no hooks
+        if (GetFileAttributesA(path) == INVALID_FILE_ATTRIBUTES) config_missing(path);
+        if (!GetPrivateProfileIntA("general", "enabled", 1, path)) {
+            lstrcpyA(slash + 1, "aimod_econ.csv");
+            FILE *f = fopen(path, "a");
+            if (f) { fputs("# eeaimod: switched off in aimod.ini (enabled=0) - nothing installed\n", f); fclose(f); }
+            return;
+        }
         g_fix_scenario_ai = GetPrivateProfileIntA("general", "scenario_ai", GetPrivateProfileIntA("fixes", "scenario_ai", 1, path), path);
         lstrcpyA(g_aimod_ini, path);
         lstrcpyA(slash + 1, "aimod_autotest.ini");
