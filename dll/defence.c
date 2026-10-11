@@ -405,14 +405,6 @@ static void cmd_basemap(char *out, const char *args) {
     }
 }
 
-static void defence_install(const char *aimod_ini, const char *autotest_ini) {
-    g_def = cfg_int(aimod_ini, autotest_ini, 1, "defence_layout", 1);
-    g_def_dist = cfg_int(aimod_ini, autotest_ini, 1, "defence_distance", 10);
-    g_def_walls = cfg_int(aimod_ini, autotest_ini, 1, "defence_walls", 1);
-    g_def_more = cfg_int(aimod_ini, autotest_ini, 1, "defence_towers", 1);
-    g_csiege = cfg_int(aimod_ini, autotest_ini, 1, "counter_siege", 1);
-    if (g_log) fprintf(g_log, "# defence: layout=%d distance=%d walls=%d own towers=%d counter-siege=%d\n", g_def, g_def_dist, g_def_walls, g_def_more, g_csiege);
-}
 
 // defence P [0|1]: switch the defence layout off/on for one player (scenario A/B tests)
 static void cmd_defence(char *out, const char *args) {
@@ -421,4 +413,55 @@ static void cmd_defence(char *out, const char *args) {
     if (p < 0 || p > 15) { REPLY("error: defence P [0|1]\n"); return; }
     if (on >= 0) g_def_off[p] = !on;
     REPLY("defence P%d %s (towers placed %u, wall orders %u)\n", p, g_def_off[p] ? "off" : "on", g_def_towers[p], g_def_walls_built[p]);
+}
+
+// ENGINE GUARD: the damage effect (smoke/fire on damaged buildings, EEEDamagedEffect::vf19 0x4F8048) asks the
+// object's model (unit vtable +0x54) for its damage points: 0x4D291F(index, state) looks up the model's map at +0x14C
+// by state, then the map found there by the index. Twice (in ~60 runs, not reproducible, since the defence layout) the
+// inner map had no head (+4 = 0) and the lookup crashed (0x4D3BD3, read 00000004). The call at 0x4F80A4 goes through
+// a check: such a model gets "no damage points" (the effect then shows one), logged once per type with the unit.
+#define CALL_DAMAGE_POINTS 0x004F80A4
+#define FN_DAMAGE_POINTS   0x004D291F
+__attribute__((used)) uint8_t *g_dmg_unit;   // the effect's unit: esi at the call site
+static uint8_t *rb_find(uint8_t *map, unsigned key) {   // MSVC map: +4 head; node +0 left, +4 parent, +8 right, +0xC key, +0x15 nil
+    uint8_t *head = FIELD(map, 4, uint8_t *), *res, *n;
+    if (!head) return NULL;
+    res = head; n = FIELD(head, 4, uint8_t *);
+    while (n && !n[0x15]) {
+        if (FIELD(n, 0xC, unsigned) < key) n = FIELD(n, 8, uint8_t *);
+        else { res = n; n = FIELD(n, 0, uint8_t *); }
+    }
+    return (res == head || key < FIELD(res, 0xC, unsigned)) ? NULL : res;
+}
+__attribute__((used)) int __fastcall hook_damage_points(uint8_t *model, void *edx, int index, unsigned state) {
+    (void)edx;
+    uint8_t *n = model ? rb_find(model + 0x14C, state) : NULL, *sub = n ? FIELD(n, 0x10, uint8_t *) : NULL;
+    if (n && (!sub || !FIELD(sub, 4, void *))) {
+        static int logged;
+        uint8_t *u = g_dmg_unit, *td = u ? FIELD(u, 0x2C, uint8_t *) : NULL;
+        if (g_log && logged < 20) {
+            logged++;
+            fprintf(g_log, "# engine guard: damage points of a model without them - unit type %d owner P%d at %d,%d, state %u index %d\n",
+                    td ? FIELD(td, 0x4B8, int) : -1, u && FIELD(u, 0x18, void *) ? FIELD(FIELD(u, 0x18, void *), PL_INDEX, int) : -1,
+                    u ? FIELD(u, 0x1C, int) : -1, u ? FIELD(u, 0x20, int) : -1, state, index);
+            fflush(g_log);
+        }
+        return 0;
+    }
+    return ((int (__thiscall *)(void *, int, unsigned))FN_DAMAGE_POINTS)(model, index, state);
+}
+__attribute__((naked, used)) void damage_points_thunk(void) {
+    __asm__("movl %esi, _g_dmg_unit\n\t"
+            "jmp @hook_damage_points@16");
+}
+
+static void defence_install(const char *aimod_ini, const char *autotest_ini) {
+    g_def = cfg_int(aimod_ini, autotest_ini, 1, "defence_layout", 1);
+    g_def_dist = cfg_int(aimod_ini, autotest_ini, 1, "defence_distance", 10);
+    g_def_walls = cfg_int(aimod_ini, autotest_ini, 1, "defence_walls", 1);
+    g_def_more = cfg_int(aimod_ini, autotest_ini, 1, "defence_towers", 1);
+    g_csiege = cfg_int(aimod_ini, autotest_ini, 1, "counter_siege", 1);
+    BOOL guard = patch_call(CALL_DAMAGE_POINTS, FN_DAMAGE_POINTS, damage_points_thunk);
+    if (g_log) fprintf(g_log, "# engine guard: damage points %s\n", guard ? "ok" : "FAILED");
+    if (g_log) fprintf(g_log, "# defence: layout=%d distance=%d walls=%d own towers=%d counter-siege=%d\n", g_def, g_def_dist, g_def_walls, g_def_more, g_csiege);
 }

@@ -725,9 +725,9 @@ static void attack_tick(void *pl, uint32_t now) {
     {
         unsigned i = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
         if (g_log && now / 300000 != g_mil[i].last_log / 300000) {
-            fprintf(g_log, "# army: P%u at %u min: %d soldiers; military requests %u, trained %u, failed short of "
+            fprintf(g_log, "# army: P%u at %u min: %d soldiers; military requests %u, trained %u (substituted %u), failed short of "
                     "food %u wood %u stone %u gold %u iron %u; budget left %d/%d/%d/%d/%d\n", i, now / 60000,
-                    army_size(pl), g_mil[i].req, g_mil[i].trained, g_mil[i].short_of[2], g_mil[i].short_of[3],
+                    army_size(pl), g_mil[i].req, g_mil[i].trained, g_mil[i].subs, g_mil[i].short_of[2], g_mil[i].short_of[3],
                     g_mil[i].short_of[4], g_mil[i].short_of[5], g_mil[i].short_of[6], (int)g_bud[i].mil[2],
                     (int)g_bud[i].mil[3], (int)g_bud[i].mil[4], (int)g_bud[i].mil[5], (int)g_bud[i].mil[6]);
             fprintf(g_log, "# army: P%u failed types:", i);

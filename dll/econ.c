@@ -224,6 +224,24 @@ static void cmd_rlist(char *out, const char *args) {
     }
 }
 
+// tinfo P type...: type data of unit types - family +0x4B4, hit points +0x55C, attack +0x510, range +0x420 - and
+// whether player P could train/build one now (0x555710: available, affordable, a building/builder)
+static void cmd_tinfo(char *out, const char *args) {
+    int p = 0, n = 0, t;
+    sscanf(args, "%d%n", &p, &n);
+    void *pl = (p >= 0 && p < 16) ? g_players[p] : NULL;
+    if (!pl) { REPLY("error: no player %d\n", p); return; }
+    args += n;
+    while (sscanf(args, "%d%n", &t, &n) == 1) {
+        args += n;
+        uint8_t *td = (t >= 0 && t < 2048) ? ((uint8_t **)0x009418A0)[t] : NULL;
+        if (!td) { REPLY("%d: none\n", t); continue; }
+        REPLY("%d: family %d hp %d attack %d range %.1f can %d\n", t, FIELD(td, 0x4B4, int), FIELD(td, 0x55C, int),
+              FIELD(td, 0x510, int), FIELD(td, 0x420, float),
+              ((char (__thiscall *)(void *, int, int, int))0x00555710)(pl, t, 0x20, 0));
+    }
+}
+
 // drops P: the player's drop sites (x,y; g = granary, food only)
 static void cmd_drops(char *out, const char *args) {
     int p = atoi(args);
@@ -534,7 +552,7 @@ static int unit_cost(void *pl, int type, int r);
 
 // Military request statistics, logged every 5 minutes: how often the AI asks for soldiers, how many it gets
 // and which resource was short when a request failed (unit cost = object data 0x9418A0[type] +0x24..).
-static struct { unsigned req, trained, short_of[7]; uint32_t last_log; int ftype[4]; unsigned fcount[4]; } g_mil[16];
+static struct { unsigned req, trained, short_of[7], subs; uint32_t last_log; int ftype[4]; unsigned fcount[4]; } g_mil[16];
 static void mil_note(void *pl, unsigned idx, const int *req, const int *visible, int spent, uintptr_t site) {
     g_mil[idx].req++;
     if (spent) { g_mil[idx].trained += req[1] > 0 ? (unsigned)req[1] : 1; return; }
@@ -569,6 +587,68 @@ static int unit_cost(void *pl, int type, int r) {
     return (int)c;
 }
 
+// UNIT SUBSTITUTION (aimod.ini [all] unit_substitution, default on): the AI's unit choice ignores what it can pay
+// for and what it can still train - in the Copper Age P3 asked for the Golden Hind (a hero ship, 300 wood), Sampson
+// (a hero, 65 gold), Incan Warriors and Simple Bowmen (gold), Clubmen and Rock Throwers (upgraded away) - hundreds
+// of failed requests every 5 minutes, 10-12 soldiers at minute 45 with 2900 food and 400-600 iron in the military
+// account. A military request (no ship, siege, ram) the budget refuses or the game can't train (0x555710) trains
+// the strongest land soldier (family 5, no siege/ram/citizen/priest) (hit points x attack) that the budget pays for and the game can
+// train right now instead - a player builds what his resources allow. Candidates: researched land soldiers, per
+// player, refreshed every 30 s. Counted in the 5-minute army line ("substituted").
+static int g_unit_sub = 1;
+static struct { void *pl; uint32_t t; int n; int type[48]; } g_cand[16];
+static int land_soldier(int type) {
+    uint8_t *td = (type >= 0 && type < 724) ? ((uint8_t **)0x009418A0)[type] : NULL;
+    static const int no[] = { 104, 105, 106, 107, 141, 142, 602, 603, 102, 287, 158, 32, 480, 1, 216 };
+    if (!td || FIELD(td, 0x4B8, int) != type || FIELD(td, 0x4B4, int) != 5) return 0;   // a real record of this type
+    for (size_t i = 0; i < sizeof no / sizeof *no; i++) if (type == no[i]) return 0;
+    return 1;
+}
+// Requests that may be replaced: every military unit but ships (family 4: navies on water maps), siege and rams
+// (the siege controller's business) - heroes, priests and the like included.
+static int substitutable(int type) {
+    uint8_t *td = (type >= 0 && type < 724) ? ((uint8_t **)0x009418A0)[type] : NULL;
+    static const int no[] = { 104, 105, 106, 107, 141, 142, 602, 603, 102, 287, 158, 32, 480 };
+    if (!td || FIELD(td, 0x4B8, int) != type || FIELD(td, 0x4B4, int) == 4) return 0;
+    for (size_t i = 0; i < sizeof no / sizeof *no; i++) if (type == no[i]) return 0;
+    return 1;
+}
+static int soldier_score(int type) {
+    uint8_t *td = ((uint8_t **)0x009418A0)[type];
+    return FIELD(td, 0x55C, int) * FIELD(td, 0x510, int);
+}
+static int substitute_soldier(void *pl, unsigned idx, const int *vis, int want, int *got) {
+    uint32_t now = game_time();
+    uint8_t *tt = FIELD(pl, PL_TECHTREE, uint8_t *);
+    if (!tt) return 0;
+    if (g_cand[idx].pl != pl || now < g_cand[idx].t || now - g_cand[idx].t > 30000) {
+        g_cand[idx].pl = pl; g_cand[idx].t = now; g_cand[idx].n = 0;
+        for (int t = 0; t < 724; t++) {   // type ids end at 723 (data/db/converteroutput.log); the table ends there
+            if (!land_soldier(t)) continue;
+            uint8_t *tech = ((uint8_t *(__thiscall *)(void *, int))0x004019A1)(tt, FIELD(((uint8_t **)0x009418A0)[t], 0x4E0, int));
+            if (!tech || !tech[4]) continue;
+            int n = g_cand[idx].n, k = n < 48 ? n : 47;   // insert sorted by score, strongest first
+            while (k > 0 && soldier_score(g_cand[idx].type[k - 1]) < soldier_score(t)) {
+                if (k < 48) g_cand[idx].type[k] = g_cand[idx].type[k - 1];
+                k--;
+            }
+            if (k < 48) g_cand[idx].type[k] = t;
+            if (n < 48) g_cand[idx].n++;
+        }
+    }
+    for (int i = 0; i < g_cand[idx].n; i++) {
+        int t = g_cand[idx].type[i], n = want, paid = 0;
+        for (int r = 2; r < 7; r++) {
+            int c = unit_cost(pl, t, r);
+            if (c > 0) { paid = 1; if (vis[r] / c < n) n = vis[r] / c; }
+        }
+        if (!paid || n <= 0 || !((char (__thiscall *)(void *, int, int, int))0x00555710)(pl, t, 0x20, 0)) continue;
+        *got = n;
+        return t;
+    }
+    return 0;
+}
+
 // The budget decides before the game does: a request it doesn't allow is refused here and the original is not
 // called. (Hiding stock during the call leaked: 0x49014F counts the unit as "in production" (unit manager
 // +0x13C) even when the building queue 0x5E8908 then refuses it for lack of resources, and that counter is
@@ -578,7 +658,7 @@ static uintptr_t __fastcall hook_train_units(void *um, void *edx, int *req, uint
     (void)edx;
     void *pl = um_owner(um);
     int *stock = pl ? (int *)((uint8_t *)pl + PL_STOCK) : NULL;
-    int before[7] = { 0 }, reserve[7] = { 0 }, visibles[7] = { 0 }, blocked = 0, afford = 0;
+    int before[7] = { 0 }, reserve[7] = { 0 }, visibles[7] = { 0 }, blocked = 0, afford = 0, sub_type = 0;
     if (stock) memcpy(before, stock, sizeof before);
     unsigned idx = pl ? (unsigned)FIELD(pl, PL_INDEX, int) & 15 : 0;
     int military = !is_citizen_type(req[0]);
@@ -638,14 +718,21 @@ static uintptr_t __fastcall hook_train_units(void *um, void *edx, int *req, uint
             if (c > 0 && visibles[r] / c < afford) afford = visibles[r] / c;
         }
         blocked = afford <= 0;
+        if (military && g_unit_sub && !g_priority_mil && substitutable(req[0]) &&
+            (blocked || !((char (__thiscall *)(void *, int, int, int))0x00555710)(pl, req[0], 0x20, 0))) {
+            int got = 0, alt = substitute_soldier(pl, idx, visibles, want, &got);
+            if (alt) { sub_type = alt; afford = got; blocked = 0; g_mil[idx].subs++; }
+        }
     } else if (stock) memcpy(visibles, stock, sizeof visibles);
     uintptr_t res = 0;
     if (blocked) { if (b) *(unsigned *)b = 0; }
     else {
-        int saved_count = req[1];
-        if (afford > 0 && afford < req[1]) req[1] = afford;   // the caller reads back how many via *b
+        int saved_count = req[1], saved_type = req[0];
+        if (sub_type) req[0] = sub_type;
+        if (afford > 0 && (afford < req[1] || sub_type)) req[1] = afford;   // the caller reads back how many via *b
         res = ((uintptr_t (__thiscall *)(void *, int *, uintptr_t))FN_TRAIN_UNITS)(um, req, b);
         req[1] = saved_count;
+        req[0] = saved_type;
     }
     if (stock) {
         int any = 0;
@@ -683,6 +770,7 @@ static void econ_install(const char *aimod_ini, const char *autotest_ini) {
     g_reserve_window_ms = cfg_int(aimod_ini, autotest_ini, 1, "reserve_window_min", 5) * 60000;
     g_rebalance = cfg_int(aimod_ini, autotest_ini, 1, "rebalance_workers", 1);
     g_build_fix = cfg_int(aimod_ini, autotest_ini, 1, "build_fix", 1);
+    g_unit_sub = cfg_int(aimod_ini, autotest_ini, 1, "unit_substitution", 1);
     g_gather_research = cfg_int(aimod_ini, autotest_ini, 1, "gather_research", 1);
     int ok = 0;
     void **sp = (void **)(VT_COMPUTER_PLAYER + 45 * 4);

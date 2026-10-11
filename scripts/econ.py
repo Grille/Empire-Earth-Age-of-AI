@@ -15,7 +15,7 @@ def main():
         hdr = None
         for ln in lines:
             if ln.startswith('# army: P') and 'soldiers' in ln:
-                m = re.match(r'# army: P(\d+) at (\d+) min: (\d+) soldiers; military requests (\d+), trained (\d+), failed short of food (\d+) wood (\d+) stone (\d+) gold (\d+) iron (\d+)', ln)
+                m = re.match(r'# army: P(\d+) at (\d+) min: (\d+) soldiers; military requests (\d+), trained (\d+)(?: \(substituted \d+\))?, failed short of food (\d+) wood (\d+) stone (\d+) gold (\d+) iron (\d+)', ln)
                 if m: army.setdefault(int(m[1]), {})[int(m[2])] = m.groups()[2:]
                 continue
             if ln.startswith('#'): continue

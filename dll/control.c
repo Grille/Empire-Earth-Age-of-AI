@@ -30,6 +30,7 @@ static void cmd_tech(char *out, const char *args);
 static void cmd_rlist(char *out, const char *args);
 static void cmd_basemap(char *out, const char *args);
 static void cmd_defence(char *out, const char *args);
+static void cmd_tinfo(char *out, const char *args);
 static void cmd_spawn(char *out, const char *args);
 static void cmd_spawnline(char *out, const char *args);
 static volatile int g_turbo;           // autotest turbo: the simulation loop skips its timer wait
@@ -343,6 +344,7 @@ static void execute(const char *cmd, char *out) {
     else if (!strcmp(verb, "rlist")) cmd_rlist(out, args);
     else if (!strcmp(verb, "basemap")) cmd_basemap(out, args);
     else if (!strcmp(verb, "defence")) cmd_defence(out, args);
+    else if (!strcmp(verb, "tinfo")) cmd_tinfo(out, args);
     else if (!strcmp(verb, "spawn")) cmd_spawn(out, args);
     else if (!strcmp(verb, "spawnline")) cmd_spawnline(out, args);
     else if (!strcmp(verb, "save")) cmd_save(out, args);

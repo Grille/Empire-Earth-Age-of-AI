@@ -198,6 +198,12 @@ Guard towers 47, 461..466; AA 145/147; town center 35; house 37; citizen 32.
 - AssignCitizens: fills deficits per type. Mines go via 0x48C204 (free slot, no enemy near, same continent),
   leftovers via 0x48A1AE (mines, then wood 0x48C060). Surplus workers are never taken back.
 - Demand: added by 0x48B9E9 (costs via AdjustCost), subtracted by 0x48D050 / 0x48B6E8 and by AddResource.
+- Unit type table 0x9418A0 has 724 entries (type ids 0..723); typedata +0x4B4 family: 5 land units (siege
+  included), 4 ships, 2 buildings. 0x555710(type, 0x20, 0) thiscall on the player: can train/build one now
+  (available, affordable, building/builder, pop room) - true for campaign heroes too.
+- Damage effect EEEDamagedEffect::vf19 0x4F8048: model = unit vtable +0x54; 0x4D291F(index, state) looks up
+  model+0x14C[state] -> map [model+0x234 + index*4]. A model with an inner map without head crashed (0x4D3BD3)
+  twice; guarded at 0x4F80A4.
 - Building plan: cm 0x46CD18 (attention flag 4) works through a list of {type, wanted count}; 0x2F = "the tower
   of the epoch". Spot finder 0x467B1E: towers (47, 461-466, 328) 0x466ED4 (samples along paths from the base);
   walls have no spot. Placement test 0x62E940 cdecl char(player, type, x, y, w, h, 0), w = h = typedata +0x58C.
