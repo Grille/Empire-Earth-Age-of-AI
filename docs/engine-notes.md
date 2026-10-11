@@ -269,6 +269,11 @@ Guard towers 47, 461..466; AA 145/147; town center 35; house 37; citizen 32.
   base + 0..9 (not the variant used last). Bases: 12000 wonder threatened, 12100/12200 help for an ally's wonder
   / none, 12300/12330/12360 land/air/naval help on a flare, 12400 no help, 12500 war declared on the AI
   (0x46FFB7). Nothing else in the AI talks; dll/chat.c adds the mod's own lines.
+- AI diplomacy does not exist: EECPDiplomacyManager (ctor 0x47AB80, vtable 0x8279E0) has only its destructor -
+  no update, no reaction. Stances are one-way (+0x9E4[i] = this player's stance towards i): a human declaring
+  war on an AI (EEMSetDiplomaticStance::vf10 0x4BDDCC -> 0x52D5D7(from, to, stance) -> SetDiplomacy 0x55B8E1)
+  changes only the human's side; the AI stays allied. 0x46FFB7 (revenge attack + 12500 taunt) runs only from
+  EEMAttackPlayers (0x4B3851 -> 0x5346E4) and only if the AI already counts the player as enemy.
 
 ## Art of Conquest (EE-AOC.exe) - first overview
 
