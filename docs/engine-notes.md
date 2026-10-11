@@ -186,8 +186,22 @@ Guard towers 47, 461..466; AA 145/147; town center 35; house 37; citizen 32.
   max2, val2, ?, minF, maxF, scaleF, fval, flag] -> global 0x8CFA80 + index*0x38, copied into player fields by
   0x431697. Record names = Language.dll string 28000 + name id. Cheat percentage: record 96 val1 (easy) / val2
   (hard), record 67 fval (medium); the default is 1%.
+  The community DB editor (github.com/EE-modders/Empire-Earth---DB-Editor, `EE.yml`) has the same 56-byte layout
+  and names the two unknowns: the `?` is "Object", the flag is "Use In Scen Editor"; min/max are the scenario
+  editor's limits ("Scen Min/Max"), scaleF the "Scen Float Divisor". Difficulties are not rows but values inside
+  records, mostly easy/medium/hard triples (e.g. 28002/28007/28029 initial attack delay, attack frequency, epoch
+  frequency; 28103/28104/28106 min military buildings per difficulty) - which explains why the attack timing
+  measured on medium (every 20-25 min) differs from the 14-17 min noted in ai-analysis.md. Help texts: string
+  28500 + id.
 - Object/unit type names: `data/db/converteroutput.log` (from the data files).
 - Language.dll string table: `scripts/strtab.py`. The statistics names are 31201.., the AI settings names 28000..
+  All 12 languages' sources: github.com/EE-modders/localized-text (`Game/<lang>/EE/Language.rc`).
+- Globals used by community DLLs (EE-modders Reborn-DLL / Stats / Discord, same 1.04 build "2002.09.12.v2.00" at
+  0x8A9030; AoC has its version string at 0x8BF570): game data loaded [0x917BB8] (unit limit at +0x2EC), map /
+  game running [0x9183BC], in the lobby 0x944254, user name [0x91930C], resolution x/y/bpp 0x9193FC/F8/F4,
+  camera pitch 0x9183C8, FOV 0x91328C. EE vs AoC: byte at 0x401000 is 0xE8 in EE, 0x55 in AoC
+  (Empire-Earth-Library). Their hooks (version string 0x5D16F2, FPS 0x64E29E, game start entry 0x5360CA,
+  resolution immediates 0x537523.., 0x538B38.., 0x65FAC9.., 0x6601E6..) don't overlap ours.
 
 ## Resource manager details
 
