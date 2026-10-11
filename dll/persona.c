@@ -144,20 +144,26 @@ static int lang_matches(const char *tag) {
     }
     return 0;
 }
+// Verified 2026-10-11: retail German "Vorzeit" / "Feindselig", Steam Gold Edition (English) "Prehistoric Age" /
+// "Hostile". The other languages' first-age names are guesses (no Language.dll at hand).
 static void lang_detect(void) {
-    static const struct { const wchar_t *first_age; const char *code; } k_known[] = {
-        { L"Vorzeit", "de" }, { L"Prehistoric", "en" }, { L"Préhistoire", "fr" }, { L"Prehistoria", "es" },
-        { L"Preistoria", "it" },
+    static const struct { const wchar_t *first_age, *hostile; const char *code; } k_known[] = {
+        { L"Vorzeit", L"Feindselig", "de" }, { L"Prehistoric", L"Hostile", "en" }, { L"Préhistoire", NULL, "fr" },
+        { L"Prehistoria", NULL, "es" }, { L"Preistoria", NULL, "it" },
     };
     char path[MAX_PATH];
     GetModuleFileNameA(NULL, path, sizeof path);
     char *bs = strrchr(path, '\\');
     if (bs) lstrcpyA(bs + 1, "Language.dll");
     HMODULE h = LoadLibraryExA(path, NULL, LOAD_LIBRARY_AS_DATAFILE);
-    wchar_t w[64] = L"";
-    if (h) { LoadStringW(h, 30145, w, 64); FreeLibrary(h); }
+    wchar_t age[64] = L"", hostile[64] = L"";
+    if (h) { LoadStringW(h, 30145, age, 64); LoadStringW(h, 29514, hostile, 64); FreeLibrary(h); }
     for (size_t i = 0; i < sizeof k_known / sizeof *k_known && !g_lang[0]; i++)
-        if (!wcsncmp(w, k_known[i].first_age, wcslen(k_known[i].first_age))) lstrcpyA(g_lang, k_known[i].code);
+        if (!wcsncmp(age, k_known[i].first_age, wcslen(k_known[i].first_age)) ||
+            (k_known[i].hostile && !wcscmp(hostile, k_known[i].hostile)))
+            lstrcpyA(g_lang, k_known[i].code);
+    if (g_log) fprintf(g_log, "# persona: Language.dll %s: first age \"%ls\", hostile \"%ls\" -> language '%s'\n",
+                       h ? "read" : "NOT FOUND", age, hostile, g_lang);
 }
 
 static void persona_load(const char *path, const char *file) {
