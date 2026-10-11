@@ -75,6 +75,8 @@ peace or alliances. With the mod:
 - **Peace and alliances:** an AI judges peace offers by its opinion of you, the strength of both sides, how
   recently you attacked it and its character. Tribute buys goodwill. AIs ally against a much stronger enemy,
   and a disloyal one may betray a weak ally. Nothing changes in scenarios or with locked teams.
+- **Surrender:** an AI that has lost all its citizens and can't train new ones resigns (with a last line),
+  instead of leaving its last buildings for you to hunt down (`surrender`, not in scenarios).
 - **Personalities** (optional folder [`config/aimod_ai`](config/aimod_ai)): every AI gets a name, a favoured
   colour on random maps, character traits (aggression, loyalty, pride, greed, forgiveness, caution, talk) and
   its own lines for situations of the game: greetings, attacks, being attacked, new ages, winning and losing,

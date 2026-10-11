@@ -392,8 +392,10 @@ static void execute(const char *cmd, char *out) {
 #define IAT_TS_RECEIVE   0x008236B0
 typedef long (__thiscall *ReceiveFn)(void *thread, void *a, void *b, void *c);
 
+static void diplo_safe_point(void);   // diplo.c: queued surrenders
 static long __fastcall hook_sim_receive(void *thread, void *edx, void *a, void *b, void *c) {
     (void)edx;
+    diplo_safe_point();
     if (g_req.state == 1 && InterlockedCompareExchange(&g_req.state, 2, 1) == 1) {
         execute(g_req.cmd, g_req.out);
         g_req.state = 3;

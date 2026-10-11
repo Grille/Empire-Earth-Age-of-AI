@@ -32,7 +32,7 @@ enum line_kind {
     L_GREETING, L_WAR_DECLARED, L_BETRAYED, L_PEACE_ACCEPT, L_PEACE_REFUSE, L_ALLIANCE_OFFER, L_OFFER_ACCEPTED,
     L_OFFER_WITHDRAWN, L_BETRAY, L_TRIBUTE_THANKS, L_TRIBUTE_SMALL, L_ATTACK, L_UNDER_ATTACK, L_BUILDING_LOST,
     L_EPOCH_UP, L_ENEMY_AHEAD, L_WINNING, L_LOSING, L_DESPERATE, L_ENEMY_DEFEATED, L_ALLY_DEFEATED, L_DEFEATED,
-    L_WONDER_THREAT, L_WONDER_HELP, L_WONDER_NOHELP, L_HELP_LAND, L_HELP_AIR, L_HELP_NAVAL, L_HELP_NONE, L_N
+    L_WONDER_THREAT, L_WONDER_HELP, L_WONDER_NOHELP, L_HELP_LAND, L_HELP_AIR, L_HELP_NAVAL, L_HELP_NONE, L_SURRENDER, L_N
 };
 static const struct { const char *key; int chance, cooldown; } k_lines[L_N] = {
     { "greeting", 60, 0 },          { "war_declared", 100, 20 },     { "betrayed", 100, 20 },
@@ -44,7 +44,7 @@ static const struct { const char *key; int chance, cooldown; } k_lines[L_N] = {
     { "desperate", 100, 0 },        { "enemy_defeated", 80, 30 },    { "ally_defeated", 80, 30 },
     { "defeated", 100, 0 },         { "wonder_threat", 100, 60 },    { "wonder_help", 100, 60 },
     { "wonder_nohelp", 100, 60 },   { "help_land", 100, 30 },        { "help_air", 100, 30 },
-    { "help_naval", 100, 30 },      { "help_none", 100, 30 },
+    { "help_naval", 100, 30 },      { "help_none", 100, 30 },        { "surrender", 100, 0 },
 };
 
 #define MAX_PERSONAS 32

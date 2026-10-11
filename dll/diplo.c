@@ -36,6 +36,15 @@
 // SITUATIONS (personality lines, persona.c): greeting, under attack (5+ enemy soldiers within 20 tiles of the
 // base, when it starts), building lost, new age, an enemy a whole age ahead, winning / losing (power x2 / x0.5 against the
 // strongest enemy), desperate (buildings under 40% of their peak), a player defeated (+0x467), tribute thanks.
+//
+// SURRENDER ([all] surrender, default 1; not in scenarios/campaigns): an AI without citizens can't rebuild - instead
+// of leaving its last buildings for the player to hunt down, it resigns: no citizens for 60 s and no way to train one
+// (no Town Center/Capitol, or not enough to pay a citizen), or no citizens for 3 minutes at all - unless its army
+// still has half the power of its strongest enemy. The game's own resign (EEMResign::vf10 0x4BB906):
+// 0x52E2B7 thiscall(game state, 0, index) - out (+0x467), its units removed (0x530C2F) - and 0x55BCEA
+// thiscall(player, 2) - lost, "<name> wurde besiegt" for the others. Removing units inside the AI's own update
+// would pull them from under its caller, so the resign waits for the next safe point between simulation steps
+// (control.c hook_sim_receive).
 #define GAME_STATE    ((void *)0x00918300)
 #define FN_SET_STANCE 0x0052D5D7
 #define FN_REVENGE    0x0046FFB7
@@ -58,7 +67,7 @@ static unsigned g_diplo_answers[16];
 static struct {
     uint32_t t;
     float power[16];
-    int soldiers[16], buildings[16], peak[16], close[16], epoch[16], out[16];
+    int soldiers[16], buildings[16], peak[16], close[16], epoch[16], out[16], citizens[16], centers[16];
     int bx[16], by[16];
 } g_ws;
 
@@ -83,7 +92,9 @@ static void ws_unit(uint8_t *u, void *ctx) {
     int o = pidx(owner);
     if (o == 0) return;   // nature (wild animals): hostile to everyone, not an attack
     uint8_t *td = FIELD(u, 0x2C, uint8_t *);
-    int fam = FIELD(td, 0x4B4, int);
+    int fam = FIELD(td, 0x4B4, int), type = FIELD(td, 0x4B8, int);
+    if (is_citizen_type(type)) { g_ws.citizens[o]++; return; }
+    if (type == 35 || type == 41) g_ws.centers[o]++;   // Town Center, Capitol: where citizens are trained
     if (fam == 2 || fam == 29) { g_ws.buildings[o]++; g_ws.power[o] += 30; return; }
     if (!is_soldier(td)) return;
     g_ws.soldiers[o]++;
@@ -100,7 +111,7 @@ static void world_scan(uint32_t now) {
     if (g_ws.t && now - g_ws.t < 10000) return;
     g_ws.t = now ? now : 1;
     for (int i = 0; i < 16; i++) {
-        g_ws.power[i] = 0; g_ws.soldiers[i] = g_ws.buildings[i] = g_ws.close[i] = 0;
+        g_ws.power[i] = 0; g_ws.soldiers[i] = g_ws.buildings[i] = g_ws.close[i] = g_ws.citizens[i] = g_ws.centers[i] = 0;
         g_ws.bx[i] = -10000;
         void *cm = g_players[i] ? FIELD(g_players[i], 0xB90, void *) : NULL;
         uint8_t *bm = cm ? FIELD(cm, 0x3C, uint8_t *) : NULL;
@@ -274,6 +285,43 @@ static void diplo_situations(void *pl, int ai, uint32_t now) {
     }
 }
 
+// surrender (every 10 s, after the scan): queued here, carried out at the next safe point (diplo_safe_point)
+static int g_surrender = 1;
+static uint32_t g_no_citizens_since[16];
+static volatile LONG g_resign_queue;   // bit per player
+static void check_surrender(void *pl, int ai, uint32_t now) {
+    if (!g_surrender || scenario_game() || (g_resign_queue & (1 << ai))) return;
+    if (g_ws.citizens[ai] > 0) { g_no_citizens_since[ai] = 0; return; }
+    if (!g_no_citizens_since[ai]) { g_no_citizens_since[ai] = now ? now : 1; return; }
+    int *stock = (int *)((uint8_t *)pl + PL_STOCK), pay = 1;
+    for (int r = 2; r < 7; r++) {
+        int c = unit_cost(pl, 32, r);
+        if (c > 0 && stock[r] < c) pay = 0;
+    }
+    int can_train = g_ws.centers[ai] > 0 && pay;
+    if (now - g_no_citizens_since[ai] < (can_train ? 180000u : 60000u)) return;
+    int lead = strongest_enemy(pl, ai);
+    if (!lead || power_of(ai) * 2.0f >= power_of(lead)) return;   // nobody to give up to / its army can still win
+    if (!persona_say(pl, L_SURRENDER, player_at(lead), NULL)) persona_say(pl, L_DEFEATED, player_at(lead), NULL);
+    g_sit.said_defeat[ai] = 1;
+    InterlockedOr(&g_resign_queue, 1 << ai);
+    if (g_log) fprintf(g_log, "# surrender: P%d at %.1f min: no citizens for %.1f min, %s, power %.0f vs P%d %.0f\n", ai,
+                       now / 60000.0, (now - g_no_citizens_since[ai]) / 60000.0,
+                       can_train ? "could still train" : g_ws.centers[ai] ? "can't pay a citizen" : "no Town Center",
+                       g_ws.power[ai], lead, g_ws.power[lead]);
+}
+static void diplo_safe_point(void) {
+    if (!g_resign_queue) return;
+    LONG q = InterlockedExchange(&g_resign_queue, 0);
+    for (int i = 1; i < 16; i++) {
+        void *p = player_at(i);
+        if (!(q & (1 << i)) || !p || is_out(p)) continue;
+        ((void (__thiscall *)(void *, int, int))0x0052E2B7)(GAME_STATE, 0, i);
+        ((void (__thiscall *)(void *, int))0x0055BCEA)(p, 2);
+        if (g_log) { fprintf(g_log, "# surrender: P%d resigned (out %d)\n", i, FIELD(p, 0x467, uint8_t)); fflush(g_log); }
+    }
+}
+
 static void diplo_tick(void *pl, unsigned ai, uint32_t now) {
     persona_assign(pl);
     if (FIELD(pl, 0x467, uint8_t)) {   // defeated: last words once
@@ -362,6 +410,7 @@ static void diplo_tick(void *pl, unsigned ai, uint32_t now) {
         g_sit.last_sit[ai] = now ? now : 1;
         world_scan(now);
         diplo_situations(pl, (int)ai, now);
+        check_surrender(pl, (int)ai, now);
     }
 }
 
@@ -381,6 +430,8 @@ static void diplo_new_game(void) {
     memset(g_diplo_answers, 0, sizeof g_diplo_answers);
     memset(&g_ws, 0, sizeof g_ws);
     memset(&g_sit, 0, sizeof g_sit);
+    memset(g_no_citizens_since, 0, sizeof g_no_citizens_since);
+    g_resign_queue = 0;
     for (int i = 0; i < 16; i++) g_sit.last_epoch[i] = -1;
 }
 
@@ -410,6 +461,13 @@ static void __fastcall hook_tribute(uint8_t *msg, void *edx) {
 // message does (tests: what a human's declaration does)
 static void cmd_diplo(char *out, const char *args) {
     int a = -1, b = -1, s = -1;
+    if (sscanf(args, "surrender %d", &a) == 1) {   // diplo surrender P: AI P resigns at the next safe point (tests)
+        if (!g_players[a & 15] || !player_at(a)) { REPLY("error: P%d is no AI player\n", a); return; }
+        InterlockedOr(&g_resign_queue, 1 << a);
+        REPLY("P%d resigns; citizens %d, centers %d, no citizens since %.1f min\n", a, g_ws.citizens[a], g_ws.centers[a],
+              g_no_citizens_since[a] / 60000.0);
+        return;
+    }
     if (sscanf(args, "tribute %d %d %d", &a, &b, &s) == 3) {   // diplo tribute A B N: A's tribute of N reaches AI B
         diplo_tribute(player_at(b), player_at(a), s);
         REPLY("P%d -> P%d: tribute %d, opinion %.0f\n", a, b, s, b > 0 && b < 16 && a > 0 && a < 16 ? g_opinion[b][a] : 0.0f);
@@ -441,10 +499,13 @@ static void cmd_diplo(char *out, const char *args) {
 static void diplo_install(const char *ini, const char *test_ini) {
     g_answer_war = GetPrivateProfileIntA("all", "answer_war", 1, ini);
     g_ai_diplomacy = GetPrivateProfileIntA("all", "ai_diplomacy", 1, ini);
+    g_surrender = GetPrivateProfileIntA("all", "surrender", 1, ini);
     if (test_ini) {
         g_answer_war = GetPrivateProfileIntA("autotest", "answer_war", g_answer_war, test_ini);
         g_ai_diplomacy = GetPrivateProfileIntA("autotest", "ai_diplomacy", g_ai_diplomacy, test_ini);
+        g_surrender = GetPrivateProfileIntA("autotest", "surrender", g_surrender, test_ini);
     }
     int ok = patch_vtable(VT_PAY_TRIBUTE, 10, FN_PAY_TRIBUTE, (void *)hook_tribute);
-    if (g_log) fprintf(g_log, "# diplomacy: answer_war=%d ai_diplomacy=%d, tribute hook %d\n", g_answer_war, g_ai_diplomacy, ok);
+    if (g_log) fprintf(g_log, "# diplomacy: answer_war=%d ai_diplomacy=%d surrender=%d, tribute hook %d\n", g_answer_war,
+                       g_ai_diplomacy, g_surrender, ok);
 }
