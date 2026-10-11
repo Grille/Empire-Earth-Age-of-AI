@@ -111,6 +111,18 @@ Type data (0x9418A0[type]): +0x4B4 family (2 building, 29 fortress, 5/6 units), 
 +0x460 line of sight, +0x510 attack, +0x55C hit points, +0x540 influence. Type names: `data/db/converteroutput.log`.
 Guard towers 47, 461..466; AA 145/147; town center 35; house 37; citizen 32.
 
+## Creating units
+
+- In a running game: EEMHackANewUnit, the game's debug spawner (0x64C561): operator new 0x683718 (0x20 bytes),
+  ctor 0x650B3C thiscall(int *type, float xy[2], char player), then lockstep server [0x91984C] slot 6
+  (msg, 0xFF). Executed in a coming tick (vf10 0x4B7044): ground height via 0x4C0201, buildings checked against
+  the map, then typedata slot 13.
+- Typedata ([0x9418A0][type]) slot 13 (+0x34): thiscall(GETransformation *, player, 0, 0) -> object, +8 != 0 on
+  success, +0x30 the EEUnit. GETransformation: 4x4 floats, position at +0xC/+0x1C/+0x2C. Called directly from
+  outside the editor (z = 0, no further setup) the unit crashes the renderer (unit +0x130).
+- Type ids and names: `data/db/converteroutput.log`. Walls 467-472, gates 294/442-444/454/473, guard towers
+  47/461-466.
+
 ## Simulation pacing
 
 - RTSPhysics::Main 0x5532FB (simulation thread): each pass waits for a TMTimer event (TSEvent::Wait at

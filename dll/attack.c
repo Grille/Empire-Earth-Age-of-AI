@@ -137,6 +137,36 @@ static int __fastcall hook_route_cost(uint8_t *self, void *edx, int *edge, uint8
 static int g_weak_spots = 1;          // aimod.ini [all] attack_weak_spots
 static int g_weak_radius = 60;        // tiles around the original goal searched for a weak spot
 
+// Walls and gates are no weak spot (no economy behind them, only a detour).
+static int is_wall(int type) {
+    return (type >= 467 && type <= 473) || type == 294 || type == 442 || type == 443 || type == 444 ||
+           type == 454 || type == 40 || type == 48;
+}
+
+// Only goals at an enemy building are retargeted: the subgroup also marches to other goals (enemy armies,
+// own territory to defend), which must not be diverted.
+static int building_at(void *pl, const int *dest, int r) {
+    uint8_t *map = *(uint8_t **)G_MAP;
+    uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
+    if (!grid) return 0;
+    int cs = FIELD(grid, 8, int), nx = FIELD(grid, 0x10, int), ny = FIELD(grid, 0x14, int);
+    uint8_t *cells = FIELD(grid, 4, uint8_t *);
+    if (cs <= 0 || !cells) return 0;
+    for (int cx = (dest[0] - r) / cs; cx <= (dest[0] + r) / cs; cx++)
+        for (int cy = (dest[1] - r) / cs; cy <= (dest[1] + r) / cs; cy++) {
+            if (cx < 0 || cy < 0 || cx >= nx || cy >= ny) continue;
+            uint8_t *cell = cells + (cx * ny + cy) * 16;
+            for (uint8_t **b = FIELD(cell, 4, uint8_t **); b && b < FIELD(cell, 8, uint8_t **); b++) {
+                uint8_t *u = *b, *td = u ? FIELD(u, 0x2C, uint8_t *) : NULL;
+                if (!td || FIELD(td, 0x4B4, int) != 2 || is_wall(FIELD(td, 0x4B8, int)) || !is_enemy(pl, FIELD(u, 0x18, void *)))
+                    continue;
+                int dx = FIELD(u, 0x1C, int) - dest[0], dy = FIELD(u, 0x20, int) - dest[1];
+                if (dx * dx + dy * dy <= r * r) return 1;
+            }
+        }
+    return 0;
+}
+
 static uint8_t *find_weak_spot(void *pl, unsigned pi, const int *start, const int *dest) {
     uint8_t *map = *(uint8_t **)G_MAP;
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
@@ -155,7 +185,8 @@ static uint8_t *find_weak_spot(void *pl, unsigned pi, const int *start, const in
             uint8_t *cell = cells + (cx * ny + cy) * 16;
             for (uint8_t **b = FIELD(cell, 4, uint8_t **); b && b < FIELD(cell, 8, uint8_t **); b++) {
                 uint8_t *u = *b, *td = u ? FIELD(u, 0x2C, uint8_t *) : NULL;
-                if (!td || FIELD(td, 0x4B4, int) != 2 || !is_enemy(pl, FIELD(u, 0x18, void *)) || !seen_by(u, pl))
+                if (!td || FIELD(td, 0x4B4, int) != 2 || is_wall(FIELD(td, 0x4B8, int)) || !is_enemy(pl, FIELD(u, 0x18, void *)) ||
+                    !seen_by(u, pl))
                     continue;
                 int pos[2] = { FIELD(u, 0x1C, int), FIELD(u, 0x20, int) };
                 float dx = (float)(pos[0] - dest[0]), dy = (float)(pos[1] - dest[1]);
@@ -177,7 +208,7 @@ static void __fastcall hook_asg_route(uint8_t *self, void *edx, int *start, int 
     if (pl && start && dest && g_weak_spots) {
         unsigned pi = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
         float t = threat_at(pi, dest[0], dest[1]);
-        uint8_t *u = t > 0 ? find_weak_spot(pl, pi, start, dest) : NULL;
+        uint8_t *u = t > 0 && building_at(pl, dest, 4) ? find_weak_spot(pl, pi, start, dest) : NULL;
         if (u) {
             uint8_t *tg = self + 0x100;
             if (g_log)
@@ -411,6 +442,33 @@ static void cmd_targets(char *out, const char *args) {
             n++;
         }
     REPLY("P%d: %u enemy buildings\n", p, n);
+}
+
+// spawn <player> <type> <x> <y> [count]: create units in a running game the way the game's own debug spawner does
+// (0x64C561): an EEMHackANewUnit message (operator new 0x683718, 0x20 bytes; ctor 0x650B3C thiscall(int *type,
+// float xy[2], char player)) handed to the lockstep server ([0x91984C] slot 6: (msg, 0xFF)). The simulation
+// executes it in a coming tick (EEMHackANewUnit::vf10 0x4B7044: ground height, buildings checked against the
+// map) - like any player command. Several units go on a grid of 2 tiles around x, y.
+#define G_TYPES   0x009418A0
+#define G_SERVER_OBJ 0x0091984C
+static void cmd_spawn(char *out, const char *args) {
+    int p, type, x, y, n = 1;
+    if (sscanf(args, "%d %d %d %d %d", &p, &type, &x, &y, &n) < 4 || p < 0 || p > 15 || type < 0 || type >= 0x300 || n < 1 || n > 100) {
+        REPLY("error: usage: spawn <player> <type> <x> <y> [count]\n");
+        return;
+    }
+    void *srv = *(void **)G_SERVER_OBJ;
+    if (!((void **)G_TYPES)[type] || !srv) { REPLY("error: no type %d or no game\n", type); return; }
+    int side = 1;
+    while (side * side < n) side++;
+    for (int i = 0; i < n; i++) {
+        float xy[2] = { (float)(x + (i % side) * 2) + 0.5f, (float)(y + (i / side) * 2) + 0.5f };
+        void *msg = ((void *(__cdecl *)(unsigned))0x00683718)(0x20);
+        if (!msg) { REPLY("error: out of memory\n"); return; }
+        ((void (__thiscall *)(void *, int *, float *, char))0x00650B3C)(msg, &type, xy, (char)p);
+        ((void (__thiscall *)(void *, void *, int))(*(void ***)srv)[6])(srv, msg, 0xFF);
+    }
+    REPLY("ok: %d x type %d for P%d at %d,%d queued\n", n, type, p, x, y);
 }
 
 // Soldiers of player P (any player, AI or not) grouped by current goal (unit+0x1EC): count, centre, and the

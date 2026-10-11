@@ -58,6 +58,8 @@ static FILE *g_log;
 static CRITICAL_SECTION g_lock;
 
 static void autotest_tick(uint32_t now);
+static void execute(const char *cmd, char *out);
+static char g_setup_path[MAX_PATH];
 static void ctl_note_player(void *pl);
 static void autotest_first_tick(void *pl);
 static void settings_apply(void *pl);
@@ -288,6 +290,7 @@ static void load_autotest(const char *ini) {
     g_auto.scenario_mode = GetPrivateProfileIntA("autotest", "scenario_mode", 0, ini);
     g_auto.turbo = GetPrivateProfileIntA("autotest", "turbo", 0, ini);
     g_auto.game_seed = GetPrivateProfileIntA("autotest", "game_seed", 0, ini);
+    GetPrivateProfileStringA("autotest", "setup", "", g_setup_path, sizeof g_setup_path, ini);
     g_clear_scenario_flag = GetPrivateProfileIntA("autotest", "clear_scenario_flag", 0, ini);
     randmap_load(ini);
     char buf[32];
@@ -349,8 +352,38 @@ static int __cdecl hook_load_saved(void *name) {
     return r;
 }
 
+// Autotest setup=<file> (path relative to the game folder): control-pipe commands, one per line (# comments), run
+// once at 2 s game time, when every AI has started - e.g. spawn lines that turn a map into a test scenario.
+static void run_setup(void) {
+    static char reply[16384];
+    FILE *f = fopen(g_setup_path, "r");
+    log_line(f ? "# setup: %s%.0d\n" : "# setup: %s - CANNOT OPEN%.0d\n", g_setup_path, 0);
+    if (!f) return;
+    char line[512];
+    while (fgets(line, sizeof line, f)) {
+        char *s = line, *e;
+        while (*s == ' ' || *s == '\t') s++;
+        for (e = s + strlen(s); e > s && (e[-1] == '\n' || e[-1] == '\r' || e[-1] == ' '); ) *--e = 0;
+        if (!*s || *s == '#') continue;
+        reply[0] = 0;
+        execute(s, reply);
+        char *nl = strchr(reply, '\n');
+        if (nl) *nl = 0;
+        if (g_log) {
+            EnterCriticalSection(&g_lock);
+            fprintf(g_log, "# setup: %s -> %s", s, reply);
+            fputc(10, g_log);
+            fflush(g_log);
+            LeaveCriticalSection(&g_lock);
+        }
+    }
+    fclose(f);
+}
+
 static void autotest_tick(uint32_t now) {
     if (!g_auto.enabled) return;
+    static int setup_done;
+    if (g_setup_path[0] && !setup_done && now >= 2000) { setup_done = 1; run_setup(); }
     float cur = *(float *)G_GAME_SPEED;
     if (g_auto.speed > 0 && (cur < g_auto.speed - 0.01f || cur > g_auto.speed + 0.01f)) {
         apply_game_speed(g_auto.speed);
