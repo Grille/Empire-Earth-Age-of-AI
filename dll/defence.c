@@ -243,6 +243,101 @@ static void defence_tick(void *pl, unsigned idx, uint32_t now) {
     }
 }
 
+// COUNTER-SIEGE (aimod.ini [all] counter_siege, default on): catapults outrange towers (bronze: 7 against 5) and the
+// AI just watched its towers being shelled. A player sends a few soldiers out at them. Every 2 s per AI: enemy siege
+// weapons (and rams) it can see within their range + 4 tiles of one of its buildings are threats; its soldiers within
+// 20 tiles of one - idle, marching, or fighting something more than 4 tiles away - attack it (up to 5 each, nearest
+// first, priority like the siege controller's orders). Only when they are at least 2x + 3 the enemy soldiers within
+// 8 tiles of the siege weapon: a sally into the escorting army (siege_towers: 14 defenders against 36) lost the base
+// that towers and walls would have held.
+static int g_csiege = 1;
+static unsigned g_csiege_orders[16], g_csiege_skipped[16];
+static int is_soldier(uint8_t *td) {
+    int fam = FIELD(td, 0x4B4, int), type = FIELD(td, 0x4B8, int);
+    if (fam == 2 || fam == 6 || fam == 0x13 || fam == 0x16 || fam == 0x18 || fam == 0x19 || fam == 0x1D || fam == 0 || fam == 1)
+        return 0;
+    return !is_siege(type) && !is_ram(type) && type != 32 && type != 480;
+}
+struct cs_scan {
+    void *pl;
+    int nb, bx[256], by[256];           // own buildings
+    int ns; uint8_t *sold[128];          // own soldiers
+    int ne; uint8_t *esiege[16];         // enemy siege weapons seen
+    int nx; int ex[256], ey[256];        // enemy soldiers (positions)
+};
+static void cs_unit(uint8_t *u, void *ctx) {
+    struct cs_scan *s = ctx;
+    uint8_t *td = FIELD(u, 0x2C, uint8_t *);
+    void *owner = FIELD(u, 0x18, void *);
+    if (FIELD(u, 0x3C, int) <= 0 || !owner) return;
+    int fam = FIELD(td, 0x4B4, int), type = FIELD(td, 0x4B8, int), x = FIELD(u, 0x1C, int), y = FIELD(u, 0x20, int);
+    if (owner == s->pl) {
+        if ((fam == 2 || fam == 29) && s->nb < 256) { s->bx[s->nb] = x; s->by[s->nb++] = y; }
+        else if (is_soldier(td) && s->ns < 128) s->sold[s->ns++] = u;
+    } else if (is_enemy(s->pl, owner)) {
+        if ((is_siege(type) || is_ram(type)) && s->ne < 16 && seen_by(u, s->pl)) s->esiege[s->ne++] = u;
+        else if (is_soldier(td) && s->nx < 256) { s->ex[s->nx] = x; s->ey[s->nx++] = y; }
+    }
+}
+static void counter_siege(void *pl, unsigned idx, uint32_t now) {
+    static uint32_t last[16];
+    if (!g_csiege || g_def_off[idx] || (now >= last[idx] && now - last[idx] < 2000)) return;
+    last[idx] = now;
+    static struct cs_scan s;
+    memset(&s, 0, sizeof s);
+    s.pl = pl;
+    grid_each(cs_unit, &s);
+    for (int i = 0; i < s.ne; i++) {
+        uint8_t *e = s.esiege[i], *etd = FIELD(e, 0x2C, uint8_t *), *st = FIELD(e, 0x34, uint8_t *);
+        int x = FIELD(e, 0x1C, int), y = FIELD(e, 0x20, int);
+        float r = (st ? FIELD(st, 0x9C, float) : FIELD(etd, 0x420, float)) + 4.0f;
+        int threat = 0;
+        for (int b = 0; b < s.nb && !threat; b++)
+            threat = (float)((s.bx[b] - x) * (s.bx[b] - x) + (s.by[b] - y) * (s.by[b] - y)) <= r * r;
+        if (!threat) continue;
+        int guards = 0;
+        for (int k = 0; k < s.nx; k++) guards += abs(s.ex[k] - x) <= 8 && abs(s.ey[k] - y) <= 8;
+        // responders: nearest first, up to 5
+        int pick[5], np = 0, avail = 0, already = 0;
+        for (int k = 0; k < s.ns; k++) {
+            uint8_t *u = s.sold[k];
+            if (!u) continue;   // already ordered this tick
+            uint8_t *g = FIELD(u, 0x1EC, uint8_t *);
+            int dx = FIELD(u, 0x1C, int) - x, dy = FIELD(u, 0x20, int) - y, d2 = dx * dx + dy * dy;
+            if (d2 > 400) continue;
+            if (g && *(uintptr_t *)g == VT_GOAL_ATTACK) {
+                uint8_t *t = FIELD(g, 0x30, uint8_t *);
+                if (t == e) { already++; s.sold[k] = NULL; continue; }
+                if (t && abs(FIELD(t, 0x1C, int) - FIELD(u, 0x1C, int)) <= 4 && abs(FIELD(t, 0x20, int) - FIELD(u, 0x20, int)) <= 4)
+                    continue;   // busy fighting close by
+            }
+            avail++;
+            if (np < 5) pick[np++] = k;
+            else {   // keep the 5 nearest
+                int worst = 0, fd = -1;
+                for (int j = 0; j < 5; j++) {
+                    uint8_t *v = s.sold[pick[j]];
+                    int vx = FIELD(v, 0x1C, int) - x, vy = FIELD(v, 0x20, int) - y;
+                    if (vx * vx + vy * vy > fd) { fd = vx * vx + vy * vy; worst = j; }
+                }
+                if (d2 < fd) pick[worst] = k;
+            }
+        }
+        if (already >= 5) continue;
+        if (avail + already < 2 * guards + 3) { g_csiege_skipped[idx]++; continue; }
+        int ordered = 0;
+        for (int j = 0; j < np && already + ordered < 5; j++) {
+            uint8_t *u = s.sold[pick[j]];
+            if (unit_goal(u, goal_attack(u, e), 0, 0x1F40)) ordered++;
+            s.sold[pick[j]] = NULL;   // one target per unit per tick
+        }
+        g_csiege_orders[idx] += (unsigned)ordered;
+        if (ordered && g_log)
+            fprintf(g_log, "# counter-siege: P%u at %.1f min: enemy type %d at %d,%d (%d guards) <- %d soldiers (%d already on it)\n",
+                    idx, now / 60000.0, FIELD(etd, 0x4B8, int), x, y, guards, ordered, already);
+    }
+}
+
 // basemap P [r]: the map around AI player P's base (build manager +0x12C/+0x130), 2 characters per tile:
 // T tower (own defence with a ground attack), W wall, G gate, C Town Center/Capitol/Settlement, b other own building,
 // c citizen, s soldier, m mine (stone/gold/iron site), digits = other players' buildings/units (player index),
@@ -315,7 +410,8 @@ static void defence_install(const char *aimod_ini, const char *autotest_ini) {
     g_def_dist = cfg_int(aimod_ini, autotest_ini, 1, "defence_distance", 10);
     g_def_walls = cfg_int(aimod_ini, autotest_ini, 1, "defence_walls", 1);
     g_def_more = cfg_int(aimod_ini, autotest_ini, 1, "defence_towers", 1);
-    if (g_log) fprintf(g_log, "# defence: layout=%d distance=%d walls=%d own towers=%d\n", g_def, g_def_dist, g_def_walls, g_def_more);
+    g_csiege = cfg_int(aimod_ini, autotest_ini, 1, "counter_siege", 1);
+    if (g_log) fprintf(g_log, "# defence: layout=%d distance=%d walls=%d own towers=%d counter-siege=%d\n", g_def, g_def_dist, g_def_walls, g_def_more, g_csiege);
 }
 
 // defence P [0|1]: switch the defence layout off/on for one player (scenario A/B tests)

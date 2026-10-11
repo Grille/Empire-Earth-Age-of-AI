@@ -59,6 +59,7 @@ static void spend_log(unsigned idx, uint32_t now) {
 // 2 minutes). Attempts and failures per player and type are logged as "# place:" every 5 minutes.
 static int defence_spot(void *pl, int type, int *ox, int *oy);   // defence.c
 static void defence_tick(void *pl, unsigned idx, uint32_t now);
+static void counter_siege(void *pl, unsigned idx, uint32_t now);
 #define CALL_PLACE 0x00468629
 #define FN_PLACE   0x0046580A
 static int g_build_fix = 1;
@@ -362,6 +363,7 @@ static void econ_tick(void *pl, uint32_t now) {
     gather_research(pl, ai, now);
     attention_note(pl, ai, now);
     defence_tick(pl, ai, now);
+    counter_siege(pl, ai, now);
     uint32_t t_attack = FIELD(pl, 0xED8, uint32_t);
     if (t_attack != last_attack_time[ai]) {
         if (last_attack_time[ai] && g_log)
