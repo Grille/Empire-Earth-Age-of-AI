@@ -208,6 +208,93 @@ static RECT view_rect(const RECT *cr, int w, int h) {
     return r;
 }
 
+// smooth = 1: bilinear scaling of the 32-bit frame on the CPU, rows split over worker threads, then a 1:1 copy.
+// GDI's HALFTONE costs ~33 ms per frame at 2560x1440 -> 2405x1353 (measured with ddpoke bench), this a few ms.
+static struct {
+    const uint8_t *src; int sw, sh, spitch;
+    uint32_t *dst; int dw, dh;
+    int *xi; uint32_t *xw;   // per destination column: source column, weight 0..256
+} g_scale;
+static HANDLE g_scale_go[8], g_scale_done[8];
+static SRWLOCK g_scale_lock = SRWLOCK_INIT;   // held by the caller from scale_frame until its buffer is copied
+static int g_scale_threads;
+
+static void scale_rows(int y0, int y1) {
+    const int sw = g_scale.sw, sh = g_scale.sh, dw = g_scale.dw;
+    for (int y = y0; y < y1; y++) {
+        int fy = (int)(((long long)y * (sh - 1) << 8) / (g_scale.dh > 1 ? g_scale.dh - 1 : 1));
+        int sy = fy >> 8, wy = fy & 255;
+        if (sy >= sh - 1) { sy = sh - 2 < 0 ? 0 : sh - 2; wy = sh > 1 ? 256 : 0; }
+        const uint32_t *r0 = (const uint32_t *)(g_scale.src + (size_t)sy * g_scale.spitch);
+        const uint32_t *r1 = sh > 1 ? (const uint32_t *)(g_scale.src + (size_t)(sy + 1) * g_scale.spitch) : r0;
+        uint32_t *out = g_scale.dst + (size_t)y * dw;
+        for (int x = 0; x < dw; x++) {
+            int sx = g_scale.xi[x];
+            uint32_t wx = g_scale.xw[x], a = r0[sx], b = r0[sx + 1 < sw ? sx + 1 : sx], c = r1[sx], e = r1[sx + 1 < sw ? sx + 1 : sx];
+            uint32_t trb = ((a & 0xFF00FF) * (256 - wx) + (b & 0xFF00FF) * wx) >> 8 & 0xFF00FF;
+            uint32_t tg = ((a & 0xFF00) * (256 - wx) + (b & 0xFF00) * wx) >> 8 & 0xFF00;
+            uint32_t brb = ((c & 0xFF00FF) * (256 - wx) + (e & 0xFF00FF) * wx) >> 8 & 0xFF00FF;
+            uint32_t bg = ((c & 0xFF00) * (256 - wx) + (e & 0xFF00) * wx) >> 8 & 0xFF00;
+            uint32_t rb = ((trb * (256 - wy) + brb * wy) >> 8) & 0xFF00FF;
+            uint32_t g = ((tg * (256 - wy) + bg * wy) >> 8) & 0xFF00;
+            out[x] = rb | g;
+        }
+    }
+}
+
+static DWORD WINAPI scale_worker(void *arg) {
+    int i = (int)(intptr_t)arg, n = g_scale_threads + 1;
+    for (;;) {
+        WaitForSingleObject(g_scale_go[i], INFINITE);
+        scale_rows(g_scale.dh * (i + 1) / n, g_scale.dh * (i + 2) / n);
+        SetEvent(g_scale_done[i]);
+    }
+}
+
+// scales the locked frame (32 bpp) to dw x dh into our buffer; returns it, or NULL (then GDI scales)
+static uint32_t *scale_frame(const DDSURFACEDESC2 *d, int dw, int dh) {
+    static uint32_t *buf;
+    static int bw, bh, bsw;
+    if (d->ddpfPixelFormat.dwRGBBitCount != 32 || dw < 2 || dh < 2) return NULL;
+    if (!g_scale_threads) {
+        SYSTEM_INFO si;
+        GetSystemInfo(&si);
+        int n = (int)si.dwNumberOfProcessors - 1;
+        g_scale_threads = n < 1 ? -1 : n > 7 ? 7 : n;   // -1: no workers
+        for (int i = 0; i < g_scale_threads; i++) {
+            g_scale_go[i] = CreateEventA(NULL, FALSE, FALSE, NULL);
+            g_scale_done[i] = CreateEventA(NULL, FALSE, FALSE, NULL);
+            CloseHandle(CreateThread(NULL, 0, scale_worker, (void *)(intptr_t)i, 0, NULL));
+        }
+    }
+    int sw = (int)d->dwWidth, sh = (int)d->dwHeight;
+    if (dw != bw || dh != bh || sw != bsw) {
+        free(buf); free(g_scale.xi); free(g_scale.xw);
+        buf = malloc((size_t)dw * dh * 4);
+        g_scale.xi = malloc(sizeof(int) * dw);
+        g_scale.xw = malloc(sizeof(uint32_t) * dw);
+        if (!buf || !g_scale.xi || !g_scale.xw) { bw = 0; return NULL; }
+        for (int x = 0; x < dw; x++) {
+            int fx = (int)(((long long)x * (sw - 1) << 8) / (dw - 1));
+            g_scale.xi[x] = fx >> 8;
+            g_scale.xw[x] = (uint32_t)(fx & 255);
+        }
+        bw = dw; bh = dh; bsw = sw;
+    }
+    g_scale.src = d->lpSurface; g_scale.sw = sw; g_scale.sh = sh; g_scale.spitch = (int)d->lPitch;
+    g_scale.dst = buf; g_scale.dw = dw; g_scale.dh = dh;
+    int n = g_scale_threads > 0 ? g_scale_threads : 0;
+    for (int i = 0; i < n; i++) SetEvent(g_scale_go[i]);
+    scale_rows(0, dh / (n + 1));
+    if (n) WaitForMultipleObjects((DWORD)n, g_scale_done, TRUE, INFINITE);
+    return buf;
+}
+
+// timing of the windowed present (ddinfo): readback (Lock), GDI copy, whole frame interval, in QPC ticks
+static volatile LONG64 g_t_lock, g_t_blit, g_t_frame;
+static volatile LONG g_t_count;
+static LONGLONG qpc(void) { LARGE_INTEGER t; QueryPerformanceCounter(&t); return t.QuadPart; }
+
 static int present_to_window(uint8_t *ras, unsigned screen) {
     uint8_t *st = FIELD(ras, 0x20, uint8_t **)[screen];
     uint8_t *scr = FIELD(st, 0x2A8, uint8_t *), *back = FIELD(st, 0x2B0, uint8_t *), *win = FIELD(st, 0x2BC, uint8_t *);
@@ -230,10 +317,13 @@ static int present_to_window(uint8_t *ras, unsigned screen) {
     }
     // Lock, not GetDC: the GDI view of the 3D render target reads back black under current Windows' DirectDraw
     DDSURFACEDESC2 d = { .dwSize = sizeof d };
+    static LONGLONG t_last;
+    LONGLONG t0 = qpc();
     if (s->lpVtbl->Lock(s, NULL, &d, DDLOCK_WAIT | DDLOCK_READONLY, NULL) != DD_OK) {
         InterlockedIncrement(&g_present_fail);
         return 0;
     }
+    LONGLONG t1 = qpc();
     if (g_shot_req) {   // control pipe "shot": the finished frame as BMP
         write_desc_bmp(&d, g_shot_path);
         g_shot_req = 0;
@@ -263,12 +353,27 @@ static int present_to_window(uint8_t *ras, unsigned screen) {
         FillRect(wdc, &b2, black);
     }
     int vw = v.right - v.left, vh = v.bottom - v.top;
-    if (g_smooth && (vw != (int)d.dwWidth || vh != (int)d.dwHeight)) {
-        SetStretchBltMode(wdc, HALFTONE);
-        SetBrushOrgEx(wdc, 0, 0, NULL);
-    } else SetStretchBltMode(wdc, COLORONCOLOR);
-    StretchDIBits(wdc, v.left, v.top, vw, vh, 0, 0, (int)d.dwWidth, (int)d.dwHeight, d.lpSurface,
-                  (BITMAPINFO *)&bi, DIB_RGB_COLORS, SRCCOPY);
+    int want_scale = g_smooth && (vw != (int)d.dwWidth || vh != (int)d.dwHeight);
+    if (want_scale) AcquireSRWLockExclusive(&g_scale_lock);
+    uint32_t *scaled = want_scale ? scale_frame(&d, vw, vh) : NULL;
+    if (scaled) {
+        BITMAPINFOHEADER sb = { sizeof sb, vw, -vh, 1, 32, BI_RGB, 0, 0, 0, 0, 0 };
+        SetDIBitsToDevice(wdc, v.left, v.top, (DWORD)vw, (DWORD)vh, 0, 0, 0, (UINT)vh, scaled, (BITMAPINFO *)&sb, DIB_RGB_COLORS);
+    }
+    if (want_scale) ReleaseSRWLockExclusive(&g_scale_lock);
+    if (!scaled) {
+        SetStretchBltMode(wdc, COLORONCOLOR);
+        StretchDIBits(wdc, v.left, v.top, vw, vh, 0, 0, (int)d.dwWidth, (int)d.dwHeight, d.lpSurface,
+                      (BITMAPINFO *)&bi, DIB_RGB_COLORS, SRCCOPY);
+    }
+    LONGLONG t2 = qpc();
+    if (t_last) {
+        InterlockedAdd64(&g_t_lock, t1 - t0);
+        InterlockedAdd64(&g_t_blit, t2 - t1);
+        InterlockedAdd64(&g_t_frame, t0 - t_last);
+        InterlockedIncrement(&g_t_count);
+    }
+    t_last = t0;
     ReleaseDC(hwnd, wdc);
     dpi_leave(dpi);
     ValidateRect(hwnd, NULL);   // the frame is drawn - no WM_PAINT/erase for it
@@ -1220,7 +1325,54 @@ static void cmd_ddpoke(char *out, const char *args) {
         SetCursorPos(p.x, p.y);
         GetCursorPos(&q);
         REPLY("client %ldx%ld, cursor set to screen %ld,%ld, now at %ld,%ld\n", rc.right, rc.bottom, p.x, p.y, q.x, q.y);
-    } else REPLY("usage: ddpoke z|back|front|mode|cursor x y\n");
+    } else if (!strncmp(args, "bench", 5) && b7) {   // bench [w h]: CPU cost of the GDI copy modes into a w x h bitmap
+        int w = 2405, h = 1353;
+        sscanf(args + 5, "%d %d", &w, &h);
+        DDSURFACEDESC2 d = { .dwSize = sizeof d };
+        if (b7->lpVtbl->Lock(b7, NULL, &d, DDLOCK_WAIT | DDLOCK_READONLY, NULL) != DD_OK) { REPLY("error: lock\n"); return; }
+        int bpp = (int)d.ddpfPixelFormat.dwRGBBitCount;
+        struct { BITMAPINFOHEADER h; DWORD masks[3]; } bi = {
+            { sizeof bi.h, d.lPitch / (bpp / 8), -(LONG)d.dwHeight, 1, (WORD)bpp, bpp == 16 ? BI_BITFIELDS : BI_RGB, 0, 0, 0, 0, 0 },
+            { d.ddpfPixelFormat.dwRBitMask, d.ddpfPixelFormat.dwGBitMask, d.ddpfPixelFormat.dwBBitMask },
+        };
+        BITMAPINFOHEADER db = { sizeof db, w, -h, 1, 32, BI_RGB, 0, 0, 0, 0, 0 };
+        void *bits;
+        HDC mdc = CreateCompatibleDC(NULL);
+        HBITMAP bmp = CreateDIBSection(mdc, (BITMAPINFO *)&db, DIB_RGB_COLORS, &bits, NULL, 0);
+        HGDIOBJ prev = SelectObject(mdc, bmp);
+        LARGE_INTEGER f;
+        QueryPerformanceFrequency(&f);
+        const char *names[] = { "HALFTONE scaled", "COLORONCOLOR scaled", "1:1 (no scaling)" };
+        for (int m = 0; m < 3; m++) {
+            SetStretchBltMode(mdc, m == 0 ? HALFTONE : COLORONCOLOR);
+            SetBrushOrgEx(mdc, 0, 0, NULL);
+            LONGLONG t = qpc();
+            for (int i = 0; i < 5; i++)
+                StretchDIBits(mdc, 0, 0, m == 2 ? (int)d.dwWidth : w, m == 2 ? (int)d.dwHeight : h, 0, 0, (int)d.dwWidth, (int)d.dwHeight,
+                              d.lpSurface, (BITMAPINFO *)&bi, DIB_RGB_COLORS, SRCCOPY);
+            REPLY("%-20s %.2f ms per frame\n", names[m], (double)(qpc() - t) * 1000.0 / (double)f.QuadPart / 5);
+        }
+        LONGLONG t = qpc();
+        for (int i = 0; i < 5; i++) {
+            AcquireSRWLockExclusive(&g_scale_lock);
+            uint32_t *sc = scale_frame(&d, w, h);
+            BITMAPINFOHEADER sb = { sizeof sb, w, -h, 1, 32, BI_RGB, 0, 0, 0, 0, 0 };
+            if (sc) SetDIBitsToDevice(mdc, 0, 0, (DWORD)w, (DWORD)h, 0, 0, 0, (UINT)h, sc, (BITMAPINFO *)&sb, DIB_RGB_COLORS);
+            if (sc && i == 4) {   // the scaled frame for a look: aimod_dumps/bench_scaled.bmp
+                DDSURFACEDESC2 sd = d;
+                sd.dwWidth = (DWORD)w; sd.dwHeight = (DWORD)h; sd.lPitch = w * 4; sd.lpSurface = sc;
+                CreateDirectoryA("aimod_dumps", NULL);
+                write_desc_bmp(&sd, "aimod_dumps\\bench_scaled.bmp");
+            }
+            ReleaseSRWLockExclusive(&g_scale_lock);
+        }
+        REPLY("%-20s %.2f ms per frame (%d worker threads + this one)\n", "bilinear (mod)",
+              (double)(qpc() - t) * 1000.0 / (double)f.QuadPart / 5, g_scale_threads > 0 ? g_scale_threads : 0);
+        b7->lpVtbl->Unlock(b7, NULL);
+        SelectObject(mdc, prev);
+        DeleteObject(bmp);
+        DeleteDC(mdc);
+    } else REPLY("usage: ddpoke z|back|front|mode|cursor x y|bench [w h]\n");
 }
 
 static void cmd_ddinfo(char *out, const char *args) {
@@ -1299,6 +1451,15 @@ static void cmd_ddinfo(char *out, const char *args) {
                   "device %s, resumed by us %ld, subclassed %p\n", FIELD(rm, 4, float), FIELD(rm, 8, float), FIELD(rm, 0x18, float),
                   FIELD(rm, 0x1C, float), FIELD(rm, 0x20, float), FIELD(rm, 0x14, float), g_mouse_updates, g_mouse_unacq,
                   g_mouse_reacq, ms ? (ms[4] ? "suspended" : "active") : "-", g_input_resumes, (void *)g_subclassed);
+    {
+        LARGE_INTEGER f;
+        QueryPerformanceFrequency(&f);
+        LONG n = InterlockedExchange(&g_t_count, 0);
+        double ms = 1000.0 / (double)f.QuadPart;
+        LONG64 tl = InterlockedExchange64(&g_t_lock, 0), tb = InterlockedExchange64(&g_t_blit, 0), tf = InterlockedExchange64(&g_t_frame, 0);
+        if (n) REPLY("present timing over %ld frames: frame %.2f ms, readback (Lock) %.2f ms, GDI copy %.2f ms, rest (game) %.2f ms\n",
+                     n, tf * ms / n, tl * ms / n, tb * ms / n, (tf - tl - tb) * ms / n);
+    }
     REPLY("frame stats (FPS display): %.1f frames/s, %.1f / %.1f per s\n", FIELD(st, 0x2D8, float), FIELD(st, 0x2D4, float), FIELD(st, 0x2E0, float));
     if (g_subclassed) {
         typedef UINT (WINAPI *GetDpiFn)(HWND);
