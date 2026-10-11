@@ -137,6 +137,9 @@ Settings in `aimod.ini`:
   still needed for the game to start on current Windows; pass-through mode is enough.
   The mouse follows the Windows cursor (your pointer speed), the window can be moved and switched like
   any other; `lock_mouse=1` keeps the cursor inside while the game is in front.
+- `[display] windowed=borderless`: a frameless window over the whole monitor, the game image scaled to it
+  (aspect kept). Alt+Enter switches between window and borderless. The window is DPI-aware (`dpi_aware`),
+  so Windows display scaling doesn't blur it; `smooth=1` filters the scaled image.
 - `[editor] resolution=aoc`: scenario editor at 1024x768 with The Art of Conquest's layout.
 - `[camera] scroll=aoc`: AoC's smooth camera scrolling.
 - `[general] skip_intro=1`: skip the intro movies.
@@ -144,8 +147,7 @@ Settings in `aimod.ini`:
 ## Status
 
 - Scenario fix and economy: done and confirmed in play.
-- Windowed mode, editor resolution, camera scrolling: working; window size option and an Alt+Enter
-  toggle are planned.
+- Windowed and borderless mode (Alt+Enter toggle), editor resolution, camera scrolling: working.
 - Attack tuning: settings are in `aimod.ini`.
 - Attack routing: in development.
 - An Art of Conquest port is planned (the AI classes are the same, the addresses differ).

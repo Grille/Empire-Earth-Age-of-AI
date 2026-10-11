@@ -98,6 +98,71 @@ static struct { const char *dll; uintptr_t lo, hi; ShowSceneFn show; SetModeFn s
 #define DISPLAY_DLL(obj) (*(uintptr_t *)(obj) >= g_show[0].lo && *(uintptr_t *)(obj) < g_show[0].hi ? 0 : 1)
 static volatile LONG g_present_frames, g_present_fail;
 
+// Borderless fullscreen and DPI. aimod.ini [display] windowed = borderless: a frameless window over the whole
+// monitor; Alt+Enter switches between that and a normal window. The game keeps rendering at its resolution
+// and the image is scaled into the window (aspect kept, black bars). dpi_aware = 1 (default): the window is
+// created DPI-aware (CreateWindowExA in the display DLLs, per-thread context), so Windows doesn't stretch it
+// (blurry at 125/150 % display scaling) and its pixels are real screen pixels.
+static int g_borderless;   // current mode: 1 borderless, 0 normal window
+static int g_smooth;       // [display] smooth = 1: filtered scaling (HALFTONE) instead of nearest pixel
+static int g_dpi_windows;
+static void window_hook(HWND hwnd);
+typedef void *(WINAPI *SetThreadDpiFn)(void *);
+typedef void *(WINAPI *GetWindowDpiFn)(HWND);
+static SetThreadDpiFn g_set_thread_dpi;
+static GetWindowDpiFn g_get_window_dpi;
+// window geometry from the game's (DPI-unaware) threads in the window's own DPI context, else a DPI-aware
+// window is reported scaled down
+static void *dpi_enter(HWND h) { return g_set_thread_dpi && g_get_window_dpi ? g_set_thread_dpi(g_get_window_dpi(h)) : NULL; }
+static void dpi_leave(void *prev) { if (prev) g_set_thread_dpi(prev); }
+
+typedef HWND (WINAPI *CreateWindowExAFn)(DWORD, LPCSTR, LPCSTR, DWORD, int, int, int, int, HWND, HMENU, HINSTANCE, LPVOID);
+static HWND WINAPI hook_create_window(DWORD ex, LPCSTR cls, LPCSTR name, DWORD style, int x, int y, int w, int h,
+                                      HWND parent, HMENU menu, HINSTANCE inst, LPVOID param) {
+    void *prev = g_set_thread_dpi ? g_set_thread_dpi((void *)(intptr_t)-4) : NULL;   // PER_MONITOR_AWARE_V2
+    if (!prev && g_set_thread_dpi) prev = g_set_thread_dpi((void *)(intptr_t)-3);     // PER_MONITOR_AWARE
+    HWND r = CreateWindowExA(ex, cls, name, style, x, y, w, h, parent, menu, inst, param);
+    if (prev) { g_set_thread_dpi(prev); InterlockedIncrement((volatile LONG *)&g_dpi_windows); }
+    return r;
+}
+
+static int patch_iat(HMODULE m, const char *dll, const char *fn, void *hook) {
+    uint8_t *b = (uint8_t *)m;
+    IMAGE_NT_HEADERS *nt = (IMAGE_NT_HEADERS *)(b + ((IMAGE_DOS_HEADER *)b)->e_lfanew);
+    IMAGE_DATA_DIRECTORY dd = nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT];
+    if (!dd.VirtualAddress) return 0;
+    for (IMAGE_IMPORT_DESCRIPTOR *d = (IMAGE_IMPORT_DESCRIPTOR *)(b + dd.VirtualAddress); d->Name; d++) {
+        if (lstrcmpiA((char *)(b + d->Name), dll) || !d->OriginalFirstThunk) continue;
+        IMAGE_THUNK_DATA *names = (IMAGE_THUNK_DATA *)(b + d->OriginalFirstThunk), *iat = (IMAGE_THUNK_DATA *)(b + d->FirstThunk);
+        for (; names->u1.AddressOfData; names++, iat++) {
+            if (IMAGE_SNAP_BY_ORDINAL(names->u1.Ordinal)) continue;
+            if (strcmp((char *)((IMAGE_IMPORT_BY_NAME *)(b + names->u1.AddressOfData))->Name, fn)) continue;
+            DWORD old;
+            if (!VirtualProtect(&iat->u1.Function, sizeof iat->u1.Function, PAGE_READWRITE, &old)) return 0;
+            iat->u1.Function = (uintptr_t)hook;
+            VirtualProtect(&iat->u1.Function, sizeof iat->u1.Function, old, &old);
+            return 1;
+        }
+    }
+    return 0;
+}
+
+// where the game image goes in the client area: scaled to fit, aspect kept
+static RECT view_rect(const RECT *cr, int w, int h) {
+    RECT r = *cr;
+    if (w <= 0 || h <= 0) return r;
+    if ((long long)cr->right * h > (long long)cr->bottom * w) {   // client wider: bars left and right
+        int vw = (int)((long long)cr->bottom * w / h);
+        r.left = (cr->right - vw) / 2;
+        r.right = r.left + vw;
+    } else {
+        int vh = (int)((long long)cr->right * h / w);
+        r.top = (cr->bottom - vh) / 2;
+        r.bottom = r.top + vh;
+    }
+    return r;
+}
+
 static int present_to_window(uint8_t *ras, unsigned screen) {
     uint8_t *st = FIELD(ras, 0x20, uint8_t **)[screen];
     uint8_t *scr = FIELD(st, 0x2A8, uint8_t *), *back = FIELD(st, 0x2B0, uint8_t *), *win = FIELD(st, 0x2BC, uint8_t *);
@@ -134,13 +199,28 @@ static int present_to_window(uint8_t *ras, unsigned screen) {
         SetClassLongA(hwnd, GCL_HBRBACKGROUND, 0);
         erase_off = hwnd;
     }
+    window_hook(hwnd);
+    void *dpi = dpi_enter(hwnd);
     HDC wdc = GetDC(hwnd);
     RECT cr;
     GetClientRect(hwnd, &cr);
-    SetStretchBltMode(wdc, COLORONCOLOR);
-    StretchDIBits(wdc, 0, 0, cr.right, cr.bottom, 0, 0, (int)d.dwWidth, (int)d.dwHeight, d.lpSurface,
+    RECT v = view_rect(&cr, (int)d.dwWidth, (int)d.dwHeight);
+    if (v.left > 0 || v.top > 0) {   // bars
+        HBRUSH black = (HBRUSH)GetStockObject(BLACK_BRUSH);
+        RECT b1 = { 0, 0, v.left > 0 ? v.left : cr.right, v.left > 0 ? cr.bottom : v.top };
+        RECT b2 = { v.left > 0 ? v.right : 0, v.left > 0 ? 0 : v.bottom, cr.right, cr.bottom };
+        FillRect(wdc, &b1, black);
+        FillRect(wdc, &b2, black);
+    }
+    int vw = v.right - v.left, vh = v.bottom - v.top;
+    if (g_smooth && (vw != (int)d.dwWidth || vh != (int)d.dwHeight)) {
+        SetStretchBltMode(wdc, HALFTONE);
+        SetBrushOrgEx(wdc, 0, 0, NULL);
+    } else SetStretchBltMode(wdc, COLORONCOLOR);
+    StretchDIBits(wdc, v.left, v.top, vw, vh, 0, 0, (int)d.dwWidth, (int)d.dwHeight, d.lpSurface,
                   (BITMAPINFO *)&bi, DIB_RGB_COLORS, SRCCOPY);
     ReleaseDC(hwnd, wdc);
+    dpi_leave(dpi);
     ValidateRect(hwnd, NULL);   // the frame is drawn - no WM_PAINT/erase for it
     s->lpVtbl->Unlock(s, NULL);
     InterlockedIncrement(&g_present_frames);
@@ -508,8 +588,78 @@ static void os_cursor_visible(void) {   // display count back to 0 for this thre
     while (c > 0) c = ShowCursor(FALSE);
 }
 
+// The window's size: borderless = the monitor; normal = client of the game resolution. The game sizes the
+// window itself (GEWindow::Resize: AdjustWindowRect + SetWindowPos) from its DPI-unaware threads, which Windows
+// would scale up for a DPI-aware window - so the size is set here on every change (WM_WINDOWPOSCHANGING),
+// except while the user drags the frame or the window is maximized/minimized.
+#define WM_AIMOD_MODE (WM_APP + 0x2E45)
+static int g_in_sizemove;
+static RECT window_rect_for(HWND h) {
+    MONITORINFO mi = { .cbSize = sizeof mi };
+    GetMonitorInfoA(MonitorFromWindow(h, MONITOR_DEFAULTTONEAREST), &mi);
+    if (g_borderless) return mi.rcMonitor;
+    uint8_t *win = *(uint8_t **)G_GAME_WINDOW;
+    RECT r = { 0, 0, win ? FIELD(win, 0xC, int) : 1024, win ? FIELD(win, 0x10, int) : 768 }, wr;
+    typedef UINT (WINAPI *GetDpiFn)(HWND);
+    typedef BOOL (WINAPI *AdjustForDpiFn)(RECT *, DWORD, BOOL, DWORD, UINT);
+    static GetDpiFn get_dpi;
+    static AdjustForDpiFn adjust;
+    if (!get_dpi) {
+        HMODULE u = GetModuleHandleA("user32.dll");
+        get_dpi = (GetDpiFn)(void *)GetProcAddress(u, "GetDpiForWindow");
+        adjust = (AdjustForDpiFn)(void *)GetProcAddress(u, "AdjustWindowRectExForDpi");
+    }
+    if (get_dpi && adjust) adjust(&r, WS_OVERLAPPEDWINDOW, FALSE, 0, get_dpi(h));
+    else AdjustWindowRect(&r, WS_OVERLAPPEDWINDOW, FALSE);
+    GetWindowRect(h, &wr);
+    int w = r.right - r.left, hh = r.bottom - r.top, x = wr.left, y = wr.top;
+    if (GetWindowLongA(h, GWL_STYLE) & WS_POPUP) {   // coming from borderless: centered in the work area
+        x = mi.rcWork.left + (mi.rcWork.right - mi.rcWork.left - w) / 2;
+        y = mi.rcWork.top + (mi.rcWork.bottom - mi.rcWork.top - hh) / 2;
+    }
+    if (y < mi.rcWork.top) y = mi.rcWork.top;   // title bar reachable
+    return (RECT){ x, y, x + w, y + hh };
+}
+
+static void apply_window_mode(HWND h) {
+    if (IsIconic(h)) ShowWindow(h, SW_RESTORE);
+    if (IsZoomed(h)) ShowWindow(h, SW_RESTORE);
+    RECT r = window_rect_for(h);   // before the style change (reads where it comes from)
+    LONG st = GetWindowLongA(h, GWL_STYLE);
+    st = g_borderless ? (st & ~WS_OVERLAPPEDWINDOW) | WS_POPUP : (st & ~WS_POPUP) | WS_OVERLAPPEDWINDOW;
+    SetWindowLongA(h, GWL_STYLE, st);
+    SetWindowPos(h, HWND_TOP, r.left, r.top, r.right - r.left, r.bottom - r.top, SWP_FRAMECHANGED | SWP_NOOWNERZORDER | SWP_SHOWWINDOW);
+    if (g_log) { fprintf(g_log, "# display: %s %ldx%ld\n", g_borderless ? "borderless" : "window", r.right - r.left, r.bottom - r.top); fflush(g_log); }
+}
+
 static LRESULT CALLBACK window_proc(HWND h, UINT msg, WPARAM w, LPARAM l) {
     switch (msg) {
+    case WM_AIMOD_MODE:
+        apply_window_mode(h);
+        return 0;
+    case WM_SYSKEYDOWN:   // Alt+Enter: borderless <-> window
+        if (w == VK_RETURN && (l & (1 << 29))) {
+            if (!(l & (1 << 30))) { g_borderless = !g_borderless; apply_window_mode(h); }
+            return 0;
+        }
+        break;
+    case WM_SYSCHAR:
+        if (w == '\r') return 0;   // no beep
+        break;
+    case WM_ENTERSIZEMOVE: g_in_sizemove = 1; break;
+    case WM_EXITSIZEMOVE: g_in_sizemove = 0; break;
+    case WM_WINDOWPOSCHANGING: {
+        WINDOWPOS *p = (WINDOWPOS *)l;
+        LONG st = GetWindowLongA(h, GWL_STYLE);
+        if (g_in_sizemove || (st & (WS_MINIMIZE | WS_MAXIMIZE)) || p->x <= -32000) break;
+        if ((p->flags & SWP_NOSIZE) && (!g_borderless || (p->flags & SWP_NOMOVE))) break;
+        RECT r = window_rect_for(h);
+        if (g_borderless) { p->x = r.left; p->y = r.top; p->flags &= ~SWP_NOMOVE; }
+        p->cx = r.right - r.left;
+        p->cy = r.bottom - r.top;
+        p->flags &= ~SWP_NOSIZE;
+        break;
+    }
     case WM_SETCURSOR:   // game cursor in the client area while in front, Windows' cursor everywhere else
         if (LOWORD(l) == HTCLIENT && GetForegroundWindow() == h) { SetCursor(NULL); return TRUE; }
         os_cursor_visible();
@@ -525,6 +675,18 @@ static LRESULT CALLBACK window_proc(HWND h, UINT msg, WPARAM w, LPARAM l) {
         break;
     }
     return CallWindowProcA(g_game_wndproc, h, msg, w, l);
+}
+
+static void window_hook(HWND hwnd) {   // subclass once per window (present and mouse threads both call this)
+    static volatile LONG busy;
+    if (g_subclassed == hwnd || InterlockedExchange(&busy, 1)) return;
+    if (g_subclassed != hwnd) {
+        g_game_wndproc = (WNDPROC)GetWindowLongA(hwnd, GWL_WNDPROC);
+        SetWindowLongA(hwnd, GWL_WNDPROC, (LONG)(uintptr_t)window_proc);
+        g_subclassed = hwnd;
+        PostMessageA(hwnd, WM_AIMOD_MODE, 0, 0);   // initial size/style, on the window's thread
+    }
+    busy = 0;
 }
 
 static uint8_t *is_mouse(void) {
@@ -568,14 +730,18 @@ static void resume_if_suspended(uintptr_t imp, DWORD *last) {
     InterlockedIncrement(&g_input_resumes);
 }
 
+static void window_mouse_in(uint8_t *m, int frozen, uint8_t *win, HWND hwnd);
 static void window_mouse(uint8_t *m, int frozen) {
     uint8_t *win = *(uint8_t **)G_GAME_WINDOW;
     HWND hwnd = win ? FIELD(win, 0, HWND) : NULL;
     if (!hwnd) return;
-    if (g_subclassed != hwnd) {
-        g_game_wndproc = (WNDPROC)SetWindowLongA(hwnd, GWL_WNDPROC, (LONG)(uintptr_t)window_proc);
-        g_subclassed = hwnd;
-    }
+    window_hook(hwnd);
+    void *dpi = dpi_enter(hwnd);
+    window_mouse_in(m, frozen, win, hwnd);
+    dpi_leave(dpi);
+}
+
+static void window_mouse_in(uint8_t *m, int frozen, uint8_t *win, HWND hwnd) {
     POINT pt, c;
     RECT rc;
     if (!GetCursorPos(&pt) || !GetClientRect(hwnd, &rc) || rc.right < 2 || rc.bottom < 2) return;
@@ -603,8 +769,10 @@ static void window_mouse(uint8_t *m, int frozen) {
     // pushing past the border; the last pixel maps to the full width (clamped to end - 1, like fullscreen)
     unsigned gw = FIELD(win, 0xC, unsigned), gh = FIELD(win, 0x10, unsigned);
     if (gw < 2 || gh < 2) return;
-    FIELD(m, 4, float) = (float)c.x * (float)gw / (float)(rc.right - 1);
-    FIELD(m, 8, float) = (float)c.y * (float)gh / (float)(rc.bottom - 1);
+    RECT v = view_rect(&rc, (int)gw, (int)gh);   // borderless: the image may have bars
+    if (v.right - v.left < 2 || v.bottom - v.top < 2) return;
+    FIELD(m, 4, float) = (float)(c.x - v.left) * (float)gw / (float)(v.right - v.left - 1);
+    FIELD(m, 8, float) = (float)(c.y - v.top) * (float)gh / (float)(v.bottom - v.top - 1);
     ((ThisFn)FN_MOUSE_CLAMP)(m);
     InterlockedIncrement(&g_mouse_updates);
 }
@@ -646,8 +814,14 @@ static int install_windowed_input(void) {
 
 static void display_install(const char *aimod_ini, const char *autotest_ini) {
     char mode[32], tmp[32];
-    int windowed = GetPrivateProfileIntA("display", "windowed", 0, aimod_ini);
-    if (autotest_ini) windowed = GetPrivateProfileIntA("autotest", "windowed", windowed, autotest_ini);
+    char wmode[32];
+    GetPrivateProfileStringA("display", "windowed", "0", wmode, sizeof wmode, aimod_ini);
+    if (autotest_ini) {
+        lstrcpynA(tmp, wmode, sizeof tmp);
+        GetPrivateProfileStringA("autotest", "windowed", tmp, wmode, sizeof wmode, autotest_ini);
+    }
+    g_borderless = !lstrcmpiA(wmode, "borderless");
+    int windowed = g_borderless || atoi(wmode) != 0;
     if (autotest_ini) g_diag_skip = GetPrivateProfileIntA("autotest", "diag_skip", 0, autotest_ini);
     g_diag = (autotest_ini && GetPrivateProfileIntA("autotest", "diag_hooks", 0, autotest_ini))
              || GetPrivateProfileIntA("display", "diag", 0, aimod_ini);
@@ -657,6 +831,17 @@ static void display_install(const char *aimod_ini, const char *autotest_ini) {
         int hooks = install_windowed_present();
         g_lock_mouse = GetPrivateProfileIntA("display", "lock_mouse", 0, aimod_ini);
         int input = install_windowed_input();
+        g_smooth = GetPrivateProfileIntA("display", "smooth", 0, aimod_ini);
+        int dpi = 0;
+        if (GetPrivateProfileIntA("display", "dpi_aware", 1, aimod_ini)) {
+            HMODULE u = GetModuleHandleA("user32.dll");
+            g_set_thread_dpi = (SetThreadDpiFn)(void *)GetProcAddress(u, "SetThreadDpiAwarenessContext");
+            g_get_window_dpi = (GetWindowDpiFn)(void *)GetProcAddress(u, "GetWindowDpiAwarenessContext");
+            for (int i = 0; i < 2 && g_set_thread_dpi && g_get_window_dpi; i++) {
+                HMODULE m = GetModuleHandleA(g_show[i].dll);
+                if (m) dpi += patch_iat(m, "USER32.dll", "CreateWindowExA", (void *)hook_create_window);
+            }
+        }
         // loading splash: started (0x5343F8) while the flag is still 1 - before the DLLs load - but its stop
         // (0x534433) checks the flag again and would leave it on screen; stop it in windowed mode too
         uint8_t *jne = (uint8_t *)0x0053443D;
@@ -669,8 +854,9 @@ static void display_install(const char *aimod_ini, const char *autotest_ini) {
             FlushInstructionCache(GetCurrentProcess(), jne, 2);
             splash = 1;
         }
-        if (g_log) fprintf(g_log, "# display: windowed %s, present hooks %d, input patches %d/7, splash stop %s\n",
-                           was == 1 ? "on" : "NOT set (unexpected fullscreen flag)", hooks, input, splash ? "ok" : "FAILED");
+        if (g_log) fprintf(g_log, "# display: windowed %s (%s), present hooks %d, input patches %d/7, dpi hooks %d/2, splash stop %s\n",
+                           was == 1 ? "on" : "NOT set (unexpected fullscreen flag)", g_borderless ? "borderless" : "window",
+                           hooks, input, dpi, splash ? "ok" : "FAILED");
     } else if (g_diag) {
         int hooks = install_windowed_present();   // all pass through in fullscreen; for the ddinfo counters
         if (g_log) fprintf(g_log, "# display: fullscreen, diagnostic hooks %d\n", hooks);
@@ -879,6 +1065,18 @@ static void cmd_ddinfo(char *out, const char *args) {
                   "device %s, resumed by us %ld, subclassed %p\n", FIELD(rm, 4, float), FIELD(rm, 8, float), FIELD(rm, 0x18, float),
                   FIELD(rm, 0x1C, float), FIELD(rm, 0x20, float), FIELD(rm, 0x14, float), g_mouse_updates, g_mouse_unacq,
                   g_mouse_reacq, ms ? (ms[4] ? "suspended" : "active") : "-", g_input_resumes, (void *)g_subclassed);
+    if (g_subclassed) {
+        typedef UINT (WINAPI *GetDpiFn)(HWND);
+        GetDpiFn get_dpi = (GetDpiFn)(void *)GetProcAddress(GetModuleHandleA("user32.dll"), "GetDpiForWindow");
+        void *dpi = dpi_enter(g_subclassed);
+        RECT wr, cr2;
+        GetWindowRect(g_subclassed, &wr);
+        GetClientRect(g_subclassed, &cr2);
+        dpi_leave(dpi);
+        REPLY("window: %s, style %08lx, window %ld,%ld %ldx%ld, client %ldx%ld, dpi %u, created dpi-aware %d, smooth %d\n",
+              g_borderless ? "borderless" : "normal", (unsigned long)GetWindowLongA(g_subclassed, GWL_STYLE), wr.left, wr.top,
+              wr.right - wr.left, wr.bottom - wr.top, cr2.right, cr2.bottom, get_dpi ? get_dpi(g_subclassed) : 0, g_dpi_windows, g_smooth);
+    }
     if (!strncmp(args, "blit", 4) && front && back) {
         IDirectDrawSurface7 *f = FIELD(front, 0x48, IDirectDrawSurface7 *), *b = FIELD(back, 0x48, IDirectDrawSurface7 *);
         RECT dst = { o.x, o.y, o.x + cr.right, o.y + cr.bottom };
