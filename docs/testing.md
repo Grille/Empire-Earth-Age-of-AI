@@ -218,6 +218,8 @@ member. Needs `ai_diplomacy=1` and a player outside the blocks (one alliance of 
   attacked +10) and declares war on P2; P3 answers; {P3, P4} stay a block.
 - Observer counts, P5 outside: P2-P4 all make peace. P1 turns on P2: P3 and P4 side with P1 (opinion 21 vs 0+10).
   P2 allied with P3 again: P2-P4 peace at once, P2 offers P1 peace; ignored for 2 min: block split, P3/P4 with P1.
+- Veto: P3+P4 a block, P2 pays P3 3000 (opinion 35) and offers peace (score 47). P2 had just declared war on P4:
+  refused, block_refuse_own names P4. Without that: accepted, P2-P4 peace through the block at once.
 
 ### Ranged aim
 

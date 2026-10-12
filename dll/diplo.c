@@ -219,15 +219,25 @@ static void declare_war(int ai, int j, uint32_t now) {
     g_offer_t[ai][j] = 0;
 }
 
+static int block_veto(int ai, int j, uint32_t now, int *own);   // alliance blocks (below)
+static void block_refuse(void *pl, int j, int who, int own);
+
 // A pending peace offer of j (allied towards the AI while the AI is at war with him)
 static void peace_offer(void *pl, int ai, int j, uint32_t now) {
     void *pj = player_at(j);
     float s = peace_score(pl, ai, j, now);
     if (g_log) fprintf(g_log, "# diplomacy: P%d at %.1f min: peace offer of P%d, score %.0f (opinion %.0f, power %.0f vs %.0f)\n",
                        ai, now / 60000.0, j, s, g_opinion[ai][j], g_ws.power[j], g_ws.power[ai]);
-    if (s > 0 && !TEAMS_LOCKED) {
+    int own = 0, veto = s > 0 && !TEAMS_LOCKED ? block_veto(ai, j, now, &own) : 0;
+    if (s > 0 && !TEAMS_LOCKED && !veto) {
         make_peace(ai, j, now);
         persona_say(pl, L_PEACE_ACCEPT, pj, NULL);
+        return;
+    }
+    if (veto) {
+        if (!g_peace_refused[ai][j]) block_refuse(pl, j, veto, own);
+        g_peace_refused[ai][j] = 1;
+        g_peace_due[ai][j] = now + 120000;
         return;
     }
     if (!g_peace_refused[ai][j]) persona_say(pl, L_PEACE_REFUSE, pj, NULL);
@@ -364,6 +374,53 @@ static void blocks_pass(uint32_t now) {
     g_block_seen = 1;
 }
 
+// BLOCK VETO: peace between ai and j joins their blocks, and inside a block there is peace - so every pair of the
+// two blocks at war (other than ai and j themselves) would have to make peace too. An AI of such a pair with a real
+// grudge against the other - a war declared on it within pride/20 minutes, or an opinion below -30 (a stranger at
+// war is -10, a declared war takes 30-70 off) - won't, and the alliance is off. Returns the player who stands in the
+// way, the one the refusal names (*own: an ally of ai's own side objects, else one of j's side), else 0. Humans
+// decide their own stances.
+static float block_grudge(int x, int y, uint32_t now) {
+    void *px = player_at(x);
+    if (g_war_since[x][y] && now - g_war_since[x][y] < (uint32_t)trait(px, T_PRIDE) * 3000u) return -1000;
+    return g_opinion[x][y];
+}
+static int block_veto(int ai, int j, uint32_t now, int *own) {
+    if (!blocks_on()) return 0;
+    int blk[16], n = nplayers(), who = 0, mine = 0;
+    blocks_compute(blk);
+    float worst = -30;
+    for (int p = 1; p < n; p++) {
+        if (p != ai && !(blk[ai] && blk[p] == blk[ai])) continue;
+        for (int q = 1; q < n; q++) {
+            if (q != j && !(blk[j] && blk[q] == blk[j])) continue;
+            if (q == p || (p == ai && q == j) || mutual(p, q) || !block_member(p) || !block_member(q)) continue;
+            if (blk[p] && blk[p] == blk[q]) continue;   // already one block
+            float g = 1e9f;
+            if (g_players[p]) g = block_grudge(p, q, now);
+            if (g_players[q] && block_grudge(q, p, now) < g) g = block_grudge(q, p, now);
+            if (g < worst) { worst = g; who = q == j ? p : q; mine = q == j; }
+        }
+    }
+    if (own) *own = mine;
+    if (who && g_log) fprintf(g_log, "# diplomacy: blocks: no peace between P%d and P%d - P%d (%s side) stands in the way (grudge %.0f)\n",
+                              ai, j, who, mine ? "the first one's" : "the other", worst);
+    return who;
+}
+static void block_refuse(void *pl, int j, int who, int own) {   // the refusal: a line, and a system line for him
+    void *pj = player_at(j), *pw = player_at(who);
+    if (!persona_say(pl, own ? L_BLOCK_REFUSE_OWN : L_BLOCK_REFUSE, pj, pw)) persona_say(pl, L_PEACE_REFUSE, pj, NULL);
+    char de[300], en[300];
+    if (own) {
+        wsprintfA(de, "%s lehnt ab: der Verb\xfcndete %s will keinen Frieden mit %s.", player_name(pl), player_name(pw), player_name(pj));
+        wsprintfA(en, "%s refuses: its ally %s won't make peace with %s.", player_name(pl), player_name(pw), player_name(pj));
+    } else {
+        wsprintfA(de, "%s lehnt ab: kein Frieden mit %s und dessen B\xfcndnis mit %s.", player_name(pl), player_name(pj), player_name(pw));
+        wsprintfA(en, "%s refuses: no peace with %s while allied with %s.", player_name(pl), player_name(pj), player_name(pw));
+    }
+    if (!g_players[j]) block_line(j, de, en);
+}
+
 // AI ai's own initiative (every 60 s)
 static void diplo_initiative(void *pl, int ai, uint32_t now) {
     if (!g_ai_diplomacy || TEAMS_LOCKED || scenario_game() || now < 600000) return;
@@ -379,7 +436,8 @@ static void diplo_initiative(void *pl, int ai, uint32_t now) {
             if (g_offer_t[ai][j] || (g_offer_last[ai][j] &&
                                      now - g_offer_last[ai][j] < (600000u << (g_offer_ignored[ai][j] < 2 ? g_offer_ignored[ai][j] : 2))))
                 continue;
-            if (g_opinion[ai][j] > bs) { bs = g_opinion[ai][j]; best = j; }
+            if (g_opinion[ai][j] <= bs || block_veto(ai, j, now, NULL)) continue;   // not with someone its side can't stand
+            bs = g_opinion[ai][j]; best = j;
         }
         if (best) {
             void *pj = player_at(best);
@@ -522,6 +580,7 @@ static void capitulate(void *pl, int ai, int a, uint32_t now) {
     if (g_players[a]) {   // an AI conqueror decides at once: peace score + what the tribute is worth to it
         float gain = (float)total / (20.0f + 0.8f * (float)(100 - trait(pa, T_GREED)));
         float s = peace_score(pa, a, ai, now) + gain;
+        if (s > 0 && block_veto(ai, a, now, NULL)) s = -1;   // its side and the capitulating side can't be one block
         if (g_log) fprintf(g_log, "# diplomacy: P%d answers: score %.0f (tribute worth %.0f)\n", a, s, gain);
         if (s > 0) {
             make_peace(ai, a, now);
