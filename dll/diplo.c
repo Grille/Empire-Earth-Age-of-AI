@@ -499,6 +499,12 @@ static void diplo_initiative(void *pl, int ai, uint32_t now) {
                 chat_stance_line(pl, 0);
                 g_offer_t[ai][best] = now ? now : 1;
                 g_offer_kind[ai][best] = 0;
+                char de[300], en[300];
+                wsprintfA(de, "%s bietet ein B\xfcndnis gegen %s an: stellen Sie %s binnen 2 Minuten auf Verb\xfcndet, um "
+                              "anzunehmen.", player_name(pl), player_name(player_at(lead)), player_name(pl));
+                wsprintfA(en, "%s offers an alliance against %s: set %s to allied within 2 minutes to accept.", player_name(pl),
+                          player_name(player_at(lead)), player_name(pl));
+                block_line(best, de, en);
                 if (g_log) fprintf(g_log, "# diplomacy: P%d offers P%d (human) an alliance against P%d\n", ai, best, lead);
             }
             return;
@@ -644,6 +650,12 @@ static void capitulate(void *pl, int ai, int a, uint32_t now) {
     promise_escrow(ai, 1);
     g_offer_t[ai][a] = now ? now : 1;
     g_offer_kind[ai][a] = 1;
+    char de[300], en[300];
+    wsprintfA(de, "%s kapituliert und bietet %d Rohstoffe: stellen Sie %s binnen 2 Minuten auf Verb\xfcndet, um anzunehmen.",
+              player_name(pl), total, player_name(pl));
+    wsprintfA(en, "%s surrenders and offers %d resources: set %s to allied within 2 minutes to accept.", player_name(pl), total,
+              player_name(pl));
+    block_line(a, de, en);
 }
 static void check_capitulation(void *pl, int ai, uint32_t now) {
     if (!g_ai_diplomacy || TEAMS_LOCKED || scenario_game() || now < 600000 || is_vassal(ai)) return;
