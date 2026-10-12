@@ -232,6 +232,12 @@ member. Needs `ai_diplomacy=1` and a player outside the blocks (one alliance of 
 - Reputation: P2 breaks its alliance with P5: P3 (loyalty 70) -10.5, P4 (loyalty 95) -14 towards P2. P3 capitulates
   to P4, P4 attacks it at once: P2 (loyalty 35) -26, P5 (loyalty 60) -45 towards P4 (x5), P3 itself -78.
 
+### Population limit
+
+2026-10-13, Continental 101, 2 AIs, Prehistoric start, Ignorieren off (`ai_ignore=0`; the suites run with it on,
+i.e. with the game limit), 45 min: `pop_follow_human=1` cap 33 (the idle observer has ~5 units, game limit 166),
+soldiers at 40 min 6 / 0; `pop_follow_human=0` cap 166, soldiers 41 / 25.
+
 ### Farm fields
 
 2026-10-13, 2 AIs, start epoch 13, 31 min, game seeds 1-3 (`objs P 42`: 1 hp = foundation). Without the fix the 8

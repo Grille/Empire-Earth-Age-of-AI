@@ -343,6 +343,11 @@ Guard towers 47, 461..466; AA 145/147; town center 35; house 37; citizen 32.
 - Attention 0x42F912: per period only player+0xE20 + 1 (4+1) activities are enabled, ordered by strategy +0xA28:
   0 cm+0x7A (request epoch requirement techs), 1 rm+0x188, 2 rs+0x11A (random research), 3 um+0x140, 4 cm+0x7B
   (build manager pass in 0x46CD18), 5 cm+0x7C, 6 [b8c+0x4C]+0x48, 7 b98+0x2D, 8 b8c+0x62.
+- AI population cap 0x42F7A5 (every minute; callers 0x4311E5, 0x43FA9B, 0x474AF0) -> player +0xCCC: (2.4 x the
+  largest human population (0x556E11, capped at the limit) + 0.6 x the game limit (EEPlayer vf31 0x556EBC)) / 3
+  (dbcpbehavior records 92/93 fval) x difficulty % (record 98: easy 70, medium 90, hard 140 - +0xDF0/+0xDF4/+0xDF8,
+  x 0.01) - not clamped to the limit. The game limit instead with Ignorieren (+0xF02) or 0x431141 (setting 0x9187FC
+  = 4, not a scenario). Mod: pop_follow_human=0 sets +0xCCC to the game limit after it.
 - Citizens wanted = citizen share (player+0xBDC, 0.45 by default) x population cap (0x48EDDB); trained in
   batches of up to 10. Military slots = (1 - share) x cap (0x47049E); set by 0x43F42E (scenario trigger).
 - Mine search 0x48C204 thiscall(rm, type, unit, reverse): first site in zone order (reverse = from the last zone)
