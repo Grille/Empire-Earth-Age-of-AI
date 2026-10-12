@@ -27,26 +27,31 @@
 enum trait { T_AGGRESSION, T_LOYALTY, T_PRIDE, T_GREED, T_FORGIVENESS, T_CAUTION, T_TALK, T_N };
 static const char *const k_trait_keys[T_N] = { "aggression", "loyalty", "pride", "greed", "forgiveness", "caution", "talk" };
 
-// situations: key, chance in % at talk=50 (100 = always, scaled by talk otherwise), cooldown s per AI
+// situations: key, chance in % at talk=50 (100 = always, scaled by talk otherwise), cooldown s per AI, audience:
+// who is meant to hear it - everyone, the AI's allies (plans, worries, calls for help) or only {name}, the player
+// it is said to (taunts, diplomacy). The local player sees a line only when they are in its audience - an enemy AI
+// doesn't tell them that it attacks someone else. With [general] chat=1+ (debug) every line shows, marked.
 enum line_kind {
     L_GREETING, L_WAR_DECLARED, L_BETRAYED, L_PEACE_ACCEPT, L_PEACE_REFUSE, L_ALLIANCE_OFFER, L_OFFER_ACCEPTED,
     L_OFFER_WITHDRAWN, L_BETRAY, L_TRIBUTE_THANKS, L_TRIBUTE_SMALL, L_ATTACK, L_UNDER_ATTACK, L_BUILDING_LOST,
     L_EPOCH_UP, L_ENEMY_AHEAD, L_WINNING, L_LOSING, L_DESPERATE, L_ENEMY_DEFEATED, L_ALLY_DEFEATED, L_DEFEATED,
     L_WONDER_THREAT, L_WONDER_HELP, L_WONDER_NOHELP, L_HELP_LAND, L_HELP_AIR, L_HELP_NAVAL, L_HELP_NONE, L_SURRENDER,
-    L_CAPITULATE, L_CAPITULATE_ACCEPTED, L_CAPITULATE_REFUSED, L_N
+    L_CAPITULATE, L_CAPITULATE_ACCEPTED, L_CAPITULATE_REFUSED, L_ATTACK_THREAT, L_N
 };
-static const struct { const char *key; int chance, cooldown; } k_lines[L_N] = {
-    { "greeting", 60, 0 },          { "war_declared", 100, 20 },     { "betrayed", 100, 20 },
-    { "peace_accept", 100, 0 },     { "peace_refuse", 100, 60 },     { "alliance_offer", 100, 0 },
-    { "offer_accepted", 100, 0 },   { "offer_withdrawn", 100, 0 },   { "betray", 100, 0 },
-    { "tribute_thanks", 100, 20 },  { "tribute_small", 100, 60 },    { "attack", 40, 300 },
-    { "under_attack", 60, 240 },    { "building_lost", 25, 180 },    { "epoch_up", 50, 60 },
-    { "enemy_ahead", 40, 600 },     { "winning", 40, 600 },          { "losing", 50, 600 },
-    { "desperate", 100, 0 },        { "enemy_defeated", 80, 30 },    { "ally_defeated", 80, 30 },
-    { "defeated", 100, 0 },         { "wonder_threat", 100, 60 },    { "wonder_help", 100, 60 },
-    { "wonder_nohelp", 100, 60 },   { "help_land", 100, 30 },        { "help_air", 100, 30 },
-    { "help_naval", 100, 30 },      { "help_none", 100, 30 },        { "surrender", 100, 0 },
-    { "capitulate", 100, 0 },       { "capitulate_accepted", 100, 0 }, { "capitulate_refused", 100, 0 },
+enum audience { A_ALL, A_ALLIES, A_NAME };
+static const struct { const char *key; int chance, cooldown; enum audience aud; } k_lines[L_N] = {
+    { "greeting", 60, 0, A_ALL },             { "war_declared", 100, 20, A_NAME },     { "betrayed", 100, 20, A_NAME },
+    { "peace_accept", 100, 0, A_NAME },       { "peace_refuse", 100, 60, A_NAME },     { "alliance_offer", 100, 0, A_NAME },
+    { "offer_accepted", 100, 0, A_NAME },     { "offer_withdrawn", 100, 0, A_NAME },   { "betray", 100, 0, A_NAME },
+    { "tribute_thanks", 100, 20, A_NAME },    { "tribute_small", 100, 60, A_NAME },    { "attack", 40, 300, A_ALLIES },
+    { "under_attack", 60, 240, A_ALLIES },    { "building_lost", 25, 180, A_ALLIES },  { "epoch_up", 50, 60, A_ALL },
+    { "enemy_ahead", 40, 600, A_ALLIES },     { "winning", 40, 600, A_NAME },          { "losing", 50, 600, A_ALLIES },
+    { "desperate", 100, 0, A_ALLIES },        { "enemy_defeated", 80, 30, A_ALL },     { "ally_defeated", 80, 30, A_ALLIES },
+    { "defeated", 100, 0, A_ALL },            { "wonder_threat", 100, 60, A_ALL },     { "wonder_help", 100, 60, A_ALLIES },
+    { "wonder_nohelp", 100, 60, A_ALLIES },   { "help_land", 100, 30, A_ALLIES },      { "help_air", 100, 30, A_ALLIES },
+    { "help_naval", 100, 30, A_ALLIES },      { "help_none", 100, 30, A_ALLIES },      { "surrender", 100, 0, A_ALL },
+    { "capitulate", 100, 0, A_NAME },         { "capitulate_accepted", 100, 0, A_NAME }, { "capitulate_refused", 100, 0, A_NAME },
+    { "attack_threat", 60, 300, A_NAME },
 };
 
 #define MAX_PERSONAS 32
@@ -423,7 +428,17 @@ static void epoch_text(void *pl, char *out, int cap) {
     ((void (__thiscall *)(void *))*(void **)0x00823AEC)(s);
 }
 
-// say a line of situation k (other = {name}, third = {enemy}); returns 1 if said
+// is the local player (0x918E84) in the audience of AI pl's line k said to `other`? Allies: both stances allied.
+static int line_heard(void *pl, enum line_kind k, void *other) {
+    unsigned h = *(unsigned *)0x00918E84;
+    void *me = h < 16 ? ((void **)0x00918374)[h] : NULL;
+    if (!me || me == pl || k_lines[k].aud == A_ALL) return 1;
+    if (k_lines[k].aud == A_NAME) return other == me;
+    return !FIELD(pl, 0x9E4 + h * 4, int) && !FIELD(me, 0x9E4 + (FIELD(pl, PL_INDEX, int) & 15) * 4, int);
+}
+
+// say a line of situation k (other = {name}, third = {enemy}); returns 1 if said (heard or not: the situation is
+// answered, callers don't fall back to another line)
 static int g_say_tribute;   // {tribute}: set by the caller (diplo.c capitulation)
 static int persona_say(void *pl, enum line_kind k, void *other, void *third) {
     struct persona *p = persona_of(pl);
@@ -451,15 +466,36 @@ static int persona_say(void *pl, enum line_kind k, void *other, void *third) {
         else buf[o++] = *s++;
     }
     buf[o] = 0;
-    g_talk_last[idx][k] = g_talk_any[idx] = now ? now : 1;
-    chat_line(pl, buf, g_chat_ms);
-    g_talk_lines[idx]++;
-    if (g_log) fprintf(g_log, "# talk: P%u at %.1f min (%s): %s\n", idx, now / 60000.0, k_lines[k].key, buf);
+    int heard = line_heard(pl, k, other);
+    g_talk_last[idx][k] = now ? now : 1;
+    if (heard) {
+        g_talk_any[idx] = now ? now : 1;
+        chat_line(pl, buf, g_chat_ms);
+        g_talk_lines[idx]++;
+    } else if (g_chat) {   // debug: every line, with its audience
+        char dbg[300];
+        wsprintfA(dbg, "[%s] %s", k_lines[k].aud == A_ALLIES ? "allies" : player_name(other), buf);
+        chat_line(pl, dbg, g_chat_ms);
+    }
+    if (g_log) fprintf(g_log, "# talk: P%u at %.1f min (%s%s): %s\n", idx, now / 60000.0, k_lines[k].key,
+                       heard ? "" : ", not for the player", buf);
     return 1;
 }
 
-// an attack group sets out against target's base (the route hook, attack.c)
-static void persona_attack(void *pl, void *target) { persona_say(pl, L_ATTACK, target, NULL); }
+// an attack group sets out against target's base (the route hook, attack.c): a threat to the local player when
+// they are the target (attack_threat), otherwise news for the AI's allies (attack). Once per attack wave: the route
+// hook runs for every leg of every subgroup, so the line waits for a launch (the next-attack time +0xED8 redrawn,
+// econ_tick) and goes with the first route after it.
+static uint8_t g_attack_news[16];
+static void persona_attack_launched(unsigned ai) { g_attack_news[ai & 15] = 1; }
+static void persona_attack(void *pl, void *target) {
+    unsigned ai = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
+    if (!g_attack_news[ai]) return;
+    g_attack_news[ai] = 0;
+    unsigned h = *(unsigned *)0x00918E84;
+    void *me = h < 16 ? ((void **)0x00918374)[h] : NULL;
+    persona_say(pl, target && target == me ? L_ATTACK_THREAT : L_ATTACK, target, NULL);
+}
 
 // The game's own AI lines (EECPPlayerInteractionManager 0x484EB3 thiscall(pim, base id, ms), pim +0x20 = player),
 // called at 0x470040 (12500 war), 0x4715F8/0x47166E/0x47280E/0x472B9D (wonders, flares): the personality's line

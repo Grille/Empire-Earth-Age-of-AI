@@ -83,6 +83,17 @@ EECPCivilizationManager `cm` = player+0xB90 (Update 0x46E2C7):
 - Epoch techs: tech tree +8 + epoch*0x54 → +8 data: costs +0x24.. (food..iron), +0x40 needed / +0x48 researched
   requirement techs. Stone Age 850 food; Copper Age 750 food, 400 gold, 400 iron. Farms and granaries arrive in
   the Copper Age (epoch 2).
+- **Epoch requirements** (2 per epoch in the suites): "new things" of the current epoch - EETechTree::vf4 (0x5BC4B6,
+  a tech finished) calls 0x5BD9B8, which counts +0x48 of the next epoch's record for techs whose data +0x7D is set.
+  Objects are techs too: data +0x7C set = a unit or building (type +0x6C), counted the first time it is made.
+  - The AI's request 0x4860D6 thiscall(research manager cm+0x40, count): collects the candidates of all epochs up
+    to the current one (0x5BBAF5 thiscall(tech tree, epoch, vector*); vector {?, begin, end, cap}, freed by
+    0x61ABEC) with +0x7D/+0x7C set, +0x48 not 4/6, type not 0x23/0x29-0x2B/0x34 (Town Center, Capitol, Settlement,
+    Granary), first those it can make now (0x485C8F), sorted (0x486C7F); then techs -> 0x485F57, units -> unit
+    manager 0x48FB70(type, 1, 0, 0), buildings -> 0x46802D(type, ?, 0). Nothing makeable: falls back to every
+    candidate; no candidate at all: credits the count itself (0x5BD9B8 x count).
+  - The fallback picked the editor's decoration ("x Statue - Olmec" 400, "x Statue - Moai" 402; object name at
+    object data +0x1C, "x " = decoration, "b  " = building): unplaceable, the request stayed pending for minutes.
 
 EECPResourceManager `rm` (cm+0x38): +0xA4 7 unit lists (stride 0x14, count +0x10), +0x134 demand[7],
 +0x150 targets[7]. Update 0x48D263: ComputeTargets 0x48D0A2 every 5 s, AssignCitizens 0x48A554 every 10 s.

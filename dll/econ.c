@@ -23,6 +23,11 @@ static int g_hoard_cap = 3000;   // stock above reserve + this is free for milit
 // 3000 cap gold piled up (1000 in stock) while every soldier failed for gold; aimod.ini hoard_cap_mineral
 static int g_hoard_cap_mineral = 600;
 static struct { uint32_t last_t; int init; float mil[7]; int income[7], mil_spent[7], cit_blocked, mil_limited; } g_bud[16];
+// income rates per AI (rates_update): per minute and per worker-minute
+static struct { uint32_t t; int last[7]; float rate[7], per_worker[7]; } g_rate[16];
+static const float k_default_pw[7] = { 0, 0, 10, 10, 5, 8, 6 };
+static void rates_update(void *pl, unsigned idx, uint32_t now);
+static int g_reserve_plan = 1;   // aimod.ini [all] reserve_plan (see spend_reserve)
 
 // Spending by caller (diagnostic): what EEComputerPlayer::vf45 (pay) took, summed per player, resource and return
 // address, with the income so far; logged as "# spend:" every 5 minutes.
@@ -62,6 +67,7 @@ static void defence_tick(void *pl, unsigned idx, uint32_t now);
 static void counter_siege(void *pl, unsigned idx, uint32_t now);
 static void home_guard(void *pl, unsigned idx, uint32_t now);
 static void diplo_tick(void *pl, unsigned ai, uint32_t now);
+static void persona_attack_launched(unsigned ai);   // persona.c
 #define CALL_PLACE 0x00468629
 #define FN_PLACE   0x0046580A
 static int g_build_fix = 1;
@@ -374,6 +380,80 @@ static int current_epoch(void *pl) {
     return tt ? FIELD(tt, TT_EPOCH, int) : 0;
 }
 
+// EPOCH REQUIREMENTS: an epoch also needs a number of new things of the current epoch (epoch record tt+8+e*0x54:
+// +0x40 needed, +0x48 done - 0x5BD681; counted by EETechTree::vf4 0x5BC4B6 for techs with data +0x7D set): a unit
+// type or building trained / built for the first time (data +0x7C set, type +0x6C; not Town Center, Capitol,
+// Settlement, Granary) or a tech. AttemptEpochAdvance (0x46C966) asks for the missing ones (0x4860D6 thiscall(cm+0x40,
+// count): buildings through the build manager 0x46802D, units through the unit manager 0x48FB70, techs 0x485F57) -
+// only at the attempt, once the AI can already pay, and only while the attention pass has switched on cm+0x7A.
+// Two fixes (aimod.ini [all] early_requirements, default on):
+// - our budget refused those units (the military account is nearly empty before farms): a requested unit type
+//   that would count for the next epoch is paid from the stock above the reserve like a priority request
+//   (requirement_unit, in hook_train_units). In the suites an AI that could pay waited 4 minutes on average for
+//   its Copper Age, some 10+ (0 of 2 for 7 minutes).
+// - like a player, the AI asks early: before farms as soon as the epoch is reached, later within 10 minutes of the
+//   planned attempt; again after 3 minutes without progress.
+static int g_early_requirements = 1;
+static int requirements_missing(void *pl) {
+    uint8_t *tt = FIELD(pl, PL_TECHTREE, uint8_t *);
+    if (!tt) return 0;
+    int next = FIELD(tt, TT_EPOCH, int) + 1;
+    if (next > 13 || next > *(int *)0x009187F4) return 0;
+    uint8_t *rec = tt + 8 + next * 0x54;
+    return FIELD(rec, 0x40, int) - FIELD(rec, 0x48, int);
+}
+// unit type whose first training counts for the next epoch (its tech: object data 0x9418A0[type] +0x4E0)
+static int requirement_unit(void *pl, int type) {
+    uint8_t *tt = FIELD(pl, PL_TECHTREE, uint8_t *), *od = type >= 0 && type < 2000 ? ((uint8_t **)0x009418A0)[type] : NULL;
+    if (!g_early_requirements || !tt || !od || requirements_missing(pl) < 1) return 0;
+    uint8_t *t = ((uint8_t *(__thiscall *)(void *, int))0x004019A1)(tt, FIELD(od, 0x4E0, int));
+    uint8_t *d = t ? FIELD(t, 8, uint8_t *) : NULL;
+    return d && !t[4] && d[0x7D];
+}
+// Decoration (the editor's "x ..." objects: statues, houses, flags, ruins - name at object data +0x1C) counts as
+// an epoch requirement too. When nothing else can be made right now (0x485C8F), the request falls back to every
+// candidate and picks a statue (types 400, 402 in the suites), which the AI can never place: the build fix drops it
+// after 3 failures, the request stays pending, and the epoch waits until something else happens to count. Their
+// techs lose the "counts" flag (data +0x7D) - with no candidate left the request credits the requirement itself
+// (0x4860D6's own fallback). Once per AI and game.
+static void decoration_fix(void *pl, unsigned ai) {
+    static void *done[16];
+    uint8_t *tt = FIELD(pl, PL_TECHTREE, uint8_t *);
+    if (!g_early_requirements || !tt || done[ai] == tt) return;
+    done[ai] = tt;
+    int n = 0;
+    for (int type = 0; type < 0x300; type++) {   // the table's size, as the game checks it (0x4B..: < 0x300)
+        uint8_t *od = ((uint8_t **)0x009418A0)[type];
+        const char *name = od ? FIELD(od, 0x1C, const char *) : NULL;
+        if (!name || name[0] != 'x' || name[1] != ' ') continue;
+        uint8_t *t = ((uint8_t *(__thiscall *)(void *, int))0x004019A1)(tt, FIELD(od, 0x4E0, int));
+        uint8_t *d = t ? FIELD(t, 8, uint8_t *) : NULL;
+        if (d && d[0x7D]) { d[0x7D] = 0; n++; }
+    }
+    if (g_log) fprintf(g_log, "# epoch plan: P%u: %d decoration objects no longer count as epoch requirements\n", ai, n);
+}
+
+static void early_requirements(void *pl, unsigned ai, uint32_t now, int prefarm) {
+    static uint32_t asked[16];
+    decoration_fix(pl, ai);
+    static int asked_missing[16];
+    uint8_t *cm = FIELD(pl, 0xB90, uint8_t *), *tt = FIELD(pl, PL_TECHTREE, uint8_t *);
+    if (!g_early_requirements || !cm || !tt || !FIELD(cm, 0x40, void *)) return;
+    int missing = requirements_missing(pl);
+    if (missing < 1) { asked[ai] = 0; return; }
+    if (cm[0x76]) {   // a request is out: renew it after 3 minutes without progress
+        if (asked[ai] && now >= asked[ai] && now - asked[ai] < 180000) return;
+        if (asked[ai] && missing < asked_missing[ai]) { asked[ai] = now ? now : 1; asked_missing[ai] = missing; return; }
+    }
+    if (!prefarm && (int)(FIELD(cm, 0x58, uint32_t) - now) > 10 * 60000) return;
+    ((void (__thiscall *)(void *, int))0x004860D6)(FIELD(cm, 0x40, void *), missing);
+    cm[0x76] = 1;
+    asked[ai] = now ? now : 1;
+    asked_missing[ai] = missing;
+    if (g_log) fprintf(g_log, "# epoch plan: P%u at %.1f min asks for %d new things for epoch %d\n", ai, now / 60000.0,
+                       missing, FIELD(tt, TT_EPOCH, int) + 1);
+}
+
 // Per AI tick (from hook_rm_update): pull the epoch attempt forward in the pre-farm epochs once affordable.
 static void econ_tick(void *pl, uint32_t now) {
     const struct ai_cfg *c = cfg_of(pl);
@@ -390,15 +470,18 @@ static void econ_tick(void *pl, uint32_t now) {
     home_guard(pl, ai, now);
     chat_tick(pl, ai, now);
     diplo_tick(pl, ai, now);
+    rates_update(pl, ai, now);
     uint32_t t_attack = FIELD(pl, 0xED8, uint32_t);
     if (t_attack != last_attack_time[ai]) {
         if (last_attack_time[ai] && g_log)
             fprintf(g_log, "# attack: P%u at %.1f min, next at %.1f min\n", ai, now / 60000.0, t_attack / 60000.0);
+        if (last_attack_time[ai]) persona_attack_launched(ai);
         if (last_attack_time[ai])
             ai_say(pl, CHAT_ATTACK, "[ai] attack launched, next one in %.0f min", ((float)t_attack - (float)now) / 60000.0f);
         last_attack_time[ai] = t_attack;
     }
     int ep = current_epoch(pl);
+    early_requirements(pl, ai, now, c->copper_plan && ep < FARM_EPOCH);
     // pull the attempt forward: before farms with the copper plan, in every epoch with epoch_pacing=fast
     if (!(c->copper_plan && ep < FARM_EPOCH) && !c->pacing_fast) return;
     uint8_t *cm = FIELD(pl, 0xB90, uint8_t *);
@@ -423,6 +506,24 @@ static void econ_tick(void *pl, uint32_t now) {
         if (g_log) fprintf(g_log, "# epoch plan: P%d can pay epoch %d at %.1f min, attempt moved up from %.1f min\n",
                            FIELD(pl, PL_INDEX, int), ep + 1, now / 60000.0, *t_epoch / 60000.0);
         *t_epoch = now;
+    }
+    // diagnostic: while it can pay but hasn't advanced, every 30 s - requirement techs needed/done (epoch record
+    // +0x40/+0x48), requirement request pending (cm+0x76), epoch research scheduled (cm+0x78), attention cm+0x7A
+    static uint32_t last_wait[16];
+    if (g_log && (now < last_wait[pi] || now - last_wait[pi] >= 30000)) {
+        last_wait[pi] = now;
+        uint8_t *tt = FIELD(pl, PL_TECHTREE, uint8_t *), *rec = tt + 8 + (ep + 1) * 0x54;
+        fprintf(g_log, "# epoch wait: P%u at %.1f min, epoch %d: requirements %d/%d, pending %d, scheduled %d, attention %d;",
+                pi, now / 60000.0, ep + 1, FIELD(rec, 0x48, int), FIELD(rec, 0x40, int), cm[0x76], cm[0x78], cm[0x7A]);
+        // the research manager's list of this epoch: tech id (* researched) building +0x6C, cost food..iron
+        uint8_t *rs = FIELD(cm, 0x40, uint8_t *);
+        int *b = rs ? FIELD(rs, 0x18 + ep * 0x10, int *) : NULL, *en = rs ? FIELD(rs, 0x1C + ep * 0x10, int *) : NULL;
+        for (int *q = b; b && en > b && en - b < 100 && q < en; q++) {
+            uint8_t *t = ((uint8_t *(__thiscall *)(void *, int))0x004019A1)(tt, *q), *d = t ? FIELD(t, 8, uint8_t *) : NULL;
+            if (d) fprintf(g_log, " %d%s@%d(%d/%d/%d/%d/%d)", *q, t[4] ? "*" : "", FIELD(d, 0x6C, int), FIELD(d, 0x24, int),
+                           FIELD(d, 0x28, int), FIELD(d, 0x2C, int), FIELD(d, 0x30, int), FIELD(d, 0x34, int));
+        }
+        fputc('\n', g_log);
     }
 }
 
@@ -470,12 +571,21 @@ static void econ_targets(uint8_t *rm) {
         need[r] = demand[r] - stock[r];
         if (r >= 4 && reserve[r] - stock[r] > need[r]) need[r] = reserve[r] - stock[r];
     }
-    for (int r = 2; r < 7; r++) { if (need[r] < 0) need[r] = 0; sum += need[r]; }
-    if (sum <= 0 || total < 6) return;
+    // reserve plan: by worker-minutes (shortfall / measured rate per worker), so all arrive at about the same time
+    unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
+    float w[7] = { 0 }, wsum = 0;
+    for (int r = 2; r < 7; r++) {
+        if (need[r] < 0) need[r] = 0;
+        sum += need[r];
+        float pw = g_rate[idx].per_worker[r];
+        w[r] = g_reserve_plan ? (float)need[r] / (pw > 1.0f ? pw : 1.0f) : (float)need[r];
+        wsum += w[r];
+    }
+    if (sum <= 0 || wsum <= 0 || total < 6) return;
     int floor_[7] = { 0, 0, 2, 2, 0, 0, 0 };   // keep a few on food (growth) and wood (building)
     int rest = total - 4, given = 0;
     for (int r = 2; r < 7; r++) {
-        int t = floor_[r] + (int)((long long)rest * need[r] / sum);
+        int t = floor_[r] + (int)((float)rest * w[r] / wsum);
         target[r] = (uint32_t)t;
         given += t;
     }
@@ -532,6 +642,30 @@ static void econ_rebalance(uint8_t *rm) {
     }
 }
 
+// INCOME RATES per AI and resource (every 30 s, smoothed over ~2 minutes): per minute in total and per worker-minute
+// (only with 2+ workers on it; defaults from the suites until then). For the reserve plan and the worker plan.
+static void rates_update(void *pl, unsigned idx, uint32_t now) {
+    if (g_rate[idx].t && now >= g_rate[idx].t && now - g_rate[idx].t < 30000) return;
+    if (!g_rate[idx].t || now < g_rate[idx].t) {   // first look / new game
+        memset(&g_rate[idx], 0, sizeof g_rate[idx]);
+        memcpy(g_rate[idx].per_worker, k_default_pw, sizeof k_default_pw);
+        memcpy(g_rate[idx].last, g_bud[idx].income, sizeof g_rate[idx].last);
+        g_rate[idx].t = now ? now : 1;
+        return;
+    }
+    void *cm = FIELD(pl, 0xB90, void *);
+    uint8_t *rm = cm ? FIELD(cm, 0x38, uint8_t *) : NULL;
+    float min = (float)(now - g_rate[idx].t) / 60000.0f;
+    for (int r = 2; r < 7; r++) {
+        float inc = (float)(g_bud[idx].income[r] - g_rate[idx].last[r]);
+        g_rate[idx].last[r] = g_bud[idx].income[r];
+        g_rate[idx].rate[r] = g_rate[idx].rate[r] * 0.75f + 0.25f * inc / min;
+        int n = rm ? rm_count(rm, r) : 0;
+        if (n >= 2) g_rate[idx].per_worker[r] = g_rate[idx].per_worker[r] * 0.75f + 0.25f * inc / (min * (float)n);
+    }
+    g_rate[idx].t = now;
+}
+
 static int g_reserve_window_ms = 5 * 60000;   // aimod.ini [budget] reserve_window_min
 static void budget_reserve(void *pl, int reserve[7]) {
     memset(reserve, 0, 7 * sizeof *reserve);
@@ -553,6 +687,45 @@ static void budget_reserve(void *pl, int reserve[7]) {
     for (int r = 2; r < 7; r++) {
         int c = FIELD(data, 0x24 + (r - 2) * 4, int);
         reserve[r] = c > 0 ? (int)(c * f) : 0;
+    }
+}
+
+// RESERVE PLAN (aimod.ini [all] reserve_plan, default on) - what spending sees instead of budget_reserve: like a
+// player waiting for the slowest resource of the next epoch, the AI holds back only what it can't gather again in
+// time - from the Copper Age on, when farms make food renewable. Requirement N: the next epoch's cost within 10
+// minutes of the planned attempt (cm+0x58; nothing before). Horizon H = the time until the attempt or until the
+// slowest missing resource is in (shortfall / income, at most 10 min), whichever is later. Each resource keeps
+// N - 80% of what its income brings in within H: food spent on citizens while gold and iron are still missing
+// grows back by the time they are ready; the bottleneck stays reserved. Before farms the full copper-plan reserve
+// stays: wild food is finite (suites: releasing it there delayed the Copper Age by 1.5-3 minutes).
+static void spend_reserve(void *pl, unsigned idx, int reserve[7], float *horizon) {
+    if (horizon) *horizon = -1;
+    if (!g_reserve_plan) { budget_reserve(pl, reserve); return; }
+    memset(reserve, 0, 7 * sizeof *reserve);
+    uint8_t *tt = FIELD(pl, PL_TECHTREE, uint8_t *), *cm = FIELD(pl, 0xB90, uint8_t *);
+    if (!tt || !cm) return;
+    int ep = FIELD(tt, TT_EPOCH, int), next = ep + 1;
+    if (next > 13 || next > *(int *)0x009187F4 || !epoch_tech(pl, next)) return;
+    if (cfg_of(pl)->copper_plan && next <= FARM_EPOCH) { budget_reserve(pl, reserve); return; }
+    int remaining = (int)(FIELD(cm, 0x58, uint32_t) - game_time());
+    if (remaining > 10 * 60000) return;
+    float until = remaining > 0 ? (float)remaining / 60000.0f : 0;   // minutes until the attempt
+    for (int r = 2; r < 7; r++) reserve[r] = epoch_cost(pl, next, r);
+    int *stock = (int *)((uint8_t *)pl + PL_STOCK);
+    float t = 0;
+    for (int r = 2; r < 7; r++) {
+        int miss = reserve[r] - stock[r];
+        if (miss <= 0) continue;
+        float tr = g_rate[idx].rate[r] > 1.0f ? (float)miss / g_rate[idx].rate[r] : 10.0f;
+        if (tr > t) t = tr;
+    }
+    if (t > 10) t = 10;
+    float h = until > t ? until : t;
+    if (horizon) *horizon = h;
+    for (int r = 2; r < 7; r++) {
+        float more = 0.8f * g_rate[idx].rate[r] * h;
+        int keep = reserve[r] - (int)more;
+        reserve[r] = keep < 0 ? 0 : keep;
     }
 }
 
@@ -672,12 +845,13 @@ static uintptr_t __fastcall hook_train_units(void *um, void *edx, int *req, uint
     if (stock) memcpy(before, stock, sizeof before);
     unsigned idx = pl ? (unsigned)FIELD(pl, PL_INDEX, int) & 15 : 0;
     int military = !is_citizen_type(req[0]);
+    int req_unit = military && pl && requirement_unit(pl, req[0]);   // counts for the next epoch
     const struct ai_cfg *cfg = pl ? cfg_of(pl) : NULL;
     if (stock && cfg->budget) {
         uint32_t now = game_time();
         if (now < g_bud[idx].last_t) g_bud[idx].init = 0;   // new game
         g_bud[idx].last_t = now;
-        budget_reserve(pl, reserve);
+        spend_reserve(pl, idx, reserve, NULL);
         if (!g_bud[idx].init) {
             memset(&g_bud[idx], 0, sizeof g_bud[idx]);
             g_bud[idx].init = 1;
@@ -698,7 +872,7 @@ static uintptr_t __fastcall hook_train_units(void *um, void *edx, int *req, uint
             no_work = scarce && total >= 10 && idle > g_citizen_slack && idle * 100 > total * 15;
         }
         for (int r = 2; r < 7; r++) {
-            int visible = stock[r] - reserve[r];
+            int visible = req_unit ? stock[r] : stock[r] - reserve[r];   // a requirement unit: the epoch waits for it
             // citizens before farms: they pay only food, and only what the food budget (stock + reachable wild
             // food) doesn't need for the epochs; a tiny workforce always grows
             if (!military && cfg->copper_plan && current_epoch(pl) < FARM_EPOCH) {
@@ -708,7 +882,8 @@ static uintptr_t __fastcall hook_train_units(void *um, void *edx, int *req, uint
                     visible = stock[2];   // enough food on the map: grow the economy first
                 // else: workforce built (or the map is poor) -> save: the full reserve applies
             }
-            if (military && !g_priority_mil) {   // priority requests (siege) spend the stock above the reserve
+            if (military && !g_priority_mil && !req_unit) {   // priority requests (siege) and requirement units spend
+                                                               // the stock above the reserve
                 int allowed = (int)g_bud[idx].mil[r];
                 int excess = stock[r] - reserve[r] - (r >= 4 ? g_hoard_cap_mineral : g_hoard_cap);   // never hoard beyond the cap
                 if (excess > allowed) allowed = excess;
@@ -779,6 +954,8 @@ static void econ_install(const char *aimod_ini, const char *autotest_ini) {
     g_wild_share = cfg_float(aimod_ini, autotest_ini, 1, "wild_food_share", "0.6");
     g_reserve_window_ms = cfg_int(aimod_ini, autotest_ini, 1, "reserve_window_min", 5) * 60000;
     g_rebalance = cfg_int(aimod_ini, autotest_ini, 1, "rebalance_workers", 1);
+    g_reserve_plan = cfg_int(aimod_ini, autotest_ini, 1, "reserve_plan", 1);
+    g_early_requirements = cfg_int(aimod_ini, autotest_ini, 1, "early_requirements", 1);
     g_build_fix = cfg_int(aimod_ini, autotest_ini, 1, "build_fix", 1);
     g_unit_sub = cfg_int(aimod_ini, autotest_ini, 1, "unit_substitution", 1);
     g_gather_research = cfg_int(aimod_ini, autotest_ini, 1, "gather_research", 1);
