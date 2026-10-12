@@ -164,7 +164,7 @@ Guard towers 47, 461..466; AA 145/147; town center 35; house 37; citizen 32.
 
 - Every save goes through 0x540ACA cdecl(UString *file, int, int, UString folder by value) -> 0 on success (else the
   error dialog 0x65C6A9); 4 call sites (save dialog EEASaveGame::vf1 0x405000 with file +0xC / folder +0x1C,
-  autosave, quicksave, the network save message). The folder is "data\\Saved Games\\", relative to the game folder.
+  autosave, quicksave, the network save message). The folder is "data\Saved Games\", relative to the game folder.
 - The game saves its AI managers itself (EECP*Manager persist functions: build, civilization, research, resource,
   unit, wall). dll/persist.c keeps the mod's own state in <save>.aimod next to it (only used while the .ees still
   has the size and write time recorded in it).
