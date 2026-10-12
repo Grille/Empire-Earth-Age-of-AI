@@ -40,6 +40,10 @@ static void cmd_spawnline(char *out, const char *args);
 static volatile int g_turbo;           // autotest turbo: the simulation loop skips its timer wait
 static void cmd_scrolltest(char *out, const char *args);
 static void cmd_camtrace(char *out, const char *args);
+static void cmd_aim(char *out, const char *args);     // aim.c
+static void cmd_uinfo(char *out, const char *args);
+static void cmd_move(char *out, const char *args);
+static void aim_tick(void);
 static void cmd_ddinfo(char *out, const char *args);
 static void cmd_topbar(char *out, const char *args);
 static void cmd_ddpoke(char *out, const char *args);
@@ -362,6 +366,9 @@ static void execute(const char *cmd, char *out) {
     else if (!strcmp(verb, "save")) cmd_save(out, args);
     else if (!strcmp(verb, "scrolltest")) cmd_scrolltest(out, args);
     else if (!strcmp(verb, "camtrace")) cmd_camtrace(out, args);
+    else if (!strcmp(verb, "aim")) cmd_aim(out, args);
+    else if (!strcmp(verb, "uinfo")) cmd_uinfo(out, args);
+    else if (!strcmp(verb, "move")) cmd_move(out, args);
     else if (!strcmp(verb, "ddinfo")) cmd_ddinfo(out, args);
     else if (!strcmp(verb, "topbar")) cmd_topbar(out, args);
     else if (!strcmp(verb, "ddpoke")) cmd_ddpoke(out, args);
@@ -398,6 +405,7 @@ static void diplo_safe_point(void);   // diplo.c: queued surrenders
 static long __fastcall hook_sim_receive(void *thread, void *edx, void *a, void *b, void *c) {
     (void)edx;
     diplo_safe_point();
+    aim_tick();
     if (g_req.state == 1 && InterlockedCompareExchange(&g_req.state, 2, 1) == 1) {
         execute(g_req.cmd, g_req.out);
         g_req.state = 3;

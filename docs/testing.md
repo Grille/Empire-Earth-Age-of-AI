@@ -132,6 +132,9 @@ venv/Scripts/python scripts/eectl.py <command>
 | `save <name>` | save the running game to `Data\Saved Games\<name>.ees`, a fixture for later runs (`run_test.ps1 -Save <name>.ees`, without `random_map`). Known quirk: such a save loaded with `turbo=1` never starts simulating (the AI makes no step; without turbo it runs, and autosaves run with turbo) |
 | `ddinfo [dump\|blit\|notex1]` | DirectDraw state (screen, surfaces, z-buffer, display mode, counters); `dump` writes front/back/window to `aimod_dumps/dd_*.bmp`. Note: it locks the z-buffer, which changes the windowed rendering state |
 | `ddpoke z\|back\|front\|mode` | one of ddinfo's side effects alone (lock a surface, query the display mode); `ddpoke cursor x y` puts the Windows cursor at a client position in the game's own (DPI-virtualised) coordinates - `ddinfo` shows the game cursor and the mouse device state |
+| `aim [lead 0\|1] [reset]` | ranged shots at units and, after `reset` (always in autotest), the measurement: where the target really is when each projectile comes down, against the original and the led aim ("on tile" = the hit condition), split by moved/stood and in/out of the arc's reach; `down` = projectiles that came down beside their target. Autotest `lead_targets`, `aim_log=N` (first N shots as `# aim:` lines) |
+| `uinfo x y [r]` | units within r tiles: owner, hit points, position, speed, facing, goal |
+| `move P x y r tx ty` | units of player P around x, y walk to tx, ty keeping their spread (tests) |
 | `uipost <hex msg> [hex p1]` | post a message to the UI thread's queue; runs on the pipe thread, so it also works in the menus |
 
 ### Performance
@@ -205,6 +208,21 @@ translation (pass-through off) was twice as slow (20 ms per frame).
 DDrawCompat v0.7.1 (narzoul) instead of dgVoodoo's ddraw.dll: 7.9 ms per frame with its default
 `CpuAffinity = 1` (whole game on one core), **5.6 ms (~177 fps) with `CpuAffinity = all`**
 (`DDrawCompat-Empire Earth.ini`); game, editor and windowed/borderless present work.
+
+### Ranged aim
+
+Test 2026-10-12 (Continental 101, 2 AIs, start epoch 3, speed 1): 3 P2 guard towers (462) at 57..65,45, 20 P3
+spearmen (24) spawned at 54,50 and walked between x 54 and 66 every 6 s real time (`move`), 10 rounds, `aim` at the end:
+
+| | moving targets: aim on their tile at landing | came down beside the target | spearmen left of 20 |
+|---|---|---|---|
+| lead off, seed 1 | 44-52% (led aim would be 88%) | 35 of 65 shots | 14 |
+| lead on, seed 1 | 89% | 3 of 43 | 7 |
+| lead off, seed 2 | | 20 of 32 | 20 |
+| lead on, seed 2 | | 4 of 33 | 10 |
+
+Standing targets stay on tile 100% with the lead (speed 0, no change). Spearmen walk at 0.6-0.72 tiles/s, arrow
+flights take 0.3-2 s.
 
 ### Headless UI tests (menus, editor)
 

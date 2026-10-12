@@ -499,6 +499,7 @@ static char __fastcall hook_game_start(void *state, void *edx, uint8_t *setup, v
 #include "persona.c"
 #include "diplo.c"
 #include "persist.c"
+#include "aim.c"
 #include "camera.c"
 #include "display.c"
 static char g_ini[MAX_PATH], g_aimod_ini[MAX_PATH];
@@ -621,6 +622,7 @@ static void install(HMODULE self) {
     persona_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
     diplo_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
     persist_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
+    aim_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
     camera_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
     display_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
     ctl_start();

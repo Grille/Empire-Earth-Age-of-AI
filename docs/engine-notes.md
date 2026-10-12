@@ -122,6 +122,24 @@ Type data (0x9418A0[type]): +0x4B4 family (2 building, 29 fortress, 5/6 units), 
 +0x460 line of sight, +0x510 attack, +0x55C hit points, +0x540 influence. Type names: `data/db/converteroutput.log`.
 Guard towers 47, 461..466; AA 145/147; town center 35; house 37; citizen 32.
 
+### Ranged attacks and projectiles (dll/aim.c)
+
+- Firing: 0x61E11C (attacker class, thiscall(unit)). Aim point from 0x633413 (cdecl: attacker, &target out,
+  float aim[3], 0): the target's model hit offset (type vf21 +0x26C) or its tile centre and tile height. With a
+  projectile class (attacker class +0x3FC) 0x62028B / 0x623A53 create the projectile, turn it to the aim point
+  and call projectile class vf42 (EEUCProjectile 0x607E2B). Without one the damage is applied directly
+  (0x61DE61). The projectile itself also runs 0x61E11C when it arrives (half the calls).
+- Arc: 0x62CBB3 (cdecl: attacker, attacker type, from[3], to[3], &pitch) - speed type +0xC0, gravity
+  [[type+0x60]+0x3FC]+0x438; low arc unless class +0x5E9 (or type +0x15C, unit +0x342, unit +0x260 == 8); returns 0
+  out of reach, then 45 degrees. EEPMProjectile::vf1 0x550695 flies that arc from the launch point +0x10C..
+  (heading +0x188, pitch +0x18C, elapsed ms +0x28C) with no steering.
+- Hit: on the target's footprint (tiles +0x1C/+0x20, size class +0x58C); EEUCProjectile vf55 0x6078F9 is
+  mostly the miss path (it came down beside the target). Missiles (EEUCMissile 0x832E90, torpedoes 0x832CC0)
+  steer on their own.
+- Unit movement: +0x238 current speed (tiles/s, 0 standing, set by 0x54A55B), +0x21C the same clamped to
+  the type's minimum; facing = matrix +0x130 local y axis (+0x134, +0x144). +0x118/+0x11C is a waypoint, not
+  the previous position.
+
 ## Orders, game end, splash
 
 - Give a unit a goal (as EECPAttackSubGroup::vf57 0x45CBEA): alive (+0x3C > 0, +0x1C != -10000, +0x33B == 0),

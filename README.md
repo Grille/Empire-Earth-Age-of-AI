@@ -137,6 +137,9 @@ Settings in `aimod.ini`:
   `WIDTHxHEIGHT` extends that layout to the resolution (map view fills the screen, panels at the bottom,
   minimap and file buttons at the bottom right).
 - `[camera] scroll=aoc`: AoC's smooth camera scrolling.
+- `[general] lead_targets=1` (default): ranged units and towers aim where a moving target will be when the
+  projectile comes down, not where it stood when it was fired. Before, slow projectiles (arrows, catapults,
+  cannon balls) missed nearly everything walking across their line of fire.
 - `[general] skip_intro=1`: skip the intro movies.
 
 ## Status
