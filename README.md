@@ -77,6 +77,8 @@ peace or alliances. With the mod:
   and a disloyal one may betray a weak ally. Nothing changes in scenarios or with locked teams.
 - **Capitulation:** when your army is in its base and the fight is lost, an AI offers peace and tribute
   ("set us allied"); accept within 2 minutes and it pays and stays loyal. Proud personalities hold out longer.
+- **Saved games:** the AIs remember across save and load - grudges, alliances, capitulations, pending offers
+  (a small `.aimod` file next to each save; `save_state`).
 - **Surrender:** an AI that has lost all its citizens and can't train new ones resigns (with a last line),
   instead of leaving its last buildings for you to hunt down (`surrender`, not in scenarios).
 - **Personalities** (optional folder [`config/aimod_ai`](config/aimod_ai)): every AI gets a name, a favoured

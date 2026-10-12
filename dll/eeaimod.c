@@ -69,6 +69,7 @@ static void persona_new_game(uint8_t *setup);
 static void persona_assign(void *pl);
 static void diplo_new_game(void);
 static void chat_new_game(void);
+static void persist_load(const char *name);
 static void econ_targets(uint8_t *rm);
 static void econ_rebalance(uint8_t *rm);
 static void attack_tick(void *pl, uint32_t now);
@@ -475,6 +476,7 @@ static char __fastcall hook_game_start(void *state, void *edx, uint8_t *setup, v
     persona_new_game(setup);   // personalities and their colours, before the game creates the players
     diplo_new_game();
     chat_new_game();
+    if (mode == 2) persist_load(name);   // a saved game: the mod's state from its .aimod file
     char r = ((GameStartFn)FN_GAME_START)(state, setup, p2);
     log_line("# game start returned %s%d\n", "", r);
     return r;
@@ -491,6 +493,7 @@ static char __fastcall hook_game_start(void *state, void *edx, uint8_t *setup, v
 #include "defence.c"
 #include "persona.c"
 #include "diplo.c"
+#include "persist.c"
 #include "camera.c"
 #include "display.c"
 static char g_ini[MAX_PATH], g_aimod_ini[MAX_PATH];
@@ -612,6 +615,7 @@ static void install(HMODULE self) {
     chat_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
     persona_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
     diplo_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
+    persist_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
     camera_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
     display_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
     ctl_start();

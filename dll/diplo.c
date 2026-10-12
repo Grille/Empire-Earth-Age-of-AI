@@ -280,9 +280,9 @@ static struct {   // per AI: what it has said / seen (reset by diplo_new_game)
     uint32_t last_min[16], last_sit[16];
 } g_sit;
 static void diplo_situations(void *pl, int ai, uint32_t now) {
-    if (!g_sit.said_greeting[ai] && now >= 20000 + (uint32_t)ai * 4000u) {
+    if (!g_sit.said_greeting[ai] && now >= 20000 + (uint32_t)ai * 4000u) {   // at the start only, not after a load
         g_sit.said_greeting[ai] = 1;
-        persona_say(pl, L_GREETING, NULL, NULL);
+        if (now < 90000) persona_say(pl, L_GREETING, NULL, NULL);
     }
     int e = current_epoch(pl);
     if (g_sit.last_epoch[ai] >= 0 && e > g_sit.last_epoch[ai]) persona_say(pl, L_EPOCH_UP, NULL, NULL);
