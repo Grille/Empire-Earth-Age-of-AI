@@ -37,7 +37,7 @@ enum line_kind {
     L_EPOCH_UP, L_ENEMY_AHEAD, L_WINNING, L_LOSING, L_DESPERATE, L_ENEMY_DEFEATED, L_ALLY_DEFEATED, L_DEFEATED,
     L_WONDER_THREAT, L_WONDER_HELP, L_WONDER_NOHELP, L_HELP_LAND, L_HELP_AIR, L_HELP_NAVAL, L_HELP_NONE, L_SURRENDER,
     L_CAPITULATE, L_CAPITULATE_ACCEPTED, L_CAPITULATE_REFUSED, L_ATTACK_THREAT, L_ALL_SUBMITTED, L_LORD_VICTORY,
-    L_BLOCK_REFUSE, L_BLOCK_REFUSE_OWN, L_VASSAL_GRUMBLE, L_N
+    L_BLOCK_REFUSE, L_BLOCK_REFUSE_OWN, L_VASSAL_GRUMBLE, L_ASK_LORD, L_N
 };
 enum audience { A_ALL, A_ALLIES, A_NAME };
 static const struct { const char *key; int chance, cooldown; enum audience aud; } k_lines[L_N] = {
@@ -54,6 +54,7 @@ static const struct { const char *key; int chance, cooldown; enum audience aud; 
     { "capitulate", 100, 0, A_NAME },         { "capitulate_accepted", 100, 0, A_NAME }, { "capitulate_refused", 100, 0, A_NAME },
     { "attack_threat", 60, 300, A_NAME },     { "all_submitted", 100, 0, A_NAME },     { "lord_victory", 100, 0, A_ALL },
     { "block_refuse", 100, 60, A_NAME },      { "block_refuse_own", 100, 60, A_NAME },  { "vassal_grumble", 100, 60, A_NAME },
+    { "ask_lord", 100, 60, A_NAME },
 };
 
 #define MAX_PERSONAS 32

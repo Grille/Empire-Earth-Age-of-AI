@@ -219,12 +219,37 @@ static void declare_war(int ai, int j, uint32_t now) {
     g_offer_t[ai][j] = 0;
 }
 
+// VASSALS have no diplomacy of their own while their lord is in the game and they are allied with him: no offers,
+// no betrayal, no capitulation to anyone else; a peace offer gets "talk to my lord" (line ask_lord, {enemy} = the
+// lord, and a system line for a human). They still answer war and take their lord's side in a block split; a lord
+// who turns on his vassal sets it free.
+static void block_line(int to, const char *de, const char *en);   // below
+static int is_vassal(int ai) {
+    int l = g_lord[ai];
+    void *pl = player_at(ai), *pk = l ? player_at(l) : NULL;
+    return pk && pl && !is_out(pk) && !stance_of(pl, l);
+}
 static int block_veto(int ai, int j, uint32_t now, int *own);   // alliance blocks (below)
 static void block_refuse(void *pl, int j, int who, int own);
 
 // A pending peace offer of j (allied towards the AI while the AI is at war with him)
 static void peace_offer(void *pl, int ai, int j, uint32_t now) {
     void *pj = player_at(j);
+    if (is_vassal(ai)) {   // not its decision
+        if (!g_peace_refused[ai][j]) {
+            void *pk = player_at(g_lord[ai]);
+            if (!persona_say(pl, L_ASK_LORD, pj, pk)) persona_say(pl, L_PEACE_REFUSE, pj, NULL);
+            char de[300], en[300];
+            wsprintfA(de, "%s ist Vasall von %s: verhandeln Sie mit %s.", player_name(pl), player_name(pk), player_name(pk));
+            wsprintfA(en, "%s is a vassal of %s: negotiate with %s.", player_name(pl), player_name(pk), player_name(pk));
+            if (!g_players[j]) block_line(j, de, en);
+            if (g_log) fprintf(g_log, "# diplomacy: P%d at %.1f min: peace offer of P%d - a vassal, refers to its lord P%d\n",
+                               ai, now / 60000.0, j, g_lord[ai]);
+        }
+        g_peace_refused[ai][j] = 1;
+        g_peace_due[ai][j] = now + 120000;
+        return;
+    }
     float s = peace_score(pl, ai, j, now);
     if (g_log) fprintf(g_log, "# diplomacy: P%d at %.1f min: peace offer of P%d, score %.0f (opinion %.0f, power %.0f vs %.0f)\n",
                        ai, now / 60000.0, j, s, g_opinion[ai][j], g_ws.power[j], g_ws.power[ai]);
@@ -438,7 +463,7 @@ static void block_refuse(void *pl, int j, int who, int own) {   // the refusal: 
 
 // AI ai's own initiative (every 60 s)
 static void diplo_initiative(void *pl, int ai, uint32_t now) {
-    if (!g_ai_diplomacy || TEAMS_LOCKED || scenario_game() || now < 600000) return;
+    if (!g_ai_diplomacy || TEAMS_LOCKED || scenario_game() || now < 600000 || is_vassal(ai)) return;
     int lead = strongest_enemy(pl, ai);
     // alliance against the leader
     if (lead && g_ws.power[lead] > 1.5f * power_of(ai)) {
@@ -617,7 +642,7 @@ static void capitulate(void *pl, int ai, int a, uint32_t now) {
     g_offer_kind[ai][a] = 1;
 }
 static void check_capitulation(void *pl, int ai, uint32_t now) {
-    if (!g_ai_diplomacy || TEAMS_LOCKED || scenario_game() || now < 600000) return;
+    if (!g_ai_diplomacy || TEAMS_LOCKED || scenario_game() || now < 600000 || is_vassal(ai)) return;
     if (g_capit_last[ai] && now - g_capit_last[ai] < 600000) return;
     int a = 0;   // the attacker: whose soldiers have been in its base the most lately
     for (int j = 1; j < nplayers(); j++) {
@@ -715,6 +740,10 @@ static void diplo_tick(void *pl, unsigned ai, uint32_t now) {
         }
         if (g_diplo_seen[ai] && !mine && g_own_prev[ai][j]) diplo_cancel_attacks((int)ai, j);   // the AI made peace
         g_own_prev[ai][j] = mine;
+        if (g_diplo_seen[ai] && s && !g_diplo_prev[ai][j] && g_lord[ai] == j) {   // its lord turned on it: free
+            g_lord[ai] = 0;
+            if (g_log) fprintf(g_log, "# diplomacy: P%u at %.1f min: its lord P%d turned on it - no longer a vassal\n", ai, now / 60000.0, j);
+        }
         if (g_diplo_seen[ai] && s && !g_diplo_prev[ai][j]) {   // j turned hostile
             int betrayal = !mine && g_ally_since[ai][j] && now - g_ally_since[ai][j] > 120000;
             opinion_add(ai, j, (betrayal ? -60.0f : -40.0f) * (0.5f + trait(pl, T_PRIDE) / 100.0f));
