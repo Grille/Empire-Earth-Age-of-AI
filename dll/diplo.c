@@ -677,25 +677,71 @@ static int victory_word(const char *t) {
     w[n] = 0;
     return !lstrcmpiA(w, "sieg") || !lstrcmpiA(w, "victory");
 }
+// the vassals of `me` resign (next safe point) and `me` wins alone - if every other player still in is one
+static int claim_victory(int me, const char *how) {
+    void *pm = player_at(me);
+    int n = vassals_of(me);
+    if (g_log) fprintf(g_log, "# victory: P%d claims victory at %.1f min (%s): %d vassals%s\n", me, game_time() / 60000.0, how,
+                       n, n ? " resign" : ", but not everyone has submitted - refused");
+    for (int j = 1; n && j < nplayers(); j++) {
+        void *pj = player_at(j);
+        if (j == me || !pj || is_out(pj)) continue;
+        persona_say(pj, L_LORD_VICTORY, pm, NULL);
+        g_sit.said_defeat[j] = 1;
+        InterlockedOr(&g_resign_queue, 1 << j);
+    }
+    return n;
+}
+// Leaving a won game counts too. The menu's Resign (EEUIEMGOEResign::vf1 0x5D0578, confirmed: 0x5D05CC) sends
+// EEMResign (vtable 0x828820 slot 10, 0x4BB906: the sender (+0xA as for chat) resigns and loses); a human whose
+// every opponent has submitted gets the victory instead. Exit Game (EEUIEMGOEExitGame::vf1 0x5D0AFB, confirmed:
+// 0x5D0B4F, pushed at 0x5D0B2B) leaves without any result - in that situation it resigns instead, which ends the
+// game with the victory screen, the statistics and then the menu as usual.
+#define VT_RESIGN       0x00828820
+#define FN_RESIGN       0x004BB906
+#define EXIT_CONFIRM_AT 0x005D0B2C
+#define FN_EXIT_CONFIRM 0x005D0B4F
+#define FN_RESIGN_SEND  0x005D05CC
+static int patch_code32(uintptr_t at, uint32_t expected, uint32_t val) {   // an operand in the code
+    uint32_t *p = (uint32_t *)at;
+    DWORD old;
+    if (*p != expected || !VirtualProtect(p, 4, PAGE_EXECUTE_READWRITE, &old)) return 0;
+    *p = val;
+    VirtualProtect(p, 4, old, &old);
+    FlushInstructionCache(GetCurrentProcess(), p, 4);
+    return 1;
+}
+static void __fastcall hook_resign(uint8_t *msg, void *edx) {
+    (void)edx;
+    int8_t from = (int8_t)msg[0xA];
+    for (int i = 1; i < nplayers(); i++) {
+        void *p = player_at(i);
+        if (p && FIELD(p, 0x464, int8_t) == from && !g_players[i] && !is_out(p) && vassals_of(i)) {
+            claim_victory(i, "resign");
+            return;
+        }
+    }
+    ((void (__thiscall *)(void *))FN_RESIGN)(msg);
+}
+static void __cdecl hook_exit_confirm(void) {
+    int me = (int)*(unsigned *)0x00918E84;
+    void *pm = player_at(me);
+    if (pm && !is_out(pm) && vassals_of(me)) {
+        if (g_log) { fprintf(g_log, "# victory: P%d leaves a won game - resigns instead (victory)\n", me); fflush(g_log); }
+        ((void (__cdecl *)(void))FN_RESIGN_SEND)();
+        return;
+    }
+    ((void (__cdecl *)(void))FN_EXIT_CONFIRM)();
+}
+
 static void __fastcall hook_ingame_chat(uint8_t *msg, void *edx) {
     (void)edx;
     int me = (int)*(unsigned *)0x00918E84;
     void *pm = player_at(me);
     const char *text = FIELD(msg + 0x10, 4, const char *);
     int refused = 0;
-    if (pm && text && FIELD(pm, 0x464, int8_t) == (int8_t)msg[0xA] && victory_word(text)) {
-        int n = vassals_of(me);
-        if (g_log) fprintf(g_log, "# victory: P%d claims victory at %.1f min: %d vassals%s\n", me, game_time() / 60000.0, n,
-                           n ? " resign" : ", but not everyone has submitted - refused");
-        for (int j = 1; n && j < nplayers(); j++) {
-            void *pj = player_at(j);
-            if (j == me || !pj || is_out(pj)) continue;
-            persona_say(pj, L_LORD_VICTORY, pm, NULL);
-            g_sit.said_defeat[j] = 1;
-            InterlockedOr(&g_resign_queue, 1 << j);
-        }
-        refused = !n;
-    }
+    if (pm && text && FIELD(pm, 0x464, int8_t) == (int8_t)msg[0xA] && victory_word(text))
+        refused = !claim_victory(me, "the chat word");
     ((void (__thiscall *)(void *))FN_INGAME_CHAT)(msg);
     if (!refused) return;
     // not yet: a system line under the player's own, naming who still holds out
@@ -731,6 +777,11 @@ static void chat_send(const char *text) {   // a chat line from the local player
 // message does (tests: what a human's declaration does)
 static void cmd_diplo(char *out, const char *args) {
     int a = -1, b = -1, s = -1;
+    if (!strcmp(args, "exit") || !strcmp(args, "resign")) {   // diplo exit / resign: the menu's confirmed action (tests)
+        if (args[0] == 'e') hook_exit_confirm(); else ((void (__cdecl *)(void))FN_RESIGN_SEND)();
+        REPLY("done\n");
+        return;
+    }
     if (!strncmp(args, "chat ", 5)) {   // diplo chat TEXT: the local player sends TEXT to everyone (tests)
         chat_send(args + 5);
         REPLY("sent\n");
@@ -792,6 +843,8 @@ static void diplo_install(const char *ini, const char *test_ini) {
     }
     int ok = patch_vtable(VT_PAY_TRIBUTE, 10, FN_PAY_TRIBUTE, (void *)hook_tribute);
     int chat = patch_vtable(VT_INGAME_CHAT, 10, FN_INGAME_CHAT, (void *)hook_ingame_chat);
-    if (g_log) fprintf(g_log, "# diplomacy: answer_war=%d ai_diplomacy=%d surrender=%d, tribute hook %d, chat hook %d\n", g_answer_war,
-                       g_ai_diplomacy, g_surrender, ok, chat);
+    int leave = patch_vtable(VT_RESIGN, 10, FN_RESIGN, (void *)hook_resign) +
+                patch_code32(EXIT_CONFIRM_AT, FN_EXIT_CONFIRM, (uint32_t)(uintptr_t)hook_exit_confirm);
+    if (g_log) fprintf(g_log, "# diplomacy: answer_war=%d ai_diplomacy=%d surrender=%d, tribute hook %d, chat hook %d, leave hooks %d/2\n",
+                       g_answer_war, g_ai_diplomacy, g_surrender, ok, chat, leave);
 }

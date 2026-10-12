@@ -171,6 +171,9 @@ Guard towers 47, 461..466; AA 145/147; town center 35; house 37; citizen 32.
   +0x464 equals msg+0xA (0x52E6EF on the game state), text = UWideString at msg+0x10. Every UWideString here keeps a
   narrow char * at +4 despite its name. The chat box (EEUIECESendMessage::vf1 0x5C28D6) checks cheat codes first,
   then sends 0x5C2A2F thiscall(new(0x24), UWideString *) through [0x91984C] vtable +0x18 (message, 0xFF = all).
+- Leaving: the menu's Resign (EEUIEMGOEResign::vf1 0x5D0578, confirmed: 0x5D05CC) sends EEMResign (vtable 0x828820
+  slot 10, 0x4BB906: the sender resigns, result 2); Exit Game (EEUIEMGOEExitGame::vf1 0x5D0AFB, confirmed: 0x5D0B4F,
+  pushed at 0x5D0B2B) disconnects without a result. Both confirmation callbacks are plain cdecl void(void).
 - System lines like "Spieler X wurde besiegt!" (0x55BCEA): 0x661E91 thiscall(ui [0x91977C], float colour[3] (white),
   sender UWideString = string 0x7C45 "- SPIEL -", text, ms, 0).
 
