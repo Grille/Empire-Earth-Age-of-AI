@@ -73,6 +73,7 @@ static void chat_new_game(void);
 static void persist_load(const char *name);
 static void econ_targets(uint8_t *rm);
 static void econ_rebalance(uint8_t *rm);
+static void econ_fields(uint8_t *rm);
 static void attack_tick(void *pl, uint32_t now);
 static void log_line(const char *fmt, const char *a, int b);
 static BOOL patch_call(uintptr_t site, uintptr_t expected, void *hook);
@@ -151,6 +152,7 @@ static char __fastcall hook_compute_targets(void *rm, void *edx) {
 
 static char __fastcall hook_assign_citizens(void *rm, void *edx) {
     (void)edx;
+    econ_fields((uint8_t *)rm);   // farm fields on water maps (econ.c)
     char r = ((RmFn)FN_ASSIGN_CITIZENS)(rm);
     econ_rebalance((uint8_t *)rm);
     log_state(rm, "post_assign", game_time());
@@ -401,12 +403,18 @@ static void run_setup(uint32_t now) {
         if (!g_setup[i].cmd[0] || now < g_setup[i].at) continue;
         reply[0] = 0;
         execute(g_setup[i].cmd, reply);
-        char *nl = strchr(reply, '\n');
+        char *nl = strchr(reply, '\n'), *rest = nl ? nl + 1 : NULL;
         if (nl) *nl = 0;
         if (g_log) {
             EnterCriticalSection(&g_lock);
             fprintf(g_log, "# setup: %s -> %s", g_setup[i].cmd, reply);
             fputc(10, g_log);
+            while (rest && *rest) {   // further lines of a multi-line reply, as comments
+                nl = strchr(rest, '\n');
+                if (nl) *nl = 0;
+                fprintf(g_log, "#   %s\n", rest);
+                rest = nl ? nl + 1 : NULL;
+            }
             fflush(g_log);
             LeaveCriticalSection(&g_lock);
         }

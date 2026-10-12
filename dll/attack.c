@@ -954,6 +954,59 @@ static void cmd_count(char *out, const char *args) {
     REPLY("\n");
 }
 
+// objs P T: every unit of type T of player P - tile, hit points / the type's, goal (tests: are buildings finished?)
+static void cmd_objs(char *out, const char *args) {
+    int p = 0, t = -1;
+    sscanf(args, "%d %d", &p, &t);
+    uint8_t *map = *(uint8_t **)G_MAP;
+    uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
+    if (!grid) { REPLY("error: no map\n"); return; }
+    uint8_t *cells = FIELD(grid, 4, uint8_t *);
+    unsigned count = FIELD(grid, 0x10, unsigned) * FIELD(grid, 0x14, unsigned);
+    REPLY("P%d type %d:", p, t);
+    for (unsigned c = 0; cells && c < count; c++)
+        for (uint8_t **b = FIELD(cells + c * 16, 4, uint8_t **); b && b < FIELD(cells + c * 16, 8, uint8_t **); b++) {
+            uint8_t *u = *b, *td = u ? FIELD(u, 0x2C, uint8_t *) : NULL;
+            void *owner = u ? FIELD(u, 0x18, void *) : NULL;
+            if (!td || !owner || FIELD(owner, PL_INDEX, int) != p || FIELD(td, 0x4B8, int) != t || strlen(out) > 15000) continue;
+            if (FIELD(u, 0x1C, int) / FIELD(grid, 8, int) != (int)(c / FIELD(grid, 0x14, unsigned)) ||
+                FIELD(u, 0x20, int) / FIELD(grid, 8, int) != (int)(c % FIELD(grid, 0x14, unsigned))) continue;
+            REPLY(" [%d,%d hp %d/%g %s]", FIELD(u, 0x1C, int), FIELD(u, 0x20, int), FIELD(u, 0x3C, int),
+                  FIELD(td, 0x55C, float), rtti_name(FIELD(u, 0x1EC, void *)));
+        }
+    REPLY("\n");
+}
+
+// hurt P T x y r dmg: damage every object of type T of player P within r tiles of x, y the way an attack does
+// (0x61E0B2: target vf 0x70 thiscall(attacker, damage, attacker's player index, 1)); attacker = the object itself
+// (tests: destroy farm fields, buildings)
+static void cmd_hurt(char *out, const char *args) {
+    int p, t, x, y, r, dmg, n = 0;
+    if (sscanf(args, "%d %d %d %d %d %d", &p, &t, &x, &y, &r, &dmg) < 6) { REPLY("error: usage: hurt P T x y r dmg\n"); return; }
+    uint8_t *map = *(uint8_t **)G_MAP;
+    uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
+    if (!grid) { REPLY("error: no map\n"); return; }
+    int cs = FIELD(grid, 8, int), nx = FIELD(grid, 0x10, int), ny = FIELD(grid, 0x14, int);
+    uint8_t *cells = FIELD(grid, 4, uint8_t *), *hit[64];
+    for (int cx = (x - r) / cs; cx <= (x + r) / cs; cx++)
+        for (int cy = (y - r) / cs; cy <= (y + r) / cs; cy++) {
+            if (cx < 0 || cy < 0 || cx >= nx || cy >= ny) continue;
+            uint8_t *cell = cells + (cx * ny + cy) * 16;
+            for (uint8_t **b = FIELD(cell, 4, uint8_t **); b && b < FIELD(cell, 8, uint8_t **) && n < 64; b++) {
+                uint8_t *u = *b, *td = u ? FIELD(u, 0x2C, uint8_t *) : NULL;
+                void *owner = u ? FIELD(u, 0x18, void *) : NULL;
+                if (!td || !owner || FIELD(owner, PL_INDEX, int) != p || FIELD(td, 0x4B8, int) != t || FIELD(u, 0x3C, int) <= 0) continue;
+                if (abs(FIELD(u, 0x1C, int) - x) > r || abs(FIELD(u, 0x20, int) - y) > r) continue;
+                int dup = 0;
+                for (int k = 0; k < n; k++) dup |= hit[k] == u;
+                if (!dup) hit[n++] = u;
+            }
+        }
+    for (int k = 0; k < n; k++)   // collected first: a dying object may leave its cell
+        (*(void (__thiscall **)(void *, void *, int, int, int))(FIELD(hit[k], 0, uint8_t *) + 0x70))(hit[k], hit[k], dmg, p, 1);
+    REPLY("ok: %d objects hit for %d\n", n, dmg);
+}
+
 // Soldiers of player P (any player, AI or not) grouped by current goal (unit+0x1EC): count, centre, and the
 // goal's first dwords of the first unit (to find what it is after).
 static void cmd_army(char *out, const char *args) {

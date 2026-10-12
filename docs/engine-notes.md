@@ -351,6 +351,18 @@ Guard towers 47, 461..466; AA 145/147; town center 35; house 37; citizen 32.
 - Assign to site 0x48C81C thiscall(rm, unit, site, 0): new gather target (EEUGGather), moves the unit between the
   resource lists (0x48B662 remove, 0x48A4EC add). AssignCitizens only hands out idle citizens (no goal, or a
   finished gather goal).
+- Farms (type 0x2A, 8 around a granary): unit manager (cm+0x44) per-type list 0x48F8AF thiscall(um, type) -> deque
+  (+0xC first, +0x10 count). [field+0x30]+0x340 = finished. AssignCitizens: food shortfall left after wild food
+  -> finished fields without gatherer 0x48BFD0 -> unfinished ones 0x48BF4F, builders only while player +0xEFA = 0
+  (order at 0x48B118: new(0x5C), EEUGBuildRepair ctor 0x60BAD0(goal, player, building, 1) - target at goal+0x3C,
+  resolved via +0x30/+0x1CC -, 0x5F05BD(unit, goal, 0, 0), 0x5EFCF0(unit, 0x1F51), type vf 0x74(unit)); with
+  +0xEFA set it trains/sends fishing boats instead (0x48FB05, 0x48C424). +0xEFA is set by 0x4307A7: water map
+  (world +0x181730 bit 0) and >= 10 fish (type 0x13B, 0x4312E3). A field takes 50 wood when construction starts
+  (not through vf45); without it the builder stops. 0x52E5F7 counts only gatherers at the field. New
+  foundation: 0x62EF8A cdecl(player, type, x, y) (the build manager's building creation; pays the cost except
+  for fields). The placement 0x46580A with type 0x2A only orders builders to an existing foundation - without
+  one it constructs EEUGBuildRepair for a null building and crashes (0x60BB19). The building plan (cm+8: list,
+  node +0xC type, +0x10 wanted; console `plan P`) holds only houses on random maps.
 - Spending: EEComputerPlayer::vf45 0x43F53D (pay a unit/building/tech; skips record +0x4C epoch 0..13) -> vf46
   0x43F526 (stock[type] -= amount). Units and research are paid from the production queue 0x5E8908, buildings
   from 0x62EF8A. AddResource (vf18) is income only.

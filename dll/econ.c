@@ -73,8 +73,10 @@ static void persona_attack_launched(unsigned ai);   // persona.c
 #define FN_PLACE   0x0046580A
 static int g_build_fix = 1;
 static struct { int type; unsigned tries, fails, dropped, streak; } g_place[16][64];   // every type the build lists hold
+static int field_place_ok(uint8_t *bm, int x, int y);   // below, with the farm fields
 static char __fastcall hook_place(uint8_t *bm, void *edx, int type, int x, int y) {
     (void)edx;
+    if (type == 0x2A && !field_place_ok(bm, x, y)) return 1;   // a field without foundation would crash (see there)
     int place_as = g_build_fix && type == 395 ? 43 : type;
     if (!x && !y) defence_spot(FIELD(bm, 0x138, void *), type, &x, &y);   // towers: where the defence plan wants them
     char ok = ((char (__thiscall *)(void *, int, int, int))FN_PLACE)(bm, place_as, x, y);
@@ -620,6 +622,210 @@ static uint8_t *movable_gatherer(uint8_t *rm, int t) {
     }
     return NULL;
 }
+// FARM FIELDS (build_fields, aimod.ini [all], default on). A granary comes with 8 fields (type 0x2A) as foundations
+// ([field+0x30]+0x340 = finished). The game's citizen assignment (0x48A554) sends citizens to finished fields
+// (0x48BFD0) and builders to unfinished ones (0x48BF4F, orders at 0x48B118) only for a food shortfall left after
+// wild food, with citizens left over - and builders only while player +0xEFA is 0: on a map with water and 10+ fish
+// (0x4307A7 counts type 0x13B) the byte is set and the shortfall goes to fishing boats (0x48FB05, 0x48C424). A field
+// also takes 50 wood when its construction starts (the builder stops without it, as for a player), and the AIs keep
+// their wood near 0. So the fields stayed foundations - on island maps always, in late-epoch starts on land too -
+// and the spare citizens went to gold (19 on gold, target 1). And nothing replaces a destroyed field: the building
+// plan (cm+8, 0x46CD18) holds only houses, the build list's re-queue only buildings missing entirely.
+// - unit training leaves 50 wood per unfinished field (up to 2) in the stock;
+// - at each assignment (10 s) unfinished fields without a builder get one each, as far as the wood in stock pays -
+//   an idle citizen, else the nearest on food, else on stone, gold or iron, never one on wood - with the game's own
+//   order; the builder farms the field when it is done;
+// - a finished field nobody farms gets an idle citizen, else the nearest from stone, gold or iron above its target
+//   (the game's gather order 0x48C81C moves it to the food list);
+// - lost fields are laid out again (fields_rebuild). Fishing goes on as before.
+#define FN_NEW           0x00683718   // operator new (cdecl)
+#define FN_BUILD_GOAL    0x0060BAD0   // EEUGBuildRepair constructor: thiscall(goal, player, building, 1)
+#define FN_SET_GOAL      0x005F05BD   // thiscall(unit, goal, 0, 0)
+#define FN_UNIT_SAY      0x005EFCF0   // thiscall(unit, 0x1F51) - as the assignment does after the order
+static int g_build_fields = 1;
+static int g_fields_open[16];   // unfinished fields per player (econ_fields), for the wood reserve
+static int field_wood(unsigned idx) { return g_build_fields ? 50 * (g_fields_open[idx] < 2 ? g_fields_open[idx] : 2) : 0; }
+static uint8_t *field_site(uint8_t *f) {   // what a BuildRepair goal holds (+0x3C) for this field (0x60BAD0)
+    uint8_t *p = FIELD(f, 0x30, uint8_t *), *last = f;
+    while (p) { last = p; p = FIELD(p, 0x1CC, uint8_t *); }
+    return last;
+}
+static int citizen_free(uint8_t *u, int idle) {   // idle, or (idle=0) gathering
+    if (!u || FIELD(u, 0x3C, int) <= 0 || FIELD(u, 0x33B, uint8_t) || FIELD(u, 0x341, uint8_t) || FIELD(u, 0x68, int) ||
+        FIELD(u, 0x1C, int) == -10000)
+        return 0;
+    void *goal = FIELD(u, 0x1EC, void *);
+    return idle ? !goal : goal && !strcmp(rtti_name(goal), "EEUGGather@@");
+}
+// plan P: the building plan's entries (cm+8: list head, node +0 next, +0xC type, +0x10 wanted count), as 0x46CD18
+// walks them (0x2F = the epoch's tower)
+static void cmd_plan(char *out, const char *args) {
+    int p = atoi(args);
+    void *pl = (p >= 0 && p < 16) ? g_players[p] : NULL;
+    uint8_t *cm = pl ? FIELD(pl, 0xB90, uint8_t *) : NULL, *head = cm ? FIELD(cm, 8, uint8_t *) : NULL;
+    if (!head) { REPLY("error: no AI player %d\n", p); return; }
+    REPLY("P%d plan (build flag %d, attention %d):", p, FIELD(pl, 0xEFC, uint8_t), FIELD(cm, 0x7B, uint8_t));
+    int n = 0;
+    for (uint8_t *nd = FIELD(head, 0, uint8_t *); nd && nd != head && n < 200; nd = FIELD(nd, 0, uint8_t *), n++)
+        REPLY(" %d:%d", FIELD(nd, 0xC, int), FIELD(nd, 0x10, int));
+    REPLY("\n");
+}
+static int field_worked(uint8_t *rm, uint8_t *f) {   // a citizen of this AI farms it or is on its way
+    // (0x52E5F7 counts only those at the field - one carrying food to the granary left it "free")
+    for (int r = 0; r < 7; r++) {
+        uint8_t *list = rm + RM_LISTS + r * 0x14;
+        for (unsigned k = 0, first = FIELD(list, 0xC, unsigned), cnt = FIELD(list, 0x10, unsigned); k < cnt; k++) {
+            uint8_t *u = deque_at(list, first + k), *goal = u ? FIELD(u, 0x1EC, uint8_t *) : NULL;
+            if (goal && FIELD(goal, 0x38, uint8_t *) == f && !strcmp(rtti_name(goal), "EEUGGather@@")) return 1;
+        }
+    }
+    return 0;
+}
+// Lost fields: nothing in the game replaces a destroyed field - the building plan (cm+8) holds only houses, the
+// build list's re-queue (0x465A8E) only buildings missing entirely, and the granary still stands. The tiles of every
+// field an AI had are kept; a field gone from its tile while a granary of the player stands within 4 tiles gets a
+// new foundation there, made the way the build manager makes buildings (0x62EF8A cdecl(player, type, x, y); a field
+// pays nothing there - its 50 wood go when the construction starts), if the game's placement test allows it; the
+// passes above build and farm it. Again after 2 minutes if it is still missing. Not through the build queue: the
+// placement's field case (0x46580A) only orders builders to an existing foundation and crashes without one
+// (0x60BAD0 with a null building).
+static struct { int16_t x, y; uint32_t queued; } g_field_at[16][32];
+static int g_field_n[16];
+static int can_place(void *pl, int type, int x, int y);   // defence.c
+static void fields_rebuild(void *pl, unsigned idx, void *um, uint8_t *dq, uint32_t now) {
+    if (now < 60000) g_field_n[idx] = 0;   // new game
+    unsigned first = dq ? FIELD(dq, 0xC, unsigned) : 0, cnt = dq ? FIELD(dq, 0x10, unsigned) : 0;
+    for (unsigned k = 0; k < cnt; k++) {   // remember every field's tile
+        uint8_t *f = deque_at(dq, first + k);
+        if (!f || FIELD(f, 0x3C, int) <= 0) continue;
+        int x = FIELD(f, 0x1C, int), y = FIELD(f, 0x20, int), j = 0;
+        while (j < g_field_n[idx] && (g_field_at[idx][j].x != x || g_field_at[idx][j].y != y)) j++;
+        if (j == g_field_n[idx] && j < 32) { g_field_at[idx][j].x = (int16_t)x; g_field_at[idx][j].y = (int16_t)y;
+                                            g_field_at[idx][j].queued = 0; g_field_n[idx]++; }
+    }
+    uint8_t *gq = ((uint8_t *(__thiscall *)(void *, int))0x0048F8AF)(um, 0x34);   // granaries
+    int queued = 0;
+    if (!gq) return;
+    for (int j = 0; j < g_field_n[idx]; j++) {
+        int x = g_field_at[idx][j].x, y = g_field_at[idx][j].y, there = 0, granary = 0;
+        for (unsigned k = 0; k < cnt && !there; k++) {
+            uint8_t *f = deque_at(dq, first + k);
+            there = f && FIELD(f, 0x3C, int) > 0 && FIELD(f, 0x1C, int) == x && FIELD(f, 0x20, int) == y;
+        }
+        if (there || (g_field_at[idx][j].queued && now - g_field_at[idx][j].queued < 120000)) continue;
+        for (unsigned k = 0, gf = FIELD(gq, 0xC, unsigned), gc = FIELD(gq, 0x10, unsigned); k < gc && !granary; k++) {
+            uint8_t *g = deque_at(gq, gf + k);
+            granary = g && FIELD(g, 0x3C, int) > 0 && abs(FIELD(g, 0x1C, int) - x) <= 4 && abs(FIELD(g, 0x20, int) - y) <= 4;
+        }
+        if (!granary) continue;
+        g_field_at[idx][j].queued = now;
+        if (!can_place(pl, 0x2A, x, y)) continue;
+        ((void *(__cdecl *)(void *, int, int, int))0x0062EF8A)(pl, 0x2A, x, y);
+        queued++;
+    }
+    if (queued && g_log) fprintf(g_log, "# fields: P%u at %.1f min: %d lost fields laid out again\n", idx, now / 60000.0, queued);
+}
+// CRASH GUARD: the build list can hold a field (0x2A) too - its re-queue asks for a destroyed one again - and the
+// placement's field case (0x46580A) only orders builders to the foundation on that tile: with none there it makes
+// EEUGBuildRepair for a null building and crashes (0x60BB19, seen once fields got built and then lost in battle).
+// hook_place lets a field through only with a foundation on its tile - laid out first if the tile is free - and
+// reports the others as placed (dropped).
+static int field_place_ok(uint8_t *bm, int x, int y) {
+    void *pl = FIELD(bm, 0x138, void *), *cm = FIELD(bm, 0x134, void *);
+    void *um = cm ? FIELD(cm, 0x44, void *) : NULL;
+    if (!pl || !um || (!x && !y)) return 0;
+    uint8_t *dq = ((uint8_t *(__thiscall *)(void *, int))0x0048F8AF)(um, 0x2A);
+    for (unsigned k = 0, first = dq ? FIELD(dq, 0xC, unsigned) : 0, cnt = dq ? FIELD(dq, 0x10, unsigned) : 0; k < cnt; k++) {
+        uint8_t *f = deque_at(dq, first + k);
+        if (f && FIELD(f, 0x3C, int) > 0 && FIELD(f, 0x1C, int) == x && FIELD(f, 0x20, int) == y) return 1;
+    }
+    if (!can_place(pl, 0x2A, x, y)) return 0;
+    ((void *(__cdecl *)(void *, int, int, int))0x0062EF8A)(pl, 0x2A, x, y);
+    if (g_log) fprintf(g_log, "# fields: P%d: build list field at %d,%d - foundation laid out first\n", FIELD(pl, PL_INDEX, int), x, y);
+    return 1;
+}
+static void econ_fields(uint8_t *rm) {   // before the citizen assignment
+    void *pl = rm_player(rm);
+    if (!g_build_fields || !pl) return;
+    unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
+    static uint32_t next[16];
+    uint32_t now = game_time();
+    if (now < next[idx] && next[idx] - now <= 5000) return;
+    next[idx] = now + 5000;
+    void *cm = FIELD(rm, RM_OWNER, void *);
+    void *um = cm ? FIELD(cm, 0x44, void *) : NULL;   // unit manager: per-type lists (0x48F8AF)
+    uint8_t *dq = um ? ((uint8_t *(__thiscall *)(void *, int))0x0048F8AF)(um, 0x2A) : NULL;
+    if (um) fields_rebuild(pl, idx, um, dq, now);
+    if (!dq) return;
+    uint8_t *todo[16], *done[16];
+    int nt = 0, nd = 0, ordered = 0, farmers = 0;
+    for (unsigned k = 0, first = FIELD(dq, 0xC, unsigned), cnt = FIELD(dq, 0x10, unsigned); k < cnt && nt < 16; k++) {
+        uint8_t *f = deque_at(dq, first + k), *st = f ? FIELD(f, 0x30, uint8_t *) : NULL;
+        if (!st || FIELD(f, 0x3C, int) <= 0) continue;
+        if (!FIELD(st, 0x340, uint8_t)) todo[nt++] = f;
+        else if (nd < 16 && !field_worked(rm, f)) done[nd++] = f;
+    }
+    g_fields_open[idx] = nt;
+    int wood = FIELD(pl, PL_STOCK + 3 * 4, int);
+    for (int i = 0; i < nt && wood >= 50; i++) {
+        uint8_t *site = field_site(todo[i]), *best = NULL;
+        int fx = FIELD(todo[i], 0x1C, int), fy = FIELD(todo[i], 0x20, int), bd = 0x7FFFFFFF, busy = 0;
+        for (int r = 0; r < 7 && !busy; r++) {   // a builder already on it?
+            uint8_t *list = rm + RM_LISTS + r * 0x14;
+            for (unsigned k = 0, first = FIELD(list, 0xC, unsigned), cnt = FIELD(list, 0x10, unsigned); k < cnt; k++) {
+                uint8_t *u = deque_at(list, first + k), *goal = u ? FIELD(u, 0x1EC, uint8_t *) : NULL;
+                if (goal && FIELD(goal, 0x3C, uint8_t *) == site && !strcmp(rtti_name(goal), "EEUGBuildRepair@@")) { busy = 1; break; }
+            }
+        }
+        if (busy) continue;
+        for (int pass = 0; pass < 3 && !best; pass++)   // idle, on food, on stone/gold/iron - never on wood
+            for (int r = 0; r < 7; r++) {
+                if (pass == 1 ? r != 2 : pass == 2 ? r < 4 : 0) continue;
+                uint8_t *list = rm + RM_LISTS + r * 0x14;
+                for (unsigned k = 0, first = FIELD(list, 0xC, unsigned), cnt = FIELD(list, 0x10, unsigned); k < cnt; k++) {
+                    uint8_t *u = deque_at(list, first + k);
+                    if (!citizen_free(u, pass == 0)) continue;
+                    int dx = FIELD(u, 0x1C, int) - fx, dy = FIELD(u, 0x20, int) - fy, d = dx * dx + dy * dy;
+                    if (d < bd) { bd = d; best = u; }
+                }
+            }
+        if (!best) break;
+        void *goal = ((void *(__cdecl *)(unsigned))FN_NEW)(0x5C);
+        if (!goal) break;
+        ((void (__thiscall *)(void *, void *, void *, int))FN_BUILD_GOAL)(goal, pl, todo[i], 1);
+        ((void (__thiscall *)(void *, void *, int, int))FN_SET_GOAL)(best, goal, 0, 0);
+        ((void (__thiscall *)(void *, int))FN_UNIT_SAY)(best, 0x1F51);
+        uint8_t *td = FIELD(best, 0x2C, uint8_t *);
+        (*(void (__thiscall **)(void *, void *))(FIELD(td, 0, uint8_t *) + 0x74))(td, best);
+        ordered++;
+        wood -= 50;
+    }
+    uint32_t *target = (uint32_t *)(rm + RM_TARGET);
+    for (int i = 0; i < nd; i++) {   // farmers for finished fields
+        uint8_t *best = NULL;
+        int fx = FIELD(done[i], 0x1C, int), fy = FIELD(done[i], 0x20, int), bd = 0x7FFFFFFF;
+        for (int pass = 0; pass < 2 && !best; pass++)
+            for (int r = pass ? 4 : 0; r < 7; r++) {
+                if (pass && rm_count(rm, r) <= (int)target[r]) continue;   // only a surplus
+                uint8_t *list = rm + RM_LISTS + r * 0x14;
+                for (unsigned k = 0, first = FIELD(list, 0xC, unsigned), cnt = FIELD(list, 0x10, unsigned); k < cnt; k++) {
+                    uint8_t *u = deque_at(list, first + k);
+                    if (!citizen_free(u, pass == 0)) continue;
+                    int dx = FIELD(u, 0x1C, int) - fx, dy = FIELD(u, 0x20, int) - fy, d = dx * dx + dy * dy;
+                    if (d < bd) { bd = d; best = u; }
+                }
+            }
+        if (!best) break;
+        ((void (__thiscall *)(void *, void *, void *, int))FN_GATHER)(rm, best, done[i], 0);
+        farmers++;
+    }
+    if (farmers && g_log)
+        fprintf(g_log, "# fields: P%u at %.1f min: %d finished fields without a farmer, %d farmers sent\n", idx, now / 60000.0,
+                nd, farmers);
+    if (ordered && g_log)
+        fprintf(g_log, "# fields: P%u at %.1f min: %d unfinished fields, %d builders sent\n", idx, now / 60000.0,
+                nt, ordered);
+}
 static void econ_rebalance(uint8_t *rm) {
     void *pl = rm_player(rm);
     if (!g_rebalance || !pl) return;
@@ -857,6 +1063,7 @@ static uintptr_t __fastcall hook_train_units(void *um, void *edx, int *req, uint
         if (now < g_bud[idx].last_t) g_bud[idx].init = 0;   // new game
         g_bud[idx].last_t = now;
         spend_reserve(pl, idx, reserve, NULL);
+        reserve[3] += field_wood(idx);   // the next fields' wood (build_fields)
         if (!g_bud[idx].init) {
             memset(&g_bud[idx], 0, sizeof g_bud[idx]);
             g_bud[idx].init = 1;
@@ -963,6 +1170,7 @@ static void econ_install(const char *aimod_ini, const char *autotest_ini) {
     g_mineral_margin = cfg_int(aimod_ini, autotest_ini, 1, "mineral_worker_margin", 300);
     g_early_requirements = cfg_int(aimod_ini, autotest_ini, 1, "early_requirements", 1);
     g_build_fix = cfg_int(aimod_ini, autotest_ini, 1, "build_fix", 1);
+    g_build_fields = cfg_int(aimod_ini, autotest_ini, 1, "build_fields", 1);
     g_unit_sub = cfg_int(aimod_ini, autotest_ini, 1, "unit_substitution", 1);
     g_gather_research = cfg_int(aimod_ini, autotest_ini, 1, "gather_research", 1);
     int ok = 0;

@@ -17,7 +17,7 @@ The `[autotest]` keys:
 | `turbo=1` | the steps follow each other as fast as the CPU allows instead of 43 per second: the server sends the next tick as soon as the simulation has used up the last one, the simulation loop skips its 22 ms timer, and a headless window renders only a few frames a second. Same steps, same game: a 75-minute game takes ~15 s instead of ~10 min. Pipe: `turbo 0\|1` |
 | `random_map=Continental` | starts a random map instead of the save. Also: `map_size` (0 tiny..), `ai_count`, `seed`, `teams=ffa\|pairs`, `start_epoch`, `citizens`, `unit_limit` (500, the game's, shared by all players incl. the idle human), `ai_cheat`, `ai_ignore`, `epoch_min`/`epoch_max` (test epoch timer). The human player (slot 0) idles, sees the whole map and is allied with every AI. |
 | `game_seed=N` | the game's random seed at game start (otherwise the clock: `srand(TMGetTime())`, then `rand()` goes into the start message). Removes one source of run-to-run differences on random maps, not all yet (the AI still diverges after ~10 s) |
-| `setup=<file>` | control-pipe commands (one per line, `#` comments) run once at 2 s game time; `@<min> <command>` waits until that game minute, path relative to the game folder - e.g. `spawn` lines that turn a map into a test scenario (see Scenarios) |
+| `setup=<file>` | control-pipe commands (one per line, `#` comments) run once at 2 s game time; `@<min> <command>` waits until that game minute, path relative to the game folder - e.g. `spawn` lines that turn a map into a test scenario (see Scenarios); replies of more than one line go into the log as `#   ` lines |
 | `scenario_mode=1` | starts `Data\Scenarios\<save>.scn` through the real scenario path (set by `-Scenario`) |
 | any `aimod.ini` key | overrides that setting for all difficulties, e.g. `avoid_towers=0` |
 | `watch=<hex>`, `watch_len` | hardware write-watchpoint, logs every writer of an address |
@@ -113,6 +113,9 @@ venv/Scripts/python scripts/eectl.py <command>
 | `threat P` | enemy defences AI player P knows about |
 | `targets P` | all enemy buildings of AI player P: owner, tile, seen by P or not, known tower threat on them |
 | `army P [type]` | soldiers of player P (optionally only one unit type) grouped by current goal (EEUGLocation = marching, EEUGAttackUnit = fighting; goal +0x30 = target unit), with centre and the goal's first dwords |
+| `objs P T` | every object of type T of player P: tile, hit points, goal (e.g. `objs 2 42`: farm fields, 1 hp = not built) |
+| `hurt P T x y r dmg` | damage every object of type T of player P within r tiles of x,y as an attack does (target vf 0x70) - e.g. `hurt 2 42 128 128 256 1000` destroys P2's fields |
+| `plan P` | the AI's building plan (type:wanted) |
 | `count P` | all units and buildings of player P by type (type:count), e.g. whether an AI has a Siege Factory (63) |
 | `bqueue P` | the build manager's queues per epoch (building types; `$` = can be built now) |
 | `drops P` | drop sites of player P (Town Center, Capitol, Settlement; `g` = granary) |
@@ -228,6 +231,18 @@ member. Needs `ai_diplomacy=1` and a player outside the blocks (one alliance of 
   P4"); P4 declares war on P3: no longer a vassal, P3 answers the war.
 - Reputation: P2 breaks its alliance with P5: P3 (loyalty 70) -10.5, P4 (loyalty 95) -14 towards P2. P3 capitulates
   to P4, P4 attacks it at once: P2 (loyalty 35) -26, P5 (loyalty 60) -45 towards P4 (x5), P3 itself -78.
+
+### Farm fields
+
+2026-10-13, 2 AIs, start epoch 13, 31 min, game seeds 1-3 (`objs P 42`: 1 hp = foundation). Without the fix the 8
+fields stayed foundations on Large Islands (fishing map) and on Continental (still all 8 at minute 14). Income per
+AI at minute 25 (6 AIs each), `build_fields` 0 -> 1: Large Islands food 2262 -> 4327, total 10123 -> 12093;
+Continental food 2295 -> 4539, total 8169 -> 11711. `hurt 2 42 128 128 256 1000` at minute 15 (Continental): laid
+out again at 15.2, all 8 rebuilt and farmed by 16.5. Suite (4 maps, Prehistoric start, 60 min, 2 seeds): food income
+at 55 min 6618 -> 7563, epoch 3.42 -> 3.08 (std. error 0.12/0.10; same delay after the planned attempt, the
+difference is the epoch timer and one AI beaten in the Copper Age), workers 44.5 -> 41.4 (5), kills 91 -> 103.
+The first suite run crashed once (0x60BB19): the build list's re-queue asked for a lost field without foundation -
+guarded in hook_place since (2 hits in the next suite, no crash).
 
 ### Automatic victory
 

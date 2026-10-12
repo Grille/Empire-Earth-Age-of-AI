@@ -38,6 +38,7 @@ information a human couldn't have (it only uses enemy buildings it has seen).
 | Fair prices | The AI pays what you pay (configurable per difficulty, e.g. a discount only on Hard). |
 | Economy first | Before farms (Copper Age), the AI grows its workforce, counts the wild food it has found as its budget, saves for the next epochs and keeps only a token army. |
 | Military budget | Soldiers are paid from a share of the starting stock and of the income, never from the epoch reserve; from the Copper Age on most of the income goes to the army. |
+| Farm fields | The original AI left the fields around its granary as bare foundations (always on maps with fish, often on land), put nobody on finished ones and never replaced destroyed ones. It now builds them as far as its wood pays (keeping 50 wood per field for that), farms every one and lays out lost fields again. |
 | Working build queue | The original build list started with a building that can't be placed, which blocked everything after it (granary, archery range, siege factory, university...). |
 | Short ways to work | Citizens mine the free mine nearest to a drop site, move from oversupplied resources to short ones, and get the gathering upgrades the original AI rarely researched. |
 | Epoch pacing | Timer or "as soon as affordable"; optionally waits for the human player. |
