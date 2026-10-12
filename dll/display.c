@@ -590,6 +590,7 @@ static void frame_stats(uint8_t *ras, unsigned screen) {
 // at most 5 a session, 5 minutes apart.
 static void cmd_profile_render(int dur, char *out);
 static void frame_costs_log(unsigned frames);
+static int is_return_address(uintptr_t a);
 static int g_frame_watch = 35;
 static int g_fw_test;   // autotest frame_watch given: also headless (tests)
 static struct {
@@ -739,6 +740,7 @@ static int __fastcall hook_draw_terrain(void *ras, void *edx, void *mesh, unsign
 }
 
 // diagnostics: surface copies / creation (DX7Surface::CopyTo, ::CopyWithFilter, DX7Screen::CreateSurface)
+static void *g_text_lock_orig[2], *g_text_unlock_orig[2];   // DX7Surface::TextLock / TextUnlock (own text DC)
 static struct { const char *name; volatile LONG calls, fail, last_err, last_ret; void *orig[2]; } g_cnt[3] = {
     { "CopyTo", 0, 0, 0, 0, { NULL, NULL } }, { "CopyWithFilter", 0, 0, 0, 0, { NULL, NULL } },
     { "CreateSurface", 0, 0, 0, 0, { NULL, NULL } },
@@ -984,6 +986,193 @@ static long __fastcall hook_fc_text_rect(void *ras, void *edx, void *text, void 
 FC_SURFACE_HOOK(hook_fc_lock, FC_LOCK)
 FC_SURFACE_HOOK(hook_fc_text_lock, FC_TEXT_LOCK)
 FC_SURFACE_HOOK(hook_fc_text_unlock, FC_TEXT_UNLOCK)
+// OWN TEXT DC ([display] text_dc, default 1): the game draws text with GDI on a DC of the DirectDraw surface
+// (DX7Surface::TextLock = IDirectDrawSurface7::GetDC into +0x54, flag +0x5D; TextUnlock = ReleaseDC). Through
+// DDrawCompat (v0.7.1) every ExtTextOutA on such a DC makes gdi32 add a font realization to its width cache
+// (LpkUseGDIWidthCache -> GdiRealizationInfo, 1472-byte blocks) that is never freed: ~4 a frame, 13-22 MB a minute,
+// a list every text output walks - 111 fps at the start of a game, 13 after 100 minutes (dgVoodoo: no growth).
+// Instead the game gets a memory DC of ours that lives for the session (one per surface size and pixel format,
+// a DIB section in the surface's format). The text goes onto the 3D back buffer (2560x1440, video memory): copying
+// all of it there and back cost ~5.5 ms a lock, so TextLock only locks the surface (once, like GetDC did); each
+// ExtTextOutA / TextOutW on our DC (import hooks of the display DLLs and the exe) first loads the 32x32 tiles its
+// text box touches from the locked surface into the DIB; TextUnlock writes the loaded tiles back, unlocks, and
+// selects the stock font again (the game's fonts must not stay selected in a DC it never sees again).
+static int g_text_dc = 1;
+static struct { int w, h, bpp; DWORD masks[3]; HDC dc; HBITMAP bmp; void *bits; int pitch; } g_tdc[6];
+static struct { void *surf; int slot; DDSURFACEDESC2 d; } g_tdc_active[8];
+enum { TDC_TILE = 32, TDC_TW = 2560 / TDC_TILE + 2, TDC_TH = 1600 / TDC_TILE + 2 };
+static uint8_t g_tdc_tiles[TDC_TH][TDC_TW];   // loaded in this text phase (one phase at a time)
+static int g_tdc_any;
+typedef BOOL (WINAPI *ExtTextOutAFn)(HDC, int, int, UINT, const RECT *, LPCSTR, UINT, const INT *);
+typedef BOOL (WINAPI *TextOutWFn)(HDC, int, int, LPCWSTR, int);
+static ExtTextOutAFn g_ext_text_out;
+static TextOutWFn g_text_out_w;
+static int g_tdc_logged;
+static HFONT g_tdc_stock;
+static long text_dc_fallback(void *surf, int unlock) {   // the original TextLock / TextUnlock
+    return ((long (__thiscall *)(void *))(unlock ? g_text_unlock_orig : g_text_lock_orig)[DISPLAY_DLL(surf)])(surf);
+}
+static int text_dc_slot(const DDSURFACEDESC2 *d) {
+    int bpp = (int)d->ddpfPixelFormat.dwRGBBitCount, w = (int)d->dwWidth, h = (int)d->dwHeight, free_ = -1;
+    if (bpp != 16 && bpp != 32) return -1;
+    for (int i = 0; i < 6; i++) {
+        if (g_tdc[i].dc && g_tdc[i].w == w && g_tdc[i].h == h && g_tdc[i].bpp == bpp &&
+            g_tdc[i].masks[0] == d->ddpfPixelFormat.dwRBitMask && g_tdc[i].masks[1] == d->ddpfPixelFormat.dwGBitMask)
+            return i;
+        if (!g_tdc[i].dc && free_ < 0) free_ = i;
+    }
+    if (free_ < 0) return -1;
+    struct { BITMAPINFOHEADER h; DWORD masks[3]; } bi = {
+        { sizeof bi.h, w, -h, 1, (WORD)bpp, BI_BITFIELDS, 0, 0, 0, 0, 0 },
+        { d->ddpfPixelFormat.dwRBitMask, d->ddpfPixelFormat.dwGBitMask, d->ddpfPixelFormat.dwBBitMask },
+    };
+    void *bits = NULL;
+    HDC dc = CreateCompatibleDC(NULL);
+    HBITMAP bmp = dc ? CreateDIBSection(dc, (BITMAPINFO *)&bi, DIB_RGB_COLORS, &bits, NULL, 0) : NULL;
+    if (!bmp) { if (dc) DeleteDC(dc); return -1; }
+    SelectObject(dc, bmp);
+    if (!g_tdc_stock) g_tdc_stock = (HFONT)GetStockObject(SYSTEM_FONT);
+    g_tdc[free_].w = w; g_tdc[free_].h = h; g_tdc[free_].bpp = bpp;
+    g_tdc[free_].masks[0] = bi.masks[0]; g_tdc[free_].masks[1] = bi.masks[1]; g_tdc[free_].masks[2] = bi.masks[2];
+    g_tdc[free_].dc = dc; g_tdc[free_].bmp = bmp; g_tdc[free_].bits = bits; g_tdc[free_].pitch = (w * bpp / 8 + 3) & ~3;
+    return free_;
+}
+static int tdc_active_of(HDC dc) {   // the active text phase drawing on this DC, or -1
+    for (int i = 0; i < 8; i++)
+        if (g_tdc_active[i].surf && g_tdc[g_tdc_active[i].slot].dc == dc) return i;
+    return -1;
+}
+// load the tiles of rectangle x0,y0-x1,y1 (exclusive) from the locked surface into the DIB, once a phase
+static void tdc_load(int a, int x0, int y0, int x1, int y1) {
+    int slot = g_tdc_active[a].slot, w = g_tdc[slot].w, h = g_tdc[slot].h, bpp = g_tdc[slot].bpp / 8;
+    const DDSURFACEDESC2 *d = &g_tdc_active[a].d;
+    if (x0 < 0) x0 = 0;
+    if (y0 < 0) y0 = 0;
+    if (x1 > w) x1 = w;
+    if (y1 > h) y1 = h;
+    for (int ty = y0 / TDC_TILE; ty * TDC_TILE < y1 && ty < TDC_TH; ty++)
+        for (int tx = x0 / TDC_TILE; tx * TDC_TILE < x1 && tx < TDC_TW; tx++) {
+            if (g_tdc_tiles[ty][tx]) continue;
+            g_tdc_tiles[ty][tx] = 1;
+            g_tdc_any = 1;
+            int px = tx * TDC_TILE, n = (px + TDC_TILE > w ? w - px : TDC_TILE) * bpp;
+            for (int y = ty * TDC_TILE; y < ty * TDC_TILE + TDC_TILE && y < h; y++)
+                memcpy((uint8_t *)g_tdc[slot].bits + y * g_tdc[slot].pitch + px * bpp,
+                       (uint8_t *)d->lpSurface + y * d->lPitch + px * bpp, n);
+        }
+}
+static void tdc_store(int a) {   // the loaded tiles back into the locked surface
+    int slot = g_tdc_active[a].slot, w = g_tdc[slot].w, h = g_tdc[slot].h, bpp = g_tdc[slot].bpp / 8;
+    const DDSURFACEDESC2 *d = &g_tdc_active[a].d;
+    for (int ty = 0; ty < TDC_TH && g_tdc_any; ty++)
+        for (int tx = 0; tx < TDC_TW; tx++) {
+            if (!g_tdc_tiles[ty][tx]) continue;
+            g_tdc_tiles[ty][tx] = 0;
+            int px = tx * TDC_TILE, n = (px + TDC_TILE > w ? w - px : TDC_TILE) * bpp;
+            for (int y = ty * TDC_TILE; y < ty * TDC_TILE + TDC_TILE && y < h; y++)
+                memcpy((uint8_t *)d->lpSurface + y * d->lPitch + px * bpp,
+                       (uint8_t *)g_tdc[slot].bits + y * g_tdc[slot].pitch + px * bpp, n);
+        }
+    g_tdc_any = 0;
+}
+// the box a text output can touch: the text's extent placed by the DC's alignment, the clip/opaque rectangle,
+// and a margin for overhangs
+static void tdc_text_box(HDC dc, int x, int y, SIZE sz, UINT opts, const RECT *rc, RECT *box) {
+    UINT al = GetTextAlign(dc);
+    TEXTMETRICA tm;
+    if (!GetTextMetricsA(dc, &tm)) memset(&tm, 0, sizeof tm);
+    if (al & TA_UPDATECP) { POINT cp; GetCurrentPositionEx(dc, &cp); x = cp.x; y = cp.y; }
+    int x0 = (al & TA_CENTER) == TA_CENTER ? x - sz.cx / 2 : (al & TA_RIGHT) ? x - sz.cx : x;
+    int y0 = (al & TA_BASELINE) == TA_BASELINE ? y - tm.tmAscent : (al & TA_BOTTOM) ? y - sz.cy : y;
+    box->left = x0 - 8 - tm.tmOverhang; box->right = x0 + sz.cx + 8 + tm.tmOverhang;
+    box->top = y0 - 4; box->bottom = y0 + sz.cy + 4;
+    if (rc && (opts & (ETO_OPAQUE | ETO_CLIPPED))) {
+        if (opts & ETO_CLIPPED) {   // nothing outside the clip rectangle
+            if (box->left < rc->left) box->left = rc->left;
+            if (box->top < rc->top) box->top = rc->top;
+            if (box->right > rc->right) box->right = rc->right;
+            if (box->bottom > rc->bottom) box->bottom = rc->bottom;
+        }
+        if (opts & ETO_OPAQUE) {    // the rectangle is filled
+            if (rc->left < box->left) box->left = rc->left;
+            if (rc->top < box->top) box->top = rc->top;
+            if (rc->right > box->right) box->right = rc->right;
+            if (rc->bottom > box->bottom) box->bottom = rc->bottom;
+        }
+    }
+    POINT org;
+    if (GetViewportOrgEx(dc, &org)) OffsetRect(box, org.x, org.y);
+}
+static BOOL WINAPI hook_ext_text_out(HDC dc, int x, int y, UINT opts, const RECT *rc, LPCSTR str, UINT n, const INT *dx) {
+    int a = tdc_active_of(dc);
+    if (a >= 0) {
+        SIZE sz = { 0, 0 };
+        if (dx) { for (UINT i = 0; i < n; i++) sz.cx += dx[i]; TEXTMETRICA tm; if (GetTextMetricsA(dc, &tm)) sz.cy = tm.tmHeight; }
+        else GetTextExtentPoint32A(dc, str ? str : "", (int)n, &sz);
+        RECT box;
+        tdc_text_box(dc, x, y, sz, opts, rc, &box);
+        tdc_load(a, box.left, box.top, box.right, box.bottom);
+    }
+    return g_ext_text_out(dc, x, y, opts, rc, str, n, dx);
+}
+static BOOL WINAPI hook_text_out_w(HDC dc, int x, int y, LPCWSTR str, int n) {
+    int a = tdc_active_of(dc);
+    if (a >= 0) {
+        SIZE sz = { 0, 0 };
+        GetTextExtentPoint32W(dc, str ? str : L"", n, &sz);
+        RECT box;
+        tdc_text_box(dc, x, y, sz, 0, NULL, &box);
+        tdc_load(a, box.left, box.top, box.right, box.bottom);
+    }
+    return g_text_out_w(dc, x, y, str, n);
+}
+static long __fastcall hook_text_lock(uint8_t *surf, void *edx) {
+    (void)edx;
+    if (surf[0x5D] == 1) return 2;
+    IDirectDrawSurface7 *dds = FIELD(surf, 0x48, IDirectDrawSurface7 *);
+    int a = -1;
+    for (int i = 0; i < 8; i++) if (!g_tdc_active[i].surf) { a = i; break; }
+    if (!dds || a < 0 || !g_ext_text_out) return text_dc_fallback(surf, 0);
+    DDSURFACEDESC2 *d = &g_tdc_active[a].d;
+    memset(d, 0, sizeof *d);
+    d->dwSize = sizeof *d;
+    if (dds->lpVtbl->Lock(dds, NULL, d, DDLOCK_WAIT, NULL) != DD_OK) return text_dc_fallback(surf, 0);
+    int slot = text_dc_slot(d);
+    if (slot < 0 || (int)d->dwWidth > (TDC_TW - 2) * TDC_TILE || (int)d->dwHeight > (TDC_TH - 2) * TDC_TILE) {
+        dds->lpVtbl->Unlock(dds, NULL);
+        return text_dc_fallback(surf, 0);
+    }
+    if (g_tdc_logged < 4 && g_log) {
+        g_tdc_logged++;
+        DDSCAPS2 caps = { 0 };
+        dds->lpVtbl->GetCaps(dds, &caps);
+        EnterCriticalSection(&g_lock);
+        fprintf(g_log, "# text dc: surface %p %lux%lu, %lu bit, caps %08lx (%s), slot %d\n", (void *)surf, d->dwWidth, d->dwHeight,
+                d->ddpfPixelFormat.dwRGBBitCount, caps.dwCaps, caps.dwCaps & DDSCAPS_VIDEOMEMORY ? "video memory" : "system memory", slot);
+        LeaveCriticalSection(&g_lock);
+    }
+    g_tdc_active[a].surf = surf;
+    g_tdc_active[a].slot = slot;
+    FIELD(surf, 0x54, HDC) = g_tdc[slot].dc;
+    surf[0x5D] = 1;
+    return 0;
+}
+static long __fastcall hook_text_unlock(uint8_t *surf, void *edx) {
+    (void)edx;
+    int a = -1;
+    for (int i = 0; i < 8; i++) if (g_tdc_active[i].surf == surf) { a = i; break; }
+    if (a < 0) return text_dc_fallback(surf, 1);   // locked by the original (fallback) or not at all
+    int slot = g_tdc_active[a].slot;
+    GdiFlush();
+    tdc_store(a);
+    SelectObject(g_tdc[slot].dc, g_tdc_stock);
+    IDirectDrawSurface7 *dds = FIELD(surf, 0x48, IDirectDrawSurface7 *);
+    if (dds) dds->lpVtbl->Unlock(dds, NULL);
+    g_tdc_active[a].surf = NULL;
+    surf[0x5D] = 0;
+    return 0;
+}
+
 static void *const k_fc_hooks[FC_N] = { (void *)hook_fc_text, (void *)hook_fc_text_rect, (void *)hook_fc_lock,
                                         (void *)hook_fc_text_lock, (void *)hook_fc_text_unlock };
 // What a session accumulates: a slow game (13 fps at minute 103, the process at 620-690 MB) ran at 148 fps after
@@ -1022,8 +1211,83 @@ static void session_counts_log(void) {
     LeaveCriticalSection(&g_lock);
 }
 
+// ALLOCATION TRACE (tests only: autotest alloc_trace=<bytes>): which code makes the heap blocks a session piles up
+// (DDrawCompat: ~1500-byte blocks, linked, each with the same DC and font handle, about one per text output - none
+// with dgVoodoo). ntdll!RtlAllocateHeap is hot-patched (mov edi,edi + 5 bytes of padding); for requests within 80
+// bytes below the given size the hook only copies 4 KB of the raw stack into a static buffer (no calls, no
+// allocations inside the allocator); the minute line resolves the return addresses on them and logs the chains.
+enum { AT_MAX = 24, AT_STACK = 1024 };
+static int g_at_size;
+static volatile LONG g_at_n, g_at_logged;
+static uintptr_t g_at_stack[AT_MAX][AT_STACK];
+static SIZE_T g_at_req[AT_MAX];
+static int g_at_depth[AT_MAX];
+static void *(WINAPI *g_rtl_alloc)(HANDLE, ULONG, SIZE_T);
+static void *WINAPI hook_rtl_alloc(HANDLE heap, ULONG flags, SIZE_T size) {
+    if ((int)size <= g_at_size && (int)size > g_at_size - 80 && g_at_n < AT_MAX && game_time() > 60000) {
+        LONG k = InterlockedIncrement(&g_at_n) - 1;
+        if (k < AT_MAX) {
+            volatile uintptr_t *sp = (volatile uintptr_t *)__builtin_frame_address(0);
+            volatile uintptr_t *top = (volatile uintptr_t *)(uintptr_t)__readfsdword(4);   // TEB StackBase
+            int n = 0;
+            for (; n < AT_STACK && sp + n < top; n++) g_at_stack[k][n] = sp[n];
+            g_at_depth[k] = n;
+            g_at_req[k] = size;
+        }
+    }
+    return g_rtl_alloc(heap, flags, size);
+}
+static int alloc_trace_install(int size) {
+    uint8_t *f = (uint8_t *)GetProcAddress(GetModuleHandleA("ntdll.dll"), "RtlAllocateHeap");
+    if (!f || f[0] != 0x8B || f[1] != 0xFF || f[-5] != 0xCC || f[-1] != 0xCC) return 0;
+    DWORD old;
+    if (!VirtualProtect(f - 5, 7, PAGE_EXECUTE_READWRITE, &old)) return 0;
+    g_at_size = size;
+    g_rtl_alloc = (void *(WINAPI *)(HANDLE, ULONG, SIZE_T))(void *)(f + 2);
+    f[-5] = 0xE9;
+    *(int32_t *)(f - 4) = (int32_t)((uintptr_t)hook_rtl_alloc - (uintptr_t)f);
+    *(volatile uint16_t *)f = 0xF9EB;   // jmp short -7
+    VirtualProtect(f - 5, 7, old, &old);
+    FlushInstructionCache(GetCurrentProcess(), f - 5, 7);
+    return 1;
+}
+static void alloc_trace_log(void) {
+    LONG n = g_at_n < AT_MAX ? g_at_n : AT_MAX;
+    if (!g_log || g_at_logged >= n) return;
+    HMODULE nt = GetModuleHandleA("ntdll.dll");
+    for (LONG k = g_at_logged; k < n; k++) {
+        char line[1600];
+        int o = snprintf(line, sizeof line, "# alloc trace %ld: %lu bytes:", k, (unsigned long)g_at_req[k]);
+        int found = 0;
+        if (k == 0) {   // raw check of the first copy
+            int depth = 0;
+            depth = g_at_depth[k];
+            EnterCriticalSection(&g_lock);
+            fprintf(g_log, "# alloc trace raw: %d dwords:", depth);
+            for (int i = 0; i < 24 && i < depth; i++) fprintf(g_log, " %08lx", (unsigned long)g_at_stack[k][i]);
+            fputc('\n', g_log);
+            LeaveCriticalSection(&g_lock);
+        }
+        for (int i = 0; i < g_at_depth[k] && found < 14; i++) {
+            uintptr_t a = g_at_stack[k][i];
+            HMODULE m = NULL;
+            if (!is_return_address(a) || !GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
+                GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, (LPCSTR)a, &m) || m == nt) continue;
+            char at[160];
+            crash_addr(at, sizeof at, a);
+            o += snprintf(line + o, sizeof line - o, " %s", at);
+            found++;
+        }
+        EnterCriticalSection(&g_lock);
+        fprintf(g_log, "%s\n", line);
+        LeaveCriticalSection(&g_lock);
+    }
+    g_at_logged = n;
+}
+
 static void frame_costs_log(unsigned frames) {
     session_counts_log();
+    alloc_trace_log();
     LARGE_INTEGER f;
     QueryPerformanceFrequency(&f);
     for (int k = 0; k < FC_N && g_log && frames; k++) {
@@ -1096,9 +1360,35 @@ static int install_windowed_present(void) {
             if (tc) { g_tex_create[i] = tc; n += replace_rdata_ptr(m, tc, (void *)hook_tex_create); }
             if (td) { g_tex_destroy[i] = td; n += replace_rdata_ptr(m, td, (void *)hook_tex_destroy); }
         }
+        g_text_lock_orig[i] = (void *)GetProcAddress(m, "?TextLock@DX7Surface@@UAEJXZ");
+        g_text_unlock_orig[i] = (void *)GetProcAddress(m, "?TextUnlock@DX7Surface@@UAEJXZ");
         for (int k = 0; g_frame_watch && k < FC_N; k++) {
             void *f = (void *)GetProcAddress(m, g_fc[k].export);
             if (f) { g_fc[k].orig[i] = f; n += replace_rdata_ptr(m, f, k_fc_hooks[k]); }
+        }
+        if (g_text_dc && !g_ext_text_out) {   // the real functions (DDrawCompat's hooks sit inside GDI itself)
+            g_ext_text_out = (ExtTextOutAFn)(void *)GetProcAddress(GetModuleHandleA("gdi32.dll"), "ExtTextOutA");
+            g_text_out_w = (TextOutWFn)(void *)GetProcAddress(GetModuleHandleA("gdi32.dll"), "TextOutW");
+        }
+        if (g_text_dc && g_ext_text_out) {
+            int iat = patch_iat(m, "GDI32.dll", "ExtTextOutA", (void *)hook_ext_text_out);
+            if (!iat) g_text_lock_orig[i] = NULL;   // no hook on the text output: keep the original DC
+            n += iat;
+            static int exe_done;
+            if (!exe_done && g_text_out_w) {   // the exe's own TextOutW (IME window) may draw on the text DC too
+                exe_done = 1;
+                int w = patch_iat(GetModuleHandleA(NULL), "gdi32.dll", "TextOutW", (void *)hook_text_out_w);
+                if (g_log) fprintf(g_log, "# text dc: exe TextOutW hook %d\n", w);
+            }
+        }
+        if (g_text_dc && g_text_lock_orig[i] && g_text_unlock_orig[i]) {
+            if (g_frame_watch) {   // the frame-cost hooks stay in front and call ours
+                g_fc[FC_TEXT_LOCK].orig[i] = (void *)hook_text_lock;
+                g_fc[FC_TEXT_UNLOCK].orig[i] = (void *)hook_text_unlock;
+                n += 2;
+            } else
+                n += replace_rdata_ptr(m, g_text_lock_orig[i], (void *)hook_text_lock) +
+                     replace_rdata_ptr(m, g_text_unlock_orig[i], (void *)hook_text_unlock);
         }
         void *cnt_hooks[3] = { (void *)hook_copy_to, (void *)hook_copy_filter, (void *)hook_create_surface };
         for (int k = 0; k < 3; k++) {
@@ -1520,9 +1810,13 @@ static void display_install(const char *aimod_ini, const char *autotest_ini) {
     if (windowed) {
         uint8_t was = *(uint8_t *)G_FULLSCREEN;
         if (was == 1) *(uint8_t *)G_FULLSCREEN = g_fullscreen = 0;
+        g_text_dc = GetPrivateProfileIntA("display", "text_dc", 1, aimod_ini);
+        if (autotest_ini) g_text_dc = GetPrivateProfileIntA("autotest", "text_dc", g_text_dc, autotest_ini);
         g_frame_watch = GetPrivateProfileIntA("display", "frame_watch", 35, aimod_ini);
         if (autotest_ini && (g_fw_test = GetPrivateProfileIntA("autotest", "frame_watch", -1, autotest_ini)) >= 0) g_frame_watch = g_fw_test;
         else g_fw_test = 0;
+        int at = autotest_ini ? GetPrivateProfileIntA("autotest", "alloc_trace", 0, autotest_ini) : 0;
+        if (at > 0 && g_log) fprintf(g_log, "# alloc trace: requests of %d-%d bytes, hook %d\n", at - 79, at, alloc_trace_install(at));
         int hooks = install_windowed_present();
         GetPrivateProfileStringA("display", "lock_mouse", "auto", tmp, sizeof tmp, aimod_ini);
         g_lock_mouse = !lstrcmpiA(tmp, "auto") ? 2 : atoi(tmp) ? 1 : 0;

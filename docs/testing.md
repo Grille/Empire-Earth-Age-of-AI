@@ -167,6 +167,17 @@ vary 7-33 ms between and within runs in the same save - the slow state is not re
   +0x70B68), text locks (GetDC on a surface) ~2 ms each. The minute line now has `# frame costs:` (those calls per
   frame with their callers) and `# session:` (private memory, handles, surfaces created/deleted, textures
   created/destroyed since the start) - the next long session shows what grows.
+- The next session (2026-10-12): memory +13 MB a minute, surfaces/textures flat. Heap analysis from outside
+  (VirtualQueryEx/ReadProcessMemory, read-only): the process heap grew by 16 MB segments full of 1504-byte LFH
+  blocks (~4 a frame) holding the same DC and font handle, linked in a list. Autotest `alloc_trace=<bytes>`
+  (hot-patched RtlAllocateHeap, raw stack copies, chains in the minute line) showed the source: the game's
+  ExtTextOutA on the surface DC -> DDrawCompat -> gdi32full LpkUseGDIWidthCache / GdiRealizationInfo: a font
+  realization cache entry per text output, never freed. Headless A/B (6 min): DDrawCompat 232 -> 263 MB,
+  dgVoodoo flat (but ~half the frame rate); DDrawCompat `GdiInterops = none` or `FontAntialiasing = off`: still
+  growing. Fix `[display] text_dc` (default 1): the game's text goes into a memory DC of the mod (TextLock only
+  locks the surface; ExtTextOutA/TextOutW load the 32x32 tiles of the text box, TextUnlock writes them back):
+  233 -> 240 MB over the same run, text areas of a screenshot pixel-identical. The text surface is the
+  2560x1440 back buffer in video memory: each text lock still costs ~4-5 ms (the readback, as with GetDC).
 
 Findings 2026-10-11 (2560x1440, RTX 3080, dgVoodoo DirectX pass-through): ~80 fps; the render thread is CPU
 bound in Windows' DirectX 7 layer and the driver (DDRAW.dll 35%, nvd3dum 26%, kernel calls 24%), i.e. per

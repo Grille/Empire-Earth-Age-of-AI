@@ -160,6 +160,17 @@ Guard towers 47, 461..466; AA 145/147; town center 35; house 37; citizen 32.
 - Step length: EEPhysics vf3 0x5476C1: +0x98 = 1000 * speed / +0x58 (44) ms game time. The game speed only
   makes the steps longer.
 
+## Text on surfaces
+
+- DX7Surface (display DLLs, 0x60 bytes): +0x48 IDirectDrawSurface7, +0x54 text HDC, +0x5D text locked. TextLock
+  = GetDC (vtable +0x44) into +0x54, TextUnlock = ReleaseDC (+0x68); GetTextDC returns +0x54. Vtable exported
+  (??_7DX7Surface@@6B@), slot 0 = the (vector) deleting destructor.
+- DX7Rasterizer::Draw(GEText*, GESurface*) / Draw(GEText*, const GERectangle&, GESurface*): SetBkColor,
+  SelectObject(font), GetTextExtentPoint32A, ExtTextOutA on that DC; the only GDI text calls of the display DLLs.
+  Fonts: CreateFontA in Low-Level Engine and the exe. The game's text goes onto the 3D back buffer (video memory).
+- With DDrawCompat v0.7.1 every ExtTextOutA on a surface DC leaves a 1472-byte font realization entry in
+  gdi32full's width cache (LpkUseGDIWidthCache -> GdiRealizationInfo), never freed (see testing.md).
+
 ## Victory and chat
 
 - 0x531913 (called every step from 0x546DE2) decides the game: players without units are resigned, and once only
