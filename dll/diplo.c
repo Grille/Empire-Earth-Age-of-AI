@@ -172,13 +172,25 @@ static void opinion_add(int ai, int j, float d) {
     g_opinion[ai][j] = v < -100 ? -100 : v > 100 ? 100 : v;
 }
 
+// log2 from arithmetic only (multiplayer: the C runtime's log2f comes with Windows and may differ between versions;
+// every PC must decide the same). Exponent from the bits, the mantissa m in [1,2) by the atanh series
+// ln m = 2 (t + t^3/3 + t^5/5 + t^7/7), t = (m-1)/(m+1) <= 1/3: error < 1e-5.
+static float det_log2f(float x) {
+    if (!(x > 0)) return -1000.0f;
+    union { float f; uint32_t u; } b = { x };
+    int e = (int)((b.u >> 23) & 0xFF) - 127;
+    b.u = (b.u & 0x007FFFFF) | 0x3F800000;
+    float t = (b.f - 1.0f) / (b.f + 1.0f), t2 = t * t;
+    return (float)e + 2.0f * t * (1.0f + t2 * (1.0f / 3 + t2 * (1.0f / 5 + t2 * (1.0f / 7)))) * 1.44269504f;
+}
+
 // would AI pl make peace / an alliance with player j now? (score > 0)
 static float peace_score(void *pl, int ai, int j, uint32_t now) {
     if (g_war_since[ai][j] && now - g_war_since[ai][j] < (uint32_t)trait(pl, T_PRIDE) * 3000u) return -1000;
     float r = power_of(j) / power_of(ai);
     int lead = strongest_enemy(pl, ai);
     void *pj = player_at(j);
-    float pw = 25.0f * log2f(r);
+    float pw = 25.0f * det_log2f(r);
     if (pw > 40) pw = 40; else if (pw < -40) pw = -40;   // a much weaker player can still buy peace
     float s = g_opinion[ai][j] + pw + 0.4f * (float)(50 - trait(pl, T_AGGRESSION)) - 0.3f * (float)(trait(pl, T_PRIDE) - 50);
     if (lead && lead != j && pj && stance_of(pj, lead)) s += 15;
@@ -269,7 +281,7 @@ static void diplo_initiative(void *pl, int ai, uint32_t now) {
         if (g_lord[ai] == j) continue;   // capitulated to j: keeps its word
         if (power_of(j) * 2 > power_of(ai) || g_opinion[ai][j] >= 30) continue;
         int chance = (100 - trait(pl, T_LOYALTY)) * trait(pl, T_AGGRESSION);   // per 100000
-        if ((int)(rnd32() % 100000u) >= chance) continue;
+        if ((int)(rnd_game32() % 100000u) >= chance) continue;
         if (g_log) fprintf(g_log, "# diplomacy: P%d at %.1f min betrays P%d (opinion %.0f, power %.0f vs %.0f)\n",
                            ai, now / 60000.0, j, g_opinion[ai][j], g_ws.power[ai], g_ws.power[j]);
         persona_say(pl, L_BETRAY, pj, NULL);

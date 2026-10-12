@@ -80,6 +80,27 @@ static uint32_t g_rnd = 0x9E3779B9u;
 static uint32_t rnd32(void) { g_rnd ^= g_rnd << 13; g_rnd ^= g_rnd >> 17; g_rnd ^= g_rnd << 5; return g_rnd; }
 static int rnd(int n) { return n > 0 ? (int)(rnd32() % (unsigned)n) : 0; }
 
+// Two generators: rnd() for what is only shown (chat lines; ai_talk and the audience differ per PC), rnd_game() for
+// decisions that change the game (the personality, a betrayal). Multiplayer is lockstep - every PC simulates every
+// AI and must decide the same - so in a game with more than one human the game generator is seeded from the game's
+// own rand() (msvcrt, import 0x824648) the first time the simulation needs it: every PC calls it at the same step.
+// Single player: seeded like rnd() (the clock; tests a constant).
+static uint32_t g_rnd_game = 0x2545F491u;
+static int g_mp, g_mp_seeded;   // g_mp: more than one human in the setup (persona_new_game)
+static uint32_t rnd_game32(void) {
+    if (g_mp && !g_mp_seeded) {
+        int (__cdecl *game_rand)(void) = *(int (__cdecl **)(void))0x00824648;
+        int a = game_rand(), b = game_rand();
+        g_rnd_game = ((uint32_t)a << 15 ^ (uint32_t)b) * 2654435761u ^ 0x2545F491u;
+        if (!g_rnd_game) g_rnd_game = 1;
+        g_mp_seeded = 1;
+        if (g_log) fprintf(g_log, "# persona: multiplayer, game generator seeded from the game's rand (%d %d)\n", a, b);
+    }
+    g_rnd_game ^= g_rnd_game << 13; g_rnd_game ^= g_rnd_game >> 17; g_rnd_game ^= g_rnd_game << 5;
+    return g_rnd_game;
+}
+static int rnd_game(int n) { return n > 0 ? (int)(rnd_game32() % (unsigned)n) : 0; }
+
 // whole file as text in the ANSI code page (UTF-8 converted), malloc'd, or NULL
 static char *read_text_acp(const char *path) {
     HANDLE h = CreateFileA(path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
@@ -294,7 +315,7 @@ static int persona_random(void) {
     int minuse = 1 << 30, n = 0, pick = -1;
     for (int i = 0; i < g_npersonas; i++) if (g_persona_used[i] < minuse) minuse = g_persona_used[i];
     for (int i = 0; i < g_npersonas; i++) n += g_persona_used[i] == minuse;
-    int r = rnd(n);
+    int r = rnd_game(n);
     for (int i = 0; i < g_npersonas && pick < 0; i++) if (g_persona_used[i] == minuse && r-- == 0) pick = i;
     return pick;
 }
@@ -312,7 +333,12 @@ static void persona_new_game(uint8_t *setup) {
     memset(g_talk_any, 0, sizeof g_talk_any);
     memset(g_talk_lines, 0, sizeof g_talk_lines);
     memset(g_cfg_pl_on, 0, sizeof g_cfg_pl_on);
-    if (!g_npersonas || *(int *)(setup + 0x3D8) != 0) return;
+    int humans = 0;
+    for (int s = 0; s < 16; s++) humans += FIELD(setup + s * 0x38, 0, int) == 1;
+    g_mp = humans > 1; g_mp_seeded = 0;
+    // multiplayer: no planning here (each PC would pick on its own, and the colours are the lobby's) - the
+    // personalities are picked at the AIs' first updates from the game generator, the same on every PC
+    if (!g_npersonas || *(int *)(setup + 0x3D8) != 0 || g_mp) return;
     int used[17] = { 0 }, player = 0;
     for (int s = 0; s < 16; s++) {
         uint8_t *slot = setup + s * 0x38;
@@ -558,6 +584,7 @@ static void persona_install(const char *ini, const char *test_ini) {
         g_ai_style = GetPrivateProfileIntA("autotest", "ai_style", g_ai_style, test_ini);
     }
     g_rnd ^= test_ini ? 0x5EED : GetTickCount();
+    g_rnd_game ^= test_ini ? 0x5EED : GetTickCount() * 2654435761u;
     if (!g_rnd) g_rnd = 1;
     GetPrivateProfileStringA("general", "language", "", g_lang, sizeof g_lang, ini);
     if (test_ini) GetPrivateProfileStringA("autotest", "language", g_lang, g_lang, sizeof g_lang, test_ini);

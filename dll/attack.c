@@ -699,11 +699,17 @@ static void siege_tick(void *pl, uint32_t now) {
     if (!t) return;
     int tx = FIELD(t, 0x1C, int), ty = FIELD(t, 0x20, int);
     // firing position: range - 0.7 from the target, facing the siege, outside every other known defence
-    float dir = atan2f(sy - (float)ty, sx - (float)tx), r = srange - 0.7f, px = 0, py = 0;
+    // (the direction rotated by fixed steps, no trigonometry: the C runtime's sin/cos may differ between Windows
+    // versions, and in multiplayer every PC must decide the same)
+    static const float k_cos15[7] = { 1.0f, 0.96592583f, 0.86602540f, 0.70710678f, 0.5f, 0.25881905f, 0.0f };
+    static const float k_sin15[7] = { 0.0f, 0.25881905f, 0.5f, 0.70710678f, 0.86602540f, 0.96592583f, 1.0f };
+    float ux = sx - (float)tx, uy = sy - (float)ty, ul = sqrtf(ux * ux + uy * uy), r = srange - 0.7f, px = 0, py = 0;
+    if (ul > 0) { ux /= ul; uy /= ul; } else { ux = 1; uy = 0; }
     int found = 0;
     for (int k = 0; k <= 12 && !found; k++) {
-        float a = dir + (k & 1 ? 1.0f : -1.0f) * (float)((k + 1) / 2) * 0.2618f;   // 0, +-15, +-30 ... +-90 degrees
-        px = (float)tx + 0.5f + r * cosf(a); py = (float)ty + 0.5f + r * sinf(a);
+        int st = (k + 1) / 2;   // 0, +-15, +-30 ... +-90 degrees
+        float c = k_cos15[st], s = k & 1 ? k_sin15[st] : -k_sin15[st];
+        px = (float)tx + 0.5f + r * (ux * c - uy * s); py = (float)ty + 0.5f + r * (ux * s + uy * c);
         found = !covered(pi, px, py, tx, ty);
     }
     if (!found) return;
