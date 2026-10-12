@@ -997,6 +997,22 @@ static void *text_bitmap_for(void *ras, void *text, void *surf) {
     uint8_t **screens = FIELD(ras, 0x20, uint8_t **);
     uint8_t *st = screens ? screens[0] : NULL;
     if (!st || FIELD(st, 0x2B0, void *) != surf) return NULL;   // only text for the back buffer
+    // Only the game's own image (wider than the menus' 1024x768: the menus gain nothing and are scaled up), and
+    // only with bitmap fonts made for this back buffer: leaving a game switches the display mode, the character
+    // textures are gone and the old bitmap fonts drew nothing (menus without text). A new back buffer starts a
+    // new set (the old objects are left alone: their textures went with the old screen).
+    static void *back;
+    static int back_ok;
+    if (surf != back) {
+        back = surf;
+        g_fbm_n = 0;
+        IDirectDrawSurface7 *dds = FIELD((uint8_t *)surf, 0x48, IDirectDrawSurface7 *);
+        DDSURFACEDESC2 d = { .dwSize = sizeof d };
+        back_ok = dds && dds->lpVtbl->GetSurfaceDesc(dds, &d) == DD_OK && d.dwWidth > 1024;
+        if (g_log) fprintf(g_log, "# text bitmap: back buffer %p %lux%lu - %s\n", surf, d.dwWidth, d.dwHeight,
+                           back_ok ? "text as textures" : "GDI text (menus)");
+    }
+    if (!back_ok) return NULL;
     uint8_t *font = FIELD(text, 0x44, uint8_t *);
     if (!font || FIELD(font, 0x24, void *)) return NULL;          // the game's own bitmap font
     for (int i = 0; i < g_fbm_n; i++) if (g_fbm[i].font == font) return g_fbm[i].bmp;
