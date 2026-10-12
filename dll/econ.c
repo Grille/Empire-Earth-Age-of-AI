@@ -739,6 +739,36 @@ static void fields_rebuild(void *pl, unsigned idx, void *um, uint8_t *dq, uint32
     }
     if (queued && g_log) fprintf(g_log, "# fields: P%u at %.1f min: %d lost fields laid out again\n", idx, now / 60000.0, queued);
 }
+// MORE GRANARIES (more_granaries, aimod.ini [all], default on): a granary feeds 8 fields, and the AI builds one -
+// its build list places it once; the building plan's farm entry (0x46CD18: fields wanted > fields -> a granary) is
+// not in the random-map plans. Food targets of 50-100 workers then had 17-23 on food (8 farming, the rest hunting
+// far away) and the citizens the assignment couldn't place went to gold (34 on gold, target 4; 4000+ gold unused,
+// food 0, no army). Once a minute: food target >= food workers + 6, every field finished and farmed, no granary
+// queued (0x465640) or unfinished, fewer than 1 + target/8 granaries (at most 8) -> the build manager is asked
+// for one (0x46802D(bm, 0x34, 1, 0), as that plan entry does); it comes with 8 fields, which the passes above build
+// and farm.
+static int g_more_granaries = 1;
+static void more_granaries(void *pl, unsigned idx, uint8_t *rm, void *cm, void *um, int open_fields, uint32_t now) {
+    static uint32_t next[16];
+    if (!g_more_granaries || open_fields || current_epoch(pl) < FARM_EPOCH) return;
+    if (now < next[idx] && next[idx] - now <= 60000) return;
+    next[idx] = now + 60000;
+    int want = (int)FIELD(rm, RM_TARGET + 2 * 4, uint32_t), have = rm_count(rm, 2);
+    if (want < have + 6) return;
+    uint8_t *bm = FIELD(cm, 0x3C, uint8_t *), *gq = ((uint8_t *(__thiscall *)(void *, int))0x0048F8AF)(um, 0x34);
+    int granaries = 0;
+    for (unsigned k = 0, f = gq ? FIELD(gq, 0xC, unsigned) : 0, c = gq ? FIELD(gq, 0x10, unsigned) : 0; k < c; k++) {
+        uint8_t *g = deque_at(gq, f + k), *st = g ? FIELD(g, 0x30, uint8_t *) : NULL;
+        if (!g || FIELD(g, 0x3C, int) <= 0) continue;
+        if (!st || !FIELD(st, 0x340, uint8_t)) return;   // one is being built
+        granaries++;
+    }
+    int cap = 1 + want / 8;
+    if (!bm || granaries >= (cap < 8 ? cap : 8) || ((char (__thiscall *)(void *, int))0x00465640)(bm, 0x34)) return;
+    ((void (__thiscall *)(void *, int, int, int))0x0046802D)(bm, 0x34, 1, 0);
+    if (g_log) fprintf(g_log, "# fields: P%u at %.1f min: food target %d, %d on food, %d granaries - one more requested\n",
+                       idx, now / 60000.0, want, have, granaries);
+}
 // CRASH GUARD: the build list can hold a field (0x2A) too - its re-queue asks for a destroyed one again - and the
 // placement's field case (0x46580A) only orders builders to the foundation on that tile: with none there it makes
 // EEUGBuildRepair for a null building and crashes (0x60BB19, seen once fields got built and then lost in battle).
@@ -780,6 +810,7 @@ static void econ_fields(uint8_t *rm) {   // before the citizen assignment
         else if (nd < 16 && !field_worked(rm, f)) done[nd++] = f;
     }
     g_fields_open[idx] = nt;
+    more_granaries(pl, idx, rm, cm, um, nt + nd, now);
     int wood = FIELD(pl, PL_STOCK + 3 * 4, int);
     for (int i = 0; i < nt && wood >= 50; i++) {
         uint8_t *site = field_site(todo[i]), *best = NULL;
@@ -1185,6 +1216,7 @@ static void econ_install(const char *aimod_ini, const char *autotest_ini) {
     g_early_requirements = cfg_int(aimod_ini, autotest_ini, 1, "early_requirements", 1);
     g_build_fix = cfg_int(aimod_ini, autotest_ini, 1, "build_fix", 1);
     g_build_fields = cfg_int(aimod_ini, autotest_ini, 1, "build_fields", 1);
+    g_more_granaries = cfg_int(aimod_ini, autotest_ini, 1, "more_granaries", 1);
     g_pop_follow = cfg_int(aimod_ini, autotest_ini, 1, "pop_follow_human", 1);
     g_unit_sub = cfg_int(aimod_ini, autotest_ini, 1, "unit_substitution", 1);
     g_gather_research = cfg_int(aimod_ini, autotest_ini, 1, "gather_research", 1);

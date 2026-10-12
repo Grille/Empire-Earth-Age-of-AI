@@ -238,6 +238,12 @@ member. Needs `ai_diplomacy=1` and a player outside the blocks (one alliance of 
 i.e. with the game limit), 45 min: `pop_follow_human=1` cap 33 (the idle observer has ~5 units, game limit 166),
 soldiers at 40 min 6 / 0; `pop_follow_human=0` cap 166, soldiers 41 / 25.
 
+### More granaries
+
+2026-10-13, suite (4 maps, Prehistoric start, 75 min, 2 seeds), `more_granaries` 0 -> 1: alive 75 -> 88%, epoch
+3.71 -> 3.96 (std. error 0.11/0.07), workers at the end 36.5 -> 41.5, kills 174 -> 166 (18-21), no crash.
+Mediterranean 404 seed 1: P2 1 -> 4 granaries (32 fields), food stock at 70 min 320 -> 4201.
+
 ### Farm fields
 
 2026-10-13, 2 AIs, start epoch 13, 31 min, game seeds 1-3 (`objs P 42`: 1 hp = foundation). Without the fix the 8
