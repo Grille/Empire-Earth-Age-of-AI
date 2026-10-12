@@ -160,6 +160,20 @@ Guard towers 47, 461..466; AA 145/147; town center 35; house 37; citizen 32.
 - Step length: EEPhysics vf3 0x5476C1: +0x98 = 1000 * speed / +0x58 (44) ms game time. The game speed only
   makes the steps longer.
 
+## Victory and chat
+
+- 0x531913 (called every step from 0x546DE2) decides the game: players without units are resigned, and once only
+  one alliance group is left (list at game state +0x9B4, 0x18 bytes per group) its members win (+0xA30 = 1, the
+  others 2). Allied to everyone is not enough: two vassals allied to the player but at war with each other keep it
+  running. 0x545D2A then sets +0xE6 and the simulation stops for good - there is no playing on after the end screen.
+  EEPlayer vtable slot 29 (+0x74) = is human (EEHumanPlayer 0x4B129C returns 1).
+- Chat line from a player: EEMInGameChat::vf10 (0x4B78C7, vtable 0x82936C slot 10), sender = the player whose
+  +0x464 equals msg+0xA (0x52E6EF on the game state), text = UWideString at msg+0x10. Every UWideString here keeps a
+  narrow char * at +4 despite its name. The chat box (EEUIECESendMessage::vf1 0x5C28D6) checks cheat codes first,
+  then sends 0x5C2A2F thiscall(new(0x24), UWideString *) through [0x91984C] vtable +0x18 (message, 0xFF = all).
+- System lines like "Spieler X wurde besiegt!" (0x55BCEA): 0x661E91 thiscall(ui [0x91977C], float colour[3] (white),
+  sender UWideString = string 0x7C45 "- SPIEL -", text, ms, 0).
+
 ## Saved games
 
 - Every save goes through 0x540ACA cdecl(UString *file, int, int, UString folder by value) -> 0 on success (else the

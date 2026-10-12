@@ -77,6 +77,9 @@ peace or alliances. With the mod:
   and a disloyal one may betray a weak ally. Nothing changes in scenarios or with locked teams.
 - **Capitulation:** when your army is in its base and the fight is lost, an AI offers peace and tribute
   ("set us allied"); accept within 2 minutes and it pays and stays loyal. Proud personalities hold out longer.
+- **Victory over vassals:** vassals at war with each other would keep the game running for ever. Once every
+  other player has capitulated to you, you are told so; play on as long as you like, and type `sieg` (or
+  `victory`) in the chat to end the game as the winner.
 - **Saved games:** the AIs remember across save and load - grudges, alliances, capitulations, pending offers
   (a small `.aimod` file next to each save; `save_state`).
 - **Surrender:** an AI that has lost all its citizens and can't train new ones resigns (with a last line),

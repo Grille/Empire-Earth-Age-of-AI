@@ -47,6 +47,23 @@ static void chat_line(void *pl, const char *text, int ms) {
 // (UWideString data +4) of the player's name, string 0x7B71 "wechselt diplomatische Haltung zu" and 0x734A
 // "Feindselig" / 0x7349 "Befreundet" (GetString thiscall(resource file [0x919770], id, UWideString &)), shown for
 // the chat time setting ([0x917BB8] +0x2CC). Shown whatever the chat level.
+// a line from nobody in particular, as the game shows "<name> wurde besiegt" (0x55BCEA): white, and as the
+// sender string 0x7C45 of the language file
+static void system_line(const char *text, int ms) {
+    void *res = *(void **)0x00919770, *ui = *(void **)0x0091977C;
+    if (!res || !ui || !*text) return;
+    float white[3] = { 1.0f, 1.0f, 1.0f };
+    __attribute__((aligned(8))) uint8_t name[32], line[32];
+    void (__thiscall *ctor)(void *) = *(void **)0x008231A4, (__thiscall *dtor)(void *) = *(void **)0x00823AEC;
+    ctor(name);
+    ctor(line);
+    ((int (__thiscall *)(void *, int, void *))*(void **)0x0082319C)(res, 0x7C45, name);
+    ((void *(__thiscall *)(void *, const char *))*(void **)0x00823224)(line, text);
+    ((void (__thiscall *)(void *, void *, void *, void *, int, int))0x00661E91)(ui, white, name, line, ms, 0);
+    dtor(line);
+    dtor(name);
+}
+
 static void chat_stance_line(void *pl, int stance) {
     void *res = *(void **)0x00919770, *ui = *(void **)0x0091977C;
     uint8_t *opt = *(uint8_t **)0x00917BB8;

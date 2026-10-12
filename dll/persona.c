@@ -36,7 +36,7 @@ enum line_kind {
     L_OFFER_WITHDRAWN, L_BETRAY, L_TRIBUTE_THANKS, L_TRIBUTE_SMALL, L_ATTACK, L_UNDER_ATTACK, L_BUILDING_LOST,
     L_EPOCH_UP, L_ENEMY_AHEAD, L_WINNING, L_LOSING, L_DESPERATE, L_ENEMY_DEFEATED, L_ALLY_DEFEATED, L_DEFEATED,
     L_WONDER_THREAT, L_WONDER_HELP, L_WONDER_NOHELP, L_HELP_LAND, L_HELP_AIR, L_HELP_NAVAL, L_HELP_NONE, L_SURRENDER,
-    L_CAPITULATE, L_CAPITULATE_ACCEPTED, L_CAPITULATE_REFUSED, L_ATTACK_THREAT, L_N
+    L_CAPITULATE, L_CAPITULATE_ACCEPTED, L_CAPITULATE_REFUSED, L_ATTACK_THREAT, L_ALL_SUBMITTED, L_LORD_VICTORY, L_N
 };
 enum audience { A_ALL, A_ALLIES, A_NAME };
 static const struct { const char *key; int chance, cooldown; enum audience aud; } k_lines[L_N] = {
@@ -51,7 +51,7 @@ static const struct { const char *key; int chance, cooldown; enum audience aud; 
     { "wonder_nohelp", 100, 60, A_ALLIES },   { "help_land", 100, 30, A_ALLIES },      { "help_air", 100, 30, A_ALLIES },
     { "help_naval", 100, 30, A_ALLIES },      { "help_none", 100, 30, A_ALLIES },      { "surrender", 100, 0, A_ALL },
     { "capitulate", 100, 0, A_NAME },         { "capitulate_accepted", 100, 0, A_NAME }, { "capitulate_refused", 100, 0, A_NAME },
-    { "attack_threat", 60, 300, A_NAME },
+    { "attack_threat", 60, 300, A_NAME },     { "all_submitted", 100, 0, A_NAME },     { "lord_victory", 100, 0, A_ALL },
 };
 
 #define MAX_PERSONAS 32

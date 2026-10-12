@@ -83,6 +83,8 @@ static float g_pressure[16][16];        // [ai][j]: j's soldiers near the AI's b
 static uint8_t g_offer_kind[16][16];    // [ai][j]: the pending offer to a human is 0 an alliance, 1 a capitulation
 static int g_promise[16][7];            // [ai]: resources offered with a capitulation (food..iron = 2..6)
 static uint8_t g_escrow[16];            // [ai]: the promise is taken out of its stock while a human decides
+static int g_victory_told;               // victory over vassals (below the tribute hook)
+static void victory_hint(void *pl, int ai);
 static uint32_t g_capit_last[16];       // [ai]: last capitulation offer (one per 10 minutes)
 static int g_lord[16];                  // [ai]: the player it capitulated to (0 none) - never betrayed
 static int g_own_prev[16][16];          // [ai][j]: the AI's own stance towards j at the last look
@@ -571,6 +573,7 @@ static void diplo_tick(void *pl, unsigned ai, uint32_t now) {
         diplo_situations(pl, (int)ai, now);
         check_capitulation(pl, (int)ai, now);
         check_surrender(pl, (int)ai, now);
+        victory_hint(pl, (int)ai);
     }
 }
 
@@ -596,6 +599,7 @@ static void diplo_new_game(void) {
     memset(g_offer_kind, 0, sizeof g_offer_kind);
     memset(g_promise, 0, sizeof g_promise);
     memset(g_escrow, 0, sizeof g_escrow);
+    g_victory_told = 0;
     memset(g_capit_last, 0, sizeof g_capit_last);
     memset(g_lord, 0, sizeof g_lord);
     memset(g_own_prev, 0, sizeof g_own_prev);
@@ -626,10 +630,95 @@ static void __fastcall hook_tribute(uint8_t *msg, void *edx) {
     diplo_tribute(to, from, total);
 }
 
+// VICTORY OVER VASSALS: the game ends only when everyone still in is allied with everyone else (0x531913 every step:
+// one alliance group left -> its members win; the end is final, the simulation stops). Vassals at war with each
+// other keep it running for ever. Once every other player still in has capitulated to the local player (and both
+// sides are allied), one of them tells him; he can play on and end it whenever he types "sieg" or "victory" in the
+// chat: the vassals resign (the surrender path, next safe point) and he wins alone.
+// Chat: EEMInGameChat::vf10 (0x4B78C7, vtable 0x82936C slot 10), sender = the player whose +0x464 is msg+0xA,
+// text = UWideString msg+0x10 (char * at +4, as every UWideString here); sent by EEUIECESendMessage::vf1 (0x5C28D6, after the cheat codes):
+// 0x5C2A2F thiscall(new(0x24), UWideString *) and [0x91984C] vtable +0x18 (message, 0xFF).
+#define VT_INGAME_CHAT 0x0082936C
+#define FN_INGAME_CHAT 0x004B78C7
+// g_victory_told: the hint was given (once a game, again after loading)
+static int vassals_of(int me) {   // how many vassals, if every other player still in is one of me; else 0
+    void *pm = player_at(me);
+    int n = 0;
+    if (!pm || me < 1 || me > 15) return 0;
+    for (int j = 1; j < nplayers(); j++) {
+        void *pj = player_at(j);
+        if (j == me || !pj || is_out(pj)) continue;
+        if (!g_players[j] || g_lord[j] != me || stance_of(pj, me) || stance_of(pm, j)) return 0;
+        n++;
+    }
+    return n;
+}
+static void victory_hint(void *pl, int ai) {   // every 10 s per AI, after the scan
+    int me = (int)*(unsigned *)0x00918E84;
+    if (g_victory_told || g_lord[ai] != me || !vassals_of(me)) return;
+    g_victory_told = 1;
+    persona_say(pl, L_ALL_SUBMITTED, player_at(me), NULL);   // in character; the how in a system line after it
+    uint8_t *opt = *(uint8_t **)0x00917BB8;
+    system_line(!lstrcmpiA(g_lang, "de")
+                ? "Alle verbliebenen Gegner haben sich Euch unterworfen. Schreibt 'sieg' in den Chat, um das Spiel als "
+                  "Sieger zu beenden - oder spielt weiter."
+                : "All remaining opponents have submitted to you. Type 'victory' in the chat to end the game as the "
+                  "winner - or play on.", opt ? FIELD(opt, 0x2CC, int) * 3 : 30000);
+    if (g_log) fprintf(g_log, "# victory: P%d at %.1f min: every other player is a vassal of P%d - \"sieg\" ends the game\n",
+                       ai, game_time() / 60000.0, me);
+}
+static int victory_word(const char *t) {
+    char w[16];
+    int n = 0;
+    while (*t == ' ') t++;
+    while (*t && n < 15) w[n++] = *t++;
+    if (*t) return 0;
+    while (n && (w[n - 1] == ' ' || w[n - 1] == '!' || w[n - 1] == '.')) n--;
+    w[n] = 0;
+    return !lstrcmpiA(w, "sieg") || !lstrcmpiA(w, "victory");
+}
+static void __fastcall hook_ingame_chat(uint8_t *msg, void *edx) {
+    (void)edx;
+    int me = (int)*(unsigned *)0x00918E84;
+    void *pm = player_at(me);
+    const char *text = FIELD(msg + 0x10, 4, const char *);
+    if (pm && text && FIELD(pm, 0x464, int8_t) == (int8_t)msg[0xA] && victory_word(text)) {
+        int n = vassals_of(me);
+        if (g_log) fprintf(g_log, "# victory: P%d claims victory at %.1f min: %d vassals%s\n", me, game_time() / 60000.0, n,
+                           n ? " resign" : ", but not everyone has submitted - nothing happens");
+        for (int j = 1; n && j < nplayers(); j++) {
+            void *pj = player_at(j);
+            if (j == me || !pj || is_out(pj)) continue;
+            persona_say(pj, L_LORD_VICTORY, pm, NULL);
+            g_sit.said_defeat[j] = 1;
+            InterlockedOr(&g_resign_queue, 1 << j);
+        }
+    }
+    ((void (__thiscall *)(void *))FN_INGAME_CHAT)(msg);
+}
+static void chat_send(const char *text) {   // a chat line from the local player, as the chat box sends it (tests)
+    void *net = *(void **)0x0091984C;
+    if (!net) return;
+    __attribute__((aligned(8))) uint8_t u[32];
+    ((void (__thiscall *)(void *))*(void **)0x008231A4)(u);
+    ((void *(__thiscall *)(void *, const char *))*(void **)0x00823224)(u, text);
+    void *msg = ((void *(__cdecl *)(size_t))0x00683718)(0x24);
+    if (msg) {
+        ((void (__thiscall *)(void *, void *))0x005C2A2F)(msg, u);
+        ((void (__thiscall *)(void *, void *, int))(*(void ***)net)[6])(net, msg, 0xFF);
+    }
+    ((void (__thiscall *)(void *))*(void **)0x00823AEC)(u);
+}
+
 // diplo: the stance matrix; diplo A B S: player A takes stance S (0 allied, 1 enemy) towards B, as the stance
 // message does (tests: what a human's declaration does)
 static void cmd_diplo(char *out, const char *args) {
     int a = -1, b = -1, s = -1;
+    if (!strncmp(args, "chat ", 5)) {   // diplo chat TEXT: the local player sends TEXT to everyone (tests)
+        chat_send(args + 5);
+        REPLY("sent\n");
+        return;
+    }
     if (sscanf(args, "surrender %d", &a) == 1) {   // diplo surrender P: AI P resigns at the next safe point (tests)
         if (!g_players[a & 15] || !player_at(a)) { REPLY("error: P%d is no AI player\n", a); return; }
         InterlockedOr(&g_resign_queue, 1 << a);
@@ -685,6 +774,7 @@ static void diplo_install(const char *ini, const char *test_ini) {
         g_surrender = GetPrivateProfileIntA("autotest", "surrender", g_surrender, test_ini);
     }
     int ok = patch_vtable(VT_PAY_TRIBUTE, 10, FN_PAY_TRIBUTE, (void *)hook_tribute);
-    if (g_log) fprintf(g_log, "# diplomacy: answer_war=%d ai_diplomacy=%d surrender=%d, tribute hook %d\n", g_answer_war,
-                       g_ai_diplomacy, g_surrender, ok);
+    int chat = patch_vtable(VT_INGAME_CHAT, 10, FN_INGAME_CHAT, (void *)hook_ingame_chat);
+    if (g_log) fprintf(g_log, "# diplomacy: answer_war=%d ai_diplomacy=%d surrender=%d, tribute hook %d, chat hook %d\n", g_answer_war,
+                       g_ai_diplomacy, g_surrender, ok, chat);
 }
