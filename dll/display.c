@@ -976,10 +976,96 @@ static long __fastcall hook_fc_text(void *ras, void *edx, void *text, void *surf
     FC_TIMED(FC_TEXT, ((long (__thiscall *)(void *, void *, void *))g_fc[FC_TEXT].orig[DISPLAY_DLL(ras)])(ras, text, surf));
     return r;
 }
+// TEXT AS TEXTURES ([display] text_bitmap): DX7Rasterizer::Draw(GEText*, rect, GESurface*) draws with GDI on a
+// lock of the surface - on the 3D back buffer DDrawCompat then waits for the GPU (~2-4 ms a frame, half of a frame
+// at 100 fps) - unless the text's font (+0x44) has a GEFontBitmap at +0x24: then the Low-Level Engine draws each
+// character as a sprite of a texture prerendered with GDI once (alpha channel, tmFirstChar..tmLastChar-1, one
+// texture per character; GEFontBitmap::GEFontBitmap(GERasterizer*, GEFont*, screen) 0x2724E, 0x24 bytes). The game
+// gives only a few fonts one. That path draws into the current render target whatever the surface argument is, so
+// a bitmap font of ours is set on the font only while text goes to the back buffer (screen 0 +0x2B0) and taken off
+// again after the call. It reads characters as signed bytes (�/�/� negative, no glyph): both Draw functions'
+// movsx (LLE +0x27A46, +0x27C9A) become movzx.
+static int g_text_bitmap = 1;
+static struct { void *font, *bmp; } g_fbm[64];
+static int g_fbm_n, g_fbm_logged;
+static volatile int g_fbm_making;   // inside our GEFontBitmap constructor call (the atlas is drawn)
+static void *(__thiscall *g_fbm_ctor)(void *, void *, void *, unsigned);
+static void *text_bitmap_for(void *ras, void *text, void *surf) {
+    if (!g_text_bitmap || !g_fbm_ctor || !text) return NULL;
+    uint8_t **screens = FIELD(ras, 0x20, uint8_t **);
+    uint8_t *st = screens ? screens[0] : NULL;
+    if (!st || FIELD(st, 0x2B0, void *) != surf) return NULL;   // only text for the back buffer
+    uint8_t *font = FIELD(text, 0x44, uint8_t *);
+    if (!font || FIELD(font, 0x24, void *)) return NULL;          // the game's own bitmap font
+    for (int i = 0; i < g_fbm_n; i++) if (g_fbm[i].font == font) return g_fbm[i].bmp;
+    if (g_fbm_n >= 64) return NULL;
+    void *obj = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, 0x40);
+    if (!obj) return NULL;
+    LARGE_INTEGER t0, t1, f;
+    QueryPerformanceCounter(&t0);
+    g_fbm_making = 1;
+    g_fbm_ctor(obj, ras, font, 0);
+    g_fbm_making = 0;
+    QueryPerformanceCounter(&t1);
+    QueryPerformanceFrequency(&f);
+    FIELD(font, 0x24, void *) = NULL;   // in case the constructor registers itself: only during our calls
+    g_fbm[g_fbm_n].font = font;
+    g_fbm[g_fbm_n].bmp = obj;
+    g_fbm_n++;
+    if (g_log && g_fbm_logged++ < 16) {
+        HFONT hf = FIELD(font, 0x18, HFONT);
+        LOGFONTA lf = { 0 };
+        if (hf) GetObjectA(hf, sizeof lf, &lf);
+        EnterCriticalSection(&g_lock);
+        fprintf(g_log, "# text bitmap: font %p \"%s\" %ld px: bitmap font made in %.1f ms\n", (void *)font, lf.lfFaceName,
+                lf.lfHeight, (double)(t1.QuadPart - t0.QuadPart) * 1000.0 / (double)f.QuadPart);
+        LeaveCriticalSection(&g_lock);
+    }
+    return obj;
+}
 static long __fastcall hook_fc_text_rect(void *ras, void *edx, void *text, void *rect, void *surf) {
     (void)edx; long r;
+    void *bmp = text_bitmap_for(ras, text, surf);
+    // the character textures with the device's wrap addressing: filtering at a glyph's bottom edge picked up its
+    // top row (a line under the "t" of "Vorzeit") - clamped while our bitmap text draws. Device: (ras +0x6C)[0]
+    // +0x1C (IDirect3DDevice7; vtable 36 GetTextureStageState, 37 SetTextureStageState; 13/14 ADDRESSU/V, 3 clamp)
+    uint8_t **dstate = bmp ? FIELD(ras, 0x6C, uint8_t **) : NULL;
+    void *dev = dstate && dstate[0] ? FIELD(dstate[0], 0x1C, void *) : NULL;
+    DWORD addr[2] = { 0, 0 };
+    if (bmp) FIELD(FIELD(text, 0x44, uint8_t *), 0x24, void *) = bmp;
+    if (dev) {
+        void **vt = *(void ***)dev;
+        for (int k = 0; k < 2; k++) {
+            ((HRESULT (__stdcall *)(void *, DWORD, DWORD, DWORD *))vt[36])(dev, 0, 13 + k, &addr[k]);
+            ((HRESULT (__stdcall *)(void *, DWORD, DWORD, DWORD))vt[37])(dev, 0, 13 + k, 3);
+        }
+    }
     FC_TIMED(FC_TEXT_RECT, ((long (__thiscall *)(void *, void *, void *, void *))g_fc[FC_TEXT_RECT].orig[DISPLAY_DLL(ras)])(ras, text, rect, surf));
+    if (dev) {
+        void **vt = *(void ***)dev;
+        for (int k = 0; k < 2; k++) ((HRESULT (__stdcall *)(void *, DWORD, DWORD, DWORD))vt[37])(dev, 0, 13 + k, addr[k]);
+    }
+    if (bmp) FIELD(FIELD(text, 0x44, uint8_t *), 0x24, void *) = NULL;
     return r;
+}
+static int text_bitmap_install(void) {   // constructor and the two movsx -> movzx of the Low-Level Engine
+    HMODULE lle = GetModuleHandleA("Low-Level Engine.dll");
+    g_fbm_ctor = lle ? (void *(__thiscall *)(void *, void *, void *, unsigned))(void *)GetProcAddress(lle,
+                 "??0GEFontBitmap@@QAE@PAVGERasterizer@@PAVGEFont@@K@Z") : NULL;
+    if (!g_fbm_ctor) return 0;
+    static const uint32_t sites[2] = { 0x27A46, 0x27C9A };
+    int ok = 0;
+    for (int i = 0; i < 2; i++) {
+        uint8_t *p = (uint8_t *)lle + sites[i];
+        if (p[0] != 0x0F || (p[1] != 0xBE && p[1] != 0xB6)) continue;
+        DWORD old;
+        if (!VirtualProtect(p, 2, PAGE_EXECUTE_READWRITE, &old)) continue;
+        p[1] = 0xB6;
+        VirtualProtect(p, 2, old, &old);
+        ok++;
+    }
+    FlushInstructionCache(GetCurrentProcess(), NULL, 0);
+    return ok == 2;
 }
 #define FC_SURFACE_HOOK(fn, k) static long __fastcall fn(void *surf, void *edx) { \
     (void)edx; long r; FC_TIMED(k, ((long (__thiscall *)(void *))g_fc[k].orig[DISPLAY_DLL(surf)])(surf)); return r; }
@@ -1142,6 +1228,12 @@ static BOOL WINAPI hook_ext_text_out(HDC dc, int x, int y, UINT opts, const RECT
         RECT box;
         tdc_text_box(dc, x, y, sz, opts, rc, &box);
         tdc_load(a, box.left, box.top, box.right, box.bottom);
+        // a bitmap font's atlas (256x256, one cell per character, cut out by its advance width): a character with a
+        // negative left bearing ("j") spilled into its neighbour's cell (a stroke under the "i") - clipped to its cell
+        if (g_fbm_making && !rc && n == 1 && (GetTextAlign(dc) & (TA_CENTER | TA_BOTTOM | TA_BASELINE | TA_UPDATECP)) == 0) {
+            RECT cell = { x, y, x + sz.cx, y + sz.cy };
+            return g_ext_text_out(dc, x, y, opts | ETO_CLIPPED, &cell, str, n, dx);
+        }
     }
     return g_ext_text_out(dc, x, y, opts, rc, str, n, dx);
 }
@@ -1388,7 +1480,8 @@ static int install_windowed_present(void) {
         }
         g_text_lock_orig[i] = (void *)GetProcAddress(m, "?TextLock@DX7Surface@@UAEJXZ");
         g_text_unlock_orig[i] = (void *)GetProcAddress(m, "?TextUnlock@DX7Surface@@UAEJXZ");
-        for (int k = 0; g_frame_watch && k < FC_N; k++) {
+        for (int k = 0; (g_frame_watch || (g_text_bitmap && k == FC_TEXT_RECT)) && k < FC_N; k++) {
+            if (!g_frame_watch && k != FC_TEXT_RECT) continue;
             void *f = (void *)GetProcAddress(m, g_fc[k].export);
             if (f) { g_fc[k].orig[i] = f; n += replace_rdata_ptr(m, f, k_fc_hooks[k]); }
         }
@@ -1838,6 +1931,12 @@ static void display_install(const char *aimod_ini, const char *autotest_ini) {
         if (was == 1) *(uint8_t *)G_FULLSCREEN = g_fullscreen = 0;
         g_text_dc = GetPrivateProfileIntA("display", "text_dc", 1, aimod_ini);
         if (autotest_ini) g_text_dc = GetPrivateProfileIntA("autotest", "text_dc", g_text_dc, autotest_ini);
+        g_text_bitmap = GetPrivateProfileIntA("display", "text_bitmap", 1, aimod_ini);
+        if (autotest_ini) g_text_bitmap = GetPrivateProfileIntA("autotest", "text_bitmap", g_text_bitmap, autotest_ini);
+        if (g_text_bitmap) {
+            g_text_bitmap = text_bitmap_install();
+            if (g_log) fprintf(g_log, "# text bitmap: %s\n", g_text_bitmap ? "on (umlaut patch 2/2)" : "engine functions not found - off");
+        }
         g_frame_watch = GetPrivateProfileIntA("display", "frame_watch", 35, aimod_ini);
         if (autotest_ini && (g_fw_test = GetPrivateProfileIntA("autotest", "frame_watch", -1, autotest_ini)) >= 0) g_frame_watch = g_fw_test;
         else g_fw_test = 0;

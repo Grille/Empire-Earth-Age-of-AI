@@ -7,7 +7,7 @@ PIPE = r'\\.\pipe\eeaimod'
 
 def _exchange(cmd, result):
     with open(PIPE, 'r+b', buffering=0) as p:
-        p.write(cmd.encode() + b'\n')
+        p.write(cmd.encode('cp1252', errors='replace') + b'\n')   # the game's code page, like the replies
         chunks = []
         while True:
             try:

@@ -179,6 +179,15 @@ vary 7-33 ms between and within runs in the same save - the slow state is not re
   locks the surface; ExtTextOutA/TextOutW load the 32x32 tiles of the text box, TextUnlock writes them back):
   233 -> 240 MB over the same run, text areas of a screenshot pixel-identical. The text surface is the
   2560x1440 back buffer in video memory: each text lock still costs ~4-5 ms (the readback, as with GetDC).
+- The user's next game with the fix: 93-119 fps over 110 minutes (before: 111 -> 13), memory levels off at ~295 MB.
+  The text lock (~4 ms a frame) is DDrawCompat waiting for the GPU at any lock of the back buffer - locking only
+  the text rectangles changed nothing. `[display] text_bitmap` (default 1): the engine's GEFontBitmap path for
+  every font while its text goes to the back buffer (characters prerendered into 256x256 alpha atlases, drawn as
+  sprites). Headless: text 0.02-0.05 ms a frame instead of ~4.5, 0 text locks, 149-153 fps vs 134-141; age label
+  and resource bar as before (1 px lower), umlauts/ß correct after the movsx -> movzx patch. Two engine bugs
+  fixed on the way: characters with a negative left bearing ("j") spilled into the neighbouring atlas cell (a
+  stroke under every "i"; clipped to the cell while the mod builds an atlas), and without text_dc the atlas
+  stays empty under DDrawCompat (no text at all).
 
 Findings 2026-10-11 (2560x1440, RTX 3080, dgVoodoo DirectX pass-through): ~80 fps; the render thread is CPU
 bound in Windows' DirectX 7 layer and the driver (DDRAW.dll 35%, nvd3dum 26%, kernel calls 24%), i.e. per

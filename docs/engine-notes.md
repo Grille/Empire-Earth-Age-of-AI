@@ -168,6 +168,13 @@ Guard towers 47, 461..466; AA 145/147; town center 35; house 37; citizen 32.
 - DX7Rasterizer::Draw(GEText*, GESurface*) / Draw(GEText*, const GERectangle&, GESurface*): SetBkColor,
   SelectObject(font), GetTextExtentPoint32A, ExtTextOutA on that DC; the only GDI text calls of the display DLLs.
   Fonts: CreateFontA in Low-Level Engine and the exe. The game's text goes onto the 3D back buffer (video memory).
+- Bitmap fonts: GEFont +0x18 HFONT, +0x24 GEFontBitmap (SetFontBitmap adds a reference). DX7Rasterizer::Draw
+  (GEText*, rect, GESurface*) uses GEFontBitmap::Draw (LLE +0x27C12) when the font has one - into the current
+  render target, the surface argument is ignored; the variant without a rectangle has no such branch. The
+  constructor (LLE +0x2724E, 0x24 bytes; GERasterizer*, GEFont*, screen) draws tmFirstChar..tmLastChar-1 with GDI
+  into 256x256 surfaces (CreateNewFontTexture), green channel -> alpha (CreateSurfaceAlpha), one atlas cell per
+  character cut out by its advance width; Draw reads characters with movsx (+0x27A46, +0x27C9A). The game makes
+  bitmap fonts only for a few UI controls (0x6529C1, 0x652B26).
 - With DDrawCompat v0.7.1 every ExtTextOutA on a surface DC leaves a 1472-byte font realization entry in
   gdi32full's width cache (LpkUseGDIWidthCache -> GdiRealizationInfo), never freed (see testing.md).
 
