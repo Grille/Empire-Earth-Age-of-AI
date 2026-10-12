@@ -79,7 +79,8 @@ peace or alliances. With the mod:
   (or with the same AI) don't fight each other. An AI at war with you that joins your block offers you peace.
   Whoever turns on a member breaks the block, and every other AI picks a side (`alliance_blocks`). Joining
   means peace with the whole block, so an AI refuses an alliance when it - or one of its allies - holds a grudge
-  against one of yours (and says who stands in the way).
+  against one of yours (and says who stands in the way). Vassals have no say in their lord's alliances - they
+  make peace as told, grumbling if they hold a grudge.
 - **Capitulation:** when your army is in its base and the fight is lost, an AI offers peace and tribute
   ("set us allied"); accept within 2 minutes and it pays and stays loyal. Proud personalities hold out longer.
 - **Victory over vassals:** vassals at war with each other would keep the game running for ever. Once every

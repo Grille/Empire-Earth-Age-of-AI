@@ -314,6 +314,7 @@ static void block_split(int agg, int vic, const int *blk, uint32_t now) {
     }
 }
 
+static void vassal_grumble(int v, int other, uint32_t now);   // below, with the veto
 static void blocks_pass(uint32_t now) {
     if (!blocks_on()) { g_block_seen = 0; return; }
     if (g_block_seen && now - g_block_last < 2000) return;
@@ -334,6 +335,8 @@ static void blocks_pass(uint32_t now) {
             if (!blk[x] || blk[x] != blk[y] || mutual(x, y)) continue;
             void *px = player_at(x), *py = player_at(y);
             if (g_players[x] && g_players[y]) {
+                vassal_grumble(x, y, now);
+                vassal_grumble(y, x, now);
                 make_peace(x, y, now);
                 make_peace(y, x, now);
                 persona_say(px, L_PEACE_ACCEPT, py, NULL);
@@ -350,6 +353,7 @@ static void blocks_pass(uint32_t now) {
                 void *pa = player_at(a), *ph = player_at(h);
                 if (g_offer_t[a][h]) continue;   // an offer is pending
                 if (stance_of(pa, h)) {   // the AI is at war with him: it offers peace
+                    vassal_grumble(a, h, now);
                     set_stance(a, h, 0);
                     chat_stance_line(pa, 0);
                     g_offer_t[a][h] = now ? now : 1;
@@ -379,11 +383,22 @@ static void blocks_pass(uint32_t now) {
 // grudge against the other - a war declared on it within pride/20 minutes, or an opinion below -30 (a stranger at
 // war is -10, a declared war takes 30-70 off) - won't, and the alliance is off. Returns the player who stands in the
 // way, the one the refusal names (*own: an ally of ai's own side objects, else one of j's side), else 0. Humans
-// decide their own stances.
+// decide their own stances. A vassal whose lord is part of the deal has no say (it grumbles when the peace comes).
 static float block_grudge(int x, int y, uint32_t now) {
     void *px = player_at(x);
     if (g_war_since[x][y] && now - g_war_since[x][y] < (uint32_t)trait(px, T_PRIDE) * 3000u) return -1000;
     return g_opinion[x][y];
+}
+static int lord_in_deal(int k, int ai, int j, const int *blk) {
+    int l = g_lord[k];
+    return l && (l == ai || l == j || (blk[l] && (blk[l] == blk[ai] || blk[l] == blk[j])));
+}
+// a vassal made to make peace with someone it holds a grudge against tells its lord so
+static void vassal_grumble(int v, int other, uint32_t now) {
+    if (!g_players[v] || !g_lord[v] || block_grudge(v, other, now) >= -30) return;
+    persona_say(player_at(v), L_VASSAL_GRUMBLE, player_at(g_lord[v]), player_at(other));
+    if (g_log) fprintf(g_log, "# diplomacy: blocks: P%d (vassal of P%d) grumbles about peace with P%d (grudge %.0f)\n", v, g_lord[v],
+                       other, block_grudge(v, other, now));
 }
 static int block_veto(int ai, int j, uint32_t now, int *own) {
     if (!blocks_on()) return 0;
@@ -397,8 +412,8 @@ static int block_veto(int ai, int j, uint32_t now, int *own) {
             if (q == p || (p == ai && q == j) || mutual(p, q) || !block_member(p) || !block_member(q)) continue;
             if (blk[p] && blk[p] == blk[q]) continue;   // already one block
             float g = 1e9f;
-            if (g_players[p]) g = block_grudge(p, q, now);
-            if (g_players[q] && block_grudge(q, p, now) < g) g = block_grudge(q, p, now);
+            if (g_players[p] && !lord_in_deal(p, ai, j, blk)) g = block_grudge(p, q, now);
+            if (g_players[q] && !lord_in_deal(q, ai, j, blk) && block_grudge(q, p, now) < g) g = block_grudge(q, p, now);
             if (g < worst) { worst = g; who = q == j ? p : q; mine = q == j; }
         }
     }
