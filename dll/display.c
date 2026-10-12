@@ -986,7 +986,44 @@ FC_SURFACE_HOOK(hook_fc_text_lock, FC_TEXT_LOCK)
 FC_SURFACE_HOOK(hook_fc_text_unlock, FC_TEXT_UNLOCK)
 static void *const k_fc_hooks[FC_N] = { (void *)hook_fc_text, (void *)hook_fc_text_rect, (void *)hook_fc_lock,
                                         (void *)hook_fc_text_lock, (void *)hook_fc_text_unlock };
+// What a session accumulates: a slow game (13 fps at minute 103, the process at 620-690 MB) ran at 148 fps after
+// a restart and loading its own autosave (350 MB). Counted for the minute line, since the session started: surfaces
+// made by DX7Screen::CreateSurface and DX7Surface objects deleted (vtable slot 0, the deleting destructor), texture
+// handles created / destroyed (DX7Rasterizer, virtual), with the process's private memory and handle count.
+static volatile LONG g_surf_deleted, g_tex_created, g_tex_destroyed;
+static void *g_surf_dtor[2], *g_tex_create[2], *g_tex_destroy[2];
+static void *__fastcall hook_surf_dtor(void *surf, void *edx, unsigned flags) {
+    (void)edx;
+    InterlockedIncrement(&g_surf_deleted);
+    return ((void *(__thiscall *)(void *, unsigned))g_surf_dtor[DISPLAY_DLL(surf)])(surf, flags);
+}
+static long __fastcall hook_tex_create(void *ras, void *edx, void *tex) {
+    (void)edx;
+    InterlockedIncrement(&g_tex_created);
+    return ((long (__thiscall *)(void *, void *))g_tex_create[DISPLAY_DLL(ras)])(ras, tex);
+}
+static void __fastcall hook_tex_destroy(void *ras, void *edx, void *tex) {
+    (void)edx;
+    InterlockedIncrement(&g_tex_destroyed);
+    ((void (__thiscall *)(void *, void *))g_tex_destroy[DISPLAY_DLL(ras)])(ras, tex);
+}
+static void session_counts_log(void) {
+    typedef BOOL (WINAPI *MemInfoFn)(HANDLE, PROCESS_MEMORY_COUNTERS *, DWORD);
+    static MemInfoFn mem_info;
+    if (!mem_info) mem_info = (MemInfoFn)(void *)GetProcAddress(GetModuleHandleA("kernel32.dll"), "K32GetProcessMemoryInfo");
+    PROCESS_MEMORY_COUNTERS_EX pm = { .cb = sizeof pm };
+    DWORD handles = 0;
+    GetProcessHandleCount(GetCurrentProcess(), &handles);
+    if (!mem_info || !mem_info(GetCurrentProcess(), (PROCESS_MEMORY_COUNTERS *)&pm, sizeof pm)) pm.PrivateUsage = 0;
+    if (!g_log) return;
+    EnterCriticalSection(&g_lock);
+    fprintf(g_log, "# session: memory %lu MB, handles %lu; surfaces created %ld, deleted %ld; textures created %ld, destroyed %ld\n",
+            (unsigned long)(pm.PrivateUsage >> 20), handles, g_cnt[2].calls, g_surf_deleted, g_tex_created, g_tex_destroyed);
+    LeaveCriticalSection(&g_lock);
+}
+
 static void frame_costs_log(unsigned frames) {
+    session_counts_log();
     LARGE_INTEGER f;
     QueryPerformanceFrequency(&f);
     for (int k = 0; k < FC_N && g_log && frames; k++) {
@@ -1051,6 +1088,14 @@ static int install_windowed_present(void) {
         if (clz) { g_clearz[i] = (ClearZFn)clz; n += replace_rdata_ptr(m, clz, (void *)hook_clearz); }
         void *srt = (void *)GetProcAddress(m, "?SetRenderTarget@DX7Rasterizer@@MAEXPAVGESurface@@K@Z");
         if (srt) { g_set_rt[i] = (SetRTFn)srt; n += replace_rdata_ptr(m, srt, (void *)hook_set_rt); }
+        if (g_frame_watch) {
+            void **svt = (void **)GetProcAddress(m, "??_7DX7Surface@@6B@");
+            void *tc = (void *)GetProcAddress(m, "?CreateTextureHandle@DX7Rasterizer@@MAEJPAVGETexture@@@Z");
+            void *td = (void *)GetProcAddress(m, "?DestroyTextureHandle@DX7Rasterizer@@MAEXPAVGETexture@@@Z");
+            if (svt && svt[0]) { g_surf_dtor[i] = svt[0]; n += patch_vtable((uintptr_t)svt, 0, (uintptr_t)svt[0], (void *)hook_surf_dtor); }
+            if (tc) { g_tex_create[i] = tc; n += replace_rdata_ptr(m, tc, (void *)hook_tex_create); }
+            if (td) { g_tex_destroy[i] = td; n += replace_rdata_ptr(m, td, (void *)hook_tex_destroy); }
+        }
         for (int k = 0; g_frame_watch && k < FC_N; k++) {
             void *f = (void *)GetProcAddress(m, g_fc[k].export);
             if (f) { g_fc[k].orig[i] = f; n += replace_rdata_ptr(m, f, k_fc_hooks[k]); }

@@ -11,6 +11,7 @@
 #include <stdarg.h>
 #include <math.h>
 #include <tlhelp32.h>
+#include <psapi.h>   // types only (K32GetProcessMemoryInfo by GetProcAddress)
 
 // ---- addresses in Empire Earth.exe 1.04 (ImageBase 0x400000) ----
 #define CALL_COMPUTE_TARGETS 0x0048D347  // call EECPResourceManager::ComputeGathererTargets (0x48D0A2)

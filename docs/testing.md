@@ -157,6 +157,16 @@ vary 7-33 ms between and within runs in the same save - the slow state is not re
   Test game (headless, 2026-10-12): 155 fps, worst second 113, 124 GDI objects; 30% of the render thread in GDI,
   ~60% of that from DDrawCompat with no game code on the stack (its own work), the rest under
   DX7HRTnLDisplay +0x3815 and Low-Level Engine +0x447E6.
+- Findings 2026-10-12, a 109-minute game of the user (DDrawCompat, borderless 2560x1440): 111 fps at minute 1,
+  49 at 10, 35 at 20, 17-24 from 50, 12-13 at the end; GDI/USER objects flat (140/67). Profiles: 73% of the render
+  thread in gdi32full - ~28% under DX7Rasterizer::Draw(GEText) (GetTextExtentPoint32A, text on surfaces), ~28%
+  under DX7Surface::Lock (gdi32's D3DKMT calls), ~25% under the exe's WONAPI code (0x6E0020). Its last autosave
+  (minute 101) in a fresh session: 148 fps on the user's screen, 165 headless - **the slowdown builds up over a
+  session, not with the game state**. The process had 620-690 MB in the slow session, 350 MB after the restart.
+  Text costs at full speed: text into a rectangle ~0.4-0.7 ms per call (1-6 per frame, all from Low-Level Engine
+  +0x70B68), text locks (GetDC on a surface) ~2 ms each. The minute line now has `# frame costs:` (those calls per
+  frame with their callers) and `# session:` (private memory, handles, surfaces created/deleted, textures
+  created/destroyed since the start) - the next long session shows what grows.
 
 Findings 2026-10-11 (2560x1440, RTX 3080, dgVoodoo DirectX pass-through): ~80 fps; the render thread is CPU
 bound in Windows' DirectX 7 layer and the driver (DDRAW.dll 35%, nvd3dum 26%, kernel calls 24%), i.e. per
