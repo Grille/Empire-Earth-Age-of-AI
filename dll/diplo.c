@@ -87,6 +87,8 @@ static int g_victory_told;               // victory over vassals (below the trib
 static void victory_hint(void *pl, int ai);
 static uint32_t g_capit_last[16];       // [ai]: last capitulation offer (one per 10 minutes)
 static int g_lord[16];                  // [ai]: the player it capitulated to (0 none) - never betrayed
+static uint32_t g_lord_since[16];       // [ai]: its capitulation was accepted at (reputation)
+static uint8_t g_justified[16][16];     // [x][y]: x's coming war on y is its side in a block split (reputation)
 static int g_own_prev[16][16];          // [ai][j]: the AI's own stance towards j at the last look
 
 // world scan (every 10 s): power, soldiers, buildings per player; enemy soldiers near each AI base
@@ -331,6 +333,7 @@ static void block_split(int agg, int vic, const int *blk, uint32_t now) {
         else side = g_opinion[m][vic] + 10 >= g_opinion[m][agg] ? vic : agg;
         int other = side == vic ? agg : vic;
         if (stance_of(pm, other)) continue;
+        g_justified[m][other] = 1;
         declare_war(m, other, now);
         g_mutual_prev[m][other] = g_mutual_prev[other][m] = 0;
         persona_say(pm, L_WAR_DECLARED, player_at(other), NULL);
@@ -628,6 +631,7 @@ static void capitulate(void *pl, int ai, int a, uint32_t now) {
             pay_promise(ai, a);
             opinion_add(a, ai, gain);
             g_lord[ai] = a;
+            g_lord_since[ai] = now ? now : 1;
             persona_say(pa, L_PEACE_ACCEPT, pl, NULL);
         } else {
             memset(g_promise[ai], 0, sizeof g_promise[ai]);
@@ -723,8 +727,50 @@ static void diplo_safe_point(void) {
     }
 }
 
+// REPUTATION: breaking an alliance is seen by everyone. When a player turns hostile towards someone it was allied
+// with both ways, every other AI thinks worse of him, by its loyalty: -15 x loyalty/100 (x2 when the victim is its
+// own ally); betraying one's own vassal x3, within 10 minutes of accepting its capitulation (taking the tribute,
+// then attacking) x5 - and the vassal itself -40 on top of its own reaction (war declared on it: -40, betrayal -60,
+// x pride). Not counted: answering a war (the pair wasn't allied any more), an AI withdrawing an unanswered offer
+// (never allied both ways), taking a side in a block split (g_justified).
+static uint8_t g_rep_prev[16][16];   // [x][y]: allied both ways at the last look
+static int g_rep_seen;
+
+
+static int allied_both(int x, int y) {
+    void *px = player_at(x), *py = player_at(y);
+    return px && py && !is_out(px) && !is_out(py) && !stance_of(px, y) && !stance_of(py, x);
+}
+static void reputation_pass(uint32_t now) {
+    int n = nplayers();
+    if (g_rep_seen)
+        for (int x = 1; x < n; x++)
+            for (int y = 1; y < n; y++) {
+                void *px = player_at(x), *py = player_at(y);
+                if (x == y || !g_rep_prev[x][y] || !px || !py || is_out(px) || is_out(py) || !stance_of(px, y)) continue;
+                if (stance_of(py, x) && g_players[x] && !g_players[y]) continue;   // both at once: the human started it
+                if (g_justified[x][y]) { g_justified[x][y] = 0; continue; }
+                int vassal = g_lord[y] == x, fresh = vassal && g_lord_since[y] && now - g_lord_since[y] < 600000;
+                for (int o = 1; o < n; o++) {
+                    void *po = player_at(o);
+                    if (o == x || o == y || !g_players[o] || !po || is_out(po)) continue;
+                    float d = -15.0f * (float)trait(po, T_LOYALTY) / 100.0f;
+                    if (allied_both(o, y)) d *= 2;
+                    if (vassal) d *= fresh ? 5 : 3;
+                    opinion_add(o, x, d);
+                }
+                if (vassal && g_players[y]) opinion_add(y, x, -40);
+                if (g_log) fprintf(g_log, "# diplomacy: reputation: P%d broke its alliance with P%d%s - every AI thinks worse of it\n",
+                                   x, y, fresh ? " (its vassal, right after accepting the capitulation)" : vassal ? " (its vassal)" : "");
+            }
+    for (int x = 0; x < 16; x++)
+        for (int y = 0; y < 16; y++) g_rep_prev[x][y] = (uint8_t)(x > 0 && y > 0 && x < n && y < n && x != y && allied_both(x, y));
+    g_rep_seen = 1;
+}
+
 static void diplo_tick(void *pl, unsigned ai, uint32_t now) {
     persona_assign(pl);
+    reputation_pass(now);
     if (FIELD(pl, 0x467, uint8_t)) {   // defeated: last words once
         if (!g_sit.said_defeat[ai]) { g_sit.said_defeat[ai] = 1; persona_say(pl, L_DEFEATED, NULL, NULL); }
         return;
@@ -789,6 +835,7 @@ static void diplo_tick(void *pl, unsigned ai, uint32_t now) {
                 if (capit) {
                     g_say_tribute = pay_promise((int)ai, j);
                     g_lord[ai] = j;
+                    g_lord_since[ai] = now ? now : 1;
                     g_war_since[ai][j] = g_war_since[j][ai] = 0;
                     opinion_add((int)ai, j, 20);
                     persona_say(pl, L_CAPITULATE_ACCEPTED, pj, NULL);
@@ -870,6 +917,8 @@ static void diplo_new_game(void) {
     memset(g_lord, 0, sizeof g_lord);
     memset(g_own_prev, 0, sizeof g_own_prev);
     g_block_seen = 0; g_block_last = 0;
+    g_rep_seen = 0;
+    memset(g_justified, 0, sizeof g_justified); memset(g_lord_since, 0, sizeof g_lord_since);
     memset(g_block_of, 0, sizeof g_block_of); memset(g_mutual_prev, 0, sizeof g_mutual_prev);
     for (int i = 0; i < 16; i++) g_cancel_queue[i] = 0;
     g_resign_queue = 0;

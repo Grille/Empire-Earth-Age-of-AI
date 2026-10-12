@@ -223,6 +223,8 @@ member. Needs `ai_diplomacy=1` and a player outside the blocks (one alliance of 
 - Vassal: P3 capitulates to P4, P2 declares war on P3, then pays P4 and offers peace: P4 accepts (the vassal has no
   say), P3 makes peace with P2 and says vassal_grumble. P2 offers the vassal P3 peace itself: ask_lord ("talk to
   P4"); P4 declares war on P3: no longer a vassal, P3 answers the war.
+- Reputation: P2 breaks its alliance with P5: P3 (loyalty 70) -10.5, P4 (loyalty 95) -14 towards P2. P3 capitulates
+  to P4, P4 attacks it at once: P2 (loyalty 35) -26, P5 (loyalty 60) -45 towards P4 (x5), P3 itself -78.
 
 ### Ranged aim
 
