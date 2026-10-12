@@ -497,7 +497,20 @@ static int line_heard(void *pl, enum line_kind k, void *other) {
 
 // say a line of situation k (other = {name}, third = {enemy}); returns 1 if said (heard or not: the situation is
 // answered, callers don't fall back to another line)
-static int g_say_tribute;   // {tribute}: set by the caller (diplo.c capitulation)
+static int g_say_tribute[7];   // {tribute}: amounts by resource (stock index 2..6), set by the caller (diplo.c)
+// {tribute}: the amounts by resource in the game's language, e.g. "200 Gold, 800 Eisen" (only what is paid)
+static void tribute_text(const int *amount, char *buf, int cap) {
+    static const char *const en[7] = { "", "", "food", "wood", "stone", "gold", "iron" };
+    static const char *const de[7] = { "", "", "Nahrung", "Holz", "Stein", "Gold", "Eisen" };
+    const char *const *nm = !lstrcmpiA(g_lang, "de") ? de : en;
+    int o = 0;
+    buf[0] = 0;
+    for (int r = 2; r < 7; r++) {
+        if (amount[r] <= 0 || o > cap - 32) continue;
+        o += wsprintfA(buf + o, "%s%d %s", o ? ", " : "", amount[r], nm[r]);
+    }
+    if (!o) lstrcpynA(buf, nm == de ? "nichts" : "nothing", cap);
+}
 static int persona_say(void *pl, enum line_kind k, void *other, void *third) {
     int kk = k;
     struct persona *p = pl && g_ai_talk ? line_source(pl, k, &kk) : NULL, *own = persona_of(pl);
@@ -510,7 +523,7 @@ static int persona_say(void *pl, enum line_kind k, void *other, void *third) {
     int n = p->nline[kk], v = rnd(n);
     if (n > 1 && v == g_talk_variant[idx][k]) v = (v + 1) % n;
     g_talk_variant[idx][k] = (uint8_t)v;
-    char buf[256], ep[48] = "";
+    char buf[256], ep[96] = "";
     int o = 0;
     for (const char *s = p->line[kk][v]; *s && o < (int)sizeof buf - 1;) {
         const char *rep = NULL;
@@ -519,7 +532,7 @@ static int persona_say(void *pl, enum line_kind k, void *other, void *third) {
             else if (!strncmp(s, "{me}", 4)) { rep = player_name(pl); s += 4; }
             else if (!strncmp(s, "{enemy}", 7)) { rep = player_name(third); s += 7; }
             else if (!strncmp(s, "{epoch}", 7)) { epoch_text(pl, ep, sizeof ep); rep = ep; s += 7; }
-            else if (!strncmp(s, "{tribute}", 9)) { wsprintfA(ep, "%d", g_say_tribute); rep = ep; s += 9; }
+            else if (!strncmp(s, "{tribute}", 9)) { tribute_text(g_say_tribute, ep, sizeof ep); rep = ep; s += 9; }
         }
         if (rep) while (*rep && o < (int)sizeof buf - 1) buf[o++] = *rep++;
         else buf[o++] = *s++;

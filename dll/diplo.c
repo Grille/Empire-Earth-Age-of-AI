@@ -599,9 +599,10 @@ static void promise_escrow(int ai, int take) {
     g_escrow[ai] = (uint8_t)take;
     if (g_log) fprintf(g_log, "# diplomacy: P%d tribute of %d %s\n", ai, total, take ? "held back from its stock" : "back in its stock");
 }
-static int pay_promise(int ai, int j) {   // what was offered, as far as the stock still has it
+static int pay_promise(int ai, int j, int *paid) {   // what was offered, as far as the stock still has it
     void *pl = player_at(ai), *pj = player_at(j);
     int total = 0;
+    if (paid) memset(paid, 0, 7 * sizeof *paid);
     promise_escrow(ai, 0);
     if (pl && pj) {
         int *from = (int *)((uint8_t *)pl + PL_STOCK), *to = (int *)((uint8_t *)pj + PL_STOCK);
@@ -609,6 +610,7 @@ static int pay_promise(int ai, int j) {   // what was offered, as far as the sto
             int n = g_promise[ai][r] < from[r] ? g_promise[ai][r] : from[r];
             if (n <= 0) continue;
             from[r] -= n; to[r] += n; total += n;
+            if (paid) paid[r] = n;
         }
     }
     memset(g_promise[ai], 0, sizeof g_promise[ai]);
@@ -620,7 +622,7 @@ static void capitulate(void *pl, int ai, int a, uint32_t now) {
     float share = 0.2f + (float)trait(pl, T_CAUTION) / 400.0f + (float)(100 - trait(pl, T_GREED)) / 400.0f;
     for (int r = 2; r < 7; r++) total += g_promise[ai][r] = stock[r] > 0 ? (int)((float)stock[r] * share) : 0;
     g_capit_last[ai] = now ? now : 1;
-    g_say_tribute = total;
+    memcpy(g_say_tribute, g_promise[ai], sizeof g_say_tribute);
     if (g_log) fprintf(g_log, "# diplomacy: P%d at %.1f min capitulates to P%d (%s): %d resources (%.0f%%), power %.0f vs %.0f, "
                        "%d of its soldiers at home, buildings %d of %d at the peak\n", ai, now / 60000.0, a,
                        g_players[a] ? "AI" : "human", total, share * 100, g_ws.power[ai], g_ws.power[a], g_ws.close_by[ai][a],
@@ -634,7 +636,7 @@ static void capitulate(void *pl, int ai, int a, uint32_t now) {
         if (s > 0) {
             make_peace(ai, a, now);
             make_peace(a, ai, now);
-            pay_promise(ai, a);
+            pay_promise(ai, a, NULL);
             opinion_add(a, ai, gain);
             g_lord[ai] = a;
             g_lord_since[ai] = now ? now : 1;
@@ -651,9 +653,11 @@ static void capitulate(void *pl, int ai, int a, uint32_t now) {
     g_offer_t[ai][a] = now ? now : 1;
     g_offer_kind[ai][a] = 1;
     char de[300], en[300];
-    wsprintfA(de, "%s kapituliert und bietet %d Rohstoffe: stellen Sie %s binnen 2 Minuten auf Verb\xfcndet, um anzunehmen.",
-              player_name(pl), total, player_name(pl));
-    wsprintfA(en, "%s surrenders and offers %d resources: set %s to allied within 2 minutes to accept.", player_name(pl), total,
+    char what[96];
+    tribute_text(g_promise[ai], what, sizeof what);
+    wsprintfA(de, "%s kapituliert und bietet %s: stellen Sie %s binnen 2 Minuten auf Verb\xfcndet, um anzunehmen.",
+              player_name(pl), what, player_name(pl));
+    wsprintfA(en, "%s surrenders and offers %s: set %s to allied within 2 minutes to accept.", player_name(pl), what,
               player_name(pl));
     block_line(a, de, en);
 }
@@ -844,14 +848,14 @@ static void diplo_tick(void *pl, unsigned ai, uint32_t now) {
                 g_offer_t[ai][j] = 0;
                 g_ally_since[ai][j] = now ? now : 1;
                 if (capit) {
-                    g_say_tribute = pay_promise((int)ai, j);
+                    int paid_total = pay_promise((int)ai, j, g_say_tribute);
                     g_lord[ai] = j;
                     g_lord_since[ai] = now ? now : 1;
                     g_war_since[ai][j] = g_war_since[j][ai] = 0;
                     opinion_add((int)ai, j, 20);
                     persona_say(pl, L_CAPITULATE_ACCEPTED, pj, NULL);
                     if (g_log) fprintf(g_log, "# diplomacy: P%u at %.1f min: P%d accepts the capitulation, %d resources paid\n",
-                                       ai, now / 60000.0, j, g_say_tribute);
+                                       ai, now / 60000.0, j, paid_total);
                 } else persona_say(pl, L_OFFER_ACCEPTED, pj, NULL);
                 g_offer_ignored[ai][j] = 0;
             } else if (now - g_offer_t[ai][j] > 120000) {
