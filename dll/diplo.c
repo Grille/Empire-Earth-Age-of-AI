@@ -682,10 +682,11 @@ static void __fastcall hook_ingame_chat(uint8_t *msg, void *edx) {
     int me = (int)*(unsigned *)0x00918E84;
     void *pm = player_at(me);
     const char *text = FIELD(msg + 0x10, 4, const char *);
+    int refused = 0;
     if (pm && text && FIELD(pm, 0x464, int8_t) == (int8_t)msg[0xA] && victory_word(text)) {
         int n = vassals_of(me);
         if (g_log) fprintf(g_log, "# victory: P%d claims victory at %.1f min: %d vassals%s\n", me, game_time() / 60000.0, n,
-                           n ? " resign" : ", but not everyone has submitted - nothing happens");
+                           n ? " resign" : ", but not everyone has submitted - refused");
         for (int j = 1; n && j < nplayers(); j++) {
             void *pj = player_at(j);
             if (j == me || !pj || is_out(pj)) continue;
@@ -693,8 +694,24 @@ static void __fastcall hook_ingame_chat(uint8_t *msg, void *edx) {
             g_sit.said_defeat[j] = 1;
             InterlockedOr(&g_resign_queue, 1 << j);
         }
+        refused = !n;
     }
     ((void (__thiscall *)(void *))FN_INGAME_CHAT)(msg);
+    if (!refused) return;
+    // not yet: a system line under the player's own, naming who still holds out
+    int de = !lstrcmpiA(g_lang, "de");
+    char names[200] = "", line[320];
+    for (int j = 1; j < nplayers(); j++) {
+        void *pj = player_at(j);
+        if (j == me || !pj || is_out(pj)) continue;
+        if (g_players[j] && g_lord[j] == me && !stance_of(pj, me) && !stance_of(pm, j)) continue;
+        if (names[0] && lstrlenA(names) < 150) lstrcatA(names, ", ");
+        if (lstrlenA(names) < 150) lstrcatA(names, player_name(pj));
+    }
+    wsprintfA(line, de ? "Noch kein Sieg - nicht unterworfen: %s." : "No victory yet - not submitted: %s.", names);
+    uint8_t *opt = *(uint8_t **)0x00917BB8;
+    system_line(line, opt ? FIELD(opt, 0x2CC, int) * 2 : 20000);
+    if (g_log) fprintf(g_log, "# victory: refusal shown: %s\n", line);
 }
 static void chat_send(const char *text) {   // a chat line from the local player, as the chat box sends it (tests)
     void *net = *(void **)0x0091984C;
