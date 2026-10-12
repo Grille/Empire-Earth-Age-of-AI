@@ -28,6 +28,7 @@ static struct { uint32_t t; int last[7]; float rate[7], per_worker[7]; } g_rate[
 static const float k_default_pw[7] = { 0, 0, 10, 10, 5, 8, 6 };
 static void rates_update(void *pl, unsigned idx, uint32_t now);
 static int g_reserve_plan = 1;   // aimod.ini [all] reserve_plan (see spend_reserve)
+static int g_mineral_margin = 300;   // aimod.ini [all] mineral_worker_margin (econ_targets; -1 = off)
 
 // Spending by caller (diagnostic): what EEComputerPlayer::vf45 (pay) took, summed per player, resource and return
 // address, with the income so far; logged as "# spend:" every 5 minutes.
@@ -568,7 +569,11 @@ static void econ_targets(uint8_t *rm) {
     for (int r = 2; r < 7; r++) total += (int)target[r];
     need[2] = reserve[2] + 300 - stock[2];
     for (int r = 3; r < 7; r++) {
-        need[r] = demand[r] - stock[r];
+        int d = demand[r];
+        // stone/gold/iron: the military's demand only up to mineral_worker_margin beyond the reserve (a human game: 12-19 citizens
+        // on iron with 1000 in stock and 400 needed, while the Stone Age waited 15 minutes for food)
+        if (r >= 4 && g_mineral_margin >= 0 && d > reserve[r] + g_mineral_margin) d = reserve[r] + g_mineral_margin;
+        need[r] = d - stock[r];
         if (r >= 4 && reserve[r] - stock[r] > need[r]) need[r] = reserve[r] - stock[r];
     }
     // reserve plan: by worker-minutes (shortfall / measured rate per worker), so all arrive at about the same time
@@ -955,6 +960,7 @@ static void econ_install(const char *aimod_ini, const char *autotest_ini) {
     g_reserve_window_ms = cfg_int(aimod_ini, autotest_ini, 1, "reserve_window_min", 5) * 60000;
     g_rebalance = cfg_int(aimod_ini, autotest_ini, 1, "rebalance_workers", 1);
     g_reserve_plan = cfg_int(aimod_ini, autotest_ini, 1, "reserve_plan", 1);
+    g_mineral_margin = cfg_int(aimod_ini, autotest_ini, 1, "mineral_worker_margin", 300);
     g_early_requirements = cfg_int(aimod_ini, autotest_ini, 1, "early_requirements", 1);
     g_build_fix = cfg_int(aimod_ini, autotest_ini, 1, "build_fix", 1);
     g_unit_sub = cfg_int(aimod_ini, autotest_ini, 1, "unit_substitution", 1);

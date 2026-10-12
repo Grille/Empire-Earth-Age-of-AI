@@ -75,6 +75,7 @@ static uint32_t g_peace_due[16][16];    // [ai][j]: decide j's peace offer at th
 static int g_peace_refused[16][16];
 static uint32_t g_offer_t[16][16];      // [ai][j]: AI offered j an alliance at (0 none), withdrawn after 2 min
 static uint32_t g_offer_last[16][16];
+static int g_offer_ignored[16][16];   // [ai][j]: alliance offers j let run out in a row (next offer 10/20/40 min later)
 static float g_opinion[16][16];
 static uint8_t g_war_betrayal[16][16];  // [ai][j]: the pending answer is to a betrayal
 static unsigned g_diplo_answers[16];
@@ -231,7 +232,9 @@ static void diplo_initiative(void *pl, int ai, uint32_t now) {
             void *pj = player_at(j);
             if (!pj || j == ai || j == lead || is_out(pj) || !stance_of(pl, j) || !stance_of(pj, lead)) continue;
             if (g_pressure[ai][j] >= 10) continue;   // not the one whose army is in its base right now
-            if (g_offer_t[ai][j] || (g_offer_last[ai][j] && now - g_offer_last[ai][j] < 600000)) continue;
+            if (g_offer_t[ai][j] || (g_offer_last[ai][j] &&
+                                     now - g_offer_last[ai][j] < (600000u << (g_offer_ignored[ai][j] < 2 ? g_offer_ignored[ai][j] : 2))))
+                continue;
             if (g_opinion[ai][j] > bs) { bs = g_opinion[ai][j]; best = j; }
         }
         if (best) {
@@ -513,9 +516,11 @@ static void diplo_tick(void *pl, unsigned ai, uint32_t now) {
                     if (g_log) fprintf(g_log, "# diplomacy: P%u at %.1f min: P%d accepts the capitulation, %d resources paid\n",
                                        ai, now / 60000.0, j, g_say_tribute);
                 } else persona_say(pl, L_OFFER_ACCEPTED, pj, NULL);
+                g_offer_ignored[ai][j] = 0;
             } else if (now - g_offer_t[ai][j] > 120000) {
                 g_offer_t[ai][j] = 0;
                 if (capit) memset(g_promise[ai], 0, sizeof g_promise[ai]);
+                else g_offer_ignored[ai][j]++;
                 if (capit && g_log) fprintf(g_log, "# diplomacy: P%u at %.1f min: P%d ignored the capitulation\n", ai, now / 60000.0, j);
                 persona_say(pl, capit ? L_CAPITULATE_REFUSED : L_OFFER_WITHDRAWN, pj, NULL);
                 set_stance((int)ai, j, 1);
@@ -562,6 +567,7 @@ static void diplo_new_game(void) {
     memset(g_peace_refused, 0, sizeof g_peace_refused);
     memset(g_offer_t, 0, sizeof g_offer_t);
     memset(g_offer_last, 0, sizeof g_offer_last);
+    memset(g_offer_ignored, 0, sizeof g_offer_ignored);
     memset(g_opinion, 0, sizeof g_opinion);
     memset(g_war_betrayal, 0, sizeof g_war_betrayal);
     memset(g_diplo_answers, 0, sizeof g_diplo_answers);
