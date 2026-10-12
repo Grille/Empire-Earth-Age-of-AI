@@ -136,6 +136,20 @@ Guard towers 47, 461..466; AA 145/147; town center 35; house 37; citizen 32.
 - Hit: on the target's footprint (tiles +0x1C/+0x20, size class +0x58C); EEUCProjectile vf55 0x6078F9 is
   mostly the miss path (it came down beside the target). Missiles (EEUCMissile 0x832E90, torpedoes 0x832CC0)
   steer on their own.
+- Missiles: EEPMMissile::vf1 0x54E67D climbs while +0x28C (ms, counted down by vf45) > 0, then 0x54E790 steers
+  every step towards 0x633413's point (call 0x54E850): turn rate type +0xB4, speed +0x238 -> top +0xAC (accel
+  +0xA8), slower the more it turns. Hit: EEUCMissile vf55 0x605C01, squared distance <= 2.25 (0x831860); no fuel,
+  it flies until it hits or meets the ground. Launch: EEUCMissile vf42 0x606109 thiscall(class, missile, aim)
+  ret 8 (slot 42 always gets the aim; the missile ignores it). AA missile tower 147: missiles ~2.5 tiles/s;
+  aircraft ~1.05.
+- Damage (0x61DE61): attack = per-player type (thiscall 0x492969 on player +0x874, type id) +0xD8; x table
+  0x8D2050[attacker class +0x4C0 + target class +0x4C0 x 6] x bonus 0x4D5F2C (thiscall on 0x917DE0: class +0x4C8,
+  target class, both player indices +0x45C; ret 0x10); minus armour (target stats +0xE0 + attack class x 4); x the
+  height factor 0x61E500 (land/building attackers only); rounded, at least 1; hit points -> target vf 0x70.
+- Fire calls (0x61E11C thiscall(class, unit)): 0x606067, 0x607D79 (attack actions), 0x60ABB0 (EEUGAttackGround),
+  0x60B33C (EEUGAttackUnit).
+- Math imports of the game's own DLL: UMCos 0x823304, UMArcTan2 0x82325C (cdecl). msvcrt rand 0x824648, srand
+  0x824644.
 - Unit movement: +0x238 current speed (tiles/s, 0 standing, set by 0x54A55B), +0x21C the same clamped to
   the type's minimum; facing = matrix +0x130 local y axis (+0x134, +0x144). +0x118/+0x11C is a waypoint, not
   the previous position.

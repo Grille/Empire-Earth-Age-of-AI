@@ -140,6 +140,12 @@ Settings in `aimod.ini`:
 - `[general] lead_targets=1` (default): ranged units and towers aim where a moving target will be when the
   projectile comes down, not where it stood when it was fired. Before, slow projectiles (arrows, catapults,
   cannon balls) missed nearly everything walking across their line of fire.
+- `[general] spread_missiles=1` (default): AA towers and other missile launchers stop wasting missiles on an
+  aircraft the missiles already on their way will destroy; they take another target in range or hold the shot.
+  `lead_missiles=1` (off by default) makes homing missiles intercept instead of chase.
+- Multiplayer (not tested yet): every player needs the same `eeaimod.dll`, the same `aimod.ini` and the same
+  `aimod_ai` personalities. The game is lockstep - every PC simulates everything - so different settings make
+  the games drift apart. The mod's decisions use only the game's own state, math and random numbers for this.
 - `[general] skip_intro=1`: skip the intro movies.
 
 ## Status

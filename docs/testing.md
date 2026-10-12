@@ -132,7 +132,7 @@ venv/Scripts/python scripts/eectl.py <command>
 | `save <name>` | save the running game to `Data\Saved Games\<name>.ees`, a fixture for later runs (`run_test.ps1 -Save <name>.ees`, without `random_map`). Known quirk: such a save loaded with `turbo=1` never starts simulating (the AI makes no step; without turbo it runs, and autosaves run with turbo) |
 | `ddinfo [dump\|blit\|notex1]` | DirectDraw state (screen, surfaces, z-buffer, display mode, counters); `dump` writes front/back/window to `aimod_dumps/dd_*.bmp`. Note: it locks the z-buffer, which changes the windowed rendering state |
 | `ddpoke z\|back\|front\|mode` | one of ddinfo's side effects alone (lock a surface, query the display mode); `ddpoke cursor x y` puts the Windows cursor at a client position in the game's own (DPI-virtualised) coordinates - `ddinfo` shows the game cursor and the mouse device state |
-| `aim [lead 0\|1] [reset]` | ranged shots at units and, after `reset` (always in autotest), the measurement: where the target really is when each projectile comes down, against the original and the led aim ("on tile" = the hit condition), split by moved/stood and in/out of the arc's reach; `down` = projectiles that came down beside their target. Autotest `lead_targets`, `aim_log=N` (first N shots as `# aim:` lines) |
+| `aim [lead 0\|1] [missiles 0\|1] [spread 0\|1] [reset] [types]` | settings at runtime; missiles launched, spread switches/held shots, per missile flight time and end (hit, target died first, missed); `types` = unit types firing missiles. Also ranged shots at units and\|1] [reset]` | ranged shots at units and, after `reset` (always in autotest), the measurement: where the target really is when each projectile comes down, against the original and the led aim ("on tile" = the hit condition), split by moved/stood and in/out of the arc's reach; `down` = projectiles that came down beside their target. Autotest `lead_targets`, `aim_log=N` (first N shots as `# aim:` lines) |
 | `uinfo x y [r]` | units within r tiles: owner, hit points, position, speed, facing, goal |
 | `move P x y r tx ty` | units of player P around x, y walk to tx, ty keeping their spread (tests) |
 | `uipost <hex msg> [hex p1]` | post a message to the UI thread's queue; runs on the pipe thread, so it also works in the menus |
@@ -223,6 +223,18 @@ spearmen (24) spawned at 54,50 and walked between x 54 and 66 every 6 s real tim
 
 Standing targets stay on tile 100% with the lead (speed 0, no change). Spearmen walk at 0.6-0.72 tiles/s, arrow
 flights take 0.3-2 s.
+
+Missiles (2026-10-12, same map, AA missile towers 147 vs P3 Apache helicopters (6) flying x 54 <-> 66 every 6 s;
+`aim` shows launches, flight time and the end of each missile: hit within 1.5, target died first, missed):
+
+| | moving targets: missiles hit / done (missed) | wasted on a dead target |
+|---|---|---|
+| intercept off, seeds 1-3 | 26/28 (2), 27/29 (0), 28/31 (3) | |
+| intercept on, seeds 1-3 | 28/29 (0), 31/33 (2), 41/43 (0) | |
+| 6 towers vs 8 helicopters, spread off, seeds 1-2 | 55/59, 53/56 | 4, 3 |
+| spread on (switched 5/4, held 46/84) | 53/53, 53/53 | 0, 0 |
+
+Intercept: flight times the same (1.9-2.2 s). Pursuit already hits: missiles 2.5 tiles/s vs 1.05.
 
 ### Headless UI tests (menus, editor)
 
