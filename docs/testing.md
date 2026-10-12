@@ -221,7 +221,8 @@ member. Needs `ai_diplomacy=1` and a player outside the blocks (one alliance of 
 - Veto: P3+P4 a block, P2 pays P3 3000 (opinion 35) and offers peace (score 47). P2 had just declared war on P4:
   refused, block_refuse_own names P4. Without that: accepted, P2-P4 peace through the block at once.
 - Vassal: P3 capitulates to P4, P2 declares war on P3, then pays P4 and offers peace: P4 accepts (the vassal has no
-  say), P3 makes peace with P2 and says vassal_grumble.
+  say), P3 makes peace with P2 and says vassal_grumble. P2 offers the vassal P3 peace itself: ask_lord ("talk to
+  P4"); P4 declares war on P3: no longer a vassal, P3 answers the war.
 
 ### Ranged aim
 

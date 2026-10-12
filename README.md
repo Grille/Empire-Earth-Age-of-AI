@@ -83,6 +83,8 @@ peace or alliances. With the mod:
   make peace as told, grumbling if they hold a grudge.
 - **Capitulation:** when your army is in its base and the fight is lost, an AI offers peace and tribute
   ("set us allied"); accept within 2 minutes and it pays and stays loyal. Proud personalities hold out longer.
+  A vassal has no diplomacy of its own: no offers, no betrayal, and whoever asks it for peace is sent to its lord.
+  It still defends itself, and a lord who attacks his vassal sets it free.
 - **Victory over vassals:** vassals at war with each other would keep the game running for ever. Once every
   other player has capitulated to you, you are told so; play on as long as you like, and type `sieg` (or
   `victory`) in the chat to end the game as the winner. Resigning or exiting from the menu then counts as
