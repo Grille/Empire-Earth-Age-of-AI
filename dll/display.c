@@ -589,6 +589,7 @@ static void frame_stats(uint8_t *ras, unsigned screen) {
 // the threshold, the render-thread profile (profile 3000 render) runs on its own thread and goes into the log -
 // at most 5 a session, 5 minutes apart.
 static void cmd_profile_render(int dur, char *out);
+static void frame_costs_log(unsigned frames);
 static int g_frame_watch = 35;
 static int g_fw_test;   // autotest frame_watch given: also headless (tests)
 static struct {
@@ -661,6 +662,7 @@ static void frame_watch(void) {
             fflush(g_log);
             LeaveCriticalSection(&g_lock);
         }
+        frame_costs_log(g_fw.min_frames);
         g_fw.min_frames = g_fw.min_ms = g_fw.min_slow = 0;
         g_fw.worst = 1e9f;
     }
@@ -937,6 +939,79 @@ static int replace_rdata_ptr(HMODULE m, void *fn, void *hook) {
     return n;
 }
 
+// FRAME COSTS (with the frame watch): the profile of a slow game (2026-10-12, 15-25 fps late in the game) had 73%
+// of the render thread in GDI - a quarter each under DX7Rasterizer::Draw(GEText) (GetTextExtentPoint32, text on
+// surfaces), DX7Surface::Lock and the exe's WONAPI code. These display DLL functions are timed (calls and time per
+// frame, and their 3 most frequent callers) and logged with the minute line of the frame watch.
+enum { FC_TEXT, FC_TEXT_RECT, FC_LOCK, FC_TEXT_LOCK, FC_TEXT_UNLOCK, FC_N };
+static struct {
+    const char *name, *export;
+    void *orig[2];
+    volatile LONG calls;
+    volatile LONG64 ticks;
+    struct { uintptr_t a; volatile LONG n; } by[8];
+} g_fc[FC_N] = {
+    { "text", "?Draw@DX7Rasterizer@@UAEJPAVGEText@@PAVGESurface@@@Z", { 0 }, 0, 0, { { 0, 0 } } },
+    { "text in rect", "?Draw@DX7Rasterizer@@UAEJPAVGEText@@ABVGERectangle@@PAVGESurface@@@Z", { 0 }, 0, 0, { { 0, 0 } } },
+    { "lock", "?Lock@DX7Surface@@UAEJXZ", { 0 }, 0, 0, { { 0, 0 } } },
+    { "text lock", "?TextLock@DX7Surface@@UAEJXZ", { 0 }, 0, 0, { { 0, 0 } } },
+    { "text unlock", "?TextUnlock@DX7Surface@@UAEJXZ", { 0 }, 0, 0, { { 0, 0 } } },
+};
+static void fc_note(int k, uintptr_t ret, LONGLONG t) {
+    InterlockedIncrement(&g_fc[k].calls);
+    InterlockedExchangeAdd64(&g_fc[k].ticks, t);
+    int j = 0, low = 0;
+    for (; j < 8 && g_fc[k].by[j].a && g_fc[k].by[j].a != ret; j++)
+        if (g_fc[k].by[j].n < g_fc[k].by[low].n) low = j;
+    if (j == 8) { j = low; g_fc[k].by[j].a = ret; g_fc[k].by[j].n = 0; }
+    g_fc[k].by[j].a = ret;
+    InterlockedIncrement(&g_fc[k].by[j].n);
+}
+#define FC_TIMED(k, expr) do { LARGE_INTEGER t0, t1; QueryPerformanceCounter(&t0); r = (expr); QueryPerformanceCounter(&t1); \
+                               fc_note(k, (uintptr_t)__builtin_return_address(0), t1.QuadPart - t0.QuadPart); } while (0)
+static long __fastcall hook_fc_text(void *ras, void *edx, void *text, void *surf) {
+    (void)edx; long r;
+    FC_TIMED(FC_TEXT, ((long (__thiscall *)(void *, void *, void *))g_fc[FC_TEXT].orig[DISPLAY_DLL(ras)])(ras, text, surf));
+    return r;
+}
+static long __fastcall hook_fc_text_rect(void *ras, void *edx, void *text, void *rect, void *surf) {
+    (void)edx; long r;
+    FC_TIMED(FC_TEXT_RECT, ((long (__thiscall *)(void *, void *, void *, void *))g_fc[FC_TEXT_RECT].orig[DISPLAY_DLL(ras)])(ras, text, rect, surf));
+    return r;
+}
+#define FC_SURFACE_HOOK(fn, k) static long __fastcall fn(void *surf, void *edx) { \
+    (void)edx; long r; FC_TIMED(k, ((long (__thiscall *)(void *))g_fc[k].orig[DISPLAY_DLL(surf)])(surf)); return r; }
+FC_SURFACE_HOOK(hook_fc_lock, FC_LOCK)
+FC_SURFACE_HOOK(hook_fc_text_lock, FC_TEXT_LOCK)
+FC_SURFACE_HOOK(hook_fc_text_unlock, FC_TEXT_UNLOCK)
+static void *const k_fc_hooks[FC_N] = { (void *)hook_fc_text, (void *)hook_fc_text_rect, (void *)hook_fc_lock,
+                                        (void *)hook_fc_text_lock, (void *)hook_fc_text_unlock };
+static void frame_costs_log(unsigned frames) {
+    LARGE_INTEGER f;
+    QueryPerformanceFrequency(&f);
+    for (int k = 0; k < FC_N && g_log && frames; k++) {
+        LONG calls = InterlockedExchange(&g_fc[k].calls, 0);
+        LONG64 ticks = InterlockedExchange64(&g_fc[k].ticks, 0);
+        if (!calls) continue;
+        char by[400] = "";
+        for (int r = 0; r < 3; r++) {   // the 3 most frequent callers
+            int best = -1;
+            for (int j = 0; j < 8; j++) if (g_fc[k].by[j].a && g_fc[k].by[j].n > 0 && (best < 0 || g_fc[k].by[j].n > g_fc[k].by[best].n)) best = j;
+            if (best < 0) break;
+            char at[160];
+            crash_addr(at, sizeof at, g_fc[k].by[best].a);
+            int o = lstrlenA(by);
+            snprintf(by + o, sizeof by - o, "%s%s %.0f%%", r ? ", " : "", at, g_fc[k].by[best].n * 100.0 / calls);
+            g_fc[k].by[best].n = -g_fc[k].by[best].n;
+        }
+        memset(g_fc[k].by, 0, sizeof g_fc[k].by);
+        EnterCriticalSection(&g_lock);
+        fprintf(g_log, "# frame costs: %-12s %6.1f calls, %5.2f ms per frame; from %s\n", g_fc[k].name, (double)calls / frames,
+                (double)ticks * 1000.0 / (double)f.QuadPart / frames, by);
+        LeaveCriticalSection(&g_lock);
+    }
+}
+
 static int install_windowed_present(void) {
     int n = 0;
     for (int i = 0; i < 2; i++) {
@@ -976,6 +1051,10 @@ static int install_windowed_present(void) {
         if (clz) { g_clearz[i] = (ClearZFn)clz; n += replace_rdata_ptr(m, clz, (void *)hook_clearz); }
         void *srt = (void *)GetProcAddress(m, "?SetRenderTarget@DX7Rasterizer@@MAEXPAVGESurface@@K@Z");
         if (srt) { g_set_rt[i] = (SetRTFn)srt; n += replace_rdata_ptr(m, srt, (void *)hook_set_rt); }
+        for (int k = 0; g_frame_watch && k < FC_N; k++) {
+            void *f = (void *)GetProcAddress(m, g_fc[k].export);
+            if (f) { g_fc[k].orig[i] = f; n += replace_rdata_ptr(m, f, k_fc_hooks[k]); }
+        }
         void *cnt_hooks[3] = { (void *)hook_copy_to, (void *)hook_copy_filter, (void *)hook_create_surface };
         for (int k = 0; k < 3; k++) {
             void *f = (void *)GetProcAddress(m, cnt_exports[k]);
@@ -1396,6 +1475,9 @@ static void display_install(const char *aimod_ini, const char *autotest_ini) {
     if (windowed) {
         uint8_t was = *(uint8_t *)G_FULLSCREEN;
         if (was == 1) *(uint8_t *)G_FULLSCREEN = g_fullscreen = 0;
+        g_frame_watch = GetPrivateProfileIntA("display", "frame_watch", 35, aimod_ini);
+        if (autotest_ini && (g_fw_test = GetPrivateProfileIntA("autotest", "frame_watch", -1, autotest_ini)) >= 0) g_frame_watch = g_fw_test;
+        else g_fw_test = 0;
         int hooks = install_windowed_present();
         GetPrivateProfileStringA("display", "lock_mouse", "auto", tmp, sizeof tmp, aimod_ini);
         g_lock_mouse = !lstrcmpiA(tmp, "auto") ? 2 : atoi(tmp) ? 1 : 0;
@@ -1406,9 +1488,6 @@ static void display_install(const char *aimod_ini, const char *autotest_ini) {
         g_present_mode = !lstrcmpiA(tmp, "d3d") ? 1 : !lstrcmpiA(tmp, "gdi") ? 2 : !lstrcmpiA(tmp, "primary") ? 3 : 0;
         g_present_d3d = g_present_mode <= 1;
         g_vsync = GetPrivateProfileIntA("display", "vsync", 0, aimod_ini);
-        g_frame_watch = GetPrivateProfileIntA("display", "frame_watch", 35, aimod_ini);
-        if (autotest_ini && (g_fw_test = GetPrivateProfileIntA("autotest", "frame_watch", -1, autotest_ini)) >= 0) g_frame_watch = g_fw_test;
-        else g_fw_test = 0;
         int dpi = 0;
         if (GetPrivateProfileIntA("display", "dpi_aware", 1, aimod_ini)) {
             HMODULE u = GetModuleHandleA("user32.dll");
