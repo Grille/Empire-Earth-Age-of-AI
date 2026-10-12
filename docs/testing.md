@@ -150,6 +150,13 @@ Findings 2026-10-12 (user report: 25 fps in a long game, window mode): in the us
 +0x47544). Not the cause: scaling into a smaller window, the FPS display, Alt+Enter switches. Test frame times
 vary 7-33 ms between and within runs in the same save - the slow state is not reproduced yet.
 - Autotest `present_every=N` presents only every Nth frame (to separate present cost from game cost).
+- Frame watch (`[display] frame_watch`, default 35 fps; autotest `frame_watch=N` also runs it headless): in the
+  player's own games, every minute `# frames: at <min>: <fps>, worst second, seconds under the threshold; GDI
+  objects, USER objects`, and after 10 s under the threshold the render-thread profile (`# |` lines, at most 5 a
+  session, 5 min apart). The profile now also lists the game code that led into GDI and reads 8 KB of stack.
+  Test game (headless, 2026-10-12): 155 fps, worst second 113, 124 GDI objects; 30% of the render thread in GDI,
+  ~60% of that from DDrawCompat with no game code on the stack (its own work), the rest under
+  DX7HRTnLDisplay +0x3815 and Low-Level Engine +0x447E6.
 
 Findings 2026-10-11 (2560x1440, RTX 3080, dgVoodoo DirectX pass-through): ~80 fps; the render thread is CPU
 bound in Windows' DirectX 7 layer and the driver (DDRAW.dll 35%, nvd3dum 26%, kernel calls 24%), i.e. per

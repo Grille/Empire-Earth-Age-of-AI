@@ -582,9 +582,94 @@ static void frame_stats(uint8_t *ras, unsigned screen) {
     FIELD(st, 0x328, unsigned) = FIELD(st, 0x32C, unsigned) = FIELD(st, 0x330, unsigned) = FIELD(st, 0x338, unsigned) = 0;
 }
 
+// FRAME WATCH (aimod.ini [display] frame_watch = frames per second, default 35; 0 = off). Low frame rates late in
+// long games (25 fps, 64% of the render thread in GDI, 2026-10-12) don't show in the test games, so the game watches
+// itself: while a game runs (the game clock moves), every minute a "# frames:" line with the average and the worst
+// second and the process's GDI / USER object counts (a leak would grow them); when 10 seconds in a row stay under
+// the threshold, the render-thread profile (profile 3000 render) runs on its own thread and goes into the log -
+// at most 5 a session, 5 minutes apart.
+static void cmd_profile_render(int dur, char *out);
+static int g_frame_watch = 35;
+static int g_fw_test;   // autotest frame_watch given: also headless (tests)
+static struct {
+    DWORD sec_start, min_ms, last_profile;
+    unsigned sec_frames, min_frames, slow_secs, min_slow, profiles;
+    uint32_t last_gt;
+    float worst, trigger_fps;
+} g_fw;
+static HANDLE g_fw_event;
+static DWORD WINAPI frame_profile_thread(LPVOID unused) {
+    (void)unused;
+    static char out[sizeof g_req.out];
+    for (;;) {
+        WaitForSingleObject(g_fw_event, INFINITE);
+        out[0] = 0;
+        cmd_profile_render(3000, out);
+        if (!g_log) continue;
+        EnterCriticalSection(&g_lock);
+        fprintf(g_log, "# frame watch: under %d fps for 10 s at %.1f min (last second %.0f fps), render thread profile:\n",
+                g_frame_watch, game_time() / 60000.0, g_fw.trigger_fps);
+        for (char *l = out, *e; *l; l = e) {   // every line a comment line of the log
+            e = strchr(l, '\n');
+            int n = e ? (int)(e - l) : (int)strlen(l);
+            fprintf(g_log, "# | %.*s\n", n, l);
+            e = e ? e + 1 : l + n;
+        }
+        fflush(g_log);
+        LeaveCriticalSection(&g_lock);
+    }
+    return 0;
+}
+static void frame_watch(void) {
+    if (!g_frame_watch || (g_headless && !g_fw_test)) return;
+    DWORD now = GetTickCount();
+    if (!g_fw.sec_start) { g_fw.sec_start = now; g_fw.worst = 1e9f; return; }
+    g_fw.sec_frames++;
+    DWORD dt = now - g_fw.sec_start;
+    if (dt < 1000) return;
+    float fps = (float)g_fw.sec_frames * 1000.0f / (float)dt;
+    uint32_t gt = game_time();
+    int running = gt && gt != g_fw.last_gt;   // paused, menus, loading: not counted
+    g_fw.last_gt = gt;
+    g_fw.sec_start = now;
+    unsigned frames = g_fw.sec_frames;
+    g_fw.sec_frames = 0;
+    if (!running) { g_fw.slow_secs = 0; return; }
+    g_fw.min_frames += frames;
+    g_fw.min_ms += dt;
+    if (fps < g_fw.worst) g_fw.worst = fps;
+    if (fps < (float)g_frame_watch) { g_fw.slow_secs++; g_fw.min_slow++; } else g_fw.slow_secs = 0;
+    if (g_fw.slow_secs >= 10 && g_fw.profiles < 5 && (!g_fw.last_profile || now - g_fw.last_profile >= 300000)) {
+        if (!g_fw_event) {
+            g_fw_event = CreateEventA(NULL, FALSE, FALSE, NULL);
+            HANDLE t = g_fw_event ? CreateThread(NULL, 0, frame_profile_thread, NULL, 0, NULL) : NULL;
+            if (t) CloseHandle(t);
+        }
+        g_fw.slow_secs = 0;
+        g_fw.last_profile = now;
+        g_fw.profiles++;
+        g_fw.trigger_fps = fps;
+        if (g_fw_event) SetEvent(g_fw_event);
+    }
+    if (g_fw.min_ms >= 60000) {
+        if (g_log) {
+            HANDLE pr = GetCurrentProcess();
+            EnterCriticalSection(&g_lock);
+            fprintf(g_log, "# frames: at %.1f min: %.0f fps, worst second %.0f, %u s under %d fps; GDI objects %lu, USER objects %lu\n",
+                    gt / 60000.0, g_fw.min_frames * 1000.0 / g_fw.min_ms, g_fw.worst, g_fw.min_slow, g_frame_watch,
+                    GetGuiResources(pr, GR_GDIOBJECTS), GetGuiResources(pr, GR_USEROBJECTS));
+            fflush(g_log);
+            LeaveCriticalSection(&g_lock);
+        }
+        g_fw.min_frames = g_fw.min_ms = g_fw.min_slow = 0;
+        g_fw.worst = 1e9f;
+    }
+}
+
 static int __fastcall hook_show_scene(void *ras, void *edx, unsigned screen) {
     (void)edx;
     g_render_thread = GetCurrentThreadId();
+    frame_watch();
     // headless turbo: nobody watches, so only a few frames a second (CPU for the simulation); a shot still
     // gets the next frame
     if (g_headless && g_turbo && !g_shot_req)
@@ -1321,6 +1406,9 @@ static void display_install(const char *aimod_ini, const char *autotest_ini) {
         g_present_mode = !lstrcmpiA(tmp, "d3d") ? 1 : !lstrcmpiA(tmp, "gdi") ? 2 : !lstrcmpiA(tmp, "primary") ? 3 : 0;
         g_present_d3d = g_present_mode <= 1;
         g_vsync = GetPrivateProfileIntA("display", "vsync", 0, aimod_ini);
+        g_frame_watch = GetPrivateProfileIntA("display", "frame_watch", 35, aimod_ini);
+        if (autotest_ini && (g_fw_test = GetPrivateProfileIntA("autotest", "frame_watch", -1, autotest_ini)) >= 0) g_frame_watch = g_fw_test;
+        else g_fw_test = 0;
         int dpi = 0;
         if (GetPrivateProfileIntA("display", "dpi_aware", 1, aimod_ini)) {
             HMODULE u = GetModuleHandleA("user32.dll");
@@ -1434,6 +1522,12 @@ static int is_game_code(uintptr_t a) {
 // a stack value that is a return address: the bytes before it are a CALL (E8 rel32, FF /2 with register, [reg],
 // [reg+disp8], [reg+disp32] or [disp32] operand, with or without SIB). Filters the data values on the stack
 // that only happen to point into a module.
+static int is_own_code(uintptr_t a) {   // this DLL (its present path)
+    HMODULE m = NULL, self = NULL;
+    GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, (LPCSTR)&is_own_code, &self);
+    return GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, (LPCSTR)a, &m) &&
+           m == self;
+}
 static int is_return_address(uintptr_t a) {
     HMODULE m = NULL;
     if (a < 0x10000 || !GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, (LPCSTR)a, &m))
@@ -1469,20 +1563,22 @@ static void cmd_profile_render(int dur, char *out) {
     HANDLE h = tid ? OpenThread(THREAD_SUSPEND_RESUME | THREAD_GET_CONTEXT, FALSE, tid) : NULL;
     if (!h) { REPLY("error: render thread unknown (windowed mode only)\n"); return; }
     enum { HB = 4096 };
-    static struct { uintptr_t a; int n; } callers[HB], gdi_callers[HB];
+    static struct { uintptr_t a; int n; } callers[HB], gdi_callers[HB], gdi_game[HB];
     struct { HMODULE m; int n; } tops[24];
     int nt = 0, samples = 0, gdi_samples = 0;
     memset(callers, 0, sizeof callers);
     memset(gdi_callers, 0, sizeof gdi_callers);
+    memset(gdi_game, 0, sizeof gdi_game);
     DWORD end = GetTickCount() + (DWORD)dur;
     timeBeginPeriod(1);
     while ((LONG)(end - GetTickCount()) > 0) {
         if (SuspendThread(h) != (DWORD)-1) {
             CONTEXT c = { .ContextFlags = CONTEXT_CONTROL };
-            uintptr_t stack[512];
+            static uintptr_t stack[2048];   // 8 KB: DDrawCompat's call chains are deep
             SIZE_T got = 0;
             BOOL ok = GetThreadContext(h, &c);
-            if (ok) ReadProcessMemory(GetCurrentProcess(), (void *)(uintptr_t)c.Esp, stack, sizeof stack, &got);
+            if (ok && !ReadProcessMemory(GetCurrentProcess(), (void *)(uintptr_t)c.Esp, stack, sizeof stack, &got))
+                ReadProcessMemory(GetCurrentProcess(), (void *)(uintptr_t)c.Esp, stack, 2048, &got);   // near the stack base
             ResumeThread(h);
             if (ok) {
                 samples++;
@@ -1511,6 +1607,12 @@ static void cmd_profile_render(int dur, char *out) {
                     unsigned q = (unsigned)(g >> 2) * 2654435761u % HB;
                     for (int p = 0; p < HB; p++, q = (q + 1) % HB)
                         if (!gdi_callers[q].a || gdi_callers[q].a == g) { gdi_callers[q].a = g; gdi_callers[q].n++; break; }
+                    uintptr_t gg = 0;   // and the game code that led there
+                    for (size_t i = 0; !gg && i < got / sizeof *stack; i++)
+                        if ((is_game_code(stack[i]) || is_own_code(stack[i])) && is_return_address(stack[i])) gg = stack[i];
+                    q = (unsigned)(gg >> 2) * 2654435761u % HB;
+                    for (int p = 0; p < HB; p++, q = (q + 1) % HB)
+                        if (!gdi_game[q].a || gdi_game[q].a == gg) { gdi_game[q].a = gg; gdi_game[q].n++; break; }
                 }
             }
         }
@@ -1545,6 +1647,16 @@ static void cmd_profile_render(int dur, char *out) {
         if (gdi_callers[best].a) crash_addr(at, sizeof at, gdi_callers[best].a); else lstrcpyA(at, "(only Windows code on the stack)");
         REPLY("    %5.1f%%  %s\n", gdi_samples ? gdi_callers[best].n * 100.0 / gdi_samples : 0.0, at);
         gdi_callers[best].n = -gdi_callers[best].n;
+    }
+    REPLY("  the game code that led into GDI (innermost game return address):\n");
+    for (int r = 0; r < 12; r++) {
+        int best = -1;
+        for (int k = 0; k < HB; k++) if (gdi_game[k].n > 0 && (best < 0 || gdi_game[k].n > gdi_game[best].n)) best = k;
+        if (best < 0) break;
+        char at[160];
+        if (gdi_game[best].a) crash_addr(at, sizeof at, gdi_game[best].a); else lstrcpyA(at, "(no game code on the stack)");
+        REPLY("    %5.1f%%  %s\n", gdi_samples ? gdi_game[best].n * 100.0 / gdi_samples : 0.0, at);
+        gdi_game[best].n = -gdi_game[best].n;
     }
 }
 
