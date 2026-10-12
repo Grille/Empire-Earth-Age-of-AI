@@ -235,6 +235,135 @@ static void peace_offer(void *pl, int ai, int j, uint32_t now) {
     g_peace_due[ai][j] = now + 120000;
 }
 
+// ALLIANCE BLOCKS ([all] alliance_blocks, default 1; with ai_diplomacy, not in scenarios or with locked teams).
+// Stances are pairwise, so two AIs can both be allied with the player and at war with each other - and nothing in
+// the game can make them stop. A block = the players linked by alliances (allied both ways, through any chain).
+// Every 2 s of game time:
+//  - a war inside a block splits it: when a member turns hostile towards another, every other AI of the block takes
+//    a side - the one it capitulated to; else its direct ally if it is allied with only one of the two; else the
+//    one it thinks better of (the attacked +10) - and declares war on the other;
+//  - inside a block there is peace: two AIs of one block at war make peace (their common ally brokers it); an AI
+//    at war with a human of its block offers him peace (allied at once, a system line says why, 2 minutes to
+//    answer) - if he doesn't, it counts as his war on the AI and the block splits;
+//  - a betrayal is war on the victim's whole block (only if that block has under half the traitor's power, never
+//    the block of the one it capitulated to).
+// Tests: the idle observer of a test random map (allied with every AI) is no member.
+static int g_blocks = 1;
+static int g_block_observer;            // autotest block_observer=1: the test observer counts (human cases)
+static int g_block_seen;
+static int g_block_of[16];              // block (its smallest member) at the last pass, 0 = none
+static uint8_t g_mutual_prev[16][16];   // allied both ways at the last pass
+static uint32_t g_block_last;
+
+static int block_member(int i) {
+    void *p = player_at(i);
+    if (!p || is_out(p)) return 0;
+    return !(g_rm.map[0] && !g_block_observer && i == *(int *)G_LOCAL_PLAYER);
+}
+static int mutual(int a, int b) {
+    return block_member(a) && block_member(b) && !stance_of(player_at(a), b) && !stance_of(player_at(b), a);
+}
+static void blocks_compute(int *blk) {
+    int n = nplayers();
+    for (int i = 0; i < 16; i++) blk[i] = i < n && i > 0 && block_member(i) ? i : 0;
+    for (int changed = 1; changed; ) {   // the smallest index names the block
+        changed = 0;
+        for (int i = 1; i < n; i++)
+            for (int j = i + 1; j < n; j++)
+                if (blk[i] && blk[j] && blk[i] != blk[j] && mutual(i, j)) {
+                    int lo = blk[i] < blk[j] ? blk[i] : blk[j], hi = blk[i] ^ blk[j] ^ lo;
+                    for (int k = 1; k < n; k++) if (blk[k] == hi) blk[k] = lo;
+                    changed = 1;
+                }
+    }
+}
+static int blocks_on(void) { return g_blocks && g_ai_diplomacy && !TEAMS_LOCKED && !scenario_game(); }
+static void block_line(int to, const char *de, const char *en) {   // a system line, only on that player's PC
+    if (to != (int)*(unsigned *)0x00918E84) return;
+    uint8_t *opt = *(uint8_t **)0x00917BB8;
+    system_line(!lstrcmpiA(g_lang, "de") ? de : en, opt ? FIELD(opt, 0x2CC, int) * 2 : 20000);
+}
+
+// agg turned hostile towards vic, both of block `old`: every other AI of it takes a side
+static void block_split(int agg, int vic, const int *blk, uint32_t now) {
+    int old = blk[vic];
+    for (int m = 1; m < nplayers(); m++) {
+        void *pm = player_at(m);
+        if (m == agg || m == vic || !g_players[m] || !block_member(m) || !old || blk[m] != old) continue;
+        int side;
+        if (g_lord[m] == agg || g_lord[m] == vic) side = g_lord[m];
+        else if (mutual(m, vic) != mutual(m, agg)) side = mutual(m, vic) ? vic : agg;
+        else side = g_opinion[m][vic] + 10 >= g_opinion[m][agg] ? vic : agg;
+        int other = side == vic ? agg : vic;
+        if (stance_of(pm, other)) continue;
+        declare_war(m, other, now);
+        g_mutual_prev[m][other] = g_mutual_prev[other][m] = 0;
+        persona_say(pm, L_WAR_DECLARED, player_at(other), NULL);
+        if (g_log) fprintf(g_log, "# diplomacy: blocks: P%d turned on P%d - P%d sides with P%d, war on P%d\n",
+                           agg, vic, m, side, other);
+    }
+}
+
+static void blocks_pass(uint32_t now) {
+    if (!blocks_on()) { g_block_seen = 0; return; }
+    if (g_block_seen && now - g_block_last < 2000) return;
+    g_block_last = now;
+    int n = nplayers(), blk[16];
+    if (g_block_seen)   // wars inside a block since the last pass
+        for (int x = 1; x < n; x++)
+            for (int y = x + 1; y < n; y++) {
+                if (!g_mutual_prev[x][y] || mutual(x, y) || !block_member(x) || !block_member(y)) continue;
+                int xh = stance_of(player_at(x), y), yh = stance_of(player_at(y), x);
+                int agg = xh && !yh ? x : !xh && yh ? y : (g_players[x] ? y : x);   // both at once: the human
+                if (g_log) fprintf(g_log, "# diplomacy: blocks: P%d turned hostile towards its block's P%d\n", agg, agg == x ? y : x);
+                block_split(agg, agg == x ? y : x, g_block_of, now);
+            }
+    blocks_compute(blk);
+    for (int x = 1; x < n; x++)   // peace inside a block
+        for (int y = x + 1; y < n; y++) {
+            if (!blk[x] || blk[x] != blk[y] || mutual(x, y)) continue;
+            void *px = player_at(x), *py = player_at(y);
+            if (g_players[x] && g_players[y]) {
+                make_peace(x, y, now);
+                make_peace(y, x, now);
+                persona_say(px, L_PEACE_ACCEPT, py, NULL);
+                if (g_log) fprintf(g_log, "# diplomacy: blocks: P%d and P%d make peace (one block)\n", x, y);
+                for (int h = 1; h < n; h++)
+                    if (!g_players[h] && blk[h] == blk[x]) {
+                        char de[200], en[200];
+                        wsprintfA(de, "%s und %s schlie\xdf" "en Frieden: sie stehen im selben B\xfcndnis.", player_name(px), player_name(py));
+                        wsprintfA(en, "%s and %s make peace: they are in the same alliance.", player_name(px), player_name(py));
+                        block_line(h, de, en);
+                    }
+            } else if (g_players[x] || g_players[y]) {
+                int a = g_players[x] ? x : y, h = a == x ? y : x;
+                void *pa = player_at(a), *ph = player_at(h);
+                if (g_offer_t[a][h]) continue;   // an offer is pending
+                if (stance_of(pa, h)) {   // the AI is at war with him: it offers peace
+                    set_stance(a, h, 0);
+                    chat_stance_line(pa, 0);
+                    g_offer_t[a][h] = now ? now : 1;
+                    g_offer_kind[a][h] = 2;
+                    char de[300], en[300];
+                    wsprintfA(de, "%s ist mit Ihren Verb\xfcndeten verb\xfcndet und bietet Frieden an: stellen Sie binnen 2 Minuten "
+                                  "auf Verb\xfcndet, sonst zerbricht das B\xfcndnis.", player_name(pa));
+                    wsprintfA(en, "%s is allied with your allies and offers peace: turn allied within 2 minutes, or the "
+                                  "alliance breaks.", player_name(pa));
+                    block_line(h, de, en);
+                    if (g_log) fprintf(g_log, "# diplomacy: blocks: P%d offers P%d (human, same block) peace\n", a, h);
+                } else {                  // the AI is allied, he isn't (and no offer): his war on it
+                    (void)ph;
+                    if (g_log) fprintf(g_log, "# diplomacy: blocks: P%d (human) stays hostile towards P%d of its block\n", h, a);
+                    block_split(h, a, blk, now);
+                }
+            }
+        }
+    blocks_compute(g_block_of);
+    for (int x = 0; x < 16; x++)
+        for (int y = 0; y < 16; y++) g_mutual_prev[x][y] = (uint8_t)(x < n && y < n && x != y && mutual(x, y));
+    g_block_seen = 1;
+}
+
 // AI ai's own initiative (every 60 s)
 static void diplo_initiative(void *pl, int ai, uint32_t now) {
     if (!g_ai_diplomacy || TEAMS_LOCKED || scenario_game() || now < 600000) return;
@@ -279,13 +408,28 @@ static void diplo_initiative(void *pl, int ai, uint32_t now) {
         void *pj = player_at(j);
         if (!pj || j == ai || is_out(pj) || stance_of(pl, j) || !g_ally_since[ai][j] || now - g_ally_since[ai][j] < 600000) continue;
         if (g_lord[ai] == j) continue;   // capitulated to j: keeps its word
-        if (power_of(j) * 2 > power_of(ai) || g_opinion[ai][j] >= 30) continue;
+        // with blocks: the victim's whole block (everyone the AI is linked with through j) - its power, its lord
+        int blk[16], lord_in = 0;
+        float bpow = power_of(j);
+        if (blocks_on()) {
+            blocks_compute(blk);
+            bpow = 0;
+            for (int k = 1; k < nplayers(); k++)
+                if (k != ai && blk[k] && blk[k] == blk[j]) { bpow += power_of(k); if (g_lord[ai] == k) lord_in = 1; }
+        }
+        if (lord_in || bpow * 2 > power_of(ai) || g_opinion[ai][j] >= 30) continue;
         int chance = (100 - trait(pl, T_LOYALTY)) * trait(pl, T_AGGRESSION);   // per 100000
         if ((int)(rnd_game32() % 100000u) >= chance) continue;
         if (g_log) fprintf(g_log, "# diplomacy: P%d at %.1f min betrays P%d (opinion %.0f, power %.0f vs %.0f)\n",
-                           ai, now / 60000.0, j, g_opinion[ai][j], g_ws.power[ai], g_ws.power[j]);
+                           ai, now / 60000.0, j, g_opinion[ai][j], g_ws.power[ai], bpow);
         persona_say(pl, L_BETRAY, pj, NULL);
         declare_war(ai, j, now);
+        if (blocks_on())   // the whole block: no one left to take sides
+            for (int k = 1; k < nplayers(); k++)
+                if (k != ai && blk[k] && blk[k] == blk[j]) {
+                    declare_war(ai, k, now);
+                    g_mutual_prev[ai][k] = g_mutual_prev[k][ai] = 0;
+                }
         return;
     }
 }
@@ -534,8 +678,8 @@ static void diplo_tick(void *pl, unsigned ai, uint32_t now) {
             g_peace_due[ai][j] = 0;
             if (!s && stance_of(pl, j) && !is_out(pj)) peace_offer(pl, (int)ai, j, now);
         }
-        if (g_offer_t[ai][j]) {   // the AI's alliance offer or capitulation to a human
-            int capit = g_offer_kind[ai][j];
+        if (g_offer_t[ai][j]) {   // the AI's alliance offer, capitulation or block peace to a human
+            int capit = g_offer_kind[ai][j] == 1, unity = g_offer_kind[ai][j] == 2;
             if (!s) {
                 g_offer_t[ai][j] = 0;
                 g_ally_since[ai][j] = now ? now : 1;
@@ -552,15 +696,22 @@ static void diplo_tick(void *pl, unsigned ai, uint32_t now) {
             } else if (now - g_offer_t[ai][j] > 120000) {
                 g_offer_t[ai][j] = 0;
                 if (capit) { promise_escrow((int)ai, 0); memset(g_promise[ai], 0, sizeof g_promise[ai]); }
-                else g_offer_ignored[ai][j]++;
+                else if (!unity) g_offer_ignored[ai][j]++;
                 if (capit && g_log) fprintf(g_log, "# diplomacy: P%u at %.1f min: P%d ignored the capitulation\n", ai, now / 60000.0, j);
                 persona_say(pl, capit ? L_CAPITULATE_REFUSED : L_OFFER_WITHDRAWN, pj, NULL);
                 set_stance((int)ai, j, 1);
                 chat_stance_line(pl, 1);
+                if (unity && blocks_on()) {   // he stays at war with a member of his block: it splits
+                    int blk[16];
+                    blocks_compute(blk);
+                    if (g_log) fprintf(g_log, "# diplomacy: blocks: P%d (human) let the block peace with P%u run out\n", j, ai);
+                    if (blk[j] && blk[j] == blk[ai]) block_split(j, (int)ai, blk, now);
+                }
             }
         }
     }
     g_diplo_seen[ai] = 1;
+    blocks_pass(now);
     // once a minute: opinions drift; the AI's own moves
     if (!g_sit.last_min[ai] || now - g_sit.last_min[ai] >= 60000) {
         int first = !g_sit.last_min[ai];
@@ -615,6 +766,8 @@ static void diplo_new_game(void) {
     memset(g_capit_last, 0, sizeof g_capit_last);
     memset(g_lord, 0, sizeof g_lord);
     memset(g_own_prev, 0, sizeof g_own_prev);
+    g_block_seen = 0; g_block_last = 0;
+    memset(g_block_of, 0, sizeof g_block_of); memset(g_mutual_prev, 0, sizeof g_mutual_prev);
     for (int i = 0; i < 16; i++) g_cancel_queue[i] = 0;
     g_resign_queue = 0;
     for (int i = 0; i < 16; i++) g_sit.last_epoch[i] = -1;
@@ -799,6 +952,11 @@ static void cmd_diplo(char *out, const char *args) {
         REPLY("sent\n");
         return;
     }
+    if (sscanf(args, "observer %d", &a) == 1) {   // diplo observer 0|1: the test observer counts in blocks (tests)
+        g_block_observer = a;
+        REPLY("block_observer=%d\n", a);
+        return;
+    }
     if (sscanf(args, "surrender %d", &a) == 1) {   // diplo surrender P: AI P resigns at the next safe point (tests)
         if (!g_players[a & 15] || !player_at(a)) { REPLY("error: P%d is no AI player\n", a); return; }
         InterlockedOr(&g_resign_queue, 1 << a);
@@ -848,15 +1006,18 @@ static void diplo_install(const char *ini, const char *test_ini) {
     g_answer_war = GetPrivateProfileIntA("all", "answer_war", 1, ini);
     g_ai_diplomacy = GetPrivateProfileIntA("all", "ai_diplomacy", 1, ini);
     g_surrender = GetPrivateProfileIntA("all", "surrender", 1, ini);
+    g_blocks = GetPrivateProfileIntA("all", "alliance_blocks", 1, ini);
     if (test_ini) {
         g_answer_war = GetPrivateProfileIntA("autotest", "answer_war", g_answer_war, test_ini);
         g_ai_diplomacy = GetPrivateProfileIntA("autotest", "ai_diplomacy", g_ai_diplomacy, test_ini);
         g_surrender = GetPrivateProfileIntA("autotest", "surrender", g_surrender, test_ini);
+        g_blocks = GetPrivateProfileIntA("autotest", "alliance_blocks", g_blocks, test_ini);
+        g_block_observer = GetPrivateProfileIntA("autotest", "block_observer", 0, test_ini);
     }
     int ok = patch_vtable(VT_PAY_TRIBUTE, 10, FN_PAY_TRIBUTE, (void *)hook_tribute);
     int chat = patch_vtable(VT_INGAME_CHAT, 10, FN_INGAME_CHAT, (void *)hook_ingame_chat);
     int leave = patch_vtable(VT_RESIGN, 10, FN_RESIGN, (void *)hook_resign) +
                 patch_code32(EXIT_CONFIRM_AT, FN_EXIT_CONFIRM, (uint32_t)(uintptr_t)hook_exit_confirm);
-    if (g_log) fprintf(g_log, "# diplomacy: answer_war=%d ai_diplomacy=%d surrender=%d, tribute hook %d, chat hook %d, leave hooks %d/2\n",
-                       g_answer_war, g_ai_diplomacy, g_surrender, ok, chat, leave);
+    if (g_log) fprintf(g_log, "# diplomacy: answer_war=%d ai_diplomacy=%d surrender=%d alliance_blocks=%d, tribute hook %d, chat hook %d, leave hooks %d/2\n",
+                       g_answer_war, g_ai_diplomacy, g_surrender, g_blocks, ok, chat, leave);
 }

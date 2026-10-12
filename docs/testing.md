@@ -123,7 +123,7 @@ venv/Scripts/python scripts/eectl.py <command>
 | `tinfo P type...` | type data (family, hit points, attack, range) and whether player P can train/build it now |
 | `chat [0\|1\|2]` | AI chat level (0 off, 1 debug lines, 2 also the 5-minute status); lines shown/dropped per player |
 | `say P text` | AI player P writes text in the game's chat (no rate limit) |
-| `diplo [A B S]` | stance matrix, AI opinions, power and wars answered; with arguments player A takes stance S (0 allied, 1 enemy) towards B, as the stance message does |
+| `diplo [A B S]`, `diplo observer 0|1` | stance matrix, AI opinions, power and wars answered; with arguments player A takes stance S (0 allied, 1 enemy) towards B, as the stance message does |
 | `diplo tribute A B N` | player A's tribute of N reaches AI B (the tribute hook's logic) |
 | `persona [P name]` | personalities loaded and assigned (traits, lines said); with arguments AI P gets personality `name` |
 | `spawn P type x y [n]` | create n units of a type for player P around tile x, y (2-tile grid), through the game's own debug spawner (EEMHackANewUnit, executed in the next tick like a player command). Type ids: `data/db/converteroutput.log` |
@@ -208,6 +208,16 @@ translation (pass-through off) was twice as slow (20 ms per frame).
 DDrawCompat v0.7.1 (narzoul) instead of dgVoodoo's ddraw.dll: 7.9 ms per frame with its default
 `CpuAffinity = 1` (whole game on one core), **5.6 ms (~177 fps) with `CpuAffinity = all`**
 (`DDrawCompat-Empire Earth.ini`); game, editor and windowed/borderless present work.
+
+### Alliance blocks
+
+`diplo A B S` sets stances, `diplo observer 1` lets the test observer (P1, allied with every AI) count as a human
+member. Needs `ai_diplomacy=1` and a player outside the blocks (one alliance of everyone ends the game).
+2026-10-12, Continental 101, 4 AIs (P2-P5), speed 2.5:
+- P2-P3 and P3-P4 allied, P2-P4 at war: P2 and P4 make peace within 2 s. P2 turns on P3: P4 sides with P3 (the
+  attacked +10) and declares war on P2; P3 answers; {P3, P4} stay a block.
+- Observer counts, P5 outside: P2-P4 all make peace. P1 turns on P2: P3 and P4 side with P1 (opinion 21 vs 0+10).
+  P2 allied with P3 again: P2-P4 peace at once, P2 offers P1 peace; ignored for 2 min: block split, P3/P4 with P1.
 
 ### Ranged aim
 

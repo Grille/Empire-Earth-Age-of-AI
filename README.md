@@ -75,6 +75,9 @@ peace or alliances. With the mod:
 - **Peace and alliances:** an AI judges peace offers by its opinion of you, the strength of both sides, how
   recently you attacked it and its character. Tribute buys goodwill. AIs ally against a much stronger enemy,
   and a disloyal one may betray a weak ally. Nothing changes in scenarios or with locked teams.
+- **Alliance blocks:** everyone linked by alliances is one block, with peace inside it: two AIs allied with you
+  (or with the same AI) don't fight each other. An AI at war with you that joins your block offers you peace.
+  Whoever turns on a member breaks the block, and every other AI picks a side (`alliance_blocks`).
 - **Capitulation:** when your army is in its base and the fight is lost, an AI offers peace and tribute
   ("set us allied"); accept within 2 minutes and it pays and stays loyal. Proud personalities hold out longer.
 - **Victory over vassals:** vassals at war with each other would keep the game running for ever. Once every
