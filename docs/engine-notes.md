@@ -444,6 +444,8 @@ writes the header and the lump container and parses terrain. Strings are length-
   from test play 0x65FD21 (call 0x65FD6D). AoC uses 1024x768 in both. The mod redirects both calls
   (aimod.ini [editor] resolution).
 - Camera scrolling: see dll/camera.c (EEAScroll, AoC smooth scrolling).
+  The scroll action runs on the game thread, the frames are presented on another thread; with a 1 ms
+  timer the game thread makes exactly one scroll step per frame (camtrace).
 - Editor at 1024x768 (done, dll/editor_layout.h generated from the AoC diff): AoC also moved the whole editor layout (constructor 0x58D3E1 ->
   AoC 0x59D615: bounds 599/799 -> 767/1023, minimap 587-795 x 454-662 -> 854-1023 x 598-767, buttons
   625-644 x 580-599 -> 849-868 x 718-737; layout 0x58E400 -> 0x59E80F: map view bottom 438 -> 606) and the

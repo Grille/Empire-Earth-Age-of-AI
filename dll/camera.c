@@ -19,6 +19,26 @@
 static int g_scroll_aoc;
 static float g_vel_x, g_vel_y;
 static DWORD g_scroll_last;
+static volatile LONG g_scroll_calls;   // scroll steps run (for camtrace)
+
+// Fine scrolling ([camera] smooth, default 1): the scroll steps come from a timer (10 ms AoC, 25 ms EE) on the
+// game's thread, and each moved the camera by a fixed distance, while the frames are drawn on another thread every
+// 4-13 ms: per frame 0 or 1 steps of the same size whatever the frame time (camtrace: about every fifth frame
+// without a step) - visible jitter. Now the timer runs every 1 ms (the game thread then makes one step per frame)
+// and each step moves by speed x the time of the frames drawn since the last step: the render thread adds each
+// frame's duration to a budget, a step takes all of it - the camera moves in proportion to the frame times and
+// over all exactly as far as the time passed (the step's own time if no frames are counted). Same speeds as
+// before: EE (speed + 0.5) * (setting + 0.5) * 0.01 tiles per ms; AoC ramps its velocity from 10% to that by 1%
+// of the top speed per 10 ms.
+static int g_cam_smooth = 1;
+static LARGE_INTEGER g_cam_last, g_cam_freq, g_cam_frame;
+static volatile LONG64 g_cam_budget;   // QPC ticks of frames not yet used by a scroll step
+static void camera_frame(void) {       // the render thread, every presented frame
+    LARGE_INTEGER now;
+    QueryPerformanceCounter(&now);
+    if (g_cam_frame.QuadPart) InterlockedExchangeAdd64(&g_cam_budget, now.QuadPart - g_cam_frame.QuadPart);
+    g_cam_frame = now;
+}
 
 static void scroll_axis(float *vel, int neg, int pos, float minv, float maxv, float step) {
     if (neg) {
@@ -34,17 +54,35 @@ static void scroll_axis(float *vel, int neg, int pos, float minv, float maxv, fl
 
 static void __fastcall hook_scroll_execute(uint8_t *self, void *edx) {
     (void)edx;
-    if (!g_scroll_aoc) { ((void (__thiscall *)(void *))FN_SCROLL_EXECUTE)(self); return; }
-    DWORD t = GetTickCount();
-    if (t - g_scroll_last > 100) g_vel_x = g_vel_y = 0;   // scrolling had stopped: start slow again
-    g_scroll_last = t;
-    float ticks = (float)FIELD(self, 0x40, unsigned);
-    float maxv = *(float *)G_SCROLL_SETTING + 0.5f, minv = maxv * 0.1f;
-    float scale = (*(float *)G_SCROLL_SPEED + 0.5f) * ticks * 0.1f;
-    float step = ticks * 0.01f * maxv;
+    InterlockedIncrement(&g_scroll_calls);
+    if (!g_scroll_aoc && !g_cam_smooth) { ((void (__thiscall *)(void *))FN_SCROLL_EXECUTE)(self); return; }
+    // elapsed time: real time with fine scrolling, else the timer's ticks (10 ms AoC)
+    float ms = (float)FIELD(self, 0x40, unsigned) * 10.0f;
+    if (g_cam_smooth) {
+        LARGE_INTEGER now;
+        if (!g_cam_freq.QuadPart) QueryPerformanceFrequency(&g_cam_freq);
+        QueryPerformanceCounter(&now);
+        double since = g_cam_last.QuadPart ? (double)(now.QuadPart - g_cam_last.QuadPart) * 1000.0 / (double)g_cam_freq.QuadPart : 1e9;
+        g_cam_last = now;
+        LONG64 budget = InterlockedExchange64(&g_cam_budget, 0);
+        double d = g_cam_frame.QuadPart ? (double)budget * 1000.0 / (double)g_cam_freq.QuadPart : since;
+        if (since > 30.0) d = 1.0;   // the first step after a pause: one timer period (the budget is old frames)
+        ms = d > 50.0 ? 50.0f : (float)d;
+    }
+    float speed = *(float *)G_SCROLL_SPEED + 0.5f, maxv = *(float *)G_SCROLL_SETTING + 0.5f;
     float dx = 0, dy = 0;
-    if (self[0x44] || self[0x45]) { scroll_axis(&g_vel_x, self[0x44], self[0x45], minv, maxv, step); dx = g_vel_x * scale; }
-    if (self[0x47] || self[0x46]) { scroll_axis(&g_vel_y, self[0x47], self[0x46], minv, maxv, step); dy = g_vel_y * scale; }
+    if (!g_scroll_aoc) {   // EE: constant speed, as 0x4050FC
+        float step = speed * maxv * ms * 0.01f;
+        dx = self[0x45] ? step : self[0x44] ? -step : 0;
+        dy = self[0x46] ? step : self[0x47] ? -step : 0;
+    } else {               // AoC: velocity ramp
+        DWORD t = GetTickCount();
+        if (t - g_scroll_last > 100) g_vel_x = g_vel_y = 0;   // scrolling had stopped: start slow again
+        g_scroll_last = t;
+        float minv = maxv * 0.1f, scale = speed * ms * 0.01f, ramp = ms * 0.001f * maxv;
+        if (self[0x44] || self[0x45]) { scroll_axis(&g_vel_x, self[0x44], self[0x45], minv, maxv, ramp); dx = g_vel_x * scale; }
+        if (self[0x47] || self[0x46]) { scroll_axis(&g_vel_y, self[0x47], self[0x46], minv, maxv, ramp); dy = g_vel_y * scale; }
+    }
     if (dx != 0 || dy != 0) ((void (__thiscall *)(void *, float, float))FN_CAMERA_MOVE)((void *)G_CAMERA, dx, dy);
 }
 
@@ -56,18 +94,59 @@ static void camera_install(const char *aimod_ini, const char *autotest_ini) {
         GetPrivateProfileStringA("autotest", "camera_scroll", tmp, mode, sizeof mode, autotest_ini);
     }
     g_scroll_aoc = !lstrcmpiA(mode, "aoc");
-    if (!g_scroll_aoc) return;   // ee: leave the game untouched
+    g_cam_smooth = GetPrivateProfileIntA("camera", "smooth", 1, aimod_ini);
+    if (autotest_ini) g_cam_smooth = GetPrivateProfileIntA("autotest", "camera_smooth", g_cam_smooth, autotest_ini);
+    if (!g_scroll_aoc && !g_cam_smooth) return;   // ee without smoothing: leave the game untouched
     int ok = patch_vtable(VT_SCROLL, 1, FN_SCROLL_EXECUTE, hook_scroll_execute);
     uint8_t *p = (uint8_t *)SITE_SCROLL_TIMER;
-    if (p[-1] == 0x6A && p[0] == 0x19) {   // push 0x19 -> push 0x0A (10 ms ticks like AoC)
+    if (p[-1] == 0x6A && p[0] == 0x19) {   // push 0x19 -> 10 ms ticks like AoC, 1 ms with fine scrolling
         DWORD old;
         VirtualProtect(p, 1, PAGE_EXECUTE_READWRITE, &old);
-        *p = 0x0A;
+        *p = g_cam_smooth ? 0x01 : 0x0A;
         VirtualProtect(p, 1, old, &old);
         FlushInstructionCache(GetCurrentProcess(), p, 1);
         ok++;
     }
-    if (g_log) fprintf(g_log, "# camera: scroll=aoc (smooth), patches %d/2\n", ok);
+    if (g_log) fprintf(g_log, "# camera: scroll=%s, fine steps %d, patches %d/2\n", g_scroll_aoc ? "aoc" : "ee", g_cam_smooth, ok);
+}
+
+// camtrace N (tests): for the next N presented frames the time since the previous frame, the camera's movement
+// and the scroll steps run in between - then logged as "# camtrace:" lines
+enum { CT_MAX = 400 };
+static volatile LONG g_ct_left;
+static int g_ct_n;
+static struct { float dt, dx, dy; int steps; } g_ct[CT_MAX];
+static LARGE_INTEGER g_ct_last;
+static float g_ct_x, g_ct_y;
+static void camtrace_frame(void) {   // the render thread, every presented frame
+    if (!g_ct_left) return;
+    LARGE_INTEGER now, f;
+    QueryPerformanceCounter(&now);
+    QueryPerformanceFrequency(&f);
+    uint8_t *cam = (uint8_t *)G_CAMERA;
+    float x = FIELD(cam, 0x78, float), y = FIELD(cam, 0x7C, float);
+    if (g_ct_n < CT_MAX && g_ct_last.QuadPart) {
+        g_ct[g_ct_n].dt = (float)((double)(now.QuadPart - g_ct_last.QuadPart) * 1000.0 / (double)f.QuadPart);
+        g_ct[g_ct_n].dx = x - g_ct_x;
+        g_ct[g_ct_n].dy = y - g_ct_y;
+        g_ct[g_ct_n].steps = (int)InterlockedExchange(&g_scroll_calls, 0);
+        g_ct_n++;
+    } else InterlockedExchange(&g_scroll_calls, 0);
+    g_ct_last = now; g_ct_x = x; g_ct_y = y;
+    if (InterlockedDecrement(&g_ct_left) == 0 && g_log) {
+        EnterCriticalSection(&g_lock);
+        for (int i = 0; i < g_ct_n; i++)
+            fprintf(g_log, "# camtrace: %3d dt %5.1f ms, moved %7.4f %7.4f, scroll steps %d\n", i, g_ct[i].dt, g_ct[i].dx, g_ct[i].dy, g_ct[i].steps);
+        fflush(g_log);
+        LeaveCriticalSection(&g_lock);
+    }
+}
+static void cmd_camtrace(char *out, const char *args) {
+    int n = atoi(args);
+    if (n <= 0 || n > CT_MAX) n = 120;
+    g_ct_n = 0; g_ct_last.QuadPart = 0;
+    g_ct_left = n + 1;
+    REPLY("tracing %d frames\n", n);
 }
 
 // scrolltest <left|right|up|down> <calls>: run the scroll action on a fake object, report camera movement

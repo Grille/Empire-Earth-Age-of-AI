@@ -673,6 +673,8 @@ static int __fastcall hook_show_scene(void *ras, void *edx, unsigned screen) {
     (void)edx;
     g_render_thread = GetCurrentThreadId();
     frame_watch();
+    camera_frame();
+    camtrace_frame();
     // headless turbo: nobody watches, so only a few frames a second (CPU for the simulation); a shot still
     // gets the next frame
     if (g_headless && g_turbo && !g_shot_req)

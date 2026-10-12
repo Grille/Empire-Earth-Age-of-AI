@@ -39,6 +39,7 @@ static void cmd_spawn(char *out, const char *args);
 static void cmd_spawnline(char *out, const char *args);
 static volatile int g_turbo;           // autotest turbo: the simulation loop skips its timer wait
 static void cmd_scrolltest(char *out, const char *args);
+static void cmd_camtrace(char *out, const char *args);
 static void cmd_ddinfo(char *out, const char *args);
 static void cmd_topbar(char *out, const char *args);
 static void cmd_ddpoke(char *out, const char *args);
@@ -360,6 +361,7 @@ static void execute(const char *cmd, char *out) {
     else if (!strcmp(verb, "spawnline")) cmd_spawnline(out, args);
     else if (!strcmp(verb, "save")) cmd_save(out, args);
     else if (!strcmp(verb, "scrolltest")) cmd_scrolltest(out, args);
+    else if (!strcmp(verb, "camtrace")) cmd_camtrace(out, args);
     else if (!strcmp(verb, "ddinfo")) cmd_ddinfo(out, args);
     else if (!strcmp(verb, "topbar")) cmd_topbar(out, args);
     else if (!strcmp(verb, "ddpoke")) cmd_ddpoke(out, args);
