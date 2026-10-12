@@ -150,6 +150,9 @@ Findings 2026-10-12 (user report: 25 fps in a long game, window mode): in the us
 +0x47544). Not the cause: scaling into a smaller window, the FPS display, Alt+Enter switches. Test frame times
 vary 7-33 ms between and within runs in the same save - the slow state is not reproduced yet.
 - Autotest `present_every=N` presents only every Nth frame (to separate present cost from game cost).
+- `camtrace N`: the next N presented frames - frame time, camera movement, scroll steps in between (`# camtrace:`
+  lines). Edge scrolling headless: `vmouse 2559 700`. 2026-10-12, AoC scrolling: 0 or 1 steps per frame of 0.285
+  tiles each (every fifth frame none); with `[camera] smooth` one step per frame, 0.0285 tiles per ms of frame time.
 - Frame watch (`[display] frame_watch`, default 35 fps; autotest `frame_watch=N` also runs it headless): in the
   player's own games, every minute `# frames: at <min>: <fps>, worst second, seconds under the threshold; GDI
   objects, USER objects`, and after 10 s under the threshold the render-thread profile (`# |` lines, at most 5 a
