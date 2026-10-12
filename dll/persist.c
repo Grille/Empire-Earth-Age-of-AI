@@ -20,7 +20,7 @@ static const struct { const char *tag; void *p; size_t n; } k_blocks[] = {
     B(g_diplo_seen), B(g_diplo_prev), B(g_diplo_due), B(g_war_since), B(g_ally_since), B(g_peace_due),
     B(g_peace_refused), B(g_offer_t), B(g_offer_last), B(g_opinion), B(g_war_betrayal), B(g_diplo_answers),
     B(g_pressure), B(g_offer_kind), B(g_promise), B(g_capit_last), B(g_lord), B(g_own_prev), B(g_ws), B(g_sit),
-    B(g_no_citizens_since), B(g_bud), B(g_talk_last), B(g_talk_any), B(g_offer_ignored),
+    B(g_no_citizens_since), B(g_bud), B(g_talk_last), B(g_talk_any), B(g_offer_ignored), B(g_escrow),
 #undef B
 };
 struct persist_head { char magic[8]; uint32_t version, game_time; uint64_t ees_size; FILETIME ees_time; };

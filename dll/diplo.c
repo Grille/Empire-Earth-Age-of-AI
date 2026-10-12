@@ -82,6 +82,7 @@ static unsigned g_diplo_answers[16];
 static float g_pressure[16][16];        // [ai][j]: j's soldiers near the AI's base, summed over scans (x0.8 per 10 s)
 static uint8_t g_offer_kind[16][16];    // [ai][j]: the pending offer to a human is 0 an alliance, 1 a capitulation
 static int g_promise[16][7];            // [ai]: resources offered with a capitulation (food..iron = 2..6)
+static uint8_t g_escrow[16];            // [ai]: the promise is taken out of its stock while a human decides
 static uint32_t g_capit_last[16];       // [ai]: last capitulation offer (one per 10 minutes)
 static int g_lord[16];                  // [ai]: the player it capitulated to (0 none) - never betrayed
 static int g_own_prev[16][16];          // [ai][j]: the AI's own stance towards j at the last look
@@ -318,9 +319,25 @@ static void diplo_situations(void *pl, int ai, uint32_t now) {
 }
 
 // capitulation (every 10 s, after the scan; see the header)
+// a capitulation offered to a human: the tribute leaves the stock at once, so it can't be spent while he decides
+// (in a game: 1454 promised, 1211 left 40 s later); back into the stock before paying or when he ignores it
+static void promise_escrow(int ai, int take) {
+    void *pl = player_at(ai);
+    if (!pl || g_escrow[ai] == take) return;
+    int *stock = (int *)((uint8_t *)pl + PL_STOCK), total = 0;
+    for (int r = 2; r < 7; r++) {
+        int n = g_promise[ai][r];
+        if (take && n > stock[r]) n = g_promise[ai][r] = stock[r] > 0 ? stock[r] : 0;
+        stock[r] += take ? -n : n;
+        total += n;
+    }
+    g_escrow[ai] = (uint8_t)take;
+    if (g_log) fprintf(g_log, "# diplomacy: P%d tribute of %d %s\n", ai, total, take ? "held back from its stock" : "back in its stock");
+}
 static int pay_promise(int ai, int j) {   // what was offered, as far as the stock still has it
     void *pl = player_at(ai), *pj = player_at(j);
     int total = 0;
+    promise_escrow(ai, 0);
     if (pl && pj) {
         int *from = (int *)((uint8_t *)pl + PL_STOCK), *to = (int *)((uint8_t *)pj + PL_STOCK);
         for (int r = 2; r < 7; r++) {
@@ -363,6 +380,7 @@ static void capitulate(void *pl, int ai, int a, uint32_t now) {
     }
     set_stance(ai, a, 0);   // a human: its units stop fighting; his answer (allied) within 2 minutes
     chat_stance_line(pl, 0);
+    promise_escrow(ai, 1);
     g_offer_t[ai][a] = now ? now : 1;
     g_offer_kind[ai][a] = 1;
 }
@@ -519,7 +537,7 @@ static void diplo_tick(void *pl, unsigned ai, uint32_t now) {
                 g_offer_ignored[ai][j] = 0;
             } else if (now - g_offer_t[ai][j] > 120000) {
                 g_offer_t[ai][j] = 0;
-                if (capit) memset(g_promise[ai], 0, sizeof g_promise[ai]);
+                if (capit) { promise_escrow((int)ai, 0); memset(g_promise[ai], 0, sizeof g_promise[ai]); }
                 else g_offer_ignored[ai][j]++;
                 if (capit && g_log) fprintf(g_log, "# diplomacy: P%u at %.1f min: P%d ignored the capitulation\n", ai, now / 60000.0, j);
                 persona_say(pl, capit ? L_CAPITULATE_REFUSED : L_OFFER_WITHDRAWN, pj, NULL);
@@ -577,6 +595,7 @@ static void diplo_new_game(void) {
     memset(g_pressure, 0, sizeof g_pressure);
     memset(g_offer_kind, 0, sizeof g_offer_kind);
     memset(g_promise, 0, sizeof g_promise);
+    memset(g_escrow, 0, sizeof g_escrow);
     memset(g_capit_last, 0, sizeof g_capit_last);
     memset(g_lord, 0, sizeof g_lord);
     memset(g_own_prev, 0, sizeof g_own_prev);
