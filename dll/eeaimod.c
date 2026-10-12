@@ -75,6 +75,7 @@ static void econ_rebalance(uint8_t *rm);
 static void attack_tick(void *pl, uint32_t now);
 static void log_line(const char *fmt, const char *a, int b);
 static BOOL patch_call(uintptr_t site, uintptr_t expected, void *hook);
+static void *g_players[16];   // control.c
 static BOOL patch_srand(void);
 #define G_SCENARIO_FLAG 0x00918819   // byte: game is a scenario/campaign (settings 0x918410 + 0x409)
 static int g_clear_scenario_flag;
@@ -473,6 +474,9 @@ static char __fastcall hook_game_start(void *state, void *edx, uint8_t *setup, v
         *(int *)(setup + SETUP_MODE) = 1;
         log_line("# game start: switched to scenario mode, loading Scenarios\\%s%.0d\n", name, 0);
     }
+    // the last game's AI players are gone: a second game in one session (loading capittest after an autosave)
+    // crashed in world_scan on a stale g_players entry for a slot the new game has no AI in
+    memset(g_players, 0, sizeof g_players);
     persona_new_game(setup);   // personalities and their colours, before the game creates the players
     diplo_new_game();
     chat_new_game();
