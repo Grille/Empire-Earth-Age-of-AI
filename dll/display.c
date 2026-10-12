@@ -992,11 +992,12 @@ FC_SURFACE_HOOK(hook_fc_text_unlock, FC_TEXT_UNLOCK)
 // (LpkUseGDIWidthCache -> GdiRealizationInfo, 1472-byte blocks) that is never freed: ~4 a frame, 13-22 MB a minute,
 // a list every text output walks - 111 fps at the start of a game, 13 after 100 minutes (dgVoodoo: no growth).
 // Instead the game gets a memory DC of ours that lives for the session (one per surface size and pixel format,
-// a DIB section in the surface's format). The text goes onto the 3D back buffer (2560x1440, video memory): copying
-// all of it there and back cost ~5.5 ms a lock, so TextLock only locks the surface (once, like GetDC did); each
-// ExtTextOutA / TextOutW on our DC (import hooks of the display DLLs and the exe) first loads the 32x32 tiles its
-// text box touches from the locked surface into the DIB; TextUnlock writes the loaded tiles back, unlocks, and
-// selects the stock font again (the game's fonts must not stay selected in a DC it never sees again).
+// a DIB section in the surface's format). The text goes onto the 3D back buffer (2560x1440, video memory): a lock of
+// the whole surface reads all 14.7 MB back from the graphics card (~4-5 ms a frame), so nothing is locked at
+// TextLock; each ExtTextOutA / TextOutW on our DC (import hooks of the display DLLs and the exe) locks only the
+// rectangle of the 32x32 tiles its text box touches that aren't loaded yet and copies them into the DIB;
+// TextUnlock locks the rectangle of the loaded tiles, writes them back, and selects the stock font again (the
+// game's fonts must not stay selected in a DC it never sees again).
 static int g_text_dc = 1;
 static struct { int w, h, bpp; DWORD masks[3]; HDC dc; HBITMAP bmp; void *bits; int pitch; } g_tdc[6];
 static struct { void *surf; int slot; DDSURFACEDESC2 d; } g_tdc_active[8];
@@ -1042,37 +1043,66 @@ static int tdc_active_of(HDC dc) {   // the active text phase drawing on this DC
         if (g_tdc_active[i].surf && g_tdc[g_tdc_active[i].slot].dc == dc) return i;
     return -1;
 }
-// load the tiles of rectangle x0,y0-x1,y1 (exclusive) from the locked surface into the DIB, once a phase
-static void tdc_load(int a, int x0, int y0, int x1, int y1) {
+// lock rectangle r of the phase's surface (DDLOCK_WAIT); lpSurface then points at r's top left
+static int tdc_lock(int a, RECT *r, DDSURFACEDESC2 *d) {
+    IDirectDrawSurface7 *dds = FIELD((uint8_t *)g_tdc_active[a].surf, 0x48, IDirectDrawSurface7 *);
+    memset(d, 0, sizeof *d);
+    d->dwSize = sizeof *d;
+    return dds && dds->lpVtbl->Lock(dds, r, d, DDLOCK_WAIT, NULL) == DD_OK;
+}
+static void tdc_unlock(int a, RECT *r) {
+    IDirectDrawSurface7 *dds = FIELD((uint8_t *)g_tdc_active[a].surf, 0x48, IDirectDrawSurface7 *);
+    if (dds) dds->lpVtbl->Unlock(dds, r);
+}
+// copy the tiles of `want` (1 = to load) between the DIB and the surface, through one lock of their bounding box
+static void tdc_copy_tiles(int a, int to_surface) {
     int slot = g_tdc_active[a].slot, w = g_tdc[slot].w, h = g_tdc[slot].h, bpp = g_tdc[slot].bpp / 8;
-    const DDSURFACEDESC2 *d = &g_tdc_active[a].d;
+    int tx0 = TDC_TW, ty0 = TDC_TH, tx1 = -1, ty1 = -1;
+    uint8_t want = to_surface ? 1 : 2;   // 2 = to load now, 1 = loaded (written back at the end)
+    for (int ty = 0; ty < TDC_TH; ty++)
+        for (int tx = 0; tx < TDC_TW; tx++)
+            if (g_tdc_tiles[ty][tx] == want) {
+                if (tx < tx0) tx0 = tx;
+                if (tx > tx1) tx1 = tx;
+                if (ty < ty0) ty0 = ty;
+                if (ty > ty1) ty1 = ty;
+            }
+    if (tx1 < 0) return;
+    RECT r = { tx0 * TDC_TILE, ty0 * TDC_TILE, (tx1 + 1) * TDC_TILE, (ty1 + 1) * TDC_TILE };
+    if (r.right > w) r.right = w;
+    if (r.bottom > h) r.bottom = h;
+    DDSURFACEDESC2 d;
+    if (!tdc_lock(a, &r, &d)) {
+        for (int ty = ty0; ty <= ty1; ty++) for (int tx = tx0; tx <= tx1; tx++) if (g_tdc_tiles[ty][tx] == want) g_tdc_tiles[ty][tx] = 0;
+        return;
+    }
+    for (int ty = ty0; ty <= ty1; ty++)
+        for (int tx = tx0; tx <= tx1; tx++) {
+            if (g_tdc_tiles[ty][tx] != want) continue;
+            g_tdc_tiles[ty][tx] = to_surface ? 0 : 1;
+            int px = tx * TDC_TILE, n = (px + TDC_TILE > w ? w - px : TDC_TILE) * bpp;
+            for (int y = ty * TDC_TILE; y < ty * TDC_TILE + TDC_TILE && y < h; y++) {
+                uint8_t *sp = (uint8_t *)d.lpSurface + (y - r.top) * d.lPitch + (px - r.left) * bpp;
+                uint8_t *bp = (uint8_t *)g_tdc[slot].bits + y * g_tdc[slot].pitch + px * bpp;
+                if (to_surface) memcpy(sp, bp, n); else memcpy(bp, sp, n);
+            }
+        }
+    tdc_unlock(a, &r);
+}
+// load the tiles of rectangle x0,y0-x1,y1 (exclusive) from the surface into the DIB, once a phase
+static void tdc_load(int a, int x0, int y0, int x1, int y1) {
+    int slot = g_tdc_active[a].slot, w = g_tdc[slot].w, h = g_tdc[slot].h, any = 0;
     if (x0 < 0) x0 = 0;
     if (y0 < 0) y0 = 0;
     if (x1 > w) x1 = w;
     if (y1 > h) y1 = h;
     for (int ty = y0 / TDC_TILE; ty * TDC_TILE < y1 && ty < TDC_TH; ty++)
-        for (int tx = x0 / TDC_TILE; tx * TDC_TILE < x1 && tx < TDC_TW; tx++) {
-            if (g_tdc_tiles[ty][tx]) continue;
-            g_tdc_tiles[ty][tx] = 1;
-            g_tdc_any = 1;
-            int px = tx * TDC_TILE, n = (px + TDC_TILE > w ? w - px : TDC_TILE) * bpp;
-            for (int y = ty * TDC_TILE; y < ty * TDC_TILE + TDC_TILE && y < h; y++)
-                memcpy((uint8_t *)g_tdc[slot].bits + y * g_tdc[slot].pitch + px * bpp,
-                       (uint8_t *)d->lpSurface + y * d->lPitch + px * bpp, n);
-        }
+        for (int tx = x0 / TDC_TILE; tx * TDC_TILE < x1 && tx < TDC_TW; tx++)
+            if (!g_tdc_tiles[ty][tx]) { g_tdc_tiles[ty][tx] = 2; any = 1; }
+    if (any) { g_tdc_any = 1; tdc_copy_tiles(a, 0); }
 }
-static void tdc_store(int a) {   // the loaded tiles back into the locked surface
-    int slot = g_tdc_active[a].slot, w = g_tdc[slot].w, h = g_tdc[slot].h, bpp = g_tdc[slot].bpp / 8;
-    const DDSURFACEDESC2 *d = &g_tdc_active[a].d;
-    for (int ty = 0; ty < TDC_TH && g_tdc_any; ty++)
-        for (int tx = 0; tx < TDC_TW; tx++) {
-            if (!g_tdc_tiles[ty][tx]) continue;
-            g_tdc_tiles[ty][tx] = 0;
-            int px = tx * TDC_TILE, n = (px + TDC_TILE > w ? w - px : TDC_TILE) * bpp;
-            for (int y = ty * TDC_TILE; y < ty * TDC_TILE + TDC_TILE && y < h; y++)
-                memcpy((uint8_t *)d->lpSurface + y * d->lPitch + px * bpp,
-                       (uint8_t *)g_tdc[slot].bits + y * g_tdc[slot].pitch + px * bpp, n);
-        }
+static void tdc_store(int a) {   // the loaded tiles back into the surface
+    if (g_tdc_any) tdc_copy_tiles(a, 1);
     g_tdc_any = 0;
 }
 // the box a text output can touch: the text's extent placed by the DC's alignment, the clip/opaque rectangle,
@@ -1136,12 +1166,10 @@ static long __fastcall hook_text_lock(uint8_t *surf, void *edx) {
     DDSURFACEDESC2 *d = &g_tdc_active[a].d;
     memset(d, 0, sizeof *d);
     d->dwSize = sizeof *d;
-    if (dds->lpVtbl->Lock(dds, NULL, d, DDLOCK_WAIT, NULL) != DD_OK) return text_dc_fallback(surf, 0);
+    if (dds->lpVtbl->GetSurfaceDesc(dds, d) != DD_OK) return text_dc_fallback(surf, 0);
     int slot = text_dc_slot(d);
-    if (slot < 0 || (int)d->dwWidth > (TDC_TW - 2) * TDC_TILE || (int)d->dwHeight > (TDC_TH - 2) * TDC_TILE) {
-        dds->lpVtbl->Unlock(dds, NULL);
+    if (slot < 0 || (int)d->dwWidth > (TDC_TW - 2) * TDC_TILE || (int)d->dwHeight > (TDC_TH - 2) * TDC_TILE)
         return text_dc_fallback(surf, 0);
-    }
     if (g_tdc_logged < 4 && g_log) {
         g_tdc_logged++;
         DDSCAPS2 caps = { 0 };
@@ -1166,8 +1194,6 @@ static long __fastcall hook_text_unlock(uint8_t *surf, void *edx) {
     GdiFlush();
     tdc_store(a);
     SelectObject(g_tdc[slot].dc, g_tdc_stock);
-    IDirectDrawSurface7 *dds = FIELD(surf, 0x48, IDirectDrawSurface7 *);
-    if (dds) dds->lpVtbl->Unlock(dds, NULL);
     g_tdc_active[a].surf = NULL;
     surf[0x5D] = 0;
     return 0;
