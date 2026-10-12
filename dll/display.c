@@ -988,7 +988,9 @@ static long __fastcall hook_fc_text(void *ras, void *edx, void *text, void *surf
 static int g_text_bitmap = 1;
 static struct { void *font, *bmp; } g_fbm[64];
 static int g_fbm_n, g_fbm_logged;
-static volatile int g_fbm_making;   // inside our GEFontBitmap constructor call (the atlas is drawn)
+static volatile int g_fbm_making;
+static int g_atlas_dump;   // autotest atlas_dump=1: each new bitmap font's last atlas -> aimod_dumps/atlas<n>.bmp
+static void atlas_dump(int n);   // inside our GEFontBitmap constructor call (the atlas is drawn)
 static void *(__thiscall *g_fbm_ctor)(void *, void *, void *, unsigned);
 static void *text_bitmap_for(void *ras, void *text, void *surf) {
     if (!g_text_bitmap || !g_fbm_ctor || !text) return NULL;
@@ -1006,6 +1008,7 @@ static void *text_bitmap_for(void *ras, void *text, void *surf) {
     g_fbm_making = 1;
     g_fbm_ctor(obj, ras, font, 0);
     g_fbm_making = 0;
+    if (g_atlas_dump) atlas_dump(g_fbm_n);
     QueryPerformanceCounter(&t1);
     QueryPerformanceFrequency(&f);
     FIELD(font, 0x24, void *) = NULL;   // in case the constructor registers itself: only during our calls
@@ -1219,6 +1222,77 @@ static void tdc_text_box(HDC dc, int x, int y, SIZE sz, UINT opts, const RECT *r
     POINT org;
     if (GetViewportOrgEx(dc, &org)) OffsetRect(box, org.x, org.y);
 }
+// A character of a bitmap font's atlas (while the mod builds one): the engine draws white on black into a 16-bit
+// surface (ARGB4444) - no font smoothing there - and cuts each character out by its advance width; its green
+// channel becomes the alpha. Characters with a negative left bearing spilled into the neighbouring cell (a stroke
+// under every "i"), and the sprites sample a texel beyond their cell (white dots left of "l" from the "k" before
+// it). Instead the character comes from GetGlyphOutline (GGO_GRAY8_BITMAP: 65 coverage levels at every size -
+// Tahoma's own table forbids Windows' smoothing for small sizes) and is written into its cell only, the cell's
+// last column left empty.
+static uint8_t g_glyph_buf[256 * 256];
+static uint32_t pack_gray(int slot, int g) {   // gray level g (0-255) in the atlas DIB's format
+    uint32_t v = 0;
+    for (int c = 0; c < 3; c++) {
+        DWORD m = g_tdc[slot].masks[c];
+        if (!m) continue;
+        int shift = 0, bits = 0;
+        while (!(m >> shift & 1)) shift++;
+        while (m >> (shift + bits) & 1) bits++;
+        v |= ((uint32_t)(g * ((1 << bits) - 1) + 127) / 255) << shift;
+    }
+    return v;
+}
+static int atlas_glyph(int a, HDC dc, int x, int y, char ch, SIZE sz) {
+    int slot = g_tdc_active[a].slot;
+    if (sz.cx <= 1 || sz.cy <= 0 || g_tdc[slot].bpp != 16) return 0;
+    static const MAT2 ident = { { 0, 1 }, { 0, 0 }, { 0, 0 }, { 0, 1 } };
+    GLYPHMETRICS gm;
+    TEXTMETRICA tm;
+    if (!GetTextMetricsA(dc, &tm)) return 0;
+    UINT c = (uint8_t)ch;
+    DWORD need = GetGlyphOutlineA(dc, c, GGO_GRAY8_BITMAP, &gm, 0, NULL, &ident);
+    if (need == GDI_ERROR || need > sizeof g_glyph_buf) return 0;
+    if (need && GetGlyphOutlineA(dc, c, GGO_GRAY8_BITMAP, &gm, need, g_glyph_buf, &ident) == GDI_ERROR) return 0;
+    int w = g_tdc[slot].w, h = g_tdc[slot].h, cw = sz.cx - 1;   // the cell, its last column left empty
+    for (int row = 0; row < sz.cy; row++)                         // the cell black first
+        if (y + row >= 0 && y + row < h)
+            for (int col = 0; col < cw; col++)
+                if (x + col >= 0 && x + col < w)
+                    ((uint16_t *)((uint8_t *)g_tdc[slot].bits + (y + row) * g_tdc[slot].pitch))[x + col] = (uint16_t)pack_gray(slot, 0);
+    if (!need) return 1;   // a blank (space)
+    int pitch = ((int)gm.gmBlackBoxX + 3) & ~3;
+    int gx = x + gm.gmptGlyphOrigin.x, gy = y + tm.tmAscent - gm.gmptGlyphOrigin.y;
+    for (int row = 0; row < (int)gm.gmBlackBoxY; row++) {
+        int py = gy + row;
+        if (py < y || py >= y + sz.cy || py < 0 || py >= h) continue;
+        uint16_t *dst = (uint16_t *)((uint8_t *)g_tdc[slot].bits + py * g_tdc[slot].pitch);
+        for (int col = 0; col < (int)gm.gmBlackBoxX; col++) {
+            int px = gx + col;
+            if (px < x || px >= x + cw || px < 0 || px >= w) continue;
+            int g = g_glyph_buf[row * pitch + col] * 255 / 64;
+            dst[px] = (uint16_t)pack_gray(slot, g > 255 ? 255 : g);
+        }
+    }
+    return 1;
+}
+
+static void atlas_dump(int n) {   // tests: the 256x256 DIB holds the last atlas a bitmap font drew
+    for (int i = 0; i < 6; i++) {
+        if (!g_tdc[i].dc || g_tdc[i].w != 256 || g_tdc[i].h != 256) continue;
+        DDSURFACEDESC2 dd = { .dwSize = sizeof dd };
+        dd.dwWidth = 256; dd.dwHeight = 256; dd.lPitch = g_tdc[i].pitch; dd.lpSurface = g_tdc[i].bits;
+        dd.ddpfPixelFormat.dwRGBBitCount = (DWORD)g_tdc[i].bpp;
+        dd.ddpfPixelFormat.dwRBitMask = g_tdc[i].masks[0];
+        dd.ddpfPixelFormat.dwGBitMask = g_tdc[i].masks[1];
+        dd.ddpfPixelFormat.dwBBitMask = g_tdc[i].masks[2];
+        char path[MAX_PATH];
+        wsprintfA(path, "aimod_dumps\\atlas%d.bmp", n);
+        write_desc_bmp(&dd, path);
+        if (g_log) fprintf(g_log, "# text bitmap: %s, %d bit, masks %04lx %04lx %04lx\n", path, g_tdc[i].bpp,
+                           g_tdc[i].masks[0], g_tdc[i].masks[1], g_tdc[i].masks[2]);
+    }
+}
+
 static BOOL WINAPI hook_ext_text_out(HDC dc, int x, int y, UINT opts, const RECT *rc, LPCSTR str, UINT n, const INT *dx) {
     int a = tdc_active_of(dc);
     if (a >= 0) {
@@ -1228,12 +1302,9 @@ static BOOL WINAPI hook_ext_text_out(HDC dc, int x, int y, UINT opts, const RECT
         RECT box;
         tdc_text_box(dc, x, y, sz, opts, rc, &box);
         tdc_load(a, box.left, box.top, box.right, box.bottom);
-        // a bitmap font's atlas (256x256, one cell per character, cut out by its advance width): a character with a
-        // negative left bearing ("j") spilled into its neighbour's cell (a stroke under the "i") - clipped to its cell
-        if (g_fbm_making && !rc && n == 1 && (GetTextAlign(dc) & (TA_CENTER | TA_BOTTOM | TA_BASELINE | TA_UPDATECP)) == 0) {
-            RECT cell = { x, y, x + sz.cx, y + sz.cy };
-            return g_ext_text_out(dc, x, y, opts | ETO_CLIPPED, &cell, str, n, dx);
-        }
+        if (g_fbm_making && !rc && n == 1 && str &&
+            (GetTextAlign(dc) & (TA_CENTER | TA_BOTTOM | TA_BASELINE | TA_UPDATECP)) == 0 && atlas_glyph(a, dc, x, y, str[0], sz))
+            return TRUE;
     }
     return g_ext_text_out(dc, x, y, opts, rc, str, n, dx);
 }
@@ -1932,6 +2003,7 @@ static void display_install(const char *aimod_ini, const char *autotest_ini) {
         g_text_dc = GetPrivateProfileIntA("display", "text_dc", 1, aimod_ini);
         if (autotest_ini) g_text_dc = GetPrivateProfileIntA("autotest", "text_dc", g_text_dc, autotest_ini);
         g_text_bitmap = GetPrivateProfileIntA("display", "text_bitmap", 1, aimod_ini);
+        if (autotest_ini) g_atlas_dump = GetPrivateProfileIntA("autotest", "atlas_dump", 0, autotest_ini);
         if (autotest_ini) g_text_bitmap = GetPrivateProfileIntA("autotest", "text_bitmap", g_text_bitmap, autotest_ini);
         if (g_text_bitmap) {
             g_text_bitmap = text_bitmap_install();

@@ -188,6 +188,12 @@ vary 7-33 ms between and within runs in the same save - the slow state is not re
   fixed on the way: characters with a negative left bearing ("j") spilled into the neighbouring atlas cell (a
   stroke under every "i"; clipped to the cell while the mod builds an atlas), and without text_dc the atlas
   stays empty under DDrawCompat (no text at all).
+- User report (menu at 800 fps): white dots left of letters (the sprites sample a texel of the neighbouring atlas
+  cell: the arm of the "k" left of every "l") and no smoothing (the engine draws into ARGB4444, green -> alpha;
+  Windows doesn't smooth there, and Tahoma's gasp table forbids it for small sizes). Now the mod writes each atlas
+  character itself from GetGlyphOutline GGO_GRAY8_BITMAP (65 levels, every size), only into its cell, the last
+  column left empty. Autotest `atlas_dump=1` saves each new font's atlas. Checked: menu buttons without dots,
+  the small chat font with all intermediate levels (before: the lowest bands empty).
 
 Findings 2026-10-11 (2560x1440, RTX 3080, dgVoodoo DirectX pass-through): ~80 fps; the render thread is CPU
 bound in Windows' DirectX 7 layer and the driver (DDRAW.dll 35%, nvd3dum 26%, kernel calls 24%), i.e. per
