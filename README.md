@@ -101,6 +101,9 @@ peace or alliances. With the mod:
   its own lines for situations of the game: greetings, attacks, being attacked, new ages, winning and losing,
   diplomacy. Six personalities are included, in English and German; the game's language is detected
   (`[lines:de]`, `[lines:fr]`... replace the English `[lines]`). A saved game finds its personalities again.
+  `computer.ini` in the same folder is no personality but the fallback: neutral lines for what must not go
+  unsaid (war, peace, offers waiting for your answer, capitulation, victory). A personality without a line for
+  such a situation uses it, and AIs without any personality speak only these lines.
 - **Play style** (experimental, `ai_style=1`, off by default): a personality can also change how its AI plays
   (attack timing, army share, home guard). Off, every AI plays the same, tested way.
 

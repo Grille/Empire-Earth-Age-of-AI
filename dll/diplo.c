@@ -240,7 +240,7 @@ static void peace_offer(void *pl, int ai, int j, uint32_t now) {
     if (is_vassal(ai)) {   // not its decision
         if (!g_peace_refused[ai][j]) {
             void *pk = player_at(g_lord[ai]);
-            if (!persona_say(pl, L_ASK_LORD, pj, pk)) persona_say(pl, L_PEACE_REFUSE, pj, NULL);
+            persona_say(pl, L_ASK_LORD, pj, pk);
             char de[300], en[300];
             wsprintfA(de, "%s ist Vasall von %s: verhandeln Sie mit %s.", player_name(pl), player_name(pk), player_name(pk));
             wsprintfA(en, "%s is a vassal of %s: negotiate with %s.", player_name(pl), player_name(pk), player_name(pk));
@@ -452,7 +452,7 @@ static int block_veto(int ai, int j, uint32_t now, int *own) {
 }
 static void block_refuse(void *pl, int j, int who, int own) {   // the refusal: a line, and a system line for him
     void *pj = player_at(j), *pw = player_at(who);
-    if (!persona_say(pl, own ? L_BLOCK_REFUSE_OWN : L_BLOCK_REFUSE, pj, pw)) persona_say(pl, L_PEACE_REFUSE, pj, NULL);
+    persona_say(pl, own ? L_BLOCK_REFUSE_OWN : L_BLOCK_REFUSE, pj, pw);
     char de[300], en[300];
     if (own) {
         wsprintfA(de, "%s lehnt ab: der Verb\xfcndete %s will keinen Frieden mit %s.", player_name(pl), player_name(pw), player_name(pj));
@@ -679,7 +679,7 @@ static void check_surrender(void *pl, int ai, uint32_t now) {
     if (now - g_no_citizens_since[ai] < (can_train ? 180000u : 60000u)) return;
     int lead = strongest_enemy(pl, ai);
     if (!lead || power_of(ai) * 2.0f >= power_of(lead)) return;   // nobody to give up to / its army can still win
-    if (!persona_say(pl, L_SURRENDER, player_at(lead), NULL)) persona_say(pl, L_DEFEATED, player_at(lead), NULL);
+    persona_say(pl, L_SURRENDER, player_at(lead), NULL);
     g_sit.said_defeat[ai] = 1;
     InterlockedOr(&g_resign_queue, 1 << ai);
     if (g_log) fprintf(g_log, "# surrender: P%d at %.1f min: no citizens for %.1f min, %s, power %.0f vs P%d %.0f\n", ai,
@@ -815,8 +815,7 @@ static void diplo_tick(void *pl, unsigned ai, uint32_t now) {
             if (!s || stance_of(pl, j) || is_out(pj)) continue;   // peace again, or already at war
             set_stance((int)ai, j, 1);
             chat_stance_line(pl, 1);
-            if (!persona_say(pl, g_war_betrayal[ai][j] ? L_BETRAYED : L_WAR_DECLARED, pj, NULL) && g_war_betrayal[ai][j])
-                persona_say(pl, L_WAR_DECLARED, pj, NULL);
+            persona_say(pl, g_war_betrayal[ai][j] ? L_BETRAYED : L_WAR_DECLARED, pj, NULL);
             void *cbm = FIELD(pl, 0xB8C, void *);
             if (cbm) ((void (__thiscall *)(void *, void *))FN_REVENGE)(cbm, pj);
             g_diplo_answers[ai]++;

@@ -211,6 +211,12 @@ static void lang_detect(void) {
                        h ? "read" : "NOT FOUND", age, hostile, g_lang);
 }
 
+// computer.ini: no personality - never assigned - but the fallback for every AI: a situation a personality has no
+// line for (and none of the situation's fallbacks either) is said with computer.ini's line; AIs without a
+// personality use it alone. It holds neutral lines for what must not go unsaid (diplomacy, capitulation, victory).
+static struct persona g_computer;
+static int g_has_computer;
+static int g_personas_only_computer;   // autotest personas=0: only computer.ini (AIs without a personality)
 static void persona_load(const char *path, const char *file) {
     if (g_npersonas >= MAX_PERSONAS) return;
     char *text = read_text_acp(path);
@@ -276,6 +282,11 @@ static void persona_load(const char *path, const char *file) {
             memcpy(p->line[k], ll[k], nll[k] * sizeof *ll[k]);
             p->nline[k] = nll[k];
         }
+    if (!lstrcmpiA(p->file, "computer")) {   // the neutral fallback lines, no personality of its own
+        g_computer = *p;
+        g_has_computer = 1;
+        return;
+    }
     g_npersonas++;
 }
 
@@ -291,7 +302,7 @@ static void personas_load(void) {
     if (h == INVALID_HANDLE_VALUE) return;
     do {
         wsprintfA(path, "%s%s", dir, fd.cFileName);
-        persona_load(path, fd.cFileName);
+        if (!g_personas_only_computer || !lstrcmpiA(fd.cFileName, "computer.ini")) persona_load(path, fd.cFileName);
     } while (FindNextFileA(h, &fd));
     FindClose(h);
 }
@@ -302,7 +313,25 @@ static struct persona *persona_of(void *pl) {
     return i >= 0 ? &g_personas[i] : NULL;
 }
 static int trait(void *pl, enum trait t) { struct persona *p = persona_of(pl); return p ? p->trait[t] : 50; }
-static int persona_has(void *pl, enum line_kind k) { struct persona *p = persona_of(pl); return p && g_ai_talk && p->nline[k]; }
+// A situation without a line falls back to a more general one; then computer.ini.
+static int line_fallback(int k) {
+    switch (k) {
+    case L_BETRAYED: return L_WAR_DECLARED;
+    case L_ASK_LORD: return L_PEACE_REFUSE;
+    case L_BLOCK_REFUSE_OWN: return L_BLOCK_REFUSE;
+    case L_BLOCK_REFUSE: return L_PEACE_REFUSE;
+    case L_SURRENDER: return L_DEFEATED;
+    default: return -1;
+    }
+}
+// where situation k's line comes from for this AI: its personality (k or a fallback of it), else computer.ini
+static struct persona *line_source(void *pl, int k, int *kk) {
+    struct persona *p = persona_of(pl);
+    for (int t = k; t >= 0 && p; t = line_fallback(t)) if (p->nline[t]) { *kk = t; return p; }
+    for (int t = k; t >= 0 && g_has_computer; t = line_fallback(t)) if (g_computer.nline[t]) { *kk = t; return &g_computer; }
+    return NULL;
+}
+static int persona_has(void *pl, enum line_kind k) { int kk; return pl && g_ai_talk && line_source(pl, k, &kk); }
 
 // Personalities in use this game (each once before any repeats)
 static int g_persona_used[MAX_PERSONAS];
@@ -470,19 +499,20 @@ static int line_heard(void *pl, enum line_kind k, void *other) {
 // answered, callers don't fall back to another line)
 static int g_say_tribute;   // {tribute}: set by the caller (diplo.c capitulation)
 static int persona_say(void *pl, enum line_kind k, void *other, void *third) {
-    struct persona *p = persona_of(pl);
-    if (!p || !g_ai_talk || !p->nline[k] || (FIELD(pl, 0x467, uint8_t) && k != L_DEFEATED)) return 0;
+    int kk = k;
+    struct persona *p = pl && g_ai_talk ? line_source(pl, k, &kk) : NULL, *own = persona_of(pl);
+    if (!p || (FIELD(pl, 0x467, uint8_t) && k != L_DEFEATED && k != L_SURRENDER)) return 0;
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     uint32_t now = game_time();
     if (g_talk_any[idx] && now - g_talk_any[idx] < 3000 && k_lines[k].chance < 100) return 0;
     if (g_talk_last[idx][k] && now - g_talk_last[idx][k] < (uint32_t)k_lines[k].cooldown * 1000u) return 0;
-    if (k_lines[k].chance < 100 && rnd(100) >= k_lines[k].chance * p->trait[T_TALK] / 50) return 0;
-    int n = p->nline[k], v = rnd(n);
+    if (k_lines[k].chance < 100 && rnd(100) >= k_lines[k].chance * (own ? own->trait[T_TALK] : 50) / 50) return 0;
+    int n = p->nline[kk], v = rnd(n);
     if (n > 1 && v == g_talk_variant[idx][k]) v = (v + 1) % n;
     g_talk_variant[idx][k] = (uint8_t)v;
     char buf[256], ep[48] = "";
     int o = 0;
-    for (const char *s = p->line[k][v]; *s && o < (int)sizeof buf - 1;) {
+    for (const char *s = p->line[kk][v]; *s && o < (int)sizeof buf - 1;) {
         const char *rep = NULL;
         if (*s == '{') {
             if (!strncmp(s, "{name}", 6)) { rep = player_name(other); s += 6; }
@@ -506,7 +536,8 @@ static int persona_say(void *pl, enum line_kind k, void *other, void *third) {
         wsprintfA(dbg, "[%s] %s", k_lines[k].aud == A_ALLIES ? "allies" : player_name(other), buf);
         chat_line(pl, dbg, g_chat_ms);
     }
-    if (g_log) fprintf(g_log, "# talk: P%u at %.1f min (%s%s): %s\n", idx, now / 60000.0, k_lines[k].key,
+    if (g_log) fprintf(g_log, "# talk: P%u at %.1f min (%s%s%s%s%s): %s\n", idx, now / 60000.0, k_lines[k].key,
+                       kk != (int)k ? " as " : "", kk != (int)k ? k_lines[kk].key : "", p == &g_computer ? ", computer.ini" : "",
                        heard ? "" : ", not for the player", buf);
     return 1;
 }
@@ -585,6 +616,7 @@ static void persona_install(const char *ini, const char *test_ini) {
         g_ai_talk = GetPrivateProfileIntA("autotest", "ai_talk", g_ai_talk, test_ini);
         g_ai_names = GetPrivateProfileIntA("autotest", "ai_names", g_ai_names, test_ini);
         g_ai_style = GetPrivateProfileIntA("autotest", "ai_style", g_ai_style, test_ini);
+        g_personas_only_computer = !GetPrivateProfileIntA("autotest", "personas", 1, test_ini);
     }
     g_rnd ^= test_ini ? 0x5EED : GetTickCount();
     g_rnd_game ^= test_ini ? 0x5EED : GetTickCount() * 2654435761u;
@@ -596,5 +628,5 @@ static void persona_install(const char *ini, const char *test_ini) {
     int okc = patch_call(CALL_PLAYER_COLOR, FN_COLOR_RGB, (void *)hook_player_color), ok = 0;
     static const uintptr_t sites[] = { 0x470040, 0x4715F8, 0x47166E, 0x47280E, 0x472B9D };
     for (size_t i = 0; i < sizeof sites / sizeof *sites; i++) ok += patch_call(sites[i], FN_NATIVE_CHAT, (void *)hook_native_chat);
-    if (g_log) fprintf(g_log, "# persona: %d personalities, language '%s', talk %d, names %d, native line hooks %d/5, colour hook %d\n", g_npersonas, g_lang, g_ai_talk, g_ai_names, ok, okc);
+    if (g_log) fprintf(g_log, "# persona: %d personalities, computer.ini %d, language '%s', talk %d, names %d, native line hooks %d/5, colour hook %d\n", g_npersonas, g_has_computer, g_lang, g_ai_talk, g_ai_names, ok, okc);
 }

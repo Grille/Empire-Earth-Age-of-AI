@@ -209,6 +209,9 @@ DDrawCompat v0.7.1 (narzoul) instead of dgVoodoo's ddraw.dll: 7.9 ms per frame w
 `CpuAffinity = 1` (whole game on one core), **5.6 ms (~177 fps) with `CpuAffinity = all`**
 (`DDrawCompat-Empire Earth.ini`); game, editor and windowed/borderless present work.
 
+Autotest `personas=0`: only `aimod_ai/computer.ini` is loaded - the AIs have no personality and say its neutral
+lines (the `# talk:` log marks them `computer.ini`; a fallback situation as `X as Y`).
+
 ### Alliance blocks
 
 `diplo A B S` sets stances, `diplo observer 1` lets the test observer (P1, allied with every AI) count as a human
