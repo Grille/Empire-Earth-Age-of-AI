@@ -92,6 +92,8 @@ peace or alliances. With the mod:
   other player has capitulated to you, you are told so; play on as long as you like, and type `sieg` (or
   `victory`) in the chat to end the game as the winner. Resigning or exiting from the menu then counts as
   a victory too.
+- **Ending the game yourself** (`auto_victory=0`): the game no longer ends on its own when one alliance is left;
+  once nobody stands against you, a hint says so, and `sieg`/`victory`, Resign or Exit ends it as a victory.
 - **Saved games:** the AIs remember across save and load - grudges, alliances, capitulations, pending offers
   (a small `.aimod` file next to each save; `save_state`).
 - **Surrender:** an AI that has lost all its citizens and can't train new ones resigns (with a last line),

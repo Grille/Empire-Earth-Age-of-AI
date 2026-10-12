@@ -229,6 +229,12 @@ member. Needs `ai_diplomacy=1` and a player outside the blocks (one alliance of 
 - Reputation: P2 breaks its alliance with P5: P3 (loyalty 70) -10.5, P4 (loyalty 95) -14 towards P2. P3 capitulates
   to P4, P4 attacks it at once: P2 (loyalty 35) -26, P5 (loyalty 60) -45 towards P4 (x5), P3 itself -78.
 
+### Automatic victory
+
+2026-10-12, 2 AIs + observer (allied with both): P2 and P3 make peace = one alliance. `auto_victory=1`: game over at
+once (P1=1 P2=1 P3=1). `auto_victory=0`: goes on (hint at once - the observer is allied with all), `diplo chat sieg`:
+game over P1=1 P2=1 P3=1 (allies win with him).
+
 ### Ranged aim
 
 Test 2026-10-12 (Continental 101, 2 AIs, start epoch 3, speed 1): 3 P2 guard towers (462) at 57..65,45, 20 P3

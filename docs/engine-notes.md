@@ -217,6 +217,10 @@ Guard towers 47, 461..466; AA 145/147; town center 35; house 37; citizen 32.
   others 2). Allied to everyone is not enough: two vassals allied to the player but at war with each other keep it
   running. 0x545D2A then sets +0xE6 and the simulation stops for good - there is no playing on after the end screen.
   EEPlayer vtable slot 29 (+0x74) = is human (EEHumanPlayer 0x4B129C returns 1).
+- Standard victory: game state +0xB96 (from the settings +0x408 at the game start - the editor's flag). Only with it
+  does 0x531913 end the game when one alliance group is left and take out players whose +0xB14 (object count) is
+  below 1; without it only scenario triggers or no humans left end a game. The mod's auto_victory=0 clears it and
+  sets it back when the player ends the game.
 - Chat line from a player: EEMInGameChat::vf10 (0x4B78C7, vtable 0x82936C slot 10), sender = the player whose
   +0x464 equals msg+0xA (0x52E6EF on the game state), text = UWideString at msg+0x10. Every UWideString here keeps a
   narrow char * at +4 despite its name. The chat box (EEUIECESendMessage::vf1 0x5C28D6) checks cheat codes first,
