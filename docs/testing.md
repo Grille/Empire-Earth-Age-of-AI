@@ -123,7 +123,7 @@ venv/Scripts/python scripts/eectl.py <command>
 | `tinfo P type...` | type data (family, hit points, attack, range) and whether player P can train/build it now |
 | `chat [0\|1\|2]` | AI chat level (0 off, 1 debug lines, 2 also the 5-minute status); lines shown/dropped per player |
 | `say P text` | AI player P writes text in the game's chat (no rate limit) |
-| `diplo [A B S]`, `diplo observer 0|1` | stance matrix, AI opinions, power and wars answered; with arguments player A takes stance S (0 allied, 1 enemy) towards B, as the stance message does |
+| `diplo [A B S]`, `diplo observer 0\|1` | stance matrix, AI opinions, power and wars answered; with arguments player A takes stance S (0 allied, 1 enemy) towards B, as the stance message does |
 | `diplo tribute A B N` | player A's tribute of N reaches AI B (the tribute hook's logic) |
 | `persona [P name]` | personalities loaded and assigned (traits, lines said); with arguments AI P gets personality `name` |
 | `spawn P type x y [n]` | create n units of a type for player P around tile x, y (2-tile grid), through the game's own debug spawner (EEMHackANewUnit, executed in the next tick like a player command). Type ids: `data/db/converteroutput.log` |
