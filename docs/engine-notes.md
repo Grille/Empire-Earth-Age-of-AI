@@ -413,6 +413,13 @@ Guard towers 47, 461..466; AA 145/147; town center 35; house 37; citizen 32.
 - Measured (`sound_log`, aitest.ees 25 -> 33 min, same game): 1251 audible plays; 16 channels dropped 557 (all for
   busy copies), 8 channels 665 (421 copies + 244 no channel). Ten subs moving on Large Islands: 6 of 10 "move"
   loops dropped for busy copies at 8 and 16 channels alike. The mixer never refused a sample.
+- The options slider goes to 200% (registry value 0..200): 200% asks SetMaxChannels for 32, the mixer creates 16
+  (CreateChannels clamps to its maximum) but the manager keeps 32 slots. On slots 16..31 SetChannelSample returns 10
+  (channel out of range), nothing plays, and the node stays there (IsChannelBusyPlaying is never 6 for it, so
+  DumpNonPlayingChannels never frees it): a looping sound keeps its copy for good. SetMaxChannels in a running game
+  pauses every looping sound, and the paused queue resumes from the highest channel down - straight onto the dead
+  ones (seen: ambience id 56 on channel 31 after 8 -> 32). `[sound] clamp_channels` holds SetMaxChannels to
+  GetMaximumChannelCount (IAT 0x823AD4).
 
 ## Misc
 

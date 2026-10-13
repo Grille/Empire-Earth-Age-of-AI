@@ -12,6 +12,7 @@
 #define MX_SET_CHANNEL_SAMPLE 0xD8   // int (cdecl *)(int channel, SESample *)
 #define MX_PLAY_CHANNEL 0xD0         // int (cdecl *)(int channel)
 #define SND_IDS 2048
+#define IAT_SND_SETMAXCH 0x00823AD4
 
 static int g_sound_log;
 static uint32_t g_snd_req[SND_IDS], g_snd_drop[SND_IDS], g_snd_req_total, g_snd_drop_total, g_snd_zero_vol;
@@ -163,8 +164,64 @@ static void sound_tick(uint32_t now) {
             + g_mix_play_fail[2] + g_mix_play_fail[10], top);
 }
 
+// CHANNEL FIX (aimod.ini [sound] clamp_channels, default on). The options slider "Max Number Of Sounds" goes to 200%:
+// channels = round(percent x the mixer's maximum), so 200% asks for 32 while the Miles mixer creates at most its
+// maximum (16 on Windows since Vista, see above). The manager then plays on channels 16..31 that don't exist: the
+// mixer refuses the sample (error 10), nothing sounds, and the node stays "playing" there - a looping sound (unit
+// movement, ambience) keeps its copy for good, so that sound never plays again. The paused queue resumes from the
+// highest channel down, and a change in a running game pauses every looping sound, so there it shows at once.
+// SetMaxChannels (exe IAT 0x823AD4) is held to the mixer's maximum: 200% = 100% = 16 channels.
+static int g_clamp_channels = 1;
+typedef int (__thiscall *set_max_ch_fn)(void *, uint32_t);
+static set_max_ch_fn g_set_max_ch;
+static int __fastcall hook_set_max_channels(uint8_t *sm, void *edx, uint32_t n) {
+    (void)edx;
+    uint8_t *mx = sm ? FIELD(sm, SM_MIXER, uint8_t *) : NULL;
+    void *get_max = mx ? FIELD(mx, 0xB0, void *) : NULL;   // SPIMGetMaximumChannelCount
+    uint32_t max = get_max ? ((uint32_t (__cdecl *)(void))get_max)() : 0;
+    if (g_clamp_channels && max && n > max) {
+        if (g_log) fprintf(g_log, "# sound: %u channels asked for, the mixer has %u - using %u\n", n, max, max);
+        n = max;
+    }
+    return g_set_max_ch(sm, n);
+}
+
 static void sound_install(const char *aimod_ini, const char *autotest_ini) {
+    g_clamp_channels = GetPrivateProfileIntA("sound", "clamp_channels", 1, aimod_ini);
+    if (autotest_ini) g_clamp_channels = GetPrivateProfileIntA("autotest", "clamp_channels", g_clamp_channels, autotest_ini);
+    iat_swap(IAT_SND_SETMAXCH, (void *)hook_set_max_channels, (void **)&g_set_max_ch);
+    if (g_log) fprintf(g_log, "# sound: clamp_channels=%d (hook %d)\n", g_clamp_channels, g_set_max_ch != NULL);
     // aimod.ini [sound] log = 1 (counts once a minute) | 2 (every play) - diagnostics in normal play too
     g_sound_log = GetPrivateProfileIntA("sound", "log", 0, aimod_ini);
     if (autotest_ini) g_sound_log = GetPrivateProfileIntA("autotest", "sound_log", g_sound_log, autotest_ini);
+}
+
+// sndstate: the manager's channels (node, sound id, node channel, sample channel, Miles status), the mixer's
+// channels, categories in use, the paused queue. sndchan N: SetMaxChannels(N) as the options screen does. Tests.
+static void cmd_sndstate(char *out, const char *args) {
+    (void)args;
+    uint8_t *sm = *(uint8_t **)G_SOUND_MANAGER;
+    if (!sm) { REPLY("error: no sound manager\n"); return; }
+    uint8_t *mv = g_mss_mixer ? *(uint8_t **)(g_mss_mixer + 0x52AC) : NULL, *me = mv ? *(uint8_t **)(g_mss_mixer + 0x52B0) : NULL;
+    REPLY("setting %.2f (0x9193B8), mixer maximum %d, ", *(float *)0x009193B8,
+          g_mss_mixer ? *(int *)(g_mss_mixer + 0x5320) : -1);
+    REPLY("channels %u, mixer channels %d, paused %d:", FIELD(sm, SM_CHANNELS, uint32_t), mv ? (int)((me - mv) / 8) : -1,
+          (int)((FIELD(sm, 0x38, uint8_t *) - FIELD(sm, 0x34, uint8_t *)) / 4));
+    uint8_t **slots = FIELD(sm, 0x24, uint8_t **);
+    for (uint32_t i = 0; slots && i < FIELD(sm, SM_CHANNELS, uint32_t); i++) {
+        uint8_t *n = slots[i], *smp = n ? FIELD(n, 0x20, uint8_t *) : NULL;
+        if (n) REPLY(" [%u: id %d node ch %d sample ch %d status %d]", i, FIELD(n, 0xC, int), FIELD(n, 0x1C, int),
+                     smp ? FIELD(smp, 0x24, int) : -9, snd_status((int)i));
+    }
+    uint8_t **cv = FIELD(sm, 0x54, uint8_t **), **ce = FIELD(sm, 0x58, uint8_t **);
+    for (int i = 0; cv && cv + i < ce; i++)
+        if (cv[i] && FIELD(cv[i], 8, int)) REPLY(" cat %d %d/%d", i, FIELD(cv[i], 8, int), FIELD(cv[i], 4, int));
+    REPLY("\n");
+}
+static void cmd_sndchan(char *out, const char *args) {
+    int n = atoi(args);
+    uint8_t *sm = *(uint8_t **)G_SOUND_MANAGER;
+    if (!sm || n < 1 || n > 64) { REPLY("error: usage sndchan N (1..64)\n"); return; }
+    int r = (*(int (__thiscall **)(void *, int))IAT_SND_SETMAXCH)(sm, n);
+    REPLY("ok: SetMaxChannels(%d) -> %d, now %u channels\n", n, r, FIELD(sm, SM_CHANNELS, uint32_t));
 }

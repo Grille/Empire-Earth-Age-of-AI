@@ -25,6 +25,8 @@ static void cmd_targets(char *out, const char *args);
 static void cmd_army(char *out, const char *args);
 static void cmd_count(char *out, const char *args);
 static void cmd_objs(char *out, const char *args);
+static void cmd_sndstate(char *out, const char *args);
+static void cmd_sndchan(char *out, const char *args);
 static void cmd_watchtech(char *out, const char *args);
 static void cmd_watchtype(char *out, const char *args);
 static void cmd_techs(char *out, const char *args);
@@ -359,6 +361,8 @@ static void execute(const char *cmd, char *out) {
     else if (!strcmp(verb, "army")) cmd_army(out, args);
     else if (!strcmp(verb, "count")) cmd_count(out, args);
     else if (!strcmp(verb, "objs")) cmd_objs(out, args);
+    else if (!strcmp(verb, "sndstate")) cmd_sndstate(out, args);
+    else if (!strcmp(verb, "sndchan")) cmd_sndchan(out, args);
     else if (!strcmp(verb, "watchtech")) cmd_watchtech(out, args);
     else if (!strcmp(verb, "watchtype")) cmd_watchtype(out, args);
     else if (!strcmp(verb, "techs")) cmd_techs(out, args);

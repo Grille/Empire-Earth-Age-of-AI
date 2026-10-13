@@ -168,6 +168,11 @@ Settings in `aimod.ini`:
   `aimod_ai` personalities. The game is lockstep - every PC simulates everything - so different settings make
   the games drift apart. The mod's decisions use only the game's own state, math and random numbers for this.
 - `[general] skip_intro=1`: skip the intro movies.
+- `[sound] clamp_channels=1` (default): the "Max Number Of Sounds" slider goes to 200%, which asks for 32 sound
+  channels, but the sound mixer has only 16 on current Windows. Sounds put on the 16 missing channels were silent,
+  and a looping one (unit movement such as the U-boats', ambience) stayed stuck there and never played again -
+  especially after changing the slider in a running game. The channels are now held to what the mixer has, so
+  anything from 100% up gives the same 16 working channels.
 
 ## Status
 
