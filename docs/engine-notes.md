@@ -396,6 +396,24 @@ Guard towers 47, 461..466; AA 145/147; town center 35; house 37; citizen 32.
   base position +0x12C/+0x130; enemy near 0x4660B9(x, y).
 - Research manager (cm+0x40): +0x110 next research, +0x118 initialised.
 
+## Sound
+
+- gSoundManager 0x919848 (Low-Level Engine.dll SESoundManager, constructed 0x530000 area with (path, mixer, 50, 0)),
+  mixer +0x70 (SEMixer: the Miles mixer plugin's SPIM* functions as fields, e.g. +0xB0 GetMaximumChannelCount,
+  +0xD8 SetChannelSample, +0xD0 PlayChannel - cdecl), channels +0x88, channel slots +0x20 vector.
+- "Max Number Of Sounds (percent)" (registry HKCU\Software\SSSI\Empire Earth): channels = round(percent x mixer
+  maximum), at least 8 (SetMaxChannels, at start and in 0x5C0000 area). The Miles Sound System Mixer.dll maximum is
+  DirectSound's dwFreeHwMixingAllBuffers when 1..64, else 16 - Windows since Vista reports 0, so 16: 0-53% = 8 channels,
+  100% = 16. Miles itself allows 64 samples (DIG_MIXER_CHANNELS set to 64), 22 kHz 16-bit stereo, DirectSound.
+- Play (0x1005B575, relative to the DLL's base 0x10000000): volume 0 without the queue flag returns at once (sounds out
+  of earshot). Each sound has a fixed number of copies (0x1005ABDD); with all copies on a channel (0x1005AC64) the play
+  is dropped silently unless one copy is under 1% from its end (0x1005BA08). Then categories (all 50 at 100% of the
+  channels), then a free channel (0x1005AA1F) or a finished one (0x1005A992, never a looping one) or a lower-priority
+  one (0x1005A7E9 - looping sounds go first, to the paused queue). The paused queue resumes without checking results.
+- Measured (`sound_log`, aitest.ees 25 -> 33 min, same game): 1251 audible plays; 16 channels dropped 557 (all for
+  busy copies), 8 channels 665 (421 copies + 244 no channel). Ten subs moving on Large Islands: 6 of 10 "move"
+  loops dropped for busy copies at 8 and 16 channels alike. The mixer never refused a sample.
+
 ## Misc
 
 - Civ selection: the civ timer (EEMCivTimerExpired 0x4B4F9C) opens the civ dialog when the local player
