@@ -124,7 +124,9 @@ peace or alliances. With the mod:
   state (who is at war with whom, who is stronger, what they think of you, how many soldiers, citizens and buildings each of you has destroyed of the other's - in the whole game and in the last 20 minutes), and they answer when you write to them
   in the chat - the game's chat filter decides who gets your line (everyone, allies, enemies or the players you
   chose); of those, the one you name answers ("Temur, ..." - a typo or the first letters will do), else the last one
-  you heard, else the only one that got it. Words only: the model decides
+  you heard, else the only one that got it. In single player a line nobody will answer gets a system line saying
+  why (no AI named, the filter reaches none or not the one you named, the model can't be reached; with the AI voice
+  off, once a game: the AIs don't read the chat). Words only: the model decides
   nothing, and an AI can't be talked into anything - it is told what it would really do if you offered peace, so
   its words match the rules. Tribute amounts and names must survive the rewording, else the fixed line is shown;
   without a server (or too slow, `timeout`) the fixed lines show as before. Only on your PC - in multiplayer each

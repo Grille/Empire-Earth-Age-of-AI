@@ -37,6 +37,7 @@ static volatile LONG g_llm_gen;                 // a new game: jobs of the last 
 static volatile DWORD g_llm_down_until;         // GetTickCount: the server failed, fixed lines until then
 static volatile LONG g_llm_fail_note;           // the worker failed to connect: tell the player (llm_tick)
 static int g_llm_told;                          // told this game
+static int g_llm_off_told;                      // single player, AI voice off: told once per game that nobody reads
 static unsigned g_llm_seq;
 static unsigned g_llm_n_ok, g_llm_n_fail, g_llm_n_fixed, g_llm_n_late;
 static char g_llm_last_err[160];
@@ -81,6 +82,7 @@ static void llm_new_game(void) {
     g_llm_last_ai = 0;
     g_llm_last_t = 0;
     g_llm_told = 0;
+    g_llm_off_told = 0;
 }
 
 // ---- JSON out: a growing buffer; strings in the game's code page, written as ASCII (\u escapes) ----
@@ -595,10 +597,28 @@ static int chat_reaches(void *pm, void *pj) {
     default: return 1;
     }
 }
+// a system line for the local player about his chat line (single player only: in multiplayer the humans read it)
+static void llm_chat_hint(const char *de, const char *en) {
+    if (g_mp) return;
+    uint8_t *opt = *(uint8_t **)0x00917BB8;
+    system_line(!lstrcmpiA(g_lang, "de") ? de : en, opt ? FIELD(opt, 0x2CC, int) : 15000);
+    if (g_log) fprintf(g_log, "# llm: hint for the player: %s\n", en);
+}
 // the local player wrote `text` in the chat: one AI that gets it (the chat filter) answers - the one it names first,
-// else the last one he heard within 5 minutes, else the only one that gets it
+// else the last one he heard within 5 minutes, else the only one that gets it. In single player a line nobody will
+// answer gets a system line saying why (with the AI voice off: once per game).
 static void llm_player_chat(const char *text) {
-    if (!g_llm_on || !g_llm_chat || !text || !*text || victory_word(text)) return;
+    if (!text || !*text || victory_word(text)) return;
+    if (!g_llm_on || !g_llm_chat) {
+        if (!g_llm_off_told) {
+            g_llm_off_told = 1;
+            if (!g_llm_on) llm_chat_hint("Die Computerspieler lesen den Chat nicht (KI-Stimme aus: [llm] enabled=1 in aimod.ini).",
+                                         "The computer players don't read the chat (AI voice off: [llm] enabled=1 in aimod.ini).");
+            else llm_chat_hint("Die Computerspieler beantworten den Chat nicht ([llm] chat=1 in aimod.ini).",
+                               "The computer players don't answer the chat ([llm] chat=1 in aimod.ini).");
+        }
+        return;
+    }
     int h = (int)*(unsigned *)0x00918E84, to = 0, got = 0, only = 0, at = 1 << 30;
     void *pm = player_at(h);
     uint32_t now = game_time();
@@ -614,6 +634,17 @@ static void llm_player_chat(const char *text) {
         int w = word_in(text, player_name(pi));
         if (w >= 0 && w < at) { at = w; to = i; }
     }
+    if (!to)   // it names an AI the filter keeps it from: no other one answers in its place
+        for (int i = 1; i < nplayers(); i++) {
+            void *pi = player_at(i);
+            if (!pi || !g_players[i] || is_out(pi) || i == h || chat_reaches(pm, pi) || word_in(text, player_name(pi)) < 0) continue;
+            char de[300], en[300];
+            snprintf(de, sizeof de, "Keine Antwort: %s bekommt die Nachricht nicht (Chat-Filter).", player_name(pi));
+            snprintf(en, sizeof en, "No answer: %s doesn't get your message (chat filter).", player_name(pi));
+            if (g_llm_log && g_log) fprintf(g_log, "# llm: chat line names P%d, whom the filter keeps it from: %s\n", i, text);
+            llm_chat_hint(de, en);
+            return;
+        }
     int last = g_llm_last_ai;
     if (!to && last && now - g_llm_last_t < 300000 && g_players[last] && !is_out(g_players[last]) && chat_reaches(pm, g_players[last]))
         to = last;
@@ -621,15 +652,37 @@ static void llm_player_chat(const char *text) {
     if (!to) {
         if (g_llm_log && g_log) fprintf(g_log, "# llm: chat line (mode %d, gets it:%s) meant for no AI - name one: %s\n",
                                         FIELD(pm, 0x9E0, int), got ? who : " none", text);
+        if (!got) llm_chat_hint("Keine Antwort: Ihr Chat-Filter erreicht keinen Computerspieler.",
+                                "No answer: your chat filter reaches no computer player.");
+        else {
+            char names[200] = "", de[320], en[320];
+            for (int i = 1; i < nplayers(); i++) {
+                void *pi = player_at(i);
+                if (!pi || !g_players[i] || is_out(pi) || i == h || !chat_reaches(pm, pi)) continue;
+                if (names[0] && lstrlenA(names) < 150) lstrcatA(names, ", ");
+                if (lstrlenA(names) < 150) lstrcatA(names, player_name(pi));
+            }
+            snprintf(de, sizeof de, "Keine Antwort: wen meinen Sie? Nennen Sie einen Namen (%s) oder w\xe4hlen Sie ihn im Chat-Filter.", names);
+            snprintf(en, sizeof en, "No answer: who do you mean? Name one (%s) or choose them in the chat filter.", names);
+            llm_chat_hint(de, en);
+        }
         return;
     }
     llm_hist_add(to, 0, text);
     if (!llm_ready()) {
         if (g_llm_log && g_log) fprintf(g_log, "# llm: chat line for P%d - the server is down, no answer\n", to);
+        char de[300], en[300];
+        snprintf(de, sizeof de, "Keine Antwort: das Sprachmodell (%s) ist nicht erreichbar.", g_llm_url);
+        snprintf(en, sizeof en, "No answer: the language model (%s) can't be reached.", g_llm_url);
+        llm_chat_hint(de, en);
         return;
     }
     struct llm_job *j = llm_slot();
-    if (!j) return;
+    if (!j) {
+        llm_chat_hint("Keine Antwort: das Sprachmodell hat zu viel zu tun - versuchen Sie es gleich noch einmal.",
+                      "No answer: the language model is too busy - try again in a moment.");
+        return;
+    }
     memset(j, 0, sizeof *j);
     j->chat = 1;
     j->ai = to;
