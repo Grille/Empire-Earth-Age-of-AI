@@ -913,7 +913,29 @@ static int patch_vtable(uintptr_t vt, int slot, uintptr_t expected, void *hook) 
     return 1;
 }
 
+// Engine guard: an attack subgroup's member records (+0x50 vector, record +0x44 = unit) are summed up by 0x4504FD ->
+// 0x450554 (thiscall(stats, unit)) without a check. A record without its unit crashed there (read [0 + 0x34]) in a
+// long game, one AI step after two AIs surrendered and attacks on them were called off (0x43033E with 1: the
+// subgroups hand their units back, 0x455C90). Such a record is skipped and logged.
+#define CALL_GROUP_STAT 0x00450546
+#define FN_GROUP_STAT   0x00450554
+static void __fastcall hook_group_stat(void *stats, void *edx, uint8_t *unit) {
+    (void)edx;
+    if (!unit) {
+        static int logged;
+        if (g_log && logged < 20) {
+            logged++;
+            fprintf(g_log, "# engine guard: attack subgroup member without its unit skipped at %.1f min\n", game_time() / 60000.0);
+            fflush(g_log);
+        }
+        return;
+    }
+    ((void (__thiscall *)(void *, void *))FN_GROUP_STAT)(stats, unit);
+}
+
 static void attack_install(const char *aimod_ini, const char *autotest_ini) {
+    BOOL stat_guard = patch_call(CALL_GROUP_STAT, FN_GROUP_STAT, hook_group_stat);
+    if (g_log) fprintf(g_log, "# engine guard: attack subgroup members %s\n", stat_guard ? "ok" : "FAILED");
     g_avoid_towers = cfg_int(aimod_ini, autotest_ini, 1, "avoid_towers", 1);
     g_avoid_citizens = cfg_int(aimod_ini, autotest_ini, 1, "avoid_towers_citizens", 1);
     g_avoid_weight = cfg_int(aimod_ini, autotest_ini, 1, "avoid_towers_weight", 2000);

@@ -396,6 +396,13 @@ Guard towers 47, 461..466; AA 145/147; town center 35; house 37; citizen 32.
   base position +0x12C/+0x130; enemy near 0x4660B9(x, y).
 - Research manager (cm+0x40): +0x110 next research, +0x118 initialised.
 
+- Attack subgroup stats: 0x4504FD sums the member records (subgroup +0x50 vector, record +0x44 = unit) through
+  0x450554 without a null check. One crash (giga_tst.ees, 289.8 min, `read 00000034` at 0x450559): in the AI step
+  right after P4 and P5 surrendered and P2 called off its attacks on P5 (0x43033E with 1 -> 0x454B90: each subgroup
+  hands its units back, 0x455C90, and is released). Stack 0x483ADE -> 0x4824BF -> 0x450E07 (unit into an attack
+  group) -> 0x453E10 -> subgroup vf96 -> vf 0x14C 0x45AA2F -> 0x4504FD. Not reproduced (the replay's diplomacy
+  differed); the call at 0x450546 now skips a record without its unit and logs it ("# engine guard: attack subgroup").
+
 ## Sound
 
 - gSoundManager 0x919848 (Low-Level Engine.dll SESoundManager, constructed 0x530000 area with (path, mixer, 50, 0)),
