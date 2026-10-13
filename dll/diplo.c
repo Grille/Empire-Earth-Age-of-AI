@@ -28,8 +28,8 @@
 // AI INITIATIVE ([all] ai_diplomacy, default 1; not in scenarios/campaigns, not with locked teams), per AI every
 // 60 s from minute 10:
 //   alliance: at war with a leader (power > 1.5 x own) - offer an alliance to another enemy of the leader it is at
-//     war with (opinion > -20): an AI decides like a peace offer (+15 common enemy); a human gets the AI's allied
-//     stance at once (its units stop attacking) and 2 minutes to answer, otherwise the offer is withdrawn.
+//     war with (opinion > -20): an AI decides like a peace offer (+15 common enemy); a human gets the offer as a
+//     line and 2 minutes to answer by turning allied - only then does the AI turn allied - otherwise it is withdrawn.
 //   betrayal: allied for 10+ minutes with a player of under half its power, opinion < 30: chance per minute
 //     (100 - loyalty) x aggression / 100000 - then war (betray line). Never the player it capitulated to.
 //   Threat: per AI and player, that player's soldiers within 20 tiles of the AI's base, summed over the 10-s scans
@@ -200,11 +200,28 @@ static float peace_score(void *pl, int ai, int j, uint32_t now) {
     return s;
 }
 
+// STANCE LINES ([all] stance_lines): every AI stance change used to show the game's line "<AI> wechselt
+// diplomatische Haltung zu Feindselig" - also between AIs, and without saying towards whom. 1 (default): only the
+// changes towards you, naming the AI (on your PC); 2: the game's line for all, as before; 0: none (the
+// personality lines still speak).
+static int g_stance_lines = 1;
+static void block_line(int to, const char *de, const char *en);   // below
+static void stance_note(int ai, int j, int s) {
+    void *pl = player_at(ai), *pj = player_at(j);
+    if (!pl || !pj) return;
+    if (g_stance_lines >= 2) { chat_stance_line(pl, s); return; }
+    if (g_stance_lines != 1 || g_players[j]) return;
+    char de[200], en[200];
+    wsprintfA(de, s ? "%s ist jetzt Ihr Feind." : "%s ist jetzt mit Ihnen verb\xfc" "ndet.", player_name(pl));
+    wsprintfA(en, s ? "%s is now your enemy." : "%s is now your ally.", player_name(pl));
+    block_line(j, de, en);
+    if (g_log) fprintf(g_log, "# diplomacy: line for P%d: %s\n", j, en);
+}
+
 static void make_peace(int ai, int j, uint32_t now) {
     void *pl = player_at(ai), *pj = player_at(j);
     if (!pl || !pj) return;
-    if (stance_of(pl, j)) set_stance(ai, j, 0);
-    chat_stance_line(pl, 0);
+    if (stance_of(pl, j)) { set_stance(ai, j, 0); stance_note(ai, j, 0); }
     g_ally_since[ai][j] = g_ally_since[j][ai] = now ? now : 1;
     g_war_since[ai][j] = g_war_since[j][ai] = 0;
     g_peace_due[ai][j] = 0;
@@ -216,7 +233,7 @@ static void declare_war(int ai, int j, uint32_t now) {
     void *pl = player_at(ai);
     if (!pl || stance_of(pl, j)) return;
     set_stance(ai, j, 1);
-    chat_stance_line(pl, 1);
+    stance_note(ai, j, 1);
     g_ally_since[ai][j] = g_ally_since[j][ai] = 0;
     g_war_since[j][ai] = now ? now : 1;   // the other side: war was declared on j
     g_offer_t[ai][j] = 0;
@@ -226,7 +243,6 @@ static void declare_war(int ai, int j, uint32_t now) {
 // no betrayal, no capitulation to anyone else; a peace offer gets "talk to my lord" (line ask_lord, {enemy} = the
 // lord, and a system line for a human). They still answer war and take their lord's side in a block split; a lord
 // who turns on his vassal sets it free.
-static void block_line(int to, const char *de, const char *en);   // below
 static int is_vassal(int ai) {
     int l = g_lord[ai];
     void *pl = player_at(ai), *pk = l ? player_at(l) : NULL;
@@ -381,10 +397,8 @@ static void blocks_pass(uint32_t now) {
                 int a = g_players[x] ? x : y, h = a == x ? y : x;
                 void *pa = player_at(a), *ph = player_at(h);
                 if (g_offer_t[a][h]) continue;   // an offer is pending
-                if (stance_of(pa, h)) {   // the AI is at war with him: it offers peace
+                if (stance_of(pa, h)) {   // the AI is at war with him: it offers peace (turns allied when he does)
                     vassal_grumble(a, h, now);
-                    set_stance(a, h, 0);
-                    chat_stance_line(pa, 0);
                     g_offer_t[a][h] = now ? now : 1;
                     g_offer_kind[a][h] = 2;
                     char de[300], en[300];
@@ -495,9 +509,7 @@ static void diplo_initiative(void *pl, int ai, uint32_t now) {
                     make_peace(best, ai, now);
                     persona_say(pj, L_OFFER_ACCEPTED, pl, player_at(lead));
                 } else persona_say(pj, L_PEACE_REFUSE, pl, NULL);
-            } else {                 // a human: the AI's stance now, his answer within 2 minutes
-                set_stance(ai, best, 0);
-                chat_stance_line(pl, 0);
+            } else {                 // a human: the offer as a line; the AI turns allied when he does (2 minutes)
                 g_offer_t[ai][best] = now ? now : 1;
                 g_offer_kind[ai][best] = 0;
                 char de[300], en[300];
@@ -648,8 +660,8 @@ static void capitulate(void *pl, int ai, int a, uint32_t now) {
         }
         return;
     }
-    set_stance(ai, a, 0);   // a human: its units stop fighting; his answer (allied) within 2 minutes
-    chat_stance_line(pl, 0);
+    set_stance(ai, a, 0);   // a human: its units stop fighting (a white flag); his answer (allied) within 2 minutes
+    if (g_stance_lines >= 2) chat_stance_line(pl, 0);
     promise_escrow(ai, 1);
     g_offer_t[ai][a] = now ? now : 1;
     g_offer_kind[ai][a] = 1;
@@ -833,7 +845,7 @@ static void diplo_tick(void *pl, unsigned ai, uint32_t now) {
             g_diplo_due[ai][j] = 0;
             if (!s || stance_of(pl, j) || is_out(pj)) continue;   // peace again, or already at war
             set_stance((int)ai, j, 1);
-            chat_stance_line(pl, 1);
+            stance_note((int)ai, j, 1);
             persona_say(pl, g_war_betrayal[ai][j] ? L_BETRAYED : L_WAR_DECLARED, pj, NULL);
             void *cbm = FIELD(pl, 0xB8C, void *);
             if (cbm) ((void (__thiscall *)(void *, void *))FN_REVENGE)(cbm, pj);
@@ -859,7 +871,12 @@ static void diplo_tick(void *pl, unsigned ai, uint32_t now) {
                     persona_say(pl, L_CAPITULATE_ACCEPTED, pj, NULL);
                     if (g_log) fprintf(g_log, "# diplomacy: P%u at %.1f min: P%d accepts the capitulation, %d resources paid\n",
                                        ai, now / 60000.0, j, paid_total);
-                } else persona_say(pl, L_OFFER_ACCEPTED, pj, NULL);
+                } else {   // his answer to the alliance / block peace: now the AI turns allied too
+                    make_peace((int)ai, j, now);
+                    persona_say(pl, L_OFFER_ACCEPTED, pj, NULL);
+                    if (g_log) fprintf(g_log, "# diplomacy: P%u at %.1f min: P%d accepts the %s\n", ai, now / 60000.0, j,
+                                       unity ? "block peace" : "alliance");
+                }
                 g_offer_ignored[ai][j] = 0;
             } else if (now - g_offer_t[ai][j] > 120000) {
                 g_offer_t[ai][j] = 0;
@@ -867,8 +884,10 @@ static void diplo_tick(void *pl, unsigned ai, uint32_t now) {
                 else if (!unity) g_offer_ignored[ai][j]++;
                 if (capit && g_log) fprintf(g_log, "# diplomacy: P%u at %.1f min: P%d ignored the capitulation\n", ai, now / 60000.0, j);
                 persona_say(pl, capit ? L_CAPITULATE_REFUSED : L_OFFER_WITHDRAWN, pj, NULL);
-                set_stance((int)ai, j, 1);
-                chat_stance_line(pl, 1);
+                if (!stance_of(pl, j)) {   // the capitulation's cease-fire ends (an offer never changed its stance)
+                    set_stance((int)ai, j, 1);
+                    stance_note((int)ai, j, 1);
+                }
                 if (unity && blocks_on()) {   // he stays at war with a member of his block: it splits
                     int blk[16];
                     blocks_compute(blk);
@@ -1188,6 +1207,14 @@ static void cmd_diplo(char *out, const char *args) {
               g_no_citizens_since[a] / 60000.0);
         return;
     }
+    if (sscanf(args, "offer %d %d", &a, &b) == 2) {   // diplo offer P H: AI P offers human H an alliance now (tests)
+        if (!g_players[a & 15] || g_players[b & 15] || !player_at(a) || !player_at(b)) { REPLY("error: P%d no AI or P%d no human\n", a, b); return; }
+        g_offer_t[a][b] = game_time() ? game_time() : 1;
+        g_offer_kind[a][b] = 0;
+        g_offer_last[a][b] = game_time();
+        REPLY("P%d offers P%d an alliance; its stance towards P%d stays %d\n", a, b, b, stance_of(player_at(a), b));
+        return;
+    }
     if (sscanf(args, "capitulate %d %d", &a, &b) == 2) {   // diplo capitulate P A: AI P capitulates to A now (tests)
         if (!g_players[a & 15] || !player_at(a) || !player_at(b) || a == b) { REPLY("error: P%d is no AI player or bad P%d\n", a, b); return; }
         capitulate(player_at(a), a, b, game_time());
@@ -1231,12 +1258,14 @@ static void diplo_install(const char *ini, const char *test_ini) {
     g_ai_diplomacy = GetPrivateProfileIntA("all", "ai_diplomacy", 1, ini);
     g_surrender = GetPrivateProfileIntA("all", "surrender", 1, ini);
     g_blocks = GetPrivateProfileIntA("all", "alliance_blocks", 1, ini);
+    g_stance_lines = GetPrivateProfileIntA("all", "stance_lines", 1, ini);
     g_auto_victory = GetPrivateProfileIntA("general", "auto_victory", 1, ini);
     if (test_ini) {
         g_answer_war = GetPrivateProfileIntA("autotest", "answer_war", g_answer_war, test_ini);
         g_ai_diplomacy = GetPrivateProfileIntA("autotest", "ai_diplomacy", g_ai_diplomacy, test_ini);
         g_surrender = GetPrivateProfileIntA("autotest", "surrender", g_surrender, test_ini);
         g_blocks = GetPrivateProfileIntA("autotest", "alliance_blocks", g_blocks, test_ini);
+        g_stance_lines = GetPrivateProfileIntA("autotest", "stance_lines", g_stance_lines, test_ini);
         g_auto_victory = GetPrivateProfileIntA("autotest", "auto_victory", g_auto_victory, test_ini);
         g_block_observer = GetPrivateProfileIntA("autotest", "block_observer", 0, test_ini);
     }

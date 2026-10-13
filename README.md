@@ -80,6 +80,11 @@ peace or alliances. With the mod:
 - **Peace and alliances:** an AI judges peace offers by its opinion of you, the strength of both sides, how
   recently you attacked it and its character. Tribute buys goodwill. AIs ally against a much stronger enemy,
   and a disloyal one may betray a weak ally. Nothing changes in scenarios or with locked teams.
+- **Offers to you are messages:** an AI offering you an alliance (or peace inside your block) only says so; it
+  stays at war until you set it to allied (2 minutes), and only then turns allied itself.
+- **Stance lines** (`stance_lines`): only the AIs' stance changes towards you are shown, naming the AI ("Khan
+  Temur is now your enemy"). The game's line for every change - also between AIs, without saying towards whom - is
+  `stance_lines=2`; `0` shows none (the personalities still speak).
 - **Alliance blocks:** everyone linked by alliances is one block, with peace inside it: two AIs allied with you
   (or with the same AI) don't fight each other. An AI at war with you that joins your block offers you peace.
   Whoever turns on a member breaks the block, and every other AI picks a side (`alliance_blocks`). Joining
