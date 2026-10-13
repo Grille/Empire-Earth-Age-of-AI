@@ -53,6 +53,7 @@ information a human couldn't have (it only uses enemy buildings it has seen).
 |---|---|
 | Towers and walls | Towers at the front facing the enemy and at outlying mines instead of scattered around; a wall arc in front of them. |
 | Home guard | The AI keeps an army at home that grows with its population cap (the original trained only for its next attack). |
+| Muster | When an enemy army in its base is too strong to fight (twice its soldiers and towers), the AI stops sending every new soldier in alone: they gather beyond the base and strike together once they can win; citizens next to the enemy flee there too. |
 | Unit choice | When the AI asks for a unit it can't pay for or train, it trains the strongest soldier it can afford. |
 | Counter-siege | Soldiers near the base attack enemy siege weapons shelling it, when clearly stronger than the escort. |
 

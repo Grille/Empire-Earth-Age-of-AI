@@ -519,6 +519,172 @@ static void home_guard(void *pl, unsigned idx, uint32_t now) {
                             idx, now / 60000.0, home, target, n, type);
 }
 
+// MUSTER ([all] muster, default 1): an enemy army in the base got the AI's defenders one by one - every soldier the
+// home guard trained walked into it alone, and the next one, and the next. A player would pull back what is left,
+// gather, and strike once there is a force that can win. Every 3 s per AI: enemy soldiers within 22 tiles of the
+// base (strength = hit points x attack) against its own soldiers within 35 and its towers within 22. Only when the
+// fight at home is hopeless - at least 8 enemies, twice the strength of soldiers and towers: muster - every own
+// soldier there goes to a rally point 18 tiles beyond the base, on the side away from the enemy's centre; new ones
+// join as they are trained. Strike once the soldiers at the rally point are 1.3 x the enemy in the base: each attacks
+// the nearest enemy soldier. The muster ends without a strike when the enemy is gone (fewer than 3), when soldiers
+// and towers can stand up to it again, or when the enemy follows to the rally point a third time (then it fights
+// where it is) - and no new muster for 30 s / 60 s. Citizens near the enemy go to the rally point too
+// (citizens_safety, attack.c) - their drop site is where the fight is.
+// First version (any superiority, 5 enemies, no way out): assault scenario, 4 seeds - the defender gave up a base it
+// would have held (9 attackers against 4 soldiers, towers and militia: off 88% alive, on 62%), the attackers followed
+// to the rally point, its fleeing citizens stopped the economy and it surrendered.
+static int g_muster = 1;
+static struct { int on, moves; float rx, ry; uint32_t since, cool, cool_len; unsigned episodes, orders, strikes; } g_mus[16];
+struct mus_scan {
+    void *pl; int bx, by, en, no, ne;
+    float epow, opow, tpow, ex, ey;
+    uint8_t *own[256], *enemy[128];
+};
+static struct mus_scan g_ms;
+static void mus_unit(uint8_t *u, void *ctx) {
+    struct mus_scan *m = ctx;
+    uint8_t *td = FIELD(u, 0x2C, uint8_t *);
+    if (FIELD(u, 0x3C, int) <= 0 || !td) return;
+    void *o = FIELD(u, 0x18, void *);
+    int x = FIELD(u, 0x1C, int), y = FIELD(u, 0x20, int), dx = x - m->bx, dy = y - m->by, d2 = dx * dx + dy * dy;
+    float tr, ta;
+    if (o == m->pl && d2 <= 22 * 22 && defence_stats(u, &tr, &ta)) { m->tpow += (float)FIELD(u, 0x3C, int) * ta; return; }
+    if (!is_soldier(td)) return;
+    if (o == m->pl) {
+        if (d2 > 35 * 35) return;
+        if (m->no < 256) m->own[m->no++] = u;
+        m->opow += unit_power(u);
+    } else if (o && FIELD(o, PL_INDEX, int) > 0 && is_enemy(m->pl, o) && d2 <= 22 * 22) {
+        float p = unit_power(u);
+        m->epow += p;
+        m->ex += (float)x * p;
+        m->ey += (float)y * p;
+        m->en++;
+        if (m->ne < 128) m->enemy[m->ne++] = u;
+    }
+}
+static void mus_rally(unsigned idx, struct mus_scan *s) {
+    float cx = s->epow > 0 ? s->ex / s->epow : (float)s->bx + 1, cy = s->epow > 0 ? s->ey / s->epow : (float)s->by;
+    float dx = (float)s->bx - cx, dy = (float)s->by - cy, l = sqrtf(dx * dx + dy * dy);
+    if (l < 1.0f) { dx = 1.0f; dy = 0.0f; l = 1.0f; }
+    float msz = (float)*(uint32_t *)(*(uint8_t **)G_MAP + 0x1816FC);
+    float rx = (float)s->bx + dx / l * 18.0f, ry = (float)s->by + dy / l * 18.0f;
+    if (msz > 8) {
+        rx = rx < 3 ? 3 : rx > msz - 4 ? msz - 4 : rx;
+        ry = ry < 3 ? 3 : ry > msz - 4 ? msz - 4 : ry;
+    }
+    g_mus[idx].rx = rx;
+    g_mus[idx].ry = ry;
+}
+static int muster_rally(unsigned idx, float *x, float *y) {   // citizens_safety: the rally point while mustering
+    if (idx >= 16 || !g_mus[idx].on) return 0;
+    *x = g_mus[idx].rx;
+    *y = g_mus[idx].ry;
+    return 1;
+}
+static uint8_t *mus_nearest_enemy(struct mus_scan *s, uint8_t *u) {
+    uint8_t *best = NULL;
+    int bd = 0x7FFFFFFF, x = FIELD(u, 0x1C, int), y = FIELD(u, 0x20, int);
+    for (int k = 0; k < s->ne; k++) {
+        uint8_t *e = s->enemy[k];
+        if (FIELD(e, 0x3C, int) <= 0) continue;
+        int dx = FIELD(e, 0x1C, int) - x, dy = FIELD(e, 0x20, int) - y, d = dx * dx + dy * dy;
+        if (d < bd) { bd = d; best = e; }
+    }
+    return best;
+}
+static void muster(void *pl, unsigned idx, uint32_t now) {
+    static uint32_t last[16];
+    if (!g_muster || g_def_off[idx] || (now >= last[idx] && now - last[idx] < 3000)) return;
+    last[idx] = now;
+    void *cm = FIELD(pl, 0xB90, void *);
+    uint8_t *bm = cm ? FIELD(cm, 0x3C, uint8_t *) : NULL;
+    if (!bm || FIELD(bm, 0x12C, int) == -10000) { g_mus[idx].on = 0; return; }
+    struct mus_scan *s = &g_ms;
+    memset(s, 0, sizeof *s);
+    s->pl = pl;
+    s->bx = FIELD(bm, 0x12C, int);
+    s->by = FIELD(bm, 0x130, int);
+    grid_each(mus_unit, s);
+    if (!g_mus[idx].on) {
+        if (s->en < 8 || s->epow <= 2.0f * (s->opow + s->tpow) ||
+            (g_mus[idx].cool && now - g_mus[idx].cool < g_mus[idx].cool_len)) return;
+        g_mus[idx].on = 1;
+        g_mus[idx].moves = 0;
+        g_mus[idx].since = now ? now : 1;
+        g_mus[idx].episodes++;
+        mus_rally(idx, s);
+        if (g_log) fprintf(g_log, "# muster: P%u at %.1f min: %d enemy soldiers in the base (strength %.0f) against %d own "
+                           "(%.0f) and towers (%.0f) - gathering at %.0f,%.0f\n", idx, now / 60000.0, s->en, s->epow, s->no, s->opow, s->tpow,
+                           g_mus[idx].rx, g_mus[idx].ry);
+        ai_say(pl, CHAT_GUARD, "[ai] base overrun (%d enemies), gathering at %.0f,%.0f", s->en, g_mus[idx].rx, g_mus[idx].ry);
+    } else {
+        if (s->en < 3 || s->epow <= s->opow + s->tpow) {
+            g_mus[idx].on = 0;
+            g_mus[idx].cool = now ? now : 1;
+            g_mus[idx].cool_len = 30000;
+            if (g_log) fprintf(g_log, "# muster: P%u at %.1f min: %s - muster ends after %.1f min\n", idx, now / 60000.0,
+                               s->en < 3 ? "the enemy is gone from the base" : "soldiers and towers can hold the base again",
+                               (now - g_mus[idx].since) / 60000.0);
+            return;
+        }
+        float rpow = 0;
+        int rn = 0, near_rally = 0;
+        for (int k = 0; k < s->no; k++) {
+            uint8_t *u = s->own[k];
+            float dx = (float)FIELD(u, 0x1C, int) - g_mus[idx].rx, dy = (float)FIELD(u, 0x20, int) - g_mus[idx].ry;
+            if (dx * dx + dy * dy <= 100) { rpow += unit_power(u); rn++; }
+        }
+        if (rpow >= 1.3f * s->epow) {   // strike
+            int ordered = 0;
+            for (int k = 0; k < s->no; k++) {
+                uint8_t *u = s->own[k], *t = mus_nearest_enemy(s, u);
+                if (t && unit_goal(u, goal_attack(u, t), 0, 0x1F40)) ordered++;
+            }
+            g_mus[idx].on = 0;
+            g_mus[idx].cool = now ? now : 1;
+            g_mus[idx].cool_len = 30000;
+            g_mus[idx].strikes++;
+            if (g_log) fprintf(g_log, "# muster: P%u at %.1f min: strike - %d gathered (strength %.0f) against %d enemies "
+                               "(%.0f), %d ordered\n", idx, now / 60000.0, rn, rpow, s->en, s->epow, ordered);
+            ai_say(pl, CHAT_GUARD, "[ai] strike with %d against %d", rn, s->en);
+            return;
+        }
+        for (int k = 0; k < s->ne && !near_rally; k++) {
+            float dx = (float)FIELD(s->enemy[k], 0x1C, int) - g_mus[idx].rx, dy = (float)FIELD(s->enemy[k], 0x20, int) - g_mus[idx].ry;
+            near_rally = dx * dx + dy * dy <= 100;
+        }
+        if (near_rally && ++g_mus[idx].moves >= 3) {   // it follows: no getting away - fight where it is
+            g_mus[idx].on = 0;
+            g_mus[idx].cool = now ? now : 1;
+            g_mus[idx].cool_len = 60000;
+            int ordered = 0;
+            for (int k = 0; k < s->no; k++) {
+                uint8_t *u = s->own[k], *t = mus_nearest_enemy(s, u);
+                if (t && unit_goal(u, goal_attack(u, t), 0, 0x1F40)) ordered++;
+            }
+            if (g_log) fprintf(g_log, "# muster: P%u at %.1f min: the enemy follows to the rally point - fighting where it is "
+                               "(%d ordered)\n", idx, now / 60000.0, ordered);
+            return;
+        }
+        if (near_rally) {
+            mus_rally(idx, s);
+            if (g_log) fprintf(g_log, "# muster: P%u at %.1f min: enemies at the rally point - now %.0f,%.0f\n", idx,
+                               now / 60000.0, g_mus[idx].rx, g_mus[idx].ry);
+        }
+    }
+    int ordered = 0;   // everyone who isn't there or on the way
+    for (int k = 0; k < s->no; k++) {
+        uint8_t *u = s->own[k], *goal = FIELD(u, 0x1EC, uint8_t *);
+        float dx = (float)FIELD(u, 0x1C, int) - g_mus[idx].rx, dy = (float)FIELD(u, 0x20, int) - g_mus[idx].ry;
+        if (dx * dx + dy * dy <= 36) continue;
+        if (goal && *(uintptr_t *)goal == VT_GOAL_LOCATION && fabsf(FIELD(goal, 0x20, float) - g_mus[idx].rx) < 2 &&
+            fabsf(FIELD(goal, 0x24, float) - g_mus[idx].ry) < 2) continue;
+        if (unit_goal(u, goal_move(g_mus[idx].rx, g_mus[idx].ry), 0, 0x1F40)) ordered++;
+    }
+    g_mus[idx].orders += ordered;
+}
+
 // basemap P [r]: the map around AI player P's base (build manager +0x12C/+0x130), 2 characters per tile:
 // T tower (own defence with a ground attack), W wall, G gate, C Town Center/Capitol/Settlement, b other own building,
 // c citizen, s soldier, m mine (stone/gold/iron site), digits = other players' buildings/units (player index),
@@ -645,6 +811,7 @@ static void defence_install(const char *aimod_ini, const char *autotest_ini) {
     g_militia = cfg_int(aimod_ini, autotest_ini, 1, "citizen_militia", 1);
     g_home_guard = cfg_int(aimod_ini, autotest_ini, 1, "home_guard", 4);
     g_home_share = cfg_float(aimod_ini, autotest_ini, 1, "home_guard_share", "0.35");
+    g_muster = cfg_int(aimod_ini, autotest_ini, 1, "muster", 1);
     BOOL guard = patch_call(CALL_DAMAGE_POINTS, FN_DAMAGE_POINTS, damage_points_thunk);
     if (g_log) fprintf(g_log, "# engine guard: damage points %s\n", guard ? "ok" : "FAILED");
     if (g_log) fprintf(g_log, "# defence: layout=%d distance=%d walls=%d own towers=%d counter-siege=%d home guard=%d/epoch, %.2f of the military room\n", g_def, g_def_dist, g_def_walls, g_def_more, g_csiege, g_home_guard, g_home_share);

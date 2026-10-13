@@ -67,6 +67,7 @@ static int defence_spot(void *pl, int type, int *ox, int *oy);   // defence.c
 static void defence_tick(void *pl, unsigned idx, uint32_t now);
 static void counter_siege(void *pl, unsigned idx, uint32_t now);
 static void home_guard(void *pl, unsigned idx, uint32_t now);
+static void muster(void *pl, unsigned idx, uint32_t now);       // defence.c: gather, then strike
 static void diplo_tick(void *pl, unsigned ai, uint32_t now);
 static void persona_attack_launched(unsigned ai);   // persona.c
 #define CALL_PLACE 0x00468629
@@ -612,6 +613,7 @@ static void econ_tick(void *pl, uint32_t now) {
     counter_siege(pl, ai, now);
     tech_log_tick(pl, ai, now);
     home_guard(pl, ai, now);
+    muster(pl, ai, now);
     chat_tick(pl, ai, now);
     diplo_tick(pl, ai, now);
     rates_update(pl, ai, now);

@@ -626,6 +626,7 @@ static int site_danger(void *pl, uint8_t *site, int food) {   // from the neares
 }
 static void *goal_move(float x, float y);
 static int unit_goal(uint8_t *u, void *goal, int append, int prio);
+static int muster_rally(unsigned idx, float *x, float *y);   // defence.c: the rally point while the base is overrun
 static struct { unsigned sent; } g_cit_stats[16];
 static void citizens_safety(uint8_t *rm) {   // before the citizen assignment
     void *pl = rm_player(rm);
@@ -636,12 +637,29 @@ static void citizens_safety(uint8_t *rm) {   // before the citizen assignment
     if (now < next[idx] && next[idx] - now <= 4000) return;
     next[idx] = now + 4000;
     threat_refresh(pl, now);
-    int sent = 0, kinds[4][2] = { { 0 } };   // site types sent back from (log)
+    int sent = 0, fled = 0, kinds[4][2] = { { 0 } };   // site types sent back from (log)
+    float rx, ry;
+    int mus = muster_rally(idx, &rx, &ry);
     for (int r = 0; r < 7; r++) {
         uint8_t *list = rm + RM_LISTS + r * 0x14;
         for (unsigned k = 0, first = FIELD(list, 0xC, unsigned), cnt = FIELD(list, 0x10, unsigned); k < cnt; k++) {
             uint8_t *u = deque_at(list, first + k), *goal = u ? FIELD(u, 0x1EC, uint8_t *) : NULL;
-            if (!goal || FIELD(u, 0x3C, int) <= 0) continue;
+            if (!u || FIELD(u, 0x3C, int) <= 0) continue;
+            if (mus) {   // the base is overrun: citizens near the enemy (or working near it) flee to the rally point
+                int ux = FIELD(u, 0x1C, int), uy = FIELD(u, 0x20, int);
+                float dx = (float)ux - rx, dy = (float)uy - ry;
+                if (dx * dx + dy * dy <= 36) continue;   // there already
+                const char *gn0 = goal ? rtti_name(goal) : "";
+                uint8_t *st = !goal ? NULL : !strcmp(gn0, "EEUGBuildRepair@@") ? FIELD(goal, 0x3C, uint8_t *) :
+                              !strcmp(gn0, "EEUGGather@@") ? FIELD(goal, 0x38, uint8_t *) : NULL;
+                if (goal && *(uintptr_t *)goal == VT_GOAL_LOCATION && fabsf(FIELD(goal, 0x20, float) - rx) < 2 &&
+                    fabsf(FIELD(goal, 0x24, float) - ry) < 2) continue;   // on the way
+                if (raiders_near(pl, ux, uy, 8) || (st && raiders_near(pl, FIELD(st, 0x1C, int), FIELD(st, 0x20, int), 8))) {
+                    if (unit_goal(u, goal_move(rx, ry), 0, 0x1F40)) fled++;
+                }
+                continue;
+            }
+            if (!goal) continue;
             const char *gn = rtti_name(goal);
             int build = !strcmp(gn, "EEUGBuildRepair@@");
             if (!build && strcmp(gn, "EEUGGather@@")) continue;
@@ -661,7 +679,8 @@ static void citizens_safety(uint8_t *rm) {   // before the citizen assignment
             if (j < 4) { kinds[j][0] = st; kinds[j][1]++; }
         }
     }
-    g_cit_stats[idx].sent += sent;
+    g_cit_stats[idx].sent += sent + fled;
+    if (fled && g_log) fprintf(g_log, "# citizens: P%u at %.1f min: %d fled to the rally point (base overrun)\n", idx, now / 60000.0, fled);
     if (g_log && (sent || now / 300000 != logged[idx] / 300000) && (g_cit_stats[idx].sent || g_site_refused[idx])) {
         logged[idx] = now;
         char ks[64] = "";
