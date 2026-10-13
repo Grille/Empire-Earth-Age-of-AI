@@ -411,10 +411,22 @@ static void llm_system(struct sbuf *b, void *pl, int ai, int h) {
                       llm_words(g_opinion[ai][h], op));
         if (g_pressure[ai][h] >= 10) o += snprintf(t + o, sizeof t - o, " Their soldiers are in your town right now.");
         const uint32_t *mk = g_kills[ai][h], *tk = g_kills[h][ai];
-        if (mk[0] || mk[1] || tk[0] || tk[1])
+        uint32_t rm[2], rt[2];
+        kills_recent(ai, h, rm);
+        kills_recent(h, ai, rt);
+        if (mk[0] || mk[1] || tk[0] || tk[1]) {
             o += snprintf(t + o, sizeof t - o, " The fighting between you so far: you killed %u of their units and destroyed "
                           "%u of their buildings; they killed %u of your units and destroyed %u of your buildings.",
                           mk[0], mk[1], tk[0], tk[1]);
+            if (rm[0] == mk[0] && rm[1] == mk[1] && rt[0] == tk[0] && rt[1] == tk[1])
+                o += snprintf(t + o, sizeof t - o, " All of it in the last %d minutes.", KILLS_RECENT_MIN);
+            else if (!rm[0] && !rm[1] && !rt[0] && !rt[1])
+                o += snprintf(t + o, sizeof t - o, " No fighting between you in the last %d minutes.", KILLS_RECENT_MIN);
+            else
+                o += snprintf(t + o, sizeof t - o, " In the last %d minutes: you killed %u units and destroyed %u buildings of "
+                              "theirs; they killed %u units and destroyed %u buildings of yours.", KILLS_RECENT_MIN, rm[0],
+                              rm[1], rt[0], rt[1]);
+        }
         if (g_lord[ai] == h) o += snprintf(t + o, sizeof t - o, " You have capitulated to them: they are your lord, you pay "
                                                                 "and serve them.");
         if (g_lord[h] == ai) o += snprintf(t + o, sizeof t - o, " They have capitulated to you: they are your vassal.");
