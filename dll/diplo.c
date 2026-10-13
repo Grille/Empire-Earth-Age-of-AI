@@ -300,6 +300,11 @@ static int is_vassal(int ai) {
 }
 static int block_veto(int ai, int j, uint32_t now, int *own);   // alliance blocks (below)
 static void block_refuse(void *pl, int j, int who, int own);
+static int llm_peace_answer(void *pl, int ai, int j, uint32_t now);   // llm.c: the model decides ([llm] decide=1)
+static void llm_happened(int ai, const char *fmt, ...);               // llm.c: an event for the model's memory
+static const char *llm_name(void *p) {   // a player's name for the model (a test's idle human has none)
+    return p && *player_name(p) && *player_name(p) != '?' ? player_name(p) : "the player";
+}
 
 // A pending peace offer of j (allied towards the AI while the AI is at war with him)
 static void peace_offer(void *pl, int ai, int j, uint32_t now) {
@@ -322,6 +327,7 @@ static void peace_offer(void *pl, int ai, int j, uint32_t now) {
     float s = peace_score(pl, ai, j, now);
     if (g_log) fprintf(g_log, "# diplomacy: P%d at %.1f min: peace offer of P%d, score %.0f (opinion %.0f, power %.0f vs %.0f)\n",
                        ai, now / 60000.0, j, s, g_opinion[ai][j], g_ws.power[j], g_ws.power[ai]);
+    if (llm_peace_answer(pl, ai, j, now)) return;   // the model decides (when peace is possible at all)
     int own = 0, veto = s > 0 && !TEAMS_LOCKED ? block_veto(ai, j, now, &own) : 0;
     if (s > 0 && !TEAMS_LOCKED && !veto) {
         make_peace(ai, j, now);
@@ -994,8 +1000,12 @@ static void diplo_tick(void *pl, unsigned ai, uint32_t now) {
             }
             if (g_log) fprintf(g_log, "# diplomacy: P%u at %.1f min: P%d declared war on it%s\n", ai, now / 60000.0, j,
                                betrayal ? " (betrayal)" : "");
+            if (j == (int)*(unsigned *)0x00918E84) llm_happened((int)ai, "%s declared war on you.", llm_name(pj));
         }
         if (g_diplo_seen[ai] && !s && g_diplo_prev[ai][j] && mine) {   // j offers peace
+            if (j == (int)*(unsigned *)0x00918E84)
+                llm_happened((int)ai, g_offer_t[ai][j] ? "%s accepted your offer: they set their stance towards you to allied."
+                             : "%s set their stance towards you to allied: they offer peace.", llm_name(pj));
             g_peace_due[ai][j] = now + 4000 + (uint32_t)((ai * 5 + (unsigned)j) % 5) * 1000;
             g_peace_refused[ai][j] = 0;
         }
@@ -1136,6 +1146,7 @@ static void diplo_tribute(void *to, void *from, int total) {
     float gain = (float)total / (20.0f + 0.8f * (float)(100 - trait(to, T_GREED)));
     opinion_add(ai, j, gain);
     if (g_log) fprintf(g_log, "# diplomacy: P%d receives %d tribute from P%d: opinion +%.0f -> %.0f\n", ai, total, j, gain, g_opinion[ai][j]);
+    if (j == (int)*(unsigned *)0x00918E84) llm_happened(ai, "%s sent you a tribute: %d resources in all.", llm_name(from), total);
     persona_say(to, gain >= 5 ? L_TRIBUTE_THANKS : L_TRIBUTE_SMALL, from, NULL);
     if (!stance_of(from, ai) && stance_of(to, j)) g_peace_due[ai][j] = game_time() + 3000;   // ask again now
 }

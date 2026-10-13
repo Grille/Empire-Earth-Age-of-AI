@@ -6,6 +6,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 PORT, LOG = int(sys.argv[1]), sys.argv[2]
 DELAY = float(sys.argv[3]) if len(sys.argv) > 3 else 0.3
 n = 0
+t = 0
 k = 0
 
 class H(BaseHTTPRequestHandler):
@@ -28,8 +29,34 @@ class H(BaseHTTPRequestHandler):
             content = '<think>planning</think>*grins* „Mock: ' + text + ' — grüße \U0001F600“'
         else:
             content = 'Mock-Antwort (%d Nachrichten) auf: %s' % (len(req['messages']), last)
+        msg = {'role': 'assistant', 'content': content}
+        # decide mode: a tool it was offered, by keyword of the last message (peace / war / gold); the answer's form
+        # rotates - a call with words, a call without words (content null), a call written into the content as text
+        offered = [t['function']['name'] for t in req.get('tools', [])]
+        call = None
+        if 'make_peace' in offered and re.search(r'offers you peace|frieden|peace', last, re.I) and not re.search(r'kein|no peace', last, re.I):
+            call = ('make_peace', {})
+        elif 'declare_war' in offered and re.search(r'krieg|war\b', last, re.I):
+            call = ('declare_war', {})
+        elif 'send_tribute' in offered and re.search(r'gold', last, re.I):
+            call = ('send_tribute', {'gold': 100000, 'wood': 50})
+        if call:
+            global t
+            t += 1
+            args = json.dumps(call[1])
+            if t % 3 == 1:
+                msg = {'role': 'assistant', 'content': 'Mock entscheidet: ' + call[0],
+                       'tool_calls': [{'id': 'c%d' % t, 'type': 'function', 'function': {'name': call[0], 'arguments': args}}]}
+            elif t % 3 == 2:
+                msg = {'role': 'assistant', 'content': None,
+                       'tool_calls': [{'id': 'c%d' % t, 'type': 'function', 'function': {'name': call[0], 'arguments': args}}]}
+            else:
+                msg = {'role': 'assistant', 'content': 'Mock als Text: ' + call[0] + ' <tool_call>' +
+                       json.dumps({'name': call[0], 'arguments': call[1]}) + '</tool_call>'}
+        elif offered or 'offers you peace' in last:
+            msg = {'role': 'assistant', 'content': 'Mock: nein (angeboten: %s)' % ','.join(offered)}
         time.sleep(DELAY)
-        out = json.dumps({'choices': [{'index': 0, 'message': {'role': 'assistant', 'content': content}}]}).encode()
+        out = json.dumps({'choices': [{'index': 0, 'message': msg}]}).encode()
         self.send_response(200)
         self.send_header('Content-Type', 'application/json')
         self.send_header('Content-Length', str(len(out)))

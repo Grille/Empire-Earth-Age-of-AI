@@ -134,6 +134,13 @@ peace or alliances. With the mod:
   grudge too deep), so it can name its price and its words match what it will do. Tribute amounts and names must survive the rewording, else the fixed line is shown;
   without a server (or too slow, `timeout`) the fixed lines show as before. Only on your PC - in multiplayer each
   player's own model (or none). `character=` in a personality file adds a few words about it for the model.
+  - **The model decides** (`decide=1`, single player, a model with tool calls): your peace offers are answered by
+    the model, and in the chat it can make peace, declare war on you or send you a tribute - real deals ("pay me
+    1000 and we have peace" holds if it says so). The rules only limit it: what isn't possible right now (its
+    pride after your declaration, an ally's veto, being a vassal, war within 5 minutes of an alliance, more than a
+    quarter of its stock as tribute) is never offered to it, and without an answer in time the rules decide. Its
+    nature and the rules' verdict are its advice. Everything else (answering war, capitulations, alliances between
+    the AIs, betrayal) stays with the rules.
 
 The AIs can also explain themselves in the chat (`chat=1`, a debug aid): attacks, new ages, towers, walls,
 siege, home guard.
