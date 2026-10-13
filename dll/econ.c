@@ -876,7 +876,7 @@ static void fields_rebuild(void *pl, unsigned idx, void *um, uint8_t *dq, uint32
             granary = g && FIELD(g, 0x3C, int) > 0 && abs(FIELD(g, 0x1C, int) - x) <= 4 && abs(FIELD(g, 0x20, int) - y) <= 4;
         }
         if (!granary) continue;
-        if (raiders_near(pl, x, y, 6)) continue;   // raided: later
+        if (raiders_near(pl, x, y, 8)) continue;   // raided: later (builders: 8 tiles, as citizens_safety)
         g_field_at[idx][j].queued = now;
         if (!can_place(pl, 0x2A, x, y)) continue;
         ((void *(__cdecl *)(void *, int, int, int))0x0062EF8A)(pl, 0x2A, x, y);
@@ -953,8 +953,12 @@ static void econ_fields(uint8_t *rm) {   // before the citizen assignment
         uint8_t *f = deque_at(dq, first + k), *st = f ? FIELD(f, 0x30, uint8_t *) : NULL;
         if (!st || FIELD(f, 0x3C, int) <= 0) continue;
         if (site_danger(pl, f, 1)) continue;   // under known enemy towers: no builders, no farmers (attack.c)
-        if (raiders_near(pl, FIELD(f, 0x1C, int), FIELD(f, 0x20, int), 6))
-            continue;   // raided: a player doesn't send his citizens one by one into the raiders
+        // raided: a player doesn't send his citizens one by one into the raiders - the same distances as
+        // citizens_safety (attack.c: 8 for builders, 6 for farmers): with 6 here a builder went every 10 s to a
+        // field with bowmen 7 tiles away, was sent back 4 s later, and the next one went (the player's army shot
+        // them on the way)
+        if (raiders_near(pl, FIELD(f, 0x1C, int), FIELD(f, 0x20, int), FIELD(st, 0x340, uint8_t) ? 6 : 8))
+            continue;
         if (!FIELD(st, 0x340, uint8_t)) todo[nt++] = f;
         else if (nd < 16 && !field_worked(rm, f)) done[nd++] = f;
     }
