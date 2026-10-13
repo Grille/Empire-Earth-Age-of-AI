@@ -172,7 +172,10 @@ Settings in `aimod.ini`:
   channels, but the sound mixer has only 16 on current Windows. Sounds put on the 16 missing channels were silent,
   and a looping one (unit movement such as the U-boats', ambience) stayed stuck there and never played again -
   especially after changing the slider in a running game. The channels are now held to what the mixer has, so
-  anything from 100% up gives the same 16 working channels.
+  anything from 100% up gives the same working channels.
+- `[sound] channels=32` (default): the mixer's 16 channels are only a fallback because Windows no longer reports
+  hardware voices; Miles mixes in software and allows 63. The mod raises the maximum to this value, so the slider
+  gives 8 (0%) to 32 (100% and up) channels: fewer sounds cut in big battles. `0` keeps the 16.
 
 ## Status
 

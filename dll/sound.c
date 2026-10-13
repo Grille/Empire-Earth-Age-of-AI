@@ -174,11 +174,36 @@ static void sound_tick(uint32_t now) {
 static int g_clamp_channels = 1;
 typedef int (__thiscall *set_max_ch_fn)(void *, uint32_t);
 static set_max_ch_fn g_set_max_ch;
+// MORE CHANNELS (aimod.ini [sound] channels, default 32; 0 = the mixer's own maximum). The mixer's maximum is 16
+// only because Windows reports no hardware voices; Miles mixes in software and is opened for 64 samples
+// (DIG_MIXER_CHANNELS), one of which the plugin keeps. The maximum (the global SPIMGetMaximumChannelCount reads,
+// `mov eax, [addr]; ret`) is raised to `channels` (8..63) before the game's first SetMaxChannels, and the count the
+// game passes - percent x the old maximum - is worked out again from the slider (0x9193B8, 1.0 = 100%): 100% =
+// `channels`, 0% = 8, 200% is held to `channels` by clamp_channels.
+static int g_sound_channels = 32;
+#define G_SOUND_PERCENT 0x009193B8
 static int __fastcall hook_set_max_channels(uint8_t *sm, void *edx, uint32_t n) {
     (void)edx;
+    static int raised;
     uint8_t *mx = sm ? FIELD(sm, SM_MIXER, uint8_t *) : NULL;
-    void *get_max = mx ? FIELD(mx, 0xB0, void *) : NULL;   // SPIMGetMaximumChannelCount
-    uint32_t max = get_max ? ((uint32_t (__cdecl *)(void))get_max)() : 0;
+    uint8_t *get_max = mx ? FIELD(mx, 0xB0, uint8_t *) : NULL;   // SPIMGetMaximumChannelCount
+    if (!raised && get_max && g_sound_channels >= 8 && g_sound_channels <= 63 && get_max[0] == 0xA1 && get_max[5] == 0xC3) {
+        raised = 1;
+        uint32_t *gmax = *(uint32_t **)(get_max + 1);
+        DWORD old;
+        if (VirtualProtect(gmax, 4, PAGE_READWRITE, &old)) {
+            uint32_t was = *gmax;
+            *gmax = (uint32_t)g_sound_channels;
+            VirtualProtect(gmax, 4, old, &old);
+            if (g_log) fprintf(g_log, "# sound: mixer maximum %u -> %d channels\n", was, g_sound_channels);
+        }
+    }
+    if (raised) {   // the game's count used the old maximum: percent x the new one, at least 8 as the game does
+        float pct = *(float *)G_SOUND_PERCENT;
+        int want = (int)(pct * (float)g_sound_channels + 0.5f);
+        n = (uint32_t)(want < 8 ? 8 : want);
+    }
+    uint32_t max = get_max ? ((uint32_t (__cdecl *)(void))(void *)get_max)() : 0;
     if (g_clamp_channels && max && n > max) {
         if (g_log) fprintf(g_log, "# sound: %u channels asked for, the mixer has %u - using %u\n", n, max, max);
         n = max;
@@ -188,9 +213,11 @@ static int __fastcall hook_set_max_channels(uint8_t *sm, void *edx, uint32_t n) 
 
 static void sound_install(const char *aimod_ini, const char *autotest_ini) {
     g_clamp_channels = GetPrivateProfileIntA("sound", "clamp_channels", 1, aimod_ini);
+    g_sound_channels = GetPrivateProfileIntA("sound", "channels", 32, aimod_ini);
+    if (autotest_ini) g_sound_channels = GetPrivateProfileIntA("autotest", "sound_channels", g_sound_channels, autotest_ini);
     if (autotest_ini) g_clamp_channels = GetPrivateProfileIntA("autotest", "clamp_channels", g_clamp_channels, autotest_ini);
     iat_swap(IAT_SND_SETMAXCH, (void *)hook_set_max_channels, (void **)&g_set_max_ch);
-    if (g_log) fprintf(g_log, "# sound: clamp_channels=%d (hook %d)\n", g_clamp_channels, g_set_max_ch != NULL);
+    if (g_log) fprintf(g_log, "# sound: clamp_channels=%d channels=%d (hook %d)\n", g_clamp_channels, g_sound_channels, g_set_max_ch != NULL);
     // aimod.ini [sound] log = 1 (counts once a minute) | 2 (every play) - diagnostics in normal play too
     g_sound_log = GetPrivateProfileIntA("sound", "log", 0, aimod_ini);
     if (autotest_ini) g_sound_log = GetPrivateProfileIntA("autotest", "sound_log", g_sound_log, autotest_ini);
@@ -205,6 +232,9 @@ static void cmd_sndstate(char *out, const char *args) {
     uint8_t *mv = g_mss_mixer ? *(uint8_t **)(g_mss_mixer + 0x52AC) : NULL, *me = mv ? *(uint8_t **)(g_mss_mixer + 0x52B0) : NULL;
     REPLY("setting %.2f (0x9193B8), mixer maximum %d, ", *(float *)0x009193B8,
           g_mss_mixer ? *(int *)(g_mss_mixer + 0x5320) : -1);
+    int nulls = 0;
+    for (uint8_t *h = mv; h && h < me; h += 8) nulls += !*(void **)h;
+    REPLY("handles missing %d, ", nulls);
     REPLY("channels %u, mixer channels %d, paused %d:", FIELD(sm, SM_CHANNELS, uint32_t), mv ? (int)((me - mv) / 8) : -1,
           (int)((FIELD(sm, 0x38, uint8_t *) - FIELD(sm, 0x34, uint8_t *)) / 4));
     uint8_t **slots = FIELD(sm, 0x24, uint8_t **);

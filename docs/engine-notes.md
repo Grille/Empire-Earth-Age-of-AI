@@ -420,6 +420,10 @@ Guard towers 47, 461..466; AA 145/147; town center 35; house 37; citizen 32.
   pauses every looping sound, and the paused queue resumes from the highest channel down - straight onto the dead
   ones (seen: ambience id 56 on channel 31 after 8 -> 32). `[sound] clamp_channels` holds SetMaxChannels to
   GetMaximumChannelCount (IAT 0x823AD4).
+- `[sound] channels` writes the mixer maximum (the global behind SPIMGetMaximumChannelCount `mov eax, [addr]; ret`)
+  before the game's first SetMaxChannels and recomputes the count from 0x9193B8 (slider, 1.0 = 100%). 63 Miles
+  handles allocate fine (DIG_MIXER_CHANNELS 64, one kept by the plugin). aitest.ees 25 -> 33 min at 100%: 16 channels
+  lost 3 audible sounds for want of a channel, 32 none; ~955 more were dropped for busy copies either way.
 
 ## Misc
 
