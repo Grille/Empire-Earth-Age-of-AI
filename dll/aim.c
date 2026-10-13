@@ -414,7 +414,28 @@ static void __fastcall hook_fire(uint8_t *cls, void *edx, uint8_t *u) {
     g_retarget = NULL;
 }
 
+// OWN HITS: EEUnit::vf28 (0x6172BC, damage) raises the "under attack" alert (0x519BC1 thiscall([0x9428A8], float
+// pos[2]), ret 4: minimap flash and the voice) for every hit on a non-citizen object of the local player - also when
+// his own arrow hit it (a bowman shooting a wolf beside his tower; leading the target lands more of the misses on
+// what stands behind it). The attacker's player is vf28's third argument ([ebp+0x10]); its own: no alert. The damage
+// stays.
+#define CALL_ATTACK_ALERT 0x006177CF
+#define FN_ATTACK_ALERT   0x00519BC1
+__attribute__((used)) uintptr_t g_alert_fn = FN_ATTACK_ALERT;
+__attribute__((used)) volatile unsigned g_own_hits;
+__attribute__((naked, used)) void own_hit_alert_thunk(void) {
+    __asm__("movl 0x10(%ebp), %eax\n\t"
+            "cmpl 0x00918E84, %eax\n\t"
+            "je 1f\n\t"
+            "jmp *_g_alert_fn\n"
+            "1:\n\t"
+            "lock incl _g_own_hits\n\t"
+            "ret $4");
+}
+
 static void aim_install(const char *aimod_ini, const char *autotest_ini) {
+    BOOL own_hit = patch_call(CALL_ATTACK_ALERT, FN_ATTACK_ALERT, own_hit_alert_thunk);
+    if (g_log) fprintf(g_log, "# aim: no attack alert for the player's own hits (hook %s)\n", own_hit ? "ok" : "FAILED");
     if (autotest_ini && GetPrivateProfileIntA("autotest", "aim_hits", 1, autotest_ini))
         patch_vtable(VT_PROJECTILE, 55, FN_PROJ_DOWN, hook_proj_down);
     g_lead = GetPrivateProfileIntA("general", "lead_targets", 1, aimod_ini) != 0;
@@ -452,8 +473,8 @@ static void cmd_aim(char *out, const char *args) {
         g_spread_held = g_spread_switched = g_launched = 0;
         g_measure = 1;
     }
-    REPLY("lead=%d shots %u, projectile shots at units %u, led %u, pending %u, target gone %u; down %u, hits %u\n", g_lead, g_shots,
-          g_shots_unit, g_led, g_pend_n, g_lost, g_down, g_hits);
+    REPLY("lead=%d shots %u, projectile shots at units %u, led %u, pending %u, target gone %u; down %u, hits %u; own hits without an alert %u\n",
+          g_lead, g_shots, g_shots_unit, g_led, g_pend_n, g_lost, g_down, g_hits, g_own_hits);
     for (int m = 1; m >= 0; m--)
         for (int r = 1; r >= 0; r--)
             for (int e = 0; e < 2; e++)
