@@ -114,6 +114,7 @@ venv/Scripts/python scripts/eectl.py <command>
 | `targets P` | all enemy buildings of AI player P: owner, tile, seen by P or not, known tower threat on them |
 | `army P [type]` | soldiers of player P (optionally only one unit type) grouped by current goal (EEUGLocation = marching, EEUGAttackUnit = fighting; goal +0x30 = target unit), with centre and the goal's first dwords |
 | `objs P T` | every object of type T of player P: tile, hit points, goal (e.g. `objs 2 42`: farm fields, 1 hp = not built) |
+| `found P T x y` | lay out an unfinished building of type T for player P (0x62EF8A, as the build manager does; pays its cost) - e.g. an enemy tower foundation next to an AI's gatherers |
 | `hurt P T x y r dmg` | damage every object of type T of player P within r tiles of x,y as an attack does (target vf 0x70) - e.g. `hurt 2 42 128 128 256 1000` destroys P2's fields |
 | `plan P` | the AI's building plan (type:wanted) |
 | `count P` | all units and buildings of player P by type (type:count), e.g. whether an AI has a Siege Factory (63) |
@@ -237,6 +238,19 @@ member. Needs `ai_diplomacy=1` and a player outside the blocks (one alliance of 
 2026-10-13, Continental 101, 2 AIs, Prehistoric start, Ignorieren off (`ai_ignore=0`; the suites run with it on,
 i.e. with the game limit), 45 min: `pop_follow_human=1` cap 33 (the idle observer has ~5 units, game limit 166),
 soldiers at 40 min 6 / 0; `pop_follow_human=0` cap 166, soldiers 41 / 25.
+
+### Citizens and enemy towers
+
+2026-10-13, `scenarios/citizen_towers.txt` (Continental 101, 2 AIs, Bronze start; P3 guard towers from the start
+next to P2's iron, hunting ground, stone and gold). Towers spawned at minute 2 onto working citizens killed nearly
+all of them whatever the AI did - not a fair test. With towers from the start every run lost P2's economy: its
+defence front pointed at the enemy tower near its base and the builders of its own towers walked past it. After
+the slot fix, P2's citizens at minute 20 over 12 seeds, avoidance + militia off / on: average 21.9 / 27.8
+(2 collapses each; std. error ~4). Suite (4 maps, 2 seeds, 75 min): no change (workers 40.0 / 39.5, epoch 3.67 /
+3.67); after the farm passes skip dangerous fields 9 citizens sent back in 8 games (one AI had 180 before: its
+farmer pass and the retreat took turns). Militia: `found 3 462 74 61` next to P2's berries at minute 8 - destroyed
+within 30 s; 3 Bronze soldiers among P2's woodcutters: a count-based militia lost 10 citizens, the strength check
+joins only when it wins (both soldiers it fought died, P2 kept 32 citizens) and keeps out in the Prehistoric.
 
 ### More granaries
 

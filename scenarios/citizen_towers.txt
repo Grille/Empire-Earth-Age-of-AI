@@ -1,0 +1,10 @@
+# Continental seed 101, 2 AIs, start epoch 3: P2 base ~80,52 (drop sites 79,51 granary, 85,49), P3 base ~40,42.
+# P3 guard towers from the start next to P2's gathering spots (minute 8 of an untouched game): iron 85,42 and 89,65, hunting 65,44,
+# stone 96,50, gold 86,56. Question: how many citizens does P2 lose walking past them?
+spawn 3 462 86 38
+spawn 3 462 90 69
+spawn 3 462 64 40
+spawn 3 462 100 50
+spawn 3 462 89 59
+@20 count 2
+@20 units 2

@@ -149,6 +149,7 @@ static int defence_spot(void *pl, int type, int *ox, int *oy) {
     struct def_scan *s = &g_scan;
     if (s->pl != pl) { p->t = now - 60000; def_refresh(pl, idx, now); }   // the scan belongs to another AI
     int x, y;
+    threat_refresh(pl, now);   // slots inside known enemy defences would cost the builders (attack.c)
     for (int i = 0; def_slot(p, i, &x, &y); i++) {
         int taken = 0;
         for (int t = 0; t < s->towers && !taken; t++) taken = abs(s->tx[t] - x) <= 2 && abs(s->ty[t] - y) <= 2;
@@ -158,7 +159,8 @@ static int defence_spot(void *pl, int type, int *ox, int *oy) {
         for (int r = 0; r <= 2; r++)
             for (int ax = -r; ax <= r; ax++)
                 for (int ay = -r; ay <= r; ay++) {
-                    if ((abs(ax) != r && abs(ay) != r) || !can_place(pl, type, x + ax, y + ay)) continue;
+                    if ((abs(ax) != r && abs(ay) != r) || route_covered(pl, p->bx, p->by, x + ax, y + ay) ||
+                        !can_place(pl, type, x + ax, y + ay)) continue;   // the builders' way too
                     *ox = x + ax; *oy = y + ay;
                     int o = 0;
                     for (int t = 1; t < 8; t++) if (p->pend[t].t < p->pend[o].t) o = t;
@@ -231,6 +233,9 @@ static void defence_tick(void *pl, unsigned idx, uint32_t now) {
         int cx = f->fx + (int)lroundf(f->dx * 3.0f), cy = f->fy + (int)lroundf(f->dy * 3.0f);
         int a[2] = { cx + (int)lroundf(-f->dy * 5.0f), cy + (int)lroundf(f->dx * 5.0f) };
         int b[2] = { cx - (int)lroundf(-f->dy * 5.0f), cy - (int)lroundf(f->dx * 5.0f) };
+        threat_refresh(pl, now);
+        if (route_covered(pl, p->bx, p->by, a[0], a[1]) || route_covered(pl, p->bx, p->by, b[0], b[1]) ||
+            route_covered(pl, p->bx, p->by, cx, cy)) continue;   // the builders would walk into enemy fire
         int have = 0;   // wall pieces standing on the arc (then a new order only repairs)
         for (int w = 0; w < s->walls; w++) have += on_segment(s->wx[w], s->wy[w], a, b);
         if (have >= 8) continue;
@@ -245,6 +250,10 @@ static void defence_tick(void *pl, unsigned idx, uint32_t now) {
     }
 }
 
+// COUNTER-TOWER (same switch): a player walks citizens up to an AI's mine or berries and puts a tower beside it - the
+// AI let it be built and the tower killed its gatherers. Enemy defences under construction ([u+0x30]+0x340 = 0) it
+// can see within 12 tiles of its buildings or citizens get the same answer as siege: the nearest soldiers attack the
+// foundation while it is weak. Finished towers are the siege weapons' job (attack.c siege_tick).
 // COUNTER-SIEGE (aimod.ini [all] counter_siege, default on): catapults outrange towers (bronze: 7 against 5) and the
 // AI just watched its towers being shelled. A player sends a few soldiers out at them. Every 2 s per AI: enemy siege
 // weapons (and rams) it can see within their range + 4 tiles of one of its buildings are threats; its soldiers within
@@ -266,6 +275,10 @@ struct cs_scan {
     int ns; uint8_t *sold[128];          // own soldiers
     int ne; uint8_t *esiege[16];         // enemy siege weapons seen
     int nx; int ex[256], ey[256];        // enemy soldiers (positions)
+    int nc; int cx[128], cy[128];        // own citizens (positions)
+    uint8_t *civ[128];                   // own citizens
+    int nu; uint8_t *eu[128];            // enemy soldiers and citizens (militia)
+    int nt; uint8_t *etow[16];           // enemy defences under construction, seen
 };
 static void cs_unit(uint8_t *u, void *ctx) {
     struct cs_scan *s = ctx;
@@ -276,10 +289,91 @@ static void cs_unit(uint8_t *u, void *ctx) {
     if (owner == s->pl) {
         if ((fam == 2 || fam == 29) && s->nb < 256) { s->bx[s->nb] = x; s->by[s->nb++] = y; }
         else if (is_soldier(td) && s->ns < 128) s->sold[s->ns++] = u;
+        else if ((type == 32 || type == 480) && s->nc < 128) { s->civ[s->nc] = u; s->cx[s->nc] = x; s->cy[s->nc++] = y; }
     } else if (is_enemy(s->pl, owner)) {
+        uint8_t *bs = FIELD(u, 0x30, uint8_t *);
+        float r, a;
+        if ((is_soldier(td) || type == 32 || type == 480) && s->nu < 128 && seen_by(u, s->pl)) s->eu[s->nu++] = u;
         if ((is_siege(type) || is_ram(type)) && s->ne < 16 && seen_by(u, s->pl)) s->esiege[s->ne++] = u;
+        else if ((fam == 2 || fam == 29) && bs && !FIELD(bs, 0x340, uint8_t) && s->nt < 16 && defence_stats(u, &r, &a) &&
+                 seen_by(u, s->pl)) s->etow[s->nt++] = u;
         else if (is_soldier(td) && s->nx < 256) { s->ex[s->nx] = x; s->ey[s->nx++] = y; }
     }
+}
+// CITIZEN MILITIA (aimod.ini [all] citizen_militia, default on). A player answers citizens that walk up to his mine or
+// berries and start a tower there with his own citizens, and in the early ages his citizens beat off a small rush.
+// The AI's citizens never fought. Every 2 s (with the counter-siege scan):
+// - enemy citizens building a defence (EEUGBuildRepair, target +0x3C unfinished, a ground attack) within 12 tiles of
+//   the AI's buildings or citizens, any epoch;
+// - up to the Bronze Age: enemy units attacking (EEUGAttackUnit, target +0x30) a unit of the AI within 10 tiles of
+//   its citizens;
+// are attacked by the AI's citizens within 10 tiles, at most 3 per enemy and against at most 6 - only when those
+// citizens' strength (hit points x attack) is 3 times that of the enemies within 6 tiles: Bronze Age soldiers (119 hp)
+// killed 10 citizens of a count-based militia while losing 49 hit points. Gathering or idle citizens only; afterwards the assignment puts them back to work.
+static int g_militia = 1;
+static unsigned g_militia_orders[16];
+static float unit_power(uint8_t *u) {   // hit points x attack (live stats), a rough fighting strength
+    uint8_t *st = FIELD(u, 0x34, uint8_t *);
+    float a = st ? FIELD(st, 0xD8, float) : (float)FIELD(FIELD(u, 0x2C, uint8_t *), 0x510, int);
+    return (float)FIELD(u, 0x3C, int) * (a > 0 ? a : 0);
+}
+static int militia_answer(struct cs_scan *s, uint8_t *t, int *nfree) {   // citizens -> t; returns the number ordered
+    int x = FIELD(t, 0x1C, int), y = FIELD(t, 0x20, int), enemies = 0, ordered = 0;
+    float epow = 0, cpow = 0;
+    for (int k = 0; k < s->nu; k++) {
+        uint8_t *e = s->eu[k];
+        if (FIELD(e, 0x3C, int) <= 0 || abs(FIELD(e, 0x1C, int) - x) > 6 || abs(FIELD(e, 0x20, int) - y) > 6) continue;
+        enemies++;
+        epow += unit_power(e);
+    }
+    if (enemies < 1) { enemies = 1; epow = unit_power(t); }   // a foundation: no fight, only its hit points
+    if (enemies > 6) return 0;
+    for (int c = 0, n = 0; c < s->nc && n < 3 * enemies; c++)
+        if (s->civ[c] && abs(s->cx[c] - x) <= 10 && abs(s->cy[c] - y) <= 10) { cpow += unit_power(s->civ[c]); n++; }
+    if (cpow < 3.0f * epow) return 0;   // citizens beat clubmen and builders, not real soldiers
+    for (int c = 0; c < s->nc && ordered < 3 * enemies; c++) {
+        uint8_t *u = s->civ[c];
+        if (!u || abs(s->cx[c] - x) > 10 || abs(s->cy[c] - y) > 10) continue;
+        uint8_t *g = FIELD(u, 0x1EC, uint8_t *);
+        if (g && *(uintptr_t *)g == VT_GOAL_ATTACK) { s->civ[c] = NULL; continue; }   // already fighting
+        if (g && strcmp(rtti_name(g), "EEUGGather@@")) continue;   // building, walking: leave it
+        if (unit_goal(u, goal_attack(u, t), 0, 0x1F40)) ordered++;
+        s->civ[c] = NULL;   // one target per citizen per tick
+    }
+    *nfree -= ordered;
+    return ordered;
+}
+static void militia(void *pl, unsigned idx, struct cs_scan *s, uint32_t now) {
+    if (!g_militia || !s->nc || !s->nu) return;
+    int early = current_epoch(pl) <= 3, nfree = s->nc, total = 0, targets = 0;
+    char what[160] = "";
+    for (int k = 0; k < s->nu && nfree > 2; k++) {
+        uint8_t *e = s->eu[k], *g = FIELD(e, 0x1EC, uint8_t *), *t;
+        if (!g || FIELD(e, 0x3C, int) <= 0) continue;
+        int x = FIELD(e, 0x1C, int), y = FIELD(e, 0x20, int), why = 0;
+        if (!strcmp(rtti_name(g), "EEUGBuildRepair@@") && (t = FIELD(g, 0x3C, uint8_t *)) && FIELD(t, 0x18, void *) != pl) {
+            uint8_t *bs = FIELD(t, 0x30, uint8_t *);
+            float r, a;
+            if (bs && !FIELD(bs, 0x340, uint8_t) && defence_stats(t, &r, &a)) why = 1;   // a tower going up
+        } else if (early && *(uintptr_t *)g == VT_GOAL_ATTACK && (t = FIELD(g, 0x30, uint8_t *)) && FIELD(t, 0x18, void *) == pl)
+            why = 2;   // attacking one of ours
+        if (!why) continue;
+        int close = 0;
+        for (int b = 0; why == 1 && b < s->nb && !close; b++) close = abs(s->bx[b] - x) <= 12 && abs(s->by[b] - y) <= 12;
+        for (int c = 0; c < s->nc && !close; c++) close = abs(s->cx[c] - x) <= (why == 1 ? 12 : 10) && abs(s->cy[c] - y) <= (why == 1 ? 12 : 10);
+        if (!close) continue;
+        int n = militia_answer(s, e, &nfree);
+        if (n) {
+            total += n; targets++;
+            size_t l = strlen(what);
+            if (l < sizeof what - 32)
+                snprintf(what + l, sizeof what - l, " %s P%d type %d at %d,%d", why == 1 ? "builder" : "attacker",
+                         FIELD(FIELD(e, 0x18, void *), PL_INDEX, int), FIELD(FIELD(e, 0x2C, uint8_t *), 0x4B8, int), x, y);
+        }
+    }
+    if (!total) return;
+    g_militia_orders[idx] += (unsigned)total;
+    if (g_log) fprintf(g_log, "# militia: P%u at %.1f min: %d citizens against %d enemies:%s\n", idx, now / 60000.0, total, targets, what);
 }
 static void counter_siege(void *pl, unsigned idx, uint32_t now) {
     static uint32_t last[16];
@@ -289,13 +383,17 @@ static void counter_siege(void *pl, unsigned idx, uint32_t now) {
     memset(&s, 0, sizeof s);
     s.pl = pl;
     grid_each(cs_unit, &s);
-    for (int i = 0; i < s.ne; i++) {
-        uint8_t *e = s.esiege[i], *etd = FIELD(e, 0x2C, uint8_t *), *st = FIELD(e, 0x34, uint8_t *);
+    militia(pl, idx, &s, now);
+    for (int i = 0; i < s.ne + s.nt; i++) {
+        int tower = i >= s.ne;   // an enemy defence going up near our buildings or citizens (counter-tower)
+        uint8_t *e = tower ? s.etow[i - s.ne] : s.esiege[i], *etd = FIELD(e, 0x2C, uint8_t *), *st = FIELD(e, 0x34, uint8_t *);
         int x = FIELD(e, 0x1C, int), y = FIELD(e, 0x20, int);
-        float r = (st ? FIELD(st, 0x9C, float) : FIELD(etd, 0x420, float)) + 4.0f;
+        float r = tower ? 12.0f : (st ? FIELD(st, 0x9C, float) : FIELD(etd, 0x420, float)) + 4.0f;
         int threat = 0;
         for (int b = 0; b < s.nb && !threat; b++)
             threat = (float)((s.bx[b] - x) * (s.bx[b] - x) + (s.by[b] - y) * (s.by[b] - y)) <= r * r;
+        for (int c = 0; tower && c < s.nc && !threat; c++)
+            threat = (float)((s.cx[c] - x) * (s.cx[c] - x) + (s.cy[c] - y) * (s.cy[c] - y)) <= r * r;
         if (!threat) continue;
         int guards = 0;
         for (int k = 0; k < s.nx; k++) guards += abs(s.ex[k] - x) <= 8 && abs(s.ey[k] - y) <= 8;
@@ -326,7 +424,12 @@ static void counter_siege(void *pl, unsigned idx, uint32_t now) {
             }
         }
         if (already >= 5) continue;
-        if (avail + already < 2 * guards + 3) { g_csiege_skipped[idx]++; continue; }
+        if (avail + already < 2 * guards + 3) {
+            int nfree = s.nc;   // a tower going up and too few soldiers: the citizens go at the foundation
+            if (tower && g_militia && militia_answer(&s, e, &nfree)) g_militia_orders[idx]++;
+            else g_csiege_skipped[idx]++;
+            continue;
+        }
         int ordered = 0;
         for (int j = 0; j < np && already + ordered < 5; j++) {
             uint8_t *u = s.sold[pick[j]];
@@ -338,8 +441,8 @@ static void counter_siege(void *pl, unsigned idx, uint32_t now) {
             ai_say(pl, CHAT_COUNTER, "[ai] enemy siege at %d,%d - %d soldiers sent against it (%d guards)", x, y,
                    ordered + already, guards);
         if (ordered && g_log)
-            fprintf(g_log, "# counter-siege: P%u at %.1f min: enemy type %d at %d,%d (%d guards) <- %d soldiers (%d already on it)\n",
-                    idx, now / 60000.0, FIELD(etd, 0x4B8, int), x, y, guards, ordered, already);
+            fprintf(g_log, "# counter-%s: P%u at %.1f min: enemy type %d at %d,%d (%d guards) <- %d soldiers (%d already on it)\n",
+                    tower ? "tower" : "siege", idx, now / 60000.0, FIELD(etd, 0x4B8, int), x, y, guards, ordered, already);
     }
 }
 
@@ -522,6 +625,7 @@ static void defence_install(const char *aimod_ini, const char *autotest_ini) {
     g_def_walls = cfg_int(aimod_ini, autotest_ini, 1, "defence_walls", 1);
     g_def_more = cfg_int(aimod_ini, autotest_ini, 1, "defence_towers", 1);
     g_csiege = cfg_int(aimod_ini, autotest_ini, 1, "counter_siege", 1);
+    g_militia = cfg_int(aimod_ini, autotest_ini, 1, "citizen_militia", 1);
     g_home_guard = cfg_int(aimod_ini, autotest_ini, 1, "home_guard", 4);
     g_home_share = cfg_float(aimod_ini, autotest_ini, 1, "home_guard_share", "0.35");
     BOOL guard = patch_call(CALL_DAMAGE_POINTS, FN_DAMAGE_POINTS, damage_points_thunk);

@@ -555,6 +555,85 @@ static void *goal_move(float x, float y) {
     return g ? ((void *(__thiscall *)(void *, float *, int, char, char, float, char, char))0x00614CE6)(g, xy, 1, 1, 0, 0.0f, 0, 0) : NULL;
 }
 
+// CITIZENS AND TOWERS (aimod.ini [all] avoid_towers_citizens, default 1). The game's site searches check for enemies
+// only at the site itself (0x4660B9), and once a citizen gathers somewhere it walks the same way until it dies - past
+// enemy towers too. With slow projectiles leading their targets (aim.c) every such trip is a loss. Danger = the site
+// lies within a known enemy defence's range + 2 tiles, or the straight way from the nearest drop site to it crosses
+// one (g_threat: defences this AI has seen). New sites: the searches (sites.c) refuse dangerous ones. Citizens already
+// gathering at one are sent back to their drop site every 10 s (as a player would); there the assignment gives them
+// new work.
+static int g_avoid_citizens = 1;
+static int nearest_drop(void *pl, int x, int y, int food, int out[2]);   // sites.c
+static int tower_covers(unsigned pi, float x, float y) {
+    for (int k = 0; k < g_threat[pi].n; k++) {
+        struct defence *d = &g_threat[pi].d[k];
+        float dx = x - (float)d->x, dy = y - (float)d->y, r = d->range + 2.0f;
+        if (dx * dx + dy * dy <= r * r) return 1;
+    }
+    return 0;
+}
+static int route_covered(void *pl, int fx, int fy, int tx, int ty) {   // fx = -10000: the site only
+    if (!pl) return 0;
+    unsigned pi = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
+    threat_refresh(pl, game_time());
+    if (!g_threat[pi].n) return 0;
+    if (tower_covers(pi, (float)tx, (float)ty)) return 1;
+    if (fx == -10000) return 0;
+    float dx = (float)(tx - fx), dy = (float)(ty - fy);
+    int n = (int)sqrtf(dx * dx + dy * dy);
+    for (int t = 2; t < n; t++)   // not the first tiles: the drop site itself may be in range (towers at the base)
+        if (tower_covers(pi, (float)fx + dx * (float)t / (float)n, (float)fy + dy * (float)t / (float)n)) return 1;
+    return 0;
+}
+static int route_danger(void *pl, int fx, int fy, int tx, int ty) {
+    return g_avoid_citizens && route_covered(pl, fx, fy, tx, ty);
+}
+static int site_danger(void *pl, uint8_t *site, int food) {   // from the nearest drop site
+    if (!g_avoid_citizens || !pl || !site) return 0;
+    int x = FIELD(site, 0x1C, int), y = FIELD(site, 0x20, int), d[2];
+    if (!nearest_drop(pl, x, y, food, d)) d[0] = -10000;
+    return route_danger(pl, d[0], d[1], x, y);
+}
+static void *goal_move(float x, float y);
+static int unit_goal(uint8_t *u, void *goal, int append, int prio);
+static struct { unsigned sent; } g_cit_stats[16];
+static void citizens_safety(uint8_t *rm) {   // before the citizen assignment
+    void *pl = rm_player(rm);
+    if (!g_avoid_citizens || !pl) return;
+    unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
+    static uint32_t next[16], logged[16];
+    uint32_t now = game_time();
+    if (now < next[idx] && next[idx] - now <= 10000) return;
+    next[idx] = now + 10000;
+    threat_refresh(pl, now);
+    if (!g_threat[idx].n) return;
+    int sent = 0, kinds[4][2] = { { 0 } };   // site types sent back from (log)
+    for (int r = 2; r < 7; r++) {
+        uint8_t *list = rm + RM_LISTS + r * 0x14;
+        for (unsigned k = 0, first = FIELD(list, 0xC, unsigned), cnt = FIELD(list, 0x10, unsigned); k < cnt; k++) {
+            uint8_t *u = deque_at(list, first + k), *goal = u ? FIELD(u, 0x1EC, uint8_t *) : NULL;
+            if (!goal || FIELD(u, 0x3C, int) <= 0 || strcmp(rtti_name(goal), "EEUGGather@@")) continue;
+            uint8_t *site = FIELD(goal, 0x38, uint8_t *);
+            int d[2];
+            if (!site || !site_danger(pl, site, r == 2) || !nearest_drop(pl, FIELD(u, 0x1C, int), FIELD(u, 0x20, int), r == 2, d))
+                continue;
+            if (!unit_goal(u, goal_move((float)d[0] + 0.5f, (float)d[1] + 0.5f), 0, 0x1F40)) continue;
+            sent++;
+            int st = FIELD(FIELD(site, 0x2C, uint8_t *), 0x4B8, int), j = 0;
+            while (j < 4 && kinds[j][1] && kinds[j][0] != st) j++;
+            if (j < 4) { kinds[j][0] = st; kinds[j][1]++; }
+        }
+    }
+    g_cit_stats[idx].sent += sent;
+    if (g_log && (sent || now / 300000 != logged[idx] / 300000) && (g_cit_stats[idx].sent || g_site_refused[idx])) {
+        logged[idx] = now;
+        char ks[64] = "";
+        for (int j = 0; j < 4 && kinds[j][1]; j++) { size_t l = strlen(ks); snprintf(ks + l, sizeof ks - l, " %dx%d", kinds[j][0], kinds[j][1]); }
+        fprintf(g_log, "# citizens: P%u at %.1f min: %d sent back from sites near enemy towers (site type x count:%s; %u in all, %u dangerous sites refused)\n",
+                idx, now / 60000.0, sent, ks, g_cit_stats[idx].sent, g_site_refused[idx]);
+    }
+}
+
 // Known defences covering tile (x, y) by their real range (+1), not counting the one at (ex, ey).
 static int covered(unsigned pi, float x, float y, int ex, int ey) {
     for (int k = 0; k < g_threat[pi].n; k++) {
@@ -804,6 +883,7 @@ static int patch_vtable(uintptr_t vt, int slot, uintptr_t expected, void *hook) 
 
 static void attack_install(const char *aimod_ini, const char *autotest_ini) {
     g_avoid_towers = cfg_int(aimod_ini, autotest_ini, 1, "avoid_towers", 1);
+    g_avoid_citizens = cfg_int(aimod_ini, autotest_ini, 1, "avoid_towers_citizens", 1);
     g_avoid_weight = cfg_int(aimod_ini, autotest_ini, 1, "avoid_towers_weight", 2000);
     g_avoid_margin = cfg_int(aimod_ini, autotest_ini, 1, "avoid_towers_margin", 6);
     g_weak_spots = cfg_int(aimod_ini, autotest_ini, 1, "attack_weak_spots", 1);
@@ -975,6 +1055,18 @@ static void cmd_objs(char *out, const char *args) {
                   FIELD(td, 0x55C, float), rtti_name(FIELD(u, 0x1EC, void *)));
         }
     REPLY("\n");
+}
+
+// found P T x y: lay out a building of type T for player P at x, y, unfinished (1 hp) - as the build manager does
+// (0x62EF8A cdecl(player, type, x, y), which also pays its cost, except for fields). Tests: an enemy tower going up.
+static void *player_at(int i);
+static void cmd_found(char *out, const char *args) {
+    int p, t, x, y;
+    if (sscanf(args, "%d %d %d %d", &p, &t, &x, &y) < 4) { REPLY("error: usage: found P T x y\n"); return; }
+    void *pl = player_at(p);   // diplo.c: any player, human or AI
+    if (!pl || t < 0 || t >= 724 || !((void **)0x009418A0)[t]) { REPLY("error: no player %d or type %d\n", p, t); return; }
+    void *u = ((void *(__cdecl *)(void *, int, int, int))0x0062EF8A)(pl, t, x, y);
+    REPLY("ok: type %d for P%d at %d,%d: %p\n", t, p, x, y, u);
 }
 
 // hurt P T x y r dmg: damage every object of type T of player P within r tiles of x, y the way an attack does

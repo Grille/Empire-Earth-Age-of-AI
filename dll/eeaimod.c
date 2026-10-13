@@ -74,6 +74,7 @@ static void persist_load(const char *name);
 static void econ_targets(uint8_t *rm);
 static void econ_rebalance(uint8_t *rm);
 static void econ_fields(uint8_t *rm);
+static void citizens_safety(uint8_t *rm);
 static void attack_tick(void *pl, uint32_t now);
 static void log_line(const char *fmt, const char *a, int b);
 static BOOL patch_call(uintptr_t site, uintptr_t expected, void *hook);
@@ -152,7 +153,8 @@ static char __fastcall hook_compute_targets(void *rm, void *edx) {
 
 static char __fastcall hook_assign_citizens(void *rm, void *edx) {
     (void)edx;
-    econ_fields((uint8_t *)rm);   // farm fields on water maps (econ.c)
+    econ_fields((uint8_t *)rm);   // farm fields (econ.c)
+    citizens_safety((uint8_t *)rm);   // away from known enemy towers (attack.c)
     char r = ((RmFn)FN_ASSIGN_CITIZENS)(rm);
     econ_rebalance((uint8_t *)rm);
     log_state(rm, "post_assign", game_time());

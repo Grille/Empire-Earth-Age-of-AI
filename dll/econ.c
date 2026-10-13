@@ -788,6 +788,7 @@ static int field_place_ok(uint8_t *bm, int x, int y) {
     if (g_log) fprintf(g_log, "# fields: P%d: build list field at %d,%d - foundation laid out first\n", FIELD(pl, PL_INDEX, int), x, y);
     return 1;
 }
+static int site_danger(void *pl, uint8_t *site, int food);   // attack.c: known enemy towers on the way
 static void econ_fields(uint8_t *rm) {   // before the citizen assignment
     void *pl = rm_player(rm);
     if (!g_build_fields || !pl) return;
@@ -806,6 +807,7 @@ static void econ_fields(uint8_t *rm) {   // before the citizen assignment
     for (unsigned k = 0, first = FIELD(dq, 0xC, unsigned), cnt = FIELD(dq, 0x10, unsigned); k < cnt && nt < 16; k++) {
         uint8_t *f = deque_at(dq, first + k), *st = f ? FIELD(f, 0x30, uint8_t *) : NULL;
         if (!st || FIELD(f, 0x3C, int) <= 0) continue;
+        if (site_danger(pl, f, 1)) continue;   // under known enemy towers: no builders, no farmers (attack.c)
         if (!FIELD(st, 0x340, uint8_t)) todo[nt++] = f;
         else if (nd < 16 && !field_worked(rm, f)) done[nd++] = f;
     }
