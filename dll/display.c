@@ -1012,9 +1012,24 @@ static void *__fastcall hook_font_delete(uint8_t *font, void *edx, unsigned flag
     LeaveCriticalSection(&g_fbm_cs);
     return g_font_delete(font, flags);
 }
-// textlog N (pipe): the next N text draws for the back buffer into the log - font, HFONT, the bitmap font used,
-// the string (GEText +0x34) and the 16 bytes at +0x14 (colour?) - for a screen whose text is missing
+// textlog N (pipe): the next N distinct text draws into the log (each combination once) - texture text for the back
+// buffer (font, HFONT, the bitmap font used, the colour GEText +0x14: floats r g b and the size, the string +0x34)
+// and GDI text (ExtTextOutA / TextOutW: on our text DC or another one, its surface, the colour) - for a screen
+// whose text is missing
 static volatile LONG g_textlog;
+static uint32_t g_tl_seen[1024];
+static volatile LONG g_tl_n;
+static uint32_t tl_hash(const void *p, size_t n, uint32_t h) {
+    for (size_t i = 0; i < n; i++) h = (h ^ ((const uint8_t *)p)[i]) * 16777619u;
+    return h;
+}
+static int textlog_new(uint32_t h) {   // 1 the first time (and still lines to log)
+    if (g_textlog <= 0) return 0;
+    for (LONG i = 0; i < g_tl_n && i < 1024; i++) if (g_tl_seen[i] == h) return 0;
+    LONG k = InterlockedIncrement(&g_tl_n) - 1;
+    if (k < 1024) g_tl_seen[k] = h;
+    return InterlockedDecrement(&g_textlog) >= 0;
+}
 static int g_fbm_n, g_fbm_logged;
 static volatile int g_fbm_making;
 static int g_atlas_dump;   // autotest atlas_dump=1: each new bitmap font's last atlas -> aimod_dumps/atlas<n>.bmp
@@ -1090,15 +1105,23 @@ static void *text_bitmap_for(void *ras, void *text, void *surf) {
 static long __fastcall hook_fc_text_rect(void *ras, void *edx, void *text, void *rect, void *surf) {
     (void)edx; long r;
     void *bmp = text_bitmap_for(ras, text, surf);
-    if (g_textlog > 0 && InterlockedDecrement(&g_textlog) >= 0 && g_log && text) {
+    if (g_textlog > 0 && g_log && text) {
         uint8_t *f = FIELD(text, 0x44, uint8_t *);
         const char *str = FIELD(text, 0x34, const char *);
         uint32_t *c = (uint32_t *)((uint8_t *)text + 0x14);
+        int ok = str && !IsBadReadPtr(str, 1);
+        uint32_t h = tl_hash(&f, sizeof f, 2166136261u);
+        h = tl_hash(&bmp, sizeof bmp, h);
+        h = tl_hash(c, 12, h);
+        h = tl_hash(&surf, sizeof surf, h);
+        if (ok) h = tl_hash(str, strlen(str), h);
+        if (textlog_new(h)) {
         EnterCriticalSection(&g_lock);
         fprintf(g_log, "# textlog: surf %p font %p hfont %p own %p bmp %p +14: %08x %08x %08x %08x \"%.60s\"\n", surf, (void *)f,
                 f ? FIELD(f, 0x18, void *) : NULL, f ? FIELD(f, 0x24, void *) : NULL, bmp, c[0], c[1], c[2], c[3],
-                str && !IsBadReadPtr(str, 1) ? str : "?");
+                ok ? str : "?");
         LeaveCriticalSection(&g_lock);
+        }
     }
     // the character textures with the device's wrap addressing: filtering at a glyph's bottom edge picked up its
     // top row (a line under the "t" of "Vorzeit") - clamped while our bitmap text draws. Device: (ras +0x6C)[0]
@@ -1369,8 +1392,23 @@ static void atlas_dump(int n) {   // tests: the 256x256 DIB holds the last atlas
     }
 }
 
+static void textlog_gdi(HDC dc, int a, const char *str, int n) {
+    if (g_textlog <= 0 || g_fbm_making || !g_log) return;
+    COLORREF col = GetTextColor(dc);
+    int w = a >= 0 ? g_tdc[g_tdc_active[a].slot].w : 0, hh = a >= 0 ? g_tdc[g_tdc_active[a].slot].h : 0;
+    void *surf = a >= 0 ? g_tdc_active[a].surf : NULL;
+    uint32_t h = tl_hash(&col, sizeof col, 2166136261u ^ 0x5A);
+    h = tl_hash(&w, sizeof w, h);
+    h = tl_hash(str, (size_t)n, h);
+    if (!textlog_new(h)) return;
+    EnterCriticalSection(&g_lock);
+    fprintf(g_log, "# textlog gdi: %s dc %p surface %p %dx%d colour %06lx bkmode %d \"%.*s\"\n", a >= 0 ? "our" : "game", (void *)dc,
+            surf, w, hh, (unsigned long)col, GetBkMode(dc), n > 60 ? 60 : n, str);
+    LeaveCriticalSection(&g_lock);
+}
 static BOOL WINAPI hook_ext_text_out(HDC dc, int x, int y, UINT opts, const RECT *rc, LPCSTR str, UINT n, const INT *dx) {
     int a = tdc_active_of(dc);
+    if (str && n) textlog_gdi(dc, a, str, (int)n);
     if (a >= 0) {
         SIZE sz = { 0, 0 };
         if (dx) { for (UINT i = 0; i < n; i++) sz.cx += dx[i]; TEXTMETRICA tm; if (GetTextMetricsA(dc, &tm)) sz.cy = tm.tmHeight; }
@@ -1386,6 +1424,11 @@ static BOOL WINAPI hook_ext_text_out(HDC dc, int x, int y, UINT opts, const RECT
 }
 static BOOL WINAPI hook_text_out_w(HDC dc, int x, int y, LPCWSTR str, int n) {
     int a = tdc_active_of(dc);
+    if (g_textlog > 0 && str && n > 0) {
+        char t[128];
+        int m = WideCharToMultiByte(CP_ACP, 0, str, n < 120 ? n : 120, t, sizeof t, NULL, NULL);
+        if (m > 0) textlog_gdi(dc, a, t, m);
+    }
     if (a >= 0) {
         SIZE sz = { 0, 0 };
         GetTextExtentPoint32W(dc, str ? str : L"", n, &sz);
@@ -2791,7 +2834,12 @@ static void cmd_ddinfo(char *out, const char *args) {
 }
 
 static void cmd_textlog(char *out, const char *args) {
+    if (args[0] == '?') {
+        REPLY("textlog: %ld lines to go, %ld seen\n", g_textlog, g_tl_n);
+        return;
+    }
     int n = atoi(args);
+    InterlockedExchange(&g_tl_n, 0);
     InterlockedExchange(&g_textlog, n > 0 ? n : 100);
     REPLY("logging the next %ld text draws (fonts cached %d, dropped %d)\n", g_textlog, g_fbm_n, g_fbm_dropped);
 }
