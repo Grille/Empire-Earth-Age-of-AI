@@ -625,7 +625,7 @@ static DWORD WINAPI pipe_thread(LPVOID unused) {
             } else if (!strcmp(verb, "profile")) {
                 char *out = reply;
                 cmd_profile(cmd + n, out);
-            } else if (!strcmp(verb, "vmouse") || !strcmp(verb, "vclick") || !strcmp(verb, "wclick") || !strcmp(verb, "shot")) {
+            } else if (!strcmp(verb, "vmouse") || !strcmp(verb, "vclick") || !strcmp(verb, "wclick") || !strcmp(verb, "wtype") || !strcmp(verb, "shot")) {
                 char *out = reply;
                 cmd_headless(verb, cmd + n, out);
             } else if (!strcmp(verb, "uipost")) {
