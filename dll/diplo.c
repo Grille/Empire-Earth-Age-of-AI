@@ -97,6 +97,7 @@ static struct {
     uint32_t t;
     float power[16];
     int soldiers[16], buildings[16], peak[16], close[16], epoch[16], out[16], citizens[16], centers[16];
+    int towers[16], walls[16];   // standing towers, wall pieces (the AI voice: "your walls")
     int close_by[16][16];   // [ai][j]: j's soldiers within 20 tiles of the AI's base
     int bx[16], by[16];
 } g_ws;
@@ -125,6 +126,8 @@ static void ws_unit(uint8_t *u, void *ctx) {
     int fam = FIELD(td, 0x4B4, int), type = FIELD(td, 0x4B8, int);
     if (is_citizen_type(type)) { g_ws.citizens[o]++; return; }
     if (type == 35 || type == 41) g_ws.centers[o]++;   // Town Center, Capitol: where citizens are trained
+    if (is_tower_type(type)) g_ws.towers[o]++;
+    else if (is_wall(type)) g_ws.walls[o]++;
     if (fam == 2 || fam == 29) { g_ws.buildings[o]++; g_ws.power[o] += 30; return; }
     if (!is_soldier(td)) return;
     g_ws.soldiers[o]++;
@@ -142,6 +145,7 @@ static void world_scan(uint32_t now) {
     g_ws.t = now ? now : 1;
     for (int i = 0; i < 16; i++) {
         g_ws.power[i] = 0; g_ws.soldiers[i] = g_ws.buildings[i] = g_ws.close[i] = g_ws.citizens[i] = g_ws.centers[i] = 0;
+        g_ws.towers[i] = g_ws.walls[i] = 0;
         g_ws.bx[i] = -10000;
         void *cm = g_players[i] ? FIELD(g_players[i], 0xB90, void *) : NULL;
         uint8_t *bm = cm ? FIELD(cm, 0x3C, uint8_t *) : NULL;

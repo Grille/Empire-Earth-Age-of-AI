@@ -398,7 +398,14 @@ static void llm_system(struct sbuf *b, void *pl, int ai, int h) {
                   "characters, in %s. No quotation marks, no stage directions, no emojis, no name in front. Stay in "
                   "character and in the world of the game. Diplomacy happens only through the stances in the game (allied "
                   "or enemy): in the chat you agree to nothing and promise nothing, and never claim to have changed your "
-                  "stance.", player_name(pl), llm_language());
+                  "stance. Address the player the same way every time.", player_name(pl), llm_language());
+    // whose "my" is whose: the player's lines arrive as written, from his side
+    if (player_at(h) && h != ai) {
+        const char *pn = *player_name(player_at(h)) && *player_name(player_at(h)) != '?' ? player_name(player_at(h)) : "the player";
+        tcat(t, &o, sizeof t, "\nThe user messages that start with \"%s writes:\" are chat lines of %s, the human player, from "
+             "their side: \"I\", \"my\", \"mine\" are %s and their things (their town, walls, towers, army); \"you\" is "
+             "you, %s. Messages in brackets are events of the game, not chat.", pn, pn, pn, player_name(pl));
+    }
     // the game as it stands
     void *ph = player_at(h);
     uint32_t now = game_time();
@@ -422,6 +429,12 @@ static void llm_system(struct sbuf *b, void *pl, int ai, int h) {
                       llm_words(r < 0.25f ? -100 : r < 0.67f ? -30 : r <= 1.5f ? 0 : r <= 4 ? 30 : 100, pw),
                       llm_words(g_opinion[ai][h], op));
         if (g_pressure[ai][h] >= 10) tcat(t, &o, sizeof t, " Their soldiers are in your town right now.");
+        if (g_attack_sent[ai][h])
+            tcat(t, &o, sizeof t, " Your last army set out against their town %u minutes ago.", (now - g_attack_sent[ai][h]) / 60000u);
+        if (g_attack_sent[h][ai])
+            tcat(t, &o, sizeof t, " Their last army set out against your town %u minutes ago.", (now - g_attack_sent[h][ai]) / 60000u);
+        tcat(t, &o, sizeof t, " Their defences: %d towers, %d wall pieces. Yours: %d towers, %d wall pieces.",
+             g_ws.towers[h], g_ws.walls[h], g_ws.towers[ai], g_ws.walls[ai]);
         const uint32_t *mk = g_kills[ai][h], *tk = g_kills[h][ai];
         uint32_t rm[K_N], rt[K_N];
         kills_recent(ai, h, rm);
@@ -467,8 +480,15 @@ static void llm_system(struct sbuf *b, void *pl, int ai, int h) {
     if (others && o < (int)sizeof t - 2) tcat(t, &o, sizeof t, ".");
     sb_msg(b, "system", t);
 }
-static void llm_history(struct sbuf *b, int ai) {
-    for (int i = 0; i < g_llm_hist[ai].n; i++) sb_msg(b, g_llm_hist[ai].role[i] ? "assistant" : "user", g_llm_hist[ai].text[i]);
+static void llm_history(struct sbuf *b, int ai) {   // his lines framed with his name (whose "my" it is)
+    void *ph = player_at((int)*(unsigned *)0x00918E84);
+    const char *pn = ph && *player_name(ph) && *player_name(ph) != '?' ? player_name(ph) : "the player";
+    for (int i = 0; i < g_llm_hist[ai].n; i++) {
+        if (g_llm_hist[ai].role[i]) { sb_msg(b, "assistant", g_llm_hist[ai].text[i]); continue; }
+        char u[LLM_MAXLEN + 120];
+        snprintf(u, sizeof u, "%s writes: %s", pn, g_llm_hist[ai].text[i]);
+        sb_msg(b, "user", u);
+    }
 }
 static char *llm_finish(struct sbuf *b) {
     sb_puts(b, "]");

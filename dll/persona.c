@@ -79,6 +79,7 @@ static char g_persona_force[16][40];
 static uint32_t g_talk_last[16][L_N], g_talk_any[16];
 static uint8_t g_talk_variant[16][L_N];
 static unsigned g_talk_lines[16];
+static uint32_t g_attack_sent[16][16];   // [ai][target]: game time its last attack wave set out (the AI voice)
 static uint32_t g_rnd = 0x9E3779B9u;
 
 static uint32_t rnd32(void) { g_rnd ^= g_rnd << 13; g_rnd ^= g_rnd >> 17; g_rnd ^= g_rnd << 5; return g_rnd; }
@@ -366,6 +367,7 @@ static void persona_new_game(uint8_t *setup) {
     memset(g_talk_last, 0, sizeof g_talk_last);
     memset(g_talk_any, 0, sizeof g_talk_any);
     memset(g_talk_lines, 0, sizeof g_talk_lines);
+    memset(g_attack_sent, 0, sizeof g_attack_sent);
     memset(g_cfg_pl_on, 0, sizeof g_cfg_pl_on);
     int humans = 0;
     for (int s = 0; s < 16; s++) humans += FIELD(setup + s * 0x38, 0, int) == 1;
@@ -572,6 +574,7 @@ static void persona_attack(void *pl, void *target) {
     unsigned ai = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     if (!g_attack_news[ai]) return;
     g_attack_news[ai] = 0;
+    if (target) g_attack_sent[ai][FIELD(target, PL_INDEX, int) & 15] = game_time() ? game_time() : 1;
     unsigned h = *(unsigned *)0x00918E84;
     void *me = h < 16 ? ((void **)0x00918374)[h] : NULL;
     persona_say(pl, target && target == me ? L_ATTACK_THREAT : L_ATTACK, target, NULL);
