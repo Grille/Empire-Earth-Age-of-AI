@@ -25,6 +25,7 @@ static void cmd_targets(char *out, const char *args);
 static void cmd_army(char *out, const char *args);
 static void cmd_count(char *out, const char *args);
 static void cmd_objs(char *out, const char *args);
+static void cmd_build(char *out, const char *args);
 static void cmd_found(char *out, const char *args);
 static void cmd_plan(char *out, const char *args);
 static void cmd_hurt(char *out, const char *args);
@@ -355,6 +356,7 @@ static void execute(const char *cmd, char *out) {
     else if (!strcmp(verb, "army")) cmd_army(out, args);
     else if (!strcmp(verb, "count")) cmd_count(out, args);
     else if (!strcmp(verb, "objs")) cmd_objs(out, args);
+    else if (!strcmp(verb, "build")) cmd_build(out, args);
     else if (!strcmp(verb, "found")) cmd_found(out, args);
     else if (!strcmp(verb, "plan")) cmd_plan(out, args);
     else if (!strcmp(verb, "hurt")) cmd_hurt(out, args);

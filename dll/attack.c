@@ -561,7 +561,8 @@ static void *goal_move(float x, float y) {
 // lies within a known enemy defence's range + 2 tiles, or the straight way from the nearest drop site to it crosses
 // one (g_threat: defences this AI has seen). New sites: the searches (sites.c) refuse dangerous ones. Citizens already
 // gathering at one are sent back to their drop site every 10 s (as a player would); there the assignment gives them
-// new work.
+// new work. Also gatherers and builders with enemy soldiers within 6 tiles of their site (raiders_near) - a few
+// bowmen at a raided field got every citizen sent to rebuild or farm it, one by one.
 static int g_avoid_citizens = 1;
 static int nearest_drop(void *pl, int x, int y, int food, int out[2]);   // sites.c
 static int tower_covers(unsigned pi, float x, float y) {
@@ -588,9 +589,34 @@ static int route_covered(void *pl, int fx, int fy, int tx, int ty) {   // fx = -
 static int route_danger(void *pl, int fx, int fy, int tx, int ty) {
     return g_avoid_citizens && route_covered(pl, fx, fy, tx, ty);
 }
+// Raiders: enemy soldiers (land units or ships with an attack, not citizens) this AI can see within r tiles of x, y.
+// Not the game's 0x4660B9: that reads the enemy influence, which enemy buildings make too - builders at the front were
+// sent back every 10 s (166 times in 13 minutes).
+static int raiders_near(void *pl, int x, int y, int r) {
+    uint8_t *map = *(uint8_t **)G_MAP;
+    uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
+    if (!grid || !pl) return 0;
+    int cs = FIELD(grid, 8, int), nx = FIELD(grid, 0x10, int), ny = FIELD(grid, 0x14, int);
+    uint8_t *cells = FIELD(grid, 4, uint8_t *);
+    for (int cx = (x - r) / cs; cx <= (x + r) / cs; cx++)
+        for (int cy = (y - r) / cs; cy <= (y + r) / cs; cy++) {
+            if (cx < 0 || cy < 0 || cx >= nx || cy >= ny) continue;
+            uint8_t *cell = cells + (cx * ny + cy) * 16;
+            for (uint8_t **b = FIELD(cell, 4, uint8_t **); b && b < FIELD(cell, 8, uint8_t **); b++) {
+                uint8_t *u = *b, *td = u ? FIELD(u, 0x2C, uint8_t *) : NULL;
+                if (!td || FIELD(u, 0x3C, int) <= 0 || abs(FIELD(u, 0x1C, int) - x) > r || abs(FIELD(u, 0x20, int) - y) > r) continue;
+                int fam = FIELD(td, 0x4B4, int), t = FIELD(td, 0x4B8, int);
+                if ((fam != 5 && fam != 4) || t == 32 || t == 480 || FIELD(td, 0x510, int) <= 0) continue;
+                void *o = FIELD(u, 0x18, void *);   // not nature (player 0: wild animals)
+                if (o && FIELD(o, PL_INDEX, int) > 0 && is_enemy(pl, o) && seen_by(u, pl)) return 1;
+            }
+        }
+    return 0;
+}
 static int site_danger(void *pl, uint8_t *site, int food) {   // from the nearest drop site
     if (!g_avoid_citizens || !pl || !site) return 0;
     int x = FIELD(site, 0x1C, int), y = FIELD(site, 0x20, int), d[2];
+    if (raiders_near(pl, x, y, 6)) return 1;   // the searches refuse a raided site too (else: sent back, sent again)
     if (!nearest_drop(pl, x, y, food, d)) d[0] = -10000;
     return route_danger(pl, d[0], d[1], x, y);
 }
@@ -606,17 +632,23 @@ static void citizens_safety(uint8_t *rm) {   // before the citizen assignment
     if (now < next[idx] && next[idx] - now <= 10000) return;
     next[idx] = now + 10000;
     threat_refresh(pl, now);
-    if (!g_threat[idx].n) return;
     int sent = 0, kinds[4][2] = { { 0 } };   // site types sent back from (log)
     for (int r = 2; r < 7; r++) {
         uint8_t *list = rm + RM_LISTS + r * 0x14;
         for (unsigned k = 0, first = FIELD(list, 0xC, unsigned), cnt = FIELD(list, 0x10, unsigned); k < cnt; k++) {
             uint8_t *u = deque_at(list, first + k), *goal = u ? FIELD(u, 0x1EC, uint8_t *) : NULL;
-            if (!goal || FIELD(u, 0x3C, int) <= 0 || strcmp(rtti_name(goal), "EEUGGather@@")) continue;
-            uint8_t *site = FIELD(goal, 0x38, uint8_t *);
+            if (!goal || FIELD(u, 0x3C, int) <= 0) continue;
+            const char *gn = rtti_name(goal);
+            int build = !strcmp(gn, "EEUGBuildRepair@@");
+            if (!build && strcmp(gn, "EEUGGather@@")) continue;
+            uint8_t *site = FIELD(goal, build ? 0x3C : 0x38, uint8_t *);
             int d[2];
-            if (!site || !site_danger(pl, site, r == 2) || !nearest_drop(pl, FIELD(u, 0x1C, int), FIELD(u, 0x20, int), r == 2, d))
-                continue;
+            if (!site || !nearest_drop(pl, FIELD(u, 0x1C, int), FIELD(u, 0x20, int), r == 2, d)) continue;
+            // builders: only of fields (walls and towers at the front: the wall manager sends them again and again)
+            if (build && FIELD(FIELD(site, 0x2C, uint8_t *), 0x4B8, int) != 0x2A) continue;
+            int raided = raiders_near(pl, FIELD(site, 0x1C, int), FIELD(site, 0x20, int), 6);
+            if (!raided && (build || !site_danger(pl, site, r == 2))) continue;
+            if (raided && abs(d[0] - FIELD(site, 0x1C, int)) <= 3 && abs(d[1] - FIELD(site, 0x20, int)) <= 3) continue;   // at home already
             if (!unit_goal(u, goal_move((float)d[0] + 0.5f, (float)d[1] + 0.5f), 0, 0x1F40)) continue;
             sent++;
             int st = FIELD(FIELD(site, 0x2C, uint8_t *), 0x4B8, int), j = 0;
@@ -629,7 +661,7 @@ static void citizens_safety(uint8_t *rm) {   // before the citizen assignment
         logged[idx] = now;
         char ks[64] = "";
         for (int j = 0; j < 4 && kinds[j][1]; j++) { size_t l = strlen(ks); snprintf(ks + l, sizeof ks - l, " %dx%d", kinds[j][0], kinds[j][1]); }
-        fprintf(g_log, "# citizens: P%u at %.1f min: %d sent back from sites near enemy towers (site type x count:%s; %u in all, %u dangerous sites refused)\n",
+        fprintf(g_log, "# citizens: P%u at %.1f min: %d sent back from sites near enemy towers or raiders (site type x count:%s; %u in all, %u dangerous sites refused)\n",
                 idx, now / 60000.0, sent, ks, g_cit_stats[idx].sent, g_site_refused[idx]);
     }
 }
@@ -1067,6 +1099,43 @@ static void cmd_found(char *out, const char *args) {
     if (!pl || t < 0 || t >= 724 || !((void **)0x009418A0)[t]) { REPLY("error: no player %d or type %d\n", p, t); return; }
     void *u = ((void *(__cdecl *)(void *, int, int, int))0x0062EF8A)(pl, t, x, y);
     REPLY("ok: type %d for P%d at %d,%d: %p\n", t, p, x, y, u);
+}
+
+// build P bx by x y r: player P's citizens within r tiles of x, y build (or repair) P's building at bx, by - the
+// game's order (EEUGBuildRepair: new 0x5C, 0x60BAD0(goal, player, building, 1)). Tests: enemy builders at a tower.
+static void cmd_build(char *out, const char *args) {
+    int p, bx, by, x, y, r, n = 0;
+    if (sscanf(args, "%d %d %d %d %d %d", &p, &bx, &by, &x, &y, &r) < 6) { REPLY("error: usage: build P bx by x y r\n"); return; }
+    void *pl = player_at(p);
+    uint8_t *map = *(uint8_t **)G_MAP;
+    uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
+    if (!pl || !grid) { REPLY("error: no player %d or map\n", p); return; }
+    int cs = FIELD(grid, 8, int), nx = FIELD(grid, 0x10, int), ny = FIELD(grid, 0x14, int);
+    uint8_t *cells = FIELD(grid, 4, uint8_t *), *bld = NULL, *civ[32];
+    int nc = 0;
+    for (int cx = (x - r - 4) / cs; cx <= (x + r + 4) / cs; cx++)   // wide enough for the building too
+        for (int cy = (y - r - 4) / cs; cy <= (y + r + 4) / cs; cy++) {
+            if (cx < 0 || cy < 0 || cx >= nx || cy >= ny) continue;
+            uint8_t *cell = cells + (cx * ny + cy) * 16;
+            for (uint8_t **b = FIELD(cell, 4, uint8_t **); b && b < FIELD(cell, 8, uint8_t **); b++) {
+                uint8_t *u = *b, *td = u ? FIELD(u, 0x2C, uint8_t *) : NULL;
+                if (!td || FIELD(u, 0x18, void *) != pl || FIELD(u, 0x3C, int) <= 0) continue;
+                int t = FIELD(td, 0x4B8, int), ux = FIELD(u, 0x1C, int), uy = FIELD(u, 0x20, int);
+                if (ux == bx && uy == by && (FIELD(td, 0x4B4, int) == 2 || FIELD(td, 0x4B4, int) == 29)) bld = u;
+                else if ((t == 32 || t == 480) && abs(ux - x) <= r && abs(uy - y) <= r && nc < 32) {
+                    int dup = 0;
+                    for (int k = 0; k < nc; k++) dup |= civ[k] == u;
+                    if (!dup) civ[nc++] = u;
+                }
+            }
+        }
+    if (!bld) { REPLY("error: no building of P%d at %d,%d\n", p, bx, by); return; }
+    for (int k = 0; k < nc; k++) {
+        void *g = ((void *(__cdecl *)(unsigned))0x00683718)(0x5C);
+        if (g) g = ((void *(__thiscall *)(void *, void *, void *, int))0x0060BAD0)(g, pl, bld, 1);
+        n += unit_goal(civ[k], g, 0, 0x1F51);
+    }
+    REPLY("ok: %d citizens of P%d build at %d,%d\n", n, p, bx, by);
 }
 
 // hurt P T x y r dmg: damage every object of type T of player P within r tiles of x, y the way an attack does

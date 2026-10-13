@@ -209,6 +209,38 @@ static void *__fastcall hook_find_food(uint8_t *rm, void *edx, uintptr_t need_dr
 }
 
 static const uintptr_t k_wood_sites[] = { 0x48a28e, 0x48aaf6 };
+// The assignment's lists (std::vector out: +4 begin, +8 end): finished fields without farmer (0x48BFD0, called at
+// 0x48AC54), unfinished fields (0x48BF4F at 0x48B0FD), game to hunt (0x48BA3B at 0x48ACE4, 0x48AFC4) - the
+// dangerous entries are taken out, as the searches refuse dangerous sites.
+static void list_filter(uint8_t *rm, uint8_t *v, int food) {
+    void *pl = rm_player(rm);
+    void **b = v ? FIELD(v, 4, void **) : NULL, **e = v ? FIELD(v, 8, void **) : NULL, **w = b;
+    if (!pl || !b) return;
+    for (void **i = b; i < e; i++) {
+        if (site_danger(pl, *i, food)) { g_site_refused[(unsigned)FIELD(pl, PL_INDEX, int) & 15]++; continue; }
+        *w++ = *i;
+    }
+    FIELD(v, 8, void **) = w;
+}
+static void *__fastcall hook_farms(uint8_t *rm, void *edx, uintptr_t n, uintptr_t out) {
+    (void)edx;
+    void *r = ((Fn2)FN_FARMS)(rm, n, out);
+    list_filter(rm, (uint8_t *)out, 1);
+    return r;
+}
+#define FN_UNBUILT_FARMS 0x0048BF4F
+static void *__fastcall hook_unbuilt_farms(uint8_t *rm, void *edx, uintptr_t n, uintptr_t out) {
+    (void)edx;
+    void *r = ((Fn2)FN_UNBUILT_FARMS)(rm, n, out);
+    list_filter(rm, (uint8_t *)out, 1);
+    return r;
+}
+static void *__fastcall hook_hunt(uint8_t *rm, void *edx, uintptr_t n, uintptr_t f, uintptr_t out) {
+    (void)edx;
+    void *r = ((Fn3)FN_HUNT)(rm, n, f, out);
+    list_filter(rm, (uint8_t *)out, 1);
+    return r;
+}
 static void *__fastcall hook_find_wood(uint8_t *rm, void *edx, uintptr_t flag, uint8_t *unit) {
     (void)edx;
     return refuse_danger(rm, ((Fn2)FN_FIND_WOOD)(rm, flag, (uintptr_t)unit), 0);
@@ -225,5 +257,8 @@ static void sites_install(const char *aimod_ini, const char *autotest_ini) {
         ok += patch_call(k_food_sites[i], FN_FIND_FOOD, hook_find_food);
     for (size_t i = 0; i < sizeof k_wood_sites / sizeof *k_wood_sites; i++, total++)
         ok += patch_call(k_wood_sites[i], FN_FIND_WOOD, hook_find_wood);
+    total += 4;
+    ok += patch_call(0x48ac54, FN_FARMS, hook_farms) + patch_call(0x48b0fd, FN_UNBUILT_FARMS, hook_unbuilt_farms) +
+          patch_call(0x48ace4, FN_HUNT, hook_hunt) + patch_call(0x48afc4, FN_HUNT, hook_hunt);
     if (g_log) fprintf(g_log, "# safe_sites hooks: %d/%d, max distance %d; mine_choice=%d\n", ok, total, g_site_max_dist, g_mine_choice);
 }

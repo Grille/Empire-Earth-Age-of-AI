@@ -114,6 +114,7 @@ venv/Scripts/python scripts/eectl.py <command>
 | `targets P` | all enemy buildings of AI player P: owner, tile, seen by P or not, known tower threat on them |
 | `army P [type]` | soldiers of player P (optionally only one unit type) grouped by current goal (EEUGLocation = marching, EEUGAttackUnit = fighting; goal +0x30 = target unit), with centre and the goal's first dwords |
 | `objs P T` | every object of type T of player P: tile, hit points, goal (e.g. `objs 2 42`: farm fields, 1 hp = not built) |
+| `build P bx by x y r` | player P's citizens within r tiles of x,y build P's building at bx,by (EEUGBuildRepair, the game's order) - with `found`: enemy builders at a tower |
 | `found P T x y` | lay out an unfinished building of type T for player P (0x62EF8A, as the build manager does; pays its cost) - e.g. an enemy tower foundation next to an AI's gatherers |
 | `hurt P T x y r dmg` | damage every object of type T of player P within r tiles of x,y as an attack does (target vf 0x70) - e.g. `hurt 2 42 128 128 256 1000` destroys P2's fields |
 | `plan P` | the AI's building plan (type:wanted) |
@@ -251,6 +252,17 @@ the slot fix, P2's citizens at minute 20 over 12 seeds, avoidance + militia off 
 farmer pass and the retreat took turns). Militia: `found 3 462 74 61` next to P2's berries at minute 8 - destroyed
 within 30 s; 3 Bronze soldiers among P2's woodcutters: a count-based militia lost 10 citizens, the strength check
 joins only when it wins (both soldiers it fought died, P2 kept 32 citizens) and keeps out in the Prehistoric.
+
+### Raids and tower builders
+
+2026-10-13, Continental 101, 2 AIs, Bronze start. Builders: at minute 8 P3 gets 3 citizens and a guard tower
+foundation next to P2's berries (`spawn`, `found`, `build`); 5 seeds, response off / on: the foundation stood at
+minute 12 in all 5 (finished in 1) / was gone in all 5; P2 citizens minute 8 -> 12 +5.6 / +3.2. Raid: 6 Bronze
+archers (type 10) at P2's fields at minute 12; 6 seeds, call-back off / on: P2 citizens minute 12 -> 16 +6.0 /
++6.2. The first raid check (the game's 0x4660B9, enemy influence) sent builders at the front back 250-300 times a
+game, then wild animals counted as raiders; with enemy soldiers only and the searches refusing raided sites,
+10-28. Suite (4 maps, 2 seeds, 75 min), off / on: alive 75 / 79%, epoch 3.62 / 3.83, workers at the end
+37.3 / 43.2 (std. error ~5), call-backs ~66 per AI and game (hunting, mines, fields where armies move), no crash.
 
 ### More granaries
 

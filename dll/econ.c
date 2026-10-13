@@ -652,6 +652,8 @@ static uint8_t *movable_gatherer(uint8_t *rm, int t) {
 // - a finished field nobody farms gets an idle citizen, else the nearest from stone, gold or iron above its target
 //   (the game's gather order 0x48C81C moves it to the food list);
 // - lost fields are laid out again (fields_rebuild). Fishing goes on as before.
+// None of it with enemy soldiers within 6 tiles (raiders_near, attack.c): a few bowmen next to a raided field got
+// every citizen the passes sent to rebuild or farm it, one by one.
 #define FN_NEW           0x00683718   // operator new (cdecl)
 #define FN_BUILD_GOAL    0x0060BAD0   // EEUGBuildRepair constructor: thiscall(goal, player, building, 1)
 #define FN_SET_GOAL      0x005F05BD   // thiscall(unit, goal, 0, 0)
@@ -706,6 +708,7 @@ static int field_worked(uint8_t *rm, uint8_t *f) {   // a citizen of this AI far
 static struct { int16_t x, y; uint32_t queued; } g_field_at[16][32];
 static int g_field_n[16];
 static int can_place(void *pl, int type, int x, int y);   // defence.c
+static int raiders_near(void *pl, int x, int y, int r);     // attack.c: enemy soldiers it can see
 static void fields_rebuild(void *pl, unsigned idx, void *um, uint8_t *dq, uint32_t now) {
     if (now < 60000) g_field_n[idx] = 0;   // new game
     unsigned first = dq ? FIELD(dq, 0xC, unsigned) : 0, cnt = dq ? FIELD(dq, 0x10, unsigned) : 0;
@@ -732,6 +735,7 @@ static void fields_rebuild(void *pl, unsigned idx, void *um, uint8_t *dq, uint32
             granary = g && FIELD(g, 0x3C, int) > 0 && abs(FIELD(g, 0x1C, int) - x) <= 4 && abs(FIELD(g, 0x20, int) - y) <= 4;
         }
         if (!granary) continue;
+        if (raiders_near(pl, x, y, 6)) continue;   // raided: later
         g_field_at[idx][j].queued = now;
         if (!can_place(pl, 0x2A, x, y)) continue;
         ((void *(__cdecl *)(void *, int, int, int))0x0062EF8A)(pl, 0x2A, x, y);
@@ -808,6 +812,8 @@ static void econ_fields(uint8_t *rm) {   // before the citizen assignment
         uint8_t *f = deque_at(dq, first + k), *st = f ? FIELD(f, 0x30, uint8_t *) : NULL;
         if (!st || FIELD(f, 0x3C, int) <= 0) continue;
         if (site_danger(pl, f, 1)) continue;   // under known enemy towers: no builders, no farmers (attack.c)
+        if (raiders_near(pl, FIELD(f, 0x1C, int), FIELD(f, 0x20, int), 6))
+            continue;   // raided: a player doesn't send his citizens one by one into the raiders
         if (!FIELD(st, 0x340, uint8_t)) todo[nt++] = f;
         else if (nd < 16 && !field_worked(rm, f)) done[nd++] = f;
     }

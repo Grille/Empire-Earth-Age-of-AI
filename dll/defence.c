@@ -252,8 +252,9 @@ static void defence_tick(void *pl, unsigned idx, uint32_t now) {
 
 // COUNTER-TOWER (same switch): a player walks citizens up to an AI's mine or berries and puts a tower beside it - the
 // AI let it be built and the tower killed its gatherers. Enemy defences under construction ([u+0x30]+0x340 = 0) it
-// can see within 12 tiles of its buildings or citizens get the same answer as siege: the nearest soldiers attack the
-// foundation while it is weak. Finished towers are the siege weapons' job (attack.c siege_tick).
+// can see within 12 tiles of its buildings or citizens get the same answer as siege: the nearest soldiers (or, short
+// of soldiers, its citizens) attack the builders - the enemy citizens whose EEUGBuildRepair holds it - spread over
+// them, and the foundation only when nobody builds it. Finished towers are the siege weapons' job (attack.c siege_tick).
 // COUNTER-SIEGE (aimod.ini [all] counter_siege, default on): catapults outrange towers (bronze: 7 against 5) and the
 // AI just watched its towers being shelled. A player sends a few soldiers out at them. Every 2 s per AI: enemy siege
 // weapons (and rams) it can see within their range + 4 tiles of one of its buildings are threats; its soldiers within
@@ -395,6 +396,14 @@ static void counter_siege(void *pl, unsigned idx, uint32_t now) {
         for (int c = 0; tower && c < s.nc && !threat; c++)
             threat = (float)((s.cx[c] - x) * (s.cx[c] - x) + (s.cy[c] - y) * (s.cy[c] - y)) <= r * r;
         if (!threat) continue;
+        // a tower going up: its builders first (a player kills the citizens, the foundation is harmless without them)
+        uint8_t *bl[8], *site = tower ? field_site(e) : NULL;   // what their EEUGBuildRepair holds (+0x3C)
+        int nbl = 0;
+        for (int k = 0; tower && k < s.nu && nbl < 8; k++) {
+            uint8_t *g = FIELD(s.eu[k], 0x1EC, uint8_t *);
+            if (g && FIELD(s.eu[k], 0x3C, int) > 0 && (FIELD(g, 0x3C, uint8_t *) == site || FIELD(g, 0x3C, uint8_t *) == e) &&
+                !strcmp(rtti_name(g), "EEUGBuildRepair@@")) bl[nbl++] = s.eu[k];
+        }
         int guards = 0;
         for (int k = 0; k < s.nx; k++) guards += abs(s.ex[k] - x) <= 8 && abs(s.ey[k] - y) <= 8;
         // responders: nearest first, up to 5
@@ -407,7 +416,9 @@ static void counter_siege(void *pl, unsigned idx, uint32_t now) {
             if (d2 > 400) continue;
             if (g && *(uintptr_t *)g == VT_GOAL_ATTACK) {
                 uint8_t *t = FIELD(g, 0x30, uint8_t *);
-                if (t == e) { already++; s.sold[k] = NULL; continue; }
+                int mine = t == e;
+                for (int b = 0; b < nbl && !mine; b++) mine = t == bl[b];
+                if (mine) { already++; s.sold[k] = NULL; continue; }
                 if (t && abs(FIELD(t, 0x1C, int) - FIELD(u, 0x1C, int)) <= 4 && abs(FIELD(t, 0x20, int) - FIELD(u, 0x20, int)) <= 4)
                     continue;   // busy fighting close by
             }
@@ -425,15 +436,18 @@ static void counter_siege(void *pl, unsigned idx, uint32_t now) {
         }
         if (already >= 5) continue;
         if (avail + already < 2 * guards + 3) {
-            int nfree = s.nc;   // a tower going up and too few soldiers: the citizens go at the foundation
-            if (tower && g_militia && militia_answer(&s, e, &nfree)) g_militia_orders[idx]++;
+            int nfree = s.nc, n = 0;   // a tower going up and too few soldiers: the citizens go at the builders
+            for (int b = 0; tower && g_militia && b < nbl && nfree > 2; b++) n += militia_answer(&s, bl[b], &nfree);
+            if (tower && g_militia && !nbl) n += militia_answer(&s, e, &nfree);   // nobody building: the foundation
+            if (n) g_militia_orders[idx] += (unsigned)n;
             else g_csiege_skipped[idx]++;
             continue;
         }
         int ordered = 0;
         for (int j = 0; j < np && already + ordered < 5; j++) {
             uint8_t *u = s.sold[pick[j]];
-            if (unit_goal(u, goal_attack(u, e), 0, 0x1F40)) ordered++;
+            uint8_t *t = nbl ? bl[(already + ordered) % nbl] : e;   // spread over the builders
+            if (unit_goal(u, goal_attack(u, t), 0, 0x1F40)) ordered++;
             s.sold[pick[j]] = NULL;   // one target per unit per tick
         }
         g_csiege_orders[idx] += (unsigned)ordered;
@@ -441,8 +455,8 @@ static void counter_siege(void *pl, unsigned idx, uint32_t now) {
             ai_say(pl, CHAT_COUNTER, "[ai] enemy siege at %d,%d - %d soldiers sent against it (%d guards)", x, y,
                    ordered + already, guards);
         if (ordered && g_log)
-            fprintf(g_log, "# counter-%s: P%u at %.1f min: enemy type %d at %d,%d (%d guards) <- %d soldiers (%d already on it)\n",
-                    tower ? "tower" : "siege", idx, now / 60000.0, FIELD(etd, 0x4B8, int), x, y, guards, ordered, already);
+            fprintf(g_log, "# counter-%s: P%u at %.1f min: enemy type %d at %d,%d (%d guards, %d builders) <- %d soldiers (%d already on it)\n",
+                    tower ? "tower" : "siege", idx, now / 60000.0, FIELD(etd, 0x4B8, int), x, y, guards, nbl, ordered, already);
     }
 }
 
