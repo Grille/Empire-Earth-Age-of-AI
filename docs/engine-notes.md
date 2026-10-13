@@ -414,6 +414,17 @@ Guard towers 47, 461..466; AA 145/147; town center 35; house 37; citizen 32.
   0x00|n, 0x40|n + bits 8..15, or 0x80|n + bits 8..23 (n <= 63), n bytes of bits 0..7; empty = 0xFF.
   `[general] big_selection` packs the same format up to the 255 bytes (about 240 units; 236 tested).
 
+## Drawing
+
+- EEROUnits::vf0 0x503B83 (each frame) collects what is on screen into the global block 0x8D2CB8 (static ctor
+  0x506333, dtor 0x5000CA): draw lists +0 (0xC each), 512 records of 0x148 at +0x78 = 0x8D2D30 (ctor 0x506442) for
+  units, buildings and missiles, 1536 records of 0x3C at +0x29078 = 0x8FBD30 for small objects (type +0x619: trees,
+  decorations), counts 0x912538 / 0x91253C. Room checks: 0x5008B8 (`cmp [0x912538], 0x200` at 0x500996, `< 0x600`),
+  0x5035AD gets the cap as an argument (push 0x200 at 0x504157). The render thread draws them in 0x50BD9D(records,
+  count). Every reference to the unit records (disassembly scan of .text): 0x5007B1/0x5007CA (game-start init loop,
+  start and end), 0x503C68, 0x503ECF, 0x503FCB (+0xFC), 0x5043B4, 0x50DC59. Measured (360 longbows fighting): up to 445
+  objects; 600: the original list stays at 512 (full), `[display] draw_limit` 4096: up to 727.
+
 ## Sound
 
 - gSoundManager 0x919848 (Low-Level Engine.dll SESoundManager, constructed 0x530000 area with (path, mixer, 50, 0)),

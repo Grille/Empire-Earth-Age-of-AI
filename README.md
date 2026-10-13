@@ -173,6 +173,9 @@ Settings in `aimod.ini`:
   `aimod_ai` personalities. The game is lockstep - every PC simulates everything - so different settings make
   the games drift apart. The mod's decisions use only the game's own state, math and random numbers for this.
 - `[general] skip_intro=1`: skip the intro movies.
+- `[display] draw_limit=4096` (default): the game drew at most 512 units, buildings and missiles per frame - arrows
+  in flight or stuck in the ground included (a 360-archer fight reached 445) - so in big fights, and the more so at
+  high resolutions, the farthest objects blinked in and out. `0` keeps the 512.
 - `[general] big_selection=1` (default): double-clicking a unit (all of its kind on screen) or dragging a box selected
   at most 63 units - with a large army only a part. Now up to about 240, as many as the game's selection message
   can carry; the message keeps its format, so it should stay compatible in multiplayer.
