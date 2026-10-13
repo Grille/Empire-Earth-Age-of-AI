@@ -30,6 +30,7 @@ static void cmd_sndchan(char *out, const char *args);
 static void cmd_seltest(char *out, const char *args);
 static void cmd_drawcount(char *out, const char *args);
 static void cmd_textlog(char *out, const char *args);
+static void cmd_textstate(char *out, const char *args);
 static void cmd_llm(char *out, const char *args);
 static void cmd_watchtech(char *out, const char *args);
 static void cmd_watchtype(char *out, const char *args);
@@ -370,6 +371,7 @@ static void execute(const char *cmd, char *out) {
     else if (!strcmp(verb, "seltest")) cmd_seltest(out, args);
     else if (!strcmp(verb, "drawcount")) cmd_drawcount(out, args);
     else if (!strcmp(verb, "textlog")) cmd_textlog(out, args);
+    else if (!strcmp(verb, "textstate")) cmd_textstate(out, args);
     else if (!strcmp(verb, "llm")) cmd_llm(out, args);
     else if (!strcmp(verb, "watchtech")) cmd_watchtech(out, args);
     else if (!strcmp(verb, "watchtype")) cmd_watchtype(out, args);

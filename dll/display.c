@@ -1017,6 +1017,13 @@ static void *__fastcall hook_font_delete(uint8_t *font, void *edx, unsigned flag
 // and GDI text (ExtTextOutA / TextOutW: on our text DC or another one, its surface, the colour) - for a screen
 // whose text is missing
 static volatile LONG g_textlog;
+// The device state around our bitmap text: the engine's sprite text uses whatever the 3D scene left. In a big late
+// game (the player's 70-minute save) the scene left fog on: every character came out in the fog colour - white text
+// looked as always, black text (save screen title and labels, the overwrite and resign dialogs) vanished on the
+// beige background, in 2 of 4 openings. So while it draws: fog off, alpha blending src alpha / inverse src alpha
+// (restored after). textstate N (pipe, tests): 0 leave the state as it is, 1 that (default), 2 also texture stage 0
+// = texture x diffuse (colour and alpha).
+static volatile LONG g_text_state = 1;
 static uint32_t g_tl_seen[1024];
 static volatile LONG g_tl_n;
 static uint32_t tl_hash(const void *p, size_t n, uint32_t h) {
@@ -1130,17 +1137,39 @@ static long __fastcall hook_fc_text_rect(void *ras, void *edx, void *text, void 
     void *dev = dstate && dstate[0] ? FIELD(dstate[0], 0x1C, void *) : NULL;
     DWORD addr[2] = { 0, 0 };
     if (bmp) FIELD(FIELD(text, 0x44, uint8_t *), 0x24, void *) = bmp;
+    // render states (IDirect3DDevice7 vtable 20 SetRenderState, 21 GetRenderState): 27 ALPHABLENDENABLE, 19 SRCBLEND,
+    // 20 DESTBLEND, 28 FOGENABLE, 15 ALPHATESTENABLE, 60 TEXTUREFACTOR; stage 0: 1 COLOROP, 2/3 COLORARG1/2, 4 ALPHAOP,
+    // 5/6 ALPHAARG1/2
+    static const DWORD rs_id[6] = { 27, 19, 20, 28, 15, 60 }, ts_id[6] = { 1, 2, 3, 4, 5, 6 };
+    static const DWORD rs_val[6] = { 1, 5, 6, 0, 0, 0 }, ts_val[6] = { 4, 2, 0, 4, 2, 0 };
+    DWORD rs_old[6], ts_old[6];
+    int st = (int)g_text_state;
     if (dev) {
         void **vt = *(void ***)dev;
         for (int k = 0; k < 2; k++) {
             ((HRESULT (__stdcall *)(void *, DWORD, DWORD, DWORD *))vt[36])(dev, 0, 13 + k, &addr[k]);
             ((HRESULT (__stdcall *)(void *, DWORD, DWORD, DWORD))vt[37])(dev, 0, 13 + k, 3);
         }
+        for (int k = 0; k < 6; k++) {
+            ((HRESULT (__stdcall *)(void *, DWORD, DWORD *))vt[21])(dev, rs_id[k], &rs_old[k]);
+            ((HRESULT (__stdcall *)(void *, DWORD, DWORD, DWORD *))vt[36])(dev, 0, ts_id[k], &ts_old[k]);
+        }
+        if (g_textlog > 0 && g_log && textlog_new(tl_hash(rs_old, sizeof rs_old, tl_hash(ts_old, sizeof ts_old, 77)))) {
+            EnterCriticalSection(&g_lock);
+            fprintf(g_log, "# textlog state: blend %lu src %lu dst %lu fog %lu alphatest %lu tfactor %08lx; stage0 colorop %lu args %lu %lu "
+                    "alphaop %lu args %lu %lu (textstate %d)\n", rs_old[0], rs_old[1], rs_old[2], rs_old[3], rs_old[4], rs_old[5],
+                    ts_old[0], ts_old[1], ts_old[2], ts_old[3], ts_old[4], ts_old[5], st);
+            LeaveCriticalSection(&g_lock);
+        }
+        for (int k = 0; st >= 1 && k < 4; k++) ((HRESULT (__stdcall *)(void *, DWORD, DWORD))vt[20])(dev, rs_id[k], rs_val[k]);
+        for (int k = 0; st >= 2 && k < 6; k++) ((HRESULT (__stdcall *)(void *, DWORD, DWORD, DWORD))vt[37])(dev, 0, ts_id[k], ts_val[k]);
     }
     FC_TIMED(FC_TEXT_RECT, ((long (__thiscall *)(void *, void *, void *, void *))g_fc[FC_TEXT_RECT].orig[DISPLAY_DLL(ras)])(ras, text, rect, surf));
     if (dev) {
         void **vt = *(void ***)dev;
         for (int k = 0; k < 2; k++) ((HRESULT (__stdcall *)(void *, DWORD, DWORD, DWORD))vt[37])(dev, 0, 13 + k, addr[k]);
+        for (int k = 0; st >= 1 && k < 4; k++) ((HRESULT (__stdcall *)(void *, DWORD, DWORD))vt[20])(dev, rs_id[k], rs_old[k]);
+        for (int k = 0; st >= 2 && k < 6; k++) ((HRESULT (__stdcall *)(void *, DWORD, DWORD, DWORD))vt[37])(dev, 0, ts_id[k], ts_old[k]);
     }
     if (bmp) FIELD(FIELD(text, 0x44, uint8_t *), 0x24, void *) = NULL;
     return r;
@@ -2833,6 +2862,10 @@ static void cmd_ddinfo(char *out, const char *args) {
     }
 }
 
+static void cmd_textstate(char *out, const char *args) {
+    InterlockedExchange(&g_text_state, atoi(args));
+    REPLY("textstate %ld\n", g_text_state);
+}
 static void cmd_textlog(char *out, const char *args) {
     if (args[0] == '?') {
         REPLY("textlog: %ld lines to go, %ld seen\n", g_textlog, g_tl_n);
