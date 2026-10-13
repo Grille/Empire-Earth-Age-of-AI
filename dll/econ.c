@@ -614,6 +614,18 @@ static void econ_tick(void *pl, uint32_t now) {
     tech_log_tick(pl, ai, now);
     home_guard(pl, ai, now);
     muster(pl, ai, now);
+    {   // the base the AI plans around (build manager +0x12C/+0x130): log when it moves (a lost base, a new one?)
+        static int bx[16] = { -10000, -10000, -10000, -10000, -10000, -10000, -10000, -10000, -10000, -10000, -10000,
+                              -10000, -10000, -10000, -10000, -10000 }, by[16];
+        void *cm = FIELD(pl, 0xB90, void *);
+        uint8_t *bm = cm ? FIELD(cm, 0x3C, uint8_t *) : NULL;
+        int x = bm ? FIELD(bm, 0x12C, int) : -10000, y = bm ? FIELD(bm, 0x130, int) : -10000;
+        if (bm && (x != bx[ai] || y != by[ai])) {
+            if (g_log) fprintf(g_log, "# base: P%u at %.1f min: %d,%d -> %d,%d\n", ai, now / 60000.0, bx[ai], by[ai], x, y);
+            bx[ai] = x;
+            by[ai] = y;
+        }
+    }
     chat_tick(pl, ai, now);
     diplo_tick(pl, ai, now);
     rates_update(pl, ai, now);
