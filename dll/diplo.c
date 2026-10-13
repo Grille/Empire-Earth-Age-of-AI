@@ -163,20 +163,23 @@ static float power_of(int i) { return g_ws.power[i] > 1.0f ? g_ws.power[i] : 1.0
 // KILLS BY PAIR: the game keeps only totals per player (statistics, player +0x4A8: 3 units killed, 2 buildings
 // destroyed). They are counted in EEUnit::vf28 (0x6172BC, damage) when a unit drops to 0 hit points: at 0x617780 call
 // 0x55DBCF thiscall(attacker's player +0x4A8, 3 or 2, 1), the dead unit in ESI (owner +0x18) - not for nature's units
-// or one's own. Here also by pair: g_kills[killer][victim][0 units, 1 buildings] for the whole game, and the same per
+// or one's own. Here also by pair: g_kills[killer][victim][K_SOLDIERS / K_BUILDINGS / K_CITIZENS] (soldiers = every
+// unit that is no citizen: also ships, priests, siege) for the whole game, and the same per
 // game minute in a ring of KILLS_RECENT_MIN buckets (g_kills_min_t: the minute each holds) for the recent fighting
 // (saved with the game; for now only told to the language model, llm.c).
 #define CALL_KILL_STAT 0x00617780
 #define FN_STAT_ADD    0x0055DBCF
 #define KILLS_RECENT_MIN 20
-static uint32_t g_kills[16][16][2];
-static uint16_t g_kills_min[KILLS_RECENT_MIN][16][16][2];
+enum { K_SOLDIERS, K_BUILDINGS, K_CITIZENS, K_N };
+static uint32_t g_kills[16][16][K_N];
+static uint16_t g_kills_min[KILLS_RECENT_MIN][16][16][K_N];
 static uint32_t g_kills_min_t[KILLS_RECENT_MIN];   // game minute + 1 the bucket holds (0 empty)
-static void kills_recent(int k, int v, uint32_t out[2]) {   // k's kills of v in the last KILLS_RECENT_MIN minutes
+static void kills_recent(int k, int v, uint32_t out[K_N]) {   // k's kills of v in the last KILLS_RECENT_MIN minutes
     uint32_t m = game_time() / 60000u + 1;
-    out[0] = out[1] = 0;
+    for (int c = 0; c < K_N; c++) out[c] = 0;
     for (int b = 0; b < KILLS_RECENT_MIN; b++)
-        if (g_kills_min_t[b] && g_kills_min_t[b] + KILLS_RECENT_MIN > m) { out[0] += g_kills_min[b][k][v][0]; out[1] += g_kills_min[b][k][v][1]; }
+        if (g_kills_min_t[b] && g_kills_min_t[b] + KILLS_RECENT_MIN > m)
+            for (int c = 0; c < K_N; c++) out[c] += g_kills_min[b][k][v][c];
 }
 __attribute__((used)) uint8_t *g_kill_unit;   // the dead unit: esi at the call site
 __attribute__((used)) void __fastcall hook_kill_stat(uint8_t *stats, void *edx, int n, int d) {
@@ -186,8 +189,10 @@ __attribute__((used)) void __fastcall hook_kill_stat(uint8_t *stats, void *edx, 
         int k = pidx(stats - 0x4A8), v = pidx(owner);
         uint32_t m = game_time() / 60000u + 1, b = m % KILLS_RECENT_MIN;
         if (g_kills_min_t[b] != m) { memset(g_kills_min[b], 0, sizeof g_kills_min[b]); g_kills_min_t[b] = m; }
-        g_kills[k][v][n == 2] += (uint32_t)d;
-        g_kills_min[b][k][v][n == 2] += (uint16_t)d;
+        uint8_t *td = FIELD(g_kill_unit, 0x2C, uint8_t *);
+        int c = n == 2 ? K_BUILDINGS : td && is_citizen_type(FIELD(td, 0x4B8, int)) ? K_CITIZENS : K_SOLDIERS;
+        g_kills[k][v][c] += (uint32_t)d;
+        g_kills_min[b][k][v][c] += (uint16_t)d;
     }
     ((void (__thiscall *)(void *, int, int))FN_STAT_ADD)(stats, n, d);
 }
@@ -1251,11 +1256,12 @@ static void cmd_diplo(char *out, const char *args) {
     if (!strcmp(args, "kills")) {   // diplo kills: units / buildings each player destroyed of each other one
         for (int k = 1; k < nplayers(); k++)
             for (int v = 0; v < nplayers(); v++)
-                if (g_kills[k][v][0] || g_kills[k][v][1]) {
-                    uint32_t r[2];
+                if (g_kills[k][v][K_SOLDIERS] || g_kills[k][v][K_CITIZENS] || g_kills[k][v][K_BUILDINGS]) {
+                    uint32_t r[K_N], *a = g_kills[k][v];
                     kills_recent(k, v, r);
-                    REPLY("P%d killed of P%d: %u units, %u buildings (last %d min: %u, %u)\n", k, v, g_kills[k][v][0],
-                          g_kills[k][v][1], KILLS_RECENT_MIN, r[0], r[1]);
+                    REPLY("P%d killed of P%d: %u soldiers, %u citizens, %u buildings (last %d min: %u, %u, %u)\n", k, v,
+                          a[K_SOLDIERS], a[K_CITIZENS], a[K_BUILDINGS], KILLS_RECENT_MIN, r[K_SOLDIERS], r[K_CITIZENS],
+                          r[K_BUILDINGS]);
                 }
         REPLY("done\n");
         return;

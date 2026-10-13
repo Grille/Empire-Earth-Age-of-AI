@@ -358,15 +358,24 @@ static const char *const k_llm_situation[L_N] = {
 static const char *llm_words(float v, const char *const *w) {   // -100..100 in five words
     return w[v < -50 ? 0 : v < -15 ? 1 : v <= 15 ? 2 : v <= 50 ? 3 : 4];
 }
+// append to t (cap bytes, *o used): never past the end, however long the names and lines are
+static void tcat(char *t, int *o, int cap, const char *fmt, ...) {
+    if (*o >= cap - 1) return;
+    va_list ap;
+    va_start(ap, fmt);
+    int n = vsnprintf(t + *o, (size_t)(cap - *o), fmt, ap);
+    va_end(ap);
+    if (n > 0) *o += n < cap - 1 - *o ? n : cap - 1 - *o;
+}
 // the system message: who the AI is, how it talks, the rules, and the game as it stands for the listener h
 static void llm_system(struct sbuf *b, void *pl, int ai, int h) {
     struct persona *p = persona_of(pl);
-    char t[2048];
+    char t[4096];
     int o = 0;
-    o += snprintf(t + o, sizeof t - o, "You are %s, a leader in the real-time strategy game Empire Earth (played by the "
+    tcat(t, &o, sizeof t, "You are %s, a leader in the real-time strategy game Empire Earth (played by the "
                   "computer). ", player_name(pl));
-    if (p && p->character[0]) o += snprintf(t + o, sizeof t - o, "%s ", p->character);
-    o += snprintf(t + o, sizeof t - o, "Your nature (0-100): aggression %d, loyalty %d, pride %d, greed %d, forgiveness %d, "
+    if (p && p->character[0]) tcat(t, &o, sizeof t, "%s ", p->character);
+    tcat(t, &o, sizeof t, "Your nature (0-100): aggression %d, loyalty %d, pride %d, greed %d, forgiveness %d, "
                   "caution %d.", trait(pl, T_AGGRESSION), trait(pl, T_LOYALTY), trait(pl, T_PRIDE), trait(pl, T_GREED),
                   trait(pl, T_FORGIVENESS), trait(pl, T_CAUTION));
     // a few of its own lines, as examples of its voice (without placeholders)
@@ -377,12 +386,12 @@ static void llm_system(struct sbuf *b, void *pl, int ai, int h) {
             if (!p->nline[ex[i]]) continue;
             const char *l = p->line[ex[i]][rnd(p->nline[ex[i]])];
             if (strchr(l, '{')) continue;
-            o += snprintf(t + o, sizeof t - o, "%s\"%s\"", shown ? " / " : " How you talk, for example: ", l);
+            tcat(t, &o, sizeof t, "%s\"%s\"", shown ? " / " : " How you talk, for example: ", l);
             shown++;
         }
-        if (shown) o += snprintf(t + o, sizeof t - o, ".");
+        if (shown) tcat(t, &o, sizeof t, ".");
     }
-    o += snprintf(t + o, sizeof t - o, "\nRules: write only what %s says - one or two short sentences, at most 200 "
+    tcat(t, &o, sizeof t, "\nRules: write only what %s says - one or two short sentences, at most 200 "
                   "characters, in %s. No quotation marks, no stage directions, no emojis, no name in front. Stay in "
                   "character and in the world of the game. Diplomacy happens only through the stances in the game (allied "
                   "or enemy): in the chat you agree to nothing and promise nothing, and never claim to have changed your "
@@ -392,7 +401,7 @@ static void llm_system(struct sbuf *b, void *pl, int ai, int h) {
     uint32_t now = game_time();
     char ep[96];
     epoch_text(pl, ep, sizeof ep);
-    o += snprintf(t + o, sizeof t - o, "\nThe game now (minute %u): you are in the %s.", now / 60000u, ep);
+    tcat(t, &o, sizeof t, "\nThe game now (minute %u): you are in the %s.", now / 60000u, ep);
     if (ph && h != ai) {
         static const char *const op[5] = { "you hate them", "you dislike them", "you are indifferent to them",
                                            "you like them", "you trust them" };
@@ -402,49 +411,57 @@ static void llm_system(struct sbuf *b, void *pl, int ai, int h) {
         int mine = stance_of(pl, h), his = stance_of(ph, ai);
         float r = power_of(h) / power_of(ai);
         const char *hn = *player_name(ph) && *player_name(ph) != '?' ? player_name(ph) : "The player";
-        o += snprintf(t + o, sizeof t - o, " %s (the player you talk to) is in the %s. %s Their forces are %s. "
+        tcat(t, &o, sizeof t, " %s (the player you talk to) is in the %s. %s Their forces are %s. "
                       "Opinion: %s.", hn, ep,
                       !mine && !his ? "You are allied with each other." : mine && his ? "You are at war with each other."
                       : mine ? "You treat them as an enemy, but they have set allied towards you (they offer peace)."
                              : "You are allied with them, but they treat you as an enemy.",
                       llm_words(r < 0.25f ? -100 : r < 0.67f ? -30 : r <= 1.5f ? 0 : r <= 4 ? 30 : 100, pw),
                       llm_words(g_opinion[ai][h], op));
-        if (g_pressure[ai][h] >= 10) o += snprintf(t + o, sizeof t - o, " Their soldiers are in your town right now.");
+        if (g_pressure[ai][h] >= 10) tcat(t, &o, sizeof t, " Their soldiers are in your town right now.");
         const uint32_t *mk = g_kills[ai][h], *tk = g_kills[h][ai];
-        uint32_t rm[2], rt[2];
+        uint32_t rm[K_N], rt[K_N];
         kills_recent(ai, h, rm);
         kills_recent(h, ai, rt);
-        if (mk[0] || mk[1] || tk[0] || tk[1]) {
-            o += snprintf(t + o, sizeof t - o, " The fighting between you so far: you killed %u of their units and destroyed "
-                          "%u of their buildings; they killed %u of your units and destroyed %u of your buildings.",
-                          mk[0], mk[1], tk[0], tk[1]);
-            if (rm[0] == mk[0] && rm[1] == mk[1] && rt[0] == tk[0] && rt[1] == tk[1])
-                o += snprintf(t + o, sizeof t - o, " All of it in the last %d minutes.", KILLS_RECENT_MIN);
-            else if (!rm[0] && !rm[1] && !rt[0] && !rt[1])
-                o += snprintf(t + o, sizeof t - o, " No fighting between you in the last %d minutes.", KILLS_RECENT_MIN);
-            else
-                o += snprintf(t + o, sizeof t - o, " In the last %d minutes: you killed %u units and destroyed %u buildings of "
-                              "theirs; they killed %u units and destroyed %u buildings of yours.", KILLS_RECENT_MIN, rm[0],
-                              rm[1], rt[0], rt[1]);
+        int any = 0, all_recent = 1, none_recent = 1;
+        for (int c = 0; c < K_N; c++) {
+            any |= mk[c] || tk[c];
+            all_recent &= rm[c] == mk[c] && rt[c] == tk[c];
+            none_recent &= !rm[c] && !rt[c];
         }
-        if (g_lord[ai] == h) o += snprintf(t + o, sizeof t - o, " You have capitulated to them: they are your lord, you pay "
+        if (any) {
+            tcat(t, &o, sizeof t, " The fighting between you so far: you killed %u of their soldiers and %u of their "
+                          "citizens (workers) and destroyed %u of their buildings; they killed %u of your soldiers and %u of "
+                          "your citizens and destroyed %u of your buildings.", mk[K_SOLDIERS], mk[K_CITIZENS],
+                          mk[K_BUILDINGS], tk[K_SOLDIERS], tk[K_CITIZENS], tk[K_BUILDINGS]);
+            if (all_recent)
+                tcat(t, &o, sizeof t, " All of it in the last %d minutes.", KILLS_RECENT_MIN);
+            else if (none_recent)
+                tcat(t, &o, sizeof t, " No fighting between you in the last %d minutes.", KILLS_RECENT_MIN);
+            else
+                tcat(t, &o, sizeof t, " In the last %d minutes: you killed %u soldiers and %u citizens and "
+                              "destroyed %u buildings of theirs; they killed %u soldiers and %u citizens and destroyed %u "
+                              "buildings of yours.", KILLS_RECENT_MIN, rm[K_SOLDIERS], rm[K_CITIZENS], rm[K_BUILDINGS],
+                              rt[K_SOLDIERS], rt[K_CITIZENS], rt[K_BUILDINGS]);
+        }
+        if (g_lord[ai] == h) tcat(t, &o, sizeof t, " You have capitulated to them: they are your lord, you pay "
                                                                 "and serve them.");
-        if (g_lord[h] == ai) o += snprintf(t + o, sizeof t - o, " They have capitulated to you: they are your vassal.");
+        if (g_lord[h] == ai) tcat(t, &o, sizeof t, " They have capitulated to you: they are your vassal.");
         if (mine && !TEAMS_LOCKED) {
             int yes = peace_score(pl, ai, h, now) > 0 && !is_vassal(ai);
-            o += snprintf(t + o, sizeof t - o, " If they offered peace now (set allied towards you), you would %s.",
+            tcat(t, &o, sizeof t, " If they offered peace now (set allied towards you), you would %s.",
                           yes ? "accept" : "refuse");
         }
-        if (TEAMS_LOCKED) o += snprintf(t + o, sizeof t - o, " The teams are fixed in this game: no stance can change.");
+        if (TEAMS_LOCKED) tcat(t, &o, sizeof t, " The teams are fixed in this game: no stance can change.");
     }
     int others = 0;
     for (int j = 1; j < nplayers() && o < (int)sizeof t - 120; j++) {
         void *pj = player_at(j);
         if (!pj || j == ai || j == h || is_out(pj)) continue;
-        o += snprintf(t + o, sizeof t - o, "%s%s (%s)", others++ ? ", " : " Other players: ", player_name(pj),
+        tcat(t, &o, sizeof t, "%s%s (%s)", others++ ? ", " : " Other players: ", player_name(pj),
                       stance_of(pl, j) ? "your enemy" : "your ally");
     }
-    if (others && o < (int)sizeof t - 2) o += snprintf(t + o, sizeof t - o, ".");
+    if (others && o < (int)sizeof t - 2) tcat(t, &o, sizeof t, ".");
     sb_msg(b, "system", t);
 }
 static void llm_history(struct sbuf *b, int ai) {
