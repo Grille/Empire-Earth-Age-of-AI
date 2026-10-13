@@ -488,6 +488,7 @@ static void vassal_grumble(int v, int other, uint32_t now) {
     if (g_log) fprintf(g_log, "# diplomacy: blocks: P%d (vassal of P%d) grumbles about peace with P%d (grudge %.0f)\n", v, g_lord[v],
                        other, block_grudge(v, other, now));
 }
+static int g_veto_quiet;   // peace_terms asks without a log line
 static int block_veto(int ai, int j, uint32_t now, int *own) {
     if (!blocks_on()) return 0;
     int blk[16], n = nplayers(), who = 0, mine = 0;
@@ -506,7 +507,7 @@ static int block_veto(int ai, int j, uint32_t now, int *own) {
         }
     }
     if (own) *own = mine;
-    if (who && g_log) fprintf(g_log, "# diplomacy: blocks: no peace between P%d and P%d - P%d (%s side) stands in the way (grudge %.0f)\n",
+    if (who && g_log && !g_veto_quiet) fprintf(g_log, "# diplomacy: blocks: no peace between P%d and P%d - P%d (%s side) stands in the way (grudge %.0f)\n",
                               ai, j, who, mine ? "the first one's" : "the other", worst);
     return who;
 }
@@ -522,6 +523,55 @@ static void block_refuse(void *pl, int j, int who, int own) {   // the refusal: 
         wsprintfA(en, "%s refuses: no peace with %s while allied with %s.", player_name(pl), player_name(pj), player_name(pw));
     }
     if (!g_players[j]) block_line(j, de, en);
+}
+
+// PEACE TERMS (the AI voice, llm.c): what AI ai would take for peace with j right now, by the rules of peace_offer -
+// the tribute that lifts its peace score above 0 through the opinion it buys (diplo_tribute: total of all resources /
+// (20 + 0.8 x (100 - greed))), rounded up to 50, or why no price would do (fixed teams, a vassal, its pride's time
+// after his declaration, a block veto, an opinion that can't rise far enough). 0 = not at war with him.
+static int peace_terms(int ai, int j, char *out, int cap) {
+    void *pl = player_at(ai), *pj = player_at(j);
+    out[0] = 0;
+    if (!pl || !pj || !stance_of(pl, j)) return 0;
+    uint32_t now = game_time();
+    if (TEAMS_LOCKED) { snprintf(out, cap, "The teams are fixed in this game: no peace is possible."); return 1; }
+    if (is_vassal(ai)) {
+        snprintf(out, cap, "You are the vassal of %s: they must ask %s for peace, not you.", player_name(player_at(g_lord[ai])),
+                 player_name(player_at(g_lord[ai])));
+        return 1;
+    }
+    uint32_t hold = (uint32_t)trait(pl, T_PRIDE) * 3000u;
+    if (g_war_since[ai][j] && now - g_war_since[ai][j] < hold) {
+        unsigned m = (hold - (now - g_war_since[ai][j]) + 59999u) / 60000u;
+        snprintf(out, cap, "Your pride allows no peace with them for another %u minute%s, whatever they pay (they declared war on "
+                 "you).", m, m == 1 ? "" : "s");
+        return 1;
+    }
+    int own = 0;
+    g_veto_quiet = 1;
+    int veto = block_veto(ai, j, now, &own);
+    g_veto_quiet = 0;
+    if (veto) {
+        snprintf(out, cap, own ? "Your ally %s won't make peace with them - no peace at any price while that holds."
+                               : "%s, in their alliance, can't be at peace with your side - no peace at any price while that holds.",
+                 player_name(player_at(veto)));
+        return 1;
+    }
+    float s = peace_score(pl, ai, j, now);
+    if (s > 0) {
+        snprintf(out, cap, "You would accept peace now without tribute: they only have to set their stance towards you to allied.");
+        return 1;
+    }
+    float need = 1.0f - s, room = 100.0f - g_opinion[ai][j];
+    if (need > room) {
+        snprintf(out, cap, "No tribute could buy peace from you right now: your grudge and the balance of power stand against it.");
+        return 1;
+    }
+    int price = ((int)(need * (20.0f + 0.8f * (float)(100 - trait(pl, T_GREED)))) + 49) / 50 * 50;
+    snprintf(out, cap, "Your price for peace: tribute worth about %d (food, wood, stone, gold and iron all count the same, sent "
+             "through the game's tribute screen); then they set their stance towards you to allied and you accept. Less is "
+             "not enough; you may ask for more.", price);
+    return price;
 }
 
 // AI ai's own initiative (every 60 s)
@@ -1255,6 +1305,13 @@ static void cmd_diplo(char *out, const char *args) {
         InterlockedOr(&g_resign_queue, 1 << a);
         REPLY("P%d resigns; citizens %d, centers %d, no citizens since %.1f min\n", a, g_ws.citizens[a], g_ws.centers[a],
               g_no_citizens_since[a] / 60000.0);
+        return;
+    }
+    if (sscanf(args, "terms %d %d", &a, &b) == 2) {   // diplo terms P H: AI P's terms for peace with H (the AI voice)
+        char t[400];
+        int r = peace_terms(a, b, t, sizeof t);
+        REPLY("P%d -> P%d: %s (%d; score %.0f, opinion %.0f)\n", a, b, r ? t : "not at war", r, player_at(a) ?
+              peace_score(player_at(a), a, b, game_time()) : 0.0f, a > 0 && a < 16 && b >= 0 && b < 16 ? g_opinion[a][b] : 0.0f);
         return;
     }
     if (!strcmp(args, "kills")) {   // diplo kills: units / buildings each player destroyed of each other one

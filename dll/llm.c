@@ -397,8 +397,8 @@ static void llm_system(struct sbuf *b, void *pl, int ai, int h) {
     tcat(t, &o, sizeof t, "\nRules: write only what %s says - one or two short sentences, at most 200 "
                   "characters, in %s. No quotation marks, no stage directions, no emojis, no name in front. Stay in "
                   "character and in the world of the game. Diplomacy happens only through the stances in the game (allied "
-                  "or enemy): in the chat you agree to nothing and promise nothing, and never claim to have changed your "
-                  "stance. Address the player the same way every time.", player_name(pl), llm_language());
+                  "or enemy): in the chat you agree to nothing and promise nothing beyond your terms below, and never claim "
+                  "to have changed your stance. Address the player the same way every time.", player_name(pl), llm_language());
     // whose "my" is whose: the player's lines arrive as written, from his side
     if (player_at(h) && h != ai) {
         const char *pn = *player_name(player_at(h)) && *player_name(player_at(h)) != '?' ? player_name(player_at(h)) : "the player";
@@ -463,12 +463,11 @@ static void llm_system(struct sbuf *b, void *pl, int ai, int h) {
         if (g_lord[ai] == h) tcat(t, &o, sizeof t, " You have capitulated to them: they are your lord, you pay "
                                                                 "and serve them.");
         if (g_lord[h] == ai) tcat(t, &o, sizeof t, " They have capitulated to you: they are your vassal.");
-        if (mine && !TEAMS_LOCKED) {
-            int yes = peace_score(pl, ai, h, now) > 0 && !is_vassal(ai);
-            tcat(t, &o, sizeof t, " If they offered peace now (set allied towards you), you would %s.",
-                          yes ? "accept" : "refuse");
-        }
-        if (TEAMS_LOCKED) tcat(t, &o, sizeof t, " The teams are fixed in this game: no stance can change.");
+        char terms[400];
+        if (peace_terms(ai, h, terms, sizeof terms))   // what it would really take (the rules decide, not the model)
+            tcat(t, &o, sizeof t, "\nYour terms (they are real - state them when it fits, never offer less, never invent other "
+                 "deals): %s", terms);
+        else if (TEAMS_LOCKED) tcat(t, &o, sizeof t, " The teams are fixed in this game: no stance can change.");
     }
     int others = 0;
     for (int j = 1; j < nplayers() && o < (int)sizeof t - 120; j++) {
