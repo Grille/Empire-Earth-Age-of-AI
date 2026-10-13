@@ -108,7 +108,8 @@ peace or alliances. With the mod:
 - **Saved games:** the AIs remember across save and load - grudges, alliances, capitulations, pending offers
   (a small `.aimod` file next to each save; `save_state`).
 - **Surrender:** an AI that has lost all its citizens and can't train new ones resigns (with a last line),
-  instead of leaving its last buildings for you to hunt down (`surrender`, not in scenarios).
+  instead of leaving its last buildings for you to hunt down (`surrender`, not in scenarios). It gives up to
+  whoever destroyed the most of it lately, and doesn't capitulate or take sides in a war once it is beyond saving.
 - **Personalities** (optional folder [`config/aimod_ai`](config/aimod_ai)): every AI gets a name, a favoured
   colour on random maps, character traits (aggression, loyalty, pride, greed, forgiveness, caution, talk) and
   its own lines for situations of the game: greetings, attacks, being attacked, new ages, winning and losing,

@@ -291,10 +291,32 @@ static uint8_t *find_breach(void *pl, unsigned pi, const int *start, const int *
 
 static void diplo_cancel_attacks(int ai, int j);   // diplo.c
 typedef void (__thiscall *AsgRouteFn)(void *self, int *start, int *dest);
+// CITIZEN ATTACKS ([all] citizen_attacks, default 0): an AI that trains no soldiers (short of wood: 1237 requests in
+// 5 minutes, none trained) still launched its attacks on time - and the groups took citizens: 34 of them walked
+// into the player's army at the target, the soldiers stayed home. A subgroup's members are records at +0x54..+0x58
+// (record +0x44 = unit); at least half of them citizens: that AI's attacks on that target are called off at the next
+// safe point (diplo.c, the same call as for peace: units sent home and handed back) - the citizens go back to work.
+static int g_citizen_attacks;
+static void cancel_citizen_attack(int ai, int target);   // diplo.c
 static void __fastcall hook_asg_route(uint8_t *self, void *edx, int *start, int *dest) {
     (void)edx;
     void *pl = FIELD(self, 0x190, void *);
     void *target = FIELD(self, 0x11C, void *);
+    if (pl && target && !g_citizen_attacks) {
+        uint8_t **b = FIELD(self, 0x54, uint8_t **), **e = FIELD(self, 0x58, uint8_t **);
+        int n = 0, cit = 0;
+        for (uint8_t **r = b; b && r < e && n < 1000; r++) {
+            uint8_t *u = *r ? FIELD(*r, 0x44, uint8_t *) : NULL, *td = u ? FIELD(u, 0x2C, uint8_t *) : NULL;
+            if (!td) continue;
+            n++;
+            cit += is_citizen_type(FIELD(td, 0x4B8, int));
+        }
+        if (n && cit * 2 >= n) {
+            cancel_citizen_attack(FIELD(pl, PL_INDEX, int) & 15, FIELD(target, PL_INDEX, int) & 15);
+            if (g_log) fprintf(g_log, "# attack: P%d's subgroup on P%d is %d citizens of %d - attack called off\n",
+                               FIELD(pl, PL_INDEX, int), FIELD(target, PL_INDEX, int), cit, n);
+        }
+    }
     if (pl && start && dest && g_weak_spots) {
         unsigned pi = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
         float t = threat_at(pi, dest[0], dest[1]);
@@ -617,6 +639,32 @@ static int raiders_near(void *pl, int x, int y, int r) {
         }
     return 0;
 }
+// enemy soldiers on the way from x0,y0 to x1,y1 (every 4 tiles from the 5th, within 4) or within 6 of the end
+static int path_raided(void *pl, int x0, int y0, int x1, int y1) {
+    float dx = (float)(x1 - x0), dy = (float)(y1 - y0), l = sqrtf(dx * dx + dy * dy);
+    for (float t = 5; t < l; t += 4)
+        if (raiders_near(pl, x0 + (int)(dx / l * t), y0 + (int)(dy / l * t), 4)) return 1;
+    return raiders_near(pl, x1, y1, 6);
+}
+// where a citizen at x,y flees while the base is overrun: the rally point if the way is clear, else 12 tiles in the
+// clear direction (of 8) nearest the rally point; none clear: the rally point after all
+static void flee_point(void *pl, int x, int y, float rx, float ry, float *fx, float *fy) {
+    *fx = rx; *fy = ry;
+    if (!path_raided(pl, x, y, (int)rx, (int)ry)) return;
+    float msz = (float)*(uint32_t *)(*(uint8_t **)G_MAP + 0x1816FC), best = 1e9f;
+    static const float dir[8][2] = { { 1, 0 }, { .7071f, .7071f }, { 0, 1 }, { -.7071f, .7071f }, { -1, 0 },
+                                     { -.7071f, -.7071f }, { 0, -1 }, { .7071f, -.7071f } };
+    for (int k = 0; k < 8; k++) {
+        float px = (float)x + dir[k][0] * 12, py = (float)y + dir[k][1] * 12;
+        if (msz > 8) {
+            px = px < 3 ? 3 : px > msz - 4 ? msz - 4 : px;
+            py = py < 3 ? 3 : py > msz - 4 ? msz - 4 : py;
+        }
+        float d = (px - rx) * (px - rx) + (py - ry) * (py - ry);
+        if (d >= best || path_raided(pl, x, y, (int)px, (int)py)) continue;
+        best = d; *fx = px; *fy = py;
+    }
+}
 static int site_danger(void *pl, uint8_t *site, int food) {   // from the nearest drop site
     if (!g_avoid_citizens || !pl || !site) return 0;
     int x = FIELD(site, 0x1C, int), y = FIELD(site, 0x20, int), d[2];
@@ -637,7 +685,7 @@ static void citizens_safety(uint8_t *rm) {   // before the citizen assignment
     if (now < next[idx] && next[idx] - now <= 4000) return;
     next[idx] = now + 4000;
     threat_refresh(pl, now);
-    int sent = 0, fled = 0, kinds[4][2] = { { 0 } };   // site types sent back from (log)
+    int sent = 0, fled = 0, aside = 0, kinds[4][2] = { { 0 } };   // site types sent back from (log)
     float rx, ry;
     int mus = muster_rally(idx, &rx, &ry);
     for (int r = 0; r < 7; r++) {
@@ -652,10 +700,19 @@ static void citizens_safety(uint8_t *rm) {   // before the citizen assignment
                 const char *gn0 = goal ? rtti_name(goal) : "";
                 uint8_t *st = !goal ? NULL : !strcmp(gn0, "EEUGBuildRepair@@") ? FIELD(goal, 0x3C, uint8_t *) :
                               !strcmp(gn0, "EEUGGather@@") ? FIELD(goal, 0x38, uint8_t *) : NULL;
-                if (goal && *(uintptr_t *)goal == VT_GOAL_LOCATION && fabsf(FIELD(goal, 0x20, float) - rx) < 2 &&
-                    fabsf(FIELD(goal, 0x24, float) - ry) < 2) continue;   // on the way
-                if (raiders_near(pl, ux, uy, 8) || (st && raiders_near(pl, FIELD(st, 0x1C, int), FIELD(st, 0x20, int), 8))) {
-                    if (unit_goal(u, goal_move(rx, ry), 0, 0x1F40)) fled++;
+                int walk = goal && *(uintptr_t *)goal == VT_GOAL_LOCATION, danger;
+                if (walk)   // on its way somewhere: only if enemy soldiers stand on the way or at the end
+                    danger = path_raided(pl, ux, uy, (int)FIELD(goal, 0x20, float), (int)FIELD(goal, 0x24, float));
+                else
+                    danger = raiders_near(pl, ux, uy, 8) || (st && raiders_near(pl, FIELD(st, 0x1C, int), FIELD(st, 0x20, int), 8));
+                if (danger) {
+                    float fx, fy;
+                    flee_point(pl, ux, uy, rx, ry, &fx, &fy);
+                    if (walk && fabsf(FIELD(goal, 0x20, float) - fx) < 2 && fabsf(FIELD(goal, 0x24, float) - fy) < 2) continue;
+                    if (unit_goal(u, goal_move(fx, fy), 0, 0x1F40)) {
+                        fled++;
+                        if (fx != rx || fy != ry) aside++;
+                    }
                 }
                 continue;
             }
@@ -680,7 +737,8 @@ static void citizens_safety(uint8_t *rm) {   // before the citizen assignment
         }
     }
     g_cit_stats[idx].sent += sent + fled;
-    if (fled && g_log) fprintf(g_log, "# citizens: P%u at %.1f min: %d fled to the rally point (base overrun)\n", idx, now / 60000.0, fled);
+    if (fled && g_log) fprintf(g_log, "# citizens: P%u at %.1f min: %d fled (base overrun): %d to the rally point, %d aside "
+                               "(enemies on the way)\n", idx, now / 60000.0, fled, fled - aside, aside);
     if (g_log && (sent || now / 300000 != logged[idx] / 300000) && (g_cit_stats[idx].sent || g_site_refused[idx])) {
         logged[idx] = now;
         char ks[64] = "";
@@ -967,6 +1025,7 @@ static void attack_install(const char *aimod_ini, const char *autotest_ini) {
     g_weak_spots = cfg_int(aimod_ini, autotest_ini, 1, "attack_weak_spots", 1);
     g_weak_radius = cfg_int(aimod_ini, autotest_ini, 1, "attack_weak_spot_radius", 60);
     g_leash = cfg_int(aimod_ini, autotest_ini, 1, "attack_leash", 1);
+    g_citizen_attacks = cfg_int(aimod_ini, autotest_ini, 1, "citizen_attacks", 0);
     g_breach = cfg_int(aimod_ini, autotest_ini, 1, "attack_breach", 1);
     g_siege = cfg_int(aimod_ini, autotest_ini, 1, "attack_siege", 1);
     int a = patch_vtable(VT_ROUTE_PLANNER, 1, FN_ROUTE_COST, hook_route_cost);

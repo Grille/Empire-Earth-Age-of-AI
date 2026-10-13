@@ -56,7 +56,12 @@
 // SURRENDER ([all] surrender, default 1; not in scenarios/campaigns): an AI without citizens can't rebuild - instead
 // of leaving its last buildings for the player to hunt down, it resigns: no citizens for 60 s and no way to train one
 // (no Town Center/Capitol, or not enough to pay a citizen), or no citizens for 3 minutes at all - unless its army
-// still has half the power of its strongest enemy. The game's own resign (EEMResign::vf10 0x4BB906):
+// still has half the power of its strongest enemy (at peace with everyone: only when it can't train a citizen). It
+// gives up to whoever destroyed the most of it in the last 20 minutes (else its strongest enemy) - not to whoever
+// happens to be at war with it. Beyond saving (no citizens and no way to train one) it doesn't capitulate either,
+// and in a block split it resigns rather than take a side: Hedda, a shell since 118.8 min, capitulated to the
+// player at 119.8 (in the very check where she would have resigned - the white flag left her no enemy), sided with
+// him against her old ally Brann at 122.8 and surrendered to Brann at 122.9, who mocked her. The game's own resign (EEMResign::vf10 0x4BB906):
 // 0x52E2B7 thiscall(game state, 0, index) - out (+0x467), its units removed (0x530C2F) - and 0x55BCEA
 // thiscall(player, 2) - lost, "<name> wurde besiegt" for the others. Removing units inside the AI's own update
 // would pull them from under its caller, so the resign waits for the next safe point between simulation steps
@@ -383,6 +388,7 @@ static void block_line(int to, const char *de, const char *en) {   // a system l
     system_line(!lstrcmpiA(g_lang, "de") ? de : en, opt ? FIELD(opt, 0x2CC, int) * 2 : 20000);
 }
 
+static int surrender_instead(void *pl, int ai, uint32_t now);   // below (surrender)
 // agg turned hostile towards vic, both of block `old`: every other AI of it takes a side
 static void block_split(int agg, int vic, const int *blk, uint32_t now) {
     int old = blk[vic];
@@ -395,6 +401,11 @@ static void block_split(int agg, int vic, const int *blk, uint32_t now) {
         else side = g_opinion[m][vic] + 10 >= g_opinion[m][agg] ? vic : agg;
         int other = side == vic ? agg : vic;
         if (stance_of(pm, other)) continue;
+        if (surrender_instead(pm, m, now)) {   // nothing left to fight with: it gives up rather than take a side
+            if (g_log) fprintf(g_log, "# diplomacy: blocks: P%d turned on P%d - P%d, beyond saving, resigns instead of "
+                               "siding with P%d\n", agg, vic, m, side);
+            continue;
+        }
         g_justified[m][other] = 1;
         declare_war(m, other, now);
         g_mutual_prev[m][other] = g_mutual_prev[other][m] = 0;
@@ -769,8 +780,54 @@ static void capitulate(void *pl, int ai, int a, uint32_t now) {
               player_name(pl));
     block_line(a, de, en);
 }
+// surrender (every 10 s, after the scan): queued here, carried out at the next safe point (diplo_safe_point)
+static int g_surrender = 1;
+static uint32_t g_no_citizens_since[16];
+static volatile LONG g_resign_queue;   // bit per player
+static int citizen_trainable(void *pl, int ai) {   // a Town Center/Capitol and enough to pay a citizen
+    int *stock = (int *)((uint8_t *)pl + PL_STOCK);
+    if (g_ws.centers[ai] <= 0) return 0;
+    for (int r = 2; r < 7; r++) {
+        int c = unit_cost(pl, 32, r);
+        if (c > 0 && stock[r] < c) return 0;
+    }
+    return 1;
+}
+static int beyond_saving(void *pl, int ai) { return g_ws.citizens[ai] <= 0 && !citizen_trainable(pl, ai); }
+static int victor_of(void *pl, int ai) {   // whoever destroyed the most of it lately, else its strongest enemy
+    int best = 0;
+    uint32_t most = 0;
+    for (int j = 1; j < nplayers(); j++) {
+        void *pj = player_at(j);
+        uint32_t r[K_N];
+        if (!pj || j == ai || is_out(pj)) continue;
+        kills_recent(j, ai, r);
+        if (r[K_SOLDIERS] + r[K_BUILDINGS] + r[K_CITIZENS] > most) { most = r[K_SOLDIERS] + r[K_BUILDINGS] + r[K_CITIZENS]; best = j; }
+    }
+    return best ? best : strongest_enemy(pl, ai);
+}
+static void surrender_now(void *pl, int ai) {
+    int v = victor_of(pl, ai);
+    uint32_t r[K_N] = {0};
+    if (v) kills_recent(v, ai, r);
+    persona_say(pl, L_SURRENDER, v ? player_at(v) : NULL, NULL);
+    g_sit.said_defeat[ai] = 1;
+    InterlockedOr(&g_resign_queue, 1 << ai);
+    if (g_log) fprintf(g_log, "# surrender: P%d gives up to P%d (who destroyed %u buildings, %u citizens, %u soldiers of it "
+                       "in %d minutes)\n", ai, v, r[K_BUILDINGS], r[K_CITIZENS], r[K_SOLDIERS], KILLS_RECENT_MIN);
+}
+// a block split: an AI the scan has seen without citizens and without a way to train one resigns at once
+static int surrender_instead(void *pl, int ai, uint32_t now) {
+    (void)now;
+    if (!g_surrender || scenario_game() || !pl) return 0;
+    if (g_resign_queue & (1 << ai)) return 1;
+    if (!g_no_citizens_since[ai] || !beyond_saving(pl, ai)) return 0;
+    surrender_now(pl, ai);
+    return 1;
+}
 static void check_capitulation(void *pl, int ai, uint32_t now) {
     if (!g_ai_diplomacy || TEAMS_LOCKED || scenario_game() || now < 600000 || is_vassal(ai)) return;
+    if (g_surrender && beyond_saving(pl, ai)) return;   // nothing left to keep: it resigns instead (surrender)
     if (g_capit_last[ai] && now - g_capit_last[ai] < 600000) return;
     int a = 0;   // the attacker: whose soldiers have been in its base the most lately
     for (int j = 1; j < nplayers(); j++) {
@@ -786,36 +843,29 @@ static void check_capitulation(void *pl, int ai, uint32_t now) {
     capitulate(pl, ai, a, now);
 }
 
-// surrender (every 10 s, after the scan): queued here, carried out at the next safe point (diplo_safe_point)
-static int g_surrender = 1;
-static uint32_t g_no_citizens_since[16];
-static volatile LONG g_resign_queue;   // bit per player
 static void check_surrender(void *pl, int ai, uint32_t now) {
     if (!g_surrender || scenario_game() || (g_resign_queue & (1 << ai))) return;
     if (g_ws.citizens[ai] > 0) { g_no_citizens_since[ai] = 0; return; }
     if (!g_no_citizens_since[ai]) { g_no_citizens_since[ai] = now ? now : 1; return; }
-    int *stock = (int *)((uint8_t *)pl + PL_STOCK), pay = 1;
-    for (int r = 2; r < 7; r++) {
-        int c = unit_cost(pl, 32, r);
-        if (c > 0 && stock[r] < c) pay = 0;
-    }
-    int can_train = g_ws.centers[ai] > 0 && pay;
+    int can_train = citizen_trainable(pl, ai);
     if (now - g_no_citizens_since[ai] < (can_train ? 180000u : 60000u)) return;
     int lead = strongest_enemy(pl, ai);
-    if (!lead || power_of(ai) * 2.0f >= power_of(lead)) return;   // nobody to give up to / its army can still win
-    persona_say(pl, L_SURRENDER, player_at(lead), NULL);
-    g_sit.said_defeat[ai] = 1;
-    InterlockedOr(&g_resign_queue, 1 << ai);
+    if (lead ? power_of(ai) * 2.0f >= power_of(lead) : can_train) return;   // its army can still win / at peace: rebuilds
     if (g_log) fprintf(g_log, "# surrender: P%d at %.1f min: no citizens for %.1f min, %s, power %.0f vs P%d %.0f\n", ai,
                        now / 60000.0, (now - g_no_citizens_since[ai]) / 60000.0,
                        can_train ? "could still train" : g_ws.centers[ai] ? "can't pay a citizen" : "no Town Center",
-                       g_ws.power[ai], lead, g_ws.power[lead]);
+                       g_ws.power[ai], lead, lead ? g_ws.power[lead] : 0.0f);
+    surrender_now(pl, ai);
 }
 // Attacks on a player who is no enemy any more: EEComputerPlayer::vf22 (0x43033E) thiscall(player, target player,
 // 1) -> 0x46FD01 (combat manager) -> 0x4510F2 (attack commander cbm+0x48): every attack group whose target (+0x48) is
 // that player sends its units home, hands them back and is deleted. (The game itself calls it only with 0 - freeze -
 // from the scenario trigger that sets a stance.) Queued, because it deletes subgroups: at the next safe point.
 static volatile LONG g_cancel_queue[16];   // [ai]: bit per target player
+static volatile LONG g_cancel_cit_queue[16];   // [ai]: bit per target player - attacks made of citizens (attack.c)
+static void cancel_citizen_attack(int ai, int target) {
+    if (ai > 0 && ai < 16 && target > 0 && target < 16) InterlockedOr(&g_cancel_cit_queue[ai], 1 << target);
+}
 static void diplo_cancel_attacks(int ai, int j) {
     if (ai > 0 && ai < 16 && j > 0 && j < 16 && g_players[ai]) InterlockedOr(&g_cancel_queue[ai], 1 << j);
 }
@@ -827,6 +877,21 @@ static int attack_groups(void *pl) {   // the attack commander's deque count
 static void victory_off_pass(void);   // below, with the victory
 static void diplo_safe_point(void) {
     victory_off_pass();
+    for (int i = 1; i < 16; i++) {   // attacks made of citizens: called off whatever the stance
+        if (!g_cancel_cit_queue[i]) continue;
+        LONG q = InterlockedExchange(&g_cancel_cit_queue[i], 0);
+        void *p = player_at(i);
+        if (!p || !g_players[i] || is_out(p)) continue;
+        for (int j = 1; j < 16; j++) {
+            void *pj = player_at(j);
+            if (!(q & (1 << j)) || !pj) continue;
+            int before = attack_groups(p);
+            breach_forget(p);
+            ((void (__thiscall *)(void *, void *, int))0x0043033E)(p, pj, 1);
+            if (g_log) fprintf(g_log, "# attack: P%d calls off its citizen attack on P%d (attack groups %d -> %d)\n", i, j,
+                               before, attack_groups(p));
+        }
+    }
     for (int i = 1; i < 16; i++) {
         if (!g_cancel_queue[i]) continue;
         LONG q = InterlockedExchange(&g_cancel_queue[i], 0);

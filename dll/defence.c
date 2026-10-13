@@ -529,7 +529,9 @@ static void home_guard(void *pl, unsigned idx, uint32_t now) {
 // the nearest enemy soldier. The muster ends without a strike when the enemy is gone (fewer than 3), when soldiers
 // and towers can stand up to it again, or when the enemy follows to the rally point a third time (then it fights
 // where it is) - and no new muster for 30 s / 60 s. Citizens near the enemy go to the rally point too
-// (citizens_safety, attack.c) - their drop site is where the fight is.
+// (citizens_safety, attack.c) - their drop site is where the fight is - unless enemy soldiers stand on the way: then
+// 12 tiles in the clear direction nearest the rally point (Hedda's citizens, working east of her base, crossed it to
+// the rally point in the west - through the player's army camped there).
 // First version (any superiority, 5 enemies, no way out): assault scenario, 4 seeds - the defender gave up a base it
 // would have held (9 attackers against 4 soldiers, towers and militia: off 88% alive, on 62%), the attackers followed
 // to the rally point, its fleeing citizens stopped the economy and it surrendered.
