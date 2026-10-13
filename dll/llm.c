@@ -21,6 +21,12 @@
 #define LLM_MAXLEN 220
 static int g_llm_on, g_llm_lines = 1, g_llm_chat = 1, g_llm_timeout = 20, g_llm_max_tokens = 300, g_llm_log = 1;
 static int g_llm_temp = 80;   // temperature x100
+// think=0 (default): "reasoning_effort":"none" - a reasoning model answers at once (LM Studio, Orion-26B-A4B: 4 s
+// instead of 15 s of thinking that ran into max_tokens with an empty answer); a server that refuses the field (HTTP
+// 400/422 naming it) gets the request again without it, and from then on none
+static int g_llm_think;
+static volatile LONG g_llm_effort_refused;
+#define LLM_NO_THINK ",\"reasoning_effort\":\"none\""
 static char g_llm_url[256] = "http://localhost:1234/v1/chat/completions", g_llm_model[96], g_llm_key[128], g_llm_extra[256];
 static WCHAR g_llm_host[128], g_llm_path[256];
 static INTERNET_PORT g_llm_port;
@@ -222,6 +228,7 @@ static void llm_fail(struct llm_job *j, const char *what, DWORD err, int down) {
 }
 static void llm_post(struct llm_job *j, DWORD wait_ms) {
     DWORD limit = (DWORD)g_llm_timeout * 1000u, t = GetTickCount();
+again:
     if (wait_ms >= limit - 500) { g_llm_n_late++; snprintf(g_llm_last_err, sizeof g_llm_last_err, "waited too long"); SET_STATE(j, J_FAILED); return; }
     DWORD left = limit - wait_ms;
     HINTERNET ses = WinHttpOpen(L"eeaimod", WINHTTP_ACCESS_TYPE_NO_PROXY, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
@@ -263,6 +270,19 @@ static void llm_post(struct llm_job *j, DWORD wait_ms) {
         sb_put(&r, tmp, got);
     }
     static WCHAR w[4096];
+    char *nt = strstr(j->body, LLM_NO_THINK);
+    if ((code == 400 || code == 422) && r.p && strstr(r.p, "reasoning") && nt) {   // the server doesn't know the field
+        memmove(nt, nt + strlen(LLM_NO_THINK), strlen(nt + strlen(LLM_NO_THINK)) + 1);
+        InterlockedExchange(&g_llm_effort_refused, 1);
+        free(r.p);
+        WinHttpCloseHandle(req);
+        WinHttpCloseHandle(con);
+        WinHttpCloseHandle(ses);
+        req = con = ses = NULL;
+        wait_ms += GetTickCount() - t;
+        t = GetTickCount();
+        goto again;
+    }
     if (code != 200 || !r.p || !json_content(r.p, w, 4096)) {
         if (r.p) { char *nl; for (nl = r.p; *nl; nl++) if (*nl == '\r' || *nl == '\n') *nl = ' '; }
         snprintf(g_llm_last_err, sizeof g_llm_last_err, "HTTP %lu: %.120s", code, r.p ? r.p : "");
@@ -271,7 +291,12 @@ static void llm_post(struct llm_job *j, DWORD wait_ms) {
     } else {
         llm_clean(w, j->speaker, j->reply, sizeof j->reply);
         j->ms = GetTickCount() - t;
-        if (!j->reply[0]) snprintf(g_llm_last_err, sizeof g_llm_last_err, "an empty answer");
+        if (!j->reply[0]) {
+            int len = strstr(r.p, "\"length\"") != NULL, rea = strstr(r.p, "\"reasoning_content\"") != NULL;
+            snprintf(g_llm_last_err, sizeof g_llm_last_err, rea ? "the model only thought, no answer%s - [llm] think=0, or "
+                     "more max_tokens" : "an empty answer%s", len ? " (max_tokens reached)" : "");
+            InterlockedExchange(&g_llm_fail_note, 1);
+        }
         SET_STATE(j, j->reply[0] ? J_DONE : J_FAILED);
     }
     free(r.p);
@@ -319,8 +344,9 @@ static const char *const k_llm_situation[L_N] = {
     "a wonder is threatened", "you send help for an ally's wonder", "you have no help to give for an ally's wonder",
     "you send land troops to help an ally", "you send aircraft to help an ally", "you send ships to help an ally",
     "you have no troops to send an ally who asked for help", "you give up the game",
-    "you offer {name}, who is beating you, peace and tribute ({tribute}) - you capitulate",
-    "{name} accepted your capitulation: you pay the tribute and serve them from now on",
+    "you capitulate: {name} is beating you, and you offer to PAY them a tribute ({tribute}) for peace - you give, they "
+    "receive",
+    "{name} accepted your capitulation: you PAY them the tribute ({tribute}) and serve them from now on",
     "{name} did not accept your capitulation: the war goes on", "your army is about to attack {name}",
     "every other player has submitted to {name}, your lord", "{name}, your lord, has won the game",
     "you refuse {name}'s peace offer because {enemy} in their alliance cannot be at peace with your side",
@@ -411,6 +437,7 @@ static char *llm_finish(struct sbuf *b) {
     sb_puts(b, "]");
     if (g_llm_model[0]) { sb_puts(b, ",\"model\":"); sb_json(b, g_llm_model); }
     sb_printf(b, ",\"max_tokens\":%d,\"temperature\":%.2f,\"stream\":false", g_llm_max_tokens, g_llm_temp / 100.0);
+    if (!g_llm_think && !g_llm_effort_refused) sb_puts(b, LLM_NO_THINK);
     if (g_llm_extra[0]) { sb_puts(b, ","); sb_puts(b, g_llm_extra); }
     sb_puts(b, "}");
     return b->p;
@@ -434,7 +461,7 @@ static void llm_subst(char *out, int cap, const char *s, void *pl, void *other, 
     char ep[96];
     while (*s && o < cap - 1) {
         const char *rep = NULL;
-        if (!strncmp(s, "{name}", 6)) { rep = other ? player_name(other) : "them"; s += 6; }
+        if (!strncmp(s, "{name}", 6)) { rep = other && *player_name(other) ? player_name(other) : "the player"; s += 6; }
         else if (!strncmp(s, "{enemy}", 7)) { rep = third ? player_name(third) : "the enemy"; s += 7; }
         else if (!strncmp(s, "{epoch}", 7)) { epoch_text(pl, ep, sizeof ep); rep = ep; s += 7; }
         else if (!strncmp(s, "{tribute}", 9)) { tribute_text(g_say_tribute, ep, sizeof ep); rep = ep; s += 9; }
@@ -618,9 +645,9 @@ static void cmd_llm(char *out, const char *args) {
     int q = 0;
     for (int i = 0; i < LLM_JOBS; i++) q += g_llm_jobs[i].state != J_FREE;
     REPLY("llm %s, url %s, model '%s', lines %d, chat %d, timeout %d s; %s; answers %u, failed %u (late %u), fixed lines "
-          "%u, pending %d%s%s\n", g_llm_on ? "on" : "off", g_llm_url, g_llm_model, g_llm_lines, g_llm_chat, g_llm_timeout,
+          "%u, pending %d, think %d%s%s%s\n", g_llm_on ? "on" : "off", g_llm_url, g_llm_model, g_llm_lines, g_llm_chat, g_llm_timeout,
           (LONG)(g_llm_down_until - GetTickCount()) > 0 ? "DOWN" : "up", g_llm_n_ok, g_llm_n_fail, g_llm_n_late,
-          g_llm_n_fixed, q, g_llm_last_err[0] ? "; last error: " : "", g_llm_last_err);
+          g_llm_n_fixed, q, g_llm_think, g_llm_effort_refused ? " (refused by the server)" : "", g_llm_last_err[0] ? "; last error: " : "", g_llm_last_err);
 }
 
 static void llm_install(const char *ini, const char *test_ini) {
@@ -631,6 +658,7 @@ static void llm_install(const char *ini, const char *test_ini) {
     g_llm_max_tokens = GetPrivateProfileIntA("llm", "max_tokens", 300, ini);
     g_llm_temp = GetPrivateProfileIntA("llm", "temperature", 80, ini);
     g_llm_log = GetPrivateProfileIntA("llm", "log", 1, ini);
+    g_llm_think = GetPrivateProfileIntA("llm", "think", 0, ini);
     GetPrivateProfileStringA("llm", "url", g_llm_url, g_llm_url, sizeof g_llm_url, ini);
     GetPrivateProfileStringA("llm", "model", "", g_llm_model, sizeof g_llm_model, ini);
     GetPrivateProfileStringA("llm", "api_key", "", g_llm_key, sizeof g_llm_key, ini);
