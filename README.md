@@ -42,6 +42,7 @@ information a human couldn't have (it only uses enemy buildings it has seen).
 | More granaries | The original AI built a single granary (8 fields) all game; its food stayed short and spare citizens went to gold. It now adds granaries while it wants more food workers than its fields hold. |
 | Citizens, towers and raids | Citizens no longer gather inside or walk past the range of enemy towers the AI has seen, nor go one by one to a field or mine where enemy soldiers stand; those working there are called back. The AI no longer plans its own towers and walls where the builders would walk into enemy fire. |
 | Citizens fight back | Enemy citizens putting up a tower next to the AI's gatherers get attacked - the builders first, by its soldiers or its citizens - and in the early ages citizens beat off small raids when clearly stronger. |
+| Paid upgrades | The original AI got all unit and tower upgrades of an epoch for free the moment it reached it. It now researches them at their buildings and pays, like a player. |
 | Working build queue | The original build list started with a building that can't be placed, which blocked everything after it (granary, archery range, siege factory, university...). |
 | Short ways to work | Citizens mine the free mine nearest to a drop site, move from oversupplied resources to short ones, and get the gathering upgrades the original AI rarely researched. |
 | Epoch pacing | Timer or "as soon as affordable"; optionally waits for the human player. |

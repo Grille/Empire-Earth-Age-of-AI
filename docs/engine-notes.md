@@ -368,6 +368,11 @@ Guard towers 47, 461..466; AA 145/147; town center 35; house 37; citizen 32.
   for fields). The placement 0x46580A with type 0x2A only orders builders to an existing foundation - without
   one it constructs EEUGBuildRepair for a null building and crashes (0x60BB19). The building plan (cm+8: list,
   node +0xC type, +0x10 wanted; console `plan P`) holds only houses on random maps.
+- Research: EETechTreeNode::vf6 0x5BF335 (vtable slot 0x830874) marks a tech researched (+4) and applies its effects
+  (available +6, ids 1000..14999, data +0x48 not 3/5) - every research ends there; the cost is paid when it is
+  queued (production queue 0x5E8908, also EEMResearchTechnology::vf10). 0x5BDDBD(cat) thiscall(node): vf6 on every
+  child (node +0x24 vector, 0x20-byte nodes) of that category - EEComputerPlayer::vf41 (epoch reached, 0x43D330, call
+  0x43D365) does it with 7 on the epoch's node: the line upgrades (effect kind 0x13 = upgrade unit type +0x14) free.
 - Spending: EEComputerPlayer::vf45 0x43F53D (pay a unit/building/tech; skips record +0x4C epoch 0..13) -> vf46
   0x43F526 (stock[type] -= amount). Units and research are paid from the production queue 0x5E8908, buildings
   from 0x62EF8A. AddResource (vf18) is income only.

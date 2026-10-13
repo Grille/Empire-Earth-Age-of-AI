@@ -1138,6 +1138,30 @@ static void cmd_build(char *out, const char *args) {
     REPLY("ok: %d citizens of P%d build at %d,%d\n", n, p, bx, by);
 }
 
+// watchtype P T [off]: hardware write-watch on the first unit of type T of player P, at offset off (default 0x2C,
+// the type data: who changes a unit's type). Tests.
+static void watch_set(uintptr_t addr, int len);
+static void cmd_watchtype(char *out, const char *args) {
+    int p = 0, t = 0;
+    unsigned off = 0x2C;
+    sscanf(args, "%d %d %x", &p, &t, &off);
+    uint8_t *map = *(uint8_t **)G_MAP;
+    uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
+    if (!grid) { REPLY("error: no map\n"); return; }
+    uint8_t *cells = FIELD(grid, 4, uint8_t *);
+    unsigned count = FIELD(grid, 0x10, unsigned) * FIELD(grid, 0x14, unsigned);
+    for (unsigned c = 0; cells && c < count; c++)
+        for (uint8_t **b = FIELD(cells + c * 16, 4, uint8_t **); b && b < FIELD(cells + c * 16, 8, uint8_t **); b++) {
+            uint8_t *u = *b, *td = u ? FIELD(u, 0x2C, uint8_t *) : NULL;
+            void *owner = u ? FIELD(u, 0x18, void *) : NULL;
+            if (!td || !owner || FIELD(owner, PL_INDEX, int) != p || FIELD(td, 0x4B8, int) != t) continue;
+            watch_set((unsigned)(uintptr_t)(u + off), 4);
+            REPLY("ok: watching unit %p +%x (type %d of P%d at %d,%d)\n", u, off, t, p, FIELD(u, 0x1C, int), FIELD(u, 0x20, int));
+            return;
+        }
+    REPLY("error: no unit of type %d for P%d\n", t, p);
+}
+
 // hurt P T x y r dmg: damage every object of type T of player P within r tiles of x, y the way an attack does
 // (0x61E0B2: target vf 0x70 thiscall(attacker, damage, attacker's player index, 1)); attacker = the object itself
 // (tests: destroy farm fields, buildings)

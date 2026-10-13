@@ -157,6 +157,38 @@ static void gather_research(void *pl, unsigned idx, uint32_t now) {
     }
 }
 
+// PAID UPGRADES (aimod.ini [all] paid_upgrades, default on). When a computer player reaches an epoch,
+// EEComputerPlayer::vf41 (0x43DCBF -> 0x43D330) calls 0x5BDDBD(7) on the epoch's tech node: every child tech of
+// category 7 (data +0x48) is researched on the spot through EETechTreeNode::vf6 (0x5BF335) - no cost, no building,
+// no time. Those are the unit and building line upgrades (effect kind 0x13: Copper Age e.g. 3080 = 40 food, 40 iron:
+// type 20 -> 21; 3051 = 50 stone: watch tower 47 -> 461). A human player researches each at its building and pays;
+// EEPlayer::vf41 grants nothing. Here the call (0x43D365) schedules each one with the research manager instead
+// (0x485F57, as gather_research does): researched at its building and paid like a player's.
+static int g_paid_upgrades = 1;
+static void __fastcall hook_epoch_upgrades(uint8_t *node, void *edx, int cat) {
+    (void)edx;
+    uint8_t *tt = FIELD(node, 0xC, uint8_t *);
+    int pi = tt ? FIELD(tt, 4, int) : -1;
+    void *pl = pi >= 0 && pi < 16 ? g_players[pi] : NULL;
+    void *cm = pl ? FIELD(pl, 0xB90, void *) : NULL;
+    uint8_t *rs = cm ? FIELD(cm, 0x40, uint8_t *) : NULL;
+    if (!g_paid_upgrades || !rs || cat != 7) { ((void (__thiscall *)(void *, int))0x005BDDBD)(node, cat); return; }
+    uint8_t *v = FIELD(node, 0x24, uint8_t *), *ve = FIELD(node, 0x28, uint8_t *);
+    char ids[256] = "";
+    int n = 0;
+    for (uint8_t *c = v; v && c < ve; c += 0x20) {   // the children, 0x20-byte nodes (as 0x5BDDBD walks them)
+        uint8_t *d = FIELD(c, 8, uint8_t *);
+        if (!d || FIELD(d, 0x48, int) != 7 || c[4]) continue;
+        int id = FIELD(d, 0x4C, int);
+        ((void (__thiscall *)(void *, int))FN_RS_SCHEDULE)(rs, id);
+        size_t l = strlen(ids);
+        if (l < sizeof ids - 8) snprintf(ids + l, sizeof ids - l, " %d", id);
+        n++;
+    }
+    if (g_log && n) fprintf(g_log, "# upgrades: P%d at %.1f min: %d epoch upgrades scheduled for research (not free):%s\n",
+                            pi, game_time() / 60000.0, n, ids);
+}
+
 // Attention (diagnostic): 0x42F912 switches on only player+0xE20 + 1 of these activities per period (strategy
 // +0xA28 orders them): 0 cm+0x7A, 1 rm+0x188, 2 rs+0x11A (random research), 3 um+0x140, 4 cm+0x7B, 5 cm+0x7C,
 // 6 [b8c+0x4C]+0x48, 7 b98+0x2D, 8 b8c+0x62. Share of AI ticks each was on, logged as "# attention:" every 10 min.
@@ -211,6 +243,98 @@ static void cmd_tech(char *out, const char *args) {
         }
         REPLY("\n");
     }
+}
+
+// techs P: the techs player P has researched (tech record +4), and which are new since the last call - with their
+// tech epoch (record +0x14) and cost; tests: what an AI gets at an epoch advance
+static void cmd_techs(char *out, const char *args) {
+    static uint8_t seen[16][16384];
+    int p = atoi(args), total = 0;
+    void *pl = (p >= 0 && p < 16) ? g_players[p] : NULL;
+    uint8_t *tt = pl ? FIELD(pl, PL_TECHTREE, uint8_t *) : NULL;
+    if (!tt) { REPLY("error: no player %d\n", p); return; }
+    REPLY("P%d epoch %d, new:", p, FIELD(tt, TT_EPOCH, int));
+    for (int id = 0; id < 16384; id++) {
+        uint8_t *t = ((uint8_t *(__thiscall *)(void *, int))0x004019A1)(tt, id);
+        int done = t && t[4];
+        total += done;
+        if (done && !seen[p][id] && strlen(out) < 15000) {
+            uint8_t *d = FIELD(t, 8, uint8_t *);
+            REPLY(" %d(e%d", id, FIELD(t, 0x14, int));
+            if (d) REPLY(" %d/%d/%d/%d/%d", FIELD(d, 0x24, int), FIELD(d, 0x28, int), FIELD(d, 0x2C, int), FIELD(d, 0x30, int), FIELD(d, 0x34, int));
+            REPLY(")");
+        }
+        seen[p][id] = (uint8_t)done;
+    }
+    REPLY(" - %d researched\n", total);
+}
+
+// watchtech P id: hardware write-watch on player P's tech record +4 (researched): who researches it. Tests.
+static void watch_set(uintptr_t addr, int len);
+static void cmd_watchtech(char *out, const char *args) {
+    int p = 0, id = 0;
+    sscanf(args, "%d %d", &p, &id);
+    void *pl = (p >= 0 && p < 16) ? g_players[p] : NULL;
+    uint8_t *tt = pl ? FIELD(pl, PL_TECHTREE, uint8_t *) : NULL;
+    uint8_t *t = tt ? ((uint8_t *(__thiscall *)(void *, int))0x004019A1)(tt, id) : NULL;
+    if (!t) { REPLY("error: no tech %d for P%d\n", id, p); return; }
+    watch_set((uintptr_t)(t + 4), 1);
+    REPLY("ok: watching tech %d of P%d at %p (researched %d)\n", id, p, t + 4, t[4]);
+}
+
+// Free research (diagnostic, with tech_log): EETechTreeNode::vf6 0x5BF335 (vtable slot 0x830874) marks a tech
+// researched and applies it without any payment; logged with its caller.
+#define FN_TECH_GRANT 0x005BF335
+static int __fastcall hook_tech_grant(uint8_t *node, void *edx) {
+    (void)edx;
+    uint8_t before = node[4];
+    int r = ((int (__thiscall *)(void *))FN_TECH_GRANT)(node);
+    if (g_log && !before && node[4]) {
+        uint8_t *d = FIELD(node, 8, uint8_t *), *owner = FIELD(node, 0xC, uint8_t *);
+        uintptr_t *fp = (uintptr_t *)__builtin_frame_address(0);
+        fprintf(g_log, "# techgrant: tech %d player %d at %.2f min, caller %08x, stack",
+                d ? FIELD(d, 0x4C, int) : -1, owner ? FIELD(owner, 4, int) : -1, game_time() / 60000.0,
+                (unsigned)(uintptr_t)__builtin_return_address(0));
+        for (int k = 0; k < 64; k++) {   // return addresses into the exe on the stack
+            uintptr_t v = fp[k];
+            if (v > 0x401000 && v < 0x700000) fprintf(g_log, " %06x", (unsigned)v);
+        }
+        fputc(10, g_log);
+    }
+    return r;
+}
+
+// Tech log (autotest tech_log=1): once a second per AI, techs newly researched, with the stock before (last check)
+// and now - whether research is paid shows in the stock.
+static int g_tech_log;
+static void tech_log_tick(void *pl, unsigned idx, uint32_t now) {
+    static uint8_t seen[16][16384];
+    static int last_stock[16][7];
+    static uint32_t last[16];
+    if (!g_tech_log || !g_log || (now >= last[idx] && now - last[idx] < 1000)) return;
+    last[idx] = now;
+    uint8_t *tt = FIELD(pl, PL_TECHTREE, uint8_t *);
+    int *stock = (int *)((uint8_t *)pl + PL_STOCK);
+    if (!tt) return;
+    char buf[1024];
+    int o = 0, n = 0, cost[7] = { 0 };
+    for (int id = 0; id < 16384; id++) {
+        uint8_t *t = ((uint8_t *(__thiscall *)(void *, int))0x004019A1)(tt, id);
+        int done = t && t[4];
+        if (done && !seen[idx][id]) {
+            uint8_t *d = FIELD(t, 8, uint8_t *);
+            for (int r = 2; r < 7 && d; r++) cost[r] += FIELD(d, 0x24 + (r - 2) * 4, int);
+            if (o < 900) o += snprintf(buf + o, sizeof buf - o, " %d", id);
+            n++;
+        }
+        seen[idx][id] = (uint8_t)done;
+    }
+    if (n && now > 2000)
+        fprintf(g_log, "# techlog: P%u at %.2f min epoch %d: %d new:%s | cost %d/%d/%d/%d/%d | stock %d/%d/%d/%d/%d -> %d/%d/%d/%d/%d\n",
+                idx, now / 60000.0, FIELD(tt, TT_EPOCH, int), n, buf, cost[2], cost[3], cost[4], cost[5], cost[6],
+                last_stock[idx][2], last_stock[idx][3], last_stock[idx][4], last_stock[idx][5], last_stock[idx][6],
+                stock[2], stock[3], stock[4], stock[5], stock[6]);
+    memcpy(last_stock[idx], stock, sizeof last_stock[idx]);
 }
 
 // rlist P: the research manager's per-epoch tech lists (cm+0x40: +0x18 + e*0x10 = vector begin/end of tech ids,
@@ -484,6 +608,7 @@ static void econ_tick(void *pl, uint32_t now) {
     attention_note(pl, ai, now);
     defence_tick(pl, ai, now);
     counter_siege(pl, ai, now);
+    tech_log_tick(pl, ai, now);
     home_guard(pl, ai, now);
     chat_tick(pl, ai, now);
     diplo_tick(pl, ai, now);
@@ -1224,6 +1349,16 @@ static void econ_install(const char *aimod_ini, const char *autotest_ini) {
     g_early_requirements = cfg_int(aimod_ini, autotest_ini, 1, "early_requirements", 1);
     g_build_fix = cfg_int(aimod_ini, autotest_ini, 1, "build_fix", 1);
     g_build_fields = cfg_int(aimod_ini, autotest_ini, 1, "build_fields", 1);
+    g_paid_upgrades = cfg_int(aimod_ini, autotest_ini, 1, "paid_upgrades", 1);
+    if (autotest_ini) g_tech_log = GetPrivateProfileIntA("autotest", "tech_log", 0, autotest_ini);
+    if (g_tech_log) {
+        void **slot = (void **)0x00830874;
+        DWORD old;
+        if (*slot == (void *)FN_TECH_GRANT && VirtualProtect(slot, 4, PAGE_READWRITE, &old)) {
+            *slot = (void *)hook_tech_grant;
+            VirtualProtect(slot, 4, old, &old);
+        }
+    }
     g_more_granaries = cfg_int(aimod_ini, autotest_ini, 1, "more_granaries", 1);
     g_pop_follow = cfg_int(aimod_ini, autotest_ini, 1, "pop_follow_human", 1);
     g_unit_sub = cfg_int(aimod_ini, autotest_ini, 1, "unit_substitution", 1);
@@ -1245,6 +1380,8 @@ static void econ_install(const char *aimod_ini, const char *autotest_ini) {
         ok++;
     }
     patch_call(CALL_PLACE, FN_PLACE, hook_place);
+    int up_ok = patch_call(0x0043D365, 0x005BDDBD, hook_epoch_upgrades);
+    if (g_log) fprintf(g_log, "# paid upgrades: %d (hook %d)\n", g_paid_upgrades, up_ok);
     int pop_ok = patch_call(0x004311E5, FN_POP_CAP, hook_pop_cap) + patch_call(0x0043FA9B, FN_POP_CAP, hook_pop_cap) +
                  patch_call(0x00474AF0, FN_POP_CAP, hook_pop_cap);
     if (g_log) fprintf(g_log, "# population limit: %s (hooks %d/3)\n", g_pop_follow ? "follows the humans (game)" : "the game limit", pop_ok);
