@@ -988,7 +988,7 @@ static long __fastcall hook_fc_text(void *ras, void *edx, void *text, void *surf
 // again after the call. It reads characters as signed bytes (�/�/� negative, no glyph): both Draw functions'
 // movsx (LLE +0x27A46, +0x27C9A) become movzx.
 static int g_text_bitmap = 1;
-static struct { void *font, *bmp; } g_fbm[64];
+static struct { void *font, *bmp, *hfont; } g_fbm[64];
 static int g_fbm_n, g_fbm_logged;
 static volatile int g_fbm_making;
 static int g_atlas_dump;   // autotest atlas_dump=1: each new bitmap font's last atlas -> aimod_dumps/atlas<n>.bmp
@@ -1017,8 +1017,18 @@ static void *text_bitmap_for(void *ras, void *text, void *surf) {
     if (!back_ok) return NULL;
     uint8_t *font = FIELD(text, 0x44, uint8_t *);
     if (!font || FIELD(font, 0x24, void *)) return NULL;          // the game's own bitmap font
-    for (int i = 0; i < g_fbm_n; i++) if (g_fbm[i].font == font) return g_fbm[i].bmp;
-    if (g_fbm_n >= 64) return NULL;
+    void *hf_now = FIELD(font, 0x18, void *);
+    for (int i = 0; i < g_fbm_n; i++)
+        if (g_fbm[i].font == font) {
+            if (g_fbm[i].hfont == hf_now) return g_fbm[i].bmp;
+            if (g_log) fprintf(g_log, "# text bitmap: STALE font %p (HFONT %p, made for %p)\n", (void *)font, hf_now, g_fbm[i].hfont);
+            return g_fbm[i].bmp;
+        }
+    if (g_fbm_n >= 64) {
+        static int full_logged;
+        if (g_log && !full_logged++) fprintf(g_log, "# text bitmap: FULL (64 fonts) - GDI text for new fonts\n");
+        return NULL;
+    }
     void *obj = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, 0x40);
     if (!obj) return NULL;
     LARGE_INTEGER t0, t1, f;
@@ -1032,13 +1042,14 @@ static void *text_bitmap_for(void *ras, void *text, void *surf) {
     FIELD(font, 0x24, void *) = NULL;   // in case the constructor registers itself: only during our calls
     g_fbm[g_fbm_n].font = font;
     g_fbm[g_fbm_n].bmp = obj;
+    g_fbm[g_fbm_n].hfont = hf_now;
     g_fbm_n++;
-    if (g_log && g_fbm_logged++ < 16) {
+    if (g_log && g_fbm_logged++ < 200) {
         HFONT hf = FIELD(font, 0x18, HFONT);
         LOGFONTA lf = { 0 };
         if (hf) GetObjectA(hf, sizeof lf, &lf);
         EnterCriticalSection(&g_lock);
-        fprintf(g_log, "# text bitmap: font %p \"%s\" %ld px: bitmap font made in %.1f ms\n", (void *)font, lf.lfFaceName,
+        fprintf(g_log, "# text bitmap: font %d %p \"%s\" %ld px: bitmap font made in %.1f ms\n", g_fbm_n, (void *)font, lf.lfFaceName,
                 lf.lfHeight, (double)(t1.QuadPart - t0.QuadPart) * 1000.0 / (double)f.QuadPart);
         LeaveCriticalSection(&g_lock);
     }
