@@ -119,6 +119,15 @@ peace or alliances. With the mod:
 - **Play style** (experimental, `ai_style=1`, off by default): a personality can also change how its AI plays
   (attack timing, army share, home guard). Off, every AI plays the same, tested way.
 
+- **AI voice** (optional, `[llm] enabled=1`): a language model on your PC (LM Studio, Ollama, llama.cpp - any
+  server with the OpenAI chat API) speaks for the AIs. Their lines come in their own words, knowing the game's
+  state (who is at war with whom, who is stronger, what they think of you), and they answer when you write to them
+  in the chat - name the AI ("Temur, ...") or reply to the last one that spoke to you. Words only: the model decides
+  nothing, and an AI can't be talked into anything - it is told what it would really do if you offered peace, so
+  its words match the rules. Tribute amounts and names must survive the rewording, else the fixed line is shown;
+  without a server (or too slow, `timeout`) the fixed lines show as before. Only on your PC - in multiplayer each
+  player's own model (or none). `character=` in a personality file adds a few words about it for the model.
+
 The AIs can also explain themselves in the chat (`chat=1`, a debug aid): attacks, new ages, towers, walls,
 siege, home guard.
 

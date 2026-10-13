@@ -61,6 +61,7 @@ static const struct { const char *key; int chance, cooldown; enum audience aud; 
 #define MAX_VARIANTS 12
 struct persona {
     char file[40], name[48];
+    char character[300];   // character=: a few words about it for the language model (llm.c)
     int trait[T_N];
     int color[4], ncolor;   // favoured player colours, in order of preference
     char *style_key[16], *style_val[16];   // [style]: aimod.ini settings for this personality (ai_style=1)
@@ -247,6 +248,7 @@ static void persona_load(const char *path, const char *file) {
         char *key = trim(s), *val = trim(eq + 1);
         if (section == 1) {
             if (!lstrcmpiA(key, "name") && !lang_name) lstrcpynA(p->name, val, sizeof p->name);
+            if (!lstrcmpiA(key, "character")) lstrcpynA(p->character, val, sizeof p->character);
             if (!_strnicmp(key, "name:", 5) && lang_matches(key + 5)) { lstrcpynA(p->name, val, sizeof p->name); lang_name = 1; }
             if (!lstrcmpiA(key, "color") || !lstrcmpiA(key, "colour") || !lstrcmpiA(key, "farbe"))
                 for (char *t = val; t && *t && p->ncolor < 4;) {   // not strtok: the line loop uses it
@@ -511,6 +513,8 @@ static void tribute_text(const int *amount, char *buf, int cap) {
     }
     if (!o) lstrcpynA(buf, nm == de ? "nichts" : "nothing", cap);
 }
+static int llm_line(void *pl, enum line_kind k, void *other, void *third, const char *fixed);   // llm.c
+static void llm_heard(void *pl, void *other, const char *text);
 static int persona_say(void *pl, enum line_kind k, void *other, void *third) {
     int kk = k;
     struct persona *p = pl && g_ai_talk ? line_source(pl, k, &kk) : NULL, *own = persona_of(pl);
@@ -542,7 +546,10 @@ static int persona_say(void *pl, enum line_kind k, void *other, void *third) {
     g_talk_last[idx][k] = now ? now : 1;
     if (heard) {
         g_talk_any[idx] = now ? now : 1;
-        chat_line(pl, buf, g_chat_ms);
+        if (!llm_line(pl, k, other, third, buf)) {   // the language model says it in its own words (later), else now
+            chat_line(pl, buf, g_chat_ms);
+            llm_heard(pl, other, buf);
+        }
         g_talk_lines[idx]++;
     } else if (g_chat) {   // debug: every line, with its audience
         char dbg[300];

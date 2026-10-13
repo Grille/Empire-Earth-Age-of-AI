@@ -1142,6 +1142,7 @@ static void __cdecl hook_exit_confirm(void) {
     ((void (__cdecl *)(void))FN_EXIT_CONFIRM)();
 }
 
+static void llm_player_chat(const char *text);   // llm.c: the AIs answer (language model)
 static void __fastcall hook_ingame_chat(uint8_t *msg, void *edx) {
     (void)edx;
     int me = (int)*(unsigned *)0x00918E84;
@@ -1151,6 +1152,7 @@ static void __fastcall hook_ingame_chat(uint8_t *msg, void *edx) {
     if (pm && text && FIELD(pm, 0x464, int8_t) == (int8_t)msg[0xA] && victory_word(text))
         refused = !claim_victory(me, "the chat word");
     ((void (__thiscall *)(void *))FN_INGAME_CHAT)(msg);
+    if (pm && text && FIELD(pm, 0x464, int8_t) == (int8_t)msg[0xA] && !refused) llm_player_chat(text);
     if (!refused) return;
     // not yet: a system line under the player's own, naming who still holds out
     int de = !lstrcmpiA(g_lang, "de");

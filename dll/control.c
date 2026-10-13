@@ -29,6 +29,7 @@ static void cmd_sndstate(char *out, const char *args);
 static void cmd_sndchan(char *out, const char *args);
 static void cmd_seltest(char *out, const char *args);
 static void cmd_drawcount(char *out, const char *args);
+static void cmd_llm(char *out, const char *args);
 static void cmd_watchtech(char *out, const char *args);
 static void cmd_watchtype(char *out, const char *args);
 static void cmd_techs(char *out, const char *args);
@@ -367,6 +368,7 @@ static void execute(const char *cmd, char *out) {
     else if (!strcmp(verb, "sndchan")) cmd_sndchan(out, args);
     else if (!strcmp(verb, "seltest")) cmd_seltest(out, args);
     else if (!strcmp(verb, "drawcount")) cmd_drawcount(out, args);
+    else if (!strcmp(verb, "llm")) cmd_llm(out, args);
     else if (!strcmp(verb, "watchtech")) cmd_watchtech(out, args);
     else if (!strcmp(verb, "watchtype")) cmd_watchtype(out, args);
     else if (!strcmp(verb, "techs")) cmd_techs(out, args);
@@ -427,11 +429,13 @@ typedef long (__thiscall *ReceiveFn)(void *thread, void *a, void *b, void *c);
 
 static void diplo_safe_point(void);   // diplo.c: queued surrenders
 static void sound_tick(uint32_t now);  // sound.c: sound_log
+static void llm_tick(void);           // llm.c: the language model's answers
 static long __fastcall hook_sim_receive(void *thread, void *edx, void *a, void *b, void *c) {
     (void)edx;
     diplo_safe_point();
     aim_tick();
     sound_tick(game_time());
+    llm_tick();
     if (!g_rm_seen && game_time() > 0) autotest_tick(game_time());   // games without AI (scenarios)
     if (g_req.state == 1 && InterlockedCompareExchange(&g_req.state, 2, 1) == 1) {
         execute(g_req.cmd, g_req.out);

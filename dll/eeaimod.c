@@ -71,6 +71,7 @@ static void persona_new_game(uint8_t *setup);
 static void persona_assign(void *pl);
 static void diplo_new_game(void);
 static void chat_new_game(void);
+static void llm_new_game(void);
 static void persist_load(const char *name);
 static void econ_targets(uint8_t *rm);
 static void econ_rebalance(uint8_t *rm);
@@ -493,6 +494,7 @@ static char __fastcall hook_game_start(void *state, void *edx, uint8_t *setup, v
     persona_new_game(setup);   // personalities and their colours, before the game creates the players
     diplo_new_game();
     chat_new_game();
+    llm_new_game();
     if (mode == 2) persist_load(name);   // a saved game: the mod's state from its .aimod file
     char r = ((GameStartFn)FN_GAME_START)(state, setup, p2);
     log_line("# game start returned %s%d\n", "", r);
@@ -517,6 +519,7 @@ static char __fastcall hook_game_start(void *state, void *edx, uint8_t *setup, v
 #include "sound.c"
 #include "select.c"
 #include "drawlist.c"
+#include "llm.c"
 static char g_ini[MAX_PATH], g_aimod_ini[MAX_PATH];
 
 // Redirect an E8 rel32 call, verifying it currently targets `expected`.
@@ -643,6 +646,7 @@ static void install(HMODULE self) {
     sound_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
     select_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
     drawlist_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
+    llm_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
     ctl_start();
     if (g_auto.enabled && g_auto.game_seed) {
         BOOL ok = patch_srand();
