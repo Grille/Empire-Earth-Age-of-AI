@@ -515,6 +515,7 @@ static char __fastcall hook_game_start(void *state, void *edx, uint8_t *setup, v
 #include "camera.c"
 #include "display.c"
 #include "sound.c"
+#include "select.c"
 static char g_ini[MAX_PATH], g_aimod_ini[MAX_PATH];
 
 // Redirect an E8 rel32 call, verifying it currently targets `expected`.
@@ -639,6 +640,7 @@ static void install(HMODULE self) {
     camera_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
     display_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
     sound_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
+    select_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
     ctl_start();
     if (g_auto.enabled && g_auto.game_seed) {
         BOOL ok = patch_srand();

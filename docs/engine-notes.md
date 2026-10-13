@@ -403,6 +403,17 @@ Guard towers 47, 461..466; AA 145/147; town center 35; house 37; citizen 32.
   group) -> 0x453E10 -> subgroup vf96 -> vf 0x14C 0x45AA2F -> 0x4504FD. Not reproduced (the replay's diplomacy
   differed); the call at 0x450546 now skips a record without its unit and logs it ("# engine guard: attack subgroup").
 
+## Selection
+
+- Double-click (EEUICSelectUnits::vf15 0x643583: all units of the clicked type on screen) and the box (vf14) call
+  0x40337D(rect, ..., type or 0x2FF, ...), which builds EEMSelectUnits (0x4BD072, 0x138 bytes, ids 0x4E/0x4F/0x50):
+  units found by 0x50F589 (thiscall 0x9125D8), packed by 0x4BD15A (cdecl: list, player +0x45C, out +0x34) into
+  256 bytes, length byte at +0x134; 0x4BD2C4 (cdecl: buf, len, vector) unpacks (constructor, deserialize 0x4BD436).
+  vf10 0x4BD35E -> 0x55B3FB on the player adds them to the selected group (player +0x9BC, EEGroup: vf 0x18 count) -
+  no limit there. The packer's budget was 63 units (0x3F). Format: byte 0 the ids' bits 24..31, then runs: header
+  0x00|n, 0x40|n + bits 8..15, or 0x80|n + bits 8..23 (n <= 63), n bytes of bits 0..7; empty = 0xFF.
+  `[general] big_selection` packs the same format up to the 255 bytes (about 240 units; 236 tested).
+
 ## Sound
 
 - gSoundManager 0x919848 (Low-Level Engine.dll SESoundManager, constructed 0x530000 area with (path, mixer, 50, 0)),
