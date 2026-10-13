@@ -989,6 +989,32 @@ static long __fastcall hook_fc_text(void *ras, void *edx, void *text, void *surf
 // movsx (LLE +0x27A46, +0x27C9A) become movzx.
 static int g_text_bitmap = 1;
 static struct { void *font, *bmp, *hfont; } g_fbm[64];
+// A font the game destroys (dialogs and screens make theirs anew each time) leaves its entry behind: the next font
+// often gets the same address and, since ~GEFont (0x1002721B) DeleteObject's its HFONT, the same handle - the
+// cache then gave it the dead font's characters and the text drew nothing (the save screen's labels and its
+// overwrite dialog the second time it opened - suspected, not seen headless). The deleting destructor (GEFont
+// vtable slot 0) is hooked: the entry goes. Its bitmap font is left alone (freeing engine objects whose textures may
+// have gone with a screen is not worth the risk; a few KB per destroyed font, and fonts are rarely destroyed).
+static CRITICAL_SECTION g_fbm_cs;
+static int g_fbm_n;   // (defined with g_fbm_logged below)
+static int g_fbm_dropped;
+static void *(__thiscall *g_font_delete)(void *, unsigned);
+static void *__fastcall hook_font_delete(uint8_t *font, void *edx, unsigned flags) {
+    (void)edx;
+    EnterCriticalSection(&g_fbm_cs);
+    for (int i = 0; i < g_fbm_n; i++)
+        if (g_fbm[i].font == font) {
+            g_fbm[i] = g_fbm[--g_fbm_n];
+            g_fbm_dropped++;
+            if (g_log) fprintf(g_log, "# text bitmap: font %p destroyed - its entry dropped\n", (void *)font);
+            break;
+        }
+    LeaveCriticalSection(&g_fbm_cs);
+    return g_font_delete(font, flags);
+}
+// textlog N (pipe): the next N text draws for the back buffer into the log - font, HFONT, the bitmap font used,
+// the string (GEText +0x34) and the 16 bytes at +0x14 (colour?) - for a screen whose text is missing
+static volatile LONG g_textlog;
 static int g_fbm_n, g_fbm_logged;
 static volatile int g_fbm_making;
 static int g_atlas_dump;   // autotest atlas_dump=1: each new bitmap font's last atlas -> aimod_dumps/atlas<n>.bmp
@@ -1018,19 +1044,23 @@ static void *text_bitmap_for(void *ras, void *text, void *surf) {
     uint8_t *font = FIELD(text, 0x44, uint8_t *);
     if (!font || FIELD(font, 0x24, void *)) return NULL;          // the game's own bitmap font
     void *hf_now = FIELD(font, 0x18, void *);
+    EnterCriticalSection(&g_fbm_cs);
     for (int i = 0; i < g_fbm_n; i++)
         if (g_fbm[i].font == font) {
-            if (g_fbm[i].hfont == hf_now) return g_fbm[i].bmp;
-            if (g_log) fprintf(g_log, "# text bitmap: STALE font %p (HFONT %p, made for %p)\n", (void *)font, hf_now, g_fbm[i].hfont);
-            return g_fbm[i].bmp;
+            void *r = g_fbm[i].bmp;
+            if (g_fbm[i].hfont != hf_now && g_log)
+                fprintf(g_log, "# text bitmap: STALE font %p (HFONT %p, made for %p)\n", (void *)font, hf_now, g_fbm[i].hfont);
+            LeaveCriticalSection(&g_fbm_cs);
+            return r;
         }
     if (g_fbm_n >= 64) {
         static int full_logged;
+        LeaveCriticalSection(&g_fbm_cs);
         if (g_log && !full_logged++) fprintf(g_log, "# text bitmap: FULL (64 fonts) - GDI text for new fonts\n");
         return NULL;
     }
     void *obj = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, 0x40);
-    if (!obj) return NULL;
+    if (!obj) { LeaveCriticalSection(&g_fbm_cs); return NULL; }
     LARGE_INTEGER t0, t1, f;
     QueryPerformanceCounter(&t0);
     g_fbm_making = 1;
@@ -1044,12 +1074,14 @@ static void *text_bitmap_for(void *ras, void *text, void *surf) {
     g_fbm[g_fbm_n].bmp = obj;
     g_fbm[g_fbm_n].hfont = hf_now;
     g_fbm_n++;
+    int made = g_fbm_n, dropped = g_fbm_dropped;
+    LeaveCriticalSection(&g_fbm_cs);
     if (g_log && g_fbm_logged++ < 200) {
         HFONT hf = FIELD(font, 0x18, HFONT);
         LOGFONTA lf = { 0 };
         if (hf) GetObjectA(hf, sizeof lf, &lf);
         EnterCriticalSection(&g_lock);
-        fprintf(g_log, "# text bitmap: font %d %p \"%s\" %ld px: bitmap font made in %.1f ms\n", g_fbm_n, (void *)font, lf.lfFaceName,
+        fprintf(g_log, "# text bitmap: font %d (%d dropped) %p \"%s\" %ld px: bitmap font made in %.1f ms\n", made, dropped, (void *)font, lf.lfFaceName,
                 lf.lfHeight, (double)(t1.QuadPart - t0.QuadPart) * 1000.0 / (double)f.QuadPart);
         LeaveCriticalSection(&g_lock);
     }
@@ -1058,6 +1090,16 @@ static void *text_bitmap_for(void *ras, void *text, void *surf) {
 static long __fastcall hook_fc_text_rect(void *ras, void *edx, void *text, void *rect, void *surf) {
     (void)edx; long r;
     void *bmp = text_bitmap_for(ras, text, surf);
+    if (g_textlog > 0 && InterlockedDecrement(&g_textlog) >= 0 && g_log && text) {
+        uint8_t *f = FIELD(text, 0x44, uint8_t *);
+        const char *str = FIELD(text, 0x34, const char *);
+        uint32_t *c = (uint32_t *)((uint8_t *)text + 0x14);
+        EnterCriticalSection(&g_lock);
+        fprintf(g_log, "# textlog: surf %p font %p hfont %p own %p bmp %p +14: %08x %08x %08x %08x \"%.60s\"\n", surf, (void *)f,
+                f ? FIELD(f, 0x18, void *) : NULL, f ? FIELD(f, 0x24, void *) : NULL, bmp, c[0], c[1], c[2], c[3],
+                str && !IsBadReadPtr(str, 1) ? str : "?");
+        LeaveCriticalSection(&g_lock);
+    }
     // the character textures with the device's wrap addressing: filtering at a glyph's bottom edge picked up its
     // top row (a line under the "t" of "Vorzeit") - clamped while our bitmap text draws. Device: (ras +0x6C)[0]
     // +0x1C (IDirect3DDevice7; vtable 36 GetTextureStageState, 37 SetTextureStageState; 13/14 ADDRESSU/V, 3 clamp)
@@ -1085,6 +1127,11 @@ static int text_bitmap_install(void) {   // constructor and the two movsx -> mov
     g_fbm_ctor = lle ? (void *(__thiscall *)(void *, void *, void *, unsigned))(void *)GetProcAddress(lle,
                  "??0GEFontBitmap@@QAE@PAVGERasterizer@@PAVGEFont@@K@Z") : NULL;
     if (!g_fbm_ctor) return 0;
+    InitializeCriticalSection(&g_fbm_cs);
+    void **font_vt = (void **)(void *)GetProcAddress(lle, "??_7GEFont@@6B@");
+    if (!font_vt) return 0;   // without the hook the cache can't tell a new font from a dead one
+    g_font_delete = (void *(__thiscall *)(void *, unsigned))font_vt[0];
+    if (!patch_vtable((uintptr_t)font_vt, 0, (uintptr_t)font_vt[0], (void *)hook_font_delete)) return 0;
     static const uint32_t sites[2] = { 0x27A46, 0x27C9A };
     int ok = 0;
     for (int i = 0; i < 2; i++) {
@@ -2741,4 +2788,10 @@ static void cmd_ddinfo(char *out, const char *args) {
             REPLY("dump window: %s\n", f ? path : "failed");
         }
     }
+}
+
+static void cmd_textlog(char *out, const char *args) {
+    int n = atoi(args);
+    InterlockedExchange(&g_textlog, n > 0 ? n : 100);
+    REPLY("logging the next %ld text draws (fonts cached %d, dropped %d)\n", g_textlog, g_fbm_n, g_fbm_dropped);
 }
