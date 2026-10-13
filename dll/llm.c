@@ -5,9 +5,10 @@
 //    the same situation, with its character, the game's state (stances, strength, opinion) and its recent exchange
 //    with the player. Every number of the fixed line (tribute) and the name of a third player in it must be in the
 //    answer, else the fixed line is shown.
-//  - chat ([llm] chat=1): a chat line of the local player gets an answer in character from one AI: the one it names
-//    first (a word of 4+ letters of its name), else the last one that spoke to him within 3 minutes, else the only AI
-//    left. The AI can agree to nothing in the chat: it is told what it would do if he offered peace now, so its words
+//  - chat ([llm] chat=1): a chat line of the local player gets an answer in character from one AI among those the
+//    game's chat filter sends it to (everyone / allies / enemies / chosen players): the one it names first (a word of
+//    its name, also its start or with one letter wrong), else the last one he heard within 5 minutes, else the only
+//    one that gets it. The AI can agree to nothing in the chat: it is told what it would do if he offered peace now, so its words
 //    match the rules.
 // A worker thread posts the requests (WinHTTP), one at a time; answers are shown at the next simulation step
 // (llm_tick, control.c), each AI's in the order it said them (at most 3 waiting per AI, else the fixed line). A line waits at most [llm] timeout seconds (queue + answer), else the fixed line shows;
@@ -543,66 +544,104 @@ static int llm_line(void *pl, enum line_kind k, void *other, void *third, const 
     return 1;
 }
 
-static int word_in(const char *text, const char *name) {   // where a word (4+ letters) of name is in text, or -1
+// a and b (lower case, la / lb letters) differ by at most one letter (changed, added or left out)
+static int one_off(const char *a, int la, const char *b, int lb) {
+    if (la - lb > 1 || lb - la > 1) return 0;
+    int i = 0, j = 0, d = 0;
+    while (i < la && j < lb) {
+        if (a[i] == b[j]) { i++; j++; continue; }
+        if (++d > 1) return 0;
+        if (la > lb) i++; else if (lb > la) j++; else { i++; j++; }
+    }
+    return d + (la - i) + (lb - j) <= 1;
+}
+// where text names the player `name`, or -1: a word of the text that is a word of the name (4+ letters), or from 5
+// letters on its start ("Kaufher" for Kaufherr), the word with an ending ("Temurs") or one letter wrong ("Gunter")
+static int word_in(const char *text, const char *name) {
     char lt[300], ln[64];
     lstrcpynA(lt, text, sizeof lt);
     lstrcpynA(ln, name, sizeof ln);
     CharLowerA(lt);   // the code page's case (umlauts too)
     CharLowerA(ln);
-    int best = -1;
-    for (const char *s = ln; *s;) {
-        while (*s == ' ' || *s == '-') s++;
-        int n = 0;
-        while (s[n] && s[n] != ' ' && s[n] != '-') n++;
-        for (const char *t = lt; n >= 4 && *t; t++) {
-            if (strncmp(t, s, n)) continue;
-            unsigned char before = t > lt ? (unsigned char)t[-1] : ' ', after = (unsigned char)t[n];
-            if (!IsCharAlphaA((char)before) && !IsCharAlphaA((char)after) && (best < 0 || t - lt < best)) best = (int)(t - lt);
+    for (const char *t = lt; *t;) {
+        while (*t && !IsCharAlphaA(*t)) t++;
+        int nt = 0;
+        while (t[nt] && IsCharAlphaA(t[nt])) nt++;
+        for (const char *s = ln; nt >= 4 && *s;) {
+            while (*s && !IsCharAlphaA(*s)) s++;
+            int ns = 0;
+            while (s[ns] && IsCharAlphaA(s[ns])) ns++;
+            int m = nt < ns ? nt : ns;
+            // the whole word; a start or an ending only from 5 letters on ("kauf" is a word, "kaufher" a name); one
+            // letter wrong only after a right first letter ("bitter" is no "Ritter")
+            if (ns >= 4 && ((nt == ns && !strncmp(t, s, ns)) || (m >= 5 && (!strncmp(t, s, m) || (*t == *s && one_off(t, nt, s, ns))))))
+                return (int)(t - lt);
+            s += ns;
         }
-        s += n;
+        t += nt;
     }
-    return best;
+    return -1;
 }
-// the local player wrote `text` in the chat: the AI it is meant for answers (the one named first)
+// does AI j get the local player's (pm) chat line? The game's own filter (EEMInGameChat::vf10 0x4B78C7): the
+// sender's chat mode player +0x9E0 - 0 everyone, 1 allies (his stance towards j allied), 2 enemies, 3 chosen
+// players (a byte per player index at +0xB2C)
+static int chat_reaches(void *pm, void *pj) {
+    int j = FIELD(pj, PL_INDEX, int) & 15;
+    switch (FIELD(pm, 0x9E0, int)) {
+    case 0: return 1;
+    case 1: return !stance_of(pm, j);
+    case 2: return stance_of(pm, j) != 0;
+    case 3: return FIELD(pm, 0xB2C + j, uint8_t) != 0;
+    default: return 1;
+    }
+}
+// the local player wrote `text` in the chat: one AI that gets it (the chat filter) answers - the one it names first,
+// else the last one he heard within 5 minutes, else the only one that gets it
 static void llm_player_chat(const char *text) {
     if (!g_llm_on || !g_llm_chat || !text || !*text || victory_word(text)) return;
-    int h = (int)*(unsigned *)0x00918E84, to[1], n = 0, alive = 0, only = 0, at = 1 << 30;
+    int h = (int)*(unsigned *)0x00918E84, to = 0, got = 0, only = 0, at = 1 << 30;
+    void *pm = player_at(h);
     uint32_t now = game_time();
+    char who[80] = "";
+    if (!pm) return;
     for (int i = 1; i < nplayers(); i++) {
         void *pi = player_at(i);
-        if (!pi || !g_players[i] || is_out(pi) || i == h) continue;
-        alive++;
+        if (!pi || !g_players[i] || is_out(pi) || i == h || !chat_reaches(pm, pi)) continue;
+        got++;
         only = i;
+        size_t l = strlen(who);
+        if (l < sizeof who - 6) snprintf(who + l, sizeof who - l, " P%d", i);
         int w = word_in(text, player_name(pi));
-        if (w >= 0 && w < at) { at = w; to[0] = i; n = 1; }
+        if (w >= 0 && w < at) { at = w; to = i; }
     }
-    if (!n && g_llm_last_ai && now - g_llm_last_t < 180000 && g_players[g_llm_last_ai] && !is_out(g_players[g_llm_last_ai]))
-        to[n++] = g_llm_last_ai;
-    if (!n && alive == 1) to[n++] = only;
-    if (!n) {
-        if (g_llm_log && g_log) fprintf(g_log, "# llm: chat line meant for no AI (name one): %s\n", text);
+    int last = g_llm_last_ai;
+    if (!to && last && now - g_llm_last_t < 300000 && g_players[last] && !is_out(g_players[last]) && chat_reaches(pm, g_players[last]))
+        to = last;
+    if (!to && got == 1) to = only;
+    if (!to) {
+        if (g_llm_log && g_log) fprintf(g_log, "# llm: chat line (mode %d, gets it:%s) meant for no AI - name one: %s\n",
+                                        FIELD(pm, 0x9E0, int), got ? who : " none", text);
         return;
     }
-    for (int k = 0; k < n; k++) llm_hist_add(to[k], 0, text);
+    llm_hist_add(to, 0, text);
     if (!llm_ready()) {
-        if (g_llm_log && g_log) fprintf(g_log, "# llm: chat line for P%d - the server is down, no answer\n", to[0]);
+        if (g_llm_log && g_log) fprintf(g_log, "# llm: chat line for P%d - the server is down, no answer\n", to);
         return;
     }
-    for (int k = 0; k < n; k++) {
-        struct llm_job *j = llm_slot();
-        if (!j) return;
-        memset(j, 0, sizeof *j);
-        j->chat = 1;
-        j->ai = to[k];
-        j->to = h;
-        struct sbuf b = { 0 };
-        sb_puts(&b, "{\"messages\":[");
-        llm_system(&b, g_players[to[k]], to[k], h);
-        llm_history(&b, to[k]);   // ends with his line
-        if (!b.p) return;
-        llm_queue(j, llm_finish(&b));
-        if (g_llm_log && g_log) fprintf(g_log, "# llm: chat line for P%d asked: %s\n", to[k], text);
-    }
+    struct llm_job *j = llm_slot();
+    if (!j) return;
+    memset(j, 0, sizeof *j);
+    j->chat = 1;
+    j->ai = to;
+    j->to = h;
+    struct sbuf b = { 0 };
+    sb_puts(&b, "{\"messages\":[");
+    llm_system(&b, g_players[to], to, h);
+    llm_history(&b, to);   // ends with his line
+    if (!b.p) return;
+    llm_queue(j, llm_finish(&b));
+    if (g_llm_log && g_log) fprintf(g_log, "# llm: chat line for P%d (mode %d, gets it:%s) asked: %s\n", to,
+                                    FIELD(pm, 0x9E0, int), who, text);
 }
 
 // every simulation step: show what is answered
@@ -636,13 +675,11 @@ static void llm_tick(void) {
             const char *say = ok ? j->reply : j->chat ? NULL : j->fixed;
             if (ok) g_llm_n_ok++; else if (j->state == J_FAILED) g_llm_n_fail++;
             if (!ok && !j->chat) g_llm_n_fixed++;
-            if (say) {
+            if (say) {   // every line shown here is one the local player hears
                 chat_line(pl, say, g_chat_ms);
-                if (j->to == (int)*(unsigned *)0x00918E84 || j->chat) {
-                    llm_hist_add(j->ai, 1, say);
-                    g_llm_last_ai = j->ai;
-                    g_llm_last_t = game_time();
-                }
+                if (j->to == (int)*(unsigned *)0x00918E84 || j->chat) llm_hist_add(j->ai, 1, say);
+                g_llm_last_ai = j->ai;
+                g_llm_last_t = game_time();
             }
             if (g_llm_log && g_log) {
                 if (ok) fprintf(g_log, "# llm: P%d %s (%.1f s): %s\n", j->ai, j->chat ? "answers" : "says", j->ms / 1000.0, j->reply);
@@ -656,17 +693,37 @@ static void llm_tick(void) {
     }
 }
 
-// a line said to the local player with its fixed text (no model): part of the exchange too
+// a line the local player heard with its fixed text (no model): the AI that spoke last; part of the exchange if it
+// was said to him
 static void llm_heard(void *pl, void *other, const char *text) {
-    if (!g_llm_on || !pl || !other || other != player_at((int)*(unsigned *)0x00918E84)) return;
-    llm_hist_add(pidx(pl), 1, text);
+    if (!g_llm_on || !pl) return;
+    if (other && other == player_at((int)*(unsigned *)0x00918E84)) llm_hist_add(pidx(pl), 1, text);
     g_llm_last_ai = pidx(pl);
     g_llm_last_t = game_time();
 }
 
-// cmd: llm - state; llm say P TEXT: the local player's chat line TEXT meant for AI P (without sending it; tests)
+// cmd: llm - state; llm say P TEXT: the local player's chat line TEXT meant for AI P (without sending it); llm filter
+// M [P...]: the local player's chat mode M (0 everyone, 1 allies, 2 enemies, 3 the players listed) set directly, as the
+// chat dialog's choice would (tests)
 static void cmd_llm(char *out, const char *args) {
     int p = 0, n = 0;
+    if (sscanf(args, "filter %d %n", &p, &n) == 1) {
+        uint8_t *pm = player_at((int)*(unsigned *)0x00918E84);
+        if (!pm || p < 0 || p > 3) { REPLY("error: no local player or bad mode\n"); return; }
+        FIELD(pm, 0x9E0, int) = p;
+        for (int i = 0; i < 16; i++) pm[0xB2C + i] = 0;
+        for (const char *s = args + n; p == 3 && *s;) {
+            char *e;
+            long v = strtol(s, &e, 10);
+            if (e == s) break;
+            if (v >= 0 && v < 16) pm[0xB2C + v] = 1;
+            s = e;
+        }
+        REPLY("chat mode %d, chosen:", p);
+        for (int i = 0; i < 16; i++) if (pm[0xB2C + i]) REPLY(" P%d", i);
+        REPLY("\n");
+        return;
+    }
     if (sscanf(args, "say %d %n", &p, &n) == 1 && n) {
         void *pl = player_at(p);
         if (!pl || !g_players[p]) { REPLY("error: P%d is no AI\n", p); return; }

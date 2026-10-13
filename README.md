@@ -122,7 +122,9 @@ peace or alliances. With the mod:
 - **AI voice** (optional, `[llm] enabled=1`): a language model on your PC (LM Studio, Ollama, llama.cpp - any
   server with the OpenAI chat API) speaks for the AIs. Their lines come in their own words, knowing the game's
   state (who is at war with whom, who is stronger, what they think of you, how many soldiers, citizens and buildings each of you has destroyed of the other's - in the whole game and in the last 20 minutes), and they answer when you write to them
-  in the chat - name the AI ("Temur, ...") or reply to the last one that spoke to you. Words only: the model decides
+  in the chat - the game's chat filter decides who gets your line (everyone, allies, enemies or the players you
+  chose); of those, the one you name answers ("Temur, ..." - a typo or the first letters will do), else the last one
+  you heard, else the only one that got it. Words only: the model decides
   nothing, and an AI can't be talked into anything - it is told what it would really do if you offered peace, so
   its words match the rules. Tribute amounts and names must survive the rewording, else the fixed line is shown;
   without a server (or too slow, `timeout`) the fixed lines show as before. Only on your PC - in multiplayer each

@@ -1,0 +1,12 @@
+# chat filter + name matching (P2 eroberer, P3 haendler, P4 ritter; the observer P1 is allied with all)
+@1 llm filter 3 3
+@1 diplo chat was willst du eigentlich?
+@2 llm filter 3 2 4
+@2 diplo chat kaufher, wie gehts?
+@3 llm filter 0
+@3 diplo chat gunter, was meinst du?
+@4 llm filter 2
+@4 diplo chat hallo feinde
+@5 llm filter 1
+@5 diplo chat temurs reiter sind schwach
+@6 llm
