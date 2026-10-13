@@ -673,6 +673,8 @@ static void llm_install(const char *ini, const char *test_ini) {
     }
     if (g_llm_timeout < 2) g_llm_timeout = 2;
     if (g_llm_timeout > 120) g_llm_timeout = 120;
+    if (g_llm_max_tokens < 16) g_llm_max_tokens = 16;
+    if (g_llm_max_tokens > 8000) g_llm_max_tokens = 8000;
     if (!g_llm_on) { if (g_log) fprintf(g_log, "# llm: off\n"); return; }
     WCHAR wurl[256];
     MultiByteToWideChar(CP_ACP, 0, g_llm_url, -1, wurl, 256);
