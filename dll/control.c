@@ -432,11 +432,13 @@ static void execute(const char *cmd, char *out) {
 typedef long (__thiscall *ReceiveFn)(void *thread, void *a, void *b, void *c);
 
 static void diplo_safe_point(void);   // diplo.c: queued surrenders
+static void upgrade_stragglers(void); // defence.c: towers/walls/gates finished after their upgrade
 static void sound_tick(uint32_t now);  // sound.c: sound_log
 static void llm_tick(void);           // llm.c: the language model's answers
 static long __fastcall hook_sim_receive(void *thread, void *edx, void *a, void *b, void *c) {
     (void)edx;
     diplo_safe_point();
+    upgrade_stragglers();
     aim_tick();
     sound_tick(game_time());
     llm_tick();

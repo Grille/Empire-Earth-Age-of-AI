@@ -373,6 +373,11 @@ Guard towers 47, 461..466; AA 145/147; town center 35; house 37; citizen 32.
   queued (production queue 0x5E8908, also EEMResearchTechnology::vf10). 0x5BDDBD(cat) thiscall(node): vf6 on every
   child (node +0x24 vector, 0x20-byte nodes) of that category - EEComputerPlayer::vf41 (epoch reached, 0x43D330, call
   0x43D365) does it with 7 on the epoch's node: the line upgrades (effect kind 0x13 = upgrade unit type +0x14) free.
+- Line upgrades (effect kind 0x13, 0x5BA59D): the player's finished objects of the old type (0x6363CD) are converted
+  by 0x62F192 cdecl(unit, player index, 0x9418A0[new type]) - hit points in proportion - and the old type can no
+  longer be built (0x555710). Nothing converts what is finished later: an AI build queue entry naming the old type
+  (its queue holds {type, x, y}) is laid out as the old type. defence.c: upgraded_type (placement) and
+  upgrade_stragglers (every 30 s). Tower line 47, 461-466; walls 467-472; gates 473, 454, 444, 443, 442, 294.
 - Spending: EEComputerPlayer::vf45 0x43F53D (pay a unit/building/tech; skips record +0x4C epoch 0..13) -> vf46
   0x43F526 (stock[type] -= amount). Units and research are paid from the production queue 0x5E8908, buildings
   from 0x62EF8A. AddResource (vf18) is income only.

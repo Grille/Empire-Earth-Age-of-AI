@@ -562,7 +562,11 @@ static void *goal_move(float x, float y) {
 // one (g_threat: defences this AI has seen). New sites: the searches (sites.c) refuse dangerous ones. Citizens already
 // gathering at one are sent back to their drop site every 10 s (as a player would); there the assignment gives them
 // new work. Also gatherers and builders with enemy soldiers within 6 tiles of their site (raiders_near) - a few
-// bowmen at a raided field got every citizen sent to rebuild or farm it, one by one.
+// bowmen at a raided field got every citizen sent to rebuild or farm it, one by one. Builders of any building with
+// enemy soldiers within 8 tiles of it, from every list (also the idle and build lists), every 4 s: a player's army in
+// the base got the AI's citizens sent into it one by one to a Capitol it was rebuilding, a tower, walls (112 citizens
+// in 20 minutes). Builders of walls and towers near known enemy towers only (no soldiers there) are left alone: the
+// wall manager sends them again and again.
 static int g_avoid_citizens = 1;
 static int nearest_drop(void *pl, int x, int y, int food, int out[2]);   // sites.c
 static int tower_covers(unsigned pi, float x, float y) {
@@ -629,11 +633,11 @@ static void citizens_safety(uint8_t *rm) {   // before the citizen assignment
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     static uint32_t next[16], logged[16];
     uint32_t now = game_time();
-    if (now < next[idx] && next[idx] - now <= 10000) return;
-    next[idx] = now + 10000;
+    if (now < next[idx] && next[idx] - now <= 4000) return;
+    next[idx] = now + 4000;
     threat_refresh(pl, now);
     int sent = 0, kinds[4][2] = { { 0 } };   // site types sent back from (log)
-    for (int r = 2; r < 7; r++) {
+    for (int r = 0; r < 7; r++) {
         uint8_t *list = rm + RM_LISTS + r * 0x14;
         for (unsigned k = 0, first = FIELD(list, 0xC, unsigned), cnt = FIELD(list, 0x10, unsigned); k < cnt; k++) {
             uint8_t *u = deque_at(list, first + k), *goal = u ? FIELD(u, 0x1EC, uint8_t *) : NULL;
@@ -644,9 +648,10 @@ static void citizens_safety(uint8_t *rm) {   // before the citizen assignment
             uint8_t *site = FIELD(goal, build ? 0x3C : 0x38, uint8_t *);
             int d[2];
             if (!site || !nearest_drop(pl, FIELD(u, 0x1C, int), FIELD(u, 0x20, int), r == 2, d)) continue;
-            // builders: only of fields (walls and towers at the front: the wall manager sends them again and again)
-            if (build && FIELD(FIELD(site, 0x2C, uint8_t *), 0x4B8, int) != 0x2A) continue;
-            int raided = raiders_near(pl, FIELD(site, 0x1C, int), FIELD(site, 0x20, int), 6);
+            int raided = raiders_near(pl, FIELD(site, 0x1C, int), FIELD(site, 0x20, int), build ? 8 : 6);
+            // builders near known towers only: only of fields (walls and towers at the front: the wall manager sends
+            // them again and again)
+            if (build && !raided && FIELD(FIELD(site, 0x2C, uint8_t *), 0x4B8, int) != 0x2A) continue;
             if (!raided && (build || !site_danger(pl, site, r == 2))) continue;
             if (raided && abs(d[0] - FIELD(site, 0x1C, int)) <= 3 && abs(d[1] - FIELD(site, 0x20, int)) <= 3) continue;   // at home already
             if (!unit_goal(u, goal_move((float)d[0] + 0.5f, (float)d[1] + 0.5f), 0, 0x1F40)) continue;

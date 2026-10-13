@@ -160,6 +160,7 @@ static int defence_spot(void *pl, int type, int *ox, int *oy) {
             for (int ax = -r; ax <= r; ax++)
                 for (int ay = -r; ay <= r; ay++) {
                     if ((abs(ax) != r && abs(ay) != r) || route_covered(pl, p->bx, p->by, x + ax, y + ay) ||
+                        raiders_near(pl, x + ax, y + ay, 10) ||   // an enemy army there: its builders would walk into it
                         !can_place(pl, type, x + ax, y + ay)) continue;   // the builders' way too
                     *ox = x + ax; *oy = y + ay;
                     int o = 0;
@@ -236,6 +237,8 @@ static void defence_tick(void *pl, unsigned idx, uint32_t now) {
         threat_refresh(pl, now);
         if (route_covered(pl, p->bx, p->by, a[0], a[1]) || route_covered(pl, p->bx, p->by, b[0], b[1]) ||
             route_covered(pl, p->bx, p->by, cx, cy)) continue;   // the builders would walk into enemy fire
+        if (raiders_near(pl, a[0], a[1], 10) || raiders_near(pl, b[0], b[1], 10) || raiders_near(pl, cx, cy, 10))
+            continue;   // or into an enemy army standing there
         int have = 0;   // wall pieces standing on the arc (then a new order only repairs)
         for (int w = 0; w < s->walls; w++) have += on_segment(s->wx[w], s->wy[w], a, b);
         if (have >= 8) continue;
@@ -645,4 +648,92 @@ static void defence_install(const char *aimod_ini, const char *autotest_ini) {
     BOOL guard = patch_call(CALL_DAMAGE_POINTS, FN_DAMAGE_POINTS, damage_points_thunk);
     if (g_log) fprintf(g_log, "# engine guard: damage points %s\n", guard ? "ok" : "FAILED");
     if (g_log) fprintf(g_log, "# defence: layout=%d distance=%d walls=%d own towers=%d counter-siege=%d home guard=%d/epoch, %.2f of the military room\n", g_def, g_def_dist, g_def_walls, g_def_more, g_csiege, g_home_guard, g_home_share);
+}
+
+// UPGRADE STRAGGLERS: a researched line upgrade (effect kind 0x13, 0x5BA59D: e.g. 3051 guard tower 47 -> 461)
+// converts the player's finished objects of the old type on the spot (0x62F192 cdecl(unit, player index, type data
+// 0x9418A0[new type]) - hit points in proportion), and from then on the old type can't be built. Nothing converts what
+// is finished later: a tower still a foundation or in the AI's build queue at that moment (the queue names the type:
+// 47) was finished as the old type and stayed it (the Khan: 4 Paleo towers beside 4 Copper ones, 3051 researched).
+// Every 30 s of game time, at the safe point between simulation steps: per AI and line (guard towers, walls, gates)
+// the newest type it can build (0x555710), and every finished object of an older type of that line that it can no
+// longer build is converted (still buildable = its upgrade not researched: the Copper tower comes with its own tech,
+// the conversion of the old ones is the paid upgrade - paid_upgrades).
+static const int16_t k_upg_lines[3][7] = {
+    { 47, 461, 462, 463, 464, 465, 466 },   // guard towers Paleo..Digital
+    { 467, 468, 469, 470, 471, 472, -1 },   // walls Copper..Digital
+    { 473, 454, 444, 443, 442, 294, -1 },   // gates Copper..Digital
+};
+static struct { void *pl; int best[3]; uint8_t avail[3][7]; uint8_t *u[64]; int to[64], n; } g_upg;
+static void upg_scan(uint8_t *u, void *ctx) {
+    (void)ctx;
+    if (g_upg.n >= 64 || FIELD(u, 0x18, void *) != g_upg.pl || FIELD(u, 0x3C, int) <= 0) return;
+    uint8_t *td = FIELD(u, 0x2C, uint8_t *), *st = FIELD(u, 0x30, uint8_t *);
+    if (!td || !st || !FIELD(st, 0x340, uint8_t)) return;   // finished only
+    if (FIELD(u, 8, int) && FIELD(st, 0x1CC, int)) return;  // the effect's own condition (0x5BA645)
+    int t = FIELD(td, 0x4B8, int);
+    for (int l = 0; l < 3; l++)
+        for (int i = 0; i < 7 && k_upg_lines[l][i] >= 0; i++)
+            if (k_upg_lines[l][i] == t && i < g_upg.best[l] && !g_upg.avail[l][i]) {
+                g_upg.u[g_upg.n] = u;
+                g_upg.to[g_upg.n++] = k_upg_lines[l][g_upg.best[l]];
+                return;
+            }
+}
+static unsigned g_upg_done[16];
+static void upgrade_stragglers(void) {   // the safe point (control.c hook_sim_receive)
+    static uint32_t last;
+    uint32_t now = game_time();
+    if (!now || (last && now >= last && now - last < 30000)) return;
+    last = now;
+    for (int p = 1; p < 16; p++) {
+        void *pl = g_players[p];
+        if (!pl || FIELD(pl, 0x467, uint8_t)) continue;
+        int any = 0;
+        for (int l = 0; l < 3; l++) {
+            g_upg.best[l] = -1;
+            for (int i = 0; i < 7; i++) {
+                g_upg.avail[l][i] = k_upg_lines[l][i] >= 0 &&
+                    ((char (__thiscall *)(void *, int, int, int))0x00555710)(pl, k_upg_lines[l][i], 0x20, 0);
+                if (g_upg.avail[l][i]) g_upg.best[l] = i;
+            }
+            any |= g_upg.best[l] > 0;
+        }
+        if (!any) continue;
+        g_upg.pl = pl;
+        g_upg.n = 0;
+        grid_each(upg_scan, NULL);   // collected first: the conversion replaces the object
+        int pi = FIELD(pl, PL_INDEX, int);
+        for (int k = 0; k < g_upg.n; k++) {
+            uint32_t data = ((uint32_t *)0x009418A0)[g_upg.to[k]];
+            if (!data) continue;
+            int from = FIELD(FIELD(g_upg.u[k], 0x2C, uint8_t *), 0x4B8, int), x = FIELD(g_upg.u[k], 0x1C, int), y = FIELD(g_upg.u[k], 0x20, int);
+            ((int (__cdecl *)(void *, int, uint32_t))0x0062F192)(g_upg.u[k], pi, data);
+            g_upg_done[p & 15]++;
+            if (g_log) fprintf(g_log, "# upgrades: P%d at %.1f min: %d at %d,%d left behind by its upgrade - now %d\n", p,
+                               now / 60000.0, from, x, y, g_upg.to[k]);
+        }
+    }
+}
+
+// The AI's build queue names types: an entry queued before its line's upgrade (the defence planner's "tower 47" in
+// the Stone Age) was laid out afterwards as the old type, which the upgrade then never converts - a player's build
+// menu only offers the new one. hook_place (econ.c) asks here: a tower, wall or gate type the AI can no longer
+// build becomes the newest one of its line it can.
+static int upgraded_type(void *pl, int type) {
+    if (!pl) return type;
+    for (int l = 0; l < 3; l++)
+        for (int i = 0; i < 7 && k_upg_lines[l][i] >= 0; i++) {
+            if (k_upg_lines[l][i] != type) continue;
+            char (__thiscall *can)(void *, int, int, int) = (char (__thiscall *)(void *, int, int, int))0x00555710;
+            if (can(pl, type, 0x20, 0)) return type;
+            for (int j = 6; j > i; j--)
+                if (k_upg_lines[l][j] >= 0 && can(pl, k_upg_lines[l][j], 0x20, 0)) {
+                    if (g_log) fprintf(g_log, "# upgrades: P%d places %d instead of %d (upgraded since it was queued)\n",
+                                       FIELD(pl, PL_INDEX, int), k_upg_lines[l][j], type);
+                    return k_upg_lines[l][j];
+                }
+            return type;
+        }
+    return type;
 }

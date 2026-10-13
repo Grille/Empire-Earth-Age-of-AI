@@ -74,10 +74,12 @@ static void persona_attack_launched(unsigned ai);   // persona.c
 static int g_build_fix = 1;
 static struct { int type; unsigned tries, fails, dropped, streak; } g_place[16][64];   // every type the build lists hold
 static int field_place_ok(uint8_t *bm, int x, int y);   // below, with the farm fields
+static int upgraded_type(void *pl, int type);   // defence.c: the type an upgrade put in place of this one
 static char __fastcall hook_place(uint8_t *bm, void *edx, int type, int x, int y) {
     (void)edx;
     if (type == 0x2A && !field_place_ok(bm, x, y)) return 1;   // a field without foundation would crash (see there)
     int place_as = g_build_fix && type == 395 ? 43 : type;
+    place_as = upgraded_type(FIELD(bm, 0x138, void *), place_as);   // queued before its upgrade: the new type
     if (!x && !y) defence_spot(FIELD(bm, 0x138, void *), type, &x, &y);   // towers: where the defence plan wants them
     char ok = ((char (__thiscall *)(void *, int, int, int))FN_PLACE)(bm, place_as, x, y);
     void *pl = FIELD(bm, 0x138, void *);
