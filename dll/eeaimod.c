@@ -60,6 +60,7 @@ static FILE *g_log;
 static CRITICAL_SECTION g_lock;
 
 static void autotest_tick(uint32_t now);
+static volatile int g_rm_seen;   // an AI resource manager has ticked (else the sim loop drives autotest_tick)
 static void execute(const char *cmd, char *out);
 static char g_setup_path[MAX_PATH];
 static void ctl_note_player(void *pl);
@@ -284,6 +285,7 @@ static void __fastcall hook_rm_update(void *rm, void *edx, uint32_t now) {
     }
     ((RmUpdateFn)FN_RM_UPDATE)(rm, now);
     if (pl) { econ_tick(pl, now); attack_tick(pl, now); }
+    g_rm_seen = 1;
     autotest_tick(now);
 }
 

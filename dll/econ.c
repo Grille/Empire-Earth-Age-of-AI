@@ -307,7 +307,6 @@ static int __fastcall hook_tech_grant(uint8_t *node, void *edx) {
 // Tech log (autotest tech_log=1): once a second per AI, techs newly researched, with the stock before (last check)
 // and now - whether research is paid shows in the stock.
 static int g_tech_log;
-static void sound_tick(uint32_t now);
 static void tech_log_tick(void *pl, unsigned idx, uint32_t now) {
     static uint8_t seen[16][16384];
     static int last_stock[16][7];
@@ -610,7 +609,6 @@ static void econ_tick(void *pl, uint32_t now) {
     defence_tick(pl, ai, now);
     counter_siege(pl, ai, now);
     tech_log_tick(pl, ai, now);
-    sound_tick(now);
     home_guard(pl, ai, now);
     chat_tick(pl, ai, now);
     diplo_tick(pl, ai, now);

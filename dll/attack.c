@@ -1080,9 +1080,10 @@ static void cmd_objs(char *out, const char *args) {
         for (uint8_t **b = FIELD(cells + c * 16, 4, uint8_t **); b && b < FIELD(cells + c * 16, 8, uint8_t **); b++) {
             uint8_t *u = *b, *td = u ? FIELD(u, 0x2C, uint8_t *) : NULL;
             void *owner = u ? FIELD(u, 0x18, void *) : NULL;
-            if (!td || !owner || FIELD(owner, PL_INDEX, int) != p || FIELD(td, 0x4B8, int) != t || strlen(out) > 15000) continue;
+            if (!td || !owner || FIELD(owner, PL_INDEX, int) != p || (t >= 0 && FIELD(td, 0x4B8, int) != t) || strlen(out) > 15000) continue;
             if (FIELD(u, 0x1C, int) / FIELD(grid, 8, int) != (int)(c / FIELD(grid, 0x14, unsigned)) ||
                 FIELD(u, 0x20, int) / FIELD(grid, 8, int) != (int)(c % FIELD(grid, 0x14, unsigned))) continue;
+            if (t < 0) REPLY(" T%d", FIELD(td, 0x4B8, int));   // all types: each with its type
             REPLY(" [%d,%d hp %d/%g %s]", FIELD(u, 0x1C, int), FIELD(u, 0x20, int), FIELD(u, 0x3C, int),
                   FIELD(td, 0x55C, float), rtti_name(FIELD(u, 0x1EC, void *)));
         }

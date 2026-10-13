@@ -22,7 +22,8 @@ The `[autotest]` keys:
 | any `aimod.ini` key | overrides that setting for all difficulties, e.g. `avoid_towers=0` |
 | `watch=<hex>`, `watch_len` | hardware write-watchpoint, logs every writer of an address |
 | `tech_log=1` | logs every AI's newly researched techs once a second (`# techlog:`) and every free research completion with its call stack (`# techgrant:`, hook on EETechTreeNode::vf6) |
-| `sound_log=1` | once a game minute (`# sound:`): sounds the game asked for, the ones the sound manager dropped and why (all copies of that sound busy / category full / no free channel), the Miles mixer's refusals, the most dropped sound ids. Calls at volume 0 (out of earshot) are counted apart: the manager skips them on purpose |
+| `sound_log=1` / `2` | (also aimod.ini `[sound] log=`, for normal play) 2 adds every play (id, volume, pan, the node's channel, the caller) and the mixer's channel/start/volume calls. 1: once a game minute (`# sound:`): sounds the game asked for, the ones the sound manager dropped and why (all copies of that sound busy / category full / no free channel), the Miles mixer's refusals, the most dropped sound ids. Calls at volume 0 (out of earshot) are counted apart: the manager skips them on purpose |
+| games without AI | `setup`, `quit_minutes` and speed run from the simulation loop when no AI resource manager ticks (e.g. `-Scenario` with only the human player) |
 | `trace_player`, `trace_until_min` | logs the economy calls of one AI |
 
 Scenarios and saves: same speed, same settings - the run is byte-identical, with or without turbo, so

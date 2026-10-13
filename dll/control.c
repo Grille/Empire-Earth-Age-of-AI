@@ -418,10 +418,13 @@ static void execute(const char *cmd, char *out) {
 typedef long (__thiscall *ReceiveFn)(void *thread, void *a, void *b, void *c);
 
 static void diplo_safe_point(void);   // diplo.c: queued surrenders
+static void sound_tick(uint32_t now);  // sound.c: sound_log
 static long __fastcall hook_sim_receive(void *thread, void *edx, void *a, void *b, void *c) {
     (void)edx;
     diplo_safe_point();
     aim_tick();
+    sound_tick(game_time());
+    if (!g_rm_seen && game_time() > 0) autotest_tick(game_time());   // games without AI (scenarios)
     if (g_req.state == 1 && InterlockedCompareExchange(&g_req.state, 2, 1) == 1) {
         execute(g_req.cmd, g_req.out);
         g_req.state = 3;

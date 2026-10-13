@@ -22,6 +22,15 @@ typedef int (__cdecl *mix_set_fn)(int, void *);
 typedef int (__cdecl *mix_play_fn)(int);
 static mix_set_fn g_mix_set;
 static mix_play_fn g_mix_play;
+typedef int (__cdecl *mix_vol_fn)(void *, float);
+static mix_vol_fn g_mix_vol;
+static uintptr_t g_mss_mixer;                   // Miles Sound System Mixer.dll base: channel handles at +0x52AC
+static int (__stdcall *g_ail_status)(void *);   // AIL_sample_status: 4 = playing
+static int snd_status(int ch) {
+    uint8_t *v = g_mss_mixer ? *(uint8_t **)(g_mss_mixer + 0x52AC) : NULL, *ve = v ? *(uint8_t **)(g_mss_mixer + 0x52B0) : NULL;
+    if (!v || !g_ail_status || ch < 0 || v + ch * 8 >= ve) return -1;
+    return g_ail_status(*(void **)(v + ch * 8));
+}
 
 // Why the manager dropped a play (Low-Level Engine.dll, thiscall(sm, id), relative to its Play export 0x1005B50B):
 // 0x1005AC64 the sound's copies in use, 0x1005ABDD its copies, 0x1005AC31 its category's channels in use,
@@ -50,6 +59,9 @@ static uint32_t __fastcall hook_snd_play(void *sm, void *edx, uint32_t id, float
     (void)edx;
     uint32_t r = g_snd_play(sm, id, vol, pan, pitch, queue, name);
     snd_count(sm, id, vol, r == 0xFFFFFFFFu);
+    if (g_sound_log >= 2 && g_log)
+        fprintf(g_log, "# snd: %.3f min play id %u vol %.3f pan %.2f pitch %.2f queue %d -> %d\n", game_time() / 60000.0, id, vol,
+                pan, pitch, queue & 0xFF, (int)r);
     return r;
 }
 static uint32_t __fastcall hook_snd_playref(void *sm, void *edx, uint32_t id, float vol, float pan, float pitch,
@@ -57,17 +69,29 @@ static uint32_t __fastcall hook_snd_playref(void *sm, void *edx, uint32_t id, fl
     (void)edx;
     uint32_t r = g_snd_playref(sm, id, vol, pan, pitch, queue, name);
     snd_count(sm, id, vol, r == 0);
+    if (g_sound_log >= 2 && g_log)
+        fprintf(g_log, "# snd: %.3f min playref id %u vol %.3f pan %.2f pitch %.2f queue %d -> node %08x channel %d, caller %06x\n",
+                game_time() / 60000.0, id, vol, pan, pitch, queue & 0xFF, r, r ? FIELD((void *)(uintptr_t)r, 0x1C, int) : -9,
+                (unsigned)(uintptr_t)__builtin_return_address(0));
     return r;
 }
 static int __cdecl hook_mix_set(int ch, void *sample) {
     int r = g_mix_set(ch, sample);
     g_mix_set_total++;
+    if (g_sound_log >= 2 && g_log) fprintf(g_log, "# snd:   mixer channel %d sample %p -> %d\n", ch, sample, r);
     if (r) g_mix_set_fail[r & 15]++;
     return r;
 }
 static int __cdecl hook_mix_play(int ch) {
     int r = g_mix_play(ch);
     if (r) g_mix_play_fail[r & 15]++;
+    if (g_sound_log >= 2 && g_log) fprintf(g_log, "# snd:   mixer start channel %d -> %d, Miles status %d\n", ch, r, snd_status(ch));
+    return r;
+}
+static int __cdecl hook_mix_vol(void *sample, float vol) {
+    int r = g_mix_vol(sample, vol);
+    if (g_sound_log >= 2 && g_log && sample)
+        fprintf(g_log, "# snd:   volume %.3f on channel %d\n", vol, FIELD(sample, 0x24, int));
     return r;
 }
 
@@ -101,6 +125,11 @@ static void sound_tick(uint32_t now) {
             g_mix_play = FIELD(mx, MX_PLAY_CHANNEL, mix_play_fn);
             FIELD(mx, MX_SET_CHANNEL_SAMPLE, void *) = (void *)hook_mix_set;
             FIELD(mx, MX_PLAY_CHANNEL, void *) = (void *)hook_mix_play;
+            g_mix_vol = FIELD(mx, 0xF0, mix_vol_fn);   // SPIMSetSampleVolume
+            FIELD(mx, 0xF0, void *) = (void *)hook_mix_vol;
+            g_mss_mixer = (uintptr_t)g_mix_set - 0x1874;   // SPIMSetChannelSample = base + 0x1874
+            HMODULE mss = GetModuleHandleA("mss32.dll");
+            if (mss) g_ail_status = (int (__stdcall *)(void *))GetProcAddress(mss, "_AIL_sample_status@4");
         }
         fprintf(g_log, "# sound: log on, %u channels\n", FIELD(sm, SM_CHANNELS, uint32_t));
         last = now;
@@ -135,6 +164,7 @@ static void sound_tick(uint32_t now) {
 }
 
 static void sound_install(const char *aimod_ini, const char *autotest_ini) {
-    (void)aimod_ini;
-    if (autotest_ini) g_sound_log = GetPrivateProfileIntA("autotest", "sound_log", 0, autotest_ini);
+    // aimod.ini [sound] log = 1 (counts once a minute) | 2 (every play) - diagnostics in normal play too
+    g_sound_log = GetPrivateProfileIntA("sound", "log", 0, aimod_ini);
+    if (autotest_ini) g_sound_log = GetPrivateProfileIntA("autotest", "sound_log", g_sound_log, autotest_ini);
 }
