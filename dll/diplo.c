@@ -159,6 +159,26 @@ static void world_scan(uint32_t now) {
     }
 }
 static float power_of(int i) { return g_ws.power[i] > 1.0f ? g_ws.power[i] : 1.0f; }
+
+// KILLS BY PAIR: the game keeps only totals per player (statistics, player +0x4A8: 3 units killed, 2 buildings
+// destroyed). They are counted in EEUnit::vf28 (0x6172BC, damage) when a unit drops to 0 hit points: at 0x617780 call
+// 0x55DBCF thiscall(attacker's player +0x4A8, 3 or 2, 1), the dead unit in ESI (owner +0x18) - not for nature's units
+// or one's own. Here also by pair: g_kills[killer][victim][0 units, 1 buildings] (saved with the game; for now only
+// told to the language model, llm.c).
+#define CALL_KILL_STAT 0x00617780
+#define FN_STAT_ADD    0x0055DBCF
+static uint32_t g_kills[16][16][2];
+__attribute__((used)) uint8_t *g_kill_unit;   // the dead unit: esi at the call site
+__attribute__((used)) void __fastcall hook_kill_stat(uint8_t *stats, void *edx, int n, int d) {
+    (void)edx;
+    void *owner = g_kill_unit ? FIELD(g_kill_unit, 0x18, void *) : NULL;
+    if (stats && owner && (n == 2 || n == 3)) g_kills[pidx(stats - 0x4A8)][pidx(owner)][n == 2] += (uint32_t)d;
+    ((void (__thiscall *)(void *, int, int))FN_STAT_ADD)(stats, n, d);
+}
+__attribute__((naked, used)) void kill_stat_thunk(void) {
+    __asm__("movl %esi, _g_kill_unit\n\t"
+            "jmp @hook_kill_stat@16");
+}
 // the strongest player the AI is at war with (or 0)
 static int strongest_enemy(void *pl, int ai) {
     int best = 0;
@@ -940,6 +960,7 @@ static void diplo_new_game(void) {
     memset(g_offer_last, 0, sizeof g_offer_last);
     memset(g_offer_ignored, 0, sizeof g_offer_ignored);
     memset(g_opinion, 0, sizeof g_opinion);
+    memset(g_kills, 0, sizeof g_kills);
     memset(g_war_betrayal, 0, sizeof g_war_betrayal);
     memset(g_diplo_answers, 0, sizeof g_diplo_answers);
     memset(&g_ws, 0, sizeof g_ws);
@@ -1209,6 +1230,13 @@ static void cmd_diplo(char *out, const char *args) {
               g_no_citizens_since[a] / 60000.0);
         return;
     }
+    if (!strcmp(args, "kills")) {   // diplo kills: units / buildings each player destroyed of each other one
+        for (int k = 1; k < nplayers(); k++)
+            for (int v = 0; v < nplayers(); v++)
+                if (g_kills[k][v][0] || g_kills[k][v][1]) REPLY("P%d killed of P%d: %u units, %u buildings\n", k, v, g_kills[k][v][0], g_kills[k][v][1]);
+        REPLY("done\n");
+        return;
+    }
     if (sscanf(args, "offer %d %d", &a, &b) == 2) {   // diplo offer P H: AI P offers human H an alliance now (tests)
         if (!g_players[a & 15] || g_players[b & 15] || !player_at(a) || !player_at(b)) { REPLY("error: P%d no AI or P%d no human\n", a, b); return; }
         g_offer_t[a][b] = game_time() ? game_time() : 1;
@@ -1273,6 +1301,8 @@ static void diplo_install(const char *ini, const char *test_ini) {
     }
     int ok = patch_vtable(VT_PAY_TRIBUTE, 10, FN_PAY_TRIBUTE, (void *)hook_tribute);
     int chat = patch_vtable(VT_INGAME_CHAT, 10, FN_INGAME_CHAT, (void *)hook_ingame_chat);
+    BOOL kills = patch_call(CALL_KILL_STAT, FN_STAT_ADD, kill_stat_thunk);
+    if (g_log) fprintf(g_log, "# diplomacy: kills by pair %s\n", kills ? "ok" : "FAILED");
     int leave = patch_vtable(VT_RESIGN, 10, FN_RESIGN, (void *)hook_resign) +
                 patch_code32(EXIT_CONFIRM_AT, FN_EXIT_CONFIRM, (uint32_t)(uintptr_t)hook_exit_confirm);
     if (g_log) fprintf(g_log, "# diplomacy: answer_war=%d ai_diplomacy=%d surrender=%d alliance_blocks=%d auto_victory=%d, tribute hook %d, chat hook %d, leave hooks %d/2\n",

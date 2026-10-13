@@ -410,6 +410,11 @@ static void llm_system(struct sbuf *b, void *pl, int ai, int h) {
                       llm_words(r < 0.25f ? -100 : r < 0.67f ? -30 : r <= 1.5f ? 0 : r <= 4 ? 30 : 100, pw),
                       llm_words(g_opinion[ai][h], op));
         if (g_pressure[ai][h] >= 10) o += snprintf(t + o, sizeof t - o, " Their soldiers are in your town right now.");
+        const uint32_t *mk = g_kills[ai][h], *tk = g_kills[h][ai];
+        if (mk[0] || mk[1] || tk[0] || tk[1])
+            o += snprintf(t + o, sizeof t - o, " The fighting between you so far: you killed %u of their units and destroyed "
+                          "%u of their buildings; they killed %u of your units and destroyed %u of your buildings.",
+                          mk[0], mk[1], tk[0], tk[1]);
         if (g_lord[ai] == h) o += snprintf(t + o, sizeof t - o, " You have capitulated to them: they are your lord, you pay "
                                                                 "and serve them.");
         if (g_lord[h] == ai) o += snprintf(t + o, sizeof t - o, " They have capitulated to you: they are your vassal.");
