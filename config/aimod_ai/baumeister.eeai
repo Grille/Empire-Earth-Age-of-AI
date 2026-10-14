@@ -34,6 +34,8 @@ brittle = them.strength * 2 < me.strength
 ; blood between us: more than a skirmish
 my_dead = them.kills(me) > 30
 their_dead = me.kills(them) > 30
+; the war now going on (in peace_accept: the one just ended) - a window for "this war": them.kills(me, this_war)
+this_war = me.war_minutes(them)
 
 [lines]
 greeting = [
@@ -44,9 +46,9 @@ greeting = [
     "I build. Leave me in peace and you have nothing to fear.",
 ]
 war_declared = [
-    them.tribute(me) > 0 ? [
+    them.tribute(me, 20) > 0 ? [
         "First you pay me, {name}, then you attack me? Your bookkeeping puzzles me.",
-        "{them.tribute(me)} you paid me, {name}, and it all went into the walls. At the gate you will meet your own money.",
+        "{them.tribute(me, 20)} you paid me, {name}, and it all went into the walls. At the gate you will meet your own money.",
     ],
     them.betrayals(me) > 0 ? [
         "You broke faith with me once already, {name}. That is why I never took my walls down.",
@@ -75,8 +77,8 @@ peace_accept = [
         "Peace. But the walls facing you stay manned, {name}.",
         "Peace, {name}. I signed with you once before and rebuilt afterwards. This time I keep the mortar ready.",
     ],
-    them.razed(me) > 5 and chance(60%) ? "Peace. Now I have {them.razed(me)} buildings to rebuild, {name}. Kindly stay out of the way.",
-    my_dead and chance(50%) ? "Peace, {name}. I have buried enough of my people for this war.",
+    them.razed(me, this_war) > 5 and chance(60%) ? "Peace. Now I have {them.razed(me, this_war)} buildings to rebuild, {name}. Kindly stay out of the way.",
+    them.kills(me, this_war) > 30 and chance(50%) ? "Peace, {name}. I have buried enough of my people for this war.",
 ] ?? [
     "Quiet at last, {name}. I have building to do.",
     "Peace. Good. The stones are waiting.",
@@ -90,7 +92,7 @@ peace_refuse = [
         "Your soldiers are still standing at my walls, {name}. Call them back - then we talk.",
         "Peace, with your army in the shadow of my towers, {name}? Move it out of range first.",
     ],
-    them.refusals(me) > 0 and chance(60%) ? "You refused my peace once, {name}. Now I need time to be sure of you.",
+    them.refusals(me, 30) > 0 and chance(60%) ? "You refused my peace once, {name}. Now I need time to be sure of you.",
 ] ?? [
     "Not until I am sure you mean it, {name}.",
     "No, {name}. I do not trust you yet.",
@@ -162,8 +164,8 @@ tribute_small = at_war ? [
     "Half a stone, {name}. Still - every wall starts somewhere.",
 ]
 attack = [
-    them.razed(me) > 0 and chance(60%) ? "They tore down what we built. Now we go and see what theirs is made of.",
-    my_dead and them.kills(me) > me.kills(them) and chance(60%) ? "We have buried enough. Out, against {name} - walls alone will not end this.",
+    them.razed(me, 20) > 0 and chance(60%) ? "They tore down what we built. Now we go and see what theirs is made of.",
+    them.kills(me, 20) > 15 and them.kills(me, 20) > me.kills(them, 20) and chance(60%) ? "We have buried enough. Out, against {name} - walls alone will not end this.",
 ] ?? [
     "We must go out. Against {name}.",
     "Our troops are marching against {name}.",
@@ -271,9 +273,9 @@ greeting = [
     "Ich baue. Wer mich in Ruhe lässt, hat nichts zu befürchten.",
 ]
 war_declared = [
-    them.tribute(me) > 0 ? [
+    them.tribute(me, 20) > 0 ? [
         "Erst zahlen Sie mir, {name}, dann greifen Sie mich an? Ihre Buchführung verstehe ich nicht.",
-        "{them.tribute(me)} haben Sie mir gezahlt, {name}, und alles ist in die Mauern geflossen. Am Tor treffen Sie Ihr eigenes Geld wieder.",
+        "{them.tribute(me, 20)} haben Sie mir gezahlt, {name}, und alles ist in die Mauern geflossen. Am Tor treffen Sie Ihr eigenes Geld wieder.",
     ],
     them.betrayals(me) > 0 ? [
         "Sie haben mir schon einmal die Treue gebrochen, {name}. Deshalb habe ich meine Mauern nie abgetragen.",
@@ -301,8 +303,8 @@ peace_accept = [
         "Frieden. Aber die Mauern auf Ihrer Seite bleiben besetzt, {name}.",
         "Frieden, {name}. Ich habe schon einmal mit Ihnen unterschrieben und danach neu gebaut. Diesmal halte ich den Mörtel bereit.",
     ],
-    them.razed(me) > 5 and chance(60%) ? "Frieden. Jetzt habe ich {them.razed(me)} Gebäude wieder aufzubauen, {name}. Stehen Sie mir dabei bitte nicht im Weg.",
-    my_dead and chance(50%) ? "Frieden, {name}. Ich habe für diesen Krieg genug von meinen Leuten begraben.",
+    them.razed(me, this_war) > 5 and chance(60%) ? "Frieden. Jetzt habe ich {them.razed(me, this_war)} Gebäude wieder aufzubauen, {name}. Stehen Sie mir dabei bitte nicht im Weg.",
+    them.kills(me, this_war) > 30 and chance(50%) ? "Frieden, {name}. Ich habe für diesen Krieg genug von meinen Leuten begraben.",
 ] ?? [
     "Endlich wieder Ruhe, {name}. Ich habe zu bauen.",
     "Frieden. Gut. Die Steine warten.",
@@ -316,7 +318,7 @@ peace_refuse = [
         "Ihre Soldaten stehen noch vor meinen Mauern, {name}. Ziehen Sie sie ab - dann reden wir.",
         "Frieden, während Ihr Heer im Schatten meiner Türme steht, {name}? Ziehen Sie es erst aus der Reichweite.",
     ],
-    them.refusals(me) > 0 and chance(60%) ? "Sie haben meinen Frieden einmal ausgeschlagen, {name}. Jetzt brauche ich Zeit, um mir Ihrer sicher zu sein.",
+    them.refusals(me, 30) > 0 and chance(60%) ? "Sie haben meinen Frieden einmal ausgeschlagen, {name}. Jetzt brauche ich Zeit, um mir Ihrer sicher zu sein.",
 ] ?? [
     "Erst wenn ich sicher bin, dass Sie es ernst meinen, {name}.",
     "Nein, {name}. Ich traue Ihnen noch nicht über den Weg.",
@@ -386,8 +388,8 @@ tribute_small = at_war ? [
     "Ein halber Stein, {name}. Aber jede Mauer fängt irgendwo an.",
 ]
 attack = [
-    them.razed(me) > 0 and chance(60%) ? "Sie haben eingerissen, was wir gebaut haben. Jetzt sehen wir nach, woraus ihres gemacht ist.",
-    my_dead and them.kills(me) > me.kills(them) and chance(60%) ? "Wir haben genug begraben. Hinaus, gegen {name} - Mauern allein beenden das nicht.",
+    them.razed(me, 20) > 0 and chance(60%) ? "Sie haben eingerissen, was wir gebaut haben. Jetzt sehen wir nach, woraus ihres gemacht ist.",
+    them.kills(me, 20) > 15 and them.kills(me, 20) > me.kills(them, 20) and chance(60%) ? "Wir haben genug begraben. Hinaus, gegen {name} - Mauern allein beenden das nicht.",
 ] ?? [
     "Wir müssen hinaus. Gegen {name}.",
     "Unsere Truppen marschieren gegen {name}.",

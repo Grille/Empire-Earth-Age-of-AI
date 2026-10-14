@@ -31,6 +31,8 @@ rival = me.strength * 2 < them.strength
 ; blood between us: more than a skirmish
 my_dead = them.kills(me) > 30
 their_dead = me.kills(them) > 30
+; the war now going on (in peace_accept: the one just ended) - a window for "this war": them.kills(me, this_war)
+this_war = me.war_minutes(them)
 
 [lines]
 greeting = [
@@ -43,7 +45,7 @@ greeting = [
     "Friends? Enemies? Oh, that will sort itself out.",
 ]
 war_declared = [
-    them.tribute(me) > 0 ? [
+    them.tribute(me, 20) > 0 ? [
         "First gifts, now war? How fickle you are, {name}.",
         "Thank you for the gifts, {name}. They will make such lovely arrows - pointed at you.",
     ],
@@ -71,8 +73,8 @@ peace_accept = [
         "Peace, {name}. I forgive - I simply never forget.",
         "Peace, {name}. And this time I shall keep my back to the wall, if you don't mind.",
     ],
-    my_dead and them.kills(me) > me.kills(them) and chance(60%) ? "You have made your point, {name}. Rather emphatically. Peace.",
-    them.tribute(me) > 0 and chance(50%) ? "Your gifts did not go unnoticed, {name}. I am always kind to generous people.",
+    them.kills(me, this_war) > 30 and them.kills(me, this_war) > me.kills(them, this_war) and chance(60%) ? "You have made your point, {name}. Rather emphatically. Peace.",
+    them.tribute(me, 30) > 0 and chance(50%) ? "Your gifts did not go unnoticed, {name}. I am always kind to generous people.",
 ] ?? [
     "Peace, {name}? Gladly. For now.",
     "As you wish, {name}. We are friends now.",
@@ -148,7 +150,7 @@ betray = [
         "You taught me this game yourself, {name}. Do you like my progress?",
         "Did you think I had forgotten, {name}? I was only waiting for the right moment. This is it.",
     ],
-    them.tribute(me) > 0 and chance(50%) ? "Thank you for all the gifts, {name}. They will pay for the war.",
+    them.tribute(me, 30) > 0 and chance(50%) ? "Thank you for all the gifts, {name}. They will pay for the war.",
     pawn and chance(60%) ? "You have become such a burden, {name}. A lady must travel light.",
 ] ?? [
     "I am so sorry, {name}. No, not really.",
@@ -174,7 +176,7 @@ tribute_small = at_war ? [
     "How ... modest, {name}. I shall find a small drawer for it.",
 ]
 attack = [
-    them.razed(me) > 0 and chance(60%) ? "{name} broke some of my lovely things. Let us return the courtesy.",
+    them.razed(me, 20) > 0 and chance(60%) ? "{name} broke some of my lovely things. Let us return the courtesy.",
     them.betrayals(me) > 0 and chance(60%) ? "{name} once broke faith with me. Today the bill arrives.",
     them.refusals(me) > 1 and chance(50%) ? "{name} has said no to me so often. Let us see if they can say no to this.",
 ] ?? [
@@ -278,7 +280,7 @@ greeting = [
     "Freunde? Feinde? Ach, das ergibt sich.",
 ]
 war_declared = [
-    them.tribute(me) > 0 ? [
+    them.tribute(me, 20) > 0 ? [
         "Erst Geschenke, jetzt Krieg? Wie launisch du bist, {name}.",
         "Danke für die Geschenke, {name}. Daraus werden so hübsche Pfeile - auf dich gerichtet.",
     ],
@@ -305,8 +307,8 @@ peace_accept = [
         "Frieden, {name}. Ich vergebe - ich vergesse nur nie.",
         "Frieden, {name}. Und diesmal halte ich den Rücken an der Wand, wenn du nichts dagegen hast.",
     ],
-    my_dead and them.kills(me) > me.kills(them) and chance(60%) ? "Du hast deinen Standpunkt klargemacht, {name}. Recht nachdrücklich. Frieden.",
-    them.tribute(me) > 0 and chance(50%) ? "Deine Geschenke sind mir nicht entgangen, {name}. Zu großzügigen Menschen bin ich immer nett.",
+    them.kills(me, this_war) > 30 and them.kills(me, this_war) > me.kills(them, this_war) and chance(60%) ? "Du hast deinen Standpunkt klargemacht, {name}. Recht nachdrücklich. Frieden.",
+    them.tribute(me, 30) > 0 and chance(50%) ? "Deine Geschenke sind mir nicht entgangen, {name}. Zu großzügigen Menschen bin ich immer nett.",
 ] ?? [
     "Frieden, {name}? Aber gern. Vorerst.",
     "Wie du willst, {name}. Wir sind jetzt Freunde.",
@@ -381,7 +383,7 @@ betray = [
         "Dieses Spiel hast du mir selbst beigebracht, {name}. Gefallen dir meine Fortschritte?",
         "Dachtest du, ich hätte es vergessen, {name}? Ich habe nur auf den richtigen Moment gewartet. Das ist er.",
     ],
-    them.tribute(me) > 0 and chance(50%) ? "Danke für all die Geschenke, {name}. Sie bezahlen jetzt den Krieg.",
+    them.tribute(me, 30) > 0 and chance(50%) ? "Danke für all die Geschenke, {name}. Sie bezahlen jetzt den Krieg.",
     pawn and chance(60%) ? "Du bist mir so eine Last geworden, {name}. Eine Dame reist mit leichtem Gepäck.",
 ] ?? [
     "Es tut mir ja so leid, {name}. Nein, eigentlich nicht.",
@@ -407,7 +409,7 @@ tribute_small = at_war ? [
     "Wie ... bescheiden, {name}. Ich finde bestimmt eine kleine Schublade dafür.",
 ]
 attack = [
-    them.razed(me) > 0 and chance(60%) ? "{name} hat einige meiner hübschen Sachen kaputt gemacht. Erwidern wir die Höflichkeit.",
+    them.razed(me, 20) > 0 and chance(60%) ? "{name} hat einige meiner hübschen Sachen kaputt gemacht. Erwidern wir die Höflichkeit.",
     them.betrayals(me) > 0 and chance(60%) ? "{name} hat mir einmal die Treue gebrochen. Heute kommt die Rechnung.",
     them.refusals(me) > 1 and chance(50%) ? "{name} hat so oft Nein zu mir gesagt. Mal sehen, ob {name} auch dazu Nein sagen kann.",
 ] ?? [

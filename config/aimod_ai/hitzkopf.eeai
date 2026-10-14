@@ -51,9 +51,9 @@ war_declared = [
     pushover and chance(60%) ? "YOU, {name}? Hahaha! I'll fight you with one hand behind my back!",
     big_one and chance(60%) ? "Ooh, a big one! Good, {name} - the big ones fall the loudest!",
     my_tally and chance(60%) ? "Back for more, {name}? Last time I flattened {me.kills(them)} of yours!",
-    them.tribute(me) > 0 ? [
+    them.tribute(me, 20) > 0 ? [
         "First presents, now punches, {name}? HA! I'll take both!",
-        "{them.tribute(me)} worth of presents, {name}, and I still want a fight! You can't buy off a brawler! HA!",
+        "{them.tribute(me, 20)} worth of presents, {name}, and I still want a fight! You can't buy off a brawler! HA!",
     ],
 ] ?? [
     "FINALLY! Come here, {name}!",
@@ -86,7 +86,7 @@ peace_refuse = [
         "Peace with a backstabber? HA! Not because of the stab - I forgot that. Because this is FUN!",
         "The last time we were friends you stuck a knife in me, {name}! Fighting you is safer - at least I see you coming!",
     ],
-    them.refusals(me) > 0 and chance(60%) ? "You said no to MY peace, {name}! Now I say no! HA! ...What were we fighting about again?",
+    them.refusals(me, 15) > 0 and chance(60%) ? "You said no to MY peace, {name}! Now I say no! HA! ...What were we fighting about again?",
     long_war and chance(60%) ? "{me.war_minutes(them)} minutes of brawling and you want to stop NOW, {name}? It's only just getting good!",
     me.kills(them, 20) > 15 and chance(60%) ? "Stop? I'm on a roll, {name}! {me.kills(them, 20)} of yours just lately!",
 ] ?? [
@@ -136,7 +136,7 @@ offer_withdrawn = them.ignored(me) > 1 ? [
 ]
 betray = [
     pushover and chance(60%) ? "You've gone soft, {name}! And soft things need a good thump!",
-    them.tribute(me) > 0 and chance(50%) ? "Thanks for the presents, {name}! Here's one back: a punch!",
+    them.tribute(me, 30) > 0 and chance(50%) ? "Thanks for the presents, {name}! Here's one back: a punch!",
 ] ?? [
     "Sorry, {name}, I was bored!",
     "I'm itching for trouble, {name}. And you're the closest!",
@@ -159,8 +159,8 @@ tribute_small = at_war ? [
     "That's not a present, {name}, that's a crumb! I'm no sparrow!",
 ]
 attack = [
-    them.razed(me) > 0 and chance(60%) ? "They smashed my houses! Now we smash theirs! At {name}!",
-    them.kills(me) > 30 and them.kills(me) > me.kills(them) and chance(60%) ? "{name} has knocked down more of ours than we of theirs! Let's fix that, lads!",
+    them.razed(me, 20) > 0 and chance(60%) ? "They smashed my houses! Now we smash theirs! At {name}!",
+    them.kills(me, 20) > 15 and them.kills(me, 20) > me.kills(them, 20) and chance(60%) ? "{name} has knocked down more of ours than we of theirs! Let's fix that, lads!",
     me.kills(them, 20) > 15 and chance(50%) ? "That was fun just now! Again! At {name}!",
 ] ?? [
     "ATTACK! At {name}!",
@@ -274,9 +274,9 @@ war_declared = [
     pushover and chance(60%) ? "DU, {name}? Hahaha! Dich schaff ich mit einer Hand auf dem Rücken!",
     big_one and chance(60%) ? "Oho, ein Großer! Gut, {name} - die Großen fallen am lautesten!",
     my_tally and chance(60%) ? "Noch nicht genug, {name}? Letztes Mal hab ich {me.kills(them)} von deinen umgehauen!",
-    them.tribute(me) > 0 ? [
+    them.tribute(me, 20) > 0 ? [
         "Erst Geschenke, jetzt Fäuste, {name}? HA! Ich nehm beides!",
-        "{them.tribute(me)} an Geschenken, {name}, und ich will trotzdem raufen! Einen Raufbold kauft man nicht! HA!",
+        "{them.tribute(me, 20)} an Geschenken, {name}, und ich will trotzdem raufen! Einen Raufbold kauft man nicht! HA!",
     ],
 ] ?? [
     "ENDLICH! Komm her, {name}!",
@@ -308,7 +308,7 @@ peace_refuse = [
         "Frieden mit einem Verräter? HA! Nicht wegen dem Verrat - den hab ich vergessen. Sondern weil's SPASS macht!",
         "Als wir zuletzt Freunde waren, hast du mir ein Messer reingerammt, {name}! Mit dir kämpfen ist sicherer - da seh ich dich wenigstens kommen!",
     ],
-    them.refusals(me) > 0 and chance(60%) ? "Du hast MEINEN Frieden abgelehnt, {name}! Jetzt lehn ich ab! HA! ... Worum ging's eigentlich noch mal?",
+    them.refusals(me, 15) > 0 and chance(60%) ? "Du hast MEINEN Frieden abgelehnt, {name}! Jetzt lehn ich ab! HA! ... Worum ging's eigentlich noch mal?",
     long_war and chance(60%) ? "{me.war_minutes(them)} Minuten Prügelei, und jetzt willst du aufhören, {name}? Jetzt wird's doch erst schön!",
     me.kills(them, 20) > 15 and chance(60%) ? "Aufhören? Ich bin grad so gut in Fahrt, {name}! {me.kills(them, 20)} von deinen allein in letzter Zeit!",
 ] ?? [
@@ -357,7 +357,7 @@ offer_withdrawn = them.ignored(me) > 1 ? [
 ]
 betray = [
     pushover and chance(60%) ? "Du bist weich geworden, {name}! Und Weiches braucht ordentlich Haue!",
-    them.tribute(me) > 0 and chance(50%) ? "Danke für die Geschenke, {name}! Hier ist eins zurück: eine aufs Maul!",
+    them.tribute(me, 30) > 0 and chance(50%) ? "Danke für die Geschenke, {name}! Hier ist eins zurück: eine aufs Maul!",
 ] ?? [
     "Tut mir leid, {name}, mir war langweilig!",
     "Ich hab Lust auf Ärger, {name}. Und du bist am nächsten!",
@@ -380,8 +380,8 @@ tribute_small = at_war ? [
     "Das ist kein Geschenk, {name}, das ist ein Krümel! Ich bin doch kein Spatz!",
 ]
 attack = [
-    them.razed(me) > 0 and chance(60%) ? "Die haben meine Häuser kaputtgemacht! Jetzt machen wir ihre kaputt! Auf {name}!",
-    them.kills(me) > 30 and them.kills(me) > me.kills(them) and chance(60%) ? "{name} hat mehr von uns umgehauen als wir von denen! Das ändern wir, Jungs!",
+    them.razed(me, 20) > 0 and chance(60%) ? "Die haben meine Häuser kaputtgemacht! Jetzt machen wir ihre kaputt! Auf {name}!",
+    them.kills(me, 20) > 15 and them.kills(me, 20) > me.kills(them, 20) and chance(60%) ? "{name} hat mehr von uns umgehauen als wir von denen! Das ändern wir, Jungs!",
     me.kills(them, 20) > 15 and chance(50%) ? "Das hat eben Spaß gemacht! Nochmal! Auf {name}!",
 ] ?? [
     "ANGRIFF! Auf {name}!",
