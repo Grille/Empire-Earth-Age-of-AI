@@ -147,6 +147,10 @@ peace or alliances. With the mod:
   name.
   There are no loops: a text can't hang the game, and something that is no expression simply stays in the text as
   written.
+- **Editing them in VS Code:** [`vscode/eeaimod-texts`](vscode/eeaimod-texts) highlights the files in any
+  `aimod_ai` folder - sections, situations, placeholders, expressions, conditions; an unknown situation or epoch
+  name shows as an error. `python scripts/pack_vscode.py`, then `code --install-extension work/eeaimod-texts.vsix`
+  and reload the window. The grammar takes the names from the DLL's sources (`scripts/gen_vscode_grammar.py`).
 - **Play style** (experimental, `ai_style=1`, off by default): a personality can also change how its AI plays
   (attack timing, army share, home guard). Off, every AI plays the same, tested way.
 
