@@ -146,6 +146,11 @@ peace or alliances. With the mod:
     pair with its own memory of what they told each other (and what one tells another, you don't learn - it may tell
     you something else). Words only, their decisions stay with the rules. One exchange at a time, at most one a minute
     (`ai_talk_gap`), your own conversations go to the model first; `ai_talk_show=1` lets you read along.
+  - **The model decides between the AIs too** (`ai_decide=1`, single player): an AI's alliance offer or capitulation
+    to another AI is answered by the other's model (accept or refuse - and haggle: "an alliance against Gunther?
+    250 gold first"), and in their talks an AI can offer peace, declare war on an ally or send a tribute. The rules
+    still limit what is possible (an ally's veto, a vassal, war only after 5 minutes of alliance) and decide when
+    the model doesn't answer; answering war, betrayal and taking sides in a split alliance stay with the rules.
 
 The AIs can also explain themselves in the chat (`chat=1`, a debug aid): attacks, new ages, towers, walls,
 siege, home guard.

@@ -36,6 +36,15 @@
 // (an opener waiting longer than 90 s is dropped, a newer one of the same pair replaces it); the local player's
 // requests go to the model first. ai_talk_show=1: he reads along ("to <name>: ..." in the speaker's colour), 0: only
 // the log.
+// AI DECIDE ([llm] ai_decide=1, default 0; single player, not in scenarios, not with fixed teams): the model makes
+// the AIs' decisions towards each other too. An AI's alliance offer or capitulation to another AI (the rules decided
+// those at once) stands like one to a human (2 minutes) and opens an exchange: the offer in the offerer's words,
+// the other's answer with the tool make_peace to accept (the rules check what is possible: an ally's veto, a
+// vassal), the offerer's reply. In every exchange between AIs (with ai_talk too) a message may carry a step towards
+// the other: offer peace (the other decides in its answer), declare war (on an ally of 5+ minutes, never on its
+// lord), send a tribute (at most a quarter of each resource, once in 3 minutes) - whoever acts gets an answer. No
+// answer from the model: the rules decide the offer. Answering war, betrayal and taking sides in a block split stay
+// with the rules.
 #include <winhttp.h>
 
 #define LLM_JOBS 16
@@ -87,13 +96,17 @@ struct llm_job {
     int tools, act;      // TOOL_ bits offered / called
     int amt[7];          // send_tribute: food..iron (2..6)
     int talk;            // AI TALK: the message's number in the exchange (1 the opener), 0 not a talk between AIs
+    int dec;             // AI DECIDE: the exchange is about an offer (1 alliance, 2 capitulation), 0 a talk
+    int offer;           // AI DECIDE: the listener's offer to the speaker it may accept (0 alliance, 1 capitulation), -1 none
 };
 #define SET_STATE(j, s) InterlockedExchange(&(j)->state, (s))
 static struct llm_job g_llm_jobs[LLM_JOBS];
 
 // AI TALK state: each pair's messages ([lo][hi], who = the speaker; who >= 16: the event that opened an exchange, in
 // the third person), the exchange running, openers waiting
-static int g_llm_ai_talk, g_llm_talk_show = 1, g_llm_talk_gap = 60, g_llm_talk_turns = 3;
+static int g_llm_ai_talk, g_llm_talk_show = 1, g_llm_talk_gap = 60, g_llm_talk_turns = 3, g_llm_ai_decide;
+static uint32_t g_pair_last[16][16];   // [lo][hi]: the pair's last request (game time) - events then open no other talk
+static unsigned g_talk_n_acts;
 static struct { int8_t who[LLM_HIST]; char text[LLM_HIST][LLM_MAXLEN + 32]; int n; } g_pair_hist[16][16];
 static struct { int a, b, turn; uint32_t t; } g_talk;   // a 0: none running
 static struct { int a, b; char sit[400], ev[400], fixed[256]; uint32_t t; } g_talk_wait[4];
@@ -139,6 +152,7 @@ static void llm_new_game(void) {
     memset(g_pair_hist, 0, sizeof g_pair_hist);
     memset(&g_talk, 0, sizeof g_talk);
     memset(g_talk_wait, 0, sizeof g_talk_wait);
+    memset(g_pair_last, 0, sizeof g_pair_last);
     g_talk_started = 0;
 }
 // an event between AI ai and the local player, for the model's memory of the exchange
@@ -417,6 +431,10 @@ again:
         WCHAR *mark = wcsstr(w, L"<tool_call>");   // a call written as text: not said
         if (!mark) mark = wcsstr(w, L"{\"name\"");
         if (mark && j->act) *mark = 0;
+        // a tool's name in the words ("... make_peace()" - Orion wrote it without calling it): never said
+        static const WCHAR *const names[] = { L"make_peace", L"declare_war", L"send_tribute" };
+        for (size_t n = 0; n < sizeof names / sizeof *names; n++)
+            if ((mark = wcsstr(w, names[n])) != NULL) *mark = 0;
         has = 1;
     }
     if (!has) {
@@ -535,9 +553,10 @@ static void tcat(char *t, int *o, int cap, const char *fmt, ...) {
 }
 // the system message: who the AI is, how it talks, the rules, and the game as it stands for the listener h
 static int llm_deciding(void);
+static int llm_ai_deciding(void);
 // tools: -1 a line (no decision), else the TOOL_ bits offered with this request (decide mode)
 static void llm_system(struct sbuf *b, void *pl, int ai, int h, int tools) {
-    int decide = tools >= 0 && llm_deciding();
+    int decide = tools >= 0 && (g_players[h & 15] ? llm_ai_deciding() : llm_deciding());
     struct persona *p = persona_of(pl);
     char t[4096];
     int o = 0;
@@ -680,13 +699,34 @@ static void sb_tool(struct sbuf *b, const char *name, const char *desc, const ch
     sb_json(b, desc);
     sb_printf(b, ",\"parameters\":%s}}", params);
 }
+// AI DECIDE: h's offer to AI ai stands and ai may take it - 0 an alliance, 1 a capitulation; -1 none
+static int pair_accept(int ai, int h) {
+    void *pl = player_at(ai), *ph = player_at(h);
+    if (!pl || !ph || is_out(pl) || is_out(ph) || !g_offer_t[h][ai] || g_offer_kind[h][ai] > 1 || is_vassal(ai)) return -1;
+    g_veto_quiet = 1;
+    int veto = block_veto(ai, h, game_time(), NULL);
+    g_veto_quiet = 0;
+    return veto ? -1 : g_offer_kind[h][ai];
+}
 static void sb_tools(struct sbuf *b, int tools, int ai, int h) {
     void *ph = player_at(h), *pl = player_at(ai);
     if (!tools || !ph || !pl) return;
     const char *hn = llm_name(ph);
     char d[400];
     sb_puts(b, ",\"tools\":[");
-    if (tools & TOOL_PEACE) {
+    int k = (tools & TOOL_PEACE) && g_players[h] ? pair_accept(ai, h) : -1;
+    if (k == 1) {   // between AIs: its capitulation
+        char what[120];
+        tribute_text(g_promise[h], what, sizeof what);
+        snprintf(d, sizeof d, "Accept the capitulation of %s: they pay you %s and serve you as your vassal from now on.", hn, what);
+        sb_tool(b, "make_peace", d, "{\"type\":\"object\",\"properties\":{}}");
+    } else if (k == 0) {
+        snprintf(d, sizeof d, "Accept the alliance %s offers you: you are allies from now on.", hn);
+        sb_tool(b, "make_peace", d, "{\"type\":\"object\",\"properties\":{}}");
+    } else if ((tools & TOOL_PEACE) && g_players[h] && stance_of(ph, ai)) {
+        snprintf(d, sizeof d, "Offer %s peace and an alliance: they decide in their answer.", hn);
+        sb_tool(b, "make_peace", d, "{\"type\":\"object\",\"properties\":{}}");
+    } else if (tools & TOOL_PEACE) {
         if (!stance_of(ph, ai)) snprintf(d, sizeof d, "Accept the peace %s offers you: you are allies from now on.", hn);
         else snprintf(d, sizeof d, "Offer %s peace: they get 2 minutes to set their stance towards you to allied - only then "
                       "are you allies.", hn);
@@ -1110,9 +1150,23 @@ static void pair_history(struct sbuf *b, int ai, int other) {   // from ai's sid
         sb_msg(b, "user", u);
     }
 }
-// a message of speaker to listener: turn 1 opens the exchange on an event (sit, its usual line fixed), later turns
-// answer the other's last message
-static int talk_request(int speaker, int listener, int turn, const char *sit, const char *fixed) {
+static int llm_ai_deciding(void) {
+    return llm_ready() && g_llm_ai_decide && g_ai_diplomacy && !g_mp && !scenario_game() && !TEAMS_LOCKED;
+}
+// the steps open to AI ai towards AI h in a message
+static int pair_tools(int ai, int h, uint32_t now) {
+    void *pl = player_at(ai), *ph = player_at(h);
+    if (!llm_ai_deciding() || !pl || !ph || is_out(pl) || is_out(ph)) return 0;
+    int t = 0;
+    if (pair_accept(ai, h) >= 0) t |= TOOL_PEACE;   // accept its offer
+    else if (tool_peace_ok(ai, h, now) && !g_offer_t[h][ai]) t |= TOOL_PEACE;   // offer peace (or accept its allied stance)
+    if (tool_war_ok(ai, h, now)) t |= TOOL_WAR;
+    if (tool_tribute_ok(ai, now)) t |= TOOL_TRIBUTE;
+    return t;
+}
+// a message of speaker to listener: turn 1 opens the exchange on an event (sit, its usual line fixed - or none), later
+// turns answer the other's last message; dec: the exchange is about an offer (AI DECIDE)
+static int talk_request(int speaker, int listener, int turn, const char *sit, const char *fixed, int dec) {
     void *pl = player_at(speaker), *po = player_at(listener);
     if (!pl || !po || !g_players[speaker] || is_out(pl) || is_out(po) || !llm_ready()) return 0;
     struct llm_job *j = llm_slot();
@@ -1121,29 +1175,123 @@ static int talk_request(int speaker, int listener, int turn, const char *sit, co
     j->ai = speaker;
     j->to = listener;
     j->talk = turn;
+    j->dec = dec;
+    uint32_t now = game_time();
+    j->tools = turn > 1 ? pair_tools(speaker, listener, now) : 0;
+    j->offer = j->tools & TOOL_PEACE ? pair_accept(speaker, listener) : -1;
+    g_pair_last[speaker < listener ? speaker : listener][speaker < listener ? listener : speaker] = now ? now : 1;
     struct sbuf b = { 0 };
     sb_puts(&b, "{\"messages\":[");
-    llm_system(&b, pl, speaker, listener, -1);
+    llm_system(&b, pl, speaker, listener, j->tools ? j->tools : -1);
     pair_history(&b, speaker, listener);
     char u[1200];
     if (turn == 1)
         snprintf(u, sizeof u, "(Not a chat line - an event of the game: %s. Write %s a message about it, in your own words, "
-                 "in %s - only they read it. The usual line would be: \"%s\" - keep its meaning.)", sit, llm_name(po),
-                 llm_language(), fixed);
+                 "in %s - only they read it.%s%s%s)", sit, llm_name(po), llm_language(), fixed && *fixed ?
+                 " The usual line would be: \"" : "", fixed && *fixed ? fixed : "", fixed && *fixed ? "\" - keep its meaning." : "");
+    else if (j->offer == 1) {
+        char what[120];
+        tribute_text(g_promise[listener], what, sizeof what);
+        snprintf(u, sizeof u, "(Answer %s in one or two sentences, in %s. Their capitulation stands: accept it with the tool "
+                 "make_peace - they pay you %s and serve you - or refuse it, and the war goes on.)", llm_name(po),
+                 llm_language(), what);
+    } else if (j->offer == 0)
+        snprintf(u, sizeof u, "(Answer %s in one or two sentences, in %s. Their offer of an alliance stands: accept it with "
+                 "the tool make_peace, or refuse it.)", llm_name(po), llm_language());
     else if (turn >= g_llm_talk_turns)
         snprintf(u, sizeof u, "(Answer %s in one or two sentences, in %s - your last word on it for now.)", llm_name(po),
                  llm_language());
     else snprintf(u, sizeof u, "(Answer %s in one or two sentences, in %s.)", llm_name(po), llm_language());
     sb_msg(&b, "user", u);
     if (!b.p) { SET_STATE(j, J_FREE); return 0; }
-    llm_queue(j, llm_finish(&b, 0, speaker, listener));
+    llm_queue(j, llm_finish(&b, j->tools, speaker, listener));
     return 1;
+}
+// AI DECIDE: AI from offers AI to an alliance (kind 0, against third) or capitulates to it (1) - diplo.c sets the
+// offer up when this returns 1 (the exchange is queued)
+static int llm_ai_offer(int from, int to, int kind, int third) {
+    if (!llm_ai_deciding() || !g_players[from] || !g_players[to]) return 0;
+    void *pf = player_at(from), *pt = player_at(to), *p3 = third ? player_at(third) : NULL;
+    enum line_kind k = kind ? L_CAPITULATE : L_ALLIANCE_OFFER;
+    char sit[400], ev[400];
+    llm_subst(sit, sizeof sit, k_llm_situation[k], pf, pt, p3);
+    llm_subst(ev, sizeof ev, k_llm_event3[k], pf, pt, p3);
+    if (!talk_request(from, to, 1, sit, "", kind + 1)) return 0;
+    for (int i = 0; i < 4; i++)   // the offer's line waits as a talk: this exchange is it
+        if (g_talk_wait[i].t && ((g_talk_wait[i].a == from && g_talk_wait[i].b == to) || (g_talk_wait[i].a == to && g_talk_wait[i].b == from)))
+            g_talk_wait[i].t = 0;
+    pair_add(from, to, 16, ev);
+    if (g_llm_log && g_log) fprintf(g_log, "# llm: talk P%d -> P%d opened (the model decides): %s\n", from, to, sit);
+    return 1;
+}
+// AI DECIDE: the steps a message called, checked again and carried out; events for the pair's memory
+static int talk_apply(struct llm_job *j) {
+    int ai = j->ai, h = j->to, did = 0, act = j->act & j->tools;
+    void *pl = player_at(ai), *ph = player_at(h);
+    uint32_t now = game_time();
+    if (!pl || !ph || is_out(pl) || is_out(ph)) return 0;
+    const char *an = llm_name(pl), *hn = llm_name(ph);
+    char ev[240], what[120] = "";
+    if (j->act & ~j->tools && g_llm_log && g_log)
+        fprintf(g_log, "# llm: P%d called a tool it wasn't offered (called %d, offered %d) - ignored\n", ai, j->act, j->tools);
+    if (act & TOOL_PEACE) {
+        int k = pair_accept(ai, h);
+        if (k >= 0 || (!stance_of(ph, ai) && tool_peace_ok(ai, h, now))) {   // its offer, or its allied stance: accepted
+            make_peace(ai, h, now);   // h's turn (diplo_tick) completes an offer: allied both ways / tribute and vassal
+            snprintf(ev, sizeof ev, "%s accepted the %s of %s", an, k == 1 ? "capitulation" : k == 0 ? "alliance offer" :
+                     "peace offer", hn);
+            pair_add(ai, h, 16, ev);
+            did |= TOOL_PEACE;
+        } else if (stance_of(ph, ai) && tool_peace_ok(ai, h, now) && !g_offer_t[h][ai]) {   // its offer: h decides next
+            g_offer_t[ai][h] = now ? now : 1;
+            g_offer_kind[ai][h] = 0;
+            g_offer_last[ai][h] = now;
+            snprintf(ev, sizeof ev, "%s offered %s peace and an alliance - %s has 2 minutes to accept", an, hn, hn);
+            pair_add(ai, h, 16, ev);
+            did |= TOOL_PEACE;
+        }
+    }
+    if ((act & TOOL_WAR) && tool_war_ok(ai, h, now)) {
+        declare_war(ai, h, now);
+        snprintf(ev, sizeof ev, "%s declared war on %s", an, hn);
+        pair_add(ai, h, 16, ev);
+        did |= TOOL_WAR;
+    }
+    if ((act & TOOL_TRIBUTE) && tool_tribute_ok(ai, now)) {
+        int *from = (int *)((uint8_t *)pl + PL_STOCK), *to = (int *)((uint8_t *)ph + PL_STOCK), paid[7] = { 0 }, total = 0;
+        for (int r = 2; r < 7; r++) {
+            int n = j->amt[r], cap = from[r] > 0 ? from[r] / 4 : 0;
+            n = n < 0 ? 0 : n > cap ? cap : n;
+            from[r] -= n;
+            to[r] += n;
+            paid[r] = n;
+            total += n;
+        }
+        if (total > 0) {
+            g_llm_paid_t[ai] = now ? now : 1;
+            tribute_text(paid, what, sizeof what);
+            snprintf(ev, sizeof ev, "%s sent %s a tribute: %s", an, hn, what);
+            pair_add(ai, h, 16, ev);
+            diplo_tribute(ph, pl, total);   // its opinion; its thanks wait (the pair is talking)
+            did |= TOOL_TRIBUTE;
+        }
+    }
+    if (did) g_talk_n_acts++;
+    if (g_llm_log && g_log)
+        fprintf(g_log, "# llm: talk P%d -> P%d: offered%s%s%s, called%s%s%s, done%s%s%s%s%s\n", ai, h,
+                j->tools & TOOL_PEACE ? " peace" : "", j->tools & TOOL_WAR ? " war" : "", j->tools & TOOL_TRIBUTE ? " tribute" : "",
+                j->act & TOOL_PEACE ? " peace" : "", j->act & TOOL_WAR ? " war" : "", j->act & TOOL_TRIBUTE ? " tribute" : "",
+                did & TOOL_PEACE ? (j->offer >= 0 || !stance_of(pl, h) ? " accepted" : " peace offered") : "",
+                did & TOOL_WAR ? " war" : "", did & TOOL_TRIBUTE ? " tribute " : "", what, did ? "" : " nothing");
+    return did;
 }
 // persona_say: AI pl's line k to AI other, which the local player doesn't hear - an exchange between them (waits)
 static void llm_talk_event(void *pl, enum line_kind k, void *other, void *third, const char *fixed) {
     if (!g_llm_on || !g_llm_ai_talk || g_mp || !pl || !other || k_lines[k].aud != A_NAME) return;
     int a = pidx(pl), b = pidx(other), h = (int)*(unsigned *)0x00918E84;
     if (a == b || b == h || a == h || !g_players[a] || !g_players[b]) return;
+    uint32_t pt = g_pair_last[a < b ? a : b][a < b ? b : a];
+    if (pt && game_time() - pt < 60000) return;   // they are talking (an answer, an offer): its own words are in it
     int w = -1;
     for (int i = 0; i < 4 && w < 0; i++)   // the same pair waiting: the newer event replaces it
         if (g_talk_wait[i].t && ((g_talk_wait[i].a == a && g_talk_wait[i].b == b) || (g_talk_wait[i].a == b && g_talk_wait[i].b == a))) w = i;
@@ -1174,7 +1322,7 @@ static void talk_tick(void) {
     for (int i = 0; i < 4; i++) if (g_talk_wait[i].t && (w < 0 || g_talk_wait[i].t < g_talk_wait[w].t)) w = i;
     if (w < 0) return;
     g_talk_wait[w].t = 0;
-    if (!talk_request(g_talk_wait[w].a, g_talk_wait[w].b, 1, g_talk_wait[w].sit, g_talk_wait[w].fixed)) return;
+    if (!talk_request(g_talk_wait[w].a, g_talk_wait[w].b, 1, g_talk_wait[w].sit, g_talk_wait[w].fixed, 0)) return;
     g_talk.a = g_talk_wait[w].a;
     g_talk.b = g_talk_wait[w].b;
     g_talk.turn = 1;
@@ -1188,23 +1336,40 @@ static void talk_done(struct llm_job *j, int ok) {
     if (j->gen != g_llm_gen) return;
     int a = j->ai, b = j->to;
     void *pl = player_at(a), *po = player_at(b);
-    if (!ok || !j->reply[0] || !pl || !po) {
+    if (!ok || (!j->reply[0] && !j->act) || !pl || !po) {
         g_talk_n_fail++;
-        if (g_llm_log && g_log) fprintf(g_log, "# llm: talk P%d -> P%d (message %d) no answer (%s) - the exchange ends\n", a, b,
-                                        j->talk, g_llm_last_err);
-        g_talk.a = 0;
+        if (g_llm_log && g_log) fprintf(g_log, "# llm: talk P%d -> P%d (message %d) no answer (%s)\n", a, b, j->talk, g_llm_last_err);
+        if (j->offer >= 0) ai_offer_rules(b, a);   // its decision: the rules
+        else if (j->dec && j->talk == 1 && g_offer_t[a][b]) {   // the offer's words failed: the other still answers it
+            if (!talk_request(b, a, 2, NULL, NULL, j->dec)) ai_offer_rules(a, b);
+            return;
+        }
+        if (!j->dec) g_talk.a = 0;
         return;
     }
-    pair_add(a, b, a, j->reply);
-    g_talk_n_msg++;
-    if (g_llm_log && g_log) fprintf(g_log, "# llm: talk P%d -> P%d (message %d, %.1f s): %s\n", a, b, j->talk, j->ms / 1000.0, j->reply);
-    if (g_llm_talk_show) {
-        char l[LLM_MAXLEN + 96];
-        snprintf(l, sizeof l, "%s %s: %s", !lstrcmpiA(g_lang, "de") ? "an" : "to", player_name(po), j->reply);
-        chat_line(pl, l, g_chat_ms);
+    int did = j->act ? talk_apply(j) : 0;
+    if (j->offer >= 0 && !(did & TOOL_PEACE) && g_offer_t[b][a]) {   // it didn't take the offer: refused
+        offer_refused(b, a);
+        if (g_llm_log && g_log) fprintf(g_log, "# llm: talk P%d refuses the %s of P%d\n", a, j->offer ? "capitulation" : "alliance offer", b);
     }
-    if (j->talk < g_llm_talk_turns && talk_request(b, a, j->talk + 1, NULL, NULL)) g_talk.turn = j->talk + 1;
-    else g_talk.a = 0;
+    if (j->reply[0]) {
+        pair_add(a, b, a, j->reply);
+        g_talk_n_msg++;
+        if (g_llm_log && g_log) fprintf(g_log, "# llm: talk P%d -> P%d (message %d, %.1f s): %s\n", a, b, j->talk, j->ms / 1000.0, j->reply);
+        if (g_llm_talk_show) {
+            char l[LLM_MAXLEN + 96];
+            snprintf(l, sizeof l, "%s %s: %s", !lstrcmpiA(g_lang, "de") ? "an" : "to", player_name(po), j->reply);
+            chat_line(pl, l, g_chat_ms);
+        }
+    }
+    // the next message: the other's, up to ai_talk_turns (an offer: 2 at least); whoever acted gets an answer
+    int next = j->talk + 1, last = j->dec && g_llm_talk_turns < 2 ? 2 : g_llm_talk_turns;
+    if (did && next > last) last = next;
+    if (next <= last && next <= 6) {
+        if (talk_request(b, a, next, NULL, NULL, j->dec)) { if (!j->dec) g_talk.turn = next; return; }
+        if (g_offer_t[a][b] && g_players[b]) ai_offer_rules(a, b);   // its offer stands and nobody asks the other
+    }
+    if (!j->dec) g_talk.a = 0;
 }
 
 // every simulation step: show what is answered
@@ -1313,9 +1478,10 @@ static void cmd_llm(char *out, const char *args) {
     for (int i = 0; i < LLM_JOBS; i++) q += g_llm_jobs[i].state != J_FREE;
     REPLY("decide %d (%s): decisions %u, with a step taken %u\n", g_llm_decide, llm_deciding() ? "deciding" : "not deciding",
           g_llm_n_dec, g_llm_n_acts);
-    REPLY("ai_talk %d (show %d, gap %d s, turns %d): exchanges %u, messages %u, failed %u, dropped %u%s\n", g_llm_ai_talk,
-          g_llm_talk_show, g_llm_talk_gap, g_llm_talk_turns, g_talk_n_ex, g_talk_n_msg, g_talk_n_fail, g_talk_n_drop,
-          g_talk.a ? " (one running)" : "");
+    REPLY("ai_talk %d (show %d, gap %d s, turns %d), ai_decide %d (%s): exchanges %u, messages %u, steps taken %u, failed %u, "
+          "dropped %u%s\n", g_llm_ai_talk, g_llm_talk_show, g_llm_talk_gap, g_llm_talk_turns, g_llm_ai_decide,
+          llm_ai_deciding() ? "deciding" : "not deciding", g_talk_n_ex, g_talk_n_msg, g_talk_n_acts, g_talk_n_fail,
+          g_talk_n_drop, g_talk.a ? " (one running)" : "");
     REPLY("llm %s, url %s, model '%s', lines %d, chat %d, timeout %d s; %s; answers %u, failed %u (late %u), fixed lines "
           "%u, pending %d, think %d%s%s%s\n", g_llm_on ? "on" : "off", g_llm_url, g_llm_model, g_llm_lines, g_llm_chat, g_llm_timeout,
           (LONG)(g_llm_down_until - GetTickCount()) > 0 ? "DOWN" : "up", g_llm_n_ok, g_llm_n_fail, g_llm_n_late,
@@ -1336,6 +1502,7 @@ static void llm_install(const char *ini, const char *test_ini) {
     g_llm_talk_show = GetPrivateProfileIntA("llm", "ai_talk_show", 1, ini);
     g_llm_talk_gap = GetPrivateProfileIntA("llm", "ai_talk_gap", 60, ini);
     g_llm_talk_turns = GetPrivateProfileIntA("llm", "ai_talk_turns", 3, ini);
+    g_llm_ai_decide = GetPrivateProfileIntA("llm", "ai_decide", 0, ini);
     GetPrivateProfileStringA("llm", "url", g_llm_url, g_llm_url, sizeof g_llm_url, ini);
     GetPrivateProfileStringA("llm", "model", "", g_llm_model, sizeof g_llm_model, ini);
     GetPrivateProfileStringA("llm", "api_key", "", g_llm_key, sizeof g_llm_key, ini);
@@ -1349,6 +1516,7 @@ static void llm_install(const char *ini, const char *test_ini) {
         g_llm_ai_talk = GetPrivateProfileIntA("autotest", "llm_ai_talk", g_llm_ai_talk, test_ini);
         g_llm_talk_show = GetPrivateProfileIntA("autotest", "llm_ai_talk_show", g_llm_talk_show, test_ini);
         g_llm_talk_gap = GetPrivateProfileIntA("autotest", "llm_ai_talk_gap", g_llm_talk_gap, test_ini);
+        g_llm_ai_decide = GetPrivateProfileIntA("autotest", "llm_ai_decide", g_llm_ai_decide, test_ini);
         GetPrivateProfileStringA("autotest", "llm_url", g_llm_url, g_llm_url, sizeof g_llm_url, test_ini);
         GetPrivateProfileStringA("autotest", "llm_model", g_llm_model, g_llm_model, sizeof g_llm_model, test_ini);
     }
@@ -1379,6 +1547,6 @@ static void llm_install(const char *ini, const char *test_ini) {
     g_llm_event = CreateEventA(NULL, FALSE, FALSE, NULL);
     g_llm_thread = CreateThread(NULL, 0, llm_worker, NULL, 0, NULL);
     if (g_log) fprintf(g_log, "# llm: on - %s, model '%s', lines %d, chat %d, decide %d, ai_talk %d (show %d, gap %d s, turns %d), "
-                       "timeout %d s\n", g_llm_url, g_llm_model, g_llm_lines, g_llm_chat, g_llm_decide, g_llm_ai_talk,
-                       g_llm_talk_show, g_llm_talk_gap, g_llm_talk_turns, g_llm_timeout);
+                       "ai_decide %d, timeout %d s\n", g_llm_url, g_llm_model, g_llm_lines, g_llm_chat, g_llm_decide, g_llm_ai_talk,
+                       g_llm_talk_show, g_llm_talk_gap, g_llm_talk_turns, g_llm_ai_decide, g_llm_timeout);
 }

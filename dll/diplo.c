@@ -307,6 +307,8 @@ static int is_vassal(int ai) {
 static int block_veto(int ai, int j, uint32_t now, int *own);   // alliance blocks (below)
 static void block_refuse(void *pl, int j, int who, int own);
 static int llm_peace_answer(void *pl, int ai, int j, uint32_t now);   // llm.c: the model decides ([llm] decide=1)
+static int llm_ai_deciding(void);                                     // llm.c: the model decides between AIs ([llm] ai_decide=1)
+static int llm_ai_offer(int from, int to, int kind, int third);       // llm.c: an AI's offer to an AI, the model answers
 static void llm_happened(int ai, const char *fmt, ...);               // llm.c: an event for the model's memory
 static const char *llm_name(void *p) {   // a player's name for the model (a test's idle human has none)
     return p && *player_name(p) && *player_name(p) != '?' ? player_name(p) : "the player";
@@ -597,6 +599,36 @@ static int peace_terms(int ai, int j, char *out, int cap) {
     return price;
 }
 
+// AI ai offers player best an alliance against lead (diplo_initiative; tests: diplo offer)
+static void offer_alliance(int ai, int best, int lead, uint32_t now) {
+    void *pl = player_at(ai);
+    void *pj = player_at(best);
+    g_offer_last[ai][best] = now;
+    persona_say(pl, L_ALLIANCE_OFFER, pj, player_at(lead));
+    if (g_players[best] && llm_ai_deciding() && llm_ai_offer(ai, best, 0, lead)) {   // the model answers (llm.c)
+        g_offer_t[ai][best] = now ? now : 1;   // as to a human: it stands 2 minutes; acceptance = allied
+        g_offer_kind[ai][best] = 0;
+        if (g_log) fprintf(g_log, "# diplomacy: P%d offers P%d (AI, the model decides) an alliance against P%d\n", ai, best, lead);
+    } else if (g_players[best]) {   // an AI decides at once (its turn of peace_offer)
+        float s = peace_score(pj, best, ai, now) + 15;
+        if (g_log) fprintf(g_log, "# diplomacy: P%d offers P%d (AI) an alliance against P%d: score %.0f\n", ai, best, lead, s);
+        if (s > 0) {
+            make_peace(ai, best, now);
+            make_peace(best, ai, now);
+            persona_say(pj, L_OFFER_ACCEPTED, pl, player_at(lead));
+        } else persona_say(pj, L_PEACE_REFUSE, pl, NULL);
+    } else {                 // a human: the offer as a line; the AI turns allied when he does (2 minutes)
+        g_offer_t[ai][best] = now ? now : 1;
+        g_offer_kind[ai][best] = 0;
+        char de[300], en[300];
+        wsprintfA(de, "%s bietet ein B\xfcndnis gegen %s an: stellen Sie %s binnen 2 Minuten auf Verb\xfcndet, um "
+                      "anzunehmen.", player_name(pl), player_name(player_at(lead)), player_name(pl));
+        wsprintfA(en, "%s offers an alliance against %s: set %s to allied within 2 minutes to accept.", player_name(pl),
+                  player_name(player_at(lead)), player_name(pl));
+        block_line(best, de, en);
+        if (g_log) fprintf(g_log, "# diplomacy: P%d offers P%d (human) an alliance against P%d\n", ai, best, lead);
+    }
+}
 // AI ai's own initiative (every 60 s)
 static void diplo_initiative(void *pl, int ai, uint32_t now) {
     if (!g_ai_diplomacy || TEAMS_LOCKED || scenario_game() || now < 600000 || is_vassal(ai)) return;
@@ -616,28 +648,7 @@ static void diplo_initiative(void *pl, int ai, uint32_t now) {
             bs = g_opinion[ai][j]; best = j;
         }
         if (best) {
-            void *pj = player_at(best);
-            g_offer_last[ai][best] = now;
-            persona_say(pl, L_ALLIANCE_OFFER, pj, player_at(lead));
-            if (g_players[best]) {   // an AI decides at once (its turn of peace_offer)
-                float s = peace_score(pj, best, ai, now) + 15;
-                if (g_log) fprintf(g_log, "# diplomacy: P%d offers P%d (AI) an alliance against P%d: score %.0f\n", ai, best, lead, s);
-                if (s > 0) {
-                    make_peace(ai, best, now);
-                    make_peace(best, ai, now);
-                    persona_say(pj, L_OFFER_ACCEPTED, pl, player_at(lead));
-                } else persona_say(pj, L_PEACE_REFUSE, pl, NULL);
-            } else {                 // a human: the offer as a line; the AI turns allied when he does (2 minutes)
-                g_offer_t[ai][best] = now ? now : 1;
-                g_offer_kind[ai][best] = 0;
-                char de[300], en[300];
-                wsprintfA(de, "%s bietet ein B\xfcndnis gegen %s an: stellen Sie %s binnen 2 Minuten auf Verb\xfcndet, um "
-                              "anzunehmen.", player_name(pl), player_name(player_at(lead)), player_name(pl));
-                wsprintfA(en, "%s offers an alliance against %s: set %s to allied within 2 minutes to accept.", player_name(pl),
-                          player_name(player_at(lead)), player_name(pl));
-                block_line(best, de, en);
-                if (g_log) fprintf(g_log, "# diplomacy: P%d offers P%d (human) an alliance against P%d\n", ai, best, lead);
-            }
+            offer_alliance(ai, best, lead, now);
             return;
         }
     }
@@ -759,6 +770,13 @@ static void capitulate(void *pl, int ai, int a, uint32_t now) {
                        g_players[a] ? "AI" : "human", total, share * 100, g_ws.power[ai], g_ws.power[a], g_ws.close_by[ai][a],
                        g_ws.buildings[ai], g_ws.peak[ai]);
     persona_say(pl, L_CAPITULATE, pa, NULL);
+    if (g_players[a] && llm_ai_deciding() && llm_ai_offer(ai, a, 1, 0)) {   // the model answers: as to a human (below)
+        set_stance(ai, a, 0);
+        promise_escrow(ai, 1);
+        g_offer_t[ai][a] = now ? now : 1;
+        g_offer_kind[ai][a] = 1;
+        return;
+    }
     if (g_players[a]) {   // an AI conqueror decides at once: peace score + what the tribute is worth to it
         float gain = (float)total / (20.0f + 0.8f * (float)(100 - trait(pa, T_GREED)));
         float s = peace_score(pa, a, ai, now) + gain;
@@ -792,6 +810,30 @@ static void capitulate(void *pl, int ai, int a, uint32_t now) {
               player_name(pl));
     block_line(a, de, en);
 }
+// AN AI'S OFFER TO AN AI, ANSWERED BY THE MODEL ([llm] ai_decide): it stands like an offer to a human (g_offer_t,
+// 2 minutes; the answer is the other's stance turning allied - diplo_tick does the rest). Refused: it runs out now.
+static void offer_refused(int from, int to) {
+    uint32_t now = game_time();
+    if (g_offer_t[from][to]) g_offer_t[from][to] = now > 120001 ? now - 120001 : 1;
+}
+// no answer from the model: the rules decide, as they did at once before
+static void ai_offer_rules(int from, int to) {
+    void *pf = player_at(from), *pt = player_at(to);
+    uint32_t now = game_time();
+    if (!pf || !pt || !g_offer_t[from][to] || is_out(pt)) return;
+    float s = peace_score(pt, to, from, now);
+    if (g_offer_kind[from][to] == 1) {
+        int total = 0;
+        for (int r = 2; r < 7; r++) total += g_promise[from][r];
+        s += (float)total / (20.0f + 0.8f * (float)(100 - trait(pt, T_GREED)));
+    } else s += 15;
+    if (s > 0 && block_veto(to, from, now, NULL)) s = -1;
+    if (g_log) fprintf(g_log, "# diplomacy: P%d answers the %s of P%d by the rules: score %.0f\n", to,
+                       g_offer_kind[from][to] == 1 ? "capitulation" : "alliance offer", from, s);
+    if (s > 0) make_peace(to, from, now);
+    else offer_refused(from, to);
+}
+
 // surrender (every 10 s, after the scan): queued here, carried out at the next safe point (diplo_safe_point)
 static int g_surrender = 1;
 static uint32_t g_no_citizens_since[16];
@@ -1387,6 +1429,18 @@ static void cmd_diplo(char *out, const char *args) {
         InterlockedOr(&g_resign_queue, 1 << a);
         REPLY("P%d resigns; citizens %d, centers %d, no citizens since %.1f min\n", a, g_ws.citizens[a], g_ws.centers[a],
               g_no_citizens_since[a] / 60000.0);
+        return;
+    }
+    if (sscanf(args, "offer %d %d %d", &a, &b, &s) == 3) {   // diplo offer A B C: AI A offers B an alliance against C (tests)
+        if (!g_players[a & 15] || !player_at(b) || !player_at(s)) { REPLY("error: P%d is no AI or no P%d / P%d\n", a, b, s); return; }
+        offer_alliance(a, b, s, game_time());
+        REPLY("P%d offers P%d an alliance against P%d (pending %d)\n", a, b, s, g_offer_t[a][b] != 0);
+        return;
+    }
+    if (sscanf(args, "capit %d %d", &a, &b) == 2) {   // diplo capit A B: AI A capitulates to B (tests)
+        if (!g_players[a & 15] || !player_at(b)) { REPLY("error: P%d is no AI or no P%d\n", a, b); return; }
+        capitulate(player_at(a), a, b, game_time());
+        REPLY("P%d capitulates to P%d (pending %d, lord %d)\n", a, b, g_offer_t[a][b] != 0, g_lord[a]);
         return;
     }
     if (sscanf(args, "terms %d %d", &a, &b) == 2) {   // diplo terms P H: AI P's terms for peace with H (the AI voice)
