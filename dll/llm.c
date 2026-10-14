@@ -78,7 +78,7 @@ static int g_llm_rules;                         // the rules decide in the model
 static int g_llm_bypass;                        // a fixed line for a decision: shown as it is, not reworded
 static uint32_t g_llm_paid_t[16];               // the AI's last tribute by tool (game time)
 static unsigned g_llm_n_dec, g_llm_n_acts;
-enum { TOOL_PEACE = 1, TOOL_WAR = 2, TOOL_TRIBUTE = 4 };
+enum { TOOL_PEACE = 1, TOOL_WAR = 2, TOOL_TRIBUTE = 4, TOOL_REFUSE = 8 };
 static char g_llm_last_err[160];
 
 enum { J_FREE, J_QUEUED, J_RUNNING, J_DONE, J_FAILED };
@@ -101,6 +101,7 @@ struct llm_job {
     int talk;            // AI TALK: the message's number in the exchange (1 the opener), 0 not a talk between AIs
     int dec;             // AI DECIDE: the exchange is about an offer (1 alliance, 2 capitulation), 0 a talk
     int offer;           // AI DECIDE: the listener's offer to the speaker it may accept (0 alliance, 1 capitulation), -1 none
+    int confirm;         // AI DECIDE: asked again for its decision (it answered an offer without a tool): words not shown
 };
 #define SET_STATE(j, s) InterlockedExchange(&(j)->state, (s))
 static struct llm_job g_llm_jobs[LLM_JOBS];
@@ -265,7 +266,7 @@ static int json_content(const char *resp, WCHAR *out, int cap) {
 
 // ---- tool calls: in "tool_calls" (OpenAI), else written into the content ({"name": ..., "arguments": ...}, also
 // inside <tool_call> markup - some servers pass a model's call on as text). Names and argument numbers, escaped or not.
-static const char *const k_tool_name[3] = { "make_peace", "declare_war", "send_tribute" };
+static const char *const k_tool_name[4] = { "make_peace", "declare_war", "send_tribute", "refuse_offer" };
 static int json_num_key(const char *s, const char *end, const char *key) {   // "key": 123 (or \"key\": 123), else 0
     size_t kl = strlen(key);
     for (const char *p = s; p && p < end; p++) {
@@ -306,7 +307,7 @@ static void json_tools(const char *resp, struct llm_job *j) {
         while (q < end && (*q == ' ' || *q == '\\' || *q == '"')) q++;
         const char *next = strstr(q, "name");
         if (!next || next > end) next = end;
-        for (int t = 0; t < 3; t++) {
+        for (int t = 0; t < 4; t++) {
             size_t tl = strlen(k_tool_name[t]);
             const char *at = q;
             if (!strncmp(at, "functions.", 10)) at += 10;
@@ -435,9 +436,13 @@ again:
         if (!mark) mark = wcsstr(w, L"{\"name\"");
         if (mark && j->act) *mark = 0;
         // a tool's name in the words ("... make_peace()" - Orion wrote it without calling it): never said
-        static const WCHAR *const names[] = { L"make_peace", L"declare_war", L"send_tribute" };
+        static const WCHAR *const names[] = { L"make_peace", L"declare_war", L"send_tribute", L"refuse_offer", L"[call",
+                                              L"<tool", L"<|" };   // also half-written calls ("... [call")
         for (size_t n = 0; n < sizeof names / sizeof *names; n++)
             if ((mark = wcsstr(w, names[n])) != NULL) *mark = 0;
+        size_t wl = wcslen(w);   // "... ohne Bedingungen. call" - the rest of a call
+        while (wl && w[wl - 1] == ' ') w[--wl] = 0;
+        if (wl >= 5 && !_wcsicmp(w + wl - 4, L"call") && w[wl - 5] == ' ') w[wl - 5] = 0;
         has = 1;
     }
     if (!has) {
@@ -747,13 +752,19 @@ static void sb_tools(struct sbuf *b, int tools, int ai, int h) {
         sb_tool(b, "send_tribute", d, "{\"type\":\"object\",\"properties\":{\"food\":{\"type\":\"integer\"},\"wood\":{\"type\":"
                 "\"integer\"},\"stone\":{\"type\":\"integer\"},\"gold\":{\"type\":\"integer\"},\"iron\":{\"type\":\"integer\"}}}");
     }
+    if (tools & TOOL_REFUSE) {
+        snprintf(d, sizeof d, "Refuse the %s of %s.", k == 1 ? "capitulation" : "offer of an alliance", hn);
+        sb_tool(b, "refuse_offer", d, "{\"type\":\"object\",\"properties\":{}}");
+    }
     sb_puts(b, "],\"tool_choice\":\"auto\"");
 }
+static int g_llm_tok_once;   // max_tokens for the next request only (0: the setting)
 static char *llm_finish(struct sbuf *b, int tools, int ai, int h) {
     sb_puts(b, "]");
     sb_tools(b, tools, ai, h);
     if (g_llm_model[0]) { sb_puts(b, ",\"model\":"); sb_json(b, g_llm_model); }
-    sb_printf(b, ",\"max_tokens\":%d,\"temperature\":%.2f,\"stream\":false", g_llm_max_tokens, g_llm_temp / 100.0);
+    sb_printf(b, ",\"max_tokens\":%d,\"temperature\":%.2f,\"stream\":false", g_llm_tok_once ? g_llm_tok_once : g_llm_max_tokens,
+              g_llm_temp / 100.0);
     if (!g_llm_think && !g_llm_effort_refused) sb_puts(b, LLM_NO_THINK);
     if (g_llm_extra[0]) { sb_puts(b, ","); sb_puts(b, g_llm_extra); }
     sb_puts(b, "}");
@@ -1183,6 +1194,8 @@ static int talk_request(int speaker, int listener, int turn, const char *sit, co
     uint32_t now = game_time();
     j->tools = turn > 1 ? pair_tools(speaker, listener, now) : 0;
     j->offer = j->tools & TOOL_PEACE ? pair_accept(speaker, listener) : -1;
+    if (j->offer >= 0) j->tools |= TOOL_REFUSE;
+    j->confirm = !sit && fixed;   // talk_done: asked again (fixed is "" then)
     g_pair_last[speaker < listener ? speaker : listener][speaker < listener ? listener : speaker] = now ? now : 1;
     struct sbuf b = { 0 };
     sb_puts(&b, "{\"messages\":[");
@@ -1193,28 +1206,35 @@ static int talk_request(int speaker, int listener, int turn, const char *sit, co
         snprintf(u, sizeof u, "(Not a chat line - an event of the game: %s. Write %s a message about it, in your own words, "
                  "in %s - only they read it.%s%s%s)", sit, llm_name(po), llm_language(), fixed && *fixed ?
                  " The usual line would be: \"" : "", fixed && *fixed ? fixed : "", fixed && *fixed ? "\" - keep its meaning." : "");
+    else if (j->confirm && j->offer >= 0)
+        snprintf(u, sizeof u, "(You called no tool. Your decision on the %s of %s, as you just said it: call make_peace to "
+                 "accept or refuse_offer to refuse, and say yes or no.)", j->offer ? "capitulation" : "offer of an alliance",
+                 llm_name(po));
     else if (j->offer == 1) {
         char what[120];
         tribute_text(g_promise[listener], what, sizeof what);
         snprintf(u, sizeof u, "(Answer %s in one or two sentences, in %s. Their capitulation stands: accept it with the tool "
-                 "make_peace - they pay you %s and serve you - or refuse it, and the war goes on.)", llm_name(po),
+                 "make_peace - they pay you %s and serve you - or refuse it with refuse_offer, and the war goes on.)", llm_name(po),
                  llm_language(), what);
     } else if (j->offer == 0)
         snprintf(u, sizeof u, "(Answer %s in one or two sentences, in %s. Their offer of an alliance stands: accept it with "
-                 "the tool make_peace, or refuse it.)", llm_name(po), llm_language());
+                 "the tool make_peace, or refuse it with refuse_offer.)", llm_name(po), llm_language());
     else if (turn >= g_llm_talk_turns)
         snprintf(u, sizeof u, "(Answer %s in one or two sentences, in %s - your last word on it for now.)", llm_name(po),
                  llm_language());
     else snprintf(u, sizeof u, "(Answer %s in one or two sentences, in %s.)", llm_name(po), llm_language());
     sb_msg(&b, "user", u);
     if (!b.p) { SET_STATE(j, J_FREE); return 0; }
+    if (j->confirm) g_llm_tok_once = g_llm_max_tokens > 1200 ? g_llm_max_tokens : 1200;   // asked again: it thinks first
     llm_queue(j, llm_finish(&b, j->tools, speaker, listener));
+    g_llm_tok_once = 0;
     return 1;
 }
 // AI DECIDE: AI from offers AI to an alliance (kind 0, against third) or capitulates to it (1) - diplo.c sets the
 // offer up when this returns 1 (the exchange is queued)
 static int llm_ai_offer(int from, int to, int kind, int third) {
     if (!llm_ai_deciding() || !g_players[from] || !g_players[to]) return 0;
+    if (g_offer_t[from][to] || g_offer_t[to][from]) return 0;   // one offer at a time between them: the rules
     void *pf = player_at(from), *pt = player_at(to), *p3 = third ? player_at(third) : NULL;
     enum line_kind k = kind ? L_CAPITULATE : L_ALLIANCE_OFFER;
     char sit[400], ev[400];
@@ -1352,9 +1372,32 @@ static void talk_done(struct llm_job *j, int ok) {
         return;
     }
     int did = j->act ? talk_apply(j) : 0;
+    if (j->offer >= 0 && !(j->act & (TOOL_PEACE | TOOL_REFUSE)) && !j->confirm && g_offer_t[b][a]) {
+        // words without a decision ("I accept your alliance, but I pay no gold" - and no tool): its words stand, it is
+        // asked once more for the tool alone
+        if (j->reply[0]) {
+            pair_add(a, b, a, j->reply);
+            g_talk_n_msg++;
+            if (g_llm_log && g_log) fprintf(g_log, "# llm: talk P%d -> P%d (message %d, %.1f s, no decision - asked again): %s\n", a, b,
+                                            j->talk, j->ms / 1000.0, j->reply);
+            if (g_llm_talk_show) {
+                char l[LLM_MAXLEN + 96];
+                snprintf(l, sizeof l, "%s %s: %s", !lstrcmpiA(g_lang, "de") ? "an" : "to", player_name(po), j->reply);
+                chat_line(pl, l, g_chat_ms);
+            }
+        }
+        if (talk_request(a, b, j->talk, NULL, "", j->dec)) return;
+    }
     if (j->offer >= 0 && !(did & TOOL_PEACE) && g_offer_t[b][a]) {   // it didn't take the offer: refused
-        offer_refused(b, a);
+        if (j->offer == 0) {   // closed now: the offerer may offer again in its answer (haggling)
+            g_offer_t[b][a] = 0;
+            g_offer_ignored[b][a]++;
+        } else offer_refused(b, a);   // a capitulation: its cease-fire ends (diplo_tick)
         if (g_llm_log && g_log) fprintf(g_log, "# llm: talk P%d refuses the %s of P%d\n", a, j->offer ? "capitulation" : "alliance offer", b);
+    }
+    if (j->confirm) {   // only its decision counts, not the words
+        if (g_llm_log && g_log) fprintf(g_log, "# llm: talk P%d decided when asked again: %s\n", a, did & TOOL_PEACE ? "accepted" : "refused");
+        j->reply[0] = 0;
     }
     if (j->reply[0]) {
         pair_add(a, b, a, j->reply);
