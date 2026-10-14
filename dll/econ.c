@@ -779,6 +779,7 @@ static int wild_food(void *pl) {
 // its fields + 2, the rest by shortfall - late-start A/B, 3 maps x 4 seeds: alive 86% vs 98%, 15 workers fewer at
 // the end; a late start has no fields yet, its food is hunted, gathered and fished.)
 static int *bq_entry(uint8_t *bm, int e, unsigned i);   // attack.c: the build queue of epoch e
+static int rm_count(uint8_t *rm, int t);                 // below: citizens on resource t
 static int unit_cost(void *pl, int type, int r);       // below
 static int g_late_targets = 3;
 static int g_wood_want[16];   // bit 1: the last wood target (steps of 2+)
@@ -825,6 +826,46 @@ static void econ_targets(uint8_t *rm) {
             if (from < 0) break;
             target[from]--;
             target[3]++;
+        }
+        if (g_late_targets & 4) {   // the overflow to the metals (see LATE WOOD, bit 4)
+            void *um = cm ? FIELD(cm, 0x44, void *) : NULL;
+            uint8_t *fq = um ? ((uint8_t *(__thiscall *)(void *, int))0x0048F8AF)(um, 0x2A) : NULL;
+            int fields = fq ? FIELD(fq, 0x10, int) : 0, cap = fields + 2;
+            if (fields >= 8 && (int)target[2] > cap && stock[2] >= reserve[2] + 2000) {   // food to spare
+                int over = (int)target[2] - cap, given = 0;
+                float lw[7] = { 0 }, ws = 0;
+                target[2] = (uint32_t)cap;
+                for (int r = 4; r < 7; r++) {   // by demand beyond stock (up to 3000), something for each
+                    int n = demand[r] - stock[r];
+                    lw[r] = (float)(n < 0 ? 0 : n > 3000 ? 3000 : n) + 100.0f;
+                    ws += lw[r];
+                }
+                for (int r = 4; r < 7; r++) {
+                    int t = (int)((float)over * lw[r] / ws);
+                    target[r] += (uint32_t)t;
+                    given += t;
+                }
+                for (int r = 5; given < over; r = r == 6 ? 5 : r + 1) { target[r]++; given++; }   // the rest: gold, iron
+            }
+            // the farms full and food short all the same (Livia: 84 farmers, 122 food): the overflow still lands on
+            // wood (118 woodcutters, target 2, 6855 wood). A wood pile of 1000+ beyond its need: the metals' targets
+            // grow by the woodcutters beyond target + 5, and the rebalance moves them
+            int pile = stock[3] - (demand[3] > queued ? demand[3] : queued), extra = rm_count(rm, 3) - (int)target[3] - 5;
+            if (pile > 1000 && extra > 0) {
+                int given = 0;
+                float lw[7] = { 0 }, ws = 0;
+                for (int r = 4; r < 7; r++) {
+                    int n = demand[r] - stock[r];
+                    lw[r] = (float)(n < 0 ? 0 : n > 3000 ? 3000 : n) + 100.0f;
+                    ws += lw[r];
+                }
+                for (int r = 4; r < 7; r++) {
+                    int t = (int)((float)extra * lw[r] / ws);
+                    target[r] += (uint32_t)t;
+                    given += t;
+                }
+                for (int r = 5; given < extra; r = r == 6 ? 5 : r + 1) { target[r]++; given++; }
+            }
         }
         return;
     }
