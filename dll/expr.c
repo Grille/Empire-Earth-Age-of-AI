@@ -496,7 +496,7 @@ static int x_fill(char *out, int cap, const char *tmpl, struct xctx *c) {
     return o;
 }
 // the strings a value offers as they stand - a string, or the items of a list that are plain strings (no
-// condition, no expression around them): fn(text) for each (the colours, the language model's examples)
+// condition, no expression around them): fn(text) for each (the colours)
 static int x_plain_strings(const char *src, void (*fn)(const char *text, void *arg), void *arg) {
     char t[XVAL_CAP];
     const char *e, *why;

@@ -525,8 +525,6 @@ static void tcat(char *t, int *o, int cap, const char *fmt, ...) {
 // the system message: who the AI is, how it talks, the rules, and the game as it stands for the listener h
 static int llm_deciding(void);
 static int llm_ai_deciding(void);
-struct examples { int n; char text[12][XVAL_CAP]; };
-static void example_add(const char *t, void *arg) { struct examples *e = arg; if (e->n < 12) lstrcpynA(e->text[e->n++], t, XVAL_CAP); }
 // tools: -1 a line (no decision), else the TOOL_ bits offered with this request (decide mode)
 static void llm_system(struct sbuf *b, void *pl, int ai, int h, int tools) {
     int decide = tools >= 0 && (g_players[h & 15] ? llm_ai_deciding() : llm_deciding());
@@ -541,18 +539,17 @@ static void llm_system(struct sbuf *b, void *pl, int ai, int h, int tools) {
     tput(t, &o, sizeof t, "nature", "aggression", tnum(n1, trait(pl, T_AGGRESSION)), "loyalty", tnum(n2, trait(pl, T_LOYALTY)),
          "pride", tnum(n3, trait(pl, T_PRIDE)), "greed", tnum(n4, trait(pl, T_GREED)), "forgiveness",
          tnum(n5, trait(pl, T_FORGIVENESS)), "caution", tnum(n6, trait(pl, T_CAUTION)), NULL);
-    // a few of its own lines, as examples of its voice (without placeholders)
+    // a few of its own lines, as examples of its voice: worked out as it would say them to h now (its conditions,
+    // the names filled) - a situation whose line has nothing to say now is left out
     if (p) {
-        char ex_text[600] = "";
+        char ex_text[600] = "", l[XVAL_CAP];
         int shown = 0, eo = 0;
         static const int ex[] = { L_GREETING, L_WAR_DECLARED, L_PEACE_REFUSE, L_WINNING, L_LOSING, L_UNDER_ATTACK, L_EPOCH_UP };
         for (size_t i = 0; i < sizeof ex / sizeof *ex && shown < 4; i++) {
             if (!p->line[ex[i]]) continue;
-            struct examples e = { 0 };
-            x_plain_strings(p->line[ex[i]], example_add, &e);   // the plain strings: no condition around them
-            if (!e.n) continue;
-            const char *l = e.text[rnd(e.n)];
-            if (strchr(l, '{')) continue;   // placeholders
+            struct line_ctx lc;
+            line_ctx_init(&lc, pl, player_at(h), NULL);
+            if (!line_pick(p, ex[i], &lc.c, 0, l, sizeof l) || !l[0]) continue;
             tcat(ex_text, &eo, sizeof ex_text, "%s\"%s\"", shown ? " / " : "", l);
             shown++;
         }
