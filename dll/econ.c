@@ -778,10 +778,18 @@ static int wild_food(void *pl) {
 // piled wood up on water without building more), survival within the noise. (Tried first and dropped: food capped at
 // its fields + 2, the rest by shortfall - late-start A/B, 3 maps x 4 seeds: alive 86% vs 98%, 15 workers fewer at
 // the end; a late start has no fields yet, its food is hunted, gathered and fished.)
+// Bit 4: the overflow to the metals. The game wants ~200 farmers for 64 fields; the leftover pass puts the rest on
+// any free mine or on wood - 73 woodcutters (target 2) and 5475 wood, 3426 gold, 16000 food while the army failed
+// for gold and iron. With 8+ fields and 2000 food beyond its reserve, food's target drops to its fields + 2 and the
+// rest goes to stone/gold/iron by their demand; with a wood pile of 1000+ beyond its need, the metals' targets also
+// grow by the woodcutters beyond target + 5 (farms full, food short all the same). The rebalance moves them.
+// antiair save, 55 min (3 / 7): Brann's wood 5475 -> 860, soldiers 48 -> 69, army orders failed for gold/iron
+// 688/563 -> 343/372, the idle player beaten at 52.6 min; late-start A/B, 3 maps x 6 seeds, 50 min: alive 77% vs
+// 78%. Without the food condition: alive 68% vs 78% (late starts live on hunted food).
 static int *bq_entry(uint8_t *bm, int e, unsigned i);   // attack.c: the build queue of epoch e
 static int rm_count(uint8_t *rm, int t);                 // below: citizens on resource t
 static int unit_cost(void *pl, int type, int r);       // below
-static int g_late_targets = 3;
+static int g_late_targets = 7;
 static int g_wood_want[16];   // bit 1: the last wood target (steps of 2+)
 static void budget_reserve(void *pl, int reserve[7]);
 static void econ_targets(uint8_t *rm) {
@@ -1535,7 +1543,7 @@ static void econ_install(const char *aimod_ini, const char *autotest_ini) {
     g_wild_share = cfg_float(aimod_ini, autotest_ini, 1, "wild_food_share", "0.6");
     g_reserve_window_ms = cfg_int(aimod_ini, autotest_ini, 1, "reserve_window_min", 5) * 60000;
     g_rebalance = cfg_int(aimod_ini, autotest_ini, 1, "rebalance_workers", 1);
-    g_late_targets = cfg_int(aimod_ini, autotest_ini, 1, "late_targets", 3);
+    g_late_targets = cfg_int(aimod_ini, autotest_ini, 1, "late_targets", 7);
     g_reserve_plan = cfg_int(aimod_ini, autotest_ini, 1, "reserve_plan", 1);
     g_mineral_margin = cfg_int(aimod_ini, autotest_ini, 1, "mineral_worker_margin", 300);
     g_early_requirements = cfg_int(aimod_ini, autotest_ini, 1, "early_requirements", 1);
