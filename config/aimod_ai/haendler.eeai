@@ -31,12 +31,14 @@ good_customer = them.tribute(me) > 0
 i_paid = me.tribute(them) > 0
 big_spender = them.tribute(me) > 2000
 ; losses are costs, their losses are returns - more than a skirmish
-my_costs = them.kills(me) > 30
-my_returns = me.kills(them) > 30
+my_costs = them.kills(me) > many_dead
+my_returns = me.kills(them) > many_dead
 ; a full treasury - his own stock, the only one he can see
 full_coffers = me.gold > 1000
 ; the war now going on (in peace_accept: the one just ended) - a window for "this war": them.kills(me, this_war)
 this_war = me.war_minutes(them)
+; losses that count as many at this stage of the game: a third of the largest army (10 at least)
+many_dead = max(10, max_population / 3)
 
 [lines]
 greeting = [
@@ -84,7 +86,7 @@ peace_accept = [
         "Peace, {name}. But this time I want a deposit - I know your record.",
         "Peace, {name}. I sign - but after your last contract I read every line twice.",
     ],
-    them.kills(me, this_war) > 30 and them.kills(me, this_war) > me.kills(them, this_war) and chance(60%) ? "Agreed, {name}. {them.kills(me, this_war)} of my people - this war has cost me far too much already.",
+    them.kills(me, this_war) > many_dead and them.kills(me, this_war) > me.kills(them, this_war) and chance(60%) ? "Agreed, {name}. {them.kills(me, this_war)} of my people - this war has cost me far too much already.",
     good_customer and chance(60%) ? "You have paid me {them.tribute(me)} so far, {name}. A good customer deserves peace.",
 ] ?? [
     "Peace! Sensible again at last, {name}. Let us trade.",
@@ -96,7 +98,7 @@ peace_refuse = [
         "You broke our last contract, {name}. Why would I sign another with the same customer?",
     ],
     them.refusals(me, 30) > 0 and chance(70%) ? "You turned down my offer once, {name}. Prices have gone up since.",
-    me.kills(them, this_war) > 30 and me.kills(them, this_war) > them.kills(me, this_war) and chance(50%) ? "{me.kills(them, this_war)} of yours so far, {name}. This war is finally paying off - I do not sell a rising stock.",
+    me.kills(them, this_war) > many_dead and me.kills(them, this_war) > them.kills(me, this_war) and chance(50%) ? "{me.kills(them, this_war)} of yours so far, {name}. This war is finally paying off - I do not sell a rising stock.",
 ] ?? [
     "Peace has its price, {name}. And you have not paid it yet.",
     "You come to me empty-handed, {name}? No, thank you.",
@@ -178,7 +180,7 @@ tribute_small = [
 ]
 attack = [
     them.razed(me, 20) > 0 and chance(60%) ? "{name} destroyed {them.razed(me, 20)} of my buildings. Time to deliver the invoice!",
-    them.kills(me, 20) > 15 and them.kills(me, 20) > me.kills(them, 20) and chance(60%) ? "{them.kills(me, 20)} of my people, {name}. Now I collect - with interest!",
+    them.kills(me, 20) > many_dead / 2 and them.kills(me, 20) > me.kills(them, 20) and chance(60%) ? "{them.kills(me, 20)} of my people, {name}. Now I collect - with interest!",
 ] ?? [
     "My mercenaries are paid - time they earned it. Against {name}!",
     "An investment in {name}'s downfall.",
@@ -314,7 +316,7 @@ peace_accept = [
         "Frieden, {name}. Aber diesmal will ich eine Anzahlung - ich kenne Ihre Vorgeschichte.",
         "Frieden, {name}. Ich unterschreibe - aber nach Ihrem letzten Vertrag lese ich jede Zeile zweimal.",
     ],
-    them.kills(me, this_war) > 30 and them.kills(me, this_war) > me.kills(them, this_war) and chance(60%) ? "Abgemacht, {name}. {them.kills(me, this_war)} meiner Leute - dieser Krieg hat mich schon viel zu viel gekostet.",
+    them.kills(me, this_war) > many_dead and them.kills(me, this_war) > me.kills(them, this_war) and chance(60%) ? "Abgemacht, {name}. {them.kills(me, this_war)} meiner Leute - dieser Krieg hat mich schon viel zu viel gekostet.",
     good_customer and chance(60%) ? "Sie haben mir bisher {them.tribute(me)} gezahlt, {name}. Ein guter Kunde verdient Frieden.",
 ] ?? [
     "Frieden! Endlich wieder vernünftig, {name}. Lassen Sie uns Handel treiben.",
@@ -326,7 +328,7 @@ peace_refuse = [
         "Sie haben unseren letzten Vertrag gebrochen, {name}. Warum sollte ich mit demselben Kunden einen neuen schließen?",
     ],
     them.refusals(me, 30) > 0 and chance(70%) ? "Sie haben mein Angebot einmal ausgeschlagen, {name}. Seitdem sind die Preise gestiegen.",
-    me.kills(them, this_war) > 30 and me.kills(them, this_war) > them.kills(me, this_war) and chance(50%) ? "{me.kills(them, this_war)} der Ihren bisher, {name}. Dieser Krieg zahlt sich endlich aus - eine steigende Aktie verkaufe ich nicht.",
+    me.kills(them, this_war) > many_dead and me.kills(them, this_war) > them.kills(me, this_war) and chance(50%) ? "{me.kills(them, this_war)} der Ihren bisher, {name}. Dieser Krieg zahlt sich endlich aus - eine steigende Aktie verkaufe ich nicht.",
 ] ?? [
     "Frieden hat seinen Preis, {name}. Und Sie haben ihn noch nicht bezahlt.",
     "Mit leeren Händen kommen Sie zu mir, {name}? Nein, danke.",
@@ -406,7 +408,7 @@ tribute_small = [
 ]
 attack = [
     them.razed(me, 20) > 0 and chance(60%) ? "{name} hat {them.razed(me, 20)} meiner Gebäude zerstört. Zeit, die Rechnung zuzustellen!",
-    them.kills(me, 20) > 15 and them.kills(me, 20) > me.kills(them, 20) and chance(60%) ? "{them.kills(me, 20)} meiner Leute, {name}. Jetzt treibe ich ein - mit Zinsen!",
+    them.kills(me, 20) > many_dead / 2 and them.kills(me, 20) > me.kills(them, 20) and chance(60%) ? "{them.kills(me, 20)} meiner Leute, {name}. Jetzt treibe ich ein - mit Zinsen!",
 ] ?? [
     "Meine Söldner sind bezahlt - Zeit, dass sie etwas dafür tun. Gegen {name}!",
     "Eine Investition in {name}s Untergang.",

@@ -29,10 +29,12 @@ attack_revenge = 30
 pawn = them.strength * 2 < me.strength
 rival = me.strength * 2 < them.strength
 ; blood between us: more than a skirmish
-my_dead = them.kills(me) > 30
-their_dead = me.kills(them) > 30
+my_dead = them.kills(me) > many_dead
+their_dead = me.kills(them) > many_dead
 ; the war now going on (in peace_accept: the one just ended) - a window for "this war": them.kills(me, this_war)
 this_war = me.war_minutes(them)
+; losses that count as many at this stage of the game: a third of the largest army (10 at least)
+many_dead = max(10, max_population / 3)
 
 [lines]
 greeting = [
@@ -73,7 +75,7 @@ peace_accept = [
         "Peace, {name}. I forgive - I simply never forget.",
         "Peace, {name}. And this time I shall keep my back to the wall, if you don't mind.",
     ],
-    them.kills(me, this_war) > 30 and them.kills(me, this_war) > me.kills(them, this_war) and chance(60%) ? "You have made your point, {name}. Rather emphatically. Peace.",
+    them.kills(me, this_war) > many_dead and them.kills(me, this_war) > me.kills(them, this_war) and chance(60%) ? "You have made your point, {name}. Rather emphatically. Peace.",
     them.tribute(me, 30) > 0 and chance(50%) ? "Your gifts did not go unnoticed, {name}. I am always kind to generous people.",
 ] ?? [
     "Peace, {name}? Gladly. For now.",
@@ -307,7 +309,7 @@ peace_accept = [
         "Frieden, {name}. Ich vergebe - ich vergesse nur nie.",
         "Frieden, {name}. Und diesmal halte ich den Rücken an der Wand, wenn du nichts dagegen hast.",
     ],
-    them.kills(me, this_war) > 30 and them.kills(me, this_war) > me.kills(them, this_war) and chance(60%) ? "Du hast deinen Standpunkt klargemacht, {name}. Recht nachdrücklich. Frieden.",
+    them.kills(me, this_war) > many_dead and them.kills(me, this_war) > me.kills(them, this_war) and chance(60%) ? "Du hast deinen Standpunkt klargemacht, {name}. Recht nachdrücklich. Frieden.",
     them.tribute(me, 30) > 0 and chance(50%) ? "Deine Geschenke sind mir nicht entgangen, {name}. Zu großzügigen Menschen bin ich immer nett.",
 ] ?? [
     "Frieden, {name}? Aber gern. Vorerst.",

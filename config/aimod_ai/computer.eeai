@@ -10,6 +10,8 @@
 [vars]
 ; the war now going on (in peace_accept: the one just ended) - a window for "this war": them.kills(me, this_war)
 this_war = me.war_minutes(them)
+; losses that count as many at this stage of the game: a third of the largest army (10 at least)
+many_dead = max(10, max_population / 3)
 
 [lines]
 war_declared = [
@@ -38,7 +40,7 @@ peace_accept = [
         "We accept peace, {name}. Your betrayal is on record.",
         "Peace accepted, {name}. We will watch you: you have broken an alliance with us before.",
     ],
-    them.kills(me, this_war) > 30 and them.kills(me, this_war) > me.kills(them, this_war) and chance(60%) ? "We accept peace, {name}. This war cost us {them.kills(me, this_war)} units.",
+    them.kills(me, this_war) > many_dead and them.kills(me, this_war) > me.kills(them, this_war) and chance(60%) ? "We accept peace, {name}. This war cost us {them.kills(me, this_war)} units.",
 ] ?? "We accept peace, {name}."
 peace_refuse = [
     them.betrayals(me) > 0 ? [
@@ -125,7 +127,7 @@ peace_accept = [
         "Wir nehmen den Frieden an, {name}. Ihr Verrat ist vermerkt.",
         "Frieden angenommen, {name}. Wir behalten Sie im Auge: Sie haben schon einmal ein Bündnis mit uns gebrochen.",
     ],
-    them.kills(me, this_war) > 30 and them.kills(me, this_war) > me.kills(them, this_war) and chance(60%) ? "Wir nehmen den Frieden an, {name}. Dieser Krieg hat uns {them.kills(me, this_war)} Einheiten gekostet.",
+    them.kills(me, this_war) > many_dead and them.kills(me, this_war) > me.kills(them, this_war) and chance(60%) ? "Wir nehmen den Frieden an, {name}. Dieser Krieg hat uns {them.kills(me, this_war)} Einheiten gekostet.",
 ] ?? "Wir nehmen den Frieden an, {name}."
 peace_refuse = [
     them.betrayals(me) > 0 ? [

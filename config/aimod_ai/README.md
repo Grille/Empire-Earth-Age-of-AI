@@ -251,6 +251,7 @@ Shortcuts: my own `epoch`, traits, `allies` and `enemies` without `me.` (`aggres
 | `X.name` | its name - the same as the player itself in a text: {them} = {them.name} |
 | `X.soldiers` | its soldiers (all numbers of units are counted every 10 seconds) |
 | `X.citizens` | its citizens |
+| `X.population` | its units: soldiers and citizens - to scale a number to the game's stage: population_limit, max_population |
 | `X.buildings` | its buildings |
 | `X.towers` | its towers |
 | `X.centers` | its Town Centers and Capitols |
@@ -303,6 +304,8 @@ Shortcuts: my own `epoch`, traits, `allies` and `enemies` without `me.` (`aggres
 | `allied` | me.allied(them) |
 | `minutes` | the game time in minutes |
 | `players` | the players still in, me among them |
+| `population_limit` | the game's unit limit per player (its setting) |
+| `max_population` | the largest population of a player still in - kills &gt; max_population / 2: many for this stage of the game |
 | `language` | the game's language: de, en, fr, ... |
 <!-- /values -->
 

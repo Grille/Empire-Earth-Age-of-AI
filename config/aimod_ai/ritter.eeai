@@ -29,12 +29,14 @@ outmatched = them.strength * 2 < me.strength
 oathbreaker = them.betrayals(me) > 0
 my_shame = me.betrayals(them) > 0
 ; blood between us: more than a skirmish
-my_fallen = them.kills(me) > 30
-their_fallen = me.kills(them) > 30
+my_fallen = them.kills(me) > many_dead
+their_fallen = me.kills(them) > many_dead
 ; a long bond - only where we are allied (nothing otherwise)
 old_bond = me.alliance_minutes(them) > 30
 ; the war now going on (in peace_accept: the one just ended) - a window for "this war": them.kills(me, this_war)
 this_war = me.war_minutes(them)
+; losses that count as many at this stage of the game: a third of the largest army (10 at least)
+many_dead = max(10, max_population / 3)
 
 [lines]
 greeting = [
@@ -77,8 +79,8 @@ peace_accept = [
         "I accept, {name} - though you broke faith with me once. Give me no cause to regret it.",
         "Peace, {name}. I will keep my word as I always have - whether you keep yours this time is on your soul.",
     ],
-    me.kills(them, this_war) > 30 and me.kills(them, this_war) > them.kills(me, this_war) * 2 and chance(60%) ? "You have lost enough brave men, {name}. There is no honour in striking the beaten. Peace.",
-    them.kills(me, this_war) > 30 and them.kills(me, this_war) > me.kills(them, this_war) and chance(60%) ? "You fought well, {name}, and my knights paid for it. Peace - between equals.",
+    me.kills(them, this_war) > many_dead and me.kills(them, this_war) > them.kills(me, this_war) * 2 and chance(60%) ? "You have lost enough brave men, {name}. There is no honour in striking the beaten. Peace.",
+    them.kills(me, this_war) > many_dead and them.kills(me, this_war) > me.kills(them, this_war) and chance(60%) ? "You fought well, {name}, and my knights paid for it. Peace - between equals.",
 ] ?? [
     "I accept your peace, {name}. Keep your word - I will keep mine.",
     "Then let us shake hands, {name}. May it be a lasting peace.",
@@ -89,7 +91,7 @@ peace_refuse = [
         "An oathbreaker's peace is a trap with a seal on it, {name}. I will not set my name beneath it.",
     ],
     them.refusals(me, 30) > 0 and chance(70%) ? "I offered you my hand once, {name}, and you struck it away. Now it holds a sword.",
-    them.kills(me, 10) > 10 and chance(50%) ? "My knights lie unburied, {name}. Their honour asks more of me than words.",
+    them.kills(me, 10) > many_dead / 3 and chance(50%) ? "My knights lie unburied, {name}. Their honour asks more of me than words.",
 ] ?? [
     "The insult is not yet avenged, {name}.",
     "Your word means nothing to me any more, {name}.",
@@ -177,7 +179,7 @@ attack = [
         "Ride! {name} swore an oath and broke it - today we hold them to account.",
     ],
     them.razed(me, 20) > 0 and chance(60%) ? "{name} burned our halls. We ride to answer it - with honour, not with torches.",
-    them.kills(me, 20) > 15 and them.kills(me, 20) > me.kills(them, 20) and chance(60%) ? "For our fallen! Ride against {name}!",
+    them.kills(me, 20) > many_dead / 2 and them.kills(me, 20) > me.kills(them, 20) and chance(60%) ? "For our fallen! Ride against {name}!",
 ] ?? [
     "For honour and crown! Against {name}!",
     "To horse! {name} awaits us.",
@@ -317,8 +319,8 @@ peace_accept = [
         "Ich nehme an, {name} - obwohl Ihr mir einst die Treue gebrochen habt. Gebt mir keinen Grund, es zu bereuen.",
         "Frieden, {name}. Ich halte mein Wort, wie ich es immer gehalten habe - ob Ihr diesmal das Eure haltet, liegt auf Eurer Seele.",
     ],
-    me.kills(them, this_war) > 30 and me.kills(them, this_war) > them.kills(me, this_war) * 2 and chance(60%) ? "Ihr habt genug tapfere Männer verloren, {name}. Es ist keine Ehre, den Geschlagenen zu treffen. Frieden.",
-    them.kills(me, this_war) > 30 and them.kills(me, this_war) > me.kills(them, this_war) and chance(60%) ? "Ihr habt gut gekämpft, {name}, und meine Ritter haben dafür bezahlt. Frieden - unter Ebenbürtigen.",
+    me.kills(them, this_war) > many_dead and me.kills(them, this_war) > them.kills(me, this_war) * 2 and chance(60%) ? "Ihr habt genug tapfere Männer verloren, {name}. Es ist keine Ehre, den Geschlagenen zu treffen. Frieden.",
+    them.kills(me, this_war) > many_dead and them.kills(me, this_war) > me.kills(them, this_war) and chance(60%) ? "Ihr habt gut gekämpft, {name}, und meine Ritter haben dafür bezahlt. Frieden - unter Ebenbürtigen.",
 ] ?? [
     "Ich nehme Euren Frieden an, {name}. Haltet Euer Wort - ich halte meins.",
     "So reichen wir uns die Hand, {name}. Möge es ein dauerhafter Friede sein.",
@@ -329,7 +331,7 @@ peace_refuse = [
         "Der Friede eines Eidbrechers ist eine Falle mit Siegel, {name}. Meinen Namen setze ich nicht darunter.",
     ],
     them.refusals(me, 30) > 0 and chance(70%) ? "Ich reichte Euch einst die Hand, {name}, und Ihr habt sie ausgeschlagen. Nun hält sie ein Schwert.",
-    them.kills(me, 10) > 10 and chance(50%) ? "Meine Ritter liegen unbestattet, {name}. Ihre Ehre verlangt mehr von mir als Worte.",
+    them.kills(me, 10) > many_dead / 3 and chance(50%) ? "Meine Ritter liegen unbestattet, {name}. Ihre Ehre verlangt mehr von mir als Worte.",
 ] ?? [
     "Noch ist die Schmach nicht getilgt, {name}.",
     "Euer Wort hat für mich keinen Wert mehr, {name}.",
@@ -414,7 +416,7 @@ attack = [
         "Reitet! {name} hat einen Eid geschworen und gebrochen - heute fordern wir Rechenschaft.",
     ],
     them.razed(me, 20) > 0 and chance(60%) ? "{name} hat unsere Hallen niedergebrannt. Wir reiten, um es zu vergelten - mit Ehre, nicht mit Fackeln.",
-    them.kills(me, 20) > 15 and them.kills(me, 20) > me.kills(them, 20) and chance(60%) ? "Für unsere Gefallenen! Reitet gegen {name}!",
+    them.kills(me, 20) > many_dead / 2 and them.kills(me, 20) > me.kills(them, 20) and chance(60%) ? "Für unsere Gefallenen! Reitet gegen {name}!",
 ] ?? [
     "Für Ehre und Krone! Gegen {name}!",
     "Zu Pferde! {name} erwartet uns.",

@@ -31,11 +31,13 @@ home_guard_share = 0.20
 pushover = them.strength * 2 < me.strength
 big_one = me.strength * 2 < them.strength
 ; a proper brawl: blood on both sides
-good_fight = me.kills(them) > 20 and them.kills(me) > 20
+good_fight = me.kills(them) > many_dead / 2 and them.kills(me) > many_dead / 2
 ; his tally - he counts every head he knocks
-my_tally = me.kills(them) > 30
+my_tally = me.kills(them) > many_dead
 ; only where we are at war (nothing otherwise)
 long_war = me.war_minutes(them) > 30
+; losses that count as many at this stage of the game: a third of the largest army (10 at least)
+many_dead = max(10, max_population / 3)
 
 [lines]
 greeting = [
@@ -88,7 +90,7 @@ peace_refuse = [
     ],
     them.refusals(me, 15) > 0 and chance(60%) ? "You said no to MY peace, {name}! Now I say no! HA! ...What were we fighting about again?",
     long_war and chance(60%) ? "{me.war_minutes(them)} minutes of brawling and you want to stop NOW, {name}? It's only just getting good!",
-    me.kills(them, 20) > 15 and chance(60%) ? "Stop? I'm on a roll, {name}! {me.kills(them, 20)} of yours just lately!",
+    me.kills(them, 20) > many_dead / 2 and chance(60%) ? "Stop? I'm on a roll, {name}! {me.kills(them, 20)} of yours just lately!",
 ] ?? [
     "Peace? I've only just warmed up, {name}!",
     "NO! Keep fighting!",
@@ -160,8 +162,8 @@ tribute_small = at_war ? [
 ]
 attack = [
     them.razed(me, 20) > 0 and chance(60%) ? "They smashed my houses! Now we smash theirs! At {name}!",
-    them.kills(me, 20) > 15 and them.kills(me, 20) > me.kills(them, 20) and chance(60%) ? "{name} has knocked down more of ours than we of theirs! Let's fix that, lads!",
-    me.kills(them, 20) > 15 and chance(50%) ? "That was fun just now! Again! At {name}!",
+    them.kills(me, 20) > many_dead / 2 and them.kills(me, 20) > me.kills(them, 20) and chance(60%) ? "{name} has knocked down more of ours than we of theirs! Let's fix that, lads!",
+    me.kills(them, 20) > many_dead / 2 and chance(50%) ? "That was fun just now! Again! At {name}!",
 ] ?? [
     "ATTACK! At {name}!",
     "Come on, lads! {name} is waiting!",
@@ -204,7 +206,7 @@ winning = [
     "Is that all, {name}?",
 ]
 losing = [
-    them.kills(me) > 30 and chance(50%) ? "{name} has knocked {them.kills(me)} of my lads flat! I like this one!",
+    them.kills(me) > many_dead and chance(50%) ? "{name} has knocked {them.kills(me)} of my lads flat! I like this one!",
     big_one and chance(50%) ? "{name} is a big one! Finally a proper fight!",
 ] ?? [
     "That was just the warm-up!",
@@ -310,7 +312,7 @@ peace_refuse = [
     ],
     them.refusals(me, 15) > 0 and chance(60%) ? "Du hast MEINEN Frieden abgelehnt, {name}! Jetzt lehn ich ab! HA! ... Worum ging's eigentlich noch mal?",
     long_war and chance(60%) ? "{me.war_minutes(them)} Minuten Prügelei, und jetzt willst du aufhören, {name}? Jetzt wird's doch erst schön!",
-    me.kills(them, 20) > 15 and chance(60%) ? "Aufhören? Ich bin grad so gut in Fahrt, {name}! {me.kills(them, 20)} von deinen allein in letzter Zeit!",
+    me.kills(them, 20) > many_dead / 2 and chance(60%) ? "Aufhören? Ich bin grad so gut in Fahrt, {name}! {me.kills(them, 20)} von deinen allein in letzter Zeit!",
 ] ?? [
     "Frieden? Ich bin doch gerade erst warm geworden, {name}!",
     "NEIN! Weiterkämpfen!",
@@ -381,8 +383,8 @@ tribute_small = at_war ? [
 ]
 attack = [
     them.razed(me, 20) > 0 and chance(60%) ? "Die haben meine Häuser kaputtgemacht! Jetzt machen wir ihre kaputt! Auf {name}!",
-    them.kills(me, 20) > 15 and them.kills(me, 20) > me.kills(them, 20) and chance(60%) ? "{name} hat mehr von uns umgehauen als wir von denen! Das ändern wir, Jungs!",
-    me.kills(them, 20) > 15 and chance(50%) ? "Das hat eben Spaß gemacht! Nochmal! Auf {name}!",
+    them.kills(me, 20) > many_dead / 2 and them.kills(me, 20) > me.kills(them, 20) and chance(60%) ? "{name} hat mehr von uns umgehauen als wir von denen! Das ändern wir, Jungs!",
+    me.kills(them, 20) > many_dead / 2 and chance(50%) ? "Das hat eben Spaß gemacht! Nochmal! Auf {name}!",
 ] ?? [
     "ANGRIFF! Auf {name}!",
     "Los, Jungs! {name} wartet schon!",
@@ -425,7 +427,7 @@ winning = [
     "Ist das alles, {name}?",
 ]
 losing = [
-    them.kills(me) > 30 and chance(50%) ? "{name} hat {them.kills(me)} meiner Jungs umgehauen! Der gefällt mir!",
+    them.kills(me) > many_dead and chance(50%) ? "{name} hat {them.kills(me)} meiner Jungs umgehauen! Der gefällt mir!",
     big_one and chance(50%) ? "{name} ist ein Großer! Endlich ein richtiger Kampf!",
 ] ?? [
     "Das war nur Aufwärmen!",

@@ -1642,6 +1642,7 @@ static const struct xmember k_xmembers[] = {
     { "name", XM_PLAYER, "its name - the same as the player itself in a text: {them} = {them.name}" },
     { "soldiers", XM_PLAYER, "its soldiers (all numbers of units are counted every 10 seconds)" },
     { "citizens", XM_PLAYER, "its citizens" },
+    { "population", XM_PLAYER, "its units: soldiers and citizens - to scale a number to the game's stage: population_limit, max_population" },
     { "buildings", XM_PLAYER, "its buildings" },
     { "towers", XM_PLAYER, "its towers" },
     { "centers", XM_PLAYER, "its Town Centers and Capitols" },
@@ -1685,6 +1686,8 @@ static const struct xmember k_xglobals[] = {
     { "allied", XM_REL, "me.allied(them)" },
     { "minutes", XM_PLAYER, "the game time in minutes" },
     { "players", XM_PLAYER, "the players still in, me among them" },
+    { "population_limit", XM_PLAYER, "the game's unit limit per player (its setting)" },
+    { "max_population", XM_PLAYER, "the largest population of a player still in - kills > max_population / 2: many for this stage of the game" },
     { "language", XM_PLAYER, "the game's language: de, en, fr, ..." },
 };
 #define N_XGLOBALS (int)(sizeof k_xglobals / sizeof *k_xglobals)
@@ -1732,6 +1735,7 @@ static void x_member(void *ps, void *px, const struct xmember *m, struct xval *v
     if (!strcmp(n, "epoch")) { char ep[96]; epoch_text(px, ep, sizeof ep); xdual(v, current_epoch(px) + 1, ep); return; }
     if (!strcmp(n, "soldiers")) r = g_ws.soldiers[x];
     else if (!strcmp(n, "citizens")) r = g_ws.citizens[x];
+    else if (!strcmp(n, "population")) r = g_ws.soldiers[x] + g_ws.citizens[x];
     else if (!strcmp(n, "buildings")) r = g_ws.buildings[x];
     else if (!strcmp(n, "towers")) r = g_ws.towers[x];
     else if (!strcmp(n, "centers")) r = g_ws.centers[x];
@@ -1850,6 +1854,10 @@ static int x_builtin(struct xctx *c, const char *name, struct xval *v) {
         double r = 0;
         if (!strcmp(name, "minutes")) r = (double)(game_time() / 60000u);
         else if (!strcmp(name, "language")) { xstr(v, g_lang); return 1; }
+        else if (!strcmp(name, "population_limit")) r = *(int *)0x009183D4;   // the game setting (econ.c)
+        else if (!strcmp(name, "max_population")) {
+            for (int j = 1; j < nplayers(); j++) if (x_alive(j) && g_ws.soldiers[j] + g_ws.citizens[j] > r) r = g_ws.soldiers[j] + g_ws.citizens[j];
+        }
         else for (int j = 1; j < nplayers(); j++) r += x_alive(j);   // players
         xnum(v, r);
         return 1;
