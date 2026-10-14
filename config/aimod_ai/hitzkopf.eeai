@@ -68,7 +68,7 @@ alliance_offer = [
     "{name}! Come on, let's beat up {enemy} together!",
 ]
 offer_accepted = [
-    "YES! {enemy}, here we come!",
+    enemy ? "YES! {enemy}, here we come!",
     "Haha! This is going to be fun, {name}!",
 ]
 offer_withdrawn = "Bore, {name}! Fine, then not!"
@@ -192,7 +192,7 @@ alliance_offer = [
     "{name}! Komm, wir verprügeln {enemy} zusammen!",
 ]
 offer_accepted = [
-    "JAWOLL! {enemy}, wir kommen!",
+    enemy ? "JAWOLL! {enemy}, wir kommen!",
     "Haha! Das wird ein Spaß, {name}!",
 ]
 offer_withdrawn = "Langweiler, {name}! Dann eben nicht!"

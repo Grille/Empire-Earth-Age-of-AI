@@ -72,7 +72,7 @@ skipped. A placeholder that is not a valid expression stays in the text as writt
 
 **Writing texts?** Set `strict_parsing=1` in aimod.ini (`[general]`): every mistake then comes up at once - those in
 the files when the game starts, in a message box; those found while playing (an unknown name in a condition, a
-broken expression, a placeholder nobody fills) as a line in the game.
+broken expression, a placeholder nobody fills, a player used who isn't there) as a line in the game.
 
 The VS Code extension in the mod's sources (`vscode/eeaimod-texts`) highlights these files and marks unknown keys,
 situations and `epoch.` names.
@@ -221,8 +221,19 @@ Each of them is a player: in a text its name (`{me}`, `{them}`, `{enemy}`, `{lor
 comparison itself - `lord == them` holds when the one I talk to is my lord. A player has members - `me.soldiers`,
 `them.strength`, `enemy.epoch`, `them.lord` (a player again: `them.lord.name`, `them.lord == me`) - and
 **relations**, which name the other player: `me.opinion(them)` is what I think of them, `them.opinion(me)` what they
-think of me, `enemy.at_war(them)` whether the enemy is at war with them. A player who isn't there - no third player
-in a greeting, no lord - is nothing, and so are its members and relations.
+think of me, `enemy.at_war(them)` whether the enemy is at war with them.
+
+A player who isn't there - no third player in a greeting, no lord - is nothing. **Check it before you use it:**
+
+```ini
+under_attack = lord ? "My lord {lord} will hear of this!" : "To arms!"
+greeting = [lord and lord.soldiers > 50 ? "My lord's army is mighty, {name}."] ?? "Greetings, {name}."
+tribute_thanks = "{lord ?? me} thanks you, {name}."
+```
+
+A condition (`lord ? ...`, `lord and ...`, `not lord`), `??` and a comparison (`lord == them`) check it. Used without
+a check - in a text (`{lord}`), a sum, a member (`lord.soldiers`) or a relation (`opinion(lord)`) - it gives
+nothing, and with `strict_parsing=1` it is a mistake: a line that names a lord nobody has is a bug in the line.
 
 Shortcuts: my own `epoch` and traits without `me.` (`aggression` is `me.aggression`), a relation of mine without
 `me.` (`opinion(enemy)` is `me.opinion(enemy)`), and `opinion`, `at_war`, `allied` alone: mine with them

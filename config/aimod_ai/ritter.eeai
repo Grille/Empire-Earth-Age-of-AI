@@ -63,7 +63,7 @@ alliance_offer = [
     "I offer you my blade against {enemy}, {name}. Do you accept?",
 ]
 offer_accepted = [
-    "A bond of honour, {name}. Against {enemy}!",
+    enemy ? "A bond of honour, {name}. Against {enemy}!",
     "My sword is your sword, {name}.",
 ]
 offer_withdrawn = [
@@ -188,7 +188,7 @@ alliance_offer = [
     "Ich biete Euch meine Klinge gegen {enemy}, {name}. Nehmt Ihr an?",
 ]
 offer_accepted = [
-    "Ein Bund der Ehre, {name}. Gegen {enemy}!",
+    enemy ? "Ein Bund der Ehre, {name}. Gegen {enemy}!",
     "Mein Schwert ist Euer Schwert, {name}.",
 ]
 offer_withdrawn = [

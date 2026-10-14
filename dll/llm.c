@@ -868,6 +868,7 @@ static void llm_apply(struct llm_job *j, int ok) {
         } else {   // its offer: he has 2 minutes (diplo_tick, as its alliance offers)
             g_offer_t[ai][h] = now ? now : 1;
             g_offer_kind[ai][h] = 0;
+            g_offer_vs[ai][h] = 0;
             block_line(h, sysf("peace_offer", "ai", player_name(pl), NULL));
             tsub(ev[nev++], sizeof ev[0], tpl_text("ev_offered_peace"), "name", hn, NULL);
         }
@@ -1179,6 +1180,7 @@ static int talk_apply(struct llm_job *j) {
         } else if (stance_of(ph, ai) && tool_peace_ok(ai, h, now) && !g_offer_t[h][ai]) {   // its offer: h decides next
             g_offer_t[ai][h] = now ? now : 1;
             g_offer_kind[ai][h] = 0;
+            g_offer_vs[ai][h] = 0;
             g_offer_last[ai][h] = now;
             tsub(ev, sizeof ev, tpl_text("ev3_offered"), "ai", an, "name", hn, NULL);
             pair_add(ai, h, 16, ev);

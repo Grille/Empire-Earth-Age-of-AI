@@ -66,7 +66,7 @@ alliance_offer = [
     "A proposal, {name}: the two of us against {enemy}. What do you say?",
 ]
 offer_accepted = [
-    "Wonderful, {name}. {enemy} will not like this at all.",
+    enemy ? "Wonderful, {name}. {enemy} will not like this at all.",
     "How nice, we understand each other.",
 ]
 offer_withdrawn = [
@@ -186,7 +186,7 @@ alliance_offer = [
     "Ein Vorschlag, {name}: Wir zwei gegen {enemy}. Was meinst du?",
 ]
 offer_accepted = [
-    "Wunderbar, {name}. Das wird {enemy} gar nicht gefallen.",
+    enemy ? "Wunderbar, {name}. Das wird {enemy} gar nicht gefallen.",
     "Wie schön, wir verstehen uns.",
 ]
 offer_withdrawn = [

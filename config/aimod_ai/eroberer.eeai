@@ -69,7 +69,7 @@ alliance_offer = [
     "{name}! {enemy} grows too strong. Ride with me and we share the spoils.",
 ]
 offer_accepted = [
-    "Good. Let {enemy} tremble.",
+    enemy ? "Good. Let {enemy} tremble.",
     "An alliance of the strong. So be it, {name}.",
 ]
 offer_withdrawn = [
@@ -198,7 +198,7 @@ alliance_offer = [
     "{name}! {enemy} wird zu stark. Reite mit mir, und wir teilen die Beute.",
 ]
 offer_accepted = [
-    "Gut. {enemy} soll zittern.",
+    enemy ? "Gut. {enemy} soll zittern.",
     "Ein Bündnis der Starken. So soll es sein, {name}.",
 ]
 offer_withdrawn = [

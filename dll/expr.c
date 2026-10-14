@@ -35,10 +35,12 @@ struct xctx {
     int np;
     const struct xvars *vars[3];            // searched in order: the personality's, the file's
     int depth, level, unknown, bad, circle; // nesting: vars in vars, the parser (all together); unknown names; errors; too deep
+    const char *top;                        // the source being worked out (for the mistakes' messages)
 };
 // a number, a text or both - or nothing (w 0); w: how many items it was chosen from (a list's weight in a list);
-// pl: a player (its index + 1; its text is its name) - equal only to itself
-struct xval { int has_n, has_s, w, pl; double n; char s[XVAL_CAP]; };
+// pl: a player (its index + 1; its text is its name) - equal only to itself; miss: a player who isn't there (lord
+// without one) - nothing, which may only be checked (lord ? .., lord ?? .., lord == them): used, it is a mistake
+struct xval { int has_n, has_s, w, pl; double n; char s[XVAL_CAP], miss[24]; };
 static struct xvars g_vars_sys, g_vars_tpl;   // _system.ini [vars] (+ [vars:<language>]), _template.ini [vars] (texts.c)
 static int x_builtin(struct xctx *c, const char *name, struct xval *v);   // diplo.c: the game's values
 // diplo.c: a relation, them.opinion(me) - 0: name is none (v NULL: only that checked)
@@ -65,7 +67,10 @@ static void x_error(const char *fmt, ...) {
     if (!g_strict) return;
     EnterCriticalSection(&g_x_lock);
     g_x_total++;
-    if (g_x_queued < 8) lstrcpynA(g_x_queue[g_x_queued++], msg, sizeof g_x_queue[0]);
+    int seen = 0;   // the same mistake again (a line tried three times): once
+    for (int i = 0; i < g_x_queued; i++) seen |= !strcmp(g_x_queue[i], msg);
+    if (seen) g_x_total--;
+    else if (g_x_queued < 8) lstrcpynA(g_x_queue[g_x_queued++], msg, sizeof g_x_queue[0]);
     else g_x_dropped++;
     LeaveCriticalSection(&g_x_lock);
 }
@@ -89,13 +94,14 @@ static int xnumeric(const char *s, double *n) {   // the whole text a number ("1
     *n = strtod(s, &e);
     return e != s && !*e;
 }
-static void xnothing(struct xval *v) { v->has_n = v->has_s = v->w = v->pl = 0; v->n = 0; v->s[0] = 0; }
-static void xnum(struct xval *v, double n) { v->has_n = 1; v->has_s = v->pl = 0; v->w = 1; v->n = n; }
+static void xnothing(struct xval *v) { v->has_n = v->has_s = v->w = v->pl = 0; v->n = 0; v->s[0] = v->miss[0] = 0; }
+static void xnum(struct xval *v, double n) { v->has_n = 1; v->has_s = v->pl = 0; v->w = 1; v->n = n; v->miss[0] = 0; }
 static void xstr(struct xval *v, const char *s) {   // a text - and its number when it is one ("12")
     lstrcpynA(v->s, s ? s : "", XVAL_CAP);
     v->has_s = 1;
     v->w = 1;
     v->pl = 0;
+    v->miss[0] = 0;
     v->has_n = xnumeric(v->s, &v->n);
 }
 static void xdual(struct xval *v, double n, const char *s) { xstr(v, s); v->has_n = 1; v->n = n; }
@@ -157,6 +163,11 @@ static int xp_op(struct xp *p, const char *op) {
     return 1;
 }
 static void xp_expr(struct xp *p, struct xval *v);
+// a player who isn't there, used without a check (strict parsing only: else it is nothing, quietly)
+static void x_missing(struct xctx *c, const char *who) {
+    if (g_strict) x_error("%s is used, but there is none here - check it first (%s ? ... / %s ?? ...): %.100s", who, who, who, c->top ? c->top : "");
+}
+static void x_use(struct xp *p, const struct xval *v) { if (v->miss[0] && !p->skip) x_missing(p->c, v->miss); }
 // epoch.<name>: an epoch's number, in every language the same (the names the game's own are in another language)
 static const char *const k_epoch_const[15] = { "prehistoric", "stone", "copper", "bronze", "dark", "middle", "renaissance",
     "imperial", "industrial", "atomic_wwi", "atomic_wwii", "atomic_modern", "digital", "nano", "space" };
@@ -209,6 +220,7 @@ static void xp_primary(struct xp *p, struct xval *v) {
             if (xp_op(p, "]")) break;
             xp_expr(p, &it);
             if (p->err) goto out;
+            x_use(p, &it);
             if (!p->skip && it.w > 0) {
                 total += it.w;
                 if (rnd(total) < it.w) *v = it;
@@ -250,6 +262,7 @@ static void xp_primary(struct xp *p, struct xval *v) {
         if (p->err) goto out;
         int f = !lstrcmpiA(name, "chance") && na == 1 ? 1 : (!lstrcmpiA(name, "min") || !lstrcmpiA(name, "max")) && na ? 2 :
                 !lstrcmpiA(name, "abs") && na == 1 ? 3 : !lstrcmpiA(name, "round") && na == 1 ? 4 : 0;
+        for (int i = 0; f && i < na; i++) x_use(p, &a[i]);   // a function's arguments (a relation checks its players)
         if (!f) {   // a relation: them.opinion(me)
             if (!x_method(p->c, name, a, na, p->skip ? NULL : v)) p->err = 1;
             else if (p->skip) xnothing(v);
@@ -268,7 +281,7 @@ out:
     p->c->level--;
 }
 static void xp_unary(struct xp *p, struct xval *v) {
-    if (xp_op(p, "-")) { xp_unary(p, v); xnum(v, -xto_num(v)); return; }
+    if (xp_op(p, "-")) { xp_unary(p, v); x_use(p, v); xnum(v, -xto_num(v)); return; }
     if (xp_op(p, "!") || xp_word(p, "not")) { xp_unary(p, v); xnum(v, !xtrue(v)); return; }
     xp_primary(p, v);
 }
@@ -279,6 +292,8 @@ static void xp_mul(struct xp *p, struct xval *v) {
         if (!op) return;
         struct xval b;
         xp_unary(p, &b);
+        x_use(p, v);
+        x_use(p, &b);
         double x = xto_num(v), y = xto_num(&b);
         xnum(v, op == '*' ? x * y : y == 0 ? 0 : op == '/' ? x / y : x - y * (double)(long long)(x / y));
     }
@@ -290,6 +305,8 @@ static void xp_add(struct xp *p, struct xval *v) {
         if (!op) return;
         struct xval b;
         xp_mul(p, &b);
+        x_use(p, v);
+        x_use(p, &b);
         double x, y;
         if (op == '-') xnum(v, xto_num(v) - xto_num(&b));
         else if (xis_num(v, &x) && xis_num(&b, &y)) xnum(v, x + y);
@@ -377,12 +394,15 @@ static void xp_expr(struct xp *p, struct xval *v) {   // c ? a : b, c ? a (nothi
 }
 // evaluate the whole of src (an expression and nothing after it); 0: not an expression
 static void x_log_bad(const char *what, const char *src) { x_error("%s: %.120s", what, src); }
-static int x_eval(const char *src, struct xctx *c, struct xval *v) {
+static int x_eval(const char *src, struct xctx *c, struct xval *v) {   // its value ends up in a text: a line, a {placeholder}
     struct xp p = { src, c, 0, 0 };
-    int unk = c->unknown;
+    int unk = c->unknown, top = !c->top;
+    if (top) c->top = src;
     xp_expr(&p, v);
     xp_space(&p);
     int ok = !p.err && !*p.s && !c->circle;
+    if (ok) x_use(&p, v);
+    if (top) c->top = NULL;
     if (c->circle && !c->depth) { c->circle = 0; x_log_bad("[vars] naming each other in a circle", src); }
     if (ok && !c->depth && c->unknown > unk) x_log_bad("an unknown name (counted 0) in", src);   // a line, a condition
     return ok;
@@ -406,7 +426,8 @@ static const char *x_close(const char *s) {
 // out = tmpl with its {placeholders} filled: the text's own (exact name), else the expression's value (nothing: no
 // text); one that is not an expression, or a lone unknown name, stays as written. Returns the length.
 static int x_fill(char *out, int cap, const char *tmpl, struct xctx *c) {
-    int o = 0;
+    int o = 0, top = !c->top;
+    if (top) c->top = tmpl;
     for (const char *s = tmpl; *s && o < cap - 1;) {
         const char *close = *s == '{' ? x_close(s) : NULL;
         if (!close) { out[o++] = *s++; continue; }
@@ -435,6 +456,7 @@ static int x_fill(char *out, int cap, const char *tmpl, struct xctx *c) {
         else out[o++] = *s++;
     }
     out[o] = 0;
+    if (top) c->top = NULL;
     return o;
 }
 // the strings a value offers as they stand - a string, or the items of a list that are plain strings (no
