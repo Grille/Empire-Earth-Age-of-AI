@@ -24,6 +24,12 @@ static int g_hoard_cap = 3000;   // stock above reserve + this is free for milit
 // 600): ~600 iron lay in stock for the whole late game while the army failed for iron hundreds of times every 5
 // minutes (antiair save: Brann's iron failures 816 -> 64; late-start A/B, 3 maps x 6 seeds: alive 78% vs 75%)
 static int g_hoard_cap_mineral = 200;
+// HEAD-TO-HEAD TESTS (autotest only): [autotest] variant_players = the player numbers playing variant B (e.g. 24);
+// they use v_late_targets, v_hoard_cap_mineral, v_substitute_wait where set (the others the settings). AI-vs-AI
+// suites with one variant for all measure how decisive the wars are, not which variant is stronger.
+static unsigned g_var_mask;
+static int g_v_late = -1, g_v_hoard_mineral = -1, g_v_sub_wait = -1;
+#define PV(idx, v, g) ((g_var_mask >> ((idx) & 15) & 1) && (v) >= 0 ? (v) : (g))
 static struct { uint32_t last_t; int init; float mil[7]; int income[7], mil_spent[7], cit_blocked, mil_limited; } g_bud[16];
 // income rates per AI (rates_update): per minute and per worker-minute
 static struct { uint32_t t; int last[7]; float rate[7], per_worker[7]; } g_rate[16];
@@ -826,7 +832,8 @@ static void econ_targets(uint8_t *rm) {
     void *pl = rm_player(rm);
     if (!pl || !cfg_of(pl)->copper_plan) return;
     int late = current_epoch(pl) >= FARM_EPOCH;
-    if (late && !(g_late_targets & 1)) return;
+    int lt = PV(FIELD(pl, PL_INDEX, int), g_v_late, g_late_targets);
+    if (late && !(lt & 1)) return;
     int *stock = (int *)((uint8_t *)pl + PL_STOCK);
     int *demand = (int *)(rm + RM_DEMAND);
     uint32_t *target = (uint32_t *)(rm + RM_TARGET);
@@ -868,7 +875,7 @@ static void econ_targets(uint8_t *rm) {
         void *um = cm ? FIELD(cm, 0x44, void *) : NULL;
         uint8_t *fq = um ? ((uint8_t *(__thiscall *)(void *, int))0x0048F8AF)(um, 0x2A) : NULL;
         int fields = fq ? FIELD(fq, 0x10, int) : 0;
-        if (g_late_targets & 4) {   // the overflow to the metals (see LATE WOOD, bit 4)
+        if (lt & 4) {   // the overflow to the metals (see LATE WOOD, bit 4)
             int cap = fields + 2;
             if (fields >= 8 && (int)target[2] > cap && stock[2] >= reserve[2] + 2000) {   // food to spare
                 to_metals(target, demand, stock, (int)target[2] - cap);
@@ -880,7 +887,7 @@ static void econ_targets(uint8_t *rm) {
             int pile = stock[3] - (demand[3] > queued ? demand[3] : queued), extra = rm_count(rm, 3) - (int)target[3] - 5;
             if (pile > 1000 && extra > 0) to_metals(target, demand, stock, extra);
         }
-        if (g_late_targets & 8) {   // the food pile: farmers to the metals while 4000+ food lie beyond the reserve
+        if (lt & 8) {   // the food pile: farmers to the metals while 4000+ food lie beyond the reserve
             uint32_t now = game_time();
             if (now < g_food_cap_t[idx]) g_food_cap[idx] = 0;   // a new game
             int spare = stock[2] - reserve[2], cap = g_food_cap[idx] ? g_food_cap[idx] : (int)target[2];
@@ -1218,7 +1225,7 @@ static void econ_rebalance(uint8_t *rm) {
     int moves = 0, dry = 0;   // dry: donor lists without a movable citizen
     // wood too with late_targets (the game's own wood search, 0x48C060(1, unit), safe_sites' danger check): 38 on gold
     // above their target stayed there for good while wood had 3
-    int first = (g_late_targets & 2) && current_epoch(pl) >= FARM_EPOCH ? 3 : 4;
+    int first = (PV(idx, g_v_late, g_late_targets) & 2) && current_epoch(pl) >= FARM_EPOCH ? 3 : 4;
     for (int r = first; r < 7 && moves < 2; r++) {
         while (moves < 2 && (int)target[r] - rm_count(rm, r) >= 2) {
             int d = -1, best = 2;
@@ -1494,7 +1501,7 @@ static uintptr_t __fastcall hook_train_units(void *um, void *edx, int *req, uint
             if (military && !g_priority_mil && !req_unit) {   // priority requests (siege) and requirement units spend
                                                                // the stock above the reserve
                 int allowed = (int)g_bud[idx].mil[r];
-                int excess = stock[r] - reserve[r] - (r >= 4 ? g_hoard_cap_mineral : g_hoard_cap);   // never hoard beyond the cap
+                int excess = stock[r] - reserve[r] - (r >= 4 ? PV(idx, g_v_hoard_mineral, g_hoard_cap_mineral) : g_hoard_cap);   // never hoard beyond the cap
                 if (excess > allowed) allowed = excess;
                 if (visible > allowed) visible = allowed;
             }
@@ -1517,7 +1524,8 @@ static uintptr_t __fastcall hook_train_units(void *um, void *edx, int *req, uint
         int sub = military && g_unit_sub && !g_priority_mil && substitutable(req[0]) && (blocked || !trainable);
         if (sub && trainable) {   // the budget refused a unit it can train: save for it first
             if (!g_save_since[idx] || now < g_save_since[idx]) g_save_since[idx] = now ? now : 1;
-            sub = !g_sub_wait || now - g_save_since[idx] >= (uint32_t)g_sub_wait * 1000u || base_threatened(idx);
+            int sw = PV(idx, g_v_sub_wait, g_sub_wait);
+            sub = !sw || now - g_save_since[idx] >= (uint32_t)sw * 1000u || base_threatened(idx);
             if (!sub) g_mil[idx].saving++;
         }
         if (sub) {
@@ -1592,6 +1600,19 @@ static void econ_install(const char *aimod_ini, const char *autotest_ini) {
     g_unit_sub = cfg_int(aimod_ini, autotest_ini, 1, "unit_substitution", 1);
     g_sub_wait = cfg_int(aimod_ini, autotest_ini, 1, "substitute_wait", 90);
     g_gather_research = cfg_int(aimod_ini, autotest_ini, 1, "gather_research", 1);
+    if (autotest_ini) {
+        char vp[32];
+        GetPrivateProfileStringA("autotest", "variant_players", "", vp, sizeof vp, autotest_ini);
+        for (char *c = vp; *c; c++) if (*c >= '0' && *c <= '9') g_var_mask |= 1u << (*c - '0');
+        g_v_late = GetPrivateProfileIntA("autotest", "v_late_targets", -1, autotest_ini);
+        g_v_hoard_mineral = GetPrivateProfileIntA("autotest", "v_hoard_cap_mineral", -1, autotest_ini);
+        g_v_sub_wait = GetPrivateProfileIntA("autotest", "v_substitute_wait", -1, autotest_ini);
+        if (g_var_mask && g_log)
+            fprintf(g_log, "# variant: players %s play B: late_targets %d hoard_cap_mineral %d substitute_wait %d "
+                    "(A: %d %d %d)\n", vp, g_v_late >= 0 ? g_v_late : g_late_targets, g_v_hoard_mineral >= 0 ? g_v_hoard_mineral :
+                    g_hoard_cap_mineral, g_v_sub_wait >= 0 ? g_v_sub_wait : g_sub_wait, g_late_targets, g_hoard_cap_mineral,
+                    g_sub_wait);
+    }
     int ok = 0;
     void **sp = (void **)(VT_COMPUTER_PLAYER + 45 * 4);
     if (*sp == (void *)FN_CP_PAY) {

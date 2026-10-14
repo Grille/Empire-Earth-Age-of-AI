@@ -77,6 +77,18 @@ sh scripts/scen.sh 30 towers_on_path "random_map=Continental,map_size=0,ai_count
 | `assault` (Continental 101, 2 AIs, Bronze) | the defender builds for 15 min, then the attacker (no defence layout) gets 43 units incl. 3 catapults; base ini with `first_attack_min=16,first_attack_max=18,attack_interval_min=5,attack_interval_max=6` |
 | `siege_raid` (Continental 101, 2 AIs, Bronze) | the defender builds for 12 min and gets 8 spearmen, then the attacker gets 4 catapults with 4 spearmen outside the tower range; `count` at minute 24 shows what is left |
 | `raid` (Continental 101, 2 AIs, Prehistoric start, base ini `epoch_min=15,epoch_max=20`, 55 min) | a grown base raided at minute 46 by 15 spearmen and 10 bowmen; `count 3` at 54 |
+| `late` (empty setup) | a plain late start (base `start_epoch=8`) for economy changes |
+
+Head-to-head: suites with one variant for all AIs measure how decisive the wars are, not which variant is
+stronger (alive 70-78% with a standard error of ~6 points per variant). `scripts/h2h.sh` lets some AIs of the
+same game play variant B (`variant_players=24` + `v_late_targets`, `v_hoard_cap_mineral`, `v_substitute_wait`),
+the others the settings; the B seats swap every run (P2+P4, P3+P5 with 4 AIs). `scripts/h2h.py` scores the
+per-game difference B - A (survival, soldiers, kills, losses, razed, epoch, workers):
+
+```sh
+REPEAT=8 NAME=hoard600 sh scripts/h2h.sh 50 late \
+    "random_map=Continental,seed=101,map_size=1,ai_count=4,start_epoch=8" "v_hoard_cap_mineral=600"
+```
 
 Suite: 4 land maps with fixed seeds (Continental, Plains, Highlands, Mediterranean), headless with turbo,
 one or more runs per variant and map, then scored (survival, epoch, workers, food; with the standard error
