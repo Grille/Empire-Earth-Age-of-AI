@@ -827,6 +827,17 @@ static void to_metals(uint32_t *target, const int *demand, const int *stock, int
     }
     for (int r = 5; given < n; r = r == 6 ? 5 : r + 1) { target[r]++; given++; }
 }
+// Bit 16: METAL PULL. The game splits the workers by its demand, and its food demand is always ~77000 (phantom):
+// gold (1000-5000) and iron (2000-5800) got 1-6% of them - P3 with 69 farmers, 15 on gold and 10 on iron at
+// minute 29, P2 with 24/22/1+6+1 for 24 minutes; every late unit costs half gold or iron, so 10-20 soldiers each.
+// Every 10 s: when the army's orders failed for stone/gold/iron (5+, more than twice those for food) and the food
+// stock is above its reserve, 2 more of the food target go to the metals (by their demand); when food fails more,
+// or the food stock falls under the reserve + 200, 4 come back. At most 60% of the food target, and not more while
+// the mines can't take those already sent (metal workers 6+ under their targets).
+static int g_pull[16];
+static uint32_t g_pull_t[16];
+static unsigned g_pull_seen[16][7];
+static unsigned mil_short(unsigned idx, int r);   // below: the army's orders refused for resource r (counter)
 static void budget_reserve(void *pl, int reserve[7]);
 static void econ_targets(uint8_t *rm) {
     void *pl = rm_player(rm);
@@ -905,6 +916,30 @@ static void econ_targets(uint8_t *rm) {
             if ((int)target[2] > cap) {
                 to_metals(target, demand, stock, (int)target[2] - cap);
                 target[2] = (uint32_t)cap;
+            }
+        }
+        if (lt & 16) {   // the metal pull
+            uint32_t now = game_time();
+            if (now < g_pull_t[idx]) { g_pull[idx] = 0; memset(g_pull_seen[idx], 0, sizeof g_pull_seen[idx]); }   // new game
+            if (!g_pull_t[idx] || now < g_pull_t[idx] || now - g_pull_t[idx] >= 10000) {
+                g_pull_t[idx] = now ? now : 1;
+                unsigned d[7] = { 0 };
+                for (int r = 2; r < 7; r++) {   // refusals since the last look (the counter restarts with the army log)
+                    unsigned c = mil_short(idx, r);
+                    d[r] = c >= g_pull_seen[idx][r] ? c - g_pull_seen[idx][r] : c;
+                    g_pull_seen[idx][r] = c;
+                }
+                unsigned metal = d[4] + d[5] + d[6];
+                int spare = stock[2] - reserve[2];
+                int unplaced = rm_count(rm, 4) + rm_count(rm, 5) + rm_count(rm, 6) < (int)(target[4] + target[5] + target[6]) - 6;
+                if (d[2] > metal || spare < 200) g_pull[idx] -= 4;
+                else if (metal >= 5 && metal > 2 * d[2] && spare > 300 && !unplaced) g_pull[idx] += 2;
+            }
+            int most = (int)target[2] * 3 / 5;
+            g_pull[idx] = g_pull[idx] < 0 ? 0 : g_pull[idx] > most ? most : g_pull[idx];
+            if (g_pull[idx] > 0) {
+                to_metals(target, demand, stock, g_pull[idx]);
+                target[2] -= (uint32_t)g_pull[idx];
             }
         }
         return;
@@ -1082,6 +1117,37 @@ static void fields_rebuild(void *pl, unsigned idx, void *um, uint8_t *dq, uint32
 // queued (0x465640) or unfinished, fewer than 1 + target/8 granaries (at most 8) -> the build manager is asked
 // for one (0x46802D(bm, 0x34, 1, 0), as that plan entry does); it comes with 8 fields, which the passes above build
 // and farm.
+// The game's spot can be one its builders never manage to lay out: P2's main Town Center hemmed in by walls, towers,
+// a tank factory and both granaries' fields - every minute a request, "placed", the builders stood at 95,97 with no
+// foundation until the next request moved them, idle; 16 fields for a food target of 107 from minute 14 to the end
+// (88 on wood, food 10). A request without a new granary 50 s later: the next goes to our own spot - near a Town
+// Center, Capitol or Settlement, 4-12 tiles out, placeable, no enemy soldiers within 12, room for 6+ of the 8 fields
+// around it (2 tiles apart, as the game lays them out).
+static int granary_spot(void *pl, void *um, int *ox, int *oy) {
+    static const int centers[] = { 35, 41, 43 };
+    for (int c = 0; c < 3; c++) {
+        uint8_t *q = ((uint8_t *(__thiscall *)(void *, int))0x0048F8AF)(um, centers[c]);
+        for (unsigned k = 0, f = q ? FIELD(q, 0xC, unsigned) : 0, n = q ? FIELD(q, 0x10, unsigned) : 0; k < n; k++) {
+            uint8_t *b = deque_at(q, f + k);
+            if (!b || FIELD(b, 0x3C, int) <= 0) continue;
+            int cx = FIELD(b, 0x1C, int), cy = FIELD(b, 0x20, int);
+            for (int r = 4; r <= 12; r++)
+                for (int ax = -r; ax <= r; ax++)
+                    for (int ay = -r; ay <= r; ay++) {
+                        if (abs(ax) != r && abs(ay) != r) continue;
+                        int x = cx + ax, y = cy + ay, room = 0;
+                        if (!can_place(pl, 0x34, x, y) || raiders_near(pl, x, y, 12)) continue;
+                        for (int fx = -2; fx <= 2; fx += 2)
+                            for (int fy = -2; fy <= 2; fy += 2)
+                                if ((fx || fy) && can_place(pl, 0x2A, x + fx, y + fy)) room++;
+                        if (room < 6) continue;
+                        *ox = x; *oy = y;
+                        return 1;
+                    }
+        }
+    }
+    return 0;
+}
 static int g_more_granaries = 1;
 static void more_granaries(void *pl, unsigned idx, uint8_t *rm, void *cm, void *um, int open_fields, uint32_t now) {
     static uint32_t next[16];
@@ -1100,6 +1166,19 @@ static void more_granaries(void *pl, unsigned idx, uint8_t *rm, void *cm, void *
     }
     int cap = 1 + want / 8;
     if (!bm || granaries >= (cap < 8 ? cap : 8) || ((char (__thiscall *)(void *, int))0x00465640)(bm, 0x34)) return;
+    static struct { uint32_t t; int n; } req[16];
+    int x, y;
+    if (now < req[idx].t) req[idx].t = 0;   // a new game
+    if (req[idx].t && granaries <= req[idx].n && now - req[idx].t >= 50000 && granary_spot(pl, um, &x, &y)) {
+        char ok = ((char (__thiscall *)(void *, int, int, int))FN_PLACE)(bm, 0x34, x, y);
+        if (g_log) fprintf(g_log, "# fields: P%u at %.1f min: the last granary request brought none - our spot %d,%d: %s\n",
+                           idx, now / 60000.0, x, y, ok ? "placed" : "refused");
+        req[idx].t = now ? now : 1;
+        req[idx].n = granaries;
+        if (ok) return;
+    }
+    req[idx].t = now ? now : 1;
+    req[idx].n = granaries;
     ((void (__thiscall *)(void *, int, int, int))0x0046802D)(bm, 0x34, 1, 0);
     if (g_log) fprintf(g_log, "# fields: P%u at %.1f min: food target %d, %d on food, %d granaries - one more requested\n",
                        idx, now / 60000.0, want, have, granaries);
@@ -1342,6 +1421,7 @@ static int unit_cost(void *pl, int type, int r);
 // Military request statistics, logged every 5 minutes: how often the AI asks for soldiers, how many it gets
 // and which resource was short when a request failed (unit cost = object data 0x9418A0[type] +0x24..).
 static struct { unsigned req, trained, short_of[7], subs, saving; uint32_t last_log; int ftype[4]; unsigned fcount[4]; } g_mil[16];
+static unsigned mil_short(unsigned idx, int r) { return g_mil[idx & 15].short_of[r]; }
 static void mil_note(void *pl, unsigned idx, const int *req, const int *visible, int spent, uintptr_t site) {
     g_mil[idx].req++;
     if (spent) { g_mil[idx].trained += req[1] > 0 ? (unsigned)req[1] : 1; return; }

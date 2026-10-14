@@ -23,6 +23,7 @@ static void watch_set(uintptr_t addr, int len);
 static void cmd_threat(char *out, const char *args);
 static void cmd_targets(char *out, const char *args);
 static void cmd_army(char *out, const char *args);
+static void cmd_minecheck(char *out, const char *args);   // sites.c
 static void cmd_wave(char *out, const char *args);
 static void cmd_charge(char *out, const char *args);
 static void cmd_count(char *out, const char *args);
@@ -360,6 +361,7 @@ static void execute(const char *cmd, char *out) {
     else if (!strcmp(verb, "status")) cmd_status(out);
     else if (!strcmp(verb, "camera")) cmd_camera(out, args);
     else if (!strcmp(verb, "sites")) cmd_sites(out, args);
+    else if (!strcmp(verb, "minecheck")) cmd_minecheck(out, args);
     else if (!strcmp(verb, "units")) cmd_units(out, args);
     else if (!strcmp(verb, "foodcheck")) cmd_foodcheck(out, args);
     else if (!strcmp(verb, "costs")) cmd_costs(out, args);

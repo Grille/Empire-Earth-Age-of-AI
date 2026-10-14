@@ -130,6 +130,44 @@ static void *refuse_danger(uint8_t *rm, void *site, int food) {
     g_site_refused[(unsigned)FIELD(pl, PL_INDEX, int) & 15]++;
     return NULL;
 }
+// minecheck P type: every mine of that resource in P's zones and the first check of select_mine_near_drop that
+// refuses it (tests)
+static void cmd_minecheck(char *out, const char *args) {
+    int p = 0, type = 5;
+    sscanf(args, "%d %d", &p, &type);
+    void *pl = p > 0 && p < 16 ? g_players[p] : NULL;
+    uint8_t *cm = pl ? FIELD(pl, 0xB90, uint8_t *) : NULL;
+    void *bm = cm ? FIELD(cm, 0x3C, void *) : NULL;
+    if (!bm) { REPLY("error: no AI P%d\n", p); return; }
+    drops_cached(pl);
+    int nd = g_drops[p].n, (*d)[3] = g_drops[p].d;
+    unsigned cap = ((unsigned (__thiscall *)(void *, int))FN_TABLE_VALUE)((void *)0x917BB0, 0x16);
+    void **zb = FIELD(pl, 0xB50, void **), **ze = FIELD(pl, 0xB54, void **);
+    REPLY("P%d type %d, %d drop sites:", p, type, nd);
+    for (int i = 0; i < nd; i++) REPLY(" %d,%d%s", d[i][0], d[i][1], d[i][2] ? "g" : "");
+    REPLY("\n");
+    for (int z = 0; zb && zb + z < ze; z++) {
+        uint8_t *zone = zb[z];
+        uint8_t *s = zone ? ((uint8_t *(__thiscall *)(void *, int))FN_ZONE_SITE)(zone, type) : NULL;
+        if (!s) continue;
+        int pos[2] = { FIELD(s, 0x1C, int), FIELD(s, 0x20, int) }, k = -1, dd = 0x7FFFFFFF;
+        for (int i = 0; i < nd; i++) {
+            int dx = d[i][0] - pos[0], dy = d[i][1] - pos[1];
+            if (!d[i][2] && dx * dx + dy * dy < dd) { dd = dx * dx + dy * dy; k = i; }
+        }
+        unsigned g = ((unsigned (__thiscall *)(void *, void *))FN_SITE_GATHERERS)((void *)0x918300, s);
+        const char *why = !zone[0x18] ? "zone inactive" : FIELD(s, 0x40, int) <= 0 ? "empty" :
+            FIELD(FIELD(s, 0x14, uint8_t *), 4, int) == 1 ? "site flag" : k < 0 ? "no drop site" :
+            !((char (__thiscall *)(void *, void *))FN_EXPLORED)(FIELD(s, 0x14, void *), pl) ? "unexplored" :
+            g >= cap ? "full" : ((EnemyNearFn)FN_ENEMY_NEAR)(bm, pos[0], pos[1]) ? "enemy near" : NULL;
+        if (!why) {
+            int from[2] = { d[k][0], d[k][1] };
+            why = !route_safe(bm, from, pos) ? "route not safe" : site_danger(pl, s, 0) ? "site danger" : "ok";
+        }
+        REPLY("  %d,%d zone %d: %u gatherers, drop %d,%d at %.0f tiles - %s\n", pos[0], pos[1], z, g, k >= 0 ? d[k][0] : 0,
+              k >= 0 ? d[k][1] : 0, k >= 0 ? sqrtf((float)dd) : 0.0f, why);
+    }
+}
 static uint8_t *select_mine_near_drop(uint8_t *rm, int type, uint8_t *unit) {
     void *pl = rm_player(rm);
     uint8_t *cm = FIELD(rm, RM_OWNER, uint8_t *);
