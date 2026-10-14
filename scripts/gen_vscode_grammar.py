@@ -46,7 +46,7 @@ expression = [
     {'name': 'invalid.illegal.unknown-epoch.eeaimod', 'match': r'\bepoch\.[A-Za-z_][\w.]*'},
     {'name': 'support.function.eeaimod', 'match': words(funcs) + r'(?=\s*\()'},
     {'name': 'constant.language.boolean.eeaimod', 'match': r'\b(?:true|false)\b'},
-    {'name': 'keyword.operator.logical.eeaimod', 'match': r'\b(?:and|or|not)\b'},
+    {'name': 'keyword.control.logical.eeaimod', 'match': r'\b(?:and|or|not)\b'},
     {'match': r'(?:(' + player + r')(\.))?(' + words(relations) + r')(?=\s*\()',   # me.kills(them): the player, the relation
      'captures': {'1': {'name': 'variable.language.game-value.eeaimod'}, '2': {'name': 'punctuation.accessor.eeaimod'},
                   '3': {'name': 'support.function.relation.eeaimod'}}},

@@ -455,7 +455,7 @@
           "match": "\\b(?:true|false)\\b"
         },
         {
-          "name": "keyword.operator.logical.eeaimod",
+          "name": "keyword.control.logical.eeaimod",
           "match": "\\b(?:and|or|not)\\b"
         },
         {
@@ -581,7 +581,7 @@
           "match": "\\b(?:true|false)\\b"
         },
         {
-          "name": "keyword.operator.logical.eeaimod",
+          "name": "keyword.control.logical.eeaimod",
           "match": "\\b(?:and|or|not)\\b"
         },
         {
