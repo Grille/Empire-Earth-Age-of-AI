@@ -9,36 +9,72 @@
 
 [lines]
 war_declared = [
-    them.betrayals(me) > 0 ? "You broke an alliance with us before, {name}. Now you attack. This means war.",
-    them.tribute(me) > 0 ? "You paid us tribute, {name}. Now you attack us. This means war.",
+    them.betrayals(me) > 0 ? [
+        "You broke an alliance with us before, {name}. Now you attack. This means war.",
+        "Your betrayal is on record, {name}. So is this attack. This means war.",
+    ],
+    them.tribute(me) > 0 ? [
+        "You paid us tribute, {name}. Now you attack us. This means war.",
+        "{them.tribute(me)} resources in tribute, and now an attack, {name}. This means war.",
+    ],
 ] ?? "You attacked us, {name}. This means war."
 ; this betrayal is counted already: betrayals(me) > 1 is the second time
 betrayed = [
-    them.betrayals(me) > 1 ? "You have broken an alliance with us again, {name}. This means war.",
-    me.betrayals(them) > 0 ? "We broke an alliance with you once, {name}. Now you broke ours. This means war.",
+    them.betrayals(me) > 1 ? [
+        "You have broken an alliance with us again, {name}. This means war.",
+        "{them.betrayals(me)} broken alliances with us, {name}. This means war.",
+    ],
+    me.betrayals(them) > 0 ? [
+        "We broke an alliance with you once, {name}. Now you broke ours. This means war.",
+        "We betrayed you once, {name}. You have answered in kind. This means war.",
+    ],
 ] ?? "You broke our alliance, {name}. This means war."
 peace_accept = [
-    them.betrayals(me) > 0 ? "We accept peace, {name}. Your betrayal is on record.",
+    them.betrayals(me) > 0 ? [
+        "We accept peace, {name}. Your betrayal is on record.",
+        "Peace accepted, {name}. We will watch you: you have broken an alliance with us before.",
+    ],
     them.kills(me) > 30 and them.kills(me) > me.kills(them) and chance(60) ? "We accept peace, {name}. This war cost us {them.kills(me)} units.",
 ] ?? "We accept peace, {name}."
 peace_refuse = [
-    them.betrayals(me) > 0 ? "We refuse, {name}. You have broken an alliance with us before.",
+    them.betrayals(me) > 0 ? [
+        "We refuse, {name}. You have broken an alliance with us before.",
+        "We refuse, {name}. Your word was broken once. We do not take it again.",
+    ],
     them.refusals(me) > 0 and chance(70) ? "We refuse your offer of peace, {name}. You refused ours.",
 ] ?? "We refuse your offer of peace, {name}."
 ; ignored(me): our earlier offers they let run out, in a row
 alliance_offer = [
-    them.ignored(me) > 0 ? "{name}, once more: we propose an alliance against {enemy}.",
+    them.ignored(me) > 0 ? [
+        "{name}, once more: we propose an alliance against {enemy}.",
+        "{name}, our last offer went unanswered. We propose an alliance against {enemy} again.",
+    ],
 ] ?? "{name}, we propose an alliance against {enemy}."
 offer_accepted = [
-    them.betrayals(me) > 0 ? "Our alliance stands, {name}. Your earlier betrayal is on record.",
+    them.betrayals(me) > 0 ? [
+        "Our alliance stands, {name}. Your earlier betrayal is on record.",
+        "Our alliance stands, {name}. Do not break this one.",
+    ],
 ] ?? "Our alliance stands, {name}."
 ; ignored(me) counts this one already
-offer_withdrawn = them.ignored(me) > 1 ? "No answer again, {name}. Our offer is withdrawn." : "No answer, {name}. Our offer is withdrawn."
+offer_withdrawn = them.ignored(me) > 1 ? [
+    "No answer again, {name}. Our offer is withdrawn.",
+    "{them.ignored(me)} offers without an answer, {name}. This one is withdrawn as well.",
+] : [
+    "No answer, {name}. Our offer is withdrawn.",
+    "Our offer has expired, {name}. You did not answer.",
+]
 betray = [
-    them.betrayals(me) > 0 ? "Our alliance is over, {name}. You broke one with us first.",
+    them.betrayals(me) > 0 ? [
+        "Our alliance is over, {name}. You broke one with us first.",
+        "We end our alliance, {name}. You did the same to us before.",
+    ],
 ] ?? "Our alliance is over, {name}."
 tribute_thanks = [
-    at_war ? "Tribute received, {name}. We are still at war.",
+    at_war ? [
+        "Tribute received, {name}. We are still at war.",
+        "Your tribute is noted, {name}. It does not end the war.",
+    ],
     them.tribute(me) > 2000 and chance(50) ? "Tribute received. {them.tribute(me)} resources from you so far, {name}. Thank you.",
 ] ?? "Tribute received. Thank you, {name}."
 capitulate = "{name}, we surrender. We offer {tribute} for peace."
@@ -49,39 +85,81 @@ block_refuse_own = "We refuse, {name}: our ally {enemy} will not make peace with
 ask_lord = "We are a vassal of {enemy}, {name}. Negotiate with them."
 vassal_grumble = "As you command, {name}. Peace with {enemy}."
 all_submitted = "Every player has submitted to you, {name}."
-other_victory = lord == them ? "Victory to our lord, {name}." : "Victory to our alliance, {name}."
+other_victory = lord == them ? [
+    "Victory to our lord, {name}.",
+    "Our lord has won, {name}. We served to the end.",
+] : [
+    "Victory to our alliance, {name}.",
+    "The war is won, {name}. Our alliance held.",
+]
 surrender = "We give up."
 defeated = "We have been defeated."
 
 [lines:de]
 war_declared = [
-    them.betrayals(me) > 0 ? "Sie haben schon einmal ein Bündnis mit uns gebrochen, {name}. Jetzt greifen Sie an. Das bedeutet Krieg.",
-    them.tribute(me) > 0 ? "Sie haben uns Tribut gezahlt, {name}. Jetzt greifen Sie uns an. Das bedeutet Krieg.",
+    them.betrayals(me) > 0 ? [
+        "Sie haben schon einmal ein Bündnis mit uns gebrochen, {name}. Jetzt greifen Sie an. Das bedeutet Krieg.",
+        "Ihr Verrat ist vermerkt, {name}. Dieser Angriff ebenfalls. Das bedeutet Krieg.",
+    ],
+    them.tribute(me) > 0 ? [
+        "Sie haben uns Tribut gezahlt, {name}. Jetzt greifen Sie uns an. Das bedeutet Krieg.",
+        "{them.tribute(me)} Rohstoffe Tribut, und jetzt ein Angriff, {name}. Das bedeutet Krieg.",
+    ],
 ] ?? "Sie haben uns angegriffen, {name}. Das bedeutet Krieg."
 betrayed = [
-    them.betrayals(me) > 1 ? "Sie haben erneut ein Bündnis mit uns gebrochen, {name}. Das bedeutet Krieg.",
-    me.betrayals(them) > 0 ? "Wir haben einmal ein Bündnis mit Ihnen gebrochen, {name}. Jetzt Sie unseres. Das bedeutet Krieg.",
+    them.betrayals(me) > 1 ? [
+        "Sie haben erneut ein Bündnis mit uns gebrochen, {name}. Das bedeutet Krieg.",
+        "{them.betrayals(me)} gebrochene Bündnisse mit uns, {name}. Das bedeutet Krieg.",
+    ],
+    me.betrayals(them) > 0 ? [
+        "Wir haben einmal ein Bündnis mit Ihnen gebrochen, {name}. Jetzt Sie unseres. Das bedeutet Krieg.",
+        "Wir haben Sie einmal verraten, {name}. Sie haben es uns vergolten. Das bedeutet Krieg.",
+    ],
 ] ?? "Sie haben unser Bündnis gebrochen, {name}. Das bedeutet Krieg."
 peace_accept = [
-    them.betrayals(me) > 0 ? "Wir nehmen den Frieden an, {name}. Ihr Verrat ist vermerkt.",
+    them.betrayals(me) > 0 ? [
+        "Wir nehmen den Frieden an, {name}. Ihr Verrat ist vermerkt.",
+        "Frieden angenommen, {name}. Wir behalten Sie im Auge: Sie haben schon einmal ein Bündnis mit uns gebrochen.",
+    ],
     them.kills(me) > 30 and them.kills(me) > me.kills(them) and chance(60) ? "Wir nehmen den Frieden an, {name}. Dieser Krieg hat uns {them.kills(me)} Einheiten gekostet.",
 ] ?? "Wir nehmen den Frieden an, {name}."
 peace_refuse = [
-    them.betrayals(me) > 0 ? "Wir lehnen ab, {name}. Sie haben schon einmal ein Bündnis mit uns gebrochen.",
+    them.betrayals(me) > 0 ? [
+        "Wir lehnen ab, {name}. Sie haben schon einmal ein Bündnis mit uns gebrochen.",
+        "Wir lehnen ab, {name}. Ihr Wort wurde schon einmal gebrochen. Wir nehmen es nicht noch einmal an.",
+    ],
     them.refusals(me) > 0 and chance(70) ? "Wir lehnen Ihr Friedensangebot ab, {name}. Sie haben unseres abgelehnt.",
 ] ?? "Wir lehnen Ihr Friedensangebot ab, {name}."
 alliance_offer = [
-    them.ignored(me) > 0 ? "{name}, noch einmal: Wir schlagen ein Bündnis gegen {enemy} vor.",
+    them.ignored(me) > 0 ? [
+        "{name}, noch einmal: Wir schlagen ein Bündnis gegen {enemy} vor.",
+        "{name}, unser letztes Angebot blieb unbeantwortet. Wir schlagen erneut ein Bündnis gegen {enemy} vor.",
+    ],
 ] ?? "{name}, wir schlagen ein Bündnis gegen {enemy} vor."
 offer_accepted = [
-    them.betrayals(me) > 0 ? "Unser Bündnis steht, {name}. Ihr früherer Verrat ist vermerkt.",
+    them.betrayals(me) > 0 ? [
+        "Unser Bündnis steht, {name}. Ihr früherer Verrat ist vermerkt.",
+        "Unser Bündnis steht, {name}. Brechen Sie dieses nicht.",
+    ],
 ] ?? "Unser Bündnis steht, {name}."
-offer_withdrawn = them.ignored(me) > 1 ? "Wieder keine Antwort, {name}. Unser Angebot ist zurückgezogen." : "Keine Antwort, {name}. Unser Angebot ist zurückgezogen."
+offer_withdrawn = them.ignored(me) > 1 ? [
+    "Wieder keine Antwort, {name}. Unser Angebot ist zurückgezogen.",
+    "{them.ignored(me)} Angebote ohne Antwort, {name}. Auch dieses ist zurückgezogen.",
+] : [
+    "Keine Antwort, {name}. Unser Angebot ist zurückgezogen.",
+    "Unser Angebot ist abgelaufen, {name}. Sie haben nicht geantwortet.",
+]
 betray = [
-    them.betrayals(me) > 0 ? "Unser Bündnis ist beendet, {name}. Sie haben zuerst eines mit uns gebrochen.",
+    them.betrayals(me) > 0 ? [
+        "Unser Bündnis ist beendet, {name}. Sie haben zuerst eines mit uns gebrochen.",
+        "Wir beenden unser Bündnis, {name}. Sie haben uns dasselbe schon einmal angetan.",
+    ],
 ] ?? "Unser Bündnis ist beendet, {name}."
 tribute_thanks = [
-    at_war ? "Tribut erhalten, {name}. Wir sind weiterhin im Krieg.",
+    at_war ? [
+        "Tribut erhalten, {name}. Wir sind weiterhin im Krieg.",
+        "Ihr Tribut ist vermerkt, {name}. Er beendet den Krieg nicht.",
+    ],
     them.tribute(me) > 2000 and chance(50) ? "Tribut erhalten. Bisher {them.tribute(me)} Rohstoffe von Ihnen, {name}. Danke.",
 ] ?? "Tribut erhalten. Danke, {name}."
 capitulate = "{name}, wir kapitulieren. Wir bieten {tribute} für Frieden."
@@ -92,6 +170,12 @@ block_refuse_own = "Wir lehnen ab, {name}: unser Verbündeter {enemy} schließt 
 ask_lord = "Wir sind Vasall von {enemy}, {name}. Verhandeln Sie mit ihnen."
 vassal_grumble = "Wie Sie befehlen, {name}. Frieden mit {enemy}."
 all_submitted = "Alle Spieler haben sich Ihnen unterworfen, {name}."
-other_victory = lord == them ? "Sieg unserem Lehnsherrn, {name}." : "Sieg unserem Bündnis, {name}."
+other_victory = lord == them ? [
+    "Sieg unserem Lehnsherrn, {name}.",
+    "Unser Lehnsherr hat gesiegt, {name}. Wir haben bis zum Ende gedient.",
+] : [
+    "Sieg unserem Bündnis, {name}.",
+    "Der Krieg ist gewonnen, {name}. Unser Bündnis hat gehalten.",
+]
 surrender = "Wir geben auf."
 defeated = "Wir sind besiegt."
