@@ -13,7 +13,8 @@
 // A mistake is logged with the file and line (# texts:) and that key is skipped.
 // The expressions: numbers, "texts" (or 'texts', the same rules), lists, names (a placeholder of the text, a [vars]
 // entry, a game value - x_builtin in diplo.c), ( ), + - * / %, < <= > >= == !=, and or not (only the words: && || ! are a mistake),
-// a ? b : c, a ? b, a ?? b, the functions chance(n) (true n % of the time), min, max, abs, round, and the players'
+// a ? b : c, a ? b, a ?? b, the functions chance(n) (true n % of the time), rnd(n) (0 <= x < n, n 1 when left out),
+// min, max, abs, round, and the players'
 // relations: them.opinion(me) (x_method in diplo.c). A player (me, them, ...) is a value: its name, equal only to itself.
 // A value has a number, a text or both: the epoch is 3 and "Copper Age", a placeholder "12" is 12 and "12". The number
 // counts in arithmetic, in comparisons with a number and as true/false; the text where the value ends up in the text
@@ -166,6 +167,7 @@ static int xp_op(struct xp *p, const char *op) {
     return 1;
 }
 static void xp_expr(struct xp *p, struct xval *v);
+static double x_rnd01(void) { return rnd(1 << 30) / (double)(1 << 30); }   // 0 <= x < 1 (the display generator)
 // a player who isn't there, used without a check (strict parsing only: else it is nothing, quietly)
 static void x_missing(struct xctx *c, const char *who) {
     if (g_strict) x_error("%s is used, but there is none here - check it first (%s ? ... / %s ?? ...): %.100s", who, who, who, c->top ? c->top : "");
@@ -264,21 +266,23 @@ static void xp_primary(struct xp *p, struct xval *v) {
         }
         if (p->err) goto out;
         int f = !lstrcmpiA(name, "chance") && na == 1 ? 1 : (!lstrcmpiA(name, "min") || !lstrcmpiA(name, "max")) && na ? 2 :
-                !lstrcmpiA(name, "abs") && na == 1 ? 3 : !lstrcmpiA(name, "round") && na == 1 ? 4 : 0;
+                !lstrcmpiA(name, "abs") && na == 1 ? 3 : !lstrcmpiA(name, "round") && na == 1 ? 4 :
+                !lstrcmpiA(name, "rnd") && na <= 1 ? 5 : 0;
         for (int i = 0; f && i < na; i++) x_use(p, &a[i]);   // a function's arguments (a relation checks its players)
         if (!f) {   // a relation: them.opinion(me)
             if (!x_method(p->c, name, a, na, p->skip ? NULL : v)) { p->err = 1; p->why = "an unknown function or relation (or the wrong number of arguments)"; }
             else if (p->skip) xnothing(v);
         }
         else if (p->skip) xnothing(v);
-        else if (f == 1) xnum(v, rnd(100) < xto_num(&a[0]));
+        else if (f == 1) xnum(v, x_rnd01() * 100 < xto_num(&a[0]));   // percent, fractions too: chance(2.5)
         else if (f == 2) {
             int mx = !lstrcmpiA(name, "max");
             double r = xto_num(&a[0]);
             for (int i = 1; i < na; i++) { double x = xto_num(&a[i]); if (mx ? x > r : x < r) r = x; }
             xnum(v, r);
         } else if (f == 3) { double x = xto_num(&a[0]); xnum(v, x < 0 ? -x : x); }
-        else { double x = xto_num(&a[0]); xnum(v, (double)(long long)(x < 0 ? x - 0.5 : x + 0.5)); }
+        else if (f == 4) { double x = xto_num(&a[0]); xnum(v, (double)(long long)(x < 0 ? x - 0.5 : x + 0.5)); }
+        else xnum(v, x_rnd01() * (na ? xto_num(&a[0]) : 1));   // rnd(n): 0 <= x < n, rnd(): 0 <= x < 1
     } else p->err = 1;
 out:
     p->c->level--;

@@ -448,7 +448,7 @@
         },
         {
           "name": "support.function.eeaimod",
-          "match": "\\b(?:chance|round|abs|max|min)\\b(?=\\s*\\()"
+          "match": "\\b(?:chance|round|abs|max|min|rnd)\\b(?=\\s*\\()"
         },
         {
           "name": "constant.language.boolean.eeaimod",
@@ -574,7 +574,7 @@
         },
         {
           "name": "support.function.eeaimod",
-          "match": "\\b(?:chance|round|abs|max|min)\\b(?=\\s*\\()"
+          "match": "\\b(?:chance|round|abs|max|min|rnd)\\b(?=\\s*\\()"
         },
         {
           "name": "constant.language.boolean.eeaimod",
