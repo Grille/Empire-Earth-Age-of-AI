@@ -38,7 +38,7 @@ greeting = [
     players > 5 and chance(50%) ? "So many guests. I do hope there are enough chairs ... for a while.",
     allied and chance(50%) ? "Allies already, {name}? How sweet. Let us see how long it lasts.",
 ] ?? [
-    "How lovely to meet you all.",
+    players > 2 ? "How lovely to meet you all.",
     "I am sure we will ... get along splendidly.",
     "Friends? Enemies? Oh, that will sort itself out.",
 ]
