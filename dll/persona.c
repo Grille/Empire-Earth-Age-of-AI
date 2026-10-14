@@ -13,9 +13,12 @@
 //   [lines:de]                 in a game of that language these replace [lines] situation by situation
 //   [style]                    EXPERIMENTAL, only with [general] ai_style=1 (default 0): aimod.ini keys
 //   first_attack_min=15        (settings.c k_style_keys) on top of the difficulty's settings for this AI
+//   [vars] / [vars:de]         named expressions for its lines (expr.c), before _system.ini's
 // Placeholders: {name} the player the line is about, {me} the speaker, {enemy} a third player (alliances),
-// {epoch} the speaker's age, {tribute} the resources offered / paid (capitulation). A situation without lines stays
-// silent (the game's own lines for wonders, flares and war remain where the personality has none).
+// {epoch} the speaker's age, {tribute} the resources offered / paid (capitulation), or an expression (expr.c). A
+// variant may start with a condition, "[opinion < -50] ...": those whose condition holds are picked from, the others
+// only when none does. A situation without lines (or none that may be said) stays silent (the game's own lines for
+// wonders, flares and war remain where the personality has none).
 //
 // Assignment at the AI's first update: aimod.ini [general] personality_P<n>=<file name without .ini>, otherwise
 // random, every personality once before any repeats (autotest: from the map seed, so runs repeat).
@@ -68,6 +71,7 @@ struct persona {
     int nstyle;
     char *line[L_N][MAX_VARIANTS];
     uint8_t nline[L_N];
+    struct xvars vars;   // [vars] (+ [vars:<game language>])
 };
 static struct persona g_personas[MAX_PERSONAS];
 static int g_npersonas;
@@ -218,6 +222,12 @@ static void lang_detect(void) {
 // personality use it alone. It holds neutral lines for what must not go unsaid (diplomacy, capitulation, victory).
 static struct persona g_computer;
 static int g_has_computer;
+struct variants_add { char **dst; uint8_t *n; };
+static void variant_add(char *piece, void *arg) {
+    struct variants_add *a = arg;
+    char *t = trim(piece);
+    if (*t && *a->n < MAX_VARIANTS) a->dst[(*a->n)++] = _strdup(t);
+}
 static int g_personas_only_computer;   // autotest personas=0: only computer.ini (AIs without a personality)
 static void persona_load(const char *path, const char *file) {
     if (g_npersonas >= MAX_PERSONAS) return;
@@ -232,7 +242,9 @@ static void persona_load(const char *path, const char *file) {
     static char *ll[L_N][MAX_VARIANTS];   // [lines:<game language>]: replace [lines] situation by situation
     uint8_t nll[L_N] = { 0 };
     int lang_name = 0;   // name:<game language> seen (wins over name=)
-    int section = 0;   // 1 personality, 2 lines, 3 style, 4 lines in the game's language
+    static struct xvars vl;   // [vars:<game language>]: over [vars]
+    vl.n = 0;
+    int section = 0;   // 1 personality, 2 lines, 3 style, 4 lines in the game's language, 5 vars, 6 vars in it
     for (char *ln = strtok(text, "\n"); ln; ln = strtok(NULL, "\n")) {
         char *s = trim(ln);
         if (!*s || *s == ';' || *s == '#') continue;
@@ -240,7 +252,8 @@ static void persona_load(const char *path, const char *file) {
             char *close = strchr(s, ']');
             if (close) *close = 0;
             section = !lstrcmpiA(s, "[personality") ? 1 : !lstrcmpiA(s, "[lines") ? 2 : !lstrcmpiA(s, "[style") ? 3 :
-                      !_strnicmp(s, "[lines:", 7) && lang_matches(s + 7) ? 4 : 0;
+                      !_strnicmp(s, "[lines:", 7) && lang_matches(s + 7) ? 4 : !lstrcmpiA(s, "[vars") ? 5 :
+                      !_strnicmp(s, "[vars:", 6) && lang_matches(s + 6) ? 6 : 0;
             continue;
         }
         char *eq = strchr(s, '=');
@@ -263,22 +276,19 @@ static void persona_load(const char *path, const char *file) {
                 if (!lstrcmpiA(key, k_trait_keys[t])) { int v = atoi(val); p->trait[t] = v < 0 ? 0 : v > 100 ? 100 : v; }
         } else if (section == 3) {
             if (p->nstyle < 16) { p->style_key[p->nstyle] = _strdup(key); p->style_val[p->nstyle++] = _strdup(val); }
+        } else if (section == 5 || section == 6) {
+            xvars_set(section == 5 ? &p->vars : &vl, key, val);
         } else if (section == 2 || section == 4) {
             for (int k = 0; k < L_N; k++) {
                 if (lstrcmpiA(key, k_lines[k].key)) continue;
-                char **dst = section == 2 ? p->line[k] : ll[k];
-                uint8_t *n = section == 2 ? &p->nline[k] : &nll[k];
-                for (char *v = val; v && *v && *n < MAX_VARIANTS;) {
-                    char *bar = strchr(v, '|');
-                    if (bar) *bar = 0;
-                    char *t = trim(v);
-                    if (*t) dst[(*n)++] = _strdup(t);
-                    v = bar ? bar + 1 : NULL;
-                }
+                struct variants_add a = { section == 2 ? p->line[k] : ll[k], section == 2 ? &p->nline[k] : &nll[k] };
+                x_split(val, variant_add, &a);   // | outside quotes, brackets and braces (an expression may say ||)
             }
         }
     }
     free(text);
+    for (int i = 0; i < vl.n; i++) xvars_set(&p->vars, vl.key[i], vl.val[i]);
+    for (int i = 0; i < vl.n; i++) { free(vl.key[i]); free(vl.val[i]); }
     for (int k = 0; k < L_N; k++)   // the language's lines where it has them, [lines] for the rest
         if (nll[k]) {
             for (int v = 0; v < p->nline[k]; v++) free(p->line[k][v]);
@@ -328,14 +338,63 @@ static int line_fallback(int k) {
     default: return -1;
     }
 }
-// where situation k's line comes from for this AI: its personality (k or a fallback of it), else computer.ini
-static struct persona *line_source(void *pl, int k, int *kk) {
+// A line's context for its {placeholders} and conditions (expr.c): the speaker, {name}, {enemy}, the placeholders,
+// the [vars] of the line's personality, the speaker's own, _system.ini's
+struct line_ctx { struct xctx c; const char *pn[5], *pv[5]; char ep[96], trib[96]; };
+static void epoch_text(void *pl, char *out, int cap);
+static const char *player_name(void *pl);
+static void tribute_text(const int *amount, char *buf, int cap);
+static int g_say_tribute[7];   // {tribute}: amounts by resource (stock index 2..6), set by the caller (diplo.c)
+static void texts_load(void);   // texts.c: _system.ini's [vars]
+static void line_ctx_init(struct line_ctx *l, void *pl, void *other, void *third) {
+    memset(&l->c, 0, sizeof l->c);
+    texts_load();
+    l->c.pl = pl; l->c.other = other; l->c.third = third; l->c.found = 1;
+    epoch_text(pl, l->ep, sizeof l->ep);
+    tribute_text(g_say_tribute, l->trib, sizeof l->trib);
+    static const char *const names[5] = { "name", "me", "enemy", "epoch", "tribute" };
+    const char *vals[5] = { player_name(other), player_name(pl), player_name(third), l->ep, l->trib };
+    for (int i = 0; i < 5; i++) { l->pn[i] = names[i]; l->pv[i] = vals[i]; }
+    l->c.pn = l->pn; l->c.pv = l->pv; l->c.np = 5;
+    l->c.vars[1] = &(persona_of(pl) ? persona_of(pl) : &g_computer)->vars;
+    l->c.vars[2] = &g_vars_sys;
+}
+// one of p's variants of situation k that may be said now - those whose condition holds, else those without one
+// (not `last` when there is a choice); -1 none. *text: the variant after its condition.
+static int line_pick(struct persona *p, int k, struct xctx *c, int last, const char **text) {
+    int yes[MAX_VARIANTS], plain[MAX_VARIANTS], ny = 0, np = 0;
+    const char *tx[MAX_VARIANTS];
+    c->vars[0] = &p->vars;
+    for (int v = 0; v < p->nline[k]; v++) {
+        int r = x_condition(p->line[k][v], &tx[v], c);
+        if (r > 0) yes[ny++] = v;
+        else if (r < 0) plain[np++] = v;
+    }
+    int *from = ny ? yes : plain, n = ny ? ny : np;
+    if (!n) return -1;
+    int i = rnd(n);
+    if (n > 1 && from[i] == last) i = (i + 1) % n;
+    *text = tx[from[i]];
+    return from[i];
+}
+// where situation k's line comes from for this AI: its personality (k or a fallback of it), else computer.ini - the
+// first with a variant that may be said (*kk the situation, *v the variant, *text it after its condition)
+static struct persona *line_source(void *pl, int k, int *kk, struct xctx *c, int last, int *v, const char **text) {
     struct persona *p = persona_of(pl);
-    for (int t = k; t >= 0 && p; t = line_fallback(t)) if (p->nline[t]) { *kk = t; return p; }
-    for (int t = k; t >= 0 && g_has_computer; t = line_fallback(t)) if (g_computer.nline[t]) { *kk = t; return &g_computer; }
+    for (int t = k; t >= 0 && p; t = line_fallback(t))
+        if (p->nline[t] && (*v = line_pick(p, t, c, t == k ? last : -1, text)) >= 0) { *kk = t; return p; }
+    for (int t = k; t >= 0 && g_has_computer; t = line_fallback(t))
+        if (g_computer.nline[t] && (*v = line_pick(&g_computer, t, c, t == k ? last : -1, text)) >= 0) { *kk = t; return &g_computer; }
     return NULL;
 }
-static int persona_has(void *pl, enum line_kind k) { int kk; return pl && g_ai_talk && line_source(pl, k, &kk); }
+static int persona_has(void *pl, enum line_kind k) {
+    if (!pl || !g_ai_talk) return 0;
+    struct line_ctx l;
+    line_ctx_init(&l, pl, NULL, NULL);
+    int kk, v;
+    const char *text;
+    return line_source(pl, k, &kk, &l.c, -1, &v, &text) != NULL;
+}
 
 // Personalities in use this game (each once before any repeats)
 static int g_persona_used[MAX_PERSONAS];
@@ -502,7 +561,6 @@ static int line_heard(void *pl, enum line_kind k, void *other) {
 
 // say a line of situation k (other = {name}, third = {enemy}); returns 1 if said (heard or not: the situation is
 // answered, callers don't fall back to another line)
-static int g_say_tribute[7];   // {tribute}: amounts by resource (stock index 2..6), set by the caller (diplo.c)
 // {tribute}: the amounts by resource in the game's language, e.g. "200 Gold, 800 Eisen" (only what is paid)
 static const char *sys_text(const char *key);   // texts.c: a system text in the game's language
 static void tribute_text(const int *amount, char *buf, int cap) {
@@ -519,32 +577,23 @@ static int llm_line(void *pl, enum line_kind k, void *other, void *third, const 
 static void llm_heard(void *pl, void *other, const char *text);
 static void llm_talk_event(void *pl, enum line_kind k, void *other, void *third, const char *fixed);   // llm.c: AI TALK
 static int persona_say(void *pl, enum line_kind k, void *other, void *third) {
-    int kk = k;
-    struct persona *p = pl && g_ai_talk ? line_source(pl, k, &kk) : NULL, *own = persona_of(pl);
-    if (!p || (FIELD(pl, 0x467, uint8_t) && k != L_DEFEATED && k != L_SURRENDER)) return 0;
+    struct persona *own = persona_of(pl);
+    if (!pl || !g_ai_talk || (FIELD(pl, 0x467, uint8_t) && k != L_DEFEATED && k != L_SURRENDER)) return 0;
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     uint32_t now = game_time();
     if (g_talk_any[idx] && now - g_talk_any[idx] < 3000 && k_lines[k].chance < 100) return 0;
     if (g_talk_last[idx][k] && now - g_talk_last[idx][k] < (uint32_t)k_lines[k].cooldown * 1000u) return 0;
     if (k_lines[k].chance < 100 && rnd(100) >= k_lines[k].chance * (own ? own->trait[T_TALK] : 50) / 50) return 0;
-    int n = p->nline[kk], v = rnd(n);
-    if (n > 1 && v == g_talk_variant[idx][k]) v = (v + 1) % n;
+    struct line_ctx l;
+    line_ctx_init(&l, pl, other, third);
+    int kk = k, v;
+    const char *text;
+    struct persona *p = line_source(pl, k, &kk, &l.c, g_talk_variant[idx][k], &v, &text);
+    if (!p) return 0;
     g_talk_variant[idx][k] = (uint8_t)v;
-    char buf[256], ep[96] = "";
-    int o = 0;
-    for (const char *s = p->line[kk][v]; *s && o < (int)sizeof buf - 1;) {
-        const char *rep = NULL;
-        if (*s == '{') {
-            if (!strncmp(s, "{name}", 6)) { rep = player_name(other); s += 6; }
-            else if (!strncmp(s, "{me}", 4)) { rep = player_name(pl); s += 4; }
-            else if (!strncmp(s, "{enemy}", 7)) { rep = player_name(third); s += 7; }
-            else if (!strncmp(s, "{epoch}", 7)) { epoch_text(pl, ep, sizeof ep); rep = ep; s += 7; }
-            else if (!strncmp(s, "{tribute}", 9)) { tribute_text(g_say_tribute, ep, sizeof ep); rep = ep; s += 9; }
-        }
-        if (rep) while (*rep && o < (int)sizeof buf - 1) buf[o++] = *rep++;
-        else buf[o++] = *s++;
-    }
-    buf[o] = 0;
+    char buf[256];
+    l.c.vars[0] = &p->vars;
+    x_fill(buf, sizeof buf, text, &l.c);
     int heard = line_heard(pl, k, other);
     g_talk_last[idx][k] = now ? now : 1;
     if (heard) {

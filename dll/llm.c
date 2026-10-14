@@ -531,6 +531,8 @@ static void llm_system(struct sbuf *b, void *pl, int ai, int h, int tools) {
     struct persona *p = persona_of(pl);
     char t[4096], n1[16], n2[16], n3[16], n4[16], n5[16], n6[16], comp[96] = "";
     int o = 0;
+    g_xc_pl = pl;   // the expressions in the pieces: this AI towards h
+    g_xc_other = player_at(h);
     if (!g_llm_equal) wsprintfA(comp, " %s", tpl_text("computer"));
     tput(t, &o, sizeof t, "intro", "ai", player_name(pl), "computer", comp, NULL);
     if (p && p->character[0]) tcat(t, &o, sizeof t, " %s", p->character);
@@ -545,7 +547,7 @@ static void llm_system(struct sbuf *b, void *pl, int ai, int h, int tools) {
         for (size_t i = 0; i < sizeof ex / sizeof *ex && shown < 4; i++) {
             if (!p->nline[ex[i]]) continue;
             const char *l = p->line[ex[i]][rnd(p->nline[ex[i]])];
-            if (strchr(l, '{')) continue;
+            if (strchr(l, '{') || *l == '[') continue;   // placeholders, conditions
             tcat(ex_text, &eo, sizeof ex_text, "%s\"%s\"", shown ? " / " : "", l);
             shown++;
         }
@@ -623,6 +625,7 @@ static void llm_system(struct sbuf *b, void *pl, int ai, int h, int tools) {
         lo += tsub(list + lo, sizeof list - lo, tpl_text(stance_of(pl, j) ? "other_enemy" : "other_ally"), "name", player_name(pj), NULL);
     }
     if (lo) tput(t, &o, sizeof t, "others", "list", list, NULL);
+    g_xc_pl = g_xc_other = NULL;
     sb_msg(b, "system", t);
 }
 static void llm_history(struct sbuf *b, int ai) {   // his lines framed with his name (whose "my" it is)

@@ -127,6 +127,22 @@ peace or alliances. With the mod:
   English and German - `[system:fr]` etc. adds a language -, `_template.ini` everything it tells the language
   model (the AI voice: who the AI is, the rules, the game as it stands, the situations, the tools). Placeholders in
   braces are filled in; a key or file left out keeps the built-in text.
+- **Expressions in the texts:** a placeholder may be an expression over the game as it stands, and `[vars]` names
+  one for the texts (in `_system.ini`, `_template.ini` or a personality):
+
+  ```ini
+  [vars]
+  address = opinion > 30 ? "friend" : opinion < -30 ? "enemy" : "neighbour"
+  [lines]
+  greeting = Hello dear {address}, how is it going?
+  peace_accept = [opinion < -50] Fine. But I won't forget this, {name}.|Let us end this, {name}.
+  ```
+
+  A line variant may start with a condition in brackets: the variants whose condition holds are picked from, those
+  without one only when none does. The values: `opinion`, `power` (its strength / theirs), `at_war`, `allied`,
+  `my_lord`, `my_vassal`, `age`, `minutes`, `soldiers`, `kills`, `losses`, `human`, the traits and more (listed in
+  each file's head); `pick("a", "b")` and `chance(25)` for variety. There are no loops: a text can't hang the game, and
+  something that is no expression simply stays in the text as written.
 - **Play style** (experimental, `ai_style=1`, off by default): a personality can also change how its AI plays
   (attack timing, army share, home guard). Off, every AI plays the same, tested way.
 

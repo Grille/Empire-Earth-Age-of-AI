@@ -395,6 +395,7 @@ static void block_line(int to, const char *text) {   // a system line, only on t
     if (to != (int)*(unsigned *)0x00918E84) return;
     uint8_t *opt = *(uint8_t **)0x00917BB8;
     system_line(text, opt ? FIELD(opt, 0x2CC, int) * 2 : 20000);
+    if (g_log) fprintf(g_log, "# system line: %s\n", text);
 }
 
 static int surrender_instead(void *pl, int ai, uint32_t now);   // below (surrender)
@@ -1489,4 +1490,70 @@ static void diplo_install(const char *ini, const char *test_ini) {
                 patch_code32(EXIT_CONFIRM_AT, FN_EXIT_CONFIRM, (uint32_t)(uintptr_t)hook_exit_confirm);
     if (g_log) fprintf(g_log, "# diplomacy: answer_war=%d ai_diplomacy=%d surrender=%d alliance_blocks=%d auto_victory=%d, tribute hook %d, chat hook %d, leave hooks %d/2\n",
                        g_answer_war, g_ai_diplomacy, g_surrender, g_blocks, g_auto_victory, ok, chat, leave);
+}
+
+// TEXTS: the game's values for the expressions in the texts (expr.c), from the speaker towards {name} (the other):
+// numbers 0 where a player is missing. Who is who: the context's players, else the players named by {ai} / {me}
+// (the speaker), {name} (the other; the local player when none), {enemy} / {ally} / {lord} (the third).
+static void *x_player_named(const char *n) {
+    for (int j = 1; n && *n && j < nplayers(); j++) if (player_at(j) && !strcmp(player_name(player_at(j)), n)) return player_at(j);
+    return NULL;
+}
+static int x_builtin(struct xctx *c, const char *name, struct xval *v) {
+    static const char *const k_num[] = {
+        "opinion", "their_opinion", "power", "at_war", "allied", "hostile", "their_hostile", "my_lord", "my_vassal",
+        "vassal", "vassals", "age", "their_age", "minutes", "soldiers", "their_soldiers", "citizens",
+        "their_citizens", "buildings", "their_buildings", "kills", "losses", "human", "towers", "their_towers",
+        "aggression", "loyalty", "pride", "greed", "forgiveness", "caution", "talk",
+    };
+    int w = -1;
+    for (int i = 0; i < (int)(sizeof k_num / sizeof *k_num) && w < 0; i++) if (!strcmp(name, k_num[i])) w = i;
+    int text = !strcmp(name, "name") ? 1 : !strcmp(name, "me") ? 2 : !strcmp(name, "enemy") ? 3 : !strcmp(name, "language") ? 4 : 0;
+    if (w < 0 && !text) return 0;
+    if (!c->found) {
+        c->found = 1;
+        for (int i = 0; i < c->np; i++) {
+            const char *n = c->pn[i];
+            if (!c->pl && (!strcmp(n, "ai") || !strcmp(n, "me"))) c->pl = x_player_named(c->pv[i]);
+            else if (!c->other && !strcmp(n, "name")) c->other = x_player_named(c->pv[i]);
+            else if (!c->third && (!strcmp(n, "enemy") || !strcmp(n, "ally") || !strcmp(n, "lord"))) c->third = x_player_named(c->pv[i]);
+        }
+        unsigned h = *(unsigned *)0x00918E84;
+        if (!c->other && h < 16 && player_at((int)h) != c->pl) c->other = player_at((int)h);
+    }
+    void *pa = c->pl, *pb = c->other;
+    if (text) { xstr(v, text == 1 ? (pb ? player_name(pb) : "") : text == 2 ? (pa ? player_name(pa) : "") : text == 3 ?
+                    (c->third ? player_name(c->third) : "") : g_lang); return 1; }
+    int a = pa ? pidx(pa) : 0, b = pb ? pidx(pb) : 0, both = pa && pb && a != b;
+    double r = 0;
+    switch (w) {
+    case 0: r = both ? g_opinion[a][b] : 0; break;
+    case 1: r = both ? g_opinion[b][a] : 0; break;
+    case 2: r = both ? power_of(a) / power_of(b) : 1; break;
+    case 3: r = both && stance_of(pa, b) && stance_of(pb, a); break;
+    case 4: r = both && !stance_of(pa, b) && !stance_of(pb, a); break;
+    case 5: r = both && stance_of(pa, b); break;
+    case 6: r = both && stance_of(pb, a); break;
+    case 7: r = both && g_lord[a] == b; break;
+    case 8: r = both && g_lord[b] == a; break;
+    case 9: r = pa && g_lord[a]; break;
+    case 10: for (int j = 1; pa && j < nplayers(); j++) r += j != a && player_at(j) && !is_out(player_at(j)) && g_lord[j] == a; break;
+    case 11: r = pa ? current_epoch(pa) + 1 : 0; break;
+    case 12: r = pb ? current_epoch(pb) + 1 : 0; break;
+    case 13: r = (double)(game_time() / 60000u); break;
+    case 14: r = pa ? g_ws.soldiers[a] : 0; break;
+    case 15: r = pb ? g_ws.soldiers[b] : 0; break;
+    case 16: r = pa ? g_ws.citizens[a] : 0; break;
+    case 17: r = pb ? g_ws.citizens[b] : 0; break;
+    case 18: r = pa ? g_ws.buildings[a] : 0; break;
+    case 19: r = pb ? g_ws.buildings[b] : 0; break;
+    case 20: r = both ? g_kills[a][b][K_SOLDIERS] + g_kills[a][b][K_CITIZENS] : 0; break;
+    case 21: r = both ? g_kills[b][a][K_SOLDIERS] + g_kills[b][a][K_CITIZENS] : 0; break;
+    case 22: { unsigned h = *(unsigned *)0x00918E84; r = pb && h < 16 && pb == player_at((int)h); break; }
+    case 23: r = pa ? g_ws.towers[a] : 0; break;
+    case 24: r = pb ? g_ws.towers[b] : 0; break;
+    default: r = pa ? trait(pa, (enum trait)(w - 25)) : 50; break;
+    }
+    xnum(v, r);
+    return 1;
 }
