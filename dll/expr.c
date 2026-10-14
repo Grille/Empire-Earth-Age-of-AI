@@ -9,7 +9,8 @@
 // counts in arithmetic, in comparisons with a number and as true/false; the text where the value ends up in the text
 // and where it meets a text ("Age: " + epoch). + adds when both have numbers, else joins the texts; comparisons
 // compare numbers when both have one, else texts (case ignored) - an epoch's name is the game's language's, so
-// conditions compare its number (epoch >= 5), never its name. True: a number not 0, a text not
+// conditions compare its number (epoch >= epoch.middle), never its name. epoch.prehistoric .. epoch.space are the
+// epochs' numbers 1..15, the same in every language (a "." is part of a name). True: a number not 0, a text not
 // empty. No loops, no assignments: a text can't hang the game. A placeholder that is not a
 // valid expression - or a single name nobody knows - stays as written (as before); an unknown name inside an
 // expression counts as 0. A [vars] value that is not an expression is plain text (its placeholders filled).
@@ -89,6 +90,14 @@ static int xp_op(struct xp *p, const char *op) {
     return 1;
 }
 static void xp_expr(struct xp *p, struct xval *v);
+// epoch.<name>: an epoch's number, in every language the same (the names the game's own are in another language)
+static const char *const k_epoch_const[15] = { "prehistoric", "stone", "copper", "bronze", "dark", "middle", "renaissance",
+    "imperial", "industrial", "atomic_wwi", "atomic_wwii", "atomic_modern", "digital", "nano", "space" };
+static int x_const(const char *name, struct xval *v) {
+    if (_strnicmp(name, "epoch.", 6)) return 0;
+    for (int e = 0; e < 15; e++) if (!lstrcmpiA(name + 6, k_epoch_const[e])) { xnum(v, e + 1); return 1; }
+    return 0;
+}
 static void xp_ident(struct xp *p, const char *name, struct xval *v) {
     struct xctx *c = p->c;
     for (int i = 0; i < c->np; i++)
@@ -117,7 +126,7 @@ static void xp_ident(struct xp *p, const char *name, struct xval *v) {
         c->depth--;
         return;
     }
-    if (x_builtin(c, name, v)) return;
+    if (x_const(name, v) || x_builtin(c, name, v)) return;
     c->unknown++;
     xnum(v, 0);
 }
@@ -145,7 +154,7 @@ static void xp_primary(struct xp *p, struct xval *v) {
     } else if (isalpha((unsigned char)*s) || *s == '_') {
         char name[40];
         int n = 0;
-        while ((isalnum((unsigned char)*s) || *s == '_') && n < 39) name[n++] = *s++;
+        while ((isalnum((unsigned char)*s) || *s == '_' || (*s == '.' && isalpha((unsigned char)s[1]))) && n < 39) name[n++] = *s++;
         name[n] = 0;
         p->s = s;
         if (!lstrcmpiA(name, "true")) { xnum(v, 1); goto out; }
@@ -305,7 +314,7 @@ static int x_fill(char *out, int cap, const char *tmpl, struct xctx *c) {
                 int ok = x_eval(src, c, &v) && !c->circle;
                 c->depth--;
                 if (c->circle && !c->depth) { c->circle = 0; x_log_bad("[vars] naming each other in a circle", src); }
-                int lone = ok && c->unknown > unk && strspn(src, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_") == (size_t)n;
+                int lone = ok && c->unknown > unk && strspn(src, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_.") == (size_t)n;
                 if (ok && !lone) { xto_text(&v, val, sizeof val); rep = val; }
                 if (ok && !lone && c->unknown > unk) x_log_bad("unknown name (counted 0) in", src);
                 else if (!ok && strpbrk(src, " <>=?\"'(+")) { c->bad++; x_log_bad("not an expression", src); }
@@ -340,7 +349,7 @@ static int x_condition(const char *line, const char **text, struct xctx *c) {
     struct xval v;
     int unk = c->unknown;
     if (!x_eval(src, c, &v)) { x_log_bad("condition is not an expression", src); return -1; }
-    if (c->unknown > unk && strspn(src, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_") == (size_t)n) return -1;   // "[sighs]"
+    if (c->unknown > unk && strspn(src, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_.") == (size_t)n) return -1;   // "[sighs]"
     *text = t;
     return xtrue(&v);
 }

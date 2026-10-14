@@ -142,7 +142,9 @@ peace or alliances. With the mod:
   without one only when none does. The values: `opinion`, `power` (its strength / theirs), `at_war`, `allied`,
   `my_lord`, `my_vassal`, `epoch`, `minutes`, `soldiers`, `kills`, `losses`, `human`, the traits and more (listed in
   each file's head); `pick("a", "b")` and `chance(25)` for variety. A value may be a number and a text at once:
-  `{epoch}` in a line is the age's name, `[epoch >= 5]` compares its number, `"Age: " + epoch` joins the name.
+  `{epoch}` in a line is the age's name, `[epoch >= epoch.middle]` compares its number (`epoch.prehistoric` ..
+  `epoch.space`, 1..15, the same in every language - a name would only match in one), `"Age: " + epoch` joins the
+  name.
   There are no loops: a text can't hang the game, and something that is no expression simply stays in the text as
   written.
 - **Play style** (experimental, `ai_style=1`, off by default): a personality can also change how its AI plays
