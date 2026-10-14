@@ -20,8 +20,10 @@ static const uintptr_t k_train_sites[] = { 0x46cce6, 0x490cac, 0x490e12, 0x490f1
 static int g_citizen_slack = 9999;   // idle-citizen check: off by default (stalled growth in tests)
 static int g_hoard_cap = 3000;   // stock above reserve + this is free for military too, aimod.ini [budget] hoard_cap
 // stone, gold, iron: hardly any civilian use besides the epoch cost (reserved anyway) and a few techs - with the
-// 3000 cap gold piled up (1000 in stock) while every soldier failed for gold; aimod.ini hoard_cap_mineral
-static int g_hoard_cap_mineral = 600;
+// 3000 cap gold piled up (1000 in stock) while every soldier failed for gold; aimod.ini hoard_cap_mineral. 200 (was
+// 600): ~600 iron lay in stock for the whole late game while the army failed for iron hundreds of times every 5
+// minutes (antiair save: Brann's iron failures 816 -> 64; late-start A/B, 3 maps x 6 seeds: alive 78% vs 75%)
+static int g_hoard_cap_mineral = 200;
 static struct { uint32_t last_t; int init; float mil[7]; int income[7], mil_spent[7], cit_blocked, mil_limited; } g_bud[16];
 // income rates per AI (rates_update): per minute and per worker-minute
 static struct { uint32_t t; int last[7]; float rate[7], per_worker[7]; } g_rate[16];
@@ -786,11 +788,39 @@ static int wild_food(void *pl) {
 // antiair save, 55 min (3 / 7): Brann's wood 5475 -> 860, soldiers 48 -> 69, army orders failed for gold/iron
 // 688/563 -> 343/372, the idle player beaten at 52.6 min; late-start A/B, 3 maps x 6 seeds, 50 min: alive 77% vs
 // 78%. Without the food condition: alive 68% vs 78% (late starts live on hunted food).
+// Bit 8: the food pile. A farmer brings ~17 food a minute, a miner 4-6 gold or iron, and the units of the late ages
+// cost about half food, half metal - 70 farmers against 108 miners: 10944 food, 16000 in the army's food account,
+// while 1491 orders failed for gold and 1282 for iron in 5 minutes (Empire Earth has no market). While 4000+ food lie
+// beyond the epoch reserve, the food target's ceiling drops by 2 every 10 s (to 6 at least; fields stand idle) and the
+// farmers go to the metals; under 2000 it rises again (6 every 10 s; under 500 at once), up to the fields + 2, down
+// to half the fields. Not in the default (7): antiair save at 55 min 100 soldiers vs 70, but late-start A/B, 3
+// maps x 6 seeds, 50 min: alive 70% vs 75% (with the cut to 6 farmers also 70%) - idle fields cost income the AI
+// misses when citizens or the epoch need food. The fields pass sends no farmers beyond food's target.
 static int *bq_entry(uint8_t *bm, int e, unsigned i);   // attack.c: the build queue of epoch e
 static int rm_count(uint8_t *rm, int t);                 // below: citizens on resource t
 static int unit_cost(void *pl, int type, int r);       // below
 static int g_late_targets = 7;
 static int g_wood_want[16];   // bit 1: the last wood target (steps of 2+)
+static int g_food_cap[16];          // bit 8: the food target's ceiling now (0 = not set)
+static uint32_t g_food_cap_t[16];   // its last step
+// n more workers for stone, gold and iron: by their demand beyond stock (up to 3000 each, +100 so each gets some), the
+// rounding rest to gold and iron
+static void to_metals(uint32_t *target, const int *demand, const int *stock, int n) {
+    float lw[7] = { 0 }, ws = 0;
+    int given = 0;
+    if (n <= 0) return;
+    for (int r = 4; r < 7; r++) {
+        int d = demand[r] - stock[r];
+        lw[r] = (float)(d < 0 ? 0 : d > 3000 ? 3000 : d) + 100.0f;
+        ws += lw[r];
+    }
+    for (int r = 4; r < 7; r++) {
+        int t = (int)((float)n * lw[r] / ws);
+        target[r] += (uint32_t)t;
+        given += t;
+    }
+    for (int r = 5; given < n; r = r == 6 ? 5 : r + 1) { target[r]++; given++; }
+}
 static void budget_reserve(void *pl, int reserve[7]);
 static void econ_targets(uint8_t *rm) {
     void *pl = rm_player(rm);
@@ -835,44 +865,39 @@ static void econ_targets(uint8_t *rm) {
             target[from]--;
             target[3]++;
         }
+        void *um = cm ? FIELD(cm, 0x44, void *) : NULL;
+        uint8_t *fq = um ? ((uint8_t *(__thiscall *)(void *, int))0x0048F8AF)(um, 0x2A) : NULL;
+        int fields = fq ? FIELD(fq, 0x10, int) : 0;
         if (g_late_targets & 4) {   // the overflow to the metals (see LATE WOOD, bit 4)
-            void *um = cm ? FIELD(cm, 0x44, void *) : NULL;
-            uint8_t *fq = um ? ((uint8_t *(__thiscall *)(void *, int))0x0048F8AF)(um, 0x2A) : NULL;
-            int fields = fq ? FIELD(fq, 0x10, int) : 0, cap = fields + 2;
+            int cap = fields + 2;
             if (fields >= 8 && (int)target[2] > cap && stock[2] >= reserve[2] + 2000) {   // food to spare
-                int over = (int)target[2] - cap, given = 0;
-                float lw[7] = { 0 }, ws = 0;
+                to_metals(target, demand, stock, (int)target[2] - cap);
                 target[2] = (uint32_t)cap;
-                for (int r = 4; r < 7; r++) {   // by demand beyond stock (up to 3000), something for each
-                    int n = demand[r] - stock[r];
-                    lw[r] = (float)(n < 0 ? 0 : n > 3000 ? 3000 : n) + 100.0f;
-                    ws += lw[r];
-                }
-                for (int r = 4; r < 7; r++) {
-                    int t = (int)((float)over * lw[r] / ws);
-                    target[r] += (uint32_t)t;
-                    given += t;
-                }
-                for (int r = 5; given < over; r = r == 6 ? 5 : r + 1) { target[r]++; given++; }   // the rest: gold, iron
             }
             // the farms full and food short all the same (Livia: 84 farmers, 122 food): the overflow still lands on
             // wood (118 woodcutters, target 2, 6855 wood). A wood pile of 1000+ beyond its need: the metals' targets
             // grow by the woodcutters beyond target + 5, and the rebalance moves them
             int pile = stock[3] - (demand[3] > queued ? demand[3] : queued), extra = rm_count(rm, 3) - (int)target[3] - 5;
-            if (pile > 1000 && extra > 0) {
-                int given = 0;
-                float lw[7] = { 0 }, ws = 0;
-                for (int r = 4; r < 7; r++) {
-                    int n = demand[r] - stock[r];
-                    lw[r] = (float)(n < 0 ? 0 : n > 3000 ? 3000 : n) + 100.0f;
-                    ws += lw[r];
-                }
-                for (int r = 4; r < 7; r++) {
-                    int t = (int)((float)extra * lw[r] / ws);
-                    target[r] += (uint32_t)t;
-                    given += t;
-                }
-                for (int r = 5; given < extra; r = r == 6 ? 5 : r + 1) { target[r]++; given++; }
+            if (pile > 1000 && extra > 0) to_metals(target, demand, stock, extra);
+        }
+        if (g_late_targets & 8) {   // the food pile: farmers to the metals while 4000+ food lie beyond the reserve
+            uint32_t now = game_time();
+            if (now < g_food_cap_t[idx]) g_food_cap[idx] = 0;   // a new game
+            int spare = stock[2] - reserve[2], cap = g_food_cap[idx] ? g_food_cap[idx] : (int)target[2];
+            int top = fields + 2 > 6 ? fields + 2 : 6;
+            // down slowly (2 every 10 s), up fast (6; under 500 all fields at once): with 2 both ways 69 farmers went
+            // down to 19, and coming back as slowly the stock fell from 6000 to 18
+            if (now < g_food_cap_t[idx] || now - g_food_cap_t[idx] >= 10000) {
+                g_food_cap_t[idx] = now ? now : 1;
+                cap += spare > 4000 ? -2 : spare < 2000 ? 6 : 0;
+            }
+            if (spare < 500) cap = top;
+            int low = fields / 2 > 6 ? fields / 2 : 6;   // at most half the fields idle
+            cap = cap < low ? low : cap > top ? top : cap;
+            g_food_cap[idx] = cap;
+            if ((int)target[2] > cap) {
+                to_metals(target, demand, stock, (int)target[2] - cap);
+                target[2] = (uint32_t)cap;
             }
         }
         return;
@@ -1157,7 +1182,10 @@ static void econ_fields(uint8_t *rm) {   // before the citizen assignment
         wood -= 50;
     }
     uint32_t *target = (uint32_t *)(rm + RM_TARGET);
-    for (int i = 0; i < nd; i++) {   // farmers for finished fields
+    // no more farmers than food's target: with the food pile's ceiling (late_targets bit 8) fields stand idle on
+    // purpose - filled again from the mines here, the farmers the rebalance had moved came straight back
+    int room = (int)target[2] - rm_count(rm, 2);
+    for (int i = 0; i < nd && farmers < room; i++) {   // farmers for finished fields
         uint8_t *best = NULL;
         int fx = FIELD(done[i], 0x1C, int), fy = FIELD(done[i], 0x20, int), bd = 0x7FFFFFFF;
         for (int pass = 0; pass < 2 && !best; pass++)
@@ -1538,7 +1566,7 @@ static void econ_install(const char *aimod_ini, const char *autotest_ini) {
     // finer tuning, same for all difficulties ([all] section; autotest may override)
     g_citizen_slack = cfg_int(aimod_ini, autotest_ini, 1, "idle_citizen_slack", 9999);
     g_hoard_cap = cfg_int(aimod_ini, autotest_ini, 1, "hoard_cap", 3000);
-    g_hoard_cap_mineral = cfg_int(aimod_ini, autotest_ini, 1, "hoard_cap_mineral", 600);
+    g_hoard_cap_mineral = cfg_int(aimod_ini, autotest_ini, 1, "hoard_cap_mineral", 200);
     g_min_workforce = cfg_int(aimod_ini, autotest_ini, 1, "min_workforce", 40);
     g_wild_share = cfg_float(aimod_ini, autotest_ini, 1, "wild_food_share", "0.6");
     g_reserve_window_ms = cfg_int(aimod_ini, autotest_ini, 1, "reserve_window_min", 5) * 60000;
