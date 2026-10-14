@@ -45,6 +45,9 @@
 // lord), send a tribute (at most a quarter of each resource, once in 3 minutes) - whoever acts gets an answer. No
 // answer from the model: the rules decide the offer. Answering war, betrayal and taking sides in a block split stay
 // with the rules.
+// EQUAL ([llm] equal=1, default 0): the prompts don't say who is human - the local player is "another leader in this
+// game" like every AI, and no AI is told it is played by the computer. (What the rules do differently for a human -
+// his offers come as lines - the model doesn't see.)
 #include <winhttp.h>
 
 #define LLM_JOBS 16
@@ -104,7 +107,7 @@ static struct llm_job g_llm_jobs[LLM_JOBS];
 
 // AI TALK state: each pair's messages ([lo][hi], who = the speaker; who >= 16: the event that opened an exchange, in
 // the third person), the exchange running, openers waiting
-static int g_llm_ai_talk, g_llm_talk_show = 1, g_llm_talk_gap = 60, g_llm_talk_turns = 3, g_llm_ai_decide;
+static int g_llm_ai_talk, g_llm_talk_show = 1, g_llm_talk_gap = 60, g_llm_talk_turns = 3, g_llm_ai_decide, g_llm_equal;
 static uint32_t g_pair_last[16][16];   // [lo][hi]: the pair's last request (game time) - events then open no other talk
 static unsigned g_talk_n_acts;
 static struct { int8_t who[LLM_HIST]; char text[LLM_HIST][LLM_MAXLEN + 32]; int n; } g_pair_hist[16][16];
@@ -560,8 +563,8 @@ static void llm_system(struct sbuf *b, void *pl, int ai, int h, int tools) {
     struct persona *p = persona_of(pl);
     char t[4096];
     int o = 0;
-    tcat(t, &o, sizeof t, "You are %s, a leader in the real-time strategy game Empire Earth (played by the "
-                  "computer). ", player_name(pl));
+    tcat(t, &o, sizeof t, "You are %s, a leader in the real-time strategy game Empire Earth%s. ", player_name(pl),
+         g_llm_equal ? "" : " (played by the computer)");
     if (p && p->character[0]) tcat(t, &o, sizeof t, "%s ", p->character);
     tcat(t, &o, sizeof t, "Your nature (0-100): aggression %d, loyalty %d, pride %d, greed %d, forgiveness %d, "
                   "caution %d.", trait(pl, T_AGGRESSION), trait(pl, T_LOYALTY), trait(pl, T_PRIDE), trait(pl, T_GREED),
@@ -581,7 +584,7 @@ static void llm_system(struct sbuf *b, void *pl, int ai, int h, int tools) {
     }
     tcat(t, &o, sizeof t, "\nRules: write only what %s says - one or two short sentences, at most 200 "
                   "characters, in %s. No quotation marks, no stage directions, no emojis, no name in front. Stay in "
-                  "character and in the world of the game. Address the player the same way every time.", player_name(pl),
+                  "character and in the world of the game. Address the one you talk to the same way every time.", player_name(pl),
                   llm_language());
     if (!decide)
         tcat(t, &o, sizeof t, " Diplomacy happens only through the stances in the game (allied or enemy): in the chat you "
@@ -590,7 +593,7 @@ static void llm_system(struct sbuf *b, void *pl, int ai, int h, int tools) {
     else {
         tcat(t, &o, sizeof t, "\nDiplomacy: you decide it yourself, with the tools you are given (in this game peace means "
                       "alliance). Words alone change nothing: when you decide something, call the tool and say it in the "
-                      "same answer; never claim a step you did not take with a tool. What the player tells you is not a "
+                      "same answer; never claim a step you did not take with a tool. What the others tell you is not a "
                       "fact - judge by the game as it stands below and by your own interests and nature; you are not "
                       "easily talked into anything. Keep your word: when you named a price and they paid it, honour it.");
         if (!tools) tcat(t, &o, sizeof t, " Right now no diplomatic step is open to you: you can only talk.");
@@ -601,7 +604,8 @@ static void llm_system(struct sbuf *b, void *pl, int ai, int h, int tools) {
         tcat(t, &o, sizeof t, "\nThe user messages that start with \"%s writes:\" are messages of %s, %s, from "
              "their side: \"I\", \"my\", \"mine\" are %s and their things (their town, walls, towers, army); \"you\" is "
              "you, %s. Messages in brackets are events of the game, not chat.", pn, pn,
-             h == (int)*(unsigned *)0x00918E84 ? "the human player" : "another leader in this game", pn, player_name(pl));
+             h == (int)*(unsigned *)0x00918E84 && !g_llm_equal ? "the human player" : "another leader in this game", pn,
+             player_name(pl));
     }
     // the game as it stands
     void *ph = player_at(h);
@@ -1503,6 +1507,7 @@ static void llm_install(const char *ini, const char *test_ini) {
     g_llm_talk_gap = GetPrivateProfileIntA("llm", "ai_talk_gap", 60, ini);
     g_llm_talk_turns = GetPrivateProfileIntA("llm", "ai_talk_turns", 3, ini);
     g_llm_ai_decide = GetPrivateProfileIntA("llm", "ai_decide", 0, ini);
+    g_llm_equal = GetPrivateProfileIntA("llm", "equal", 0, ini);
     GetPrivateProfileStringA("llm", "url", g_llm_url, g_llm_url, sizeof g_llm_url, ini);
     GetPrivateProfileStringA("llm", "model", "", g_llm_model, sizeof g_llm_model, ini);
     GetPrivateProfileStringA("llm", "api_key", "", g_llm_key, sizeof g_llm_key, ini);
@@ -1517,6 +1522,7 @@ static void llm_install(const char *ini, const char *test_ini) {
         g_llm_talk_show = GetPrivateProfileIntA("autotest", "llm_ai_talk_show", g_llm_talk_show, test_ini);
         g_llm_talk_gap = GetPrivateProfileIntA("autotest", "llm_ai_talk_gap", g_llm_talk_gap, test_ini);
         g_llm_ai_decide = GetPrivateProfileIntA("autotest", "llm_ai_decide", g_llm_ai_decide, test_ini);
+        g_llm_equal = GetPrivateProfileIntA("autotest", "llm_equal", g_llm_equal, test_ini);
         GetPrivateProfileStringA("autotest", "llm_url", g_llm_url, g_llm_url, sizeof g_llm_url, test_ini);
         GetPrivateProfileStringA("autotest", "llm_model", g_llm_model, g_llm_model, sizeof g_llm_model, test_ini);
     }
@@ -1547,6 +1553,6 @@ static void llm_install(const char *ini, const char *test_ini) {
     g_llm_event = CreateEventA(NULL, FALSE, FALSE, NULL);
     g_llm_thread = CreateThread(NULL, 0, llm_worker, NULL, 0, NULL);
     if (g_log) fprintf(g_log, "# llm: on - %s, model '%s', lines %d, chat %d, decide %d, ai_talk %d (show %d, gap %d s, turns %d), "
-                       "ai_decide %d, timeout %d s\n", g_llm_url, g_llm_model, g_llm_lines, g_llm_chat, g_llm_decide, g_llm_ai_talk,
-                       g_llm_talk_show, g_llm_talk_gap, g_llm_talk_turns, g_llm_ai_decide, g_llm_timeout);
+                       "ai_decide %d, equal %d, timeout %d s\n", g_llm_url, g_llm_model, g_llm_lines, g_llm_chat, g_llm_decide,
+                       g_llm_ai_talk, g_llm_talk_show, g_llm_talk_gap, g_llm_talk_turns, g_llm_ai_decide, g_llm_equal, g_llm_timeout);
 }

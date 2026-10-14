@@ -151,6 +151,8 @@ peace or alliances. With the mod:
     250 gold first"), and in their talks an AI can offer peace, declare war on an ally or send a tribute. The rules
     still limit what is possible (an ally's veto, a vassal, war only after 5 minutes of alliance) and decide when
     the model doesn't answer; answering war, betrayal and taking sides in a split alliance stay with the rules.
+  - **Nobody is special** (`equal=1`): the model isn't told who is human - you are another leader like the AIs, and
+    no AI is told it is played by the computer.
 
 The AIs can also explain themselves in the chat (`chat=1`, a debug aid): attacks, new ages, towers, walls,
 siege, home guard.
