@@ -713,10 +713,21 @@ static int wild_food(void *pl) {
 // books), so workers piled onto food while stone/gold starved and the epoch requirement techs never got
 // paid. Redistribute the same number of workers by actual shortfall: food only up to the epoch reserve,
 // others by demand beyond stock, stone/gold/iron at least what the Copper Age still costs.
+// LATE WOOD ([all] late_targets, bits, default 3): from the Copper Age on the game's targets stand - except wood. Its
+// food demand never falls below ~75000 (every game, from minute 0), so food takes the lion's share and wood got 1-3
+// workers: 92 wood, no barracks, tank factory, airport or anti-air rebuilt, only wolves from the Town Center; and the
+// rebalance (below) moved surplus workers only to mines - 38 of Livia's on gold with a target of 0, 5587 gold.
+// Bit 1: with under 400 wood in stock, wood gets at least a fifth of the workers (3..12), taken from the largest
+// other targets. Bit 2: the rebalance moves surplus gatherers to wood too. (Tried first and dropped: food capped at
+// its fields + 2, the rest by shortfall - late-start A/B, 3 maps x 4 seeds: alive 86% vs 98%, 15 workers fewer at
+// the end; a late start has no fields yet, its food is hunted, gathered and fished.)
+static int g_late_targets = 3;
 static void budget_reserve(void *pl, int reserve[7]);
 static void econ_targets(uint8_t *rm) {
     void *pl = rm_player(rm);
-    if (!pl || !cfg_of(pl)->copper_plan || current_epoch(pl) >= FARM_EPOCH) return;
+    if (!pl || !cfg_of(pl)->copper_plan) return;
+    int late = current_epoch(pl) >= FARM_EPOCH;
+    if (late && !(g_late_targets & 1)) return;
     int *stock = (int *)((uint8_t *)pl + PL_STOCK);
     int *demand = (int *)(rm + RM_DEMAND);
     uint32_t *target = (uint32_t *)(rm + RM_TARGET);
@@ -724,6 +735,21 @@ static void econ_targets(uint8_t *rm) {
     budget_reserve(pl, reserve);
     int total = 0, need[7] = { 0 }, sum = 0;
     for (int r = 2; r < 7; r++) total += (int)target[r];
+    unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
+    if (late) {
+        if (total < 6 || stock[3] >= 400) return;
+        int want = total / 5;
+        want = want < 3 ? 3 : want > 12 ? 12 : want;
+        while ((int)target[3] < want) {
+            int from = -1;
+            for (int r = 2; r < 7; r++)
+                if (r != 3 && (int)target[r] > 2 && (from < 0 || target[r] > target[from])) from = r;
+            if (from < 0) break;
+            target[from]--;
+            target[3]++;
+        }
+        return;
+    }
     need[2] = reserve[2] + 300 - stock[2];
     for (int r = 3; r < 7; r++) {
         int d = demand[r];
@@ -734,7 +760,6 @@ static void econ_targets(uint8_t *rm) {
         if (r >= 4 && reserve[r] - stock[r] > need[r]) need[r] = reserve[r] - stock[r];
     }
     // reserve plan: by worker-minutes (shortfall / measured rate per worker), so all arrive at about the same time
-    unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     float w[7] = { 0 }, wsum = 0;
     for (int r = 2; r < 7; r++) {
         if (need[r] < 0) need[r] = 0;
@@ -1030,7 +1055,10 @@ static void econ_rebalance(uint8_t *rm) {
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     uint32_t *target = (uint32_t *)(rm + RM_TARGET);
     int moves = 0, dry = 0;   // dry: donor lists without a movable citizen
-    for (int r = 4; r < 7 && moves < 2; r++) {
+    // wood too with late_targets (the game's own wood search, 0x48C060(1, unit), safe_sites' danger check): 38 on gold
+    // above their target stayed there for good while wood had 3
+    int first = (g_late_targets & 2) && current_epoch(pl) >= FARM_EPOCH ? 3 : 4;
+    for (int r = first; r < 7 && moves < 2; r++) {
         while (moves < 2 && (int)target[r] - rm_count(rm, r) >= 2) {
             int d = -1, best = 2;
             for (int t = 2; t < 7; t++) {
@@ -1040,7 +1068,8 @@ static void econ_rebalance(uint8_t *rm) {
             if (d < 0) break;
             uint8_t *u = movable_gatherer(rm, d);
             if (!u) { dry |= 1 << d; continue; }
-            void *site = hook_find_mine(rm, NULL, r, u, 1);   // with mine_choice: nearest to a drop site
+            void *site = r == 3 ? hook_find_wood(rm, NULL, 1, u)
+                                : hook_find_mine(rm, NULL, r, u, 1);   // with mine_choice: nearest to a drop site
             if (!site) break;   // no free, safe mine of this resource
             int before = rm_count(rm, r);
             ((void (__thiscall *)(void *, void *, void *, int))FN_ASSIGN_TO_SITE)(rm, u, site, 0);
@@ -1381,6 +1410,7 @@ static void econ_install(const char *aimod_ini, const char *autotest_ini) {
     g_wild_share = cfg_float(aimod_ini, autotest_ini, 1, "wild_food_share", "0.6");
     g_reserve_window_ms = cfg_int(aimod_ini, autotest_ini, 1, "reserve_window_min", 5) * 60000;
     g_rebalance = cfg_int(aimod_ini, autotest_ini, 1, "rebalance_workers", 1);
+    g_late_targets = cfg_int(aimod_ini, autotest_ini, 1, "late_targets", 3);
     g_reserve_plan = cfg_int(aimod_ini, autotest_ini, 1, "reserve_plan", 1);
     g_mineral_margin = cfg_int(aimod_ini, autotest_ini, 1, "mineral_worker_margin", 300);
     g_early_requirements = cfg_int(aimod_ini, autotest_ini, 1, "early_requirements", 1);
