@@ -141,6 +141,11 @@ peace or alliances. With the mod:
     quarter of its stock as tribute) is never offered to it, and without an answer in time the rules decide. Its
     nature and the rules' verdict are its advice. Everything else (answering war, capitulations, alliances between
     the AIs, betrayal) stays with the rules.
+  - **The AIs talk to each other** (`ai_talk=1`, single player): when one AI says something to another (a
+    declaration of war, a betrayal, an alliance offer, a capitulation), they talk it over - a few messages, each
+    pair with its own memory of what they told each other (and what one tells another, you don't learn - it may tell
+    you something else). Words only, their decisions stay with the rules. One exchange at a time, at most one a minute
+    (`ai_talk_gap`), your own conversations go to the model first; `ai_talk_show=1` lets you read along.
 
 The AIs can also explain themselves in the chat (`chat=1`, a debug aid): attacks, new ages, towers, walls,
 siege, home guard.

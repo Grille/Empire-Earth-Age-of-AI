@@ -1456,7 +1456,7 @@ static void cmd_wave(char *out, const char *args) {
     }
     REPLY(" - %d units (%d ships/aircraft left out)\n", sent, left);
 }
-static struct { int a, d; uint32_t t, logged; unsigned rot; } g_charge = { -1, -1 };
+static struct { int a, d; uint32_t t, logged; unsigned rot; } g_charge = { -1, -1, 0, 0, 0 };
 static void charge_pass(char *out, int a, int d) {
     int n = 0, kept = 0, idle = 0, marching = 0;
     static struct w_scan mine, foe, bld, civ;

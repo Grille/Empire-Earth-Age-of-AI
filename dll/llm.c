@@ -27,6 +27,15 @@
 // its pride's time after his declaration, a block veto. No answer in time: the rules decide the peace offer.
 // Its tool calls and his tributes and declarations go into the exchange as events, so its words and deeds agree.
 // Every other decision (answering war, capitulation, alliance offers, betrayal) stays with the rules.
+// AI TALK ([llm] ai_talk=1, default 0; single player): the AIs talk with each other too - words only, their decisions
+// stay with the rules. A line one AI says to another (persona_say: a declaration of war, an alliance offer, thanks for
+// a tribute, a capitulation - lines the local player never hears) opens an exchange: that message in the speaker's
+// own words, the other's answer, the speaker's reply ([llm] ai_talk_turns messages, 1..4). Each pair of AIs keeps its
+// own memory of what they told each other (the last 8 messages) - what one says to another, the local player doesn't
+// know, and the AI may tell him something else. One exchange at a time, a new one at most every ai_talk_gap seconds
+// (an opener waiting longer than 90 s is dropped, a newer one of the same pair replaces it); the local player's
+// requests go to the model first. ai_talk_show=1: he reads along ("to <name>: ..." in the speaker's colour), 0: only
+// the log.
 #include <winhttp.h>
 
 #define LLM_JOBS 16
@@ -77,9 +86,30 @@ struct llm_job {
     int decide;          // 0 words only, 1 the answer to his peace offer, 2 his chat with tools
     int tools, act;      // TOOL_ bits offered / called
     int amt[7];          // send_tribute: food..iron (2..6)
+    int talk;            // AI TALK: the message's number in the exchange (1 the opener), 0 not a talk between AIs
 };
 #define SET_STATE(j, s) InterlockedExchange(&(j)->state, (s))
 static struct llm_job g_llm_jobs[LLM_JOBS];
+
+// AI TALK state: each pair's messages ([lo][hi], who = the speaker; who >= 16: the event that opened an exchange, in
+// the third person), the exchange running, openers waiting
+static int g_llm_ai_talk, g_llm_talk_show = 1, g_llm_talk_gap = 60, g_llm_talk_turns = 3;
+static struct { int8_t who[LLM_HIST]; char text[LLM_HIST][LLM_MAXLEN + 32]; int n; } g_pair_hist[16][16];
+static struct { int a, b, turn; uint32_t t; } g_talk;   // a 0: none running
+static struct { int a, b; char sit[400], ev[400], fixed[256]; uint32_t t; } g_talk_wait[4];
+static uint32_t g_talk_started;   // game time the last exchange started
+static unsigned g_talk_n_ex, g_talk_n_msg, g_talk_n_fail, g_talk_n_drop;
+static void pair_add(int a, int b, int who, const char *text) {
+    int lo = a < b ? a : b, hi = a < b ? b : a;
+    if (lo < 0 || hi > 15 || !*text) return;
+    if (g_pair_hist[lo][hi].n == LLM_HIST) {
+        memmove(g_pair_hist[lo][hi].who, g_pair_hist[lo][hi].who + 1, LLM_HIST - 1);
+        memmove(g_pair_hist[lo][hi].text, g_pair_hist[lo][hi].text + 1, (LLM_HIST - 1) * sizeof g_pair_hist[lo][hi].text[0]);
+        g_pair_hist[lo][hi].n--;
+    }
+    g_pair_hist[lo][hi].who[g_pair_hist[lo][hi].n] = (int8_t)who;
+    lstrcpynA(g_pair_hist[lo][hi].text[g_pair_hist[lo][hi].n++], text, LLM_MAXLEN + 32);
+}
 
 // the AI's exchange with the local player: his chat lines (role 0, user), its lines to him (1, assistant) and events
 // between them (2: tributes, declarations, its decisions - a user message in brackets)
@@ -106,6 +136,10 @@ static void llm_new_game(void) {
     g_llm_told = 0;
     g_llm_off_told = 0;
     memset(g_llm_paid_t, 0, sizeof g_llm_paid_t);
+    memset(g_pair_hist, 0, sizeof g_pair_hist);
+    memset(&g_talk, 0, sizeof g_talk);
+    memset(g_talk_wait, 0, sizeof g_talk_wait);
+    g_talk_started = 0;
 }
 // an event between AI ai and the local player, for the model's memory of the exchange
 static void llm_happened(int ai, const char *fmt, ...) {
@@ -413,8 +447,11 @@ static DWORD WINAPI llm_worker(void *arg) {
         WaitForSingleObject(g_llm_event, 1000);
         for (;;) {
             struct llm_job *j = NULL;
-            for (int i = 0; i < LLM_JOBS; i++)   // the oldest queued one
-                if (g_llm_jobs[i].state == J_QUEUED && (!j || (int)(g_llm_jobs[i].seq - j->seq) < 0)) j = &g_llm_jobs[i];
+            for (int i = 0; i < LLM_JOBS; i++) {   // the oldest queued one - the local player's before talks between AIs
+                struct llm_job *c = &g_llm_jobs[i];
+                if (c->state != J_QUEUED) continue;
+                if (!j || (!c->talk && j->talk) || (!c->talk == !j->talk && (int)(c->seq - j->seq) < 0)) j = c;
+            }
             if (!j) break;
             SET_STATE(j, J_RUNNING);
             if (j->gen != g_llm_gen || (LONG)(g_llm_down_until - GetTickCount()) > 0) { SET_STATE(j, J_FAILED); continue; }
@@ -456,6 +493,33 @@ static const char *const k_llm_situation[L_N] = {
     "your lord {name} forces you to make peace with {enemy}, whom you hate",
     ("{name} offers you peace, but you are the vassal of {enemy} and have no diplomacy of your own - they must talk to "
      "{enemy}"),
+};
+// AI TALK: the same situations for both sides of an exchange, in the third person ({me} the speaker, {name} the one it
+// talks to) - in the speaker's words ("has betrayed you") the other's model took the betrayal for its own
+static const char *const k_llm_event3[L_N] = {
+    [L_WAR_DECLARED] = "{name} has just declared war on {me}",
+    [L_BETRAYED] = "{name}, the ally of {me} until now, betrayed {me} and declared war on them",
+    [L_PEACE_ACCEPT] = "{me} accepted the peace {name} offered: they are allies now",
+    [L_PEACE_REFUSE] = "{me} refused the peace {name} offered",
+    [L_ALLIANCE_OFFER] = "{me} offers {name} an alliance against {enemy}, their common enemy",
+    [L_OFFER_ACCEPTED] = "{name} accepted the alliance {me} offered",
+    [L_OFFER_WITHDRAWN] = "the alliance {me} offered {name} expired unanswered",
+    [L_BETRAY] = "{me} betrays {name}, their ally, and declares war on them",
+    [L_TRIBUTE_THANKS] = "{name} sent {me} a generous tribute",
+    [L_TRIBUTE_SMALL] = "{name} sent {me} a tribute - a small one",
+    [L_WINNING] = "{me} is winning the war against {name}",
+    [L_CAPITULATE] = "{me} capitulates to {name}: {me} offers to PAY {name} a tribute ({tribute}) for peace",
+    [L_CAPITULATE_ACCEPTED] = "{name} accepted the capitulation of {me}: {me} pays the tribute ({tribute}) and serves {name} "
+                              "from now on",
+    [L_CAPITULATE_REFUSED] = "{name} did not accept the capitulation of {me}: the war goes on",
+    [L_ATTACK_THREAT] = "the army of {me} is about to attack {name}",
+    [L_ALL_SUBMITTED] = "every other player has submitted to {name}, the lord of {me}",
+    [L_BLOCK_REFUSE] = "{me} refuses the peace {name} offered, because {enemy} in their alliance cannot be at peace with the "
+                       "side of {me}",
+    [L_BLOCK_REFUSE_OWN] = "{me} refuses the peace {name} offered, because {enemy}, the ally of {me}, won't make peace with "
+                           "{name}",
+    [L_VASSAL_GRUMBLE] = "{name}, the lord of {me}, forces {me} to make peace with {enemy}, whom {me} hates",
+    [L_ASK_LORD] = "{name} offers {me} peace, but {me} is the vassal of {enemy} and has no diplomacy of its own",
 };
 static const char *llm_words(float v, const char *const *w) {   // -100..100 in five words
     return w[v < -50 ? 0 : v < -15 ? 1 : v <= 15 ? 2 : v <= 50 ? 3 : 4];
@@ -515,9 +579,10 @@ static void llm_system(struct sbuf *b, void *pl, int ai, int h, int tools) {
     // whose "my" is whose: the player's lines arrive as written, from his side
     if (player_at(h) && h != ai) {
         const char *pn = *player_name(player_at(h)) && *player_name(player_at(h)) != '?' ? player_name(player_at(h)) : "the player";
-        tcat(t, &o, sizeof t, "\nThe user messages that start with \"%s writes:\" are chat lines of %s, the human player, from "
+        tcat(t, &o, sizeof t, "\nThe user messages that start with \"%s writes:\" are messages of %s, %s, from "
              "their side: \"I\", \"my\", \"mine\" are %s and their things (their town, walls, towers, army); \"you\" is "
-             "you, %s. Messages in brackets are events of the game, not chat.", pn, pn, pn, player_name(pl));
+             "you, %s. Messages in brackets are events of the game, not chat.", pn, pn,
+             h == (int)*(unsigned *)0x00918E84 ? "the human player" : "another leader in this game", pn, player_name(pl));
     }
     // the game as it stands
     void *ph = player_at(h);
@@ -675,6 +740,7 @@ static void llm_subst(char *out, int cap, const char *s, void *pl, void *other, 
     while (*s && o < cap - 1) {
         const char *rep = NULL;
         if (!strncmp(s, "{name}", 6)) { rep = other && *player_name(other) ? player_name(other) : "the player"; s += 6; }
+        else if (!strncmp(s, "{me}", 4)) { rep = player_name(pl); s += 4; }
         else if (!strncmp(s, "{enemy}", 7)) { rep = third ? player_name(third) : "the enemy"; s += 7; }
         else if (!strncmp(s, "{epoch}", 7)) { epoch_text(pl, ep, sizeof ep); rep = ep; s += 7; }
         else if (!strncmp(s, "{tribute}", 9)) { tribute_text(g_say_tribute, ep, sizeof ep); rep = ep; s += 9; }
@@ -1027,6 +1093,120 @@ static void llm_player_chat(const char *text) {
                                     FIELD(pm, 0x9E0, int), who, text);
 }
 
+// ---- AI TALK ----
+static void pair_history(struct sbuf *b, int ai, int other) {   // from ai's side: its own messages are the assistant's
+    int lo = ai < other ? ai : other, hi = ai < other ? other : ai;
+    const char *on = llm_name(player_at(other));
+    for (int i = 0; i < g_pair_hist[lo][hi].n; i++) {
+        char u[LLM_MAXLEN + 120];
+        int w = g_pair_hist[lo][hi].who[i];
+        if (w == ai) { sb_msg(b, "assistant", g_pair_hist[lo][hi].text[i]); continue; }
+        if (w >= 16) {   // the event that opened an exchange
+            snprintf(u, sizeof u, "(Event of the game: %s.)", g_pair_hist[lo][hi].text[i]);
+            sb_msg(b, "user", u);
+            continue;
+        }
+        snprintf(u, sizeof u, "%s writes: %s", on, g_pair_hist[lo][hi].text[i]);
+        sb_msg(b, "user", u);
+    }
+}
+// a message of speaker to listener: turn 1 opens the exchange on an event (sit, its usual line fixed), later turns
+// answer the other's last message
+static int talk_request(int speaker, int listener, int turn, const char *sit, const char *fixed) {
+    void *pl = player_at(speaker), *po = player_at(listener);
+    if (!pl || !po || !g_players[speaker] || is_out(pl) || is_out(po) || !llm_ready()) return 0;
+    struct llm_job *j = llm_slot();
+    if (!j) return 0;
+    memset(j, 0, sizeof *j);
+    j->ai = speaker;
+    j->to = listener;
+    j->talk = turn;
+    struct sbuf b = { 0 };
+    sb_puts(&b, "{\"messages\":[");
+    llm_system(&b, pl, speaker, listener, -1);
+    pair_history(&b, speaker, listener);
+    char u[1200];
+    if (turn == 1)
+        snprintf(u, sizeof u, "(Not a chat line - an event of the game: %s. Write %s a message about it, in your own words, "
+                 "in %s - only they read it. The usual line would be: \"%s\" - keep its meaning.)", sit, llm_name(po),
+                 llm_language(), fixed);
+    else if (turn >= g_llm_talk_turns)
+        snprintf(u, sizeof u, "(Answer %s in one or two sentences, in %s - your last word on it for now.)", llm_name(po),
+                 llm_language());
+    else snprintf(u, sizeof u, "(Answer %s in one or two sentences, in %s.)", llm_name(po), llm_language());
+    sb_msg(&b, "user", u);
+    if (!b.p) { SET_STATE(j, J_FREE); return 0; }
+    llm_queue(j, llm_finish(&b, 0, speaker, listener));
+    return 1;
+}
+// persona_say: AI pl's line k to AI other, which the local player doesn't hear - an exchange between them (waits)
+static void llm_talk_event(void *pl, enum line_kind k, void *other, void *third, const char *fixed) {
+    if (!g_llm_on || !g_llm_ai_talk || g_mp || !pl || !other || k_lines[k].aud != A_NAME) return;
+    int a = pidx(pl), b = pidx(other), h = (int)*(unsigned *)0x00918E84;
+    if (a == b || b == h || a == h || !g_players[a] || !g_players[b]) return;
+    int w = -1;
+    for (int i = 0; i < 4 && w < 0; i++)   // the same pair waiting: the newer event replaces it
+        if (g_talk_wait[i].t && ((g_talk_wait[i].a == a && g_talk_wait[i].b == b) || (g_talk_wait[i].a == b && g_talk_wait[i].b == a))) w = i;
+    for (int i = 0; i < 4 && w < 0; i++) if (!g_talk_wait[i].t) w = i;
+    if (w < 0) {   // all taken: the oldest goes
+        w = 0;
+        for (int i = 1; i < 4; i++) if (g_talk_wait[i].t < g_talk_wait[w].t) w = i;
+        g_talk_n_drop++;
+    }
+    g_talk_wait[w].a = a;
+    g_talk_wait[w].b = b;
+    llm_subst(g_talk_wait[w].sit, sizeof g_talk_wait[w].sit, k_llm_situation[k] ? k_llm_situation[k] : k_lines[k].key, pl,
+              other, third);
+    llm_subst(g_talk_wait[w].ev, sizeof g_talk_wait[w].ev, k_llm_event3[k] ? k_llm_event3[k] : g_talk_wait[w].sit, pl,
+              other, third);
+    lstrcpynA(g_talk_wait[w].fixed, fixed, sizeof g_talk_wait[w].fixed);
+    g_talk_wait[w].t = game_time() ? game_time() : 1;
+}
+static void talk_tick(void) {
+    uint32_t now = game_time();
+    if (!g_llm_ai_talk) return;
+    if (now < g_talk_started) { memset(&g_talk, 0, sizeof g_talk); memset(g_talk_wait, 0, sizeof g_talk_wait); g_talk_started = 0; }
+    if (g_talk.a && now - g_talk.t > 180000) g_talk.a = 0;   // lost (should not happen): free the channel
+    for (int i = 0; i < 4; i++)
+        if (g_talk_wait[i].t && now - g_talk_wait[i].t > 90000) { g_talk_wait[i].t = 0; g_talk_n_drop++; }
+    if (g_talk.a || (g_talk_started && now - g_talk_started < (uint32_t)g_llm_talk_gap * 1000u)) return;
+    int w = -1;
+    for (int i = 0; i < 4; i++) if (g_talk_wait[i].t && (w < 0 || g_talk_wait[i].t < g_talk_wait[w].t)) w = i;
+    if (w < 0) return;
+    g_talk_wait[w].t = 0;
+    if (!talk_request(g_talk_wait[w].a, g_talk_wait[w].b, 1, g_talk_wait[w].sit, g_talk_wait[w].fixed)) return;
+    g_talk.a = g_talk_wait[w].a;
+    g_talk.b = g_talk_wait[w].b;
+    g_talk.turn = 1;
+    g_talk.t = now ? now : 1;
+    g_talk_started = g_talk.t;
+    g_talk_n_ex++;
+    pair_add(g_talk.a, g_talk.b, 16, g_talk_wait[w].ev);   // after the opener's request: it has it there
+    if (g_llm_log && g_log) fprintf(g_log, "# llm: talk P%d -> P%d opened: %s\n", g_talk.a, g_talk.b, g_talk_wait[w].sit);
+}
+static void talk_done(struct llm_job *j, int ok) {
+    if (j->gen != g_llm_gen) return;
+    int a = j->ai, b = j->to;
+    void *pl = player_at(a), *po = player_at(b);
+    if (!ok || !j->reply[0] || !pl || !po) {
+        g_talk_n_fail++;
+        if (g_llm_log && g_log) fprintf(g_log, "# llm: talk P%d -> P%d (message %d) no answer (%s) - the exchange ends\n", a, b,
+                                        j->talk, g_llm_last_err);
+        g_talk.a = 0;
+        return;
+    }
+    pair_add(a, b, a, j->reply);
+    g_talk_n_msg++;
+    if (g_llm_log && g_log) fprintf(g_log, "# llm: talk P%d -> P%d (message %d, %.1f s): %s\n", a, b, j->talk, j->ms / 1000.0, j->reply);
+    if (g_llm_talk_show) {
+        char l[LLM_MAXLEN + 96];
+        snprintf(l, sizeof l, "%s %s: %s", !lstrcmpiA(g_lang, "de") ? "an" : "to", player_name(po), j->reply);
+        chat_line(pl, l, g_chat_ms);
+    }
+    if (j->talk < g_llm_talk_turns && talk_request(b, a, j->talk + 1, NULL, NULL)) g_talk.turn = j->talk + 1;
+    else g_talk.a = 0;
+}
+
 // every simulation step: show what is answered
 static void llm_tick(void) {
     if (!g_llm_on) return;
@@ -1039,13 +1219,22 @@ static void llm_tick(void) {
         uint8_t *opt = *(uint8_t **)0x00917BB8;
         system_line(l, opt ? FIELD(opt, 0x2CC, int) * 2 : 20000);
     }
+    talk_tick();
     for (int i = 0; i < LLM_JOBS; i++) {
         struct llm_job *j = &g_llm_jobs[i];
         LONG st = InterlockedCompareExchange(&j->state, J_FREE, J_FREE);   // read with a barrier: the reply is complete
         if (st != J_DONE && st != J_FAILED) continue;
+        if (j->talk) {   // between AIs: its own order (one exchange at a time)
+            talk_done(j, st == J_DONE);
+            free(j->body);
+            j->body = NULL;
+            SET_STATE(j, J_FREE);
+            continue;
+        }
         int older = 0;   // an earlier request of the same AI still open: this one waits for it
         for (int o = 0; o < LLM_JOBS; o++)
-            older |= o != i && g_llm_jobs[o].state != J_FREE && g_llm_jobs[o].ai == j->ai && (int)(g_llm_jobs[o].seq - j->seq) < 0;
+            older |= o != i && g_llm_jobs[o].state != J_FREE && !g_llm_jobs[o].talk && g_llm_jobs[o].ai == j->ai &&
+                     (int)(g_llm_jobs[o].seq - j->seq) < 0;
         if (older) continue;
         void *pl = j->ai > 0 && j->ai < 16 ? g_players[j->ai] : NULL;
         int ok = j->state == J_DONE;
@@ -1124,6 +1313,9 @@ static void cmd_llm(char *out, const char *args) {
     for (int i = 0; i < LLM_JOBS; i++) q += g_llm_jobs[i].state != J_FREE;
     REPLY("decide %d (%s): decisions %u, with a step taken %u\n", g_llm_decide, llm_deciding() ? "deciding" : "not deciding",
           g_llm_n_dec, g_llm_n_acts);
+    REPLY("ai_talk %d (show %d, gap %d s, turns %d): exchanges %u, messages %u, failed %u, dropped %u%s\n", g_llm_ai_talk,
+          g_llm_talk_show, g_llm_talk_gap, g_llm_talk_turns, g_talk_n_ex, g_talk_n_msg, g_talk_n_fail, g_talk_n_drop,
+          g_talk.a ? " (one running)" : "");
     REPLY("llm %s, url %s, model '%s', lines %d, chat %d, timeout %d s; %s; answers %u, failed %u (late %u), fixed lines "
           "%u, pending %d, think %d%s%s%s\n", g_llm_on ? "on" : "off", g_llm_url, g_llm_model, g_llm_lines, g_llm_chat, g_llm_timeout,
           (LONG)(g_llm_down_until - GetTickCount()) > 0 ? "DOWN" : "up", g_llm_n_ok, g_llm_n_fail, g_llm_n_late,
@@ -1140,6 +1332,10 @@ static void llm_install(const char *ini, const char *test_ini) {
     g_llm_log = GetPrivateProfileIntA("llm", "log", 1, ini);
     g_llm_think = GetPrivateProfileIntA("llm", "think", 0, ini);
     g_llm_decide = GetPrivateProfileIntA("llm", "decide", 0, ini);
+    g_llm_ai_talk = GetPrivateProfileIntA("llm", "ai_talk", 0, ini);
+    g_llm_talk_show = GetPrivateProfileIntA("llm", "ai_talk_show", 1, ini);
+    g_llm_talk_gap = GetPrivateProfileIntA("llm", "ai_talk_gap", 60, ini);
+    g_llm_talk_turns = GetPrivateProfileIntA("llm", "ai_talk_turns", 3, ini);
     GetPrivateProfileStringA("llm", "url", g_llm_url, g_llm_url, sizeof g_llm_url, ini);
     GetPrivateProfileStringA("llm", "model", "", g_llm_model, sizeof g_llm_model, ini);
     GetPrivateProfileStringA("llm", "api_key", "", g_llm_key, sizeof g_llm_key, ini);
@@ -1150,6 +1346,9 @@ static void llm_install(const char *ini, const char *test_ini) {
         g_llm_chat = GetPrivateProfileIntA("autotest", "llm_chat", g_llm_chat, test_ini);
         g_llm_timeout = GetPrivateProfileIntA("autotest", "llm_timeout", g_llm_timeout, test_ini);
         g_llm_decide = GetPrivateProfileIntA("autotest", "llm_decide", g_llm_decide, test_ini);
+        g_llm_ai_talk = GetPrivateProfileIntA("autotest", "llm_ai_talk", g_llm_ai_talk, test_ini);
+        g_llm_talk_show = GetPrivateProfileIntA("autotest", "llm_ai_talk_show", g_llm_talk_show, test_ini);
+        g_llm_talk_gap = GetPrivateProfileIntA("autotest", "llm_ai_talk_gap", g_llm_talk_gap, test_ini);
         GetPrivateProfileStringA("autotest", "llm_url", g_llm_url, g_llm_url, sizeof g_llm_url, test_ini);
         GetPrivateProfileStringA("autotest", "llm_model", g_llm_model, g_llm_model, sizeof g_llm_model, test_ini);
     }
@@ -1157,6 +1356,9 @@ static void llm_install(const char *ini, const char *test_ini) {
     if (g_llm_timeout > 120) g_llm_timeout = 120;
     if (g_llm_max_tokens < 16) g_llm_max_tokens = 16;
     if (g_llm_max_tokens > 8000) g_llm_max_tokens = 8000;
+    if (g_llm_talk_gap < 10) g_llm_talk_gap = 10;
+    if (g_llm_talk_turns < 1) g_llm_talk_turns = 1;
+    if (g_llm_talk_turns > 4) g_llm_talk_turns = 4;
     if (!g_llm_on) { if (g_log) fprintf(g_log, "# llm: off\n"); return; }
     WCHAR wurl[256];
     MultiByteToWideChar(CP_ACP, 0, g_llm_url, -1, wurl, 256);
@@ -1176,6 +1378,7 @@ static void llm_install(const char *ini, const char *test_ini) {
     g_llm_https = uc.nScheme == INTERNET_SCHEME_HTTPS;
     g_llm_event = CreateEventA(NULL, FALSE, FALSE, NULL);
     g_llm_thread = CreateThread(NULL, 0, llm_worker, NULL, 0, NULL);
-    if (g_log) fprintf(g_log, "# llm: on - %s, model '%s', lines %d, chat %d, decide %d, timeout %d s\n", g_llm_url, g_llm_model,
-                       g_llm_lines, g_llm_chat, g_llm_decide, g_llm_timeout);
+    if (g_log) fprintf(g_log, "# llm: on - %s, model '%s', lines %d, chat %d, decide %d, ai_talk %d (show %d, gap %d s, turns %d), "
+                       "timeout %d s\n", g_llm_url, g_llm_model, g_llm_lines, g_llm_chat, g_llm_decide, g_llm_ai_talk,
+                       g_llm_talk_show, g_llm_talk_gap, g_llm_talk_turns, g_llm_timeout);
 }

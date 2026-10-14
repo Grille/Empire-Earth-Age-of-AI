@@ -517,6 +517,7 @@ static void tribute_text(const int *amount, char *buf, int cap) {
 }
 static int llm_line(void *pl, enum line_kind k, void *other, void *third, const char *fixed);   // llm.c
 static void llm_heard(void *pl, void *other, const char *text);
+static void llm_talk_event(void *pl, enum line_kind k, void *other, void *third, const char *fixed);   // llm.c: AI TALK
 static int persona_say(void *pl, enum line_kind k, void *other, void *third) {
     int kk = k;
     struct persona *p = pl && g_ai_talk ? line_source(pl, k, &kk) : NULL, *own = persona_of(pl);
@@ -553,7 +554,8 @@ static int persona_say(void *pl, enum line_kind k, void *other, void *third) {
             llm_heard(pl, other, buf);
         }
         g_talk_lines[idx]++;
-    } else if (g_chat) {   // debug: every line, with its audience
+    } else llm_talk_event(pl, k, other, third, buf);   // to another AI: they may talk it over (llm.c AI TALK)
+    if (!heard && g_chat) {   // debug: every line, with its audience
         char dbg[300];
         wsprintfA(dbg, "[%s] %s", k_lines[k].aud == A_ALLIES ? "allies" : player_name(other), buf);
         chat_line(pl, dbg, g_chat_ms);
