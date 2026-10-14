@@ -68,15 +68,6 @@ static const struct text_def k_sys[] = {
 static char *g_sys_base[N_SYS], *g_sys_lang[N_SYS], *g_tpl_val[N_TPL];
 static int g_texts_loaded;
 
-static char *text_unescape(const char *v) {   // "\n" -> a line break
-    char *r = _strdup(v), *w = r;
-    for (const char *s = v; *s; s++) {
-        if (s[0] == '\\' && s[1] == 'n') { *w++ = '\n'; s++; continue; }
-        *w++ = *s;
-    }
-    *w = 0;
-    return r;
-}
 static int text_index(const struct text_def *t, int n, const char *key) {
     for (int i = 0; i < n; i++) if (!lstrcmpiA(t[i].key, key)) return i;
     return -1;
@@ -89,42 +80,35 @@ static void texts_dir(char *dir) {
 }
 static int g_texts_sys_n, g_texts_tpl_n, g_texts_var_n;   // keys read (log)
 static struct xvars g_vars_sys_lang;   // _system.ini [vars:<language>], merged into g_vars_sys after loading
+// _system.ini: [system] / [system:<language>] (strings), [vars] / [vars:<language>]; _template.ini: [prompt]
+// (strings), [vars] - the format: expr.c THE TEXT FILES
+static void texts_key(void *arg, const char *sec, const char *key, struct tval *v, struct tlex *l) {
+    int sys = arg != NULL;
+    if (!lstrcmpiA(sec, "vars") || (!_strnicmp(sec, "vars:", 5) && sys)) {
+        if (sec[4] && !lang_matches(sec + 5)) return;
+        if (v->kind == TV_LIST) { tl_error(l, "a string or an expression expected, not a list"); return; }
+        xvars_set(!sys ? &g_vars_tpl : sec[4] ? &g_vars_sys_lang : &g_vars_sys, key, v->text, v->kind == TV_STRING);
+        g_texts_var_n++;
+        return;
+    }
+    int lang = sys && !_strnicmp(sec, "system:", 7);
+    if (sys ? lstrcmpiA(sec, "system") && !lang : lstrcmpiA(sec, "prompt")) { tl_error(l, "an unknown section"); return; }
+    if (lang && !lang_matches(sec + 7)) return;
+    int i = sys ? text_index(k_sys, N_SYS, key) : text_index(k_tpl, N_TPL, key);
+    if (i < 0) { tl_error(l, "an unknown key"); return; }
+    if (v->kind != TV_STRING) { tl_error(l, "a string expected (\"...\")"); return; }
+    char **slot = sys ? (lang ? &g_sys_lang[i] : &g_sys_base[i]) : &g_tpl_val[i];
+    free(*slot);
+    *slot = _strdup(v->text);
+    if (sys) g_texts_sys_n++; else g_texts_tpl_n++;
+}
 static void texts_file(const char *name, int sys) {
     char path[MAX_PATH];
     texts_dir(path);
     lstrcatA(path, name);
     char *text = read_text_acp(path);
     if (!text) return;
-    int section = 0;   // 1 [system] / [prompt], 2 [system:<game language>], 3 [vars], 4 [vars:<game language>]
-    for (char *ln = strtok(text, "\n"); ln; ln = strtok(NULL, "\n")) {
-        char *s = trim(ln);
-        if (!*s || *s == ';' || *s == '#') continue;
-        if (*s == '[') {
-            char *close = strchr(s, ']');
-            if (close) *close = 0;
-            section = !lstrcmpiA(s, "[vars") ? 3 : !_strnicmp(s, "[vars:", 6) ? (sys && lang_matches(s + 6) ? 4 : 0) :
-                      sys ? (!lstrcmpiA(s, "[system") ? 1 : !_strnicmp(s, "[system:", 8) && lang_matches(s + 8) ? 2 : 0)
-                          : !lstrcmpiA(s, "[prompt");
-            continue;
-        }
-        char *eq = strchr(s, '=');
-        if (!eq || !section) continue;
-        *eq = 0;
-        char *key = trim(s), *val = trim(eq + 1);
-        if (section >= 3) {
-            char *u = text_unescape(val);
-            xvars_set(!sys ? &g_vars_tpl : section == 4 ? &g_vars_sys_lang : &g_vars_sys, key, u);
-            free(u);
-            g_texts_var_n++;
-            continue;
-        }
-        int i = sys ? text_index(k_sys, N_SYS, key) : text_index(k_tpl, N_TPL, key);
-        if (i < 0) { if (g_log) fprintf(g_log, "# texts: %s: unknown key '%s' - ignored\n", name, key); continue; }
-        char **slot = sys ? (section == 2 ? &g_sys_lang[i] : &g_sys_base[i]) : &g_tpl_val[i];
-        free(*slot);
-        *slot = text_unescape(val);
-        if (sys) g_texts_sys_n++; else g_texts_tpl_n++;
-    }
+    tfile_parse(name, text, texts_key, sys ? (void *)1 : NULL);
     free(text);
 }
 static void texts_load(void) {
@@ -132,7 +116,7 @@ static void texts_load(void) {
     g_texts_loaded = 1;
     texts_file("_system.ini", 1);
     texts_file("_template.ini", 0);
-    for (int i = 0; i < g_vars_sys_lang.n; i++) xvars_set(&g_vars_sys, g_vars_sys_lang.key[i], g_vars_sys_lang.val[i]);
+    for (int i = 0; i < g_vars_sys_lang.n; i++) xvars_set(&g_vars_sys, g_vars_sys_lang.key[i], g_vars_sys_lang.val[i], g_vars_sys_lang.text[i]);
     if (g_log) fprintf(g_log, "# texts: _system.ini %d keys, _template.ini %d keys (the rest built in), %d [vars]\n",
                        g_texts_sys_n, g_texts_tpl_n, g_texts_var_n);
 }
@@ -205,13 +189,24 @@ static void tput(char *t, int *o, int cap, const char *key, ...) {
 static const char *tnum(char *buf, int n) { wsprintfA(buf, "%d", n); return buf; }
 
 // texts dump [force]: both files with every key and its built-in text (UTF-8)
-static void text_write(FILE *f, const char *acp) {   // the game's code page -> UTF-8, line breaks as \n
+// a string as the files write it: "...", the game's code page -> UTF-8, \" \\ \n - inside {braces} as written (an
+// expression's quotes are its own)
+static void text_write(FILE *f, const char *acp) {
     WCHAR w[2048];
     char u[6144];
     int n = MultiByteToWideChar(CP_ACP, 0, acp, -1, w, 2048);
     if (n <= 0) return;
     WideCharToMultiByte(CP_UTF8, 0, w, -1, u, sizeof u, NULL, NULL);
-    for (const char *s = u; *s; s++) { if (*s == '\n') fputs("\\n", f); else fputc(*s, f); }
+    int depth = 0;
+    fputc('"', f);
+    for (const char *s = u; *s; s++) {
+        if (*s == '{') depth++;
+        else if (*s == '}' && depth) depth--;
+        if (*s == '\n') fputs("\\n", f);
+        else if (!depth && (*s == '"' || *s == '\\')) { fputc('\\', f); fputc(*s, f); }
+        else fputc(*s, f);
+    }
+    fputc('"', f);
 }
 static void text_placeholders(FILE *f, const char *a, const char *b) {   // "; {ai} {name}" - those the texts use
     char seen[400] = "";
@@ -226,16 +221,25 @@ static void text_placeholders(FILE *f, const char *a, const char *b) {   // "; {
     if (seen[0]) fprintf(f, "; placeholders:%s\n", seen);
 }
 // the expressions and the game's values, for the dumped files (gen_persona.py writes the same into _persona.ini)
+static const char k_format_help[] =
+    ";\n"
+    "; THE FORMAT: sections [name] / [name:<language>], one \"key = value\" per line (a list may go over several),\n"
+    "; comments from ; or # to the line's end. A value is\n"
+    ";   \"text\"                        a string: \\\" for a quote, \\\\ for a backslash, \\n for a line break\n"
+    ";   [\"a\", \"b\" if <condition>]     a list (personalities' lines), over as many lines as you like\n"
+    ";   85, opinion > 30 ? \"a\" : \"b\"  a number or an expression ([vars], the traits)\n"
+    "; A mistake is logged with the file and line (aimod_econ.csv, \"# texts:\") and that key is skipped.\n";
 static const char k_expr_help[] =
     ";\n"
-    "; EXPRESSIONS: a placeholder may be an expression - {opinion > 30 ? \"friend\" : \"neighbour\"} - and [vars] names\n"
-    "; expressions for the texts:   address = opinion > 30 ? \"friend\" : opinion < -30 ? \"enemy\" : \"neighbour\"\n"
-    "; then \"Hello dear {address}\". Numbers, \"texts\" (or 'texts'), + - * / %, < <= > >= == !=, and or not, a ? b : c,\n"
-    "; ( ), pick(\"a\", \"b\", ...) one at random, chance(25) true 25% of the time, min, max, abs, round. A value may be\n"
-    "; a number and a text at once (the epoch: 3 and its name): the number counts in arithmetic and comparisons with\n"
-    "; numbers, the text in the text and next to texts (\"Age: \" + epoch). + adds numbers, else joins the texts.\n"
-    "; A [vars] value that is no expression is plain text (its placeholders filled). A placeholder that is no\n"
-    "; expression stays in the text as written, and the log (aimod_econ.csv, # texts:) says so.\n"
+    "; EXPRESSIONS: a placeholder may be an expression - \"{opinion > 30 ? \"friend\" : \"neighbour\"}\": the quotes inside\n"
+    "; the braces are the expression's - and [vars] names strings and expressions for the texts:\n"
+    ";   address = opinion > 30 ? \"friend\" : opinion < -30 ? \"enemy\" : \"neighbour\"     then \"Hello dear {address}\"\n"
+    ";   title = \"my lord {name}\"\n"
+    "; Numbers, \"texts\" (or 'texts'), + - * / %, < <= > >= == !=, and or not, a ? b : c, ( ), pick(\"a\", \"b\", ...)\n"
+    "; one at random, chance(25) true 25% of the time, min, max, abs, round. A value may be a number and a text at\n"
+    "; once (the epoch: 3 and its name): the number counts in arithmetic and comparisons with numbers, the text in the\n"
+    "; text and next to texts (\"Age: \" + epoch). + adds numbers, else joins the texts. A placeholder that is no\n"
+    "; expression stays in the text as written, and the log says so.\n"
     "; The game's values, from the one who speaks (the AI) towards the one it speaks to or about ({name}; in a system\n"
     "; line the local player):\n"
     ";   opinion            -100..100: what the AI thinks of them; their_opinion: what they think of it (an AI)\n"
@@ -246,7 +250,7 @@ static const char k_expr_help[] =
     ";                      compare it with these, the same in every language (never with a name):\n"
     ";                      epoch.prehistoric, epoch.stone, epoch.copper, epoch.bronze, epoch.dark, epoch.middle,\n"
     ";                      epoch.renaissance, epoch.imperial, epoch.industrial, epoch.atomic_wwi, epoch.atomic_wwii,\n"
-    ";                      epoch.atomic_modern, epoch.digital, epoch.nano, epoch.space - [epoch >= epoch.middle]\n"
+    ";                      epoch.atomic_modern, epoch.digital, epoch.nano, epoch.space - epoch >= epoch.middle\n"
     ";   minutes            the game time\n"
     ";   soldiers, citizens, buildings, towers - their_soldiers ...: counted every 10 seconds\n"
     ";   kills, losses      their soldiers and citizens it destroyed / its own they destroyed\n"
@@ -316,8 +320,9 @@ static void cmd_texts(char *out, const char *args) {
         if (sys) {
             fputs("; _system.ini - the system lines eeaimod shows the player (white, from nobody in particular). Not a\n"
                   "; personality. [system] is English; [system:de] (or :fr, :es ... - the game's language) replaces what it has.\n"
-                  "; A key left out keeps the built-in text. Placeholders in braces are filled in; \\n is a line break.\n"
+                  "; A key left out keeps the built-in text. Placeholders in braces are filled in.\n"
                   "; Written by \"texts dump\" with the built-in texts.\n", f);
+            fputs(k_format_help, f);
             fputs(k_expr_help, f);
             fputs(";\n; [vars] here serve the system lines and every personality's lines (a personality's own [vars] first);\n"
                   "; [vars:de] (or :fr ...) replaces them in a game of that language.\n"
@@ -325,24 +330,25 @@ static void cmd_texts(char *out, const char *args) {
             for (int i = 0; i < N_SYS; i++) {
                 if (k_sys[i].note) { fputs("; ", f); fputs(k_sys[i].note, f); fputs("\n", f); }
                 text_placeholders(f, k_sys[i].en, NULL);
-                fprintf(f, "%s=", k_sys[i].key); text_write(f, k_sys[i].en); fputs("\n", f);
+                fprintf(f, "%s = ", k_sys[i].key); text_write(f, k_sys[i].en); fputs("\n", f);
             }
             fputs("\n[system:de]\n", f);
             for (int i = 0; i < N_SYS; i++)
-                if (k_sys[i].de) { fprintf(f, "%s=", k_sys[i].key); text_write(f, k_sys[i].de); fputs("\n", f); }
+                if (k_sys[i].de) { fprintf(f, "%s = ", k_sys[i].key); text_write(f, k_sys[i].de); fputs("\n", f); }
         } else {
             fputs("; _template.ini - what eeaimod tells the language model ([llm] in aimod.ini): who the AI is, the game as it\n"
                   "; stands, the situations, the tools. English: the model is told which language to answer in. A key left out\n"
-                  "; keeps the built-in text. Placeholders in braces are filled in (each key's are listed above it); \\n is a\n"
-                  "; line break. The pieces are joined with a space between them.\n"
+                  "; keeps the built-in text. Placeholders in braces are filled in (each key's are listed above it). The\n"
+                  "; pieces are joined with a space between them.\n"
                   "; Written by \"texts dump\" with the built-in texts.\n", f);
+            fputs(k_format_help, f);
             fputs(k_expr_help, f);
             fputs(";\n; [vars] here serve the prompts only (English, like them).\n"
                   ";[vars]\n;mood = opinion < -50 ? \"You can barely stand them.\" : \"\"\n\n[prompt]\n", f);
             for (int i = 0; i < N_TPL; i++) {
                 if (k_tpl[i].note) { fputs("; ", f); fputs(k_tpl[i].note, f); fputs("\n", f); }
                 text_placeholders(f, k_tpl[i].en, NULL);
-                fprintf(f, "%s=", k_tpl[i].key); text_write(f, k_tpl[i].en); fputs("\n", f);
+                fprintf(f, "%s = ", k_tpl[i].key); text_write(f, k_tpl[i].en); fputs("\n", f);
             }
         }
         fclose(f);

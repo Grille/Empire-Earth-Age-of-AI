@@ -2,7 +2,7 @@
   "name": "eeaimod-texts",
   "displayName": "eeaimod texts",
   "description": "Highlighting for the eeaimod text files (aimod_ai\\*.ini): personalities, _system.ini, _template.ini - sections, placeholders, expressions, conditions",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publisher": "eeaimod",
   "license": "MIT",
   "engines": { "vscode": "^1.60.0" },

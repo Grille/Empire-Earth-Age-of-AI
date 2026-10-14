@@ -2,23 +2,23 @@
 // steer its diplomacy, and the lines it says in situations of the game. Included by eeaimod.c after defence.c,
 // before diplo.c (which makes the decisions and raises most of the situations).
 //
-// File format (UTF-8 or ANSI; lines starting with ; or # are comments):
+// File format (UTF-8 or ANSI; the syntax: expr.c THE TEXT FILES):
 //   [personality]
-//   name=Merchant Benedict     the player's name in the game (replaces "Computer"; empty = keep)
-//   name:de=Kaufherr Benedikt  ... in a game of that language (see lang_detect)
-//   color=yellow, lightyellow  favoured colours on random maps
-//   aggression=80 loyalty=30 pride=70 greed=40 forgiveness=20 caution=40 talk=60   (one per line)
-//   [lines]                    the default (English)
-//   war_declared=Variant one|Variant two      variants separated by |, or the key repeated
-//   [lines:de]                 in a game of that language these replace [lines] situation by situation
-//   [style]                    EXPERIMENTAL, only with [general] ai_style=1 (default 0): aimod.ini keys
-//   first_attack_min=15        (settings.c k_style_keys) on top of the difficulty's settings for this AI
-//   [vars] / [vars:de]         named expressions for its lines (expr.c), before _system.ini's
+//   name = "Merchant Benedict"         the player's name in the game (replaces "Computer"; empty = keep)
+//   name:de = "Kaufherr Benedikt"      ... in a game of that language (see lang_detect)
+//   color = ["yellow", "lightyellow"]  favoured colours on random maps
+//   aggression = 80                    the traits 0-100: aggression loyalty pride greed forgiveness caution talk
+//   character = "..."                  for the language model (llm.c)
+//   [lines]                            the default (English)
+//   war_declared = [ "Variant one", "Variant two {name}" if opinion < -50 ]   or one string
+//   [lines:de]                         in a game of that language these replace [lines] situation by situation
+//   [vars] / [vars:de]                 named strings and expressions for its lines, before _system.ini's
+//   [style]                            EXPERIMENTAL, only with [general] ai_style=1 (default 0): aimod.ini keys
+//   first_attack_min = 15              (settings.c k_style_keys) on top of the difficulty's settings for this AI
 // Placeholders: {name} the player the line is about, {me} the speaker, {enemy} a third player (alliances),
-// {epoch} the speaker's age, {tribute} the resources offered / paid (capitulation), or an expression (expr.c). A
-// variant may start with a condition, "[opinion < -50] ...": those whose condition holds are picked from, the others
-// only when none does. A situation without lines (or none that may be said) stays silent (the game's own lines for
-// wonders, flares and war remain where the personality has none).
+// {epoch} the speaker's age, {tribute} the resources offered / paid (capitulation), or an expression (expr.c). The
+// variants whose "if" holds are picked from, the others only when none does. A situation without lines (or none that
+// may be said) stays silent (the game's own lines for wonders, flares and war remain where the personality has none).
 //
 // Assignment at the AI's first update: aimod.ini [general] personality_P<n>=<file name without .ini>, otherwise
 // random, every personality once before any repeats (autotest: from the map seed, so runs repeat).
@@ -69,7 +69,7 @@ struct persona {
     int color[4], ncolor;   // favoured player colours, in order of preference
     char *style_key[16], *style_val[16];   // [style]: aimod.ini settings for this personality (ai_style=1)
     int nstyle;
-    char *line[L_N][MAX_VARIANTS];
+    char *line[L_N][MAX_VARIANTS], *cond[L_N][MAX_VARIANTS];   // a situation's variants, their conditions (NULL none)
     uint8_t nline[L_N];
     struct xvars vars;   // [vars] (+ [vars:<game language>])
 };
@@ -156,13 +156,6 @@ static const float *color_rgb(int c) {
     return b && c >= 0 && c < e - b && b[c] ? (const float *)(b[c] + 4) : NULL;
 }
 
-static char *trim(char *s) {
-    while (*s == ' ' || *s == '\t') s++;
-    char *e = s + strlen(s);
-    while (e > s && (e[-1] == ' ' || e[-1] == '\t' || e[-1] == '\r' || e[-1] == '\n')) *--e = 0;
-    return s;
-}
-
 // The game's language, for [lines:<language>] and name:<language>: aimod.ini [general] language (a code such as
 // de, or a name such as german), else from the game's text - the first age's name (string 30145 in Language.dll;
 // its resources are all marked 0x409 whatever the language, so the language id says nothing). Unknown: [lines] only.
@@ -222,13 +215,73 @@ static void lang_detect(void) {
 // personality use it alone. It holds neutral lines for what must not go unsaid (diplomacy, capitulation, victory).
 static struct persona g_computer;
 static int g_has_computer;
-struct variants_add { char **dst; uint8_t *n; };
-static void variant_add(char *piece, void *arg) {
-    struct variants_add *a = arg;
-    char *t = trim(piece);
-    if (*t && *a->n < MAX_VARIANTS) a->dst[(*a->n)++] = _strdup(t);
-}
 static int g_personas_only_computer;   // autotest personas=0: only computer.ini (AIs without a personality)
+// a personality file (the format: expr.c): [personality] name, name:<language>, character (strings), color (a list
+// of colour names), the traits (numbers 0-100); [style] (numbers); [vars] / [vars:<language>]; [lines] /
+// [lines:<language>] - each situation a string or a list of them, "if" conditions
+struct persona_read {
+    struct persona *p;
+    char *ll[L_N][MAX_VARIANTS], *llc[L_N][MAX_VARIANTS];   // [lines:<game language>]: over [lines] situation by situation
+    uint8_t nll[L_N];
+    int lang_name;   // name:<game language> seen (wins over name=)
+    struct xvars vl;   // [vars:<game language>]: over [vars]
+};
+static void lines_set(char **line, char **cond, uint8_t *n, struct tval *v) {   // a situation's variants (replaced)
+    for (int i = 0; i < *n; i++) { free(line[i]); free(cond[i]); }
+    *n = 0;
+    if (v->kind == TV_STRING) { if (*v->text) { line[0] = _strdup(v->text); cond[0] = NULL; *n = 1; } return; }   // "": none
+    for (int i = 0; i < v->nitems && *n < MAX_VARIANTS; i++) {
+        if (!*v->item[i]) continue;
+        line[*n] = _strdup(v->item[i]);
+        cond[(*n)++] = v->cond[i] ? _strdup(v->cond[i]) : NULL;
+    }
+}
+static void persona_key(void *arg, const char *sec, const char *key, struct tval *v, struct tlex *l) {
+    struct persona_read *r = arg;
+    struct persona *p = r->p;
+    if (!lstrcmpiA(sec, "personality")) {
+        int name = !lstrcmpiA(key, "name"), lname = !_strnicmp(key, "name:", 5);
+        if (name || lname || !lstrcmpiA(key, "character")) {
+            if (v->kind != TV_STRING) { tl_error(l, "a string expected (\"...\")"); return; }
+            if (!name && !lname) lstrcpynA(p->character, v->text, sizeof p->character);
+            else if (lname ? lang_matches(key + 5) : !r->lang_name) {
+                lstrcpynA(p->name, v->text, sizeof p->name);
+                r->lang_name |= lname;
+            }
+            return;
+        }
+        if (!lstrcmpiA(key, "color") || !lstrcmpiA(key, "colour") || !lstrcmpiA(key, "farbe")) {
+            if (v->kind == TV_STRING) { v->item[0] = v->text; v->cond[0] = NULL; v->nitems = 1; v->text = NULL; }
+            else if (v->kind != TV_LIST) { tl_error(l, "a list of colour names expected ([\"red\", \"blue\"])"); return; }
+            for (int i = 0; i < v->nitems && p->ncolor < 4; i++) {
+                int c = color_index(v->item[i]);
+                if (c >= 0) p->color[p->ncolor++] = c;
+                else if (g_log) fprintf(g_log, "# texts: %s:%d: unknown colour \"%s\"\n", l->file, v->line, v->item[i]);
+            }
+            return;
+        }
+        for (int t = 0; t < T_N; t++)
+            if (!lstrcmpiA(key, k_trait_keys[t])) {
+                if (v->kind != TV_NUMBER) { tl_error(l, "a number 0-100 expected"); return; }
+                p->trait[t] = v->n < 0 ? 0 : v->n > 100 ? 100 : (int)v->n;
+                return;
+            }
+        tl_error(l, "an unknown key in [personality]");
+    } else if (!lstrcmpiA(sec, "style")) {
+        if (v->kind != TV_NUMBER && v->kind != TV_STRING) { tl_error(l, "a number expected"); return; }
+        if (p->nstyle < 16) { p->style_key[p->nstyle] = _strdup(key); p->style_val[p->nstyle++] = _strdup(v->text); }
+    } else if (!lstrcmpiA(sec, "vars") || (!_strnicmp(sec, "vars:", 5) && lang_matches(sec + 5))) {
+        if (v->kind == TV_LIST) { tl_error(l, "a string or an expression expected, not a list"); return; }
+        xvars_set(sec[4] ? &r->vl : &p->vars, key, v->text, v->kind == TV_STRING);
+    } else if (!lstrcmpiA(sec, "lines") || (!_strnicmp(sec, "lines:", 6) && lang_matches(sec + 6))) {
+        int k = 0;
+        while (k < L_N && lstrcmpiA(key, k_lines[k].key)) k++;
+        if (k == L_N) { tl_error(l, "an unknown situation"); return; }
+        if (v->kind != TV_STRING && v->kind != TV_LIST) { tl_error(l, "a string or a list of strings expected"); return; }
+        if (sec[5]) lines_set(r->ll[k], r->llc[k], &r->nll[k], v);
+        else lines_set(p->line[k], p->cond[k], &p->nline[k], v);
+    } else if (_strnicmp(sec, "lines:", 6) && _strnicmp(sec, "vars:", 5)) tl_error(l, "an unknown section");
+}
 static void persona_load(const char *path, const char *file) {
     if (g_npersonas >= MAX_PERSONAS) return;
     char *text = read_text_acp(path);
@@ -239,61 +292,18 @@ static void persona_load(const char *path, const char *file) {
     char *dot = strrchr(p->file, '.');
     if (dot) *dot = 0;
     for (int t = 0; t < T_N; t++) p->trait[t] = 50;
-    static char *ll[L_N][MAX_VARIANTS];   // [lines:<game language>]: replace [lines] situation by situation
-    uint8_t nll[L_N] = { 0 };
-    int lang_name = 0;   // name:<game language> seen (wins over name=)
-    static struct xvars vl;   // [vars:<game language>]: over [vars]
-    vl.n = 0;
-    int section = 0;   // 1 personality, 2 lines, 3 style, 4 lines in the game's language, 5 vars, 6 vars in it
-    for (char *ln = strtok(text, "\n"); ln; ln = strtok(NULL, "\n")) {
-        char *s = trim(ln);
-        if (!*s || *s == ';' || *s == '#') continue;
-        if (*s == '[') {
-            char *close = strchr(s, ']');
-            if (close) *close = 0;
-            section = !lstrcmpiA(s, "[personality") ? 1 : !lstrcmpiA(s, "[lines") ? 2 : !lstrcmpiA(s, "[style") ? 3 :
-                      !_strnicmp(s, "[lines:", 7) && lang_matches(s + 7) ? 4 : !lstrcmpiA(s, "[vars") ? 5 :
-                      !_strnicmp(s, "[vars:", 6) && lang_matches(s + 6) ? 6 : 0;
-            continue;
-        }
-        char *eq = strchr(s, '=');
-        if (!eq) continue;
-        *eq = 0;
-        char *key = trim(s), *val = trim(eq + 1);
-        if (section == 1) {
-            if (!lstrcmpiA(key, "name") && !lang_name) lstrcpynA(p->name, val, sizeof p->name);
-            if (!lstrcmpiA(key, "character")) lstrcpynA(p->character, val, sizeof p->character);
-            if (!_strnicmp(key, "name:", 5) && lang_matches(key + 5)) { lstrcpynA(p->name, val, sizeof p->name); lang_name = 1; }
-            if (!lstrcmpiA(key, "color") || !lstrcmpiA(key, "colour") || !lstrcmpiA(key, "farbe"))
-                for (char *t = val; t && *t && p->ncolor < 4;) {   // not strtok: the line loop uses it
-                    char *sep = strpbrk(t, ",|");
-                    if (sep) *sep = 0;
-                    int c = color_index(trim(t));
-                    if (c >= 0) p->color[p->ncolor++] = c;
-                    t = sep ? sep + 1 : NULL;
-                }
-            for (int t = 0; t < T_N; t++)
-                if (!lstrcmpiA(key, k_trait_keys[t])) { int v = atoi(val); p->trait[t] = v < 0 ? 0 : v > 100 ? 100 : v; }
-        } else if (section == 3) {
-            if (p->nstyle < 16) { p->style_key[p->nstyle] = _strdup(key); p->style_val[p->nstyle++] = _strdup(val); }
-        } else if (section == 5 || section == 6) {
-            xvars_set(section == 5 ? &p->vars : &vl, key, val);
-        } else if (section == 2 || section == 4) {
-            for (int k = 0; k < L_N; k++) {
-                if (lstrcmpiA(key, k_lines[k].key)) continue;
-                struct variants_add a = { section == 2 ? p->line[k] : ll[k], section == 2 ? &p->nline[k] : &nll[k] };
-                x_split(val, variant_add, &a);   // | outside quotes, brackets and braces (an expression may say ||)
-            }
-        }
-    }
+    static struct persona_read r;
+    memset(&r, 0, sizeof r);
+    r.p = p;
+    tfile_parse(file, text, persona_key, &r);
     free(text);
-    for (int i = 0; i < vl.n; i++) xvars_set(&p->vars, vl.key[i], vl.val[i]);
-    for (int i = 0; i < vl.n; i++) { free(vl.key[i]); free(vl.val[i]); }
+    for (int i = 0; i < r.vl.n; i++) { xvars_set(&p->vars, r.vl.key[i], r.vl.val[i], r.vl.text[i]); free(r.vl.key[i]); free(r.vl.val[i]); }
     for (int k = 0; k < L_N; k++)   // the language's lines where it has them, [lines] for the rest
-        if (nll[k]) {
-            for (int v = 0; v < p->nline[k]; v++) free(p->line[k][v]);
-            memcpy(p->line[k], ll[k], nll[k] * sizeof *ll[k]);
-            p->nline[k] = nll[k];
+        if (r.nll[k]) {
+            for (int v = 0; v < p->nline[k]; v++) { free(p->line[k][v]); free(p->cond[k][v]); }
+            memcpy(p->line[k], r.ll[k], r.nll[k] * sizeof *r.ll[k]);
+            memcpy(p->cond[k], r.llc[k], r.nll[k] * sizeof *r.llc[k]);
+            p->nline[k] = r.nll[k];
         }
     if (!lstrcmpiA(p->file, "computer")) {   // the neutral fallback lines, no personality of its own
         g_computer = *p;
@@ -361,21 +371,21 @@ static void line_ctx_init(struct line_ctx *l, void *pl, void *other, void *third
     l->c.vars[2] = &g_vars_sys;
 }
 // one of p's variants of situation k that may be said now - those whose condition holds, else those without one
-// (not `last` when there is a choice); -1 none. *text: the variant after its condition.
+// (not `last` when there is a choice); -1 none. A condition that is no expression doesn't hold (logged).
 static int line_pick(struct persona *p, int k, struct xctx *c, int last, const char **text) {
     int yes[MAX_VARIANTS], plain[MAX_VARIANTS], ny = 0, np = 0;
-    const char *tx[MAX_VARIANTS];
     c->vars[0] = &p->vars;
     for (int v = 0; v < p->nline[k]; v++) {
-        int r = x_condition(p->line[k][v], &tx[v], c);
-        if (r > 0) yes[ny++] = v;
-        else if (r < 0) plain[np++] = v;
+        struct xval x;
+        if (!p->cond[k][v]) plain[np++] = v;
+        else if (!x_eval(p->cond[k][v], c, &x)) x_log_bad("a condition that is no expression", p->cond[k][v]);
+        else if (xtrue(&x)) yes[ny++] = v;
     }
     int *from = ny ? yes : plain, n = ny ? ny : np;
     if (!n) return -1;
     int i = rnd(n);
     if (n > 1 && from[i] == last) i = (i + 1) % n;
-    *text = tx[from[i]];
+    *text = p->line[k][from[i]];
     return from[i];
 }
 // where situation k's line comes from for this AI: its personality (k or a fallback of it), else computer.ini - the

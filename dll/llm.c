@@ -546,8 +546,9 @@ static void llm_system(struct sbuf *b, void *pl, int ai, int h, int tools) {
         static const int ex[] = { L_GREETING, L_WAR_DECLARED, L_PEACE_REFUSE, L_WINNING, L_LOSING, L_UNDER_ATTACK, L_EPOCH_UP };
         for (size_t i = 0; i < sizeof ex / sizeof *ex && shown < 4; i++) {
             if (!p->nline[ex[i]]) continue;
-            const char *l = p->line[ex[i]][rnd(p->nline[ex[i]])];
-            if (strchr(l, '{') || *l == '[') continue;   // placeholders, conditions
+            int v = rnd(p->nline[ex[i]]);
+            const char *l = p->line[ex[i]][v];
+            if (strchr(l, '{') || p->cond[ex[i]][v]) continue;   // placeholders, conditions
             tcat(ex_text, &eo, sizeof ex_text, "%s\"%s\"", shown ? " / " : "", l);
             shown++;
         }

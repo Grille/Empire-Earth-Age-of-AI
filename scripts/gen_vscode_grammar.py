@@ -1,7 +1,9 @@
 """Writes vscode/eeaimod-texts/syntaxes/eeaimod-ini.tmLanguage.json - the highlighting of the aimod_ai\\*.ini files
-(personalities, _system.ini, _template.ini) - with the names the DLL knows, read from its sources: the game's values
-(diplo.c x_builtin), the epochs (expr.c k_epoch_const), the functions (expr.c xp_primary), the situations
-(persona.c k_lines). Run it after changing one of them: venv/Scripts/python.exe scripts/gen_vscode_grammar.py"""
+(personalities, _system.ini, _template.ini; the format: dll/expr.c THE TEXT FILES) - with the names the DLL knows,
+read from its sources: the game's values (diplo.c x_builtin), the epochs and functions (expr.c), the situations and
+traits (persona.c), the system and prompt keys (texts.c, texts_prompt.h), the style keys (settings.c). A key the DLL
+doesn't know in its section shows as an error. Run it after changing one of them, then scripts/pack_vscode.py:
+venv/Scripts/python.exe scripts/gen_vscode_grammar.py"""
 import json
 import os
 import re
@@ -10,20 +12,25 @@ root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 def src(name):
     return open(os.path.join(root, 'dll', name), encoding='latin-1').read()
 
-diplo, expr, persona = src('diplo.c'), src('expr.c'), src('persona.c')
-k_num = re.search(r'static const char \*const k_num\[\] = \{(.*?)\};', diplo, re.S).group(1)
-values = re.findall(r'"(\w+)"', k_num) + ['name', 'me', 'enemy', 'language']
+diplo, expr, persona, texts, tpl, settings = (src(n) for n in ('diplo.c', 'expr.c', 'persona.c', 'texts.c', 'texts_prompt.h', 'settings.c'))
+values = re.findall(r'"(\w+)"', re.search(r'static const char \*const k_num\[\] = \{(.*?)\};', diplo, re.S).group(1)) + \
+    ['name', 'me', 'enemy', 'language']
 epochs = re.findall(r'"(\w+)"', re.search(r'k_epoch_const\[15\] = \{(.*?)\};', expr, re.S).group(1))
 funcs = sorted(set(re.findall(r'!lstrcmpiA\(name, "(\w+)"\)', expr)) - {'true', 'false'})
 situations = re.findall(r'\{ "(\w+)", \d+, \d+, A_\w+ \}', persona)
-assert len(values) > 30 and len(epochs) == 15 and 'pick' in funcs and len(situations) >= 40, (values, epochs, funcs)
+traits = re.findall(r'"(\w+)"', re.search(r'k_trait_keys\[T_N\] = \{(.*?)\};', persona).group(1))
+sys_keys = re.findall(r'^    \{ "(\w+)", "', texts[texts.index('k_sys[] = {'):texts.index('#define N_SYS')], re.M)
+tpl_keys = re.findall(r'^    \{ "(\w+)", ', tpl, re.M)
+style_keys = re.findall(r'\{ "(\w+)", offsetof', settings)
+assert len(values) > 30 and len(epochs) == 15 and 'pick' in funcs and len(situations) >= 40 and len(traits) == 7
+assert len(sys_keys) > 20 and len(tpl_keys) > 100 and len(style_keys) > 10, (len(sys_keys), len(tpl_keys), len(style_keys))
 
 def words(ws):
     return r'\b(?:' + '|'.join(sorted(ws, key=len, reverse=True)) + r')\b'
 
 expression = [
-    {'name': 'string.quoted.double.eeaimod', 'match': r'"[^"\n]*"'},
-    {'name': 'string.quoted.single.eeaimod', 'match': r"'[^'\n]*'"},
+    {'name': 'string.quoted.double.expression.eeaimod', 'match': r'"(?:[^"\\]|\\.)*"'},
+    {'name': 'string.quoted.single.expression.eeaimod', 'match': r"'(?:[^'\\]|\\.)*'"},
     {'name': 'support.constant.epoch.eeaimod', 'match': r'\bepoch\.(?:' + '|'.join(epochs) + r')\b(?!\.)'},
     {'name': 'invalid.illegal.unknown-epoch.eeaimod', 'match': r'\bepoch\.[A-Za-z_][\w.]*'},
     {'name': 'support.function.eeaimod', 'match': words(funcs) + r'(?=\s*\()'},
@@ -34,30 +41,32 @@ expression = [
     {'name': 'keyword.operator.eeaimod', 'match': r'<=|>=|==|!=|&&|\|\||[-+*/%<>=!?:]'},
     {'name': 'punctuation.separator.comma.eeaimod', 'match': ','},
     {'name': 'punctuation.parenthesis.eeaimod', 'match': r'[()]'},
-    {'name': 'variable.other.eeaimod', 'match': r'[A-Za-z_][\w]*(?:\.[A-Za-z_]\w*)*'},
+    {'name': 'variable.other.eeaimod', 'match': r'[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*'},
 ]
+value = [{'include': '#comment'}, {'include': '#string'}, {'include': '#list'}] + expression
 
-def section(names, body):
-    """[names] / [names:<language>] up to the next section"""
+def section(names, keys, key_scope):
+    """[names] / [names:<language>] up to the next section: its known keys, anything else an error"""
+    lines = [{'include': '#comment'}]
+    if keys is not None:
+        lines.append(key_line(r'(?:' + '|'.join(sorted(keys, key=len, reverse=True)) + r')(?::[\w-]+)?', key_scope))
+    lines.append(key_line(r'[\w:.-]+', 'invalid.illegal.unknown-key.eeaimod' if keys is not None else key_scope))
     return {
         'begin': r'^\s*(\[)(' + names + r')(?:(:)([^\]]*))?(\])',
         'beginCaptures': {'1': {'name': 'punctuation.definition.section.eeaimod'}, '2': {'name': 'entity.name.section.eeaimod'},
                           '3': {'name': 'punctuation.separator.eeaimod'}, '4': {'name': 'constant.language.language-code.eeaimod'},
                           '5': {'name': 'punctuation.definition.section.eeaimod'}},
         'end': r'(?=^\s*\[)',
-        'patterns': [{'include': '#comment'}] + body,
+        'patterns': lines,
     }
 
-def key_line(key_scope, value_patterns, content=None, key=r'[^=;#\[\s][^=]*?'):
-    r = {
+def key_line(key, scope):
+    return {
         'begin': r'^\s*(' + key + r')\s*(=)',
-        'beginCaptures': {'1': {'name': key_scope}, '2': {'name': 'keyword.operator.assignment.eeaimod'}},
+        'beginCaptures': {'1': {'name': scope}, '2': {'name': 'keyword.operator.assignment.eeaimod'}},
         'end': r'$',
-        'patterns': value_patterns,
+        'patterns': [{'include': '#value'}],
     }
-    if content:
-        r['contentName'] = content
-    return r
 
 grammar = {
     '$schema': 'https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json',
@@ -66,50 +75,47 @@ grammar = {
     'comment': 'generated by scripts/gen_vscode_grammar.py - edit that, not this',
     'patterns': [
         {'include': '#comment'},
-        {'include': '#section-vars'},
-        {'include': '#section-lines'},
-        {'include': '#section-texts'},
-        {'include': '#section-other'},
-        {'include': '#plain-line'},
+        section('personality', ['name', 'character', 'color', 'colour', 'farbe'] + traits, 'support.type.property-name.eeaimod'),
+        section('style', style_keys, 'support.type.property-name.eeaimod'),
+        section('vars', None, 'entity.name.variable.eeaimod'),
+        section('lines', situations, 'support.type.property-name.situation.eeaimod'),
+        section('system', sys_keys, 'support.type.property-name.eeaimod'),
+        section('prompt', tpl_keys, 'support.type.property-name.eeaimod'),
+        section(r'[^\]:]+', [], ''),
     ],
     'repository': {
-        'comment': {'name': 'comment.line.semicolon.eeaimod', 'match': r'^\s*[;#].*$'},
-        # [vars]: name = expression (or plain text with placeholders)
-        'section-vars': section('vars', [key_line('entity.name.variable.eeaimod', [{'include': '#placeholder'}, {'include': '#escape'}] + expression,
-                                                  key=r'[A-Za-z_][\w.]*')]),
-        # [lines]: situation = variant | [condition] variant | ...
-        'section-lines': section('lines', [
-            key_line('support.type.property-name.situation.eeaimod', [{'include': '#condition'}, {'include': '#separator'},
-                                                                       {'include': '#placeholder'}, {'include': '#escape'}],
-                     content='string.unquoted.line.eeaimod', key=words(situations)),
-            key_line('invalid.illegal.unknown-situation.eeaimod', [{'include': '#placeholder'}]),
-        ]),
-        # [system], [prompt]: key = text with placeholders
-        'section-texts': section('system|prompt', [key_line('support.type.property-name.eeaimod', [{'include': '#placeholder'}, {'include': '#escape'}],
-                                                            content='string.unquoted.text.eeaimod')]),
-        # [personality], [style], anything else: key = value
-        'section-other': section(r'[^\]:]+', [{'include': '#plain-line'}]),
-        'plain-line': key_line('variable.other.property.eeaimod', [], content='string.unquoted.value.eeaimod'),
-        # {placeholder} or {expression}
+        'comment': {'name': 'comment.line.eeaimod', 'match': r'[;#].*$'},
+        'value': {'patterns': value},
+        # "text {placeholder or expression} \n"
+        'string': {
+            'begin': '"',
+            'beginCaptures': {'0': {'name': 'punctuation.definition.string.begin.eeaimod'}},
+            'end': r'"|$',
+            'endCaptures': {'0': {'name': 'punctuation.definition.string.end.eeaimod'}},
+            'name': 'string.quoted.double.eeaimod',
+            'patterns': [
+                {'name': 'constant.character.escape.eeaimod', 'match': r'\\["\\n]'},
+                {'name': 'invalid.illegal.unknown-escape.eeaimod', 'match': r'\\.'},
+                {'include': '#placeholder'},
+            ],
+        },
         'placeholder': {
             'begin': r'\{',
             'beginCaptures': {'0': {'name': 'punctuation.definition.template-expression.begin.eeaimod'}},
             'end': r'\}',
             'endCaptures': {'0': {'name': 'punctuation.definition.template-expression.end.eeaimod'}},
             'contentName': 'meta.embedded.expression.eeaimod',
-            'patterns': expression,
+            'patterns': [{'include': '#placeholder'}] + expression,
         },
-        # [condition] at the start of a variant (after = or |); [else]
-        'condition': {
-            'begin': r'(?:(?<==)|(?<=\|))\s*(\[)',
-            'beginCaptures': {'1': {'name': 'punctuation.definition.condition.begin.eeaimod'}},
+        # [ "a", "b" if <condition>, ] - over several lines
+        'list': {
+            'begin': r'\[',
+            'beginCaptures': {'0': {'name': 'punctuation.definition.list.begin.eeaimod'}},
             'end': r'\]',
-            'endCaptures': {'0': {'name': 'punctuation.definition.condition.end.eeaimod'}},
-            'contentName': 'meta.embedded.expression.condition.eeaimod',
-            'patterns': [{'name': 'keyword.control.else.eeaimod', 'match': r'\belse\b'}] + expression,
+            'endCaptures': {'0': {'name': 'punctuation.definition.list.end.eeaimod'}},
+            'patterns': [{'include': '#comment'}, {'include': '#string'},
+                         {'name': 'keyword.control.conditional.if.eeaimod', 'match': r'\bif\b'}] + expression,
         },
-        'separator': {'name': 'keyword.operator.variant-separator.eeaimod', 'match': r'(?<!\|)\|(?!\|)'},
-        'escape': {'name': 'constant.character.escape.eeaimod', 'match': r'\\n'},
     },
 }
 out = os.path.join(root, 'vscode', 'eeaimod-texts', 'syntaxes', 'eeaimod-ini.tmLanguage.json')
@@ -117,4 +123,5 @@ os.makedirs(os.path.dirname(out), exist_ok=True)
 with open(out, 'w', encoding='utf-8', newline='\n') as f:
     json.dump(grammar, f, indent=2)
     f.write('\n')
-print('%s: %d values, %d epochs, %d functions, %d situations' % (out, len(values), len(epochs), len(funcs), len(situations)))
+print('%s: %d values, %d epochs, %d functions, %d situations, %d system keys, %d prompt keys, %d style keys' % (
+    out, len(values), len(epochs), len(funcs), len(situations), len(sys_keys), len(tpl_keys), len(style_keys)))
