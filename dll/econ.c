@@ -1144,7 +1144,7 @@ static int unit_cost(void *pl, int type, int r);
 
 // Military request statistics, logged every 5 minutes: how often the AI asks for soldiers, how many it gets
 // and which resource was short when a request failed (unit cost = object data 0x9418A0[type] +0x24..).
-static struct { unsigned req, trained, short_of[7], subs; uint32_t last_log; int ftype[4]; unsigned fcount[4]; } g_mil[16];
+static struct { unsigned req, trained, short_of[7], subs, saving; uint32_t last_log; int ftype[4]; unsigned fcount[4]; } g_mil[16];
 static void mil_note(void *pl, unsigned idx, const int *req, const int *visible, int spent, uintptr_t site) {
     g_mil[idx].req++;
     if (spent) { g_mil[idx].trained += req[1] > 0 ? (unsigned)req[1] : 1; return; }
@@ -1186,8 +1186,17 @@ static int unit_cost(void *pl, int type, int r) {
 // account. A military request (no ship, siege, ram) the budget refuses or the game can't train (0x555710) trains
 // the strongest land soldier (family 5, no siege/ram/citizen/priest) (hit points x attack) that the budget pays for and the game can
 // train right now instead - a player builds what his resources allow. Candidates: researched land soldiers, per
-// player, refreshed every 30 s. Counted in the 5-minute army line ("substituted").
-static int g_unit_sub = 1;
+// player, refreshed every 30 s. Counted in the 5-minute army line ("substituted"). Never one without an attack: the
+// Domestic Wolf (615, a leftover of the game's data: attack 0, food only) was the last candidate and so the one
+// left whenever iron ran short - in the World War I age an army of 45 wolves that did no damage.
+// SAVING FIRST ([all] substitute_wait, seconds, default 90; 0 = at once): a unit the game can train but the budget
+// can't pay yet is saved for - substituting at once spent what was being saved on something weaker, and the better
+// unit never came. Only once the AI has saved for that long without training a requested soldier (no iron coming
+// in at all), or with enemy soldiers in its base (it needs soldiers now), does it train the substitute. A unit the
+// game can't train (not researched, no building) is substituted at once - waiting doesn't bring it.
+static int g_unit_sub = 1, g_sub_wait = 90;
+static uint32_t g_save_since[16];   // game time it started saving (a request refused by the budget), 0 = not saving
+static int base_threatened(unsigned idx);   // diplo.c: enemy soldiers in its base
 static struct { void *pl; uint32_t t; int n; int type[48]; } g_cand[16];
 static int land_soldier(int type) {
     uint8_t *td = (type >= 0 && type < 724) ? ((uint8_t **)0x009418A0)[type] : NULL;
@@ -1216,7 +1225,7 @@ static int substitute_soldier(void *pl, unsigned idx, const int *vis, int want, 
     if (g_cand[idx].pl != pl || now < g_cand[idx].t || now - g_cand[idx].t > 30000) {
         g_cand[idx].pl = pl; g_cand[idx].t = now; g_cand[idx].n = 0;
         for (int t = 0; t < 724; t++) {   // type ids end at 723 (data/db/converteroutput.log); the table ends there
-            if (!land_soldier(t)) continue;
+            if (!land_soldier(t) || soldier_score(t) <= 0) continue;   // no attack: never a soldier
             uint8_t *tech = ((uint8_t *(__thiscall *)(void *, int))0x004019A1)(tt, FIELD(((uint8_t **)0x009418A0)[t], 0x4E0, int));
             if (!tech || !tech[4]) continue;
             int n = g_cand[idx].n, k = n < 48 ? n : 47;   // insert sorted by score, strongest first
@@ -1313,8 +1322,15 @@ static uintptr_t __fastcall hook_train_units(void *um, void *edx, int *req, uint
             if (c > 0 && visibles[r] / c < afford) afford = visibles[r] / c;
         }
         blocked = afford <= 0;
-        if (military && g_unit_sub && !g_priority_mil && substitutable(req[0]) &&
-            (blocked || !((char (__thiscall *)(void *, int, int, int))0x00555710)(pl, req[0], 0x20, 0))) {
+        int trainable = military && g_unit_sub && !g_priority_mil && substitutable(req[0]) &&
+                        ((char (__thiscall *)(void *, int, int, int))0x00555710)(pl, req[0], 0x20, 0);
+        int sub = military && g_unit_sub && !g_priority_mil && substitutable(req[0]) && (blocked || !trainable);
+        if (sub && trainable) {   // the budget refused a unit it can train: save for it first
+            if (!g_save_since[idx] || now < g_save_since[idx]) g_save_since[idx] = now ? now : 1;
+            sub = !g_sub_wait || now - g_save_since[idx] >= (uint32_t)g_sub_wait * 1000u || base_threatened(idx);
+            if (!sub) g_mil[idx].saving++;
+        }
+        if (sub) {
             int got = 0, alt = substitute_soldier(pl, idx, visibles, want, &got);
             if (alt) { sub_type = alt; afford = got; blocked = 0; g_mil[idx].subs++; }
         }
@@ -1336,6 +1352,7 @@ static uintptr_t __fastcall hook_train_units(void *um, void *edx, int *req, uint
             any |= spent > 0;
             if (cfg->budget && military && spent > 0) { g_bud[idx].mil[r] -= spent; g_bud[idx].mil_spent[r] += spent; }
         }
+        if (military && any && !sub_type) g_save_since[idx] = 0;   // a requested soldier trained: saved enough
         if (military) mil_note(pl, idx, req, visibles, any, (uintptr_t)__builtin_return_address(0) - 5);
         trace_train(pl, req, res, before, reserve);
         static uint32_t last_log[16];
@@ -1382,6 +1399,7 @@ static void econ_install(const char *aimod_ini, const char *autotest_ini) {
     g_more_granaries = cfg_int(aimod_ini, autotest_ini, 1, "more_granaries", 1);
     g_pop_follow = cfg_int(aimod_ini, autotest_ini, 1, "pop_follow_human", 1);
     g_unit_sub = cfg_int(aimod_ini, autotest_ini, 1, "unit_substitution", 1);
+    g_sub_wait = cfg_int(aimod_ini, autotest_ini, 1, "substitute_wait", 90);
     g_gather_research = cfg_int(aimod_ini, autotest_ini, 1, "gather_research", 1);
     int ok = 0;
     void **sp = (void **)(VT_COMPUTER_PLAYER + 45 * 4);

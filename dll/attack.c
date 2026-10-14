@@ -296,21 +296,51 @@ typedef void (__thiscall *AsgRouteFn)(void *self, int *start, int *dest);
 // into the player's army at the target, the soldiers stayed home. A subgroup's members are records at +0x54..+0x58
 // (record +0x44 = unit); at least half of them citizens: that AI's attacks on that target are called off at the next
 // safe point (diplo.c, the same call as for peace: units sent home and handed back) - the citizens go back to work.
+// Checked when a subgroup is routed and every 5 s over the running attacks (citizen_attack_scan): the last leg of an
+// attack - from the route's end to the target building - is an order of its own (move to 101.5,98.5 beside the
+// player's Town Center, all 43 of Hedda's citizens) that no route computation sees. Attack commander = player
+// +0xB8C +0x48: its groups a deque at +4 (count +0x14), a group's target player +0x48, its subgroups a vector +8..+0xC
+// (0x4510F2 / 0x454B90, the call-off).
 static int g_citizen_attacks;
 static void cancel_citizen_attack(int ai, int target);   // diplo.c
+static void subgroup_count(uint8_t *sg, int *n, int *cit) {   // members of an attack subgroup, citizens among them
+    uint8_t **b = FIELD(sg, 0x54, uint8_t **), **e = FIELD(sg, 0x58, uint8_t **);
+    for (uint8_t **r = b; b && r < e && *n < 1000; r++) {
+        uint8_t *u = *r ? FIELD(*r, 0x44, uint8_t *) : NULL, *td = u ? FIELD(u, 0x2C, uint8_t *) : NULL;
+        if (!td) continue;
+        (*n)++;
+        *cit += is_citizen_type(FIELD(td, 0x4B8, int));
+    }
+}
+static void citizen_attack_scan(void *pl, uint32_t now) {
+    static uint32_t last[16];
+    unsigned i = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
+    if (g_citizen_attacks || (now >= last[i] && now - last[i] < 5000)) return;
+    last[i] = now;
+    uint8_t *cbm = FIELD(pl, 0xB8C, uint8_t *), *cmd = cbm ? FIELD(cbm, 0x48, uint8_t *) : NULL;
+    if (!cmd) return;
+    uint8_t *dq = cmd + 4;
+    unsigned first = FIELD(dq, 0xC, unsigned), cnt = FIELD(dq, 0x10, unsigned);
+    for (unsigned k = 0; k < cnt && k < 64; k++) {
+        uint8_t *g = deque_at(dq, first + k), *target = g ? FIELD(g, 0x48, uint8_t *) : NULL;
+        if (!target) continue;
+        int n = 0, cit = 0;
+        for (uint8_t **s = FIELD(g, 8, uint8_t **); s && s < FIELD(g, 0xC, uint8_t **); s++)
+            if (*s) subgroup_count(*s, &n, &cit);
+        if (n && cit * 2 >= n) {
+            cancel_citizen_attack((int)i, FIELD(target, PL_INDEX, int) & 15);
+            if (g_log) fprintf(g_log, "# attack: P%u's attack on P%d at %.1f min is %d citizens of %d - called off\n", i,
+                               FIELD(target, PL_INDEX, int), now / 60000.0, cit, n);
+        }
+    }
+}
 static void __fastcall hook_asg_route(uint8_t *self, void *edx, int *start, int *dest) {
     (void)edx;
     void *pl = FIELD(self, 0x190, void *);
     void *target = FIELD(self, 0x11C, void *);
     if (pl && target && !g_citizen_attacks) {
-        uint8_t **b = FIELD(self, 0x54, uint8_t **), **e = FIELD(self, 0x58, uint8_t **);
         int n = 0, cit = 0;
-        for (uint8_t **r = b; b && r < e && n < 1000; r++) {
-            uint8_t *u = *r ? FIELD(*r, 0x44, uint8_t *) : NULL, *td = u ? FIELD(u, 0x2C, uint8_t *) : NULL;
-            if (!td) continue;
-            n++;
-            cit += is_citizen_type(FIELD(td, 0x4B8, int));
-        }
+        subgroup_count(self, &n, &cit);
         if (n && cit * 2 >= n) {
             cancel_citizen_attack(FIELD(pl, PL_INDEX, int) & 15, FIELD(target, PL_INDEX, int) & 15);
             if (g_log) fprintf(g_log, "# attack: P%d's subgroup on P%d is %d citizens of %d - attack called off\n",
@@ -676,6 +706,12 @@ static void *goal_move(float x, float y);
 static int unit_goal(uint8_t *u, void *goal, int append, int prio);
 static int muster_rally(unsigned idx, float *x, float *y);   // defence.c: the rally point while the base is overrun
 static struct { unsigned sent; } g_cit_stats[16];
+// STRAY CITIZENS: an attack that ends hands its units back to the resource manager's list 0 (not assigned) with the
+// attack's last order still on them - march to the target's Town Center. The assignment only gives work to idle
+// citizens, so they marched on and died there: all 34 of Hedda's, first into the player's town, then into Livia's
+// (her economy dead at minute 46, the stock frozen). A citizen of list 0 walking to a point within 6 tiles of an
+// enemy building and over 15 tiles from its own drop sites is sent home (not to the muster's rally point).
+static int building_at(void *pl, const int *dest, int r);
 static void citizens_safety(uint8_t *rm) {   // before the citizen assignment
     void *pl = rm_player(rm);
     if (!g_avoid_citizens || !pl) return;
@@ -685,7 +721,7 @@ static void citizens_safety(uint8_t *rm) {   // before the citizen assignment
     if (now < next[idx] && next[idx] - now <= 4000) return;
     next[idx] = now + 4000;
     threat_refresh(pl, now);
-    int sent = 0, fled = 0, aside = 0, kinds[4][2] = { { 0 } };   // site types sent back from (log)
+    int sent = 0, fled = 0, aside = 0, stray = 0, kinds[4][2] = { { 0 } };   // site types sent back from (log)
     float rx, ry;
     int mus = muster_rally(idx, &rx, &ry);
     for (int r = 0; r < 7; r++) {
@@ -693,6 +729,18 @@ static void citizens_safety(uint8_t *rm) {   // before the citizen assignment
         for (unsigned k = 0, first = FIELD(list, 0xC, unsigned), cnt = FIELD(list, 0x10, unsigned); k < cnt; k++) {
             uint8_t *u = deque_at(list, first + k), *goal = u ? FIELD(u, 0x1EC, uint8_t *) : NULL;
             if (!u || FIELD(u, 0x3C, int) <= 0) continue;
+            if (r == 0 && goal && *(uintptr_t *)goal == VT_GOAL_LOCATION) {   // a stray: an attack's leftover order
+                float gx = FIELD(goal, 0x20, float), gy = FIELD(goal, 0x24, float);
+                int dest[2] = { (int)gx, (int)gy }, d[2];
+                int rally = mus && fabsf(gx - rx) < 2 && fabsf(gy - ry) < 2;
+                if (!rally && building_at(pl, dest, 6) &&
+                    (!nearest_drop(pl, dest[0], dest[1], 0, d) || (d[0] - dest[0]) * (d[0] - dest[0]) + (d[1] - dest[1]) * (d[1] - dest[1]) > 225) &&
+                    nearest_drop(pl, FIELD(u, 0x1C, int), FIELD(u, 0x20, int), 0, d) &&
+                    unit_goal(u, goal_move((float)d[0] + 0.5f, (float)d[1] + 0.5f), 0, 0x1F40)) {
+                    stray++;
+                    continue;
+                }
+            }
             if (mus) {   // the base is overrun: citizens near the enemy (or working near it) flee to the rally point
                 int ux = FIELD(u, 0x1C, int), uy = FIELD(u, 0x20, int);
                 float dx = (float)ux - rx, dy = (float)uy - ry;
@@ -737,6 +785,8 @@ static void citizens_safety(uint8_t *rm) {   // before the citizen assignment
         }
     }
     g_cit_stats[idx].sent += sent + fled;
+    if (stray && g_log) fprintf(g_log, "# citizens: P%u at %.1f min: %d unassigned citizens marching on an enemy town (an "
+                                "attack's leftover order) sent home\n", idx, now / 60000.0, stray);
     if (fled && g_log) fprintf(g_log, "# citizens: P%u at %.1f min: %d fled (base overrun): %d to the rally point, %d aside "
                                "(enemies on the way)\n", idx, now / 60000.0, fled, fled - aside, aside);
     if (g_log && (sent || now / 300000 != logged[idx] / 300000) && (g_cit_stats[idx].sent || g_site_refused[idx])) {
@@ -943,13 +993,14 @@ static void siege_tick(void *pl, uint32_t now) {
 
 static void attack_tick(void *pl, uint32_t now) {
     threat_refresh(pl, now);   // also with avoid_towers=0: the route log compares both
+    citizen_attack_scan(pl, now);
     siege_tick(pl, now);
     {
         unsigned i = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
         if (g_log && now / 300000 != g_mil[i].last_log / 300000) {
-            fprintf(g_log, "# army: P%u at %u min: %d soldiers; military requests %u, trained %u (substituted %u), failed short of "
-                    "food %u wood %u stone %u gold %u iron %u; budget left %d/%d/%d/%d/%d\n", i, now / 60000,
-                    army_size(pl), g_mil[i].req, g_mil[i].trained, g_mil[i].subs, g_mil[i].short_of[2], g_mil[i].short_of[3],
+            fprintf(g_log, "# army: P%u at %u min: %d soldiers; military requests %u, trained %u (substituted %u, saved for %u), "
+                    "failed short of food %u wood %u stone %u gold %u iron %u; budget left %d/%d/%d/%d/%d\n", i, now / 60000,
+                    army_size(pl), g_mil[i].req, g_mil[i].trained, g_mil[i].subs, g_mil[i].saving, g_mil[i].short_of[2], g_mil[i].short_of[3],
                     g_mil[i].short_of[4], g_mil[i].short_of[5], g_mil[i].short_of[6], (int)g_bud[i].mil[2],
                     (int)g_bud[i].mil[3], (int)g_bud[i].mil[4], (int)g_bud[i].mil[5], (int)g_bud[i].mil[6]);
             fprintf(g_log, "# army: P%u failed types:", i);

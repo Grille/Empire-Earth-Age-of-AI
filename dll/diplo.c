@@ -167,6 +167,12 @@ static void world_scan(uint32_t now) {
         g_ws.epoch[i] = current_epoch(p);
     }
 }
+static int base_threatened(unsigned idx) {   // econ.c: enemy soldiers in its base (pressure as for capitulation)
+    void *pl = player_at((int)idx & 15);
+    for (int j = 1; pl && j < nplayers(); j++)
+        if (j != (int)idx && g_pressure[idx & 15][j] >= 10 && stance_of(pl, j)) return 1;
+    return 0;
+}
 static float power_of(int i) { return g_ws.power[i] > 1.0f ? g_ws.power[i] : 1.0f; }
 
 // KILLS BY PAIR: the game keeps only totals per player (statistics, player +0x4A8: 3 units killed, 2 buildings

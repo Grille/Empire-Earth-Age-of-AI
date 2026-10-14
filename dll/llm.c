@@ -655,6 +655,11 @@ static struct llm_job *llm_slot(void) {
     return NULL;
 }
 static int llm_ready(void) { return g_llm_on && g_llm_thread && (LONG)(g_llm_down_until - GetTickCount()) <= 0; }
+static int llm_busy(void) {   // requests queued or running (display.c: stalls)
+    int n = 0;
+    for (int i = 0; i < LLM_JOBS; i++) n += g_llm_jobs[i].state == J_QUEUED || g_llm_jobs[i].state == J_RUNNING;
+    return n;
+}
 static void llm_queue(struct llm_job *j, char *body) {
     j->body = body;
     lstrcpynA(j->speaker, g_players[j->ai & 15] ? player_name(g_players[j->ai & 15]) : "", sizeof j->speaker);

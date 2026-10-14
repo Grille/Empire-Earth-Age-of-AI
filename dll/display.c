@@ -594,11 +594,15 @@ static int is_return_address(uintptr_t a);
 static int g_frame_watch = 35;
 static int g_fw_test;   // autotest frame_watch given: also headless (tests)
 static struct {
-    DWORD sec_start, min_ms, last_profile;
+    DWORD sec_start, min_ms, last_profile, last_frame;
     unsigned sec_frames, min_frames, slow_secs, min_slow, profiles;
     uint32_t last_gt;
     float worst, trigger_fps;
 } g_fw;
+// STALLS: a frame 2+ s after the last one - the per-second rate above can't see it (a 10-s freeze and then 900
+// frames is a fast second). Logged with whether the language model was answering then (it shares the GPU: a model
+// loaded into video memory on its first request froze the game for seconds).
+static int llm_busy(void);   // llm.c: requests queued or running
 static HANDLE g_fw_event;
 static DWORD WINAPI frame_profile_thread(LPVOID unused) {
     (void)unused;
@@ -625,6 +629,15 @@ static DWORD WINAPI frame_profile_thread(LPVOID unused) {
 static void frame_watch(void) {
     if (!g_frame_watch || (g_headless && !g_fw_test)) return;
     DWORD now = GetTickCount();
+    DWORD gap = g_fw.last_frame ? now - g_fw.last_frame : 0;
+    g_fw.last_frame = now;
+    if (gap >= 2000 && game_time() && g_log) {
+        EnterCriticalSection(&g_lock);
+        fprintf(g_log, "# frames: stall of %.1f s at %.1f min (model requests open: %d)\n", gap / 1000.0, game_time() / 60000.0,
+                llm_busy());
+        fflush(g_log);
+        LeaveCriticalSection(&g_lock);
+    }
     if (!g_fw.sec_start) { g_fw.sec_start = now; g_fw.worst = 1e9f; return; }
     g_fw.sec_frames++;
     DWORD dt = now - g_fw.sec_start;
