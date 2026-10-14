@@ -170,10 +170,10 @@ static void hum_op_add(int h, int ai, float d) {
     if (g_log && (d >= 5 || d <= -5))   // the events, not the drift: for tuning
         fprintf(g_log, "# diplomacy: P%d (human) presumably thinks of P%d %+.0f -> %.0f\n", h, ai, d, g_hum.op[h][ai]);
 }
-// ai's stance towards human h changed (hist_scan): war - a betrayal when they were allied, little when h is hostile
-// too (an answer: h started it) - or peace
-static void hum_turned(int ai, int h, int hostile, int were_allied, int h_hostile) {
-    if (hostile) hum_op_add(h, ai, h_hostile ? -10.0f : were_allied ? -60.0f : -40.0f);
+// ai's stance towards human h changed (hist_scan): war - a betrayal when their alliance had held (2 minutes, as the
+// AI judges it), little when h is hostile too (an answer: h started it) - or peace
+static void hum_turned(int ai, int h, int hostile, int held, int h_hostile) {
+    if (hostile) hum_op_add(h, ai, h_hostile ? -10.0f : held ? -60.0f : -40.0f);
     else hum_op_add(h, ai, 10.0f);
 }
 static void hist_reset(void) {
@@ -208,10 +208,12 @@ static void hist_scan(uint32_t now) {
             if (hum_pair(y, x) && (!g_hum.set[y][x] || now < 15000)) { g_hum.set[y][x] = 1; g_hum.op[y][x] = sy ? -10.0f : 20.0f; }
             if (ox < 0 || oy < 0) g_hist.since[x][y] = g_hist.since[y][x] = now < 15000 ? 0 : now;   // first seen
             else {
-                if (sx != ox && now >= 15000) hum_turned(x, y, sx, !ox && !oy, sy);   // an AI's turn towards a human
-                if (sy != oy && now >= 15000) hum_turned(y, x, sy, !ox && !oy, sx);
-                if (!ox && !oy && sx) { g_hist.betrayals[x][y]++; hlog_add(HE_BETRAYAL, x, y, 1); }   // allied, and x turned
-                if (!ox && !oy && sy) { g_hist.betrayals[y][x]++; hlog_add(HE_BETRAYAL, y, x, 1); }
+                // a betrayal: an alliance that had held 2 minutes (as the AI judges one - a peace broken at once is war)
+                int held = !ox && !oy && now - g_hist.since[x][y] >= 120000;
+                if (sx != ox && now >= 15000) hum_turned(x, y, sx, held, sy);   // an AI's turn towards a human
+                if (sy != oy && now >= 15000) hum_turned(y, x, sy, held, sx);
+                if (held && sx) { g_hist.betrayals[x][y]++; hlog_add(HE_BETRAYAL, x, y, 1); }   // allied, and x turned
+                if (held && sy) { g_hist.betrayals[y][x]++; hlog_add(HE_BETRAYAL, y, x, 1); }
                 int old = ox && oy ? 2 : !ox && !oy ? 1 : 0;
                 if (old != state) g_hist.since[x][y] = g_hist.since[y][x] = now;
             }
@@ -1661,7 +1663,7 @@ static const struct xmember k_xmembers[] = {
     { "hostile", XM_REL, "1 when A treats B as an enemy (whatever B does)" },
     { "war_minutes", XM_REL, "how long the war of A and B has lasted: from both enemies until both are allied again (a peace offer doesn't end it; in peace_accept: the war just ended) - nothing without a war" },
     { "alliance_minutes", XM_REL, "how long A and B have been allied - nothing when they are not" },
-    { "betrayals", XM_REL, "how often A turned on B while they were allied - (B, minutes): in the last minutes" },
+    { "betrayals", XM_REL, "how often A turned on B while they were allied (an alliance of 2 minutes or more: a peace broken at once is war, not betrayal) - (B, minutes): in the last minutes" },
     { "refusals", XM_REL, "how often A refused B's offers of peace or alliance - (B, minutes): in the last minutes" },
     { "ignored", XM_REL, "B's alliance offers A let run out, in a row" },
     { "tribute", XM_REL, "resources A has paid B in this game - (B, minutes): in the last minutes, them.tribute(me, 15)" },
