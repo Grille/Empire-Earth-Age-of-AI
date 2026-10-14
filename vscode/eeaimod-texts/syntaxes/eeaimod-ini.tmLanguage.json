@@ -428,6 +428,9 @@
           "include": "#list"
         },
         {
+          "include": "#group"
+        },
+        {
           "name": "string.quoted.double.expression.eeaimod",
           "match": "\"(?:[^\"\\\\]|\\\\.)*\""
         },
@@ -445,7 +448,7 @@
         },
         {
           "name": "support.function.eeaimod",
-          "match": "\\b(?:chance|round|pick|abs|max|min)\\b(?=\\s*\\()"
+          "match": "\\b(?:chance|round|abs|max|min)\\b(?=\\s*\\()"
         },
         {
           "name": "constant.language.boolean.eeaimod",
@@ -465,7 +468,7 @@
         },
         {
           "name": "keyword.operator.eeaimod",
-          "match": "<=|>=|==|!=|&&|\\|\\||[-+*/%<>=!?:]"
+          "match": "\\?\\?|<=|>=|==|!=|&&|\\|\\||[-+*/%<>!?:]"
         },
         {
           "name": "punctuation.separator.comma.eeaimod",
@@ -545,7 +548,7 @@
         },
         {
           "name": "support.function.eeaimod",
-          "match": "\\b(?:chance|round|pick|abs|max|min)\\b(?=\\s*\\()"
+          "match": "\\b(?:chance|round|abs|max|min)\\b(?=\\s*\\()"
         },
         {
           "name": "constant.language.boolean.eeaimod",
@@ -565,7 +568,7 @@
         },
         {
           "name": "keyword.operator.eeaimod",
-          "match": "<=|>=|==|!=|&&|\\|\\||[-+*/%<>=!?:]"
+          "match": "\\?\\?|<=|>=|==|!=|&&|\\|\\||[-+*/%<>!?:]"
         },
         {
           "name": "punctuation.separator.comma.eeaimod",
@@ -596,66 +599,26 @@
       },
       "patterns": [
         {
-          "include": "#comment"
-        },
+          "include": "#value"
+        }
+      ]
+    },
+    "group": {
+      "begin": "\\(",
+      "beginCaptures": {
+        "0": {
+          "name": "punctuation.parenthesis.eeaimod"
+        }
+      },
+      "end": "\\)",
+      "endCaptures": {
+        "0": {
+          "name": "punctuation.parenthesis.eeaimod"
+        }
+      },
+      "patterns": [
         {
-          "include": "#string"
-        },
-        {
-          "name": "keyword.control.conditional.if.eeaimod",
-          "match": "\\bif\\b"
-        },
-        {
-          "name": "string.quoted.double.expression.eeaimod",
-          "match": "\"(?:[^\"\\\\]|\\\\.)*\""
-        },
-        {
-          "name": "string.quoted.single.expression.eeaimod",
-          "match": "'(?:[^'\\\\]|\\\\.)*'"
-        },
-        {
-          "name": "support.constant.epoch.eeaimod",
-          "match": "\\bepoch\\.(?:prehistoric|stone|copper|bronze|dark|middle|renaissance|imperial|industrial|atomic_wwi|atomic_wwii|atomic_modern|digital|nano|space)\\b(?!\\.)"
-        },
-        {
-          "name": "invalid.illegal.unknown-epoch.eeaimod",
-          "match": "\\bepoch\\.[A-Za-z_][\\w.]*"
-        },
-        {
-          "name": "support.function.eeaimod",
-          "match": "\\b(?:chance|round|pick|abs|max|min)\\b(?=\\s*\\()"
-        },
-        {
-          "name": "constant.language.boolean.eeaimod",
-          "match": "\\b(?:true|false)\\b"
-        },
-        {
-          "name": "keyword.operator.logical.eeaimod",
-          "match": "\\b(?:and|or|not)\\b"
-        },
-        {
-          "name": "variable.language.game-value.eeaimod",
-          "match": "\\b(?:their_buildings|their_soldiers|their_citizens|their_opinion|their_hostile|their_towers|their_epoch|forgiveness|aggression|my_vassal|buildings|soldiers|citizens|language|opinion|hostile|my_lord|vassals|minutes|loyalty|caution|at_war|allied|vassal|losses|towers|power|epoch|kills|human|pride|greed|enemy|talk|name|me)\\b(?!\\.)"
-        },
-        {
-          "name": "constant.numeric.eeaimod",
-          "match": "(?<![\\w.])(?:\\d+(?:\\.\\d+)?|\\.\\d+)"
-        },
-        {
-          "name": "keyword.operator.eeaimod",
-          "match": "<=|>=|==|!=|&&|\\|\\||[-+*/%<>=!?:]"
-        },
-        {
-          "name": "punctuation.separator.comma.eeaimod",
-          "match": ","
-        },
-        {
-          "name": "punctuation.parenthesis.eeaimod",
-          "match": "[()]"
-        },
-        {
-          "name": "variable.other.eeaimod",
-          "match": "[A-Za-z_]\\w*(?:\\.[A-Za-z_]\\w*)*"
+          "include": "#value"
         }
       ]
     }

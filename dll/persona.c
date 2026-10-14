@@ -10,15 +10,15 @@
 //   aggression = 80                    the traits 0-100: aggression loyalty pride greed forgiveness caution talk
 //   character = "..."                  for the language model (llm.c)
 //   [lines]                            the default (English)
-//   war_declared = [ "Variant one", "Variant two {name}" if opinion < -50 ]   or one string
+//   war_declared = ["Variant one", opinion < -50 ? "Variant two {name}"]   any expression: one string, a list ...
 //   [lines:de]                         in a game of that language these replace [lines] situation by situation
 //   [vars] / [vars:de]                 named strings and expressions for its lines, before _system.ini's
 //   [style]                            EXPERIMENTAL, only with [general] ai_style=1 (default 0): aimod.ini keys
 //   first_attack_min = 15              (settings.c k_style_keys) on top of the difficulty's settings for this AI
 // Placeholders: {name} the player the line is about, {me} the speaker, {enemy} a third player (alliances),
-// {epoch} the speaker's age, {tribute} the resources offered / paid (capitulation), or an expression (expr.c). The
-// variants whose "if" holds are picked from, the others only when none does. A situation without lines (or none that
-// may be said) stays silent (the game's own lines for wonders, flares and war remain where the personality has none).
+// {epoch} the speaker's age, {tribute} the resources offered / paid (capitulation), or an expression (expr.c). A
+// situation without a line (or one that is nothing now) falls back (line_fallback, computer.ini) or stays silent
+// (the game's own lines for wonders, flares and war remain where the personality has none).
 //
 // Assignment at the AI's first update: aimod.ini [general] personality_P<n>=<file name without .ini>, otherwise
 // random, every personality once before any repeats (autotest: from the map seed, so runs repeat).
@@ -69,8 +69,7 @@ struct persona {
     int color[4], ncolor;   // favoured player colours, in order of preference
     char *style_key[16], *style_val[16];   // [style]: aimod.ini settings for this personality (ai_style=1)
     int nstyle;
-    char *line[L_N][MAX_VARIANTS], *cond[L_N][MAX_VARIANTS];   // a situation's variants, their conditions (NULL none)
-    uint8_t nline[L_N];
+    char *line[L_N];   // a situation's line: an expression (expr.c) - a string, a list of them, conditions
     struct xvars vars;   // [vars] (+ [vars:<game language>])
 };
 static struct persona g_personas[MAX_PERSONAS];
@@ -81,7 +80,7 @@ static int g_ai_talk = 1, g_ai_names = 1;
 static int g_ai_style;   // [general] ai_style: 1 = the personalities' [style] settings apply (default 0: off)
 static char g_persona_force[16][40];
 static uint32_t g_talk_last[16][L_N], g_talk_any[16];
-static uint8_t g_talk_variant[16][L_N];
+static uint32_t g_talk_said[16][L_N];   // the last line's hash (not the same twice when there is a choice)
 static unsigned g_talk_lines[16];
 static uint32_t g_attack_sent[16][16];   // [ai][target]: game time its last attack wave set out (the AI voice)
 static uint32_t g_rnd = 0x9E3779B9u;
@@ -221,20 +220,16 @@ static int g_personas_only_computer;   // autotest personas=0: only computer.ini
 // [lines:<language>] - each situation a string or a list of them, "if" conditions
 struct persona_read {
     struct persona *p;
-    char *ll[L_N][MAX_VARIANTS], *llc[L_N][MAX_VARIANTS];   // [lines:<game language>]: over [lines] situation by situation
-    uint8_t nll[L_N];
+    char *ll[L_N];   // [lines:<game language>]: over [lines] situation by situation
     int lang_name;   // name:<game language> seen (wins over name=)
     struct xvars vl;   // [vars:<game language>]: over [vars]
 };
-static void lines_set(char **line, char **cond, uint8_t *n, struct tval *v) {   // a situation's variants (replaced)
-    for (int i = 0; i < *n; i++) { free(line[i]); free(cond[i]); }
-    *n = 0;
-    if (v->kind == TV_STRING) { if (*v->text) { line[0] = _strdup(v->text); cond[0] = NULL; *n = 1; } return; }   // "": none
-    for (int i = 0; i < v->nitems && *n < MAX_VARIANTS; i++) {
-        if (!*v->item[i]) continue;
-        line[*n] = _strdup(v->item[i]);
-        cond[(*n)++] = v->cond[i] ? _strdup(v->cond[i]) : NULL;
-    }
+struct color_read { struct persona *p; struct tlex *l; int line; };
+static void color_add(const char *name, void *arg) {
+    struct color_read *r = arg;
+    int c = color_index(name);
+    if (c >= 0 && r->p->ncolor < 4) r->p->color[r->p->ncolor++] = c;
+    else if (c < 0 && g_log) fprintf(g_log, "# texts: %s:%d: unknown colour \"%s\"\n", r->l->file, r->line, name);
 }
 static void persona_key(void *arg, const char *sec, const char *key, struct tval *v, struct tlex *l) {
     struct persona_read *r = arg;
@@ -251,13 +246,8 @@ static void persona_key(void *arg, const char *sec, const char *key, struct tval
             return;
         }
         if (!lstrcmpiA(key, "color") || !lstrcmpiA(key, "colour") || !lstrcmpiA(key, "farbe")) {
-            if (v->kind == TV_STRING) { v->item[0] = v->text; v->cond[0] = NULL; v->nitems = 1; v->text = NULL; }
-            else if (v->kind != TV_LIST) { tl_error(l, "a list of colour names expected ([\"red\", \"blue\"])"); return; }
-            for (int i = 0; i < v->nitems && p->ncolor < 4; i++) {
-                int c = color_index(v->item[i]);
-                if (c >= 0) p->color[p->ncolor++] = c;
-                else if (g_log) fprintf(g_log, "# texts: %s:%d: unknown colour \"%s\"\n", l->file, v->line, v->item[i]);
-            }
+            struct color_read cr = { p, l, v->line };
+            if (!x_plain_strings(v->src, color_add, &cr)) tl_error(l, "a list of colour names expected ([\"red\", \"blue\"])");
             return;
         }
         for (int t = 0; t < T_N; t++)
@@ -271,15 +261,15 @@ static void persona_key(void *arg, const char *sec, const char *key, struct tval
         if (v->kind != TV_NUMBER && v->kind != TV_STRING) { tl_error(l, "a number expected"); return; }
         if (p->nstyle < 16) { p->style_key[p->nstyle] = _strdup(key); p->style_val[p->nstyle++] = _strdup(v->text); }
     } else if (!lstrcmpiA(sec, "vars") || (!_strnicmp(sec, "vars:", 5) && lang_matches(sec + 5))) {
-        if (v->kind == TV_LIST) { tl_error(l, "a string or an expression expected, not a list"); return; }
-        xvars_set(sec[4] ? &r->vl : &p->vars, key, v->text, v->kind == TV_STRING);
+        xvars_set(sec[4] ? &r->vl : &p->vars, key, v->src);
     } else if (!lstrcmpiA(sec, "lines") || (!_strnicmp(sec, "lines:", 6) && lang_matches(sec + 6))) {
         int k = 0;
         while (k < L_N && lstrcmpiA(key, k_lines[k].key)) k++;
         if (k == L_N) { tl_error(l, "an unknown situation"); return; }
-        if (v->kind != TV_STRING && v->kind != TV_LIST) { tl_error(l, "a string or a list of strings expected"); return; }
-        if (sec[5]) lines_set(r->ll[k], r->llc[k], &r->nll[k], v);
-        else lines_set(p->line[k], p->cond[k], &p->nline[k], v);
+        if (v->kind == TV_NUMBER) { tl_error(l, "a string or a list of them expected"); return; }
+        char **slot = sec[5] ? &r->ll[k] : &p->line[k];
+        free(*slot);
+        *slot = _strdup(v->src);
     } else if (_strnicmp(sec, "lines:", 6) && _strnicmp(sec, "vars:", 5)) tl_error(l, "an unknown section");
 }
 static void persona_load(const char *path, const char *file) {
@@ -297,14 +287,9 @@ static void persona_load(const char *path, const char *file) {
     r.p = p;
     tfile_parse(file, text, persona_key, &r);
     free(text);
-    for (int i = 0; i < r.vl.n; i++) { xvars_set(&p->vars, r.vl.key[i], r.vl.val[i], r.vl.text[i]); free(r.vl.key[i]); free(r.vl.val[i]); }
+    for (int i = 0; i < r.vl.n; i++) { xvars_set(&p->vars, r.vl.key[i], r.vl.val[i]); free(r.vl.key[i]); free(r.vl.val[i]); }
     for (int k = 0; k < L_N; k++)   // the language's lines where it has them, [lines] for the rest
-        if (r.nll[k]) {
-            for (int v = 0; v < p->nline[k]; v++) { free(p->line[k][v]); free(p->cond[k][v]); }
-            memcpy(p->line[k], r.ll[k], r.nll[k] * sizeof *r.ll[k]);
-            memcpy(p->cond[k], r.llc[k], r.nll[k] * sizeof *r.llc[k]);
-            p->nline[k] = r.nll[k];
-        }
+        if (r.ll[k]) { free(p->line[k]); p->line[k] = r.ll[k]; }
     if (!lstrcmpiA(p->file, "computer")) {   // the neutral fallback lines, no personality of its own
         g_computer = *p;
         g_has_computer = 1;
@@ -370,41 +355,36 @@ static void line_ctx_init(struct line_ctx *l, void *pl, void *other, void *third
     l->c.vars[1] = &(persona_of(pl) ? persona_of(pl) : &g_computer)->vars;
     l->c.vars[2] = &g_vars_sys;
 }
-// one of p's variants of situation k that may be said now - those whose condition holds, else those without one
-// (not `last` when there is a choice); -1 none. A condition that is no expression doesn't hold (logged).
-static int line_pick(struct persona *p, int k, struct xctx *c, int last, const char **text) {
-    int yes[MAX_VARIANTS], plain[MAX_VARIANTS], ny = 0, np = 0;
+static uint32_t text_hash(const char *s) { uint32_t h = 2166136261u; while (*s) h = (h ^ (uint8_t)*s++) * 16777619u; return h | 1; }
+// p's line for situation k, worked out now (out, cap bytes): its value - one of a list's items, what holds of its
+// conditions; not the text said last time (`last`, a hash) when it can be another (up to 3 tries). Returns how many
+// it was chosen from, 0 when nothing is left (or the line is no expression: logged).
+static int line_pick(struct persona *p, int k, struct xctx *c, uint32_t last, char *out, int cap) {
+    struct xval x;
     c->vars[0] = &p->vars;
-    for (int v = 0; v < p->nline[k]; v++) {
-        struct xval x;
-        if (!p->cond[k][v]) plain[np++] = v;
-        else if (!x_eval(p->cond[k][v], c, &x)) x_log_bad("a condition that is no expression", p->cond[k][v]);
-        else if (xtrue(&x)) yes[ny++] = v;
+    for (int tries = 0; tries < 3; tries++) {
+        if (!x_eval(p->line[k], c, &x)) { x_log_bad("a line that is no expression", p->line[k]); return 0; }
+        if (!x.w) return 0;
+        xto_text(&x, out, cap);
+        if (x.w < 2 || text_hash(out) != last) break;
     }
-    int *from = ny ? yes : plain, n = ny ? ny : np;
-    if (!n) return -1;
-    int i = rnd(n);
-    if (n > 1 && from[i] == last) i = (i + 1) % n;
-    *text = p->line[k][from[i]];
-    return from[i];
+    return x.w;
 }
 // where situation k's line comes from for this AI: its personality (k or a fallback of it), else computer.ini - the
-// first with a variant that may be said (*kk the situation, *v the variant, *text it after its condition)
-static struct persona *line_source(void *pl, int k, int *kk, struct xctx *c, int last, int *v, const char **text) {
+// first whose line has something to say now (*kk the situation, *n how many it was chosen from)
+static struct persona *line_source(void *pl, int k, int *kk, struct xctx *c, uint32_t last, char *out, int cap, int *n) {
     struct persona *p = persona_of(pl);
     for (int t = k; t >= 0 && p; t = line_fallback(t))
-        if (p->nline[t] && (*v = line_pick(p, t, c, t == k ? last : -1, text)) >= 0) { *kk = t; return p; }
+        if (p->line[t] && (*n = line_pick(p, t, c, t == k ? last : 0, out, cap)) > 0) { *kk = t; return p; }
     for (int t = k; t >= 0 && g_has_computer; t = line_fallback(t))
-        if (g_computer.nline[t] && (*v = line_pick(&g_computer, t, c, t == k ? last : -1, text)) >= 0) { *kk = t; return &g_computer; }
+        if (g_computer.line[t] && (*n = line_pick(&g_computer, t, c, t == k ? last : 0, out, cap)) > 0) { *kk = t; return &g_computer; }
     return NULL;
 }
-static int persona_has(void *pl, enum line_kind k) {
+static int persona_has(void *pl, enum line_kind k) {   // a line for it somewhere (whether it has something to say now or not)
     if (!pl || !g_ai_talk) return 0;
-    struct line_ctx l;
-    line_ctx_init(&l, pl, NULL, NULL);
-    int kk, v;
-    const char *text;
-    return line_source(pl, k, &kk, &l.c, -1, &v, &text) != NULL;
+    struct persona *p = persona_of(pl);
+    for (int t = k; t >= 0; t = line_fallback(t)) if ((p && p->line[t]) || (g_has_computer && g_computer.line[t])) return 1;
+    return 0;
 }
 
 // Personalities in use this game (each once before any repeats)
@@ -597,14 +577,11 @@ static int persona_say(void *pl, enum line_kind k, void *other, void *third) {
     if (k_lines[k].chance < 100 && rnd(100) >= k_lines[k].chance * (own ? own->trait[T_TALK] : 50) / 50) return 0;
     struct line_ctx l;
     line_ctx_init(&l, pl, other, third);
-    int kk = k, v;
-    const char *text;
-    struct persona *p = line_source(pl, k, &kk, &l.c, g_talk_variant[idx][k], &v, &text);
-    if (!p) return 0;
-    g_talk_variant[idx][k] = (uint8_t)v;
+    int kk = k, n;
     char buf[256];
-    l.c.vars[0] = &p->vars;
-    x_fill(buf, sizeof buf, text, &l.c);
+    struct persona *p = line_source(pl, k, &kk, &l.c, g_talk_said[idx][k], buf, sizeof buf, &n);
+    if (!p) return 0;
+    g_talk_said[idx][k] = text_hash(buf);
     int heard = line_heard(pl, k, other);
     g_talk_last[idx][k] = now ? now : 1;
     if (heard) {

@@ -86,8 +86,7 @@ static void texts_key(void *arg, const char *sec, const char *key, struct tval *
     int sys = arg != NULL;
     if (!lstrcmpiA(sec, "vars") || (!_strnicmp(sec, "vars:", 5) && sys)) {
         if (sec[4] && !lang_matches(sec + 5)) return;
-        if (v->kind == TV_LIST) { tl_error(l, "a string or an expression expected, not a list"); return; }
-        xvars_set(!sys ? &g_vars_tpl : sec[4] ? &g_vars_sys_lang : &g_vars_sys, key, v->text, v->kind == TV_STRING);
+        xvars_set(!sys ? &g_vars_tpl : sec[4] ? &g_vars_sys_lang : &g_vars_sys, key, v->src);
         g_texts_var_n++;
         return;
     }
@@ -116,7 +115,7 @@ static void texts_load(void) {
     g_texts_loaded = 1;
     texts_file("_system.ini", 1);
     texts_file("_template.ini", 0);
-    for (int i = 0; i < g_vars_sys_lang.n; i++) xvars_set(&g_vars_sys, g_vars_sys_lang.key[i], g_vars_sys_lang.val[i], g_vars_sys_lang.text[i]);
+    for (int i = 0; i < g_vars_sys_lang.n; i++) xvars_set(&g_vars_sys, g_vars_sys_lang.key[i], g_vars_sys_lang.val[i]);
     if (g_log) fprintf(g_log, "# texts: _system.ini %d keys, _template.ini %d keys (the rest built in), %d [vars]\n",
                        g_texts_sys_n, g_texts_tpl_n, g_texts_var_n);
 }
@@ -223,11 +222,16 @@ static void text_placeholders(FILE *f, const char *a, const char *b) {   // "; {
 // the expressions and the game's values, for the dumped files (gen_persona.py writes the same into _persona.ini)
 static const char k_format_help[] =
     ";\n"
-    "; THE FORMAT: sections [name] / [name:<language>], one \"key = value\" per line (a list may go over several),\n"
-    "; comments from ; or # to the line's end. A value is\n"
-    ";   \"text\"                        a string: \\\" for a quote, \\\\ for a backslash, \\n for a line break\n"
-    ";   [\"a\", \"b\" if <condition>]     a list (personalities' lines), over as many lines as you like\n"
-    ";   85, opinion > 30 ? \"a\" : \"b\"  a number or an expression ([vars], the traits)\n"
+    "; THE FORMAT: sections [name] / [name:<language>], one \"key = value\" per line, comments from ; or # to the line's\n"
+    "; end. A value is an expression - over as many lines as you like while a ( [ or { is open:\n"
+    ";   \"text\"                          a string: \\\" for a quote, \\\\ for a backslash, \\n for a line break\n"
+    ";   [\"a\", \"b\"]                      a list: one of its items, at random\n"
+    ";   allied ? \"Welcome back.\"        without \":\" - nothing when the condition doesn't hold\n"
+    ";   a ?? b                          a, unless it is nothing: then b\n"
+    ";   85, opinion > 30 ? \"a\" : \"b\"    a number, any expression\n"
+    "; A list leaves out what is nothing and picks among the rest, a list in a list counting with each of its items;\n"
+    "; a list with nothing left is nothing:\n"
+    ";   greeting = [allied ? \"Welcome back.\", opinion < -50 ? angry] ?? [\"Greetings.\", \"Hello, {name}.\"]\n"
     "; A mistake is logged with the file and line (aimod_econ.csv, \"# texts:\") and that key is skipped.\n";
 static const char k_expr_help[] =
     ";\n"
@@ -235,11 +239,11 @@ static const char k_expr_help[] =
     "; the braces are the expression's - and [vars] names strings and expressions for the texts:\n"
     ";   address = opinion > 30 ? \"friend\" : opinion < -30 ? \"enemy\" : \"neighbour\"     then \"Hello dear {address}\"\n"
     ";   title = \"my lord {name}\"\n"
-    "; Numbers, \"texts\" (or 'texts'), + - * / %, < <= > >= == !=, and or not, a ? b : c, ( ), pick(\"a\", \"b\", ...)\n"
-    "; one at random, chance(25) true 25% of the time, min, max, abs, round. A value may be a number and a text at\n"
-    "; once (the epoch: 3 and its name): the number counts in arithmetic and comparisons with numbers, the text in the\n"
-    "; text and next to texts (\"Age: \" + epoch). + adds numbers, else joins the texts. A placeholder that is no\n"
-    "; expression stays in the text as written, and the log says so.\n"
+    "; Numbers, \"texts\" (or 'texts'), lists, + - * / %, < <= > >= == !=, and or not, a ? b : c, a ? b, a ?? b, ( ),\n"
+    "; chance(25) true 25% of the time, min, max, abs, round. Only what is chosen is worked out. A value may be a\n"
+    "; number and a text at once (the epoch: 3 and its name): the number counts in arithmetic and comparisons with\n"
+    "; numbers, the text in the text and next to texts (\"Age: \" + epoch). + adds numbers, else joins the texts. A\n"
+    "; placeholder that is no expression stays in the text as written, and the log says so.\n"
     "; The game's values, from the one who speaks (the AI) towards the one it speaks to or about ({name}; in a system\n"
     "; line the local player):\n"
     ";   opinion            -100..100: what the AI thinks of them; their_opinion: what they think of it (an AI)\n"
@@ -284,25 +288,25 @@ static void cmd_texts(char *out, const char *args) {
             char t[XVAL_CAP];
             l.c.vars[0] = NULL;
             if (!x_eval(s, &l.c, &v)) { REPLY("error: not an expression: %s\n", s); return; }
+            if (!v.w) { REPLY("nothing%s\n", l.c.unknown ? "  (unknown names counted 0)" : ""); return; }
             xto_text(&v, t, sizeof t);
             char num[48] = "";
             if (v.has_n && v.has_s) { struct xval nv; xnum(&nv, v.n); xto_text(&nv, num, sizeof num); }
-            REPLY("%s%s%s%s%s  (%s%s)\n", v.has_s ? "\"" : "", t, v.has_s ? "\"" : "", num[0] ? " = " : "", num,
+            REPLY("%s%s%s%s%s  (%s%s", v.has_s ? "\"" : "", t, v.has_s ? "\"" : "", num[0] ? " = " : "", num,
                   v.has_n && v.has_s ? "number and text" : v.has_s ? "text" : "number", l.c.unknown ? "; unknown names counted 0" : "");
+            if (v.w > 1) REPLY("; one of %d", v.w);
+            REPLY(")\n");
             return;
         }
         int k = -1;
         for (int i = 0; i < L_N; i++) if (!lstrcmpiA(k_lines[i].key, key)) k = i;
         if (k < 0 || !pa) { REPLY("error: no situation '%s' or no player %d\n", key, a); return; }
-        int kk = k, v;
-        const char *text;
-        struct persona *p = line_source(pa, k, &kk, &l.c, -1, &v, &text);
-        if (!p) { REPLY("P%d has no line for %s that may be said now\n", a, key); return; }
+        int kk = k, cnt;
         char buf[256];
-        l.c.vars[0] = &p->vars;
-        x_fill(buf, sizeof buf, text, &l.c);
-        REPLY("P%d %s%s%s variant %d of %d (%s): %s\n", a, key, kk != k ? " as " : "", kk != k ? k_lines[kk].key : "", v + 1,
-              p->nline[kk], p == &g_computer ? "computer.ini" : p->file, buf);
+        struct persona *p = line_source(pa, k, &kk, &l.c, 0, buf, sizeof buf, &cnt);
+        if (!p) { REPLY("P%d has no line for %s that may be said now\n", a, key); return; }
+        REPLY("P%d %s%s%s, one of %d (%s): %s\n", a, key, kk != k ? " as " : "", kk != k ? k_lines[kk].key : "", cnt,
+              p == &g_computer ? "computer.ini" : p->file, buf);
         return;
     }
     if (strncmp(args, "dump", 4)) {

@@ -22,7 +22,7 @@ traits = re.findall(r'"(\w+)"', re.search(r'k_trait_keys\[T_N\] = \{(.*?)\};', p
 sys_keys = re.findall(r'^    \{ "(\w+)", "', texts[texts.index('k_sys[] = {'):texts.index('#define N_SYS')], re.M)
 tpl_keys = re.findall(r'^    \{ "(\w+)", ', tpl, re.M)
 style_keys = re.findall(r'\{ "(\w+)", offsetof', settings)
-assert len(values) > 30 and len(epochs) == 15 and 'pick' in funcs and len(situations) >= 40 and len(traits) == 7
+assert len(values) > 30 and len(epochs) == 15 and 'chance' in funcs and len(situations) >= 40 and len(traits) == 7
 assert len(sys_keys) > 20 and len(tpl_keys) > 100 and len(style_keys) > 10, (len(sys_keys), len(tpl_keys), len(style_keys))
 
 def words(ws):
@@ -38,12 +38,12 @@ expression = [
     {'name': 'keyword.operator.logical.eeaimod', 'match': r'\b(?:and|or|not)\b'},
     {'name': 'variable.language.game-value.eeaimod', 'match': words(values) + r'(?!\.)'},
     {'name': 'constant.numeric.eeaimod', 'match': r'(?<![\w.])(?:\d+(?:\.\d+)?|\.\d+)'},
-    {'name': 'keyword.operator.eeaimod', 'match': r'<=|>=|==|!=|&&|\|\||[-+*/%<>=!?:]'},
+    {'name': 'keyword.operator.eeaimod', 'match': r'\?\?|<=|>=|==|!=|&&|\|\||[-+*/%<>!?:]'},
     {'name': 'punctuation.separator.comma.eeaimod', 'match': ','},
     {'name': 'punctuation.parenthesis.eeaimod', 'match': r'[()]'},
     {'name': 'variable.other.eeaimod', 'match': r'[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*'},
 ]
-value = [{'include': '#comment'}, {'include': '#string'}, {'include': '#list'}] + expression
+value = [{'include': '#comment'}, {'include': '#string'}, {'include': '#list'}, {'include': '#group'}] + expression
 
 def section(names, keys, key_scope):
     """[names] / [names:<language>] up to the next section: its known keys, anything else an error"""
@@ -107,14 +107,20 @@ grammar = {
             'contentName': 'meta.embedded.expression.eeaimod',
             'patterns': [{'include': '#placeholder'}] + expression,
         },
-        # [ "a", "b" if <condition>, ] - over several lines
+        # [ "a", allied ? "b", ] and ( ... ) - over several lines
         'list': {
             'begin': r'\[',
             'beginCaptures': {'0': {'name': 'punctuation.definition.list.begin.eeaimod'}},
             'end': r'\]',
             'endCaptures': {'0': {'name': 'punctuation.definition.list.end.eeaimod'}},
-            'patterns': [{'include': '#comment'}, {'include': '#string'},
-                         {'name': 'keyword.control.conditional.if.eeaimod', 'match': r'\bif\b'}] + expression,
+            'patterns': [{'include': '#value'}],
+        },
+        'group': {
+            'begin': r'\(',
+            'beginCaptures': {'0': {'name': 'punctuation.parenthesis.eeaimod'}},
+            'end': r'\)',
+            'endCaptures': {'0': {'name': 'punctuation.parenthesis.eeaimod'}},
+            'patterns': [{'include': '#value'}],
         },
     },
 }
