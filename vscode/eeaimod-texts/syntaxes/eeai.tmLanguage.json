@@ -459,8 +459,18 @@
           "match": "\\b(?:and|or|not)\\b"
         },
         {
-          "name": "support.function.relation.eeaimod",
-          "match": "(?:\\b(?:me|them|enemy|lord)(?:\\.lord)*\\.)?\\b(?:alliance_minutes|attack_minutes|recent_kills|war_minutes|betrayals|refusals|opinion|hostile|ignored|tribute|at_war|allied|kills|razed|near)\\b(?=\\s*\\()"
+          "match": "(?:(\\b(?:me|them|enemy|lord)(?:\\.lord)*)(\\.))?(\\b(?:alliance_minutes|attack_minutes|recent_kills|war_minutes|betrayals|refusals|opinion|hostile|ignored|tribute|at_war|allied|kills|razed|near)\\b)(?=\\s*\\()",
+          "captures": {
+            "1": {
+              "name": "variable.language.game-value.eeaimod"
+            },
+            "2": {
+              "name": "punctuation.accessor.eeaimod"
+            },
+            "3": {
+              "name": "support.function.relation.eeaimod"
+            }
+          }
         },
         {
           "name": "variable.language.game-value.eeaimod",
@@ -479,8 +489,12 @@
           "match": "(?<![\\w.])(?:\\d+(?:\\.\\d+)?|\\.\\d+)"
         },
         {
+          "name": "invalid.illegal.operator.eeaimod",
+          "match": "&&?|\\|\\|?|!(?!=)"
+        },
+        {
           "name": "keyword.operator.eeaimod",
-          "match": "\\?\\?|<=|>=|==|!=|&&|\\|\\||[-+*/%<>!?:]"
+          "match": "\\?\\?|<=|>=|==|!=|[-+*/%<>?:]"
         },
         {
           "name": "punctuation.separator.comma.eeaimod",
@@ -571,8 +585,18 @@
           "match": "\\b(?:and|or|not)\\b"
         },
         {
-          "name": "support.function.relation.eeaimod",
-          "match": "(?:\\b(?:me|them|enemy|lord)(?:\\.lord)*\\.)?\\b(?:alliance_minutes|attack_minutes|recent_kills|war_minutes|betrayals|refusals|opinion|hostile|ignored|tribute|at_war|allied|kills|razed|near)\\b(?=\\s*\\()"
+          "match": "(?:(\\b(?:me|them|enemy|lord)(?:\\.lord)*)(\\.))?(\\b(?:alliance_minutes|attack_minutes|recent_kills|war_minutes|betrayals|refusals|opinion|hostile|ignored|tribute|at_war|allied|kills|razed|near)\\b)(?=\\s*\\()",
+          "captures": {
+            "1": {
+              "name": "variable.language.game-value.eeaimod"
+            },
+            "2": {
+              "name": "punctuation.accessor.eeaimod"
+            },
+            "3": {
+              "name": "support.function.relation.eeaimod"
+            }
+          }
         },
         {
           "name": "variable.language.game-value.eeaimod",
@@ -591,8 +615,12 @@
           "match": "(?<![\\w.])(?:\\d+(?:\\.\\d+)?|\\.\\d+)"
         },
         {
+          "name": "invalid.illegal.operator.eeaimod",
+          "match": "&&?|\\|\\|?|!(?!=)"
+        },
+        {
           "name": "keyword.operator.eeaimod",
-          "match": "\\?\\?|<=|>=|==|!=|&&|\\|\\||[-+*/%<>!?:]"
+          "match": "\\?\\?|<=|>=|==|!=|[-+*/%<>?:]"
         },
         {
           "name": "punctuation.separator.comma.eeaimod",

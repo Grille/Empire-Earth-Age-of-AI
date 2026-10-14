@@ -66,13 +66,14 @@ an **expression**; it may go over several lines while a `(`, `[` or `{` is open:
 `"Hello, {opinion > 30 ? "friend" : "you"}!"`. The quotes inside the braces belong to the expression and don't end
 the string.
 
-**A mistake** - a missing quote or bracket, an unknown key, situation or section - is written to the log
-(`aimod_econ.csv` next to the game, lines starting with `# texts:`) with the file and line, and only that key is
-skipped. A placeholder that is not a valid expression stays in the text as written. A bad file never stops the game.
+**A mistake** - a missing quote or bracket, an expression that doesn't parse (also in a string's `{placeholder}`), an
+unknown key, situation or section - is written to the log (`aimod_econ.csv` next to the game, lines starting with
+`# texts:`) with the file and line, and only that key is skipped. The files are checked when the game starts, every
+line, not only those that happen to be said. A bad file never stops the game.
 
 **Writing texts?** Set `strict_parsing=1` in aimod.ini (`[general]`): every mistake then comes up at once - those in
-the files when the game starts, in a message box; those found while playing (an unknown name in a condition, a
-broken expression, a placeholder nobody fills, a player used who isn't there) as a line in the game.
+the files when the game starts, in a message box; those that only show while playing (an unknown name, a
+placeholder nobody fills, a player used who isn't there) as a line in the game.
 
 The VS Code extension in the mod's sources (`vscode/eeaimod-texts`) highlights these files and marks unknown keys,
 situations and `epoch.` names.
@@ -180,7 +181,7 @@ other_victory = lord == them ? "Long live {name}, my lord!" : allied ? "We won t
 | Numbers, texts | `85`, `0.5`, `"text"`, `'text'` |
 | Arithmetic | `+ - * / %` - `+` joins texts unless both sides are numbers |
 | Comparisons | `< <= > >= == !=` - numbers when both are numbers, else texts (case ignored) |
-| Logic | `and or not` (also `&& \|\| !`) |
+| Logic | `and or not` - only the words (`&&`, `\|\|` and `!` are a mistake; `!=` is a comparison) |
 | Choice | `a ? b : c`, `a ? b` (nothing when `a` doesn't hold), `a ?? b` (`b` when `a` is nothing) |
 | Lists | `[a, b, c]` - one of them at random, leaving out what is nothing |
 | Functions | `chance(25)` (true 25% of the time), `min(a, b, ...)`, `max(a, b, ...)`, `abs(a)`, `round(a)` |

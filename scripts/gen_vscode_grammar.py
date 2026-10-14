@@ -47,12 +47,15 @@ expression = [
     {'name': 'support.function.eeaimod', 'match': words(funcs) + r'(?=\s*\()'},
     {'name': 'constant.language.boolean.eeaimod', 'match': r'\b(?:true|false)\b'},
     {'name': 'keyword.operator.logical.eeaimod', 'match': r'\b(?:and|or|not)\b'},
-    {'name': 'support.function.relation.eeaimod', 'match': r'(?:' + player + r'\.)?' + words(relations) + r'(?=\s*\()'},
+    {'match': r'(?:(' + player + r')(\.))?(' + words(relations) + r')(?=\s*\()',   # me.kills(them): the player, the relation
+     'captures': {'1': {'name': 'variable.language.game-value.eeaimod'}, '2': {'name': 'punctuation.accessor.eeaimod'},
+                  '3': {'name': 'support.function.relation.eeaimod'}}},
     {'name': 'variable.language.game-value.eeaimod', 'match': player + r'\.' + words(member_names) + r'(?![.\w(])'},
     {'name': 'invalid.illegal.unknown-member.eeaimod', 'match': player + r'\.[A-Za-z_][\w.]*'},
     {'name': 'variable.language.game-value.eeaimod', 'match': words(values) + r'(?!\.)'},
     {'name': 'constant.numeric.eeaimod', 'match': r'(?<![\w.])(?:\d+(?:\.\d+)?|\.\d+)'},
-    {'name': 'keyword.operator.eeaimod', 'match': r'\?\?|<=|>=|==|!=|&&|\|\||[-+*/%<>!?:]'},
+    {'name': 'invalid.illegal.operator.eeaimod', 'match': r'&&?|\|\|?|!(?!=)'},   # and, or, not - only the words
+    {'name': 'keyword.operator.eeaimod', 'match': r'\?\?|<=|>=|==|!=|[-+*/%<>?:]'},
     {'name': 'punctuation.separator.comma.eeaimod', 'match': ','},
     {'name': 'punctuation.parenthesis.eeaimod', 'match': r'[()]'},
     {'name': 'variable.other.eeaimod', 'match': r'[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*'},

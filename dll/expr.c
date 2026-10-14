@@ -12,7 +12,7 @@
 // personality's line is such a value: [allied ? "Welcome back.", opinion < -50 ? angry] ?? ["Greetings.", "Hello."]
 // A mistake is logged with the file and line (# texts:) and that key is skipped.
 // The expressions: numbers, "texts" (or 'texts', the same rules), lists, names (a placeholder of the text, a [vars]
-// entry, a game value - x_builtin in diplo.c), ( ), + - * / %, < <= > >= == !=, and or not (&& || !),
+// entry, a game value - x_builtin in diplo.c), ( ), + - * / %, < <= > >= == !=, and or not (only the words: && || ! are a mistake),
 // a ? b : c, a ? b, a ?? b, the functions chance(n) (true n % of the time), min, max, abs, round, and the players'
 // relations: them.opinion(me) (x_method in diplo.c). A player (me, them, ...) is a value: its name, equal only to itself.
 // A value has a number, a text or both: the epoch is 3 and "Copper Age", a placeholder "12" is 12 and "12". The number
@@ -146,7 +146,10 @@ static int x_string(const char *s, char *out, int cap, const char **end, const c
 }
 
 // the parser evaluates as it reads; skip: only reads (a branch not chosen)
-struct xp { const char *s; struct xctx *c; int err, skip; };
+// check: only the syntax (the files when read: skip, and the strings' placeholders too); why: what is wrong, if known
+struct xp { const char *s; struct xctx *c; int err, skip, check; const char *why; };
+static int x_syntax(const char *src, const char **why);
+static int x_fills_ok(const char *text, const char **why);
 static void xp_space(struct xp *p) { while (*p->s == ' ' || *p->s == '\t') p->s++; }
 static int xp_word(struct xp *p, const char *w) {   // a keyword (and, or, not), not the start of a longer name
     xp_space(p);
@@ -186,7 +189,7 @@ static void xp_ident(struct xp *p, const char *name, struct xval *v) {
         if (!def) continue;
         if (c->depth >= 6) { c->circle = 1; p->err = 1; return; }   // vars naming each other in a circle
         c->depth++;
-        struct xp q = { def, c, 0, 0 };
+        struct xp q = { def, c, 0, 0, 0, NULL };
         xp_expr(&q, v);
         xp_space(&q);
         if (q.err || *q.s || c->circle) p->err = 1;
@@ -210,7 +213,7 @@ static void xp_primary(struct xp *p, struct xval *v) {
         char t[XVAL_CAP], f[XVAL_CAP];
         const char *why;
         if (x_string(s, t, sizeof t, &p->s, &why) < 0) { p->err = 1; goto out; }
-        if (p->skip) xstr(v, "");
+        if (p->skip) { xstr(v, ""); if (p->check && !x_fills_ok(t, &p->why)) p->err = 1; }
         else { x_fill(f, sizeof f, t, p->c); xstr(v, f); }
     } else if (*s == '[') {   // a list: one of its items - each of them as often as the items it was chosen from
         struct xval it;
@@ -264,7 +267,7 @@ static void xp_primary(struct xp *p, struct xval *v) {
                 !lstrcmpiA(name, "abs") && na == 1 ? 3 : !lstrcmpiA(name, "round") && na == 1 ? 4 : 0;
         for (int i = 0; f && i < na; i++) x_use(p, &a[i]);   // a function's arguments (a relation checks its players)
         if (!f) {   // a relation: them.opinion(me)
-            if (!x_method(p->c, name, a, na, p->skip ? NULL : v)) p->err = 1;
+            if (!x_method(p->c, name, a, na, p->skip ? NULL : v)) { p->err = 1; p->why = "an unknown function or relation (or the wrong number of arguments)"; }
             else if (p->skip) xnothing(v);
         }
         else if (p->skip) xnothing(v);
@@ -282,7 +285,8 @@ out:
 }
 static void xp_unary(struct xp *p, struct xval *v) {
     if (xp_op(p, "-")) { xp_unary(p, v); x_use(p, v); xnum(v, -xto_num(v)); return; }
-    if (xp_op(p, "!") || xp_word(p, "not")) { xp_unary(p, v); xnum(v, !xtrue(v)); return; }
+    if (xp_word(p, "not")) { xp_unary(p, v); xnum(v, !xtrue(v)); return; }
+    if (*p->s == '!' && p->s[1] != '=') { p->err = 1; p->why = "! - write not"; xnothing(v); return; }
     xp_primary(p, v);
 }
 static void xp_mul(struct xp *p, struct xval *v) {
@@ -342,24 +346,28 @@ static void xp_cmp(struct xp *p, struct xval *v) {
 }
 static void xp_and(struct xp *p, struct xval *v) {
     xp_cmp(p, v);
-    while (!p->err && (xp_op(p, "&&") || xp_word(p, "and"))) {
+    if (!p->err && (xp_space(p), *p->s == '&')) { p->err = 1; p->why = "&& - write and"; }
+    while (!p->err && xp_word(p, "and")) {
         struct xval b;
         int sk = p->skip, t = xtrue(v);
         p->skip = sk || !t;
         xp_cmp(p, &b);
         p->skip = sk;
         xnum(v, t && xtrue(&b));
+        if (!p->err && (xp_space(p), *p->s == '&')) { p->err = 1; p->why = "&& - write and"; }
     }
 }
 static void xp_or(struct xp *p, struct xval *v) {
     xp_and(p, v);
-    while (!p->err && (xp_op(p, "||") || xp_word(p, "or"))) {
+    if (!p->err && (xp_space(p), *p->s == '|')) { p->err = 1; p->why = "|| - write or"; }
+    while (!p->err && xp_word(p, "or")) {
         struct xval b;
         int sk = p->skip, t = xtrue(v);
         p->skip = sk || t;
         xp_and(p, &b);
         p->skip = sk;
         xnum(v, t || xtrue(&b));
+        if (!p->err && (xp_space(p), *p->s == '|')) { p->err = 1; p->why = "|| - write or"; }
     }
 }
 static void xp_coalesce(struct xp *p, struct xval *v) {   // a ?? b: a, unless it is nothing
@@ -395,7 +403,7 @@ static void xp_expr(struct xp *p, struct xval *v) {   // c ? a : b, c ? a (nothi
 // evaluate the whole of src (an expression and nothing after it); 0: not an expression
 static void x_log_bad(const char *what, const char *src) { x_error("%s: %.120s", what, src); }
 static int x_eval(const char *src, struct xctx *c, struct xval *v) {   // its value ends up in a text: a line, a {placeholder}
-    struct xp p = { src, c, 0, 0 };
+    struct xp p = { src, c, 0, 0, 0, NULL };
     int unk = c->unknown, top = !c->top;
     if (top) c->top = src;
     xp_expr(&p, v);
@@ -408,6 +416,34 @@ static int x_eval(const char *src, struct xctx *c, struct xval *v) {   // its va
     return ok;
 }
 
+// the syntax of an expression, nothing worked out (no game needed: the files are checked when read); 0: a mistake, *why
+// what it is when known
+static int x_syntax(const char *src, const char **why) {
+    struct xctx c = { 0 };
+    c.found = 1;   // no players looked up
+    struct xp p = { src, &c, 0, 1, 1, NULL };
+    struct xval v;
+    xp_expr(&p, &v);
+    xp_space(&p);
+    if (!p.err && *p.s) { p.err = 1; if (!p.why) p.why = "something after the expression"; }
+    if (p.err) *why = p.why ? p.why : "not an expression";
+    return !p.err;
+}
+static const char *x_close(const char *s);
+// a text's {placeholders} that are expressions (not a plain name): their syntax
+static int x_fills_ok(const char *text, const char **why) {
+    for (const char *s = strchr(text, '{'); s; s = strchr(s + 1, '{')) {
+        const char *close = x_close(s);
+        char src[400];
+        int n = close ? (int)(close - s - 1) : -1;
+        if (n < 0 || n >= (int)sizeof src) continue;
+        memcpy(src, s + 1, (size_t)n);
+        src[n] = 0;
+        if (strpbrk(src, " <>=?\"'(+[!&|") && !x_syntax(src, why)) return 0;
+        s = close;
+    }
+    return 1;
+}
 // the end of a {placeholder} that starts at s ('{'): quotes and nested braces skipped; NULL: none
 static const char *x_close(const char *s) {
     int d = 0;
@@ -562,12 +598,23 @@ static void tl_value(struct tlex *l, struct tval *v) {
     const char *e, *why;
     char *t = malloc(o + 1);
     double n;
-    if ((*r == '"' || *r == '\'') && x_string(r, t, (int)o + 1, &e, &why) >= 0 && !*e) { v->kind = TV_STRING; v->text = t; return; }
-    free(t);
-    char *ne;
-    n = strtod(r, &ne);
-    if (ne != r && !*ne) { v->kind = TV_NUMBER; v->n = n; }
-    else v->kind = TV_EXPR;
+    if ((*r == '"' || *r == '\'') && x_string(r, t, (int)o + 1, &e, &why) >= 0 && !*e) { v->kind = TV_STRING; v->text = t; }
+    else {
+        free(t);
+        char *ne;
+        n = strtod(r, &ne);
+        if (ne != r && !*ne) { v->kind = TV_NUMBER; v->n = n; }
+        else v->kind = TV_EXPR;
+    }
+    // the syntax now (an expression, a string's placeholders): a mistake comes up when the file is read, not when the
+    // line is said
+    if (v->kind == TV_EXPR ? !x_syntax(r, &why) : v->kind == TV_STRING && !x_fills_ok(v->text, &why)) {
+        int cur = l->line;
+        l->line = v->line;
+        tl_error(l, why);
+        l->line = cur;
+        tval_free(v);
+    }
 }
 // read a text file: fn(arg, section, key, value) for every key ("" before the first section); mistakes logged with
 // the file and line, their keys skipped
