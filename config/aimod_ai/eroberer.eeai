@@ -27,29 +27,53 @@ attack_revenge = 60
 military_income_share = 0.50
 home_guard_share = 0.25
 
+[vars]
+; the Khan measures everyone by strength
+weakling = them.strength * 2 < me.strength
+worthy = me.strength * 2 < them.strength
+; blood between us: more than a skirmish
+my_dead = them.kills(me) > 30
+their_dead = me.kills(them) > 30
+
 [lines]
 greeting = [
     "The steppe is wide, but not wide enough for all of us.",
     "I am Temur. Remember the name - you will hear it often.",
     "My riders are hungry. Who feeds them first?",
+    players > 5 ? "So many tents on my steppe. There will be fewer soon.",
+    allied ? "We ride on the same side, {name}. Try to keep up.",
 ]
 war_declared = [
     "You dare, {name}? Then learn what war means.",
     "At last, {name}. I was afraid you would never dare.",
     "War? With ME? You chose your enemies poorly, {name}.",
+    weakling ? "You, {name}? With that handful of men? I will enjoy this.",
+    worthy ? "Finally a foe worth the ride, {name}. Come, then!",
+    them.tribute(me) > 0 ? "First you pay me, now you fight me, {name}? Make up your mind.",
 ]
-betrayed = [
+; their betrayal is counted already: betrayals(me) > 1 is the second time
+betrayed = me.betrayals(them) > 0 ? [
+    "I broke faith with you once, {name}. Now we are even - and even bores me.",
+] : them.betrayals(me) > 1 ? [
+    "Twice, {name}? A dog that bites twice is not forgiven. It is put down.",
+] : [
     "A traitor, {name}. For traitors there is only one punishment.",
     "I turned my back on you, {name}. That was MY mistake. The next one is yours.",
 ]
 peace_accept = [
     "Good, {name}. You have sense. We ride side by side.",
     "Peace, then. But never forget who granted it, {name}.",
+    their_dead and me.kills(them) > them.kills(me) * 2 ? "You have bled enough, {name}. The Khan is merciful - today.",
+    my_dead and them.kills(me) > me.kills(them) ? "You fight like a steppe wolf, {name}. Peace - between wolves.",
+    them.betrayals(me) > 0 ? "Peace. But this time I keep my eyes on your hands, {name}.",
 ]
 peace_refuse = [
     "Peace? Not until your cities burn, {name}.",
     "All I hear is the whimpering of the beaten, {name}.",
     "No. The steppe does not forget so quickly.",
+    them.betrayals(me) > 0 ? "Peace with a traitor? I would sooner make peace with the wolves.",
+    them.refusals(me) > 0 ? "You turned down my peace once, {name}. Now you know how it tastes.",
+    my_dead ? "My dead are not even cold, {name}. No.",
 ]
 block_refuse = [
     "Peace with you means peace with {enemy}. Never, {name}.",
@@ -67,36 +91,46 @@ ask_lord = [
 alliance_offer = [
     "{name}, you fight {enemy} too. Together we crush them - and then we shall see.",
     "{name}! {enemy} grows too strong. Ride with me and we share the spoils.",
+    enemy.strength > me.strength + them.strength ? "{enemy} is stronger than both of us, {name}. Alone we are fodder. Together, a horde.",
 ]
 offer_accepted = [
     enemy ? "Good. Let {enemy} tremble.",
     "An alliance of the strong. So be it, {name}.",
+    them.betrayals(me) > 0 ? "Allies again, {name}. Do not make me regret it twice.",
 ]
-offer_withdrawn = [
+; ignored(me) counts this one already
+offer_withdrawn = them.ignored(me) > 1 ? "Silence again, {name}. I hear it well enough." : [
     "You hesitate, {name}? Then I ride alone - and past you.",
     "No alliance, then. Remember this day, {name}.",
 ]
 betray = [
-    "You have grown weak, {name}. On the steppe, weakness is a death sentence.",
+    weakling ? "You have grown weak, {name}. On the steppe, weakness is a death sentence.",
     "Our alliance ends here, {name}. I take what I need.",
+    them.tribute(me) > 0 ? "Your gold was welcome, {name}. Now I take the rest.",
 ]
 tribute_thanks = [
     "A gift for the Khan? You learn fast, {name}.",
     "I like that, {name}. Perhaps I will spare your city.",
+    them.tribute(me) > 2000 ? "More gold from {name}. You would make a fine vassal.",
+    at_war ? "Gold in the middle of a war, {name}? You are buying time. It is for sale.",
 ]
-tribute_small = "You call that tribute, {name}? My horses eat more."
+tribute_small = at_war ? "That buys you a minute, {name}. Not a day." : "You call that tribute, {name}? My horses eat more."
 attack = [
     "Riders, gather! We ride against {name}!",
     "Today {name}'s land burns.",
+    them.razed(me) > 0 ? "They burned our tents. Now we burn theirs!",
+    my_dead and them.kills(me) > me.kills(them) ? "Revenge for our dead! Ride against {name}!",
 ]
 attack_threat = [
     "{name}, do you hear the hooves?",
     "Count your men, {name}. Soon there will be fewer.",
     "My riders are coming for you, {name}.",
+    their_dead ? "{me.kills(them)} of your men already feed the crows, {name}. Count again.",
 ]
 under_attack = [
     "They dare attack my camp? Every man to arms!",
     "Enemies at the camp! None of them go home alive!",
+    me.soldiers < 10 ? "Too few riders at home - hold the camp, whatever it costs!",
 ]
 building_lost = [
     "Stones can be stacked again. Heads cannot - remember that.",
@@ -105,11 +139,13 @@ building_lost = [
 epoch_up = [
     "{epoch} - new weapons for old targets.",
     "A new age: {epoch}. The world grows smaller for my enemies.",
+    epoch >= epoch.industrial ? "{epoch}. Horses of iron - the steppe was never so small.",
 ]
 enemy_ahead = "{name} is ahead of us? We catch up - and then we ride them down."
 winning = [
     "Do you see {name} waver? One more push!",
     "{name}, your end is near.",
+    their_dead ? "{me.kills(them)} of yours lie in the grass, {name}. More will follow.",
 ]
 losing = [
     "A wolf is most dangerous when wounded, {name}.",
@@ -119,9 +155,10 @@ desperate = [
     "If I fall, I take you with me!",
     "To the last ride, men!",
 ]
-enemy_defeated = [
+enemy_defeated = them.betrayals(me) > 0 ? "{name} is no more. So ends every traitor." : [
     "{name} is no more. So ends everyone who stands against me.",
     "One fewer.",
+    their_dead ? "{name} is gone - and my riders did most of the work.",
 ]
 ally_defeated = "{name} has fallen. Someone will bleed for this."
 defeated = [
@@ -161,24 +198,39 @@ greeting = [
     "Die Steppe ist weit, aber nicht weit genug für uns alle.",
     "Ich bin Temur. Merkt euch den Namen - ihr werdet ihn noch oft hören.",
     "Meine Reiter sind hungrig. Wer füttert sie zuerst?",
+    players > 5 ? "So viele Zelte auf meiner Steppe. Bald sind es weniger.",
+    allied ? "Wir reiten auf derselben Seite, {name}. Versuch mitzuhalten.",
 ]
 war_declared = [
     "Du wagst es, {name}? Dann lerne, was Krieg bedeutet.",
     "Endlich, {name}. Ich hatte schon Angst, du würdest es nie wagen.",
     "Krieg? Mit MIR? Du hast die Wahl deiner Feinde schlecht getroffen, {name}.",
+    weakling ? "Du, {name}? Mit dieser Handvoll Männer? Das wird mir Freude machen.",
+    worthy ? "Endlich ein Gegner, der den Ritt lohnt, {name}. Komm nur!",
+    them.tribute(me) > 0 ? "Erst zahlst du mir, jetzt kämpfst du gegen mich, {name}? Entscheide dich.",
 ]
-betrayed = [
+betrayed = me.betrayals(them) > 0 ? [
+    "Ich habe dir einmal die Treue gebrochen, {name}. Jetzt sind wir quitt - und quitt langweilt mich.",
+] : them.betrayals(me) > 1 ? [
+    "Zweimal, {name}? Einem Hund, der zweimal beißt, vergibt man nicht. Man erschlägt ihn.",
+] : [
     "Ein Verräter, {name}. Für Verräter gibt es nur eine Strafe.",
     "Ich habe dir den Rücken zugewandt, {name}. Das war MEIN Fehler. Der nächste ist deiner.",
 ]
 peace_accept = [
     "Gut, {name}. Du hast Verstand. Wir reiten Seite an Seite.",
     "Frieden also. Aber vergiss nicht, wer ihn dir gewährt hat, {name}.",
+    their_dead and me.kills(them) > them.kills(me) * 2 ? "Du hast genug geblutet, {name}. Der Khan ist gnädig - heute.",
+    my_dead and them.kills(me) > me.kills(them) ? "Du kämpfst wie ein Steppenwolf, {name}. Frieden - unter Wölfen.",
+    them.betrayals(me) > 0 ? "Frieden. Aber diesmal behalte ich deine Hände im Auge, {name}.",
 ]
 peace_refuse = [
     "Frieden? Erst wenn deine Städte brennen, {name}.",
     "Ich höre nur das Winseln eines Besiegten, {name}.",
     "Nein. Die Steppe vergisst nicht so schnell.",
+    them.betrayals(me) > 0 ? "Frieden mit einem Verräter? Eher schließe ich Frieden mit den Wölfen.",
+    them.refusals(me) > 0 ? "Du hast meinen Frieden einmal ausgeschlagen, {name}. Jetzt weißt du, wie das schmeckt.",
+    my_dead ? "Meine Toten sind noch nicht kalt, {name}. Nein.",
 ]
 block_refuse = [
     "Frieden mit dir hieße Frieden mit {enemy}. Niemals, {name}.",
@@ -196,36 +248,45 @@ ask_lord = [
 alliance_offer = [
     "{name}, auch du kämpfst gegen {enemy}. Zusammen zerquetschen wir ihn - danach sehen wir weiter.",
     "{name}! {enemy} wird zu stark. Reite mit mir, und wir teilen die Beute.",
+    enemy.strength > me.strength + them.strength ? "{enemy} ist stärker als wir beide, {name}. Allein sind wir Futter. Zusammen eine Horde.",
 ]
 offer_accepted = [
     enemy ? "Gut. {enemy} soll zittern.",
     "Ein Bündnis der Starken. So soll es sein, {name}.",
+    them.betrayals(me) > 0 ? "Wieder Verbündete, {name}. Lass es mich nicht zweimal bereuen.",
 ]
-offer_withdrawn = [
+offer_withdrawn = them.ignored(me) > 1 ? "Wieder Schweigen, {name}. Ich höre es laut genug." : [
     "Du zögerst, {name}? Dann reite ich allein - und an dir vorbei.",
     "Kein Bündnis also. Merk dir diesen Tag, {name}.",
 ]
 betray = [
-    "Du bist schwach geworden, {name}. Schwäche ist in der Steppe ein Todesurteil.",
+    weakling ? "Du bist schwach geworden, {name}. Schwäche ist in der Steppe ein Todesurteil.",
     "Unser Bündnis ist hier zu Ende, {name}. Ich nehme mir, was ich brauche.",
+    them.tribute(me) > 0 ? "Dein Gold war willkommen, {name}. Jetzt hole ich mir den Rest.",
 ]
 tribute_thanks = [
     "Ein Geschenk für den Khan? Du lernst schnell, {name}.",
     "Das gefällt mir, {name}. Vielleicht verschone ich deine Stadt.",
+    them.tribute(me) > 2000 ? "Wieder Gold von {name}. Du gäbst einen guten Vasallen ab.",
+    at_war ? "Gold mitten im Krieg, {name}? Du kaufst dir Zeit. Sie ist zu haben.",
 ]
-tribute_small = "Das nennst du Tribut, {name}? Meine Pferde fressen mehr."
+tribute_small = at_war ? "Damit kaufst du dir eine Minute, {name}. Keinen Tag." : "Das nennst du Tribut, {name}? Meine Pferde fressen mehr."
 attack = [
     "Reiter, sammelt euch! Wir reiten gegen {name}!",
     "Heute brennt {name}s Land.",
+    them.razed(me) > 0 ? "Sie haben unsere Zelte verbrannt. Jetzt brennen ihre!",
+    my_dead and them.kills(me) > me.kills(them) ? "Rache für unsere Toten! Reitet gegen {name}!",
 ]
 attack_threat = [
     "{name}, hörst du die Hufe?",
     "Zähl deine Männer, {name}. Bald sind es weniger.",
     "Meine Reiter kommen dich holen, {name}.",
+    their_dead ? "{me.kills(them)} deiner Männer fressen schon die Krähen, {name}. Zähl nach.",
 ]
 under_attack = [
     "Sie wagen es, mein Lager anzugreifen? Jeder Mann zu den Waffen!",
     "Feinde vor dem Lager! Keiner kommt lebend zurück!",
+    me.soldiers < 10 ? "Zu wenige Reiter daheim - haltet das Lager, koste es, was es wolle!",
 ]
 building_lost = [
     "Steine kann man wieder aufschichten. Köpfe nicht - merkt euch das.",
@@ -234,11 +295,13 @@ building_lost = [
 epoch_up = [
     "{epoch} - neue Waffen für alte Ziele.",
     "Ein neues Zeitalter: {epoch}. Die Welt wird kleiner für meine Feinde.",
+    epoch >= epoch.industrial ? "{epoch}. Pferde aus Eisen - nie war die Steppe so klein.",
 ]
 enemy_ahead = "{name} ist uns voraus? Wir holen auf - und dann reiten wir alles nieder."
 winning = [
     "Seht ihr, wie {name} wankt? Noch ein Stoß!",
     "{name}, dein Ende ist nah.",
+    their_dead ? "{me.kills(them)} der Deinen liegen im Gras, {name}. Mehr werden folgen.",
 ]
 losing = [
     "Ein Wolf ist am gefährlichsten, wenn er verwundet ist, {name}.",
@@ -248,9 +311,10 @@ desperate = [
     "Wenn ich falle, reiße ich euch mit!",
     "Zum letzten Ritt, Männer!",
 ]
-enemy_defeated = [
+enemy_defeated = them.betrayals(me) > 0 ? "{name} ist nicht mehr. So endet jeder Verräter." : [
     "{name} ist nicht mehr. So endet jeder, der sich mir entgegenstellt.",
     "Einer weniger.",
+    their_dead ? "{name} ist fort - und das meiste haben meine Reiter erledigt.",
 ]
 ally_defeated = "{name} ist gefallen. Dafür wird jemand bluten."
 defeated = [
