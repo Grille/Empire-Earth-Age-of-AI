@@ -274,7 +274,7 @@ Shortcuts: my own `epoch` and traits without `me.` (`aggression` is `me.aggressi
 | `A.at_war(B)` | 1 when A and B are enemies, both of them |
 | `A.allied(B)` | 1 when A and B are allied, both of them |
 | `A.hostile(B)` | 1 when A treats B as an enemy (whatever B does) |
-| `A.war_minutes(B)` | how long the war of A and B has lasted - nothing when they are not at war |
+| `A.war_minutes(B)` | how long the war of A and B has lasted: from both enemies until both are allied again (a peace offer doesn't end it; in peace_accept: the war just ended) - nothing without a war |
 | `A.alliance_minutes(B)` | how long A and B have been allied - nothing when they are not |
 | `A.betrayals(B)` | how often A turned on B while they were allied |
 | `A.refusals(B)` | how often A refused B's offers of peace or alliance |

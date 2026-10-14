@@ -127,6 +127,7 @@ static void set_stance(int from, int to, int s) {
 static struct {
     int8_t stance[16][16];       // [x][y]: x's stance towards y at the last look (-1: not seen yet)
     uint32_t since[16][16];      // [x][y] = [y][x]: the pair's state - war, alliance or neither - since (game time)
+    uint32_t war[16][16];        // [x][y] = [y][x]: their war since (0: none) - from both enemies until both allied again
     uint16_t betrayals[16][16];  // [x][y]: x turned on y while they were allied
     uint16_t refused[16][16];    // [x][y]: x refused y's offers of peace or alliance
     uint32_t tribute[16][16];    // [x][y]: resources x paid y
@@ -143,6 +144,7 @@ static void hist_scan(uint32_t now) {
             if (!px || !py) continue;
             int sx = stance_of(px, y) != 0, sy = stance_of(py, x) != 0, ox = g_hist.stance[x][y], oy = g_hist.stance[y][x];
             int state = sx && sy ? 2 : !sx && !sy ? 1 : 0;
+            uint32_t t = now < 15000 ? 1 : now;
             if (ox < 0 || oy < 0) g_hist.since[x][y] = g_hist.since[y][x] = now < 15000 ? 0 : now;   // first seen
             else {
                 if (!ox && !oy && sx) g_hist.betrayals[x][y]++;   // allied, and x turned
@@ -150,6 +152,9 @@ static void hist_scan(uint32_t now) {
                 int old = ox && oy ? 2 : !ox && !oy ? 1 : 0;
                 if (old != state) g_hist.since[x][y] = g_hist.since[y][x] = now;
             }
+            // a war lasts until both are allied again: a peace offer (one side allied) doesn't end it
+            if (state == 2 && !g_hist.war[x][y]) g_hist.war[x][y] = g_hist.war[y][x] = t;
+            else if (state == 1) g_hist.war[x][y] = g_hist.war[y][x] = 0;
             g_hist.stance[x][y] = (int8_t)sx;
             g_hist.stance[y][x] = (int8_t)sy;
         }
@@ -1576,7 +1581,7 @@ static const struct xmember k_xmembers[] = {
     { "at_war", XM_REL, "1 when A and B are enemies, both of them" },
     { "allied", XM_REL, "1 when A and B are allied, both of them" },
     { "hostile", XM_REL, "1 when A treats B as an enemy (whatever B does)" },
-    { "war_minutes", XM_REL, "how long the war of A and B has lasted - nothing when they are not at war" },
+    { "war_minutes", XM_REL, "how long the war of A and B has lasted: from both enemies until both are allied again (a peace offer doesn't end it; in peace_accept: the war just ended) - nothing without a war" },
     { "alliance_minutes", XM_REL, "how long A and B have been allied - nothing when they are not" },
     { "betrayals", XM_REL, "how often A turned on B while they were allied" },
     { "refusals", XM_REL, "how often A refused B's offers of peace or alliance" },
@@ -1673,8 +1678,12 @@ static void x_relation(void *pa, void *pb, const struct xmember *m, struct xval 
     else if (!strcmp(n, "at_war")) r = war;
     else if (!strcmp(n, "allied")) r = ally;
     else if (!strcmp(n, "hostile")) r = stance_of(pa, b) != 0;
-    else if (!strcmp(n, "war_minutes") || !strcmp(n, "alliance_minutes")) {
-        if (!(n[0] == 'w' ? war : ally)) return;
+    else if (!strcmp(n, "war_minutes")) {
+        if (!g_hist.war[a][b]) return;
+        r = (double)((now - g_hist.war[a][b]) / 60000u);
+    }
+    else if (!strcmp(n, "alliance_minutes")) {
+        if (!ally) return;
         r = (double)((now - g_hist.since[a][b]) / 60000u);
     }
     else if (!strcmp(n, "betrayals")) r = g_hist.betrayals[a][b];
