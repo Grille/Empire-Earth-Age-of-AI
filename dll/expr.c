@@ -4,9 +4,12 @@
 // Go away.": the variants whose condition holds are picked from, those without one only when none holds.
 // The language: numbers, "strings" (or 'strings'), names (a placeholder of the text, a [vars] entry, a game value -
 // x_builtin in diplo.c), ( ), + - * / %, < <= > >= == != (= is ==), and or not (&& || !), a ? b : c, and the
-// functions pick(a, b, ...) (one at random), chance(n) (true n % of the time), min, max, abs, round. + joins texts
-// unless both sides are numbers; comparisons compare numbers, else texts (case ignored). True: a number not 0, a
-// text not empty and not "0". No loops, no assignments: a text can't hang the game. A placeholder that is not a
+// functions pick(a, b, ...) (one at random), chance(n) (true n % of the time), min, max, abs, round.
+// A value has a number, a text or both: the epoch is 3 and "Copper Age", a placeholder "12" is 12 and "12". The number
+// counts in arithmetic, in comparisons with a number and as true/false; the text where the value ends up in the text
+// and where it meets a text ("Age: " + epoch, epoch == "Copper Age"). + adds when both have numbers, else joins the
+// texts; comparisons compare numbers when both have one, else texts (case ignored). True: a number not 0, a text not
+// empty. No loops, no assignments: a text can't hang the game. A placeholder that is not a
 // valid expression - or a single name nobody knows - stays as written (as before); an unknown name inside an
 // expression counts as 0. A [vars] value that is not an expression is plain text (its placeholders filled).
 // Included by eeaimod.c before persona.c.
@@ -21,9 +24,10 @@ struct xctx {
     const struct xvars *vars[3];            // searched in order: the personality's, the file's
     int depth, level, unknown, bad, circle; // nesting: vars in vars, the parser (all together); unknown names; errors; too deep
 };
-struct xval { int str; double n; char s[XVAL_CAP]; };
+struct xval { int has_n, has_s; double n; char s[XVAL_CAP]; };   // a number, a text or both
 static struct xvars g_vars_sys, g_vars_tpl;   // _system.ini [vars] (+ [vars:<language>]), _template.ini [vars] (texts.c)
 static int x_builtin(struct xctx *c, const char *name, struct xval *v);   // diplo.c: the game's values
+static void x_decode(const char *name, struct xval *v);   // diplo.c: a placeholder's text that names a number (an epoch)
 static int x_fill(char *out, int cap, const char *tmpl, struct xctx *c);
 static int rnd(int n);   // persona.c: the display generator
 static int g_x_logged;   // expression errors written to the log (at most 30)
@@ -38,19 +42,24 @@ static const char *xvars_get(const struct xvars *v, const char *key) {
     return NULL;
 }
 
-static void xnum(struct xval *v, double n) { v->str = 0; v->n = n; }
-static void xstr(struct xval *v, const char *s) { v->str = 1; lstrcpynA(v->s, s ? s : "", XVAL_CAP); }
 static int xnumeric(const char *s, double *n) {   // the whole text a number ("12", not " 12" or "12 ")
     char *e;
     if (!((*s >= '0' && *s <= '9') || *s == '-' || *s == '.')) return 0;
     *n = strtod(s, &e);
     return e != s && !*e;
 }
-static int xis_num(const struct xval *v, double *n) { if (!v->str) { *n = v->n; return 1; } return xnumeric(v->s, n); }
-static double xto_num(const struct xval *v) { double n; return xis_num(v, &n) ? n : 0; }
-static int xtrue(const struct xval *v) { return v->str ? v->s[0] && strcmp(v->s, "0") : v->n != 0; }
+static void xnum(struct xval *v, double n) { v->has_n = 1; v->has_s = 0; v->n = n; }
+static void xstr(struct xval *v, const char *s) {   // a text - and its number when it is one ("12")
+    lstrcpynA(v->s, s ? s : "", XVAL_CAP);
+    v->has_s = 1;
+    v->has_n = xnumeric(v->s, &v->n);
+}
+static void xdual(struct xval *v, double n, const char *s) { xstr(v, s); v->has_n = 1; v->n = n; }
+static int xis_num(const struct xval *v, double *n) { if (v->has_n) *n = v->n; return v->has_n; }
+static double xto_num(const struct xval *v) { return v->has_n ? v->n : 0; }
+static int xtrue(const struct xval *v) { return v->has_n ? v->n != 0 : v->s[0] != 0; }
 static void xto_text(const struct xval *v, char *out, int cap) {
-    if (v->str) { lstrcpynA(out, v->s, cap); return; }
+    if (v->has_s) { lstrcpynA(out, v->s, cap); return; }
     double r = v->n < 0 ? -v->n : v->n;
     if (r - (double)(long long)r < 1e-9 && r < 1e15) snprintf(out, (size_t)cap, "%lld", (long long)v->n);
     else {
@@ -81,7 +90,8 @@ static int xp_op(struct xp *p, const char *op) {
 static void xp_expr(struct xp *p, struct xval *v);
 static void xp_ident(struct xp *p, const char *name, struct xval *v) {
     struct xctx *c = p->c;
-    for (int i = 0; i < c->np; i++) if (!strcmp(c->pn[i], name)) { xstr(v, c->pv[i]); return; }
+    for (int i = 0; i < c->np; i++)
+        if (!strcmp(c->pn[i], name)) { xstr(v, c->pv[i]); if (!v->has_n) x_decode(name, v); return; }
     for (int k = 0; k < 3; k++) {
         const char *def = xvars_get(c->vars[k], name);
         if (!def) continue;
@@ -98,7 +108,7 @@ static void xp_ident(struct xp *p, const char *name, struct xval *v) {
             char t[XVAL_CAP];
             x_fill(t, sizeof t, def, c);
             xstr(v, t);
-        } else if (v->str && strchr(v->s, '{')) {   // a text from an expression may hold placeholders too
+        } else if (v->has_s && strchr(v->s, '{')) {   // a text from an expression may hold placeholders too
             char t[XVAL_CAP];
             x_fill(t, sizeof t, v->s, c);
             xstr(v, t);
@@ -197,11 +207,11 @@ static void xp_add(struct xp *p, struct xval *v) {
         if (op == '-') xnum(v, xto_num(v) - xto_num(&b));
         else if (xis_num(v, &x) && xis_num(&b, &y)) xnum(v, x + y);
         else {   // texts joined
-            char l[XVAL_CAP], r[XVAL_CAP];
+            char l[XVAL_CAP], r[XVAL_CAP], j[XVAL_CAP];
             xto_text(v, l, sizeof l);
             xto_text(&b, r, sizeof r);
-            v->str = 1;
-            snprintf(v->s, XVAL_CAP, "%s%s", l, r);
+            snprintf(j, sizeof j, "%s%s", l, r);
+            xstr(v, j);
         }
     }
 }

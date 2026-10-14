@@ -231,7 +231,9 @@ static const char k_expr_help[] =
     "; EXPRESSIONS: a placeholder may be an expression - {opinion > 30 ? \"friend\" : \"neighbour\"} - and [vars] names\n"
     "; expressions for the texts:   address = opinion > 30 ? \"friend\" : opinion < -30 ? \"enemy\" : \"neighbour\"\n"
     "; then \"Hello dear {address}\". Numbers, \"texts\" (or 'texts'), + - * / %, < <= > >= == !=, and or not, a ? b : c,\n"
-    "; ( ), pick(\"a\", \"b\", ...) one at random, chance(25) true 25% of the time, min, max, abs, round. + joins texts.\n"
+    "; ( ), pick(\"a\", \"b\", ...) one at random, chance(25) true 25% of the time, min, max, abs, round. A value may be\n"
+    "; a number and a text at once (the epoch: 3 and its name): the number counts in arithmetic and comparisons with\n"
+    "; numbers, the text in the text and next to texts (\"Age: \" + epoch). + adds numbers, else joins the texts.\n"
     "; A [vars] value that is no expression is plain text (its placeholders filled). A placeholder that is no\n"
     "; expression stays in the text as written, and the log (aimod_econ.csv, # texts:) says so.\n"
     "; The game's values, from the one who speaks (the AI) towards the one it speaks to or about ({name}; in a system\n"
@@ -240,7 +242,7 @@ static const char k_expr_help[] =
     ";   power              its strength / theirs (2: twice as strong, 0.5: half)\n"
     ";   at_war, allied     1 when both are enemies / both allied; hostile, their_hostile: one side's stance\n"
     ";   my_lord, my_vassal 1 when they are its lord / its vassal; vassal: it capitulated; vassals: how many it has\n"
-    ";   age, their_age     the epoch, 1 (Prehistoric) .. 15 (Nano) - {epoch} is its name\n"
+    ";   epoch, their_epoch the epoch: in the text its name, as a number 1 (Prehistoric) .. 15 (Nano) - epoch >= 5\n"
     ";   minutes            the game time\n"
     ";   soldiers, citizens, buildings, towers - their_soldiers ...: counted every 10 seconds\n"
     ";   kills, losses      their soldiers and citizens it destroyed / its own they destroyed\n"
@@ -275,8 +277,10 @@ static void cmd_texts(char *out, const char *args) {
             l.c.vars[0] = NULL;
             if (!x_eval(s, &l.c, &v)) { REPLY("error: not an expression: %s\n", s); return; }
             xto_text(&v, t, sizeof t);
-            REPLY("%s%s%s  (%s%s)\n", v.str ? "\"" : "", t, v.str ? "\"" : "", v.str ? "text" : "number",
-                  l.c.unknown ? "; unknown names counted 0" : "");
+            char num[48] = "";
+            if (v.has_n && v.has_s) { struct xval nv; xnum(&nv, v.n); xto_text(&nv, num, sizeof num); }
+            REPLY("%s%s%s%s%s  (%s%s)\n", v.has_s ? "\"" : "", t, v.has_s ? "\"" : "", num[0] ? " = " : "", num,
+                  v.has_n && v.has_s ? "number and text" : v.has_s ? "text" : "number", l.c.unknown ? "; unknown names counted 0" : "");
             return;
         }
         int k = -1;

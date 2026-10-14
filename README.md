@@ -140,9 +140,11 @@ peace or alliances. With the mod:
 
   A line variant may start with a condition in brackets: the variants whose condition holds are picked from, those
   without one only when none does. The values: `opinion`, `power` (its strength / theirs), `at_war`, `allied`,
-  `my_lord`, `my_vassal`, `age`, `minutes`, `soldiers`, `kills`, `losses`, `human`, the traits and more (listed in
-  each file's head); `pick("a", "b")` and `chance(25)` for variety. There are no loops: a text can't hang the game, and
-  something that is no expression simply stays in the text as written.
+  `my_lord`, `my_vassal`, `epoch`, `minutes`, `soldiers`, `kills`, `losses`, `human`, the traits and more (listed in
+  each file's head); `pick("a", "b")` and `chance(25)` for variety. A value may be a number and a text at once:
+  `{epoch}` in a line is the age's name, `[epoch >= 5]` compares its number, `"Age: " + epoch` joins the name.
+  There are no loops: a text can't hang the game, and something that is no expression simply stays in the text as
+  written.
 - **Play style** (experimental, `ai_style=1`, off by default): a personality can also change how its AI plays
   (attack timing, army share, home guard). Off, every AI plays the same, tested way.
 

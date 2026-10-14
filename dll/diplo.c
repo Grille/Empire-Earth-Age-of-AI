@@ -1502,7 +1502,7 @@ static void *x_player_named(const char *n) {
 static int x_builtin(struct xctx *c, const char *name, struct xval *v) {
     static const char *const k_num[] = {
         "opinion", "their_opinion", "power", "at_war", "allied", "hostile", "their_hostile", "my_lord", "my_vassal",
-        "vassal", "vassals", "age", "their_age", "minutes", "soldiers", "their_soldiers", "citizens",
+        "vassal", "vassals", "epoch", "their_epoch", "minutes", "soldiers", "their_soldiers", "citizens",
         "their_citizens", "buildings", "their_buildings", "kills", "losses", "human", "towers", "their_towers",
         "aggression", "loyalty", "pride", "greed", "forgiveness", "caution", "talk",
     };
@@ -1538,8 +1538,13 @@ static int x_builtin(struct xctx *c, const char *name, struct xval *v) {
     case 8: r = both && g_lord[b] == a; break;
     case 9: r = pa && g_lord[a]; break;
     case 10: for (int j = 1; pa && j < nplayers(); j++) r += j != a && player_at(j) && !is_out(player_at(j)) && g_lord[j] == a; break;
-    case 11: r = pa ? current_epoch(pa) + 1 : 0; break;
-    case 12: r = pb ? current_epoch(pb) + 1 : 0; break;
+    case 11: case 12: {   // the epoch: its number and its name
+        void *pe = w == 11 ? pa : pb;
+        char ep[96] = "";
+        if (pe) epoch_text(pe, ep, sizeof ep);
+        xdual(v, pe ? current_epoch(pe) + 1 : 0, ep);
+        return 1;
+    }
     case 13: r = (double)(game_time() / 60000u); break;
     case 14: r = pa ? g_ws.soldiers[a] : 0; break;
     case 15: r = pb ? g_ws.soldiers[b] : 0; break;
@@ -1556,4 +1561,13 @@ static int x_builtin(struct xctx *c, const char *name, struct xval *v) {
     }
     xnum(v, r);
     return 1;
+}
+// a placeholder's text that names an epoch ({epoch} in the prompts: the speaker's or the other's) gets its number
+static void x_decode(const char *name, struct xval *v) {
+    if (strcmp(name, "epoch") && strcmp(name, "their_epoch")) return;
+    char ep[96];
+    for (int e = 0; e < 15; e++) {
+        epoch_text_n(e, ep, sizeof ep);
+        if (!lstrcmpiA(ep, v->s)) { v->has_n = 1; v->n = e + 1; return; }
+    }
 }

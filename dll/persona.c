@@ -342,6 +342,7 @@ static int line_fallback(int k) {
 // the [vars] of the line's personality, the speaker's own, _system.ini's
 struct line_ctx { struct xctx c; const char *pn[5], *pv[5]; char ep[96], trib[96]; };
 static void epoch_text(void *pl, char *out, int cap);
+static void epoch_text_n(int e, char *out, int cap);
 static const char *player_name(void *pl);
 static void tribute_text(const int *amount, char *buf, int cap);
 static int g_say_tribute[7];   // {tribute}: amounts by resource (stock index 2..6), set by the caller (diplo.c)
@@ -538,9 +539,8 @@ static const char *player_name(void *pl) {
 }
 
 // the speaker's age, localized (strings 30145 + epoch: Vorzeit, Steinzeit, ...)
-static void epoch_text(void *pl, char *out, int cap) {
+static void epoch_text_n(int e, char *out, int cap) {   // epoch e (0 Prehistoric) by name
     void *res = *(void **)0x00919770;
-    int e = current_epoch(pl);
     lstrcpynA(out, epoch_name(e), cap);
     if (!res || e < 0 || e > 14) return;
     __attribute__((aligned(8))) uint8_t s[32];
@@ -549,6 +549,7 @@ static void epoch_text(void *pl, char *out, int cap) {
     if (FIELD(s, 4, const char *)) lstrcpynA(out, FIELD(s, 4, const char *), cap);
     ((void (__thiscall *)(void *))*(void **)0x00823AEC)(s);
 }
+static void epoch_text(void *pl, char *out, int cap) { epoch_text_n(current_epoch(pl), out, cap); }
 
 // is the local player (0x918E84) in the audience of AI pl's line k said to `other`? Allies: both stances allied.
 static int line_heard(void *pl, enum line_kind k, void *other) {
