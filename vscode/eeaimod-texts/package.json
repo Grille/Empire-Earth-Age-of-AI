@@ -2,7 +2,7 @@
   "name": "eeaimod-texts",
   "displayName": "eeaimod texts",
   "description": "Highlighting for the eeaimod text files (.eeai): personalities, _system.eeai, _template.eeai - sections, keys, strings, placeholders, expressions",
-  "version": "0.7.1",
+  "version": "0.8.0",
   "publisher": "eeaimod",
   "license": "MIT",
   "engines": { "vscode": "^1.60.0" },

@@ -133,7 +133,7 @@ capitulate = "Okay, OKAY! You're strong, {name}! {tribute} and we're mates? Quic
 capitulate_accepted = "Here, {tribute}! Now we smash the others together!"
 capitulate_refused = "No? NO?! Then come on, all of you!"
 all_submitted = "FINE, {name}, you're the boss now! Happy?!"
-other_victory = my_lord ? [
+other_victory = lord == them ? [
     "Bah! Next game I'll get you, {name}!",
     "Fine, you won, {name}! Happy now?!",
 ] : [
@@ -257,7 +257,7 @@ capitulate = "Okay, OKAY! Du bist stark, {name}! {tribute} und wir sind Kumpel? 
 capitulate_accepted = "Hier, {tribute}! Jetzt hauen wir zusammen die anderen platt!"
 capitulate_refused = "Nein? NEIN?! Dann kommt doch alle her!"
 all_submitted = "SCHÖN, {name}, du bist jetzt der Boss! Zufrieden?!"
-other_victory = my_lord ? [
+other_victory = lord == them ? [
     "Pah! Nächstes Spiel krieg ich dich, {name}!",
     "Schön, du hast gewonnen, {name}! Zufrieden?!",
 ] : [

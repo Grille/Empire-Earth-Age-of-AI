@@ -13,13 +13,14 @@
 // A mistake is logged with the file and line (# texts:) and that key is skipped.
 // The expressions: numbers, "texts" (or 'texts', the same rules), lists, names (a placeholder of the text, a [vars]
 // entry, a game value - x_builtin in diplo.c), ( ), + - * / %, < <= > >= == !=, and or not (&& || !),
-// a ? b : c, a ? b, a ?? b, and the functions chance(n) (true n % of the time), min, max, abs, round.
+// a ? b : c, a ? b, a ?? b, the functions chance(n) (true n % of the time), min, max, abs, round, and the players'
+// relations: them.opinion(me) (x_method in diplo.c). A player (me, them, ...) is a value: its name, equal only to itself.
 // A value has a number, a text or both: the epoch is 3 and "Copper Age", a placeholder "12" is 12 and "12". The number
 // counts in arithmetic, in comparisons with a number and as true/false; the text where the value ends up in the text
 // and where it meets a text ("Age: " + epoch). + adds when both have numbers, else joins the texts; comparisons
 // compare numbers when both have one, else texts (case ignored) - an epoch's name is the game's language's, so
 // conditions compare its number (epoch >= epoch.middle), never its name. epoch.prehistoric .. epoch.space are the
-// epochs' numbers 1..15, the same in every language (a "." is part of a name). True: a number not 0, a text not
+// epochs' numbers 1..15, the same in every language (a "." is part of a name). True: a number not 0, a player, a text not
 // empty; nothing is false and an empty text. Only what is chosen is worked out (?: ?? and or). No loops, no
 // assignments: a text can't hang the game. A placeholder that is not a valid expression - or a single name nobody
 // knows - stays in the text as written (logged); an unknown name inside an expression counts 0.
@@ -35,10 +36,13 @@ struct xctx {
     const struct xvars *vars[3];            // searched in order: the personality's, the file's
     int depth, level, unknown, bad, circle; // nesting: vars in vars, the parser (all together); unknown names; errors; too deep
 };
-// a number, a text or both - or nothing (w 0); w: how many items it was chosen from (a list's weight in a list)
-struct xval { int has_n, has_s, w; double n; char s[XVAL_CAP]; };
+// a number, a text or both - or nothing (w 0); w: how many items it was chosen from (a list's weight in a list);
+// pl: a player (its index + 1; its text is its name) - equal only to itself
+struct xval { int has_n, has_s, w, pl; double n; char s[XVAL_CAP]; };
 static struct xvars g_vars_sys, g_vars_tpl;   // _system.ini [vars] (+ [vars:<language>]), _template.ini [vars] (texts.c)
 static int x_builtin(struct xctx *c, const char *name, struct xval *v);   // diplo.c: the game's values
+// diplo.c: a relation, them.opinion(me) - 0: name is none (v NULL: only that checked)
+static int x_method(struct xctx *c, const char *name, const struct xval *a, int na, struct xval *v);
 static void x_decode(const char *name, struct xval *v);   // diplo.c: a placeholder's text that names a number (an epoch)
 static int x_fill(char *out, int cap, const char *tmpl, struct xctx *c);
 static int rnd(int n);   // persona.c: the display generator
@@ -85,18 +89,19 @@ static int xnumeric(const char *s, double *n) {   // the whole text a number ("1
     *n = strtod(s, &e);
     return e != s && !*e;
 }
-static void xnothing(struct xval *v) { v->has_n = v->has_s = v->w = 0; v->n = 0; v->s[0] = 0; }
-static void xnum(struct xval *v, double n) { v->has_n = 1; v->has_s = 0; v->w = 1; v->n = n; }
+static void xnothing(struct xval *v) { v->has_n = v->has_s = v->w = v->pl = 0; v->n = 0; v->s[0] = 0; }
+static void xnum(struct xval *v, double n) { v->has_n = 1; v->has_s = v->pl = 0; v->w = 1; v->n = n; }
 static void xstr(struct xval *v, const char *s) {   // a text - and its number when it is one ("12")
     lstrcpynA(v->s, s ? s : "", XVAL_CAP);
     v->has_s = 1;
     v->w = 1;
+    v->pl = 0;
     v->has_n = xnumeric(v->s, &v->n);
 }
 static void xdual(struct xval *v, double n, const char *s) { xstr(v, s); v->has_n = 1; v->n = n; }
 static int xis_num(const struct xval *v, double *n) { if (v->has_n) *n = v->n; return v->has_n; }
 static double xto_num(const struct xval *v) { return v->has_n ? v->n : 0; }
-static int xtrue(const struct xval *v) { return v->w && (v->has_n ? v->n != 0 : v->s[0] != 0); }
+static int xtrue(const struct xval *v) { return v->w && (v->pl || (v->has_n ? v->n != 0 : v->s[0] != 0)); }   // a player: true, whatever its name
 static void xto_text(const struct xval *v, char *out, int cap) {
     if (v->has_s || !v->w) { lstrcpynA(out, v->w ? v->s : "", cap); return; }
     double r = v->n < 0 ? -v->n : v->n;
@@ -245,7 +250,10 @@ static void xp_primary(struct xp *p, struct xval *v) {
         if (p->err) goto out;
         int f = !lstrcmpiA(name, "chance") && na == 1 ? 1 : (!lstrcmpiA(name, "min") || !lstrcmpiA(name, "max")) && na ? 2 :
                 !lstrcmpiA(name, "abs") && na == 1 ? 3 : !lstrcmpiA(name, "round") && na == 1 ? 4 : 0;
-        if (!f) p->err = 1;
+        if (!f) {   // a relation: them.opinion(me)
+            if (!x_method(p->c, name, a, na, p->skip ? NULL : v)) p->err = 1;
+            else if (p->skip) xnothing(v);
+        }
         else if (p->skip) xnothing(v);
         else if (f == 1) xnum(v, rnd(100) < xto_num(&a[0]));
         else if (f == 2) {
@@ -305,7 +313,8 @@ static void xp_cmp(struct xp *p, struct xval *v) {
     double x, y;
     int d;
     if (!v->w || !b.w) { xnum(v, 0); return; }   // nothing compares with nothing: false
-    if (xis_num(v, &x) && xis_num(&b, &y)) d = x < y ? -1 : x > y;
+    if (v->pl && b.pl) d = v->pl - b.pl;   // players: the same one or not
+    else if (xis_num(v, &x) && xis_num(&b, &y)) d = x < y ? -1 : x > y;
     else {
         char l[XVAL_CAP], r[XVAL_CAP];
         xto_text(v, l, sizeof l);

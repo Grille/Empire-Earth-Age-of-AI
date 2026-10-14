@@ -132,7 +132,7 @@ capitulate = "{name}, let us be sensible. War is bad for business. {tribute} for
 capitulate_accepted = "A pleasure doing business. {tribute}, as agreed."
 capitulate_refused = "No deal? A pity. For both of us."
 all_submitted = "The market is yours, {name} - every competitor pays you tribute."
-other_victory = my_lord ? [
+other_victory = lord == them ? [
     "A hostile takeover, well executed. Congratulations, {name}.",
     "The books are closed. Your profit, {name}.",
 ] : [
@@ -254,7 +254,7 @@ capitulate = "{name}, seien wir vernünftig. Krieg ist schlecht fürs Geschäft.
 capitulate_accepted = "Ein Vergnügen, mit Euch Geschäfte zu machen. {tribute}, wie vereinbart."
 capitulate_refused = "Kein Geschäft? Schade. Für uns beide."
 all_submitted = "Der Markt gehört Ihnen, {name} - jeder Konkurrent zahlt Ihnen Tribut."
-other_victory = my_lord ? [
+other_victory = lord == them ? [
     "Eine feindliche Übernahme, sauber durchgezogen. Glückwunsch, {name}.",
     "Die Bücher sind geschlossen. Ihr Gewinn, {name}.",
 ] : [

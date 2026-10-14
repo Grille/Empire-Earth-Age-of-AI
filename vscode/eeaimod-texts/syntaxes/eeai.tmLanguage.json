@@ -459,16 +459,20 @@
           "match": "\\b(?:and|or|not)\\b"
         },
         {
+          "name": "support.function.relation.eeaimod",
+          "match": "(?:\\b(?:me|them|enemy|lord)(?:\\.lord)*\\.)?\\b(?:alliance_minutes|attack_minutes|recent_kills|war_minutes|betrayals|refusals|opinion|hostile|ignored|tribute|at_war|allied|kills|razed|near)\\b(?=\\s*\\()"
+        },
+        {
           "name": "variable.language.game-value.eeaimod",
-          "match": "\\b(?:me|them|enemy|lord)\\.(?:my_attack_minutes|alliance_minutes|betrayed_by_me|attack_minutes|recent_losses|tribute_paid|recent_kills|forgiveness|war_minutes|betrayed_me|tribute_got|aggression|at_my_base|buildings|my_vassal|soldiers|citizens|strength|my_enemy|my_razed|centers|vassals|loyalty|caution|opinion|hostile|my_lord|refused|ignored|towers|vassal|regard|at_war|allied|losses|epoch|alive|human|pride|greed|stone|kills|razed|name|rank|talk|food|wood|gold|iron)\\b(?!\\.)"
+          "match": "\\b(?:me|them|enemy|lord)(?:\\.lord)*\\.\\b(?:forgiveness|aggression|buildings|soldiers|citizens|strength|centers|vassals|loyalty|caution|towers|epoch|alive|human|pride|greed|stone|name|rank|talk|lord|food|wood|gold|iron)\\b(?![.\\w(])"
         },
         {
           "name": "invalid.illegal.unknown-member.eeaimod",
-          "match": "\\b(?:me|them|enemy|lord)\\.[A-Za-z_][\\w.]*"
+          "match": "\\b(?:me|them|enemy|lord)(?:\\.lord)*\\.[A-Za-z_][\\w.]*"
         },
         {
           "name": "variable.language.game-value.eeaimod",
-          "match": "\\b(?:my_attack_minutes|alliance_minutes|betrayed_by_me|attack_minutes|recent_losses|tribute_paid|recent_kills|war_minutes|betrayed_me|tribute_got|forgiveness|at_my_base|aggression|my_vassal|language|my_enemy|my_razed|minutes|players|enemies|opinion|hostile|my_lord|refused|ignored|loyalty|caution|allies|regard|at_war|allied|losses|enemy|kills|razed|epoch|pride|greed|them|lord|name|talk|me)\\b(?!\\.)"
+          "match": "\\b(?:forgiveness|aggression|language|opinion|minutes|players|enemies|loyalty|caution|at_war|allied|allies|enemy|epoch|pride|greed|them|lord|name|talk|me)\\b(?!\\.)"
         },
         {
           "name": "constant.numeric.eeaimod",
@@ -567,16 +571,20 @@
           "match": "\\b(?:and|or|not)\\b"
         },
         {
+          "name": "support.function.relation.eeaimod",
+          "match": "(?:\\b(?:me|them|enemy|lord)(?:\\.lord)*\\.)?\\b(?:alliance_minutes|attack_minutes|recent_kills|war_minutes|betrayals|refusals|opinion|hostile|ignored|tribute|at_war|allied|kills|razed|near)\\b(?=\\s*\\()"
+        },
+        {
           "name": "variable.language.game-value.eeaimod",
-          "match": "\\b(?:me|them|enemy|lord)\\.(?:my_attack_minutes|alliance_minutes|betrayed_by_me|attack_minutes|recent_losses|tribute_paid|recent_kills|forgiveness|war_minutes|betrayed_me|tribute_got|aggression|at_my_base|buildings|my_vassal|soldiers|citizens|strength|my_enemy|my_razed|centers|vassals|loyalty|caution|opinion|hostile|my_lord|refused|ignored|towers|vassal|regard|at_war|allied|losses|epoch|alive|human|pride|greed|stone|kills|razed|name|rank|talk|food|wood|gold|iron)\\b(?!\\.)"
+          "match": "\\b(?:me|them|enemy|lord)(?:\\.lord)*\\.\\b(?:forgiveness|aggression|buildings|soldiers|citizens|strength|centers|vassals|loyalty|caution|towers|epoch|alive|human|pride|greed|stone|name|rank|talk|lord|food|wood|gold|iron)\\b(?![.\\w(])"
         },
         {
           "name": "invalid.illegal.unknown-member.eeaimod",
-          "match": "\\b(?:me|them|enemy|lord)\\.[A-Za-z_][\\w.]*"
+          "match": "\\b(?:me|them|enemy|lord)(?:\\.lord)*\\.[A-Za-z_][\\w.]*"
         },
         {
           "name": "variable.language.game-value.eeaimod",
-          "match": "\\b(?:my_attack_minutes|alliance_minutes|betrayed_by_me|attack_minutes|recent_losses|tribute_paid|recent_kills|war_minutes|betrayed_me|tribute_got|forgiveness|at_my_base|aggression|my_vassal|language|my_enemy|my_razed|minutes|players|enemies|opinion|hostile|my_lord|refused|ignored|loyalty|caution|allies|regard|at_war|allied|losses|enemy|kills|razed|epoch|pride|greed|them|lord|name|talk|me)\\b(?!\\.)"
+          "match": "\\b(?:forgiveness|aggression|language|opinion|minutes|players|enemies|loyalty|caution|at_war|allied|allies|enemy|epoch|pride|greed|them|lord|name|talk|me)\\b(?!\\.)"
         },
         {
           "name": "constant.numeric.eeaimod",

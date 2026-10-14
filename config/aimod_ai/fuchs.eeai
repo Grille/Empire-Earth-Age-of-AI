@@ -134,7 +134,7 @@ capitulate = "Darling {name}, why fight when we could be friends? {tribute} say 
 capitulate_accepted = "{tribute} - a small price for such good company."
 capitulate_refused = "Pity. I would have made such a charming ally."
 all_submitted = "Well, {name}, it seems we all work for you now. Take your bow."
-other_victory = my_lord ? [
+other_victory = lord == them ? [
     "Well played, {name}. Truly.",
     "I do love a good ending. Bravo, {name}.",
 ] : [
@@ -254,7 +254,7 @@ capitulate = "Ach, {name}, warum kämpfen, wenn wir Freunde sein könnten? {trib
 capitulate_accepted = "{tribute} - ein kleiner Preis für so gute Gesellschaft."
 capitulate_refused = "Schade. Ich wäre eine so reizende Verbündete gewesen."
 all_submitted = "Nun, {name}, es scheint, wir arbeiten jetzt alle für Euch. Verbeugt Euch ruhig."
-other_victory = my_lord ? [
+other_victory = lord == them ? [
     "Gut gespielt, {name}. Wirklich.",
     "Ich liebe ein gutes Ende. Bravo, {name}.",
 ] : [

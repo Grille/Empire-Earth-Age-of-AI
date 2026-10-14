@@ -234,7 +234,7 @@ sit_attack_threat = "your army is about to attack {name}"
 sit_all_submitted = "every other player has submitted to {name}, your lord"
 ; the situations may use expressions too (README.md): the relation to {name}
 ; placeholders: {name}
-sit_other_victory = "{name} has won the game{my_lord ? ', your lord' : allied ? ' - and you with them, as their ally' : ''}"
+sit_other_victory = "{name} has won the game{lord == them ? ', your lord' : allied ? ' - and you with them, as their ally' : ''}"
 ; placeholders: {name} {enemy}
 sit_block_refuse = "you refuse {name}'s peace offer because {enemy} in their alliance cannot be at peace with your side"
 ; placeholders: {name} {enemy}

@@ -19,7 +19,7 @@ def c_string(code):   # the text of the C string literals in code, escapes undon
 
 def sit(key):
     m = re.search(r'\{ "sit_%s", ((?:\s*"(?:[^"\\]|\\.)*")+)' % key, tpl)
-    # an expression in it ({my_lord ? ...}) left out: the plain words describe the situation
+    # an expression in it ({lord == them ? ...}) left out: the plain words describe the situation
     return re.sub(r'\{[^{}]*[ ?][^{}]*\}', '', c_string(m.group(1))) if m else key
 
 def help_text(name):

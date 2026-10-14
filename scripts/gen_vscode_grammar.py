@@ -18,9 +18,11 @@ def xtable(name):   # diplo.c k_xmembers / k_xglobals: (name, kind)
     return re.findall(r'\{ "(\w+)", (XM_\w+),', body)
 members = xtable('k_xmembers')
 globals_ = [n for n, k in xtable('k_xglobals')]
-member_names = [n for n, k in members]
-# without a player: the globals, the relations (them.), my epoch and traits (me.); "name" is them.name
-bare = globals_ + [n for n, k in members if k == 'XM_REL'] + ['epoch', 'name'] + \
+member_names = [n for n, k in members if k != 'XM_REL']
+relations = [n for n, k in members if k == 'XM_REL']
+# without a player: the globals (opinion, at_war, allied among them: mine with them), my epoch and traits (me.);
+# "name" is them.name
+bare = globals_ + ['epoch', 'name'] + \
        [n for n, k in members if k == 'XM_PLAYER' and n in ('aggression', 'loyalty', 'pride', 'greed', 'forgiveness', 'caution', 'talk')]
 values = bare
 epochs = re.findall(r'"(\w+)"', re.search(r'k_epoch_const\[15\] = \{(.*?)\};', expr, re.S).group(1))
@@ -30,12 +32,13 @@ traits = re.findall(r'"(\w+)"', re.search(r'k_trait_keys\[T_N\] = \{(.*?)\};', p
 sys_keys = re.findall(r'^    \{ "(\w+)", "', texts[texts.index('k_sys[] = {'):texts.index('#define N_SYS')], re.M)
 tpl_keys = re.findall(r'^    \{ "(\w+)", ', tpl, re.M)
 style_keys = re.findall(r'\{ "(\w+)", offsetof', settings)
-assert len(values) > 30 and len(epochs) == 15 and 'chance' in funcs and len(situations) >= 40 and len(traits) == 7
+assert len(values) > 15 and len(relations) > 12 and len(epochs) == 15 and 'chance' in funcs and len(situations) >= 40 and len(traits) == 7
 assert len(sys_keys) > 20 and len(tpl_keys) > 100 and len(style_keys) > 10, (len(sys_keys), len(tpl_keys), len(style_keys))
 
 def words(ws):
     return r'\b(?:' + '|'.join(sorted(ws, key=len, reverse=True)) + r')\b'
 
+player = r'\b(?:me|them|enemy|lord)(?:\.lord)*'   # a player: them.lord.lord ...
 expression = [
     {'name': 'string.quoted.double.expression.eeaimod', 'match': r'"(?:[^"\\]|\\.)*"'},
     {'name': 'string.quoted.single.expression.eeaimod', 'match': r"'(?:[^'\\]|\\.)*'"},
@@ -44,8 +47,9 @@ expression = [
     {'name': 'support.function.eeaimod', 'match': words(funcs) + r'(?=\s*\()'},
     {'name': 'constant.language.boolean.eeaimod', 'match': r'\b(?:true|false)\b'},
     {'name': 'keyword.operator.logical.eeaimod', 'match': r'\b(?:and|or|not)\b'},
-    {'name': 'variable.language.game-value.eeaimod', 'match': r'\b(?:me|them|enemy|lord)\.(?:' + '|'.join(sorted(member_names, key=len, reverse=True)) + r')\b(?!\.)'},
-    {'name': 'invalid.illegal.unknown-member.eeaimod', 'match': r'\b(?:me|them|enemy|lord)\.[A-Za-z_][\w.]*'},
+    {'name': 'support.function.relation.eeaimod', 'match': r'(?:' + player + r'\.)?' + words(relations) + r'(?=\s*\()'},
+    {'name': 'variable.language.game-value.eeaimod', 'match': player + r'\.' + words(member_names) + r'(?![.\w(])'},
+    {'name': 'invalid.illegal.unknown-member.eeaimod', 'match': player + r'\.[A-Za-z_][\w.]*'},
     {'name': 'variable.language.game-value.eeaimod', 'match': words(values) + r'(?!\.)'},
     {'name': 'constant.numeric.eeaimod', 'match': r'(?<![\w.])(?:\d+(?:\.\d+)?|\.\d+)'},
     {'name': 'keyword.operator.eeaimod', 'match': r'\?\?|<=|>=|==|!=|&&|\|\||[-+*/%<>!?:]'},

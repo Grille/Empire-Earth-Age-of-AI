@@ -1019,7 +1019,7 @@ static void reputation_pass(uint32_t now) {
 static void diplo_tick(void *pl, unsigned ai, uint32_t now) {
     persona_assign(pl);
     x_errors_show();   // strict parsing: a mistake in the texts at once
-    hist_scan(now);    // the history up to date before anything is said (a betrayal: betrayed_me)
+    hist_scan(now);    // the history up to date before anything is said (a betrayal: them.betrayals(me))
     reputation_pass(now);
     if (FIELD(pl, 0x467, uint8_t)) {   // defeated: last words once
         if (!g_sit.said_defeat[ai]) { g_sit.said_defeat[ai] = 1; persona_say(pl, L_DEFEATED, NULL, NULL); }
@@ -1287,7 +1287,7 @@ static int claim_victory(int me, const char *how) {
     if (g_log) fprintf(g_log, "# victory: P%d claims victory at %.1f min (%s): %d vassals%s\n", me, game_time() / 60000.0, how,
                        n, ok ? " resign" : ", but not everyone has submitted - refused");
     if (ok && g_victory_off) { g_victory_claimed = 1; *STATE_STD_VICTORY = 1; }   // the game's own check ends it
-    for (int j = 1; ok && j < nplayers(); j++) {   // every other AI still in has a word (other_victory: my_lord, allied)
+    for (int j = 1; ok && j < nplayers(); j++) {   // every other AI still in has a word (other_victory: lord == them, allied)
         void *pj = player_at(j);
         if (j == me || !pj || is_out(pj) || !g_players[j]) continue;
         persona_say(pj, L_OTHER_VICTORY, pm, NULL);
@@ -1536,13 +1536,14 @@ static void diplo_install(const char *ini, const char *test_ini) {
 
 // TEXTS: the game's values for the expressions (expr.c). Players: me (the speaker), them (the one it speaks to or
 // about - {name}; in a system line the local player), enemy (a third: {enemy}, {ally}, {lord}) and lord (the
-// speaker's lord, whatever the line),
-// each a value whose text is its name, with members - me.soldiers, them.opinion. A relation is the speaker's with
-// that player: them.opinion is what the speaker thinks of them, them.regard what they think of it. Shortcuts: a
-// relation without "them." (opinion = them.opinion), the speaker's epoch and traits without "me.". Nothing where a
+// speaker's lord, whatever the line). A player is a value: its name in a text, equal only to itself (lord == them).
+// Its members: me.soldiers, them.epoch, them.lord (a player again: them.lord.name). Its relations name the other
+// player: me.opinion(them) is what the speaker thinks of them, them.opinion(me) what they think of it,
+// enemy.opinion(them) ... Shortcuts: the speaker's own without "me." - epoch, traits, a relation (opinion(enemy) =
+// me.opinion(enemy)) - and opinion, at_war, allied alone: the speaker's with them (me.opinion(them)). Nothing where a
 // value doesn't apply (a relation with oneself, a war that isn't, another player's stock, a player who isn't there).
 // The tables also make the documentation: scripts/gen_eeai_readme.py writes them into aimod_ai\README.md.
-enum { XM_PLAYER, XM_ME, XM_REL };   // a player's own, only the speaker's own (its stock), a relation to the speaker
+enum { XM_PLAYER, XM_ME, XM_LINK, XM_REL };   // a player's own, only the speaker's own (its stock), a player, A.<relation>(B)
 struct xmember { const char *name; int kind; const char *doc; };
 static const struct xmember k_xmembers[] = {
     { "name", XM_PLAYER, "its name - the same as the player itself in a text: {them} = {them.name}" },
@@ -1556,45 +1557,38 @@ static const struct xmember k_xmembers[] = {
     { "epoch", XM_PLAYER, "its epoch: the name in a text, 1 (Prehistoric) .. 15 (Space) as a number - compare it with epoch.middle etc." },
     { "alive", XM_PLAYER, "1 while it is still in the game" },
     { "human", XM_PLAYER, "1 for the human player at this PC" },
-    { "vassal", XM_PLAYER, "1 when it has capitulated to someone" },
     { "vassals", XM_PLAYER, "how many have capitulated to it" },
     { "aggression", XM_PLAYER, "its traits, 0-100 (50 without a personality)" },
     { "loyalty", XM_PLAYER, "" }, { "pride", XM_PLAYER, "" }, { "greed", XM_PLAYER, "" }, { "forgiveness", XM_PLAYER, "" },
     { "caution", XM_PLAYER, "" }, { "talk", XM_PLAYER, "" },
+    { "lord", XM_LINK, "its lord, the player it capitulated to - a player: them.lord.name, lord == them; nothing when it has none" },
     { "food", XM_ME, "my stock" },
     { "wood", XM_ME, "" }, { "stone", XM_ME, "" }, { "gold", XM_ME, "" }, { "iron", XM_ME, "" },
-    { "opinion", XM_REL, "-100..100: what I think of them" },
-    { "regard", XM_REL, "-100..100: what they think of me (an AI's opinion; 0 from a human)" },
-    { "at_war", XM_REL, "1 when we are enemies, both of us" },
-    { "allied", XM_REL, "1 when we are allied, both of us" },
-    { "hostile", XM_REL, "1 when they treat me as an enemy" },
-    { "my_enemy", XM_REL, "1 when I treat them as an enemy" },
-    { "war_minutes", XM_REL, "how long our war has lasted - nothing when we are not at war" },
-    { "alliance_minutes", XM_REL, "how long we have been allied - nothing when we are not" },
-    { "my_lord", XM_REL, "1 when they are my lord (I capitulated to them)" },
-    { "my_vassal", XM_REL, "1 when they capitulated to me" },
-    { "betrayed_me", XM_REL, "how often they turned on me while we were allied" },
-    { "betrayed_by_me", XM_REL, "how often I turned on them while we were allied" },
-    { "refused", XM_REL, "how often they refused my offers of peace or alliance" },
-    { "ignored", XM_REL, "my alliance offers they let run out, in a row" },
-    { "tribute_got", XM_REL, "resources they have paid me in this game" },
-    { "tribute_paid", XM_REL, "resources I have paid them" },
-    { "at_my_base", XM_REL, "their soldiers within 20 tiles of my base now (an AI's base)" },
-    { "attack_minutes", XM_REL, "minutes since their last attack wave set out against me - nothing if none (an AI's waves)" },
-    { "my_attack_minutes", XM_REL, "minutes since my last attack wave against them - nothing if none" },
-    { "kills", XM_REL, "their soldiers and citizens I have destroyed" },
-    { "losses", XM_REL, "my soldiers and citizens they have destroyed" },
-    { "recent_kills", XM_REL, "kills in the last 20 minutes" },
-    { "recent_losses", XM_REL, "losses in the last 20 minutes" },
-    { "razed", XM_REL, "their buildings I have destroyed" },
-    { "my_razed", XM_REL, "my buildings they have destroyed" },
+    { "opinion", XM_REL, "-100..100: what A thinks of B (an AI's opinion; nothing from a human)" },
+    { "at_war", XM_REL, "1 when A and B are enemies, both of them" },
+    { "allied", XM_REL, "1 when A and B are allied, both of them" },
+    { "hostile", XM_REL, "1 when A treats B as an enemy (whatever B does)" },
+    { "war_minutes", XM_REL, "how long the war of A and B has lasted - nothing when they are not at war" },
+    { "alliance_minutes", XM_REL, "how long A and B have been allied - nothing when they are not" },
+    { "betrayals", XM_REL, "how often A turned on B while they were allied" },
+    { "refusals", XM_REL, "how often A refused B's offers of peace or alliance" },
+    { "ignored", XM_REL, "B's alliance offers A let run out, in a row" },
+    { "tribute", XM_REL, "resources A has paid B in this game" },
+    { "near", XM_REL, "A's soldiers within 20 tiles of B's base now, while B treats A as an enemy (an AI's base)" },
+    { "attack_minutes", XM_REL, "minutes since A's last attack wave set out against B - nothing if none (an AI's waves)" },
+    { "kills", XM_REL, "B's soldiers and citizens A has destroyed" },
+    { "recent_kills", XM_REL, "of those, the ones in the last 20 minutes" },
+    { "razed", XM_REL, "B's buildings A has destroyed" },
 };
 #define N_XMEMBERS (int)(sizeof k_xmembers / sizeof *k_xmembers)
 static const struct xmember k_xglobals[] = {
     { "me", XM_PLAYER, "the AI that speaks - its name in a text; me.soldiers ..." },
     { "them", XM_PLAYER, "the player it speaks to or about ({name}); in a system line you, the local player" },
     { "enemy", XM_PLAYER, "a third player: the enemy in an alliance offer ({enemy}), the ally or lord in some lines" },
-    { "lord", XM_PLAYER, "my lord, the player I capitulated to - in every line; nothing when I have none" },
+    { "lord", XM_PLAYER, "my lord (me.lord), the player I capitulated to - in every line; nothing when I have none" },
+    { "opinion", XM_REL, "me.opinion(them): what I think of them" },
+    { "at_war", XM_REL, "me.at_war(them)" },
+    { "allied", XM_REL, "me.allied(them)" },
     { "minutes", XM_PLAYER, "the game time in minutes" },
     { "players", XM_PLAYER, "the players still in, me among them" },
     { "allies", XM_PLAYER, "my allies still in" },
@@ -1619,89 +1613,124 @@ static void x_players(struct xctx *c) {   // who is who: the context's players, 
     if (!c->other && h < 16 && player_at((int)h) != c->pl) c->other = player_at((int)h);
 }
 static int x_alive(int j) { return player_at(j) && !is_out(player_at(j)); }
-// member m of player px (speaker ps)
+static void *x_lord(void *p) { return p && g_lord[pidx(p)] ? player_at(g_lord[pidx(p)]) : NULL; }
+static void x_player(struct xval *v, void *p) {   // a player as a value: its name, itself
+    if (!p) { xnothing(v); return; }
+    xstr(v, player_name(p));
+    v->pl = pidx(p) + 1;
+}
+static void *x_player_of(const struct xval *v) {   // the player a value is - or names (a placeholder: {ally})
+    if (!v->w) return NULL;
+    if (v->pl) return player_at(v->pl - 1);
+    return v->has_s ? x_player_named(v->s) : NULL;
+}
+// member m of player px; the speaker ps (its stock only)
 static void x_member(void *ps, void *px, const struct xmember *m, struct xval *v) {
     xnothing(v);
     if (!px) return;
-    int s = ps ? pidx(ps) : 0, x = pidx(px), self = px == ps;
+    int x = pidx(px);
     const char *n = m->name;
-    uint32_t now = game_time();
     double r = 0;
+    if (m->kind == XM_LINK) { x_player(v, x_lord(px)); return; }
     if (m->kind == XM_ME) {
         static const char *const res[5] = { "food", "wood", "stone", "gold", "iron" };
-        for (int k = 0; k < 5; k++) if (self && !strcmp(n, res[k])) xnum(v, FIELD(px, PL_STOCK + (k + 2) * 4, int));
+        for (int k = 0; k < 5; k++) if (px == ps && !strcmp(n, res[k])) xnum(v, FIELD(px, PL_STOCK + (k + 2) * 4, int));
         return;
     }
-    if (m->kind == XM_PLAYER) {
-        if (!strcmp(n, "name")) { xstr(v, player_name(px)); return; }
-        if (!strcmp(n, "epoch")) { char ep[96]; epoch_text(px, ep, sizeof ep); xdual(v, current_epoch(px) + 1, ep); return; }
-        if (!strcmp(n, "soldiers")) r = g_ws.soldiers[x];
-        else if (!strcmp(n, "citizens")) r = g_ws.citizens[x];
-        else if (!strcmp(n, "buildings")) r = g_ws.buildings[x];
-        else if (!strcmp(n, "towers")) r = g_ws.towers[x];
-        else if (!strcmp(n, "centers")) r = g_ws.centers[x];
-        else if (!strcmp(n, "strength")) r = (double)(long)g_ws.power[x];
-        else if (!strcmp(n, "rank")) { r = 1; for (int j = 1; j < nplayers(); j++) r += j != x && x_alive(j) && g_ws.power[j] > g_ws.power[x]; }
-        else if (!strcmp(n, "alive")) r = !is_out(px);
-        else if (!strcmp(n, "human")) r = (unsigned)x == *(unsigned *)0x00918E84;
-        else if (!strcmp(n, "vassal")) r = g_lord[x] != 0;
-        else if (!strcmp(n, "vassals")) for (int j = 1; j < nplayers(); j++) r += j != x && x_alive(j) && g_lord[j] == x;
-        else for (int t = 0; t < T_N; t++) if (!strcmp(n, k_trait_keys[t])) r = trait(px, (enum trait)t);
-        xnum(v, r);
-        return;
-    }
-    if (self || !ps) return;   // a relation: with someone else
-    int war = stance_of(ps, x) && stance_of(px, s), ally = !stance_of(ps, x) && !stance_of(px, s);
-    uint32_t rk[K_N], rl[K_N];
-    if (!strcmp(n, "opinion")) r = g_opinion[s][x];
-    else if (!strcmp(n, "regard")) r = g_opinion[x][s];
-    else if (!strcmp(n, "at_war")) r = war;
-    else if (!strcmp(n, "allied")) r = ally;
-    else if (!strcmp(n, "hostile")) r = stance_of(px, s) != 0;
-    else if (!strcmp(n, "my_enemy")) r = stance_of(ps, x) != 0;
-    else if (!strcmp(n, "war_minutes") || !strcmp(n, "alliance_minutes")) {
-        if (!(n[0] == 'w' ? war : ally)) return;
-        r = (double)((now - g_hist.since[s][x]) / 60000u);
-    }
-    else if (!strcmp(n, "my_lord")) r = g_lord[s] == x;
-    else if (!strcmp(n, "my_vassal")) r = g_lord[x] == s;
-    else if (!strcmp(n, "betrayed_me")) r = g_hist.betrayals[x][s];
-    else if (!strcmp(n, "betrayed_by_me")) r = g_hist.betrayals[s][x];
-    else if (!strcmp(n, "refused")) r = g_hist.refused[x][s];
-    else if (!strcmp(n, "ignored")) r = g_offer_ignored[s][x];
-    else if (!strcmp(n, "tribute_got")) r = g_hist.tribute[x][s];
-    else if (!strcmp(n, "tribute_paid")) r = g_hist.tribute[s][x];
-    else if (!strcmp(n, "at_my_base")) r = g_ws.close_by[s][x];
-    else if (!strcmp(n, "attack_minutes") || !strcmp(n, "my_attack_minutes")) {
-        uint32_t t = n[0] == 'a' ? g_attack_sent[x][s] : g_attack_sent[s][x];
-        if (!t) return;
-        r = (double)((now - t) / 60000u);
-    }
-    else if (!strcmp(n, "kills")) r = g_kills[s][x][K_SOLDIERS] + g_kills[s][x][K_CITIZENS];
-    else if (!strcmp(n, "losses")) r = g_kills[x][s][K_SOLDIERS] + g_kills[x][s][K_CITIZENS];
-    else if (!strcmp(n, "recent_kills")) { kills_recent(s, x, rk); r = rk[K_SOLDIERS] + rk[K_CITIZENS]; }
-    else if (!strcmp(n, "recent_losses")) { kills_recent(x, s, rl); r = rl[K_SOLDIERS] + rl[K_CITIZENS]; }
-    else if (!strcmp(n, "razed")) r = g_kills[s][x][K_BUILDINGS];
-    else if (!strcmp(n, "my_razed")) r = g_kills[x][s][K_BUILDINGS];
+    if (!strcmp(n, "name")) { xstr(v, player_name(px)); return; }
+    if (!strcmp(n, "epoch")) { char ep[96]; epoch_text(px, ep, sizeof ep); xdual(v, current_epoch(px) + 1, ep); return; }
+    if (!strcmp(n, "soldiers")) r = g_ws.soldiers[x];
+    else if (!strcmp(n, "citizens")) r = g_ws.citizens[x];
+    else if (!strcmp(n, "buildings")) r = g_ws.buildings[x];
+    else if (!strcmp(n, "towers")) r = g_ws.towers[x];
+    else if (!strcmp(n, "centers")) r = g_ws.centers[x];
+    else if (!strcmp(n, "strength")) r = (double)(long)g_ws.power[x];
+    else if (!strcmp(n, "rank")) { r = 1; for (int j = 1; j < nplayers(); j++) r += j != x && x_alive(j) && g_ws.power[j] > g_ws.power[x]; }
+    else if (!strcmp(n, "alive")) r = !is_out(px);
+    else if (!strcmp(n, "human")) r = (unsigned)x == *(unsigned *)0x00918E84;
+    else if (!strcmp(n, "vassals")) for (int j = 1; j < nplayers(); j++) r += j != x && x_alive(j) && g_lord[j] == x;
+    else for (int t = 0; t < T_N; t++) if (!strcmp(n, k_trait_keys[t])) r = trait(px, (enum trait)t);
     xnum(v, r);
 }
-static const struct xmember *x_find_member(const char *n) {
-    for (int i = 0; i < N_XMEMBERS; i++) if (!strcmp(k_xmembers[i].name, n)) return &k_xmembers[i];
+// relation m of player pa with player pb: pa.<m>(pb)
+static void x_relation(void *pa, void *pb, const struct xmember *m, struct xval *v) {
+    xnothing(v);
+    if (!pa || !pb || pa == pb) return;
+    int a = pidx(pa), b = pidx(pb);
+    const char *n = m->name;
+    uint32_t now = game_time();
+    int war = stance_of(pa, b) && stance_of(pb, a), ally = !stance_of(pa, b) && !stance_of(pb, a);
+    uint32_t rk[K_N];
+    double r = 0;
+    if (!strcmp(n, "opinion")) { if (!g_players[a]) return; r = g_opinion[a][b]; }
+    else if (!strcmp(n, "at_war")) r = war;
+    else if (!strcmp(n, "allied")) r = ally;
+    else if (!strcmp(n, "hostile")) r = stance_of(pa, b) != 0;
+    else if (!strcmp(n, "war_minutes") || !strcmp(n, "alliance_minutes")) {
+        if (!(n[0] == 'w' ? war : ally)) return;
+        r = (double)((now - g_hist.since[a][b]) / 60000u);
+    }
+    else if (!strcmp(n, "betrayals")) r = g_hist.betrayals[a][b];
+    else if (!strcmp(n, "refusals")) r = g_hist.refused[a][b];
+    else if (!strcmp(n, "ignored")) r = g_offer_ignored[b][a];
+    else if (!strcmp(n, "tribute")) r = g_hist.tribute[a][b];
+    else if (!strcmp(n, "near")) { if (!g_players[b]) return; r = g_ws.close_by[b][a]; }
+    else if (!strcmp(n, "attack_minutes")) {
+        if (!g_attack_sent[a][b]) return;
+        r = (double)((now - g_attack_sent[a][b]) / 60000u);
+    }
+    else if (!strcmp(n, "kills")) r = g_kills[a][b][K_SOLDIERS] + g_kills[a][b][K_CITIZENS];
+    else if (!strcmp(n, "recent_kills")) { kills_recent(a, b, rk); r = rk[K_SOLDIERS] + rk[K_CITIZENS]; }
+    else if (!strcmp(n, "razed")) r = g_kills[a][b][K_BUILDINGS];
+    xnum(v, r);
+}
+static const struct xmember *x_find_member(const char *n, int len) {
+    for (int i = 0; i < N_XMEMBERS; i++) if ((int)strlen(k_xmembers[i].name) == len && !strncmp(k_xmembers[i].name, n, len)) return &k_xmembers[i];
     return NULL;
 }
+// a path of players: me, them, enemy, lord, and .lord after them (them.lord.lord); *ok 0: not one
+static void *x_path(struct xctx *c, const char *s, int len, int *ok) {
+    const char *dot = memchr(s, '.', (size_t)len);
+    int n = dot ? (int)(dot - s) : len;
+    void *p;
+    *ok = 1;
+    x_players(c);
+    if (n == 2 && !strncmp(s, "me", 2)) p = c->pl;
+    else if (n == 4 && !strncmp(s, "them", 4)) p = c->other;
+    else if (n == 5 && !strncmp(s, "enemy", 5)) p = c->third;
+    else if (n == 4 && !strncmp(s, "lord", 4)) p = x_lord(c->pl);
+    else { *ok = 0; return NULL; }
+    while (dot) {
+        s = dot + 1;
+        len -= n + 1;
+        dot = memchr(s, '.', (size_t)len);
+        n = dot ? (int)(dot - s) : len;
+        const struct xmember *m = x_find_member(s, n);
+        if (!m || m->kind != XM_LINK) { *ok = 0; return NULL; }
+        p = x_lord(p);
+    }
+    return p;
+}
 static int x_builtin(struct xctx *c, const char *name, struct xval *v) {
-    const char *dot = strchr(name, '.');
-    char obj[16] = "";
-    if (dot && dot - name < (int)sizeof obj) lstrcpynA(obj, name, (int)(dot - name) + 1);
-    const char *o = dot ? obj : name;
-    int who = !strcmp(o, "me") ? 1 : !strcmp(o, "them") ? 2 : !strcmp(o, "enemy") ? 3 : !strcmp(o, "lord") ? 4 : 0;
-    const struct xmember *m = x_find_member(dot ? dot + 1 : name);
-    if (dot && (!who || !m)) return 0;   // something.<what nobody knows>
-    if (!dot && !who && !m) {   // the globals
-        int g = 0;
-        while (g < N_XGLOBALS && strcmp(k_xglobals[g].name, name)) g++;
-        if (g == N_XGLOBALS) return 0;
-        x_players(c);
+    const char *dot = strrchr(name, '.');
+    int ok;
+    if (dot) {   // <player>.<member>
+        void *p = x_path(c, name, (int)(dot - name), &ok);
+        const struct xmember *m = ok ? x_find_member(dot + 1, (int)strlen(dot + 1)) : NULL;
+        if (!m || m->kind == XM_REL) return 0;   // a relation needs its other player: them.opinion(me)
+        if (m->kind == XM_ME && p != c->pl) { xnothing(v); return 1; }   // another's stock: hidden
+        x_member(c->pl, p, m, v);
+        return 1;
+    }
+    void *p = x_path(c, name, (int)strlen(name), &ok);
+    if (ok) { x_player(v, p); return 1; }   // a player
+    int g = 0;
+    while (g < N_XGLOBALS && strcmp(k_xglobals[g].name, name)) g++;
+    if (g < N_XGLOBALS && k_xglobals[g].kind == XM_REL) {   // opinion, at_war, allied: mine with them
+        x_relation(c->pl, c->other, x_find_member(name, (int)strlen(name)), v);
+        return 1;
+    }
+    if (g < N_XGLOBALS) {
         int s = c->pl ? pidx(c->pl) : 0;
         double r = 0;
         if (!strcmp(name, "minutes")) r = (double)(game_time() / 60000u);
@@ -1715,18 +1744,32 @@ static int x_builtin(struct xctx *c, const char *name, struct xval *v) {
         xnum(v, r);
         return 1;
     }
-    if (!dot && m && m->kind == XM_ME) return 0;   // the stock only as me.food
-    x_players(c);
-    int mine = 0;   // without "me.": the speaker's epoch and traits
-    if (!dot && m && m->kind == XM_PLAYER) {
-        mine = !strcmp(name, "epoch");
-        for (int t = 0; t < T_N; t++) mine |= !strcmp(name, k_trait_keys[t]);
-        if (!mine && strcmp(name, "name")) return 0;   // the rest only with me. / them. / enemy.
+    const struct xmember *m = x_find_member(name, (int)strlen(name));   // without "me.": my epoch and traits; name: them.name
+    int mine = m && m->kind == XM_PLAYER && !strcmp(name, "epoch");
+    for (int t = 0; m && t < T_N; t++) mine |= !strcmp(name, k_trait_keys[t]);
+    if (mine) { x_member(c->pl, c->pl, m, v); return 1; }
+    if (m && !strcmp(name, "name")) { x_member(c->pl, c->other, m, v); return 1; }
+    return 0;
+}
+// a relation: <player>.<relation>(<player>), or <relation>(<player>) - the speaker's. v NULL: only whether name is one
+static int x_method(struct xctx *c, const char *name, const struct xval *a, int na, struct xval *v) {
+    const char *dot = strrchr(name, '.');
+    const char *rel = dot ? dot + 1 : name;
+    const struct xmember *m = x_find_member(rel, (int)strlen(rel));
+    if (!m || m->kind != XM_REL || na != 1) return 0;
+    int ok = 1;
+    void *pa = dot ? x_path(c, name, (int)(dot - name), &ok) : (x_players(c), c->pl);
+    if (!ok) return 0;
+    if (!v) return 1;
+    void *pb = x_player_of(&a[0]);
+    if (a[0].w && !pb) {   // nothing (no lord) gives nothing, anything else is a mistake
+        char t[48];
+        xto_text(&a[0], t, sizeof t);
+        x_error("%s(%s): not a player", name, t);
+        xnothing(v);
+        return 1;
     }
-    void *lord = c->pl && g_lord[pidx(c->pl)] ? player_at(g_lord[pidx(c->pl)]) : NULL;
-    void *p = who == 1 ? c->pl : who == 2 ? c->other : who == 3 ? c->third : who == 4 ? lord : mine ? c->pl : c->other;   // name, relations: them
-    if (!dot && who) { if (p) xstr(v, player_name(p)); else xnothing(v); return 1; }   // a player: its name in a text
-    x_member(c->pl, p, m, v);
+    x_relation(pa, pb, m, v);
     return 1;
 }
 // a placeholder's text that names an epoch ({epoch} in the prompts: the speaker's or the other's) gets its number

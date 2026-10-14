@@ -128,7 +128,7 @@ capitulate = "{name}, you have bested me. I offer {tribute} and my sword at your
 capitulate_accepted = "{tribute}, as sworn. My word is my bond, {name}."
 capitulate_refused = "You refuse my oath? Then I fall with honour."
 all_submitted = "Every knight in this land has sworn fealty to you, {name}."
-other_victory = my_lord ? [
+other_victory = lord == them ? [
     "Long live {name}!",
     "With honour I lay down my sword before you, {name}.",
 ] : [
@@ -253,7 +253,7 @@ capitulate = "{name}, Ihr habt mich bezwungen. Ich biete {tribute} und mein Schw
 capitulate_accepted = "{tribute}, wie geschworen. Mein Wort gilt, {name}."
 capitulate_refused = "Ihr verschmäht meinen Eid? Dann falle ich mit Ehre."
 all_submitted = "Jeder Ritter in diesem Land hat Euch die Treue geschworen, {name}."
-other_victory = my_lord ? [
+other_victory = lord == them ? [
     "Lang lebe {name}!",
     "In Ehren lege ich mein Schwert vor Euch nieder, {name}.",
 ] : [

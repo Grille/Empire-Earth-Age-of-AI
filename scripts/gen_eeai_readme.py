@@ -23,7 +23,7 @@ fallback = {a.lower(): b.lower() for a, b in re.findall(r'case L_(\w+): return L
 aud = {'A_ALL': 'everyone', 'A_ALLIES': 'its allies', 'A_NAME': '{name}'}
 def sit(key):
     m = re.search(r'\{ "sit_%s", ((?:\s*"(?:[^"\\]|\\.)*")+)' % key, tpl)
-    # an expression in it ({my_lord ? ...}) left out: the plain words describe the situation
+    # an expression in it ({lord == them ? ...}) left out: the plain words describe the situation
     return re.sub(r'\{[^{}]*[ ?][^{}]*\}', '', c_string(m.group(1))) if m else ''
 t = ['| Situation | When - "you" is the AI | Heard by | Chance | Cooldown | Without a line |', '|---|---|---|---|---|---|']
 for key, chance, cooldown, a in lines:
@@ -35,23 +35,26 @@ situations = '\n'.join(t)
 def members(table):
     body = re.search(r'static const struct xmember %s\[\] = \{(.*?)\n\};' % table, diplo, re.S).group(1)
     return re.findall(r'\{ "(\w+)", (XM_\w+), ((?:"(?:[^"\\]|\\.)*"\s*)+)\}', body)
-kinds = {'XM_PLAYER': [], 'XM_ME': [], 'XM_REL': []}
+kinds = {'XM_PLAYER': [], 'XM_ME': [], 'XM_LINK': [], 'XM_REL': []}
 for name, kind, doc in members('k_xmembers'):
     kinds[kind].append((name, c_string(doc)))
-def table(rows, prefix, head):
+def table(rows, prefix, head, suffix=''):
     out = ['| %s | |' % head, '|---|---|']
     pending = []
+    def row():
+        out.append('| %s | %s |' % (', '.join('`%s%s%s`' % (prefix, n, suffix) for n in pending[0]), cell(pending[1])))
     for name, doc in rows:   # rows without a text share the previous one's
         if doc:
-            if pending: out.append('| %s | %s |' % (', '.join('`%s%s`' % (prefix, n) for n in pending[0]), cell(pending[1])))
+            if pending: row()
             pending = [[name], doc]
         else: pending[0].append(name)
-    if pending: out.append('| %s | %s |' % (', '.join('`%s%s`' % (prefix, n) for n in pending[0]), cell(pending[1])))
+    if pending: row()
     return '\n'.join(out)
 values = '\n\n'.join([
-    '**Of each player** - `me.`, `them.`, `enemy.`:\n\n' + table(kinds['XM_PLAYER'], 'X.', 'Member'),
+    '**Of each player** - `me.`, `them.`, `enemy.`, `lord.`:\n\n' + table(kinds['XM_PLAYER'] + kinds['XM_LINK'], 'X.', 'Member'),
     '**Only my own** - `me.` (another player\'s stock is hidden in the game):\n\n' + table(kinds['XM_ME'], 'me.', 'Member'),
-    '**Relations** between me and the player - `them.` (or without it), `enemy.`:\n\n' + table(kinds['XM_REL'], 'X.', 'Member'),
+    '**Relations** of player A with player B - `me.opinion(them)`, `them.opinion(me)`, `enemy.at_war(them)`; '
+    'without `A.` mine (`opinion(enemy)`):\n\n' + table(kinds['XM_REL'], 'A.', 'Relation', '(B)'),
     '**The game:**\n\n' + table([(n, c_string(d)) for n, k, d in members('k_xglobals')], '', 'Name'),
 ])
 
