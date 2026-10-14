@@ -1,0 +1,11 @@
+; eeaimod's shared [vars] for its personalities - each names this file: include = "_eeaimod_shared.eeai".
+; A personality's own [vars] come first: one of the same name replaces these for it.
+; A pack of your own brings its own shared file (another name), so packs never touch each other's.
+
+[vars]
+; the war now going on (in peace_accept: the one just ended) - a window for "this war": them.kills(me, this_war)
+this_war = me.war_minutes(them)
+; losses that count as many at this stage of the game: a third of the largest army (10 at least)
+many_dead = max(10, max_population / 3)
+; tribute that counts as much at this stage of the game: half of what I hold (1500 at least)
+big_tribute = max(1500, me.stock / 2)

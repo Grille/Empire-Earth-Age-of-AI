@@ -211,6 +211,25 @@ angry = ["Go away.", "You again?"]
 
 Then `{address}`, `{title}` in a line, or `angry` in an expression.
 
+### Shared [vars]: include
+
+`[vars]` that several personalities share go into a file of their own, which each of them names before its first
+section:
+
+```ini
+include = "_eeaimod_shared.eeai"
+[personality]
+...
+```
+
+or several: `include = ["_eeaimod_shared.eeai", "_knights.eeai"]`. Their `[vars]` (and `[vars:de]` in a German game)
+come after the personality's own - a name it defines itself wins - in the order named. An included file holds only
+`[vars]` and may include others (4 deep, no circles). Only a file name in this folder: no path.
+
+Start a shared file's name with `_` (no personality is read from it), and give a pack of your own its own shared file
+with its own name: packs dropped into this folder then never depend on each other. eeaimod's personalities share
+`_eeaimod_shared.eeai`: `this_war`, `many_dead`, `big_tribute`.
+
 ## The game's values
 
 A line is said by one AI - **me** - to or about another player - **them** (`{name}`). Some lines also involve a

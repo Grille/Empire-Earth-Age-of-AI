@@ -12,6 +12,9 @@
 ; strings"] (one at random), allied ? "a condition", a ?? b, numbers ... The format, the expressions and every
 ; value of the game (opinion, them.soldiers, epoch.middle, ...): README.md in this folder.
 
+; shared [vars] of other files in this folder, after this one's own (this_war, many_dead, big_tribute):
+include = "_eeaimod_shared.eeai"
+
 [personality]
 ; the name in the game (the player name in the scores and the chat); name:de for a German game
 name = ""

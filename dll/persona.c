@@ -218,11 +218,67 @@ static int g_personas_only_computer;   // autotest personas=0: only computer.eea
 // a personality file (the format: expr.c): [personality] name, name:<language>, character (strings), color (a list
 // of colour names), the traits (numbers 0-100); [style] (numbers); [vars] / [vars:<language>]; [lines] /
 // [lines:<language>] - each situation a string or a list of them, "if" conditions
+// INCLUDES: before its first section a file may name others in its folder - include = "_shared.eeai" or a list of
+// them - whose [vars] / [vars:<language>] it uses after its own (the first named first); an included file holds only
+// [vars] and includes of its own (4 deep, no circles). Only a plain file name: no path, so a pack of files dropped into
+// aimod_ai brings its own shared vars without touching anyone else's. Files starting with _ are no personalities.
+#define INCLUDES_MAX 8
+struct includes { int n; char name[INCLUDES_MAX][64]; };
+struct inc_add { struct includes *inc; struct tlex *l; };
+static void include_add(const char *name, void *arg) {
+    struct inc_add *a = arg;
+    size_t n = strlen(name);
+    if (n < 6 || n >= 64 || lstrcmpiA(name + n - 5, ".eeai") || strpbrk(name, "/\\:") || strstr(name, ".."))
+        x_error("%s:%d: include \"%s\": a file name in this folder expected (\"_shared.eeai\")", a->l->file, a->l->line, name);
+    else if (a->inc->n < INCLUDES_MAX) lstrcpynA(a->inc->name[a->inc->n++], name, 64);
+}
+// the include = key (section ""): its names into inc; 0: not one (an unknown key before the first section)
+static int include_key(struct includes *inc, const char *sec, const char *key, struct tval *v, struct tlex *l) {
+    if (*sec || lstrcmpiA(key, "include")) return 0;
+    struct inc_add a = { inc, l };
+    if (!x_plain_strings(v->src, include_add, &a)) tl_error(l, "include = \"_file.eeai\" or a list of them expected");
+    return 1;
+}
+struct inc_read { struct xvars base, lang; struct includes inc; };
+static void inc_key(void *arg, const char *sec, const char *key, struct tval *v, struct tlex *l) {
+    struct inc_read *r = arg;
+    if (include_key(&r->inc, sec, key, v, l)) return;
+    if (!lstrcmpiA(sec, "vars")) xvars_set(&r->base, key, v->src);
+    else if (!_strnicmp(sec, "vars:", 5)) { if (lang_matches(sec + 5)) xvars_set(&r->lang, key, v->src); }
+    else tl_error(l, *sec ? "an included file holds [vars] only" : "a key before the first section (only include =)");
+}
+static void xvars_free(struct xvars *v) { for (int i = 0; i < v->n; i++) { free(v->key[i]); free(v->val[i]); } v->n = 0; }
+// the [vars] of the files inc names (dir: the folder) into vars, where vars has no such name yet (by: who names them)
+static void includes_load(const char *dir, const struct includes *inc, struct xvars *vars, const char *by, int depth) {
+    for (int i = 0; i < inc->n; i++) {
+        char path[MAX_PATH];
+        if (depth >= 4) { x_error("%s: include \"%s\": more than 4 deep (a circle?)", by, inc->name[i]); return; }
+        wsprintfA(path, "%s%s", dir, inc->name[i]);
+        char *text = read_text_acp(path);
+        if (!text) { x_error("%s: include \"%s\": no such file in aimod_ai", by, inc->name[i]); continue; }
+        static struct inc_read r0;
+        struct inc_read *r = malloc(sizeof *r);
+        *r = r0;
+        tfile_parse(inc->name[i], text, inc_key, r);
+        free(text);
+        for (int k = 0; k < r->lang.n; k++) xvars_set(&r->base, r->lang.key[k], r->lang.val[k]);   // its language over its [vars]
+        for (int k = 0; k < r->base.n; k++)
+            if (!xvars_get(vars, r->base.key[k])) {
+                if (vars->n == XVARS_MAX) { x_error("%s: more than %d [vars] with its includes", by, XVARS_MAX); break; }
+                xvars_set(vars, r->base.key[k], r->base.val[k]);
+            }
+        includes_load(dir, &r->inc, vars, inc->name[i], depth + 1);
+        xvars_free(&r->base);
+        xvars_free(&r->lang);
+        free(r);
+    }
+}
 struct persona_read {
     struct persona *p;
     char *ll[L_N];   // [lines:<game language>]: over [lines] situation by situation
     int lang_name;   // name:<game language> seen (wins over name=)
     struct xvars vl;   // [vars:<game language>]: over [vars]
+    struct includes inc;   // include = (before the first section)
 };
 struct color_read { struct persona *p; struct tlex *l; int line; };
 static void color_add(const char *name, void *arg) {
@@ -234,6 +290,8 @@ static void color_add(const char *name, void *arg) {
 static void persona_key(void *arg, const char *sec, const char *key, struct tval *v, struct tlex *l) {
     struct persona_read *r = arg;
     struct persona *p = r->p;
+    if (include_key(&r->inc, sec, key, v, l)) return;
+    if (!*sec) { tl_error(l, "a key before the first section (only include =)"); return; }
     if (!lstrcmpiA(sec, "personality")) {
         int name = !lstrcmpiA(key, "name"), lname = !_strnicmp(key, "name:", 5);
         if (name || lname || !lstrcmpiA(key, "character")) {
@@ -288,6 +346,11 @@ static void persona_load(const char *path, const char *file) {
     tfile_parse(file, text, persona_key, &r);
     free(text);
     for (int i = 0; i < r.vl.n; i++) { xvars_set(&p->vars, r.vl.key[i], r.vl.val[i]); free(r.vl.key[i]); free(r.vl.val[i]); }
+    char dir[MAX_PATH];   // its includes' [vars] after its own
+    lstrcpynA(dir, path, sizeof dir);
+    char *bs = strrchr(dir, '\\');
+    if (bs) bs[1] = 0; else dir[0] = 0;
+    includes_load(dir, &r.inc, &p->vars, file, 0);
     for (int k = 0; k < L_N; k++)   // the language's lines where it has them, [lines] for the rest
         if (r.ll[k]) { free(p->line[k]); p->line[k] = r.ll[k]; }
     if (!lstrcmpiA(p->file, "computer")) {   // the neutral fallback lines, no personality of its own

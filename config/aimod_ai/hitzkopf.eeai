@@ -1,4 +1,5 @@
 ; AI personality for eeaimod - the format and every key: _persona.eeai.
+include = "_eeaimod_shared.eeai"
 [personality]
 name = "Chieftain Brann"
 name:de = "Häuptling Brann"
@@ -36,10 +37,6 @@ good_fight = me.kills(them) > many_dead / 2 and them.kills(me) > many_dead / 2
 my_tally = me.kills(them) > many_dead
 ; only where we are at war (nothing otherwise)
 long_war = me.war_minutes(them) > 30
-; losses that count as many at this stage of the game: a third of the largest army (10 at least)
-many_dead = max(10, max_population / 3)
-; tribute that counts as much at this stage of the game: half of what I hold (1500 at least)
-big_tribute = max(1500, me.stock / 2)
 
 [lines]
 greeting = [

@@ -7,14 +7,7 @@
 ; AI, {enemy} a third player, {tribute} what a capitulation pays, by
 ; resource ("200 gold, 800 iron").
 
-[vars]
-; the war now going on (in peace_accept: the one just ended) - a window for "this war": them.kills(me, this_war)
-this_war = me.war_minutes(them)
-; losses that count as many at this stage of the game: a third of the largest army (10 at least)
-many_dead = max(10, max_population / 3)
-; tribute that counts as much at this stage of the game: half of what I hold (1500 at least)
-big_tribute = max(1500, me.stock / 2)
-
+include = "_eeaimod_shared.eeai"
 [lines]
 war_declared = [
     them.betrayals(me) > 0 ? [
