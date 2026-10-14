@@ -88,7 +88,7 @@ peace_refuse = [
     ],
     them.refusals(me) > 0 and chance(60%) ? "You said no to MY peace, {name}! Now I say no! HA! ...What were we fighting about again?",
     long_war and chance(60%) ? "{me.war_minutes(them)} minutes of brawling and you want to stop NOW, {name}? It's only just getting good!",
-    me.recent_kills(them) > 15 and chance(60%) ? "Stop? I'm on a roll, {name}! {me.recent_kills(them)} of yours just lately!",
+    me.kills(them, 20) > 15 and chance(60%) ? "Stop? I'm on a roll, {name}! {me.kills(them, 20)} of yours just lately!",
 ] ?? [
     "Peace? I've only just warmed up, {name}!",
     "NO! Keep fighting!",
@@ -161,7 +161,7 @@ tribute_small = at_war ? [
 attack = [
     them.razed(me) > 0 and chance(60%) ? "They smashed my houses! Now we smash theirs! At {name}!",
     them.kills(me) > 30 and them.kills(me) > me.kills(them) and chance(60%) ? "{name} has knocked down more of ours than we of theirs! Let's fix that, lads!",
-    me.recent_kills(them) > 15 and chance(50%) ? "That was fun just now! Again! At {name}!",
+    me.kills(them, 20) > 15 and chance(50%) ? "That was fun just now! Again! At {name}!",
 ] ?? [
     "ATTACK! At {name}!",
     "Come on, lads! {name} is waiting!",
@@ -310,7 +310,7 @@ peace_refuse = [
     ],
     them.refusals(me) > 0 and chance(60%) ? "Du hast MEINEN Frieden abgelehnt, {name}! Jetzt lehn ich ab! HA! ... Worum ging's eigentlich noch mal?",
     long_war and chance(60%) ? "{me.war_minutes(them)} Minuten Prügelei, und jetzt willst du aufhören, {name}? Jetzt wird's doch erst schön!",
-    me.recent_kills(them) > 15 and chance(60%) ? "Aufhören? Ich bin grad so gut in Fahrt, {name}! {me.recent_kills(them)} von deinen allein in letzter Zeit!",
+    me.kills(them, 20) > 15 and chance(60%) ? "Aufhören? Ich bin grad so gut in Fahrt, {name}! {me.kills(them, 20)} von deinen allein in letzter Zeit!",
 ] ?? [
     "Frieden? Ich bin doch gerade erst warm geworden, {name}!",
     "NEIN! Weiterkämpfen!",
@@ -382,7 +382,7 @@ tribute_small = at_war ? [
 attack = [
     them.razed(me) > 0 and chance(60%) ? "Die haben meine Häuser kaputtgemacht! Jetzt machen wir ihre kaputt! Auf {name}!",
     them.kills(me) > 30 and them.kills(me) > me.kills(them) and chance(60%) ? "{name} hat mehr von uns umgehauen als wir von denen! Das ändern wir, Jungs!",
-    me.recent_kills(them) > 15 and chance(50%) ? "Das hat eben Spaß gemacht! Nochmal! Auf {name}!",
+    me.kills(them, 20) > 15 and chance(50%) ? "Das hat eben Spaß gemacht! Nochmal! Auf {name}!",
 ] ?? [
     "ANGRIFF! Auf {name}!",
     "Los, Jungs! {name} wartet schon!",

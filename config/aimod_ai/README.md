@@ -266,7 +266,7 @@ Shortcuts: my own `epoch` and traits without `me.` (`aggression` is `me.aggressi
 |---|---|
 | `me.food`, `me.wood`, `me.stone`, `me.gold`, `me.iron` | my stock |
 
-**Relations** of player A with player B - `me.opinion(them)`, `them.opinion(me)`, `enemy.at_war(them)`; without `A.` mine (`opinion(enemy)`):
+**Relations** of player A with player B - `me.opinion(them)`, `them.opinion(me)`, `enemy.at_war(them)`; without `A.` mine (`opinion(enemy)`). Those that count events - `tribute`, `refusals`, `betrayals`, `kills`, `razed` - take a time window as a second argument: `them.tribute(me, 15)` counts the last 15 minutes only (`16.5` too), without it the whole game:
 
 | Relation | |
 |---|---|
@@ -276,15 +276,14 @@ Shortcuts: my own `epoch` and traits without `me.` (`aggression` is `me.aggressi
 | `A.hostile(B)` | 1 when A treats B as an enemy (whatever B does) |
 | `A.war_minutes(B)` | how long the war of A and B has lasted: from both enemies until both are allied again (a peace offer doesn't end it; in peace_accept: the war just ended) - nothing without a war |
 | `A.alliance_minutes(B)` | how long A and B have been allied - nothing when they are not |
-| `A.betrayals(B)` | how often A turned on B while they were allied |
-| `A.refusals(B)` | how often A refused B's offers of peace or alliance |
+| `A.betrayals(B)` | how often A turned on B while they were allied - (B, minutes): in the last minutes |
+| `A.refusals(B)` | how often A refused B's offers of peace or alliance - (B, minutes): in the last minutes |
 | `A.ignored(B)` | B's alliance offers A let run out, in a row |
-| `A.tribute(B)` | resources A has paid B in this game |
+| `A.tribute(B)` | resources A has paid B in this game - (B, minutes): in the last minutes, them.tribute(me, 15) |
 | `A.near(B)` | A's soldiers within 20 tiles of B's base now, while B treats A as an enemy (an AI's base) |
 | `A.attack_minutes(B)` | minutes since A's last attack wave set out against B - nothing if none (an AI's waves) |
-| `A.kills(B)` | B's soldiers and citizens A has destroyed |
-| `A.recent_kills(B)` | of those, the ones in the last 20 minutes |
-| `A.razed(B)` | B's buildings A has destroyed |
+| `A.kills(B)` | B's soldiers and citizens A has destroyed - (B, minutes): in the last minutes (whole minutes, at most 60) |
+| `A.razed(B)` | B's buildings A has destroyed - (B, minutes) as kills |
 
 **The game:**
 

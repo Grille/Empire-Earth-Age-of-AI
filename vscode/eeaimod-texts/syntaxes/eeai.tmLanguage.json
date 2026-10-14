@@ -459,7 +459,7 @@
           "match": "\\b(?:and|or|not)\\b"
         },
         {
-          "match": "(?:(\\b(?:me|them|enemy|lord)(?:\\.lord)*)(\\.))?(\\b(?:alliance_minutes|attack_minutes|recent_kills|war_minutes|betrayals|refusals|opinion|hostile|ignored|tribute|at_war|allied|kills|razed|near)\\b)(?=\\s*\\()",
+          "match": "(?:(\\b(?:me|them|enemy|lord)(?:\\.lord)*)(\\.))?(\\b(?:alliance_minutes|attack_minutes|war_minutes|betrayals|refusals|opinion|hostile|ignored|tribute|at_war|allied|kills|razed|near)\\b)(?=\\s*\\()",
           "captures": {
             "1": {
               "name": "variable.language.game-value.eeaimod"
@@ -585,7 +585,7 @@
           "match": "\\b(?:and|or|not)\\b"
         },
         {
-          "match": "(?:(\\b(?:me|them|enemy|lord)(?:\\.lord)*)(\\.))?(\\b(?:alliance_minutes|attack_minutes|recent_kills|war_minutes|betrayals|refusals|opinion|hostile|ignored|tribute|at_war|allied|kills|razed|near)\\b)(?=\\s*\\()",
+          "match": "(?:(\\b(?:me|them|enemy|lord)(?:\\.lord)*)(\\.))?(\\b(?:alliance_minutes|attack_minutes|war_minutes|betrayals|refusals|opinion|hostile|ignored|tribute|at_war|allied|kills|razed|near)\\b)(?=\\s*\\()",
           "captures": {
             "1": {
               "name": "variable.language.game-value.eeaimod"

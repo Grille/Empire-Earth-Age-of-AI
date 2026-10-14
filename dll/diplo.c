@@ -132,11 +132,40 @@ static struct {
     uint16_t refused[16][16];    // [x][y]: x refused y's offers of peace or alliance
     uint32_t tribute[16][16];    // [x][y]: resources x paid y
 } g_hist;
-static void hist_reset(void) { memset(&g_hist, 0, sizeof g_hist); memset(g_hist.stance, 0xFF, sizeof g_hist.stance); }
-static void hist_tribute(int from, int to, int total) {
-    if (from >= 0 && from < 16 && to >= 0 && to < 16 && from != to && total > 0) g_hist.tribute[from][to] += (uint32_t)total;
+// the same events with their time, for a window in the texts (them.tribute(me, 15): the last 15 minutes) - the last
+// HLOG_N of them (rare: tributes, refusals, betrayals), saved with the game
+#define HLOG_N 256
+enum { HE_TRIBUTE = 1, HE_REFUSED, HE_BETRAYAL };
+static struct { struct { uint32_t t, n; uint8_t kind, a, b, pad; } e[HLOG_N]; uint32_t next; } g_hlog;
+static void hlog_add(int kind, int a, int b, uint32_t n) {
+    uint32_t i = g_hlog.next++ % HLOG_N, now = game_time();
+    g_hlog.e[i].t = now ? now : 1;
+    g_hlog.e[i].n = n;
+    g_hlog.e[i].kind = (uint8_t)kind;
+    g_hlog.e[i].a = (uint8_t)a;
+    g_hlog.e[i].b = (uint8_t)b;
 }
-static void hist_refused(int x, int y) { if (x >= 0 && x < 16 && y >= 0 && y < 16 && g_hist.refused[x][y] < 60000) g_hist.refused[x][y]++; }
+static uint32_t hlog_sum(int kind, int a, int b, uint32_t since) {   // a's events towards b from game time since on
+    uint32_t r = 0;
+    for (int i = 0; i < HLOG_N; i++)
+        if (g_hlog.e[i].kind == kind && g_hlog.e[i].a == a && g_hlog.e[i].b == b && g_hlog.e[i].t >= since) r += g_hlog.e[i].n;
+    return r;
+}
+static void hist_reset(void) {
+    memset(&g_hist, 0, sizeof g_hist);
+    memset(g_hist.stance, 0xFF, sizeof g_hist.stance);
+    memset(&g_hlog, 0, sizeof g_hlog);
+}
+static void hist_tribute(int from, int to, int total) {
+    if (from < 0 || from >= 16 || to < 0 || to >= 16 || from == to || total <= 0) return;
+    g_hist.tribute[from][to] += (uint32_t)total;
+    hlog_add(HE_TRIBUTE, from, to, (uint32_t)total);
+}
+static void hist_refused(int x, int y) {
+    if (x < 0 || x >= 16 || y < 0 || y >= 16 || g_hist.refused[x][y] >= 60000) return;
+    g_hist.refused[x][y]++;
+    hlog_add(HE_REFUSED, x, y, 1);
+}
 static void hist_scan(uint32_t now) {
     for (int x = 1; x < nplayers(); x++)
         for (int y = x + 1; y < nplayers(); y++) {
@@ -147,8 +176,8 @@ static void hist_scan(uint32_t now) {
             uint32_t t = now < 15000 ? 1 : now;
             if (ox < 0 || oy < 0) g_hist.since[x][y] = g_hist.since[y][x] = now < 15000 ? 0 : now;   // first seen
             else {
-                if (!ox && !oy && sx) g_hist.betrayals[x][y]++;   // allied, and x turned
-                if (!ox && !oy && sy) g_hist.betrayals[y][x]++;
+                if (!ox && !oy && sx) { g_hist.betrayals[x][y]++; hlog_add(HE_BETRAYAL, x, y, 1); }   // allied, and x turned
+                if (!ox && !oy && sy) { g_hist.betrayals[y][x]++; hlog_add(HE_BETRAYAL, y, x, 1); }
                 int old = ox && oy ? 2 : !ox && !oy ? 1 : 0;
                 if (old != state) g_hist.since[x][y] = g_hist.since[y][x] = now;
             }
@@ -219,29 +248,32 @@ static float power_of(int i) { return g_ws.power[i] > 1.0f ? g_ws.power[i] : 1.0
 // 0x55DBCF thiscall(attacker's player +0x4A8, 3 or 2, 1), the dead unit in ESI (owner +0x18) - not for nature's units
 // or one's own. Here also by pair: g_kills[killer][victim][K_SOLDIERS / K_BUILDINGS / K_CITIZENS] (soldiers = every
 // unit that is no citizen: also ships, priests, siege) for the whole game, and the same per
-// game minute in a ring of KILLS_RECENT_MIN buckets (g_kills_min_t: the minute each holds) for the recent fighting
-// (saved with the game; for now only told to the language model, llm.c).
+// game minute in a ring of KILLS_RING buckets (g_kills_min_t: the minute each holds) for the recent fighting - the
+// last KILLS_RECENT_MIN minutes for the AI and the language model (llm.c), up to KILLS_RING for the texts' windows
+// (me.kills(them, 10)); saved with the game.
 #define CALL_KILL_STAT 0x00617780
 #define FN_STAT_ADD    0x0055DBCF
 #define KILLS_RECENT_MIN 20
+#define KILLS_RING 60
 enum { K_SOLDIERS, K_BUILDINGS, K_CITIZENS, K_N };
 static uint32_t g_kills[16][16][K_N];
-static uint16_t g_kills_min[KILLS_RECENT_MIN][16][16][K_N];
-static uint32_t g_kills_min_t[KILLS_RECENT_MIN];   // game minute + 1 the bucket holds (0 empty)
-static void kills_recent(int k, int v, uint32_t out[K_N]) {   // k's kills of v in the last KILLS_RECENT_MIN minutes
-    uint32_t m = game_time() / 60000u + 1;
+static uint16_t g_kills_min[KILLS_RING][16][16][K_N];
+static uint32_t g_kills_min_t[KILLS_RING];   // game minute + 1 the bucket holds (0 empty)
+static void kills_window(int k, int v, int minutes, uint32_t out[K_N]) {   // k's kills of v in the last minutes (whole)
+    uint32_t m = game_time() / 60000u + 1, w = (uint32_t)(minutes < 1 ? 1 : minutes > KILLS_RING ? KILLS_RING : minutes);
     for (int c = 0; c < K_N; c++) out[c] = 0;
-    for (int b = 0; b < KILLS_RECENT_MIN; b++)
-        if (g_kills_min_t[b] && g_kills_min_t[b] + KILLS_RECENT_MIN > m)
+    for (int b = 0; b < KILLS_RING; b++)
+        if (g_kills_min_t[b] && g_kills_min_t[b] + w > m)
             for (int c = 0; c < K_N; c++) out[c] += g_kills_min[b][k][v][c];
 }
+static void kills_recent(int k, int v, uint32_t out[K_N]) { kills_window(k, v, KILLS_RECENT_MIN, out); }
 __attribute__((used)) uint8_t *g_kill_unit;   // the dead unit: esi at the call site
 __attribute__((used)) void __fastcall hook_kill_stat(uint8_t *stats, void *edx, int n, int d) {
     (void)edx;
     void *owner = g_kill_unit ? FIELD(g_kill_unit, 0x18, void *) : NULL;
     if (stats && owner && (n == 2 || n == 3)) {
         int k = pidx(stats - 0x4A8), v = pidx(owner);
-        uint32_t m = game_time() / 60000u + 1, b = m % KILLS_RECENT_MIN;
+        uint32_t m = game_time() / 60000u + 1, b = m % KILLS_RING;
         if (g_kills_min_t[b] != m) { memset(g_kills_min[b], 0, sizeof g_kills_min[b]); g_kills_min_t[b] = m; }
         uint8_t *td = FIELD(g_kill_unit, 0x2C, uint8_t *);
         int c = n == 2 ? K_BUILDINGS : td && is_citizen_type(FIELD(td, 0x4B8, int)) ? K_CITIZENS : K_SOLDIERS;
@@ -1583,15 +1615,14 @@ static const struct xmember k_xmembers[] = {
     { "hostile", XM_REL, "1 when A treats B as an enemy (whatever B does)" },
     { "war_minutes", XM_REL, "how long the war of A and B has lasted: from both enemies until both are allied again (a peace offer doesn't end it; in peace_accept: the war just ended) - nothing without a war" },
     { "alliance_minutes", XM_REL, "how long A and B have been allied - nothing when they are not" },
-    { "betrayals", XM_REL, "how often A turned on B while they were allied" },
-    { "refusals", XM_REL, "how often A refused B's offers of peace or alliance" },
+    { "betrayals", XM_REL, "how often A turned on B while they were allied - (B, minutes): in the last minutes" },
+    { "refusals", XM_REL, "how often A refused B's offers of peace or alliance - (B, minutes): in the last minutes" },
     { "ignored", XM_REL, "B's alliance offers A let run out, in a row" },
-    { "tribute", XM_REL, "resources A has paid B in this game" },
+    { "tribute", XM_REL, "resources A has paid B in this game - (B, minutes): in the last minutes, them.tribute(me, 15)" },
     { "near", XM_REL, "A's soldiers within 20 tiles of B's base now, while B treats A as an enemy (an AI's base)" },
     { "attack_minutes", XM_REL, "minutes since A's last attack wave set out against B - nothing if none (an AI's waves)" },
-    { "kills", XM_REL, "B's soldiers and citizens A has destroyed" },
-    { "recent_kills", XM_REL, "of those, the ones in the last 20 minutes" },
-    { "razed", XM_REL, "B's buildings A has destroyed" },
+    { "kills", XM_REL, "B's soldiers and citizens A has destroyed - (B, minutes): in the last minutes (whole minutes, at most 60)" },
+    { "razed", XM_REL, "B's buildings A has destroyed - (B, minutes) as kills" },
 };
 #define N_XMEMBERS (int)(sizeof k_xmembers / sizeof *k_xmembers)
 static const struct xmember k_xglobals[] = {
@@ -1664,8 +1695,12 @@ static void x_member(void *ps, void *px, const struct xmember *m, struct xval *v
     else for (int t = 0; t < T_N; t++) if (!strcmp(n, k_trait_keys[t])) r = trait(px, (enum trait)t);
     xnum(v, r);
 }
-// relation m of player pa with player pb: pa.<m>(pb)
-static void x_relation(void *pa, void *pb, const struct xmember *m, struct xval *v) {
+// the relations that count events, with a time window in minutes as a second argument: them.tribute(me, 15)
+static int x_windowed(const char *n) {
+    return !strcmp(n, "tribute") || !strcmp(n, "refusals") || !strcmp(n, "betrayals") || !strcmp(n, "kills") || !strcmp(n, "razed");
+}
+// relation m of player pa with player pb: pa.<m>(pb), in the last win minutes (0: the whole game) where it counts events
+static void x_relation(void *pa, void *pb, const struct xmember *m, double win, struct xval *v) {
     xnothing(v);
     if (!pa || !pb || pa == pb) return;
     int a = pidx(pa), b = pidx(pb);
@@ -1673,6 +1708,8 @@ static void x_relation(void *pa, void *pb, const struct xmember *m, struct xval 
     uint32_t now = game_time();
     int war = stance_of(pa, b) && stance_of(pb, a), ally = !stance_of(pa, b) && !stance_of(pb, a);
     uint32_t rk[K_N];
+    uint32_t since = win > 0 && win * 60000.0 < now ? now - (uint32_t)(win * 60000.0) : 0;
+    int whole = !(win > 0);
     double r = 0;
     if (!strcmp(n, "opinion")) { if (!g_players[a]) return; r = g_opinion[a][b]; }
     else if (!strcmp(n, "at_war")) r = war;
@@ -1686,18 +1723,20 @@ static void x_relation(void *pa, void *pb, const struct xmember *m, struct xval 
         if (!ally) return;
         r = (double)((now - g_hist.since[a][b]) / 60000u);
     }
-    else if (!strcmp(n, "betrayals")) r = g_hist.betrayals[a][b];
-    else if (!strcmp(n, "refusals")) r = g_hist.refused[a][b];
+    else if (!strcmp(n, "betrayals")) r = whole ? g_hist.betrayals[a][b] : hlog_sum(HE_BETRAYAL, a, b, since);
+    else if (!strcmp(n, "refusals")) r = whole ? g_hist.refused[a][b] : hlog_sum(HE_REFUSED, a, b, since);
     else if (!strcmp(n, "ignored")) r = g_offer_ignored[b][a];
-    else if (!strcmp(n, "tribute")) r = g_hist.tribute[a][b];
+    else if (!strcmp(n, "tribute")) r = whole ? g_hist.tribute[a][b] : hlog_sum(HE_TRIBUTE, a, b, since);
     else if (!strcmp(n, "near")) { if (!g_players[b]) return; r = g_ws.close_by[b][a]; }
     else if (!strcmp(n, "attack_minutes")) {
         if (!g_attack_sent[a][b]) return;
         r = (double)((now - g_attack_sent[a][b]) / 60000u);
     }
-    else if (!strcmp(n, "kills")) r = g_kills[a][b][K_SOLDIERS] + g_kills[a][b][K_CITIZENS];
-    else if (!strcmp(n, "recent_kills")) { kills_recent(a, b, rk); r = rk[K_SOLDIERS] + rk[K_CITIZENS]; }
-    else if (!strcmp(n, "razed")) r = g_kills[a][b][K_BUILDINGS];
+    else if (!strcmp(n, "kills") || !strcmp(n, "razed")) {
+        const uint32_t *k = g_kills[a][b];
+        if (!whole) { kills_window(a, b, (int)(win + 0.999), rk); k = rk; }   // started minutes count whole
+        r = n[0] == 'k' ? k[K_SOLDIERS] + k[K_CITIZENS] : k[K_BUILDINGS];
+    }
     xnum(v, r);
 }
 static const struct xmember *x_find_member(const char *n, int len) {
@@ -1750,7 +1789,7 @@ static int x_builtin(struct xctx *c, const char *name, struct xval *v) {
     while (g < N_XGLOBALS && strcmp(k_xglobals[g].name, name)) g++;
     if (g < N_XGLOBALS && k_xglobals[g].kind == XM_REL) {   // opinion, at_war, allied: mine with them
         if (!c->pl || !c->other) { x_missing(c, c->pl ? "them" : "me"); xnothing(v); return 1; }
-        x_relation(c->pl, c->other, x_find_member(name, (int)strlen(name)), v);
+        x_relation(c->pl, c->other, x_find_member(name, (int)strlen(name)), 0, v);
         return 1;
     }
     if (g < N_XGLOBALS) {
@@ -1774,12 +1813,13 @@ static int x_builtin(struct xctx *c, const char *name, struct xval *v) {
     if (m && !strcmp(name, "name")) { if (!c->other) x_missing(c, "them"); x_member(c->pl, c->other, m, v); return 1; }
     return 0;
 }
-// a relation: <player>.<relation>(<player>), or <relation>(<player>) - the speaker's. v NULL: only whether name is one
+// a relation: <player>.<relation>(<player>[, minutes]), or <relation>(<player>) - the speaker's. v NULL: only whether
+// name is one
 static int x_method(struct xctx *c, const char *name, const struct xval *a, int na, struct xval *v) {
     const char *dot = strrchr(name, '.');
     const char *rel = dot ? dot + 1 : name;
     const struct xmember *m = x_find_member(rel, (int)strlen(rel));
-    if (!m || m->kind != XM_REL || na != 1) return 0;
+    if (!m || m->kind != XM_REL || na < 1 || na > (x_windowed(rel) ? 2 : 1)) return 0;   // (B) or, counting events, (B, minutes)
     int ok = 1;
     char who[24] = "me";
     void *pa = dot ? x_path(c, name, (int)(dot - name), &ok, who) : (x_players(c), c->pl);
@@ -1798,7 +1838,7 @@ static int x_method(struct xctx *c, const char *name, const struct xval *a, int 
         xnothing(v);
         return 1;
     }
-    x_relation(pa, pb, m, v);
+    x_relation(pa, pb, m, na > 1 ? xto_num(&a[1]) : 0, v);
     return 1;
 }
 // a placeholder's text that names an epoch ({epoch} in the prompts: the speaker's or the other's) gets its number
