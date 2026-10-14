@@ -63,6 +63,11 @@ static void spend_log(unsigned idx, uint32_t now) {
 // build_fix (aimod.ini [all], default on): 395 is placed as a normal Settlement (43, a drop site), and an entry that
 // fails 3 times in a row is dropped (reported as placed; the planner 0x465A8E re-queues missing buildings every
 // 2 minutes). Attempts and failures per player and type are logged as "# place:" every 5 minutes.
+// RETRY (with build_fix): a dropped entry was gone for good - the planner never queued it again. Both AIs failed
+// their AA gun (145) in the first minutes (refused with the resources there, 225 wood and 200 gold at minute 0.4)
+// and had none for the rest of the game, against a player with aircraft. A dropped type (not the 395 settlement, not
+// a decoration) is tried again every 2 minutes with the build manager's own placement (0x46580A, spot 0,0: the
+// game's search) while the AI has none of it and can pay for it; given up after 5 failed retries.
 static int defence_spot(void *pl, int type, int *ox, int *oy);   // defence.c
 static void defence_tick(void *pl, unsigned idx, uint32_t now);
 static void counter_siege(void *pl, unsigned idx, uint32_t now);
@@ -76,6 +81,24 @@ static int g_build_fix = 1;
 static struct { int type; unsigned tries, fails, dropped, streak; } g_place[16][64];   // every type the build lists hold
 static int field_place_ok(uint8_t *bm, int x, int y);   // below, with the farm fields
 static int upgraded_type(void *pl, int type);   // defence.c: the type an upgrade put in place of this one
+static struct { int type; uint32_t next; uint8_t tries; } g_retry[16][16];   // dropped types, tried again
+static int is_decoration(int type) {   // the editor's "x ..." objects (name at object data +0x1C)
+    uint8_t *od = type >= 0 && type < 0x300 ? ((uint8_t **)0x009418A0)[type] : NULL;
+    const char *name = od ? FIELD(od, 0x1C, const char *) : NULL;
+    return name && name[0] == 'x' && name[1] == ' ';
+}
+static void retry_note(unsigned idx, int type, uint32_t now) {
+    if (type == 395 || type == 0x2A || is_decoration(type)) return;
+    int f = -1;
+    for (int k = 0; k < 16; k++) {
+        if (g_retry[idx][k].type == type) return;
+        if (!g_retry[idx][k].type && f < 0) f = k;
+    }
+    if (f < 0) return;
+    g_retry[idx][f].type = type;
+    g_retry[idx][f].next = now + 120000;
+    g_retry[idx][f].tries = 0;
+}
 static char __fastcall hook_place(uint8_t *bm, void *edx, int type, int x, int y) {
     (void)edx;
     if (type == 0x2A && !field_place_ok(bm, x, y)) return 1;   // a field without foundation would crash (see there)
@@ -95,6 +118,7 @@ static char __fastcall hook_place(uint8_t *bm, void *edx, int type, int x, int y
     if (g_build_fix && ++g_place[idx][k].streak >= 3) {
         g_place[idx][k].streak = 0;
         g_place[idx][k].dropped++;
+        retry_note(idx, place_as, game_time());
         return 1;
     }
     return ok;
@@ -599,6 +623,32 @@ static void early_requirements(void *pl, unsigned ai, uint32_t now, int prefarm)
 }
 
 // Per AI tick (from hook_rm_update): pull the epoch attempt forward in the pre-farm epochs once affordable.
+static int unit_cost(void *pl, int type, int r);   // below
+static void retry_dropped(void *pl, unsigned idx, uint32_t now) {
+    if (!g_build_fix) return;
+    if (now < 30000) { memset(g_retry[idx], 0, sizeof g_retry[idx]); return; }   // new game
+    void *cm = FIELD(pl, 0xB90, void *);
+    uint8_t *bm = cm ? FIELD(cm, 0x3C, uint8_t *) : NULL;
+    void *um = cm ? FIELD(cm, 0x44, void *) : NULL;
+    int *stock = (int *)((uint8_t *)pl + PL_STOCK);
+    if (!bm || !um) return;
+    for (int k = 0; k < 16; k++) {
+        int type = g_retry[idx][k].type;
+        if (!type || now < g_retry[idx][k].next) continue;
+        type = upgraded_type(pl, type);
+        uint8_t *dq = ((uint8_t *(__thiscall *)(void *, int))0x0048F8AF)(um, type);
+        if (dq && FIELD(dq, 0x10, int) > 0) { g_retry[idx][k].type = 0; continue; }   // it has one now
+        int pay = 1;
+        for (int r = 2; r < 7; r++) if (unit_cost(pl, type, r) > stock[r]) pay = 0;
+        if (!pay) { g_retry[idx][k].next = now + 30000; continue; }
+        char ok = ((char (__thiscall *)(void *, int, int, int))FN_PLACE)(bm, type, 0, 0);
+        int give_up = !ok && ++g_retry[idx][k].tries >= 5;
+        if (g_log) fprintf(g_log, "# place: P%u at %.1f min: dropped type %d tried again - %s\n", idx, now / 60000.0, type,
+                           ok ? "placed" : give_up ? "failed, given up" : "failed");
+        if (ok || give_up) g_retry[idx][k].type = 0;
+        else g_retry[idx][k].next = now + 120000;
+    }
+}
 static void econ_tick(void *pl, uint32_t now) {
     const struct ai_cfg *c = cfg_of(pl);
     // attack log: the next-attack time (+0xED8) is redrawn whenever an attack starts
@@ -607,6 +657,7 @@ static void econ_tick(void *pl, uint32_t now) {
     spend_log(ai, now);
     gather_log(pl, ai, now);
     place_log(ai, now);
+    retry_dropped(pl, ai, now);
     gather_research(pl, ai, now);
     attention_note(pl, ai, now);
     defence_tick(pl, ai, now);
@@ -727,6 +778,8 @@ static int wild_food(void *pl) {
 // piled wood up on water without building more), survival within the noise. (Tried first and dropped: food capped at
 // its fields + 2, the rest by shortfall - late-start A/B, 3 maps x 4 seeds: alive 86% vs 98%, 15 workers fewer at
 // the end; a late start has no fields yet, its food is hunted, gathered and fished.)
+static int *bq_entry(uint8_t *bm, int e, unsigned i);   // attack.c: the build queue of epoch e
+static int unit_cost(void *pl, int type, int r);       // below
 static int g_late_targets = 3;
 static int g_wood_want[16];   // bit 1: the last wood target (steps of 2+)
 static void budget_reserve(void *pl, int reserve[7]);
@@ -745,7 +798,20 @@ static void econ_targets(uint8_t *rm) {
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     if (late) {
         if (total < 6) return;
-        int need = demand[3] - stock[3];   // the game's wood demand beyond stock, filled within about 2 minutes
+        // the game's wood demand, or the wood of the next 3 queued buildings up to its epoch if more: a building it
+        // can't pay for is no demand at all (the queue's "can build", 0x555710, tests the cost too) - the airport
+        // (425 wood) and tank factory waited with 115 wood in stock and a demand of 55, so no AA tank either
+        void *cm = FIELD(rm, RM_OWNER, void *);
+        uint8_t *bm = cm ? FIELD(cm, 0x3C, uint8_t *) : NULL;
+        int queued = 0, nq = 0;
+        for (int e = 0; bm && e <= current_epoch(pl) && e < 14 && nq < 3; e++)
+            for (unsigned i = 0; nq < 3; i++) {
+                int *ent = bq_entry(bm, e, i);
+                if (!ent) break;
+                int c = unit_cost(pl, ent[0], 3);
+                if (c > 0) { queued += c; nq++; }
+            }
+        int need = (demand[3] > queued ? demand[3] : queued) - stock[3];   // filled within about 2 minutes
         need = need < 0 ? 0 : need > 2000 ? 2000 : need;
         float pw = g_rate[idx].per_worker[3];
         int want = (int)((float)need / (2.0f * (pw > 2.0f ? pw : 2.0f)) + 0.99f), most = total * 2 / 5;
@@ -854,7 +920,13 @@ static int citizen_free(uint8_t *u, int idle) {   // idle, or (idle=0) gathering
 // plan P: the building plan's entries (cm+8: list head, node +0 next, +0xC type, +0x10 wanted count), as 0x46CD18
 // walks them (0x2F = the epoch's tower)
 static void cmd_plan(char *out, const char *args) {
-    int p = atoi(args);
+    int p = atoi(args), t = 0;
+    if (sscanf(args, "%d retry %d", &p, &t) == 2 && p > 0 && p < 16) {   // plan P retry T: T counts as dropped, tried now
+        retry_note((unsigned)p, t, game_time());
+        for (int k = 0; k < 16; k++) if (g_retry[p][k].type == t) g_retry[p][k].next = game_time();
+        REPLY("P%d: type %d queued for a retry\n", p, t);
+        return;
+    }
     void *pl = (p >= 0 && p < 16) ? g_players[p] : NULL;
     uint8_t *cm = pl ? FIELD(pl, 0xB90, uint8_t *) : NULL, *head = cm ? FIELD(cm, 8, uint8_t *) : NULL;
     if (!head) { REPLY("error: no AI player %d\n", p); return; }

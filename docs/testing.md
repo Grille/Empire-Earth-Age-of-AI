@@ -135,7 +135,7 @@ venv/Scripts/python scripts/eectl.py <command>
 | `watchtech P id`, `watchtype P T [off]` | hardware write-watch on a tech's researched byte / on a unit's field (default +0x2C, its type); the writer goes into the log |
 | `found P T x y` | lay out an unfinished building of type T for player P (0x62EF8A, as the build manager does; pays its cost) - e.g. an enemy tower foundation next to an AI's gatherers |
 | `hurt P T x y r dmg` | damage every object of type T of player P within r tiles of x,y as an attack does (target vf 0x70) - e.g. `hurt 2 42 128 128 256 1000` destroys P2's fields |
-| `plan P` | the AI's building plan (type:wanted) |
+| `plan P`, `plan P retry T` | the AI's building plan (type:wanted) / type T counts as a dropped build-queue entry and is tried again now (the retry of dropped buildings) |
 | `count P` | all units and buildings of player P by type (type:count), e.g. whether an AI has a Siege Factory (63) |
 | `bqueue P` | the build manager's queues per epoch (building types; `$` = can be built now) |
 | `drops P` | drop sites of player P (Town Center, Capitol, Settlement; `g` = granary) |
