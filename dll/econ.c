@@ -717,11 +717,18 @@ static int wild_food(void *pl) {
 // food demand never falls below ~75000 (every game, from minute 0), so food takes the lion's share and wood got 1-3
 // workers: 92 wood, no barracks, tank factory, airport or anti-air rebuilt, only wolves from the Town Center; and the
 // rebalance (below) moved surplus workers only to mines - 38 of Livia's on gold with a target of 0, 5587 gold.
-// Bit 1: with under 400 wood in stock, wood gets at least a fifth of the workers (3..12), taken from the largest
-// other targets. Bit 2: the rebalance moves surplus gatherers to wood too. (Tried first and dropped: food capped at
+// Bit 1: wood gets at least the workers that close its gap within about 2 minutes - the game's wood demand (what it
+// wants built and trained: buildings, fields, ships and other wood units on water maps) beyond the stock, counted up
+// to 2000 (refused requests stay on the books), at the measured rate per worker; 2..40% of the workers, changed in
+// steps of 2+; with no gap no more than 2 - wood only pays when it's needed, a pile of it buys nothing. Taken from the
+// largest other targets. Bit 2: the rebalance moves surplus gatherers to wood too. Late-start A/B, Continental and
+// Mediterranean (water) x 6 seeds, off / a fifth of the workers under 400 wood / by need: military buildings and
+// docks per AI 6.0/5.2/7.7 and 4.0/3.5/6.8, the largest wood stock 589/1475/1138 and 475/2214/610 (the fixed fifth
+// piled wood up on water without building more), survival within the noise. (Tried first and dropped: food capped at
 // its fields + 2, the rest by shortfall - late-start A/B, 3 maps x 4 seeds: alive 86% vs 98%, 15 workers fewer at
 // the end; a late start has no fields yet, its food is hunted, gathered and fished.)
 static int g_late_targets = 3;
+static int g_wood_want[16];   // bit 1: the last wood target (steps of 2+)
 static void budget_reserve(void *pl, int reserve[7]);
 static void econ_targets(uint8_t *rm) {
     void *pl = rm_player(rm);
@@ -737,9 +744,14 @@ static void econ_targets(uint8_t *rm) {
     for (int r = 2; r < 7; r++) total += (int)target[r];
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     if (late) {
-        if (total < 6 || stock[3] >= 400) return;
-        int want = total / 5;
-        want = want < 3 ? 3 : want > 12 ? 12 : want;
+        if (total < 6) return;
+        int need = demand[3] - stock[3];   // the game's wood demand beyond stock, filled within about 2 minutes
+        need = need < 0 ? 0 : need > 2000 ? 2000 : need;
+        float pw = g_rate[idx].per_worker[3];
+        int want = (int)((float)need / (2.0f * (pw > 2.0f ? pw : 2.0f)) + 0.99f), most = total * 2 / 5;
+        want = want < 2 ? 2 : want > most ? most : want;
+        if (abs(want - g_wood_want[idx]) < 2 && g_wood_want[idx]) want = g_wood_want[idx];   // steps of 2+
+        g_wood_want[idx] = want;
         while ((int)target[3] < want) {
             int from = -1;
             for (int r = 2; r < 7; r++)
