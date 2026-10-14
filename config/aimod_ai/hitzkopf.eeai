@@ -39,18 +39,18 @@ long_war = me.war_minutes(them) > 30
 
 [lines]
 greeting = [
-    players > 5 and chance(50) ? "So many of you! A beating for everyone - nobody goes home empty-handed!",
-    players == 2 and chance(50) ? "Just you and me, {name}? Perfect - nobody to break it up!",
-    allied and chance(50) ? "We're on the same side, {name}? Pity! Then we beat up the others together!",
+    players > 5 and chance(50%) ? "So many of you! A beating for everyone - nobody goes home empty-handed!",
+    players == 2 and chance(50%) ? "Just you and me, {name}? Perfect - nobody to break it up!",
+    allied and chance(50%) ? "We're on the same side, {name}? Pity! Then we beat up the others together!",
 ] ?? [
     "HA! Who wants a beating first?",
     "I am Brann! And I am in a bad mood!",
     "Fighting! Fighting again at last!",
 ]
 war_declared = [
-    pushover and chance(60) ? "YOU, {name}? Hahaha! I'll fight you with one hand behind my back!",
-    big_one and chance(60) ? "Ooh, a big one! Good, {name} - the big ones fall the loudest!",
-    my_tally and chance(60) ? "Back for more, {name}? Last time I flattened {me.kills(them)} of yours!",
+    pushover and chance(60%) ? "YOU, {name}? Hahaha! I'll fight you with one hand behind my back!",
+    big_one and chance(60%) ? "Ooh, a big one! Good, {name} - the big ones fall the loudest!",
+    my_tally and chance(60%) ? "Back for more, {name}? Last time I flattened {me.kills(them)} of yours!",
     them.tribute(me) > 0 ? [
         "First presents, now punches, {name}? HA! I'll take both!",
         "{them.tribute(me)} worth of presents, {name}, and I still want a fight! You can't buy off a brawler! HA!",
@@ -72,7 +72,7 @@ betrayed = me.betrayals(them) > 0 ? [
     "{name}! I thought we were friends! NOW YOU'RE IN FOR IT!",
 ]
 peace_accept = [
-    good_fight and chance(60) ? "Haha, what a brawl, {name}! All right, peace - let me catch my breath.",
+    good_fight and chance(60%) ? "Haha, what a brawl, {name}! All right, peace - let me catch my breath.",
     them.betrayals(me) > 0 ? [
         "You knifed me once, {name}? Pfft, forgotten already. Well. Almost.",
         "Peace, {name}. But from now on I sleep with my club in my arms - you know why!",
@@ -86,9 +86,9 @@ peace_refuse = [
         "Peace with a backstabber? HA! Not because of the stab - I forgot that. Because this is FUN!",
         "The last time we were friends you stuck a knife in me, {name}! Fighting you is safer - at least I see you coming!",
     ],
-    them.refusals(me) > 0 and chance(60) ? "You said no to MY peace, {name}! Now I say no! HA! ...What were we fighting about again?",
-    long_war and chance(60) ? "{me.war_minutes(them)} minutes of brawling and you want to stop NOW, {name}? It's only just getting good!",
-    me.recent_kills(them) > 15 and chance(60) ? "Stop? I'm on a roll, {name}! {me.recent_kills(them)} of yours just lately!",
+    them.refusals(me) > 0 and chance(60%) ? "You said no to MY peace, {name}! Now I say no! HA! ...What were we fighting about again?",
+    long_war and chance(60%) ? "{me.war_minutes(them)} minutes of brawling and you want to stop NOW, {name}? It's only just getting good!",
+    me.recent_kills(them) > 15 and chance(60%) ? "Stop? I'm on a roll, {name}! {me.recent_kills(them)} of yours just lately!",
 ] ?? [
     "Peace? I've only just warmed up, {name}!",
     "NO! Keep fighting!",
@@ -112,7 +112,7 @@ alliance_offer = [
         "{name}, you knifed me once - water under the bridge! Let's knife {enemy} instead!",
         "{name}! You've got a good knife arm, nobody knows that better than me! Use it on {enemy} this time!",
     ],
-    enemy.strength > me.strength + them.strength and chance(60) ? "{enemy} is huge, {name}! Too big for one, just right for two!",
+    enemy.strength > me.strength + them.strength and chance(60%) ? "{enemy} is huge, {name}! Too big for one, just right for two!",
 ] ?? [
     "Hey, {name}! The two of us knock {enemy} flat, what do you say?",
     "{name}! Come on, let's beat up {enemy} together!",
@@ -135,8 +135,8 @@ offer_withdrawn = them.ignored(me) > 1 ? [
     "Not a word, {name}? Fine! Then somebody else gets the fun!",
 ]
 betray = [
-    pushover and chance(60) ? "You've gone soft, {name}! And soft things need a good thump!",
-    them.tribute(me) > 0 and chance(50) ? "Thanks for the presents, {name}! Here's one back: a punch!",
+    pushover and chance(60%) ? "You've gone soft, {name}! And soft things need a good thump!",
+    them.tribute(me) > 0 and chance(50%) ? "Thanks for the presents, {name}! Here's one back: a punch!",
 ] ?? [
     "Sorry, {name}, I was bored!",
     "I'm itching for trouble, {name}. And you're the closest!",
@@ -146,7 +146,7 @@ tribute_thanks = [
         "Presents in the middle of a fight? Funny one, {name}! I'll take them and keep hitting!",
         "You throw me gold while I throw rocks at you, {name}? You're doing this fight wrong! HA!",
     ],
-    them.tribute(me) > 2000 and chance(60) ? "MORE?! {name}, you're my favourite! I'll name a club after you!",
+    them.tribute(me) > 2000 and chance(60%) ? "MORE?! {name}, you're my favourite! I'll name a club after you!",
 ] ?? [
     "Ha! Thanks, {name}! I'll buy new clubs with that!",
     "Presents! I love presents!",
@@ -159,17 +159,17 @@ tribute_small = at_war ? [
     "That's not a present, {name}, that's a crumb! I'm no sparrow!",
 ]
 attack = [
-    them.razed(me) > 0 and chance(60) ? "They smashed my houses! Now we smash theirs! At {name}!",
-    them.kills(me) > 30 and them.kills(me) > me.kills(them) and chance(60) ? "{name} has knocked down more of ours than we of theirs! Let's fix that, lads!",
-    me.recent_kills(them) > 15 and chance(50) ? "That was fun just now! Again! At {name}!",
+    them.razed(me) > 0 and chance(60%) ? "They smashed my houses! Now we smash theirs! At {name}!",
+    them.kills(me) > 30 and them.kills(me) > me.kills(them) and chance(60%) ? "{name} has knocked down more of ours than we of theirs! Let's fix that, lads!",
+    me.recent_kills(them) > 15 and chance(50%) ? "That was fun just now! Again! At {name}!",
 ] ?? [
     "ATTACK! At {name}!",
     "Come on, lads! {name} is waiting!",
     "Last one to reach {name} is a coward!",
 ]
 attack_threat = [
-    my_tally and chance(50) ? "{me.kills(them)} of yours flattened so far, {name}! Let's make it a round number!",
-    big_one and chance(50) ? "You're big, {name}, and I'm coming anyway! HAHA!",
+    my_tally and chance(50%) ? "{me.kills(them)} of yours flattened so far, {name}! Let's make it a round number!",
+    big_one and chance(50%) ? "You're big, {name}, and I'm coming anyway! HAHA!",
 ] ?? [
     "HERE WE COME, {name}!",
     "{name}! Get ready for a beating!",
@@ -189,23 +189,23 @@ building_lost = [
     "So what? We'll build a new one!",
 ]
 epoch_up = [
-    epoch >= epoch.industrial and chance(50) ? "{epoch}! Things that go BOOM! Finally!",
-    epoch == epoch.stone and chance(50) ? "{epoch}! Sharper sticks! HA!",
+    epoch >= epoch.industrial and chance(50%) ? "{epoch}! Things that go BOOM! Finally!",
+    epoch == epoch.stone and chance(50%) ? "{epoch}! Sharper sticks! HA!",
 ] ?? [
     "{epoch}! Bigger weapons! HA!",
     "Now it gets fun: {epoch}!",
 ]
 enemy_ahead = "{name} has new toys? I'll take them!"
 winning = [
-    my_tally and chance(50) ? "{me.kills(them)} flattened, {name}! I'm counting, you know! HAHA!",
-    good_fight and chance(50) ? "Now THAT is a fight, {name}! Pity it's nearly over!",
+    my_tally and chance(50%) ? "{me.kills(them)} flattened, {name}! I'm counting, you know! HAHA!",
+    good_fight and chance(50%) ? "Now THAT is a fight, {name}! Pity it's nearly over!",
 ] ?? [
     "Hahaha! Run, {name}, run!",
     "Is that all, {name}?",
 ]
 losing = [
-    them.kills(me) > 30 and chance(50) ? "{name} has knocked {them.kills(me)} of my lads flat! I like this one!",
-    big_one and chance(50) ? "{name} is a big one! Finally a proper fight!",
+    them.kills(me) > 30 and chance(50%) ? "{name} has knocked {them.kills(me)} of my lads flat! I like this one!",
+    big_one and chance(50%) ? "{name} is a big one! Finally a proper fight!",
 ] ?? [
     "That was just the warm-up!",
     "I haven't even started properly!",
@@ -219,8 +219,8 @@ enemy_defeated = [
         "Bye, {name}! You stabbed me once, didn't you? Or was that someone else? Ah, never mind - GONE!",
         "That's for the knife, {name}! ...See? I DID remember! HAHA!",
     ],
-    my_tally and chance(60) ? "{name} is flattened! {me.kills(them)} of those were mine! Who's next?",
-    good_fight and chance(60) ? "{name} put up a proper fight! I'll miss that! ...Who's next?",
+    my_tally and chance(60%) ? "{name} is flattened! {me.kills(them)} of those were mine! Who's next?",
+    good_fight and chance(60%) ? "{name} put up a proper fight! I'll miss that! ...Who's next?",
 ] ?? [
     "{name} is flattened! Who's next?",
     "Bye, {name}! Hahaha!",
@@ -262,18 +262,18 @@ help_none = "I'm busy myself! Hit them yourself!"
 
 [lines:de]
 greeting = [
-    players > 5 and chance(50) ? "So viele von euch! Prügel für alle - keiner geht leer aus!",
-    players == 2 and chance(50) ? "Nur du und ich, {name}? Perfekt - keiner da, der uns trennt!",
-    allied and chance(50) ? "Wir sind auf derselben Seite, {name}? Schade! Dann verhauen wir eben zusammen die anderen!",
+    players > 5 and chance(50%) ? "So viele von euch! Prügel für alle - keiner geht leer aus!",
+    players == 2 and chance(50%) ? "Nur du und ich, {name}? Perfekt - keiner da, der uns trennt!",
+    allied and chance(50%) ? "Wir sind auf derselben Seite, {name}? Schade! Dann verhauen wir eben zusammen die anderen!",
 ] ?? [
     "HA! Wer will als Erster eins auf die Mütze?",
     "Ich bin Brann! Und ich hab schlechte Laune!",
     "Kämpfen! Endlich wieder kämpfen!",
 ]
 war_declared = [
-    pushover and chance(60) ? "DU, {name}? Hahaha! Dich schaff ich mit einer Hand auf dem Rücken!",
-    big_one and chance(60) ? "Oho, ein Großer! Gut, {name} - die Großen fallen am lautesten!",
-    my_tally and chance(60) ? "Noch nicht genug, {name}? Letztes Mal hab ich {me.kills(them)} von deinen umgehauen!",
+    pushover and chance(60%) ? "DU, {name}? Hahaha! Dich schaff ich mit einer Hand auf dem Rücken!",
+    big_one and chance(60%) ? "Oho, ein Großer! Gut, {name} - die Großen fallen am lautesten!",
+    my_tally and chance(60%) ? "Noch nicht genug, {name}? Letztes Mal hab ich {me.kills(them)} von deinen umgehauen!",
     them.tribute(me) > 0 ? [
         "Erst Geschenke, jetzt Fäuste, {name}? HA! Ich nehm beides!",
         "{them.tribute(me)} an Geschenken, {name}, und ich will trotzdem raufen! Einen Raufbold kauft man nicht! HA!",
@@ -294,7 +294,7 @@ betrayed = me.betrayals(them) > 0 ? [
     "{name}! Ich dachte, wir sind Freunde! JETZT BIST DU DRAN!",
 ]
 peace_accept = [
-    good_fight and chance(60) ? "Haha, was für eine Keilerei, {name}! Na gut, Frieden - lass mich mal verschnaufen.",
+    good_fight and chance(60%) ? "Haha, was für eine Keilerei, {name}! Na gut, Frieden - lass mich mal verschnaufen.",
     them.betrayals(me) > 0 ? [
         "Du bist mir mal in den Rücken gefallen, {name}? Pah, schon vergessen. Na ja. Fast.",
         "Frieden, {name}. Aber ab jetzt schlaf ich mit der Keule im Arm - du weißt schon, warum!",
@@ -308,9 +308,9 @@ peace_refuse = [
         "Frieden mit einem Verräter? HA! Nicht wegen dem Verrat - den hab ich vergessen. Sondern weil's SPASS macht!",
         "Als wir zuletzt Freunde waren, hast du mir ein Messer reingerammt, {name}! Mit dir kämpfen ist sicherer - da seh ich dich wenigstens kommen!",
     ],
-    them.refusals(me) > 0 and chance(60) ? "Du hast MEINEN Frieden abgelehnt, {name}! Jetzt lehn ich ab! HA! ... Worum ging's eigentlich noch mal?",
-    long_war and chance(60) ? "{me.war_minutes(them)} Minuten Prügelei, und jetzt willst du aufhören, {name}? Jetzt wird's doch erst schön!",
-    me.recent_kills(them) > 15 and chance(60) ? "Aufhören? Ich bin grad so gut in Fahrt, {name}! {me.recent_kills(them)} von deinen allein in letzter Zeit!",
+    them.refusals(me) > 0 and chance(60%) ? "Du hast MEINEN Frieden abgelehnt, {name}! Jetzt lehn ich ab! HA! ... Worum ging's eigentlich noch mal?",
+    long_war and chance(60%) ? "{me.war_minutes(them)} Minuten Prügelei, und jetzt willst du aufhören, {name}? Jetzt wird's doch erst schön!",
+    me.recent_kills(them) > 15 and chance(60%) ? "Aufhören? Ich bin grad so gut in Fahrt, {name}! {me.recent_kills(them)} von deinen allein in letzter Zeit!",
 ] ?? [
     "Frieden? Ich bin doch gerade erst warm geworden, {name}!",
     "NEIN! Weiterkämpfen!",
@@ -334,7 +334,7 @@ alliance_offer = [
         "{name}, du bist mir mal in den Rücken gefallen - Schwamm drüber! Fallen wir lieber {enemy} in den Rücken!",
         "{name}! Du hast einen guten Messerarm, das weiß keiner besser als ich! Nimm ihn diesmal für {enemy}!",
     ],
-    enemy.strength > me.strength + them.strength and chance(60) ? "{enemy} ist riesig, {name}! Zu groß für einen, genau richtig für zwei!",
+    enemy.strength > me.strength + them.strength and chance(60%) ? "{enemy} ist riesig, {name}! Zu groß für einen, genau richtig für zwei!",
 ] ?? [
     "He, {name}! Wir zwei hauen {enemy} gemeinsam um, was meinst du?",
     "{name}! Komm, wir verprügeln {enemy} zusammen!",
@@ -356,8 +356,8 @@ offer_withdrawn = them.ignored(me) > 1 ? [
     "Kein Wort, {name}? Schön! Dann hat eben ein anderer den Spaß!",
 ]
 betray = [
-    pushover and chance(60) ? "Du bist weich geworden, {name}! Und Weiches braucht ordentlich Haue!",
-    them.tribute(me) > 0 and chance(50) ? "Danke für die Geschenke, {name}! Hier ist eins zurück: eine aufs Maul!",
+    pushover and chance(60%) ? "Du bist weich geworden, {name}! Und Weiches braucht ordentlich Haue!",
+    them.tribute(me) > 0 and chance(50%) ? "Danke für die Geschenke, {name}! Hier ist eins zurück: eine aufs Maul!",
 ] ?? [
     "Tut mir leid, {name}, mir war langweilig!",
     "Ich hab Lust auf Ärger, {name}. Und du bist am nächsten!",
@@ -367,7 +367,7 @@ tribute_thanks = [
         "Geschenke mitten in der Prügelei? Witzig, {name}! Ich nehm sie und hau weiter!",
         "Du wirfst mir Gold rüber, während ich Steine nach dir werfe, {name}? Du kämpfst falsch! HA!",
     ],
-    them.tribute(me) > 2000 and chance(60) ? "NOCH MEHR?! {name}, du bist mein Liebling! Ich benenn eine Keule nach dir!",
+    them.tribute(me) > 2000 and chance(60%) ? "NOCH MEHR?! {name}, du bist mein Liebling! Ich benenn eine Keule nach dir!",
 ] ?? [
     "Ha! Danke, {name}! Dafür kauf ich mir neue Keulen!",
     "Geschenke! Ich liebe Geschenke!",
@@ -380,17 +380,17 @@ tribute_small = at_war ? [
     "Das ist kein Geschenk, {name}, das ist ein Krümel! Ich bin doch kein Spatz!",
 ]
 attack = [
-    them.razed(me) > 0 and chance(60) ? "Die haben meine Häuser kaputtgemacht! Jetzt machen wir ihre kaputt! Auf {name}!",
-    them.kills(me) > 30 and them.kills(me) > me.kills(them) and chance(60) ? "{name} hat mehr von uns umgehauen als wir von denen! Das ändern wir, Jungs!",
-    me.recent_kills(them) > 15 and chance(50) ? "Das hat eben Spaß gemacht! Nochmal! Auf {name}!",
+    them.razed(me) > 0 and chance(60%) ? "Die haben meine Häuser kaputtgemacht! Jetzt machen wir ihre kaputt! Auf {name}!",
+    them.kills(me) > 30 and them.kills(me) > me.kills(them) and chance(60%) ? "{name} hat mehr von uns umgehauen als wir von denen! Das ändern wir, Jungs!",
+    me.recent_kills(them) > 15 and chance(50%) ? "Das hat eben Spaß gemacht! Nochmal! Auf {name}!",
 ] ?? [
     "ANGRIFF! Auf {name}!",
     "Los, Jungs! {name} wartet schon!",
     "Wer zuletzt bei {name} ist, ist ein Feigling!",
 ]
 attack_threat = [
-    my_tally and chance(50) ? "{me.kills(them)} von deinen schon umgehauen, {name}! Machen wir eine runde Zahl draus!",
-    big_one and chance(50) ? "Du bist groß, {name}, und ich komm trotzdem! HAHA!",
+    my_tally and chance(50%) ? "{me.kills(them)} von deinen schon umgehauen, {name}! Machen wir eine runde Zahl draus!",
+    big_one and chance(50%) ? "Du bist groß, {name}, und ich komm trotzdem! HAHA!",
 ] ?? [
     "WIR KOMMEN, {name}!",
     "{name}! Mach dich auf Prügel gefasst!",
@@ -410,23 +410,23 @@ building_lost = [
     "Na und? Bauen wir halt ein neues!",
 ]
 epoch_up = [
-    epoch >= epoch.industrial and chance(50) ? "{epoch}! Sachen, die BUMM machen! Endlich!",
-    epoch == epoch.stone and chance(50) ? "{epoch}! Spitzere Stöcke! HA!",
+    epoch >= epoch.industrial and chance(50%) ? "{epoch}! Sachen, die BUMM machen! Endlich!",
+    epoch == epoch.stone and chance(50%) ? "{epoch}! Spitzere Stöcke! HA!",
 ] ?? [
     "{epoch}! Größere Waffen! HA!",
     "Jetzt wird's lustig: {epoch}!",
 ]
 enemy_ahead = "{name} hat neue Spielzeuge? Die nehm ich mir!"
 winning = [
-    my_tally and chance(50) ? "{me.kills(them)} umgehauen, {name}! Ich zähl mit, weißt du! HAHA!",
-    good_fight and chance(50) ? "DAS ist mal ein Kampf, {name}! Schade, dass er fast vorbei ist!",
+    my_tally and chance(50%) ? "{me.kills(them)} umgehauen, {name}! Ich zähl mit, weißt du! HAHA!",
+    good_fight and chance(50%) ? "DAS ist mal ein Kampf, {name}! Schade, dass er fast vorbei ist!",
 ] ?? [
     "Hahaha! Lauf, {name}, lauf!",
     "Ist das alles, {name}?",
 ]
 losing = [
-    them.kills(me) > 30 and chance(50) ? "{name} hat {them.kills(me)} meiner Jungs umgehauen! Der gefällt mir!",
-    big_one and chance(50) ? "{name} ist ein Großer! Endlich ein richtiger Kampf!",
+    them.kills(me) > 30 and chance(50%) ? "{name} hat {them.kills(me)} meiner Jungs umgehauen! Der gefällt mir!",
+    big_one and chance(50%) ? "{name} ist ein Großer! Endlich ein richtiger Kampf!",
 ] ?? [
     "Das war nur Aufwärmen!",
     "Ich hab noch gar nicht richtig angefangen!",
@@ -440,8 +440,8 @@ enemy_defeated = [
         "Tschüss, {name}! Du bist mir doch mal in den Rücken gefallen, oder? Oder war das wer anders? Ach, egal - WEG!",
         "Das ist für das Messer, {name}! ... Siehst du? Ich HAB's mir gemerkt! HAHA!",
     ],
-    my_tally and chance(60) ? "{name} ist platt! {me.kills(them)} davon gehen auf mich! Wer ist der Nächste?",
-    good_fight and chance(60) ? "{name} hat sich ordentlich gewehrt! Das werd ich vermissen! ... Wer ist der Nächste?",
+    my_tally and chance(60%) ? "{name} ist platt! {me.kills(them)} davon gehen auf mich! Wer ist der Nächste?",
+    good_fight and chance(60%) ? "{name} hat sich ordentlich gewehrt! Das werd ich vermissen! ... Wer ist der Nächste?",
 ] ?? [
     "{name} ist platt! Wer ist der Nächste?",
     "Tschüss, {name}! Hahaha!",

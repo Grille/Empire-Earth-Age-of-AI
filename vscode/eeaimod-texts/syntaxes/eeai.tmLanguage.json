@@ -486,15 +486,15 @@
         },
         {
           "name": "constant.numeric.eeaimod",
-          "match": "(?<![\\w.])(?:\\d+(?:\\.\\d+)?|\\.\\d+)"
+          "match": "(?<![\\w.])(?:\\d+(?:\\.\\d+)?|\\.\\d+)%?"
         },
         {
           "name": "invalid.illegal.operator.eeaimod",
-          "match": "&&?|\\|\\|?|!(?!=)"
+          "match": "&&?|\\|\\|?|!(?!=)|%"
         },
         {
           "name": "keyword.operator.eeaimod",
-          "match": "\\?\\?|<=|>=|==|!=|[-+*/%<>?:]"
+          "match": "\\?\\?|<=|>=|==|!=|[-+*/<>?:]"
         },
         {
           "name": "punctuation.separator.comma.eeaimod",
@@ -612,15 +612,15 @@
         },
         {
           "name": "constant.numeric.eeaimod",
-          "match": "(?<![\\w.])(?:\\d+(?:\\.\\d+)?|\\.\\d+)"
+          "match": "(?<![\\w.])(?:\\d+(?:\\.\\d+)?|\\.\\d+)%?"
         },
         {
           "name": "invalid.illegal.operator.eeaimod",
-          "match": "&&?|\\|\\|?|!(?!=)"
+          "match": "&&?|\\|\\|?|!(?!=)|%"
         },
         {
           "name": "keyword.operator.eeaimod",
-          "match": "\\?\\?|<=|>=|==|!=|[-+*/%<>?:]"
+          "match": "\\?\\?|<=|>=|==|!=|[-+*/<>?:]"
         },
         {
           "name": "punctuation.separator.comma.eeaimod",

@@ -53,9 +53,9 @@ expression = [
     {'name': 'variable.language.game-value.eeaimod', 'match': player + r'\.' + words(member_names) + r'(?![.\w(])'},
     {'name': 'invalid.illegal.unknown-member.eeaimod', 'match': player + r'\.[A-Za-z_][\w.]*'},
     {'name': 'variable.language.game-value.eeaimod', 'match': words(values) + r'(?!\.)'},
-    {'name': 'constant.numeric.eeaimod', 'match': r'(?<![\w.])(?:\d+(?:\.\d+)?|\.\d+)'},
-    {'name': 'invalid.illegal.operator.eeaimod', 'match': r'&&?|\|\|?|!(?!=)'},   # and, or, not - only the words
-    {'name': 'keyword.operator.eeaimod', 'match': r'\?\?|<=|>=|==|!=|[-+*/%<>?:]'},
+    {'name': 'constant.numeric.eeaimod', 'match': r'(?<![\w.])(?:\d+(?:\.\d+)?|\.\d+)%?'},   # 70% = 0.7
+    {'name': 'invalid.illegal.operator.eeaimod', 'match': r'&&?|\|\|?|!(?!=)|%'},   # and, or, not - only the words; % only right after a number
+    {'name': 'keyword.operator.eeaimod', 'match': r'\?\?|<=|>=|==|!=|[-+*/<>?:]'},
     {'name': 'punctuation.separator.comma.eeaimod', 'match': ','},
     {'name': 'punctuation.parenthesis.eeaimod', 'match': r'[()]'},
     {'name': 'variable.other.eeaimod', 'match': r'[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*'},

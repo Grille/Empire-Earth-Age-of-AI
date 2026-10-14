@@ -11,11 +11,12 @@
 // if it stood there item by item); a list with nothing left is nothing. a ?? b: a, unless it is nothing. A
 // personality's line is such a value: [allied ? "Welcome back.", opinion < -50 ? angry] ?? ["Greetings.", "Hello."]
 // A mistake is logged with the file and line (# texts:) and that key is skipped.
-// The expressions: numbers, "texts" (or 'texts', the same rules), lists, names (a placeholder of the text, a [vars]
-// entry, a game value - x_builtin in diplo.c), ( ), + - * / %, < <= > >= == !=, and or not (only the words: && || ! are a mistake),
-// a ? b : c, a ? b, a ?? b, the functions chance(n) (true n % of the time), rnd(n) (0 <= x < n, n 1 when left out),
-// min, max, abs, round, and the players'
-// relations: them.opinion(me) (x_method in diplo.c). A player (me, them, ...) is a value: its name, equal only to itself.
+// The expressions: numbers (70% is 0.7 - % only right after a number), "texts" (or 'texts', the same rules), lists,
+// names (a placeholder of the text, a [vars] entry, a game value - x_builtin in diplo.c), ( ), + - * /,
+// < <= > >= == !=, and or not (only the words: && || ! are a mistake), a ? b : c, a ? b, a ?? b, the functions
+// chance(p) (true with the probability p, 0..1: chance(70%)), rnd(n) (0 <= x < n, n 1 when left out), min, max, abs,
+// round, and the players' relations: them.opinion(me) (x_method in diplo.c). A player (me, them, ...) is a value: its
+// name, equal only to itself.
 // A value has a number, a text or both: the epoch is 3 and "Copper Age", a placeholder "12" is 12 and "12". The number
 // counts in arithmetic, in comparisons with a number and as true/false; the text where the value ends up in the text
 // and where it meets a text ("Age: " + epoch). + adds when both have numbers, else joins the texts; comparisons
@@ -238,7 +239,9 @@ static void xp_primary(struct xp *p, struct xval *v) {
         if (!total) xnothing(v);
     } else if ((*s >= '0' && *s <= '9') || (*s == '.' && s[1] >= '0' && s[1] <= '9')) {
         char *e;
-        xnum(v, strtod(s, &e));
+        double n = strtod(s, &e);
+        if (*e == '%') { n /= 100; e++; }   // 70% = 0.7
+        xnum(v, n);
         p->s = e;
     } else if (isalpha((unsigned char)*s) || *s == '_') {
         char name[40];
@@ -269,12 +272,16 @@ static void xp_primary(struct xp *p, struct xval *v) {
                 !lstrcmpiA(name, "abs") && na == 1 ? 3 : !lstrcmpiA(name, "round") && na == 1 ? 4 :
                 !lstrcmpiA(name, "rnd") && na <= 1 ? 5 : 0;
         for (int i = 0; f && i < na; i++) x_use(p, &a[i]);   // a function's arguments (a relation checks its players)
+        if (f == 1 && a[0].has_n && a[0].n > 1 && (p->check || (!p->skip && g_strict))) {   // chance(70): meant 70%
+            if (p->check) { p->err = 1; p->why = "chance takes a probability, 0 to 1: chance(70%) or chance(0.7)"; goto out; }
+            x_error("chance(%g): a probability is 0 to 1 - chance(70%%) or chance(0.7): %.100s", a[0].n, p->c->top ? p->c->top : "");
+        }
         if (!f) {   // a relation: them.opinion(me)
             if (!x_method(p->c, name, a, na, p->skip ? NULL : v)) { p->err = 1; p->why = "an unknown function or relation (or the wrong number of arguments)"; }
             else if (p->skip) xnothing(v);
         }
         else if (p->skip) xnothing(v);
-        else if (f == 1) xnum(v, x_rnd01() * 100 < xto_num(&a[0]));   // percent, fractions too: chance(2.5)
+        else if (f == 1) xnum(v, x_rnd01() < xto_num(&a[0]));   // a probability: chance(70%), chance(0.7)
         else if (f == 2) {
             int mx = !lstrcmpiA(name, "max");
             double r = xto_num(&a[0]);
@@ -296,14 +303,16 @@ static void xp_unary(struct xp *p, struct xval *v) {
 static void xp_mul(struct xp *p, struct xval *v) {
     xp_unary(p, v);
     while (!p->err) {
-        int op = xp_op(p, "*") ? '*' : xp_op(p, "/") ? '/' : xp_op(p, "%") ? '%' : 0;
+        xp_space(p);
+        if (*p->s == '%') { p->err = 1; p->why = "% belongs right after a number: 70% is 0.7 (there is no remainder)"; return; }
+        int op = xp_op(p, "*") ? '*' : xp_op(p, "/") ? '/' : 0;
         if (!op) return;
         struct xval b;
         xp_unary(p, &b);
         x_use(p, v);
         x_use(p, &b);
         double x = xto_num(v), y = xto_num(&b);
-        xnum(v, op == '*' ? x * y : y == 0 ? 0 : op == '/' ? x / y : x - y * (double)(long long)(x / y));
+        xnum(v, op == '*' ? x * y : y == 0 ? 0 : x / y);
     }
 }
 static void xp_add(struct xp *p, struct xval *v) {

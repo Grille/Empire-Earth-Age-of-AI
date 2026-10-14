@@ -34,14 +34,14 @@ peace_accept = [
         "We accept peace, {name}. Your betrayal is on record.",
         "Peace accepted, {name}. We will watch you: you have broken an alliance with us before.",
     ],
-    them.kills(me) > 30 and them.kills(me) > me.kills(them) and chance(60) ? "We accept peace, {name}. This war cost us {them.kills(me)} units.",
+    them.kills(me) > 30 and them.kills(me) > me.kills(them) and chance(60%) ? "We accept peace, {name}. This war cost us {them.kills(me)} units.",
 ] ?? "We accept peace, {name}."
 peace_refuse = [
     them.betrayals(me) > 0 ? [
         "We refuse, {name}. You have broken an alliance with us before.",
         "We refuse, {name}. Your word was broken once. We do not take it again.",
     ],
-    them.refusals(me) > 0 and chance(70) ? "We refuse your offer of peace, {name}. You refused ours.",
+    them.refusals(me) > 0 and chance(70%) ? "We refuse your offer of peace, {name}. You refused ours.",
 ] ?? "We refuse your offer of peace, {name}."
 ; ignored(me): our earlier offers they let run out, in a row
 alliance_offer = [
@@ -75,7 +75,7 @@ tribute_thanks = [
         "Tribute received, {name}. We are still at war.",
         "Your tribute is noted, {name}. It does not end the war.",
     ],
-    them.tribute(me) > 2000 and chance(50) ? "Tribute received. {them.tribute(me)} resources from you so far, {name}. Thank you.",
+    them.tribute(me) > 2000 and chance(50%) ? "Tribute received. {them.tribute(me)} resources from you so far, {name}. Thank you.",
 ] ?? "Tribute received. Thank you, {name}."
 capitulate = "{name}, we surrender. We offer {tribute} for peace."
 capitulate_accepted = "{tribute} paid. We will stand by you, {name}."
@@ -121,14 +121,14 @@ peace_accept = [
         "Wir nehmen den Frieden an, {name}. Ihr Verrat ist vermerkt.",
         "Frieden angenommen, {name}. Wir behalten Sie im Auge: Sie haben schon einmal ein Bündnis mit uns gebrochen.",
     ],
-    them.kills(me) > 30 and them.kills(me) > me.kills(them) and chance(60) ? "Wir nehmen den Frieden an, {name}. Dieser Krieg hat uns {them.kills(me)} Einheiten gekostet.",
+    them.kills(me) > 30 and them.kills(me) > me.kills(them) and chance(60%) ? "Wir nehmen den Frieden an, {name}. Dieser Krieg hat uns {them.kills(me)} Einheiten gekostet.",
 ] ?? "Wir nehmen den Frieden an, {name}."
 peace_refuse = [
     them.betrayals(me) > 0 ? [
         "Wir lehnen ab, {name}. Sie haben schon einmal ein Bündnis mit uns gebrochen.",
         "Wir lehnen ab, {name}. Ihr Wort wurde schon einmal gebrochen. Wir nehmen es nicht noch einmal an.",
     ],
-    them.refusals(me) > 0 and chance(70) ? "Wir lehnen Ihr Friedensangebot ab, {name}. Sie haben unseres abgelehnt.",
+    them.refusals(me) > 0 and chance(70%) ? "Wir lehnen Ihr Friedensangebot ab, {name}. Sie haben unseres abgelehnt.",
 ] ?? "Wir lehnen Ihr Friedensangebot ab, {name}."
 alliance_offer = [
     them.ignored(me) > 0 ? [
@@ -160,7 +160,7 @@ tribute_thanks = [
         "Tribut erhalten, {name}. Wir sind weiterhin im Krieg.",
         "Ihr Tribut ist vermerkt, {name}. Er beendet den Krieg nicht.",
     ],
-    them.tribute(me) > 2000 and chance(50) ? "Tribut erhalten. Bisher {them.tribute(me)} Rohstoffe von Ihnen, {name}. Danke.",
+    them.tribute(me) > 2000 and chance(50%) ? "Tribut erhalten. Bisher {them.tribute(me)} Rohstoffe von Ihnen, {name}. Danke.",
 ] ?? "Tribut erhalten. Danke, {name}."
 capitulate = "{name}, wir kapitulieren. Wir bieten {tribute} für Frieden."
 capitulate_accepted = "{tribute} bezahlt. Wir stehen zu Ihnen, {name}."

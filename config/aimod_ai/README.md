@@ -121,7 +121,7 @@ tribute_thanks = [opinion < -50 ? angry] ?? ["Thank you!", "Most generous."]
 greeting = ["Hello.", angry]
 
 ; now and then
-epoch_up = [chance(30) ? "Progress, finally.", "A new age begins."]
+epoch_up = [chance(30%) ? "Progress, finally.", "A new age begins."]
 
 ; one situation, told apart by how I stand with them: someone else has won
 other_victory = lord == them ? "Long live {name}, my lord!" : allied ? "We won together, {name}!" : "Enjoy it while it lasts."
@@ -178,13 +178,13 @@ other_victory = lord == them ? "Long live {name}, my lord!" : allied ? "We won t
 
 | | |
 |---|---|
-| Numbers, texts | `85`, `0.5`, `"text"`, `'text'` |
-| Arithmetic | `+ - * / %` - `+` joins texts unless both sides are numbers |
+| Numbers, texts | `85`, `0.5`, `70%` (the same as `0.7` - `%` only right after a number), `"text"`, `'text'` |
+| Arithmetic | `+ - * /` - `+` joins texts unless both sides are numbers; `me.strength * 150%` |
 | Comparisons | `< <= > >= == !=` - numbers when both are numbers, else texts (case ignored) |
 | Logic | `and or not` - only the words (`&&`, `\|\|` and `!` are a mistake; `!=` is a comparison) |
 | Choice | `a ? b : c`, `a ? b` (nothing when `a` doesn't hold), `a ?? b` (`b` when `a` is nothing) |
 | Lists | `[a, b, c]` - one of them at random, leaving out what is nothing |
-| Functions | `chance(25)` (true 25% of the time; `chance(2.5)` too), `rnd()` (a random number, 0 up to but not 1; `rnd(n)`: 0 up to n), `min(a, b, ...)`, `max(a, b, ...)`, `abs(a)`, `round(a)` |
+| Functions | `chance(p)` - true with the probability p, 0 to 1: `chance(25%)` or `chance(0.25)` (`chance(25)` is a mistake); `rnd()` - a random number, 0 up to but not 1 (`rnd() < 25%` is `chance(25%)`); `rnd(n)` - 0 up to n; `min(a, b, ...)`, `max(a, b, ...)`, `abs(a)`, `round(a)` |
 | Grouping | `( )` |
 
 - **True** is a number other than 0 or a text that isn't empty. **Nothing** is false, an empty text in a line, 0 in
