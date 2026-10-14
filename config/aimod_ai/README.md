@@ -222,7 +222,10 @@ Each of them is a player: in a text its name (`{me}`, `{them}`, `{enemy}`, `{lor
 comparison itself - `lord == them` holds when the one I talk to is my lord. A player has members - `me.soldiers`,
 `them.strength`, `enemy.epoch`, `them.lord` (a player again: `them.lord.name`, `them.lord == me`) - and
 **relations**, which name the other player: `me.opinion(them)` is what I think of them, `them.opinion(me)` what they
-think of me, `enemy.at_war(them)` whether the enemy is at war with them.
+think of me, `enemy.at_war(them)` whether the enemy is at war with them. A human has no opinion the game could
+read: `them.opinion(me)` of a human is a guess from what I did to them - war (a betrayal most), peace, tribute, a
+refused offer, their losses - so a line built on it should sound like my impression ("You must hate me by now"),
+not a fact.
 
 A player who isn't there - no third player in a greeting, no lord - is nothing. **Check it before you use it:**
 
@@ -270,7 +273,7 @@ Shortcuts: my own `epoch` and traits without `me.` (`aggression` is `me.aggressi
 
 | Relation | |
 |---|---|
-| `A.opinion(B)` | -100..100: what A thinks of B (an AI's opinion; nothing from a human) |
+| `A.opinion(B)` | -100..100: what A thinks of B - an AI's opinion; a human's of an AI is a guess from what the AI did to them (war, a betrayal, peace, tribute, a refusal, their losses), nothing of another human |
 | `A.at_war(B)` | 1 when A and B are enemies, both of them |
 | `A.allied(B)` | 1 when A and B are allied, both of them |
 | `A.hostile(B)` | 1 when A treats B as an enemy (whatever B does) |

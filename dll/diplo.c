@@ -151,20 +151,48 @@ static uint32_t hlog_sum(int kind, int a, int b, uint32_t since) {   // a's even
         if (g_hlog.e[i].kind == kind && g_hlog.e[i].a == a && g_hlog.e[i].b == b && g_hlog.e[i].t >= since) r += g_hlog.e[i].n;
     return r;
 }
+// WHAT A HUMAN PRESUMABLY THINKS of an AI - a guess for the texts (them.opinion(me) when them is a human), from what
+// the AI did to them: war (-40, a betrayal -60), peace (+10), tribute, a refused offer, their losses, slow drift as an
+// AI of middling traits (allied up, at war down, a grudge fading). Never read by the AI's decisions (the blocks read
+// g_opinion of every member, a human's 0: neutral). Saved with the game.
+static struct {
+    float op[16][16];       // [h][ai]: -100..100
+    uint32_t seen[16][16];  // [ai][h]: h's soldiers, citizens and buildings ai destroyed, counted so far
+    uint8_t set[16][16];    // [h][ai]: started (as an AI starts: enemy -10, ally 20)
+} g_hum;
+static int hum_pair(int h, int ai) {   // h a human, ai an AI
+    return h > 0 && h < 16 && ai > 0 && ai < 16 && h != ai && !g_players[h] && g_players[ai] && player_at(h);
+}
+static void hum_op_add(int h, int ai, float d) {
+    if (!hum_pair(h, ai)) return;
+    float v = g_hum.op[h][ai] + d;
+    g_hum.op[h][ai] = v < -100 ? -100 : v > 100 ? 100 : v;
+    if (g_log && (d >= 5 || d <= -5))   // the events, not the drift: for tuning
+        fprintf(g_log, "# diplomacy: P%d (human) presumably thinks of P%d %+.0f -> %.0f\n", h, ai, d, g_hum.op[h][ai]);
+}
+// ai's stance towards human h changed (hist_scan): war - a betrayal when they were allied, little when h is hostile
+// too (an answer: h started it) - or peace
+static void hum_turned(int ai, int h, int hostile, int were_allied, int h_hostile) {
+    if (hostile) hum_op_add(h, ai, h_hostile ? -10.0f : were_allied ? -60.0f : -40.0f);
+    else hum_op_add(h, ai, 10.0f);
+}
 static void hist_reset(void) {
     memset(&g_hist, 0, sizeof g_hist);
     memset(g_hist.stance, 0xFF, sizeof g_hist.stance);
     memset(&g_hlog, 0, sizeof g_hlog);
+    memset(&g_hum, 0, sizeof g_hum);
 }
 static void hist_tribute(int from, int to, int total) {
     if (from < 0 || from >= 16 || to < 0 || to >= 16 || from == to || total <= 0) return;
     g_hist.tribute[from][to] += (uint32_t)total;
     hlog_add(HE_TRIBUTE, from, to, (uint32_t)total);
+    hum_op_add(to, from, (float)total / 60.0f);   // an AI's tribute to a human: as to an AI of middling greed
 }
 static void hist_refused(int x, int y) {
     if (x < 0 || x >= 16 || y < 0 || y >= 16 || g_hist.refused[x][y] >= 60000) return;
     g_hist.refused[x][y]++;
     hlog_add(HE_REFUSED, x, y, 1);
+    hum_op_add(y, x, -5.0f);   // an AI refused a human's offer
 }
 static void hist_scan(uint32_t now) {
     for (int x = 1; x < nplayers(); x++)
@@ -174,8 +202,14 @@ static void hist_scan(uint32_t now) {
             int sx = stance_of(px, y) != 0, sy = stance_of(py, x) != 0, ox = g_hist.stance[x][y], oy = g_hist.stance[y][x];
             int state = sx && sy ? 2 : !sx && !sy ? 1 : 0;
             uint32_t t = now < 15000 ? 1 : now;
+            // a human's guess starts as an AI's opinion does, once the AI is there - and again while the game sets
+            // up its stances (the first 15 s: teams, a test's alliances are no events)
+            if (hum_pair(x, y) && (!g_hum.set[x][y] || now < 15000)) { g_hum.set[x][y] = 1; g_hum.op[x][y] = sx ? -10.0f : 20.0f; }
+            if (hum_pair(y, x) && (!g_hum.set[y][x] || now < 15000)) { g_hum.set[y][x] = 1; g_hum.op[y][x] = sy ? -10.0f : 20.0f; }
             if (ox < 0 || oy < 0) g_hist.since[x][y] = g_hist.since[y][x] = now < 15000 ? 0 : now;   // first seen
             else {
+                if (sx != ox && now >= 15000) hum_turned(x, y, sx, !ox && !oy, sy);   // an AI's turn towards a human
+                if (sy != oy && now >= 15000) hum_turned(y, x, sy, !ox && !oy, sx);
                 if (!ox && !oy && sx) { g_hist.betrayals[x][y]++; hlog_add(HE_BETRAYAL, x, y, 1); }   // allied, and x turned
                 if (!ox && !oy && sy) { g_hist.betrayals[y][x]++; hlog_add(HE_BETRAYAL, y, x, 1); }
                 int old = ox && oy ? 2 : !ox && !oy ? 1 : 0;
@@ -1179,6 +1213,18 @@ static void diplo_tick(void *pl, unsigned ai, uint32_t now) {
             if (lead && lead != j && stance_of(pj, lead) && stance_of(pl, lead)) d += 0.5f;
             if (g_opinion[ai][j] < 0) d -= g_opinion[ai][j] * trait(pl, T_FORGIVENESS) / 2000.0f;
             opinion_add((int)ai, j, d);
+            if (hum_pair(j, (int)ai)) {   // what the human presumably thinks of this AI: the same drift, middling traits
+                float h = 0;
+                if (!stance_of(pl, j) && !stance_of(pj, (int)ai)) h += 0.5f;
+                if (stance_of(pj, (int)ai)) h -= 0.25f;
+                const uint32_t *k = g_kills[ai][j];   // their losses to this AI since the last minute
+                uint32_t lost = k[K_SOLDIERS] + k[K_CITIZENS] + 3 * k[K_BUILDINGS], *seen = &g_hum.seen[ai][j];
+                float l = lost > *seen ? 0.3f * (float)(lost - *seen) : 0;
+                h -= l > 10 ? 10 : l;
+                *seen = lost;
+                if (g_hum.op[j][ai] < 0) h -= g_hum.op[j][ai] * 50 / 2000.0f;
+                hum_op_add(j, (int)ai, h);
+            }
         }
         if (!first) diplo_initiative(pl, (int)ai, now);
     }
@@ -1609,7 +1655,7 @@ static const struct xmember k_xmembers[] = {
     { "lord", XM_LINK, "its lord, the player it capitulated to - a player: them.lord.name, lord == them; nothing when it has none" },
     { "food", XM_ME, "my stock" },
     { "wood", XM_ME, "" }, { "stone", XM_ME, "" }, { "gold", XM_ME, "" }, { "iron", XM_ME, "" },
-    { "opinion", XM_REL, "-100..100: what A thinks of B (an AI's opinion; nothing from a human)" },
+    { "opinion", XM_REL, "-100..100: what A thinks of B - an AI's opinion; a human's of an AI is a guess from what the AI did to them (war, a betrayal, peace, tribute, a refusal, their losses), nothing of another human" },
     { "at_war", XM_REL, "1 when A and B are enemies, both of them" },
     { "allied", XM_REL, "1 when A and B are allied, both of them" },
     { "hostile", XM_REL, "1 when A treats B as an enemy (whatever B does)" },
@@ -1711,7 +1757,11 @@ static void x_relation(void *pa, void *pb, const struct xmember *m, double win, 
     uint32_t since = win > 0 && win * 60000.0 < now ? now - (uint32_t)(win * 60000.0) : 0;
     int whole = !(win > 0);
     double r = 0;
-    if (!strcmp(n, "opinion")) { if (!g_players[a]) return; r = g_opinion[a][b]; }
+    if (!strcmp(n, "opinion")) {   // an AI's opinion - a human's of an AI: the guess (g_hum)
+        if (g_players[a]) r = g_opinion[a][b];
+        else if (hum_pair(a, b)) r = g_hum.op[a][b];
+        else return;
+    }
     else if (!strcmp(n, "at_war")) r = war;
     else if (!strcmp(n, "allied")) r = ally;
     else if (!strcmp(n, "hostile")) r = stance_of(pa, b) != 0;
