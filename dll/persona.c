@@ -305,6 +305,7 @@ static void personas_load(void) {
     if (h == INVALID_HANDLE_VALUE) return;
     do {
         wsprintfA(path, "%s%s", dir, fd.cFileName);
+        if (fd.cFileName[0] == '_') continue;   // _system.ini, _template.ini, _persona.ini: no personalities (texts.c)
         if (!g_personas_only_computer || !lstrcmpiA(fd.cFileName, "computer.ini")) persona_load(path, fd.cFileName);
     } while (FindNextFileA(h, &fd));
     FindClose(h);
@@ -503,17 +504,16 @@ static int line_heard(void *pl, enum line_kind k, void *other) {
 // answered, callers don't fall back to another line)
 static int g_say_tribute[7];   // {tribute}: amounts by resource (stock index 2..6), set by the caller (diplo.c)
 // {tribute}: the amounts by resource in the game's language, e.g. "200 Gold, 800 Eisen" (only what is paid)
+static const char *sys_text(const char *key);   // texts.c: a system text in the game's language
 static void tribute_text(const int *amount, char *buf, int cap) {
-    static const char *const en[7] = { "", "", "food", "wood", "stone", "gold", "iron" };
-    static const char *const de[7] = { "", "", "Nahrung", "Holz", "Stein", "Gold", "Eisen" };
-    const char *const *nm = !lstrcmpiA(g_lang, "de") ? de : en;
+    static const char *const key[7] = { "", "", "food", "wood", "stone", "gold", "iron" };
     int o = 0;
     buf[0] = 0;
     for (int r = 2; r < 7; r++) {
-        if (amount[r] <= 0 || o > cap - 32) continue;
-        o += wsprintfA(buf + o, "%s%d %s", o ? ", " : "", amount[r], nm[r]);
+        if (amount[r] <= 0 || o > cap - 48) continue;
+        o += wsprintfA(buf + o, "%s%d %.24s", o ? ", " : "", amount[r], sys_text(key[r]));
     }
-    if (!o) lstrcpynA(buf, nm == de ? "nichts" : "nothing", cap);
+    if (!o) lstrcpynA(buf, sys_text("nothing"), cap);
 }
 static int llm_line(void *pl, enum line_kind k, void *other, void *third, const char *fixed);   // llm.c
 static void llm_heard(void *pl, void *other, const char *text);

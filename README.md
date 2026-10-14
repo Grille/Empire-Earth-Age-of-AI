@@ -23,6 +23,9 @@ patches such as *Empire Earth Tweaks* or *dreXmod*, which patch different places
 | [docs/testing.md](docs/testing.md) | Autotest mode, test scenarios, log format, control pipe commands |
 | [config/aimod.ini](config/aimod.ini) | Every setting, explained |
 | [config/aimod_ai/eroberer.ini](config/aimod_ai/eroberer.ini) | The personality file format |
+| [config/aimod_ai/_persona.ini](config/aimod_ai/_persona.ini) | An empty personality with every key explained, to copy |
+| [config/aimod_ai/_system.ini](config/aimod_ai/_system.ini) | The system lines the mod shows (English, German) |
+| [config/aimod_ai/_template.ini](config/aimod_ai/_template.ini) | What the mod tells the language model (the AI voice) |
 
 ## Computer player
 
@@ -117,7 +120,13 @@ peace or alliances. With the mod:
   (`[lines:de]`, `[lines:fr]`... replace the English `[lines]`). A saved game finds its personalities again.
   `computer.ini` in the same folder is no personality but the fallback: neutral lines for what must not go
   unsaid (war, peace, offers waiting for your answer, capitulation, victory). A personality without a line for
-  such a situation uses it, and AIs without any personality speak only these lines.
+  such a situation uses it, and AIs without any personality speak only these lines. `_persona.ini` is an empty
+  personality with every key explained: copy it to a new name to make your own.
+- **The mod's own texts** are in the same folder too (files starting with `_` are no personalities):
+  `_system.ini` holds the system lines it shows you (offers waiting for your answer, chat hints, victory) in
+  English and German - `[system:fr]` etc. adds a language -, `_template.ini` everything it tells the language
+  model (the AI voice: who the AI is, the rules, the game as it stands, the situations, the tools). Placeholders in
+  braces are filled in; a key or file left out keeps the built-in text.
 - **Play style** (experimental, `ai_style=1`, off by default): a personality can also change how its AI plays
   (attack timing, army share, home guard). Off, every AI plays the same, tested way.
 

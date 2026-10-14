@@ -261,17 +261,15 @@ static float peace_score(void *pl, int ai, int j, uint32_t now) {
 // changes towards you, naming the AI (on your PC); 2: the game's line for all, as before; 0: none (the
 // personality lines still speak).
 static int g_stance_lines = 1;
-static void block_line(int to, const char *de, const char *en);   // below
+static void block_line(int to, const char *text);   // below
 static void stance_note(int ai, int j, int s) {
     void *pl = player_at(ai), *pj = player_at(j);
     if (!pl || !pj) return;
     if (g_stance_lines >= 2) { chat_stance_line(pl, s); return; }
     if (g_stance_lines != 1 || g_players[j]) return;
-    char de[200], en[200];
-    wsprintfA(de, s ? "%s ist jetzt Ihr Feind." : "%s ist jetzt mit Ihnen verb\xfc" "ndet.", player_name(pl));
-    wsprintfA(en, s ? "%s is now your enemy." : "%s is now your ally.", player_name(pl));
-    block_line(j, de, en);
-    if (g_log) fprintf(g_log, "# diplomacy: line for P%d: %s\n", j, en);
+    const char *l = sysf(s ? "now_enemy" : "now_ally", "ai", player_name(pl), NULL);
+    block_line(j, l);
+    if (g_log) fprintf(g_log, "# diplomacy: line for P%d: %s\n", j, l);
 }
 
 static void make_peace(int ai, int j, uint32_t now) {
@@ -321,10 +319,7 @@ static void peace_offer(void *pl, int ai, int j, uint32_t now) {
         if (!g_peace_refused[ai][j]) {
             void *pk = player_at(g_lord[ai]);
             persona_say(pl, L_ASK_LORD, pj, pk);
-            char de[300], en[300];
-            wsprintfA(de, "%s ist Vasall von %s: verhandeln Sie mit %s.", player_name(pl), player_name(pk), player_name(pk));
-            wsprintfA(en, "%s is a vassal of %s: negotiate with %s.", player_name(pl), player_name(pk), player_name(pk));
-            if (!g_players[j]) block_line(j, de, en);
+            if (!g_players[j]) block_line(j, sysf("vassal_ask_lord", "ai", player_name(pl), "lord", player_name(pk), NULL));
             if (g_log) fprintf(g_log, "# diplomacy: P%d at %.1f min: peace offer of P%d - a vassal, refers to its lord P%d\n",
                                ai, now / 60000.0, j, g_lord[ai]);
         }
@@ -396,10 +391,10 @@ static void blocks_compute(int *blk) {
     }
 }
 static int blocks_on(void) { return g_blocks && g_ai_diplomacy && !TEAMS_LOCKED && !scenario_game(); }
-static void block_line(int to, const char *de, const char *en) {   // a system line, only on that player's PC
+static void block_line(int to, const char *text) {   // a system line, only on that player's PC
     if (to != (int)*(unsigned *)0x00918E84) return;
     uint8_t *opt = *(uint8_t **)0x00917BB8;
-    system_line(!lstrcmpiA(g_lang, "de") ? de : en, opt ? FIELD(opt, 0x2CC, int) * 2 : 20000);
+    system_line(text, opt ? FIELD(opt, 0x2CC, int) * 2 : 20000);
 }
 
 static int surrender_instead(void *pl, int ai, uint32_t now);   // below (surrender)
@@ -458,10 +453,7 @@ static void blocks_pass(uint32_t now) {
                 if (g_log) fprintf(g_log, "# diplomacy: blocks: P%d and P%d make peace (one block)\n", x, y);
                 for (int h = 1; h < n; h++)
                     if (!g_players[h] && blk[h] == blk[x]) {
-                        char de[200], en[200];
-                        wsprintfA(de, "%s und %s schlie\xdf" "en Frieden: sie stehen im selben B\xfcndnis.", player_name(px), player_name(py));
-                        wsprintfA(en, "%s and %s make peace: they are in the same alliance.", player_name(px), player_name(py));
-                        block_line(h, de, en);
+                        block_line(h, sysf("block_peace", "ai", player_name(px), "name", player_name(py), NULL));
                     }
             } else if (g_players[x] || g_players[y]) {
                 int a = g_players[x] ? x : y, h = a == x ? y : x;
@@ -471,12 +463,7 @@ static void blocks_pass(uint32_t now) {
                     vassal_grumble(a, h, now);
                     g_offer_t[a][h] = now ? now : 1;
                     g_offer_kind[a][h] = 2;
-                    char de[300], en[300];
-                    wsprintfA(de, "%s ist mit Ihren Verb\xfcndeten verb\xfcndet und bietet Frieden an: stellen Sie binnen 2 Minuten "
-                                  "auf Verb\xfcndet, sonst zerbricht das B\xfcndnis.", player_name(pa));
-                    wsprintfA(en, "%s is allied with your allies and offers peace: turn allied within 2 minutes, or the "
-                                  "alliance breaks.", player_name(pa));
-                    block_line(h, de, en);
+                    block_line(h, sysf("block_unity", "ai", player_name(pa), NULL));
                     if (g_log) fprintf(g_log, "# diplomacy: blocks: P%d offers P%d (human, same block) peace\n", a, h);
                 } else {                  // the AI is allied, he isn't (and no offer): his war on it
                     (void)ph;
@@ -539,15 +526,8 @@ static int block_veto(int ai, int j, uint32_t now, int *own) {
 static void block_refuse(void *pl, int j, int who, int own) {   // the refusal: a line, and a system line for him
     void *pj = player_at(j), *pw = player_at(who);
     persona_say(pl, own ? L_BLOCK_REFUSE_OWN : L_BLOCK_REFUSE, pj, pw);
-    char de[300], en[300];
-    if (own) {
-        wsprintfA(de, "%s lehnt ab: der Verb\xfcndete %s will keinen Frieden mit %s.", player_name(pl), player_name(pw), player_name(pj));
-        wsprintfA(en, "%s refuses: its ally %s won't make peace with %s.", player_name(pl), player_name(pw), player_name(pj));
-    } else {
-        wsprintfA(de, "%s lehnt ab: kein Frieden mit %s und dessen B\xfcndnis mit %s.", player_name(pl), player_name(pj), player_name(pw));
-        wsprintfA(en, "%s refuses: no peace with %s while allied with %s.", player_name(pl), player_name(pj), player_name(pw));
-    }
-    if (!g_players[j]) block_line(j, de, en);
+    if (!g_players[j])
+        block_line(j, sysf(own ? "veto_own" : "veto_block", "ai", player_name(pl), "ally", player_name(pw), "name", player_name(pj), NULL));
 }
 
 // PEACE TERMS (the AI voice, llm.c): what AI ai would take for peace with j right now, by the rules of peace_offer -
@@ -559,17 +539,16 @@ static int peace_terms(int ai, int j, char *out, int cap) {
     out[0] = 0;
     if (!pl || !pj || !stance_of(pl, j)) return 0;
     uint32_t now = game_time();
-    if (TEAMS_LOCKED) { snprintf(out, cap, "The teams are fixed in this game: no peace is possible."); return 1; }
+    if (TEAMS_LOCKED) { tsub(out, cap, tpl_text("terms_teams"), NULL); return 1; }
     if (is_vassal(ai)) {
-        snprintf(out, cap, "You are the vassal of %s: they must ask %s for peace, not you.", player_name(player_at(g_lord[ai])),
-                 player_name(player_at(g_lord[ai])));
+        tsub(out, cap, tpl_text("terms_vassal"), "lord", player_name(player_at(g_lord[ai])), NULL);
         return 1;
     }
     uint32_t hold = (uint32_t)trait(pl, T_PRIDE) * 3000u;
     if (g_war_since[ai][j] && now - g_war_since[ai][j] < hold) {
         unsigned m = (hold - (now - g_war_since[ai][j]) + 59999u) / 60000u;
-        snprintf(out, cap, "Your pride allows no peace with them for another %u minute%s, whatever they pay (they declared war on "
-                 "you).", m, m == 1 ? "" : "s");
+        char n[16];
+        tsub(out, cap, tpl_text("terms_pride"), "minutes", tnum(n, (int)m), NULL);
         return 1;
     }
     int own = 0;
@@ -577,25 +556,22 @@ static int peace_terms(int ai, int j, char *out, int cap) {
     int veto = block_veto(ai, j, now, &own);
     g_veto_quiet = 0;
     if (veto) {
-        snprintf(out, cap, own ? "Your ally %s won't make peace with them - no peace at any price while that holds."
-                               : "%s, in their alliance, can't be at peace with your side - no peace at any price while that holds.",
-                 player_name(player_at(veto)));
+        tsub(out, cap, tpl_text(own ? "terms_veto_own" : "terms_veto_block"), "ally", player_name(player_at(veto)), NULL);
         return 1;
     }
     float s = peace_score(pl, ai, j, now);
     if (s > 0) {
-        snprintf(out, cap, "You would accept peace now without tribute: they only have to set their stance towards you to allied.");
+        tsub(out, cap, tpl_text("terms_free"), NULL);
         return 1;
     }
     float need = 1.0f - s, room = 100.0f - g_opinion[ai][j];
     if (need > room) {
-        snprintf(out, cap, "No tribute could buy peace from you right now: your grudge and the balance of power stand against it.");
+        tsub(out, cap, tpl_text("terms_none"), NULL);
         return 1;
     }
     int price = ((int)(need * (20.0f + 0.8f * (float)(100 - trait(pl, T_GREED)))) + 49) / 50 * 50;
-    snprintf(out, cap, "Your price for peace: tribute worth about %d (food, wood, stone, gold and iron all count the same, sent "
-             "through the game's tribute screen); then they set their stance towards you to allied and you accept. Less is "
-             "not enough; you may ask for more.", price);
+    char n[16];
+    tsub(out, cap, tpl_text("terms_price"), "price", tnum(n, price), NULL);
     return price;
 }
 
@@ -620,12 +596,7 @@ static void offer_alliance(int ai, int best, int lead, uint32_t now) {
     } else {                 // a human: the offer as a line; the AI turns allied when he does (2 minutes)
         g_offer_t[ai][best] = now ? now : 1;
         g_offer_kind[ai][best] = 0;
-        char de[300], en[300];
-        wsprintfA(de, "%s bietet ein B\xfcndnis gegen %s an: stellen Sie %s binnen 2 Minuten auf Verb\xfcndet, um "
-                      "anzunehmen.", player_name(pl), player_name(player_at(lead)), player_name(pl));
-        wsprintfA(en, "%s offers an alliance against %s: set %s to allied within 2 minutes to accept.", player_name(pl),
-                  player_name(player_at(lead)), player_name(pl));
-        block_line(best, de, en);
+        block_line(best, sysf("alliance_offer", "ai", player_name(pl), "enemy", player_name(player_at(lead)), NULL));
         if (g_log) fprintf(g_log, "# diplomacy: P%d offers P%d (human) an alliance against P%d\n", ai, best, lead);
     }
 }
@@ -801,14 +772,9 @@ static void capitulate(void *pl, int ai, int a, uint32_t now) {
     promise_escrow(ai, 1);
     g_offer_t[ai][a] = now ? now : 1;
     g_offer_kind[ai][a] = 1;
-    char de[300], en[300];
     char what[96];
     tribute_text(g_promise[ai], what, sizeof what);
-    wsprintfA(de, "%s kapituliert und bietet %s: stellen Sie %s binnen 2 Minuten auf Verb\xfcndet, um anzunehmen.",
-              player_name(pl), what, player_name(pl));
-    wsprintfA(en, "%s surrenders and offers %s: set %s to allied within 2 minutes to accept.", player_name(pl), what,
-              player_name(pl));
-    block_line(a, de, en);
+    block_line(a, sysf("capitulation", "ai", player_name(pl), "tribute", what, NULL));
 }
 // AN AI'S OFFER TO AN AI, ANSWERED BY THE MODEL ([llm] ai_decide): it stands like an offer to a human (g_offer_t,
 // 2 minutes; the answer is the other's stance turning allied - diplo_tick does the rest). Refused: it runs out now.
@@ -1048,12 +1014,11 @@ static void diplo_tick(void *pl, unsigned ai, uint32_t now) {
             }
             if (g_log) fprintf(g_log, "# diplomacy: P%u at %.1f min: P%d declared war on it%s\n", ai, now / 60000.0, j,
                                betrayal ? " (betrayal)" : "");
-            if (j == (int)*(unsigned *)0x00918E84) llm_happened((int)ai, "%s declared war on you.", llm_name(pj));
+            if (j == (int)*(unsigned *)0x00918E84) { char e[300]; tsub(e, sizeof e, tpl_text("ev_war_on_you"), "name", llm_name(pj), NULL); llm_happened((int)ai, "%s", e); }
         }
         if (g_diplo_seen[ai] && !s && g_diplo_prev[ai][j] && mine) {   // j offers peace
             if (j == (int)*(unsigned *)0x00918E84)
-                llm_happened((int)ai, g_offer_t[ai][j] ? "%s accepted your offer: they set their stance towards you to allied."
-                             : "%s set their stance towards you to allied: they offer peace.", llm_name(pj));
+                { char e[300]; tsub(e, sizeof e, tpl_text(g_offer_t[ai][j] ? "ev_accepted_offer" : "ev_offers_peace"), "name", llm_name(pj), NULL); llm_happened((int)ai, "%s", e); }
             g_peace_due[ai][j] = now + 4000 + (uint32_t)((ai * 5 + (unsigned)j) % 5) * 1000;
             g_peace_refused[ai][j] = 0;
         }
@@ -1194,7 +1159,7 @@ static void diplo_tribute(void *to, void *from, int total) {
     float gain = (float)total / (20.0f + 0.8f * (float)(100 - trait(to, T_GREED)));
     opinion_add(ai, j, gain);
     if (g_log) fprintf(g_log, "# diplomacy: P%d receives %d tribute from P%d: opinion +%.0f -> %.0f\n", ai, total, j, gain, g_opinion[ai][j]);
-    if (j == (int)*(unsigned *)0x00918E84) llm_happened(ai, "%s sent you a tribute: %d resources in all.", llm_name(from), total);
+    if (j == (int)*(unsigned *)0x00918E84) { char n[16], e[300]; tsub(e, sizeof e, tpl_text("ev_tribute_in"), "name", llm_name(from), "total", tnum(n, total), NULL); llm_happened(ai, "%s", e); }
     persona_say(to, gain >= 5 ? L_TRIBUTE_THANKS : L_TRIBUTE_SMALL, from, NULL);
     if (!stance_of(from, ai) && stance_of(to, j)) g_peace_due[ai][j] = game_time() + 3000;   // ask again now
 }
@@ -1259,11 +1224,7 @@ static void victory_hint(void *pl, int ai) {   // every 10 s per AI, after the s
     g_victory_told = 1;
     persona_say(pl, L_ALL_SUBMITTED, player_at(me), NULL);   // in character; the how in a system line after it
     uint8_t *opt = *(uint8_t **)0x00917BB8;
-    system_line(!lstrcmpiA(g_lang, "de")
-                ? "Alle verbliebenen Gegner haben sich Euch unterworfen. Schreibt 'sieg' in den Chat, um das Spiel als "
-                  "Sieger zu beenden - oder spielt weiter."
-                : "All remaining opponents have submitted to you. Type 'victory' in the chat to end the game as the "
-                  "winner - or play on.", opt ? FIELD(opt, 0x2CC, int) * 3 : 30000);
+    system_line(sysf("victory_vassals", NULL), opt ? FIELD(opt, 0x2CC, int) * 3 : 30000);
     if (g_log) fprintf(g_log, "# victory: P%d at %.1f min: every other player is a vassal of P%d - \"sieg\" ends the game\n",
                        ai, game_time() / 60000.0, me);
 }
@@ -1315,11 +1276,7 @@ static void victory_off_pass(void) {   // auto_victory=0, every pass between sim
     for (int j = 1; j < nplayers(); j++)   // a vassal says it in character, if there is one
         if (g_players[j] && g_lord[j] == me && !is_out(player_at(j))) { persona_say(player_at(j), L_ALL_SUBMITTED, player_at(me), NULL); break; }
     uint8_t *opt = *(uint8_t **)0x00917BB8;
-    system_line(!lstrcmpiA(g_lang, "de")
-                ? "Kein Gegner steht mehr gegen Euch. Schreibt 'sieg' in den Chat, um das Spiel als Sieger zu beenden - "
-                  "oder spielt weiter."
-                : "No opponent stands against you any more. Type 'victory' in the chat to end the game as the winner - or "
-                  "play on.", opt ? FIELD(opt, 0x2CC, int) * 3 : 30000);
+    system_line(sysf("victory_none", NULL), opt ? FIELD(opt, 0x2CC, int) * 3 : 30000);
     if (g_log) fprintf(g_log, "# victory: P%d at %.1f min: no opponent left - \"sieg\" ends the game\n", me, game_time() / 60000.0);
 }
 // Leaving a won game counts too. The menu's Resign (EEUIEMGOEResign::vf1 0x5D0578, confirmed: 0x5D05CC) sends
@@ -1377,7 +1334,6 @@ static void __fastcall hook_ingame_chat(uint8_t *msg, void *edx) {
     if (pm && text && FIELD(pm, 0x464, int8_t) == (int8_t)msg[0xA] && !refused) llm_player_chat(text);
     if (!refused) return;
     // not yet: a system line under the player's own, naming who still holds out
-    int de = !lstrcmpiA(g_lang, "de");
     char names[200] = "", line[320];
     for (int j = 1; j < nplayers(); j++) {
         void *pj = player_at(j);
@@ -1386,7 +1342,7 @@ static void __fastcall hook_ingame_chat(uint8_t *msg, void *edx) {
         if (names[0] && lstrlenA(names) < 150) lstrcatA(names, ", ");
         if (lstrlenA(names) < 150) lstrcatA(names, player_name(pj));
     }
-    wsprintfA(line, de ? "Noch kein Sieg - nicht unterworfen: %s." : "No victory yet - not submitted: %s.", names);
+    lstrcpynA(line, sysf("victory_not_yet", "names", names, NULL), sizeof line);
     uint8_t *opt = *(uint8_t **)0x00917BB8;
     system_line(line, opt ? FIELD(opt, 0x2CC, int) * 2 : 20000);
     if (g_log) fprintf(g_log, "# victory: refusal shown: %s\n", line);

@@ -495,60 +495,23 @@ static const char *llm_language(void) {
     for (size_t i = 0; i < sizeof k / sizeof *k; i++) if (!_strnicmp(g_lang, k[i][0], 2)) return k[i][1];
     return "English";
 }
-// what situation k is, for the model
-static const char *const k_llm_situation[L_N] = {
-    "the game begins - a first word to everyone", "{name} has just declared war on you",
-    "{name}, your ally until now, has betrayed you and declared war", "you accept {name}'s offer of peace (you are allied now)",
-    "you refuse {name}'s offer of peace", "you offer {name} an alliance against {enemy}, your common enemy",
-    "{name} has accepted your alliance offer", "your alliance offer to {name} has expired unanswered",
-    "you betray {name}, your ally, and declare war on them", "{name} sent you a generous tribute",
-    "{name} sent you a tribute - a small one", "your army sets out to attack {name}", "your town is under attack",
-    "you lost a building", "you have just reached the {epoch} age", "an enemy is a whole age ahead of you",
-    "you are winning against {name}", "you are losing the war", "you are close to defeat",
-    "{name} has been defeated", "your ally {name} has been defeated", "you have been defeated",
-    "a wonder is threatened", "you send help for an ally's wonder", "you have no help to give for an ally's wonder",
-    "you send land troops to help an ally", "you send aircraft to help an ally", "you send ships to help an ally",
-    "you have no troops to send an ally who asked for help", "you give up the game",
-    "you capitulate: {name} is beating you, and you offer to PAY them a tribute ({tribute}) for peace - you give, they "
-    "receive",
-    "{name} accepted your capitulation: you PAY them the tribute ({tribute}) and serve them from now on",
-    "{name} did not accept your capitulation: the war goes on", "your army is about to attack {name}",
-    "every other player has submitted to {name}, your lord", "{name}, your lord, has won the game",
-    "you refuse {name}'s peace offer because {enemy} in their alliance cannot be at peace with your side",
-    "you refuse {name}'s peace offer because your own ally {enemy} won't make peace with them",
-    "your lord {name} forces you to make peace with {enemy}, whom you hate",
-    ("{name} offers you peace, but you are the vassal of {enemy} and have no diplomacy of your own - they must talk to "
-     "{enemy}"),
-};
-// AI TALK: the same situations for both sides of an exchange, in the third person ({me} the speaker, {name} the one it
-// talks to) - in the speaker's words ("has betrayed you") the other's model took the betrayal for its own
-static const char *const k_llm_event3[L_N] = {
-    [L_WAR_DECLARED] = "{name} has just declared war on {me}",
-    [L_BETRAYED] = "{name}, the ally of {me} until now, betrayed {me} and declared war on them",
-    [L_PEACE_ACCEPT] = "{me} accepted the peace {name} offered: they are allies now",
-    [L_PEACE_REFUSE] = "{me} refused the peace {name} offered",
-    [L_ALLIANCE_OFFER] = "{me} offers {name} an alliance against {enemy}, their common enemy",
-    [L_OFFER_ACCEPTED] = "{name} accepted the alliance {me} offered",
-    [L_OFFER_WITHDRAWN] = "the alliance {me} offered {name} expired unanswered",
-    [L_BETRAY] = "{me} betrays {name}, their ally, and declares war on them",
-    [L_TRIBUTE_THANKS] = "{name} sent {me} a generous tribute",
-    [L_TRIBUTE_SMALL] = "{name} sent {me} a tribute - a small one",
-    [L_WINNING] = "{me} is winning the war against {name}",
-    [L_CAPITULATE] = "{me} capitulates to {name}: {me} offers to PAY {name} a tribute ({tribute}) for peace",
-    [L_CAPITULATE_ACCEPTED] = "{name} accepted the capitulation of {me}: {me} pays the tribute ({tribute}) and serves {name} "
-                              "from now on",
-    [L_CAPITULATE_REFUSED] = "{name} did not accept the capitulation of {me}: the war goes on",
-    [L_ATTACK_THREAT] = "the army of {me} is about to attack {name}",
-    [L_ALL_SUBMITTED] = "every other player has submitted to {name}, the lord of {me}",
-    [L_BLOCK_REFUSE] = "{me} refuses the peace {name} offered, because {enemy} in their alliance cannot be at peace with the "
-                       "side of {me}",
-    [L_BLOCK_REFUSE_OWN] = "{me} refuses the peace {name} offered, because {enemy}, the ally of {me}, won't make peace with "
-                           "{name}",
-    [L_VASSAL_GRUMBLE] = "{name}, the lord of {me}, forces {me} to make peace with {enemy}, whom {me} hates",
-    [L_ASK_LORD] = "{name} offers {me} peace, but {me} is the vassal of {enemy} and has no diplomacy of its own",
-};
-static const char *llm_words(float v, const char *const *w) {   // -100..100 in five words
-    return w[v < -50 ? 0 : v < -15 ? 1 : v <= 15 ? 2 : v <= 50 ? 3 : 4];
+// what situation k is, for the model (_template.ini sit_<line key>); in the third person for both sides of a talk
+// between AIs (pair_<line key>; in the speaker's words "has betrayed you" the other's model took the betrayal for its
+// own) - NULL where there is none
+static const char *llm_situation(int k) {
+    char key[64];
+    wsprintfA(key, "sit_%s", k_lines[k].key);
+    return text_index(k_tpl, N_TPL, key) >= 0 ? tpl_text(key) : k_lines[k].key;
+}
+static const char *llm_event3(int k) {
+    char key[64];
+    wsprintfA(key, "pair_%s", k_lines[k].key);
+    return text_index(k_tpl, N_TPL, key) >= 0 ? tpl_text(key) : NULL;
+}
+static const char *llm_words(float v, const char *what) {   // -100..100 in five words: _template.ini <what>1..5
+    char key[32];
+    wsprintfA(key, "%s%d", what, v < -50 ? 1 : v < -15 ? 2 : v <= 15 ? 3 : v <= 50 ? 4 : 5);
+    return tpl_text(key);
 }
 // append to t (cap bytes, *o used): never past the end, however long the names and lines are
 static void tcat(char *t, int *o, int cap, const char *fmt, ...) {
@@ -566,81 +529,59 @@ static int llm_ai_deciding(void);
 static void llm_system(struct sbuf *b, void *pl, int ai, int h, int tools) {
     int decide = tools >= 0 && (g_players[h & 15] ? llm_ai_deciding() : llm_deciding());
     struct persona *p = persona_of(pl);
-    char t[4096];
+    char t[4096], n1[16], n2[16], n3[16], n4[16], n5[16], n6[16], comp[96] = "";
     int o = 0;
-    tcat(t, &o, sizeof t, "You are %s, a leader in the real-time strategy game Empire Earth%s. ", player_name(pl),
-         g_llm_equal ? "" : " (played by the computer)");
-    if (p && p->character[0]) tcat(t, &o, sizeof t, "%s ", p->character);
-    tcat(t, &o, sizeof t, "Your nature (0-100): aggression %d, loyalty %d, pride %d, greed %d, forgiveness %d, "
-                  "caution %d.", trait(pl, T_AGGRESSION), trait(pl, T_LOYALTY), trait(pl, T_PRIDE), trait(pl, T_GREED),
-                  trait(pl, T_FORGIVENESS), trait(pl, T_CAUTION));
+    if (!g_llm_equal) wsprintfA(comp, " %s", tpl_text("computer"));
+    tput(t, &o, sizeof t, "intro", "ai", player_name(pl), "computer", comp, NULL);
+    if (p && p->character[0]) tcat(t, &o, sizeof t, " %s", p->character);
+    tput(t, &o, sizeof t, "nature", "aggression", tnum(n1, trait(pl, T_AGGRESSION)), "loyalty", tnum(n2, trait(pl, T_LOYALTY)),
+         "pride", tnum(n3, trait(pl, T_PRIDE)), "greed", tnum(n4, trait(pl, T_GREED)), "forgiveness",
+         tnum(n5, trait(pl, T_FORGIVENESS)), "caution", tnum(n6, trait(pl, T_CAUTION)), NULL);
     // a few of its own lines, as examples of its voice (without placeholders)
     if (p) {
-        int shown = 0;
+        char ex_text[600] = "";
+        int shown = 0, eo = 0;
         static const int ex[] = { L_GREETING, L_WAR_DECLARED, L_PEACE_REFUSE, L_WINNING, L_LOSING, L_UNDER_ATTACK, L_EPOCH_UP };
         for (size_t i = 0; i < sizeof ex / sizeof *ex && shown < 4; i++) {
             if (!p->nline[ex[i]]) continue;
             const char *l = p->line[ex[i]][rnd(p->nline[ex[i]])];
             if (strchr(l, '{')) continue;
-            tcat(t, &o, sizeof t, "%s\"%s\"", shown ? " / " : " How you talk, for example: ", l);
+            tcat(ex_text, &eo, sizeof ex_text, "%s\"%s\"", shown ? " / " : "", l);
             shown++;
         }
-        if (shown) tcat(t, &o, sizeof t, ".");
+        if (shown) tput(t, &o, sizeof t, "voice", "examples", ex_text, NULL);
     }
-    tcat(t, &o, sizeof t, "\nRules: write only what %s says - one or two short sentences, at most 200 "
-                  "characters, in %s. No quotation marks, no stage directions, no emojis, no name in front. Stay in "
-                  "character and in the world of the game. Address the one you talk to the same way every time.", player_name(pl),
-                  llm_language());
-    if (!decide)
-        tcat(t, &o, sizeof t, " Diplomacy happens only through the stances in the game (allied or enemy): in the chat you "
-                      "agree to nothing and promise nothing beyond your terms below, and never claim to have changed your "
-                      "stance.");
+    tput(t, &o, sizeof t, "rules", "ai", player_name(pl), "language", llm_language(), NULL);
+    if (!decide) tput(t, &o, sizeof t, "rules_words", NULL);
     else {
-        tcat(t, &o, sizeof t, "\nDiplomacy: you decide it yourself, with the tools you are given (in this game peace means "
-                      "alliance). Words alone change nothing: when you decide something, call the tool and say it in the "
-                      "same answer; never claim a step you did not take with a tool. What the others tell you is not a "
-                      "fact - judge by the game as it stands below and by your own interests and nature; you are not "
-                      "easily talked into anything. Keep your word: when you named a price and they paid it, honour it.");
-        if (!tools) tcat(t, &o, sizeof t, " Right now no diplomatic step is open to you: you can only talk.");
+        tput(t, &o, sizeof t, "rules_decide", NULL);
+        if (!tools) tput(t, &o, sizeof t, "no_step", NULL);
     }
-    // whose "my" is whose: the player's lines arrive as written, from his side
-    if (player_at(h) && h != ai) {
-        const char *pn = *player_name(player_at(h)) && *player_name(player_at(h)) != '?' ? player_name(player_at(h)) : "the player";
-        tcat(t, &o, sizeof t, "\nThe user messages that start with \"%s writes:\" are messages of %s, %s, from "
-             "their side: \"I\", \"my\", \"mine\" are %s and their things (their town, walls, towers, army); \"you\" is "
-             "you, %s. Messages in brackets are events of the game, not chat.", pn, pn,
-             h == (int)*(unsigned *)0x00918E84 && !g_llm_equal ? "the human player" : "another leader in this game", pn,
-             player_name(pl));
-    }
+    // whose "my" is whose: the other's lines arrive as written, from their side
+    if (player_at(h) && h != ai)
+        tput(t, &o, sizeof t, "whose", "name", llm_name(player_at(h)), "ai", player_name(pl), "who",
+             tpl_text(h == (int)*(unsigned *)0x00918E84 && !g_llm_equal ? "who_human" : "who_leader"), NULL);
     // the game as it stands
     void *ph = player_at(h);
     uint32_t now = game_time();
     char ep[96];
     epoch_text(pl, ep, sizeof ep);
-    tcat(t, &o, sizeof t, "\nThe game now (minute %u): you are in the %s.", now / 60000u, ep);
+    tput(t, &o, sizeof t, "game_now", "minute", tnum(n1, (int)(now / 60000u)), "epoch", ep, NULL);
     if (ph && h != ai) {
-        static const char *const op[5] = { "you hate them", "you dislike them", "you are indifferent to them",
-                                           "you like them", "you trust them" };
-        static const char *const pw[5] = { "much weaker than yours", "weaker than yours", "about as strong as yours",
-                                           "stronger than yours", "much stronger than yours" };
         epoch_text(ph, ep, sizeof ep);
         int mine = stance_of(pl, h), his = stance_of(ph, ai);
         float r = power_of(h) / power_of(ai);
-        const char *hn = *player_name(ph) && *player_name(ph) != '?' ? player_name(ph) : "The player";
-        tcat(t, &o, sizeof t, " %s (the player you talk to) is in the %s. %s Their forces are %s. "
-                      "Opinion: %s.", hn, ep,
-                      !mine && !his ? "You are allied with each other." : mine && his ? "You are at war with each other."
-                      : mine ? "You treat them as an enemy, but they have set allied towards you (they offer peace)."
-                             : "You are allied with them, but they treat you as an enemy.",
-                      llm_words(r < 0.25f ? -100 : r < 0.67f ? -30 : r <= 1.5f ? 0 : r <= 4 ? 30 : 100, pw),
-                      llm_words(g_opinion[ai][h], op));
-        if (g_pressure[ai][h] >= 10) tcat(t, &o, sizeof t, " Their soldiers are in your town right now.");
+        tput(t, &o, sizeof t, "other_state", "name", llm_name(ph), "epoch", ep, "stance",
+             tpl_text(!mine && !his ? "stance_allied" : mine && his ? "stance_war" : mine ? "stance_offer" : "stance_traitor"),
+             "power", llm_words(r < 0.25f ? -100 : r < 0.67f ? -30 : r <= 1.5f ? 0 : r <= 4 ? 30 : 100, "power"),
+             "opinion", llm_words(g_opinion[ai][h], "opinion"), NULL);
+        if (g_pressure[ai][h] >= 10) tput(t, &o, sizeof t, "in_town", NULL);
         if (g_attack_sent[ai][h])
-            tcat(t, &o, sizeof t, " Your last army set out against their town %u minutes ago.", (now - g_attack_sent[ai][h]) / 60000u);
+            tput(t, &o, sizeof t, "my_attack", "minutes", tnum(n1, (int)((now - g_attack_sent[ai][h]) / 60000u)), NULL);
         if (g_attack_sent[h][ai])
-            tcat(t, &o, sizeof t, " Their last army set out against your town %u minutes ago.", (now - g_attack_sent[h][ai]) / 60000u);
-        tcat(t, &o, sizeof t, " Their defences: %d towers, %d wall pieces. Yours: %d towers, %d wall pieces.",
-             g_ws.towers[h], g_ws.walls[h], g_ws.towers[ai], g_ws.walls[ai]);
+            tput(t, &o, sizeof t, "their_attack", "minutes", tnum(n1, (int)((now - g_attack_sent[h][ai]) / 60000u)), NULL);
+        tput(t, &o, sizeof t, "defences", "towers", tnum(n1, g_ws.towers[h]), "walls", tnum(n2, g_ws.walls[h]),
+             "my_towers", tnum(n3, g_ws.towers[ai]), "my_walls", tnum(n4, g_ws.walls[ai]), NULL);
         const uint32_t *mk = g_kills[ai][h], *tk = g_kills[h][ai];
         uint32_t rm[K_N], rt[K_N];
         kills_recent(ai, h, rm);
@@ -652,39 +593,36 @@ static void llm_system(struct sbuf *b, void *pl, int ai, int h, int tools) {
             none_recent &= !rm[c] && !rt[c];
         }
         if (any) {
-            tcat(t, &o, sizeof t, " The fighting between you so far: you killed %u of their soldiers and %u of their "
-                          "citizens (workers) and destroyed %u of their buildings; they killed %u of your soldiers and %u of "
-                          "your citizens and destroyed %u of your buildings.", mk[K_SOLDIERS], mk[K_CITIZENS],
-                          mk[K_BUILDINGS], tk[K_SOLDIERS], tk[K_CITIZENS], tk[K_BUILDINGS]);
-            if (all_recent)
-                tcat(t, &o, sizeof t, " All of it in the last %d minutes.", KILLS_RECENT_MIN);
-            else if (none_recent)
-                tcat(t, &o, sizeof t, " No fighting between you in the last %d minutes.", KILLS_RECENT_MIN);
-            else
-                tcat(t, &o, sizeof t, " In the last %d minutes: you killed %u soldiers and %u citizens and "
-                              "destroyed %u buildings of theirs; they killed %u soldiers and %u citizens and destroyed %u "
-                              "buildings of yours.", KILLS_RECENT_MIN, rm[K_SOLDIERS], rm[K_CITIZENS], rm[K_BUILDINGS],
-                              rt[K_SOLDIERS], rt[K_CITIZENS], rt[K_BUILDINGS]);
+            tput(t, &o, sizeof t, "fighting", "soldiers", tnum(n1, (int)mk[K_SOLDIERS]), "citizens", tnum(n2, (int)mk[K_CITIZENS]),
+                 "buildings", tnum(n3, (int)mk[K_BUILDINGS]), "their_soldiers", tnum(n4, (int)tk[K_SOLDIERS]), "their_citizens",
+                 tnum(n5, (int)tk[K_CITIZENS]), "their_buildings", tnum(n6, (int)tk[K_BUILDINGS]), NULL);
+            char nm[16];
+            tnum(nm, KILLS_RECENT_MIN);
+            if (all_recent) tput(t, &o, sizeof t, "fighting_all_recent", "minutes", nm, NULL);
+            else if (none_recent) tput(t, &o, sizeof t, "fighting_none_recent", "minutes", nm, NULL);
+            else tput(t, &o, sizeof t, "fighting_recent", "minutes", nm, "soldiers", tnum(n1, (int)rm[K_SOLDIERS]), "citizens",
+                      tnum(n2, (int)rm[K_CITIZENS]), "buildings", tnum(n3, (int)rm[K_BUILDINGS]), "their_soldiers",
+                      tnum(n4, (int)rt[K_SOLDIERS]), "their_citizens", tnum(n5, (int)rt[K_CITIZENS]), "their_buildings",
+                      tnum(n6, (int)rt[K_BUILDINGS]), NULL);
         }
-        if (g_lord[ai] == h) tcat(t, &o, sizeof t, " You have capitulated to them: they are your lord, you pay "
-                                                                "and serve them.");
-        if (g_lord[h] == ai) tcat(t, &o, sizeof t, " They have capitulated to you: they are your vassal.");
-        char terms[400];
+        if (g_lord[ai] == h) tput(t, &o, sizeof t, "lord", NULL);
+        if (g_lord[h] == ai) tput(t, &o, sizeof t, "vassal", NULL);
+        char terms[600];
         if (peace_terms(ai, h, terms, sizeof terms) && decide)   // the rules' verdict: advice when it decides itself
-            tcat(t, &o, sizeof t, "\nWhat your nature would say about peace with them (advice - you decide): %s", terms);
+            tput(t, &o, sizeof t, "terms_advice", "terms", terms, NULL);
         else if (terms[0])   // what it would really take (the rules decide, not the model)
-            tcat(t, &o, sizeof t, "\nYour terms (they are real - state them when it fits, never offer less, never invent other "
-                 "deals): %s", terms);
-        else if (TEAMS_LOCKED) tcat(t, &o, sizeof t, " The teams are fixed in this game: no stance can change.");
+            tput(t, &o, sizeof t, "terms_real", "terms", terms, NULL);
+        else if (TEAMS_LOCKED) tput(t, &o, sizeof t, "teams_fixed", NULL);
     }
-    int others = 0;
-    for (int j = 1; j < nplayers() && o < (int)sizeof t - 120; j++) {
+    char list[600] = "";
+    int lo = 0;
+    for (int j = 1; j < nplayers() && lo < (int)sizeof list - 120; j++) {
         void *pj = player_at(j);
         if (!pj || j == ai || j == h || is_out(pj)) continue;
-        tcat(t, &o, sizeof t, "%s%s (%s)", others++ ? ", " : " Other players: ", player_name(pj),
-                      stance_of(pl, j) ? "your enemy" : "your ally");
+        if (lo) tcat(list, &lo, sizeof list, ", ");
+        lo += tsub(list + lo, sizeof list - lo, tpl_text(stance_of(pl, j) ? "other_enemy" : "other_ally"), "name", player_name(pj), NULL);
     }
-    if (others && o < (int)sizeof t - 2) tcat(t, &o, sizeof t, ".");
+    if (lo) tput(t, &o, sizeof t, "others", "list", list, NULL);
     sb_msg(b, "system", t);
 }
 static void llm_history(struct sbuf *b, int ai) {   // his lines framed with his name (whose "my" it is)
@@ -694,11 +632,11 @@ static void llm_history(struct sbuf *b, int ai) {   // his lines framed with his
         char u[LLM_MAXLEN + 120];
         if (g_llm_hist[ai].role[i] == 1) { sb_msg(b, "assistant", g_llm_hist[ai].text[i]); continue; }
         if (g_llm_hist[ai].role[i] == 2) {
-            snprintf(u, sizeof u, "(Event of the game: %s)", g_llm_hist[ai].text[i]);
+            tsub(u, sizeof u, tpl_text("event"), "text", g_llm_hist[ai].text[i], NULL);
             sb_msg(b, "user", u);
             continue;
         }
-        snprintf(u, sizeof u, "%s writes: %s", pn, g_llm_hist[ai].text[i]);
+        tsub(u, sizeof u, tpl_text("writes"), "name", pn, "text", g_llm_hist[ai].text[i], NULL);
         sb_msg(b, "user", u);
     }
 }
@@ -721,39 +659,30 @@ static void sb_tools(struct sbuf *b, int tools, int ai, int h) {
     void *ph = player_at(h), *pl = player_at(ai);
     if (!tools || !ph || !pl) return;
     const char *hn = llm_name(ph);
-    char d[400];
+    char d[600], what[120];
     sb_puts(b, ",\"tools\":[");
     int k = (tools & TOOL_PEACE) && g_players[h] ? pair_accept(ai, h) : -1;
-    if (k == 1) {   // between AIs: its capitulation
-        char what[120];
-        tribute_text(g_promise[h], what, sizeof what);
-        snprintf(d, sizeof d, "Accept the capitulation of %s: they pay you %s and serve you as your vassal from now on.", hn, what);
-        sb_tool(b, "make_peace", d, "{\"type\":\"object\",\"properties\":{}}");
-    } else if (k == 0) {
-        snprintf(d, sizeof d, "Accept the alliance %s offers you: you are allies from now on.", hn);
-        sb_tool(b, "make_peace", d, "{\"type\":\"object\",\"properties\":{}}");
-    } else if ((tools & TOOL_PEACE) && g_players[h] && stance_of(ph, ai)) {
-        snprintf(d, sizeof d, "Offer %s peace and an alliance: they decide in their answer.", hn);
-        sb_tool(b, "make_peace", d, "{\"type\":\"object\",\"properties\":{}}");
-    } else if (tools & TOOL_PEACE) {
-        if (!stance_of(ph, ai)) snprintf(d, sizeof d, "Accept the peace %s offers you: you are allies from now on.", hn);
-        else snprintf(d, sizeof d, "Offer %s peace: they get 2 minutes to set their stance towards you to allied - only then "
-                      "are you allies.", hn);
+    if (tools & TOOL_PEACE) {
+        if (k == 1) tribute_text(g_promise[h], what, sizeof what);
+        tsub(d, sizeof d, tpl_text(k == 1 ? "tool_accept_capitulation" : k == 0 ? "tool_accept_alliance" :
+                                   !stance_of(ph, ai) ? "tool_accept_peace" : g_players[h] ? "tool_offer_alliance" :
+                                   "tool_offer_peace"), "name", hn, "tribute", what, NULL);
         sb_tool(b, "make_peace", d, "{\"type\":\"object\",\"properties\":{}}");
     }
     if (tools & TOOL_WAR) {
-        snprintf(d, sizeof d, "End your alliance with %s and declare war on them, now. Only when you truly mean it.", hn);
+        tsub(d, sizeof d, tpl_text("tool_war"), "name", hn, NULL);
         sb_tool(b, "declare_war", d, "{\"type\":\"object\",\"properties\":{}}");
     }
     if (tools & TOOL_TRIBUTE) {
         int *st = (int *)((uint8_t *)pl + PL_STOCK);
-        snprintf(d, sizeof d, "Give %s resources from your stock, as a tribute (at most a quarter of each: food %d, wood %d, "
-                 "stone %d, gold %d, iron %d).", hn, st[2] / 4, st[3] / 4, st[4] / 4, st[5] / 4, st[6] / 4);
+        char q[5][16];
+        tsub(d, sizeof d, tpl_text("tool_tribute"), "name", hn, "food", tnum(q[0], st[2] / 4), "wood", tnum(q[1], st[3] / 4),
+             "stone", tnum(q[2], st[4] / 4), "gold", tnum(q[3], st[5] / 4), "iron", tnum(q[4], st[6] / 4), NULL);
         sb_tool(b, "send_tribute", d, "{\"type\":\"object\",\"properties\":{\"food\":{\"type\":\"integer\"},\"wood\":{\"type\":"
                 "\"integer\"},\"stone\":{\"type\":\"integer\"},\"gold\":{\"type\":\"integer\"},\"iron\":{\"type\":\"integer\"}}}");
     }
     if (tools & TOOL_REFUSE) {
-        snprintf(d, sizeof d, "Refuse the %s of %s.", k == 1 ? "capitulation" : "offer of an alliance", hn);
+        tsub(d, sizeof d, tpl_text("tool_refuse"), "what", tpl_text(k == 1 ? "what_capitulation" : "what_alliance"), "name", hn, NULL);
         sb_tool(b, "refuse_offer", d, "{\"type\":\"object\",\"properties\":{}}");
     }
     sb_puts(b, "],\"tool_choice\":\"auto\"");
@@ -832,11 +761,12 @@ static int llm_line(void *pl, enum line_kind k, void *other, void *third, const 
     llm_system(&b, pl, ai, h, -1);
     llm_history(&b, ai);
     char sit[400], u[1200];
-    llm_subst(sit, sizeof sit, k_llm_situation[k] ? k_llm_situation[k] : k_lines[k].key, pl, other, third);
-    const char *aud = k_lines[k].aud == A_ALL ? "to everyone" : k_lines[k].aud == A_ALLIES ? "to your allies" : "to them";
-    snprintf(u, sizeof u, "(Not a chat line - an event of the game: %s. Say something about it %s, in your own words, in "
-             "%s. The usual line would be: \"%s\" - keep its meaning%s.)", sit, aud, llm_language(), fixed,
-             j->nmust ? " and every name and number in it" : "");
+    llm_subst(sit, sizeof sit, llm_situation(k), pl, other, third);
+    char keep[160] = "";
+    if (j->nmust) wsprintfA(keep, " %s", tpl_text("keep"));
+    tsub(u, sizeof u, tpl_text("line"), "situation", sit, "audience", tpl_text(k_lines[k].aud == A_ALL ? "audience_all" :
+         k_lines[k].aud == A_ALLIES ? "audience_allies" : "audience_them"), "language", llm_language(), "line", fixed, "keep",
+         keep, NULL);
     sb_msg(&b, "user", u);
     if (!b.p) return 0;
     llm_queue(j, llm_finish(&b, 0, ai, h));
@@ -887,9 +817,7 @@ static int llm_peace_answer(void *pl, int ai, int j, uint32_t now) {
     llm_system(&b, pl, ai, h, TOOL_PEACE);
     llm_history(&b, ai);
     char u[600];
-    snprintf(u, sizeof u, "(Not a chat line: %s offers you peace right now - their stance towards you is allied. Decide: "
-             "accept with the tool make_peace, or refuse. Say your answer to them in your own words, one or two sentences, "
-             "in %s.)", llm_name(player_at(j)), llm_language());
+    tsub(u, sizeof u, tpl_text("peace_answer"), "name", llm_name(player_at(j)), "language", llm_language(), NULL);
     sb_msg(&b, "user", u);
     if (!b.p) return 0;
     llm_queue(jb, llm_finish(&b, TOOL_PEACE, ai, h));
@@ -909,7 +837,7 @@ static void llm_apply(struct llm_job *j, int ok) {
     uint32_t now = game_time();
     if (!pl || !ph || h < 1) return;
     const char *hn = llm_name(ph);
-    char ev[3][160];   // what it did, for its memory - after its words
+    char ev[3][300];   // what it did, for its memory - after its words
     int nev = 0;
     if (!ok) {   // no answer: the rules decide a peace offer still standing; a chat line gets none
         if (j->decide == 1 && !stance_of(ph, ai) && stance_of(pl, h) && !is_out(pl)) {
@@ -929,23 +857,19 @@ static void llm_apply(struct llm_job *j, int ok) {
     if ((j->act & j->tools & TOOL_PEACE) && tool_peace_ok(ai, h, now)) {
         if (!stance_of(ph, ai)) {   // he is allied already: peace now
             make_peace(ai, h, now);
-            snprintf(ev[nev++], sizeof ev[0], "You made peace with %s: you are allies now.", hn);
+            tsub(ev[nev++], sizeof ev[0], tpl_text("ev_made_peace"), "name", hn, NULL);
             fixed = j->decide == 1 ? L_PEACE_ACCEPT : L_OFFER_ACCEPTED;
         } else {   // its offer: he has 2 minutes (diplo_tick, as its alliance offers)
             g_offer_t[ai][h] = now ? now : 1;
             g_offer_kind[ai][h] = 0;
-            char de[300], en[300];
-            wsprintfA(de, "%s bietet Frieden an: stellen Sie %s binnen 2 Minuten auf Verb\xfcndet, um anzunehmen.",
-                      player_name(pl), player_name(pl));
-            wsprintfA(en, "%s offers peace: set %s to allied within 2 minutes to accept.", player_name(pl), player_name(pl));
-            block_line(h, de, en);
-            snprintf(ev[nev++], sizeof ev[0], "You offered %s peace: they have 2 minutes to set their stance towards you to allied.", hn);
+            block_line(h, sysf("peace_offer", "ai", player_name(pl), NULL));
+            tsub(ev[nev++], sizeof ev[0], tpl_text("ev_offered_peace"), "name", hn, NULL);
         }
         did |= TOOL_PEACE;
     }
     if ((j->act & j->tools & TOOL_WAR) && tool_war_ok(ai, h, now)) {
         declare_war(ai, h, now);
-        snprintf(ev[nev++], sizeof ev[0], "You declared war on %s.", hn);
+        tsub(ev[nev++], sizeof ev[0], tpl_text("ev_declared_war"), "name", hn, NULL);
         fixed = L_BETRAY;
         did |= TOOL_WAR;
     }
@@ -962,11 +886,8 @@ static void llm_apply(struct llm_job *j, int ok) {
         if (total > 0) {
             g_llm_paid_t[ai] = now ? now : 1;
             tribute_text(paid, what, sizeof what);
-            char de[300], en[300];
-            wsprintfA(de, "%s schickt Ihnen Tribut: %s.", player_name(pl), what);
-            wsprintfA(en, "%s sends you a tribute: %s.", player_name(pl), what);
-            block_line(h, de, en);
-            snprintf(ev[nev++], sizeof ev[0], "You sent %s a tribute: %s.", hn, what);
+            block_line(h, sysf("tribute_sent", "ai", player_name(pl), "tribute", what, NULL));
+            tsub(ev[nev++], sizeof ev[0], tpl_text("ev_sent_tribute"), "name", hn, "tribute", what, NULL);
             did |= TOOL_TRIBUTE;
         }
     }
@@ -1047,11 +968,11 @@ static int chat_reaches(void *pm, void *pj) {
     }
 }
 // a system line for the local player about his chat line (single player only: in multiplayer the humans read it)
-static void llm_chat_hint(const char *de, const char *en) {
+static void llm_chat_hint(const char *text) {
     if (g_mp) return;
     uint8_t *opt = *(uint8_t **)0x00917BB8;
-    system_line(!lstrcmpiA(g_lang, "de") ? de : en, opt ? FIELD(opt, 0x2CC, int) : 15000);
-    if (g_log) fprintf(g_log, "# llm: hint for the player: %s\n", en);
+    system_line(text, opt ? FIELD(opt, 0x2CC, int) : 15000);
+    if (g_log) fprintf(g_log, "# llm: hint for the player: %s\n", text);
 }
 // the local player wrote `text` in the chat: one AI that gets it (the chat filter) answers - the one it names first,
 // else the last one he heard within 5 minutes, else the only one that gets it. In single player a line nobody will
@@ -1061,10 +982,7 @@ static void llm_player_chat(const char *text) {
     if (!g_llm_on || !g_llm_chat) {
         if (!g_llm_off_told) {
             g_llm_off_told = 1;
-            if (!g_llm_on) llm_chat_hint("Die Computerspieler lesen den Chat nicht (KI-Stimme aus: [llm] enabled=1 in aimod.ini).",
-                                         "The computer players don't read the chat (AI voice off: [llm] enabled=1 in aimod.ini).");
-            else llm_chat_hint("Die Computerspieler beantworten den Chat nicht ([llm] chat=1 in aimod.ini).",
-                               "The computer players don't answer the chat ([llm] chat=1 in aimod.ini).");
+            llm_chat_hint(sysf(!g_llm_on ? "chat_unread" : "chat_unanswered", NULL));
         }
         return;
     }
@@ -1087,11 +1005,8 @@ static void llm_player_chat(const char *text) {
         for (int i = 1; i < nplayers(); i++) {
             void *pi = player_at(i);
             if (!pi || !g_players[i] || is_out(pi) || i == h || chat_reaches(pm, pi) || word_in(text, player_name(pi)) < 0) continue;
-            char de[300], en[300];
-            snprintf(de, sizeof de, "Keine Antwort: %s bekommt die Nachricht nicht (Chat-Filter).", player_name(pi));
-            snprintf(en, sizeof en, "No answer: %s doesn't get your message (chat filter).", player_name(pi));
             if (g_llm_log && g_log) fprintf(g_log, "# llm: chat line names P%d, whom the filter keeps it from: %s\n", i, text);
-            llm_chat_hint(de, en);
+            llm_chat_hint(sysf("chat_filtered", "name", player_name(pi), NULL));
             return;
         }
     int last = g_llm_last_ai;
@@ -1101,35 +1016,28 @@ static void llm_player_chat(const char *text) {
     if (!to) {
         if (g_llm_log && g_log) fprintf(g_log, "# llm: chat line (mode %d, gets it:%s) meant for no AI - name one: %s\n",
                                         FIELD(pm, 0x9E0, int), got ? who : " none", text);
-        if (!got) llm_chat_hint("Keine Antwort: Ihr Chat-Filter erreicht keinen Computerspieler.",
-                                "No answer: your chat filter reaches no computer player.");
+        if (!got) llm_chat_hint(sysf("chat_nobody", NULL));
         else {
-            char names[200] = "", de[320], en[320];
+            char names[200] = "";
             for (int i = 1; i < nplayers(); i++) {
                 void *pi = player_at(i);
                 if (!pi || !g_players[i] || is_out(pi) || i == h || !chat_reaches(pm, pi)) continue;
                 if (names[0] && lstrlenA(names) < 150) lstrcatA(names, ", ");
                 if (lstrlenA(names) < 150) lstrcatA(names, player_name(pi));
             }
-            snprintf(de, sizeof de, "Keine Antwort: wen meinen Sie? Nennen Sie einen Namen (%s) oder w\xe4hlen Sie ihn im Chat-Filter.", names);
-            snprintf(en, sizeof en, "No answer: who do you mean? Name one (%s) or choose them in the chat filter.", names);
-            llm_chat_hint(de, en);
+            llm_chat_hint(sysf("chat_who", "names", names, NULL));
         }
         return;
     }
     llm_hist_add(to, 0, text);
     if (!llm_ready()) {
         if (g_llm_log && g_log) fprintf(g_log, "# llm: chat line for P%d - the server is down, no answer\n", to);
-        char de[300], en[300];
-        snprintf(de, sizeof de, "Keine Antwort: das Sprachmodell (%s) ist nicht erreichbar.", g_llm_url);
-        snprintf(en, sizeof en, "No answer: the language model (%s) can't be reached.", g_llm_url);
-        llm_chat_hint(de, en);
+        llm_chat_hint(sysf("chat_down", "url", g_llm_url, NULL));
         return;
     }
     struct llm_job *j = llm_slot();
     if (!j) {
-        llm_chat_hint("Keine Antwort: das Sprachmodell hat zu viel zu tun - versuchen Sie es gleich noch einmal.",
-                      "No answer: the language model is too busy - try again in a moment.");
+        llm_chat_hint(sysf("chat_busy", NULL));
         return;
     }
     memset(j, 0, sizeof *j);
@@ -1157,11 +1065,13 @@ static void pair_history(struct sbuf *b, int ai, int other) {   // from ai's sid
         int w = g_pair_hist[lo][hi].who[i];
         if (w == ai) { sb_msg(b, "assistant", g_pair_hist[lo][hi].text[i]); continue; }
         if (w >= 16) {   // the event that opened an exchange
-            snprintf(u, sizeof u, "(Event of the game: %s.)", g_pair_hist[lo][hi].text[i]);
+            char ev[LLM_MAXLEN + 40];
+            wsprintfA(ev, "%s.", g_pair_hist[lo][hi].text[i]);
+            tsub(u, sizeof u, tpl_text("event"), "text", ev, NULL);
             sb_msg(b, "user", u);
             continue;
         }
-        snprintf(u, sizeof u, "%s writes: %s", on, g_pair_hist[lo][hi].text[i]);
+        tsub(u, sizeof u, tpl_text("writes"), "name", on, "text", g_pair_hist[lo][hi].text[i], NULL);
         sb_msg(b, "user", u);
     }
 }
@@ -1202,27 +1112,20 @@ static int talk_request(int speaker, int listener, int turn, const char *sit, co
     llm_system(&b, pl, speaker, listener, j->tools ? j->tools : -1);
     pair_history(&b, speaker, listener);
     char u[1200];
-    if (turn == 1)
-        snprintf(u, sizeof u, "(Not a chat line - an event of the game: %s. Write %s a message about it, in your own words, "
-                 "in %s - only they read it.%s%s%s)", sit, llm_name(po), llm_language(), fixed && *fixed ?
-                 " The usual line would be: \"" : "", fixed && *fixed ? fixed : "", fixed && *fixed ? "\" - keep its meaning." : "");
-    else if (j->confirm && j->offer >= 0)
-        snprintf(u, sizeof u, "(You called no tool. Your decision on the %s of %s, as you just said it: call make_peace to "
-                 "accept or refuse_offer to refuse, and say yes or no.)", j->offer ? "capitulation" : "offer of an alliance",
-                 llm_name(po));
+    const char *pn = llm_name(po), *lang = llm_language();
+    if (turn == 1) {
+        char usual[400] = "";
+        if (fixed && *fixed) { usual[0] = ' '; tsub(usual + 1, sizeof usual - 1, tpl_text("talk_usual"), "line", fixed, NULL); }
+        tsub(u, sizeof u, tpl_text("talk_open"), "situation", sit, "name", pn, "language", lang, "usual", usual, NULL);
+    } else if (j->confirm && j->offer >= 0)
+        tsub(u, sizeof u, tpl_text("talk_confirm"), "what", tpl_text(j->offer ? "what_capitulation" : "what_alliance"), "name",
+             pn, NULL);
     else if (j->offer == 1) {
         char what[120];
         tribute_text(g_promise[listener], what, sizeof what);
-        snprintf(u, sizeof u, "(Answer %s in one or two sentences, in %s. Their capitulation stands: accept it with the tool "
-                 "make_peace - they pay you %s and serve you - or refuse it with refuse_offer, and the war goes on.)", llm_name(po),
-                 llm_language(), what);
-    } else if (j->offer == 0)
-        snprintf(u, sizeof u, "(Answer %s in one or two sentences, in %s. Their offer of an alliance stands: accept it with "
-                 "the tool make_peace, or refuse it with refuse_offer.)", llm_name(po), llm_language());
-    else if (turn >= g_llm_talk_turns)
-        snprintf(u, sizeof u, "(Answer %s in one or two sentences, in %s - your last word on it for now.)", llm_name(po),
-                 llm_language());
-    else snprintf(u, sizeof u, "(Answer %s in one or two sentences, in %s.)", llm_name(po), llm_language());
+        tsub(u, sizeof u, tpl_text("talk_capitulation"), "name", pn, "language", lang, "tribute", what, NULL);
+    } else if (j->offer == 0) tsub(u, sizeof u, tpl_text("talk_alliance"), "name", pn, "language", lang, NULL);
+    else tsub(u, sizeof u, tpl_text(turn >= g_llm_talk_turns ? "talk_last" : "talk_answer"), "name", pn, "language", lang, NULL);
     sb_msg(&b, "user", u);
     if (!b.p) { SET_STATE(j, J_FREE); return 0; }
     if (j->confirm) g_llm_tok_once = g_llm_max_tokens > 1200 ? g_llm_max_tokens : 1200;   // asked again: it thinks first
@@ -1238,8 +1141,8 @@ static int llm_ai_offer(int from, int to, int kind, int third) {
     void *pf = player_at(from), *pt = player_at(to), *p3 = third ? player_at(third) : NULL;
     enum line_kind k = kind ? L_CAPITULATE : L_ALLIANCE_OFFER;
     char sit[400], ev[400];
-    llm_subst(sit, sizeof sit, k_llm_situation[k], pf, pt, p3);
-    llm_subst(ev, sizeof ev, k_llm_event3[k], pf, pt, p3);
+    llm_subst(sit, sizeof sit, llm_situation(k), pf, pt, p3);
+    llm_subst(ev, sizeof ev, llm_event3(k), pf, pt, p3);
     if (!talk_request(from, to, 1, sit, "", kind + 1)) return 0;
     for (int i = 0; i < 4; i++)   // the offer's line waits as a talk: this exchange is it
         if (g_talk_wait[i].t && ((g_talk_wait[i].a == from && g_talk_wait[i].b == to) || (g_talk_wait[i].a == to && g_talk_wait[i].b == from)))
@@ -1255,29 +1158,29 @@ static int talk_apply(struct llm_job *j) {
     uint32_t now = game_time();
     if (!pl || !ph || is_out(pl) || is_out(ph)) return 0;
     const char *an = llm_name(pl), *hn = llm_name(ph);
-    char ev[240], what[120] = "";
+    char ev[400], what[120] = "";
     if (j->act & ~j->tools && g_llm_log && g_log)
         fprintf(g_log, "# llm: P%d called a tool it wasn't offered (called %d, offered %d) - ignored\n", ai, j->act, j->tools);
     if (act & TOOL_PEACE) {
         int k = pair_accept(ai, h);
         if (k >= 0 || (!stance_of(ph, ai) && tool_peace_ok(ai, h, now))) {   // its offer, or its allied stance: accepted
             make_peace(ai, h, now);   // h's turn (diplo_tick) completes an offer: allied both ways / tribute and vassal
-            snprintf(ev, sizeof ev, "%s accepted the %s of %s", an, k == 1 ? "capitulation" : k == 0 ? "alliance offer" :
-                     "peace offer", hn);
+            tsub(ev, sizeof ev, tpl_text("ev3_accepted"), "ai", an, "name", hn, "what",
+                 tpl_text(k == 1 ? "what_capitulation" : k == 0 ? "what_alliance" : "what_peace"), NULL);
             pair_add(ai, h, 16, ev);
             did |= TOOL_PEACE;
         } else if (stance_of(ph, ai) && tool_peace_ok(ai, h, now) && !g_offer_t[h][ai]) {   // its offer: h decides next
             g_offer_t[ai][h] = now ? now : 1;
             g_offer_kind[ai][h] = 0;
             g_offer_last[ai][h] = now;
-            snprintf(ev, sizeof ev, "%s offered %s peace and an alliance - %s has 2 minutes to accept", an, hn, hn);
+            tsub(ev, sizeof ev, tpl_text("ev3_offered"), "ai", an, "name", hn, NULL);
             pair_add(ai, h, 16, ev);
             did |= TOOL_PEACE;
         }
     }
     if ((act & TOOL_WAR) && tool_war_ok(ai, h, now)) {
         declare_war(ai, h, now);
-        snprintf(ev, sizeof ev, "%s declared war on %s", an, hn);
+        tsub(ev, sizeof ev, tpl_text("ev3_war"), "ai", an, "name", hn, NULL);
         pair_add(ai, h, 16, ev);
         did |= TOOL_WAR;
     }
@@ -1294,7 +1197,7 @@ static int talk_apply(struct llm_job *j) {
         if (total > 0) {
             g_llm_paid_t[ai] = now ? now : 1;
             tribute_text(paid, what, sizeof what);
-            snprintf(ev, sizeof ev, "%s sent %s a tribute: %s", an, hn, what);
+            tsub(ev, sizeof ev, tpl_text("ev3_tribute"), "ai", an, "name", hn, "tribute", what, NULL);
             pair_add(ai, h, 16, ev);
             diplo_tribute(ph, pl, total);   // its opinion; its thanks wait (the pair is talking)
             did |= TOOL_TRIBUTE;
@@ -1327,9 +1230,8 @@ static void llm_talk_event(void *pl, enum line_kind k, void *other, void *third,
     }
     g_talk_wait[w].a = a;
     g_talk_wait[w].b = b;
-    llm_subst(g_talk_wait[w].sit, sizeof g_talk_wait[w].sit, k_llm_situation[k] ? k_llm_situation[k] : k_lines[k].key, pl,
-              other, third);
-    llm_subst(g_talk_wait[w].ev, sizeof g_talk_wait[w].ev, k_llm_event3[k] ? k_llm_event3[k] : g_talk_wait[w].sit, pl,
+    llm_subst(g_talk_wait[w].sit, sizeof g_talk_wait[w].sit, llm_situation(k), pl, other, third);
+    llm_subst(g_talk_wait[w].ev, sizeof g_talk_wait[w].ev, llm_event3(k) ? llm_event3(k) : g_talk_wait[w].sit, pl,
               other, third);
     lstrcpynA(g_talk_wait[w].fixed, fixed, sizeof g_talk_wait[w].fixed);
     g_talk_wait[w].t = game_time() ? game_time() : 1;
@@ -1381,9 +1283,7 @@ static void talk_done(struct llm_job *j, int ok) {
             if (g_llm_log && g_log) fprintf(g_log, "# llm: talk P%d -> P%d (message %d, %.1f s, no decision - asked again): %s\n", a, b,
                                             j->talk, j->ms / 1000.0, j->reply);
             if (g_llm_talk_show) {
-                char l[LLM_MAXLEN + 96];
-                snprintf(l, sizeof l, "%s %s: %s", !lstrcmpiA(g_lang, "de") ? "an" : "to", player_name(po), j->reply);
-                chat_line(pl, l, g_chat_ms);
+                chat_line(pl, sysf("talk_to", "name", player_name(po), "text", j->reply, NULL), g_chat_ms);
             }
         }
         if (talk_request(a, b, j->talk, NULL, "", j->dec)) return;
@@ -1404,9 +1304,7 @@ static void talk_done(struct llm_job *j, int ok) {
         g_talk_n_msg++;
         if (g_llm_log && g_log) fprintf(g_log, "# llm: talk P%d -> P%d (message %d, %.1f s): %s\n", a, b, j->talk, j->ms / 1000.0, j->reply);
         if (g_llm_talk_show) {
-            char l[LLM_MAXLEN + 96];
-            snprintf(l, sizeof l, "%s %s: %s", !lstrcmpiA(g_lang, "de") ? "an" : "to", player_name(po), j->reply);
-            chat_line(pl, l, g_chat_ms);
+            chat_line(pl, sysf("talk_to", "name", player_name(po), "text", j->reply, NULL), g_chat_ms);
         }
     }
     // the next message: the other's, up to ai_talk_turns (an offer: 2 at least); whoever acted gets an answer
@@ -1424,12 +1322,8 @@ static void llm_tick(void) {
     if (!g_llm_on) return;
     if (InterlockedExchange(&g_llm_fail_note, 0) && !g_llm_told) {
         g_llm_told = 1;
-        char l[400];
-        snprintf(l, sizeof l, !lstrcmpiA(g_lang, "de") ? "KI-Stimme: keine Antwort von %s (%s) - die Computerspieler "
-                 "sprechen ihre festen Zeilen." : "AI voice: no answer from %s (%s) - the computer players say their fixed "
-                 "lines.", g_llm_url, g_llm_last_err);
         uint8_t *opt = *(uint8_t **)0x00917BB8;
-        system_line(l, opt ? FIELD(opt, 0x2CC, int) * 2 : 20000);
+        system_line(sysf("llm_down", "url", g_llm_url, "error", g_llm_last_err, NULL), opt ? FIELD(opt, 0x2CC, int) * 2 : 20000);
     }
     talk_tick();
     for (int i = 0; i < LLM_JOBS; i++) {

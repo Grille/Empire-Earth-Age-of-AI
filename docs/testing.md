@@ -25,6 +25,7 @@ The `[autotest]` keys:
 | `sndstate`, `sndchan N` (pipe/setup) | the sound manager's channels with their sound ids and Miles status, the mixer's channels, categories in use, the paused queue / SetMaxChannels(N) as the options screen does |
 | `sound_channels=N`, `clamp_channels=0/1` | aimod.ini `[sound] channels` / `clamp_channels` for the run |
 | `seltest T [x0 y0 x1 y1]` (pipe/setup) | builds the double-click selection message for unit type T (screen rectangle 0x8D2778 or the given one) and carries it out: units found, packed, unpacked, selected |
+| `texts`, `texts dump [force]` (pipe/setup) | the text files read (`aimod_ai\_system.ini`, `_template.ini`); dump writes both with every key and its built-in text (existing files kept without force) - regenerate them after changing a built-in text (dll/texts.c, dll/texts_prompt.h) |
 | `diplo offer A B C`, `diplo capit A B` (pipe/setup) | AI A offers B an alliance against C / capitulates to B, as its initiative would (with `llm_ai_decide`: B's model answers) |
 | `diplo terms P H` (pipe/setup) | AI P's terms for peace with H as the AI voice gets them (price or why none), with the peace score and opinion; `scripts/terms.setup` declares war, pays and makes peace |
 | `diplo kills` (pipe/setup) | soldiers (every unit that is no citizen), citizens and buildings each player destroyed of each other player, in the whole game and in the last 20 minutes (kills by pair; the sums match the game's statistics) |
