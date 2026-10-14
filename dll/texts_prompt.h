@@ -1,4 +1,4 @@
-// k_tpl: the language model's instructions (texts.c TEXTS; aimod_ai\_template.ini [prompt] overrides them).
+// k_tpl: the language model's instructions (texts.c TEXTS; aimod_ai\_template.eeai [prompt] overrides them).
 // Generated once from llm.c by scratch gen_tpl.py; edit here.
 static const struct text_def k_tpl[] = {
     { "intro", "You are {ai}, a leader in the real-time strategy game Empire Earth{computer}.", NULL, "the system message: who the AI is ({computer}: \" (played by the computer)\" unless [llm] equal=1)" },

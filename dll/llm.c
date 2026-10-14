@@ -495,7 +495,7 @@ static const char *llm_language(void) {
     for (size_t i = 0; i < sizeof k / sizeof *k; i++) if (!_strnicmp(g_lang, k[i][0], 2)) return k[i][1];
     return "English";
 }
-// what situation k is, for the model (_template.ini sit_<line key>); in the third person for both sides of a talk
+// what situation k is, for the model (_template.eeai sit_<line key>); in the third person for both sides of a talk
 // between AIs (pair_<line key>; in the speaker's words "has betrayed you" the other's model took the betrayal for its
 // own) - NULL where there is none
 static const char *llm_situation(int k) {
@@ -508,7 +508,7 @@ static const char *llm_event3(int k) {
     wsprintfA(key, "pair_%s", k_lines[k].key);
     return text_index(k_tpl, N_TPL, key) >= 0 ? tpl_text(key) : NULL;
 }
-static const char *llm_words(float v, const char *what) {   // -100..100 in five words: _template.ini <what>1..5
+static const char *llm_words(float v, const char *what) {   // -100..100 in five words: _template.eeai <what>1..5
     char key[32];
     wsprintfA(key, "%s%d", what, v < -50 ? 1 : v < -15 ? 2 : v <= 15 ? 3 : v <= 50 ? 4 : 5);
     return tpl_text(key);

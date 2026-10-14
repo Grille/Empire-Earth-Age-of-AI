@@ -1,8 +1,8 @@
 {
   "name": "eeaimod-texts",
   "displayName": "eeaimod texts",
-  "description": "Highlighting for the eeaimod text files (aimod_ai\\*.ini): personalities, _system.ini, _template.ini - sections, placeholders, expressions, conditions",
-  "version": "0.3.0",
+  "description": "Highlighting for the eeaimod text files (.eeai): personalities, _system.eeai, _template.eeai - sections, keys, strings, placeholders, expressions",
+  "version": "0.4.0",
   "publisher": "eeaimod",
   "license": "MIT",
   "engines": { "vscode": "^1.60.0" },
@@ -10,17 +10,17 @@
   "contributes": {
     "languages": [
       {
-        "id": "eeaimod-ini",
+        "id": "eeai",
         "aliases": ["eeaimod texts"],
-        "filenamePatterns": ["**/aimod_ai/*.ini"],
+        "extensions": [".eeai"],
         "configuration": "./language-configuration.json"
       }
     ],
     "grammars": [
       {
-        "language": "eeaimod-ini",
-        "scopeName": "source.eeaimod-ini",
-        "path": "./syntaxes/eeaimod-ini.tmLanguage.json"
+        "language": "eeai",
+        "scopeName": "source.eeai",
+        "path": "./syntaxes/eeai.tmLanguage.json"
       }
     ]
   }

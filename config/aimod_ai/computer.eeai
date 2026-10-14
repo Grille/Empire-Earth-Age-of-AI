@@ -1,4 +1,4 @@
-; computer.ini - the neutral fallback lines for eeaimod. Not a personality: never given to an AI.
+; computer.eeai - the neutral fallback lines for eeaimod. Not a personality: never given to an AI.
 ; When an AI's personality has no line for a situation (nor for the situation's fallback: betrayed -> war_declared,
 ; ask_lord -> peace_refuse, block_refuse_own -> block_refuse -> peace_refuse, surrender -> defeated), the line comes
 ; from here; AIs without any personality use only these. So this file holds what must not go unsaid - war, peace,

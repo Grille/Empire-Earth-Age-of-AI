@@ -1,4 +1,4 @@
-; _system.ini - the system lines eeaimod shows the player (white, from nobody in particular). Not a
+; _system.eeai - the system lines eeaimod shows the player (white, from nobody in particular). Not a
 ; personality. [system] is English; [system:de] (or :fr, :es ... - the game's language) replaces what it has.
 ; A key left out keeps the built-in text. Placeholders in braces are filled in.
 ; Written by "texts dump" with the built-in texts.

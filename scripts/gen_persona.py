@@ -1,4 +1,4 @@
-"""Writes config/aimod_ai/_persona.ini - an empty personality with every key explained - from the DLL's sources:
+"""Writes config/aimod_ai/_persona.eeai - an empty personality with every key explained - from the DLL's sources:
 the situations (persona.c k_lines: who hears them, how often, their fallbacks), their descriptions (texts_prompt.h
 sit_<key>), the format and the expressions (texts.c k_format_help, k_expr_help). Run it after changing one of them:
 venv/Scripts/python.exe scripts/gen_persona.py"""
@@ -31,14 +31,14 @@ fallback = {a.lower(): b.lower() for a, b in re.findall(r'case L_(\w+): return L
 
 out = []
 w = out.append
-w('; _persona.ini - a template for a new AI personality (eeaimod). Not a personality itself: files starting with "_"')
-w('; are skipped. Copy it to a new name in this folder (e.g. seefahrer.ini), fill it in, and the AIs of the next game')
+w('; _persona.eeai - a template for a new AI personality (eeaimod). Not a personality itself: files starting with "_"')
+w('; are skipped. Copy it to a new name in this folder (e.g. seefahrer.eeai), fill it in, and the AIs of the next game')
 w('; may get it (picked at random, a matching colour first).')
 w(';')
 w('; Lines: one string, or a list of them - one is picked at random. Placeholders: {name} the player the line is about,')
 w('; {me} this AI, {enemy} a third player, {epoch} this AI\'s age, {tribute} what a capitulation pays ("200 gold, 800')
 w('; iron"). A situation without a line stays silent - unless it must be said (war, peace, offers, capitulation,')
-w('; victory): then the line comes from a more general situation (noted below) or from computer.ini.')
+w('; victory): then the line comes from a more general situation (noted below) or from computer.eeai.')
 w('; [lines] is English (the default); [lines:de] replaces it situation by situation in a German game, [lines:fr],')
 w('; [lines:es] ... in other languages. The same for name:de.')
 w('; With the AI voice ([llm] in aimod.ini) the model says the lines in its own words, from character and the traits;')
@@ -78,12 +78,12 @@ for k in ['military_start_share', 'military_income_share', 'military_income_shar
     w(';%s = ' % k)
 w('')
 w('[vars]')
-w('; named strings and expressions for its lines, before those of _system.ini; [vars:de] (or :fr ...) replaces them in')
+w('; named strings and expressions for its lines, before those of _system.eeai; [vars:de] (or :fr ...) replaces them in')
 w('; a game of that language. For example:')
 w(';address = opinion > 30 ? "my friend" : opinion < -30 ? "you dog" : "neighbour"')
 w('')
 w('[lines]')
-w('; [] or a list with nothing left: no line (a more general situation or computer.ini speaks, or nobody)')
+w('; [] or a list with nothing left: no line (a more general situation or computer.eeai speaks, or nobody)')
 for key, chance, cooldown, a in lines:
     note = '; %s - heard by %s' % (sit(key), aud[a])
     extra = []
@@ -97,6 +97,6 @@ w('')
 w('; the same keys in German (or [lines:fr] ...): only those that should differ from [lines]')
 w(';[lines:de]')
 w(';greeting = ["..."]')
-path = os.path.join(root, 'config', 'aimod_ai', '_persona.ini')
+path = os.path.join(root, 'config', 'aimod_ai', '_persona.eeai')
 open(path, 'w', encoding='utf-8', newline='\n').write('\n'.join(out) + '\n')
 print(path, len(lines), 'situations')

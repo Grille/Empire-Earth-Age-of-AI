@@ -1,12 +1,12 @@
 // TEXTS: the mod's own words outside the personalities, from <game>\aimod_ai\ (a file starting with "_" is no
-// personality): _system.ini - the system lines the player reads, [system] (English) and [system:<language>] (the game's
-// language, as the personalities' [lines:de]); _template.ini - the language model's instructions, [prompt] (English:
+// personality): _system.eeai - the system lines the player reads, [system] (English) and [system:<language>] (the game's
+// language, as the personalities' [lines:de]); _template.eeai - the language model's instructions, [prompt] (English:
 // the model is told which language to answer in). A missing file or key keeps the built-in text; "texts dump" (control
 // pipe) writes both files with every key and its built-in text (to aimod_ai\, existing files are kept unless "texts
 // dump force"). Placeholders in braces - {ai}, {name}, ... - each key's own are listed above it in the dump; an unknown
 // one stays as written. "\n" in a value is a line break. A placeholder may be an expression and [vars] may name
-// expressions (expr.c): _system.ini [vars] / [vars:<language>] for what the player reads (a personality's own [vars]
-// first), _template.ini [vars] for the prompts. Included by eeaimod.c after persona.c.
+// expressions (expr.c): _system.eeai [vars] / [vars:<language>] for what the player reads (a personality's own [vars]
+// first), _template.eeai [vars] for the prompts. Included by eeaimod.c after persona.c.
 struct text_def { const char *key, *en, *de, *note; };
 static const struct text_def k_sys[] = {
     { "now_enemy", "{ai} is now your enemy.", "{ai} ist jetzt Ihr Feind.", "an AI's stance towards you changed" },
@@ -79,8 +79,8 @@ static void texts_dir(char *dir) {
     lstrcatA(dir, "aimod_ai\\");
 }
 static int g_texts_sys_n, g_texts_tpl_n, g_texts_var_n;   // keys read (log)
-static struct xvars g_vars_sys_lang;   // _system.ini [vars:<language>], merged into g_vars_sys after loading
-// _system.ini: [system] / [system:<language>] (strings), [vars] / [vars:<language>]; _template.ini: [prompt]
+static struct xvars g_vars_sys_lang;   // _system.eeai [vars:<language>], merged into g_vars_sys after loading
+// _system.eeai: [system] / [system:<language>] (strings), [vars] / [vars:<language>]; _template.eeai: [prompt]
 // (strings), [vars] - the format: expr.c THE TEXT FILES
 static void texts_key(void *arg, const char *sec, const char *key, struct tval *v, struct tlex *l) {
     int sys = arg != NULL;
@@ -113,10 +113,10 @@ static void texts_file(const char *name, int sys) {
 static void texts_load(void) {
     if (g_texts_loaded) return;
     g_texts_loaded = 1;
-    texts_file("_system.ini", 1);
-    texts_file("_template.ini", 0);
+    texts_file("_system.eeai", 1);
+    texts_file("_template.eeai", 0);
     for (int i = 0; i < g_vars_sys_lang.n; i++) xvars_set(&g_vars_sys, g_vars_sys_lang.key[i], g_vars_sys_lang.val[i]);
-    if (g_log) fprintf(g_log, "# texts: _system.ini %d keys, _template.ini %d keys (the rest built in), %d [vars]\n",
+    if (g_log) fprintf(g_log, "# texts: _system.eeai %d keys, _template.eeai %d keys (the rest built in), %d [vars]\n",
                        g_texts_sys_n, g_texts_tpl_n, g_texts_var_n);
 }
 // a system line's text in the game's language: [system:<language>], the built-in German for "de", [system], the
@@ -219,7 +219,7 @@ static void text_placeholders(FILE *f, const char *a, const char *b) {   // "; {
         }
     if (seen[0]) fprintf(f, "; placeholders:%s\n", seen);
 }
-// the expressions and the game's values, for the dumped files (gen_persona.py writes the same into _persona.ini)
+// the expressions and the game's values, for the dumped files (gen_persona.py writes the same into _persona.eeai)
 static const char k_format_help[] =
     ";\n"
     "; THE FORMAT: sections [name] / [name:<language>], one \"key = value\" per line, comments from ; or # to the line's\n"
@@ -263,7 +263,7 @@ static const char k_expr_help[] =
     ";   name, me, enemy    the names; language: the game's (de, en, ...)\n"
     "; \"texts eval P Q <expression>\" (control pipe) shows what an expression gives in a running game.\n";
 // texts eval [P [Q]] <expression>: its value, P speaking to Q (the local player when left out), with
-// _system.ini's [vars] and P's personality's; texts line P <situation> [Q]: the variant P would say now, filled
+// _system.eeai's [vars] and P's personality's; texts line P <situation> [Q]: the variant P would say now, filled
 static void cmd_texts(char *out, const char *args) {
     char dir[MAX_PATH], path[MAX_PATH];
     int force = strstr(args, "force") != NULL;
@@ -306,23 +306,23 @@ static void cmd_texts(char *out, const char *args) {
         struct persona *p = line_source(pa, k, &kk, &l.c, 0, buf, sizeof buf, &cnt);
         if (!p) { REPLY("P%d has no line for %s that may be said now\n", a, key); return; }
         REPLY("P%d %s%s%s, one of %d (%s): %s\n", a, key, kk != k ? " as " : "", kk != k ? k_lines[kk].key : "", cnt,
-              p == &g_computer ? "computer.ini" : p->file, buf);
+              p == &g_computer ? "computer.eeai" : p->file, buf);
         return;
     }
     if (strncmp(args, "dump", 4)) {
         texts_load();
-        REPLY("texts: _system.ini %d keys, _template.ini %d keys read; %d system texts, %d prompt texts built in; language %s; "
-              "[vars]: _system.ini %d, _template.ini %d\n", g_texts_sys_n, g_texts_tpl_n, N_SYS, N_TPL, g_lang, g_vars_sys.n, g_vars_tpl.n);
+        REPLY("texts: _system.eeai %d keys, _template.eeai %d keys read; %d system texts, %d prompt texts built in; language %s; "
+              "[vars]: _system.eeai %d, _template.eeai %d\n", g_texts_sys_n, g_texts_tpl_n, N_SYS, N_TPL, g_lang, g_vars_sys.n, g_vars_tpl.n);
         return;
     }
     texts_dir(dir);
     for (int sys = 1; sys >= 0; sys--) {
-        wsprintfA(path, "%s%s", dir, sys ? "_system.ini" : "_template.ini");
+        wsprintfA(path, "%s%s", dir, sys ? "_system.eeai" : "_template.eeai");
         if (!force && GetFileAttributesA(path) != INVALID_FILE_ATTRIBUTES) { REPLY("kept %s (texts dump force overwrites)\n", path); continue; }
         FILE *f = fopen(path, "wb");
         if (!f) { REPLY("error: cannot write %s\n", path); continue; }
         if (sys) {
-            fputs("; _system.ini - the system lines eeaimod shows the player (white, from nobody in particular). Not a\n"
+            fputs("; _system.eeai - the system lines eeaimod shows the player (white, from nobody in particular). Not a\n"
                   "; personality. [system] is English; [system:de] (or :fr, :es ... - the game's language) replaces what it has.\n"
                   "; A key left out keeps the built-in text. Placeholders in braces are filled in.\n"
                   "; Written by \"texts dump\" with the built-in texts.\n", f);
@@ -340,7 +340,7 @@ static void cmd_texts(char *out, const char *args) {
             for (int i = 0; i < N_SYS; i++)
                 if (k_sys[i].de) { fprintf(f, "%s = ", k_sys[i].key); text_write(f, k_sys[i].de); fputs("\n", f); }
         } else {
-            fputs("; _template.ini - what eeaimod tells the language model ([llm] in aimod.ini): who the AI is, the game as it\n"
+            fputs("; _template.eeai - what eeaimod tells the language model ([llm] in aimod.ini): who the AI is, the game as it\n"
                   "; stands, the situations, the tools. English: the model is told which language to answer in. A key left out\n"
                   "; keeps the built-in text. Placeholders in braces are filled in (each key's are listed above it). The\n"
                   "; pieces are joined with a space between them.\n"

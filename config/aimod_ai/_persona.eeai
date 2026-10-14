@@ -1,11 +1,11 @@
-; _persona.ini - a template for a new AI personality (eeaimod). Not a personality itself: files starting with "_"
-; are skipped. Copy it to a new name in this folder (e.g. seefahrer.ini), fill it in, and the AIs of the next game
+; _persona.eeai - a template for a new AI personality (eeaimod). Not a personality itself: files starting with "_"
+; are skipped. Copy it to a new name in this folder (e.g. seefahrer.eeai), fill it in, and the AIs of the next game
 ; may get it (picked at random, a matching colour first).
 ;
 ; Lines: one string, or a list of them - one is picked at random. Placeholders: {name} the player the line is about,
 ; {me} this AI, {enemy} a third player, {epoch} this AI's age, {tribute} what a capitulation pays ("200 gold, 800
 ; iron"). A situation without a line stays silent - unless it must be said (war, peace, offers, capitulation,
-; victory): then the line comes from a more general situation (noted below) or from computer.ini.
+; victory): then the line comes from a more general situation (noted below) or from computer.eeai.
 ; [lines] is English (the default); [lines:de] replaces it situation by situation in a German game, [lines:fr],
 ; [lines:es] ... in other languages. The same for name:de.
 ; With the AI voice ([llm] in aimod.ini) the model says the lines in its own words, from character and the traits;
@@ -99,12 +99,12 @@ character = ""
 ;home_guard_share = 
 
 [vars]
-; named strings and expressions for its lines, before those of _system.ini; [vars:de] (or :fr ...) replaces them in
+; named strings and expressions for its lines, before those of _system.eeai; [vars:de] (or :fr ...) replaces them in
 ; a game of that language. For example:
 ;address = opinion > 30 ? "my friend" : opinion < -30 ? "you dog" : "neighbour"
 
 [lines]
-; [] or a list with nothing left: no line (a more general situation or computer.ini speaks, or nobody)
+; [] or a list with nothing left: no line (a more general situation or computer.eeai speaks, or nobody)
 ; the game begins - a first word to everyone - heard by everyone (60% of the time at talk=50)
 greeting = []
 ; {name} has just declared war on you - heard by {name} only (at most every 20 s)

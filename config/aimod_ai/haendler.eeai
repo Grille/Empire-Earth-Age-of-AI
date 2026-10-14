@@ -1,4 +1,4 @@
-; AI personality for eeaimod - the format and every key: _persona.ini.
+; AI personality for eeaimod - the format and every key: _persona.eeai.
 [personality]
 name = "Merchant Benedict"
 name:de = "Kaufherr Benedikt"

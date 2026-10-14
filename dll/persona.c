@@ -1,4 +1,4 @@
-// AI PERSONALITIES: every AI player gets a personality from <game>\aimod_ai\*.ini - a name, traits (0-100) that
+// AI PERSONALITIES: every AI player gets a personality from <game>\aimod_ai\*.eeai - a name, traits (0-100) that
 // steer its diplomacy, and the lines it says in situations of the game. Included by eeaimod.c after defence.c,
 // before diplo.c (which makes the decisions and raises most of the situations).
 //
@@ -12,12 +12,12 @@
 //   [lines]                            the default (English)
 //   war_declared = ["Variant one", opinion < -50 ? "Variant two {name}"]   any expression: one string, a list ...
 //   [lines:de]                         in a game of that language these replace [lines] situation by situation
-//   [vars] / [vars:de]                 named strings and expressions for its lines, before _system.ini's
+//   [vars] / [vars:de]                 named strings and expressions for its lines, before _system.eeai's
 //   [style]                            EXPERIMENTAL, only with [general] ai_style=1 (default 0): aimod.ini keys
 //   first_attack_min = 15              (settings.c k_style_keys) on top of the difficulty's settings for this AI
 // Placeholders: {name} the player the line is about, {me} the speaker, {enemy} a third player (alliances),
 // {epoch} the speaker's age, {tribute} the resources offered / paid (capitulation), or an expression (expr.c). A
-// situation without a line (or one that is nothing now) falls back (line_fallback, computer.ini) or stays silent
+// situation without a line (or one that is nothing now) falls back (line_fallback, computer.eeai) or stays silent
 // (the game's own lines for wonders, flares and war remain where the personality has none).
 //
 // Assignment at the AI's first update: aimod.ini [general] personality_P<n>=<file name without .ini>, otherwise
@@ -209,12 +209,12 @@ static void lang_detect(void) {
                        h ? "read" : "NOT FOUND", age, hostile, g_lang);
 }
 
-// computer.ini: no personality - never assigned - but the fallback for every AI: a situation a personality has no
-// line for (and none of the situation's fallbacks either) is said with computer.ini's line; AIs without a
+// computer.eeai: no personality - never assigned - but the fallback for every AI: a situation a personality has no
+// line for (and none of the situation's fallbacks either) is said with computer.eeai's line; AIs without a
 // personality use it alone. It holds neutral lines for what must not go unsaid (diplomacy, capitulation, victory).
 static struct persona g_computer;
 static int g_has_computer;
-static int g_personas_only_computer;   // autotest personas=0: only computer.ini (AIs without a personality)
+static int g_personas_only_computer;   // autotest personas=0: only computer.eeai (AIs without a personality)
 // a personality file (the format: expr.c): [personality] name, name:<language>, character (strings), color (a list
 // of colour names), the traits (numbers 0-100); [style] (numbers); [vars] / [vars:<language>]; [lines] /
 // [lines:<language>] - each situation a string or a list of them, "if" conditions
@@ -304,14 +304,14 @@ static void personas_load(void) {
     char *bs = strrchr(dir, '\\');
     if (bs) bs[1] = 0;
     lstrcatA(dir, "aimod_ai\\");
-    wsprintfA(pat, "%s*.ini", dir);
+    wsprintfA(pat, "%s*.eeai", dir);
     WIN32_FIND_DATAA fd;
     HANDLE h = FindFirstFileA(pat, &fd);
     if (h == INVALID_HANDLE_VALUE) return;
     do {
         wsprintfA(path, "%s%s", dir, fd.cFileName);
-        if (fd.cFileName[0] == '_') continue;   // _system.ini, _template.ini, _persona.ini: no personalities (texts.c)
-        if (!g_personas_only_computer || !lstrcmpiA(fd.cFileName, "computer.ini")) persona_load(path, fd.cFileName);
+        if (fd.cFileName[0] == '_') continue;   // _system.eeai, _template.eeai, _persona.eeai: no personalities (texts.c)
+        if (!g_personas_only_computer || !lstrcmpiA(fd.cFileName, "computer.eeai")) persona_load(path, fd.cFileName);
     } while (FindNextFileA(h, &fd));
     FindClose(h);
 }
@@ -322,7 +322,7 @@ static struct persona *persona_of(void *pl) {
     return i >= 0 ? &g_personas[i] : NULL;
 }
 static int trait(void *pl, enum trait t) { struct persona *p = persona_of(pl); return p ? p->trait[t] : 50; }
-// A situation without a line falls back to a more general one; then computer.ini.
+// A situation without a line falls back to a more general one; then computer.eeai.
 static int line_fallback(int k) {
     switch (k) {
     case L_BETRAYED: return L_WAR_DECLARED;
@@ -334,14 +334,14 @@ static int line_fallback(int k) {
     }
 }
 // A line's context for its {placeholders} and conditions (expr.c): the speaker, {name}, {enemy}, the placeholders,
-// the [vars] of the line's personality, the speaker's own, _system.ini's
+// the [vars] of the line's personality, the speaker's own, _system.eeai's
 struct line_ctx { struct xctx c; const char *pn[5], *pv[5]; char ep[96], trib[96]; };
 static void epoch_text(void *pl, char *out, int cap);
 static void epoch_text_n(int e, char *out, int cap);
 static const char *player_name(void *pl);
 static void tribute_text(const int *amount, char *buf, int cap);
 static int g_say_tribute[7];   // {tribute}: amounts by resource (stock index 2..6), set by the caller (diplo.c)
-static void texts_load(void);   // texts.c: _system.ini's [vars]
+static void texts_load(void);   // texts.c: _system.eeai's [vars]
 static void line_ctx_init(struct line_ctx *l, void *pl, void *other, void *third) {
     memset(&l->c, 0, sizeof l->c);
     texts_load();
@@ -370,7 +370,7 @@ static int line_pick(struct persona *p, int k, struct xctx *c, uint32_t last, ch
     }
     return x.w;
 }
-// where situation k's line comes from for this AI: its personality (k or a fallback of it), else computer.ini - the
+// where situation k's line comes from for this AI: its personality (k or a fallback of it), else computer.eeai - the
 // first whose line has something to say now (*kk the situation, *n how many it was chosen from)
 static struct persona *line_source(void *pl, int k, int *kk, struct xctx *c, uint32_t last, char *out, int cap, int *n) {
     struct persona *p = persona_of(pl);
@@ -598,7 +598,7 @@ static int persona_say(void *pl, enum line_kind k, void *other, void *third) {
         chat_line(pl, dbg, g_chat_ms);
     }
     if (g_log) fprintf(g_log, "# talk: P%u at %.1f min (%s%s%s%s%s): %s\n", idx, now / 60000.0, k_lines[k].key,
-                       kk != (int)k ? " as " : "", kk != (int)k ? k_lines[kk].key : "", p == &g_computer ? ", computer.ini" : "",
+                       kk != (int)k ? " as " : "", kk != (int)k ? k_lines[kk].key : "", p == &g_computer ? ", computer.eeai" : "",
                        heard ? "" : ", not for the player", buf);
     return 1;
 }
@@ -690,5 +690,5 @@ static void persona_install(const char *ini, const char *test_ini) {
     int okc = patch_call(CALL_PLAYER_COLOR, FN_COLOR_RGB, (void *)hook_player_color), ok = 0;
     static const uintptr_t sites[] = { 0x470040, 0x4715F8, 0x47166E, 0x47280E, 0x472B9D };
     for (size_t i = 0; i < sizeof sites / sizeof *sites; i++) ok += patch_call(sites[i], FN_NATIVE_CHAT, (void *)hook_native_chat);
-    if (g_log) fprintf(g_log, "# persona: %d personalities, computer.ini %d, language '%s', talk %d, names %d, native line hooks %d/5, colour hook %d\n", g_npersonas, g_has_computer, g_lang, g_ai_talk, g_ai_names, ok, okc);
+    if (g_log) fprintf(g_log, "# persona: %d personalities, computer.eeai %d, language '%s', talk %d, names %d, native line hooks %d/5, colour hook %d\n", g_npersonas, g_has_computer, g_lang, g_ai_talk, g_ai_names, ok, okc);
 }

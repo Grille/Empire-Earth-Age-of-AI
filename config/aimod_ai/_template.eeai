@@ -1,4 +1,4 @@
-; _template.ini - what eeaimod tells the language model ([llm] in aimod.ini): who the AI is, the game as it
+; _template.eeai - what eeaimod tells the language model ([llm] in aimod.ini): who the AI is, the game as it
 ; stands, the situations, the tools. English: the model is told which language to answer in. A key left out
 ; keeps the built-in text. Placeholders in braces are filled in (each key's are listed above it). The
 ; pieces are joined with a space between them.

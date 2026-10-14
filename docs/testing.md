@@ -25,8 +25,8 @@ The `[autotest]` keys:
 | `sndstate`, `sndchan N` (pipe/setup) | the sound manager's channels with their sound ids and Miles status, the mixer's channels, categories in use, the paused queue / SetMaxChannels(N) as the options screen does |
 | `sound_channels=N`, `clamp_channels=0/1` | aimod.ini `[sound] channels` / `clamp_channels` for the run |
 | `seltest T [x0 y0 x1 y1]` (pipe/setup) | builds the double-click selection message for unit type T (screen rectangle 0x8D2778 or the given one) and carries it out: units found, packed, unpacked, selected |
-| `texts`, `texts dump [force]` (pipe/setup) | the text files read (`aimod_ai\_system.ini`, `_template.ini`); dump writes both with every key and its built-in text (existing files kept without force) - regenerate them after changing a built-in text (dll/texts.c, dll/texts_prompt.h) |
-| `texts eval [P [Q]] <expression>`, `texts line P <situation> [Q]` (pipe/setup) | an expression's value with P speaking to Q (default the local player), with _system.ini's and P's personality's `[vars]` (dll/expr.c); the variant P would say now in that situation, its condition checked and filled. The system lines the player is shown are logged (`# system line:`). Test of 2026-10-14: a temporary personality with `[vars]`, `[vars:de]` and conditioned variants, `[vars]` in both files, a prompt piece and two system lines with expressions - all as written; old/new DLL on `llmtest.setup` with the mock: the same prompts but for the stock amounts |
+| `texts`, `texts dump [force]` (pipe/setup) | the text files read (`aimod_ai\_system.eeai`, `_template.eeai`); dump writes both with every key and its built-in text (existing files kept without force) - regenerate them after changing a built-in text (dll/texts.c, dll/texts_prompt.h) |
+| `texts eval [P [Q]] <expression>`, `texts line P <situation> [Q]` (pipe/setup) | an expression's value with P speaking to Q (default the local player), with _system.eeai's and P's personality's `[vars]` (dll/expr.c); the variant P would say now in that situation, its condition checked and filled. The system lines the player is shown are logged (`# system line:`). Test of 2026-10-14: a temporary personality with `[vars]`, `[vars:de]` and conditioned variants, `[vars]` in both files, a prompt piece and two system lines with expressions - all as written; old/new DLL on `llmtest.setup` with the mock: the same prompts but for the stock amounts |
 | `diplo offer A B C`, `diplo capit A B` (pipe/setup) | AI A offers B an alliance against C / capitulates to B, as its initiative would (with `llm_ai_decide`: B's model answers) |
 | `diplo terms P H` (pipe/setup) | AI P's terms for peace with H as the AI voice gets them (price or why none), with the peace score and opinion; `scripts/terms.setup` declares war, pays and makes peace |
 | `diplo kills` (pipe/setup) | soldiers (every unit that is no citizen), citizens and buildings each player destroyed of each other player, in the whole game and in the last 20 minutes (kills by pair; the sums match the game's statistics) |
@@ -256,8 +256,8 @@ DDrawCompat v0.7.1 (narzoul) instead of dgVoodoo's ddraw.dll: 7.9 ms per frame w
 `CpuAffinity = 1` (whole game on one core), **5.6 ms (~177 fps) with `CpuAffinity = all`**
 (`DDrawCompat-Empire Earth.ini`); game, editor and windowed/borderless present work.
 
-Autotest `personas=0`: only `aimod_ai/computer.ini` is loaded - the AIs have no personality and say its neutral
-lines (the `# talk:` log marks them `computer.ini`; a fallback situation as `X as Y`).
+Autotest `personas=0`: only `aimod_ai/computer.eeai` is loaded - the AIs have no personality and say its neutral
+lines (the `# talk:` log marks them `computer.eeai`; a fallback situation as `X as Y`).
 
 ### Alliance blocks
 

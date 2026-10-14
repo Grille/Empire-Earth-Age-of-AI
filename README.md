@@ -22,10 +22,10 @@ patches such as *Empire Earth Tweaks* or *dreXmod*, which patch different places
 | [docs/engine-notes.md](docs/engine-notes.md) | Verified addresses and data layouts of the engine |
 | [docs/testing.md](docs/testing.md) | Autotest mode, test scenarios, log format, control pipe commands |
 | [config/aimod.ini](config/aimod.ini) | Every setting, explained |
-| [config/aimod_ai/eroberer.ini](config/aimod_ai/eroberer.ini) | The personality file format |
-| [config/aimod_ai/_persona.ini](config/aimod_ai/_persona.ini) | An empty personality with every key explained, to copy |
-| [config/aimod_ai/_system.ini](config/aimod_ai/_system.ini) | The system lines the mod shows (English, German) |
-| [config/aimod_ai/_template.ini](config/aimod_ai/_template.ini) | What the mod tells the language model (the AI voice) |
+| [config/aimod_ai/eroberer.eeai](config/aimod_ai/eroberer.eeai) | The personality file format |
+| [config/aimod_ai/_persona.eeai](config/aimod_ai/_persona.eeai) | An empty personality with every key explained, to copy |
+| [config/aimod_ai/_system.eeai](config/aimod_ai/_system.eeai) | The system lines the mod shows (English, German) |
+| [config/aimod_ai/_template.eeai](config/aimod_ai/_template.eeai) | What the mod tells the language model (the AI voice) |
 
 ## Computer player
 
@@ -118,20 +118,20 @@ peace or alliances. With the mod:
   its own lines for situations of the game: greetings, attacks, being attacked, new ages, winning and losing,
   diplomacy. Six personalities are included, in English and German; the game's language is detected
   (`[lines:de]`, `[lines:fr]`... replace the English `[lines]`). A saved game finds its personalities again.
-  `computer.ini` in the same folder is no personality but the fallback: neutral lines for what must not go
+  `computer.eeai` in the same folder is no personality but the fallback: neutral lines for what must not go
   unsaid (war, peace, offers waiting for your answer, capitulation, victory). A personality without a line for
-  such a situation uses it, and AIs without any personality speak only these lines. `_persona.ini` is an empty
+  such a situation uses it, and AIs without any personality speak only these lines. `_persona.eeai` is an empty
   personality with every key explained: copy it to a new name to make your own.
 - **The mod's own texts** are in the same folder too (files starting with `_` are no personalities):
-  `_system.ini` holds the system lines it shows you (offers waiting for your answer, chat hints, victory) in
-  English and German - `[system:fr]` etc. adds a language -, `_template.ini` everything it tells the language
+  `_system.eeai` holds the system lines it shows you (offers waiting for your answer, chat hints, victory) in
+  English and German - `[system:fr]` etc. adds a language -, `_template.eeai` everything it tells the language
   model (the AI voice: who the AI is, the rules, the game as it stands, the situations, the tools). Placeholders in
   braces are filled in; a key or file left out keeps the built-in text.
 - **The format** of all these files: `key = value`, where a value is an expression - a `"string"`, a
   `["list", "of", "strings"]` (one of them at random; over as many lines as you like), a number. A mistake is logged
   with the file and line and only that key is skipped.
 - **Expressions in the texts:** a placeholder may be an expression over the game as it stands, and `[vars]` names
-  strings and expressions for the texts (in `_system.ini`, `_template.ini` or a personality):
+  strings and expressions for the texts (in `_system.eeai`, `_template.eeai` or a personality):
 
   ```ini
   [vars]
@@ -149,9 +149,9 @@ peace or alliances. With the mod:
   `{epoch}` in a line is the age's name, `epoch >= epoch.middle` compares its number (`epoch.prehistoric` ..
   `epoch.space`, 1..15, the same in every language - a name would only match in one), `"Age: " + epoch` joins the
   name. There are no loops: a text can't hang the game.
-- **Editing them in VS Code:** [`vscode/eeaimod-texts`](vscode/eeaimod-texts) highlights the files in any
-  `aimod_ai` folder - sections, keys, strings, placeholders, expressions; an unknown key, situation or epoch name
-  shows as an error. `python scripts/pack_vscode.py`, then `code --install-extension work/eeaimod-texts.vsix`
+- **Editing them in VS Code:** [`vscode/eeaimod-texts`](vscode/eeaimod-texts) highlights the `.eeai`
+  files - sections, keys, strings, placeholders, expressions; an unknown key, situation or epoch name shows as an
+  error. `python scripts/pack_vscode.py`, then `code --install-extension work/eeaimod-texts.vsix`
   and reload the window. The grammar takes the names from the DLL's sources (`scripts/gen_vscode_grammar.py`).
 - **Play style** (experimental, `ai_style=1`, off by default): a personality can also change how its AI plays
   (attack timing, army share, home guard). Off, every AI plays the same, tested way.
@@ -199,7 +199,7 @@ siege, home guard.
    explained in the file. Settings can differ per difficulty (`[easy]`, `[medium]`, `[hard]` override
    `[all]`).
 3. Optional: copy the folder [`config/aimod_ai`](config/aimod_ai) into the same folder for the AI
-   personalities. Add or edit `.ini` files there to make your own; they are read when Empire Earth starts.
+   personalities. Add or edit `.eeai` files there to make your own; they are read when Empire Earth starts.
 4. Start the game normally. Changes to `aimod.ini` take effect when a game starts or a save is loaded.
 
 `aimod.ini` is required: without it Empire Earth shows an error and closes. To play the original game,
