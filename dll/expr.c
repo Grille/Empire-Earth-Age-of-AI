@@ -7,8 +7,9 @@
 // functions pick(a, b, ...) (one at random), chance(n) (true n % of the time), min, max, abs, round.
 // A value has a number, a text or both: the epoch is 3 and "Copper Age", a placeholder "12" is 12 and "12". The number
 // counts in arithmetic, in comparisons with a number and as true/false; the text where the value ends up in the text
-// and where it meets a text ("Age: " + epoch, epoch == "Copper Age"). + adds when both have numbers, else joins the
-// texts; comparisons compare numbers when both have one, else texts (case ignored). True: a number not 0, a text not
+// and where it meets a text ("Age: " + epoch). + adds when both have numbers, else joins the texts; comparisons
+// compare numbers when both have one, else texts (case ignored) - an epoch's name is the game's language's, so
+// conditions compare its number (epoch >= 5), never its name. True: a number not 0, a text not
 // empty. No loops, no assignments: a text can't hang the game. A placeholder that is not a
 // valid expression - or a single name nobody knows - stays as written (as before); an unknown name inside an
 // expression counts as 0. A [vars] value that is not an expression is plain text (its placeholders filled).
