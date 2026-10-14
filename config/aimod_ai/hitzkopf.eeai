@@ -38,6 +38,8 @@ my_tally = me.kills(them) > many_dead
 long_war = me.war_minutes(them) > 30
 ; losses that count as many at this stage of the game: a third of the largest army (10 at least)
 many_dead = max(10, max_population / 3)
+; tribute that counts as much at this stage of the game: half of what I hold (1500 at least)
+big_tribute = max(1500, me.stock / 2)
 
 [lines]
 greeting = [
@@ -148,7 +150,7 @@ tribute_thanks = [
         "Presents in the middle of a fight? Funny one, {name}! I'll take them and keep hitting!",
         "You throw me gold while I throw rocks at you, {name}? You're doing this fight wrong! HA!",
     ],
-    them.tribute(me) > 2000 and chance(60%) ? "MORE?! {name}, you're my favourite! I'll name a club after you!",
+    them.tribute(me) > big_tribute and chance(60%) ? "MORE?! {name}, you're my favourite! I'll name a club after you!",
 ] ?? [
     "Ha! Thanks, {name}! I'll buy new clubs with that!",
     "Presents! I love presents!",
@@ -369,7 +371,7 @@ tribute_thanks = [
         "Geschenke mitten in der Prügelei? Witzig, {name}! Ich nehm sie und hau weiter!",
         "Du wirfst mir Gold rüber, während ich Steine nach dir werfe, {name}? Du kämpfst falsch! HA!",
     ],
-    them.tribute(me) > 2000 and chance(60%) ? "NOCH MEHR?! {name}, du bist mein Liebling! Ich benenn eine Keule nach dir!",
+    them.tribute(me) > big_tribute and chance(60%) ? "NOCH MEHR?! {name}, du bist mein Liebling! Ich benenn eine Keule nach dir!",
 ] ?? [
     "Ha! Danke, {name}! Dafür kauf ich mir neue Keulen!",
     "Geschenke! Ich liebe Geschenke!",

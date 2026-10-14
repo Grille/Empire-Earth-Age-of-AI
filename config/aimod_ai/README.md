@@ -264,13 +264,9 @@ Shortcuts: my own `epoch`, traits, `allies` and `enemies` without `me.` (`aggres
 | `X.allies` | how many are allied with it (both ways), still in - allies alone: mine |
 | `X.enemies` | how many it treats as enemies, still in - enemies alone: mine |
 | `X.aggression`, `X.loyalty`, `X.pride`, `X.greed`, `X.forgiveness`, `X.caution`, `X.talk` | its traits, 0-100 (50 without a personality) |
+| `X.food`, `X.wood`, `X.stone`, `X.gold`, `X.iron` | its stock - another's too (the AI's spies): them.gold |
+| `X.stock` | the five resources together - to scale amounts: them.tribute(me) &gt; me.stock / 2 |
 | `X.lord` | its lord, the player it capitulated to - a player: them.lord.name, lord == them; nothing when it has none |
-
-**Only my own** - `me.` (another player's stock is hidden in the game):
-
-| Member | |
-|---|---|
-| `me.food`, `me.wood`, `me.stone`, `me.gold`, `me.iron` | my stock |
 
 **Relations** of player A with player B - `me.opinion(them)`, `them.opinion(me)`, `enemy.at_war(them)`; without `A.` mine (`opinion(enemy)`). Those that count events - `tribute`, `refusals`, `betrayals`, `kills`, `razed` - take a time window as a second argument: `them.tribute(me, 15)` counts the last 15 minutes only (`16.5` too), without it the whole game:
 

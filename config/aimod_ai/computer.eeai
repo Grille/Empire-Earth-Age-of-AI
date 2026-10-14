@@ -12,6 +12,8 @@
 this_war = me.war_minutes(them)
 ; losses that count as many at this stage of the game: a third of the largest army (10 at least)
 many_dead = max(10, max_population / 3)
+; tribute that counts as much at this stage of the game: half of what I hold (1500 at least)
+big_tribute = max(1500, me.stock / 2)
 
 [lines]
 war_declared = [
@@ -81,7 +83,7 @@ tribute_thanks = [
         "Tribute received, {name}. We are still at war.",
         "Your tribute is noted, {name}. It does not end the war.",
     ],
-    them.tribute(me) > 2000 and chance(50%) ? "Tribute received. {them.tribute(me)} resources from you so far, {name}. Thank you.",
+    them.tribute(me) > big_tribute and chance(50%) ? "Tribute received. {them.tribute(me)} resources from you so far, {name}. Thank you.",
 ] ?? "Tribute received. Thank you, {name}."
 capitulate = "{name}, we surrender. We offer {tribute} for peace."
 capitulate_accepted = "{tribute} paid. We will stand by you, {name}."
@@ -166,7 +168,7 @@ tribute_thanks = [
         "Tribut erhalten, {name}. Wir sind weiterhin im Krieg.",
         "Ihr Tribut ist vermerkt, {name}. Er beendet den Krieg nicht.",
     ],
-    them.tribute(me) > 2000 and chance(50%) ? "Tribut erhalten. Bisher {them.tribute(me)} Rohstoffe von Ihnen, {name}. Danke.",
+    them.tribute(me) > big_tribute and chance(50%) ? "Tribut erhalten. Bisher {them.tribute(me)} Rohstoffe von Ihnen, {name}. Danke.",
 ] ?? "Tribut erhalten. Danke, {name}."
 capitulate = "{name}, wir kapitulieren. Wir bieten {tribute} für Frieden."
 capitulate_accepted = "{tribute} bezahlt. Wir stehen zu Ihnen, {name}."

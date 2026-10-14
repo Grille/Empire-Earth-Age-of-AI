@@ -37,6 +37,8 @@ old_bond = me.alliance_minutes(them) > 30
 this_war = me.war_minutes(them)
 ; losses that count as many at this stage of the game: a third of the largest army (10 at least)
 many_dead = max(10, max_population / 3)
+; tribute that counts as much at this stage of the game: half of what I hold (1500 at least)
+big_tribute = max(1500, me.stock / 2)
 
 [lines]
 greeting = [
@@ -167,7 +169,7 @@ tribute_thanks = [
         "Tribute in the midst of war, {name}? I accept it - but my honour is not for sale.",
         "Gold while our swords are crossed, {name}? I thank you for it - and we will meet on the field all the same.",
     ],
-    them.tribute(me) > 2000 and chance(60%) ? "Your generosity knows no bounds, {name}. A knight does not forget his debts.",
+    them.tribute(me) > big_tribute and chance(60%) ? "Your generosity knows no bounds, {name}. A knight does not forget his debts.",
 ] ?? [
     "A generous gift, {name}. I shall not forget it.",
     "My thanks, {name}.",
@@ -404,7 +406,7 @@ tribute_thanks = [
         "Tribut mitten im Krieg, {name}? Ich nehme ihn an - doch meine Ehre ist nicht käuflich.",
         "Gold, während unsere Klingen sich kreuzen, {name}? Ich danke Euch dafür - und wir sehen uns dennoch auf dem Feld.",
     ],
-    them.tribute(me) > 2000 and chance(60%) ? "Eure Großzügigkeit kennt keine Grenzen, {name}. Ein Ritter vergisst nicht, was er schuldet.",
+    them.tribute(me) > big_tribute and chance(60%) ? "Eure Großzügigkeit kennt keine Grenzen, {name}. Ein Ritter vergisst nicht, was er schuldet.",
 ] ?? [
     "Eine großzügige Gabe, {name}. Ich werde sie nicht vergessen.",
     "Habt Dank, {name}.",

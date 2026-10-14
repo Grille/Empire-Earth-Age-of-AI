@@ -38,6 +38,8 @@ their_dead = me.kills(them) > many_dead
 this_war = me.war_minutes(them)
 ; losses that count as many at this stage of the game: a third of the largest army (10 at least)
 many_dead = max(10, max_population / 3)
+; tribute that counts as much at this stage of the game: half of what I hold (1500 at least)
+big_tribute = max(1500, me.stock / 2)
 
 [lines]
 greeting = [
@@ -153,7 +155,7 @@ tribute_thanks = [
         "Tribute in the middle of a war, {name}? Thank you. It goes into the walls you are attacking.",
         "Gold from the one besieging me, {name}? I will build the next tower with it and name it after you.",
     ],
-    them.tribute(me) > 2000 and chance(60%) ? "{them.tribute(me)} in all, {name}. By now a whole tower should carry your name.",
+    them.tribute(me) > big_tribute and chance(60%) ? "{them.tribute(me)} in all, {name}. By now a whole tower should carry your name.",
 ] ?? [
     "Thank you, {name}. That pays for a new tower.",
     "Very welcome, {name}. Building material is always short.",
@@ -377,7 +379,7 @@ tribute_thanks = [
         "Tribut mitten im Krieg, {name}? Danke. Er geht in die Mauern, die Sie angreifen.",
         "Gold von dem, der mich belagert, {name}? Davon baue ich den nächsten Turm und benenne ihn nach Ihnen.",
     ],
-    them.tribute(me) > 2000 and chance(60%) ? "{them.tribute(me)} insgesamt, {name}. Inzwischen müsste ein ganzer Turm Ihren Namen tragen.",
+    them.tribute(me) > big_tribute and chance(60%) ? "{them.tribute(me)} insgesamt, {name}. Inzwischen müsste ein ganzer Turm Ihren Namen tragen.",
 ] ?? [
     "Danke, {name}. Das reicht für einen neuen Turm.",
     "Sehr willkommen, {name}. Baumaterial ist immer knapp.",

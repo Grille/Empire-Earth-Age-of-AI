@@ -35,7 +35,7 @@ situations = '\n'.join(t)
 def members(table):
     body = re.search(r'static const struct xmember %s\[\] = \{(.*?)\n\};' % table, diplo, re.S).group(1)
     return re.findall(r'\{ "(\w+)", (XM_\w+), ((?:"(?:[^"\\]|\\.)*"\s*)+)\}', body)
-kinds = {'XM_PLAYER': [], 'XM_ME': [], 'XM_LINK': [], 'XM_REL': []}
+kinds = {'XM_PLAYER': [], 'XM_LINK': [], 'XM_REL': []}
 for name, kind, doc in members('k_xmembers'):
     kinds[kind].append((name, c_string(doc)))
 def table(rows, prefix, head, suffix=''):
@@ -52,7 +52,6 @@ def table(rows, prefix, head, suffix=''):
     return '\n'.join(out)
 values = '\n\n'.join([
     '**Of each player** - `me.`, `them.`, `enemy.`, `lord.`:\n\n' + table(kinds['XM_PLAYER'] + kinds['XM_LINK'], 'X.', 'Member'),
-    '**Only my own** - `me.` (another player\'s stock is hidden in the game):\n\n' + table(kinds['XM_ME'], 'me.', 'Member'),
     '**Relations** of player A with player B - `me.opinion(them)`, `them.opinion(me)`, `enemy.at_war(them)`; '
     'without `A.` mine (`opinion(enemy)`). Those that count events - `tribute`, `refusals`, `betrayals`, `kills`, '
     '`razed` - take a time window as a second argument: `them.tribute(me, 15)` counts the last 15 minutes only '

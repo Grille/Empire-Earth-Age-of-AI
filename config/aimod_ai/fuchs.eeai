@@ -35,6 +35,8 @@ their_dead = me.kills(them) > many_dead
 this_war = me.war_minutes(them)
 ; losses that count as many at this stage of the game: a third of the largest army (10 at least)
 many_dead = max(10, max_population / 3)
+; tribute that counts as much at this stage of the game: half of what I hold (1500 at least)
+big_tribute = max(1500, me.stock / 2)
 
 [lines]
 greeting = [
@@ -165,7 +167,7 @@ tribute_thanks = [
         "Paying your enemy, {name}? I shall spend it carefully. On soldiers, most likely.",
     ],
     them.betrayals(me) > 0 and chance(60%) ? "Gifts from a traitor, {name}? Guilt suits you.",
-    them.tribute(me) > 2000 and chance(60%) ? "{them.tribute(me)} in gifts already, {name}. One could almost think you were afraid of me.",
+    them.tribute(me) > big_tribute and chance(60%) ? "{them.tribute(me)} in gifts already, {name}. One could almost think you were afraid of me.",
 ] ?? [
     "For me? How thoughtful, {name}.",
     "You know how to treat a lady, {name}.",
@@ -398,7 +400,7 @@ tribute_thanks = [
         "Du bezahlst deine Feindin, {name}? Ich werde es mit Bedacht ausgeben. Vermutlich für Soldaten.",
     ],
     them.betrayals(me) > 0 and chance(60%) ? "Geschenke von einem Verräter, {name}? Schlechtes Gewissen steht dir.",
-    them.tribute(me) > 2000 and chance(60%) ? "Schon {them.tribute(me)} an Geschenken, {name}. Man könnte fast meinen, du hättest Angst vor mir.",
+    them.tribute(me) > big_tribute and chance(60%) ? "Schon {them.tribute(me)} an Geschenken, {name}. Man könnte fast meinen, du hättest Angst vor mir.",
 ] ?? [
     "Für mich? Wie aufmerksam, {name}.",
     "Du weißt, wie man eine Dame behandelt, {name}.",

@@ -38,6 +38,8 @@ their_dead = me.kills(them) > many_dead
 this_war = me.war_minutes(them)
 ; losses that count as many at this stage of the game: a third of the largest army (10 at least)
 many_dead = max(10, max_population / 3)
+; tribute that counts as much at this stage of the game: half of what I hold (1500 at least)
+big_tribute = max(1500, me.stock / 2)
 
 [lines]
 greeting = [
@@ -138,7 +140,7 @@ betray = [
     "The steppe has no friends, {name}. Only riders and prey.",
 ]
 tribute_thanks = [
-    them.tribute(me) > 2000 and chance(60%) ? "More gold from {name}. You would make a fine vassal.",
+    them.tribute(me) > big_tribute and chance(60%) ? "More gold from {name}. You would make a fine vassal.",
     at_war ? [
         "Gold in the middle of a war, {name}? You are buying time. It is for sale.",
         "You pay the Khan while we are at war, {name}? Keep paying. Perhaps my riders take the long way to your gates.",
@@ -342,7 +344,7 @@ betray = [
     "Die Steppe kennt keine Freunde, {name}. Nur Reiter und Beute.",
 ]
 tribute_thanks = [
-    them.tribute(me) > 2000 and chance(60%) ? "Wieder Gold von {name}. Du gäbst einen guten Vasallen ab.",
+    them.tribute(me) > big_tribute and chance(60%) ? "Wieder Gold von {name}. Du gäbst einen guten Vasallen ab.",
     at_war ? [
         "Gold mitten im Krieg, {name}? Du kaufst dir Zeit. Sie ist zu haben.",
         "Du zahlst dem Khan, während wir Krieg führen, {name}? Zahl weiter. Vielleicht nehmen meine Reiter dann den langen Weg zu deinen Toren.",

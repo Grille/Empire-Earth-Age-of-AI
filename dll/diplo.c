@@ -1634,9 +1634,9 @@ static void diplo_install(const char *ini, const char *test_ini) {
 // player: me.opinion(them) is what the speaker thinks of them, them.opinion(me) what they think of it,
 // enemy.opinion(them) ... Shortcuts: the speaker's own without "me." - epoch, traits, a relation (opinion(enemy) =
 // me.opinion(enemy)) - and opinion, at_war, allied alone: the speaker's with them (me.opinion(them)). Nothing where a
-// value doesn't apply (a relation with oneself, a war that isn't, another player's stock, a player who isn't there).
+// value doesn't apply (a relation with oneself, a war that isn't, a player who isn't there).
 // The tables also make the documentation: scripts/gen_eeai_readme.py writes them into aimod_ai\README.md.
-enum { XM_PLAYER, XM_ME, XM_LINK, XM_REL };   // a player's own, only the speaker's own (its stock), a player, A.<relation>(B)
+enum { XM_PLAYER, XM_LINK, XM_REL };   // a player's own, a player (them.lord), A.<relation>(B)
 struct xmember { const char *name; int kind; const char *doc; };
 static const struct xmember k_xmembers[] = {
     { "name", XM_PLAYER, "its name - the same as the player itself in a text: {them} = {them.name}" },
@@ -1658,8 +1658,9 @@ static const struct xmember k_xmembers[] = {
     { "loyalty", XM_PLAYER, "" }, { "pride", XM_PLAYER, "" }, { "greed", XM_PLAYER, "" }, { "forgiveness", XM_PLAYER, "" },
     { "caution", XM_PLAYER, "" }, { "talk", XM_PLAYER, "" },
     { "lord", XM_LINK, "its lord, the player it capitulated to - a player: them.lord.name, lord == them; nothing when it has none" },
-    { "food", XM_ME, "my stock" },
-    { "wood", XM_ME, "" }, { "stone", XM_ME, "" }, { "gold", XM_ME, "" }, { "iron", XM_ME, "" },
+    { "food", XM_PLAYER, "its stock - another's too (the AI's spies): them.gold" },
+    { "wood", XM_PLAYER, "" }, { "stone", XM_PLAYER, "" }, { "gold", XM_PLAYER, "" }, { "iron", XM_PLAYER, "" },
+    { "stock", XM_PLAYER, "the five resources together - to scale amounts: them.tribute(me) > me.stock / 2" },
     { "opinion", XM_REL, "-100..100: what A thinks of B - an AI's opinion; a human's of an AI is a guess from what the AI did to them (war, a betrayal, peace, tribute, a refusal, their losses), nothing of another human" },
     { "at_war", XM_REL, "1 when A and B are enemies, both of them" },
     { "allied", XM_REL, "1 when A and B are allied, both of them" },
@@ -1719,18 +1720,19 @@ static void *x_player_of(const struct xval *v) {   // the player a value is - or
     if (v->pl) return player_at(v->pl - 1);
     return v->has_s ? x_player_named(v->s) : NULL;
 }
-// member m of player px; the speaker ps (its stock only)
-static void x_member(void *ps, void *px, const struct xmember *m, struct xval *v) {
+// member m of player px
+static void x_member(void *px, const struct xmember *m, struct xval *v) {
     xnothing(v);
     if (!px) return;
     int x = pidx(px);
     const char *n = m->name;
     double r = 0;
-    if (m->kind == XM_ME) {
-        static const char *const res[5] = { "food", "wood", "stone", "gold", "iron" };
-        for (int k = 0; k < 5; k++) if (px == ps && !strcmp(n, res[k])) xnum(v, FIELD(px, PL_STOCK + (k + 2) * 4, int));
-        return;
+    static const char *const res[5] = { "food", "wood", "stone", "gold", "iron" };
+    for (int k = 0; k < 5; k++) {
+        if (!strcmp(n, "stock")) r += FIELD(px, PL_STOCK + (k + 2) * 4, int);
+        else if (!strcmp(n, res[k])) { xnum(v, FIELD(px, PL_STOCK + (k + 2) * 4, int)); return; }
     }
+    if (!strcmp(n, "stock")) { xnum(v, r); return; }
     if (!strcmp(n, "name")) { xstr(v, player_name(px)); return; }
     if (!strcmp(n, "epoch")) { char ep[96]; epoch_text(px, ep, sizeof ep); xdual(v, current_epoch(px) + 1, ep); return; }
     if (!strcmp(n, "soldiers")) r = g_ws.soldiers[x];
@@ -1836,9 +1838,8 @@ static int x_builtin(struct xctx *c, const char *name, struct xval *v) {
         const struct xmember *m = ok ? x_find_member(dot + 1, (int)strlen(dot + 1)) : NULL;
         if (!m || m->kind == XM_REL) return 0;   // a relation needs its other player: them.opinion(me)
         if (!p) { x_missing(c, who); xnothing(v); return 1; }   // lord.soldiers without a lord
-        if (m->kind == XM_ME && p != c->pl) { xnothing(v); return 1; }   // another's stock: hidden
         if (m->kind == XM_LINK) { x_player(v, x_lord(p), name); return 1; }   // them.lord: a player, to be checked
-        x_member(c->pl, p, m, v);
+        x_member(p, m, v);
         return 1;
     }
     void *p = x_path(c, name, (int)strlen(name), &ok, who);
@@ -1865,8 +1866,8 @@ static int x_builtin(struct xctx *c, const char *name, struct xval *v) {
     const struct xmember *m = x_find_member(name, (int)strlen(name));   // without "me.": my epoch, traits, allies, enemies; name: them.name
     int mine = m && m->kind == XM_PLAYER && (!strcmp(name, "epoch") || !strcmp(name, "allies") || !strcmp(name, "enemies"));
     for (int t = 0; m && t < T_N; t++) mine |= !strcmp(name, k_trait_keys[t]);
-    if (mine) { x_member(c->pl, c->pl, m, v); return 1; }
-    if (m && !strcmp(name, "name")) { if (!c->other) x_missing(c, "them"); x_member(c->pl, c->other, m, v); return 1; }
+    if (mine) { x_member(c->pl, m, v); return 1; }
+    if (m && !strcmp(name, "name")) { if (!c->other) x_missing(c, "them"); x_member(c->other, m, v); return 1; }
     return 0;
 }
 // a relation: <player>.<relation>(<player>[, minutes]), or <relation>(<player>) - the speaker's. v NULL: only whether

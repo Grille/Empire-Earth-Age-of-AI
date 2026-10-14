@@ -29,7 +29,7 @@ military_income_share = 0.35
 ; Benedict keeps books on everyone: who paid whom, and what the war has cost
 good_customer = them.tribute(me) > 0
 i_paid = me.tribute(them) > 0
-big_spender = them.tribute(me) > 2000
+big_spender = them.tribute(me) > big_tribute
 ; losses are costs, their losses are returns - more than a skirmish
 my_costs = them.kills(me) > many_dead
 my_returns = me.kills(them) > many_dead
@@ -39,6 +39,8 @@ full_coffers = me.gold > 1000
 this_war = me.war_minutes(them)
 ; losses that count as many at this stage of the game: a third of the largest army (10 at least)
 many_dead = max(10, max_population / 3)
+; tribute that counts as much at this stage of the game: half of what I hold (1500 at least)
+big_tribute = max(1500, me.stock / 2)
 
 [lines]
 greeting = [
@@ -93,6 +95,7 @@ peace_accept = [
     "Agreed, {name}. War is far too expensive anyway.",
 ]
 peace_refuse = [
+    them.gold > max(1000, me.gold) and chance(50%) ? "My informants count {them.gold} gold in your treasury, {name}. Peace has a price - and you can clearly afford it.",
     them.betrayals(me) > 0 ? [
         "Peace with you, {name}? Your credit with me is used up. No.",
         "You broke our last contract, {name}. Why would I sign another with the same customer?",
@@ -123,6 +126,7 @@ ask_lord = [
     "Not my department any more, {name}. Talk to {enemy}.",
 ]
 alliance_offer = [
+    them.gold > max(1000, me.gold) and chance(50%) ? "{them.gold} gold in your treasury, {name} - my informants are thorough. Invest it with me: against {enemy}, it pays twice.",
     enemy.strength > me.strength + them.strength and chance(60%) ? "{enemy}'s firm is bigger than both of ours, {name}. A merger is our only chance.",
     good_customer and chance(60%) ? "You have always paid your bills, {name}. Let us go into business together - against {enemy}.",
 ] ?? [
@@ -169,6 +173,7 @@ tribute_thanks = [
     "Most pleasing, {name}. Most pleasing indeed.",
 ]
 tribute_small = [
+    them.stock > me.stock * 2 and chance(60%) ? "{them.stock} in your storehouses, {name}, and this is what you send me? My spies are embarrassed for you.",
     at_war ? [
         "A down payment, {name}? This war costs a great deal more than that.",
         "My enemy pays in coppers, {name}? Come back when you mean to buy peace.",
@@ -323,6 +328,7 @@ peace_accept = [
     "Abgemacht, {name}. Krieg ist ohnehin viel zu teuer.",
 ]
 peace_refuse = [
+    them.gold > max(1000, me.gold) and chance(50%) ? "Meine Informanten zählen {them.gold} Gold in Ihrer Schatzkammer, {name}. Frieden hat seinen Preis - und Sie können ihn sich offensichtlich leisten.",
     them.betrayals(me) > 0 ? [
         "Frieden mit Ihnen, {name}? Ihr Kredit bei mir ist aufgebraucht. Nein.",
         "Sie haben unseren letzten Vertrag gebrochen, {name}. Warum sollte ich mit demselben Kunden einen neuen schließen?",
@@ -353,6 +359,7 @@ ask_lord = [
     "Nicht mehr meine Abteilung, {name}. Sprechen Sie mit {enemy}.",
 ]
 alliance_offer = [
+    them.gold > max(1000, me.gold) and chance(50%) ? "{them.gold} Gold in Ihrer Schatzkammer, {name} - meine Informanten sind gründlich. Legen Sie es bei mir an: gegen {enemy} zahlt es sich doppelt aus.",
     enemy.strength > me.strength + them.strength and chance(60%) ? "Die Firma von {enemy} ist größer als unsere beiden zusammen, {name}. Eine Fusion ist unsere einzige Chance.",
     good_customer and chance(60%) ? "Sie haben Ihre Rechnungen immer bezahlt, {name}. Machen wir gemeinsam Geschäfte - gegen {enemy}.",
 ] ?? [
@@ -397,6 +404,7 @@ tribute_thanks = [
     "Sehr erfreulich, {name}. Wirklich sehr erfreulich.",
 ]
 tribute_small = [
+    them.stock > me.stock * 2 and chance(60%) ? "{them.stock} in Ihren Lagern, {name}, und das schicken Sie mir? Meine Spione schämen sich für Sie.",
     at_war ? [
         "Eine Anzahlung, {name}? Dieser Krieg kostet weit mehr als das.",
         "Mein Feind zahlt in Kupfermünzen, {name}? Kommen Sie wieder, wenn Sie Frieden kaufen wollen.",
