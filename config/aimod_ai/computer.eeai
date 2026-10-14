@@ -25,7 +25,7 @@ block_refuse_own = "We refuse, {name}: our ally {enemy} will not make peace with
 ask_lord = "We are a vassal of {enemy}, {name}. Negotiate with them."
 vassal_grumble = "As you command, {name}. Peace with {enemy}."
 all_submitted = "Every player has submitted to you, {name}."
-lord_victory = "Victory to our lord, {name}."
+other_victory = my_lord ? "Victory to our lord, {name}." : "Victory to our alliance, {name}."
 surrender = "We give up."
 defeated = "We have been defeated."
 
@@ -47,6 +47,6 @@ block_refuse_own = "Wir lehnen ab, {name}: unser Verbündeter {enemy} schließt 
 ask_lord = "Wir sind Vasall von {enemy}, {name}. Verhandeln Sie mit ihnen."
 vassal_grumble = "Wie Sie befehlen, {name}. Frieden mit {enemy}."
 all_submitted = "Alle Spieler haben sich Ihnen unterworfen, {name}."
-lord_victory = "Sieg unserem Lehnsherrn, {name}."
+other_victory = my_lord ? "Sieg unserem Lehnsherrn, {name}." : "Sieg unserem Bündnis, {name}."
 surrender = "Wir geben auf."
 defeated = "Wir sind besiegt."

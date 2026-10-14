@@ -726,20 +726,18 @@ static void llm_queue(struct llm_job *j, char *body) {
     SET_STATE(j, J_QUEUED);
     SetEvent(g_llm_event);
 }
+// a situation for the model: its placeholders and expressions filled (x_fill, _template.eeai's [vars]) - {name} and
+// {enemy} as words when the player is missing
 static void llm_subst(char *out, int cap, const char *s, void *pl, void *other, void *third) {
-    int o = 0;
-    char ep[96];
-    while (*s && o < cap - 1) {
-        const char *rep = NULL;
-        if (!strncmp(s, "{name}", 6)) { rep = other && *player_name(other) ? player_name(other) : "the player"; s += 6; }
-        else if (!strncmp(s, "{me}", 4)) { rep = player_name(pl); s += 4; }
-        else if (!strncmp(s, "{enemy}", 7)) { rep = third ? player_name(third) : "the enemy"; s += 7; }
-        else if (!strncmp(s, "{epoch}", 7)) { epoch_text(pl, ep, sizeof ep); rep = ep; s += 7; }
-        else if (!strncmp(s, "{tribute}", 9)) { tribute_text(g_say_tribute, ep, sizeof ep); rep = ep; s += 9; }
-        if (rep) while (*rep && o < cap - 1) out[o++] = *rep++;
-        else out[o++] = *s++;
-    }
-    out[o] = 0;
+    char trib[96];
+    tribute_text(g_say_tribute, trib, sizeof trib);
+    const char *pn[3] = { "name", "enemy", "tribute" };
+    const char *pv[3] = { other && *player_name(other) ? player_name(other) : "the player", third ? player_name(third) : "the enemy", trib };
+    struct xctx c = { 0 };
+    c.pl = pl; c.other = other; c.third = third; c.found = 1;
+    c.pn = pn; c.pv = pv; c.np = 3;
+    c.vars[0] = &g_vars_tpl;
+    x_fill(out, cap, s, &c);
 }
 
 // persona_say: a line the local player hears - 1 if the model says it (later), 0: show the fixed line now

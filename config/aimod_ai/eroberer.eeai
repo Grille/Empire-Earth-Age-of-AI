@@ -139,9 +139,12 @@ all_submitted = [
     "All who still ride now ride under your banner, {name}.",
     "The Khan has seen your victory, {name}. The steppe will remember it.",
 ]
-lord_victory = [
+other_victory = my_lord ? [
     "The steppe bows to {name}. Today, at least.",
     "Ride on, {name}. Your name will be sung.",
+] : [
+    "We rode together, {name}, and the world fell. A good hunt.",
+    "Victory! Tonight our riders feast, {name}.",
 ]
 wonder_threat = [
     "A wonder? It will make a wonderful fire.",
@@ -265,9 +268,12 @@ all_submitted = [
     "Alle, die noch reiten, reiten unter Eurem Banner, {name}.",
     "Der Khan hat Euren Sieg gesehen, {name}. Die Steppe wird sich erinnern.",
 ]
-lord_victory = [
+other_victory = my_lord ? [
     "Die Steppe verneigt sich vor {name}. Zumindest heute.",
     "Reitet weiter, {name}. Man wird Euren Namen besingen.",
+] : [
+    "Wir sind gemeinsam geritten, {name}, und die Welt ist gefallen. Eine gute Jagd.",
+    "Sieg! Heute Nacht feiern unsere Reiter, {name}.",
 ]
 wonder_threat = [
     "Ein Wunder? Es wird ein wunderbares Feuer.",

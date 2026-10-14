@@ -134,9 +134,12 @@ capitulate = "Darling {name}, why fight when we could be friends? {tribute} say 
 capitulate_accepted = "{tribute} - a small price for such good company."
 capitulate_refused = "Pity. I would have made such a charming ally."
 all_submitted = "Well, {name}, it seems we all work for you now. Take your bow."
-lord_victory = [
+other_victory = my_lord ? [
     "Well played, {name}. Truly.",
     "I do love a good ending. Bravo, {name}.",
+] : [
+    "How fortunate that we were friends, {name}. For both of us.",
+    "A shared victory, {name}. I shall remember who stood by me.",
 ]
 wonder_threat = "What a pretty wonder. It would be a shame if something happened to it."
 help_none = "Help? Me? Whatever gave you that idea?"
@@ -251,9 +254,12 @@ capitulate = "Ach, {name}, warum kämpfen, wenn wir Freunde sein könnten? {trib
 capitulate_accepted = "{tribute} - ein kleiner Preis für so gute Gesellschaft."
 capitulate_refused = "Schade. Ich wäre eine so reizende Verbündete gewesen."
 all_submitted = "Nun, {name}, es scheint, wir arbeiten jetzt alle für Euch. Verbeugt Euch ruhig."
-lord_victory = [
+other_victory = my_lord ? [
     "Gut gespielt, {name}. Wirklich.",
     "Ich liebe ein gutes Ende. Bravo, {name}.",
+] : [
+    "Wie glücklich, dass wir Freunde waren, {name}. Für uns beide.",
+    "Ein gemeinsamer Sieg, {name}. Ich werde mir merken, wer zu mir stand.",
 ]
 wonder_threat = "Was für ein hübsches Wunder. Wäre doch schade, wenn ihm etwas zustößt."
 help_none = "Helfen? Ich? Wie kommst du darauf?"

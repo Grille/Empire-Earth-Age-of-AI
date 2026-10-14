@@ -121,6 +121,9 @@ greeting = ["Hello.", angry]
 
 ; now and then
 epoch_up = [chance(30) ? "Progress, finally.", "A new age begins."]
+
+; one situation, told apart by how I stand with them: someone else has won
+other_victory = my_lord ? "Long live {name}, my lord!" : allied ? "We won together, {name}!" : "Enjoy it while it lasts."
 ```
 
 ### Situations
@@ -163,7 +166,7 @@ epoch_up = [chance(30) ? "Progress, finally.", "A new age begins."]
 | `capitulate_refused` | {name} did not accept your capitulation: the war goes on | {name} | always |  |  |
 | `attack_threat` | your army is about to attack {name} | {name} | 60% | 300 s |  |
 | `all_submitted` | every other player has submitted to {name}, your lord | {name} | always |  |  |
-| `lord_victory` | {name}, your lord, has won the game | everyone | always |  |  |
+| `other_victory` | {name} has won the game | everyone | always |  |  |
 | `block_refuse` | you refuse {name}'s peace offer because {enemy} in their alliance cannot be at peace with your side | {name} | always | 60 s | `peace_refuse` |
 | `block_refuse_own` | you refuse {name}'s peace offer because your own ally {enemy} won't make peace with them | {name} | always | 60 s | `block_refuse` |
 | `vassal_grumble` | your lord {name} forces you to make peace with {enemy}, whom you hate | {name} | always | 60 s |  |

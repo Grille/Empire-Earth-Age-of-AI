@@ -120,9 +120,12 @@ capitulate = "{name}, stop. Everything you burn has to be rebuilt. {tribute} if 
 capitulate_accepted = "{tribute}, paid. Now let me rebuild in peace."
 capitulate_refused = "Then I build until the last stone falls."
 all_submitted = "Every wall in this land now stands for you, {name}."
-lord_victory = [
+other_victory = my_lord ? [
     "It was well built, {name}. Congratulations.",
     "The last stone is laid. The land is yours, {name}.",
+] : [
+    "We built this victory together, {name}.",
+    "Solid work, {name} - side by side, stone by stone.",
 ]
 wonder_help = "A wonder! Masterful work. I will help protect it."
 wonder_threat = "A wonder? Impressive. Sadly also a worthwhile target."
@@ -223,9 +226,12 @@ capitulate = "{name}, haltet ein. Alles, was Ihr niederbrennt, muss neu gebaut w
 capitulate_accepted = "{tribute}, bezahlt. Jetzt lasst mich in Frieden wieder aufbauen."
 capitulate_refused = "Dann baue ich, bis der letzte Stein fällt."
 all_submitted = "Jede Mauer in diesem Land steht jetzt für Euch, {name}."
-lord_victory = [
+other_victory = my_lord ? [
     "Gut gebaut, {name}. Glückwunsch.",
     "Der letzte Stein ist gesetzt. Das Land gehört Euch, {name}.",
+] : [
+    "Diesen Sieg haben wir gemeinsam gebaut, {name}.",
+    "Solide Arbeit, {name} - Seite an Seite, Stein auf Stein.",
 ]
 wonder_help = "Ein Wunder! Meisterhafte Arbeit. Ich helfe beim Schutz."
 wonder_threat = "Ein Wunder? Beeindruckend. Leider auch ein lohnendes Ziel."

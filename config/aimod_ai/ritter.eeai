@@ -128,9 +128,12 @@ capitulate = "{name}, you have bested me. I offer {tribute} and my sword at your
 capitulate_accepted = "{tribute}, as sworn. My word is my bond, {name}."
 capitulate_refused = "You refuse my oath? Then I fall with honour."
 all_submitted = "Every knight in this land has sworn fealty to you, {name}."
-lord_victory = [
+other_victory = my_lord ? [
     "Long live {name}!",
     "With honour I lay down my sword before you, {name}.",
+] : [
+    "Victory, {name}! It was an honour to fight at your side.",
+    "Our oath held to the end, {name}. Long live the alliance!",
 ]
 wonder_threat = "One does not build a wonder to hide it. And I will take it from you."
 wonder_help = [
@@ -250,9 +253,12 @@ capitulate = "{name}, Ihr habt mich bezwungen. Ich biete {tribute} und mein Schw
 capitulate_accepted = "{tribute}, wie geschworen. Mein Wort gilt, {name}."
 capitulate_refused = "Ihr verschmäht meinen Eid? Dann falle ich mit Ehre."
 all_submitted = "Jeder Ritter in diesem Land hat Euch die Treue geschworen, {name}."
-lord_victory = [
+other_victory = my_lord ? [
     "Lang lebe {name}!",
     "In Ehren lege ich mein Schwert vor Euch nieder, {name}.",
+] : [
+    "Sieg, {name}! Es war mir eine Ehre, an Eurer Seite zu kämpfen.",
+    "Unser Eid hat bis zum Ende gehalten, {name}. Lang lebe das Bündnis!",
 ]
 wonder_threat = "Ein Wunder baut man nicht, um es zu verstecken. Und ich werde es Euch nehmen."
 wonder_help = [

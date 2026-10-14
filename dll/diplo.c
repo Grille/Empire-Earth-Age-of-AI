@@ -1287,10 +1287,11 @@ static int claim_victory(int me, const char *how) {
     if (g_log) fprintf(g_log, "# victory: P%d claims victory at %.1f min (%s): %d vassals%s\n", me, game_time() / 60000.0, how,
                        n, ok ? " resign" : ", but not everyone has submitted - refused");
     if (ok && g_victory_off) { g_victory_claimed = 1; *STATE_STD_VICTORY = 1; }   // the game's own check ends it
-    for (int j = 1; ok && j < nplayers(); j++) {
+    for (int j = 1; ok && j < nplayers(); j++) {   // every other AI still in has a word (other_victory: my_lord, allied)
         void *pj = player_at(j);
-        if (j == me || !pj || is_out(pj) || g_lord[j] != me) continue;   // allies stay and win with him
-        persona_say(pj, L_LORD_VICTORY, pm, NULL);
+        if (j == me || !pj || is_out(pj) || !g_players[j]) continue;
+        persona_say(pj, L_OTHER_VICTORY, pm, NULL);
+        if (g_lord[j] != me) continue;   // allies stay and win with him
         g_sit.said_defeat[j] = 1;
         InterlockedOr(&g_resign_queue, 1 << j);
     }

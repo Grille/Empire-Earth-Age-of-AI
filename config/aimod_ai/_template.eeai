@@ -232,8 +232,9 @@ sit_capitulate_refused = "{name} did not accept your capitulation: the war goes 
 sit_attack_threat = "your army is about to attack {name}"
 ; placeholders: {name}
 sit_all_submitted = "every other player has submitted to {name}, your lord"
+; the situations may use expressions too (README.md): the relation to {name}
 ; placeholders: {name}
-sit_lord_victory = "{name}, your lord, has won the game"
+sit_other_victory = "{name} has won the game{my_lord ? ', your lord' : allied ? ' - and you with them, as their ally' : ''}"
 ; placeholders: {name} {enemy}
 sit_block_refuse = "you refuse {name}'s peace offer because {enemy} in their alliance cannot be at peace with your side"
 ; placeholders: {name} {enemy}

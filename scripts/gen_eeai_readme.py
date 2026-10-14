@@ -23,7 +23,8 @@ fallback = {a.lower(): b.lower() for a, b in re.findall(r'case L_(\w+): return L
 aud = {'A_ALL': 'everyone', 'A_ALLIES': 'its allies', 'A_NAME': '{name}'}
 def sit(key):
     m = re.search(r'\{ "sit_%s", ((?:\s*"(?:[^"\\]|\\.)*")+)' % key, tpl)
-    return c_string(m.group(1)) if m else ''
+    # an expression in it ({my_lord ? ...}) left out: the plain words describe the situation
+    return re.sub(r'\{[^{}]*[ ?][^{}]*\}', '', c_string(m.group(1))) if m else ''
 t = ['| Situation | When - "you" is the AI | Heard by | Chance | Cooldown | Without a line |', '|---|---|---|---|---|---|']
 for key, chance, cooldown, a in lines:
     t.append('| `%s` | %s | %s | %s | %s | %s |' % (key, cell(sit(key)), aud[a], 'always' if chance == '100' else chance + '%',

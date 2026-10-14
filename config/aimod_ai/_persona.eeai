@@ -129,8 +129,8 @@ capitulate_refused = []
 attack_threat = []
 ; every other player has submitted to {name}, your lord - heard by {name} only
 all_submitted = []
-; {name}, your lord, has won the game - heard by everyone
-lord_victory = []
+; {name} has won the game - heard by everyone
+other_victory = []
 ; you refuse {name}'s peace offer because {enemy} in their alliance cannot be at peace with your side - heard by {name} only (at most every 60 s, without a line: peace_refuse)
 block_refuse = []
 ; you refuse {name}'s peace offer because your own ally {enemy} won't make peace with them - heard by {name} only (at most every 60 s, without a line: block_refuse)

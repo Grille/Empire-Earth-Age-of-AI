@@ -132,9 +132,12 @@ capitulate = "{name}, let us be sensible. War is bad for business. {tribute} for
 capitulate_accepted = "A pleasure doing business. {tribute}, as agreed."
 capitulate_refused = "No deal? A pity. For both of us."
 all_submitted = "The market is yours, {name} - every competitor pays you tribute."
-lord_victory = [
+other_victory = my_lord ? [
     "A hostile takeover, well executed. Congratulations, {name}.",
     "The books are closed. Your profit, {name}.",
+] : [
+    "A profitable partnership, {name}. The dividends are ours.",
+    "We closed the deal together, {name}. Splendid.",
 ]
 wonder_help = "A wonder! That draws traders from all over the world. I am sending guards."
 wonder_nohelp = "A splendid wonder! Sadly my troops are ... otherwise engaged at the moment."
@@ -251,9 +254,12 @@ capitulate = "{name}, seien wir vernünftig. Krieg ist schlecht fürs Geschäft.
 capitulate_accepted = "Ein Vergnügen, mit Euch Geschäfte zu machen. {tribute}, wie vereinbart."
 capitulate_refused = "Kein Geschäft? Schade. Für uns beide."
 all_submitted = "Der Markt gehört Ihnen, {name} - jeder Konkurrent zahlt Ihnen Tribut."
-lord_victory = [
+other_victory = my_lord ? [
     "Eine feindliche Übernahme, sauber durchgezogen. Glückwunsch, {name}.",
     "Die Bücher sind geschlossen. Ihr Gewinn, {name}.",
+] : [
+    "Eine profitable Partnerschaft, {name}. Die Dividende gehört uns.",
+    "Wir haben das Geschäft gemeinsam abgeschlossen, {name}. Prächtig.",
 ]
 wonder_help = "Ein Wunder! Das zieht Händler aus aller Welt an. Ich schicke Wachen."
 wonder_nohelp = "Ein prächtiges Wunder! Leider sind meine Truppen gerade ... anderweitig verpflichtet."
