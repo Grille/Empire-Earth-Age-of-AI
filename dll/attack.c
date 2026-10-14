@@ -991,7 +991,9 @@ static void siege_tick(void *pl, uint32_t now) {
     }
 }
 
+static void charge_tick(uint32_t now);
 static void attack_tick(void *pl, uint32_t now) {
+    charge_tick(now);
     threat_refresh(pl, now);   // also with avoid_towers=0: the route log compares both
     citizen_attack_scan(pl, now);
     siege_tick(pl, now);
@@ -1351,6 +1353,181 @@ static void cmd_hurt(char *out, const char *args) {
 
 // Soldiers of player P (any player, AI or not) grouped by current goal (unit+0x1EC): count, centre, and the
 // goal's first dwords of the first unit (to find what it is after).
+// STRESS WAVES (tests): a grown AI against ever stronger attacks. "wave A D pct [x y]" gives player A (e.g. the idle
+// P1) pct% of player D's army, type by type - the most of each type D has had at a wave so far (a mirror: the right
+// epoch, a fair mix, and waves that keep growing while D's army shrinks; ships and aircraft left out), at x,y
+// (default: beside A's buildings); A and D are made enemies (the test maps ally the idle human with every AI).
+// "charge A D" (then every 10 s, at most 80 orders a pass): each soldier of A attacks the nearest soldier of D within 15 tiles, else the nearest citizen within
+// 20, else D's nearest building (one already fighting a unit of D keeps it). The first runs went for the nearest
+// building only: 500 archers at the walls razed 16 buildings in 45 minutes. Setup lines, e.g. "@60 wave 1 2 50",
+// "@60.5 charge 1 2" ... - the minute D falls (game over) is the score.
+struct w_scan { int n; uint8_t *u[1024]; };
+static void units_of(int p, int want, struct w_scan *o) {   // want: 0 soldiers (cmd_army's filter), 1 the rest
+                                                             // (buildings, walls, towers), 2 citizens
+    uint8_t *map = *(uint8_t **)G_MAP;
+    uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
+    o->n = 0;
+    if (!grid) return;
+    uint8_t *cells = FIELD(grid, 4, uint8_t *);
+    int cs = FIELD(grid, 8, int);
+    unsigned ny = FIELD(grid, 0x14, unsigned), count = FIELD(grid, 0x10, unsigned) * ny;
+    for (unsigned c = 0; cells && c < count; c++)
+        for (uint8_t **b = FIELD(cells + c * 16, 4, uint8_t **); b && b < FIELD(cells + c * 16, 8, uint8_t **); b++) {
+            uint8_t *u = *b, *td = u ? FIELD(u, 0x2C, uint8_t *) : NULL;
+            void *owner = u ? FIELD(u, 0x18, void *) : NULL;
+            if (!td || !owner || FIELD(owner, PL_INDEX, int) != p || FIELD(u, 0x3C, int) <= 0) continue;
+            if (FIELD(u, 0x1C, int) / cs != (int)(c / ny) || FIELD(u, 0x20, int) / cs != (int)(c % ny)) continue;
+            int fam = FIELD(td, 0x4B4, int), ty = FIELD(td, 0x4B8, int);
+            int civ = ty == 32 || ty == 480, sold = !civ && !(fam == 2 || fam == 6 || fam == 0x13 || fam == 0x16 ||
+                fam == 0x18 || fam == 0x19 || fam == 0x1D || fam == 0 || fam == 1);
+            if (want == 2 ? !civ : want == 1 ? civ || sold : !sold) continue;   // 1: the rest - buildings, walls, towers
+            if (o->n < 1024) o->u[o->n++] = u;
+        }
+}
+static int is_ship_or_air(uint8_t *td) {   // movement type +0x10C... unknown: by the ship/air families seen in tests
+    int fam = FIELD(td, 0x4B4, int);
+    return fam == 0x0B || fam == 0x0C || fam == 0x0D || fam == 0x0E || fam == 0x0F || fam == 0x10 || fam == 0x11;
+}
+static void cmd_wave(char *out, const char *args) {
+    int a, d, pct, x = -1, y = -1;
+    if (sscanf(args, "%d %d %d %d %d", &a, &d, &pct, &x, &y) < 3 || a < 0 || a > 15 || d < 0 || d > 15 || pct < 1) {
+        REPLY("error: usage: wave A D pct [x y]\n");
+        return;
+    }
+    static struct w_scan sc;
+    uint8_t **pls = (uint8_t **)G_PLAYERS;
+    if (!pls[a] || !pls[d]) { REPLY("error: no player %d or %d\n", a, d); return; }
+    void (__thiscall *set_dip)(void *, void *, int, int) = (void *)FN_SET_DIPLOMACY;
+    if (FIELD(pls[a], 0x9E4 + d * 4, int) != 1) set_dip(pls[a], pls[d], 1, 0);   // 1 = enemy
+    if (FIELD(pls[d], 0x9E4 + a * 4, int) != 1) set_dip(pls[d], pls[a], 1, 0);
+    // the spot: A's Town Center (or Capitol, or any building) at the first wave, kept for the later ones (D razes A's
+    // base once they are at war). Beside A's buildings on a 2-tile grid, part of each wave stood in a pocket for good.
+    static struct { uint32_t t; int x, y; } spot[16];
+    if (game_time() < spot[a].t) spot[a].t = 0, spot[a].x = -1;   // a new game
+    if (x < 0 && spot[a].t && spot[a].x >= 0) x = spot[a].x, y = spot[a].y;
+    if (x < 0) {
+        units_of(a, 1, &sc);
+        for (int i = 0; i < sc.n; i++) {
+            int t = FIELD(FIELD(sc.u[i], 0x2C, uint8_t *), 0x4B8, int);
+            if (x < 0 || t == 35 || t == 41) x = FIELD(sc.u[i], 0x1C, int), y = FIELD(sc.u[i], 0x20, int);
+            if (t == 35) break;
+        }
+        if (x < 0) { REPLY("error: P%d has no buildings, give x y\n", a); return; }
+    }
+    spot[a].t = game_time() ? game_time() : 1; spot[a].x = x; spot[a].y = y;
+    units_of(d, 0, &sc);
+    // the mix: per type the most D has had at a wave (new game: game time went back)
+    static struct { uint32_t t; int nt, type[64], cnt[64], fam[64]; } mix[16];
+    uint32_t now = game_time();
+    if (now < mix[d].t) mix[d].nt = 0;
+    mix[d].t = now;
+    int ct[64] = { 0 }, total = 0, sent = 0, left = 0;
+    for (int i = 0; i < sc.n; i++) {
+        uint8_t *td = FIELD(sc.u[i], 0x2C, uint8_t *);
+        int t = FIELD(td, 0x4B8, int), j = 0;
+        if (is_ship_or_air(td)) { left++; continue; }
+        while (j < mix[d].nt && mix[d].type[j] != t) j++;
+        if (j == mix[d].nt) {
+            if (j == 64) continue;
+            mix[d].type[j] = t; mix[d].cnt[j] = 0; mix[d].fam[j] = FIELD(td, 0x4B4, int); mix[d].nt++;
+        }
+        ct[j]++; total++;
+    }
+    int base = 0;
+    for (int j = 0; j < mix[d].nt; j++) {
+        if (ct[j] > mix[d].cnt[j]) mix[d].cnt[j] = ct[j];
+        base += mix[d].cnt[j];
+    }
+    int nt = mix[d].nt, *type = mix[d].type, *cnt = mix[d].cnt, *fam = mix[d].fam;
+    REPLY("wave: P%d gets %d%% of P%d's army (%d soldiers now, mix of %d) at %d,%d:", a, pct, d, total, base, x, y);
+    char tmp[256], args2[64];
+    static const int ring[8][2] = { { 9, 0 }, { 0, 9 }, { -9, 0 }, { 0, -9 }, { 6, 6 }, { -6, 6 }, { -6, -6 }, { 6, -6 } };
+    int chunk = 0;
+    for (int j = 0; j < nt; j++) {
+        int n = (cnt[j] * pct + 50) / 100;
+        while (n > 0) {   // groups of 16 (a 4x4 grid, 2 tiles apart) around the spot
+            int k = n > 16 ? 16 : n, r = chunk++ % 8;
+            sprintf(args2, "%d %d %d %d %d", a, type[j], x + ring[r][0] - 3, y + ring[r][1] - 3, k);
+            tmp[0] = 0;   // cmd_spawn appends its reply
+            cmd_spawn(tmp, args2);
+            n -= k; sent += k;
+        }
+        REPLY(" %dx%d(f%d)", (cnt[j] * pct + 50) / 100, type[j], fam[j]);
+    }
+    REPLY(" - %d units (%d ships/aircraft left out)\n", sent, left);
+}
+static struct { int a, d; uint32_t t, logged; unsigned rot; } g_charge = { -1, -1 };
+static void charge_pass(char *out, int a, int d) {
+    int n = 0, kept = 0, idle = 0, marching = 0;
+    static struct w_scan mine, foe, bld, civ;
+    units_of(a, 0, &mine);
+    units_of(d, 0, &foe);
+    units_of(d, 1, &bld);
+    units_of(d, 2, &civ);
+    for (int i0 = 0; i0 < mine.n; i0++) {
+        int i = (int)((i0 + g_charge.rot) % (unsigned)mine.n);
+        uint8_t *u = mine.u[i], *goal = FIELD(u, 0x1EC, uint8_t *);
+        if (goal && !strcmp(rtti_name(goal), "EEUGAttackUnit@@")) {
+            uint8_t *t = FIELD(goal, 0x30, uint8_t *);
+            void *to = t ? FIELD(t, 0x18, void *) : NULL;
+            if (to && FIELD(to, PL_INDEX, int) == d && FIELD(t, 0x3C, int) > 0) { kept++; continue; }
+        }
+        if (goal && !strcmp(rtti_name(goal), "EEUGLocation@@")) { marching++; continue; }
+        if (++idle > 80) continue;   // 80 orders a pass: 500 at once lost their goal within 10 s (the path search)
+        float ux = (float)FIELD(u, 0x1C, int), uy = (float)FIELD(u, 0x20, int), best = 15.0f * 15.0f;
+        uint8_t *tgt = NULL;
+        for (int k = 0; k < foe.n; k++) {
+            float dx = (float)FIELD(foe.u[k], 0x1C, int) - ux, dy = (float)FIELD(foe.u[k], 0x20, int) - uy;
+            if (dx * dx + dy * dy < best) { best = dx * dx + dy * dy; tgt = foe.u[k]; }
+        }
+        if (!tgt) {
+            best = 20.0f * 20.0f;
+            for (int k = 0; k < civ.n; k++) {
+                float dx = (float)FIELD(civ.u[k], 0x1C, int) - ux, dy = (float)FIELD(civ.u[k], 0x20, int) - uy;
+                if (dx * dx + dy * dy < best) { best = dx * dx + dy * dy; tgt = civ.u[k]; }
+            }
+        }
+        if (!tgt) {
+            best = 1e12f;
+            for (int k = 0; k < bld.n; k++) {
+                float dx = (float)FIELD(bld.u[k], 0x1C, int) - ux, dy = (float)FIELD(bld.u[k], 0x20, int) - uy;
+                if (dx * dx + dy * dy < best) { best = dx * dx + dy * dy; tgt = bld.u[k]; }
+            }
+        }
+        if (!tgt) continue;
+        float tx = (float)FIELD(tgt, 0x1C, int), ty = (float)FIELD(tgt, 0x20, int);
+        if ((tx - ux) * (tx - ux) + (ty - uy) * (ty - uy) > 20.0f * 20.0f)   // far: walk there first
+            n += unit_goal(u, goal_move(tx + (ux - tx) * 0.1f, ty + (uy - ty) * 0.1f), 0, 0x1F40);
+        else n += unit_goal(u, goal_attack(u, tgt), 0, 0x1F40);
+    }
+    g_charge.rot += 80;
+    if (out) sprintf(out + strlen(out), "charge: P%d %d soldiers, %d without a target, %d sent, %d marching, %d fighting; P%d %d "
+                     "soldiers, %d citizens, %d buildings\n", a, mine.n, idle, n, marching, kept, d, foe.n, civ.n, bld.n);
+}
+// charge A D: from now on every 10 s (attack_tick), logged every minute; "charge off" stops it
+static void cmd_charge(char *out, const char *args) {
+    int a, d;
+    if (!strncmp(args, "off", 3)) { g_charge.a = g_charge.d = -1; REPLY("charge: off\n"); return; }
+    if (sscanf(args, "%d %d", &a, &d) < 2 || a < 0 || a > 15 || d < 0 || d > 15) { REPLY("error: usage: charge A D | off\n"); return; }
+    g_charge.a = a; g_charge.d = d; g_charge.t = g_charge.logged = game_time();
+    charge_pass(out, a, d);
+}
+static void charge_tick(uint32_t now) {
+    if (g_charge.d < 0) return;
+    if (now < g_charge.t) { g_charge.a = g_charge.d = -1; return; }   // a new game
+    if (now - g_charge.t < 10000) return;
+    g_charge.t = now;
+    static char line[256];
+    line[0] = 0;
+    charge_pass(now - g_charge.logged >= 60000 ? line : NULL, g_charge.a, g_charge.d);
+    if (line[0] && g_log) {
+        g_charge.logged = now;
+        EnterCriticalSection(&g_lock);
+        fprintf(g_log, "# %.1f min %s", now / 60000.0, line);
+        fflush(g_log);
+        LeaveCriticalSection(&g_lock);
+    }
+}
 static void cmd_army(char *out, const char *args) {
     int p = 0, only = -1;   // army P [type]: only that unit type
     sscanf(args, "%d %d", &p, &only);

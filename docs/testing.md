@@ -78,6 +78,7 @@ sh scripts/scen.sh 30 towers_on_path "random_map=Continental,map_size=0,ai_count
 | `siege_raid` (Continental 101, 2 AIs, Bronze) | the defender builds for 12 min and gets 8 spearmen, then the attacker gets 4 catapults with 4 spearmen outside the tower range; `count` at minute 24 shows what is left |
 | `raid` (Continental 101, 2 AIs, Prehistoric start, base ini `epoch_min=15,epoch_max=20`, 55 min) | a grown base raided at minute 46 by 15 spearmen and 10 bowmen; `count 3` at 54 |
 | `late` (empty setup) | a plain late start (base `start_epoch=8`) for economy changes |
+| `waves` (Continental 101, 1 AI, 120 min) | stress: P2 builds up for 60 min, then every 5 min the idle P1 gets 50, 75, 100, 150 ... 1000% of P2's army (`wave`, at P1's Town Center) and charges P2's town (`charge`, every 10 s); the minute P2 falls (game over) is the score. First run: army broken at the 150% wave (75 min), fallen at 98 |
 
 Head-to-head: suites with one variant for all AIs measure how decisive the wars are, not which variant is
 stronger (alive 70-78% with a standard error of ~6 points per variant). `scripts/h2h.sh` lets some AIs of the
@@ -141,6 +142,8 @@ venv/Scripts/python scripts/eectl.py <command>
 | `threat P` | enemy defences AI player P knows about |
 | `targets P` | all enemy buildings of AI player P: owner, tile, seen by P or not, known tower threat on them |
 | `army P [type]` | soldiers of player P (optionally only one unit type) grouped by current goal (EEUGLocation = marching, EEUGAttackUnit = fighting; goal +0x30 = target unit), with centre and the goal's first dwords |
+| `wave A D pct [x y]` | player A gets pct% of player D's army, type by type, the most of each type D had at a wave so far (ships and aircraft left out), in groups of 16 around A's Town Center (the spot is kept for later waves); A and D become enemies |
+| `charge A D` / `charge off` | from now on every 10 s (at most 80 orders a pass, logged every minute): each soldier of A without a fight attacks the nearest soldier of D within 15 tiles, else the nearest citizen within 20, else D's nearest building, wall or tower (farther than 20 tiles: walks there first) |
 | `objs P T` | every object of type T of player P: tile, hit points, goal (e.g. `objs 2 42`: farm fields, 1 hp = not built) |
 | `build P bx by x y r` | player P's citizens within r tiles of x,y build P's building at bx,by (EEUGBuildRepair, the game's order) - with `found`: enemy builders at a tower |
 | `techs P` | techs player P has researched, and which are new since the last call (with tech epoch and cost) |

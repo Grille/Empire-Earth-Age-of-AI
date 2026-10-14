@@ -1,0 +1,26 @@
+# Stress waves: one AI (P2) builds up for 60 minutes in peace (ai_ignore: it leaves the idle P1 alone), then P1
+# gets ever stronger copies of P2's own army near P1's base (wave, % of P2's soldiers by type) and they charge
+# P2's town (charge: every 10 s, see attack.c STRESS WAVES). The minute P2
+# falls (game over) is the score; count 2 after each wave shows what is left.
+# base e.g. "random_map=Continental,map_size=0,ai_count=1,seed=101", 120 min
+@60 wave 1 2 50
+@60.05 charge 1 2
+@60.2 count 2
+@65 wave 1 2 75
+@65.2 count 2
+@70 wave 1 2 100
+@70.2 count 2
+@75 wave 1 2 150
+@75.2 count 2
+@80 wave 1 2 200
+@80.2 count 2
+@85 wave 1 2 300
+@85.2 count 2
+@90 wave 1 2 400
+@90.2 count 2
+@95 wave 1 2 600
+@95.2 count 2
+@100 wave 1 2 800
+@100.2 count 2
+@105 wave 1 2 1000
+@105.2 count 2

@@ -23,6 +23,8 @@ static void watch_set(uintptr_t addr, int len);
 static void cmd_threat(char *out, const char *args);
 static void cmd_targets(char *out, const char *args);
 static void cmd_army(char *out, const char *args);
+static void cmd_wave(char *out, const char *args);
+static void cmd_charge(char *out, const char *args);
 static void cmd_count(char *out, const char *args);
 static void cmd_objs(char *out, const char *args);
 static void cmd_sndstate(char *out, const char *args);
@@ -364,6 +366,8 @@ static void execute(const char *cmd, char *out) {
     else if (!strcmp(verb, "threat")) cmd_threat(out, args);
     else if (!strcmp(verb, "targets")) cmd_targets(out, args);
     else if (!strcmp(verb, "army")) cmd_army(out, args);
+    else if (!strcmp(verb, "wave")) cmd_wave(out, args);
+    else if (!strcmp(verb, "charge")) cmd_charge(out, args);
     else if (!strcmp(verb, "count")) cmd_count(out, args);
     else if (!strcmp(verb, "objs")) cmd_objs(out, args);
     else if (!strcmp(verb, "sndstate")) cmd_sndstate(out, args);
