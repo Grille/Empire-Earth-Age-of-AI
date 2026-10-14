@@ -1,6 +1,6 @@
 """Writes config/aimod_ai/_persona.eeai - an empty personality with every key explained - from the DLL's sources:
 the situations (persona.c k_lines: who hears them, how often, their fallbacks), their descriptions (texts_prompt.h
-sit_<key>), the format and the expressions (texts.c k_format_help, k_expr_help). Run it after changing one of them:
+sit_<key>), the head (texts.c k_format_help; the rest is in README.md). Run it after changing one of them:
 venv/Scripts/python.exe scripts/gen_persona.py"""
 import os
 import re
@@ -35,22 +35,12 @@ w('; _persona.eeai - a template for a new AI personality (eeaimod). Not a person
 w('; are skipped. Copy it to a new name in this folder (e.g. seefahrer.eeai), fill it in, and the AIs of the next game')
 w('; may get it (picked at random, a matching colour first).')
 w(';')
-w('; Lines: one string, or a list of them - one is picked at random. Placeholders: {name} the player the line is about,')
-w('; {me} this AI, {enemy} a third player, {epoch} this AI\'s age, {tribute} what a capitulation pays ("200 gold, 800')
-w('; iron"). A situation without a line stays silent - unless it must be said (war, peace, offers, capitulation,')
-w('; victory): then the line comes from a more general situation (noted below) or from computer.eeai.')
-w('; [lines] is English (the default); [lines:de] replaces it situation by situation in a German game, [lines:fr],')
-w('; [lines:es] ... in other languages. The same for name:de.')
-w('; With the AI voice ([llm] in aimod.ini) the model says the lines in its own words, from character and the traits;')
-w('; the lines are its examples of how this AI talks.')
-w(';')
-w('; A line is an expression: one string, a list of them (one at random) - and conditions: "condition ? text" is')
-w('; nothing when the condition doesn\'t hold, a list leaves it out, "a ?? b" says b when a is nothing:')
-w(';   greeting = [')
-w(';       allied ? "Welcome back, {name}.",')
-w(';       opinion < -50 ? ["Go away, {name}.", "You again."],')
-w(';   ] ?? "Greetings, {name}."')
-for ln in help_text('k_format_help') + help_text('k_expr_help'):
+w('; Each situation below gets a line: a string, or a list of them (one at random), with conditions if you like:')
+w(';   greeting = [allied ? "Welcome back, {name}.", opinion < -50 ? ["Go away.", "You again?"]] ?? "Greetings, {name}."')
+w('; A situation without a line stays silent - unless it must be said (war, peace, offers, capitulation, victory): then')
+w('; a more general situation speaks (noted below) or computer.eeai. [lines:de] (or :fr ...) replaces [lines] in a game')
+w('; of that language, situation by situation.')
+for ln in help_text('k_format_help'):
     w(ln)
 w('')
 w('[personality]')

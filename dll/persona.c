@@ -229,7 +229,7 @@ static void color_add(const char *name, void *arg) {
     struct color_read *r = arg;
     int c = color_index(name);
     if (c >= 0 && r->p->ncolor < 4) r->p->color[r->p->ncolor++] = c;
-    else if (c < 0 && g_log) fprintf(g_log, "# texts: %s:%d: unknown colour \"%s\"\n", r->l->file, r->line, name);
+    else if (c < 0) x_error("%s:%d: unknown colour \"%s\"", r->l->file, r->line, name);
 }
 static void persona_key(void *arg, const char *sec, const char *key, struct tval *v, struct tlex *l) {
     struct persona_read *r = arg;
@@ -335,7 +335,7 @@ static int line_fallback(int k) {
 }
 // A line's context for its {placeholders} and conditions (expr.c): the speaker, {name}, {enemy}, the placeholders,
 // the [vars] of the line's personality, the speaker's own, _system.eeai's
-struct line_ctx { struct xctx c; const char *pn[5], *pv[5]; char ep[96], trib[96]; };
+struct line_ctx { struct xctx c; const char *pn[1], *pv[1]; char trib[96]; };   // {name} {me} {enemy} {epoch}: the game values (diplo.c x_builtin)
 static void epoch_text(void *pl, char *out, int cap);
 static void epoch_text_n(int e, char *out, int cap);
 static const char *player_name(void *pl);
@@ -346,12 +346,10 @@ static void line_ctx_init(struct line_ctx *l, void *pl, void *other, void *third
     memset(&l->c, 0, sizeof l->c);
     texts_load();
     l->c.pl = pl; l->c.other = other; l->c.third = third; l->c.found = 1;
-    epoch_text(pl, l->ep, sizeof l->ep);
     tribute_text(g_say_tribute, l->trib, sizeof l->trib);
-    static const char *const names[5] = { "name", "me", "enemy", "epoch", "tribute" };
-    const char *vals[5] = { player_name(other), player_name(pl), player_name(third), l->ep, l->trib };
-    for (int i = 0; i < 5; i++) { l->pn[i] = names[i]; l->pv[i] = vals[i]; }
-    l->c.pn = l->pn; l->c.pv = l->pv; l->c.np = 5;
+    l->pn[0] = "tribute";
+    l->pv[0] = l->trib;
+    l->c.pn = l->pn; l->c.pv = l->pv; l->c.np = 1;
     l->c.vars[1] = &(persona_of(pl) ? persona_of(pl) : &g_computer)->vars;
     l->c.vars[2] = &g_vars_sys;
 }
@@ -664,10 +662,40 @@ static void cmd_persona(char *out, const char *args) {
     }
 }
 
+// strict parsing: the mistakes in the files, at startup
+static DWORD WINAPI x_errors_box(LPVOID arg) {
+    (void)arg;
+    char text[2400];
+    int o = wsprintfA(text, "%d mistake%s in the aimod_ai files (strict_parsing=1 in aimod.ini) - the keys are skipped:\n\n",
+                      g_x_total, g_x_total == 1 ? "" : "s");
+    EnterCriticalSection(&g_x_lock);
+    for (int i = 0; i < g_x_queued && o < (int)sizeof text - 260; i++) o += wsprintfA(text + o, "%s\n", g_x_queue[i]);
+    if (g_x_dropped) wsprintfA(text + o, "... and %d more (aimod_econ.csv, # texts:)\n", g_x_dropped);
+    g_x_queued = g_x_dropped = 0;   // said: not again in the game
+    LeaveCriticalSection(&g_x_lock);
+    MessageBoxA(NULL, text, "eeaimod", MB_OK | MB_ICONWARNING | MB_TOPMOST | MB_SETFOREGROUND);
+    return 0;
+}
+// strict parsing: the mistakes found while the game runs, as system lines (from the AIs' updates: the game's thread)
+static void x_errors_show(void) {
+    if (!g_strict || !g_x_queued) return;
+    char line[300];
+    EnterCriticalSection(&g_x_lock);
+    for (int i = 0; i < g_x_queued; i++) {
+        wsprintfA(line, "eeaimod texts: %s", g_x_queue[i]);
+        system_line(line, 30000);
+    }
+    if (g_x_dropped) { wsprintfA(line, "eeaimod texts: ... and %d more (aimod_econ.csv, # texts:)", g_x_dropped); system_line(line, 30000); }
+    if (g_log) fprintf(g_log, "# texts: strict parsing: %d mistake(s) shown in the game\n", g_x_queued + g_x_dropped);
+    g_x_queued = g_x_dropped = 0;
+    LeaveCriticalSection(&g_x_lock);
+}
 static void persona_install(const char *ini, const char *test_ini) {
     g_ai_talk = GetPrivateProfileIntA("general", "ai_talk", 1, ini);
     g_ai_names = GetPrivateProfileIntA("general", "ai_names", 1, ini);
     g_ai_style = GetPrivateProfileIntA("general", "ai_style", 0, ini);
+    g_strict = GetPrivateProfileIntA("general", "strict_parsing", 0, ini);
+    InitializeCriticalSection(&g_x_lock);
     for (int i = 0; i < 16; i++) {
         char key[24];
         wsprintfA(key, "personality_P%d", i);
@@ -678,6 +706,7 @@ static void persona_install(const char *ini, const char *test_ini) {
         g_ai_talk = GetPrivateProfileIntA("autotest", "ai_talk", g_ai_talk, test_ini);
         g_ai_names = GetPrivateProfileIntA("autotest", "ai_names", g_ai_names, test_ini);
         g_ai_style = GetPrivateProfileIntA("autotest", "ai_style", g_ai_style, test_ini);
+        g_strict = GetPrivateProfileIntA("autotest", "strict_parsing", g_strict, test_ini);
         g_personas_only_computer = !GetPrivateProfileIntA("autotest", "personas", 1, test_ini);
     }
     g_rnd ^= test_ini ? 0x5EED : GetTickCount();
@@ -687,6 +716,11 @@ static void persona_install(const char *ini, const char *test_ini) {
     if (test_ini) GetPrivateProfileStringA("autotest", "language", g_lang, g_lang, sizeof g_lang, test_ini);
     if (!g_lang[0]) lang_detect();
     personas_load();
+    texts_load();   // _system.eeai, _template.eeai now: their mistakes come up with the personalities'
+    if (g_strict && g_x_total && !test_ini) {   // at startup: a message box (its own thread - this runs in DllMain)
+        HANDLE t = CreateThread(NULL, 0, x_errors_box, NULL, 0, NULL);
+        if (t) CloseHandle(t);
+    }
     int okc = patch_call(CALL_PLAYER_COLOR, FN_COLOR_RGB, (void *)hook_player_color), ok = 0;
     static const uintptr_t sites[] = { 0x470040, 0x4715F8, 0x47166E, 0x47280E, 0x472B9D };
     for (size_t i = 0; i < sizeof sites / sizeof *sites; i++) ok += patch_call(sites[i], FN_NATIVE_CHAT, (void *)hook_native_chat);

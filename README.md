@@ -22,7 +22,7 @@ patches such as *Empire Earth Tweaks* or *dreXmod*, which patch different places
 | [docs/engine-notes.md](docs/engine-notes.md) | Verified addresses and data layouts of the engine |
 | [docs/testing.md](docs/testing.md) | Autotest mode, test scenarios, log format, control pipe commands |
 | [config/aimod.ini](config/aimod.ini) | Every setting, explained |
-| [config/aimod_ai/eroberer.eeai](config/aimod_ai/eroberer.eeai) | The personality file format |
+| [config/aimod_ai/README.md](config/aimod_ai/README.md) | The personalities and texts: format, expressions, values, situations |
 | [config/aimod_ai/_persona.eeai](config/aimod_ai/_persona.eeai) | An empty personality with every key explained, to copy |
 | [config/aimod_ai/_system.eeai](config/aimod_ai/_system.eeai) | The system lines the mod shows (English, German) |
 | [config/aimod_ai/_template.eeai](config/aimod_ai/_template.eeai) | What the mod tells the language model (the AI voice) |
@@ -127,28 +127,14 @@ peace or alliances. With the mod:
   English and German - `[system:fr]` etc. adds a language -, `_template.eeai` everything it tells the language
   model (the AI voice: who the AI is, the rules, the game as it stands, the situations, the tools). Placeholders in
   braces are filled in; a key or file left out keeps the built-in text.
-- **The format** of all these files: `key = value`, where a value is an expression - a `"string"`, a
-  `["list", "of", "strings"]` (one of them at random; over as many lines as you like), a number. A mistake is logged
-  with the file and line and only that key is skipped.
-- **Expressions in the texts:** a placeholder may be an expression over the game as it stands, and `[vars]` names
-  strings and expressions for the texts (in `_system.eeai`, `_template.eeai` or a personality):
-
-  ```ini
-  [vars]
-  address = opinion > 30 ? "friend" : opinion < -30 ? "enemy" : "neighbour"
-  [lines]
-  greeting = "Hello dear {address}, how is it going?"
-  angry = ["Fine. But I won't forget this, {name}.", "As you wish. For now."]
-  peace_accept = [opinion < -50 ? angry, allied ? "Friends again, {name}."] ?? "Let us end this, {name}."
-  ```
-
-  `condition ? "text"` without `:` is nothing when the condition doesn't hold; a list leaves out what is nothing and
-  picks one of the rest (a list in it counts with each of its items); `a ?? b` is b when a is nothing. The values: `opinion`, `power` (its strength / theirs), `at_war`, `allied`,
-  `my_lord`, `my_vassal`, `epoch`, `minutes`, `soldiers`, `kills`, `losses`, `human`, the traits and more (listed in
-  each file's head); `chance(25)` for variety. A value may be a number and a text at once:
-  `{epoch}` in a line is the age's name, `epoch >= epoch.middle` compares its number (`epoch.prehistoric` ..
-  `epoch.space`, 1..15, the same in every language - a name would only match in one), `"Age: " + epoch` joins the
-  name. There are no loops: a text can't hang the game.
+- **The format** of all these files: `key = value`, where a value is an expression - a `"string"` with
+  `{placeholders}` and `{expressions}` in it, a `["list", "of", "strings"]` (one at random), conditions
+  (`allied ? "Welcome back."`), fallbacks (`a ?? b`) - over the game as it stands: what the AI thinks of you, how
+  strong each side is, how long the war has lasted, whether you betrayed it before, what you paid it, its epoch.
+  Everything - the format, the expressions, every value, every situation - is in
+  [`config/aimod_ai/README.md`](config/aimod_ai/README.md), which goes into the folder with the files. A mistake is
+  logged with the file and line and only that key is skipped; `strict_parsing=1` in aimod.ini shows every mistake
+  at once (for whoever writes texts).
 - **Editing them in VS Code:** [`vscode/eeaimod-texts`](vscode/eeaimod-texts) highlights the `.eeai`
   files - sections, keys, strings, placeholders, expressions; an unknown key, situation or epoch name shows as an
   error. `python scripts/pack_vscode.py`, then `code --install-extension work/eeaimod-texts.vsix`

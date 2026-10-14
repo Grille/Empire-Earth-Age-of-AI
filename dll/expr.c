@@ -42,7 +42,29 @@ static int x_builtin(struct xctx *c, const char *name, struct xval *v);   // dip
 static void x_decode(const char *name, struct xval *v);   // diplo.c: a placeholder's text that names a number (an epoch)
 static int x_fill(char *out, int cap, const char *tmpl, struct xctx *c);
 static int rnd(int n);   // persona.c: the display generator
-static int g_x_logged;   // expression errors written to the log (at most 30)
+static int g_x_logged;   // expression errors written to the log (at most 60)
+// STRICT PARSING ([general] strict_parsing=1, for whoever writes the texts; default 0: a mistake is logged and skipped,
+// the game goes on): every mistake also comes up at once - those in the files at startup in a message box, those
+// found while the game runs (an unknown name, a broken expression) as a system line in the game (x_errors_show,
+// from the AIs' updates). An unknown name, or a placeholder nobody fills, counts as a mistake too.
+static int g_strict;
+static CRITICAL_SECTION g_x_lock;   // the queue: the language model's thread fills texts too
+static char g_x_queue[8][240];
+static int g_x_queued, g_x_total, g_x_dropped;
+static void x_error(const char *fmt, ...) {
+    char msg[240];
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(msg, sizeof msg, fmt, ap);
+    va_end(ap);
+    if (g_log && g_x_logged < 60) { g_x_logged++; fprintf(g_log, "# texts: %s\n", msg); }
+    if (!g_strict) return;
+    EnterCriticalSection(&g_x_lock);
+    g_x_total++;
+    if (g_x_queued < 8) lstrcpynA(g_x_queue[g_x_queued++], msg, sizeof g_x_queue[0]);
+    else g_x_dropped++;
+    LeaveCriticalSection(&g_x_lock);
+}
 
 static void xvars_set(struct xvars *v, const char *key, const char *val) {
     int i = 0;
@@ -282,6 +304,7 @@ static void xp_cmp(struct xp *p, struct xval *v) {
     xp_add(p, &b);
     double x, y;
     int d;
+    if (!v->w || !b.w) { xnum(v, 0); return; }   // nothing compares with nothing: false
     if (xis_num(v, &x) && xis_num(&b, &y)) d = x < y ? -1 : x > y;
     else {
         char l[XVAL_CAP], r[XVAL_CAP];
@@ -344,15 +367,15 @@ static void xp_expr(struct xp *p, struct xval *v) {   // c ? a : b, c ? a (nothi
     p->c->level--;
 }
 // evaluate the whole of src (an expression and nothing after it); 0: not an expression
-static void x_log_bad(const char *what, const char *src) {
-    if (g_log && g_x_logged < 30) { g_x_logged++; fprintf(g_log, "# texts: %s: %.120s\n", what, src); }
-}
+static void x_log_bad(const char *what, const char *src) { x_error("%s: %.120s", what, src); }
 static int x_eval(const char *src, struct xctx *c, struct xval *v) {
     struct xp p = { src, c, 0, 0 };
+    int unk = c->unknown;
     xp_expr(&p, v);
     xp_space(&p);
     int ok = !p.err && !*p.s && !c->circle;
     if (c->circle && !c->depth) { c->circle = 0; x_log_bad("[vars] naming each other in a circle", src); }
+    if (ok && !c->depth && c->unknown > unk) x_log_bad("an unknown name (counted 0) in", src);   // a line, a condition
     return ok;
 }
 
@@ -394,7 +417,8 @@ static int x_fill(char *out, int cap, const char *tmpl, struct xctx *c) {
                 if (c->circle && !c->depth) { c->circle = 0; x_log_bad("[vars] naming each other in a circle", src); }
                 int lone = ok && c->unknown > unk && strspn(src, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_.") == (size_t)n;
                 if (ok && !lone) { xto_text(&v, val, sizeof val); rep = val; }
-                if (ok && !lone && c->unknown > unk) x_log_bad("unknown name (counted 0) in", src);
+                if (ok && !lone && c->unknown > unk) x_log_bad("an unknown name (counted 0) in", src);
+                else if (lone && g_strict) x_log_bad("a placeholder nobody fills", src);
                 else if (!ok && strpbrk(src, " <>=?\"'(+[")) { c->bad++; x_log_bad("not an expression", src); }
             }
         }
@@ -444,7 +468,7 @@ struct tval {
 };
 struct tlex { const char *s, *file; int line, err; };
 static void tl_error(struct tlex *l, const char *what) {
-    if (g_log && g_x_logged < 60) { g_x_logged++; fprintf(g_log, "# texts: %s:%d: %s - skipped\n", l->file, l->line, what); }
+    x_error("%s:%d: %s - skipped", l->file, l->line, what);
     l->err = 1;
 }
 static void tl_blank(struct tlex *l, int lines) {   // spaces; with lines: line breaks and comments too

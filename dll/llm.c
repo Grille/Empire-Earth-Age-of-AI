@@ -892,6 +892,7 @@ static void llm_apply(struct llm_job *j, int ok) {
             total += n;
         }
         if (total > 0) {
+            hist_tribute(ai, h, total);
             g_llm_paid_t[ai] = now ? now : 1;
             tribute_text(paid, what, sizeof what);
             block_line(h, sysf("tribute_sent", "ai", player_name(pl), "tribute", what, NULL));
@@ -1203,6 +1204,7 @@ static int talk_apply(struct llm_job *j) {
             total += n;
         }
         if (total > 0) {
+            hist_tribute(ai, h, total);
             g_llm_paid_t[ai] = now ? now : 1;
             tribute_text(paid, what, sizeof what);
             tsub(ev, sizeof ev, tpl_text("ev3_tribute"), "ai", an, "name", hn, "tribute", what, NULL);

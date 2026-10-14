@@ -2,61 +2,15 @@
 ; are skipped. Copy it to a new name in this folder (e.g. seefahrer.eeai), fill it in, and the AIs of the next game
 ; may get it (picked at random, a matching colour first).
 ;
-; Lines: one string, or a list of them - one is picked at random. Placeholders: {name} the player the line is about,
-; {me} this AI, {enemy} a third player, {epoch} this AI's age, {tribute} what a capitulation pays ("200 gold, 800
-; iron"). A situation without a line stays silent - unless it must be said (war, peace, offers, capitulation,
-; victory): then the line comes from a more general situation (noted below) or from computer.eeai.
-; [lines] is English (the default); [lines:de] replaces it situation by situation in a German game, [lines:fr],
-; [lines:es] ... in other languages. The same for name:de.
-; With the AI voice ([llm] in aimod.ini) the model says the lines in its own words, from character and the traits;
-; the lines are its examples of how this AI talks.
+; Each situation below gets a line: a string, or a list of them (one at random), with conditions if you like:
+;   greeting = [allied ? "Welcome back, {name}.", opinion < -50 ? ["Go away.", "You again?"]] ?? "Greetings, {name}."
+; A situation without a line stays silent - unless it must be said (war, peace, offers, capitulation, victory): then
+; a more general situation speaks (noted below) or computer.eeai. [lines:de] (or :fr ...) replaces [lines] in a game
+; of that language, situation by situation.
 ;
-; A line is an expression: one string, a list of them (one at random) - and conditions: "condition ? text" is
-; nothing when the condition doesn't hold, a list leaves it out, "a ?? b" says b when a is nothing:
-;   greeting = [
-;       allied ? "Welcome back, {name}.",
-;       opinion < -50 ? ["Go away, {name}.", "You again."],
-;   ] ?? "Greetings, {name}."
-;
-; THE FORMAT: sections [name] / [name:<language>], one "key = value" per line, comments from ; or # to the line's
-; end. A value is an expression - over as many lines as you like while a ( [ or { is open:
-;   "text"                          a string: \" for a quote, \\ for a backslash, \n for a line break
-;   ["a", "b"]                      a list: one of its items, at random
-;   allied ? "Welcome back."        without ":" - nothing when the condition doesn't hold
-;   a ?? b                          a, unless it is nothing: then b
-;   85, opinion > 30 ? "a" : "b"    a number, any expression
-; A list leaves out what is nothing and picks among the rest, a list in a list counting with each of its items;
-; a list with nothing left is nothing:
-;   greeting = [allied ? "Welcome back.", opinion < -50 ? angry] ?? ["Greetings.", "Hello, {name}."]
-; A mistake is logged with the file and line (aimod_econ.csv, "# texts:") and that key is skipped.
-;
-; EXPRESSIONS: a placeholder may be an expression - "{opinion > 30 ? "friend" : "neighbour"}": the quotes inside
-; the braces are the expression's - and [vars] names strings and expressions for the texts:
-;   address = opinion > 30 ? "friend" : opinion < -30 ? "enemy" : "neighbour"     then "Hello dear {address}"
-;   title = "my lord {name}"
-; Numbers, "texts" (or 'texts'), lists, + - * / %, < <= > >= == !=, and or not, a ? b : c, a ? b, a ?? b, ( ),
-; chance(25) true 25% of the time, min, max, abs, round. Only what is chosen is worked out. A value may be a
-; number and a text at once (the epoch: 3 and its name): the number counts in arithmetic and comparisons with
-; numbers, the text in the text and next to texts ("Age: " + epoch). + adds numbers, else joins the texts. A
-; placeholder that is no expression stays in the text as written, and the log says so.
-; The game's values, from the one who speaks (the AI) towards the one it speaks to or about ({name}; in a system
-; line the local player):
-;   opinion            -100..100: what the AI thinks of them; their_opinion: what they think of it (an AI)
-;   power              its strength / theirs (2: twice as strong, 0.5: half)
-;   at_war, allied     1 when both are enemies / both allied; hostile, their_hostile: one side's stance
-;   my_lord, my_vassal 1 when they are its lord / its vassal; vassal: it capitulated; vassals: how many it has
-;   epoch, their_epoch the epoch: in the text its name (the game's language), as a number 1..15 - in a condition
-;                      compare it with these, the same in every language (never with a name):
-;                      epoch.prehistoric, epoch.stone, epoch.copper, epoch.bronze, epoch.dark, epoch.middle,
-;                      epoch.renaissance, epoch.imperial, epoch.industrial, epoch.atomic_wwi, epoch.atomic_wwii,
-;                      epoch.atomic_modern, epoch.digital, epoch.nano, epoch.space - epoch >= epoch.middle
-;   minutes            the game time
-;   soldiers, citizens, buildings, towers - their_soldiers ...: counted every 10 seconds
-;   kills, losses      their soldiers and citizens it destroyed / its own they destroyed
-;   human              1 when they are the human player at this PC
-;   aggression, loyalty, pride, greed, forgiveness, caution, talk: the AI's traits (0-100)
-;   name, me, enemy    the names; language: the game's (de, en, ...)
-; "texts eval P Q <expression>" (control pipe) shows what an expression gives in a running game.
+; key = value, a value is an expression: "a string" ({placeholders} and {expressions} in it), ["a list", "of
+; strings"] (one at random), allied ? "a condition", a ?? b, numbers ... The format, the expressions and every
+; value of the game (opinion, them.soldiers, epoch.middle, ...): README.md in this folder.
 
 [personality]
 ; the name in the game (the player name in the scores and the chat); name:de for a German game

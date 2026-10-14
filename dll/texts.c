@@ -219,49 +219,12 @@ static void text_placeholders(FILE *f, const char *a, const char *b) {   // "; {
         }
     if (seen[0]) fprintf(f, "; placeholders:%s\n", seen);
 }
-// the expressions and the game's values, for the dumped files (gen_persona.py writes the same into _persona.eeai)
+// the head of the dumped files (gen_persona.py writes the same into _persona.eeai): the rest is in README.md
 static const char k_format_help[] =
     ";\n"
-    "; THE FORMAT: sections [name] / [name:<language>], one \"key = value\" per line, comments from ; or # to the line's\n"
-    "; end. A value is an expression - over as many lines as you like while a ( [ or { is open:\n"
-    ";   \"text\"                          a string: \\\" for a quote, \\\\ for a backslash, \\n for a line break\n"
-    ";   [\"a\", \"b\"]                      a list: one of its items, at random\n"
-    ";   allied ? \"Welcome back.\"        without \":\" - nothing when the condition doesn't hold\n"
-    ";   a ?? b                          a, unless it is nothing: then b\n"
-    ";   85, opinion > 30 ? \"a\" : \"b\"    a number, any expression\n"
-    "; A list leaves out what is nothing and picks among the rest, a list in a list counting with each of its items;\n"
-    "; a list with nothing left is nothing:\n"
-    ";   greeting = [allied ? \"Welcome back.\", opinion < -50 ? angry] ?? [\"Greetings.\", \"Hello, {name}.\"]\n"
-    "; A mistake is logged with the file and line (aimod_econ.csv, \"# texts:\") and that key is skipped.\n";
-static const char k_expr_help[] =
-    ";\n"
-    "; EXPRESSIONS: a placeholder may be an expression - \"{opinion > 30 ? \"friend\" : \"neighbour\"}\": the quotes inside\n"
-    "; the braces are the expression's - and [vars] names strings and expressions for the texts:\n"
-    ";   address = opinion > 30 ? \"friend\" : opinion < -30 ? \"enemy\" : \"neighbour\"     then \"Hello dear {address}\"\n"
-    ";   title = \"my lord {name}\"\n"
-    "; Numbers, \"texts\" (or 'texts'), lists, + - * / %, < <= > >= == !=, and or not, a ? b : c, a ? b, a ?? b, ( ),\n"
-    "; chance(25) true 25% of the time, min, max, abs, round. Only what is chosen is worked out. A value may be a\n"
-    "; number and a text at once (the epoch: 3 and its name): the number counts in arithmetic and comparisons with\n"
-    "; numbers, the text in the text and next to texts (\"Age: \" + epoch). + adds numbers, else joins the texts. A\n"
-    "; placeholder that is no expression stays in the text as written, and the log says so.\n"
-    "; The game's values, from the one who speaks (the AI) towards the one it speaks to or about ({name}; in a system\n"
-    "; line the local player):\n"
-    ";   opinion            -100..100: what the AI thinks of them; their_opinion: what they think of it (an AI)\n"
-    ";   power              its strength / theirs (2: twice as strong, 0.5: half)\n"
-    ";   at_war, allied     1 when both are enemies / both allied; hostile, their_hostile: one side's stance\n"
-    ";   my_lord, my_vassal 1 when they are its lord / its vassal; vassal: it capitulated; vassals: how many it has\n"
-    ";   epoch, their_epoch the epoch: in the text its name (the game's language), as a number 1..15 - in a condition\n"
-    ";                      compare it with these, the same in every language (never with a name):\n"
-    ";                      epoch.prehistoric, epoch.stone, epoch.copper, epoch.bronze, epoch.dark, epoch.middle,\n"
-    ";                      epoch.renaissance, epoch.imperial, epoch.industrial, epoch.atomic_wwi, epoch.atomic_wwii,\n"
-    ";                      epoch.atomic_modern, epoch.digital, epoch.nano, epoch.space - epoch >= epoch.middle\n"
-    ";   minutes            the game time\n"
-    ";   soldiers, citizens, buildings, towers - their_soldiers ...: counted every 10 seconds\n"
-    ";   kills, losses      their soldiers and citizens it destroyed / its own they destroyed\n"
-    ";   human              1 when they are the human player at this PC\n"
-    ";   aggression, loyalty, pride, greed, forgiveness, caution, talk: the AI's traits (0-100)\n"
-    ";   name, me, enemy    the names; language: the game's (de, en, ...)\n"
-    "; \"texts eval P Q <expression>\" (control pipe) shows what an expression gives in a running game.\n";
+    "; key = value, a value is an expression: \"a string\" ({placeholders} and {expressions} in it), [\"a list\", \"of\n"
+    "; strings\"] (one at random), allied ? \"a condition\", a ?? b, numbers ... The format, the expressions and every\n"
+    "; value of the game (opinion, them.soldiers, epoch.middle, ...): README.md in this folder.\n";
 // texts eval [P [Q]] <expression>: its value, P speaking to Q (the local player when left out), with
 // _system.eeai's [vars] and P's personality's; texts line P <situation> [Q]: the variant P would say now, filled
 static void cmd_texts(char *out, const char *args) {
@@ -327,7 +290,6 @@ static void cmd_texts(char *out, const char *args) {
                   "; A key left out keeps the built-in text. Placeholders in braces are filled in.\n"
                   "; Written by \"texts dump\" with the built-in texts.\n", f);
             fputs(k_format_help, f);
-            fputs(k_expr_help, f);
             fputs(";\n; [vars] here serve the system lines and every personality's lines (a personality's own [vars] first);\n"
                   "; [vars:de] (or :fr ...) replaces them in a game of that language.\n"
                   ";[vars]\n;mood = opinion > 30 ? \"gladly\" : \"\"\n\n[system]\n", f);
@@ -346,7 +308,6 @@ static void cmd_texts(char *out, const char *args) {
                   "; pieces are joined with a space between them.\n"
                   "; Written by \"texts dump\" with the built-in texts.\n", f);
             fputs(k_format_help, f);
-            fputs(k_expr_help, f);
             fputs(";\n; [vars] here serve the prompts only (English, like them).\n"
                   ";[vars]\n;mood = opinion < -50 ? \"You can barely stand them.\" : \"\"\n\n[prompt]\n", f);
             for (int i = 0; i < N_TPL; i++) {

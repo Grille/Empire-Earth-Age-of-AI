@@ -1,6 +1,6 @@
 """Writes vscode/eeaimod-texts/syntaxes/eeai.tmLanguage.json - the highlighting of the aimod_ai\\*.eeai files
 (personalities, _system.eeai, _template.eeai; the format: dll/expr.c THE TEXT FILES) - with the names the DLL knows,
-read from its sources: the game's values (diplo.c x_builtin), the epochs and functions (expr.c), the situations and
+read from its sources: the game's values (diplo.c k_xmembers, k_xglobals), the epochs and functions (expr.c), the situations and
 traits (persona.c), the system and prompt keys (texts.c, texts_prompt.h), the style keys (settings.c). A key the DLL
 doesn't know in its section shows as an error. Run it after changing one of them, then scripts/pack_vscode.py:
 venv/Scripts/python.exe scripts/gen_vscode_grammar.py"""
@@ -13,8 +13,16 @@ def src(name):
     return open(os.path.join(root, 'dll', name), encoding='latin-1').read()
 
 diplo, expr, persona, texts, tpl, settings = (src(n) for n in ('diplo.c', 'expr.c', 'persona.c', 'texts.c', 'texts_prompt.h', 'settings.c'))
-values = re.findall(r'"(\w+)"', re.search(r'static const char \*const k_num\[\] = \{(.*?)\};', diplo, re.S).group(1)) + \
-    ['name', 'me', 'enemy', 'language']
+def xtable(name):   # diplo.c k_xmembers / k_xglobals: (name, kind)
+    body = re.search(r'static const struct xmember %s\[\] = \{(.*?)\n\};' % name, diplo, re.S).group(1)
+    return re.findall(r'\{ "(\w+)", (XM_\w+),', body)
+members = xtable('k_xmembers')
+globals_ = [n for n, k in xtable('k_xglobals')]
+member_names = [n for n, k in members]
+# without a player: the globals, the relations (them.), my epoch and traits (me.); "name" is them.name
+bare = globals_ + [n for n, k in members if k == 'XM_REL'] + ['epoch', 'name'] + \
+       [n for n, k in members if k == 'XM_PLAYER' and n in ('aggression', 'loyalty', 'pride', 'greed', 'forgiveness', 'caution', 'talk')]
+values = bare
 epochs = re.findall(r'"(\w+)"', re.search(r'k_epoch_const\[15\] = \{(.*?)\};', expr, re.S).group(1))
 funcs = sorted(set(re.findall(r'!lstrcmpiA\(name, "(\w+)"\)', expr)) - {'true', 'false'})
 situations = re.findall(r'\{ "(\w+)", \d+, \d+, A_\w+ \}', persona)
@@ -36,6 +44,8 @@ expression = [
     {'name': 'support.function.eeaimod', 'match': words(funcs) + r'(?=\s*\()'},
     {'name': 'constant.language.boolean.eeaimod', 'match': r'\b(?:true|false)\b'},
     {'name': 'keyword.operator.logical.eeaimod', 'match': r'\b(?:and|or|not)\b'},
+    {'name': 'variable.language.game-value.eeaimod', 'match': r'\b(?:me|them|enemy)\.(?:' + '|'.join(sorted(member_names, key=len, reverse=True)) + r')\b(?!\.)'},
+    {'name': 'invalid.illegal.unknown-member.eeaimod', 'match': r'\b(?:me|them|enemy)\.[A-Za-z_][\w.]*'},
     {'name': 'variable.language.game-value.eeaimod', 'match': words(values) + r'(?!\.)'},
     {'name': 'constant.numeric.eeaimod', 'match': r'(?<![\w.])(?:\d+(?:\.\d+)?|\.\d+)'},
     {'name': 'keyword.operator.eeaimod', 'match': r'\?\?|<=|>=|==|!=|&&|\|\||[-+*/%<>!?:]'},

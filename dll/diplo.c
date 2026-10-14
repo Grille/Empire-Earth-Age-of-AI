@@ -121,6 +121,38 @@ static void set_stance(int from, int to, int s) {
     ((void (__thiscall *)(void *, int, int, int))FN_SET_STANCE)(GAME_STATE, from, to, s);
 }
 
+// HISTORY for the texts' values (x_member below): the pairs' stances over time, betrayals, refusals, tributes - every
+// 10 s (world scan) and where they happen; saved with the game (persist.c)
+static struct {
+    int8_t stance[16][16];       // [x][y]: x's stance towards y at the last look (-1: not seen yet)
+    uint32_t since[16][16];      // [x][y] = [y][x]: the pair's state - war, alliance or neither - since (game time)
+    uint16_t betrayals[16][16];  // [x][y]: x turned on y while they were allied
+    uint16_t refused[16][16];    // [x][y]: x refused y's offers of peace or alliance
+    uint32_t tribute[16][16];    // [x][y]: resources x paid y
+} g_hist;
+static void hist_reset(void) { memset(&g_hist, 0, sizeof g_hist); memset(g_hist.stance, 0xFF, sizeof g_hist.stance); }
+static void hist_tribute(int from, int to, int total) {
+    if (from >= 0 && from < 16 && to >= 0 && to < 16 && from != to && total > 0) g_hist.tribute[from][to] += (uint32_t)total;
+}
+static void hist_refused(int x, int y) { if (x >= 0 && x < 16 && y >= 0 && y < 16 && g_hist.refused[x][y] < 60000) g_hist.refused[x][y]++; }
+static void hist_scan(uint32_t now) {
+    for (int x = 1; x < nplayers(); x++)
+        for (int y = x + 1; y < nplayers(); y++) {
+            void *px = player_at(x), *py = player_at(y);
+            if (!px || !py) continue;
+            int sx = stance_of(px, y) != 0, sy = stance_of(py, x) != 0, ox = g_hist.stance[x][y], oy = g_hist.stance[y][x];
+            int state = sx && sy ? 2 : !sx && !sy ? 1 : 0;
+            if (ox < 0 || oy < 0) g_hist.since[x][y] = g_hist.since[y][x] = now < 15000 ? 0 : now;   // first seen
+            else {
+                if (!ox && !oy && sx) g_hist.betrayals[x][y]++;   // allied, and x turned
+                if (!ox && !oy && sy) g_hist.betrayals[y][x]++;
+                int old = ox && oy ? 2 : !ox && !oy ? 1 : 0;
+                if (old != state) g_hist.since[x][y] = g_hist.since[y][x] = now;
+            }
+            g_hist.stance[x][y] = (int8_t)sx;
+            g_hist.stance[y][x] = (int8_t)sy;
+        }
+}
 static void ws_unit(uint8_t *u, void *ctx) {
     (void)ctx;
     void *owner = FIELD(u, 0x18, void *);
@@ -166,6 +198,7 @@ static void world_scan(uint32_t now) {
         if (g_ws.buildings[i] > g_ws.peak[i]) g_ws.peak[i] = g_ws.buildings[i];
         g_ws.epoch[i] = current_epoch(p);
     }
+    hist_scan(now);
 }
 static int base_threatened(unsigned idx) {   // econ.c: enemy soldiers in its base (pressure as for capitulation)
     void *pl = player_at((int)idx & 15);
@@ -337,6 +370,7 @@ static void peace_offer(void *pl, int ai, int j, uint32_t now) {
         persona_say(pl, L_PEACE_ACCEPT, pj, NULL);
         return;
     }
+    if (!g_peace_refused[ai][j]) hist_refused(ai, j);
     if (veto) {
         if (!g_peace_refused[ai][j]) block_refuse(pl, j, veto, own);
         g_peace_refused[ai][j] = 1;
@@ -728,6 +762,7 @@ static int pay_promise(int ai, int j, int *paid) {   // what was offered, as far
         }
     }
     memset(g_promise[ai], 0, sizeof g_promise[ai]);
+    hist_tribute(ai, j, total);
     return total;
 }
 static void capitulate(void *pl, int ai, int a, uint32_t now) {
@@ -781,6 +816,7 @@ static void capitulate(void *pl, int ai, int a, uint32_t now) {
 // 2 minutes; the answer is the other's stance turning allied - diplo_tick does the rest). Refused: it runs out now.
 static void offer_refused(int from, int to) {
     uint32_t now = game_time();
+    hist_refused(to, from);
     if (g_offer_t[from][to]) g_offer_t[from][to] = now > 120001 ? now - 120001 : 1;
 }
 // no answer from the model: the rules decide, as they did at once before
@@ -982,6 +1018,8 @@ static void reputation_pass(uint32_t now) {
 
 static void diplo_tick(void *pl, unsigned ai, uint32_t now) {
     persona_assign(pl);
+    x_errors_show();   // strict parsing: a mistake in the texts at once
+    hist_scan(now);    // the history up to date before anything is said (a betrayal: betrayed_me)
     reputation_pass(now);
     if (FIELD(pl, 0x467, uint8_t)) {   // defeated: last words once
         if (!g_sit.said_defeat[ai]) { g_sit.said_defeat[ai] = 1; persona_say(pl, L_DEFEATED, NULL, NULL); }
@@ -1130,6 +1168,7 @@ static void diplo_new_game(void) {
     memset(g_war_betrayal, 0, sizeof g_war_betrayal);
     memset(g_diplo_answers, 0, sizeof g_diplo_answers);
     memset(&g_ws, 0, sizeof g_ws);
+    hist_reset();
     memset(&g_sit, 0, sizeof g_sit);
     memset(g_no_citizens_since, 0, sizeof g_no_citizens_since);
     memset(g_pressure, 0, sizeof g_pressure);
@@ -1170,6 +1209,7 @@ static void __fastcall hook_tribute(uint8_t *msg, void *edx) {
     void *to = player_at(msg[0x24]);
     void *from = ((void *(__thiscall *)(void *, int))0x0052E6EF)(GAME_STATE, (int)(int8_t)msg[0xA]);
     ((void (__thiscall *)(void *))FN_PAY_TRIBUTE)(msg);
+    if (from && to) hist_tribute(pidx(from), pidx(to), total);
     diplo_tribute(to, from, total);
 }
 
@@ -1437,6 +1477,7 @@ static void cmd_diplo(char *out, const char *args) {
     }
     if (sscanf(args, "tribute %d %d %d", &a, &b, &s) == 3) {   // diplo tribute A B N: A's tribute of N reaches AI B
         diplo_tribute(player_at(b), player_at(a), s);
+        hist_tribute(a, b, s);
         REPLY("P%d -> P%d: tribute %d, opinion %.0f\n", a, b, s, b > 0 && b < 16 && a > 0 && a < 16 ? g_opinion[b][a] : 0.0f);
         return;
     }
@@ -1492,74 +1533,195 @@ static void diplo_install(const char *ini, const char *test_ini) {
                        g_answer_war, g_ai_diplomacy, g_surrender, g_blocks, g_auto_victory, ok, chat, leave);
 }
 
-// TEXTS: the game's values for the expressions in the texts (expr.c), from the speaker towards {name} (the other):
-// numbers 0 where a player is missing. Who is who: the context's players, else the players named by {ai} / {me}
-// (the speaker), {name} (the other; the local player when none), {enemy} / {ally} / {lord} (the third).
+// TEXTS: the game's values for the expressions in the texts (expr.c). Three players: me (the speaker), them (the one
+// it speaks to or about - {name}; in a system line the local player) and enemy (a third: {enemy}, {ally}, {lord}),
+// each a value whose text is its name, with members - me.soldiers, them.opinion. A relation is the speaker's with
+// that player: them.opinion is what the speaker thinks of them, them.regard what they think of it. Shortcuts: a
+// relation without "them." (opinion = them.opinion), the speaker's epoch and traits without "me.". Nothing where a
+// value doesn't apply (a relation with oneself, a war that isn't, another player's stock, a player who isn't there).
+// The tables also make the documentation: scripts/gen_eeai_readme.py writes them into aimod_ai\README.md.
+enum { XM_PLAYER, XM_ME, XM_REL };   // a player's own, only the speaker's own (its stock), a relation to the speaker
+struct xmember { const char *name; int kind; const char *doc; };
+static const struct xmember k_xmembers[] = {
+    { "name", XM_PLAYER, "its name - the same as the player itself in a text: {them} = {them.name}" },
+    { "soldiers", XM_PLAYER, "its soldiers (all numbers of units are counted every 10 seconds)" },
+    { "citizens", XM_PLAYER, "its citizens" },
+    { "buildings", XM_PLAYER, "its buildings" },
+    { "towers", XM_PLAYER, "its towers" },
+    { "centers", XM_PLAYER, "its Town Centers and Capitols" },
+    { "strength", XM_PLAYER, "its fighting strength (its soldiers' hit points, 30 a building) - to compare: them.strength > me.strength * 2" },
+    { "rank", XM_PLAYER, "its place by strength among the players still in, 1 = the strongest" },
+    { "epoch", XM_PLAYER, "its epoch: the name in a text, 1 (Prehistoric) .. 15 (Space) as a number - compare it with epoch.middle etc." },
+    { "alive", XM_PLAYER, "1 while it is still in the game" },
+    { "human", XM_PLAYER, "1 for the human player at this PC" },
+    { "vassal", XM_PLAYER, "1 when it has capitulated to someone" },
+    { "vassals", XM_PLAYER, "how many have capitulated to it" },
+    { "aggression", XM_PLAYER, "its traits, 0-100 (50 without a personality)" },
+    { "loyalty", XM_PLAYER, "" }, { "pride", XM_PLAYER, "" }, { "greed", XM_PLAYER, "" }, { "forgiveness", XM_PLAYER, "" },
+    { "caution", XM_PLAYER, "" }, { "talk", XM_PLAYER, "" },
+    { "food", XM_ME, "my stock" },
+    { "wood", XM_ME, "" }, { "stone", XM_ME, "" }, { "gold", XM_ME, "" }, { "iron", XM_ME, "" },
+    { "opinion", XM_REL, "-100..100: what I think of them" },
+    { "regard", XM_REL, "-100..100: what they think of me (an AI's opinion; 0 from a human)" },
+    { "at_war", XM_REL, "1 when we are enemies, both of us" },
+    { "allied", XM_REL, "1 when we are allied, both of us" },
+    { "hostile", XM_REL, "1 when they treat me as an enemy" },
+    { "my_enemy", XM_REL, "1 when I treat them as an enemy" },
+    { "war_minutes", XM_REL, "how long our war has lasted - nothing when we are not at war" },
+    { "alliance_minutes", XM_REL, "how long we have been allied - nothing when we are not" },
+    { "my_lord", XM_REL, "1 when they are my lord (I capitulated to them)" },
+    { "my_vassal", XM_REL, "1 when they capitulated to me" },
+    { "betrayed_me", XM_REL, "how often they turned on me while we were allied" },
+    { "betrayed_by_me", XM_REL, "how often I turned on them while we were allied" },
+    { "refused", XM_REL, "how often they refused my offers of peace or alliance" },
+    { "ignored", XM_REL, "my alliance offers they let run out, in a row" },
+    { "tribute_got", XM_REL, "resources they have paid me in this game" },
+    { "tribute_paid", XM_REL, "resources I have paid them" },
+    { "at_my_base", XM_REL, "their soldiers within 20 tiles of my base now (an AI's base)" },
+    { "attack_minutes", XM_REL, "minutes since their last attack wave set out against me - nothing if none (an AI's waves)" },
+    { "my_attack_minutes", XM_REL, "minutes since my last attack wave against them - nothing if none" },
+    { "kills", XM_REL, "their soldiers and citizens I have destroyed" },
+    { "losses", XM_REL, "my soldiers and citizens they have destroyed" },
+    { "recent_kills", XM_REL, "kills in the last 20 minutes" },
+    { "recent_losses", XM_REL, "losses in the last 20 minutes" },
+    { "razed", XM_REL, "their buildings I have destroyed" },
+    { "my_razed", XM_REL, "my buildings they have destroyed" },
+};
+#define N_XMEMBERS (int)(sizeof k_xmembers / sizeof *k_xmembers)
+static const struct xmember k_xglobals[] = {
+    { "me", XM_PLAYER, "the AI that speaks - its name in a text; me.soldiers ..." },
+    { "them", XM_PLAYER, "the player it speaks to or about ({name}); in a system line you, the local player" },
+    { "enemy", XM_PLAYER, "a third player: the enemy in an alliance offer ({enemy}), the ally or lord in some lines" },
+    { "minutes", XM_PLAYER, "the game time in minutes" },
+    { "players", XM_PLAYER, "the players still in, me among them" },
+    { "allies", XM_PLAYER, "my allies still in" },
+    { "enemies", XM_PLAYER, "my enemies still in" },
+    { "language", XM_PLAYER, "the game's language: de, en, fr, ..." },
+};
+#define N_XGLOBALS (int)(sizeof k_xglobals / sizeof *k_xglobals)
 static void *x_player_named(const char *n) {
     for (int j = 1; n && *n && j < nplayers(); j++) if (player_at(j) && !strcmp(player_name(player_at(j)), n)) return player_at(j);
     return NULL;
 }
-static int x_builtin(struct xctx *c, const char *name, struct xval *v) {
-    static const char *const k_num[] = {
-        "opinion", "their_opinion", "power", "at_war", "allied", "hostile", "their_hostile", "my_lord", "my_vassal",
-        "vassal", "vassals", "epoch", "their_epoch", "minutes", "soldiers", "their_soldiers", "citizens",
-        "their_citizens", "buildings", "their_buildings", "kills", "losses", "human", "towers", "their_towers",
-        "aggression", "loyalty", "pride", "greed", "forgiveness", "caution", "talk",
-    };
-    int w = -1;
-    for (int i = 0; i < (int)(sizeof k_num / sizeof *k_num) && w < 0; i++) if (!strcmp(name, k_num[i])) w = i;
-    int text = !strcmp(name, "name") ? 1 : !strcmp(name, "me") ? 2 : !strcmp(name, "enemy") ? 3 : !strcmp(name, "language") ? 4 : 0;
-    if (w < 0 && !text) return 0;
-    if (!c->found) {
-        c->found = 1;
-        for (int i = 0; i < c->np; i++) {
-            const char *n = c->pn[i];
-            if (!c->pl && (!strcmp(n, "ai") || !strcmp(n, "me"))) c->pl = x_player_named(c->pv[i]);
-            else if (!c->other && !strcmp(n, "name")) c->other = x_player_named(c->pv[i]);
-            else if (!c->third && (!strcmp(n, "enemy") || !strcmp(n, "ally") || !strcmp(n, "lord"))) c->third = x_player_named(c->pv[i]);
-        }
-        unsigned h = *(unsigned *)0x00918E84;
-        if (!c->other && h < 16 && player_at((int)h) != c->pl) c->other = player_at((int)h);
+static void x_players(struct xctx *c) {   // who is who: the context's players, else by the placeholders' names
+    if (c->found) return;
+    c->found = 1;
+    for (int i = 0; i < c->np; i++) {
+        const char *n = c->pn[i];
+        if (!c->pl && (!strcmp(n, "ai") || !strcmp(n, "me"))) c->pl = x_player_named(c->pv[i]);
+        else if (!c->other && !strcmp(n, "name")) c->other = x_player_named(c->pv[i]);
+        else if (!c->third && (!strcmp(n, "enemy") || !strcmp(n, "ally") || !strcmp(n, "lord"))) c->third = x_player_named(c->pv[i]);
     }
-    void *pa = c->pl, *pb = c->other;
-    if (text) { xstr(v, text == 1 ? (pb ? player_name(pb) : "") : text == 2 ? (pa ? player_name(pa) : "") : text == 3 ?
-                    (c->third ? player_name(c->third) : "") : g_lang); return 1; }
-    int a = pa ? pidx(pa) : 0, b = pb ? pidx(pb) : 0, both = pa && pb && a != b;
+    unsigned h = *(unsigned *)0x00918E84;
+    if (!c->other && h < 16 && player_at((int)h) != c->pl) c->other = player_at((int)h);
+}
+static int x_alive(int j) { return player_at(j) && !is_out(player_at(j)); }
+// member m of player px (speaker ps)
+static void x_member(void *ps, void *px, const struct xmember *m, struct xval *v) {
+    xnothing(v);
+    if (!px) return;
+    int s = ps ? pidx(ps) : 0, x = pidx(px), self = px == ps;
+    const char *n = m->name;
+    uint32_t now = game_time();
     double r = 0;
-    switch (w) {
-    case 0: r = both ? g_opinion[a][b] : 0; break;
-    case 1: r = both ? g_opinion[b][a] : 0; break;
-    case 2: r = both ? power_of(a) / power_of(b) : 1; break;
-    case 3: r = both && stance_of(pa, b) && stance_of(pb, a); break;
-    case 4: r = both && !stance_of(pa, b) && !stance_of(pb, a); break;
-    case 5: r = both && stance_of(pa, b); break;
-    case 6: r = both && stance_of(pb, a); break;
-    case 7: r = both && g_lord[a] == b; break;
-    case 8: r = both && g_lord[b] == a; break;
-    case 9: r = pa && g_lord[a]; break;
-    case 10: for (int j = 1; pa && j < nplayers(); j++) r += j != a && player_at(j) && !is_out(player_at(j)) && g_lord[j] == a; break;
-    case 11: case 12: {   // the epoch: its number and its name
-        void *pe = w == 11 ? pa : pb;
-        char ep[96] = "";
-        if (pe) epoch_text(pe, ep, sizeof ep);
-        xdual(v, pe ? current_epoch(pe) + 1 : 0, ep);
+    if (m->kind == XM_ME) {
+        static const char *const res[5] = { "food", "wood", "stone", "gold", "iron" };
+        for (int k = 0; k < 5; k++) if (self && !strcmp(n, res[k])) xnum(v, FIELD(px, PL_STOCK + (k + 2) * 4, int));
+        return;
+    }
+    if (m->kind == XM_PLAYER) {
+        if (!strcmp(n, "name")) { xstr(v, player_name(px)); return; }
+        if (!strcmp(n, "epoch")) { char ep[96]; epoch_text(px, ep, sizeof ep); xdual(v, current_epoch(px) + 1, ep); return; }
+        if (!strcmp(n, "soldiers")) r = g_ws.soldiers[x];
+        else if (!strcmp(n, "citizens")) r = g_ws.citizens[x];
+        else if (!strcmp(n, "buildings")) r = g_ws.buildings[x];
+        else if (!strcmp(n, "towers")) r = g_ws.towers[x];
+        else if (!strcmp(n, "centers")) r = g_ws.centers[x];
+        else if (!strcmp(n, "strength")) r = (double)(long)g_ws.power[x];
+        else if (!strcmp(n, "rank")) { r = 1; for (int j = 1; j < nplayers(); j++) r += j != x && x_alive(j) && g_ws.power[j] > g_ws.power[x]; }
+        else if (!strcmp(n, "alive")) r = !is_out(px);
+        else if (!strcmp(n, "human")) r = (unsigned)x == *(unsigned *)0x00918E84;
+        else if (!strcmp(n, "vassal")) r = g_lord[x] != 0;
+        else if (!strcmp(n, "vassals")) for (int j = 1; j < nplayers(); j++) r += j != x && x_alive(j) && g_lord[j] == x;
+        else for (int t = 0; t < T_N; t++) if (!strcmp(n, k_trait_keys[t])) r = trait(px, (enum trait)t);
+        xnum(v, r);
+        return;
+    }
+    if (self || !ps) return;   // a relation: with someone else
+    int war = stance_of(ps, x) && stance_of(px, s), ally = !stance_of(ps, x) && !stance_of(px, s);
+    uint32_t rk[K_N], rl[K_N];
+    if (!strcmp(n, "opinion")) r = g_opinion[s][x];
+    else if (!strcmp(n, "regard")) r = g_opinion[x][s];
+    else if (!strcmp(n, "at_war")) r = war;
+    else if (!strcmp(n, "allied")) r = ally;
+    else if (!strcmp(n, "hostile")) r = stance_of(px, s) != 0;
+    else if (!strcmp(n, "my_enemy")) r = stance_of(ps, x) != 0;
+    else if (!strcmp(n, "war_minutes") || !strcmp(n, "alliance_minutes")) {
+        if (!(n[0] == 'w' ? war : ally)) return;
+        r = (double)((now - g_hist.since[s][x]) / 60000u);
+    }
+    else if (!strcmp(n, "my_lord")) r = g_lord[s] == x;
+    else if (!strcmp(n, "my_vassal")) r = g_lord[x] == s;
+    else if (!strcmp(n, "betrayed_me")) r = g_hist.betrayals[x][s];
+    else if (!strcmp(n, "betrayed_by_me")) r = g_hist.betrayals[s][x];
+    else if (!strcmp(n, "refused")) r = g_hist.refused[x][s];
+    else if (!strcmp(n, "ignored")) r = g_offer_ignored[s][x];
+    else if (!strcmp(n, "tribute_got")) r = g_hist.tribute[x][s];
+    else if (!strcmp(n, "tribute_paid")) r = g_hist.tribute[s][x];
+    else if (!strcmp(n, "at_my_base")) r = g_ws.close_by[s][x];
+    else if (!strcmp(n, "attack_minutes") || !strcmp(n, "my_attack_minutes")) {
+        uint32_t t = n[0] == 'a' ? g_attack_sent[x][s] : g_attack_sent[s][x];
+        if (!t) return;
+        r = (double)((now - t) / 60000u);
+    }
+    else if (!strcmp(n, "kills")) r = g_kills[s][x][K_SOLDIERS] + g_kills[s][x][K_CITIZENS];
+    else if (!strcmp(n, "losses")) r = g_kills[x][s][K_SOLDIERS] + g_kills[x][s][K_CITIZENS];
+    else if (!strcmp(n, "recent_kills")) { kills_recent(s, x, rk); r = rk[K_SOLDIERS] + rk[K_CITIZENS]; }
+    else if (!strcmp(n, "recent_losses")) { kills_recent(x, s, rl); r = rl[K_SOLDIERS] + rl[K_CITIZENS]; }
+    else if (!strcmp(n, "razed")) r = g_kills[s][x][K_BUILDINGS];
+    else if (!strcmp(n, "my_razed")) r = g_kills[x][s][K_BUILDINGS];
+    xnum(v, r);
+}
+static const struct xmember *x_find_member(const char *n) {
+    for (int i = 0; i < N_XMEMBERS; i++) if (!strcmp(k_xmembers[i].name, n)) return &k_xmembers[i];
+    return NULL;
+}
+static int x_builtin(struct xctx *c, const char *name, struct xval *v) {
+    const char *dot = strchr(name, '.');
+    char obj[16] = "";
+    if (dot && dot - name < (int)sizeof obj) lstrcpynA(obj, name, (int)(dot - name) + 1);
+    int who = !strcmp(dot ? obj : name, "me") ? 1 : !strcmp(dot ? obj : name, "them") ? 2 : !strcmp(dot ? obj : name, "enemy") ? 3 : 0;
+    const struct xmember *m = x_find_member(dot ? dot + 1 : name);
+    if (dot && (!who || !m)) return 0;   // something.<what nobody knows>
+    if (!dot && !who && !m) {   // the globals
+        int g = 0;
+        while (g < N_XGLOBALS && strcmp(k_xglobals[g].name, name)) g++;
+        if (g == N_XGLOBALS) return 0;
+        x_players(c);
+        int s = c->pl ? pidx(c->pl) : 0;
+        double r = 0;
+        if (!strcmp(name, "minutes")) r = (double)(game_time() / 60000u);
+        else if (!strcmp(name, "language")) { xstr(v, g_lang); return 1; }
+        else for (int j = 1; j < nplayers(); j++) {
+            if (!x_alive(j)) continue;
+            if (!strcmp(name, "players")) r++;
+            else if (j != s && c->pl && !strcmp(name, "allies")) r += allied_with(s, j);
+            else if (j != s && c->pl && !strcmp(name, "enemies")) r += stance_of(c->pl, j) != 0;
+        }
+        xnum(v, r);
         return 1;
     }
-    case 13: r = (double)(game_time() / 60000u); break;
-    case 14: r = pa ? g_ws.soldiers[a] : 0; break;
-    case 15: r = pb ? g_ws.soldiers[b] : 0; break;
-    case 16: r = pa ? g_ws.citizens[a] : 0; break;
-    case 17: r = pb ? g_ws.citizens[b] : 0; break;
-    case 18: r = pa ? g_ws.buildings[a] : 0; break;
-    case 19: r = pb ? g_ws.buildings[b] : 0; break;
-    case 20: r = both ? g_kills[a][b][K_SOLDIERS] + g_kills[a][b][K_CITIZENS] : 0; break;
-    case 21: r = both ? g_kills[b][a][K_SOLDIERS] + g_kills[b][a][K_CITIZENS] : 0; break;
-    case 22: { unsigned h = *(unsigned *)0x00918E84; r = pb && h < 16 && pb == player_at((int)h); break; }
-    case 23: r = pa ? g_ws.towers[a] : 0; break;
-    case 24: r = pb ? g_ws.towers[b] : 0; break;
-    default: r = pa ? trait(pa, (enum trait)(w - 25)) : 50; break;
+    if (!dot && m && m->kind == XM_ME) return 0;   // the stock only as me.food
+    x_players(c);
+    int mine = 0;   // without "me.": the speaker's epoch and traits
+    if (!dot && m && m->kind == XM_PLAYER) {
+        mine = !strcmp(name, "epoch");
+        for (int t = 0; t < T_N; t++) mine |= !strcmp(name, k_trait_keys[t]);
+        if (!mine && strcmp(name, "name")) return 0;   // the rest only with me. / them. / enemy.
     }
-    xnum(v, r);
+    void *p = who == 1 ? c->pl : who == 2 ? c->other : who == 3 ? c->third : mine ? c->pl : c->other;   // name, relations: them
+    if (!dot && who) { if (p) xstr(v, player_name(p)); else xnothing(v); return 1; }   // a player: its name in a text
+    x_member(c->pl, p, m, v);
     return 1;
 }
 // a placeholder's text that names an epoch ({epoch} in the prompts: the speaker's or the other's) gets its number
