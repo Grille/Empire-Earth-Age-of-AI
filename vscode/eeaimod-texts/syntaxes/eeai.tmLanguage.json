@@ -474,7 +474,7 @@
         },
         {
           "name": "variable.language.game-value.eeaimod",
-          "match": "\\b(?:me|them|enemy|lord)(?:\\.lord)*\\.\\b(?:forgiveness|aggression|buildings|soldiers|citizens|strength|centers|vassals|loyalty|caution|towers|epoch|alive|human|pride|greed|stone|name|rank|talk|lord|food|wood|gold|iron)\\b(?![.\\w(])"
+          "match": "\\b(?:me|them|enemy|lord)(?:\\.lord)*\\.\\b(?:forgiveness|aggression|buildings|soldiers|citizens|strength|centers|vassals|enemies|loyalty|caution|towers|allies|epoch|alive|human|pride|greed|stone|name|rank|talk|lord|food|wood|gold|iron)\\b(?![.\\w(])"
         },
         {
           "name": "invalid.illegal.unknown-member.eeaimod",
@@ -600,7 +600,7 @@
         },
         {
           "name": "variable.language.game-value.eeaimod",
-          "match": "\\b(?:me|them|enemy|lord)(?:\\.lord)*\\.\\b(?:forgiveness|aggression|buildings|soldiers|citizens|strength|centers|vassals|loyalty|caution|towers|epoch|alive|human|pride|greed|stone|name|rank|talk|lord|food|wood|gold|iron)\\b(?![.\\w(])"
+          "match": "\\b(?:me|them|enemy|lord)(?:\\.lord)*\\.\\b(?:forgiveness|aggression|buildings|soldiers|citizens|strength|centers|vassals|enemies|loyalty|caution|towers|allies|epoch|alive|human|pride|greed|stone|name|rank|talk|lord|food|wood|gold|iron)\\b(?![.\\w(])"
         },
         {
           "name": "invalid.illegal.unknown-member.eeaimod",

@@ -239,7 +239,7 @@ A condition (`lord ? ...`, `lord and ...`, `not lord`), `??` and a comparison (`
 a check - in a text (`{lord}`), a sum, a member (`lord.soldiers`) or a relation (`opinion(lord)`) - it gives
 nothing, and with `strict_parsing=1` it is a mistake: a line that names a lord nobody has is a bug in the line.
 
-Shortcuts: my own `epoch` and traits without `me.` (`aggression` is `me.aggression`), a relation of mine without
+Shortcuts: my own `epoch`, traits, `allies` and `enemies` without `me.` (`aggression` is `me.aggression`), a relation of mine without
 `me.` (`opinion(enemy)` is `me.opinion(enemy)`), and `opinion`, `at_war`, `allied` alone: mine with them
 (`me.opinion(them)`). Everything else needs its players: `them.soldiers`, `me.kills(them)`.
 
@@ -260,6 +260,8 @@ Shortcuts: my own `epoch` and traits without `me.` (`aggression` is `me.aggressi
 | `X.alive` | 1 while it is still in the game |
 | `X.human` | 1 for the human player at this PC |
 | `X.vassals` | how many have capitulated to it |
+| `X.allies` | how many are allied with it (both ways), still in - allies alone: mine |
+| `X.enemies` | how many it treats as enemies, still in - enemies alone: mine |
 | `X.aggression`, `X.loyalty`, `X.pride`, `X.greed`, `X.forgiveness`, `X.caution`, `X.talk` | its traits, 0-100 (50 without a personality) |
 | `X.lord` | its lord, the player it capitulated to - a player: them.lord.name, lord == them; nothing when it has none |
 
@@ -301,8 +303,6 @@ Shortcuts: my own `epoch` and traits without `me.` (`aggression` is `me.aggressi
 | `allied` | me.allied(them) |
 | `minutes` | the game time in minutes |
 | `players` | the players still in, me among them |
-| `allies` | my allies still in |
-| `enemies` | my enemies still in |
 | `language` | the game's language: de, en, fr, ... |
 <!-- /values -->
 

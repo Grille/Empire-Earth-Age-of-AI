@@ -1651,6 +1651,8 @@ static const struct xmember k_xmembers[] = {
     { "alive", XM_PLAYER, "1 while it is still in the game" },
     { "human", XM_PLAYER, "1 for the human player at this PC" },
     { "vassals", XM_PLAYER, "how many have capitulated to it" },
+    { "allies", XM_PLAYER, "how many are allied with it (both ways), still in - allies alone: mine" },
+    { "enemies", XM_PLAYER, "how many it treats as enemies, still in - enemies alone: mine" },
     { "aggression", XM_PLAYER, "its traits, 0-100 (50 without a personality)" },
     { "loyalty", XM_PLAYER, "" }, { "pride", XM_PLAYER, "" }, { "greed", XM_PLAYER, "" }, { "forgiveness", XM_PLAYER, "" },
     { "caution", XM_PLAYER, "" }, { "talk", XM_PLAYER, "" },
@@ -1683,8 +1685,6 @@ static const struct xmember k_xglobals[] = {
     { "allied", XM_REL, "me.allied(them)" },
     { "minutes", XM_PLAYER, "the game time in minutes" },
     { "players", XM_PLAYER, "the players still in, me among them" },
-    { "allies", XM_PLAYER, "my allies still in" },
-    { "enemies", XM_PLAYER, "my enemies still in" },
     { "language", XM_PLAYER, "the game's language: de, en, fr, ..." },
 };
 #define N_XGLOBALS (int)(sizeof k_xglobals / sizeof *k_xglobals)
@@ -1740,6 +1740,8 @@ static void x_member(void *ps, void *px, const struct xmember *m, struct xval *v
     else if (!strcmp(n, "alive")) r = !is_out(px);
     else if (!strcmp(n, "human")) r = (unsigned)x == *(unsigned *)0x00918E84;
     else if (!strcmp(n, "vassals")) for (int j = 1; j < nplayers(); j++) r += j != x && x_alive(j) && g_lord[j] == x;
+    else if (!strcmp(n, "allies") || !strcmp(n, "enemies"))
+        for (int j = 1; j < nplayers(); j++) r += j != x && x_alive(j) && (n[0] == 'a' ? allied_with(x, j) : stance_of(px, j) != 0);
     else for (int t = 0; t < T_N; t++) if (!strcmp(n, k_trait_keys[t])) r = trait(px, (enum trait)t);
     xnum(v, r);
 }
@@ -1845,21 +1847,15 @@ static int x_builtin(struct xctx *c, const char *name, struct xval *v) {
         return 1;
     }
     if (g < N_XGLOBALS) {
-        int s = c->pl ? pidx(c->pl) : 0;
         double r = 0;
         if (!strcmp(name, "minutes")) r = (double)(game_time() / 60000u);
         else if (!strcmp(name, "language")) { xstr(v, g_lang); return 1; }
-        else for (int j = 1; j < nplayers(); j++) {
-            if (!x_alive(j)) continue;
-            if (!strcmp(name, "players")) r++;
-            else if (j != s && c->pl && !strcmp(name, "allies")) r += allied_with(s, j);
-            else if (j != s && c->pl && !strcmp(name, "enemies")) r += stance_of(c->pl, j) != 0;
-        }
+        else for (int j = 1; j < nplayers(); j++) r += x_alive(j);   // players
         xnum(v, r);
         return 1;
     }
-    const struct xmember *m = x_find_member(name, (int)strlen(name));   // without "me.": my epoch and traits; name: them.name
-    int mine = m && m->kind == XM_PLAYER && !strcmp(name, "epoch");
+    const struct xmember *m = x_find_member(name, (int)strlen(name));   // without "me.": my epoch, traits, allies, enemies; name: them.name
+    int mine = m && m->kind == XM_PLAYER && (!strcmp(name, "epoch") || !strcmp(name, "allies") || !strcmp(name, "enemies"));
     for (int t = 0; m && t < T_N; t++) mine |= !strcmp(name, k_trait_keys[t]);
     if (mine) { x_member(c->pl, c->pl, m, v); return 1; }
     if (m && !strcmp(name, "name")) { if (!c->other) x_missing(c, "them"); x_member(c->pl, c->other, m, v); return 1; }
