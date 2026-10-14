@@ -1533,8 +1533,9 @@ static void diplo_install(const char *ini, const char *test_ini) {
                        g_answer_war, g_ai_diplomacy, g_surrender, g_blocks, g_auto_victory, ok, chat, leave);
 }
 
-// TEXTS: the game's values for the expressions in the texts (expr.c). Three players: me (the speaker), them (the one
-// it speaks to or about - {name}; in a system line the local player) and enemy (a third: {enemy}, {ally}, {lord}),
+// TEXTS: the game's values for the expressions (expr.c). Players: me (the speaker), them (the one it speaks to or
+// about - {name}; in a system line the local player), enemy (a third: {enemy}, {ally}, {lord}) and lord (the
+// speaker's lord, whatever the line),
 // each a value whose text is its name, with members - me.soldiers, them.opinion. A relation is the speaker's with
 // that player: them.opinion is what the speaker thinks of them, them.regard what they think of it. Shortcuts: a
 // relation without "them." (opinion = them.opinion), the speaker's epoch and traits without "me.". Nothing where a
@@ -1592,6 +1593,7 @@ static const struct xmember k_xglobals[] = {
     { "me", XM_PLAYER, "the AI that speaks - its name in a text; me.soldiers ..." },
     { "them", XM_PLAYER, "the player it speaks to or about ({name}); in a system line you, the local player" },
     { "enemy", XM_PLAYER, "a third player: the enemy in an alliance offer ({enemy}), the ally or lord in some lines" },
+    { "lord", XM_PLAYER, "my lord, the player I capitulated to - in every line; nothing when I have none" },
     { "minutes", XM_PLAYER, "the game time in minutes" },
     { "players", XM_PLAYER, "the players still in, me among them" },
     { "allies", XM_PLAYER, "my allies still in" },
@@ -1690,7 +1692,8 @@ static int x_builtin(struct xctx *c, const char *name, struct xval *v) {
     const char *dot = strchr(name, '.');
     char obj[16] = "";
     if (dot && dot - name < (int)sizeof obj) lstrcpynA(obj, name, (int)(dot - name) + 1);
-    int who = !strcmp(dot ? obj : name, "me") ? 1 : !strcmp(dot ? obj : name, "them") ? 2 : !strcmp(dot ? obj : name, "enemy") ? 3 : 0;
+    const char *o = dot ? obj : name;
+    int who = !strcmp(o, "me") ? 1 : !strcmp(o, "them") ? 2 : !strcmp(o, "enemy") ? 3 : !strcmp(o, "lord") ? 4 : 0;
     const struct xmember *m = x_find_member(dot ? dot + 1 : name);
     if (dot && (!who || !m)) return 0;   // something.<what nobody knows>
     if (!dot && !who && !m) {   // the globals
@@ -1719,7 +1722,8 @@ static int x_builtin(struct xctx *c, const char *name, struct xval *v) {
         for (int t = 0; t < T_N; t++) mine |= !strcmp(name, k_trait_keys[t]);
         if (!mine && strcmp(name, "name")) return 0;   // the rest only with me. / them. / enemy.
     }
-    void *p = who == 1 ? c->pl : who == 2 ? c->other : who == 3 ? c->third : mine ? c->pl : c->other;   // name, relations: them
+    void *lord = c->pl && g_lord[pidx(c->pl)] ? player_at(g_lord[pidx(c->pl)]) : NULL;
+    void *p = who == 1 ? c->pl : who == 2 ? c->other : who == 3 ? c->third : who == 4 ? lord : mine ? c->pl : c->other;   // name, relations: them
     if (!dot && who) { if (p) xstr(v, player_name(p)); else xnothing(v); return 1; }   // a player: its name in a text
     x_member(c->pl, p, m, v);
     return 1;

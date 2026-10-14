@@ -210,11 +210,12 @@ Then `{address}`, `{title}` in a line, or `angry` in an expression.
 ## The game's values
 
 A line is said by one AI - **me** - to or about another player - **them** (`{name}`). Some lines also involve a
-third player - **enemy** (`{enemy}`): the enemy in an alliance offer, the ally or lord in some lines. In
-`_system.eeai` `them` is you, the local player.
+third player - **enemy** (`{enemy}`): the enemy in an alliance offer, the ally or lord in some lines. **lord** is
+my lord - the player I capitulated to - in every line, and nothing while I have none. In `_system.eeai` `them` is
+you, the local player.
 
-Each of the three is a value whose text is the player's name (`{me}`, `{them}`, `{enemy}`, and `{name}` for
-`{them}`), with members: `me.soldiers`, `them.strength`, `enemy.epoch`. A **relation** is between me and that
+Each of them is a value whose text is the player's name (`{me}`, `{them}`, `{enemy}`, `{lord}`, and `{name}` for
+`{them}`), with members: `me.soldiers`, `them.strength`, `enemy.epoch`, `lord.opinion`. A **relation** is between me and that
 player: `them.opinion` is what I think of them, `them.regard` what they think of me, `enemy.at_war` whether I am at
 war with the enemy. A player who isn't there - no third player in a greeting - is nothing, and so are its members.
 
@@ -284,6 +285,7 @@ Shortcuts: a relation without `them.` (`opinion` is `them.opinion`), and my own 
 | `me` | the AI that speaks - its name in a text; me.soldiers ... |
 | `them` | the player it speaks to or about ({name}); in a system line you, the local player |
 | `enemy` | a third player: the enemy in an alliance offer ({enemy}), the ally or lord in some lines |
+| `lord` | my lord, the player I capitulated to - in every line; nothing when I have none |
 | `minutes` | the game time in minutes |
 | `players` | the players still in, me among them |
 | `allies` | my allies still in |
