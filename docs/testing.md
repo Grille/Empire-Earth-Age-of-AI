@@ -91,6 +91,12 @@ REPEAT=8 NAME=hoard600 sh scripts/h2h.sh 50 late \
     "random_map=Continental,seed=101,map_size=1,ai_count=4,start_epoch=8" "v_hoard_cap_mineral=600"
 ```
 
+2026-10-14, `late`, Continental 101 / Mediterranean 404 / Highlands 303, map_size 1, 4 AIs, 50 min, B - A per game:
+hoard_cap_mineral 600 vs 200 (24 games): soldiers -5.2 (se 2.6), razed -6.7 (se 3.6), kills -21.5 (se 15), alive
+-8 points - 200 stays. late_targets 15 vs 7 (food loop, 48 games): kills +10 (se 11), losses -6.5 (se 5.6), razed
++4.6 (se 2.9), alive +6 points (se 7) - leaning better, not proven; in `waves` (6 seeds each) it fell earlier
+(mean 101 vs 107 min, survivors counted as 120, about 6 min of noise) - off by default.
+
 Suite: 4 land maps with fixed seeds (Continental, Plains, Highlands, Mediterranean), headless with turbo,
 one or more runs per variant and map, then scored (survival, epoch, workers, food; with the standard error
 per AI):
