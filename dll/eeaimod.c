@@ -378,7 +378,8 @@ static int __cdecl hook_load_saved(void *name) {
 // Autotest setup=<file> (path relative to the game folder): control-pipe commands, one per line (# comments), run
 // once at 2 s game time, when every AI has started - e.g. spawn lines that turn a map into a test scenario.
 // Setup file: control-pipe commands, run at 2 s game time; a line "@<minutes> <command>" waits until that game time.
-static struct { uint32_t at; char cmd[200]; } g_setup[256];
+#define SETUP_MAX 1024
+static struct { uint32_t at; char cmd[200]; } g_setup[SETUP_MAX];
 static int g_setup_n = -1;
 static void run_setup(uint32_t now) {
     static char reply[16384];
@@ -388,11 +389,12 @@ static void run_setup(uint32_t now) {
         log_line(f ? "# setup: %s%.0d\n" : "# setup: %s - CANNOT OPEN%.0d\n", g_setup_path, 0);
         if (!f) return;
         char line[512];
-        while (fgets(line, sizeof line, f) && g_setup_n < 256) {
+        while (fgets(line, sizeof line, f)) {
             char *s = line, *e;
             while (*s == ' ' || *s == '\t') s++;
             for (e = s + strlen(s); e > s && (e[-1] == '\n' || e[-1] == '\r' || e[-1] == ' '); ) *--e = 0;
             if (!*s || *s == '#') continue;
+            if (g_setup_n == SETUP_MAX) { log_line("# setup: %s: more than %d commands - the rest left out\n", g_setup_path, SETUP_MAX); break; }
             uint32_t at = 0;
             if (*s == '@') {
                 at = (uint32_t)(atof(s + 1) * 60000.0);

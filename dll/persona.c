@@ -345,6 +345,11 @@ static void texts_load(void);   // texts.c: _system.eeai's [vars]
 static void line_ctx_init(struct line_ctx *l, void *pl, void *other, void *third) {
     memset(&l->c, 0, sizeof l->c);
     texts_load();
+    if (!other) {   // a line to everyone (greeting, epoch_up ...): them is the player at this PC
+        unsigned h = *(unsigned *)0x00918E84;
+        void *hp = h < 16 ? ((void **)0x00918374)[h] : NULL;
+        if (hp != pl) other = hp;
+    }
     l->c.pl = pl; l->c.other = other; l->c.third = third; l->c.found = 1;
     tribute_text(g_say_tribute, l->trib, sizeof l->trib);
     l->pn[0] = "tribute";

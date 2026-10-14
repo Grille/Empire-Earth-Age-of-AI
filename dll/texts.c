@@ -226,12 +226,13 @@ static const char k_format_help[] =
     "; strings\"] (one at random), allied ? \"a condition\", a ?? b, numbers ... The format, the expressions and every\n"
     "; value of the game (opinion, them.soldiers, epoch.middle, ...): README.md in this folder.\n";
 // texts eval [P [Q]] <expression>: its value, P speaking to Q (the local player when left out), with
-// _system.eeai's [vars] and P's personality's; texts line P <situation> [Q]: the variant P would say now, filled
+// _system.eeai's [vars] and P's personality's; texts line P <situation> [Q [R]]: the variant P would say now, filled
+// (R: the third player - {enemy})
 static void cmd_texts(char *out, const char *args) {
     char dir[MAX_PATH], path[MAX_PATH];
     int force = strstr(args, "force") != NULL;
     if (!strncmp(args, "eval", 4) || !strncmp(args, "line", 4)) {
-        int line = args[0] == 'l', a = 0, b = -1, n = 0;
+        int line = args[0] == 'l', a = 0, b = -1, c3 = -1, n = 0;
         const char *s = args + 4;
         while (*s == ' ') s++;
         if (sscanf(s, "%d%n", &a, &n) == 1) {
@@ -240,11 +241,11 @@ static void cmd_texts(char *out, const char *args) {
             if (!line && sscanf(s, "%d%n", &b, &n) == 1) { s += n; while (*s == ' ') s++; }
         }
         char key[40] = "";
-        if (line && sscanf(s, "%39s %d", key, &b) < 1) { REPLY("usage: texts line P situation [Q]\n"); return; }
+        if (line && sscanf(s, "%39s %d %d", key, &b, &c3) < 1) { REPLY("usage: texts line P situation [Q [R]]\n"); return; }
         unsigned h = *(unsigned *)0x00918E84;
         void *pa = player_at(a), *pb = player_at(b >= 0 ? b : (int)h);
         struct line_ctx l;
-        line_ctx_init(&l, pa, pb, NULL);
+        line_ctx_init(&l, pa, pb, c3 > 0 ? player_at(c3) : NULL);
         g_say_tribute[5] = 200;   // an example {tribute}
         if (!line) {
             struct xval v;
