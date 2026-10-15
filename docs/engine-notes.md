@@ -269,6 +269,21 @@ Guard towers 47, 461..466; AA 145/147; town center 35; house 37; citizen 32.
   - Subgroup goal struct at sg+0xFC: +0x100 location (the target struct above), +0x118 target unit (refcounted,
     0x442246), +0x11C target player, +0x124 mission (7/12 attack the goal unit, 8 go home); +0x18C group, +0x1D0 state
     (0x1776 attack the goal, 0x1777 going home, 3000 combat, 0xBBC retreat).
+  - Subgroup state +0x1D0, seen in traces (`asgtrace`): 0 pick the next goal, 1000 empty, 1001 starting, 1004
+    forming, 2000 route requested, 2003/2001 marching (2001 between waypoints), 2004 arrived, 3000/3003 combat (the
+    march waits while a member is engaged), 4001 air, 6002 waiting at the goal (1 to 3 minutes), 8000 a transport
+    loading (EEUGLoadTransport). The state machine (0x4492xx..0x449C93) tests events with vf75 0x44C6DB (codes
+    0x3E8.., 0xBC1.., 0xFA0..) and sets the state with vf59.
+  - An attack on a player (mission 1) has no target unit or location at the group (+0x44 and +0x28.. are 0): each
+    land subgroup walks its own legs - home, coast points, the player's outlying buildings - and waits at each.
+    Reference save: P3's subgroups went 74,132 -> 43,114 -> 36,88 -> 44,76 -> home, or east through the
+    player's camp to the player's outposts (136,78), where they died; their replacements followed in 3s and 4s.
+  - Transports: each AI had one; a transport subgroup (EECPASGSeaTransport) loads (state 8000) for 8+ minutes
+    while the land subgroups are elsewhere. Extra transports ordered through the unit manager are taken at once
+    (spawned ones are not) and wait the same way.
+  - Members chase enemy aircraft like any enemy (0x461854 scores them): AA tanks of an attack group ran after the
+    player's planes over their own town and the group stayed in combat; `attack_ignore_air` drops aircraft out of
+    reach.
   - Nothing re-checks the stance of the target player: units only fight enemies (0x461854, vf112), but the goal
     stays until the target unit is dead - after peace the army keeps marching on the new ally. New launches
     (0x46F4FF) only pick enemies.

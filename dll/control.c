@@ -24,6 +24,9 @@ static void cmd_threat(char *out, const char *args);
 static void cmd_nullmember(char *out, const char *args);
 static void cmd_attacknow(char *out, const char *args);
 static void cmd_attacks(char *out, const char *args);
+static void cmd_asgtrace(char *out, const char *args);
+static void cmd_train(char *out, const char *args);
+static void cmd_give(char *out, const char *args);
 static void cmd_targets(char *out, const char *args);
 static void cmd_army(char *out, const char *args);
 static void cmd_minecheck(char *out, const char *args);   // sites.c
@@ -375,6 +378,9 @@ static void execute(const char *cmd, char *out) {
     else if (!strcmp(verb, "nullmember")) cmd_nullmember(out, args);
     else if (!strcmp(verb, "attacknow")) cmd_attacknow(out, args);
     else if (!strcmp(verb, "attacks")) cmd_attacks(out, args);
+    else if (!strcmp(verb, "asgtrace")) cmd_asgtrace(out, args);
+    else if (!strcmp(verb, "train")) cmd_train(out, args);
+    else if (!strcmp(verb, "give")) cmd_give(out, args);
     else if (!strcmp(verb, "targets")) cmd_targets(out, args);
     else if (!strcmp(verb, "army")) cmd_army(out, args);
     else if (!strcmp(verb, "wave")) cmd_wave(out, args);

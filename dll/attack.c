@@ -433,7 +433,8 @@ static int g_leash = 1;               // aimod.ini [all] attack_leash
 static struct { unsigned skipped, logged; } g_leash_stats[16];
 
 static int g_siege = 1;               // aimod.ini [all] attack_siege (siege controller below; also rams here)
-static unsigned g_ram_waits;
+static unsigned g_ram_waits, g_air_skips;
+static int g_ignore_air = 0;          // aimod.ini [all] attack_ignore_air
 static int is_ram(int type) { return type == 102 || type == 287 || type == 158; }
 
 // Enemy soldiers (no citizens, no siege) of player pl's enemies within r tiles of (x, y)?
@@ -476,10 +477,24 @@ static float __fastcall hook_asgu_score(uint8_t *self, void *edx, uint8_t *info)
         g_ram_waits++;
         return 0.0f;
     }
+    // aircraft out of reach: no target. The scorer rates them like any enemy; the subgroup's members chase planes
+    // circling over their own town and its march waits while any member is engaged (user's game: 25 of the player's
+    // planes over P3's town kept its main force at its docks for 9+ minutes, AA tanks running after them). In reach
+    // (its range + 3 tiles) they still shoot.
+    uint8_t *etd = FIELD(enemy, 0x2C, uint8_t *);
+    int efam = etd ? FIELD(etd, 0x4B4, int) : 0;
+    if (g_ignore_air && s != 0.0f && me && (efam == 3 || efam == 7 || efam == 17)) {
+        uint8_t *st = FIELD(me, 0x34, uint8_t *);
+        float r = (st ? FIELD(st, 0x9C, float) : FIELD(mtd, 0x420, float)) + 3.0f;
+        int dx = FIELD(enemy, 0x1C, int) - FIELD(me, 0x1C, int), dy = FIELD(enemy, 0x20, int) - FIELD(me, 0x20, int);
+        if ((float)(dx * dx + dy * dy) > r * r) {
+            g_air_skips++;
+            return 0.0f;
+        }
+    }
     // breach: the scorer rates walls below zero (never chosen while anything else is around); the subgroup's
     // breach segment and its neighbours become the best targets
     int bx, by;
-    uint8_t *etd = FIELD(enemy, 0x2C, uint8_t *);
     if (etd && is_wall(FIELD(etd, 0x4B8, int)) && breach_of(sg, &bx, &by) &&
         abs(FIELD(enemy, 0x1C, int) - bx) <= 1 && abs(FIELD(enemy, 0x20, int) - by) <= 1)
         return FIELD(enemy, 0x1C, int) == bx && FIELD(enemy, 0x20, int) == by ? 1000.0f : 500.0f;
@@ -1114,7 +1129,68 @@ static void siege_tick(void *pl, uint32_t now) {
 }
 
 static void charge_tick(uint32_t now);
+// asgtrace P [off] (test): log every state change (+0x1D0) of AI P's attack subgroups - class, state, mission, goal,
+// members alive and their centre, waypoints, engaged members, what the members do (march/fight/other/idle)
+static unsigned g_trace_mask;
+static struct { uint8_t *sg; int state, goal_x, goal_y; } g_trace[64];
+static void asg_trace_tick(void *pl, uint32_t now) {
+    unsigned p = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
+    if (!(g_trace_mask & (1u << p)) || !g_log) return;
+    uint8_t *cbm = FIELD(pl, 0xB8C, uint8_t *), *cmd = cbm ? FIELD(cbm, 0x48, uint8_t *) : NULL;
+    if (!cmd) return;
+    uint8_t *dq = cmd + 4;
+    unsigned first = FIELD(dq, 0xC, unsigned), cnt = FIELD(dq, 0x10, unsigned);
+    for (unsigned k = 0; k < cnt && k < 32; k++) {
+        uint8_t *g = deque_at(dq, first + k);
+        for (uint8_t **sp = g ? FIELD(g, 8, uint8_t **) : NULL; sp && sp < FIELD(g, 0xC, uint8_t **); sp++) {
+            uint8_t *sg = *sp;
+            if (!sg) continue;
+            int st = FIELD(sg, 0x1D0, int), gx = FIELD(sg, 0x104, int), gy = FIELD(sg, 0x108, int), slot = -1, fre = -1;
+            for (int q = 0; q < 64; q++) {
+                if (g_trace[q].sg == sg) { slot = q; break; }
+                if (!g_trace[q].sg && fre < 0) fre = q;
+            }
+            if (slot >= 0 && g_trace[slot].state == st && g_trace[slot].goal_x == gx && g_trace[slot].goal_y == gy) continue;
+            if (slot < 0) { if (fre < 0) continue; slot = fre; g_trace[slot].sg = sg; g_trace[slot].state = -1; }
+            int n = 0, walk = 0, fight = 0, other = 0, none = 0, engaged = 0;
+            float cx = 0, cy = 0;
+            for (uint8_t **r = FIELD(sg, 0x54, uint8_t **); r && r < FIELD(sg, 0x58, uint8_t **) && n < 1000; r++) {
+                uint8_t *u = *r ? FIELD(*r, 0x44, uint8_t *) : NULL, *gl;
+                if (!u || FIELD(u, 0x3C, int) <= 0) continue;
+                if (FIELD(*r, 0x48, void *)) engaged++;
+                n++; cx += (float)FIELD(u, 0x1C, int); cy += (float)FIELD(u, 0x20, int);
+                gl = FIELD(u, 0x1EC, uint8_t *);
+                if (!gl) none++;
+                else if (*(uintptr_t *)gl == VT_GOAL_LOCATION) walk++;
+                else if (*(uintptr_t *)gl == VT_GOAL_ATTACK) fight++;
+                else other++;
+            }
+            fprintf(g_log, "# asgtrace: P%u at %.2f min: group %u %s %p: state %d -> %d mission %d goal %d,%d; %d alive at %.0f,%.0f, "
+                    "%u waypoints, %d engaged; %d march %d fight %d other %d idle", p, now / 60000.0, k, rtti_name(sg),
+                    (void *)sg, g_trace[slot].state, st, FIELD(sg, 0x124, int), gx, gy, n, n ? cx / n : 0.0f, n ? cy / n : 0.0f,
+                    FIELD(sg, 0x70, unsigned), engaged, walk, fight, other, none);
+            for (int w = 0; w < 2; w++) {   // the subgroup's target unit (+0x118) and the group's (+0x28 + 0x1C)
+                uint8_t *t = w ? FIELD(g, 0x44, uint8_t *) : FIELD(sg, 0x118, uint8_t *);
+                uint8_t *ttd = t ? FIELD(t, 0x2C, uint8_t *) : NULL;
+                if (ttd) fprintf(g_log, "; %s target type %d at %d,%d hp %d", w ? "group" : "its", FIELD(ttd, 0x4B8, int),
+                                 FIELD(t, 0x1C, int), FIELD(t, 0x20, int), FIELD(t, 0x3C, int));
+            }
+            fprintf(g_log, "; group %p +28:", (void *)g);
+            for (int o = 0x28; o < 0x6C; o += 4) fprintf(g_log, " %x", FIELD(g, o, unsigned));
+            fputc('\n', g_log);
+            g_trace[slot].state = st; g_trace[slot].goal_x = gx; g_trace[slot].goal_y = gy;
+        }
+    }
+}
+static void cmd_asgtrace(char *out, const char *args) {
+    int p = atoi(args);
+    if (p <= 0 || p >= 16) { REPLY("error: asgtrace P [off]\n"); return; }
+    if (strstr(args, "off")) g_trace_mask &= ~(1u << p); else g_trace_mask |= 1u << p;
+    REPLY("attack subgroup trace: mask %x\n", g_trace_mask);
+}
+
 static void attack_tick(void *pl, uint32_t now) {
+    asg_trace_tick(pl, now);
     charge_tick(now);
     threat_refresh(pl, now);   // also with avoid_towers=0: the route log compares both
     citizen_attack_scan(pl, now);
@@ -1133,9 +1209,9 @@ static void attack_tick(void *pl, uint32_t now) {
                     fprintf(g_log, " type %d from %06x x%u", g_mil[i].ftype[k] & 0x7FF,
                             (unsigned)g_mil[i].ftype[k] >> 11, g_mil[i].fcount[k]);
             fputc('\n', g_log);
-            fprintf(g_log, "# leash: P%u: enemies in tower range skipped as targets %u times; rams held back %u (all), siege trained %u, "
+            fprintf(g_log, "# leash: P%u: enemies in tower range skipped as targets %u times; rams held back %u, aircraft out of reach ignored %u (all), siege trained %u, "
                     "failed %u, no factory %u; siege waves %u, lost %u, training paused %u times, held %u times\n", i,
-                    g_leash_stats[i].skipped, g_ram_waits, g_siege_train[i].trained, g_siege_train[i].failed,
+                    g_leash_stats[i].skipped, g_ram_waits, g_air_skips, g_siege_train[i].trained, g_siege_train[i].failed,
                     g_siege_train[i].no_factory, g_siege_st[i].waves, g_siege_st[i].lost, g_siege_st[i].pauses, g_siege_st[i].held);
             memset(&g_mil[i], 0, sizeof g_mil[i]);
         }
@@ -1257,6 +1333,7 @@ static void attack_install(const char *aimod_ini, const char *autotest_ini) {
     g_citizen_attacks = cfg_int(aimod_ini, autotest_ini, 1, "citizen_attacks", 0);
     g_breach = cfg_int(aimod_ini, autotest_ini, 1, "attack_breach", 1);
     g_siege = cfg_int(aimod_ini, autotest_ini, 1, "attack_siege", 1);
+    g_ignore_air = cfg_int(aimod_ini, autotest_ini, 1, "attack_ignore_air", 0);
     int a = patch_vtable(VT_ROUTE_PLANNER, 1, FN_ROUTE_COST, hook_route_cost);
     int b = patch_vtable(VT_ASG_LAND, ASG_ROUTE_SLOT, FN_ASG_ROUTE, hook_asg_route);
     int c = patch_vtable(VT_ASG_LAND, ASG_ROUTE_DONE_SLOT, FN_ASG_ROUTE_DONE, hook_asg_route_done);
@@ -1299,12 +1376,13 @@ static void cmd_attacks(char *out, const char *args) {
         REPLY(" group %u: target P%d, %d subgroups\n", k, target ? FIELD(target, PL_INDEX, int) : -1, ns);
         for (uint8_t **sp = FIELD(g, 8, uint8_t **); sp && sp < FIELD(g, 0xC, uint8_t **); sp++) {
             if (!*sp) continue;
-            int n = 0, walk = 0, fight = 0, other = 0, none = 0;
+            int n = 0, walk = 0, fight = 0, other = 0, none = 0, engaged = 0;
             float cx = 0, cy = 0;
             uint8_t **b = FIELD(*sp, 0x54, uint8_t **), **e = FIELD(*sp, 0x58, uint8_t **);
             for (uint8_t **r = b; b && r < e && n < 1000; r++) {
                 uint8_t *u = *r ? FIELD(*r, 0x44, uint8_t *) : NULL, *gl;
                 if (!u || FIELD(u, 0x3C, int) <= 0) continue;
+                if (FIELD(*r, 0x48, void *)) engaged++;
                 n++; cx += (float)FIELD(u, 0x1C, int); cy += (float)FIELD(u, 0x20, int);
                 gl = FIELD(u, 0x1EC, uint8_t *);
                 if (!gl) none++;
@@ -1315,6 +1393,29 @@ static void cmd_attacks(char *out, const char *args) {
             const char *cls = rtti_name(*sp);
             REPLY("   %-28s %3d alive at %.0f,%.0f: %d march, %d fight, %d other, %d idle\n", cls, n,
                   n ? cx / n : 0.0f, n ? cy / n : 0.0f, walk, fight, other, none);
+            uint8_t *sg = *sp;
+            REPLY("     state %d mission %d, goal %d,%d, %u waypoints, at %d,%d, %d engaged\n",
+                  FIELD(sg, 0x1D0, int), FIELD(sg, 0x124, int), FIELD(sg, 0x104, int), FIELD(sg, 0x108, int),
+                  FIELD(sg, 0x70, unsigned), FIELD(sg, 0x234, int), FIELD(sg, 0x238, int), engaged);
+            if (n && strstr(args, "raw")) {   // the subgroup's fields as dwords, to compare over time
+                for (uint8_t **r = b; b && r < e; r++) {   // each member: type, tile, goal (and its target)
+                    uint8_t *u = *r ? FIELD(*r, 0x44, uint8_t *) : NULL;
+                    if (!u || FIELD(u, 0x3C, int) <= 0) continue;
+                    uint8_t *gl = FIELD(u, 0x1EC, uint8_t *), *t = NULL;
+                    if (gl && *(uintptr_t *)gl == VT_GOAL_ATTACK) t = FIELD(gl, 0x30, uint8_t *);
+                    REPLY("       %d at %d,%d hp %d: %s", FIELD(FIELD(u, 0x2C, uint8_t *), 0x4B8, int),
+                          FIELD(u, 0x1C, int), FIELD(u, 0x20, int), FIELD(u, 0x3C, int), gl ? rtti_name(gl) : "-");
+                    if (t) REPLY(" P%d's %d (family %d) at %d,%d", FIELD(FIELD(t, 0x18, uint8_t *), PL_INDEX, int),
+                                 FIELD(FIELD(t, 0x2C, uint8_t *), 0x4B8, int), FIELD(FIELD(t, 0x2C, uint8_t *), 0x4B4, int),
+                                 FIELD(t, 0x1C, int), FIELD(t, 0x20, int));
+                    REPLY(" rec+48 %08x\n", FIELD(*r, 0x48, unsigned));
+                }
+                for (int o = 0x100; o < 0x260; o += 0x20) {
+                    REPLY("     %03x:", o);
+                    for (int q = 0; q < 0x20; q += 4) REPLY(" %08x", FIELD(sg, o + q, unsigned));
+                    REPLY("\n");
+                }
+            }
         }
     }
 }
@@ -1396,6 +1497,33 @@ static void cmd_targets(char *out, const char *args) {
 // map) - like any player command. Several units go on a grid of 2 tiles around x, y.
 #define G_TYPES   0x009418A0
 #define G_SERVER_OBJ 0x0091984C
+// give P amount (test): player P's stock of food, wood, stone, gold and iron each grows by amount
+static void cmd_give(char *out, const char *args) {
+    int p = 0, amount = 0;
+    sscanf(args, "%d %d", &p, &amount);
+    void *pl = (p >= 0 && p < 16) ? g_players[p] : NULL;
+    if (!pl) { REPLY("error: give P amount\n"); return; }
+    int *stock = (int *)((uint8_t *)pl + PL_STOCK);
+    for (int k = 2; k < 7; k++) stock[k] += amount;
+    REPLY("P%d: stock %d/%d/%d/%d/%d\n", p, stock[2], stock[3], stock[4], stock[5], stock[6]);
+}
+
+// train P type [count] (test): AI P orders count (default 1) units of a type through its own unit manager, as a
+// priority order (the stock above the epoch reserve) - unlike spawn, the units come from its factories and join its pool
+static void cmd_train(char *out, const char *args) {
+    int p = 0, type = 0, count = 1;
+    sscanf(args, "%d %d %d", &p, &type, &count);
+    void *pl = (p > 0 && p < 16) ? g_players[p] : NULL;
+    void *cm = pl ? FIELD(pl, 0xB90, void *) : NULL, *um = cm ? FIELD(cm, 0x44, void *) : NULL;
+    if (!um || type <= 0) { REPLY("error: train P type [count] (AI player)\n"); return; }
+    int req[4] = { type, count, 0, 0 };
+    unsigned got = 0;
+    g_priority_mil = 1;
+    hook_train_units(um, NULL, req, (uintptr_t)&got);
+    g_priority_mil = 0;
+    REPLY("P%d: %u of %d x type %d ordered\n", p, got, count, type);
+}
+
 static void cmd_spawn(char *out, const char *args) {
     int p, type, x, y, n = 1;
     if (sscanf(args, "%d %d %d %d %d", &p, &type, &x, &y, &n) < 4 || p < 0 || p > 15 || type < 0 || type >= 0x300 || n < 1 || n > 100) {
