@@ -16,19 +16,19 @@ static const struct text_def k_sys[] = {
       "your peace offer to a vassal" },
     { "block_peace", "{me} and {ally} make peace: they are in the same alliance.",
       "{me} und {ally} schlie\xdf" "en Frieden: sie stehen im selben B\xfcndnis.", "two members of your alliance block made peace" },
-    { "block_unity", "{me} is allied with your allies and offers peace: turn allied within 2 minutes, or the alliance breaks.",
-      "{me} ist mit Ihren Verb\xfcndeten verb\xfcndet und bietet Frieden an: stellen Sie binnen 2 Minuten auf Verb\xfcndet, sonst "
+    { "block_unity", "{me} is allied with your allies and offers peace: turn allied within {offer_minutes} minutes, or the alliance breaks.",
+      "{me} ist mit Ihren Verb\xfcndeten verb\xfcndet und bietet Frieden an: stellen Sie binnen {offer_minutes} Minuten auf Verb\xfcndet, sonst "
       "zerbricht das B\xfcndnis.", NULL },
     { "veto_own", "{me} refuses: its ally {ally} won't make peace with {them}.",
       "{me} lehnt ab: der Verb\xfcndete {ally} will keinen Frieden mit {them}.", "a peace offer refused for an ally's sake" },
     { "veto_block", "{me} refuses: no peace with {them} while allied with {ally}.",
       "{me} lehnt ab: kein Frieden mit {them} und dessen B\xfcndnis mit {ally}.", NULL },
-    { "alliance_offer", "{me} offers an alliance against {enemy}: set {me} to allied within 2 minutes to accept.",
-      "{me} bietet ein B\xfcndnis gegen {enemy} an: stellen Sie {me} binnen 2 Minuten auf Verb\xfcndet, um anzunehmen.", NULL },
-    { "capitulation", "{me} surrenders and offers {tribute}: set {me} to allied within 2 minutes to accept.",
-      "{me} kapituliert und bietet {tribute}: stellen Sie {me} binnen 2 Minuten auf Verb\xfcndet, um anzunehmen.", NULL },
-    { "peace_offer", "{me} offers peace: set {me} to allied within 2 minutes to accept.",
-      "{me} bietet Frieden an: stellen Sie {me} binnen 2 Minuten auf Verb\xfcndet, um anzunehmen.",
+    { "alliance_offer", "{me} offers an alliance against {enemy}: set {me} to allied within {offer_minutes} minutes to accept.",
+      "{me} bietet ein B\xfcndnis gegen {enemy} an: stellen Sie {me} binnen {offer_minutes} Minuten auf Verb\xfcndet, um anzunehmen.", NULL },
+    { "capitulation", "{me} surrenders and offers {tribute}: set {me} to allied within {offer_minutes} minutes to accept.",
+      "{me} kapituliert und bietet {tribute}: stellen Sie {me} binnen {offer_minutes} Minuten auf Verb\xfcndet, um anzunehmen.", NULL },
+    { "peace_offer", "{me} offers peace: set {me} to allied within {offer_minutes} minutes to accept.",
+      "{me} bietet Frieden an: stellen Sie {me} binnen {offer_minutes} Minuten auf Verb\xfcndet, um anzunehmen.",
       "the language model's peace offer ([llm] decide)" },
     { "tribute_sent", "{me} sends you a tribute: {tribute}.", "{me} schickt Ihnen Tribut: {tribute}.", NULL },
     { "victory_vassals", "All remaining opponents have submitted to you. Type 'victory' in the chat to end the game as the "
@@ -176,6 +176,14 @@ static int tsub(char *out, int cap, const char *tmpl, void *pl, void *other, ...
     va_list ap;
     va_start(ap, other);
     int n = tsubv_vars(out, cap, tmpl, pl, other, NULL, ap, &g_vars_tpl);
+    va_end(ap);
+    return n;
+}
+// a prompt piece for pl speaking to other, third the enemy
+static int tsub3(char *out, int cap, const char *tmpl, void *pl, void *other, void *third, ...) {
+    va_list ap;
+    va_start(ap, third);
+    int n = tsubv_vars(out, cap, tmpl, pl, other, third, ap, &g_vars_tpl);
     va_end(ap);
     return n;
 }

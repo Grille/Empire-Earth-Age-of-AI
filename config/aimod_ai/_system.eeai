@@ -25,20 +25,20 @@ vassal_ask_lord = "{me} is a vassal of {lord}: negotiate with {lord}."
 ; two members of your alliance block made peace
 ; in braces: {me} {ally}
 block_peace = "{me} and {ally} make peace: they are in the same alliance."
-; in braces: {me}
-block_unity = "{me} is allied with your allies and offers peace: turn allied within 2 minutes, or the alliance breaks."
+; in braces: {me} {offer_minutes}
+block_unity = "{me} is allied with your allies and offers peace: turn allied within {offer_minutes} minutes, or the alliance breaks."
 ; a peace offer refused for an ally's sake
 ; in braces: {me} {ally} {them}
 veto_own = "{me} refuses: its ally {ally} won't make peace with {them}."
 ; in braces: {me} {them} {ally}
 veto_block = "{me} refuses: no peace with {them} while allied with {ally}."
-; in braces: {me} {enemy}
-alliance_offer = "{me} offers an alliance against {enemy}: set {me} to allied within 2 minutes to accept."
-; in braces: {me} {tribute}
-capitulation = "{me} surrenders and offers {tribute}: set {me} to allied within 2 minutes to accept."
+; in braces: {me} {enemy} {offer_minutes}
+alliance_offer = "{me} offers an alliance against {enemy}: set {me} to allied within {offer_minutes} minutes to accept."
+; in braces: {me} {tribute} {offer_minutes}
+capitulation = "{me} surrenders and offers {tribute}: set {me} to allied within {offer_minutes} minutes to accept."
 ; the language model's peace offer ([llm] decide)
-; in braces: {me}
-peace_offer = "{me} offers peace: set {me} to allied within 2 minutes to accept."
+; in braces: {me} {offer_minutes}
+peace_offer = "{me} offers peace: set {me} to allied within {offer_minutes} minutes to accept."
 ; in braces: {me} {tribute}
 tribute_sent = "{me} sends you a tribute: {tribute}."
 ; victory over vassals (the chat words 'victory' and 'sieg' stay)
@@ -85,12 +85,12 @@ now_enemy = "{me} ist jetzt Ihr Feind."
 now_ally = "{me} ist jetzt mit Ihnen verbündet."
 vassal_ask_lord = "{me} ist Vasall von {lord}: verhandeln Sie mit {lord}."
 block_peace = "{me} und {ally} schließen Frieden: sie stehen im selben Bündnis."
-block_unity = "{me} ist mit Ihren Verbündeten verbündet und bietet Frieden an: stellen Sie binnen 2 Minuten auf Verbündet, sonst zerbricht das Bündnis."
+block_unity = "{me} ist mit Ihren Verbündeten verbündet und bietet Frieden an: stellen Sie binnen {offer_minutes} Minuten auf Verbündet, sonst zerbricht das Bündnis."
 veto_own = "{me} lehnt ab: der Verbündete {ally} will keinen Frieden mit {them}."
 veto_block = "{me} lehnt ab: kein Frieden mit {them} und dessen Bündnis mit {ally}."
-alliance_offer = "{me} bietet ein Bündnis gegen {enemy} an: stellen Sie {me} binnen 2 Minuten auf Verbündet, um anzunehmen."
-capitulation = "{me} kapituliert und bietet {tribute}: stellen Sie {me} binnen 2 Minuten auf Verbündet, um anzunehmen."
-peace_offer = "{me} bietet Frieden an: stellen Sie {me} binnen 2 Minuten auf Verbündet, um anzunehmen."
+alliance_offer = "{me} bietet ein Bündnis gegen {enemy} an: stellen Sie {me} binnen {offer_minutes} Minuten auf Verbündet, um anzunehmen."
+capitulation = "{me} kapituliert und bietet {tribute}: stellen Sie {me} binnen {offer_minutes} Minuten auf Verbündet, um anzunehmen."
+peace_offer = "{me} bietet Frieden an: stellen Sie {me} binnen {offer_minutes} Minuten auf Verbündet, um anzunehmen."
 tribute_sent = "{me} schickt Ihnen Tribut: {tribute}."
 victory_vassals = "Alle verbliebenen Gegner haben sich Euch unterworfen. Schreibt 'sieg' in den Chat, um das Spiel als Sieger zu beenden - oder spielt weiter."
 victory_none = "Kein Gegner steht mehr gegen Euch. Schreibt 'sieg' in den Chat, um das Spiel als Sieger zu beenden - oder spielt weiter."

@@ -633,11 +633,23 @@ static void tribute_text(const int *amount, char *buf, int cap) {
 static int llm_line(void *pl, enum line_kind k, void *other, void *third, const char *fixed);   // llm.c
 static void llm_heard(void *pl, void *other, const char *text);
 static void llm_talk_event(void *pl, enum line_kind k, void *other, void *third, const char *fixed);   // llm.c: AI TALK
+// the language model's words for the next line, instead of one of the personality's (a move it decided, llm.c
+// llm_apply - its line is already written): said as it is, whatever the line's chance or cooldown
+static const char *g_say_instead;
 static int persona_say(void *pl, enum line_kind k, void *other, void *third) {
     struct persona *own = persona_of(pl);
     if (!pl || !g_ai_talk || (FIELD(pl, 0x467, uint8_t) && k != L_DEFEATED && k != L_SURRENDER)) return 0;
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     uint32_t now = game_time();
+    if (g_say_instead) {
+        const char *t = g_say_instead;
+        g_say_instead = NULL;
+        chat_line(pl, t, g_chat_ms);
+        llm_heard(pl, other, t);
+        g_talk_last[idx][k] = g_talk_any[idx] = now ? now : 1;
+        if (g_log) fprintf(g_log, "# talk: P%u at %.1f min (%s, the model's words): %s\n", idx, now / 60000.0, k_lines[k].key, t);
+        return 1;
+    }
     if (g_talk_any[idx] && now - g_talk_any[idx] < 3000 && k_lines[k].chance < 100) return 0;
     if (g_talk_last[idx][k] && now - g_talk_last[idx][k] < (uint32_t)k_lines[k].cooldown * 1000u) return 0;
     if (k_lines[k].chance < 100 && rnd(100) >= k_lines[k].chance * (own ? own->trait[T_TALK] : 50) / 50) return 0;

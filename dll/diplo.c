@@ -71,6 +71,7 @@
 #define FN_REVENGE    0x0046FFB7
 #define TEAMS_LOCKED  (*(uint8_t *)0x00918E9F)
 static int g_answer_war = 1, g_ai_diplomacy = 1;
+static int g_offer_min = 2;   // [all] offer_minutes: how long an offer stands (alliance, peace, capitulation, block peace)
 static int g_diplo_seen[16];
 static int g_diplo_prev[16][16];        // [ai][j]: player j's stance towards the AI at the last look
 static uint32_t g_diplo_due[16][16];    // [ai][j]: answer war at this time (0 = nothing pending)
@@ -420,6 +421,13 @@ static int llm_ai_deciding(void);                                     // llm.c: 
 static int llm_ai_offer(int from, int to, int kind, int third);       // llm.c: an AI's offer to an AI, the model answers
 static void llm_happened(int ai, const char *fmt, ...);               // llm.c: an event for the model's memory
 static int llm_unbound(void);                                         // llm.c: [llm] constrained=0, the model decides
+// THE RULES' MOVES TOWARDS THE LOCAL PLAYER, put to the language model first ([llm] decide=1): an alliance offer, a
+// betrayal, a capitulation, a rebellion. llm_propose (llm.c) asks it - 1: it decides (asked, still asking, or it
+// declined that move lately), 0: the rules go ahead. Its yes carries the move out with its words (prop_do), its no
+// leaves it undone - the player never learns of it; no answer: the rules go ahead after all.
+enum { P_ALLY, P_BETRAY, P_CAPIT, P_REBEL, P_N };
+static int g_llm_rules;   // llm.c: the rules decide in the model's place
+static int llm_propose(int ai, int h, int kind, int third, uint32_t now);
 
 // A pending peace offer of j (allied towards the AI while the AI is at war with him)
 static void peace_offer(void *pl, int ai, int j, uint32_t now) {
@@ -688,6 +696,13 @@ static int peace_terms(int ai, int j, char *out, int cap) {
     return price;
 }
 
+// what AI ai would offer in a capitulation: a share of each resource by its caution and greed (out: [2..6])
+static int capit_offer(void *pl, int *out) {
+    int *stock = (int *)((uint8_t *)pl + PL_STOCK), total = 0;
+    float share = 0.2f + (float)trait(pl, T_CAUTION) / 400.0f + (float)(100 - trait(pl, T_GREED)) / 400.0f;
+    for (int r = 2; r < 7; r++) total += out[r] = stock[r] > 0 ? (int)((float)stock[r] * share) : 0;
+    return total;
+}
 // AI ai offers player best an alliance against lead (diplo_initiative; tests: diplo offer)
 static void offer_alliance(int ai, int best, int lead, uint32_t now) {
     void *pl = player_at(ai);
@@ -714,6 +729,20 @@ static void offer_alliance(int ai, int best, int lead, uint32_t now) {
         block_line(best, sysf("alliance_offer", pl, player_at(best), player_at(lead), NULL));
         if (g_log) fprintf(g_log, "# diplomacy: P%d offers P%d (human) an alliance against P%d\n", ai, best, lead);
     }
+}
+// the rebellion of vassal ai: its line, war on its lord's side, free
+static void rebel_now(void *pl, int ai, uint32_t now) {
+    int l = g_lord[ai], blk[16];
+    if (!l) return;
+    persona_say(pl, L_BETRAY, player_at(l), NULL);
+    if (blocks_on()) blocks_compute(blk);
+    declare_war(ai, l, now);   // free
+    if (blocks_on() && blk[l])   // the lord's whole block
+        for (int k = 1; k < nplayers(); k++)
+            if (k != ai && k != l && blk[k] == blk[l]) {
+                declare_war(ai, k, now);
+                g_mutual_prev[ai][k] = g_mutual_prev[k][ai] = 0;
+            }
 }
 // A VASSAL'S REBELLION (every 60 s, in diplo_initiative): a vassal with little loyalty (under 50) and much pride turns
 // on its lord once it has served 10 minutes and is clearly stronger than its lord's side (the lord and its block):
@@ -745,17 +774,24 @@ static const char *vassal_rebellion(void *pl, int ai, uint32_t now, int dice) {
         return why;
     }
     if (dice && (int)(rnd_game32() % 100000u) >= (100 - loy) * pride * 2) return "not this minute (chance)";
+    if (dice && llm_propose(ai, l, P_REBEL, 0, now)) return "the model decides";
     if (g_log) fprintf(g_log, "# diplomacy: P%d at %.1f min rebels: loyalty %d, pride %d, opinion of its lord %.0f, power %.0f vs "
                        "its lord's side %.0f (needs %.1f times)\n", ai, now / 60000.0, loy, pride, g_opinion[ai][l], power_of(ai), side, need);
-    persona_say(pl, L_BETRAY, pk, NULL);
-    declare_war(ai, l, now);   // free
-    if (blocks_on() && blk[l])   // the lord's whole block
+    rebel_now(pl, ai, now);
+    return NULL;
+}
+// the betrayal of ally j: its line, war on j - and with blocks on j's whole block (no one left to take sides)
+static void betray_now(void *pl, int ai, int j, uint32_t now) {
+    persona_say(pl, L_BETRAY, player_at(j), NULL);
+    int blk[16];
+    if (blocks_on()) blocks_compute(blk);
+    declare_war(ai, j, now);
+    if (blocks_on())
         for (int k = 1; k < nplayers(); k++)
-            if (k != ai && k != l && blk[k] == blk[l]) {
+            if (k != ai && k != j && blk[k] && blk[k] == blk[j]) {
                 declare_war(ai, k, now);
                 g_mutual_prev[ai][k] = g_mutual_prev[k][ai] = 0;
             }
-    return NULL;
 }
 // AI ai's own initiative (every 60 s)
 static void diplo_initiative(void *pl, int ai, uint32_t now) {
@@ -777,7 +813,7 @@ static void diplo_initiative(void *pl, int ai, uint32_t now) {
             bs = g_opinion[ai][j]; best = j;
         }
         if (best) {
-            offer_alliance(ai, best, lead, now);
+            if (!llm_propose(ai, best, P_ALLY, lead, now)) offer_alliance(ai, best, lead, now);
             return;
         }
     }
@@ -798,17 +834,12 @@ static void diplo_initiative(void *pl, int ai, uint32_t now) {
         if (lord_in || bpow * 2 > power_of(ai) || g_opinion[ai][j] >= 30) continue;
         int chance = (100 - trait(pl, T_LOYALTY)) * trait(pl, T_AGGRESSION);   // per 100000
         if ((int)(rnd_game32() % 100000u) >= chance) continue;
+        if (llm_propose(ai, j, P_BETRAY, 0, now)) return;   // the model decides (towards the local player)
         if (g_log) fprintf(g_log, "# diplomacy: P%d at %.1f min betrays P%d (opinion %.0f, power %.0f vs %.0f)\n",
                            ai, now / 60000.0, j, g_opinion[ai][j], g_ws.power[ai], bpow);
-        persona_say(pl, L_BETRAY, pj, NULL);
-        declare_war(ai, j, now);
-        if (blocks_on())   // the whole block: no one left to take sides
-            for (int k = 1; k < nplayers(); k++)
-                if (k != ai && blk[k] && blk[k] == blk[j]) {
-                    declare_war(ai, k, now);
-                    g_mutual_prev[ai][k] = g_mutual_prev[k][ai] = 0;
-                }
+        betray_now(pl, ai, j, now);
         return;
+
     }
 }
 
@@ -890,9 +921,8 @@ static int pay_promise(int ai, int j, int *paid) {   // what was offered, as far
 }
 static void capitulate(void *pl, int ai, int a, uint32_t now) {
     void *pa = player_at(a);
-    int *stock = (int *)((uint8_t *)pl + PL_STOCK), total = 0;
+    int total = capit_offer(pl, g_promise[ai]);
     float share = 0.2f + (float)trait(pl, T_CAUTION) / 400.0f + (float)(100 - trait(pl, T_GREED)) / 400.0f;
-    for (int r = 2; r < 7; r++) total += g_promise[ai][r] = stock[r] > 0 ? (int)((float)stock[r] * share) : 0;
     g_capit_last[ai] = now ? now : 1;
     memcpy(g_say_tribute, g_promise[ai], sizeof g_say_tribute);
     if (g_log) fprintf(g_log, "# diplomacy: P%d at %.1f min capitulates to P%d (%s): %d resources (%.0f%%), power %.0f vs %.0f, "
@@ -1022,7 +1052,32 @@ static void check_capitulation(void *pl, int ai, uint32_t now) {
     float need = 1.5f + (float)trait(pl, T_PRIDE) / 20.0f - (float)trait(pl, T_CAUTION) / 50.0f;   // pride holds out
     if (need < 1.5f) need = 1.5f;
     if (power_of(a) < need * power_of(ai)) return;
+    if (llm_propose(ai, a, P_CAPIT, 0, now)) return;   // the model decides (towards the local player)
     capitulate(pl, ai, a, now);
+}
+// a move put to the model: still possible when its answer comes? (the game went on meanwhile)
+static int prop_valid(int ai, int h, int kind, int third) {
+    void *pl = player_at(ai), *ph = player_at(h);
+    if (!pl || !ph || is_out(pl) || is_out(ph) || g_offer_t[ai][h]) return 0;
+    int war = stance_of(pl, h) && stance_of(ph, ai), ally = !stance_of(pl, h) && !stance_of(ph, ai);
+    switch (kind) {
+    case P_ALLY: return stance_of(pl, h) && !is_vassal(ai) && third && player_at(third) && !is_out(player_at(third));
+    case P_BETRAY: return ally && g_lord[ai] != h && !is_vassal(ai);
+    case P_CAPIT: return war && !is_vassal(ai);
+    case P_REBEL: return is_vassal(ai) && g_lord[ai] == h;
+    }
+    return 0;
+}
+// carry the move out, as the rules would (its line: the model's words when persona_say has them, g_say_instead)
+static void prop_do(int ai, int h, int kind, int third, uint32_t now) {
+    void *pl = player_at(ai);
+    if (g_log) fprintf(g_log, "# diplomacy: P%d at %.1f min: %s P%d%s\n", ai, now / 60000.0, kind == P_ALLY ? "offers an alliance to" :
+                       kind == P_BETRAY ? "betrays" : kind == P_CAPIT ? "capitulates to" : "rebels against its lord",
+                       h, g_llm_rules ? " (the rules: no answer from the model)" : " (the model's decision)");
+    if (kind == P_ALLY) offer_alliance(ai, h, third, now);
+    else if (kind == P_BETRAY) betray_now(pl, ai, h, now);
+    else if (kind == P_CAPIT) capitulate(pl, ai, h, now);
+    else rebel_now(pl, ai, now);
 }
 
 static void check_surrender(void *pl, int ai, uint32_t now) {
@@ -1225,7 +1280,7 @@ static void diplo_tick(void *pl, unsigned ai, uint32_t now) {
                                        unity ? "block peace" : "alliance");
                 }
                 g_offer_ignored[ai][j] = 0;
-            } else if (now - g_offer_t[ai][j] > 120000) {
+            } else if (now - g_offer_t[ai][j] > (uint32_t)g_offer_min * 60000u) {
                 g_offer_t[ai][j] = 0;
                 if (capit) { promise_escrow((int)ai, 0); memset(g_promise[ai], 0, sizeof g_promise[ai]); }
                 else if (!unity) g_offer_ignored[ai][j]++;
@@ -1661,6 +1716,7 @@ static void diplo_install(const char *ini, const char *test_ini) {
     g_surrender = GetPrivateProfileIntA("all", "surrender", 1, ini);
     g_blocks = GetPrivateProfileIntA("all", "alliance_blocks", 1, ini);
     g_stance_lines = GetPrivateProfileIntA("all", "stance_lines", 1, ini);
+    g_offer_min = GetPrivateProfileIntA("all", "offer_minutes", 2, ini);
     g_auto_victory = GetPrivateProfileIntA("general", "auto_victory", 1, ini);
     if (test_ini) {
         g_answer_war = GetPrivateProfileIntA("autotest", "answer_war", g_answer_war, test_ini);
@@ -1668,6 +1724,7 @@ static void diplo_install(const char *ini, const char *test_ini) {
         g_surrender = GetPrivateProfileIntA("autotest", "surrender", g_surrender, test_ini);
         g_blocks = GetPrivateProfileIntA("autotest", "alliance_blocks", g_blocks, test_ini);
         g_stance_lines = GetPrivateProfileIntA("autotest", "stance_lines", g_stance_lines, test_ini);
+        g_offer_min = GetPrivateProfileIntA("autotest", "offer_minutes", g_offer_min, test_ini);
         g_auto_victory = GetPrivateProfileIntA("autotest", "auto_victory", g_auto_victory, test_ini);
         g_block_observer = GetPrivateProfileIntA("autotest", "block_observer", 0, test_ini);
     }
@@ -1747,6 +1804,7 @@ static const struct xmember k_xglobals[] = {
     { "population_limit", XM_PLAYER, "the game's unit limit per player (its setting)" },
     { "max_population", XM_PLAYER, "the largest population of a player still in - kills > max_population / 2: many for this stage of the game" },
     { "language", XM_PLAYER, "the game's language: de, en, fr, ..." },
+    { "offer_minutes", XM_PLAYER, "how long an offer stands, in minutes ([all] offer_minutes in aimod.ini)" },
 };
 #define N_XGLOBALS (int)(sizeof k_xglobals / sizeof *k_xglobals)
 static void *x_player_named(const char *n) {
@@ -1916,6 +1974,7 @@ static int x_builtin(struct xctx *c, const char *name, struct xval *v) {
         double r = 0;
         if (!strcmp(name, "minutes")) r = (double)(game_time() / 60000u);
         else if (!strcmp(name, "language")) { xstr(v, g_lang); return 1; }
+        else if (!strcmp(name, "offer_minutes")) r = g_offer_min;
         else if (!strcmp(name, "population_limit")) r = *(int *)0x009183D4;   // the game setting (econ.c)
         else if (!strcmp(name, "max_population")) {
             for (int j = 1; j < nplayers(); j++) if (x_alive(j) && g_ws.soldiers[j] + g_ws.citizens[j] > r) r = g_ws.soldiers[j] + g_ws.citizens[j];

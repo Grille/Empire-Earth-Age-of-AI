@@ -101,7 +101,7 @@ static const struct text_def k_tpl[] = {
     { "what_capitulation", "capitulation", NULL, NULL },
     { "what_peace", "peace offer", NULL, NULL },
     { "tool_accept_peace", "Accept the peace {them} offers you: you are allies from now on.", NULL, "tool descriptions (the tool names stay)" },
-    { "tool_offer_alliance_automated", "Offer {them} peace: they get 2 minutes to set their stance towards you to allied - only then are "
+    { "tool_offer_alliance_automated", "Offer {them} peace: they get {offer_minutes} minutes to set their stance towards you to allied - only then are "
       "you allies.", NULL, NULL },
     { "tool_offer_alliance", "Offer {them} peace and an alliance: they decide in their answer.", NULL, NULL },
     { "tool_accept_alliance", "Accept the alliance {them} offers you: you are allies from now on.", NULL, NULL },
@@ -111,19 +111,33 @@ static const struct text_def k_tpl[] = {
       "wood {floor(me.wood / 4)}, stone {floor(me.stone / 4)}, gold {floor(me.gold / 4)}, iron {floor(me.iron / 4)}).", NULL, NULL },
     { "tool_tribute_all", "Give {them} resources from your stock, as a tribute - as much as you like, up to all you have: food "
       "{me.food}, wood {me.wood}, stone {me.stone}, gold {me.gold}, iron {me.iron}.", NULL, "[llm] constrained=0" },
+    { "tool_capitulate", "Capitulate to {them}: you offer them {tribute} and to serve them as their vassal; they have "
+      "{offer_minutes} minutes to accept.", NULL, NULL },
     { "tool_refuse", "Refuse the {what} of {them}.", NULL, NULL },
     { "ev_made_peace", "You made peace with {them}: you are allies now.", NULL, "events in the AI's memory of its exchange with the local player" },
-    { "ev_offered_peace", "You offered {them} peace: they have 2 minutes to set their stance towards you to allied.", NULL, NULL },
+    { "ev_offered_peace", "You offered {them} peace: they have {offer_minutes} minutes to set their stance towards you to allied.", NULL, NULL },
     { "ev_declared_war", "You declared war on {them}.", NULL, NULL },
     { "ev_sent_tribute", "You sent {them} a tribute: {tribute}.", NULL, NULL },
+    { "ev_capitulated", "You capitulated to {them}: you offered them tribute and to serve them.", NULL, NULL },
     { "ev_war_on_you", "{them} declared war on you.", NULL, NULL },
     { "ev_accepted_offer", "{them} accepted your offer: they set their stance towards you to allied.", NULL, NULL },
     { "ev_offers_peace", "{them} set their stance towards you to allied: they offer peace.", NULL, NULL },
     { "ev_tribute_in", "{them} sent you a tribute: {total} resources in all.", NULL, NULL },
     { "ev3_accepted", "{me} accepted the {what} of {them}", NULL, "events in the memory of a talk between AIs (third person)" },
-    { "ev3_offered", "{me} offered {them} peace and an alliance - {them} has 2 minutes to accept", NULL, NULL },
+    { "ev3_offered", "{me} offered {them} peace and an alliance - {them} has {offer_minutes} minutes to accept", NULL, NULL },
     { "ev3_war", "{me} declared war on {them}", NULL, NULL },
     { "ev3_tribute", "{me} sent {them} a tribute: {tribute}", NULL, NULL },
+    { "proposal", "(Not a chat line: {move} Decide: if you want it, call {tool} and say it to {them} in your own words, "
+      "one or two sentences, in {language_name}. If not, call no tool and write nothing - they will never know.)", NULL,
+      "[llm] decide: a move of the rules towards the local player, put to the model first ({move}: prop_...)" },
+    { "prop_alliance", "Your advisers propose an alliance with {them} against {enemy}, who is far stronger than you: you "
+      "would set your stance towards {them} to allied, and they have {offer_minutes} minutes to accept.", NULL, NULL },
+    { "prop_betray", "Your advisers propose to end your alliance with {them} and declare war on them: their side is weak, "
+      "and you don't think much of them.", NULL, NULL },
+    { "prop_capitulate", "Your advisers say the war against {them} is lost - their army is in your town - and propose to "
+      "capitulate: you would offer them {tribute} and to serve them as their vassal.", NULL, NULL },
+    { "prop_rebel", "Your advisers propose to rebel against {them}, your lord: you are far stronger than their side now. "
+      "You would declare war on them and be free.", NULL, NULL },
     { "sit_greeting", "the game begins - a first word to everyone", NULL, "the situations of the personality lines, from the AI's side ({them} the other, {enemy} a third, {epoch} its own, {tribute})" },
     { "sit_war_declared", "{them} has just declared war on you", NULL, NULL },
     { "sit_betrayed", "{them}, your ally until now, has betrayed you and declared war", NULL, NULL },

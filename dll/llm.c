@@ -91,7 +91,7 @@ static int g_llm_rules;                         // the rules decide in the model
 static int g_llm_bypass;                        // a fixed line for a decision: shown as it is, not reworded
 static uint32_t g_llm_paid_t[16];               // the AI's last tribute by tool (game time)
 static unsigned g_llm_n_dec, g_llm_n_acts;
-enum { TOOL_PEACE = 1, TOOL_WAR = 2, TOOL_TRIBUTE = 4, TOOL_REFUSE = 8 };
+enum { TOOL_PEACE = 1, TOOL_WAR = 2, TOOL_TRIBUTE = 4, TOOL_REFUSE = 8, TOOL_CAPIT = 16 };
 static char g_llm_last_err[160];
 
 enum { J_FREE, J_QUEUED, J_RUNNING, J_DONE, J_FAILED };
@@ -108,7 +108,8 @@ struct llm_job {
     int nmust;
     char speaker[48];    // its name (the worker reads no game state)
     char reply[LLM_MAXLEN + 32];
-    int decide;          // 0 words only, 1 the answer to his peace offer, 2 his chat with tools
+    int decide;          // 0 words only, 1 the answer to his peace offer, 2 his chat with tools, 3 a move of the rules
+    int prop, third;     // decide 3: P_ALLY ... (diplo.c), the third player (an alliance's enemy)
     int tools, act;      // TOOL_ bits offered / called
     int amt[7];          // send_tribute: food..iron (2..6)
     int talk;            // AI TALK: the message's number in the exchange (1 the opener), 0 not a talk between AIs
@@ -349,7 +350,7 @@ static int json_content(const char *resp, WCHAR *out, int cap) {
 
 // ---- tool calls: in "tool_calls" (OpenAI), else written into the content ({"name": ..., "arguments": ...}, also
 // inside <tool_call> markup - some servers pass a model's call on as text). Names and argument numbers, escaped or not.
-static const char *const k_tool_name[4] = { "make_peace", "declare_war", "send_tribute", "refuse_offer" };
+static const char *const k_tool_name[5] = { "make_peace", "declare_war", "send_tribute", "refuse_offer", "capitulate" };
 static int json_num_key(const char *s, const char *end, const char *key) {   // "key": 123 (or \"key\": 123), else 0
     size_t kl = strlen(key);
     for (const char *p = s; p && p < end; p++) {
@@ -390,7 +391,7 @@ static void json_tools(const char *resp, struct llm_job *j) {
         while (q < end && (*q == ' ' || *q == '\\' || *q == '"')) q++;
         const char *next = strstr(q, "name");
         if (!next || next > end) next = end;
-        for (int t = 0; t < 4; t++) {
+        for (int t = 0; t < 5; t++) {
             size_t tl = strlen(k_tool_name[t]);
             const char *at = q;
             if (!strncmp(at, "functions.", 10)) at += 10;
@@ -777,6 +778,13 @@ static void sb_tools(struct sbuf *b, int tools, int ai, int h) {
         tsub(d, sizeof d, tpl_text("tool_refuse"), pl, ph, "what", tpl_text(k == 1 ? "what_capitulation" : "what_alliance"), NULL);
         sb_tool(b, "refuse_offer", d, "{\"type\":\"object\",\"properties\":{}}");
     }
+    if (tools & TOOL_CAPIT) {   // what it would offer (capitulate: the same share of its stock then)
+        int offer[7] = { 0 };
+        capit_offer(pl, offer);
+        tribute_text(offer, what, sizeof what);
+        tsub(d, sizeof d, tpl_text("tool_capitulate"), pl, ph, "tribute", what, NULL);
+        sb_tool(b, "capitulate", d, "{\"type\":\"object\",\"properties\":{}}");
+    }
     sb_puts(b, "],\"tool_choice\":\"auto\"");
 }
 static int g_llm_tok_once;   // max_tokens for the next request only (0: the setting)
@@ -923,6 +931,42 @@ static int llm_peace_answer(void *pl, int ai, int j, uint32_t now) {
     if (g_llm_log && g_log) fprintf(g_log, "# llm: P%d decides on the peace offer of P%d (asked)\n", ai, j);
     return 1;
 }
+// a move of the rules towards the local player (diplo.c P_ALLY ...): the model decides - 1 (asked now, still asking,
+// or it declined that move in the last 10 minutes: not now), 0: the rules go ahead (no model deciding, or no room)
+static uint32_t g_prop_no[16][P_N];   // [ai][move]: when the model last declined it
+static int llm_propose(int ai, int h, int kind, int third, uint32_t now) {
+    void *pl = player_at(ai), *ph = player_at(h);
+    if (g_llm_rules || !pl || !ph || h != (int)*(unsigned *)0x00918E84 || !llm_deciding() || kind < 0 || kind >= P_N) return 0;
+    if (g_prop_no[ai][kind] && now - g_prop_no[ai][kind] < 600000) return 1;
+    for (int i = 0; i < LLM_JOBS; i++)
+        if (g_llm_jobs[i].state != J_FREE && g_llm_jobs[i].ai == ai && g_llm_jobs[i].decide == 3) return 1;
+    struct llm_job *jb = llm_slot();
+    if (!jb) return 0;
+    static const char *const key[P_N] = { "prop_alliance", "prop_betray", "prop_capitulate", "prop_rebel" };
+    static const int tool[P_N] = { TOOL_PEACE, TOOL_WAR, TOOL_CAPIT, TOOL_WAR };
+    memset(jb, 0, sizeof *jb);
+    jb->ai = ai;
+    jb->to = h;
+    jb->decide = 3;
+    jb->prop = kind;
+    jb->third = third;
+    jb->tools = tool[kind];
+    struct sbuf b = { 0 };
+    sb_puts(&b, "{\"messages\":[");
+    llm_system(&b, pl, ai, h, jb->tools);
+    llm_history(&b, ai);
+    char move[600], u[1200], what[120] = "";
+    int offer[7] = { 0 };
+    if (kind == P_CAPIT) { capit_offer(pl, offer); tribute_text(offer, what, sizeof what); }
+    tsub3(move, sizeof move, tpl_text(key[kind]), pl, ph, third ? player_at(third) : NULL, "tribute", what, NULL);
+    tsub(u, sizeof u, tpl_text("proposal"), pl, ph, "move", move, "tool", k_tool_name[kind == P_CAPIT ? 4 : kind == P_ALLY ? 0 : 1],
+         "language_name", llm_language(), NULL);
+    sb_msg(&b, "user", u);
+    if (!b.p) { SET_STATE(jb, J_FREE); return 0; }
+    llm_queue(jb, llm_finish(&b, jb->tools, ai, h));
+    if (g_llm_log && g_log) fprintf(g_log, "# llm: P%d decides on a move towards P%d (asked): %s\n", ai, h, key[kind] + 5);
+    return 1;
+}
 // a decision's answer (game thread, seconds after the question): its tools re-checked and carried out, then its words
 // - or, without words, the fixed line for what it did
 static void llm_fixed(void *pl, enum line_kind k, void *other) {
@@ -937,7 +981,34 @@ static void llm_apply(struct llm_job *j, int ok) {
     if (!pl || !ph || h < 1) return;
     char ev[3][300];   // what it did, for its memory - after its words
     int nev = 0;
+    if (j->decide == 3) {   // a move of the rules: its yes carries it out with its words, its no leaves it undone
+        int yes = ok && (j->act & j->tools) && prop_valid(ai, h, j->prop, j->third);
+        if (!ok && prop_valid(ai, h, j->prop, j->third)) {   // no answer: the rules go ahead after all
+            if (g_llm_log && g_log) fprintf(g_log, "# llm: P%d no answer on a move (%s) - the rules decide\n", ai, g_llm_last_err);
+            g_llm_rules = 1;
+            prop_do(ai, h, j->prop, j->third, now);
+            g_llm_rules = 0;
+            return;
+        }
+        if (!ok) return;
+        g_llm_n_dec++;
+        if (yes) {
+            g_llm_n_acts++;
+            g_say_instead = j->reply[0] ? j->reply : NULL;   // its words instead of the personality's line
+            prop_do(ai, h, j->prop, j->third, now);
+            g_say_instead = NULL;
+            char e[300];
+            tsub(e, sizeof e, tpl_text(j->prop == P_ALLY ? "ev_offered_peace" : j->prop == P_CAPIT ? "ev_capitulated" : "ev_declared_war"),
+                 pl, ph, NULL);
+            llm_happened(ai, "%s", e);
+        } else g_prop_no[ai][j->prop] = now ? now : 1;   // not now: 10 minutes before the rules propose it again
+        if (g_llm_log && g_log) fprintf(g_log, "# llm: P%d decides on a move towards P%d (%.1f s): %s - %s\n", ai, h, j->ms / 1000.0,
+                                        yes ? "does it" : j->act & j->tools ? "would, but it isn't possible any more" : "declines",
+                                        j->reply[0] ? j->reply : "(no words)");
+        return;
+    }
     if (!ok) {   // no answer: the rules decide a peace offer still standing; a chat line gets none
+
         if (j->decide == 1 && !stance_of(ph, ai) && stance_of(pl, h) && !is_out(pl)) {
             if (g_llm_log && g_log) fprintf(g_log, "# llm: P%d no answer on the peace offer (%s) - the rules decide\n", ai, g_llm_last_err);
             g_llm_rules = 1;

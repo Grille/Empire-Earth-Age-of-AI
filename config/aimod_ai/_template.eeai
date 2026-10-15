@@ -132,8 +132,8 @@ what_peace = "peace offer"
 ; tool descriptions (the tool names stay)
 ; in braces: {them}
 tool_accept_peace = "Accept the peace {them} offers you: you are allies from now on."
-; in braces: {them}
-tool_offer_alliance_automated = "Offer {them} peace: they get 2 minutes to set their stance towards you to allied - only then are you allies."
+; in braces: {them} {offer_minutes}
+tool_offer_alliance_automated = "Offer {them} peace: they get {offer_minutes} minutes to set their stance towards you to allied - only then are you allies."
 ; in braces: {them}
 tool_offer_alliance = "Offer {them} peace and an alliance: they decide in their answer."
 ; in braces: {them}
@@ -147,17 +147,21 @@ tool_tribute = "Give {them} resources from your stock, as a tribute (at most a q
 ; [llm] constrained=0
 ; in braces: {them} {me.food} {me.wood} {me.stone} {me.gold} {me.iron}
 tool_tribute_all = "Give {them} resources from your stock, as a tribute - as much as you like, up to all you have: food {me.food}, wood {me.wood}, stone {me.stone}, gold {me.gold}, iron {me.iron}."
+; in braces: {them} {tribute} {offer_minutes}
+tool_capitulate = "Capitulate to {them}: you offer them {tribute} and to serve them as their vassal; they have {offer_minutes} minutes to accept."
 ; in braces: {what} {them}
 tool_refuse = "Refuse the {what} of {them}."
 ; events in the AI's memory of its exchange with the local player
 ; in braces: {them}
 ev_made_peace = "You made peace with {them}: you are allies now."
-; in braces: {them}
-ev_offered_peace = "You offered {them} peace: they have 2 minutes to set their stance towards you to allied."
+; in braces: {them} {offer_minutes}
+ev_offered_peace = "You offered {them} peace: they have {offer_minutes} minutes to set their stance towards you to allied."
 ; in braces: {them}
 ev_declared_war = "You declared war on {them}."
 ; in braces: {them} {tribute}
 ev_sent_tribute = "You sent {them} a tribute: {tribute}."
+; in braces: {them}
+ev_capitulated = "You capitulated to {them}: you offered them tribute and to serve them."
 ; in braces: {them}
 ev_war_on_you = "{them} declared war on you."
 ; in braces: {them}
@@ -169,12 +173,23 @@ ev_tribute_in = "{them} sent you a tribute: {total} resources in all."
 ; events in the memory of a talk between AIs (third person)
 ; in braces: {me} {what} {them}
 ev3_accepted = "{me} accepted the {what} of {them}"
-; in braces: {me} {them}
-ev3_offered = "{me} offered {them} peace and an alliance - {them} has 2 minutes to accept"
+; in braces: {me} {them} {offer_minutes}
+ev3_offered = "{me} offered {them} peace and an alliance - {them} has {offer_minutes} minutes to accept"
 ; in braces: {me} {them}
 ev3_war = "{me} declared war on {them}"
 ; in braces: {me} {them} {tribute}
 ev3_tribute = "{me} sent {them} a tribute: {tribute}"
+; [llm] decide: a move of the rules towards the local player, put to the model first ({move}: prop_...)
+; in braces: {move} {tool} {them} {language_name}
+proposal = "(Not a chat line: {move} Decide: if you want it, call {tool} and say it to {them} in your own words, one or two sentences, in {language_name}. If not, call no tool and write nothing - they will never know.)"
+; in braces: {them} {enemy} {offer_minutes}
+prop_alliance = "Your advisers propose an alliance with {them} against {enemy}, who is far stronger than you: you would set your stance towards {them} to allied, and they have {offer_minutes} minutes to accept."
+; in braces: {them}
+prop_betray = "Your advisers propose to end your alliance with {them} and declare war on them: their side is weak, and you don't think much of them."
+; in braces: {them} {tribute}
+prop_capitulate = "Your advisers say the war against {them} is lost - their army is in your town - and propose to capitulate: you would offer them {tribute} and to serve them as their vassal."
+; in braces: {them}
+prop_rebel = "Your advisers propose to rebel against {them}, your lord: you are far stronger than their side now. You would declare war on them and be free."
 ; the situations of the personality lines, from the AI's side ({them} the other, {enemy} a third, {epoch} its own, {tribute})
 sit_greeting = "the game begins - a first word to everyone"
 ; in braces: {them}
