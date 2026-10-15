@@ -36,6 +36,7 @@ static void grid_each(void (*fn)(uint8_t *u, void *ctx), void *ctx) {
 #define FN_CAN_PLACE   0x0062E940   // cdecl char(player, type, x, y, w, h, 0)
 #define FN_BUILD_WALL  0x00497C3F   // thiscall(wall manager, int from[2], int to[2], type, char)
 static int g_def = 1, g_def_dist = 10, g_def_walls = 1, g_def_more = 1;
+static int g_aa = 1;   // [all] anti_air (below)
 static uint8_t g_def_off[16];   // per player, pipe "defence P 0|1" (A/B scenarios)
 static unsigned g_def_towers[16], g_def_walls_built[16];
 struct front { int fx, fy, enemy; float dx, dy; int wall_tries; uint32_t wall_t; };
@@ -814,9 +815,108 @@ static void defence_install(const char *aimod_ini, const char *autotest_ini) {
     g_home_guard = cfg_int(aimod_ini, autotest_ini, 1, "home_guard", 4);
     g_home_share = cfg_float(aimod_ini, autotest_ini, 1, "home_guard_share", "0.35");
     g_muster = cfg_int(aimod_ini, autotest_ini, 1, "muster", 1);
+    g_aa = cfg_int(aimod_ini, autotest_ini, 1, "anti_air", 1);
     BOOL guard = patch_call(CALL_DAMAGE_POINTS, FN_DAMAGE_POINTS, damage_points_thunk);
     if (g_log) fprintf(g_log, "# engine guard: damage points %s\n", guard ? "ok" : "FAILED");
     if (g_log) fprintf(g_log, "# defence: layout=%d distance=%d walls=%d own towers=%d counter-siege=%d home guard=%d/epoch, %.2f of the military room\n", g_def, g_def_dist, g_def_walls, g_def_more, g_csiege, g_home_guard, g_home_share);
+}
+
+// ANTI-AIR ([all] anti_air, default 1). The game's unit choice hardly asks for anti-air: the user's planes overran
+// both AIs' towns, one asked for an AA tank once in 5 minutes among hundreds of orders, built 2 88mm guns and lost its
+// few AA tanks for good. Every 5 s: enemy aircraft it can see within 25 tiles of its drop sites (the most seen in the
+// last 5 minutes counts). While there were any: it wants 2 + half their number in anti-air (at most 16), a quarter of
+// that (1..4) as AA buildings next to the drop site nearest to where the aircraft were - the rest AA units, the
+// newest of its epoch, up to 3 at a time every 15 s; one building at a time in the build queue, a minute apart.
+// Orders as the siege's (priority: the stock above the epoch reserve, not the army's account); losses are replaced.
+static const struct { int type, epoch; } k_aa_units[] = { { 626, 13 }, { 19, 12 }, { 146, 10 } };
+static const struct { int type, epoch; } k_aa_bldgs[] = { { 147, 13 }, { 145, 10 } };
+static struct { uint32_t last, seen_t, train_t, build_t; int air, ax, ay; unsigned trained, queued; } g_aa_st[16];
+static void anti_air(void *pl, unsigned idx, uint32_t now) {
+    if (!g_aa || !pl) return;
+    if (now < g_aa_st[idx].last) memset(&g_aa_st[idx], 0, sizeof g_aa_st[idx]);   // a new game
+    if (g_aa_st[idx].last && now - g_aa_st[idx].last < 5000) return;
+    g_aa_st[idx].last = now ? now : 1;
+    int epoch = current_epoch(pl) + 1;   // tech ids count from 1
+    if (epoch < 10) return;
+    uint8_t *map = *(uint8_t **)G_MAP;
+    uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
+    uint8_t *cells = grid ? FIELD(grid, 4, uint8_t *) : NULL;
+    unsigned count = grid ? FIELD(grid, 0x10, unsigned) * FIELD(grid, 0x14, unsigned) : 0;
+    int nair = 0, have_u = 0, have_b = 0;
+    float axs = 0, ays = 0;
+    for (unsigned c = 0; cells && c < count; c++)
+        for (uint8_t **b = FIELD(cells + c * 16, 4, uint8_t **); b && b < FIELD(cells + c * 16, 8, uint8_t **); b++) {
+            uint8_t *u = *b, *td = u ? FIELD(u, 0x2C, uint8_t *) : NULL;
+            if (!td || FIELD(u, 0x3C, int) <= 0) continue;
+            int fam = FIELD(td, 0x4B4, int), t = FIELD(td, 0x4B8, int);
+            void *o = FIELD(u, 0x18, void *);
+            if (o == pl) {
+                for (size_t k = 0; k < sizeof k_aa_units / sizeof *k_aa_units; k++) have_u += t == k_aa_units[k].type;
+                for (size_t k = 0; k < sizeof k_aa_bldgs / sizeof *k_aa_bldgs; k++) have_b += t == k_aa_bldgs[k].type;
+                continue;
+            }
+            if ((fam != 3 && fam != 7 && fam != 17) || !o || FIELD(o, PL_INDEX, int) <= 0 || !is_enemy(pl, o) || !seen_by(u, pl)) continue;
+            int x = FIELD(u, 0x1C, int), y = FIELD(u, 0x20, int), d[2];
+            if (!nearest_drop(pl, x, y, 0, d) || (d[0] - x) * (d[0] - x) + (d[1] - y) * (d[1] - y) > 625) continue;
+            nair++; axs += (float)x; ays += (float)y;
+        }
+    if (nair) {
+        if (nair >= g_aa_st[idx].air || now - g_aa_st[idx].seen_t > 300000) g_aa_st[idx].air = nair;
+        g_aa_st[idx].seen_t = now ? now : 1;
+        g_aa_st[idx].ax = (int)(axs / (float)nair); g_aa_st[idx].ay = (int)(ays / (float)nair);
+    } else if (g_aa_st[idx].seen_t && now - g_aa_st[idx].seen_t > 300000) g_aa_st[idx].air = 0;
+    if (!g_aa_st[idx].air) return;
+    int want = 2 + (g_aa_st[idx].air + 1) / 2;
+    if (want > 16) want = 16;
+    int want_b = 1 + want / 4;
+    if (want_b > 4) want_b = 4;
+    int want_u = want - (have_b < want_b ? have_b : want_b);
+    void *cm = FIELD(pl, 0xB90, void *), *um = cm ? FIELD(cm, 0x44, void *) : NULL;
+    uint8_t *bm = cm ? FIELD(cm, 0x3C, uint8_t *) : NULL;
+    // AA units
+    if (um && have_u < want_u && (!g_aa_st[idx].train_t || now - g_aa_st[idx].train_t >= 15000)) {
+        g_aa_st[idx].train_t = now ? now : 1;
+        for (size_t k = 0; k < sizeof k_aa_units / sizeof *k_aa_units; k++) {
+            if (k_aa_units[k].epoch > epoch) continue;
+            int n = want_u - have_u > 3 ? 3 : want_u - have_u;
+            int req[4] = { k_aa_units[k].type, n, 0, 0 };
+            unsigned got = 0;
+            g_priority_mil = 1;
+            hook_train_units(um, NULL, req, (uintptr_t)&got);
+            g_priority_mil = 0;
+            if (!got) continue;
+            g_aa_st[idx].trained += got;
+            if (g_log) fprintf(g_log, "# anti-air: P%u at %.1f min trains %u x type %d (enemy aircraft %d, AA units %d of %d, AA buildings %d of %d)\n",
+                               idx, now / 60000.0, got, req[0], g_aa_st[idx].air, have_u, want_u, have_b, want_b);
+            break;
+        }
+    }
+    // AA buildings: next to the drop site nearest to where the aircraft were
+    int queued = 0;
+    for (size_t k = 0; bm && k < sizeof k_aa_bldgs / sizeof *k_aa_bldgs; k++) queued |= bq_has(bm, k_aa_bldgs[k].type);
+    int e = current_epoch(pl), d[2];
+    if (bm && !queued && have_b < want_b && e >= 0 && e < 14 && (!g_aa_st[idx].build_t || now - g_aa_st[idx].build_t >= 60000) &&
+        nearest_drop(pl, g_aa_st[idx].ax, g_aa_st[idx].ay, 0, d)) {
+        int bt = 0;
+        for (size_t k = 0; k < sizeof k_aa_bldgs / sizeof *k_aa_bldgs && !bt; k++)
+            if (k_aa_bldgs[k].epoch <= epoch && ((char (__thiscall *)(void *, int, int, int))0x00555710)(pl, k_aa_bldgs[k].type, 0x20, 0))
+                bt = k_aa_bldgs[k].type;
+        for (int r = 3; bt && r <= 7; r++)
+            for (int ax = -r; ax <= r; ax++)
+                for (int ay = -r; ay <= r; ay++) {
+                    if ((abs(ax) != r && abs(ay) != r) || !can_place(pl, bt, d[0] + ax, d[1] + ay) ||
+                        raiders_near(pl, d[0] + ax, d[1] + ay, 8)) continue;
+                    int entry[3] = { bt, d[0] + ax, d[1] + ay };
+                    ((void (__thiscall *)(void *, int *))0x00468C37)(bm + 4 + e * 0x14, entry);
+                    g_aa_st[idx].build_t = now ? now : 1;
+                    g_aa_st[idx].queued++;
+                    if (g_log) fprintf(g_log, "# anti-air: P%u at %.1f min queues type %d at %d,%d (enemy aircraft %d near %d,%d; AA buildings %d of %d)\n",
+                                       idx, now / 60000.0, bt, d[0] + ax, d[1] + ay, g_aa_st[idx].air, g_aa_st[idx].ax, g_aa_st[idx].ay, have_b, want_b);
+                    goto placed;
+                }
+        g_aa_st[idx].build_t = now ? now : 1;   // no room: try again in a minute
+    }
+placed:;
 }
 
 // UPGRADE STRAGGLERS: a researched line upgrade (effect kind 0x13, 0x5BA59D: e.g. 3051 guard tower 47 -> 461)

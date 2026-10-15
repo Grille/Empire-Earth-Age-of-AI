@@ -1,0 +1,8 @@
+# anti-air (defence.c anti_air): 8 of P1's Sopwith Camels over P2's town (user's save, drop site 20,66)
+@76 spawn 1 72 22 68 8
+@76.2 objs 1 72
+@80 count 2
+@80 objs 2 145
+@86 count 2
+@86 objs 2 145
+@86 objs 1 72

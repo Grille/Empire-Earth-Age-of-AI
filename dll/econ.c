@@ -78,6 +78,7 @@ static void spend_log(unsigned idx, uint32_t now) {
 // game's search) while the AI has none of it and can pay for it; given up after 5 failed retries.
 static int defence_spot(void *pl, int type, int *ox, int *oy);   // defence.c
 static void defence_tick(void *pl, unsigned idx, uint32_t now);
+static void anti_air(void *pl, unsigned idx, uint32_t now);   // defence.c
 static void counter_siege(void *pl, unsigned idx, uint32_t now);
 static void home_guard(void *pl, unsigned idx, uint32_t now);
 static void muster(void *pl, unsigned idx, uint32_t now);       // defence.c: gather, then strike
@@ -670,6 +671,7 @@ static void econ_tick(void *pl, uint32_t now) {
     attention_note(pl, ai, now);
     defence_tick(pl, ai, now);
     counter_siege(pl, ai, now);
+    anti_air(pl, ai, now);
     tech_log_tick(pl, ai, now);
     home_guard(pl, ai, now);
     muster(pl, ai, now);
