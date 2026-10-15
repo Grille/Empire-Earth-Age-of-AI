@@ -1,8 +1,39 @@
 // k_tpl: the language model's instructions (texts.c TEXTS; aimod_ai\_template.eeai [prompt] overrides them).
 // Generated once from llm.c by scratch gen_tpl.py; edit here.
+// k_tpl_vars: _template.eeai [vars] built in - the pieces of other_state (a [vars] of the file replaces one of the
+// same name; the dump writes them).
+static const struct text_def k_tpl_vars[] = {
+    { "stance", "not me.hostile(them) and not them.hostile(me) ? \"You are allied with each other.\" : me.hostile(them) and "
+      "them.hostile(me) ? \"You are at war with each other.\" : me.hostile(them) ? \"You treat them as an enemy, but "
+      "they have set allied towards you (they offer peace).\" : \"You are allied with them, but they treat you as an "
+      "enemy.\"", NULL, "other_state: the stances between you" },
+    { "strength_ratio", "(them.strength > 1 ? them.strength : 1) / (me.strength > 1 ? me.strength : 1)", NULL, "their forces against yours" },
+    { "power", "strength_ratio < 0.25 ? \"much weaker than yours\" : strength_ratio < 0.67 ? \"weaker than yours\" : "
+      "strength_ratio <= 1.5 ? \"about as strong as yours\" : strength_ratio <= 4 ? \"stronger than yours\" : \"much "
+      "stronger than yours\"", NULL, NULL },
+    { "town", "them.in_town(me) ? \" Their soldiers are in your town right now.\" : \"\"", NULL, NULL },
+    { "attacks", "((me.attack_minutes(them) ?? -1) >= 0 ? \" Your last army set out against their town {me.attack_minutes(them)} "
+      "minutes ago.\" : \"\") + ((them.attack_minutes(me) ?? -1) >= 0 ? \" Their last army set out against your town "
+      "{them.attack_minutes(me)} minutes ago.\" : \"\")", NULL, NULL },
+    { "destroyed(by,of,minutes)", "\"{by.kills(of, minutes, units.army)} land units, {by.kills(of, minutes, units.airforce) ? \"{by.kills(of, "
+      "minutes, units.airforce)} aircraft, \"}{by.kills(of, minutes, units.marine) ? \"{by.kills(of, minutes, "
+      "units.marine)} ships, \"}{by.kills(of, minutes, units.civilian)} civilians (citizens, fishing boats) and "
+      "{by.razed(of, minutes)} buildings\"", NULL, "what by destroyed of of's in the last minutes (0: the whole game) - aircraft and ships only when there are any" },
+    { "fought(minutes)", "me.kills(them, minutes) + them.kills(me, minutes) + me.razed(them, minutes) + them.razed(me, minutes)", NULL, "all that was destroyed between you" },
+    { "recent_minutes", "20", NULL, "how far back the fighting counts as recent (at most 60)" },
+    { "fighting", "fought(0) ? \" The fighting between you so far. You destroyed of theirs: {destroyed(me, them, 0)}. They "
+      "destroyed of yours: {destroyed(them, me, 0)}.\" : \"\"", NULL, NULL },
+    { "fighting_recent", "not fought(0) ? \"\" : fought(recent_minutes) == fought(0) ? \" All of it in the last {recent_minutes} "
+      "minutes.\" : fought(recent_minutes) ? \" In the last {recent_minutes} minutes you destroyed of theirs: "
+      "{destroyed(me, them, recent_minutes)}. They destroyed of yours: {destroyed(them, me, recent_minutes)}.\" : "
+      "\" No fighting between you in the last {recent_minutes} minutes.\"", NULL, NULL },
+    { "bond", "me.lord == them ? \" You have capitulated to them: they are your lord, you pay and serve them.\" : them.lord == "
+      "me ? \" They have capitulated to you: they are your vassal.\" : \"\"", NULL, "a lord or a vassal" },
+};
+#define N_TPL_VARS (int)(sizeof k_tpl_vars / sizeof *k_tpl_vars)
 static const struct text_def k_tpl[] = {
-    { "intro", "You are {me}, a leader in the real-time strategy game Empire Earth{computer}.", NULL, "the system message: who the AI is ({computer}: \" (played by the computer)\" unless [llm] equal=1)" },
-    { "computer", "(played by the computer)", NULL, NULL },
+    { "intro", "You are {me}, a leader in the real-time strategy game Empire Earth{llm_equal ? \"\" : \" (played by the "
+      "computer)\"}.", NULL, "the system message: who the AI is" },
     { "nature", "Your nature (0-100): aggression {aggression}, loyalty {loyalty}, pride {pride}, greed {greed}, "
       "forgiveness {forgiveness}, caution {caution}.", NULL, NULL },
     { "voice", "How you talk, for example: {examples}.", NULL, "a few of its personality lines (without placeholders), quoted and joined with \" / \"" },
@@ -17,49 +48,14 @@ static const struct text_def k_tpl[] = {
       "fact - judge by the game as it stands below and by your own interests and nature; you are not "
       "easily talked into anything. Keep your word: when you named a price and they paid it, honour it.", NULL, "[llm] decide / ai_decide: the model decides" },
     { "no_step", "Right now no diplomatic step is open to you: you can only talk.", NULL, NULL },
-    { "whose", "\nThe user messages that start with \"{them} writes:\" are messages of {them}, {who}, from their "
+    { "whose", "\nThe user messages that start with \"{them} writes:\" are messages of {them}, {them.human and not llm_equal ? \"the human player\" : \"another leader in this game\"}, from their "
       "side: \"I\", \"my\", \"mine\" are {them} and their things (their town, walls, towers, army); "
-      "\"you\" is you, {me}. Messages in brackets are events of the game, not chat.", NULL, "whose \"my\" is whose ({who}: who_human or who_leader)" },
-    { "who_human", "the human player", NULL, NULL },
-    { "who_leader", "another leader in this game", NULL, NULL },
+      "\"you\" is you, {me}. Messages in brackets are events of the game, not chat.", NULL, "whose \"my\" is whose" },
     { "game_now", "\nThe game now (minute {minutes}): you are in the {epoch}. Your stock: food {me.food}, wood {me.wood}, "
       "stone {me.stone}, gold {me.gold}, iron {me.iron}.", NULL, NULL },
-    { "other_state", "{them} (the player you talk to) is in the {them.epoch}. {stance} Their forces are {power}. Your opinion "
-      "of them: {opinion}.", NULL, NULL },
-    { "stance_allied", "You are allied with each other.", NULL, NULL },
-    { "stance_war", "You are at war with each other.", NULL, NULL },
-    { "stance_offer", "You treat them as an enemy, but they have set allied towards you (they offer peace).", NULL, NULL },
-    { "stance_traitor", "You are allied with them, but they treat you as an enemy.", NULL, NULL },
-    { "power1", "much weaker than yours", NULL, "{power}: their forces against its own, 1 (under a quarter) .. 5 (over 4 times)" },
-    { "power2", "weaker than yours", NULL, NULL },
-    { "power3", "about as strong as yours", NULL, NULL },
-    { "power4", "stronger than yours", NULL, NULL },
-    { "power5", "much stronger than yours", NULL, NULL },
-    { "in_town", "Their soldiers are in your town right now.", NULL, NULL },
-    { "my_attack", "Your last army set out against their town {me.attack_minutes(them)} minutes ago.", NULL, NULL },
-    { "their_attack", "Their last army set out against your town {them.attack_minutes(me)} minutes ago.", NULL, NULL },
-    { "defences", "Their defences: {them.towers} towers, {them.walls} wall pieces. Yours: {me.towers} towers, {me.walls} wall "
-      "pieces.", NULL, NULL },
-    { "fighting", "The fighting between you so far. You destroyed of theirs: {me.kills(them, units.army)} land units, "
-      "{me.kills(them, units.airforce) ? \"{me.kills(them, units.airforce)} aircraft, \"}{me.kills(them, units.marine) "
-      "? \"{me.kills(them, units.marine)} ships, \"}{me.kills(them, units.civilian)} civilians (citizens, fishing "
-      "boats) and {me.razed(them)} buildings. They destroyed of yours: {them.kills(me, units.army)} land units, "
-      "{them.kills(me, units.airforce) ? \"{them.kills(me, units.airforce)} aircraft, \"}{them.kills(me, units.marine) "
-      "? \"{them.kills(me, units.marine)} ships, \"}{them.kills(me, units.civilian)} civilians (citizens, fishing "
-      "boats) and {them.razed(me)} buildings.", NULL, "aircraft and ships only when there are any" },
-    { "fighting_all_recent", "All of it in the last {recent_minutes} minutes.", NULL, NULL },
-    { "fighting_none_recent", "No fighting between you in the last {recent_minutes} minutes.", NULL, NULL },
-    { "fighting_recent", "In the last {recent_minutes} minutes you destroyed of theirs: {me.kills(them, recent_minutes, units.army)} land "
-      "units, {me.kills(them, recent_minutes, units.airforce) ? \"{me.kills(them, recent_minutes, units.airforce)} "
-      "aircraft, \"}{me.kills(them, recent_minutes, units.marine) ? \"{me.kills(them, recent_minutes, units.marine)} "
-      "ships, \"}{me.kills(them, recent_minutes, units.civilian)} civilians (citizens, fishing boats) and "
-      "{me.razed(them, recent_minutes)} buildings. They destroyed of yours: {them.kills(me, recent_minutes, "
-      "units.army)} land units, {them.kills(me, recent_minutes, units.airforce) ? \"{them.kills(me, recent_minutes, "
-      "units.airforce)} aircraft, \"}{them.kills(me, recent_minutes, units.marine) ? \"{them.kills(me, recent_minutes, "
-      "units.marine)} ships, \"}{them.kills(me, recent_minutes, units.civilian)} civilians (citizens, fishing boats) "
-      "and {them.razed(me, recent_minutes)} buildings.", NULL, NULL },
-    { "lord", "You have capitulated to them: they are your lord, you pay and serve them.", NULL, NULL },
-    { "vassal", "They have capitulated to you: they are your vassal.", NULL, NULL },
+    { "other_state", "{them} (the player you talk to) is in the {them.epoch}. {stance} Their forces are {power}. Your opinion of "
+      "them: {opinion}.{town}{attacks} Their defences: {them.towers} towers, {them.walls} wall pieces. Yours: "
+      "{me.towers} towers, {me.walls} wall pieces.{fighting}{fighting_recent}{bond}", NULL, "the other player as the AI sees them - the pieces are the [vars] above" },
     { "terms_advice", "\nWhat your nature would say about peace with them (advice - you decide): {terms}", NULL, NULL },
     { "terms_real", "\nYour terms (they are real - state them when it fits, never offer less, never invent other deals): "
       "{terms}", NULL, NULL },
@@ -116,10 +112,10 @@ static const struct text_def k_tpl[] = {
     { "tool_accept_alliance", "Accept the alliance {them} offers you: you are allies from now on.", NULL, NULL },
     { "tool_accept_capitulation", "Accept the capitulation of {them}: they pay you {tribute} and serve you as your vassal from now on.", NULL, NULL },
     { "tool_war", "End your alliance with {them} and declare war on them, now. Only when you truly mean it.", NULL, NULL },
-    { "tool_tribute", "Give {them} resources from your stock, as a tribute (at most a quarter of each: food {floor(me.food / 4)}, "
-      "wood {floor(me.wood / 4)}, stone {floor(me.stone / 4)}, gold {floor(me.gold / 4)}, iron {floor(me.iron / 4)}).", NULL, NULL },
-    { "tool_tribute_all", "Give {them} resources from your stock, as a tribute - as much as you like, up to all you have: food "
-      "{me.food}, wood {me.wood}, stone {me.stone}, gold {me.gold}, iron {me.iron}.", NULL, "[llm] constrained=0" },
+    { "tool_tribute", "Give {them} resources from your stock, as a tribute{llm_constrained ? \" (at most a quarter of each: "
+      "food {floor(me.food / 4)}, wood {floor(me.wood / 4)}, stone {floor(me.stone / 4)}, gold {floor(me.gold / 4)}, iron "
+      "{floor(me.iron / 4)})\" : \" - as much as you like, up to all you have: food {me.food}, wood {me.wood}, stone "
+      "{me.stone}, gold {me.gold}, iron {me.iron}\"}.", NULL, "llm_constrained: what it may give ([llm] constrained)" },
     { "tool_capitulate", "Capitulate to {them}: you offer them {tribute} and to serve them as their vassal; they have "
       "{offer_minutes} minutes to accept.", NULL, NULL },
     { "tool_refuse", "Refuse the {what} of {them}.", NULL, NULL },

@@ -30,7 +30,7 @@ funcs = sorted(set(re.findall(r'!lstrcmpiA\(name, "(\w+)"\)', expr)) - {'true', 
 situations = re.findall(r'\{ "(\w+)", \d+, \d+, A_\w+ \}', persona)
 traits = re.findall(r'"(\w+)"', re.search(r'k_trait_keys\[T_N\] = \{(.*?)\};', persona).group(1))
 sys_keys = re.findall(r'^    \{ "(\w+)", "', texts[texts.index('k_sys[] = {'):texts.index('#define N_SYS')], re.M)
-tpl_keys = re.findall(r'^    \{ "(\w+)", ', tpl, re.M)
+tpl_keys = re.findall(r'^    \{ "(\w+)", ', tpl[tpl.index('k_tpl[] = {'):], re.M)   # [prompt] only, not the built-in [vars]
 style_keys = re.findall(r'\{ "(\w+)", offsetof', settings)
 assert len(values) > 15 and len(relations) > 12 and len(epochs) == 15 and 'chance' in funcs and len(situations) >= 40 and len(traits) == 7
 assert len(sys_keys) > 20 and len(tpl_keys) > 100 and len(style_keys) > 10, (len(sys_keys), len(tpl_keys), len(style_keys))

@@ -9,18 +9,33 @@
 ; strings"] (one at random), allied ? "a condition", a ?? b, numbers ... The format, the expressions and every
 ; value of the game (opinion, them.soldiers, epoch.middle, ...): README.md in this folder.
 ;
-; [vars] here serve the prompts only (English, like them).
-;[vars]
-;mood = opinion < -50 ? "You can barely stand them." : ""
+; [vars] here serve the prompts only (English, like them). The ones written here are built in (the
+; pieces of other_state): change them, or add your own below them.
 
 [vars]
+; other_state: the stances between you
+stance = not me.hostile(them) and not them.hostile(me) ? "You are allied with each other." : me.hostile(them) and them.hostile(me) ? "You are at war with each other." : me.hostile(them) ? "You treat them as an enemy, but they have set allied towards you (they offer peace)." : "You are allied with them, but they treat you as an enemy."
+; their forces against yours
+strength_ratio = (them.strength > 1 ? them.strength : 1) / (me.strength > 1 ? me.strength : 1)
+power = strength_ratio < 0.25 ? "much weaker than yours" : strength_ratio < 0.67 ? "weaker than yours" : strength_ratio <= 1.5 ? "about as strong as yours" : strength_ratio <= 4 ? "stronger than yours" : "much stronger than yours"
+town = them.in_town(me) ? " Their soldiers are in your town right now." : ""
+attacks = ((me.attack_minutes(them) ?? -1) >= 0 ? " Your last army set out against their town {me.attack_minutes(them)} minutes ago." : "") + ((them.attack_minutes(me) ?? -1) >= 0 ? " Their last army set out against your town {them.attack_minutes(me)} minutes ago." : "")
+; what by destroyed of of's in the last minutes (0: the whole game) - aircraft and ships only when there are any
+destroyed(by, of, minutes) = "{by.kills(of, minutes, units.army)} land units, {by.kills(of, minutes, units.airforce) ? "{by.kills(of, minutes, units.airforce)} aircraft, "}{by.kills(of, minutes, units.marine) ? "{by.kills(of, minutes, units.marine)} ships, "}{by.kills(of, minutes, units.civilian)} civilians (citizens, fishing boats) and {by.razed(of, minutes)} buildings"
+; all that was destroyed between you
+fought(minutes) = me.kills(them, minutes) + them.kills(me, minutes) + me.razed(them, minutes) + them.razed(me, minutes)
+; how far back the fighting counts as recent (at most 60)
+recent_minutes = 20
+fighting = fought(0) ? " The fighting between you so far. You destroyed of theirs: {destroyed(me, them, 0)}. They destroyed of yours: {destroyed(them, me, 0)}." : ""
+fighting_recent = not fought(0) ? "" : fought(recent_minutes) == fought(0) ? " All of it in the last {recent_minutes} minutes." : fought(recent_minutes) ? " In the last {recent_minutes} minutes you destroyed of theirs: {destroyed(me, them, recent_minutes)}. They destroyed of yours: {destroyed(them, me, recent_minutes)}." : " No fighting between you in the last {recent_minutes} minutes."
+; a lord or a vassal
+bond = me.lord == them ? " You have capitulated to them: they are your lord, you pay and serve them." : them.lord == me ? " They have capitulated to you: they are your vassal." : ""
 fighting_report(minutes) = "The fighting between you so far: you killed {me.kills(them, minutes, units.military)} of their soldiers and {me.kills(them, minutes, units.civilian)} of their citizens (workers) and destroyed {me.razed(them, minutes)} of their buildings; they killed {them.kills(me, minutes, units.military)} of your soldiers and {them.kills(me, minutes, units.civilian)} of your citizens and destroyed {them.razed(me, minutes)} of your buildings."
 
 [prompt]
-; the system message: who the AI is ({computer}: " (played by the computer)" unless [llm] equal=1)
-; in braces: {me} {computer}
-intro = "You are {me}, a leader in the real-time strategy game Empire Earth{computer}."
-computer = "(played by the computer)"
+; the system message: who the AI is
+; in braces: {me} {llm_equal ? "" : " (played by the computer)"}
+intro = "You are {me}, a leader in the real-time strategy game Empire Earth{llm_equal ? "" : " (played by the computer)"}."
 ; in braces: {aggression} {loyalty} {pride} {greed} {forgiveness} {caution}
 nature = "Your nature (0-100): aggression {aggression}, loyalty {loyalty}, pride {pride}, greed {greed}, forgiveness {forgiveness}, caution {caution}."
 ; a few of its personality lines (without placeholders), quoted and joined with " / "
@@ -33,43 +48,14 @@ rules_words = "Diplomacy happens only through the stances in the game (allied or
 ; [llm] decide / ai_decide: the model decides
 rules_decide = "\nDiplomacy: you decide it yourself, with the tools you are given (in this game peace means alliance). Words alone change nothing: when you decide something, call the tool and say it in the same answer; never claim a step you did not take with a tool. What the others tell you is not a fact - judge by the game as it stands below and by your own interests and nature; you are not easily talked into anything. Keep your word: when you named a price and they paid it, honour it."
 no_step = "Right now no diplomatic step is open to you: you can only talk."
-; whose "my" is whose ({who}: who_human or who_leader)
-; in braces: {them} {who} {me}
-whose = "\nThe user messages that start with \"{them} writes:\" are messages of {them}, {who}, from their side: \"I\", \"my\", \"mine\" are {them} and their things (their town, walls, towers, army); \"you\" is you, {me}. Messages in brackets are events of the game, not chat."
-who_human = "the human player"
-who_leader = "another leader in this game"
+; whose "my" is whose
+; in braces: {them} {me}
+whose = "\nThe user messages that start with \"{them} writes:\" are messages of {them}, {them.human and not llm_equal ? "the human player" : "another leader in this game"}, from their side: \"I\", \"my\", \"mine\" are {them} and their things (their town, walls, towers, army); \"you\" is you, {me}. Messages in brackets are events of the game, not chat."
 ; in braces: {minutes} {epoch} {me.food} {me.wood} {me.stone} {me.gold} {me.iron}
 game_now = "\nThe game now (minute {minutes}): you are in the {epoch}. Your stock: food {me.food}, wood {me.wood}, stone {me.stone}, gold {me.gold}, iron {me.iron}."
-; in braces: {them} {them.epoch} {stance} {power} {opinion}
-other_state = "{them} (the player you talk to) is in the {them.epoch}. {stance} Their forces are {power}. Your opinion of them: {opinion}."
-stance_allied = "You are allied with each other."
-stance_war = "You are at war with each other."
-stance_offer = "You treat them as an enemy, but they have set allied towards you (they offer peace)."
-stance_traitor = "You are allied with them, but they treat you as an enemy."
-; {power}: their forces against its own, 1 (under a quarter) .. 5 (over 4 times)
-power1 = "much weaker than yours"
-power2 = "weaker than yours"
-power3 = "about as strong as yours"
-power4 = "stronger than yours"
-power5 = "much stronger than yours"
-in_town = "Their soldiers are in your town right now."
-; in braces: {me.attack_minutes(them)}
-my_attack = "Your last army set out against their town {me.attack_minutes(them)} minutes ago."
-; in braces: {them.attack_minutes(me)}
-their_attack = "Their last army set out against your town {them.attack_minutes(me)} minutes ago."
-; in braces: {them.towers} {them.walls} {me.towers} {me.walls}
-defences = "Their defences: {them.towers} towers, {them.walls} wall pieces. Yours: {me.towers} towers, {me.walls} wall pieces."
-; aircraft and ships only when there are any
-; in braces: {me.kills(them, units.army)} {me.kills(them, units.airforce)} {me.kills(them, units.marine)} {me.kills(them, units.civilian)} {me.razed(them)} {them.kills(me, units.army)} {them.kills(me, units.airforce)} {them.kills(me, units.marine)} {them.kills(me, units.civilian)} {them.razed(me)}
-fighting = "The fighting between you so far. You destroyed of theirs: {me.kills(them, units.army)} land units, {me.kills(them, units.airforce) ? "{me.kills(them, units.airforce)} aircraft, "}{me.kills(them, units.marine) ? "{me.kills(them, units.marine)} ships, "}{me.kills(them, units.civilian)} civilians (citizens, fishing boats) and {me.razed(them)} buildings. They destroyed of yours: {them.kills(me, units.army)} land units, {them.kills(me, units.airforce) ? "{them.kills(me, units.airforce)} aircraft, "}{them.kills(me, units.marine) ? "{them.kills(me, units.marine)} ships, "}{them.kills(me, units.civilian)} civilians (citizens, fishing boats) and {them.razed(me)} buildings."
-; in braces: {recent_minutes}
-fighting_all_recent = "All of it in the last {recent_minutes} minutes."
-; in braces: {recent_minutes}
-fighting_none_recent = "No fighting between you in the last {recent_minutes} minutes."
-; in braces: {recent_minutes} {me.kills(them, recent_minutes, units.army)} {me.kills(them, recent_minutes, units.airforce)} {me.kills(them, recent_minutes, units.marine)} {me.kills(them, recent_minutes, units.civilian)} {me.razed(them, recent_minutes)} {them.kills(me, recent_minutes, units.army)} {them.kills(me, recent_minutes, units.airforce)} {them.kills(me, recent_minutes, units.marine)} {them.kills(me, recent_minutes, units.civilian)} {them.razed(me, recent_minutes)}
-fighting_recent = "In the last {recent_minutes} minutes you destroyed of theirs: {me.kills(them, recent_minutes, units.army)} land units, {me.kills(them, recent_minutes, units.airforce) ? "{me.kills(them, recent_minutes, units.airforce)} aircraft, "}{me.kills(them, recent_minutes, units.marine) ? "{me.kills(them, recent_minutes, units.marine)} ships, "}{me.kills(them, recent_minutes, units.civilian)} civilians (citizens, fishing boats) and {me.razed(them, recent_minutes)} buildings. They destroyed of yours: {them.kills(me, recent_minutes, units.army)} land units, {them.kills(me, recent_minutes, units.airforce) ? "{them.kills(me, recent_minutes, units.airforce)} aircraft, "}{them.kills(me, recent_minutes, units.marine) ? "{them.kills(me, recent_minutes, units.marine)} ships, "}{them.kills(me, recent_minutes, units.civilian)} civilians (citizens, fishing boats) and {them.razed(me, recent_minutes)} buildings."
-lord = "You have capitulated to them: they are your lord, you pay and serve them."
-vassal = "They have capitulated to you: they are your vassal."
+; the other player as the AI sees them - the pieces are the [vars] above
+; in braces: {them} {them.epoch} {stance} {power} {opinion} {town} {attacks} {them.towers} {them.walls} {me.towers} {me.walls} {fighting} {fighting_recent} {bond}
+other_state = "{them} (the player you talk to) is in the {them.epoch}. {stance} Their forces are {power}. Your opinion of them: {opinion}.{town}{attacks} Their defences: {them.towers} towers, {them.walls} wall pieces. Yours: {me.towers} towers, {me.walls} wall pieces.{fighting}{fighting_recent}{bond}"
 ; in braces: {terms}
 terms_advice = "\nWhat your nature would say about peace with them (advice - you decide): {terms}"
 ; in braces: {terms}
@@ -146,11 +132,9 @@ tool_accept_alliance = "Accept the alliance {them} offers you: you are allies fr
 tool_accept_capitulation = "Accept the capitulation of {them}: they pay you {tribute} and serve you as your vassal from now on."
 ; in braces: {them}
 tool_war = "End your alliance with {them} and declare war on them, now. Only when you truly mean it."
-; in braces: {them} {floor(me.food / 4)} {floor(me.wood / 4)} {floor(me.stone / 4)} {floor(me.gold / 4)} {floor(me.iron / 4)}
-tool_tribute = "Give {them} resources from your stock, as a tribute (at most a quarter of each: food {floor(me.food / 4)}, wood {floor(me.wood / 4)}, stone {floor(me.stone / 4)}, gold {floor(me.gold / 4)}, iron {floor(me.iron / 4)})."
-; [llm] constrained=0
-; in braces: {them} {me.food} {me.wood} {me.stone} {me.gold} {me.iron}
-tool_tribute_all = "Give {them} resources from your stock, as a tribute - as much as you like, up to all you have: food {me.food}, wood {me.wood}, stone {me.stone}, gold {me.gold}, iron {me.iron}."
+; llm_constrained: what it may give ([llm] constrained)
+; in braces: {them} {floor(me.food / 4)} {floor(me.wood / 4)} {floor(me.stone / 4)} {floor(me.gold / 4)} {floor(me.iron / 4)} {me.food} {me.wood} {me.stone} {me.gold} {me.iron}
+tool_tribute = "Give {them} resources from your stock, as a tribute{llm_constrained ? " (at most a quarter of each: food {floor(me.food / 4)}, wood {floor(me.wood / 4)}, stone {floor(me.stone / 4)}, gold {floor(me.gold / 4)}, iron {floor(me.iron / 4)})" : " - as much as you like, up to all you have: food {me.food}, wood {me.wood}, stone {me.stone}, gold {me.gold}, iron {me.iron}"}."
 ; in braces: {them} {tribute} {offer_minutes}
 tool_capitulate = "Capitulate to {them}: you offer them {tribute} and to serve them as their vassal; they have {offer_minutes} minutes to accept."
 ; in braces: {what} {them}

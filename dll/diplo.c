@@ -1796,6 +1796,7 @@ static const struct xmember k_xmembers[] = {
     { "ignored", XM_REL, "B's alliance offers A let run out, in a row" },
     { "tribute", XM_REL, "resources A has paid B in this game - (B, minutes): in the last minutes, them.tribute(me, 15)" },
     { "near", XM_REL, "A's soldiers within 20 tiles of B's base now, while B treats A as an enemy (an AI's base)" },
+    { "in_town", XM_REL, "1 when A's army is in B's town: its soldiers have stayed near B's base for a while (an AI's base)" },
     { "attack_minutes", XM_REL, "minutes since A's last attack wave set out against B - nothing if none (an AI's waves)" },
     { "kills", XM_REL, "B's units A has destroyed - (B, minutes): in the last minutes (whole minutes, at most 60); a last argument picks which: units.all (the default), units.army (on land: also priests, heroes, siege), units.airforce, units.marine, units.military (the three), units.civilian (citizens, fishing boats) - them.kills(me, units.marine), me.kills(them, 10, units.military)" },
     { "razed", XM_REL, "B's buildings A has destroyed - (B, minutes) as kills" },
@@ -1815,7 +1816,10 @@ static const struct xmember k_xglobals[] = {
     { "max_population", XM_PLAYER, "the largest population of a player still in - kills > max_population / 2: many for this stage of the game" },
     { "language", XM_PLAYER, "the game's language: de, en, fr, ..." },
     { "offer_minutes", XM_PLAYER, "how long an offer stands, in minutes ([all] offer_minutes in aimod.ini)" },
+    { "llm_equal", XM_PLAYER, "1 when the language model is told nothing of who plays the computer ([llm] equal)" },
+    { "llm_constrained", XM_PLAYER, "1 when the language model decides within the rules' limits ([llm] constrained)" },
 };
+static int g_llm_equal, g_llm_constrained;   // llm.c: [llm] equal, constrained
 #define N_XGLOBALS (int)(sizeof k_xglobals / sizeof *k_xglobals)
 static void *x_player_named(const char *n) {
     for (int j = 1; n && *n && j < nplayers(); j++) if (player_at(j) && !strcmp(player_name(player_at(j)), n)) return player_at(j);
@@ -1912,6 +1916,7 @@ static void x_relation(void *pa, void *pb, const struct xmember *m, double win, 
     else if (!strcmp(n, "ignored")) r = g_offer_ignored[b][a];
     else if (!strcmp(n, "tribute")) r = whole ? g_hist.tribute[a][b] : hlog_sum(HE_TRIBUTE, a, b, since);
     else if (!strcmp(n, "near")) { if (!g_players[b]) return; r = g_ws.close_by[b][a]; }
+    else if (!strcmp(n, "in_town")) { if (!g_players[b]) return; r = g_pressure[b][a] >= 10; }
     else if (!strcmp(n, "attack_minutes")) {
         if (!g_attack_sent[a][b]) return;
         r = (double)((now - g_attack_sent[a][b]) / 60000u);
@@ -1947,7 +1952,15 @@ static void *x_path(struct xctx *c, const char *s, int len, int *ok, char *who) 
     else if (n == 4 && !strncmp(s, "them", 4)) p = c->other;
     else if (n == 5 && !strncmp(s, "enemy", 5)) p = c->third;
     else if (n == 4 && !strncmp(s, "lord", 4)) p = x_lord(c->pl);
-    else { *ok = 0; return NULL; }
+    else {   // a function's parameter that is a player: by.kills(of)
+        int i = 0;
+        while (i < c->fnp && ((int)strlen(c->fpn[i]) != n || strncmp(c->fpn[i], s, (size_t)n))) i++;
+        if (i < c->fnp) {
+            p = x_player_of(&c->fpv[i]);
+            if (!p && !c->fpv[i].miss[0]) { *ok = 0; return NULL; }   // no player
+        } else if (x_check_par_has(s, n)) p = NULL;   // its definition read: the syntax only
+        else { *ok = 0; return NULL; }
+    }
     if (!p) lstrcpynA(who, s0, n + 1 < 24 ? n + 1 : 24);
     while (dot) {
         s = dot + 1;
@@ -1987,6 +2000,8 @@ static int x_builtin(struct xctx *c, const char *name, struct xval *v) {
         if (!strcmp(name, "minutes")) r = (double)(game_time() / 60000u);
         else if (!strcmp(name, "language")) { xstr(v, g_lang); return 1; }
         else if (!strcmp(name, "offer_minutes")) r = g_offer_min;
+        else if (!strcmp(name, "llm_equal")) r = g_llm_equal;
+        else if (!strcmp(name, "llm_constrained")) r = g_llm_constrained;
         else if (!strcmp(name, "population_limit")) r = *(int *)0x009183D4;   // the game setting (econ.c)
         else if (!strcmp(name, "max_population")) {
             for (int j = 1; j < nplayers(); j++) if (x_alive(j) && g_ws.soldiers[j] + g_ws.citizens[j] > r) r = g_ws.soldiers[j] + g_ws.citizens[j];

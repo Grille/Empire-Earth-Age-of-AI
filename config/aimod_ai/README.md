@@ -323,6 +323,7 @@ Shortcuts: my own `epoch`, traits, `allies` and `enemies` without `me.` (`aggres
 | `A.ignored(B)` | B's alliance offers A let run out, in a row |
 | `A.tribute(B)` | resources A has paid B in this game - (B, minutes): in the last minutes, them.tribute(me, 15) |
 | `A.near(B)` | A's soldiers within 20 tiles of B's base now, while B treats A as an enemy (an AI's base) |
+| `A.in_town(B)` | 1 when A's army is in B's town: its soldiers have stayed near B's base for a while (an AI's base) |
 | `A.attack_minutes(B)` | minutes since A's last attack wave set out against B - nothing if none (an AI's waves) |
 | `A.kills(B)` | B's units A has destroyed - (B, minutes): in the last minutes (whole minutes, at most 60); a last argument picks which: units.all (the default), units.army (on land: also priests, heroes, siege), units.airforce, units.marine, units.military (the three), units.civilian (citizens, fishing boats) - them.kills(me, units.marine), me.kills(them, 10, units.military) |
 | `A.razed(B)` | B's buildings A has destroyed - (B, minutes) as kills |
@@ -344,6 +345,8 @@ Shortcuts: my own `epoch`, traits, `allies` and `enemies` without `me.` (`aggres
 | `max_population` | the largest population of a player still in - kills &gt; max_population / 2: many for this stage of the game |
 | `language` | the game's language: de, en, fr, ... |
 | `offer_minutes` | how long an offer stands, in minutes ([all] offer_minutes in aimod.ini) |
+| `llm_equal` | 1 when the language model is told nothing of who plays the computer ([llm] equal) |
+| `llm_constrained` | 1 when the language model decides within the rules' limits ([llm] constrained) |
 <!-- /values -->
 
 ### Epochs
@@ -430,6 +433,13 @@ replaces what it has in a game of that language. `_template.eeai` holds everythi
 English (the model is told which language to answer in); its pieces are joined with a space. Both files list every
 key with its built-in text and its placeholders. `[vars]` in `_system.eeai` serve the system lines and every
 personality's lines; `[vars]` in `_template.eeai` serve the prompts only.
+
+`_template.eeai` comes with `[vars]` of its own: the pieces of `other_state`, what the AI is told about the one it
+talks to - `stance`, `power` (from `strength_ratio`), `town`, `attacks`, `fighting` and `fighting_recent` (with the
+functions `destroyed(by, of, minutes)` and `fought(minutes)`, `recent_minutes = 20`) and `bond` (lord or vassal).
+Change one by writing it in the file's `[vars]`; take one out of `other_state` by leaving its `{name}` out. A
+function's parameter can be a player: `destroyed(me, them, 0)` uses `by.kills(of, ...)`. `texts dump force` writes
+the built-in ones again and keeps your own `[vars]` below them.
 
 ## Trying things out
 

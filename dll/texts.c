@@ -122,9 +122,14 @@ static void texts_file(const char *name, int sys) {
     tfile_parse(name, text, texts_key, sys ? (void *)1 : NULL);
     free(text);
 }
+static void tpl_vars_scan(void) {   // the built-in functions of _template.eeai [vars], for x_fn_known
+    for (int i = 0; i < N_TPL_VARS; i++)
+        if (strchr(k_tpl_vars[i].key, '(')) { char t[96]; wsprintfA(t, "%s = 0\n", k_tpl_vars[i].key); x_fn_scan(t); }
+}
 static void texts_load(void) {
     if (g_texts_loaded) return;
     g_texts_loaded = 1;
+    for (int i = 0; i < N_TPL_VARS; i++) xvars_set(&g_vars_tpl, k_tpl_vars[i].key, k_tpl_vars[i].en);   // the file's replace them
     texts_file("_system.eeai", 1);
     texts_file("_template.eeai", 0);
     for (int i = 0; i < g_vars_sys_lang.n; i++) xvars_set(&g_vars_sys, g_vars_sys_lang.key[i], g_vars_sys_lang.val[i]);
@@ -244,6 +249,10 @@ static void text_placeholders(FILE *f, const char *a, const char *b) {   // "; {
         }
     if (seen[0]) fprintf(f, "; in braces:%s\n", seen);
 }
+static void var_write(FILE *f, const char *key, const char *val) {   // "name(a,b)" as it is written: name(a, b) = ...
+    for (; *key; key++) { fputc(*key, f); if (*key == ',') fputc(' ', f); }
+    fprintf(f, " = %s\n", val);
+}
 // the head of the dumped files (gen_persona.py writes the same into _persona.eeai): the rest is in README.md
 static const char k_format_help[] =
     ";\n"
@@ -337,8 +346,19 @@ static void cmd_texts(char *out, const char *args) {
 
                   "; Written by \"texts dump\" with the built-in texts.\n", f);
             fputs(k_format_help, f);
-            fputs(";\n; [vars] here serve the prompts only (English, like them).\n"
-                  ";[vars]\n;mood = opinion < -50 ? \"You can barely stand them.\" : \"\"\n\n[prompt]\n", f);
+            fputs(";\n; [vars] here serve the prompts only (English, like them). The ones written here are built in (the\n"
+                  "; pieces of other_state): change them, or add your own below them.\n\n[vars]\n", f);
+            texts_load();   // the file's own [vars] are kept: those that aren't built in, after them
+            for (int i = 0; i < N_TPL_VARS; i++) {
+                if (k_tpl_vars[i].note) { fputs("; ", f); fputs(k_tpl_vars[i].note, f); fputs("\n", f); }
+                var_write(f, k_tpl_vars[i].key, k_tpl_vars[i].en);
+            }
+            for (int i = 0; i < g_vars_tpl.n; i++) {
+                int j = 0;
+                while (j < N_TPL_VARS && !xkey_is(g_vars_tpl.key[i], k_tpl_vars[j].key)) j++;
+                if (j == N_TPL_VARS) var_write(f, g_vars_tpl.key[i], g_vars_tpl.val[i]);
+            }
+            fputs("\n[prompt]\n", f);
             for (int i = 0; i < N_TPL; i++) {
                 if (k_tpl[i].note) { fputs("; ", f); fputs(k_tpl[i].note, f); fputs("\n", f); }
                 text_placeholders(f, k_tpl[i].en, NULL);

@@ -610,11 +610,6 @@ static const char *llm_event3(int k) {
     wsprintfA(key, "pair_%s", k_lines[k].key);
     return text_index(k_tpl, N_TPL, key) >= 0 ? tpl_text(key) : NULL;
 }
-static const char *llm_words(float v, const char *what) {   // -100..100 in five words: _template.eeai <what>1..5
-    char key[32];
-    wsprintfA(key, "%s%d", what, v < -50 ? 1 : v < -15 ? 2 : v <= 15 ? 3 : v <= 50 ? 4 : 5);
-    return tpl_text(key);
-}
 // append to t (cap bytes, *o used): never past the end, however long the names and lines are
 static void tcat(char *t, int *o, int cap, const char *fmt, ...) {
     if (*o >= cap - 1) return;
@@ -631,12 +626,11 @@ static int llm_ai_deciding(void);
 static void llm_system(struct sbuf *b, void *pl, int ai, int h, int tools) {
     int decide = tools >= 0 && (g_players[h & 15] ? llm_ai_deciding() : llm_deciding());
     struct persona *p = persona_of(pl);
-    char t[4096], comp[96] = "";
+    char t[4096];
     int o = 0;
     g_xc_pl = pl;   // the expressions in the pieces: this AI towards h
     g_xc_other = player_at(h);
-    if (!g_llm_equal) wsprintfA(comp, " %s", tpl_text("computer"));
-    tput(t, &o, sizeof t, "intro", "computer", comp, NULL);
+    tput(t, &o, sizeof t, "intro", NULL);
     if (p && p->character[0]) tcat(t, &o, sizeof t, " %s", p->character);
     tput(t, &o, sizeof t, "nature", NULL);
     // a few of its own lines, as examples of its voice: worked out as it would say them to h now (its conditions,
@@ -663,40 +657,12 @@ static void llm_system(struct sbuf *b, void *pl, int ai, int h, int tools) {
     }
     // whose "my" is whose: the other's lines arrive as written, from their side
     if (player_at(h) && h != ai)
-        tput(t, &o, sizeof t, "whose", "who",
-             tpl_text(h == (int)*(unsigned *)0x00918E84 && !g_llm_equal ? "who_human" : "who_leader"), NULL);
+        tput(t, &o, sizeof t, "whose", NULL);
     // the game as it stands
     void *ph = player_at(h);
     tput(t, &o, sizeof t, "game_now", NULL);
     if (ph && h != ai) {
-        int mine = stance_of(pl, h), his = stance_of(ph, ai);
-        float r = power_of(h) / power_of(ai);
-        tput(t, &o, sizeof t, "other_state", "stance",
-             tpl_text(!mine && !his ? "stance_allied" : mine && his ? "stance_war" : mine ? "stance_offer" : "stance_traitor"),
-             "power", llm_words(r < 0.25f ? -100 : r < 0.67f ? -30 : r <= 1.5f ? 0 : r <= 4 ? 30 : 100, "power"), NULL);
-        if (g_pressure[ai][h] >= 10) tput(t, &o, sizeof t, "in_town", NULL);
-        if (g_attack_sent[ai][h]) tput(t, &o, sizeof t, "my_attack", NULL);
-        if (g_attack_sent[h][ai]) tput(t, &o, sizeof t, "their_attack", NULL);
-        tput(t, &o, sizeof t, "defences", NULL);
-        const uint32_t *mk = g_kills[ai][h], *tk = g_kills[h][ai];
-        uint32_t rm[K_N], rt[K_N];
-        kills_recent(ai, h, rm);
-        kills_recent(h, ai, rt);
-        int any = 0, all_recent = 1, none_recent = 1;
-        for (int c = 0; c < K_N; c++) {
-            any |= mk[c] || tk[c];
-            all_recent &= rm[c] == mk[c] && rt[c] == tk[c];
-            none_recent &= !rm[c] && !rt[c];
-        }
-        if (any) {
-            tput(t, &o, sizeof t, "fighting", NULL);   // the counts: kills (military, civilian), razed
-            char nm[16];
-            tnum(nm, KILLS_RECENT_MIN);
-            tput(t, &o, sizeof t, all_recent ? "fighting_all_recent" : none_recent ? "fighting_none_recent" : "fighting_recent",
-                 "recent_minutes", nm, NULL);
-        }
-        if (g_lord[ai] == h) tput(t, &o, sizeof t, "lord", NULL);
-        if (g_lord[h] == ai) tput(t, &o, sizeof t, "vassal", NULL);
+        tput(t, &o, sizeof t, "other_state", NULL);   // stance, forces, attacks, fighting ...: the [vars] of _template.eeai
         char terms[600];
         if (peace_terms(ai, h, terms, sizeof terms) && decide)   // the rules' verdict: advice when it decides itself
             tput(t, &o, sizeof t, "terms_advice", "terms", terms, NULL);
@@ -763,7 +729,7 @@ static void sb_tools(struct sbuf *b, int tools, int ai, int h) {
         sb_tool(b, "declare_war", d, "{\"type\":\"object\",\"properties\":{}}");
     }
     if (tools & TOOL_TRIBUTE) {
-        tsub(d, sizeof d, tpl_text(g_llm_constrained ? "tool_tribute" : "tool_tribute_all"), pl, ph, NULL);   // what it may give
+        tsub(d, sizeof d, tpl_text("tool_tribute"), pl, ph, NULL);   // what it may give
         sb_tool(b, "send_tribute", d, "{\"type\":\"object\",\"properties\":{\"food\":{\"type\":\"integer\"},\"wood\":{\"type\":"
                 "\"integer\"},\"stone\":{\"type\":\"integer\"},\"gold\":{\"type\":\"integer\"},\"iron\":{\"type\":\"integer\"}}}");
     }

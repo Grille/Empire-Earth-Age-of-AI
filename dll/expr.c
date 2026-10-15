@@ -113,6 +113,18 @@ static const char *xvars_fn(const struct xvars *v, const char *name, const char 
 static struct { char name[40]; int n; } g_xfn[96];
 static int g_xfn_n, g_xfn_scanned;
 static void x_fn_scan_dir(void);   // persona.c: every .eeai of the folder through x_fn_scan
+// the parameters ("a,b)") of the function whose definition is being read: its body's syntax check takes them for
+// players where a path starts with one (by.kills(of)) - at run time the frame has them (c->fpn)
+static const char *g_x_check_par;
+static int x_check_par_has(const char *s, int n) {
+    for (const char *p = g_x_check_par; p && *p && *p != ')'; ) {
+        int k = (int)strcspn(p, ",)");
+        if (k == n && !strncmp(p, s, (size_t)n)) return 1;
+        p += k;
+        if (*p == ',') p++;
+    }
+    return 0;
+}
 static void x_fn_scan(const char *text) {   // the lines "name(a, b) =" of a file
     for (const char *s = text; *s; ) {
         while (*s == ' ' || *s == '\t') s++;
@@ -804,7 +816,9 @@ static void tfile_parse(const char *file, const char *text, tfile_fn fn, void *a
             else {
                 l.s++;
                 struct tval v;
+                g_x_check_par = strchr(key, '(') ? strchr(key, '(') + 1 : NULL;
                 tl_value(&l, &v);
+                g_x_check_par = NULL;
                 if (!l.err && strcmp(section, "?")) fn(arg, section, key, &v, &l);
                 tval_free(&v);
             }

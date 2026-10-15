@@ -361,7 +361,9 @@ static void persona_load(const char *path, const char *file) {
     g_npersonas++;
 }
 
-// expr.c x_fn_known: the functions of every file in the folder (name(a, b) = ...), before any file is checked
+// expr.c x_fn_known: the functions of every file in the folder (name(a, b) = ...), before any file is checked - and
+// _template.eeai's built in (texts.c)
+static void tpl_vars_scan(void);
 static void x_fn_scan_dir(void) {
     char dir[MAX_PATH], pat[MAX_PATH], path[MAX_PATH];
     GetModuleFileNameA(NULL, dir, sizeof dir);
@@ -372,6 +374,7 @@ static void x_fn_scan_dir(void) {
     WIN32_FIND_DATAA fd;
     HANDLE h = FindFirstFileA(pat, &fd);
     g_xfn_n = 0;
+    tpl_vars_scan();
     if (h == INVALID_HANDLE_VALUE) return;
     do {
         wsprintfA(path, "%s%s", dir, fd.cFileName);
