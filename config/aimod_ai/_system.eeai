@@ -63,6 +63,10 @@ chat_down = "No answer: the language model ({url}) can't be reached."
 chat_busy = "No answer: the language model is too busy - try again in a moment."
 ; in braces: {url} {error}
 llm_down = "AI voice: no answer from {url} ({error}) - the computer players say their fixed lines."
+; one answer failed, the server is there (llm_down: it can't be reached) - once a game
+; in braces: {error}
+llm_failed = ("AI voice: no usable answer this time ({error}) - just this once the computer player says its fixed "
+    "line or goes by the rules.")
 ; [llm] fallback=pause: the game waits for the model
 llm_wait = "AI voice: the language model is taking long - the game is paused until it answers (resume it to play on)."
 ; in braces: {url}
@@ -113,6 +117,8 @@ chat_who = "Keine Antwort: wen meinen Sie? Nennen Sie einen Namen ({names}) oder
 chat_down = "Keine Antwort: das Sprachmodell ({url}) ist nicht erreichbar."
 chat_busy = "Keine Antwort: das Sprachmodell hat zu viel zu tun - versuchen Sie es gleich noch einmal."
 llm_down = "KI-Stimme: keine Antwort von {url} ({error}) - die Computerspieler sprechen ihre festen Zeilen."
+llm_failed = ("KI-Stimme: diesmal keine brauchbare Antwort ({error}) - nur dieses eine Mal spricht der "
+    "Computerspieler seine feste Zeile oder folgt den Regeln.")
 llm_wait = ("KI-Stimme: das Sprachmodell braucht lange - das Spiel ist pausiert, bis es antwortet (fortsetzen, um "
     "weiterzuspielen).")
 llm_wait_down = ("KI-Stimme: {url} ist nicht erreichbar - das Spiel ist pausiert, neuer Versuch alle 5 Sekunden "

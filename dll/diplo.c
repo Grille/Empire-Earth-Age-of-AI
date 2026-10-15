@@ -1645,6 +1645,17 @@ static void cmd_diplo(char *out, const char *args) {
         REPLY("P%d capitulates to P%d (pending %d, lord %d)\n", a, b, g_offer_t[a][b] != 0, g_lord[a]);
         return;
     }
+    char mv[16];
+    if (sscanf(args, "propose %d %15s %d", &a, mv, &b) >= 2) {   // diplo propose A move [C]: put a move of the rules to A's model
+        static const char *const k[P_N] = { "alliance", "betray", "capitulate", "rebel" };   // (towards the local player, C: the third)
+        int kind = 0;
+        while (kind < P_N && strcmp(mv, k[kind])) kind++;
+        if (kind == P_N || !g_players[a & 15]) { REPLY("error: diplo propose A alliance|betray|capitulate|rebel [C]\n"); return; }
+        int h = (int)*(unsigned *)0x00918E84;
+        REPLY("P%d: %s to P%d %s\n", a, k[kind], h, llm_propose(a, h, kind, b > 0 ? b : 0, game_time()) ? "put to the model" :
+              "not asked (no decide mode, or a job is open)");
+        return;
+    }
     if (sscanf(args, "rebel %d", &a) == 1) {   // diplo rebel A: AI A's rebellion against its lord, now, without the dice
         if (!g_players[a & 15]) { REPLY("error: P%d is no AI\n", a); return; }
         const char *why = vassal_rebellion(player_at(a), a, game_time(), 0);

@@ -68,8 +68,8 @@ static int g_llm_https;
 static HANDLE g_llm_event, g_llm_thread;
 static volatile LONG g_llm_gen;                 // a new game: jobs of the last one are dropped
 static volatile DWORD g_llm_down_until;         // GetTickCount: the server failed, fixed lines until then
-static volatile LONG g_llm_fail_note;           // the worker failed to connect: tell the player (llm_tick)
-static int g_llm_told;                          // told this game
+static volatile LONG g_llm_fail_note;           // tell the player (llm_tick): 1 the worker can't connect, 2 one answer failed
+static int g_llm_told, g_llm_told_fail;         // told this game: that it can't connect, that an answer failed
 static int g_llm_off_told;                      // single player, AI voice off: told once per game that nobody reads
 static unsigned g_llm_seq;
 static unsigned g_llm_n_ok, g_llm_n_fail, g_llm_n_fixed, g_llm_n_late;
@@ -234,7 +234,7 @@ static void llm_new_game(void) {
     for (int i = 0; i < 16; i++) g_llm_hist[i].n = 0;   // (their room stays for the next game)
     g_llm_last_ai = 0;
     g_llm_last_t = 0;
-    g_llm_told = 0;
+    g_llm_told = g_llm_told_fail = 0;
     g_llm_off_told = 0;
     memset(g_llm_paid_t, 0, sizeof g_llm_paid_t);
     for (int i = 0; i < 16 * 16; i++) g_pair_hist[i / 16][i % 16].n = 0;
@@ -307,6 +307,18 @@ static int hex4(const char *s) {
         v = v * 16 + (c >= '0' && c <= '9' ? c - '0' : c >= 'a' && c <= 'f' ? c - 'a' + 10 : c >= 'A' && c <= 'F' ? c - 'A' + 10 : -1000);
     }
     return v;
+}
+// the value of "key" in the answer (the first one), past the colon - NULL: not there
+static const char *json_value(const char *resp, const char *key) {
+    char k[48];
+    wsprintfA(k, "\"%s\"", key);
+    const char *s = strstr(resp, k);
+    if (!s) return NULL;
+    s += strlen(k);
+    while (*s == ' ' || *s == '\t' || *s == '\r' || *s == '\n') s++;
+    if (*s++ != ':') return NULL;
+    while (*s == ' ' || *s == '\t' || *s == '\r' || *s == '\n') s++;
+    return s;
 }
 static int json_content(const char *resp, WCHAR *out, int cap) {
     const char *s = strstr(resp, "\"choices\"");
@@ -544,18 +556,23 @@ again:
     if (!has) {
         if (r.p) { char *nl; for (nl = r.p; *nl; nl++) if (*nl == '\r' || *nl == '\n') *nl = ' '; }
         snprintf(g_llm_last_err, sizeof g_llm_last_err, "HTTP %lu: %.120s", code, r.p ? r.p : "");
-        InterlockedExchange(&g_llm_fail_note, 1);
+        InterlockedCompareExchange(&g_llm_fail_note, 2, 0);   // this answer only (the server is there)
         SET_STATE(j, J_FAILED);
     } else {
         llm_clean(w, j->speaker, j->reply, sizeof j->reply);
         j->ms = GetTickCount() - t;
-        if (!j->reply[0] && !j->act) {
-            int len = strstr(r.p, "\"length\"") != NULL, rea = strstr(r.p, "\"reasoning_content\"") != NULL;
+        const char *fr = json_value(r.p, "finish_reason"), *rc = json_value(r.p, "reasoning_content");
+        int len = fr && !strncmp(fr, "\"length\"", 8);   // cut off at max_tokens
+        // a move of the rules (decide 3) is told "call no tool and write nothing" for no: an empty answer that ended by
+        // itself is that no, not a failure (LM Studio sends an empty "reasoning_content" with every answer)
+        int no = !j->reply[0] && !j->act && j->decide == 3 && !len;
+        if (!j->reply[0] && !j->act && !no) {
+            int rea = rc && *rc == '"' && rc[1] != '"';   // it did think
             snprintf(g_llm_last_err, sizeof g_llm_last_err, rea ? "the model only thought, no answer%s - [llm] think=0, or "
                      "more max_tokens" : "an empty answer%s", len ? " (max_tokens reached)" : "");
-            InterlockedExchange(&g_llm_fail_note, 1);
+            InterlockedCompareExchange(&g_llm_fail_note, 2, 0);
         }
-        SET_STATE(j, j->reply[0] || j->act ? J_DONE : J_FAILED);
+        SET_STATE(j, j->reply[0] || j->act || no ? J_DONE : J_FAILED);
     }
     free(r.p);
 done:
@@ -1503,11 +1520,14 @@ static void llm_tick(void) {
     if (!g_llm_on) return;
     llm_wait_tick();
 
-    if (InterlockedExchange(&g_llm_fail_note, 0) && !g_llm_told) {
-        g_llm_told = 1;
-        uint8_t *opt = *(uint8_t **)0x00917BB8;
-        system_line(sysf("llm_down", NULL, NULL, NULL, "url", g_llm_url, "error", g_llm_last_err, NULL)
-, opt ? FIELD(opt, 0x2CC, int) * 2 : 20000);
+    // the server can't be reached: fixed lines for a while (llm_down); one answer failed - the server is there, only
+    // that request went by the fixed line or the rules (llm_failed). Each once a game.
+    LONG note = InterlockedExchange(&g_llm_fail_note, 0);
+    int *told = note == 1 ? &g_llm_told : &g_llm_told_fail;
+    if (note && !*told) {
+        *told = 1;
+        block_line((int)*(unsigned *)0x00918E84,   // shown and logged
+                   sysf(note == 1 ? "llm_down" : "llm_failed", NULL, NULL, NULL, "url", g_llm_url, "error", g_llm_last_err, NULL));
     }
     talk_tick();
     for (int i = 0; i < LLM_JOBS; i++) {

@@ -55,6 +55,10 @@ static const struct text_def k_sys[] = {
       "Keine Antwort: das Sprachmodell hat zu viel zu tun - versuchen Sie es gleich noch einmal.", NULL },
     { "llm_down", "AI voice: no answer from {url} ({error}) - the computer players say their fixed lines.",
       "KI-Stimme: keine Antwort von {url} ({error}) - die Computerspieler sprechen ihre festen Zeilen.", NULL },
+    { "llm_failed", "AI voice: no usable answer this time ({error}) - just this once the computer player says its fixed "
+      "line or goes by the rules.",
+      "KI-Stimme: diesmal keine brauchbare Antwort ({error}) - nur dieses eine Mal spricht der Computerspieler seine feste "
+      "Zeile oder folgt den Regeln.", "one answer failed, the server is there (llm_down: it can't be reached) - once a game" },
     { "llm_wait", "AI voice: the language model is taking long - the game is paused until it answers (resume it to play on).",
       "KI-Stimme: das Sprachmodell braucht lange - das Spiel ist pausiert, bis es antwortet (fortsetzen, um weiterzuspielen).",
       "[llm] fallback=pause: the game waits for the model" },
