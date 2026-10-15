@@ -61,9 +61,19 @@ expression = [
 ]
 value = [{'include': '#comment'}, {'include': '#string'}, {'include': '#list'}, {'include': '#group'}] + expression
 
-def section(names, keys, key_scope):
-    """[names] / [names:<language>] up to the next section: its known keys, anything else an error"""
+def section(names, keys, key_scope, functions=False):
+    """[names] / [names:<language>] up to the next section: its known keys, anything else an error; functions: also
+    name(a, b) = ... (a function of [vars])"""
     lines = [{'include': '#comment'}]
+    if functions:
+        lines.append({
+            'begin': r'^\s*([A-Za-z_]\w*)\s*(\()([^)]*)(\))\s*(=)',
+            'beginCaptures': {'1': {'name': 'entity.name.function.eeaimod'}, '2': {'name': 'punctuation.definition.parameters.begin.eeaimod'},
+                              '3': {'name': 'variable.parameter.eeaimod'}, '4': {'name': 'punctuation.definition.parameters.end.eeaimod'},
+                              '5': {'name': 'keyword.operator.assignment.eeaimod'}},
+            'end': r'$',
+            'patterns': [{'include': '#value'}],
+        })
     if keys is not None:
         lines.append(key_line(r'(?:' + '|'.join(sorted(keys, key=len, reverse=True)) + r')(?::[\w-]+)?', key_scope))
     lines.append(key_line(r'[\w:.-]+', 'invalid.illegal.unknown-key.eeaimod' if keys is not None else key_scope))
@@ -94,7 +104,7 @@ grammar = {
         key_line('include', 'keyword.control.import.eeaimod'),   # before the first section: include = "_shared.eeai"
         section('personality', ['name', 'character', 'color', 'colour', 'farbe'] + traits, 'support.type.property-name.eeaimod'),
         section('style', style_keys, 'support.type.property-name.eeaimod'),
-        section('vars', None, 'entity.name.variable.eeaimod'),
+        section('vars', None, 'entity.name.variable.eeaimod', functions=True),
         section('lines', situations, 'support.type.property-name.situation.eeaimod'),
         section('system', sys_keys, 'support.type.property-name.eeaimod'),
         section('prompt', tpl_keys, 'support.type.property-name.eeaimod'),

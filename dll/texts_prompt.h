@@ -40,15 +40,15 @@ static const struct text_def k_tpl[] = {
     { "their_attack", "Their last army set out against your town {them.attack_minutes(me)} minutes ago.", NULL, NULL },
     { "defences", "Their defences: {them.towers} towers, {them.walls} wall pieces. Yours: {me.towers} towers, {me.walls} wall "
       "pieces.", NULL, NULL },
-    { "fighting", "The fighting between you so far: you killed {soldiers_killed} of their soldiers and {citizens_killed} of their "
-      "citizens (workers) and destroyed {buildings_razed} of their buildings; they killed {soldiers_lost} of "
-      "your soldiers and {citizens_lost} of your citizens and destroyed {buildings_lost} of your "
+    { "fighting", "The fighting between you so far: you killed {me.kills_soldiers(them)} of their soldiers and {me.kills_citizens(them)} of their "
+      "citizens (workers) and destroyed {me.razed(them)} of their buildings; they killed {them.kills_soldiers(me)} of "
+      "your soldiers and {them.kills_citizens(me)} of your citizens and destroyed {them.razed(me)} of your "
       "buildings.", NULL, NULL },
     { "fighting_all_recent", "All of it in the last {recent_minutes} minutes.", NULL, NULL },
     { "fighting_none_recent", "No fighting between you in the last {recent_minutes} minutes.", NULL, NULL },
-    { "fighting_recent", "In the last {recent_minutes} minutes: you killed {soldiers_killed} soldiers and {citizens_killed} citizens and destroyed "
-      "{buildings_razed} buildings of theirs; they killed {soldiers_lost} soldiers and {citizens_lost} "
-      "citizens and destroyed {buildings_lost} buildings of yours.", NULL, NULL },
+    { "fighting_recent", "In the last {recent_minutes} minutes: you killed {me.kills_soldiers(them, recent_minutes)} soldiers and {me.kills_citizens(them, recent_minutes)} citizens and destroyed "
+      "{me.razed(them, recent_minutes)} buildings of theirs; they killed {them.kills_soldiers(me, recent_minutes)} soldiers and {them.kills_citizens(me, recent_minutes)} "
+      "citizens and destroyed {them.razed(me, recent_minutes)} buildings of yours.", NULL, NULL },
     { "lord", "You have capitulated to them: they are your lord, you pay and serve them.", NULL, NULL },
     { "vassal", "They have capitulated to you: they are your vassal.", NULL, NULL },
     { "terms_advice", "\nWhat your nature would say about peace with them (advice - you decide): {terms}", NULL, NULL },

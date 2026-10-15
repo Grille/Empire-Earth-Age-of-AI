@@ -631,7 +631,7 @@ static int llm_ai_deciding(void);
 static void llm_system(struct sbuf *b, void *pl, int ai, int h, int tools) {
     int decide = tools >= 0 && (g_players[h & 15] ? llm_ai_deciding() : llm_deciding());
     struct persona *p = persona_of(pl);
-    char t[4096], n1[16], n2[16], n3[16], n4[16], n5[16], n6[16], comp[96] = "";
+    char t[4096], comp[96] = "";
     int o = 0;
     g_xc_pl = pl;   // the expressions in the pieces: this AI towards h
     g_xc_other = player_at(h);
@@ -689,18 +689,11 @@ static void llm_system(struct sbuf *b, void *pl, int ai, int h, int tools) {
             none_recent &= !rm[c] && !rt[c];
         }
         if (any) {
-            tput(t, &o, sizeof t, "fighting", "soldiers_killed", tnum(n1, (int)mk[K_SOLDIERS]), "citizens_killed",
-                 tnum(n2, (int)mk[K_CITIZENS]), "buildings_razed", tnum(n3, (int)mk[K_BUILDINGS]), "soldiers_lost",
-                 tnum(n4, (int)tk[K_SOLDIERS]), "citizens_lost", tnum(n5, (int)tk[K_CITIZENS]), "buildings_lost",
-                 tnum(n6, (int)tk[K_BUILDINGS]), NULL);
+            tput(t, &o, sizeof t, "fighting", NULL);   // the counts: kills_soldiers, kills_citizens, razed
             char nm[16];
             tnum(nm, KILLS_RECENT_MIN);
-            if (all_recent) tput(t, &o, sizeof t, "fighting_all_recent", "recent_minutes", nm, NULL);
-            else if (none_recent) tput(t, &o, sizeof t, "fighting_none_recent", "recent_minutes", nm, NULL);
-            else tput(t, &o, sizeof t, "fighting_recent", "recent_minutes", nm, "soldiers_killed", tnum(n1, (int)rm[K_SOLDIERS]),
-                      "citizens_killed", tnum(n2, (int)rm[K_CITIZENS]), "buildings_razed", tnum(n3, (int)rm[K_BUILDINGS]),
-                      "soldiers_lost", tnum(n4, (int)rt[K_SOLDIERS]), "citizens_lost", tnum(n5, (int)rt[K_CITIZENS]),
-                      "buildings_lost", tnum(n6, (int)rt[K_BUILDINGS]), NULL);
+            tput(t, &o, sizeof t, all_recent ? "fighting_all_recent" : none_recent ? "fighting_none_recent" : "fighting_recent",
+                 "recent_minutes", nm, NULL);
         }
         if (g_lord[ai] == h) tput(t, &o, sizeof t, "lord", NULL);
         if (g_lord[h] == ai) tput(t, &o, sizeof t, "vassal", NULL);

@@ -263,7 +263,7 @@ static void includes_load(const char *dir, const struct includes *inc, struct xv
         free(text);
         for (int k = 0; k < r->lang.n; k++) xvars_set(&r->base, r->lang.key[k], r->lang.val[k]);   // its language over its [vars]
         for (int k = 0; k < r->base.n; k++)
-            if (!xvars_get(vars, r->base.key[k])) {
+            if (xvars_find(vars, r->base.key[k]) < 0) {   // (a function too: the file's own wins)
                 if (vars->n == XVARS_MAX) { x_error("%s: more than %d [vars] with its includes", by, XVARS_MAX); break; }
                 xvars_set(vars, r->base.key[k], r->base.val[k]);
             }
@@ -361,8 +361,28 @@ static void persona_load(const char *path, const char *file) {
     g_npersonas++;
 }
 
+// expr.c x_fn_known: the functions of every file in the folder (name(a, b) = ...), before any file is checked
+static void x_fn_scan_dir(void) {
+    char dir[MAX_PATH], pat[MAX_PATH], path[MAX_PATH];
+    GetModuleFileNameA(NULL, dir, sizeof dir);
+    char *bs = strrchr(dir, '\\');
+    if (bs) bs[1] = 0;
+    lstrcatA(dir, "aimod_ai\\");
+    wsprintfA(pat, "%s*.eeai", dir);
+    WIN32_FIND_DATAA fd;
+    HANDLE h = FindFirstFileA(pat, &fd);
+    g_xfn_n = 0;
+    if (h == INVALID_HANDLE_VALUE) return;
+    do {
+        wsprintfA(path, "%s%s", dir, fd.cFileName);
+        char *text = read_text_acp(path);
+        if (text) { x_fn_scan(text); free(text); }
+    } while (FindNextFileA(h, &fd));
+    FindClose(h);
+}
 static void personas_load(void) {
     char dir[MAX_PATH], pat[MAX_PATH], path[MAX_PATH];
+    g_xfn_scanned = 0;   // the files may have changed since: scanned again when a function is first met
     GetModuleFileNameA(NULL, dir, sizeof dir);
     char *bs = strrchr(dir, '\\');
     if (bs) bs[1] = 0;

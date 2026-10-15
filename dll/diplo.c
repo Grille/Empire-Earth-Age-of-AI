@@ -1789,6 +1789,8 @@ static const struct xmember k_xmembers[] = {
     { "attack_minutes", XM_REL, "minutes since A's last attack wave set out against B - nothing if none (an AI's waves)" },
     { "kills", XM_REL, "B's soldiers and citizens A has destroyed - (B, minutes): in the last minutes (whole minutes, at most 60)" },
     { "razed", XM_REL, "B's buildings A has destroyed - (B, minutes) as kills" },
+    { "kills_soldiers", XM_REL, "B's soldiers A has killed (every unit that is no citizen) - (B, minutes) as kills" },
+    { "kills_citizens", XM_REL, "B's citizens A has killed - (B, minutes) as kills" },
 };
 #define N_XMEMBERS (int)(sizeof k_xmembers / sizeof *k_xmembers)
 static const struct xmember k_xglobals[] = {
@@ -1863,7 +1865,7 @@ static void x_member(void *px, const struct xmember *m, struct xval *v) {
 }
 // the relations that count events, with a time window in minutes as a second argument: them.tribute(me, 15)
 static int x_windowed(const char *n) {
-    return !strcmp(n, "tribute") || !strcmp(n, "refusals") || !strcmp(n, "betrayals") || !strcmp(n, "kills") || !strcmp(n, "razed");
+    return !strcmp(n, "tribute") || !strcmp(n, "refusals") || !strcmp(n, "betrayals") || !strncmp(n, "kills", 5) || !strcmp(n, "razed");
 }
 // relation m of player pa with player pb: pa.<m>(pb), in the last win minutes (0: the whole game) where it counts events
 static void x_relation(void *pa, void *pb, const struct xmember *m, double win, struct xval *v) {
@@ -1906,11 +1908,13 @@ static void x_relation(void *pa, void *pb, const struct xmember *m, double win, 
         if (!g_attack_sent[a][b]) return;
         r = (double)((now - g_attack_sent[a][b]) / 60000u);
     }
-    else if (!strcmp(n, "kills") || !strcmp(n, "razed")) {
+    else if (!strncmp(n, "kills", 5) || !strcmp(n, "razed")) {
         const uint32_t *k = g_kills[a][b];
         if (!whole) { kills_window(a, b, (int)(win + 0.999), rk); k = rk; }   // started minutes count whole
-        r = n[0] == 'k' ? k[K_SOLDIERS] + k[K_CITIZENS] : k[K_BUILDINGS];
+        r = n[0] == 'r' ? k[K_BUILDINGS] : !strcmp(n, "kills_soldiers") ? k[K_SOLDIERS] : !strcmp(n, "kills_citizens") ?
+            k[K_CITIZENS] : k[K_SOLDIERS] + k[K_CITIZENS];
     }
+
     xnum(v, r);
 }
 static const struct xmember *x_find_member(const char *n, int len) {

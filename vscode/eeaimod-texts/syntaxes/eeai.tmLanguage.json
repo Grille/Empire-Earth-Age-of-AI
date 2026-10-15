@@ -169,6 +169,32 @@
           "include": "#comment"
         },
         {
+          "begin": "^\\s*([A-Za-z_]\\w*)\\s*(\\()([^)]*)(\\))\\s*(=)",
+          "beginCaptures": {
+            "1": {
+              "name": "entity.name.function.eeaimod"
+            },
+            "2": {
+              "name": "punctuation.definition.parameters.begin.eeaimod"
+            },
+            "3": {
+              "name": "variable.parameter.eeaimod"
+            },
+            "4": {
+              "name": "punctuation.definition.parameters.end.eeaimod"
+            },
+            "5": {
+              "name": "keyword.operator.assignment.eeaimod"
+            }
+          },
+          "end": "$",
+          "patterns": [
+            {
+              "include": "#value"
+            }
+          ]
+        },
+        {
           "begin": "^\\s*([\\w:.-]+)\\s*(=)",
           "beginCaptures": {
             "1": {
@@ -476,7 +502,7 @@
           "match": "\\b(?:and|or|not)\\b"
         },
         {
-          "match": "(?:(\\b(?:me|them|enemy|lord)(?:\\.lord)*)(\\.))?(\\b(?:alliance_minutes|attack_minutes|war_minutes|betrayals|refusals|opinion|hostile|ignored|tribute|at_war|allied|kills|razed|near)\\b)(?=\\s*\\()",
+          "match": "(?:(\\b(?:me|them|enemy|lord)(?:\\.lord)*)(\\.))?(\\b(?:alliance_minutes|attack_minutes|kills_soldiers|kills_citizens|war_minutes|betrayals|refusals|opinion|hostile|ignored|tribute|at_war|allied|kills|razed|near)\\b)(?=\\s*\\()",
           "captures": {
             "1": {
               "name": "variable.language.game-value.eeaimod"
@@ -602,7 +628,7 @@
           "match": "\\b(?:and|or|not)\\b"
         },
         {
-          "match": "(?:(\\b(?:me|them|enemy|lord)(?:\\.lord)*)(\\.))?(\\b(?:alliance_minutes|attack_minutes|war_minutes|betrayals|refusals|opinion|hostile|ignored|tribute|at_war|allied|kills|razed|near)\\b)(?=\\s*\\()",
+          "match": "(?:(\\b(?:me|them|enemy|lord)(?:\\.lord)*)(\\.))?(\\b(?:alliance_minutes|attack_minutes|kills_soldiers|kills_citizens|war_minutes|betrayals|refusals|opinion|hostile|ignored|tribute|at_war|allied|kills|razed|near)\\b)(?=\\s*\\()",
           "captures": {
             "1": {
               "name": "variable.language.game-value.eeaimod"

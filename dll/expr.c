@@ -28,10 +28,14 @@
 // knows - stays in the text as written (logged); an unknown name inside an expression counts 0.
 // Included by eeaimod.c before persona.c.
 #define XVARS_MAX 48
-#define XVAL_CAP 240
+#define XVAL_CAP 512   // a text value (a [vars] function may return a whole prompt paragraph)
 struct xvars { int n; char *key[XVARS_MAX], *val[XVARS_MAX]; };   // val: an expression's source
+struct xval;
 struct xctx {
     void *pl, *other, *third;               // the speaker, them, enemy - them NULL: the local player
+    const char *const *fpn;                 // a function's parameters while its body is worked out (x_call)
+    const struct xval *fpv;
+    int fnp;
     int found;                              // pl/other/third looked up (x_builtin)
     const char *const *pn, *const *pv;      // the text's placeholders
     int np;
@@ -77,17 +81,64 @@ static void x_error(const char *fmt, ...) {
     LeaveCriticalSection(&g_x_lock);
 }
 
+// [vars] keys: "name" or a function "name(a,b)" (its parameters, tfile_parse) - the same name is the same entry
+static int xkey_is(const char *key, const char *name) {
+    size_t n = strcspn(key, "(");
+    return n == strcspn(name, "(") && !_strnicmp(key, name, n);
+}
+static int xvars_find(const struct xvars *v, const char *key) {
+    for (int i = 0; v && i < v->n; i++) if (xkey_is(v->key[i], key)) return i;
+    return -1;
+}
 static void xvars_set(struct xvars *v, const char *key, const char *val) {
-    int i = 0;
-    while (i < v->n && lstrcmpiA(v->key[i], key)) i++;
-    if (i == XVARS_MAX) return;
-    if (i < v->n) free(v->val[i]);
-    else { v->key[i] = _strdup(key); v->n++; }
+    int i = xvars_find(v, key);
+    if (i < 0 && v->n == XVARS_MAX) return;
+    if (i >= 0) { free(v->val[i]); free(v->key[i]); }
+    else i = v->n++;
+    v->key[i] = _strdup(key);
     v->val[i] = _strdup(val);
 }
-static const char *xvars_get(const struct xvars *v, const char *key) {
-    for (int i = 0; v && i < v->n; i++) if (!lstrcmpiA(v->key[i], key)) return v->val[i];
-    return NULL;
+static const char *xvars_get(const struct xvars *v, const char *key) {   // a variable (no function)
+    int i = xvars_find(v, key);
+    return i >= 0 && !strchr(v->key[i], '(') ? v->val[i] : NULL;
+}
+static const char *xvars_fn(const struct xvars *v, const char *name, const char **par) {   // a function: its body, *par "a,b)"
+    int i = xvars_find(v, name);
+    if (i < 0 || !strchr(v->key[i], '(')) return NULL;
+    *par = strchr(v->key[i], '(') + 1;
+    return v->val[i];
+}
+// THE FUNCTIONS of all the files in the folder (name and how many parameters): the files are checked when read, a
+// function may come from a file read later (an include, _system.eeai) - scanned from every file first (x_fn_known)
+static struct { char name[40]; int n; } g_xfn[96];
+static int g_xfn_n, g_xfn_scanned;
+static void x_fn_scan_dir(void);   // persona.c: every .eeai of the folder through x_fn_scan
+static void x_fn_scan(const char *text) {   // the lines "name(a, b) =" of a file
+    for (const char *s = text; *s; ) {
+        while (*s == ' ' || *s == '\t') s++;
+        const char *b = s;
+        while (isalnum((unsigned char)*s) || *s == '_') s++;
+        size_t n = (size_t)(s - b);
+        if (n && n < 40 && *s == '(') {
+            int k = 1, empty = 1;
+            for (s++; *s && *s != ')' && *s != '\n'; s++) { if (*s == ',') k++; else if (*s != ' ') empty = 0; }
+            if (*s == ')') {
+                const char *e = s + 1;
+                while (*e == ' ' || *e == '\t') e++;
+                if (*e == '=' && e[1] != '=' && g_xfn_n < 96) {
+                    lstrcpynA(g_xfn[g_xfn_n].name, b, (int)n + 1);
+                    g_xfn[g_xfn_n++].n = empty ? 0 : k;
+                }
+            }
+        }
+        while (*s && *s != '\n') s++;
+        if (*s) s++;
+    }
+}
+static int x_fn_known(const char *name) {   // its parameter count, -1: no function of that name
+    if (!g_xfn_scanned) { g_xfn_scanned = 1; x_fn_scan_dir(); }
+    for (int i = 0; i < g_xfn_n; i++) if (!lstrcmpiA(g_xfn[i].name, name)) return g_xfn[i].n;
+    return -1;
 }
 
 static int xnumeric(const char *s, double *n) {   // the whole text a number ("12", not " 12" or "12 ")
@@ -185,23 +236,59 @@ static int x_const(const char *name, struct xval *v) {
 static void xp_ident(struct xp *p, const char *name, struct xval *v) {
     struct xctx *c = p->c;
     if (p->skip) { xnothing(v); return; }
+    for (int i = 0; i < c->fnp; i++)   // a parameter of the function being worked out
+        if (!strcmp(c->fpn[i], name)) { *v = c->fpv[i]; return; }
     for (int i = 0; i < c->np; i++)
         if (!strcmp(c->pn[i], name)) { xstr(v, c->pv[i]); return; }
     for (int k = 0; k < 3; k++) {
         const char *def = xvars_get(c->vars[k], name);
         if (!def) continue;
         if (c->depth >= 6) { c->circle = 1; p->err = 1; return; }   // vars naming each other in a circle
+        const char *const *fpn = c->fpn;   // a variable sees no parameters (only its own function's body does)
+        const struct xval *fpv = c->fpv;
+        int fnp = c->fnp;
+        c->fnp = 0;
         c->depth++;
         struct xp q = { def, c, 0, 0, 0, NULL };
         xp_expr(&q, v);
         xp_space(&q);
         if (q.err || *q.s || c->circle) p->err = 1;
         c->depth--;
+        c->fpn = fpn; c->fpv = fpv; c->fnp = fnp;
         return;
     }
     if (x_const(name, v) || x_builtin(c, name, v)) return;
     c->unknown++;
     xnum(v, 0);
+}
+// a function's body (def), its parameters (par "a,b)") bound to the arguments: they alone are its names besides the
+// game's values and the [vars] - a function calling itself ends at the nesting limit like vars in a circle
+static void x_call(struct xp *p, const char *def, const char *par, const struct xval *a, int na, struct xval *v) {
+    struct xctx *c = p->c;
+    char names[8][24];
+    const char *pn[8];
+    int n = 0;
+    while (*par && *par != ')' && n < 8) {
+        int k = 0;
+        while (*par && *par != ',' && *par != ')' && k < 23) names[n][k++] = *par++;
+        names[n][k] = 0;
+        pn[n] = names[n];
+        n++;
+        if (*par == ',') par++;
+    }
+    if (n != na) { p->err = 1; return; }
+    if (c->depth >= 6) { c->circle = 1; p->err = 1; return; }
+    const char *const *fpn = c->fpn;
+    const struct xval *fpv = c->fpv;
+    int fnp = c->fnp;
+    c->fpn = pn; c->fpv = a; c->fnp = n;
+    c->depth++;
+    struct xp q = { def, c, 0, 0, 0, NULL };
+    xp_expr(&q, v);
+    xp_space(&q);
+    if (q.err || *q.s || c->circle) p->err = 1;
+    c->depth--;
+    c->fpn = fpn; c->fpv = fpv; c->fnp = fnp;
 }
 static void xp_primary(struct xp *p, struct xval *v) {
     xp_space(p);
@@ -275,6 +362,20 @@ static void xp_primary(struct xp *p, struct xval *v) {
         if (f == 1 && a[0].has_n && a[0].n > 1 && (p->check || (!p->skip && g_strict))) {   // chance(70): meant 70%
             if (p->check) { p->err = 1; p->why = "chance takes a probability, 0 to 1: chance(70%) or chance(0.7)"; goto out; }
             x_error("chance(%g): a probability is 0 to 1 - chance(70%%) or chance(0.7): %.100s", a[0].n, p->c->top ? p->c->top : "");
+        }
+        if (!f && !strchr(name, '.')) {   // a function of [vars]: name(a, b) = ...
+            const char *par = NULL, *def = NULL;
+            for (int k = 0; k < 3 && !def; k++) def = xvars_fn(p->c->vars[k], name, &par);
+            int want = def ? (*par == ')' ? 0 : 1) : x_fn_known(name);
+            for (const char *q = par; def && *q && *q != ')'; q++) want += *q == ',';
+            if (want >= 0) {
+                static char why[80];
+                if (want != na) { wsprintfA(why, "%s takes %d argument%s", name, want, want == 1 ? "" : "s"); p->err = 1; p->why = why; goto out; }
+                if (p->skip) { xnothing(v); goto out; }
+                if (!def) { wsprintfA(why, "%s: a function of another file's [vars]", name); p->err = 1; p->why = why; goto out; }
+                x_call(p, def, par, a, na, v);
+                goto out;
+            }
         }
         if (!f) {   // a relation: them.opinion(me)
             if (!x_method(p->c, name, a, na, p->skip ? NULL : v)) { p->err = 1; p->why = "an unknown function or relation (or the wrong number of arguments)"; }
@@ -563,12 +664,16 @@ static void tl_blank(struct tlex *l, int lines) {   // spaces; with lines: line 
     }
 }
 static void tval_free(struct tval *v) { free(v->text); free(v->src); memset(v, 0, sizeof *v); }
-static int tl_key_line(const char *t) {   // a line that starts a key ("name =", not "a == b") or a section
+static int tl_key_line(const char *t) {   // a line that starts a key ("name =", "name(a, b) =", not "a == b") or a section
     while (*t == ' ' || *t == '\t') t++;
     if (*t == '[') return 1;
     const char *k = t;
     while (*t && (isalnum((unsigned char)*t) || strchr("_:.-", *t))) t++;
     if (t == k) return 0;
+    if (*t == '(') {   // a function's parameters: names and commas
+        for (t++; *t && *t != ')'; t++) if (!isalnum((unsigned char)*t) && !strchr("_, ", *t)) return 0;
+        if (*t++ != ')') return 0;
+    }
     while (*t == ' ' || *t == '\t') t++;
     return *t == '=' && t[1] != '=';
 }
@@ -652,12 +757,38 @@ static void tfile_parse(const char *file, const char *text, tfile_fn fn, void *a
                 if (*l.s && *l.s != '\n') tl_error(&l, "something after the section");
             }
         } else {
-            char key[48];
+            char key[160];
             int n = 0;
             while (*l.s && (isalnum((unsigned char)*l.s) || strchr("_:.-", *l.s)) && n < 47) key[n++] = *l.s++;
             key[n] = 0;
-            tl_blank(&l, 0);
-            if (!n || *l.s != '=') tl_error(&l, "no key = value");
+            if (n && *l.s == '(') {   // a function: name(a, b) - its parameters into the key as "name(a,b)"
+                const char *why = NULL;
+                int np = 0;
+                key[n++] = *l.s++;
+                for (;;) {
+                    while (*l.s == ' ') l.s++;
+                    if (*l.s == ')' && !np) break;
+                    char pnm[24];
+                    int k = 0;
+                    while ((isalnum((unsigned char)*l.s) || *l.s == '_') && k < 23) pnm[k++] = *l.s++;
+                    pnm[k] = 0;
+                    if (!k || isdigit((unsigned char)pnm[0])) { why = "a parameter must be a name: name(a, b) = ..."; break; }
+                    char look[26];
+                    wsprintfA(look, "%s,", pnm);
+                    if (strstr(key + strcspn(key, "(") + 1, look) || ++np > 8) { why = np > 8 ? "at most 8 parameters" : "a parameter twice"; break; }
+                    if (n + k + 2 < (int)sizeof key) { memcpy(key + n, pnm, (size_t)k); n += k; key[n++] = ','; key[n] = 0; }
+                    while (*l.s == ' ') l.s++;
+                    if (*l.s == ',') { l.s++; continue; }
+                    if (*l.s != ')') why = "name(a, b) = ...: a ) missing";
+                    break;
+                }
+                if (!why) { l.s++; if (key[n - 1] == ',') n--; key[n++] = ')'; key[n] = 0; }
+                else { tl_error(&l, why); n = -1; }
+            }
+            if (n >= 0) tl_blank(&l, 0);
+            if (n < 0) ;   // (its mistake told)
+            else if (!n || *l.s != '=') tl_error(&l, "no key = value");
+
             else {
                 l.s++;
                 struct tval v;

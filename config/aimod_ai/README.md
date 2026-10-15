@@ -212,6 +212,25 @@ angry = ["Go away.", "You again?"]
 
 Then `{address}`, `{title}` in a line, or `angry` in an expression.
 
+**Functions:** a `[vars]` entry with parameters is worked out with the values it is given:
+
+```ini
+[vars]
+losses(minutes) = them.kills_soldiers(me, minutes) + them.kills_citizens(me, minutes)
+fighting_report(minutes) = "you killed {me.kills_soldiers(them, minutes)} of their soldiers and {me.kills_citizens(them, minutes)} of their citizens; they killed {them.kills_soldiers(me, minutes)} of yours"
+
+[lines]
+under_attack = losses(10) > many_dead / 3 ? "{losses(10)} dead in ten minutes. Enough!"
+```
+
+- Inside the function its parameters are names like any other; outside it they don't exist. Its other names are the
+  game's values and the `[vars]`, as everywhere (a `[vars]` entry it uses doesn't see its parameters).
+- It is called with exactly as many values as it has parameters (`losses()` or `losses(1, 2)` is a mistake, found
+  when the file is read). Up to 8 parameters; none is fine too: `greeting_line() = ...`.
+- A parameter may have the name of a value - `minutes`, `them` - and then means the parameter inside its function.
+- A function may call others; one that calls itself stops at the nesting limit (a mistake, never a hang).
+- Lookup is as for the other `[vars]`: the personality's own first, then its includes, then `_system.eeai`.
+
 ### Shared [vars]: include
 
 `[vars]` that several personalities share go into a file of their own, which each of them names before its first
@@ -307,6 +326,8 @@ Shortcuts: my own `epoch`, traits, `allies` and `enemies` without `me.` (`aggres
 | `A.attack_minutes(B)` | minutes since A's last attack wave set out against B - nothing if none (an AI's waves) |
 | `A.kills(B)` | B's soldiers and citizens A has destroyed - (B, minutes): in the last minutes (whole minutes, at most 60) |
 | `A.razed(B)` | B's buildings A has destroyed - (B, minutes) as kills |
+| `A.kills_soldiers(B)` | B's soldiers A has killed (every unit that is no citizen) - (B, minutes) as kills |
+| `A.kills_citizens(B)` | B's citizens A has killed - (B, minutes) as kills |
 
 **The game:**
 
