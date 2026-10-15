@@ -3,7 +3,9 @@
 // string). A value is an expression - over several lines while a ( [ or { is open:
 //   "text"                          a string; \" \\ \n escapes. {expressions} in it - {them} -
 //                                   {opinion > 30 ? "friend" : "stranger"}: the quotes inside the braces are the
-//                                   expression's, not the string's end
+//                                   expression's, not the string's end; a string stays on its line
+//   ("a "  <line break>  "b")       strings side by side in ( ): one string (a value of only these: a string, also
+//                                   where a key takes strings only - x_fold); in [ ] a missing comma stays a mistake
 //   ["a", "b", ...]                 a list: one of its items, at random
 //   allied ? "Welcome back."        without ":" - nothing when the condition doesn't hold
 //   85, opinion > 30 ? "a" : "b"    numbers, any expression
@@ -212,10 +214,10 @@ static int x_string(const char *s, char *out, int cap, const char **end, const c
 
 // the parser evaluates as it reads; skip: only reads (a branch not chosen)
 // check: only the syntax (the files when read: skip, and the strings' placeholders too); why: what is wrong, if known
-struct xp { const char *s; struct xctx *c; int err, skip, check; const char *why; };
+struct xp { const char *s; struct xctx *c; int err, skip, check; const char *why; int par; };   // par: in ( ), not in [ ]
 static int x_syntax(const char *src, const char **why);
 static int x_fills_ok(const char *text, const char **why);
-static void xp_space(struct xp *p) { while (*p->s == ' ' || *p->s == '\t') p->s++; }
+static void xp_space(struct xp *p) { while (*p->s == ' ' || *p->s == '\t' || *p->s == '\n' || *p->s == '\r') p->s++; }   // line breaks: the built-in [vars]
 static int xp_word(struct xp *p, const char *w) {   // a keyword (and, or, not), not the start of a longer name
     xp_space(p);
     size_t n = strlen(w);
@@ -273,7 +275,7 @@ static void xp_ident(struct xp *p, const char *name, struct xval *v) {
         int fnp = c->fnp;
         c->fnp = 0;
         c->depth++;
-        struct xp q = { def, c, 0, 0, 0, NULL };
+        struct xp q = { def, c, 0, 0, 0, NULL, 0 };
         xp_expr(&q, v);
         xp_space(&q);
         if (q.err || *q.s || c->circle) p->err = 1;
@@ -307,7 +309,7 @@ static void x_call(struct xp *p, const char *def, const char *par, const struct 
     int fnp = c->fnp;
     c->fpn = pn; c->fpv = a; c->fnp = n;
     c->depth++;
-    struct xp q = { def, c, 0, 0, 0, NULL };
+    struct xp q = { def, c, 0, 0, 0, NULL, 0 };
     xp_expr(&q, v);
     xp_space(&q);
     if (q.err || *q.s || c->circle) p->err = 1;
@@ -321,18 +323,31 @@ static void xp_primary(struct xp *p, struct xval *v) {
     if (++p->c->level > 24) { p->c->level--; p->err = 1; return; }
     if (*s == '(') {
         p->s++;
+        p->par++;
         xp_expr(p, v);
+        p->par--;
         if (!xp_op(p, ")")) p->err = 1;
     } else if (*s == '"' || *s == '\'') {   // a string: its placeholders filled
         char t[XVAL_CAP], f[XVAL_CAP];
         const char *why;
         if (x_string(s, t, sizeof t, &p->s, &why) < 0) { p->err = 1; goto out; }
+        // ("a" "b"): strings side by side in ( ) are one - a long text over several lines (in a list a missing comma
+        // stays a mistake)
+        for (; p->par; ) {
+            xp_space(p);
+            if (*p->s != '"' && *p->s != '\'') break;
+            char t2[XVAL_CAP];
+            size_t n = strlen(t);
+            if (x_string(p->s, t2, sizeof t2, &p->s, &why) < 0) { p->err = 1; goto out; }
+            lstrcpynA(t + n, t2, (int)(sizeof t - n));
+        }
         if (p->skip) { xstr(v, ""); if (p->check && !x_fills_ok(t, &p->why)) p->err = 1; }
         else { x_fill(f, sizeof f, t, p->c); xstr(v, f); }
     } else if (*s == '[') {   // a list: one of its items - each of them as often as the items it was chosen from
         struct xval it;
-        int total = 0;
+        int total = 0, par = p->par;
         p->s++;
+        p->par = 0;
         for (;;) {
             if (xp_op(p, "]")) break;
             xp_expr(p, &it);
@@ -346,6 +361,7 @@ static void xp_primary(struct xp *p, struct xval *v) {
             if (!xp_op(p, "]")) p->err = 1;
             break;
         }
+        p->par = par;
         v->w = total;
         if (!total) xnothing(v);
     } else if ((*s >= '0' && *s <= '9') || (*s == '.' && s[1] >= '0' && s[1] <= '9')) {
@@ -542,7 +558,7 @@ static void xp_expr(struct xp *p, struct xval *v) {   // c ? a : b, c ? a (nothi
 // evaluate the whole of src (an expression and nothing after it); 0: not an expression
 static void x_log_bad(const char *what, const char *src) { x_error("%s: %.120s", what, src); }
 static int x_eval(const char *src, struct xctx *c, struct xval *v) {   // its value ends up in a text: a line, a {placeholder}
-    struct xp p = { src, c, 0, 0, 0, NULL };
+    struct xp p = { src, c, 0, 0, 0, NULL, 0 };
     int unk = c->unknown, top = !c->top;
     if (top) c->top = src;
     xp_expr(&p, v);
@@ -560,7 +576,7 @@ static int x_eval(const char *src, struct xctx *c, struct xval *v) {   // its va
 static int x_syntax(const char *src, const char **why) {
     struct xctx c = { 0 };
     c.found = 1;   // no players looked up
-    struct xp p = { src, &c, 0, 1, 1, NULL };
+    struct xp p = { src, &c, 0, 1, 1, NULL, 0 };
     struct xval v;
     xp_expr(&p, &v);
     xp_space(&p);
@@ -689,8 +705,8 @@ static void tl_blank(struct tlex *l, int lines) {   // spaces; with lines: line 
 }
 static void tval_free(struct tval *v) { free(v->text); free(v->src); memset(v, 0, sizeof *v); }
 static int tl_key_line(const char *t) {   // a line that starts a key ("name =", "name(a, b) =", not "a == b") or a section
+    if (*t == '[') return 1;   // a section: [ at the line's start (an indented [ is a list in a value)
     while (*t == ' ' || *t == '\t') t++;
-    if (*t == '[') return 1;
     const char *k = t;
     while (*t && (isalnum((unsigned char)*t) || strchr("_:.-", *t))) t++;
     if (t == k) return 0;
@@ -700,6 +716,24 @@ static int tl_key_line(const char *t) {   // a line that starts a key ("name =",
     }
     while (*t == ' ' || *t == '\t') t++;
     return *t == '=' && t[1] != '=';
+}
+// "a" or ("a" <line break> "b"): a value of strings only, side by side in ( ) - their text joined into t
+// (cap: the source's length + 1 is enough); 0: something else
+static int x_fold(const char *r, char *t, int cap) {
+    const char *s = r, *e, *why;
+    int par = *s == '(', o = 0, n = 0;
+    if (par) s++;
+    for (;;) {
+        while (*s == ' ') s++;
+        if (*s != '"' && *s != '\'') break;
+        int k = x_string(s, t + o, cap - o, &e, &why);
+        if (k < 0) return 0;
+        o += k;
+        n++;
+        s = e;
+    }
+    if (par) { if (*s != ')') return 0; s++; while (*s == ' ') s++; }
+    return n && !*s && (par || n == 1);   // more than one: in ( ) only
 }
 // a value: to the line's end, over line breaks while a ( [ or { is open (a line that starts a key or a section ends
 // it: the bracket was never closed); comments left out
@@ -739,10 +773,10 @@ static void tl_value(struct tlex *l, struct tval *v) {
     if (depth) { int cur = l->line; l->line = v->line; tl_error(l, "a ( [ or { without its end"); l->line = cur; free(r); return; }
     if (!o) { tl_error(l, "a value missing"); free(r); return; }
     v->src = r;
-    const char *e, *why;
+    const char *why;
     char *t = malloc(o + 1);
     double n;
-    if ((*r == '"' || *r == '\'') && x_string(r, t, (int)o + 1, &e, &why) >= 0 && !*e) { v->kind = TV_STRING; v->text = t; }
+    if (x_fold(r, t, (int)o + 1)) { v->kind = TV_STRING; v->text = t; }   // "a", "a" "b", ("a" "b")
     else {
         free(t);
         char *ne;

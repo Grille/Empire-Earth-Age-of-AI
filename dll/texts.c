@@ -219,23 +219,90 @@ static const char *tnum(char *buf, int n) { wsprintfA(buf, "%d", n); return buf;
 
 // texts dump [force]: both files with every key and its built-in text (UTF-8)
 // a string as the files write it: "...", the game's code page -> UTF-8, \" \\ \n - inside {braces} as written (an
-// expression's quotes are its own)
-static void text_write(FILE *f, const char *acp) {
+// expression's quotes are its own). One longer than the line (pre: what is on it already) in pieces, a line each:
+// ("..." <line break> "...") - the file's reader joins strings side by side in ( ); cut after a space outside braces
+#define DUMP_LINE 118
+static void text_write(FILE *f, const char *acp, int pre) {
     WCHAR w[2048];
-    char u[6144];
+    char u[6144], e[12288];
     int n = MultiByteToWideChar(CP_ACP, 0, acp, -1, w, 2048);
     if (n <= 0) return;
     WideCharToMultiByte(CP_UTF8, 0, w, -1, u, sizeof u, NULL, NULL);
-    int depth = 0;
-    fputc('"', f);
-    for (const char *s = u; *s; s++) {
+    int depth = 0, o = 0, cut[512], nc = 0;
+    for (const char *s = u; *s && o < (int)sizeof e - 3; s++) {
         if (*s == '{') depth++;
         else if (*s == '}' && depth) depth--;
-        if (*s == '\n') fputs("\\n", f);
-        else if (!depth && (*s == '"' || *s == '\\')) { fputc('\\', f); fputc(*s, f); }
-        else fputc(*s, f);
+        if (*s == '\n') { e[o++] = '\\'; e[o++] = 'n'; }
+        else if (!depth && (*s == '"' || *s == '\\')) { e[o++] = '\\'; e[o++] = *s; }
+        else e[o++] = *s;
+        if (*s == ' ' && !depth && nc < 512) cut[nc++] = o;   // a piece may end after this space
     }
-    fputc('"', f);
+    e[o] = 0;
+    if (pre + o + 2 <= DUMP_LINE || !nc) { fprintf(f, "\"%s\"", e); return; }
+    int from = 0, col = pre + 1, i = 0;
+    fputc('(', f);
+    for (;;) {
+        int to = o;
+        if (col + (o - from) + 3 > DUMP_LINE) {   // the last cut that keeps the piece on its line (else the next one)
+            int best = -1;
+            for (; i < nc && col + (cut[i] - from) + 2 <= DUMP_LINE; i++) best = cut[i];
+            if (best <= from && i < nc) best = cut[i++];
+            if (best > from) to = best;
+        }
+        fprintf(f, "%s\"%.*s\"", from ? "\n    " : "", to - from, e + from);
+        if (to >= o) break;
+        from = to;
+        col = 4;
+    }
+    fputc(')', f);
+}
+// the [vars] of the file as written - comments, line breaks - read before it is written anew: every [vars] /
+// [vars:<language>] section with its head (all: _system.eeai), or the entries of [vars] that aren't built in
+// (_template.eeai: an entry from its key line - and the comment lines right above it - to the next one). NULL: none
+static char *vars_kept(const char *path, int all) {
+    FILE *f = fopen(path, "rb");
+    if (!f) return NULL;
+    fseek(f, 0, SEEK_END);
+    long size = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    char *b = malloc((size_t)size + 1), *out = malloc((size_t)size + 2);
+    size = (long)fread(b, 1, (size_t)size, f);
+    fclose(f);
+    b[size] = 0;
+    int o = 0, in = 0, keep = 0;
+    const char *chunk = NULL, *com = NULL;   // the entry's start; the first of the comment lines right above a key
+    for (const char *l = b; *l; ) {
+        const char *nl = strchr(l, '\n'), *e = nl ? nl + 1 : l + strlen(l), *t = l;
+        while (*t == ' ' || *t == '\t') t++;
+        int head = *l == '[', key = !head && in && !all && tl_key_line(l);
+        if (head || key) {   // the entry before ends here (with the comments above this key)
+            const char *end = key && com ? com : l;
+            if (chunk && keep) { memcpy(out + o, chunk, (size_t)(end - chunk)); o += (int)(end - chunk); }
+            chunk = NULL;
+        }
+        if (head) {
+            in = !_strnicmp(l, "[vars]", 6) || !_strnicmp(l, "[vars:", 6);
+            if (in && all) { chunk = l; keep = 1; }   // the whole section, its head too
+        } else if (key) {
+            char name[48];
+            int n = 0;
+            while ((isalnum((unsigned char)t[n]) || t[n] == '_') && n < 47) { name[n] = t[n]; n++; }
+            name[n] = 0;
+            int j = 0;
+            while (j < N_TPL_VARS && !xkey_is(k_tpl_vars[j].key, name)) j++;
+            chunk = com ? com : l;
+            keep = j == N_TPL_VARS;   // a built-in one is written afresh
+        }
+        if (!head && in && !all) com = *t == ';' || *t == '#' ? (com ? com : l) : NULL;
+        l = e;
+    }
+    if (chunk && keep) { size_t r = strlen(chunk); memcpy(out + o, chunk, r); o += (int)r; }
+    while (o && (out[o - 1] == '\n' || out[o - 1] == '\r' || out[o - 1] == ' ')) o--;   // its blank lines at the end
+    free(b);
+    if (!o) { free(out); return NULL; }
+    out[o++] = '\n';
+    out[o] = 0;
+    return out;
 }
 static void text_placeholders(FILE *f, const char *a, const char *b) {   // "; {me} {them}" - those the texts use
     char seen[1000] = "";
@@ -317,8 +384,9 @@ static void cmd_texts(char *out, const char *args) {
     for (int sys = 1; sys >= 0; sys--) {
         wsprintfA(path, "%s%s", dir, sys ? "_system.eeai" : "_template.eeai");
         if (!force && GetFileAttributesA(path) != INVALID_FILE_ATTRIBUTES) { REPLY("kept %s (texts dump force overwrites)\n", path); continue; }
+        char *kept = vars_kept(path, sys);   // the file's own [vars], as written
         FILE *f = fopen(path, "wb");
-        if (!f) { REPLY("error: cannot write %s\n", path); continue; }
+        if (!f) { REPLY("error: cannot write %s\n", path); free(kept); continue; }
         if (sys) {
             fputs("; _system.eeai - the system lines eeaimod shows the player (white, from nobody in particular). Not a\n"
                   "; personality. [system] is English; [system:de] (or :fr, :es ... - the game's language) replaces what it has.\n"
@@ -327,16 +395,18 @@ static void cmd_texts(char *out, const char *args) {
                   "; Written by \"texts dump\" with the built-in texts.\n", f);
             fputs(k_format_help, f);
             fputs(";\n; [vars] here serve the system lines and every personality's lines (a personality's own [vars] first);\n"
-                  "; [vars:de] (or :fr ...) replaces them in a game of that language.\n"
-                  ";[vars]\n;mood = opinion > 30 ? \"gladly\" : \"\"\n\n[system]\n", f);
+                  "; [vars:de] (or :fr ...) replaces them in a game of that language.\n", f);
+            fputs(kept ? "\n" : ";[vars]\n;mood = opinion > 30 ? \"gladly\" : \"\"\n", f);
+            if (kept) fputs(kept, f);
+            fputs("\n[system]\n", f);
             for (int i = 0; i < N_SYS; i++) {
                 if (k_sys[i].note) { fputs("; ", f); fputs(k_sys[i].note, f); fputs("\n", f); }
                 text_placeholders(f, k_sys[i].en, NULL);
-                fprintf(f, "%s = ", k_sys[i].key); text_write(f, k_sys[i].en); fputs("\n", f);
+                fprintf(f, "%s = ", k_sys[i].key); text_write(f, k_sys[i].en, (int)strlen(k_sys[i].key) + 3); fputs("\n", f);
             }
             fputs("\n[system:de]\n", f);
             for (int i = 0; i < N_SYS; i++)
-                if (k_sys[i].de) { fprintf(f, "%s = ", k_sys[i].key); text_write(f, k_sys[i].de); fputs("\n", f); }
+                if (k_sys[i].de) { fprintf(f, "%s = ", k_sys[i].key); text_write(f, k_sys[i].de, (int)strlen(k_sys[i].key) + 3); fputs("\n", f); }
         } else {
             fputs("; _template.eeai - what eeaimod tells the language model ([llm] in aimod.ini): who the AI is, the game as it\n"
                   "; stands, the situations, the tools. English: the model is told which language to answer in. A key left out\n"
@@ -347,25 +417,21 @@ static void cmd_texts(char *out, const char *args) {
                   "; Written by \"texts dump\" with the built-in texts.\n", f);
             fputs(k_format_help, f);
             fputs(";\n; [vars] here serve the prompts only (English, like them). The ones written here are built in (the\n"
-                  "; pieces of other_state): change them, or add your own below them.\n\n[vars]\n", f);
-            texts_load();   // the file's own [vars] are kept: those that aren't built in, after them
+                  "; pieces of other_state, tribute_room): change them, or add your own below them.\n\n[vars]\n", f);
             for (int i = 0; i < N_TPL_VARS; i++) {
                 if (k_tpl_vars[i].note) { fputs("; ", f); fputs(k_tpl_vars[i].note, f); fputs("\n", f); }
                 var_write(f, k_tpl_vars[i].key, k_tpl_vars[i].en);
             }
-            for (int i = 0; i < g_vars_tpl.n; i++) {
-                int j = 0;
-                while (j < N_TPL_VARS && !xkey_is(g_vars_tpl.key[i], k_tpl_vars[j].key)) j++;
-                if (j == N_TPL_VARS) var_write(f, g_vars_tpl.key[i], g_vars_tpl.val[i]);
-            }
+            if (kept) { fputs("\n", f); fputs(kept, f); }   // the file's own, as written, after them
             fputs("\n[prompt]\n", f);
             for (int i = 0; i < N_TPL; i++) {
                 if (k_tpl[i].note) { fputs("; ", f); fputs(k_tpl[i].note, f); fputs("\n", f); }
                 text_placeholders(f, k_tpl[i].en, NULL);
-                fprintf(f, "%s = ", k_tpl[i].key); text_write(f, k_tpl[i].en); fputs("\n", f);
+                fprintf(f, "%s = ", k_tpl[i].key); text_write(f, k_tpl[i].en, (int)strlen(k_tpl[i].key) + 3); fputs("\n", f);
             }
         }
         fclose(f);
+        free(kept);
         REPLY("written %s\n", path);
     }
 }

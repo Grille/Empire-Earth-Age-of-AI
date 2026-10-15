@@ -66,6 +66,29 @@ an **expression**; it may go over several lines while a `(`, `[` or `{` is open:
 `"Hello, {opinion > 30 ? "friend" : "you"}!"`. The quotes inside the braces belong to the expression and don't end
 the string.
 
+**Long values over several lines.** A line break counts as a space while a `(`, `[` or `{` is open. A string itself
+(and a `{...}` inside it) stays on one line - for a long text, put strings side by side in `( )`: they are one
+string. That works for every key, also in `[prompt]` and `[system]`, which take strings only:
+
+```ini
+peace_offer = ("Peace, {them}? "
+    "My walls have held so far - "
+    "but I would rather build than fight.")
+
+report = (
+    allied ? "We stand together." :
+    them.kills(me) > 10 ? (
+        "You have killed {them.kills(me)} of mine. "
+        "I have not forgotten."
+    ) :
+    "We are not friends - not yet."
+)
+```
+
+Only inside `( )`: in a list, `["Hello" "Hi"]` stays a mistake (a missing comma), not one joined string. `+` joins
+texts too (`"a " + "b"`), but adds when both sides are numbers. A line that starts with `[` at its very beginning is
+a new section; indent the `[` of a list that starts a line of a value.
+
 **A mistake** - a missing quote or bracket, an expression that doesn't parse (also in a string's `{placeholder}`), an
 unknown key, situation or section - is written to the log (`aimod_econ.csv` next to the game, lines starting with
 `# texts:`) with the file and line, and only that key is skipped. The files are checked when the game starts, every
