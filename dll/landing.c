@@ -422,6 +422,8 @@ static void ld_why(unsigned pi, uint32_t now, const char *why) {   // why no lan
     fprintf(g_log, "# landing: P%u at %.1f min: none planned - %s\n", pi, now / 60000.0, why);
 }
 
+static uint8_t *ld_raid_target(void *pl, uint8_t *target, int x, int y, int r);   // below
+static uint8_t *ld_objective(void *pl, unsigned pi, uint8_t *target, unsigned cont, int x, int y);
 static void landing_tick(void *pl, uint32_t now) {
     unsigned pi = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     struct landing *l = &g_ld[pi];
@@ -796,16 +798,18 @@ static void landing_tick(void *pl, uint32_t now) {
     if (alive * 4 < l->launch_n || !alive) { ld_release(pi, "bridgehead spent", now); return; }
     if (!ashore) return;
     cx /= ashore; cy /= ashore;
-    uint8_t *foe = as_enemy_near(pl, l->target, (int)cx, (int)cy, 12, 1, NULL);
+    uint8_t *foe = ld_raid_target(pl, l->target, (int)cx, (int)cy, 12);
     if (!l->obj || !ld_alive(l->obj) || FIELD(l->obj, 0x18, uint8_t *) != l->target) {
-        l->obj = as_objective(pl, pi, l->target, area_id((int)cx, (int)cy, 2), (int)cx, (int)cy);
+        unsigned cont = area_id((int)cx, (int)cy, 2);
+        l->obj = ld_objective(pl, pi, l->target, cont, (int)cx, (int)cy);
+        if (!l->obj) l->obj = as_objective(pl, pi, l->target, cont, (int)cx, (int)cy);   // only defences left
         if (l->obj) { l->ox = FIELD(l->obj, 0x1C, int); l->oy = FIELD(l->obj, 0x20, int); }
     }
     for (int k = 0; k < l->npass; k++) {
         uint8_t *u = l->pass[k];
         if (ld_aboard(u) || as_fighting(u)) continue;
         if (foe) {
-            uint8_t *e = as_enemy_near(pl, l->target, FIELD(u, 0x1C, int), FIELD(u, 0x20, int), 14, 1, NULL);
+            uint8_t *e = ld_raid_target(pl, l->target, FIELD(u, 0x1C, int), FIELD(u, 0x20, int), 14);
             l->orders += unit_goal(u, goal_attack(u, e ? e : foe), 0, 0x1F40);
         } else if (l->obj) {
             float dx = (float)(l->ox - FIELD(u, 0x1C, int)), dy = (float)(l->oy - FIELD(u, 0x20, int));
@@ -815,6 +819,63 @@ static void landing_tick(void *pl, uint32_t now) {
         }
     }
     if (!foe && !l->obj) ld_release(pi, "nothing left to attack ashore", now);
+}
+
+// Ashore the landing raids (the user: "my back is basically undefended ... could cause a lot of trouble"): what it
+// sees within r tiles, by kind - soldiers and siege within 8 (they fight back), citizens, buildings of the target
+// within 8 that are no defence, defences only when they reach it; nearest first within a kind. (Before: soldiers,
+// then any defence within 12, then buildings - the troops walked into towers past the citizens.)
+static uint8_t *ld_raid_target(void *pl, uint8_t *target, int x, int y, int r) {
+    uint8_t *map = *(uint8_t **)G_MAP;
+    uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
+    if (!grid) return NULL;
+    int cs = FIELD(grid, 8, int), nx = FIELD(grid, 0x10, int), ny = FIELD(grid, 0x14, int);
+    uint8_t *cells = FIELD(grid, 4, uint8_t *), *best[4] = { 0 };
+    float bd[4] = { 1e9f, 1e9f, 1e9f, 1e9f };
+    for (int gx = (x - r) / cs; cells && cs > 0 && gx <= (x + r) / cs; gx++)
+        for (int gy = (y - r) / cs; gy <= (y + r) / cs; gy++) {
+            if (gx < 0 || gy < 0 || gx >= nx || gy >= ny) continue;
+            uint8_t *cell = cells + (gx * ny + gy) * 16;
+            for (uint8_t **b = FIELD(cell, 4, uint8_t **); b && b < FIELD(cell, 8, uint8_t **); b++) {
+                uint8_t *u = *b, *td = u ? FIELD(u, 0x2C, uint8_t *) : NULL;
+                if (!td || FIELD(u, 0x3C, int) <= 0) continue;
+                void *o = FIELD(u, 0x18, void *);
+                if (!o || FIELD(o, PL_INDEX, int) <= 0 || !is_enemy(pl, o) || !seen_by(u, pl)) continue;
+                float dx = (float)(FIELD(u, 0x1C, int) - x), dy = (float)(FIELD(u, 0x20, int) - y), d2 = dx * dx + dy * dy, rr, a;
+                if (d2 > (float)(r * r)) continue;
+                int fam = FIELD(td, 0x4B4, int), type = FIELD(td, 0x4B8, int), k;
+                if (fam == 3 || fam == 7 || fam == 17 || fam == 4) continue;   // aircraft, ships
+                if (is_soldier(td) || is_siege(type)) { if (d2 > 64.0f) continue; k = 0; }
+                else if (type == 32 || type == 480) k = 1;   // citizens
+                else if (defence_stats(u, &rr, &a)) { if (d2 > (rr + 1.0f) * (rr + 1.0f)) continue; k = 3; }
+                else if (o == target && (fam == 2 || fam == 29) && !is_wall(type) && d2 <= 64.0f) k = 2;
+                else continue;
+                if (d2 < bd[k]) { bd[k] = d2; best[k] = u; }
+            }
+        }
+    for (int k = 0; k < 4; k++) if (best[k]) return best[k];
+    return NULL;
+}
+// the next objective ashore: the nearest building of the target it knows that is no defence (its distance plus 3 per
+// tower covering it, on the landed continent)
+struct ld_obj { void *pl; uint8_t *target; unsigned pi, cont; int x, y; uint8_t *best; float score; };
+static void ld_obj_unit(uint8_t *u, void *ctx) {
+    struct ld_obj *s = ctx;
+    uint8_t *td = FIELD(u, 0x2C, uint8_t *);
+    int fam = FIELD(td, 0x4B4, int);
+    float rr, a;
+    if (FIELD(u, 0x18, uint8_t *) != s->target || (fam != 2 && fam != 29) || FIELD(u, 0x3C, int) <= 0 ||
+        is_wall(FIELD(td, 0x4B8, int)) || defence_stats(u, &rr, &a) || !seen_by(u, s->pl))
+        return;
+    int x = FIELD(u, 0x1C, int), y = FIELD(u, 0x20, int);
+    float dx = (float)(x - s->x), dy = (float)(y - s->y), sc = sqrtf(dx * dx + dy * dy) + 3.0f * threat_at(s->pi, x, y);
+    if ((s->best && sc >= s->score) || !cont_ok(x, y, s->cont)) return;
+    s->best = u; s->score = sc;
+}
+static uint8_t *ld_objective(void *pl, unsigned pi, uint8_t *target, unsigned cont, int x, int y) {
+    struct ld_obj s = { pl, target, pi, cont, x, y, NULL, 0 };
+    grid_each(ld_obj_unit, &s);
+    return s.best;
 }
 
 // terrain x y [r] (test): the map around a tile, a character per tile: ~ ocean, . land (its continent; digit: another
