@@ -159,6 +159,16 @@ writes = "{them} writes: {text}"
 ; an event in the history
 ; in braces: {text}
 event = "(Event of the game: {text})"
+; [llm] memory_mode=player: one memory per AI - its exchanges with the others as notes ({them}: that other)
+; in braces: {them}
+mem_rule = ("\nMessages that start with (Elsewhere are your own exchanges with other players, in the order they "
+    "happened: {them} has not seen them - what you share of them is up to you.")
+; in braces: {them} {text}
+mem_heard = "(Elsewhere, {them} to you: {text})"
+; in braces: {them} {text}
+mem_said = "(Elsewhere, you to {them}: {text})"
+; in braces: {them} {text}
+mem_event = "(Elsewhere, with {them}: {text})"
 ; a personality line said in the AI's own words ({keep}: " and every name and number in it" when it has some)
 ; in braces: {situation} {audience} {language_name} {line} {keep}
 line = ("(Not a chat line - an event of the game: {situation}. Say something about it {audience}, in your own words, "

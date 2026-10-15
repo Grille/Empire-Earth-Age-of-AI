@@ -112,6 +112,12 @@ static const struct text_def k_tpl[] = {
       "you accept. Less is not enough; you may ask for more.", NULL, NULL },
     { "writes", "{them} writes: {text}", NULL, "a chat line or message of the other, in the history" },
     { "event", "(Event of the game: {text})", NULL, "an event in the history" },
+    { "mem_rule", "\nMessages that start with (Elsewhere are your own exchanges with other players, in the order they "
+      "happened: {them} has not seen them - what you share of them is up to you.", NULL, "[llm] memory_mode=player: "
+      "one memory per AI - its exchanges with the others as notes ({them}: that other)" },
+    { "mem_heard", "(Elsewhere, {them} to you: {text})", NULL, NULL },
+    { "mem_said", "(Elsewhere, you to {them}: {text})", NULL, NULL },
+    { "mem_event", "(Elsewhere, with {them}: {text})", NULL, NULL },
     { "line", "(Not a chat line - an event of the game: {situation}. Say something about it {audience}, in your "
       "own words, in {language_name}. The usual line would be: \"{line}\" - keep its meaning{keep}.)", NULL, "a personality line said in the AI's own words ({keep}: \" and every name and number in it\" when it has some)" },
     { "keep", "and every name and number in it", NULL, NULL },

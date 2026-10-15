@@ -153,12 +153,26 @@ static void mem_add(struct mem *m, int kind, const char *text) {
     m->kind[m->n] = (uint8_t)kind;
     lstrcpynA(m->text[m->n++], text, MEM_LEN);
 }
+// [llm] memory_mode=player: one memory per AI instead - all its exchanges, with the local player and with every AI, and
+// its events, in the order they happened; kind = role << 4 | the other player (0 they wrote, 1 it said, 2 an event
+// between them, 3 the event that opened an AI talk, in the third person). The pair memories stay empty then.
+static int g_llm_mem_player;
+static struct mem g_self_hist[16];
+static void self_add(int ai, int role, int other, const char *text) {
+    if (ai < 1 || ai > 15 || other < 0 || other > 15 || !g_players[ai]) return;   // only the AIs remember
+    mem_add(&g_self_hist[ai], role << 4 | other, text);
+}
 static struct mem g_pair_hist[16][16];   // [lo][hi]: kind = the speaker, 16+ the event that opened an exchange
 static struct { int a, b, turn; uint32_t t; } g_talk;   // a 0: none running
 static struct { int a, b; char sit[400], ev[400], fixed[256]; uint32_t t; } g_talk_wait[4];
 static uint32_t g_talk_started;   // game time the last exchange started
 static unsigned g_talk_n_ex, g_talk_n_msg, g_talk_n_fail, g_talk_n_drop;
 static void pair_add(int a, int b, int who, const char *text) {
+    if (g_llm_mem_player) {   // in both memories, each from its side
+        if (who >= 16) { self_add(a, 3, b, text); self_add(b, 3, a, text); }
+        else { int o = who == a ? b : a; self_add(who, 1, o, text); self_add(o, 0, who, text); }
+        return;
+    }
     int lo = a < b ? a : b, hi = a < b ? b : a;
     if (lo < 0 || hi > 15) return;
     mem_add(&g_pair_hist[lo][hi], who, text);
@@ -172,25 +186,30 @@ static uint32_t g_llm_last_t;
 
 static void llm_hist_add(int ai, int role, const char *text) {
     if (ai < 0 || ai > 15) return;
+    if (g_llm_mem_player) { self_add(ai, role, (int)(*(unsigned *)0x00918E84 & 15), text); return; }
     mem_add(&g_llm_hist[ai], role, text);
 }
-// the memories for the saved game: records {0 = with the local player / 1 = a pair, a, b, count (4 bytes)} then each entry
-// {kind, length, text} - malloc'd, *size its length (NULL: nothing to keep)
+// the memories for the saved game: records {0 = with the local player / 1 = a pair / 2 = an AI's own (memory_mode=player),
+// a, b, count (4 bytes)} then each entry {kind, length, text} - malloc'd, *size its length (NULL: nothing to keep)
+#define MEM_RECS (16 * 17 + 16)
+static struct mem *mem_rec(int i) {   // record i: 0..15 with the local player, then the pairs, then the AIs' own
+    return i < 16 ? &g_llm_hist[i] : i < 16 * 17 ? &g_pair_hist[(i - 16) / 16][(i - 16) % 16] : &g_self_hist[i - 16 * 17];
+}
 static uint8_t *llm_mem_save(uint32_t *size) {
     uint32_t cap = 0, o = 0;
-    for (int i = 0; i < 16 * 17; i++) {
-        const struct mem *m = i < 16 ? &g_llm_hist[i] : &g_pair_hist[(i - 16) / 16][(i - 16) % 16];
+    for (int i = 0; i < MEM_RECS; i++) {
+        const struct mem *m = mem_rec(i);
         cap += 7;
         for (int e = 0; e < m->n; e++) cap += 3 + (uint32_t)strlen(m->text[e]);
     }
     uint8_t *p = malloc(cap);
     if (!p) { *size = 0; return NULL; }
-    for (int i = 0; i < 16 * 17; i++) {
-        const struct mem *m = i < 16 ? &g_llm_hist[i] : &g_pair_hist[(i - 16) / 16][(i - 16) % 16];
+    for (int i = 0; i < MEM_RECS; i++) {
+        const struct mem *m = mem_rec(i);
         if (!m->n) continue;
-        p[o++] = i < 16 ? 0 : 1;
-        p[o++] = (uint8_t)(i < 16 ? i : (i - 16) / 16);
-        p[o++] = (uint8_t)(i < 16 ? 0 : (i - 16) % 16);
+        p[o++] = i < 16 ? 0 : i < 16 * 17 ? 1 : 2;
+        p[o++] = (uint8_t)(i < 16 ? i : i < 16 * 17 ? (i - 16) / 16 : i - 16 * 17);
+        p[o++] = (uint8_t)(i < 16 || i >= 16 * 17 ? 0 : (i - 16) % 16);
         memcpy(p + o, &m->n, 4);
         o += 4;
         for (int e = 0; e < m->n; e++) {
@@ -212,7 +231,7 @@ static void llm_mem_load(const uint8_t *p, uint32_t size) {   // (after llm_new_
         int what = p[o], a = p[o + 1] & 15, b = p[o + 2] & 15, n;
         memcpy(&n, p + o + 3, 4);
         o += 7;
-        struct mem *m = what ? &g_pair_hist[a][b] : &g_llm_hist[a];
+        struct mem *m = what == 2 ? &g_self_hist[a] : what ? &g_pair_hist[a][b] : &g_llm_hist[a];
         for (int e = 0; e < n && o + 3 <= size; e++) {
             int kind = p[o];
             uint32_t len = (uint32_t)(p[o + 1] | p[o + 2] << 8);
@@ -238,6 +257,7 @@ static void llm_new_game(void) {
     g_llm_off_told = 0;
     memset(g_llm_paid_t, 0, sizeof g_llm_paid_t);
     for (int i = 0; i < 16 * 16; i++) g_pair_hist[i / 16][i % 16].n = 0;
+    for (int i = 0; i < 16; i++) g_self_hist[i].n = 0;
     memset(&g_talk, 0, sizeof g_talk);
     memset(g_talk_wait, 0, sizeof g_talk_wait);
     memset(g_pair_last, 0, sizeof g_pair_last);
@@ -675,6 +695,7 @@ static void llm_system(struct sbuf *b, void *pl, int ai, int h, int tools) {
     // whose "my" is whose: the other's lines arrive as written, from their side
     if (player_at(h) && h != ai)
         tput(t, &o, sizeof t, "whose", NULL);
+    if (g_llm_mem_player && player_at(h) && h != ai) tput(t, &o, sizeof t, "mem_rule", NULL);   // its notes of the others
     // the game as it stands
     void *ph = player_at(h);
     tput(t, &o, sizeof t, "game_state_me", NULL);
@@ -699,8 +720,33 @@ static void llm_system(struct sbuf *b, void *pl, int ai, int h, int tools) {
     g_xc_pl = g_xc_other = NULL;
     sb_msg(b, "system", t);
 }
+// memory_mode=player: AI ai's memory for a request to other - their exchange as in the other modes (its words the
+// assistant's, theirs and the events user messages), all else in between as notes (mem_heard, mem_said, mem_event)
+static void self_history(struct sbuf *b, int ai, int other) {
+    void *pa = player_at(ai), *po = player_at(other);
+    const struct mem *m = &g_self_hist[ai];
+    for (int i = 0; i < m->n; i++) {
+        char u[LLM_MAXLEN + 200];
+        int role = m->kind[i] >> 4, with = m->kind[i] & 15;
+        const char *t = m->text[i];
+        if (with == other) {
+            if (role == 1) { sb_msg(b, "assistant", t); continue; }
+            if (role == 3) {   // the event that opened an AI talk
+                char ev[LLM_MAXLEN + 40];
+                wsprintfA(ev, "%s.", t);
+                tsub(u, sizeof u, tpl_text("event"), pa, po, "text", ev, NULL);
+            } else tsub(u, sizeof u, tpl_text(role == 2 ? "event" : "writes"), pa, po, "text", t, NULL);
+        } else {
+            void *pw = player_at(with);
+            if (!pw) continue;
+            tsub(u, sizeof u, tpl_text(role == 0 ? "mem_heard" : role == 1 ? "mem_said" : "mem_event"), pa, pw, "text", t, NULL);
+        }
+        sb_msg(b, "user", u);
+    }
+}
 static void llm_history(struct sbuf *b, int ai) {   // his lines framed with his name (whose "my" it is)
     void *pl = player_at(ai), *ph = player_at((int)*(unsigned *)0x00918E84);
+    if (g_llm_mem_player) { self_history(b, ai, (int)(*(unsigned *)0x00918E84 & 15)); return; }
     for (int i = 0; i < g_llm_hist[ai].n; i++) {
         char u[LLM_MAXLEN + 120];
         if (g_llm_hist[ai].kind[i] == 1) { sb_msg(b, "assistant", g_llm_hist[ai].text[i]); continue; }
@@ -1205,6 +1251,7 @@ static void llm_player_chat(const char *text) {
 
 // ---- AI TALK ----
 static void pair_history(struct sbuf *b, int ai, int other) {   // from ai's side: its own messages are the assistant's
+    if (g_llm_mem_player) { self_history(b, ai, other); return; }
     int lo = ai < other ? ai : other, hi = ai < other ? other : ai;
     void *pa = player_at(ai), *po = player_at(other);
     for (int i = 0; i < g_pair_hist[lo][hi].n; i++) {
@@ -1664,6 +1711,8 @@ static void llm_install(const char *ini, const char *test_ini) {
     g_llm_ai_decide = GetPrivateProfileIntA("llm", "ai_decide", 0, ini);
     g_llm_equal = GetPrivateProfileIntA("llm", "equal", 0, ini);
     g_llm_memory = GetPrivateProfileIntA("llm", "memory", 8, ini);
+    char mm[16];
+    GetPrivateProfileStringA("llm", "memory_mode", "pair", mm, sizeof mm, ini);
     char fb[16];
     GetPrivateProfileStringA("llm", "fallback", "rules", fb, sizeof fb, ini);
     g_llm_constrained = GetPrivateProfileIntA("llm", "constrained", 1, ini);
@@ -1684,12 +1733,14 @@ static void llm_install(const char *ini, const char *test_ini) {
         g_llm_ai_decide = GetPrivateProfileIntA("autotest", "llm_ai_decide", g_llm_ai_decide, test_ini);
         g_llm_equal = GetPrivateProfileIntA("autotest", "llm_equal", g_llm_equal, test_ini);
         g_llm_memory = GetPrivateProfileIntA("autotest", "llm_memory", g_llm_memory, test_ini);
+        GetPrivateProfileStringA("autotest", "llm_memory_mode", mm, mm, sizeof mm, test_ini);
         GetPrivateProfileStringA("autotest", "llm_fallback", fb, fb, sizeof fb, test_ini);
         g_llm_constrained = GetPrivateProfileIntA("autotest", "llm_constrained", g_llm_constrained, test_ini);
         GetPrivateProfileStringA("autotest", "llm_url", g_llm_url, g_llm_url, sizeof g_llm_url, test_ini);
         GetPrivateProfileStringA("autotest", "llm_model", g_llm_model, g_llm_model, sizeof g_llm_model, test_ini);
     }
     g_llm_wait = !lstrcmpiA(fb, "pause");
+    g_llm_mem_player = !lstrcmpiA(mm, "player");
     if (g_llm_timeout < 2) g_llm_timeout = 2;
     if (g_llm_timeout > 120) g_llm_timeout = 120;
     if (g_llm_max_tokens < 16) g_llm_max_tokens = 16;
@@ -1716,8 +1767,9 @@ static void llm_install(const char *ini, const char *test_ini) {
     g_llm_event = CreateEventA(NULL, FALSE, FALSE, NULL);
     g_llm_thread = CreateThread(NULL, 0, llm_worker, NULL, 0, NULL);
     if (g_log) fprintf(g_log, "# llm: on - %s, model '%s', lines %d, chat %d, decide %d, ai_talk %d (show %d, gap %d s, turns %d), "
-                       "ai_decide %d, equal %d, timeout %d s, fallback %s, constrained %d, memory %d\n", g_llm_url, g_llm_model, g_llm_lines,
+                       "ai_decide %d, equal %d, timeout %d s, fallback %s, constrained %d, memory %d (%s)\n", g_llm_url, g_llm_model, g_llm_lines,
                        g_llm_chat, g_llm_decide, g_llm_ai_talk, g_llm_talk_show, g_llm_talk_gap, g_llm_talk_turns, g_llm_ai_decide,
-                       g_llm_equal, g_llm_timeout, g_llm_wait ? "pause" : "rules", g_llm_constrained, g_llm_memory);
+                       g_llm_equal, g_llm_timeout, g_llm_wait ? "pause" : "rules", g_llm_constrained, g_llm_memory,
+                       g_llm_mem_player ? "per player" : "per pair");
 
 }
