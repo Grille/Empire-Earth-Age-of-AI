@@ -1134,6 +1134,7 @@ static void diplo_safe_point(void) {
             if (!(q & (1 << j)) || !pj) continue;
             int before = attack_groups(p);
             breach_forget(p);
+            asg_purge_all(p);   // members without their unit: the call-off reads them first (attack.c)
             ((void (__thiscall *)(void *, void *, int))0x0043033E)(p, pj, 1);
             if (g_log) fprintf(g_log, "# attack: P%d calls off its citizen attack on P%d (attack groups %d -> %d)\n", i, j,
                                before, attack_groups(p));
@@ -1149,6 +1150,7 @@ static void diplo_safe_point(void) {
             if (!(q & (1 << j)) || !pj || stance_of(p, j)) continue;   // enemies again: the attack stays
             int before = attack_groups(p);
             breach_forget(p);
+            asg_purge_all(p);   // members without their unit: the call-off reads them first (attack.c)
             ((void (__thiscall *)(void *, void *, int))0x0043033E)(p, pj, 1);
             if (g_log) { fprintf(g_log, "# diplomacy: P%d calls off its attacks on P%d (attack groups %d -> %d)\n", i, j, before,
                                  attack_groups(p)); fflush(g_log); }

@@ -1099,8 +1099,59 @@ static void __fastcall hook_group_stat(void *stats, void *edx, uint8_t *unit) {
     ((void (__thiscall *)(void *, void *))FN_GROUP_STAT)(stats, unit);
 }
 
+// The same records read without a check by each subgroup class's vf20 (members' stats into +0x160: 0x45AD2F, land
+// 0x4472A9) - a crash at 0x45AD70 (read [0 + 0x2C]) in the user's game at 49.6 min, right after the guard above had
+// skipped such a record (12 minutes after attacks were called off for an alliance), and five more readers of the
+// pattern. Before vf20 runs, records without a unit leave the member vector (+0x54..+0x58; the records themselves are
+// left alone, in case anything else still points at them).
+#define FN_ASG_STATS      0x0045AD2F
+#define FN_ASG_LAND_STATS 0x004472A9
+static void asg_purge(uint8_t *sg) {
+    uint8_t **b = FIELD(sg, 0x54, uint8_t **), **e = FIELD(sg, 0x58, uint8_t **), **w = b;
+    if (!b || e < b || e - b > 4096) return;
+    for (uint8_t **r = b; r < e; r++)
+        if (*r && FIELD(*r, 0x44, uint8_t *)) *w++ = *r;
+    if (w == e) return;
+    FIELD(sg, 0x58, uint8_t **) = w;
+    static int logged;
+    if (g_log && logged < 20) {
+        logged++;
+        fprintf(g_log, "# engine guard: %d attack subgroup members without their unit taken out at %.1f min\n", (int)(e - w),
+                game_time() / 60000.0);
+        fflush(g_log);
+    }
+}
+// every attack subgroup of AI pl: before the mod calls its attacks off (0x43033E with 1, which reads the members first,
+// 0x454B90) - with a record without its unit it crashed there at once (test: nullmember P off)
+static void asg_purge_all(void *pl) {
+    uint8_t *cbm = pl ? FIELD(pl, 0xB8C, uint8_t *) : NULL, *cmd = cbm ? FIELD(cbm, 0x48, uint8_t *) : NULL;
+    if (!cmd) return;
+    uint8_t *dq = cmd + 4;
+    unsigned first = FIELD(dq, 0xC, unsigned), cnt = FIELD(dq, 0x10, unsigned);
+    for (unsigned k = 0; k < cnt && k < 64; k++) {
+        uint8_t *g = deque_at(dq, first + k);
+        for (uint8_t **sp = g ? FIELD(g, 8, uint8_t **) : NULL; sp && sp < FIELD(g, 0xC, uint8_t **); sp++)
+            if (*sp) asg_purge(*sp);
+    }
+}
+static void __fastcall hook_asg_stats(uint8_t *sg, void *edx) {
+    (void)edx;
+    asg_purge(sg);
+    ((void (__thiscall *)(void *))FN_ASG_STATS)(sg);
+}
+static void __fastcall hook_asg_land_stats(uint8_t *sg, void *edx) {
+    (void)edx;
+    asg_purge(sg);
+    ((void (__thiscall *)(void *))FN_ASG_LAND_STATS)(sg);
+}
+static const uintptr_t k_asg_vtables[] = { 0x00827620, 0x00826610, 0x00826818, 0x00826F10, 0x008270F8, 0x00827318 };
+
 static void attack_install(const char *aimod_ini, const char *autotest_ini) {
     BOOL stat_guard = patch_call(CALL_GROUP_STAT, FN_GROUP_STAT, hook_group_stat);
+    int sg_guard = patch_vtable(VT_ASG_LAND, 20, FN_ASG_LAND_STATS, hook_asg_land_stats);
+    for (unsigned k = 0; k < sizeof k_asg_vtables / sizeof *k_asg_vtables; k++)
+        sg_guard += patch_vtable(k_asg_vtables[k], 20, FN_ASG_STATS, hook_asg_stats);
+    if (g_log) fprintf(g_log, "# engine guard: attack subgroup stats %d/7\n", sg_guard);
     if (g_log) fprintf(g_log, "# engine guard: attack subgroup members %s\n", stat_guard ? "ok" : "FAILED");
     g_avoid_towers = cfg_int(aimod_ini, autotest_ini, 1, "avoid_towers", 1);
     g_avoid_citizens = cfg_int(aimod_ini, autotest_ini, 1, "avoid_towers_citizens", 1);
@@ -1136,6 +1187,40 @@ static void cmd_threat(char *out, const char *args) {
         struct defence *d = &g_threat[p].d[k];
         REPLY("  type %3d of P%d at %d,%d range %.1f attack %.0f\n", d->type, d->owner, d->x, d->y, d->range, d->attack);
     }
+}
+
+// nullmember P (test): the first member record (of an attack subgroup of AI P with 2+ members) loses its unit (+0x44
+// = 0) - the state the engine guards (hook_group_stat, asg_purge) are for
+static void cmd_nullmember(char *out, const char *args) {
+    int p = atoi(args);
+    void *pl = (p > 0 && p < 16) ? g_players[p] : NULL;
+    uint8_t *cbm = pl ? FIELD(pl, 0xB8C, uint8_t *) : NULL, *cmd = cbm ? FIELD(cbm, 0x48, uint8_t *) : NULL;
+    if (!cmd) { REPLY("error: no AI player %d with an attack commander\n", p); return; }
+    uint8_t *dq = cmd + 4;
+    unsigned first = FIELD(dq, 0xC, unsigned), cnt = FIELD(dq, 0x10, unsigned);
+    for (unsigned k = 0; k < cnt && k < 64; k++) {
+        uint8_t *g = deque_at(dq, first + k);
+        for (uint8_t **sp = g ? FIELD(g, 8, uint8_t **) : NULL; sp && sp < FIELD(g, 0xC, uint8_t **); sp++) {
+            int n = 0, cit = 0;
+            if (!*sp) continue;
+            subgroup_count(*sp, &n, &cit);
+            uint8_t **b = FIELD(*sp, 0x54, uint8_t **);
+            if (n < 2 || !b || !*b) continue;
+            uint8_t *u = FIELD(*b, 0x44, uint8_t *);
+            FIELD(*b, 0x44, uint8_t *) = NULL;
+            REPLY("P%d subgroup %p (vt %06x, %d members): record %p lost its unit %p\n", p, (void *)*sp,
+                  *(unsigned *)*sp, n, (void *)*b, (void *)u);
+            uint8_t *target = FIELD(g, 0x48, uint8_t *);
+            if (strstr(args, "off") && target) {   // and the attack called off at once, as diplo_safe_point does
+                breach_forget(pl);
+                asg_purge_all(pl);
+                ((void (__thiscall *)(void *, void *, int))0x0043033E)(pl, target, 1);
+                REPLY("P%d's attack on P%d called off\n", p, FIELD(target, PL_INDEX, int));
+            }
+            return;
+        }
+    }
+    REPLY("P%d: no attack subgroup with 2+ members (groups %u)\n", p, cnt);
 }
 
 // Enemy buildings of AI player P (all, seen or not): owner, type, tile, seen by P, known threat on them.

@@ -21,6 +21,7 @@
 static void *g_players[16];         // EEComputerPlayer seen by the AI hooks, by player index
 static void watch_set(uintptr_t addr, int len);
 static void cmd_threat(char *out, const char *args);
+static void cmd_nullmember(char *out, const char *args);
 static void cmd_targets(char *out, const char *args);
 static void cmd_army(char *out, const char *args);
 static void cmd_minecheck(char *out, const char *args);   // sites.c
@@ -368,6 +369,7 @@ static void execute(const char *cmd, char *out) {
     else if (!strcmp(verb, "foodcheck")) cmd_foodcheck(out, args);
     else if (!strcmp(verb, "costs")) cmd_costs(out, args);
     else if (!strcmp(verb, "threat")) cmd_threat(out, args);
+    else if (!strcmp(verb, "nullmember")) cmd_nullmember(out, args);
     else if (!strcmp(verb, "targets")) cmd_targets(out, args);
     else if (!strcmp(verb, "army")) cmd_army(out, args);
     else if (!strcmp(verb, "wave")) cmd_wave(out, args);
