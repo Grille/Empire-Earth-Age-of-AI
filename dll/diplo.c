@@ -393,6 +393,10 @@ static void make_peace(int ai, int j, uint32_t now) {
 static void declare_war(int ai, int j, uint32_t now) {
     void *pl = player_at(ai);
     if (!pl || stance_of(pl, j)) return;
+    if (g_lord[ai] == j) {   // a vassal rebels (only the language model, [llm] constrained=0): free
+        g_lord[ai] = 0;
+        if (g_log) fprintf(g_log, "# diplomacy: P%d at %.1f min: rebels against its lord P%d - no longer a vassal\n", ai, now / 60000.0, j);
+    }
     set_stance(ai, j, 1);
     stance_note(ai, j, 1);
     g_ally_since[ai][j] = g_ally_since[j][ai] = 0;
@@ -415,11 +419,13 @@ static int llm_peace_answer(void *pl, int ai, int j, uint32_t now);   // llm.c: 
 static int llm_ai_deciding(void);                                     // llm.c: the model decides between AIs ([llm] ai_decide=1)
 static int llm_ai_offer(int from, int to, int kind, int third);       // llm.c: an AI's offer to an AI, the model answers
 static void llm_happened(int ai, const char *fmt, ...);               // llm.c: an event for the model's memory
+static int llm_unbound(void);                                         // llm.c: [llm] constrained=0, the model decides
 
 // A pending peace offer of j (allied towards the AI while the AI is at war with him)
 static void peace_offer(void *pl, int ai, int j, uint32_t now) {
     void *pj = player_at(j);
-    if (is_vassal(ai)) {   // not its decision
+    if (is_vassal(ai) && !llm_unbound()) {   // not its decision (unless the model decides, unconstrained)
+
         if (!g_peace_refused[ai][j]) {
             void *pk = player_at(g_lord[ai]);
             persona_say(pl, L_ASK_LORD, pj, pk);

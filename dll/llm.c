@@ -74,6 +74,19 @@ static int g_llm_off_told;                      // single player, AI voice off: 
 static unsigned g_llm_seq;
 static unsigned g_llm_n_ok, g_llm_n_fail, g_llm_n_fixed, g_llm_n_late;
 static int g_llm_decide;                        // [llm] decide
+// [llm] fallback=pause (single player): a model that can't be reached or doesn't answer in time gets no fixed line
+// or rules decision in its place - the game pauses (llm_wait_tick) while the worker tries again every 5 s, and runs
+// on when it answers. The player may resume it: then it plays on while the answers still come (no pause again until
+// they have). fallback=rules (default): the fixed lines and the rules.
+static int g_llm_wait;
+static volatile LONG g_llm_unreach;             // fallback=pause: the worker can't reach the server (trying again)
+static int g_llm_paused;                        // 1 the game paused for the model, 2 the player resumed it meanwhile
+static DWORD g_llm_paused_t;
+// [llm] constrained=0: the model's steps are limited only by the game - peace whenever at war (no pride, no ally's
+// veto), war on any ally at once (its lord too: a vassal rebels), a vassal's own diplomacy, tributes of everything it
+// has whenever it likes. Silly things may happen. 1 (default): the rules' limits (tool_peace_ok ...)
+static int g_llm_constrained = 1;
+static int llm_waits(void) { return g_llm_wait && !g_mp; }
 static int g_llm_rules;                         // the rules decide in the model's place (no answer): no new request
 static int g_llm_bypass;                        // a fixed line for a decision: shown as it is, not reworded
 static uint32_t g_llm_paid_t[16];               // the AI's last tribute by tool (game time)
@@ -371,16 +384,25 @@ static void llm_fail(struct llm_job *j, const char *what, DWORD err, int down) {
     if (down) { g_llm_down_until = GetTickCount() + 60000; InterlockedExchange(&g_llm_fail_note, 1); }
     SET_STATE(j, J_FAILED);
 }
+// fallback=pause: a server that can't be reached or doesn't answer is tried again (llm_post) instead of failing
+static int llm_retry(struct llm_job *j, const char *what, DWORD err) {
+    if (!llm_waits() || j->gen != g_llm_gen) return 0;
+    snprintf(g_llm_last_err, sizeof g_llm_last_err, "%s (error %lu)", what, err);
+    InterlockedExchange(&g_llm_unreach, 1);
+    return 1;
+}
 static void llm_post(struct llm_job *j, DWORD wait_ms) {
     DWORD limit = (DWORD)g_llm_timeout * 1000u, t = GetTickCount();
+    int retry = 0;
 again:
+    if (llm_waits()) wait_ms = 0;   // it waits as long as it takes (the game pauses: llm_wait_tick)
     if (wait_ms >= limit - 500) { g_llm_n_late++; snprintf(g_llm_last_err, sizeof g_llm_last_err, "waited too long"); SET_STATE(j, J_FAILED); return; }
-    DWORD left = limit - wait_ms;
+    DWORD left = llm_waits() ? 600000u : limit - wait_ms;
     HINTERNET ses = WinHttpOpen(L"eeaimod", WINHTTP_ACCESS_TYPE_NO_PROXY, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
     HINTERNET con = ses ? WinHttpConnect(ses, g_llm_host, g_llm_port, 0) : NULL;
     HINTERNET req = con ? WinHttpOpenRequest(con, L"POST", g_llm_path, NULL, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES,
                                              g_llm_https ? WINHTTP_FLAG_SECURE : 0) : NULL;
-    if (!req) { llm_fail(j, "open", GetLastError(), 1); goto done; }
+    if (!req) { if (llm_retry(j, "open", GetLastError())) retry = 1; else llm_fail(j, "open", GetLastError(), 1); goto done; }
     WinHttpSetTimeouts(req, 3000, 3000, (int)left, (int)left);
     WCHAR hdr[300] = L"Content-Type: application/json\r\n";
     if (g_llm_key[0]) {
@@ -393,15 +415,18 @@ again:
     DWORD blen = (DWORD)strlen(j->body);
     if (!WinHttpSendRequest(req, hdr, (DWORD)-1, j->body, blen, blen, 0)) {
         DWORD e = GetLastError();
-        llm_fail(j, e == ERROR_WINHTTP_TIMEOUT ? "no answer in time" : "cannot connect", e, e != ERROR_WINHTTP_TIMEOUT);
+        if (llm_retry(j, e == ERROR_WINHTTP_TIMEOUT ? "no answer in time" : "cannot connect", e)) retry = 1;
+        else llm_fail(j, e == ERROR_WINHTTP_TIMEOUT ? "no answer in time" : "cannot connect", e, e != ERROR_WINHTTP_TIMEOUT);
         goto done;
     }
     if (!WinHttpReceiveResponse(req, NULL)) {
         DWORD e = GetLastError();
         if (e == ERROR_WINHTTP_TIMEOUT) g_llm_n_late++;
-        llm_fail(j, e == ERROR_WINHTTP_TIMEOUT ? "no answer in time" : "no response", e, e != ERROR_WINHTTP_TIMEOUT);
+        if (llm_retry(j, e == ERROR_WINHTTP_TIMEOUT ? "no answer in time" : "no response", e)) retry = 1;
+        else llm_fail(j, e == ERROR_WINHTTP_TIMEOUT ? "no answer in time" : "no response", e, e != ERROR_WINHTTP_TIMEOUT);
         goto done;
     }
+    InterlockedExchange(&g_llm_unreach, 0);
     DWORD code = 0, csz = sizeof code;
     WinHttpQueryHeaders(req, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER, WINHTTP_HEADER_NAME_BY_INDEX, &code, &csz,
                         WINHTTP_NO_HEADER_INDEX);
@@ -466,6 +491,12 @@ done:
     if (req) WinHttpCloseHandle(req);
     if (con) WinHttpCloseHandle(con);
     if (ses) WinHttpCloseHandle(ses);
+    if (retry) {   // fallback=pause: again in 5 s, until it answers (or a new game drops the job)
+        retry = 0;
+        Sleep(5000);
+        t = GetTickCount();
+        goto again;
+    }
 }
 static DWORD WINAPI llm_worker(void *arg) {
     (void)arg;
@@ -644,7 +675,7 @@ static void sb_tool(struct sbuf *b, const char *name, const char *desc, const ch
 // AI DECIDE: h's offer to AI ai stands and ai may take it - 0 an alliance, 1 a capitulation; -1 none
 static int pair_accept(int ai, int h) {
     void *pl = player_at(ai), *ph = player_at(h);
-    if (!pl || !ph || is_out(pl) || is_out(ph) || !g_offer_t[h][ai] || g_offer_kind[h][ai] > 1 || is_vassal(ai)) return -1;
+    if (!pl || !ph || is_out(pl) || is_out(ph) || !g_offer_t[h][ai] || g_offer_kind[h][ai] > 1 || (g_llm_constrained && is_vassal(ai))) return -1;
     g_veto_quiet = 1;
     int veto = block_veto(ai, h, game_time(), NULL);
     g_veto_quiet = 0;
@@ -668,7 +699,7 @@ static void sb_tools(struct sbuf *b, int tools, int ai, int h) {
         sb_tool(b, "declare_war", d, "{\"type\":\"object\",\"properties\":{}}");
     }
     if (tools & TOOL_TRIBUTE) {
-        tsub(d, sizeof d, tpl_text("tool_tribute"), pl, ph, NULL);   // the quarters it may give: {floor(me.food / 4)} ...
+        tsub(d, sizeof d, tpl_text(g_llm_constrained ? "tool_tribute" : "tool_tribute_all"), pl, ph, NULL);   // what it may give
         sb_tool(b, "send_tribute", d, "{\"type\":\"object\",\"properties\":{\"food\":{\"type\":\"integer\"},\"wood\":{\"type\":"
                 "\"integer\"},\"stone\":{\"type\":\"integer\"},\"gold\":{\"type\":\"integer\"},\"iron\":{\"type\":\"integer\"}}}");
     }
@@ -768,7 +799,9 @@ static int llm_deciding(void) {
 }
 static int tool_peace_ok(int ai, int h, uint32_t now) {   // at war with h, and peace is possible
     void *pl = player_at(ai), *ph = player_at(h);
-    if (!pl || !ph || is_out(ph) || is_out(pl) || !stance_of(pl, h) || is_vassal(ai) || g_offer_t[ai][h]) return 0;
+    if (!pl || !ph || is_out(ph) || is_out(pl) || !stance_of(pl, h) || g_offer_t[ai][h]) return 0;
+    if (!g_llm_constrained) return 1;
+    if (is_vassal(ai)) return 0;
     if (g_war_since[ai][h] && now - g_war_since[ai][h] < (uint32_t)trait(pl, T_PRIDE) * 3000u) return 0;
     g_veto_quiet = 1;
     int veto = block_veto(ai, h, now, NULL);
@@ -777,10 +810,17 @@ static int tool_peace_ok(int ai, int h, uint32_t now) {   // at war with h, and 
 }
 static int tool_war_ok(int ai, int h, uint32_t now) {   // allied with h for 5+ minutes, h not its lord
     void *pl = player_at(ai), *ph = player_at(h);
-    if (!pl || !ph || is_out(ph) || is_out(pl) || stance_of(pl, h) || is_vassal(ai) || g_lord[ai] == h || g_offer_t[ai][h]) return 0;
+    if (!pl || !ph || is_out(ph) || is_out(pl) || stance_of(pl, h) || g_offer_t[ai][h]) return 0;
+    if (!g_llm_constrained) return 1;
+    if (is_vassal(ai) || g_lord[ai] == h) return 0;
     return !g_ally_since[ai][h] || now - g_ally_since[ai][h] >= 300000;
 }
-static int tool_tribute_ok(int ai, uint32_t now) { return !g_llm_paid_t[ai] || now - g_llm_paid_t[ai] >= 180000; }
+static int tool_tribute_ok(int ai, uint32_t now) {   // every 3 minutes
+    return !g_llm_constrained || !g_llm_paid_t[ai] || now - g_llm_paid_t[ai] >= 180000;
+}
+static int tribute_cap(int have) { return have <= 0 ? 0 : g_llm_constrained ? have / 4 : have; }   // a quarter of each
+// constrained=0 and the model decides towards the local player: a vassal answers peace offers itself (diplo.c)
+static int llm_unbound(void) { return !g_llm_constrained && llm_deciding() && !g_llm_rules; }
 static int llm_tools_for(int ai, int h, uint32_t now) {
     if (!llm_deciding()) return 0;
     return (tool_peace_ok(ai, h, now) ? TOOL_PEACE : 0) | (tool_war_ok(ai, h, now) ? TOOL_WAR : 0) |
@@ -865,7 +905,7 @@ static void llm_apply(struct llm_job *j, int ok) {
     if ((j->act & j->tools & TOOL_TRIBUTE) && tool_tribute_ok(ai, now)) {
         int *from = (int *)((uint8_t *)pl + PL_STOCK), *to = (int *)((uint8_t *)ph + PL_STOCK), paid[7] = { 0 }, total = 0;
         for (int r = 2; r < 7; r++) {
-            int n = j->amt[r], cap = from[r] > 0 ? from[r] / 4 : 0;
+            int n = j->amt[r], cap = tribute_cap(from[r]);
             n = n < 0 ? 0 : n > cap ? cap : n;
             from[r] -= n;
             to[r] += n;
@@ -1176,7 +1216,7 @@ static int talk_apply(struct llm_job *j) {
     if ((act & TOOL_TRIBUTE) && tool_tribute_ok(ai, now)) {
         int *from = (int *)((uint8_t *)pl + PL_STOCK), *to = (int *)((uint8_t *)ph + PL_STOCK), paid[7] = { 0 }, total = 0;
         for (int r = 2; r < 7; r++) {
-            int n = j->amt[r], cap = from[r] > 0 ? from[r] / 4 : 0;
+            int n = j->amt[r], cap = tribute_cap(from[r]);
             n = n < 0 ? 0 : n > cap ? cap : n;
             from[r] -= n;
             to[r] += n;
@@ -1307,9 +1347,42 @@ static void talk_done(struct llm_job *j, int ok) {
     if (!j->dec) g_talk.a = 0;
 }
 
+// fallback=pause: a request older than the timeout pauses the game until no such request is left (then it runs on -
+// unless the player paused or resumed it meanwhile: theirs stands)
+static void llm_wait_tick(void) {
+    if (!llm_waits()) return;
+    DWORD now = GetTickCount(), limit = (DWORD)g_llm_timeout * 1000u;
+    int stalled = 0;
+    for (int i = 0; i < LLM_JOBS; i++) {
+        struct llm_job *j = &g_llm_jobs[i];
+        LONG st = InterlockedCompareExchange(&j->state, J_FREE, J_FREE);
+        stalled |= (st == J_QUEUED || st == J_RUNNING) && j->gen == g_llm_gen && now - j->t0 > limit;
+    }
+    int paused = *(uint8_t *)G_PAUSED != 0;
+    if (stalled && !g_llm_paused && !paused) {
+        if (!queue_pause_toggle()) return;
+        g_llm_paused = 1;
+        g_llm_paused_t = now;
+        uint8_t *opt = *(uint8_t **)0x00917BB8;
+        const char *l = sysf(g_llm_unreach ? "llm_wait_down" : "llm_wait", NULL, NULL, NULL, "url", g_llm_url, NULL);
+        system_line(l, opt ? FIELD(opt, 0x2CC, int) * 2 : 20000);
+        if (g_log) fprintf(g_log, "# llm: paused at %.1f min - waiting for the model (%s)\n", game_time() / 60000.0,
+                           g_llm_unreach ? g_llm_last_err : "slow");
+    } else if (stalled && g_llm_paused == 1 && !paused && now - g_llm_paused_t > 3000) {   // the player resumed it
+        g_llm_paused = 2;
+        if (g_log) fprintf(g_log, "# llm: the player resumed the game - the answers still come, no pause again for them\n");
+    } else if (!stalled && g_llm_paused) {
+        if (g_llm_paused == 1 && paused) queue_pause_toggle();
+        if (g_log) fprintf(g_log, "# llm: answered after %.0f s - %s\n", (now - g_llm_paused_t) / 1000.0,
+                           g_llm_paused == 1 && paused ? "the game runs on" : "the game was already running");
+        g_llm_paused = 0;
+    }
+}
 // every simulation step: show what is answered
 static void llm_tick(void) {
     if (!g_llm_on) return;
+    llm_wait_tick();
+
     if (InterlockedExchange(&g_llm_fail_note, 0) && !g_llm_told) {
         g_llm_told = 1;
         uint8_t *opt = *(uint8_t **)0x00917BB8;
@@ -1406,7 +1479,9 @@ static void cmd_llm(char *out, const char *args) {
         sb_tools(&b, TOOL_PEACE | TOOL_WAR | TOOL_TRIBUTE | TOOL_REFUSE, p, h2);
         if (g_log && b.p) fprintf(g_log, "# llm prompt P%d -> P%d: %s\n", p, h2, b.p);
         free(b.p);
-        REPLY("written to the log\n");
+        int open = g_players[h2] ? pair_tools(p, h2, game_time()) : llm_tools_for(p, h2, game_time());
+        REPLY("written to the log; steps open now:%s%s%s%s (constrained %d)\n", open & TOOL_PEACE ? " peace" : "",
+              open & TOOL_WAR ? " war" : "", open & TOOL_TRIBUTE ? " tribute" : "", open ? "" : " none", g_llm_constrained);
         return;
     }
     if (sscanf(args, "say %d %n", &p, &n) == 1 && n) {
@@ -1448,6 +1523,9 @@ static void llm_install(const char *ini, const char *test_ini) {
     g_llm_talk_turns = GetPrivateProfileIntA("llm", "ai_talk_turns", 3, ini);
     g_llm_ai_decide = GetPrivateProfileIntA("llm", "ai_decide", 0, ini);
     g_llm_equal = GetPrivateProfileIntA("llm", "equal", 0, ini);
+    char fb[16];
+    GetPrivateProfileStringA("llm", "fallback", "rules", fb, sizeof fb, ini);
+    g_llm_constrained = GetPrivateProfileIntA("llm", "constrained", 1, ini);
     GetPrivateProfileStringA("llm", "url", g_llm_url, g_llm_url, sizeof g_llm_url, ini);
     GetPrivateProfileStringA("llm", "model", "", g_llm_model, sizeof g_llm_model, ini);
     GetPrivateProfileStringA("llm", "api_key", "", g_llm_key, sizeof g_llm_key, ini);
@@ -1463,9 +1541,12 @@ static void llm_install(const char *ini, const char *test_ini) {
         g_llm_talk_gap = GetPrivateProfileIntA("autotest", "llm_ai_talk_gap", g_llm_talk_gap, test_ini);
         g_llm_ai_decide = GetPrivateProfileIntA("autotest", "llm_ai_decide", g_llm_ai_decide, test_ini);
         g_llm_equal = GetPrivateProfileIntA("autotest", "llm_equal", g_llm_equal, test_ini);
+        GetPrivateProfileStringA("autotest", "llm_fallback", fb, fb, sizeof fb, test_ini);
+        g_llm_constrained = GetPrivateProfileIntA("autotest", "llm_constrained", g_llm_constrained, test_ini);
         GetPrivateProfileStringA("autotest", "llm_url", g_llm_url, g_llm_url, sizeof g_llm_url, test_ini);
         GetPrivateProfileStringA("autotest", "llm_model", g_llm_model, g_llm_model, sizeof g_llm_model, test_ini);
     }
+    g_llm_wait = !lstrcmpiA(fb, "pause");
     if (g_llm_timeout < 2) g_llm_timeout = 2;
     if (g_llm_timeout > 120) g_llm_timeout = 120;
     if (g_llm_max_tokens < 16) g_llm_max_tokens = 16;
@@ -1493,6 +1574,7 @@ static void llm_install(const char *ini, const char *test_ini) {
     g_llm_event = CreateEventA(NULL, FALSE, FALSE, NULL);
     g_llm_thread = CreateThread(NULL, 0, llm_worker, NULL, 0, NULL);
     if (g_log) fprintf(g_log, "# llm: on - %s, model '%s', lines %d, chat %d, decide %d, ai_talk %d (show %d, gap %d s, turns %d), "
-                       "ai_decide %d, equal %d, timeout %d s\n", g_llm_url, g_llm_model, g_llm_lines, g_llm_chat, g_llm_decide,
-                       g_llm_ai_talk, g_llm_talk_show, g_llm_talk_gap, g_llm_talk_turns, g_llm_ai_decide, g_llm_equal, g_llm_timeout);
+                       "ai_decide %d, equal %d, timeout %d s, fallback %s, constrained %d\n", g_llm_url, g_llm_model, g_llm_lines,
+                       g_llm_chat, g_llm_decide, g_llm_ai_talk, g_llm_talk_show, g_llm_talk_gap, g_llm_talk_turns, g_llm_ai_decide,
+                       g_llm_equal, g_llm_timeout, g_llm_wait ? "pause" : "rules", g_llm_constrained);
 }
