@@ -1797,7 +1797,7 @@ static const struct xmember k_xmembers[] = {
     { "tribute", XM_REL, "resources A has paid B in this game - (B, minutes): in the last minutes, them.tribute(me, 15)" },
     { "near", XM_REL, "A's soldiers within 20 tiles of B's base now, while B treats A as an enemy (an AI's base)" },
     { "attack_minutes", XM_REL, "minutes since A's last attack wave set out against B - nothing if none (an AI's waves)" },
-    { "kills", XM_REL, "B's units A has destroyed - (B, minutes): in the last minutes (whole minutes, at most 60); a last argument picks which: \"all\" (the default), \"army\" (on land: also priests, heroes, siege), \"airforce\", \"marine\", \"military\" (the three), \"civilian\" (citizens, fishing boats) - them.kills(me, \"marine\"), me.kills(them, 10, \"military\")" },
+    { "kills", XM_REL, "B's units A has destroyed - (B, minutes): in the last minutes (whole minutes, at most 60); a last argument picks which: units.all (the default), units.army (on land: also priests, heroes, siege), units.airforce, units.marine, units.military (the three), units.civilian (citizens, fishing boats) - them.kills(me, units.marine), me.kills(them, 10, units.military)" },
     { "razed", XM_REL, "B's buildings A has destroyed - (B, minutes) as kills" },
 };
 #define N_XMEMBERS (int)(sizeof k_xmembers / sizeof *k_xmembers)
@@ -1876,7 +1876,6 @@ static int x_windowed(const char *n) {
     return !strcmp(n, "tribute") || !strcmp(n, "refusals") || !strcmp(n, "betrayals") || !strcmp(n, "kills") || !strcmp(n, "razed");
 }
 // relation m of player pa with player pb: pa.<m>(pb), in the last win minutes (0: the whole game) where it counts events
-static const char *const k_kill_filter[] = { "all", "army", "airforce", "marine", "military", "civilian" };
 static void x_relation(void *pa, void *pb, const struct xmember *m, double win, int filter, struct xval *v) {
     xnothing(v);
     if (!pa || !pb || pa == pb) return;
@@ -2015,7 +2014,7 @@ static int x_method(struct xctx *c, const char *name, const struct xval *a, int 
     const char *dot = strrchr(name, '.');
     const char *rel = dot ? dot + 1 : name;
     const struct xmember *m = x_find_member(rel, (int)strlen(rel));
-    // (B) or, counting events, (B, minutes) - kills also with its filter: (B, "army"), (B, minutes, "army")
+    // (B) or, counting events, (B, minutes) - kills also with its filter: (B, units.army), (B, minutes, units.army)
     if (!m || m->kind != XM_REL || na < 1 || na > (!strcmp(rel, "kills") ? 3 : x_windowed(rel) ? 2 : 1)) return 0;
     int ok = 1;
     char who[24] = "me";
@@ -2035,24 +2034,18 @@ static int x_method(struct xctx *c, const char *name, const struct xval *a, int 
         xnothing(v);
         return 1;
     }
-    int filter = 0, nw = na;   // kills: a last argument that is a text is the filter
-    if (na > 1 && !strcmp(rel, "kills") && a[na - 1].has_s && !a[na - 1].has_n) {
-        for (filter = 0; filter < 6 && strcmp(a[na - 1].s, k_kill_filter[filter]); filter++) {}
-        if (filter == 6) {
-            x_error("%s(...): no filter \"%.40s\" - all, army, airforce, marine, military or civilian", name, a[na - 1].s);
-            xnothing(v);
-            return 1;
-        }
-        nw--;
-    }
+    int filter = 0, nw = na;   // kills: a units.<kind> last is the filter
+    if (na > 1 && !strcmp(rel, "kills") && (filter = x_units_filter(&a[na - 1])) >= 0) nw--;
+    else filter = 0;
     if (nw > 2) {   // (B, minutes, x): x must be the filter
-        x_error("%s(...): the last argument is the filter - all, army, airforce, marine, military or civilian", name);
+        x_error("%s(...): the last argument is the filter - units.all, units.army, units.airforce, units.marine, "
+                "units.military or units.civilian", name);
         xnothing(v);
         return 1;
     }
-    if (nw > 1 && a[1].has_s && !a[1].has_n) {   // razed(B, "army"): a filter only kills has
-        x_error("%s(...): \"%.40s\" - the minutes are a number%s", name, a[1].s, x_windowed(rel) && strcmp(rel, "kills") ?
-                " (only kills has a filter)" : "");
+    if (nw > 1 && a[1].has_s && !a[1].has_n) {   // razed(B, units.army), kills(B, "army"): no minutes, no filter
+        x_error("%s(...): %.40s - the minutes are a number%s", name, a[1].s, strcmp(rel, "kills") ? x_units_filter(&a[1]) >= 0 ?
+                " (only kills has a filter)" : "" : " (a filter is units.army, ...)");
         xnothing(v);
         return 1;
     }

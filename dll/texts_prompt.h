@@ -40,15 +40,24 @@ static const struct text_def k_tpl[] = {
     { "their_attack", "Their last army set out against your town {them.attack_minutes(me)} minutes ago.", NULL, NULL },
     { "defences", "Their defences: {them.towers} towers, {them.walls} wall pieces. Yours: {me.towers} towers, {me.walls} wall "
       "pieces.", NULL, NULL },
-    { "fighting", "The fighting between you so far: you killed {me.kills(them, \"military\")} of their soldiers (army, airforce, marine) and {me.kills(them, \"civilian\")} of their "
-      "civilians (citizens, fishing boats) and destroyed {me.razed(them)} of their buildings; they killed {them.kills(me, \"military\")} of "
-      "your soldiers and {them.kills(me, \"civilian\")} of your citizens and destroyed {them.razed(me)} of your "
-      "buildings.", NULL, NULL },
+    { "fighting", "The fighting between you so far. You destroyed of theirs: {me.kills(them, units.army)} land units, "
+      "{me.kills(them, units.airforce) ? \"{me.kills(them, units.airforce)} aircraft, \"}{me.kills(them, units.marine) "
+      "? \"{me.kills(them, units.marine)} ships, \"}{me.kills(them, units.civilian)} civilians (citizens, fishing "
+      "boats) and {me.razed(them)} buildings. They destroyed of yours: {them.kills(me, units.army)} land units, "
+      "{them.kills(me, units.airforce) ? \"{them.kills(me, units.airforce)} aircraft, \"}{them.kills(me, units.marine) "
+      "? \"{them.kills(me, units.marine)} ships, \"}{them.kills(me, units.civilian)} civilians (citizens, fishing "
+      "boats) and {them.razed(me)} buildings.", NULL, "aircraft and ships only when there are any" },
     { "fighting_all_recent", "All of it in the last {recent_minutes} minutes.", NULL, NULL },
     { "fighting_none_recent", "No fighting between you in the last {recent_minutes} minutes.", NULL, NULL },
-    { "fighting_recent", "In the last {recent_minutes} minutes: you killed {me.kills(them, recent_minutes, \"military\")} soldiers and {me.kills(them, recent_minutes, \"civilian\")} citizens and destroyed "
-      "{me.razed(them, recent_minutes)} buildings of theirs; they killed {them.kills(me, recent_minutes, \"military\")} soldiers and {them.kills(me, recent_minutes, \"civilian\")} "
-      "citizens and destroyed {them.razed(me, recent_minutes)} buildings of yours.", NULL, NULL },
+    { "fighting_recent", "In the last {recent_minutes} minutes you destroyed of theirs: {me.kills(them, recent_minutes, units.army)} land "
+      "units, {me.kills(them, recent_minutes, units.airforce) ? \"{me.kills(them, recent_minutes, units.airforce)} "
+      "aircraft, \"}{me.kills(them, recent_minutes, units.marine) ? \"{me.kills(them, recent_minutes, units.marine)} "
+      "ships, \"}{me.kills(them, recent_minutes, units.civilian)} civilians (citizens, fishing boats) and "
+      "{me.razed(them, recent_minutes)} buildings. They destroyed of yours: {them.kills(me, recent_minutes, "
+      "units.army)} land units, {them.kills(me, recent_minutes, units.airforce) ? \"{them.kills(me, recent_minutes, "
+      "units.airforce)} aircraft, \"}{them.kills(me, recent_minutes, units.marine) ? \"{them.kills(me, recent_minutes, "
+      "units.marine)} ships, \"}{them.kills(me, recent_minutes, units.civilian)} civilians (citizens, fishing boats) "
+      "and {them.razed(me, recent_minutes)} buildings.", NULL, NULL },
     { "lord", "You have capitulated to them: they are your lord, you pay and serve them.", NULL, NULL },
     { "vassal", "They have capitulated to you: they are your vassal.", NULL, NULL },
     { "terms_advice", "\nWhat your nature would say about peace with them (advice - you decide): {terms}", NULL, NULL },

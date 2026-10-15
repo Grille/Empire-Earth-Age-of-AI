@@ -490,6 +490,14 @@
           "match": "\\bepoch\\.[A-Za-z_][\\w.]*"
         },
         {
+          "name": "support.constant.units.eeaimod",
+          "match": "\\bunits\\.(?:all|army|airforce|marine|military|civilian)\\b(?!\\.)"
+        },
+        {
+          "name": "invalid.illegal.unknown-units.eeaimod",
+          "match": "\\bunits\\.[A-Za-z_][\\w.]*"
+        },
+        {
           "name": "support.function.eeaimod",
           "match": "\\b(?:chance|floor|round|abs|max|min|rnd)\\b(?=\\s*\\()"
         },
@@ -614,6 +622,14 @@
         {
           "name": "invalid.illegal.unknown-epoch.eeaimod",
           "match": "\\bepoch\\.[A-Za-z_][\\w.]*"
+        },
+        {
+          "name": "support.constant.units.eeaimod",
+          "match": "\\bunits\\.(?:all|army|airforce|marine|military|civilian)\\b(?!\\.)"
+        },
+        {
+          "name": "invalid.illegal.unknown-units.eeaimod",
+          "match": "\\bunits\\.[A-Za-z_][\\w.]*"
         },
         {
           "name": "support.function.eeaimod",

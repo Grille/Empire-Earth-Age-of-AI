@@ -233,7 +233,7 @@ static void text_write(FILE *f, const char *acp) {
     fputc('"', f);
 }
 static void text_placeholders(FILE *f, const char *a, const char *b) {   // "; {me} {them}" - those the texts use
-    char seen[400] = "";
+    char seen[1000] = "";
     for (int t = 0; t < 2; t++)
         for (const char *s = t ? b : a; s && (s = strchr(s, '{')) != NULL; s++) {
             const char *c = x_close(s);   // the matching brace: quotes and nested braces skipped

@@ -228,7 +228,19 @@ static void x_use(struct xp *p, const struct xval *v) { if (v->miss[0] && !p->sk
 // epoch.<name>: an epoch's number, in every language the same (the names the game's own are in another language)
 static const char *const k_epoch_const[15] = { "prehistoric", "stone", "copper", "bronze", "dark", "middle", "renaissance",
     "imperial", "industrial", "atomic_wwi", "atomic_wwii", "atomic_modern", "digital", "nano", "space" };
+// units.<kind>: which units kills counts (diplo.c x_method) - a value of its own, its text its name
+static const char *const k_units_const[6] = { "all", "army", "airforce", "marine", "military", "civilian" };
+static int x_units_filter(const struct xval *v) {   // the kind a units.<kind> value stands for; -1: none
+    if (!v->has_s || v->has_n || _strnicmp(v->s, "units.", 6)) return -1;
+    for (int k = 0; k < 6; k++) if (!lstrcmpiA(v->s + 6, k_units_const[k])) return k;
+    return -1;
+}
 static int x_const(const char *name, struct xval *v) {
+    if (!_strnicmp(name, "units.", 6)) {
+        for (int k = 0; k < 6; k++)
+            if (!lstrcmpiA(name + 6, k_units_const[k])) { char t[24]; wsprintfA(t, "units.%s", k_units_const[k]); xstr(v, t); return 1; }
+        return 0;
+    }
     if (_strnicmp(name, "epoch.", 6)) return 0;
     for (int e = 0; e < 15; e++) if (!lstrcmpiA(name + 6, k_epoch_const[e])) { xnum(v, e + 1); return 1; }
     return 0;

@@ -25,6 +25,7 @@ bare = globals_ + ['epoch'] + \
        [n for n, k in members if k == 'XM_PLAYER' and n in ('aggression', 'loyalty', 'pride', 'greed', 'forgiveness', 'caution', 'talk', 'allies', 'enemies')]
 values = bare
 epochs = re.findall(r'"(\w+)"', re.search(r'k_epoch_const\[15\] = \{(.*?)\};', expr, re.S).group(1))
+units = re.findall(r'"(\w+)"', re.search(r'k_units_const\[6\] = \{(.*?)\};', expr, re.S).group(1))
 funcs = sorted(set(re.findall(r'!lstrcmpiA\(name, "(\w+)"\)', expr)) - {'true', 'false'})
 situations = re.findall(r'\{ "(\w+)", \d+, \d+, A_\w+ \}', persona)
 traits = re.findall(r'"(\w+)"', re.search(r'k_trait_keys\[T_N\] = \{(.*?)\};', persona).group(1))
@@ -43,6 +44,8 @@ expression = [
     {'name': 'string.quoted.single.expression.eeaimod', 'match': r"'(?:[^'\\]|\\.)*'"},
     {'name': 'support.constant.epoch.eeaimod', 'match': r'\bepoch\.(?:' + '|'.join(epochs) + r')\b(?!\.)'},
     {'name': 'invalid.illegal.unknown-epoch.eeaimod', 'match': r'\bepoch\.[A-Za-z_][\w.]*'},
+    {'name': 'support.constant.units.eeaimod', 'match': r'\bunits\.(?:' + '|'.join(units) + r')\b(?!\.)'},
+    {'name': 'invalid.illegal.unknown-units.eeaimod', 'match': r'\bunits\.[A-Za-z_][\w.]*'},
     {'name': 'support.function.eeaimod', 'match': words(funcs) + r'(?=\s*\()'},
     {'name': 'constant.language.boolean.eeaimod', 'match': r'\b(?:true|false)\b'},
     {'name': 'keyword.control.logical.eeaimod', 'match': r'\b(?:and|or|not)\b'},

@@ -14,7 +14,7 @@
 ;mood = opinion < -50 ? "You can barely stand them." : ""
 
 [vars]
-fighting_report(minutes) = "The fighting between you so far: you killed {me.kills(them, minutes, "military")} of their soldiers and {me.kills(them, minutes, "civilian")} of their citizens (workers) and destroyed {me.razed(them, minutes)} of their buildings; they killed {them.kills(me, minutes, "military")} of your soldiers and {them.kills(me, minutes, "civilian")} of your citizens and destroyed {them.razed(me, minutes)} of your buildings."
+fighting_report(minutes) = "The fighting between you so far: you killed {me.kills(them, minutes, units.military)} of their soldiers and {me.kills(them, minutes, units.civilian)} of their citizens (workers) and destroyed {me.razed(them, minutes)} of their buildings; they killed {them.kills(me, minutes, units.military)} of your soldiers and {them.kills(me, minutes, units.civilian)} of your citizens and destroyed {them.razed(me, minutes)} of your buildings."
 
 [prompt]
 ; the system message: who the AI is ({computer}: " (played by the computer)" unless [llm] equal=1)
@@ -59,14 +59,15 @@ my_attack = "Your last army set out against their town {me.attack_minutes(them)}
 their_attack = "Their last army set out against your town {them.attack_minutes(me)} minutes ago."
 ; in braces: {them.towers} {them.walls} {me.towers} {me.walls}
 defences = "Their defences: {them.towers} towers, {them.walls} wall pieces. Yours: {me.towers} towers, {me.walls} wall pieces."
-; in braces: {me.kills(them, "military")} {me.kills(them, "civilian")} {me.razed(them)} {them.kills(me, "military")} {them.kills(me, "civilian")} {them.razed(me)}
-fighting = "The fighting between you so far: you killed {me.kills(them, "military")} of their soldiers (army, airforce, marine) and {me.kills(them, "civilian")} of their civilians (citizens, fishing boats) and destroyed {me.razed(them)} of their buildings; they killed {them.kills(me, "military")} of your soldiers and {them.kills(me, "civilian")} of your citizens and destroyed {them.razed(me)} of your buildings."
+; aircraft and ships only when there are any
+; in braces: {me.kills(them, units.army)} {me.kills(them, units.airforce)} {me.kills(them, units.marine)} {me.kills(them, units.civilian)} {me.razed(them)} {them.kills(me, units.army)} {them.kills(me, units.airforce)} {them.kills(me, units.marine)} {them.kills(me, units.civilian)} {them.razed(me)}
+fighting = "The fighting between you so far. You destroyed of theirs: {me.kills(them, units.army)} land units, {me.kills(them, units.airforce) ? "{me.kills(them, units.airforce)} aircraft, "}{me.kills(them, units.marine) ? "{me.kills(them, units.marine)} ships, "}{me.kills(them, units.civilian)} civilians (citizens, fishing boats) and {me.razed(them)} buildings. They destroyed of yours: {them.kills(me, units.army)} land units, {them.kills(me, units.airforce) ? "{them.kills(me, units.airforce)} aircraft, "}{them.kills(me, units.marine) ? "{them.kills(me, units.marine)} ships, "}{them.kills(me, units.civilian)} civilians (citizens, fishing boats) and {them.razed(me)} buildings."
 ; in braces: {recent_minutes}
 fighting_all_recent = "All of it in the last {recent_minutes} minutes."
 ; in braces: {recent_minutes}
 fighting_none_recent = "No fighting between you in the last {recent_minutes} minutes."
-; in braces: {recent_minutes} {me.kills(them, recent_minutes, "military")} {me.kills(them, recent_minutes, "civilian")} {me.razed(them, recent_minutes)} {them.kills(me, recent_minutes, "military")} {them.kills(me, recent_minutes, "civilian")} {them.razed(me, recent_minutes)}
-fighting_recent = "In the last {recent_minutes} minutes: you killed {me.kills(them, recent_minutes, "military")} soldiers and {me.kills(them, recent_minutes, "civilian")} citizens and destroyed {me.razed(them, recent_minutes)} buildings of theirs; they killed {them.kills(me, recent_minutes, "military")} soldiers and {them.kills(me, recent_minutes, "civilian")} citizens and destroyed {them.razed(me, recent_minutes)} buildings of yours."
+; in braces: {recent_minutes} {me.kills(them, recent_minutes, units.army)} {me.kills(them, recent_minutes, units.airforce)} {me.kills(them, recent_minutes, units.marine)} {me.kills(them, recent_minutes, units.civilian)} {me.razed(them, recent_minutes)} {them.kills(me, recent_minutes, units.army)} {them.kills(me, recent_minutes, units.airforce)} {them.kills(me, recent_minutes, units.marine)} {them.kills(me, recent_minutes, units.civilian)} {them.razed(me, recent_minutes)}
+fighting_recent = "In the last {recent_minutes} minutes you destroyed of theirs: {me.kills(them, recent_minutes, units.army)} land units, {me.kills(them, recent_minutes, units.airforce) ? "{me.kills(them, recent_minutes, units.airforce)} aircraft, "}{me.kills(them, recent_minutes, units.marine) ? "{me.kills(them, recent_minutes, units.marine)} ships, "}{me.kills(them, recent_minutes, units.civilian)} civilians (citizens, fishing boats) and {me.razed(them, recent_minutes)} buildings. They destroyed of yours: {them.kills(me, recent_minutes, units.army)} land units, {them.kills(me, recent_minutes, units.airforce) ? "{them.kills(me, recent_minutes, units.airforce)} aircraft, "}{them.kills(me, recent_minutes, units.marine) ? "{them.kills(me, recent_minutes, units.marine)} ships, "}{them.kills(me, recent_minutes, units.civilian)} civilians (citizens, fishing boats) and {them.razed(me, recent_minutes)} buildings."
 lord = "You have capitulated to them: they are your lord, you pay and serve them."
 vassal = "They have capitulated to you: they are your vassal."
 ; in braces: {terms}
