@@ -473,10 +473,10 @@ English (the model is told which language to answer in); its pieces are joined w
 key with its built-in text and its placeholders. `[vars]` in `_system.eeai` serve the system lines and every
 personality's lines; `[vars]` in `_template.eeai` serve the prompts only.
 
-`_template.eeai` comes with `[vars]` of its own: the pieces of `other_state`, what the AI is told about the one it
+`_template.eeai` comes with `[vars]` of its own: the pieces of `game_state_other`, what the AI is told about the one it
 talks to - `stance`, `power` (from `strength_ratio`), `town`, `attacks`, `fighting` and `fighting_recent` (with the
 functions `destroyed(by, of, minutes)` and `fought(minutes)`, `recent_minutes = 20`) and `bond` (lord or vassal).
-Change one by writing it in the file's `[vars]`; take one out of `other_state` by leaving its `{name}` out. A
+Change one by writing it in the file's `[vars]`; take one out of `game_state_other` by leaving its `{name}` out. A
 function's parameter can be a player: `destroyed(me, them, 0)` uses `by.kills(of, ...)`. `texts dump force` writes
 the built-in ones again and keeps your own `[vars]` below them.
 

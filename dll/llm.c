@@ -660,9 +660,9 @@ static void llm_system(struct sbuf *b, void *pl, int ai, int h, int tools) {
         tput(t, &o, sizeof t, "whose", NULL);
     // the game as it stands
     void *ph = player_at(h);
-    tput(t, &o, sizeof t, "game_now", NULL);
+    tput(t, &o, sizeof t, "game_state_me", NULL);
     if (ph && h != ai) {
-        tput(t, &o, sizeof t, "other_state", NULL);   // stance, forces, attacks, fighting ...: the [vars] of _template.eeai
+        tput(t, &o, sizeof t, "game_state_other", NULL);   // stance, forces, attacks, fighting ...: the [vars] of _template.eeai
         char terms[600];
         if (peace_terms(ai, h, terms, sizeof terms) && decide)   // the rules' verdict: advice when it decides itself
             tput(t, &o, sizeof t, "terms_advice", "terms", terms, NULL);

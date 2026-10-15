@@ -1,6 +1,6 @@
 // k_tpl: the language model's instructions (texts.c TEXTS; aimod_ai\_template.eeai [prompt] overrides them).
 // Generated once from llm.c by scratch gen_tpl.py; edit here.
-// k_tpl_vars: _template.eeai [vars] built in - the pieces of other_state, tool_tribute's tribute_room (a [vars] of
+// k_tpl_vars: _template.eeai [vars] built in - the pieces of game_state_other, tool_tribute's tribute_room (a [vars] of
 // the file replaces one of the same name; the dump writes them as they are here, over several lines).
 static const struct text_def k_tpl_vars[] = {
     { "stance", "(\n"
@@ -8,7 +8,7 @@ static const struct text_def k_tpl_vars[] = {
       "    me.hostile(them) and them.hostile(me) ? \"You are at war with each other.\" :\n"
       "    me.hostile(them) ? \"You treat them as an enemy, but they have set allied towards you (they offer peace).\" :\n"
       "    \"You are allied with them, but they treat you as an enemy.\"\n"
-      ")", NULL, "other_state: the stances between you" },
+      ")", NULL, "game_state_other: the stances between you" },
     { "strength_ratio", "(them.strength > 1 ? them.strength : 1) / (me.strength > 1 ? me.strength : 1)", NULL, "their forces against yours" },
     { "power", "(\n"
       "    strength_ratio < 0.25 ? \"much weaker than yours\" :\n"
@@ -84,9 +84,9 @@ static const struct text_def k_tpl[] = {
     { "whose", "\nThe user messages that start with \"{them} writes:\" are messages of {them}, {them.human and not llm_equal ? \"the human player\" : \"another leader in this game\"}, from their "
       "side: \"I\", \"my\", \"mine\" are {them} and their things (their town, walls, towers, army); "
       "\"you\" is you, {me}. Messages in brackets are events of the game, not chat.", NULL, "whose \"my\" is whose" },
-    { "game_now", "\nThe game now (minute {minutes}): you are in the {epoch}. Your stock: food {me.food}, wood {me.wood}, "
+    { "game_state_me", "\nThe game now (minute {minutes}): you are in the {epoch}. Your stock: food {me.food}, wood {me.wood}, "
       "stone {me.stone}, gold {me.gold}, iron {me.iron}.", NULL, NULL },
-    { "other_state", "{them} (the player you talk to) is in the {them.epoch}. {stance} Their forces are {power}. Your opinion of "
+    { "game_state_other", "{them} (the player you talk to) is in the {them.epoch}. {stance} Their forces are {power}. Your opinion of "
       "them: {opinion}.{town}{attacks} Their defences: {them.towers} towers, {them.walls} wall pieces. Yours: "
       "{me.towers} towers, {me.walls} wall pieces.{fighting}{fighting_recent}{bond}", NULL, "the other player as the AI sees them - the pieces are the [vars] above" },
     { "terms_advice", "\nWhat your nature would say about peace with them (advice - you decide): {terms}", NULL, NULL },

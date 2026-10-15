@@ -417,7 +417,7 @@ static void cmd_texts(char *out, const char *args) {
                   "; Written by \"texts dump\" with the built-in texts.\n", f);
             fputs(k_format_help, f);
             fputs(";\n; [vars] here serve the prompts only (English, like them). The ones written here are built in (the\n"
-                  "; pieces of other_state, tribute_room): change them, or add your own below them.\n\n[vars]\n", f);
+                  "; pieces of game_state_other, tribute_room): change them, or add your own below them.\n\n[vars]\n", f);
             for (int i = 0; i < N_TPL_VARS; i++) {
                 if (k_tpl_vars[i].note) { fputs("; ", f); fputs(k_tpl_vars[i].note, f); fputs("\n", f); }
                 var_write(f, k_tpl_vars[i].key, k_tpl_vars[i].en);

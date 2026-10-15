@@ -10,10 +10,10 @@
 ; value of the game (opinion, them.soldiers, epoch.middle, ...): README.md in this folder.
 ;
 ; [vars] here serve the prompts only (English, like them). The ones written here are built in (the
-; pieces of other_state, tribute_room): change them, or add your own below them.
+; pieces of game_state_other, tribute_room): change them, or add your own below them.
 
 [vars]
-; other_state: the stances between you
+; game_state_other: the stances between you
 stance = (
     not me.hostile(them) and not them.hostile(me) ? "You are allied with each other." :
     me.hostile(them) and them.hostile(me) ? "You are at war with each other." :
@@ -115,11 +115,11 @@ whose = ("\nThe user messages that start with \"{them} writes:\" are messages of
     "\"my\", \"mine\" are {them} and their things (their town, walls, towers, army); \"you\" is you, {me}. Messages "
     "in brackets are events of the game, not chat.")
 ; in braces: {minutes} {epoch} {me.food} {me.wood} {me.stone} {me.gold} {me.iron}
-game_now = ("\nThe game now (minute {minutes}): you are in the {epoch}. Your stock: food {me.food}, wood {me.wood}, "
-    "stone {me.stone}, gold {me.gold}, iron {me.iron}.")
+game_state_me = ("\nThe game now (minute {minutes}): you are in the {epoch}. Your stock: food {me.food}, wood "
+    "{me.wood}, stone {me.stone}, gold {me.gold}, iron {me.iron}.")
 ; the other player as the AI sees them - the pieces are the [vars] above
 ; in braces: {them} {them.epoch} {stance} {power} {opinion} {town} {attacks} {them.towers} {them.walls} {me.towers} {me.walls} {fighting} {fighting_recent} {bond}
-other_state = ("{them} (the player you talk to) is in the {them.epoch}. {stance} Their forces are {power}. Your "
+game_state_other = ("{them} (the player you talk to) is in the {them.epoch}. {stance} Their forces are {power}. Your "
     "opinion of them: {opinion}.{town}{attacks} Their defences: {them.towers} towers, {them.walls} wall pieces. "
     "Yours: {me.towers} towers, {me.walls} wall pieces.{fighting}{fighting_recent}{bond}")
 ; in braces: {terms}
