@@ -1538,6 +1538,8 @@ static int substitute_soldier(void *pl, unsigned idx, const int *vis, int want, 
 // +0x13C) even when the building queue 0x5E8908 then refuses it for lack of resources, and that counter is
 // subtracted from the population cap - after a while the AI could train nothing at all.)
 static int g_priority_mil;   // set by the siege controller around its own requests
+static int g_landing_order;   // set by the landing around its transport order (its reserve is not held from it)
+static void landing_reserve(void *pl, int reserve[7]);   // landing.c
 static uintptr_t __fastcall hook_train_units(void *um, void *edx, int *req, uintptr_t b) {
     (void)edx;
     void *pl = um_owner(um);
@@ -1554,6 +1556,7 @@ static uintptr_t __fastcall hook_train_units(void *um, void *edx, int *req, uint
         g_bud[idx].last_t = now;
         spend_reserve(pl, idx, reserve, NULL);
         reserve[3] += field_wood(idx);   // the next fields' wood (build_fields)
+        landing_reserve(pl, reserve);   // transports a landing waits for
         if (!g_bud[idx].init) {
             memset(&g_bud[idx], 0, sizeof g_bud[idx]);
             g_bud[idx].init = 1;

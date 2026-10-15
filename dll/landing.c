@@ -43,6 +43,7 @@ static struct landing {
     uint8_t *obj; int ox, oy;
     uint32_t since, last, next_try, reissue, trained_t, boarded_t;
     int switched;                        // the beach changed once at the sail check
+    int tr_missing, tr_type, tr_got;     // transports still to come, their type, taken at the last order
     int ex, ey, ewx, ewy, gathered;      // where they board: the shore nearest the passengers, the water in front
     struct ld_def def;                   // the beach's defence when planned
     int all_ashore, tries_at[4], ux[4], uy[4];   // each transport's own unload point
@@ -61,6 +62,13 @@ static int landing_leads(uint8_t *sg) {
     if (!g_landing || !pl || !g_ld[pi].phase) return 0;
     for (int k = 0; k < g_ld[pi].nfrozen; k++) if (g_ld[pi].frozen[k] == sg) return 1;
     return 0;
+}
+// the transports still missing: their cost is kept from every other unit order (econ.c's reserve) while the landing
+// waits for them - P3's 3000 of each went on other units within 4 minutes, its transports never came
+static void landing_reserve(void *pl, int reserve[7]) {
+    struct landing *l = &g_ld[(unsigned)FIELD(pl, PL_INDEX, int) & 15];
+    if (!g_landing || l->phase != 1 || g_landing_order || l->tr_missing <= 0 || !l->tr_type) return;
+    for (int r = 2; r < 7; r++) reserve[r] += l->tr_missing * unit_cost(pl, l->tr_type, r);
 }
 static int landing_busy(void *pl) {   // boarding, at sea or ashore
     return g_landing && g_ld[(unsigned)FIELD(pl, PL_INDEX, int) & 15].phase >= 2;
@@ -466,7 +474,7 @@ static void landing_tick(void *pl, uint32_t now) {
             return;
         }
         l->target = target; l->sx = sx; l->sy = sy; l->ocean = (int)ocean; l->wx = swx; l->wy = swy; l->def = d;
-        l->phase = 1; l->since = now; l->tries++; l->trained_t = 0; l->boarded_t = 0; l->switched = 0;
+        l->phase = 1; l->since = now; l->tries++; l->trained_t = 0; l->boarded_t = 0; l->switched = 0; l->tr_missing = 0; l->tr_got = 0;
         l->nesc = 0; l->nfrozen = 0;
         if (g_log) fprintf(g_log, "# landing: P%u at %.1f min: plans a landing on P%d at %d,%d (sea %u), %d soldiers at home (strength %.0f), "
                            "the beach needs %.0f (soldiers %.0f%s, defences %.0f, over the water %.0f), %d transports, %d warships\n",
@@ -483,17 +491,26 @@ static void landing_tick(void *pl, uint32_t now) {
         int want = g_land_ships;
         if (s.nt < want) {
             if (now - l->since >= 360000) { l->aborted++; l->next_try = now + 600000; ld_release(pi, "no transports - given up", now); return; }
-            if (!l->trained_t || now - l->trained_t >= 120000) {   // what was ordered takes time (ordered every 20 s: 7)
+            if (g_log && (now - l->since) % 60000 < 2000) {
+                int *st = (int *)((uint8_t *)pl + PL_STOCK);
+                fprintf(g_log, "# landing: P%u at %.1f min: waits for transports - has %d of %d, %d docks, stock %d,%d,%d,%d,%d\n", pi, now / 60000.0,
+                        s.nt, want, s.nd, st[2], st[3], st[4], st[5], st[6]);
+            }
+            l->tr_missing = want - s.nt;
+            // what was ordered takes time (ordered every 20 s: 7); nothing taken (not affordable): again in 20 s
+            if (!l->trained_t || now - l->trained_t >= (l->tr_got ? 120000u : 20000u)) {
                 l->trained_t = now;
                 int epoch = current_epoch(pl) + 1;
                 for (size_t k = 0; k < sizeof k_transports / sizeof *k_transports; k++) {
                     if (k_transports[k].epoch > epoch) continue;
                     int req[4] = { k_transports[k].type, want - s.nt, 0, 0 };
                     unsigned got = 0;
-                    g_priority_mil = 1;
+                    l->tr_type = k_transports[k].type;
+                    g_priority_mil = 1; g_landing_order = 1;
                     hook_train_units(um, NULL, req, (uintptr_t)&got);
-                    g_priority_mil = 0;
-                    if (g_log && got) fprintf(g_log, "# landing: P%u at %.1f min: trains %u transports (type %d), has %d\n", pi, now / 60000.0, got, k_transports[k].type, s.nt);
+                    g_priority_mil = 0; g_landing_order = 0;
+                    l->tr_got = (int)got;
+                    if (g_log) fprintf(g_log, "# landing: P%u at %.1f min: trains %u transports (type %d), has %d\n", pi, now / 60000.0, got, k_transports[k].type, s.nt);
                     break;
                 }
             }
