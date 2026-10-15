@@ -711,6 +711,7 @@ static void muster(void *pl, unsigned idx, uint32_t now) {
 static struct { int holding; uint32_t sortie_t; unsigned holds, sorties, set; } g_hold_st[16];
 static int assault_has_unit(void *pl, uint8_t *u);   // assault.c
 static int landing_has_unit(void *pl, uint8_t *u);   // landing.c
+static int landing_busy(void *pl);
 static uint8_t *g_asg_units[512];
 static int g_asg_n;
 static void asg_units(void *pl) {   // the units of AI pl's attack subgroups (records +0x44)
@@ -875,6 +876,10 @@ static void attack_retreat(void *pl, unsigned idx, uint32_t now) {
     uint8_t *bm = cm ? FIELD(cm, 0x3C, uint8_t *) : NULL;
     uint8_t *cbm = FIELD(pl, 0xB8C, uint8_t *), *cmd = cbm ? FIELD(cbm, 0x48, uint8_t *) : NULL;
     if (!cmd || !bm || FIELD(bm, 0x12C, int) == -10000) return;
+    // a landing under way (landing.c): its soldiers are in the attack groups - aboard (tile -10000) they look lost,
+    // and "half its peak gone" called off P3's attack with 26 soldiers at sea. No call-off then; the peaks start
+    // again after it
+    if (landing_busy(pl)) { memset(g_rt[idx], 0, sizeof g_rt[idx]); return; }
     int bx = FIELD(bm, 0x12C, int), by = FIELD(bm, 0x130, int);
     uint8_t *dq = cmd + 4, *seen[8] = { 0 };
     unsigned first = FIELD(dq, 0xC, unsigned), cnt = FIELD(dq, 0x10, unsigned);

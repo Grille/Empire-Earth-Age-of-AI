@@ -80,6 +80,9 @@ static void citizens_safety(uint8_t *rm);
 static void attack_tick(void *pl, uint32_t now);
 static void assault_tick(void *pl, uint32_t now);
 static void landing_tick(void *pl, uint32_t now);
+static void intel_tick(void *pl, uint32_t now);
+static void intel_new_game(int from_save);
+static void intel_install(const char *aimod_ini, const char *autotest_ini);
 static void landing_install(const char *aimod_ini, const char *autotest_ini);
 static void assault_install(const char *aimod_ini, const char *autotest_ini);
 static void log_line(const char *fmt, const char *a, int b);
@@ -289,7 +292,7 @@ static void __fastcall hook_rm_update(void *rm, void *edx, uint32_t now) {
         }
     }
     ((RmUpdateFn)FN_RM_UPDATE)(rm, now);
-    if (pl) { econ_tick(pl, now); attack_tick(pl, now); assault_tick(pl, now); landing_tick(pl, now); }
+    if (pl) { intel_tick(pl, now); econ_tick(pl, now); attack_tick(pl, now); assault_tick(pl, now); landing_tick(pl, now); }
     g_rm_seen = 1;
     autotest_tick(now);
 }
@@ -501,6 +504,7 @@ static char __fastcall hook_game_start(void *state, void *edx, uint8_t *setup, v
     diplo_new_game();
     chat_new_game();
     llm_new_game();
+    intel_new_game(mode == 2);
     if (mode == 2) persist_load(name);   // a saved game: the mod's state from its .aimod file
     char r = ((GameStartFn)FN_GAME_START)(state, setup, p2);
     log_line("# game start returned %s%d\n", "", r);
@@ -648,6 +652,7 @@ static void install(HMODULE self) {
     attack_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
     assault_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
     landing_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
+    intel_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
     defence_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
     chat_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
     persona_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);

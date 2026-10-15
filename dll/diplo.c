@@ -1122,6 +1122,13 @@ static int attack_groups(void *pl) {   // the attack commander's deque count
 }
 
 static void victory_off_pass(void);   // below, with the victory
+// The landing and the assault skip the updates of the subgroups they lead: before the game's call-off (0x43033E) winds
+// them down, they are the game's again (the crash first blamed on this was the game's own - g_in_calloff, attack.c)
+static void leads_release(int ai) {
+    if (ai <= 0 || ai >= 16) return;
+    if (g_ld[ai].phase) ld_release((unsigned)ai, "its attack is called off - back to the game", g_ld[ai].last);
+    g_as[ai].phase = 0; g_as[ai].ntaken = 0; g_as[ai].nwave = 0; g_as[ai].obj = NULL;
+}
 static void diplo_safe_point(void) {
     victory_off_pass();
     for (int i = 1; i < 16; i++) {   // attacks made of citizens: called off whatever the stance
@@ -1135,7 +1142,10 @@ static void diplo_safe_point(void) {
             int before = attack_groups(p);
             breach_forget(p);
             asg_purge_all(p);   // members without their unit: the call-off reads them first (attack.c)
+            leads_release(i);   // subgroups the landing or the assault leads: back to the game before the call-off
+            g_in_calloff = 1;   // attack.c: no unit offered to the groups being freed
             ((void (__thiscall *)(void *, void *, int))0x0043033E)(p, pj, 1);
+            g_in_calloff = 0;
             if (g_log) fprintf(g_log, "# attack: P%d calls off its %s on P%d (attack groups %d -> %d)\n", i,
                                g_cancel_why[i][j] ? g_cancel_why[i][j] : "citizen attack", j, before, attack_groups(p));
             g_cancel_why[i][j] = NULL;
@@ -1152,7 +1162,10 @@ static void diplo_safe_point(void) {
             int before = attack_groups(p);
             breach_forget(p);
             asg_purge_all(p);   // members without their unit: the call-off reads them first (attack.c)
+            leads_release(i);   // subgroups the landing or the assault leads: back to the game before the call-off
+            g_in_calloff = 1;   // attack.c: no unit offered to the groups being freed
             ((void (__thiscall *)(void *, void *, int))0x0043033E)(p, pj, 1);
+            g_in_calloff = 0;
             if (g_log) { fprintf(g_log, "# diplomacy: P%d calls off its attacks on P%d (attack groups %d -> %d)\n", i, j, before,
                                  attack_groups(p)); fflush(g_log); }
         }

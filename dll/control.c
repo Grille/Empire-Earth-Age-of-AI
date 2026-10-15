@@ -31,6 +31,8 @@ static void cmd_continent(char *out, const char *args);
 static void cmd_assault(char *out, const char *args);
 static void cmd_landing(char *out, const char *args);
 static void cmd_vis(char *out, const char *args);
+static void cmd_intel(char *out, const char *args);
+static void cmd_calloff(char *out, const char *args);
 static void cmd_vistrack(char *out, const char *args);
 static void cmd_terrain(char *out, const char *args);
 static void cmd_targets(char *out, const char *args);
@@ -391,6 +393,8 @@ static void execute(const char *cmd, char *out) {
     else if (!strcmp(verb, "assault")) cmd_assault(out, args);
     else if (!strcmp(verb, "landing")) cmd_landing(out, args);
     else if (!strcmp(verb, "vis")) cmd_vis(out, args);
+    else if (!strcmp(verb, "intel")) cmd_intel(out, args);
+    else if (!strcmp(verb, "calloff")) cmd_calloff(out, args);
     else if (!strcmp(verb, "vistrack")) cmd_vistrack(out, args);
     else if (!strcmp(verb, "terrain")) cmd_terrain(out, args);
     else if (!strcmp(verb, "targets")) cmd_targets(out, args);

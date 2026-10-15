@@ -181,6 +181,11 @@ static float as_enemy_power(void *pl, int x, int y, int r, float *cx, float *cy,
             }
         }
     if (*n) { *cx = sx / *n; *cy = sy / *n; }
+    if (g_honest_vision) {   // soldiers seen there lately, out of sight now (intel.c; nothing with the game's view)
+        float h = 0, a = 0; int m = 0;
+        intel_soldiers(pl, x, y, r, &h, &a, &pow, &m);
+        *n += m;
+    }
     return pow;
 }
 

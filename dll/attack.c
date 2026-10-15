@@ -41,12 +41,30 @@ static int is_enemy(void *pl, void *other) {
     return oi < 16 && FIELD(pl, 0x9E4 + oi * 4, int) != 0;
 }
 
+// What player pl knows of unit u. The count (u +0x14 -> +0xC, per player slot) is how many of pl's (and its allies')
+// units see u now - plus a floor every unit of the human carries in the AIs' slots, everywhere and always (the AIs
+// see all of the human's units; docs/engine-notes.md). [all] honest_vision (intel.c): seen = above that floor, or a
+// building pl has seen before (still where it was - a human remembers it on the map); 0 (the default): the count as
+// the game keeps it - all-knowing about the human.
+static int g_honest_vision = 0;
+static uint8_t g_vis_floor[16][16];               // [viewer][owner]: the least count among the owner's units (intel.c)
+static int intel_remembers(void *pl, uint8_t *u);   // intel.c: a building pl has seen
+static void intel_soldiers(void *pl, int x, int y, int r, float *hp, float *att, float *pw, int *n);   // intel.c
+static void intel_army(void *pl, float *hp, float *att, int *n);
+static uint32_t intel_looked_ago(void *pl, int x, int y);
 static int seen_by(uint8_t *u, void *pl) {
     uint8_t *v = FIELD(u, 0x14, uint8_t *);
     unsigned pi = (unsigned)FIELD(pl, PL_INDEX, int);
     if (!v || pi >= 16) return 0;
     uint16_t *vis = FIELD(v, 0xC, uint16_t *);
-    return vis && (vis[pi] & 0xFF) != 0;
+    if (!vis) return 0;
+    unsigned c = vis[pi] & 0xFF;
+    if (!g_honest_vision) return c != 0;
+    void *o = FIELD(u, 0x18, void *);
+    unsigned oi = o ? (unsigned)FIELD(o, PL_INDEX, int) & 15 : 0;
+    if (c > g_vis_floor[pi][oi]) return 1;
+    int fam = FIELD(FIELD(u, 0x2C, uint8_t *), 0x4B4, int);
+    return (fam == 2 || fam == 29) && intel_remembers(pl, u);
 }
 
 // Defence building with a ground attack (AA guns and missile towers only shoot at aircraft).
@@ -1314,6 +1332,22 @@ static void __fastcall hook_asg_land_stats(uint8_t *sg, void *edx) {
 }
 static const uintptr_t k_asg_vtables[] = { 0x00827620, 0x00826610, 0x00826818, 0x00826F10, 0x008270F8, 0x00827318 };
 
+// The same family, now reproducible: the reference save, P2's attack called off at 86.6 min (attack_retreat, or the
+// test command calloff 2 1 - with and without honest_vision or landings) crashed every time. The call-off
+// (0x43033E -> 0x46FD01) hands each unit of the attack back, and each one is offered to the attack groups at once
+// (0x483ADE -> 0x4824BF -> 0x450E07 -> 0x453E10) - including groups the same call-off has just freed (their subgroup
+// vectors garbage, a jump to 0). While the mod calls attacks off (g_in_calloff, diplo.c) no unit is offered: "not
+// taken" (the caller only notes it), the unit stays free and the game assigns it on its next pass.
+#define CALL_UNIT_TO_GROUP 0x004824BF
+#define FN_UNIT_TO_GROUP   0x00450E07
+static int g_in_calloff;
+static unsigned g_calloff_skips;
+static char __fastcall hook_unit_to_group(void *cmd, void *edx, uint8_t *unit) {
+    (void)edx;
+    if (g_in_calloff) { g_calloff_skips++; return 0; }
+    return ((char (__thiscall *)(void *, void *))FN_UNIT_TO_GROUP)(cmd, unit);
+}
+
 static void attack_install(const char *aimod_ini, const char *autotest_ini) {
     BOOL stat_guard = patch_call(CALL_GROUP_STAT, FN_GROUP_STAT, hook_group_stat);
     int sg_guard = patch_vtable(VT_ASG_LAND, 20, FN_ASG_LAND_STATS, hook_asg_land_stats);
@@ -1321,6 +1355,8 @@ static void attack_install(const char *aimod_ini, const char *autotest_ini) {
         sg_guard += patch_vtable(k_asg_vtables[k], 20, FN_ASG_STATS, hook_asg_stats);
     if (g_log) fprintf(g_log, "# engine guard: attack subgroup stats %d/7\n", sg_guard);
     if (g_log) fprintf(g_log, "# engine guard: attack subgroup members %s\n", stat_guard ? "ok" : "FAILED");
+    BOOL add_guard = patch_call(CALL_UNIT_TO_GROUP, FN_UNIT_TO_GROUP, hook_unit_to_group);
+    if (g_log) fprintf(g_log, "# engine guard: no unit offered to attack groups during a call-off %s\n", add_guard ? "ok" : "FAILED");
     g_avoid_towers = cfg_int(aimod_ini, autotest_ini, 1, "avoid_towers", 1);
     g_avoid_citizens = cfg_int(aimod_ini, autotest_ini, 1, "avoid_towers_citizens", 1);
     BOOL repair = patch_call(CALL_REPAIR_GOAL, 0x005F05BD, hook_repair_goal);

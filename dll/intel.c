@@ -1,5 +1,246 @@
 // INTEL: what an AI knows about its enemies. Included by eeaimod.c after landing.c.
 //
+// [all] honest_vision (default 0): the AIs see every unit of the human everywhere (a floor of 1 in their slots of
+// the visibility count - engine-notes.md). 0: the mod uses that as the game has it. 1: an AI knows what a human in
+// its place would - the user: "planning ahead, assuming the enemy has towers and a defence army before I ever saw his
+// base, knowing that the huge army I saw 5 minutes ago didn't just disappear because I can't see it now":
+// - seen now: the count above the floor every unit of that owner carries (least count over its units, per viewer -
+//   measured every 3 s, so no assumption about where the floor comes from);
+// - memory: every enemy unit seen, with tile, hit points, attack and time; buildings stay known until their spot is
+//   looked at again and they are gone; soldiers, ships and aircraft count for 10 minutes at the last place seen
+//   (moved on when that place is looked at and they are not there - still in the army estimate);
+// - looked at: per 6x6-tile cell the last time a unit of the AI or an ally was within 8 tiles;
+// - assumptions: a place not looked at for 3 minutes is assumed held by a quarter of the army it remembers.
+// The systems ask through seen_by (attack.c), intel_soldiers, intel_army, intel_looked_ago - with 0 those give the
+// game's view (nothing remembered, everything looked at now), so every system works under both.
+#define INTEL_REC 1024
+#define INTEL_CELL 6
+#define INTEL_NC (150 / INTEL_CELL + 1)
+struct intel_rec { uint8_t *u; int owner, type, kind, x, y, hp; float att; uint32_t t; };   // kind 0 building, 1 soldier, 2 ship, 3 aircraft, 4 other
+static struct intel {
+    struct intel_rec r[INTEL_REC]; int n;
+    uint8_t *known[4096];                // buildings remembered (open addressing by pointer)
+    uint32_t looked[INTEL_NC][INTEL_NC];
+    uint32_t now, last;
+    unsigned seen_now, dropped, moved;
+} g_intel[16];
+
+static int g_intel_seed;   // a saved game without the AIs' memories: they start remembering the buildings of their enemies
+
+static void intel_new_game(int from_save) { memset(g_intel, 0, sizeof g_intel); g_intel_seed = from_save; }
+static void intel_loaded(void) {   // the memories came with the save: their unit pointers are of the old session
+    for (int p = 0; p < 16; p++) {
+        struct intel *in = &g_intel[p];
+        if (in->n) g_intel_seed = 0;
+        for (int k = 0; k < in->n; k++) in->r[k].u = NULL;
+        memset(in->known, 0, sizeof in->known);
+    }
+}
+
+static unsigned intel_hash(uint8_t *u) { return (unsigned)(((uintptr_t)u >> 4) * 2654435761u) & 4095; }
+static int intel_remembers(void *pl, uint8_t *u) {
+    struct intel *in = &g_intel[(unsigned)FIELD(pl, PL_INDEX, int) & 15];
+    for (unsigned h = intel_hash(u), k = 0; k < 4096 && in->known[h]; h = (h + 1) & 4095, k++)
+        if (in->known[h] == u) return 1;
+    return 0;
+}
+static int intel_kind(uint8_t *td) {
+    int fam = FIELD(td, 0x4B4, int);
+    if (fam == 2 || fam == 29) return 0;
+    if (is_soldier(td) || is_siege(FIELD(td, 0x4B8, int))) return 1;
+    if (fam == 4) return 2;
+    if (fam == 3 || fam == 7 || fam == 17) return 3;
+    return 4;
+}
+// ms since a unit of pl or an ally was near (x, y); 0 with honest_vision off (the game's view: everything at once)
+static uint32_t intel_looked_ago(void *pl, int x, int y) {
+    struct intel *in = &g_intel[(unsigned)FIELD(pl, PL_INDEX, int) & 15];
+    if (!g_honest_vision) return 0;
+    int cx = x / INTEL_CELL, cy = y / INTEL_CELL;
+    if (cx < 0 || cy < 0 || cx >= INTEL_NC || cy >= INTEL_NC) return 0xFFFFFFFFu;
+    return in->looked[cx][cy] ? in->now - in->looked[cx][cy] : 0xFFFFFFFFu;
+}
+// soldiers (and siege) remembered within r tiles of (x, y) and not seen now, seen within the last 5 minutes: hit
+// points and attack summed, how many. Nothing with honest_vision off (all of them are seen)
+static void intel_soldiers(void *pl, int x, int y, int r, float *hp, float *att, float *pw, int *n) {
+    struct intel *in = &g_intel[(unsigned)FIELD(pl, PL_INDEX, int) & 15];
+    if (!g_honest_vision) return;
+    for (int k = 0; k < in->n; k++) {
+        struct intel_rec *e = &in->r[k];
+        if (e->kind != 1 || e->x < 0 || e->t == in->last || in->now - e->t > 300000) continue;
+        int dx = e->x - x, dy = e->y - y;
+        if (dx * dx + dy * dy > r * r) continue;
+        *hp += (float)e->hp; *att += e->att; (*n)++;
+        if (pw) *pw += (float)e->hp * e->att;
+    }
+}
+// the enemy army it knows of: soldiers seen within 10 minutes (seen now included), summed
+static void intel_army(void *pl, float *hp, float *att, int *n) {
+    struct intel *in = &g_intel[(unsigned)FIELD(pl, PL_INDEX, int) & 15];
+    for (int k = 0; k < in->n; k++)
+        if (in->r[k].kind == 1 && in->now - in->r[k].t <= 600000) { *hp += (float)in->r[k].hp; *att += in->r[k].att; (*n)++; }
+}
+
+struct intel_scan {
+    void *pl; unsigned pi;
+    int nlive; uint8_t *live[6000];      // every unit (identity only - a remembered pointer is read only when it is in here)
+    uint8_t floor[16]; int fseen[16];
+    int ne, ex[3000], ey[3000];          // eyes: its and its allies' units
+};
+static void intel_unit(uint8_t *u, void *ctx) {
+    struct intel_scan *s = ctx;
+    void *o = FIELD(u, 0x18, void *);
+    if (!o || FIELD(u, 0x3C, int) <= 0 || FIELD(u, 0x1C, int) < 0) return;
+    int oi = FIELD(o, PL_INDEX, int);
+    if (oi <= 0 || oi >= 16) return;
+    if (s->nlive < 6000) s->live[s->nlive++] = u;
+    if (!is_enemy(s->pl, o)) { if (s->ne < 3000) { s->ex[s->ne] = FIELD(u, 0x1C, int); s->ey[s->ne++] = FIELD(u, 0x20, int); } return; }
+    uint8_t *v = FIELD(u, 0x14, uint8_t *);
+    uint16_t *vis = v ? FIELD(v, 0xC, uint16_t *) : NULL;
+    unsigned c = vis ? vis[s->pi] & 0xFF : 0;
+    if (!s->fseen[oi] || c < s->floor[oi]) { s->floor[oi] = (uint8_t)c; s->fseen[oi] = 1; }
+}
+static int intel_ptr_cmp(const void *a, const void *b) {
+    uintptr_t x = *(const uintptr_t *)a, y = *(const uintptr_t *)b;
+    return x < y ? -1 : x > y;
+}
+static int intel_live(struct intel_scan *s, uint8_t *u) {
+    return bsearch(&u, s->live, (size_t)s->nlive, sizeof *s->live, intel_ptr_cmp) != NULL;
+}
+static void intel_tick(void *pl, uint32_t now) {
+    unsigned pi = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
+    struct intel *in = &g_intel[pi];
+    if (now < in->now) memset(in, 0, sizeof *in);   // a new game
+    if (!g_honest_vision || (in->now && now - in->now < 3000)) return;
+    static struct intel_scan s;
+    s.pl = pl; s.pi = pi; s.nlive = 0; s.ne = 0;
+    memset(s.floor, 0, sizeof s.floor); memset(s.fseen, 0, sizeof s.fseen);
+    grid_each(intel_unit, &s);
+    for (int o = 0; o < 16; o++) g_vis_floor[pi][o] = s.fseen[o] ? s.floor[o] : 0;
+    qsort(s.live, (size_t)s.nlive, sizeof *s.live, intel_ptr_cmp);
+    in->last = in->now = now;
+    // looked at now
+    for (int e = 0; e < s.ne; e++)
+        for (int cx = (s.ex[e] - 8) / INTEL_CELL; cx <= (s.ex[e] + 8) / INTEL_CELL; cx++)
+            for (int cy = (s.ey[e] - 8) / INTEL_CELL; cy <= (s.ey[e] + 8) / INTEL_CELL; cy++) {
+                if (cx < 0 || cy < 0 || cx >= INTEL_NC || cy >= INTEL_NC) continue;
+                int dx = cx * INTEL_CELL + INTEL_CELL / 2 - s.ex[e], dy = cy * INTEL_CELL + INTEL_CELL / 2 - s.ey[e];
+                if (dx * dx + dy * dy <= 64) in->looked[cx][cy] = now;
+            }
+    // a saved game without memories (made before honest_vision, or without the mod): the buildings of its enemies, as
+    // a human loading the game sees them on the explored map. Records without a unit (restored from a save): buildings
+    // matched to the one standing at that spot
+    int seed = g_intel_seed && now > 60000 && !in->n;
+    for (int k = 0; k < s.nlive; k++) {
+        uint8_t *u = s.live[k], *td = FIELD(u, 0x2C, uint8_t *);
+        void *o = FIELD(u, 0x18, void *);
+        if (!is_enemy(pl, o) || intel_kind(td) != 0) continue;
+        int x = FIELD(u, 0x1C, int), y = FIELD(u, 0x20, int), t = FIELD(td, 0x4B8, int), oi = FIELD(o, PL_INDEX, int) & 15;
+        if (seed && in->n < INTEL_REC) {
+            struct intel_rec *e = &in->r[in->n++];
+            float r, a = 0;
+            defence_stats(u, &r, &a);
+            e->u = u; e->owner = oi; e->type = t; e->kind = 0; e->x = x; e->y = y; e->hp = FIELD(u, 0x3C, int); e->att = a; e->t = now;
+            continue;
+        }
+        for (int j = 0; j < in->n; j++)
+            if (!in->r[j].u && in->r[j].kind == 0 && in->r[j].x == x && in->r[j].y == y && in->r[j].type == t && in->r[j].owner == oi) {
+                in->r[j].u = u;
+                break;
+            }
+    }
+    if (seed && g_log) fprintf(g_log, "# intel: P%u at %.1f min: a save without memories - remembers %d buildings of its enemies\n", pi, now / 60000.0, in->n);
+    // what it sees now: into the memory
+    in->seen_now = 0;
+    for (int k = 0; k < s.nlive; k++) {
+        uint8_t *u = s.live[k];
+        void *o = FIELD(u, 0x18, void *);
+        if (!is_enemy(pl, o)) continue;
+        uint8_t *v = FIELD(u, 0x14, uint8_t *);
+        uint16_t *vis = v ? FIELD(v, 0xC, uint16_t *) : NULL;
+        int oi = FIELD(o, PL_INDEX, int) & 15;
+        if (!vis || (vis[pi] & 0xFF) <= g_vis_floor[pi][oi]) continue;
+        in->seen_now++;
+        int j = 0;
+        while (j < in->n && in->r[j].u != u) j++;
+        if (j == in->n) {
+            if (in->n == INTEL_REC) {   // full: the oldest goes
+                j = 0;
+                for (int q = 1; q < in->n; q++) if (in->r[q].t < in->r[j].t) j = q;
+            } else in->n++;
+        }
+        struct intel_rec *e = &in->r[j];
+        uint8_t *td = FIELD(u, 0x2C, uint8_t *);
+        e->u = u; e->owner = oi; e->type = FIELD(td, 0x4B8, int); e->kind = intel_kind(td);
+        e->x = FIELD(u, 0x1C, int); e->y = FIELD(u, 0x20, int); e->hp = FIELD(u, 0x3C, int);
+        float a = 0, r;
+        if (e->kind == 0) defence_stats(u, &r, &a);
+        else a = e->hp > 0 ? unit_power(u) / (float)e->hp : 0;
+        e->att = a; e->t = now;
+    }
+    // what it looked at and did not find: buildings gone; soldiers moved on (or dead - seen dying when they were seen
+    // the last time); old sightings forgotten
+    int n = 0;
+    for (int k = 0; k < in->n; k++) {
+        struct intel_rec *e = &in->r[k];
+        int keep = 1;
+        if (e->t != now) {
+            int looked = 0, live = intel_live(&s, e->u);   // an eye within 6 tiles of where it was
+            for (int q = 0; q < s.ne && e->x >= 0 && !looked; q++)
+                looked = (s.ex[q] - e->x) * (s.ex[q] - e->x) + (s.ey[q] - e->y) * (s.ey[q] - e->y) <= 36;
+            if (e->kind == 0) keep = !(looked || (!live && now - e->t <= 6000));
+            else if (!live && now - e->t <= 6000) keep = 0;   // seen until the last look and gone now: died in sight
+            else {
+                if (looked) { e->x = -1; in->moved++; }   // not there any more: somewhere
+                if (now - e->t > 600000) keep = 0;
+            }
+        }
+        if (keep) in->r[n++] = *e; else in->dropped++;
+    }
+    in->n = n;
+    memset(in->known, 0, sizeof in->known);
+    for (int k = 0; k < in->n; k++) {
+        if (in->r[k].kind != 0) continue;
+        unsigned h = intel_hash(in->r[k].u);
+        while (in->known[h]) h = (h + 1) & 4095;
+        in->known[h] = in->r[k].u;
+    }
+}
+
+// intel P (test): what AI P knows - mode, floors, what it sees now and remembers per owner and kind, looked cells,
+// the army it knows of
+static void cmd_intel(char *out, const char *args) {
+    int p = atoi(args);
+    if (p <= 0 || p >= 16 || !g_players[p]) { REPLY("error: intel P\n"); return; }
+    struct intel *in = &g_intel[p];
+    REPLY("P%d: honest_vision %d, %d records, %u seen at the last look (%.1f min), %u dropped, %u moved on; floors:", p, g_honest_vision, in->n,
+          in->seen_now, in->now / 60000.0, in->dropped, in->moved);
+    for (int o = 1; o < 16; o++) if (g_vis_floor[p][o]) REPLY(" P%d %d", o, g_vis_floor[p][o]);
+    REPLY("\n");
+    static const char *kinds[] = { "buildings", "soldiers", "ships", "aircraft", "other" };
+    for (int o = 1; o < 16; o++)
+        for (int k = 0; k < 5; k++) {
+            int now_n = 0, rem = 0, lost = 0;
+            for (int j = 0; j < in->n; j++) {
+                struct intel_rec *e = &in->r[j];
+                if (e->owner != o || e->kind != k) continue;
+                if (e->t == in->last) now_n++; else if (e->x < 0) lost++; else rem++;
+            }
+            if (now_n + rem + lost) REPLY("  P%d %-9s: %d seen now, %d remembered where they were, %d somewhere\n", o, kinds[k], now_n, rem, lost);
+        }
+    int cells = 0, recent = 0;
+    for (int x = 0; x < INTEL_NC; x++)
+        for (int y = 0; y < INTEL_NC; y++) {
+            if (!in->looked[x][y]) continue;
+            cells++;
+            recent += in->now - in->looked[x][y] <= 180000;
+        }
+    float hp = 0, att = 0; int n = 0;
+    intel_army(g_players[p], &hp, &att, &n);
+    REPLY("  cells looked at: %d ever, %d within 3 minutes (of %d); the army it knows of: %d soldiers, strength %.0f\n", cells, recent,
+          INTEL_NC * INTEL_NC, n, sqrtf(hp * att));
+}
+
 // vis P [target] (test): what the per-unit visibility value (unit +0x14 -> +0xC, uint16 per player; seen_by tests
 // its low byte) means for moving units - "seen now" or "seen once". For each enemy unit of AI P: the value, and the
 // distance to the nearest unit or building of P (its eyes); a histogram by distance and kind.
@@ -131,4 +372,19 @@ static void cmd_vistrack(char *out, const char *args) {
         uint16_t *vv = v ? FIELD(v, 0xC, uint16_t *) : NULL;
         if (vv) REPLY("      slots 0-7: %04X %04X %04X %04X %04X %04X %04X %04X\n", vv[0], vv[1], vv[2], vv[3], vv[4], vv[5], vv[6], vv[7]);
     }
+}
+
+static void intel_install(const char *aimod_ini, const char *autotest_ini) {
+    g_honest_vision = cfg_int(aimod_ini, autotest_ini, 1, "honest_vision", 0);
+    if (g_log) fprintf(g_log, "# intel: honest_vision %d (%s)\n", g_honest_vision,
+                       g_honest_vision ? "what it sees, remembers and assumes" : "the game's view - every unit of the human");
+}
+
+// calloff P T (test): AI P calls off its attack on T (the game's call-off at the next safe point, as attack_retreat)
+static void cmd_calloff(char *out, const char *args) {
+    int p = 0, t = 0;
+    if (sscanf(args, "%d %d", &p, &t) != 2 || p <= 0 || p >= 16 || t <= 0 || t >= 16) { REPLY("error: calloff P T\n"); return; }
+    g_cancel_why[p][t] = "test";
+    cancel_citizen_attack(p, t);
+    REPLY("P%d calls off its attack on P%d at the next safe point\n", p, t);
 }
