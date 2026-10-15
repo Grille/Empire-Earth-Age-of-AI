@@ -37,6 +37,7 @@ static void grid_each(void (*fn)(uint8_t *u, void *ctx), void *ctx) {
 #define FN_BUILD_WALL  0x00497C3F   // thiscall(wall manager, int from[2], int to[2], type, char)
 static int g_def = 1, g_def_dist = 10, g_def_walls = 1, g_def_more = 1;
 static int g_aa = 1;   // [all] anti_air (below)
+static int g_hold = 0;   // [all] hold_town (below)
 static uint8_t g_def_off[16];   // per player, pipe "defence P 0|1" (A/B scenarios)
 static unsigned g_def_towers[16], g_def_walls_built[16];
 struct front { int fx, fy, enemy; float dx, dy; int wall_tries; uint32_t wall_t; };
@@ -688,6 +689,165 @@ static void muster(void *pl, unsigned idx, uint32_t now) {
     g_mus[idx].orders += ordered;
 }
 
+// HOLD THE TOWN ([all] hold_town, default 0). Soldiers carry a behaviour (unit +0x208: an EEUnitBehavior of the
+// table at [0x8D2044] - 0 Scout, 1 Stand Ground, 2 Guard, 3 Harass, 4 Cautious, 5 Aggressive; set by the player's
+// command EEMSetUnitBehavior 0x4BFF1A for units whose type data +0x621 allows it). Every soldier is Aggressive: it
+// chases what it sees. A player's army camped outside an AI's town (artillery, outranging the towers, with its
+// guards) drew the defenders out one by one - user's game: P2 lost 320 units and killed 18 in 33 minutes, P3 285
+// and 43, while the home guard replaced each. Every 3 s per AI (not while mustering): enemy soldiers (siege too) it
+// sees within 35 tiles of its base against its home soldiers there, by hit points x attack (not the towers: a
+// soldier that walks out leaves their range). Home: within 35 tiles, also members of an attack group still forming
+// (the attack commander takes nearly all soldiers into its groups early), not those marching out. Weaker than 1.2 x
+// the enemy: the home soldiers pull back to 6 tiles beyond the base, away from the enemy, and Guard there (held
+// where they stood, the artillery shelled them: 15 of 15 lost in 1.5 minutes). 1.3 x the enemy or more: a sortie -
+// all Aggressive, each attacks its nearest enemy, together (then 60 s before the next). No enemy near: Aggressive.
+// scripts/camp.setup (8 artillery, 16 machine gunners, 6 tanks camped 15-18 tiles from P2's Town Center, P2 with 12
+// machine gunners of its own), 6 pairs: P2 lost 22 vs 31 units, killed 21 vs 26, the camp kept 11 vs 7 of 30 -
+// fewer losses, but the camp (within the towers' support there) survives more often. Off by default until a real
+// game shows which counts more.
+static struct { int holding; uint32_t sortie_t; unsigned holds, sorties, set; } g_hold_st[16];
+static uint8_t *g_asg_units[512];
+static int g_asg_n;
+static void asg_units(void *pl) {   // the units of AI pl's attack subgroups (records +0x44)
+    g_asg_n = 0;
+    uint8_t *cbm = FIELD(pl, 0xB8C, uint8_t *), *cmd = cbm ? FIELD(cbm, 0x48, uint8_t *) : NULL;
+    if (!cmd) return;
+    uint8_t *dq = cmd + 4;
+    unsigned first = FIELD(dq, 0xC, unsigned), cnt = FIELD(dq, 0x10, unsigned);
+    for (unsigned k = 0; k < cnt && k < 64; k++) {
+        uint8_t *g = deque_at(dq, first + k);
+        for (uint8_t **sp = g ? FIELD(g, 8, uint8_t **) : NULL; sp && sp < FIELD(g, 0xC, uint8_t **); sp++) {
+            uint8_t **b = *sp ? FIELD(*sp, 0x54, uint8_t **) : NULL, **e = *sp ? FIELD(*sp, 0x58, uint8_t **) : NULL;
+            for (uint8_t **r = b; b && r < e && g_asg_n < 512; r++)
+                if (*r && FIELD(*r, 0x44, uint8_t *)) g_asg_units[g_asg_n++] = FIELD(*r, 0x44, uint8_t *);
+        }
+    }
+}
+static int set_behaviour(uint8_t *u, int b) {   // 1 when changed
+    void **tab = *(void ***)0x008D2044;
+    uint8_t *td = FIELD(u, 0x2C, uint8_t *);
+    if (!tab || !tab[b] || !td || !FIELD(td, 0x621, uint8_t) || FIELD(u, 0x208, void *) == tab[b]) return 0;
+    FIELD(u, 0x208, void *) = tab[b];
+    return 1;
+}
+static void hold_town(void *pl, unsigned idx, uint32_t now) {
+    static uint32_t last[16];
+    if (!g_hold || g_def_off[idx] || (now >= last[idx] && now - last[idx] < 3000)) return;
+    if (now < last[idx]) memset(&g_hold_st[idx], 0, sizeof g_hold_st[idx]);   // a new game
+    last[idx] = now;
+    if (g_mus[idx].on) return;   // the muster has them
+    void *cm = FIELD(pl, 0xB90, void *);
+    uint8_t *bm = cm ? FIELD(cm, 0x3C, uint8_t *) : NULL;
+    void **tab = *(void ***)0x008D2044;
+    if (!bm || FIELD(bm, 0x12C, int) == -10000 || !tab) return;
+    struct mus_scan *s = &g_ms;
+    memset(s, 0, sizeof *s);
+    s->pl = pl;
+    s->bx = FIELD(bm, 0x12C, int);
+    s->by = FIELD(bm, 0x130, int);
+    grid_each(mus_unit, s);   // enemies within 22, own within 35: count the enemies within 35 here
+    float epow = 0;
+    int en = 0;
+    uint8_t *enemy[128];
+    {
+        uint8_t *map = *(uint8_t **)G_MAP;
+        uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
+        uint8_t *cells = grid ? FIELD(grid, 4, uint8_t *) : NULL;
+        int cs = grid ? FIELD(grid, 8, int) : 1, nx = grid ? FIELD(grid, 0x10, int) : 0, ny = grid ? FIELD(grid, 0x14, int) : 0;
+        for (int cx = (s->bx - 35) / cs; cells && cx <= (s->bx + 35) / cs; cx++)
+            for (int cy = (s->by - 35) / cs; cy <= (s->by + 35) / cs; cy++) {
+                if (cx < 0 || cy < 0 || cx >= nx || cy >= ny) continue;
+                uint8_t *cell = cells + (cx * ny + cy) * 16;
+                for (uint8_t **b = FIELD(cell, 4, uint8_t **); b && b < FIELD(cell, 8, uint8_t **); b++) {
+                    uint8_t *u = *b, *td = u ? FIELD(u, 0x2C, uint8_t *) : NULL;
+                    if (!td || FIELD(u, 0x3C, int) <= 0) continue;
+                    int dx = FIELD(u, 0x1C, int) - s->bx, dy = FIELD(u, 0x20, int) - s->by, type = FIELD(td, 0x4B8, int);
+                    void *o = FIELD(u, 0x18, void *);
+                    if (dx * dx + dy * dy > 35 * 35 || !o || o == pl || FIELD(o, PL_INDEX, int) <= 0 || !is_enemy(pl, o)) continue;
+                    if ((!is_soldier(td) && !is_siege(type)) || !seen_by(u, pl)) continue;
+                    epow += unit_power(u);
+                    if (en < 128) enemy[en] = u;
+                    en++;
+                }
+            }
+    }
+    asg_units(pl);
+    uint8_t *home[256];
+    int nh = 0;
+    float hpow = 0;
+    // home: every soldier within 35 tiles - also those of an attack group still forming there (the attack commander
+    // takes nearly all soldiers into its groups long before they leave) - but not one marching out (a move order to a
+    // point beyond 35 tiles); attack groups' members beyond 35 tiles: as the game has them (Aggressive)
+    for (int j = 0; j < g_asg_n; j++) {
+        uint8_t *u = g_asg_units[j];
+        int dx = FIELD(u, 0x1C, int) - s->bx, dy = FIELD(u, 0x20, int) - s->by;
+        if (dx * dx + dy * dy > 35 * 35) set_behaviour(u, 5);
+    }
+    for (int k = 0; k < s->no; k++) {
+        uint8_t *u = s->own[k], *g = FIELD(u, 0x1EC, uint8_t *);
+        if (g && *(uintptr_t *)g == VT_GOAL_LOCATION) {
+            float dx = FIELD(g, 0x20, float) - (float)s->bx, dy = FIELD(g, 0x24, float) - (float)s->by;
+            if (dx * dx + dy * dy > 35.0f * 35.0f) { set_behaviour(u, 5); continue; }   // marching out
+        }
+        home[nh++] = u;
+        hpow += unit_power(u);
+    }
+    if (en == 0) {   // nothing near: as the game has them
+        for (int k = 0; k < nh; k++) set_behaviour(home[k], 5);
+        if (g_hold_st[idx].holding && g_log) fprintf(g_log, "# hold: P%u at %.1f min: no enemy near the town - soldiers free again\n", idx, now / 60000.0);
+        g_hold_st[idx].holding = 0;
+        return;
+    }
+    if (hpow >= 1.3f * epow && (!g_hold_st[idx].sortie_t || now - g_hold_st[idx].sortie_t >= 60000)) {
+        int ordered = 0;
+        for (int k = 0; k < nh; k++) {
+            uint8_t *u = home[k], *best = NULL;
+            set_behaviour(u, 5);
+            int bd = 0x7FFFFFFF, x = FIELD(u, 0x1C, int), y = FIELD(u, 0x20, int);
+            for (int j = 0; j < en && j < 128; j++) {
+                if (FIELD(enemy[j], 0x3C, int) <= 0) continue;
+                int dx = FIELD(enemy[j], 0x1C, int) - x, dy = FIELD(enemy[j], 0x20, int) - y, d = dx * dx + dy * dy;
+                if (d < bd) { bd = d; best = enemy[j]; }
+            }
+            if (best && unit_goal(u, goal_attack(u, best), 0, 0x1F40)) ordered++;
+        }
+        g_hold_st[idx].sortie_t = now ? now : 1;
+        g_hold_st[idx].holding = 0;
+        g_hold_st[idx].sorties++;
+        if (g_log) fprintf(g_log, "# hold: P%u at %.1f min: sortie - %d soldiers (strength %.0f) against %d enemies (%.0f), %d ordered\n",
+                           idx, now / 60000.0, nh, hpow, en, epow, ordered);
+        return;
+    }
+    if (hpow < 1.2f * epow) {   // towers don't count: they don't follow the soldiers out of their range
+        // held where they stood, the artillery that outranges them shelled them there (camp test: 15 of 15 lost in 1.5
+        // minutes): back to a point 6 tiles beyond the base, away from the enemy's centre, and Guard there
+        float cx = 0, cy = 0, w = 0;
+        for (int j = 0; j < en && j < 128; j++) {
+            float p = unit_power(enemy[j]);
+            cx += (float)FIELD(enemy[j], 0x1C, int) * p; cy += (float)FIELD(enemy[j], 0x20, int) * p; w += p;
+        }
+        float dx = w > 0 ? (float)s->bx - cx / w : 1.0f, dy = w > 0 ? (float)s->by - cy / w : 0.0f, l = sqrtf(dx * dx + dy * dy);
+        if (l < 1.0f) { dx = 1.0f; dy = 0.0f; l = 1.0f; }
+        float hx = (float)s->bx + 0.5f + dx / l * 6.0f, hy = (float)s->by + 0.5f + dy / l * 6.0f;
+        int changed = 0;
+        for (int k = 0; k < nh; k++) {
+            uint8_t *u = home[k], *g = FIELD(u, 0x1EC, uint8_t *);
+            changed += set_behaviour(u, 2);
+            float ux = (float)FIELD(u, 0x1C, int) - hx, uy = (float)FIELD(u, 0x20, int) - hy;
+            if (ux * ux + uy * uy <= 16.0f) continue;
+            if (g && *(uintptr_t *)g == VT_GOAL_LOCATION && fabsf(FIELD(g, 0x20, float) - hx) < 2 && fabsf(FIELD(g, 0x24, float) - hy) < 2) continue;
+            unit_goal(u, goal_move(hx + (float)(k % 5) - 2.0f, hy + (float)(k / 5 % 5) - 2.0f), 0, 0x1F40);
+        }
+        g_hold_st[idx].set += (unsigned)changed;
+        if (!g_hold_st[idx].holding) {
+            g_hold_st[idx].holds++;
+            if (g_log) fprintf(g_log, "# hold: P%u at %.1f min: %d enemies near the town (strength %.0f) against %d soldiers (%.0f) "
+                               "and towers (%.0f) - holding (Guard)\n", idx, now / 60000.0, en, epow, nh, hpow, s->tpow);
+        }
+        g_hold_st[idx].holding = 1;
+    }
+}
+
 // basemap P [r]: the map around AI player P's base (build manager +0x12C/+0x130), 2 characters per tile:
 // T tower (own defence with a ground attack), W wall, G gate, C Town Center/Capitol/Settlement, b other own building,
 // c citizen, s soldier, m mine (stone/gold/iron site), digits = other players' buildings/units (player index),
@@ -816,6 +976,7 @@ static void defence_install(const char *aimod_ini, const char *autotest_ini) {
     g_home_share = cfg_float(aimod_ini, autotest_ini, 1, "home_guard_share", "0.35");
     g_muster = cfg_int(aimod_ini, autotest_ini, 1, "muster", 1);
     g_aa = cfg_int(aimod_ini, autotest_ini, 1, "anti_air", 1);
+    g_hold = cfg_int(aimod_ini, autotest_ini, 1, "hold_town", 0);
     BOOL guard = patch_call(CALL_DAMAGE_POINTS, FN_DAMAGE_POINTS, damage_points_thunk);
     if (g_log) fprintf(g_log, "# engine guard: damage points %s\n", guard ? "ok" : "FAILED");
     if (g_log) fprintf(g_log, "# defence: layout=%d distance=%d walls=%d own towers=%d counter-siege=%d home guard=%d/epoch, %.2f of the military room\n", g_def, g_def_dist, g_def_walls, g_def_more, g_csiege, g_home_guard, g_home_share);

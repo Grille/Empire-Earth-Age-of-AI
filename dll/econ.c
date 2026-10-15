@@ -79,6 +79,7 @@ static void spend_log(unsigned idx, uint32_t now) {
 static int defence_spot(void *pl, int type, int *ox, int *oy);   // defence.c
 static void defence_tick(void *pl, unsigned idx, uint32_t now);
 static void anti_air(void *pl, unsigned idx, uint32_t now);   // defence.c
+static void hold_town(void *pl, unsigned idx, uint32_t now);   // defence.c
 static void counter_siege(void *pl, unsigned idx, uint32_t now);
 static void home_guard(void *pl, unsigned idx, uint32_t now);
 static void muster(void *pl, unsigned idx, uint32_t now);       // defence.c: gather, then strike
@@ -675,6 +676,7 @@ static void econ_tick(void *pl, uint32_t now) {
     tech_log_tick(pl, ai, now);
     home_guard(pl, ai, now);
     muster(pl, ai, now);
+    hold_town(pl, ai, now);
     {   // the base the AI plans around (build manager +0x12C/+0x130): log when it moves (a lost base, a new one?)
         static int bx[16] = { -10000, -10000, -10000, -10000, -10000, -10000, -10000, -10000, -10000, -10000, -10000,
                               -10000, -10000, -10000, -10000, -10000 }, by[16];

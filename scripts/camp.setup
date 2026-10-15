@@ -1,0 +1,15 @@
+# hold the town (defence.c hold_town): at minute 12 P1's army camps 15-18 tiles west of P2's Town Center (85,49):
+# 5 artillery (range 12), 10 machine gunners, 4 tanks - P2's units lost/killed (battle lines) with hold_town 1 / 0
+@0.05 diplo 1 2 1
+@0.05 diplo 2 1 1
+@11.5 spawn 2 121 88 49 12
+@12 spawn 1 143 67 49 8
+@12 spawn 1 121 70 47 16
+@12 spawn 1 153 70 53 6
+@12.5 army 2
+@15 army 2
+@15 objs 1 143
+@20 objs 1 143
+@20 army 2
+@21.5 count 1
+@21.5 count 2
