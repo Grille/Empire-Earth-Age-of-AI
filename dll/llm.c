@@ -30,7 +30,8 @@
 // AI TALK ([llm] ai_talk=1, default 0; single player): the AIs talk with each other too - words only, their decisions
 // stay with the rules. A line one AI says to another (persona_say: a declaration of war, an alliance offer, thanks for
 // a tribute, a capitulation - lines the local player never hears) opens an exchange: that message in the speaker's
-// own words, the other's answer, the speaker's reply ([llm] ai_talk_turns messages, 1..4). Each pair of AIs keeps its
+// own words, the other's answer, the speaker's reply ([llm] ai_talk_turns messages, default 4, no upper limit) - or
+// fewer: a message ending in [end] (talk_answer tells the model) ends the exchange. Each pair of AIs keeps its
 // own memory of what they told each other (the last 8 messages) - what one says to another, the local player doesn't
 // know, and the AI may tell him something else. One exchange at a time, a new one at most every ai_talk_gap seconds
 // (an opener waiting longer than 90 s is dropped, a newer one of the same pair replaces it); the local player's
@@ -121,7 +122,8 @@ static struct llm_job g_llm_jobs[LLM_JOBS];
 
 // AI TALK state: each pair's messages ([lo][hi], who = the speaker; who >= 16: the event that opened an exchange, in
 // the third person), the exchange running, openers waiting
-static int g_llm_ai_talk, g_llm_talk_show = 1, g_llm_talk_gap = 60, g_llm_talk_turns = 3, g_llm_ai_decide, g_llm_equal;
+static int g_llm_ai_talk, g_llm_talk_show = 1, g_llm_talk_gap = 60, g_llm_talk_turns = 4, g_llm_ai_decide, g_llm_equal;
+
 static uint32_t g_pair_last[16][16];   // [lo][hi]: the pair's last request (game time) - events then open no other talk
 static unsigned g_talk_n_acts;
 static struct { int8_t who[LLM_HIST]; char text[LLM_HIST][LLM_MAXLEN + 32]; int n; } g_pair_hist[16][16];
@@ -1288,6 +1290,19 @@ static void talk_tick(void) {
     pair_add(g_talk.a, g_talk.b, 16, g_talk_wait[w].ev);   // after the opener's request: it has it there
     if (g_llm_log && g_log) fprintf(g_log, "# llm: talk P%d -> P%d opened: %s\n", g_talk.a, g_talk.b, g_talk_wait[w].sit);
 }
+// "[end]" in a message of a talk between AIs (any case): taken out, the spaces around it too - 1 if it was there
+static int talk_end_mark(char *s) {
+    int found = 0;
+    for (char *p = s; (p = strchr(p, '[')) != NULL;) {
+        if (_strnicmp(p, "[end]", 5)) { p++; continue; }
+        memmove(p, p + 5, strlen(p + 5) + 1);
+        found = 1;
+    }
+    int n = (int)strlen(s);
+    while (n && s[n - 1] == ' ') s[--n] = 0;
+    while (*s == ' ') memmove(s, s + 1, strlen(s));
+    return found;
+}
 static void talk_done(struct llm_job *j, int ok) {
     if (j->gen != g_llm_gen) return;
     int a = j->ai, b = j->to;
@@ -1304,6 +1319,7 @@ static void talk_done(struct llm_job *j, int ok) {
         return;
     }
     int did = j->act ? talk_apply(j) : 0;
+    int ended = talk_end_mark(j->reply);   // "[end]": nothing more to say (its words before it still count)
     if (j->offer >= 0 && !(j->act & (TOOL_PEACE | TOOL_REFUSE)) && !j->confirm && g_offer_t[b][a]) {
         // words without a decision ("I accept your alliance, but I pay no gold" - and no tool): its words stand, it is
         // asked once more for the tool alone
@@ -1337,10 +1353,16 @@ static void talk_done(struct llm_job *j, int ok) {
             chat_line(pl, sysf("talk_to", pl, po, NULL, "text", j->reply, NULL), g_chat_ms);
         }
     }
+    // the end it wrote - unless it took a step or its offer stands: those get the other's answer
+    if (ended && !did && !g_offer_t[a][b]) {
+        if (g_llm_log && g_log) fprintf(g_log, "# llm: talk P%d -> P%d: ends the exchange after message %d\n", a, b, j->talk);
+        if (!j->dec) g_talk.a = 0;
+        return;
+    }
     // the next message: the other's, up to ai_talk_turns (an offer: 2 at least); whoever acted gets an answer
     int next = j->talk + 1, last = j->dec && g_llm_talk_turns < 2 ? 2 : g_llm_talk_turns;
     if (did && next > last) last = next;
-    if (next <= last && next <= 6) {
+    if (next <= last) {
         if (talk_request(b, a, next, NULL, NULL, j->dec)) { if (!j->dec) g_talk.turn = next; return; }
         if (g_offer_t[a][b] && g_players[b]) ai_offer_rules(a, b);   // its offer stands and nobody asks the other
     }
@@ -1520,7 +1542,7 @@ static void llm_install(const char *ini, const char *test_ini) {
     g_llm_ai_talk = GetPrivateProfileIntA("llm", "ai_talk", 0, ini);
     g_llm_talk_show = GetPrivateProfileIntA("llm", "ai_talk_show", 1, ini);
     g_llm_talk_gap = GetPrivateProfileIntA("llm", "ai_talk_gap", 60, ini);
-    g_llm_talk_turns = GetPrivateProfileIntA("llm", "ai_talk_turns", 3, ini);
+    g_llm_talk_turns = GetPrivateProfileIntA("llm", "ai_talk_turns", 4, ini);
     g_llm_ai_decide = GetPrivateProfileIntA("llm", "ai_decide", 0, ini);
     g_llm_equal = GetPrivateProfileIntA("llm", "equal", 0, ini);
     char fb[16];
@@ -1539,6 +1561,7 @@ static void llm_install(const char *ini, const char *test_ini) {
         g_llm_ai_talk = GetPrivateProfileIntA("autotest", "llm_ai_talk", g_llm_ai_talk, test_ini);
         g_llm_talk_show = GetPrivateProfileIntA("autotest", "llm_ai_talk_show", g_llm_talk_show, test_ini);
         g_llm_talk_gap = GetPrivateProfileIntA("autotest", "llm_ai_talk_gap", g_llm_talk_gap, test_ini);
+        g_llm_talk_turns = GetPrivateProfileIntA("autotest", "llm_ai_talk_turns", g_llm_talk_turns, test_ini);
         g_llm_ai_decide = GetPrivateProfileIntA("autotest", "llm_ai_decide", g_llm_ai_decide, test_ini);
         g_llm_equal = GetPrivateProfileIntA("autotest", "llm_equal", g_llm_equal, test_ini);
         GetPrivateProfileStringA("autotest", "llm_fallback", fb, fb, sizeof fb, test_ini);
@@ -1552,8 +1575,7 @@ static void llm_install(const char *ini, const char *test_ini) {
     if (g_llm_max_tokens < 16) g_llm_max_tokens = 16;
     if (g_llm_max_tokens > 8000) g_llm_max_tokens = 8000;
     if (g_llm_talk_gap < 10) g_llm_talk_gap = 10;
-    if (g_llm_talk_turns < 1) g_llm_talk_turns = 1;
-    if (g_llm_talk_turns > 4) g_llm_talk_turns = 4;
+    if (g_llm_talk_turns < 1) g_llm_talk_turns = 1;   // no upper limit: [end] or the turns, whatever comes first
     if (!g_llm_on) { if (g_log) fprintf(g_log, "# llm: off\n"); return; }
     WCHAR wurl[256];
     MultiByteToWideChar(CP_ACP, 0, g_llm_url, -1, wurl, 256);

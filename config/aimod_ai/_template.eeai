@@ -113,8 +113,9 @@ peace_answer = "(Not a chat line: {them} offers you peace right now - their stan
 talk_open = "(Not a chat line - an event of the game: {situation}. Write {them} a message about it, in your own words, in {language_name} - only they read it.{usual})"
 ; in braces: {line}
 talk_usual = "The usual line would be: \"{line}\" - keep its meaning."
+; [end]: the exchange ends (else it goes on up to [llm] ai_talk_turns messages)
 ; in braces: {them} {language_name}
-talk_answer = "(Answer {them} in one or two sentences, in {language_name}.)"
+talk_answer = "(Answer {them} in one or two sentences, in {language_name}. When nothing more needs to be said between you for now, end your answer with [end] - that ends the conversation; [end] alone ends it without a word.)"
 ; in braces: {them} {language_name}
 talk_last = "(Answer {them} in one or two sentences, in {language_name} - your last word on it for now.)"
 ; [llm] ai_decide: an offer to answer

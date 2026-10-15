@@ -86,7 +86,9 @@ static const struct text_def k_tpl[] = {
     { "talk_open", "(Not a chat line - an event of the game: {situation}. Write {them} a message about it, in your own "
       "words, in {language_name} - only they read it.{usual})", NULL, "[llm] ai_talk: the opening message of a talk between AIs ({usual}: \" The usual line would be ...\" when there is one)" },
     { "talk_usual", "The usual line would be: \"{line}\" - keep its meaning.", NULL, NULL },
-    { "talk_answer", "(Answer {them} in one or two sentences, in {language_name}.)", NULL, NULL },
+    { "talk_answer", "(Answer {them} in one or two sentences, in {language_name}. When nothing more needs to be said "
+      "between you for now, end your answer with [end] - that ends the conversation; [end] alone ends it without a "
+      "word.)", NULL, "[end]: the exchange ends (else it goes on up to [llm] ai_talk_turns messages)" },
     { "talk_last", "(Answer {them} in one or two sentences, in {language_name} - your last word on it for now.)", NULL, NULL },
     { "talk_alliance", "(Answer {them} in one or two sentences, in {language_name}. Their offer of an alliance stands: accept it "
       "with the tool make_peace, or refuse it with refuse_offer.)", NULL, "[llm] ai_decide: an offer to answer" },
