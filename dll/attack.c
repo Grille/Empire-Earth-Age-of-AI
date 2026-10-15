@@ -565,7 +565,14 @@ static int army_size(void *pl) {
 // 1)), EEUGLocation (new 0x38, ctor 0x614CE6(float xy[2], 1, 1, 0, 0.0, 0, 0); +0x20/+0x24 = xy).
 #define VT_GOAL_ATTACK   0x00831968
 #define VT_GOAL_LOCATION 0x00831E64
-static struct { int tx, ty, ttype, px, py; uint32_t last; unsigned logged; } g_siege_st[16];
+static struct {
+    int tx, ty, ttype, px, py; uint32_t last; unsigned logged;
+    int wave;                    // a wave is out: newcomers wait at the gathering point
+    void *prev[24]; int nprev;   // the siege weapons at the last look (losses: those gone)
+    uint32_t loss_t[3];          // the last 3 losses; all within 10 min: training paused
+    uint32_t pause_until, seen_t;
+    unsigned waves, lost, pauses, held, logged_min;
+} g_siege_st[16];
 
 static int is_siege(int type) {
     return type == 104 || type == 105 || type == 106 || type == 107 || type == 141 || type == 142 || type == 602 || type == 603;
@@ -870,12 +877,16 @@ static int bq_has(uint8_t *bm, int type) {
     return 0;
 }
 
-static void siege_train(void *pl, unsigned pi, int have, uint32_t now) {
+static int siege_want(void *pl, unsigned pi) {   // 2 + a quarter of the known enemy defences, at most 4; a breach: 2
     int want = g_threat[pi].n ? 2 + g_threat[pi].n / 4 : 0;
     for (int k = 0; k < 64 && !want; k++)
         if (g_breaches[k].sg && FIELD(g_breaches[k].sg, 0x190, void *) == pl) want = 2;
-    if (want > 4) want = 4;
+    return want > 4 ? 4 : want;
+}
+static void siege_train(void *pl, unsigned pi, int have, uint32_t now) {
+    int want = siege_want(pl, pi);
     if (have >= want || (now >= g_siege_train[pi].last_try && now - g_siege_train[pi].last_try < 30000)) return;
+    if (now < g_siege_st[pi].pause_until && g_siege_st[pi].pause_until - now <= 600000) return;   // lost too many
     g_siege_train[pi].last_try = now;
     // no siege weapon in this epoch yet (the catapult comes with the Bronze Age): no factory either - the build
     // manager can't place it before and would keep the request in its queue for good
@@ -950,8 +961,33 @@ static void siege_tick(void *pl, uint32_t now) {
             if (r < srange) srange = r;
             siege[ns++] = u; sx += (float)FIELD(u, 0x1C, int); sy += (float)FIELD(u, 0x20, int);
         }
+    // losses: siege weapons of the last look gone now (3 within 10 minutes: no new ones for 10 minutes - a Howitzer is
+    // 170 wood and 170 iron, and P3 trained 45 in 40 minutes into the player's army)
+    if (now < g_siege_st[pi].seen_t) {   // a new game
+        g_siege_st[pi].nprev = 0; g_siege_st[pi].wave = 0; g_siege_st[pi].pause_until = 0;
+        memset(g_siege_st[pi].loss_t, 0, sizeof g_siege_st[pi].loss_t);
+    }
+    for (int i = 0; i < g_siege_st[pi].nprev; i++) {
+        int alive = 0;
+        for (int j = 0; j < ns && !alive; j++) alive = siege[j] == g_siege_st[pi].prev[i];
+        if (alive) continue;
+        g_siege_st[pi].lost++;
+        g_siege_st[pi].loss_t[0] = g_siege_st[pi].loss_t[1];
+        g_siege_st[pi].loss_t[1] = g_siege_st[pi].loss_t[2];
+        g_siege_st[pi].loss_t[2] = now ? now : 1;
+        if (g_siege_st[pi].loss_t[0] && now - g_siege_st[pi].loss_t[0] < 600000 &&
+            !(now < g_siege_st[pi].pause_until && g_siege_st[pi].pause_until - now <= 600000)) {
+            g_siege_st[pi].pause_until = now + 600000;
+            g_siege_st[pi].pauses++;
+            if (g_log) fprintf(g_log, "# siege: P%u at %.1f min lost 3 siege within %.1f min - no new ones for 10 min\n", pi,
+                               now / 60000.0, (now - g_siege_st[pi].loss_t[0]) / 60000.0);
+        }
+    }
+    g_siege_st[pi].nprev = ns;
+    for (int i = 0; i < ns; i++) g_siege_st[pi].prev[i] = siege[i];
+    g_siege_st[pi].seen_t = now;
     siege_train(pl, pi, ns, now);
-    if (ns < 2) return;
+    if (ns < 1) return;
     sx /= (float)ns; sy /= (float)ns;
     // target: a breach wall of one of our subgroups, else the nearest known defence we outrange
     uint8_t *t = NULL; float best = 1e30f;
@@ -990,34 +1026,88 @@ static void siege_tick(void *pl, uint32_t now) {
     int changed = tx != g_siege_st[pi].tx || ty != g_siege_st[pi].ty;
     g_siege_st[pi].tx = tx; g_siege_st[pi].ty = ty; g_siege_st[pi].ttype = FIELD(FIELD(t, 0x2C, uint8_t *), 0x4B8, int);
     g_siege_st[pi].px = (int)px; g_siege_st[pi].py = (int)py;
-    // siege: move to the firing position, then attack (orders only when not already doing that)
-    int ordered = 0;
+    // WAVES: every siege weapon used to be sent to the firing position the moment it existed - one by one, without
+    // escorts, through the player's army camped outside the town (user's game: "1 ordered, 0 escorts" again and
+    // again, 45 Howitzers of P3 lost). Now they gather at the town (the drop site nearest the target, 3 tiles back)
+    // and go together: at least 3 (or all it wants, if fewer), at least 2 idle soldiers along, and no enemy soldiers
+    // at the firing position or on the way there. While a wave is out (siege attacking the target or on the way),
+    // newcomers wait for the next one.
+    int d[2];
+    if (!nearest_drop(pl, tx, ty, 0, d)) return;
+    float gx = (float)d[0] - (float)tx, gy = (float)d[1] - (float)ty, gl = sqrtf(gx * gx + gy * gy);
+    if (gl > 0) { gx = (float)d[0] + 0.5f + gx / gl * 3.0f; gy = (float)d[1] + 0.5f + gy / gl * 3.0f; }
+    else { gx = (float)d[0] + 0.5f; gy = (float)d[1] + 0.5f; }
+    uint8_t *out[MAXS], *home[MAXS], *away[MAXS]; int nout = 0, nhome = 0, naway = 0;
     for (int i = 0; i < ns; i++) {
         uint8_t *u = siege[i], *g = FIELD(u, 0x1EC, uint8_t *);
+        float ux = (float)FIELD(u, 0x1C, int) + 0.5f - px, uy = (float)FIELD(u, 0x20, int) + 0.5f - py;
+        float hx = (float)FIELD(u, 0x1C, int) + 0.5f - gx, hy = (float)FIELD(u, 0x20, int) + 0.5f - gy;
+        int committed = (g && *(uintptr_t *)g == VT_GOAL_ATTACK && FIELD(g, 0x30, uint8_t *) == t) || ux * ux + uy * uy <= 9.0f ||
+                        (g && *(uintptr_t *)g == VT_GOAL_LOCATION && fabsf(FIELD(g, 0x20, float) - px) < 2 && fabsf(FIELD(g, 0x24, float) - py) < 2);
+        if (committed && !changed) out[nout++] = u;
+        else if (hx * hx + hy * hy <= 25.0f) home[nhome++] = u;
+        else away[naway++] = u;
+    }
+    int ordered = 0, launched = 0, need = siege_want(pl, pi);
+    if (need > 3) need = 3;
+    if (need < 2) need = 2;
+    // the wave out: keep it at it (attack once there)
+    for (int i = 0; i < nout; i++) {
+        uint8_t *u = out[i], *g = FIELD(u, 0x1EC, uint8_t *);
         if (g && *(uintptr_t *)g == VT_GOAL_ATTACK && FIELD(g, 0x30, uint8_t *) == t) continue;
         float ux = (float)FIELD(u, 0x1C, int) + 0.5f - px, uy = (float)FIELD(u, 0x20, int) + 0.5f - py;
-        if (ux * ux + uy * uy > 4.0f) {
-            if (g && *(uintptr_t *)g == VT_GOAL_LOCATION && !changed) continue;   // on its way
-            ordered += unit_goal(u, goal_move(px, py), 0, 0x1F40) && unit_goal(u, goal_attack(u, t), 1, 0x1F40);
-        } else
-            ordered += unit_goal(u, goal_attack(u, t), 0, 0x1F40);
+        if (ux * ux + uy * uy <= 4.0f) ordered += unit_goal(u, goal_attack(u, t), 0, 0x1F40);
     }
+    g_siege_st[pi].wave = nout > 0;
+    // the rest to the gathering point (not those walking there)
+    for (int i = 0; i < naway; i++) {
+        uint8_t *u = away[i], *g = FIELD(u, 0x1EC, uint8_t *);
+        if (g && *(uintptr_t *)g == VT_GOAL_LOCATION && fabsf(FIELD(g, 0x20, float) - gx) < 2 && fabsf(FIELD(g, 0x24, float) - gy) < 2) continue;
+        unit_goal(u, goal_move(gx, gy), 0, 0x1F40);
+    }
+    const char *hold = NULL;
+    if (g_siege_st[pi].wave) hold = "a wave is out";
+    else if (nhome < need) hold = "gathering";
+    else if (raiders_near(pl, (int)px, (int)py, 8) || path_raided(pl, (int)gx, (int)gy, (int)px, (int)py)) hold = "enemy soldiers on the way";
+    // escorts: idle soldiers (no goal) along with a wave
+    int want = nhome * 3 / 2 < 4 ? 4 : nhome * 3 / 2, escorts = 0, idle = 0;
+    for (unsigned c = 0; cells && c < count && idle < 2; c++)
+        for (uint8_t **b = FIELD(cells + c * 16, 4, uint8_t **); b && b < FIELD(cells + c * 16, 8, uint8_t **) && idle < 2; b++) {
+            uint8_t *u = *b, *td = u ? FIELD(u, 0x2C, uint8_t *) : NULL;
+            if (!td || FIELD(u, 0x18, void *) != pl || FIELD(u, 0x1EC, void *) || FIELD(u, 0x3C, int) <= 0) continue;
+            int fam = FIELD(td, 0x4B4, int), type = FIELD(td, 0x4B8, int);
+            idle += fam == 5 && !is_siege(type) && type != 32 && type != 480 && type != 102 && type != 287;
+        }
+    if (!hold && idle < 2) hold = "no escorts";
+    if (hold) {
+        if (strcmp(hold, "a wave is out")) g_siege_st[pi].held++;
+        if (g_log && (changed || now / 60000 != g_siege_st[pi].logged_min) && strcmp(hold, "a wave is out") && g_siege_st[pi].logged < 80) {
+            g_siege_st[pi].logged++;
+            g_siege_st[pi].logged_min = now / 60000;
+            fprintf(g_log, "# siege: P%u at %.1f min holds %d siege at %.0f,%.0f (%d there, %d wanted; %s) - target type %d at %d,%d\n",
+                    pi, now / 60000.0, ns, gx, gy, nhome, need, hold, g_siege_st[pi].ttype, tx, ty);
+        }
+        return;
+    }
+    for (int i = 0; i < nhome; i++)
+        launched += unit_goal(home[i], goal_move(px, py), 0, 0x1F40) && unit_goal(home[i], goal_attack(home[i], t), 1, 0x1F40);
+    ordered += launched;
+    g_siege_st[pi].waves++;
     // escorts: idle soldiers (no goal) to the firing position
-    int want = ns * 3 / 2 < 4 ? 4 : ns * 3 / 2, escorts = 0;
     for (unsigned c = 0; cells && c < count && escorts < want && escorts < MAXE; c++)
         for (uint8_t **b = FIELD(cells + c * 16, 4, uint8_t **); b && b < FIELD(cells + c * 16, 8, uint8_t **) && escorts < want; b++) {
             uint8_t *u = *b, *td = u ? FIELD(u, 0x2C, uint8_t *) : NULL;
             if (!td || FIELD(u, 0x18, void *) != pl || FIELD(u, 0x1EC, void *) || FIELD(u, 0x3C, int) <= 0) continue;
             int fam = FIELD(td, 0x4B4, int), type = FIELD(td, 0x4B8, int);
-            if (fam != 5 || is_siege(type) || type == 32 || type == 102 || type == 287) continue;   // soldiers only (no citizens, rams)
+            if (fam != 5 || is_siege(type) || type == 32 || type == 480 || type == 102 || type == 287) continue;   // soldiers only (no citizens, rams)
             float ex = (float)FIELD(u, 0x1C, int) - px, ey = (float)FIELD(u, 0x20, int) - py;
             if (ex * ex + ey * ey < 9.0f) { escorts++; continue; }   // already there
             escorts += unit_goal(u, goal_move(px + (float)(escorts % 3) - 1.0f, py + (float)(escorts / 3 % 3) - 1.0f), 0, 0x1F40);
         }
-    if (g_log && (changed || ordered) && g_siege_st[pi].logged < 40) {
+    if (g_log && g_siege_st[pi].logged < 80) {
         g_siege_st[pi].logged++;
-        fprintf(g_log, "# siege: P%u at %.1f min: %d siege (range %.1f) at %.0f,%.0f -> type %d at %d,%d from %.0f,%.0f; %d ordered, %d escorts\n",
-                pi, now / 60000.0, ns, srange, sx, sy, g_siege_st[pi].ttype, tx, ty, px, py, ordered, escorts);
+        fprintf(g_log, "# siege: P%u at %.1f min: a wave of %d siege (range %.1f) from %.0f,%.0f -> type %d at %d,%d from %.0f,%.0f; %d escorts\n",
+                pi, now / 60000.0, launched, srange, gx, gy, g_siege_st[pi].ttype, tx, ty, px, py, escorts);
         fflush(g_log);
     }
 }
@@ -1043,8 +1133,9 @@ static void attack_tick(void *pl, uint32_t now) {
                             (unsigned)g_mil[i].ftype[k] >> 11, g_mil[i].fcount[k]);
             fputc('\n', g_log);
             fprintf(g_log, "# leash: P%u: enemies in tower range skipped as targets %u times; rams held back %u (all), siege trained %u, "
-                    "failed %u, no factory %u\n", i, g_leash_stats[i].skipped, g_ram_waits, g_siege_train[i].trained,
-                    g_siege_train[i].failed, g_siege_train[i].no_factory);
+                    "failed %u, no factory %u; siege waves %u, lost %u, training paused %u times, held %u times\n", i,
+                    g_leash_stats[i].skipped, g_ram_waits, g_siege_train[i].trained, g_siege_train[i].failed,
+                    g_siege_train[i].no_factory, g_siege_st[i].waves, g_siege_st[i].lost, g_siege_st[i].pauses, g_siege_st[i].held);
             memset(&g_mil[i], 0, sizeof g_mil[i]);
         }
         g_mil[i].last_log = now;
