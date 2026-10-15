@@ -32,7 +32,7 @@
 // a tribute, a capitulation - lines the local player never hears) opens an exchange: that message in the speaker's
 // own words, the other's answer, the speaker's reply ([llm] ai_talk_turns messages, default 4, no upper limit) - or
 // fewer: a message ending in [end] (talk_answer tells the model) ends the exchange. Each pair of AIs keeps its
-// own memory of what they told each other (the last 8 messages) - what one says to another, the local player doesn't
+// own memory of what they told each other (the last [llm] memory messages, 8) - what one says to another, the local player doesn't
 // know, and the AI may tell him something else. One exchange at a time, a new one at most every ai_talk_gap seconds
 // (an opener waiting longer than 90 s is dropped, a newer one of the same pair replaces it); the local player's
 // requests go to the model first. ai_talk_show=1: he reads along ("to <name>: ..." in the speaker's colour), 0: only
@@ -52,7 +52,6 @@
 #include <winhttp.h>
 
 #define LLM_JOBS 16
-#define LLM_HIST 8
 #define LLM_MAXLEN 220
 static int g_llm_on, g_llm_lines = 1, g_llm_chat = 1, g_llm_timeout = 20, g_llm_max_tokens = 300, g_llm_log = 1;
 static int g_llm_temp = 80;   // temperature x100
@@ -126,49 +125,118 @@ static int g_llm_ai_talk, g_llm_talk_show = 1, g_llm_talk_gap = 60, g_llm_talk_t
 
 static uint32_t g_pair_last[16][16];   // [lo][hi]: the pair's last request (game time) - events then open no other talk
 static unsigned g_talk_n_acts;
-static struct { int8_t who[LLM_HIST]; char text[LLM_HIST][LLM_MAXLEN + 32]; int n; } g_pair_hist[16][16];
+// THE MEMORIES ([llm] memory, default 8; 0 none, no upper limit): the AI's exchange with the local player and each
+// pair's talks, the last <memory> entries in order - chat, lines and events together, as they happened. Grown as they
+// fill (a long memory costs only where it is used); kept in the saved game's state file (llm_mem_save / persist.c).
+#define MEM_LEN (LLM_MAXLEN + 32)
+struct mem { int n, cap; uint8_t *kind; char (*text)[MEM_LEN]; };
+static int g_llm_memory = 8;
+static void mem_add(struct mem *m, int kind, const char *text) {
+    if (g_llm_memory <= 0 || !*text) return;
+    if (m->n >= g_llm_memory) {   // full: the oldest goes
+        int drop = m->n - g_llm_memory + 1;
+        memmove(m->kind, m->kind + drop, (size_t)(m->n - drop));
+        memmove(m->text, m->text + drop, (size_t)(m->n - drop) * MEM_LEN);
+        m->n -= drop;
+    }
+    if (m->n == m->cap) {
+        int cap = m->cap ? m->cap * 2 : 8;
+        if (cap > g_llm_memory) cap = g_llm_memory;
+        uint8_t *k = realloc(m->kind, (size_t)cap);
+        char (*t)[MEM_LEN] = k ? realloc(m->text, (size_t)cap * MEM_LEN) : NULL;
+        if (k) m->kind = k;
+        if (!t) return;
+        m->text = t;
+        m->cap = cap;
+    }
+    m->kind[m->n] = (uint8_t)kind;
+    lstrcpynA(m->text[m->n++], text, MEM_LEN);
+}
+static struct mem g_pair_hist[16][16];   // [lo][hi]: kind = the speaker, 16+ the event that opened an exchange
 static struct { int a, b, turn; uint32_t t; } g_talk;   // a 0: none running
 static struct { int a, b; char sit[400], ev[400], fixed[256]; uint32_t t; } g_talk_wait[4];
 static uint32_t g_talk_started;   // game time the last exchange started
 static unsigned g_talk_n_ex, g_talk_n_msg, g_talk_n_fail, g_talk_n_drop;
 static void pair_add(int a, int b, int who, const char *text) {
     int lo = a < b ? a : b, hi = a < b ? b : a;
-    if (lo < 0 || hi > 15 || !*text) return;
-    if (g_pair_hist[lo][hi].n == LLM_HIST) {
-        memmove(g_pair_hist[lo][hi].who, g_pair_hist[lo][hi].who + 1, LLM_HIST - 1);
-        memmove(g_pair_hist[lo][hi].text, g_pair_hist[lo][hi].text + 1, (LLM_HIST - 1) * sizeof g_pair_hist[lo][hi].text[0]);
-        g_pair_hist[lo][hi].n--;
-    }
-    g_pair_hist[lo][hi].who[g_pair_hist[lo][hi].n] = (int8_t)who;
-    lstrcpynA(g_pair_hist[lo][hi].text[g_pair_hist[lo][hi].n++], text, LLM_MAXLEN + 32);
+    if (lo < 0 || hi > 15) return;
+    mem_add(&g_pair_hist[lo][hi], who, text);
 }
 
 // the AI's exchange with the local player: his chat lines (role 0, user), its lines to him (1, assistant) and events
 // between them (2: tributes, declarations, its decisions - a user message in brackets)
-static struct { uint8_t role[LLM_HIST]; char text[LLM_HIST][LLM_MAXLEN + 32]; int n; } g_llm_hist[16];
+static struct mem g_llm_hist[16];   // kind = the role
 static int g_llm_last_ai;                       // the AI that last said something to the local player
 static uint32_t g_llm_last_t;
 
 static void llm_hist_add(int ai, int role, const char *text) {
-    if (ai < 0 || ai > 15 || !*text) return;
-    if (g_llm_hist[ai].n == LLM_HIST) {
-        memmove(g_llm_hist[ai].role, g_llm_hist[ai].role + 1, LLM_HIST - 1);
-        memmove(g_llm_hist[ai].text, g_llm_hist[ai].text + 1, (LLM_HIST - 1) * sizeof g_llm_hist[ai].text[0]);
-        g_llm_hist[ai].n--;
+    if (ai < 0 || ai > 15) return;
+    mem_add(&g_llm_hist[ai], role, text);
+}
+// the memories for the saved game: records {0 = with the local player / 1 = a pair, a, b, count (4 bytes)} then each entry
+// {kind, length, text} - malloc'd, *size its length (NULL: nothing to keep)
+static uint8_t *llm_mem_save(uint32_t *size) {
+    uint32_t cap = 0, o = 0;
+    for (int i = 0; i < 16 * 17; i++) {
+        const struct mem *m = i < 16 ? &g_llm_hist[i] : &g_pair_hist[(i - 16) / 16][(i - 16) % 16];
+        cap += 7;
+        for (int e = 0; e < m->n; e++) cap += 3 + (uint32_t)strlen(m->text[e]);
     }
-    g_llm_hist[ai].role[g_llm_hist[ai].n] = (uint8_t)role;
-    lstrcpynA(g_llm_hist[ai].text[g_llm_hist[ai].n++], text, LLM_MAXLEN + 32);
+    uint8_t *p = malloc(cap);
+    if (!p) { *size = 0; return NULL; }
+    for (int i = 0; i < 16 * 17; i++) {
+        const struct mem *m = i < 16 ? &g_llm_hist[i] : &g_pair_hist[(i - 16) / 16][(i - 16) % 16];
+        if (!m->n) continue;
+        p[o++] = i < 16 ? 0 : 1;
+        p[o++] = (uint8_t)(i < 16 ? i : (i - 16) / 16);
+        p[o++] = (uint8_t)(i < 16 ? 0 : (i - 16) % 16);
+        memcpy(p + o, &m->n, 4);
+        o += 4;
+        for (int e = 0; e < m->n; e++) {
+            uint32_t len = (uint32_t)strlen(m->text[e]);
+            p[o++] = m->kind[e];
+            p[o++] = (uint8_t)(len & 255);
+            p[o++] = (uint8_t)(len >> 8);
+            memcpy(p + o, m->text[e], len);
+            o += len;
+        }
+    }
+    *size = o;
+    return p;
+}
+static void llm_mem_load(const uint8_t *p, uint32_t size) {   // (after llm_new_game emptied them)
+    uint32_t o = 0;
+    int entries = 0;
+    while (o + 7 <= size) {
+        int what = p[o], a = p[o + 1] & 15, b = p[o + 2] & 15, n;
+        memcpy(&n, p + o + 3, 4);
+        o += 7;
+        struct mem *m = what ? &g_pair_hist[a][b] : &g_llm_hist[a];
+        for (int e = 0; e < n && o + 3 <= size; e++) {
+            int kind = p[o];
+            uint32_t len = (uint32_t)(p[o + 1] | p[o + 2] << 8);
+            o += 3;
+            if (o + len > size || len >= MEM_LEN) return;
+            char t[MEM_LEN];
+            memcpy(t, p + o, len);
+            t[len] = 0;
+            o += len;
+            mem_add(m, kind, t);   // a smaller memory now: the oldest drop out
+            entries++;
+        }
+    }
+    if (g_log) fprintf(g_log, "# llm: memories restored, %d entries (memory %d)\n", entries, g_llm_memory);
 }
 
 static void llm_new_game(void) {
     InterlockedIncrement(&g_llm_gen);
-    memset(g_llm_hist, 0, sizeof g_llm_hist);
+    for (int i = 0; i < 16; i++) g_llm_hist[i].n = 0;   // (their room stays for the next game)
     g_llm_last_ai = 0;
     g_llm_last_t = 0;
     g_llm_told = 0;
     g_llm_off_told = 0;
     memset(g_llm_paid_t, 0, sizeof g_llm_paid_t);
-    memset(g_pair_hist, 0, sizeof g_pair_hist);
+    for (int i = 0; i < 16 * 16; i++) g_pair_hist[i / 16][i % 16].n = 0;
     memset(&g_talk, 0, sizeof g_talk);
     memset(g_talk_wait, 0, sizeof g_talk_wait);
     memset(g_pair_last, 0, sizeof g_pair_last);
@@ -658,8 +726,8 @@ static void llm_history(struct sbuf *b, int ai) {   // his lines framed with his
     void *pl = player_at(ai), *ph = player_at((int)*(unsigned *)0x00918E84);
     for (int i = 0; i < g_llm_hist[ai].n; i++) {
         char u[LLM_MAXLEN + 120];
-        if (g_llm_hist[ai].role[i] == 1) { sb_msg(b, "assistant", g_llm_hist[ai].text[i]); continue; }
-        if (g_llm_hist[ai].role[i] == 2) {
+        if (g_llm_hist[ai].kind[i] == 1) { sb_msg(b, "assistant", g_llm_hist[ai].text[i]); continue; }
+        if (g_llm_hist[ai].kind[i] == 2) {
             tsub(u, sizeof u, tpl_text("event"), pl, ph, "text", g_llm_hist[ai].text[i], NULL);
             sb_msg(b, "user", u);
             continue;
@@ -1094,7 +1162,7 @@ static void pair_history(struct sbuf *b, int ai, int other) {   // from ai's sid
     void *pa = player_at(ai), *po = player_at(other);
     for (int i = 0; i < g_pair_hist[lo][hi].n; i++) {
         char u[LLM_MAXLEN + 120];
-        int w = g_pair_hist[lo][hi].who[i];
+        int w = g_pair_hist[lo][hi].kind[i];
         if (w == ai) { sb_msg(b, "assistant", g_pair_hist[lo][hi].text[i]); continue; }
         if (w >= 16) {   // the event that opened an exchange
             char ev[LLM_MAXLEN + 40];
@@ -1545,6 +1613,7 @@ static void llm_install(const char *ini, const char *test_ini) {
     g_llm_talk_turns = GetPrivateProfileIntA("llm", "ai_talk_turns", 4, ini);
     g_llm_ai_decide = GetPrivateProfileIntA("llm", "ai_decide", 0, ini);
     g_llm_equal = GetPrivateProfileIntA("llm", "equal", 0, ini);
+    g_llm_memory = GetPrivateProfileIntA("llm", "memory", 8, ini);
     char fb[16];
     GetPrivateProfileStringA("llm", "fallback", "rules", fb, sizeof fb, ini);
     g_llm_constrained = GetPrivateProfileIntA("llm", "constrained", 1, ini);
@@ -1564,6 +1633,7 @@ static void llm_install(const char *ini, const char *test_ini) {
         g_llm_talk_turns = GetPrivateProfileIntA("autotest", "llm_ai_talk_turns", g_llm_talk_turns, test_ini);
         g_llm_ai_decide = GetPrivateProfileIntA("autotest", "llm_ai_decide", g_llm_ai_decide, test_ini);
         g_llm_equal = GetPrivateProfileIntA("autotest", "llm_equal", g_llm_equal, test_ini);
+        g_llm_memory = GetPrivateProfileIntA("autotest", "llm_memory", g_llm_memory, test_ini);
         GetPrivateProfileStringA("autotest", "llm_fallback", fb, fb, sizeof fb, test_ini);
         g_llm_constrained = GetPrivateProfileIntA("autotest", "llm_constrained", g_llm_constrained, test_ini);
         GetPrivateProfileStringA("autotest", "llm_url", g_llm_url, g_llm_url, sizeof g_llm_url, test_ini);
@@ -1596,7 +1666,8 @@ static void llm_install(const char *ini, const char *test_ini) {
     g_llm_event = CreateEventA(NULL, FALSE, FALSE, NULL);
     g_llm_thread = CreateThread(NULL, 0, llm_worker, NULL, 0, NULL);
     if (g_log) fprintf(g_log, "# llm: on - %s, model '%s', lines %d, chat %d, decide %d, ai_talk %d (show %d, gap %d s, turns %d), "
-                       "ai_decide %d, equal %d, timeout %d s, fallback %s, constrained %d\n", g_llm_url, g_llm_model, g_llm_lines,
+                       "ai_decide %d, equal %d, timeout %d s, fallback %s, constrained %d, memory %d\n", g_llm_url, g_llm_model, g_llm_lines,
                        g_llm_chat, g_llm_decide, g_llm_ai_talk, g_llm_talk_show, g_llm_talk_gap, g_llm_talk_turns, g_llm_ai_decide,
-                       g_llm_equal, g_llm_timeout, g_llm_wait ? "pause" : "rules", g_llm_constrained);
+                       g_llm_equal, g_llm_timeout, g_llm_wait ? "pause" : "rules", g_llm_constrained, g_llm_memory);
+
 }

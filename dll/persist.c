@@ -3,7 +3,8 @@
 // The game saves its own AI managers (build, civilization, research, resource, unit, wall), the stances, names and
 // colours; what the mod rebuilds by itself (income rates, defence layout, siege, threat) needs nothing. Lost without
 // this file: opinions and grudges, alliance times, who capitulated to whom, pending offers and promised tribute, the
-// "already said" flags of the situations, the army accounts of the budget.
+// "already said" flags of the situations, the army accounts of the budget, the language model's memories (what it
+// and you, and the AIs among themselves, said - block llm_memory).
 //
 // Every save goes through 0x540ACA cdecl(UString *file, int, int, UString folder by value) -> 0 on success
 // (save dialog EEASaveGame::vf1, autosave, quicksave, the network save message: 4 call sites, all redirected). After a
@@ -24,6 +25,8 @@ static const struct { const char *tag; void *p; size_t n; } k_blocks[] = {
     B(g_kills), B(g_kills_min), B(g_kills_min_t), B(g_attack_sent), B(g_hist), B(g_offer_vs), B(g_hlog), B(g_hum),
 #undef B
 };
+static uint8_t *llm_mem_save(uint32_t *size);              // llm.c: the language model's memories (variable size)
+static void llm_mem_load(const uint8_t *p, uint32_t size);
 struct persist_head { char magic[8]; uint32_t version, game_time; uint64_t ees_size; FILETIME ees_time; };
 
 static int ees_stamp(const char *ees, uint64_t *size, FILETIME *t) {
@@ -65,6 +68,15 @@ static void persist_write(const char *folder, const char *file) {
         fwrite(tag, sizeof tag, 1, f);
         fwrite(&n, sizeof n, 1, f);
         fwrite(k_blocks[i].p, 1, n, f);
+    }
+    uint32_t mn;
+    uint8_t *mp = llm_mem_save(&mn);
+    if (mp) {
+        char tag[32] = "llm_memory";
+        fwrite(tag, sizeof tag, 1, f);
+        fwrite(&mn, sizeof mn, 1, f);
+        fwrite(mp, 1, mn, f);
+        free(mp);
     }
     fclose(f);
     if (g_log) { fprintf(g_log, "# persist: state saved with %s at %.1f min\n", side, h.game_time / 60000.0); fflush(g_log); }
@@ -122,6 +134,12 @@ static void persist_load(const char *name) {
     uint32_t n;
     while (fread(tag, sizeof tag, 1, f) == 1 && fread(&n, sizeof n, 1, f) == 1) {
         tag[31] = 0;
+        if (!strcmp(tag, "llm_memory")) {   // the model's memories: their own format
+            uint8_t *mp = malloc(n ? n : 1);
+            if (mp && fread(mp, 1, n, f) == n) { llm_mem_load(mp, n); got++; free(mp); continue; }
+            free(mp);
+            break;
+        }
         size_t i = 0;
         while (i < sizeof k_blocks / sizeof *k_blocks && strcmp(k_blocks[i].tag, tag)) i++;
         if (i < sizeof k_blocks / sizeof *k_blocks && k_blocks[i].n == n && fread(k_blocks[i].p, 1, n, f) == n) got++;
