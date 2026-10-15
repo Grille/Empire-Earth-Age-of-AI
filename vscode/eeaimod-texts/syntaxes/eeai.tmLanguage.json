@@ -488,6 +488,14 @@
           "match": "\\bepoch\\.[A-Za-z_][\\w.]*"
         },
         {
+          "name": "support.constant.color.eeaimod",
+          "match": "\\bcolor\\.(?:blue|red|yellow|magenta|orange|green|cyan|darkred|darkgrey|purple|grey|silver|lightyellow|lime|lightblue|pink|darkgrey2)\\b(?!\\.)"
+        },
+        {
+          "name": "invalid.illegal.unknown-color.eeaimod",
+          "match": "\\bcolor\\.[A-Za-z_][\\w.]*"
+        },
+        {
           "name": "support.constant.units.eeaimod",
           "match": "\\bunits\\.(?:all|army|airforce|marine|military|civilian)\\b(?!\\.)"
         },
@@ -523,7 +531,7 @@
         },
         {
           "name": "variable.language.game-value.eeaimod",
-          "match": "\\b(?:me|them|enemy|lord)(?:\\.lord)*\\.\\b(?:forgiveness|population|aggression|buildings|soldiers|citizens|strength|centers|vassals|enemies|loyalty|caution|towers|allies|walls|epoch|alive|human|pride|greed|stone|stock|name|rank|talk|lord|food|wood|gold|iron)\\b(?![.\\w(])"
+          "match": "\\b(?:me|them|enemy|lord)(?:\\.lord)*\\.\\b(?:civilization|forgiveness|population|aggression|buildings|soldiers|citizens|strength|centers|vassals|enemies|loyalty|caution|towers|allies|walls|epoch|color|alive|human|pride|greed|stone|stock|name|rank|talk|lord|food|wood|gold|iron)\\b(?![.\\w(])"
         },
         {
           "name": "invalid.illegal.unknown-member.eeaimod",
@@ -620,6 +628,14 @@
           "match": "\\bepoch\\.[A-Za-z_][\\w.]*"
         },
         {
+          "name": "support.constant.color.eeaimod",
+          "match": "\\bcolor\\.(?:blue|red|yellow|magenta|orange|green|cyan|darkred|darkgrey|purple|grey|silver|lightyellow|lime|lightblue|pink|darkgrey2)\\b(?!\\.)"
+        },
+        {
+          "name": "invalid.illegal.unknown-color.eeaimod",
+          "match": "\\bcolor\\.[A-Za-z_][\\w.]*"
+        },
+        {
           "name": "support.constant.units.eeaimod",
           "match": "\\bunits\\.(?:all|army|airforce|marine|military|civilian)\\b(?!\\.)"
         },
@@ -655,7 +671,7 @@
         },
         {
           "name": "variable.language.game-value.eeaimod",
-          "match": "\\b(?:me|them|enemy|lord)(?:\\.lord)*\\.\\b(?:forgiveness|population|aggression|buildings|soldiers|citizens|strength|centers|vassals|enemies|loyalty|caution|towers|allies|walls|epoch|alive|human|pride|greed|stone|stock|name|rank|talk|lord|food|wood|gold|iron)\\b(?![.\\w(])"
+          "match": "\\b(?:me|them|enemy|lord)(?:\\.lord)*\\.\\b(?:civilization|forgiveness|population|aggression|buildings|soldiers|citizens|strength|centers|vassals|enemies|loyalty|caution|towers|allies|walls|epoch|color|alive|human|pride|greed|stone|stock|name|rank|talk|lord|food|wood|gold|iron)\\b(?![.\\w(])"
         },
         {
           "name": "invalid.illegal.unknown-member.eeaimod",

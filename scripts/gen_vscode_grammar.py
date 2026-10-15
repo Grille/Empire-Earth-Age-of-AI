@@ -25,6 +25,7 @@ bare = globals_ + ['epoch'] + \
        [n for n, k in members if k == 'XM_PLAYER' and n in ('aggression', 'loyalty', 'pride', 'greed', 'forgiveness', 'caution', 'talk', 'allies', 'enemies')]
 values = bare
 epochs = re.findall(r'"(\w+)"', re.search(r'k_epoch_const\[15\] = \{(.*?)\};', expr, re.S).group(1))
+colors = re.findall(r'\{ "(\w+)", "', re.search(r'k_color_names\[17\]\[3\] = \{(.*?)\};', persona, re.S).group(1))   # the English names
 units = re.findall(r'"(\w+)"', re.search(r'k_units_const\[6\] = \{(.*?)\};', expr, re.S).group(1))
 funcs = sorted(set(re.findall(r'!lstrcmpiA\(name, "(\w+)"\)', expr)) - {'true', 'false'})
 situations = re.findall(r'\{ "(\w+)", \d+, \d+, A_\w+ \}', persona)
@@ -32,6 +33,7 @@ traits = re.findall(r'"(\w+)"', re.search(r'k_trait_keys\[T_N\] = \{(.*?)\};', p
 sys_keys = re.findall(r'^    \{ "(\w+)", "', texts[texts.index('k_sys[] = {'):texts.index('#define N_SYS')], re.M)
 tpl_keys = re.findall(r'^    \{ "(\w+)", ', tpl[tpl.index('k_tpl[] = {'):], re.M)   # [prompt] only, not the built-in [vars]
 style_keys = re.findall(r'\{ "(\w+)", offsetof', settings)
+assert len(colors) == 17, colors
 assert len(values) > 15 and len(relations) > 12 and len(epochs) == 15 and 'chance' in funcs and len(situations) >= 40 and len(traits) == 7
 assert len(sys_keys) > 20 and len(tpl_keys) > 100 and len(style_keys) > 10, (len(sys_keys), len(tpl_keys), len(style_keys))
 
@@ -44,6 +46,8 @@ expression = [
     {'include': '#string_single'},
     {'name': 'support.constant.epoch.eeaimod', 'match': r'\bepoch\.(?:' + '|'.join(epochs) + r')\b(?!\.)'},
     {'name': 'invalid.illegal.unknown-epoch.eeaimod', 'match': r'\bepoch\.[A-Za-z_][\w.]*'},
+    {'name': 'support.constant.color.eeaimod', 'match': r'\bcolor\.(?:' + '|'.join(colors) + r')\b(?!\.)'},
+    {'name': 'invalid.illegal.unknown-color.eeaimod', 'match': r'\bcolor\.[A-Za-z_][\w.]*'},
     {'name': 'support.constant.units.eeaimod', 'match': r'\bunits\.(?:' + '|'.join(units) + r')\b(?!\.)'},
     {'name': 'invalid.illegal.unknown-units.eeaimod', 'match': r'\bunits\.[A-Za-z_][\w.]*'},
     {'name': 'support.function.eeaimod', 'match': words(funcs) + r'(?=\s*\()'},

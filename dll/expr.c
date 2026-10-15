@@ -24,7 +24,8 @@
 // and where it meets a text ("Age: " + epoch). + adds when both have numbers, else joins the texts; comparisons
 // compare numbers when both have one, else texts (case ignored) - an epoch's name is the game's language's, so
 // conditions compare its number (epoch >= epoch.middle), never its name. epoch.prehistoric .. epoch.space are the
-// epochs' numbers 1..15, the same in every language (a "." is part of a name). True: a number not 0, a player, a text not
+// epochs' numbers 1..15, the same in every language (a "." is part of a name); a player's colour likewise
+// (them.color == color.red, color.blue .. 1..17). True: a number not 0, a player, a text not
 // empty; nothing is false and an empty text. Only what is chosen is worked out (?: ?? and or). No loops, no
 // assignments: a text can't hang the game. A placeholder that is not a valid expression - or a single name nobody
 // knows - stays in the text as written (logged); an unknown name inside an expression counts 0.
@@ -249,7 +250,14 @@ static int x_units_filter(const struct xval *v) {   // the kind a units.<kind> v
     for (int k = 0; k < 6; k++) if (!lstrcmpiA(v->s + 6, k_units_const[k])) return k;
     return -1;
 }
+static int color_index(const char *s);   // persona.c: a colour's index 0..16 by its name
 static int x_const(const char *name, struct xval *v) {
+    if (!_strnicmp(name, "color.", 6)) {   // color.red: a colour's number 1..17, as X.color has it
+        int k = isalpha((unsigned char)name[6]) ? color_index(name + 6) : -1;
+        if (k < 0) return 0;
+        xnum(v, k + 1);
+        return 1;
+    }
     if (!_strnicmp(name, "units.", 6)) {
         for (int k = 0; k < 6; k++)
             if (!lstrcmpiA(name + 6, k_units_const[k])) { char t[24]; wsprintfA(t, "units.%s", k_units_const[k]); xstr(v, t); return 1; }

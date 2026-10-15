@@ -616,6 +616,25 @@ static const char *player_name(void *pl) {
     const char *s = pl ? FIELD(pl, 0x28, const char *) : NULL;
     return s ? s : "?";
 }
+// the player's civilization as the game shows it, in its language (+0x48C: "Karthago"; +0x7B0 the database's name,
+// "Carthage") - NULL: none chosen
+static const char *player_civ(void *pl) {
+    const char *s = pl ? FIELD(pl, 0x48C, const char *) : NULL;
+    return s && !IsBadReadPtr(s, 1) && *s ? s : NULL;
+}
+// the player's colour: its index 0..16 in the colour table (+0x438 holds the table entry's rgb) - -1: another one
+static int player_color(void *pl) {
+    const float *rgb = (const float *)((uint8_t *)pl + 0x438);
+    for (int c = 0; c < 17; c++) {
+        const float *t = color_rgb(c);
+        if (t && t[0] == rgb[0] && t[1] == rgb[1] && t[2] == rgb[2]) return c;
+    }
+    return -1;
+}
+static const char *color_name(int c) {   // in the game's language: the German names in a German game, else English
+    if (!strcmp(g_lang, "de")) return k_color_names[c][2][0] ? k_color_names[c][2] : k_color_names[c][1];
+    return k_color_names[c][0];
+}
 
 // the speaker's age, localized (strings 30145 + epoch: Vorzeit, Steinzeit, ...)
 static void epoch_text_n(int e, char *out, int cap) {   // epoch e (0 Prehistoric) by name

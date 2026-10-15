@@ -321,6 +321,8 @@ Shortcuts: my own `epoch`, traits, `allies` and `enemies` without `me.` (`aggres
 | `X.strength` | its fighting strength (its soldiers' hit points, 30 a building) - to compare: them.strength &gt; me.strength * 2 |
 | `X.rank` | its place by strength among the players still in, 1 = the strongest |
 | `X.epoch` | its epoch: the name in a text, 1 (Prehistoric) .. 15 (Space) as a number - compare it with epoch.middle etc. |
+| `X.color` | its colour: the name in a text (in the game's language), 1 (blue) .. 17 as a number - compare it with color.red etc. |
+| `X.civilization` | its civilization's name, as the game shows it (Karthago in a German game) - nothing when none is chosen |
 | `X.alive` | 1 while it is still in the game |
 | `X.human` | 1 for the human player at this PC |
 | `X.vassals` | how many have capitulated to it |
@@ -399,6 +401,16 @@ with these names, the same in every language (a name in quotes would only match 
 
 ```ini
 epoch_up = [epoch >= epoch.middle ? "Steel and stone!", "Another age, {them}."]
+```
+
+A player's colour works the same way: `them.color` is its name in a line (in the game's language - "dunkelrot" in a
+German game) and a number in a comparison. Compare it with `color.blue`, `color.red`, `color.yellow`,
+`color.magenta`, `color.orange`, `color.green`, `color.cyan`, `color.darkred`, `color.darkgrey`, `color.purple`,
+`color.grey`, `color.silver`, `color.lightyellow`, `color.lime`, `color.lightblue`, `color.pink`, `color.darkgrey2`.
+`them.civilization` is the name of its civilization as the game shows it - a text only, in the game's language.
+
+```ini
+greeting = them.color == color.red ? "Red banners, {them}? Mine are redder." : "Greetings, {them} of {them.civilization}."
 ```
 
 Which units `kills` counts - its last argument, after the minutes if any:
