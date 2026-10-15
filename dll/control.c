@@ -68,6 +68,7 @@ static void cmd_ddinfo(char *out, const char *args);
 static void cmd_topbar(char *out, const char *args);
 static void cmd_ddpoke(char *out, const char *args);
 static void cmd_headless(const char *verb, const char *args, char *out);
+static BOOL CALLBACK close_own_window(HWND w, LPARAM lp);
 static void cmd_profile(const char *args, char *out);
 static struct {
     char cmd[512];
@@ -427,6 +428,13 @@ static void execute(const char *cmd, char *out) {
         if (*(uint8_t *)G_PAUSED == want) REPLY("ok: already %s\n", want ? "paused" : "running");
         else REPLY(queue_pause_toggle() ? "ok: %s queued\n" : "error: game refused %s\n", verb);
     }
+    else if (!strcmp(verb, "wmclose")) {
+        // WM_CLOSE to the game's windows - the game's own way out, with its teardown (quit and the autotest's end
+        // terminate the process and never run it)
+        struct { DWORD pid; int n; } c = { GetCurrentProcessId(), 0 };
+        EnumWindows(close_own_window, (LPARAM)&c);
+        REPLY("ok: WM_CLOSE posted to %d windows\n", c.n);
+    }
     else if (!strcmp(verb, "quit")) {
         if (g_log) { fprintf(g_log, "# control: quit\n"); fclose(g_log); g_log = NULL; }
         TerminateProcess(GetCurrentProcess(), 0);
@@ -605,6 +613,14 @@ static void mem_command(const char *verb, const char *args, char *out) {
         if (!len || !WriteProcessMemory(self, (void *)(uintptr_t)addr, buf, len, &put) || put != len) { REPLY("error: write failed\n"); return; }
         REPLY("ok: wrote %u bytes at %08x\n", len, addr);
     }
+}
+
+static BOOL CALLBACK close_own_window(HWND w, LPARAM lp) {   // wmclose: the game's own top-level windows
+    struct { DWORD pid; int n; } *c = (void *)lp;
+    DWORD pid = 0;
+    GetWindowThreadProcessId(w, &pid);
+    if (pid == c->pid && PostMessageA(w, WM_CLOSE, 0, 0)) c->n++;
+    return TRUE;
 }
 
 static DWORD WINAPI pipe_thread(LPVOID unused) {

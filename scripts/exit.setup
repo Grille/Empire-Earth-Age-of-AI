@@ -1,0 +1,3 @@
+# exit test: saved, then the game closed its own way (WM_CLOSE) - the teardown the autotest never runs
+@77 save zz_exit2
+@77.5 wmclose

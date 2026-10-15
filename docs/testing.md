@@ -154,6 +154,7 @@ venv/Scripts/python scripts/eectl.py <command>
 | `peek <hex> [len]`, `poke <hex> <bytes>` | read/write memory (safe: bad addresses return an error) |
 | `sites P`, `foodcheck P`, `units P` | resource sites, food search, citizens by job for AI player P |
 | `costs P [types]` | next epoch and unit costs |
+| `wmclose` | WM_CLOSE to the game's windows: the game's own way out with its teardown - `quit` and the end of a run (`quit_minutes`) terminate the process and never run it, so exit crashes need this. `scripts/exit.setup` (on a copy of a save: `@77 save zz_exit2`, `@77.5 wmclose`) |
 | `nullmember P [off]` | the first member record of one of AI P's attack subgroups (2+ members) loses its unit; with `off` the attack is called off in the same step, as the diplomacy does - the state of the crash at 0x45AD70 (engine guard `asg_purge`). `scripts/nullmember.setup` (`random_map=Continental,map_size=1,ai_count=4,seed=303,start_epoch=9,ai_diplomacy=1,turbo=1`, 40 min): taken out, called off, no crash |
 | `threat P` | enemy defences AI player P knows about |
 | `targets P` | all enemy buildings of AI player P: owner, tile, seen by P or not, known tower threat on them |
