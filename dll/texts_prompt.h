@@ -105,8 +105,8 @@ static const struct text_def k_tpl[] = {
     { "tool_accept_alliance", "Accept the alliance {them} offers you: you are allies from now on.", NULL, NULL },
     { "tool_accept_capitulation", "Accept the capitulation of {them}: they pay you {tribute} and serve you as your vassal from now on.", NULL, NULL },
     { "tool_war", "End your alliance with {them} and declare war on them, now. Only when you truly mean it.", NULL, NULL },
-    { "tool_tribute", "Give {them} resources from your stock, as a tribute (at most a quarter of each: food {food_max}, wood "
-      "{wood_max}, stone {stone_max}, gold {gold_max}, iron {iron_max}).", NULL, NULL },
+    { "tool_tribute", "Give {them} resources from your stock, as a tribute (at most a quarter of each: food {floor(me.food / 4)}, "
+      "wood {floor(me.wood / 4)}, stone {floor(me.stone / 4)}, gold {floor(me.gold / 4)}, iron {floor(me.iron / 4)}).", NULL, NULL },
     { "tool_refuse", "Refuse the {what} of {them}.", NULL, NULL },
     { "ev_made_peace", "You made peace with {them}: you are allies now.", NULL, "events in the AI's memory of its exchange with the local player" },
     { "ev_offered_peace", "You offered {them} peace: they have 2 minutes to set their stance towards you to allied.", NULL, NULL },

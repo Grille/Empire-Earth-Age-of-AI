@@ -668,10 +668,7 @@ static void sb_tools(struct sbuf *b, int tools, int ai, int h) {
         sb_tool(b, "declare_war", d, "{\"type\":\"object\",\"properties\":{}}");
     }
     if (tools & TOOL_TRIBUTE) {
-        int *st = (int *)((uint8_t *)pl + PL_STOCK);
-        char q[5][16];
-        tsub(d, sizeof d, tpl_text("tool_tribute"), pl, ph, "food_max", tnum(q[0], st[2] / 4), "wood_max", tnum(q[1], st[3] / 4),
-             "stone_max", tnum(q[2], st[4] / 4), "gold_max", tnum(q[3], st[5] / 4), "iron_max", tnum(q[4], st[6] / 4), NULL);
+        tsub(d, sizeof d, tpl_text("tool_tribute"), pl, ph, NULL);   // the quarters it may give: {floor(me.food / 4)} ...
         sb_tool(b, "send_tribute", d, "{\"type\":\"object\",\"properties\":{\"food\":{\"type\":\"integer\"},\"wood\":{\"type\":"
                 "\"integer\"},\"stone\":{\"type\":\"integer\"},\"gold\":{\"type\":\"integer\"},\"iron\":{\"type\":\"integer\"}}}");
     }

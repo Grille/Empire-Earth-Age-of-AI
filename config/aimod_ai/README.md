@@ -184,7 +184,7 @@ other_victory = lord == them ? "Long live {them}, my lord!" : allied ? "We won t
 | Logic | `and or not` - only the words (`&&`, `\|\|` and `!` are a mistake; `!=` is a comparison) |
 | Choice | `a ? b : c`, `a ? b` (nothing when `a` doesn't hold), `a ?? b` (`b` when `a` is nothing) |
 | Lists | `[a, b, c]` - one of them at random, leaving out what is nothing |
-| Functions | `chance(p)` - true with the probability p, 0 to 1: `chance(25%)` or `chance(0.25)` (`chance(25)` is a mistake); `rnd()` - a random number, 0 up to but not 1 (`rnd() < 25%` is `chance(25%)`); `rnd(n)` - 0 up to n; `min(a, b, ...)`, `max(a, b, ...)`, `abs(a)`, `round(a)` |
+| Functions | `chance(p)` - true with the probability p, 0 to 1: `chance(25%)` or `chance(0.25)` (`chance(25)` is a mistake); `rnd()` - a random number, 0 up to but not 1 (`rnd() < 25%` is `chance(25%)`); `rnd(n)` - 0 up to n; `min(a, b, ...)`, `max(a, b, ...)`, `abs(a)`, `round(a)`, `floor(a)` (down to a whole number: `floor(me.gold / 4)`) |
 | Grouping | `( )` |
 
 - **True** is a number other than 0 or a text that isn't empty. **Nothing** is false, an empty text in a line, 0 in

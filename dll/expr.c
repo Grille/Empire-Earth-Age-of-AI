@@ -15,7 +15,7 @@
 // names (a placeholder of the text, a [vars] entry, a game value - x_builtin in diplo.c), ( ), + - * /,
 // < <= > >= == !=, and or not (only the words: && || ! are a mistake), a ? b : c, a ? b, a ?? b, the functions
 // chance(p) (true with the probability p, 0..1: chance(70%)), rnd(n) (0 <= x < n, n 1 when left out), min, max, abs,
-// round, and the players' relations: them.opinion(me) (x_method in diplo.c). A player (me, them, ...) is a value: its
+// round, floor (down to a whole number), and the players' relations: them.opinion(me) (x_method in diplo.c). A player (me, them, ...) is a value: its
 // name, equal only to itself.
 // A value has a number, a text or both: the epoch is 3 and "Copper Age", a placeholder "12" is 12 and "12". The number
 // counts in arithmetic, in comparisons with a number and as true/false; the text where the value ends up in the text
@@ -270,7 +270,7 @@ static void xp_primary(struct xp *p, struct xval *v) {
         if (p->err) goto out;
         int f = !lstrcmpiA(name, "chance") && na == 1 ? 1 : (!lstrcmpiA(name, "min") || !lstrcmpiA(name, "max")) && na ? 2 :
                 !lstrcmpiA(name, "abs") && na == 1 ? 3 : !lstrcmpiA(name, "round") && na == 1 ? 4 :
-                !lstrcmpiA(name, "rnd") && na <= 1 ? 5 : 0;
+                !lstrcmpiA(name, "rnd") && na <= 1 ? 5 : !lstrcmpiA(name, "floor") && na == 1 ? 6 : 0;
         for (int i = 0; f && i < na; i++) x_use(p, &a[i]);   // a function's arguments (a relation checks its players)
         if (f == 1 && a[0].has_n && a[0].n > 1 && (p->check || (!p->skip && g_strict))) {   // chance(70): meant 70%
             if (p->check) { p->err = 1; p->why = "chance takes a probability, 0 to 1: chance(70%) or chance(0.7)"; goto out; }
@@ -289,6 +289,7 @@ static void xp_primary(struct xp *p, struct xval *v) {
             xnum(v, r);
         } else if (f == 3) { double x = xto_num(&a[0]); xnum(v, x < 0 ? -x : x); }
         else if (f == 4) { double x = xto_num(&a[0]); xnum(v, (double)(long long)(x < 0 ? x - 0.5 : x + 0.5)); }
+        else if (f == 6) { double x = xto_num(&a[0]), r = (double)(long long)x; xnum(v, r > x ? r - 1 : r); }   // down: floor(-1.5) -2
         else xnum(v, x_rnd01() * (na ? xto_num(&a[0]) : 1));   // rnd(n): 0 <= x < n, rnd(): 0 <= x < 1
     } else p->err = 1;
 out:

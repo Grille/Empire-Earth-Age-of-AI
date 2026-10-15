@@ -141,8 +141,8 @@ tool_accept_alliance = "Accept the alliance {them} offers you: you are allies fr
 tool_accept_capitulation = "Accept the capitulation of {them}: they pay you {tribute} and serve you as your vassal from now on."
 ; in braces: {them}
 tool_war = "End your alliance with {them} and declare war on them, now. Only when you truly mean it."
-; in braces: {them} {food_max} {wood_max} {stone_max} {gold_max} {iron_max}
-tool_tribute = "Give {them} resources from your stock, as a tribute (at most a quarter of each: food {food_max}, wood {wood_max}, stone {stone_max}, gold {gold_max}, iron {iron_max})."
+; in braces: {them} {floor(me.food / 4)} {floor(me.wood / 4)} {floor(me.stone / 4)} {floor(me.gold / 4)} {floor(me.iron / 4)}
+tool_tribute = "Give {them} resources from your stock, as a tribute (at most a quarter of each: food {floor(me.food / 4)}, wood {floor(me.wood / 4)}, stone {floor(me.stone / 4)}, gold {floor(me.gold / 4)}, iron {floor(me.iron / 4)})."
 ; in braces: {what} {them}
 tool_refuse = "Refuse the {what} of {them}."
 ; events in the AI's memory of its exchange with the local player
