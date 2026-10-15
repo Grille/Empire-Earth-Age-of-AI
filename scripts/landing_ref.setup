@@ -1,0 +1,19 @@
+# a landing behind the player's lines: the reference save, P3 given resources (it is broke there), landing=1
+@75.85 give 3 3000
+@75.9 attacknow 3
+@75.95 landing 3 now
+@77 landing 3
+@78 landing 3
+@79 landing 3
+@80 landing 3
+@81 landing 3
+@82 landing 3
+@83 landing 3
+@84 landing 3
+@85 landing 3
+@86 landing 3
+@87 landing 3
+@88 landing 3
+@89 landing 3
+@89.8 diplo kills
+@89.8 count 1

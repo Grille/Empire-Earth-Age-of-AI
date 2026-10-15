@@ -289,6 +289,16 @@ Guard towers 47, 461..466; AA 145/147; town center 35; house 37; citizen 32.
 - **Continents:** EEAIContinentManager, a global object at 0x917BC8. 0x425F16 thiscall(mgr, int pt[2]) -> the
   area at a tile (vtable 0x825FB8); 0x425F9F thiscall(mgr, int pt[2], kind) -> its +0x84 (kind 1: ocean id) or +0x86
   (kind 2: land continent id), 16 bits. Some areas have neither (the player's camp on the reference save).
+- **Transports:** load: `new(0x68)`, 0x61487F thiscall(goal, transport, std::vector<EEUnit*> *passengers (MSVC6:
+  alloc, first, last, end - sorted in place), 1) = EEUGLoadTransport (vtable 0x831DC0) for the transport; each
+  passenger gets the goal's vf4 product (the AI: 0x44AF68). Unload: `new(0x40)`, 0x615A1F thiscall(goal, transport,
+  int x, int y, flag) = EEUGUnloadTransport (0x831F5C; the AI passes 1, the player's command EEMUnloadTransport 0);
+  with cargo aboard the ctor asks the transport class (vf57) for its unload point (+0x34/+0x38). Aboard: unit
+  tile -10000. A landing site on another continent (an island in the bay) strands the troops; on some coast
+  stretches the unload ends at once (transport idle, cargo aboard) - other spots nearby work.
+- Sea subgroups: EECPASGSea vtable 0x826F10 (slot 90 update 0x44ED11), EECPASGSeaTransport 0x8270F8 (slot 90
+  0x44FB92; its second vtable 0x8272E4 at +484). Docks: type 36; transports 313/110/111/112/113/114 by epoch;
+  fishing boats 108/109/365/211/332.
   - Nothing re-checks the stance of the target player: units only fight enemies (0x461854, vf112), but the goal
     stays until the target unit is dead - after peace the army keeps marching on the new ally. New launches
     (0x46F4FF) only pick enemies.

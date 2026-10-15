@@ -60,21 +60,37 @@ static int assault_leads(uint8_t *sg) {
     for (int k = 0; k < g_as[pi].ntaken; k++) if (g_as[pi].taken[k] == sg) return 1;
     return 0;
 }
+// still one of AI pl's attack subgroups? A stored subgroup pointer can be deleted by the game between two ticks (a
+// group finished, an attack called off) - reading its members then crashed (landing test: a freed record list)
+static int asg_live(void *pl, uint8_t *sg) {
+    uint8_t *cbm = FIELD(pl, 0xB8C, uint8_t *), *cmd = cbm ? FIELD(cbm, 0x48, uint8_t *) : NULL;
+    if (!cmd || !sg) return 0;
+    uint8_t *dq = cmd + 4;
+    unsigned first = FIELD(dq, 0xC, unsigned), cnt = FIELD(dq, 0x10, unsigned);
+    for (unsigned k = 0; k < cnt && k < 64; k++) {
+        uint8_t *g = deque_at(dq, first + k);
+        for (uint8_t **sp = g ? FIELD(g, 8, uint8_t **) : NULL; sp && sp < FIELD(g, 0xC, uint8_t **); sp++)
+            if (*sp == sg) return 1;
+    }
+    return 0;
+}
 static int assault_has_unit(void *pl, uint8_t *u) {   // a member of the wave or the army gathering (hold_town leaves them)
     unsigned pi = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     if (!g_assault || !g_as[pi].phase) return 0;
     for (int k = 0; k < g_as[pi].ntaken; k++) {
         uint8_t *sg = g_as[pi].taken[k];
+        if (!asg_live(pl, sg)) continue;
         for (uint8_t **r = FIELD(sg, 0x54, uint8_t **); r && r < FIELD(sg, 0x58, uint8_t **); r++)
             if (*r && FIELD(*r, 0x44, uint8_t *) == u) return 1;
     }
     return 0;
 }
 
+static int landing_leads(uint8_t *sg);   // landing.c
 #define FN_ASG_UPDATE 0x004491DD   // EECPASGLand slot 90: update(now)
 static void __fastcall hook_asg_update(uint8_t *sg, void *edx, int now) {
     (void)edx;
-    if (g_assault && assault_leads(sg)) return;
+    if ((g_assault && assault_leads(sg)) || landing_leads(sg)) return;
     ((void (__thiscall *)(void *, int))FN_ASG_UPDATE)(sg, now);
 }
 
