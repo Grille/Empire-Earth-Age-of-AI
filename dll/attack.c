@@ -1281,6 +1281,44 @@ static void cmd_threat(char *out, const char *args) {
     }
 }
 
+// attacks P (test): AI P's attack groups - target, and per subgroup its class, members alive and their centre, and how
+// many of them march (EEUGLocation), fight (EEUGAttackUnit), sit in or wait for a transport, or do nothing
+static void cmd_attacks(char *out, const char *args) {
+    int p = atoi(args);
+    void *pl = (p > 0 && p < 16) ? g_players[p] : NULL;
+    uint8_t *cbm = pl ? FIELD(pl, 0xB8C, uint8_t *) : NULL, *cmd = cbm ? FIELD(cbm, 0x48, uint8_t *) : NULL;
+    if (!cmd) { REPLY("error: no AI player %d with an attack commander\n", p); return; }
+    uint8_t *dq = cmd + 4;
+    unsigned first = FIELD(dq, 0xC, unsigned), cnt = FIELD(dq, 0x10, unsigned);
+    REPLY("P%d: %u attack groups, next attack at %.1f min\n", p, cnt, FIELD(pl, 0xED8, uint32_t) / 60000.0);
+    for (unsigned k = 0; k < cnt && k < 16; k++) {
+        uint8_t *g = deque_at(dq, first + k), *target = g ? FIELD(g, 0x48, uint8_t *) : NULL;
+        if (!g) continue;
+        int ns = 0;
+        for (uint8_t **sp = FIELD(g, 8, uint8_t **); sp && sp < FIELD(g, 0xC, uint8_t **); sp++) ns++;
+        REPLY(" group %u: target P%d, %d subgroups\n", k, target ? FIELD(target, PL_INDEX, int) : -1, ns);
+        for (uint8_t **sp = FIELD(g, 8, uint8_t **); sp && sp < FIELD(g, 0xC, uint8_t **); sp++) {
+            if (!*sp) continue;
+            int n = 0, walk = 0, fight = 0, other = 0, none = 0;
+            float cx = 0, cy = 0;
+            uint8_t **b = FIELD(*sp, 0x54, uint8_t **), **e = FIELD(*sp, 0x58, uint8_t **);
+            for (uint8_t **r = b; b && r < e && n < 1000; r++) {
+                uint8_t *u = *r ? FIELD(*r, 0x44, uint8_t *) : NULL, *gl;
+                if (!u || FIELD(u, 0x3C, int) <= 0) continue;
+                n++; cx += (float)FIELD(u, 0x1C, int); cy += (float)FIELD(u, 0x20, int);
+                gl = FIELD(u, 0x1EC, uint8_t *);
+                if (!gl) none++;
+                else if (*(uintptr_t *)gl == VT_GOAL_LOCATION) walk++;
+                else if (*(uintptr_t *)gl == VT_GOAL_ATTACK) fight++;
+                else other++;
+            }
+            const char *cls = rtti_name(*sp);
+            REPLY("   %-28s %3d alive at %.0f,%.0f: %d march, %d fight, %d other, %d idle\n", cls, n,
+                  n ? cx / n : 0.0f, n ? cy / n : 0.0f, walk, fight, other, none);
+        }
+    }
+}
+
 // attacknow P (test): AI P's next attack is due now (player +0xED8 = the game time) - the game launches it at its next
 // look, if it has a target
 static void cmd_attacknow(char *out, const char *args) {
