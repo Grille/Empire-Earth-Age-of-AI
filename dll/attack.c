@@ -645,10 +645,15 @@ static int route_covered(void *pl, int fx, int fy, int tx, int ty) {   // fx = -
 static int route_danger(void *pl, int fx, int fy, int tx, int ty) {
     return g_avoid_citizens && route_covered(pl, fx, fy, tx, ty);
 }
-// Raiders: enemy soldiers (land units or ships with an attack, not citizens) this AI can see within r tiles of x, y.
+// Raiders: enemy soldiers (land units or ships with an attack, not citizens) this AI can see within r tiles of x, y -
+// or within their own range + RAID_MARGIN if that is more (up to RAID_MAX): 8 tiles kept citizens safe from clubmen,
+// but in the later ages riflemen and artillery shoot from there already.
 // Not the game's 0x4660B9: that reads the enemy influence, which enemy buildings make too - builders at the front were
 // sent back every 10 s (166 times in 13 minutes).
-static int raiders_near(void *pl, int x, int y, int r) {
+#define RAID_MARGIN 3
+#define RAID_MAX    15
+static int raiders_near(void *pl, int x, int y, int r0) {
+    int r = r0 > RAID_MAX ? r0 : RAID_MAX;   // the search box; each unit then by its own reach
     uint8_t *map = *(uint8_t **)G_MAP;
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     if (!grid || !pl) return 0;
@@ -663,6 +668,12 @@ static int raiders_near(void *pl, int x, int y, int r) {
                 if (!td || FIELD(u, 0x3C, int) <= 0 || abs(FIELD(u, 0x1C, int) - x) > r || abs(FIELD(u, 0x20, int) - y) > r) continue;
                 int fam = FIELD(td, 0x4B4, int), t = FIELD(td, 0x4B8, int);
                 if ((fam != 5 && fam != 4) || t == 32 || t == 480 || FIELD(td, 0x510, int) <= 0) continue;
+                uint8_t *st = FIELD(u, 0x34, uint8_t *);
+                float rng = st ? FIELD(st, 0x9C, float) : FIELD(td, 0x420, float);
+                int reach = rng > 0.0f && rng < 30.0f ? (int)(rng + 0.5f) + RAID_MARGIN : 0;
+                if (reach > RAID_MAX) reach = RAID_MAX;
+                if (reach < r0) reach = r0;
+                if (abs(FIELD(u, 0x1C, int) - x) > reach || abs(FIELD(u, 0x20, int) - y) > reach) continue;
                 void *o = FIELD(u, 0x18, void *);   // not nature (player 0: wild animals)
                 if (o && FIELD(o, PL_INDEX, int) > 0 && is_enemy(pl, o) && seen_by(u, pl)) return 1;
             }
@@ -802,7 +813,7 @@ static void citizens_safety(uint8_t *rm) {   // before the citizen assignment
 // REPAIRS UNDER ATTACK: the computer player's repair round (0x46D77D, every 31 s) sends a citizen to each damaged
 // building - also to the wall or dock a player's army is hitting that moment: one citizen every 31 s walked into the
 // army (P3: 17 in 15 minutes, sent back by citizens_safety only once it was on its way). Its order (EEUGBuildRepair,
-// 0x60BAD0) is refused at the handing-over (0x5F05BD at 0x46DA88) while enemy soldiers stand within 8 tiles of the
+// 0x60BAD0) is refused at the handing-over (0x5F05BD at 0x46DA88) while enemy soldiers stand within 8 tiles (or their range + 3) of the
 // building (as citizens_safety): the goal deleted (its vf0, which lets go of the building), the citizen keeps its work.
 #define CALL_REPAIR_GOAL 0x0046DA88
 #define VT_GOAL_BUILD    0x008319F0

@@ -1,0 +1,13 @@
+# repairs under fire from afar: P2's Town Center (Continental 101, 74,52) damaged, 3 of P1's Bronze Cannons 12 tiles
+# away - beyond the old 8 tiles, inside their range + 3
+@0.05 diplo 1 2 1
+@1 tinfo 2 29 673 142 190
+@1 hurt 2 34 74 52 3 1200
+@1 spawn 1 142 62 52 3
+@1.5 objs 2 34
+@1.5 objs 1 142
+@2 objs 2 34
+@2.5 objs 2 34
+@2.6 hurt 1 142 62 52 6 9000
+@3.5 objs 2 34
+@4.5 objs 2 34
