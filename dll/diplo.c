@@ -715,9 +715,52 @@ static void offer_alliance(int ai, int best, int lead, uint32_t now) {
         if (g_log) fprintf(g_log, "# diplomacy: P%d offers P%d (human) an alliance against P%d\n", ai, best, lead);
     }
 }
+// A VASSAL'S REBELLION (every 60 s, in diplo_initiative): a vassal with little loyalty (under 50) and much pride turns
+// on its lord once it has served 10 minutes and is clearly stronger than its lord's side (the lord and its block):
+// stronger by 1 + (loyalty + 100 - pride) / 50 - loyalty 35 and pride 80 (Temur) 2.1 times, loyalty 0 and pride 100
+// once. Not while it thinks well of its lord (opinion 30+). Then each minute with a chance of (100 - loyalty) x pride
+// / 50000 (Temur 10%): a betrayal - war on the lord's side, free (declare_war). Its traits, so it happens with or
+// without the language model; constrained=0 lets the model rebel whenever it likes. Returns why not (NULL: it
+// rebelled); dice 0: without the chance (diplo rebel A, tests).
+static const char *vassal_rebellion(void *pl, int ai, uint32_t now, int dice) {
+    static char why[120];
+    int l = g_lord[ai], loy = trait(pl, T_LOYALTY), pride = trait(pl, T_PRIDE);
+    void *pk = player_at(l);
+    if (!is_vassal(ai) || !pk) return "no vassal";
+    if (loy >= 50) { wsprintfA(why, "loyal (loyalty %d)", loy); return why; }
+    if (now - g_lord_since[ai] < 600000) return "served under 10 minutes";
+    if (g_opinion[ai][l] >= 30) { wsprintfA(why, "thinks well of its lord (opinion %d)", (int)g_opinion[ai][l]); return why; }
+    int blk[16];
+    float side = power_of(l), need = 1.0f + (float)(loy + 100 - pride) / 50.0f;
+    if (blocks_on()) {
+        blocks_compute(blk);
+        if (blk[l]) {
+            side = 0;
+            for (int k = 1; k < nplayers(); k++) if (k != ai && blk[k] == blk[l]) side += power_of(k);
+        }
+    }
+    if (power_of(ai) < need * side) {
+        wsprintfA(why, "too weak (power %d, its lord's side %d, needs %d.%d times)", (int)power_of(ai), (int)side, (int)need,
+                  (int)(need * 10) % 10);
+        return why;
+    }
+    if (dice && (int)(rnd_game32() % 100000u) >= (100 - loy) * pride * 2) return "not this minute (chance)";
+    if (g_log) fprintf(g_log, "# diplomacy: P%d at %.1f min rebels: loyalty %d, pride %d, opinion of its lord %.0f, power %.0f vs "
+                       "its lord's side %.0f (needs %.1f times)\n", ai, now / 60000.0, loy, pride, g_opinion[ai][l], power_of(ai), side, need);
+    persona_say(pl, L_BETRAY, pk, NULL);
+    declare_war(ai, l, now);   // free
+    if (blocks_on() && blk[l])   // the lord's whole block
+        for (int k = 1; k < nplayers(); k++)
+            if (k != ai && k != l && blk[k] == blk[l]) {
+                declare_war(ai, k, now);
+                g_mutual_prev[ai][k] = g_mutual_prev[k][ai] = 0;
+            }
+    return NULL;
+}
 // AI ai's own initiative (every 60 s)
 static void diplo_initiative(void *pl, int ai, uint32_t now) {
-    if (!g_ai_diplomacy || TEAMS_LOCKED || scenario_game() || now < 600000 || is_vassal(ai)) return;
+    if (!g_ai_diplomacy || TEAMS_LOCKED || scenario_game() || now < 600000) return;
+    if (is_vassal(ai)) { vassal_rebellion(pl, ai, now, 1); return; }
     int lead = strongest_enemy(pl, ai);
     // alliance against the leader
     if (lead && g_ws.power[lead] > 1.5f * power_of(ai)) {
@@ -1537,7 +1580,14 @@ static void cmd_diplo(char *out, const char *args) {
         REPLY("P%d capitulates to P%d (pending %d, lord %d)\n", a, b, g_offer_t[a][b] != 0, g_lord[a]);
         return;
     }
+    if (sscanf(args, "rebel %d", &a) == 1) {   // diplo rebel A: AI A's rebellion against its lord, now, without the dice
+        if (!g_players[a & 15]) { REPLY("error: P%d is no AI\n", a); return; }
+        const char *why = vassal_rebellion(player_at(a), a, game_time(), 0);
+        REPLY("P%d %s%s\n", a, why ? "doesn't rebel: " : "rebels", why ? why : "");
+        return;
+    }
     if (sscanf(args, "terms %d %d", &a, &b) == 2) {   // diplo terms P H: AI P's terms for peace with H (the AI voice)
+
         char t[400];
         int r = peace_terms(a, b, t, sizeof t);
         REPLY("P%d -> P%d: %s (%d; score %.0f, opinion %.0f)\n", a, b, r ? t : "not at war", r, player_at(a) ?

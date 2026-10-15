@@ -22,9 +22,10 @@ name = ""
 ; favoured player colours on random maps, the first free one wins: blue, red, yellow, magenta, orange, green, cyan,
 ; darkred, darkgrey, purple, grey, silver, lightyellow, lime, lightblue, pink (or German names, or "0".."16")
 ;color = ["blue", "cyan"]
-; traits 0-100 (50 when left out). aggression: betrays, refuses peace; loyalty: keeps its alliances;
-; pride: how long it holds a grudge and refuses peace after a declaration of war (pride x 3 s), how long it fights
-; on before it capitulates; greed: what a tribute is worth to it; forgiveness: how fast a grudge fades;
+; traits 0-100 (50 when left out). aggression: betrays, refuses peace; loyalty: keeps its alliances (a vassal under
+; 50 rebels against a clearly weaker lord, the sooner the prouder); pride: how long it holds a grudge and refuses
+; peace after a declaration of war (pride x 3 s), how long it fights on before it capitulates, how weak a lord it
+; serves; greed: what a tribute is worth to it; forgiveness: how fast a grudge fades;
 ; caution: capitulates earlier, pays more; talk: how often it says the lines that are not always said
 aggression = 50
 loyalty = 50

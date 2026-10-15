@@ -373,8 +373,8 @@ value: `{epoch}` is always the speaker's epoch, wherever it stands.
 | `name`, `name:de`, ... | The player's name in the game (`name:de` in a German game) |
 | `color` | Favoured colours on random maps, the first free one wins: `["blue", "cyan"]` - blue, red, yellow, magenta, orange, green, cyan, darkred, darkgrey, purple, grey, silver, lightyellow, lime, lightblue, pink (or the German names, or "0".."16") |
 | `aggression` | 0-100 (50 when left out): betrays, refuses peace |
-| `loyalty` | keeps its alliances |
-| `pride` | how long it holds a grudge and refuses peace after a declaration of war (pride x 3 s), how long it fights on before it capitulates |
+| `loyalty` | keeps its alliances; a vassal under 50 rebels against its lord once it has served 10 minutes and is clearly stronger than its lord's side (1 + (loyalty + 100 - pride) / 50 times: loyalty 35 and pride 80 2.1 times) - with or without the language model |
+| `pride` | how long it holds a grudge and refuses peace after a declaration of war (pride x 3 s), how long it fights on before it capitulates, how soon it rebels as a vassal |
 | `greed` | what a tribute is worth to it |
 | `forgiveness` | how fast a grudge fades |
 | `caution` | capitulates earlier, pays more |
