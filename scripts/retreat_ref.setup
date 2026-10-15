@@ -1,0 +1,5 @@
+# attack retreat on the reference save: P3 attacks the player at 76 min (attacknow) - pull-backs, P3 losses
+@76 attacknow 3
+@77 army 3
+@79 army 3
+@86 count 3

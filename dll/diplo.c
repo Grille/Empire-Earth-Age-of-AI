@@ -1136,8 +1136,9 @@ static void diplo_safe_point(void) {
             breach_forget(p);
             asg_purge_all(p);   // members without their unit: the call-off reads them first (attack.c)
             ((void (__thiscall *)(void *, void *, int))0x0043033E)(p, pj, 1);
-            if (g_log) fprintf(g_log, "# attack: P%d calls off its citizen attack on P%d (attack groups %d -> %d)\n", i, j,
-                               before, attack_groups(p));
+            if (g_log) fprintf(g_log, "# attack: P%d calls off its %s on P%d (attack groups %d -> %d)\n", i,
+                               g_cancel_why[i][j] ? g_cancel_why[i][j] : "citizen attack", j, before, attack_groups(p));
+            g_cancel_why[i][j] = NULL;
         }
     }
     for (int i = 1; i < 16; i++) {

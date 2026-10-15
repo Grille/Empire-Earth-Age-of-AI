@@ -1,0 +1,50 @@
+# hold the town, a camp that plays like the user's: P1 camps 15-18 tiles west of P2's Town Center (85,49) at minute 12,
+# gets reinforcements every 2 minutes, pushes into the town every 4 (charge) and pulls back after a minute (move)
+@0.05 diplo 1 2 1
+@0.05 diplo 2 1 1
+@11.5 spawn 2 121 88 49 12
+@12 spawn 1 143 64 49 8
+@12 spawn 1 121 68 47 16
+@12 spawn 1 153 68 53 6
+@14 spawn 1 121 66 47 4
+@14 spawn 1 153 66 53 1
+@14 spawn 1 143 63 49 1
+@16 spawn 1 121 66 47 4
+@16 spawn 1 153 66 53 1
+@18 spawn 1 121 66 47 4
+@18 spawn 1 153 66 53 1
+@18 spawn 1 143 63 49 1
+@20 spawn 1 121 66 47 4
+@20 spawn 1 153 66 53 1
+@22 spawn 1 121 66 47 4
+@22 spawn 1 153 66 53 1
+@22 spawn 1 143 63 49 1
+@24 spawn 1 121 66 47 4
+@24 spawn 1 153 66 53 1
+@26 spawn 1 121 66 47 4
+@26 spawn 1 153 66 53 1
+@26 spawn 1 143 63 49 1
+@28 spawn 1 121 66 47 4
+@28 spawn 1 153 66 53 1
+@30 spawn 1 121 66 47 4
+@30 spawn 1 153 66 53 1
+@30 spawn 1 143 63 49 1
+@32 spawn 1 121 66 47 4
+@32 spawn 1 153 66 53 1
+@15 charge 1 2
+@16 charge off
+@16.1 move 1 85 49 22 67 49
+@19 charge 1 2
+@20 charge off
+@20.1 move 1 85 49 22 67 49
+@23 charge 1 2
+@24 charge off
+@24.1 move 1 85 49 22 67 49
+@27 charge 1 2
+@28 charge off
+@28.1 move 1 85 49 22 67 49
+@31 charge 1 2
+@32 charge off
+@32.1 move 1 85 49 22 67 49
+@33.5 count 1
+@33.5 count 2

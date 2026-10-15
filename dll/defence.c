@@ -38,6 +38,7 @@ static void grid_each(void (*fn)(uint8_t *u, void *ctx), void *ctx) {
 static int g_def = 1, g_def_dist = 10, g_def_walls = 1, g_def_more = 1;
 static int g_aa = 1;   // [all] anti_air (below)
 static int g_hold = 0;   // [all] hold_town (below)
+static int g_retreat = 0;   // [all] attack_retreat (below)
 static uint8_t g_def_off[16];   // per player, pipe "defence P 0|1" (A/B scenarios)
 static unsigned g_def_towers[16], g_def_walls_built[16];
 struct front { int fx, fy, enemy; float dx, dy; int wall_tries; uint32_t wall_t; };
@@ -703,8 +704,10 @@ static void muster(void *pl, unsigned idx, uint32_t now) {
 // all Aggressive, each attacks its nearest enemy, together (then 60 s before the next). No enemy near: Aggressive.
 // scripts/camp.setup (8 artillery, 16 machine gunners, 6 tanks camped 15-18 tiles from P2's Town Center, P2 with 12
 // machine gunners of its own), 6 pairs: P2 lost 22 vs 31 units, killed 21 vs 26, the camp kept 11 vs 7 of 30 -
-// fewer losses, but the camp (within the towers' support there) survives more often. Off by default until a real
-// game shows which counts more.
+// fewer losses, but the camp (within the towers' support there) survives more often. A camp that plays like the
+// user's (scripts/camp2.setup: reinforced every 2 minutes, pushing in every 4 and pulling back): 5 pairs, P2 killed
+// 27 vs 36, lost 51 vs 59, kept 4 vs 17 citizens and its Town Center 2 vs 5 times, the camp grew to 53 vs 46 - pulled
+// back, they leave the town to the pushes. Off.
 static struct { int holding; uint32_t sortie_t; unsigned holds, sorties, set; } g_hold_st[16];
 static uint8_t *g_asg_units[512];
 static int g_asg_n;
@@ -848,6 +851,120 @@ static void hold_town(void *pl, unsigned idx, uint32_t now) {
     }
 }
 
+// ATTACK RETREAT ([all] attack_retreat, default 0 until a test shows an assault turning back). An attack that got into the player's town did its damage and then
+// stayed, ground down by the towers and the small groups the player sent at its stragglers - a player would pull back
+// with what is left, regroup and come again. Every 5 s per AI and attack group (attack commander player +0xB8C +0x48;
+// a group's target player +0x48, subgroups +8..+0xC, members +0x54..+0x58, record +0x44 = unit): its strength (hit
+// points x attack of its units) and its peak while out (centre more than 25 tiles from the base); in contact (a
+// building of the target within 15 tiles of its centre), the strength it faces there - enemy soldiers within 12 tiles
+// and defences whose range reaches the centre. Down to half its peak, or facing 1.5 x its strength twice in a row:
+// the attack is called off (as for citizen attacks: units home, handed back, at the safe point) and the next attack
+// comes within 5 minutes - the survivors and what was trained meanwhile, instead of the next 20-25 minute wave.
+static struct { uint8_t *g; float peak; int bad, peak_n; } g_rt[16][8];
+static unsigned g_retreats[16];
+static void attack_retreat(void *pl, unsigned idx, uint32_t now) {
+    static uint32_t last[16];
+    if (!g_retreat || (now >= last[idx] && now - last[idx] < 5000)) return;
+    if (now < last[idx]) memset(g_rt[idx], 0, sizeof g_rt[idx]);   // a new game
+    last[idx] = now;
+    void *cm = FIELD(pl, 0xB90, void *);
+    uint8_t *bm = cm ? FIELD(cm, 0x3C, uint8_t *) : NULL;
+    uint8_t *cbm = FIELD(pl, 0xB8C, uint8_t *), *cmd = cbm ? FIELD(cbm, 0x48, uint8_t *) : NULL;
+    if (!cmd || !bm || FIELD(bm, 0x12C, int) == -10000) return;
+    int bx = FIELD(bm, 0x12C, int), by = FIELD(bm, 0x130, int);
+    uint8_t *dq = cmd + 4, *seen[8] = { 0 };
+    unsigned first = FIELD(dq, 0xC, unsigned), cnt = FIELD(dq, 0x10, unsigned);
+    uint8_t *map = *(uint8_t **)G_MAP;
+    uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
+    uint8_t *cells = grid ? FIELD(grid, 4, uint8_t *) : NULL;
+    int cs = grid ? FIELD(grid, 8, int) : 1, nx = grid ? FIELD(grid, 0x10, int) : 0, ny = grid ? FIELD(grid, 0x14, int) : 0;
+    float gpow[8] = { 0 };   // every group's strength first: no call-off while a stronger one has the same target
+    uint8_t *gtarget[8] = { 0 };
+    for (unsigned k = 0; k < cnt && k < 8; k++) {
+        uint8_t *g = deque_at(dq, first + k);
+        gtarget[k] = g ? FIELD(g, 0x48, uint8_t *) : NULL;
+        for (uint8_t **sp = g ? FIELD(g, 8, uint8_t **) : NULL; sp && sp < FIELD(g, 0xC, uint8_t **); sp++) {
+            uint8_t **b = *sp ? FIELD(*sp, 0x54, uint8_t **) : NULL, **e = *sp ? FIELD(*sp, 0x58, uint8_t **) : NULL;
+            for (uint8_t **r = b; b && r < e; r++) {
+                uint8_t *u = *r ? FIELD(*r, 0x44, uint8_t *) : NULL;
+                if (u && FIELD(u, 0x3C, int) > 0) gpow[k] += unit_power(u);
+            }
+        }
+    }
+    for (unsigned k = 0; k < cnt && k < 8; k++) {
+        uint8_t *g = deque_at(dq, first + k), *target = g ? FIELD(g, 0x48, uint8_t *) : NULL;
+        if (!target) continue;
+        seen[k] = g;
+        float pow = 0, cx = 0, cy = 0;
+        int n = 0;
+        for (uint8_t **sp = FIELD(g, 8, uint8_t **); sp && sp < FIELD(g, 0xC, uint8_t **); sp++) {
+            uint8_t **b = *sp ? FIELD(*sp, 0x54, uint8_t **) : NULL, **e = *sp ? FIELD(*sp, 0x58, uint8_t **) : NULL;
+            for (uint8_t **r = b; b && r < e && n < 1000; r++) {
+                uint8_t *u = *r ? FIELD(*r, 0x44, uint8_t *) : NULL;
+                if (!u || FIELD(u, 0x3C, int) <= 0) continue;
+                float p = unit_power(u);
+                pow += p; cx += (float)FIELD(u, 0x1C, int) * p; cy += (float)FIELD(u, 0x20, int) * p; n++;
+            }
+        }
+        int slot = -1;
+        for (int j = 0; j < 8 && slot < 0; j++) if (g_rt[idx][j].g == g) slot = j;
+        if (slot < 0) for (int j = 0; j < 8 && slot < 0; j++) if (!g_rt[idx][j].g) { slot = j; g_rt[idx][j].g = g; g_rt[idx][j].peak = 0; g_rt[idx][j].bad = 0; g_rt[idx][j].peak_n = 0; }
+        if (slot < 0 || !n || pow <= 0) continue;
+        cx /= pow; cy /= pow;
+        float hx = cx - (float)bx, hy = cy - (float)by;
+        if (hx * hx + hy * hy <= 25.0f * 25.0f) continue;   // still home: forming
+        if (pow > g_rt[idx][slot].peak) g_rt[idx][slot].peak = pow;
+        if (n > g_rt[idx][slot].peak_n) g_rt[idx][slot].peak_n = n;
+        // in contact: the target's buildings within 15 tiles; what it faces there
+        int contact = 0;
+        float epow = 0;
+        int icx = (int)cx, icy = (int)cy;
+        for (int gx = (icx - 15) / cs; cells && gx <= (icx + 15) / cs; gx++)
+            for (int gy = (icy - 15) / cs; gy <= (icy + 15) / cs; gy++) {
+                if (gx < 0 || gy < 0 || gx >= nx || gy >= ny) continue;
+                uint8_t *cell = cells + (gx * ny + gy) * 16;
+                for (uint8_t **b = FIELD(cell, 4, uint8_t **); b && b < FIELD(cell, 8, uint8_t **); b++) {
+                    uint8_t *u = *b, *td = u ? FIELD(u, 0x2C, uint8_t *) : NULL;
+                    if (!td || FIELD(u, 0x3C, int) <= 0) continue;
+                    void *o = FIELD(u, 0x18, void *);
+                    if (!o || o == pl || FIELD(o, PL_INDEX, int) <= 0 || !is_enemy(pl, o)) continue;
+                    float dx = (float)FIELD(u, 0x1C, int) - cx, dy = (float)FIELD(u, 0x20, int) - cy, d2 = dx * dx + dy * dy;
+                    int fam = FIELD(td, 0x4B4, int);
+                    float r, a;
+                    if (o == target && (fam == 2 || fam == 29) && d2 <= 225.0f) contact = 1;
+                    if (defence_stats(u, &r, &a)) { if (d2 <= (r + 1.0f) * (r + 1.0f)) epow += (float)FIELD(u, 0x3C, int) * a; }
+                    else if ((is_soldier(td) || is_siege(FIELD(td, 0x4B8, int))) && d2 <= 144.0f) epow += unit_power(u);
+                }
+            }
+        if (!contact) { g_rt[idx][slot].bad = 0; continue; }
+        g_rt[idx][slot].bad = epow > 1.5f * pow ? g_rt[idx][slot].bad + 1 : 0;
+        int spent = pow < 0.5f * g_rt[idx][slot].peak;
+        if (!spent && g_rt[idx][slot].bad < 2) continue;
+        // a real assault only (5+ units at its peak, 3+ left when outmatched), and not while another group with the
+        // same target is stronger - the call-off ends all attacks on that player (a straggler cancelled 6 forming groups)
+        if (g_rt[idx][slot].peak_n < 5 || (!spent && n < 3)) continue;
+        int stronger = 0;
+        for (unsigned j = 0; j < cnt && j < 8; j++) stronger |= j != k && gtarget[j] == target && gpow[j] > pow;
+        if (stronger) continue;
+        int t = FIELD(target, PL_INDEX, int) & 15;
+        g_cancel_why[idx][t] = "attack (retreat)";
+        cancel_citizen_attack((int)idx, t);
+        g_retreats[idx]++;
+        uint32_t next = now + 300000;
+        if (FIELD(pl, 0xED8, uint32_t) > next) { FIELD(pl, 0xED8, uint32_t) = next; g_last_attack_time[idx] = next; }
+        if (g_log) fprintf(g_log, "# attack: P%u at %.1f min pulls back from P%d: %d units, strength %.0f of its peak %.0f, facing %.0f%s; next attack at %.1f min\n",
+                           idx, now / 60000.0, t, n, pow, g_rt[idx][slot].peak, epow, spent ? " (half its peak gone)" : " (outmatched)",
+                           FIELD(pl, 0xED8, uint32_t) / 60000.0);
+        ai_say(pl, CHAT_ATTACK, "[ai] pulling back from P%d: %d units left", t, n);
+        g_rt[idx][slot].g = NULL;
+    }
+    for (int j = 0; j < 8; j++) {   // groups gone
+        int alive = 0;
+        for (int k = 0; k < 8 && !alive; k++) alive = seen[k] && seen[k] == g_rt[idx][j].g;
+        if (!alive) g_rt[idx][j].g = NULL;
+    }
+}
+
 // basemap P [r]: the map around AI player P's base (build manager +0x12C/+0x130), 2 characters per tile:
 // T tower (own defence with a ground attack), W wall, G gate, C Town Center/Capitol/Settlement, b other own building,
 // c citizen, s soldier, m mine (stone/gold/iron site), digits = other players' buildings/units (player index),
@@ -977,6 +1094,7 @@ static void defence_install(const char *aimod_ini, const char *autotest_ini) {
     g_muster = cfg_int(aimod_ini, autotest_ini, 1, "muster", 1);
     g_aa = cfg_int(aimod_ini, autotest_ini, 1, "anti_air", 1);
     g_hold = cfg_int(aimod_ini, autotest_ini, 1, "hold_town", 0);
+    g_retreat = cfg_int(aimod_ini, autotest_ini, 1, "attack_retreat", 0);
     BOOL guard = patch_call(CALL_DAMAGE_POINTS, FN_DAMAGE_POINTS, damage_points_thunk);
     if (g_log) fprintf(g_log, "# engine guard: damage points %s\n", guard ? "ok" : "FAILED");
     if (g_log) fprintf(g_log, "# defence: layout=%d distance=%d walls=%d own towers=%d counter-siege=%d home guard=%d/epoch, %.2f of the military room\n", g_def, g_def_dist, g_def_walls, g_def_more, g_csiege, g_home_guard, g_home_share);

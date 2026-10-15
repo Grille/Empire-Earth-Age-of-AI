@@ -303,6 +303,7 @@ typedef void (__thiscall *AsgRouteFn)(void *self, int *start, int *dest);
 // (0x4510F2 / 0x454B90, the call-off).
 static int g_citizen_attacks;
 static void cancel_citizen_attack(int ai, int target);   // diplo.c
+static const char *g_cancel_why[16][16];   // why the next call-off (NULL: citizens) - diplo_safe_point logs it
 static void subgroup_count(uint8_t *sg, int *n, int *cit) {   // members of an attack subgroup, citizens among them
     uint8_t **b = FIELD(sg, 0x54, uint8_t **), **e = FIELD(sg, 0x58, uint8_t **);
     for (uint8_t **r = b; b && r < e && *n < 1000; r++) {
@@ -1278,6 +1279,17 @@ static void cmd_threat(char *out, const char *args) {
         struct defence *d = &g_threat[p].d[k];
         REPLY("  type %3d of P%d at %d,%d range %.1f attack %.0f\n", d->type, d->owner, d->x, d->y, d->range, d->attack);
     }
+}
+
+// attacknow P (test): AI P's next attack is due now (player +0xED8 = the game time) - the game launches it at its next
+// look, if it has a target
+static void cmd_attacknow(char *out, const char *args) {
+    int p = atoi(args);
+    void *pl = (p > 0 && p < 16) ? g_players[p] : NULL;
+    if (!pl) { REPLY("error: no AI player %d\n", p); return; }
+    uint32_t was = FIELD(pl, 0xED8, uint32_t);
+    FIELD(pl, 0xED8, uint32_t) = game_time();
+    REPLY("P%d: next attack %.1f -> %.1f min\n", p, was / 60000.0, game_time() / 60000.0);
 }
 
 // nullmember P (test): the first member record (of an attack subgroup of AI P with 2+ members) loses its unit (+0x44

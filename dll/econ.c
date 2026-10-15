@@ -80,6 +80,7 @@ static int defence_spot(void *pl, int type, int *ox, int *oy);   // defence.c
 static void defence_tick(void *pl, unsigned idx, uint32_t now);
 static void anti_air(void *pl, unsigned idx, uint32_t now);   // defence.c
 static void hold_town(void *pl, unsigned idx, uint32_t now);   // defence.c
+static void attack_retreat(void *pl, unsigned idx, uint32_t now);   // defence.c
 static void counter_siege(void *pl, unsigned idx, uint32_t now);
 static void home_guard(void *pl, unsigned idx, uint32_t now);
 static void muster(void *pl, unsigned idx, uint32_t now);       // defence.c: gather, then strike
@@ -659,10 +660,10 @@ static void retry_dropped(void *pl, unsigned idx, uint32_t now) {
         else g_retry[idx][k].next = now + 120000;
     }
 }
+static uint32_t g_last_attack_time[16];   // +0xED8 at the last look (defence.c attack_retreat moves it on, not a launch)
 static void econ_tick(void *pl, uint32_t now) {
     const struct ai_cfg *c = cfg_of(pl);
     // attack log: the next-attack time (+0xED8) is redrawn whenever an attack starts
-    static uint32_t last_attack_time[16];
     unsigned ai = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     spend_log(ai, now);
     gather_log(pl, ai, now);
@@ -677,6 +678,7 @@ static void econ_tick(void *pl, uint32_t now) {
     home_guard(pl, ai, now);
     muster(pl, ai, now);
     hold_town(pl, ai, now);
+    attack_retreat(pl, ai, now);
     {   // the base the AI plans around (build manager +0x12C/+0x130): log when it moves (a lost base, a new one?)
         static int bx[16] = { -10000, -10000, -10000, -10000, -10000, -10000, -10000, -10000, -10000, -10000, -10000,
                               -10000, -10000, -10000, -10000, -10000 }, by[16];
@@ -693,13 +695,13 @@ static void econ_tick(void *pl, uint32_t now) {
     diplo_tick(pl, ai, now);
     rates_update(pl, ai, now);
     uint32_t t_attack = FIELD(pl, 0xED8, uint32_t);
-    if (t_attack != last_attack_time[ai]) {
-        if (last_attack_time[ai] && g_log)
+    if (t_attack != g_last_attack_time[ai]) {
+        if (g_last_attack_time[ai] && g_log)
             fprintf(g_log, "# attack: P%u at %.1f min, next at %.1f min\n", ai, now / 60000.0, t_attack / 60000.0);
-        if (last_attack_time[ai]) persona_attack_launched(ai);
-        if (last_attack_time[ai])
+        if (g_last_attack_time[ai]) persona_attack_launched(ai);
+        if (g_last_attack_time[ai])
             ai_say(pl, CHAT_ATTACK, "[ai] attack launched, next one in %.0f min", ((float)t_attack - (float)now) / 60000.0f);
-        last_attack_time[ai] = t_attack;
+        g_last_attack_time[ai] = t_attack;
     }
     int ep = current_epoch(pl);
     early_requirements(pl, ai, now, c->copper_plan && ep < FARM_EPOCH);
