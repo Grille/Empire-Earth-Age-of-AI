@@ -35,8 +35,8 @@ no_step = "Right now no diplomatic step is open to you: you can only talk."
 whose = "\nThe user messages that start with \"{them} writes:\" are messages of {them}, {who}, from their side: \"I\", \"my\", \"mine\" are {them} and their things (their town, walls, towers, army); \"you\" is you, {me}. Messages in brackets are events of the game, not chat."
 who_human = "the human player"
 who_leader = "another leader in this game"
-; in braces: {minutes} {epoch}
-game_now = "\nThe game now (minute {minutes}): you are in the {epoch}."
+; in braces: {minutes} {epoch} {me.food} {me.wood} {me.stone} {me.gold} {me.iron}
+game_now = "\nThe game now (minute {minutes}): you are in the {epoch}. Your stock: food {me.food}, wood {me.wood}, stone {me.stone}, gold {me.gold}, iron {me.iron}."
 ; in braces: {them} {them.epoch} {stance} {power} {opinion}
 other_state = "{them} (the player you talk to) is in the {them.epoch}. {stance} Their forces are {power}. Your opinion of them: {opinion}."
 stance_allied = "You are allied with each other."

@@ -22,7 +22,8 @@ static const struct text_def k_tpl[] = {
       "\"you\" is you, {me}. Messages in brackets are events of the game, not chat.", NULL, "whose \"my\" is whose ({who}: who_human or who_leader)" },
     { "who_human", "the human player", NULL, NULL },
     { "who_leader", "another leader in this game", NULL, NULL },
-    { "game_now", "\nThe game now (minute {minutes}): you are in the {epoch}.", NULL, NULL },
+    { "game_now", "\nThe game now (minute {minutes}): you are in the {epoch}. Your stock: food {me.food}, wood {me.wood}, "
+      "stone {me.stone}, gold {me.gold}, iron {me.iron}.", NULL, NULL },
     { "other_state", "{them} (the player you talk to) is in the {them.epoch}. {stance} Their forces are {power}. Your opinion "
       "of them: {opinion}.", NULL, NULL },
     { "stance_allied", "You are allied with each other.", NULL, NULL },
