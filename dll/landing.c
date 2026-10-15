@@ -25,6 +25,7 @@
 // - Ashore: one group - fights what comes within 12 tiles of its centre, else marches on the nearest building of the
 //   target it has seen (attacking it within 6 tiles). A quarter left: released to the game.
 static int g_landing = 0, g_land_ships = 3;   // aimod.ini [all] landing, landing_transports
+static int g_land_trace = 0;   // test: landing_trace=1 - each transport every tick while soldiers are aboard
 static int g_land_knows = 0;   // test: landing_knows_map=1 - every building of the target counts, seen or not
 static int g_land_flag = 0;   // the unload goal's last argument: the AI's code passes 1, the player's command 0 (test: landing_flag)
 #define LD_PASS 64
@@ -41,8 +42,9 @@ static struct landing {
     uint8_t *frozen[48]; int nfrozen;    // subgroups led by the landing
     uint8_t *obj; int ox, oy;
     uint32_t since, last, next_try, reissue, trained_t, boarded_t;
+    int ex, ey, ewx, ewy, gathered;      // where they board: the shore nearest the passengers, the water in front
     struct ld_def def;                   // the beach's defence when planned
-    int all_ashore, tries_at[4];
+    int all_ashore, tries_at[4], ux[4], uy[4];   // each transport's own unload point
     unsigned tries, landings, aborted, orders;
 } g_ld[16];
 
@@ -57,6 +59,15 @@ static int landing_leads(uint8_t *sg) {
     unsigned pi = pl ? (unsigned)FIELD(pl, PL_INDEX, int) & 15 : 0;
     if (!g_landing || !pl || !g_ld[pi].phase) return 0;
     for (int k = 0; k < g_ld[pi].nfrozen; k++) if (g_ld[pi].frozen[k] == sg) return 1;
+    return 0;
+}
+static int landing_has_unit(void *pl, uint8_t *u) {   // a transport, warship or soldier of a landing under way
+    unsigned pi = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
+    struct landing *l = &g_ld[pi];
+    if (!g_landing || l->phase < 2) return 0;
+    for (int k = 0; k < l->nships; k++) if (l->ships[k] == u) return 1;
+    for (int k = 0; k < l->nesc; k++) if (l->esc[k] == u) return 1;
+    for (int k = 0; k < l->npass; k++) if (l->pass[k] == u) return 1;
     return 0;
 }
 #define VT_ASG_SEA 0x00826F10
@@ -314,6 +325,32 @@ static void ld_refreeze(struct landing *l, uint8_t *dq, unsigned first, unsigned
     }
 }
 
+// a shore tile to unload on: land of the site's continent, room on the 3x3 tiles, the landing's sea within 2 tiles,
+// within 15 of the site; nearest to (x, y), at least `gap` tiles from the other transports' points and from
+// (ax, ay) - where the last unload failed
+static int ld_shore_tile(struct landing *l, int k, int x, int y, int ax, int ay, int gap, int *ox, int *oy) {
+    unsigned cont = area_id(l->sx, l->sy, 2);
+    for (int d = 0; d <= 10; d++)
+        for (int dx = -d; dx <= d; dx++)
+            for (int dy = -d; dy <= d; dy += (abs(dx) == d || !d ? 1 : 2 * d)) {
+                int tx = x + dx, ty = y + dy, ok = 1;
+                if ((tx - l->sx) * (tx - l->sx) + (ty - l->sy) * (ty - l->sy) > 225) continue;
+                if (area_id(tx, ty, 2) != cont || area_id(tx, ty, 1) || (int)ocean_near(tx, ty, 2, NULL, NULL) != l->ocean) continue;
+                if (ax >= 0 && abs(tx - ax) < 3 && abs(ty - ay) < 3) continue;
+                for (int j = 0; j < l->nships && ok; j++)
+                    if (j != k && abs(tx - l->ux[j]) < gap && abs(ty - l->uy[j]) < gap) ok = 0;
+                if (!ok || !ld_tile_free(tx, ty)) continue;
+                *ox = tx; *oy = ty;
+                return 1;
+            }
+    return 0;
+}
+static void *ld_unload(uint8_t *sh, int x, int y) {
+    void *g = ((void *(__cdecl *)(unsigned))0x00683718)(0x40);
+    if (g) g = ((void *(__thiscall *)(void *, void *, int, int, int))0x00615A1F)(g, sh, x, y, g_land_flag);
+    return g;
+}
+
 static void ld_why(unsigned pi, uint32_t now, const char *why) {   // why no landing is planned (once a minute)
     static uint32_t t[16];
     if (!g_log || (t[pi] && now - t[pi] < 60000 && now >= t[pi])) return;
@@ -326,7 +363,7 @@ static void landing_tick(void *pl, uint32_t now) {
     struct landing *l = &g_ld[pi];
     if (!g_landing) return;
     if (now < l->last) memset(l, 0, sizeof *l);   // a new game
-    if (now - l->last < 2000) return;
+    if (now - l->last < (l->phase == 3 ? 500u : 2000u)) return;   // sailing: a transport stalled off the beach is sunk
     l->last = now;
     void *cm = FIELD(pl, 0xB90, void *);
     uint8_t *bm = cm ? FIELD(cm, 0x3C, uint8_t *) : NULL, *um = cm ? FIELD(cm, 0x44, uint8_t *) : NULL;
@@ -465,13 +502,57 @@ static void landing_tick(void *pl, uint32_t now) {
             }
         }
         if (l->npass < 10) { l->aborted++; l->next_try = now + 300000; ld_release(pi, "too few passengers", now); return; }
-        l->phase = 2; l->since = now; l->reissue = 0;
+        l->phase = 2; l->since = now; l->reissue = 0; l->gathered = 0;
+        {   // the meeting point: the shore of the landing's sea nearest the passengers (on their land) - boarding
+            // straight away, soldiers 30-40 tiles off walked to transports strewn along the coast: after 3 minutes
+            // P2 had fewer than half aboard
+            float px = 0, py = 0; int pn = 0;
+            for (int k = 0; k < l->npass; k++) { px += FIELD(l->pass[k], 0x1C, int); py += FIELD(l->pass[k], 0x20, int); pn++; }
+            int x0 = (int)(px / pn), y0 = (int)(py / pn), found = 0;
+            unsigned cont = area_id(FIELD(l->pass[0], 0x1C, int), FIELD(l->pass[0], 0x20, int), 2);
+            for (int d = 0; d <= 40 && !found; d++)
+                for (int dx = -d; dx <= d && !found; dx++)
+                    for (int dy = -d; dy <= d && !found; dy += (abs(dx) == d || !d ? 1 : 2 * d)) {
+                        int tx = x0 + dx, ty = y0 + dy, wx, wy;
+                        if (area_id(tx, ty, 2) != cont || area_id(tx, ty, 1) || !ld_tile_free(tx, ty)) continue;
+                        if ((int)ocean_near(tx, ty, 2, &wx, &wy) != l->ocean) continue;
+                        l->ex = tx; l->ey = ty; l->ewx = wx; l->ewy = wy; found = 1;
+                    }
+            if (!found) l->gathered = 1;   // none: board where they are
+            else if (g_log) fprintf(g_log, "# landing: P%u at %.1f min: they meet at %d,%d (passengers around %d,%d)\n", pi, now / 60000.0, l->ex, l->ey, x0, y0);
+        }
         if (g_log) fprintf(g_log, "# landing: P%u at %.1f min: boarding %d soldiers on %d transports, %d warships along\n", pi, now / 60000.0, l->npass, l->nships, l->nesc);
     }
     // drop the dead
     for (int k = 0; k < l->nships; k++) if (!ld_alive(l->ships[k])) { l->ships[k--] = l->ships[--l->nships]; }
     for (int k = 0; k < l->npass; k++) if (!ld_alive(l->pass[k])) { l->pass[k--] = l->pass[--l->npass]; }
     if (!l->nships && l->phase < 4) { l->aborted++; l->next_try = now + 600000; ld_release(pi, "transports lost", now); return; }
+    if (l->phase == 2 && !l->gathered) {   // to the meeting point first: the transports to the water in front, the soldiers to the shore
+        int there = 0;
+        for (int k = 0; k < l->nships; k++) {
+            uint8_t *sh = l->ships[k];
+            int dx = FIELD(sh, 0x1C, int) - l->ewx, dy = FIELD(sh, 0x20, int) - l->ewy;
+            if (dx * dx + dy * dy <= 49) { there++; continue; }
+            if (!as_goal_near(sh, (float)l->ewx + 0.5f, (float)l->ewy + 0.5f, 2.0f))
+                l->orders += unit_goal(sh, goal_move((float)l->ewx + 0.5f, (float)l->ewy + 0.5f), 0, 0x1F40);
+        }
+        int close = 0;
+        for (int k = 0; k < l->npass; k++) {
+            uint8_t *u = l->pass[k];
+            if (ld_aboard(u)) { close++; continue; }
+            int dx = FIELD(u, 0x1C, int) - l->ex, dy = FIELD(u, 0x20, int) - l->ey;
+            if (dx * dx + dy * dy <= 64) { close++; continue; }
+            if (!as_goal_near(u, (float)l->ex + 0.5f, (float)l->ey + 0.5f, 3.0f))
+                l->orders += unit_goal(u, goal_move((float)l->ex + 0.5f, (float)l->ey + 0.5f), 0, 0x1F40);
+        }
+        // the transports there and most soldiers near (or 2 minutes): board
+        if ((there == l->nships && close * 4 >= l->npass * 3) || now - l->since >= 120000) {
+            if (g_log) fprintf(g_log, "# landing: P%u at %.1f min: at the meeting point - %d of %d transports, %d of %d soldiers\n", pi, now / 60000.0,
+                               there, l->nships, close, l->npass);
+            l->gathered = 1; l->since = now; l->reissue = 0;
+        }
+        return;
+    }
     if (l->phase == 2) {   // board
         int aboard = 0;
         for (int k = 0; k < l->npass; k++) aboard += ld_aboard(l->pass[k]);
@@ -518,9 +599,14 @@ static void landing_tick(void *pl, uint32_t now) {
                 if (keep) l->frozen[nf++] = sg;
             }
             l->nfrozen = nf;
+            // each transport its own point on the beach, 4+ tiles apart: with one point for all, the first put its
+            // soldiers there and the unload of the next ended at once (no room), soldiers aboard, the transport idle
+            // off the beach
+            for (int k = 0; k < l->nships; k++) { l->ux[k] = -100; l->uy[k] = -100; }
+            for (int k = 0; k < l->nships; k++)
+                if (!ld_shore_tile(l, k, l->sx, l->sy, -1, -1, 4, &l->ux[k], &l->uy[k])) { l->ux[k] = l->sx; l->uy[k] = l->sy; }
             for (int k = 0; k < l->nships; k++) {
-                void *g = ((void *(__cdecl *)(unsigned))0x00683718)(0x40);
-                if (g) g = ((void *(__thiscall *)(void *, void *, int, int, int))0x00615A1F)(g, l->ships[k], l->sx, l->sy, g_land_flag);
+                void *g = ld_unload(l->ships[k], l->ux[k], l->uy[k]);
                 if (g_log && g) fprintf(g_log, "# landing: P%u: transport at %d,%d sails, the goal's unload point %d,%d\n", pi,
                                         FIELD(l->ships[k], 0x1C, int), FIELD(l->ships[k], 0x20, int), FIELD(g, 0x34, int), FIELD(g, 0x38, int));
                 l->orders += unit_goal(l->ships[k], g, 0, 0x1F40);
@@ -551,6 +637,18 @@ static void landing_tick(void *pl, uint32_t now) {
         }
         return;
     }
+    if (g_land_trace && g_log && l->phase >= 3)
+        for (int k = 0; k < l->nships; k++) {
+            uint8_t *sh = l->ships[k], *g = FIELD(sh, 0x1EC, uint8_t *);
+            int n = ((int (__thiscall *)(void *))0x0042E347)(sh);
+            if (!n) continue;
+            fprintf(g_log, "# ldtrace: P%u %.2f ship %d at %d,%d hp %d aboard %d goal %s", pi, now / 60000.0, k, FIELD(sh, 0x1C, int), FIELD(sh, 0x20, int),
+                    FIELD(sh, 0x3C, int), n, rtti_name(g));
+            if (g && *(uintptr_t *)g == 0x00831F5C)
+                fprintf(g_log, " @%p water %d,%d / %d,%d point %d,%d reach %.1f state %d", (void *)g, FIELD(g, 0x24, int), FIELD(g, 0x28, int), FIELD(g, 0x2C, int),
+                        FIELD(g, 0x30, int), FIELD(g, 0x34, int), FIELD(g, 0x38, int), sqrtf(FIELD(g, 0x3C, float)), FIELD(g, 5, uint8_t));
+            fputs("\n", g_log);
+        }
     // sail and unload (3), ashore (4) - while some are still aboard, the ones ashore already fight
     int aboard = 0, ashore = 0;
     float cx = 0, cy = 0;
@@ -558,28 +656,20 @@ static void landing_tick(void *pl, uint32_t now) {
         if (ld_aboard(l->pass[k])) { aboard++; continue; }
         ashore++; cx += FIELD(l->pass[k], 0x1C, int); cy += FIELD(l->pass[k], 0x20, int);
     }
-    if (aboard && (!l->reissue || now - l->reissue >= 10000)) {
-        // a transport without an order while soldiers are aboard (the unload goal did not stick for two of three):
-        // the unload again. Committed: no turning back while transports with soldiers aboard are afloat (a player
-        // lands before they are sunk)
-        l->reissue = now;
+    if (aboard) {
+        // a transport with soldiers aboard and no unload order (it ended without unloading, or something else gave the
+        // transport an order): the unload again at once - every 0.5 s while sailing. Committed: no turning back while
+        // transports with soldiers aboard are afloat (a player lands before they are sunk)
         for (int k = 0; k < l->nships; k++) {
-            uint8_t *sh = l->ships[k];
-            if (FIELD(sh, 0x1EC, void *)) continue;
-            // the unload ended with soldiers aboard (reference save: the transports reached the water 10 tiles off
-            // the site and gave up there again and again): unload on the land nearest to where it is, another
-            // spot each time
-            int ux = l->sx, uy = l->sy, x0 = FIELD(sh, 0x1C, int), y0 = FIELD(sh, 0x20, int), skip = l->tries_at[k]++, found = 0;
-            if (skip) {
-                for (int d = 1; d <= 8 && !found; d++)
-                    for (int dx = -d; dx <= d && !found; dx++)
-                        for (int dy = -d; dy <= d && !found; dy += (abs(dx) == d ? 1 : 2 * d))
-                            if (area_id(x0 + dx, y0 + dy, 2) && !area_id(x0 + dx, y0 + dy, 1) && ld_tile_free(x0 + dx, y0 + dy) && (x0 + dx - l->sx) * (x0 + dx - l->sx) + (y0 + dy - l->sy) * (y0 + dy - l->sy) <= 225 && skip-- <= 1) {
-                                ux = x0 + dx; uy = y0 + dy; found = 1;
-                            }
-            }
-            void *g = ((void *(__cdecl *)(unsigned))0x00683718)(0x40);
-            if (g) g = ((void *(__thiscall *)(void *, void *, int, int, int))0x00615A1F)(g, sh, ux, uy, g_land_flag);
+            uint8_t *sh = l->ships[k], *cur = FIELD(sh, 0x1EC, uint8_t *);
+            if (cur && *(uintptr_t *)cur == 0x00831F5C) continue;
+            if (((int (__thiscall *)(void *))0x0042E347)(sh) <= 0) continue;   // nothing aboard
+            // off the beach (within 10 tiles of its point): the unload ended there - the nearest shore tile with room
+            // to where it is, away from where it failed; farther off (another order took it): its point again
+            int x0 = FIELD(sh, 0x1C, int), y0 = FIELD(sh, 0x20, int), ux = l->ux[k], uy = l->uy[k], ddx = x0 - ux, ddy = y0 - uy;
+            l->tries_at[k]++;
+            if (ddx * ddx + ddy * ddy <= 100 && ld_shore_tile(l, k, x0, y0, ux, uy, 2, &ux, &uy)) { l->ux[k] = ux; l->uy[k] = uy; }
+            void *g = ld_unload(sh, ux, uy);
             l->orders += unit_goal(sh, g, 0, 0x1F40);
             if (g_log && l->tries_at[k] <= 8)   // the goal's own unload point (+0x34/+0x38, from the transport class vf57)
                 fprintf(g_log, "# landing: P%u at %.1f min: transport at %d,%d (hp %d) still loaded - unloads at %d,%d, the goal's point %d,%d\n",
@@ -726,6 +816,7 @@ static void landing_install(const char *aimod_ini, const char *autotest_ini) {
     g_land_ships = cfg_int(aimod_ini, autotest_ini, 1, "landing_transports", 3);
     g_land_flag = cfg_int(aimod_ini, autotest_ini, 1, "landing_flag", 0);
     g_land_knows = cfg_int(aimod_ini, autotest_ini, 1, "landing_knows_map", 0);
+    g_land_trace = cfg_int(aimod_ini, autotest_ini, 1, "landing_trace", 0);
     if (g_land_ships < 1) g_land_ships = 1;
     if (g_land_ships > 4) g_land_ships = 4;
     int h = patch_vtable(VT_ASG_SEA_TRANSPORT, 90, FN_ASG_SEA_TRANSPORT_UPDATE, hook_asg_sea_transport_update) &

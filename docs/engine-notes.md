@@ -295,7 +295,10 @@ Guard towers 47, 461..466; AA 145/147; town center 35; house 37; citizen 32.
   int x, int y, flag) = EEUGUnloadTransport (0x831F5C; the AI passes 1, the player's command EEMUnloadTransport 0);
   with cargo aboard the ctor asks the transport class (vf57) for its unload point (+0x34/+0x38). Aboard: unit
   tile -10000. A landing site on another continent (an island in the bay) strands the troops; on some coast
-  stretches the unload ends at once (transport idle, cargo aboard) - other spots nearby work.
+  stretches the unload ends at once (transport idle, cargo aboard) - other spots nearby work. The goal: +0x24/+0x2C
+  water points (the transport goes there), +0x34 unload point, +0x3C reach squared (type +0x4AC, 4 tiles for 113);
+  arrived (event 0x2EE2, 0x615FC4): more than reach from the point, or the unload itself (0x6092F3) failing - no room,
+  another transport's soldiers just put there - ends it, soldiers aboard. 0x42E347 thiscall(transport): number aboard.
 - Sea subgroups: EECPASGSea vtable 0x826F10 (slot 90 update 0x44ED11), EECPASGSeaTransport 0x8270F8 (slot 90
   0x44FB92; its second vtable 0x8272E4 at +484). Docks: type 36; transports 313/110/111/112/113/114 by epoch;
   fishing boats 108/109/365/211/332.
