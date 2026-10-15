@@ -709,6 +709,7 @@ static void muster(void *pl, unsigned idx, uint32_t now) {
 // 27 vs 36, lost 51 vs 59, kept 4 vs 17 citizens and its Town Center 2 vs 5 times, the camp grew to 53 vs 46 - pulled
 // back, they leave the town to the pushes. Off.
 static struct { int holding; uint32_t sortie_t; unsigned holds, sorties, set; } g_hold_st[16];
+static int assault_has_unit(void *pl, uint8_t *u);   // assault.c
 static uint8_t *g_asg_units[512];
 static int g_asg_n;
 static void asg_units(void *pl) {   // the units of AI pl's attack subgroups (records +0x44)
@@ -788,6 +789,7 @@ static void hold_town(void *pl, unsigned idx, uint32_t now) {
     }
     for (int k = 0; k < s->no; k++) {
         uint8_t *u = s->own[k], *g = FIELD(u, 0x1EC, uint8_t *);
+        if (assault_has_unit(pl, u)) { set_behaviour(u, 5); continue; }   // the assault leads them
         if (g && *(uintptr_t *)g == VT_GOAL_LOCATION) {
             float dx = FIELD(g, 0x20, float) - (float)s->bx, dy = FIELD(g, 0x24, float) - (float)s->by;
             if (dx * dx + dy * dy > 35.0f * 35.0f) { set_behaviour(u, 5); continue; }   // marching out

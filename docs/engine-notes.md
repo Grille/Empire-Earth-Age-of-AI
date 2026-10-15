@@ -284,6 +284,11 @@ Guard towers 47, 461..466; AA 145/147; town center 35; house 37; citizen 32.
   - Members chase enemy aircraft like any enemy (0x461854 scores them): AA tanks of an attack group ran after the
     player's planes over their own town and the group stayed in combat; `attack_ignore_air` drops aircraft out of
     reach.
+  - EECPASGLand slot 90 (0x4491DD) is its update(now) (state machine, +0x1A4 next update time); skipping it leaves
+    the members to whoever orders them (dll/assault.c).
+- **Continents:** EEAIContinentManager, a global object at 0x917BC8. 0x425F16 thiscall(mgr, int pt[2]) -> the
+  area at a tile (vtable 0x825FB8); 0x425F9F thiscall(mgr, int pt[2], kind) -> its +0x84 (kind 1: ocean id) or +0x86
+  (kind 2: land continent id), 16 bits. Some areas have neither (the player's camp on the reference save).
   - Nothing re-checks the stance of the target player: units only fight enemies (0x461854, vf112), but the goal
     stays until the target unit is dead - after peace the army keeps marching on the new ally. New launches
     (0x46F4FF) only pick enemies.

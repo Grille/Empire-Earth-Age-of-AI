@@ -78,6 +78,8 @@ static void econ_rebalance(uint8_t *rm);
 static void econ_fields(uint8_t *rm);
 static void citizens_safety(uint8_t *rm);
 static void attack_tick(void *pl, uint32_t now);
+static void assault_tick(void *pl, uint32_t now);
+static void assault_install(const char *aimod_ini, const char *autotest_ini);
 static void log_line(const char *fmt, const char *a, int b);
 static BOOL patch_call(uintptr_t site, uintptr_t expected, void *hook);
 static void *g_players[16];   // control.c
@@ -285,7 +287,7 @@ static void __fastcall hook_rm_update(void *rm, void *edx, uint32_t now) {
         }
     }
     ((RmUpdateFn)FN_RM_UPDATE)(rm, now);
-    if (pl) { econ_tick(pl, now); attack_tick(pl, now); }
+    if (pl) { econ_tick(pl, now); attack_tick(pl, now); assault_tick(pl, now); }
     g_rm_seen = 1;
     autotest_tick(now);
 }
@@ -512,6 +514,7 @@ static char __fastcall hook_game_start(void *state, void *edx, uint8_t *setup, v
 #include "econ.c"
 #include "attack.c"
 #include "defence.c"
+#include "assault.c"
 #include "expr.c"
 #include "persona.c"
 #include "texts.c"
@@ -639,6 +642,7 @@ static void install(HMODULE self) {
     }
     econ_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
     attack_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
+    assault_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
     defence_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
     chat_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
     persona_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
