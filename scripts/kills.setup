@@ -1,0 +1,24 @@
+# kills' filter: P1 (human) kills P3's army, citizens, a helicopter, ships and fishing boats (water at 3-10,57-60)
+@0.05 diplo 1 3 1
+@0.1 spawn 1 19 40 40 8
+@0.1 spawn 1 2 40 40 12
+@0.1 spawn 3 20 42 42 6
+@0.1 spawn 3 32 42 42 6
+@0.1 spawn 3 6 42 42 3
+@0.1 spawn 1 117 6 60 3
+@0.1 spawn 3 108 8 58 3
+@0.1 spawn 3 110 8 58 2
+@1 objs 1 117
+@1 objs 3 108
+@1 objs 3 110
+@3 diplo kills
+@3 texts eval 3 1 them.kills(me)
+@3 texts eval 3 1 them.kills(me, "army")
+@3 texts eval 3 1 them.kills(me, "airforce")
+@3 texts eval 3 1 them.kills(me, "marine")
+@3 texts eval 3 1 them.kills(me, "military")
+@3 texts eval 3 1 them.kills(me, "civilian")
+@3 texts eval 3 1 them.razed(me, "army")
+@3 texts eval 3 1 them.tribute(me, "army")
+@3 texts eval 3 1 them.kills(me, "5")
+@3 llm prompt 3 1

@@ -216,8 +216,8 @@ Then `{address}`, `{title}` in a line, or `angry` in an expression.
 
 ```ini
 [vars]
-losses(minutes) = them.kills_soldiers(me, minutes) + them.kills_citizens(me, minutes)
-fighting_report(minutes) = "you killed {me.kills_soldiers(them, minutes)} of their soldiers and {me.kills_citizens(them, minutes)} of their citizens; they killed {them.kills_soldiers(me, minutes)} of yours"
+losses(minutes) = them.kills(me, minutes)
+fighting_report(minutes) = "you killed {me.kills(them, minutes, "army")} of their soldiers and sank {me.kills(them, minutes, "marine")} of their ships; they killed {them.kills(me, minutes, "military")} of yours"
 
 [lines]
 under_attack = losses(10) > many_dead / 3 ? "{losses(10)} dead in ten minutes. Enough!"
@@ -324,10 +324,8 @@ Shortcuts: my own `epoch`, traits, `allies` and `enemies` without `me.` (`aggres
 | `A.tribute(B)` | resources A has paid B in this game - (B, minutes): in the last minutes, them.tribute(me, 15) |
 | `A.near(B)` | A's soldiers within 20 tiles of B's base now, while B treats A as an enemy (an AI's base) |
 | `A.attack_minutes(B)` | minutes since A's last attack wave set out against B - nothing if none (an AI's waves) |
-| `A.kills(B)` | B's soldiers and citizens A has destroyed - (B, minutes): in the last minutes (whole minutes, at most 60) |
+| `A.kills(B)` | B's units A has destroyed - (B, minutes): in the last minutes (whole minutes, at most 60); a last argument picks which: "all" (the default), "army" (on land: also priests, heroes, siege), "airforce", "marine", "military" (the three), "civilian" (citizens, fishing boats) - them.kills(me, "marine"), me.kills(them, 10, "military") |
 | `A.razed(B)` | B's buildings A has destroyed - (B, minutes) as kills |
-| `A.kills_soldiers(B)` | B's soldiers A has killed (every unit that is no citizen) - (B, minutes) as kills |
-| `A.kills_citizens(B)` | B's citizens A has killed - (B, minutes) as kills |
 
 **The game:**
 

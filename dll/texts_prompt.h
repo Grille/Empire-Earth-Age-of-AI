@@ -40,14 +40,14 @@ static const struct text_def k_tpl[] = {
     { "their_attack", "Their last army set out against your town {them.attack_minutes(me)} minutes ago.", NULL, NULL },
     { "defences", "Their defences: {them.towers} towers, {them.walls} wall pieces. Yours: {me.towers} towers, {me.walls} wall "
       "pieces.", NULL, NULL },
-    { "fighting", "The fighting between you so far: you killed {me.kills_soldiers(them)} of their soldiers and {me.kills_citizens(them)} of their "
-      "citizens (workers) and destroyed {me.razed(them)} of their buildings; they killed {them.kills_soldiers(me)} of "
-      "your soldiers and {them.kills_citizens(me)} of your citizens and destroyed {them.razed(me)} of your "
+    { "fighting", "The fighting between you so far: you killed {me.kills(them, \"military\")} of their soldiers (army, airforce, marine) and {me.kills(them, \"civilian\")} of their "
+      "civilians (citizens, fishing boats) and destroyed {me.razed(them)} of their buildings; they killed {them.kills(me, \"military\")} of "
+      "your soldiers and {them.kills(me, \"civilian\")} of your citizens and destroyed {them.razed(me)} of your "
       "buildings.", NULL, NULL },
     { "fighting_all_recent", "All of it in the last {recent_minutes} minutes.", NULL, NULL },
     { "fighting_none_recent", "No fighting between you in the last {recent_minutes} minutes.", NULL, NULL },
-    { "fighting_recent", "In the last {recent_minutes} minutes: you killed {me.kills_soldiers(them, recent_minutes)} soldiers and {me.kills_citizens(them, recent_minutes)} citizens and destroyed "
-      "{me.razed(them, recent_minutes)} buildings of theirs; they killed {them.kills_soldiers(me, recent_minutes)} soldiers and {them.kills_citizens(me, recent_minutes)} "
+    { "fighting_recent", "In the last {recent_minutes} minutes: you killed {me.kills(them, recent_minutes, \"military\")} soldiers and {me.kills(them, recent_minutes, \"civilian\")} citizens and destroyed "
+      "{me.razed(them, recent_minutes)} buildings of theirs; they killed {them.kills(me, recent_minutes, \"military\")} soldiers and {them.kills(me, recent_minutes, \"civilian\")} "
       "citizens and destroyed {them.razed(me, recent_minutes)} buildings of yours.", NULL, NULL },
     { "lord", "You have capitulated to them: they are your lord, you pay and serve them.", NULL, NULL },
     { "vassal", "They have capitulated to you: they are your vassal.", NULL, NULL },

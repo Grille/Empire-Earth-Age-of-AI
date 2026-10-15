@@ -283,8 +283,8 @@ static float power_of(int i) { return g_ws.power[i] > 1.0f ? g_ws.power[i] : 1.0
 // KILLS BY PAIR: the game keeps only totals per player (statistics, player +0x4A8: 3 units killed, 2 buildings
 // destroyed). They are counted in EEUnit::vf28 (0x6172BC, damage) when a unit drops to 0 hit points: at 0x617780 call
 // 0x55DBCF thiscall(attacker's player +0x4A8, 3 or 2, 1), the dead unit in ESI (owner +0x18) - not for nature's units
-// or one's own. Here also by pair: g_kills[killer][victim][K_SOLDIERS / K_BUILDINGS / K_CITIZENS] (soldiers = every
-// unit that is no citizen: also ships, priests, siege) for the whole game, and the same per
+// or one's own. Here also by pair: g_kills[killer][victim][kind] (kill_kind: army, buildings, civilian, airforce,
+// marine - by the class at type data +0x4B4, dbobjects.dat) for the whole game, and the same per
 // game minute in a ring of KILLS_RING buckets (g_kills_min_t: the minute each holds) for the recent fighting - the
 // last KILLS_RECENT_MIN minutes for the AI and the language model (llm.c), up to KILLS_RING for the texts' windows
 // (me.kills(them, 10)); saved with the game.
@@ -292,7 +292,17 @@ static float power_of(int i) { return g_ws.power[i] > 1.0f ? g_ws.power[i] : 1.0
 #define FN_STAT_ADD    0x0055DBCF
 #define KILLS_RECENT_MIN 20
 #define KILLS_RING 60
-enum { K_SOLDIERS, K_BUILDINGS, K_CITIZENS, K_N };
+enum { K_ARMY, K_BUILDINGS, K_CIVIL, K_AIR, K_NAVY, K_N };
+#define K_MILITARY(k) ((k)[K_ARMY] + (k)[K_AIR] + (k)[K_NAVY])
+// the class +0x4B4: 6 citizens (and the engineer), 22 fishing boats; 3 aircraft, 7 helicopters and balloons, 17
+// transport helicopters; 4 ships, 10 submarines, 18 transports, 21 carriers; the rest on land - priests, heroes, siege
+static int kill_kind(uint8_t *td) {
+    int c = td ? FIELD(td, 0x4B4, int) : 5;
+    if (c == 6 || c == 22 || (td && is_citizen_type(FIELD(td, 0x4B8, int)))) return K_CIVIL;
+    if (c == 3 || c == 7 || c == 17) return K_AIR;
+    if (c == 4 || c == 10 || c == 18 || c == 21) return K_NAVY;
+    return K_ARMY;
+}
 static uint32_t g_kills[16][16][K_N];
 static uint16_t g_kills_min[KILLS_RING][16][16][K_N];
 static uint32_t g_kills_min_t[KILLS_RING];   // game minute + 1 the bucket holds (0 empty)
@@ -313,7 +323,7 @@ __attribute__((used)) void __fastcall hook_kill_stat(uint8_t *stats, void *edx, 
         uint32_t m = game_time() / 60000u + 1, b = m % KILLS_RING;
         if (g_kills_min_t[b] != m) { memset(g_kills_min[b], 0, sizeof g_kills_min[b]); g_kills_min_t[b] = m; }
         uint8_t *td = FIELD(g_kill_unit, 0x2C, uint8_t *);
-        int c = n == 2 ? K_BUILDINGS : td && is_citizen_type(FIELD(td, 0x4B8, int)) ? K_CITIZENS : K_SOLDIERS;
+        int c = n == 2 ? K_BUILDINGS : kill_kind(td);
         g_kills[k][v][c] += (uint32_t)d;
         g_kills_min[b][k][v][c] += (uint16_t)d;
     }
@@ -1014,7 +1024,7 @@ static int victor_of(void *pl, int ai) {   // whoever destroyed the most of it l
         uint32_t r[K_N];
         if (!pj || j == ai || is_out(pj)) continue;
         kills_recent(j, ai, r);
-        if (r[K_SOLDIERS] + r[K_BUILDINGS] + r[K_CITIZENS] > most) { most = r[K_SOLDIERS] + r[K_BUILDINGS] + r[K_CITIZENS]; best = j; }
+        if (K_MILITARY(r) + r[K_BUILDINGS] + r[K_CIVIL] > most) { most = K_MILITARY(r) + r[K_BUILDINGS] + r[K_CIVIL]; best = j; }
     }
     return best ? best : strongest_enemy(pl, ai);
 }
@@ -1026,7 +1036,7 @@ static void surrender_now(void *pl, int ai) {
     g_sit.said_defeat[ai] = 1;
     InterlockedOr(&g_resign_queue, 1 << ai);
     if (g_log) fprintf(g_log, "# surrender: P%d gives up to P%d (who destroyed %u buildings, %u citizens, %u soldiers of it "
-                       "in %d minutes)\n", ai, v, r[K_BUILDINGS], r[K_CITIZENS], r[K_SOLDIERS], KILLS_RECENT_MIN);
+                       "in %d minutes)\n", ai, v, r[K_BUILDINGS], r[K_CIVIL], K_MILITARY(r), KILLS_RECENT_MIN);
 }
 // a block split: an AI the scan has seen without citizens and without a way to train one resigns at once
 static int surrender_instead(void *pl, int ai, uint32_t now) {
@@ -1321,7 +1331,7 @@ static void diplo_tick(void *pl, unsigned ai, uint32_t now) {
                 if (!stance_of(pl, j) && !stance_of(pj, (int)ai)) h += 0.5f;
                 if (stance_of(pj, (int)ai)) h -= 0.25f;
                 const uint32_t *k = g_kills[ai][j];   // their losses to this AI since the last minute
-                uint32_t lost = k[K_SOLDIERS] + k[K_CITIZENS] + 3 * k[K_BUILDINGS], *seen = &g_hum.seen[ai][j];
+                uint32_t lost = K_MILITARY(k) + k[K_CIVIL] + 3 * k[K_BUILDINGS], *seen = &g_hum.seen[ai][j];
                 float l = lost > *seen ? 0.3f * (float)(lost - *seen) : 0;
                 h -= l > 10 ? 10 : l;
                 *seen = lost;
@@ -1652,12 +1662,12 @@ static void cmd_diplo(char *out, const char *args) {
     if (!strcmp(args, "kills")) {   // diplo kills: units / buildings each player destroyed of each other one
         for (int k = 1; k < nplayers(); k++)
             for (int v = 0; v < nplayers(); v++)
-                if (g_kills[k][v][K_SOLDIERS] || g_kills[k][v][K_CITIZENS] || g_kills[k][v][K_BUILDINGS]) {
+                if (K_MILITARY(g_kills[k][v]) || g_kills[k][v][K_CIVIL] || g_kills[k][v][K_BUILDINGS]) {
                     uint32_t r[K_N], *a = g_kills[k][v];
                     kills_recent(k, v, r);
-                    REPLY("P%d killed of P%d: %u soldiers, %u citizens, %u buildings (last %d min: %u, %u, %u)\n", k, v,
-                          a[K_SOLDIERS], a[K_CITIZENS], a[K_BUILDINGS], KILLS_RECENT_MIN, r[K_SOLDIERS], r[K_CITIZENS],
-                          r[K_BUILDINGS]);
+                    REPLY("P%d killed of P%d: army %u, airforce %u, marine %u, civilian %u, buildings %u (last %d min: %u, "
+                          "%u, %u, %u, %u)\n", k, v, a[K_ARMY], a[K_AIR], a[K_NAVY], a[K_CIVIL], a[K_BUILDINGS],
+                          KILLS_RECENT_MIN, r[K_ARMY], r[K_AIR], r[K_NAVY], r[K_CIVIL], r[K_BUILDINGS]);
                 }
         REPLY("done\n");
         return;
@@ -1787,10 +1797,8 @@ static const struct xmember k_xmembers[] = {
     { "tribute", XM_REL, "resources A has paid B in this game - (B, minutes): in the last minutes, them.tribute(me, 15)" },
     { "near", XM_REL, "A's soldiers within 20 tiles of B's base now, while B treats A as an enemy (an AI's base)" },
     { "attack_minutes", XM_REL, "minutes since A's last attack wave set out against B - nothing if none (an AI's waves)" },
-    { "kills", XM_REL, "B's soldiers and citizens A has destroyed - (B, minutes): in the last minutes (whole minutes, at most 60)" },
+    { "kills", XM_REL, "B's units A has destroyed - (B, minutes): in the last minutes (whole minutes, at most 60); a last argument picks which: \"all\" (the default), \"army\" (on land: also priests, heroes, siege), \"airforce\", \"marine\", \"military\" (the three), \"civilian\" (citizens, fishing boats) - them.kills(me, \"marine\"), me.kills(them, 10, \"military\")" },
     { "razed", XM_REL, "B's buildings A has destroyed - (B, minutes) as kills" },
-    { "kills_soldiers", XM_REL, "B's soldiers A has killed (every unit that is no citizen) - (B, minutes) as kills" },
-    { "kills_citizens", XM_REL, "B's citizens A has killed - (B, minutes) as kills" },
 };
 #define N_XMEMBERS (int)(sizeof k_xmembers / sizeof *k_xmembers)
 static const struct xmember k_xglobals[] = {
@@ -1865,10 +1873,11 @@ static void x_member(void *px, const struct xmember *m, struct xval *v) {
 }
 // the relations that count events, with a time window in minutes as a second argument: them.tribute(me, 15)
 static int x_windowed(const char *n) {
-    return !strcmp(n, "tribute") || !strcmp(n, "refusals") || !strcmp(n, "betrayals") || !strncmp(n, "kills", 5) || !strcmp(n, "razed");
+    return !strcmp(n, "tribute") || !strcmp(n, "refusals") || !strcmp(n, "betrayals") || !strcmp(n, "kills") || !strcmp(n, "razed");
 }
 // relation m of player pa with player pb: pa.<m>(pb), in the last win minutes (0: the whole game) where it counts events
-static void x_relation(void *pa, void *pb, const struct xmember *m, double win, struct xval *v) {
+static const char *const k_kill_filter[] = { "all", "army", "airforce", "marine", "military", "civilian" };
+static void x_relation(void *pa, void *pb, const struct xmember *m, double win, int filter, struct xval *v) {
     xnothing(v);
     if (!pa || !pb || pa == pb) return;
     int a = pidx(pa), b = pidx(pb);
@@ -1908,11 +1917,11 @@ static void x_relation(void *pa, void *pb, const struct xmember *m, double win, 
         if (!g_attack_sent[a][b]) return;
         r = (double)((now - g_attack_sent[a][b]) / 60000u);
     }
-    else if (!strncmp(n, "kills", 5) || !strcmp(n, "razed")) {
+    else if (!strcmp(n, "kills") || !strcmp(n, "razed")) {
         const uint32_t *k = g_kills[a][b];
         if (!whole) { kills_window(a, b, (int)(win + 0.999), rk); k = rk; }   // started minutes count whole
-        r = n[0] == 'r' ? k[K_BUILDINGS] : !strcmp(n, "kills_soldiers") ? k[K_SOLDIERS] : !strcmp(n, "kills_citizens") ?
-            k[K_CITIZENS] : k[K_SOLDIERS] + k[K_CITIZENS];
+        r = n[0] == 'r' ? k[K_BUILDINGS] : filter == 1 ? k[K_ARMY] : filter == 2 ? k[K_AIR] : filter == 3 ? k[K_NAVY] :
+            filter == 4 ? K_MILITARY(k) : filter == 5 ? k[K_CIVIL] : K_MILITARY(k) + k[K_CIVIL];
     }
 
     xnum(v, r);
@@ -1971,7 +1980,7 @@ static int x_builtin(struct xctx *c, const char *name, struct xval *v) {
     while (g < N_XGLOBALS && strcmp(k_xglobals[g].name, name)) g++;
     if (g < N_XGLOBALS && k_xglobals[g].kind == XM_REL) {   // opinion, at_war, allied: mine with them
         if (!c->pl || !c->other) { x_missing(c, c->pl ? "them" : "me"); xnothing(v); return 1; }
-        x_relation(c->pl, c->other, x_find_member(name, (int)strlen(name)), 0, v);
+        x_relation(c->pl, c->other, x_find_member(name, (int)strlen(name)), 0, 0, v);
         return 1;
     }
     if (g < N_XGLOBALS) {
@@ -2006,7 +2015,8 @@ static int x_method(struct xctx *c, const char *name, const struct xval *a, int 
     const char *dot = strrchr(name, '.');
     const char *rel = dot ? dot + 1 : name;
     const struct xmember *m = x_find_member(rel, (int)strlen(rel));
-    if (!m || m->kind != XM_REL || na < 1 || na > (x_windowed(rel) ? 2 : 1)) return 0;   // (B) or, counting events, (B, minutes)
+    // (B) or, counting events, (B, minutes) - kills also with its filter: (B, "army"), (B, minutes, "army")
+    if (!m || m->kind != XM_REL || na < 1 || na > (!strcmp(rel, "kills") ? 3 : x_windowed(rel) ? 2 : 1)) return 0;
     int ok = 1;
     char who[24] = "me";
     void *pa = dot ? x_path(c, name, (int)(dot - name), &ok, who) : (x_players(c), c->pl);
@@ -2025,6 +2035,27 @@ static int x_method(struct xctx *c, const char *name, const struct xval *a, int 
         xnothing(v);
         return 1;
     }
-    x_relation(pa, pb, m, na > 1 ? xto_num(&a[1]) : 0, v);
+    int filter = 0, nw = na;   // kills: a last argument that is a text is the filter
+    if (na > 1 && !strcmp(rel, "kills") && a[na - 1].has_s && !a[na - 1].has_n) {
+        for (filter = 0; filter < 6 && strcmp(a[na - 1].s, k_kill_filter[filter]); filter++) {}
+        if (filter == 6) {
+            x_error("%s(...): no filter \"%.40s\" - all, army, airforce, marine, military or civilian", name, a[na - 1].s);
+            xnothing(v);
+            return 1;
+        }
+        nw--;
+    }
+    if (nw > 2) {   // (B, minutes, x): x must be the filter
+        x_error("%s(...): the last argument is the filter - all, army, airforce, marine, military or civilian", name);
+        xnothing(v);
+        return 1;
+    }
+    if (nw > 1 && a[1].has_s && !a[1].has_n) {   // razed(B, "army"): a filter only kills has
+        x_error("%s(...): \"%.40s\" - the minutes are a number%s", name, a[1].s, x_windowed(rel) && strcmp(rel, "kills") ?
+                " (only kills has a filter)" : "");
+        xnothing(v);
+        return 1;
+    }
+    x_relation(pa, pb, m, nw > 1 ? xto_num(&a[1]) : 0, filter, v);
     return 1;
 }

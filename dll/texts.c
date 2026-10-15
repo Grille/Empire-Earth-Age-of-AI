@@ -236,9 +236,9 @@ static void text_placeholders(FILE *f, const char *a, const char *b) {   // "; {
     char seen[400] = "";
     for (int t = 0; t < 2; t++)
         for (const char *s = t ? b : a; s && (s = strchr(s, '{')) != NULL; s++) {
-            const char *c = strchr(s, '}');
-            if (!c || c - s > 40) continue;
-            char ph[48];
+            const char *c = x_close(s);   // the matching brace: quotes and nested braces skipped
+            if (!c || c - s > 70) continue;
+            char ph[72];
             lstrcpynA(ph, s, (int)(c - s) + 2);
             if (!strstr(seen, ph) && strlen(seen) + strlen(ph) < sizeof seen - 2) { lstrcatA(seen, " "); lstrcatA(seen, ph); }
         }

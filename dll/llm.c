@@ -689,7 +689,7 @@ static void llm_system(struct sbuf *b, void *pl, int ai, int h, int tools) {
             none_recent &= !rm[c] && !rt[c];
         }
         if (any) {
-            tput(t, &o, sizeof t, "fighting", NULL);   // the counts: kills_soldiers, kills_citizens, razed
+            tput(t, &o, sizeof t, "fighting", NULL);   // the counts: kills (military, civilian), razed
             char nm[16];
             tnum(nm, KILLS_RECENT_MIN);
             tput(t, &o, sizeof t, all_recent ? "fighting_all_recent" : none_recent ? "fighting_none_recent" : "fighting_recent",
