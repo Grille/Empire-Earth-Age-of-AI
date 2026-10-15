@@ -6,9 +6,11 @@
 // defended main front". The game's own transport handling hardly works (one transport per AI, loading for 8+
 // minutes while its land subgroups wait elsewhere - docs/engine-notes.md). Here the mod does it itself:
 // - Plan (every 30 s while idle, while an attack is on - also with an enemy army at its door): a landing site -
-//   a land tile at the shore of the sea its dock lies on, next to the target's buildings it has seen (the most
-//   within 15 tiles), no known defence reaching it and no enemy soldier seen within 15 tiles; and 15+ soldiers in
-//   land attack subgroups at home.
+//   open land at the shore of the sea its dock lies on, on the continent of the target's buildings it has seen,
+//   the weakest defended (the user: "the AI will rarely find a fully undefended spot - it just has to choose the
+//   weakest one and bring an army that actually has a chance"), then the most buildings within 20 tiles; 15+
+//   soldiers in land attack subgroups at home, as strong as 1.4 times what holds the beach (ld_strength: groups,
+//   not units summed).
 // - Ships: its transports (the newest type of its epoch), up to landing_transports (3), the missing ones trained
 //   (priority orders); not there within 6 minutes: given up for 10 minutes.
 // - Board: whole land subgroups at home (their updates skipped while the landing leads them, as the transports'
@@ -26,6 +28,9 @@ static int g_landing = 0, g_land_ships = 3;   // aimod.ini [all] landing, landin
 static int g_land_knows = 0;   // test: landing_knows_map=1 - every building of the target counts, seen or not
 static int g_land_flag = 0;   // the unload goal's last argument: the AI's code passes 1, the player's command 0 (test: landing_flag)
 #define LD_PASS 64
+// a group's strength: sqrt(hit points x attack, each summed over the group) - N soldiers wear a tower down N times
+// faster than one, so a group's hit points x attack per unit summed (unit_power) rated a tower as 49 soldiers
+struct ld_def { float soldiers, towers, water, all; int n; };   // strengths: soldiers, defences reaching the beach, over the water, beach together
 static struct landing {
     int phase;                           // 0 idle, 1 ships, 2 board, 3 sail, 4 ashore
     uint8_t *target;
@@ -35,7 +40,8 @@ static struct landing {
     uint8_t *pass[LD_PASS]; int npass, launch_n;
     uint8_t *frozen[48]; int nfrozen;    // subgroups led by the landing
     uint8_t *obj; int ox, oy;
-    uint32_t since, last, next_try, reissue, trained_t;
+    uint32_t since, last, next_try, reissue, trained_t, boarded_t;
+    struct ld_def def;                   // the beach's defence when planned
     int all_ashore, tries_at[4];
     unsigned tries, landings, aborted, orders;
 } g_ld[16];
@@ -116,12 +122,55 @@ static void ld_unit(uint8_t *u, void *ctx) {
         s->war[s->nw++] = u;
 }
 
-// a landing site: shore of ocean `ocean`, next to the target's buildings, no known defence, no enemy soldier seen
+static float ld_strength(float hp, float att) { return sqrtf(hp * att); }
+static float ld_attack(uint8_t *u) { return FIELD(u, 0x3C, int) > 0 ? unit_power(u) / (float)FIELD(u, 0x3C, int) : 0.0f; }
+// what defends a beach (seen): soldiers within 15 tiles, defences reaching it, defences reaching the water in front
+// (they shoot at the transports)
+static void ld_defence(void *pl, int x, int y, int wx, int wy, struct ld_def *d) {
+    uint8_t *map = *(uint8_t **)G_MAP;
+    uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
+    float sh = 0, sa = 0, th = 0, ta = 0, wh = 0, wa = 0;
+    d->n = 0;
+    if (grid) {
+        int cs = FIELD(grid, 8, int), nx = FIELD(grid, 0x10, int), ny = FIELD(grid, 0x14, int), r = 27;
+        uint8_t *cells = FIELD(grid, 4, uint8_t *);
+        for (int gx = (x - r) / cs; cells && cs > 0 && gx <= (x + r) / cs; gx++)
+            for (int gy = (y - r) / cs; gy <= (y + r) / cs; gy++) {
+                if (gx < 0 || gy < 0 || gx >= nx || gy >= ny) continue;
+                uint8_t *cell = cells + (gx * ny + gy) * 16;
+                for (uint8_t **b = FIELD(cell, 4, uint8_t **); b && b < FIELD(cell, 8, uint8_t **); b++) {
+                    uint8_t *u = *b, *td = u ? FIELD(u, 0x2C, uint8_t *) : NULL;
+                    if (!td || FIELD(u, 0x3C, int) <= 0) continue;
+                    void *o = FIELD(u, 0x18, void *);
+                    if (!o || FIELD(o, PL_INDEX, int) <= 0 || !is_enemy(pl, o) || !seen_by(u, pl)) continue;
+                    int ux = FIELD(u, 0x1C, int), uy = FIELD(u, 0x20, int);
+                    float dx = (float)(ux - x), dy = (float)(uy - y), d2 = dx * dx + dy * dy, hp = (float)FIELD(u, 0x3C, int), range, att;
+                    if (is_soldier(td) || is_siege(FIELD(td, 0x4B8, int))) {
+                        if (d2 <= 225.0f) { sh += hp; sa += ld_attack(u); d->n++; }
+                    } else if (defence_stats(u, &range, &att)) {
+                        float rr = (range + 2.0f) * (range + 2.0f), wdx = (float)(ux - wx), wdy = (float)(uy - wy);
+                        if (d2 <= rr) { th += hp; ta += att; }
+                        if (wdx * wdx + wdy * wdy <= rr) { wh += hp; wa += att; }
+                    }
+                }
+            }
+    }
+    d->soldiers = ld_strength(sh, sa); d->towers = ld_strength(th, ta); d->water = ld_strength(wh, wa);
+    d->all = ld_strength(sh + th, sa + ta);
+}
+// the strength a landing needs against a beach: 1.4 times what holds it - the user: "it just has to choose the weakest
+// one and bring an army that actually has a chance". The defences over the water hit the transports, not the troops:
+// the warships take them on first
+static float ld_need(const struct ld_def *d) { return 1.4f * d->all; }
+
+// a landing site: open land at the shore of ocean `ocean` next to the target's buildings - the weakest defended
+// (rarely an undefended one), against the strength `power` the landing can bring
 static struct { unsigned tried, land, shore, sea, safe, quiet, oc[8], ocn[8]; } g_ld_stat[16];   // why no site (landing P)
-static int ld_site(void *pl, unsigned pi, struct ld_scan *s, unsigned ocean, int *sx, int *sy, int *swx, int *swy) {
+static int ld_site(void *pl, unsigned pi, struct ld_scan *s, unsigned ocean, float power, int *sx, int *sy, int *swx, int *swy, struct ld_def *bd) {
     memset(&g_ld_stat[pi], 0, sizeof g_ld_stat[pi]);
     float best = -1e9f;
     int bx = 0, by = 0, bwx = 0, bwy = 0, found = 0;
+    if (power < 1.0f) power = 1.0f;
     int step = s->nb > 60 ? s->nb / 60 : 1;
     for (int b = 0; b < s->nb; b += step) {
         unsigned bc = area_id(s->bx[b], s->by[b], 2);
@@ -142,20 +191,18 @@ static int ld_site(void *pl, unsigned pi, struct ld_scan *s, unsigned ocean, int
                 }
                 if (on != ocean) continue;
                 g_ld_stat[pi].sea++;
-                if (threat_at(pi, x, y) > 0) continue;
-                g_ld_stat[pi].safe++;
-                float ex, ey; int en;
-                as_enemy_power(pl, x, y, 15, &ex, &ey, &en, 0);
-                if (en > 2) continue;   // a few soldiers seen there: the landing deals with them
-                g_ld_stat[pi].quiet++;
+                struct ld_def d;
+                ld_defence(pl, x, y, wx, wy, &d);
+                g_ld_stat[pi].safe += d.towers <= 0;
+                g_ld_stat[pi].quiet += d.towers <= 0 && d.n <= 2;
                 int close = 0;
                 for (int k = 0; k < s->nb; k++) {
                     int ddx = s->bx[k] - x, ddy = s->by[k] - y;
                     close += ddx * ddx + ddy * ddy <= 400;
                 }
-                // towers covering the water in front: the transports must get through them - the fewer the better
-                float sc = (float)close - 2.0f * threat_at(pi, wx, wy);
-                if (close >= 1 && sc > best) { best = sc; bx = x; by = y; bwx = wx; bwy = wy; found = 1; }
+                // the weakest beach first, then the most buildings near it (up to 12)
+                float sc = (float)(close < 12 ? close : 12) - 20.0f * (ld_need(&d) + 0.5f * d.water) / power;
+                if (close >= 1 && sc > best) { best = sc; bx = x; by = y; bwx = wx; bwy = wy; *bd = d; found = 1; }
             }
     }
     if (!found) return 0;
@@ -184,7 +231,7 @@ static int ld_aboard(uint8_t *u) { return FIELD(u, 0x1C, int) < 0; }
 static int ld_alive(uint8_t *u) { return u && FIELD(u, 0x3C, int) > 0 && FIELD(u, 0x2C, uint8_t *); }
 
 // the nearest enemy defence or warship (seen) within r tiles - what shoots at the transports
-static uint8_t *ld_naval_target(void *pl, int x, int y, int r) {
+static uint8_t *ld_naval_target(void *pl, int x, int y, int r, int soldiers) {   // soldiers: enemy soldiers and siege as well
     uint8_t *map = *(uint8_t **)G_MAP;
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     if (!grid) return NULL;
@@ -202,7 +249,9 @@ static uint8_t *ld_naval_target(void *pl, int x, int y, int r) {
                 if (!o || FIELD(o, PL_INDEX, int) <= 0 || !is_enemy(pl, o) || !seen_by(u, pl)) continue;
                 float rr, a;
                 int t = FIELD(td, 0x4B8, int);
-                if (!defence_stats(u, &rr, &a) && !(FIELD(td, 0x4B4, int) == 4 && !is_transport(t) && !is_fishing_boat(t))) continue;
+                if (!defence_stats(u, &rr, &a) && !(FIELD(td, 0x4B4, int) == 4 && !is_transport(t) && !is_fishing_boat(t)) &&
+                    !(soldiers && (is_soldier(td) || is_siege(t))))
+                    continue;
                 float dx = (float)(FIELD(u, 0x1C, int) - x), dy = (float)(FIELD(u, 0x20, int) - y), d2 = dx * dx + dy * dy;
                 if (d2 <= (float)(r * r) && d2 < bd) { bd = d2; best = u; }
             }
@@ -212,15 +261,56 @@ static uint8_t *ld_naval_target(void *pl, int x, int y, int r) {
 // the warships along (from the sail on): they go ahead to the water in front of the site and take on the defences
 // and warships there - the towers shoot at them instead of the transports (the user: "a player would send a few
 // warships along to draw the towers' attention away from the transports") - then shell the shore
+// From the plan on: they shell the beach free (its defences, the warships off it, then the soldiers on it) while
+// the transports are built and boarded.
 static void ld_escorts(void *pl, struct landing *l) {
     for (int k = 0; k < l->nesc; k++) {
         uint8_t *u = l->esc[k], *g = FIELD(u, 0x1EC, uint8_t *);
         if (g && *(uintptr_t *)g == VT_GOAL_ATTACK && ld_alive(FIELD(g, 0x30, uint8_t *))) continue;
-        uint8_t *e = ld_naval_target(pl, FIELD(u, 0x1C, int), FIELD(u, 0x20, int), 12);
-        if (!e) e = ld_naval_target(pl, l->wx, l->wy, 12);
+        uint8_t *e = ld_naval_target(pl, FIELD(u, 0x1C, int), FIELD(u, 0x20, int), 12, 0);
+        if (!e) e = ld_naval_target(pl, l->wx, l->wy, 12, 0);
+        if (!e) e = ld_naval_target(pl, l->sx, l->sy, 12, 0);
+        if (!e) e = ld_naval_target(pl, l->sx, l->sy, 10, 1);
         if (e) l->orders += unit_goal(u, goal_attack(u, e), 0, 0x1F40);
         else if (!as_goal_near(u, (float)l->wx + 0.5f, (float)l->wy + 0.5f, 3.0f))
             l->orders += unit_goal(u, goal_move((float)l->wx + 0.5f, (float)l->wy + 0.5f), 0, 0x1F40);
+    }
+}
+
+// called off with soldiers aboard: each transport unloads on the land nearest to it (at home)
+static void ld_unload_home(struct landing *l) {
+    for (int k = 0; k < l->nships; k++) {
+        uint8_t *sh = l->ships[k];
+        int x0 = FIELD(sh, 0x1C, int), y0 = FIELD(sh, 0x20, int), ux = -1, uy = -1;
+        for (int d = 1; d <= 10 && ux < 0; d++)
+            for (int dx = -d; dx <= d && ux < 0; dx++)
+                for (int dy = -d; dy <= d && ux < 0; dy += (abs(dx) == d ? 1 : 2 * d))
+                    if (area_id(x0 + dx, y0 + dy, 2) && !area_id(x0 + dx, y0 + dy, 1) && ld_tile_free(x0 + dx, y0 + dy)) { ux = x0 + dx; uy = y0 + dy; }
+        if (ux < 0) continue;
+        void *g = ((void *(__cdecl *)(unsigned))0x00683718)(0x40);
+        if (g) g = ((void *(__thiscall *)(void *, void *, int, int, int))0x00615A1F)(g, sh, ux, uy, g_land_flag);
+        l->orders += unit_goal(sh, g, 0, 0x1F40);
+    }
+}
+
+// every subgroup holding a transport, warship or soldier of the landing is led by it - checked every tick: the game
+// moves units between subgroups, and a transport with soldiers aboard sailed off alone in its new subgroup
+static void ld_refreeze(struct landing *l, uint8_t *dq, unsigned first, unsigned cnt) {
+    for (unsigned k = 0; k < cnt && k < 64; k++) {
+        uint8_t *g = deque_at(dq, first + k);
+        for (uint8_t **sp = g ? FIELD(g, 8, uint8_t **) : NULL; sp && sp < FIELD(g, 0xC, uint8_t **); sp++) {
+            uint8_t *sg = *sp;
+            int mine = 0, have = 0;
+            for (int f = 0; f < l->nfrozen; f++) have |= l->frozen[f] == sg;
+            if (!sg || have || l->nfrozen >= 48) continue;
+            for (uint8_t **r = FIELD(sg, 0x54, uint8_t **); r && r < FIELD(sg, 0x58, uint8_t **) && !mine; r++) {
+                uint8_t *u = *r ? FIELD(*r, 0x44, uint8_t *) : NULL;
+                for (int j = 0; j < l->nships && !mine; j++) mine = u == l->ships[j];
+                for (int j = 0; j < l->nesc && !mine; j++) mine = u == l->esc[j];
+                for (int j = 0; j < l->npass && !mine; j++) mine = u == l->pass[j];
+            }
+            if (mine) l->frozen[l->nfrozen++] = sg;
+        }
     }
 }
 
@@ -274,16 +364,10 @@ static void landing_tick(void *pl, uint32_t now) {
         for (int d = 0; d < s.nd && !ocean; d++) ocean = ocean_near(s.dx[d], s.dy[d], 4, NULL, NULL);
         int sx, sy, swx, swy;
         if (!ocean) { ld_why(pi, now, "no sea at its docks"); return; }
-        if (!ld_site(pl, pi, &s, ocean, &sx, &sy, &swx, &swy)) {
-            static char why[96];
-            snprintf(why, sizeof why, "no landing site (its docks on sea %u, %u at a shore, %u at that sea, %u out of tower reach)",
-                     ocean, g_ld_stat[pi].shore, g_ld_stat[pi].sea, g_ld_stat[pi].safe);
-            ld_why(pi, now, why);
-            return;
-        }
         // soldiers at home in land subgroups (within 20 tiles of its buildings - the base point can lie far off the town)
         ld_home_scan(pl);
         int home = 0;
+        float ahp = 0, aatt = 0;
         for (unsigned k = 0; k < cnt && k < 64; k++) {
             uint8_t *g = deque_at(dq, first + k);
             for (uint8_t **sp = g ? FIELD(g, 8, uint8_t **) : NULL; sp && sp < FIELD(g, 0xC, uint8_t **); sp++) {
@@ -291,18 +375,40 @@ static void landing_tick(void *pl, uint32_t now) {
                 for (uint8_t **r = FIELD(*sp, 0x54, uint8_t **); r && r < FIELD(*sp, 0x58, uint8_t **); r++) {
                     uint8_t *u = *r ? FIELD(*r, 0x44, uint8_t *) : NULL;
                     if (!ld_alive(u) || !is_soldier(FIELD(u, 0x2C, uint8_t *))) continue;
-                    home += ld_at_home(FIELD(u, 0x1C, int), FIELD(u, 0x20, int));
+                    if (ld_at_home(FIELD(u, 0x1C, int), FIELD(u, 0x20, int))) { home++; ahp += (float)FIELD(u, 0x3C, int); aatt += ld_attack(u); }
                 }
             }
         }
         if (home < 15) { ld_why(pi, now, "fewer than 15 soldiers at home"); return; }
-        l->target = target; l->sx = sx; l->sy = sy; l->ocean = (int)ocean; l->wx = swx; l->wy = swy;
-        l->phase = 1; l->since = now; l->tries++; l->trained_t = 0;
-        if (g_log) fprintf(g_log, "# landing: P%u at %.1f min: plans a landing on P%d at %d,%d (sea %u), %d soldiers at home, %d transports\n",
-                           pi, now / 60000.0, FIELD(target, PL_INDEX, int), sx, sy, ocean, home, s.nt);
+        int cap = g_land_ships * 10;   // what the transports carry
+        if (home > cap) { ahp = ahp * (float)cap / (float)home; aatt = aatt * (float)cap / (float)home; }
+        float power = ld_strength(ahp, aatt);
+        struct ld_def d;
+        if (!ld_site(pl, pi, &s, ocean, power, &sx, &sy, &swx, &swy, &d)) {
+            static char why[96];
+            snprintf(why, sizeof why, "no landing site (its docks on sea %u, %u at a shore, %u at that sea)", ocean, g_ld_stat[pi].shore, g_ld_stat[pi].sea);
+            ld_why(pi, now, why);
+            return;
+        }
+        if (power < ld_need(&d)) {
+            static char why[160];
+            snprintf(why, sizeof why, "the weakest beach %d,%d needs %.0f, its army %.0f (soldiers there %.0f, defences %.0f, over the water %.0f)",
+                     sx, sy, ld_need(&d), power, d.soldiers, d.towers, d.water);
+            ld_why(pi, now, why);
+            return;
+        }
+        l->target = target; l->sx = sx; l->sy = sy; l->ocean = (int)ocean; l->wx = swx; l->wy = swy; l->def = d;
+        l->phase = 1; l->since = now; l->tries++; l->trained_t = 0; l->boarded_t = 0;
+        l->nesc = 0; l->nfrozen = 0;
+        if (g_log) fprintf(g_log, "# landing: P%u at %.1f min: plans a landing on P%d at %d,%d (sea %u), %d soldiers at home (strength %.0f), "
+                           "the beach needs %.0f (soldiers %.0f, defences %.0f, over the water %.0f), %d transports, %d warships\n",
+                           pi, now / 60000.0, FIELD(target, PL_INDEX, int), sx, sy, ocean, home, power, ld_need(&d), d.soldiers, d.towers,
+                           d.water, s.nt, s.nw);
         return;
     }
     if (!l->target || !is_enemy(pl, l->target)) { ld_release(pi, "no enemy any more", now); return; }
+    for (int k = 0; k < l->nesc; k++) if (!ld_alive(l->esc[k])) { l->esc[k--] = l->esc[--l->nesc]; }
+    if (l->phase >= 2) { ld_refreeze(l, dq, first, cnt); ld_escorts(pl, l); }
     if (l->phase == 1) {   // ships
         memset(&s, 0, sizeof s); s.pl = pl; s.target = l->target;
         grid_each(ld_unit, &s);
@@ -327,8 +433,11 @@ static void landing_tick(void *pl, uint32_t now) {
         }
         // the ships, their subgroups, the passengers' subgroups
         ld_home_scan(pl);
-        l->nships = 0; l->nfrozen = 0; l->npass = 0; l->nesc = 0;
+        l->nships = 0; l->nfrozen = 0; l->npass = 0;
         for (int k = 0; k < s.nt && l->nships < want; k++) l->ships[l->nships++] = s.tr[k];
+        // the warships go ahead from now on: they shell the beach while the troops board (the user: "bombing the landing
+        // area free with planes and warships first") - not before the transports are there: sent while those were
+        // being built, P3's warships waited off the beach and 3 of 4 were sunk, the transports never came
         for (int k = 0; k < s.nw && l->nesc < 4; k++) l->esc[l->nesc++] = s.war[k];
         for (unsigned k = 0; k < cnt && k < 64; k++) {
             uint8_t *g = deque_at(dq, first + k);
@@ -362,14 +471,36 @@ static void landing_tick(void *pl, uint32_t now) {
     // drop the dead
     for (int k = 0; k < l->nships; k++) if (!ld_alive(l->ships[k])) { l->ships[k--] = l->ships[--l->nships]; }
     for (int k = 0; k < l->npass; k++) if (!ld_alive(l->pass[k])) { l->pass[k--] = l->pass[--l->npass]; }
-    for (int k = 0; k < l->nesc; k++) if (!ld_alive(l->esc[k])) { l->esc[k--] = l->esc[--l->nesc]; }
-    if (l->phase >= 3) ld_escorts(pl, l);
     if (!l->nships && l->phase < 4) { l->aborted++; l->next_try = now + 600000; ld_release(pi, "transports lost", now); return; }
     if (l->phase == 2) {   // board
         int aboard = 0;
         for (int k = 0; k < l->npass; k++) aboard += ld_aboard(l->pass[k]);
         if (aboard == l->npass || now - l->since >= 180000) {
             if (aboard * 2 < l->npass || aboard < 6) { l->aborted++; l->next_try = now + 600000; ld_release(pi, "boarding failed", now); return; }
+            // the last word before the commit: the beach now (the warships have shelled it meanwhile) against what is
+            // aboard; too strong: the warships get up to 3 more minutes, then it is called off (unloaded at home).
+            // Strong enough: it sails at once - waiting at home for the warships to take on the defences cost P3 half
+            // of those aboard (unloaded again, 20 -> 11) and 2 warships did not bring down the tower in 4 minutes
+            if (!l->boarded_t) l->boarded_t = now;
+            struct ld_def d;
+            ld_defence(pl, l->sx, l->sy, l->wx, l->wy, &d);
+            float phh = 0, pa = 0;
+            for (int k = 0; k < l->npass; k++) if (ld_aboard(l->pass[k])) { phh += (float)FIELD(l->pass[k], 0x3C, int); pa += ld_attack(l->pass[k]); }
+            float pw = ld_strength(phh, pa);
+            int esc_busy = l->nesc && now - l->boarded_t < 180000;
+            if (pw < ld_need(&d) && !esc_busy) {
+                if (g_log) fprintf(g_log, "# landing: P%u at %.1f min: the beach needs %.0f (soldiers %.0f, defences %.0f, over the water %.0f), aboard %.0f\n",
+                                   pi, now / 60000.0, ld_need(&d), d.soldiers, d.towers, d.water, pw);
+                ld_unload_home(l);
+                l->aborted++; l->next_try = now + 600000; ld_release(pi, "too strong a beach - called off, unloaded at home", now);
+                return;
+            }
+            if (pw < ld_need(&d)) {
+                if (g_log && (now - l->boarded_t) % 30000 < 2000)
+                    fprintf(g_log, "# landing: P%u at %.1f min: waits for the warships (%d) - the beach needs %.0f (soldiers %.0f, defences %.0f, over the water %.0f), aboard %.0f\n",
+                            pi, now / 60000.0, l->nesc, ld_need(&d), d.soldiers, d.towers, d.water, pw);
+                return;
+            }
             // those left ashore go back to the game: subgroups without a passenger, ship or warship of the landing
             int n = 0;
             for (int k = 0; k < l->npass; k++) if (ld_aboard(l->pass[k])) l->pass[n++] = l->pass[k];
@@ -556,6 +687,20 @@ static void cmd_landing(char *out, const char *args) {
           g_ld_stat[p].tried, g_ld_stat[p].land, g_ld_stat[p].shore, g_ld_stat[p].sea, g_ld_stat[p].safe, g_ld_stat[p].quiet);
     for (int q = 0; q < 8 && g_ld_stat[p].oc[q]; q++) REPLY(" %u x%u", g_ld_stat[p].oc[q], g_ld_stat[p].ocn[q]);
     REPLY("\n");
+    if (l->phase) {
+        struct ld_def d;
+        ld_defence(g_players[p], l->sx, l->sy, l->wx, l->wy, &d);
+        REPLY("  the beach when planned: needs %.0f (soldiers %.0f, defences %.0f, over the water %.0f); now: needs %.0f (%.0f, %.0f, %.0f)\n",
+              ld_need(&l->def), l->def.soldiers, l->def.towers, l->def.water, ld_need(&d), d.soldiers, d.towers, d.water);
+    }
+    for (int k = 0; k < l->nesc; k++)
+        if (ld_alive(l->esc[k])) {
+            uint8_t *g = FIELD(l->esc[k], 0x1EC, uint8_t *), *t = g && *(uintptr_t *)g == VT_GOAL_ATTACK ? FIELD(g, 0x30, uint8_t *) : NULL;
+            REPLY("  warship type %d at %d,%d hp %d goal %s", FIELD(FIELD(l->esc[k], 0x2C, uint8_t *), 0x4B8, int), FIELD(l->esc[k], 0x1C, int),
+                  FIELD(l->esc[k], 0x20, int), FIELD(l->esc[k], 0x3C, int), rtti_name(g));
+            if (t) REPLY(" on type %d at %d,%d", FIELD(FIELD(t, 0x2C, uint8_t *), 0x4B8, int), FIELD(t, 0x1C, int), FIELD(t, 0x20, int));
+            REPLY("\n");
+        }
     if (l->obj && ld_alive(l->obj))
         REPLY("  objective type %d at %d,%d\n", FIELD(FIELD(l->obj, 0x2C, uint8_t *), 0x4B8, int), l->ox, l->oy);
     for (int k = 0; k < l->npass && k < 24; k++) {
