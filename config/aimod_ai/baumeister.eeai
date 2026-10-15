@@ -3,6 +3,8 @@ include = "_eeaimod_shared.eeai"
 [personality]
 name = "Master Builder Hedda"
 name:de = "Baumeisterin Hedda"
+civilization = "The Walled Cities"
+civilization:de = "Die Mauerstädte"
 color = ["orange", "grey"]
 aggression = 20
 loyalty = 70

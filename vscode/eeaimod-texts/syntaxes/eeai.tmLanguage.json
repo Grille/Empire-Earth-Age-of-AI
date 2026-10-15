@@ -49,7 +49,7 @@
           "include": "#comment"
         },
         {
-          "begin": "^\\s*((?:forgiveness|aggression|character|loyalty|caution|colour|color|farbe|pride|greed|name|talk)(?::[\\w-]+)?)\\s*(=)",
+          "begin": "^\\s*((?:civilization|forgiveness|aggression|character|loyalty|caution|colour|color|farbe|pride|greed|name|talk)(?::[\\w-]+)?)\\s*(=)",
           "beginCaptures": {
             "1": {
               "name": "support.type.property-name.eeaimod"
@@ -531,7 +531,7 @@
         },
         {
           "name": "variable.language.game-value.eeaimod",
-          "match": "\\b(?:me|them|enemy|lord)(?:\\.lord)*\\.\\b(?:civilization|forgiveness|population|aggression|buildings|soldiers|citizens|strength|centers|vassals|enemies|loyalty|caution|towers|allies|walls|epoch|color|alive|human|pride|greed|stone|stock|name|rank|talk|lord|food|wood|gold|iron)\\b(?![.\\w(])"
+          "match": "\\b(?:me|them|enemy|lord)(?:\\.lord)*\\.\\b(?:civilization_en|civilization|forgiveness|population|aggression|buildings|soldiers|citizens|strength|centers|vassals|enemies|loyalty|caution|towers|allies|walls|epoch|color|alive|human|pride|greed|stone|stock|name|rank|talk|lord|food|wood|gold|iron)\\b(?![.\\w(])"
         },
         {
           "name": "invalid.illegal.unknown-member.eeaimod",
@@ -671,7 +671,7 @@
         },
         {
           "name": "variable.language.game-value.eeaimod",
-          "match": "\\b(?:me|them|enemy|lord)(?:\\.lord)*\\.\\b(?:civilization|forgiveness|population|aggression|buildings|soldiers|citizens|strength|centers|vassals|enemies|loyalty|caution|towers|allies|walls|epoch|color|alive|human|pride|greed|stone|stock|name|rank|talk|lord|food|wood|gold|iron)\\b(?![.\\w(])"
+          "match": "\\b(?:me|them|enemy|lord)(?:\\.lord)*\\.\\b(?:civilization_en|civilization|forgiveness|population|aggression|buildings|soldiers|citizens|strength|centers|vassals|enemies|loyalty|caution|towers|allies|walls|epoch|color|alive|human|pride|greed|stone|stock|name|rank|talk|lord|food|wood|gold|iron)\\b(?![.\\w(])"
         },
         {
           "name": "invalid.illegal.unknown-member.eeaimod",

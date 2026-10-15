@@ -110,7 +110,7 @@ grammar = {
     'patterns': [
         {'include': '#comment'},
         key_line('include', 'keyword.control.import.eeaimod'),   # before the first section: include = "_shared.eeai"
-        section('personality', ['name', 'character', 'color', 'colour', 'farbe'] + traits, 'support.type.property-name.eeaimod'),
+        section('personality', ['name', 'civilization', 'character', 'color', 'colour', 'farbe'] + traits, 'support.type.property-name.eeaimod'),
         section('style', style_keys, 'support.type.property-name.eeaimod'),
         section('vars', None, 'entity.name.variable.eeaimod', functions=True),
         section('lines', situations, 'support.type.property-name.situation.eeaimod'),

@@ -3,6 +3,8 @@ include = "_eeaimod_shared.eeai"
 [personality]
 name = "Princess Livia"
 name:de = "Fürstin Livia"
+civilization = "The Silver Court"
+civilization:de = "Der Silberne Hof"
 color = ["magenta", "purple"]
 aggression = 60
 loyalty = 15

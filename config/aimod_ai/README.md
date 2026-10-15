@@ -21,12 +21,14 @@ the built-in text; delete either file to get every built-in text back.
 Copy `_persona.eeai` to a new name in this folder, for example `seefahrer.eeai`, and fill it in. Every AI of a game
 gets a personality at random, each one once before any repeats; on random maps its favoured colour comes first. To
 give a player a particular one, set `personality_P2=seefahrer` (the file name without `.eeai`) in aimod.ini.
-`ai_talk=0` in aimod.ini silences all lines, `ai_names=0` keeps the game's own player names.
+`ai_talk=0` in aimod.ini silences all lines, `ai_names=0` keeps the game's own player and civilization names.
 
 ```ini
 [personality]
 name = "Captain Ines"
 name:de = "Kapitänin Ines"
+civilization = "The Free Harbours"
+civilization:de = "Die Freien Häfen"
 color = ["lightblue", "cyan"]
 aggression = 40
 loyalty = 70
@@ -322,7 +324,8 @@ Shortcuts: my own `epoch`, traits, `allies` and `enemies` without `me.` (`aggres
 | `X.rank` | its place by strength among the players still in, 1 = the strongest |
 | `X.epoch` | its epoch: the name in a text, 1 (Prehistoric) .. 15 (Space) as a number - compare it with epoch.middle etc. |
 | `X.color` | its colour: the name in a text (in the game's language), 1 (blue) .. 17 as a number - compare it with color.red etc. |
-| `X.civilization` | its civilization's name, as the game shows it (Karthago in a German game) - nothing when none is chosen |
+| `X.civilization` | its civilization's name, as the game shows it (Karthago in a German game; an AI's personality may give it another: civilization=) - nothing when none is chosen |
+| `X.civilization_en` | its civilization in the game's database, in English in every language (Carthage) - for conditions: them.civilization_en == "Carthage" |
 | `X.alive` | 1 while it is still in the game |
 | `X.human` | 1 for the human player at this PC |
 | `X.vassals` | how many have capitulated to it |
@@ -444,6 +447,7 @@ value: `{epoch}` is always the speaker's epoch, wherever it stands.
 | Key | Value |
 |---|---|
 | `name`, `name:de`, ... | The player's name in the game (`name:de` in a German game) |
+| `civilization`, `civilization:de`, ... | The name of its civilization as the game shows it, instead of the one it plays (that one stays in `X.civilization_en`) |
 | `color` | Favoured colours on random maps, the first free one wins: `["blue", "cyan"]` - blue, red, yellow, magenta, orange, green, cyan, darkred, darkgrey, purple, grey, silver, lightyellow, lime, lightblue, pink (or the German names, or "0".."16") |
 | `aggression` | 0-100 (50 when left out): betrays, refuses peace |
 | `loyalty` | keeps its alliances; a vassal under 50 rebels against its lord once it has served 10 minutes and is clearly stronger than its lord's side (1 + (loyalty + 100 - pride) / 50 times: loyalty 35 and pride 80 2.1 times) - with or without the language model |

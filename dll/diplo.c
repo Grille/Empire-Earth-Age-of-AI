@@ -1774,7 +1774,8 @@ static const struct xmember k_xmembers[] = {
     { "rank", XM_PLAYER, "its place by strength among the players still in, 1 = the strongest" },
     { "epoch", XM_PLAYER, "its epoch: the name in a text, 1 (Prehistoric) .. 15 (Space) as a number - compare it with epoch.middle etc." },
     { "color", XM_PLAYER, "its colour: the name in a text (in the game's language), 1 (blue) .. 17 as a number - compare it with color.red etc." },
-    { "civilization", XM_PLAYER, "its civilization's name, as the game shows it (Karthago in a German game) - nothing when none is chosen" },
+    { "civilization", XM_PLAYER, "its civilization's name, as the game shows it (Karthago in a German game; an AI's personality may give it another: civilization=) - nothing when none is chosen" },
+    { "civilization_en", XM_PLAYER, "its civilization in the game's database, in English in every language (Carthage) - for conditions: them.civilization_en == \"Carthage\"" },
     { "alive", XM_PLAYER, "1 while it is still in the game" },
     { "human", XM_PLAYER, "1 for the human player at this PC" },
     { "vassals", XM_PLAYER, "how many have capitulated to it" },
@@ -1861,7 +1862,7 @@ static void x_member(void *px, const struct xmember *m, struct xval *v) {
     if (!strcmp(n, "name")) { xstr(v, player_name(px)); return; }
     if (!strcmp(n, "epoch")) { char ep[96]; epoch_text(px, ep, sizeof ep); xdual(v, current_epoch(px) + 1, ep); return; }
     if (!strcmp(n, "color")) { int c = player_color(px); if (c >= 0) xdual(v, c + 1, color_name(c)); return; }
-    if (!strcmp(n, "civilization")) { const char *s = player_civ(px); if (s) xstr(v, s); return; }
+    if (!strcmp(n, "civilization") || !strcmp(n, "civilization_en")) { const char *s = player_civ_of(px, n[12] == '_'); if (s) xstr(v, s); return; }
     if (!strcmp(n, "soldiers")) r = g_ws.soldiers[x];
     else if (!strcmp(n, "citizens")) r = g_ws.citizens[x];
     else if (!strcmp(n, "population")) r = g_ws.soldiers[x] + g_ws.citizens[x];

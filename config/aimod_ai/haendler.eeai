@@ -3,6 +3,8 @@ include = "_eeaimod_shared.eeai"
 [personality]
 name = "Merchant Benedict"
 name:de = "Kaufherr Benedikt"
+civilization = "The Merchant Republic"
+civilization:de = "Die Handelsrepublik"
 color = ["yellow", "lightyellow"]
 aggression = 25
 loyalty = 60

@@ -3,6 +3,8 @@ include = "_eeaimod_shared.eeai"
 [personality]
 name = "Sir Gunther"
 name:de = "Ritter Gunther"
+civilization = "The Sworn Order"
+civilization:de = "Der Schwurorden"
 color = ["lightblue", "blue"]
 aggression = 55
 loyalty = 95

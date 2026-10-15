@@ -63,7 +63,7 @@ static const struct { const char *key; int chance, cooldown; enum audience aud; 
 #define MAX_PERSONAS 32
 #define MAX_VARIANTS 12
 struct persona {
-    char file[40], name[48];
+    char file[40], name[48], civ[48];   // civ: civilization= - the civilization's name the game shows for it
     char character[300];   // character=: a few words about it for the language model (llm.c)
     int trait[T_N];
     int color[4], ncolor;   // favoured player colours, in order of preference
@@ -276,7 +276,7 @@ static void includes_load(const char *dir, const struct includes *inc, struct xv
 struct persona_read {
     struct persona *p;
     char *ll[L_N];   // [lines:<game language>]: over [lines] situation by situation
-    int lang_name;   // name:<game language> seen (wins over name=)
+    int lang_name, lang_civ;   // name:<game language>, civilization:<game language> seen (win over name=, civilization=)
     struct xvars vl;   // [vars:<game language>]: over [vars]
     struct includes inc;   // include = (before the first section)
 };
@@ -294,6 +294,15 @@ static void persona_key(void *arg, const char *sec, const char *key, struct tval
     if (!*sec) { tl_error(l, "a key before the first section (only include =)"); return; }
     if (!lstrcmpiA(sec, "personality")) {
         int name = !lstrcmpiA(key, "name"), lname = !_strnicmp(key, "name:", 5);
+        int civ = !lstrcmpiA(key, "civilization"), lciv = !_strnicmp(key, "civilization:", 13);
+        if (civ || lciv) {
+            if (v->kind != TV_STRING) { tl_error(l, "a string expected (\"...\")"); return; }
+            if (lciv ? lang_matches(key + 13) : !r->lang_civ) {
+                lstrcpynA(p->civ, v->text, sizeof p->civ);
+                r->lang_civ |= lciv;
+            }
+            return;
+        }
         if (name || lname || !lstrcmpiA(key, "character")) {
             if (v->kind != TV_STRING) { tl_error(l, "a string expected (\"...\")"); return; }
             if (!name && !lname) lstrcpynA(p->character, v->text, sizeof p->character);
@@ -479,6 +488,7 @@ static int persona_has(void *pl, enum line_kind k) {   // a line for it somewher
 // Personalities in use this game (each once before any repeats)
 static int g_persona_used[MAX_PERSONAS];
 static const char *player_name(void *pl);
+static const char *player_civ(void *pl);   // its civilization as the game shows it
 static int g_plan_persona[16], g_plan_color[16];   // by setup slot, planned at the game start (-1 none)
 static int g_color_human[17], g_ai_colors[16], g_ai_color_n, g_ai_color_k;   // for hook_player_color
 static int persona_forced(int player) {
@@ -589,6 +599,10 @@ static void persona_assign(void *pl) {
     struct persona *p = &g_personas[pick];
     if (g_ai_names && p->name[0])
         ((void *(__thiscall *)(void *, const char *))*(void **)0x00823224)((uint8_t *)pl + 0x24, p->name);
+    // its civilization's name as the game shows it: the UString at +0x488 (the text at +0x48C) - the database's own
+    // name at +0x7AC stays (X.civilization_en)
+    if (g_ai_names && p->civ[0] && player_civ(pl))
+        ((void *(__thiscall *)(void *, const char *))*(void **)0x00823224)((uint8_t *)pl + 0x488, p->civ);
     if (g_log) {
         fprintf(g_log, "# persona: P%u is %s (%s):", idx, p->file, p->name[0] ? p->name : "-");
         for (int t = 0; t < T_N; t++) fprintf(g_log, " %s %d", k_trait_keys[t], p->trait[t]);
@@ -616,12 +630,13 @@ static const char *player_name(void *pl) {
     const char *s = pl ? FIELD(pl, 0x28, const char *) : NULL;
     return s ? s : "?";
 }
-// the player's civilization as the game shows it, in its language (+0x48C: "Karthago"; +0x7B0 the database's name,
-// "Carthage") - NULL: none chosen
-static const char *player_civ(void *pl) {
-    const char *s = pl ? FIELD(pl, 0x48C, const char *) : NULL;
+// the player's civilization as the game shows it, in its language (+0x48C: "Karthago" - or a personality's
+// civilization=); en: the database's name (+0x7B0: "Carthage") - NULL: none chosen
+static const char *player_civ_of(void *pl, int en) {
+    const char *s = pl ? FIELD(pl, en ? 0x7B0 : 0x48C, const char *) : NULL;
     return s && !IsBadReadPtr(s, 1) && *s ? s : NULL;
 }
+static const char *player_civ(void *pl) { return player_civ_of(pl, 0); }
 // the player's colour: its index 0..16 in the colour table (+0x438 holds the table entry's rgb) - -1: another one
 static int player_color(void *pl) {
     const float *rgb = (const float *)((uint8_t *)pl + 0x438);

@@ -19,6 +19,9 @@ include = "_eeaimod_shared.eeai"
 ; the name in the game (the player name in the scores and the chat); name:de for a German game
 name = ""
 ;name:de = ""
+; its civilization's name as the game shows it, instead of the one it plays (empty: keep that); civilization:de
+;civilization = ""
+;civilization:de = ""
 ; favoured player colours on random maps, the first free one wins: blue, red, yellow, magenta, orange, green, cyan,
 ; darkred, darkgrey, purple, grey, silver, lightyellow, lime, lightblue, pink (or German names, or "0".."16")
 ;color = ["blue", "cyan"]
