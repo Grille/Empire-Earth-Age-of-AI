@@ -99,7 +99,7 @@ static const struct text_def k_tpl[] = {
     { "what_capitulation", "capitulation", NULL, NULL },
     { "what_peace", "peace offer", NULL, NULL },
     { "tool_accept_peace", "Accept the peace {them} offers you: you are allies from now on.", NULL, "tool descriptions (the tool names stay)" },
-    { "tool_offer_peace", "Offer {them} peace: they get 2 minutes to set their stance towards you to allied - only then are "
+    { "tool_offer_alliance_automated", "Offer {them} peace: they get 2 minutes to set their stance towards you to allied - only then are "
       "you allies.", NULL, NULL },
     { "tool_offer_alliance", "Offer {them} peace and an alliance: they decide in their answer.", NULL, NULL },
     { "tool_accept_alliance", "Accept the alliance {them} offers you: you are allies from now on.", NULL, NULL },

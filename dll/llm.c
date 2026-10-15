@@ -660,7 +660,7 @@ static void sb_tools(struct sbuf *b, int tools, int ai, int h) {
         if (k == 1) tribute_text(g_promise[h], what, sizeof what);
         tsub(d, sizeof d, tpl_text(k == 1 ? "tool_accept_capitulation" : k == 0 ? "tool_accept_alliance" :
                                    !stance_of(ph, ai) ? "tool_accept_peace" : g_players[h] ? "tool_offer_alliance" :
-                                   "tool_offer_peace"), pl, ph, "tribute", what, NULL);
+                                   "tool_offer_alliance_automated"), pl, ph, "tribute", what, NULL);
         sb_tool(b, "make_peace", d, "{\"type\":\"object\",\"properties\":{}}");
     }
     if (tools & TOOL_WAR) {

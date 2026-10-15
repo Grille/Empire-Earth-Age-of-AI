@@ -132,7 +132,7 @@ what_peace = "peace offer"
 ; in braces: {them}
 tool_accept_peace = "Accept the peace {them} offers you: you are allies from now on."
 ; in braces: {them}
-tool_offer_peace = "Offer {them} peace: they get 2 minutes to set their stance towards you to allied - only then are you allies."
+tool_offer_alliance_automated = "Offer {them} peace: they get 2 minutes to set their stance towards you to allied - only then are you allies."
 ; in braces: {them}
 tool_offer_alliance = "Offer {them} peace and an alliance: they decide in their answer."
 ; in braces: {them}
