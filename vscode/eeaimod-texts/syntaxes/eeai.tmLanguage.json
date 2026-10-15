@@ -474,12 +474,10 @@
           "include": "#group"
         },
         {
-          "name": "string.quoted.double.expression.eeaimod",
-          "match": "\"(?:[^\"\\\\]|\\\\.)*\""
+          "include": "#string"
         },
         {
-          "name": "string.quoted.single.expression.eeaimod",
-          "match": "'(?:[^'\\\\]|\\\\.)*'"
+          "include": "#string_single"
         },
         {
           "name": "support.constant.epoch.eeaimod",
@@ -510,7 +508,7 @@
           "match": "\\b(?:and|or|not)\\b"
         },
         {
-          "match": "(?:(\\b(?:me|them|enemy|lord)(?:\\.lord)*)(\\.))?(\\b(?:alliance_minutes|attack_minutes|war_minutes|betrayals|refusals|opinion|hostile|ignored|tribute|in_town|at_war|allied|kills|razed|near)\\b)(?=\\s*\\()",
+          "match": "(?:(\\b(?:me|them|enemy|lord)(?:\\.lord)*|\\b[A-Za-z_]\\w*)(\\.))?(\\b(?:alliance_minutes|attack_minutes|war_minutes|betrayals|refusals|opinion|hostile|ignored|tribute|in_town|at_war|allied|kills|razed|near)\\b)(?=\\s*\\()",
           "captures": {
             "1": {
               "name": "variable.language.game-value.eeaimod"
@@ -578,7 +576,7 @@
       "patterns": [
         {
           "name": "constant.character.escape.eeaimod",
-          "match": "\\\\[\"\\\\n]"
+          "match": "\\\\[\"'\\\\n]"
         },
         {
           "name": "invalid.illegal.unknown-escape.eeaimod",
@@ -608,12 +606,10 @@
           "include": "#placeholder"
         },
         {
-          "name": "string.quoted.double.expression.eeaimod",
-          "match": "\"(?:[^\"\\\\]|\\\\.)*\""
+          "include": "#string"
         },
         {
-          "name": "string.quoted.single.expression.eeaimod",
-          "match": "'(?:[^'\\\\]|\\\\.)*'"
+          "include": "#string_single"
         },
         {
           "name": "support.constant.epoch.eeaimod",
@@ -644,7 +640,7 @@
           "match": "\\b(?:and|or|not)\\b"
         },
         {
-          "match": "(?:(\\b(?:me|them|enemy|lord)(?:\\.lord)*)(\\.))?(\\b(?:alliance_minutes|attack_minutes|war_minutes|betrayals|refusals|opinion|hostile|ignored|tribute|in_town|at_war|allied|kills|razed|near)\\b)(?=\\s*\\()",
+          "match": "(?:(\\b(?:me|them|enemy|lord)(?:\\.lord)*|\\b[A-Za-z_]\\w*)(\\.))?(\\b(?:alliance_minutes|attack_minutes|war_minutes|betrayals|refusals|opinion|hostile|ignored|tribute|in_town|at_war|allied|kills|razed|near)\\b)(?=\\s*\\()",
           "captures": {
             "1": {
               "name": "variable.language.game-value.eeaimod"
@@ -692,6 +688,34 @@
         {
           "name": "variable.other.eeaimod",
           "match": "[A-Za-z_]\\w*(?:\\.[A-Za-z_]\\w*)*"
+        }
+      ]
+    },
+    "string_single": {
+      "begin": "'",
+      "beginCaptures": {
+        "0": {
+          "name": "punctuation.definition.string.begin.eeaimod"
+        }
+      },
+      "end": "'|$",
+      "endCaptures": {
+        "0": {
+          "name": "punctuation.definition.string.end.eeaimod"
+        }
+      },
+      "name": "string.quoted.single.eeaimod",
+      "patterns": [
+        {
+          "name": "constant.character.escape.eeaimod",
+          "match": "\\\\[\"'\\\\n]"
+        },
+        {
+          "name": "invalid.illegal.unknown-escape.eeaimod",
+          "match": "\\\\."
+        },
+        {
+          "include": "#placeholder"
         }
       ]
     },

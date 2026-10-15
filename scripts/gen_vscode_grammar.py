@@ -40,8 +40,8 @@ def words(ws):
 
 player = r'\b(?:me|them|enemy|lord)(?:\.lord)*'   # a player: them.lord.lord ...
 expression = [
-    {'name': 'string.quoted.double.expression.eeaimod', 'match': r'"(?:[^"\\]|\\.)*"'},
-    {'name': 'string.quoted.single.expression.eeaimod', 'match': r"'(?:[^'\\]|\\.)*'"},
+    {'include': '#string'},   # strings in an expression, also inside {...}: their own {placeholders} nest
+    {'include': '#string_single'},
     {'name': 'support.constant.epoch.eeaimod', 'match': r'\bepoch\.(?:' + '|'.join(epochs) + r')\b(?!\.)'},
     {'name': 'invalid.illegal.unknown-epoch.eeaimod', 'match': r'\bepoch\.[A-Za-z_][\w.]*'},
     {'name': 'support.constant.units.eeaimod', 'match': r'\bunits\.(?:' + '|'.join(units) + r')\b(?!\.)'},
@@ -49,7 +49,8 @@ expression = [
     {'name': 'support.function.eeaimod', 'match': words(funcs) + r'(?=\s*\()'},
     {'name': 'constant.language.boolean.eeaimod', 'match': r'\b(?:true|false)\b'},
     {'name': 'keyword.control.logical.eeaimod', 'match': r'\b(?:and|or|not)\b'},
-    {'match': r'(?:(' + player + r')(\.))?(' + words(relations) + r')(?=\s*\()',   # me.kills(them): the player, the relation
+    # me.kills(them): the player, the relation - also a function's parameter that is a player: by.kills(of)
+    {'match': r'(?:(' + player + r'|\b[A-Za-z_]\w*)(\.))?(' + words(relations) + r')(?=\s*\()',
      'captures': {'1': {'name': 'variable.language.game-value.eeaimod'}, '2': {'name': 'punctuation.accessor.eeaimod'},
                   '3': {'name': 'support.function.relation.eeaimod'}}},
     {'name': 'variable.language.game-value.eeaimod', 'match': player + r'\.' + words(member_names) + r'(?![.\w(])'},
@@ -124,7 +125,7 @@ grammar = {
             'endCaptures': {'0': {'name': 'punctuation.definition.string.end.eeaimod'}},
             'name': 'string.quoted.double.eeaimod',
             'patterns': [
-                {'name': 'constant.character.escape.eeaimod', 'match': r'\\["\\n]'},
+                {'name': 'constant.character.escape.eeaimod', 'match': r'''\\["'\\n]'''},   # as the files' reader: \" \' \\ \n
                 {'name': 'invalid.illegal.unknown-escape.eeaimod', 'match': r'\\.'},
                 {'include': '#placeholder'},
             ],
@@ -136,6 +137,18 @@ grammar = {
             'endCaptures': {'0': {'name': 'punctuation.definition.template-expression.end.eeaimod'}},
             'contentName': 'meta.embedded.expression.eeaimod',
             'patterns': [{'include': '#placeholder'}] + expression,
+        },
+        'string_single': {
+            'begin': "'",
+            'beginCaptures': {'0': {'name': 'punctuation.definition.string.begin.eeaimod'}},
+            'end': r"'|$",
+            'endCaptures': {'0': {'name': 'punctuation.definition.string.end.eeaimod'}},
+            'name': 'string.quoted.single.eeaimod',
+            'patterns': [
+                {'name': 'constant.character.escape.eeaimod', 'match': r'''\\["'\\n]'''},
+                {'name': 'invalid.illegal.unknown-escape.eeaimod', 'match': r'\\.'},
+                {'include': '#placeholder'},
+            ],
         },
         # [ "a", allied ? "b", ] and ( ... ) - over several lines
         'list': {
