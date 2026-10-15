@@ -27,8 +27,8 @@ give a player a particular one, set `personality_P2=seefahrer` (the file name wi
 [personality]
 name = "Captain Ines"
 name:de = "Kapitänin Ines"
-civilization = "The Free Harbours"
-civilization:de = "Die Freien Häfen"
+civilization = "Free Harbours"
+civilization:de = "Freie Häfen"
 color = ["lightblue", "cyan"]
 aggression = 40
 loyalty = 70

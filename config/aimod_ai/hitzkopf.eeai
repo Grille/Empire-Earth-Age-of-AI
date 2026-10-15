@@ -3,8 +3,8 @@ include = "_eeaimod_shared.eeai"
 [personality]
 name = "Chieftain Brann"
 name:de = "Häuptling Brann"
-civilization = "The Wild Clans"
-civilization:de = "Die wilden Stämme"
+civilization = "Wild Clans"
+civilization:de = "Wilde Stämme"
 color = ["green", "lime"]
 aggression = 90
 loyalty = 60

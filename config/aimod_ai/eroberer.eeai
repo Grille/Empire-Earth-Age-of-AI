@@ -3,8 +3,8 @@ include = "_eeaimod_shared.eeai"
 [personality]
 name = "Khan Temur"
 name:de = "Khan Temur"
-civilization = "The Golden Horde"
-civilization:de = "Die Goldene Horde"
+civilization = "Golden Horde"
+civilization:de = "Goldene Horde"
 color = ["darkred", "red"]
 aggression = 85
 loyalty = 35
