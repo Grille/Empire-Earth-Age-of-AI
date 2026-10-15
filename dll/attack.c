@@ -50,7 +50,7 @@ static int g_honest_vision = 0;
 static uint8_t g_vis_floor[16][16];               // [viewer][owner]: the least count among the owner's units (intel.c)
 static int intel_remembers(void *pl, uint8_t *u);   // intel.c: a building pl has seen
 static void intel_soldiers(void *pl, int x, int y, int r, float *hp, float *att, float *pw, int *n);   // intel.c
-static void intel_army(void *pl, float *hp, float *att, int *n);
+static void intel_army(void *pl, float *hp, float *att, float *pw, int *n);
 static uint32_t intel_looked_ago(void *pl, int x, int y);
 static int seen_by(uint8_t *u, void *pl) {
     uint8_t *v = FIELD(u, 0x14, uint8_t *);

@@ -196,7 +196,7 @@ static void ld_defence(void *pl, int x, int y, int wx, int wy, struct ld_def *d)
     d->assumed = 0;
     if (g_honest_vision && intel_looked_ago(pl, x, y) > 180000) {
         float ah = 0, aa = 0; int an = 0;
-        intel_army(pl, &ah, &aa, &an);
+        intel_army(pl, &ah, &aa, NULL, &an);
         sh += 0.25f * ah; sa += 0.25f * aa; d->assumed = 1;
     }
     d->soldiers = ld_strength(sh, sa); d->towers = ld_strength(th, ta); d->water = ld_strength(wh, wa);

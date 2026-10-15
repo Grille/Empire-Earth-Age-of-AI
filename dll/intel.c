@@ -75,10 +75,13 @@ static void intel_soldiers(void *pl, int x, int y, int r, float *hp, float *att,
     }
 }
 // the enemy army it knows of: soldiers seen within 10 minutes (seen now included), summed
-static void intel_army(void *pl, float *hp, float *att, int *n) {
+static void intel_army(void *pl, float *hp, float *att, float *pw, int *n) {
     struct intel *in = &g_intel[(unsigned)FIELD(pl, PL_INDEX, int) & 15];
     for (int k = 0; k < in->n; k++)
-        if (in->r[k].kind == 1 && in->now - in->r[k].t <= 600000) { *hp += (float)in->r[k].hp; *att += in->r[k].att; (*n)++; }
+        if (in->r[k].kind == 1 && in->now - in->r[k].t <= 600000) {
+            *hp += (float)in->r[k].hp; *att += in->r[k].att; (*n)++;
+            if (pw) *pw += (float)in->r[k].hp * in->r[k].att;
+        }
 }
 
 struct intel_scan {
@@ -236,7 +239,7 @@ static void cmd_intel(char *out, const char *args) {
             recent += in->now - in->looked[x][y] <= 180000;
         }
     float hp = 0, att = 0; int n = 0;
-    intel_army(g_players[p], &hp, &att, &n);
+    intel_army(g_players[p], &hp, &att, NULL, &n);
     REPLY("  cells looked at: %d ever, %d within 3 minutes (of %d); the army it knows of: %d soldiers, strength %.0f\n", cells, recent,
           INTEL_NC * INTEL_NC, n, sqrtf(hp * att));
 }

@@ -367,6 +367,12 @@ static void assault_tick(void *pl, uint32_t now) {
         // strong enough: 1.5 x what it has seen there - the army at the doorstep, or soldiers and defences at the objective
         if (doorstep) epow = hpow;
         else { float ex, ey; int en; epow = as_enemy_power(pl, a->ox, a->oy, 15, &ex, &ey, &en, 1); }
+        // honest_vision: an objective not looked at for 3 minutes - a quarter of the army it knows of may be there
+        if (!doorstep && g_honest_vision && intel_looked_ago(pl, a->ox, a->oy) > 180000) {
+            float h = 0, at = 0, pw = 0; int n2 = 0;
+            intel_army(pl, &h, &at, &pw, &n2);
+            epow += 0.25f * pw;
+        }
         int need = reserve * 4 / 5;
         if (need < 6) need = 6;
         int strong = wave_pow >= 1.5f * epow;
