@@ -37,7 +37,7 @@ static struct landing {
     uint8_t *target;
     int sx, sy, ocean, wx, wy;           // landing site, the sea, the water in front of it
     uint8_t *ships[4]; int nships;
-    uint8_t *esc[4]; int nesc;           // warships along
+    uint8_t *esc[12]; int nesc;          // warships (up to 4) and aircraft (up to 8) along
     uint8_t *pass[LD_PASS]; int npass, launch_n;
     uint8_t *frozen[48]; int nfrozen;    // subgroups led by the landing
     uint8_t *obj; int ox, oy;
@@ -89,6 +89,13 @@ static void __fastcall hook_asg_sea_update(uint8_t *sg, void *edx, int now) {
     if (landing_leads(sg)) return;
     ((void (__thiscall *)(void *, int))FN_ASG_SEA_UPDATE)(sg, now);
 }
+#define VT_ASG_AIR 0x00826610
+#define FN_ASG_AIR_UPDATE 0x00442DBA   // EECPASGAir slot 90: update(now)
+static void __fastcall hook_asg_air_update(uint8_t *sg, void *edx, int now) {
+    (void)edx;
+    if (landing_leads(sg)) return;
+    ((void (__thiscall *)(void *, int))FN_ASG_AIR_UPDATE)(sg, now);
+}
 #define VT_ASG_SEA_TRANSPORT 0x008270F8
 #define FN_ASG_SEA_TRANSPORT_UPDATE 0x0044FB92   // EECPASGSeaTransport slot 90: update(now)
 static void __fastcall hook_asg_sea_transport_update(uint8_t *sg, void *edx, int now) {
@@ -128,7 +135,7 @@ static unsigned ocean_near(int x, int y, int r, int *wx, int *wy) {   // an ocea
     return 0;
 }
 
-struct ld_scan { void *pl; uint8_t *target; int nb, bx[2000], by[2000]; int nd, dx[16], dy[16]; int nt; uint8_t *tr[32]; int nw; uint8_t *war[16]; };
+struct ld_scan { void *pl; uint8_t *target; int nb, bx[2000], by[2000]; int nd, dx[16], dy[16]; int nt; uint8_t *tr[32]; int nw; uint8_t *war[16]; int na; uint8_t *air[16]; };
 static int is_fishing_boat(int t) { return t == 108 || t == 109 || t == 211 || t == 332 || t == 365; }
 static void ld_unit(uint8_t *u, void *ctx) {
     struct ld_scan *s = ctx;
@@ -143,6 +150,8 @@ static void ld_unit(uint8_t *u, void *ctx) {
     } else if (o == s->pl && is_transport(t) && FIELD(u, 0x1C, int) >= 0 && s->nt < 32) s->tr[s->nt++] = u;
     else if (o == s->pl && fam == 4 && !is_transport(t) && !is_fishing_boat(t) && FIELD(td, 0x510, int) > 0 && s->nw < 16)
         s->war[s->nw++] = u;
+    else if (o == s->pl && (fam == 3 || fam == 7 || fam == 17) && FIELD(td, 0x510, int) > 0 && FIELD(u, 0x1C, int) >= 0 && !is_aa(u) && s->na < 16)
+        s->air[s->na++] = u;
 }
 
 static float ld_strength(float hp, float att) { return sqrtf(hp * att); }
@@ -298,13 +307,29 @@ static uint8_t *ld_naval_target(void *pl, int x, int y, int r, int soldiers) {  
 // warships along to draw the towers' attention away from the transports") - then shell the shore
 // From the plan on: they shell the beach free (its defences, the warships off it, then the soldiers on it) while
 // the transports are built and boarded.
+static int ld_is_air(uint8_t *u) {
+    int fam = FIELD(FIELD(u, 0x2C, uint8_t *), 0x4B4, int);
+    return fam == 3 || fam == 7 || fam == 17;
+}
 static void ld_escorts(void *pl, struct landing *l) {
     for (int k = 0; k < l->nesc; k++) {
         uint8_t *u = l->esc[k], *g = FIELD(u, 0x1EC, uint8_t *);
         if (g && *(uintptr_t *)g == VT_GOAL_ATTACK && ld_alive(FIELD(g, 0x30, uint8_t *))) continue;
-        uint8_t *e = ld_naval_target(pl, FIELD(u, 0x1C, int), FIELD(u, 0x20, int), 12, 0);
-        if (!e) e = ld_naval_target(pl, l->wx, l->wy, 12, 0);
+        if (ld_is_air(u)) {   // aircraft: the beach's defences, its soldiers, else over the beach
+            if (FIELD(u, 0x1C, int) < 0) continue;   // landed at its airport (refuelling)
+            uint8_t *e = ld_naval_target(pl, l->sx, l->sy, 12, 0);
+            if (!e) e = ld_naval_target(pl, l->wx, l->wy, 10, 0);
+            if (!e) e = ld_naval_target(pl, l->sx, l->sy, 12, 1);
+            if (e) l->orders += unit_goal(u, goal_attack(u, e), 0, 0x1F40);
+            else if (!g || !as_goal_near(u, (float)l->sx + 0.5f, (float)l->sy + 0.5f, 3.0f))
+                l->orders += unit_goal(u, goal_move((float)l->sx + 0.5f, (float)l->sy + 0.5f), 0, 0x1F40);
+            continue;
+        }
+        // the beach's defences and the warships off it first, then what shoots at it where it is (nearest to itself
+        // first: two warships shelled a tower 35 tiles from the beach for minutes), then the soldiers on the beach
+        uint8_t *e = ld_naval_target(pl, l->wx, l->wy, 12, 0);
         if (!e) e = ld_naval_target(pl, l->sx, l->sy, 12, 0);
+        if (!e) e = ld_naval_target(pl, FIELD(u, 0x1C, int), FIELD(u, 0x20, int), 8, 0);
         if (!e) e = ld_naval_target(pl, l->sx, l->sy, 10, 1);
         if (e) l->orders += unit_goal(u, goal_attack(u, e), 0, 0x1F40);
         else if (!as_goal_near(u, (float)l->wx + 0.5f, (float)l->wy + 0.5f, 3.0f))
@@ -524,6 +549,9 @@ static void landing_tick(void *pl, uint32_t now) {
         // area free with planes and warships first") - not before the transports are there: sent while those were
         // being built, P3's warships waited off the beach and 3 of 4 were sunk, the transports never came
         for (int k = 0; k < s.nw && l->nesc < 4; k++) l->esc[l->nesc++] = s.war[k];
+        // its aircraft too: they bomb the beach's defences and soldiers, else fly over it - a look at the beach
+        // (honest_vision) before the transports commit
+        for (int k = 0; k < s.na && l->nesc < 12; k++) l->esc[l->nesc++] = s.air[k];
         for (unsigned k = 0; k < cnt && k < 64; k++) {
             uint8_t *g = deque_at(dq, first + k);
             for (uint8_t **sp = g ? FIELD(g, 8, uint8_t **) : NULL; sp && sp < FIELD(g, 0xC, uint8_t **); sp++) {
@@ -569,7 +597,7 @@ static void landing_tick(void *pl, uint32_t now) {
             if (!found) l->gathered = 1;   // none: board where they are
             else if (g_log) fprintf(g_log, "# landing: P%u at %.1f min: they meet at %d,%d (passengers around %d,%d)\n", pi, now / 60000.0, l->ex, l->ey, x0, y0);
         }
-        if (g_log) fprintf(g_log, "# landing: P%u at %.1f min: boarding %d soldiers on %d transports, %d warships along\n", pi, now / 60000.0, l->npass, l->nships, l->nesc);
+        if (g_log) fprintf(g_log, "# landing: P%u at %.1f min: boarding %d soldiers on %d transports, %d warships and aircraft along\n", pi, now / 60000.0, l->npass, l->nships, l->nesc);
     }
     // drop the dead
     for (int k = 0; k < l->nships; k++) if (!ld_alive(l->ships[k])) { l->ships[k--] = l->ships[--l->nships]; }
@@ -861,7 +889,7 @@ static void cmd_landing(char *out, const char *args) {
     for (int k = 0; k < l->nesc; k++)
         if (ld_alive(l->esc[k])) {
             uint8_t *g = FIELD(l->esc[k], 0x1EC, uint8_t *), *t = g && *(uintptr_t *)g == VT_GOAL_ATTACK ? FIELD(g, 0x30, uint8_t *) : NULL;
-            REPLY("  warship type %d at %d,%d hp %d goal %s", FIELD(FIELD(l->esc[k], 0x2C, uint8_t *), 0x4B8, int), FIELD(l->esc[k], 0x1C, int),
+            REPLY("  %s type %d at %d,%d hp %d goal %s", ld_is_air(l->esc[k]) ? "aircraft" : "warship", FIELD(FIELD(l->esc[k], 0x2C, uint8_t *), 0x4B8, int), FIELD(l->esc[k], 0x1C, int),
                   FIELD(l->esc[k], 0x20, int), FIELD(l->esc[k], 0x3C, int), rtti_name(g));
             if (t) REPLY(" on type %d at %d,%d", FIELD(FIELD(t, 0x2C, uint8_t *), 0x4B8, int), FIELD(t, 0x1C, int), FIELD(t, 0x20, int));
             REPLY("\n");
@@ -926,6 +954,7 @@ static void landing_install(const char *aimod_ini, const char *autotest_ini) {
     if (g_landing)
         for (size_t k = 0; k < sizeof k_unload_sites / sizeof *k_unload_sites; k++) patch_call(k_unload_sites[k], 0x00615A1F, (void *)hook_unload_ctor);
     int h = patch_vtable(VT_ASG_SEA_TRANSPORT, 90, FN_ASG_SEA_TRANSPORT_UPDATE, hook_asg_sea_transport_update) &
-            patch_vtable(VT_ASG_SEA, 90, FN_ASG_SEA_UPDATE, hook_asg_sea_update);
+            patch_vtable(VT_ASG_SEA, 90, FN_ASG_SEA_UPDATE, hook_asg_sea_update) &
+            patch_vtable(VT_ASG_AIR, 90, FN_ASG_AIR_UPDATE, hook_asg_air_update);
     if (g_log) fprintf(g_log, "# landing: %s, %d transports (transport subgroup hook %s)\n", g_landing ? "on" : "off", g_land_ships, h ? "ok" : "FAILED");
 }
