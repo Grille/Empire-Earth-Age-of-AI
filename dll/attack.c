@@ -706,6 +706,7 @@ static void *goal_move(float x, float y);
 static int unit_goal(uint8_t *u, void *goal, int append, int prio);
 static int muster_rally(unsigned idx, float *x, float *y);   // defence.c: the rally point while the base is overrun
 static struct { unsigned sent; } g_cit_stats[16];
+static unsigned g_repair_refused[16];   // repair orders refused at buildings under attack (hook_repair_goal)
 // STRAY CITIZENS: an attack that ends hands its units back to the resource manager's list 0 (not assigned) with the
 // attack's last order still on them - march to the target's Town Center. The assignment only gives work to idle
 // citizens, so they marched on and died there: all 34 of Hedda's, first into the player's town, then into Livia's
@@ -789,13 +790,32 @@ static void citizens_safety(uint8_t *rm) {   // before the citizen assignment
                                 "attack's leftover order) sent home\n", idx, now / 60000.0, stray);
     if (fled && g_log) fprintf(g_log, "# citizens: P%u at %.1f min: %d fled (base overrun): %d to the rally point, %d aside "
                                "(enemies on the way)\n", idx, now / 60000.0, fled, fled - aside, aside);
-    if (g_log && (sent || now / 300000 != logged[idx] / 300000) && (g_cit_stats[idx].sent || g_site_refused[idx])) {
+    if (g_log && (sent || now / 300000 != logged[idx] / 300000) && (g_cit_stats[idx].sent || g_site_refused[idx] || g_repair_refused[idx])) {
         logged[idx] = now;
         char ks[64] = "";
         for (int j = 0; j < 4 && kinds[j][1]; j++) { size_t l = strlen(ks); snprintf(ks + l, sizeof ks - l, " %dx%d", kinds[j][0], kinds[j][1]); }
-        fprintf(g_log, "# citizens: P%u at %.1f min: %d sent back from sites near enemy towers or raiders (site type x count:%s; %u in all, %u dangerous sites refused)\n",
-                idx, now / 60000.0, sent, ks, g_cit_stats[idx].sent, g_site_refused[idx]);
+        fprintf(g_log, "# citizens: P%u at %.1f min: %d sent back from sites near enemy towers or raiders (site type x count:%s; %u in all, %u dangerous sites refused, %u repairs refused)\n",
+                idx, now / 60000.0, sent, ks, g_cit_stats[idx].sent, g_site_refused[idx], g_repair_refused[idx]);
     }
+}
+
+// REPAIRS UNDER ATTACK: the computer player's repair round (0x46D77D, every 31 s) sends a citizen to each damaged
+// building - also to the wall or dock a player's army is hitting that moment: one citizen every 31 s walked into the
+// army (P3: 17 in 15 minutes, sent back by citizens_safety only once it was on its way). Its order (EEUGBuildRepair,
+// 0x60BAD0) is refused at the handing-over (0x5F05BD at 0x46DA88) while enemy soldiers stand within 8 tiles of the
+// building (as citizens_safety): the goal deleted (its vf0, which lets go of the building), the citizen keeps its work.
+#define CALL_REPAIR_GOAL 0x0046DA88
+#define VT_GOAL_BUILD    0x008319F0
+static void __fastcall hook_repair_goal(uint8_t *u, void *edx, uint8_t *goal, int append, int prio) {
+    (void)edx;
+    void *pl = u ? FIELD(u, 0x18, void *) : NULL;
+    uint8_t *b = goal && *(uintptr_t *)goal == VT_GOAL_BUILD ? FIELD(goal, 0x3C, uint8_t *) : NULL;
+    if (g_avoid_citizens && pl && b && raiders_near(pl, FIELD(b, 0x1C, int), FIELD(b, 0x20, int), 8)) {
+        g_repair_refused[(unsigned)FIELD(pl, PL_INDEX, int) & 15]++;
+        ((void (__thiscall *)(void *, int))(*(void ***)goal)[0])(goal, 1);
+        return;
+    }
+    ((void (__thiscall *)(void *, void *, char, int))0x005F05BD)(u, goal, (char)append, prio);
 }
 
 // Known defences covering tile (x, y) by their real range (+1), not counting the one at (ex, ey).
@@ -1073,6 +1093,8 @@ static void attack_install(const char *aimod_ini, const char *autotest_ini) {
     if (g_log) fprintf(g_log, "# engine guard: attack subgroup members %s\n", stat_guard ? "ok" : "FAILED");
     g_avoid_towers = cfg_int(aimod_ini, autotest_ini, 1, "avoid_towers", 1);
     g_avoid_citizens = cfg_int(aimod_ini, autotest_ini, 1, "avoid_towers_citizens", 1);
+    BOOL repair = patch_call(CALL_REPAIR_GOAL, 0x005F05BD, hook_repair_goal);
+    if (g_log) fprintf(g_log, "# repairs under attack: refused (hook %s)\n", repair ? "ok" : "FAILED");
     g_avoid_weight = cfg_int(aimod_ini, autotest_ini, 1, "avoid_towers_weight", 2000);
     g_avoid_margin = cfg_int(aimod_ini, autotest_ini, 1, "avoid_towers_margin", 6);
     g_weak_spots = cfg_int(aimod_ini, autotest_ini, 1, "attack_weak_spots", 1);

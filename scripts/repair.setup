@@ -1,0 +1,18 @@
+# repairs under attack (attack.c hook_repair_goal): P2's Town Center (Continental 101, 74,52) damaged with 3 of P1's
+# soldiers beside it - no repairer while they stand there (log: repairs refused), repaired once they are gone
+@0.05 diplo 1 2 1
+@1 hurt 2 34 74 52 3 1200
+@1 spawn 1 190 68 52 3
+@1.5 objs 2 34
+@1.5 objs 1 190
+@2 objs 2 34
+@2.4 objs 2 34
+@2.5 hurt 1 190 72 52 12 5000
+@2.6 objs 1 190
+@3 objs 2 34
+@3.5 objs 2 34
+@4 objs 2 34
+@3.2 uinfo 74 52 6
+@3.2 units 2
+@3.8 uinfo 74 52 6
+@5 objs 2 34
