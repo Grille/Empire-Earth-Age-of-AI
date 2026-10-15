@@ -1532,6 +1532,11 @@ static void cmd_spawn(char *out, const char *args) {
     }
     void *srv = *(void **)G_SERVER_OBJ;
     if (!((void **)G_TYPES)[type] || !srv) { REPLY("error: no type %d or no game\n", type); return; }
+    {   // off the map the game crashes (150,140 on a 128-tile map)
+        uint8_t *map = *(uint8_t **)G_MAP, *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
+        int w = grid ? FIELD(grid, 8, int) * FIELD(grid, 0x10, int) : 0, h = grid ? FIELD(grid, 8, int) * FIELD(grid, 0x14, int) : 0;
+        if (x < 1 || y < 1 || x >= w - 2 || y >= h - 2) { REPLY("error: %d,%d is off the map (%d x %d)\n", x, y, w, h); return; }
+    }
     int side = 1;
     while (side * side < n) side++;
     for (int i = 0; i < n; i++) {

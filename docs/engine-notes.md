@@ -289,6 +289,12 @@ Guard towers 47, 461..466; AA 145/147; town center 35; house 37; citizen 32.
 - **Continents:** EEAIContinentManager, a global object at 0x917BC8. 0x425F16 thiscall(mgr, int pt[2]) -> the
   area at a tile (vtable 0x825FB8); 0x425F9F thiscall(mgr, int pt[2], kind) -> its +0x84 (kind 1: ocean id) or +0x86
   (kind 2: land continent id), 16 bits. Some areas have neither (the player's camp on the reference save).
+- **Visibility:** unit +0x14 -> +0xC: uint16 per vision slot (player +0x45C, = the player index), low byte = how many
+  of that player's (and allies' - shared vision) units see it now (0x404A8A; +0x465 explore all). Reference save: every
+  unit of the human player P1 carries 1 in the AIs' slots (and its own) everywhere and always - a lone rifleman spawned
+  at the map edge, 17 tiles from any unit, stayed at 1 for 3 minutes; AI units seeing it add to that (1 -> 4 as they
+  came). An AI unit in the same spot: 0 in P1's slot. So the AIs see all of P1's units; seen_by (low byte != 0) is
+  always true for them. Lone units count themselves twice (2 in their own slot).
 - **Transports:** load: `new(0x68)`, 0x61487F thiscall(goal, transport, std::vector<EEUnit*> *passengers (MSVC6:
   alloc, first, last, end - sorted in place), 1) = EEUGLoadTransport (vtable 0x831DC0) for the transport; each
   passenger gets the goal's vf4 product (the AI: 0x44AF68). Unload: `new(0x40)`, 0x615A1F thiscall(goal, transport,
