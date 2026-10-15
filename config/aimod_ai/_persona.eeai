@@ -3,7 +3,7 @@
 ; may get it (picked at random, a matching colour first).
 ;
 ; Each situation below gets a line: a string, or a list of them (one at random), with conditions if you like:
-;   greeting = [allied ? "Welcome back, {name}.", opinion < -50 ? ["Go away.", "You again?"]] ?? "Greetings, {name}."
+;   greeting = [allied ? "Welcome back, {them}.", opinion < -50 ? ["Go away.", "You again?"]] ?? "Greetings, {them}."
 ; A situation without a line stays silent - unless it must be said (war, peace, offers, capitulation, victory): then
 ; a more general situation speaks (noted below) or computer.eeai. [lines:de] (or :fr ...) replaces [lines] in a game
 ; of that language, situation by situation.
@@ -64,27 +64,27 @@ character = ""
 ; [] or a list with nothing left: no line (a more general situation or computer.eeai speaks, or nobody)
 ; the game begins - a first word to everyone - heard by everyone (60% of the time at talk=50)
 greeting = []
-; {name} has just declared war on you - heard by {name} only (at most every 20 s)
+; {them} has just declared war on you - heard by {them} only (at most every 20 s)
 war_declared = []
-; {name}, your ally until now, has betrayed you and declared war - heard by {name} only (at most every 20 s, without a line: war_declared)
+; {them}, your ally until now, has betrayed you and declared war - heard by {them} only (at most every 20 s, without a line: war_declared)
 betrayed = []
-; you accept {name}'s offer of peace (you are allied now) - heard by {name} only
+; you accept {them}'s offer of peace (you are allied now) - heard by {them} only
 peace_accept = []
-; you refuse {name}'s offer of peace - heard by {name} only (at most every 60 s)
+; you refuse {them}'s offer of peace - heard by {them} only (at most every 60 s)
 peace_refuse = []
-; you offer {name} an alliance against {enemy}, your common enemy - heard by {name} only
+; you offer {them} an alliance against {enemy}, your common enemy - heard by {them} only
 alliance_offer = []
-; {name} has accepted your alliance offer - heard by {name} only
+; {them} has accepted your alliance offer - heard by {them} only
 offer_accepted = []
-; your alliance offer to {name} has expired unanswered - heard by {name} only
+; your alliance offer to {them} has expired unanswered - heard by {them} only
 offer_withdrawn = []
-; you betray {name}, your ally, and declare war on them - heard by {name} only
+; you betray {them}, your ally, and declare war on them - heard by {them} only
 betray = []
-; {name} sent you a generous tribute - heard by {name} only (at most every 20 s)
+; {them} sent you a generous tribute - heard by {them} only (at most every 20 s)
 tribute_thanks = []
-; {name} sent you a tribute - a small one - heard by {name} only (at most every 60 s)
+; {them} sent you a tribute - a small one - heard by {them} only (at most every 60 s)
 tribute_small = []
-; your army sets out to attack {name} - heard by its allies (40% of the time at talk=50, at most every 300 s)
+; your army sets out to attack {them} - heard by its allies (40% of the time at talk=50, at most every 300 s)
 attack = []
 ; your town is under attack - heard by its allies (60% of the time at talk=50, at most every 240 s)
 under_attack = []
@@ -94,15 +94,15 @@ building_lost = []
 epoch_up = []
 ; an enemy is a whole age ahead of you - heard by its allies (40% of the time at talk=50, at most every 600 s)
 enemy_ahead = []
-; you are winning against {name} - heard by {name} only (40% of the time at talk=50, at most every 600 s)
+; you are winning against {them} - heard by {them} only (40% of the time at talk=50, at most every 600 s)
 winning = []
 ; you are losing the war - heard by its allies (50% of the time at talk=50, at most every 600 s)
 losing = []
 ; you are close to defeat - heard by its allies
 desperate = []
-; {name} has been defeated - heard by everyone (80% of the time at talk=50, at most every 30 s)
+; {them} has been defeated - heard by everyone (80% of the time at talk=50, at most every 30 s)
 enemy_defeated = []
-; your ally {name} has been defeated - heard by its allies (80% of the time at talk=50, at most every 30 s)
+; your ally {them} has been defeated - heard by its allies (80% of the time at talk=50, at most every 30 s)
 ally_defeated = []
 ; you have been defeated - heard by everyone
 defeated = []
@@ -122,25 +122,25 @@ help_naval = []
 help_none = []
 ; you give up the game - heard by everyone (without a line: defeated)
 surrender = []
-; you capitulate: {name} is beating you, and you offer to PAY them a tribute ({tribute}) for peace - you give, they receive - heard by {name} only
+; you capitulate: {them} is beating you, and you offer to PAY them a tribute ({tribute}) for peace - you give, they receive - heard by {them} only
 capitulate = []
-; {name} accepted your capitulation: you PAY them the tribute ({tribute}) and serve them from now on - heard by {name} only
+; {them} accepted your capitulation: you PAY them the tribute ({tribute}) and serve them from now on - heard by {them} only
 capitulate_accepted = []
-; {name} did not accept your capitulation: the war goes on - heard by {name} only
+; {them} did not accept your capitulation: the war goes on - heard by {them} only
 capitulate_refused = []
-; your army is about to attack {name} - heard by {name} only (60% of the time at talk=50, at most every 300 s)
+; your army is about to attack {them} - heard by {them} only (60% of the time at talk=50, at most every 300 s)
 attack_threat = []
-; every other player has submitted to {name}, your lord - heard by {name} only
+; every other player has submitted to {them}, your lord - heard by {them} only
 all_submitted = []
-; {name} has won the game - heard by everyone
+; {them} has won the game - heard by everyone
 other_victory = []
-; you refuse {name}'s peace offer because {enemy} in their alliance cannot be at peace with your side - heard by {name} only (at most every 60 s, without a line: peace_refuse)
+; you refuse {them}'s peace offer because {enemy} in their alliance cannot be at peace with your side - heard by {them} only (at most every 60 s, without a line: peace_refuse)
 block_refuse = []
-; you refuse {name}'s peace offer because your own ally {enemy} won't make peace with them - heard by {name} only (at most every 60 s, without a line: block_refuse)
+; you refuse {them}'s peace offer because your own ally {enemy} won't make peace with them - heard by {them} only (at most every 60 s, without a line: block_refuse)
 block_refuse_own = []
-; your lord {name} forces you to make peace with {enemy}, whom you hate - heard by {name} only (at most every 60 s)
+; your lord {them} forces you to make peace with {enemy}, whom you hate - heard by {them} only (at most every 60 s)
 vassal_grumble = []
-; {name} offers you peace, but you are the vassal of {enemy} and have no diplomacy of your own - they must talk to {enemy} - heard by {name} only (at most every 60 s, without a line: peace_refuse)
+; {them} offers you peace, but you are the vassal of {enemy} and have no diplomacy of your own - they must talk to {enemy} - heard by {them} only (at most every 60 s, without a line: peace_refuse)
 ask_lord = []
 
 ; the same keys in German (or [lines:fr] ...): only those that should differ from [lines]

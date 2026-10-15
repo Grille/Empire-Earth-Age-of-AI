@@ -39,131 +39,131 @@ their_dead = me.kills(them) > many_dead
 [lines]
 greeting = [
     players > 5 and chance(50%) ? "So many tents on my steppe. There will be fewer soon.",
-    allied and chance(50%) ? "We ride on the same side, {name}. Try to keep up.",
+    allied and chance(50%) ? "We ride on the same side, {them}. Try to keep up.",
 ] ?? [
     "The steppe is wide, but not wide enough for all of us.",
     "I am Temur. Remember the name - you will hear it often.",
     "My riders are hungry. Who feeds them first?",
 ]
 war_declared = [
-    weakling and chance(60%) ? "You, {name}? With that handful of men? I will enjoy this.",
-    worthy and chance(60%) ? "Finally a foe worth the ride, {name}. Come, then!",
+    weakling and chance(60%) ? "You, {them}? With that handful of men? I will enjoy this.",
+    worthy and chance(60%) ? "Finally a foe worth the ride, {them}. Come, then!",
     them.tribute(me, 20) > 0 ? [
-        "First you pay me, now you fight me, {name}? Make up your mind.",
-        "You sent me {them.tribute(me, 20)} in tribute, {name}, and now you send soldiers. The tribute was better.",
+        "First you pay me, now you fight me, {them}? Make up your mind.",
+        "You sent me {them.tribute(me, 20)} in tribute, {them}, and now you send soldiers. The tribute was better.",
     ],
 ] ?? [
-    "You dare, {name}? Then learn what war means.",
-    "At last, {name}. I was afraid you would never dare.",
-    "War? With ME? You chose your enemies poorly, {name}.",
+    "You dare, {them}? Then learn what war means.",
+    "At last, {them}. I was afraid you would never dare.",
+    "War? With ME? You chose your enemies poorly, {them}.",
 ]
 ; their betrayal is counted already: betrayals(me) > 1 is the second time
 betrayed = me.betrayals(them) > 0 ? [
-    "I broke faith with you once, {name}. Now we are even - and even bores me.",
-    "You learned from the Khan, {name}. A good pupil - but the teacher still rides faster.",
+    "I broke faith with you once, {them}. Now we are even - and even bores me.",
+    "You learned from the Khan, {them}. A good pupil - but the teacher still rides faster.",
 ] : them.betrayals(me) > 1 ? [
-    "Twice, {name}? A dog that bites twice is not forgiven. It is put down.",
-    "Once was a mistake, {name}. Twice is your nature. There will be no third time.",
+    "Twice, {them}? A dog that bites twice is not forgiven. It is put down.",
+    "Once was a mistake, {them}. Twice is your nature. There will be no third time.",
 ] : [
-    "A traitor, {name}. For traitors there is only one punishment.",
-    "I turned my back on you, {name}. That was MY mistake. The next one is yours.",
+    "A traitor, {them}. For traitors there is only one punishment.",
+    "I turned my back on you, {them}. That was MY mistake. The next one is yours.",
 ]
 peace_accept = [
-    me.kills(them, this_war) > many_dead and me.kills(them, this_war) > them.kills(me, this_war) * 2 and chance(60%) ? "You have bled enough, {name}. The Khan is merciful - today.",
-    them.kills(me, this_war) > many_dead and them.kills(me, this_war) > me.kills(them, this_war) and chance(60%) ? "You fight like a steppe wolf, {name}. Peace - between wolves.",
+    me.kills(them, this_war) > many_dead and me.kills(them, this_war) > them.kills(me, this_war) * 2 and chance(60%) ? "You have bled enough, {them}. The Khan is merciful - today.",
+    them.kills(me, this_war) > many_dead and them.kills(me, this_war) > me.kills(them, this_war) and chance(60%) ? "You fight like a steppe wolf, {them}. Peace - between wolves.",
     them.betrayals(me) > 0 ? [
-        "Peace. But this time I keep my eyes on your hands, {name}.",
-        "Peace, {name}. My riders stay in the saddle - a traitor's peace is only a pause.",
+        "Peace. But this time I keep my eyes on your hands, {them}.",
+        "Peace, {them}. My riders stay in the saddle - a traitor's peace is only a pause.",
     ],
 ] ?? [
-    "Good, {name}. You have sense. We ride side by side.",
-    "Peace, then. But never forget who granted it, {name}.",
+    "Good, {them}. You have sense. We ride side by side.",
+    "Peace, then. But never forget who granted it, {them}.",
 ]
 peace_refuse = [
     them.betrayals(me) > 0 ? [
         "Peace with a traitor? I would sooner make peace with the wolves.",
-        "Your word, {name}? I have tested it already. It breaks like dry grass.",
+        "Your word, {them}? I have tested it already. It breaks like dry grass.",
     ],
-    them.refusals(me, 30) > 0 and chance(70%) ? "You turned down my peace once, {name}. Now you know how it tastes.",
-    them.kills(me, 10) > many_dead / 3 and chance(50%) ? "My dead are not even cold, {name}. No.",
+    them.refusals(me, 30) > 0 and chance(70%) ? "You turned down my peace once, {them}. Now you know how it tastes.",
+    them.kills(me, 10) > many_dead / 3 and chance(50%) ? "My dead are not even cold, {them}. No.",
 ] ?? [
-    "Peace? Not until your cities burn, {name}.",
-    "All I hear is the whimpering of the beaten, {name}.",
+    "Peace? Not until your cities burn, {them}.",
+    "All I hear is the whimpering of the beaten, {them}.",
     "No. The steppe does not forget so quickly.",
 ]
 block_refuse = [
-    "Peace with you means peace with {enemy}. Never, {name}.",
-    "You keep bad company, {name}. {enemy} first.",
+    "Peace with you means peace with {enemy}. Never, {them}.",
+    "You keep bad company, {them}. {enemy} first.",
 ]
 block_refuse_own = [
-    "{enemy} rides with me and wants your head, {name}.",
-    "Ask {enemy} first, {name}. The answer is no.",
+    "{enemy} rides with me and wants your head, {them}.",
+    "Ask {enemy} first, {them}. The answer is no.",
 ]
-vassal_grumble = "Peace with {enemy}... The Khan obeys, {name}. The Khan does not forget."
+vassal_grumble = "Peace with {enemy}... The Khan obeys, {them}. The Khan does not forget."
 ask_lord = [
-    "The Khan rides for {enemy} now. Speak to them, {name}.",
-    "Not my word to give, {name}. Go to {enemy}.",
+    "The Khan rides for {enemy} now. Speak to them, {them}.",
+    "Not my word to give, {them}. Go to {enemy}.",
 ]
 alliance_offer = [
-    enemy.strength > me.strength + them.strength and chance(60%) ? "{enemy} is stronger than both of us, {name}. Alone we are fodder. Together, a horde.",
+    enemy.strength > me.strength + them.strength and chance(60%) ? "{enemy} is stronger than both of us, {them}. Alone we are fodder. Together, a horde.",
 ] ?? [
-    "{name}, you fight {enemy} too. Together we crush them - and then we shall see.",
-    "{name}! {enemy} grows too strong. Ride with me and we share the spoils.",
+    "{them}, you fight {enemy} too. Together we crush them - and then we shall see.",
+    "{them}! {enemy} grows too strong. Ride with me and we share the spoils.",
 ]
 offer_accepted = [
     them.betrayals(me) > 0 ? [
-        "Allies again, {name}. Do not make me regret it twice.",
-        "I ride with you again, {name} - but you ride in front, where I can see you.",
+        "Allies again, {them}. Do not make me regret it twice.",
+        "I ride with you again, {them} - but you ride in front, where I can see you.",
     ],
 ] ?? [
     enemy ? "Good. Let {enemy} tremble.",
-    "An alliance of the strong. So be it, {name}.",
+    "An alliance of the strong. So be it, {them}.",
 ]
 ; ignored(me) counts this one already
 offer_withdrawn = them.ignored(me) > 1 ? [
-    "Silence again, {name}. I hear it well enough.",
-    "Again no answer, {name}. The Khan stops asking - next time he takes.",
+    "Silence again, {them}. I hear it well enough.",
+    "Again no answer, {them}. The Khan stops asking - next time he takes.",
 ] : [
-    "You hesitate, {name}? Then I ride alone - and past you.",
-    "No alliance, then. Remember this day, {name}.",
+    "You hesitate, {them}? Then I ride alone - and past you.",
+    "No alliance, then. Remember this day, {them}.",
 ]
 betray = [
-    weakling and chance(60%) ? "You have grown weak, {name}. On the steppe, weakness is a death sentence.",
-    them.tribute(me, 30) > 0 and chance(50%) ? "Your gold was welcome, {name}. Now I take the rest.",
+    weakling and chance(60%) ? "You have grown weak, {them}. On the steppe, weakness is a death sentence.",
+    them.tribute(me, 30) > 0 and chance(50%) ? "Your gold was welcome, {them}. Now I take the rest.",
 ] ?? [
-    "Our alliance ends here, {name}. I take what I need.",
-    "The steppe has no friends, {name}. Only riders and prey.",
+    "Our alliance ends here, {them}. I take what I need.",
+    "The steppe has no friends, {them}. Only riders and prey.",
 ]
 tribute_thanks = [
-    them.tribute(me) > big_tribute and chance(60%) ? "More gold from {name}. You would make a fine vassal.",
+    them.tribute(me) > big_tribute and chance(60%) ? "More gold from {them}. You would make a fine vassal.",
     at_war ? [
-        "Gold in the middle of a war, {name}? You are buying time. It is for sale.",
-        "You pay the Khan while we are at war, {name}? Keep paying. Perhaps my riders take the long way to your gates.",
+        "Gold in the middle of a war, {them}? You are buying time. It is for sale.",
+        "You pay the Khan while we are at war, {them}? Keep paying. Perhaps my riders take the long way to your gates.",
     ],
 ] ?? [
-    "A gift for the Khan? You learn fast, {name}.",
-    "I like that, {name}. Perhaps I will spare your city.",
+    "A gift for the Khan? You learn fast, {them}.",
+    "I like that, {them}. Perhaps I will spare your city.",
 ]
 tribute_small = at_war ? [
-    "That buys you a minute, {name}. Not a day.",
-    "A handful of coins in war, {name}? My riders will not even slow down.",
+    "That buys you a minute, {them}. Not a day.",
+    "A handful of coins in war, {them}? My riders will not even slow down.",
 ] : [
-    "You call that tribute, {name}? My horses eat more.",
-    "So little, {name}? Even a beggar on the steppe gives the Khan more.",
+    "You call that tribute, {them}? My horses eat more.",
+    "So little, {them}? Even a beggar on the steppe gives the Khan more.",
 ]
 attack = [
     them.razed(me, 20) > 0 and chance(60%) ? "They burned our tents. Now we burn theirs!",
-    them.kills(me, 20) > many_dead / 2 and them.kills(me, 20) > me.kills(them, 20) and chance(60%) ? "Revenge for our dead! Ride against {name}!",
+    them.kills(me, 20) > many_dead / 2 and them.kills(me, 20) > me.kills(them, 20) and chance(60%) ? "Revenge for our dead! Ride against {them}!",
 ] ?? [
-    "Riders, gather! We ride against {name}!",
-    "Today {name}'s land burns.",
+    "Riders, gather! We ride against {them}!",
+    "Today {them}'s land burns.",
 ]
 attack_threat = [
-    their_dead and chance(50%) ? "{me.kills(them)} of your men already feed the crows, {name}. Count again.",
+    their_dead and chance(50%) ? "{me.kills(them)} of your men already feed the crows, {them}. Count again.",
 ] ?? [
-    "{name}, do you hear the hooves?",
-    "Count your men, {name}. Soon there will be fewer.",
-    "My riders are coming for you, {name}.",
+    "{them}, do you hear the hooves?",
+    "Count your men, {them}. Soon there will be fewer.",
+    "My riders are coming for you, {them}.",
 ]
 under_attack = [
     me.soldiers < 10 ? [
@@ -184,16 +184,16 @@ epoch_up = [
     "{epoch} - new weapons for old targets.",
     "A new age: {epoch}. The world grows smaller for my enemies.",
 ]
-enemy_ahead = "{name} is ahead of us? We catch up - and then we ride them down."
+enemy_ahead = "{them} is ahead of us? We catch up - and then we ride them down."
 winning = [
-    their_dead and chance(50%) ? "{me.kills(them)} of yours lie in the grass, {name}. More will follow.",
+    their_dead and chance(50%) ? "{me.kills(them)} of yours lie in the grass, {them}. More will follow.",
 ] ?? [
-    "Do you see {name} waver? One more push!",
-    "{name}, your end is near.",
+    "Do you see {them} waver? One more push!",
+    "{them}, your end is near.",
 ]
 losing = [
-    "A wolf is most dangerous when wounded, {name}.",
-    "Laugh while you can, {name}. I am not finished.",
+    "A wolf is most dangerous when wounded, {them}.",
+    "Laugh while you can, {them}. I am not finished.",
 ]
 desperate = [
     "If I fall, I take you with me!",
@@ -201,36 +201,36 @@ desperate = [
 ]
 enemy_defeated = [
     them.betrayals(me) > 0 ? [
-        "{name} is no more. So ends every traitor.",
-        "{name} broke faith with me - and paid with everything. One traitor fewer on the steppe.",
+        "{them} is no more. So ends every traitor.",
+        "{them} broke faith with me - and paid with everything. One traitor fewer on the steppe.",
     ],
-    their_dead and chance(60%) ? "{name} is gone - and my riders did most of the work.",
+    their_dead and chance(60%) ? "{them} is gone - and my riders did most of the work.",
 ] ?? [
-    "{name} is no more. So ends everyone who stands against me.",
+    "{them} is no more. So ends everyone who stands against me.",
     "One fewer.",
 ]
-ally_defeated = "{name} has fallen. Someone will bleed for this."
+ally_defeated = "{them} has fallen. Someone will bleed for this."
 defeated = [
     "The steppe ... will ... remember ...",
     "You have won. This time.",
 ]
 surrender = [
-    "Enough. Keep this land, {name} - for now.",
+    "Enough. Keep this land, {them} - for now.",
     "The Khan withdraws. But the steppe never forgets.",
 ]
-capitulate = "Enough blood, {name}. {tribute} in tribute, and you leave my last tents standing."
+capitulate = "Enough blood, {them}. {tribute} in tribute, and you leave my last tents standing."
 capitulate_accepted = "The Khan keeps his word. Take your {tribute} - and do not get used to it."
 capitulate_refused = "So be it. Then we ride to the end!"
 all_submitted = [
-    "All who still ride now ride under your banner, {name}.",
-    "The Khan has seen your victory, {name}. The steppe will remember it.",
+    "All who still ride now ride under your banner, {them}.",
+    "The Khan has seen your victory, {them}. The steppe will remember it.",
 ]
 other_victory = lord == them ? [
-    "The steppe bows to {name}. Today, at least.",
-    "Ride on, {name}. Your name will be sung.",
+    "The steppe bows to {them}. Today, at least.",
+    "Ride on, {them}. Your name will be sung.",
 ] : [
-    "We rode together, {name}, and the world fell. A good hunt.",
-    "Victory! Tonight our riders feast, {name}.",
+    "We rode together, {them}, and the world fell. A good hunt.",
+    "Victory! Tonight our riders feast, {them}.",
 ]
 wonder_threat = [
     "A wonder? It will make a wonderful fire.",
@@ -245,129 +245,129 @@ help_none = "I can spare no one. Fight for yourself."
 [lines:de]
 greeting = [
     players > 5 and chance(50%) ? "So viele Zelte auf meiner Steppe. Bald sind es weniger.",
-    allied and chance(50%) ? "Wir reiten auf derselben Seite, {name}. Versuch mitzuhalten.",
+    allied and chance(50%) ? "Wir reiten auf derselben Seite, {them}. Versuch mitzuhalten.",
 ] ?? [
     "Die Steppe ist weit, aber nicht weit genug für uns alle.",
     "Ich bin Temur. Merkt euch den Namen - ihr werdet ihn noch oft hören.",
     "Meine Reiter sind hungrig. Wer füttert sie zuerst?",
 ]
 war_declared = [
-    weakling and chance(60%) ? "Du, {name}? Mit dieser Handvoll Männer? Das wird mir Freude machen.",
-    worthy and chance(60%) ? "Endlich ein Gegner, der den Ritt lohnt, {name}. Komm nur!",
+    weakling and chance(60%) ? "Du, {them}? Mit dieser Handvoll Männer? Das wird mir Freude machen.",
+    worthy and chance(60%) ? "Endlich ein Gegner, der den Ritt lohnt, {them}. Komm nur!",
     them.tribute(me, 20) > 0 ? [
-        "Erst zahlst du mir, jetzt kämpfst du gegen mich, {name}? Entscheide dich.",
-        "Du hast mir {them.tribute(me, 20)} an Tribut geschickt, {name}, und jetzt schickst du Soldaten. Der Tribut war besser.",
+        "Erst zahlst du mir, jetzt kämpfst du gegen mich, {them}? Entscheide dich.",
+        "Du hast mir {them.tribute(me, 20)} an Tribut geschickt, {them}, und jetzt schickst du Soldaten. Der Tribut war besser.",
     ],
 ] ?? [
-    "Du wagst es, {name}? Dann lerne, was Krieg bedeutet.",
-    "Endlich, {name}. Ich hatte schon Angst, du würdest es nie wagen.",
-    "Krieg? Mit MIR? Du hast die Wahl deiner Feinde schlecht getroffen, {name}.",
+    "Du wagst es, {them}? Dann lerne, was Krieg bedeutet.",
+    "Endlich, {them}. Ich hatte schon Angst, du würdest es nie wagen.",
+    "Krieg? Mit MIR? Du hast die Wahl deiner Feinde schlecht getroffen, {them}.",
 ]
 betrayed = me.betrayals(them) > 0 ? [
-    "Ich habe dir einmal die Treue gebrochen, {name}. Jetzt sind wir quitt - und quitt langweilt mich.",
-    "Du hast vom Khan gelernt, {name}. Ein guter Schüler - aber der Lehrer reitet noch immer schneller.",
+    "Ich habe dir einmal die Treue gebrochen, {them}. Jetzt sind wir quitt - und quitt langweilt mich.",
+    "Du hast vom Khan gelernt, {them}. Ein guter Schüler - aber der Lehrer reitet noch immer schneller.",
 ] : them.betrayals(me) > 1 ? [
-    "Zweimal, {name}? Einem Hund, der zweimal beißt, vergibt man nicht. Man erschlägt ihn.",
-    "Einmal war ein Fehler, {name}. Zweimal ist deine Natur. Ein drittes Mal gibt es nicht.",
+    "Zweimal, {them}? Einem Hund, der zweimal beißt, vergibt man nicht. Man erschlägt ihn.",
+    "Einmal war ein Fehler, {them}. Zweimal ist deine Natur. Ein drittes Mal gibt es nicht.",
 ] : [
-    "Ein Verräter, {name}. Für Verräter gibt es nur eine Strafe.",
-    "Ich habe dir den Rücken zugewandt, {name}. Das war MEIN Fehler. Der nächste ist deiner.",
+    "Ein Verräter, {them}. Für Verräter gibt es nur eine Strafe.",
+    "Ich habe dir den Rücken zugewandt, {them}. Das war MEIN Fehler. Der nächste ist deiner.",
 ]
 peace_accept = [
-    me.kills(them, this_war) > many_dead and me.kills(them, this_war) > them.kills(me, this_war) * 2 and chance(60%) ? "Du hast genug geblutet, {name}. Der Khan ist gnädig - heute.",
-    them.kills(me, this_war) > many_dead and them.kills(me, this_war) > me.kills(them, this_war) and chance(60%) ? "Du kämpfst wie ein Steppenwolf, {name}. Frieden - unter Wölfen.",
+    me.kills(them, this_war) > many_dead and me.kills(them, this_war) > them.kills(me, this_war) * 2 and chance(60%) ? "Du hast genug geblutet, {them}. Der Khan ist gnädig - heute.",
+    them.kills(me, this_war) > many_dead and them.kills(me, this_war) > me.kills(them, this_war) and chance(60%) ? "Du kämpfst wie ein Steppenwolf, {them}. Frieden - unter Wölfen.",
     them.betrayals(me) > 0 ? [
-        "Frieden. Aber diesmal behalte ich deine Hände im Auge, {name}.",
-        "Frieden, {name}. Meine Reiter bleiben im Sattel - der Frieden eines Verräters ist nur eine Atempause.",
+        "Frieden. Aber diesmal behalte ich deine Hände im Auge, {them}.",
+        "Frieden, {them}. Meine Reiter bleiben im Sattel - der Frieden eines Verräters ist nur eine Atempause.",
     ],
 ] ?? [
-    "Gut, {name}. Du hast Verstand. Wir reiten Seite an Seite.",
-    "Frieden also. Aber vergiss nicht, wer ihn dir gewährt hat, {name}.",
+    "Gut, {them}. Du hast Verstand. Wir reiten Seite an Seite.",
+    "Frieden also. Aber vergiss nicht, wer ihn dir gewährt hat, {them}.",
 ]
 peace_refuse = [
     them.betrayals(me) > 0 ? [
         "Frieden mit einem Verräter? Eher schließe ich Frieden mit den Wölfen.",
-        "Dein Wort, {name}? Das habe ich schon geprüft. Es bricht wie trockenes Gras.",
+        "Dein Wort, {them}? Das habe ich schon geprüft. Es bricht wie trockenes Gras.",
     ],
-    them.refusals(me, 30) > 0 and chance(70%) ? "Du hast meinen Frieden einmal ausgeschlagen, {name}. Jetzt weißt du, wie das schmeckt.",
-    them.kills(me, 10) > many_dead / 3 and chance(50%) ? "Meine Toten sind noch nicht kalt, {name}. Nein.",
+    them.refusals(me, 30) > 0 and chance(70%) ? "Du hast meinen Frieden einmal ausgeschlagen, {them}. Jetzt weißt du, wie das schmeckt.",
+    them.kills(me, 10) > many_dead / 3 and chance(50%) ? "Meine Toten sind noch nicht kalt, {them}. Nein.",
 ] ?? [
-    "Frieden? Erst wenn deine Städte brennen, {name}.",
-    "Ich höre nur das Winseln eines Besiegten, {name}.",
+    "Frieden? Erst wenn deine Städte brennen, {them}.",
+    "Ich höre nur das Winseln eines Besiegten, {them}.",
     "Nein. Die Steppe vergisst nicht so schnell.",
 ]
 block_refuse = [
-    "Frieden mit dir hieße Frieden mit {enemy}. Niemals, {name}.",
-    "Du hast schlechte Freunde, {name}. Erst {enemy}.",
+    "Frieden mit dir hieße Frieden mit {enemy}. Niemals, {them}.",
+    "Du hast schlechte Freunde, {them}. Erst {enemy}.",
 ]
 block_refuse_own = [
-    "{enemy} reitet mit mir und will deinen Kopf, {name}.",
-    "Frag erst {enemy}, {name}. Die Antwort ist nein.",
+    "{enemy} reitet mit mir und will deinen Kopf, {them}.",
+    "Frag erst {enemy}, {them}. Die Antwort ist nein.",
 ]
-vassal_grumble = "Frieden mit {enemy}... Der Khan gehorcht, {name}. Der Khan vergisst nicht."
+vassal_grumble = "Frieden mit {enemy}... Der Khan gehorcht, {them}. Der Khan vergisst nicht."
 ask_lord = [
-    "Der Khan reitet jetzt für {enemy}. Sprich mit ihnen, {name}.",
-    "Nicht mein Wort zu geben, {name}. Geh zu {enemy}.",
+    "Der Khan reitet jetzt für {enemy}. Sprich mit ihnen, {them}.",
+    "Nicht mein Wort zu geben, {them}. Geh zu {enemy}.",
 ]
 alliance_offer = [
-    enemy.strength > me.strength + them.strength and chance(60%) ? "{enemy} ist stärker als wir beide, {name}. Allein sind wir Futter. Zusammen eine Horde.",
+    enemy.strength > me.strength + them.strength and chance(60%) ? "{enemy} ist stärker als wir beide, {them}. Allein sind wir Futter. Zusammen eine Horde.",
 ] ?? [
-    "{name}, auch du kämpfst gegen {enemy}. Zusammen zerquetschen wir ihn - danach sehen wir weiter.",
-    "{name}! {enemy} wird zu stark. Reite mit mir, und wir teilen die Beute.",
+    "{them}, auch du kämpfst gegen {enemy}. Zusammen zerquetschen wir ihn - danach sehen wir weiter.",
+    "{them}! {enemy} wird zu stark. Reite mit mir, und wir teilen die Beute.",
 ]
 offer_accepted = [
     them.betrayals(me) > 0 ? [
-        "Wieder Verbündete, {name}. Lass es mich nicht zweimal bereuen.",
-        "Ich reite wieder mit dir, {name} - aber du reitest vorn, wo ich dich sehen kann.",
+        "Wieder Verbündete, {them}. Lass es mich nicht zweimal bereuen.",
+        "Ich reite wieder mit dir, {them} - aber du reitest vorn, wo ich dich sehen kann.",
     ],
 ] ?? [
     enemy ? "Gut. {enemy} soll zittern.",
-    "Ein Bündnis der Starken. So soll es sein, {name}.",
+    "Ein Bündnis der Starken. So soll es sein, {them}.",
 ]
 offer_withdrawn = them.ignored(me) > 1 ? [
-    "Wieder Schweigen, {name}. Ich höre es laut genug.",
-    "Wieder keine Antwort, {name}. Der Khan hört auf zu fragen - beim nächsten Mal nimmt er.",
+    "Wieder Schweigen, {them}. Ich höre es laut genug.",
+    "Wieder keine Antwort, {them}. Der Khan hört auf zu fragen - beim nächsten Mal nimmt er.",
 ] : [
-    "Du zögerst, {name}? Dann reite ich allein - und an dir vorbei.",
-    "Kein Bündnis also. Merk dir diesen Tag, {name}.",
+    "Du zögerst, {them}? Dann reite ich allein - und an dir vorbei.",
+    "Kein Bündnis also. Merk dir diesen Tag, {them}.",
 ]
 betray = [
-    weakling and chance(60%) ? "Du bist schwach geworden, {name}. Schwäche ist in der Steppe ein Todesurteil.",
-    them.tribute(me, 30) > 0 and chance(50%) ? "Dein Gold war willkommen, {name}. Jetzt hole ich mir den Rest.",
+    weakling and chance(60%) ? "Du bist schwach geworden, {them}. Schwäche ist in der Steppe ein Todesurteil.",
+    them.tribute(me, 30) > 0 and chance(50%) ? "Dein Gold war willkommen, {them}. Jetzt hole ich mir den Rest.",
 ] ?? [
-    "Unser Bündnis ist hier zu Ende, {name}. Ich nehme mir, was ich brauche.",
-    "Die Steppe kennt keine Freunde, {name}. Nur Reiter und Beute.",
+    "Unser Bündnis ist hier zu Ende, {them}. Ich nehme mir, was ich brauche.",
+    "Die Steppe kennt keine Freunde, {them}. Nur Reiter und Beute.",
 ]
 tribute_thanks = [
-    them.tribute(me) > big_tribute and chance(60%) ? "Wieder Gold von {name}. Du gäbst einen guten Vasallen ab.",
+    them.tribute(me) > big_tribute and chance(60%) ? "Wieder Gold von {them}. Du gäbst einen guten Vasallen ab.",
     at_war ? [
-        "Gold mitten im Krieg, {name}? Du kaufst dir Zeit. Sie ist zu haben.",
-        "Du zahlst dem Khan, während wir Krieg führen, {name}? Zahl weiter. Vielleicht nehmen meine Reiter dann den langen Weg zu deinen Toren.",
+        "Gold mitten im Krieg, {them}? Du kaufst dir Zeit. Sie ist zu haben.",
+        "Du zahlst dem Khan, während wir Krieg führen, {them}? Zahl weiter. Vielleicht nehmen meine Reiter dann den langen Weg zu deinen Toren.",
     ],
 ] ?? [
-    "Ein Geschenk für den Khan? Du lernst schnell, {name}.",
-    "Das gefällt mir, {name}. Vielleicht verschone ich deine Stadt.",
+    "Ein Geschenk für den Khan? Du lernst schnell, {them}.",
+    "Das gefällt mir, {them}. Vielleicht verschone ich deine Stadt.",
 ]
 tribute_small = at_war ? [
-    "Damit kaufst du dir eine Minute, {name}. Keinen Tag.",
-    "Eine Handvoll Münzen im Krieg, {name}? Meine Reiter werden nicht einmal langsamer.",
+    "Damit kaufst du dir eine Minute, {them}. Keinen Tag.",
+    "Eine Handvoll Münzen im Krieg, {them}? Meine Reiter werden nicht einmal langsamer.",
 ] : [
-    "Das nennst du Tribut, {name}? Meine Pferde fressen mehr.",
-    "So wenig, {name}? Selbst ein Bettler der Steppe gibt dem Khan mehr.",
+    "Das nennst du Tribut, {them}? Meine Pferde fressen mehr.",
+    "So wenig, {them}? Selbst ein Bettler der Steppe gibt dem Khan mehr.",
 ]
 attack = [
     them.razed(me, 20) > 0 and chance(60%) ? "Sie haben unsere Zelte verbrannt. Jetzt brennen ihre!",
-    them.kills(me, 20) > many_dead / 2 and them.kills(me, 20) > me.kills(them, 20) and chance(60%) ? "Rache für unsere Toten! Reitet gegen {name}!",
+    them.kills(me, 20) > many_dead / 2 and them.kills(me, 20) > me.kills(them, 20) and chance(60%) ? "Rache für unsere Toten! Reitet gegen {them}!",
 ] ?? [
-    "Reiter, sammelt euch! Wir reiten gegen {name}!",
-    "Heute brennt {name}s Land.",
+    "Reiter, sammelt euch! Wir reiten gegen {them}!",
+    "Heute brennt {them}s Land.",
 ]
 attack_threat = [
-    their_dead and chance(50%) ? "{me.kills(them)} deiner Männer fressen schon die Krähen, {name}. Zähl nach.",
+    their_dead and chance(50%) ? "{me.kills(them)} deiner Männer fressen schon die Krähen, {them}. Zähl nach.",
 ] ?? [
-    "{name}, hörst du die Hufe?",
-    "Zähl deine Männer, {name}. Bald sind es weniger.",
-    "Meine Reiter kommen dich holen, {name}.",
+    "{them}, hörst du die Hufe?",
+    "Zähl deine Männer, {them}. Bald sind es weniger.",
+    "Meine Reiter kommen dich holen, {them}.",
 ]
 under_attack = [
     me.soldiers < 10 ? [
@@ -388,16 +388,16 @@ epoch_up = [
     "{epoch} - neue Waffen für alte Ziele.",
     "Ein neues Zeitalter: {epoch}. Die Welt wird kleiner für meine Feinde.",
 ]
-enemy_ahead = "{name} ist uns voraus? Wir holen auf - und dann reiten wir alles nieder."
+enemy_ahead = "{them} ist uns voraus? Wir holen auf - und dann reiten wir alles nieder."
 winning = [
-    their_dead and chance(50%) ? "{me.kills(them)} der Deinen liegen im Gras, {name}. Mehr werden folgen.",
+    their_dead and chance(50%) ? "{me.kills(them)} der Deinen liegen im Gras, {them}. Mehr werden folgen.",
 ] ?? [
-    "Seht ihr, wie {name} wankt? Noch ein Stoß!",
-    "{name}, dein Ende ist nah.",
+    "Seht ihr, wie {them} wankt? Noch ein Stoß!",
+    "{them}, dein Ende ist nah.",
 ]
 losing = [
-    "Ein Wolf ist am gefährlichsten, wenn er verwundet ist, {name}.",
-    "Lacht nur, {name}. Ich bin noch nicht fertig.",
+    "Ein Wolf ist am gefährlichsten, wenn er verwundet ist, {them}.",
+    "Lacht nur, {them}. Ich bin noch nicht fertig.",
 ]
 desperate = [
     "Wenn ich falle, reiße ich euch mit!",
@@ -405,36 +405,36 @@ desperate = [
 ]
 enemy_defeated = [
     them.betrayals(me) > 0 ? [
-        "{name} ist nicht mehr. So endet jeder Verräter.",
-        "{name} hat mir die Treue gebrochen - und mit allem bezahlt. Ein Verräter weniger auf der Steppe.",
+        "{them} ist nicht mehr. So endet jeder Verräter.",
+        "{them} hat mir die Treue gebrochen - und mit allem bezahlt. Ein Verräter weniger auf der Steppe.",
     ],
-    their_dead and chance(60%) ? "{name} ist fort - und das meiste haben meine Reiter erledigt.",
+    their_dead and chance(60%) ? "{them} ist fort - und das meiste haben meine Reiter erledigt.",
 ] ?? [
-    "{name} ist nicht mehr. So endet jeder, der sich mir entgegenstellt.",
+    "{them} ist nicht mehr. So endet jeder, der sich mir entgegenstellt.",
     "Einer weniger.",
 ]
-ally_defeated = "{name} ist gefallen. Dafür wird jemand bluten."
+ally_defeated = "{them} ist gefallen. Dafür wird jemand bluten."
 defeated = [
     "Die Steppe ... wird sich ... erinnern ...",
     "Ihr habt gewonnen. Diesmal.",
 ]
 surrender = [
-    "Genug. Behaltet dieses Land, {name} - vorerst.",
+    "Genug. Behaltet dieses Land, {them} - vorerst.",
     "Der Khan zieht sich zurück. Doch die Steppe vergisst nie.",
 ]
-capitulate = "Genug Blut, {name}. {tribute} als Tribut, und Ihr lasst meine letzten Zelte stehen."
+capitulate = "Genug Blut, {them}. {tribute} als Tribut, und Ihr lasst meine letzten Zelte stehen."
 capitulate_accepted = "Der Khan hält sein Wort. Nehmt Eure {tribute} - und gewöhnt Euch nicht daran."
 capitulate_refused = "So sei es. Dann reiten wir bis zum Ende!"
 all_submitted = [
-    "Alle, die noch reiten, reiten unter Eurem Banner, {name}.",
-    "Der Khan hat Euren Sieg gesehen, {name}. Die Steppe wird sich erinnern.",
+    "Alle, die noch reiten, reiten unter Eurem Banner, {them}.",
+    "Der Khan hat Euren Sieg gesehen, {them}. Die Steppe wird sich erinnern.",
 ]
 other_victory = lord == them ? [
-    "Die Steppe verneigt sich vor {name}. Zumindest heute.",
-    "Reitet weiter, {name}. Man wird Euren Namen besingen.",
+    "Die Steppe verneigt sich vor {them}. Zumindest heute.",
+    "Reitet weiter, {them}. Man wird Euren Namen besingen.",
 ] : [
-    "Wir sind gemeinsam geritten, {name}, und die Welt ist gefallen. Eine gute Jagd.",
-    "Sieg! Heute Nacht feiern unsere Reiter, {name}.",
+    "Wir sind gemeinsam geritten, {them}, und die Welt ist gefallen. Eine gute Jagd.",
+    "Sieg! Heute Nacht feiern unsere Reiter, {them}.",
 ]
 wonder_threat = [
     "Ein Wunder? Es wird ein wunderbares Feuer.",

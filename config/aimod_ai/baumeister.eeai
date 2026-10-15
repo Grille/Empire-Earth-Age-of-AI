@@ -39,143 +39,143 @@ their_dead = me.kills(them) > many_dead
 [lines]
 greeting = [
     players > 5 and chance(50%) ? "So many neighbours. I will need longer walls.",
-    allied and chance(50%) ? "Good to have you on the right side of my walls, {name}.",
+    allied and chance(50%) ? "Good to have you on the right side of my walls, {them}.",
 ] ?? [
     "Good walls make good neighbours.",
     "I build. Leave me in peace and you have nothing to fear.",
 ]
 war_declared = [
     them.tribute(me, 20) > 0 ? [
-        "First you pay me, {name}, then you attack me? Your bookkeeping puzzles me.",
-        "{them.tribute(me, 20)} you paid me, {name}, and it all went into the walls. At the gate you will meet your own money.",
+        "First you pay me, {them}, then you attack me? Your bookkeeping puzzles me.",
+        "{them.tribute(me, 20)} you paid me, {them}, and it all went into the walls. At the gate you will meet your own money.",
     ],
     them.betrayals(me) > 0 ? [
-        "You broke faith with me once already, {name}. That is why I never took my walls down.",
-        "From you, {name}, I expected it. The day you first broke faith I drew up the plans for this one.",
+        "You broke faith with me once already, {them}. That is why I never took my walls down.",
+        "From you, {them}, I expected it. The day you first broke faith I drew up the plans for this one.",
     ],
-    many_towers and chance(60%) ? "{me.towers} towers, {name}. I counted them this morning. Come and count them yourself.",
-    outmatched and chance(60%) ? "You are stronger, {name}. That is exactly what walls are for.",
+    many_towers and chance(60%) ? "{me.towers} towers, {them}. I counted them this morning. Come and count them yourself.",
+    outmatched and chance(60%) ? "You are stronger, {them}. That is exactly what walls are for.",
 ] ?? [
-    "You want war, {name}? Then run into my walls.",
-    "I did not build towers for nothing, {name}.",
-    "As you wish, {name}. My walls are looking forward to you.",
+    "You want war, {them}? Then run into my walls.",
+    "I did not build towers for nothing, {them}.",
+    "As you wish, {them}. My walls are looking forward to you.",
 ]
 ; their betrayal is counted already: betrayals(me) > 1 is the second time
 betrayed = me.betrayals(them) > 0 ? [
-    "I broke our alliance once, {name}. I should have known the crack was still in the foundation.",
-    "I broke our alliance first, {name}. I can hardly complain that you picked up the same tools.",
+    "I broke our alliance once, {them}. I should have known the crack was still in the foundation.",
+    "I broke our alliance first, {them}. I can hardly complain that you picked up the same tools.",
 ] : them.betrayals(me) > 1 ? [
-    "Twice, {name}. A builder who makes the same mistake twice should change trades.",
-    "Again, {name}. I patched that crack the first time. I will not patch it a second time.",
+    "Twice, {them}. A builder who makes the same mistake twice should change trades.",
+    "Again, {them}. I patched that crack the first time. I will not patch it a second time.",
 ] : [
-    "I trusted you, {name}. That was a design flaw.",
-    "An alliance is like a foundation, {name}. You destroyed it.",
+    "I trusted you, {them}. That was a design flaw.",
+    "An alliance is like a foundation, {them}. You destroyed it.",
 ]
 peace_accept = [
     them.betrayals(me) > 0 ? [
-        "Peace. But the walls facing you stay manned, {name}.",
-        "Peace, {name}. I signed with you once before and rebuilt afterwards. This time I keep the mortar ready.",
+        "Peace. But the walls facing you stay manned, {them}.",
+        "Peace, {them}. I signed with you once before and rebuilt afterwards. This time I keep the mortar ready.",
     ],
-    them.razed(me, this_war) > 5 and chance(60%) ? "Peace. Now I have {them.razed(me, this_war)} buildings to rebuild, {name}. Kindly stay out of the way.",
-    them.kills(me, this_war) > many_dead and chance(50%) ? "Peace, {name}. I have buried enough of my people for this war.",
+    them.razed(me, this_war) > 5 and chance(60%) ? "Peace. Now I have {them.razed(me, this_war)} buildings to rebuild, {them}. Kindly stay out of the way.",
+    them.kills(me, this_war) > many_dead and chance(50%) ? "Peace, {them}. I have buried enough of my people for this war.",
 ] ?? [
-    "Quiet at last, {name}. I have building to do.",
+    "Quiet at last, {them}. I have building to do.",
     "Peace. Good. The stones are waiting.",
 ]
 peace_refuse = [
     them.betrayals(me) > 0 ? [
-        "You broke faith with me before, {name}. I do not build on a cracked foundation twice.",
-        "The last treaty with you cost me a wall, {name}. I am still paying for it.",
+        "You broke faith with me before, {them}. I do not build on a cracked foundation twice.",
+        "The last treaty with you cost me a wall, {them}. I am still paying for it.",
     ],
     them.near(me) > 0 ? [
-        "Your soldiers are still standing at my walls, {name}. Call them back - then we talk.",
-        "Peace, with your army in the shadow of my towers, {name}? Move it out of range first.",
+        "Your soldiers are still standing at my walls, {them}. Call them back - then we talk.",
+        "Peace, with your army in the shadow of my towers, {them}? Move it out of range first.",
     ],
-    them.refusals(me, 30) > 0 and chance(60%) ? "You refused my peace once, {name}. Now I need time to be sure of you.",
+    them.refusals(me, 30) > 0 and chance(60%) ? "You refused my peace once, {them}. Now I need time to be sure of you.",
 ] ?? [
-    "Not until I am sure you mean it, {name}.",
-    "No, {name}. I do not trust you yet.",
+    "Not until I am sure you mean it, {them}.",
+    "No, {them}. I do not trust you yet.",
 ]
 block_refuse = [
-    "I would gladly, {name}, but not while {enemy} stands at your side.",
-    "Your alliance includes {enemy}. I cannot build on that, {name}.",
+    "I would gladly, {them}, but not while {enemy} stands at your side.",
+    "Your alliance includes {enemy}. I cannot build on that, {them}.",
 ]
 block_refuse_own = [
-    "My ally {enemy} has not forgiven you, {name}. I will not build on sand.",
-    "{enemy} stands with me and will not have you, {name}.",
+    "My ally {enemy} has not forgiven you, {them}. I will not build on sand.",
+    "{enemy} stands with me and will not have you, {them}.",
 ]
-vassal_grumble = "Peace with {enemy}, {name}? As you command. My walls stay high all the same."
+vassal_grumble = "Peace with {enemy}, {them}? As you command. My walls stay high all the same."
 ask_lord = [
-    "I build, {name}. Treaties are made by {enemy} now.",
-    "Talk to {enemy}, {name}. I only lay the stones.",
+    "I build, {them}. Treaties are made by {enemy} now.",
+    "Talk to {enemy}, {them}. I only lay the stones.",
 ]
 alliance_offer = [
     them.betrayals(me) > 0 ? [
-        "You broke faith with me once, {name}. But {enemy} is the greater danger. Shall we try again?",
-        "{name}, you left me standing alone once. I have not forgotten - but {enemy} leaves me no choice. One more alliance?",
+        "You broke faith with me once, {them}. But {enemy} is the greater danger. Shall we try again?",
+        "{them}, you left me standing alone once. I have not forgotten - but {enemy} leaves me no choice. One more alliance?",
     ],
-    enemy.strength > me.strength + them.strength and chance(60%) ? "{enemy} is stronger than the two of us together, {name}. One wall alone will not hold.",
+    enemy.strength > me.strength + them.strength and chance(60%) ? "{enemy} is stronger than the two of us together, {them}. One wall alone will not hold.",
 ] ?? [
-    "{name}, {enemy} is becoming a danger to us all. Shall we build a bulwark together?",
-    "Together against {enemy}, {name}? Two walls hold better than one.",
+    "{them}, {enemy} is becoming a danger to us all. Shall we build a bulwark together?",
+    "Together against {enemy}, {them}? Two walls hold better than one.",
 ]
 ; enemy is missing after a block peace - checked
 offer_accepted = [
     them.betrayals(me) > 0 ? [
-        "Allies again, {name}. I will inspect this foundation more often.",
-        "Agreed, {name}. Last time I trusted your stones blindly. This time I check every one you lay.",
+        "Allies again, {them}. I will inspect this foundation more often.",
+        "Agreed, {them}. Last time I trusted your stones blindly. This time I check every one you lay.",
     ],
     enemy and chance(50%) ? "Good. Now {enemy} has two walls to break instead of one.",
 ] ?? [
-    "Good, {name}. Together we stand firm.",
-    "A solid alliance, {name}.",
+    "Good, {them}. Together we stand firm.",
+    "A solid alliance, {them}.",
 ]
 ; ignored(me) counts this one already
 offer_withdrawn = them.ignored(me) > 1 ? [
-    "Silence again, {name}. Very well - I have stopped waiting and gone back to building.",
-    "Another offer left unanswered, {name}. I have stopped drawing up plans for you.",
+    "Silence again, {them}. Very well - I have stopped waiting and gone back to building.",
+    "Another offer left unanswered, {them}. I have stopped drawing up plans for you.",
 ] : [
-    "Not interested, {name}? Then I will just build higher.",
-    "No answer, {name}? A pity. The stone I set aside for us goes into my own walls.",
+    "Not interested, {them}? Then I will just build higher.",
+    "No answer, {them}? A pity. The stone I set aside for us goes into my own walls.",
 ]
 betray = [
     them.betrayals(me) > 0 ? [
-        "You broke our first alliance, {name}. I am only finishing what you started.",
-        "You taught me how an alliance ends, {name}. Now I return the lesson.",
+        "You broke our first alliance, {them}. I am only finishing what you started.",
+        "You taught me how an alliance ends, {them}. Now I return the lesson.",
     ],
-    brittle and chance(60%) ? "Your walls are thin, {name}, and your army thinner. I cannot carry you any longer.",
-] ?? "I am sorry, {name}. You have become a burden."
+    brittle and chance(60%) ? "Your walls are thin, {them}, and your army thinner. I cannot carry you any longer.",
+] ?? "I am sorry, {them}. You have become a burden."
 tribute_thanks = [
     at_war ? [
-        "Tribute in the middle of a war, {name}? Thank you. It goes into the walls you are attacking.",
-        "Gold from the one besieging me, {name}? I will build the next tower with it and name it after you.",
+        "Tribute in the middle of a war, {them}? Thank you. It goes into the walls you are attacking.",
+        "Gold from the one besieging me, {them}? I will build the next tower with it and name it after you.",
     ],
-    them.tribute(me) > big_tribute and chance(60%) ? "{them.tribute(me)} in all, {name}. By now a whole tower should carry your name.",
+    them.tribute(me) > big_tribute and chance(60%) ? "{them.tribute(me)} in all, {them}. By now a whole tower should carry your name.",
 ] ?? [
-    "Thank you, {name}. That pays for a new tower.",
-    "Very welcome, {name}. Building material is always short.",
+    "Thank you, {them}. That pays for a new tower.",
+    "Very welcome, {them}. Building material is always short.",
 ]
 tribute_small = at_war ? [
-    "One brick in the middle of a war, {name}? That will not stop a siege.",
-    "So small a tribute while your soldiers tear at my walls, {name}? Keep it for your own repairs.",
+    "One brick in the middle of a war, {them}? That will not stop a siege.",
+    "So small a tribute while your soldiers tear at my walls, {them}? Keep it for your own repairs.",
 ] : [
-    "That is enough for one brick, {name}.",
-    "Half a stone, {name}. Still - every wall starts somewhere.",
+    "That is enough for one brick, {them}.",
+    "Half a stone, {them}. Still - every wall starts somewhere.",
 ]
 attack = [
     them.razed(me, 20) > 0 and chance(60%) ? "They tore down what we built. Now we go and see what theirs is made of.",
-    them.kills(me, 20) > many_dead / 2 and them.kills(me, 20) > me.kills(them, 20) and chance(60%) ? "We have buried enough. Out, against {name} - walls alone will not end this.",
+    them.kills(me, 20) > many_dead / 2 and them.kills(me, 20) > me.kills(them, 20) and chance(60%) ? "We have buried enough. Out, against {them} - walls alone will not end this.",
 ] ?? [
-    "We must go out. Against {name}.",
-    "Our troops are marching against {name}.",
+    "We must go out. Against {them}.",
+    "Our troops are marching against {them}.",
 ]
 attack_threat = [
-    them.razed(me) > 0 and chance(60%) ? "{them.razed(me)} of my buildings, {name}. I keep careful accounts - and today I collect.",
-    their_dead and chance(50%) ? "{me.kills(them)} of yours have fallen already, {name}. Your walls are next.",
+    them.razed(me) > 0 and chance(60%) ? "{them.razed(me)} of my buildings, {them}. I keep careful accounts - and today I collect.",
+    their_dead and chance(50%) ? "{me.kills(them)} of yours have fallen already, {them}. Your walls are next.",
 ] ?? [
-    "{name}, your walls will not hold.",
-    "We are coming, {name}. Check your walls.",
-    "{name}, I will tear down what you have built.",
+    "{them}, your walls will not hold.",
+    "We are coming, {them}. Check your walls.",
+    "{them}, I will tear down what you have built.",
 ]
 under_attack = [
     me.towers < 1 ? [
@@ -205,17 +205,17 @@ epoch_up = [
     "{epoch}. New materials, new possibilities.",
     "A new age: {epoch}. Something can be built with that.",
 ]
-enemy_ahead = "{name} is further along. We build more thoroughly instead."
+enemy_ahead = "{them} is further along. We build more thoroughly instead."
 winning = [
-    them.razed(me) < 1 and chance(60%) ? "Not one of my buildings has fallen to you, {name}. Not one.",
-    their_dead and chance(50%) ? "{me.kills(them)} of your people have broken on my walls, {name}.",
-] ?? "Our walls hold. {name}'s armies do not."
+    them.razed(me) < 1 and chance(60%) ? "Not one of my buildings has fallen to you, {them}. Not one.",
+    their_dead and chance(50%) ? "{me.kills(them)} of your people have broken on my walls, {them}.",
+] ?? "Our walls hold. {them}'s armies do not."
 losing = [
     them.near(me) > 0 ? [
-        "{name}'s soldiers are at our walls. Every hand to the masonry!",
-        "{name}'s troops at our walls, and too few hands to mend them. Hold until they tire!",
+        "{them}'s soldiers are at our walls. Every hand to the masonry!",
+        "{them}'s troops at our walls, and too few hands to mend them. Hold until they tire!",
     ],
-    them.razed(me) > 10 and chance(60%) ? "{them.razed(me)} buildings torn down by {name}. I remember every single one.",
+    them.razed(me) > 10 and chance(60%) ? "{them.razed(me)} buildings torn down by {them}. I remember every single one.",
 ] ?? [
     "We must strengthen the defences.",
     "The walls are crumbling ...",
@@ -228,36 +228,36 @@ desperate = [
 ]
 enemy_defeated = [
     them.betrayals(me) > 0 ? [
-        "{name} has fallen. Whatever is built on broken promises does not last.",
-        "{name} is gone. A traitor's house - I saw the cracks in it the day they broke faith with me.",
+        "{them} has fallen. Whatever is built on broken promises does not last.",
+        "{them} is gone. A traitor's house - I saw the cracks in it the day they broke faith with me.",
     ],
-    them.razed(me) > 0 and chance(60%) ? "{name} has fallen. Now I can rebuild in peace what they tore down.",
-] ?? "{name} has fallen. I hope the land will be built on well."
-ally_defeated = "We have lost {name}. A hard blow."
+    them.razed(me) > 0 and chance(60%) ? "{them} has fallen. Now I can rebuild in peace what they tore down.",
+] ?? "{them} has fallen. I hope the land will be built on well."
+ally_defeated = "We have lost {them}. A hard blow."
 defeated = [
     "Everything I built ...",
     "The walls have fallen.",
 ]
 surrender = [
     "Nothing left to build with. I give up.",
-    "You win, {name}. Build something good here.",
+    "You win, {them}. Build something good here.",
 ]
 capitulate = them.razed(me) > 5 ? [
-    "{name}, you have torn down {them.razed(me)} of my buildings. Enough. {tribute} if you leave the rest standing.",
-    "Enough, {name}. {them.razed(me)} of my buildings lie in ruins, and I mean to keep the rest. {tribute} for peace.",
+    "{them}, you have torn down {them.razed(me)} of my buildings. Enough. {tribute} if you leave the rest standing.",
+    "Enough, {them}. {them.razed(me)} of my buildings lie in ruins, and I mean to keep the rest. {tribute} for peace.",
 ] : [
-    "{name}, stop. Everything you burn has to be rebuilt. {tribute} if you leave the rest standing.",
-    "{name}, I would rather pay than rebuild. {tribute} - and my walls stay as they are.",
+    "{them}, stop. Everything you burn has to be rebuilt. {tribute} if you leave the rest standing.",
+    "{them}, I would rather pay than rebuild. {tribute} - and my walls stay as they are.",
 ]
 capitulate_accepted = "{tribute}, paid. Now let me rebuild in peace."
 capitulate_refused = "Then I build until the last stone falls."
-all_submitted = "Every wall in this land now stands for you, {name}."
+all_submitted = "Every wall in this land now stands for you, {them}."
 other_victory = lord == them ? [
-    "It was well built, {name}. Congratulations.",
-    "The last stone is laid. The land is yours, {name}.",
+    "It was well built, {them}. Congratulations.",
+    "The last stone is laid. The land is yours, {them}.",
 ] : [
-    "We built this victory together, {name}.",
-    "Solid work, {name} - side by side, stone by stone.",
+    "We built this victory together, {them}.",
+    "Solid work, {them} - side by side, stone by stone.",
 ]
 wonder_help = "A wonder! Masterful work. I will help protect it."
 wonder_threat = "A wonder? Impressive. Sadly also a worthwhile target."
@@ -266,140 +266,140 @@ help_none = "I cannot leave my walls unmanned."
 [lines:de]
 greeting = [
     players > 5 and chance(50%) ? "So viele Nachbarn. Da brauche ich längere Mauern.",
-    allied and chance(50%) ? "Gut, Sie auf der richtigen Seite meiner Mauern zu wissen, {name}.",
+    allied and chance(50%) ? "Gut, Sie auf der richtigen Seite meiner Mauern zu wissen, {them}.",
 ] ?? [
     "Gute Mauern machen gute Nachbarn.",
     "Ich baue. Wer mich in Ruhe lässt, hat nichts zu befürchten.",
 ]
 war_declared = [
     them.tribute(me, 20) > 0 ? [
-        "Erst zahlen Sie mir, {name}, dann greifen Sie mich an? Ihre Buchführung verstehe ich nicht.",
-        "{them.tribute(me, 20)} haben Sie mir gezahlt, {name}, und alles ist in die Mauern geflossen. Am Tor treffen Sie Ihr eigenes Geld wieder.",
+        "Erst zahlen Sie mir, {them}, dann greifen Sie mich an? Ihre Buchführung verstehe ich nicht.",
+        "{them.tribute(me, 20)} haben Sie mir gezahlt, {them}, und alles ist in die Mauern geflossen. Am Tor treffen Sie Ihr eigenes Geld wieder.",
     ],
     them.betrayals(me) > 0 ? [
-        "Sie haben mir schon einmal die Treue gebrochen, {name}. Deshalb habe ich meine Mauern nie abgetragen.",
-        "Von Ihnen, {name}, habe ich es erwartet. Seit Ihrem ersten Treuebruch liegen die Pläne für genau diesen Tag bereit.",
+        "Sie haben mir schon einmal die Treue gebrochen, {them}. Deshalb habe ich meine Mauern nie abgetragen.",
+        "Von Ihnen, {them}, habe ich es erwartet. Seit Ihrem ersten Treuebruch liegen die Pläne für genau diesen Tag bereit.",
     ],
-    many_towers and chance(60%) ? "{me.towers} Türme, {name}. Ich habe sie heute Morgen gezählt. Kommen Sie und zählen Sie selbst.",
-    outmatched and chance(60%) ? "Sie sind stärker, {name}. Genau dafür gibt es Mauern.",
+    many_towers and chance(60%) ? "{me.towers} Türme, {them}. Ich habe sie heute Morgen gezählt. Kommen Sie und zählen Sie selbst.",
+    outmatched and chance(60%) ? "Sie sind stärker, {them}. Genau dafür gibt es Mauern.",
 ] ?? [
-    "Sie wollen Krieg, {name}? Dann rennen Sie gegen meine Mauern.",
-    "Ich habe nicht umsonst Türme gebaut, {name}.",
-    "Bitte sehr, {name}. Meine Mauern freuen sich auf Sie.",
+    "Sie wollen Krieg, {them}? Dann rennen Sie gegen meine Mauern.",
+    "Ich habe nicht umsonst Türme gebaut, {them}.",
+    "Bitte sehr, {them}. Meine Mauern freuen sich auf Sie.",
 ]
 betrayed = me.betrayals(them) > 0 ? [
-    "Ich habe unser Bündnis einmal gebrochen, {name}. Ich hätte wissen müssen, dass der Riss noch im Fundament steckt.",
-    "Ich habe unser Bündnis zuerst gebrochen, {name}. Da kann ich mich kaum beklagen, dass Sie zum selben Werkzeug greifen.",
+    "Ich habe unser Bündnis einmal gebrochen, {them}. Ich hätte wissen müssen, dass der Riss noch im Fundament steckt.",
+    "Ich habe unser Bündnis zuerst gebrochen, {them}. Da kann ich mich kaum beklagen, dass Sie zum selben Werkzeug greifen.",
 ] : them.betrayals(me) > 1 ? [
-    "Zweimal, {name}. Wer denselben Baufehler zweimal macht, sollte das Handwerk wechseln.",
-    "Schon wieder, {name}. Den Riss habe ich beim ersten Mal geflickt. Ein zweites Mal flicke ich ihn nicht.",
+    "Zweimal, {them}. Wer denselben Baufehler zweimal macht, sollte das Handwerk wechseln.",
+    "Schon wieder, {them}. Den Riss habe ich beim ersten Mal geflickt. Ein zweites Mal flicke ich ihn nicht.",
 ] : [
-    "Ich habe Ihnen vertraut, {name}. Das war ein Baufehler.",
-    "Ein Bündnis ist wie ein Fundament, {name}. Sie haben es zerstört.",
+    "Ich habe Ihnen vertraut, {them}. Das war ein Baufehler.",
+    "Ein Bündnis ist wie ein Fundament, {them}. Sie haben es zerstört.",
 ]
 peace_accept = [
     them.betrayals(me) > 0 ? [
-        "Frieden. Aber die Mauern auf Ihrer Seite bleiben besetzt, {name}.",
-        "Frieden, {name}. Ich habe schon einmal mit Ihnen unterschrieben und danach neu gebaut. Diesmal halte ich den Mörtel bereit.",
+        "Frieden. Aber die Mauern auf Ihrer Seite bleiben besetzt, {them}.",
+        "Frieden, {them}. Ich habe schon einmal mit Ihnen unterschrieben und danach neu gebaut. Diesmal halte ich den Mörtel bereit.",
     ],
-    them.razed(me, this_war) > 5 and chance(60%) ? "Frieden. Jetzt habe ich {them.razed(me, this_war)} Gebäude wieder aufzubauen, {name}. Stehen Sie mir dabei bitte nicht im Weg.",
-    them.kills(me, this_war) > many_dead and chance(50%) ? "Frieden, {name}. Ich habe für diesen Krieg genug von meinen Leuten begraben.",
+    them.razed(me, this_war) > 5 and chance(60%) ? "Frieden. Jetzt habe ich {them.razed(me, this_war)} Gebäude wieder aufzubauen, {them}. Stehen Sie mir dabei bitte nicht im Weg.",
+    them.kills(me, this_war) > many_dead and chance(50%) ? "Frieden, {them}. Ich habe für diesen Krieg genug von meinen Leuten begraben.",
 ] ?? [
-    "Endlich wieder Ruhe, {name}. Ich habe zu bauen.",
+    "Endlich wieder Ruhe, {them}. Ich habe zu bauen.",
     "Frieden. Gut. Die Steine warten.",
 ]
 peace_refuse = [
     them.betrayals(me) > 0 ? [
-        "Sie haben mir schon einmal die Treue gebrochen, {name}. Auf ein gerissenes Fundament baue ich kein zweites Mal.",
-        "Der letzte Vertrag mit Ihnen hat mich eine Mauer gekostet, {name}. Ich zahle heute noch daran ab.",
+        "Sie haben mir schon einmal die Treue gebrochen, {them}. Auf ein gerissenes Fundament baue ich kein zweites Mal.",
+        "Der letzte Vertrag mit Ihnen hat mich eine Mauer gekostet, {them}. Ich zahle heute noch daran ab.",
     ],
     them.near(me) > 0 ? [
-        "Ihre Soldaten stehen noch vor meinen Mauern, {name}. Ziehen Sie sie ab - dann reden wir.",
-        "Frieden, während Ihr Heer im Schatten meiner Türme steht, {name}? Ziehen Sie es erst aus der Reichweite.",
+        "Ihre Soldaten stehen noch vor meinen Mauern, {them}. Ziehen Sie sie ab - dann reden wir.",
+        "Frieden, während Ihr Heer im Schatten meiner Türme steht, {them}? Ziehen Sie es erst aus der Reichweite.",
     ],
-    them.refusals(me, 30) > 0 and chance(60%) ? "Sie haben meinen Frieden einmal ausgeschlagen, {name}. Jetzt brauche ich Zeit, um mir Ihrer sicher zu sein.",
+    them.refusals(me, 30) > 0 and chance(60%) ? "Sie haben meinen Frieden einmal ausgeschlagen, {them}. Jetzt brauche ich Zeit, um mir Ihrer sicher zu sein.",
 ] ?? [
-    "Erst wenn ich sicher bin, dass Sie es ernst meinen, {name}.",
-    "Nein, {name}. Ich traue Ihnen noch nicht über den Weg.",
+    "Erst wenn ich sicher bin, dass Sie es ernst meinen, {them}.",
+    "Nein, {them}. Ich traue Ihnen noch nicht über den Weg.",
 ]
 block_refuse = [
-    "Gern, {name}, aber nicht, solange {enemy} an Ihrer Seite steht.",
-    "Ihr Bündnis schließt {enemy} ein. Darauf kann ich nicht bauen, {name}.",
+    "Gern, {them}, aber nicht, solange {enemy} an Ihrer Seite steht.",
+    "Ihr Bündnis schließt {enemy} ein. Darauf kann ich nicht bauen, {them}.",
 ]
 block_refuse_own = [
-    "Mein Verbündeter {enemy} hat Ihnen nicht verziehen, {name}. Auf Sand baue ich nicht.",
-    "{enemy} steht zu mir und will Sie nicht, {name}.",
+    "Mein Verbündeter {enemy} hat Ihnen nicht verziehen, {them}. Auf Sand baue ich nicht.",
+    "{enemy} steht zu mir und will Sie nicht, {them}.",
 ]
-vassal_grumble = "Frieden mit {enemy}, {name}? Wie Ihr befehlt. Meine Mauern bleiben trotzdem hoch."
+vassal_grumble = "Frieden mit {enemy}, {them}? Wie Ihr befehlt. Meine Mauern bleiben trotzdem hoch."
 ask_lord = [
-    "Ich baue, {name}. Verträge schließt jetzt {enemy}.",
-    "Sprechen Sie mit {enemy}, {name}. Ich lege nur die Steine.",
+    "Ich baue, {them}. Verträge schließt jetzt {enemy}.",
+    "Sprechen Sie mit {enemy}, {them}. Ich lege nur die Steine.",
 ]
 alliance_offer = [
     them.betrayals(me) > 0 ? [
-        "Sie haben mir einmal die Treue gebrochen, {name}. Aber {enemy} ist die größere Gefahr. Versuchen wir es noch einmal?",
-        "{name}, Sie haben mich schon einmal allein stehen lassen. Vergessen habe ich das nicht - aber {enemy} lässt mir keine Wahl. Noch ein Bündnis?",
+        "Sie haben mir einmal die Treue gebrochen, {them}. Aber {enemy} ist die größere Gefahr. Versuchen wir es noch einmal?",
+        "{them}, Sie haben mich schon einmal allein stehen lassen. Vergessen habe ich das nicht - aber {enemy} lässt mir keine Wahl. Noch ein Bündnis?",
     ],
-    enemy.strength > me.strength + them.strength and chance(60%) ? "{enemy} ist stärker als wir beide zusammen, {name}. Eine Mauer allein hält da nicht.",
+    enemy.strength > me.strength + them.strength and chance(60%) ? "{enemy} ist stärker als wir beide zusammen, {them}. Eine Mauer allein hält da nicht.",
 ] ?? [
-    "{name}, {enemy} wird zur Gefahr für uns alle. Bauen wir gemeinsam einen Schutzwall?",
-    "Gemeinsam gegen {enemy}, {name}? Zwei Mauern halten besser als eine.",
+    "{them}, {enemy} wird zur Gefahr für uns alle. Bauen wir gemeinsam einen Schutzwall?",
+    "Gemeinsam gegen {enemy}, {them}? Zwei Mauern halten besser als eine.",
 ]
 offer_accepted = [
     them.betrayals(me) > 0 ? [
-        "Wieder Verbündete, {name}. Dieses Fundament prüfe ich künftig öfter.",
-        "Einverstanden, {name}. Beim letzten Mal habe ich Ihren Steinen blind vertraut. Diesmal prüfe ich jeden, den Sie setzen.",
+        "Wieder Verbündete, {them}. Dieses Fundament prüfe ich künftig öfter.",
+        "Einverstanden, {them}. Beim letzten Mal habe ich Ihren Steinen blind vertraut. Diesmal prüfe ich jeden, den Sie setzen.",
     ],
     enemy and chance(50%) ? "Gut. Jetzt muss {enemy} zwei Mauern einreißen statt einer.",
 ] ?? [
-    "Gut, {name}. Zusammen stehen wir fest.",
-    "Ein solides Bündnis, {name}.",
+    "Gut, {them}. Zusammen stehen wir fest.",
+    "Ein solides Bündnis, {them}.",
 ]
 offer_withdrawn = them.ignored(me) > 1 ? [
-    "Wieder Schweigen, {name}. Nun gut - ich warte nicht länger, ich baue weiter.",
-    "Wieder ein Angebot ohne Antwort, {name}. Ich zeichne keine Pläne mehr für Sie.",
+    "Wieder Schweigen, {them}. Nun gut - ich warte nicht länger, ich baue weiter.",
+    "Wieder ein Angebot ohne Antwort, {them}. Ich zeichne keine Pläne mehr für Sie.",
 ] : [
-    "Kein Interesse, {name}? Dann baue ich eben höher.",
-    "Keine Antwort, {name}? Schade. Den Stein, den ich für uns zurückgelegt hatte, verbaue ich nun in meinen eigenen Mauern.",
+    "Kein Interesse, {them}? Dann baue ich eben höher.",
+    "Keine Antwort, {them}? Schade. Den Stein, den ich für uns zurückgelegt hatte, verbaue ich nun in meinen eigenen Mauern.",
 ]
 betray = [
     them.betrayals(me) > 0 ? [
-        "Sie haben unser erstes Bündnis gebrochen, {name}. Ich bringe nur zu Ende, was Sie angefangen haben.",
-        "Sie haben mir gezeigt, wie ein Bündnis endet, {name}. Jetzt gebe ich Ihnen die Lektion zurück.",
+        "Sie haben unser erstes Bündnis gebrochen, {them}. Ich bringe nur zu Ende, was Sie angefangen haben.",
+        "Sie haben mir gezeigt, wie ein Bündnis endet, {them}. Jetzt gebe ich Ihnen die Lektion zurück.",
     ],
-    brittle and chance(60%) ? "Ihre Mauern sind dünn, {name}, und Ihr Heer noch dünner. Ich kann Sie nicht länger mittragen.",
-] ?? "Es tut mir leid, {name}. Sie sind zu einer Last geworden."
+    brittle and chance(60%) ? "Ihre Mauern sind dünn, {them}, und Ihr Heer noch dünner. Ich kann Sie nicht länger mittragen.",
+] ?? "Es tut mir leid, {them}. Sie sind zu einer Last geworden."
 tribute_thanks = [
     at_war ? [
-        "Tribut mitten im Krieg, {name}? Danke. Er geht in die Mauern, die Sie angreifen.",
-        "Gold von dem, der mich belagert, {name}? Davon baue ich den nächsten Turm und benenne ihn nach Ihnen.",
+        "Tribut mitten im Krieg, {them}? Danke. Er geht in die Mauern, die Sie angreifen.",
+        "Gold von dem, der mich belagert, {them}? Davon baue ich den nächsten Turm und benenne ihn nach Ihnen.",
     ],
-    them.tribute(me) > big_tribute and chance(60%) ? "{them.tribute(me)} insgesamt, {name}. Inzwischen müsste ein ganzer Turm Ihren Namen tragen.",
+    them.tribute(me) > big_tribute and chance(60%) ? "{them.tribute(me)} insgesamt, {them}. Inzwischen müsste ein ganzer Turm Ihren Namen tragen.",
 ] ?? [
-    "Danke, {name}. Das reicht für einen neuen Turm.",
-    "Sehr willkommen, {name}. Baumaterial ist immer knapp.",
+    "Danke, {them}. Das reicht für einen neuen Turm.",
+    "Sehr willkommen, {them}. Baumaterial ist immer knapp.",
 ]
 tribute_small = at_war ? [
-    "Ein Ziegel mitten im Krieg, {name}? Damit hält man keine Belagerung auf.",
-    "So ein kleiner Tribut, während Ihre Soldaten an meinen Mauern zerren, {name}? Behalten Sie ihn für Ihre eigenen Reparaturen.",
+    "Ein Ziegel mitten im Krieg, {them}? Damit hält man keine Belagerung auf.",
+    "So ein kleiner Tribut, während Ihre Soldaten an meinen Mauern zerren, {them}? Behalten Sie ihn für Ihre eigenen Reparaturen.",
 ] : [
-    "Für einen Ziegel reicht es, {name}.",
-    "Ein halber Stein, {name}. Aber jede Mauer fängt irgendwo an.",
+    "Für einen Ziegel reicht es, {them}.",
+    "Ein halber Stein, {them}. Aber jede Mauer fängt irgendwo an.",
 ]
 attack = [
     them.razed(me, 20) > 0 and chance(60%) ? "Sie haben eingerissen, was wir gebaut haben. Jetzt sehen wir nach, woraus ihres gemacht ist.",
-    them.kills(me, 20) > many_dead / 2 and them.kills(me, 20) > me.kills(them, 20) and chance(60%) ? "Wir haben genug begraben. Hinaus, gegen {name} - Mauern allein beenden das nicht.",
+    them.kills(me, 20) > many_dead / 2 and them.kills(me, 20) > me.kills(them, 20) and chance(60%) ? "Wir haben genug begraben. Hinaus, gegen {them} - Mauern allein beenden das nicht.",
 ] ?? [
-    "Wir müssen hinaus. Gegen {name}.",
-    "Unsere Truppen marschieren gegen {name}.",
+    "Wir müssen hinaus. Gegen {them}.",
+    "Unsere Truppen marschieren gegen {them}.",
 ]
 attack_threat = [
-    them.razed(me) > 0 and chance(60%) ? "{them.razed(me)} meiner Gebäude, {name}. Ich führe genau Buch - und heute treibe ich ein.",
-    their_dead and chance(50%) ? "{me.kills(them)} der Deinen sind schon gefallen, {name}. Deine Mauern sind die nächsten.",
+    them.razed(me) > 0 and chance(60%) ? "{them.razed(me)} meiner Gebäude, {them}. Ich führe genau Buch - und heute treibe ich ein.",
+    their_dead and chance(50%) ? "{me.kills(them)} der Deinen sind schon gefallen, {them}. Deine Mauern sind die nächsten.",
 ] ?? [
-    "{name}, deine Mauern werden nicht halten.",
-    "Wir kommen, {name}. Prüf deine Mauern.",
-    "{name}, ich reiße ab, was du gebaut hast.",
+    "{them}, deine Mauern werden nicht halten.",
+    "Wir kommen, {them}. Prüf deine Mauern.",
+    "{them}, ich reiße ab, was du gebaut hast.",
 ]
 under_attack = [
     me.towers < 1 ? [
@@ -429,17 +429,17 @@ epoch_up = [
     "{epoch}. Neue Baustoffe, neue Möglichkeiten.",
     "Ein neues Zeitalter: {epoch}. Da lässt sich etwas errichten.",
 ]
-enemy_ahead = "{name} ist weiter. Wir bauen dafür gründlicher."
+enemy_ahead = "{them} ist weiter. Wir bauen dafür gründlicher."
 winning = [
-    them.razed(me) < 1 and chance(60%) ? "Nicht eines meiner Gebäude ist Ihnen zum Opfer gefallen, {name}. Nicht eines.",
-    their_dead and chance(50%) ? "{me.kills(them)} Ihrer Leute sind an meinen Mauern zerschellt, {name}.",
-] ?? "Unsere Mauern halten. {name}s Armeen nicht."
+    them.razed(me) < 1 and chance(60%) ? "Nicht eines meiner Gebäude ist Ihnen zum Opfer gefallen, {them}. Nicht eines.",
+    their_dead and chance(50%) ? "{me.kills(them)} Ihrer Leute sind an meinen Mauern zerschellt, {them}.",
+] ?? "Unsere Mauern halten. {them}s Armeen nicht."
 losing = [
     them.near(me) > 0 ? [
-        "{name}s Soldaten stehen an unseren Mauern. Jede Hand an den Mörtel!",
-        "{name}s Truppen an unseren Mauern, und zu wenige Hände, um sie auszubessern. Haltet aus, bis sie müde werden!",
+        "{them}s Soldaten stehen an unseren Mauern. Jede Hand an den Mörtel!",
+        "{them}s Truppen an unseren Mauern, und zu wenige Hände, um sie auszubessern. Haltet aus, bis sie müde werden!",
     ],
-    them.razed(me) > 10 and chance(60%) ? "{them.razed(me)} Gebäude hat {name} eingerissen. Ich erinnere mich an jedes einzelne.",
+    them.razed(me) > 10 and chance(60%) ? "{them.razed(me)} Gebäude hat {them} eingerissen. Ich erinnere mich an jedes einzelne.",
 ] ?? [
     "Wir müssen die Verteidigung verstärken.",
     "Die Mauern bröckeln ...",
@@ -452,36 +452,36 @@ desperate = [
 ]
 enemy_defeated = [
     them.betrayals(me) > 0 ? [
-        "{name} ist gefallen. Was auf gebrochenen Versprechen gebaut ist, hält nicht.",
-        "{name} ist nicht mehr. Ein Verräterhaus - die Risse darin habe ich an dem Tag gesehen, als man mir die Treue brach.",
+        "{them} ist gefallen. Was auf gebrochenen Versprechen gebaut ist, hält nicht.",
+        "{them} ist nicht mehr. Ein Verräterhaus - die Risse darin habe ich an dem Tag gesehen, als man mir die Treue brach.",
     ],
-    them.razed(me) > 0 and chance(60%) ? "{name} ist gefallen. Jetzt baue ich in Ruhe wieder auf, was dort eingerissen wurde.",
-] ?? "{name} ist gefallen. Ich hoffe, das Land wird gut bebaut."
-ally_defeated = "Wir haben {name} verloren. Ein harter Schlag."
+    them.razed(me) > 0 and chance(60%) ? "{them} ist gefallen. Jetzt baue ich in Ruhe wieder auf, was dort eingerissen wurde.",
+] ?? "{them} ist gefallen. Ich hoffe, das Land wird gut bebaut."
+ally_defeated = "Wir haben {them} verloren. Ein harter Schlag."
 defeated = [
     "Alles, was ich gebaut habe ...",
     "Die Mauern sind gefallen.",
 ]
 surrender = [
     "Nichts mehr, womit ich bauen könnte. Ich gebe auf.",
-    "Ihr habt gewonnen, {name}. Baut hier etwas Gutes.",
+    "Ihr habt gewonnen, {them}. Baut hier etwas Gutes.",
 ]
 capitulate = them.razed(me) > 5 ? [
-    "{name}, Ihr habt {them.razed(me)} meiner Gebäude eingerissen. Genug. {tribute}, wenn Ihr den Rest stehen lasst.",
-    "Genug, {name}. {them.razed(me)} meiner Gebäude liegen in Trümmern, den Rest will ich behalten. {tribute} für Frieden.",
+    "{them}, Ihr habt {them.razed(me)} meiner Gebäude eingerissen. Genug. {tribute}, wenn Ihr den Rest stehen lasst.",
+    "Genug, {them}. {them.razed(me)} meiner Gebäude liegen in Trümmern, den Rest will ich behalten. {tribute} für Frieden.",
 ] : [
-    "{name}, haltet ein. Alles, was Ihr niederbrennt, muss neu gebaut werden. {tribute}, wenn Ihr den Rest stehen lasst.",
-    "{name}, ich zahle lieber, als neu zu bauen. {tribute} - und meine Mauern bleiben, wie sie sind.",
+    "{them}, haltet ein. Alles, was Ihr niederbrennt, muss neu gebaut werden. {tribute}, wenn Ihr den Rest stehen lasst.",
+    "{them}, ich zahle lieber, als neu zu bauen. {tribute} - und meine Mauern bleiben, wie sie sind.",
 ]
 capitulate_accepted = "{tribute}, bezahlt. Jetzt lasst mich in Frieden wieder aufbauen."
 capitulate_refused = "Dann baue ich, bis der letzte Stein fällt."
-all_submitted = "Jede Mauer in diesem Land steht jetzt für Euch, {name}."
+all_submitted = "Jede Mauer in diesem Land steht jetzt für Euch, {them}."
 other_victory = lord == them ? [
-    "Gut gebaut, {name}. Glückwunsch.",
-    "Der letzte Stein ist gesetzt. Das Land gehört Euch, {name}.",
+    "Gut gebaut, {them}. Glückwunsch.",
+    "Der letzte Stein ist gesetzt. Das Land gehört Euch, {them}.",
 ] : [
-    "Diesen Sieg haben wir gemeinsam gebaut, {name}.",
-    "Solide Arbeit, {name} - Seite an Seite, Stein auf Stein.",
+    "Diesen Sieg haben wir gemeinsam gebaut, {them}.",
+    "Solide Arbeit, {them} - Seite an Seite, Stein auf Stein.",
 ]
 wonder_help = "Ein Wunder! Meisterhafte Arbeit. Ich helfe beim Schutz."
 wonder_threat = "Ein Wunder? Beeindruckend. Leider auch ein lohnendes Ziel."

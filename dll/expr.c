@@ -1,7 +1,7 @@
 // THE TEXT FILES (<game>\aimod_ai\*.ini: the personalities, _system.ini, _template.ini) and the EXPRESSIONS in them.
 // A file: sections [name] / [name:<language>], "key = value" lines, comments from ; or # to the line's end (outside a
 // string). A value is an expression - over several lines while a ( [ or { is open:
-//   "text"                          a string; \" \\ \n escapes. {placeholders} in it - {name} - or expressions -
+//   "text"                          a string; \" \\ \n escapes. {expressions} in it - {them} -
 //                                   {opinion > 30 ? "friend" : "stranger"}: the quotes inside the braces are the
 //                                   expression's, not the string's end
 //   ["a", "b", ...]                 a list: one of its items, at random
@@ -31,7 +31,7 @@
 #define XVAL_CAP 240
 struct xvars { int n; char *key[XVARS_MAX], *val[XVARS_MAX]; };   // val: an expression's source
 struct xctx {
-    void *pl, *other, *third;               // the speaker, {name}, {enemy} - NULL: found by the placeholders' names
+    void *pl, *other, *third;               // the speaker, them, enemy - them NULL: the local player
     int found;                              // pl/other/third looked up (x_builtin)
     const char *const *pn, *const *pv;      // the text's placeholders
     int np;
@@ -45,9 +45,9 @@ struct xctx {
 struct xval { int has_n, has_s, w, pl; double n; char s[XVAL_CAP], miss[24]; };
 static struct xvars g_vars_sys, g_vars_tpl;   // _system.ini [vars] (+ [vars:<language>]), _template.ini [vars] (texts.c)
 static int x_builtin(struct xctx *c, const char *name, struct xval *v);   // diplo.c: the game's values
+static int x_is_value(const char *name);   // diplo.c: a name that is a value of its own (them, epoch, minutes ...)
 // diplo.c: a relation, them.opinion(me) - 0: name is none (v NULL: only that checked)
 static int x_method(struct xctx *c, const char *name, const struct xval *a, int na, struct xval *v);
-static void x_decode(const char *name, struct xval *v);   // diplo.c: a placeholder's text that names a number (an epoch)
 static int x_fill(char *out, int cap, const char *tmpl, struct xctx *c);
 static int rnd(int n);   // persona.c: the display generator
 static int g_x_logged;   // expression errors written to the log (at most 60)
@@ -186,7 +186,7 @@ static void xp_ident(struct xp *p, const char *name, struct xval *v) {
     struct xctx *c = p->c;
     if (p->skip) { xnothing(v); return; }
     for (int i = 0; i < c->np; i++)
-        if (!strcmp(c->pn[i], name)) { xstr(v, c->pv[i]); if (!v->has_n) x_decode(name, v); return; }
+        if (!strcmp(c->pn[i], name)) { xstr(v, c->pv[i]); return; }
     for (int k = 0; k < 3; k++) {
         const char *def = xvars_get(c->vars[k], name);
         if (!def) continue;
@@ -497,7 +497,8 @@ static int x_fill(char *out, int cap, const char *tmpl, struct xctx *c) {
                 int lone = ok && c->unknown > unk && strspn(src, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_.") == (size_t)n;
                 if (ok && !lone) { xto_text(&v, val, sizeof val); rep = val; }
                 if (ok && !lone && c->unknown > unk) x_log_bad("an unknown name (counted 0) in", src);
-                else if (lone && g_strict) x_log_bad("a placeholder nobody fills", src);
+                else if (lone && g_strict) x_log_bad(!strcmp(src, "name") ? "{name} is no more - the other player is {them} (them.name)" :
+                                                     "a placeholder nobody fills", src);
                 else if (!ok && strpbrk(src, " <>=?\"'(+[")) { c->bad++; x_log_bad("not an expression", src); }
             }
         }

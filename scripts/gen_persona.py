@@ -26,7 +26,7 @@ def help_text(name):
     a = texts.index('static const char %s[] =' % name)
     return [ln for ln in c_string(texts[a:texts.index(';\n', a)]).split('\n') if ln]
 
-aud = {'A_ALL': 'everyone', 'A_ALLIES': 'its allies', 'A_NAME': '{name} only'}
+aud = {'A_ALL': 'everyone', 'A_ALLIES': 'its allies', 'A_NAME': '{them} only'}
 fb = re.search(r'static int line_fallback\(int k\) \{(.*?)\n\}', pers, re.S).group(1)
 fallback = {a.lower(): b.lower() for a, b in re.findall(r'case L_(\w+): return L_(\w+);', fb)}
 
@@ -37,7 +37,7 @@ w('; are skipped. Copy it to a new name in this folder (e.g. seefahrer.eeai), fi
 w('; may get it (picked at random, a matching colour first).')
 w(';')
 w('; Each situation below gets a line: a string, or a list of them (one at random), with conditions if you like:')
-w(';   greeting = [allied ? "Welcome back, {name}.", opinion < -50 ? ["Go away.", "You again?"]] ?? "Greetings, {name}."')
+w(';   greeting = [allied ? "Welcome back, {them}.", opinion < -50 ? ["Go away.", "You again?"]] ?? "Greetings, {them}."')
 w('; A situation without a line stays silent - unless it must be said (war, peace, offers, capitulation, victory): then')
 w('; a more general situation speaks (noted below) or computer.eeai. [lines:de] (or :fr ...) replaces [lines] in a game')
 w('; of that language, situation by situation.')

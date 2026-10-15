@@ -20,7 +20,7 @@ pers, tpl, diplo, expr, settings = (src(n) for n in ('persona.c', 'texts_prompt.
 lines = re.findall(r'\{ "([a-z_]+)", (\d+), (\d+), (A_ALL|A_ALLIES|A_NAME) \}', pers)
 fb = re.search(r'static int line_fallback\(int k\) \{(.*?)\n\}', pers, re.S).group(1)
 fallback = {a.lower(): b.lower() for a, b in re.findall(r'case L_(\w+): return L_(\w+);', fb)}
-aud = {'A_ALL': 'everyone', 'A_ALLIES': 'its allies', 'A_NAME': '{name}'}
+aud = {'A_ALL': 'everyone', 'A_ALLIES': 'its allies', 'A_NAME': '{them}'}
 def sit(key):
     m = re.search(r'\{ "sit_%s", ((?:\s*"(?:[^"\\]|\\.)*")+)' % key, tpl)
     # an expression in it ({lord == them ? ...}) left out: the plain words describe the situation

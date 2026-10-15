@@ -38,157 +38,157 @@ old_bond = me.alliance_minutes(them) > 30
 [lines]
 greeting = [
     players > 5 and chance(50%) ? "So many banners on one field. May each of them be borne with honour.",
-    allied and chance(50%) ? "We stand under one oath, {name}. Mine will hold to the end.",
+    allied and chance(50%) ? "We stand under one oath, {them}. Mine will hold to the end.",
 ] ?? [
     "Greetings. May this struggle be fought with honour.",
     "I am Gunther. My word holds - and so does my sword.",
 ]
 war_declared = [
     my_shame ? [
-        "I broke faith with you once, {name}. I cannot call this unjust. Defend yourself.",
-        "You have more cause for this war than I have to complain of it, {name}. I broke my oath - now I answer for it with my sword.",
+        "I broke faith with you once, {them}. I cannot call this unjust. Defend yourself.",
+        "You have more cause for this war than I have to complain of it, {them}. I broke my oath - now I answer for it with my sword.",
     ],
     them.tribute(me, 20) > 0 ? [
-        "Yesterday your tribute, today your sword, {name}? So be it - I take up the challenge.",
-        "I accepted your gifts in good faith, {name}. Now I learn what they were worth. Come, then.",
+        "Yesterday your tribute, today your sword, {them}? So be it - I take up the challenge.",
+        "I accepted your gifts in good faith, {them}. Now I learn what they were worth. Come, then.",
     ],
-    worthy and chance(60%) ? "A worthy foe at last, {name}. I salute you - and I will not spare you.",
-    outmatched and chance(60%) ? "You challenge me with so few, {name}? Brave - and foolish. I will fight you fairly all the same.",
+    worthy and chance(60%) ? "A worthy foe at last, {them}. I salute you - and I will not spare you.",
+    outmatched and chance(60%) ? "You challenge me with so few, {them}? Brave - and foolish. I will fight you fairly all the same.",
 ] ?? [
-    "So be it, {name}. We meet on the battlefield.",
-    "You have thrown down the gauntlet, {name}. I take it up.",
-    "You wish for war, {name}? You shall have it.",
+    "So be it, {them}. We meet on the battlefield.",
+    "You have thrown down the gauntlet, {them}. I take it up.",
+    "You wish for war, {them}? You shall have it.",
 ]
 ; their betrayal is counted already: betrayals(me) > 1 is the second time
 betrayed = my_shame ? [
-    "I broke my oath to you once, {name}, and now you break yours. Neither of us may speak of honour - only of steel.",
-    "Perhaps I taught you this, {name}, when I broke my word to you. Then let me also teach you what follows.",
+    "I broke my oath to you once, {them}, and now you break yours. Neither of us may speak of honour - only of steel.",
+    "Perhaps I taught you this, {them}, when I broke my word to you. Then let me also teach you what follows.",
 ] : them.betrayals(me) > 1 ? [
-    "Twice, {name}! Twice you swore and twice you lied. There will be no third oath between us.",
-    "A man who breaks his oath once may have erred, {name}. A man who breaks it twice has no oath left to break.",
+    "Twice, {them}! Twice you swore and twice you lied. There will be no third oath between us.",
+    "A man who breaks his oath once may have erred, {them}. A man who breaks it twice has no oath left to break.",
 ] : [
-    "Dishonourable, {name}! Does an oath mean nothing to you?",
-    "You broke your oath, {name}. There is no forgiveness for that.",
-    "Traitor! I will hunt you to the ends of the earth, {name}.",
+    "Dishonourable, {them}! Does an oath mean nothing to you?",
+    "You broke your oath, {them}. There is no forgiveness for that.",
+    "Traitor! I will hunt you to the ends of the earth, {them}.",
 ]
 peace_accept = [
     oathbreaker ? [
-        "I accept, {name} - though you broke faith with me once. Give me no cause to regret it.",
-        "Peace, {name}. I will keep my word as I always have - whether you keep yours this time is on your soul.",
+        "I accept, {them} - though you broke faith with me once. Give me no cause to regret it.",
+        "Peace, {them}. I will keep my word as I always have - whether you keep yours this time is on your soul.",
     ],
-    me.kills(them, this_war) > many_dead and me.kills(them, this_war) > them.kills(me, this_war) * 2 and chance(60%) ? "You have lost enough brave men, {name}. There is no honour in striking the beaten. Peace.",
-    them.kills(me, this_war) > many_dead and them.kills(me, this_war) > me.kills(them, this_war) and chance(60%) ? "You fought well, {name}, and my knights paid for it. Peace - between equals.",
+    me.kills(them, this_war) > many_dead and me.kills(them, this_war) > them.kills(me, this_war) * 2 and chance(60%) ? "You have lost enough brave men, {them}. There is no honour in striking the beaten. Peace.",
+    them.kills(me, this_war) > many_dead and them.kills(me, this_war) > me.kills(them, this_war) and chance(60%) ? "You fought well, {them}, and my knights paid for it. Peace - between equals.",
 ] ?? [
-    "I accept your peace, {name}. Keep your word - I will keep mine.",
-    "Then let us shake hands, {name}. May it be a lasting peace.",
+    "I accept your peace, {them}. Keep your word - I will keep mine.",
+    "Then let us shake hands, {them}. May it be a lasting peace.",
 ]
 peace_refuse = [
     oathbreaker ? [
-        "You swore to me once and broke it, {name}. What is your word worth now?",
-        "An oathbreaker's peace is a trap with a seal on it, {name}. I will not set my name beneath it.",
+        "You swore to me once and broke it, {them}. What is your word worth now?",
+        "An oathbreaker's peace is a trap with a seal on it, {them}. I will not set my name beneath it.",
     ],
-    them.refusals(me, 30) > 0 and chance(70%) ? "I offered you my hand once, {name}, and you struck it away. Now it holds a sword.",
-    them.kills(me, 10) > many_dead / 3 and chance(50%) ? "My knights lie unburied, {name}. Their honour asks more of me than words.",
+    them.refusals(me, 30) > 0 and chance(70%) ? "I offered you my hand once, {them}, and you struck it away. Now it holds a sword.",
+    them.kills(me, 10) > many_dead / 3 and chance(50%) ? "My knights lie unburied, {them}. Their honour asks more of me than words.",
 ] ?? [
-    "The insult is not yet avenged, {name}.",
-    "Your word means nothing to me any more, {name}.",
+    "The insult is not yet avenged, {them}.",
+    "Your word means nothing to me any more, {them}.",
     "First the battle, then the peace.",
 ]
 block_refuse = [
-    "My honour forbids me to stand beside {enemy}, {name}.",
-    "As long as {enemy} is your ally, {name}, my sword stays drawn.",
+    "My honour forbids me to stand beside {enemy}, {them}.",
+    "As long as {enemy} is your ally, {them}, my sword stays drawn.",
 ]
 ; enemy is my own ally here
 block_refuse_own = [
-    me.alliance_minutes(enemy) > 30 and chance(60%) ? "{enemy} and I have stood together a long time, {name}. I will not break that bond for your peace.",
+    me.alliance_minutes(enemy) > 30 and chance(60%) ? "{enemy} and I have stood together a long time, {them}. I will not break that bond for your peace.",
 ] ?? [
-    "I am sworn to {enemy}, {name}, and {enemy} has not forgiven you.",
-    "My oath binds me to {enemy}. Make your peace there first, {name}.",
+    "I am sworn to {enemy}, {them}, and {enemy} has not forgiven you.",
+    "My oath binds me to {enemy}. Make your peace there first, {them}.",
 ]
 vassal_grumble = [
     enemy.betrayals(me) > 0 ? [
-        "Peace with {enemy}, who once broke an oath to me... I obey, {name}, as I swore. I do not forget.",
-        "{enemy} broke an oath to me, and I must keep mine to you, {name}. So be it - the one does not excuse the other.",
+        "Peace with {enemy}, who once broke an oath to me... I obey, {them}, as I swore. I do not forget.",
+        "{enemy} broke an oath to me, and I must keep mine to you, {them}. So be it - the one does not excuse the other.",
     ],
-] ?? "I gave you my word, {name}. I lower my sword before {enemy} - with a heavy heart."
+] ?? "I gave you my word, {them}. I lower my sword before {enemy} - with a heavy heart."
 ask_lord = [
-    "I am sworn to {enemy}, {name}. Bring your offer before my liege.",
-    "My word belongs to {enemy}. Speak with them, {name}.",
+    "I am sworn to {enemy}, {them}. Bring your offer before my liege.",
+    "My word belongs to {enemy}. Speak with them, {them}.",
 ]
 alliance_offer = [
     oathbreaker ? [
-        "{name}, you broke faith with me once. Still I offer my blade against {enemy} - do not make me regret it.",
-        "{name}, I have not forgotten your broken oath. But {enemy} is the greater danger - swear again, and this time hold to it.",
+        "{them}, you broke faith with me once. Still I offer my blade against {enemy} - do not make me regret it.",
+        "{them}, I have not forgotten your broken oath. But {enemy} is the greater danger - swear again, and this time hold to it.",
     ],
     enemy.betrayals(me) > 0 ? [
-        "{enemy} broke an oath to me, {name}. Stand with me, and we shall see it answered.",
-        "The word of {enemy} is worthless, {name} - I learned that at my cost. Swear with me, and let us show {enemy} what an oath kept looks like.",
+        "{enemy} broke an oath to me, {them}. Stand with me, and we shall see it answered.",
+        "The word of {enemy} is worthless, {them} - I learned that at my cost. Swear with me, and let us show {enemy} what an oath kept looks like.",
     ],
-    enemy.strength > me.strength + them.strength and chance(60%) ? "{enemy} outmatches us both, {name}. Alone we fall - sworn together, we may stand.",
+    enemy.strength > me.strength + them.strength and chance(60%) ? "{enemy} outmatches us both, {them}. Alone we fall - sworn together, we may stand.",
 ] ?? [
-    "{name}, {enemy} threatens us all. Swear with me to stand against them.",
-    "I offer you my blade against {enemy}, {name}. Do you accept?",
+    "{them}, {enemy} threatens us all. Swear with me to stand against them.",
+    "I offer you my blade against {enemy}, {them}. Do you accept?",
 ]
 offer_accepted = [
     oathbreaker ? [
-        "Allies once more, {name}. I trust your word again - once, and only once.",
-        "So you swear to me again, {name}. I take your hand - but I remember the last time you gave it.",
+        "Allies once more, {them}. I trust your word again - once, and only once.",
+        "So you swear to me again, {them}. I take your hand - but I remember the last time you gave it.",
     ],
-    them.refusals(me, 30) > 0 and chance(60%) ? "You refused me before, {name}. I am glad you thought better of it. My sword is yours.",
+    them.refusals(me, 30) > 0 and chance(60%) ? "You refused me before, {them}. I am glad you thought better of it. My sword is yours.",
 ] ?? [
-    enemy ? "A bond of honour, {name}. Against {enemy}!",
-    "My sword is your sword, {name}.",
+    enemy ? "A bond of honour, {them}. Against {enemy}!",
+    "My sword is your sword, {them}.",
 ]
 ; ignored(me) counts this one already
 offer_withdrawn = them.ignored(me) > 1 ? [
-    "Again no answer, {name}. A knight answers, even when the answer is no.",
-    "{name}, I have asked you more than once and heard nothing. I will not ask again.",
+    "Again no answer, {them}. A knight answers, even when the answer is no.",
+    "{them}, I have asked you more than once and heard nothing. I will not ask again.",
 ] : [
-    "You are silent, {name}? Then I fight alone.",
-    "Your silence is answer enough, {name}.",
+    "You are silent, {them}? Then I fight alone.",
+    "Your silence is answer enough, {them}.",
 ]
 ; said while still allied: alliance_minutes holds, my_shame is an earlier betrayal
 betray = [
     my_shame ? [
-        "Again I break my word to you, {name}. God forgive me - I will not forgive myself.",
-        "Once already I was faithless to you, {name}, and now a second time. Whatever honour I had left with you, I spend it today.",
+        "Again I break my word to you, {them}. God forgive me - I will not forgive myself.",
+        "Once already I was faithless to you, {them}, and now a second time. Whatever honour I had left with you, I spend it today.",
     ],
     oathbreaker ? [
-        "You broke faith with me once, {name}. Today I repay it in the same coin - and share your shame.",
-        "You taught me how oaths are broken, {name}. I take no pride in having learned it.",
+        "You broke faith with me once, {them}. Today I repay it in the same coin - and share your shame.",
+        "You taught me how oaths are broken, {them}. I take no pride in having learned it.",
     ],
-    old_bond and chance(60%) ? "We stood together so long, {name}. It grieves me. But these times demand hardness.",
-] ?? "Forgive me, {name}. These times demand hardness."
+    old_bond and chance(60%) ? "We stood together so long, {them}. It grieves me. But these times demand hardness.",
+] ?? "Forgive me, {them}. These times demand hardness."
 tribute_thanks = [
     at_war ? [
-        "Tribute in the midst of war, {name}? I accept it - but my honour is not for sale.",
-        "Gold while our swords are crossed, {name}? I thank you for it - and we will meet on the field all the same.",
+        "Tribute in the midst of war, {them}? I accept it - but my honour is not for sale.",
+        "Gold while our swords are crossed, {them}? I thank you for it - and we will meet on the field all the same.",
     ],
-    them.tribute(me) > big_tribute and chance(60%) ? "Your generosity knows no bounds, {name}. A knight does not forget his debts.",
+    them.tribute(me) > big_tribute and chance(60%) ? "Your generosity knows no bounds, {them}. A knight does not forget his debts.",
 ] ?? [
-    "A generous gift, {name}. I shall not forget it.",
-    "My thanks, {name}.",
+    "A generous gift, {them}. I shall not forget it.",
+    "My thanks, {them}.",
 ]
-tribute_small = "A small gesture, {name}. Noted."
+tribute_small = "A small gesture, {them}. Noted."
 attack = [
     oathbreaker ? [
-        "Against the oathbreaker {name}! Let steel answer for a broken word!",
-        "Ride! {name} swore an oath and broke it - today we hold them to account.",
+        "Against the oathbreaker {them}! Let steel answer for a broken word!",
+        "Ride! {them} swore an oath and broke it - today we hold them to account.",
     ],
-    them.razed(me, 20) > 0 and chance(60%) ? "{name} burned our halls. We ride to answer it - with honour, not with torches.",
-    them.kills(me, 20) > many_dead / 2 and them.kills(me, 20) > me.kills(them, 20) and chance(60%) ? "For our fallen! Ride against {name}!",
+    them.razed(me, 20) > 0 and chance(60%) ? "{them} burned our halls. We ride to answer it - with honour, not with torches.",
+    them.kills(me, 20) > many_dead / 2 and them.kills(me, 20) > me.kills(them, 20) and chance(60%) ? "For our fallen! Ride against {them}!",
 ] ?? [
-    "For honour and crown! Against {name}!",
-    "To horse! {name} awaits us.",
-    "Forward, against {name}!",
+    "For honour and crown! Against {them}!",
+    "To horse! {them} awaits us.",
+    "Forward, against {them}!",
 ]
 attack_threat = [
-    outmatched and chance(50%) ? "{name}, your ranks are thin. Yield now, and no more need die.",
-    their_fallen and chance(50%) ? "{me.kills(them)} of your people have fallen to my knights already, {name}. Yield, and spare the rest.",
+    outmatched and chance(50%) ? "{them}, your ranks are thin. Yield now, and no more need die.",
+    their_fallen and chance(50%) ? "{me.kills(them)} of your people have fallen to my knights already, {them}. Yield, and spare the rest.",
 ] ?? [
-    "{name}, defend yourself - I come openly and with honour.",
-    "My knights ride against you, {name}. Prepare yourself.",
-    "Meet me on the field, {name}.",
+    "{them}, defend yourself - I come openly and with honour.",
+    "My knights ride against you, {them}. Prepare yourself.",
+    "Meet me on the field, {them}.",
 ]
 under_attack = [
     me.soldiers < 10 ? [
@@ -205,12 +205,12 @@ epoch_up = [
     "A new age dawns: {epoch}.",
     "{epoch}. New armour, old virtues.",
 ]
-enemy_ahead = "{name} is further along than we are. Courage makes up for much."
+enemy_ahead = "{them} is further along than we are. Courage makes up for much."
 winning = [
-    their_fallen and chance(50%) ? "{me.kills(them)} of yours have fallen, {name}. Enough brave men have died - yield with honour.",
+    their_fallen and chance(50%) ? "{me.kills(them)} of yours have fallen, {them}. Enough brave men have died - yield with honour.",
 ] ?? [
     "Victory is near. Stand firm!",
-    "{name}, surrender with honour.",
+    "{them}, surrender with honour.",
 ]
 losing = [
     "We do not yield!",
@@ -222,48 +222,48 @@ desperate = [
 ]
 enemy_defeated = [
     oathbreaker ? [
-        "{name} has fallen. So ends an oathbreaker.",
-        "{name} broke faith with me and has paid for it. Let every oathbreaker remember this day.",
+        "{them} has fallen. So ends an oathbreaker.",
+        "{them} broke faith with me and has paid for it. Let every oathbreaker remember this day.",
     ],
-    my_fallen and chance(60%) ? "{name} has fallen. A hard foe - many of my knights paid for this day.",
+    my_fallen and chance(60%) ? "{them} has fallen. A hard foe - many of my knights paid for this day.",
 ] ?? [
-    "{name} has fallen. A brave opponent.",
-    "Rest in peace, {name}.",
+    "{them} has fallen. A brave opponent.",
+    "Rest in peace, {them}.",
 ]
 ally_defeated = [
     lord == them ? [
-        "My liege {name} has fallen! My oath outlives you - I will avenge you.",
-        "My liege {name} has fallen, but my oath has not. I serve your memory until I fall myself.",
+        "My liege {them} has fallen! My oath outlives you - I will avenge you.",
+        "My liege {them} has fallen, but my oath has not. I serve your memory until I fall myself.",
     ],
 ] ?? [
-    "{name} has fallen. I will avenge you, friend.",
-    "My ally {name} is no more. The sacrifice was not in vain.",
+    "{them} has fallen. I will avenge you, friend.",
+    "My ally {them} is no more. The sacrifice was not in vain.",
 ]
 defeated = [
     "I ... yield. Treat my people well.",
     "It was ... a good fight.",
 ]
 surrender = [
-    "I yield, {name}. You fought with honour.",
+    "I yield, {them}. You fought with honour.",
     "My sword is lowered. I surrender.",
 ]
 capitulate = [
     oathbreaker ? [
-        "{name}, you once broke faith with me - yet I keep mine. {tribute} and my sword at your side. Accept, and you have my oath.",
-        "{name}, I yield - to one who once broke his word to me. Yet my oath does not hang on yours: {tribute} and my sword at your side, if you accept.",
+        "{them}, you once broke faith with me - yet I keep mine. {tribute} and my sword at your side. Accept, and you have my oath.",
+        "{them}, I yield - to one who once broke his word to me. Yet my oath does not hang on yours: {tribute} and my sword at your side, if you accept.",
     ],
-] ?? "{name}, you have bested me. I offer {tribute} and my sword at your side - accept, and you have my oath."
-capitulate_accepted = "{tribute}, as sworn. My word is my bond, {name}."
+] ?? "{them}, you have bested me. I offer {tribute} and my sword at your side - accept, and you have my oath."
+capitulate_accepted = "{tribute}, as sworn. My word is my bond, {them}."
 capitulate_refused = "You refuse my oath? Then I fall with honour."
-all_submitted = "Every knight in this land has sworn fealty to you, {name}."
+all_submitted = "Every knight in this land has sworn fealty to you, {them}."
 other_victory = lord == them ? [
-    "Long live {name}!",
-    "With honour I lay down my sword before you, {name}.",
+    "Long live {them}!",
+    "With honour I lay down my sword before you, {them}.",
 ] : ([
-    old_bond and chance(60%) ? "From first to last we stood together, {name}. An oath kept is the finest victory.",
+    old_bond and chance(60%) ? "From first to last we stood together, {them}. An oath kept is the finest victory.",
 ] ?? [
-    "Victory, {name}! It was an honour to fight at your side.",
-    "Our oath held to the end, {name}. Long live the alliance!",
+    "Victory, {them}! It was an honour to fight at your side.",
+    "Our oath held to the end, {them}. Long live the alliance!",
 ])
 wonder_threat = "One does not build a wonder to hide it. And I will take it from you."
 wonder_help = [
@@ -279,153 +279,153 @@ help_none = "It shames me, but I can send no one."
 [lines:de]
 greeting = [
     players > 5 and chance(50%) ? "So viele Banner auf einem Feld. Möge jedes von ihnen mit Ehre getragen werden.",
-    allied and chance(50%) ? "Wir stehen unter einem Eid, {name}. Meiner hält bis zum Ende.",
+    allied and chance(50%) ? "Wir stehen unter einem Eid, {them}. Meiner hält bis zum Ende.",
 ] ?? [
     "Gott zum Gruße. Möge dieser Kampf ehrenvoll geführt werden.",
     "Ich bin Gunther. Mein Wort gilt - mein Schwert ebenso.",
 ]
 war_declared = [
     my_shame ? [
-        "Ich habe Euch einst die Treue gebrochen, {name}. Ich kann dies nicht Unrecht nennen. Verteidigt Euch.",
-        "Ihr habt mehr Grund zu diesem Krieg, als ich Grund zur Klage habe, {name}. Ich habe meinen Eid gebrochen - nun stehe ich mit dem Schwert dafür ein.",
+        "Ich habe Euch einst die Treue gebrochen, {them}. Ich kann dies nicht Unrecht nennen. Verteidigt Euch.",
+        "Ihr habt mehr Grund zu diesem Krieg, als ich Grund zur Klage habe, {them}. Ich habe meinen Eid gebrochen - nun stehe ich mit dem Schwert dafür ein.",
     ],
     them.tribute(me, 20) > 0 ? [
-        "Gestern Euer Tribut, heute Euer Schwert, {name}? So sei es - ich nehme die Forderung an.",
-        "Ich nahm Eure Gaben in gutem Glauben an, {name}. Nun weiß ich, was sie wert waren. So kommt denn.",
+        "Gestern Euer Tribut, heute Euer Schwert, {them}? So sei es - ich nehme die Forderung an.",
+        "Ich nahm Eure Gaben in gutem Glauben an, {them}. Nun weiß ich, was sie wert waren. So kommt denn.",
     ],
-    worthy and chance(60%) ? "Endlich ein würdiger Gegner, {name}. Ich grüße Euch - und ich werde Euch nicht schonen.",
-    outmatched and chance(60%) ? "Ihr fordert mich mit so wenigen heraus, {name}? Tapfer - und töricht. Ich kämpfe dennoch ehrlich gegen Euch.",
+    worthy and chance(60%) ? "Endlich ein würdiger Gegner, {them}. Ich grüße Euch - und ich werde Euch nicht schonen.",
+    outmatched and chance(60%) ? "Ihr fordert mich mit so wenigen heraus, {them}? Tapfer - und töricht. Ich kämpfe dennoch ehrlich gegen Euch.",
 ] ?? [
-    "So sei es, {name}. Wir sehen uns auf dem Schlachtfeld.",
-    "Ihr habt den Fehdehandschuh geworfen, {name}. Ich hebe ihn auf.",
-    "Ihr wünscht Krieg, {name}? Ihr sollt ihn haben.",
+    "So sei es, {them}. Wir sehen uns auf dem Schlachtfeld.",
+    "Ihr habt den Fehdehandschuh geworfen, {them}. Ich hebe ihn auf.",
+    "Ihr wünscht Krieg, {them}? Ihr sollt ihn haben.",
 ]
 betrayed = my_shame ? [
-    "Ich habe Euch einst meinen Eid gebrochen, {name}, nun brecht Ihr den Euren. Keiner von uns darf mehr von Ehre sprechen - nur noch von Stahl.",
-    "Vielleicht habe ich Euch dies gelehrt, {name}, als ich Euch mein Wort brach. So lasst mich Euch auch lehren, was darauf folgt.",
+    "Ich habe Euch einst meinen Eid gebrochen, {them}, nun brecht Ihr den Euren. Keiner von uns darf mehr von Ehre sprechen - nur noch von Stahl.",
+    "Vielleicht habe ich Euch dies gelehrt, {them}, als ich Euch mein Wort brach. So lasst mich Euch auch lehren, was darauf folgt.",
 ] : them.betrayals(me) > 1 ? [
-    "Zweimal, {name}! Zweimal habt Ihr geschworen, zweimal gelogen. Einen dritten Eid wird es zwischen uns nicht geben.",
-    "Wer seinen Eid einmal bricht, mag geirrt haben, {name}. Wer ihn zweimal bricht, hat keinen Eid mehr zu brechen.",
+    "Zweimal, {them}! Zweimal habt Ihr geschworen, zweimal gelogen. Einen dritten Eid wird es zwischen uns nicht geben.",
+    "Wer seinen Eid einmal bricht, mag geirrt haben, {them}. Wer ihn zweimal bricht, hat keinen Eid mehr zu brechen.",
 ] : [
-    "Ehrlos, {name}! Ein Eid gilt Euch nichts?",
-    "Ihr habt Euren Eid gebrochen, {name}. Dafür gibt es keine Vergebung.",
-    "Verräter! Ich werde Euch bis ans Ende der Welt verfolgen, {name}.",
+    "Ehrlos, {them}! Ein Eid gilt Euch nichts?",
+    "Ihr habt Euren Eid gebrochen, {them}. Dafür gibt es keine Vergebung.",
+    "Verräter! Ich werde Euch bis ans Ende der Welt verfolgen, {them}.",
 ]
 peace_accept = [
     oathbreaker ? [
-        "Ich nehme an, {name} - obwohl Ihr mir einst die Treue gebrochen habt. Gebt mir keinen Grund, es zu bereuen.",
-        "Frieden, {name}. Ich halte mein Wort, wie ich es immer gehalten habe - ob Ihr diesmal das Eure haltet, liegt auf Eurer Seele.",
+        "Ich nehme an, {them} - obwohl Ihr mir einst die Treue gebrochen habt. Gebt mir keinen Grund, es zu bereuen.",
+        "Frieden, {them}. Ich halte mein Wort, wie ich es immer gehalten habe - ob Ihr diesmal das Eure haltet, liegt auf Eurer Seele.",
     ],
-    me.kills(them, this_war) > many_dead and me.kills(them, this_war) > them.kills(me, this_war) * 2 and chance(60%) ? "Ihr habt genug tapfere Männer verloren, {name}. Es ist keine Ehre, den Geschlagenen zu treffen. Frieden.",
-    them.kills(me, this_war) > many_dead and them.kills(me, this_war) > me.kills(them, this_war) and chance(60%) ? "Ihr habt gut gekämpft, {name}, und meine Ritter haben dafür bezahlt. Frieden - unter Ebenbürtigen.",
+    me.kills(them, this_war) > many_dead and me.kills(them, this_war) > them.kills(me, this_war) * 2 and chance(60%) ? "Ihr habt genug tapfere Männer verloren, {them}. Es ist keine Ehre, den Geschlagenen zu treffen. Frieden.",
+    them.kills(me, this_war) > many_dead and them.kills(me, this_war) > me.kills(them, this_war) and chance(60%) ? "Ihr habt gut gekämpft, {them}, und meine Ritter haben dafür bezahlt. Frieden - unter Ebenbürtigen.",
 ] ?? [
-    "Ich nehme Euren Frieden an, {name}. Haltet Euer Wort - ich halte meins.",
-    "So reichen wir uns die Hand, {name}. Möge es ein dauerhafter Friede sein.",
+    "Ich nehme Euren Frieden an, {them}. Haltet Euer Wort - ich halte meins.",
+    "So reichen wir uns die Hand, {them}. Möge es ein dauerhafter Friede sein.",
 ]
 peace_refuse = [
     oathbreaker ? [
-        "Ihr habt mir einst geschworen und den Eid gebrochen, {name}. Was gilt Euer Wort jetzt noch?",
-        "Der Friede eines Eidbrechers ist eine Falle mit Siegel, {name}. Meinen Namen setze ich nicht darunter.",
+        "Ihr habt mir einst geschworen und den Eid gebrochen, {them}. Was gilt Euer Wort jetzt noch?",
+        "Der Friede eines Eidbrechers ist eine Falle mit Siegel, {them}. Meinen Namen setze ich nicht darunter.",
     ],
-    them.refusals(me, 30) > 0 and chance(70%) ? "Ich reichte Euch einst die Hand, {name}, und Ihr habt sie ausgeschlagen. Nun hält sie ein Schwert.",
-    them.kills(me, 10) > many_dead / 3 and chance(50%) ? "Meine Ritter liegen unbestattet, {name}. Ihre Ehre verlangt mehr von mir als Worte.",
+    them.refusals(me, 30) > 0 and chance(70%) ? "Ich reichte Euch einst die Hand, {them}, und Ihr habt sie ausgeschlagen. Nun hält sie ein Schwert.",
+    them.kills(me, 10) > many_dead / 3 and chance(50%) ? "Meine Ritter liegen unbestattet, {them}. Ihre Ehre verlangt mehr von mir als Worte.",
 ] ?? [
-    "Noch ist die Schmach nicht getilgt, {name}.",
-    "Euer Wort hat für mich keinen Wert mehr, {name}.",
+    "Noch ist die Schmach nicht getilgt, {them}.",
+    "Euer Wort hat für mich keinen Wert mehr, {them}.",
     "Erst die Schlacht, dann der Friede.",
 ]
 block_refuse = [
-    "Meine Ehre verbietet mir, an der Seite von {enemy} zu stehen, {name}.",
-    "Solange {enemy} Euer Verbündeter ist, {name}, bleibt mein Schwert gezogen.",
+    "Meine Ehre verbietet mir, an der Seite von {enemy} zu stehen, {them}.",
+    "Solange {enemy} Euer Verbündeter ist, {them}, bleibt mein Schwert gezogen.",
 ]
 block_refuse_own = [
-    me.alliance_minutes(enemy) > 30 and chance(60%) ? "{enemy} und ich stehen schon lange Seite an Seite, {name}. Für Euren Frieden breche ich diesen Bund nicht.",
+    me.alliance_minutes(enemy) > 30 and chance(60%) ? "{enemy} und ich stehen schon lange Seite an Seite, {them}. Für Euren Frieden breche ich diesen Bund nicht.",
 ] ?? [
-    "Ich bin {enemy} verschworen, {name}, und {enemy} hat Euch nicht vergeben.",
-    "Mein Eid bindet mich an {enemy}. Schließt dort zuerst Frieden, {name}.",
+    "Ich bin {enemy} verschworen, {them}, und {enemy} hat Euch nicht vergeben.",
+    "Mein Eid bindet mich an {enemy}. Schließt dort zuerst Frieden, {them}.",
 ]
 vassal_grumble = [
     enemy.betrayals(me) > 0 ? [
-        "Frieden mit {enemy}, der mir einst einen Eid gebrochen hat... Ich gehorche, {name}, wie ich es schwor. Vergessen werde ich es nicht.",
-        "{enemy} hat mir einen Eid gebrochen, und ich muss den meinen Euch gegenüber halten, {name}. So sei es - das eine entschuldigt das andere nicht.",
+        "Frieden mit {enemy}, der mir einst einen Eid gebrochen hat... Ich gehorche, {them}, wie ich es schwor. Vergessen werde ich es nicht.",
+        "{enemy} hat mir einen Eid gebrochen, und ich muss den meinen Euch gegenüber halten, {them}. So sei es - das eine entschuldigt das andere nicht.",
     ],
-] ?? "Ich gab Euch mein Wort, {name}. Ich senke das Schwert vor {enemy} - schweren Herzens."
+] ?? "Ich gab Euch mein Wort, {them}. Ich senke das Schwert vor {enemy} - schweren Herzens."
 ask_lord = [
-    "Ich bin {enemy} verschworen, {name}. Tragt Euer Angebot meinem Lehnsherrn vor.",
-    "Mein Wort gehört {enemy}. Sprecht mit ihnen, {name}.",
+    "Ich bin {enemy} verschworen, {them}. Tragt Euer Angebot meinem Lehnsherrn vor.",
+    "Mein Wort gehört {enemy}. Sprecht mit ihnen, {them}.",
 ]
 alliance_offer = [
     oathbreaker ? [
-        "{name}, Ihr habt mir einst die Treue gebrochen. Dennoch biete ich Euch meine Klinge gegen {enemy} - lasst es mich nicht bereuen.",
-        "{name}, ich habe Euren gebrochenen Eid nicht vergessen. Doch {enemy} ist die größere Gefahr - schwört aufs Neue, und haltet diesmal Wort.",
+        "{them}, Ihr habt mir einst die Treue gebrochen. Dennoch biete ich Euch meine Klinge gegen {enemy} - lasst es mich nicht bereuen.",
+        "{them}, ich habe Euren gebrochenen Eid nicht vergessen. Doch {enemy} ist die größere Gefahr - schwört aufs Neue, und haltet diesmal Wort.",
     ],
     enemy.betrayals(me) > 0 ? [
-        "{enemy} hat mir einen Eid gebrochen, {name}. Steht mir bei, und es wird gesühnt.",
-        "Das Wort von {enemy} ist nichts wert, {name} - das habe ich teuer gelernt. Schwört mit mir, und zeigen wir {enemy}, wie ein gehaltener Eid aussieht.",
+        "{enemy} hat mir einen Eid gebrochen, {them}. Steht mir bei, und es wird gesühnt.",
+        "Das Wort von {enemy} ist nichts wert, {them} - das habe ich teuer gelernt. Schwört mit mir, und zeigen wir {enemy}, wie ein gehaltener Eid aussieht.",
     ],
-    enemy.strength > me.strength + them.strength and chance(60%) ? "{enemy} ist uns beiden überlegen, {name}. Allein fallen wir - verschworen können wir bestehen.",
+    enemy.strength > me.strength + them.strength and chance(60%) ? "{enemy} ist uns beiden überlegen, {them}. Allein fallen wir - verschworen können wir bestehen.",
 ] ?? [
-    "{name}, {enemy} bedroht uns alle. Schwört mit mir, ihm zu widerstehen.",
-    "Ich biete Euch meine Klinge gegen {enemy}, {name}. Nehmt Ihr an?",
+    "{them}, {enemy} bedroht uns alle. Schwört mit mir, ihm zu widerstehen.",
+    "Ich biete Euch meine Klinge gegen {enemy}, {them}. Nehmt Ihr an?",
 ]
 offer_accepted = [
     oathbreaker ? [
-        "Wieder Verbündete, {name}. Ich vertraue Eurem Wort noch einmal - ein einziges Mal.",
-        "So schwört Ihr mir erneut, {name}. Ich nehme Eure Hand - doch ich weiß noch, wie Ihr sie mir das letzte Mal gereicht habt.",
+        "Wieder Verbündete, {them}. Ich vertraue Eurem Wort noch einmal - ein einziges Mal.",
+        "So schwört Ihr mir erneut, {them}. Ich nehme Eure Hand - doch ich weiß noch, wie Ihr sie mir das letzte Mal gereicht habt.",
     ],
-    them.refusals(me, 30) > 0 and chance(60%) ? "Einst habt Ihr mich abgewiesen, {name}. Gut, dass Ihr Euch eines Besseren besonnen habt. Mein Schwert ist Euer.",
+    them.refusals(me, 30) > 0 and chance(60%) ? "Einst habt Ihr mich abgewiesen, {them}. Gut, dass Ihr Euch eines Besseren besonnen habt. Mein Schwert ist Euer.",
 ] ?? [
-    enemy ? "Ein Bund der Ehre, {name}. Gegen {enemy}!",
-    "Mein Schwert ist Euer Schwert, {name}.",
+    enemy ? "Ein Bund der Ehre, {them}. Gegen {enemy}!",
+    "Mein Schwert ist Euer Schwert, {them}.",
 ]
 offer_withdrawn = them.ignored(me) > 1 ? [
-    "Wieder keine Antwort, {name}. Ein Ritter antwortet - auch wenn die Antwort nein lautet.",
-    "{name}, mehr als einmal habe ich gefragt und nichts gehört. Ein weiteres Mal frage ich nicht.",
+    "Wieder keine Antwort, {them}. Ein Ritter antwortet - auch wenn die Antwort nein lautet.",
+    "{them}, mehr als einmal habe ich gefragt und nichts gehört. Ein weiteres Mal frage ich nicht.",
 ] : [
-    "Ihr schweigt, {name}? So kämpfe ich allein.",
-    "Euer Schweigen ist Antwort genug, {name}.",
+    "Ihr schweigt, {them}? So kämpfe ich allein.",
+    "Euer Schweigen ist Antwort genug, {them}.",
 ]
 betray = [
     my_shame ? [
-        "Wieder breche ich Euch mein Wort, {name}. Gott vergebe mir - ich selbst werde es nicht.",
-        "Schon einmal war ich Euch untreu, {name}, und nun ein zweites Mal. Was mir an Ehre bei Euch blieb, verspiele ich heute.",
+        "Wieder breche ich Euch mein Wort, {them}. Gott vergebe mir - ich selbst werde es nicht.",
+        "Schon einmal war ich Euch untreu, {them}, und nun ein zweites Mal. Was mir an Ehre bei Euch blieb, verspiele ich heute.",
     ],
     oathbreaker ? [
-        "Ihr habt mir einst die Treue gebrochen, {name}. Heute zahle ich es Euch mit gleicher Münze heim - und teile Eure Schande.",
-        "Ihr habt mich gelehrt, wie man Eide bricht, {name}. Ich bin nicht stolz darauf, es gelernt zu haben.",
+        "Ihr habt mir einst die Treue gebrochen, {them}. Heute zahle ich es Euch mit gleicher Münze heim - und teile Eure Schande.",
+        "Ihr habt mich gelehrt, wie man Eide bricht, {them}. Ich bin nicht stolz darauf, es gelernt zu haben.",
     ],
-    old_bond and chance(60%) ? "So lange standen wir Seite an Seite, {name}. Es schmerzt mich. Doch die Zeiten verlangen Härte.",
-] ?? "Verzeiht, {name}. Die Zeiten verlangen Härte."
+    old_bond and chance(60%) ? "So lange standen wir Seite an Seite, {them}. Es schmerzt mich. Doch die Zeiten verlangen Härte.",
+] ?? "Verzeiht, {them}. Die Zeiten verlangen Härte."
 tribute_thanks = [
     at_war ? [
-        "Tribut mitten im Krieg, {name}? Ich nehme ihn an - doch meine Ehre ist nicht käuflich.",
-        "Gold, während unsere Klingen sich kreuzen, {name}? Ich danke Euch dafür - und wir sehen uns dennoch auf dem Feld.",
+        "Tribut mitten im Krieg, {them}? Ich nehme ihn an - doch meine Ehre ist nicht käuflich.",
+        "Gold, während unsere Klingen sich kreuzen, {them}? Ich danke Euch dafür - und wir sehen uns dennoch auf dem Feld.",
     ],
-    them.tribute(me) > big_tribute and chance(60%) ? "Eure Großzügigkeit kennt keine Grenzen, {name}. Ein Ritter vergisst nicht, was er schuldet.",
+    them.tribute(me) > big_tribute and chance(60%) ? "Eure Großzügigkeit kennt keine Grenzen, {them}. Ein Ritter vergisst nicht, was er schuldet.",
 ] ?? [
-    "Eine großzügige Gabe, {name}. Ich werde sie nicht vergessen.",
-    "Habt Dank, {name}.",
+    "Eine großzügige Gabe, {them}. Ich werde sie nicht vergessen.",
+    "Habt Dank, {them}.",
 ]
-tribute_small = "Eine kleine Geste, {name}. Ich nehme sie zur Kenntnis."
+tribute_small = "Eine kleine Geste, {them}. Ich nehme sie zur Kenntnis."
 attack = [
     oathbreaker ? [
-        "Gegen den Eidbrecher {name}! Der Stahl soll für das gebrochene Wort antworten!",
-        "Reitet! {name} hat einen Eid geschworen und gebrochen - heute fordern wir Rechenschaft.",
+        "Gegen den Eidbrecher {them}! Der Stahl soll für das gebrochene Wort antworten!",
+        "Reitet! {them} hat einen Eid geschworen und gebrochen - heute fordern wir Rechenschaft.",
     ],
-    them.razed(me, 20) > 0 and chance(60%) ? "{name} hat unsere Hallen niedergebrannt. Wir reiten, um es zu vergelten - mit Ehre, nicht mit Fackeln.",
-    them.kills(me, 20) > many_dead / 2 and them.kills(me, 20) > me.kills(them, 20) and chance(60%) ? "Für unsere Gefallenen! Reitet gegen {name}!",
+    them.razed(me, 20) > 0 and chance(60%) ? "{them} hat unsere Hallen niedergebrannt. Wir reiten, um es zu vergelten - mit Ehre, nicht mit Fackeln.",
+    them.kills(me, 20) > many_dead / 2 and them.kills(me, 20) > me.kills(them, 20) and chance(60%) ? "Für unsere Gefallenen! Reitet gegen {them}!",
 ] ?? [
-    "Für Ehre und Krone! Gegen {name}!",
-    "Zu Pferde! {name} erwartet uns.",
-    "Vorwärts, gegen {name}!",
+    "Für Ehre und Krone! Gegen {them}!",
+    "Zu Pferde! {them} erwartet uns.",
+    "Vorwärts, gegen {them}!",
 ]
 attack_threat = [
-    outmatched and chance(50%) ? "{name}, Eure Reihen sind dünn. Ergebt Euch jetzt, und niemand muss mehr sterben.",
-    their_fallen and chance(50%) ? "{me.kills(them)} der Euren sind schon durch meine Ritter gefallen, {name}. Ergebt Euch und verschont den Rest.",
+    outmatched and chance(50%) ? "{them}, Eure Reihen sind dünn. Ergebt Euch jetzt, und niemand muss mehr sterben.",
+    their_fallen and chance(50%) ? "{me.kills(them)} der Euren sind schon durch meine Ritter gefallen, {them}. Ergebt Euch und verschont den Rest.",
 ] ?? [
-    "{name}, verteidigt Euch - ich komme offen und mit Ehre.",
-    "Meine Ritter reiten gegen Euch, {name}. Wappnet Euch.",
-    "Stellt Euch mir auf dem Feld, {name}.",
+    "{them}, verteidigt Euch - ich komme offen und mit Ehre.",
+    "Meine Ritter reiten gegen Euch, {them}. Wappnet Euch.",
+    "Stellt Euch mir auf dem Feld, {them}.",
 ]
 under_attack = [
     me.soldiers < 10 ? [
@@ -442,12 +442,12 @@ epoch_up = [
     "Ein neues Zeitalter bricht an: {epoch}.",
     "{epoch}. Neue Rüstungen, alte Tugenden.",
 ]
-enemy_ahead = "{name} ist weiter als wir. Mut gleicht vieles aus."
+enemy_ahead = "{them} ist weiter als wir. Mut gleicht vieles aus."
 winning = [
-    their_fallen and chance(50%) ? "{me.kills(them)} der Euren sind gefallen, {name}. Genug tapfere Männer sind gestorben - ergebt Euch mit Ehre.",
+    their_fallen and chance(50%) ? "{me.kills(them)} der Euren sind gefallen, {them}. Genug tapfere Männer sind gestorben - ergebt Euch mit Ehre.",
 ] ?? [
     "Der Sieg ist nah. Bleibt standhaft!",
-    "{name}, ergebt Euch mit Ehre.",
+    "{them}, ergebt Euch mit Ehre.",
 ]
 losing = [
     "Wir weichen nicht!",
@@ -459,48 +459,48 @@ desperate = [
 ]
 enemy_defeated = [
     oathbreaker ? [
-        "{name} ist gefallen. So endet ein Eidbrecher.",
-        "{name} hat mir die Treue gebrochen und dafür bezahlt. Jeder Eidbrecher möge sich an diesen Tag erinnern.",
+        "{them} ist gefallen. So endet ein Eidbrecher.",
+        "{them} hat mir die Treue gebrochen und dafür bezahlt. Jeder Eidbrecher möge sich an diesen Tag erinnern.",
     ],
-    my_fallen and chance(60%) ? "{name} ist gefallen. Ein harter Gegner - viele meiner Ritter haben diesen Tag bezahlt.",
+    my_fallen and chance(60%) ? "{them} ist gefallen. Ein harter Gegner - viele meiner Ritter haben diesen Tag bezahlt.",
 ] ?? [
-    "{name} ist gefallen. Ein tapferer Gegner.",
-    "Ruhe in Frieden, {name}.",
+    "{them} ist gefallen. Ein tapferer Gegner.",
+    "Ruhe in Frieden, {them}.",
 ]
 ally_defeated = [
     lord == them ? [
-        "Mein Lehnsherr {name} ist gefallen! Mein Eid überdauert Euch - ich werde Euch rächen.",
-        "Mein Lehnsherr {name} ist gefallen, doch mein Eid nicht. Ich diene Eurem Andenken, bis ich selbst falle.",
+        "Mein Lehnsherr {them} ist gefallen! Mein Eid überdauert Euch - ich werde Euch rächen.",
+        "Mein Lehnsherr {them} ist gefallen, doch mein Eid nicht. Ich diene Eurem Andenken, bis ich selbst falle.",
     ],
 ] ?? [
-    "{name} ist gefallen. Ich werde Euch rächen, Freund.",
-    "Mein Verbündeter {name} ist nicht mehr. Sein Opfer war nicht umsonst.",
+    "{them} ist gefallen. Ich werde Euch rächen, Freund.",
+    "Mein Verbündeter {them} ist nicht mehr. Sein Opfer war nicht umsonst.",
 ]
 defeated = [
     "Ich ... ergebe mich. Behandelt meine Leute gut.",
     "Es war ... ein guter Kampf.",
 ]
 surrender = [
-    "Ich ergebe mich, {name}. Ihr habt ehrenvoll gekämpft.",
+    "Ich ergebe mich, {them}. Ihr habt ehrenvoll gekämpft.",
     "Mein Schwert ist gesenkt. Ich gebe auf.",
 ]
 capitulate = [
     oathbreaker ? [
-        "{name}, Ihr habt mir einst die Treue gebrochen - ich halte die meine dennoch. {tribute} und mein Schwert an Eurer Seite. Nehmt an, und Ihr habt meinen Eid.",
-        "{name}, ich ergebe mich - einem, der mir einst sein Wort brach. Doch mein Eid hängt nicht an dem Euren: {tribute} und mein Schwert an Eurer Seite, wenn Ihr annehmt.",
+        "{them}, Ihr habt mir einst die Treue gebrochen - ich halte die meine dennoch. {tribute} und mein Schwert an Eurer Seite. Nehmt an, und Ihr habt meinen Eid.",
+        "{them}, ich ergebe mich - einem, der mir einst sein Wort brach. Doch mein Eid hängt nicht an dem Euren: {tribute} und mein Schwert an Eurer Seite, wenn Ihr annehmt.",
     ],
-] ?? "{name}, Ihr habt mich bezwungen. Ich biete {tribute} und mein Schwert an Eurer Seite - nehmt an, und Ihr habt meinen Eid."
-capitulate_accepted = "{tribute}, wie geschworen. Mein Wort gilt, {name}."
+] ?? "{them}, Ihr habt mich bezwungen. Ich biete {tribute} und mein Schwert an Eurer Seite - nehmt an, und Ihr habt meinen Eid."
+capitulate_accepted = "{tribute}, wie geschworen. Mein Wort gilt, {them}."
 capitulate_refused = "Ihr verschmäht meinen Eid? Dann falle ich mit Ehre."
-all_submitted = "Jeder Ritter in diesem Land hat Euch die Treue geschworen, {name}."
+all_submitted = "Jeder Ritter in diesem Land hat Euch die Treue geschworen, {them}."
 other_victory = lord == them ? [
-    "Lang lebe {name}!",
-    "In Ehren lege ich mein Schwert vor Euch nieder, {name}.",
+    "Lang lebe {them}!",
+    "In Ehren lege ich mein Schwert vor Euch nieder, {them}.",
 ] : ([
-    old_bond and chance(60%) ? "Vom ersten bis zum letzten Tag standen wir zusammen, {name}. Ein gehaltener Eid ist der schönste Sieg.",
+    old_bond and chance(60%) ? "Vom ersten bis zum letzten Tag standen wir zusammen, {them}. Ein gehaltener Eid ist der schönste Sieg.",
 ] ?? [
-    "Sieg, {name}! Es war mir eine Ehre, an Eurer Seite zu kämpfen.",
-    "Unser Eid hat bis zum Ende gehalten, {name}. Lang lebe das Bündnis!",
+    "Sieg, {them}! Es war mir eine Ehre, an Eurer Seite zu kämpfen.",
+    "Unser Eid hat bis zum Ende gehalten, {them}. Lang lebe das Bündnis!",
 ])
 wonder_threat = "Ein Wunder baut man nicht, um es zu verstecken. Und ich werde es Euch nehmen."
 wonder_help = [

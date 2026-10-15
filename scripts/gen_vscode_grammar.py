@@ -20,9 +20,8 @@ members = xtable('k_xmembers')
 globals_ = [n for n, k in xtable('k_xglobals')]
 member_names = [n for n, k in members if k != 'XM_REL']
 relations = [n for n, k in members if k == 'XM_REL']
-# without a player: the globals (opinion, at_war, allied among them: mine with them), my epoch and traits (me.);
-# "name" is them.name
-bare = globals_ + ['epoch', 'name'] + \
+# without a player: the globals (opinion, at_war, allied among them: mine with them), my epoch and traits (me.)
+bare = globals_ + ['epoch'] + \
        [n for n, k in members if k == 'XM_PLAYER' and n in ('aggression', 'loyalty', 'pride', 'greed', 'forgiveness', 'caution', 'talk', 'allies', 'enemies')]
 values = bare
 epochs = re.findall(r'"(\w+)"', re.search(r'k_epoch_const\[15\] = \{(.*?)\};', expr, re.S).group(1))

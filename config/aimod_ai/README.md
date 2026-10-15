@@ -36,15 +36,15 @@ character = "A sea captain: dry humour, proud of her fleet, keeps her word."
 friend = opinion > 30 ? "old friend" : "captain"
 
 [lines]
-greeting = ["Fair winds, {name}.", "The tide is with us today."]
+greeting = ["Fair winds, {them}.", "The tide is with us today."]
 war_declared = [
-    them.betrayals(me) > 0 ? "Again, {name}? I should have known.",
-    "You will regret this, {name}.",
+    them.betrayals(me) > 0 ? "Again, {them}? I should have known.",
+    "You will regret this, {them}.",
 ]
 peace_accept = [them.kills(me) > 100 ? "Fine. I will not forget my dead."] ?? "Peace it is, {friend}."
 
 [lines:de]
-greeting = ["Guten Wind, {name}.", "Die Flut ist heute mit uns."]
+greeting = ["Guten Wind, {them}.", "Die Flut ist heute mit uns."]
 ```
 
 ## The format
@@ -62,7 +62,7 @@ an **expression**; it may go over several lines while a `(`, `[` or `{` is open:
 | `opinion > 30 ? "friend" : "stranger"` | One or the other |
 | `a ?? b` | `a`, unless it is nothing: then `b` |
 
-**Inside a string**, braces hold a placeholder or an expression: `"Hello, {name}!"`,
+**Inside a string**, braces hold a placeholder or an expression: `"Hello, {them}!"`,
 `"Hello, {opinion > 30 ? "friend" : "you"}!"`. The quotes inside the braces belong to the expression and don't end
 the string.
 
@@ -84,7 +84,7 @@ Each key of `[lines]` is a **situation**; its value is what the AI says then - u
 
 ```ini
 attack = "My riders are on their way."
-greeting = ["Hello.", "Greetings, {name}.", "Who are you?"]
+greeting = ["Hello.", "Greetings, {them}.", "Who are you?"]
 ```
 
 How a line is chosen:
@@ -96,7 +96,7 @@ How a line is chosen:
    last time is avoided when there is another.
 3. **Nothing to say** - no key, `[]`, or a list whose conditions all fail - falls back to a more general situation
    (the fallback column), then to `computer.eeai`, else the AI stays silent.
-4. Only those it is meant for hear it: everyone, the AI's allies, or the player it is said to (`{name}`).
+4. Only those it is meant for hear it: everyone, the AI's allies, or the player it is said to (`{them}`).
 5. With the AI voice on (`[llm]` in aimod.ini) a language model says the line in the AI's own words, from its
    `character`, its traits and the game as it stands; the chosen line is its example.
 
@@ -108,10 +108,10 @@ situation by situation in a game of that language; the language is detected from
 
 ```ini
 ; nothing unless the condition holds - a list leaves it out
-greeting = [allied ? "Good to see you, ally.", "Hello, {name}."]
+greeting = [allied ? "Good to see you, ally.", "Hello, {them}."]
 
 ; one or the other
-winning = opinion > 0 ? "Let us stay friends." : "You are next, {name}."
+winning = opinion > 0 ? "Let us stay friends." : "You are next, {them}."
 
 ; the angry lines when they hate it, else the friendly ones
 angry = ["Go away.", "You again?"]
@@ -124,7 +124,7 @@ greeting = ["Hello.", angry]
 epoch_up = [chance(30%) ? "Progress, finally.", "A new age begins."]
 
 ; one situation, told apart by how I stand with them: someone else has won
-other_victory = lord == them ? "Long live {name}, my lord!" : allied ? "We won together, {name}!" : "Enjoy it while it lasts."
+other_victory = lord == them ? "Long live {them}, my lord!" : allied ? "We won together, {them}!" : "Enjoy it while it lasts."
 ```
 
 ### Situations
@@ -133,26 +133,26 @@ other_victory = lord == them ? "Long live {name}, my lord!" : allied ? "We won t
 | Situation | When - "you" is the AI | Heard by | Chance | Cooldown | Without a line |
 |---|---|---|---|---|---|
 | `greeting` | the game begins - a first word to everyone | everyone | 60% |  |  |
-| `war_declared` | {name} has just declared war on you | {name} | always | 20 s |  |
-| `betrayed` | {name}, your ally until now, has betrayed you and declared war | {name} | always | 20 s | `war_declared` |
-| `peace_accept` | you accept {name}'s offer of peace (you are allied now) | {name} | always |  |  |
-| `peace_refuse` | you refuse {name}'s offer of peace | {name} | always | 60 s |  |
-| `alliance_offer` | you offer {name} an alliance against {enemy}, your common enemy | {name} | always |  |  |
-| `offer_accepted` | {name} has accepted your alliance offer | {name} | always |  |  |
-| `offer_withdrawn` | your alliance offer to {name} has expired unanswered | {name} | always |  |  |
-| `betray` | you betray {name}, your ally, and declare war on them | {name} | always |  |  |
-| `tribute_thanks` | {name} sent you a generous tribute | {name} | always | 20 s |  |
-| `tribute_small` | {name} sent you a tribute - a small one | {name} | always | 60 s |  |
-| `attack` | your army sets out to attack {name} | its allies | 40% | 300 s |  |
+| `war_declared` | {them} has just declared war on you | {them} | always | 20 s |  |
+| `betrayed` | {them}, your ally until now, has betrayed you and declared war | {them} | always | 20 s | `war_declared` |
+| `peace_accept` | you accept {them}'s offer of peace (you are allied now) | {them} | always |  |  |
+| `peace_refuse` | you refuse {them}'s offer of peace | {them} | always | 60 s |  |
+| `alliance_offer` | you offer {them} an alliance against {enemy}, your common enemy | {them} | always |  |  |
+| `offer_accepted` | {them} has accepted your alliance offer | {them} | always |  |  |
+| `offer_withdrawn` | your alliance offer to {them} has expired unanswered | {them} | always |  |  |
+| `betray` | you betray {them}, your ally, and declare war on them | {them} | always |  |  |
+| `tribute_thanks` | {them} sent you a generous tribute | {them} | always | 20 s |  |
+| `tribute_small` | {them} sent you a tribute - a small one | {them} | always | 60 s |  |
+| `attack` | your army sets out to attack {them} | its allies | 40% | 300 s |  |
 | `under_attack` | your town is under attack | its allies | 60% | 240 s |  |
 | `building_lost` | you lost a building | its allies | 25% | 180 s |  |
 | `epoch_up` | you have just reached the {epoch} age | everyone | 50% | 60 s |  |
 | `enemy_ahead` | an enemy is a whole age ahead of you | its allies | 40% | 600 s |  |
-| `winning` | you are winning against {name} | {name} | 40% | 600 s |  |
+| `winning` | you are winning against {them} | {them} | 40% | 600 s |  |
 | `losing` | you are losing the war | its allies | 50% | 600 s |  |
 | `desperate` | you are close to defeat | its allies | always |  |  |
-| `enemy_defeated` | {name} has been defeated | everyone | 80% | 30 s |  |
-| `ally_defeated` | your ally {name} has been defeated | its allies | 80% | 30 s |  |
+| `enemy_defeated` | {them} has been defeated | everyone | 80% | 30 s |  |
+| `ally_defeated` | your ally {them} has been defeated | its allies | 80% | 30 s |  |
 | `defeated` | you have been defeated | everyone | always |  |  |
 | `wonder_threat` | a wonder is threatened | everyone | always | 60 s |  |
 | `wonder_help` | you send help for an ally's wonder | its allies | always | 60 s |  |
@@ -162,16 +162,16 @@ other_victory = lord == them ? "Long live {name}, my lord!" : allied ? "We won t
 | `help_naval` | you send ships to help an ally | its allies | always | 30 s |  |
 | `help_none` | you have no troops to send an ally who asked for help | its allies | always | 30 s |  |
 | `surrender` | you give up the game | everyone | always |  | `defeated` |
-| `capitulate` | you capitulate: {name} is beating you, and you offer to PAY them a tribute ({tribute}) for peace - you give, they receive | {name} | always |  |  |
-| `capitulate_accepted` | {name} accepted your capitulation: you PAY them the tribute ({tribute}) and serve them from now on | {name} | always |  |  |
-| `capitulate_refused` | {name} did not accept your capitulation: the war goes on | {name} | always |  |  |
-| `attack_threat` | your army is about to attack {name} | {name} | 60% | 300 s |  |
-| `all_submitted` | every other player has submitted to {name}, your lord | {name} | always |  |  |
-| `other_victory` | {name} has won the game | everyone | always |  |  |
-| `block_refuse` | you refuse {name}'s peace offer because {enemy} in their alliance cannot be at peace with your side | {name} | always | 60 s | `peace_refuse` |
-| `block_refuse_own` | you refuse {name}'s peace offer because your own ally {enemy} won't make peace with them | {name} | always | 60 s | `block_refuse` |
-| `vassal_grumble` | your lord {name} forces you to make peace with {enemy}, whom you hate | {name} | always | 60 s |  |
-| `ask_lord` | {name} offers you peace, but you are the vassal of {enemy} and have no diplomacy of your own - they must talk to {enemy} | {name} | always | 60 s | `peace_refuse` |
+| `capitulate` | you capitulate: {them} is beating you, and you offer to PAY them a tribute ({tribute}) for peace - you give, they receive | {them} | always |  |  |
+| `capitulate_accepted` | {them} accepted your capitulation: you PAY them the tribute ({tribute}) and serve them from now on | {them} | always |  |  |
+| `capitulate_refused` | {them} did not accept your capitulation: the war goes on | {them} | always |  |  |
+| `attack_threat` | your army is about to attack {them} | {them} | 60% | 300 s |  |
+| `all_submitted` | every other player has submitted to {them}, your lord | {them} | always |  |  |
+| `other_victory` | {them} has won the game | everyone | always |  |  |
+| `block_refuse` | you refuse {them}'s peace offer because {enemy} in their alliance cannot be at peace with your side | {them} | always | 60 s | `peace_refuse` |
+| `block_refuse_own` | you refuse {them}'s peace offer because your own ally {enemy} won't make peace with them | {them} | always | 60 s | `block_refuse` |
+| `vassal_grumble` | your lord {them} forces you to make peace with {enemy}, whom you hate | {them} | always | 60 s |  |
+| `ask_lord` | {them} offers you peace, but you are the vassal of {enemy} and have no diplomacy of your own - they must talk to {enemy} | {them} | always | 60 s | `peace_refuse` |
 <!-- /situations -->
 
 ## Expressions
@@ -190,9 +190,10 @@ other_victory = lord == them ? "Long live {name}, my lord!" : allied ? "We won t
 - **True** is a number other than 0 or a text that isn't empty. **Nothing** is false, an empty text in a line, 0 in
   arithmetic, and a comparison with nothing is false (`war_minutes > 5` and `war_minutes < 5` are both false when
   there is no war).
-- **Numbers and texts at once:** some values are both - the epoch is 3 and "Copper Age", a placeholder "12" is 12
-  and "12". The number counts in arithmetic, in comparisons with a number and as true/false; the text counts in a
-  line and next to texts (`"Age: " + epoch`).
+- **Numbers and texts at once:** some values are both - the epoch is 3 and "Copper Age", an opinion is -62 and
+  "hostile" (hostile, unfriendly, indifferent, friendly, trusting: `opinion1`..`opinion5` in `_system.eeai`). The
+  number counts in arithmetic, in comparisons with a number and as true/false; the text counts in a line and next to
+  texts (`"Age: " + epoch`). Arithmetic gives a plain number: `{round(opinion)}` writes -62.
 - Only what is chosen is worked out: the other side of `? :`, `??`, `and`, `or` is not (no random draws, no
   errors from text that isn't said).
 - An unknown name counts as 0 and is logged. There are no loops and no assignments: a text can't hang the game.
@@ -205,7 +206,7 @@ other_victory = lord == them ? "Long live {name}, my lord!" : allied ? "We won t
 ```ini
 [vars]
 address = opinion > 30 ? "friend" : opinion < -30 ? "enemy" : "neighbour"
-title = "my lord {name}"
+title = "my lord {them}"
 angry = ["Go away.", "You again?"]
 ```
 
@@ -232,12 +233,12 @@ with its own name: packs dropped into this folder then never depend on each othe
 
 ## The game's values
 
-A line is said by one AI - **me** - to or about another player - **them** (`{name}`). Some lines also involve a
+A line is said by one AI - **me** - to or about another player - **them**. Some lines also involve a
 third player - **enemy** (`{enemy}`): the enemy in an alliance offer, the ally or lord in some lines. **lord** is
 my lord - the player I capitulated to - in every line, and nothing while I have none. In `_system.eeai` `them` is
 you, the local player.
 
-Each of them is a player: in a text its name (`{me}`, `{them}`, `{enemy}`, `{lord}`, and `{name}` for `{them}`), in a
+Each of them is a player: in a text its name (`{me}`, `{them}`, `{enemy}`, `{lord}`), in a
 comparison itself - `lord == them` holds when the one I talk to is my lord. A player has members - `me.soldiers`,
 `them.strength`, `enemy.epoch`, `them.lord` (a player again: `them.lord.name`, `them.lord == me`) - and
 **relations**, which name the other player: `me.opinion(them)` is what I think of them, `them.opinion(me)` what they
@@ -250,8 +251,8 @@ A player who isn't there - no third player in a greeting, no lord - is nothing. 
 
 ```ini
 under_attack = lord ? "My lord {lord} will hear of this!" : "To arms!"
-greeting = [lord and lord.soldiers > 50 ? "My lord's army is mighty, {name}."] ?? "Greetings, {name}."
-tribute_thanks = "{lord ?? me} thanks you, {name}."
+greeting = [lord and lord.soldiers > 50 ? "My lord's army is mighty, {them}."] ?? "Greetings, {them}."
+tribute_thanks = "{lord ?? me} thanks you, {them}."
 ```
 
 A condition (`lord ? ...`, `lord and ...`, `not lord`), `??` and a comparison (`lord == them`) check it. Used without
@@ -273,6 +274,7 @@ Shortcuts: my own `epoch`, traits, `allies` and `enemies` without `me.` (`aggres
 | `X.population` | its units: soldiers and citizens - to scale a number to the game's stage: population_limit, max_population |
 | `X.buildings` | its buildings |
 | `X.towers` | its towers |
+| `X.walls` | its wall pieces |
 | `X.centers` | its Town Centers and Capitols |
 | `X.strength` | its fighting strength (its soldiers' hit points, 30 a building) - to compare: them.strength &gt; me.strength * 2 |
 | `X.rank` | its place by strength among the players still in, 1 = the strongest |
@@ -291,7 +293,7 @@ Shortcuts: my own `epoch`, traits, `allies` and `enemies` without `me.` (`aggres
 
 | Relation | |
 |---|---|
-| `A.opinion(B)` | -100..100: what A thinks of B - an AI's opinion; a human's of an AI is a guess from what the AI did to them (war, a betrayal, peace, tribute, a refusal, their losses), nothing of another human |
+| `A.opinion(B)` | -100..100: what A thinks of B - in a text in words: hostile, unfriendly, indifferent, friendly, trusting (round(opinion): the number). An AI's opinion; a human's of an AI is a guess from what the AI did to them (war, a betrayal, peace, tribute, a refusal, their losses), nothing of another human |
 | `A.at_war(B)` | 1 when A and B are enemies, both of them |
 | `A.allied(B)` | 1 when A and B are allied, both of them |
 | `A.hostile(B)` | 1 when A treats B as an enemy (whatever B does) |
@@ -311,8 +313,8 @@ Shortcuts: my own `epoch`, traits, `allies` and `enemies` without `me.` (`aggres
 | Name | |
 |---|---|
 | `me` | the AI that speaks - its name in a text; me.soldiers ... |
-| `them` | the player it speaks to or about ({name}); in a system line you, the local player |
-| `enemy` | a third player: the enemy in an alliance offer ({enemy}), the ally or lord in some lines |
+| `them` | the player it speaks to or about; in a system line you, the local player |
+| `enemy` | a third player: the enemy in an alliance offer, the ally or lord in some lines |
 | `lord` | my lord (me.lord), the player I capitulated to - in every line; nothing when I have none |
 | `opinion` | me.opinion(them): what I think of them |
 | `at_war` | me.at_war(them) |
@@ -350,17 +352,19 @@ with these names, the same in every language (a name in quotes would only match 
 <!-- /epochs -->
 
 ```ini
-epoch_up = [epoch >= epoch.middle ? "Steel and stone!", "Another age, {name}."]
+epoch_up = [epoch >= epoch.middle ? "Steel and stone!", "Another age, {them}."]
 ```
 
 ## Placeholders
 
-In a line, `{...}` holds a placeholder or any expression: `{name}`, `{me}`, `{enemy}`, `{epoch}`, a `[vars]` name,
-`{them.soldiers}`, `{round(me.strength / 100)}`. Personality lines also have `{tribute}`: what a capitulation pays,
-by resource ("200 gold, 800 iron").
+In a line, `{...}` holds any expression: `{them}`, `{me}`, `{enemy}`, `{epoch}`, `{opinion}`, a `[vars]` name,
+`{them.soldiers}`, `{round(me.strength / 100)}`. Personality lines also have one placeholder, `{tribute}`: what a
+capitulation pays, by resource ("200 gold, 800 iron").
 
-`_system.eeai` and `_template.eeai` pass their own placeholders - `{ai}`, `{lord}`, `{minutes}`, ... - each key's
-are listed above it in the file.
+`_system.eeai` and `_template.eeai` use the same expressions - `{me}` is the AI, `{them}` the one it talks to (in
+`_system.eeai` you), `{them.epoch}`, `{me.attack_minutes(them)}` - and add a few texts only the mod has: `{stance}`,
+`{terms}`, `{tribute}`, `{ally}` ... Each key's are listed above it in the file. None of them has the name of a
+value: `{epoch}` is always the speaker's epoch, wherever it stands.
 
 ## [personality] and [style]
 

@@ -3,33 +3,34 @@
 // language, as the personalities' [lines:de]); _template.eeai - the language model's instructions, [prompt] (English:
 // the model is told which language to answer in). A missing file or key keeps the built-in text; "texts dump" (control
 // pipe) writes both files with every key and its built-in text (to aimod_ai\, existing files are kept unless "texts
-// dump force"). Placeholders in braces - {ai}, {name}, ... - each key's own are listed above it in the dump; an unknown
-// one stays as written. "\n" in a value is a line break. A placeholder may be an expression and [vars] may name
-// expressions (expr.c): _system.eeai [vars] / [vars:<language>] for what the player reads (a personality's own [vars]
-// first), _template.eeai [vars] for the prompts. Included by eeaimod.c after persona.c.
+// dump force"). In braces: expressions, as in the personalities' lines - {me}, {them}, {them.epoch}, {opinion} (expr.c)
+// - and a few texts only the code has ({tribute}, {terms}, ...): each key's are listed above it in the dump; an unknown
+// one stays as written. "\n" in a value is a line break. [vars] may name expressions: _system.eeai [vars] /
+// [vars:<language>] for what the player reads (a personality's own [vars] first), _template.eeai [vars] for the prompts.
+// Included by eeaimod.c after persona.c.
 struct text_def { const char *key, *en, *de, *note; };
 static const struct text_def k_sys[] = {
-    { "now_enemy", "{ai} is now your enemy.", "{ai} ist jetzt Ihr Feind.", "an AI's stance towards you changed" },
-    { "now_ally", "{ai} is now your ally.", "{ai} ist jetzt mit Ihnen verb\xfcndet.", NULL },
-    { "vassal_ask_lord", "{ai} is a vassal of {lord}: negotiate with {lord}.", "{ai} ist Vasall von {lord}: verhandeln Sie mit {lord}.",
+    { "now_enemy", "{me} is now your enemy.", "{me} ist jetzt Ihr Feind.", "an AI's stance towards you changed" },
+    { "now_ally", "{me} is now your ally.", "{me} ist jetzt mit Ihnen verb\xfcndet.", NULL },
+    { "vassal_ask_lord", "{me} is a vassal of {lord}: negotiate with {lord}.", "{me} ist Vasall von {lord}: verhandeln Sie mit {lord}.",
       "your peace offer to a vassal" },
-    { "block_peace", "{ai} and {name} make peace: they are in the same alliance.",
-      "{ai} und {name} schlie\xdf" "en Frieden: sie stehen im selben B\xfcndnis.", "two members of your alliance block made peace" },
-    { "block_unity", "{ai} is allied with your allies and offers peace: turn allied within 2 minutes, or the alliance breaks.",
-      "{ai} ist mit Ihren Verb\xfcndeten verb\xfcndet und bietet Frieden an: stellen Sie binnen 2 Minuten auf Verb\xfcndet, sonst "
+    { "block_peace", "{me} and {ally} make peace: they are in the same alliance.",
+      "{me} und {ally} schlie\xdf" "en Frieden: sie stehen im selben B\xfcndnis.", "two members of your alliance block made peace" },
+    { "block_unity", "{me} is allied with your allies and offers peace: turn allied within 2 minutes, or the alliance breaks.",
+      "{me} ist mit Ihren Verb\xfcndeten verb\xfcndet und bietet Frieden an: stellen Sie binnen 2 Minuten auf Verb\xfcndet, sonst "
       "zerbricht das B\xfcndnis.", NULL },
-    { "veto_own", "{ai} refuses: its ally {ally} won't make peace with {name}.",
-      "{ai} lehnt ab: der Verb\xfcndete {ally} will keinen Frieden mit {name}.", "a peace offer refused for an ally's sake" },
-    { "veto_block", "{ai} refuses: no peace with {name} while allied with {ally}.",
-      "{ai} lehnt ab: kein Frieden mit {name} und dessen B\xfcndnis mit {ally}.", NULL },
-    { "alliance_offer", "{ai} offers an alliance against {enemy}: set {ai} to allied within 2 minutes to accept.",
-      "{ai} bietet ein B\xfcndnis gegen {enemy} an: stellen Sie {ai} binnen 2 Minuten auf Verb\xfcndet, um anzunehmen.", NULL },
-    { "capitulation", "{ai} surrenders and offers {tribute}: set {ai} to allied within 2 minutes to accept.",
-      "{ai} kapituliert und bietet {tribute}: stellen Sie {ai} binnen 2 Minuten auf Verb\xfcndet, um anzunehmen.", NULL },
-    { "peace_offer", "{ai} offers peace: set {ai} to allied within 2 minutes to accept.",
-      "{ai} bietet Frieden an: stellen Sie {ai} binnen 2 Minuten auf Verb\xfcndet, um anzunehmen.",
+    { "veto_own", "{me} refuses: its ally {ally} won't make peace with {them}.",
+      "{me} lehnt ab: der Verb\xfcndete {ally} will keinen Frieden mit {them}.", "a peace offer refused for an ally's sake" },
+    { "veto_block", "{me} refuses: no peace with {them} while allied with {ally}.",
+      "{me} lehnt ab: kein Frieden mit {them} und dessen B\xfcndnis mit {ally}.", NULL },
+    { "alliance_offer", "{me} offers an alliance against {enemy}: set {me} to allied within 2 minutes to accept.",
+      "{me} bietet ein B\xfcndnis gegen {enemy} an: stellen Sie {me} binnen 2 Minuten auf Verb\xfcndet, um anzunehmen.", NULL },
+    { "capitulation", "{me} surrenders and offers {tribute}: set {me} to allied within 2 minutes to accept.",
+      "{me} kapituliert und bietet {tribute}: stellen Sie {me} binnen 2 Minuten auf Verb\xfcndet, um anzunehmen.", NULL },
+    { "peace_offer", "{me} offers peace: set {me} to allied within 2 minutes to accept.",
+      "{me} bietet Frieden an: stellen Sie {me} binnen 2 Minuten auf Verb\xfcndet, um anzunehmen.",
       "the language model's peace offer ([llm] decide)" },
-    { "tribute_sent", "{ai} sends you a tribute: {tribute}.", "{ai} schickt Ihnen Tribut: {tribute}.", NULL },
+    { "tribute_sent", "{me} sends you a tribute: {tribute}.", "{me} schickt Ihnen Tribut: {tribute}.", NULL },
     { "victory_vassals", "All remaining opponents have submitted to you. Type 'victory' in the chat to end the game as the "
       "winner - or play on.", "Alle verbliebenen Gegner haben sich Euch unterworfen. Schreibt 'sieg' in den Chat, um das Spiel "
       "als Sieger zu beenden - oder spielt weiter.", "victory over vassals (the chat words 'victory' and 'sieg' stay)" },
@@ -42,8 +43,8 @@ static const struct text_def k_sys[] = {
       "your chat line gets no answer" },
     { "chat_unanswered", "The computer players don't answer the chat ([llm] chat=1 in aimod.ini).",
       "Die Computerspieler beantworten den Chat nicht ([llm] chat=1 in aimod.ini).", NULL },
-    { "chat_filtered", "No answer: {name} doesn't get your message (chat filter).",
-      "Keine Antwort: {name} bekommt die Nachricht nicht (Chat-Filter).", NULL },
+    { "chat_filtered", "No answer: {me} doesn't get your message (chat filter).",
+      "Keine Antwort: {me} bekommt die Nachricht nicht (Chat-Filter).", NULL },
     { "chat_nobody", "No answer: your chat filter reaches no computer player.",
       "Keine Antwort: Ihr Chat-Filter erreicht keinen Computerspieler.", NULL },
     { "chat_who", "No answer: who do you mean? Name one ({names}) or choose them in the chat filter.",
@@ -54,13 +55,18 @@ static const struct text_def k_sys[] = {
       "Keine Antwort: das Sprachmodell hat zu viel zu tun - versuchen Sie es gleich noch einmal.", NULL },
     { "llm_down", "AI voice: no answer from {url} ({error}) - the computer players say their fixed lines.",
       "KI-Stimme: keine Antwort von {url} ({error}) - die Computerspieler sprechen ihre festen Zeilen.", NULL },
-    { "talk_to", "to {name}: {text}", "an {name}: {text}", "an AI's message to another AI ([llm] ai_talk_show)" },
+    { "talk_to", "to {them}: {text}", "an {them}: {text}", "an AI's message to another AI ([llm] ai_talk_show)" },
     { "food", "food", "Nahrung", "resources in a tribute ({tribute})" },
     { "wood", "wood", "Holz", NULL },
     { "stone", "stone", "Stein", NULL },
     { "gold", "gold", "Gold", NULL },
     { "iron", "iron", "Eisen", NULL },
     { "nothing", "nothing", "nichts", NULL },
+    { "opinion1", "hostile", "feindselig", "an opinion in words: its text - {opinion}, {them.opinion(me)} - while conditions count its number: 1 -100..-51, 2 -50..-16, 3 -15..15, 4 16..50, 5 51..100" },
+    { "opinion2", "unfriendly", "ablehnend", NULL },
+    { "opinion3", "indifferent", "gleichg\xfcltig", NULL },
+    { "opinion4", "friendly", "freundlich", NULL },
+    { "opinion5", "trusting", "vertrauensvoll", NULL },
 };
 #define N_SYS (int)(sizeof k_sys / sizeof *k_sys)
 #include "texts_prompt.h"   // k_tpl: the language model's instructions
@@ -133,56 +139,61 @@ static const char *tpl_text(const char *key) {
     int i = text_index(k_tpl, N_TPL, key);
     return i < 0 ? key : g_tpl_val[i] ? g_tpl_val[i] : k_tpl[i].en;
 }
-// out = tmpl with its {placeholders} filled from the name/value pairs (NULL-terminated) or as expressions (expr.c,
-// with these [vars]); unknown ones stay; returns the length. Who speaks and to whom: g_xc_pl/g_xc_other where a
-// caller set them (llm_system), else found by the names in {ai} / {me}, {name} (x_builtin).
-static void *g_xc_pl, *g_xc_other;
-static int tsubv_vars(char *out, int cap, const char *tmpl, va_list ap0, const struct xvars *vars) {
+// out = tmpl filled (x_fill, with these [vars]): its expressions - {me}, {them.epoch}, {opinion} - for pl speaking to
+// other (NULL: the local player; in a system line the reader) with third as enemy, and the few texts only the code has
+// - {tribute}, {terms} ... - from the name/value pairs (NULL-terminated). None of those may have a value's name: it
+// would hide that value ({epoch} the other's here, mine in a line) - such a pair is a mistake. Returns the length.
+static void *g_xc_pl, *g_xc_other;   // tput: who llm_system's pieces are for
+static int tsubv_vars(char *out, int cap, const char *tmpl, void *pl, void *other, void *third, va_list ap0,
+                      const struct xvars *vars) {
     const char *pn[24], *pv[24];
     int np = 0;
     va_list ap;
     va_copy(ap, ap0);
     for (const char *n; np < 24 && (n = va_arg(ap, const char *)) != NULL; np++) {
         const char *v = va_arg(ap, const char *);
+        if (x_is_value(n)) x_error("{%s}: a placeholder with the name of a value (eeaimod)", n);
         pn[np] = n;
         pv[np] = v ? v : "";
     }
     va_end(ap);
     struct xctx c = { 0 };
-    c.pl = g_xc_pl;
-    c.other = g_xc_other;
+    c.pl = pl;
+    c.other = other;
+    c.third = third;
     c.pn = pn; c.pv = pv; c.np = np;
     c.vars[0] = vars;
     return x_fill(out, cap, tmpl, &c);
 }
-static int tsubv(char *out, int cap, const char *tmpl, va_list ap0) { return tsubv_vars(out, cap, tmpl, ap0, &g_vars_tpl); }
-static int tsub(char *out, int cap, const char *tmpl, ...) {
+// a prompt piece (_template.eeai) filled for pl speaking to other
+static int tsub(char *out, int cap, const char *tmpl, void *pl, void *other, ...) {
     va_list ap;
-    va_start(ap, tmpl);
-    int n = tsubv(out, cap, tmpl, ap);
+    va_start(ap, other);
+    int n = tsubv_vars(out, cap, tmpl, pl, other, NULL, ap, &g_vars_tpl);
     va_end(ap);
     return n;
 }
-// a system line, filled (4 rotating buffers: a few may be in use at once)
-static const char *sysf(const char *key, ...) {
+// a system line about AI pl (me) for the reader other (them; NULL: the local player), third the enemy, filled (4
+// rotating buffers: a few may be in use at once)
+static const char *sysf(const char *key, void *pl, void *other, void *third, ...) {
     static char buf[4][512];
     static int k;
     char *out = buf[k++ & 3];
     va_list ap;
-    va_start(ap, key);
-    tsubv_vars(out, sizeof buf[0], sys_text(key), ap, &g_vars_sys);
+    va_start(ap, third);
+    tsubv_vars(out, sizeof buf[0], sys_text(key), pl, other, third, ap, &g_vars_sys);
     va_end(ap);
     return out;
 }
-// append a prompt piece to t (cap bytes, *o used), filled - with a space between it and what is there (the ini
-// trims its values), not before a line break or punctuation
+// append a prompt piece to t (cap bytes, *o used), filled for g_xc_pl towards g_xc_other - with a space between it and
+// what is there (the ini trims its values), not before a line break or punctuation
 static void tput(char *t, int *o, int cap, const char *key, ...) {
     if (*o >= cap - 2) return;
     const char *p = tpl_text(key);
     if (*o && t[*o - 1] != ' ' && t[*o - 1] != '\n' && *p && *p != ' ' && *p != '\n' && !strchr(".,;:)", *p)) t[(*o)++] = ' ';
     va_list ap;
     va_start(ap, key);
-    *o += tsubv(t + *o, cap - *o, p, ap);
+    *o += tsubv_vars(t + *o, cap - *o, p, g_xc_pl, g_xc_other, NULL, ap, &g_vars_tpl);
     va_end(ap);
 }
 static const char *tnum(char *buf, int n) { wsprintfA(buf, "%d", n); return buf; }
@@ -207,17 +218,17 @@ static void text_write(FILE *f, const char *acp) {
     }
     fputc('"', f);
 }
-static void text_placeholders(FILE *f, const char *a, const char *b) {   // "; {ai} {name}" - those the texts use
+static void text_placeholders(FILE *f, const char *a, const char *b) {   // "; {me} {them}" - those the texts use
     char seen[400] = "";
     for (int t = 0; t < 2; t++)
         for (const char *s = t ? b : a; s && (s = strchr(s, '{')) != NULL; s++) {
             const char *c = strchr(s, '}');
-            if (!c || c - s > 20) continue;
-            char ph[24];
+            if (!c || c - s > 40) continue;
+            char ph[48];
             lstrcpynA(ph, s, (int)(c - s) + 2);
             if (!strstr(seen, ph) && strlen(seen) + strlen(ph) < sizeof seen - 2) { lstrcatA(seen, " "); lstrcatA(seen, ph); }
         }
-    if (seen[0]) fprintf(f, "; placeholders:%s\n", seen);
+    if (seen[0]) fprintf(f, "; in braces:%s\n", seen);
 }
 // the head of the dumped files (gen_persona.py writes the same into _persona.eeai): the rest is in README.md
 static const char k_format_help[] =
@@ -288,7 +299,8 @@ static void cmd_texts(char *out, const char *args) {
         if (sys) {
             fputs("; _system.eeai - the system lines eeaimod shows the player (white, from nobody in particular). Not a\n"
                   "; personality. [system] is English; [system:de] (or :fr, :es ... - the game's language) replaces what it has.\n"
-                  "; A key left out keeps the built-in text. Placeholders in braces are filled in.\n"
+                  "; A key left out keeps the built-in text. In braces: expressions - {me} the AI, {them} you - and the few\n"
+                  "; texts only the mod has (listed above each key).\n"
                   "; Written by \"texts dump\" with the built-in texts.\n", f);
             fputs(k_format_help, f);
             fputs(";\n; [vars] here serve the system lines and every personality's lines (a personality's own [vars] first);\n"
@@ -305,8 +317,10 @@ static void cmd_texts(char *out, const char *args) {
         } else {
             fputs("; _template.eeai - what eeaimod tells the language model ([llm] in aimod.ini): who the AI is, the game as it\n"
                   "; stands, the situations, the tools. English: the model is told which language to answer in. A key left out\n"
-                  "; keeps the built-in text. Placeholders in braces are filled in (each key's are listed above it). The\n"
-                  "; pieces are joined with a space between them.\n"
+                  "; keeps the built-in text. In braces: expressions - {me} the AI, {them} the one it talks to, {them.epoch},\n"
+                  "; {opinion} - and the few texts only the mod has (each key's are listed above it). The pieces are joined\n"
+                  "; with a space between them.\n"
+
                   "; Written by \"texts dump\" with the built-in texts.\n", f);
             fputs(k_format_help, f);
             fputs(";\n; [vars] here serve the prompts only (English, like them).\n"

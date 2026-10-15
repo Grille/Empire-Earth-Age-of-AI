@@ -10,12 +10,12 @@
 //   aggression = 80                    the traits 0-100: aggression loyalty pride greed forgiveness caution talk
 //   character = "..."                  for the language model (llm.c)
 //   [lines]                            the default (English)
-//   war_declared = ["Variant one", opinion < -50 ? "Variant two {name}"]   any expression: one string, a list ...
+//   war_declared = ["Variant one", opinion < -50 ? "Variant two {them}"]   any expression: one string, a list ...
 //   [lines:de]                         in a game of that language these replace [lines] situation by situation
 //   [vars] / [vars:de]                 named strings and expressions for its lines, before _system.eeai's
 //   [style]                            EXPERIMENTAL, only with [general] ai_style=1 (default 0): aimod.ini keys
 //   first_attack_min = 15              (settings.c k_style_keys) on top of the difficulty's settings for this AI
-// Placeholders: {name} the player the line is about, {me} the speaker, {enemy} a third player (alliances),
+// In braces: {them} the player the line is about, {me} the speaker, {enemy} a third player (alliances),
 // {epoch} the speaker's age, {tribute} the resources offered / paid (capitulation), or an expression (expr.c). A
 // situation without a line (or one that is nothing now) falls back (line_fallback, computer.eeai) or stays silent
 // (the game's own lines for wonders, flares and war remain where the personality has none).
@@ -31,7 +31,7 @@ enum trait { T_AGGRESSION, T_LOYALTY, T_PRIDE, T_GREED, T_FORGIVENESS, T_CAUTION
 static const char *const k_trait_keys[T_N] = { "aggression", "loyalty", "pride", "greed", "forgiveness", "caution", "talk" };
 
 // situations: key, chance in % at talk=50 (100 = always, scaled by talk otherwise), cooldown s per AI, audience:
-// who is meant to hear it - everyone, the AI's allies (plans, worries, calls for help) or only {name}, the player
+// who is meant to hear it - everyone, the AI's allies (plans, worries, calls for help) or only {them}, the player
 // it is said to (taunts, diplomacy). The local player sees a line only when they are in its audience - an enemy AI
 // doesn't tell them that it attacks someone else. With [general] chat=1+ (debug) every line shows, marked.
 enum line_kind {
@@ -396,9 +396,9 @@ static int line_fallback(int k) {
     default: return -1;
     }
 }
-// A line's context for its {placeholders} and conditions (expr.c): the speaker, {name}, {enemy}, the placeholders,
+// A line's context for its {expressions} and conditions (expr.c): the speaker, them, enemy, the placeholder,
 // the [vars] of the line's personality, the speaker's own, _system.eeai's
-struct line_ctx { struct xctx c; const char *pn[1], *pv[1]; char trib[96]; };   // {name} {me} {enemy} {epoch}: the game values (diplo.c x_builtin)
+struct line_ctx { struct xctx c; const char *pn[1], *pv[1]; char trib[96]; };   // {me} {them} {enemy} {epoch}: the game values (diplo.c x_builtin)
 static void epoch_text(void *pl, char *out, int cap);
 static void epoch_text_n(int e, char *out, int cap);
 static const char *player_name(void *pl);
@@ -616,7 +616,7 @@ static int line_heard(void *pl, enum line_kind k, void *other) {
     return !FIELD(pl, 0x9E4 + h * 4, int) && !FIELD(me, 0x9E4 + (FIELD(pl, PL_INDEX, int) & 15) * 4, int);
 }
 
-// say a line of situation k (other = {name}, third = {enemy}); returns 1 if said (heard or not: the situation is
+// say a line of situation k (other = them, third = enemy); returns 1 if said (heard or not: the situation is
 // answered, callers don't fall back to another line)
 // {tribute}: the amounts by resource in the game's language, e.g. "200 Gold, 800 Eisen" (only what is paid)
 static const char *sys_text(const char *key);   // texts.c: a system text in the game's language
