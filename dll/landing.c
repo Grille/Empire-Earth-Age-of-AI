@@ -25,6 +25,7 @@
 // - Ashore: one group - fights what comes within 12 tiles of its centre, else marches on the nearest building of the
 //   target it has seen (attacking it within 6 tiles). A quarter left: released to the game.
 static int g_landing = 0, g_land_ships = 3;   // aimod.ini [all] landing, landing_transports
+static int g_land_cits = 3;   // [all] landing_citizens: citizens along to build towers at the beach (0-4)
 static int g_land_trace = 0;   // test: landing_trace=1 - each transport every tick while soldiers are aboard
 static int g_land_knows = 0;   // test: landing_knows_map=1 - every building of the target counts, seen or not
 static int g_land_flag = 0;   // the unload goal's last argument: the AI's code passes 1, the player's command 0 (test: landing_flag)
@@ -44,6 +45,8 @@ static struct landing {
     uint32_t since, last, next_try, reissue, trained_t, boarded_t;
     int switched;                        // the beach changed once at the sail check
     int tr_missing, tr_type, tr_got;     // transports still to come, their type, taken at the last order
+    uint8_t *cit[4]; int ncit;           // citizens along for the bridgehead
+    uint8_t *tower; int towers; uint32_t tower_t;   // the bridgehead's tower going up, towers placed
     int ex, ey, ewx, ewy, gathered;      // where they board: the shore nearest the passengers, the water in front
     struct ld_def def;                   // the beach's defence when planned
     int all_ashore, tries_at[4], ux[4], uy[4];   // each transport's own unload point
@@ -80,6 +83,7 @@ static int landing_has_unit(void *pl, uint8_t *u) {   // a transport, warship or
     for (int k = 0; k < l->nships; k++) if (l->ships[k] == u) return 1;
     for (int k = 0; k < l->nesc; k++) if (l->esc[k] == u) return 1;
     for (int k = 0; k < l->npass; k++) if (l->pass[k] == u) return 1;
+    for (int k = 0; k < l->ncit; k++) if (l->cit[k] == u) return 1;
     return 0;
 }
 #define VT_ASG_SEA 0x00826F10
@@ -268,7 +272,7 @@ static int ld_at_home(int x, int y) {
 static void ld_release(unsigned pi, const char *why, uint32_t now) {
     struct landing *l = &g_ld[pi];
     if (g_log) fprintf(g_log, "# landing: P%u at %.1f min: %s\n", pi, now / 60000.0, why);
-    l->phase = 0; l->nfrozen = 0; l->nships = 0; l->npass = 0; l->obj = NULL;
+    l->phase = 0; l->nfrozen = 0; l->nships = 0; l->npass = 0; l->obj = NULL; l->ncit = 0; l->tower = NULL; l->towers = 0;
 }
 
 static int ld_aboard(uint8_t *u) { return FIELD(u, 0x1C, int) < 0; }
@@ -413,6 +417,74 @@ static void *ld_unload(uint8_t *sh, int x, int y) {
     void *g = ((void *(__cdecl *)(unsigned))0x00683718)(0x40);
     if (g) g = ((void *(__thiscall *)(void *, void *, int, int, int))0x00615A1F)(g, sh, x, y, g_land_flag);
     return g;
+}
+
+struct ld_cits { void *pl; int x, y, n; uint8_t *u[32]; int d[32]; };
+static void ld_cit_unit(uint8_t *u, void *ctx) {
+    struct ld_cits *c = ctx;
+    int t = FIELD(FIELD(u, 0x2C, uint8_t *), 0x4B8, int);
+    if (FIELD(u, 0x18, void *) != c->pl || (t != 32 && t != 480) || FIELD(u, 0x3C, int) <= 0 || FIELD(u, 0x1C, int) < 0 || c->n >= 32) return;
+    int dx = FIELD(u, 0x1C, int) - c->x, dy = FIELD(u, 0x20, int) - c->y, d = dx * dx + dy * dy;
+    if (d > 625) return;
+    c->u[c->n] = u; c->d[c->n++] = d;
+}
+
+// The bridgehead: the citizens ashore build a tower (the newest it can build and pay - 0x555710) near the beach, on
+// land of the landed continent with room (5x5 tiles of land, the 3x3 around it free of units), out of known tower
+// reach if it can: the foundation by the game's own creation (0x62EF8A cdecl(player, type, x, y), the cost paid),
+// the citizens on it with EEUGBuildRepair (new 0x5C, 0x60BAD0(goal, player, building, 0)) as the game orders its
+// builders. Up to two, one after the other.
+static void ld_bridgehead(void *pl, unsigned pi, struct landing *l, uint32_t now) {
+    int n = 0, cx = 0, cy = 0;
+    for (int k = 0; k < l->ncit; k++) if (!ld_alive(l->cit[k])) { l->cit[k--] = l->cit[--l->ncit]; }
+    for (int k = 0; k < l->ncit; k++) if (!ld_aboard(l->cit[k])) { n++; cx += FIELD(l->cit[k], 0x1C, int); cy += FIELD(l->cit[k], 0x20, int); }
+    if (!n) return;
+    cx /= n; cy /= n;
+    if (l->tower && !ld_alive(l->tower)) l->tower = NULL;
+    uint8_t *bs = l->tower ? FIELD(l->tower, 0x30, uint8_t *) : NULL;
+    if (l->tower && bs && FIELD(bs, 0x340, uint8_t)) {   // finished: the next one
+        if (g_log) fprintf(g_log, "# landing: P%u at %.1f min: bridgehead tower %d finished\n", pi, now / 60000.0, l->towers);
+        l->tower = NULL;
+    }
+    if (!l->tower) {
+        if (l->towers >= 2 || (l->tower_t && now - l->tower_t < 20000)) return;
+        l->tower_t = now;
+        int ttype = 0;
+        for (int t = 466; t >= 461 && !ttype; t--) if (((char (__thiscall *)(void *, int, int, int))0x00555710)(pl, t, 0x20, 0)) ttype = t;
+        if (!ttype && ((char (__thiscall *)(void *, int, int, int))0x00555710)(pl, 47, 0x20, 0)) ttype = 47;
+        if (!ttype) {
+            if (g_log) fprintf(g_log, "# landing: P%u at %.1f min: no tower it can build and pay at the bridgehead\n", pi, now / 60000.0);
+            return;
+        }
+        unsigned cont = area_id(cx, cy, 2);
+        int bx = -1, by = -1;
+        float best = 1e9f;
+        for (int d = 2; d <= 8; d++)
+            for (int dx = -d; dx <= d; dx++)
+                for (int dy = -d; dy <= d; dy += (abs(dx) == d ? 1 : 2 * d)) {
+                    int x = cx + dx, y = cy + dy, ok = 1;
+                    for (int ax = -2; ax <= 2 && ok; ax++)
+                        for (int ay = -2; ay <= 2 && ok; ay++)
+                            ok = area_id(x + ax, y + ay, 2) == cont && !area_id(x + ax, y + ay, 1);
+                    if (!ok || !ld_tile_free(x, y)) continue;
+                    float sc = (float)d + 10.0f * threat_at(pi, x, y);
+                    if (sc < best) { best = sc; bx = x; by = y; }
+                }
+        if (bx < 0) return;
+        l->tower = ((uint8_t *(__cdecl *)(void *, int, int, int))0x0062EF8A)(pl, ttype, bx, by);
+        if (g_log) fprintf(g_log, "# landing: P%u at %.1f min: bridgehead tower %d at %d,%d (%s), %d citizens ashore\n", pi, now / 60000.0, ttype, bx, by,
+                           l->tower ? "foundation laid" : "refused", n);
+        if (!l->tower) return;
+        l->towers++;
+    }
+    for (int k = 0; k < l->ncit; k++) {
+        uint8_t *u = l->cit[k], *g = FIELD(u, 0x1EC, uint8_t *);
+        if (ld_aboard(u) || (g && !strcmp(rtti_name(g), "EEUGBuildRepair@@") && FIELD(g, 0x3C, uint8_t *) == l->tower)) continue;
+        void *bg = ((void *(__cdecl *)(unsigned))0x00683718)(0x5C);
+        if (!bg) continue;
+        bg = ((void *(__thiscall *)(void *, void *, void *, int))0x0060BAD0)(bg, pl, l->tower, 0);
+        l->orders += unit_goal(u, bg, 0, 0x1F51);
+    }
 }
 
 static void ld_why(unsigned pi, uint32_t now, const char *why) {   // why no landing is planned (once a minute)
@@ -597,7 +669,18 @@ static void landing_tick(void *pl, uint32_t now) {
                         l->ex = tx; l->ey = ty; l->ewx = wx; l->ewy = wy; found = 1;
                     }
             if (!found) l->gathered = 1;   // none: board where they are
-            else if (g_log) fprintf(g_log, "# landing: P%u at %.1f min: they meet at %d,%d (passengers around %d,%d)\n", pi, now / 60000.0, l->ex, l->ey, x0, y0);
+            // citizens for the bridgehead (the user: "a few citizens for a defended bridgehead"): the nearest to the
+            // meeting point, within 25 tiles
+            struct ld_cits c = { pl, found ? l->ex : x0, found ? l->ey : y0, 0, { 0 }, { 0 } };
+            l->ncit = 0;
+            if (g_land_cits) grid_each(ld_cit_unit, &c);
+            for (int k = 0; k < c.n && l->ncit < g_land_cits; k++) {
+                int b = -1;
+                for (int j = 0; j < c.n; j++) if (c.u[j] && (b < 0 || c.d[j] < c.d[b])) b = j;
+                if (b < 0) break;
+                l->cit[l->ncit++] = c.u[b]; c.u[b] = NULL;
+            }
+            if (found && g_log) fprintf(g_log, "# landing: P%u at %.1f min: they meet at %d,%d (passengers around %d,%d)\n", pi, now / 60000.0, l->ex, l->ey, x0, y0);
         }
         if (g_log) fprintf(g_log, "# landing: P%u at %.1f min: boarding %d soldiers on %d transports, %d warships and aircraft along\n", pi, now / 60000.0, l->npass, l->nships, l->nesc);
     }
@@ -622,6 +705,12 @@ static void landing_tick(void *pl, uint32_t now) {
             if (dx * dx + dy * dy <= 64) { close++; continue; }
             if (!as_goal_near(u, (float)l->ex + 0.5f, (float)l->ey + 0.5f, 3.0f))
                 l->orders += unit_goal(u, goal_move((float)l->ex + 0.5f, (float)l->ey + 0.5f), 0, 0x1F40);
+        }
+        for (int k = 0; k < l->ncit; k++) {
+            uint8_t *u = l->cit[k];
+            if (!ld_alive(u) || ld_aboard(u) || as_goal_near(u, (float)l->ex + 0.5f, (float)l->ey + 0.5f, 3.0f)) continue;
+            int dx = FIELD(u, 0x1C, int) - l->ex, dy = FIELD(u, 0x20, int) - l->ey;
+            if (dx * dx + dy * dy > 16) l->orders += unit_goal(u, goal_move((float)l->ex + 0.5f, (float)l->ey + 0.5f), 0, 0x1F40);
         }
         // the transports there and most soldiers near (or 2 minutes): board
         if ((there == l->nships && close * 4 >= l->npass * 3) || now - l->since >= 120000) {
@@ -691,6 +780,9 @@ static void landing_tick(void *pl, uint32_t now) {
             int n = 0;
             for (int k = 0; k < l->npass; k++) if (ld_aboard(l->pass[k])) l->pass[n++] = l->pass[k];
             l->npass = n; l->launch_n = n;
+            int nc = 0;
+            for (int k = 0; k < l->ncit; k++) if (ld_alive(l->cit[k]) && ld_aboard(l->cit[k])) l->cit[nc++] = l->cit[k];
+            l->ncit = nc;
             int nf = 0;
             for (int f = 0; f < l->nfrozen; f++) {
                 uint8_t *sg = l->frozen[f];
@@ -728,12 +820,18 @@ static void landing_tick(void *pl, uint32_t now) {
         for (int k = 0; k < l->nships; k++) {
             uint8_t *list[16]; int m = 0;
             for (int j = k * per; j < (k + 1) * per && j < l->npass; j++) if (!ld_aboard(l->pass[j])) list[m++] = l->pass[j];
+            for (int j = 0; j < l->ncit && !k; j++) if (ld_alive(l->cit[j]) && !ld_aboard(l->cit[j])) list[m++] = l->cit[j];   // the citizens with the first
             if (!m) continue;
             uint8_t *vec[4] = { 0, (uint8_t *)list, (uint8_t *)(list + m), (uint8_t *)(list + m) };
             void *g = ((void *(__cdecl *)(unsigned))0x00683718)(0x68);
             if (!g) continue;
             g = ((void *(__thiscall *)(void *, void *, void *, int))0x0061487F)(g, l->ships[k], vec, 1);
             l->orders += unit_goal(l->ships[k], g, 0, 0x1F40);
+            for (int j = 0; j < l->ncit && !k; j++) {
+                if (!ld_alive(l->cit[j]) || ld_aboard(l->cit[j])) continue;
+                void *pg = ((void *(__thiscall *)(void *))(*(void ***)g)[4])(g);
+                l->orders += unit_goal(l->cit[j], pg, 0, 0x1F40);
+            }
             for (int j = k * per; j < (k + 1) * per && j < l->npass; j++) {
                 if (ld_aboard(l->pass[j])) continue;
                 void *pg = ((void *(__thiscall *)(void *))(*(void ***)g)[4])(g);
@@ -797,6 +895,7 @@ static void landing_tick(void *pl, uint32_t now) {
     int alive = ashore + aboard;
     if (alive * 4 < l->launch_n || !alive) { ld_release(pi, "bridgehead spent", now); return; }
     if (!ashore) return;
+    if (l->ncit) ld_bridgehead(pl, pi, l, now);
     cx /= ashore; cy /= ashore;
     uint8_t *foe = ld_raid_target(pl, l->target, (int)cx, (int)cy, 12);
     if (!l->obj || !ld_alive(l->obj) || FIELD(l->obj, 0x18, uint8_t *) != l->target) {
@@ -1009,6 +1108,9 @@ static void landing_install(const char *aimod_ini, const char *autotest_ini) {
     g_land_flag = cfg_int(aimod_ini, autotest_ini, 1, "landing_flag", 0);
     g_land_knows = cfg_int(aimod_ini, autotest_ini, 1, "landing_knows_map", 0);
     g_land_trace = cfg_int(aimod_ini, autotest_ini, 1, "landing_trace", 0);
+    g_land_cits = cfg_int(aimod_ini, autotest_ini, 1, "landing_citizens", 3);
+    if (g_land_cits < 0) g_land_cits = 0;
+    if (g_land_cits > 4) g_land_cits = 4;
     if (g_land_ships < 1) g_land_ships = 1;
     if (g_land_ships > 4) g_land_ships = 4;
     if (g_landing) patch_call(0x00483E24, 0x0042C49A, (void *)hook_idle_unload_shore);

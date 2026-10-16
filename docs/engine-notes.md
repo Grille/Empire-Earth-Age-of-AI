@@ -295,6 +295,10 @@ Guard towers 47, 461..466; AA 145/147; town center 35; house 37; citizen 32.
   at the map edge, 17 tiles from any unit, stayed at 1 for 3 minutes; AI units seeing it add to that (1 -> 4 as they
   came). An AI unit in the same spot: 0 in P1's slot. So the AIs see all of P1's units; seen_by (low byte != 0) is
   always true for them. Lone units count themselves twice (2 in their own slot).
+- **Bridgehead towers:** 0x62EF8A cdecl(player, type, x, y) lays the foundation anywhere it is told (the caller checks
+  the spot: 0x46528A in the build manager; the landing checks 5x5 tiles of land and a free 3x3) and pays; builders get
+  EEUGBuildRepair (new 0x5C, 0x60BAD0(goal, player, building, 0)) through 0x5F05BD and priority 0x1F51. Can it
+  build and pay a type: 0x555710 thiscall(player, type, 0x20, 0).
 - **Calling attacks off crashed** (0x43033E -> 0x46FD01): each unit of the attack is handed back and offered to the
   attack groups at once (0x483ADE -> 0x4824BF -> 0x450E07 -> 0x453E10), including groups the same call-off has just
   freed - a jump to 0. Reproducible on the reference save (P2's call-off at 86.6 min, with or without landings or
