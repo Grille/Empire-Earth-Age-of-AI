@@ -1770,7 +1770,7 @@ static void cmd_board(char *out, const char *args) {
         REPLY("unit %p type %d: type +50C %d, stats %p, player record %p%s\n", (void *)hit, t, FIELD(td, 0x50C, int), (void *)st, (void *)r, r == st ? " (= stats)" : "");
         for (int pass = 0; pass < 3; pass++) {
             uint8_t *o = pass == 0 ? st : pass == 1 ? FIELD(hit, 0x30, uint8_t *) : hit;
-            int lo = 0, hi = pass == 2 ? 0x800 : pass == 1 ? 0x400 : 0x140;
+            int lo = 0, hi = pass == 2 ? 0x1000 : pass == 1 ? 0x400 : 0x140;
             if (!o) continue;
             REPLY("  %s:", pass == 0 ? "stats" : pass == 1 ? "physics" : "unit");
             for (int off = lo; off < hi; off += 4) {

@@ -323,7 +323,9 @@ Guard towers 47, 461..466; AA 145/147; town center 35; house 37; citizen 32.
   +0x874); its +0x138 (int, ms) is the reload in use - starts as type +0x50C, the scenario editor's class attribute
   "reload time" (set/add/sub, whole ms) changes it (reloadtime.scn: class+1 12000 -> 12001). After a shot the unit's
   counter +0x2A0 is set from it (0x60AB08 and others); +0x2FC counts down to the next shot. The unit attribute
-  "reload time +" changed no field of the unit (nor its stats pointer) in that test.
+  "reload time +" (set/add %) changes the unit's own +0x2A0: unit=1000% 1120 -> 117790 (about 10 x the class 12000),
+  the artillery then fired less than 4 times in 84 s instead of every 12.3 s; small changes (+1, =10) show nothing.
+  The game refills +0x2A0 from the class value (spawn, some attack states).
 - **Who can hit whom:** 0x4D5F2C thiscall on 0x917DE0 (weapon kind = attacker type +0x4C8, target type, attacker
   player index, target player index) -> the factor from the table 0x8D200C [target category = type +0x4C4][weapon kind]
   (variants 0x8D2008/0x8D2010 by game mode); 0 = it cannot hit (the AI's attack subgroups test `!= 0`, 0x4504FD).

@@ -413,7 +413,7 @@ static void fr_note(uint8_t *u) {
     if (g_fr_n < 512) { g_fr[g_fr_n].u = u; g_fr[g_fr_n].type = FIELD(td, 0x4B8, int); g_fr[g_fr_n].n = 1; g_fr[g_fr_n].t0 = g_fr[g_fr_n].t1 = now; g_fr_n++; }
 }
 static void cmd_firerate(char *out, const char *args) {
-    (void)args;
+    if (strstr(args, "reset")) { g_fr_n = 0; REPLY("ok: reset\n"); return; }
     int seen[64], ns = 0;
     for (int k = 0; k < g_fr_n; k++) {
         int t = g_fr[k].type, j = 0;
