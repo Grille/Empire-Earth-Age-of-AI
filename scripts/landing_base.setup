@@ -1,0 +1,16 @@
+# a forward base (reference save): P2 given 60 machine gunners at home, 5 transports and resources - 10 citizens along build towers, barracks, town center, hospital, factory
+@75.8 give 2 4000
+@75.8 spawn 2 152 36 84 60
+@75.8 spawn 2 113 22 53 5
+@76.2 attacknow 2
+@76.3 landing 2 now
+@78 landing 2
+@80 landing 2
+@82 landing 2
+@84 landing 2
+@86 landing 2
+@88 landing 2
+@90 landing 2
+@90.5 landing 2
+@91.8 diplo kills
+@91.8 count 2

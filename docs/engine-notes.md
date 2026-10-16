@@ -306,6 +306,9 @@ Guard towers 47, 461..466; AA 145/147; town center 35; house 37; citizen 32.
 - **Idle loaded transports are unloaded** by the game's unit code (0x483E10: cargo, no order or a finished one,
   0x42C49A at 0x483E24 finds land next to it -> EEUGUnloadTransport at its own tile). A landing's transports are
   excluded (hook at 0x483E24) and wait on open water. Another unload source: 0x445AAD (attack subgroup code).
+- **Building types** (data/db/converteroutput.log, "Object(value):N ... Name:b  ..."): Barracks 34, Town Center 35, Dock 36,
+  House 37, Temple 39, Capitol 41, Settlement 43, Archery Range 54, University 60, Hospital 62, Siege Factory 63,
+  Stable 64, Navy Yard 65, Airport 66, Tank Factory 68, Cyber Factory 69, Fortress 672; towers 47, 461-466.
 - **Transport capacity:** the type's +0x54C (int): 313 and 110 hold 10, 111 12, 112-114 14 (0 for soldiers; a 110
   given 53 soldiers to load held 10).
 - **Transports:** load: `new(0x68)`, 0x61487F thiscall(goal, transport, std::vector<EEUnit*> *passengers (MSVC6:
