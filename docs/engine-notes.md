@@ -309,6 +309,15 @@ Guard towers 47, 461..466; AA 145/147; town center 35; house 37; citizen 32.
 - **Building types** (data/db/converteroutput.log, "Object(value):N ... Name:b  ..."): Barracks 34, Town Center 35, Dock 36,
   House 37, Temple 39, Capitol 41, Settlement 43, Archery Range 54, University 60, Hospital 62, Siege Factory 63,
   Stable 64, Navy Yard 65, Airport 66, Tank Factory 68, Cyber Factory 69, Fortress 672; towers 47, 461-466.
+- **Who can hit whom:** 0x4D5F2C thiscall on 0x917DE0 (weapon kind = attacker type +0x4C8, target type, attacker
+  player index, target player index) -> the factor from the table 0x8D200C [target category = type +0x4C4][weapon kind]
+  (variants 0x8D2008/0x8D2010 by game mode); 0 = it cannot hit (the AI's attack subgroups test `!= 0`, 0x4504FD).
+  Frigates (kind 1) hit submarines and ships, not aircraft; cruisers and fighters (12) and AA (7) only aircraft;
+  battleships (34) not submarines; towers (44) hit submarines. Type +0x4C0 (the damage table's class) is 5 for
+  almost every type.
+- **Subgroup orders:** vf57 thiscall(sg, unit, goal, 0, priority) gives a member an order (0x45CBEA, air 0x442AD8;
+  returns 0 = refused, the caller deletes the goal). The transport subgroup's event handler 0x445A0F (second vtable)
+  gives its transports unload orders (0x445AAD) even while its update is skipped.
 - **Transport capacity:** the type's +0x54C (int): 313 and 110 hold 10, 111 12, 112-114 14 (0 for soldiers; a 110
   given 53 soldiers to load held 10).
 - **Transports:** load: `new(0x68)`, 0x61487F thiscall(goal, transport, std::vector<EEUnit*> *passengers (MSVC6:
