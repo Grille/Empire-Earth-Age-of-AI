@@ -318,8 +318,12 @@ Guard towers 47, 461..466; AA 145/147; town center 35; house 37; citizen 32.
   missile delay time, +0x5A0 ammunition, +0x5FC fire while moving, +0x5FF build on elevation, +0x60A/+0x60B convert
   buildings/priests, +0x470/+0x474 collision spheres; stats +0xA4 LOS, +0xAC max velocity, +0xB0 angular accel,
   +0xB4 max angular velocity, +0x8C convert %/s; physics +0x238 velocity, +0x2E4 ammunition, +0x28C flight time,
-  +0x278 crew hit points, +0x210 cruise altitude. The scenario editor's class attribute "reload time" (set/add/sub)
-  changes the per-player base, the unit attribute "reload time +" adds per unit (where: to be found).
+  +0x278 crew hit points, +0x210 cruise altitude.
+- **Reload in play:** the stats record (unit +0x34) is the player's own record of the type (= 0x492969 on player
+  +0x874); its +0x138 (int, ms) is the reload in use - starts as type +0x50C, the scenario editor's class attribute
+  "reload time" (set/add/sub, whole ms) changes it (reloadtime.scn: class+1 12000 -> 12001). After a shot the unit's
+  counter +0x2A0 is set from it (0x60AB08 and others); +0x2FC counts down to the next shot. The unit attribute
+  "reload time +" changed no field of the unit (nor its stats pointer) in that test.
 - **Who can hit whom:** 0x4D5F2C thiscall on 0x917DE0 (weapon kind = attacker type +0x4C8, target type, attacker
   player index, target player index) -> the factor from the table 0x8D200C [target category = type +0x4C4][weapon kind]
   (variants 0x8D2008/0x8D2010 by game mode); 0 = it cannot hit (the AI's attack subgroups test `!= 0`, 0x4504FD).

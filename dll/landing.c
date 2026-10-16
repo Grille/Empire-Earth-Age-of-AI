@@ -1752,6 +1752,36 @@ static void ld_bd_unit(uint8_t *u, void *ctx) {
 static void cmd_board(char *out, const char *args) {
     struct ld_bd b = { 0 };
     int p = -1;
+    if (!strncmp(args, "reload", 6)) {   // board reload P type: the first unit of P of type - every int and float that could hold reload times
+        int p = 0, t = 0;
+        sscanf(args + 6, "%d %d", &p, &t);
+        uint8_t *map = *(uint8_t **)G_MAP, *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL, *hit = NULL;
+        if (!grid) return;
+        int nx = FIELD(grid, 0x10, int), ny = FIELD(grid, 0x14, int);
+        uint8_t *cells = FIELD(grid, 4, uint8_t *);
+        for (int c = 0; c < nx * ny && !hit; c++)
+            for (uint8_t **b = FIELD(cells + c * 16, 4, uint8_t **); b && b < FIELD(cells + c * 16, 8, uint8_t **) && !hit; b++)
+                if (*b && FIELD(*b, 0x2C, uint8_t *) && FIELD(FIELD(*b, 0x2C, uint8_t *), 0x4B8, int) == t && FIELD(*b, 0x18, uint8_t *) &&
+                    FIELD(FIELD(*b, 0x18, uint8_t *), PL_INDEX, int) == p) hit = *b;
+        if (!hit) { REPLY("no unit of type %d for P%d\n", t, p); return; }
+        uint8_t *td = FIELD(hit, 0x2C, uint8_t *), *st = FIELD(hit, 0x34, uint8_t *), *pl = FIELD(hit, 0x18, uint8_t *);
+        uint8_t **rec = ((uint8_t **(__thiscall *)(void *, int))0x00492969)(pl + 0x874, t);
+        uint8_t *r = rec ? *rec : NULL;
+        REPLY("unit %p type %d: type +50C %d, stats %p, player record %p%s\n", (void *)hit, t, FIELD(td, 0x50C, int), (void *)st, (void *)r, r == st ? " (= stats)" : "");
+        for (int pass = 0; pass < 3; pass++) {
+            uint8_t *o = pass == 0 ? st : pass == 1 ? FIELD(hit, 0x30, uint8_t *) : hit;
+            int lo = 0, hi = pass == 2 ? 0x800 : pass == 1 ? 0x400 : 0x140;
+            if (!o) continue;
+            REPLY("  %s:", pass == 0 ? "stats" : pass == 1 ? "physics" : "unit");
+            for (int off = lo; off < hi; off += 4) {
+                int iv = FIELD(o, off, int); float fv = FIELD(o, off, float);
+                if (iv == 0) continue;
+                REPLY(" %X=%x", off, (unsigned)iv);
+            }
+            REPLY("\n");
+        }
+        return;
+    }
     if (!strncmp(args, "stats", 5)) {   // a unit of P1 per type: its stats record (unit +0x34) floats +0x80..+0x13C
         static const int tt[] = { 121, 204, 152, 143, 602, 91, 388, 465, 71, 379, 193, 163, 72 };
         struct ld_bd f = { 0 };

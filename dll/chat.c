@@ -156,6 +156,31 @@ static void cmd_say(char *out, const char *args) {
     REPLY("ok\n");
 }
 
+// chatme text (test): the local player types text into the chat box - as EEUIECESendMessage::vf1 (0x5C28D6) sends it:
+// cheats on (0x918E9A): the cheat parser 0x520A17 (thiscall on [0x919858], UWideString *, int *code, int *arg) and a
+// cheat message (new 0x18, 0x5C29FB(code, arg)); then the chat line (new 0x24, 0x5C2A2F(UWideString *)); both through
+// [0x91984C] vtable +0x18 (message, 0xFF = all) - scenario triggers on chat messages and cheat codes see it as typed
+static void cmd_chatme(char *out, const char *args) {
+    void **net = *(void ***)0x0091984C;
+    while (*args == ' ') args++;
+    if (!net || !*args) { REPLY("error: chatme text (in a game)\n"); return; }
+    __attribute__((aligned(8))) uint8_t s[32];
+    ((void (__thiscall *)(void *, const char *))*(void **)0x008232C4)(s, args);
+    void (__thiscall *send)(void *, void *, int) = (void (__thiscall *)(void *, void *, int))(*(void ***)net)[6];
+    int code = 0, arg = 0, cheats = *(char *)0x00918E9A != 0;
+    if (cheats && *(void **)0x00919858) {
+        ((void (__thiscall *)(void *, void *, int *, int *))0x00520A17)(*(void **)0x00919858, s, &code, &arg);
+        if (code) {
+            void *m = ((void *(__cdecl *)(unsigned))0x00683718)(0x18);
+            if (m) send(net, ((void *(__thiscall *)(void *, int, int))0x005C29FB)(m, code, arg), 0xFF);
+        }
+    }
+    void *m = ((void *(__cdecl *)(unsigned))0x00683718)(0x24);
+    if (m) send(net, ((void *(__thiscall *)(void *, void *))0x005C2A2F)(m, s), 0xFF);
+    ((void (__thiscall *)(void *))*(void **)0x00823AEC)(s);
+    REPLY("ok: sent \"%s\" (cheats %s, cheat code %d)\n", args, cheats ? "on" : "off", code);
+}
+
 static void chat_install(const char *ini, const char *test_ini) {
     g_chat = GetPrivateProfileIntA("general", "chat", 0, ini);
     g_chat_ms = GetPrivateProfileIntA("general", "chat_seconds", 15, ini) * 1000;
