@@ -400,8 +400,39 @@ static uint8_t *spread_target(uint8_t *u, uint8_t *t) {
     return best;
 }
 
+// firerate (test): per unit firing, its shots and the game time of the first and the last - the time between shots
+// by type (the median of the units with 4+ shots)
+static struct { uint8_t *u; int type, n; uint32_t t0, t1; } g_fr[512];
+static int g_fr_n, g_fr_on;   // on in tests
+static void fr_note(uint8_t *u) {
+    uint8_t *td = u ? FIELD(u, 0x2C, uint8_t *) : NULL;
+    if (!td || !g_fr_on) return;
+    uint32_t now = game_time();
+    for (int k = 0; k < g_fr_n; k++)
+        if (g_fr[k].u == u) { g_fr[k].n++; g_fr[k].t1 = now; return; }
+    if (g_fr_n < 512) { g_fr[g_fr_n].u = u; g_fr[g_fr_n].type = FIELD(td, 0x4B8, int); g_fr[g_fr_n].n = 1; g_fr[g_fr_n].t0 = g_fr[g_fr_n].t1 = now; g_fr_n++; }
+}
+static void cmd_firerate(char *out, const char *args) {
+    (void)args;
+    int seen[64], ns = 0;
+    for (int k = 0; k < g_fr_n; k++) {
+        int t = g_fr[k].type, j = 0;
+        while (j < ns && seen[j] != t) j++;
+        if (j < ns || ns == 64) continue;
+        seen[ns++] = t;
+        float iv[64]; int m = 0;
+        for (int q = k; q < g_fr_n && m < 64; q++)
+            if (g_fr[q].type == t && g_fr[q].n >= 4) iv[m++] = (float)(g_fr[q].t1 - g_fr[q].t0) / 1000.0f / (float)(g_fr[q].n - 1);
+        for (int a = 0; a < m; a++) for (int b = a + 1; b < m; b++) if (iv[b] < iv[a]) { float x = iv[a]; iv[a] = iv[b]; iv[b] = x; }
+        uint8_t *td = ((uint8_t **)G_TYPES)[t];
+        REPLY("type %d: %d units with 4+ shots, median %.2f s between shots (min %.2f max %.2f); type +0x42C %.3g +0x430 %.3g +0x438 %.3g\n", t, m,
+              m ? iv[m / 2] : 0.0f, m ? iv[0] : 0.0f, m ? iv[m - 1] : 0.0f, td ? FIELD(td, 0x42C, float) : 0.0f, td ? FIELD(td, 0x430, float) : 0.0f,
+              td ? FIELD(td, 0x438, float) : 0.0f);
+    }
+}
 static void __fastcall hook_fire(uint8_t *cls, void *edx, uint8_t *u) {
     (void)edx;
+    fr_note(u);
     uint8_t *pc = FIELD(cls, 0x3FC, uint8_t *), *goal = FIELD(u, 0x1EC, uint8_t *);
     uint8_t *t = goal && goal[5] == 2 ? FIELD(goal, 0x30, uint8_t *) : NULL;
     if (g_spread && t && pc && *(uintptr_t *)pc == VT_MISSILE && doomed(t)) {
@@ -452,6 +483,7 @@ static void aim_install(const char *aimod_ini, const char *autotest_ini) {
     BOOL ok = (g_lead || g_spread || autotest_ini) ? patch_call(CALL_AIM, FN_AIM, hook_aim) : TRUE;
     BOOL ok2 = (g_lead_missiles || g_spread || autotest_ini) ? patch_call(CALL_MISSILE_AIM, FN_AIM, hook_missile_aim) : TRUE;
     int ok3 = 0;
+    g_fr_on = autotest_ini != NULL;
     if (g_spread || autotest_ini) {
         ok3 += patch_vtable(VT_MISSILE, 42, FN_MISSILE_LAUNCH, hook_missile_launch);
         for (int i = 0; i < 4; i++) ok3 += patch_call(k_fire_calls[i], FN_FIRE, hook_fire) ? 1 : 0;

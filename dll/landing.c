@@ -1752,6 +1752,34 @@ static void ld_bd_unit(uint8_t *u, void *ctx) {
 static void cmd_board(char *out, const char *args) {
     struct ld_bd b = { 0 };
     int p = -1;
+    if (!strncmp(args, "stats", 5)) {   // a unit of P1 per type: its stats record (unit +0x34) floats +0x80..+0x13C
+        static const int tt[] = { 121, 204, 152, 143, 602, 91, 388, 465 };
+        struct ld_bd f = { 0 };
+        for (size_t j = 0; j < sizeof tt / sizeof *tt; j++) {
+            uint8_t *map = *(uint8_t **)G_MAP, *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL, *hit = NULL;
+            if (!grid) break;
+            int cs = FIELD(grid, 8, int), nx = FIELD(grid, 0x10, int), ny = FIELD(grid, 0x14, int);
+            uint8_t *cells = FIELD(grid, 4, uint8_t *);
+            for (int c = 0; c < nx * ny && !hit; c++)
+                for (uint8_t **b = FIELD(cells + c * 16, 4, uint8_t **); b && b < FIELD(cells + c * 16, 8, uint8_t **) && !hit; b++)
+                    if (*b && FIELD(*b, 0x2C, uint8_t *) && FIELD(FIELD(*b, 0x2C, uint8_t *), 0x4B8, int) == tt[j] && FIELD(*b, 0x18, uint8_t *) && FIELD(FIELD(*b, 0x18, uint8_t *), PL_INDEX, int) == 1 && FIELD(*b, 0x3C, int) > 0) hit = *b;
+            uint8_t *st = hit ? FIELD(hit, 0x34, uint8_t *) : NULL;
+            if (!st) { REPLY("type %d: none\n", tt[j]); continue; }
+            REPLY("type %d:", tt[j]);
+            for (int off = 0x80; off < 0x140; off += 4) REPLY(" %X=%g", off, FIELD(st, off, float));
+            REPLY("\n");
+        }
+        for (size_t j = 0; j < sizeof tt / sizeof *tt; j++) {
+            uint8_t *td = ((uint8_t **)G_TYPES)[tt[j]];
+            REPLY("type data %d:", tt[j]);
+            for (int off = 0x410; off < 0x440; off += 4) REPLY(" %X=%g", off, FIELD(td, off, float));
+            REPLY(" | 510=%d 4C0=%d 4C4=%d 4C8=%d", FIELD(td, 0x510, int), FIELD(td, 0x4C0, int), FIELD(td, 0x4C4, int), FIELD(td, 0x4C8, int));
+            for (int off = 0x514; off < 0x530; off += 4) REPLY(" %X=%d", off, FIELD(td, off, int));
+            REPLY("\n");
+        }
+        (void)f;
+        return;
+    }
     if (!strncmp(args, "hits", 4)) {   // the game's hit factor (0x4D5F2C): attackers (P2) by row, targets (P1) by column
         static const int at[] = { 193, 163, 399, 250, 71, 72, 379, 305, 465, 145, 152, 146 }, tt[] = { 113, 250, 72, 399, 152, 465 };
         REPLY("attacker:      " );
