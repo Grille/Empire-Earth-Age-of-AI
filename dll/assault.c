@@ -498,3 +498,73 @@ static void assault_install(const char *aimod_ini, const char *autotest_ini) {
     int h = patch_vtable(VT_ASG_LAND, 90, FN_ASG_UPDATE, hook_asg_update);
     if (g_log) fprintf(g_log, "# assault: %s (subgroup update hook %s)\n", g_assault ? "on" : "off", h ? "ok" : "FAILED");
 }
+
+// aigroup P [x y] (test): AI P forms an attack group as the scenario effect "Create AI Military Group" does (0x5AB8BE,
+// docs/triggers.md) - a group of the game's own (EECPAttackGroup) with a target, where the AI's own attacks on a player
+// (mission 1) have none and walk legs. Target: the enemy building nearest x,y (default: the centre of P's soldiers),
+// mission 7 (attack the goal unit); units: P's land soldiers the combat manager calls free (0x4707D8: in no group).
+// Task (0x34, ctor 0x441FB3): +4 location (0x47C8B7 = location 0x18, ctor 0x47C4E8, point at +4), target unit via
+// 0x442246, +0x20 target player, +0x28 mission, +0x2C 2, +0x30 1. Strategy (0x44, ctor 0x473BC4, reset 0x473CA7):
+// +0x3C 4 attack / 5 defend. Then cm 0x47067A(task, strategy, vector<int> ids) and [cm+0x48] 0x45106C(same).
+struct ag_scan { void *pl; uint8_t *cm; int n, ids[256]; long sx, sy; int x, y, nodef; uint8_t *best; long bd; };
+static void ag_unit(uint8_t *u, void *ctx) {
+    struct ag_scan *s = ctx;
+    uint8_t *td = FIELD(u, 0x2C, uint8_t *);
+    void *owner = FIELD(u, 0x18, void *);
+    if (FIELD(u, 0x3C, int) <= 0 || !owner || !td) return;
+    int fam = FIELD(td, 0x4B4, int), x = FIELD(u, 0x1C, int), y = FIELD(u, 0x20, int);
+    if (owner == s->pl && s->x < 0) {
+        if (is_soldier(td) && !is_ship_or_air(td) && s->n < 256 &&
+            ((char (__thiscall *)(void *, void *))0x004707D8)(s->cm, FIELD(u, 0x30, void *))) {
+            s->ids[s->n++] = FIELD(u, 0x24, int); s->sx += x; s->sy += y;
+        }
+    } else if (s->x >= 0 && is_enemy(s->pl, owner) && (fam == 2 || fam == 29)) {
+        float r, a;
+        if (s->nodef && defence_stats(u, &r, &a)) return;
+        long d = (long)(x - s->x) * (x - s->x) + (long)(y - s->y) * (y - s->y);
+        if (!s->best || d < s->bd) { s->best = u; s->bd = d; }
+    }
+}
+static void cmd_aigroup(char *out, const char *args) {
+    int p = 0, x = -1, y = -1;
+    if (sscanf(args, "%d %d %d", &p, &x, &y) < 3) x = y = -1;
+    int nodef = strstr(args, "nodef") != NULL;   // aigroup P [x y] [nodef]: not a defence
+    void *pl = p > 0 && p < 16 ? g_players[p] : NULL;
+    uint8_t *cm = pl ? FIELD(pl, 0xB8C, uint8_t *) : NULL, *cmd = cm ? FIELD(cm, 0x48, uint8_t *) : NULL;
+    if (!cmd) { REPLY("error: aigroup P [x y] - no AI player %d\n", p); return; }
+    static struct ag_scan s;
+    memset(&s, 0, sizeof s);
+    s.pl = pl; s.cm = cm; s.x = -1; s.nodef = nodef;
+    grid_each(ag_unit, &s);
+    if (!s.n) { REPLY("error: P%d has no free land soldiers\n", p); return; }
+    s.x = x >= 0 ? x : (int)(s.sx / s.n); s.y = y >= 0 ? y : (int)(s.sy / s.n);
+    grid_each(ag_unit, &s);
+    if (!s.best) { REPLY("error: no enemy building\n"); return; }
+    uint8_t *t = s.best, *tpl = FIELD(t, 0x18, uint8_t *);
+    __attribute__((aligned(8))) uint8_t task[0x40], loc[0x20], strat[0x50];
+    ((void (__thiscall *)(void *))0x00441FB3)(task);
+    ((void (__thiscall *)(void *))0x0047C4E8)(loc);
+    ((void (__thiscall *)(void *))0x00473BC4)(strat);
+    ((void (__thiscall *)(void *, void *))0x00442246)(task, t);
+    int pt[2] = { FIELD(t, 0x1C, int), FIELD(t, 0x20, int) };
+    ((void (__thiscall *)(void *, int *))0x0040D29D)(loc + 4, pt);
+    ((void (__thiscall *)(void *, void *))0x0047C8B7)(task + 4, loc);
+    FIELD(task, 0x20, void *) = ((void **)0x00918374)[FIELD(tpl, PL_INDEX, int) & 15];
+    FIELD(task, 0x28, int) = 7; FIELD(task, 0x2C, int) = 2; FIELD(task, 0x30, uint8_t) = 1;
+    ((void (__thiscall *)(void *))0x00473CA7)(strat);
+    FIELD(strat, 0x3C, int) = 4; FIELD(strat, 0x40, uint8_t) = 0;
+    // vector<int> {allocator, first, last, end} with the game's heap (its dtor 0x61ABEC frees with the game's delete)
+    __attribute__((aligned(8))) uint8_t vec[16] = { 0 };
+    int *ids = ((int *(__cdecl *)(unsigned))0x00683718)((unsigned)s.n * 4);
+    memcpy(ids, s.ids, (size_t)s.n * 4);
+    FIELD(vec, 4, int *) = ids; FIELD(vec, 8, int *) = ids + s.n; FIELD(vec, 0xC, int *) = ids + s.n;
+    char ok = ((char (__thiscall *)(void *, void *, void *, void *))0x0047067A)(cm, task, strat, vec);
+    uint8_t *g = ok ? ((uint8_t *(__thiscall *)(void *, void *, void *, void *))0x0045106C)(cmd, task, strat, vec) : NULL;
+    ((void (__thiscall *)(void *))0x0061ABEC)(vec);
+    ((void (__thiscall *)(void *))0x00442283)(task);
+    ((void (__thiscall *)(void *))0x00473C99)(strat);
+    int nsg = g && FIELD(g, 8, void *) ? (int)((FIELD(g, 0xC, uint8_t *) - FIELD(g, 8, uint8_t *)) / 4) : 0;
+    REPLY("P%d: %d free land soldiers (centre %ld,%ld) -> target type %d of P%d at %d,%d: %s, group %p with %d subgroups\n",
+          p, s.n, s.sx / s.n, s.sy / s.n, FIELD(FIELD(t, 0x2C, uint8_t *), 0x4B8, int), FIELD(tpl, PL_INDEX, int), pt[0], pt[1],
+          ok ? "accepted" : "refused (0x47067A)", g, nsg);
+}
