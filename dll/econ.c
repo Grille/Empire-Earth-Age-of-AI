@@ -207,7 +207,12 @@ static void __fastcall hook_epoch_upgrades(uint8_t *node, void *edx, int cat) {
     (void)edx;
     uint8_t *tt = FIELD(node, 0xC, uint8_t *);
     int pi = tt ? FIELD(tt, 4, int) : -1;
-    void *pl = pi >= 0 && pi < 16 ? g_players[pi] : NULL;
+    // the game's own player array, not g_players: back in the scenario editor after a test run the editor sets the
+    // computer players' epochs again (here) while g_players still held the test run's deleted players - the game
+    // crashed reading one (eeaimod.dll+5e188)
+    unsigned np = *(unsigned *)0x009183CC;
+    void *pl = pi > 0 && pi < 16 && (unsigned)pi < np ? ((void **)0x00918374)[pi] : NULL;
+    if (pl && (FIELD(pl, PL_INDEX, int) & 15) != pi) pl = NULL;
     void *cm = pl ? FIELD(pl, 0xB90, void *) : NULL;
     uint8_t *rs = cm ? FIELD(cm, 0x40, uint8_t *) : NULL;
     if (!g_paid_upgrades || !rs || cat != 7) { ((void (__thiscall *)(void *, int))0x005BDDBD)(node, cat); return; }

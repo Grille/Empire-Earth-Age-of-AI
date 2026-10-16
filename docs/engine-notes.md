@@ -309,6 +309,17 @@ Guard towers 47, 461..466; AA 145/147; town center 35; house 37; citizen 32.
 - **Building types** (data/db/converteroutput.log, "Object(value):N ... Name:b  ..."): Barracks 34, Town Center 35, Dock 36,
   House 37, Temple 39, Capitol 41, Settlement 43, Archery Range 54, University 60, Hospital 62, Siege Factory 63,
   Stable 64, Navy Yard 65, Airport 66, Tank Factory 68, Cyber Factory 69, Fortress 672; towers 47, 461-466.
+- **Unit fields named** (the game's out-of-sync dump EEComplexUnit::vf17 0x5EB579 prints them; type = unit +0x2C,
+  stats = unit +0x34, physics = unit +0x30): type +0x50C base reload time (int, ms: machine gun 1000, tower and
+  tank 4000, artillery 12000, aircraft 500 - the measured time between shots matches), +0x510 base attack, +0x55C
+  base hit points, +0x420 base range, +0x41C min range, +0x424 area effect, +0x438 base accel, +0x448 turret max
+  angular velocity, +0x4C8 ammo type (the hit table's weapon kind), +0x4BC combat reaction, +0x514 work rate, +0x554
+  repair rate, +0x574 healing points, +0x570 carry amount, +0x53C max objects carried, +0x534 flight time, +0x588
+  missile delay time, +0x5A0 ammunition, +0x5FC fire while moving, +0x5FF build on elevation, +0x60A/+0x60B convert
+  buildings/priests, +0x470/+0x474 collision spheres; stats +0xA4 LOS, +0xAC max velocity, +0xB0 angular accel,
+  +0xB4 max angular velocity, +0x8C convert %/s; physics +0x238 velocity, +0x2E4 ammunition, +0x28C flight time,
+  +0x278 crew hit points, +0x210 cruise altitude. The scenario editor's class attribute "reload time" (set/add/sub)
+  changes the per-player base, the unit attribute "reload time +" adds per unit (where: to be found).
 - **Who can hit whom:** 0x4D5F2C thiscall on 0x917DE0 (weapon kind = attacker type +0x4C8, target type, attacker
   player index, target player index) -> the factor from the table 0x8D200C [target category = type +0x4C4][weapon kind]
   (variants 0x8D2008/0x8D2010 by game mode); 0 = it cannot hit (the AI's attack subgroups test `!= 0`, 0x4504FD).

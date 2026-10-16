@@ -1753,7 +1753,7 @@ static void cmd_board(char *out, const char *args) {
     struct ld_bd b = { 0 };
     int p = -1;
     if (!strncmp(args, "stats", 5)) {   // a unit of P1 per type: its stats record (unit +0x34) floats +0x80..+0x13C
-        static const int tt[] = { 121, 204, 152, 143, 602, 91, 388, 465 };
+        static const int tt[] = { 121, 204, 152, 143, 602, 91, 388, 465, 71, 379, 193, 163, 72 };
         struct ld_bd f = { 0 };
         for (size_t j = 0; j < sizeof tt / sizeof *tt; j++) {
             uint8_t *map = *(uint8_t **)G_MAP, *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL, *hit = NULL;
@@ -1773,7 +1773,7 @@ static void cmd_board(char *out, const char *args) {
             uint8_t *td = ((uint8_t **)G_TYPES)[tt[j]];
             REPLY("type data %d:", tt[j]);
             for (int off = 0x410; off < 0x440; off += 4) REPLY(" %X=%g", off, FIELD(td, off, float));
-            REPLY(" | 510=%d 4C0=%d 4C4=%d 4C8=%d", FIELD(td, 0x510, int), FIELD(td, 0x4C0, int), FIELD(td, 0x4C4, int), FIELD(td, 0x4C8, int));
+            REPLY(" | reload 50C=%d missile delay 588=%d | 510=%d 4C0=%d 4C4=%d 4C8=%d", FIELD(td, 0x50C, int), FIELD(td, 0x588, int), FIELD(td, 0x510, int), FIELD(td, 0x4C0, int), FIELD(td, 0x4C4, int), FIELD(td, 0x4C8, int));
             for (int off = 0x514; off < 0x530; off += 4) REPLY(" %X=%d", off, FIELD(td, off, int));
             REPLY("\n");
         }

@@ -98,6 +98,7 @@ static int redirect_minimap_scale(void) {
 }
 
 static void __stdcall hook_editor_resolution(int w, int h, int force, int flag) {
+    memset(g_players, 0, sizeof g_players);   // into the editor (also back from a test run): the game's players are gone
     editor_size(&w, &h);
     int lay = apply_editor_layout(w, h);
     g_mm_fx = 1.28f / (float)w;
