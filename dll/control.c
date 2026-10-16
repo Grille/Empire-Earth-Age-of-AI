@@ -35,6 +35,7 @@ static void cmd_intel(char *out, const char *args);
 static void cmd_calloff(char *out, const char *args);
 static void cmd_vistrack(char *out, const char *args);
 static void cmd_terrain(char *out, const char *args);
+static void cmd_board(char *out, const char *args);
 static void cmd_targets(char *out, const char *args);
 static void cmd_army(char *out, const char *args);
 static void cmd_minecheck(char *out, const char *args);   // sites.c
@@ -397,6 +398,7 @@ static void execute(const char *cmd, char *out) {
     else if (!strcmp(verb, "calloff")) cmd_calloff(out, args);
     else if (!strcmp(verb, "vistrack")) cmd_vistrack(out, args);
     else if (!strcmp(verb, "terrain")) cmd_terrain(out, args);
+    else if (!strcmp(verb, "board")) cmd_board(out, args);
     else if (!strcmp(verb, "targets")) cmd_targets(out, args);
     else if (!strcmp(verb, "army")) cmd_army(out, args);
     else if (!strcmp(verb, "wave")) cmd_wave(out, args);

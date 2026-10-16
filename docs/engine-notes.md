@@ -306,6 +306,8 @@ Guard towers 47, 461..466; AA 145/147; town center 35; house 37; citizen 32.
 - **Idle loaded transports are unloaded** by the game's unit code (0x483E10: cargo, no order or a finished one,
   0x42C49A at 0x483E24 finds land next to it -> EEUGUnloadTransport at its own tile). A landing's transports are
   excluded (hook at 0x483E24) and wait on open water. Another unload source: 0x445AAD (attack subgroup code).
+- **Transport capacity:** the type's +0x54C (int): 313 and 110 hold 10, 111 12, 112-114 14 (0 for soldiers; a 110
+  given 53 soldiers to load held 10).
 - **Transports:** load: `new(0x68)`, 0x61487F thiscall(goal, transport, std::vector<EEUnit*> *passengers (MSVC6:
   alloc, first, last, end - sorted in place), 1) = EEUGLoadTransport (vtable 0x831DC0) for the transport; each
   passenger gets the goal's vf4 product (the AI: 0x44AF68). Unload: `new(0x40)`, 0x615A1F thiscall(goal, transport,
