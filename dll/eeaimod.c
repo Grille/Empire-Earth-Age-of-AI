@@ -516,6 +516,7 @@ static char __fastcall hook_game_start(void *state, void *edx, uint8_t *setup, v
 #include "trace.c"
 #include "settings.c"
 #include "chat.c"
+#include "scen.c"
 #include "sites.c"
 #include "econ.c"
 #include "attack.c"

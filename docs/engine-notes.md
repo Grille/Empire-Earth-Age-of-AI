@@ -636,7 +636,7 @@ writes the header and the lump container and parses terrain. Strings are length-
 - Player data lump (started): a list of "PlayerEnabler" records {u32 id, bool, u32, u32 per player x16, u32} -
   probably the per-player enable state of units/techs; the lever for locking AoC-only content in EE scenarios.
 - Triggers: name, description, bools active/looping/fired/active in cinematic, u32 conditions-true-for,
-  u32 seconds true, u32 id, then condition and effect bindings.
+  u32 seconds true, u32 id, then condition and effect bindings. Runtime, conditions and effects: docs/triggers.md.
 
 ## Display
 
