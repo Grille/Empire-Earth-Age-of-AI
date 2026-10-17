@@ -1,0 +1,5 @@
+# islands with money: both AIs get 3000 of each at minutes 10 and 25 (does the bombardment work when it can pay?)
+@10 give 2 3000
+@10 give 3 3000
+@25 give 2 3000
+@25 give 3 3000

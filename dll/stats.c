@@ -391,9 +391,9 @@ static void cmd_stats(char *out, const char *args) {
     }
     if (!strncmp(args, "garrison", 8)) {   // garrison: every type with a garrison capacity (type +0x550), its family
         int o = snprintf(out, 4096, "ok: types with a garrison capacity (type family capacity):");
-        for (int t = 0; t < 1024 && o < 3900; t++) {
+        for (int t = 0; t < 724 && o < 3900; t++) {   // type ids end at 723
             uint8_t *td = ((uint8_t **)0x009418A0)[t];
-            if (!td || IsBadReadPtr(td, 0x560) || FIELD(td, 0x4B8, int) != t || FIELD(td, 0x550, int) <= 0) continue;
+            if (!td || FIELD(td, 0x4B8, int) != t || FIELD(td, 0x550, int) <= 0) continue;
             o += snprintf(out + o, 4096 - o, " %d/%d/%d", t, FIELD(td, 0x4B4, int), FIELD(td, 0x550, int));
         }
         snprintf(out + o, 4096 - o, "\n");

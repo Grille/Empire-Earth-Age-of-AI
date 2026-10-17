@@ -49,6 +49,7 @@ static struct def_plan {
     struct { int x, y; uint32_t t; } pend[8];   // slots given out recently (the construction may not show yet)
 } g_plan[16];
 
+static unsigned area_id(int x, int y, int kind);   // assault.c: 1 the sea, 2 the land there (0 none)
 static int is_tower_type(int t) { return t == 47 || t == 328 || (t >= 461 && t <= 466); }
 static int can_place(void *pl, int type, int x, int y) {
     uint8_t *td = (type >= 0 && type < 2048) ? ((uint8_t **)0x009418A0)[type] : NULL;
@@ -242,6 +243,15 @@ static void defence_tick(void *pl, unsigned idx, uint32_t now) {
             route_covered(pl, p->bx, p->by, cx, cy)) continue;   // the builders would walk into enemy fire
         if (raiders_near(pl, a[0], a[1], 10) || raiders_near(pl, b[0], b[1], 10) || raiders_near(pl, cx, cy, 10))
             continue;   // or into an enemy army standing there
+        // the arc on the map and on land, ends and middle: on an island map an arc into the water (or off the map)
+        // crashed the game's wall placement (0x497C3F -> 0x636E30, a null tile object), twice on Small Islands
+        uint8_t *wmap = *(uint8_t **)G_MAP;
+        int mn = wmap ? (int)FIELD(wmap, 0x1816FC, uint32_t) : 0, land = mn > 0;
+        for (int q = 0; q <= 2 && land; q++) {
+            int qx = q == 0 ? a[0] : q == 1 ? b[0] : cx, qy = q == 0 ? a[1] : q == 1 ? b[1] : cy;
+            land = qx >= 3 && qy >= 3 && qx < mn - 3 && qy < mn - 3 && area_id(qx, qy, 2) && !area_id(qx, qy, 1);
+        }
+        if (!land) { f->wall_tries++; f->wall_t = now ? now : 1; continue; }
         int have = 0;   // wall pieces standing on the arc (then a new order only repairs)
         for (int w = 0; w < s->walls; w++) have += on_segment(s->wx[w], s->wy[w], a, b);
         if (have >= 8) continue;
