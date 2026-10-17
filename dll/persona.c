@@ -341,10 +341,11 @@ static void persona_key(void *arg, const char *sec, const char *key, struct tval
     } else if (_strnicmp(sec, "lines:", 6) && _strnicmp(sec, "vars:", 5)) tl_error(l, "an unknown section");
 }
 static void persona_load(const char *path, const char *file) {
-    if (g_npersonas >= MAX_PERSONAS) return;
+    int comp = !lstrcmpiA(file, "computer.eeai");   // the neutral lines are read even with 32 personalities loaded
+    if (g_npersonas >= MAX_PERSONAS && !comp) return;
     char *text = read_text_acp(path);
     if (!text) return;
-    struct persona *p = &g_personas[g_npersonas];
+    struct persona *p = comp ? &g_computer : &g_personas[g_npersonas];
     memset(p, 0, sizeof *p);
     lstrcpynA(p->file, file, sizeof p->file);
     char *dot = strrchr(p->file, '.');
@@ -363,8 +364,7 @@ static void persona_load(const char *path, const char *file) {
     includes_load(dir, &r.inc, &p->vars, file, 0);
     for (int k = 0; k < L_N; k++)   // the language's lines where it has them, [lines] for the rest
         if (r.ll[k]) { free(p->line[k]); p->line[k] = r.ll[k]; }
-    if (!lstrcmpiA(p->file, "computer")) {   // the neutral fallback lines, no personality of its own
-        g_computer = *p;
+    if (comp) {   // the neutral fallback lines (read into g_computer), no personality of its own
         g_has_computer = 1;
         return;
     }
@@ -584,6 +584,7 @@ static void *__cdecl hook_player_color(unsigned idx) {
 // once per AI (its first update): pick and apply the personality - pinned by aimod.ini, planned at the game start
 // (found by the player's colour, +0x438 = the colour table's rgb), the one with the player's name (a loaded game),
 // or a random one
+static void persona_apply(void *pl, unsigned idx, int pick);
 static void persona_assign(void *pl) {
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     if (g_persona_assigned[idx]) return;
@@ -598,8 +599,12 @@ static void persona_assign(void *pl) {
     for (int i = 0; i < g_npersonas && pick < 0; i++)
         if (g_personas[i].name[0] && !lstrcmpA(g_personas[i].name, player_name(pl))) pick = i;
     if (pick < 0) { pick = persona_random(); if (pick >= 0) g_persona_used[pick]++; }
-    if (pick < 0) return;
+    if (pick >= 0) persona_apply(pl, idx, pick);
+}
+// AI pl (player idx) is personality pick from now on: its name, civilization, [style] (persona_assign, cmd_persona)
+static void persona_apply(void *pl, unsigned idx, int pick) {
     g_persona_of[idx] = pick;
+    g_cfg_pl_on[idx] = 0;   // the last one's [style] (cmd_persona)
     struct persona *p = &g_personas[pick];
     if (g_ai_names && p->name[0])
         ((void *(__thiscall *)(void *, const char *))*(void **)0x00823224)((uint8_t *)pl + 0x24, p->name);
@@ -783,9 +788,8 @@ static void cmd_persona(char *out, const char *args) {
     if (p >= 0 && p < 16 && name[0]) {
         for (int i = 0; i < g_npersonas; i++)
             if (!lstrcmpiA(g_personas[i].file, name)) {
-                g_persona_of[p] = i;
-                if (g_players[p] && g_ai_names && g_personas[i].name[0])
-                    ((void *(__thiscall *)(void *, const char *))*(void **)0x00823224)((uint8_t *)g_players[p] + 0x24, g_personas[i].name);
+                if (g_players[p]) persona_apply(g_players[p], (unsigned)p, i);   // name, civilization, [style] as at the start
+                else g_persona_of[p] = i;
                 REPLY("P%d is now %s\n", p, name);
                 return;
             }

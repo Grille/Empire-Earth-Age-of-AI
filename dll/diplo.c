@@ -860,6 +860,7 @@ static struct {   // per AI: what it has said / seen (reset by diplo_new_game)
     int mood[16];   // -1 losing, 0, 1 winning (lines when it changes)
     uint32_t last_min[16], last_sit[16];
 } g_sit;
+static int g_sit_looked;   // AIs past their first look (bits; reset by diplo_new_game, not saved)
 static void diplo_situations(void *pl, int ai, uint32_t now) {
     if (!g_sit.said_greeting[ai] && now >= 20000 + (uint32_t)ai * 4000u) {   // at the start only, not after a load
         g_sit.said_greeting[ai] = 1;
@@ -886,10 +887,14 @@ static void diplo_situations(void *pl, int ai, uint32_t now) {
         if (ahead && !g_sit.was_ahead[ai]) persona_say(pl, L_ENEMY_AHEAD, player_at(lead), NULL);
         g_sit.was_ahead[ai] = ahead;
     }
+    // the first look after the game start or a load only notes who is out: a save without its .aimod (g_sit not
+    // restored) had every AI announce the old defeats
+    int quiet = !(g_sit_looked >> ai & 1);
+    g_sit_looked |= 1 << ai;
     for (int j = 1; j < nplayers(); j++) {
         void *pj = player_at(j);
         int out = is_out(pj);
-        if (out && !(g_sit.was_out[ai] & (1 << j)) && pj && j != ai)
+        if (out && !quiet && !(g_sit.was_out[ai] & (1 << j)) && pj && j != ai)
             persona_say(pl, stance_of(pl, j) ? L_ENEMY_DEFEATED : L_ALLY_DEFEATED, pj, NULL);
         if (out) g_sit.was_out[ai] |= 1 << j;
     }
@@ -982,7 +987,10 @@ static void capitulate(void *pl, int ai, int a, uint32_t now) {
 static void offer_refused(int from, int to) {
     uint32_t now = game_time();
     hist_refused(to, from);
-    if (g_offer_t[from][to]) g_offer_t[from][to] = now > 120001 ? now - 120001 : 1;
+    if (g_offer_t[from][to]) {   // run out at the next look: now - t past offer_minutes (unsigned: early in a game too -
+        uint32_t t = now - (uint32_t)g_offer_min * 60000u - 1u;   // 1 stood 2 more minutes there)
+        g_offer_t[from][to] = t ? t : 0xFFFFFFFFu;   // 0 = no offer
+    }
 }
 // no answer from the model: the rules decide, as they did at once before
 static void ai_offer_rules(int from, int to) {
@@ -1201,9 +1209,11 @@ static void reputation_pass(uint32_t now) {
         for (int x = 1; x < n; x++)
             for (int y = 1; y < n; y++) {
                 void *px = player_at(x), *py = player_at(y);
+                // a side taken in a block split: used up by the war itself, allied both ways before or not (a one-way
+                // chain in the block: the flag stayed and excused a later real betrayal)
+                if (g_justified[x][y] && px && stance_of(px, y)) { g_justified[x][y] = 0; continue; }
                 if (x == y || !g_rep_prev[x][y] || !px || !py || is_out(px) || is_out(py) || !stance_of(px, y)) continue;
                 if (stance_of(py, x) && g_players[x] && !g_players[y]) continue;   // both at once: the human started it
-                if (g_justified[x][y]) { g_justified[x][y] = 0; continue; }
                 int vassal = g_lord[y] == x, fresh = vassal && g_lord_since[y] && now - g_lord_since[y] < 600000;
                 for (int o = 1; o < n; o++) {
                     void *po = player_at(o);
@@ -1388,6 +1398,7 @@ static void diplo_new_game(void) {
     memset(&g_ws, 0, sizeof g_ws);
     hist_reset();
     memset(&g_sit, 0, sizeof g_sit);
+    g_sit_looked = 0;
     memset(g_no_citizens_since, 0, sizeof g_no_citizens_since);
     memset(g_pressure, 0, sizeof g_pressure);
     memset(g_offer_kind, 0, sizeof g_offer_kind);
@@ -1585,15 +1596,21 @@ static void __cdecl hook_exit_confirm(void) {
 static void llm_player_chat(const char *text);   // llm.c: the AIs answer (language model)
 static void __fastcall hook_ingame_chat(uint8_t *msg, void *edx) {
     (void)edx;
-    int me = (int)*(unsigned *)0x00918E84;
+    // chat runs on every PC: the claim goes by the sender (+0xA, as hook_resign), so every PC ends the game alike
+    // (only the local player's own word claimed before - a multiplayer desync); the refusal line is the sender's only
+    int me = (int)*(unsigned *)0x00918E84, from = 0;
     void *pm = player_at(me);
     const char *text = FIELD(msg + 0x10, 4, const char *);
-    int refused = 0;
-    if (pm && text && FIELD(pm, 0x464, int8_t) == (int8_t)msg[0xA] && victory_word(text))
-        refused = !claim_victory(me, "the chat word");
+    int refused = 0, local = pm && FIELD(pm, 0x464, int8_t) == (int8_t)msg[0xA];
+    for (int i = 1; text && !from && i < nplayers(); i++) {
+        void *p = player_at(i);
+        if (p && !g_players[i] && FIELD(p, 0x464, int8_t) == (int8_t)msg[0xA]) from = i;
+    }
+    if (from && text && victory_word(text))
+        refused = !claim_victory(from, "the chat word");
     ((void (__thiscall *)(void *))FN_INGAME_CHAT)(msg);
-    if (pm && text && FIELD(pm, 0x464, int8_t) == (int8_t)msg[0xA] && !refused) llm_player_chat(text);
-    if (!refused) return;
+    if (local && text && !refused) llm_player_chat(text);
+    if (!refused || from != me) return;
     // not yet: a system line under the player's own, naming who still holds out
     char names[200] = "", line[320];
     for (int j = 1; j < nplayers(); j++) {
