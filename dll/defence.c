@@ -317,7 +317,9 @@ static void cs_unit(uint8_t *u, void *ctx) {
 // are attacked by the AI's citizens within 10 tiles, at most 3 per enemy and against at most 6 - only when those
 // citizens' strength (hit points x attack) is 3 times that of the enemies within 6 tiles: Bronze Age soldiers (119 hp)
 // killed 10 citizens of a count-based militia while losing 49 hit points. Gathering or idle citizens only; afterwards the assignment puts them back to work.
-static int g_militia = 1;
+// [all] citizen_militia_epoch (default 2, the Copper Age; 0 Prehistoric): the last epoch citizens fight at all - later
+// a militia is nearly always a net loss (the playtester): citizens are worth more gathering or starting a new base.
+static int g_militia = 1, g_militia_epoch = 2;
 static unsigned g_militia_orders[16];
 static float unit_power(uint8_t *u) {   // hit points x attack (live stats), a rough fighting strength
     uint8_t *st = FIELD(u, 0x34, uint8_t *);
@@ -328,6 +330,7 @@ static struct st_side g_mil_own, g_mil_foe;   // fight_estimate (dll/stats.c)
 static int militia_answer(struct cs_scan *s, uint8_t *t, int *nfree) {   // citizens -> t; returns the number ordered
     int x = FIELD(t, 0x1C, int), y = FIELD(t, 0x20, int), enemies = 0, ordered = 0;
     float epow = 0, cpow = 0;
+    if (current_epoch(s->pl) > g_militia_epoch) return 0;
     if (g_fight_est) { st_side_clear(&g_mil_own); st_side_clear(&g_mil_foe); }
     for (int k = 0; k < s->nu; k++) {
         uint8_t *e = s->eu[k];
@@ -1143,6 +1146,7 @@ static void defence_install(const char *aimod_ini, const char *autotest_ini) {
     g_def_more = cfg_int(aimod_ini, autotest_ini, 1, "defence_towers", 1);
     g_csiege = cfg_int(aimod_ini, autotest_ini, 1, "counter_siege", 1);
     g_militia = cfg_int(aimod_ini, autotest_ini, 1, "citizen_militia", 1);
+    g_militia_epoch = cfg_int(aimod_ini, autotest_ini, 1, "citizen_militia_epoch", 2);
     g_home_guard = cfg_int(aimod_ini, autotest_ini, 1, "home_guard", 4);
     g_home_share = cfg_float(aimod_ini, autotest_ini, 1, "home_guard_share", "0.35");
     g_muster = cfg_int(aimod_ini, autotest_ini, 1, "muster", 1);
