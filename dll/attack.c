@@ -452,7 +452,7 @@ static struct { unsigned skipped, logged; } g_leash_stats[16];
 
 static int g_siege = 1;               // aimod.ini [all] attack_siege (siege controller below; also rams here)
 static unsigned g_ram_waits, g_air_skips;
-static int g_ignore_air = 0;          // aimod.ini [all] attack_ignore_air
+static int g_ignore_air = 1;          // aimod.ini [all] attack_ignore_air
 static int is_ram(int type) { return type == 102 || type == 287 || type == 158; }
 
 // Enemy soldiers (no citizens, no siege) of player pl's enemies within r tiles of (x, y)?
@@ -1486,7 +1486,7 @@ static void attack_install(const char *aimod_ini, const char *autotest_ini) {
     g_citizen_attacks = cfg_int(aimod_ini, autotest_ini, 1, "citizen_attacks", 0);
     g_breach = cfg_int(aimod_ini, autotest_ini, 1, "attack_breach", 1);
     g_siege = cfg_int(aimod_ini, autotest_ini, 1, "attack_siege", 1);
-    g_ignore_air = cfg_int(aimod_ini, autotest_ini, 1, "attack_ignore_air", 0);
+    g_ignore_air = cfg_int(aimod_ini, autotest_ini, 1, "attack_ignore_air", 1);
     int a = patch_vtable(VT_ROUTE_PLANNER, 1, FN_ROUTE_COST, hook_route_cost);
     int b = patch_vtable(VT_ASG_LAND, ASG_ROUTE_SLOT, FN_ASG_ROUTE, hook_asg_route);
     int c = patch_vtable(VT_ASG_LAND, ASG_ROUTE_DONE_SLOT, FN_ASG_ROUTE_DONE, hook_asg_route_done);
