@@ -1561,15 +1561,6 @@ static void victory_off_pass(void) {   // auto_victory=0, every pass between sim
 #define EXIT_CONFIRM_AT 0x005D0B2C
 #define FN_EXIT_CONFIRM 0x005D0B4F
 #define FN_RESIGN_SEND  0x005D05CC
-static int patch_code32(uintptr_t at, uint32_t expected, uint32_t val) {   // an operand in the code
-    uint32_t *p = (uint32_t *)at;
-    DWORD old;
-    if (*p != expected || !VirtualProtect(p, 4, PAGE_EXECUTE_READWRITE, &old)) return 0;
-    *p = val;
-    VirtualProtect(p, 4, old, &old);
-    FlushInstructionCache(GetCurrentProcess(), p, 4);
-    return 1;
-}
 static void __fastcall hook_resign(uint8_t *msg, void *edx) {
     (void)edx;
     int8_t from = (int8_t)msg[0xA];

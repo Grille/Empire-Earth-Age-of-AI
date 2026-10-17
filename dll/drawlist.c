@@ -12,17 +12,6 @@
 static int g_draw_limit = 4096;
 static uint8_t *g_draw_recs;
 
-// one 32-bit operand at code address `at`, if it still holds `want`
-static int patch_u32(uintptr_t at, uint32_t want, uint32_t val) {
-    uint32_t *p = (uint32_t *)at;
-    DWORD old;
-    if (*p != want || !VirtualProtect(p, 4, PAGE_EXECUTE_READWRITE, &old)) return 0;
-    *p = val;
-    VirtualProtect(p, 4, old, &old);
-    FlushInstructionCache(GetCurrentProcess(), p, 4);
-    return 1;
-}
-
 static void drawlist_install(const char *aimod_ini, const char *autotest_ini) {
     g_draw_limit = GetPrivateProfileIntA("display", "draw_limit", 4096, aimod_ini);
     if (autotest_ini) g_draw_limit = GetPrivateProfileIntA("autotest", "draw_limit", g_draw_limit, autotest_ini);
@@ -61,7 +50,7 @@ static void drawlist_install(const char *aimod_ini, const char *autotest_ini) {
         uint32_t v = k[i].kind == 0 ? (uint32_t)g_draw_limit
                    : k[i].kind == 1 ? base + (k[i].want - DRAW_OLD)
                    : base + (uint32_t)g_draw_limit * DRAW_REC + 0x58;
-        patch_u32(k[i].at, k[i].want, v);
+        patch_code32(k[i].at, k[i].want, v);
     }
     if (g_log) fprintf(g_log, "# draw limit: %d objects on screen (was %d), records at %p\n", g_draw_limit, DRAW_OLD_N,
                        g_draw_recs);

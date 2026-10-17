@@ -28,9 +28,10 @@ static uint32_t g_layout_consts[N_LAYOUT];
 static int8_t g_layout_state[N_LAYOUT];   // 0 unchecked, 1 patched, -1 didn't match (skipped)
 static int g_buttons_state;
 
+// an operand apply_editor_layout checked against the original the first time (or one it patched itself)
 static void write_code32(uint32_t *p, uint32_t v) {
     DWORD old;
-    VirtualProtect(p, 4, PAGE_EXECUTE_READWRITE, &old);
+    if (!VirtualProtect(p, 4, PAGE_EXECUTE_READWRITE, &old)) return;
     *p = v;
     VirtualProtect(p, 4, old, &old);
     FlushInstructionCache(GetCurrentProcess(), p, 4);
@@ -91,8 +92,8 @@ static const uintptr_t k_mm_fy_ops[] = { 0x0065E032, 0x0065E8CE, 0x0065EB68 };
 static int redirect_minimap_scale(void) {
     int n = 0;
     for (int i = 0; i < 3; i++) {
-        if (*(uint32_t *)k_mm_fx_ops[i] == 0x008358A8) { write_code32((uint32_t *)k_mm_fx_ops[i], (uint32_t)(uintptr_t)&g_mm_fx); n++; }
-        if (*(uint32_t *)k_mm_fy_ops[i] == 0x0082CBCC) { write_code32((uint32_t *)k_mm_fy_ops[i], (uint32_t)(uintptr_t)&g_mm_fy); n++; }
+        n += patch_code32(k_mm_fx_ops[i], 0x008358A8, (uint32_t)(uintptr_t)&g_mm_fx);
+        n += patch_code32(k_mm_fy_ops[i], 0x0082CBCC, (uint32_t)(uintptr_t)&g_mm_fy);
     }
     return n;
 }
@@ -2916,6 +2917,7 @@ static void cmd_textlog(char *out, const char *args) {
 // buttons' handlers (vtable slot 1, thiscall(handler, screen, ?), ret 8) now first copy the field into the settings
 // and save them (0x52AA81 thiscall(settings): every setting into the registry, as the options screens do).
 static const uintptr_t k_sp_vts[6] = { 0x00835740, 0x00835754, 0x00835768, 0x00835560, 0x0083577C, 0x00835790 };
+static const uintptr_t k_sp_fns[6] = { 0x005D80D5, 0x005D812B, 0x00628E89, 0x005D8156, 0x005D88C0, 0x005D817A };   // their slot 1
 static void *g_sp_orig[6];
 static void keep_player_name(uint8_t *screen) {
     uint8_t **ctl = screen ? FIELD(screen, 0xF8, uint8_t **) : NULL;
@@ -2938,9 +2940,8 @@ static void player_name_install(void) {
                                     (void *)hook_sp_4, (void *)hook_sp_5 };
     int ok = 0;
     for (int i = 0; i < 6; i++) {
-        void **slot = (void **)(k_sp_vts[i] + 4);
-        g_sp_orig[i] = *slot;
-        ok += patch_vtable(k_sp_vts[i], 1, (uintptr_t)*slot, hooks[i]);
+        g_sp_orig[i] = (void *)k_sp_fns[i];
+        ok += patch_vtable(k_sp_vts[i], 1, k_sp_fns[i], hooks[i]);
     }
-    if (g_log) fprintf(g_log, "# player name: single-player menu buttons hooked %d/6\n", ok);
+    if (g_log) fprintf(g_log, "# player name: single-player menu buttons hooked %d/6%s\n", ok, ok < 6 ? " - FAILED (exe differs)" : "");
 }

@@ -5,6 +5,7 @@
 // Vista always 16. The log counts per sound id the plays the game asks for and the ones the manager drops (Play
 // returns -1 / PlayAndReturnReferencedNode NULL), and the mixer's refusals (SetChannelSample / PlayChannel != 0).
 #define G_SOUND_MANAGER 0x00919848
+#define LLE_DLL "Low-Level Engine.dll"   // the sound manager's imports (by name, the slots checked against it)
 #define IAT_SND_PLAY 0x008232D0      // SESoundManager::Play(id, vol, pan, pitch, bool queue, char *) -> id or -1
 #define IAT_SND_PLAYREF 0x008233EC   // SESoundManager::PlayAndReturnReferencedNode(same) -> node or NULL
 #define SM_MIXER 0x70                // SEMixer *; the mixer's SPIM function pointers are fields of it
@@ -96,14 +97,6 @@ static int __cdecl hook_mix_vol(void *sample, float vol) {
     return r;
 }
 
-static void iat_swap(uintptr_t slot, void *fn, void **orig) {
-    DWORD old;
-    if (!VirtualProtect((void *)slot, 4, PAGE_READWRITE, &old)) return;
-    *orig = *(void **)slot;
-    *(void **)slot = fn;
-    VirtualProtect((void *)slot, 4, old, &old);
-}
-
 // Called from the AI tick: hooks once the sound manager exists, then logs the counts once a game minute.
 static void sound_tick(uint32_t now) {
     static int hooked;
@@ -113,13 +106,15 @@ static void sound_tick(uint32_t now) {
     if (!sm) return;
     if (!hooked) {
         hooked = 1;
-        iat_swap(IAT_SND_PLAY, (void *)hook_snd_play, (void **)&g_snd_play);
-        g_lle = (uintptr_t)g_snd_play - 0x5B50B;
+        int a = iat_hook(IAT_SND_PLAY, LLE_DLL, "?Play@SESoundManager@@QAEKKMMM_NPAD@Z", (void *)hook_snd_play, (void **)&g_snd_play);
+        if (a) g_lle = (uintptr_t)g_snd_play - 0x5B50B;
         uint8_t **cv = FIELD(sm, 0x54, uint8_t **), **ce = FIELD(sm, 0x58, uint8_t **);
         for (int i = 0; cv && cv + i < ce; i++)   // categories: share, max channels, in use, priority
             if (cv[i]) fprintf(g_log, "# sound: category %d: %.2f of the channels = %d, in use %d, priority %d\n", i,
                                FIELD(cv[i], 0, float), FIELD(cv[i], 4, int), FIELD(cv[i], 8, int), FIELD(cv[i], 0xC, int));
-        iat_swap(IAT_SND_PLAYREF, (void *)hook_snd_playref, (void **)&g_snd_playref);
+        int b = iat_hook(IAT_SND_PLAYREF, LLE_DLL, "?PlayAndReturnReferencedNode@SESoundManager@@QAEPAVSESMInstanceNode@@KMMM_NPAD@Z",
+                         (void *)hook_snd_playref, (void **)&g_snd_playref);
+        if (!a || !b) fprintf(g_log, "# sound: play hooks %d/2 - FAILED (exe differs)\n", a + b);
         uint8_t *mx = FIELD(sm, SM_MIXER, uint8_t *);
         if (mx) {
             g_mix_set = FIELD(mx, MX_SET_CHANNEL_SAMPLE, mix_set_fn);
@@ -216,8 +211,8 @@ static void sound_install(const char *aimod_ini, const char *autotest_ini) {
     g_sound_channels = GetPrivateProfileIntA("sound", "channels", 32, aimod_ini);
     if (autotest_ini) g_sound_channels = GetPrivateProfileIntA("autotest", "sound_channels", g_sound_channels, autotest_ini);
     if (autotest_ini) g_clamp_channels = GetPrivateProfileIntA("autotest", "clamp_channels", g_clamp_channels, autotest_ini);
-    iat_swap(IAT_SND_SETMAXCH, (void *)hook_set_max_channels, (void **)&g_set_max_ch);
-    if (g_log) fprintf(g_log, "# sound: clamp_channels=%d channels=%d (hook %d)\n", g_clamp_channels, g_sound_channels, g_set_max_ch != NULL);
+    int ok = iat_hook(IAT_SND_SETMAXCH, LLE_DLL, "?SetMaxChannels@SESoundManager@@QAEJK@Z", (void *)hook_set_max_channels, (void **)&g_set_max_ch);
+    if (g_log) fprintf(g_log, "# sound: clamp_channels=%d channels=%d (hook %s)\n", g_clamp_channels, g_sound_channels, ok ? "ok" : "FAILED");
     // aimod.ini [sound] log = 1 (counts once a minute) | 2 (every play) - diagnostics in normal play too
     g_sound_log = GetPrivateProfileIntA("sound", "log", 0, aimod_ini);
     if (autotest_ini) g_sound_log = GetPrivateProfileIntA("autotest", "sound_log", g_sound_log, autotest_ini);

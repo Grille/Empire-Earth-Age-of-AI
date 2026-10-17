@@ -147,6 +147,29 @@ static void log_locked(const char *fmt, ...) {
     LeaveCriticalSection(&g_lock);
 }
 
+// One 32-bit operand in the code, only while it still holds `expected` (another exe version is left alone).
+static int patch_code32(uintptr_t at, uint32_t expected, uint32_t val) {
+    uint32_t *p = (uint32_t *)at;
+    DWORD old;
+    if (*p != expected || !VirtualProtect(p, 4, PAGE_EXECUTE_READWRITE, &old)) return 0;
+    *p = val;
+    VirtualProtect(p, 4, old, &old);
+    FlushInstructionCache(GetCurrentProcess(), p, 4);
+    return 1;
+}
+// An import slot of the exe, only while it holds the import it is for (that module's export): the original in *orig.
+// 0 when it holds something else (another hook, another exe) - left alone, *orig untouched.
+static int iat_hook(uintptr_t slot, const char *dll, const char *name, void *fn, void **orig) {
+    HMODULE m = GetModuleHandleA(dll);
+    void *want = m ? (void *)GetProcAddress(m, name) : NULL;
+    DWORD old;
+    if (!want || *(void **)slot != want || !VirtualProtect((void *)slot, 4, PAGE_READWRITE, &old)) return 0;
+    *orig = want;
+    *(void **)slot = fn;
+    VirtualProtect((void *)slot, 4, old, &old);
+    return 1;
+}
+
 // `n` bytes at p readable, from the page table (IsBadReadPtr probes by raising access violations: each one went
 // through the crash log's first-chance handler)
 static int mem_readable(const void *p, size_t n) {
@@ -808,14 +831,8 @@ static void __cdecl hook_srand(unsigned seed) {
     g_srand((unsigned)g_auto.game_seed);
 }
 
-static BOOL patch_srand(void) {
-    void **p = (void **)IAT_SRAND;
-    DWORD old;
-    if (!VirtualProtect(p, 4, PAGE_READWRITE, &old)) return FALSE;
-    g_srand = (SrandFn)*p;
-    *p = (void *)hook_srand;
-    VirtualProtect(p, 4, old, &old);
-    return g_srand != NULL;
+static BOOL patch_srand(void) {   // the exe imports srand from msvcrt.dll
+    return iat_hook(IAT_SRAND, "msvcrt.dll", "srand", (void *)hook_srand, (void **)&g_srand);
 }
 
 BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, LPVOID reserved) {
