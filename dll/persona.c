@@ -254,7 +254,7 @@ static void includes_load(const char *dir, const struct includes *inc, struct xv
     for (int i = 0; i < inc->n; i++) {
         char path[MAX_PATH];
         if (depth >= 4) { x_error("%s: include \"%s\": more than 4 deep (a circle?)", by, inc->name[i]); return; }
-        wsprintfA(path, "%s%s", dir, inc->name[i]);
+        snprintf(path, sizeof path, "%s%s", dir, inc->name[i]);
         char *text = read_text_acp(path);
         if (!text) { x_error("%s: include \"%s\": no such file in aimod_ai", by, inc->name[i]); continue; }
         static struct inc_read r0;
@@ -380,14 +380,14 @@ static void x_fn_scan_dir(void) {
     char *bs = strrchr(dir, '\\');
     if (bs) bs[1] = 0;
     lstrcatA(dir, "aimod_ai\\");
-    wsprintfA(pat, "%s*.eeai", dir);
+    snprintf(pat, sizeof pat, "%s*.eeai", dir);
     WIN32_FIND_DATAA fd;
     HANDLE h = FindFirstFileA(pat, &fd);
     g_xfn_n = 0;
     tpl_vars_scan();
     if (h == INVALID_HANDLE_VALUE) return;
     do {
-        wsprintfA(path, "%s%s", dir, fd.cFileName);
+        snprintf(path, sizeof path, "%s%s", dir, fd.cFileName);
         char *text = read_text_acp(path);
         if (text) { x_fn_scan(text); free(text); }
     } while (FindNextFileA(h, &fd));
@@ -400,12 +400,12 @@ static void personas_load(void) {
     char *bs = strrchr(dir, '\\');
     if (bs) bs[1] = 0;
     lstrcatA(dir, "aimod_ai\\");
-    wsprintfA(pat, "%s*.eeai", dir);
+    snprintf(pat, sizeof pat, "%s*.eeai", dir);
     WIN32_FIND_DATAA fd;
     HANDLE h = FindFirstFileA(pat, &fd);
     if (h == INVALID_HANDLE_VALUE) return;
     do {
-        wsprintfA(path, "%s%s", dir, fd.cFileName);
+        snprintf(path, sizeof path, "%s%s", dir, fd.cFileName);
         if (fd.cFileName[0] == '_') continue;   // _system.eeai, _template.eeai, _persona.eeai: no personalities (texts.c)
         if (!g_personas_only_computer || !lstrcmpiA(fd.cFileName, "computer.eeai")) persona_load(path, fd.cFileName);
     } while (FindNextFileA(h, &fd));
@@ -738,7 +738,7 @@ static int persona_say(void *pl, enum line_kind k, void *other, void *third) {
     } else llm_talk_event(pl, k, other, third, buf);   // to another AI: they may talk it over (llm.c AI TALK)
     if (!heard && g_chat) {   // debug: every line, with its audience
         char dbg[300];
-        wsprintfA(dbg, "[%s] %s", k_lines[k].aud == A_ALLIES ? "allies" : player_name(other), buf);
+        snprintf(dbg, sizeof dbg, "[%s] %s", k_lines[k].aud == A_ALLIES ? "allies" : player_name(other), buf);
         chat_line(pl, dbg, g_chat_ms);
     }
     if (g_log) fprintf(g_log, "# talk: P%u at %.1f min (%s%s%s%s%s): %s\n", idx, now / 60000.0, k_lines[k].key,
@@ -826,10 +826,10 @@ static void x_errors_show(void) {
     char line[300];
     EnterCriticalSection(&g_x_lock);
     for (int i = 0; i < g_x_queued; i++) {
-        wsprintfA(line, "eeaimod texts: %s", g_x_queue[i]);
+        snprintf(line, sizeof line, "eeaimod texts: %s", g_x_queue[i]);
         system_line(line, 30000);
     }
-    if (g_x_dropped) { wsprintfA(line, "eeaimod texts: ... and %d more (aimod_econ.csv, # texts:)", g_x_dropped); system_line(line, 30000); }
+    if (g_x_dropped) { snprintf(line, sizeof line, "eeaimod texts: ... and %d more (aimod_econ.csv, # texts:)", g_x_dropped); system_line(line, 30000); }
     if (g_log) fprintf(g_log, "# texts: strict parsing: %d mistake(s) shown in the game\n", g_x_queued + g_x_dropped);
     g_x_queued = g_x_dropped = 0;
     LeaveCriticalSection(&g_x_lock);

@@ -418,9 +418,9 @@ static void xp_primary(struct xp *p, struct xval *v) {
             for (const char *q = par; def && *q && *q != ')'; q++) want += *q == ',';
             if (want >= 0) {
                 static char why[80];
-                if (want != na) { wsprintfA(why, "%s takes %d argument%s", name, want, want == 1 ? "" : "s"); p->err = 1; p->why = why; goto out; }
+                if (want != na) { snprintf(why, sizeof why, "%s takes %d argument%s", name, want, want == 1 ? "" : "s"); p->err = 1; p->why = why; goto out; }
                 if (p->skip) { xnothing(v); goto out; }
-                if (!def) { wsprintfA(why, "%s: a function of another file's [vars]", name); p->err = 1; p->why = why; goto out; }
+                if (!def) { snprintf(why, sizeof why, "%s: a function of another file's [vars]", name); p->err = 1; p->why = why; goto out; }
                 x_call(p, def, par, a, na, v);
                 goto out;
             }
@@ -445,8 +445,15 @@ out:
     p->c->level--;
 }
 static void xp_unary(struct xp *p, struct xval *v) {
-    if (xp_op(p, "-")) { xp_unary(p, v); x_use(p, v); xnum(v, -xto_num(v)); return; }
-    if (xp_word(p, "not")) { xp_unary(p, v); xnum(v, !xtrue(v)); return; }
+    int neg = xp_op(p, "-"), inv = !neg && xp_word(p, "not");
+    if (neg || inv) {   // an operator counts in the nesting too: "- - - ... x" recursed without a limit
+        if (++p->c->level > 24) { p->c->level--; p->err = 1; xnothing(v); return; }
+        xp_unary(p, v);
+        if (neg) { x_use(p, v); xnum(v, -xto_num(v)); }
+        else xnum(v, !xtrue(v));
+        p->c->level--;
+        return;
+    }
     if (*p->s == '!' && p->s[1] != '=') { p->err = 1; p->why = "! - write not"; xnothing(v); return; }
     xp_primary(p, v);
 }

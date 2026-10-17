@@ -320,18 +320,20 @@ static void sb_msg(struct sbuf *b, const char *role, const char *text) {
 }
 
 // ---- JSON in: the first "content" string after "choices" (OpenAI chat answer), as UTF-16 ----
-static int hex4(const char *s) {
+static int hex4(const char *s) {   // -1: not 4 hex digits (an answer that ends inside one: not read past its end)
     int v = 0;
     for (int i = 0; i < 4; i++) {
         char c = s[i];
-        v = v * 16 + (c >= '0' && c <= '9' ? c - '0' : c >= 'a' && c <= 'f' ? c - 'a' + 10 : c >= 'A' && c <= 'F' ? c - 'A' + 10 : -1000);
+        int x = c >= '0' && c <= '9' ? c - '0' : c >= 'a' && c <= 'f' ? c - 'a' + 10 : c >= 'A' && c <= 'F' ? c - 'A' + 10 : -1;
+        if (x < 0) return -1;
+        v = v * 16 + x;
     }
     return v;
 }
 // the value of "key" in the answer (the first one), past the colon - NULL: not there
 static const char *json_value(const char *resp, const char *key) {
     char k[48];
-    wsprintfA(k, "\"%s\"", key);
+    snprintf(k, sizeof k, "\"%s\"", key);
     const char *s = strstr(resp, k);
     if (!s) return NULL;
     s += strlen(k);
@@ -459,7 +461,7 @@ static void llm_clean(const WCHAR *in, const char *speaker, char *out, int cap) 
     }
     while (o && w[o - 1] == ' ') o--;
     w[o] = 0;
-    char a[1024];
+    char a[4 * sizeof w / sizeof *w];   // a double-byte code page takes 2 bytes a character (1000 of them did not fit 1024)
     int n = WideCharToMultiByte(CP_ACP, 0, w, -1, a, sizeof a, "?", NULL);
     if (n <= 0) { out[0] = 0; return; }
     char *s = a;
@@ -476,7 +478,9 @@ static void llm_clean(const WCHAR *in, const char *speaker, char *out, int cap) 
             if ((s[i] == '.' || s[i] == '!' || s[i] == '?') && s[i + 1] == ' ') cut = i + 1;
         for (int i = LLM_MAXLEN - 3; i > LLM_MAXLEN / 3 && !cut; i--)
             if (s[i] == ' ') { s[i] = '.'; s[i + 1] = '.'; s[i + 2] = '.'; cut = i + 3; }
-        s[cut ? cut : LLM_MAXLEN] = 0;
+        if (!cut)   // neither: at the last character boundary that fits (a double-byte lead byte not cut off its trail byte)
+            for (int step; s[cut] && cut + (step = IsDBCSLeadByte((BYTE)s[cut]) && s[cut + 1] ? 2 : 1) <= LLM_MAXLEN; ) cut += step;
+        s[cut] = 0;
     }
     lstrcpynA(out, s, cap);
 }
@@ -883,7 +887,7 @@ static int llm_line(void *pl, enum line_kind k, void *other, void *third, const 
     char sit[400], u[1200];
     llm_subst(sit, sizeof sit, llm_situation(k), pl, other, third);
     char keep[160] = "";
-    if (j->nmust) wsprintfA(keep, " %s", tpl_text("keep"));
+    if (j->nmust) snprintf(keep, sizeof keep, " %s", tpl_text("keep"));   // _template.eeai's text: any length
     tsub(u, sizeof u, tpl_text("line"), pl, other, "situation", sit, "audience", tpl_text(k_lines[k].aud == A_ALL ? "audience_all" :
          k_lines[k].aud == A_ALLIES ? "audience_allies" : "audience_them"), "language_name", llm_language(), "line", fixed, "keep",
          keep, NULL);
