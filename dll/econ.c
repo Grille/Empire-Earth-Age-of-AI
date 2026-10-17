@@ -1546,6 +1546,15 @@ static int substitute_soldier(void *pl, unsigned idx, const int *vis, int want, 
 static int g_priority_mil;   // set by the siege controller around its own requests
 static int g_landing_order;   // set by the landing around its transport order (its reserve is not held from it)
 static void landing_reserve(void *pl, int reserve[7]);   // landing.c
+// ROOM: the game's own callers ask the unit manager for room first (cap - in production - population, the start check
+// of the buildings 0x624DF8 the same); the mod's own orders (AA units, siege, home guard, transports) didn't. At the cap
+// they were queued and paid for and could never come out: lowpop (cap 30) - P3's "in production" ran to 56 after it
+// got resources, 63 units of AA tanks (146) and siege (105) ordered with no room. Now cut to the room (none: refused).
+// [all] train_room: a mask of players (default all; tests: 8 = P3 only). lowpop, 20 seeds, P3 without vs with (P2
+// without): P3 kills 23.4 vs 28.2, losses 32.2 vs 28.9 (P2's losses 22.3 vs 28.6). The AI's cap follows the human's
+// population: at the cap is common in normal games too.
+static int g_train_room = 0xFFFF;
+static unsigned g_noroom[16][6];   // units ordered with no room (cap - in production - population <= 0), by call site
 static uintptr_t __fastcall hook_train_units(void *um, void *edx, int *req, uintptr_t b) {
     (void)edx;
     void *pl = um_owner(um);
@@ -1635,10 +1644,29 @@ static uintptr_t __fastcall hook_train_units(void *um, void *edx, int *req, uint
         int saved_count = req[1], saved_type = req[0];
         if (sub_type) req[0] = sub_type;
         if (afford > 0 && (afford < req[1] || sub_type)) req[1] = afford;   // the caller reads back how many via *b
+        int room0 = pl ? ((int (__thiscall *)(void *, int))(*(void ***)pl)[31])(pl, 0) - FIELD(um, 0x13C, int) -
+                         ((int (__thiscall *)(void *, int, int))0x00556E11)(pl, 1, 0) : 1;
+        uintptr_t ra0 = (uintptr_t)__builtin_return_address(0) - 5;
+        int game_site = 0;
+        for (int k = 0; k < 5; k++) game_site |= k_train_sites[k] == ra0;
+        unsigned got0 = 0;
+        if (!b) b = (uintptr_t)&got0;
+        if (!game_site && (g_train_room >> idx & 1) && room0 < (req[1] > 0 ? req[1] : 1)) {   // the mod's own order: no more than the room
+            if (room0 <= 0) { *(unsigned *)b = 0; req[1] = saved_count; req[0] = saved_type; goto trained; }
+            req[1] = room0;
+        }
         res = ((uintptr_t (__thiscall *)(void *, int *, uintptr_t))FN_TRAIN_UNITS)(um, req, b);
+        if (room0 <= 0 && *(unsigned *)b) {
+            uintptr_t ra = (uintptr_t)__builtin_return_address(0) - 5;
+            int site = 5;
+            for (int k = 0; k < 5; k++) if (k_train_sites[k] == ra) site = k;
+            g_noroom[idx][site] += *(unsigned *)b;
+            if (site == 5 && g_log) fprintf(g_log, "# noroom: P%u %u x type %d from the mod's call at %p (room %d)\n", idx, *(unsigned *)b, req[0], (void *)ra, room0);
+        }
         req[1] = saved_count;
         req[0] = saved_type;
     }
+trained:
     if (stock) {
         int any = 0;
         for (int r = 2; r < 7; r++) {
@@ -1680,6 +1708,7 @@ static void econ_install(const char *aimod_ini, const char *autotest_ini) {
     g_mineral_margin = cfg_int(aimod_ini, autotest_ini, 1, "mineral_worker_margin", 300);
     g_early_requirements = cfg_int(aimod_ini, autotest_ini, 1, "early_requirements", 1);
     g_build_fix = cfg_int(aimod_ini, autotest_ini, 1, "build_fix", 1);
+    g_train_room = cfg_int(aimod_ini, autotest_ini, 1, "train_room", 0xFFFF);
     g_build_fields = cfg_int(aimod_ini, autotest_ini, 1, "build_fields", 1);
     g_paid_upgrades = cfg_int(aimod_ini, autotest_ini, 1, "paid_upgrades", 1);
     if (autotest_ini) g_tech_log = GetPrivateProfileIntA("autotest", "tech_log", 0, autotest_ini);

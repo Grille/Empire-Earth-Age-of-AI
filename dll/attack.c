@@ -817,6 +817,7 @@ static unsigned g_repair_refused[16];   // repair orders refused at buildings un
 // (her economy dead at minute 46, the stock frozen). A citizen of list 0 walking to a point within 6 tiles of an
 // enemy building and over 15 tiles from its own drop sites is sent home (not to the muster's rally point).
 static int building_at(void *pl, const int *dest, int r);
+static unsigned g_noroom[16][6];   // econ.c
 static int g_bunkers;   // bunker.c: citizens under fire into a fortress
 static void bk_refresh(void *pl, unsigned pi);
 static int bk_shelter(void *pl, uint8_t *u);
@@ -939,6 +940,15 @@ static void citizens_safety(uint8_t *rm) {   // before the citizen assignment
                 all[k]++;
                 if (k == 4 && !other[0]) lstrcpynA(other, gd, sizeof other);
             }
+        {   // the population as the buildings' start check sees it (0x624DF8: cap vf31 < population (1, 0) + the unit -> wait)
+            void *cmp = FIELD(pl, 0xB90, void *), *ump = cmp ? FIELD(cmp, 0x44, void *) : NULL;
+            uint8_t *v0 = FIELD(pl, 0x18, uint8_t *), *v1 = FIELD(pl, 0x1C, uint8_t *);
+            fprintf(g_log, "# popcheck: P%u at %.1f min: cap %d, population %d (with production %d, list +0x18 %d), +0xB10 %d, +0xB1C %d +0xB20 %d, limit %d, AI's in production %d; ordered with no room by call site 46cce6/490cac/490e12/490f1f/490fa9/mod: %u/%u/%u/%u/%u/%u\n",
+                    idx, now / 60000.0, ((int (__thiscall *)(void *, int))(*(void ***)pl)[31])(pl, 0),
+                    ((int (__thiscall *)(void *, int, int))0x00556E11)(pl, 0, 0), ((int (__thiscall *)(void *, int, int))0x00556E11)(pl, 1, 0),
+                    v0 && v1 ? (int)((v1 - v0) / 4) : -1, FIELD(pl, 0xB10, int), FIELD(pl, 0xB1C, int), FIELD(pl, 0xB20, int), *(int *)0x009183D4,
+                    ump ? FIELD(ump, 0x13C, int) : -1, g_noroom[idx][0], g_noroom[idx][1], g_noroom[idx][2], g_noroom[idx][3], g_noroom[idx][4], g_noroom[idx][5]);
+        }
         fprintf(g_log, "# doing: P%u at %.1f min (list: gather/build/walk/nothing):%s; all citizens: gather %d build %d walk %d attack %d other %d (%s) none %d\n",
                 idx, now / 60000.0, b, all[0], all[1], all[2], all[3], all[4], other, all[5]);
     }
