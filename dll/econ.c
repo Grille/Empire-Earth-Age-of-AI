@@ -494,18 +494,18 @@ static void __fastcall hook_add_resource(void *pl, void *edx, int type, int amou
     }
 }
 
-// POPULATION LIMIT (aimod.ini [all] pop_follow_human, default 1 = the game's). Every minute 0x42F7A5 sets the AI's
+// POPULATION LIMIT (aimod.ini pop_follow_human per difficulty, default 0 = the game limit; the shipped aimod.ini: 1
+// for [easy] - the playtester: the defaults should show the AI at its strongest without cheating). Every minute 0x42F7A5 sets the AI's
 // cap (player +0xCCC, read through EEComputerPlayer vf31) to (2.4 x the largest human population + 0.6 x the game
 // limit) / 3 (dbcpbehavior records 92/93), times the difficulty's factor (record 98: 70 / 90 / 140%) - so the AI grows
 // with the human and doesn't flood him with units; Ignorieren (+0xF02) or game setting 0x9187FC = 4 give it the game
 // limit. pop_follow_human=0: the game limit (EEPlayer vf31 0x556EBC, as for a player) for every AI.
 #define FN_POP_CAP     0x0042F7A5   // thiscall(player), called at 0x4311E5, 0x43FA9B, 0x474AF0
 #define FN_GAME_LIMIT  0x00556EBC   // EEPlayer::vf31 thiscall(player, 0): the game's unit limit for this player
-static int g_pop_follow = 1;
 static void __fastcall hook_pop_cap(void *pl, void *edx) {
     (void)edx;
     ((void (__thiscall *)(void *))FN_POP_CAP)(pl);
-    if (!g_pop_follow) FIELD(pl, 0xCCC, int) = ((int (__thiscall *)(void *, int))FN_GAME_LIMIT)(pl, 0);
+    if (!cfg_of(pl)->pop_follow) FIELD(pl, 0xCCC, int) = ((int (__thiscall *)(void *, int))FN_GAME_LIMIT)(pl, 0);
 }
 
 static int is_citizen_type(int type) { return type == 32 || type == 480; }   // Citizen, Female Citizen
@@ -1721,7 +1721,6 @@ static void econ_install(const char *aimod_ini, const char *autotest_ini) {
         }
     }
     g_more_granaries = cfg_int(aimod_ini, autotest_ini, 1, "more_granaries", 1);
-    g_pop_follow = cfg_int(aimod_ini, autotest_ini, 1, "pop_follow_human", 1);
     g_unit_sub = cfg_int(aimod_ini, autotest_ini, 1, "unit_substitution", 1);
     g_sub_wait = cfg_int(aimod_ini, autotest_ini, 1, "substitute_wait", 90);
     g_gather_research = cfg_int(aimod_ini, autotest_ini, 1, "gather_research", 1);
@@ -1759,7 +1758,8 @@ static void econ_install(const char *aimod_ini, const char *autotest_ini) {
     if (g_log) fprintf(g_log, "# paid upgrades: %d (hook %d)\n", g_paid_upgrades, up_ok);
     int pop_ok = patch_call(0x004311E5, FN_POP_CAP, hook_pop_cap) + patch_call(0x0043FA9B, FN_POP_CAP, hook_pop_cap) +
                  patch_call(0x00474AF0, FN_POP_CAP, hook_pop_cap);
-    if (g_log) fprintf(g_log, "# population limit: %s (hooks %d/3)\n", g_pop_follow ? "follows the humans (game)" : "the game limit", pop_ok);
+    if (g_log) fprintf(g_log, "# population limit (easy/medium/hard): %s/%s/%s (hooks %d/3)\n", g_cfg[0].pop_follow ? "follows the humans" : "game limit",
+                       g_cfg[1].pop_follow ? "follows the humans" : "game limit", g_cfg[2].pop_follow ? "follows the humans" : "game limit", pop_ok);
     for (size_t i = 0; i < sizeof k_train_sites / sizeof *k_train_sites; i++)
         ok += patch_call(k_train_sites[i], FN_TRAIN_UNITS, hook_train_units);
     if (g_log) fprintf(g_log, "# economy hooks: %d/%d\n", ok, (int)(sizeof k_train_sites / sizeof *k_train_sites) + 1);

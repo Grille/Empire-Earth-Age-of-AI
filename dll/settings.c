@@ -27,6 +27,7 @@ struct ai_cfg {
     int attack_on_contact, attack_for_resources, attack_revenge;      // percent, -1 = leave
     float citizen_share;    // share of the population cap for citizens (+0xBDC, the rest is military), 0 = leave
     float home_guard_share; // < 0 = [all] home_guard_share (defence.c)
+    int pop_follow;         // pop_follow_human: 1 = the game's cap that follows the humans, 0 = the game limit (econ.c)
 };
 static struct ai_cfg g_cfg[3];
 static const char *const k_diff_sections[3] = { "easy", "medium", "hard" };
@@ -127,6 +128,7 @@ static void settings_load(const char *ini, const char *test_ini) {
         c->attack_revenge = cfg_int(ini, test_ini, d, "attack_revenge", -1);
         c->citizen_share = cfg_float(ini, test_ini, d, "citizen_share", "0");
         c->home_guard_share = cfg_float(ini, test_ini, d, "home_guard_share", "-1");
+        c->pop_follow = cfg_int(ini, test_ini, d, "pop_follow_human", 0);
         if (g_log)
             fprintf(g_log, "# settings %-6s copper_plan=%d budget=%d (military %.2f/%.2f/%.2f) safe_sites=%d cost=%d%% "
                     "pacing=%s epoch=%d-%d wait_for_player=%d attacks first %d-%d every %d-%d group %d%% "
