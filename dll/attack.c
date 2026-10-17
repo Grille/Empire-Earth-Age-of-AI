@@ -822,6 +822,8 @@ static void bk_refresh(void *pl, unsigned pi);
 static int bk_shelter(void *pl, uint8_t *u);
 static void bk_flush(void *pl, unsigned pi, uint32_t now);
 static void bk_build(void *pl, unsigned pi, uint32_t now);
+static void bk_reserve_tick(void *pl, unsigned pi, uint32_t now);
+static int g_bk_res;
 static void citizens_safety(uint8_t *rm) {   // before the citizen assignment
     void *pl = rm_player(rm);
     if (!g_avoid_citizens || !pl) return;
@@ -835,7 +837,7 @@ static void citizens_safety(uint8_t *rm) {   // before the citizen assignment
     int doing[7][4] = { { 0 } };   // per list: gathering, building, walking, nothing (the minute's log)
     float rx, ry;
     int mus = muster_rally(idx, &rx, &ry), sheltered = 0;
-    if (g_bunkers) bk_refresh(pl, idx);
+    if (g_bunkers || g_bk_res) bk_refresh(pl, idx);
     for (int r = 0; r < 7; r++) {
         uint8_t *list = rm + RM_LISTS + r * 0x14;
         for (unsigned k = 0, first = FIELD(list, 0xC, unsigned), cnt = FIELD(list, 0x10, unsigned); k < cnt; k++) {
@@ -909,7 +911,8 @@ static void citizens_safety(uint8_t *rm) {   // before the citizen assignment
         }
     }
     g_cit_stats[idx].sent += sent + fled;
-    if (g_bunkers) { bk_flush(pl, idx, now); bk_build(pl, idx, now); }
+    if (g_bunkers) bk_flush(pl, idx, now);
+    if (g_bunkers || g_bk_res) { bk_build(pl, idx, now); bk_reserve_tick(pl, idx, now); }
     (void)sheltered;
     static uint32_t doing_t[16];
     if (g_log && (now < doing_t[idx] || now - doing_t[idx] >= 60000)) {   // what the citizens do, per resource list
@@ -1462,6 +1465,7 @@ static void attack_install(const char *aimod_ini, const char *autotest_ini) {
     g_avoid_citizens = cfg_int(aimod_ini, autotest_ini, 1, "avoid_towers_citizens", 1);
     g_cit_threats = cfg_int(aimod_ini, autotest_ini, 1, "citizen_threats", 1);
     g_bunkers = cfg_int(aimod_ini, autotest_ini, 1, "bunkers", 1);
+    g_bk_res = cfg_int(aimod_ini, autotest_ini, 1, "bunker_reserve", 0);
     BOOL repair = patch_call(CALL_REPAIR_GOAL, 0x005F05BD, hook_repair_goal);
     if (g_log) fprintf(g_log, "# repairs under attack: refused (hook %s)\n", repair ? "ok" : "FAILED");
     g_avoid_weight = cfg_int(aimod_ini, autotest_ini, 1, "avoid_towers_weight", 2000);

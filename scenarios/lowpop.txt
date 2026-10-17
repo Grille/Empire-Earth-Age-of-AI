@@ -1,0 +1,10 @@
+# Continental seed 101, 2 AIs, start epoch 9, a low population limit (base ini unit_limit=60): the fortress reserve
+# (bunker_reserve). Both AIs get 3000 of each at minutes 1, 15 and 30 (a WW1 start has too little wood for a fortress
+# before minute 20-40): they reach the cap and fight; who keeps the stronger army?
+defence 2 0
+@1 give 2 3000
+@1 give 3 3000
+@15 give 2 3000
+@15 give 3 3000
+@30 give 2 3000
+@30 give 3 3000

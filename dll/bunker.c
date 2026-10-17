@@ -55,7 +55,8 @@ static void cmd_bunker(char *out, const char *args) {
     }
     b.pl = st_player(p);
     grid_each(bk_unit, &b);
-    REPLY("ok: P%d %d fortresses, %d citizens within %d of %d,%d:", p, b.nf, b.nc, b.r, b.x, b.y);
+    int pop1 = ((int (__thiscall *)(void *, int, int))0x00556E11)(b.pl, 0, 0), pop2 = ((int (__thiscall *)(void *, int, int))0x00556E11)(b.pl, 0, 1);
+    REPLY("ok: P%d population %d (with fortresses' %d), %d fortresses, %d citizens within %d of %d,%d:", p, pop1, pop2, b.nf, b.nc, b.r, b.x, b.y);
     int used = 0;
     for (int k = 0; k < b.nf; k++) {
         uint8_t *f = b.f[k];
@@ -87,7 +88,9 @@ static void cmd_bunker(char *out, const char *args) {
 // vs on): workers 53.1 vs 72.6, buildings lost 4.9 vs 1.0, the worst game 1 vs 38 workers; shelling and raid_ww1
 // (the fortress up only after minute 20 there: a WW1 start leaves little wood) about even.
 static int g_bunkers = 1;   // [all] bunkers
-static struct { int nf, nall; uint8_t *f[8], *all[8]; int nq[8]; uint8_t *q[8][40]; uint32_t build_t, quiet_t[8]; unsigned in, out; int need_wood; } g_bk[16];
+static int g_bk_res = 0;   // [all] bunker_reserve (below)
+static int bk_room(void *pl);
+static struct { int nf, nall; uint8_t *f[8], *all[8]; int nq[8]; uint8_t *q[8][40]; uint32_t build_t, quiet_t[8]; unsigned in, out; int need_wood; uint8_t shelter[8]; } g_bk[16];   // shelter: citizens went in (the quiet release)
 static int bk_hurt_recent(unsigned pi, int x, int y, int r, uint32_t ms) {
     uint32_t now = game_time();
     int n = 0;
@@ -112,8 +115,10 @@ static void bk_refresh(void *pl, unsigned pi) {   // the player's fortresses (ea
     memcpy(g_bk[pi].all, o.all, sizeof o.all);
     for (int k = 0; k < o.nf; k++) {   // keep each fortress's quiet time across passes
         uint32_t q = 0;
-        for (int j = 0; j < g_bk[pi].nf; j++) if (g_bk[pi].f[j] == o.f[k]) q = g_bk[pi].quiet_t[j];
+        uint8_t sh = 0;
+        for (int j = 0; j < g_bk[pi].nf; j++) if (g_bk[pi].f[j] == o.f[k]) { q = g_bk[pi].quiet_t[j]; sh = g_bk[pi].shelter[j]; }
         g_bk[pi].quiet_t[k] = q;
+        g_bk[pi].shelter[k] = sh;
     }
     g_bk[pi].nf = o.nf;
     memcpy(g_bk[pi].f, o.f, sizeof o.f);
@@ -141,16 +146,19 @@ static void bk_flush(void *pl, unsigned pi, uint32_t now) {   // the queued citi
         if (g_bk[pi].nq[k] && bk_load(f, g_bk[pi].q[k], g_bk[pi].nq[k])) {
             g_bk[pi].in += (unsigned)g_bk[pi].nq[k];
             g_bk[pi].quiet_t[k] = 0;
+            g_bk[pi].shelter[k] = 1;
             if (g_log) fprintf(g_log, "# bunker: P%u at %.1f min: %d citizens into the fortress at %d,%d (holds %d)\n", pi, now / 60000.0, g_bk[pi].nq[k], fx, fy, bk_held(f));
             continue;
         }
         int held = bk_held(f);
-        if (held <= 0) continue;
+        if (held <= 0) { g_bk[pi].shelter[k] = 0; continue; }
+        if (!g_bk[pi].shelter[k]) continue;   // the reserve's soldiers only: bk_reserve_tick
         if (bk_hurt_recent(pi, fx, fy, 10, 45000) || raiders_near(pl, fx, fy, 10)) { g_bk[pi].quiet_t[k] = 0; continue; }
         if (!g_bk[pi].quiet_t[k]) { g_bk[pi].quiet_t[k] = now ? now : 1; continue; }
         if (now - g_bk[pi].quiet_t[k] < 8000) continue;   // two quiet looks
         if (bk_unload(f, fx, fy + 3)) {
             g_bk[pi].out += (unsigned)held;
+            g_bk[pi].shelter[k] = 0;
             if (g_log) fprintf(g_log, "# bunker: P%u at %.1f min: the fortress at %d,%d lets %d out (quiet)\n", pi, now / 60000.0, fx, fy, held);
         }
     }
@@ -213,6 +221,7 @@ static void bk_build(void *pl, unsigned pi, uint32_t now) {
     }
     for (int t = 0; t < 7; t++) cit += FIELD(rm, RM_LISTS + t * 0x14 + 0x10, int);
     int want = air || bk_hurt_recent(pi, 0, 0, 10000, 120000) >= 3 ? (cit >= 40 ? 2 : 1) : 0;
+    if (g_bk_res >> pi & 1 && bk_room(pl) <= 5 && want < 1) want = 1;   // the reserve: near the population cap
     g_bk[pi].need_wood = 0;
     if (g_bk[pi].nall >= want) return;
     // 350 wood (0x555710 also wants a free builder at that moment: it passed in 2 of 10 games before minute 20, the
@@ -247,4 +256,78 @@ static void bk_build(void *pl, unsigned pi, uint32_t now) {
 // the wood a fortress waits for, held back from unit training (as the fields' wood and a landing's transports)
 static void bunker_reserve(void *pl, int *reserve) {
     if (g_bunkers && pl) reserve[3] += g_bk[(unsigned)FIELD(pl, PL_INDEX, int) & 15].need_wood;
+}
+
+// RESERVE ([all] bunker_reserve, a mask of players, default 0; the playtester: "another use is to amass units at
+// lower population limits, so losses can immediately be drawn from them"): units in a fortress don't count toward
+// the population (0x556E11 adds them only when asked: (x, 1); the training's room uses (1, 0)). Every 10 s: with the
+// map full (population at the cap - 1), up to 10 free land soldiers at home (in no group: 0x4707D8 on the combat
+// manager, within 25 tiles of the base point; 4 stay out) go into the fortress with the most room, and training fills
+// the map again; once the population is 4 below the cap with nothing loaded for a minute (losses), or enemy soldiers
+// come within 20 tiles of it, the fullest fortress lets everyone out (not one where citizens shelter). The room the
+// training sees (cap - in production - population) was no guide: its count of units in production ran up to 16-30
+// while nothing came out, the reserve filled to 39 and never let anyone out - P3's losses fell (23 -> 14), its kills
+// didn't rise. scenarios/lowpop.txt (unit_limit 60 = 20 a player, cap 30; 10 seeds, P3 off vs on): kills 21.3 vs 21.3,
+// losses 23.1 vs 19.0, buildings lost 9.4 vs 9.5 - no clear gain: of 153 soldiers ordered in, about 30 were inside at
+// once (the AI's own groups take free soldiers back), and its units-in-production count, not the cap, held training
+// back (a leak of its own at low limits? to look into). Off.
+static unsigned g_bk_res_in[16], g_bk_res_out[16];
+static uint32_t g_bk_res_load_t[16];
+static int bk_room(void *pl) {   // cap - population on the map (the fortresses' units left out)
+    int cap = ((int (__thiscall *)(void *, int))(*(void ***)pl)[31])(pl, 0);   // vf31(0): it pops its argument
+    return cap - ((int (__thiscall *)(void *, int, int))0x00556E11)(pl, 0, 0);
+}
+struct bk_free { void *pl; uint8_t *cm; int bx, by, n; uint8_t *u[64]; };
+static void bk_free_unit(uint8_t *u, void *ctx) {
+    struct bk_free *f = ctx;
+    uint8_t *td = FIELD(u, 0x2C, uint8_t *);
+    if (FIELD(u, 0x18, void *) != f->pl || FIELD(u, 0x3C, int) <= 0 || !td || f->n >= 64) return;
+    int dx = FIELD(u, 0x1C, int) - f->bx, dy = FIELD(u, 0x20, int) - f->by;
+    if (dx * dx + dy * dy > 25 * 25 || !is_soldier(td) || is_ship_or_air(td)) return;
+    if (((char (__thiscall *)(void *, void *))0x004707D8)(f->cm, FIELD(u, 0x30, void *))) f->u[f->n++] = u;
+}
+static void bk_reserve_tick(void *pl, unsigned pi, uint32_t now) {
+    static uint32_t last[16];
+    if (!(g_bk_res >> pi & 1) || !g_bk[pi].nf) return;
+    if (last[pi] && now >= last[pi] && now - last[pi] < 10000) return;
+    last[pi] = now ? now : 1;
+    int room = bk_room(pl), threat = -1;
+    for (int k = 0; k < g_bk[pi].nf && threat < 0; k++) {
+        uint8_t *fo = g_bk[pi].f[k];
+        if (!g_bk[pi].shelter[k] && bk_held(fo) > 0 && raiders_near(pl, FIELD(fo, 0x1C, int), FIELD(fo, 0x20, int), 20)) threat = k;
+    }
+    if (room <= 1 && threat < 0) {
+        void *cm2 = FIELD(pl, 0xB90, void *);
+        uint8_t *bm = cm2 ? FIELD(cm2, 0x3C, uint8_t *) : NULL;
+        struct bk_free f = { pl, FIELD(pl, 0xB8C, uint8_t *), bm ? FIELD(bm, 0x12C, int) : 0, bm ? FIELD(bm, 0x130, int) : 0, 0, { 0 } };
+        if (!f.cm || !bm) return;
+        grid_each(bk_free_unit, &f);
+        int best = -1, space = 0;
+        for (int k = 0; k < g_bk[pi].nf; k++) {
+            int s = bk_capacity(g_bk[pi].f[k]) - bk_held(g_bk[pi].f[k]);
+            if (s > space) { space = s; best = k; }
+        }
+        int n = f.n - 4;
+        if (n > 10) n = 10;
+        if (n > space) n = space;
+        if (best < 0 || n <= 0 || !bk_load(g_bk[pi].f[best], f.u, n)) return;
+        g_bk_res_in[pi] += (unsigned)n;
+        g_bk_res_load_t[pi] = now ? now : 1;
+        if (g_log) fprintf(g_log, "# reserve: P%u at %.1f min: room %d - %d soldiers into the fortress at %d,%d (holds %d; %u in, %u out so far)\n", pi,
+                           now / 60000.0, room, n, FIELD(g_bk[pi].f[best], 0x1C, int), FIELD(g_bk[pi].f[best], 0x20, int), bk_held(g_bk[pi].f[best]),
+                           g_bk_res_in[pi], g_bk_res_out[pi]);
+    } else if (threat >= 0 || (room >= 4 && (!g_bk_res_load_t[pi] || now - g_bk_res_load_t[pi] >= 60000))) {
+        int best = threat, held = threat >= 0 ? bk_held(g_bk[pi].f[threat]) : 0;
+        for (int k = 0; k < g_bk[pi].nf && threat < 0; k++) {
+            uint8_t *fo = g_bk[pi].f[k];
+            int h = bk_held(fo);
+            if (h > held && !g_bk[pi].shelter[k]) { held = h; best = k; }
+        }
+        if (best < 0) return;
+        uint8_t *fo = g_bk[pi].f[best];
+        if (!bk_unload(fo, FIELD(fo, 0x1C, int), FIELD(fo, 0x20, int) + 3)) return;
+        g_bk_res_out[pi] += (unsigned)held;
+        if (g_log) fprintf(g_log, "# reserve: P%u at %.1f min: room %d%s - the fortress at %d,%d lets %d out (%u in, %u out so far)\n", pi, now / 60000.0,
+                           room, threat >= 0 ? ", enemies near" : "", FIELD(fo, 0x1C, int), FIELD(fo, 0x20, int), held, g_bk_res_in[pi], g_bk_res_out[pi]);
+    }
 }
