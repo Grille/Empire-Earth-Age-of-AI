@@ -378,7 +378,7 @@ static void cmd_vistrack(char *out, const char *args) {
 }
 
 static void intel_install(const char *aimod_ini, const char *autotest_ini) {
-    g_honest_vision = cfg_int(aimod_ini, autotest_ini, 1, "honest_vision", 0);
+    g_honest_vision = cfg_int(aimod_ini, autotest_ini, 1, "honest_vision", 1);
     if (g_log) fprintf(g_log, "# intel: honest_vision %d (%s)\n", g_honest_vision,
                        g_honest_vision ? "what it sees, remembers and assumes" : "the game's view - every unit of the human");
 }

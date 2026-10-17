@@ -1,4 +1,4 @@
-// LANDING ([all] landing, default 0 - experimental): a landing behind the enemy's lines. Included by eeaimod.c after
+// LANDING ([all] landing, default 1 - the playtester: "landings must work, islands are quite popular"): a landing behind the enemy's lines. Included by eeaimod.c after
 // assault.c (uses its area ids, as_home_threat, as_enemy_power, as_enemy_near, as_objective).
 //
 // The user (reference save): "my back is basically completely undefended - landing with ~3 full transports and a few
@@ -31,7 +31,7 @@
 //   no defence. Citizens along build a forward base (ld_bridgehead: towers, barracks, town center, hospital, factory -
 //   by the size; soldiers trained there join, ld_capture). Waves: the transports bring the soldiers
 //   at home over while it holds (ld_wave, landing_waves 3). A quarter left: released to the game.
-static int g_landing = 0, g_land_ships = 8;   // aimod.ini [all] landing, landing_transports (the most; the size follows the beach)
+static int g_landing = 1, g_land_ships = 8;   // aimod.ini [all] landing, landing_transports (the most; the size follows the beach)
 static int g_land_waves = 3;   // [all] landing_waves: how often the transports bring more soldiers over (0-10)
 static int g_land_cits = 10;   // [all] landing_citizens: the most citizens along to build the forward base (0-10)
 static int g_land_trace = 0;   // test: landing_trace=1 - each transport every tick while soldiers are aboard
@@ -1892,7 +1892,7 @@ static int __fastcall hook_idle_unload_shore(void *mgr, void *edx, uint8_t *tr) 
 }
 
 static void landing_install(const char *aimod_ini, const char *autotest_ini) {
-    g_landing = cfg_int(aimod_ini, autotest_ini, 1, "landing", 0);
+    g_landing = cfg_int(aimod_ini, autotest_ini, 1, "landing", 1);
     g_land_ships = cfg_int(aimod_ini, autotest_ini, 1, "landing_transports", 8);
     g_land_flag = cfg_int(aimod_ini, autotest_ini, 1, "landing_flag", 0);
     g_land_knows = cfg_int(aimod_ini, autotest_ini, 1, "landing_knows_map", 0);

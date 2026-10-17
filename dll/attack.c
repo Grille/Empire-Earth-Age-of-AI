@@ -46,7 +46,7 @@ static int is_enemy(void *pl, void *other) {
 // see all of the human's units; docs/engine-notes.md). [all] honest_vision (intel.c): seen = above that floor, or a
 // building pl has seen before (still where it was - a human remembers it on the map); 0 (the default): the count as
 // the game keeps it - all-knowing about the human.
-static int g_honest_vision = 0;
+static int g_honest_vision = 1;
 static uint8_t g_vis_floor[16][16];               // [viewer][owner]: the least count among the owner's units (intel.c)
 static int intel_remembers(void *pl, uint8_t *u);   // intel.c: a building pl has seen
 static void intel_soldiers(void *pl, int x, int y, int r, float *hp, float *att, float *pw, int *n);   // intel.c
