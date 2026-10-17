@@ -1788,9 +1788,14 @@ static void landing_tick(void *pl, uint32_t now) {
     for (int k = 0; k < l->nesc; k++) if (!ld_alive(l->esc[k])) { l->esc[k--] = l->esc[--l->nesc]; }
     if (l->phase >= 2) { ld_refreeze(l, dq, first, cnt); if (l->phase != 5 || l->bomb_t) ld_escorts(pl, l); }
     if (l->phase == 1 && ld_phase_ships(pl, pi, l, um, dq, first, cnt, now)) return;
-    // drop the dead
-    for (int k = 0; k < l->nships; k++) if (!ld_alive(l->ships[k])) { l->ships[k--] = l->ships[--l->nships]; }
-    for (int k = 0; k < l->npass; k++) if (!ld_alive(l->pass[k])) { l->pass[k--] = l->pass[--l->npass]; }
+    // drop the dead - and a slot whose unit is no longer the player's transport/unit: a sunk transport goes back to
+    // the unit pool (0x9413B0) and its memory can be another unit (alive) by the next tick; its load goal then crashed
+    // in 0x61487F (the holder's type not a transport class, 0x61496C)
+    for (int k = 0; k < l->nships; k++) {
+        uint8_t *sh = l->ships[k], *td = ld_alive(sh) ? FIELD(sh, 0x2C, uint8_t *) : NULL;
+        if (!td || FIELD(sh, 0x18, void *) != pl || !is_transport(FIELD(td, 0x4B8, int))) { l->ships[k--] = l->ships[--l->nships]; }
+    }
+    for (int k = 0; k < l->npass; k++) if (!ld_alive(l->pass[k]) || FIELD(l->pass[k], 0x18, void *) != pl) { l->pass[k--] = l->pass[--l->npass]; }
     if (!l->nships && l->phase < 4) { l->aborted++; l->next_try = now + 600000; ld_release(pi, "transports lost", now); return; }
     if (!l->nships && l->phase == 4 && l->wst) {   // every transport sunk with a wave under way (ld_wave needs one): the wave
         int landed = 0;                            // ends - those ashore join the bridgehead, those at home are free again
