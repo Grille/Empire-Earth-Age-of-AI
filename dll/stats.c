@@ -202,16 +202,19 @@ static void st_estimate(struct st_side *a, struct st_side *b, struct st_result *
     r->time[1] = st_kill_time(a->hp, r->close[1], r->close[0], r->dps_free[1], r->dps_contact[1]);
 }
 
-// how much stronger own is than foe: the time foe needs to destroy own over the time own needs to destroy foe - the
-// same scale as summed hit points x attack compared before (hit points x damage per second on each side), with range,
-// minimum range and area damage. Nothing to fight: very large / 0.
+// how much stronger own is than foe, on the scale of summed hit points x attack compared before: the square root of
+// the time foe needs to destroy own over the time own needs to destroy foe. That time ratio is own hit points x damage
+// per second over foe's - both grow with the count, so twice the units of the same type make it 4 (the square law);
+// summed hit points x attack makes it 2. Unrooted, the thresholds tuned on the old measure (muster below 0.5, militia
+// from 3) moved: 0.5 meant 0.71 x the enemy's numbers, 3 meant 1.73 x. With range, minimum range and area damage.
+// Nothing to fight: very large / 0.
 static float st_ratio(struct st_side *own, struct st_side *foe) {
     if (!foe->n || foe->hp <= 0) return 1e6f;
     if (!own->n || own->hp <= 0) return 0.0f;
     struct st_result r;
     st_estimate(own, foe, &r);
     if (r.time[0] >= 1e9f) return r.time[1] >= 1e9f ? 1.0f : 0.0f;
-    return r.time[1] >= 1e9f ? 1e6f : r.time[1] / (r.time[0] > 0.1f ? r.time[0] : 0.1f);
+    return r.time[1] >= 1e9f ? 1e6f : sqrtf(r.time[1] / (r.time[0] > 0.1f ? r.time[0] : 0.1f));
 }
 
 // --- test command -------------------------------------------------------------------------------------------------
