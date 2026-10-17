@@ -89,7 +89,7 @@ static void cmd_bunker(char *out, const char *args) {
 // gave 72.6, 61.7 and 52.2 against 53.1: noise); shelling and raid_ww1 (the fortress up only after minute 20 there:
 // a WW1 start leaves little wood) about even.
 static int g_bunkers = 1;   // [all] bunkers
-static int g_bk_res = 0;   // [all] bunker_reserve (below)
+static int g_bk_res = 0xFFFF;   // [all] bunker_reserve (below)
 static int bk_room(void *pl);
 static struct { int nf, nall; uint8_t *f[8], *all[8]; int nq[8]; uint8_t *q[8][40]; uint32_t build_t, quiet_t[8]; unsigned in, out; int need_wood; uint32_t shelter[8]; } g_bk[16];   // shelter: when citizens were sent in (the quiet release)
 static int bk_hurt_recent(unsigned pi, int x, int y, int r, uint32_t ms) {
@@ -262,7 +262,7 @@ static void bunker_reserve(void *pl, int *reserve) {
     if (g_bunkers && pl) reserve[3] += g_bk[(unsigned)FIELD(pl, PL_INDEX, int) & 15].need_wood;
 }
 
-// RESERVE ([all] bunker_reserve, a mask of players, default 0; the playtester: "another use is to amass units at
+// RESERVE ([all] bunker_reserve, a mask of players, default all; the playtester: "another use is to amass units at
 // lower population limits, so losses can immediately be drawn from them"): units in a fortress don't count toward
 // the population (0x556E11 adds them only when asked: (x, 1); the training's room uses (1, 0)). Every 10 s: with the
 // map full (population at the cap - 1), up to 10 free land soldiers at home (in no group: 0x4707D8 on the combat
@@ -274,7 +274,8 @@ static void bunker_reserve(void *pl, int *reserve) {
 // didn't rise. scenarios/lowpop.txt (unit_limit 60 = 20 a player, cap 30; 10 seeds, P3 off vs on): kills 21.3 vs 21.3,
 // losses 23.1 vs 19.0, buildings lost 9.4 vs 9.5 - no clear gain: of 153 soldiers ordered in, about 30 were inside at
 // once (the AI's own groups take free soldiers back), and its units-in-production count, not the cap, held training
-// back (a leak of its own at low limits? to look into). Off.
+// back - the mod's own orders queued with no room (fixed: train_room, econ.c). With that, 20 seeds, P3 off vs on (both
+// with train_room): P3 kills 22.7 vs 28.8, losses 27.2 vs 23.2, P2's losses 21.7 vs 27.4. On.
 static unsigned g_bk_res_in[16], g_bk_res_out[16];
 static uint32_t g_bk_res_load_t[16];
 static int bk_room(void *pl) {   // cap - population on the map (the fortresses' units left out)

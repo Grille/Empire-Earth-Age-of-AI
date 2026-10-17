@@ -1475,7 +1475,7 @@ static void attack_install(const char *aimod_ini, const char *autotest_ini) {
     g_avoid_citizens = cfg_int(aimod_ini, autotest_ini, 1, "avoid_towers_citizens", 1);
     g_cit_threats = cfg_int(aimod_ini, autotest_ini, 1, "citizen_threats", 1);
     g_bunkers = cfg_int(aimod_ini, autotest_ini, 1, "bunkers", 1);
-    g_bk_res = cfg_int(aimod_ini, autotest_ini, 1, "bunker_reserve", 0);
+    g_bk_res = cfg_int(aimod_ini, autotest_ini, 1, "bunker_reserve", 0xFFFF);
     BOOL repair = patch_call(CALL_REPAIR_GOAL, 0x005F05BD, hook_repair_goal);
     if (g_log) fprintf(g_log, "# repairs under attack: refused (hook %s)\n", repair ? "ok" : "FAILED");
     g_avoid_weight = cfg_int(aimod_ini, autotest_ini, 1, "avoid_towers_weight", 2000);
