@@ -1,8 +1,9 @@
 // BUNKERS: the Fortress (type 672, family 29, tech 3072 - Copper Age) holds units like a transport (type +0x54C
 // capacity, 40): inside they are off the map, safe, and (the playtester) don't count toward the population limit. The
 // game's AI never builds or uses it. The playtester's uses: citizens out of bombing runs, a refuge for an outpost's
-// gatherers until an army comes, a reserve at low population limits that replaces losses at once. Garrisons proper
-// (type +0x550: Town Center 15, Capitol 50, Settlement 5, Granary 8) are a different thing. Included by eeaimod.c
+// gatherers until an army comes, a reserve at low population limits that replaces losses at once. A garrison is
+// something else (the playtester): citizens put into a building for good, to upgrade it (type +0x550, its most: Town
+// Center 15, Capitol 50, Settlement 5, Granary 8; the trigger attribute Garrison Level) - no shelter. Included by eeaimod.c
 // after landing.c (the load goal as the transports': EEUGLoadTransport 0x61487F on the holder, its part for each unit).
 
 #define FORTRESS_TYPE 672
