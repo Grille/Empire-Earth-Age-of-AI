@@ -144,11 +144,11 @@ static void crash_addr(char *buf, size_t cap, uintptr_t a) {
 
 static LONG CALLBACK crash_handler(EXCEPTION_POINTERS *ep) {
     DWORD code = ep->ExceptionRecord->ExceptionCode;
-    if (code != EXCEPTION_ACCESS_VIOLATION && code != EXCEPTION_ILLEGAL_INSTRUCTION && code != EXCEPTION_PRIV_INSTRUCTION)
+    if ((code & 0xF0000000) != 0xC0000000)   // errors only (an island run ended with 0xC0000002 and no log line)
         return EXCEPTION_CONTINUE_SEARCH;
     if (InterlockedIncrement(&g_crash_logged) > 8 || !g_log) return EXCEPTION_CONTINUE_SEARCH;
     CONTEXT *c = ep->ContextRecord;
-    char at[160], line[1200];
+    char at[160], line[2400];
     crash_addr(at, sizeof at, c->Eip);
     int n = snprintf(line, sizeof line, "# exception %08lx at %s thread %lu, %s %08lx; eax=%08lx ecx=%08lx edx=%08lx esi=%08lx edi=%08lx; stack:",
                      code, at, GetCurrentThreadId(), ep->ExceptionRecord->ExceptionInformation[0] ? "write" : "read",
@@ -169,9 +169,14 @@ static LONG CALLBACK crash_handler(EXCEPTION_POINTERS *ep) {
     uintptr_t words[256];
     SIZE_T got = 0;
     ReadProcessMemory(GetCurrentProcess(), (void *)c->Esp, words, sizeof words, &got);
-    for (size_t i = 0, shown = 0; i < got / sizeof *words && shown < 12 && n < (int)sizeof line - 80; i++) {
+    for (size_t i = 0, shown = 0; i < got / sizeof *words && shown < 30 && n < (int)sizeof line - 80; i++) {
         HMODULE hm;
         MEMORY_BASIC_INFORMATION mbi;
+        if (words[i] >= 0x401000 && words[i] < 0x823000) {   // the game's code (its pages may not say execute)
+            n += snprintf(line + n, sizeof line - n, " [%u]%08lx", (unsigned)i, (unsigned long)words[i]);
+            shown++;
+            continue;
+        }
         if (words[i] < 0x10000 || !VirtualQuery((void *)words[i], &mbi, sizeof mbi)
             || !(mbi.Protect & (PAGE_EXECUTE_READ | PAGE_EXECUTE_READWRITE | PAGE_EXECUTE_WRITECOPY | PAGE_EXECUTE))
             || !GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,

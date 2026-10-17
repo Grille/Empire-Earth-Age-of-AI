@@ -166,16 +166,86 @@ static void __fastcall hook_asg_sea_transport_update(uint8_t *sg, void *edx, int
     ((void (__thiscall *)(void *, int))FN_ASG_SEA_TRANSPORT_UPDATE)(sg, now);
 }
 
+// A unit's goal step (0x5F0F7E): its goal set (+0x1E8) answers 2, 0x5EE965 drops the goal - and can clear the set too;
+// then, the unit still with a goal (+0x1F0), the set is asked again (0x5F1029, 0x619FF5 thiscall(set, unit, &out))
+// unchecked: a read of [0 + 8] at 0x619FF9, 6 island games today (one in 24). No set: the unit gets the default one
+// (5000, 0x5EFCF0 - as the game does for a unit without a goal there) and the answer is 0. Only skipping the call left
+// the unit without a set, and the next order to it read [0 + 0x24] (0x5F063A, from the transport manager's 0x48CD3A).
+// Where the null sets come from: the set answers 1 (take the next) with no next set (out 0) - stored as the unit's set
+// (0x5F104E), and the unit type's vf29 right after read [0 + 5] (0x5FC4ED). That answer, at both asks (0x5F0FFA too),
+// gives the default set and 0.
+#define CALL_GOALSET_ASK   0x005F0FFA
+#define CALL_GOALSET_AGAIN 0x005F1029
+#define FN_GOALSET_ASK     0x00619FF5
+static unsigned g_goalset_null;
+static int __fastcall hook_goalset_ask(void *set, void *edx, uint8_t *unit, int *out) {
+    (void)edx;
+    if (!set) {
+        if (g_log && g_goalset_null++ < 10) fprintf(g_log, "# engine guard: a unit's goal set gone after its goal was dropped - the default set\n");
+        ((void (__thiscall *)(void *, unsigned))0x005EFCF0)(unit, 5000);
+        return 0;
+    }
+    int r = ((int (__thiscall *)(void *, void *, int *))FN_GOALSET_ASK)(set, unit, out);
+    if (r == 1 && out && !*out) {
+        if (g_log && g_goalset_null++ < 10) fprintf(g_log, "# engine guard: a unit's goal set ended without a next one - the default set\n");
+        ((void (__thiscall *)(void *, unsigned))0x005EFCF0)(unit, 5000);
+        return 0;
+    }
+    return r;
+}
+// The same state elsewhere: a unit given a goal (0x5F05BD, 116 callers - the transport manager's 0x48CD3C, 0x4A28C3)
+// reads its goal set's +0x24 unchecked (0x5F0634: mov ecx, [esi + 0x1E8]; 0x5F063A: [ecx + 0x24]) - 3 of 72 island
+// games. That load goes through a thunk (8B 8E E8 01 00 00 -> E8 thunk, 90): no set, the default one first.
+#define AT_GOAL_SET_READ 0x005F0634
+__attribute__((used)) void goalset_fix(uint8_t *unit) {
+    if (g_log && g_goalset_null++ < 10) fprintf(g_log, "# engine guard: a unit without a goal set given a goal - the default set\n");
+    ((void (__thiscall *)(void *, unsigned))0x005EFCF0)(unit, 5000);
+}
+__attribute__((naked, used)) void goalset_read_thunk(void) {
+    __asm__("cmpl $0, 0x1e8(%esi)\n\t"
+            "jne 1f\n\t"
+            "pushl %eax\n\t"
+            "pushl %edx\n\t"
+            "pushl %esi\n\t"
+            "call _goalset_fix\n\t"
+            "addl $4, %esp\n\t"
+            "popl %edx\n\t"
+            "popl %eax\n"
+            "1:\n\t"
+            "movl 0x1e8(%esi), %ecx\n\t"
+            "ret");
+}
+static int patch_goalset_read(void) {
+    static const uint8_t want[6] = { 0x8B, 0x8E, 0xE8, 0x01, 0x00, 0x00 };
+    uint8_t *p = (uint8_t *)AT_GOAL_SET_READ;
+    DWORD old;
+    if (memcmp(p, want, 6) || !VirtualProtect(p, 6, PAGE_EXECUTE_READWRITE, &old)) return 0;
+    p[0] = 0xE8; *(int32_t *)(p + 1) = (int32_t)((uintptr_t)goalset_read_thunk - (AT_GOAL_SET_READ + 5)); p[5] = 0x90;
+    VirtualProtect(p, 6, old, &old);
+    FlushInstructionCache(GetCurrentProcess(), p, 6);
+    return 1;
+}
+
 // A subgroup gives one of its units an order through vf57 (thiscall(sg, unit, goal, 0, priority), 0x45CBEA, air
 // 0x442AD8; 0 refused - the caller deletes the goal). Its update is skipped while the landing leads it, but its event
 // handlers still give orders: the transport subgroup's (0x445A0F, through its second vtable) unloaded the waiting
 // landing transports 5 times in one run (the unload at 0x445AAD). Refused while the landing leads the subgroup.
 #define FN_ASG_GIVE_GOAL     0x0045CBEA
 #define FN_ASG_AIR_GIVE_GOAL 0x00442AD8
-static unsigned g_ld_refused;
+// One caller uses the goal after a refusal: the land subgroup's vf131 (0x44AC8E - the transport subgroup hands it the
+// units no longer aboard, 0x4455D4) deletes the refused goal (0x44AF96) and then reads it and calls its vf4 (0x44AFB5):
+// the deleted goal's vtable is the abstract base's - msvcrt's _purecall, exception 0xC0000002, 1-6 of 12 Small Islands
+// games (more with the transport manager's unload refused, as more units come off transports while led). The game
+// itself never refuses there; for that caller the goal is taken and not given (the goal's few bytes are lost).
+#define RET_ASG_LAND_HANDOFF_GIVE 0x0044AF88
+static unsigned g_ld_refused, g_ld_kept_goal;
 static char __fastcall hook_asg_give_goal(uint8_t *sg, void *edx, uint8_t *u, void *goal, int a, int prio) {
     (void)edx;
-    if (landing_leads(sg)) { g_ld_refused++; return 0; }
+    if (landing_leads(sg)) {
+        g_ld_refused++;
+        if ((uintptr_t)__builtin_return_address(0) == RET_ASG_LAND_HANDOFF_GIVE) { g_ld_kept_goal++; return 1; }
+        return 0;
+    }
     return ((char (__thiscall *)(void *, void *, void *, int, int))FN_ASG_GIVE_GOAL)(sg, u, goal, a, prio);
 }
 static char __fastcall hook_asg_air_give_goal(uint8_t *sg, void *edx, uint8_t *u, void *goal, int a, int prio) {
@@ -1851,9 +1921,9 @@ static void cmd_landing(char *out, const char *args) {
     int aboard = 0;
     for (int k = 0; k < l->npass; k++) aboard += ld_alive(l->pass[k]) && ld_aboard(l->pass[k]);
     REPLY("P%d landing %s: phase %d, target P%d, site %d,%d (sea %d, water %d,%d), %d ships, %d warships, %d passengers (%d aboard), %d subgroups led; "
-          "tries %u, landings %u, aborted %u, orders %u, subgroup orders refused %u\n", p, g_landing ? "on" : "off", l->phase,
+          "tries %u, landings %u, aborted %u, orders %u, subgroup orders refused %u (%u taken, not given)\n", p, g_landing ? "on" : "off", l->phase,
           l->target ? FIELD(l->target, PL_INDEX, int) : -1, l->sx, l->sy, l->ocean, l->wx, l->wy, l->nships, l->nesc, l->npass, aboard, l->nfrozen,
-          l->tries, l->landings, l->aborted, l->orders, g_ld_refused);
+          l->tries, l->landings, l->aborted, l->orders, g_ld_refused, g_ld_kept_goal);
     REPLY("  last site search: %u points, %u land, %u at a shore, %u at its sea, %u out of tower reach, %u without enemy soldiers; seas at the shores:",
           g_ld_stat[p].tried, g_ld_stat[p].land, g_ld_stat[p].shore, g_ld_stat[p].sea, g_ld_stat[p].safe, g_ld_stat[p].quiet);
     for (int q = 0; q < 8 && g_ld_stat[p].oc[q]; q++) REPLY(" %u x%u", g_ld_stat[p].oc[q], g_ld_stat[p].ocn[q]);
@@ -2018,9 +2088,14 @@ static void cmd_board(char *out, const char *args) {
 }
 
 // who else orders a landing transport to unload (the soldiers aboard while it waited at home were unloaded again):
-// the game's calls of the unload goal's constructor go through here; for a transport of a landing, the caller is logged
+// the game's calls of the unload goal's constructor go through here; for a transport of a landing, the caller is logged.
+// The transport manager's (0x48CC5D in 0x48CC10, from 0x48A382: it takes a transport it thinks free for one of its own
+// crossings - an unload point, then its own units loaded) was most of them, 393 of 794 in 30 island runs, in every
+// phase: refused (NULL - the caller skips to its end on a failed allocation; the 0x40 bytes are lost). The subgroup's
+// (0x445AAD) is refused at its vf57 (hook_asg_give_goal); 0x48D022 calls the goal unchecked, so it stays.
 static const uintptr_t k_unload_sites[] = { 0x445AAD, 0x483E4D, 0x48CC5D, 0x48D022, 0x4BF82A, 0x5B3E23, 0x5DC81B };
-static unsigned g_foreign_unload[8];
+static unsigned g_foreign_unload[8], g_ld_mgr_refused;
+static int g_land_keep = 1;   // landing_keep_transports: the transport manager's unload refused
 static void *__fastcall hook_unload_ctor(void *g, void *edx, uint8_t *tr, int x, int y, int flag) {
     (void)edx;
     uintptr_t ret = (uintptr_t)__builtin_return_address(0) - 5;
@@ -2030,6 +2105,11 @@ static void *__fastcall hook_unload_ctor(void *g, void *edx, uint8_t *tr, int x,
                 int site = 0;
                 while (site < 7 && k_unload_sites[site] != ret) site++;
                 g_foreign_unload[site]++;
+                if (ret == 0x48CC5D && g_land_keep) {
+                    g_ld_mgr_refused++;
+                    if (g_log) fprintf(g_log, "# landing: P%d's transport %d (phase %d) - the game's transport manager wanted it for a crossing to %d,%d: refused\n", p, k, g_ld[p].phase, x, y);
+                    return NULL;
+                }
                 if (g_log) fprintf(g_log, "# landing: P%d's transport %d (phase %d) told to unload at %d,%d by the game (call at 0x%X)\n", p, k, g_ld[p].phase, x, y, (unsigned)ret);
             }
     return ((void *(__thiscall *)(void *, void *, int, int, int))0x00615A1F)(g, tr, x, y, flag);
@@ -2046,8 +2126,12 @@ static int __fastcall hook_idle_unload_shore(void *mgr, void *edx, uint8_t *tr) 
 }
 
 static void landing_install(const char *aimod_ini, const char *autotest_ini) {
+    BOOL gs = patch_call(CALL_GOALSET_ASK, FN_GOALSET_ASK, (void *)hook_goalset_ask) & patch_call(CALL_GOALSET_AGAIN, FN_GOALSET_ASK, (void *)hook_goalset_ask) &
+              patch_goalset_read();
+    if (g_log) fprintf(g_log, "# engine guard: goal set after a dropped goal %s\n", gs ? "ok" : "FAILED");
     g_landing = cfg_int(aimod_ini, autotest_ini, 1, "landing", 1);
     g_land_bombard = cfg_int(aimod_ini, autotest_ini, 1, "landing_bombard", 0);
+    g_land_keep = cfg_int(aimod_ini, autotest_ini, 1, "landing_keep_transports", 1);
     g_land_ships = cfg_int(aimod_ini, autotest_ini, 1, "landing_transports", 8);
     g_land_flag = cfg_int(aimod_ini, autotest_ini, 1, "landing_flag", 0);
     g_land_knows = cfg_int(aimod_ini, autotest_ini, 1, "landing_knows_map", 0);
