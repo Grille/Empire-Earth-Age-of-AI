@@ -15,6 +15,7 @@ static const uintptr_t k_food_sites[] = { 0x48ab8d, 0x48ac2b, 0x48ae14, 0x48aeb4
 
 typedef char (__thiscall *EnemyNearFn)(void *, int, int);
 static int site_danger(void *pl, uint8_t *site, int food);   // attack.c: known enemy towers on the way
+static int site_danger_res(void *pl, uint8_t *site, int food, int res);   // attack.c: res 2 food .. 6 iron
 static unsigned g_site_refused[16];   // dangerous sites the searches refused (logged by attack.c)
 
 static int route_safe(void *bm, const int base[2], const int to[2]) {
@@ -90,7 +91,7 @@ static uint8_t *select_site(uint8_t *rm, int type, int need_drop, int max_d2, ui
         if (((unsigned (__thiscall *)(void *, void *))FN_SITE_GATHERERS)((void *)0x918300, s) >= cap) continue;
         if (region((void *)0x917BC8, pos, 2) != ref_region) continue;
         if (((EnemyNearFn)FN_ENEMY_NEAR)(bm, pos[0], pos[1])) continue;
-        if (!route_safe(bm, base, pos) || site_danger(pl, s, type == 2)) continue;
+        if (!route_safe(bm, base, pos) || site_danger_res(pl, s, type == 2, type)) continue;
         best = s;
         best_d2 = d2;
     }
@@ -124,9 +125,9 @@ static int nearest_drop(void *pl, int x, int y, int food, int out[2]) {   // foo
     }
     return best != 0x7FFFFFFF;
 }
-static void *refuse_danger(uint8_t *rm, void *site, int food) {
+static void *refuse_danger(uint8_t *rm, void *site, int food, int res) {
     void *pl = rm_player(rm);
-    if (!site || !site_danger(pl, site, food)) return site;
+    if (!site || !site_danger_res(pl, site, food, res)) return site;
     g_site_refused[(unsigned)FIELD(pl, PL_INDEX, int) & 15]++;
     return NULL;
 }
@@ -200,7 +201,7 @@ static uint8_t *select_mine_near_drop(uint8_t *rm, int type, uint8_t *unit) {
         if (unit && region((void *)0x917BC8, pos, 2) != ref_region) continue;
         if (((EnemyNearFn)FN_ENEMY_NEAR)(bm, pos[0], pos[1])) continue;
         int from[2] = { d[k][0], d[k][1] };
-        if (!route_safe(bm, from, pos) || site_danger(pl, s, 0)) continue;
+        if (!route_safe(bm, from, pos) || site_danger_res(pl, s, 0, type)) continue;
         best = s;
         best_d = dd;
     }
@@ -221,7 +222,7 @@ static void *__fastcall hook_find_mine(uint8_t *rm, void *edx, int type, uint8_t
     uintptr_t caller = CALLER();
     if (!cfg_of(rm_player(rm))->safe_sites) {
         uint8_t *r = g_mine_choice && type >= 4 && type < 7 ? select_mine_near_drop(rm, type, unit) : NULL;
-        return r ? r : refuse_danger(rm, ((Fn3)FN_FIND_MINE)(rm, (uintptr_t)type, (uintptr_t)unit, rev), type == 2);
+        return r ? r : refuse_danger(rm, ((Fn3)FN_FIND_MINE)(rm, (uintptr_t)type, (uintptr_t)unit, rev), type == 2, type);
     }
     if (caller < LEFTOVER_SITE_END && type >= 2 && type < 7) {
         // leftover pass: only mines whose resource actually needs more workers
@@ -237,7 +238,7 @@ static void *__fastcall hook_find_mine(uint8_t *rm, void *edx, int type, uint8_t
 
 static void *__fastcall hook_find_food(uint8_t *rm, void *edx, uintptr_t need_drop, uintptr_t near_base, uint8_t *unit) {
     (void)edx;
-    if (!cfg_of(rm_player(rm))->safe_sites) return refuse_danger(rm, ((Fn3)FN_FIND_FOOD)(rm, need_drop, near_base, (uintptr_t)unit), 1);
+    if (!cfg_of(rm_player(rm))->safe_sites) return refuse_danger(rm, ((Fn3)FN_FIND_FOOD)(rm, need_drop, near_base, (uintptr_t)unit), 1, 2);
     void *pl = rm_player(rm);
     int r6 = pl ? FIELD(pl, 0xE10, int) : 6;
     int max_d2 = (near_base & 0xFF) ? r6 * r6 * 4 : r6 * r6 * 36;   // same passes as the original
@@ -281,7 +282,7 @@ static void *__fastcall hook_hunt(uint8_t *rm, void *edx, uintptr_t n, uintptr_t
 }
 static void *__fastcall hook_find_wood(uint8_t *rm, void *edx, uintptr_t flag, uint8_t *unit) {
     (void)edx;
-    return refuse_danger(rm, ((Fn2)FN_FIND_WOOD)(rm, flag, (uintptr_t)unit), 0);
+    return refuse_danger(rm, ((Fn2)FN_FIND_WOOD)(rm, flag, (uintptr_t)unit), 0, 3);
 }
 
 static void sites_install(const char *aimod_ini, const char *autotest_ini) {

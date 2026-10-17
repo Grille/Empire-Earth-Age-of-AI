@@ -693,8 +693,11 @@ static int route_danger(void *pl, int fx, int fy, int tx, int ty) {
 // sent back every 10 s (166 times in 13 minutes).
 #define RAID_MARGIN 3
 #define RAID_MAX    15
+#define RAID_FAR    27   // citizen_threats: artillery (12-14), mortars (10-11), ships (24) at their own reach
+static int g_cit_threats = 1;   // [all] citizen_threats (below, DAMAGE MEMORY)
 static int raiders_near(void *pl, int x, int y, int r0) {
-    int r = r0 > RAID_MAX ? r0 : RAID_MAX;   // the search box; each unit then by its own reach
+    int rmax = g_cit_threats ? RAID_FAR : RAID_MAX;
+    int r = r0 > rmax ? r0 : rmax;   // the search box; each unit then by its own reach
     uint8_t *map = *(uint8_t **)G_MAP;
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     if (!grid || !pl) return 0;
@@ -708,11 +711,11 @@ static int raiders_near(void *pl, int x, int y, int r0) {
                 uint8_t *u = *b, *td = u ? FIELD(u, 0x2C, uint8_t *) : NULL;
                 if (!td || FIELD(u, 0x3C, int) <= 0 || abs(FIELD(u, 0x1C, int) - x) > r || abs(FIELD(u, 0x20, int) - y) > r) continue;
                 int fam = FIELD(td, 0x4B4, int), t = FIELD(td, 0x4B8, int);
-                if ((fam != 5 && fam != 4) || t == 32 || t == 480 || FIELD(td, 0x510, int) <= 0) continue;
+                if ((fam != 5 && fam != 4 && !(g_cit_threats && fam == 10)) || t == 32 || t == 480 || FIELD(td, 0x510, int) <= 0) continue;
                 uint8_t *st = FIELD(u, 0x34, uint8_t *);
                 float rng = st ? FIELD(st, 0x9C, float) : FIELD(td, 0x420, float);
                 int reach = rng > 0.0f && rng < 30.0f ? (int)(rng + 0.5f) + RAID_MARGIN : 0;
-                if (reach > RAID_MAX) reach = RAID_MAX;
+                if (reach > rmax) reach = rmax;
                 if (reach < r0) reach = r0;
                 if (abs(FIELD(u, 0x1C, int) - x) > reach || abs(FIELD(u, 0x20, int) - y) > reach) continue;
                 void *o = FIELD(u, 0x18, void *);   // not nature (player 0: wild animals)
@@ -747,13 +750,62 @@ static void flee_point(void *pl, int x, int y, float rx, float ry, float *fx, fl
         best = d; *fx = px; *fy = py;
     }
 }
-static int site_danger(void *pl, uint8_t *site, int food) {   // from the nearest drop site
+// DAMAGE MEMORY ([all] citizen_threats, default 1; the playtester: "they should just stay away from the frontline, a
+// single artillery in range can kill multiple citizens in a single shot; gold and iron might be worth some risk, but
+// wood can be gathered elsewhere, and farms rebuilt at a safer spot - in the WW1 save lots of citizens gather wood right
+// under my artillery and my planes"). raiders_near saw land units and ships within 15 tiles only, and nothing it
+// can't see: artillery shooting from the fog, aircraft. With citizen_threats: the reach up to 27 tiles (ships of
+// family 10 too), and every 4 s (citizens_safety) each citizen's hit points are compared with the last look - where
+// one lost some, the spot is remembered for 2 minutes. A site within 6 tiles of such spots is dangerous: food and wood
+// from one (they can be had elsewhere), stone, gold and iron from 3 (worth some risk). Aircraft count only where they
+// do harm, so a town they merely fly over keeps working. The searches refuse such sites too (no sent back, sent again).
+// Hunters' losses don't count (the animals). scenarios/shelling.txt, bombing.txt (10 seeds, P3 off vs on): shelling
+// alive 5 vs 7 of 10, workers 7.1 vs 17.6, losses 14.3 vs 10.8, buildings lost 6.1 vs 3.9; bombing workers 42.9 vs
+// 54.7, losses 25.5 vs 21.0. Idle citizens rose (bombing 2.9 vs 6.3 on average): no safe site of their resource left.
+#define HURT_N 64
+static struct { unsigned at; struct { int x, y; uint32_t t; } h[HURT_N]; } g_hurt[16];
+static struct { uint8_t *u; int hp; } g_cit_hp[16][512];
+static unsigned g_hurt_count[16];
+static void hurt_note(unsigned pi, uint8_t *u, uint32_t now, int mark) {   // remembers u's hit points; a loss marks its spot
+    int hp = FIELD(u, 0x3C, int);
+    unsigned h = (unsigned)((uintptr_t)u >> 4) & 511;
+    for (int k = 0; k < 512; k++) {
+        typeof(&g_cit_hp[0][0]) e = &g_cit_hp[pi][(h + k) & 511];
+        if (e->u == u) {
+            if (hp < e->hp && mark) {
+                typeof(&g_hurt[0].h[0]) r = &g_hurt[pi].h[g_hurt[pi].at++ % HURT_N];
+                r->x = FIELD(u, 0x1C, int); r->y = FIELD(u, 0x20, int); r->t = now ? now : 1;
+                g_hurt_count[pi]++;
+            }
+            e->hp = hp;
+            return;
+        }
+        if (!e->u) { e->u = u; e->hp = hp; return; }
+    }
+    memset(g_cit_hp[pi], 0, sizeof g_cit_hp[pi]);   // full (dead citizens' entries): start over
+}
+static int hurt_near(unsigned pi, int x, int y) {   // citizens hurt within 6 tiles in the last 2 minutes
+    uint32_t now = game_time();
+    int n = 0;
+    for (int k = 0; k < HURT_N; k++) {
+        typeof(&g_hurt[0].h[0]) r = &g_hurt[pi].h[k];
+        if (r->t && now >= r->t && now - r->t <= 120000 && abs(r->x - x) <= 6 && abs(r->y - y) <= 6) n++;
+    }
+    return n;
+}
+static int hurt_danger(void *pl, int x, int y, int res) {   // res: 2 food, 3 wood, 4 stone, 5 gold, 6 iron, -1 unknown
+    if (!g_cit_threats || !pl) return 0;
+    return hurt_near((unsigned)FIELD(pl, PL_INDEX, int) & 15, x, y) >= (res >= 4 ? 3 : 1);
+}
+static int site_danger_res(void *pl, uint8_t *site, int food, int res) {   // from the nearest drop site
     if (!g_avoid_citizens || !pl || !site) return 0;
     int x = FIELD(site, 0x1C, int), y = FIELD(site, 0x20, int), d[2];
     if (raiders_near(pl, x, y, 6)) return 1;   // the searches refuse a raided site too (else: sent back, sent again)
+    if (hurt_danger(pl, x, y, res)) return 1;
     if (!nearest_drop(pl, x, y, food, d)) d[0] = -10000;
     return route_danger(pl, d[0], d[1], x, y);
 }
+static int site_danger(void *pl, uint8_t *site, int food) { return site_danger_res(pl, site, food, food ? 2 : -1); }
 static void *goal_move(float x, float y);
 static int unit_goal(uint8_t *u, void *goal, int append, int prio);
 static int muster_rally(unsigned idx, float *x, float *y);   // defence.c: the rally point while the base is overrun
@@ -782,6 +834,10 @@ static void citizens_safety(uint8_t *rm) {   // before the citizen assignment
         for (unsigned k = 0, first = FIELD(list, 0xC, unsigned), cnt = FIELD(list, 0x10, unsigned); k < cnt; k++) {
             uint8_t *u = deque_at(list, first + k), *goal = u ? FIELD(u, 0x1EC, uint8_t *) : NULL;
             if (!u || FIELD(u, 0x3C, int) <= 0) continue;
+            if (g_cit_threats) {   // not hunters: the animals hurt them (a farm is a building, family 2)
+                uint8_t *gs = goal && !strcmp(rtti_name(goal), "EEUGGather@@") ? FIELD(goal, 0x38, uint8_t *) : NULL;
+                hurt_note(idx, u, now, !(r == 2 && gs && FIELD(FIELD(gs, 0x2C, uint8_t *), 0x4B4, int) != 2));
+            }
             if (r == 0 && goal && *(uintptr_t *)goal == VT_GOAL_LOCATION) {   // a stray: an attack's leftover order
                 float gx = FIELD(goal, 0x20, float), gy = FIELD(goal, 0x24, float);
                 int dest[2] = { (int)gx, (int)gy }, d[2];
@@ -828,7 +884,8 @@ static void citizens_safety(uint8_t *rm) {   // before the citizen assignment
             // builders near known towers only: only of fields (walls and towers at the front: the wall manager sends
             // them again and again)
             if (build && !raided && FIELD(FIELD(site, 0x2C, uint8_t *), 0x4B8, int) != 0x2A) continue;
-            if (!raided && (build || !site_danger(pl, site, r == 2))) continue;
+            if (!build && !raided && hurt_danger(pl, FIELD(site, 0x1C, int), FIELD(site, 0x20, int), r)) raided = 1;   // hurt there
+            if (!raided && (build || !site_danger_res(pl, site, r == 2, r))) continue;
             if (raided && abs(d[0] - FIELD(site, 0x1C, int)) <= 3 && abs(d[1] - FIELD(site, 0x20, int)) <= 3) continue;   // at home already
             if (!unit_goal(u, goal_move((float)d[0] + 0.5f, (float)d[1] + 0.5f), 0, 0x1F40)) continue;
             sent++;
@@ -846,8 +903,8 @@ static void citizens_safety(uint8_t *rm) {   // before the citizen assignment
         logged[idx] = now;
         char ks[64] = "";
         for (int j = 0; j < 4 && kinds[j][1]; j++) { size_t l = strlen(ks); snprintf(ks + l, sizeof ks - l, " %dx%d", kinds[j][0], kinds[j][1]); }
-        fprintf(g_log, "# citizens: P%u at %.1f min: %d sent back from sites near enemy towers or raiders (site type x count:%s; %u in all, %u dangerous sites refused, %u repairs refused)\n",
-                idx, now / 60000.0, sent, ks, g_cit_stats[idx].sent, g_site_refused[idx], g_repair_refused[idx]);
+        fprintf(g_log, "# citizens: P%u at %.1f min: %d sent back from sites near enemy towers or raiders (site type x count:%s; %u in all, %u dangerous sites refused, %u repairs refused, %u hurt)\n",
+                idx, now / 60000.0, sent, ks, g_cit_stats[idx].sent, g_site_refused[idx], g_repair_refused[idx], g_hurt_count[idx]);
     }
 }
 
@@ -1359,6 +1416,7 @@ static void attack_install(const char *aimod_ini, const char *autotest_ini) {
     if (g_log) fprintf(g_log, "# engine guard: no unit offered to attack groups during a call-off %s\n", add_guard ? "ok" : "FAILED");
     g_avoid_towers = cfg_int(aimod_ini, autotest_ini, 1, "avoid_towers", 1);
     g_avoid_citizens = cfg_int(aimod_ini, autotest_ini, 1, "avoid_towers_citizens", 1);
+    g_cit_threats = cfg_int(aimod_ini, autotest_ini, 1, "citizen_threats", 1);
     BOOL repair = patch_call(CALL_REPAIR_GOAL, 0x005F05BD, hook_repair_goal);
     if (g_log) fprintf(g_log, "# repairs under attack: refused (hook %s)\n", repair ? "ok" : "FAILED");
     g_avoid_weight = cfg_int(aimod_ini, autotest_ini, 1, "avoid_towers_weight", 2000);

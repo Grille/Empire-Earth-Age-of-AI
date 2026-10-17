@@ -1,0 +1,100 @@
+# Continental seed 101, 2 AIs, start epoch 9 (World War I, base ini start_epoch=9): P2 base ~80,52, P3 base ~38,38.
+# Shelling (the playtester: citizens gather wood under his artillery): at minute 15 P2 gets 4 field artillery (101:
+# range 14, area 1.75) and 6 machine gunners (121) at 56,44, the edge of P3's base; every 20 s the artillery attacks
+# whatever of P3's is nearest to it within 15 tiles of 40,40, the machine gunners the nearest enemy within 30 tiles
+# (stats engage). Do P3's citizens keep away (citizen_threats)? Measure P3's workers, losses.
+defence 2 0
+@15 spawn 2 101 56 44 4
+@15 spawn 2 121 55 46 6
+@15.10 stats engage 2 56 44 30 101 40 40
+@15.10 stats engage 2 56 44 12
+@15.43 stats engage 2 56 44 30 101 40 40
+@15.43 stats engage 2 56 44 12
+@15.76 stats engage 2 56 44 30 101 40 40
+@15.76 stats engage 2 56 44 12
+@16.09 stats engage 2 56 44 30 101 40 40
+@16.09 stats engage 2 56 44 12
+@16.42 stats engage 2 56 44 30 101 40 40
+@16.42 stats engage 2 56 44 12
+@16.75 stats engage 2 56 44 30 101 40 40
+@16.75 stats engage 2 56 44 12
+@17.08 stats engage 2 56 44 30 101 40 40
+@17.08 stats engage 2 56 44 12
+@17.41 stats engage 2 56 44 30 101 40 40
+@17.41 stats engage 2 56 44 12
+@17.74 stats engage 2 56 44 30 101 40 40
+@17.74 stats engage 2 56 44 12
+@18.07 stats engage 2 56 44 30 101 40 40
+@18.07 stats engage 2 56 44 12
+@18.40 stats engage 2 56 44 30 101 40 40
+@18.40 stats engage 2 56 44 12
+@18.73 stats engage 2 56 44 30 101 40 40
+@18.73 stats engage 2 56 44 12
+@19.06 stats engage 2 56 44 30 101 40 40
+@19.06 stats engage 2 56 44 12
+@19.39 stats engage 2 56 44 30 101 40 40
+@19.39 stats engage 2 56 44 12
+@19.72 stats engage 2 56 44 30 101 40 40
+@19.72 stats engage 2 56 44 12
+@20.05 stats engage 2 56 44 30 101 40 40
+@20.05 stats engage 2 56 44 12
+@20.38 stats engage 2 56 44 30 101 40 40
+@20.38 stats engage 2 56 44 12
+@20.71 stats engage 2 56 44 30 101 40 40
+@20.71 stats engage 2 56 44 12
+@21.04 stats engage 2 56 44 30 101 40 40
+@21.04 stats engage 2 56 44 12
+@21.37 stats engage 2 56 44 30 101 40 40
+@21.37 stats engage 2 56 44 12
+@21.70 stats engage 2 56 44 30 101 40 40
+@21.70 stats engage 2 56 44 12
+@22.03 stats engage 2 56 44 30 101 40 40
+@22.03 stats engage 2 56 44 12
+@22.36 stats engage 2 56 44 30 101 40 40
+@22.36 stats engage 2 56 44 12
+@22.69 stats engage 2 56 44 30 101 40 40
+@22.69 stats engage 2 56 44 12
+@23.02 stats engage 2 56 44 30 101 40 40
+@23.02 stats engage 2 56 44 12
+@23.35 stats engage 2 56 44 30 101 40 40
+@23.35 stats engage 2 56 44 12
+@23.68 stats engage 2 56 44 30 101 40 40
+@23.68 stats engage 2 56 44 12
+@24.01 stats engage 2 56 44 30 101 40 40
+@24.01 stats engage 2 56 44 12
+@24.34 stats engage 2 56 44 30 101 40 40
+@24.34 stats engage 2 56 44 12
+@24.67 stats engage 2 56 44 30 101 40 40
+@24.67 stats engage 2 56 44 12
+@25.00 stats engage 2 56 44 30 101 40 40
+@25.00 stats engage 2 56 44 12
+@25.33 stats engage 2 56 44 30 101 40 40
+@25.33 stats engage 2 56 44 12
+@25.66 stats engage 2 56 44 30 101 40 40
+@25.66 stats engage 2 56 44 12
+@25.99 stats engage 2 56 44 30 101 40 40
+@25.99 stats engage 2 56 44 12
+@26.32 stats engage 2 56 44 30 101 40 40
+@26.32 stats engage 2 56 44 12
+@26.65 stats engage 2 56 44 30 101 40 40
+@26.65 stats engage 2 56 44 12
+@26.98 stats engage 2 56 44 30 101 40 40
+@26.98 stats engage 2 56 44 12
+@27.31 stats engage 2 56 44 30 101 40 40
+@27.31 stats engage 2 56 44 12
+@27.64 stats engage 2 56 44 30 101 40 40
+@27.64 stats engage 2 56 44 12
+@27.97 stats engage 2 56 44 30 101 40 40
+@27.97 stats engage 2 56 44 12
+@28.30 stats engage 2 56 44 30 101 40 40
+@28.30 stats engage 2 56 44 12
+@28.63 stats engage 2 56 44 30 101 40 40
+@28.63 stats engage 2 56 44 12
+@28.96 stats engage 2 56 44 30 101 40 40
+@28.96 stats engage 2 56 44 12
+@29.29 stats engage 2 56 44 30 101 40 40
+@29.29 stats engage 2 56 44 12
+@29.62 stats engage 2 56 44 30 101 40 40
+@29.62 stats engage 2 56 44 12
+@29.95 stats engage 2 56 44 30 101 40 40
+@29.95 stats engage 2 56 44 12
