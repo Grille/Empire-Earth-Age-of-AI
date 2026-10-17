@@ -130,7 +130,7 @@ static char __fastcall hook_place(uint8_t *bm, void *edx, int type, int x, int y
     if (g_build_fix && ++g_place[idx][k].streak >= 3) {
         g_place[idx][k].streak = 0;
         g_place[idx][k].dropped++;
-        retry_note(idx, place_as, game_time());
+        if (type != 395) retry_note(idx, place_as, game_time());   // the 395 settlement arrives as 43: not retried
         return 1;
     }
     return ok;
@@ -620,6 +620,9 @@ static void decoration_fix(void *pl, unsigned ai) {
     if (g_log) fprintf(g_log, "# epoch plan: P%u: %d decoration objects no longer count as epoch requirements\n", ai, n);
 }
 
+// the epoch-requirement request out (cm+0x76) since: renewed by early_requirements (3 minutes without progress) or
+// else re-armed by econ_tick after 5 minutes - one timer, so the two never renew the same request twice
+static uint32_t g_epoch_req_t[16];
 static void early_requirements(void *pl, unsigned ai, uint32_t now, int prefarm) {
     static uint32_t asked[16];
     decoration_fix(pl, ai);
@@ -630,12 +633,12 @@ static void early_requirements(void *pl, unsigned ai, uint32_t now, int prefarm)
     if (missing < 1) { asked[ai] = 0; return; }
     if (cm[0x76]) {   // a request is out: renew it after 3 minutes without progress
         if (asked[ai] && now >= asked[ai] && now - asked[ai] < 180000) return;
-        if (asked[ai] && missing < asked_missing[ai]) { asked[ai] = now ? now : 1; asked_missing[ai] = missing; return; }
+        if (asked[ai] && missing < asked_missing[ai]) { asked[ai] = g_epoch_req_t[ai] = now ? now : 1; asked_missing[ai] = missing; return; }
     }
     if (!prefarm && (int)(FIELD(cm, 0x58, uint32_t) - now) > 10 * 60000) return;
     ((void (__thiscall *)(void *, int))0x004860D6)(FIELD(cm, 0x40, void *), missing);
     cm[0x76] = 1;
-    asked[ai] = now ? now : 1;
+    asked[ai] = g_epoch_req_t[ai] = now ? now : 1;
     asked_missing[ai] = missing;
     if (g_log) fprintf(g_log, "# epoch plan: P%u at %.1f min asks for %d new things for epoch %d\n", ai, now / 60000.0,
                        missing, FIELD(tt, TT_EPOCH, int) + 1);
@@ -718,10 +721,10 @@ static void econ_tick(void *pl, uint32_t now) {
     uint8_t *cm = FIELD(pl, 0xB90, uint8_t *);
     // AttemptEpochAdvance (0x46C966) asks the research manager once for the techs the next epoch requires
     // (record +0x40 needed, +0x48 done) and then waits while cm+0x76 is set; re-arm it after 5 minutes.
-    static uint32_t pending_since[16];
+    uint32_t *pending_since = g_epoch_req_t;   // shared with early_requirements' renewal
     unsigned pi = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     if (cm && cm[0x76]) {
-        if (!pending_since[pi] || now < pending_since[pi]) pending_since[pi] = now;
+        if (!pending_since[pi] || now < pending_since[pi]) pending_since[pi] = now ? now : 1;
         else if (now - pending_since[pi] > 5 * 60000) {
             cm[0x76] = 0;
             pending_since[pi] = 0;
