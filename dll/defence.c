@@ -305,9 +305,8 @@ static int g_csiege = 1;
 static unsigned g_csiege_orders[16], g_csiege_skipped[16];
 static int is_soldier(uint8_t *td) {
     int fam = FIELD(td, 0x4B4, int), type = FIELD(td, 0x4B8, int);
-    if (fam == 2 || fam == 6 || fam == 0x13 || fam == 0x16 || fam == 0x18 || fam == 0x19 || fam == 0x1D || fam == 0 || fam == 1)
-        return 0;
-    return !is_siege(type) && !is_ram(type) && type != 32 && type != 480;
+    if (!is_army_family(fam)) return 0;
+    return !is_siege(type) && !is_ram(type) && !is_citizen_type(type);
 }
 struct cs_scan {
     void *pl;
@@ -329,11 +328,11 @@ static void cs_unit(uint8_t *u, void *ctx) {
     if (owner == s->pl) {
         if ((fam == 2 || fam == 29) && s->nb < 256) { s->bx[s->nb] = x; s->by[s->nb++] = y; }
         else if (is_soldier(td) && s->ns < 128) s->sold[s->ns++] = u;
-        else if ((type == 32 || type == 480) && s->nc < 128) { s->civ[s->nc] = u; s->cx[s->nc] = x; s->cy[s->nc++] = y; }
+        else if (is_citizen_type(type) && s->nc < 128) { s->civ[s->nc] = u; s->cx[s->nc] = x; s->cy[s->nc++] = y; }
     } else if (is_enemy(s->pl, owner)) {
         uint8_t *bs = FIELD(u, 0x30, uint8_t *);
         float r, a;
-        if ((is_soldier(td) || type == 32 || type == 480) && s->nu < 128 && seen_by(u, s->pl)) s->eu[s->nu++] = u;
+        if ((is_soldier(td) || is_citizen_type(type)) && s->nu < 128 && seen_by(u, s->pl)) s->eu[s->nu++] = u;
         if ((is_siege(type) || is_ram(type)) && s->ne < 16 && seen_by(u, s->pl)) s->esiege[s->ne++] = u;
         else if ((fam == 2 || fam == 29) && bs && !FIELD(bs, 0x340, uint8_t) && s->nt < 16 && defence_stats(u, &r, &a) &&
                  seen_by(u, s->pl)) s->etow[s->nt++] = u;
@@ -1102,7 +1101,7 @@ static void basemap_unit(uint8_t *u, void *ctx) {
     else if (defence_stats(u, &r, &a)) ch = 'T';
     else if (type == 35 || type == 41 || type == 43 || type == 395) ch = 'C';
     else if (fam == 2 || fam == 29) ch = 'b';
-    else if (type == 32 || type == 480) ch = 'c';
+    else if (is_citizen_type(type)) ch = 'c';
     else ch = 's';
     static const char prio[] = ".mcs0123456789bWGCT";   // what wins when several things share a tile
     if (strchr(prio, ch) > strchr(prio, *cell)) *cell = ch;

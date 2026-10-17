@@ -20,24 +20,18 @@ static void bk_unit(uint8_t *u, void *ctx) {
     int dx = FIELD(u, 0x1C, int) - b->x, dy = FIELD(u, 0x20, int) - b->y, t = FIELD(td, 0x4B8, int);
     if (FIELD(u, 0x18, void *) != b->pl || FIELD(u, 0x3C, int) <= 0 || dx * dx + dy * dy > b->r * b->r) return;
     if (bk_capacity(u) > 0 && b->nf < 8) b->f[b->nf++] = u;
-    else if ((t == 32 || t == 480) && b->nc < 128) b->c[b->nc++] = u;
+    else if (is_citizen_type(t) && b->nc < 128) b->c[b->nc++] = u;
 }
 // the holder loads these units (each walks in): 1 if ordered
 static int bk_load(uint8_t *f, uint8_t **units, int n) {
     if (!n) return 0;
-    uint8_t *vec[4] = { 0, (uint8_t *)units, (uint8_t *)(units + n), (uint8_t *)(units + n) };
-    void *g = ((void *(__cdecl *)(unsigned))0x00683718)(0x68);
-    if (g) g = ((void *(__thiscall *)(void *, void *, void *, int))0x0061487F)(g, f, vec, 1);
-    if (!g || !unit_goal(f, g, 0, 0x1F40)) return 0;   // refused: deleted by unit_goal, no parts from it
-    for (int j = 0; j < n; j++) {
-        void *pg = ((void *(__thiscall *)(void *))(*(void ***)g)[4])(g);
-        unit_goal(units[j], pg, 0, 0x1F40);
-    }
+    void *g = goal_load(f, units, n);
+    if (!g) return 0;   // refused: deleted by unit_goal, no parts from it
+    for (int j = 0; j < n; j++) unit_goal(units[j], goal_load_part(g), 0, 0x1F40);
     return 1;
 }
 static int bk_unload(uint8_t *f, int x, int y) {
-    void *g = ((void *(__cdecl *)(unsigned))0x00683718)(0x40);
-    if (g) g = ((void *(__thiscall *)(void *, void *, int, int, int))0x00615A1F)(g, f, x, y, 1);
+    void *g = goal_unload(f, x, y, 1);
     return g ? unit_goal(f, g, 0, 0x1F40) : 0;
 }
 

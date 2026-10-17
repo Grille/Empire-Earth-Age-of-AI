@@ -496,13 +496,12 @@ static int ld_pidx(uint8_t *u) { uint8_t *o = FIELD(u, 0x18, uint8_t *); return 
 static int ld_hits(uint8_t *a, uint8_t *t) {   // can a hit t (the game's table)
     return a && t && ld_factor(FIELD(a, 0x2C, uint8_t *), ld_pidx(a), FIELD(t, 0x2C, uint8_t *), ld_pidx(t)) > 0.0f;
 }
-static int ld_flies(uint8_t *u) { int fam = FIELD(FIELD(u, 0x2C, uint8_t *), 0x4B4, int); return fam == 3 || fam == 7 || fam == 17; }
 // an enemy (seen) afloat or in the air that hits the transport type trtd (of player index tpi)
 static int ld_sea_foe(void *pl, uint8_t *u, uint8_t *trtd, int tpi) {
     void *o = FIELD(u, 0x18, void *);
     int x = FIELD(u, 0x1C, int), y = FIELD(u, 0x20, int);
     if (!o || FIELD(o, PL_INDEX, int) <= 0 || FIELD(u, 0x3C, int) <= 0 || x < 0 || !is_enemy(pl, o)) return 0;
-    if (!ld_flies(u) && !area_id(x, y, 1)) return 0;   // on land: the beach's defence counts it
+    if (!ld_is_air(u) && !area_id(x, y, 1)) return 0;   // on land: the beach's defence counts it
     return ld_factor(FIELD(u, 0x2C, uint8_t *), ld_pidx(u), trtd, tpi) > 0.0f && seen_by(u, pl);
 }
 // the threats on the way over: within 10 tiles of the line from (x0, y0) to the water in front of the beach, every
@@ -511,7 +510,7 @@ struct ld_sea_scan { void *pl; uint8_t *trtd; int tpi, npt, px[48], py[48], sx, 
 static void ld_sea_unit(uint8_t *u, void *ctx) {
     struct ld_sea_scan *c = ctx;
     if (!ld_sea_foe(c->pl, u, c->trtd, c->tpi)) return;
-    int x = FIELD(u, 0x1C, int), y = FIELD(u, 0x20, int), on = 0, air = ld_flies(u);
+    int x = FIELD(u, 0x1C, int), y = FIELD(u, 0x20, int), on = 0, air = ld_is_air(u);
     if (air) on = (x - c->sx) * (x - c->sx) + (y - c->sy) * (y - c->sy) <= 625;
     for (int q = 0; q < c->npt && !on; q++) on = (x - c->px[q]) * (x - c->px[q]) + (y - c->py[q]) * (y - c->py[q]) <= 100;
     if (!on) return;
@@ -607,7 +606,7 @@ static void ld_escorts(void *pl, struct landing *l) {
         uint8_t *trtd = ld_tr_td(l);
         uint8_t *h = ld_hunt(pl, l->wx, l->wy, 16, u, trtd);
         if (!h && l->meet) h = ld_hunt(pl, (l->wx + l->ewx) / 2, (l->wy + l->ewy) / 2, 14, u, trtd);
-        if (!h && ld_flies(u)) h = ld_hunt(pl, l->sx, l->sy, 16, u, trtd);
+        if (!h && ld_is_air(u)) h = ld_hunt(pl, l->sx, l->sy, 16, u, trtd);
         if (!h) h = ld_hunt(pl, ux, uy, 12, u, trtd);
         if (h) { l->orders += unit_goal(u, goal_attack(u, h), 0, 0x1F40); continue; }
         if (ld_is_air(u)) {   // aircraft: the beach's defences, its soldiers, else over the beach
@@ -659,9 +658,7 @@ static void ld_unload_home(struct landing *l) {
                 for (int dy = -d; dy <= d && ux < 0; dy += (abs(dx) == d ? 1 : 2 * d))
                     if (area_id(x0 + dx, y0 + dy, 2) && !area_id(x0 + dx, y0 + dy, 1) && ld_tile_free(x0 + dx, y0 + dy)) { ux = x0 + dx; uy = y0 + dy; }
         if (ux < 0) continue;
-        void *g = ((void *(__cdecl *)(unsigned))0x00683718)(0x40);
-        if (g) g = ((void *(__thiscall *)(void *, void *, int, int, int))0x00615A1F)(g, sh, ux, uy, g_land_flag);
-        l->orders += unit_goal(sh, g, 0, 0x1F40);
+        l->orders += unit_goal(sh, goal_unload(sh, ux, uy, g_land_flag), 0, 0x1F40);
     }
 }
 
@@ -708,11 +705,7 @@ static int ld_shore_tile(struct landing *l, int k, int x, int y, int ax, int ay,
             }
     return 0;
 }
-static void *ld_unload(uint8_t *sh, int x, int y) {
-    void *g = ((void *(__cdecl *)(unsigned))0x00683718)(0x40);
-    if (g) g = ((void *(__thiscall *)(void *, void *, int, int, int))0x00615A1F)(g, sh, x, y, g_land_flag);
-    return g;
-}
+static void *ld_unload(uint8_t *sh, int x, int y) { return goal_unload(sh, x, y, g_land_flag); }
 // the run in: each transport its own point on the beach, 4+ tiles apart (3 when the beach is short of room): with
 // one point for all, the first put its soldiers there and the unload of the next ended at once (no room), soldiers
 // aboard, the transport idle off the beach
@@ -771,7 +764,7 @@ struct ld_cits { void *pl; int x, y, n; uint8_t *u[32]; int d[32]; };
 static void ld_cit_unit(uint8_t *u, void *ctx) {
     struct ld_cits *c = ctx;
     int t = FIELD(FIELD(u, 0x2C, uint8_t *), 0x4B8, int);
-    if (FIELD(u, 0x18, void *) != c->pl || (t != 32 && t != 480) || FIELD(u, 0x3C, int) <= 0 || FIELD(u, 0x1C, int) < 0 || c->n >= 32) return;
+    if (FIELD(u, 0x18, void *) != c->pl || !is_citizen_type(t) || FIELD(u, 0x3C, int) <= 0 || FIELD(u, 0x1C, int) < 0 || c->n >= 32) return;
     int dx = FIELD(u, 0x1C, int) - c->x, dy = FIELD(u, 0x20, int) - c->y, d = dx * dx + dy * dy;
     if (d > 625) return;
     c->u[c->n] = u; c->d[c->n++] = d;
@@ -1112,17 +1105,11 @@ static void ld_wave(void *pl, unsigned pi, struct landing *l, uint8_t *dq, unsig
             uint8_t *list[LD_PASS]; int m = 0;
             for (int j = k * per; j < (k + 1) * per && j < l->nw; j++) if (!ld_aboard(l->wpass[j])) list[m++] = l->wpass[j];
             if (!m) continue;
-            uint8_t *vec[4] = { 0, (uint8_t *)list, (uint8_t *)(list + m), (uint8_t *)(list + m) };
-            void *g = ((void *(__cdecl *)(unsigned))0x00683718)(0x68);
-            if (!g) continue;
-            g = ((void *(__thiscall *)(void *, void *, void *, int))0x0061487F)(g, l->ships[k], vec, 1);
-            if (!unit_goal(l->ships[k], g, 0, 0x1F40)) continue;   // refused: deleted, no parts from it
+            void *g = goal_load(l->ships[k], list, m);
+            if (!g) continue;   // refused: deleted, no parts from it
             l->orders++;
-            for (int j = k * per; j < (k + 1) * per && j < l->nw; j++) {
-                if (ld_aboard(l->wpass[j])) continue;
-                void *pg = ((void *(__thiscall *)(void *))(*(void ***)g)[4])(g);
-                l->orders += unit_goal(l->wpass[j], pg, 0, 0x1F40);
-            }
+            for (int j = k * per; j < (k + 1) * per && j < l->nw; j++)
+                if (!ld_aboard(l->wpass[j])) l->orders += unit_goal(l->wpass[j], goal_load_part(g), 0, 0x1F40);
         }
         return;
     }
@@ -1718,21 +1705,14 @@ static void landing_tick(void *pl, uint32_t now) {
             for (int j = lo; j < hi; j++) if (!ld_aboard(l->pass[j])) list[m++] = l->pass[j];
             for (int j = 0; j < l->ncit && !k; j++) if (ld_alive(l->cit[j]) && !ld_aboard(l->cit[j])) list[m++] = l->cit[j];   // the citizens with the first
             if (!m) continue;
-            uint8_t *vec[4] = { 0, (uint8_t *)list, (uint8_t *)(list + m), (uint8_t *)(list + m) };
-            void *g = ((void *(__cdecl *)(unsigned))0x00683718)(0x68);
-            if (!g) continue;
-            g = ((void *(__thiscall *)(void *, void *, void *, int))0x0061487F)(g, l->ships[k], vec, 1);
-            if (!unit_goal(l->ships[k], g, 0, 0x1F40)) continue;   // refused: deleted, no parts from it
+            void *g = goal_load(l->ships[k], list, m);
+            if (!g) continue;   // refused: deleted, no parts from it
             l->orders++;
-            for (int j = 0; j < l->ncit && !k; j++) {
-                if (!ld_alive(l->cit[j]) || ld_aboard(l->cit[j])) continue;
-                void *pg = ((void *(__thiscall *)(void *))(*(void ***)g)[4])(g);
-                l->orders += unit_goal(l->cit[j], pg, 0, 0x1F40);
-            }
+            for (int j = 0; j < l->ncit && !k; j++)
+                if (ld_alive(l->cit[j]) && !ld_aboard(l->cit[j])) l->orders += unit_goal(l->cit[j], goal_load_part(g), 0, 0x1F40);
             for (int j = lo; j < hi; j++) {
                 if (ld_aboard(l->pass[j])) continue;
-                void *pg = ((void *(__thiscall *)(void *))(*(void ***)g)[4])(g);
-                l->orders += unit_goal(l->pass[j], pg, 0, 0x1F40);
+                l->orders += unit_goal(l->pass[j], goal_load_part(g), 0, 0x1F40);
             }
         }
         return;
@@ -1855,7 +1835,7 @@ static uint8_t *ld_raid_target(void *pl, uint8_t *target, int x, int y, int r) {
                 int fam = FIELD(td, 0x4B4, int), type = FIELD(td, 0x4B8, int), k;
                 if (fam == 3 || fam == 7 || fam == 17 || fam == 4) continue;   // aircraft, ships
                 if (is_soldier(td) || is_siege(type)) { if (d2 > 64.0f) continue; k = 0; }
-                else if (type == 32 || type == 480) k = 1;   // citizens
+                else if (is_citizen_type(type)) k = 1;   // citizens
                 else if (defence_stats(u, &rr, &a)) { if (d2 > (rr + 1.0f) * (rr + 1.0f)) continue; k = 3; }
                 else if (o == target && (fam == 2 || fam == 29) && !is_wall(type) && d2 <= 64.0f) k = 2;
                 else continue;
@@ -2090,15 +2070,10 @@ static void cmd_board(char *out, const char *args) {
         int n = ((int (__thiscall *)(void *))0x0042E347)(sh);
         REPLY("transport type %d at %d,%d holds %d", FIELD(FIELD(sh, 0x2C, uint8_t *), 0x4B8, int), FIELD(sh, 0x1C, int), FIELD(sh, 0x20, int), n);
         if (!n && b.ns) {
-            uint8_t *vec[4] = { 0, (uint8_t *)b.s, (uint8_t *)(b.s + b.ns), (uint8_t *)(b.s + b.ns) };
-            void *g = ((void *(__cdecl *)(unsigned))0x00683718)(0x68);
-            if (g) g = ((void *(__thiscall *)(void *, void *, void *, int))0x0061487F)(g, sh, vec, 1);
-            if (g && unit_goal(sh, g, 0, 0x1F40)) {   // refused: deleted, no parts from it
-                for (int j = 0; j < b.ns; j++) {
-                    if (ld_aboard(b.s[j])) continue;
-                    void *pg = ((void *(__thiscall *)(void *))(*(void ***)g)[4])(g);
-                    unit_goal(b.s[j], pg, 0, 0x1F40);
-                }
+            void *g = goal_load(sh, b.s, b.ns);
+            if (g) {   // refused: deleted, no parts from it
+                for (int j = 0; j < b.ns; j++)
+                    if (!ld_aboard(b.s[j])) unit_goal(b.s[j], goal_load_part(g), 0, 0x1F40);
                 REPLY(" - loads %d", b.ns);
             }
             b.ns = 0;   // the next transport: the rest later

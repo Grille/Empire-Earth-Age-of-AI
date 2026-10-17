@@ -461,6 +461,9 @@ static struct { unsigned skipped, logged; } g_leash_stats[16];
 static int g_siege = 1;               // aimod.ini [all] attack_siege (siege controller below; also rams here)
 static unsigned g_ram_waits, g_air_skips;
 static int g_ignore_air = 1;          // aimod.ini [all] attack_ignore_air
+// a unit family of the army (soldiers, siege, ships, aircraft ... - not buildings, walls, towers, gates, resources):
+// the families as in the statistics code 0x5EB000/0x55DD66
+static int is_army_family(int fam) { return !(fam == 2 || fam == 6 || fam == 0x13 || fam == 0x16 || fam == 0x18 || fam == 0x19 || fam == 0x1D || fam == 0 || fam == 1); }
 static int is_ram(int type) { return type == 102 || type == 287 || type == 158; }
 
 // Enemy soldiers (no citizens, no siege) of player pl's enemies within r tiles of (x, y)?
@@ -480,7 +483,7 @@ static int guarded(void *pl, int x, int y, int r) {
                 if (!td || FIELD(td, 0x4B4, int) != 5 || FIELD(u, 0x3C, int) <= 0 || !is_enemy(pl, FIELD(u, 0x18, void *)))
                     continue;
                 int t = FIELD(td, 0x4B8, int);
-                if (t == 32 || t == 480 || is_ram(t) || (t >= 102 && t <= 107) || t == 141 || t == 142 || t == 602 || t == 603)
+                if (is_citizen_type(t) || is_ram(t) || (t >= 102 && t <= 107) || t == 141 || t == 142 || t == 602 || t == 603)
                     continue;
                 int dx = FIELD(u, 0x1C, int) - x, dy = FIELD(u, 0x20, int) - y;
                 if (dx * dx + dy * dy <= r * r) return 1;
@@ -586,13 +589,10 @@ static int army_size(void *pl) {
         for (uint8_t **b = FIELD(cells + c * 16, 4, uint8_t **); b && b < FIELD(cells + c * 16, 8, uint8_t **); b++) {
             uint8_t *u = *b, *td = u ? FIELD(u, 0x2C, uint8_t *) : NULL;
             if (!td || FIELD(u, 0x18, void *) != pl) continue;
-            // units only sit in the cell of their position; families as in the statistics code 0x5EB000/0x55DD66
+            // units only sit in the cell of their position
             if (FIELD(u, 0x1C, int) / FIELD(grid, 8, int) != (int)(c / FIELD(grid, 0x14, unsigned)) ||
                 FIELD(u, 0x20, int) / FIELD(grid, 8, int) != (int)(c % FIELD(grid, 0x14, unsigned))) continue;
-            int fam = FIELD(td, 0x4B4, int);
-            if (fam == 2 || fam == 6 || fam == 0x13 || fam == 0x16 || fam == 0x18 || fam == 0x19 || fam == 0x1D || fam == 0 || fam == 1)
-                continue;
-            n++;
+            if (is_army_family(FIELD(td, 0x4B4, int))) n++;
         }
     return n;
 }
@@ -654,6 +654,22 @@ static int unit_goal(uint8_t *u, void *goal, int append, int prio) {
 static void *goal_attack(uint8_t *u, uint8_t *target) {
     void *g = ((void *(__cdecl *)(unsigned))0x00683718)(0x40);
     return g ? ((void *(__thiscall *)(void *, void *, void *, int))0x0060AD45)(g, u, target, 1) : NULL;
+}
+
+// a transport's (or a fortress's) load goal (EEUGLoadTransport, engine-notes.md: new(0x68), 0x61487F with the units'
+// vector - sorted in place) given to holder; NULL when it could not be made or holder refused it (deleted by
+// unit_goal: no parts from it). Each unit to walk in then gets goal_load_part(g) - its vf4 product.
+static void *goal_load(uint8_t *holder, uint8_t **units, int n) {
+    uint8_t *vec[4] = { 0, (uint8_t *)units, (uint8_t *)(units + n), (uint8_t *)(units + n) };
+    void *g = ((void *(__cdecl *)(unsigned))0x00683718)(0x68);
+    if (g) g = ((void *(__thiscall *)(void *, void *, void *, int))0x0061487F)(g, holder, vec, 1);
+    return g && unit_goal(holder, g, 0, 0x1F40) ? g : NULL;
+}
+static void *goal_load_part(void *g) { return ((void *(__thiscall *)(void *))(*(void ***)g)[4])(g); }
+// an unload goal at x, y (EEUGUnloadTransport: new(0x40), 0x615A1F; flag 1 as the AI passes it), not given yet
+static void *goal_unload(uint8_t *holder, int x, int y, int flag) {
+    void *g = ((void *(__cdecl *)(unsigned))0x00683718)(0x40);
+    return g ? ((void *(__thiscall *)(void *, void *, int, int, int))0x00615A1F)(g, holder, x, y, flag) : NULL;
 }
 
 static void *goal_move(float x, float y) {
@@ -726,7 +742,7 @@ static int raiders_near(void *pl, int x, int y, int r0) {
                 uint8_t *u = *b, *td = u ? FIELD(u, 0x2C, uint8_t *) : NULL;
                 if (!td || FIELD(u, 0x3C, int) <= 0 || abs(FIELD(u, 0x1C, int) - x) > r || abs(FIELD(u, 0x20, int) - y) > r) continue;
                 int fam = FIELD(td, 0x4B4, int), t = FIELD(td, 0x4B8, int);
-                if ((fam != 5 && fam != 4 && !(g_cit_threats && fam == 10)) || t == 32 || t == 480 || FIELD(td, 0x510, int) <= 0) continue;
+                if ((fam != 5 && fam != 4 && !(g_cit_threats && fam == 10)) || is_citizen_type(t) || FIELD(td, 0x510, int) <= 0) continue;
                 uint8_t *st = FIELD(u, 0x34, uint8_t *);
                 float rng = st ? FIELD(st, 0x9C, float) : FIELD(td, 0x420, float);
                 int reach = rng > 0.0f && rng < 30.0f ? (int)(rng + 0.5f) + RAID_MARGIN : 0;
@@ -948,7 +964,7 @@ static void citizens_safety(uint8_t *rm) {   // before the citizen assignment
         for (int ci = 0; ci < cells; ci++)
             for (uint8_t **bp = FIELD(cl + ci * 16, 4, uint8_t **); bp && bp < FIELD(cl + ci * 16, 8, uint8_t **); bp++) {
                 uint8_t *u = *bp, *td = u ? FIELD(u, 0x2C, uint8_t *) : NULL;
-                if (!td || FIELD(u, 0x18, void *) != pl || FIELD(u, 0x3C, int) <= 0 || (FIELD(td, 0x4B8, int) != 32 && FIELD(td, 0x4B8, int) != 480)) continue;
+                if (!td || FIELD(u, 0x18, void *) != pl || FIELD(u, 0x3C, int) <= 0 || !is_citizen_type(FIELD(td, 0x4B8, int))) continue;
                 uint8_t *g = FIELD(u, 0x1EC, uint8_t *);
                 const char *gd = g ? rtti_name(g) : "";
                 int k = !g ? 5 : !strcmp(gd, "EEUGGather@@") ? 0 : !strcmp(gd, "EEUGBuildRepair@@") ? 1 :
@@ -1841,7 +1857,7 @@ static void cmd_build(char *out, const char *args) {
                 if (!td || FIELD(u, 0x18, void *) != pl || FIELD(u, 0x3C, int) <= 0) continue;
                 int t = FIELD(td, 0x4B8, int), ux = FIELD(u, 0x1C, int), uy = FIELD(u, 0x20, int);
                 if (ux == bx && uy == by && (FIELD(td, 0x4B4, int) == 2 || FIELD(td, 0x4B4, int) == 29)) bld = u;
-                else if ((t == 32 || t == 480) && abs(ux - x) <= r && abs(uy - y) <= r && nc < 32) {
+                else if (is_citizen_type(t) && abs(ux - x) <= r && abs(uy - y) <= r && nc < 32) {
                     int dup = 0;
                     for (int k = 0; k < nc; k++) dup |= civ[k] == u;
                     if (!dup) civ[nc++] = u;
@@ -1938,8 +1954,7 @@ static void units_of(int p, int want, struct w_scan *o) {   // want: 0 soldiers 
             if (!td || !owner || FIELD(owner, PL_INDEX, int) != p || FIELD(u, 0x3C, int) <= 0) continue;
             if (FIELD(u, 0x1C, int) / cs != (int)(c / ny) || FIELD(u, 0x20, int) / cs != (int)(c % ny)) continue;
             int fam = FIELD(td, 0x4B4, int), ty = FIELD(td, 0x4B8, int);
-            int civ = ty == 32 || ty == 480, sold = !civ && !(fam == 2 || fam == 6 || fam == 0x13 || fam == 0x16 ||
-                fam == 0x18 || fam == 0x19 || fam == 0x1D || fam == 0 || fam == 1);
+            int civ = is_citizen_type(ty), sold = !civ && is_army_family(fam);
             if (want == 2 ? !civ : want == 1 ? civ || sold : !sold) continue;   // 1: the rest - buildings, walls, towers
             if (o->n < 1024) o->u[o->n++] = u;
         }
@@ -2105,9 +2120,7 @@ static void cmd_army(char *out, const char *args) {
             if (!td || !owner || FIELD(owner, PL_INDEX, int) != p) continue;
             if (FIELD(u, 0x1C, int) / FIELD(grid, 8, int) != (int)(c / FIELD(grid, 0x14, unsigned)) ||
                 FIELD(u, 0x20, int) / FIELD(grid, 8, int) != (int)(c % FIELD(grid, 0x14, unsigned))) continue;
-            int fam = FIELD(td, 0x4B4, int);
-            if (fam == 2 || fam == 6 || fam == 0x13 || fam == 0x16 || fam == 0x18 || fam == 0x19 || fam == 0x1D || fam == 0 || fam == 1)
-                continue;
+            if (!is_army_family(FIELD(td, 0x4B4, int))) continue;
             if (only >= 0 && FIELD(td, 0x4B8, int) != only) continue;
             const char *gn = rtti_name(FIELD(u, 0x1EC, void *));
             int j = 0;

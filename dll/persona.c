@@ -418,6 +418,10 @@ static struct persona *persona_of(void *pl) {
     return i >= 0 ? &g_personas[i] : NULL;
 }
 static int trait(void *pl, enum trait t) { struct persona *p = persona_of(pl); return p ? p->trait[t] : 50; }
+// resources one point of pl's opinion is worth (tributes, peace terms): 20 for the greediest, 100 without greed
+static float tribute_worth(void *pl) { return 20.0f + 0.8f * (float)(100 - trait(pl, T_GREED)); }
+// the share of each resource pl offers in a capitulation, by its caution and greed
+static float capit_share(void *pl) { return 0.2f + (float)trait(pl, T_CAUTION) / 400.0f + (float)(100 - trait(pl, T_GREED)) / 400.0f; }
 // A situation without a line falls back to a more general one; then computer.eeai.
 static int line_fallback(int k) {
     switch (k) {

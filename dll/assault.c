@@ -320,7 +320,7 @@ static void assault_tick(void *pl, uint32_t now) {
                 if (!td || FIELD(u, 0x3C, int) <= 0) continue;
                 if (FIELD(u, 0x1C, int) < 0) { aboard = 1; continue; }
                 if (!cont_ok(FIELD(u, 0x1C, int), FIELD(u, 0x20, int), hc)) { aboard = 1; continue; }   // landed elsewhere
-                if (FIELD(td, 0x4B8, int) == 32 || FIELD(td, 0x4B8, int) == 480) continue;
+                if (is_citizen_type(FIELD(td, 0x4B8, int))) continue;
                 if (n < 512) mem[n++] = u;
             }
             if (aboard) { n = m0; continue; }

@@ -502,9 +502,11 @@ static int block_member(int i) {
     if (!p || is_out(p)) return 0;
     return !(g_rm.map[0] && !g_block_observer && i == *(int *)G_LOCAL_PLAYER);
 }
-static int mutual(int a, int b) {
-    return block_member(a) && block_member(b) && !stance_of(player_at(a), b) && !stance_of(player_at(b), a);
+static int allied_with(int a, int b) {   // allied both ways (stance 0 each way)
+    void *pa = player_at(a), *pb = player_at(b);
+    return pa && pb && !stance_of(pa, b) && !stance_of(pb, a);
 }
+static int mutual(int a, int b) { return block_member(a) && block_member(b) && allied_with(a, b); }
 static void blocks_compute(int *blk) {
     int n = nplayers();
     for (int i = 0; i < 16; i++) blk[i] = i < n && i > 0 && block_member(i) ? i : 0;
@@ -700,7 +702,7 @@ static int peace_terms(int ai, int j, char *out, int cap) {
         tsub(out, cap, tpl_text("terms_none"), pl, pj, NULL);
         return 1;
     }
-    int price = ((int)(need * (20.0f + 0.8f * (float)(100 - trait(pl, T_GREED)))) + 49) / 50 * 50;
+    int price = ((int)(need * tribute_worth(pl)) + 49) / 50 * 50;
     char n[16];
     tsub(out, cap, tpl_text("terms_price"), pl, pj, "price", tnum(n, price), NULL);
     return price;
@@ -709,7 +711,7 @@ static int peace_terms(int ai, int j, char *out, int cap) {
 // what AI ai would offer in a capitulation: a share of each resource by its caution and greed (out: [2..6])
 static int capit_offer(void *pl, int *out) {
     int *stock = (int *)((uint8_t *)pl + PL_STOCK), total = 0;
-    float share = 0.2f + (float)trait(pl, T_CAUTION) / 400.0f + (float)(100 - trait(pl, T_GREED)) / 400.0f;
+    float share = capit_share(pl);
     for (int r = 2; r < 7; r++) total += out[r] = stock[r] > 0 ? (int)((float)stock[r] * share) : 0;
     return total;
 }
@@ -937,7 +939,7 @@ static int pay_promise(int ai, int j, int *paid) {   // what was offered, as far
 static void capitulate(void *pl, int ai, int a, uint32_t now) {
     void *pa = player_at(a);
     int total = capit_offer(pl, g_promise[ai]);
-    float share = 0.2f + (float)trait(pl, T_CAUTION) / 400.0f + (float)(100 - trait(pl, T_GREED)) / 400.0f;
+    float share = capit_share(pl);
     g_capit_last[ai] = now ? now : 1;
     memcpy(g_say_tribute, g_promise[ai], sizeof g_say_tribute);
     if (g_log) fprintf(g_log, "# diplomacy: P%d at %.1f min capitulates to P%d (%s): %d resources (%.0f%%), power %.0f vs %.0f, "
@@ -954,7 +956,7 @@ static void capitulate(void *pl, int ai, int a, uint32_t now) {
         return;
     }
     if (g_players[a]) {   // an AI conqueror decides at once: peace score + what the tribute is worth to it
-        float gain = (float)total / (20.0f + 0.8f * (float)(100 - trait(pa, T_GREED)));
+        float gain = (float)total / tribute_worth(pa);
         float s = peace_score(pa, a, ai, now) + gain;
         if (s > 0 && block_veto(ai, a, now, NULL)) s = -1;   // its side and the capitulating side can't be one block
         if (g_log) fprintf(g_log, "# diplomacy: P%d answers: score %.0f (tribute worth %.0f)\n", a, s, gain);
@@ -1001,7 +1003,7 @@ static void ai_offer_rules(int from, int to) {
     if (g_offer_kind[from][to] == 1) {
         int total = 0;
         for (int r = 2; r < 7; r++) total += g_promise[from][r];
-        s += (float)total / (20.0f + 0.8f * (float)(100 - trait(pt, T_GREED)));
+        s += (float)total / tribute_worth(pt);
     } else s += 15;
     if (s > 0 && block_veto(to, from, now, NULL)) s = -1;
     if (g_log) fprintf(g_log, "# diplomacy: P%d answers the %s of P%d by the rules: score %.0f\n", to,
@@ -1199,9 +1201,8 @@ static uint8_t g_rep_prev[16][16];   // [x][y]: allied both ways at the last loo
 static int g_rep_seen;
 
 
-static int allied_both(int x, int y) {
-    void *px = player_at(x), *py = player_at(y);
-    return px && py && !is_out(px) && !is_out(py) && !stance_of(px, y) && !stance_of(py, x);
+static int allied_both(int x, int y) {   // allied both ways, both still in
+    return allied_with(x, y) && !is_out(player_at(x)) && !is_out(player_at(y));
 }
 static void reputation_pass(uint32_t now) {
     int n = nplayers();
@@ -1426,7 +1427,7 @@ static void diplo_new_game(void) {
 static void diplo_tribute(void *to, void *from, int total) {
     if (!to || !from || to == from || !g_players[pidx(to)] || total <= 0) return;
     int ai = pidx(to), j = pidx(from);
-    float gain = (float)total / (20.0f + 0.8f * (float)(100 - trait(to, T_GREED)));
+    float gain = (float)total / tribute_worth(to);
     opinion_add(ai, j, gain);
     if (g_log) fprintf(g_log, "# diplomacy: P%d receives %d tribute from P%d: opinion +%.0f -> %.0f\n", ai, total, j, gain, g_opinion[ai][j]);
     if (j == (int)*(unsigned *)G_LOCAL_PLAYER) { char n[16], e[300]; tsub(e, sizeof e, tpl_text("ev_tribute_in"), to, from, "total", tnum(n, total), NULL); llm_happened(ai, "%s", e); }
@@ -1464,10 +1465,6 @@ static void __fastcall hook_tribute(uint8_t *msg, void *edx) {
 #define STATE_STD_VICTORY ((uint8_t *)GAME_STATE + 0xB96)
 static int g_auto_victory = 1;
 
-static int allied_with(int a, int b) {
-    void *pa = player_at(a), *pb = player_at(b);
-    return pa && pb && !stance_of(pa, b) && !stance_of(pb, a);
-}
 static int can_claim(int me) {   // everyone else still in is allied with me (vassals included), or nobody is left
     void *pm = player_at(me);
     if (!pm || me < 1 || me > 15 || is_out(pm)) return 0;

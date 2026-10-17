@@ -221,7 +221,7 @@ static float st_ratio(struct st_side *own, struct st_side *foe) {
 
 struct st_scan { int x, y, r2, ta, tb; struct st_side *side[16]; };
 static int st_counts(uint8_t *u, uint8_t *td) {   // soldiers, citizens and buildings that shoot
-    if (FIELD(td, 0x4B8, int) == 32 || FIELD(td, 0x4B8, int) == 480) return 1;
+    if (is_citizen_type(FIELD(td, 0x4B8, int))) return 1;
     if (is_soldier(td)) return 1;
     return (FIELD(td, 0x4B4, int) == 2 || FIELD(td, 0x4B4, int) == 29) && FIELD(td, 0x510, int) > 0 && u;
 }
@@ -414,7 +414,7 @@ static void cmd_stats(char *out, const char *args) {
                 uint8_t *u = *bp, *td = u ? FIELD(u, 0x2C, uint8_t *) : NULL;
                 int q = u ? st_pidx(u) : 0;
                 if (!td || FIELD(u, 0x3C, int) <= 0 || q <= 0 || q > 15) continue;
-                if (q == p && (FIELD(td, 0x4B8, int) == 32 || FIELD(td, 0x4B8, int) == 480)) { if (nc < 4096) cit[nc++] = u; }
+                if (q == p && is_citizen_type(FIELD(td, 0x4B8, int))) { if (nc < 4096) cit[nc++] = u; }
                 else if (q != p && is_enemy(st_player(p), st_player(q)) && FIELD(td, 0x510, int) > 0 && nf < 4096) foe[nf++] = u;
             }
         for (int i = 0; i < nc; i++) {

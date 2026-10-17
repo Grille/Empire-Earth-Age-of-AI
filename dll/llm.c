@@ -923,6 +923,25 @@ static int tool_tribute_ok(int ai, uint32_t now) {   // every 3 minutes
     return !g_llm_constrained || !g_llm_paid_t[ai] || now - g_llm_paid_t[ai] >= 180000;
 }
 static int tribute_cap(int have) { return have <= 0 ? 0 : g_llm_constrained ? have / 4 : have; }   // a quarter of each
+// a tribute the model chose (send_tribute): amt by resource (stock index 2..6), each capped by tribute_cap, moved from
+// pl's stock to ph's; the total paid (noted in the history, what = the amounts' text) or 0
+static int llm_pay(void *pl, void *ph, int ai, int h, const int *amt, uint32_t now, char *what, int wcap) {
+    int *from = (int *)((uint8_t *)pl + PL_STOCK), *to = (int *)((uint8_t *)ph + PL_STOCK), paid[7] = { 0 }, total = 0;
+    for (int r = 2; r < 7; r++) {
+        int n = amt[r], cap = tribute_cap(from[r]);
+        n = n < 0 ? 0 : n > cap ? cap : n;
+        from[r] -= n;
+        to[r] += n;
+        paid[r] = n;
+        total += n;
+    }
+    if (total > 0) {
+        hist_tribute(ai, h, total);
+        g_llm_paid_t[ai] = now ? now : 1;
+        tribute_text(paid, what, wcap);
+    }
+    return total;
+}
 // constrained=0 and the model decides towards the local player: a vassal answers peace offers itself (diplo.c)
 static int llm_unbound(void) { return !g_llm_constrained && llm_deciding() && !g_llm_rules; }
 static int llm_tools_for(int ai, int h, uint32_t now) {
@@ -1070,19 +1089,8 @@ static void llm_apply(struct llm_job *j, int ok) {
         did |= TOOL_WAR;
     }
     if ((j->act & j->tools & TOOL_TRIBUTE) && tool_tribute_ok(ai, now)) {
-        int *from = (int *)((uint8_t *)pl + PL_STOCK), *to = (int *)((uint8_t *)ph + PL_STOCK), paid[7] = { 0 }, total = 0;
-        for (int r = 2; r < 7; r++) {
-            int n = j->amt[r], cap = tribute_cap(from[r]);
-            n = n < 0 ? 0 : n > cap ? cap : n;
-            from[r] -= n;
-            to[r] += n;
-            paid[r] = n;
-            total += n;
-        }
+        int total = llm_pay(pl, ph, ai, h, j->amt, now, what, sizeof what);
         if (total > 0) {
-            hist_tribute(ai, h, total);
-            g_llm_paid_t[ai] = now ? now : 1;
-            tribute_text(paid, what, sizeof what);
             block_line(h, sysf("tribute_sent", pl, ph, NULL, "tribute", what, NULL));
             tsub(ev[nev++], sizeof ev[0], tpl_text("ev_sent_tribute"), pl, ph, "tribute", what, NULL);
             did |= TOOL_TRIBUTE;
@@ -1382,19 +1390,8 @@ static int talk_apply(struct llm_job *j) {
         did |= TOOL_WAR;
     }
     if ((act & TOOL_TRIBUTE) && tool_tribute_ok(ai, now)) {
-        int *from = (int *)((uint8_t *)pl + PL_STOCK), *to = (int *)((uint8_t *)ph + PL_STOCK), paid[7] = { 0 }, total = 0;
-        for (int r = 2; r < 7; r++) {
-            int n = j->amt[r], cap = tribute_cap(from[r]);
-            n = n < 0 ? 0 : n > cap ? cap : n;
-            from[r] -= n;
-            to[r] += n;
-            paid[r] = n;
-            total += n;
-        }
+        int total = llm_pay(pl, ph, ai, h, j->amt, now, what, sizeof what);
         if (total > 0) {
-            hist_tribute(ai, h, total);
-            g_llm_paid_t[ai] = now ? now : 1;
-            tribute_text(paid, what, sizeof what);
             tsub(ev, sizeof ev, tpl_text("ev3_tribute"), pl, ph, "tribute", what, NULL);
             pair_add(ai, h, 16, ev);
             diplo_tribute(ph, pl, total);   // its opinion; its thanks wait (the pair is talking)
