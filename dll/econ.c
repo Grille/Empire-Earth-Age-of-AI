@@ -1440,89 +1440,86 @@ static void landing_reserve(void *pl, int reserve[7]);   // landing.c
 // population: at the cap is common in normal games too.
 static int g_train_room = 0xFFFF;
 static unsigned g_noroom[16][6];   // units ordered with no room (cap - in production - population <= 0), by call site
-static uintptr_t __fastcall hook_train_units(void *um, void *edx, int *req, uintptr_t b) {
-    (void)edx;
-    void *pl = um_owner(um);
-    int *stock = pl ? (int *)((uint8_t *)pl + PL_STOCK) : NULL;
-    int before[7] = { 0 }, reserve[7] = { 0 }, visibles[7] = { 0 }, blocked = 0, afford = 0, sub_type = 0;
-    if (stock) memcpy(before, stock, sizeof before);
-    unsigned idx = pl ? (unsigned)FIELD(pl, PL_INDEX, int) & 15 : 0;
-    int military = !is_citizen_type(req[0]);
-    int req_unit = military && pl && requirement_unit(pl, req[0]);   // counts for the next epoch
-    const struct ai_cfg *cfg = pl ? cfg_of(pl) : NULL;
-    if (stock && cfg->budget) {
-        uint32_t now = game_time();
-        if (now < g_bud[idx].last_t) g_bud[idx].init = 0;   // new game
+// the budget's part of a training request: what the AI may spend on it (visibles), how many it pays for (afford,
+// blocked when none), a substitute soldier (sub_type) - reserve gets the stock held back
+static void train_budget(void *pl, unsigned idx, const struct ai_cfg *cfg, const int *req, int military, int req_unit,
+                         int *stock, int *reserve, int *visibles, int *blocked, int *afford, int *sub_type) {
+    uint32_t now = game_time();
+    if (now < g_bud[idx].last_t) g_bud[idx].init = 0;   // new game
+    g_bud[idx].last_t = now;
+    spend_reserve(pl, idx, reserve, NULL);
+    reserve[3] += field_wood(idx);   // the next fields' wood (build_fields)
+    landing_reserve(pl, reserve);   // transports a landing waits for
+    bunker_reserve(pl, reserve);    // a fortress's wood (bunker.c)
+    if (!g_bud[idx].init) {
+        memset(&g_bud[idx], 0, sizeof g_bud[idx]);
+        g_bud[idx].init = 1;
         g_bud[idx].last_t = now;
-        spend_reserve(pl, idx, reserve, NULL);
-        reserve[3] += field_wood(idx);   // the next fields' wood (build_fields)
-        landing_reserve(pl, reserve);   // transports a landing waits for
-        bunker_reserve(pl, reserve);    // a fortress's wood (bunker.c)
-        if (!g_bud[idx].init) {
-            memset(&g_bud[idx], 0, sizeof g_bud[idx]);
-            g_bud[idx].init = 1;
-            g_bud[idx].last_t = now;
-            for (int r = 2; r < 7; r++)
-                g_bud[idx].mil[r] = stock[r] > reserve[r] ? (stock[r] - reserve[r]) * cfg->mil_start_share : 0;
+        for (int r = 2; r < 7; r++)
+            g_bud[idx].mil[r] = stock[r] > reserve[r] ? (stock[r] - reserve[r]) * cfg->mil_start_share : 0;
+    }
+    int no_work = 0;
+    if (!military) {
+        void *cm = FIELD(pl, 0xB90, void *);
+        uint8_t *rm = cm ? FIELD(cm, 0x38, uint8_t *) : NULL;
+        int total = 0;
+        for (int t = 0; rm && t < 7; t++) total += FIELD(rm, RM_LISTS + t * 0x14 + 0x10, int);
+        int idle = idle_citizens(pl);
+        // never starve a small population; the first assignment pass runs only every 10 s
+        // only matters while food is scarce: idle citizens are cheap (and builders) when it is plentiful
+        int scarce = stock[2] < 2 * reserve[2] + 500;
+        no_work = scarce && total >= 10 && idle > g_citizen_slack && idle * 100 > total * 15;
+    }
+    for (int r = 2; r < 7; r++) {
+        int visible = req_unit ? stock[r] : stock[r] - reserve[r];   // a requirement unit: the epoch waits for it
+        // citizens before farms: they pay only food, and only what the food budget (stock + reachable wild
+        // food) doesn't need for the epochs; a tiny workforce always grows
+        if (!military && cfg->copper_plan && current_epoch(pl) < FARM_EPOCH) {
+            int wf = workforce(pl);
+            if (r != 2 || wf < 10) visible = stock[r];
+            else if (wf < g_min_workforce && stock[2] + (int)(wild_food(pl) * g_wild_share) >= reserve[2] + 500)
+                visible = stock[2];   // enough food on the map: grow the economy first
+            // else: workforce built (or the map is poor) -> save: the full reserve applies
         }
-        int no_work = 0;
-        if (!military) {
-            void *cm = FIELD(pl, 0xB90, void *);
-            uint8_t *rm = cm ? FIELD(cm, 0x38, uint8_t *) : NULL;
-            int total = 0;
-            for (int t = 0; rm && t < 7; t++) total += FIELD(rm, RM_LISTS + t * 0x14 + 0x10, int);
-            int idle = idle_citizens(pl);
-            // never starve a small population; the first assignment pass runs only every 10 s
-            // only matters while food is scarce: idle citizens are cheap (and builders) when it is plentiful
-            int scarce = stock[2] < 2 * reserve[2] + 500;
-            no_work = scarce && total >= 10 && idle > g_citizen_slack && idle * 100 > total * 15;
+        if (military && !g_priority_mil && !req_unit) {   // priority requests (siege) and requirement units spend
+                                                           // the stock above the reserve
+            int allowed = (int)g_bud[idx].mil[r];
+            int excess = stock[r] - reserve[r] - (r >= 4 ? PV(idx, g_v_hoard_mineral, g_hoard_cap_mineral) : g_hoard_cap);   // never hoard beyond the cap
+            if (excess > allowed) allowed = excess;
+            if (visible > allowed) visible = allowed;
         }
-        for (int r = 2; r < 7; r++) {
-            int visible = req_unit ? stock[r] : stock[r] - reserve[r];   // a requirement unit: the epoch waits for it
-            // citizens before farms: they pay only food, and only what the food budget (stock + reachable wild
-            // food) doesn't need for the epochs; a tiny workforce always grows
-            if (!military && cfg->copper_plan && current_epoch(pl) < FARM_EPOCH) {
-                int wf = workforce(pl);
-                if (r != 2 || wf < 10) visible = stock[r];
-                else if (wf < g_min_workforce && stock[2] + (int)(wild_food(pl) * g_wild_share) >= reserve[2] + 500)
-                    visible = stock[2];   // enough food on the map: grow the economy first
-                // else: workforce built (or the map is poor) -> save: the full reserve applies
-            }
-            if (military && !g_priority_mil && !req_unit) {   // priority requests (siege) and requirement units spend
-                                                               // the stock above the reserve
-                int allowed = (int)g_bud[idx].mil[r];
-                int excess = stock[r] - reserve[r] - (r >= 4 ? PV(idx, g_v_hoard_mineral, g_hoard_cap_mineral) : g_hoard_cap);   // never hoard beyond the cap
-                if (excess > allowed) allowed = excess;
-                if (visible > allowed) visible = allowed;
-            }
-            if (no_work) visible = 0;
-            if (visible < 0) visible = 0;
-            if (visible > stock[r]) visible = stock[r];
-            visibles[r] = visible;
-        }
-        if (no_work) g_bud[idx].cit_blocked++;
-        // as many of the requested units as the budget pays for (citizens come in batches of 10)
-        int want = req[1] > 0 ? req[1] : 1;
-        afford = want;
-        for (int r = 2; r < 7; r++) {
-            int c = unit_cost(pl, req[0], r);
-            if (c > 0 && visibles[r] / c < afford) afford = visibles[r] / c;
-        }
-        blocked = afford <= 0;
-        int trainable = military && g_unit_sub && !g_priority_mil && substitutable(req[0]) &&
-                        ((char (__thiscall *)(void *, int, int, int))0x00555710)(pl, req[0], 0x20, 0);
-        int sub = military && g_unit_sub && !g_priority_mil && substitutable(req[0]) && (blocked || !trainable);
-        if (sub && trainable) {   // the budget refused a unit it can train: save for it first
-            if (!g_save_since[idx] || now < g_save_since[idx]) g_save_since[idx] = now ? now : 1;
-            int sw = PV(idx, g_v_sub_wait, g_sub_wait);
-            sub = !sw || now - g_save_since[idx] >= (uint32_t)sw * 1000u || base_threatened(idx);
-            if (!sub) g_mil[idx].saving++;
-        }
-        if (sub) {
-            int got = 0, alt = substitute_soldier(pl, idx, visibles, want, &got);
-            if (alt) { sub_type = alt; afford = got; blocked = 0; g_mil[idx].subs++; }
-        }
-    } else if (stock) memcpy(visibles, stock, sizeof visibles);
+        if (no_work) visible = 0;
+        if (visible < 0) visible = 0;
+        if (visible > stock[r]) visible = stock[r];
+        visibles[r] = visible;
+    }
+    if (no_work) g_bud[idx].cit_blocked++;
+    // as many of the requested units as the budget pays for (citizens come in batches of 10)
+    int want = req[1] > 0 ? req[1] : 1;
+    *afford = want;
+    for (int r = 2; r < 7; r++) {
+        int c = unit_cost(pl, req[0], r);
+        if (c > 0 && visibles[r] / c < *afford) *afford = visibles[r] / c;
+    }
+    *blocked = *afford <= 0;
+    int trainable = military && g_unit_sub && !g_priority_mil && substitutable(req[0]) &&
+                    ((char (__thiscall *)(void *, int, int, int))0x00555710)(pl, req[0], 0x20, 0);
+    int sub = military && g_unit_sub && !g_priority_mil && substitutable(req[0]) && (*blocked || !trainable);
+    if (sub && trainable) {   // the budget refused a unit it can train: save for it first
+        if (!g_save_since[idx] || now < g_save_since[idx]) g_save_since[idx] = now ? now : 1;
+        int sw = PV(idx, g_v_sub_wait, g_sub_wait);
+        sub = !sw || now - g_save_since[idx] >= (uint32_t)sw * 1000u || base_threatened(idx);
+        if (!sub) g_mil[idx].saving++;
+    }
+    if (sub) {
+        int got = 0, alt = substitute_soldier(pl, idx, visibles, want, &got);
+        if (alt) { *sub_type = alt; *afford = got; *blocked = 0; g_mil[idx].subs++; }
+    }
+}
+// the request as the budget allows it (blocked: none) through the game's own training, cut to the room under the
+// population cap for the mod's own orders; ra = the call site (a game's or the mod's); the game's result
+static uintptr_t train_call(void *um, void *pl, unsigned idx, int *req, uintptr_t b, int blocked, int afford, int sub_type,
+                            uintptr_t ra) {
     uintptr_t res = 0;
     if (blocked) { if (b) *(unsigned *)b = 0; }
     else {
@@ -1531,18 +1528,16 @@ static uintptr_t __fastcall hook_train_units(void *um, void *edx, int *req, uint
         if (afford > 0 && (afford < req[1] || sub_type)) req[1] = afford;   // the caller reads back how many via *b
         int room0 = pl ? ((int (__thiscall *)(void *, int))(*(void ***)pl)[31])(pl, 0) - FIELD(um, 0x13C, int) -
                          ((int (__thiscall *)(void *, int, int))0x00556E11)(pl, 1, 0) : 1;
-        uintptr_t ra0 = (uintptr_t)__builtin_return_address(0) - 5;
         int game_site = 0;
-        for (int k = 0; k < 5; k++) game_site |= k_train_sites[k] == ra0;
+        for (int k = 0; k < 5; k++) game_site |= k_train_sites[k] == ra;
         unsigned got0 = 0;
         if (!b) b = (uintptr_t)&got0;
         if (!game_site && (g_train_room >> idx & 1) && room0 < (req[1] > 0 ? req[1] : 1)) {   // the mod's own order: no more than the room
-            if (room0 <= 0) { *(unsigned *)b = 0; req[1] = saved_count; req[0] = saved_type; goto trained; }
+            if (room0 <= 0) { *(unsigned *)b = 0; req[1] = saved_count; req[0] = saved_type; return 0; }
             req[1] = room0;
         }
         res = ((uintptr_t (__thiscall *)(void *, int *, uintptr_t))FN_TRAIN_UNITS)(um, req, b);
         if (room0 <= 0 && *(unsigned *)b) {
-            uintptr_t ra = (uintptr_t)__builtin_return_address(0) - 5;
             int site = 5;
             for (int k = 0; k < 5; k++) if (k_train_sites[k] == ra) site = k;
             g_noroom[idx][site] += *(unsigned *)b;
@@ -1551,7 +1546,11 @@ static uintptr_t __fastcall hook_train_units(void *um, void *edx, int *req, uint
         req[1] = saved_count;
         req[0] = saved_type;
     }
-trained:
+    return res;
+}
+// after the request: the military account pays what was spent, the notes and the budget line (once a minute)
+static void train_account(void *pl, unsigned idx, const struct ai_cfg *cfg, int *req, uintptr_t res, int military,
+                          int sub_type, int *stock, int *before, int *reserve, int *visibles, uintptr_t ra) {
     if (stock) {
         int any = 0;
         for (int r = 2; r < 7; r++) {
@@ -1560,7 +1559,7 @@ trained:
             if (cfg->budget && military && spent > 0) { g_bud[idx].mil[r] -= spent; g_bud[idx].mil_spent[r] += spent; }
         }
         if (military && any && !sub_type) g_save_since[idx] = 0;   // a requested soldier trained: saved enough
-        if (military) mil_note(pl, idx, req, visibles, any, (uintptr_t)__builtin_return_address(0) - 5);
+        if (military) mil_note(pl, idx, req, visibles, any, ra);
         trace_train(pl, req, res, before, reserve);
         static uint32_t last_log[16];
         uint32_t now = game_time();
@@ -1574,6 +1573,23 @@ trained:
             LeaveCriticalSection(&g_lock);
         }
     }
+}
+// noinline: it reads its own return address (the call site) - also when the mod calls it
+__attribute__((noinline)) static uintptr_t __fastcall hook_train_units(void *um, void *edx, int *req, uintptr_t b) {
+    (void)edx;
+    void *pl = um_owner(um);
+    int *stock = pl ? (int *)((uint8_t *)pl + PL_STOCK) : NULL;
+    int before[7] = { 0 }, reserve[7] = { 0 }, visibles[7] = { 0 }, blocked = 0, afford = 0, sub_type = 0;
+    if (stock) memcpy(before, stock, sizeof before);
+    unsigned idx = pl ? (unsigned)FIELD(pl, PL_INDEX, int) & 15 : 0;
+    int military = !is_citizen_type(req[0]);
+    int req_unit = military && pl && requirement_unit(pl, req[0]);   // counts for the next epoch
+    const struct ai_cfg *cfg = pl ? cfg_of(pl) : NULL;
+    if (stock && cfg->budget) train_budget(pl, idx, cfg, req, military, req_unit, stock, reserve, visibles, &blocked, &afford, &sub_type);
+    else if (stock) memcpy(visibles, stock, sizeof visibles);
+    uintptr_t ra = (uintptr_t)__builtin_return_address(0) - 5;   // the call site: read here, in the hook
+    uintptr_t res = train_call(um, pl, idx, req, b, blocked, afford, sub_type, ra);
+    train_account(pl, idx, cfg, req, res, military, sub_type, stock, before, reserve, visibles, ra);
     return res;
 }
 
