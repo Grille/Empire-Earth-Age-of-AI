@@ -827,6 +827,7 @@ static void citizens_safety(uint8_t *rm) {   // before the citizen assignment
     next[idx] = now + 4000;
     threat_refresh(pl, now);
     int sent = 0, fled = 0, aside = 0, stray = 0, kinds[4][2] = { { 0 } };   // site types sent back from (log)
+    int doing[7][4] = { { 0 } };   // per list: gathering, building, walking, nothing (the minute's log)
     float rx, ry;
     int mus = muster_rally(idx, &rx, &ry);
     for (int r = 0; r < 7; r++) {
@@ -834,6 +835,11 @@ static void citizens_safety(uint8_t *rm) {   // before the citizen assignment
         for (unsigned k = 0, first = FIELD(list, 0xC, unsigned), cnt = FIELD(list, 0x10, unsigned); k < cnt; k++) {
             uint8_t *u = deque_at(list, first + k), *goal = u ? FIELD(u, 0x1EC, uint8_t *) : NULL;
             if (!u || FIELD(u, 0x3C, int) <= 0) continue;
+            {
+                const char *gd = goal ? rtti_name(goal) : "";
+                doing[r][!goal ? 3 : !strcmp(gd, "EEUGGather@@") ? 0 : !strcmp(gd, "EEUGBuildRepair@@") ? 1 :
+                         *(uintptr_t *)goal == VT_GOAL_LOCATION ? 2 : 3]++;
+            }
             if (g_cit_threats) {   // not hunters: the animals hurt them (a farm is a building, family 2)
                 uint8_t *gs = goal && !strcmp(rtti_name(goal), "EEUGGather@@") ? FIELD(goal, 0x38, uint8_t *) : NULL;
                 hurt_note(idx, u, now, !(r == 2 && gs && FIELD(FIELD(gs, 0x2C, uint8_t *), 0x4B4, int) != 2));
@@ -895,6 +901,34 @@ static void citizens_safety(uint8_t *rm) {   // before the citizen assignment
         }
     }
     g_cit_stats[idx].sent += sent + fled;
+    static uint32_t doing_t[16];
+    if (g_log && (now < doing_t[idx] || now - doing_t[idx] >= 60000)) {   // what the citizens do, per resource list
+        doing_t[idx] = now;
+        char b[256] = "";
+        static const char *nm = "-?FWSGI";
+        for (int r = 0; r < 7; r++) {
+            size_t l = strlen(b);
+            snprintf(b + l, sizeof b - l, " %c %d/%d/%d/%d", nm[r], doing[r][0], doing[r][1], doing[r][2], doing[r][3]);
+        }
+        int all[6] = { 0 };   // every citizen on the map: gathering, building, walking, attacking, other goal, none
+        uint8_t *map = *(uint8_t **)G_MAP, *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
+        int cells = grid ? FIELD(grid, 0x10, int) * FIELD(grid, 0x14, int) : 0;
+        uint8_t *cl = grid ? FIELD(grid, 4, uint8_t *) : NULL;
+        char other[64] = "";
+        for (int ci = 0; ci < cells; ci++)
+            for (uint8_t **bp = FIELD(cl + ci * 16, 4, uint8_t **); bp && bp < FIELD(cl + ci * 16, 8, uint8_t **); bp++) {
+                uint8_t *u = *bp, *td = u ? FIELD(u, 0x2C, uint8_t *) : NULL;
+                if (!td || FIELD(u, 0x18, void *) != pl || FIELD(u, 0x3C, int) <= 0 || (FIELD(td, 0x4B8, int) != 32 && FIELD(td, 0x4B8, int) != 480)) continue;
+                uint8_t *g = FIELD(u, 0x1EC, uint8_t *);
+                const char *gd = g ? rtti_name(g) : "";
+                int k = !g ? 5 : !strcmp(gd, "EEUGGather@@") ? 0 : !strcmp(gd, "EEUGBuildRepair@@") ? 1 :
+                        *(uintptr_t *)g == VT_GOAL_LOCATION ? 2 : *(uintptr_t *)g == VT_GOAL_ATTACK ? 3 : 4;
+                all[k]++;
+                if (k == 4 && !other[0]) lstrcpynA(other, gd, sizeof other);
+            }
+        fprintf(g_log, "# doing: P%u at %.1f min (list: gather/build/walk/nothing):%s; all citizens: gather %d build %d walk %d attack %d other %d (%s) none %d\n",
+                idx, now / 60000.0, b, all[0], all[1], all[2], all[3], all[4], other, all[5]);
+    }
     if (stray && g_log) fprintf(g_log, "# citizens: P%u at %.1f min: %d unassigned citizens marching on an enemy town (an "
                                 "attack's leftover order) sent home\n", idx, now / 60000.0, stray);
     if (fled && g_log) fprintf(g_log, "# citizens: P%u at %.1f min: %d fled (base overrun): %d to the rally point, %d aside "
