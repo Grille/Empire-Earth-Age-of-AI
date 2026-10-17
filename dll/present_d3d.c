@@ -44,7 +44,7 @@ static void d3d_release(void) {
 
 static int d3d_fail(const char *what, HRESULT hr) {
     snprintf(g_d3d.err, sizeof g_d3d.err, "%s failed (hr %08lx)", what, (unsigned long)hr);
-    if (g_log) { fprintf(g_log, "# display: Direct3D present: %s - using GDI\n", g_d3d.err); fflush(g_log); }
+    if (g_log) { log_locked("# display: Direct3D present: %s - using GDI\n", g_d3d.err); }
     d3d_release();
     g_d3d.failed = 1;
     return 0;
@@ -131,7 +131,7 @@ static int d3d_init(HWND hwnd, int w, int h) {
     if (FAILED(hr)) return d3d_fail("CreateSamplerState", hr);
     g_d3d.hwnd = hwnd;
     g_d3d.bw = w; g_d3d.bh = h;
-    if (g_log) { fprintf(g_log, "# display: Direct3D 11 present (feature level %x, tearing %s)\n", (unsigned)fl, g_d3d.tearing ? "yes" : "no"); fflush(g_log); }
+    if (g_log) { log_locked("# display: Direct3D 11 present (feature level %x, tearing %s)\n", (unsigned)fl, g_d3d.tearing ? "yes" : "no"); }
     return 1;
 }
 

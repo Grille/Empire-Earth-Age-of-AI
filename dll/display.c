@@ -69,7 +69,7 @@ static int apply_editor_layout(int w, int h) {
             ok++;
         }
     else bad++;
-    if (g_log && bad) fprintf(g_log, "# editor: %d layout patch sites did not match and were skipped\n", bad);
+    if (g_log && bad) log_locked("# editor: %d layout patch sites did not match and were skipped\n", bad);
     return ok;
 }
 
@@ -103,7 +103,7 @@ static void __stdcall hook_editor_resolution(int w, int h, int force, int flag) 
     int lay = apply_editor_layout(w, h);
     g_mm_fx = 1.28f / (float)w;
     g_mm_fy = 1.28f / (float)h;
-    if (g_log) { fprintf(g_log, "# editor: resolution %dx%d, layout patches %d/%d\n", w, h, lay, (int)N_LAYOUT + 6); fflush(g_log); }
+    if (g_log) { log_locked("# editor: resolution %dx%d, layout patches %d/%d\n", w, h, lay, (int)N_LAYOUT + 6); }
     ((SetResolutionFn)FN_SET_RESOLUTION)(w, h, force, flag);
 }
 
@@ -124,7 +124,7 @@ static void *__fastcall hook_editor_form(void *form, void *edx, void *owner) {
     int w = 800, h = 600;
     editor_size(&w, &h);
     int lay = apply_editor_layout(w, h);
-    if (g_log) { fprintf(g_log, "# editor: building the editor for %dx%d, layout patches %d/%d\n", w, h, lay, (int)N_LAYOUT + 6); fflush(g_log); }
+    if (g_log) { log_locked("# editor: building the editor for %dx%d, layout patches %d/%d\n", w, h, lay, (int)N_LAYOUT + 6); }
     return ((void *(__thiscall *)(void *, void *))FN_EDITOR_FORM)(form, owner);
 }
 
@@ -1021,7 +1021,7 @@ static void *__fastcall hook_font_delete(uint8_t *font, void *edx, unsigned flag
         if (g_fbm[i].font == font) {
             g_fbm[i] = g_fbm[--g_fbm_n];
             g_fbm_dropped++;
-            if (g_log) fprintf(g_log, "# text bitmap: font %p destroyed - its entry dropped\n", (void *)font);
+            if (g_log) log_locked("# text bitmap: font %p destroyed - its entry dropped\n", (void *)font);
             break;
         }
     LeaveCriticalSection(&g_fbm_cs);
@@ -1074,7 +1074,7 @@ static void *text_bitmap_for(void *ras, void *text, void *surf) {
         IDirectDrawSurface7 *dds = FIELD((uint8_t *)surf, 0x48, IDirectDrawSurface7 *);
         DDSURFACEDESC2 d = { .dwSize = sizeof d };
         back_ok = dds && dds->lpVtbl->GetSurfaceDesc(dds, &d) == DD_OK && d.dwWidth > 1024;
-        if (g_log) fprintf(g_log, "# text bitmap: back buffer %p %lux%lu - %s\n", surf, d.dwWidth, d.dwHeight,
+        if (g_log) log_locked("# text bitmap: back buffer %p %lux%lu - %s\n", surf, d.dwWidth, d.dwHeight,
                            back_ok ? "text as textures" : "GDI text (menus)");
     }
     if (!back_ok) return NULL;
@@ -1086,14 +1086,14 @@ static void *text_bitmap_for(void *ras, void *text, void *surf) {
         if (g_fbm[i].font == font) {
             void *r = g_fbm[i].bmp;
             if (g_fbm[i].hfont != hf_now && g_log)
-                fprintf(g_log, "# text bitmap: STALE font %p (HFONT %p, made for %p)\n", (void *)font, hf_now, g_fbm[i].hfont);
+                log_locked("# text bitmap: STALE font %p (HFONT %p, made for %p)\n", (void *)font, hf_now, g_fbm[i].hfont);
             LeaveCriticalSection(&g_fbm_cs);
             return r;
         }
     if (g_fbm_n >= 64) {
         static int full_logged;
         LeaveCriticalSection(&g_fbm_cs);
-        if (g_log && !full_logged++) fprintf(g_log, "# text bitmap: FULL (64 fonts) - GDI text for new fonts\n");
+        if (g_log && !full_logged++) log_locked("# text bitmap: FULL (64 fonts) - GDI text for new fonts\n");
         return NULL;
     }
     void *obj = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, 0x40);
@@ -1860,8 +1860,8 @@ static void apply_window_mode(HWND h) {
     SetWindowLongA(h, GWL_STYLE, st);
     SetWindowPos(h, HWND_TOP, r.left, r.top, r.right - r.left, r.bottom - r.top, SWP_FRAMECHANGED | SWP_NOOWNERZORDER | SWP_SHOWWINDOW);
     ClipCursor(NULL);   // new rectangle, maybe no lock any more (lock_mouse=auto); the next frame clips again if locked
-    if (g_log) { fprintf(g_log, "# display: %s %ldx%ld, mouse %s\n", g_borderless ? "borderless" : "window", r.right - r.left,
-                         r.bottom - r.top, mouse_locked() ? "locked" : "free"); fflush(g_log); }
+    if (g_log) { log_locked("# display: %s %ldx%ld, mouse %s\n", g_borderless ? "borderless" : "window", r.right - r.left,
+                         r.bottom - r.top, mouse_locked() ? "locked" : "free"); }
 }
 
 static void modern_frame(HWND h);
@@ -1949,10 +1949,9 @@ static void modern_frame(HWND h) {
         RECT rb = { 0 };
         GetRgnBox(rgn, &rb);
         DeleteObject(rgn);
-        fprintf(g_log, "# display: modern frame - set DWM policy hr %08lx, frame rendering now %d, ex style %08lx, window region %d (%ld,%ld-%ld,%ld), DwmSetWindowAttribute %s bytes %02x %02x %02x %02x %02x\n",
+        log_locked("# display: modern frame - set DWM policy hr %08lx, frame rendering now %d, ex style %08lx, window region %d (%ld,%ld-%ld,%ld), DwmSetWindowAttribute %s bytes %02x %02x %02x %02x %02x\n",
                 (unsigned long)hr, nc, (unsigned long)GetWindowLongA(h, GWL_EXSTYLE), rk, rb.left, rb.top, rb.right, rb.bottom, at,
                 pb ? pb[0] : 0, pb ? pb[1] : 0, pb ? pb[2] : 0, pb ? pb[3] : 0, pb ? pb[4] : 0);
-        fflush(g_log);
     }
 }
 
@@ -2929,7 +2928,7 @@ static void keep_player_name(uint8_t *screen) {
     lstrcpynA(name, t, sizeof name);
     ((void *(__thiscall *)(void *, const char *))*(void **)0x00823224)((void *)0x00919308, name);   // UWideString =
     ((void (__thiscall *)(void *))0x0052AA81)((void *)0x00918EA8);
-    if (g_log) fprintf(g_log, "# player name: \"%s\" kept (settings saved)\n", name);
+    if (g_log) log_locked("# player name: \"%s\" kept (settings saved)\n", name);
 }
 #define SP_HOOK(i) static long __fastcall hook_sp_##i(void *h, void *edx, uint8_t *screen, int a) { \
     (void)edx; keep_player_name(screen); return ((long (__thiscall *)(void *, void *, int))g_sp_orig[i])(h, screen, a); }

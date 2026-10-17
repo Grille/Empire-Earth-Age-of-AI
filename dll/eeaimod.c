@@ -11,6 +11,7 @@
 #include <stdarg.h>
 #include <math.h>
 #include <tlhelp32.h>
+#include <io.h>      // _chsize (log_rotate)
 #include <psapi.h>   // types only (K32GetProcessMemoryInfo by GetProcAddress)
 
 // ---- addresses in Empire Earth.exe 1.04 (ImageBase 0x400000) ----
@@ -130,6 +131,21 @@ static void __fastcall hook_cp_update(void *pl, void *edx, uint32_t now) {
 #define G_TYPES   0x009418A0
 #define G_TYPES_N 0x300
 static inline uint8_t *type_data(int t) { return t >= 0 && t < G_TYPES_N ? ((uint8_t **)G_TYPES)[t] : NULL; }
+
+// a log line from a thread other than the simulation's (render, window, sound): under g_lock, flushed - as the pipe
+// thread (ctl_log), the crash handler and the autotest/quit exits that close the log hold it
+static void log_locked(const char *fmt, ...) {
+    if (!g_log) return;
+    EnterCriticalSection(&g_lock);
+    if (g_log) {
+        va_list ap;
+        va_start(ap, fmt);
+        vfprintf(g_log, fmt, ap);
+        va_end(ap);
+        fflush(g_log);
+    }
+    LeaveCriticalSection(&g_lock);
+}
 
 // `n` bytes at p readable, from the page table (IsBadReadPtr probes by raising access violations: each one went
 // through the crash log's first-chance handler)
@@ -422,7 +438,7 @@ static int __cdecl hook_load_saved(void *name) {
 // once at 2 s game time, when every AI has started - e.g. spawn lines that turn a map into a test scenario.
 // Setup file: control-pipe commands, run at 2 s game time; a line "@<minutes> <command>" waits until that game time.
 #define SETUP_MAX 1024
-static struct { uint32_t at; char cmd[200]; } g_setup[SETUP_MAX];
+static struct { uint32_t at; char cmd[512]; } g_setup[SETUP_MAX];   // as long as a pipe command (g_req.cmd)
 static int g_setup_n = -1;
 static void run_setup(uint32_t now) {
     static char reply[16384];
@@ -433,6 +449,11 @@ static void run_setup(uint32_t now) {
         if (!f) return;
         char line[512];
         while (fgets(line, sizeof line, f)) {
+            if (!strchr(line, 10) && !feof(f)) {   // longer than a command can be: left out, not cut into pieces
+                log_line("# setup: %s: a line over %d characters left out\n", g_setup_path, (int)sizeof line - 2);
+                for (int c; (c = fgetc(f)) != EOF && c != 10; ) {}
+                continue;
+            }
             char *s = line, *e;
             while (*s == ' ' || *s == '\t') s++;
             for (e = s + strlen(s); e > s && (e[-1] == '\n' || e[-1] == '\r' || e[-1] == ' '); ) *--e = 0;
@@ -486,11 +507,13 @@ static void autotest_tick(uint32_t now) {
         }
     }
     if (g_auto.quit_minutes <= 0 || now < (uint32_t)g_auto.quit_minutes * 60000u) return;
+    EnterCriticalSection(&g_lock);   // the pipe, the LLM worker and the render thread write the log too
     if (g_log) {
         fprintf(g_log, "# autotest: reached %d game minutes, exiting\n", g_auto.quit_minutes);
         fclose(g_log);
         g_log = NULL;
     }
+    LeaveCriticalSection(&g_lock);
     TerminateProcess(GetCurrentProcess(), 0);   // ExitProcess crashes in the game's other threads
 }
 
@@ -507,9 +530,24 @@ typedef char (__thiscall *GameStartFn)(void *state, void *setup, void *p2);
 
 // aimod_econ.csv in normal play: over 20 MB at the start of a session or a game (a long game writes ~10 MB), it
 // becomes aimod_econ.old.csv (the older one deleted) and a new log starts - it was appended to forever. Autotest
-// keeps the whole log (the tests and scripts parse it).
+// keeps the whole log (the tests and scripts parse it). At a game start the log is open and other threads write to
+// it (the render and window threads, the pipe, the crash handler - not all under g_lock): it is copied and cut to 0
+// in place, the FILE stays the same (closed and reopened, a writer without the lock wrote into a freed FILE). The
+// CRT locks the stream for each call; _lock_file keeps the others out between the copy and the cut.
 #define LOG_ROTATE_BYTES (20u << 20)
 static char g_log_path[MAX_PATH];
+static BOOL log_copy(const char *from, const char *to) {   // CopyFile can't: the log is open for writing
+    HANDLE a = CreateFileA(from, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
+    if (a == INVALID_HANDLE_VALUE) return FALSE;
+    HANDLE b = CreateFileA(to, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, 0, NULL);
+    BOOL ok = b != INVALID_HANDLE_VALUE;
+    static char buf[65536];
+    DWORD got, put;
+    while (ok && ReadFile(a, buf, sizeof buf, &got, NULL) && got) ok = WriteFile(b, buf, got, &put, NULL) && put == got;
+    if (b != INVALID_HANDLE_VALUE) CloseHandle(b);
+    CloseHandle(a);
+    return ok;
+}
 static void log_rotate(void) {
     WIN32_FILE_ATTRIBUTE_DATA fa;
     if (g_auto.enabled || !g_log_path[0] || !GetFileAttributesExA(g_log_path, GetFileExInfoStandard, &fa)
@@ -520,10 +558,14 @@ static void log_rotate(void) {
     if (!dot) return;
     lstrcpyA(dot, ".old.csv");
     EnterCriticalSection(&g_lock);
-    int was_open = g_log != NULL;
-    if (g_log) { fclose(g_log); g_log = NULL; }
-    BOOL ok = MoveFileExA(g_log_path, old, MOVEFILE_REPLACE_EXISTING);
-    if (was_open) g_log = fopen(g_log_path, "a");
+    BOOL ok;
+    if (!g_log) ok = MoveFileExA(g_log_path, old, MOVEFILE_REPLACE_EXISTING);   // the session start: not open yet
+    else {
+        _lock_file(g_log);
+        fflush(g_log);
+        ok = log_copy(g_log_path, old) && !_chsize(_fileno(g_log), 0);   // "a": the next write goes to the (new) end
+        _unlock_file(g_log);
+    }
     if (g_log) {
         fprintf(g_log, "# log: %lu MB moved to %s%s\n", fa.nFileSizeLow >> 20, old, ok ? "" : " - FAILED");
         fflush(g_log);

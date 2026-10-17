@@ -61,7 +61,7 @@ static uint32_t __fastcall hook_snd_play(void *sm, void *edx, uint32_t id, float
     uint32_t r = g_snd_play(sm, id, vol, pan, pitch, queue, name);
     snd_count(sm, id, vol, r == 0xFFFFFFFFu);
     if (g_sound_log >= 2 && g_log)
-        fprintf(g_log, "# snd: %.3f min play id %u vol %.3f pan %.2f pitch %.2f queue %d -> %d\n", game_time() / 60000.0, id, vol,
+        log_locked("# snd: %.3f min play id %u vol %.3f pan %.2f pitch %.2f queue %d -> %d\n", game_time() / 60000.0, id, vol,
                 pan, pitch, queue & 0xFF, (int)r);
     return r;
 }
@@ -71,7 +71,7 @@ static uint32_t __fastcall hook_snd_playref(void *sm, void *edx, uint32_t id, fl
     uint32_t r = g_snd_playref(sm, id, vol, pan, pitch, queue, name);
     snd_count(sm, id, vol, r == 0);
     if (g_sound_log >= 2 && g_log)
-        fprintf(g_log, "# snd: %.3f min playref id %u vol %.3f pan %.2f pitch %.2f queue %d -> node %08x channel %d, caller %06x\n",
+        log_locked("# snd: %.3f min playref id %u vol %.3f pan %.2f pitch %.2f queue %d -> node %08x channel %d, caller %06x\n",
                 game_time() / 60000.0, id, vol, pan, pitch, queue & 0xFF, r, r ? FIELD((void *)(uintptr_t)r, 0x1C, int) : -9,
                 (unsigned)(uintptr_t)__builtin_return_address(0));
     return r;
@@ -79,20 +79,20 @@ static uint32_t __fastcall hook_snd_playref(void *sm, void *edx, uint32_t id, fl
 static int __cdecl hook_mix_set(int ch, void *sample) {
     int r = g_mix_set(ch, sample);
     g_mix_set_total++;
-    if (g_sound_log >= 2 && g_log) fprintf(g_log, "# snd:   mixer channel %d sample %p -> %d\n", ch, sample, r);
+    if (g_sound_log >= 2 && g_log) log_locked("# snd:   mixer channel %d sample %p -> %d\n", ch, sample, r);
     if (r) g_mix_set_fail[r & 15]++;
     return r;
 }
 static int __cdecl hook_mix_play(int ch) {
     int r = g_mix_play(ch);
     if (r) g_mix_play_fail[r & 15]++;
-    if (g_sound_log >= 2 && g_log) fprintf(g_log, "# snd:   mixer start channel %d -> %d, Miles status %d\n", ch, r, snd_status(ch));
+    if (g_sound_log >= 2 && g_log) log_locked("# snd:   mixer start channel %d -> %d, Miles status %d\n", ch, r, snd_status(ch));
     return r;
 }
 static int __cdecl hook_mix_vol(void *sample, float vol) {
     int r = g_mix_vol(sample, vol);
     if (g_sound_log >= 2 && g_log && sample)
-        fprintf(g_log, "# snd:   volume %.3f on channel %d\n", vol, FIELD(sample, 0x24, int));
+        log_locked("# snd:   volume %.3f on channel %d\n", vol, FIELD(sample, 0x24, int));
     return r;
 }
 

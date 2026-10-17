@@ -475,7 +475,9 @@ static void execute(const char *cmd, char *out) {
         REPLY("ok: WM_CLOSE posted to %d windows\n", c.n);
     }
     else if (!strcmp(verb, "quit")) {
+        EnterCriticalSection(&g_lock);   // the LLM worker and the pipe thread write the log too
         if (g_log) { fprintf(g_log, "# control: quit\n"); fclose(g_log); g_log = NULL; }
+        LeaveCriticalSection(&g_lock);
         TerminateProcess(GetCurrentProcess(), 0);
     }
     else REPLY("error: unknown command '%s' (ping status camera [x y] speed [s] pause resume quit peek poke)\n", verb);
@@ -605,6 +607,13 @@ static BOOL patch_send_wait(void) {
 }
 
 static void run_on_game_thread(const char *cmd, char *reply, size_t cap) {
+    // one still running from an earlier request (timed out after 15 s) reads g_req.cmd and writes g_req.out until it
+    // ends: the next one waits for it - written over, the old command ran on with the new text and replied to it
+    if (g_req.state == 2 && WaitForSingleObject(g_req.done, 15000) != WAIT_OBJECT_0) {
+        ctl_log("command '%s' refused: the one before still running", cmd);
+        snprintf(reply, cap, "error: the previous command is still running\n");
+        return;
+    }
     lstrcpynA(g_req.cmd, cmd, sizeof g_req.cmd);
     g_req.out[0] = 0;
     ResetEvent(g_req.done);
