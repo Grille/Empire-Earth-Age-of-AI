@@ -10,7 +10,7 @@ for f in sys.argv[1:]:
         if not m: continue
         t=(0.14+0.05*k)*60-6; k+=1
         x=m.group(1)
-        mm=re.match(r'P2 \((\d+) units, (\d+) hp, ([\d.]+) dmg/s.*?\) vs P3 \((\d+), (\d+) hp, ([\d.]+)/s.*?\): P2 needs (\d+) s, P3 (\d+) s',x)
+        mm=re.match(r'P2 \((\d+) units(?: in \d+ types)?, (\d+) hp, ([\d.]+) dmg/s.*?\) vs P3 \((\d+)(?: in \d+)?, (\d+) hp, ([\d.]+)/s.*?\): P2 needs (\d+) s, P3 (\d+) s',x)
         rows.append((t,mm.groups() if mm else None, x[:60]))
     print('==',f.split('duel_')[-1])
     first=None; last=None

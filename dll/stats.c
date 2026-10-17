@@ -69,51 +69,110 @@ static float st_minrange(uint8_t *u) { return FIELD(FIELD(u, 0x2C, uint8_t *), 0
 static int st_inside_min(uint8_t *a, uint8_t *t) { return st_speed(t) > 0 && st_minrange(a) > 0 && st_minrange(a) >= st_range(t); }
 static int st_maxhp(uint8_t *td, uint8_t *st) { return st && FIELD(st, 0x144, int) > 0 ? FIELD(st, 0x144, int) : FIELD(td, 0x55C, int); }
 
-// --- test command -------------------------------------------------------------------------------------------------
+// --- a fight between two sides ------------------------------------------------------------------------------------
+// By unit type: units of one type and player share their stats, so the work grows with types x types (a late army
+// has 10-20), not units x units (1000 x 1000 with a big population). Each unit only adds its type's count and hp, and
+// its tile for area damage (a count per tile; the neighbours of a target within a radius are a few tiles' sums).
 
-struct st_fight { int x, y, r2, ta, tb, n[16]; uint8_t *u[16][128]; };
-static void st_fight_unit(uint8_t *u, void *ctx) {
-    struct st_fight *f = ctx;
+#define ST_GROUPS 64
+#define ST_UNITS 4096
+#define ST_RADII 4
+// area damage: at most this many units beside the target count - slow shells, moving targets and a crowd that spreads
+// (3 artillery against 8 machine gunners: about the target and two more; 200 v 200 with all neighbours counted, 20
+// artillery made 60% of an army's estimate and the army lost)
+#define ST_AREA_MAX 2.0f
+struct st_group { uint8_t *rep; int type, owner, count; float hp, nbr[ST_RADII], part; };   // part: its share of the last st_side_dps
+struct st_side {
+    int ng, n;
+    float hp;
+    struct st_group g[ST_GROUPS];
+    int16_t ux[ST_UNITS], uy[ST_UNITS];
+    uint8_t ug[ST_UNITS];
+    int x0, y0, w, h;                   // the tile counts: bounding box
+    uint16_t *cnt;
+    int nr; float radius[ST_RADII];     // radii whose neighbour counts are known
+};
+static void st_side_clear(struct st_side *s) { free(s->cnt); memset(s, 0, sizeof *s); }
+static int st_side_add(struct st_side *s, uint8_t *u) {   // 0 when full
     uint8_t *td = FIELD(u, 0x2C, uint8_t *);
-    int p = st_pidx(u), dx = FIELD(u, 0x1C, int) - f->x, dy = FIELD(u, 0x20, int) - f->y;
-    if (FIELD(u, 0x3C, int) <= 0 || !td || p <= 0 || p > 15 || dx * dx + dy * dy > f->r2 || f->n[p] >= 128) return;
-    if (f->ta >= 0 && FIELD(td, 0x4B8, int) != f->ta && FIELD(td, 0x4B8, int) != f->tb) return;   // only these types
-    if (!is_soldier(td) && FIELD(td, 0x4B4, int) != 2 && FIELD(td, 0x4B4, int) != 29) return;   // soldiers and buildings
-    if (FIELD(td, 0x510, int) <= 0 && !is_soldier(td)) return;   // buildings that shoot
-    f->u[p][f->n[p]++] = u;
+    int type = FIELD(td, 0x4B8, int), owner = st_pidx(u), k = 0;
+    while (k < s->ng && (s->g[k].type != type || s->g[k].owner != owner)) k++;
+    if (k == s->ng) {
+        if (k == ST_GROUPS || s->n == ST_UNITS) return 0;
+        s->g[k].rep = u; s->g[k].type = type; s->g[k].owner = owner;
+        s->ng++;
+    }
+    if (s->n == ST_UNITS) return 0;
+    s->g[k].count++;
+    s->g[k].hp += FIELD(u, 0x3C, int);
+    s->hp += FIELD(u, 0x3C, int);
+    s->ux[s->n] = (int16_t)FIELD(u, 0x1C, int); s->uy[s->n] = (int16_t)FIELD(u, 0x20, int); s->ug[s->n] = (uint8_t)k;
+    s->n++;
+    s->nr = 0;
+    return 1;
 }
-// side a's damage per second at side b: each unit spreads its fire over the units of b it can hurt; contact: b has
-// closed in (no unit inside a's minimum range counts); area damage counts the units of b next to each target
-// (tile positions now)
-static float st_side_dps(uint8_t **a, int na, uint8_t **b, int nb, int contact) {
-    float s = 0;
-    for (int i = 0; i < na; i++) {
-        float sum = 0; int k = 0;
-        uint8_t *ast = FIELD(a[i], 0x34, uint8_t *);
-        float area = ast ? FIELD(ast, 0xA0, float) : 0;
-        for (int j = 0; j < nb; j++) {
-            float d = st_reaches(a[i], b[j]) && !(contact && st_inside_min(a[i], b[j])) ? st_dps(a[i], b[j]) : 0;
-            if (d > 0 && area > 0)   // area damage: every unit within the radius of the hit takes the same (0x61DAE6)
-                for (int m = 0; m < nb; m++) {
-                    float dx = (float)(FIELD(b[m], 0x1C, int) - FIELD(b[j], 0x1C, int)), dy = (float)(FIELD(b[m], 0x20, int) - FIELD(b[j], 0x20, int));
-                    if (m != j && dx * dx + dy * dy <= area * area) d += st_dps(a[i], b[m]);
-                }
-            if (d > 0) { sum += d; k++; }
+// average units of the side within radius r of a unit of group k (itself not counted)
+static float st_neighbours(struct st_side *s, int k, float r) {
+    int ri = 0;
+    while (ri < s->nr && s->radius[ri] != r) ri++;
+    if (ri < s->nr) return s->g[k].nbr[ri];
+    if (!s->cnt) {   // the tile counts, once
+        int x1 = -100000, y1 = -100000;
+        s->x0 = s->y0 = 100000;
+        for (int i = 0; i < s->n; i++) {
+            if (s->ux[i] < s->x0) s->x0 = s->ux[i];
+            if (s->uy[i] < s->y0) s->y0 = s->uy[i];
+            if (s->ux[i] > x1) x1 = s->ux[i];
+            if (s->uy[i] > y1) y1 = s->uy[i];
         }
-        if (k) s += sum / k;
+        s->w = x1 - s->x0 + 1; s->h = y1 - s->y0 + 1;
+        if (s->n <= 0 || s->w <= 0 || s->h <= 0 || s->w > 1024 || s->h > 1024 || !(s->cnt = calloc((size_t)s->w * s->h, 2))) return 0;
+        for (int i = 0; i < s->n; i++) s->cnt[(s->uy[i] - s->y0) * s->w + s->ux[i] - s->x0]++;
+    }
+    if (s->nr == ST_RADII) s->nr = 0;
+    ri = s->nr++;
+    s->radius[ri] = r;
+    int rr = (int)r, sum[ST_GROUPS] = { 0 };
+    for (int i = 0; i < s->n; i++)
+        for (int dy = -rr; dy <= rr; dy++)
+            for (int dx = -rr; dx <= rr; dx++) {
+                int x = s->ux[i] + dx - s->x0, y = s->uy[i] + dy - s->y0;
+                if ((float)(dx * dx + dy * dy) <= r * r && x >= 0 && y >= 0 && x < s->w && y < s->h) sum[s->ug[i]] += s->cnt[y * s->w + x];
+            }
+    for (int g = 0; g < s->ng; g++) s->g[g].nbr[ri] = s->g[g].count ? (float)sum[g] / s->g[g].count - 1.0f : 0;
+    return s->g[k].nbr[ri];
+}
+// side a's damage per second at side b: each unit spreads its fire over the units of b it can hurt (by their count);
+// contact: b has closed in (nothing inside a's minimum range counts); area damage: every unit within the radius of
+// the hit takes the same (0x61DAE6), so a target counts with its neighbours
+static float st_side_dps(struct st_side *a, struct st_side *b, int contact) {
+    float s = 0;
+    for (int i = 0; i < a->ng; i++) {
+        uint8_t *u = a->g[i].rep, *ast = FIELD(u, 0x34, uint8_t *);
+        float area = ast ? FIELD(ast, 0xA0, float) : 0, num = 0, den = 0;
+        for (int j = 0; j < b->ng; j++) {
+            uint8_t *t = b->g[j].rep;
+            float d = st_reaches(u, t) && !(contact && st_inside_min(u, t)) ? st_dps(u, t) : 0;
+            if (d <= 0) continue;
+            if (area > 0) { float nb = st_neighbours(b, j, area); d *= 1.0f + (nb < ST_AREA_MAX ? nb : ST_AREA_MAX); }
+            num += b->g[j].count * d; den += b->g[j].count;
+        }
+        a->g[i].part = den > 0 ? a->g[i].count * num / den : 0;
+        s += a->g[i].part;
     }
     return s;
 }
-// seconds side a walks under fire before it shoots: each mobile unit's range short of side b's longest, over its speed
-// (weighted by what the unit deals)
-static float st_close(uint8_t **a, int na, uint8_t **b, int nb) {
+// seconds side a walks under fire before it shoots: each mobile group's range short of side b's longest, over its
+// speed (weighted by what it deals)
+static float st_close(struct st_side *a, struct st_side *b) {
     float rb = 0, t = 0, w = 0;
-    for (int j = 0; j < nb; j++) if (st_range(b[j]) > rb) rb = st_range(b[j]);
-    for (int i = 0; i < na; i++) {
-        float d = 0, v = st_speed(a[i]), gap = rb - st_range(a[i]);
-        for (int j = 0; j < nb && d <= 0; j++) d = st_dps(a[i], b[j]);
+    for (int j = 0; j < b->ng; j++) if (st_range(b->g[j].rep) > rb) rb = st_range(b->g[j].rep);
+    for (int i = 0; i < a->ng; i++) {
+        uint8_t *u = a->g[i].rep;
+        float d = 0, v = st_speed(u), gap = rb - st_range(u);
+        for (int j = 0; j < b->ng && d <= 0; j++) d = st_dps(u, b->g[j].rep);
         if (d <= 0 || v <= 0) continue;
-        t += d * (gap > 0 ? gap / v : 0); w += d;
+        t += a->g[i].count * d * (gap > 0 ? gap / v : 0); w += a->g[i].count * d;
     }
     return w > 0 ? t / w : 0;
 }
@@ -123,7 +182,37 @@ static float st_kill_time(float hp, float own_close, float their_close, float fr
     hp -= free_dps * their_close;
     return contact_dps > 0 ? own_close + their_close + hp / contact_dps : 1e9f;
 }
-static float st_side_hp(uint8_t **a, int na) { float h = 0; for (int i = 0; i < na; i++) h += FIELD(a[i], 0x3C, int); return h; }
+struct st_result { float dps_free[2], dps_contact[2], close[2], time[2]; };
+// the estimate: time[0] = how long a needs to destroy b, time[1] b to destroy a
+static void st_estimate(struct st_side *a, struct st_side *b, struct st_result *r) {
+    r->dps_contact[0] = st_side_dps(a, b, 1); r->dps_contact[1] = st_side_dps(b, a, 1);
+    r->dps_free[0] = st_side_dps(a, b, 0); r->dps_free[1] = st_side_dps(b, a, 0);
+    r->close[0] = st_close(a, b); r->close[1] = st_close(b, a);
+    r->time[0] = st_kill_time(b->hp, r->close[0], r->close[1], r->dps_free[0], r->dps_contact[0]);
+    r->time[1] = st_kill_time(a->hp, r->close[1], r->close[0], r->dps_free[1], r->dps_contact[1]);
+}
+
+// --- test command -------------------------------------------------------------------------------------------------
+
+struct st_scan { int x, y, r2, ta, tb; struct st_side *side[16]; };
+static int st_counts(uint8_t *u, uint8_t *td) {   // soldiers and buildings that shoot
+    if (is_soldier(td)) return 1;
+    return (FIELD(td, 0x4B4, int) == 2 || FIELD(td, 0x4B4, int) == 29) && FIELD(td, 0x510, int) > 0 && u;
+}
+static void st_scan_unit(uint8_t *u, void *ctx) {
+    struct st_scan *f = ctx;
+    uint8_t *td = FIELD(u, 0x2C, uint8_t *);
+    int p = st_pidx(u), dx = FIELD(u, 0x1C, int) - f->x, dy = FIELD(u, 0x20, int) - f->y;
+    if (FIELD(u, 0x3C, int) <= 0 || !td || p <= 0 || p > 15 || !f->side[p] || dx * dx + dy * dy > f->r2) return;
+    if (f->ta >= 0 && FIELD(td, 0x4B8, int) != f->ta && FIELD(td, 0x4B8, int) != f->tb) return;   // only these types
+    if (st_counts(u, td)) st_side_add(f->side[p], u);
+}
+static double st_ms(LARGE_INTEGER a, LARGE_INTEGER b) {
+    LARGE_INTEGER fq;
+    QueryPerformanceFrequency(&fq);
+    return (double)(b.QuadPart - a.QuadPart) * 1000.0 / (double)fq.QuadPart;
+}
+static struct st_side g_st_sides[16];
 
 static void cmd_stats(char *out, const char *args) {
     if (!strncmp(args, "table", 5)) {
@@ -167,51 +256,87 @@ static void cmd_stats(char *out, const char *args) {
         }
         return;
     }
-    if (!strncmp(args, "fight", 5)) {   // fight x y r: the sides' soldiers and shooting buildings there
-        static struct st_fight f;
+    if (!strncmp(args, "fight", 5) || !strncmp(args, "bench", 5)) {
+        // fight x y [r [T U]]: the sides' soldiers and shooting buildings within r of x,y (only types T and U)
+        // bench N x y [r]: the same with every unit there repeated to N per side - the time it takes
+        int bench = args[0] == 'b', want = 0, r = 12;
+        static struct st_scan f;
         memset(&f, 0, sizeof f);
-        int r = 12;
-        f.ta = f.tb = -1;   // fight x y r T U: only units of types T and U
-        if (sscanf(args + 5, "%d %d %d %d %d", &f.x, &f.y, &r, &f.ta, &f.tb) < 2) { REPLY("error: stats fight x y [r [T U]]\n"); return; }
+        f.ta = f.tb = -1;
+        if (bench ? sscanf(args + 5, "%d %d %d %d", &want, &f.x, &f.y, &r) < 3
+                  : sscanf(args + 5, "%d %d %d %d %d", &f.x, &f.y, &r, &f.ta, &f.tb) < 2) {   // ("detail" stops the types)
+            REPLY("error: stats fight x y [r [T U]] | bench N x y [r]\n"); return;
+        }
         f.r2 = r * r;
-        grid_each(st_fight_unit, &f);
-        for (int a = 1; a < 16; a++) {
-            if (!f.n[a]) continue;
-            for (int b = 1; b < 16; b++) {
-                if (!f.n[b] || b <= a || !st_player(a) || !is_enemy(st_player(a), st_player(b))) continue;
-                float da = st_side_dps(f.u[a], f.n[a], f.u[b], f.n[b], 1), db = st_side_dps(f.u[b], f.n[b], f.u[a], f.n[a], 1);
-                float fa = st_side_dps(f.u[a], f.n[a], f.u[b], f.n[b], 0), fb = st_side_dps(f.u[b], f.n[b], f.u[a], f.n[a], 0);
-                float ha = st_side_hp(f.u[a], f.n[a]), hb = st_side_hp(f.u[b], f.n[b]);
-                float ca = st_close(f.u[a], f.n[a], f.u[b], f.n[b]), cb = st_close(f.u[b], f.n[b], f.u[a], f.n[a]);
-                float ta = st_kill_time(hb, ca, cb, fa, da), tb = st_kill_time(ha, cb, ca, fb, db);
-                REPLY("P%d (%d units, %.0f hp, %.1f dmg/s, at contact %.1f, %.0f s closing) vs P%d (%d, %.0f hp, %.1f/s, %.1f, %.0f s): "
-                      "P%d needs %.0f s, P%d %.0f s -> P%d (%.2f)\n", a, f.n[a], ha, fa, da, ca, b, f.n[b], hb, fb, db, cb,
-                      a, ta, b, tb, ta <= tb ? a : b, ta <= tb ? tb / ta : ta / tb);
+        for (int p = 1; p < 16; p++) { st_side_clear(&g_st_sides[p]); f.side[p] = &g_st_sides[p]; }
+        LARGE_INTEGER t0, t1, t2;
+        QueryPerformanceCounter(&t0);
+        grid_each(st_scan_unit, &f);
+        QueryPerformanceCounter(&t1);
+        for (int p = 1; p < 16 && bench; p++) {   // repeat the units found to N
+            struct st_side *s = &g_st_sides[p];
+            int n0 = s->n;
+            for (int i = 0; n0 && s->n < want && s->n < ST_UNITS; i = (i + 1) % n0) {
+                struct st_group *g = &s->g[s->ug[i]];
+                g->count++; g->hp += g->hp / (g->count - 1); s->hp += g->hp / g->count;
+                s->ux[s->n] = (int16_t)(s->ux[i] + (s->n / n0) % 7); s->uy[s->n] = (int16_t)(s->uy[i] + (s->n / n0) / 7); s->ug[s->n] = s->ug[i];
+                s->n++;
             }
         }
+        for (int a = 1; a < 16; a++) {
+            if (!g_st_sides[a].n) continue;
+            for (int b = a + 1; b < 16; b++) {
+                if (!g_st_sides[b].n || !st_player(a) || !is_enemy(st_player(a), st_player(b))) continue;
+                struct st_result e;
+                QueryPerformanceCounter(&t1);
+                st_estimate(&g_st_sides[a], &g_st_sides[b], &e);
+                QueryPerformanceCounter(&t2);
+                float ta = e.time[0], tb = e.time[1];
+                REPLY("P%d (%d units in %d types, %.0f hp, %.1f dmg/s, at contact %.1f, %.0f s closing) vs P%d (%d in %d, %.0f hp, %.1f/s, %.1f, %.0f s): "
+                      "P%d needs %.0f s, P%d %.0f s -> P%d (%.2f); scan %.3f ms, estimate %.3f ms\n", a, g_st_sides[a].n, g_st_sides[a].ng,
+                      g_st_sides[a].hp, e.dps_free[0], e.dps_contact[0], e.close[0], b, g_st_sides[b].n, g_st_sides[b].ng, g_st_sides[b].hp,
+                      e.dps_free[1], e.dps_contact[1], e.close[1], a, ta, b, tb, ta <= tb ? a : b, ta <= tb ? tb / ta : ta / tb,
+                      st_ms(t0, t1), st_ms(t1, t2));
+                for (int side = 0; side < 2 && strstr(args, "detail"); side++) {   // fight x y r detail: each type's share (contact)
+                    struct st_side *x = &g_st_sides[side ? b : a], *y = &g_st_sides[side ? a : b];
+                    st_side_dps(x, y, 1);
+                    REPLY("   P%d:", side ? b : a);
+                    for (int k = 0; k < x->ng; k++) REPLY(" %d x%d %.0f/s;", x->g[k].type, x->g[k].count, x->g[k].part);
+                    REPLY("\n");
+                }
+            }
+        }
+        for (int p = 1; p < 16; p++) st_side_clear(&g_st_sides[p]);
         return;
     }
     if (!strncmp(args, "engage", 6)) {   // engage P x y r: P's soldiers there attack the nearest enemy within 30 tiles
-        static struct st_fight f, e;
-        int p, n = 0;
-        memset(&f, 0, sizeof f); memset(&e, 0, sizeof e);
-        f.ta = f.tb = e.ta = e.tb = -1;
-        if (sscanf(args + 6, "%d %d %d %d", &p, &f.x, &f.y, &f.r2) != 4 || !st_player(p)) { REPLY("error: stats engage P x y r\n"); return; }
-        f.r2 *= f.r2; e.x = f.x; e.y = f.y; e.r2 = 40 * 40;
-        grid_each(st_fight_unit, &f);
-        grid_each(st_fight_unit, &e);
-        for (int i = 0; i < f.n[p & 15]; i++) {
-            uint8_t *u = f.u[p & 15][i], *best = NULL;
+        int p, x, y, r, n = 0, nm = 0, nf = 0;
+        if (sscanf(args + 6, "%d %d %d %d", &p, &x, &y, &r) != 4 || !st_player(p)) { REPLY("error: stats engage P x y r\n"); return; }
+        static uint8_t *mu[ST_UNITS], *fu[ST_UNITS];
+        uint8_t *map = *(uint8_t **)G_MAP, *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
+        if (!grid) { REPLY("error: no map\n"); return; }
+        int cells = FIELD(grid, 0x10, int) * FIELD(grid, 0x14, int);
+        uint8_t *cl = FIELD(grid, 4, uint8_t *);
+        for (int ci = 0; ci < cells; ci++)
+            for (uint8_t **bp = FIELD(cl + ci * 16, 4, uint8_t **); bp && bp < FIELD(cl + ci * 16, 8, uint8_t **); bp++) {
+                uint8_t *u = *bp, *td = u ? FIELD(u, 0x2C, uint8_t *) : NULL;
+                int q = u ? st_pidx(u) : 0;
+                if (!td || FIELD(u, 0x3C, int) <= 0 || q <= 0 || q > 15 || !st_counts(u, td)) continue;
+                int dx = FIELD(u, 0x1C, int) - x, dy = FIELD(u, 0x20, int) - y, d2 = dx * dx + dy * dy;
+                if (q == p && d2 <= r * r && nm < ST_UNITS) mu[nm++] = u;
+                else if (q != p && d2 <= 40 * 40 && is_enemy(st_player(p), st_player(q)) && nf < ST_UNITS) fu[nf++] = u;
+            }
+        for (int i = 0; i < nm; i++) {
+            uint8_t *u = mu[i], *best = NULL;
             float bd = 30.0f * 30.0f;
-            for (int q = 1; q < 16; q++)
-                for (int j = 0; j < e.n[q] && is_enemy(st_player(p), st_player(q)); j++) {
-                    float dx = (float)(FIELD(e.u[q][j], 0x1C, int) - FIELD(u, 0x1C, int)), dy = (float)(FIELD(e.u[q][j], 0x20, int) - FIELD(u, 0x20, int));
-                    if (dx * dx + dy * dy < bd && st_shot(u, e.u[q][j]) > 0) { bd = dx * dx + dy * dy; best = e.u[q][j]; }
-                }
+            for (int k = 0; k < nf; k++) {
+                float dx = (float)(FIELD(fu[k], 0x1C, int) - FIELD(u, 0x1C, int)), dy = (float)(FIELD(fu[k], 0x20, int) - FIELD(u, 0x20, int));
+                if (dx * dx + dy * dy < bd && st_shot(u, fu[k]) > 0) { bd = dx * dx + dy * dy; best = fu[k]; }
+            }
             if (best) n += unit_goal(u, goal_attack(u, best), 0, 0x1F40);
         }
-        REPLY("ok: %d of P%d's %d units there attack\n", n, p, f.n[p & 15]);
+        REPLY("ok: %d of P%d's %d units there attack\n", n, p, nm);
         return;
     }
-    REPLY("error: stats table | types P [from to] | vs P T Q U | fight x y [r [T U]] | engage P x y r\n");
+    REPLY("error: stats table | types P [from to] | vs P T Q U | fight x y [r [T U]] | bench N x y [r] | engage P x y r\n");
 }
