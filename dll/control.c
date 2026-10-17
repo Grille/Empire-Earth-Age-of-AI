@@ -289,7 +289,6 @@ static void cmd_foodcheck(char *out, const char *args) {
 
 // costs <player> [unit type ...]: next epoch tech cost (tech tree +8 + epoch*0x54 record, +8 -> data,
 // costs at +0x24.. food,wood,stone,gold,iron) and unit costs (object data 0x9418A0[type], same layout).
-#define G_OBJECT_DATA 0x009418A0
 static void print_costs(char *out, const char *tag, uint8_t *data) {
     if (!data) { REPLY("%s: no data\n", tag); return; }
     REPLY("%s: data=%p cost(f,w,s,g,i)=%d,%d,%d,%d,%d\n", tag, (void *)data, FIELD(data, 0x24, int), FIELD(data, 0x28, int),
@@ -313,7 +312,7 @@ static void cmd_costs(char *out, const char *args) {
     while (sscanf(a, "%d%n", &type, &k) == 1) {
         char tag[32];
         wsprintfA(tag, "unit %d", type);
-        uint8_t *obj = (type >= 0 && type < 2048) ? ((uint8_t **)G_OBJECT_DATA)[type] : NULL;
+        uint8_t *obj = type_data(type);
         uint8_t *tech = obj ? ((uint8_t *(__thiscall *)(void *, int))0x004019A1)(tt, FIELD(obj, 0x4E0, int)) : NULL;
         print_costs(out, tag, tech ? FIELD(tech, 8, uint8_t *) : NULL);   // costs live in the unit's tech
         a += k;

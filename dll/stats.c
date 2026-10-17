@@ -255,7 +255,7 @@ static void cmd_stats(char *out, const char *args) {
         void *pl = st_player(p);
         if (!pl) { REPLY("error: stats types P [from to]\n"); return; }
         for (int t = lo; t < hi && t < 0x300; t++) {
-            uint8_t *td = ((uint8_t **)G_TYPES)[t], *st = st_rec(pl, t);
+            uint8_t *td = type_data(t), *st = st_rec(pl, t);
             if (!td || !st || FIELD(st, 0xD8, float) <= 0) continue;
             REPLY("%3d fam %2d class %d cat %2d weapon %2d: att %g hp %d reload %.2f s range %g (min %g) speed %g area %g armour", t,
                   FIELD(td, 0x4B4, int), FIELD(td, 0x4C0, int), FIELD(td, 0x4C4, int), FIELD(td, 0x4C8, int),
@@ -269,7 +269,7 @@ static void cmd_stats(char *out, const char *args) {
         int p, t, q, u;
         if (sscanf(args + 2, "%d %d %d %d", &p, &t, &q, &u) != 4 || !st_player(p) || !st_player(q) ||
             t < 0 || t >= 0x300 || u < 0 || u >= 0x300) { REPLY("error: stats vs P T Q U\n"); return; }
-        uint8_t *atd = ((uint8_t **)G_TYPES)[t], *btd = ((uint8_t **)G_TYPES)[u], *ast = st_rec(st_player(p), t), *bst = st_rec(st_player(q), u);
+        uint8_t *atd = type_data(t), *btd = type_data(u), *ast = st_rec(st_player(p), t), *bst = st_rec(st_player(q), u);
         if (!atd || !btd) { REPLY("error: no type\n"); return; }
         for (int side = 0; side < 2; side++) {
             uint8_t *xt = side ? btd : atd, *xs = side ? bst : ast, *yt = side ? atd : btd, *ys = side ? ast : bst;
@@ -379,7 +379,7 @@ static void cmd_stats(char *out, const char *args) {
     if (!strncmp(args, "typedump", 8)) {   // typedump T: type T's non-zero dwords from +0x400 (int / float)
         int t = 0, from = 0x400;
         sscanf(args + 8, "%d %x", &t, &from);
-        uint8_t *td = t >= 0 && t < 1024 ? ((uint8_t **)0x009418A0)[t] : NULL;
+        uint8_t *td = type_data(t);
         if (!td || !mem_readable(td, 0x700)) { REPLY("error: no type %d\n", t); return; }
         int o = snprintf(out, 4096, "ok: type %d family %d:", t, FIELD(td, 0x4B4, int));
         for (int off = from & ~3; off < from + 0x300 && off < 0x700 && o < 3900; off += 4) {
@@ -392,7 +392,7 @@ static void cmd_stats(char *out, const char *args) {
     if (!strncmp(args, "garrison", 8)) {   // garrison: every type with a garrison capacity (type +0x550), its family
         int o = snprintf(out, 4096, "ok: types with a garrison capacity (type family capacity):");
         for (int t = 0; t < 724 && o < 3900; t++) {   // type ids end at 723
-            uint8_t *td = ((uint8_t **)0x009418A0)[t];
+            uint8_t *td = type_data(t);
             if (!td || FIELD(td, 0x4B8, int) != t || FIELD(td, 0x550, int) <= 0) continue;
             o += snprintf(out + o, 4096 - o, " %d/%d/%d", t, FIELD(td, 0x4B4, int), FIELD(td, 0x550, int));
         }

@@ -424,7 +424,7 @@ static void cmd_firerate(char *out, const char *args) {
         for (int q = k; q < g_fr_n && m < 64; q++)
             if (g_fr[q].type == t && g_fr[q].n >= 4) iv[m++] = (float)(g_fr[q].t1 - g_fr[q].t0) / 1000.0f / (float)(g_fr[q].n - 1);
         for (int a = 0; a < m; a++) for (int b = a + 1; b < m; b++) if (iv[b] < iv[a]) { float x = iv[a]; iv[a] = iv[b]; iv[b] = x; }
-        uint8_t *td = ((uint8_t **)G_TYPES)[t];
+        uint8_t *td = type_data(t);
         REPLY("type %d: %d units with 4+ shots, median %.2f s between shots (min %.2f max %.2f); type +0x42C %.3g +0x430 %.3g +0x438 %.3g\n", t, m,
               m ? iv[m / 2] : 0.0f, m ? iv[0] : 0.0f, m ? iv[m - 1] : 0.0f, td ? FIELD(td, 0x42C, float) : 0.0f, td ? FIELD(td, 0x430, float) : 0.0f,
               td ? FIELD(td, 0x438, float) : 0.0f);
@@ -525,7 +525,7 @@ static void cmd_aim(char *out, const char *args) {
     if (strstr(args, "types")) {   // unit types that fire missiles
         REPLY("missile types:");
         for (int ty = 0; ty < 0x300; ty++) {
-            uint8_t *td = ((uint8_t **)G_TYPES)[ty], *pc = td ? FIELD(td, 0x3FC, uint8_t *) : NULL;
+            uint8_t *td = type_data(ty), *pc = td ? FIELD(td, 0x3FC, uint8_t *) : NULL;
             if (pc && *(uintptr_t *)pc == 0x00832E90) REPLY(" %d", ty);
         }
         REPLY("\n");

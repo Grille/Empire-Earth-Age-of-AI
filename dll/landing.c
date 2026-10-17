@@ -82,7 +82,7 @@ static int is_transport(int t) {
     return 0;
 }
 static int ld_cap(int t) {   // soldiers a transport holds: its type's +0x54C (313/110: 10, 111: 12, 112-114: 14; 110 held 10 in the board test)
-    uint8_t *td = t > 0 && t < 0x300 ? ((uint8_t **)G_TYPES)[t] : NULL;
+    uint8_t *td = t > 0 ? type_data(t) : NULL;
     int c = td ? FIELD(td, 0x54C, int) : 0;
     return c >= 4 && c <= 30 ? c : 10;
 }
@@ -815,7 +815,7 @@ static const char *ld_kind_name(int kind) {
 }
 static int ld_base_spot(void *pl, unsigned pi, struct landing *l, int type, int cx, int cy, int *ox, int *oy) {
     unsigned cont = area_id(cx, cy, 2);
-    uint8_t *td = ((uint8_t **)G_TYPES)[type];
+    uint8_t *td = type_data(type);
     int sz = td ? FIELD(td, 0x58C, int) : 1, found = 0;
     float best = 1e9f;
     if (sz < 1) sz = 1;
@@ -1161,13 +1161,13 @@ static uint8_t *ld_objective(void *pl, unsigned pi, uint8_t *target, unsigned co
 // transports' cost is held back from every other order meanwhile (landing_reserve): P2 failed every warship for gold
 // and iron and every transport for wood while its army orders took them.
 // the warship of its epoch that does the most to a tower: its tech available (tech +4: not the campaign heroes - the
-// Golden Hind 611 passed 0x555710), type ids end at 723 (the table ends there: garbage after it, read faults)
+// Golden Hind 611 passed 0x555710), type ids end at 723 (the table has 0x300 slots, past it other data: type_data)
 static int ld_war_type(void *pl, uint8_t *target, int now_only) {
-    uint8_t *tw = ((uint8_t **)G_TYPES)[465], *tt = FIELD(pl, PL_TECHTREE, uint8_t *);
+    uint8_t *tw = type_data(465), *tt = FIELD(pl, PL_TECHTREE, uint8_t *);
     int best = 0, tpi = target ? FIELD(target, PL_INDEX, int) : 0, api = FIELD(pl, PL_INDEX, int);
     float bv = 0;
     for (int t = 1; t < 724 && tt; t++) {
-        uint8_t *td = ((uint8_t **)G_TYPES)[t];
+        uint8_t *td = type_data(t);
         if (!td || FIELD(td, 0x4B8, int) != t || FIELD(td, 0x4B4, int) != 4 || is_transport(t) || is_fishing_boat(t) || FIELD(td, 0x510, int) <= 0) continue;
         uint8_t *tech = ((uint8_t *(__thiscall *)(void *, int))0x004019A1)(tt, FIELD(td, 0x4E0, int));
         if (FIELD(td, 0x4E0, int) < 2000) continue;   // campaign heroes: tech 14xx (Golden Hind 611: 1446; ordering it crashed the game)
@@ -1182,7 +1182,7 @@ static int ld_bombard_plan(void *pl, unsigned pi, struct landing *l, uint8_t *ta
                            int sx, int sy, int swx, int swy, struct ld_def *d, uint32_t now, int tr_want) {
     int wt = ld_war_type(pl, target, 0);
     if (!wt && !s->nw) return 0;
-    uint8_t *wtd = wt ? ((uint8_t **)G_TYPES)[wt] : FIELD(s->war[0], 0x2C, uint8_t *);
+    uint8_t *wtd = wt ? type_data(wt) : FIELD(s->war[0], 0x2C, uint8_t *);
     float ship_pw = ld_strength((float)FIELD(wtd, 0x55C, int), (float)FIELD(wtd, 0x510, int));
     int want = ship_pw > 0 ? (int)ceilf(0.5f * ld_need(d) / ship_pw) : 8;
     if (want < 4) want = 4;
@@ -1203,7 +1203,7 @@ static void ld_anti_unit(uint8_t *u, void *ctx) {   // enemy land units near the
     if (ld_factor(td, ld_pidx(u), a->wtd, FIELD(a->pl, PL_INDEX, int)) >= 1.5f) a->n++;
 }
 static int ld_anti_ship(void *pl, struct landing *l) {
-    struct ld_anti a = { pl, l->target, l->war_type ? ((uint8_t **)G_TYPES)[l->war_type] : NULL, l->sx, l->sy, 0 };
+    struct ld_anti a = { pl, l->target, l->war_type ? type_data(l->war_type) : NULL, l->sx, l->sy, 0 };
     if (!a.wtd) return 0;
     grid_each(ld_anti_unit, &a);
     return a.n;
@@ -1384,7 +1384,7 @@ static void landing_tick(void *pl, uint32_t now) {
                 if (bd < 0 || dd < bd) { bd = dd; l->dkx = s.dx[k]; l->dky = s.dy[k]; }
             }
             static struct ld_sea e, o;
-            uint8_t *ttd = ((uint8_t **)G_TYPES)[ttype];
+            uint8_t *ttd = type_data(ttype);
             memset(&o, 0, sizeof o);
             ld_sea_threat(pl, ttd, l->dkx, l->dky, swx, swy, sx, sy, &e);
             for (int k = 0, m = 0; k < s.nw && m < 6; k++) if (ld_sea_useful(&e, s.war[k])) { ld_sea_add(&o, &e, s.war[k]); m++; }
@@ -1487,7 +1487,7 @@ static void landing_tick(void *pl, uint32_t now) {
         // its aircraft too: they bomb the beach's defences and soldiers, else fly over it - a look at the beach
         // (honest_vision) before the transports commit
         // aircraft: those that hit a threat on the way or the beach's tower (a fighter that hits neither stays home)
-        uint8_t *tw = ((uint8_t **)G_TYPES)[465];
+        uint8_t *tw = type_data(465);
         for (int k = 0; k < s.na && l->nesc < 14; k++)
             if (ld_sea_useful(&e, s.air[k]) || ld_factor(FIELD(s.air[k], 0x2C, uint8_t *), ld_pidx(s.air[k]), tw, FIELD(l->target, 0x45C, int)) > 0.0f)
                 l->esc[l->nesc++] = s.air[k];
@@ -2046,7 +2046,7 @@ static void cmd_board(char *out, const char *args) {
             REPLY("\n");
         }
         for (size_t j = 0; j < sizeof tt / sizeof *tt; j++) {
-            uint8_t *td = ((uint8_t **)G_TYPES)[tt[j]];
+            uint8_t *td = type_data(tt[j]);
             REPLY("type data %d:", tt[j]);
             for (int off = 0x410; off < 0x440; off += 4) REPLY(" %X=%g", off, FIELD(td, off, float));
             REPLY(" | reload 50C=%d missile delay 588=%d | 510=%d 4C0=%d 4C4=%d 4C8=%d", FIELD(td, 0x50C, int), FIELD(td, 0x588, int), FIELD(td, 0x510, int), FIELD(td, 0x4C0, int), FIELD(td, 0x4C4, int), FIELD(td, 0x4C8, int));
@@ -2062,8 +2062,8 @@ static void cmd_board(char *out, const char *args) {
         for (size_t j = 0; j < sizeof tt / sizeof *tt; j++) REPLY(" %5d", tt[j]);
         REPLY("\n");
         for (size_t k = 0; k < sizeof at / sizeof *at; k++) {
-            REPLY("  %3d (kind %2d):", at[k], FIELD(((uint8_t **)G_TYPES)[at[k]], 0x4C8, int));
-            for (size_t j = 0; j < sizeof tt / sizeof *tt; j++) REPLY(" %5.2f", ld_factor(((uint8_t **)G_TYPES)[at[k]], 2, ((uint8_t **)G_TYPES)[tt[j]], 1));
+            REPLY("  %3d (kind %2d):", at[k], FIELD(type_data(at[k]), 0x4C8, int));
+            for (size_t j = 0; j < sizeof tt / sizeof *tt; j++) REPLY(" %5.2f", ld_factor(type_data(at[k]), 2, type_data(tt[j]), 1));
             REPLY("\n");
         }
         return;
@@ -2073,7 +2073,7 @@ static void cmd_board(char *out, const char *args) {
         for (int off = 0; off < 0x800; off += 4) {
             int ok = 1, v[7];
             for (int k = 0; k < 7; k++) {
-                uint8_t *td = ((uint8_t **)G_TYPES)[tt[k]];
+                uint8_t *td = type_data(tt[k]);
                 v[k] = td ? FIELD(td, off, int) : -1;
                 if (k < 6) ok &= v[k] >= 2 && v[k] <= 60;
             }

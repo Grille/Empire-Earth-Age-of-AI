@@ -189,6 +189,19 @@ static float as_enemy_power(void *pl, int x, int y, int r, float *cx, float *cy,
     return pow;
 }
 
+// Stored unit pointers: a unit's memory is freed when it dies (and reused) - read only while it is still on the map
+// (the objective, a building at its spot) or still a member (the wave, against this tick's members)
+struct as_find { uint8_t *u; int found; };
+static void as_find_fn(uint8_t *u, void *ctx) { struct as_find *f = ctx; if (u == f->u) f->found = 1; }
+static int as_on_map(uint8_t *u, int x, int y) {
+    struct as_find f = { u, 0 };
+    if (u) grid_box(x, y, 2, as_find_fn, &f);
+    return f.found;
+}
+static int as_member(uint8_t **mem, int n, uint8_t *u) {
+    for (int j = 0; j < n; j++) if (mem[j] == u) return 1;
+    return 0;
+}
 static int as_in_wave(struct assault *a, uint8_t *u) {
     for (int k = 0; k < a->nwave; k++) if (a->wave[k] == u) return 1;
     return 0;
@@ -322,11 +335,11 @@ static void assault_tick(void *pl, uint32_t now) {
     float hpow = as_enemy_power(pl, bx, by, 40, &hx, &hy, &hn, 0);
     int doorstep = hn >= 3;
     if (doorstep) { a->obj = NULL; a->ox = (int)hx; a->oy = (int)hy; }
-    else if (!a->obj || a->doorstep || FIELD(a->obj, 0x3C, int) <= 0 || FIELD(a->obj, 0x18, uint8_t *) != target) {
+    else if (!a->obj || a->doorstep || !as_on_map(a->obj, a->ox, a->oy) || FIELD(a->obj, 0x3C, int) <= 0 || FIELD(a->obj, 0x18, uint8_t *) != target) {
         int fx = bx, fy = by;
         if (a->phase == 2 && a->nwave) {   // from the wave's centre
             float sx = 0, sy = 0; int m = 0;
-            for (int k = 0; k < a->nwave; k++) if (FIELD(a->wave[k], 0x3C, int) > 0) { sx += FIELD(a->wave[k], 0x1C, int); sy += FIELD(a->wave[k], 0x20, int); m++; }
+            for (int k = 0; k < a->nwave; k++) if (as_member(mem, n, a->wave[k])) { sx += FIELD(a->wave[k], 0x1C, int); sy += FIELD(a->wave[k], 0x20, int); m++; }
             if (m) { fx = (int)(sx / m); fy = (int)(sy / m); }
         }
         uint8_t *o = as_objective(pl, pi, target, hc, fx, fy);

@@ -415,7 +415,7 @@ Guard towers 47, 461..466; AA 145/147; town center 35; house 37; citizen 32.
 - AssignCitizens: fills deficits per type. Mines go via 0x48C204 (free slot, no enemy near, same continent),
   leftovers via 0x48A1AE (mines, then wood 0x48C060). Surplus workers are never taken back.
 - Demand: added by 0x48B9E9 (costs via AdjustCost), subtracted by 0x48D050 / 0x48B6E8 and by AddResource.
-- Unit type table 0x9418A0 has 724 entries (type ids 0..723); typedata +0x4B4 family: 5 land units (siege
+- Unit type table 0x9418A0 has 0x300 slots (the game loops to 0x9424A0; type ids 0..723 used, dll type_data()); typedata +0x4B4 family: 5 land units (siege
   included), 4 ships, 2 buildings. 0x555710(type, 0x20, 0) thiscall on the player: can train/build one now
   (available, affordable, building/builder, pop room) - true for campaign heroes too.
 - Damage effect EEEDamagedEffect::vf19 0x4F8048: model = unit vtable +0x54; 0x4D291F(index, state) looks up

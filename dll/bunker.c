@@ -244,7 +244,7 @@ static void bk_build(void *pl, unsigned pi, uint32_t now) {
     if (g_bk[pi].nall >= want) return;
     // 350 wood (0x555710 also wants a free builder at that moment: it passed in 2 of 10 games before minute 20, the
     // game's own builders take the foundation up anyway)
-    uint8_t *od = ((uint8_t **)0x009418A0)[FORTRESS_TYPE], *tt = FIELD(pl, PL_TECHTREE, uint8_t *);
+    uint8_t *od = type_data(FORTRESS_TYPE), *tt = FIELD(pl, PL_TECHTREE, uint8_t *);
     uint8_t *tech = od && tt ? ((uint8_t *(__thiscall *)(void *, int))0x004019A1)(tt, FIELD(od, 0x4E0, int)) : NULL;
     int cost = tech && FIELD(tech, 8, uint8_t *) ? FIELD(FIELD(tech, 8, uint8_t *), 0x28, int) : 350;   // the cost lives in its tech (wood)
     if (((int *)((uint8_t *)pl + PL_STOCK))[3] < cost) { g_bk[pi].need_wood = cost; return; }   // can't pay yet: saved for (bunker_reserve)

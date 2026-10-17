@@ -75,7 +75,7 @@ static struct def_plan {
 static unsigned area_id(int x, int y, int kind);   // assault.c: 1 the sea, 2 the land there (0 none)
 static int is_tower_type(int t) { return t == 47 || t == 328 || (t >= 461 && t <= 466); }
 static int can_place(void *pl, int type, int x, int y) {
-    uint8_t *td = (type >= 0 && type < 2048) ? ((uint8_t **)0x009418A0)[type] : NULL;
+    uint8_t *td = type_data(type);
     uint8_t *map = *(uint8_t **)G_MAP;
     int n = map ? (int)FIELD(map, 0x1816FC, uint32_t) : 0, sz = td ? FIELD(td, 0x58C, int) : 0;
     if (!td || x < 2 || y < 2 || x >= n - 2 || y >= n - 2) return 0;
@@ -1421,7 +1421,7 @@ static void upgrade_stragglers(void) {   // the safe point (control.c hook_sim_r
         grid_each(upg_scan, NULL);   // collected first: the conversion replaces the object
         int pi = FIELD(pl, PL_INDEX, int);
         for (int k = 0; k < g_upg.n; k++) {
-            uint32_t data = ((uint32_t *)0x009418A0)[g_upg.to[k]];
+            uint32_t data = (uint32_t)type_data(g_upg.to[k]);
             if (!data) continue;
             int from = FIELD(FIELD(g_upg.u[k], 0x2C, uint8_t *), 0x4B8, int), x = FIELD(g_upg.u[k], 0x1C, int), y = FIELD(g_upg.u[k], 0x20, int);
             ((int (__cdecl *)(void *, int, uint32_t))0x0062F192)(g_upg.u[k], pi, data);

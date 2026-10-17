@@ -430,7 +430,7 @@ static void __fastcall hook_asg_route(uint8_t *self, void *edx, int *start, int 
     }
     // the target player is chosen once, at the launch (0x46F4FF): after peace or an alliance the march goes on -
     // diplo.c calls such attacks off at the next safe point (never here: it deletes this subgroup)
-    int hostile = target && FIELD(pl, 0x9E4 + (FIELD(target, PL_INDEX, int) & 15) * 4, int);
+    int hostile = pl && target && FIELD(pl, 0x9E4 + (FIELD(target, PL_INDEX, int) & 15) * 4, int);
     if (pl && target && !hostile) {
         if (g_log) fprintf(g_log, "# route: P%d marches on P%d, no enemy any more\n", FIELD(pl, PL_INDEX, int), FIELD(target, PL_INDEX, int));
         diplo_cancel_attacks(FIELD(pl, PL_INDEX, int) & 15, FIELD(target, PL_INDEX, int) & 15);
@@ -717,6 +717,7 @@ static int raiders_near(void *pl, int x, int y, int r0) {
     if (!grid || !pl) return 0;
     int cs = FIELD(grid, 8, int), nx = FIELD(grid, 0x10, int), ny = FIELD(grid, 0x14, int);
     uint8_t *cells = FIELD(grid, 4, uint8_t *);
+    if (!cells || cs <= 0) return 0;   // no grid yet (a division by cs)
     for (int cx = (x - r) / cs; cx <= (x + r) / cs; cx++)
         for (int cy = (y - r) / cs; cy <= (y + r) / cs; cy++) {
             if (cx < 0 || cy < 0 || cx >= nx || cy >= ny) continue;
@@ -1664,7 +1665,6 @@ static void cmd_targets(char *out, const char *args) {
 // float xy[2], char player)) handed to the lockstep server ([0x91984C] slot 6: (msg, 0xFF)). The simulation
 // executes it in a coming tick (EEMHackANewUnit::vf10 0x4B7044: ground height, buildings checked against the
 // map) - like any player command. Several units go on a grid of 2 tiles around x, y.
-#define G_TYPES   0x009418A0
 #define G_SERVER_OBJ 0x0091984C
 // give P amount (test): player P's stock of food, wood, stone, gold and iron each grows by amount
 static void cmd_give(char *out, const char *args) {
@@ -1700,7 +1700,7 @@ static void cmd_spawn(char *out, const char *args) {
         return;
     }
     void *srv = *(void **)G_SERVER_OBJ;
-    if (!((void **)G_TYPES)[type] || !srv) { REPLY("error: no type %d or no game\n", type); return; }
+    if (!type_data(type) || !srv) { REPLY("error: no type %d or no game\n", type); return; }
     {   // off the map the game crashes (150,140 on a 128-tile map)
         uint8_t *map = *(uint8_t **)G_MAP, *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
         int w = grid ? FIELD(grid, 8, int) * FIELD(grid, 0x10, int) : 0, h = grid ? FIELD(grid, 8, int) * FIELD(grid, 0x14, int) : 0;
@@ -1728,7 +1728,7 @@ static void cmd_spawnline(char *out, const char *args) {
         return;
     }
     void *srv = *(void **)G_SERVER_OBJ;
-    if (!((void **)G_TYPES)[type] || !srv) { REPLY("error: no type %d or no game\n", type); return; }
+    if (!type_data(type) || !srv) { REPLY("error: no type %d or no game\n", type); return; }
     int dx = x1 - x0, dy = y1 - y0, len = abs(dx) > abs(dy) ? abs(dx) : abs(dy), n = 0;
     for (int i = 0; i <= len; i += step) {
         float xy[2] = { (float)x0 + (len ? (float)(dx * i) / (float)len : 0) + 0.5f,
@@ -1816,7 +1816,7 @@ static void cmd_found(char *out, const char *args) {
     int p, t, x, y;
     if (sscanf(args, "%d %d %d %d", &p, &t, &x, &y) < 4) { REPLY("error: usage: found P T x y\n"); return; }
     void *pl = player_at(p);   // diplo.c: any player, human or AI
-    if (!pl || t < 0 || t >= 724 || !((void **)0x009418A0)[t]) { REPLY("error: no player %d or type %d\n", p, t); return; }
+    if (!pl || t < 0 || t >= 724 || !type_data(t)) { REPLY("error: no player %d or type %d\n", p, t); return; }
     void *u = ((void *(__cdecl *)(void *, int, int, int))0x0062EF8A)(pl, t, x, y);
     REPLY("ok: type %d for P%d at %d,%d: %p\n", t, p, x, y, u);
 }

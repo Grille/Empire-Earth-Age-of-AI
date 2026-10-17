@@ -95,7 +95,7 @@ static int field_place_ok(uint8_t *bm, int x, int y);   // below, with the farm 
 static int upgraded_type(void *pl, int type);   // defence.c: the type an upgrade put in place of this one
 static struct { int type; uint32_t next; uint8_t tries; } g_retry[16][16];   // dropped types, tried again
 static int is_decoration(int type) {   // the editor's "x ..." objects (name at object data +0x1C)
-    uint8_t *od = type >= 0 && type < 0x300 ? ((uint8_t **)0x009418A0)[type] : NULL;
+    uint8_t *od = type_data(type);
     const char *name = od ? FIELD(od, 0x1C, const char *) : NULL;
     return name && name[0] == 'x' && name[1] == ' ';
 }
@@ -413,7 +413,7 @@ static void cmd_tinfo(char *out, const char *args) {
     args += n;
     while (sscanf(args, "%d%n", &t, &n) == 1) {
         args += n;
-        uint8_t *td = (t >= 0 && t < 2048) ? ((uint8_t **)0x009418A0)[t] : NULL;
+        uint8_t *td = type_data(t);
         if (!td) { REPLY("%d: none\n", t); continue; }
         REPLY("%d: family %d hp %d attack %d range %.1f can %d\n", t, FIELD(td, 0x4B4, int), FIELD(td, 0x55C, int),
               FIELD(td, 0x510, int), FIELD(td, 0x420, float),
@@ -590,7 +590,7 @@ static int requirements_missing(void *pl) {
 }
 // unit type whose first training counts for the next epoch (its tech: object data 0x9418A0[type] +0x4E0)
 static int requirement_unit(void *pl, int type) {
-    uint8_t *tt = FIELD(pl, PL_TECHTREE, uint8_t *), *od = type >= 0 && type < 2000 ? ((uint8_t **)0x009418A0)[type] : NULL;
+    uint8_t *tt = FIELD(pl, PL_TECHTREE, uint8_t *), *od = type_data(type);
     if (!g_early_requirements || !tt || !od || requirements_missing(pl) < 1) return 0;
     uint8_t *t = ((uint8_t *(__thiscall *)(void *, int))0x004019A1)(tt, FIELD(od, 0x4E0, int));
     uint8_t *d = t ? FIELD(t, 8, uint8_t *) : NULL;
@@ -610,7 +610,7 @@ static void decoration_fix(void *pl, unsigned ai) {
     done[ai] = tt;
     int n = 0;
     for (int type = 0; type < 0x300; type++) {   // the table's size, as the game checks it (0x4B..: < 0x300)
-        uint8_t *od = ((uint8_t **)0x009418A0)[type];
+        uint8_t *od = type_data(type);
         const char *name = od ? FIELD(od, 0x1C, const char *) : NULL;
         if (!name || name[0] != 'x' || name[1] != ' ') continue;
         uint8_t *t = ((uint8_t *(__thiscall *)(void *, int))0x004019A1)(tt, FIELD(od, 0x4E0, int));
@@ -1458,7 +1458,7 @@ static void mil_note(void *pl, unsigned idx, const int *req, const int *visible,
 // medium +0xBB4 float, hard +0xD4C int).
 #define FN_TECH_LOOKUP 0x004019A1
 static int unit_cost(void *pl, int type, int r) {
-    uint8_t *obj = (type >= 0 && type < 2048) ? ((uint8_t **)0x009418A0)[type] : NULL;
+    uint8_t *obj = type_data(type);
     uint8_t *tt = FIELD(pl, PL_TECHTREE, uint8_t *);
     if (!obj || !tt || r < 2 || r > 6) return 0;
     uint8_t *tech = ((uint8_t *(__thiscall *)(void *, int))FN_TECH_LOOKUP)(tt, FIELD(obj, 0x4E0, int));
@@ -1493,7 +1493,7 @@ static uint32_t g_save_since[16];   // game time it started saving (a request re
 static int base_threatened(unsigned idx);   // diplo.c: enemy soldiers in its base
 static struct { void *pl; uint32_t t; int n; int type[48]; } g_cand[16];
 static int land_soldier(int type) {
-    uint8_t *td = (type >= 0 && type < 724) ? ((uint8_t **)0x009418A0)[type] : NULL;
+    uint8_t *td = type_data(type);
     static const int no[] = { 104, 105, 106, 107, 141, 142, 602, 603, 102, 287, 158, 32, 480, 1, 216 };
     if (!td || FIELD(td, 0x4B8, int) != type || FIELD(td, 0x4B4, int) != 5) return 0;   // a real record of this type
     for (size_t i = 0; i < sizeof no / sizeof *no; i++) if (type == no[i]) return 0;
@@ -1502,14 +1502,14 @@ static int land_soldier(int type) {
 // Requests that may be replaced: every military unit but ships (family 4: navies on water maps), siege and rams
 // (the siege controller's business) - heroes, priests and the like included.
 static int substitutable(int type) {
-    uint8_t *td = (type >= 0 && type < 724) ? ((uint8_t **)0x009418A0)[type] : NULL;
+    uint8_t *td = type_data(type);
     static const int no[] = { 104, 105, 106, 107, 141, 142, 602, 603, 102, 287, 158, 32, 480 };
     if (!td || FIELD(td, 0x4B8, int) != type || FIELD(td, 0x4B4, int) == 4) return 0;
     for (size_t i = 0; i < sizeof no / sizeof *no; i++) if (type == no[i]) return 0;
     return 1;
 }
 static int soldier_score(int type) {
-    uint8_t *td = ((uint8_t **)0x009418A0)[type];
+    uint8_t *td = type_data(type);
     return FIELD(td, 0x55C, int) * FIELD(td, 0x510, int);
 }
 static int substitute_soldier(void *pl, unsigned idx, const int *vis, int want, int *got) {
@@ -1520,7 +1520,7 @@ static int substitute_soldier(void *pl, unsigned idx, const int *vis, int want, 
         g_cand[idx].pl = pl; g_cand[idx].t = now; g_cand[idx].n = 0;
         for (int t = 0; t < 724; t++) {   // type ids end at 723 (data/db/converteroutput.log); the table ends there
             if (!land_soldier(t) || soldier_score(t) <= 0) continue;   // no attack: never a soldier
-            uint8_t *tech = ((uint8_t *(__thiscall *)(void *, int))0x004019A1)(tt, FIELD(((uint8_t **)0x009418A0)[t], 0x4E0, int));
+            uint8_t *tech = ((uint8_t *(__thiscall *)(void *, int))0x004019A1)(tt, FIELD(type_data(t), 0x4E0, int));
             if (!tech || !tech[4]) continue;
             int n = g_cand[idx].n, k = n < 48 ? n : 47;   // insert sorted by score, strongest first
             while (k > 0 && soldier_score(g_cand[idx].type[k - 1]) < soldier_score(t)) {

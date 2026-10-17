@@ -124,6 +124,13 @@ static void __fastcall hook_cp_update(void *pl, void *edx, uint32_t now) {
 
 #define FIELD(p, off, T) (*(T *)((uint8_t *)(p) + (off)))
 
+// Unit type (object) data 0x9418A0[type]: 0x300 slots (the game's own loops end at 0x9424A0; type ids 0..723 are
+// used, the slots after them are empty), past the table other data. Every read goes through here: NULL outside
+// the table and for an empty slot.
+#define G_TYPES   0x009418A0
+#define G_TYPES_N 0x300
+static inline uint8_t *type_data(int t) { return t >= 0 && t < G_TYPES_N ? ((uint8_t **)G_TYPES)[t] : NULL; }
+
 // `n` bytes at p readable, from the page table (IsBadReadPtr probes by raising access violations: each one went
 // through the crash log's first-chance handler)
 static int mem_readable(const void *p, size_t n) {
