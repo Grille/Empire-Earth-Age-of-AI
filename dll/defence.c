@@ -16,6 +16,29 @@ static void grid_each(void (*fn)(uint8_t *u, void *ctx), void *ctx) {
             fn(u, ctx);
         }
 }
+// the same within the cells covering tiles x-r..x+r, y-r..y+r: each unit once, in the cell of its own position (a big
+// building stands in several cells - counted by hand, an AA building counted 2-4 times); fn checks the distance
+static void grid_box(int x, int y, int r, void (*fn)(uint8_t *u, void *ctx), void *ctx) {
+    uint8_t *map = *(uint8_t **)G_MAP;
+    uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
+    if (!grid) return;
+    uint8_t *cells = FIELD(grid, 4, uint8_t *);
+    int cs = FIELD(grid, 8, int), nx = FIELD(grid, 0x10, int), ny = FIELD(grid, 0x14, int);
+    if (!cells || cs <= 0) return;
+    int x0 = x - r < 0 ? 0 : (x - r) / cs, y0 = y - r < 0 ? 0 : (y - r) / cs, x1 = (x + r) / cs, y1 = (y + r) / cs;
+    if (x1 >= nx) x1 = nx - 1;
+    if (y1 >= ny) y1 = ny - 1;
+    for (int gx = x0; gx <= x1; gx++)
+        for (int gy = y0; gy <= y1; gy++) {
+            uint8_t *cell = cells + (gx * ny + gy) * 16;
+            for (uint8_t **b = FIELD(cell, 4, uint8_t **); b && b < FIELD(cell, 8, uint8_t **); b++) {
+                uint8_t *u = *b;
+                if (!u || !FIELD(u, 0x2C, uint8_t *)) continue;
+                if (FIELD(u, 0x1C, int) / cs != gx || FIELD(u, 0x20, int) / cs != gy) continue;
+                fn(u, ctx);
+            }
+        }
+}
 
 // DEFENCE LAYOUT (aimod.ini [all] defence_layout, default on). The game's AI decides when and how many towers to
 // build (its building plan, cm 0x46CD18) and puts each where its spot finder (0x466ED4) finds room along paths from
@@ -946,6 +969,24 @@ static void hold_town(void *pl, unsigned idx, uint32_t now) {
 static struct { uint8_t *g; float peak; int bad, peak_n; } g_rt[16][8];
 static struct st_side g_rt_own, g_rt_foe;   // fight_estimate: a group and what it faces
 static unsigned g_retreats[16];
+struct rt_face { void *pl; uint8_t *target; float cx, cy; int contact; float epow; };
+static void rt_face_unit(uint8_t *u, void *ctx) {   // attack_retreat: an enemy unit near the group
+    struct rt_face *f = ctx;
+    uint8_t *td = FIELD(u, 0x2C, uint8_t *);
+    if (FIELD(u, 0x3C, int) <= 0) return;
+    void *o = FIELD(u, 0x18, void *);
+    if (!o || o == f->pl || FIELD(o, PL_INDEX, int) <= 0 || !is_enemy(f->pl, o)) return;
+    float dx = (float)FIELD(u, 0x1C, int) - f->cx, dy = (float)FIELD(u, 0x20, int) - f->cy, d2 = dx * dx + dy * dy;
+    int fam = FIELD(td, 0x4B4, int);
+    float r, a;
+    if (o == f->target && (fam == 2 || fam == 29) && d2 <= 225.0f) f->contact = 1;
+    if (defence_stats(u, &r, &a)) {
+        if (d2 <= (r + 1.0f) * (r + 1.0f)) { f->epow += (float)FIELD(u, 0x3C, int) * a; if (g_fight_est) st_side_add(&g_rt_foe, u); }
+    } else if ((is_soldier(td) || is_siege(FIELD(td, 0x4B8, int))) && d2 <= 144.0f) {
+        f->epow += unit_power(u);
+        if (g_fight_est) st_side_add(&g_rt_foe, u);
+    }
+}
 static void attack_retreat(void *pl, unsigned idx, uint32_t now) {
     static uint32_t last[16];
     if (!g_retreat || (now >= last[idx] && now - last[idx] < 5000)) return;
@@ -962,10 +1003,6 @@ static void attack_retreat(void *pl, unsigned idx, uint32_t now) {
     int bx = FIELD(bm, 0x12C, int), by = FIELD(bm, 0x130, int);
     uint8_t *dq = cmd + 4, *seen[8] = { 0 };
     unsigned first = FIELD(dq, 0xC, unsigned), cnt = FIELD(dq, 0x10, unsigned);
-    uint8_t *map = *(uint8_t **)G_MAP;
-    uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
-    uint8_t *cells = grid ? FIELD(grid, 4, uint8_t *) : NULL;
-    int cs = grid ? FIELD(grid, 8, int) : 1, nx = grid ? FIELD(grid, 0x10, int) : 0, ny = grid ? FIELD(grid, 0x14, int) : 0;
     float gpow[8] = { 0 };   // every group's strength first: no call-off while a stronger one has the same target
     uint8_t *gtarget[8] = { 0 };
     for (unsigned k = 0; k < cnt && k < 8; k++) {
@@ -1006,30 +1043,10 @@ static void attack_retreat(void *pl, unsigned idx, uint32_t now) {
         if (pow > g_rt[idx][slot].peak) g_rt[idx][slot].peak = pow;
         if (n > g_rt[idx][slot].peak_n) g_rt[idx][slot].peak_n = n;
         // in contact: the target's buildings within 15 tiles; what it faces there
-        int contact = 0;
-        float epow = 0;
-        int icx = (int)cx, icy = (int)cy;
-        for (int gx = (icx - 15) / cs; cells && gx <= (icx + 15) / cs; gx++)
-            for (int gy = (icy - 15) / cs; gy <= (icy + 15) / cs; gy++) {
-                if (gx < 0 || gy < 0 || gx >= nx || gy >= ny) continue;
-                uint8_t *cell = cells + (gx * ny + gy) * 16;
-                for (uint8_t **b = FIELD(cell, 4, uint8_t **); b && b < FIELD(cell, 8, uint8_t **); b++) {
-                    uint8_t *u = *b, *td = u ? FIELD(u, 0x2C, uint8_t *) : NULL;
-                    if (!td || FIELD(u, 0x3C, int) <= 0) continue;
-                    void *o = FIELD(u, 0x18, void *);
-                    if (!o || o == pl || FIELD(o, PL_INDEX, int) <= 0 || !is_enemy(pl, o)) continue;
-                    float dx = (float)FIELD(u, 0x1C, int) - cx, dy = (float)FIELD(u, 0x20, int) - cy, d2 = dx * dx + dy * dy;
-                    int fam = FIELD(td, 0x4B4, int);
-                    float r, a;
-                    if (o == target && (fam == 2 || fam == 29) && d2 <= 225.0f) contact = 1;
-                    if (defence_stats(u, &r, &a)) {
-                        if (d2 <= (r + 1.0f) * (r + 1.0f)) { epow += (float)FIELD(u, 0x3C, int) * a; if (g_fight_est) st_side_add(&g_rt_foe, u); }
-                    } else if ((is_soldier(td) || is_siege(FIELD(td, 0x4B8, int))) && d2 <= 144.0f) {
-                        epow += unit_power(u);
-                        if (g_fight_est) st_side_add(&g_rt_foe, u);
-                    }
-                }
-            }
+        struct rt_face f = { pl, target, cx, cy, 0, 0.0f };
+        grid_box((int)cx, (int)cy, 15, rt_face_unit, &f);
+        int contact = f.contact;
+        float epow = f.epow;
         if (!contact) { g_rt[idx][slot].bad = 0; continue; }
         // outmatched: what it faces there is 1.5 x the group (half its peak gone stays hit points x attack: the group
         // against itself)
@@ -1218,6 +1235,28 @@ static void defence_install(const char *aimod_ini, const char *autotest_ini) {
 // harm) - workers 65 vs 57: the guns cost a little where the air threat stays small.
 static const struct { int type, epoch; } k_aa_units[] = { { 626, 13 }, { 19, 12 }, { 146, 10 } };
 static const struct { int type, epoch; } k_aa_bldgs[] = { { 147, 13 }, { 145, 10 } };
+struct aa_scan { void *pl; int nair, have_u, have_b, nall, nbx, bxy[16][2]; float axs, ays; };
+static void aa_scan_unit(uint8_t *u, void *ctx) {   // anti_air: own AA, enemy aircraft
+    struct aa_scan *a = ctx;
+    uint8_t *td = FIELD(u, 0x2C, uint8_t *);
+    if (FIELD(u, 0x3C, int) <= 0) return;
+    int fam = FIELD(td, 0x4B4, int), t = FIELD(td, 0x4B8, int);
+    void *o = FIELD(u, 0x18, void *), *pl = a->pl;
+    if (o == pl) {
+        for (size_t k = 0; k < sizeof k_aa_units / sizeof *k_aa_units; k++) a->have_u += t == k_aa_units[k].type;
+        for (size_t k = 0; k < sizeof k_aa_bldgs / sizeof *k_aa_bldgs; k++)
+            if (t == k_aa_bldgs[k].type) {
+                a->have_b++;
+                if (a->nbx < 16) { a->bxy[a->nbx][0] = FIELD(u, 0x1C, int); a->bxy[a->nbx++][1] = FIELD(u, 0x20, int); }
+            }
+        return;
+    }
+    if ((fam != 3 && fam != 7 && fam != 17) || !o || FIELD(o, PL_INDEX, int) <= 0 || !is_enemy(pl, o) || !seen_by(u, pl)) return;
+    a->nall++;
+    int x = FIELD(u, 0x1C, int), y = FIELD(u, 0x20, int), d[2];
+    if (!nearest_drop(pl, x, y, 0, d) || (d[0] - x) * (d[0] - x) + (d[1] - y) * (d[1] - y) > 625) return;
+    a->nair++; a->axs += (float)x; a->ays += (float)y;
+}
 static struct { uint32_t last, seen_t, train_t, build_t, all_t; int air, ax, ay, all; unsigned trained, queued; } g_aa_st[16];
 static void anti_air(void *pl, unsigned idx, uint32_t now) {
     if (!g_aa || !pl) return;
@@ -1226,33 +1265,12 @@ static void anti_air(void *pl, unsigned idx, uint32_t now) {
     g_aa_st[idx].last = now ? now : 1;
     int epoch = current_epoch(pl) + 1;   // tech ids count from 1
     if (epoch < 10) return;
-    uint8_t *map = *(uint8_t **)G_MAP;
-    uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
-    uint8_t *cells = grid ? FIELD(grid, 4, uint8_t *) : NULL;
-    unsigned count = grid ? FIELD(grid, 0x10, unsigned) * FIELD(grid, 0x14, unsigned) : 0;
-    int nair = 0, have_u = 0, have_b = 0, nall = 0, nbx = 0, bxy[16][2];
-    float axs = 0, ays = 0;
-    for (unsigned c = 0; cells && c < count; c++)
-        for (uint8_t **b = FIELD(cells + c * 16, 4, uint8_t **); b && b < FIELD(cells + c * 16, 8, uint8_t **); b++) {
-            uint8_t *u = *b, *td = u ? FIELD(u, 0x2C, uint8_t *) : NULL;
-            if (!td || FIELD(u, 0x3C, int) <= 0) continue;
-            int fam = FIELD(td, 0x4B4, int), t = FIELD(td, 0x4B8, int);
-            void *o = FIELD(u, 0x18, void *);
-            if (o == pl) {
-                for (size_t k = 0; k < sizeof k_aa_units / sizeof *k_aa_units; k++) have_u += t == k_aa_units[k].type;
-                for (size_t k = 0; k < sizeof k_aa_bldgs / sizeof *k_aa_bldgs; k++)
-                    if (t == k_aa_bldgs[k].type) {
-                        have_b++;
-                        if (nbx < 16) { bxy[nbx][0] = FIELD(u, 0x1C, int); bxy[nbx++][1] = FIELD(u, 0x20, int); }
-                    }
-                continue;
-            }
-            if ((fam != 3 && fam != 7 && fam != 17) || !o || FIELD(o, PL_INDEX, int) <= 0 || !is_enemy(pl, o) || !seen_by(u, pl)) continue;
-            nall++;
-            int x = FIELD(u, 0x1C, int), y = FIELD(u, 0x20, int), d[2];
-            if (!nearest_drop(pl, x, y, 0, d) || (d[0] - x) * (d[0] - x) + (d[1] - y) * (d[1] - y) > 625) continue;
-            nair++; axs += (float)x; ays += (float)y;
-        }
+    struct aa_scan a = { 0 };   // each unit once (grid_each): counted by hand per grid cell, an AA building in 2-4 cells
+    a.pl = pl;                   // counted 2-4 times - fewer AA units trained, the AA buildings stopped early
+    grid_each(aa_scan_unit, &a);
+    int nair = a.nair, have_u = a.have_u, have_b = a.have_b, nall = a.nall, nbx = a.nbx;
+    int (*bxy)[2] = a.bxy;
+    float axs = a.axs, ays = a.ays;
     if (nair) {
         if (nair >= g_aa_st[idx].air || now - g_aa_st[idx].seen_t > 300000) g_aa_st[idx].air = nair;
         g_aa_st[idx].seen_t = now ? now : 1;

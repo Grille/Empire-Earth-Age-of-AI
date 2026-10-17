@@ -822,6 +822,7 @@ static int site_danger_res(void *pl, uint8_t *site, int food, int res) {   // fr
 static int site_danger(void *pl, uint8_t *site, int food) { return site_danger_res(pl, site, food, food ? 2 : -1); }
 static void *goal_move(float x, float y);
 static int unit_goal(uint8_t *u, void *goal, int append, int prio);
+static int is_soldier(uint8_t *td);   // defence.c
 static int muster_rally(unsigned idx, float *x, float *y);   // defence.c: the rally point while the base is overrun
 static struct { unsigned sent; } g_cit_stats[16];
 static unsigned g_repair_refused[16];   // repair orders refused at buildings under attack (hook_repair_goal)
@@ -1237,8 +1238,8 @@ static void siege_tick(void *pl, uint32_t now) {
         for (uint8_t **b = FIELD(cells + c * 16, 4, uint8_t **); b && b < FIELD(cells + c * 16, 8, uint8_t **) && idle < 2; b++) {
             uint8_t *u = *b, *td = u ? FIELD(u, 0x2C, uint8_t *) : NULL;
             if (!td || FIELD(u, 0x18, void *) != pl || FIELD(u, 0x1EC, void *) || FIELD(u, 0x3C, int) <= 0) continue;
-            int fam = FIELD(td, 0x4B4, int), type = FIELD(td, 0x4B8, int);
-            idle += fam == 5 && !is_siege(type) && type != 32 && type != 480 && type != 102 && type != 287;
+            int fam = FIELD(td, 0x4B4, int);
+            idle += fam == 5 && is_soldier(td);   // land soldiers (is_soldier: no citizens, siege, rams - the ram 158 was missed)
         }
     if (!hold && idle < 2) hold = "no escorts";
     if (hold) {
@@ -1260,8 +1261,8 @@ static void siege_tick(void *pl, uint32_t now) {
         for (uint8_t **b = FIELD(cells + c * 16, 4, uint8_t **); b && b < FIELD(cells + c * 16, 8, uint8_t **) && escorts < want; b++) {
             uint8_t *u = *b, *td = u ? FIELD(u, 0x2C, uint8_t *) : NULL;
             if (!td || FIELD(u, 0x18, void *) != pl || FIELD(u, 0x1EC, void *) || FIELD(u, 0x3C, int) <= 0) continue;
-            int fam = FIELD(td, 0x4B4, int), type = FIELD(td, 0x4B8, int);
-            if (fam != 5 || is_siege(type) || type == 32 || type == 480 || type == 102 || type == 287) continue;   // soldiers only (no citizens, rams)
+            int fam = FIELD(td, 0x4B4, int);
+            if (fam != 5 || !is_soldier(td)) continue;   // land soldiers only (no citizens, siege, rams - 158 too)
             float ex = (float)FIELD(u, 0x1C, int) - px, ey = (float)FIELD(u, 0x20, int) - py;
             if (ex * ex + ey * ey < 9.0f) { escorts++; continue; }   // already there
             escorts += unit_goal(u, goal_move(px + (float)(escorts % 3) - 1.0f, py + (float)(escorts / 3 % 3) - 1.0f), 0, 0x1F40);
