@@ -1,6 +1,8 @@
 // User settings per AI difficulty (aimod.ini next to the DLL). Every key is looked up in the difficulty's
 // own section ([easy], [medium], [hard]), then in [all], then falls back to the built-in default (for keys an
-// older file doesn't have yet; the file itself is required, see config_missing in eeaimod.c). The autotest ini can override
+// older file doesn't have yet; the file itself is required, see config_missing in eeaimod.c). The built-in
+// defaults are the shipped config/aimod.ini's values - the AI at its strongest without cheating, [easy] eased off -
+// so an older file without a key gets what a new one has. The autotest ini can override
 // any key for all difficulties (A/B tests). Included by eeaimod.c before sites.c/econ.c.
 //
 // Difficulty = player+0xBA4 (0 easy, 1 medium, 2 hard).
@@ -102,33 +104,33 @@ static float cfg_float(const char *ini, const char *test_ini, int d, const char 
 static void settings_load(const char *ini, const char *test_ini) {
     for (int d = 0; d < 3; d++) {
         struct ai_cfg *c = &g_cfg[d];
-        c->copper_plan = cfg_int(ini, test_ini, d, "copper_plan", 0);
-        c->budget = cfg_int(ini, test_ini, d, "budget", 0) || c->copper_plan;   // the plan works through the budget
+        c->copper_plan = cfg_int(ini, test_ini, d, "copper_plan", 1);
+        c->budget = cfg_int(ini, test_ini, d, "budget", 1) || c->copper_plan;   // the plan works through the budget
         c->safe_sites = cfg_int(ini, test_ini, d, "safe_sites", 0);
         c->mil_start_share = cfg_float(ini, test_ini, d, "military_start_share", "0.30");
         c->mil_income_share = cfg_float(ini, test_ini, d, "military_income_share", "0.40");
         c->mil_income_share_farms = cfg_float(ini, test_ini, d, "military_income_share_farms", "0.65");
-        c->cost_percent = cfg_int(ini, test_ini, d, "cost_percent", 0);
+        c->cost_percent = cfg_int(ini, test_ini, d, "cost_percent", 100);
         char pacing[16];
         cfg_str(ini, test_ini, d, "epoch_pacing", "timer", pacing, sizeof pacing);
         c->pacing_fast = !lstrcmpiA(pacing, "fast");
-        c->epoch_min = cfg_int(ini, test_ini, d, "epoch_min", 0);
-        c->epoch_max = cfg_int(ini, test_ini, d, "epoch_max", c->epoch_min);
+        c->epoch_min = cfg_int(ini, test_ini, d, "epoch_min", 50);
+        c->epoch_max = cfg_int(ini, test_ini, d, "epoch_max", 70);
         if (c->epoch_max < c->epoch_min) c->epoch_max = c->epoch_min;
-        c->wait_for_player = cfg_int(ini, test_ini, d, "wait_for_player", -1);
+        c->wait_for_player = cfg_int(ini, test_ini, d, "wait_for_player", d == 0);   // [easy] waits for the human
         c->first_attack_min = cfg_int(ini, test_ini, d, "first_attack_min", 0);
         c->first_attack_max = cfg_int(ini, test_ini, d, "first_attack_max", c->first_attack_min);
         if (c->first_attack_max < c->first_attack_min) c->first_attack_max = c->first_attack_min;
-        c->attack_min = cfg_int(ini, test_ini, d, "attack_interval_min", 0);
-        c->attack_max = cfg_int(ini, test_ini, d, "attack_interval_max", c->attack_min);
+        c->attack_min = cfg_int(ini, test_ini, d, "attack_interval_min", 20);
+        c->attack_max = cfg_int(ini, test_ini, d, "attack_interval_max", 25);
         if (c->attack_max < c->attack_min) c->attack_max = c->attack_min;
-        c->attack_group_percent = cfg_int(ini, test_ini, d, "attack_group_percent", 0);
-        c->attack_on_contact = cfg_int(ini, test_ini, d, "attack_on_contact", -1);
-        c->attack_for_resources = cfg_int(ini, test_ini, d, "attack_for_resources", -1);
+        c->attack_group_percent = cfg_int(ini, test_ini, d, "attack_group_percent", 150);
+        c->attack_on_contact = cfg_int(ini, test_ini, d, "attack_on_contact", 0);
+        c->attack_for_resources = cfg_int(ini, test_ini, d, "attack_for_resources", 0);
         c->attack_revenge = cfg_int(ini, test_ini, d, "attack_revenge", -1);
         c->citizen_share = cfg_float(ini, test_ini, d, "citizen_share", "0");
         c->home_guard_share = cfg_float(ini, test_ini, d, "home_guard_share", "-1");
-        c->pop_follow = cfg_int(ini, test_ini, d, "pop_follow_human", 0);
+        c->pop_follow = cfg_int(ini, test_ini, d, "pop_follow_human", d == 0);   // [easy] follows the human
         if (g_log)
             fprintf(g_log, "# settings %-6s copper_plan=%d budget=%d (military %.2f/%.2f/%.2f) safe_sites=%d cost=%d%% "
                     "pacing=%s epoch=%d-%d wait_for_player=%d attacks first %d-%d every %d-%d group %d%% "
