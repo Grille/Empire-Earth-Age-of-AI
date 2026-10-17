@@ -20,7 +20,6 @@
 
 #define ST_TABLE ((float *)0x008D2050)
 static int g_fight_est = 0;   // [all] fight_estimate
-static void grid_each(void (*fn)(uint8_t *u, void *ctx), void *ctx);   // defence.c
 static int is_soldier(uint8_t *td);   // defence.c
 
 static uint8_t *st_rec(void *pl, int type) {   // the player's stats record of a type
@@ -346,24 +345,21 @@ static void cmd_stats(char *out, const char *args) {
         static uint8_t *mu[ST_UNITS], *fu[ST_UNITS];
         uint8_t *map = *(uint8_t **)G_MAP, *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
         if (!grid) { REPLY("error: no map\n"); return; }
-        int cells = FIELD(grid, 0x10, int) * FIELD(grid, 0x14, int);
-        uint8_t *cl = FIELD(grid, 4, uint8_t *);
-        for (int ci = 0; ci < cells; ci++)
-            for (uint8_t **bp = FIELD(cl + ci * 16, 4, uint8_t **); bp && bp < FIELD(cl + ci * 16, 8, uint8_t **); bp++) {
-                uint8_t *u = *bp, *td = u ? FIELD(u, 0x2C, uint8_t *) : NULL;
-                int q = u ? st_pidx(u) : 0;
-                if (!td || FIELD(u, 0x3C, int) <= 0 || q <= 0 || q > 15) continue;
-                if (tt >= 0) {
-                    int dx = FIELD(u, 0x1C, int) - x, dy = FIELD(u, 0x20, int) - y, ex = FIELD(u, 0x1C, int) - tx, ey = FIELD(u, 0x20, int) - ty;
-                    if (q == p && FIELD(td, 0x4B8, int) == tt && dx * dx + dy * dy <= r * r && nm < ST_UNITS) mu[nm++] = u;
-                    else if (q != p && ex * ex + ey * ey <= 15 * 15 && is_enemy(st_player(p), st_player(q)) && nf < ST_UNITS) fu[nf++] = u;
-                    continue;
-                }
-                if (!st_counts(u, td)) continue;
-                int dx = FIELD(u, 0x1C, int) - x, dy = FIELD(u, 0x20, int) - y, d2 = dx * dx + dy * dy;
-                if (q == p && d2 <= r * r && nm < ST_UNITS) mu[nm++] = u;
-                else if (q != p && d2 <= 40 * 40 && is_enemy(st_player(p), st_player(q)) && nf < ST_UNITS) fu[nf++] = u;
+        for (struct grid_it it = grid_it_all(0); grid_it_next(&it); ) {
+            uint8_t *u = it.u, *td = it.td;
+            int q = st_pidx(u);
+            if (FIELD(u, 0x3C, int) <= 0 || q <= 0 || q > 15) continue;
+            if (tt >= 0) {
+                int dx = FIELD(u, 0x1C, int) - x, dy = FIELD(u, 0x20, int) - y, ex = FIELD(u, 0x1C, int) - tx, ey = FIELD(u, 0x20, int) - ty;
+                if (q == p && FIELD(td, 0x4B8, int) == tt && dx * dx + dy * dy <= r * r && nm < ST_UNITS) mu[nm++] = u;
+                else if (q != p && ex * ex + ey * ey <= 15 * 15 && is_enemy(st_player(p), st_player(q)) && nf < ST_UNITS) fu[nf++] = u;
+                continue;
             }
+            if (!st_counts(u, td)) continue;
+            int dx = FIELD(u, 0x1C, int) - x, dy = FIELD(u, 0x20, int) - y, d2 = dx * dx + dy * dy;
+            if (q == p && d2 <= r * r && nm < ST_UNITS) mu[nm++] = u;
+            else if (q != p && d2 <= 40 * 40 && is_enemy(st_player(p), st_player(q)) && nf < ST_UNITS) fu[nf++] = u;
+        }
         for (int i = 0; i < nm; i++) {
             uint8_t *u = mu[i], *best = NULL;
             float bd = tt >= 0 ? 1e9f : 30.0f * 30.0f;
@@ -407,16 +403,13 @@ static void cmd_stats(char *out, const char *args) {
         float tr[32] = { 0 };
         uint8_t *map = *(uint8_t **)G_MAP, *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
         if (!grid) { REPLY("error: no map\n"); return; }
-        int cells = FIELD(grid, 0x10, int) * FIELD(grid, 0x14, int);
-        uint8_t *cl = FIELD(grid, 4, uint8_t *);
-        for (int ci = 0; ci < cells; ci++)
-            for (uint8_t **bp = FIELD(cl + ci * 16, 4, uint8_t **); bp && bp < FIELD(cl + ci * 16, 8, uint8_t **); bp++) {
-                uint8_t *u = *bp, *td = u ? FIELD(u, 0x2C, uint8_t *) : NULL;
-                int q = u ? st_pidx(u) : 0;
-                if (!td || FIELD(u, 0x3C, int) <= 0 || q <= 0 || q > 15) continue;
-                if (q == p && is_citizen_type(FIELD(td, 0x4B8, int))) { if (nc < 4096) cit[nc++] = u; }
-                else if (q != p && is_enemy(st_player(p), st_player(q)) && FIELD(td, 0x510, int) > 0 && nf < 4096) foe[nf++] = u;
-            }
+        for (struct grid_it it = grid_it_all(0); grid_it_next(&it); ) {
+            uint8_t *u = it.u, *td = it.td;
+            int q = st_pidx(u);
+            if (FIELD(u, 0x3C, int) <= 0 || q <= 0 || q > 15) continue;
+            if (q == p && is_citizen_type(FIELD(td, 0x4B8, int))) { if (nc < 4096) cit[nc++] = u; }
+            else if (q != p && is_enemy(st_player(p), st_player(q)) && FIELD(td, 0x510, int) > 0 && nf < 4096) foe[nf++] = u;
+        }
         for (int i = 0; i < nc; i++) {
             uint8_t *c = cit[i], *best = NULL;
             float bd = 1e9f;

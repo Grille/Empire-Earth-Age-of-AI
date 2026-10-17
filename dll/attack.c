@@ -86,29 +86,20 @@ static void threat_refresh(void *pl, uint32_t now) {
     unsigned pi = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     if (g_threat[pi].refreshed && now >= g_threat[pi].refreshed && now - g_threat[pi].refreshed < 5000) return;
     g_threat[pi].refreshed = now ? now : 1;
-    uint8_t *map = *(uint8_t **)G_MAP;
-    uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     int n = 0;
-    if (grid) {
-        uint8_t *cells = FIELD(grid, 4, uint8_t *);
-        unsigned count = FIELD(grid, 0x10, unsigned) * FIELD(grid, 0x14, unsigned);
-        for (unsigned c = 0; cells && c < count && n < MAX_DEFENCES; c++) {
-            uint8_t **b = FIELD(cells + c * 16, 4, uint8_t **), **e = FIELD(cells + c * 16, 8, uint8_t **);
-            for (; b && b < e && n < MAX_DEFENCES; b++) {
-                uint8_t *u = *b;
-                float r, a;
-                if (!u || !is_enemy(pl, FIELD(u, 0x18, void *)) || !defence_stats(u, &r, &a) || !seen_by(u, pl)) continue;
-                int x = FIELD(u, 0x1C, int), y = FIELD(u, 0x20, int), k;
-                for (k = 0; k < n; k++)                     // big buildings sit in several cells
-                    if (g_threat[pi].d[k].x == x && g_threat[pi].d[k].y == y) break;
-                if (k < n) continue;
-                struct defence *d = &g_threat[pi].d[n++];
-                d->x = x; d->y = y; d->range = r; d->attack = a;
-                d->owner = FIELD(FIELD(u, 0x18, void *), PL_INDEX, int);
-                d->type = FIELD(FIELD(u, 0x2C, uint8_t *), 0x4B8, int);
-                d->u = u;
-            }
-        }
+    for (struct grid_it it = grid_it_all(0); n < MAX_DEFENCES && grid_it_next(&it); ) {
+        uint8_t *u = it.u;
+        float r, a;
+        if (!is_enemy(pl, FIELD(u, 0x18, void *)) || !defence_stats(u, &r, &a) || !seen_by(u, pl)) continue;
+        int x = FIELD(u, 0x1C, int), y = FIELD(u, 0x20, int), k;
+        for (k = 0; k < n; k++)                     // big buildings sit in several cells
+            if (g_threat[pi].d[k].x == x && g_threat[pi].d[k].y == y) break;
+        if (k < n) continue;
+        struct defence *d = &g_threat[pi].d[n++];
+        d->x = x; d->y = y; d->range = r; d->attack = a;
+        d->owner = FIELD(FIELD(u, 0x18, void *), PL_INDEX, int);
+        d->type = FIELD(FIELD(u, 0x2C, uint8_t *), 0x4B8, int);
+        d->u = u;
     }
     g_threat[pi].n = n;
 }
@@ -167,21 +158,13 @@ static int building_at(void *pl, const int *dest, int r) {
     uint8_t *map = *(uint8_t **)G_MAP;
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     if (!grid) return 0;
-    int cs = FIELD(grid, 8, int), nx = FIELD(grid, 0x10, int), ny = FIELD(grid, 0x14, int);
-    uint8_t *cells = FIELD(grid, 4, uint8_t *);
-    if (cs <= 0 || !cells) return 0;
-    for (int cx = (dest[0] - r) / cs; cx <= (dest[0] + r) / cs; cx++)
-        for (int cy = (dest[1] - r) / cs; cy <= (dest[1] + r) / cs; cy++) {
-            if (cx < 0 || cy < 0 || cx >= nx || cy >= ny) continue;
-            uint8_t *cell = cells + (cx * ny + cy) * 16;
-            for (uint8_t **b = FIELD(cell, 4, uint8_t **); b && b < FIELD(cell, 8, uint8_t **); b++) {
-                uint8_t *u = *b, *td = u ? FIELD(u, 0x2C, uint8_t *) : NULL;
-                if (!td || FIELD(td, 0x4B4, int) != 2 || is_wall(FIELD(td, 0x4B8, int)) || !is_enemy(pl, FIELD(u, 0x18, void *)))
-                    continue;
-                int dx = FIELD(u, 0x1C, int) - dest[0], dy = FIELD(u, 0x20, int) - dest[1];
-                if (dx * dx + dy * dy <= r * r) return 1;
-            }
-        }
+    for (struct grid_it it = grid_it_box(dest[0], dest[1], r, 0); grid_it_next(&it); ) {
+        uint8_t *u = it.u, *td = it.td;
+        if (!td || FIELD(td, 0x4B4, int) != 2 || is_wall(FIELD(td, 0x4B8, int)) || !is_enemy(pl, FIELD(u, 0x18, void *)))
+            continue;
+        int dx = FIELD(u, 0x1C, int) - dest[0], dy = FIELD(u, 0x20, int) - dest[1];
+        if (dx * dx + dy * dy <= r * r) return 1;
+    }
     return 0;
 }
 
@@ -189,32 +172,24 @@ static uint8_t *find_weak_spot(void *pl, unsigned pi, const int *start, const in
     uint8_t *map = *(uint8_t **)G_MAP;
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     if (!grid) return NULL;
-    int cs = FIELD(grid, 8, int), nx = FIELD(grid, 0x10, int), ny = FIELD(grid, 0x14, int);
-    uint8_t *cells = FIELD(grid, 4, uint8_t *);
-    if (cs <= 0 || !cells) return NULL;
     short (__thiscall *region)(void *, int *, int) = (void *)FN_REGION;
     short home = region((void *)0x917BC8, (int *)start, 2);
     uint8_t *best = NULL;
     float best_score = 1e30f;
     int r = g_weak_radius;
-    for (int cx = (dest[0] - r) / cs; cx <= (dest[0] + r) / cs; cx++)
-        for (int cy = (dest[1] - r) / cs; cy <= (dest[1] + r) / cs; cy++) {
-            if (cx < 0 || cy < 0 || cx >= nx || cy >= ny) continue;
-            uint8_t *cell = cells + (cx * ny + cy) * 16;
-            for (uint8_t **b = FIELD(cell, 4, uint8_t **); b && b < FIELD(cell, 8, uint8_t **); b++) {
-                uint8_t *u = *b, *td = u ? FIELD(u, 0x2C, uint8_t *) : NULL;
-                if (!td || FIELD(td, 0x4B4, int) != 2 || is_wall(FIELD(td, 0x4B8, int)) || !is_enemy(pl, FIELD(u, 0x18, void *)) ||
-                    !seen_by(u, pl))
-                    continue;
-                int pos[2] = { FIELD(u, 0x1C, int), FIELD(u, 0x20, int) };
-                float dx = (float)(pos[0] - dest[0]), dy = (float)(pos[1] - dest[1]);
-                if (dx * dx + dy * dy > (float)(r * r) || threat_at(pi, pos[0], pos[1]) > 0) continue;
-                if (region((void *)0x917BC8, pos, 2) != home) continue;
-                float sx = (float)(pos[0] - start[0]), sy = (float)(pos[1] - start[1]);
-                float score = sqrtf(sx * sx + sy * sy) + 0.5f * sqrtf(dx * dx + dy * dy);
-                if (score < best_score) { best_score = score; best = u; }
-            }
-        }
+    for (struct grid_it it = grid_it_box(dest[0], dest[1], r, 0); grid_it_next(&it); ) {
+        uint8_t *u = it.u, *td = it.td;
+        if (!td || FIELD(td, 0x4B4, int) != 2 || is_wall(FIELD(td, 0x4B8, int)) || !is_enemy(pl, FIELD(u, 0x18, void *)) ||
+            !seen_by(u, pl))
+            continue;
+        int pos[2] = { FIELD(u, 0x1C, int), FIELD(u, 0x20, int) };
+        float dx = (float)(pos[0] - dest[0]), dy = (float)(pos[1] - dest[1]);
+        if (dx * dx + dy * dy > (float)(r * r) || threat_at(pi, pos[0], pos[1]) > 0) continue;
+        if (region((void *)0x917BC8, pos, 2) != home) continue;
+        float sx = (float)(pos[0] - start[0]), sy = (float)(pos[1] - start[1]);
+        float score = sqrtf(sx * sx + sy * sy) + 0.5f * sqrtf(dx * dx + dy * dy);
+        if (score < best_score) { best_score = score; best = u; }
+    }
     return best;
 }
 
@@ -471,24 +446,16 @@ static int guarded(void *pl, int x, int y, int r) {
     uint8_t *map = *(uint8_t **)G_MAP;
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     if (!pl || !grid) return 0;
-    int cs = FIELD(grid, 8, int), nx = FIELD(grid, 0x10, int), ny = FIELD(grid, 0x14, int);
-    uint8_t *cells = FIELD(grid, 4, uint8_t *);
-    if (cs <= 0 || !cells) return 0;
-    for (int cx = (x - r) / cs; cx <= (x + r) / cs; cx++)
-        for (int cy = (y - r) / cs; cy <= (y + r) / cs; cy++) {
-            if (cx < 0 || cy < 0 || cx >= nx || cy >= ny) continue;
-            uint8_t *cell = cells + (cx * ny + cy) * 16;
-            for (uint8_t **b = FIELD(cell, 4, uint8_t **); b && b < FIELD(cell, 8, uint8_t **); b++) {
-                uint8_t *u = *b, *td = u ? FIELD(u, 0x2C, uint8_t *) : NULL;
-                if (!td || FIELD(td, 0x4B4, int) != 5 || FIELD(u, 0x3C, int) <= 0 || !is_enemy(pl, FIELD(u, 0x18, void *)))
-                    continue;
-                int t = FIELD(td, 0x4B8, int);
-                if (is_citizen_type(t) || is_ram(t) || (t >= 102 && t <= 107) || t == 141 || t == 142 || t == 602 || t == 603)
-                    continue;
-                int dx = FIELD(u, 0x1C, int) - x, dy = FIELD(u, 0x20, int) - y;
-                if (dx * dx + dy * dy <= r * r) return 1;
-            }
-        }
+    for (struct grid_it it = grid_it_box(x, y, r, 0); grid_it_next(&it); ) {
+        uint8_t *u = it.u, *td = it.td;
+        if (!td || FIELD(td, 0x4B4, int) != 5 || FIELD(u, 0x3C, int) <= 0 || !is_enemy(pl, FIELD(u, 0x18, void *)))
+            continue;
+        int t = FIELD(td, 0x4B8, int);
+        if (is_citizen_type(t) || is_ram(t) || (t >= 102 && t <= 107) || t == 141 || t == 142 || t == 602 || t == 603)
+            continue;
+        int dx = FIELD(u, 0x1C, int) - x, dy = FIELD(u, 0x20, int) - y;
+        if (dx * dx + dy * dy <= r * r) return 1;
+    }
     return 0;
 }
 
@@ -582,18 +549,13 @@ static int army_size(void *pl) {
     uint8_t *map = *(uint8_t **)G_MAP;
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     if (!grid) return -1;
-    uint8_t *cells = FIELD(grid, 4, uint8_t *);
-    unsigned count = FIELD(grid, 0x10, unsigned) * FIELD(grid, 0x14, unsigned);
     int n = 0;
-    for (unsigned c = 0; cells && c < count; c++)
-        for (uint8_t **b = FIELD(cells + c * 16, 4, uint8_t **); b && b < FIELD(cells + c * 16, 8, uint8_t **); b++) {
-            uint8_t *u = *b, *td = u ? FIELD(u, 0x2C, uint8_t *) : NULL;
-            if (!td || FIELD(u, 0x18, void *) != pl) continue;
-            // units only sit in the cell of their position
-            if (FIELD(u, 0x1C, int) / FIELD(grid, 8, int) != (int)(c / FIELD(grid, 0x14, unsigned)) ||
-                FIELD(u, 0x20, int) / FIELD(grid, 8, int) != (int)(c % FIELD(grid, 0x14, unsigned))) continue;
-            if (is_army_family(FIELD(td, 0x4B4, int))) n++;
-        }
+    for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
+        uint8_t *u = it.u, *td = it.td;
+        if (!td || FIELD(u, 0x18, void *) != pl) continue;
+        // units only sit in the cell of their position
+        if (is_army_family(FIELD(td, 0x4B4, int))) n++;
+    }
     return n;
 }
 
@@ -621,15 +583,9 @@ static int is_siege(int type) {
 }
 
 static uint8_t *unit_at(int x, int y, int type) {
-    uint8_t *map = *(uint8_t **)G_MAP;
-    uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
-    if (!grid) return NULL;
-    int cs = FIELD(grid, 8, int), nx = FIELD(grid, 0x10, int), ny = FIELD(grid, 0x14, int);
-    uint8_t *cells = FIELD(grid, 4, uint8_t *);
-    if (cs <= 0 || !cells || x < 0 || y < 0 || x / cs >= nx || y / cs >= ny) return NULL;
-    uint8_t *cell = cells + ((x / cs) * ny + y / cs) * 16;
-    for (uint8_t **b = FIELD(cell, 4, uint8_t **); b && b < FIELD(cell, 8, uint8_t **); b++) {
-        uint8_t *u = *b, *td = u ? FIELD(u, 0x2C, uint8_t *) : NULL;
+    if (x < 0 || y < 0) return NULL;
+    for (struct grid_it it = grid_it_box(x, y, 0, 0); grid_it_next(&it); ) {   // the one cell of x, y
+        uint8_t *u = it.u, *td = it.td;
         if (td && FIELD(u, 0x1C, int) == x && FIELD(u, 0x20, int) == y && FIELD(td, 0x4B8, int) == type && FIELD(u, 0x3C, int) > 0)
             return u;
     }
@@ -731,28 +687,20 @@ static int raiders_near(void *pl, int x, int y, int r0) {
     uint8_t *map = *(uint8_t **)G_MAP;
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     if (!grid || !pl) return 0;
-    int cs = FIELD(grid, 8, int), nx = FIELD(grid, 0x10, int), ny = FIELD(grid, 0x14, int);
-    uint8_t *cells = FIELD(grid, 4, uint8_t *);
-    if (!cells || cs <= 0) return 0;   // no grid yet (a division by cs)
-    for (int cx = (x - r) / cs; cx <= (x + r) / cs; cx++)
-        for (int cy = (y - r) / cs; cy <= (y + r) / cs; cy++) {
-            if (cx < 0 || cy < 0 || cx >= nx || cy >= ny) continue;
-            uint8_t *cell = cells + (cx * ny + cy) * 16;
-            for (uint8_t **b = FIELD(cell, 4, uint8_t **); b && b < FIELD(cell, 8, uint8_t **); b++) {
-                uint8_t *u = *b, *td = u ? FIELD(u, 0x2C, uint8_t *) : NULL;
-                if (!td || FIELD(u, 0x3C, int) <= 0 || abs(FIELD(u, 0x1C, int) - x) > r || abs(FIELD(u, 0x20, int) - y) > r) continue;
-                int fam = FIELD(td, 0x4B4, int), t = FIELD(td, 0x4B8, int);
-                if ((fam != 5 && fam != 4 && !(g_cit_threats && fam == 10)) || is_citizen_type(t) || FIELD(td, 0x510, int) <= 0) continue;
-                uint8_t *st = FIELD(u, 0x34, uint8_t *);
-                float rng = st ? FIELD(st, 0x9C, float) : FIELD(td, 0x420, float);
-                int reach = rng > 0.0f && rng < 30.0f ? (int)(rng + 0.5f) + RAID_MARGIN : 0;
-                if (reach > rmax) reach = rmax;
-                if (reach < r0) reach = r0;
-                if (abs(FIELD(u, 0x1C, int) - x) > reach || abs(FIELD(u, 0x20, int) - y) > reach) continue;
-                void *o = FIELD(u, 0x18, void *);   // not nature (player 0: wild animals)
-                if (o && FIELD(o, PL_INDEX, int) > 0 && is_enemy(pl, o) && seen_by(u, pl)) return 1;
-            }
-        }
+    for (struct grid_it it = grid_it_box(x, y, r, 0); grid_it_next(&it); ) {
+        uint8_t *u = it.u, *td = it.td;
+        if (!td || FIELD(u, 0x3C, int) <= 0 || abs(FIELD(u, 0x1C, int) - x) > r || abs(FIELD(u, 0x20, int) - y) > r) continue;
+        int fam = FIELD(td, 0x4B4, int), t = FIELD(td, 0x4B8, int);
+        if ((fam != 5 && fam != 4 && !(g_cit_threats && fam == 10)) || is_citizen_type(t) || FIELD(td, 0x510, int) <= 0) continue;
+        uint8_t *st = FIELD(u, 0x34, uint8_t *);
+        float rng = st ? FIELD(st, 0x9C, float) : FIELD(td, 0x420, float);
+        int reach = rng > 0.0f && rng < 30.0f ? (int)(rng + 0.5f) + RAID_MARGIN : 0;
+        if (reach > rmax) reach = rmax;
+        if (reach < r0) reach = r0;
+        if (abs(FIELD(u, 0x1C, int) - x) > reach || abs(FIELD(u, 0x20, int) - y) > reach) continue;
+        void *o = FIELD(u, 0x18, void *);   // not nature (player 0: wild animals)
+        if (o && FIELD(o, PL_INDEX, int) > 0 && is_enemy(pl, o) && seen_by(u, pl)) return 1;
+    }
     return 0;
 }
 // enemy soldiers on the way from x0,y0 to x1,y1 (every 4 tiles from the 5th, within 4) or within 6 of the end
@@ -957,21 +905,17 @@ static void citizens_safety(uint8_t *rm) {   // before the citizen assignment
             snprintf(b + l, sizeof b - l, " %c %d/%d/%d/%d", nm[r], doing[r][0], doing[r][1], doing[r][2], doing[r][3]);
         }
         int all[6] = { 0 };   // every citizen on the map: gathering, building, walking, attacking, other goal, none
-        uint8_t *map = *(uint8_t **)G_MAP, *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
-        int cells = grid ? FIELD(grid, 0x10, int) * FIELD(grid, 0x14, int) : 0;
-        uint8_t *cl = grid ? FIELD(grid, 4, uint8_t *) : NULL;
         char other[64] = "";
-        for (int ci = 0; ci < cells; ci++)
-            for (uint8_t **bp = FIELD(cl + ci * 16, 4, uint8_t **); bp && bp < FIELD(cl + ci * 16, 8, uint8_t **); bp++) {
-                uint8_t *u = *bp, *td = u ? FIELD(u, 0x2C, uint8_t *) : NULL;
-                if (!td || FIELD(u, 0x18, void *) != pl || FIELD(u, 0x3C, int) <= 0 || !is_citizen_type(FIELD(td, 0x4B8, int))) continue;
-                uint8_t *g = FIELD(u, 0x1EC, uint8_t *);
-                const char *gd = g ? rtti_name(g) : "";
-                int k = !g ? 5 : !strcmp(gd, "EEUGGather@@") ? 0 : !strcmp(gd, "EEUGBuildRepair@@") ? 1 :
-                        *(uintptr_t *)g == VT_GOAL_LOCATION ? 2 : *(uintptr_t *)g == VT_GOAL_ATTACK ? 3 : 4;
-                all[k]++;
-                if (k == 4 && !other[0]) lstrcpynA(other, gd, sizeof other);
-            }
+        for (struct grid_it it = grid_it_all(0); grid_it_next(&it); ) {
+            uint8_t *u = it.u, *td = it.td;
+            if (FIELD(u, 0x18, void *) != pl || FIELD(u, 0x3C, int) <= 0 || !is_citizen_type(FIELD(td, 0x4B8, int))) continue;
+            uint8_t *g = FIELD(u, 0x1EC, uint8_t *);
+            const char *gd = g ? rtti_name(g) : "";
+            int k = !g ? 5 : !strcmp(gd, "EEUGGather@@") ? 0 : !strcmp(gd, "EEUGBuildRepair@@") ? 1 :
+                    *(uintptr_t *)g == VT_GOAL_LOCATION ? 2 : *(uintptr_t *)g == VT_GOAL_ATTACK ? 3 : 4;
+            all[k]++;
+            if (k == 4 && !other[0]) lstrcpynA(other, gd, sizeof other);
+        }
         {   // the population as the buildings' start check sees it (0x624DF8: cap vf31 < population (1, 0) + the unit -> wait)
             void *cmp = FIELD(pl, 0xB90, void *), *ump = cmp ? FIELD(cmp, 0x44, void *) : NULL;
             uint8_t *v0 = FIELD(pl, 0x18, uint8_t *), *v1 = FIELD(pl, 0x1C, uint8_t *);
@@ -1072,16 +1016,11 @@ static void siege_train(void *pl, unsigned pi, int have, uint32_t now) {
     // manager can't place it before and would keep the request in its queue for good
     if (current_epoch(pl) + 1 < k_siege_types[sizeof k_siege_types / sizeof *k_siege_types - 1].epoch) return;
     // a Siege Factory (type 63) of our own
-    uint8_t *map = *(uint8_t **)G_MAP;
-    uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
-    uint8_t *cells = grid ? FIELD(grid, 4, uint8_t *) : NULL;
-    unsigned count = grid ? FIELD(grid, 0x10, unsigned) * FIELD(grid, 0x14, unsigned) : 0;
     int factory = 0;
-    for (unsigned c = 0; cells && c < count && !factory; c++)
-        for (uint8_t **b = FIELD(cells + c * 16, 4, uint8_t **); b && b < FIELD(cells + c * 16, 8, uint8_t **); b++) {
-            uint8_t *u = *b, *td = u ? FIELD(u, 0x2C, uint8_t *) : NULL;
-            if (td && FIELD(u, 0x18, void *) == pl && FIELD(td, 0x4B8, int) == 63) { factory = 1; break; }
-        }
+    for (struct grid_it it = grid_it_all(0); !factory && grid_it_next(&it); ) {
+        uint8_t *u = it.u, *td = it.td;
+        if (td && FIELD(u, 0x18, void *) == pl && FIELD(td, 0x4B8, int) == 63) { factory = 1; break; }
+    }
     if (!factory) {
         // the build manager (cm +0x3C) works through per-epoch queues (+4 + epoch*0x14, 12-byte entries {type, x, y};
         // 0,0 = it picks the place) every 3 s (0x468540); 0x468C37 appends an entry. Queue a Siege Factory.
@@ -1132,15 +1071,14 @@ static void siege_tick(void *pl, uint32_t now) {
     // own siege weapons
     enum { MAXS = 24, MAXE = 48 };
     uint8_t *siege[MAXS]; int ns = 0; float sx = 0, sy = 0, srange = 99;
-    for (unsigned c = 0; cells && c < count && ns < MAXS; c++)
-        for (uint8_t **b = FIELD(cells + c * 16, 4, uint8_t **); b && b < FIELD(cells + c * 16, 8, uint8_t **) && ns < MAXS; b++) {
-            uint8_t *u = *b, *td = u ? FIELD(u, 0x2C, uint8_t *) : NULL;
-            if (!td || FIELD(u, 0x18, void *) != pl || !is_siege(FIELD(td, 0x4B8, int)) || FIELD(u, 0x3C, int) <= 0) continue;
-            uint8_t *st = FIELD(u, 0x34, uint8_t *);
-            float r = st ? FIELD(st, 0x9C, float) : FIELD(td, 0x420, float);
-            if (r < srange) srange = r;
-            siege[ns++] = u; sx += (float)FIELD(u, 0x1C, int); sy += (float)FIELD(u, 0x20, int);
-        }
+    for (struct grid_it it = grid_it_all(0); ns < MAXS && grid_it_next(&it); ) {
+        uint8_t *u = it.u, *td = it.td;
+        if (!td || FIELD(u, 0x18, void *) != pl || !is_siege(FIELD(td, 0x4B8, int)) || FIELD(u, 0x3C, int) <= 0) continue;
+        uint8_t *st = FIELD(u, 0x34, uint8_t *);
+        float r = st ? FIELD(st, 0x9C, float) : FIELD(td, 0x420, float);
+        if (r < srange) srange = r;
+        siege[ns++] = u; sx += (float)FIELD(u, 0x1C, int); sy += (float)FIELD(u, 0x20, int);
+    }
     // losses: siege weapons of the last look gone now (3 within 10 minutes: no new ones for 10 minutes - a Howitzer is
     // 170 wood and 170 iron, and P3 trained 45 in 40 minutes into the player's army)
     if (now < g_siege_st[pi].seen_t) {   // a new game
@@ -1251,13 +1189,12 @@ static void siege_tick(void *pl, uint32_t now) {
     else if (raiders_near(pl, (int)px, (int)py, 8) || path_raided(pl, (int)gx, (int)gy, (int)px, (int)py)) hold = "enemy soldiers on the way";
     // escorts: idle soldiers (no goal) along with a wave
     int want = nhome * 3 / 2 < 4 ? 4 : nhome * 3 / 2, escorts = 0, idle = 0;
-    for (unsigned c = 0; cells && c < count && idle < 2; c++)
-        for (uint8_t **b = FIELD(cells + c * 16, 4, uint8_t **); b && b < FIELD(cells + c * 16, 8, uint8_t **) && idle < 2; b++) {
-            uint8_t *u = *b, *td = u ? FIELD(u, 0x2C, uint8_t *) : NULL;
-            if (!td || FIELD(u, 0x18, void *) != pl || FIELD(u, 0x1EC, void *) || FIELD(u, 0x3C, int) <= 0) continue;
-            int fam = FIELD(td, 0x4B4, int);
-            idle += fam == 5 && is_soldier(td);   // land soldiers (is_soldier: no citizens, siege, rams - the ram 158 was missed)
-        }
+    for (struct grid_it it = grid_it_all(0); idle < 2 && grid_it_next(&it); ) {
+        uint8_t *u = it.u, *td = it.td;
+        if (!td || FIELD(u, 0x18, void *) != pl || FIELD(u, 0x1EC, void *) || FIELD(u, 0x3C, int) <= 0) continue;
+        int fam = FIELD(td, 0x4B4, int);
+        idle += fam == 5 && is_soldier(td);   // land soldiers (is_soldier: no citizens, siege, rams - the ram 158 was missed)
+    }
     if (!hold && idle < 2) hold = "no escorts";
     if (hold) {
         if (strcmp(hold, "a wave is out")) g_siege_st[pi].held++;
@@ -1660,19 +1597,17 @@ static void cmd_targets(char *out, const char *args) {
     uint8_t *map = *(uint8_t **)G_MAP;
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     if (!grid) { REPLY("error: no map\n"); return; }
-    uint8_t *cells = FIELD(grid, 4, uint8_t *);
-    unsigned count = FIELD(grid, 0x10, unsigned) * FIELD(grid, 0x14, unsigned), n = 0;
-    for (unsigned c = 0; cells && c < count; c++)
-        for (uint8_t **b = FIELD(cells + c * 16, 4, uint8_t **); b && b < FIELD(cells + c * 16, 8, uint8_t **); b++) {
-            uint8_t *u = *b, *td = u ? FIELD(u, 0x2C, uint8_t *) : NULL;
-            if (!td || (FIELD(td, 0x4B4, int) != 2 && FIELD(td, 0x4B4, int) != 29) || !is_enemy(pl, FIELD(u, 0x18, void *)))
-                continue;
-            int x = FIELD(u, 0x1C, int), y = FIELD(u, 0x20, int);
-            if (strlen(out) > 15000) { REPLY("...\n"); return; }
-            REPLY("  type %3d of P%d at %d,%d %s threat %.1f\n", FIELD(td, 0x4B8, int),
-                  FIELD(FIELD(u, 0x18, void *), PL_INDEX, int), x, y, seen_by(u, pl) ? "seen  " : "unseen", threat_at(p, x, y));
-            n++;
-        }
+    unsigned n = 0;
+    for (struct grid_it it = grid_it_all(0); grid_it_next(&it); ) {
+        uint8_t *u = it.u, *td = it.td;
+        if (!td || (FIELD(td, 0x4B4, int) != 2 && FIELD(td, 0x4B4, int) != 29) || !is_enemy(pl, FIELD(u, 0x18, void *)))
+            continue;
+        int x = FIELD(u, 0x1C, int), y = FIELD(u, 0x20, int);
+        if (strlen(out) > 15000) { REPLY("...\n"); return; }
+        REPLY("  type %3d of P%d at %d,%d %s threat %.1f\n", FIELD(td, 0x4B8, int),
+              FIELD(FIELD(u, 0x18, void *), PL_INDEX, int), x, y, seen_by(u, pl) ? "seen  " : "unseen", threat_at(p, x, y));
+        n++;
+    }
     REPLY("P%d: %u enemy buildings\n", p, n);
 }
 
@@ -1783,18 +1718,13 @@ static void cmd_count(char *out, const char *args) {
     uint8_t *map = *(uint8_t **)G_MAP;
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     if (!grid) { REPLY("error: no map\n"); return; }
-    uint8_t *cells = FIELD(grid, 4, uint8_t *);
-    unsigned count = FIELD(grid, 0x10, unsigned) * FIELD(grid, 0x14, unsigned);
-    for (unsigned c = 0; cells && c < count; c++)
-        for (uint8_t **b = FIELD(cells + c * 16, 4, uint8_t **); b && b < FIELD(cells + c * 16, 8, uint8_t **); b++) {
-            uint8_t *u = *b, *td = u ? FIELD(u, 0x2C, uint8_t *) : NULL;
-            void *owner = u ? FIELD(u, 0x18, void *) : NULL;
-            if (!td || !owner || FIELD(owner, PL_INDEX, int) != p) continue;
-            if (FIELD(u, 0x1C, int) / FIELD(grid, 8, int) != (int)(c / FIELD(grid, 0x14, unsigned)) ||
-                FIELD(u, 0x20, int) / FIELD(grid, 8, int) != (int)(c % FIELD(grid, 0x14, unsigned))) continue;
-            int t = FIELD(td, 0x4B8, int);
-            if (t >= 0 && t < 0x300) n[t]++;
-        }
+    for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
+        uint8_t *u = it.u, *td = it.td;
+        void *owner = FIELD(u, 0x18, void *);
+        if (!td || !owner || FIELD(owner, PL_INDEX, int) != p) continue;
+        int t = FIELD(td, 0x4B8, int);
+        if (t >= 0 && t < 0x300) n[t]++;
+    }
     REPLY("P%d:", p);
     for (int t = 0; t < 0x300; t++) if (n[t]) REPLY(" %d:%d", t, n[t]);
     REPLY("\n");
@@ -1807,20 +1737,15 @@ static void cmd_objs(char *out, const char *args) {
     uint8_t *map = *(uint8_t **)G_MAP;
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     if (!grid) { REPLY("error: no map\n"); return; }
-    uint8_t *cells = FIELD(grid, 4, uint8_t *);
-    unsigned count = FIELD(grid, 0x10, unsigned) * FIELD(grid, 0x14, unsigned);
     REPLY("P%d type %d:", p, t);
-    for (unsigned c = 0; cells && c < count; c++)
-        for (uint8_t **b = FIELD(cells + c * 16, 4, uint8_t **); b && b < FIELD(cells + c * 16, 8, uint8_t **); b++) {
-            uint8_t *u = *b, *td = u ? FIELD(u, 0x2C, uint8_t *) : NULL;
-            void *owner = u ? FIELD(u, 0x18, void *) : NULL;
-            if (!td || !owner || FIELD(owner, PL_INDEX, int) != p || (t >= 0 && FIELD(td, 0x4B8, int) != t) || strlen(out) > 15000) continue;
-            if (FIELD(u, 0x1C, int) / FIELD(grid, 8, int) != (int)(c / FIELD(grid, 0x14, unsigned)) ||
-                FIELD(u, 0x20, int) / FIELD(grid, 8, int) != (int)(c % FIELD(grid, 0x14, unsigned))) continue;
-            if (t < 0) REPLY(" T%d", FIELD(td, 0x4B8, int));   // all types: each with its type
-            REPLY(" [%d,%d hp %d/%g %s]", FIELD(u, 0x1C, int), FIELD(u, 0x20, int), FIELD(u, 0x3C, int),
-                  FIELD(td, 0x55C, float), rtti_name(FIELD(u, 0x1EC, void *)));
-        }
+    for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
+        uint8_t *u = it.u, *td = it.td;
+        void *owner = FIELD(u, 0x18, void *);
+        if (!td || !owner || FIELD(owner, PL_INDEX, int) != p || (t >= 0 && FIELD(td, 0x4B8, int) != t) || strlen(out) > 15000) continue;
+        if (t < 0) REPLY(" T%d", FIELD(td, 0x4B8, int));   // all types: each with its type
+        REPLY(" [%d,%d hp %d/%g %s]", FIELD(u, 0x1C, int), FIELD(u, 0x20, int), FIELD(u, 0x3C, int),
+              FIELD(td, 0x55C, float), rtti_name(FIELD(u, 0x1EC, void *)));
+    }
     REPLY("\n");
 }
 
@@ -1845,25 +1770,19 @@ static void cmd_build(char *out, const char *args) {
     uint8_t *map = *(uint8_t **)G_MAP;
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     if (!pl || !grid) { REPLY("error: no player %d or map\n", p); return; }
-    int cs = FIELD(grid, 8, int), nx = FIELD(grid, 0x10, int), ny = FIELD(grid, 0x14, int);
-    uint8_t *cells = FIELD(grid, 4, uint8_t *), *bld = NULL, *civ[32];
+    uint8_t *bld = NULL, *civ[32];
     int nc = 0;
-    for (int cx = (x - r - 4) / cs; cx <= (x + r + 4) / cs; cx++)   // wide enough for the building too
-        for (int cy = (y - r - 4) / cs; cy <= (y + r + 4) / cs; cy++) {
-            if (cx < 0 || cy < 0 || cx >= nx || cy >= ny) continue;
-            uint8_t *cell = cells + (cx * ny + cy) * 16;
-            for (uint8_t **b = FIELD(cell, 4, uint8_t **); b && b < FIELD(cell, 8, uint8_t **); b++) {
-                uint8_t *u = *b, *td = u ? FIELD(u, 0x2C, uint8_t *) : NULL;
-                if (!td || FIELD(u, 0x18, void *) != pl || FIELD(u, 0x3C, int) <= 0) continue;
-                int t = FIELD(td, 0x4B8, int), ux = FIELD(u, 0x1C, int), uy = FIELD(u, 0x20, int);
-                if (ux == bx && uy == by && (FIELD(td, 0x4B4, int) == 2 || FIELD(td, 0x4B4, int) == 29)) bld = u;
-                else if (is_citizen_type(t) && abs(ux - x) <= r && abs(uy - y) <= r && nc < 32) {
-                    int dup = 0;
-                    for (int k = 0; k < nc; k++) dup |= civ[k] == u;
-                    if (!dup) civ[nc++] = u;
-                }
-            }
+    for (struct grid_it it = grid_it_box(x, y, r + 4, 0); grid_it_next(&it); ) {   // wide enough for the building too
+        uint8_t *u = it.u, *td = it.td;
+        if (FIELD(u, 0x18, void *) != pl || FIELD(u, 0x3C, int) <= 0) continue;
+        int t = FIELD(td, 0x4B8, int), ux = FIELD(u, 0x1C, int), uy = FIELD(u, 0x20, int);
+        if (ux == bx && uy == by && (FIELD(td, 0x4B4, int) == 2 || FIELD(td, 0x4B4, int) == 29)) bld = u;
+        else if (is_citizen_type(t) && abs(ux - x) <= r && abs(uy - y) <= r && nc < 32) {
+            int dup = 0;
+            for (int k = 0; k < nc; k++) dup |= civ[k] == u;
+            if (!dup) civ[nc++] = u;
         }
+    }
     if (!bld) { REPLY("error: no building of P%d at %d,%d\n", p, bx, by); return; }
     for (int k = 0; k < nc; k++) {
         void *g = ((void *(__cdecl *)(unsigned))0x00683718)(0x5C);
@@ -1883,17 +1802,14 @@ static void cmd_watchtype(char *out, const char *args) {
     uint8_t *map = *(uint8_t **)G_MAP;
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     if (!grid) { REPLY("error: no map\n"); return; }
-    uint8_t *cells = FIELD(grid, 4, uint8_t *);
-    unsigned count = FIELD(grid, 0x10, unsigned) * FIELD(grid, 0x14, unsigned);
-    for (unsigned c = 0; cells && c < count; c++)
-        for (uint8_t **b = FIELD(cells + c * 16, 4, uint8_t **); b && b < FIELD(cells + c * 16, 8, uint8_t **); b++) {
-            uint8_t *u = *b, *td = u ? FIELD(u, 0x2C, uint8_t *) : NULL;
-            void *owner = u ? FIELD(u, 0x18, void *) : NULL;
-            if (!td || !owner || FIELD(owner, PL_INDEX, int) != p || FIELD(td, 0x4B8, int) != t) continue;
-            watch_set((unsigned)(uintptr_t)(u + off), 4);
-            REPLY("ok: watching unit %p +%x (type %d of P%d at %d,%d)\n", u, off, t, p, FIELD(u, 0x1C, int), FIELD(u, 0x20, int));
-            return;
-        }
+    for (struct grid_it it = grid_it_all(0); grid_it_next(&it); ) {
+        uint8_t *u = it.u, *td = it.td;
+        void *owner = FIELD(u, 0x18, void *);
+        if (!td || !owner || FIELD(owner, PL_INDEX, int) != p || FIELD(td, 0x4B8, int) != t) continue;
+        watch_set((unsigned)(uintptr_t)(u + off), 4);
+        REPLY("ok: watching unit %p +%x (type %d of P%d at %d,%d)\n", u, off, t, p, FIELD(u, 0x1C, int), FIELD(u, 0x20, int));
+        return;
+    }
     REPLY("error: no unit of type %d for P%d\n", t, p);
 }
 
@@ -1906,22 +1822,16 @@ static void cmd_hurt(char *out, const char *args) {
     uint8_t *map = *(uint8_t **)G_MAP;
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     if (!grid) { REPLY("error: no map\n"); return; }
-    int cs = FIELD(grid, 8, int), nx = FIELD(grid, 0x10, int), ny = FIELD(grid, 0x14, int);
-    uint8_t *cells = FIELD(grid, 4, uint8_t *), *hit[64];
-    for (int cx = (x - r) / cs; cx <= (x + r) / cs; cx++)
-        for (int cy = (y - r) / cs; cy <= (y + r) / cs; cy++) {
-            if (cx < 0 || cy < 0 || cx >= nx || cy >= ny) continue;
-            uint8_t *cell = cells + (cx * ny + cy) * 16;
-            for (uint8_t **b = FIELD(cell, 4, uint8_t **); b && b < FIELD(cell, 8, uint8_t **) && n < 64; b++) {
-                uint8_t *u = *b, *td = u ? FIELD(u, 0x2C, uint8_t *) : NULL;
-                void *owner = u ? FIELD(u, 0x18, void *) : NULL;
-                if (!td || !owner || FIELD(owner, PL_INDEX, int) != p || FIELD(td, 0x4B8, int) != t || FIELD(u, 0x3C, int) <= 0) continue;
-                if (abs(FIELD(u, 0x1C, int) - x) > r || abs(FIELD(u, 0x20, int) - y) > r) continue;
-                int dup = 0;
-                for (int k = 0; k < n; k++) dup |= hit[k] == u;
-                if (!dup) hit[n++] = u;
-            }
-        }
+    uint8_t *hit[64];
+    for (struct grid_it it = grid_it_box(x, y, r, 0); n < 64 && grid_it_next(&it); ) {
+        uint8_t *u = it.u, *td = it.td;
+        void *owner = u ? FIELD(u, 0x18, void *) : NULL;
+        if (!td || !owner || FIELD(owner, PL_INDEX, int) != p || FIELD(td, 0x4B8, int) != t || FIELD(u, 0x3C, int) <= 0) continue;
+        if (abs(FIELD(u, 0x1C, int) - x) > r || abs(FIELD(u, 0x20, int) - y) > r) continue;
+        int dup = 0;
+        for (int k = 0; k < n; k++) dup |= hit[k] == u;
+        if (!dup) hit[n++] = u;
+    }
     for (int k = 0; k < n; k++)   // collected first: a dying object may leave its cell
         (*(void (__thiscall **)(void *, void *, int, int, int))(FIELD(hit[k], 0, uint8_t *) + 0x70))(hit[k], hit[k], dmg, p, 1);
     REPLY("ok: %d objects hit for %d\n", n, dmg);
@@ -1944,20 +1854,15 @@ static void units_of(int p, int want, struct w_scan *o) {   // want: 0 soldiers 
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     o->n = 0;
     if (!grid) return;
-    uint8_t *cells = FIELD(grid, 4, uint8_t *);
-    int cs = FIELD(grid, 8, int);
-    unsigned ny = FIELD(grid, 0x14, unsigned), count = FIELD(grid, 0x10, unsigned) * ny;
-    for (unsigned c = 0; cells && c < count; c++)
-        for (uint8_t **b = FIELD(cells + c * 16, 4, uint8_t **); b && b < FIELD(cells + c * 16, 8, uint8_t **); b++) {
-            uint8_t *u = *b, *td = u ? FIELD(u, 0x2C, uint8_t *) : NULL;
-            void *owner = u ? FIELD(u, 0x18, void *) : NULL;
-            if (!td || !owner || FIELD(owner, PL_INDEX, int) != p || FIELD(u, 0x3C, int) <= 0) continue;
-            if (FIELD(u, 0x1C, int) / cs != (int)(c / ny) || FIELD(u, 0x20, int) / cs != (int)(c % ny)) continue;
-            int fam = FIELD(td, 0x4B4, int), ty = FIELD(td, 0x4B8, int);
-            int civ = is_citizen_type(ty), sold = !civ && is_army_family(fam);
-            if (want == 2 ? !civ : want == 1 ? civ || sold : !sold) continue;   // 1: the rest - buildings, walls, towers
-            if (o->n < 1024) o->u[o->n++] = u;
-        }
+    for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
+        uint8_t *u = it.u, *td = it.td;
+        void *owner = FIELD(u, 0x18, void *);
+        if (!td || !owner || FIELD(owner, PL_INDEX, int) != p || FIELD(u, 0x3C, int) <= 0) continue;
+        int fam = FIELD(td, 0x4B4, int), ty = FIELD(td, 0x4B8, int);
+        int civ = is_citizen_type(ty), sold = !civ && is_army_family(fam);
+        if (want == 2 ? !civ : want == 1 ? civ || sold : !sold) continue;   // 1: the rest - buildings, walls, towers
+        if (o->n < 1024) o->u[o->n++] = u;
+    }
 }
 static int is_ship_or_air(uint8_t *td) {   // movement type +0x10C... unknown: by the ship/air families seen in tests
     int fam = FIELD(td, 0x4B4, int);
@@ -2109,26 +2014,21 @@ static void cmd_army(char *out, const char *args) {
     uint8_t *map = *(uint8_t **)G_MAP;
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     if (!grid) { REPLY("error: no map\n"); return; }
-    uint8_t *cells = FIELD(grid, 4, uint8_t *);
-    unsigned count = FIELD(grid, 0x10, unsigned) * FIELD(grid, 0x14, unsigned);
     struct { const char *goal; int n; long sx, sy; uint8_t *first; } g[32];
     int ng = 0, total = 0;
-    for (unsigned c = 0; cells && c < count; c++)
-        for (uint8_t **b = FIELD(cells + c * 16, 4, uint8_t **); b && b < FIELD(cells + c * 16, 8, uint8_t **); b++) {
-            uint8_t *u = *b, *td = u ? FIELD(u, 0x2C, uint8_t *) : NULL;
-            void *owner = u ? FIELD(u, 0x18, void *) : NULL;
-            if (!td || !owner || FIELD(owner, PL_INDEX, int) != p) continue;
-            if (FIELD(u, 0x1C, int) / FIELD(grid, 8, int) != (int)(c / FIELD(grid, 0x14, unsigned)) ||
-                FIELD(u, 0x20, int) / FIELD(grid, 8, int) != (int)(c % FIELD(grid, 0x14, unsigned))) continue;
-            if (!is_army_family(FIELD(td, 0x4B4, int))) continue;
-            if (only >= 0 && FIELD(td, 0x4B8, int) != only) continue;
-            const char *gn = rtti_name(FIELD(u, 0x1EC, void *));
-            int j = 0;
-            while (j < ng && g[j].goal != gn) j++;
-            if (j == ng) { if (ng == 32) continue; g[ng].goal = gn; g[ng].n = 0; g[ng].sx = g[ng].sy = 0; g[ng].first = u; ng++; }
-            g[j].n++; g[j].sx += FIELD(u, 0x1C, int); g[j].sy += FIELD(u, 0x20, int);
-            total++;
-        }
+    for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
+        uint8_t *u = it.u, *td = it.td;
+        void *owner = FIELD(u, 0x18, void *);
+        if (!td || !owner || FIELD(owner, PL_INDEX, int) != p) continue;
+        if (!is_army_family(FIELD(td, 0x4B4, int))) continue;
+        if (only >= 0 && FIELD(td, 0x4B8, int) != only) continue;
+        const char *gn = rtti_name(FIELD(u, 0x1EC, void *));
+        int j = 0;
+        while (j < ng && g[j].goal != gn) j++;
+        if (j == ng) { if (ng == 32) continue; g[ng].goal = gn; g[ng].n = 0; g[ng].sx = g[ng].sy = 0; g[ng].first = u; ng++; }
+        g[j].n++; g[j].sx += FIELD(u, 0x1C, int); g[j].sy += FIELD(u, 0x20, int);
+        total++;
+    }
     REPLY("P%d: %d soldiers\n", p, total);
     for (int j = 0; j < ng; j++) {
         REPLY("  %3d x %-28s centre %ld,%ld", g[j].n, g[j].goal, g[j].sx / g[j].n, g[j].sy / g[j].n);

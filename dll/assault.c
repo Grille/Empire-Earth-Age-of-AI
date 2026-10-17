@@ -120,31 +120,25 @@ static uint8_t *as_enemy_near(void *pl, uint8_t *target, int x, int y, int r, in
     uint8_t *map = *(uint8_t **)G_MAP;
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     if (!grid) return NULL;
-    int cs = FIELD(grid, 8, int), nx = FIELD(grid, 0x10, int), ny = FIELD(grid, 0x14, int);
-    uint8_t *cells = FIELD(grid, 4, uint8_t *), *best[3] = { 0 };
+    uint8_t *best[3] = { 0 };
     float bd[3] = { 1e9f, 1e9f, 1e9f };
     if (soldiers) *soldiers = 0;
-    for (int cx = (x - r) / cs; cells && cs > 0 && cx <= (x + r) / cs; cx++)
-        for (int cy = (y - r) / cs; cy <= (y + r) / cs; cy++) {
-            if (cx < 0 || cy < 0 || cx >= nx || cy >= ny) continue;
-            uint8_t *cell = cells + (cx * ny + cy) * 16;
-            for (uint8_t **b = FIELD(cell, 4, uint8_t **); b && b < FIELD(cell, 8, uint8_t **); b++) {
-                uint8_t *u = *b, *td = u ? FIELD(u, 0x2C, uint8_t *) : NULL;
-                if (!td || FIELD(u, 0x3C, int) <= 0) continue;
-                void *o = FIELD(u, 0x18, void *);
-                if (!o || FIELD(o, PL_INDEX, int) <= 0 || !is_enemy(pl, o)) continue;
-                float dx = (float)(FIELD(u, 0x1C, int) - x), dy = (float)(FIELD(u, 0x20, int) - y), d2 = dx * dx + dy * dy;
-                if (d2 > (float)(r * r)) continue;
-                int fam = FIELD(td, 0x4B4, int), type = FIELD(td, 0x4B8, int), k;
-                float rr, a;
-                if (fam == 3 || fam == 7 || fam == 17 || fam == 4) continue;   // aircraft, ships: out of a land army's reach
-                if (is_soldier(td) || is_siege(type)) { k = 0; if (soldiers) (*soldiers)++; }
-                else if (defence_stats(u, &rr, &a)) k = 1;
-                else if (buildings && o == target && (fam == 2 || fam == 29) && !is_wall(type) && d2 <= 64.0f) k = 2;
-                else continue;
-                if (d2 < bd[k]) { bd[k] = d2; best[k] = u; }
-            }
-        }
+    for (struct grid_it it = grid_it_box(x, y, r, 0); grid_it_next(&it); ) {
+        uint8_t *u = it.u, *td = it.td;
+        if (!td || FIELD(u, 0x3C, int) <= 0) continue;
+        void *o = FIELD(u, 0x18, void *);
+        if (!o || FIELD(o, PL_INDEX, int) <= 0 || !is_enemy(pl, o)) continue;
+        float dx = (float)(FIELD(u, 0x1C, int) - x), dy = (float)(FIELD(u, 0x20, int) - y), d2 = dx * dx + dy * dy;
+        if (d2 > (float)(r * r)) continue;
+        int fam = FIELD(td, 0x4B4, int), type = FIELD(td, 0x4B8, int), k;
+        float rr, a;
+        if (fam == 3 || fam == 7 || fam == 17 || fam == 4) continue;   // aircraft, ships: out of a land army's reach
+        if (is_soldier(td) || is_siege(type)) { k = 0; if (soldiers) (*soldiers)++; }
+        else if (defence_stats(u, &rr, &a)) k = 1;
+        else if (buildings && o == target && (fam == 2 || fam == 29) && !is_wall(type) && d2 <= 64.0f) k = 2;
+        else continue;
+        if (d2 < bd[k]) { bd[k] = d2; best[k] = u; }
+    }
     return best[0] ? best[0] : best[1] ? best[1] : best[2];
 }
 
@@ -160,26 +154,20 @@ static float as_enemy_power(void *pl, int x, int y, int r, float *cx, float *cy,
     float pow = 0, sx = 0, sy = 0;
     *n = 0; *cx = (float)x; *cy = (float)y;
     if (!grid) return 0;
-    int cs = FIELD(grid, 8, int), nx = FIELD(grid, 0x10, int), ny = FIELD(grid, 0x14, int), rr = r + 12;
-    uint8_t *cells = FIELD(grid, 4, uint8_t *);
-    for (int gx = (x - rr) / cs; cells && cs > 0 && gx <= (x + rr) / cs; gx++)
-        for (int gy = (y - rr) / cs; gy <= (y + rr) / cs; gy++) {
-            if (gx < 0 || gy < 0 || gx >= nx || gy >= ny) continue;
-            uint8_t *cell = cells + (gx * ny + gy) * 16;
-            for (uint8_t **b = FIELD(cell, 4, uint8_t **); b && b < FIELD(cell, 8, uint8_t **); b++) {
-                uint8_t *u = *b, *td = u ? FIELD(u, 0x2C, uint8_t *) : NULL;
-                if (!td || FIELD(u, 0x3C, int) <= 0) continue;
-                void *o = FIELD(u, 0x18, void *);
-                if (!o || FIELD(o, PL_INDEX, int) <= 0 || !is_enemy(pl, o) || !seen_by(u, pl)) continue;
-                float dx = (float)(FIELD(u, 0x1C, int) - x), dy = (float)(FIELD(u, 0x20, int) - y), d2 = dx * dx + dy * dy;
-                float range, att;
-                if (is_soldier(td) || is_siege(FIELD(td, 0x4B8, int))) {
-                    if (d2 > (float)(r * r)) continue;
-                    pow += unit_power(u); sx += (float)FIELD(u, 0x1C, int); sy += (float)FIELD(u, 0x20, int); (*n)++;
-                } else if (defences && defence_stats(u, &range, &att) && d2 <= (range + 2.0f) * (range + 2.0f))
-                    pow += (float)FIELD(u, 0x3C, int) * att;
-            }
-        }
+    int rr = r + 12;
+    for (struct grid_it it = grid_it_box(x, y, rr, 0); grid_it_next(&it); ) {
+        uint8_t *u = it.u, *td = it.td;
+        if (!td || FIELD(u, 0x3C, int) <= 0) continue;
+        void *o = FIELD(u, 0x18, void *);
+        if (!o || FIELD(o, PL_INDEX, int) <= 0 || !is_enemy(pl, o) || !seen_by(u, pl)) continue;
+        float dx = (float)(FIELD(u, 0x1C, int) - x), dy = (float)(FIELD(u, 0x20, int) - y), d2 = dx * dx + dy * dy;
+        float range, att;
+        if (is_soldier(td) || is_siege(FIELD(td, 0x4B8, int))) {
+            if (d2 > (float)(r * r)) continue;
+            pow += unit_power(u); sx += (float)FIELD(u, 0x1C, int); sy += (float)FIELD(u, 0x20, int); (*n)++;
+        } else if (defences && defence_stats(u, &range, &att) && d2 <= (range + 2.0f) * (range + 2.0f))
+            pow += (float)FIELD(u, 0x3C, int) * att;
+    }
     if (*n) { *cx = sx / *n; *cy = sy / *n; }
     if (g_honest_vision) {   // soldiers seen there lately, out of sight now (intel.c; nothing with the game's view)
         float h = 0, a = 0; int m = 0;

@@ -32,20 +32,15 @@ static int drop_sites(void *pl, int (*out)[3], int max) {
     uint8_t *map = *(uint8_t **)G_MAP;
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     if (!grid) return 0;
-    uint8_t *cells = FIELD(grid, 4, uint8_t *);
-    unsigned count = FIELD(grid, 0x10, unsigned) * FIELD(grid, 0x14, unsigned);
     int n = 0;
-    for (unsigned c = 0; cells && c < count; c++)
-        for (uint8_t **b = FIELD(cells + c * 16, 4, uint8_t **); b && b < FIELD(cells + c * 16, 8, uint8_t **); b++) {
-            uint8_t *u = *b, *td = u ? FIELD(u, 0x2C, uint8_t *) : NULL;
-            if (!td || FIELD(u, 0x18, void *) != pl || n >= max) continue;
-            if (FIELD(u, 0x1C, int) / FIELD(grid, 8, int) != (int)(c / FIELD(grid, 0x14, unsigned)) ||
-                FIELD(u, 0x20, int) / FIELD(grid, 8, int) != (int)(c % FIELD(grid, 0x14, unsigned))) continue;
-            int t = FIELD(td, 0x4B8, int), food = t == 52 || t == 698;
-            if (!food && t != 35 && t != 41 && t != 43 && t != 395) continue;
-            out[n][0] = FIELD(u, 0x1C, int); out[n][1] = FIELD(u, 0x20, int); out[n][2] = food;
-            n++;
-        }
+    for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
+        uint8_t *u = it.u, *td = it.td;
+        if (!td || FIELD(u, 0x18, void *) != pl || n >= max) continue;
+        int t = FIELD(td, 0x4B8, int), food = t == 52 || t == 698;
+        if (!food && t != 35 && t != 41 && t != 43 && t != 395) continue;
+        out[n][0] = FIELD(u, 0x1C, int); out[n][1] = FIELD(u, 0x20, int); out[n][2] = food;
+        n++;
+    }
     return n;
 }
 static int drop_dist(int (*d)[3], int nd, int x, int y, int food) {

@@ -115,19 +115,8 @@ static struct { unsigned n, on_tile; double err; } g_ast[2][2][2];   // [moved][
 static unsigned g_shots, g_shots_unit, g_led, g_lost;
 
 static uint8_t *find_unit_near(uint8_t *want, float x, float y, int r) {
-    uint8_t *map = *(uint8_t **)G_MAP;
-    uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
-    if (!grid) return NULL;
-    int cs = FIELD(grid, 8, int), nx = FIELD(grid, 0x10, int), ny = FIELD(grid, 0x14, int);
-    uint8_t *cells = FIELD(grid, 4, uint8_t *);
-    if (cs <= 0 || !cells) return NULL;
-    for (int cx = ((int)x - r) / cs; cx <= ((int)x + r) / cs; cx++)
-        for (int cy = ((int)y - r) / cs; cy <= ((int)y + r) / cs; cy++) {
-            if (cx < 0 || cy < 0 || cx >= nx || cy >= ny) continue;
-            uint8_t *cell = cells + (cx * ny + cy) * 16;
-            for (uint8_t **b = FIELD(cell, 4, uint8_t **); b && b < FIELD(cell, 8, uint8_t **); b++)
-                if (*b == want) return FIELD(want, 0x3C, int) > 0 ? want : NULL;
-        }
+    for (struct grid_it it = grid_it_box((int)x, (int)y, r, 0); grid_it_next(&it); )
+        if (it.u == want) return FIELD(want, 0x3C, int) > 0 ? want : NULL;
     return NULL;
 }
 
@@ -376,27 +365,21 @@ static int __fastcall hook_missile_launch(uint8_t *cls, void *edx, uint8_t *m, f
 
 // The nearest enemy of the same kind as t within u's range, seen by u's owner and not covered yet.
 static uint8_t *spread_target(uint8_t *u, uint8_t *t) {
-    uint8_t *map = *(uint8_t **)G_MAP, *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     void *pl = FIELD(u, 0x18, void *);
-    if (!grid || !pl) return NULL;
+    if (!pl) return NULL;
     int fam = FIELD(FIELD(t, 0x2C, uint8_t *), 0x4B4, int);
     float x = FIELD(u, 0x13C, float), y = FIELD(u, 0x14C, float), range = FIELD(FIELD(u, 0x34, uint8_t *), 0x9C, float);
-    int cs = FIELD(grid, 8, int), nx = FIELD(grid, 0x10, int), ny = FIELD(grid, 0x14, int), r = (int)range + 1;
-    uint8_t *cells = FIELD(grid, 4, uint8_t *), *best = NULL;
+    int r = (int)range + 1;
+    uint8_t *best = NULL;
     float bd = range * range;
-    if (cs <= 0 || !cells || !(range > 0)) return NULL;
-    for (int cx = ((int)x - r) / cs; cx <= ((int)x + r) / cs; cx++)
-        for (int cy = ((int)y - r) / cs; cy <= ((int)y + r) / cs; cy++) {
-            if (cx < 0 || cy < 0 || cx >= nx || cy >= ny) continue;
-            uint8_t *cell = cells + (cx * ny + cy) * 16;
-            for (uint8_t **b = FIELD(cell, 4, uint8_t **); b && b < FIELD(cell, 8, uint8_t **); b++) {
-                uint8_t *c = *b, *cc = c ? FIELD(c, 0x2C, uint8_t *) : NULL;
-                if (!cc || c == t || FIELD(c, 0x3C, int) <= 0 || FIELD(cc, 0x4B4, int) != fam) continue;
-                if (!is_enemy(pl, FIELD(c, 0x18, void *)) || !seen_by(c, pl) || doomed(c)) continue;
-                float dx = FIELD(c, 0x13C, float) - x, dy = FIELD(c, 0x14C, float) - y, d = dx * dx + dy * dy;
-                if (d <= bd) { bd = d; best = c; }
-            }
-        }
+    if (!(range > 0)) return NULL;
+    for (struct grid_it it = grid_it_box((int)x, (int)y, r, 0); grid_it_next(&it); ) {
+        uint8_t *c = it.u, *cc = it.td;
+        if (c == t || FIELD(c, 0x3C, int) <= 0 || FIELD(cc, 0x4B4, int) != fam) continue;
+        if (!is_enemy(pl, FIELD(c, 0x18, void *)) || !seen_by(c, pl) || doomed(c)) continue;
+        float dx = FIELD(c, 0x13C, float) - x, dy = FIELD(c, 0x14C, float) - y, d = dx * dx + dy * dy;
+        if (d <= bd) { bd = d; best = c; }
+    }
     return best;
 }
 
@@ -536,54 +519,35 @@ static void cmd_aim(char *out, const char *args) {
 static void cmd_uinfo(char *out, const char *args) {
     int x = 0, y = 0, r = 3;
     sscanf(args, "%d %d %d", &x, &y, &r);
-    uint8_t *map = *(uint8_t **)G_MAP;
-    uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
-    if (!grid) { REPLY("error: no map\n"); return; }
-    int cs = FIELD(grid, 8, int), nx = FIELD(grid, 0x10, int), ny = FIELD(grid, 0x14, int);
-    uint8_t *cells = FIELD(grid, 4, uint8_t *);
+    if (!*(uint8_t **)G_MAP) { REPLY("error: no map\n"); return; }
     REPLY("t %u\n", game_time());
-    for (int cx = (x - r) / cs; cx <= (x + r) / cs; cx++)
-        for (int cy = (y - r) / cs; cy <= (y + r) / cs; cy++) {
-            if (cx < 0 || cy < 0 || cx >= nx || cy >= ny) continue;
-            uint8_t *cell = cells + (cx * ny + cy) * 16;
-            for (uint8_t **b = FIELD(cell, 4, uint8_t **); b && b < FIELD(cell, 8, uint8_t **); b++) {
-                uint8_t *u = *b, *td = u ? FIELD(u, 0x2C, uint8_t *) : NULL;
-                if (!td) continue;
-                int ux = FIELD(u, 0x1C, int), uy = FIELD(u, 0x20, int);
-                if (abs(ux - x) > r || abs(uy - y) > r || strlen(out) > 15000) continue;
-                void *owner = FIELD(u, 0x18, void *);
-                REPLY("%p type %d P%d hp %d pos %.3f,%.3f,%.2f spd %.3f/%.3f fwd %.2f,%.2f,%.2f goal %s\n",
-                      u, FIELD(td, 0x4B8, int), owner ? FIELD(owner, PL_INDEX, int) : -1, FIELD(u, 0x3C, int),
-                      FIELD(u, 0x13C, float), FIELD(u, 0x14C, float), FIELD(u, 0x15C, float), FIELD(u, 0x238, float),
-                      FIELD(u, 0x21C, float), FIELD(u, 0x134, float), FIELD(u, 0x144, float), FIELD(u, 0x154, float),
-                      rtti_name(FIELD(u, 0x1EC, void *)));
-            }
-        }
+    for (struct grid_it it = grid_it_box(x, y, r, 0); grid_it_next(&it); ) {
+        uint8_t *u = it.u, *td = it.td;
+        int ux = FIELD(u, 0x1C, int), uy = FIELD(u, 0x20, int);
+        if (abs(ux - x) > r || abs(uy - y) > r || strlen(out) > 15000) continue;
+        void *owner = FIELD(u, 0x18, void *);
+        REPLY("%p type %d P%d hp %d pos %.3f,%.3f,%.2f spd %.3f/%.3f fwd %.2f,%.2f,%.2f goal %s\n",
+              u, FIELD(td, 0x4B8, int), owner ? FIELD(owner, PL_INDEX, int) : -1, FIELD(u, 0x3C, int),
+              FIELD(u, 0x13C, float), FIELD(u, 0x14C, float), FIELD(u, 0x15C, float), FIELD(u, 0x238, float),
+              FIELD(u, 0x21C, float), FIELD(u, 0x134, float), FIELD(u, 0x144, float), FIELD(u, 0x154, float),
+              rtti_name(FIELD(u, 0x1EC, void *)));
+    }
 }
 
 // move P x y r tx ty: units of player P within r tiles of x, y walk to tx, ty keeping their spread (tests)
 static void cmd_move(char *out, const char *args) {
     int p, x, y, r, tx, ty, n = 0;
     if (sscanf(args, "%d %d %d %d %d %d", &p, &x, &y, &r, &tx, &ty) < 6) { REPLY("error: usage: move P x y r tx ty\n"); return; }
-    uint8_t *map = *(uint8_t **)G_MAP;
-    uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
-    if (!grid) { REPLY("error: no map\n"); return; }
-    int cs = FIELD(grid, 8, int), nx = FIELD(grid, 0x10, int), ny = FIELD(grid, 0x14, int);
-    uint8_t *cells = FIELD(grid, 4, uint8_t *);
+    if (!*(uint8_t **)G_MAP) { REPLY("error: no map\n"); return; }
     uint8_t *found[200];
     int nf = 0;
-    for (int cx = (x - r) / cs; cx <= (x + r) / cs; cx++)
-        for (int cy = (y - r) / cs; cy <= (y + r) / cs; cy++) {
-            if (cx < 0 || cy < 0 || cx >= nx || cy >= ny) continue;
-            uint8_t *cell = cells + (cx * ny + cy) * 16;
-            for (uint8_t **b = FIELD(cell, 4, uint8_t **); b && b < FIELD(cell, 8, uint8_t **) && nf < 200; b++) {
-                uint8_t *u = *b, *td = u ? FIELD(u, 0x2C, uint8_t *) : NULL;
-                void *owner = u ? FIELD(u, 0x18, void *) : NULL;
-                if (!td || !owner || FIELD(owner, PL_INDEX, int) != p || FIELD(td, 0x4B4, int) == 2) continue;
-                if (abs(FIELD(u, 0x1C, int) - x) > r || abs(FIELD(u, 0x20, int) - y) > r) continue;
-                found[nf++] = u;
-            }
-        }
+    for (struct grid_it it = grid_it_box(x, y, r, 0); nf < 200 && grid_it_next(&it); ) {
+        uint8_t *u = it.u, *td = it.td;
+        void *owner = FIELD(u, 0x18, void *);
+        if (!owner || FIELD(owner, PL_INDEX, int) != p || FIELD(td, 0x4B4, int) == 2) continue;
+        if (abs(FIELD(u, 0x1C, int) - x) > r || abs(FIELD(u, 0x20, int) - y) > r) continue;
+        found[nf++] = u;
+    }
     for (int i = 0; i < nf; i++)
         n += unit_goal(found[i], goal_move((float)tx + FIELD(found[i], 0x13C, float) - (float)x,
                                            (float)ty + FIELD(found[i], 0x14C, float) - (float)y), 0, 0x1F40);

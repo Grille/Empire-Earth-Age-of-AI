@@ -1,45 +1,5 @@
 // Defences: how the AI fortifies its base. Included by eeaimod.c after attack.c (uses its defence_stats, is_wall).
 
-// Callback over every unit of the unit grid (each unit once: only in the cell of its own position).
-static void grid_each(void (*fn)(uint8_t *u, void *ctx), void *ctx) {
-    uint8_t *map = *(uint8_t **)G_MAP;
-    uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
-    if (!grid) return;
-    uint8_t *cells = FIELD(grid, 4, uint8_t *);
-    int cs = FIELD(grid, 8, int);
-    unsigned ny = FIELD(grid, 0x14, unsigned), count = FIELD(grid, 0x10, unsigned) * ny;
-    for (unsigned c = 0; cells && cs > 0 && c < count; c++)
-        for (uint8_t **b = FIELD(cells + c * 16, 4, uint8_t **); b && b < FIELD(cells + c * 16, 8, uint8_t **); b++) {
-            uint8_t *u = *b;
-            if (!u || !FIELD(u, 0x2C, uint8_t *)) continue;
-            if (FIELD(u, 0x1C, int) / cs != (int)(c / ny) || FIELD(u, 0x20, int) / cs != (int)(c % ny)) continue;
-            fn(u, ctx);
-        }
-}
-// the same within the cells covering tiles x-r..x+r, y-r..y+r: each unit once, in the cell of its own position (a big
-// building stands in several cells - counted by hand, an AA building counted 2-4 times); fn checks the distance
-static void grid_box(int x, int y, int r, void (*fn)(uint8_t *u, void *ctx), void *ctx) {
-    uint8_t *map = *(uint8_t **)G_MAP;
-    uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
-    if (!grid) return;
-    uint8_t *cells = FIELD(grid, 4, uint8_t *);
-    int cs = FIELD(grid, 8, int), nx = FIELD(grid, 0x10, int), ny = FIELD(grid, 0x14, int);
-    if (!cells || cs <= 0) return;
-    int x0 = x - r < 0 ? 0 : (x - r) / cs, y0 = y - r < 0 ? 0 : (y - r) / cs, x1 = (x + r) / cs, y1 = (y + r) / cs;
-    if (x1 >= nx) x1 = nx - 1;
-    if (y1 >= ny) y1 = ny - 1;
-    for (int gx = x0; gx <= x1; gx++)
-        for (int gy = y0; gy <= y1; gy++) {
-            uint8_t *cell = cells + (gx * ny + gy) * 16;
-            for (uint8_t **b = FIELD(cell, 4, uint8_t **); b && b < FIELD(cell, 8, uint8_t **); b++) {
-                uint8_t *u = *b;
-                if (!u || !FIELD(u, 0x2C, uint8_t *)) continue;
-                if (FIELD(u, 0x1C, int) / cs != gx || FIELD(u, 0x20, int) / cs != gy) continue;
-                fn(u, ctx);
-            }
-        }
-}
-
 // DEFENCE LAYOUT (aimod.ini [all] defence_layout, default on). The game's AI decides when and how many towers to
 // build (its building plan, cm 0x46CD18) and puts each where its spot finder (0x466ED4) finds room along paths from
 // the base - observed: 4 bronze towers scattered one by one on the side away from the enemy, none at the mines. A
@@ -852,27 +812,18 @@ static void hold_town(void *pl, unsigned idx, uint32_t now) {
     int en = 0;
     uint8_t *enemy[128];
     {
-        uint8_t *map = *(uint8_t **)G_MAP;
-        uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
-        uint8_t *cells = grid ? FIELD(grid, 4, uint8_t *) : NULL;
-        int cs = grid ? FIELD(grid, 8, int) : 1, nx = grid ? FIELD(grid, 0x10, int) : 0, ny = grid ? FIELD(grid, 0x14, int) : 0;
-        for (int cx = (s->bx - 35) / cs; cells && cx <= (s->bx + 35) / cs; cx++)
-            for (int cy = (s->by - 35) / cs; cy <= (s->by + 35) / cs; cy++) {
-                if (cx < 0 || cy < 0 || cx >= nx || cy >= ny) continue;
-                uint8_t *cell = cells + (cx * ny + cy) * 16;
-                for (uint8_t **b = FIELD(cell, 4, uint8_t **); b && b < FIELD(cell, 8, uint8_t **); b++) {
-                    uint8_t *u = *b, *td = u ? FIELD(u, 0x2C, uint8_t *) : NULL;
-                    if (!td || FIELD(u, 0x3C, int) <= 0) continue;
-                    int dx = FIELD(u, 0x1C, int) - s->bx, dy = FIELD(u, 0x20, int) - s->by, type = FIELD(td, 0x4B8, int);
-                    void *o = FIELD(u, 0x18, void *);
-                    if (dx * dx + dy * dy > 35 * 35 || !o || o == pl || FIELD(o, PL_INDEX, int) <= 0 || !is_enemy(pl, o)) continue;
-                    if ((!is_soldier(td) && !is_siege(type)) || !seen_by(u, pl)) continue;
-                    epow += unit_power(u);
-                    if (g_fight_est) st_side_add(&g_ms_foe, u);
-                    if (en < 128) enemy[en] = u;
-                    en++;
-                }
-            }
+        for (struct grid_it it = grid_it_box(s->bx, s->by, 35, 0); grid_it_next(&it); ) {
+            uint8_t *u = it.u, *td = it.td;
+            if (FIELD(u, 0x3C, int) <= 0) continue;
+            int dx = FIELD(u, 0x1C, int) - s->bx, dy = FIELD(u, 0x20, int) - s->by, type = FIELD(td, 0x4B8, int);
+            void *o = FIELD(u, 0x18, void *);
+            if (dx * dx + dy * dy > 35 * 35 || !o || o == pl || FIELD(o, PL_INDEX, int) <= 0 || !is_enemy(pl, o)) continue;
+            if ((!is_soldier(td) && !is_siege(type)) || !seen_by(u, pl)) continue;
+            epow += unit_power(u);
+            if (g_fight_est) st_side_add(&g_ms_foe, u);
+            if (en < 128) enemy[en] = u;
+            en++;
+        }
     }
     asg_units(pl);
     uint8_t *home[256];
