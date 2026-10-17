@@ -191,11 +191,13 @@ static void intel_tick(void *pl, uint32_t now) {
             int looked = 0, live = intel_live(&s, e->u);   // an eye within 6 tiles of where it was
             for (int q = 0; q < s.ne && e->x >= 0 && !looked; q++)
                 looked = (s.ex[q] - e->x) * (s.ex[q] - e->x) + (s.ey[q] - e->y) * (s.ey[q] - e->y) <= 36;
-            if (e->kind == 0) keep = !(looked || (!live && now - e->t <= 6000));
-            // a remembered building no longer on the map (destroyed out of sight) keeps its spot but not its pointer:
-            // the memory is freed, and a new building allocated there counted as remembered (seen_by). Without a
-            // unit it is matched again like a record from a save - to a building of that owner and type at its spot
-            if (e->kind == 0 && !live) e->u = NULL;
+            if (e->kind == 0) {
+                keep = !(looked || (!live && now - e->t <= 6000));
+                // a remembered building no longer on the map (destroyed out of sight) keeps its spot but not its pointer:
+                // the memory is freed, and a new building allocated there counted as remembered (seen_by). Without a
+                // unit it is matched again like a record from a save - to a building of that owner and type at its spot
+                if (!live) e->u = NULL;
+            }
             else if (!live && now - e->t <= 6000) keep = 0;   // seen until the last look and gone now: died in sight
             else {
                 if (looked) { e->x = -1; in->moved++; }   // not there any more: somewhere
