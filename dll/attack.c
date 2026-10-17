@@ -1166,7 +1166,7 @@ static void siege_tick(void *pl, uint32_t now) {
         else if (hx * hx + hy * hy <= 25.0f) home[nhome++] = u;
         else away[naway++] = u;
     }
-    int ordered = 0, launched = 0, need = siege_want(pl, pi);
+    int launched = 0, need = siege_want(pl, pi);
     if (need > 3) need = 3;
     if (need < 2) need = 2;
     // the wave out: keep it at it (attack once there)
@@ -1174,7 +1174,7 @@ static void siege_tick(void *pl, uint32_t now) {
         uint8_t *u = out[i], *g = FIELD(u, 0x1EC, uint8_t *);
         if (g && *(uintptr_t *)g == VT_GOAL_ATTACK && FIELD(g, 0x30, uint8_t *) == t) continue;
         float ux = (float)FIELD(u, 0x1C, int) + 0.5f - px, uy = (float)FIELD(u, 0x20, int) + 0.5f - py;
-        if (ux * ux + uy * uy <= 4.0f) ordered += unit_goal(u, goal_attack(u, t), 0, 0x1F40);
+        if (ux * ux + uy * uy <= 4.0f) unit_goal(u, goal_attack(u, t), 0, 0x1F40);
     }
     g_siege_st[pi].wave = nout > 0;
     // the rest to the gathering point (not those walking there)
@@ -1208,7 +1208,6 @@ static void siege_tick(void *pl, uint32_t now) {
     }
     for (int i = 0; i < nhome; i++)
         launched += unit_goal(home[i], goal_move(px, py), 0, 0x1F40) && unit_goal(home[i], goal_attack(home[i], t), 1, 0x1F40);
-    ordered += launched;
     g_siege_st[pi].waves++;
     // escorts: idle soldiers (no goal) to the firing position
     for (unsigned c = 0; cells && c < count && escorts < want && escorts < MAXE; c++)

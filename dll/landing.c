@@ -1981,7 +1981,7 @@ static void cmd_board(char *out, const char *args) {
             if (!o) continue;
             REPLY("  %s:", pass == 0 ? "stats" : pass == 1 ? "physics" : "unit");
             for (int off = lo; off < hi; off += 4) {
-                int iv = FIELD(o, off, int); float fv = FIELD(o, off, float);
+                int iv = FIELD(o, off, int);
                 if (iv == 0) continue;
                 REPLY(" %X=%x", off, (unsigned)iv);
             }
