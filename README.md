@@ -326,6 +326,7 @@ venv/Scripts/python scripts/eectl.py status | army 2 | diplo | persona | say 2 H
 ```
 dll/              the mod (C), one module per file:
                     eeaimod.c core hooks + logging, settings.c aimod.ini, control.c control pipe
+                    grid.c the unit grid (iterator), testcmd.c control-pipe commands only tests use
                     econ.c budget, epoch plan, build queue, workers, research; sites.c gathering sites
                     attack.c attack routing, siege, unit choice; defence.c towers, walls, home guard
                     diplo.c diplomacy; persona.c personalities; chat.c chat lines

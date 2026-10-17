@@ -515,45 +515,6 @@ static void cmd_aim(char *out, const char *args) {
     }
 }
 
-// uinfo x y [r]: units within r tiles: position, speed, facing, hit points, goal
-static void cmd_uinfo(char *out, const char *args) {
-    int x = 0, y = 0, r = 3;
-    sscanf(args, "%d %d %d", &x, &y, &r);
-    if (!*(uint8_t **)G_MAP) { REPLY("error: no map\n"); return; }
-    REPLY("t %u\n", game_time());
-    for (struct grid_it it = grid_it_box(x, y, r, 0); grid_it_next(&it); ) {
-        uint8_t *u = it.u, *td = it.td;
-        int ux = FIELD(u, 0x1C, int), uy = FIELD(u, 0x20, int);
-        if (abs(ux - x) > r || abs(uy - y) > r || strlen(out) > 15000) continue;
-        void *owner = FIELD(u, 0x18, void *);
-        REPLY("%p type %d P%d hp %d pos %.3f,%.3f,%.2f spd %.3f/%.3f fwd %.2f,%.2f,%.2f goal %s\n",
-              u, FIELD(td, 0x4B8, int), owner ? FIELD(owner, PL_INDEX, int) : -1, FIELD(u, 0x3C, int),
-              FIELD(u, 0x13C, float), FIELD(u, 0x14C, float), FIELD(u, 0x15C, float), FIELD(u, 0x238, float),
-              FIELD(u, 0x21C, float), FIELD(u, 0x134, float), FIELD(u, 0x144, float), FIELD(u, 0x154, float),
-              rtti_name(FIELD(u, 0x1EC, void *)));
-    }
-}
-
-// move P x y r tx ty: units of player P within r tiles of x, y walk to tx, ty keeping their spread (tests)
-static void cmd_move(char *out, const char *args) {
-    int p, x, y, r, tx, ty, n = 0;
-    if (sscanf(args, "%d %d %d %d %d %d", &p, &x, &y, &r, &tx, &ty) < 6) { REPLY("error: usage: move P x y r tx ty\n"); return; }
-    if (!*(uint8_t **)G_MAP) { REPLY("error: no map\n"); return; }
-    uint8_t *found[200];
-    int nf = 0;
-    for (struct grid_it it = grid_it_box(x, y, r, 0); nf < 200 && grid_it_next(&it); ) {
-        uint8_t *u = it.u, *td = it.td;
-        void *owner = FIELD(u, 0x18, void *);
-        if (!owner || FIELD(owner, PL_INDEX, int) != p || FIELD(td, 0x4B4, int) == 2) continue;
-        if (abs(FIELD(u, 0x1C, int) - x) > r || abs(FIELD(u, 0x20, int) - y) > r) continue;
-        found[nf++] = u;
-    }
-    for (int i = 0; i < nf; i++)
-        n += unit_goal(found[i], goal_move((float)tx + FIELD(found[i], 0x13C, float) - (float)x,
-                                           (float)ty + FIELD(found[i], 0x14C, float) - (float)y), 0, 0x1F40);
-    REPLY("ok: %d of %d units of P%d moving\n", n, nf, p);
-}
-
 // a new game (the game start hook): missiles in flight and shots measured - their age test (now - last) went
 // negative after the clock reset, so the slots never freed and spread_missiles counted their damage on new units
 static void aim_new_game(void) {

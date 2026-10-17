@@ -258,74 +258,6 @@ static void attention_note(void *pl, unsigned idx, uint32_t now) {
     memset(&g_att[idx], 0, sizeof g_att[idx]);
 }
 
-// tech P id...: the player's tech record (tech tree lookup 0x4019A1): first bytes and the data's cost
-static void cmd_tech(char *out, const char *args) {
-    int p = 0, n = 0, id;
-    sscanf(args, "%d%n", &p, &n);
-    void *pl = (p >= 0 && p < 16) ? g_players[p] : NULL;
-    uint8_t *tt = pl ? FIELD(pl, PL_TECHTREE, uint8_t *) : NULL;
-    if (!tt) { REPLY("error: no player %d\n", p); return; }
-    args += n;
-    while (sscanf(args, "%d%n", &id, &n) == 1) {
-        args += n;
-        uint8_t *t = ((uint8_t *(__thiscall *)(void *, int))0x004019A1)(tt, id);   // FN_TECH_LOOKUP
-        if (!t) { REPLY("%d: none\n", id); continue; }
-        REPLY("%d:", id);
-        for (int i = 0; i < 0x20; i++) REPLY(" %02x", t[i]);
-        uint8_t *d = FIELD(t, 8, uint8_t *);
-        if (d) REPLY(" | cost %d,%d,%d,%d,%d", FIELD(d, 0x24, int), FIELD(d, 0x28, int), FIELD(d, 0x2C, int), FIELD(d, 0x30, int), FIELD(d, 0x34, int));
-        int ei = d ? FIELD(d, 0x50, int) : -1;
-        REPLY(" | effects %d:", ei);
-        if (ei >= 0 && ei <= 0x5DC) {   // effect list 0x93B1B8 + ei*0x10 (+4 ids, +8 count), effect 0x919E70 + id*0x44
-            uint8_t *list = (uint8_t *)0x0093B1B8 + ei * 0x10;
-            unsigned n = FIELD(list, 8, unsigned), *ids = FIELD(list, 4, unsigned *);
-            for (unsigned k = 0; ids && k < n && k < 16; k++) {
-                if (ids[k] >= 2000) { REPLY(" %u?", ids[k]); continue; }
-                uint8_t *ef = (uint8_t *)0x00919E70 + ids[k] * 0x44;
-                REPLY(" %u(%x/%x/%x)", ids[k], FIELD(ef, 0x14, int), FIELD(ef, 0x20, int), FIELD(ef, 0x2C, int));
-            }
-        }
-        REPLY("\n");
-    }
-}
-
-// techs P: the techs player P has researched (tech record +4), and which are new since the last call - with their
-// tech epoch (record +0x14) and cost; tests: what an AI gets at an epoch advance
-static void cmd_techs(char *out, const char *args) {
-    static uint8_t seen[16][16384];
-    int p = atoi(args), total = 0;
-    void *pl = (p >= 0 && p < 16) ? g_players[p] : NULL;
-    uint8_t *tt = pl ? FIELD(pl, PL_TECHTREE, uint8_t *) : NULL;
-    if (!tt) { REPLY("error: no player %d\n", p); return; }
-    REPLY("P%d epoch %d, new:", p, FIELD(tt, TT_EPOCH, int));
-    for (int id = 0; id < 16384; id++) {
-        uint8_t *t = ((uint8_t *(__thiscall *)(void *, int))0x004019A1)(tt, id);
-        int done = t && t[4];
-        total += done;
-        if (done && !seen[p][id] && strlen(out) < 15000) {
-            uint8_t *d = FIELD(t, 8, uint8_t *);
-            REPLY(" %d(e%d", id, FIELD(t, 0x14, int));
-            if (d) REPLY(" %d/%d/%d/%d/%d", FIELD(d, 0x24, int), FIELD(d, 0x28, int), FIELD(d, 0x2C, int), FIELD(d, 0x30, int), FIELD(d, 0x34, int));
-            REPLY(")");
-        }
-        seen[p][id] = (uint8_t)done;
-    }
-    REPLY(" - %d researched\n", total);
-}
-
-// watchtech P id: hardware write-watch on player P's tech record +4 (researched): who researches it. Tests.
-static void watch_set(uintptr_t addr, int len);
-static void cmd_watchtech(char *out, const char *args) {
-    int p = 0, id = 0;
-    sscanf(args, "%d %d", &p, &id);
-    void *pl = (p >= 0 && p < 16) ? g_players[p] : NULL;
-    uint8_t *tt = pl ? FIELD(pl, PL_TECHTREE, uint8_t *) : NULL;
-    uint8_t *t = tt ? ((uint8_t *(__thiscall *)(void *, int))0x004019A1)(tt, id) : NULL;
-    if (!t) { REPLY("error: no tech %d for P%d\n", id, p); return; }
-    watch_set((uintptr_t)(t + 4), 1);
-    REPLY("ok: watching tech %d of P%d at %p (researched %d)\n", id, p, t + 4, t[4]);
-}
-
 // Free research (diagnostic, with tech_log): EETechTreeNode::vf6 0x5BF335 (vtable slot 0x830874) marks a tech
 // researched and applies it without any payment; logged with its caller.
 #define FN_TECH_GRANT 0x005BF335
@@ -379,58 +311,6 @@ static void tech_log_tick(void *pl, unsigned idx, uint32_t now) {
                 last_stock[idx][2], last_stock[idx][3], last_stock[idx][4], last_stock[idx][5], last_stock[idx][6],
                 stock[2], stock[3], stock[4], stock[5], stock[6]);
     memcpy(last_stock[idx], stock, sizeof last_stock[idx]);
-}
-
-// rlist P: the research manager's per-epoch tech lists (cm+0x40: +0x18 + e*0x10 = vector begin/end of tech ids,
-// +0x114 current epoch); * = researched (tech +4)
-static void cmd_rlist(char *out, const char *args) {
-    int p = atoi(args);
-    void *pl = (p >= 0 && p < 16) ? g_players[p] : NULL;
-    void *cm = pl ? FIELD(pl, 0xB90, void *) : NULL;
-    uint8_t *rs = cm ? FIELD(cm, 0x40, uint8_t *) : NULL, *tt = pl ? FIELD(pl, PL_TECHTREE, uint8_t *) : NULL;
-    if (!rs || !tt) { REPLY("error: no AI player %d\n", p); return; }
-    int cur = FIELD(rs, 0x114, int);
-    REPLY("P%d research epoch %d\n", p, cur);
-    for (int e = -1; e <= 13; e++) {   // -1: the list at +8
-        int *b = FIELD(rs, 0x18 + e * 0x10, int *), *en = FIELD(rs, 0x1C + e * 0x10, int *);
-        if (!b || en <= b || en - b > 500) continue;
-        REPLY("list %d:", e);
-        for (int *q = b; q < en; q++) {
-            uint8_t *t = ((uint8_t *(__thiscall *)(void *, int))0x004019A1)(tt, *q);   // FN_TECH_LOOKUP
-            REPLY(" %d%s", *q, t && t[4] ? "*" : "");
-        }
-        REPLY("\n");
-    }
-}
-
-// tinfo P type...: type data of unit types - family +0x4B4, hit points +0x55C, attack +0x510, range +0x420 - and
-// whether player P could train/build one now (0x555710: available, affordable, a building/builder)
-static void cmd_tinfo(char *out, const char *args) {
-    int p = 0, n = 0, t;
-    sscanf(args, "%d%n", &p, &n);
-    void *pl = (p >= 0 && p < 16) ? g_players[p] : NULL;
-    if (!pl) { REPLY("error: no player %d\n", p); return; }
-    args += n;
-    while (sscanf(args, "%d%n", &t, &n) == 1) {
-        args += n;
-        uint8_t *td = type_data(t);
-        if (!td) { REPLY("%d: none\n", t); continue; }
-        REPLY("%d: family %d hp %d attack %d range %.1f can %d\n", t, FIELD(td, 0x4B4, int), FIELD(td, 0x55C, int),
-              FIELD(td, 0x510, int), FIELD(td, 0x420, float),
-              ((char (__thiscall *)(void *, int, int, int))0x00555710)(pl, t, 0x20, 0));
-    }
-}
-
-// drops P: the player's drop sites (x,y; g = granary, food only)
-static void cmd_drops(char *out, const char *args) {
-    int p = atoi(args);
-    void *pl = (p >= 0 && p < 16) ? g_players[p] : NULL;
-    if (!pl) { REPLY("error: no AI player %d\n", p); return; }
-    static int d[64][3];
-    int nd = drop_sites(pl, d, 64);
-    REPLY("P%d drop sites:", p);
-    for (int i = 0; i < nd; i++) REPLY(" %d,%d%s", d[i][0], d[i][1], d[i][2] ? "g" : "");
-    REPLY("\n");
 }
 
 // Gathering (diagnostic), every 5 minutes: per resource the workers, the mean distance from their gather site to the

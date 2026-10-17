@@ -389,11 +389,3 @@ static void intel_install(const char *aimod_ini, const char *autotest_ini) {
                        g_honest_vision ? "what it sees, remembers and assumes" : "the game's view - every unit of the human");
 }
 
-// calloff P T (test): AI P calls off its attack on T (the game's call-off at the next safe point, as attack_retreat)
-static void cmd_calloff(char *out, const char *args) {
-    int p = 0, t = 0;
-    if (sscanf(args, "%d %d", &p, &t) != 2 || p <= 0 || p >= 16 || t <= 0 || t >= 16) { REPLY("error: calloff P T\n"); return; }
-    g_cancel_why[p][t] = "test";
-    cancel_citizen_attack(p, t);
-    REPLY("P%d calls off its attack on P%d at the next safe point\n", p, t);
-}
