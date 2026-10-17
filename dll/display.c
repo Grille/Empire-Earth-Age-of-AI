@@ -380,8 +380,11 @@ static int present_primary(uint8_t *ras, unsigned screen, uint8_t *scr, uint8_t 
     d.dwFlags = 0;
     b->lpVtbl->GetSurfaceDesc(b, &d);
     static HWND clipped;
-    if (clipped != hwnd) {   // clip the primary to the game window (other windows stay untouched)
-        IDirectDrawClipper *c = NULL;
+    IDirectDrawClipper *c = NULL;
+    int has_clipper = f->lpVtbl->GetClipper(f, &c) == DD_OK;   // a primary made anew (device lost, mode change) has none
+    if (has_clipper && c) c->lpVtbl->Release(c);
+    if (clipped != hwnd || !has_clipper) {   // clip the primary to the game window (other windows stay untouched)
+        c = NULL;
         if (dd->lpVtbl->CreateClipper(dd, 0, &c, NULL) == DD_OK) {
             c->lpVtbl->SetHWnd(c, 0, hwnd);
             f->lpVtbl->SetClipper(f, c);
@@ -1232,10 +1235,15 @@ FC_SURFACE_HOOK(hook_fc_text_unlock, FC_TEXT_UNLOCK)
 // TextUnlock locks the rectangle of the loaded tiles, writes them back, and selects the stock font again (the
 // game's fonts must not stay selected in a DC it never sees again).
 static int g_text_dc = 1;
-static struct { int w, h, bpp; DWORD masks[3]; HDC dc; HBITMAP bmp; void *bits; int pitch; } g_tdc[6];
+// Six DIBs (surface sizes / formats); a seventh size (window resized again and again) replaces the one used longest
+// ago - they were kept for the session, and from the seventh size on all text went the leaking way. Surfaces up to
+// 8192x8192 (the tile map's size only: 64 KB, its loops go as far as the surface; it was 2560x1600, and 4K or
+// ultrawide windows got the game's own GDI text and its leak).
+static struct { int w, h, bpp; DWORD masks[3]; HDC dc; HBITMAP bmp; void *bits; int pitch; unsigned used; } g_tdc[6];
 static struct { void *surf; int slot; DDSURFACEDESC2 d; } g_tdc_active[8];
-enum { TDC_TILE = 32, TDC_TW = 2560 / TDC_TILE + 2, TDC_TH = 1600 / TDC_TILE + 2 };
+enum { TDC_TILE = 32, TDC_MAX = 8192, TDC_TW = TDC_MAX / TDC_TILE + 2, TDC_TH = TDC_MAX / TDC_TILE + 2 };
 static uint8_t g_tdc_tiles[TDC_TH][TDC_TW];   // loaded in this text phase (one phase at a time)
+static unsigned g_tdc_clock;
 static int g_tdc_any;
 typedef BOOL (WINAPI *ExtTextOutAFn)(HDC, int, int, UINT, const RECT *, LPCSTR, UINT, const INT *);
 typedef BOOL (WINAPI *TextOutWFn)(HDC, int, int, LPCWSTR, int);
@@ -1251,11 +1259,25 @@ static int text_dc_slot(const DDSURFACEDESC2 *d) {
     if (bpp != 16 && bpp != 32) return -1;
     for (int i = 0; i < 6; i++) {
         if (g_tdc[i].dc && g_tdc[i].w == w && g_tdc[i].h == h && g_tdc[i].bpp == bpp &&
-            g_tdc[i].masks[0] == d->ddpfPixelFormat.dwRBitMask && g_tdc[i].masks[1] == d->ddpfPixelFormat.dwGBitMask)
+            g_tdc[i].masks[0] == d->ddpfPixelFormat.dwRBitMask && g_tdc[i].masks[1] == d->ddpfPixelFormat.dwGBitMask) {
+            g_tdc[i].used = ++g_tdc_clock;
             return i;
+        }
         if (!g_tdc[i].dc && free_ < 0) free_ = i;
     }
+    for (int i = 0; i < 6 && free_ < 0; i++) {   // all in use: the one used longest ago and not drawn on now
+        int busy = 0;
+        for (int k = 0; k < 8; k++) busy |= g_tdc_active[k].surf && g_tdc_active[k].slot == i;
+        if (!busy && (free_ < 0 || g_tdc[i].used < g_tdc[free_].used)) free_ = i;
+    }
     if (free_ < 0) return -1;
+    if (g_tdc[free_].dc) {
+        if (g_log) log_locked("# text dc: %dx%d %d bit replaces the DIB for %dx%d %d bit\n", w, h, bpp, g_tdc[free_].w,
+                              g_tdc[free_].h, g_tdc[free_].bpp);
+        DeleteDC(g_tdc[free_].dc);   // the DIB was selected into it: deleted after the DC
+        DeleteObject(g_tdc[free_].bmp);
+        memset(&g_tdc[free_], 0, sizeof g_tdc[free_]);
+    }
     struct { BITMAPINFOHEADER h; DWORD masks[3]; } bi = {
         { sizeof bi.h, w, -h, 1, (WORD)bpp, BI_BITFIELDS, 0, 0, 0, 0, 0 },
         { d->ddpfPixelFormat.dwRBitMask, d->ddpfPixelFormat.dwGBitMask, d->ddpfPixelFormat.dwBBitMask },
@@ -1269,6 +1291,7 @@ static int text_dc_slot(const DDSURFACEDESC2 *d) {
     g_tdc[free_].w = w; g_tdc[free_].h = h; g_tdc[free_].bpp = bpp;
     g_tdc[free_].masks[0] = bi.masks[0]; g_tdc[free_].masks[1] = bi.masks[1]; g_tdc[free_].masks[2] = bi.masks[2];
     g_tdc[free_].dc = dc; g_tdc[free_].bmp = bmp; g_tdc[free_].bits = bits; g_tdc[free_].pitch = (w * bpp / 8 + 3) & ~3;
+    g_tdc[free_].used = ++g_tdc_clock;
     return free_;
 }
 static int tdc_active_of(HDC dc) {   // the active text phase drawing on this DC, or -1
@@ -1290,10 +1313,10 @@ static void tdc_unlock(int a, RECT *r) {
 // copy the tiles of `want` (1 = to load) between the DIB and the surface, through one lock of their bounding box
 static void tdc_copy_tiles(int a, int to_surface) {
     int slot = g_tdc_active[a].slot, w = g_tdc[slot].w, h = g_tdc[slot].h, bpp = g_tdc[slot].bpp / 8;
-    int tx0 = TDC_TW, ty0 = TDC_TH, tx1 = -1, ty1 = -1;
+    int tx0 = TDC_TW, ty0 = TDC_TH, tx1 = -1, ty1 = -1, tw = (w + TDC_TILE - 1) / TDC_TILE, th = (h + TDC_TILE - 1) / TDC_TILE;
     uint8_t want = to_surface ? 1 : 2;   // 2 = to load now, 1 = loaded (written back at the end)
-    for (int ty = 0; ty < TDC_TH; ty++)
-        for (int tx = 0; tx < TDC_TW; tx++)
+    for (int ty = 0; ty < th && ty < TDC_TH; ty++)
+        for (int tx = 0; tx < tw && tx < TDC_TW; tx++)
             if (g_tdc_tiles[ty][tx] == want) {
                 if (tx < tx0) tx0 = tx;
                 if (tx > tx1) tx1 = tx;
@@ -1494,9 +1517,14 @@ static long __fastcall hook_text_lock(uint8_t *surf, void *edx) {
     memset(d, 0, sizeof *d);
     d->dwSize = sizeof *d;
     if (dds->lpVtbl->GetSurfaceDesc(dds, d) != DD_OK) return text_dc_fallback(surf, 0);
-    int slot = text_dc_slot(d);
-    if (slot < 0 || (int)d->dwWidth > (TDC_TW - 2) * TDC_TILE || (int)d->dwHeight > (TDC_TH - 2) * TDC_TILE)
+    static int big_logged;
+    if ((int)d->dwWidth > TDC_MAX || (int)d->dwHeight > TDC_MAX) {
+        if (!big_logged++ && g_log)
+            log_locked("# text dc: surface %lux%lu over %dx%d - the game's own text DC for it\n", d->dwWidth, d->dwHeight, TDC_MAX, TDC_MAX);
         return text_dc_fallback(surf, 0);
+    }
+    int slot = text_dc_slot(d);
+    if (slot < 0) return text_dc_fallback(surf, 0);
     if (g_tdc_logged < 4 && g_log) {
         g_tdc_logged++;
         DDSCAPS2 caps = { 0 };
@@ -2268,6 +2296,7 @@ static int dump_surface(IDirectDrawSurface7 *s, const char *path) {
 static int write_desc_bmp(const DDSURFACEDESC2 *dp, const char *path) {   // locked surface -> 24-bit BMP
     const DDSURFACEDESC2 d = *dp;
     int w = (int)d.dwWidth, h = (int)d.dwHeight, stride = (w * 3 + 3) & ~3, sbpp = (int)d.ddpfPixelFormat.dwRGBBitCount;
+    if (w <= 0 || h <= 0 || !d.lpSurface || (sbpp != 16 && sbpp != 24 && sbpp != 32)) return 0;
     BITMAPINFOHEADER bi = { sizeof bi, w, h, 1, 24, BI_RGB, (DWORD)(stride * h), 0, 0, 0, 0 };
     struct { BITMAPINFOHEADER h; DWORD masks[3]; } src = {
         { sizeof src.h, d.lPitch / (sbpp / 8), -h, 1, (WORD)sbpp, sbpp == 16 ? BI_BITFIELDS : BI_RGB, 0, 0, 0, 0, 0 },
@@ -2275,7 +2304,12 @@ static int write_desc_bmp(const DDSURFACEDESC2 *dp, const char *path) {   // loc
     };
     void *bits = NULL;
     HDC mdc = CreateCompatibleDC(NULL);
-    HBITMAP bmp = CreateDIBSection(mdc, (BITMAPINFO *)&bi, DIB_RGB_COLORS, &bits, NULL, 0);
+    HBITMAP bmp = mdc ? CreateDIBSection(mdc, (BITMAPINFO *)&bi, DIB_RGB_COLORS, &bits, NULL, 0) : NULL;
+    if (!bmp || !bits) {   // no memory for the picture (a huge surface)
+        if (bmp) DeleteObject(bmp);
+        if (mdc) DeleteDC(mdc);
+        return 0;
+    }
     HGDIOBJ prev = SelectObject(mdc, bmp);
     StretchDIBits(mdc, 0, 0, w, h, 0, 0, w, h, d.lpSurface, (BITMAPINFO *)&src, DIB_RGB_COLORS, SRCCOPY);
     FILE *f = fopen(path, "wb");
@@ -2532,10 +2566,12 @@ static void cmd_headless(const char *verb, const char *args, char *out) {
         char name[64] = "shot";
         sscanf(args, "%63s", name);
         CreateDirectoryA("aimod_dumps", NULL);
-        GetFullPathNameA("aimod_dumps", sizeof g_shot_path, g_shot_path, NULL);
-        lstrcatA(g_shot_path, "\\");
-        lstrcatA(g_shot_path, name);
-        lstrcatA(g_shot_path, ".bmp");
+        char dir[MAX_PATH];
+        DWORD dn = GetFullPathNameA("aimod_dumps", sizeof dir, dir, NULL);
+        if (!dn || dn >= sizeof dir || snprintf(g_shot_path, sizeof g_shot_path, "%s\\%s.bmp", dir, name) >= (int)sizeof g_shot_path) {
+            REPLY("error: the picture's path is too long\n");   // (a deep game folder)
+            return;
+        }
         LONG before = g_shot_done;
         g_shot_req = 1;
         for (int i = 0; i < 300 && g_shot_done == before; i++) Sleep(10);
@@ -2878,7 +2914,7 @@ static void cmd_ddinfo(char *out, const char *args) {
             HBITMAP bmp = CreateDIBSection(mdc, (BITMAPINFO *)&bi, DIB_RGB_COLORS, &bits, NULL, 0);
             HGDIOBJ prev = SelectObject(mdc, bmp);
             BitBlt(mdc, 0, 0, w, h, wdc, 0, 0, SRCCOPY);
-            FILE *f = fopen(path, "wb");
+            FILE *f = bits ? fopen(path, "wb") : NULL;   // no DIB (no memory, an empty client area): nothing to write
             if (f) {
                 BITMAPFILEHEADER fh = { 0x4D42, (DWORD)(sizeof fh + sizeof bi + bi.biSizeImage), 0, 0, sizeof fh + sizeof bi };
                 fwrite(&fh, sizeof fh, 1, f);
