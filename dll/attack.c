@@ -636,8 +636,14 @@ static uint8_t *unit_at(int x, int y, int type) {
     return NULL;
 }
 
+// 0 = refused (dead, off the map, or +0x33B): the goal is deleted then (its vf0, as the game's callers do) - the
+// caller must not touch it any more (a load goal: no parts from it)
 static int unit_goal(uint8_t *u, void *goal, int append, int prio) {
-    if (!goal || FIELD(u, 0x3C, int) <= 0 || FIELD(u, 0x1C, int) == -10000 || FIELD(u, 0x33B, char)) return 0;
+    if (!goal) return 0;
+    if (FIELD(u, 0x3C, int) <= 0 || FIELD(u, 0x1C, int) == -10000 || FIELD(u, 0x33B, char)) {
+        ((void (__thiscall *)(void *, int))(*(void ***)goal)[0])(goal, 1);
+        return 0;
+    }
     ((void (__thiscall *)(void *, void *, char, int))0x005F05BD)(u, goal, (char)append, 0);
     ((void (__thiscall *)(void *, int))0x005EFCF0)(u, prio);
     uint8_t *td = FIELD(u, 0x2C, uint8_t *);

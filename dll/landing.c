@@ -741,10 +741,11 @@ static void ld_reunload(struct landing *l, unsigned pi, int k, uint32_t now) {
     l->tries_at[k]++;
     if (ddx * ddx + ddy * ddy <= 100 && ld_shore_tile(l, k, x0, y0, ux, uy, 2, &ux, &uy)) { l->ux[k] = ux; l->uy[k] = uy; }
     void *g = ld_unload(sh, ux, uy);
-    l->orders += unit_goal(sh, g, 0, 0x1F40);
+    int ok = unit_goal(sh, g, 0, 0x1F40);   // refused: deleted
+    l->orders += ok;
     if (g_log && l->tries_at[k] <= 8)   // the goal's own unload point (+0x34/+0x38, from the transport class vf57)
         fprintf(g_log, "# landing: P%u at %.1f min: transport at %d,%d (hp %d) still loaded - unloads at %d,%d, the goal's point %d,%d\n",
-                pi, now / 60000.0, x0, y0, FIELD(sh, 0x3C, int), ux, uy, g ? FIELD(g, 0x34, int) : -1, g ? FIELD(g, 0x38, int) : -1);
+                pi, now / 60000.0, x0, y0, FIELD(sh, 0x3C, int), ux, uy, ok ? FIELD(g, 0x34, int) : -1, ok ? FIELD(g, 0x38, int) : -1);
 }
 // where 3+ transports gather at sea before the run in, so they reach the beach together (one after another, the
 // first ashore fought alone and each transport arriving late was the towers' and warships' only target): open water
@@ -962,6 +963,16 @@ static void ld_prune_frozen(struct landing *l) {
 // needed"): everyone ashore, the transports go back to the meeting point and bring the soldiers at home it can spare
 // over to the bridgehead while it holds - up to landing_waves times. A player keeps a landing alive that way, and a
 // few transports carry a big landing. 1: to the meeting point, 2: boarding, 3: at sea - ashore they join the others.
+// a wave at sea (wst 3): a transport with soldiers aboard and no unload order unloads again - every 0.5 s (landing_tick
+// runs it between its 2 s ticks; wre is free at sea)
+static void ld_wave_reunload(struct landing *l, unsigned pi, uint32_t now) {
+    l->wre = now;
+    for (int k = 0; k < l->nships; k++) {
+        uint8_t *sh = l->ships[k], *cur = FIELD(sh, 0x1EC, uint8_t *);
+        if (!ld_alive(sh) || (cur && *(uintptr_t *)cur == 0x00831F5C) || ((int (__thiscall *)(void *))0x0042E347)(sh) <= 0) continue;
+        ld_reunload(l, pi, k, now);
+    }
+}
 static void ld_wave(void *pl, unsigned pi, struct landing *l, uint8_t *dq, unsigned first, unsigned cnt, uint32_t now) {
     for (int k = 0; k < l->nw; k++) if (!ld_alive(l->wpass[k])) { l->wpass[k--] = l->wpass[--l->nw]; }
     int cap = ld_cap(FIELD(FIELD(l->ships[0], 0x2C, uint8_t *), 0x4B8, int));
@@ -1105,7 +1116,8 @@ static void ld_wave(void *pl, unsigned pi, struct landing *l, uint8_t *dq, unsig
             void *g = ((void *(__cdecl *)(unsigned))0x00683718)(0x68);
             if (!g) continue;
             g = ((void *(__thiscall *)(void *, void *, void *, int))0x0061487F)(g, l->ships[k], vec, 1);
-            l->orders += unit_goal(l->ships[k], g, 0, 0x1F40);
+            if (!unit_goal(l->ships[k], g, 0, 0x1F40)) continue;   // refused: deleted, no parts from it
+            l->orders++;
             for (int j = k * per; j < (k + 1) * per && j < l->nw; j++) {
                 if (ld_aboard(l->wpass[j])) continue;
                 void *pg = ((void *(__thiscall *)(void *))(*(void ***)g)[4])(g);
@@ -1115,11 +1127,7 @@ static void ld_wave(void *pl, unsigned pi, struct landing *l, uint8_t *dq, unsig
         return;
     }
     // at sea: unloaded again at once when the unload ended with soldiers aboard; ashore they join the others
-    for (int k = 0; k < l->nships; k++) {
-        uint8_t *sh = l->ships[k], *cur = FIELD(sh, 0x1EC, uint8_t *);
-        if ((cur && *(uintptr_t *)cur == 0x00831F5C) || ((int (__thiscall *)(void *))0x0042E347)(sh) <= 0) continue;
-        ld_reunload(l, pi, k, now);
-    }
+    ld_wave_reunload(l, pi, now);
     int landed = 0;
     for (int k = 0; k < l->nw; k++) {
         uint8_t *u = l->wpass[k];
@@ -1278,7 +1286,10 @@ static void landing_tick(void *pl, uint32_t now) {
     struct landing *l = &g_ld[pi];
     if (!g_landing) return;
     if (now < l->last) memset(l, 0, sizeof *l);   // a new game
-    if (now - l->last < (l->phase == 3 ? 500u : 2000u)) return;   // sailing: a transport stalled off the beach is sunk
+    if (now - l->last < (l->phase == 3 ? 500u : 2000u)) {   // sailing: a transport stalled off the beach is sunk
+        if (l->phase == 4 && l->wst == 3 && l->nships && now - l->wre >= 500u) ld_wave_reunload(l, pi, now);   // a wave at sea too
+        return;
+    }
     l->last = now;
     void *cm = FIELD(pl, 0xB90, void *);
     uint8_t *bm = cm ? FIELD(cm, 0x3C, uint8_t *) : NULL, *um = cm ? FIELD(cm, 0x44, uint8_t *) : NULL;
@@ -1544,6 +1555,16 @@ static void landing_tick(void *pl, uint32_t now) {
     for (int k = 0; k < l->nships; k++) if (!ld_alive(l->ships[k])) { l->ships[k--] = l->ships[--l->nships]; }
     for (int k = 0; k < l->npass; k++) if (!ld_alive(l->pass[k])) { l->pass[k--] = l->pass[--l->npass]; }
     if (!l->nships && l->phase < 4) { l->aborted++; l->next_try = now + 600000; ld_release(pi, "transports lost", now); return; }
+    if (!l->nships && l->phase == 4 && l->wst) {   // every transport sunk with a wave under way (ld_wave needs one): the wave
+        int landed = 0;                            // ends - those ashore join the bridgehead, those at home are free again
+        for (int k = 0; k < l->nw; k++) {          // (before: phase 4 for good - the release waited for wst != 3)
+            uint8_t *u = l->wpass[k];
+            if (l->wst == 3 && ld_alive(u) && !ld_aboard(u) && l->npass < LD_PASS) { l->pass[l->npass++] = u; l->launch_n++; landed++; }
+        }
+        if (g_log) fprintf(g_log, "# landing: P%u at %.1f min: wave %d - every transport lost (%d of %d ashore)\n", pi, now / 60000.0, l->waves + 1, landed, l->nw);
+        l->nw = 0; l->wst = 0; l->waves = g_land_waves; l->wt = now;
+        ld_prune_frozen(l);
+    }
     if (l->phase == 2 && !l->gathered) {   // to the meeting point first: the transports to the water in front, the soldiers to the shore
         int there = 0;
         for (int k = 0; k < l->nships; k++) {
@@ -1690,7 +1711,7 @@ static void landing_tick(void *pl, uint32_t now) {
         // room for them)
         int per = (l->npass + l->ncit + l->nships - 1) / l->nships;
         for (int k = 0; k < l->nships; k++) {
-            uint8_t *list[LD_PASS + 4]; int m = 0;
+            uint8_t *list[LD_PASS + 10]; int m = 0;   // the passengers and the citizens (cit[10])
             int lo = k ? k * per - l->ncit : 0, hi = (k + 1) * per - l->ncit;
             if (lo < 0) lo = 0;
             if (k == l->nships - 1 || hi > l->npass) hi = l->npass;
@@ -1701,7 +1722,8 @@ static void landing_tick(void *pl, uint32_t now) {
             void *g = ((void *(__cdecl *)(unsigned))0x00683718)(0x68);
             if (!g) continue;
             g = ((void *(__thiscall *)(void *, void *, void *, int))0x0061487F)(g, l->ships[k], vec, 1);
-            l->orders += unit_goal(l->ships[k], g, 0, 0x1F40);
+            if (!unit_goal(l->ships[k], g, 0, 0x1F40)) continue;   // refused: deleted, no parts from it
+            l->orders++;
             for (int j = 0; j < l->ncit && !k; j++) {
                 if (!ld_alive(l->cit[j]) || ld_aboard(l->cit[j])) continue;
                 void *pg = ((void *(__thiscall *)(void *))(*(void ***)g)[4])(g);
@@ -2071,8 +2093,7 @@ static void cmd_board(char *out, const char *args) {
             uint8_t *vec[4] = { 0, (uint8_t *)b.s, (uint8_t *)(b.s + b.ns), (uint8_t *)(b.s + b.ns) };
             void *g = ((void *(__cdecl *)(unsigned))0x00683718)(0x68);
             if (g) g = ((void *(__thiscall *)(void *, void *, void *, int))0x0061487F)(g, sh, vec, 1);
-            if (g) {
-                unit_goal(sh, g, 0, 0x1F40);
+            if (g && unit_goal(sh, g, 0, 0x1F40)) {   // refused: deleted, no parts from it
                 for (int j = 0; j < b.ns; j++) {
                     if (ld_aboard(b.s[j])) continue;
                     void *pg = ((void *(__thiscall *)(void *))(*(void ***)g)[4])(g);

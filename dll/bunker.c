@@ -28,8 +28,7 @@ static int bk_load(uint8_t *f, uint8_t **units, int n) {
     uint8_t *vec[4] = { 0, (uint8_t *)units, (uint8_t *)(units + n), (uint8_t *)(units + n) };
     void *g = ((void *(__cdecl *)(unsigned))0x00683718)(0x68);
     if (g) g = ((void *(__thiscall *)(void *, void *, void *, int))0x0061487F)(g, f, vec, 1);
-    if (!g) return 0;
-    unit_goal(f, g, 0, 0x1F40);
+    if (!g || !unit_goal(f, g, 0, 0x1F40)) return 0;   // refused: deleted by unit_goal, no parts from it
     for (int j = 0; j < n; j++) {
         void *pg = ((void *(__thiscall *)(void *))(*(void ***)g)[4])(g);
         unit_goal(units[j], pg, 0, 0x1F40);
@@ -91,7 +90,7 @@ static void cmd_bunker(char *out, const char *args) {
 static int g_bunkers = 1;   // [all] bunkers
 static int g_bk_res = 0xFFFF;   // [all] bunker_reserve (below)
 static int bk_room(void *pl);
-static struct { int nf, nall; uint8_t *f[8], *all[8]; int nq[8]; uint8_t *q[8][40]; uint32_t build_t, quiet_t[8]; unsigned in, out; int need_wood; uint32_t shelter[8]; } g_bk[16];   // shelter: when citizens were sent in (the quiet release)
+static struct { int nf, nall; uint8_t *f[8], *all[8]; int nq[8]; uint8_t *q[8][40]; uint32_t build_t, quiet_t[8]; unsigned in, out; int need_wood; uint32_t shelter[8]; int walk[8]; } g_bk[16];   // shelter: when citizens were sent in (the quiet release); walk: units on their way in
 static int bk_hurt_recent(unsigned pi, int x, int y, int r, uint32_t ms) {
     uint32_t now = game_time();
     int n = 0;
@@ -101,17 +100,31 @@ static int bk_hurt_recent(unsigned pi, int x, int y, int r, uint32_t ms) {
     }
     return n;
 }
-struct bk_own { void *pl; int nf, nall; uint8_t *f[8], *all[8]; };
-static void bk_own_unit(uint8_t *u, void *ctx) {   // finished ones (f) and foundations too (all)
+#define VT_GOAL_LOAD 0x00831DC0   // EEUGLoadTransport: the holder's goal and each unit's part (0x614833), the holder at +0x50
+struct bk_own { void *pl; int nf, nall; uint8_t *f[8], *all[8]; int nw; uint8_t *w[256]; };
+static uint8_t *bk_walking_into(uint8_t *u) {   // the holder unit u walks into (its load goal's part), else NULL
+    uint8_t *g = FIELD(u, 0x1EC, uint8_t *), *h = g && *(uintptr_t *)g == VT_GOAL_LOAD ? FIELD(g, 0x50, uint8_t *) : NULL;
+    return h != u ? h : NULL;   // the holder's own goal names itself
+}
+static void bk_own_unit(uint8_t *u, void *ctx) {   // finished ones (f) and foundations too (all); who walks in (w)
     struct bk_own *o = ctx;
-    if (FIELD(u, 0x18, void *) != o->pl || FIELD(u, 0x3C, int) <= 0 || bk_capacity(u) <= 0) return;
+    if (FIELD(u, 0x18, void *) != o->pl || FIELD(u, 0x3C, int) <= 0) return;
+    uint8_t *h = bk_walking_into(u);
+    if (h && o->nw < 256) o->w[o->nw++] = h;
+    if (bk_capacity(u) <= 0) return;
     uint8_t *bs = FIELD(u, 0x30, uint8_t *);
     if (o->nall < 8) o->all[o->nall++] = u;
     if (bs && FIELD(bs, 0x340, uint8_t) && o->nf < 8) o->f[o->nf++] = u;
 }
 static void bk_refresh(void *pl, unsigned pi) {   // the player's fortresses (each pass of citizens_safety, every 4 s)
-    struct bk_own o = { pl, 0, 0, { 0 }, { 0 } };
+    static struct bk_own o;   // 1 KB of walkers: not on the stack
+    memset(&o, 0, sizeof o);
+    o.pl = pl;
     grid_each(bk_own_unit, &o);
+    for (int k = 0; k < o.nf; k++) {
+        g_bk[pi].walk[k] = 0;
+        for (int j = 0; j < o.nw; j++) g_bk[pi].walk[k] += o.w[j] == o.f[k];
+    }
     g_bk[pi].nall = o.nall;
     memcpy(g_bk[pi].all, o.all, sizeof o.all);
     for (int k = 0; k < o.nf; k++) {   // keep each fortress's quiet time across passes
@@ -130,11 +143,13 @@ static int bk_shelter(void *pl, uint8_t *u) {
     unsigned pi = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     if (!g_bunkers || !g_bk[pi].nf) return 0;
     int ux = FIELD(u, 0x1C, int), uy = FIELD(u, 0x20, int), best = -1, bd = 15 * 15 + 1;
+    uint8_t *h = bk_walking_into(u);   // on its way into one of them already (the 4 s passes queued it again and again:
+    for (int k = 0; h && k < g_bk[pi].nf; k++) if (g_bk[pi].f[k] == h) return 1;   // the fortress re-ordered, over-filled)
     if (bk_hurt_recent(pi, ux, uy, 6, 30000) < 1 && !raiders_near(pl, ux, uy, 8)) return 0;   // not under fire right now
     for (int k = 0; k < g_bk[pi].nf; k++) {
         uint8_t *f = g_bk[pi].f[k];
         int dx = FIELD(f, 0x1C, int) - ux, dy = FIELD(f, 0x20, int) - uy;
-        if (dx * dx + dy * dy < bd && bk_held(f) + g_bk[pi].nq[k] < bk_capacity(f) && g_bk[pi].nq[k] < 40) { bd = dx * dx + dy * dy; best = k; }
+        if (dx * dx + dy * dy < bd && bk_held(f) + g_bk[pi].walk[k] + g_bk[pi].nq[k] < bk_capacity(f) && g_bk[pi].nq[k] < 40) { bd = dx * dx + dy * dy; best = k; }
     }
     if (best < 0) return 0;
     g_bk[pi].q[best][g_bk[pi].nq[best]++] = u;
@@ -196,8 +211,7 @@ static int bk_builders(void *pl, uint8_t *b, int n) {
         void *goal = ((void *(__cdecl *)(unsigned))FN_NEW)(0x5C);
         if (!goal) break;
         ((void (__thiscall *)(void *, void *, void *, int))FN_BUILD_GOAL)(goal, pl, b, 1);
-        ((void (__thiscall *)(void *, void *, int, int))FN_SET_GOAL)(best, goal, 0, 0);
-        ((void (__thiscall *)(void *, int))FN_UNIT_SAY)(best, 0x1F51);
+        if (!unit_goal(best, goal, 0, 0x1F51)) break;   // with the unit type's vf29 (+0x74) as the game's assignment
         sent++;
     }
     return sent;
@@ -309,7 +323,7 @@ static void bk_reserve_tick(void *pl, unsigned pi, uint32_t now) {
         grid_each(bk_free_unit, &f);
         int best = -1, space = 0;
         for (int k = 0; k < g_bk[pi].nf; k++) {
-            int s = bk_capacity(g_bk[pi].f[k]) - bk_held(g_bk[pi].f[k]);
+            int s = bk_capacity(g_bk[pi].f[k]) - bk_held(g_bk[pi].f[k]) - g_bk[pi].walk[k];
             if (s > space) { space = s; best = k; }
         }
         int n = f.n - 4;
