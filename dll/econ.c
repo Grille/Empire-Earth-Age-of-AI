@@ -79,6 +79,7 @@ static void spend_log(unsigned idx, uint32_t now) {
 static int defence_spot(void *pl, int type, int *ox, int *oy);   // defence.c
 static void defence_tick(void *pl, unsigned idx, uint32_t now);
 static void anti_air(void *pl, unsigned idx, uint32_t now);   // defence.c
+static void bunker_reserve(void *pl, int *reserve);   // bunker.c
 static void hold_town(void *pl, unsigned idx, uint32_t now);   // defence.c
 static void attack_retreat(void *pl, unsigned idx, uint32_t now);   // defence.c
 static void counter_siege(void *pl, unsigned idx, uint32_t now);
@@ -1562,6 +1563,7 @@ static uintptr_t __fastcall hook_train_units(void *um, void *edx, int *req, uint
         spend_reserve(pl, idx, reserve, NULL);
         reserve[3] += field_wood(idx);   // the next fields' wood (build_fields)
         landing_reserve(pl, reserve);   // transports a landing waits for
+        bunker_reserve(pl, reserve);    // a fortress's wood (bunker.c)
         if (!g_bud[idx].init) {
             memset(&g_bud[idx], 0, sizeof g_bud[idx]);
             g_bud[idx].init = 1;

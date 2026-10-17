@@ -376,6 +376,29 @@ static void cmd_stats(char *out, const char *args) {
         REPLY("ok: %d of P%d's %d units there attack\n", n, p, nm);
         return;
     }
+    if (!strncmp(args, "typedump", 8)) {   // typedump T: type T's non-zero dwords from +0x400 (int / float)
+        int t = 0, from = 0x400;
+        sscanf(args + 8, "%d %x", &t, &from);
+        uint8_t *td = t >= 0 && t < 1024 ? ((uint8_t **)0x009418A0)[t] : NULL;
+        if (!td || IsBadReadPtr(td, 0x700)) { REPLY("error: no type %d\n", t); return; }
+        int o = snprintf(out, 4096, "ok: type %d family %d:", t, FIELD(td, 0x4B4, int));
+        for (int off = from & ~3; off < from + 0x300 && off < 0x700 && o < 3900; off += 4) {
+            int v = FIELD(td, off, int);
+            if (v) o += snprintf(out + o, 4096 - o, " %x=%d/%g", off, v, FIELD(td, off, float));
+        }
+        snprintf(out + o, 4096 - o, "\n");
+        return;
+    }
+    if (!strncmp(args, "garrison", 8)) {   // garrison: every type with a garrison capacity (type +0x550), its family
+        int o = snprintf(out, 4096, "ok: types with a garrison capacity (type family capacity):");
+        for (int t = 0; t < 1024 && o < 3900; t++) {
+            uint8_t *td = ((uint8_t **)0x009418A0)[t];
+            if (!td || IsBadReadPtr(td, 0x560) || FIELD(td, 0x4B8, int) != t || FIELD(td, 0x550, int) <= 0) continue;
+            o += snprintf(out + o, 4096 - o, " %d/%d/%d", t, FIELD(td, 0x4B4, int), FIELD(td, 0x550, int));
+        }
+        snprintf(out + o, 4096 - o, "\n");
+        return;
+    }
     if (!strncmp(args, "danger", 6)) {   // danger P: P's citizens within an enemy's reach + 3, by threat type
         int p;
         if (sscanf(args + 6, "%d", &p) != 1 || p < 1 || p > 15 || !st_player(p)) { REPLY("error: usage: stats danger P\n"); return; }

@@ -817,6 +817,11 @@ static unsigned g_repair_refused[16];   // repair orders refused at buildings un
 // (her economy dead at minute 46, the stock frozen). A citizen of list 0 walking to a point within 6 tiles of an
 // enemy building and over 15 tiles from its own drop sites is sent home (not to the muster's rally point).
 static int building_at(void *pl, const int *dest, int r);
+static int g_bunkers;   // bunker.c: citizens under fire into a fortress
+static void bk_refresh(void *pl, unsigned pi);
+static int bk_shelter(void *pl, uint8_t *u);
+static void bk_flush(void *pl, unsigned pi, uint32_t now);
+static void bk_build(void *pl, unsigned pi, uint32_t now);
 static void citizens_safety(uint8_t *rm) {   // before the citizen assignment
     void *pl = rm_player(rm);
     if (!g_avoid_citizens || !pl) return;
@@ -829,7 +834,8 @@ static void citizens_safety(uint8_t *rm) {   // before the citizen assignment
     int sent = 0, fled = 0, aside = 0, stray = 0, kinds[4][2] = { { 0 } };   // site types sent back from (log)
     int doing[7][4] = { { 0 } };   // per list: gathering, building, walking, nothing (the minute's log)
     float rx, ry;
-    int mus = muster_rally(idx, &rx, &ry);
+    int mus = muster_rally(idx, &rx, &ry), sheltered = 0;
+    if (g_bunkers) bk_refresh(pl, idx);
     for (int r = 0; r < 7; r++) {
         uint8_t *list = rm + RM_LISTS + r * 0x14;
         for (unsigned k = 0, first = FIELD(list, 0xC, unsigned), cnt = FIELD(list, 0x10, unsigned); k < cnt; k++) {
@@ -868,6 +874,7 @@ static void citizens_safety(uint8_t *rm) {   // before the citizen assignment
                     danger = path_raided(pl, ux, uy, (int)FIELD(goal, 0x20, float), (int)FIELD(goal, 0x24, float));
                 else
                     danger = raiders_near(pl, ux, uy, 8) || (st && raiders_near(pl, FIELD(st, 0x1C, int), FIELD(st, 0x20, int), 8));
+                if (danger && g_bunkers && bk_shelter(pl, u)) { sheltered++; continue; }
                 if (danger) {
                     float fx, fy;
                     flee_point(pl, ux, uy, rx, ry, &fx, &fy);
@@ -892,6 +899,7 @@ static void citizens_safety(uint8_t *rm) {   // before the citizen assignment
             if (build && !raided && FIELD(FIELD(site, 0x2C, uint8_t *), 0x4B8, int) != 0x2A) continue;
             if (!build && !raided && hurt_danger(pl, FIELD(site, 0x1C, int), FIELD(site, 0x20, int), r)) raided = 1;   // hurt there
             if (!raided && (build || !site_danger_res(pl, site, r == 2, r))) continue;
+            if (g_bunkers && bk_shelter(pl, u)) { sheltered++; continue; }   // under fire: into a fortress
             if (raided && abs(d[0] - FIELD(site, 0x1C, int)) <= 3 && abs(d[1] - FIELD(site, 0x20, int)) <= 3) continue;   // at home already
             if (!unit_goal(u, goal_move((float)d[0] + 0.5f, (float)d[1] + 0.5f), 0, 0x1F40)) continue;
             sent++;
@@ -901,6 +909,8 @@ static void citizens_safety(uint8_t *rm) {   // before the citizen assignment
         }
     }
     g_cit_stats[idx].sent += sent + fled;
+    if (g_bunkers) { bk_flush(pl, idx, now); bk_build(pl, idx, now); }
+    (void)sheltered;
     static uint32_t doing_t[16];
     if (g_log && (now < doing_t[idx] || now - doing_t[idx] >= 60000)) {   // what the citizens do, per resource list
         doing_t[idx] = now;
@@ -1451,6 +1461,7 @@ static void attack_install(const char *aimod_ini, const char *autotest_ini) {
     g_avoid_towers = cfg_int(aimod_ini, autotest_ini, 1, "avoid_towers", 1);
     g_avoid_citizens = cfg_int(aimod_ini, autotest_ini, 1, "avoid_towers_citizens", 1);
     g_cit_threats = cfg_int(aimod_ini, autotest_ini, 1, "citizen_threats", 1);
+    g_bunkers = cfg_int(aimod_ini, autotest_ini, 1, "bunkers", 1);
     BOOL repair = patch_call(CALL_REPAIR_GOAL, 0x005F05BD, hook_repair_goal);
     if (g_log) fprintf(g_log, "# repairs under attack: refused (hook %s)\n", repair ? "ok" : "FAILED");
     g_avoid_weight = cfg_int(aimod_ini, autotest_ini, 1, "avoid_towers_weight", 2000);
