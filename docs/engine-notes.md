@@ -252,7 +252,9 @@ Guard towers 47, 461..466; AA 145/147; town center 35; house 37; citizen 32.
   autosave, quicksave, the network save message). The folder is "data\Saved Games\", relative to the game folder.
 - The game saves its AI managers itself (EECP*Manager persist functions: build, civilization, research, resource,
   unit, wall). dll/persist.c keeps the mod's own state in <save>.aimod next to it (only used while the .ees still
-  has the size and write time recorded in it).
+  has the size and write time recorded in it; format 2: each block with a layout hash of its definition,
+  scripts/persist_layout.py -> dll/persist_layout.h at every build - a block of another layout is skipped, a
+  format-1 file ignored).
 - The exe flags all its sections as data (0xC0000040, copy protection): find code by the section name `.text`.
 
 ## Attacks

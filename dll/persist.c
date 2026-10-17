@@ -9,10 +9,14 @@
 // Every save goes through 0x540ACA cdecl(UString *file, int, int, UString folder by value) -> 0 on success
 // (save dialog EEASaveGame::vf1, autosave, quicksave, the network save message: 4 call sites, all redirected). After a
 // successful save <game>\<folder><file without .ees>.aimod is written: a header with the .ees file's size and write
-// time, then named blocks {tag, size, bytes}. On a saved-game start (game start hook, mode 2) the matching .aimod is
-// read after the new-game resets: only if size and write time still match the .ees (a save made later without the
-// mod leaves a stale file behind), and only blocks whose tag and size match (a newer DLL with other layouts just
-// starts fresh for those). All times inside are game times, which the save restores.
+// time, then named blocks {tag, size, layout, bytes}. On a saved-game start (game start hook, mode 2) the matching
+// .aimod is read after the new-game resets: only if size and write time still match the .ees (a save made later
+// without the mod leaves a stale file behind), and only blocks whose tag, size and layout match (a newer DLL with
+// other layouts just starts fresh for those). All times inside are game times, which the save restores.
+// Layout: the size alone let a struct changed to the same size through (fields reordered, int <-> float) - its
+// bytes became other values. Each block carries a hash of its variable's definition, the structs it names and the
+// macros of its sizes (scripts/persist_layout.py -> persist_layout.h, run by build.sh). Files of format 1 (no
+// layout) are ignored as a whole, with a log line.
 #define FN_SAVE_GAME 0x00540ACA
 static char g_aimod_ini[MAX_PATH];   // eeaimod.c (defined after the includes)
 static int g_persist = 1;   // aimod.ini [general] save_state
@@ -29,6 +33,13 @@ static const struct { const char *tag; void *p; size_t n; } k_blocks[] = {
 static uint8_t *llm_mem_save(uint32_t *size);              // llm.c: the language model's memories (variable size)
 static void llm_mem_load(const uint8_t *p, uint32_t size);
 struct persist_head { char magic[8]; uint32_t version, game_time; uint64_t ees_size; FILETIME ees_time; };
+#define PERSIST_FORMAT 2   // 1: blocks {tag[32], size, bytes}; 2: {tag[32], size, layout, bytes}
+#define PERSIST_MAX_BLOCK (64u << 20)   // more is a broken file (the largest block, g_intel, is ~0.9 MB)
+#include "persist_layout.h"
+static uint32_t block_layout(const char *tag) {   // 0: no hash (llm_memory: its own format, checked as it is read)
+    for (size_t i = 0; i < sizeof k_layout / sizeof *k_layout; i++) if (!strcmp(k_layout[i].tag, tag)) return k_layout[i].hash;
+    return 0;
+}
 
 static int ees_stamp(const char *ees, uint64_t *size, FILETIME *t) {
     WIN32_FILE_ATTRIBUTE_DATA a;
@@ -54,7 +65,7 @@ static void persist_paths(const char *folder, const char *file, char *ees, char 
 static void persist_write(const char *folder, const char *file) {
     char ees[MAX_PATH * 2], side[MAX_PATH * 2];
     persist_paths(folder, file, ees, side);
-    struct persist_head h = { "EEAIMOD", 1, game_time(), 0, { 0, 0 } };
+    struct persist_head h = { "EEAIMOD", PERSIST_FORMAT, game_time(), 0, { 0, 0 } };
     if (!ees_stamp(ees, &h.ees_size, &h.ees_time)) {
         if (g_log) fprintf(g_log, "# persist: saved game %s not found - no state file\n", ees);
         return;
@@ -65,17 +76,20 @@ static void persist_write(const char *folder, const char *file) {
     for (size_t i = 0; i < sizeof k_blocks / sizeof *k_blocks; i++) {
         char tag[32] = { 0 };
         lstrcpynA(tag, k_blocks[i].tag, sizeof tag);
-        uint32_t n = (uint32_t)k_blocks[i].n;
+        uint32_t n = (uint32_t)k_blocks[i].n, lay = block_layout(tag);
         fwrite(tag, sizeof tag, 1, f);
         fwrite(&n, sizeof n, 1, f);
+        fwrite(&lay, sizeof lay, 1, f);
         fwrite(k_blocks[i].p, 1, n, f);
     }
     uint32_t mn;
     uint8_t *mp = llm_mem_save(&mn);
     if (mp) {
         char tag[32] = "llm_memory";
+        uint32_t lay = 0;
         fwrite(tag, sizeof tag, 1, f);
         fwrite(&mn, sizeof mn, 1, f);
+        fwrite(&lay, sizeof lay, 1, f);
         fwrite(mp, 1, mn, f);
         free(mp);
     }
@@ -122,31 +136,44 @@ static void persist_load(const char *name) {
     FILE *f = fopen(side, "rb");
     if (!f) { if (g_log) fprintf(g_log, "# persist: no state file for %s\n", name); return; }
     struct persist_head h, now;
-    int ok = fread(&h, sizeof h, 1, f) == 1 && !memcmp(h.magic, "EEAIMOD", 8) && h.version == 1 &&
-             ees_stamp(ees, &now.ees_size, &now.ees_time) && h.ees_size == now.ees_size &&
-             !CompareFileTime(&h.ees_time, &now.ees_time);
+    int ok = fread(&h, sizeof h, 1, f) == 1 && !memcmp(h.magic, "EEAIMOD", 8);
+    if (ok && h.version != PERSIST_FORMAT) {   // an older (or newer) mod's file: its blocks can't be checked
+        fclose(f);
+        if (g_log) fprintf(g_log, "# persist: %s has format %u (this mod reads %d) - ignored, the AIs start fresh\n", side,
+                           h.version, PERSIST_FORMAT);
+        return;
+    }
+    ok = ok && ees_stamp(ees, &now.ees_size, &now.ees_time) && h.ees_size == now.ees_size &&
+         !CompareFileTime(&h.ees_time, &now.ees_time);
     if (!ok) {
         fclose(f);
         if (g_log) fprintf(g_log, "# persist: %s doesn't belong to this save (made without the mod?) - ignored\n", side);
         return;
     }
-    int got = 0, skipped = 0;
+    int got = 0, skipped = 0, broken = 0;
     char tag[32];
-    uint32_t n;
-    while (fread(tag, sizeof tag, 1, f) == 1 && fread(&n, sizeof n, 1, f) == 1) {
+    uint32_t n, lay;
+    while (fread(tag, sizeof tag, 1, f) == 1 && fread(&n, sizeof n, 1, f) == 1 && fread(&lay, sizeof lay, 1, f) == 1) {
         tag[31] = 0;
-        if (!strcmp(tag, "llm_memory")) {   // the model's memories: their own format
-            uint8_t *mp = malloc(n ? n : 1);
-            if (mp && fread(mp, 1, n, f) == n) { llm_mem_load(mp, n); got++; free(mp); continue; }
-            free(mp);
-            break;
-        }
+        if (n > PERSIST_MAX_BLOCK) { broken = 1; break; }
+        // read whole before it is used: a block cut short (a broken file) left half old, half new state
+        uint8_t *mp = malloc(n ? n : 1);
+        if (!mp || fread(mp, 1, n, f) != n) { free(mp); broken = 1; break; }
         size_t i = 0;
         while (i < sizeof k_blocks / sizeof *k_blocks && strcmp(k_blocks[i].tag, tag)) i++;
-        if (i < sizeof k_blocks / sizeof *k_blocks && k_blocks[i].n == n && fread(k_blocks[i].p, 1, n, f) == n) got++;
-        else { skipped++; if (fseek(f, (long)n, SEEK_CUR)) break; }
+        if (!strcmp(tag, "llm_memory")) { llm_mem_load(mp, n); got++; }   // the model's memories: their own format
+        else if (i < sizeof k_blocks / sizeof *k_blocks && k_blocks[i].n == n && lay == block_layout(tag)) {
+            memcpy(k_blocks[i].p, mp, n);
+            got++;
+        } else {
+            skipped++;
+            if (g_log) fprintf(g_log, "# persist: block %s skipped (%s)\n", tag, i == sizeof k_blocks / sizeof *k_blocks ?
+                               "unknown" : k_blocks[i].n != n ? "another size" : "another layout");
+        }
+        free(mp);
     }
     fclose(f);
+    if (broken && g_log) fprintf(g_log, "# persist: %s ends in a broken block - the rest left out\n", side);
     intel_loaded();
     if (g_log) fprintf(g_log, "# persist: state of %s restored (saved at %.1f min): %d blocks, %d skipped\n", name,
                        h.game_time / 60000.0, got, skipped);

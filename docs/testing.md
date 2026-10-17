@@ -67,6 +67,7 @@ powershell -ExecutionPolicy Bypass -File scripts/run_test.ps1 -Save newgame.ees 
 - Only one run at a time: `work/run_test.lock` holds the owner's PID, and a second run refuses to start. Only the owner restores sound and removes the test ini.
 - Safety: if the DLL doesn't report autotest mode within 10 s, the game is killed (no unmuted game with intros at normal speed).
 - Fixtures: start a random map with the wanted settings (`start_epoch`, `citizens`, ...), let it run, `eectl.py save copper40` at the interesting moment, then run tests from that save.
+- Saved state (.aimod, dll/persist.c): a setup line `@1.5 save zz_name` on a random map writes zz_name.ees + .aimod; `run_test.ps1 -Save zz_name.ees` then logs `# persist: state of ... restored: N blocks, 0 skipped` (2026-10-17: 37 blocks; a block with a flipped layout hash: `skipped (another layout)`; a format-1 file: `has format 1 ... ignored`). Note: a save made this way stalls at its start time under `turbo=1` (also with the DLL before, also with save_state=0) - load it with `turbo=0`.
 
 Scenarios: a base map plus a setup file in `scenarios/` (spawned towers, armies, ...), built for one question.
 `scripts/scen.sh` runs variants on it, REPEAT (default 5) runs each with game_seed 1..n, scored like the suite:
