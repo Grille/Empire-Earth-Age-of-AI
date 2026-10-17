@@ -324,20 +324,30 @@ static float unit_power(uint8_t *u) {   // hit points x attack (live stats), a r
     float a = st ? FIELD(st, 0xD8, float) : (float)FIELD(FIELD(u, 0x2C, uint8_t *), 0x510, int);
     return (float)FIELD(u, 0x3C, int) * (a > 0 ? a : 0);
 }
+static struct st_side g_mil_own, g_mil_foe;   // fight_estimate (dll/stats.c)
 static int militia_answer(struct cs_scan *s, uint8_t *t, int *nfree) {   // citizens -> t; returns the number ordered
     int x = FIELD(t, 0x1C, int), y = FIELD(t, 0x20, int), enemies = 0, ordered = 0;
     float epow = 0, cpow = 0;
+    if (g_fight_est) { st_side_clear(&g_mil_own); st_side_clear(&g_mil_foe); }
     for (int k = 0; k < s->nu; k++) {
         uint8_t *e = s->eu[k];
         if (FIELD(e, 0x3C, int) <= 0 || abs(FIELD(e, 0x1C, int) - x) > 6 || abs(FIELD(e, 0x20, int) - y) > 6) continue;
         enemies++;
         epow += unit_power(e);
+        if (g_fight_est) st_side_add(&g_mil_foe, e);
     }
-    if (enemies < 1) { enemies = 1; epow = unit_power(t); }   // a foundation: no fight, only its hit points
+    if (enemies < 1) {   // a foundation: no fight, only its hit points
+        enemies = 1; epow = unit_power(t);
+        if (g_fight_est) st_side_add(&g_mil_foe, t);
+    }
     if (enemies > 6) return 0;
     for (int c = 0, n = 0; c < s->nc && n < 3 * enemies; c++)
-        if (s->civ[c] && abs(s->cx[c] - x) <= 10 && abs(s->cy[c] - y) <= 10) { cpow += unit_power(s->civ[c]); n++; }
-    if (cpow < 3.0f * epow) return 0;   // citizens beat clubmen and builders, not real soldiers
+        if (s->civ[c] && abs(s->cx[c] - x) <= 10 && abs(s->cy[c] - y) <= 10) {
+            cpow += unit_power(s->civ[c]); n++;
+            if (g_fight_est) st_side_add(&g_mil_own, s->civ[c]);
+        }
+    float stand = g_fight_est ? st_ratio(&g_mil_own, &g_mil_foe) : (epow > 0 ? cpow / epow : 1e6f);
+    if (stand < 3.0f) return 0;   // citizens beat clubmen and builders, not real soldiers
     for (int c = 0; c < s->nc && ordered < 3 * enemies; c++) {
         uint8_t *u = s->civ[c];
         if (!u || abs(s->cx[c] - x) > 10 || abs(s->cy[c] - y) > 10) continue;
@@ -522,7 +532,7 @@ static void home_guard(void *pl, unsigned idx, uint32_t now) {
                             idx, now / 60000.0, home, target, n, type);
 }
 
-// MUSTER ([all] muster, default 1): an enemy army in the base got the AI's defenders one by one - every soldier the
+// MUSTER ([all] muster, default 1; with fight_estimate the sides are compared with dll/stats.c's estimate): an enemy army in the base got the AI's defenders one by one - every soldier the
 // home guard trained walked into it alone, and the next one, and the next. A player would pull back what is left,
 // gather, and strike once there is a force that can win. Every 3 s per AI: enemy soldiers within 22 tiles of the
 // base (strength = hit points x attack) against its own soldiers within 35 and its towers within 22. Only when the
@@ -544,8 +554,10 @@ struct mus_scan {
     void *pl; int bx, by, en, no, ne;
     float epow, opow, tpow, ex, ey;
     uint8_t *own[256], *enemy[128];
+    struct st_side *os, *es;   // fight_estimate: own soldiers and towers, the enemies (dll/stats.c)
 };
 static struct mus_scan g_ms;
+static struct st_side g_ms_own, g_ms_foe, g_ms_rally;
 static void mus_unit(uint8_t *u, void *ctx) {
     struct mus_scan *m = ctx;
     uint8_t *td = FIELD(u, 0x2C, uint8_t *);
@@ -553,14 +565,20 @@ static void mus_unit(uint8_t *u, void *ctx) {
     void *o = FIELD(u, 0x18, void *);
     int x = FIELD(u, 0x1C, int), y = FIELD(u, 0x20, int), dx = x - m->bx, dy = y - m->by, d2 = dx * dx + dy * dy;
     float tr, ta;
-    if (o == m->pl && d2 <= 22 * 22 && defence_stats(u, &tr, &ta)) { m->tpow += (float)FIELD(u, 0x3C, int) * ta; return; }
+    if (o == m->pl && d2 <= 22 * 22 && defence_stats(u, &tr, &ta)) {
+        m->tpow += (float)FIELD(u, 0x3C, int) * ta;
+        if (m->os) st_side_add(m->os, u);
+        return;
+    }
     if (!is_soldier(td)) return;
     if (o == m->pl) {
         if (d2 > 35 * 35) return;
         if (m->no < 256) m->own[m->no++] = u;
         m->opow += unit_power(u);
+        if (m->os) st_side_add(m->os, u);
     } else if (o && FIELD(o, PL_INDEX, int) > 0 && is_enemy(m->pl, o) && d2 <= 22 * 22) {
         float p = unit_power(u);
+        if (m->es) st_side_add(m->es, u);
         m->epow += p;
         m->ex += (float)x * p;
         m->ey += (float)y * p;
@@ -610,9 +628,15 @@ static void muster(void *pl, unsigned idx, uint32_t now) {
     s->pl = pl;
     s->bx = FIELD(bm, 0x12C, int);
     s->by = FIELD(bm, 0x130, int);
+    if (g_fight_est) {
+        st_side_clear(&g_ms_own); st_side_clear(&g_ms_foe);
+        s->os = &g_ms_own; s->es = &g_ms_foe;
+    }
     grid_each(mus_unit, s);
+    // how the home side stands against the enemy in the base: summed hit points x attack, or the fight estimate
+    float stand = g_fight_est ? st_ratio(&g_ms_own, &g_ms_foe) : (s->epow > 0 ? (s->opow + s->tpow) / s->epow : 1e6f);
     if (!g_mus[idx].on) {
-        if (s->en < 8 || s->epow <= 2.0f * (s->opow + s->tpow) ||
+        if (s->en < 8 || stand >= 0.5f ||
             (g_mus[idx].cool && now - g_mus[idx].cool < g_mus[idx].cool_len)) return;
         g_mus[idx].on = 1;
         g_mus[idx].moves = 0;
@@ -620,11 +644,11 @@ static void muster(void *pl, unsigned idx, uint32_t now) {
         g_mus[idx].episodes++;
         mus_rally(idx, s);
         if (g_log) fprintf(g_log, "# muster: P%u at %.1f min: %d enemy soldiers in the base (strength %.0f) against %d own "
-                           "(%.0f) and towers (%.0f) - gathering at %.0f,%.0f\n", idx, now / 60000.0, s->en, s->epow, s->no, s->opow, s->tpow,
-                           g_mus[idx].rx, g_mus[idx].ry);
+                           "(%.0f) and towers (%.0f), %s %.2f - gathering at %.0f,%.0f\n", idx, now / 60000.0, s->en, s->epow, s->no, s->opow,
+                           s->tpow, g_fight_est ? "estimate" : "ratio", stand, g_mus[idx].rx, g_mus[idx].ry);
         ai_say(pl, CHAT_GUARD, "[ai] base overrun (%d enemies), gathering at %.0f,%.0f", s->en, g_mus[idx].rx, g_mus[idx].ry);
     } else {
-        if (s->en < 3 || s->epow <= s->opow + s->tpow) {
+        if (s->en < 3 || stand >= 1.0f) {
             g_mus[idx].on = 0;
             g_mus[idx].cool = now ? now : 1;
             g_mus[idx].cool_len = 30000;
@@ -635,12 +659,17 @@ static void muster(void *pl, unsigned idx, uint32_t now) {
         }
         float rpow = 0;
         int rn = 0, near_rally = 0;
+        if (g_fight_est) st_side_clear(&g_ms_rally);
         for (int k = 0; k < s->no; k++) {
             uint8_t *u = s->own[k];
             float dx = (float)FIELD(u, 0x1C, int) - g_mus[idx].rx, dy = (float)FIELD(u, 0x20, int) - g_mus[idx].ry;
-            if (dx * dx + dy * dy <= 100) { rpow += unit_power(u); rn++; }
+            if (dx * dx + dy * dy <= 100) {
+                rpow += unit_power(u); rn++;
+                if (g_fight_est) st_side_add(&g_ms_rally, u);
+            }
         }
-        if (rpow >= 1.3f * s->epow) {   // strike
+        float gathered = g_fight_est ? st_ratio(&g_ms_rally, &g_ms_foe) : (s->epow > 0 ? rpow / s->epow : 1e6f);
+        if (gathered >= 1.3f) {   // strike
             int ordered = 0;
             for (int k = 0; k < s->no; k++) {
                 uint8_t *u = s->own[k], *t = mus_nearest_enemy(s, u);
@@ -651,7 +680,8 @@ static void muster(void *pl, unsigned idx, uint32_t now) {
             g_mus[idx].cool_len = 30000;
             g_mus[idx].strikes++;
             if (g_log) fprintf(g_log, "# muster: P%u at %.1f min: strike - %d gathered (strength %.0f) against %d enemies "
-                               "(%.0f), %d ordered\n", idx, now / 60000.0, rn, rpow, s->en, s->epow, ordered);
+                               "(%.0f), %s %.2f, %d ordered\n", idx, now / 60000.0, rn, rpow, s->en, s->epow,
+                               g_fight_est ? "estimate" : "ratio", gathered, ordered);
             ai_say(pl, CHAT_GUARD, "[ai] strike with %d against %d", rn, s->en);
             return;
         }
@@ -752,6 +782,7 @@ static void hold_town(void *pl, unsigned idx, uint32_t now) {
     s->bx = FIELD(bm, 0x12C, int);
     s->by = FIELD(bm, 0x130, int);
     grid_each(mus_unit, s);   // enemies within 22, own within 35: count the enemies within 35 here
+    if (g_fight_est) { st_side_clear(&g_ms_own); st_side_clear(&g_ms_foe); }
     float epow = 0;
     int en = 0;
     uint8_t *enemy[128];
@@ -772,6 +803,7 @@ static void hold_town(void *pl, unsigned idx, uint32_t now) {
                     if (dx * dx + dy * dy > 35 * 35 || !o || o == pl || FIELD(o, PL_INDEX, int) <= 0 || !is_enemy(pl, o)) continue;
                     if ((!is_soldier(td) && !is_siege(type)) || !seen_by(u, pl)) continue;
                     epow += unit_power(u);
+                    if (g_fight_est) st_side_add(&g_ms_foe, u);
                     if (en < 128) enemy[en] = u;
                     en++;
                 }
@@ -799,14 +831,17 @@ static void hold_town(void *pl, unsigned idx, uint32_t now) {
         }
         home[nh++] = u;
         hpow += unit_power(u);
+        if (g_fight_est) st_side_add(&g_ms_own, u);
     }
+    // the home soldiers against the enemies near (towers left out: they don't follow the soldiers out of their range)
+    float stand = g_fight_est ? st_ratio(&g_ms_own, &g_ms_foe) : (epow > 0 ? hpow / epow : 1e6f);
     if (en == 0) {   // nothing near: as the game has them
         for (int k = 0; k < nh; k++) set_behaviour(home[k], 5);
         if (g_hold_st[idx].holding && g_log) fprintf(g_log, "# hold: P%u at %.1f min: no enemy near the town - soldiers free again\n", idx, now / 60000.0);
         g_hold_st[idx].holding = 0;
         return;
     }
-    if (hpow >= 1.3f * epow && (!g_hold_st[idx].sortie_t || now - g_hold_st[idx].sortie_t >= 60000)) {
+    if (stand >= 1.3f && (!g_hold_st[idx].sortie_t || now - g_hold_st[idx].sortie_t >= 60000)) {
         int ordered = 0;
         for (int k = 0; k < nh; k++) {
             uint8_t *u = home[k], *best = NULL;
@@ -826,7 +861,7 @@ static void hold_town(void *pl, unsigned idx, uint32_t now) {
                            idx, now / 60000.0, nh, hpow, en, epow, ordered);
         return;
     }
-    if (hpow < 1.2f * epow) {   // towers don't count: they don't follow the soldiers out of their range
+    if (stand < 1.2f) {   // towers don't count: they don't follow the soldiers out of their range
         // held where they stood, the artillery that outranges them shelled them there (camp test: 15 of 15 lost in 1.5
         // minutes): back to a point 6 tiles beyond the base, away from the enemy's centre, and Guard there
         float cx = 0, cy = 0, w = 0;
@@ -866,6 +901,7 @@ static void hold_town(void *pl, unsigned idx, uint32_t now) {
 // the attack is called off (as for citizen attacks: units home, handed back, at the safe point) and the next attack
 // comes within 5 minutes - the survivors and what was trained meanwhile, instead of the next 20-25 minute wave.
 static struct { uint8_t *g; float peak; int bad, peak_n; } g_rt[16][8];
+static struct st_side g_rt_own, g_rt_foe;   // fight_estimate: a group and what it faces
 static unsigned g_retreats[16];
 static void attack_retreat(void *pl, unsigned idx, uint32_t now) {
     static uint32_t last[16];
@@ -906,11 +942,13 @@ static void attack_retreat(void *pl, unsigned idx, uint32_t now) {
         seen[k] = g;
         float pow = 0, cx = 0, cy = 0;
         int n = 0;
+        if (g_fight_est) { st_side_clear(&g_rt_own); st_side_clear(&g_rt_foe); }
         for (uint8_t **sp = FIELD(g, 8, uint8_t **); sp && sp < FIELD(g, 0xC, uint8_t **); sp++) {
             uint8_t **b = *sp ? FIELD(*sp, 0x54, uint8_t **) : NULL, **e = *sp ? FIELD(*sp, 0x58, uint8_t **) : NULL;
             for (uint8_t **r = b; b && r < e && n < 1000; r++) {
                 uint8_t *u = *r ? FIELD(*r, 0x44, uint8_t *) : NULL;
                 if (!u || FIELD(u, 0x3C, int) <= 0) continue;
+                if (g_fight_est) st_side_add(&g_rt_own, u);
                 float p = unit_power(u);
                 pow += p; cx += (float)FIELD(u, 0x1C, int) * p; cy += (float)FIELD(u, 0x20, int) * p; n++;
             }
@@ -941,12 +979,19 @@ static void attack_retreat(void *pl, unsigned idx, uint32_t now) {
                     int fam = FIELD(td, 0x4B4, int);
                     float r, a;
                     if (o == target && (fam == 2 || fam == 29) && d2 <= 225.0f) contact = 1;
-                    if (defence_stats(u, &r, &a)) { if (d2 <= (r + 1.0f) * (r + 1.0f)) epow += (float)FIELD(u, 0x3C, int) * a; }
-                    else if ((is_soldier(td) || is_siege(FIELD(td, 0x4B8, int))) && d2 <= 144.0f) epow += unit_power(u);
+                    if (defence_stats(u, &r, &a)) {
+                        if (d2 <= (r + 1.0f) * (r + 1.0f)) { epow += (float)FIELD(u, 0x3C, int) * a; if (g_fight_est) st_side_add(&g_rt_foe, u); }
+                    } else if ((is_soldier(td) || is_siege(FIELD(td, 0x4B8, int))) && d2 <= 144.0f) {
+                        epow += unit_power(u);
+                        if (g_fight_est) st_side_add(&g_rt_foe, u);
+                    }
                 }
             }
         if (!contact) { g_rt[idx][slot].bad = 0; continue; }
-        g_rt[idx][slot].bad = epow > 1.5f * pow ? g_rt[idx][slot].bad + 1 : 0;
+        // outmatched: what it faces there is 1.5 x the group (half its peak gone stays hit points x attack: the group
+        // against itself)
+        float stand = g_fight_est ? st_ratio(&g_rt_own, &g_rt_foe) : (epow > 0 ? pow / epow : 1e6f);
+        g_rt[idx][slot].bad = stand < 1.0f / 1.5f ? g_rt[idx][slot].bad + 1 : 0;
         int spent = pow < 0.5f * g_rt[idx][slot].peak;
         if (!spent && g_rt[idx][slot].bad < 2) continue;
         // a real assault only (5+ units at its peak, 3+ left when outmatched), and not while another group with the
@@ -1101,12 +1146,13 @@ static void defence_install(const char *aimod_ini, const char *autotest_ini) {
     g_home_guard = cfg_int(aimod_ini, autotest_ini, 1, "home_guard", 4);
     g_home_share = cfg_float(aimod_ini, autotest_ini, 1, "home_guard_share", "0.35");
     g_muster = cfg_int(aimod_ini, autotest_ini, 1, "muster", 1);
+    g_fight_est = cfg_int(aimod_ini, autotest_ini, 1, "fight_estimate", 0);
     g_aa = cfg_int(aimod_ini, autotest_ini, 1, "anti_air", 1);
     g_hold = cfg_int(aimod_ini, autotest_ini, 1, "hold_town", 0);
     g_retreat = cfg_int(aimod_ini, autotest_ini, 1, "attack_retreat", 0);
     BOOL guard = patch_call(CALL_DAMAGE_POINTS, FN_DAMAGE_POINTS, damage_points_thunk);
     if (g_log) fprintf(g_log, "# engine guard: damage points %s\n", guard ? "ok" : "FAILED");
-    if (g_log) fprintf(g_log, "# defence: layout=%d distance=%d walls=%d own towers=%d counter-siege=%d home guard=%d/epoch, %.2f of the military room\n", g_def, g_def_dist, g_def_walls, g_def_more, g_csiege, g_home_guard, g_home_share);
+    if (g_log) fprintf(g_log, "# defence: layout=%d distance=%d walls=%d own towers=%d counter-siege=%d home guard=%d/epoch, %.2f of the military room, fight_estimate=%d\n", g_def, g_def_dist, g_def_walls, g_def_more, g_csiege, g_home_guard, g_home_share, g_fight_est);
 }
 
 // ANTI-AIR ([all] anti_air, default 1). The game's unit choice hardly asks for anti-air: the user's planes overran

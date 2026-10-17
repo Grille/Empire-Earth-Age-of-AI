@@ -1,5 +1,12 @@
 // UNIT STATS: what a unit does to another, from the game's own data - so the AI's judgements follow the game (and
-// units modders add). Included by eeaimod.c after defence.c.
+// units modders add). Included by eeaimod.c before defence.c (its grid_each and is_soldier declared here).
+//
+// [all] fight_estimate (default 0): 1 = the AI's fight decisions compare sides with this estimate (st_ratio) instead
+// of summed hit points x attack: muster, hold the town, attack retreat, citizen militia (defence.c). The thresholds
+// keep their meaning (the ratio is hit points x damage per second on each side). A/B 2026-10-17, overrun and assault
+// (Continental 101, 10 seeds each, the defender): overrun alive 4 vs 3 of 10 (old vs estimate), kills 49 vs 31;
+// assault alive 8 vs 9, workers 31.5 vs 22.8, losses 53 vs 62.5 - no gain: those are fights of numbers (90 against
+// 20) where both agree, and where they differ the estimate rates the defenders lower, so it musters more. Off.
 //
 // Damage per shot (0x61DE61, docs/engine-notes.md): attack (the attacker's per-player stats +0xD8)
 //   x table 0x8D2050[attacker class + target class x 6] (class = type +0x4C0; filled at load)
@@ -12,6 +19,9 @@
 // 0x4A670A size, 0x492969 at. Max hit points stats +0x144, range +0x9C.
 
 #define ST_TABLE ((float *)0x008D2050)
+static int g_fight_est = 0;   // [all] fight_estimate
+static void grid_each(void (*fn)(uint8_t *u, void *ctx), void *ctx);   // defence.c
+static int is_soldier(uint8_t *td);   // defence.c
 
 static uint8_t *st_rec(void *pl, int type) {   // the player's stats record of a type
     if (!pl || type < 0) return NULL;
@@ -190,6 +200,18 @@ static void st_estimate(struct st_side *a, struct st_side *b, struct st_result *
     r->close[0] = st_close(a, b); r->close[1] = st_close(b, a);
     r->time[0] = st_kill_time(b->hp, r->close[0], r->close[1], r->dps_free[0], r->dps_contact[0]);
     r->time[1] = st_kill_time(a->hp, r->close[1], r->close[0], r->dps_free[1], r->dps_contact[1]);
+}
+
+// how much stronger own is than foe: the time foe needs to destroy own over the time own needs to destroy foe - the
+// same scale as summed hit points x attack compared before (hit points x damage per second on each side), with range,
+// minimum range and area damage. Nothing to fight: very large / 0.
+static float st_ratio(struct st_side *own, struct st_side *foe) {
+    if (!foe->n || foe->hp <= 0) return 1e6f;
+    if (!own->n || own->hp <= 0) return 0.0f;
+    struct st_result r;
+    st_estimate(own, foe, &r);
+    if (r.time[0] >= 1e9f) return r.time[1] >= 1e9f ? 1.0f : 0.0f;
+    return r.time[1] >= 1e9f ? 1e6f : r.time[1] / (r.time[0] > 0.1f ? r.time[0] : 0.1f);
 }
 
 // --- test command -------------------------------------------------------------------------------------------------
