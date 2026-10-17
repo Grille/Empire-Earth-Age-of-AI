@@ -317,9 +317,17 @@ static void cs_unit(uint8_t *u, void *ctx) {
 // are attacked by the AI's citizens within 10 tiles, at most 3 per enemy and against at most 6 - only when those
 // citizens' strength (hit points x attack) is 3 times that of the enemies within 6 tiles: Bronze Age soldiers (119 hp)
 // killed 10 citizens of a count-based militia while losing 49 hit points. Gathering or idle citizens only; afterwards the assignment puts them back to work.
-// [all] citizen_militia_epoch (default 2, the Copper Age; 0 Prehistoric): the last epoch citizens fight at all - later
-// a militia is nearly always a net loss (the playtester): citizens are worth more gathering or starting a new base.
-static int g_militia = 1, g_militia_epoch = 2;
+// [all] militia_estimate (default 0): 1 = the citizens decide with the stats estimate (dll/stats.c) instead, in every
+// epoch (the playtester: "a hard limit isn't right... tower builders without guards should always be engaged; troops
+// in later ages should be avoided, but many units are faster than citizens - caught alone and running, they get
+// chased down"): enemies without soldiers among them (builders, a foundation) when the citizens win (ratio >= 1);
+// soldiers when the citizens win clearly (ratio >= 1.5), or when they are caught - the soldiers attack one of ours
+// and are faster than citizens - and would still win (militia_caught_share 1: the share of the attackers destroyed;
+// 0.33 had 3 citizens attack a Mk V tank 42 times - 0.2 of their damage gets through, a third of a tank is no use). A fallback ("when the
+// citizens have a chance and no military is near to do the job"): not when own soldiers within 12 tiles win on their own.
+static int g_militia = 1, g_militia_est = 0;
+static float g_militia_share = 1.0f;   // [all] militia_caught_share: the share of the attackers caught citizens must still destroy
+static unsigned g_militia_caught[16];
 static unsigned g_militia_orders[16];
 static float unit_power(uint8_t *u) {   // hit points x attack (live stats), a rough fighting strength
     uint8_t *st = FIELD(u, 0x34, uint8_t *);
@@ -329,28 +337,50 @@ static float unit_power(uint8_t *u) {   // hit points x attack (live stats), a r
 static struct st_side g_mil_own, g_mil_foe;   // fight_estimate (dll/stats.c)
 static int militia_answer(struct cs_scan *s, uint8_t *t, int *nfree) {   // citizens -> t; returns the number ordered
     int x = FIELD(t, 0x1C, int), y = FIELD(t, 0x20, int), enemies = 0, ordered = 0;
-    float epow = 0, cpow = 0;
-    if (current_epoch(s->pl) > g_militia_epoch) return 0;
-    if (g_fight_est) { st_side_clear(&g_mil_own); st_side_clear(&g_mil_foe); }
+    float epow = 0, cpow = 0, fast = 1e9f, cspeed = 0;
+    int est = g_fight_est || g_militia_est, soldiers = 0;
+    if (est) { st_side_clear(&g_mil_own); st_side_clear(&g_mil_foe); }
     for (int k = 0; k < s->nu; k++) {
         uint8_t *e = s->eu[k];
         if (FIELD(e, 0x3C, int) <= 0 || abs(FIELD(e, 0x1C, int) - x) > 6 || abs(FIELD(e, 0x20, int) - y) > 6) continue;
         enemies++;
         epow += unit_power(e);
-        if (g_fight_est) st_side_add(&g_mil_foe, e);
+        if (est) st_side_add(&g_mil_foe, e);
+        if (is_soldier(FIELD(e, 0x2C, uint8_t *))) { soldiers++; if (st_speed(e) < fast) fast = st_speed(e); }
     }
     if (enemies < 1) {   // a foundation: no fight, only its hit points
         enemies = 1; epow = unit_power(t);
-        if (g_fight_est) st_side_add(&g_mil_foe, t);
+        if (est) st_side_add(&g_mil_foe, t);
     }
     if (enemies > 6) return 0;
     for (int c = 0, n = 0; c < s->nc && n < 3 * enemies; c++)
         if (s->civ[c] && abs(s->cx[c] - x) <= 10 && abs(s->cy[c] - y) <= 10) {
             cpow += unit_power(s->civ[c]); n++;
-            if (g_fight_est) st_side_add(&g_mil_own, s->civ[c]);
+            if (est) st_side_add(&g_mil_own, s->civ[c]);
+            if (st_speed(s->civ[c]) > cspeed) cspeed = st_speed(s->civ[c]);
         }
-    float stand = g_fight_est ? st_ratio(&g_mil_own, &g_mil_foe) : (epow > 0 ? cpow / epow : 1e6f);
-    if (stand < 3.0f) return 0;   // citizens beat clubmen and builders, not real soldiers
+    if (g_militia_est) {
+        if (!g_mil_own.n) return 0;
+        // a fallback (the playtester): soldiers near that win it on their own do the job instead
+        static struct st_side mil_sold;
+        st_side_clear(&mil_sold);
+        for (int k = 0; k < s->ns; k++)
+            if (abs(FIELD(s->sold[k], 0x1C, int) - x) <= 12 && abs(FIELD(s->sold[k], 0x20, int) - y) <= 12) st_side_add(&mil_sold, s->sold[k]);
+        if (mil_sold.n && st_ratio(&mil_sold, &g_mil_foe) >= 1.0f) return 0;
+        float stand = st_ratio(&g_mil_own, &g_mil_foe);
+        if (!soldiers) { if (stand < 1.0f) return 0; }   // builders, a foundation
+        else if (stand < 1.5f) {
+            struct st_result r;   // caught: running is no way out - fight if the citizens still do some good
+            st_estimate(&g_mil_own, &g_mil_foe, &r);
+            float share = r.time[0] < 1e9f ? r.time[1] / (r.time[0] > 0.1f ? r.time[0] : 0.1f) : 0;
+            int attacking = FIELD(t, 0x1EC, uint8_t *) && *(uintptr_t *)FIELD(t, 0x1EC, uint8_t *) == VT_GOAL_ATTACK;
+            if (!attacking || fast <= cspeed * 1.1f || share < g_militia_share) return 0;
+            g_militia_caught[(unsigned)FIELD(s->pl, PL_INDEX, int) & 15]++;
+        }
+    } else {
+        float stand = g_fight_est ? st_ratio(&g_mil_own, &g_mil_foe) : (epow > 0 ? cpow / epow : 1e6f);
+        if (stand < 3.0f) return 0;   // citizens beat clubmen and builders, not real soldiers
+    }
     for (int c = 0; c < s->nc && ordered < 3 * enemies; c++) {
         uint8_t *u = s->civ[c];
         if (!u || abs(s->cx[c] - x) > 10 || abs(s->cy[c] - y) > 10) continue;
@@ -365,7 +395,7 @@ static int militia_answer(struct cs_scan *s, uint8_t *t, int *nfree) {   // citi
 }
 static void militia(void *pl, unsigned idx, struct cs_scan *s, uint32_t now) {
     if (!g_militia || !s->nc || !s->nu) return;
-    int early = current_epoch(pl) <= 3, nfree = s->nc, total = 0, targets = 0;
+    int early = g_militia_est || current_epoch(pl) <= 3, nfree = s->nc, total = 0, targets = 0;
     char what[160] = "";
     for (int k = 0; k < s->nu && nfree > 2; k++) {
         uint8_t *e = s->eu[k], *g = FIELD(e, 0x1EC, uint8_t *), *t;
@@ -393,7 +423,7 @@ static void militia(void *pl, unsigned idx, struct cs_scan *s, uint32_t now) {
     }
     if (!total) return;
     g_militia_orders[idx] += (unsigned)total;
-    if (g_log) fprintf(g_log, "# militia: P%u at %.1f min: %d citizens against %d enemies:%s\n", idx, now / 60000.0, total, targets, what);
+    if (g_log) fprintf(g_log, "# militia: P%u at %.1f min: %d citizens against %d enemies:%s (caught so far %u)\n", idx, now / 60000.0, total, targets, what, g_militia_caught[idx]);
 }
 static void counter_siege(void *pl, unsigned idx, uint32_t now) {
     static uint32_t last[16];
@@ -1146,7 +1176,8 @@ static void defence_install(const char *aimod_ini, const char *autotest_ini) {
     g_def_more = cfg_int(aimod_ini, autotest_ini, 1, "defence_towers", 1);
     g_csiege = cfg_int(aimod_ini, autotest_ini, 1, "counter_siege", 1);
     g_militia = cfg_int(aimod_ini, autotest_ini, 1, "citizen_militia", 1);
-    g_militia_epoch = cfg_int(aimod_ini, autotest_ini, 1, "citizen_militia_epoch", 2);
+    g_militia_est = cfg_int(aimod_ini, autotest_ini, 1, "militia_estimate", 0);
+    g_militia_share = cfg_float(aimod_ini, autotest_ini, 1, "militia_caught_share", "1");
     g_home_guard = cfg_int(aimod_ini, autotest_ini, 1, "home_guard", 4);
     g_home_share = cfg_float(aimod_ini, autotest_ini, 1, "home_guard_share", "0.35");
     g_muster = cfg_int(aimod_ini, autotest_ini, 1, "muster", 1);

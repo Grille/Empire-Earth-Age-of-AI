@@ -220,7 +220,8 @@ static float st_ratio(struct st_side *own, struct st_side *foe) {
 // --- test command -------------------------------------------------------------------------------------------------
 
 struct st_scan { int x, y, r2, ta, tb; struct st_side *side[16]; };
-static int st_counts(uint8_t *u, uint8_t *td) {   // soldiers and buildings that shoot
+static int st_counts(uint8_t *u, uint8_t *td) {   // soldiers, citizens and buildings that shoot
+    if (FIELD(td, 0x4B8, int) == 32 || FIELD(td, 0x4B8, int) == 480) return 1;
     if (is_soldier(td)) return 1;
     return (FIELD(td, 0x4B4, int) == 2 || FIELD(td, 0x4B4, int) == 29) && FIELD(td, 0x510, int) > 0 && u;
 }
