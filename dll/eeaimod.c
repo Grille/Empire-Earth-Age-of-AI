@@ -1,8 +1,8 @@
 // eeaimod.dll - Empire Earth AI mod.
 // Loaded automatically: Low-Level Engine.dll LoadLibrary()s every *.dll in the game folder.
 //
-// Stage 1: observation only. Hooks the computer player's resource manager and logs its
-// economy state to aimod_econ.csv. Does not change game behaviour.
+// This file: the computer player's resource manager hooks (economy rows in aimod_econ.csv), the game start and
+// autotest plumbing, patch helpers and DllMain; every other part is its own .c file, #included below (README.md).
 
 #include <windows.h>
 #include <stdio.h>

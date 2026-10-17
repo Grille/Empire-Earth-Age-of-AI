@@ -1,6 +1,6 @@
 // INTEL: what an AI knows about its enemies. Included by eeaimod.c after landing.c.
 //
-// [all] honest_vision (default 0): the AIs see every unit of the human everywhere (a floor of 1 in their slots of
+// [all] honest_vision (default 1): the AIs see every unit of the human everywhere (a floor of 1 in their slots of
 // the visibility count - engine-notes.md). 0: the mod uses that as the game has it. 1: an AI knows what a human in
 // its place would - the user: "planning ahead, assuming the enemy has towers and a defence army before I ever saw his
 // base, knowing that the huge army I saw 5 minutes ago didn't just disappear because I can't see it now":

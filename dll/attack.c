@@ -44,7 +44,7 @@ static int is_enemy(void *pl, void *other) {
 // What player pl knows of unit u. The count (u +0x14 -> +0xC, per player slot) is how many of pl's (and its allies')
 // units see u now - plus a floor every unit of the human carries in the AIs' slots, everywhere and always (the AIs
 // see all of the human's units; docs/engine-notes.md). [all] honest_vision (intel.c): seen = above that floor, or a
-// building pl has seen before (still where it was - a human remembers it on the map); 0 (the default): the count as
+// building pl has seen before (still where it was - a human remembers it on the map), the default; 0: the count as
 // the game keeps it - all-knowing about the human.
 static int g_honest_vision = 1;
 static uint8_t g_vis_floor[16][16];               // [viewer][owner]: the least count among the owner's units (intel.c)

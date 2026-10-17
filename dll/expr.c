@@ -63,7 +63,7 @@ static int g_x_logged;   // expression errors written to the log (at most 60)
 // found while the game runs (an unknown name, a broken expression) as a system line in the game (x_errors_show,
 // from the AIs' updates). An unknown name, or a placeholder nobody fills, counts as a mistake too.
 static int g_strict;
-static CRITICAL_SECTION g_x_lock;   // the queue: the language model's thread fills texts too
+static CRITICAL_SECTION g_x_lock;   // the queue: filled on the game's thread, read by the startup box's (x_errors_box)
 static char g_x_queue[8][240];
 static int g_x_queued, g_x_total, g_x_dropped;
 static void x_error(const char *fmt, ...) {
