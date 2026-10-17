@@ -335,9 +335,14 @@ static void cmd_stats(char *out, const char *args) {
         for (int p = 1; p < 16; p++) st_side_clear(&g_st_sides[p]);
         return;
     }
-    if (!strncmp(args, "engage", 6)) {   // engage P x y r: P's soldiers there attack the nearest enemy within 30 tiles
-        int p, x, y, r, n = 0, nm = 0, nf = 0;
-        if (sscanf(args + 6, "%d %d %d %d", &p, &x, &y, &r) != 4 || !st_player(p)) { REPLY("error: stats engage P x y r\n"); return; }
+    // engage P x y r: P's soldiers there attack the nearest enemy within 30 tiles; engage P x y r T tx ty: P's units of
+    // type T there attack the enemy nearest to them within 15 tiles of tx,ty - any unit or building (aircraft from
+    // their airport at a town)
+    if (!strncmp(args, "engage", 6)) {
+        int p, x, y, r, n = 0, nm = 0, nf = 0, tt = -1, tx = 0, ty = 0;
+        int na = sscanf(args + 6, "%d %d %d %d %d %d %d", &p, &x, &y, &r, &tt, &tx, &ty);
+        if ((na != 4 && na != 7) || !st_player(p)) { REPLY("error: stats engage P x y r [T tx ty]\n"); return; }
+        if (na == 4) tt = -1;
         static uint8_t *mu[ST_UNITS], *fu[ST_UNITS];
         uint8_t *map = *(uint8_t **)G_MAP, *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
         if (!grid) { REPLY("error: no map\n"); return; }
@@ -347,14 +352,21 @@ static void cmd_stats(char *out, const char *args) {
             for (uint8_t **bp = FIELD(cl + ci * 16, 4, uint8_t **); bp && bp < FIELD(cl + ci * 16, 8, uint8_t **); bp++) {
                 uint8_t *u = *bp, *td = u ? FIELD(u, 0x2C, uint8_t *) : NULL;
                 int q = u ? st_pidx(u) : 0;
-                if (!td || FIELD(u, 0x3C, int) <= 0 || q <= 0 || q > 15 || !st_counts(u, td)) continue;
+                if (!td || FIELD(u, 0x3C, int) <= 0 || q <= 0 || q > 15) continue;
+                if (tt >= 0) {
+                    int dx = FIELD(u, 0x1C, int) - x, dy = FIELD(u, 0x20, int) - y, ex = FIELD(u, 0x1C, int) - tx, ey = FIELD(u, 0x20, int) - ty;
+                    if (q == p && FIELD(td, 0x4B8, int) == tt && dx * dx + dy * dy <= r * r && nm < ST_UNITS) mu[nm++] = u;
+                    else if (q != p && ex * ex + ey * ey <= 15 * 15 && is_enemy(st_player(p), st_player(q)) && nf < ST_UNITS) fu[nf++] = u;
+                    continue;
+                }
+                if (!st_counts(u, td)) continue;
                 int dx = FIELD(u, 0x1C, int) - x, dy = FIELD(u, 0x20, int) - y, d2 = dx * dx + dy * dy;
                 if (q == p && d2 <= r * r && nm < ST_UNITS) mu[nm++] = u;
                 else if (q != p && d2 <= 40 * 40 && is_enemy(st_player(p), st_player(q)) && nf < ST_UNITS) fu[nf++] = u;
             }
         for (int i = 0; i < nm; i++) {
             uint8_t *u = mu[i], *best = NULL;
-            float bd = 30.0f * 30.0f;
+            float bd = tt >= 0 ? 1e9f : 30.0f * 30.0f;
             for (int k = 0; k < nf; k++) {
                 float dx = (float)(FIELD(fu[k], 0x1C, int) - FIELD(u, 0x1C, int)), dy = (float)(FIELD(fu[k], 0x20, int) - FIELD(u, 0x20, int));
                 if (dx * dx + dy * dy < bd && st_shot(u, fu[k]) > 0) { bd = dx * dx + dy * dy; best = fu[k]; }
