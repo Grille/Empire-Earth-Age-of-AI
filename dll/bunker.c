@@ -84,13 +84,14 @@ static void cmd_bunker(char *out, const char *args) {
 // manager's placement (0x46580A) failed every fortress, at a spot or with its own search (0,0) - the foundation is laid
 // as the landing's forward base lays its (0x62EF8A, which pays), when it has the wood, 3 gatherers build it, an
 // unfinished one gets 2 again every minute (the game's builders mostly finish it first); its wood is held back from
-// unit training while it waits (bunker_reserve). scenarios/bombing_late.txt (the bombing at 35 min, 10 seeds, P3 off
-// vs on): workers 53.1 vs 72.6, buildings lost 4.9 vs 1.0, the worst game 1 vs 38 workers; shelling and raid_ww1
-// (the fortress up only after minute 20 there: a WW1 start leaves little wood) about even.
+// unit training while it waits (bunker_reserve). scenarios/bombing_late.txt (the bombing at 35 min, P3 off vs on):
+// 20 seeds - workers 57.4 vs 66.2, buildings lost 2.4 vs 1.4, games down to 4-28 workers 4 vs 2 (10-seed batches
+// gave 72.6, 61.7 and 52.2 against 53.1: noise); shelling and raid_ww1 (the fortress up only after minute 20 there:
+// a WW1 start leaves little wood) about even.
 static int g_bunkers = 1;   // [all] bunkers
 static int g_bk_res = 0;   // [all] bunker_reserve (below)
 static int bk_room(void *pl);
-static struct { int nf, nall; uint8_t *f[8], *all[8]; int nq[8]; uint8_t *q[8][40]; uint32_t build_t, quiet_t[8]; unsigned in, out; int need_wood; uint8_t shelter[8]; } g_bk[16];   // shelter: citizens went in (the quiet release)
+static struct { int nf, nall; uint8_t *f[8], *all[8]; int nq[8]; uint8_t *q[8][40]; uint32_t build_t, quiet_t[8]; unsigned in, out; int need_wood; uint32_t shelter[8]; } g_bk[16];   // shelter: when citizens were sent in (the quiet release)
 static int bk_hurt_recent(unsigned pi, int x, int y, int r, uint32_t ms) {
     uint32_t now = game_time();
     int n = 0;
@@ -115,7 +116,7 @@ static void bk_refresh(void *pl, unsigned pi) {   // the player's fortresses (ea
     memcpy(g_bk[pi].all, o.all, sizeof o.all);
     for (int k = 0; k < o.nf; k++) {   // keep each fortress's quiet time across passes
         uint32_t q = 0;
-        uint8_t sh = 0;
+        uint32_t sh = 0;
         for (int j = 0; j < g_bk[pi].nf; j++) if (g_bk[pi].f[j] == o.f[k]) { q = g_bk[pi].quiet_t[j]; sh = g_bk[pi].shelter[j]; }
         g_bk[pi].quiet_t[k] = q;
         g_bk[pi].shelter[k] = sh;
@@ -146,12 +147,15 @@ static void bk_flush(void *pl, unsigned pi, uint32_t now) {   // the queued citi
         if (g_bk[pi].nq[k] && bk_load(f, g_bk[pi].q[k], g_bk[pi].nq[k])) {
             g_bk[pi].in += (unsigned)g_bk[pi].nq[k];
             g_bk[pi].quiet_t[k] = 0;
-            g_bk[pi].shelter[k] = 1;
+            g_bk[pi].shelter[k] = now ? now : 1;
             if (g_log) fprintf(g_log, "# bunker: P%u at %.1f min: %d citizens into the fortress at %d,%d (holds %d)\n", pi, now / 60000.0, g_bk[pi].nq[k], fx, fy, bk_held(f));
             continue;
         }
         int held = bk_held(f);
-        if (held <= 0) { g_bk[pi].shelter[k] = 0; continue; }
+        if (held <= 0) {   // empty - unless citizens are still walking in
+            if (g_bk[pi].shelter[k] && now - g_bk[pi].shelter[k] > 30000) g_bk[pi].shelter[k] = 0;
+            continue;
+        }
         if (!g_bk[pi].shelter[k]) continue;   // the reserve's soldiers only: bk_reserve_tick
         if (bk_hurt_recent(pi, fx, fy, 10, 45000) || raiders_near(pl, fx, fy, 10)) { g_bk[pi].quiet_t[k] = 0; continue; }
         if (!g_bk[pi].quiet_t[k]) { g_bk[pi].quiet_t[k] = now ? now : 1; continue; }
