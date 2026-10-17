@@ -43,6 +43,12 @@ if (Test-Path $lock) {
     }
 }
 Set-Content $lock $PID
+# Keep the PC awake while the run lasts (the screen may still turn off): ES_CONTINUOUS | ES_SYSTEM_REQUIRED for this
+# thread - Windows drops it when this process exits. Unattended suites were stopped by the PC going to sleep.
+try {
+    Add-Type -Namespace EEAimod -Name Power -MemberDefinition '[DllImport("kernel32.dll")] public static extern uint SetThreadExecutionState(uint f);' -ErrorAction Stop
+    [void][EEAimod.Power]::SetThreadExecutionState([uint32]"0x80000001")
+} catch { "keep-awake request failed: $_" }
 if (Get-Process -Name "Empire Earth" -ErrorAction SilentlyContinue) {
     Remove-Item $lock -Confirm:$false; "game already running - aborting"; exit 1
 }
