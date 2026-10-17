@@ -6,7 +6,7 @@
 
 #define G_PAUSED        0x00918EA2  // byte, toggled by EEAUserPauseGame::Execute (0x4064F1)
 #define G_GAME_TYPE     0x00918BF4  // 0 random map, 1 scenario, 2 saved game, 3/4 other
-#define G_CLIENT        0x0091984C  // EEClient/EEServer; UI checks [+0x10] != 0 and vtable+0x10 before pausing
+#define G_SERVER        0x0091984C  // EEClient/EEServer (lockstep server, slot 6 takes a message); UI checks [+0x10] != 0 and vtable+0x10 before pausing
 #define G_WORLD         0x0091977C  // action queue owner: QueueAction 0x66192F (thiscall, takes action ptr)
 #define G_CAMERA        0x00918CD0  // EECameraControl; +0x78/+0x7C/+0x80 look-at x/y/z (tiles), +0xE0 zoom
 #define G_MAP           0x009183BC  // ptr; +0x1816FC = map size in tiles
@@ -18,7 +18,6 @@
 #define FN_CAMACT_CTOR  0x00560179  // EEACenterCamera ctor (0x1C bytes)
 #define FN_CAMACT_SET   0x00401F3E  // thiscall (tile x, tile y): set target + queue (only if tile valid)
 
-static void *g_players[16];         // EEComputerPlayer seen by the AI hooks, by player index
 static void watch_set(uintptr_t addr, int len);
 static void cmd_threat(char *out, const char *args);
 static void cmd_nullmember(char *out, const char *args);
@@ -135,7 +134,7 @@ static void queue_action(void *act) {
 
 // Same as clicking the pause button (EEUIEMGPauseGame::Execute 0x649F9A); the action toggles the pause.
 static int queue_pause_toggle(void) {
-    void **client = *(void ***)G_CLIENT;
+    void **client = *(void ***)G_SERVER;
     if (!client || !((uint32_t *)client)[4]) return 0;
     if (!((char (__thiscall *)(void *))(*(void ***)client)[4])(client)) return 0;
     uint8_t *act = ((void *(__cdecl *)(size_t))FN_GAME_NEW)(0xC);
@@ -565,11 +564,9 @@ static BOOL patch_sim_wait(void) {
 // always finishes a tick long before the next one - player and AI inputs land in the same ticks.
 #define LLE_SEND_WAIT_RVA 0x55DF5
 #define LLE_IAT_WFMO_RVA  0x940EC
-#define G_SERVER          0x0091984C
-#define G_PHYSICS         0x00919774
 
 static int sim_drained(void) {
-    uint8_t *srv = *(uint8_t **)G_SERVER, *phys = *(uint8_t **)G_PHYSICS;
+    uint8_t *srv = *(uint8_t **)G_SERVER, *phys = *(uint8_t **)G_WORLD_CLOCK;
     return srv && phys && FIELD(srv, 0x10, unsigned) == FIELD(srv, 0x190, unsigned) && FIELD(phys, 0xB8, unsigned) == 0;
 }
 
@@ -732,7 +729,7 @@ static DWORD WINAPI gameover_watch(LPVOID unused) {
     (void)unused;
     for (;;) {
         Sleep(500);
-        unsigned me = *(unsigned *)0x00918E84;
+        unsigned me = *(unsigned *)G_LOCAL_PLAYER;
         uint8_t *pl = me < 16 ? ((uint8_t **)0x00918374)[me] : NULL;
         if (!pl || !game_time() || !FIELD(pl, 0xA30, int)) continue;
         if (g_log) {

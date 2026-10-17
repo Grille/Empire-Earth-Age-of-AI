@@ -442,7 +442,7 @@ static void line_ctx_init(struct line_ctx *l, void *pl, void *other, void *third
     memset(&l->c, 0, sizeof l->c);
     texts_load();
     if (!other) {   // a line to everyone (greeting, epoch_up ...): them is the player at this PC
-        unsigned h = *(unsigned *)0x00918E84;
+        unsigned h = *(unsigned *)G_LOCAL_PLAYER;
         void *hp = h < 16 ? ((void **)0x00918374)[h] : NULL;
         if (hp != pl) other = hp;
     }
@@ -675,7 +675,7 @@ static void epoch_text(void *pl, char *out, int cap) { epoch_text_n(current_epoc
 
 // is the local player (0x918E84) in the audience of AI pl's line k said to `other`? Allies: both stances allied.
 static int line_heard(void *pl, enum line_kind k, void *other) {
-    unsigned h = *(unsigned *)0x00918E84;
+    unsigned h = *(unsigned *)G_LOCAL_PLAYER;
     void *me = h < 16 ? ((void **)0x00918374)[h] : NULL;
     if (!me || me == pl || k_lines[k].aud == A_ALL) return 1;
     if (k_lines[k].aud == A_NAME) return other == me;
@@ -757,7 +757,7 @@ static void persona_attack(void *pl, void *target) {
     if (!g_attack_news[ai]) return;
     g_attack_news[ai] = 0;
     if (target) g_attack_sent[ai][FIELD(target, PL_INDEX, int) & 15] = game_time() ? game_time() : 1;
-    unsigned h = *(unsigned *)0x00918E84;
+    unsigned h = *(unsigned *)G_LOCAL_PLAYER;
     void *me = h < 16 ? ((void **)0x00918374)[h] : NULL;
     persona_say(pl, target && target == me ? L_ATTACK_THREAT : L_ATTACK, target, NULL);
 }

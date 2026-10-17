@@ -186,7 +186,7 @@ static uint32_t g_llm_last_t;
 
 static void llm_hist_add(int ai, int role, const char *text) {
     if (ai < 0 || ai > 15) return;
-    if (g_llm_mem_player) { self_add(ai, role, (int)(*(unsigned *)0x00918E84 & 15), text); return; }
+    if (g_llm_mem_player) { self_add(ai, role, (int)(*(unsigned *)G_LOCAL_PLAYER & 15), text); return; }
     mem_add(&g_llm_hist[ai], role, text);
 }
 // the memories for the saved game: records {0 = with the local player / 1 = a pair / 2 = an AI's own (memory_mode=player),
@@ -749,8 +749,8 @@ static void self_history(struct sbuf *b, int ai, int other) {
     }
 }
 static void llm_history(struct sbuf *b, int ai) {   // his lines framed with his name (whose "my" it is)
-    void *pl = player_at(ai), *ph = player_at((int)*(unsigned *)0x00918E84);
-    if (g_llm_mem_player) { self_history(b, ai, (int)(*(unsigned *)0x00918E84 & 15)); return; }
+    void *pl = player_at(ai), *ph = player_at((int)*(unsigned *)G_LOCAL_PLAYER);
+    if (g_llm_mem_player) { self_history(b, ai, (int)(*(unsigned *)G_LOCAL_PLAYER & 15)); return; }
     for (int i = 0; i < g_llm_hist[ai].n; i++) {
         char u[LLM_MAXLEN + 120];
         if (g_llm_hist[ai].kind[i] == 1) { sb_msg(b, "assistant", g_llm_hist[ai].text[i]); continue; }
@@ -861,7 +861,7 @@ static void llm_subst(char *out, int cap, const char *s, void *pl, void *other, 
 // persona_say: a line the local player hears - 1 if the model says it (later), 0: show the fixed line now
 static int llm_line(void *pl, enum line_kind k, void *other, void *third, const char *fixed) {
     if (g_llm_bypass || !llm_ready() || !g_llm_lines || !pl) return 0;
-    int ai = pidx(pl), h = (int)*(unsigned *)0x00918E84;
+    int ai = pidx(pl), h = (int)*(unsigned *)G_LOCAL_PLAYER;
     int pending = 0;
     for (int i = 0; i < LLM_JOBS; i++) pending += g_llm_jobs[i].state != J_FREE && g_llm_jobs[i].ai == ai;
     if (pending >= 3) return 0;   // the model can't keep up with this AI: its fixed line
@@ -933,7 +933,7 @@ static int llm_tools_for(int ai, int h, uint32_t now) {
 // the local player j offers AI ai peace (diplo.c peace_offer): 1 = the model decides (now asked, or still asking),
 // 0 = the rules decide
 static int llm_peace_answer(void *pl, int ai, int j, uint32_t now) {
-    int h = (int)*(unsigned *)0x00918E84;
+    int h = (int)*(unsigned *)G_LOCAL_PLAYER;
     if (g_llm_rules || j != h || !llm_deciding() || !tool_peace_ok(ai, j, now)) return 0;
     g_peace_due[ai][j] = now + 120000;   // asked again in 2 minutes while the offer stands
     for (int i = 0; i < LLM_JOBS; i++)
@@ -962,7 +962,7 @@ static int llm_peace_answer(void *pl, int ai, int j, uint32_t now) {
 static uint32_t g_prop_no[16][P_N];   // [ai][move]: when the model last declined it
 static int llm_propose(int ai, int h, int kind, int third, uint32_t now) {
     void *pl = player_at(ai), *ph = player_at(h);
-    if (g_llm_rules || !pl || !ph || h != (int)*(unsigned *)0x00918E84 || !llm_deciding() || kind < 0 || kind >= P_N) return 0;
+    if (g_llm_rules || !pl || !ph || h != (int)*(unsigned *)G_LOCAL_PLAYER || !llm_deciding() || kind < 0 || kind >= P_N) return 0;
     if (g_prop_no[ai][kind] && now - g_prop_no[ai][kind] < 600000) return 1;
     for (int i = 0; i < LLM_JOBS; i++)
         if (g_llm_jobs[i].state != J_FREE && g_llm_jobs[i].ai == ai && g_llm_jobs[i].decide == 3) return 1;
@@ -1183,7 +1183,7 @@ static void llm_player_chat(const char *text) {
         }
         return;
     }
-    int h = (int)*(unsigned *)0x00918E84, to = 0, got = 0, only = 0, at = 1 << 30;
+    int h = (int)*(unsigned *)G_LOCAL_PLAYER, to = 0, got = 0, only = 0, at = 1 << 30;
     void *pm = player_at(h);
     uint32_t now = game_time();
     char who[80] = "";
@@ -1413,7 +1413,7 @@ static int talk_apply(struct llm_job *j) {
 // persona_say: AI pl's line k to AI other, which the local player doesn't hear - an exchange between them (waits)
 static void llm_talk_event(void *pl, enum line_kind k, void *other, void *third, const char *fixed) {
     if (!g_llm_on || !g_llm_ai_talk || g_mp || !pl || !other || k_lines[k].aud != A_NAME) return;
-    int a = pidx(pl), b = pidx(other), h = (int)*(unsigned *)0x00918E84;
+    int a = pidx(pl), b = pidx(other), h = (int)*(unsigned *)G_LOCAL_PLAYER;
     if (a == b || b == h || a == h || !g_players[a] || !g_players[b]) return;
     uint32_t pt = g_pair_last[a < b ? a : b][a < b ? b : a];
     if (pt && game_time() - pt < 60000) return;   // they are talking (an answer, an offer): its own words are in it
@@ -1577,7 +1577,7 @@ static void llm_tick(void) {
     int *told = note == 1 ? &g_llm_told : &g_llm_told_fail;
     if (note && !*told) {
         *told = 1;
-        block_line((int)*(unsigned *)0x00918E84,   // shown and logged
+        block_line((int)*(unsigned *)G_LOCAL_PLAYER,   // shown and logged
                    sysf(note == 1 ? "llm_down" : "llm_failed", NULL, NULL, NULL, "url", g_llm_url, "error", g_llm_last_err, NULL));
     }
     talk_tick();
@@ -1614,7 +1614,7 @@ static void llm_tick(void) {
             if (!ok && !j->chat) g_llm_n_fixed++;
             if (say) {   // every line shown here is one the local player hears
                 chat_line(pl, say, g_chat_ms);
-                if (j->to == (int)*(unsigned *)0x00918E84 || j->chat) llm_hist_add(j->ai, 1, say);
+                if (j->to == (int)*(unsigned *)G_LOCAL_PLAYER || j->chat) llm_hist_add(j->ai, 1, say);
                 g_llm_last_ai = j->ai;
                 g_llm_last_t = game_time();
             }
@@ -1634,7 +1634,7 @@ static void llm_tick(void) {
 // was said to him
 static void llm_heard(void *pl, void *other, const char *text) {
     if (!g_llm_on || !pl) return;
-    if (other && other == player_at((int)*(unsigned *)0x00918E84)) llm_hist_add(pidx(pl), 1, text);
+    if (other && other == player_at((int)*(unsigned *)G_LOCAL_PLAYER)) llm_hist_add(pidx(pl), 1, text);
     g_llm_last_ai = pidx(pl);
     g_llm_last_t = game_time();
 }
@@ -1645,7 +1645,7 @@ static void llm_heard(void *pl, void *other, const char *text) {
 static void cmd_llm(char *out, const char *args) {
     int p = 0, n = 0;
     if (sscanf(args, "filter %d %n", &p, &n) == 1) {
-        uint8_t *pm = player_at((int)*(unsigned *)0x00918E84);
+        uint8_t *pm = player_at((int)*(unsigned *)G_LOCAL_PLAYER);
         if (!pm || p < 0 || p > 3) { REPLY("error: no local player or bad mode\n"); return; }
         FIELD(pm, 0x9E0, int) = p;
         for (int i = 0; i < 16; i++) pm[0xB2C + i] = 0;

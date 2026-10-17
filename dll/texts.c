@@ -347,7 +347,7 @@ static void cmd_texts(char *out, const char *args) {
         }
         char key[40] = "";
         if (line && sscanf(s, "%39s %d %d", key, &b, &c3) < 1) { REPLY("usage: texts line P situation [Q [R]]\n"); return; }
-        unsigned h = *(unsigned *)0x00918E84;
+        unsigned h = *(unsigned *)G_LOCAL_PLAYER;
         void *pa = player_at(a), *pb = player_at(b >= 0 ? b : (int)h);
         struct line_ctx l;
         line_ctx_init(&l, pa, pb, c3 > 0 ? player_at(c3) : NULL);

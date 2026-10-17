@@ -84,7 +84,6 @@ static void randmap_rewrite(uint8_t *setup) {
 // Diplomacy array: player+0x9E4[index].
 #define FN_SET_DIPLOMACY 0x0055B8E1
 #define G_PLAYERS        0x00918374
-#define G_LOCAL_PLAYER   0x00918E84
 
 // Called once per AI player at its first update of a game.
 static void randmap_ai_toggles(void *pl) {

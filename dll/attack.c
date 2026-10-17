@@ -1665,7 +1665,6 @@ static void cmd_targets(char *out, const char *args) {
 // float xy[2], char player)) handed to the lockstep server ([0x91984C] slot 6: (msg, 0xFF)). The simulation
 // executes it in a coming tick (EEMHackANewUnit::vf10 0x4B7044: ground height, buildings checked against the
 // map) - like any player command. Several units go on a grid of 2 tiles around x, y.
-#define G_SERVER_OBJ 0x0091984C
 // give P amount (test): player P's stock of food, wood, stone, gold and iron each grows by amount
 static void cmd_give(char *out, const char *args) {
     int p = 0, amount = 0;
@@ -1699,7 +1698,7 @@ static void cmd_spawn(char *out, const char *args) {
         REPLY("error: usage: spawn <player> <type> <x> <y> [count]\n");
         return;
     }
-    void *srv = *(void **)G_SERVER_OBJ;
+    void *srv = *(void **)G_SERVER;
     if (!type_data(type) || !srv) { REPLY("error: no type %d or no game\n", type); return; }
     {   // off the map the game crashes (150,140 on a 128-tile map)
         uint8_t *map = *(uint8_t **)G_MAP, *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
@@ -1727,7 +1726,7 @@ static void cmd_spawnline(char *out, const char *args) {
         REPLY("error: usage: spawnline <player> <type> <x0> <y0> <x1> <y1> [step]\n");
         return;
     }
-    void *srv = *(void **)G_SERVER_OBJ;
+    void *srv = *(void **)G_SERVER;
     if (!type_data(type) || !srv) { REPLY("error: no type %d or no game\n", type); return; }
     int dx = x1 - x0, dy = y1 - y0, len = abs(dx) > abs(dy) ? abs(dx) : abs(dy), n = 0;
     for (int i = 0; i <= len; i += step) {

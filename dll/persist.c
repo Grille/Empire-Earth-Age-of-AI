@@ -18,7 +18,6 @@
 // macros of its sizes (scripts/persist_layout.py -> persist_layout.h, run by build.sh). Files of format 1 (no
 // layout word: the saves made before it) are read as they always were, blocks matched by tag and size only.
 #define FN_SAVE_GAME 0x00540ACA
-static char g_aimod_ini[MAX_PATH];   // eeaimod.c (defined after the includes)
 static int g_persist = 1;   // aimod.ini [general] save_state
 static const struct { const char *tag; void *p; size_t n; } k_blocks[] = {
 #define B(x) { #x, &x, sizeof x }

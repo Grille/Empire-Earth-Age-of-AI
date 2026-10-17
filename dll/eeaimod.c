@@ -21,7 +21,8 @@
 #define FN_ASSIGN_CITIZENS   0x0048A554
 #define CALL_RM_UPDATE       0x0046E3C6  // call EECPResourceManager::Update(now)              (0x48D263)
 #define FN_RM_UPDATE         0x0048D263
-#define G_WORLD_CLOCK        0x00919774  // ptr; +0xD0 = game time in ms
+#define G_WORLD_CLOCK        0x00919774  // ptr to EEPhysics; +0xD0 = game time in ms
+#define G_LOCAL_PLAYER       0x00918E84  // int: index of the player on this PC (the human in single player)
 
 // EECPResourceManager layout (from decompiled ctor/serializer 0x489F76 / 0x48C5B2)
 #define RM_OWNER        0x130  // -> object whose +0x4C is the EEComputerPlayer
@@ -96,7 +97,8 @@ static void landing_install(const char *aimod_ini, const char *autotest_ini);
 static void assault_install(const char *aimod_ini, const char *autotest_ini);
 static void log_line(const char *fmt, const char *a, int b);
 static BOOL patch_call(uintptr_t site, uintptr_t expected, void *hook);
-static void *g_players[16];   // control.c
+static void *g_players[16];   // EEComputerPlayer seen by the AI hooks, by player index (filled in control.c)
+static char g_ini[MAX_PATH], g_aimod_ini[MAX_PATH];   // aimod_autotest.ini, aimod.ini (paths set in DllMain)
 static BOOL patch_srand(void);
 #define G_SCENARIO_FLAG 0x00918819   // byte: game is a scenario/campaign (settings 0x918410 + 0x409)
 static int g_clear_scenario_flag;
@@ -677,7 +679,6 @@ static char __fastcall hook_game_start(void *state, void *edx, uint8_t *setup, v
 #include "select.c"
 #include "drawlist.c"
 #include "llm.c"
-static char g_ini[MAX_PATH], g_aimod_ini[MAX_PATH];
 
 // Redirect an E8 rel32 call, verifying it currently targets `expected`.
 static BOOL patch_call(uintptr_t site, uintptr_t expected, void *hook) {
