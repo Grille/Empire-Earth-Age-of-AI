@@ -1431,7 +1431,74 @@ static char __fastcall hook_unit_to_group(void *cmd, void *edx, uint8_t *unit) {
     return ((char (__thiscall *)(void *, void *))FN_UNIT_TO_GROUP)(cmd, unit);
 }
 
+// UNIT LIST: every unit - also the PathPoint markers (type 223) of an attack's route - sits in one list sorted by tile
+// x (unit +8 -> node {next, prev}; the head the RTSDummyUnit at 0x918314, its +4 the first), re-sorted at each move
+// (0x616F9D -> 0x5310B3) and walked by range searches (0x62FE01). The call-off frees a subgroup's PathPoints
+// (EECPAttackSubGroup vf26 0x45B4FB -> the unit pool's release, EEComplexUnit vf13 0x5ED71E -> vf12 -> 0x628BC6) while
+// they are still in that list (mIsValid +0x2B already 0, so the destructor's check stays quiet): the node is deleted,
+// the neighbours keep pointing at the unit, the pool hands the memory out again (an arrow, a stone ball) and it is
+// linked in elsewhere - the list gets a loop (the stalls: 0x5310B3 / 0x62FE01 spin for good) or a NULL link (crashes
+// at 0x628D6F, 0x53110D, 0x531131). Older than the 2026-10-17 review (the DLL before it stalled too), set off by the
+// mod's own call-offs at the safe point (attack_retreat, citizen attacks, diplomacy). Guard: the node delete of both
+// destructor parts (0x628BE7 in 0x628BC6, 0x628B7F in 0x628B58) first takes a unit still linked out of the list with the
+// game's own unlink (0x628E29: the neighbours, or the head, get its links).
+#define FN_UNIT_UNLINK  0x00628E29
+#define FN_OP_DELETE    0x006836F0
+#define CALL_NODE_DEL_1 0x00628BE7
+#define CALL_NODE_DEL_2 0x00628B7F
+static unsigned g_unlinked;
+__attribute__((used)) void __cdecl unit_node_free(uint8_t **node, uint8_t *u) {
+    if (!node || (!node[0] && !node[1]) || FIELD(u, 8, uint8_t **) != node) return;
+    ((void (__thiscall *)(void *))FN_UNIT_UNLINK)(u);
+    if (g_log && g_unlinked++ < 5) {
+        uint8_t *td = FIELD(u, 0x2C, uint8_t *);
+        fprintf(g_log, "# engine guard: a unit (type %d) freed while still in the unit list - taken out at %.1f min\n",
+                td ? FIELD(td, 0x4B8, int) : -1, game_time() / 60000.0);
+    }
+}
+__attribute__((naked, used)) void unit_node_free_thunk(void) {   // at the call of operator delete(node), ESI = the unit
+    __asm__ volatile (
+        "pushal\n\t"
+        "pushl %esi\n\t"
+        "pushl 40(%esp)\n\t"          // the node (the pushed argument: 32 pushal + 4 esi + 4 return address)
+        "call _unit_node_free\n\t"
+        "addl $8, %esp\n\t"
+        "popal\n\t"
+        "movl $0x006836F0, %eax\n\t"  // FN_OP_DELETE (eax is free: the delete's result is not used)
+        "jmp *%eax\n\t");
+}
+
+// The units are reference counted (+4; 0x4FCAD3 releases one: above 1 the count goes down, else vf13) and come from a
+// pool (0x9413B0, 0x348 bytes each): EEComplexUnit vf13 (0x5ED71E) runs vf12 (0x628BC6 deletes the list node, sets
+// +0x2A) and gives the memory back. An attack subgroup that still holds a unit already given back releases it again
+// (seen from 0x482028 under the subgroups' vf85 and from the world's deferred deletions 0x53066A, the count already
+// 0): the pool then holds it twice and hands one memory out to two units - one of them is reset while it is linked
+// (0x628CDD from the projectile set-up 0x5EA105), the unit list loops or breaks as above. Once the memory is out again
+// such a stale release hits a live unit (mIsValid +0x2B still 1: a unit is taken out of the game - 0x628B8E, mIsValid
+// 0 - before its last release; 0 such releases in normal play). Guard: a release of a unit that is back in the pool
+// (count 0, +0x2A set, no node - kept until the pool's reset on reuse) or still in the game is skipped.
+#define VT_COMPLEX_UNIT 0x00831494
+#define FN_UNIT_RELEASE 0x005ED71E
+static unsigned g_release_again;
+static void __fastcall hook_unit_release(uint8_t *u, void *edx) {
+    (void)edx;
+    int again = !FIELD(u, 4, int) && FIELD(u, 0x2A, uint8_t) == 1 && !FIELD(u, 8, void *), live = FIELD(u, 0x2B, uint8_t) != 0;
+    if (again || live) {
+        if (g_log && g_release_again++ < 10) {
+            uint8_t *td = FIELD(u, 0x2C, uint8_t *);
+            fprintf(g_log, "# engine guard: a unit (type %d) %s - not given back to the pool at %.1f min\n", td ? FIELD(td, 0x4B8, int) : -1,
+                    again ? "released a second time" : "released while still in the game", game_time() / 60000.0);
+        }
+        return;
+    }
+    ((void (__thiscall *)(void *))FN_UNIT_RELEASE)(u);
+}
+
 static void attack_install(const char *aimod_ini, const char *autotest_ini) {
+    int list_guard = patch_call(CALL_NODE_DEL_1, FN_OP_DELETE, unit_node_free_thunk) +
+                     patch_call(CALL_NODE_DEL_2, FN_OP_DELETE, unit_node_free_thunk) +
+                     patch_vtable(VT_COMPLEX_UNIT, 13, FN_UNIT_RELEASE, hook_unit_release);
+    if (g_log) fprintf(g_log, "# engine guard: units freed while in the unit list or twice %d/3\n", list_guard);
     BOOL stat_guard = patch_call(CALL_GROUP_STAT, FN_GROUP_STAT, hook_group_stat);
     int sg_guard = patch_vtable(VT_ASG_LAND, 20, FN_ASG_LAND_STATS, hook_asg_land_stats);
     for (unsigned k = 0; k < sizeof k_asg_vtables / sizeof *k_asg_vtables; k++)

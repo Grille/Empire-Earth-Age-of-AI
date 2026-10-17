@@ -122,6 +122,17 @@ Type data (0x9418A0[type]): +0x4B4 family (2 building, 29 fortress, 5/6 units), 
 +0x460 line of sight, +0x510 attack, +0x55C hit points, +0x540 influence. Type names: `data/db/converteroutput.log`.
 Guard towers 47, 461..466; AA 145/147; town center 35; house 37; citizen 32.
 
+Unit list (all units, projectiles and the PathPoint markers 223 of attack routes, sorted by tile x): unit +8 -> node
+{next, prev} (8 bytes, new/delete), +0x2B mIsValid; the head is the RTSDummyUnit at 0x918314 (+4 = first). Unlink
+0x628E29, insert after 0x628D34 (thiscall, the unit after which); a move re-sorts it (0x616F9D -> 0x5310B3), range
+searches walk it both ways (0x62FE01). EEComplexUnit objects (0x348 bytes) come from a pool at 0x9413B0 (0x5F21F1
+take, vf13 0x5ED71E release: vf12 -> 0x628BC6 deletes the node, asserting only through ESVerify that mIsValid is
+0). Reset 0x628CDD (node pointer 0, mIsValid 0) on every reuse. Units are reference counted (+4, release 0x4FCAD3:
+above 1 down by one, else vf13). Around the attack call-off (0x43033E, at the mod's safe point) the game frees a
+subgroup's PathPoints still linked with mIsValid 0 and releases units already back in the pool (from 0x482028 and the
+world's deferred deletions 0x53066A) - the memory handed out twice, the list loops (endless 0x5310B3/0x62FE01) or
+breaks (crashes 0x628D6F, 0x53110D, 0x531131); guarded in attack.c (unit_node_free, hook_unit_release).
+
 ### Ranged attacks and projectiles (dll/aim.c)
 
 - Firing: 0x61E11C (attacker class, thiscall(unit)). Aim point from 0x633413 (cdecl: attacker, &target out,
