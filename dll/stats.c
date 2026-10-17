@@ -380,7 +380,7 @@ static void cmd_stats(char *out, const char *args) {
         int t = 0, from = 0x400;
         sscanf(args + 8, "%d %x", &t, &from);
         uint8_t *td = t >= 0 && t < 1024 ? ((uint8_t **)0x009418A0)[t] : NULL;
-        if (!td || IsBadReadPtr(td, 0x700)) { REPLY("error: no type %d\n", t); return; }
+        if (!td || !mem_readable(td, 0x700)) { REPLY("error: no type %d\n", t); return; }
         int o = snprintf(out, 4096, "ok: type %d family %d:", t, FIELD(td, 0x4B4, int));
         for (int off = from & ~3; off < from + 0x300 && off < 0x700 && o < 3900; off += 4) {
             int v = FIELD(td, off, int);

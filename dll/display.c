@@ -583,7 +583,8 @@ static void frame_stats(uint8_t *ras, unsigned screen) {
     FIELD(st, 0x328, unsigned) = FIELD(st, 0x32C, unsigned) = FIELD(st, 0x330, unsigned) = FIELD(st, 0x338, unsigned) = 0;
 }
 
-// FRAME WATCH (aimod.ini [display] frame_watch = frames per second, default 35; 0 = off). Low frame rates late in
+// FRAME WATCH (aimod.ini [display] frame_watch = frames per second; default 0 = off - a profiler suspending the
+// render thread, for diagnosing, not for every player). Low frame rates late in
 // long games (25 fps, 64% of the render thread in GDI, 2026-10-12) don't show in the test games, so the game watches
 // itself: while a game runs (the game clock moves), every minute a "# frames:" line with the average and the worst
 // second and the process's GDI / USER object counts (a leak would grow them); when 10 seconds in a row stay under
@@ -592,7 +593,7 @@ static void frame_stats(uint8_t *ras, unsigned screen) {
 static void cmd_profile_render(int dur, char *out);
 static void frame_costs_log(unsigned frames);
 static int is_return_address(uintptr_t a);
-static int g_frame_watch = 35;
+static int g_frame_watch;
 static int g_fw_test;   // autotest frame_watch given: also headless (tests)
 static struct {
     DWORD sec_start, min_ms, last_profile, last_frame;
@@ -1130,7 +1131,7 @@ static long __fastcall hook_fc_text_rect(void *ras, void *edx, void *text, void 
         uint8_t *f = FIELD(text, 0x44, uint8_t *);
         const char *str = FIELD(text, 0x34, const char *);
         uint32_t *c = (uint32_t *)((uint8_t *)text + 0x14);
-        int ok = str && !IsBadReadPtr(str, 1);
+        int ok = str && mem_readable(str, 1);
         uint32_t h = tl_hash(&f, sizeof f, 2166136261u);
         h = tl_hash(&bmp, sizeof bmp, h);
         h = tl_hash(c, 12, h);
@@ -1681,9 +1682,12 @@ static int install_windowed_present(void) {
         void *gcmi = (void *)GetProcAddress(m, "?GetCurrentModeIndex@DX7Screen@@UBEKXZ");
         if (gcm) n += replace_rdata_ptr(m, gcm, (void *)hook_get_current_mode);
         if (gcmi) n += replace_rdata_ptr(m, gcmi, (void *)hook_get_current_mode_index);
-        void *dt = (void *)GetProcAddress(m, "?Draw@DX7Rasterizer@@UAEJAAVGETerrainMesh@@K_N@Z");
+        // diagnostics (ddinfo counters; autotest diag_skip leaves terrain/water/fog out): only with [display] diag=1
+        // or autotest diag_hooks / diag_skip - for players they were per-draw hooks with nothing to show
+        int diag = g_diag || g_diag_skip;
+        void *dt = diag ? (void *)GetProcAddress(m, "?Draw@DX7Rasterizer@@UAEJAAVGETerrainMesh@@K_N@Z") : NULL;
         if (dt) { g_draw_terrain[i] = (DrawTerrainFn)dt; n += replace_rdata_ptr(m, dt, (void *)hook_draw_terrain); }
-        void *dw = (void *)GetProcAddress(m, "?DrawWater@DX7Rasterizer@@UAEJAAVGETerrainMesh@@K_N@Z");
+        void *dw = diag ? (void *)GetProcAddress(m, "?DrawWater@DX7Rasterizer@@UAEJAAVGETerrainMesh@@K_N@Z") : NULL;
         if (dw) { g_draw_water[i] = (DrawTerrainFn)dw; n += replace_rdata_ptr(m, dw, (void *)hook_draw_water); }
         g_get_native_error = (GetErrFn)GetProcAddress(GetModuleHandleA("Low-Level Engine.dll"), "?ESGetNativeError@@YAKXZ");
         static const char *cnt_exports[3] = {
@@ -1691,17 +1695,17 @@ static int install_windowed_present(void) {
             "?CopyWithFilter@DX7Surface@@UAEJPAVGESurface@@AAVGERectangle@@1@Z",
             "?CreateSurface@DX7Screen@@UAEJAAUGESurfaceDescription@@PAPAVGESurface@@@Z",
         };
-        void *sf = (void *)GetProcAddress(m, "?SetFog@DX7Rasterizer@@UAEXKK@Z");
-        void *sft = (void *)GetProcAddress(m, "?SetFogType@DX7Rasterizer@@UAEXKK@Z");
-        void *sfr = (void *)GetProcAddress(m, "?SetFogRange@DX7Rasterizer@@UAEXMMK@Z");
+        void *sf = diag ? (void *)GetProcAddress(m, "?SetFog@DX7Rasterizer@@UAEXKK@Z") : NULL;
+        void *sft = diag ? (void *)GetProcAddress(m, "?SetFogType@DX7Rasterizer@@UAEXKK@Z") : NULL;
+        void *sfr = diag ? (void *)GetProcAddress(m, "?SetFogRange@DX7Rasterizer@@UAEXMMK@Z") : NULL;
         if (sf) { g_set_fog[i] = (SetFogFn)sf; n += replace_rdata_ptr(m, sf, (void *)hook_set_fog); }
         if (sft) { g_set_fog_type[i] = (SetFogFn)sft; n += replace_rdata_ptr(m, sft, (void *)hook_set_fog_type); }
         if (sfr) { g_set_fog_range[i] = (SetFogRangeFn)sfr; n += replace_rdata_ptr(m, sfr, (void *)hook_set_fog_range); }
-        void *cl = (void *)GetProcAddress(m, "?Clear@DX7Rasterizer@@UAEJABVGEColor@@ABVGERectangle@@K@Z");
-        void *clz = (void *)GetProcAddress(m, "?ClearZBuffer@DX7Rasterizer@@UAEJMABVGERectangle@@K@Z");
+        void *cl = diag ? (void *)GetProcAddress(m, "?Clear@DX7Rasterizer@@UAEJABVGEColor@@ABVGERectangle@@K@Z") : NULL;
+        void *clz = diag ? (void *)GetProcAddress(m, "?ClearZBuffer@DX7Rasterizer@@UAEJMABVGERectangle@@K@Z") : NULL;
         if (cl) { g_clear[i] = (ClearFn)cl; n += replace_rdata_ptr(m, cl, (void *)hook_clear); }
         if (clz) { g_clearz[i] = (ClearZFn)clz; n += replace_rdata_ptr(m, clz, (void *)hook_clearz); }
-        void *srt = (void *)GetProcAddress(m, "?SetRenderTarget@DX7Rasterizer@@MAEXPAVGESurface@@K@Z");
+        void *srt = diag ? (void *)GetProcAddress(m, "?SetRenderTarget@DX7Rasterizer@@MAEXPAVGESurface@@K@Z") : NULL;
         if (srt) { g_set_rt[i] = (SetRTFn)srt; n += replace_rdata_ptr(m, srt, (void *)hook_set_rt); }
         if (g_frame_watch) {
             void **svt = (void **)GetProcAddress(m, "??_7DX7Surface@@6B@");
@@ -1744,6 +1748,7 @@ static int install_windowed_present(void) {
         }
         void *cnt_hooks[3] = { (void *)hook_copy_to, (void *)hook_copy_filter, (void *)hook_create_surface };
         for (int k = 0; k < 3; k++) {
+            if ((k == 1 && !diag) || (k == 2 && !diag && !g_frame_watch)) continue;   // CopyTo: the front-copy fix
             void *f = (void *)GetProcAddress(m, cnt_exports[k]);
             if (f) { g_cnt[k].orig[i] = f; n += replace_rdata_ptr(m, f, cnt_hooks[k]); }
         }
@@ -2173,7 +2178,7 @@ static void display_install(const char *aimod_ini, const char *autotest_ini) {
             g_text_bitmap = text_bitmap_install();
             if (g_log) fprintf(g_log, "# text bitmap: %s\n", g_text_bitmap ? "on (umlaut patch 2/2)" : "engine functions not found - off");
         }
-        g_frame_watch = GetPrivateProfileIntA("display", "frame_watch", 35, aimod_ini);
+        g_frame_watch = GetPrivateProfileIntA("display", "frame_watch", 0, aimod_ini);
         if (autotest_ini && (g_fw_test = GetPrivateProfileIntA("autotest", "frame_watch", -1, autotest_ini)) >= 0) g_frame_watch = g_fw_test;
         else g_fw_test = 0;
         int at = autotest_ini ? GetPrivateProfileIntA("autotest", "alloc_trace", 0, autotest_ini) : 0;

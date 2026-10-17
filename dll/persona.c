@@ -638,7 +638,7 @@ static const char *player_name(void *pl) {
 // civilization=); en: the database's name (+0x7B0: "Carthage") - NULL: none chosen
 static const char *player_civ_of(void *pl, int en) {
     const char *s = pl ? FIELD(pl, en ? 0x7B0 : 0x48C, const char *) : NULL;
-    return s && !IsBadReadPtr(s, 1) && *s ? s : NULL;
+    return s && mem_readable(s, 1) && *s ? s : NULL;
 }
 static const char *player_civ(void *pl) { return player_civ_of(pl, 0); }
 // the player's colour: its index 0..16 in the colour table (+0x438 holds the table entry's rgb) - -1: another one

@@ -140,7 +140,9 @@ Scripts:
 ## Control pipe
 
 While the game runs, the DLL serves `\\.\pipe\eeaimod`, one command per connection. Commands that touch
-game state run on the simulation thread.
+game state run on the simulation thread. The pipe is open in autotest runs; in a normal game only with
+aimod.ini `[general] control_pipe=1` (default 0 since 2026-10-17 - a command on one PC desyncs multiplayer).
+Setup files (`setup=`) run their commands directly, not through the pipe.
 
 ```sh
 venv/Scripts/python scripts/eectl.py <command>
@@ -246,7 +248,7 @@ vary 7-33 ms between and within runs in the same save - the slow state is not re
 - `camtrace N`: the next N presented frames - frame time, camera movement, scroll steps in between (`# camtrace:`
   lines). Edge scrolling headless: `vmouse 2559 700`. 2026-10-12, AoC scrolling: 0 or 1 steps per frame of 0.285
   tiles each (every fifth frame none); with `[camera] smooth` one step per frame, 0.0285 tiles per ms of frame time.
-- Frame watch (`[display] frame_watch`, default 35 fps; autotest `frame_watch=N` also runs it headless): in the
+- Frame watch (`[display] frame_watch`, default 0 = off since 2026-10-17, e.g. 35 fps; autotest `frame_watch=N` also runs it headless): in the
   player's own games, every minute `# frames: at <min>: <fps>, worst second, seconds under the threshold; GDI
   objects, USER objects`, and after 10 s under the threshold the render-thread profile (`# |` lines, at most 5 a
   session, 5 min apart). The profile now also lists the game code that led into GDI and reads 8 KB of stack.

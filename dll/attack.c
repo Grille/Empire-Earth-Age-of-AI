@@ -1369,7 +1369,7 @@ static void attack_tick(void *pl, uint32_t now) {
         uint8_t *st = (uint8_t *)pl + 0x4A8;
         for (int k = 0; k < 30; k++) {
             uint8_t *b = FIELD(st, 0x1C + k * 0x18, uint8_t *), *e = FIELD(st, 0x20 + k * 0x18, uint8_t *);
-            int ok = b && e > b && (e - b) % 8 == 0 && e - b < (1 << 20) && !IsBadReadPtr(e - 8, 8);
+            int ok = b && e > b && (e - b) % 8 == 0 && e - b < (1 << 20) && mem_readable(e - 8, 8);
             fprintf(g_log, " %d", ok ? FIELD(e, -8, int) : 0);
         }
         fputc('\n', g_log);

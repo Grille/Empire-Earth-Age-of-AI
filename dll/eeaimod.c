@@ -124,6 +124,21 @@ static void __fastcall hook_cp_update(void *pl, void *edx, uint32_t now) {
 
 #define FIELD(p, off, T) (*(T *)((uint8_t *)(p) + (off)))
 
+// `n` bytes at p readable, from the page table (IsBadReadPtr probes by raising access violations: each one went
+// through the crash log's first-chance handler)
+static int mem_readable(const void *p, size_t n) {
+    uintptr_t a = (uintptr_t)p, end = a + n;
+    if (!p || end < a) return 0;
+    while (a < end) {
+        MEMORY_BASIC_INFORMATION mbi;
+        if (!VirtualQuery((void *)a, &mbi, sizeof mbi) || mbi.State != MEM_COMMIT || (mbi.Protect & (PAGE_GUARD | PAGE_NOACCESS))
+            || !(mbi.Protect & (PAGE_READONLY | PAGE_READWRITE | PAGE_WRITECOPY | PAGE_EXECUTE_READ | PAGE_EXECUTE_READWRITE
+                                | PAGE_EXECUTE_WRITECOPY))) return 0;
+        a = (uintptr_t)mbi.BaseAddress + mbi.RegionSize;
+    }
+    return 1;
+}
+
 static uint32_t game_time(void) {
     uint8_t *clock = *(uint8_t **)G_WORLD_CLOCK;
     return clock ? FIELD(clock, 0xD0, uint32_t) : 0;
@@ -179,7 +194,10 @@ static char __fastcall hook_assign_citizens(void *rm, void *edx) {
 }
 
 // ---- memory snapshots: raw dumps of a player's AI objects, for diffing working vs broken games ----
-static char g_dump_dir[MAX_PATH];
+// Autotest, or aimod.ini [general] memory_dumps=1: 2 files per AI and game, never deleted (17,000 files / 0.4 GB
+// in normal play before) - off for players.
+static char g_dump_dir[MAX_PATH];   // also the folder of the control pipe's shot / ddinfo dump pictures
+static int g_mem_dumps;
 static DWORD g_session;
 
 // Copy `len` bytes of our own memory without risking an access violation on unmapped pages.
@@ -187,6 +205,7 @@ static void dump_region(FILE *f, const char *tag, const void *p, uint32_t len) {
     static uint8_t buf[0x2000];
     SIZE_T got = 0;
     if (len > sizeof buf) len = sizeof buf;
+    memset(buf, 0, len);   // the static buffer held the last region
     if (p) ReadProcessMemory(GetCurrentProcess(), p, buf, len, &got);
     uint32_t hdr[3] = { (uint32_t)(uintptr_t)p, len, (uint32_t)got };
     char name[16] = {0};
@@ -199,7 +218,7 @@ static void dump_region(FILE *f, const char *tag, const void *p, uint32_t len) {
 static void dump_player(void *rm, uint32_t now) {
     void *pl = rm_player(rm);
     void *cm = FIELD(rm, RM_OWNER, void *);
-    if (!pl || !cm || !g_dump_dir[0]) return;
+    if (!pl || !cm || !g_dump_dir[0] || !g_mem_dumps) return;
     char path[MAX_PATH];
     static unsigned run;   // distinguishes several games within one session (game times repeat)
     static uint32_t last_now = 0xFFFFFFFF;
@@ -479,10 +498,37 @@ static void autotest_tick(uint32_t now) {
 #define SETUP_NAME      0x3AC
 typedef char (__thiscall *GameStartFn)(void *state, void *setup, void *p2);
 
+// aimod_econ.csv in normal play: over 20 MB at the start of a session or a game (a long game writes ~10 MB), it
+// becomes aimod_econ.old.csv (the older one deleted) and a new log starts - it was appended to forever. Autotest
+// keeps the whole log (the tests and scripts parse it).
+#define LOG_ROTATE_BYTES (20u << 20)
+static char g_log_path[MAX_PATH];
+static void log_rotate(void) {
+    WIN32_FILE_ATTRIBUTE_DATA fa;
+    if (g_auto.enabled || !g_log_path[0] || !GetFileAttributesExA(g_log_path, GetFileExInfoStandard, &fa)
+        || (!fa.nFileSizeHigh && fa.nFileSizeLow < LOG_ROTATE_BYTES)) return;
+    char old[MAX_PATH];
+    lstrcpynA(old, g_log_path, sizeof old - 8);
+    char *dot = strrchr(old, '.');
+    if (!dot) return;
+    lstrcpyA(dot, ".old.csv");
+    EnterCriticalSection(&g_lock);
+    int was_open = g_log != NULL;
+    if (g_log) { fclose(g_log); g_log = NULL; }
+    BOOL ok = MoveFileExA(g_log_path, old, MOVEFILE_REPLACE_EXISTING);
+    if (was_open) g_log = fopen(g_log_path, "a");
+    if (g_log) {
+        fprintf(g_log, "# log: %lu MB moved to %s%s\n", fa.nFileSizeLow >> 20, old, ok ? "" : " - FAILED");
+        fflush(g_log);
+    }
+    LeaveCriticalSection(&g_lock);
+}
+
 static char __fastcall hook_game_start(void *state, void *edx, uint8_t *setup, void *p2) {
     (void)edx;
     char *name = *(char **)(setup + SETUP_NAME);
     int mode = *(int *)(setup + SETUP_MODE);
+    log_rotate();
     if (g_log) {
         EnterCriticalSection(&g_lock);
         fprintf(g_log, "# game start: mode=%d name=\"%s\" game_type=%d\n", mode, name ? name : "(null)", *(int *)0x918BF4);
@@ -620,7 +666,6 @@ static void install(HMODULE self) {
     if (slash) {
         *slash = 0;
         wsprintfA(g_dump_dir, "%s\\aimod_dumps", path);
-        CreateDirectoryA(g_dump_dir, NULL);
         *slash = '\\';
         lstrcpyA(slash + 1, "aimod.ini");   // required: missing -> error and quit; [general] enabled=0 -> no hooks
         if (GetFileAttributesA(path) == INVALID_FILE_ATTRIBUTES) config_missing(path);
@@ -636,9 +681,14 @@ static void install(HMODULE self) {
         load_autotest(path);
         lstrcpyA(g_ini, path);
         lstrcpyA(slash + 1, "aimod_econ.csv");
+        g_mem_dumps = g_auto.enabled || GetPrivateProfileIntA("general", "memory_dumps", 0, g_aimod_ini);
+        if (g_mem_dumps || g_auto.enabled || GetPrivateProfileIntA("general", "control_pipe", 0, g_aimod_ini))
+            CreateDirectoryA(g_dump_dir, NULL);   // memory dumps, shot / ddinfo pictures
+        lstrcpynA(g_log_path, path, sizeof g_log_path);
     }
     g_session = GetTickCount();
     InitializeCriticalSection(&g_lock);
+    log_rotate();
     g_log = fopen(path, "a");
     if (g_log) {
         SYSTEMTIME st;
@@ -689,7 +739,7 @@ static void install(HMODULE self) {
     select_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
     drawlist_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
     llm_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
-    ctl_start();
+    ctl_start(g_auto.enabled || GetPrivateProfileIntA("general", "control_pipe", 0, g_aimod_ini));
     if (g_auto.enabled && g_auto.game_seed) {
         BOOL ok = patch_srand();
         if (g_log) fprintf(g_log, "# autotest: game_seed=%d (srand hook %s)\n", g_auto.game_seed, ok ? "ok" : "FAILED");
