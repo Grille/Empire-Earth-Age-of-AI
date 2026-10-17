@@ -52,8 +52,6 @@
 #define RS_INITIALIZED  0x118  // research schedule initialised while 0
 #define CM_FLAGS_LEN    9
 
-// Clearing the managers' setup flags at scenario start did not revive the AI (runs 6/7); off for now.
-#define FIX_CLEAR_SETUP_FLAGS 0
 
 typedef char (__thiscall *RmFn)(void *self);
 typedef void (__thiscall *RmUpdateFn)(void *self, uint32_t now);
@@ -101,7 +99,6 @@ static void *g_players[16];   // EEComputerPlayer seen by the AI hooks, by playe
 static char g_ini[MAX_PATH], g_aimod_ini[MAX_PATH];   // aimod_autotest.ini, aimod.ini (paths set in DllMain)
 static BOOL patch_srand(void);
 #define G_SCENARIO_FLAG 0x00918819   // byte: game is a scenario/campaign (settings 0x918410 + 0x409)
-static int g_clear_scenario_flag;
 
 // FIX (scenario bug): the scenario/campaign branch of the game start (0x52599B) sets gamestate+0x411,
 // which is copied to the settings byte 0x918819. Several AI routines skip their normal planning when it
@@ -313,22 +310,6 @@ static void __fastcall hook_rm_update(void *rm, void *edx, uint32_t now) {
             persona_assign(pl);
             settings_apply(pl);
         }
-        static int traced;
-        if (!traced) {   // one-time EBP-chain walk to find the game's main loop
-            traced = 1;
-            uintptr_t *fp = (uintptr_t *)__builtin_frame_address(0);
-            char line[512];
-            int n = wsprintfA(line, "# stack (thread %lu):", GetCurrentThreadId());
-            for (int d = 0; d < 16 && fp; d++) {
-                uintptr_t pair[2];
-                SIZE_T got;
-                if (!ReadProcessMemory(GetCurrentProcess(), fp, pair, sizeof pair, &got)) break;
-                n += wsprintfA(line + n, " %08lx", (unsigned long)pair[1]);
-                if (pair[0] <= (uintptr_t)fp) break;
-                fp = (uintptr_t *)pair[0];
-            }
-            if (g_log) { EnterCriticalSection(&g_lock); fprintf(g_log, "%s\n", line); fflush(g_log); LeaveCriticalSection(&g_lock); }
-        }
         if (now < 5000) dumped[idx] = 0;   // new game in the same session
 
         // Diagnostics: log the managers' one-time setup flags at game start. (An early theory blamed
@@ -345,21 +326,12 @@ static void __fastcall hook_rm_update(void *rm, void *edx, uint32_t now) {
             };
             if (g_log) {
                 EnterCriticalSection(&g_lock);
-                fprintf(g_log, "# start: P%d t=%u flags cm75=%d bm148=%d rs118=%d%s\n",
-                        idx, now, *flags[0], *flags[1], *flags[2], FIX_CLEAR_SETUP_FLAGS ? " -> cleared" : "");
+                fprintf(g_log, "# start: P%d t=%u flags cm75=%d bm148=%d rs118=%d\n",
+                        idx, now, *flags[0], *flags[1], *flags[2]);
                 fflush(g_log);
                 LeaveCriticalSection(&g_lock);
             }
-#if FIX_CLEAR_SETUP_FLAGS
-            for (int i = 0; i < 3; i++) *flags[i] = 0;
-#endif
-            // Experiment: 0x918819 = "scenario/campaign game" (settings+0x409, copied from gamestate+0x411,
-            // which the scenario branch of the game start sets). Several AI routines check it.
-            autotest_first_tick(pl);   // test overrides (after settings_apply below ran once)
-            if (g_clear_scenario_flag && *(uint8_t *)G_SCENARIO_FLAG) {
-                *(uint8_t *)G_SCENARIO_FLAG = 0;
-                log_line("# experiment: cleared scenario flag 0x918819%s%.0d\n", "", 0);
-            }
+            autotest_first_tick(pl);   // test overrides (after settings_apply above)
         }
         if (!(dumped[idx] & 1) && now >= 10000) { dumped[idx] |= 1; dump_player(rm, now); }
         if (!(dumped[idx] & 2) && now >= 60000) { dumped[idx] |= 2; dump_player(rm, now); }
@@ -398,7 +370,6 @@ static void load_autotest(const char *ini) {
     g_auto.turbo = GetPrivateProfileIntA("autotest", "turbo", 0, ini);
     g_auto.game_seed = GetPrivateProfileIntA("autotest", "game_seed", 0, ini);
     GetPrivateProfileStringA("autotest", "setup", "", g_setup_path, sizeof g_setup_path, ini);
-    g_clear_scenario_flag = GetPrivateProfileIntA("autotest", "clear_scenario_flag", 0, ini);
     randmap_load(ini);
     char buf[32];
     GetPrivateProfileStringA("autotest", "speed", "0", buf, sizeof buf, ini);

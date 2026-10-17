@@ -269,7 +269,7 @@ vary 7-33 ms between and within runs in the same save - the slow state is not re
 - The next session (2026-10-12): memory +13 MB a minute, surfaces/textures flat. Heap analysis from outside
   (`scripts/memgrow.py` growing regions, `heapid.py` which heap, `lfhscan.py` LFH block sizes and contents;
   all VirtualQueryEx/ReadProcessMemory, read-only, safe on the player's running game): the process heap grew by 16 MB segments full of 1504-byte LFH
-  blocks (~4 a frame) holding the same DC and font handle, linked in a list. Autotest `alloc_trace=<bytes>`
+  blocks (~4 a frame) holding the same DC and font handle, linked in a list. Autotest `alloc_trace=<bytes>` (removed 2026-10-17 - in git before that)
   (hot-patched RtlAllocateHeap, raw stack copies, chains in the minute line) showed the source: the game's
   ExtTextOutA on the surface DC -> DDrawCompat -> gdi32full LpkUseGDIWidthCache / GdiRealizationInfo: a font
   realization cache entry per text output, never freed. Headless A/B (6 min): DDrawCompat 232 -> 263 MB,

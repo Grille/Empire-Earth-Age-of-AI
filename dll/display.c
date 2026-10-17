@@ -1592,83 +1592,8 @@ static void session_counts_log(void) {
     LeaveCriticalSection(&g_lock);
 }
 
-// ALLOCATION TRACE (tests only: autotest alloc_trace=<bytes>): which code makes the heap blocks a session piles up
-// (DDrawCompat: ~1500-byte blocks, linked, each with the same DC and font handle, about one per text output - none
-// with dgVoodoo). ntdll!RtlAllocateHeap is hot-patched (mov edi,edi + 5 bytes of padding); for requests within 80
-// bytes below the given size the hook only copies 4 KB of the raw stack into a static buffer (no calls, no
-// allocations inside the allocator); the minute line resolves the return addresses on them and logs the chains.
-enum { AT_MAX = 24, AT_STACK = 1024 };
-static int g_at_size;
-static volatile LONG g_at_n, g_at_logged;
-static uintptr_t g_at_stack[AT_MAX][AT_STACK];
-static SIZE_T g_at_req[AT_MAX];
-static int g_at_depth[AT_MAX];
-static void *(WINAPI *g_rtl_alloc)(HANDLE, ULONG, SIZE_T);
-static void *WINAPI hook_rtl_alloc(HANDLE heap, ULONG flags, SIZE_T size) {
-    if ((int)size <= g_at_size && (int)size > g_at_size - 80 && g_at_n < AT_MAX && game_time() > 60000) {
-        LONG k = InterlockedIncrement(&g_at_n) - 1;
-        if (k < AT_MAX) {
-            volatile uintptr_t *sp = (volatile uintptr_t *)__builtin_frame_address(0);
-            volatile uintptr_t *top = (volatile uintptr_t *)(uintptr_t)__readfsdword(4);   // TEB StackBase
-            int n = 0;
-            for (; n < AT_STACK && sp + n < top; n++) g_at_stack[k][n] = sp[n];
-            g_at_depth[k] = n;
-            g_at_req[k] = size;
-        }
-    }
-    return g_rtl_alloc(heap, flags, size);
-}
-static int alloc_trace_install(int size) {
-    uint8_t *f = (uint8_t *)GetProcAddress(GetModuleHandleA("ntdll.dll"), "RtlAllocateHeap");
-    if (!f || f[0] != 0x8B || f[1] != 0xFF || f[-5] != 0xCC || f[-1] != 0xCC) return 0;
-    DWORD old;
-    if (!VirtualProtect(f - 5, 7, PAGE_EXECUTE_READWRITE, &old)) return 0;
-    g_at_size = size;
-    g_rtl_alloc = (void *(WINAPI *)(HANDLE, ULONG, SIZE_T))(void *)(f + 2);
-    f[-5] = 0xE9;
-    *(int32_t *)(f - 4) = (int32_t)((uintptr_t)hook_rtl_alloc - (uintptr_t)f);
-    *(volatile uint16_t *)f = 0xF9EB;   // jmp short -7
-    VirtualProtect(f - 5, 7, old, &old);
-    FlushInstructionCache(GetCurrentProcess(), f - 5, 7);
-    return 1;
-}
-static void alloc_trace_log(void) {
-    LONG n = g_at_n < AT_MAX ? g_at_n : AT_MAX;
-    if (!g_log || g_at_logged >= n) return;
-    HMODULE nt = GetModuleHandleA("ntdll.dll");
-    for (LONG k = g_at_logged; k < n; k++) {
-        char line[1600];
-        int o = snprintf(line, sizeof line, "# alloc trace %ld: %lu bytes:", k, (unsigned long)g_at_req[k]);
-        int found = 0;
-        if (k == 0) {   // raw check of the first copy
-            int depth = 0;
-            depth = g_at_depth[k];
-            EnterCriticalSection(&g_lock);
-            fprintf(g_log, "# alloc trace raw: %d dwords:", depth);
-            for (int i = 0; i < 24 && i < depth; i++) fprintf(g_log, " %08lx", (unsigned long)g_at_stack[k][i]);
-            fputc('\n', g_log);
-            LeaveCriticalSection(&g_lock);
-        }
-        for (int i = 0; i < g_at_depth[k] && found < 14; i++) {
-            uintptr_t a = g_at_stack[k][i];
-            HMODULE m = NULL;
-            if (!is_return_address(a) || !GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
-                GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, (LPCSTR)a, &m) || m == nt) continue;
-            char at[160];
-            crash_addr(at, sizeof at, a);
-            o += snprintf(line + o, sizeof line - o, " %s", at);
-            found++;
-        }
-        EnterCriticalSection(&g_lock);
-        fprintf(g_log, "%s\n", line);
-        LeaveCriticalSection(&g_lock);
-    }
-    g_at_logged = n;
-}
-
 static void frame_costs_log(unsigned frames) {
     session_counts_log();
-    alloc_trace_log();
     LARGE_INTEGER f;
     QueryPerformanceFrequency(&f);
     for (int k = 0; k < FC_N && g_log && frames; k++) {
@@ -2209,8 +2134,6 @@ static void display_install(const char *aimod_ini, const char *autotest_ini) {
         g_frame_watch = GetPrivateProfileIntA("display", "frame_watch", 0, aimod_ini);
         if (autotest_ini && (g_fw_test = GetPrivateProfileIntA("autotest", "frame_watch", -1, autotest_ini)) >= 0) g_frame_watch = g_fw_test;
         else g_fw_test = 0;
-        int at = autotest_ini ? GetPrivateProfileIntA("autotest", "alloc_trace", 0, autotest_ini) : 0;
-        if (at > 0 && g_log) fprintf(g_log, "# alloc trace: requests of %d-%d bytes, hook %d\n", at - 79, at, alloc_trace_install(at));
         int hooks = install_windowed_present();
         GetPrivateProfileStringA("display", "lock_mouse", "auto", tmp, sizeof tmp, aimod_ini);
         g_lock_mouse = !lstrcmpiA(tmp, "auto") ? 2 : atoi(tmp) ? 1 : 0;
