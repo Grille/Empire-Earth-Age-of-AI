@@ -16,7 +16,7 @@
 // Layout: the size alone let a struct changed to the same size through (fields reordered, int <-> float) - its
 // bytes became other values. Each block carries a hash of its variable's definition, the structs it names and the
 // macros of its sizes (scripts/persist_layout.py -> persist_layout.h, run by build.sh). Files of format 1 (no
-// layout) are ignored as a whole, with a log line.
+// layout word: the saves made before it) are read as they always were, blocks matched by tag and size only.
 #define FN_SAVE_GAME 0x00540ACA
 static char g_aimod_ini[MAX_PATH];   // eeaimod.c (defined after the includes)
 static int g_persist = 1;   // aimod.ini [general] save_state
@@ -137,12 +137,13 @@ static void persist_load(const char *name) {
     if (!f) { if (g_log) fprintf(g_log, "# persist: no state file for %s\n", name); return; }
     struct persist_head h, now;
     int ok = fread(&h, sizeof h, 1, f) == 1 && !memcmp(h.magic, "EEAIMOD", 8);
-    if (ok && h.version != PERSIST_FORMAT) {   // an older (or newer) mod's file: its blocks can't be checked
+    if (ok && h.version != 1 && h.version != PERSIST_FORMAT) {   // a newer mod's file: its blocks can't be read
         fclose(f);
-        if (g_log) fprintf(g_log, "# persist: %s has format %u (this mod reads %d) - ignored, the AIs start fresh\n", side,
-                           h.version, PERSIST_FORMAT);
+        if (g_log) fprintf(g_log, "# persist: %s has format %u (this mod reads 1 and %d) - ignored, the AIs start fresh\n",
+                           side, h.version, PERSIST_FORMAT);
         return;
     }
+    int v1 = ok && h.version == 1;   // format 1 (saves made before): no layout word, blocks matched by tag and size
     ok = ok && ees_stamp(ees, &now.ees_size, &now.ees_time) && h.ees_size == now.ees_size &&
          !CompareFileTime(&h.ees_time, &now.ees_time);
     if (!ok) {
@@ -152,8 +153,10 @@ static void persist_load(const char *name) {
     }
     int got = 0, skipped = 0, broken = 0;
     char tag[32];
-    uint32_t n, lay;
-    while (fread(tag, sizeof tag, 1, f) == 1 && fread(&n, sizeof n, 1, f) == 1 && fread(&lay, sizeof lay, 1, f) == 1) {
+    uint32_t n, lay = 0;
+    if (g_log) fprintf(g_log, "# persist: %s has format %u (blocks matched by tag, size%s)\n", side, h.version,
+                       v1 ? " - no layout check" : " and layout");
+    while (fread(tag, sizeof tag, 1, f) == 1 && fread(&n, sizeof n, 1, f) == 1 && (v1 || fread(&lay, sizeof lay, 1, f) == 1)) {
         tag[31] = 0;
         if (n > PERSIST_MAX_BLOCK) { broken = 1; break; }
         // read whole before it is used: a block cut short (a broken file) left half old, half new state
@@ -162,7 +165,7 @@ static void persist_load(const char *name) {
         size_t i = 0;
         while (i < sizeof k_blocks / sizeof *k_blocks && strcmp(k_blocks[i].tag, tag)) i++;
         if (!strcmp(tag, "llm_memory")) { llm_mem_load(mp, n); got++; }   // the model's memories: their own format
-        else if (i < sizeof k_blocks / sizeof *k_blocks && k_blocks[i].n == n && lay == block_layout(tag)) {
+        else if (i < sizeof k_blocks / sizeof *k_blocks && k_blocks[i].n == n && (v1 || lay == block_layout(tag))) {
             memcpy(k_blocks[i].p, mp, n);
             got++;
         } else {
