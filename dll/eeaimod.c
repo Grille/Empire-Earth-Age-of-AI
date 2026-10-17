@@ -521,6 +521,7 @@ static char __fastcall hook_game_start(void *state, void *edx, uint8_t *setup, v
 #include "econ.c"
 #include "attack.c"
 #include "defence.c"
+#include "stats.c"
 #include "assault.c"
 #include "landing.c"
 #include "intel.c"

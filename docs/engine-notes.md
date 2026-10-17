@@ -146,6 +146,14 @@ Guard towers 47, 461..466; AA 145/147; town center 35; house 37; citizen 32.
   0x8D2050[attacker class +0x4C0 + target class +0x4C0 x 6] x bonus 0x4D5F2C (thiscall on 0x917DE0: class +0x4C8,
   target class, both player indices +0x45C; ret 0x10); minus armour (target stats +0xE0 + attack class x 4); x the
   height factor 0x61E500 (land/building attackers only); rounded, at least 1; hit points -> target vf 0x70.
+  Classes (type +0x4C0, also the armour index): 0 shock, 1 arrow, 2 pierce, 3 gun, 4 laser, 5 missile (the class
+  attribute names 29120..). The table 0x8D2050 is filled at load; in 1.04 it is 1 everywhere but 1.5 for pierce at
+  shock, shock at arrow and arrow at pierce. The hit factor carries the type bonuses (reference save: artillery 143
+  at a WW1 tower x3, the tower at artillery x0.12, a Mk V at machine gunners x2, machine gunner at machine gunner
+  x2.1). Stats record (per player and type, 0x492969 on player +0x874): +0xD8 attack, +0xE0.. armour (floats),
+  +0x138 reload ms and +0x144 max hp (ints), +0x9C range, +0xA0 area. dll/stats.c computes it (`stats` command).
+  In fights a shot takes the reload plus about 2 s (duels, scripts/duels.sh: machine gunners with a 1 s reload
+  fired every 3.3-5.1 s, Mk V tanks with 4 s every 4.6-7.1 s).
 - Fire calls (0x61E11C thiscall(class, unit)): 0x606067, 0x607D79 (attack actions), 0x60ABB0 (EEUGAttackGround),
   0x60B33C (EEUGAttackUnit).
 - Math imports of the game's own DLL: UMCos 0x823304, UMArcTan2 0x82325C (cdecl). msvcrt rand 0x824648, srand

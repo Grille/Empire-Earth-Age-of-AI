@@ -142,3 +142,4 @@ static void cmd_trig(char *out, const char *args) {
     else { REPLY("error: trig [list|desc] | on|off|reset|fire T | effect N\n"); return; }
     REPLY("ok: trigger %d %s\n", idx, verb);
 }
+

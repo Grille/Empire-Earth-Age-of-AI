@@ -71,6 +71,7 @@ static void cmd_chat(char *out, const char *args);
 static void cmd_say(char *out, const char *args);
 static void cmd_chatme(char *out, const char *args);
 static void cmd_trig(char *out, const char *args);
+static void cmd_stats(char *out, const char *args);
 static void cmd_diplo(char *out, const char *args);
 static void cmd_persona(char *out, const char *args);
 static void cmd_spawn(char *out, const char *args);
@@ -436,6 +437,7 @@ static void execute(const char *cmd, char *out) {
     else if (!strcmp(verb, "say")) cmd_say(out, args);
     else if (!strcmp(verb, "chatme")) cmd_chatme(out, args);
     else if (!strcmp(verb, "trig")) cmd_trig(out, args);
+    else if (!strcmp(verb, "stats")) cmd_stats(out, args);
     else if (!strcmp(verb, "diplo")) cmd_diplo(out, args);
     else if (!strcmp(verb, "persona")) cmd_persona(out, args);
     else if (!strcmp(verb, "spawn")) cmd_spawn(out, args);

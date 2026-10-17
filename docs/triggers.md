@@ -568,7 +568,7 @@ The case calls 0x5248D4 (a shared empty `ret`, named EECPASGUProphetCalamityAnal
 dialog (EESETSETMaintainObject) has only vf4.
 
 #### n=4 Set AI Toggle - 0x5B16EF (EESETSETToggleAI: +0xEC which, +0x188 On/Off; 29625..)
-Applies to every non-human player; there is no dynamic_cast. 0 Active -> `cp->0x43F3E7(char)` (ret 4). Turning it
+Applies to every non-human player; there is no dynamic_cast. Called from the test pipe (between simulation steps, 2026-10-17: `0x43F3E7(cp, 0)` for both AIs of a fresh random map) the game hung and was killed after 15 minutes, leaving a crash autosave - not usable as a test switch as it is. 0 Active -> `cp->0x43F3E7(char)` (ret 4). Turning it
 off calls 0x48EE0D on the unit manager ([cp+0xB90]+0x44), which deletes every unit's AI goal. Turning it on
 calls 0x48FAB5, which re-registers all the player's units (0x4905DF) and gives the citizens to the resource
 manager (0x48B344). Then it writes cp+0xEF9. The others are plain byte writes: 1 Cheat +0xEFB, 2 Attack
