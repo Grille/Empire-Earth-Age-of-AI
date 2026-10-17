@@ -58,6 +58,15 @@ static float st_reload(uint8_t *a) {   // the unit's own (scenario triggers chan
 // 4.6-7.1 s; about 2 s on every shot
 #define ST_SHOT_OVERHEAD 2.0f
 static float st_dps(uint8_t *a, uint8_t *t) { return st_shot(a, t) / (st_reload(a) + ST_SHOT_OVERHEAD); }
+static float st_range(uint8_t *u) { uint8_t *st = FIELD(u, 0x34, uint8_t *); return st ? FIELD(st, 0x9C, float) : FIELD(FIELD(u, 0x2C, uint8_t *), 0x420, float); }
+static float st_speed(uint8_t *u) { uint8_t *st = FIELD(u, 0x34, uint8_t *); return st ? FIELD(st, 0xAC, float) : 0.0f; }   // tiles/s, 0 = cannot move
+// RANGE (the user: "it can even overpower all the other stats since a unit can be eliminated from range before ever
+// getting a chance to fire back"): a unit that cannot move never hits one that outranges it; a unit that is
+// outranged walks the difference under fire first (st_close)
+static int st_reaches(uint8_t *a, uint8_t *t) { return st_speed(a) > 0 || st_range(a) + 0.5f >= st_range(t); }
+static float st_minrange(uint8_t *u) { return FIELD(FIELD(u, 0x2C, uint8_t *), 0x41C, float); }
+// once a mobile target has closed to its own range, an attacker whose minimum range is longer cannot hit it (artillery)
+static int st_inside_min(uint8_t *a, uint8_t *t) { return st_speed(t) > 0 && st_minrange(a) > 0 && st_minrange(a) >= st_range(t); }
 static int st_maxhp(uint8_t *td, uint8_t *st) { return st && FIELD(st, 0x144, int) > 0 ? FIELD(st, 0x144, int) : FIELD(td, 0x55C, int); }
 
 // --- test command -------------------------------------------------------------------------------------------------
@@ -73,15 +82,46 @@ static void st_fight_unit(uint8_t *u, void *ctx) {
     if (FIELD(td, 0x510, int) <= 0 && !is_soldier(td)) return;   // buildings that shoot
     f->u[p][f->n[p]++] = u;
 }
-// side a's damage per second at side b: each unit spreads its fire over the units of b it can hurt
-static float st_side_dps(uint8_t **a, int na, uint8_t **b, int nb) {
+// side a's damage per second at side b: each unit spreads its fire over the units of b it can hurt; contact: b has
+// closed in (no unit inside a's minimum range counts); area damage counts the units of b next to each target
+// (tile positions now)
+static float st_side_dps(uint8_t **a, int na, uint8_t **b, int nb, int contact) {
     float s = 0;
     for (int i = 0; i < na; i++) {
         float sum = 0; int k = 0;
-        for (int j = 0; j < nb; j++) { float d = st_dps(a[i], b[j]); if (d > 0) { sum += d; k++; } }
+        uint8_t *ast = FIELD(a[i], 0x34, uint8_t *);
+        float area = ast ? FIELD(ast, 0xA0, float) : 0;
+        for (int j = 0; j < nb; j++) {
+            float d = st_reaches(a[i], b[j]) && !(contact && st_inside_min(a[i], b[j])) ? st_dps(a[i], b[j]) : 0;
+            if (d > 0 && area > 0)   // area damage: every unit within the radius of the hit takes the same (0x61DAE6)
+                for (int m = 0; m < nb; m++) {
+                    float dx = (float)(FIELD(b[m], 0x1C, int) - FIELD(b[j], 0x1C, int)), dy = (float)(FIELD(b[m], 0x20, int) - FIELD(b[j], 0x20, int));
+                    if (m != j && dx * dx + dy * dy <= area * area) d += st_dps(a[i], b[m]);
+                }
+            if (d > 0) { sum += d; k++; }
+        }
         if (k) s += sum / k;
     }
     return s;
+}
+// seconds side a walks under fire before it shoots: each mobile unit's range short of side b's longest, over its speed
+// (weighted by what the unit deals)
+static float st_close(uint8_t **a, int na, uint8_t **b, int nb) {
+    float rb = 0, t = 0, w = 0;
+    for (int j = 0; j < nb; j++) if (st_range(b[j]) > rb) rb = st_range(b[j]);
+    for (int i = 0; i < na; i++) {
+        float d = 0, v = st_speed(a[i]), gap = rb - st_range(a[i]);
+        for (int j = 0; j < nb && d <= 0; j++) d = st_dps(a[i], b[j]);
+        if (d <= 0 || v <= 0) continue;
+        t += d * (gap > 0 ? gap / v : 0); w += d;
+    }
+    return w > 0 ? t / w : 0;
+}
+// time to destroy hp: first own closing (no fire), then free fire while the enemy closes, then contact fire
+static float st_kill_time(float hp, float own_close, float their_close, float free_dps, float contact_dps) {
+    if (free_dps > 0 && hp <= free_dps * their_close) return own_close + hp / free_dps;
+    hp -= free_dps * their_close;
+    return contact_dps > 0 ? own_close + their_close + hp / contact_dps : 1e9f;
 }
 static float st_side_hp(uint8_t **a, int na) { float h = 0; for (int i = 0; i < na; i++) h += FIELD(a[i], 0x3C, int); return h; }
 
@@ -102,9 +142,9 @@ static void cmd_stats(char *out, const char *args) {
         for (int t = lo; t < hi && t < 0x300; t++) {
             uint8_t *td = ((uint8_t **)G_TYPES)[t], *st = st_rec(pl, t);
             if (!td || !st || FIELD(st, 0xD8, float) <= 0) continue;
-            REPLY("%3d fam %2d class %d cat %2d weapon %2d: att %g hp %d reload %.2f s range %g area %g armour", t,
+            REPLY("%3d fam %2d class %d cat %2d weapon %2d: att %g hp %d reload %.2f s range %g (min %g) speed %g area %g armour", t,
                   FIELD(td, 0x4B4, int), FIELD(td, 0x4C0, int), FIELD(td, 0x4C4, int), FIELD(td, 0x4C8, int),
-                  FIELD(st, 0xD8, float), st_maxhp(td, st), st_reload_t(td, st), FIELD(st, 0x9C, float), FIELD(st, 0xA0, float));
+                  FIELD(st, 0xD8, float), st_maxhp(td, st), st_reload_t(td, st), FIELD(st, 0x9C, float), FIELD(td, 0x41C, float), FIELD(st, 0xAC, float), FIELD(st, 0xA0, float));
             for (int c = 0; c < 6; c++) REPLY(" %g", FIELD(st, 0xE0 + c * 4, float));
             REPLY("\n");
         }
@@ -139,14 +179,39 @@ static void cmd_stats(char *out, const char *args) {
             if (!f.n[a]) continue;
             for (int b = 1; b < 16; b++) {
                 if (!f.n[b] || b <= a || !st_player(a) || !is_enemy(st_player(a), st_player(b))) continue;
-                float da = st_side_dps(f.u[a], f.n[a], f.u[b], f.n[b]), db = st_side_dps(f.u[b], f.n[b], f.u[a], f.n[a]);
+                float da = st_side_dps(f.u[a], f.n[a], f.u[b], f.n[b], 1), db = st_side_dps(f.u[b], f.n[b], f.u[a], f.n[a], 1);
+                float fa = st_side_dps(f.u[a], f.n[a], f.u[b], f.n[b], 0), fb = st_side_dps(f.u[b], f.n[b], f.u[a], f.n[a], 0);
                 float ha = st_side_hp(f.u[a], f.n[a]), hb = st_side_hp(f.u[b], f.n[b]);
-                float ta = da > 0 ? hb / da : 1e9f, tb = db > 0 ? ha / db : 1e9f;
-                REPLY("P%d (%d units, %.0f hp, %.1f dmg/s) vs P%d (%d, %.0f hp, %.1f/s): P%d needs %.0f s, P%d %.0f s -> P%d (%.2f)\n",
-                      a, f.n[a], ha, da, b, f.n[b], hb, db, a, ta, b, tb, ta <= tb ? a : b, ta <= tb ? tb / ta : ta / tb);
+                float ca = st_close(f.u[a], f.n[a], f.u[b], f.n[b]), cb = st_close(f.u[b], f.n[b], f.u[a], f.n[a]);
+                float ta = st_kill_time(hb, ca, cb, fa, da), tb = st_kill_time(ha, cb, ca, fb, db);
+                REPLY("P%d (%d units, %.0f hp, %.1f dmg/s, at contact %.1f, %.0f s closing) vs P%d (%d, %.0f hp, %.1f/s, %.1f, %.0f s): "
+                      "P%d needs %.0f s, P%d %.0f s -> P%d (%.2f)\n", a, f.n[a], ha, fa, da, ca, b, f.n[b], hb, fb, db, cb,
+                      a, ta, b, tb, ta <= tb ? a : b, ta <= tb ? tb / ta : ta / tb);
             }
         }
         return;
     }
-    REPLY("error: stats table | types P [from to] | vs P T Q U | fight x y [r [T U]]\n");
+    if (!strncmp(args, "engage", 6)) {   // engage P x y r: P's soldiers there attack the nearest enemy within 30 tiles
+        static struct st_fight f, e;
+        int p, n = 0;
+        memset(&f, 0, sizeof f); memset(&e, 0, sizeof e);
+        f.ta = f.tb = e.ta = e.tb = -1;
+        if (sscanf(args + 6, "%d %d %d %d", &p, &f.x, &f.y, &f.r2) != 4 || !st_player(p)) { REPLY("error: stats engage P x y r\n"); return; }
+        f.r2 *= f.r2; e.x = f.x; e.y = f.y; e.r2 = 40 * 40;
+        grid_each(st_fight_unit, &f);
+        grid_each(st_fight_unit, &e);
+        for (int i = 0; i < f.n[p & 15]; i++) {
+            uint8_t *u = f.u[p & 15][i], *best = NULL;
+            float bd = 30.0f * 30.0f;
+            for (int q = 1; q < 16; q++)
+                for (int j = 0; j < e.n[q] && is_enemy(st_player(p), st_player(q)); j++) {
+                    float dx = (float)(FIELD(e.u[q][j], 0x1C, int) - FIELD(u, 0x1C, int)), dy = (float)(FIELD(e.u[q][j], 0x20, int) - FIELD(u, 0x20, int));
+                    if (dx * dx + dy * dy < bd && st_shot(u, e.u[q][j]) > 0) { bd = dx * dx + dy * dy; best = e.u[q][j]; }
+                }
+            if (best) n += unit_goal(u, goal_attack(u, best), 0, 0x1F40);
+        }
+        REPLY("ok: %d of P%d's %d units there attack\n", n, p, f.n[p & 15]);
+        return;
+    }
+    REPLY("error: stats table | types P [from to] | vs P T Q U | fight x y [r [T U]] | engage P x y r\n");
 }

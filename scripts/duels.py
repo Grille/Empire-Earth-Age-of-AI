@@ -6,11 +6,11 @@ for f in sys.argv[1:]:
     rows=[]
     k=0
     for l in L:
-        m=re.match(r'# setup: stats fight 60 31 14 \d+ \d+ -> ?(.*)',l)
+        m=re.match(r'# setup: stats fight 60 31 \d+ \d+ \d+ -> ?(.*)',l)
         if not m: continue
         t=(0.14+0.05*k)*60-6; k+=1
         x=m.group(1)
-        mm=re.match(r'P2 \((\d+) units, (\d+) hp, ([\d.]+) dmg/s\) vs P3 \((\d+), (\d+) hp, ([\d.]+)/s\): P2 needs (\d+) s, P3 (\d+) s',x)
+        mm=re.match(r'P2 \((\d+) units, (\d+) hp, ([\d.]+) dmg/s.*?\) vs P3 \((\d+), (\d+) hp, ([\d.]+)/s.*?\): P2 needs (\d+) s, P3 (\d+) s',x)
         rows.append((t,mm.groups() if mm else None, x[:60]))
     print('==',f.split('duel_')[-1])
     first=None; last=None

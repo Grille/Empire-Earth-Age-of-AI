@@ -154,6 +154,12 @@ Guard towers 47, 461..466; AA 145/147; town center 35; house 37; citizen 32.
   +0x138 reload ms and +0x144 max hp (ints), +0x9C range, +0xA0 area. dll/stats.c computes it (`stats` command).
   In fights a shot takes the reload plus about 2 s (duels, scripts/duels.sh: machine gunners with a 1 s reload
   fired every 3.3-5.1 s, Mk V tanks with 4 s every 4.6-7.1 s).
+- Area damage (0x61DAE6, stats +0xA0 = radius in tiles): every unit within the radius of the hit (the tiles around,
+  0x4039AC; alive, 0x631A09) takes the same formula as the target - full damage, no fall-off; own units only with the
+  attacker type's +0x494 (friendly-fire factor) > 0. Artillery 143 has 1.7-1.96: a shell into a clump of machine
+  gunners hits about three.
+- Range per player: stats +0x9C (upgrades: machine gunners 6 on a fresh map, 7.2-8 on the reference save; a WW1
+  tower 7), minimum range type +0x41C (artillery 143: 3), speed stats +0xAC (tiles/s; 0 for buildings).
 - Fire calls (0x61E11C thiscall(class, unit)): 0x606067, 0x607D79 (attack actions), 0x60ABB0 (EEUGAttackGround),
   0x60B33C (EEUGAttackUnit).
 - Math imports of the game's own DLL: UMCos 0x823304, UMArcTan2 0x82325C (cdecl). msvcrt rand 0x824648, srand
