@@ -1435,3 +1435,23 @@ static int upgraded_type(void *pl, int type) {
         }
     return type;
 }
+
+// a new game (the game start hook): plans, scans, musters and retreats of the last game (its players, groups and
+// times; a muster still on sent the citizens to the old rally point)
+static void defence_new_game(void) {
+    memset(g_plan, 0, sizeof g_plan);
+    memset(&g_scan, 0, sizeof g_scan);
+    memset(g_def_towers, 0, sizeof g_def_towers);
+    memset(g_def_walls_built, 0, sizeof g_def_walls_built);
+    memset(g_csiege_orders, 0, sizeof g_csiege_orders);
+    memset(g_csiege_skipped, 0, sizeof g_csiege_skipped);
+    memset(g_militia_caught, 0, sizeof g_militia_caught);
+    memset(g_militia_orders, 0, sizeof g_militia_orders);
+    memset(g_home_trained, 0, sizeof g_home_trained);
+    memset(g_mus, 0, sizeof g_mus);
+    memset(g_hold_st, 0, sizeof g_hold_st);
+    memset(g_rt, 0, sizeof g_rt);
+    memset(g_retreats, 0, sizeof g_retreats);
+    memset(g_aa_st, 0, sizeof g_aa_st);
+    memset(g_upg_done, 0, sizeof g_upg_done);
+}

@@ -435,9 +435,10 @@ static void cmd_drops(char *out, const char *args) {
 
 // Gathering (diagnostic), every 5 minutes: per resource the workers, the mean distance from their gather site to the
 // nearest drop site, and the income per worker-minute since the last line.
+static int g_gather_income[16][7];   // the income at the last line (econ_new_game: income counts start over)
 static void gather_log(void *pl, unsigned idx, uint32_t now) {
     static uint32_t last[16];
-    static int last_income[16][7];
+    int (*last_income)[7] = g_gather_income;
     if (!g_log || now / 300000 == last[idx] / 300000) return;
     last[idx] = now;
     void *cm = FIELD(pl, 0xB90, void *);
@@ -601,8 +602,9 @@ static int requirement_unit(void *pl, int type) {
 // after 3 failures, the request stays pending, and the epoch waits until something else happens to count. Their
 // techs lose the "counts" flag (data +0x7D) - with no candidate left the request credits the requirement itself
 // (0x4860D6's own fallback). Once per AI and game.
+static void *g_deco_done[16];   // the tech tree fixed (a new game's can reuse the address: econ_new_game)
 static void decoration_fix(void *pl, unsigned ai) {
-    static void *done[16];
+    void **done = g_deco_done;
     uint8_t *tt = FIELD(pl, PL_TECHTREE, uint8_t *);
     if (!g_early_requirements || !tt || done[ai] == tt) return;
     done[ai] = tt;
@@ -1763,4 +1765,34 @@ static void econ_install(const char *aimod_ini, const char *autotest_ini) {
     for (size_t i = 0; i < sizeof k_train_sites / sizeof *k_train_sites; i++)
         ok += patch_call(k_train_sites[i], FN_TRAIN_UNITS, hook_train_units);
     if (g_log) fprintf(g_log, "# economy hooks: %d/%d\n", ok, (int)(sizeof k_train_sites / sizeof *k_train_sites) + 1);
+}
+
+// a new game (the game start hook, before persist_load restores g_bud): the last game's counts, times and slots go -
+// the build fix's type slots filled up over a session, g_last_attack_time made a fake "# attack:" (and the chat line)
+// at every game start, the income baselines of rates_update and gather_log came out negative
+static void econ_new_game(void) {
+    memset(g_bud, 0, sizeof g_bud);
+    memset(g_rate, 0, sizeof g_rate);
+    memset(g_spend, 0, sizeof g_spend);
+    memset(g_place, 0, sizeof g_place);
+    memset(g_retry, 0, sizeof g_retry);
+    memset(g_researched, 0, sizeof g_researched);
+    memset(g_att, 0, sizeof g_att);
+    memset(g_last_attack_time, 0, sizeof g_last_attack_time);
+    memset(g_deco_done, 0, sizeof g_deco_done);
+    memset(g_gather_income, 0, sizeof g_gather_income);
+    memset(g_wood_want, 0, sizeof g_wood_want);
+    memset(g_food_cap, 0, sizeof g_food_cap);
+    memset(g_food_cap_t, 0, sizeof g_food_cap_t);
+    memset(g_pull, 0, sizeof g_pull);
+    memset(g_pull_t, 0, sizeof g_pull_t);
+    memset(g_pull_seen, 0, sizeof g_pull_seen);
+    memset(g_moved, 0, sizeof g_moved);
+    memset(g_fields_open, 0, sizeof g_fields_open);
+    memset(g_field_at, 0, sizeof g_field_at);
+    memset(g_field_n, 0, sizeof g_field_n);
+    memset(g_mil, 0, sizeof g_mil);
+    memset(g_save_since, 0, sizeof g_save_since);
+    memset(g_cand, 0, sizeof g_cand);
+    memset(g_noroom, 0, sizeof g_noroom);
 }

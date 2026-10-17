@@ -336,3 +336,11 @@ static void bk_reserve_tick(void *pl, unsigned pi, uint32_t now) {
                            room, threat >= 0 ? ", enemies near" : "", FIELD(fo, 0x1C, int), FIELD(fo, 0x20, int), held, g_bk_res_in[pi], g_bk_res_out[pi]);
     }
 }
+
+// a new game (the game start hook): the fortresses and the citizens queued for them are the last game's
+static void bunker_new_game(void) {
+    memset(g_bk, 0, sizeof g_bk);
+    memset(g_bk_res_in, 0, sizeof g_bk_res_in);
+    memset(g_bk_res_out, 0, sizeof g_bk_res_out);
+    memset(g_bk_res_load_t, 0, sizeof g_bk_res_load_t);
+}

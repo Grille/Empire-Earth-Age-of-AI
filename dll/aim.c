@@ -589,3 +589,13 @@ static void cmd_move(char *out, const char *args) {
                                            (float)ty + FIELD(found[i], 0x14C, float) - (float)y), 0, 0x1F40);
     REPLY("ok: %d of %d units of P%d moving\n", n, nf, p);
 }
+
+// a new game (the game start hook): missiles in flight and shots measured - their age test (now - last) went
+// negative after the clock reset, so the slots never freed and spread_missiles counted their damage on new units
+static void aim_new_game(void) {
+    memset(g_msl, 0, sizeof g_msl);
+    memset(g_pend, 0, sizeof g_pend);
+    g_pend_n = 0;
+    g_fr_n = 0;
+    g_retarget = NULL;
+}

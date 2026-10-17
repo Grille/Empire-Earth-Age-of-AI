@@ -224,9 +224,10 @@ static uint8_t *find_weak_spot(void *pl, unsigned pi, const int *start, const in
 // the shortest detour along that wall (find_breach); the scorer makes that segment the units' target (walls score
 // below zero otherwise). Walls are tough: without siege the breach takes long or fails.
 static int g_breach = 1;              // aimod.ini [all] attack_breach
-static struct { void *sg; int x, y; } g_breaches[64];   // subgroup -> wall tile it is to breach
+// The owner is kept with the entry: a subgroup the game deleted (its attack over) is never read again.
+static struct { void *sg, *pl; int x, y; } g_breaches[64];   // subgroup (of player pl) -> wall tile it is to breach
 
-static void breach_note(void *sg, int x, int y) {
+static void breach_note(void *pl, void *sg, int x, int y) {
     int free_k = -1;
     for (int k = 0; k < 64; k++) {
         if (g_breaches[k].sg == sg) { g_breaches[k].x = x; g_breaches[k].y = y; if (x < 0) g_breaches[k].sg = NULL; return; }
@@ -234,13 +235,20 @@ static void breach_note(void *sg, int x, int y) {
     }
     if (x < 0) return;
     if (free_k < 0) free_k = (int)((uintptr_t)sg >> 4) & 63;   // full: overwrite one
-    g_breaches[free_k].sg = sg; g_breaches[free_k].x = x; g_breaches[free_k].y = y;
+    g_breaches[free_k].sg = sg; g_breaches[free_k].pl = pl; g_breaches[free_k].x = x; g_breaches[free_k].y = y;
 }
 
 // before the game deletes subgroups of player pl (diplo.c: attacks called off): forget their breaches
 static void breach_forget(void *pl) {
     for (int k = 0; k < 64; k++)
-        if (g_breaches[k].sg && FIELD(g_breaches[k].sg, 0x190, void *) == pl) g_breaches[k].sg = NULL;
+        if (g_breaches[k].sg && g_breaches[k].pl == pl) g_breaches[k].sg = NULL;
+}
+// every AI tick: breaches of subgroups no longer in pl's attack groups (the attack ended, the subgroup was deleted -
+// nothing told the table, and a phantom breach kept siege_want at 2 and the siege firing at that wall for good)
+static int asg_live(void *pl, uint8_t *sg);   // assault.c
+static void breach_prune(void *pl) {
+    for (int k = 0; k < 64; k++)
+        if (g_breaches[k].sg && g_breaches[k].pl == pl && !asg_live(pl, g_breaches[k].sg)) g_breaches[k].sg = NULL;
 }
 
 static int breach_of(void *sg, int *x, int *y) {
@@ -387,7 +395,7 @@ static void __fastcall hook_asg_route(uint8_t *self, void *edx, int *start, int 
         unsigned pi = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
         uint8_t *cross = wall_crossing(pl, start, dest);
         uint8_t *w = cross ? find_breach(pl, pi, start, dest, cross) : NULL;
-        breach_note(self, w ? FIELD(w, 0x1C, int) : -1, w ? FIELD(w, 0x20, int) : -1);
+        breach_note(pl, self, w ? FIELD(w, 0x1C, int) : -1, w ? FIELD(w, 0x20, int) : -1);
         if (w) {
             uint8_t *tg = self + 0x100;
             if (g_log)
@@ -1028,7 +1036,7 @@ static int bq_has(uint8_t *bm, int type) {
 static int siege_want(void *pl, unsigned pi) {   // 2 + a quarter of the known enemy defences, at most 4; a breach: 2
     int want = g_threat[pi].n ? 2 + g_threat[pi].n / 4 : 0;
     for (int k = 0; k < 64 && !want; k++)
-        if (g_breaches[k].sg && FIELD(g_breaches[k].sg, 0x190, void *) == pl) want = 2;
+        if (g_breaches[k].sg && g_breaches[k].pl == pl) want = 2;
     return want > 4 ? 4 : want;
 }
 static void siege_train(void *pl, unsigned pi, int have, uint32_t now) {
@@ -1140,7 +1148,7 @@ static void siege_tick(void *pl, uint32_t now) {
     // target: a breach wall of one of our subgroups, else the nearest known defence we outrange
     uint8_t *t = NULL; float best = 1e30f;
     for (int k = 0; k < 64; k++) {
-        if (!g_breaches[k].sg || FIELD(g_breaches[k].sg, 0x190, void *) != pl) continue;
+        if (!g_breaches[k].sg || g_breaches[k].pl != pl) continue;
         uint8_t *w = wall_at(pl, g_breaches[k].x, g_breaches[k].y);
         float dx = (float)g_breaches[k].x - sx, dy = (float)g_breaches[k].y - sy;
         if (w && dx * dx + dy * dy < best) { best = dx * dx + dy * dy; t = w; }
@@ -1326,6 +1334,7 @@ static void attack_tick(void *pl, uint32_t now) {
     charge_tick(now);
     threat_refresh(pl, now);   // also with avoid_towers=0: the route log compares both
     citizen_attack_scan(pl, now);
+    breach_prune(pl);
     siege_tick(pl, now);
     {
         unsigned i = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
@@ -2108,4 +2117,23 @@ static void cmd_army(char *out, const char *args) {
         if (gd) for (int k = 0; k < 24; k++) REPLY(" %08x", gd[k]);
         REPLY("\n");
     }
+}
+
+// a new game (the game start hook): subgroups, units and times of the last game - a breach, a citizen's hit points
+// (hurt_note: a new citizen at a dead one's address seemed hurt), a traced subgroup, a pending call-off's reason
+static void attack_new_game(void) {
+    memset(g_threat, 0, sizeof g_threat);
+    memset(g_breaches, 0, sizeof g_breaches);
+    memset(g_route_stats, 0, sizeof g_route_stats);
+    memset(g_vis_floor, 0, sizeof g_vis_floor);
+    memset(g_cancel_why, 0, sizeof g_cancel_why);
+    memset(g_leash_stats, 0, sizeof g_leash_stats);
+    memset(g_siege_st, 0, sizeof g_siege_st);
+    memset(g_hurt, 0, sizeof g_hurt);
+    memset(g_cit_hp, 0, sizeof g_cit_hp);
+    memset(g_hurt_count, 0, sizeof g_hurt_count);
+    memset(g_cit_stats, 0, sizeof g_cit_stats);
+    memset(g_repair_refused, 0, sizeof g_repair_refused);
+    memset(g_siege_train, 0, sizeof g_siege_train);
+    memset(g_trace, 0, sizeof g_trace);
 }

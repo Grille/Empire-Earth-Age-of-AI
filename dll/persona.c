@@ -83,6 +83,7 @@ static uint32_t g_talk_last[16][L_N], g_talk_any[16];
 static uint32_t g_talk_said[16][L_N];   // the last line's hash (not the same twice when there is a choice)
 static unsigned g_talk_lines[16];
 static uint32_t g_attack_sent[16][16];   // [ai][target]: game time its last attack wave set out (the AI voice)
+static uint8_t g_attack_news[16];        // [ai]: an attack launched, not told yet (persona_attack)
 static uint32_t g_rnd = 0x9E3779B9u;
 
 static uint32_t rnd32(void) { g_rnd ^= g_rnd << 13; g_rnd ^= g_rnd >> 17; g_rnd ^= g_rnd << 5; return g_rnd; }
@@ -518,6 +519,9 @@ static void persona_new_game(uint8_t *setup) {
     memset(g_talk_any, 0, sizeof g_talk_any);
     memset(g_talk_lines, 0, sizeof g_talk_lines);
     memset(g_attack_sent, 0, sizeof g_attack_sent);
+    memset(g_talk_said, 0, sizeof g_talk_said);
+    memset(g_attack_news, 0, sizeof g_attack_news);   // an attack of the last game not yet told
+    memset(g_say_tribute, 0, sizeof g_say_tribute);
     memset(g_cfg_pl_on, 0, sizeof g_cfg_pl_on);
     int humans = 0;
     for (int s = 0; s < 16; s++) humans += FIELD(setup + s * 0x38, 0, int) == 1;
@@ -742,7 +746,6 @@ static int persona_say(void *pl, enum line_kind k, void *other, void *third) {
 // they are the target (attack_threat), otherwise news for the AI's allies (attack). Once per attack wave: the route
 // hook runs for every leg of every subgroup, so the line waits for a launch (the next-attack time +0xED8 redrawn,
 // econ_tick) and goes with the first route after it.
-static uint8_t g_attack_news[16];
 static void persona_attack_launched(unsigned ai) { g_attack_news[ai & 15] = 1; }
 static void persona_attack(void *pl, void *target) {
     unsigned ai = (unsigned)FIELD(pl, PL_INDEX, int) & 15;

@@ -1403,7 +1403,7 @@ static void diplo_new_game(void) {
     g_rep_seen = 0;
     memset(g_justified, 0, sizeof g_justified); memset(g_lord_since, 0, sizeof g_lord_since);
     memset(g_block_of, 0, sizeof g_block_of); memset(g_mutual_prev, 0, sizeof g_mutual_prev);
-    for (int i = 0; i < 16; i++) g_cancel_queue[i] = 0;
+    for (int i = 0; i < 16; i++) g_cancel_queue[i] = g_cancel_cit_queue[i] = 0;
     g_resign_queue = 0;
     for (int i = 0; i < 16; i++) g_sit.last_epoch[i] = -1;
 }

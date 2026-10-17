@@ -82,6 +82,14 @@ static void assault_tick(void *pl, uint32_t now);
 static void landing_tick(void *pl, uint32_t now);
 static void intel_tick(void *pl, uint32_t now);
 static void intel_new_game(int from_save);
+static void econ_new_game(void);
+static void attack_new_game(void);
+static void aim_new_game(void);
+static void landing_new_game(void);
+static void bunker_new_game(void);
+static void defence_new_game(void);
+static void assault_new_game(void);
+static void sites_new_game(void);
 static void intel_install(const char *aimod_ini, const char *autotest_ini);
 static void landing_install(const char *aimod_ini, const char *autotest_ini);
 static void assault_install(const char *aimod_ini, const char *autotest_ini);
@@ -221,6 +229,9 @@ static void dump_player(void *rm, uint32_t now) {
     fclose(f);
 }
 
+// the player each AI's personality and settings were applied to (reset by hook_game_start: the next game's player
+// can sit at the same address - its settings were skipped, a hard AI kept the game's cheat)
+static void *g_settings_done[16];
 // Called every AI tick; logs a heartbeat row per player every 10 s of game time.
 static void __fastcall hook_rm_update(void *rm, void *edx, uint32_t now) {
     (void)edx;
@@ -230,9 +241,8 @@ static void __fastcall hook_rm_update(void *rm, void *edx, uint32_t now) {
     if (pl) {
         unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
         ctl_note_player(pl);
-        static void *settings_done[16];   // players are recreated for every new or loaded game
-        if (settings_done[idx] != pl) {   // the personality first: its [style] (ai_style=1) is part of the settings
-            settings_done[idx] = pl;
+        if (g_settings_done[idx] != pl) {   // the personality first: its [style] (ai_style=1) is part of the settings
+            g_settings_done[idx] = pl;
             persona_assign(pl);
             settings_apply(pl);
         }
@@ -500,11 +510,22 @@ static char __fastcall hook_game_start(void *state, void *edx, uint8_t *setup, v
     // the last game's AI players are gone: a second game in one session (loading capittest after an autosave)
     // crashed in world_scan on a stale g_players entry for a slot the new game has no AI in
     memset(g_players, 0, sizeof g_players);
+    memset(g_settings_done, 0, sizeof g_settings_done);
     persona_new_game(setup);   // personalities and their colours, before the game creates the players
     diplo_new_game();
     chat_new_game();
     llm_new_game();
     intel_new_game(mode == 2);
+    // the systems' per-game state: game times start over and the units, subgroups and players are new objects that
+    // can reuse the last game's addresses (the "time went backwards" checks in the ticks stay as a fallback)
+    econ_new_game();
+    attack_new_game();
+    aim_new_game();
+    landing_new_game();
+    bunker_new_game();
+    defence_new_game();
+    assault_new_game();
+    sites_new_game();
     if (mode == 2) persist_load(name);   // a saved game: the mod's state from its .aimod file
     char r = ((GameStartFn)FN_GAME_START)(state, setup, p2);
     log_line("# game start returned %s%d\n", "", r);

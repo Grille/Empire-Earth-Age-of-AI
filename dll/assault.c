@@ -568,3 +568,6 @@ static void cmd_aigroup(char *out, const char *args) {
           p, s.n, s.sx / s.n, s.sy / s.n, FIELD(FIELD(t, 0x2C, uint8_t *), 0x4B8, int), FIELD(tpl, PL_INDEX, int), pt[0], pt[1],
           ok ? "accepted" : "refused (0x47067A)", g, nsg);
 }
+
+// a new game (the game start hook): the waves and subgroups led are the last game's
+static void assault_new_game(void) { memset(g_as, 0, sizeof g_as); }

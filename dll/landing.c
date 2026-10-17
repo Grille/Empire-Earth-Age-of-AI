@@ -2156,3 +2156,12 @@ static void landing_install(const char *aimod_ini, const char *autotest_ini) {
              patch_vtable(VT_ASG_LAND, 57, FN_ASG_GIVE_GOAL, hook_asg_give_goal) + patch_vtable(VT_ASG_AIR, 57, FN_ASG_AIR_GIVE_GOAL, hook_asg_air_give_goal);
     if (g_log) fprintf(g_log, "# landing: %s, %d transports (transport subgroup hook %s, order hooks %d/4)\n", g_landing ? "on" : "off", g_land_ships, h ? "ok" : "FAILED", gg);
 }
+
+// a new game (the game start hook): every landing's ships, passengers and subgroups are the last game's (the tick's
+// own "time went backwards" reset missed a save loaded at a later time and slots without an AI now; landing_leads
+// and the unload hooks kept matching the freed pointers)
+static void landing_new_game(void) {
+    memset(g_ld, 0, sizeof g_ld);
+    memset(g_ld_stat, 0, sizeof g_ld_stat);
+    memset(&g_ld_home, 0, sizeof g_ld_home);
+}

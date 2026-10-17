@@ -119,6 +119,8 @@ static uint32_t g_chat_status[16];
 static void chat_new_game(void) {
     for (int i = 0; i < 16; i++) { g_chat_epoch[i] = -1; g_chat_status[i] = g_chat_last[i] = 0; }
     memset(g_chat_kind_last, 0, sizeof g_chat_kind_last);
+    memset(g_chat_lines, 0, sizeof g_chat_lines);
+    memset(g_chat_dropped, 0, sizeof g_chat_dropped);
 }
 static void chat_tick(void *pl, unsigned idx, uint32_t now) {
     int *last_epoch = g_chat_epoch;

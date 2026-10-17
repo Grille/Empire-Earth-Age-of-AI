@@ -301,3 +301,9 @@ static void sites_install(const char *aimod_ini, const char *autotest_ini) {
           patch_call(0x48ace4, FN_HUNT, hook_hunt) + patch_call(0x48afc4, FN_HUNT, hook_hunt);
     if (g_log) fprintf(g_log, "# safe_sites hooks: %d/%d, max distance %d; mine_choice=%d\n", ok, total, g_site_max_dist, g_mine_choice);
 }
+
+// a new game (the game start hook)
+static void sites_new_game(void) {
+    memset(g_drops, 0, sizeof g_drops);
+    memset(g_site_refused, 0, sizeof g_site_refused);
+}
