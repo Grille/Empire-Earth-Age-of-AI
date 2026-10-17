@@ -363,5 +363,46 @@ static void cmd_stats(char *out, const char *args) {
         REPLY("ok: %d of P%d's %d units there attack\n", n, p, nm);
         return;
     }
-    REPLY("error: stats table | types P [from to] | vs P T Q U | fight x y [r [T U]] | bench N x y [r] | engage P x y r\n");
+    if (!strncmp(args, "danger", 6)) {   // danger P: P's citizens within an enemy's reach + 3, by threat type
+        int p;
+        if (sscanf(args + 6, "%d", &p) != 1 || p < 1 || p > 15 || !st_player(p)) { REPLY("error: usage: stats danger P\n"); return; }
+        static uint8_t *cit[4096], *foe[4096];
+        int nc = 0, nf = 0, hit = 0, seen = 0, flagged = 0, ntype = 0, tt[32] = { 0 }, tn[32] = { 0 }, tf[32] = { 0 };
+        float tr[32] = { 0 };
+        uint8_t *map = *(uint8_t **)G_MAP, *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
+        if (!grid) { REPLY("error: no map\n"); return; }
+        int cells = FIELD(grid, 0x10, int) * FIELD(grid, 0x14, int);
+        uint8_t *cl = FIELD(grid, 4, uint8_t *);
+        for (int ci = 0; ci < cells; ci++)
+            for (uint8_t **bp = FIELD(cl + ci * 16, 4, uint8_t **); bp && bp < FIELD(cl + ci * 16, 8, uint8_t **); bp++) {
+                uint8_t *u = *bp, *td = u ? FIELD(u, 0x2C, uint8_t *) : NULL;
+                int q = u ? st_pidx(u) : 0;
+                if (!td || FIELD(u, 0x3C, int) <= 0 || q <= 0 || q > 15) continue;
+                if (q == p && (FIELD(td, 0x4B8, int) == 32 || FIELD(td, 0x4B8, int) == 480)) { if (nc < 4096) cit[nc++] = u; }
+                else if (q != p && is_enemy(st_player(p), st_player(q)) && FIELD(td, 0x510, int) > 0 && nf < 4096) foe[nf++] = u;
+            }
+        for (int i = 0; i < nc; i++) {
+            uint8_t *c = cit[i], *best = NULL;
+            float bd = 1e9f;
+            for (int k = 0; k < nf; k++) {
+                float dx = (float)(FIELD(foe[k], 0x1C, int) - FIELD(c, 0x1C, int)), dy = (float)(FIELD(foe[k], 0x20, int) - FIELD(c, 0x20, int));
+                float r = st_range(foe[k]) + 3.0f, d2 = dx * dx + dy * dy;
+                if (d2 <= r * r && d2 < bd && st_shot(foe[k], c) > 0) { bd = d2; best = foe[k]; }
+            }
+            if (!best) continue;
+            hit++;
+            if (seen_by(best, st_player(p))) seen++;
+            if (raiders_near(st_player(p), FIELD(c, 0x1C, int), FIELD(c, 0x20, int), 6)) flagged++;
+            int t = FIELD(FIELD(best, 0x2C, uint8_t *), 0x4B8, int), j = 0;
+            while (j < ntype && tt[j] != t) j++;
+            if (j == ntype && ntype < 32) { tt[ntype] = t; tr[ntype] = st_range(best); tf[ntype++] = FIELD(FIELD(best, 0x2C, uint8_t *), 0x4B4, int); }
+            if (j < 32) tn[j]++;
+        }
+        int o = snprintf(out, 4096, "ok: P%d %d citizens, %d within an enemy's reach + 3 (%d of those enemies seen, %d flagged by raiders_near); nearest threat type(family) x n:",
+                         p, nc, hit, seen, flagged);
+        for (int j = 0; j < ntype && o < 3900; j++) o += snprintf(out + o, 4096 - o, " %d(%d) range %.0f x %d", tt[j], tf[j], tr[j], tn[j]);
+        snprintf(out + o, 4096 - o, "\n");
+        return;
+    }
+    REPLY("error: stats table | types P [from to] | vs P T Q U | fight x y [r [T U]] | bench N x y [r] | engage P x y r | danger P\n");
 }
