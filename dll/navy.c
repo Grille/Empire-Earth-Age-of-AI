@@ -33,7 +33,7 @@ static struct nv_map g_nv_map[16];
 // the navy account (navy_income) per AI and resource; saved with the game (persist.c)
 static float g_nv_acc[16][7];
 // what the account paid and refused (the budget line): ship orders by type
-struct nv_orders { unsigned paid, refused, spent[7], held_room; int want, nt; uint32_t want_t; struct { int type; unsigned paid, refused; } t[8]; };
+struct nv_orders { unsigned paid, refused, spent[7], held_room, docks_asked; int want, nt; uint32_t want_t, dock_t; struct { int type; unsigned paid, refused; } t[8]; };
 static struct nv_orders g_nv_ord[16];
 // own ships and docks, counted for every player every 10 s (navy_count)
 struct nv_own { int war, docks, docks_built, fish; };
@@ -308,8 +308,8 @@ static void navy_budget_log(void *pl, unsigned idx, uint32_t now) {
             idx, now / 60000, 100.0f * navy_share(idx), g_nv_acc[idx][3], g_nv_acc[idx][5], g_nv_acc[idx][6], o->spent[3], o->spent[5],
             o->spent[6], o->paid, o->refused);
     for (int k = 0; k < o->nt; k++) fprintf(g_log, "%s%d:%u/%u", k ? " " : "", o->t[k].type, o->t[k].paid, o->t[k].refused);
-    fprintf(g_log, "] | warships %d docks %d (%d built) fishing %d | room held %u | epoch %d\n", w->war, w->docks, w->docks_built, w->fish,
-            o->held_room, current_epoch(pl) + 1);
+    fprintf(g_log, "] | warships %d docks %d (%d built, %u asked) fishing %d | room held %u | epoch %d\n", w->war, w->docks, w->docks_built,
+            o->docks_asked, w->fish, o->held_room, current_epoch(pl) + 1);
     fflush(g_log);
     LeaveCriticalSection(&g_lock);
 }
@@ -331,6 +331,27 @@ static void navy_count(void) {
         if (k == NV_WAR || k == NV_SUB || k == NV_CARRIER) g_nv_own[pi].war++;
         else if (k == NV_FISH) g_nv_own[pi].fish++;
     }
+}
+
+// DOCKS (with the navy account): the game's building plan keeps docks up to its "min military buildings" - 1.5-2.2
+// per AI on island maps, often one for the fishing boats, the warships and the transports together. Once a minute
+// on a water map: fewer than 2 docks (unfinished ones count), none unfinished, none queued (0x465640) and the dock
+// buildable and payable now (0x555710) -> one more through the build manager's own queue and placement (0x46802D(bm,
+// 36, 1, 0), as more_granaries asks for a granary; the build manager finds the shore spot). On islands a third while
+// the account waits to pay a warship or 12+ fishing boats share the docks.
+static void navy_docks(void *pl, unsigned idx, uint32_t now) {
+    struct nv_orders *o = &g_nv_ord[idx];
+    struct nv_own *w = &g_nv_own[idx];
+    if (navy_share(idx) <= 0 || (now >= o->dock_t && now - o->dock_t < 60000)) return;
+    o->dock_t = now;
+    int want = 2 + (g_nv_map[idx].kind == NV_ISLANDS && (w->fish >= 12 || (o->want && now - o->want_t < 120000)));
+    void *cm = FIELD(pl, 0xB90, void *);
+    uint8_t *bm = cm ? FIELD(cm, 0x3C, uint8_t *) : NULL;
+    if (!bm || w->docks >= want || w->docks_built < w->docks || ((char (__thiscall *)(void *, int))0x00465640)(bm, 36)) return;
+    if (!((char (__thiscall *)(void *, int, int, int))0x00555710)(pl, 36, 0x20, 0)) return;
+    ((void (__thiscall *)(void *, int, int, int))0x0046802D)(bm, 36, 1, 0);
+    o->docks_asked++;
+    if (g_log) fprintf(g_log, "# navy: P%u at %.1f min: docks %d of %d - one more requested\n", idx, now / 60000.0, w->docks, want);
 }
 
 // FISHING BOAT ([all] fishing_boat, default 1; docs/navy.md stage 0): the game's pick 0x46D209 (thiscall on the
@@ -380,6 +401,7 @@ static void navy_tick(void *pl, uint32_t now) {
     if (!m->done && now >= 10000 && now - m->t >= 10000) { m->t = now; navy_detect(pl, idx, now); }
     if (now < g_nv_count_t || now - g_nv_count_t >= 10000) { g_nv_count_t = now; navy_count(); }
     navy_budget_log(pl, idx, now);
+    navy_docks(pl, idx, now);
     if (!g_auto.enabled || !g_log) return;
     if (now < g_nv_fish_t) g_nv_fish_t = g_nv_log_t = 0;
     if (now - g_nv_fish_t >= 15000) { g_nv_fish_t = now; navy_fish(); }
