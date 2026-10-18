@@ -1,6 +1,6 @@
 // NAVY (docs/navy.md): what each AI has afloat, who holds which waters, the food from fish, the ships lost - the
-// baseline for a standing navy (observation, no orders). The one decision changed: the fishing boat type (stage 0,
-// hook_fish_type below).
+// baseline for a standing navy. Decisions changed: the fishing boat type (stage 0, hook_fish_type), the navy account,
+// docks and fleet room (stage 1), the warship types (stage 2, the fleet mix: navy_pick).
 //   # navy: (autotest only, every 2 game minutes per AI) docks, fishing boats, warships by type, submarines, carriers,
 //     transports, the warships in its own waters / an enemy's waters, the enemy's warships in its waters, the ships
 //     it lost and sank (diplo.c kill counts), the food its boats took from the fish, its income and stock.
@@ -36,9 +36,12 @@ static float g_nv_acc[16][7];
 struct nv_orders { unsigned paid, refused, spent[7], held_room, docks_asked; int want, last, nt; uint32_t want_t, dock_t; struct { int type; unsigned paid, refused; } t[8]; };
 static struct nv_orders g_nv_ord[16];
 // own ships and docks, counted for every player every 10 s (navy_count)
-struct nv_own { int war, docks, docks_built, fish; };
+struct nv_own { int war, docks, docks_built, fish, role[6]; };   // role: warships by the fleet mix's roles (NR_*)
 static struct nv_own g_nv_own[16];
 static uint32_t g_nv_count_t;
+
+static void nv_mix_reset(void);   // the fleet mix (below)
+static int nv_role(uint8_t *td);
 
 static void navy_new_game(void) {
     memset(g_nv_fish, 0, sizeof g_nv_fish);
@@ -52,6 +55,9 @@ static void navy_new_game(void) {
     memset(g_nv_ord, 0, sizeof g_nv_ord);
     memset(g_nv_own, 0, sizeof g_nv_own);
     g_nv_count_t = 0;
+    nv_mix_reset();
+    memset(g_nv_lost_type, 0, sizeof g_nv_lost_type);
+    memset(g_nv_sunk_type, 0, sizeof g_nv_sunk_type);
 }
 
 static void navy_fish(void) {
@@ -152,7 +158,17 @@ static void navy_log_all(uint32_t now) {
         fprintf(g_log, "# navy: P%d at %u min: docks %d yards %d | fishing %d food %d (fish left %d) | war %d hp %d [",
                 p, now / 60000, m->docks, m->yards, m->n[NV_FISH], g_nv_fish_food[p], g_nv_fish_left, m->n[NV_WAR], m->hp[NV_WAR]);
         for (int j = 0; j < m->nt; j++) fprintf(g_log, "%s%dx%d", j ? " " : "", m->wt[j].type, m->wt[j].n);
-        fprintf(g_log, "] subs %d carriers %d transports %d | home %d away %d foes-home %d (hp %d) | lost %u sunk %u boats-lost %u boats-sunk %u"
+        int ro[7] = { 0 }, rl[7] = { 0 }, rs[7] = { 0 };   // by the mix's roles (6: transports): afloat, lost, sunk
+        for (int j = 0; j < m->nt; j++) ro[nv_role(type_data(m->wt[j].type))] += m->wt[j].n;
+        for (int t = 0; t < G_TYPES_N; t++) {
+            if (!g_nv_lost_type[p][t] && !g_nv_sunk_type[p][t]) continue;
+            uint8_t *td = type_data(t);
+            int r = td && navy_kind(td) == NV_TRANSPORT ? 6 : nv_role(td);
+            rl[r] += g_nv_lost_type[p][t]; rs[r] += g_nv_sunk_type[p][t];
+        }
+        fprintf(g_log, "] roles F%d L%d A%d S%d AA%d | lost-roles F%d L%d A%d S%d AA%d T%d | sunk-roles F%d L%d A%d S%d AA%d T%d |",
+                ro[1], ro[2], ro[3], ro[4], ro[5], rl[1], rl[2], rl[3], rl[4], rl[5], rl[6], rs[1], rs[2], rs[3], rs[4], rs[5], rs[6]);
+        fprintf(g_log, " subs %d carriers %d transports %d | home %d away %d foes-home %d (hp %d) | lost %u sunk %u boats-lost %u boats-sunk %u"
                        " | income F%d W%d S%d G%d I%d | stock F%d W%d S%d G%d I%d\n",
                 m->n[NV_SUB], m->n[NV_CARRIER], m->n[NV_TRANSPORT], m->home, m->away, m->foe_home, m->foe_home_hp,
                 lost, sunk, blost, bsunk, g_bud[p].income[2], g_bud[p].income[3], g_bud[p].income[4], g_bud[p].income[5],
@@ -301,6 +317,7 @@ static void navy_paid(unsigned idx, int type, const int *spent, int got) {   // 
     o->last = type;
     if (k < 8) { if (got) o->t[k].paid++; else o->t[k].refused++; }
 }
+static void navy_mix_log(void *pl, unsigned idx, uint32_t now);
 static void navy_budget_log(void *pl, unsigned idx, uint32_t now) {
     static uint32_t last[16];
     if (!g_log || navy_share(idx) <= 0 || (now >= last[idx] && now - last[idx] < 300000)) return;
@@ -314,6 +331,7 @@ static void navy_budget_log(void *pl, unsigned idx, uint32_t now) {
     for (int k = 0; k < o->nt; k++) fprintf(g_log, "%s%d:%u/%u", k ? " " : "", o->t[k].type, o->t[k].paid, o->t[k].refused);
     fprintf(g_log, "] | warships %d docks %d (%d built, %u asked) fishing %d | room held %u | epoch %d\n", w->war, w->docks, w->docks_built,
             o->docks_asked, w->fish, o->held_room, current_epoch(pl) + 1);
+    navy_mix_log(pl, idx, now);
     fflush(g_log);
     LeaveCriticalSection(&g_lock);
 }
@@ -332,7 +350,7 @@ static void navy_count(void) {
             continue;
         }
         int k = navy_kind(it.td);
-        if (k == NV_WAR || k == NV_SUB || k == NV_CARRIER) g_nv_own[pi].war++;
+        if (k == NV_WAR || k == NV_SUB || k == NV_CARRIER) { g_nv_own[pi].war++; g_nv_own[pi].role[nv_role(it.td)]++; }
         else if (k == NV_FISH) g_nv_own[pi].fish++;
     }
 }
@@ -351,6 +369,234 @@ static int navy_room_reserve(void *pl) {
     int n = total > 0 ? navy_account(idx, 3) / total : 0;
     o->held_room = (unsigned)(n < missing ? n : missing);
     return (int)o->held_room;
+}
+
+// FLEET MIX ([all] navy_mix; [autotest] v_navy_mix for the variant players; docs/navy.md stage 2). The game's warship
+// choice is its RPS vote or a random trainable candidate: frigates, galleys and battleships as they come, nothing
+// against the fleet it meets. Where the navy account pays (navy_pays), a warship or submarine the game asks for at one
+// of its own training sites (econ.c hook_train_units; not the mod's orders, not a landing's) is trained as the type the
+// mix wants. The game's request entry is counted down as if its own type came (0x490AD6 subtracts what 0x49014F
+// trained), so it asks for no more than before - no duplicate orders, as with the land unit substitution.
+// - Roles, from the game's hit table 0x8D200C [target category][weapon kind] (docs/navy.md 1) and the type's family:
+//   F frigates (hit ships and submarines: factor > 0 against c7), L battleships (category c21), A galleys and
+//   catapult ships (x3+ against c21), S attack submarines (family 10 that hits ships), AA cruisers (hit only aircraft).
+//   Missile subs (hit no ship) and carriers stay out (a carrier the game asks for stays its own).
+// - The base mix (the playtester): frigates first, a battleship per 2 frigates, galleys or catapult ships 0.5 - or,
+//   once an attack submarine is available (e10), submarines 1 instead (they beat battleships and galleys and are hit
+//   only by frigates and towers).
+// - The enemy fleet seen (intel memory, 10 minutes - honest vision; with honest_vision 0 what it sees now): + 0.5
+//   frigates per galley or submarine seen, + 0.25 battleships per frigate, + 0.75 galleys/subs per battleship;
+//   cruisers only with aircraft seen (a carrier counts 3): 0.5 + aircraft / 8, at most 2. Battleships x the share of
+//   the enemy's seen fleet that is not submarines (battleships can't hit them).
+// - The coast (the playtester: the x4-5 of catapults, cannons and artillery against battleships is real): seen enemy
+//   units and buildings within 4 tiles of the sea that hit battleships x3 or more scale the battleships by 4 / (4 + n).
+// - Each order: the role furthest below its share of the fleet (own warships + those paid in the last minute + 1);
+//   in the role the type with the best factor x attack / (reload + 2 s) x hit points / cost^2 (Lanchester: a fleet
+//   of N ships is worth N^2) against the role's target (F: galleys/subs, L: frigates, A/S: battleships, AA: aircraft).
+//   Only types available by their tech record's test (ld_type_avail). A type the budget refused for 2 minutes is
+//   skipped for one (the account saves for another role); one the game refused though it was paid for (no building)
+//   for 5 minutes (not when it is the game's own type).
+// `# navy: P<n> mix at N min:` every 5 minutes: wanted shares, own fleet by role, the types, the enemy seen, what the
+// game asked for and what was trained.
+enum { NR_NONE, NR_FRIG, NR_LINE, NR_ANTI, NR_SUB, NR_AA, NR_N };
+static const char *const k_nr[NR_N] = { "-", "F", "L", "A", "S", "AA" };
+#define NV_C_SUB 7      // target categories (+0x4C4, the hit table's rows): submarines
+#define NV_C_FRIG 9     // frigates, cruisers, transports, fishing boats
+#define NV_C_LINE 21    // battleships
+#define NV_C_GALLEY 47  // galleys, galleons, catapult ships
+static int g_navy_mix = 0, g_v_navy_mix = -1;
+static int8_t g_nv_role[G_TYPES_N];   // role + 1 per type (0: not worked out yet; the table and the type data are fixed)
+static int g_nv_nc, g_nv_nk;          // the hit table's size: categories, weapon kinds (cmd_navy's count)
+static uint64_t g_nv_aircat;          // the categories of aircraft (families 3, 7, 17)
+static float nv_f(int kind, int cat) {   // the hit factor [cat][kind]; 0 outside the table
+    uint8_t *tb = *(uint8_t **)0x008D200C;
+    if (!g_nv_nk) {
+        for (int t = 0; t < G_TYPES_N; t++) {
+            uint8_t *td = type_data(t);
+            if (!td) continue;
+            int c = FIELD(td, 0x4C4, int), k = FIELD(td, 0x4C8, int), fam = FIELD(td, 0x4B4, int);
+            if (c >= 0 && c < 64 && c >= g_nv_nc) g_nv_nc = c + 1;
+            if (k >= 0 && k < 64 && k >= g_nv_nk) g_nv_nk = k + 1;
+            if ((fam == 3 || fam == 7 || fam == 17) && c >= 0 && c < 64) g_nv_aircat |= 1ull << c;
+        }
+    }
+    if (!tb || kind < 0 || cat < 0 || kind >= g_nv_nk || cat >= g_nv_nc) return 0;
+    float *row = FIELD(tb, cat * 4, float *);
+    return row ? row[kind] : 0;
+}
+static float nv_air_f(int kind) {   // the best factor against an aircraft category
+    float b = 0;
+    nv_f(0, 0);
+    for (int c = 0; c < 64; c++) if (g_nv_aircat >> c & 1) { float f = nv_f(kind, c); if (f > b) b = f; }
+    return b;
+}
+static int nv_role(uint8_t *td) {
+    int t = td ? FIELD(td, 0x4B8, int) : -1;
+    if (t < 0 || t >= G_TYPES_N) return NR_NONE;
+    if (g_nv_role[t]) return g_nv_role[t] - 1;
+    int r = NR_NONE, fam = FIELD(td, 0x4B4, int), kind = FIELD(td, 0x4C8, int), cat = FIELD(td, 0x4C4, int);
+    // ships only by their target category (the Naval Mine 386 is family 4, category 22, 1350 attack and 1 hit point);
+    // not the hero ships Golden Hind 611 and Agincourt 268 (data names x07/x09, tech 9035 - no dock trains them)
+    int ship = cat == NV_C_SUB || cat == NV_C_FRIG || cat == NV_C_LINE || cat == NV_C_GALLEY;
+    if ((fam == 4 || fam == 10) && ship && t != 268 && t != 611 && FIELD(td, 0x510, int) > 0 && !is_transport(t) && !is_fishing_boat(t)) {
+        if (nv_f(kind, NV_C_FRIG) <= 0 && nv_f(kind, NV_C_LINE) <= 0 && nv_f(kind, NV_C_GALLEY) <= 0) r = nv_air_f(kind) > 0 ? NR_AA : NR_NONE;
+        else if (fam == 10) r = NR_SUB;
+        else if (nv_f(kind, NV_C_LINE) >= 3.0f) r = NR_ANTI;
+        else if (cat == NV_C_LINE) r = NR_LINE;
+        else r = NR_FRIG;
+    }
+    g_nv_role[t] = (int8_t)(r + 1);
+    return r;
+}
+static float nv_score(void *pl, int t, int role) {   // in its role: factor x attack / (reload + 2 s) x hp / cost^2
+    uint8_t *td = type_data(t);
+    int kind = FIELD(td, 0x4C8, int), cost = 0;
+    for (int r = 2; r < 7; r++) cost += unit_cost(pl, t, r);
+    float f = role == NR_LINE ? nv_f(kind, NV_C_FRIG) : role == NR_AA ? nv_air_f(kind) : role != NR_FRIG ? nv_f(kind, NV_C_LINE) :
+              nv_f(kind, NV_C_GALLEY) > nv_f(kind, NV_C_SUB) ? nv_f(kind, NV_C_GALLEY) : nv_f(kind, NV_C_SUB);
+    if (cost <= 0 || f <= 0) return 0;
+    return f * (float)FIELD(td, 0x510, int) * 1000.0f / (float)(FIELD(td, 0x50C, int) + 2000) * (float)FIELD(td, 0x55C, int) / ((float)cost * (float)cost);
+}
+struct nv_pick {
+    void *pl; uint32_t cand_t, seen_t, log_t;
+    int nc, ctype[24], crole[24];                  // the warship types available (every 30 s)
+    int e[NR_N], air, carriers, coast;             // the enemy seen
+    float w[NR_N];                                 // the wanted shares (before what is available)
+    int ring_role[8]; uint32_t ring_t[8]; int ring_i;   // paid in the last minute: not afloat yet
+    int wait_type, skip_type, bad_type[4]; uint32_t wait_since, skip_until, bad_until[4]; int bad_i;
+    unsigned asked[NR_N], trained[NR_N], changed, skipped, bad;
+};
+static struct nv_pick g_nv_pk[16];
+static void nv_mix_reset(void) { memset(g_nv_pk, 0, sizeof g_nv_pk); }
+static void nv_cands(void *pl, struct nv_pick *pk, uint32_t now) {
+    if (pk->pl == pl && now >= pk->cand_t && now - pk->cand_t < 30000) return;
+    pk->pl = pl; pk->cand_t = now ? now : 1; pk->nc = 0;
+    for (int t = 1; t < G_TYPES_N && pk->nc < 24; t++) {
+        uint8_t *td = type_data(t);
+        if (!td || FIELD(td, 0x4B8, int) != t) continue;
+        int r = nv_role(td);
+        if (r == NR_NONE || !ld_type_avail(pl, t)) continue;
+        pk->ctype[pk->nc] = t; pk->crole[pk->nc++] = r;
+    }
+}
+static int nv_near_sea(int x, int y) {
+    static const int d[5][2] = { { 0, 0 }, { 4, 0 }, { -4, 0 }, { 0, 4 }, { 0, -4 } };
+    for (int k = 0; k < 5; k++) if (area_id(x + d[k][0], y + d[k][1], 1)) return 1;
+    return 0;
+}
+static void nv_seen_one(struct nv_pick *pk, uint8_t *td, int x, int y) {
+    if (!td) return;
+    int fam = FIELD(td, 0x4B4, int);
+    if (fam == 3 || fam == 7 || fam == 17) { pk->air++; return; }
+    if (fam == 21) { pk->carriers++; return; }
+    int r = nv_role(td);
+    if (r != NR_NONE) { pk->e[r]++; return; }
+    if (fam == 4 || fam == 10 || fam == 18 || fam == 22 || FIELD(td, 0x510, int) <= 0 || x < 0) return;
+    if (nv_f(FIELD(td, 0x4C8, int), NV_C_LINE) >= 3.0f && nv_near_sea(x, y)) pk->coast++;   // hits battleships x3+ from the coast
+}
+// the enemy seen: intel's memory (10 minutes; buildings until looked at again) - or, with the game's view, every
+// enemy unit it sees now; then the wanted shares
+static void nv_seen(void *pl, unsigned idx, struct nv_pick *pk, uint32_t now) {
+    pk->seen_t = now ? now : 1;
+    memset(pk->e, 0, sizeof pk->e); pk->air = pk->carriers = pk->coast = 0;
+    if (g_honest_vision) {
+        struct intel *in = &g_intel[idx & 15];
+        for (int k = 0; k < in->n; k++) {
+            struct intel_rec *e = &in->r[k];
+            if (e->kind != 0 && in->now - e->t > 600000) continue;
+            nv_seen_one(pk, type_data(e->type), e->x, e->y);
+        }
+    } else
+        for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
+            void *o = FIELD(it.u, 0x18, void *);
+            if (!o || FIELD(it.u, 0x3C, int) <= 0 || !is_enemy(pl, o) || !seen_by(it.u, pl)) continue;
+            nv_seen_one(pk, it.td, FIELD(it.u, 0x1C, int), FIELD(it.u, 0x20, int));
+        }
+    int afloat = pk->e[NR_FRIG] + pk->e[NR_LINE] + pk->e[NR_ANTI] + pk->e[NR_AA];
+    float air = (float)(pk->air + 3 * pk->carriers);
+    pk->w[NR_FRIG] = 2.0f + 0.5f * (float)(pk->e[NR_ANTI] + pk->e[NR_SUB]);
+    pk->w[NR_LINE] = (1.0f + 0.25f * (float)pk->e[NR_FRIG]) * (float)(1 + afloat) / (float)(1 + afloat + pk->e[NR_SUB]) * 4.0f / (4.0f + (float)pk->coast);
+    pk->w[NR_ANTI] = 0.5f + 0.75f * (float)pk->e[NR_LINE];
+    pk->w[NR_SUB] = 1.0f + 0.75f * (float)pk->e[NR_LINE];
+    pk->w[NR_AA] = air > 0 ? (0.5f + air / 8.0f > 2.0f ? 2.0f : 0.5f + air / 8.0f) : 0.0f;
+}
+// what each role has (own afloat + paid in the last minute) and the best type per role it may train now
+static void nv_roles(void *pl, unsigned idx, struct nv_pick *pk, uint32_t now, int best[NR_N], float w[NR_N], int have[NR_N]) {
+    float bs[NR_N] = { 0 };
+    memset(best, 0, NR_N * sizeof *best);
+    for (int k = 0; k < pk->nc; k++) {
+        int t = pk->ctype[k], r = pk->crole[k], skip = t == pk->skip_type && now < pk->skip_until;
+        for (int b = 0; b < 4; b++) skip |= t == pk->bad_type[b] && now < pk->bad_until[b];
+        float s = skip ? 0 : nv_score(pl, t, r);
+        if (s > bs[r]) { bs[r] = s; best[r] = t; }
+    }
+    for (int r = 0; r < NR_N; r++) {
+        w[r] = best[r] ? pk->w[r] : 0.0f;
+        have[r] = g_nv_own[idx].role[r];
+    }
+    if (best[NR_SUB]) w[NR_ANTI] = 0;   // e10+: submarines take the galleys' place
+    for (int q = 0; q < 8; q++) if (pk->ring_t[q] && now >= pk->ring_t[q] && now - pk->ring_t[q] < 60000) have[pk->ring_role[q]]++;
+}
+// the type to train for the game's warship order asked (0: the game's own)
+static int navy_pick(void *pl, unsigned idx, int asked) {
+    if (!PV(idx, g_v_navy_mix, g_navy_mix) || !navy_pays(idx, asked)) return 0;
+    int k = navy_type_kind(asked);
+    if (k != NV_WAR && k != NV_SUB) return 0;
+    uint32_t now = game_time();
+    struct nv_pick *pk = &g_nv_pk[idx & 15];
+    nv_cands(pl, pk, now);
+    if (!pk->seen_t || now < pk->seen_t || now - pk->seen_t >= 30000) nv_seen(pl, idx, pk, now);
+    int best[NR_N], have[NR_N], all = 0, br = 0;
+    float w[NR_N], wsum = 0, bd = -1e9f;
+    nv_roles(pl, idx, pk, now, best, w, have);
+    for (int r = 1; r < NR_N; r++) { wsum += w[r]; all += have[r]; }
+    if (wsum <= 0) return 0;
+    for (int r = 1; r < NR_N; r++) {
+        float d = w[r] / wsum * (float)(all + 1) - (float)have[r];
+        if (w[r] > 0 && d > bd) { bd = d; br = r; }
+    }
+    return br ? best[br] : 0;
+}
+// after the order: counts, the wait for a refused type, a type the game can't train
+static void navy_pick_done(void *pl, unsigned idx, int pick, int asked, const int *before, const int *stock, int blocked) {
+    struct nv_pick *pk = &g_nv_pk[idx & 15];
+    uint32_t now = game_time();
+    int paid = 0, payable = 1, r = nv_role(type_data(pick));
+    for (int q = 2; q < 7; q++) { paid |= stock && before[q] > stock[q]; payable &= !stock || unit_cost(pl, pick, q) <= stock[q]; }
+    if (paid) {
+        pk->asked[nv_role(type_data(asked))]++; pk->trained[r]++; pk->changed += pick != asked;
+        pk->ring_role[pk->ring_i] = r; pk->ring_t[pk->ring_i] = now ? now : 1; pk->ring_i = (pk->ring_i + 1) & 7;
+        pk->wait_type = 0;
+    } else if (blocked) {   // the budget refused it: wait 2 minutes for it, then another role for one
+        if (pk->wait_type != pick || now < pk->wait_since) { pk->wait_type = pick; pk->wait_since = now; }
+        else if (now - pk->wait_since >= 120000) { pk->skip_type = pick; pk->skip_until = now + 60000; pk->wait_type = 0; pk->skipped++; }
+    } else if (payable && pick != asked) {   // paid for and not trained: no building for it (the game's own type: its check passed)
+        pk->bad_type[pk->bad_i] = pick; pk->bad_until[pk->bad_i] = now + 300000; pk->bad_i = (pk->bad_i + 1) & 3; pk->bad++;
+        if (g_log) fprintf(g_log, "# navy: P%u at %.1f min: mix type %d (for %d) not trained though payable - skipped 5 minutes\n", idx, now / 60000.0, pick, asked);
+    }
+}
+static void navy_mix_log(void *pl, unsigned idx, uint32_t now) {
+    struct nv_pick *pk = &g_nv_pk[idx & 15];
+    if (!g_log || !PV(idx, g_v_navy_mix, g_navy_mix) || navy_share(idx) <= 0) return;
+    nv_cands(pl, pk, now);
+    nv_seen(pl, idx, pk, now);
+    int best[NR_N], have[NR_N];
+    float w[NR_N], wsum = 0;
+    nv_roles(pl, idx, pk, now, best, w, have);
+    for (int r = 1; r < NR_N; r++) wsum += w[r];
+    fprintf(g_log, "# navy: P%u mix at %u min: want", idx, now / 60000);
+    for (int r = 1; r < NR_N; r++) fprintf(g_log, " %s%.0f%%", k_nr[r], wsum > 0 ? 100.0f * w[r] / wsum : 0.0f);
+    fprintf(g_log, " | have");
+    for (int r = 1; r < NR_N; r++) fprintf(g_log, " %s%d", k_nr[r], g_nv_own[idx & 15].role[r]);
+    fprintf(g_log, " | types");
+    for (int r = 1; r < NR_N; r++) fprintf(g_log, " %s%d", k_nr[r], best[r]);
+    fprintf(g_log, " | enemy seen");
+    for (int r = 1; r < NR_N; r++) fprintf(g_log, " %s%d", k_nr[r], pk->e[r]);
+    fprintf(g_log, " air %d carriers %d coast %d | asked", pk->air, pk->carriers, pk->coast);
+    for (int r = 0; r < NR_N; r++) fprintf(g_log, " %s%u", k_nr[r], pk->asked[r]);
+    fprintf(g_log, " trained");
+    for (int r = 1; r < NR_N; r++) fprintf(g_log, " %s%u", k_nr[r], pk->trained[r]);
+    fprintf(g_log, " (changed %u, skipped %u, no building %u)\n", pk->changed, pk->skipped, pk->bad);
 }
 
 // DOCKS (with the navy account): the game's building plan keeps docks up to its "min military buildings" - 1.5-2.2
@@ -411,9 +657,11 @@ static void navy_install(const char *aimod_ini, const char *autotest_ini) {
     g_navy_share = cfg_int(aimod_ini, autotest_ini, 1, "navy_share", 25);
     if (g_navy_share < 0) g_navy_share = 0;
     if (g_navy_share > 80) g_navy_share = 80;
+    g_navy_mix = cfg_int(aimod_ini, autotest_ini, 1, "navy_mix", 0);
     if (autotest_ini) g_v_navy = GetPrivateProfileIntA("autotest", "v_navy", -1, autotest_ini);
-    if (g_log) fprintf(g_log, "# navy: account %s, share %d%% on islands (v_navy %d for the variant players)\n", g_navy ? "on" : "off", g_navy_share,
-                       g_v_navy);
+    if (autotest_ini) g_v_navy_mix = GetPrivateProfileIntA("autotest", "v_navy_mix", -1, autotest_ini);
+    if (g_log) fprintf(g_log, "# navy: account %s, share %d%% on islands, fleet mix %s (v_navy %d, v_navy_mix %d for the variant players)\n",
+                       g_navy ? "on" : "off", g_navy_share, g_navy_mix ? "on" : "off", g_v_navy, g_v_navy_mix);
 }
 
 static void navy_tick(void *pl, uint32_t now) {

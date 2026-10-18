@@ -368,6 +368,8 @@ static void navy_hold(void *pl, unsigned idx, int reserve[7]);
 static int navy_account(unsigned idx, int r);
 static void navy_paid(unsigned idx, int type, const int *spent, int got);
 static int navy_room_reserve(void *pl);
+static int navy_pick(void *pl, unsigned idx, int asked);
+static void navy_pick_done(void *pl, unsigned idx, int pick, int asked, const int *before, const int *stock, int blocked);
 #define FN_CP_ADD_RESOURCE 0x0042F783   // EEComputerPlayer::vf18(type, amount)
 #define FARM_EPOCH 2   // farms and granaries come with epoch 2, the Copper Age
 static int current_epoch(void *pl);
@@ -1612,6 +1614,13 @@ __attribute__((noinline)) static uintptr_t __fastcall hook_train_units(void *um,
     int before[7] = { 0 }, reserve[7] = { 0 }, visibles[7] = { 0 }, blocked = 0, afford = 0, sub_type = 0;
     if (stock) memcpy(before, stock, sizeof before);
     unsigned idx = pl ? (unsigned)FIELD(pl, PL_INDEX, int) & 15 : 0;
+    uintptr_t ra = (uintptr_t)__builtin_return_address(0) - 5;   // the call site: read here, in the hook
+    // the fleet mix (navy.c): a warship the game asks for at its own sites is trained as the type the mix wants; the
+    // request entry (req points into the unit manager's list) gets its own type back afterwards
+    int asked = req[0], pick = 0, game_site = 0;
+    for (int k = 0; k < 5; k++) game_site |= k_train_sites[k] == ra;
+    if (pl && game_site && !g_priority_mil && !g_landing_order) pick = navy_pick(pl, idx, asked);
+    if (pick) req[0] = pick;
     // fishing boats and the landing's transports: economy (navy.c); warships on a water map: the navy account
     int military = !is_citizen_type(req[0]) && !(pl && navy_economy(idx, req[0], g_landing_order));
     int ship = military && pl && navy_pays(idx, req[0]);
@@ -1619,9 +1628,9 @@ __attribute__((noinline)) static uintptr_t __fastcall hook_train_units(void *um,
     const struct ai_cfg *cfg = pl ? cfg_of(pl) : NULL;
     if (stock && cfg->budget) train_budget(pl, idx, cfg, req, military, req_unit, ship, stock, reserve, visibles, &blocked, &afford, &sub_type);
     else if (stock) memcpy(visibles, stock, sizeof visibles);
-    uintptr_t ra = (uintptr_t)__builtin_return_address(0) - 5;   // the call site: read here, in the hook
     uintptr_t res = train_call(um, pl, idx, req, b, blocked, afford, sub_type, ra, military, ship);
     train_account(pl, idx, cfg, req, res, military, ship, sub_type, stock, before, reserve, visibles, ra);
+    if (pick) { navy_pick_done(pl, idx, pick, asked, before, stock, blocked); req[0] = asked; }
     return res;
 }
 
