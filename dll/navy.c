@@ -28,6 +28,8 @@ static struct { uint8_t *u; int id, amount, owner; } g_nv_fish[NV_FISH_MAX];
 static int g_nv_nfish, g_nv_fish_food[16], g_nv_fish_left;
 static uint32_t g_nv_fish_t, g_nv_log_t;
 static int g_fish_last[16];   // the fishing boat last picked per player (hook_fish_type, its log line)
+struct nv_map { uint32_t t; uint8_t done, kind; float strength, water; int across, enemies; };   // navy_detect
+static struct nv_map g_nv_map[16];
 
 static void navy_new_game(void) {
     memset(g_nv_fish, 0, sizeof g_nv_fish);
@@ -36,6 +38,7 @@ static void navy_new_game(void) {
     g_nv_nfish = g_nv_fish_left = 0;
     g_nv_fish_t = g_nv_log_t = 0;
     memset(g_fish_last, 0, sizeof g_fish_last);
+    memset(g_nv_map, 0, sizeof g_nv_map);
 }
 
 static void navy_fish(void) {
@@ -146,6 +149,58 @@ static void navy_log_all(uint32_t now) {
     LeaveCriticalSection(&g_lock);
 }
 
+// WATER MAP (docs/navy.md stage 1), once per AI and game from the map itself, 10 s in (the start buildings stand):
+// its home continent (area_id kind 2 at the build manager's base point +0x12C/+0x130, as landing.c's home), every
+// enemy with buildings (families 2, 29) - across the water when none of them stands on that continent - and the
+// map's ocean tiles (kind 1, every 4th tile). The strength: the share of enemies across the water (1 islands, 0 land,
+// between: mixed); the navy's share of the income scales with it. Logged with the game's own flags for comparison:
+// world (0x9183BC) +0x181730 bit 0 (the game's "water map", 0x4307A7) and player +0xEFA (that and 10+ fish). An
+// enemy without any building yet: asked again every 10 s up to 3 minutes, then decided on the others.
+#define NV_LAND 0
+#define NV_MIXED 1
+#define NV_ISLANDS 2
+struct nv_bld { int x[16][64], y[16][64], n[16]; };
+static void navy_detect(void *pl, unsigned idx, uint32_t now) {
+    static struct nv_bld b;
+    void *cm = FIELD(pl, 0xB90, void *);
+    uint8_t *bm = cm ? FIELD(cm, 0x3C, uint8_t *) : NULL, *map = *(uint8_t **)G_MAP;
+    uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
+    unsigned hc = bm ? area_id(FIELD(bm, 0x12C, int), FIELD(bm, 0x130, int), 2) : 0;
+    if (!hc || !grid) return;
+    memset(b.n, 0, sizeof b.n);
+    for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
+        int fam = FIELD(it.td, 0x4B4, int);
+        uint8_t *o = FIELD(it.u, 0x18, uint8_t *);
+        if ((fam != 2 && fam != 29) || !o || FIELD(it.u, 0x3C, int) <= 0) continue;
+        int pi = FIELD(o, PL_INDEX, int);
+        if (pi <= 0 || pi >= 16 || b.n[pi] >= 64) continue;
+        b.x[pi][b.n[pi]] = FIELD(it.u, 0x1C, int); b.y[pi][b.n[pi]++] = FIELD(it.u, 0x20, int);
+    }
+    int enemies = 0, across = 0, none = 0;
+    for (int p = 1; p < nplayers(); p++) {
+        void *pp = player_at(p);
+        if (!pp || is_out(pp) || !is_enemy(pl, pp)) continue;
+        if (!b.n[p]) { none++; continue; }
+        int home = 0;
+        for (int k = 0; k < b.n[p] && !home; k++) home = area_id(b.x[p][k], b.y[p][k], 2) == hc;
+        enemies++; across += !home;
+    }
+    if (none && now < 180000) return;   // an enemy without buildings yet: wait for them
+    int nx = FIELD(grid, 0x10, int) * FIELD(grid, 8, int), ny = FIELD(grid, 0x14, int) * FIELD(grid, 8, int), sea = 0, all = 0;
+    for (int x = 1; x < nx; x += 4)
+        for (int y = 1; y < ny; y += 4, all++) sea += area_id(x, y, 1) != 0;
+    struct nv_map *m = &g_nv_map[idx];
+    m->done = 1; m->t = now; m->across = across; m->enemies = enemies;
+    m->strength = enemies ? (float)across / enemies : 0.0f;
+    m->water = all ? (float)sea / all : 0.0f;
+    m->kind = !enemies || !across ? NV_LAND : across == enemies ? NV_ISLANDS : NV_MIXED;
+    uint8_t *w = *(uint8_t **)0x009183BC;
+    if (g_log) fprintf(g_log, "# navy: P%u map at %.1f min: %s (strength %.2f) - %d of %d enemies across the water, water %.0f%% of the map, "
+                       "home continent %u; the game's water flag %d, +0xEFA %d\n", idx, now / 60000.0,
+                       m->kind == NV_ISLANDS ? "islands" : m->kind == NV_MIXED ? "mixed" : "land", m->strength, across, enemies,
+                       100.0f * m->water, hc, w ? (int)(FIELD(w, 0x181730, uint32_t) & 1) : -1, (int)FIELD(pl, 0xEFA, uint8_t));
+}
+
 // FISHING BOAT ([all] fishing_boat, default 1; docs/navy.md stage 0): the game's pick 0x46D209 (thiscall on the
 // economy object, +0x4C = the player) goes by the epoch index alone: below 3 the Stone boat 108, below 9 the Bronze
 // boat 109, below 14 the Modern boat 211 - an epoch-11 unit (tech 11090). The Imperial boat 365 (tech 8090) and the
@@ -182,7 +237,10 @@ static void navy_install(const char *aimod_ini, const char *autotest_ini) {
 }
 
 static void navy_tick(void *pl, uint32_t now) {
-    (void)pl;
+    unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
+    struct nv_map *m = &g_nv_map[idx];
+    if (now < m->t) memset(m, 0, sizeof *m);
+    if (!m->done && now >= 10000 && now - m->t >= 10000) { m->t = now; navy_detect(pl, idx, now); }
     if (!g_auto.enabled || !g_log) return;
     if (now < g_nv_fish_t) g_nv_fish_t = g_nv_log_t = 0;
     if (now - g_nv_fish_t >= 15000) { g_nv_fish_t = now; navy_fish(); }
