@@ -94,6 +94,7 @@ static void assault_new_game(void);
 static void sites_new_game(void);
 static void intel_install(const char *aimod_ini, const char *autotest_ini);
 static void landing_install(const char *aimod_ini, const char *autotest_ini);
+static void navy_install(const char *aimod_ini, const char *autotest_ini);
 static void assault_install(const char *aimod_ini, const char *autotest_ini);
 static void log_line(const char *fmt, const char *a, int b);
 static BOOL patch_call(uintptr_t site, uintptr_t expected, void *hook);
@@ -811,6 +812,7 @@ static void install(HMODULE self) {
     attack_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
     assault_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
     landing_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
+    navy_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
     intel_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
     defence_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
     chat_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);

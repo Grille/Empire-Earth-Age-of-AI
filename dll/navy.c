@@ -1,5 +1,6 @@
-// NAVY (observation only, docs/navy.md): what each AI has afloat, who holds which waters, the food from fish, the
-// ships lost - the baseline for a standing navy. Nothing here gives an order or changes a decision.
+// NAVY (docs/navy.md): what each AI has afloat, who holds which waters, the food from fish, the ships lost - the
+// baseline for a standing navy (observation, no orders). The one decision changed: the fishing boat type (stage 0,
+// hook_fish_type below).
 //   # navy: (autotest only, every 2 game minutes per AI) docks, fishing boats, warships by type, submarines, carriers,
 //     transports, the warships in its own waters / an enemy's waters, the enemy's warships in its waters, the ships
 //     it lost and sank (diplo.c kill counts), the food its boats took from the fish, its income and stock.
@@ -26,6 +27,7 @@ static int navy_kind(uint8_t *td) {
 static struct { uint8_t *u; int id, amount, owner; } g_nv_fish[NV_FISH_MAX];
 static int g_nv_nfish, g_nv_fish_food[16], g_nv_fish_left;
 static uint32_t g_nv_fish_t, g_nv_log_t;
+static int g_fish_last[16];   // the fishing boat last picked per player (hook_fish_type, its log line)
 
 static void navy_new_game(void) {
     memset(g_nv_fish, 0, sizeof g_nv_fish);
@@ -33,6 +35,7 @@ static void navy_new_game(void) {
     memset(g_nv_boat_kills, 0, sizeof g_nv_boat_kills);
     g_nv_nfish = g_nv_fish_left = 0;
     g_nv_fish_t = g_nv_log_t = 0;
+    memset(g_fish_last, 0, sizeof g_fish_last);
 }
 
 static void navy_fish(void) {
@@ -141,6 +144,41 @@ static void navy_log_all(uint32_t now) {
     }
     fflush(g_log);
     LeaveCriticalSection(&g_lock);
+}
+
+// FISHING BOAT ([all] fishing_boat, default 1; docs/navy.md stage 0): the game's pick 0x46D209 (thiscall on the
+// economy object, +0x4C = the player) goes by the epoch index alone: below 3 the Stone boat 108, below 9 the Bronze
+// boat 109, below 14 the Modern boat 211 - an epoch-11 unit (tech 11090). The Imperial boat 365 (tech 8090) and the
+// Digital boat 332 (13098) are never asked for, and from the epoch index 9 on it asks for one it can't train: no
+// fishing at all in e10 (e9 starts: 0 boats, food stopped at minute ~30). Both callers (0x48F819 counts the boats,
+// 0x48FB05 orders one when none of that type exists or is in production) get the newest fishing boat (family 22,
+// highest tech) the player has available by its tech record's own test (landing.c ld_type_avail: an upgraded line's
+// old type is not available any more), every epoch; none available: the game's pick.
+#define FN_FISH_TYPE 0x0046D209
+static int g_fish_boat = 1;
+static int __fastcall hook_fish_type(void *o, void *edx) {
+    (void)edx;
+    int t = ((int (__thiscall *)(void *))FN_FISH_TYPE)(o);
+    void *pl = o ? FIELD(o, 0x4C, void *) : NULL;
+    if (!g_fish_boat || !pl || !FIELD(pl, PL_TECHTREE, void *)) return t;
+    static const int boats[] = { 108, 109, 365, 211, 332 };
+    int best = 0, bt = 0;
+    for (size_t k = 0; k < sizeof boats / sizeof *boats; k++) {
+        uint8_t *td = type_data(boats[k]);
+        if (!td || FIELD(td, 0x4B8, int) != boats[k] || FIELD(td, 0x4B4, int) != 22 || !ld_type_avail(pl, boats[k])) continue;
+        if (FIELD(td, 0x4E0, int) > bt) { bt = FIELD(td, 0x4E0, int); best = boats[k]; }
+    }
+    unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
+    if (best && best != g_fish_last[idx] && g_log)
+        fprintf(g_log, "# fishing: P%u at %.1f min: epoch %d - the game asks for boat %d, trains %d\n", idx, game_time() / 60000.0,
+                current_epoch(pl) + 1, t, best);
+    if (best) g_fish_last[idx] = best;
+    return best ? best : t;
+}
+static void navy_install(const char *aimod_ini, const char *autotest_ini) {
+    g_fish_boat = cfg_int(aimod_ini, autotest_ini, 1, "fishing_boat", 1);
+    int ok = g_fish_boat ? patch_call(0x0048F823, FN_FISH_TYPE, (void *)hook_fish_type) + patch_call(0x0048FB16, FN_FISH_TYPE, (void *)hook_fish_type) : 0;
+    if (g_log) fprintf(g_log, "# fishing: boat choice %s (hooks %d/2)\n", g_fish_boat ? "newest available" : "the game's", ok);
 }
 
 static void navy_tick(void *pl, uint32_t now) {
