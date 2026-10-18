@@ -4,17 +4,21 @@
 // Included by eeaimod.c after control.c (G_MAP, G_UNIT_GRID_OFS).
 
 // Iterator over the cells covering tiles x-r..x+r, y-r..y+r (or the whole grid): the units with a type, cell by cell
-// (columns outer, rows inner - the order of the hand-written loops it replaced), each cell's vector as it stands
-// (its end read at every step). once = 1: a unit only in the cell of its own position (each unit once - a big
-// building otherwise comes up in each of its cells); 0: every entry, as the loops it replaced (a building of several
-// cells more than once). break / continue / return in the loop body work as in a plain loop:
-//     for (struct grid_it it = grid_it_box(x, y, r, 0); grid_it_next(&it); ) { uint8_t *u = it.u, *td = it.td; ... }
+// (columns outer, rows inner), each cell's vector as it stands (its end read at every step). once = 1: each unit once -
+// in the cell of its own position, or, when that lies outside the area, the area's cell nearest to it (a big building
+// stands in every cell it covers, up to 4 - buildings and towers, families 2 and 29; every other unit in one cell, and
+// every unit in the cell of its own position: gridcheck, Continental and Small Islands, 4 looks each). The same units
+// as once = 0, which visits every entry (a big building once per cell: counted, its strength summed 2-4 times - the
+// 36 loops it replaced did that, except those with their own own-cell test). A footprint is a rectangle of cells
+// holding the own cell, so the nearest area cell to the own cell is one of it. break / continue / return in the loop
+// body work as in a plain loop:
+//     for (struct grid_it it = grid_it_box(x, y, r, 1); grid_it_next(&it); ) { uint8_t *u = it.u, *td = it.td; ... }
 struct grid_it {
     uint8_t *cells, *cell, **b;   // the grid's cells, the current cell, the next entry in it
     uint8_t *u, *td;              // the unit found and its type
     int cs, ny, once;
     int cx, cy;                   // the current cell
-    int gx, gy, x1, y0, y1;       // the next cell, the area's last column and its rows
+    int gx, gy, x0, x1, y0, y1;   // the next cell, the area's columns and rows
 };
 static struct grid_it grid_it_area(int x0, int y0, int x1, int y1, int once) {   // cells x0..x1, y0..y1 (clamped)
     struct grid_it it = { 0 };
@@ -32,7 +36,7 @@ static struct grid_it grid_it_area(int x0, int y0, int x1, int y1, int once) {  
     if (x1 >= nx) x1 = nx - 1;
     if (y1 >= it.ny) y1 = it.ny - 1;
     if (y0 > y1) return it;
-    it.gx = x0; it.x1 = x1; it.gy = y0; it.y0 = y0; it.y1 = y1; it.once = once;
+    it.gx = x0; it.x0 = x0; it.x1 = x1; it.gy = y0; it.y0 = y0; it.y1 = y1; it.once = once;
     return it;
 }
 // the cells covering tiles x-r..x+r, y-r..y+r. C division truncates toward 0: (x - r) / cs is cell 0 for -1..-(cs-1)
@@ -50,7 +54,12 @@ static int grid_it_next(struct grid_it *it) {
         while (it->b && it->b < FIELD(it->cell, 8, uint8_t **)) {
             uint8_t *u = *it->b++, *td = u ? FIELD(u, 0x2C, uint8_t *) : NULL;
             if (!td) continue;
-            if (it->once && (FIELD(u, 0x1C, int) / it->cs != it->cx || FIELD(u, 0x20, int) / it->cs != it->cy)) continue;
+            if (it->once) {   // only in its own cell, or the area's cell nearest to it
+                int ox = FIELD(u, 0x1C, int) / it->cs, oy = FIELD(u, 0x20, int) / it->cs;
+                ox = ox < it->x0 ? it->x0 : ox > it->x1 ? it->x1 : ox;
+                oy = oy < it->y0 ? it->y0 : oy > it->y1 ? it->y1 : oy;
+                if (ox != it->cx || oy != it->cy) continue;
+            }
             it->u = u; it->td = td;
             return 1;
         }
@@ -66,8 +75,8 @@ static int grid_it_next(struct grid_it *it) {
 static void grid_each(void (*fn)(uint8_t *u, void *ctx), void *ctx) {
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) fn(it.u, ctx);
 }
-// the same within the cells covering tiles x-r..x+r, y-r..y+r: each unit once, in the cell of its own position (a big
-// building stands in several cells - counted by hand, an AA building counted 2-4 times); fn checks the distance
+// the same within the cells covering tiles x-r..x+r, y-r..y+r: each unit once (a big building stands in several cells -
+// counted by hand, an AA building counted 2-4 times); fn checks the distance
 static void grid_box(int x, int y, int r, void (*fn)(uint8_t *u, void *ctx), void *ctx) {
     for (struct grid_it it = grid_it_box(x, y, r, 1); grid_it_next(&it); ) fn(it.u, ctx);
 }

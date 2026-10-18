@@ -123,7 +123,7 @@ static uint8_t *as_enemy_near(void *pl, uint8_t *target, int x, int y, int r, in
     uint8_t *best[3] = { 0 };
     float bd[3] = { 1e9f, 1e9f, 1e9f };
     if (soldiers) *soldiers = 0;
-    for (struct grid_it it = grid_it_box(x, y, r, 0); grid_it_next(&it); ) {
+    for (struct grid_it it = grid_it_box(x, y, r, 1); grid_it_next(&it); ) {
         uint8_t *u = it.u, *td = it.td;
         if (!td || FIELD(u, 0x3C, int) <= 0) continue;
         void *o = FIELD(u, 0x18, void *);
@@ -155,7 +155,7 @@ static float as_enemy_power(void *pl, int x, int y, int r, float *cx, float *cy,
     *n = 0; *cx = (float)x; *cy = (float)y;
     if (!grid) return 0;
     int rr = r + 12;
-    for (struct grid_it it = grid_it_box(x, y, rr, 0); grid_it_next(&it); ) {
+    for (struct grid_it it = grid_it_box(x, y, rr, 1); grid_it_next(&it); ) {
         uint8_t *u = it.u, *td = it.td;
         if (!td || FIELD(u, 0x3C, int) <= 0) continue;
         void *o = FIELD(u, 0x18, void *);

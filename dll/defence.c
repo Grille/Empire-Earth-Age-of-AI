@@ -812,7 +812,7 @@ static void hold_town(void *pl, unsigned idx, uint32_t now) {
     int en = 0;
     uint8_t *enemy[128];
     {
-        for (struct grid_it it = grid_it_box(s->bx, s->by, 35, 0); grid_it_next(&it); ) {
+        for (struct grid_it it = grid_it_box(s->bx, s->by, 35, 1); grid_it_next(&it); ) {
             uint8_t *u = it.u, *td = it.td;
             if (FIELD(u, 0x3C, int) <= 0) continue;
             int dx = FIELD(u, 0x1C, int) - s->bx, dy = FIELD(u, 0x20, int) - s->by, type = FIELD(td, 0x4B8, int);

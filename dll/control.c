@@ -45,6 +45,7 @@ static void cmd_texts(char *out, const char *args);       // texts.c
 static void cmd_wave(char *out, const char *args);
 static void cmd_charge(char *out, const char *args);
 static void cmd_count(char *out, const char *args);
+static void cmd_gridcheck(char *out, const char *args);
 static void cmd_objs(char *out, const char *args);
 static void cmd_sndstate(char *out, const char *args);
 static void cmd_sndchan(char *out, const char *args);
@@ -411,6 +412,7 @@ static void execute(const char *cmd, char *out) {
     else if (!strcmp(verb, "wave")) cmd_wave(out, args);
     else if (!strcmp(verb, "charge")) cmd_charge(out, args);
     else if (!strcmp(verb, "count")) cmd_count(out, args);
+    else if (!strcmp(verb, "gridcheck")) cmd_gridcheck(out, args);
     else if (!strcmp(verb, "objs")) cmd_objs(out, args);
     else if (!strcmp(verb, "sndstate")) cmd_sndstate(out, args);
     else if (!strcmp(verb, "sndchan")) cmd_sndchan(out, args);

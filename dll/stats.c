@@ -345,7 +345,7 @@ static void cmd_stats(char *out, const char *args) {
         static uint8_t *mu[ST_UNITS], *fu[ST_UNITS];
         uint8_t *map = *(uint8_t **)G_MAP, *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
         if (!grid) { REPLY("error: no map\n"); return; }
-        for (struct grid_it it = grid_it_all(0); grid_it_next(&it); ) {
+        for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
             uint8_t *u = it.u, *td = it.td;
             int q = st_pidx(u);
             if (FIELD(u, 0x3C, int) <= 0 || q <= 0 || q > 15) continue;
@@ -403,7 +403,7 @@ static void cmd_stats(char *out, const char *args) {
         float tr[32] = { 0 };
         uint8_t *map = *(uint8_t **)G_MAP, *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
         if (!grid) { REPLY("error: no map\n"); return; }
-        for (struct grid_it it = grid_it_all(0); grid_it_next(&it); ) {
+        for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
             uint8_t *u = it.u, *td = it.td;
             int q = st_pidx(u);
             if (FIELD(u, 0x3C, int) <= 0 || q <= 0 || q > 15) continue;

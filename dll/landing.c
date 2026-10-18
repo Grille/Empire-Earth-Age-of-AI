@@ -260,7 +260,7 @@ static int ld_tile_free(int x, int y) {
     uint8_t *map = *(uint8_t **)G_MAP;
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     if (!grid || x < 1 || y < 1) return 0;
-    for (struct grid_it it = grid_it_box(x, y, 3, 0); grid_it_next(&it); )
+    for (struct grid_it it = grid_it_box(x, y, 3, 1); grid_it_next(&it); )
         if (abs(FIELD(it.u, 0x1C, int) - x) <= 1 && abs(FIELD(it.u, 0x20, int) - y) <= 1) return 0;
     return 1;
 }
@@ -305,7 +305,7 @@ static void ld_defence(void *pl, int x, int y, int wx, int wy, struct ld_def *d)
     d->n = 0;
     if (grid) {
         int r = 40;
-        for (struct grid_it it = grid_it_box(x, y, r, 0); grid_it_next(&it); ) {
+        for (struct grid_it it = grid_it_box(x, y, r, 1); grid_it_next(&it); ) {
             uint8_t *u = it.u, *td = it.td;
             if (!td || FIELD(u, 0x3C, int) <= 0) continue;
             void *o = FIELD(u, 0x18, void *);
@@ -434,7 +434,7 @@ static uint8_t *ld_naval_target(void *pl, int x, int y, int r, int soldiers) {  
     if (!grid) return NULL;
     uint8_t *best = NULL;
     float bd = 1e9f;
-    for (struct grid_it it = grid_it_box(x, y, r, 0); grid_it_next(&it); ) {
+    for (struct grid_it it = grid_it_box(x, y, r, 1); grid_it_next(&it); ) {
         uint8_t *u = it.u, *td = it.td;
         if (!td || FIELD(u, 0x3C, int) <= 0) continue;
         void *o = FIELD(u, 0x18, void *);
@@ -544,7 +544,7 @@ static uint8_t *ld_hunt(void *pl, int x, int y, int r, uint8_t *esc, uint8_t *tr
     int tpi = FIELD(pl, 0x45C, int);
     uint8_t *best = NULL;
     float bd = 1e9f;
-    for (struct grid_it it = grid_it_box(x, y, r, 0); grid_it_next(&it); ) {
+    for (struct grid_it it = grid_it_box(x, y, r, 1); grid_it_next(&it); ) {
         uint8_t *u = it.u;
         float dx = (float)(FIELD(u, 0x1C, int) - x), dy = (float)(FIELD(u, 0x20, int) - y), d2 = dx * dx + dy * dy;
         if (d2 > (float)(r * r) || d2 >= bd || !ld_sea_foe(pl, u, trtd, tpi) || (esc && !ld_hits(esc, u))) continue;
@@ -1823,7 +1823,7 @@ static uint8_t *ld_raid_target(void *pl, uint8_t *target, int x, int y, int r) {
     if (!grid) return NULL;
     uint8_t *best[4] = { 0 };
     float bd[4] = { 1e9f, 1e9f, 1e9f, 1e9f };
-    for (struct grid_it it = grid_it_box(x, y, r, 0); grid_it_next(&it); ) {
+    for (struct grid_it it = grid_it_box(x, y, r, 1); grid_it_next(&it); ) {
         uint8_t *u = it.u, *td = it.td;
         if (!td || FIELD(u, 0x3C, int) <= 0) continue;
         void *o = FIELD(u, 0x18, void *);
@@ -1884,7 +1884,7 @@ static void cmd_terrain(char *out, const char *args) {
     uint8_t *map = *(uint8_t **)G_MAP;
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     if (grid) {
-        for (struct grid_it it = grid_it_box(x0, y0, r, 0); grid_it_next(&it); ) {
+        for (struct grid_it it = grid_it_box(x0, y0, r, 1); grid_it_next(&it); ) {
             uint8_t *u = it.u, *td = it.td;
             if (!td) continue;
             int x = FIELD(u, 0x1C, int) - x0 + r, y = FIELD(u, 0x20, int) - y0 + r;
@@ -1973,7 +1973,7 @@ static void cmd_board(char *out, const char *args) {
         sscanf(args + 6, "%d %d", &p, &t);
         uint8_t *map = *(uint8_t **)G_MAP, *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL, *hit = NULL;
         if (!grid) return;
-        for (struct grid_it it = grid_it_all(0); !hit && grid_it_next(&it); )
+        for (struct grid_it it = grid_it_all(1); !hit && grid_it_next(&it); )
             if (FIELD(it.td, 0x4B8, int) == t && FIELD(it.u, 0x18, uint8_t *) && FIELD(FIELD(it.u, 0x18, uint8_t *), PL_INDEX, int) == p) hit = it.u;
         if (!hit) { REPLY("no unit of type %d for P%d\n", t, p); return; }
         uint8_t *td = FIELD(hit, 0x2C, uint8_t *), *st = FIELD(hit, 0x34, uint8_t *), *pl = FIELD(hit, 0x18, uint8_t *);
@@ -2000,7 +2000,7 @@ static void cmd_board(char *out, const char *args) {
         for (size_t j = 0; j < sizeof tt / sizeof *tt; j++) {
             uint8_t *map = *(uint8_t **)G_MAP, *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL, *hit = NULL;
             if (!grid) break;
-            for (struct grid_it it = grid_it_all(0); !hit && grid_it_next(&it); )
+            for (struct grid_it it = grid_it_all(1); !hit && grid_it_next(&it); )
                 if (FIELD(it.td, 0x4B8, int) == tt[j] && FIELD(it.u, 0x18, uint8_t *) && FIELD(FIELD(it.u, 0x18, uint8_t *), PL_INDEX, int) == 1 && FIELD(it.u, 0x3C, int) > 0) hit = it.u;
             uint8_t *st = hit ? FIELD(hit, 0x34, uint8_t *) : NULL;
             if (!st) { REPLY("type %d: none\n", tt[j]); continue; }

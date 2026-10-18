@@ -87,12 +87,12 @@ static void threat_refresh(void *pl, uint32_t now) {
     if (g_threat[pi].refreshed && now >= g_threat[pi].refreshed && now - g_threat[pi].refreshed < 5000) return;
     g_threat[pi].refreshed = now ? now : 1;
     int n = 0;
-    for (struct grid_it it = grid_it_all(0); n < MAX_DEFENCES && grid_it_next(&it); ) {
+    for (struct grid_it it = grid_it_all(1); n < MAX_DEFENCES && grid_it_next(&it); ) {
         uint8_t *u = it.u;
         float r, a;
         if (!is_enemy(pl, FIELD(u, 0x18, void *)) || !defence_stats(u, &r, &a) || !seen_by(u, pl)) continue;
         int x = FIELD(u, 0x1C, int), y = FIELD(u, 0x20, int), k;
-        for (k = 0; k < n; k++)                     // big buildings sit in several cells
+        for (k = 0; k < n; k++)                     // one defence per tile (the iterator already visits a big building once)
             if (g_threat[pi].d[k].x == x && g_threat[pi].d[k].y == y) break;
         if (k < n) continue;
         struct defence *d = &g_threat[pi].d[n++];
@@ -158,7 +158,7 @@ static int building_at(void *pl, const int *dest, int r) {
     uint8_t *map = *(uint8_t **)G_MAP;
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     if (!grid) return 0;
-    for (struct grid_it it = grid_it_box(dest[0], dest[1], r, 0); grid_it_next(&it); ) {
+    for (struct grid_it it = grid_it_box(dest[0], dest[1], r, 1); grid_it_next(&it); ) {
         uint8_t *u = it.u, *td = it.td;
         if (!td || FIELD(td, 0x4B4, int) != 2 || is_wall(FIELD(td, 0x4B8, int)) || !is_enemy(pl, FIELD(u, 0x18, void *)))
             continue;
@@ -177,7 +177,7 @@ static uint8_t *find_weak_spot(void *pl, unsigned pi, const int *start, const in
     uint8_t *best = NULL;
     float best_score = 1e30f;
     int r = g_weak_radius;
-    for (struct grid_it it = grid_it_box(dest[0], dest[1], r, 0); grid_it_next(&it); ) {
+    for (struct grid_it it = grid_it_box(dest[0], dest[1], r, 1); grid_it_next(&it); ) {
         uint8_t *u = it.u, *td = it.td;
         if (!td || FIELD(td, 0x4B4, int) != 2 || is_wall(FIELD(td, 0x4B8, int)) || !is_enemy(pl, FIELD(u, 0x18, void *)) ||
             !seen_by(u, pl))
@@ -446,7 +446,7 @@ static int guarded(void *pl, int x, int y, int r) {
     uint8_t *map = *(uint8_t **)G_MAP;
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     if (!pl || !grid) return 0;
-    for (struct grid_it it = grid_it_box(x, y, r, 0); grid_it_next(&it); ) {
+    for (struct grid_it it = grid_it_box(x, y, r, 1); grid_it_next(&it); ) {
         uint8_t *u = it.u, *td = it.td;
         if (!td || FIELD(td, 0x4B4, int) != 5 || FIELD(u, 0x3C, int) <= 0 || !is_enemy(pl, FIELD(u, 0x18, void *)))
             continue;
@@ -584,7 +584,7 @@ static int is_siege(int type) {
 
 static uint8_t *unit_at(int x, int y, int type) {
     if (x < 0 || y < 0) return NULL;
-    for (struct grid_it it = grid_it_box(x, y, 0, 0); grid_it_next(&it); ) {   // the one cell of x, y
+    for (struct grid_it it = grid_it_box(x, y, 0, 1); grid_it_next(&it); ) {   // the one cell of x, y
         uint8_t *u = it.u, *td = it.td;
         if (td && FIELD(u, 0x1C, int) == x && FIELD(u, 0x20, int) == y && FIELD(td, 0x4B8, int) == type && FIELD(u, 0x3C, int) > 0)
             return u;
@@ -687,7 +687,7 @@ static int raiders_near(void *pl, int x, int y, int r0) {
     uint8_t *map = *(uint8_t **)G_MAP;
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     if (!grid || !pl) return 0;
-    for (struct grid_it it = grid_it_box(x, y, r, 0); grid_it_next(&it); ) {
+    for (struct grid_it it = grid_it_box(x, y, r, 1); grid_it_next(&it); ) {
         uint8_t *u = it.u, *td = it.td;
         if (!td || FIELD(u, 0x3C, int) <= 0 || abs(FIELD(u, 0x1C, int) - x) > r || abs(FIELD(u, 0x20, int) - y) > r) continue;
         int fam = FIELD(td, 0x4B4, int), t = FIELD(td, 0x4B8, int);
@@ -906,7 +906,7 @@ static void citizens_safety(uint8_t *rm) {   // before the citizen assignment
         }
         int all[6] = { 0 };   // every citizen on the map: gathering, building, walking, attacking, other goal, none
         char other[64] = "";
-        for (struct grid_it it = grid_it_all(0); grid_it_next(&it); ) {
+        for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
             uint8_t *u = it.u, *td = it.td;
             if (FIELD(u, 0x18, void *) != pl || FIELD(u, 0x3C, int) <= 0 || !is_citizen_type(FIELD(td, 0x4B8, int))) continue;
             uint8_t *g = FIELD(u, 0x1EC, uint8_t *);
@@ -1017,7 +1017,7 @@ static void siege_train(void *pl, unsigned pi, int have, uint32_t now) {
     if (current_epoch(pl) + 1 < k_siege_types[sizeof k_siege_types / sizeof *k_siege_types - 1].epoch) return;
     // a Siege Factory (type 63) of our own
     int factory = 0;
-    for (struct grid_it it = grid_it_all(0); !factory && grid_it_next(&it); ) {
+    for (struct grid_it it = grid_it_all(1); !factory && grid_it_next(&it); ) {
         uint8_t *u = it.u, *td = it.td;
         if (td && FIELD(u, 0x18, void *) == pl && FIELD(td, 0x4B8, int) == 63) { factory = 1; break; }
     }
@@ -1066,12 +1066,10 @@ static void siege_tick(void *pl, uint32_t now) {
     uint8_t *map = *(uint8_t **)G_MAP;
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     if (!grid) return;
-    uint8_t *cells = FIELD(grid, 4, uint8_t *);
-    unsigned count = FIELD(grid, 0x10, unsigned) * FIELD(grid, 0x14, unsigned);
     // own siege weapons
     enum { MAXS = 24, MAXE = 48 };
     uint8_t *siege[MAXS]; int ns = 0; float sx = 0, sy = 0, srange = 99;
-    for (struct grid_it it = grid_it_all(0); ns < MAXS && grid_it_next(&it); ) {
+    for (struct grid_it it = grid_it_all(1); ns < MAXS && grid_it_next(&it); ) {
         uint8_t *u = it.u, *td = it.td;
         if (!td || FIELD(u, 0x18, void *) != pl || !is_siege(FIELD(td, 0x4B8, int)) || FIELD(u, 0x3C, int) <= 0) continue;
         uint8_t *st = FIELD(u, 0x34, uint8_t *);
@@ -1189,7 +1187,7 @@ static void siege_tick(void *pl, uint32_t now) {
     else if (raiders_near(pl, (int)px, (int)py, 8) || path_raided(pl, (int)gx, (int)gy, (int)px, (int)py)) hold = "enemy soldiers on the way";
     // escorts: idle soldiers (no goal) along with a wave
     int want = nhome * 3 / 2 < 4 ? 4 : nhome * 3 / 2, escorts = 0, idle = 0;
-    for (struct grid_it it = grid_it_all(0); idle < 2 && grid_it_next(&it); ) {
+    for (struct grid_it it = grid_it_all(1); idle < 2 && grid_it_next(&it); ) {
         uint8_t *u = it.u, *td = it.td;
         if (!td || FIELD(u, 0x18, void *) != pl || FIELD(u, 0x1EC, void *) || FIELD(u, 0x3C, int) <= 0) continue;
         int fam = FIELD(td, 0x4B4, int);
@@ -1209,17 +1207,17 @@ static void siege_tick(void *pl, uint32_t now) {
     for (int i = 0; i < nhome; i++)
         launched += unit_goal(home[i], goal_move(px, py), 0, 0x1F40) && unit_goal(home[i], goal_attack(home[i], t), 1, 0x1F40);
     g_siege_st[pi].waves++;
-    // escorts: idle soldiers (no goal) to the firing position
-    for (unsigned c = 0; cells && c < count && escorts < want && escorts < MAXE; c++)
-        for (uint8_t **b = FIELD(cells + c * 16, 4, uint8_t **); b && b < FIELD(cells + c * 16, 8, uint8_t **) && escorts < want; b++) {
-            uint8_t *u = *b, *td = u ? FIELD(u, 0x2C, uint8_t *) : NULL;
-            if (!td || FIELD(u, 0x18, void *) != pl || FIELD(u, 0x1EC, void *) || FIELD(u, 0x3C, int) <= 0) continue;
-            int fam = FIELD(td, 0x4B4, int);
-            if (fam != 5 || !is_soldier(td)) continue;   // land soldiers only (no citizens, siege, rams - 158 too)
-            float ex = (float)FIELD(u, 0x1C, int) - px, ey = (float)FIELD(u, 0x20, int) - py;
-            if (ex * ex + ey * ey < 9.0f) { escorts++; continue; }   // already there
-            escorts += unit_goal(u, goal_move(px + (float)(escorts % 3) - 1.0f, py + (float)(escorts / 3 % 3) - 1.0f), 0, 0x1F40);
-        }
+    // escorts: idle soldiers (no goal) to the firing position (want <= 36 with nhome <= MAXS: MAXE never cuts it short -
+    // the hand-written loop checked MAXE only per cell)
+    for (struct grid_it it = grid_it_all(1); escorts < want && escorts < MAXE && grid_it_next(&it); ) {
+        uint8_t *u = it.u, *td = it.td;
+        if (FIELD(u, 0x18, void *) != pl || FIELD(u, 0x1EC, void *) || FIELD(u, 0x3C, int) <= 0) continue;
+        int fam = FIELD(td, 0x4B4, int);
+        if (fam != 5 || !is_soldier(td)) continue;   // land soldiers only (no citizens, siege, rams - 158 too)
+        float ex = (float)FIELD(u, 0x1C, int) - px, ey = (float)FIELD(u, 0x20, int) - py;
+        if (ex * ex + ey * ey < 9.0f) { escorts++; continue; }   // already there
+        escorts += unit_goal(u, goal_move(px + (float)(escorts % 3) - 1.0f, py + (float)(escorts / 3 % 3) - 1.0f), 0, 0x1F40);
+    }
     if (g_log && g_siege_st[pi].logged < 80) {
         g_siege_st[pi].logged++;
         fprintf(g_log, "# siege: P%u at %.1f min: a wave of %d siege (range %.1f) from %.0f,%.0f -> type %d at %d,%d from %.0f,%.0f; %d escorts\n",

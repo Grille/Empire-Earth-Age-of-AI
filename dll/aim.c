@@ -115,7 +115,7 @@ static struct { unsigned n, on_tile; double err; } g_ast[2][2][2];   // [moved][
 static unsigned g_shots, g_shots_unit, g_led, g_lost;
 
 static uint8_t *find_unit_near(uint8_t *want, float x, float y, int r) {
-    for (struct grid_it it = grid_it_box((int)x, (int)y, r, 0); grid_it_next(&it); )
+    for (struct grid_it it = grid_it_box((int)x, (int)y, r, 1); grid_it_next(&it); )
         if (it.u == want) return FIELD(want, 0x3C, int) > 0 ? want : NULL;
     return NULL;
 }
@@ -373,7 +373,7 @@ static uint8_t *spread_target(uint8_t *u, uint8_t *t) {
     uint8_t *best = NULL;
     float bd = range * range;
     if (!(range > 0)) return NULL;
-    for (struct grid_it it = grid_it_box((int)x, (int)y, r, 0); grid_it_next(&it); ) {
+    for (struct grid_it it = grid_it_box((int)x, (int)y, r, 1); grid_it_next(&it); ) {
         uint8_t *c = it.u, *cc = it.td;
         if (c == t || FIELD(c, 0x3C, int) <= 0 || FIELD(cc, 0x4B4, int) != fam) continue;
         if (!is_enemy(pl, FIELD(c, 0x18, void *)) || !seen_by(c, pl) || doomed(c)) continue;

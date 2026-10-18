@@ -181,7 +181,7 @@ static void cmd_targets(char *out, const char *args) {
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     if (!grid) { REPLY("error: no map\n"); return; }
     unsigned n = 0;
-    for (struct grid_it it = grid_it_all(0); grid_it_next(&it); ) {
+    for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
         uint8_t *u = it.u, *td = it.td;
         if (!td || (FIELD(td, 0x4B4, int) != 2 && FIELD(td, 0x4B4, int) != 29) || !is_enemy(pl, FIELD(u, 0x18, void *)))
             continue;
@@ -313,6 +313,38 @@ static void cmd_count(char *out, const char *args) {
     REPLY("\n");
 }
 
+// gridcheck: how the unit grid holds the units - per family: units, those in more than one cell (and the most cells),
+// those not in the cell of their own position (a loop visiting each unit only there would miss them)
+static void cmd_gridcheck(char *out, const char *args) {
+    (void)args;
+    enum { HN = 16384 };
+    static struct { uint8_t *u; int cells, own, fam; } h[HN];
+    memset(h, 0, sizeof h);
+    if (!*(uint8_t **)G_MAP) { REPLY("error: no map\n"); return; }
+    int full = 0;
+    for (struct grid_it it = grid_it_all(0); grid_it_next(&it); ) {
+        unsigned k = ((uintptr_t)it.u >> 4) % HN, n = 0;
+        while (h[k].u && h[k].u != it.u && n++ < HN) k = (k + 1) % HN;
+        if (n >= HN) { full = 1; break; }
+        if (!h[k].u) { h[k].u = it.u; h[k].fam = FIELD(it.td, 0x4B4, int); }
+        h[k].cells++;
+        if (FIELD(it.u, 0x1C, int) / it.cs == it.cx && FIELD(it.u, 0x20, int) / it.cs == it.cy) h[k].own = 1;
+    }
+    static int nu[64], nm[64], mx[64], no[64];
+    memset(nu, 0, sizeof nu); memset(nm, 0, sizeof nm); memset(mx, 0, sizeof mx); memset(no, 0, sizeof no);
+    for (int k = 0; k < HN; k++) {
+        if (!h[k].u) continue;
+        int f = h[k].fam & 63;
+        nu[f]++;
+        if (h[k].cells > 1) nm[f]++;
+        if (h[k].cells > mx[f]) mx[f] = h[k].cells;
+        if (!h[k].own) no[f]++;
+    }
+    REPLY("gridcheck%s (family: units, in 2+ cells, most cells, not in own cell):", full ? " (table full)" : "");
+    for (int f = 0; f < 64; f++) if (nu[f]) REPLY(" f%d:%d/%d/%d/%d", f, nu[f], nm[f], mx[f], no[f]);
+    REPLY("\n");
+}
+
 // objs P T: every unit of type T of player P - tile, hit points / the type's, goal (tests: are buildings finished?)
 static void cmd_objs(char *out, const char *args) {
     int p = 0, t = -1;
@@ -355,7 +387,7 @@ static void cmd_build(char *out, const char *args) {
     if (!pl || !grid) { REPLY("error: no player %d or map\n", p); return; }
     uint8_t *bld = NULL, *civ[32];
     int nc = 0;
-    for (struct grid_it it = grid_it_box(x, y, r + 4, 0); grid_it_next(&it); ) {   // wide enough for the building too
+    for (struct grid_it it = grid_it_box(x, y, r + 4, 1); grid_it_next(&it); ) {   // wide enough for the building too
         uint8_t *u = it.u, *td = it.td;
         if (FIELD(u, 0x18, void *) != pl || FIELD(u, 0x3C, int) <= 0) continue;
         int t = FIELD(td, 0x4B8, int), ux = FIELD(u, 0x1C, int), uy = FIELD(u, 0x20, int);
@@ -385,7 +417,7 @@ static void cmd_watchtype(char *out, const char *args) {
     uint8_t *map = *(uint8_t **)G_MAP;
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     if (!grid) { REPLY("error: no map\n"); return; }
-    for (struct grid_it it = grid_it_all(0); grid_it_next(&it); ) {
+    for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
         uint8_t *u = it.u, *td = it.td;
         void *owner = FIELD(u, 0x18, void *);
         if (!td || !owner || FIELD(owner, PL_INDEX, int) != p || FIELD(td, 0x4B8, int) != t) continue;
@@ -406,7 +438,7 @@ static void cmd_hurt(char *out, const char *args) {
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     if (!grid) { REPLY("error: no map\n"); return; }
     uint8_t *hit[64];
-    for (struct grid_it it = grid_it_box(x, y, r, 0); n < 64 && grid_it_next(&it); ) {
+    for (struct grid_it it = grid_it_box(x, y, r, 1); n < 64 && grid_it_next(&it); ) {
         uint8_t *u = it.u, *td = it.td;
         void *owner = u ? FIELD(u, 0x18, void *) : NULL;
         if (!td || !owner || FIELD(owner, PL_INDEX, int) != p || FIELD(td, 0x4B8, int) != t || FIELD(u, 0x3C, int) <= 0) continue;
@@ -721,7 +753,7 @@ static void cmd_uinfo(char *out, const char *args) {
     sscanf(args, "%d %d %d", &x, &y, &r);
     if (!*(uint8_t **)G_MAP) { REPLY("error: no map\n"); return; }
     REPLY("t %u\n", game_time());
-    for (struct grid_it it = grid_it_box(x, y, r, 0); grid_it_next(&it); ) {
+    for (struct grid_it it = grid_it_box(x, y, r, 1); grid_it_next(&it); ) {
         uint8_t *u = it.u, *td = it.td;
         int ux = FIELD(u, 0x1C, int), uy = FIELD(u, 0x20, int);
         if (abs(ux - x) > r || abs(uy - y) > r || strlen(out) > 15000) continue;
@@ -741,7 +773,7 @@ static void cmd_move(char *out, const char *args) {
     if (!*(uint8_t **)G_MAP) { REPLY("error: no map\n"); return; }
     uint8_t *found[200];
     int nf = 0;
-    for (struct grid_it it = grid_it_box(x, y, r, 0); nf < 200 && grid_it_next(&it); ) {
+    for (struct grid_it it = grid_it_box(x, y, r, 1); nf < 200 && grid_it_next(&it); ) {
         uint8_t *u = it.u, *td = it.td;
         void *owner = FIELD(u, 0x18, void *);
         if (!owner || FIELD(owner, PL_INDEX, int) != p || FIELD(td, 0x4B4, int) == 2) continue;
