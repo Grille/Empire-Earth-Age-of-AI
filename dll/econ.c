@@ -363,7 +363,7 @@ static void __fastcall hook_pay(void *pl, void *edx, void *what, int b, int c) {
 // navy.c (docs/navy.md stage 1): the navy account on water maps
 static void navy_income(unsigned idx, int type, int amount);
 static int navy_pays(unsigned idx, int type);
-static int navy_economy(int type, int landing_order);
+static int navy_economy(unsigned idx, int type, int landing_order);
 static void navy_hold(void *pl, unsigned idx, int reserve[7]);
 static int navy_account(unsigned idx, int r);
 static void navy_paid(unsigned idx, int type, const int *spent, int got);
@@ -1473,7 +1473,7 @@ static void train_budget(void *pl, unsigned idx, const struct ai_cfg *cfg, const
     reserve[3] += field_wood(idx);   // the next fields' wood (build_fields)
     landing_reserve(pl, reserve);   // transports a landing waits for
     bunker_reserve(pl, reserve);    // a fortress's wood (bunker.c)
-    if (!ship && !req_unit) navy_hold(pl, idx, reserve);   // the navy account: only warships spend it (navy.c)
+    if (!ship && !req_unit && !g_priority_mil && !g_landing_order) navy_hold(pl, idx, reserve);   // the navy account: only warships spend it (navy.c)
     if (!g_bud[idx].init) {
         memset(&g_bud[idx], 0, sizeof g_bud[idx]);
         g_bud[idx].init = 1;
@@ -1613,7 +1613,7 @@ __attribute__((noinline)) static uintptr_t __fastcall hook_train_units(void *um,
     if (stock) memcpy(before, stock, sizeof before);
     unsigned idx = pl ? (unsigned)FIELD(pl, PL_INDEX, int) & 15 : 0;
     // fishing boats and the landing's transports: economy (navy.c); warships on a water map: the navy account
-    int military = !is_citizen_type(req[0]) && !(pl && navy_economy(req[0], g_landing_order));
+    int military = !is_citizen_type(req[0]) && !(pl && navy_economy(idx, req[0], g_landing_order));
     int ship = military && pl && navy_pays(idx, req[0]);
     int req_unit = military && pl && requirement_unit(pl, req[0]);   // counts for the next epoch
     const struct ai_cfg *cfg = pl ? cfg_of(pl) : NULL;

@@ -218,18 +218,21 @@ static void navy_detect(void *pl, unsigned idx, uint32_t now) {
 // fishing boats included, and the army took the account: 1000-1700 failed ship requests per AI and hour on island
 // maps, 2-4 warships at most. On a water map (navy_detect) navy_share % x the strength of every wood, gold and iron
 // income (EEComputerPlayer::AddResource, econ.c hook_add_resource) goes into a navy account (at most NV_ACC_CAP of
-// each: when the game's AI asks for no ship, the rest stays the army's):
-// - every order but a warship's (army, citizens, the fishing boats, the siege and landing orders) sees the account
-//   as part of the reserve (econ.c train_budget): the army can't take it;
+// each: when the game's AI asks for no ship, the rest stays the army's; 1200 held the wood a landing's transports
+// needed - Small Islands e5, 20 seeds: landings sailed 4.0 -> 1.3 per AI):
+// - every order but a warship's (army, citizens, fishing boats) sees the account as part of the reserve (econ.c
+//   train_budget): the army can't take it. Not the priority orders (siege, a landing's transports and fleet): they
+//   spend the stock above the reserve as before;
 // - the game's (and the mod's) warship, submarine and carrier orders spend the account (or the stock beyond the
 //   hoard cap, as the army does) instead of the military account, which pays nothing for them;
 // - fishing boats, and the transports a landing orders, are economy: not paid from (nor charged to) the military
 //   account, limited only by the reserve.
 // Which ships the game's AI asks for is its own (stage 2 changes that). `# navy: P<n> budget` every 5 minutes.
-#define NV_ACC_CAP 1200
+#define NV_ACC_CAP 600
 static int g_navy = 1, g_navy_share = 25;
+static int g_v_navy = -1;   // head-to-head (autotest): [autotest] v_navy for the variant_players (econ.c PV)
 static float navy_share(unsigned idx) {
-    return g_navy && g_nv_map[idx & 15].done ? (float)g_navy_share / 100.0f * g_nv_map[idx & 15].strength : 0.0f;
+    return PV(idx, g_v_navy, g_navy) && g_nv_map[idx & 15].done ? (float)g_navy_share / 100.0f * g_nv_map[idx & 15].strength : 0.0f;
 }
 static void navy_income(unsigned idx, int type, int amount) {
     float sh = navy_share(idx);
@@ -248,9 +251,9 @@ static int navy_pays(unsigned idx, int type) {
     return navy_share(idx) > 0 && (k == NV_WAR || k == NV_SUB || k == NV_CARRIER);
 }
 // an order paid as economy: fishing boats, the landing's transports
-static int navy_economy(int type, int landing_order) {
+static int navy_economy(unsigned idx, int type, int landing_order) {
     int k = navy_type_kind(type);
-    return g_navy && (k == NV_FISH || (landing_order && k == NV_TRANSPORT));
+    return PV(idx, g_v_navy, g_navy) && (k == NV_FISH || (landing_order && k == NV_TRANSPORT));
 }
 // every other order: the account is not there - and once the account pays the warship the game last asked for (within
 // 2 minutes), that ship's whole cost: the army took the iron down to the reserve + 200 again and again while the
@@ -408,7 +411,9 @@ static void navy_install(const char *aimod_ini, const char *autotest_ini) {
     g_navy_share = cfg_int(aimod_ini, autotest_ini, 1, "navy_share", 25);
     if (g_navy_share < 0) g_navy_share = 0;
     if (g_navy_share > 80) g_navy_share = 80;
-    if (g_log) fprintf(g_log, "# navy: account %s, share %d%% on islands\n", g_navy ? "on" : "off", g_navy_share);
+    if (autotest_ini) g_v_navy = GetPrivateProfileIntA("autotest", "v_navy", -1, autotest_ini);
+    if (g_log) fprintf(g_log, "# navy: account %s, share %d%% on islands (v_navy %d for the variant players)\n", g_navy ? "on" : "off", g_navy_share,
+                       g_v_navy);
 }
 
 static void navy_tick(void *pl, uint32_t now) {
