@@ -1431,6 +1431,7 @@ static int substitute_soldier(void *pl, unsigned idx, const int *vis, int want, 
 static int g_priority_mil;   // set by the siege controller around its own requests
 static int g_landing_order;   // set by the landing around its transport order (its reserve is not held from it)
 static void landing_reserve(void *pl, int reserve[7]);   // landing.c
+static int landing_room_reserve(void *pl);   // landing.c: population room held for a bombardment's fleet
 // ROOM: the game's own callers ask the unit manager for room first (cap - in production - population, the start check
 // of the buildings 0x624DF8 the same); the mod's own orders (AA units, siege, home guard, transports) didn't. At the cap
 // they were queued and paid for and could never come out: lowpop (cap 30) - P3's "in production" ran to 56 after it
@@ -1519,7 +1520,7 @@ static void train_budget(void *pl, unsigned idx, const struct ai_cfg *cfg, const
 // the request as the budget allows it (blocked: none) through the game's own training, cut to the room under the
 // population cap for the mod's own orders; ra = the call site (a game's or the mod's); the game's result
 static uintptr_t train_call(void *um, void *pl, unsigned idx, int *req, uintptr_t b, int blocked, int afford, int sub_type,
-                            uintptr_t ra) {
+                            uintptr_t ra, int military) {
     uintptr_t res = 0;
     if (blocked) { if (b) *(unsigned *)b = 0; }
     else {
@@ -1535,6 +1536,11 @@ static uintptr_t train_call(void *um, void *pl, unsigned idx, int *req, uintptr_
         if (!game_site && (g_train_room >> idx & 1) && room0 < (req[1] > 0 ? req[1] : 1)) {   // the mod's own order: no more than the room
             if (room0 <= 0) { *(unsigned *)b = 0; req[1] = saved_count; req[0] = saved_type; return 0; }
             req[1] = room0;
+        }
+        int hold = military && !g_priority_mil && !g_landing_order && pl ? landing_room_reserve(pl) : 0;
+        if (hold > 0 && room0 - hold < (req[1] > 0 ? req[1] : 1)) {   // the fleet's room: other soldiers only beyond it
+            if (room0 - hold <= 0) { *(unsigned *)b = 0; req[1] = saved_count; req[0] = saved_type; return 0; }
+            req[1] = room0 - hold;
         }
         res = ((uintptr_t (__thiscall *)(void *, int *, uintptr_t))FN_TRAIN_UNITS)(um, req, b);
         if (room0 <= 0 && *(unsigned *)b) {
@@ -1588,7 +1594,7 @@ __attribute__((noinline)) static uintptr_t __fastcall hook_train_units(void *um,
     if (stock && cfg->budget) train_budget(pl, idx, cfg, req, military, req_unit, stock, reserve, visibles, &blocked, &afford, &sub_type);
     else if (stock) memcpy(visibles, stock, sizeof visibles);
     uintptr_t ra = (uintptr_t)__builtin_return_address(0) - 5;   // the call site: read here, in the hook
-    uintptr_t res = train_call(um, pl, idx, req, b, blocked, afford, sub_type, ra);
+    uintptr_t res = train_call(um, pl, idx, req, b, blocked, afford, sub_type, ra, military);
     train_account(pl, idx, cfg, req, res, military, sub_type, stock, before, reserve, visibles, ra);
     return res;
 }
