@@ -1379,12 +1379,17 @@ static int land_soldier(int type) {
     for (size_t i = 0; i < sizeof no / sizeof *no; i++) if (type == no[i]) return 0;
     return 1;
 }
-// Requests that may be replaced: every military unit but ships (family 4: navies on water maps), siege and rams
-// (the siege controller's business) - heroes, priests and the like included.
+// Requests that may be replaced: every military unit but ships (navies on water maps), siege and rams (the siege
+// controller's business) - heroes, priests and the like included. Ships are every water family (+0x4B4, docs/navy.md):
+// 4 warships, 10 submarines, 18 transports, 21 carriers, 22 fishing boats. Only 4 was excluded before: a fishing boat
+// the budget refused (wood short: 109 failed 72 times in the island baseline) was saved for 90 s and then trained as
+// a land soldier, and so could a transport, a submarine or a carrier.
 static int substitutable(int type) {
     uint8_t *td = type_data(type);
     static const int no[] = { 104, 105, 106, 107, 141, 142, 602, 603, 102, 287, 158, 32, 480 };
-    if (!td || FIELD(td, 0x4B8, int) != type || FIELD(td, 0x4B4, int) == 4) return 0;
+    if (!td || FIELD(td, 0x4B8, int) != type) return 0;
+    int fam = FIELD(td, 0x4B4, int);
+    if (fam == 4 || fam == 10 || fam == 18 || fam == 21 || fam == 22) return 0;
     for (size_t i = 0; i < sizeof no / sizeof *no; i++) if (type == no[i]) return 0;
     return 1;
 }
