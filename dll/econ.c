@@ -1052,7 +1052,6 @@ static void more_granaries(void *pl, unsigned idx, uint8_t *rm, void *cm, void *
     if (now < next[idx] && next[idx] - now <= 60000) return;
     next[idx] = now + 60000;
     int want = (int)FIELD(rm, RM_TARGET + 2 * 4, uint32_t), have = rm_count(rm, 2);
-    if (want < have + 6) return;
     uint8_t *bm = FIELD(cm, 0x3C, uint8_t *), *gq = ((uint8_t *(__thiscall *)(void *, int))0x0048F8AF)(um, 0x34);
     int granaries = 0;
     for (unsigned k = 0, f = gq ? FIELD(gq, 0xC, unsigned) : 0, c = gq ? FIELD(gq, 0x10, unsigned) : 0; k < c; k++) {
@@ -1061,6 +1060,10 @@ static void more_granaries(void *pl, unsigned idx, uint8_t *rm, void *cm, void *
         if (!st || !FIELD(st, 0x340, uint8_t)) return;   // one is being built
         granaries++;
     }
+    // the first granary as soon as food lacks 2 citizens (farms are the food base, fish only a bonus - the
+    // playtester: "fish is very useful but a limited resource; the boats have to go further and further out"): on
+    // water maps (+0xEFA) the game's build list and plan bring none (0x46CD18 counts the fields as wanted there)
+    if (want < have + (granaries ? 6 : 2)) return;
     int cap = 1 + want / 8;
     if (!bm || granaries >= (cap < 8 ? cap : 8) || ((char (__thiscall *)(void *, int))0x00465640)(bm, 0x34)) return;
     static struct { uint32_t t; int n; } req[16];
@@ -1112,7 +1115,11 @@ static void econ_fields(uint8_t *rm) {   // before the citizen assignment
     void *um = cm ? FIELD(cm, 0x44, void *) : NULL;   // unit manager: per-type lists (0x48F8AF)
     uint8_t *dq = um ? ((uint8_t *(__thiscall *)(void *, int))0x0048F8AF)(um, 0x2A) : NULL;
     if (um) fields_rebuild(pl, idx, um, dq, now);
-    if (!dq) return;
+    if (!dq) {   // no field yet (no list for 0x2A): only the granary pass - it brings the first one (water maps)
+        g_fields_open[idx] = 0;
+        if (um && cm) more_granaries(pl, idx, rm, cm, um, 0, now);
+        return;
+    }
     uint8_t *todo[16], *done[16];
     int nt = 0, nd = 0, ordered = 0, farmers = 0;
     for (unsigned k = 0, first = FIELD(dq, 0xC, unsigned), cnt = FIELD(dq, 0x10, unsigned); k < cnt && nt < 16; k++) {
