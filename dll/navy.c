@@ -390,8 +390,10 @@ static int navy_room_reserve(void *pl) {
 //   the enemy's seen fleet that is not submarines (battleships can't hit them).
 // - The coast (the playtester: the x4-5 of catapults, cannons and artillery against battleships is real): seen enemy
 //   units and buildings within 4 tiles of the sea that hit battleships x3 or more scale the battleships by 4 / (4 + n).
-// - Each order: the role furthest below its share of the fleet (own warships + those paid in the last minute + 1);
-//   in the role the type with the best factor x attack / (reload + 2 s) x hit points / cost^2 (Lanchester: a fleet
+// - Each order: the role furthest below its share of the fleet (own warships + those paid in the last minute + 1) -
+//   when its type can't be paid now (stock and account), the next role below its share that can, else it waits for
+//   the first (waiting cost the mix AI a ship an hour; it did not mend the h2h: 8.6 -> 7.5 units net a game
+//   lost, 160/120 games - so navy_mix stays 0); in the role the type with the best factor x attack / (reload + 2 s) x hit points / cost^2 (Lanchester: a fleet
 //   of N ships is worth N^2) against the role's target (F: galleys/subs, L: frigates, A/S: battleships, AA: aircraft).
 //   Only types available by their tech record's test (ld_type_avail). A type the budget refused for 2 minutes is
 //   skipped for one (the account saves for another role); one the game refused though it was paid for (no building)
@@ -464,7 +466,7 @@ struct nv_pick {
     float w[NR_N];                                 // the wanted shares (before what is available)
     int ring_role[8]; uint32_t ring_t[8]; int ring_i;   // paid in the last minute: not afloat yet
     int wait_type, skip_type, bad_type[4]; uint32_t wait_since, skip_until, bad_until[4]; int bad_i;
-    unsigned asked[NR_N], trained[NR_N], changed, skipped, bad;
+    unsigned asked[NR_N], trained[NR_N], changed, skipped, bad, cheaper;
 };
 static struct nv_pick g_nv_pk[16];
 static void nv_mix_reset(void) { memset(g_nv_pk, 0, sizeof g_nv_pk); }
@@ -547,13 +549,27 @@ static int navy_pick(void *pl, unsigned idx, int asked) {
     nv_cands(pl, pk, now);
     if (!pk->seen_t || now < pk->seen_t || now - pk->seen_t >= 30000) nv_seen(pl, idx, pk, now);
     int best[NR_N], have[NR_N], all = 0, br = 0;
-    float w[NR_N], wsum = 0, bd = -1e9f;
+    float w[NR_N], wsum = 0;
     nv_roles(pl, idx, pk, now, best, w, have);
     for (int r = 1; r < NR_N; r++) { wsum += w[r]; all += have[r]; }
     if (wsum <= 0) return 0;
-    for (int r = 1; r < NR_N; r++) {
-        float d = w[r] / wsum * (float)(all + 1) - (float)have[r];
-        if (w[r] > 0 && d > bd) { bd = d; br = r; }
+    // the role furthest below its share - or, when its type can't be paid now, the next one below its share that can
+    // (h2h, 160 games: waiting for the first choice cost the AI with the mix a ship an hour)
+    const int *st = (const int *)((uint8_t *)pl + PL_STOCK);
+    int pool = navy_account(idx, 3), done[NR_N] = { 0 };
+    for (int pass = 0; pass < NR_N; pass++) {
+        int r0 = 0;
+        float d0 = 0;
+        for (int r = 1; r < NR_N; r++) {
+            float d = w[r] / wsum * (float)(all + 1) - (float)have[r];
+            if (w[r] > 0 && !done[r] && (!r0 || d > d0)) { d0 = d; r0 = r; }
+        }
+        if (!r0 || (pass && d0 <= 0)) break;
+        done[r0] = 1;
+        if (!pass) br = r0;
+        int pay = 1, total = 0;
+        for (int q = 2; q < 7; q++) { int c = unit_cost(pl, best[r0], q); total += c; pay &= c <= st[q]; }
+        if (pay && total <= pool) { if (r0 != br) pk->cheaper++; return best[r0]; }
     }
     return br ? best[br] : 0;
 }
@@ -596,7 +612,7 @@ static void navy_mix_log(void *pl, unsigned idx, uint32_t now) {
     for (int r = 0; r < NR_N; r++) fprintf(g_log, " %s%u", k_nr[r], pk->asked[r]);
     fprintf(g_log, " trained");
     for (int r = 1; r < NR_N; r++) fprintf(g_log, " %s%u", k_nr[r], pk->trained[r]);
-    fprintf(g_log, " (changed %u, skipped %u, no building %u)\n", pk->changed, pk->skipped, pk->bad);
+    fprintf(g_log, " (changed %u, skipped %u, no building %u, next role payable now %u)\n", pk->changed, pk->skipped, pk->bad, pk->cheaper);
 }
 
 // DOCKS (with the navy account): the game's building plan keeps docks up to its "min military buildings" - 1.5-2.2
