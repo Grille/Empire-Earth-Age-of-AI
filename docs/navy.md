@@ -2,8 +2,16 @@
 
 The playtester: on water and island maps a strong standing navy decides the game. Lose sea control and you
 cannot expand or counter-attack. "Each ship has specific roles and counters." This file holds the research
-(the ship data, the game's own AI), a baseline on island maps, and a staged design. So far nothing here changes
-AI play: dll/navy.c only observes.
+(the ship data, the game's own AI), a baseline on island maps, and a staged design. Stage 0 (the food hole) is
+done; the rest is not built yet - apart from the fishing boat choice, dll/navy.c only observes.
+
+The playtester's notes on this plan:
+- **Farms are always needed.** "Fish is very useful but a limited resource; fishing boats have to go further and
+  further out as the game goes, which makes them hard to protect." Fish is a bonus on top of farms, never the
+  food base.
+- **The x4-5 of catapults and cannons against battleships is an equalizer** for the battleships' hit points and
+  attack, not a weakness of battleships alone. Frigates and galleys still do badly against cannons and artillery
+  (long range, high attack, x1 against them), so the whole fleet must keep away from coastal siege and towers.
 
 Tools:
 - `navy types A B [all]` / `navy table` (pipe or setup). `scripts/navy_types.setup` dumps every type and the hit
@@ -118,13 +126,15 @@ Bombardment:
 - **Siege and artillery hit battleships x4.5**: catapult e4, trebuchet, the cannons e7-9, bombard,
   artillery, howitzer x5, Colossus and Paladin. So do War Elephants (x4.5), flamethrowers (x5), AT guns (x2)
   and every bomber (x4).
-- **Against frigates and galleys the same units do x1.** So the "huge anti-ship bonus" of catapults and cannons
-  is against battleships only.
+- **Against frigates and galleys the same units do x1.** The x4.5 against battleships is an equalizer for the
+  battleships' hit points and attack (the playtester). x1 is no protection: cannons and artillery outrange ships
+  and hit hard, and frigates and galleys have a quarter of a battleship's hit points.
 - Every ranged land unit, every tower and most aircraft hit frigates and galleys x1. Dragoons and Carabineers
   do x0.44. AA units cannot.
 - **Submarines are hit only by towers, frigates, attack subs and Sea King helicopters** (e12, e14).
-- So battleships must stay out of siege and bomber reach, while frigates and galleys may stand off a coast held by
-  infantry.
+- So **the whole fleet** must stay out of the reach of coastal siege, artillery and towers (the playtester:
+  frigates and galleys still do badly against cannons and artillery). Battleships also out of bomber reach.
+  Frigates and galleys may stand off a coast held only by infantry.
 
 ## 2. What the game's own AI does with ships
 
@@ -171,8 +181,9 @@ From the code, via a read-only research pass. Addresses are in the decomp.
 - **What the mod does today.**
   - Every ship request goes through the military budget (econ.c `military = !is_citizen_type`), fishing boats
     included. A refused ship is simply not trained.
-  - `unit_substitution` excludes family 4 only, so a refused submarine, transport, carrier or fishing boat can
-    become a land soldier. **To check.**
+  - `unit_substitution` excluded family 4 only, so a refused submarine, transport, carrier or fishing boat
+    became a land soldier after 90 s of saving (the baseline had fishing boat 109 failed 72 times, transports
+    111/113 in the failed lists). **Fixed (stage 0):** every water family (4, 10, 18, 21, 22) is excluded.
   - landing.c:
     - Leads its own transports and escorts. It skips the sea, transport and air subgroups' updates and refuses
       their orders while it leads them (vf57).
@@ -220,13 +231,40 @@ What the baseline shows:
 
 ## 4. Design: a standing navy
 
-### Stage 0 - the e9-e10 food hole (economy, before any navy)
+### Stage 0 - the e9-e10 food hole (economy, before any navy) - DONE
 
-- On a +0xEFA map, when the fishing boat 0x46D209 picks cannot be trained (0x555710), train the best trainable
-  fishing boat (365 in e8-10) instead. Hook 0x46D209 or its caller 0x48FB05.
-- If none can be trained, let the field passes build fields: clear the +0xEFA effect for that call.
-- Measure: e9 island food income, workers and army at 60 min against this baseline.
-- This is the largest single gain on islands and a plain fix.
+- **Fishing boat** ([all] `fishing_boat`, default 1; dll/navy.c `hook_fish_type`). Both callers of the game's pick
+  0x46D209 (0x48F819 counts the boats, 0x48FB05 orders one) get the newest fishing boat (family 22, highest tech)
+  the player has available by its tech record's test (landing.c `ld_type_avail`), every epoch: 108 (tech 2000),
+  109 (4005), 365 (8090), 211 (11090), 332 (13098). None available: the game's pick. `# fishing:` log line when
+  the choice changes (e9/e10 starts: "the game asks for boat 211, trains 365").
+- **Farms on water maps** (econ.c `more_granaries`). +0xEFA keeps the game's own field builders away and its
+  building plan counts the fields as wanted, so on islands it gets no granary from the plan. In e9 starts the
+  build list brought none either, and the mod's field passes returned before `more_granaries` while the player
+  had no field at all. Now the granary pass runs without fields, and the first granary comes once food lacks 2
+  citizens (6 for each further one, as before). The mod's passes build and farm the fields on every map; the
+  farmers stay at the game's food target, so fish income lowers the farms' share on its own.
+- **Unit substitution** skips every water family (above).
+
+Result (shipped config, 2 AIs, seed 101 map, 12 game seeds, 60 min; HEAD 325e4fb vs stage 0; per AI;
+`scripts/navy.py`, score.py):
+
+| | Small Isl. e5 | Large Isl. e5 | Small Isl. e9 | Large Isl. e9 | Continental e5 (6) |
+|---|---|---|---|---|---|
+| all food by min 20 / 40 / 60 | 2109/7618/11137 -> 2069/8018/12137 | 1861/7489/12373 -> 1794/7873/12852 | 1265/2566/2662 -> 1477/5072/8625 | 1085/2489/2604 -> 1249/5112/9587 | 1400/5871/10441 -> 1630/7044/11620 |
+| food from fish (60 min) | 4424 -> 4517 | 2824 -> 3068 | 0 -> 3708 | 0 -> 2398 | 0 -> 0 |
+| fishing boats at 30 min / most | 10.8/16.0 -> 10.2/15.6 | 9.7/14.4 -> 9.5/14.3 | 0/0 -> 9.5/18.0 | 0/0 -> 8.0/14.6 | - |
+| granaries / citizens on food (end) | 1.8/14.3 -> 1.7/15.8 | 2.7/17.7 -> 2.9/14.3 | 0/0.2 -> 1.5/13.2 | 0/0.3 -> 1.7/13.5 | 2.7/15.0 -> 2.8/10.1 |
+| workers at the end | 83.1 -> 81.1 | 85.5 -> 85.6 | 41.5 -> 79.7 | 40.8 -> 82.5 | 67.3 -> 70.0 |
+| soldiers (5-min lines average) | 23.8 -> 23.1 | 25.6 -> 24.9 | 12.2 -> 16.6 | 12.4 -> 19.6 | 13.8 -> 13.4 |
+| epoch | 5.42 -> 5.42 | 5.33 -> 5.38 | 9.42 -> 9.42 | 9.38 -> 9.25 | 5.42 -> 5.33 |
+| kills / losses | 77/83 -> 73/89 | 96/107 -> 87/100 | 24/31 -> 56/62 | 38/45 -> 57/76 | 108/106 -> 113/108 |
+| fishing boats lost | 6.0 -> 4.6 | 7.3 -> 7.7 | 0 -> 9.0 | 0 -> 10.0 | - |
+| landings sailed / ashore | 3.2/2.9 -> 3.5/3.3 | 3.0/2.9 -> 3.0/2.8 | 1.4/1.1 -> 2.1/1.9 | 1.1/1.0 -> 1.6/1.3 | - |
+
+54 runs each side, no crash. e9 islands: food x3.2-3.7, workers doubled, the army 35-60% larger, fish 25-43% of
+the food. e5 and land within noise (std. error: workers ~1.5, kills 5-6, epoch 0.1). The fishing boats now die
+unprotected in e9 too (9-10 per AI) - the playtester's point: farms first, the boats need the fleet of stage 3.
 
 ### Stage 1 - water-map detection and the navy account
 
@@ -254,8 +292,9 @@ What the baseline shows:
   - enemy galleys -> frigates;
   - enemy submarines -> frigates;
   - enemy aircraft over the water -> cruisers (e8+).
-- **Mind the land counters.** Keep battleships out of reach of the enemy's seen siege, artillery and bombers
-  (x4.5 / x4). Bombard with galleys and missile subs (towers x1 from 24 tiles) instead.
+- **Mind the land counters.** Keep the whole fleet out of reach of the enemy's seen coastal siege, artillery and
+  towers, battleships also of bombers (x4.5 / x4 against them; frigates and galleys do badly there too). Bombard
+  with galleys and missile subs (towers x1 from 24 tiles) from outside that reach.
 - **Size:** at least the enemy's seen fleet strength x 1.3 (sqrt(hp x attack) as landing.c), at least 4 warships
   from the epoch of docks on islands, and at most the navy account.
 

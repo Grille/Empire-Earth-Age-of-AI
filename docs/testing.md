@@ -134,6 +134,8 @@ EPOCHS="" sh scripts/suite.sh 50 "base:" "plan:copper_plan=1"     # EPOCHS="" = 
   its boats took from the fish (fish left on the map), warships by type, submarines, carriers, transports, its
   warships in its own / an enemy's waters (the waters of the nearest building within 20 tiles), the enemy's warships
   in its waters, navy lost / sunk and fishing boats lost / sunk, income and stock. See docs/navy.md.
+- `# fishing:` (dll/navy.c, `fishing_boat`): the fishing boat the AI trains when it differs from its last pick, with
+  the one the game asked for (e9-e10: "the game asks for boat 211, trains 365").
 
 Scripts:
 - `scripts/summarize.py <csv> [minutes]`: per AI timeline.
@@ -368,6 +370,18 @@ game, then wild animals counted as raiders; with enemy soldiers only and the sea
 2026-10-13, suite (4 maps, Prehistoric start, 75 min, 2 seeds), `more_granaries` 0 -> 1: alive 75 -> 88%, epoch
 3.71 -> 3.96 (std. error 0.11/0.07), workers at the end 36.5 -> 41.5, kills 174 -> 166 (18-21), no crash.
 Mediterranean 404 seed 1: P2 1 -> 4 granaries (32 fields), food stock at 70 min 320 -> 4201.
+
+### Food on water maps (navy stage 0)
+
+2026-10-18, `fishing_boat` (newest available fishing boat), the first granary without fields (`more_granaries`)
+and no land soldier for a refused ship (`unit_substitution`), HEAD 325e4fb vs these, shipped config, 12 seeds,
+60 min (`REPEAT=12 sh scripts/scen.sh 60 islands "random_map=<map>,map_size=0,ai_count=2,seed=101,start_epoch=<e>"`,
+`scripts/navy.py` and score.py on the logs). Per AI, food gathered in the hour / workers at the end / soldiers:
+Small Islands e9 2662 / 41.5 / 12.2 -> 8625 / 79.7 / 16.6; Large Islands e9 2604 / 40.8 / 12.4 -> 9587 / 82.5 /
+19.6 (fish 3708 / 2398 of it, 1.5-1.7 granaries, 13 citizens on food; before 0 boats, 0 granaries). e5: Small
+11137 -> 12137, Large 12373 -> 12852, workers, epoch and kills within noise. Continental e5 (6 seeds): food 10441 ->
+11620, workers 67.3 -> 70.0, epoch 5.42 -> 5.33 (std. error 0.15). 54 runs each side, no crash. Table: docs/navy.md
+stage 0.
 
 ### Farm fields
 
