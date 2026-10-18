@@ -367,6 +367,7 @@ static int navy_economy(int type, int landing_order);
 static void navy_hold(void *pl, unsigned idx, int reserve[7]);
 static int navy_account(unsigned idx, int r);
 static void navy_paid(unsigned idx, int type, const int *spent, int got);
+static int navy_room_reserve(void *pl);
 #define FN_CP_ADD_RESOURCE 0x0042F783   // EEComputerPlayer::vf18(type, amount)
 #define FARM_EPOCH 2   // farms and granaries come with epoch 2, the Copper Age
 static int current_epoch(void *pl);
@@ -1541,7 +1542,7 @@ static void train_budget(void *pl, unsigned idx, const struct ai_cfg *cfg, const
 // the request as the budget allows it (blocked: none) through the game's own training, cut to the room under the
 // population cap for the mod's own orders; ra = the call site (a game's or the mod's); the game's result
 static uintptr_t train_call(void *um, void *pl, unsigned idx, int *req, uintptr_t b, int blocked, int afford, int sub_type,
-                            uintptr_t ra, int military) {
+                            uintptr_t ra, int military, int ship) {
     uintptr_t res = 0;
     if (blocked) { if (b) *(unsigned *)b = 0; }
     else {
@@ -1559,6 +1560,7 @@ static uintptr_t train_call(void *um, void *pl, unsigned idx, int *req, uintptr_
             req[1] = room0;
         }
         int hold = military && !g_priority_mil && !g_landing_order && pl ? landing_room_reserve(pl) : 0;
+        if (military && !ship && !g_priority_mil && !g_landing_order && pl) hold += navy_room_reserve(pl);   // the fleet's (navy.c)
         if (hold > 0 && room0 - hold < (req[1] > 0 ? req[1] : 1)) {   // the fleet's room: other soldiers only beyond it
             if (room0 - hold <= 0) { *(unsigned *)b = 0; req[1] = saved_count; req[0] = saved_type; return 0; }
             req[1] = room0 - hold;
@@ -1618,7 +1620,7 @@ __attribute__((noinline)) static uintptr_t __fastcall hook_train_units(void *um,
     if (stock && cfg->budget) train_budget(pl, idx, cfg, req, military, req_unit, ship, stock, reserve, visibles, &blocked, &afford, &sub_type);
     else if (stock) memcpy(visibles, stock, sizeof visibles);
     uintptr_t ra = (uintptr_t)__builtin_return_address(0) - 5;   // the call site: read here, in the hook
-    uintptr_t res = train_call(um, pl, idx, req, b, blocked, afford, sub_type, ra, military);
+    uintptr_t res = train_call(um, pl, idx, req, b, blocked, afford, sub_type, ra, military, ship);
     train_account(pl, idx, cfg, req, res, military, ship, sub_type, stock, before, reserve, visibles, ra);
     return res;
 }

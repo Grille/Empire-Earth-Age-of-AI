@@ -33,7 +33,7 @@ static struct nv_map g_nv_map[16];
 // the navy account (navy_income) per AI and resource; saved with the game (persist.c)
 static float g_nv_acc[16][7];
 // what the account paid and refused (the budget line): ship orders by type
-struct nv_orders { unsigned paid, refused, spent[7], held_room, docks_asked; int want, nt; uint32_t want_t, dock_t; struct { int type; unsigned paid, refused; } t[8]; };
+struct nv_orders { unsigned paid, refused, spent[7], held_room, docks_asked; int want, last, nt; uint32_t want_t, dock_t; struct { int type; unsigned paid, refused; } t[8]; };
 static struct nv_orders g_nv_ord[16];
 // own ships and docks, counted for every player every 10 s (navy_count)
 struct nv_own { int war, docks, docks_built, fish; };
@@ -295,6 +295,7 @@ static void navy_paid(unsigned idx, int type, const int *spent, int got) {   // 
     if (k == o->nt && k < 8) { o->nt++; o->t[k].type = type; o->t[k].paid = o->t[k].refused = 0; }
     if (got) o->paid++; else o->refused++;
     if (!got) { o->want = type; o->want_t = game_time(); } else if (o->want == type) o->want = 0;
+    o->last = type;
     if (k < 8) { if (got) o->t[k].paid++; else o->t[k].refused++; }
 }
 static void navy_budget_log(void *pl, unsigned idx, uint32_t now) {
@@ -331,6 +332,22 @@ static void navy_count(void) {
         if (k == NV_WAR || k == NV_SUB || k == NV_CARRIER) g_nv_own[pi].war++;
         else if (k == NV_FISH) g_nv_own[pi].fish++;
     }
+}
+
+// FLEET ROOM (with the navy account): at the population cap the warships the account pays for never came - the army
+// filled every free slot first (the bombardment fleet had the same: landing_room_reserve). On a water map with a
+// finished dock, the room for the fleet's missing warships is held from the army's orders (econ.c train_call): up to
+// 4 x the map strength warships, no more than the account pays for of the type the game last asked for.
+static int navy_room_reserve(void *pl) {
+    unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
+    struct nv_orders *o = &g_nv_ord[idx];
+    float sh = navy_share(idx);
+    int t = o->want ? o->want : o->last, missing = (int)(4.0f * g_nv_map[idx].strength + 0.5f) - g_nv_own[idx].war, total = 0;
+    if (sh <= 0 || !t || missing <= 0 || !g_nv_own[idx].docks_built) return (int)(o->held_room = 0);
+    for (int r = 3; r < 7; r++) if (r != 4) total += unit_cost(pl, t, r);
+    int n = total > 0 ? navy_account(idx, 3) / total : 0;
+    o->held_room = (unsigned)(n < missing ? n : missing);
+    return (int)o->held_room;
 }
 
 // DOCKS (with the navy account): the game's building plan keeps docks up to its "min military buildings" - 1.5-2.2
