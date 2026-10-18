@@ -35,5 +35,6 @@ static const struct { const char *tag; uint32_t hash; } k_layout[] = {
     { "g_offer_vs", 0xEC4A09CBU },
     { "g_hlog", 0xF6ECEAB7U },
     { "g_hum", 0x62FBBAB7U },
+    { "g_nv_acc", 0x550446E8U },
     { "g_intel", 0xF5BDFCB7U },
 };

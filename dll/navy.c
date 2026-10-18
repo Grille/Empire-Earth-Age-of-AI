@@ -30,6 +30,15 @@ static uint32_t g_nv_fish_t, g_nv_log_t;
 static int g_fish_last[16];   // the fishing boat last picked per player (hook_fish_type, its log line)
 struct nv_map { uint32_t t; uint8_t done, kind; float strength, water; int across, enemies; };   // navy_detect
 static struct nv_map g_nv_map[16];
+// the navy account (navy_income) per AI and resource; saved with the game (persist.c)
+static float g_nv_acc[16][7];
+// what the account paid and refused (the budget line): ship orders by type
+struct nv_orders { unsigned paid, refused, spent[7], held_room; int want, nt; uint32_t want_t; struct { int type; unsigned paid, refused; } t[8]; };
+static struct nv_orders g_nv_ord[16];
+// own ships and docks, counted for every player every 10 s (navy_count)
+struct nv_own { int war, docks, docks_built, fish; };
+static struct nv_own g_nv_own[16];
+static uint32_t g_nv_count_t;
 
 static void navy_new_game(void) {
     memset(g_nv_fish, 0, sizeof g_nv_fish);
@@ -39,6 +48,10 @@ static void navy_new_game(void) {
     g_nv_fish_t = g_nv_log_t = 0;
     memset(g_fish_last, 0, sizeof g_fish_last);
     memset(g_nv_map, 0, sizeof g_nv_map);
+    memset(g_nv_acc, 0, sizeof g_nv_acc);
+    memset(g_nv_ord, 0, sizeof g_nv_ord);
+    memset(g_nv_own, 0, sizeof g_nv_own);
+    g_nv_count_t = 0;
 }
 
 static void navy_fish(void) {
@@ -201,6 +214,125 @@ static void navy_detect(void *pl, unsigned idx, uint32_t now) {
                        100.0f * m->water, hc, w ? (int)(FIELD(w, 0x181730, uint32_t) & 1) : -1, (int)FIELD(pl, 0xEFA, uint8_t));
 }
 
+// NAVY ACCOUNT ([all] navy, navy_share; docs/navy.md stage 1). Every ship order went through the military budget,
+// fishing boats included, and the army took the account: 1000-1700 failed ship requests per AI and hour on island
+// maps, 2-4 warships at most. On a water map (navy_detect) navy_share % x the strength of every wood, gold and iron
+// income (EEComputerPlayer::AddResource, econ.c hook_add_resource) goes into a navy account (at most NV_ACC_CAP of
+// each: when the game's AI asks for no ship, the rest stays the army's):
+// - every order but a warship's (army, citizens, the fishing boats, the siege and landing orders) sees the account
+//   as part of the reserve (econ.c train_budget): the army can't take it;
+// - the game's (and the mod's) warship, submarine and carrier orders spend the account (or the stock beyond the
+//   hoard cap, as the army does) instead of the military account, which pays nothing for them;
+// - fishing boats, and the transports a landing orders, are economy: not paid from (nor charged to) the military
+//   account, limited only by the reserve.
+// Which ships the game's AI asks for is its own (stage 2 changes that). `# navy: P<n> budget` every 5 minutes.
+#define NV_ACC_CAP 1200
+static int g_navy = 1, g_navy_share = 25;
+static float navy_share(unsigned idx) {
+    return g_navy && g_nv_map[idx & 15].done ? (float)g_navy_share / 100.0f * g_nv_map[idx & 15].strength : 0.0f;
+}
+static void navy_income(unsigned idx, int type, int amount) {
+    float sh = navy_share(idx);
+    if (sh <= 0 || (type != 3 && type != 5 && type != 6)) return;
+    float *a = &g_nv_acc[idx & 15][type];
+    *a += (float)amount * sh;
+    if (*a > NV_ACC_CAP) *a = NV_ACC_CAP;
+}
+static int navy_type_kind(int type) {
+    uint8_t *td = type_data(type);
+    return td ? navy_kind(td) : NV_NONE;
+}
+// a warship order the navy account pays (econ.c hook_train_units)
+static int navy_pays(unsigned idx, int type) {
+    int k = navy_type_kind(type);
+    return navy_share(idx) > 0 && (k == NV_WAR || k == NV_SUB || k == NV_CARRIER);
+}
+// an order paid as economy: fishing boats, the landing's transports
+static int navy_economy(int type, int landing_order) {
+    int k = navy_type_kind(type);
+    return g_navy && (k == NV_FISH || (landing_order && k == NV_TRANSPORT));
+}
+// every other order: the account is not there - and once the account pays the warship the game last asked for (within
+// 2 minutes), that ship's whole cost: the army took the iron down to the reserve + 200 again and again while the
+// account held 44 of it (Small Islands e9: 400-500 frigate orders refused in 25 minutes, the account at 800)
+static int navy_account(unsigned idx, int r);
+static void navy_hold(void *pl, unsigned idx, int reserve[7]) {
+    struct nv_orders *o = &g_nv_ord[idx & 15];
+    uint32_t now = game_time();
+    int want = o->want && now >= o->want_t && now - o->want_t < 120000 ? o->want : 0, total = 0;
+    for (int r = 3; r < 7 && want; r++) if (r != 4) total += unit_cost(pl, want, r);
+    if (want && navy_account(idx, 3) < total) want = 0;
+    for (int r = 3; r < 7; r++) {
+        if (r == 4) continue;
+        int h = (int)g_nv_acc[idx & 15][r], c = want ? unit_cost(pl, want, r) : 0;
+        reserve[r] += h > c ? h : c;
+    }
+}
+// one pool for a warship: the AIs' iron comes in slowly (Small Islands e9: 25% of it paid a frigate's 125 iron only at
+// minute 25, 430 orders refused, while the account's wood and gold lay unused) - a warship takes any of its
+// resources up to the whole account; what it took beyond that resource's part is charged to the account's others
+// (navy_paid), which the army gets instead
+static int navy_account(unsigned idx, int r) {
+    const float *a = g_nv_acc[idx & 15];
+    return r == 3 || r == 5 || r == 6 ? (int)(a[3] + a[5] + a[6]) : 0;
+}
+static void navy_paid(unsigned idx, int type, const int *spent, int got) {   // after a warship order
+    struct nv_orders *o = &g_nv_ord[idx & 15];
+    for (int r = 2; r < 7; r++) {
+        if (spent[r] <= 0) continue;
+        o->spent[r] += (unsigned)spent[r];
+        float *a = g_nv_acc[idx & 15], over = (float)spent[r];
+        if (r != 3 && r != 5 && r != 6) continue;
+        for (int pass = 0; pass < 3 && over > 0; pass++) {   // its own part first, then the others, the largest first
+            int q = r;
+            if (pass) { q = 0; for (int x = 3; x < 7; x++) if (x != 4 && (!q || a[x] > a[q])) q = x; }
+            float take = a[q] < over ? a[q] : over;
+            a[q] -= take; over -= take;
+        }
+    }
+    int k;
+    for (k = 0; k < o->nt && o->t[k].type != type; k++) ;
+    if (k == o->nt && k < 8) { o->nt++; o->t[k].type = type; o->t[k].paid = o->t[k].refused = 0; }
+    if (got) o->paid++; else o->refused++;
+    if (!got) { o->want = type; o->want_t = game_time(); } else if (o->want == type) o->want = 0;
+    if (k < 8) { if (got) o->t[k].paid++; else o->t[k].refused++; }
+}
+static void navy_budget_log(void *pl, unsigned idx, uint32_t now) {
+    static uint32_t last[16];
+    if (!g_log || navy_share(idx) <= 0 || (now >= last[idx] && now - last[idx] < 300000)) return;
+    last[idx] = now;
+    struct nv_orders *o = &g_nv_ord[idx];
+    struct nv_own *w = &g_nv_own[idx];
+    EnterCriticalSection(&g_lock);
+    fprintf(g_log, "# navy: P%u budget at %u min: share %.0f%% account W%.0f G%.0f I%.0f | paid W%u G%u I%u | ship orders paid %u refused %u [",
+            idx, now / 60000, 100.0f * navy_share(idx), g_nv_acc[idx][3], g_nv_acc[idx][5], g_nv_acc[idx][6], o->spent[3], o->spent[5],
+            o->spent[6], o->paid, o->refused);
+    for (int k = 0; k < o->nt; k++) fprintf(g_log, "%s%d:%u/%u", k ? " " : "", o->t[k].type, o->t[k].paid, o->t[k].refused);
+    fprintf(g_log, "] | warships %d docks %d (%d built) fishing %d | room held %u | epoch %d\n", w->war, w->docks, w->docks_built, w->fish,
+            o->held_room, current_epoch(pl) + 1);
+    fflush(g_log);
+    LeaveCriticalSection(&g_lock);
+}
+// own warships (with submarines and carriers), docks (36, also unfinished) and fishing boats of every player
+static void navy_count(void) {
+    memset(g_nv_own, 0, sizeof g_nv_own);
+    for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
+        uint8_t *o = FIELD(it.u, 0x18, uint8_t *);
+        if (!o || FIELD(it.u, 0x3C, int) <= 0) continue;
+        int pi = FIELD(o, PL_INDEX, int);
+        if (pi <= 0 || pi >= 16) continue;
+        if (FIELD(it.td, 0x4B8, int) == 36) {
+            uint8_t *st = FIELD(it.u, 0x30, uint8_t *);
+            g_nv_own[pi].docks++;
+            g_nv_own[pi].docks_built += st && FIELD(st, 0x340, uint8_t);
+            continue;
+        }
+        int k = navy_kind(it.td);
+        if (k == NV_WAR || k == NV_SUB || k == NV_CARRIER) g_nv_own[pi].war++;
+        else if (k == NV_FISH) g_nv_own[pi].fish++;
+    }
+}
+
 // FISHING BOAT ([all] fishing_boat, default 1; docs/navy.md stage 0): the game's pick 0x46D209 (thiscall on the
 // economy object, +0x4C = the player) goes by the epoch index alone: below 3 the Stone boat 108, below 9 the Bronze
 // boat 109, below 14 the Modern boat 211 - an epoch-11 unit (tech 11090). The Imperial boat 365 (tech 8090) and the
@@ -234,6 +366,11 @@ static void navy_install(const char *aimod_ini, const char *autotest_ini) {
     g_fish_boat = cfg_int(aimod_ini, autotest_ini, 1, "fishing_boat", 1);
     int ok = g_fish_boat ? patch_call(0x0048F823, FN_FISH_TYPE, (void *)hook_fish_type) + patch_call(0x0048FB16, FN_FISH_TYPE, (void *)hook_fish_type) : 0;
     if (g_log) fprintf(g_log, "# fishing: boat choice %s (hooks %d/2)\n", g_fish_boat ? "newest available" : "the game's", ok);
+    g_navy = cfg_int(aimod_ini, autotest_ini, 1, "navy", 1);
+    g_navy_share = cfg_int(aimod_ini, autotest_ini, 1, "navy_share", 25);
+    if (g_navy_share < 0) g_navy_share = 0;
+    if (g_navy_share > 80) g_navy_share = 80;
+    if (g_log) fprintf(g_log, "# navy: account %s, share %d%% on islands\n", g_navy ? "on" : "off", g_navy_share);
 }
 
 static void navy_tick(void *pl, uint32_t now) {
@@ -241,6 +378,8 @@ static void navy_tick(void *pl, uint32_t now) {
     struct nv_map *m = &g_nv_map[idx];
     if (now < m->t) memset(m, 0, sizeof *m);
     if (!m->done && now >= 10000 && now - m->t >= 10000) { m->t = now; navy_detect(pl, idx, now); }
+    if (now < g_nv_count_t || now - g_nv_count_t >= 10000) { g_nv_count_t = now; navy_count(); }
+    navy_budget_log(pl, idx, now);
     if (!g_auto.enabled || !g_log) return;
     if (now < g_nv_fish_t) g_nv_fish_t = g_nv_log_t = 0;
     if (now - g_nv_fish_t >= 15000) { g_nv_fish_t = now; navy_fish(); }

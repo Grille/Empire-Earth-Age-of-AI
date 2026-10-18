@@ -360,6 +360,13 @@ static void __fastcall hook_pay(void *pl, void *edx, void *what, int b, int c) {
     for (int r = 2; r < 7; r++)
         if (before[r] > stock[r]) spend_note((unsigned)FIELD(pl, PL_INDEX, int) & 15, r, before[r] - stock[r], site);
 }
+// navy.c (docs/navy.md stage 1): the navy account on water maps
+static void navy_income(unsigned idx, int type, int amount);
+static int navy_pays(unsigned idx, int type);
+static int navy_economy(int type, int landing_order);
+static void navy_hold(void *pl, unsigned idx, int reserve[7]);
+static int navy_account(unsigned idx, int r);
+static void navy_paid(unsigned idx, int type, const int *spent, int got);
 #define FN_CP_ADD_RESOURCE 0x0042F783   // EEComputerPlayer::vf18(type, amount)
 #define FARM_EPOCH 2   // farms and granaries come with epoch 2, the Copper Age
 static int current_epoch(void *pl);
@@ -372,6 +379,7 @@ static void __fastcall hook_add_resource(void *pl, void *edx, int type, int amou
         // from the Copper Age (farms: food no longer runs out) a player turns most of his income into army
         const struct ai_cfg *c = cfg_of(pl);
         g_bud[idx].mil[type] += amount * (current_epoch(pl) >= FARM_EPOCH ? c->mil_income_share_farms : c->mil_income_share);
+        navy_income(idx, type, amount);   // navy.c: the navy account on water maps
     }
 }
 
@@ -1455,7 +1463,7 @@ static int g_train_room = 0xFFFF;
 static unsigned g_noroom[16][6];   // units ordered with no room (cap - in production - population <= 0), by call site
 // the budget's part of a training request: what the AI may spend on it (visibles), how many it pays for (afford,
 // blocked when none), a substitute soldier (sub_type) - reserve gets the stock held back
-static void train_budget(void *pl, unsigned idx, const struct ai_cfg *cfg, const int *req, int military, int req_unit,
+static void train_budget(void *pl, unsigned idx, const struct ai_cfg *cfg, const int *req, int military, int req_unit, int ship,
                          int *stock, int *reserve, int *visibles, int *blocked, int *afford, int *sub_type) {
     uint32_t now = game_time();
     if (now < g_bud[idx].last_t) g_bud[idx].init = 0;   // new game
@@ -1464,6 +1472,7 @@ static void train_budget(void *pl, unsigned idx, const struct ai_cfg *cfg, const
     reserve[3] += field_wood(idx);   // the next fields' wood (build_fields)
     landing_reserve(pl, reserve);   // transports a landing waits for
     bunker_reserve(pl, reserve);    // a fortress's wood (bunker.c)
+    if (!ship && !req_unit) navy_hold(pl, idx, reserve);   // the navy account: only warships spend it (navy.c)
     if (!g_bud[idx].init) {
         memset(&g_bud[idx], 0, sizeof g_bud[idx]);
         g_bud[idx].init = 1;
@@ -1487,7 +1496,7 @@ static void train_budget(void *pl, unsigned idx, const struct ai_cfg *cfg, const
         int visible = req_unit ? stock[r] : stock[r] - reserve[r];   // a requirement unit: the epoch waits for it
         // citizens before farms: they pay only food, and only what the food budget (stock + reachable wild
         // food) doesn't need for the epochs; a tiny workforce always grows
-        if (!military && cfg->copper_plan && current_epoch(pl) < FARM_EPOCH) {
+        if (is_citizen_type(req[0]) && cfg->copper_plan && current_epoch(pl) < FARM_EPOCH) {
             int wf = workforce(pl);
             if (r != 2 || wf < 10) visible = stock[r];
             else if (wf < g_min_workforce && stock[2] + (int)(wild_food(pl) * g_wild_share) >= reserve[2] + 500)
@@ -1496,7 +1505,7 @@ static void train_budget(void *pl, unsigned idx, const struct ai_cfg *cfg, const
         }
         if (military && !g_priority_mil && !req_unit) {   // priority requests (siege) and requirement units spend
                                                            // the stock above the reserve
-            int allowed = (int)g_bud[idx].mil[r];
+            int allowed = ship ? navy_account(idx, r) : (int)g_bud[idx].mil[r];   // a warship: the navy account
             int excess = stock[r] - reserve[r] - (r >= 4 ? PV(idx, g_v_hoard_mineral, g_hoard_cap_mineral) : g_hoard_cap);   // never hoard beyond the cap
             if (excess > allowed) allowed = excess;
             if (visible > allowed) visible = allowed;
@@ -1567,15 +1576,16 @@ static uintptr_t train_call(void *um, void *pl, unsigned idx, int *req, uintptr_
     return res;
 }
 // after the request: the military account pays what was spent, the notes and the budget line (once a minute)
-static void train_account(void *pl, unsigned idx, const struct ai_cfg *cfg, int *req, uintptr_t res, int military,
+static void train_account(void *pl, unsigned idx, const struct ai_cfg *cfg, int *req, uintptr_t res, int military, int ship,
                           int sub_type, int *stock, int *before, int *reserve, int *visibles, uintptr_t ra) {
     if (stock) {
-        int any = 0;
+        int any = 0, spent[7] = { 0 };
         for (int r = 2; r < 7; r++) {
-            int spent = before[r] - stock[r];
-            any |= spent > 0;
-            if (cfg->budget && military && spent > 0) { g_bud[idx].mil[r] -= spent; g_bud[idx].mil_spent[r] += spent; }
+            spent[r] = before[r] - stock[r];
+            any |= spent[r] > 0;
+            if (cfg->budget && military && !ship && spent[r] > 0) { g_bud[idx].mil[r] -= spent[r]; g_bud[idx].mil_spent[r] += spent[r]; }
         }
+        if (ship) navy_paid(idx, req[0], spent, any);
         if (military && any && !sub_type) g_save_since[idx] = 0;   // a requested soldier trained: saved enough
         if (military) mil_note(pl, idx, req, visibles, any, ra);
         trace_train(pl, req, res, before, reserve);
@@ -1600,14 +1610,16 @@ __attribute__((noinline)) static uintptr_t __fastcall hook_train_units(void *um,
     int before[7] = { 0 }, reserve[7] = { 0 }, visibles[7] = { 0 }, blocked = 0, afford = 0, sub_type = 0;
     if (stock) memcpy(before, stock, sizeof before);
     unsigned idx = pl ? (unsigned)FIELD(pl, PL_INDEX, int) & 15 : 0;
-    int military = !is_citizen_type(req[0]);
+    // fishing boats and the landing's transports: economy (navy.c); warships on a water map: the navy account
+    int military = !is_citizen_type(req[0]) && !(pl && navy_economy(req[0], g_landing_order));
+    int ship = military && pl && navy_pays(idx, req[0]);
     int req_unit = military && pl && requirement_unit(pl, req[0]);   // counts for the next epoch
     const struct ai_cfg *cfg = pl ? cfg_of(pl) : NULL;
-    if (stock && cfg->budget) train_budget(pl, idx, cfg, req, military, req_unit, stock, reserve, visibles, &blocked, &afford, &sub_type);
+    if (stock && cfg->budget) train_budget(pl, idx, cfg, req, military, req_unit, ship, stock, reserve, visibles, &blocked, &afford, &sub_type);
     else if (stock) memcpy(visibles, stock, sizeof visibles);
     uintptr_t ra = (uintptr_t)__builtin_return_address(0) - 5;   // the call site: read here, in the hook
     uintptr_t res = train_call(um, pl, idx, req, b, blocked, afford, sub_type, ra, military);
-    train_account(pl, idx, cfg, req, res, military, sub_type, stock, before, reserve, visibles, ra);
+    train_account(pl, idx, cfg, req, res, military, ship, sub_type, stock, before, reserve, visibles, ra);
     return res;
 }
 
