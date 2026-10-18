@@ -7,7 +7,8 @@
 # path: the file is copied to Saved Games\<name>.ees for -loadgame, and the DLL (scenario_mode=1) switches
 # the game start over to Scenarios\<name>.scn.
 param([string]$Save = "aitest.ees", [int]$TimeoutSec = 900, [string]$Tag = "", [bool]$Mute = $true,
-      [string]$Scenario = "", [string[]]$IniExtra = @(), [string]$Exe = "Empire Earth.exe")
+      [string]$Scenario = "", [string[]]$IniExtra = @(), [string]$Exe = "Empire Earth.exe",
+      [string]$Config = $env:CONFIG, [string]$AiDir = $env:AI_DIR)
 $g = (Resolve-Path "$PSScriptRoot\..\..").Path   # game folder; the repository lives in <game>\_aimod
 if ($Scenario) {
     Copy-Item "$g\Data\Scenarios\$Scenario.scn" "$g\Data\Saved Games\$Scenario.ees" -Force
@@ -32,6 +33,16 @@ function Restore-Sound {
 }
 
 if ($Save -match '[-/]') { "save name must not contain - or /"; exit 1 }
+# The settings the DLL plays with: -Config (or env CONFIG) = an aimod.ini, -AiDir (or env AI_DIR) = the personality
+# folder; relative paths from _aimod. Default: the shipped config\aimod.ini and config\aimod_ai - what players get,
+# never the player's own ..\aimod.ini (its experiments would bias every A/B). CONFIG=../aimod.ini tests the player's.
+if (-not $Config) { $Config = "config\aimod.ini" }
+if (-not $AiDir) { $AiDir = "config\aimod_ai" }
+if (-not [System.IO.Path]::IsPathRooted($Config)) { $Config = Join-Path "$g\_aimod" $Config }
+if (-not [System.IO.Path]::IsPathRooted($AiDir)) { $AiDir = Join-Path "$g\_aimod" $AiDir }
+if (-not (Test-Path $Config -PathType Leaf)) { "config not found: $Config"; exit 1 }
+if (-not (Test-Path $AiDir -PathType Container)) { "personality folder not found: $AiDir"; exit 1 }
+$Config = (Resolve-Path $Config).Path; $AiDir = (Resolve-Path $AiDir).Path
 # One run at a time: the lock holds the owner's PID; only the owner restores sound and removes the test ini,
 # so a run that was interrupted (or is still waiting for its game) can't clean up under a newer run.
 $lock = "$g\_aimod\work\run_test.lock"
@@ -64,6 +75,7 @@ if ($Mute) {
 # first occurrence). (-File passes "a=1,b=2" as one string, so split on commas as well)
 $extra = @(($IniExtra -join ',').Split(',') | Where-Object { $_ })
 if ($Scenario) { $extra += "scenario_mode=1" }
+$extra += "config=$Config", "ai_dir=$AiDir"
 $keys = $extra | ForEach-Object { ($_ -split '=', 2)[0].Trim() }
 $lines = Get-Content "$g\_aimod\autotest.ini" | Where-Object { $keys -notcontains (($_ -split '=', 2)[0].Trim()) }
 Set-Content "$g\aimod_autotest.ini" (@($lines) + $extra)

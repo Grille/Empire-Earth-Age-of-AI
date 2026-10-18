@@ -97,6 +97,10 @@ static void log_line(const char *fmt, const char *a, int b);
 static BOOL patch_call(uintptr_t site, uintptr_t expected, void *hook);
 static void *g_players[16];   // EEComputerPlayer seen by the AI hooks, by player index (filled in control.c)
 static char g_ini[MAX_PATH], g_aimod_ini[MAX_PATH];   // aimod_autotest.ini, aimod.ini (paths set in DllMain)
+// <game>\ and <game>\aimod_ai\ (with the backslash). Under autotest the config and the personality folder come from
+// aimod_autotest.ini [autotest] config / ai_dir (run_test.ps1: the repository's config\ by default), so tests measure
+// the shipped files, not the player's own ..\aimod.ini; normal play: always next to the game.
+static char g_game_dir[MAX_PATH], g_ai_dir[MAX_PATH];
 static BOOL patch_srand(void);
 #define G_SCENARIO_FLAG 0x00918819   // byte: game is a scenario/campaign (settings 0x918410 + 0x409)
 
@@ -697,8 +701,31 @@ static void config_missing(const char *ini) {
     wsprintfA(msg, "The Empire Earth AI mod (eeaimod.dll) needs its settings file:\n\n%s\n\n"
                    "Copy aimod.ini from the mod's config folder next to Empire Earth.exe, or delete eeaimod.dll "
                    "to play without the mod.\n\nEmpire Earth will close now.", ini);
-    MessageBoxA(NULL, msg, "Empire Earth AI mod: aimod.ini missing", MB_OK | MB_ICONERROR | MB_TOPMOST | MB_SETFOREGROUND);
+    if (!g_auto.enabled)   // a headless test has nobody to click the box: it quits at once (run_test.ps1 checks first)
+        MessageBoxA(NULL, msg, "Empire Earth AI mod: aimod.ini missing", MB_OK | MB_ICONERROR | MB_TOPMOST | MB_SETFOREGROUND);
     TerminateProcess(GetCurrentProcess(), 1);
+}
+
+// Autotest: [autotest] config = the aimod.ini to play with, ai_dir = the personality folder (aimod_ai), each absolute
+// or relative to the game folder; unset = the files next to the game as in normal play. Every reader of the settings
+// goes through g_aimod_ini / g_ai_dir, so the whole file ([general], [all], the difficulties, [display], [llm] ...)
+// comes from the chosen one.
+static void config_paths(void) {
+    char v[MAX_PATH];
+    GetPrivateProfileStringA("autotest", "config", "", v, sizeof v, g_ini);
+    if (v[0]) {
+        if (v[1] == ':' || (v[0] == '\\' && v[1] == '\\')) lstrcpynA(g_aimod_ini, v, MAX_PATH);
+        else snprintf(g_aimod_ini, MAX_PATH, "%s%s", g_game_dir, v);
+        for (char *c = g_aimod_ini; *c; c++) if (*c == '/') *c = '\\';
+    }
+    GetPrivateProfileStringA("autotest", "ai_dir", "", v, sizeof v, g_ini);
+    if (v[0]) {
+        if (v[1] == ':' || (v[0] == '\\' && v[1] == '\\')) lstrcpynA(g_ai_dir, v, MAX_PATH - 1);
+        else snprintf(g_ai_dir, MAX_PATH - 1, "%s%s", g_game_dir, v);
+        for (char *c = g_ai_dir; *c; c++) if (*c == '/') *c = '\\';
+        size_t n = strlen(g_ai_dir);
+        if (n && g_ai_dir[n - 1] != '\\') lstrcatA(g_ai_dir, "\\");
+    }
 }
 
 static void install(HMODULE self) {
@@ -714,19 +741,25 @@ static void install(HMODULE self) {
         *slash = 0;
         wsprintfA(g_dump_dir, "%s\\aimod_dumps", path);
         *slash = '\\';
-        lstrcpyA(slash + 1, "aimod.ini");   // required: missing -> error and quit; [general] enabled=0 -> no hooks
-        if (GetFileAttributesA(path) == INVALID_FILE_ATTRIBUTES) config_missing(path);
-        if (!GetPrivateProfileIntA("general", "enabled", 1, path)) {
+        slash[1] = 0;
+        lstrcpyA(g_game_dir, path);
+        wsprintfA(g_ai_dir, "%saimod_ai\\", path);
+        lstrcpyA(slash + 1, "aimod_autotest.ini");
+        load_autotest(path);
+        lstrcpyA(g_ini, path);
+        lstrcpyA(slash + 1, "aimod.ini");
+        lstrcpyA(g_aimod_ini, path);
+        if (g_auto.enabled) config_paths();
+        // required: missing -> error and quit; [general] enabled=0 -> no hooks
+        if (GetFileAttributesA(g_aimod_ini) == INVALID_FILE_ATTRIBUTES) config_missing(g_aimod_ini);
+        if (!GetPrivateProfileIntA("general", "enabled", 1, g_aimod_ini)) {
             lstrcpyA(slash + 1, "aimod_econ.csv");
             FILE *f = fopen(path, "a");
             if (f) { fputs("# eeaimod: switched off in aimod.ini (enabled=0) - nothing installed\n", f); fclose(f); }
             return;
         }
-        g_fix_scenario_ai = GetPrivateProfileIntA("general", "scenario_ai", GetPrivateProfileIntA("fixes", "scenario_ai", 1, path), path);
-        lstrcpyA(g_aimod_ini, path);
-        lstrcpyA(slash + 1, "aimod_autotest.ini");
-        load_autotest(path);
-        lstrcpyA(g_ini, path);
+        g_fix_scenario_ai = GetPrivateProfileIntA("general", "scenario_ai",
+                                                  GetPrivateProfileIntA("fixes", "scenario_ai", 1, g_aimod_ini), g_aimod_ini);
         lstrcpyA(slash + 1, "aimod_econ.csv");
         g_mem_dumps = g_auto.enabled || GetPrivateProfileIntA("general", "memory_dumps", 0, g_aimod_ini);
         if (g_mem_dumps || g_auto.enabled || GetPrivateProfileIntA("general", "control_pipe", 0, g_aimod_ini))
@@ -743,6 +776,7 @@ static void install(HMODULE self) {
         fprintf(g_log, "# session %04d-%02d-%02d %02d:%02d:%02d\n",
                 st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond);
         log_header();
+        fprintf(g_log, "# config: %s (personalities: %s)\n", g_aimod_ini, g_ai_dir);
     }
 
     BOOL a = patch_call(CALL_COMPUTE_TARGETS, FN_COMPUTE_TARGETS, hook_compute_targets);

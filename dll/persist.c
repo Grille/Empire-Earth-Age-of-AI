@@ -50,9 +50,7 @@ static int ees_stamp(const char *ees, uint64_t *size, FILETIME *t) {
 // <game dir>\<folder><file> with .ees, and the same with .aimod
 static void persist_paths(const char *folder, const char *file, char *ees, char *side) {
     char dir[MAX_PATH];
-    lstrcpynA(dir, g_aimod_ini, MAX_PATH);
-    char *slash = strrchr(dir, '\\');
-    if (slash) slash[1] = 0; else dir[0] = 0;
+    lstrcpynA(dir, g_game_dir, MAX_PATH);   // not the config's folder: under autotest that can be _aimod\config
     wsprintfA(ees, "%s%s%s", dir, folder ? folder : "", file);
     size_t n = strlen(file);
     int has_ext = n > 4 && !lstrcmpiA(file + n - 4, ".ees");

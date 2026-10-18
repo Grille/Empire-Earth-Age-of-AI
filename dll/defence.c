@@ -1166,7 +1166,7 @@ static void defence_install(const char *aimod_ini, const char *autotest_ini) {
     g_retreat = cfg_int(aimod_ini, autotest_ini, 1, "attack_retreat", 0);
     BOOL guard = patch_call(CALL_DAMAGE_POINTS, FN_DAMAGE_POINTS, damage_points_thunk);
     if (g_log) fprintf(g_log, "# engine guard: damage points %s\n", guard ? "ok" : "FAILED");
-    if (g_log) fprintf(g_log, "# defence: layout=%d distance=%d walls=%d own towers=%d counter-siege=%d home guard=%d/epoch, %.2f of the military room, fight_estimate=%d\n", g_def, g_def_dist, g_def_walls, g_def_more, g_csiege, g_home_guard, g_home_share, g_fight_est);
+    if (g_log) fprintf(g_log, "# defence: layout=%d distance=%d walls=%d own towers=%d counter-siege=%d home guard=%d/epoch, %.2f of the military room, fight_estimate=%d hold_town=%d attack_retreat=%d\n", g_def, g_def_dist, g_def_walls, g_def_more, g_csiege, g_home_guard, g_home_share, g_fight_est, g_hold, g_retreat);
 }
 
 // ANTI-AIR ([all] anti_air, default 1). The game's unit choice hardly asks for anti-air: the user's planes overran

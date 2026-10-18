@@ -376,10 +376,7 @@ static void persona_load(const char *path, const char *file) {
 static void tpl_vars_scan(void);
 static void x_fn_scan_dir(void) {
     char dir[MAX_PATH], pat[MAX_PATH], path[MAX_PATH];
-    GetModuleFileNameA(NULL, dir, sizeof dir);
-    char *bs = strrchr(dir, '\\');
-    if (bs) bs[1] = 0;
-    lstrcatA(dir, "aimod_ai\\");
+    lstrcpyA(dir, g_ai_dir);   // <game>\aimod_ai\ (autotest: [autotest] ai_dir)
     snprintf(pat, sizeof pat, "%s*.eeai", dir);
     WIN32_FIND_DATAA fd;
     HANDLE h = FindFirstFileA(pat, &fd);
@@ -396,10 +393,7 @@ static void x_fn_scan_dir(void) {
 static void personas_load(void) {
     char dir[MAX_PATH], pat[MAX_PATH], path[MAX_PATH];
     g_xfn_scanned = 0;   // the files may have changed since: scanned again when a function is first met
-    GetModuleFileNameA(NULL, dir, sizeof dir);
-    char *bs = strrchr(dir, '\\');
-    if (bs) bs[1] = 0;
-    lstrcatA(dir, "aimod_ai\\");
+    lstrcpyA(dir, g_ai_dir);
     snprintf(pat, sizeof pat, "%s*.eeai", dir);
     WIN32_FIND_DATAA fd;
     HANDLE h = FindFirstFileA(pat, &fd);
