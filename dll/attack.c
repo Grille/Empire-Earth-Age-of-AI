@@ -569,6 +569,7 @@ static int army_size(void *pl) {
 // 1)), EEUGLocation (new 0x38, ctor 0x614CE6(float xy[2], 1, 1, 0, 0.0, 0, 0); +0x20/+0x24 = xy).
 #define VT_GOAL_ATTACK   0x00831968
 #define VT_GOAL_LOCATION 0x00831E64
+#define VT_GOAL_UNLOAD   0x00831F5C   // EEUGUnloadTransport (new 0x40, ctor 0x615A1F(transport, x, y, flag))
 static struct {
     int tx, ty, ttype, px, py; uint32_t last; unsigned logged;
     int wave;                    // a wave is out: newcomers wait at the gathering point

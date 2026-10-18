@@ -1,5 +1,5 @@
 """Landings per run: planned, sailed, ashore (soldiers), called off (beach too strong / boarding failed / other),
-told to unload by the game, and the score line (kills, losses, razed). usage: python scripts/landings.py logs..."""
+told to unload by the game (refused by the transport manager, kept off the shore while boarding, retries refused), and the score line (kills, losses, razed). usage: python scripts/landings.py logs..."""
 import re, sys, subprocess, os
 
 here = os.path.dirname(os.path.abspath(__file__))
@@ -13,4 +13,5 @@ for f in sys.argv[1:]:
     sc = re.sub(r'epoch \d+ +workers end +\d+ +max +\d+ +food end +\d+ +last seen +[\d.]+ +', '', sc)
     print(f'{os.path.basename(f)[-40:]:40} planned {c(r"plans a landing on"):2} sailed {c(r"min: sails with"):2} '
           f'ashore {c(r"min: all \d+ ashore"):2} ({ashore:3} soldiers) beach-off {c(r"too strong a beach"):2} '
-          f'board-fail {c(r"boarding failed"):2} game-unload {c(r"told to unload at"):3} mgr-refused {c(r"transport manager wanted it"):3} | {sc}')
+          f'board-fail {c(r"boarding failed"):2} game-unload {c(r"told to unload at"):3} mgr-refused {c(r"transport manager wanted it"):3} '
+          f'kept-off {c(r"kept off the shore"):2} retry-refused {c(r"unload retry at"):2} | {sc}')
