@@ -5,7 +5,7 @@
 // pipe) writes both files with every key and its built-in text (to aimod_ai\, existing files are kept unless "texts
 // dump force"). In braces: expressions, as in the personalities' lines - {me}, {them}, {them.epoch}, {opinion} (expr.c)
 // - and a few texts only the code has ({tribute}, {terms}, ...): each key's are listed above it in the dump; an unknown
-// one stays as written. "\n" in a value is a line break. [vars] may name expressions: _system.eeai [vars] /
+// one writes nothing (logged). "\n" in a value is a line break. [vars] may name expressions: _system.eeai [vars] /
 // [vars:<language>] for what the player reads (a personality's own [vars] first), _template.eeai [vars] for the prompts.
 // Included by eeaimod.c after persona.c.
 struct text_def { const char *key, *en, *de, *note; };
@@ -123,9 +123,43 @@ static void texts_file(const char *name, int sys) {
     tfile_parse(name, text, texts_key, sys ? (void *)1 : NULL);
     free(text);
 }
-static void tpl_vars_scan(void) {   // the built-in functions of _template.eeai [vars], for x_fn_known
+static void tpl_vars_scan(void) {   // the built-in [vars] of _template.eeai, for x_fn_known and x_var_known
     for (int i = 0; i < N_TPL_VARS; i++)
         if (strchr(k_tpl_vars[i].key, '(')) { char t[96]; wsprintfA(t, "%s = 0\n", k_tpl_vars[i].key); x_fn_scan(t); }
+        else x_var_add(k_tpl_vars[i].key, strlen(k_tpl_vars[i].key));
+}
+static void ph_add(char *out, size_t cap, const char *text) {   // text's {name} placeholders into out (" a b ")
+    for (const char *s = text; s && (s = strchr(s, '{')) != NULL; s++) {
+        const char *e = s + 1;
+        while (isalnum((unsigned char)*e) || *e == '_') e++;
+        size_t n = (size_t)(e - s - 1);
+        if (*e != '}' || !n || n > 40) continue;
+        char w[48];
+        w[0] = ' ';
+        memcpy(w + 1, s + 1, n);
+        w[n + 1] = ' ';
+        w[n + 2] = 0;
+        if (!strstr(out, w) && strlen(out) + n + 2 < cap) lstrcatA(out, w + 1);
+    }
+}
+// expr.c x_name_check: the placeholders the code fills for a key - those its built-in texts use ({url}, {what} ...);
+// for [vars] (they may serve any key) and the rest: all of them
+static const char *x_code_placeholders(const char *file, const char *sec, const char *key) {
+    static char one[1000], all[6000];
+    if (!all[0]) {
+        lstrcpyA(all, " tribute ");
+        for (int i = 0; i < N_SYS; i++) { ph_add(all, sizeof all, k_sys[i].en); ph_add(all, sizeof all, k_sys[i].de); }
+        for (int i = 0; i < N_TPL; i++) ph_add(all, sizeof all, k_tpl[i].en);
+    }
+    int sys = !lstrcmpiA(file, "_system.eeai"), tpl = !lstrcmpiA(file, "_template.eeai");
+    if ((sys && (!lstrcmpiA(sec, "system") || !_strnicmp(sec, "system:", 7))) || (tpl && !lstrcmpiA(sec, "prompt"))) {
+        int i = sys ? text_index(k_sys, N_SYS, key) : text_index(k_tpl, N_TPL, key);
+        lstrcpyA(one, " ");
+        if (i >= 0) { ph_add(one, sizeof one, sys ? k_sys[i].en : k_tpl[i].en); if (sys) ph_add(one, sizeof one, k_sys[i].de); }
+        return one;
+    }
+    if (!_strnicmp(sec, "lines", 5)) return " tribute ";   // a personality's line (line_ctx_init)
+    return all;
 }
 static void texts_load(void) {
     if (g_texts_loaded) return;
@@ -353,14 +387,19 @@ static void cmd_texts(char *out, const char *args) {
             struct xval v;
             char t[XVAL_CAP];
             l.c.vars[0] = NULL;
-            if (!x_eval(s, &l.c, &v)) { REPLY("error: not an expression: %s\n", s); return; }
-            if (!v.w) { REPLY("nothing%s\n", l.c.unknown ? "  (unknown names counted 0)" : ""); return; }
+            if (!x_eval(s, &l.c, &v)) {
+                if (l.c.failed) REPLY("error: %s\n", g_x_last_fail);
+                else REPLY("error: not an expression: %s\n", s);
+                return;
+            }
+            if (!v.w) { REPLY("nothing%s\n", l.c.failed ? "  (a mistake left something out - see the log)" : ""); return; }
             xto_text(&v, t, sizeof t);
             char num[48] = "";
             if (v.has_n && v.has_s) { struct xval nv; xnum(&nv, v.n); xto_text(&nv, num, sizeof num); }
             REPLY("%s%s%s%s%s  (%s%s", v.has_s ? "\"" : "", t, v.has_s ? "\"" : "", num[0] ? " = " : "", num,
-                  v.has_n && v.has_s ? "number and text" : v.has_s ? "text" : "number", l.c.unknown ? "; unknown names counted 0" : "");
+                  v.has_n && v.has_s ? "number and text" : v.has_s ? "text" : "number", l.c.failed ? "; a mistake left something out - see the log" : "");
             if (v.w > 1) REPLY("; one of %d", v.w);
+            for (int i = 0; i < v.ln; i++) { xto_text(xl_at(&v, i), t, sizeof t); REPLY("%s%s", i ? " | " : ": ", t); }
             REPLY(")\n");
             return;
         }

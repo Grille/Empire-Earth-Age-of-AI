@@ -2062,6 +2062,25 @@ static int x_is_value(const char *name) {
     return 0;
 }
 
+// expr.c x_name_check: a name x_builtin takes - a player, a game value, one of mine, <player>[.lord ...].<member> -
+// when a file is read (no game needed)
+static int x_name_valid(const char *name) {
+    if (x_is_value(name)) return 1;
+    const char *dot = strrchr(name, '.');
+    if (!dot) return 0;
+    int n = (int)strcspn(name, ".");
+    if (!((n == 2 && !strncmp(name, "me", 2)) || (n == 4 && !strncmp(name, "them", 4)) || (n == 5 && !strncmp(name, "enemy", 5)) ||
+          (n == 4 && !strncmp(name, "lord", 4)) || x_check_par_has(name, n))) return 0;
+    for (const char *s = name + n; s < dot; ) {   // .lord between
+        s++;
+        int k = (int)strcspn(s, ".");
+        const struct xmember *m = x_find_member(s, k);
+        if (!m || m->kind != XM_LINK) return 0;
+        s += k;
+    }
+    const struct xmember *m = x_find_member(dot + 1, (int)strlen(dot + 1));
+    return m && m->kind != XM_REL;
+}
 // a relation: <player>.<relation>(<player>[, minutes]), or <relation>(<player>) - the speaker's. v NULL: only whether
 // name is one
 static int x_method(struct xctx *c, const char *name, const struct xval *a, int na, struct xval *v) {
@@ -2076,7 +2095,7 @@ static int x_method(struct xctx *c, const char *name, const struct xval *a, int 
     if (!ok) return 0;
     if (!v) return 1;
     void *pb = x_player_of(&a[0]);
-    if (!pa || a[0].miss[0]) {   // lord.opinion(them), opinion(lord) without a lord: nothing (strict: a mistake)
+    if (!pa || a[0].miss[0]) {   // lord.opinion(them), opinion(lord) without a lord: a mistake (x_missing)
         x_missing(c, pa ? a[0].miss : who);
         xnothing(v);
         return 1;

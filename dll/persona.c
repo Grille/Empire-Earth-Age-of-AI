@@ -66,7 +66,7 @@ struct persona {
     char file[40], name[48], civ[48];   // civ: civilization= - the civilization's name the game shows for it
     char character[300];   // character=: a few words about it for the language model (llm.c)
     int trait[T_N];
-    int color[4], ncolor;   // favoured player colours, in order of preference
+    char *color;   // color=: the favoured player colours, an expression - a list in order of preference (persona_colors)
     char *style_key[16], *style_val[16];   // [style]: aimod.ini settings for this personality (ai_style=1)
     int nstyle;
     char *line[L_N];   // a situation's line: an expression (expr.c) - a string, a list of them, conditions
@@ -144,8 +144,7 @@ static const char *const k_color_names[17][3] = {
     { "lime", "hellgruen", "hellgr\xFCn" }, { "lightblue", "hellblau", "" }, { "pink", "rosa", "" },
     { "darkgrey2", "dunkelgrau2", "" },
 };
-static int color_index(const char *s) {
-    if (*s >= '0' && *s <= '9') { int v = atoi(s); return v <= 16 ? v : -1; }
+static int color_index(const char *s) {   // by its name; -1: none
     for (int c = 0; c < 17; c++)
         for (int k = 0; k < 3; k++)
             if (k_color_names[c][k][0] && !lstrcmpiA(s, k_color_names[c][k])) return c;
@@ -216,8 +215,8 @@ static void lang_detect(void) {
 static struct persona g_computer;
 static int g_has_computer;
 static int g_personas_only_computer;   // autotest personas=0: only computer.eeai (AIs without a personality)
-// a personality file (the format: expr.c): [personality] name, name:<language>, character (strings), color (a list
-// of colour names), the traits (numbers 0-100); [style] (numbers); [vars] / [vars:<language>]; [lines] /
+// a personality file (the format: expr.c): [personality] name, name:<language>, character (strings), color (an
+// expression: a list of colours, worked out at the game start - persona_colors), the traits (numbers 0-100); [style] (numbers); [vars] / [vars:<language>]; [lines] /
 // [lines:<language>] - each situation a string or a list of them, "if" conditions
 // INCLUDES: before its first section a file may name others in its folder - include = "_shared.eeai" or a list of
 // them - whose [vars] / [vars:<language>] it uses after its own (the first named first); an included file holds only
@@ -281,12 +280,10 @@ struct persona_read {
     struct xvars vl;   // [vars:<game language>]: over [vars]
     struct includes inc;   // include = (before the first section)
 };
-struct color_read { struct persona *p; struct tlex *l; int line; };
-static void color_add(const char *name, void *arg) {
+struct color_read { struct tlex *l; int line; };
+static void color_check(const char *name, void *arg) {   // a colour name as written: known? (the rest at the game start)
     struct color_read *r = arg;
-    int c = color_index(name);
-    if (c >= 0 && r->p->ncolor < 4) r->p->color[r->p->ncolor++] = c;
-    else if (c < 0) x_error("%s:%d: unknown colour \"%s\"", r->l->file, r->line, name);
+    if (color_index(name) < 0) x_error("%s:%d: unknown colour \"%s\"", r->l->file, r->line, name);
 }
 static void persona_key(void *arg, const char *sec, const char *key, struct tval *v, struct tlex *l) {
     struct persona_read *r = arg;
@@ -314,8 +311,10 @@ static void persona_key(void *arg, const char *sec, const char *key, struct tval
             return;
         }
         if (!lstrcmpiA(key, "color") || !lstrcmpiA(key, "colour") || !lstrcmpiA(key, "farbe")) {
-            struct color_read cr = { p, l, v->line };
-            if (!x_plain_strings(v->src, color_add, &cr)) tl_error(l, "a list of colour names expected ([\"red\", \"blue\"])");
+            struct color_read cr = { l, v->line };
+            x_plain_strings(v->src, color_check, &cr);
+            free(p->color);
+            p->color = _strdup(v->src);
             return;
         }
         for (int t = 0; t < T_N; t++)
@@ -380,7 +379,7 @@ static void x_fn_scan_dir(void) {
     snprintf(pat, sizeof pat, "%s*.eeai", dir);
     WIN32_FIND_DATAA fd;
     HANDLE h = FindFirstFileA(pat, &fd);
-    g_xfn_n = 0;
+    g_xfn_n = g_xvn_n = 0;
     tpl_vars_scan();
     if (h == INVALID_HANDLE_VALUE) return;
     do {
@@ -460,7 +459,11 @@ static int line_pick(struct persona *p, int k, struct xctx *c, uint32_t last, ch
     struct xval x;
     c->vars[0] = &p->vars;
     for (int tries = 0; tries < 3; tries++) {
-        if (!x_eval(p->line[k], c, &x)) { x_log_bad("a line that is no expression", p->line[k]); return 0; }
+        int f0 = c->failed;
+        if (!x_eval(p->line[k], c, &x)) {   // a mistake while working it out (told): nothing to say - the fallback
+            if (c->failed == f0) x_log_bad("a line that is no expression", p->line[k]);
+            return 0;
+        }
         if (!x.w) return 0;
         xto_text(&x, out, cap);
         if (x.w < 2 || text_hash(out) != last) break;
@@ -504,6 +507,28 @@ static int persona_random(void) {
     return pick;
 }
 
+// p's favoured colours, in order (out, at most cap): its color= worked out now - before the game, so with no players
+// and no game values (xctx nogame) - each item a colour's name or number (color.red); returns how many
+static int persona_colors(struct persona *p, int *out, int cap) {
+    if (!p->color) return 0;
+    struct xctx c = { 0 };
+    c.found = 1;
+    c.nogame = 1;
+    c.vars[0] = &p->vars;
+    c.vars[1] = &g_vars_sys;
+    struct xval v;
+    if (!x_eval(p->color, &c, &v)) { if (!c.failed) x_log_bad("a colour that is no expression", p->color); return 0; }
+    int n = 0;
+    for (int i = 0; i < xl_n(&v) && n < cap; i++) {
+        const struct xval *it = xl_at(&v, i);
+        int k = it->has_s ? color_index(it->s) : -1;   // a name, or a number 1..17 (color.red, 2 - "2" is a name: none)
+        if (k < 0 && !it->has_s && it->has_n && it->n >= 1 && it->n <= 17 && it->n == (int)it->n) k = (int)it->n - 1;
+        if (k >= 0) out[n++] = k;
+        else { char t[XVAL_CAP]; xto_text(it, t, sizeof t); x_error("%s: unknown colour \"%s\" in color = %.100s", p->file, t, p->color); }
+    }
+    return n;
+}
+
 // A new game (the game start hook, before the game creates the players from the setup): forget the last game;
 // on a random map from the menu (setup +0x3D8 mode 0) pick every computer slot's personality now and give the
 // slot (+0x24) the personality's favoured colour - the first one no human and no other AI has - otherwise its own
@@ -540,12 +565,14 @@ static void persona_new_game(uint8_t *setup) {
         g_persona_used[pick]++;
         g_plan_persona[s] = pick;
     }
+    static int fav[16][17], nfav[16];   // each AI's favoured colours, worked out once (chance() in them: one draw)
+    for (int s = 0; s < 16; s++) nfav[s] = g_plan_persona[s] >= 0 ? persona_colors(&g_personas[g_plan_persona[s]], fav[s], 17) : 0;
     for (int pass = 0; pass < 2; pass++)   // favoured colours first, then the AIs without (or with taken ones)
         for (int s = 0; s < 16; s++) {
             if (g_plan_persona[s] < 0 || g_plan_color[s] >= 0) continue;
             struct persona *p = &g_personas[g_plan_persona[s]];
             int c = -1, own = FIELD(setup + s * 0x38, 0x24, int);
-            for (int k = 0; k < p->ncolor && c < 0; k++) if (!used[p->color[k]]) c = p->color[k];
+            for (int k = 0; k < nfav[s] && c < 0; k++) if (!used[fav[s][k]]) c = fav[s][k];
             if (c < 0 && pass == 0) continue;
             if (c < 0 && own >= 0 && own < 17 && !used[own]) c = own;
             for (int k = 0; k < 16 && c < 0; k++) if (!used[k]) c = k;

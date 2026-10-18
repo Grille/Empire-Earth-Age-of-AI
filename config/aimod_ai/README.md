@@ -59,7 +59,7 @@ an **expression**; it may go over several lines while a `(`, `[` or `{` is open:
 |---|---|
 | `"text"` | A string. `\"` is a quote, `\\` a backslash, `\n` a line break. `'text'` works too. |
 | `85`, `0.5` | A number |
-| `["a", "b", "c"]` | A list: one of its items, at random. A comma after the last item is fine. |
+| `["a", "b", "c"]` | A list. Said or used as one value, it is one of its items, at random; `len`, `first`, `item`, `contains` and `map_range` see all of them. A comma after the last item is fine. |
 | `allied ? "Welcome back."` | A condition without `:` - nothing when it doesn't hold |
 | `opinion > 30 ? "friend" : "stranger"` | One or the other |
 | `a ?? b` | `a`, unless it is nothing: then `b` |
@@ -96,9 +96,15 @@ unknown key, situation or section - is written to the log (`aimod_econ.csv` next
 `# texts:`) with the file and line, and only that key is skipped. The files are checked when the game starts, every
 line, not only those that happen to be said. A bad file never stops the game.
 
+**A name nobody knows** (`them.soldirs`, `{foo}`) is found when the file is read too and logged with its file and
+line, but the key is kept. Some mistakes can only show while the game runs: `"a" * 2`, a text and a number added or
+compared, a division by 0, a player who isn't there used without a check (`lord.soldiers` without a lord). Nothing
+is guessed then. The mistake is logged, and what it is in is left out: an item of a list (`[foo > 3 ? "Ha!",
+"Hello."]` says "Hello."), else the whole line, which then falls back like a line with nothing to say. A broken `{placeholder}` in a system text or prompt writes nothing.
+
 **Writing texts?** Set `strict_parsing=1` in aimod.ini (`[general]`): every mistake then comes up at once - those in
-the files when the game starts, in a message box; those that only show while playing (an unknown name, a
-placeholder nobody fills, a player used who isn't there) as a line in the game.
+the files when the game starts, in a message box; those that only show while playing (`"a" * 2`, a player used who
+isn't there) as a line in the game.
 
 The VS Code extension in the mod's sources (`vscode/eeaimod-texts`) highlights these files and marks unknown keys,
 situations and `epoch.` names.
@@ -204,12 +210,14 @@ other_victory = lord == them ? "Long live {them}, my lord!" : allied ? "We won t
 | | |
 |---|---|
 | Numbers, texts | `85`, `0.5`, `70%` (the same as `0.7` - `%` only right after a number), `"text"`, `'text'` |
-| Arithmetic | `+ - * /` - `+` joins texts unless both sides are numbers; `me.strength * 150%` |
-| Comparisons | `< <= > >= == !=` - numbers when both are numbers, else texts (case ignored) |
+| Arithmetic | `+ - * /` on numbers; `+` also joins texts. A text and a number is a mistake: write `"Gold: {me.gold}"` or `"Gold: " + str(me.gold)`. Dividing by 0 is a mistake too; `me.strength * 150%` |
+| Comparisons | `< <= > >= == !=` - numbers when both are numbers, else texts (case ignored). A text against a number (`"12" == 12`) is a mistake: logged, and only `!=` holds |
 | Logic | `and or not` - only the words (`&&`, `\|\|` and `!` are a mistake; `!=` is a comparison) |
 | Choice | `a ? b : c`, `a ? b` (nothing when `a` doesn't hold), `a ?? b` (`b` when `a` is nothing) |
-| Lists | `[a, b, c]` - one of them at random, leaving out what is nothing |
+| Lists | `[a, b, c]` - leaving out what is nothing, a list in a list giving its items; as one value (in a line, `+`, `<` ...) one of them at random |
 | Functions | `chance(p)` - true with the probability p, 0 to 1: `chance(25%)` or `chance(0.25)` (`chance(25)` is a mistake); `rnd()` - a random number, 0 up to but not 1 (`rnd() < 25%` is `chance(25%)`); `rnd(n)` - 0 up to n; `min(a, b, ...)`, `max(a, b, ...)`, `abs(a)`, `round(a)`, `floor(a)` (down to a whole number: `floor(me.gold / 4)`) |
+| List functions | `len(l)` - how many items (a single value 1, nothing 0); `first(l)` - the first item, not a random one (`first([a ? "x", b ? "y", "z"])`: the first that holds); `item(l, i)` - the i-th, from 1 (nothing past the end); `contains(l, x)` - an item equal to x (as `==`); `map_range(x, [limits], [values])` - the value of the first limit x is below, the last value when it is below none: `map_range(ratio, [0.25, 0.67, 1.5, 4], ["much weaker", "weaker", "about as strong", "stronger", "much stronger"])`. A value that is no list counts as a list of one. |
+| Text and number | `str(x)` - x as a text only (`str(epoch)` is "Copper Age", `str(12) + 1` is "121"); `number(x)` - x as a number: a value's number, or a text that is one (`number("12") + 1` is 13), else nothing (`number(t) ?? 0`). Rarely needed - for a text that holds a number |
 | Grouping | `( )` |
 
 - **True** is a number other than 0 or a text that isn't empty. **Nothing** is false, an empty text in a line, 0 in
@@ -219,9 +227,13 @@ other_victory = lord == them ? "Long live {them}, my lord!" : allied ? "We won t
   "hostile" (hostile, unfriendly, indifferent, friendly, trusting: `opinion1`..`opinion5` in `_system.eeai`). The
   number counts in arithmetic, in comparisons with a number and as true/false; the text counts in a line and next to
   texts (`"Age: " + epoch`). Arithmetic gives a plain number: `{round(opinion)}` writes -62.
+- **A string is always a text**, even when it looks like a number: `"12" + 1` is `"121"`, and `"12"` is no colour
+  number. Write numbers without quotes.
 - Only what is chosen is worked out: the other side of `? :`, `??`, `and`, `or` is not (no random draws, no
   errors from text that isn't said).
-- An unknown name counts as 0 and is logged. There are no loops and no assignments: a text can't hang the game.
+- Mistakes are never guessed around: an unknown name, a text where a number belongs, a division by 0 leave out the
+  list item they are in, else the whole line (see "A name nobody knows" above). There are no loops and no
+  assignments: a text can't hang the game.
 
 ### [vars]
 
@@ -235,7 +247,10 @@ title = "my lord {them}"
 angry = ["Go away.", "You again?"]
 ```
 
-Then `{address}`, `{title}` in a line, or `angry` in an expression.
+Then `{address}`, `{title}` in a line, or `angry` in an expression. A `[vars]` entry is worked out anew wherever it
+is used: `"{angry} {angry}"` picks twice, maybe two different items, and `len(angry)` is 2. A function's parameter
+is worked out once, when it is called: given a list, it keeps the list (`len(l)` inside) and the item it picked
+(`{l}` is the same item every time).
 
 **Functions:** a `[vars]` entry with parameters is worked out with the values it is given:
 
@@ -300,8 +315,8 @@ tribute_thanks = "{lord ?? me} thanks you, {them}."
 ```
 
 A condition (`lord ? ...`, `lord and ...`, `not lord`), `??` and a comparison (`lord == them`) check it. Used without
-a check - in a text (`{lord}`), a sum, a member (`lord.soldiers`) or a relation (`opinion(lord)`) - it gives
-nothing, and with `strict_parsing=1` it is a mistake: a line that names a lord nobody has is a bug in the line.
+a check - in a text (`{lord}`), a sum, a member (`lord.soldiers`) or a relation (`opinion(lord)`) - it is a
+mistake: a line that names a lord nobody has makes no sense, so it is left out (the list item, else the line).
 
 Shortcuts: my own `epoch`, traits, `allies` and `enemies` without `me.` (`aggression` is `me.aggression`), a relation of mine without
 `me.` (`opinion(enemy)` is `me.opinion(enemy)`), and `opinion`, `at_war`, `allied` alone: mine with them
@@ -448,7 +463,7 @@ value: `{epoch}` is always the speaker's epoch, wherever it stands.
 |---|---|
 | `name`, `name:de`, ... | The player's name in the game (`name:de` in a German game) |
 | `civilization`, `civilization:de`, ... | The name of its civilization as the game shows it, instead of the one it plays (that one stays in `X.civilization_en`) |
-| `color` | Favoured colours on random maps, the first free one wins: `["blue", "cyan"]` - blue, red, yellow, magenta, orange, green, cyan, darkred, darkgrey, purple, grey, silver, lightyellow, lime, lightblue, pink (or the German names, or "0".."16") |
+| `color` | Favoured colours on random maps, the first free one wins: `["blue", "cyan"]` - blue, red, yellow, magenta, orange, green, cyan, darkred, darkgrey, purple, grey, silver, lightyellow, lime, lightblue, pink (or the German names, or a number 1..17 as `them.color` has it: `color.red` or `2`, not `"2"`). An expression like any other, worked out when the game starts - before there are players, so only constants, `chance()`, `rnd()`, `language` and `[vars]`: `chance(50%) ? ["red", "orange"] : ["grey"]`, `language == "de" ? color.yellow : color.blue` |
 | `aggression` | 0-100 (50 when left out): betrays, refuses peace |
 | `loyalty` | keeps its alliances; a vassal under 50 rebels against its lord once it has served 10 minutes and is clearly stronger than its lord's side (1 + (loyalty + 100 - pride) / 50 times: loyalty 35 and pride 80 2.1 times) - with or without the language model |
 | `pride` | how long it holds a grudge and refuses peace after a declaration of war (pride x 3 s), how long it fights on before it capitulates, how soon it rebels as a vassal |

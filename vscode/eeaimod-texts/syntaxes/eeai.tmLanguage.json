@@ -505,7 +505,7 @@
         },
         {
           "name": "support.function.eeaimod",
-          "match": "\\b(?:chance|floor|round|abs|max|min|rnd)\\b(?=\\s*\\()"
+          "match": "\\b(?:chance|floor|round|abs|max|min|rnd|len|first|item|contains|map_range|str|number)\\b(?=\\s*\\()"
         },
         {
           "name": "constant.language.boolean.eeaimod",
@@ -645,7 +645,7 @@
         },
         {
           "name": "support.function.eeaimod",
-          "match": "\\b(?:chance|floor|round|abs|max|min|rnd)\\b(?=\\s*\\()"
+          "match": "\\b(?:chance|floor|round|abs|max|min|rnd|len|first|item|contains|map_range|str|number)\\b(?=\\s*\\()"
         },
         {
           "name": "constant.language.boolean.eeaimod",
