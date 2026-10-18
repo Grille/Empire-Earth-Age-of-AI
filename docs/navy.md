@@ -2,8 +2,8 @@
 
 The playtester: on water and island maps a strong standing navy decides the game. Lose sea control and you
 cannot expand or counter-attack. "Each ship has specific roles and counters." This file holds the research
-(the ship data, the game's own AI), a baseline on island maps, and a staged design. Stage 0 (the food hole) is
-done; the rest is not built yet - apart from the fishing boat choice, dll/navy.c only observes.
+(the ship data, the game's own AI), a baseline on island maps, and a staged design. Stage 0 (the food hole) and
+stage 1 (the navy's money, docks and room) are done; the ships still do what the game's AI tells them (stages 2-4).
 
 The playtester's notes on this plan:
 - **Farms are always needed.** "Fish is very useful but a limited resource; fishing boats have to go further and
@@ -179,8 +179,9 @@ From the code, via a read-only research pass. Addresses are in the decomp.
   - States: 0x1776 attack the goal, 0x1772 wait at a place, 3000 combat, 0xBC1 -> 0x1777 retreat home.
   - Nothing escorts or protects the fishing boats, and fishing boats do not flee.
 - **What the mod does today.**
-  - Every ship request goes through the military budget (econ.c `military = !is_citizen_type`), fishing boats
-    included. A refused ship is simply not trained.
+  - Every ship request went through the military budget (econ.c `military = !is_citizen_type`), fishing boats
+    included. A refused ship is simply not trained. **Stage 1:** on water maps warships are paid from a navy
+    account, fishing boats and a landing's transports as economy.
   - `unit_substitution` excluded family 4 only, so a refused submarine, transport, carrier or fishing boat
     became a land soldier after 90 s of saving (the baseline had fishing boat 109 failed 72 times, transports
     111/113 in the failed lists). **Fixed (stage 0):** every water family (4, 10, 18, 21, 22) is excluded.
@@ -189,7 +190,7 @@ From the code, via a read-only research pass. Addresses are in the decomp.
       their orders while it leads them (vf57).
     - Trains transports and, with `landing_bombard` (off by default), a bombardment fleet (`ld_war_type`:
       family 4 only, so no missile subs).
-  - Nothing else touches warships.
+  - Nothing else touches warships (stage 1 pays for them, keeps 2-3 docks and holds room; it gives no orders).
 
 ## 3. Baseline (shipped config, 2 AIs, seed 101 map, 6 game seeds, 60 minutes, 2026-10-18)
 
@@ -266,19 +267,85 @@ Result (shipped config, 2 AIs, seed 101 map, 12 game seeds, 60 min; HEAD 325e4fb
 the food. e5 and land within noise (std. error: workers ~1.5, kills 5-6, epoch 0.1). The fishing boats now die
 unprotected in e9 too (9-10 per AI) - the playtester's point: farms first, the boats need the fleet of stage 3.
 
-### Stage 1 - water-map detection and the navy account
+### Stage 1 - water-map detection and the navy account - DONE
 
-- **Water map:** world +0x181730 bit 0, or more concretely: the enemy's buildings stand on another continent
-  (area_id kind 2) reachable only over an ocean (kind 1), as landing.c already finds. Navy on only then. On
-  mixed maps, scale it by the share of enemy buildings across water.
-- **A navy account** next to the military account (econ.c budget): a share of gold, iron and wood income, e.g.
-  25% on islands.
-  - Ship requests (the game's and the mod's) pay from it, so the army no longer starves them, and the navy no
-    longer takes from the army's share.
-  - Fishing boats are paid as economy, not military.
-  - Docks are kept at 2+ (one per coast near its fish) through the existing build-queue path (econ.c retry /
-    0x62EF8A).
-- The population room is held like `landing_room_reserve` does for the bombardment fleet.
+Built (dll/navy.c, econ.c; `[all] navy=1`, `navy_share=25`):
+
+- **Water map** (`navy_detect`, once per AI 10 s in): the home continent (area_id kind 2 at the build manager's
+  base point) and every enemy's buildings - across the water when none stands on that continent. Strength = the
+  share of enemies across the water: 1 islands, 0 land, between mixed. `# navy: P<n> map at 0.2 min: islands
+  (strength 1.00) - 1 of 1 enemies across the water, water 25% of the map, ...; the game's water flag 1, +0xEFA 1`.
+  The game's own flag (world 0x9183BC +0x181730 bit 0) agrees: 1 on Small/Large Islands, 0 on Continental (20%
+  water, enemies on the same continent: "land").
+- **Navy account:** navy_share % x strength of every wood, gold and iron income (hook_add_resource), at most 600
+  of each.
+  - Every other order (army, citizens, fishing boats) sees it as reserve: the army can't take it. Once it pays the
+    warship the game last asked for (within 2 min), that ship's whole cost is held (the army took the iron down to
+    the reserve again and again while the account held 44 of it).
+  - Warship, submarine and carrier orders spend the account - one pool: a frigate's iron may come from the
+    account's gold, the rest is charged to the others - or the stock beyond the hoard cap, never the military
+    account.
+  - Not held from the priority orders (siege, a landing's transports and bombardment fleet). With 1200 and the
+    hold on them, a landing's transports waited for wood: landings sailed 4.0 -> 1.3 per AI (Small Islands e5).
+  - Fishing boats and a landing's transports are economy (not charged to the military account).
+  - `# navy: P<n> budget at N min:` every 5 minutes: share, account, what it paid, ship orders paid/refused by
+    type, warships, docks (built, asked), fishing boats, the room held.
+- **Docks** (`navy_docks`): once a minute fewer than 2 (on islands 3 while the account waits to pay a warship or
+  12+ fishing boats share them), none unfinished or queued, buildable and payable -> one more through the build
+  manager's own queue and placement (0x46802D(bm, 36, 1, 0)). Every requested dock was placed.
+- **Room** (`navy_room_reserve`): with a finished dock, room for the missing warships (up to 4 x strength, no more
+  than the account pays for of the type last asked for) is held from the army's orders (econ.c train_call, as
+  `landing_room_reserve`).
+- **What the game's AI buys** with it (paid per AI in the hour, A/B runs): e5 Middle Age Frigate 6.2-6.6, Galley
+  2.0-2.9, Catapult Ship 1.0-1.3, Battleship 0.9-1.1; e9 Good Hope Frigate 5.0-7.5, U-Boat 1.7-2.4, Dreadnought
+  1.6-2.1. Frigates first, by the RPS vote - and it still asks 300-750 times an hour for ships the account can't
+  pay yet (iron).
+
+Result (shipped config, 2 AIs, seed 101 map, 60 min, same DLL, `scripts/navy_ab.py` on the `# navy:` / `# battle:`
+lines; per AI; std. error in docs/testing.md):
+
+| navy 0 -> 1, both AIs, 20 seeds | Small Isl. e5 | Large Isl. e5 | Small Isl. e9 | Large Isl. e9 | Continental e5 (6) |
+|---|---|---|---|---|---|
+| warships most / end / average | 2.6/1.4/0.6 -> 3.6/1.4/1.1 | 2.6/1.2/0.6 -> 4.2/1.9/1.4 | 2.7/1.3/0.7 -> 3.8/2.0/1.1 | 3.8/1.8/0.9 -> 4.6/2.4/1.2 | 2.5/2.2/0.8 -> 1.3/1.2/0.4 |
+| own / enemy warships in own waters | 0.2/0.3 -> 0.4/0.6 | 0.2/0.3 -> 0.6/0.8 | 0.2/0.3 -> 0.3/0.6 | 0.4/0.4 -> 0.5/0.6 | - |
+| navy lost (= sunk) | 7.4 -> 13.4 | 8.0 -> 14.8 | 8.1 -> 9.5 | 10.6 -> 13.6 | 1.1 -> 0.9 |
+| docks (end) | 2.0 -> 2.9 | 2.1 -> 3.1 | 1.4 -> 3.0 | 1.6 -> 3.2 | 1.0 -> 0.9 |
+| fishing boats most / lost; food from fish | 17.3/5.8; 4418 -> 12.5/6.8; 3525 | 14.8/5.2; 3579 -> 13.2/6.5; 2850 | 16.3/7.5; 3352 -> 17.8/6.8; 3614 | 14.4/8.8; 2492 -> 16.2/8.6; 2017 | - |
+| all food in the hour | 11317 -> 10933 | 13293 -> 12491 | 8690 -> 9398 | 9521 -> 11386 | 10820 -> 11605 |
+| gold + iron income a minute | 148 -> 128 | 176 -> 177 | 173 -> 167 | 249 -> 245 | 136 -> 152 |
+| soldiers (5-min lines) | 23.6 -> 21.7 | 28.2 -> 23.9 | 18.2 -> 15.6 | 18.7 -> 18.8 | 15.0 -> 14.4 |
+| kills / losses | 76/84 -> 67/76 | 74/83 -> 75/90 | 55/59 -> 43/50 | 58/72 -> 57/70 | 109/95 -> 109/110 |
+| landings sailed / ashore | 3.5/3.2 -> 1.9/1.6 | 2.2/2.1 -> 1.8/1.6 | 1.9/1.6 -> 1.5/1.2 | 1.8/1.5 -> 1.3/1.1 | 2.4/2.1 -> 1.9/1.8 |
+
+With both AIs on, each holds about twice the warships, the waters fill on both sides and nobody wins them: twice
+the ships are sunk, the enemy's warships take fishing boats, and the landings wait for the sea ("waits - on the
+way N afloat", "waits for the warships") - the landing counts the enemy fleet, and no fleet clears the way (stage
+3). Fewer landings, fewer kills; the army 2-4 soldiers smaller on Small Islands and Large e5. No game decided
+either way, no crash (172 runs).
+
+**Head-to-head** (one AI with the navy, `[autotest] variant_players=<p>, v_navy=1`, navy=0 for the other; 10 seeds
+per side; the same slot with and without the navy, so the map's slot advantage cancels):
+
+| per AI, the slot without -> with the navy | kills / losses | buildings razed / lost | food from fish, fishing boats lost | soldiers |
+|---|---|---|---|---|
+| Small e5 P3 | 101/95 -> 99/85 | 8.5/2.3 -> 6.5/0.8 | 4387, 6.2 -> 5566, 1.7 | 28.5 -> 29.1 |
+| Small e5 P2 | 47/87 -> 62/76 | 0.8/2.1 -> 1.7/4.7 | 2351, 12.7 -> 3025, 8.8 | 21.4 -> 13.4 |
+| Small e9 P3 | 35/60 -> 56/50 | 9.4/0.3 -> 4.9/0.2 | 3643, 4.6 -> 5928, 3.2 | 20.0 -> 22.0 |
+| Small e9 P2 | 29/55 -> 39/35 | 0.1/2.2 -> 0/3.9 | 1982, 16.6 -> 2616, 5.2 | 10.7 -> 9.1 |
+| Large e5 P3 | 79/140 -> 88/92 | 0.8/8.8 -> 3.3/2.7 | 1513, 18.3 -> 3959, 4.6 | 27.1 -> 27.9 |
+| Large e5 P2 | 57/73 -> 92/52 | 1.8/1.5 -> 3.7/0.5 | 2666, 5.6 -> 3005, 3.3 | 25.2 -> 25.7 |
+| Large e9 P3 | 68/84 -> 71/82 | 1.9/1.4 -> 1.6/7.1 | 2047, 9.3 -> 2830, 10.0 | 19.8 -> 17.9 |
+| Large e9 P2 | 47/60 -> 49/55 | 4.5/0.3 -> 0.4/1.0 | 2212, 7.8 -> 2277, 4.4 | 19.1 -> 17.8 |
+
+The AI with the navy has the better kill/loss ratio in every pairing (0.53-1.06 -> 0.82-1.75), more food from
+fish in all 8 and fewer fishing boats lost in 7; its own warships in its waters 0.1-0.4 -> 0.3-0.7 on average. Its army is about as large, except Small e5 P2 (21 -> 13). Buildings lost are mixed (noisy: std. error
+1-5). **navy_share 15** (Small/Large e5, 10 seeds per side): the same picture - kills/losses 105/94 and 73/67 on
+Small, 106/102 and 83/62 on Large with the navy against 88/118, 60/87, 88/123, 66/85 without; soldiers 32.5, 19.1,
+29.3, 27.3 (with 25: 29.1, 13.4, 27.9, 25.7). Not distinguishable from 25 at 10 seeds; 25 stays (the playtester's
+figure).
+
+**Default on**: it helps the AI that has it against one that hasn't (a human without a fleet), and on land maps
+nothing changes. Against each other two navy AIs only trade ships until stages 2-3 give the fleet a job.
 
 ### Stage 2 - composition by roles
 

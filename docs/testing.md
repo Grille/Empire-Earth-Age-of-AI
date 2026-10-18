@@ -136,6 +136,12 @@ EPOCHS="" sh scripts/suite.sh 50 "base:" "plan:copper_plan=1"     # EPOCHS="" = 
   in its waters, navy lost / sunk and fishing boats lost / sunk, income and stock. See docs/navy.md.
 - `# fishing:` (dll/navy.c, `fishing_boat`): the fishing boat the AI trains when it differs from its last pick, with
   the one the game asked for (e9-e10: "the game asks for boat 211, trains 365").
+- `# navy: P<n> map` (every game, once per AI): the water-map detection - islands / mixed / land, the strength (share
+  of enemies across the water), the map's water share, the game's own water flag and +0xEFA. `# navy: P<n> budget`
+  (every 5 minutes, water maps): the navy account, what it paid, the ship orders paid/refused by type, warships,
+  docks (built, asked), fishing boats, the room held; `# navy: ... docks N of M - one more requested`.
+- Head-to-head on the navy: `[autotest] v_navy=1` with `variant_players=<p>` and `navy=0`: only those players have
+  the navy account (econ.c PV).
 
 Scripts:
 - `scripts/summarize.py <csv> [minutes]`: per AI timeline.
@@ -382,6 +388,18 @@ Small Islands e9 2662 / 41.5 / 12.2 -> 8625 / 79.7 / 16.6; Large Islands e9 2604
 11137 -> 12137, Large 12373 -> 12852, workers, epoch and kills within noise. Continental e5 (6 seeds): food 10441 ->
 11620, workers 67.3 -> 70.0, epoch 5.42 -> 5.33 (std. error 0.15). 54 runs each side, no crash. Table: docs/navy.md
 stage 0.
+
+### Navy account (navy stage 1)
+
+2026-10-19, `navy` 0 vs 1 (same DLL), shipped config, 2 AIs, seed 101 map, 60 min, 20 seeds
+(`REPEAT=20 sh scripts/scen.sh 60 islands "random_map=<map>,map_size=0,ai_count=2,seed=101,start_epoch=<e>" "b:navy=0" "a:navy=1"`),
+plus head-to-head (`"h3:navy=0,variant_players=3,v_navy=1" "h2:navy=0,variant_players=2,v_navy=1"`, 10 seeds) and
+Continental e5 (6 seeds); scored with `python scripts/navy_ab.py [-split] <logs>`. Both AIs on: warships at once 2.6-3.8 -> 3.6-4.6, docks 1.4-2.1 -> 2.9-3.2, navy lost
+7-11 -> 9-15 (std. error ~0.7), landings sailed 1.8-3.5 -> 1.3-1.9 (0.2-0.3), kills Small e5 76 -> 67 (4), Small
+e9 55 -> 43 (3), Large within noise; soldiers Large e5 28.2 -> 23.9 (1.0), Small e5/e9 -1.9/-2.6 (1.3). Head-to-head
+the AI with the navy has the better kill/loss ratio in all 8 slot pairings, more fish food in 8, fewer boats lost
+in 7. Continental: detection "land" in 12 of 12, no account, results within noise. 172 + 80 + 40 (share 15) runs,
+no crash. Tables: docs/navy.md stage 1.
 
 ### Farm fields
 
