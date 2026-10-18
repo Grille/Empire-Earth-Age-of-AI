@@ -80,12 +80,14 @@ static void citizens_safety(uint8_t *rm);
 static void attack_tick(void *pl, uint32_t now);
 static void assault_tick(void *pl, uint32_t now);
 static void landing_tick(void *pl, uint32_t now);
+static void navy_tick(void *pl, uint32_t now);
 static void intel_tick(void *pl, uint32_t now);
 static void intel_new_game(int from_save);
 static void econ_new_game(void);
 static void attack_new_game(void);
 static void aim_new_game(void);
 static void landing_new_game(void);
+static void navy_new_game(void);
 static void bunker_new_game(void);
 static void defence_new_game(void);
 static void assault_new_game(void);
@@ -345,7 +347,7 @@ static void __fastcall hook_rm_update(void *rm, void *edx, uint32_t now) {
         }
     }
     ((RmUpdateFn)FN_RM_UPDATE)(rm, now);
-    if (pl) { intel_tick(pl, now); econ_tick(pl, now); attack_tick(pl, now); assault_tick(pl, now); landing_tick(pl, now); }
+    if (pl) { intel_tick(pl, now); econ_tick(pl, now); attack_tick(pl, now); assault_tick(pl, now); landing_tick(pl, now); navy_tick(pl, now); }
     g_rm_seen = 1;
     autotest_tick(now);
 }
@@ -617,6 +619,7 @@ static char __fastcall hook_game_start(void *state, void *edx, uint8_t *setup, v
     attack_new_game();
     aim_new_game();
     landing_new_game();
+    navy_new_game();
     bunker_new_game();
     defence_new_game();
     assault_new_game();
@@ -647,6 +650,7 @@ static char __fastcall hook_game_start(void *state, void *edx, uint8_t *setup, v
 #include "persona.c"
 #include "texts.c"
 #include "diplo.c"
+#include "navy.c"
 #include "persist.c"
 #include "aim.c"
 #include "camera.c"

@@ -68,6 +68,7 @@ static void cmd_rlist(char *out, const char *args);
 static void cmd_basemap(char *out, const char *args);
 static void cmd_defence(char *out, const char *args);
 static void cmd_tinfo(char *out, const char *args);
+static void cmd_navy(char *out, const char *args);
 static void cmd_chat(char *out, const char *args);
 static void cmd_say(char *out, const char *args);
 static void cmd_chatme(char *out, const char *args);
@@ -435,6 +436,7 @@ static void execute(const char *cmd, char *out) {
     else if (!strcmp(verb, "basemap")) cmd_basemap(out, args);
     else if (!strcmp(verb, "defence")) cmd_defence(out, args);
     else if (!strcmp(verb, "tinfo")) cmd_tinfo(out, args);
+    else if (!strcmp(verb, "navy")) cmd_navy(out, args);
     else if (!strcmp(verb, "chat")) cmd_chat(out, args);
     else if (!strcmp(verb, "say")) cmd_say(out, args);
     else if (!strcmp(verb, "chatme")) cmd_chatme(out, args);

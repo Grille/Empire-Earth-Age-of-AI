@@ -306,6 +306,7 @@ static int kill_kind(uint8_t *td) {
 static uint32_t g_kills[16][16][K_N];
 static uint16_t g_kills_min[KILLS_RING][16][16][K_N];
 static uint32_t g_kills_min_t[KILLS_RING];   // game minute + 1 the bucket holds (0 empty)
+static uint32_t g_nv_boat_kills[16][16];     // [killer][victim]: fishing boats (family 22) - navy.c's log, reset there
 static void kills_window(int k, int v, int minutes, uint32_t out[K_N]) {   // k's kills of v in the last minutes (whole)
     uint32_t m = game_time() / 60000u + 1, w = (uint32_t)(minutes < 1 ? 1 : minutes > KILLS_RING ? KILLS_RING : minutes);
     for (int c = 0; c < K_N; c++) out[c] = 0;
@@ -325,6 +326,7 @@ __attribute__((used)) void __fastcall hook_kill_stat(uint8_t *stats, void *edx, 
         uint8_t *td = FIELD(g_kill_unit, 0x2C, uint8_t *);
         int c = n == 2 ? K_BUILDINGS : kill_kind(td);
         g_kills[k][v][c] += (uint32_t)d;
+        if (n == 3 && td && FIELD(td, 0x4B4, int) == 22) g_nv_boat_kills[k][v] += (uint32_t)d;
         g_kills_min[b][k][v][c] += (uint16_t)d;
     }
     ((void (__thiscall *)(void *, int, int))FN_STAT_ADD)(stats, n, d);

@@ -330,6 +330,7 @@ dll/              the mod (C), one module per file:
                     econ.c budget, epoch plan, build queue, workers, research; sites.c gathering sites
                     attack.c attack routing, siege, unit choice; defence.c towers, walls, home guard
                     diplo.c diplomacy; persona.c personalities; chat.c chat lines
+                    landing.c landings; navy.c the navy log (observation only)
                     display.c / present_d3d.c windowed mode (display_text.c text DC and bitmap fonts, display_diag.c
                     frame watch and diagnostics, playername.c the menu name fix), camera.c scrolling, editor_layout.h editor
                     randmap.c test-game setup, watch.c watchpoints, trace.c call tracing

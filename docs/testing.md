@@ -130,6 +130,10 @@ EPOCHS="" sh scripts/suite.sh 50 "base:" "plan:copper_plan=1"     # EPOCHS="" = 
   research; 62f076 = buildings), with the income so far; `# place:` the build manager's placements per type
   (tries/failed/dropped); `# research:` gathering upgrades scheduled; `# attention:` share of ticks each AI
   activity was enabled (every 10 min).
+- `# navy:` (autotest only, every 2 game minutes per AI, dll/navy.c): docks, Navy Yards, fishing boats, the food
+  its boats took from the fish (fish left on the map), warships by type, submarines, carriers, transports, its
+  warships in its own / an enemy's waters (the waters of the nearest building within 20 tiles), the enemy's warships
+  in its waters, navy lost / sunk and fishing boats lost / sunk, income and stock. See docs/navy.md.
 
 Scripts:
 - `scripts/summarize.py <csv> [minutes]`: per AI timeline.
@@ -137,6 +141,9 @@ Scripts:
 - `scripts/econ.py [-s min] <csv>`: per AI economy timeline (stock, demand, targets, workers, army lines).
 - `scripts/econsum.py [-m min] <csv>...`: economy per suite variant (income, soldiers trained, mine distances, rates).
 - `scripts/churn.py <csv>...`: citizens changing resource and target volatility per variant.
+- `scripts/navy.py [-v] <csv>...`: the `# navy:` lines per map group (docks, fishing, fish food, warships, losses,
+  who holds the waters, landings, failed ship requests); `scripts/navy.py types <csv>` the ship roles from a run with
+  `setup=_aimod/scripts/navy_types.setup`.
 - `scripts/epochs.py <csv>...`: epoch advances per AI and their delay after the planned attempt.
 - `scripts/watch_deltas.py`: watchpoint hits grouped by code path.
 
@@ -202,6 +209,7 @@ venv/Scripts/python scripts/eectl.py <command>
 | `rlist P` | research manager: pool (list -1) and scheduled techs per epoch (`*` = researched) |
 | `basemap P [r]` | map of AI player P's base, 2 characters per tile: T tower, W wall, G gate, C town center/settlement, b building, c citizen, s soldier, m mine, o planned tower slot, digits = other players |
 | `defence P [0\|1]` | defence layout off/on for one player (A/B scenarios) |
+| `navy types A B [all]`, `navy table` | per type A..B (naval families, or all): family, hit-table target category +0x4C4, weapon kind +0x4C8, damage class, hit points, attack, range, area, reload, tech, and for naval types the cost and P2's stats record (speed, armour); the game's hit factor table 0x8D200C [category][kind] and the 6x6 class table. `scripts/navy_types.setup` dumps everything into the log, `scripts/navy.py types` makes the role table (docs/navy.md) |
 | `tinfo P type...` | type data (family, hit points, attack, range) and whether player P can train/build it now |
 | `chat [0\|1\|2]` | AI chat level (0 off, 1 debug lines, 2 also the 5-minute status); lines shown/dropped per player |
 | `chatme text` | the local player types text into the chat box, as EEUIECESendMessage::vf1 (0x5C28D6) sends it: cheat code first (when cheats are on), then the chat line to all - scenario triggers on chat messages see it as typed (reloadtime.scn: `class+1` raised the class reload, the trigger's "OK" came back) |
