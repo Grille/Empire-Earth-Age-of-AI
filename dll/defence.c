@@ -360,7 +360,7 @@ static int militia_answer(struct cs_scan *s, uint8_t *t, int *nfree) {   // citi
     if (EARLY(pi, early_militia) && soldiers) {
         int cover = early_cover(s->pl, x, y);
         for (int k = 0; k < s->ns && !cover; k++)
-            cover = abs(FIELD(s->sold[k], 0x1C, int) - x) <= 12 && abs(FIELD(s->sold[k], 0x20, int) - y) <= 12;
+            cover = s->sold[k] && abs(FIELD(s->sold[k], 0x1C, int) - x) <= 12 && abs(FIELD(s->sold[k], 0x20, int) - y) <= 12;
         struct st_result r;
         if (cover && g_mil_own.n) st_estimate(&g_mil_own, &g_mil_foe, &r);
         // their damage while ours destroys them, in citizens: under one
@@ -373,7 +373,7 @@ static int militia_answer(struct cs_scan *s, uint8_t *t, int *nfree) {   // citi
         static struct st_side mil_sold;
         st_side_clear(&mil_sold);
         for (int k = 0; k < s->ns; k++)
-            if (abs(FIELD(s->sold[k], 0x1C, int) - x) <= 12 && abs(FIELD(s->sold[k], 0x20, int) - y) <= 12) st_side_add(&mil_sold, s->sold[k]);
+            if (s->sold[k] && abs(FIELD(s->sold[k], 0x1C, int) - x) <= 12 && abs(FIELD(s->sold[k], 0x20, int) - y) <= 12) st_side_add(&mil_sold, s->sold[k]);
         if (mil_sold.n && st_ratio(&mil_sold, &g_mil_foe) >= 1.0f) return 0;
         float stand = st_ratio(&g_mil_own, &g_mil_foe);
         if (!soldiers) { if (stand < 1.0f) return 0; }   // builders, a foundation
