@@ -15,7 +15,8 @@ The `[autotest]` keys:
 | `start_epoch=N` | (random maps) starting epoch, e.g. 2 = Copper Age, for tests that should begin later in the game |
 | `speed=7.5` | game speed (normal 2.5). The simulation runs a fixed number of steps per real second (the lockstep server grants 15 steps every 350 ms); the speed only sets the game time per step, `1000 * speed / 44` ms (57 ms at 2.5, 170 ms at 7.5). Higher speeds make the steps coarser (movement artifacts). |
 | `turbo=1` | the steps follow each other as fast as the CPU allows instead of 43 per second: the server sends the next tick as soon as the simulation has used up the last one, the simulation loop skips its 22 ms timer, and a headless window renders only a few frames a second. Same steps, same game: a 75-minute game takes ~15 s instead of ~10 min. Pipe: `turbo 0\|1` |
-| `random_map=Continental` | starts a random map instead of the save. Also: `map_size` (0 tiny..), `ai_count`, `seed`, `teams=ffa\|pairs`, `start_epoch`, `citizens`, `unit_limit` (500, the game's, shared by all players incl. the idle human), `ai_cheat`, `ai_ignore`, `epoch_min`/`epoch_max` (test epoch timer). The human player (slot 0) idles, sees the whole map and is allied with every AI. |
+| `random_map=Continental` | starts a random map instead of the save. Also: `map_size` (0 tiny..), `ai_count`, `seed`, `teams=ffa\|pairs`, `start_epoch`, `citizens`, `unit_limit` (500, the game's, shared by all players incl. the idle human), `ai_cheat`, `ai_ignore`, `epoch_min`/`epoch_max` (test epoch timer, not for vanilla players), `difficulty=easy\|medium\|hard` (the AIs' difficulty, default medium - the setup and the global 0x918C14 the AIs copy). The human player (slot 0) idles, sees the whole map and is allied with every AI. |
+| `vanilla_players=3` (digits), `vanilla_difficulty`, `vanilla_cheat=0\|1` | those players play the game's own AI, unmodified, with their own difficulty and the game's Cheat (see "Against the base-game AI") |
 | `game_seed=N` | the game's random seed at game start: the same game_seed (with the same map, `seed`, and config) plays the same game, step for step. The simulation draws from one generator (EEPhysics +0x14, seed +0x18), seeded by the game start message (type 0x5D, executed by 0x4BEE57, which also writes world +0x54). The menu start puts rand() after srand(TMGetTime()) in it (`hook_srand`), the load-game and scenario starts TMGetTime() itself (0x522DFC's callers) - a test run's random map is a load-game start, so until 2026-10-19 every run had its own seed and runs parted from ~5 s on; now `hook_start_exec` (trace.c) writes game_seed into the message whichever start built it. Checked: two runs of Continental 101 / 3 AIs / game_seed=1, 10 game minutes: the per-step trace identical (3479 steps), the AI log identical but for a column of heap pointers; turbo=0 and turbo=1 identical (the turbo run only logs idle steps before the first tick). Then one more hole: of three runs of Continental 101 / 5 AIs / 60 min, one parted at 28.7 min - the trace showed an AI message (type 129, handed to the lockstep server in a tick's last step) landing a tick late: turbo let the server send the next tick while that step still ran (EEPhysics +0xB8 is 0 already then); now turbo waits for the step's end too (control.c hook_phys_step, g_in_step). Checked: 6 runs of that game identical for 60 min, 6 more maps twice each (ai_diplomacy=1) identical, and turbo=0 identical to turbo=1 for 30 min. The map comes from `seed` (randmap.c writes world +0x54 after the start message). Without game_seed the start stays the clock's. |
 | `sync_trace=<steps>` | writes `synctrace.txt` next to the test log: the start message's seed, then one line per simulation step for the first <steps> steps - step counter, game ms, the generator's seed, user inputs processed, a hash of the AI players' stock. Also the units (count and a hash), the messages each step hands to the lockstep server (`  m` lines) and with `sync_dump=<from ms>-<to ms>` every unit of the steps in that window. Diff two runs' files to find the first step they part (trace.c) |
 | `setup=<file>` | control-pipe commands (one per line, `#` comments) run once at 2 s game time; `@<min> <command>` waits until that game minute, path relative to the game folder - e.g. `spawn` lines that turn a map into a test scenario (see Scenarios); replies of more than one line go into the log as `#   ` lines |
@@ -487,6 +488,56 @@ forces ... | lost by force ... | by task ... | kills W B T C Bd O`; `# navy: P<n
   sea exchange -1 to -9.
 - Both AIs with it (8 seeds, Small e5 / Large e9): fewer kills and losses, workers +4.5/+8.5. Continental: identical.
 - About 1000 runs, no crash.
+
+### Against the base-game AI
+
+The playtester's benchmark: the base game's AI (cheating, brain-dead nonstop waves) is easy for a human - so it should
+be for the mod's AI. `vanilla_players=<digits>` makes those players the game's own AI in the same game as the mod's
+(dll/eeaimod.c `is_vanilla`): every per-player tick of the mod skips them (only its log lines stay - battle, army,
+gather, spend, attack times), every hook that acts for or on an AI player passes straight through to the game's
+original, no setting, personality, cost_percent or test epoch timer touches them, and the mod's diplomacy treats them
+as a human it never decides for (no alliance offer, no capitulation to them). The engine guards (pure crash fixes)
+stay on for everyone. Their difficulty and cheat: `difficulty=hard` (every AI; tests ran at medium before - a
+load-game start never sent the game options, randmap.c now writes 0x918C14), `vanilla_difficulty`, `vanilla_cheat=1`.
+The game's Cheat is a price cut (AdjustCost, vf27): **hard 50%, medium 75%, easy 100%** of every price - "hardest" is
+hard with the cheat. Each AI's first update logs it: `# cheat: P3 (vanilla) difficulty 2, cheat 1: a price of 1000
+costs 500` / `# cheat: P2 (mod) difficulty 2, cheat 0: ... costs 1000`.
+
+```sh
+JOBS=6 REPEAT=20 NAME=cheat-si5 sh scripts/vanilla.sh 60 \
+    "random_map=Small Islands,map_size=0,seed=101,start_epoch=5,difficulty=hard" "vanilla_cheat=1"
+```
+
+1v1, each seed twice (vanilla P3 / mod P2, then swapped); `scripts/vanilla.py` scores wins (a decided game, else who
+still has workers), kills, losses, razed / lost buildings, workers, epoch, soldiers, warships, ships lost / sunk, fish
+food, the mod's landings ashore. Check that nothing of the mod reaches a vanilla player: 4 all-vanilla games
+(`vanilla_players=23`, Continental e0 and Small Islands e5, game_seed 1-2, 40 min) with the shipped config and with
+`config/test/vanilla_flip.ini` (34 of the mod's keys flipped): every log row and battle line identical. (`[general]
+enabled=0` can't be compared: it installs nothing, not even the test start.)
+
+2026-10-19, shipped config, hard, 60 min, map_size 0 / seed 101, game_seed 1-20 x both seats (2 islands games lost to
+a start collision with another session's game). Wins: a decided game - the mod's AI resigned (surrender, no citizens
+left) or the vanilla one was wiped out; "standing": both alive at 60 min. Mod - vanilla per game (standard error):
+
+| Map | vanilla | mod won / vanilla won / standing | kills | losses | workers | epoch | ships lost | landings |
+|---|---|---|---|---|---|---|---|---|
+| Continental e0 | cheat | 0 / 12 / 28 | +40.6 (10.4) | -47.3 (11.8) | -21.8 (7.9) | +0.47 | +0.6 | 0.8 |
+| Small Islands e5 | cheat | 0 / 20 / 20 | -5.1 (4.4) | +16.7 (6.0) | -42.7 (4.4) | -0.20 | -11.9 (1.6) | 0.6 |
+| Small Islands e9 | cheat | 0 / 16 / 23 | -5.0 (2.9) | +5.6 (4.3) | -35.8 (5.9) | -0.26 | -8.8 (1.5) | 0.2 |
+| Large Islands e5 | cheat | 0 / 15 / 24 | -25.3 (3.9) | +27.8 (4.9) | -42.8 (4.8) | -0.41 | -1.6 (1.2) | 0.2 |
+| Continental e0 | no cheat | 22 / 6 / 12 | +55.0 (6.7) | -55.1 (5.7) | +33.5 (9.8) | +0.82 | +0.3 | 0.8 |
+| Small Islands e5 | no cheat | 1 / 3 / 36 | -1.7 (5.0) | +6.1 (7.6) | -14.1 (5.7) | -0.33 | -4.7 (1.3) | 1.2 |
+| Small Islands e9 | no cheat | 0 / 2 / 38 | -0.5 (4.9) | +18.9 (4.7) | +8.1 (5.9) | -0.40 | -9.0 (1.1) | 0.4 |
+| Large Islands e5 | no cheat | 1 / 1 / 38 | -10.8 (7.8) | +8.7 (6.2) | +3.8 (5.9) | -0.47 | +0.9 (0.9) | 1.2 |
+
+Ships lost: the mod's minus the vanilla's (negative: the mod lost fewer); landings: the mod's landings ashore per game.
+The mod's AI never beat the cheating AI: with half prices the vanilla one has twice the workers (80-88 against 42-45 on
+the islands) and 4-6 times the soldiers on the islands, and its early waves kill the mod's citizens - every lost
+Continental game ended with the mod resigning at 23-50 min after 27-43 citizens were killed and none of its soldiers
+(`# surrender: ... destroyed 1 buildings, 43 citizens, 0 soldiers`). Without the cheat the mod's AI wins Continental
+(22 of 40, kills - losses +110 a game) but on the islands it only holds: more losses, an epoch behind, though it sinks
+more ships. Where to work: the economy's size (workers) and keeping the citizens alive against early waves on land;
+on the islands the land war after the crossings.
 
 ### Sea opponent (navy measurement)
 
