@@ -763,6 +763,7 @@ static uint32_t g_pull_t[16];
 static unsigned g_pull_seen[16][7];
 static unsigned mil_short(unsigned idx, int r);   // below: the army's orders refused for resource r (counter)
 static void budget_reserve(void *pl, int reserve[7]);
+static void navy_mines(void *pl, unsigned idx, uint8_t *rm, uint32_t *target, const int *stock, const int *reserve, const int *demand);
 static void econ_targets(uint8_t *rm) {
     void *pl = rm_player(rm);
     if (!pl || !cfg_of(pl)->copper_plan) return;
@@ -866,6 +867,7 @@ static void econ_targets(uint8_t *rm) {
                 target[2] -= (uint32_t)g_pull[idx];
             }
         }
+        navy_mines(pl, idx, rm, target, stock, reserve, demand);   // navy.c: the mines on a water map (the navy's and all reachable)
         return;
     }
     need[2] = reserve[2] + 300 - stock[2];

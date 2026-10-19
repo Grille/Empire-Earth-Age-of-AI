@@ -28,7 +28,7 @@ static struct { uint8_t *u; int id, amount, owner; } g_nv_fish[NV_FISH_MAX];
 static int g_nv_nfish, g_nv_fish_food[16], g_nv_fish_left;
 static uint32_t g_nv_fish_t, g_nv_log_t;
 static int g_fish_last[16];   // the fishing boat last picked per player (hook_fish_type, its log line)
-struct nv_map { uint32_t t; uint8_t done, kind; float strength, water; int across, enemies; };   // navy_detect
+struct nv_map { uint32_t t; uint8_t done, kind; float strength, water; int across, enemies; unsigned home; };   // navy_detect (home: its continent)
 static struct nv_map g_nv_map[16];
 // the navy account (navy_income) per AI and resource; saved with the game (persist.c)
 static float g_nv_acc[16][7];
@@ -52,6 +52,11 @@ static int fleet_builds(unsigned idx);   // fleet.c: stage 4 (navy_fleet=2) for 
 // the 2-AI island tests: 26; cap 135: 20). Below it the account's share grows toward navy_share_max (50) with what is
 // missing, the room held for the fleet and the docks wanted follow it, and fleet.c trains the missing warships itself.
 static int g_nv_target[16], g_navy_fleet_pop = 15, g_navy_share_max = 50;
+// the resource nodes the AI knows (navy_nodes, below)
+struct nv_nodes { int n[7], worked[7], g[7], slots[7], near_slots[7], remote[7], other[7]; int fx[7], fy[7]; uint8_t *free_far[7]; uint32_t t; };
+static struct nv_nodes g_nv_nodes[16];
+struct nv_mine { int pull, want[7], given; uint32_t t; };   // navy_mines (below)
+static struct nv_mine g_nv_mine[16];
 
 static void navy_new_game(void) {
     memset(g_nv_fish, 0, sizeof g_nv_fish);
@@ -66,6 +71,8 @@ static void navy_new_game(void) {
     memset(g_nv_own, 0, sizeof g_nv_own);
     g_nv_count_t = 0;
     memset(g_nv_target, 0, sizeof g_nv_target);
+    memset(g_nv_nodes, 0, sizeof g_nv_nodes);
+    memset(g_nv_mine, 0, sizeof g_nv_mine);
     nv_mix_reset();
     fleet_new_game();
     memset(g_nv_lost_type, 0, sizeof g_nv_lost_type);
@@ -231,7 +238,7 @@ static void navy_detect(void *pl, unsigned idx, uint32_t now) {
     for (int x = 1; x < nx; x += 4)
         for (int y = 1; y < ny; y += 4, all++) sea += area_id(x, y, 1) != 0;
     struct nv_map *m = &g_nv_map[idx];
-    m->done = 1; m->t = now; m->across = across; m->enemies = enemies;
+    m->done = 1; m->t = now; m->across = across; m->enemies = enemies; m->home = hc;
     m->strength = enemies ? (float)across / enemies : 0.0f;
     m->water = all ? (float)sea / all : 0.0f;
     m->kind = !enemies || !across ? NV_LAND : across == enemies ? NV_ISLANDS : NV_MIXED;
@@ -337,6 +344,115 @@ static void navy_paid(unsigned idx, int type, const int *spent, int got) {   // 
     o->last = type;
     if (k < 8) { if (got) o->t[k].paid++; else o->t[k].refused++; }
 }
+// THE NODES (docs/navy.md stage 5): the resource sites the AI knows (its towns, player +0xB50: +8/+0xC the sites;
+// site +0x38 the resource, +0x40 the amount left), on its home island (navy_detect's continent) and elsewhere - how
+// many it works (gatherers: the world's per-site map 0x52E5F7, the cap table 0x917BB0 entry 0x16 as the mine search),
+// how many lie far (13+ tiles) from a drop site (Town Center, Capitol, Settlement: the walk decides a mine's income).
+// The playtester: "exploit all resource nodes on its island quite quickly, then expand to other islands".
+static void navy_nodes(void *pl, unsigned idx, uint32_t now) {
+    struct nv_nodes *c = &g_nv_nodes[idx & 15];
+    unsigned hc = g_nv_map[idx & 15].home;
+    memset(c, 0, sizeof *c);
+    c->t = now ? now : 1;
+    if (!hc) return;
+    static uint8_t *seen[512];
+    int ns = 0, bd[7];
+    for (int r = 0; r < 7; r++) bd[r] = 0x7FFFFFFF;
+    unsigned cap = ((unsigned (__thiscall *)(void *, int))FN_TABLE_VALUE)((void *)0x917BB0, 0x16);
+    drops_cached(pl);
+    unsigned pi = idx & 15;
+    void **tb = FIELD(pl, 0xB50, void **), **te = FIELD(pl, 0xB54, void **);
+    for (int t = 0; tb && tb + t < te && t < 256; t++) {
+        uint8_t *town = tb[t];
+        void **sb = town ? FIELD(town, 8, void **) : NULL, **se = town ? FIELD(town, 0xC, void **) : NULL;
+        for (int k = 0; sb && sb + k < se && k < 4096; k++) {
+            uint8_t *s = sb[k];
+            int r = s ? FIELD(s, 0x38, int) : 0, j;
+            if (r < 4 || r > 6 || FIELD(s, 0x40, int) <= 0) continue;   // stone, gold, iron
+            for (j = 0; j < ns && seen[j] != s; j++) ;
+            if (j < ns) continue;
+            if (ns < 512) seen[ns++] = s;
+            int x = FIELD(s, 0x1C, int), y = FIELD(s, 0x20, int);
+            if (area_id(x, y, 2) != hc) { c->other[r]++; continue; }
+            unsigned g = ((unsigned (__thiscall *)(void *, void *))FN_SITE_GATHERERS)((void *)0x918300, s);
+            int dd = 0x7FFFFFFF;
+            for (int i = 0; i < g_drops[pi].n; i++) {
+                int *d = g_drops[pi].d[i], dx = d[0] - x, dy = d[1] - y;
+                if (!d[2] && dx * dx + dy * dy < dd) dd = dx * dx + dy * dy;
+            }
+            c->n[r]++; c->g[r] += (int)g; c->slots[r] += (int)cap; c->worked[r] += g > 0;
+            if (dd <= 144) c->near_slots[r] += (int)cap;
+            else {
+                c->remote[r]++;
+                // the unworked far one nearest to a drop site: where a Settlement would claim it (navy_claim)
+                if (!g && dd < bd[r] && ((char (__thiscall *)(void *, void *))FN_EXPLORED)(FIELD(s, 0x14, void *), pl)) { bd[r] = dd; c->free_far[r] = s; c->fx[r] = x; c->fy[r] = y; }
+            }
+        }
+    }
+}
+// THE MINES ON A WATER MAP ([all] navy_mines; [autotest] v_navy_mines for the variant players; docs/navy.md stage 5).
+// From the Copper Age on the game's worker targets follow its demand, and its food demand never falls (econ.c LATE
+// WOOD): on islands the metals had 2-5 gatherers at the 12 slots of the home island's iron mines by minute 20
+// (navy_nodes: 6 a mine, 2 gold and 2 iron mines on a Small Islands home), while the navy's orders were refused for
+// iron 400-500 times an hour and 40+ woodcutters piled up 5000 wood. The playtester: exploit every node on the island
+// quickly - early the priorities (food and wood first), later everything it can get hold of. On a water map (the navy
+// account on), after the game's targets and econ.c's own changes:
+// - wanted on gold and iron: the target + the workers that bring the navy's missing warships' metal within 10 minutes
+//   (stage 4: the target - afloat, at most 6, about 100 gold and 100 iron a ship of the mix - a frigate 125 iron, a
+//   battleship 250 gold - less the account and the stock beyond the reserve); from minute 15 with 35+ workers at
+//   least every slot at the home island's mines near a drop site (12 tiles); never more than the home island's slots;
+// - the pull: steps of 2 every 10 s toward that while the wood stock is 500 beyond its need or the food stock 400
+//   beyond its reserve and the mines take those sent (metal workers no more than 6 under their targets); 4 back
+//   whenever the food stock is under its reserve + 100;
+// - taken from wood first while it piles up (down to half its target, 4 at least), then food (down to 60% of it).
+static int g_navy_mines = 1, g_v_navy_mines = -1;
+static int workforce(void *pl);   // econ.c
+static void navy_mines(void *pl, unsigned idx, uint8_t *rm, uint32_t *target, const int *stock, const int *reserve, const int *demand) {
+    idx &= 15;
+    struct nv_nodes *c = &g_nv_nodes[idx];
+    struct nv_mine *m = &g_nv_mine[idx];
+    uint32_t now = game_time();
+    if (now < m->t) memset(m, 0, sizeof *m);   // a new game
+    if (!PV(idx, g_v_navy_mines, g_navy_mines) || navy_share(idx) <= 0 || !c->t) { m->pull = m->given = 0; return; }
+    int want[7] = { 0 }, gap[7] = { 0 }, gaps = 0, miss = fleet_builds(idx) ? g_nv_target[idx] - g_nv_own[idx].war : 0;
+    if (miss > 6) miss = 6;
+    int wf = workforce(pl);
+    for (int r = 5; r < 7; r++) {
+        int beyond = stock[r] - reserve[r], need = (miss > 0 ? miss : 0) * 100 - (int)g_nv_acc[idx][r] - (beyond > 0 ? beyond : 0);
+        float pw = g_rate[idx].per_worker[r];
+        int nav = need > 0 ? (int)((float)need / (10.0f * (pw > 4.0f ? pw : 4.0f)) + 0.99f) : 0, w = (int)target[r] + nav;
+        if (now >= 900000 && wf >= 35 && w < c->near_slots[r]) w = c->near_slots[r];
+        if (w > c->slots[r]) w = c->slots[r];
+        want[r] = w;
+        gap[r] = w > (int)target[r] ? w - (int)target[r] : 0;
+        gaps += gap[r];
+    }
+    int food_spare = stock[2] - reserve[2], wood_spare = stock[3] - (demand[3] > 300 ? demand[3] : 300);
+    if (!m->t || now - m->t >= 10000) {
+        m->t = now ? now : 1;
+        int unplaced = rm_count(rm, 5) + rm_count(rm, 6) < (int)(target[5] + target[6]) + m->given - 6;
+        if (food_spare < 100) m->pull -= 4;
+        else if (m->pull < gaps && (food_spare > 400 || wood_spare > 500) && !unplaced) m->pull += 2;
+    }
+    if (m->pull > gaps) m->pull = gaps;
+    if (m->pull < 0) m->pull = 0;
+    m->want[5] = want[5]; m->want[6] = want[6];
+    int taken = 0, wfloor = (int)target[3] / 2 > 4 ? (int)target[3] / 2 : 4, ffloor = (int)target[2] * 3 / 5 > 6 ? (int)target[2] * 3 / 5 : 6;
+    while (taken < m->pull && wood_spare > 500 && (int)target[3] > wfloor) { target[3]--; taken++; }
+    while (taken < m->pull && (int)target[2] > ffloor) { target[2]--; taken++; }
+    int g5 = gaps > 0 ? taken * gap[5] / gaps : 0;
+    target[5] += (uint32_t)g5; target[6] += (uint32_t)(taken - g5);
+    m->given = taken;
+}
+static void navy_nodes_log(unsigned idx, uint32_t now) {
+    struct nv_nodes *c = &g_nv_nodes[idx & 15];
+    struct nv_mine *m = &g_nv_mine[idx & 15];
+    static const char rn[7] = { '-', '-', 'F', 'W', 'S', 'G', 'I' };
+    fprintf(g_log, "# nodes: P%u at %u min: home island", idx, now / 60000);
+    for (int r = 4; r < 7; r++) fprintf(g_log, " %c %d/%d worked (%d of %d slots, %d near, %d far)", rn[r], c->worked[r], c->n[r], c->g[r], c->slots[r], c->near_slots[r], c->remote[r]);
+    fprintf(g_log, " | elsewhere S%d G%d I%d | drop sites %d | mines pull %d (wanted G%d I%d)\n", c->other[4], c->other[5], c->other[6],
+            g_drops[idx & 15].n, m->given, m->want[5], m->want[6]);
+}
 static void navy_mix_log(void *pl, unsigned idx, uint32_t now);
 static void navy_budget_log(void *pl, unsigned idx, uint32_t now) {
     static uint32_t last[16];
@@ -352,6 +468,7 @@ static void navy_budget_log(void *pl, unsigned idx, uint32_t now) {
     fprintf(g_log, "] | warships %d docks %d (%d built, %u asked) fishing %d | room held %u | epoch %d\n", w->war, w->docks, w->docks_built,
             o->docks_asked, w->fish, o->held_room, current_epoch(pl) + 1);
     navy_mix_log(pl, idx, now);
+    navy_nodes_log(idx, now);
     fflush(g_log);
     LeaveCriticalSection(&g_lock);
 }
@@ -714,6 +831,8 @@ static void navy_install(const char *aimod_ini, const char *autotest_ini) {
     if (g_navy_share_max > 80) g_navy_share_max = 80;
     if (autotest_ini) g_v_navy = ini_int("autotest", "v_navy", -1, autotest_ini);
     if (autotest_ini) g_v_navy_mix = ini_int("autotest", "v_navy_mix", -1, autotest_ini);
+    g_navy_mines = cfg_int(aimod_ini, autotest_ini, 1, "navy_mines", 1);
+    if (autotest_ini) g_v_navy_mines = ini_int("autotest", "v_navy_mines", -1, autotest_ini);
     if (g_log) fprintf(g_log, "# navy: account %s, share %d%% on islands, fleet mix %s (v_navy %d, v_navy_mix %d for the variant players)\n",
                        g_navy ? "on" : "off", g_navy_share, g_navy_mix ? "on" : "off", g_v_navy, g_v_navy_mix);
     fleet_install(aimod_ini, autotest_ini);
@@ -729,6 +848,7 @@ static void navy_tick(void *pl, uint32_t now) {
         int cap = ((int (__thiscall *)(void *, int))(*(void ***)pl)[31])(pl, 0);   // vf31(0), as bk_room
         g_nv_target[idx] = (int)((float)cap * (float)g_navy_fleet_pop / 100.0f * m->strength + 0.5f);
     } else g_nv_target[idx] = 0;
+    if (m->done && (now < g_nv_nodes[idx].t || now - g_nv_nodes[idx].t >= 60000)) navy_nodes(pl, idx, now);   // once a minute
     navy_budget_log(pl, idx, now);
     navy_docks(pl, idx, now);
     fleet_tick(pl, now);
