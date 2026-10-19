@@ -130,6 +130,7 @@ static int defence_spot(void *pl, int type, int *ox, int *oy) {
     if (!g_def || !pl || !is_tower_type(type)) return 0;
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     if (g_def_off[idx]) return 0;
+    if (early_core_spot(pl, type, ox, oy)) return 1;   // early.c: the town's first towers by the Town Center
     uint32_t now = game_time();
     def_refresh(pl, idx, now);
     struct def_plan *p = &g_plan[idx];
@@ -330,7 +331,8 @@ static struct st_side g_mil_own, g_mil_foe;   // fight_estimate (dll/stats.c)
 static int militia_answer(struct cs_scan *s, uint8_t *t, int *nfree) {   // citizens -> t; returns the number ordered
     int x = FIELD(t, 0x1C, int), y = FIELD(t, 0x20, int), enemies = 0, ordered = 0;
     float epow = 0, cpow = 0, fast = 1e9f, cspeed = 0;
-    int est = g_fight_est || g_militia_est, soldiers = 0;
+    unsigned pi = (unsigned)FIELD(s->pl, PL_INDEX, int) & 15;
+    int est = g_fight_est || g_militia_est || EARLY(pi, early_militia), soldiers = 0;
     if (est) { st_side_clear(&g_mil_own); st_side_clear(&g_mil_foe); }
     for (int k = 0; k < s->nu; k++) {
         uint8_t *e = s->eu[k];
@@ -351,6 +353,20 @@ static int militia_answer(struct cs_scan *s, uint8_t *t, int *nfree) {   // citi
             if (est) st_side_add(&g_mil_own, s->civ[c]);
             if (st_speed(s->civ[c]) > cspeed) cspeed = st_speed(s->civ[c]);
         }
+    // EARLY MILITIA ([all] early_militia; dll/early.c): against soldiers the citizens fight only next to their own
+    // soldiers or under their own towers, and only where the estimate has them win without a loss - in the first
+    // epoch 1-6 Clubmen and Rock Throwers killed 39-48 citizens a game at the town, militia ordered 40-63 times a
+    // game. Otherwise the citizens fall back under a tower (tower_bait) and the tower does the fighting.
+    if (EARLY(pi, early_militia) && soldiers) {
+        int cover = early_cover(s->pl, x, y);
+        for (int k = 0; k < s->ns && !cover; k++)
+            cover = abs(FIELD(s->sold[k], 0x1C, int) - x) <= 12 && abs(FIELD(s->sold[k], 0x20, int) - y) <= 12;
+        struct st_result r;
+        if (cover && g_mil_own.n) st_estimate(&g_mil_own, &g_mil_foe, &r);
+        // their damage while ours destroys them, in citizens: under one
+        float lost = cover && g_mil_own.n && r.time[0] < 1e9f ? r.dps_contact[1] * r.time[0] * (float)g_mil_own.n / g_mil_own.hp : 99.0f;
+        if (lost >= 1.0f) { g_early_mil_refused[pi]++; return 0; }
+    }
     if (g_militia_est) {
         if (!g_mil_own.n) return 0;
         // a fallback (the playtester): soldiers near that win it on their own do the job instead
@@ -543,6 +559,12 @@ static void home_guard(void *pl, unsigned idx, uint32_t now) {
     float share = cfg_of(pl)->home_guard_share;   // a difficulty's or personality's own, else [all]
     int room = (int)((float)cap * (1.0f - FIELD(pl, 0xBDC, float)) * (share >= 0 ? share : g_home_share));
     if (room > target) target = room;
+    // early_army (econ.c train_budget): no soldiers in the first epoch - towers and citizens; early_soldiers=N (the
+    // alternative to the towers): N soldiers there from minute 2
+    if (EARLY(idx, early_army) && e == 0) {
+        target = now >= 120000 ? EARLY(idx, early_soldiers) : 0;
+        if (!target) return;
+    }
     int home = home_soldiers(pl, FIELD(bm, 0x12C, int), FIELD(bm, 0x130, int));
     if (home >= target) return;
     int big[7] = { 0, 0, 1 << 20, 1 << 20, 1 << 20, 1 << 20, 1 << 20 }, got = 0;
@@ -550,7 +572,9 @@ static void home_guard(void *pl, unsigned idx, uint32_t now) {
     if (!type) return;
     int req[4] = { type, target - home < 5 ? target - home : 5, 0, 0 };
     unsigned n = 0;
+    g_hg_call = 1;
     hook_train_units(um, NULL, req, (uintptr_t)&n);
+    g_hg_call = 0;
     g_home_trained[idx] += n;
     if (n) ai_say(pl, CHAT_GUARD, "[ai] home guard %d of %d, training %u more", home, target, n);
     if (n && g_log) fprintf(g_log, "# home guard: P%u at %.1f min: %d of %d soldiers at home, %u more (type %d asked)\n",

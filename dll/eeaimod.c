@@ -81,6 +81,7 @@ static void attack_tick(void *pl, uint32_t now);
 static void vanilla_tick(void *pl, uint32_t now);
 static void ecolog_tick(void *pl, uint32_t now);   // ecolog.c: the economy log (autotest)
 static void ecolog_new_game(void);
+static void early_new_game(void);   // early.c
 static void assault_tick(void *pl, uint32_t now);
 static void landing_tick(void *pl, uint32_t now);
 static void navy_tick(void *pl, uint32_t now);
@@ -674,6 +675,7 @@ static char __fastcall hook_game_start(void *state, void *edx, uint8_t *setup, v
     landing_new_game();
     navy_new_game();
     bunker_new_game();
+    early_new_game();
     defence_new_game();
     assault_new_game();
     sites_new_game();
@@ -698,6 +700,7 @@ static char __fastcall hook_game_start(void *state, void *edx, uint8_t *setup, v
 #include "assault.c"
 #include "landing.c"
 #include "bunker.c"
+#include "early.c"
 #include "intel.c"
 #include "expr.c"
 #include "persona.c"

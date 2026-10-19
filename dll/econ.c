@@ -31,6 +31,26 @@ static unsigned g_var_mask;
 static int g_v_late = -1, g_v_hoard_mineral = -1, g_v_sub_wait = -1;
 #define PV(idx, v, g) ((g_var_mask >> ((idx) & 15) & 1) && (v) >= 0 ? (v) : (g))
 static struct { uint32_t last_t; int init; float mil[7]; int income[7], mil_spent[7], cit_blocked, mil_limited; } g_bud[16];
+// EARLY GAME (dll/early.c, docs/economy.md - the playtester's opening): [all] early_towers, tower_bait, early_militia,
+// early_army, early_soldiers; copper_plan=2. Head-to-head: v_early_towers ... v_copper_plan for the variant players.
+static int g_early_towers = 0, g_tower_bait = 0, g_early_militia = 0, g_early_army = 0, g_early_soldiers = 0;
+static int g_v_early_towers = -1, g_v_tower_bait = -1, g_v_early_militia = -1, g_v_early_army = -1, g_v_early_soldiers = -1;
+static int g_v_copper = -1;
+static float g_early_food_share = 0.10f;   // [all] early_army_food_share: of the food income for the army before farms
+static int g_min_workforce = 40;          // [all] min_workforce (COPPER PLAN below)
+static int g_food_floor = 18;             // [all] food_floor: copper_plan=2, food workers wanted before farms (half the workers up to this)
+static int g_cit_queue = 0;                // [all] citizen_queue: copper_plan=2, citizens paid ahead while saving (0 = any)
+static float g_epoch_share = 0.40f;        // [all] epoch_share: copper_plan=2, of the income into the epoch account
+static float g_epoch_acc[16][7];           // copper_plan=2: the next epoch's money, out of the citizens' reach
+static int g_epoch_acc_ep[16];             // the epoch it was saved in (+1; 0 = none yet)
+static int g_early_workers = 60;           // [all] early_army_workers: below, the army still spares food (substitution)
+#define EARLY(idx, which) PV(idx, g_v_##which, g_##which)
+static int copper_mode(void *pl);          // below: copper_plan (per difficulty) or the variant's v_copper_plan
+static void early_tick(void *pl, unsigned idx, uint32_t now);   // early.c
+static int early_tower_stone(void *pl);
+static int early_cover(void *pl, int x, int y);
+static int early_core_spot(void *pl, int type, int *ox, int *oy);
+static unsigned g_early_mil_refused[16];   // defence.c militia_answer: citizens kept out of a fight (early_militia)
 // income rates per AI (rates_update): per minute and per worker-minute
 static struct { uint32_t t; int last[7]; float rate[7], per_worker[7]; } g_rate[16];
 static const float k_default_pw[7] = { 0, 0, 10, 10, 5, 8, 6 };
@@ -377,6 +397,7 @@ static void navy_pick_done(void *pl, unsigned idx, int pick, int asked, const in
 #define FN_CP_ADD_RESOURCE 0x0042F783   // EEComputerPlayer::vf18(type, amount)
 #define FARM_EPOCH 2   // farms and granaries come with epoch 2, the Copper Age
 static int current_epoch(void *pl);
+static int epoch_cost(void *pl, int e, int r);
 static void __fastcall hook_add_resource(void *pl, void *edx, int type, int amount) {
     (void)edx;
     ((void (__thiscall *)(void *, int, int))FN_CP_ADD_RESOURCE)(pl, type, amount);
@@ -385,7 +406,23 @@ static void __fastcall hook_add_resource(void *pl, void *edx, int type, int amou
         g_bud[idx].income[type] += amount;
         // from the Copper Age (farms: food no longer runs out) a player turns most of his income into army
         const struct ai_cfg *c = cfg_of(pl);
-        g_bud[idx].mil[type] += amount * (current_epoch(pl) >= FARM_EPOCH ? c->mil_income_share_farms : c->mil_income_share);
+        int ep = current_epoch(pl);
+        float sh = ep >= FARM_EPOCH ? c->mil_income_share_farms : c->mil_income_share;
+        // early_army: no army in the first epoch (towers and citizens; with early_soldiers a few soldiers after all),
+        // then food-free ranged soldiers - the army's food share small and at most 300 held, so the citizens keep
+        // their food (the account held 500-780 food the army never spent while the citizens' stock was empty)
+        if (EARLY(idx, early_army) && ep < FARM_EPOCH) {
+            if (ep == 0 && !EARLY(idx, early_soldiers)) sh = 0;
+            else if (type == 2) sh = g_bud[idx].mil[2] >= 300 ? 0 : g_early_food_share;
+        }
+        g_bud[idx].mil[type] += amount * sh;
+        // copper_plan=2: epoch_share of the income goes into the epoch account until it holds the next epoch's cost
+        // (the citizens train with the rest and never wait for the epoch; the plan's attempt comes once it is paid)
+        if (copper_mode(pl) == 2 && ep < FARM_EPOCH && workforce(pl) >= g_min_workforce) {   // the economy first, as before
+            if (g_epoch_acc_ep[idx] != ep + 1) { memset(g_epoch_acc[idx], 0, sizeof g_epoch_acc[idx]); g_epoch_acc_ep[idx] = ep + 1; }
+            float miss = (float)epoch_cost(pl, ep + 1, type) - g_epoch_acc[idx][type], add = (float)amount * g_epoch_share;
+            if (miss > 0) g_epoch_acc[idx][type] += add < miss ? add : miss;
+        }
         navy_income(idx, type, amount);   // navy.c: the navy account on water maps
     }
 }
@@ -436,7 +473,18 @@ static void *um_owner(void *um) {
 // remaining cost of getting there (Stone 850 food; Copper 750 food, 400 gold, 400 iron) against military
 // spending, and advances as soon as it can pay for the next epoch instead of waiting for its 50-70 minute
 // timer. From the Copper Age on the normal timer and the faded-in reserve apply.
-static int g_min_workforce = 40;   // economy first: below this, citizens ignore the reserve and no early advance
+// copper_plan=2 (docs/economy.md): the plan without its brake. Against the base game's AI the plan was the most harmful
+// feature of the mod (eco_ablate: off alone, cheating hard Continental 0/12 -> 6 won / 4 lost): the 1600 food of both
+// epochs held from minute 0 stopped the citizens at min_workforce (40) and left the army nothing at all (0 soldiers
+// until minute 22, 9-10 on food against the base AI's 18-29). Now only the next epoch's cost is held, the citizens
+// never wait for it: epoch_share (40%) of the income goes into an epoch account until it holds the next epoch's cost,
+// the citizens spend the rest (with the full stock to them the Town Center trained as fast as food came in and the
+// Stone Age never came: epoch 0 at minute 28), and before farms food gets at least half the workers (up to 18). The
+// epoch comes as soon as it is paid (the attempt moved up, the requirements asked early).
+// g_min_workforce (top): economy first - below it, citizens ignore the reserve and no early advance
+static int copper_mode(void *pl) {
+    return PV((unsigned)FIELD(pl, PL_INDEX, int) & 15, g_v_copper, cfg_of(pl)->copper_plan);
+}
 
 static int workforce(void *pl) {
     void *cm = FIELD(pl, 0xB90, void *);
@@ -622,9 +670,10 @@ static void econ_tick(void *pl, uint32_t now) {
         g_last_attack_time[ai] = t_attack;
     }
     int ep = current_epoch(pl);
-    early_requirements(pl, ai, now, c->copper_plan && ep < FARM_EPOCH);
+    early_tick(pl, ai, now);   // early.c: towers, the bait, the first army
+    early_requirements(pl, ai, now, copper_mode(pl) && ep < FARM_EPOCH);
     // pull the attempt forward: before farms with the copper plan, in every epoch with epoch_pacing=fast
-    if (!(c->copper_plan && ep < FARM_EPOCH) && !c->pacing_fast) return;
+    if (!(copper_mode(pl) && ep < FARM_EPOCH) && !c->pacing_fast) return;
     uint8_t *cm = FIELD(pl, 0xB90, uint8_t *);
     // AttemptEpochAdvance (0x46C966) asks the research manager once for the techs the next epoch requires
     // (record +0x40 needed, +0x48 done) and then waits while cm+0x76 is set; re-arm it after 5 minutes.
@@ -766,7 +815,7 @@ static void budget_reserve(void *pl, int reserve[7]);
 static void navy_mines(void *pl, unsigned idx, uint8_t *rm, uint32_t *target, const int *stock, const int *reserve, const int *demand);
 static void econ_targets(uint8_t *rm) {
     void *pl = rm_player(rm);
-    if (!pl || !cfg_of(pl)->copper_plan) return;
+    if (!pl || !copper_mode(pl)) return;
     int late = current_epoch(pl) >= FARM_EPOCH;
     int lt = PV(FIELD(pl, PL_INDEX, int), g_v_late, g_late_targets);
     if (late && !(lt & 1)) return;
@@ -879,6 +928,7 @@ static void econ_targets(uint8_t *rm) {
         need[r] = d - stock[r];
         if (r >= 4 && reserve[r] - stock[r] > need[r]) need[r] = reserve[r] - stock[r];
     }
+    need[4] += early_tower_stone(pl);   // early.c: the stone of the town's first towers
     // reserve plan: by worker-minutes (shortfall / measured rate per worker), so all arrive at about the same time
     float w[7] = { 0 }, wsum = 0;
     for (int r = 2; r < 7; r++) {
@@ -898,6 +948,17 @@ static void econ_targets(uint8_t *rm) {
     }
     for (int r = 2; given < total; r = r == 6 ? 2 : r + 1)   // rounding leftovers to the largest needs
         if (need[r] > 0) { target[r]++; given++; }
+    if (copper_mode(pl) == 2) {   // the citizens' own food: half the workers on food, up to 18 (the base AI: 18-29)
+        int fl = total / 2 > g_food_floor ? g_food_floor : total / 2;
+        while ((int)target[2] < fl) {
+            int from = -1;
+            for (int r = 3; r < 7; r++)
+                if ((int)target[r] > 2 && (from < 0 || target[r] > target[from])) from = r;
+            if (from < 0) break;
+            target[from]--;
+            target[2]++;
+        }
+    }
 }
 
 // WORKER REBALANCE (after every AssignCitizens pass, 10 s): AssignCitizens only hands out idle citizens and never
@@ -1294,9 +1355,9 @@ static void budget_reserve(void *pl, int reserve[7]) {
     if (next > 13 || next > *(int *)0x009187F4) return;   // end epoch of this game
     uint8_t *data = FIELD(tt + 8 + next * 0x54, 8, uint8_t *);
     if (!data) return;
-    if (cfg_of(pl)->copper_plan && next <= FARM_EPOCH) {
+    if (copper_mode(pl) && next <= FARM_EPOCH) {   // copper_plan=2: only the next epoch's
         for (int r = 2; r < 7; r++)
-            for (int e = next; e <= FARM_EPOCH; e++) reserve[r] += epoch_cost(pl, e, r);
+            for (int e = next; e <= (copper_mode(pl) == 2 ? next : FARM_EPOCH); e++) reserve[r] += epoch_cost(pl, e, r);
         return;
     }
     int remaining = (int)(FIELD(cm, 0x58, uint32_t) - game_time());
@@ -1324,7 +1385,7 @@ static void spend_reserve(void *pl, unsigned idx, int reserve[7], float *horizon
     if (!tt || !cm) return;
     int ep = FIELD(tt, TT_EPOCH, int), next = ep + 1;
     if (next > 13 || next > *(int *)0x009187F4 || !epoch_tech(pl, next)) return;
-    if (cfg_of(pl)->copper_plan && next <= FARM_EPOCH) { budget_reserve(pl, reserve); return; }
+    if (copper_mode(pl) && next <= FARM_EPOCH) { budget_reserve(pl, reserve); return; }
     int remaining = (int)(FIELD(cm, 0x58, uint32_t) - game_time());
     if (remaining > 10 * 60000) return;
     float until = remaining > 0 ? (float)remaining / 60000.0f : 0;   // minutes until the attempt
@@ -1433,6 +1494,8 @@ static int soldier_score(int type) {
     uint8_t *td = type_data(type);
     return FIELD(td, 0x55C, int) * FIELD(td, 0x510, int);
 }
+static int g_sub_spare_food;   // train_budget's early_army substitution (below)
+static int g_hg_call;          // set by the home guard (defence.c) around its order: early_soldiers in the first epoch
 static int substitute_soldier(void *pl, unsigned idx, const int *vis, int want, int *got) {
     uint32_t now = game_time();
     uint8_t *tt = FIELD(pl, PL_TECHTREE, uint8_t *);
@@ -1452,6 +1515,8 @@ static int substitute_soldier(void *pl, unsigned idx, const int *vis, int want, 
             if (n < 48) g_cand[idx].n++;
         }
     }
+    int best = 0, bn = 0;
+    float bs = 0;
     for (int i = 0; i < g_cand[idx].n; i++) {
         int t = g_cand[idx].type[i], n = want, paid = 0;
         for (int r = 2; r < 7; r++) {
@@ -1459,10 +1524,15 @@ static int substitute_soldier(void *pl, unsigned idx, const int *vis, int want, 
             if (c > 0) { paid = 1; if (vis[r] / c < n) n = vis[r] / c; }
         }
         if (!paid || n <= 0 || !((char (__thiscall *)(void *, int, int, int))0x00555710)(pl, t, 0x20, 0)) continue;
-        *got = n;
-        return t;
+        if (!g_sub_spare_food) { *got = n; return t; }
+        // early_army: the food-free ranged soldiers first (Slinger, Simple Bowman, Javelin, Composite Bow, Long Bow ...)
+        // - score x2 with a range, a quarter with a food price: the citizens keep the food while the economy grows
+        float s = (float)soldier_score(t) * (FIELD(type_data(t), 0x420, float) > 2.0f ? 2.0f : 1.0f) *
+                  (unit_cost(pl, t, 2) > 0 ? 0.25f : 1.0f);
+        if (s > bs) { bs = s; best = t; bn = n; }
     }
-    return 0;
+    if (best) *got = bn;
+    return best;
 }
 
 // The budget decides before the game does: a request it doesn't allow is refused here and the original is not
@@ -1513,24 +1583,46 @@ static void train_budget(void *pl, unsigned idx, const struct ai_cfg *cfg, const
         int scarce = stock[2] < 2 * reserve[2] + 500;
         no_work = scarce && total >= 10 && idle > g_citizen_slack && idle * 100 > total * 15;
     }
+    int ep = current_epoch(pl), cmode = copper_mode(pl), cit = is_citizen_type(req[0]);
+    // EARLY ARMY (early_army, docs/economy.md; the playtester: "I don't train military in the first epoch and rely on
+    // towers and citizens, but I go heavy on bowmen/rock slingers from the second epoch on"): before farms the
+    // military account is the army's own money - it spends the account whatever the epoch's reserve (that comes out
+    // of the rest), and the citizens never spend the account's food (they emptied the stock first: the account held
+    // 500-780 food, 0 soldiers until minute 22). No army in the first epoch (requirement units, siege and ships
+    // aside; early_soldiers: the home guard's few).
+    int early = EARLY(idx, early_army) && ep < FARM_EPOCH;
+    int no_army = early && military && !ship && !req_unit && !g_priority_mil && ep == 0 &&
+                  !(EARLY(idx, early_soldiers) && g_hg_call);
     for (int r = 2; r < 7; r++) {
         int visible = req_unit || (ship && navy_earmarked(idx)) ? stock[r] : stock[r] - reserve[r];   // a requirement unit: the epoch waits for it
         // citizens before farms: they pay only food, and only what the food budget (stock + reachable wild
         // food) doesn't need for the epochs; a tiny workforce always grows
-        if (is_citizen_type(req[0]) && cfg->copper_plan && current_epoch(pl) < FARM_EPOCH) {
+        if (cit && cmode == 1 && ep < FARM_EPOCH) {
             int wf = workforce(pl);
             if (r != 2 || wf < 10) visible = stock[r];
             else if (wf < g_min_workforce && stock[2] + (int)(wild_food(pl) * g_wild_share) >= reserve[2] + 500)
                 visible = stock[2];   // enough food on the map: grow the economy first
             // else: workforce built (or the map is poor) -> save: the full reserve applies
         }
+        if (cit && cmode == 2 && ep < FARM_EPOCH) {   // never stopped by the reserve: all but the epoch account
+            int acc = g_epoch_acc_ep[idx] == ep + 1 ? (int)g_epoch_acc[idx][r] : 0;
+            visible = stock[r] - acc;
+            // unless the map's food runs out: wild food is all there is before farms (a Continental start with every
+            // berry bush and animal gone at minute 12, 26 citizens, 252 food in the account for 45 minutes) - then the
+            // epoch's food first, as the plan always did
+            if (r == 2 && (int)(wild_food(pl) * g_wild_share) < epoch_cost(pl, ep + 1, 2) - acc + 500)
+                visible = stock[2] - epoch_cost(pl, ep + 1, 2);
+        }
+        if (cit && early && g_bud[idx].mil[r] > 0) visible -= (int)g_bud[idx].mil[r];   // not the army's food
         if (military && !g_priority_mil && !req_unit) {   // priority requests (siege) and requirement units spend
                                                            // the stock above the reserve
             int allowed = ship ? navy_account(idx, r) : (int)g_bud[idx].mil[r];   // a warship: the navy account
             int excess = stock[r] - reserve[r] - (r >= 4 ? PV(idx, g_v_hoard_mineral, g_hoard_cap_mineral) : g_hoard_cap);   // never hoard beyond the cap
             if (excess > allowed) allowed = excess;
+            if (early && !ship) visible = stock[r];   // the account is the army's own
             if (visible > allowed) visible = allowed;
         }
+        if (no_army) visible = 0;
         if (no_work) visible = 0;
         if (visible < 0) visible = 0;
         if (visible > stock[r]) visible = stock[r];
@@ -1544,11 +1636,24 @@ static void train_budget(void *pl, unsigned idx, const struct ai_cfg *cfg, const
         int c = unit_cost(pl, req[0], r);
         if (c > 0 && visibles[r] / c < *afford) *afford = visibles[r] / c;
     }
+    // copper_plan=2: while the epoch's cost is still being saved, only citizen_queue citizens paid ahead (the game asks
+    // for 10 at a time and pays them all at once) - what the Town Center can't train yet stays in the stock
+    if (cit && cmode == 2 && g_cit_queue > 0 && ep < FARM_EPOCH && stock[2] < reserve[2]) {
+        void *cm = FIELD(pl, 0xB90, void *), *um = cm ? FIELD(cm, 0x44, void *) : NULL;
+        int room = g_cit_queue - (um ? FIELD(um, 0x13C, int) : 0);
+        if (*afford > room) *afford = room < 0 ? 0 : room;
+    }
     *blocked = *afford <= 0;
+    if (no_army) return;
     int trainable = military && g_unit_sub && !g_priority_mil && substitutable(req[0]) &&
                     ((char (__thiscall *)(void *, int, int, int))0x00555710)(pl, req[0], 0x20, 0);
     int sub = military && g_unit_sub && !g_priority_mil && substitutable(req[0]) && (*blocked || !trainable);
-    if (sub && trainable) {   // the budget refused a unit it can train: save for it first
+    // early_army: from the second epoch, while the economy grows, a soldier with a food price is replaced by the best
+    // food-free (ranged first) one the account pays for (substitute_soldier's weighting) - at once, no saving first
+    g_sub_spare_food = EARLY(idx, early_army) && ep >= 1 && (ep < FARM_EPOCH || workforce(pl) < g_early_workers) &&
+                       military && !ship && !req_unit && g_unit_sub && !g_priority_mil && substitutable(req[0]);
+    if (g_sub_spare_food && unit_cost(pl, req[0], 2) > 0) sub = 2;
+    if (sub == 1 && trainable) {   // the budget refused a unit it can train: save for it first
         if (!g_save_since[idx] || now < g_save_since[idx]) g_save_since[idx] = now ? now : 1;
         int sw = PV(idx, g_v_sub_wait, g_sub_wait);
         sub = !sw || now - g_save_since[idx] >= (uint32_t)sw * 1000u || base_threatened(idx);
@@ -1558,6 +1663,7 @@ static void train_budget(void *pl, unsigned idx, const struct ai_cfg *cfg, const
         int got = 0, alt = substitute_soldier(pl, idx, visibles, want, &got);
         if (alt) { *sub_type = alt; *afford = got; *blocked = 0; g_mil[idx].subs++; }
     }
+    g_sub_spare_food = 0;
 }
 // the request as the budget allows it (blocked: none) through the game's own training, cut to the room under the
 // population cap for the mod's own orders; ra = the call site (a game's or the mod's); the game's result
@@ -1692,10 +1798,26 @@ static void econ_install(const char *aimod_ini, const char *autotest_ini) {
     g_unit_sub = cfg_int(aimod_ini, autotest_ini, 1, "unit_substitution", 1);
     g_sub_wait = cfg_int(aimod_ini, autotest_ini, 1, "substitute_wait", 90);
     g_gather_research = cfg_int(aimod_ini, autotest_ini, 1, "gather_research", 1);
+    g_early_towers = cfg_int(aimod_ini, autotest_ini, 1, "early_towers", 0);
+    g_tower_bait = cfg_int(aimod_ini, autotest_ini, 1, "tower_bait", 0);
+    g_early_militia = cfg_int(aimod_ini, autotest_ini, 1, "early_militia", 0);
+    g_early_army = cfg_int(aimod_ini, autotest_ini, 1, "early_army", 0);
+    g_early_soldiers = cfg_int(aimod_ini, autotest_ini, 1, "early_soldiers", 0);
+    g_early_food_share = cfg_share(aimod_ini, autotest_ini, 1, "early_army_food_share", 0.10, 0, 1);
+    g_early_workers = cfg_int(aimod_ini, autotest_ini, 1, "early_army_workers", 60);
+    g_cit_queue = cfg_int(aimod_ini, autotest_ini, 1, "citizen_queue", 0);
+    g_epoch_share = cfg_share(aimod_ini, autotest_ini, 1, "epoch_share", 0.40, 0, 1);
+    g_food_floor = cfg_int(aimod_ini, autotest_ini, 1, "food_floor", 18);
     if (autotest_ini) {
         char vp[32];
         GetPrivateProfileStringA("autotest", "variant_players", "", vp, sizeof vp, autotest_ini);
         for (char *c = vp; *c; c++) if (*c >= '0' && *c <= '9') g_var_mask |= 1u << (*c - '0');
+        g_v_early_towers = ini_int("autotest", "v_early_towers", -1, autotest_ini);
+        g_v_tower_bait = ini_int("autotest", "v_tower_bait", -1, autotest_ini);
+        g_v_early_militia = ini_int("autotest", "v_early_militia", -1, autotest_ini);
+        g_v_early_army = ini_int("autotest", "v_early_army", -1, autotest_ini);
+        g_v_early_soldiers = ini_int("autotest", "v_early_soldiers", -1, autotest_ini);
+        g_v_copper = ini_int("autotest", "v_copper_plan", -1, autotest_ini);
         g_v_late = ini_int("autotest", "v_late_targets", -1, autotest_ini);
         g_v_hoard_mineral = ini_int("autotest", "v_hoard_cap_mineral", -1, autotest_ini);
         g_v_sub_wait = ini_int("autotest", "v_substitute_wait", -1, autotest_ini);
@@ -1738,6 +1860,8 @@ static void econ_install(const char *aimod_ini, const char *autotest_ini) {
 // at every game start, the income baselines of rates_update and gather_log came out negative
 static void econ_new_game(void) {
     memset(g_bud, 0, sizeof g_bud);
+    memset(g_epoch_acc, 0, sizeof g_epoch_acc);
+    memset(g_epoch_acc_ep, 0, sizeof g_epoch_acc_ep);
     memset(g_rate, 0, sizeof g_rate);
     memset(g_spend, 0, sizeof g_spend);
     memset(g_place, 0, sizeof g_place);
