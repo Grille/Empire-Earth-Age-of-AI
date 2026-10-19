@@ -55,6 +55,8 @@ static struct fleet {
     uint32_t last, log_t, task_t, retreat_t;
     int task, last_task; const char *why;
     int gx, gy, dx, dy, ocean;           // the guard point, where the fleet goes now, its sea
+    int hvx, hvy, shelter;               // stage 4: the haven (water by an own tower or the dock farthest from the enemy), sheltering now
+    uint8_t lostm[10], sunkm[10]; uint32_t ring_m; unsigned shelters;   // warships lost / sunk per game minute (the last 10)
     float hp0, ratio, near_ratio; int eknown, enear, ndz;
     uint8_t *htgt; int hx, hy;           // the hunt's target (or point)
     struct { int x, y; uint32_t until; } cleared[8]; int ci;
@@ -74,6 +76,7 @@ static int fleet_on(unsigned idx) {
 }
 // stage 4 (navy_fleet=2): the size target and the mod's own warship orders (navy.c), task forces (below)
 static int fleet_builds(unsigned idx) { return fleet_on(idx) && PV(idx & 15, g_v_navy_fleet, g_navy_fleet) >= 2; }
+static int fleet_sheltering(unsigned idx) { return g_fl[idx & 15].shelter; }
 static int g_fl_s4;   // set while a stage-4 fleet is led (fl_orders' preferences, fl_safe_toward's margin)
 static int fleet_has(void *pl, uint8_t *u) {
     if (!pl || !u) return 0;
@@ -120,6 +123,7 @@ static struct fl_scan {
     int bx[256], by[256], nbl;                        // own buildings
     int dkx[16], dky[16], nd;                         // own docks
     int ebx, eby, eb; int edx[16], edy[16], ned;      // the nearest known enemy building (to the guard base), enemy docks
+    int twx[32], twy[32], ntw;                        // own towers and defence buildings
 } g_fs;
 static float fl_dps(uint8_t *u, uint8_t *td) {
     uint8_t *st = u ? FIELD(u, 0x34, uint8_t *) : NULL;
@@ -212,7 +216,7 @@ static void fl_scan(void *pl, unsigned idx) {
     struct fl_scan *s = &g_fs;
     struct fleet *f = &g_fl[idx];
     s->pl = pl; s->idx = idx;
-    s->ne = s->nev = s->nec = s->nb = s->nbl = s->nd = s->ned = 0; s->eb = 0;
+    s->ne = s->nev = s->nec = s->nb = s->nbl = s->nd = s->ned = s->ntw = 0; s->eb = 0;
     f->n = 0; f->ndz = 0;
     void *cm = FIELD(pl, 0xB90, void *);
     uint8_t *bm = cm ? FIELD(cm, 0x3C, uint8_t *) : NULL;
@@ -227,6 +231,8 @@ static void fl_scan(void *pl, unsigned idx) {
             else if (k == NV_FISH && s->nb < 96) s->boat[s->nb++] = u;
             else if (fam == 2 || fam == 29) {
                 if (FIELD(td, 0x4B8, int) == 36 && s->nd < 16) { s->dkx[s->nd] = x; s->dky[s->nd++] = y; }
+                float tr, ta;
+                if (s->ntw < 32 && defence_stats(u, &tr, &ta)) { s->twx[s->ntw] = x; s->twy[s->ntw++] = y; }
                 if (s->nbl < 256) { s->bx[s->nbl] = x; s->by[s->nbl++] = y; }
             }
             continue;
@@ -522,7 +528,8 @@ static void fl_log(void *pl, unsigned idx, struct fleet *f, uint32_t now, int cx
             fl_lost(idx, 0), fl_lost(idx, 1), blost, bsunk, s.pulls, s.flees, s.hunts, s.retreats, s.defends, s.escorts,
             f->repaired, s.orders, f->refused, f->sg_skipped, f->maint_skipped, ngroups);
     if (s4) {
-        fprintf(g_log, " | target %d built %u refused %u | forces", g_nv_target[idx], f->built, f->build_refused);
+        fprintf(g_log, " | target %d built %u refused %u | haven %d,%d%s | forces", g_nv_target[idx], f->built, f->build_refused, f->hvx, f->hvy, f->shelter ? " sheltering" : "");
+        fprintf(g_log, " (%u times)", f->shelters);
         for (int t = 0; t < TF_N; t++) fprintf(g_log, " %s %d", k_tf[t], g_tf[idx][t].n);
         fprintf(g_log, " | lost by force");
         for (int t = 0; t < TF_N; t++) fprintf(g_log, " %s %u", k_tf[t], g_tf[idx][t].lost);
@@ -545,6 +552,17 @@ static void fl_targets(struct fleet *f) {
         if (t && f->ntgt < FL_MAX) { f->tgt[f->ntgt] = t; f->tgt_id[f->ntgt++] = FIELD(t, 0x60, int); }
     }
 }
+// the minute ring of warships lost and sunk (stage 4: losing at sea)
+static void fl_ring(struct fleet *m, int sunk) {
+    uint32_t mi = game_time() / 60000u + 1;
+    if (m->ring_m != mi) {
+        for (uint32_t k = m->ring_m + 1; m->ring_m && k <= mi && k < m->ring_m + 11; k++) { m->lostm[k % 10] = 0; m->sunkm[k % 10] = 0; }
+        if (!m->ring_m || mi < m->ring_m || mi >= m->ring_m + 11) { memset(m->lostm, 0, sizeof m->lostm); memset(m->sunkm, 0, sizeof m->sunkm); }
+        m->ring_m = mi;
+    }
+    if (sunk > 0) m->sunkm[mi % 10]++;
+    else if (sunk == 0) m->lostm[mi % 10]++;
+}
 // a unit of the enemy died (diplo.c hook_kill_stat, k the killer's index, n 2 a building, 3 a unit): the force (stage 4)
 // or the fleet (stage 3) whose ship had it as its target gets the kill - warship, fishing boat, transport, citizen,
 // building, other
@@ -561,7 +579,7 @@ static void fleet_kill(int k, uint8_t *dead, int n) {
     struct fleet *fs = s4 ? g_tf[k] : &g_fl[k];
     for (int t = 0; t < nf; t++)
         for (int i = 0; i < fs[t].ntgt; i++)
-            if (fs[t].tgt[i] == dead && fs[t].tgt_id[i] == id) { fs[t].kills[c]++; if (s4) g_fl[k].kills[c]++; return; }
+            if (fs[t].tgt[i] == dead && fs[t].tgt_id[i] == id) { fs[t].kills[c]++; if (s4) { g_fl[k].kills[c]++; if (!c) fl_ring(&g_fl[k], 1); } return; }
 }
 
 // one of the AI's own ships sunk (diplo.c hook_kill_stat, v the victim's index): counted for its force and the task
@@ -572,10 +590,26 @@ static void fleet_lost(int v, uint8_t *dead) {
     for (int j = 0; j < g_ntfm[v]; j++)
         if (g_tfm[v][j].u == dead && g_tfm[v][j].id == id) {
             struct fleet *f = &g_tf[v][(int)g_tfm[v][j].tf];
-            f->lost++; g_fl[v].lost++;
+            f->lost++; g_fl[v].lost++; fl_ring(&g_fl[v], 0);
             if (f->task >= 0 && f->task < 10) { f->lost_task[f->task]++; g_fl[v].lost_task[f->task]++; }
             return;
         }
+}
+
+// THE HAVEN (stage 4): open water by an own tower near the sea - the one farthest from the nearest known enemy building -
+// else by the dock farthest from it; out of danger. The enemy (and a human) keeps out of the towers' reach.
+static void fl_haven(struct fleet *m) {
+    float bd = -1;
+    for (int pass = 0; pass < 2 && bd < 0; pass++) {
+        int n = pass ? g_fs.nd : g_fs.ntw;
+        for (int k = 0; k < n; k++) {
+            int x = pass ? g_fs.dkx[k] : g_fs.twx[k], y = pass ? g_fs.dky[k] : g_fs.twy[k], wx, wy, ox, oy;
+            if ((int)ocean_near(x, y, pass ? 4 : 6, &wx, &wy) != m->ocean || !fl_water(wx, wy, (unsigned)m->ocean, &ox, &oy) || fl_in_danger(ox, oy)) continue;
+            float d = g_fs.eb ? (float)((x - g_fs.ebx) * (x - g_fs.ebx) + (y - g_fs.eby) * (y - g_fs.eby)) : 0.0f;
+            if (d > bd) { bd = d; m->hvx = ox; m->hvy = oy; }
+        }
+    }
+    if (bd < 0) { m->hvx = m->gx; m->hvy = m->gy; }
 }
 
 // THE HOME THREATS: enemy warships seen within 15 tiles of the guard point, its buildings or fishing boats
@@ -609,6 +643,7 @@ static void fl_strength(struct fleet *f, int cx, int cy) {
 // THE FLEET'S DECISION (stage 3: the whole fleet; stage 4: the home guard - with FLD_HOME no hunt and no landing,
 // the hunters and the escort do that - or the whole fleet while it is 3 ships or fewer). Returns: the task changed.
 #define FLD_HOME 1
+#define FLD_SHELTER 2   // stage 4: the whole fleet at the haven (fleet_tick: much weaker than the enemy fleet known)
 static int fl_decide(unsigned idx, struct fleet *f, uint32_t now, int flags) {
     int cx, cy;
     fl_center(f, &cx, &cy);
@@ -630,7 +665,11 @@ static int fl_decide(unsigned idx, struct fleet *f, uint32_t now, int flags) {
     } else if (nh && fl_ratio(f, 0, 0, 0, g_home) >= 0.8f) {
         task = FT_DEFEND; why = "enemy ships at home"; use = g_home; tx = g_hx / nh; ty = g_hy / nh; r = 20;
         if (f->task != FT_DEFEND) f->defends++;
-    } else if (nh) { task = FT_GUARD; why = "enemy ships at home - too strong"; }
+    } else if (nh) {
+        task = FT_GUARD; why = "enemy ships at home - too strong";
+        if (g_fl_s4 && (f->hvx || f->hvy)) { tx = f->hvx; ty = f->hvy; r = 8; why = "enemy ships at home - too strong: to the haven"; }   // stage 4: under its towers
+    }
+    if ((flags & FLD_SHELTER) && task == FT_GUARD) { tx = f->hvx; ty = f->hvy; r = 8; if (!nh) why = "sheltering - the enemy fleet much stronger"; }
     else if (!(flags & FLD_HOME) && g_landing && l->phase == 1 && l->ocean == f->ocean) {   // a landing getting its transports: its sea route cleared
         static unsigned char route[FL_ES];
         int nr = 0, mx = (f->gx + l->wx) / 2, my = (f->gy + l->wy) / 2;
@@ -1007,7 +1046,7 @@ static void fl_build(void *pl, unsigned idx, struct fleet *m, uint32_t now) {
     m->build_t = now ? now : 1;
     int t = g_nv_target[idx], recent = 0;
     for (int q = 0; q < 8; q++) recent += m->bring_t[q] && now >= m->bring_t[q] && now - m->bring_t[q] < 90000;
-    if (t <= 0 || g_nv_own[idx].war + recent >= t || !g_nv_own[idx].docks_built || bk_room(pl) <= 0) return;
+    if (t <= 0 || m->shelter || g_nv_own[idx].war + recent >= t || !g_nv_own[idx].docks_built || bk_room(pl) <= 0) return;
     void *cm = FIELD(pl, 0xB90, void *);
     uint8_t *um = cm ? FIELD(cm, 0x44, uint8_t *) : NULL;
     int type = um ? navy_fleet_type(pl, idx) : 0;
@@ -1027,11 +1066,12 @@ static void tf_tick(void *pl, unsigned idx, struct fleet *m, uint32_t now) {
     struct landing *l = &g_ld[idx];
     int land = g_landing && l->phase >= 1 && l->phase != 5 && l->ocean == m->ocean, want[TF_N], ch[TF_N] = { 0 };
     tf_sizes(m->n, land, want);
+    if (m->shelter) { for (int t = 0; t < TF_N; t++) want[t] = 0; want[TF_HOME] = m->n; }   // together at the haven
     tf_assign(idx, m, want);
     g_fl_s4 = 1;
-    for (int t = 0; t < TF_N; t++) { struct fleet *f = &g_tf[idx][t]; f->ocean = m->ocean; f->gx = m->gx; f->gy = m->gy; }
+    for (int t = 0; t < TF_N; t++) { struct fleet *f = &g_tf[idx][t]; f->ocean = m->ocean; f->gx = m->gx; f->gy = m->gy; f->hvx = m->hvx; f->hvy = m->hvy; }
     struct fleet *home = &g_tf[idx][TF_HOME];
-    ch[TF_HOME] = fl_decide(idx, home, now, m->n > 3 ? FLD_HOME : 0);
+    ch[TF_HOME] = fl_decide(idx, home, now, (m->n > 3 ? FLD_HOME : 0) | (m->shelter ? FLD_HOME | FLD_SHELTER : 0));
     g_help = g_nh && fl_ratio(home, 0, 0, 0, g_home) < 1.0f;
     for (int t = TF_HUNT; t < TF_N; t++) ch[t] = tf_decide(idx, t, &g_tf[idx][t], home, now);
     g_fl_s4 = 0;
@@ -1073,6 +1113,22 @@ static void fleet_tick(void *pl, uint32_t now) {
     fl_boats(f, cx, cy);
     fl_home_threats(f);
     if (fleet_builds(idx)) {   // stage 4: task forces
+        // SHELTER (fleet in being): against an enemy fleet known that is much stronger (ratio < 0.6, 3+ warships) the
+        // ships went out one by one and were sunk at the guard point - against the sea opponent (16 warships) the
+        // AI lost 6-18 more a game than without the fleet. Then all of them wait at the haven, under its towers, and
+        // grow; out again at 0.9.
+        fl_haven(f);
+        float rr = fl_ratio(f, 0, 0, 0, NULL);
+        // also while it is losing at sea: 4+ warships lost in the last 10 minutes and at least twice what it sank (the
+        // enemy fleet is seen only near: 3 known at once was rare against the sea opponent's 16) - then the mod trains
+        // none and the account's share is the base one (fl_build, navy.c navy_share): ships sent out one by one only fed
+        // the enemy's kills
+        fl_ring(f, -1);
+        int l10 = 0, s10 = 0;
+        for (int k = 0; k < 10; k++) { l10 += f->lostm[k]; s10 += f->sunkm[k]; }
+        int losing = l10 - s10 >= 4 && l10 >= 2 * s10, weak = g_fs.ne >= 3 && rr < 0.6f;
+        if (!f->shelter && (weak || losing) && (f->hvx || f->hvy)) { f->shelter = 1; f->shelters++; }
+        else if (f->shelter && !losing && (rr >= 0.9f || g_fs.ne < 3)) f->shelter = 0;
         tf_tick(pl, idx, f, now);
         fl_strength(f, cx, cy);
         f->task = FT_GUARD; f->why = "task forces"; f->dx = cx; f->dy = cy;

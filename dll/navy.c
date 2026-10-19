@@ -45,6 +45,7 @@ static void fleet_new_game(void);   // fleet.c (stage 3)
 static void fleet_install(const char *aimod_ini, const char *autotest_ini);
 static void fleet_tick(void *pl, uint32_t now);
 static int nv_role(uint8_t *td);
+static int fleet_sheltering(unsigned idx);   // fleet.c: the fleet shelters from a much stronger enemy fleet (no build-up then)
 static int fleet_builds(unsigned idx);   // fleet.c: stage 4 (navy_fleet=2) for this AI - the fleet's size target below
 // THE FLEET'S SIZE (stage 4, navy_fleet=2; docs/navy.md): the playtester expects 20+ warships at a low population
 // limit and more with higher ones - navy_fleet_pop % (15) of the AI's population cap x the map strength (cap 176 in
@@ -262,7 +263,7 @@ static float navy_share(unsigned idx) {
     if (!PV(idx, g_v_navy, g_navy) || !g_nv_map[idx & 15].done) return 0.0f;
     float sh = (float)g_navy_share;
     int t = g_nv_target[idx & 15], miss = t - g_nv_own[idx & 15].war;
-    if (t > 0 && miss > 0 && g_navy_share_max > g_navy_share && fleet_builds(idx)) sh += (float)(g_navy_share_max - g_navy_share) * (float)miss / (float)t;
+    if (t > 0 && miss > 0 && g_navy_share_max > g_navy_share && fleet_builds(idx) && !fleet_sheltering(idx)) sh += (float)(g_navy_share_max - g_navy_share) * (float)miss / (float)t;
     return sh / 100.0f * g_nv_map[idx & 15].strength;
 }
 // stage 4: the account is the navy's own money - a warship spends it even where the reserve (epochs, landing ...)
