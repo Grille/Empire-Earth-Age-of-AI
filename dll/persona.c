@@ -339,8 +339,12 @@ static void persona_key(void *arg, const char *sec, const char *key, struct tval
         }
         for (int t = 0; t < T_N; t++)
             if (!lstrcmpiA(key, k_trait_keys[t])) {
-                if (v->kind != TV_NUMBER) { tl_error(l, "a number 0-100 expected"); return; }
-                p->trait[t] = v->n < 0 ? 0 : v->n > 100 ? 100 : (int)v->n;
+                // a share, 0% to 100%: aggression = 60% (a bare 60 is a mistake - not guessed to be 60%)
+                char *e;
+                double n = strtod(v->src, &e);
+                while (*e == ' ' || *e == '\t') e++;
+                if (e == v->src || *e != '%' || e[1]) { tl_error(l, "a share 0% to 100% expected (aggression = 60%)"); return; }
+                p->trait[t] = n < 0 ? 0 : n > 100 ? 100 : (int)(n + 0.5);
                 return;
             }
         tl_error(l, "an unknown key in [personality]");
@@ -498,7 +502,7 @@ static int persona_decide(void *pl, int k, void *them, void *enemy, double *out)
         x_error("[decide] %s of %s: not a number - the built-in rule instead", k_decide_keys[k], p->file);
         return 0;
     }
-    *out = x.n;
+    *out = k == D_SEEK_ALLY ? x.n : x.n * 100;   // a score: the language's shares, the code's points (opinion -100..100)
     return 1;
 }
 static uint32_t text_hash(const char *s) { uint32_t h = 2166136261u; while (*s) h = (h ^ (uint8_t)*s++) * 16777619u; return h | 1; }

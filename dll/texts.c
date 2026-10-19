@@ -436,7 +436,7 @@ static void cmd_texts(char *out, const char *args) {
             fputs(k_format_help, f);
             fputs(";\n; [vars] here serve the system lines and every personality's lines (a personality's own [vars] first);\n"
                   "; [vars:de] (or :fr ...) replaces them in a game of that language.\n", f);
-            fputs(kept ? "\n" : ";[vars]\n;mood = opinion > 30 ? \"gladly\" : \"\"\n", f);
+            fputs(kept ? "\n" : ";[vars]\n;mood = opinion > 30% ? \"gladly\" : \"\"\n", f);
             if (kept) fputs(kept, f);
             fputs("\n[system]\n", f);
             for (int i = 0; i < N_SYS; i++) {

@@ -89,7 +89,7 @@ fighting_report(minutes) = "The fighting between you so far: you killed {me.kill
 intro = ("You are {me}, a leader in the real-time strategy game Empire "
     "Earth{llm_equal ? "" : " (played by the computer)"}.")
 ; in braces: {aggression} {loyalty} {pride} {greed} {forgiveness} {caution}
-nature = ("Your nature (0-100): aggression {aggression}, loyalty {loyalty}, pride {pride}, greed {greed}, "
+nature = ("Your nature: aggression {aggression}, loyalty {loyalty}, pride {pride}, greed {greed}, "
     "forgiveness {forgiveness}, caution {caution}.")
 ; a few of its personality lines (without placeholders), quoted and joined with " / "
 ; in braces: {examples}

@@ -3,7 +3,7 @@
 ; may get it (picked at random, a matching colour first).
 ;
 ; Each situation below gets a line: a string, or a list of them (one at random), with conditions if you like:
-;   greeting = [allied ? "Welcome back, {them}.", opinion < -50 ? ["Go away.", "You again?"]] ?? "Greetings, {them}."
+;   greeting = [allied ? "Welcome back, {them}.", opinion < -50% ? ["Go away.", "You again?"]] ?? "Greetings, {them}."
 ; A situation without a line stays silent - unless it must be said (war, peace, offers, capitulation, victory): then
 ; a more general situation speaks (noted below) or computer.eeai. [lines:de] (or :fr ...) replaces [lines] in a game
 ; of that language, situation by situation.
@@ -25,18 +25,18 @@ name = ""
 ; favoured player colours on random maps, the first free one wins: blue, red, yellow, magenta, orange, green, cyan,
 ; darkred, darkgrey, purple, grey, silver, lightyellow, lime, lightblue, pink (or German names, or a number 1..17: color.red or 2)
 ;color = ["blue", "cyan"]
-; traits 0-100 (50 when left out). aggression: betrays, refuses peace; loyalty: keeps its alliances (a vassal under
-; 50 rebels against a clearly weaker lord, the sooner the prouder); pride: how long it holds a grudge and refuses
-; peace after a declaration of war (pride x 3 s), how long it fights on before it capitulates, how weak a lord it
+; traits 0% to 100% (50% when left out). aggression: betrays, refuses peace; loyalty: keeps its alliances (a vassal under
+; 50% rebels against a clearly weaker lord, the sooner the prouder); pride: how long it holds a grudge and refuses
+; peace after a declaration of war (pride x 5 minutes), how long it fights on before it capitulates, how weak a lord it
 ; serves; greed: what a tribute is worth to it; forgiveness: how fast a grudge fades;
 ; caution: capitulates earlier, pays more; talk: how often it says the lines that are not always said
-aggression = 50
-loyalty = 50
-pride = 50
-greed = 50
-forgiveness = 50
-caution = 50
-talk = 50
+aggression = 50%
+loyalty = 50%
+pride = 50%
+greed = 50%
+forgiveness = 50%
+caution = 50%
+talk = 50%
 ; for the AI voice: who this is, in a few words (the model plays it)
 character = ""
 
@@ -62,7 +62,7 @@ character = ""
 [vars]
 ; named strings and expressions for its lines, before those of _system.eeai; [vars:de] (or :fr ...) replaces them in
 ; a game of that language. For example:
-;address = opinion > 30 ? "my friend" : opinion < -30 ? "you dog" : "neighbour"
+;address = opinion > 30% ? "my friend" : opinion < -30% ? "you dog" : "neighbour"
 
 [lines]
 ; [] or a list with nothing left: no line (a more general situation or computer.eeai speaks, or nobody)

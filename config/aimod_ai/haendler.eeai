@@ -6,13 +6,13 @@ name:de = "Kaufherr Benedikt"
 civilization = "Merchant Republic"
 civilization:de = "Handelsrepublik"
 color = ["yellow", "lightyellow"]
-aggression = 25
-loyalty = 60
-pride = 30
-greed = 90
-forgiveness = 70
-caution = 60
-talk = 70
+aggression = 25%
+loyalty = 60%
+pride = 30%
+greed = 90%
+forgiveness = 70%
+caution = 60%
+talk = 70%
 ; for the AI voice ([llm] in aimod.ini): who this is, in a few words
 character = "A merchant prince who sees everything as a deal: friendly, chatty, always counting, talks of profit, prices and interest."
 

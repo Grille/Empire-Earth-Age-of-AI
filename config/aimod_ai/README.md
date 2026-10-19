@@ -35,7 +35,7 @@ loyalty = 70
 character = "A sea captain: dry humour, proud of her fleet, keeps her word."
 
 [vars]
-friend = opinion > 30 ? "old friend" : "captain"
+friend = opinion > 30% ? "old friend" : "captain"
 
 [lines]
 greeting = ["Fair winds, {them}.", "The tide is with us today."]
@@ -61,11 +61,11 @@ an **expression**; it may go over several lines while a `(`, `[` or `{` is open:
 | `85`, `0.5` | A number |
 | `["a", "b", "c"]` | A list. Said or used as one value, it is one of its items, at random; `len`, `first`, `item`, `contains` and `map_range` see all of them. A comma after the last item is fine. |
 | `allied ? "Welcome back."` | A condition without `:` - nothing when it doesn't hold |
-| `opinion > 30 ? "friend" : "stranger"` | One or the other |
+| `opinion > 30% ? "friend" : "stranger"` | One or the other |
 | `a ?? b` | `a`, unless it is nothing: then `b` |
 
 **Inside a string**, braces hold a placeholder or an expression: `"Hello, {them}!"`,
-`"Hello, {opinion > 30 ? "friend" : "you"}!"`. The quotes inside the braces belong to the expression and don't end
+`"Hello, {opinion > 30% ? "friend" : "you"}!"`. The quotes inside the braces belong to the expression and don't end
 the string.
 
 **Long values over several lines.** A line break counts as a space while a `(`, `[` or `{` is open. A string itself
@@ -146,7 +146,7 @@ winning = opinion > 0 ? "Let us stay friends." : "You are next, {them}."
 
 ; the angry lines when they hate it, else the friendly ones
 angry = ["Go away.", "You again?"]
-tribute_thanks = [opinion < -50 ? angry] ?? ["Thank you!", "Most generous."]
+tribute_thanks = [opinion < -50% ? angry] ?? ["Thank you!", "Most generous."]
 
 ; a list in a list: each of its items counts as one (here a third each)
 greeting = ["Hello.", angry]
@@ -223,10 +223,10 @@ other_victory = lord == them ? "Long live {them}, my lord!" : allied ? "We won t
 - **True** is a number other than 0 or a text that isn't empty. **Nothing** is false, an empty text in a line, 0 in
   arithmetic, and a comparison with nothing is false (`war_minutes > 5` and `war_minutes < 5` are both false when
   there is no war).
-- **Numbers and texts at once:** some values are both - the epoch is 3 and "Copper Age", an opinion is -62 and
+- **Numbers and texts at once:** some values are both - the epoch is 3 and "Copper Age", an opinion is -62% (-0.62) and
   "hostile" (hostile, unfriendly, indifferent, friendly, trusting: `opinion1`..`opinion5` in `_system.eeai`). The
   number counts in arithmetic, in comparisons with a number and as true/false; the text counts in a line and next to
-  texts (`"Age: " + epoch`). Arithmetic gives a plain number: `{round(opinion)}` writes -62.
+  texts (`"Age: " + epoch`). Arithmetic gives a plain number: `{round(opinion * 100)}` writes -62.
 - **A string is always a text**, even when it looks like a number: `"12" + 1` is `"121"`, and `"12"` is no colour
   number. Write numbers without quotes.
 - Only what is chosen is worked out: the other side of `? :`, `??`, `and`, `or` is not (no random draws, no
@@ -242,7 +242,7 @@ other_victory = lord == them ? "Long live {them}, my lord!" : allied ? "We won t
 
 ```ini
 [vars]
-address = opinion > 30 ? "friend" : opinion < -30 ? "enemy" : "neighbour"
+address = opinion > 30% ? "friend" : opinion < -30% ? "enemy" : "neighbour"
 title = "my lord {them}"
 angry = ["Go away.", "You again?"]
 ```
@@ -346,7 +346,7 @@ Shortcuts: my own `epoch`, traits, `allies` and `enemies` without `me.` (`aggres
 | `X.vassals` | how many have capitulated to it |
 | `X.allies` | how many are allied with it (both ways), still in - allies alone: mine |
 | `X.enemies` | how many it treats as enemies, still in - enemies alone: mine |
-| `X.aggression`, `X.loyalty`, `X.pride`, `X.greed`, `X.forgiveness`, `X.caution`, `X.talk` | its traits, 0-100 (50 without a personality) |
+| `X.aggression`, `X.loyalty`, `X.pride`, `X.greed`, `X.forgiveness`, `X.caution`, `X.talk` | its traits, 0% to 100% (50% without a personality) - in a text "60%"; `chance(aggression)`: as likely as it is aggressive |
 | `X.food`, `X.wood`, `X.stone`, `X.gold`, `X.iron` | its stock - another's too (the AI's spies): them.gold |
 | `X.stock` | the five resources together - to scale amounts: them.tribute(me) &gt; me.stock / 2 |
 | `X.lord` | its lord, the player it capitulated to - a player: them.lord.name, lord == them; nothing when it has none |
@@ -355,7 +355,7 @@ Shortcuts: my own `epoch`, traits, `allies` and `enemies` without `me.` (`aggres
 
 | Relation | |
 |---|---|
-| `A.opinion(B)` | -100..100: what A thinks of B - in a text in words: hostile, unfriendly, indifferent, friendly, trusting (round(opinion): the number). An AI's opinion; a human's of an AI is a guess from what the AI did to them (war, a betrayal, peace, tribute, a refusal, their losses), nothing of another human |
+| `A.opinion(B)` | -100% to 100%: what A thinks of B, 0 indifferent - in a text in words: hostile, unfriendly, indifferent, friendly, trusting (round(opinion * 100): the number). An AI's opinion; a human's of an AI is a guess from what the AI did to them (war, a betrayal, peace, tribute, a refusal, their losses), nothing of another human |
 | `A.at_war(B)` | 1 when A and B are enemies, both of them |
 | `A.allied(B)` | 1 when A and B are allied, both of them |
 | `A.hostile(B)` | 1 when A treats B as an enemy (whatever B does) |
@@ -464,9 +464,9 @@ value: `{epoch}` is always the speaker's epoch, wherever it stands.
 | `name`, `name:de`, ... | The player's name in the game (`name:de` in a German game) |
 | `civilization`, `civilization:de`, ... | The name of its civilization as the game shows it, instead of the one it plays (that one stays in `X.civilization_en`) |
 | `color` | Favoured colours on random maps, the first free one wins: `["blue", "cyan"]` - blue, red, yellow, magenta, orange, green, cyan, darkred, darkgrey, purple, grey, silver, lightyellow, lime, lightblue, pink (or the German names, or a number 1..17 as `them.color` has it: `color.red` or `2`, not `"2"`). An expression like any other, worked out when the game starts - before there are players, so only constants, `chance()`, `rnd()`, `language` and `[vars]`: `chance(50%) ? ["red", "orange"] : ["grey"]`, `language == "de" ? color.yellow : color.blue` |
-| `aggression` | 0-100 (50 when left out): betrays, refuses peace |
-| `loyalty` | keeps its alliances; a vassal under 50 rebels against its lord once it has served 10 minutes and is clearly stronger than its lord's side (1 + (loyalty + 100 - pride) / 50 times: loyalty 35 and pride 80 2.1 times) - with or without the language model |
-| `pride` | how long it holds a grudge and refuses peace after a declaration of war (pride x 3 s), how long it fights on before it capitulates, how soon it rebels as a vassal |
+| `aggression` | 0% to 100% - written with the %: `aggression = 60%` (50% when left out): betrays, refuses peace |
+| `loyalty` | keeps its alliances; a vassal under 50% rebels against its lord once it has served 10 minutes and is clearly stronger than its lord's side (1 + 2 x (loyalty + 100% - pride) times: loyalty 35% and pride 80% 2.1 times) - with or without the language model |
+| `pride` | how long it holds a grudge and refuses peace after a declaration of war (pride x 5 minutes: 60% 3 minutes), how long it fights on before it capitulates, how soon it rebels as a vassal |
 | `greed` | what a tribute is worth to it |
 | `forgiveness` | how fast a grudge fades |
 | `caution` | capitulates earlier, pays more |
@@ -488,19 +488,19 @@ are in `_eeaimod_shared.eeai`; a personality that writes one of them in its own 
 
 | Key | When | The AI ... |
 |---|---|---|
-| `peace_score` | someone offers peace, or an alliance is weighed (by either side) | accepts when it is above 0 |
+| `peace_score` | someone offers peace, or an alliance is weighed (by either side) | accepts when it is above 0 (opinion is -100%..100%: a score on that scale) |
 | `seek_ally` | every minute from minute 10, at war with a strongest enemy | looks for an ally against it when true |
-| `ally_score` | for each of that enemy's other enemies (`them`) | asks the one with the highest score, if above -20 |
+| `ally_score` | for each of that enemy's other enemies (`them`) | asks the one with the highest score, if above -20% |
 
 ```ini
 [decide]
-; a fox: an alliance as soon as anyone gets ahead - and with whoever is strongest
+; a fox: an alliance as soon as anyone gets ahead - and with the strongest when it can
 seek_ally = enemy and enemy.strength > me.strength
-ally_score = them.strength / 100
+ally_score = them.rank == 1 ? 100% : opinion
 ```
 
 What stays the mod's: who can be asked at all (not someone whose army is in its town, not twice in a row too soon),
-how long an offer stands, how it is answered - and no peace within pride/20 minutes of a declaration of war. A
+how long an offer stands, how it is answered - and no peace within pride x 5 minutes of a declaration of war. A
 mistake in one (or a value that is no number) is logged once and the mod's built-in rule decides instead: the same
 as the shipped expressions. `chance()` and random choices here draw from the game's own generator, so every PC of a
 multiplayer game decides alike. Every PC must have the same files then.

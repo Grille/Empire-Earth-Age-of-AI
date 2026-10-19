@@ -11,7 +11,7 @@
 ; [vars] here serve the system lines and every personality's lines (a personality's own [vars] first);
 ; [vars:de] (or :fr ...) replaces them in a game of that language.
 ;[vars]
-;mood = opinion > 30 ? "gladly" : ""
+;mood = opinion > 30% ? "gladly" : ""
 
 [system]
 ; an AI's stance towards you changed

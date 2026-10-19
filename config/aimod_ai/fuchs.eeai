@@ -6,13 +6,13 @@ name:de = "Fürstin Livia"
 civilization = "Silver Court"
 civilization:de = "Silberner Hof"
 color = ["magenta", "purple"]
-aggression = 60
-loyalty = 15
-pride = 40
-greed = 60
-forgiveness = 50
-caution = 45
-talk = 55
+aggression = 60%
+loyalty = 15%
+pride = 40%
+greed = 60%
+forgiveness = 50%
+caution = 45%
+talk = 55%
 ; for the AI voice ([llm] in aimod.ini): who this is, in a few words
 character = "A scheming princess, charming and polite on the surface, cold and calculating beneath; enjoys hints and veiled threats."
 
@@ -87,7 +87,7 @@ peace_refuse = [
     ],
     them.refusals(me) > 0 and chance(70%) ? "Now you want peace? I offered you my hand, {them}, and you slapped it away. I remember these things.",
     them.ignored(me) > 0 and chance(60%) ? "You let my offer gather dust, {them}. Now yours can do the same.",
-    them.opinion(me) < -50 and chance(50%) ? "You cannot stand me, {them}, and now you want peace? How ... suspicious.",
+    them.opinion(me) < -50% and chance(50%) ? "You cannot stand me, {them}, and now you want peace? How ... suspicious.",
 ] ?? [
     "Why should I, {them}? What is in it for me?",
     "Later perhaps, {them}. It does not suit me now.",
@@ -123,7 +123,7 @@ alliance_offer = [
     ],
     enemy.strength > me.strength + them.strength and chance(60%) ? "{enemy} is stronger than the two of us together, {them}. Alone we are dessert. Together we might be the cook.",
     them.refusals(me) > 0 and chance(60%) ? "I know, {them}, you turned me down before. But {enemy} changes things, doesn't it?",
-    them.opinion(me) > 30 and chance(60%) ? "You have always thought so well of me, {them}. Let us make it official - against {enemy}.",
+    them.opinion(me) > 30% and chance(60%) ? "You have always thought so well of me, {them}. Let us make it official - against {enemy}.",
 ] ?? [
     "{them}, darling, {enemy} will devour us both. Shouldn't we ... work together?",
     "A proposal, {them}: the two of us against {enemy}. What do you say?",
@@ -321,7 +321,7 @@ peace_refuse = [
     ],
     them.refusals(me) > 0 and chance(70%) ? "Jetzt willst du Frieden? Ich habe dir meine Hand gereicht, {them}, und du hast sie weggeschlagen. So etwas merke ich mir.",
     them.ignored(me) > 0 and chance(60%) ? "Du hast mein Angebot verstauben lassen, {them}. Jetzt darf deines dasselbe tun.",
-    them.opinion(me) < -50 and chance(50%) ? "Du kannst mich nicht ausstehen, {them}, und willst jetzt Frieden? Wie ... verdächtig.",
+    them.opinion(me) < -50% and chance(50%) ? "Du kannst mich nicht ausstehen, {them}, und willst jetzt Frieden? Wie ... verdächtig.",
 ] ?? [
     "Warum sollte ich, {them}? Was habe ich davon?",
     "Später vielleicht, {them}. Jetzt passt es mir nicht.",
@@ -357,7 +357,7 @@ alliance_offer = [
     ],
     enemy.strength > me.strength + them.strength and chance(60%) ? "{enemy} ist stärker als wir beide zusammen, {them}. Allein sind wir der Nachtisch. Zusammen vielleicht der Koch.",
     them.refusals(me) > 0 and chance(60%) ? "Ich weiß, {them}, du hast mich schon einmal abgewiesen. Aber {enemy} ändert die Lage, nicht wahr?",
-    them.opinion(me) > 30 and chance(60%) ? "Du hast immer so gut von mir gedacht, {them}. Machen wir es offiziell - gegen {enemy}.",
+    them.opinion(me) > 30% and chance(60%) ? "Du hast immer so gut von mir gedacht, {them}. Machen wir es offiziell - gegen {enemy}.",
 ] ?? [
     "{them}, Liebes, {enemy} wird uns beide verschlingen. Sollten wir nicht ... zusammenarbeiten?",
     "Ein Vorschlag, {them}: Wir zwei gegen {enemy}. Was meinst du?",

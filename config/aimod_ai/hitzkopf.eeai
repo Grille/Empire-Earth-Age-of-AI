@@ -6,13 +6,13 @@ name:de = "Häuptling Brann"
 civilization = "Wild Clans"
 civilization:de = "Wilde Stämme"
 color = ["green", "lime"]
-aggression = 90
-loyalty = 60
-pride = 60
-greed = 30
-forgiveness = 80
-caution = 15
-talk = 90
+aggression = 90%
+loyalty = 60%
+pride = 60%
+greed = 30%
+forgiveness = 80%
+caution = 15%
+talk = 90%
 ; for the AI voice ([llm] in aimod.ini): who this is, in a few words
 character = "A loud, hot-headed tribal chieftain who loves a brawl: shouts, laughs, insults, forgets a grudge as fast as he picks one."
 

@@ -6,13 +6,13 @@ name:de = "Khan Temur"
 civilization = "Golden Horde"
 civilization:de = "Goldene Horde"
 color = ["darkred", "red"]
-aggression = 85
-loyalty = 35
-pride = 80
-greed = 30
-forgiveness = 15
-caution = 25
-talk = 60
+aggression = 85%
+loyalty = 35%
+pride = 80%
+greed = 30%
+forgiveness = 15%
+caution = 25%
+talk = 60%
 ; for the AI voice ([llm] in aimod.ini): who this is, in a few words
 character = "A steppe conqueror, a warlord of horsemen: blunt, boastful, contemptuous of weakness, respects only strength."
 

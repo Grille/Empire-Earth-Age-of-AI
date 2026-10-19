@@ -6,13 +6,13 @@ name:de = "Baumeisterin Hedda"
 civilization = "Walled Cities"
 civilization:de = "Mauerstädte"
 color = ["orange", "grey"]
-aggression = 20
-loyalty = 70
-pride = 50
-greed = 40
-forgiveness = 60
-caution = 90
-talk = 40
+aggression = 20%
+loyalty = 70%
+pride = 50%
+greed = 40%
+forgiveness = 60%
+caution = 90%
+talk = 40%
 ; for the AI voice ([llm] in aimod.ini): who this is, in a few words
 character = "A careful master builder who trusts stone walls more than people; calm, practical, slow to anger, proud of every tower."
 

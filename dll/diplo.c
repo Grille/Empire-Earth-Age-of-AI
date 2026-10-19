@@ -1923,7 +1923,13 @@ static void x_member(void *px, const struct xmember *m, struct xval *v) {
     else if (!strcmp(n, "vassals")) for (int j = 1; j < nplayers(); j++) r += j != x && x_alive(j) && g_lord[j] == x;
     else if (!strcmp(n, "allies") || !strcmp(n, "enemies"))
         for (int j = 1; j < nplayers(); j++) r += j != x && x_alive(j) && (n[0] == 'a' ? allied_with(x, j) : stance_of(px, j) != 0);
-    else for (int t = 0; t < T_N; t++) if (!strcmp(n, k_trait_keys[t])) r = trait(px, (enum trait)t);
+    else for (int t = 0; t < T_N; t++)
+        if (!strcmp(n, k_trait_keys[t])) {   // a share: 60 is 60% (0.6), written so in a text
+            char pc[8];
+            wsprintfA(pc, "%d%%", trait(px, (enum trait)t));
+            xdual(v, trait(px, (enum trait)t) / 100.0, pc);
+            return;
+        }
     xnum(v, r);
 }
 // the relations that count events, with a time window in minutes as a second argument: them.tribute(me, 15)
@@ -1948,7 +1954,7 @@ static void x_relation(void *pa, void *pb, const struct xmember *m, double win, 
         else return;
         char key[12];
         wsprintfA(key, "opinion%d", r < -50 ? 1 : r < -15 ? 2 : r <= 15 ? 3 : r <= 50 ? 4 : 5);
-        xdual(v, r, sys_text(key));
+        xdual(v, r / 100.0, sys_text(key));   // -100%..100% (the code's -100..100), its words in a text
         return;
     }
     else if (!strcmp(n, "at_war")) r = war;
