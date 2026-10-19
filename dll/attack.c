@@ -124,7 +124,7 @@ static int __fastcall hook_route_cost(uint8_t *self, void *edx, int *edge, uint8
     (void)edx;
     int cost = ((RouteCostFn)FN_ROUTE_COST)(self, edge, node);
     unsigned pi = (unsigned)FIELD(self, 0x48, int) & 15;     // planner +0x48 = own player index
-    void *pl = g_players[pi];
+    void *pl = is_vanilla_idx((int)pi) ? NULL : g_players[pi];   // a vanilla player: the game's cost
     if (!g_route_thread) {
         g_route_thread = GetCurrentThreadId();
         if (g_log) fprintf(g_log, "# routes: cost hook runs on thread %lu\n", g_route_thread);
@@ -339,6 +339,7 @@ static void citizen_attack_scan(void *pl, uint32_t now) {
 static void __fastcall hook_asg_route(uint8_t *self, void *edx, int *start, int *dest) {
     (void)edx;
     void *pl = FIELD(self, 0x190, void *);
+    if (is_vanilla(pl)) pl = NULL;   // the game's own route: no weak spot, breach, call-off, nor its log
     void *target = FIELD(self, 0x11C, void *);
     if (pl && target && !g_citizen_attacks) {
         int n = 0, cit = 0;
@@ -464,7 +465,7 @@ static float __fastcall hook_asgu_score(uint8_t *self, void *edx, uint8_t *info)
     (void)edx;
     float s = ((AsguScoreFn)FN_ASGU_SCORE)(self, info);
     uint8_t *sg = FIELD(self, 0x4C, uint8_t *), *enemy = info ? FIELD(info, 4, uint8_t *) : NULL;
-    if (!sg || !enemy || *(uintptr_t *)sg != VT_ASG_LAND) return s;
+    if (!sg || !enemy || *(uintptr_t *)sg != VT_ASG_LAND || is_vanilla(FIELD(sg, 0x190, void *))) return s;
     // rams (melee, helpless against soldiers): no building while enemy soldiers guard it - they wait with the
     // army until the guards are dealt with
     uint8_t *me = FIELD(self, 0x44, uint8_t *), *mtd = me ? FIELD(me, 0x2C, uint8_t *) : NULL;
@@ -953,7 +954,7 @@ static void __fastcall hook_repair_goal(uint8_t *u, void *edx, uint8_t *goal, in
     (void)edx;
     void *pl = u ? FIELD(u, 0x18, void *) : NULL;
     uint8_t *b = goal && *(uintptr_t *)goal == VT_GOAL_BUILD ? FIELD(goal, 0x3C, uint8_t *) : NULL;
-    if (g_avoid_citizens && pl && b && raiders_near(pl, FIELD(b, 0x1C, int), FIELD(b, 0x20, int), 8)) {
+    if (g_avoid_citizens && pl && b && !is_vanilla(pl) && raiders_near(pl, FIELD(b, 0x1C, int), FIELD(b, 0x20, int), 8)) {
         g_repair_refused[(unsigned)FIELD(pl, PL_INDEX, int) & 15]++;
         ((void (__thiscall *)(void *, int))(*(void ***)goal)[0])(goal, 1);
         return;
@@ -1288,6 +1289,7 @@ static void cmd_asgtrace(char *out, const char *args) {
     REPLY("attack subgroup trace: mask %x\n", g_trace_mask);
 }
 
+static void attack_log(void *pl, uint32_t now);
 static void attack_tick(void *pl, uint32_t now) {
     asg_trace_tick(pl, now);
     charge_tick(now);
@@ -1295,6 +1297,16 @@ static void attack_tick(void *pl, uint32_t now) {
     citizen_attack_scan(pl, now);
     breach_prune(pl);
     siege_tick(pl, now);
+    attack_log(pl, now);
+}
+// a vanilla player (eeaimod.c is_vanilla): the game's own AI - only the mod's log lines (army, battle statistics,
+// spending, gathering, attack times), so the scorers see both sides
+static void vanilla_tick(void *pl, uint32_t now) {
+    econ_vanilla_log(pl, now);
+    attack_log(pl, now);
+}
+// the army line every 5 minutes, the battle statistics every 10
+static void attack_log(void *pl, uint32_t now) {
     {
         unsigned i = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
         if (g_log && now / 300000 != g_mil[i].last_log / 300000) {

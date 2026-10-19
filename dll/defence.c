@@ -1354,7 +1354,7 @@ static void upgrade_stragglers(void) {   // the safe point (control.c hook_sim_r
     last = now;
     for (int p = 1; p < 16; p++) {
         void *pl = g_players[p];
-        if (!pl || FIELD(pl, 0x467, uint8_t)) continue;
+        if (!pl || FIELD(pl, 0x467, uint8_t) || is_vanilla(pl)) continue;
         int any = 0;
         for (int l = 0; l < 3; l++) {
             g_upg.best[l] = -1;

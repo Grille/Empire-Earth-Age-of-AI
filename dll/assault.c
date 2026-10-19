@@ -90,7 +90,7 @@ static int landing_leads(uint8_t *sg);   // landing.c
 #define FN_ASG_UPDATE 0x004491DD   // EECPASGLand slot 90: update(now)
 static void __fastcall hook_asg_update(uint8_t *sg, void *edx, int now) {
     (void)edx;
-    if ((g_assault && assault_leads(sg)) || landing_leads(sg)) return;
+    if (!is_vanilla(FIELD(sg, 0x190, void *)) && ((g_assault && assault_leads(sg)) || landing_leads(sg))) return;
     ((void (__thiscall *)(void *, int))FN_ASG_UPDATE)(sg, now);
 }
 

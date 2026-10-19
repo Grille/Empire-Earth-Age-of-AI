@@ -184,7 +184,7 @@ static void __cdecl hook_aim(uint8_t *u, uint8_t **target, float *aim, void *zer
                 T1, reach1);
     }
     if (g_measure) aim_measure(t, aim, T0, led, T1, g_lead ? reach1 : reach0);
-    if (g_lead && T1 >= 0 && memcmp(led, aim, sizeof led)) {
+    if (g_lead && T1 >= 0 && memcmp(led, aim, sizeof led) && !is_vanilla(FIELD(u, 0x18, void *))) {   // a vanilla player's units: measured, not led
         memcpy(aim, led, sizeof led);
         g_led++;
     }
@@ -282,7 +282,7 @@ static void __cdecl hook_missile_aim(uint8_t *m, uint8_t **target, float *aim, v
     g_msl[k].t = t; g_msl[k].last = now;
     memcpy(g_msl[k].p, tp, sizeof tp);
     if (dist < g_msl[k].dist) g_msl[k].dist = dist;
-    if (!g_lead_missiles || !g_msl[k].nv || !(s > 0.01f)) return;
+    if (!g_lead_missiles || !g_msl[k].nv || !(s > 0.01f) || is_vanilla(FIELD(m, 0x18, void *))) return;   // tracked, not steered
     float *v = g_msl[k].v;
     float a = v[0] * v[0] + v[1] * v[1] + v[2] * v[2] - s * s, b = 2 * (r[0] * v[0] + r[1] * v[1] + r[2] * v[2]);
     float c = dist * dist, T = -1;
@@ -418,7 +418,7 @@ static void __fastcall hook_fire(uint8_t *cls, void *edx, uint8_t *u) {
     fr_note(u);
     uint8_t *pc = FIELD(cls, 0x3FC, uint8_t *), *goal = FIELD(u, 0x1EC, uint8_t *);
     uint8_t *t = goal && goal[5] == 2 ? FIELD(goal, 0x30, uint8_t *) : NULL;
-    if (g_spread && t && pc && *(uintptr_t *)pc == VT_MISSILE && doomed(t)) {
+    if (g_spread && t && pc && *(uintptr_t *)pc == VT_MISSILE && !is_vanilla(FIELD(u, 0x18, void *)) && doomed(t)) {
         uint8_t *alt = spread_target(u, t);
         if (!alt) { g_spread_held++; return; }
         g_spread_switched++;

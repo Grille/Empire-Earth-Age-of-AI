@@ -158,21 +158,21 @@ static int fleet_leads(uint8_t *sg);                // fleet.c: a sea subgroup h
 static int fleet_refuses(uint8_t *sg, uint8_t *u);  // fleet.c: an order to one of them
 static void __fastcall hook_asg_sea_update(uint8_t *sg, void *edx, int now) {
     (void)edx;
-    if (landing_leads(sg) || fleet_leads(sg)) return;
+    if (!is_vanilla(FIELD(sg, 0x190, void *)) && (landing_leads(sg) || fleet_leads(sg))) return;
     ((void (__thiscall *)(void *, int))FN_ASG_SEA_UPDATE)(sg, now);
 }
 #define VT_ASG_AIR 0x00826610
 #define FN_ASG_AIR_UPDATE 0x00442DBA   // EECPASGAir slot 90: update(now)
 static void __fastcall hook_asg_air_update(uint8_t *sg, void *edx, int now) {
     (void)edx;
-    if (landing_leads(sg)) return;
+    if (!is_vanilla(FIELD(sg, 0x190, void *)) && landing_leads(sg)) return;
     ((void (__thiscall *)(void *, int))FN_ASG_AIR_UPDATE)(sg, now);
 }
 #define VT_ASG_SEA_TRANSPORT 0x008270F8
 #define FN_ASG_SEA_TRANSPORT_UPDATE 0x0044FB92   // EECPASGSeaTransport slot 90: update(now)
 static void __fastcall hook_asg_sea_transport_update(uint8_t *sg, void *edx, int now) {
     (void)edx;
-    if (landing_leads(sg)) return;
+    if (!is_vanilla(FIELD(sg, 0x190, void *)) && landing_leads(sg)) return;
     ((void (__thiscall *)(void *, int))FN_ASG_SEA_TRANSPORT_UPDATE)(sg, now);
 }
 
@@ -252,7 +252,7 @@ static unsigned g_ld_refused, g_ld_kept_goal;
 static void ld_fu_given(void *g, int ok);   // below (the game's unload orders to landing transports)
 static char __fastcall hook_asg_give_goal(uint8_t *sg, void *edx, uint8_t *u, void *goal, int a, int prio) {
     (void)edx;
-    if (landing_leads(sg) || fleet_refuses(sg, u)) {   // the fleet (fleet.c): its ships in any subgroup
+    if (!is_vanilla(FIELD(sg, 0x190, void *)) && (landing_leads(sg) || fleet_refuses(sg, u))) {   // the fleet (fleet.c): its ships in any subgroup
         g_ld_refused++;
         if ((uintptr_t)__builtin_return_address(0) == RET_ASG_LAND_HANDOFF_GIVE) { g_ld_kept_goal++; return 1; }
         ld_fu_given(goal, 0);
@@ -264,7 +264,7 @@ static char __fastcall hook_asg_give_goal(uint8_t *sg, void *edx, uint8_t *u, vo
 }
 static char __fastcall hook_asg_air_give_goal(uint8_t *sg, void *edx, uint8_t *u, void *goal, int a, int prio) {
     (void)edx;
-    if (landing_leads(sg)) { g_ld_refused++; return 0; }
+    if (!is_vanilla(FIELD(sg, 0x190, void *)) && landing_leads(sg)) { g_ld_refused++; return 0; }
     return ((char (__thiscall *)(void *, void *, void *, int, int))FN_ASG_AIR_GIVE_GOAL)(sg, u, goal, a, prio);
 }
 
@@ -2291,7 +2291,7 @@ static void ld_fu_check(uint32_t now) {
 static void *__fastcall hook_unload_ctor(void *g, void *edx, uint8_t *tr, int x, int y, int flag) {
     (void)edx;
     uintptr_t ret = (uintptr_t)__builtin_return_address(0) - 5;
-    for (int p = 0; p < 16 && tr; p++)
+    for (int p = 0; p < 16 && tr && !is_vanilla(FIELD(tr, 0x18, void *)); p++)   // a vanilla player's transport: never a landing's
         for (int k = 0; k < g_ld[p].nships && g_ld[p].phase; k++)
             if (g_ld[p].ships[k] == tr) {
                 int site = 0;
@@ -2324,7 +2324,7 @@ static void *__fastcall hook_unload_ctor(void *g, void *edx, uint8_t *tr, int x,
 static unsigned g_ld_retry_refused;
 static void __fastcall hook_unload_retry_give(uint8_t *u, void *edx, uint8_t *goal, int slot) {
     (void)edx;
-    for (int p = 0; p < 16 && goal; p++) {
+    for (int p = 0; p < 16 && goal && !is_vanilla(FIELD(u, 0x18, void *)); p++) {
         struct landing *l = &g_ld[p];
         for (int k = 0; k < l->nships && l->phase; k++)
             if (l->ships[k] == u) {
@@ -2348,7 +2348,7 @@ give:
 // land) unloads a transport of a landing waiting for its last passengers or for the warships: for those "nowhere"
 static int __fastcall hook_idle_unload_shore(void *mgr, void *edx, uint8_t *tr) {
     (void)edx;
-    for (int p = 0; p < 16 && tr; p++)
+    for (int p = 0; p < 16 && tr && !is_vanilla(FIELD(tr, 0x18, void *)); p++)   // a vanilla player's transport: never a landing's
         for (int k = 0; k < g_ld[p].nships && g_ld[p].phase; k++)
             if (g_ld[p].ships[k] == tr) return 0;
     return ((int (__thiscall *)(void *, void *))0x0042C49A)(mgr, tr);

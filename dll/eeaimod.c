@@ -78,6 +78,7 @@ static void econ_rebalance(uint8_t *rm);
 static void econ_fields(uint8_t *rm);
 static void citizens_safety(uint8_t *rm);
 static void attack_tick(void *pl, uint32_t now);
+static void vanilla_tick(void *pl, uint32_t now);
 static void assault_tick(void *pl, uint32_t now);
 static void landing_tick(void *pl, uint32_t now);
 static void navy_tick(void *pl, uint32_t now);
@@ -121,17 +122,31 @@ static int g_fix_scenario_ai = 1;    // aimod.ini [fixes] scenario_ai=0 turns it
 static uint8_t g_is_scenario;        // the flag as the game set it (it reads 0 inside the AI update)
 typedef void (__thiscall *CpUpdateFn)(void *pl, uint32_t now);
 
+static int is_vanilla(const void *pl);   // below
 static void __fastcall hook_cp_update(void *pl, void *edx, uint32_t now) {
     (void)edx;
     uint8_t *flag = (uint8_t *)G_SCENARIO_FLAG;
     uint8_t saved = *flag;
     g_is_scenario = saved;
-    if (g_fix_scenario_ai) *flag = 0;
+    if (g_fix_scenario_ai && !is_vanilla(pl)) *flag = 0;
     ((CpUpdateFn)FN_CP_UPDATE)(pl, now);
     *flag = saved;
 }
 
 #define FIELD(p, off, T) (*(T *)((uint8_t *)(p) + (off)))
+
+// VANILLA PLAYERS (autotest only): [autotest] vanilla_players = the player numbers (e.g. 3, or 23) that play the
+// game's own AI, unmodified - the benchmark "the mod's AI against the base game's (cheating) AI in one game". Every
+// hook that acts for or on an AI player passes straight through to the game's original for them, every per-player
+// tick of the mod skips them (only its log lines stay: battle statistics, army, gather, spending, attack times), the
+// mod's diplomacy treats them as it treats a human (it never decides for them), and no setting, personality or cheat
+// of the mod's touches them; they get the game's own difficulty and Cheat toggle instead (vanilla_difficulty,
+// vanilla_cheat - randmap.c). What stays on for everyone: the engine guards (pure crash fixes: the unit list and
+// double release, subgroup members without their unit, damage points, goal sets after a dropped goal, the field
+// without foundation, no unit offered to groups during the mod's own call-off) and the test plumbing.
+static unsigned g_vanilla_mask;
+static int is_vanilla_idx(int idx) { return (g_vanilla_mask >> (idx & 15)) & 1; }
+static int is_vanilla(const void *pl) { return pl && g_vanilla_mask && is_vanilla_idx(FIELD(pl, PL_INDEX, int)); }
 
 // Unit type (object) data 0x9418A0[type]: 0x300 slots (the game's own loops end at 0x9424A0; type ids 0..723 are
 // used, the slots after them are empty), past the table other data. Every read goes through here: NULL outside
@@ -232,13 +247,18 @@ static char __fastcall hook_compute_targets(void *rm, void *edx) {
     (void)edx;
     log_state(rm, "pre_targets", game_time());
     char changed = ((RmFn)FN_COMPUTE_TARGETS)(rm);
-    econ_targets((uint8_t *)rm);
+    if (!is_vanilla(rm_player(rm))) econ_targets((uint8_t *)rm);
     log_state(rm, "post_targets", game_time());
     return changed;
 }
 
 static char __fastcall hook_assign_citizens(void *rm, void *edx) {
     (void)edx;
+    if (is_vanilla(rm_player(rm))) {
+        char r = ((RmFn)FN_ASSIGN_CITIZENS)(rm);
+        log_state(rm, "post_assign", game_time());
+        return r;
+    }
     econ_fields((uint8_t *)rm);   // farm fields (econ.c)
     citizens_safety((uint8_t *)rm);   // away from known enemy towers (attack.c)
     char r = ((RmFn)FN_ASSIGN_CITIZENS)(rm);
@@ -316,8 +336,10 @@ static void __fastcall hook_rm_update(void *rm, void *edx, uint32_t now) {
         ctl_note_player(pl);
         if (g_settings_done[idx] != pl) {   // the personality first: its [style] (ai_style=1) is part of the settings
             g_settings_done[idx] = pl;
-            persona_assign(pl);
-            settings_apply(pl);
+            if (!is_vanilla(pl)) {
+                persona_assign(pl);
+                settings_apply(pl);
+            }
         }
         if (now < 5000) dumped[idx] = 0;   // new game in the same session
 
@@ -350,7 +372,8 @@ static void __fastcall hook_rm_update(void *rm, void *edx, uint32_t now) {
         }
     }
     ((RmUpdateFn)FN_RM_UPDATE)(rm, now);
-    if (pl) { intel_tick(pl, now); econ_tick(pl, now); attack_tick(pl, now); assault_tick(pl, now); landing_tick(pl, now); navy_tick(pl, now); }
+    if (pl && is_vanilla(pl)) vanilla_tick(pl, now);   // the game's own AI: only the mod's log lines (attack.c)
+    else if (pl) { intel_tick(pl, now); econ_tick(pl, now); attack_tick(pl, now); assault_tick(pl, now); landing_tick(pl, now); navy_tick(pl, now); }
     g_rm_seen = 1;
     autotest_tick(now);
 }
@@ -906,6 +929,11 @@ static void install(HMODULE self) {
             fprintf(g_log, "# autotest: skip_intro=%s quit_minutes=%d cmdline=%s\n",
                     g_auto.skip_intro ? (skip_intro_movies() ? "ok" : "FAILED") : "off",
                     g_auto.quit_minutes, GetCommandLineA());
+        if (g_vanilla_mask) {
+            fprintf(g_log, "# vanilla: players");
+            for (int i = 1; i < 16; i++) if (is_vanilla_idx(i)) fprintf(g_log, " %d", i);
+            fprintf(g_log, " play the game's own AI (difficulty %d, cheat %d; -1: as the others)\n", g_rm.v_difficulty, g_rm.v_cheat);
+        }
         fflush(g_log);
     }
     // normal play: aimod.ini [general] skip_intro = 1 skips the intro movies (autotest has its own key)

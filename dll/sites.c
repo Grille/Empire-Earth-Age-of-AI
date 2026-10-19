@@ -215,6 +215,7 @@ static void trace_site(uint8_t *rm, const char *what, uintptr_t caller, void *un
 static void *__fastcall hook_find_mine(uint8_t *rm, void *edx, int type, uint8_t *unit, uintptr_t rev) {
     (void)edx;
     uintptr_t caller = CALLER();
+    if (is_vanilla(rm_player(rm))) return ((Fn3)FN_FIND_MINE)(rm, (uintptr_t)type, (uintptr_t)unit, rev);   // the game's search
     if (!cfg_of(rm_player(rm))->safe_sites) {
         uint8_t *r = g_mine_choice && type >= 4 && type < 7 ? select_mine_near_drop(rm, type, unit) : NULL;
         return r ? r : refuse_danger(rm, ((Fn3)FN_FIND_MINE)(rm, (uintptr_t)type, (uintptr_t)unit, rev), type == 2, type);
@@ -233,6 +234,7 @@ static void *__fastcall hook_find_mine(uint8_t *rm, void *edx, int type, uint8_t
 
 static void *__fastcall hook_find_food(uint8_t *rm, void *edx, uintptr_t need_drop, uintptr_t near_base, uint8_t *unit) {
     (void)edx;
+    if (is_vanilla(rm_player(rm))) return ((Fn3)FN_FIND_FOOD)(rm, need_drop, near_base, (uintptr_t)unit);
     if (!cfg_of(rm_player(rm))->safe_sites) return refuse_danger(rm, ((Fn3)FN_FIND_FOOD)(rm, need_drop, near_base, (uintptr_t)unit), 1, 2);
     void *pl = rm_player(rm);
     int r6 = pl ? FIELD(pl, 0xE10, int) : 6;
@@ -249,7 +251,7 @@ static const uintptr_t k_wood_sites[] = { 0x48a28e, 0x48aaf6 };
 static void list_filter(uint8_t *rm, uint8_t *v, int food) {
     void *pl = rm_player(rm);
     void **b = v ? FIELD(v, 4, void **) : NULL, **e = v ? FIELD(v, 8, void **) : NULL, **w = b;
-    if (!pl || !b) return;
+    if (!pl || !b || is_vanilla(pl)) return;   // a vanilla player: the game's list
     for (void **i = b; i < e; i++) {
         if (site_danger(pl, *i, food)) { g_site_refused[(unsigned)FIELD(pl, PL_INDEX, int) & 15]++; continue; }
         *w++ = *i;
@@ -277,6 +279,7 @@ static void *__fastcall hook_hunt(uint8_t *rm, void *edx, uintptr_t n, uintptr_t
 }
 static void *__fastcall hook_find_wood(uint8_t *rm, void *edx, uintptr_t flag, uint8_t *unit) {
     (void)edx;
+    if (is_vanilla(rm_player(rm))) return ((Fn2)FN_FIND_WOOD)(rm, flag, (uintptr_t)unit);
     return refuse_danger(rm, ((Fn2)FN_FIND_WOOD)(rm, flag, (uintptr_t)unit), 0, 3);
 }
 

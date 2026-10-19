@@ -685,7 +685,7 @@ static int __fastcall hook_fish_type(void *o, void *edx) {
     (void)edx;
     int t = ((int (__thiscall *)(void *))FN_FISH_TYPE)(o);
     void *pl = o ? FIELD(o, 0x4C, void *) : NULL;
-    if (!g_fish_boat || !pl || !FIELD(pl, PL_TECHTREE, void *)) return t;
+    if (!g_fish_boat || !pl || !FIELD(pl, PL_TECHTREE, void *) || is_vanilla(pl)) return t;
     static const int boats[] = { 108, 109, 365, 211, 332 };
     int best = 0, bt = 0;
     for (size_t k = 0; k < sizeof boats / sizeof *boats; k++) {

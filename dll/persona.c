@@ -613,6 +613,7 @@ static void persona_new_game(uint8_t *setup) {
         if (type != 0 && type != 1) continue;
         player++;
         if (type == 1) { if (c >= 0 && c < 17) used[c] = 1; continue; }
+        if (is_vanilla_idx(player)) continue;   // a vanilla player: the game's name and colour
         int pick = persona_forced(player);
         if (pick < 0) pick = persona_random();
         if (pick < 0) continue;
@@ -868,7 +869,7 @@ static char __fastcall hook_native_chat(uint8_t *pim, void *edx, int base, int m
     int k = base == 12000 ? L_WONDER_THREAT : base == 12100 ? L_WONDER_HELP : base == 12200 ? L_WONDER_NOHELP :
             base == 12300 ? L_HELP_LAND : base == 12330 ? L_HELP_AIR : base == 12360 ? L_HELP_NAVAL :
             base == 12400 ? L_HELP_NONE : base == 12500 ? L_WAR_DECLARED : -1;
-    if (k >= 0 && persona_has(pl, (enum line_kind)k)) {
+    if (k >= 0 && !is_vanilla(pl) && persona_has(pl, (enum line_kind)k)) {
         if (k != L_WAR_DECLARED) persona_say(pl, (enum line_kind)k, NULL, NULL);
         return 1;
     }

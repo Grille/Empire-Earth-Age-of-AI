@@ -163,6 +163,10 @@ static struct {
     uint32_t seen[16][16];  // [ai][h]: h's soldiers, citizens and buildings ai destroyed, counted so far
     uint8_t set[16][16];    // [h][ai]: started (as an AI starts: enemy -10, ally 20)
 } g_hum;
+// an AI the mod's diplomacy decides for: not a vanilla player (eeaimod.c is_vanilla - the game's own AI, which the
+// diplomacy treats as it treats a human: it never answers, the mod never acts for it, and no AI of the mod's offers it
+// an alliance or capitulates to it - the game's AI does no diplomacy)
+static int mod_ai(int i) { return i > 0 && i < 16 && g_players[i] && !is_vanilla_idx(i); }
 static int hum_pair(int h, int ai) {   // h a human, ai an AI
     return h > 0 && h < 16 && ai > 0 && ai < 16 && h != ai && !g_players[h] && g_players[ai] && player_at(h);
 }
@@ -550,7 +554,7 @@ static void block_split(int agg, int vic, const int *blk, uint32_t now) {
     int old = blk[vic];
     for (int m = 1; m < nplayers(); m++) {
         void *pm = player_at(m);
-        if (m == agg || m == vic || !g_players[m] || !block_member(m) || !old || blk[m] != old) continue;
+        if (m == agg || m == vic || !mod_ai(m) || !block_member(m) || !old || blk[m] != old) continue;
         int side;
         if (g_lord[m] == agg || g_lord[m] == vic) side = g_lord[m];
         else if (mutual(m, vic) != mutual(m, agg)) side = mutual(m, vic) ? vic : agg;
@@ -582,7 +586,7 @@ static void blocks_pass(uint32_t now) {
             for (int y = x + 1; y < n; y++) {
                 if (!g_mutual_prev[x][y] || mutual(x, y) || !block_member(x) || !block_member(y)) continue;
                 int xh = stance_of(player_at(x), y), yh = stance_of(player_at(y), x);
-                int agg = xh && !yh ? x : !xh && yh ? y : (g_players[x] ? y : x);   // both at once: the human
+                int agg = xh && !yh ? x : !xh && yh ? y : (mod_ai(x) ? y : x);   // both at once: the human
                 if (g_log) fprintf(g_log, "# diplomacy: blocks: P%d turned hostile towards its block's P%d\n", agg, agg == x ? y : x);
                 block_split(agg, agg == x ? y : x, g_block_of, now);
             }
@@ -591,7 +595,7 @@ static void blocks_pass(uint32_t now) {
         for (int y = x + 1; y < n; y++) {
             if (!blk[x] || blk[x] != blk[y] || mutual(x, y)) continue;
             void *px = player_at(x), *py = player_at(y);
-            if (g_players[x] && g_players[y]) {
+            if (mod_ai(x) && mod_ai(y)) {
                 vassal_grumble(x, y, now);
                 vassal_grumble(y, x, now);
                 make_peace(x, y, now);
@@ -599,11 +603,11 @@ static void blocks_pass(uint32_t now) {
                 persona_say(px, L_PEACE_ACCEPT, py, NULL);
                 if (g_log) fprintf(g_log, "# diplomacy: blocks: P%d and P%d make peace (one block)\n", x, y);
                 for (int h = 1; h < n; h++)
-                    if (!g_players[h] && blk[h] == blk[x]) {
+                    if (!mod_ai(h) && blk[h] == blk[x]) {
                         block_line(h, sysf("block_peace", px, player_at(h), NULL, "ally", player_name(py), NULL));
                     }
-            } else if (g_players[x] || g_players[y]) {
-                int a = g_players[x] ? x : y, h = a == x ? y : x;
+            } else if (mod_ai(x) || mod_ai(y)) {
+                int a = mod_ai(x) ? x : y, h = a == x ? y : x;
                 void *pa = player_at(a), *ph = player_at(h);
                 if (g_offer_t[a][h]) continue;   // an offer is pending
                 if (stance_of(pa, h)) {   // the AI is at war with him: it offers peace (turns allied when he does)
@@ -643,7 +647,7 @@ static int lord_in_deal(int k, int ai, int j, const int *blk) {
 }
 // a vassal made to make peace with someone it holds a grudge against tells its lord so
 static void vassal_grumble(int v, int other, uint32_t now) {
-    if (!g_players[v] || !g_lord[v] || block_grudge(v, other, now) >= -30) return;
+    if (!mod_ai(v) || !g_lord[v] || block_grudge(v, other, now) >= -30) return;
     persona_say(player_at(v), L_VASSAL_GRUMBLE, player_at(g_lord[v]), player_at(other));
     if (g_log) fprintf(g_log, "# diplomacy: blocks: P%d (vassal of P%d) grumbles about peace with P%d (grudge %.0f)\n", v, g_lord[v],
                        other, block_grudge(v, other, now));
@@ -661,8 +665,8 @@ static int block_veto(int ai, int j, uint32_t now, int *own) {
             if (q == p || (p == ai && q == j) || mutual(p, q) || !block_member(p) || !block_member(q)) continue;
             if (blk[p] && blk[p] == blk[q]) continue;   // already one block
             float g = 1e9f;
-            if (g_players[p] && !lord_in_deal(p, ai, j, blk)) g = block_grudge(p, q, now);
-            if (g_players[q] && !lord_in_deal(q, ai, j, blk) && block_grudge(q, p, now) < g) g = block_grudge(q, p, now);
+            if (mod_ai(p) && !lord_in_deal(p, ai, j, blk)) g = block_grudge(p, q, now);
+            if (mod_ai(q) && !lord_in_deal(q, ai, j, blk) && block_grudge(q, p, now) < g) g = block_grudge(q, p, now);
             if (g < worst) { worst = g; who = q == j ? p : q; mine = q == j; }
         }
     }
@@ -736,12 +740,12 @@ static void offer_alliance(int ai, int best, int lead, uint32_t now) {
     void *pj = player_at(best);
     g_offer_last[ai][best] = now;
     persona_say(pl, L_ALLIANCE_OFFER, pj, player_at(lead));
-    if (g_players[best] && llm_ai_deciding() && llm_ai_offer(ai, best, 0, lead)) {   // the model answers (llm.c)
+    if (mod_ai(best) && llm_ai_deciding() && llm_ai_offer(ai, best, 0, lead)) {   // the model answers (llm.c)
         g_offer_t[ai][best] = now ? now : 1;   // as to a human: it stands 2 minutes; acceptance = allied
         g_offer_kind[ai][best] = 0;
         g_offer_vs[ai][best] = (uint8_t)lead;
         if (g_log) fprintf(g_log, "# diplomacy: P%d offers P%d (AI, the model decides) an alliance against P%d\n", ai, best, lead);
-    } else if (g_players[best]) {   // an AI decides at once (its turn of peace_offer)
+    } else if (mod_ai(best)) {   // an AI decides at once (its turn of peace_offer)
         float s = peace_score(pj, best, ai, now) + 15;
         if (g_log) fprintf(g_log, "# diplomacy: P%d offers P%d (AI) an alliance against P%d: score %.0f\n", ai, best, lead, s);
         if (s > 0) {
@@ -833,7 +837,7 @@ static void diplo_initiative(void *pl, int ai, uint32_t now) {
         double bs = -20;
         for (int j = 1; j < nplayers(); j++) {
             void *pj = player_at(j);
-            if (!pj || j == ai || j == lead || is_out(pj) || !stance_of(pl, j) || !stance_of(pj, lead)) continue;
+            if (!pj || j == ai || j == lead || is_out(pj) || !stance_of(pl, j) || !stance_of(pj, lead) || is_vanilla_idx(j)) continue;
             if (g_pressure[ai][j] >= 10) continue;   // not the one whose army is in its base right now
             if (g_offer_t[ai][j] || (g_offer_last[ai][j] &&
                                      now - g_offer_last[ai][j] < (600000u << (g_offer_ignored[ai][j] < 2 ? g_offer_ignored[ai][j] : 2))))
@@ -965,7 +969,7 @@ static void capitulate(void *pl, int ai, int a, uint32_t now) {
                        g_players[a] ? "AI" : "human", total, share * 100, g_ws.power[ai], g_ws.power[a], g_ws.close_by[ai][a],
                        g_ws.buildings[ai], g_ws.peak[ai]);
     persona_say(pl, L_CAPITULATE, pa, NULL);
-    if (g_players[a] && llm_ai_deciding() && llm_ai_offer(ai, a, 1, 0)) {   // the model answers: as to a human (below)
+    if (mod_ai(a) && llm_ai_deciding() && llm_ai_offer(ai, a, 1, 0)) {   // the model answers: as to a human (below)
         set_stance(ai, a, 0);
         promise_escrow(ai, 1);
         g_offer_t[ai][a] = now ? now : 1;
@@ -973,7 +977,7 @@ static void capitulate(void *pl, int ai, int a, uint32_t now) {
         g_offer_vs[ai][a] = 0;
         return;
     }
-    if (g_players[a]) {   // an AI conqueror decides at once: peace score + what the tribute is worth to it
+    if (mod_ai(a)) {   // an AI conqueror decides at once: peace score + what the tribute is worth to it
         float gain = (float)total / tribute_worth(pa);
         float s = peace_score(pa, a, ai, now) + gain;
         if (s > 0 && block_veto(ai, a, now, NULL)) s = -1;   // its side and the capitulating side can't be one block
@@ -1082,7 +1086,7 @@ static void check_capitulation(void *pl, int ai, uint32_t now) {
     int a = 0;   // the attacker: whose soldiers have been in its base the most lately
     for (int j = 1; j < nplayers(); j++) {
         void *pj = player_at(j);
-        if (!pj || j == ai || is_out(pj) || !stance_of(pl, j) || !stance_of(pj, ai) || g_offer_t[ai][j]) continue;
+        if (!pj || j == ai || is_out(pj) || !stance_of(pl, j) || !stance_of(pj, ai) || g_offer_t[ai][j] || is_vanilla_idx(j)) continue;
         if (!a || g_pressure[ai][j] > g_pressure[ai][a]) a = j;
     }
     if (!a || g_ws.close_by[ai][a] < 5 || g_pressure[ai][a] < 15) return;      // its army is in the base, and stays
@@ -1142,7 +1146,7 @@ static void cancel_citizen_attack(int ai, int target) {
     if (ai > 0 && ai < 16 && target > 0 && target < 16) InterlockedOr(&g_cancel_cit_queue[ai], 1 << target);
 }
 static void diplo_cancel_attacks(int ai, int j) {
-    if (ai > 0 && ai < 16 && j > 0 && j < 16 && g_players[ai]) InterlockedOr(&g_cancel_queue[ai], 1 << j);
+    if (ai > 0 && ai < 16 && j > 0 && j < 16 && mod_ai(ai)) InterlockedOr(&g_cancel_queue[ai], 1 << j);
 }
 static int attack_groups(void *pl) {   // the attack commander's deque count
     uint8_t *cbm = FIELD(pl, 0xB8C, uint8_t *), *cmd = cbm ? FIELD(cbm, 0x48, uint8_t *) : NULL;
@@ -1163,7 +1167,7 @@ static void diplo_safe_point(void) {
         if (!g_cancel_cit_queue[i]) continue;
         LONG q = InterlockedExchange(&g_cancel_cit_queue[i], 0);
         void *p = player_at(i);
-        if (!p || !g_players[i] || is_out(p)) continue;
+        if (!p || !mod_ai(i) || is_out(p)) continue;
         for (int j = 1; j < 16; j++) {
             void *pj = player_at(j);
             if (!(q & (1 << j)) || !pj) continue;
@@ -1183,7 +1187,7 @@ static void diplo_safe_point(void) {
         if (!g_cancel_queue[i]) continue;
         LONG q = InterlockedExchange(&g_cancel_queue[i], 0);
         void *p = player_at(i);
-        if (!p || !g_players[i] || is_out(p)) continue;
+        if (!p || !mod_ai(i) || is_out(p)) continue;
         for (int j = 1; j < 16; j++) {
             void *pj = player_at(j);
             if (!(q & (1 << j)) || !pj || stance_of(p, j)) continue;   // enemies again: the attack stays
@@ -1232,17 +1236,17 @@ static void reputation_pass(uint32_t now) {
                 // chain in the block: the flag stayed and excused a later real betrayal)
                 if (g_justified[x][y] && px && stance_of(px, y)) { g_justified[x][y] = 0; continue; }
                 if (x == y || !g_rep_prev[x][y] || !px || !py || is_out(px) || is_out(py) || !stance_of(px, y)) continue;
-                if (stance_of(py, x) && g_players[x] && !g_players[y]) continue;   // both at once: the human started it
+                if (stance_of(py, x) && mod_ai(x) && !mod_ai(y)) continue;   // both at once: the human started it
                 int vassal = g_lord[y] == x, fresh = vassal && g_lord_since[y] && now - g_lord_since[y] < 600000;
                 for (int o = 1; o < n; o++) {
                     void *po = player_at(o);
-                    if (o == x || o == y || !g_players[o] || !po || is_out(po)) continue;
+                    if (o == x || o == y || !mod_ai(o) || !po || is_out(po)) continue;
                     float d = -15.0f * (float)trait(po, T_LOYALTY) / 100.0f;
                     if (allied_both(o, y)) d *= 2;
                     if (vassal) d *= fresh ? 5 : 3;
                     opinion_add(o, x, d);
                 }
-                if (vassal && g_players[y]) opinion_add(y, x, -40);
+                if (vassal && mod_ai(y)) opinion_add(y, x, -40);
                 if (g_log) fprintf(g_log, "# diplomacy: reputation: P%d broke its alliance with P%d%s - every AI thinks worse of it\n",
                                    x, y, fresh ? " (its vassal, right after accepting the capitulation)" : vassal ? " (its vassal)" : "");
             }
@@ -1443,7 +1447,7 @@ static void diplo_new_game(void) {
 #define VT_PAY_TRIBUTE 0x008289C0
 #define FN_PAY_TRIBUTE 0x004BA6BE
 static void diplo_tribute(void *to, void *from, int total) {
-    if (!to || !from || to == from || !g_players[pidx(to)] || total <= 0) return;
+    if (!to || !from || to == from || !mod_ai(pidx(to)) || total <= 0) return;
     int ai = pidx(to), j = pidx(from);
     float gain = (float)total / tribute_worth(to);
     opinion_add(ai, j, gain);

@@ -8,7 +8,16 @@
 //   +0x3F4 wonders for victory, +0x3F8 difficulty (1 medium), +0x400 option bytes.
 //   Map seed: world (0x91977C) +0x54.
 // Ini keys: random_map=<script name>, map_size, ai_count (1..7), start_epoch, seed, teams=ffa|pairs,
-//   citizens, unit_limit (500). AI toggles at their first update: ai_cheat (0/1), ai_ignore (Ignorieren 0/1).
+//   citizens, unit_limit (500), difficulty (easy|medium|hard or 0..2: the setup's +0x3F8 and 0x918C14, every AI's +0xBA4 - the
+//   menu's AI difficulty; default medium). AI toggles at their first update: ai_cheat (0/1), ai_ignore (Ignorieren 0/1).
+// VANILLA PLAYERS (eeaimod.c is_vanilla): vanilla_players=<digits>, and for them only vanilla_difficulty (as difficulty)
+//   and vanilla_cheat (0/1, on top of ai_cheat). The game's cheat (EEComputerPlayer vf27 0x430FBD, AdjustCost): with
+//   Cheat (+0xEFB) on, every price x pct / 100 - pct by difficulty, dbcpbehavior record 96 (easy +0xD48, hard +0xD4C) and
+//   record 67 (medium +0xBB4). The difficulty itself scales the epoch timer (+0xD60/+0xD64), the attack times
+//   (+0xD08/+0xD0C, +0xCEC/+0xCF0), the attack group size (+0xD30..) and the population cap (+0xDF0..), all read when
+//   used - a player's +0xBA4 set at its first update counts from then on; its first epoch attempt and first attack,
+//   drawn before with the setup's difficulty, are drawn again by the game's own code (0x46DE8C, 0x43DD2F). Logged per
+//   AI at its first update: "# cheat: P3 (vanilla) difficulty 2, cheat 1: a price of 1000 costs 10".
 // Included by eeaimod.c.
 
 static struct {
@@ -16,7 +25,20 @@ static struct {
     int size, ais, start_epoch, seed, pairs, citizens, unit_limit;
     int ai_cheat, ai_ignore;   // -1 = leave as the game sets them
     int epoch_min, epoch_max;  // test-only epoch timer in minutes (0 = game setting)
-} g_rm = { "", 0, 3, 0, 0, 0, 5, 500, -1, -1, 0, 0 };
+    int difficulty;            // the setup's (every AI), 0..2
+    int v_difficulty, v_cheat; // the vanilla players' own (-1: as the others)
+} g_rm = { "", 0, 3, 0, 0, 0, 5, 500, -1, -1, 0, 0, 1, -1, -1 };
+
+static int difficulty_key(const char *ini, const char *key, int def) {   // easy|medium|hard or 0..2
+    char v[16];
+    GetPrivateProfileStringA("autotest", key, "", v, sizeof v, ini);
+    if (!v[0]) return def;
+    if (!lstrcmpiA(v, "easy")) return 0;
+    if (!lstrcmpiA(v, "medium") || !lstrcmpiA(v, "moderate")) return 1;
+    if (!lstrcmpiA(v, "hard")) return 2;
+    int d = atoi(v);
+    return d < 0 ? 0 : d > 2 ? 2 : d;
+}
 
 typedef void *(__thiscall *UStrAssignFn)(void *ustr, const char *s);
 #define IAT_USTRING_ASSIGN 0x00823228   // UString::operator=(const char *)
@@ -38,6 +60,12 @@ static void randmap_load(const char *ini) {
     g_rm.ai_ignore = ini_int("autotest", "ai_ignore", -1, ini);
     g_rm.epoch_min = ini_int("autotest", "epoch_min", 0, ini);
     g_rm.epoch_max = ini_int("autotest", "epoch_max", g_rm.epoch_min, ini);
+    g_rm.difficulty = difficulty_key(ini, "difficulty", 1);
+    char vp[32];
+    GetPrivateProfileStringA("autotest", "vanilla_players", "", vp, sizeof vp, ini);
+    for (char *c = vp; *c; c++) if (*c >= '1' && *c <= '9') g_vanilla_mask |= 1u << (*c - '0');
+    g_rm.v_difficulty = difficulty_key(ini, "vanilla_difficulty", -1);
+    g_rm.v_cheat = ini_int("autotest", "vanilla_cheat", -1, ini);
 }
 
 // Called from hook_game_start before the original runs.
@@ -66,15 +94,18 @@ static void randmap_rewrite(uint8_t *setup) {
     *(int *)(setup + 0x3EC) = 3;
     *(int *)(setup + 0x3F0) = g_rm.unit_limit;
     *(int *)(setup + 0x3F4) = 3;
-    *(int *)(setup + 0x3F8) = 1;
+    *(int *)(setup + 0x3F8) = g_rm.difficulty;
+    // the AIs' difficulty: their set-up (0x431697) copies the global 0x918C14 (set by the game options messages,
+    // EEMFullGameOptions 0x4B642F, which a load-game start never sends - the setup's +0x3F8 alone left medium)
+    *(int *)0x00918C14 = g_rm.difficulty;
     *(int *)(setup + 0x3FC) = 0;
     setup[0x400] = 1; setup[0x401] = 0; setup[0x402] = 0; setup[0x403] = 1;
     *(int *)0x00918BF4 = 0;   // game type: random map
     uint8_t *world = *(uint8_t **)0x0091977C;
     if (world && g_rm.seed) *(int *)(world + 0x54) = g_rm.seed;
     if (g_log) {
-        fprintf(g_log, "# random map: \"%s\" size %d, %d AIs (%s), start epoch %d, seed %d\n", g_rm.map, g_rm.size,
-                g_rm.ais, g_rm.pairs ? "pairs" : "ffa", g_rm.start_epoch, world ? *(int *)(world + 0x54) : -1);
+        fprintf(g_log, "# random map: \"%s\" size %d, %d AIs (%s), start epoch %d, seed %d, difficulty %d\n", g_rm.map, g_rm.size,
+                g_rm.ais, g_rm.pairs ? "pairs" : "ffa", g_rm.start_epoch, world ? *(int *)(world + 0x54) : -1, g_rm.difficulty);
         fflush(g_log);
     }
 }
@@ -89,13 +120,30 @@ static void randmap_rewrite(uint8_t *setup) {
 static void randmap_ai_toggles(void *pl) {
     if (g_rm.ai_cheat >= 0) FIELD(pl, PL_CHEAT, uint8_t) = (uint8_t)g_rm.ai_cheat;
     if (g_rm.ai_ignore >= 0) FIELD(pl, 0xF02, uint8_t) = (uint8_t)g_rm.ai_ignore;
-    if (g_rm.epoch_min > 0) {
+    int vanilla = is_vanilla(pl), idx = FIELD(pl, PL_INDEX, int);
+    if (vanilla && g_rm.v_cheat >= 0) FIELD(pl, PL_CHEAT, uint8_t) = (uint8_t)g_rm.v_cheat;
+    if (vanilla && g_rm.v_difficulty >= 0 && g_rm.v_difficulty != FIELD(pl, PL_DIFFICULTY, int)) {
+        FIELD(pl, PL_DIFFICULTY, int) = g_rm.v_difficulty;
+        uint8_t *cm = FIELD(pl, 0xB90, uint8_t *);
+        uint32_t now = game_time();
+        if (cm) ((void (__thiscall *)(void *, uint32_t, char))0x0046DE8C)(cm, now, 0);   // the epoch attempt, drawn anew
+        if (!FIELD(pl, 0xEF5, uint8_t)) ((void (__thiscall *)(void *, uint32_t))0x0043DD2F)(pl, now);   // the first attack
+        if (g_log) fprintf(g_log, "# vanilla: P%d difficulty %d - first epoch attempt at %.1f min, first attack at %.1f min\n", idx,
+                           g_rm.v_difficulty, cm ? FIELD(cm, 0x58, uint32_t) / 60000.0 : -1.0, FIELD(pl, 0xED8, uint32_t) / 60000.0);
+    }
+    if (g_log) {   // the cheat as the game will apply it: AdjustCost (vf27) on a price of 1000
+        int cost = ((int (__thiscall *)(void *, int))0x00430FBD)(pl, 1000);
+        fprintf(g_log, "# cheat: P%d (%s) difficulty %d, cheat %d: a price of 1000 costs %d (pct easy %d, medium %.1f, hard %d)\n", idx,
+                vanilla ? "vanilla" : "mod", FIELD(pl, PL_DIFFICULTY, int), FIELD(pl, PL_CHEAT, uint8_t), cost, FIELD(pl, 0xD48, int),
+                FIELD(pl, 0xBB4, float), FIELD(pl, 0xD4C, int));
+    }
+    if (g_rm.epoch_min > 0 && !vanilla) {   // the vanilla players keep the game's timer
         // Test-only: shorter epoch timer. SetNextEpochAdvanceTime (0x46DE8C) draws the delay between
         // player+0xD58 and +0xD5C minutes (x difficulty factor) into civ manager +0x58; the first one is
         // drawn before this hook runs, so reschedule it here (deterministic per player index).
         FIELD(pl, 0xD58, int) = g_rm.epoch_min;
         FIELD(pl, 0xD5C, int) = g_rm.epoch_max;
-        int idx = FIELD(pl, PL_INDEX, int), span = g_rm.epoch_max - g_rm.epoch_min + 1;
+        int span = g_rm.epoch_max - g_rm.epoch_min + 1;
         uint32_t delay = (uint32_t)(g_rm.epoch_min + (idx * 7) % (span > 0 ? span : 1)) * 60000u;
         uint8_t *cm = FIELD(pl, 0xB90, uint8_t *);
         if (cm) FIELD(cm, 0x58, uint32_t) = game_time() + delay;

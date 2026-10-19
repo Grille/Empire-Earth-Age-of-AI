@@ -1198,7 +1198,7 @@ static void llm_player_chat(const char *text) {
     if (!pm) return;
     for (int i = 1; i < nplayers(); i++) {
         void *pi = player_at(i);
-        if (!pi || !g_players[i] || is_out(pi) || i == h || !chat_reaches(pm, pi)) continue;
+        if (!pi || !mod_ai(i) || is_out(pi) || i == h || !chat_reaches(pm, pi)) continue;
         got++;
         only = i;
         size_t l = strlen(who);
@@ -1209,13 +1209,13 @@ static void llm_player_chat(const char *text) {
     if (!to)   // it names an AI the filter keeps it from: no other one answers in its place
         for (int i = 1; i < nplayers(); i++) {
             void *pi = player_at(i);
-            if (!pi || !g_players[i] || is_out(pi) || i == h || chat_reaches(pm, pi) || word_in(text, player_name(pi)) < 0) continue;
+            if (!pi || !mod_ai(i) || is_out(pi) || i == h || chat_reaches(pm, pi) || word_in(text, player_name(pi)) < 0) continue;
             if (g_llm_log && g_log) fprintf(g_log, "# llm: chat line names P%d, whom the filter keeps it from: %s\n", i, text);
             llm_chat_hint(sysf("chat_filtered", pi, NULL, NULL, NULL));
             return;
         }
     int last = g_llm_last_ai;
-    if (!to && last && now - g_llm_last_t < 300000 && g_players[last] && !is_out(g_players[last]) && chat_reaches(pm, g_players[last]))
+    if (!to && last && now - g_llm_last_t < 300000 && mod_ai(last) && !is_out(g_players[last]) && chat_reaches(pm, g_players[last]))
         to = last;
     if (!to && got == 1) to = only;
     if (!to) {
@@ -1226,7 +1226,7 @@ static void llm_player_chat(const char *text) {
             char names[200] = "";
             for (int i = 1; i < nplayers(); i++) {
                 void *pi = player_at(i);
-                if (!pi || !g_players[i] || is_out(pi) || i == h || !chat_reaches(pm, pi)) continue;
+                if (!pi || !mod_ai(i) || is_out(pi) || i == h || !chat_reaches(pm, pi)) continue;
                 if (names[0] && lstrlenA(names) < 150) lstrcatA(names, ", ");
                 if (lstrlenA(names) < 150) lstrcatA(names, player_name(pi));
             }
@@ -1341,7 +1341,7 @@ static int talk_request(int speaker, int listener, int turn, const char *sit, co
 // AI DECIDE: AI from offers AI to an alliance (kind 0, against third) or capitulates to it (1) - diplo.c sets the
 // offer up when this returns 1 (the exchange is queued)
 static int llm_ai_offer(int from, int to, int kind, int third) {
-    if (!llm_ai_deciding() || !g_players[from] || !g_players[to]) return 0;
+    if (!llm_ai_deciding() || !mod_ai(from) || !mod_ai(to)) return 0;
     if (g_offer_t[from][to] || g_offer_t[to][from]) return 0;   // one offer at a time between them: the rules
     void *pf = player_at(from), *pt = player_at(to), *p3 = third ? player_at(third) : NULL;
     enum line_kind k = kind ? L_CAPITULATE : L_ALLIANCE_OFFER;
@@ -1411,7 +1411,7 @@ static int talk_apply(struct llm_job *j) {
 static void llm_talk_event(void *pl, enum line_kind k, void *other, void *third, const char *fixed) {
     if (!g_llm_on || !g_llm_ai_talk || g_mp || !pl || !other || k_lines[k].aud != A_NAME) return;
     int a = pidx(pl), b = pidx(other), h = (int)*(unsigned *)G_LOCAL_PLAYER;
-    if (a == b || b == h || a == h || !g_players[a] || !g_players[b]) return;
+    if (a == b || b == h || a == h || !mod_ai(a) || !mod_ai(b)) return;
     uint32_t pt = g_pair_last[a < b ? a : b][a < b ? b : a];
     if (pt && game_time() - pt < 60000) return;   // they are talking (an answer, an offer): its own words are in it
     int w = -1;

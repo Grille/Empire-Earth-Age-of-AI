@@ -107,7 +107,7 @@ static int fleet_refuses(uint8_t *sg, uint8_t *u) {
 #define FN_DELETE_FOR_ROOM 0x00430D40
 static int __fastcall hook_nv_maint_delete(void *pl, void *edx, void *req, int flag) {
     (void)edx;
-    if (pl && fleet_on((unsigned)FIELD(pl, PL_INDEX, int))) { g_fl[(unsigned)FIELD(pl, PL_INDEX, int) & 15].maint_skipped++; return 0; }
+    if (pl && !is_vanilla(pl) && fleet_on((unsigned)FIELD(pl, PL_INDEX, int))) { g_fl[(unsigned)FIELD(pl, PL_INDEX, int) & 15].maint_skipped++; return 0; }
     return ((int (__thiscall *)(void *, void *, int))FN_DELETE_FOR_ROOM)(pl, req, flag);
 }
 

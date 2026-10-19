@@ -91,7 +91,7 @@ static void persona_attack_launched(unsigned ai);   // persona.c
 #define FN_PLACE   0x0046580A
 static int g_build_fix = 1;
 static struct { int type; unsigned tries, fails, dropped, streak; } g_place[16][64];   // every type the build lists hold
-static int field_place_ok(uint8_t *bm, int x, int y);   // below, with the farm fields
+static int field_place_ok(uint8_t *bm, int x, int y, int lay_out);   // below, with the farm fields
 static int upgraded_type(void *pl, int type);   // defence.c: the type an upgrade put in place of this one
 static struct { int type; uint32_t next; uint8_t tries; } g_retry[16][16];   // dropped types, tried again
 static int is_decoration(int type) {   // the editor's "x ..." objects (name at object data +0x1C)
@@ -113,7 +113,10 @@ static void retry_note(unsigned idx, int type, uint32_t now) {
 }
 static char __fastcall hook_place(uint8_t *bm, void *edx, int type, int x, int y) {
     (void)edx;
-    if (type == 0x2A && !field_place_ok(bm, x, y)) return 1;   // a field without foundation would crash (see there)
+    void *owner = FIELD(bm, 0x138, void *);
+    // a field without foundation would crash (see there) - the guard alone for a vanilla player (nothing laid out)
+    if (type == 0x2A && !field_place_ok(bm, x, y, !is_vanilla(owner))) return 1;
+    if (is_vanilla(owner)) return ((char (__thiscall *)(void *, int, int, int))FN_PLACE)(bm, type, x, y);
     int place_as = g_build_fix && type == 395 ? 43 : type;
     place_as = upgraded_type(FIELD(bm, 0x138, void *), place_as);   // queued before its upgrade: the new type
     if (!x && !y) defence_spot(FIELD(bm, 0x138, void *), type, &x, &y);   // towers: where the defence plan wants them
@@ -216,7 +219,7 @@ static void __fastcall hook_epoch_upgrades(uint8_t *node, void *edx, int cat) {
     if (pl && (FIELD(pl, PL_INDEX, int) & 15) != pi) pl = NULL;
     void *cm = pl ? FIELD(pl, 0xB90, void *) : NULL;
     uint8_t *rs = cm ? FIELD(cm, 0x40, uint8_t *) : NULL;
-    if (!g_paid_upgrades || !rs || cat != 7) { ((void (__thiscall *)(void *, int))0x005BDDBD)(node, cat); return; }
+    if (!g_paid_upgrades || !rs || cat != 7 || is_vanilla(pl)) { ((void (__thiscall *)(void *, int))0x005BDDBD)(node, cat); return; }
     uint8_t *v = FIELD(node, 0x24, uint8_t *), *ve = FIELD(node, 0x28, uint8_t *);
     char ids[256] = "";
     int n = 0;
@@ -378,7 +381,7 @@ static void __fastcall hook_add_resource(void *pl, void *edx, int type, int amou
     (void)edx;
     ((void (__thiscall *)(void *, int, int))FN_CP_ADD_RESOURCE)(pl, type, amount);
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
-    if (amount > 0 && type >= 2 && type < 7 && g_bud[idx].init) {
+    if (amount > 0 && type >= 2 && type < 7 && g_bud[idx].init && !is_vanilla(pl)) {
         g_bud[idx].income[type] += amount;
         // from the Copper Age (farms: food no longer runs out) a player turns most of his income into army
         const struct ai_cfg *c = cfg_of(pl);
@@ -398,7 +401,7 @@ static void __fastcall hook_add_resource(void *pl, void *edx, int type, int amou
 static void __fastcall hook_pop_cap(void *pl, void *edx) {
     (void)edx;
     ((void (__thiscall *)(void *))FN_POP_CAP)(pl);
-    if (!cfg_of(pl)->pop_follow) FIELD(pl, 0xCCC, int) = ((int (__thiscall *)(void *, int))FN_GAME_LIMIT)(pl, 0);
+    if (!cfg_of(pl)->pop_follow && !is_vanilla(pl)) FIELD(pl, 0xCCC, int) = ((int (__thiscall *)(void *, int))FN_GAME_LIMIT)(pl, 0);
 }
 
 static int is_citizen_type(int type) { return type == 32 || type == 480; }   // Citizen, Female Citizen
@@ -564,6 +567,18 @@ static void retry_dropped(void *pl, unsigned idx, uint32_t now) {
     }
 }
 static uint32_t g_last_attack_time[16];   // +0xED8 at the last look (defence.c attack_retreat moves it on, not a launch)
+// a vanilla player (eeaimod.c is_vanilla): econ_tick's log lines only - spending, gathering, the game's attack times
+static void econ_vanilla_log(void *pl, uint32_t now) {
+    unsigned ai = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
+    spend_log(ai, now);
+    gather_log(pl, ai, now);
+    uint32_t t_attack = FIELD(pl, 0xED8, uint32_t);
+    if (t_attack != g_last_attack_time[ai]) {
+        if (g_last_attack_time[ai] && g_log)
+            fprintf(g_log, "# attack: P%u at %.1f min, next at %.1f min\n", ai, now / 60000.0, t_attack / 60000.0);
+        g_last_attack_time[ai] = t_attack;
+    }
+}
 static void econ_tick(void *pl, uint32_t now) {
     const struct ai_cfg *c = cfg_of(pl);
     // attack log: the next-attack time (+0xED8) is redrawn whenever an attack starts
@@ -1100,7 +1115,7 @@ static void more_granaries(void *pl, unsigned idx, uint8_t *rm, void *cm, void *
 // EEUGBuildRepair for a null building and crashes (0x60BB19, seen once fields got built and then lost in battle).
 // hook_place lets a field through only with a foundation on its tile - laid out first if the tile is free - and
 // reports the others as placed (dropped).
-static int field_place_ok(uint8_t *bm, int x, int y) {
+static int field_place_ok(uint8_t *bm, int x, int y, int lay_out) {
     void *pl = FIELD(bm, 0x138, void *), *cm = FIELD(bm, 0x134, void *);
     void *um = cm ? FIELD(cm, 0x44, void *) : NULL;
     if (!pl || !um || (!x && !y)) return 0;
@@ -1109,7 +1124,7 @@ static int field_place_ok(uint8_t *bm, int x, int y) {
         uint8_t *f = deque_at(dq, first + k);
         if (f && FIELD(f, 0x3C, int) > 0 && FIELD(f, 0x1C, int) == x && FIELD(f, 0x20, int) == y) return 1;
     }
-    if (!can_place(pl, 0x2A, x, y)) return 0;
+    if (!lay_out || !can_place(pl, 0x2A, x, y)) return 0;
     ((void *(__cdecl *)(void *, int, int, int))0x0062EF8A)(pl, 0x2A, x, y);
     if (g_log) fprintf(g_log, "# fields: P%d: build list field at %d,%d - foundation laid out first\n", FIELD(pl, PL_INDEX, int), x, y);
     return 1;
@@ -1611,6 +1626,14 @@ static void train_account(void *pl, unsigned idx, const struct ai_cfg *cfg, int 
 __attribute__((noinline)) static uintptr_t __fastcall hook_train_units(void *um, void *edx, int *req, uintptr_t b) {
     (void)edx;
     void *pl = um_owner(um);
+    if (g_vanilla_mask) {   // a vanilla player's unit manager (before its first update too: the game's player array)
+        void *own = pl;
+        for (unsigned i = 1, n = *(unsigned *)0x009183CC; !own && i < n && i < 16; i++) {
+            void *p = is_vanilla_idx((int)i) ? ((void **)0x00918374)[i] : NULL, *cm = p ? FIELD(p, 0xB90, void *) : NULL;
+            if (cm && FIELD(cm, 0x44, void *) == um) own = p;
+        }
+        if (is_vanilla(own)) return ((uintptr_t (__thiscall *)(void *, int *, uintptr_t))FN_TRAIN_UNITS)(um, req, b);
+    }
     int *stock = pl ? (int *)((uint8_t *)pl + PL_STOCK) : NULL;
     int before[7] = { 0 }, reserve[7] = { 0 }, visibles[7] = { 0 }, blocked = 0, afford = 0, sub_type = 0;
     if (stock) memcpy(before, stock, sizeof before);
