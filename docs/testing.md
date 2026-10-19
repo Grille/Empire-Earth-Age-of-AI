@@ -142,7 +142,13 @@ EPOCHS="" sh scripts/suite.sh 50 "base:" "plan:copper_plan=1"     # EPOCHS="" = 
   (every 5 minutes, water maps): the navy account, what it paid, the ship orders paid/refused by type, warships,
   docks (built, asked), fishing boats, the room held; `# navy: ... docks N of M - one more requested`.
 - Head-to-head on the navy: `[autotest] v_navy=1` with `variant_players=<p>` and `navy=0`: only those players have
-  the navy account (econ.c PV).
+  the navy account (econ.c PV). The fleet mix the same: `navy_mix=0` with `v_navy_mix=1`.
+- `# navy: P<n> mix at N min:` (every 5 minutes with `navy_mix`, water maps): the wanted shares by role (F frigates,
+  L battleships, A galleys/catapult ships, S attack subs, AA cruisers), own fleet by role, the type per role, the
+  enemy seen (by role, aircraft, carriers, coastal units that hit battleships x3+), what the game asked for and what
+  was trained, and the changed / skipped / no building / next role payable counts. The 2-minute `# navy:` line has
+  `roles`, `lost-roles` and `sunk-roles` (T = transports) for every AI. `# navy: ... mix type N (for M) not trained
+  though payable - skipped 5 minutes`.
 
 Scripts:
 - `scripts/summarize.py <csv> [minutes]`: per AI timeline.
@@ -153,6 +159,9 @@ Scripts:
 - `scripts/navy.py [-v] <csv>...`: the `# navy:` lines per map group (docks, fishing, fish food, warships, losses,
   who holds the waters, landings, failed ship requests); `scripts/navy.py types <csv>` the ship roles from a run with
   `setup=_aimod/scripts/navy_types.setup`.
+- `scripts/navy_ab.py [-split|-mix] <csv>...`: navy A/B per suite variant (warships, waters, losses, fishing, food,
+  landings, kills); `-split` the AIs with/without the navy account, `-mix` with/without the fleet mix; a second line
+  with the warships by role and lost/sunk by role.
 - `scripts/epochs.py <csv>...`: epoch advances per AI and their delay after the planned attempt.
 - `scripts/watch_deltas.py`: watchpoint hits grouped by code path.
 
@@ -401,6 +410,17 @@ e9 55 -> 43 (3), Large within noise; soldiers Large e5 28.2 -> 23.9 (1.0), Small
 the AI with the navy has the better kill/loss ratio in all 8 slot pairings, more fish food in 8, fewer boats lost
 in 7. Continental: detection "land" in 12 of 12, no account, results within noise. 172 + 80 + 40 (share 15) runs,
 no crash. Tables: docs/navy.md stage 1.
+
+### Fleet mix (navy stage 2)
+
+2026-10-19, head-to-head (`navy_mix=0` + `v_navy_mix=1`, both with the navy account; Small/Large Islands e5/e9, seed
+101 map, 60 min; `scen.sh` "h3:...variant_players=3" / "h2:...variant_players=2" 10 seeds, then `h2h.sh` seeds 11-30,
+and for the second version `h2h.sh` seeds 1-30). Scored per game: the mix AI minus the other.
+- First version, 160 games: kills - losses -8.6 (std. error 2.3), warships sunk - lost +0.5 (0.5), ship orders paid
+  -1.1 an hour.
+- Next payable role, 120 games: -7.5 (2.9), sea exchange +0.5 (0.5).
+- Both AIs (Small Islands e5/e9, 20 seeds, `JOBS=8`, navy_mix 0 vs 1): all within noise.
+- No crash in 360 runs. `navy_mix` stays 0. Tables: docs/navy.md stage 2.
 
 ### Farm fields
 

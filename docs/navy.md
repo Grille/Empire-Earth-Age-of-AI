@@ -3,7 +3,8 @@
 The playtester: on water and island maps a strong standing navy decides the game. Lose sea control and you
 cannot expand or counter-attack. "Each ship has specific roles and counters." This file holds the research
 (the ship data, the game's own AI), a baseline on island maps, and a staged design. Stage 0 (the food hole) and
-stage 1 (the navy's money, docks and room) are done; the ships still do what the game's AI tells them (stages 2-4).
+stage 1 (the navy's money, docks and room) are done. Stage 2 (the fleet mix) is built but off by default: it brought
+no head-to-head gain. The ships still do what the game's AI tells them (stages 3-4).
 
 The playtester's notes on this plan:
 - **Farms are always needed.** "Fish is very useful but a limited resource; fishing boats have to go further and
@@ -347,23 +348,85 @@ figure).
 **Default on**: it helps the AI that has it against one that hasn't (a human without a fleet), and on land maps
 nothing changes. Against each other two navy AIs only trade ships until stages 2-3 give the fleet a job.
 
-### Stage 2 - composition by roles
+### Stage 2 - composition by roles - BUILT, OFF (`navy_mix=0`)
 
-- **The core every epoch:** frigates first. They hit everything afloat, are cheap (wood + iron) and are the
-  only answer to submarines. Then battleships as the line ships, about 1 per 2 frigates. Use the existing
-  type-availability test `ld_type_avail` and train only types the game can train now.
-- **React to the seen enemy fleet** (intel: seen ships, remembered 10 minutes). For each enemy category, the
-  type in reach with the best factor x attack / reload per cost, taken from the hit table at run time (no
-  hardcoded roles, as landing.c does):
-  - enemy battleships -> galleys (to e9), submarines (e10+), catapult ships (e4-6);
-  - enemy galleys -> frigates;
-  - enemy submarines -> frigates;
-  - enemy aircraft over the water -> cruisers (e8+).
-- **Mind the land counters.** Keep the whole fleet out of reach of the enemy's seen coastal siege, artillery and
-  towers, battleships also of bombers (x4.5 / x4 against them; frigates and galleys do badly there too). Bombard
-  with galleys and missile subs (towers x1 from 24 tiles) from outside that reach.
-- **Size:** at least the enemy's seen fleet strength x 1.3 (sqrt(hp x attack) as landing.c), at least 4 warships
-  from the epoch of docks on islands, and at most the navy account.
+Built (dll/navy.c `navy_pick`, the hook in econ.c `hook_train_units`; `[all] navy_mix`, `[autotest] v_navy_mix`):
+
+- **Where:** a warship or submarine order the navy account pays (`navy_pays`) from one of the game's own training
+  sites. The mod's own orders and a landing's orders are not touched. Carriers stay the game's choice. `req` points
+  into the unit manager's request list, so it gets its own type back after the call. The game then counts the
+  entry down as if its own type came (0x490AD6 subtracts what 0x49014F trained): no duplicate orders, as with the
+  land unit substitution.
+- **Roles from the hit table** (0x8D200C, categories c7/c9/c21/c47, family):
+  - F: frigates (factor > 0 against c7, the submarines);
+  - L: battleships (category c21);
+  - A: galleys and catapult ships (x3 or more against c21);
+  - S: attack submarines (family 10 that hits ships);
+  - AA: cruisers (hit only aircraft).
+  - Not used: the Naval Mine 386 (family 4, category 22) and the hero ships 268 (Agincourt, tech 9035, picked
+    before the filter and never trained) and 611. Missile subs hit no ship and are left out too.
+- **The wanted shares:**
+  - Base mix: F 2 : L 1 : A 0.5. Once an attack sub is available (e10): S 1 in place of A.
+  - Enemy ships seen (intel memory, 10 minutes; with honest_vision 0, what it sees now): + 0.5 F per galley or sub,
+    + 0.25 L per frigate, + 0.75 A/S per battleship.
+  - AA only with aircraft seen (a carrier counts as 3): 0.5 + aircraft / 8, at most 2.
+  - L is scaled by the non-submarine share of the enemy fleet, and by 4 / (4 + n), where n is the seen enemy units
+    and buildings within 4 tiles of the sea that hit battleships x3 or more (the playtester's equalizer).
+- **Each order:**
+  - Picks the role furthest below its share of the fleet: own warships, plus those paid in the last minute, plus 1.
+  - If that role's type can't be paid now (stock and account), it takes the next role below its share that can.
+  - Within a role, the type with the best factor x attack / (reload + 2 s) x hp / cost^2 against the role's target
+    (Lanchester).
+  - Only types available by their tech record (`ld_type_avail`).
+  - A type the budget refused for 2 minutes is skipped for 1. A type paid for but not trained is skipped for 5.
+- **Logs:**
+  - `# navy: P<n> mix at N min:` every 5 minutes: the wanted shares, own fleet by role, the types, the enemy seen,
+    what the game asked for and what was trained, and the changed / skipped / payable-next counts.
+  - The 2-minute `# navy:` line has the warships, lost and sunk by role for every AI (diplo.c counts navy kills by
+    type).
+  - Score with `scripts/navy_ab.py [-mix]`.
+
+What it did: about 45% of the ships it trained were another type than the game asked for. On Small Islands e5,
+fewer galleys and more frigates and battleships.
+
+**Head-to-head** (one AI with the mix, `navy_mix=0,v_navy_mix=1`, both with the navy account; the seat swaps every
+game; per game the mix AI minus the other; std. error in brackets):
+
+| | Small e5 | Small e9 | Large e5 | Large e9 | all |
+|---|---|---|---|---|---|
+| first version, 160 games (40 each): kills - losses | -8.2 (5.1) | -6.3 (3.9) | -15.8 (4.6) | -3.9 (4.4) | **-8.6 (2.3)** |
+| warships sunk - lost | +0.1 | -0.2 | +0.2 | +1.8 | +0.5 (0.5) |
+| ship orders paid | -0.8 | -0.4 | -0.5 | -2.5 | -1.1 (0.5) |
+| next payable role, 120 games (30 each): kills - losses | +1.8 (6.0) | -14.5 (5.8) | -9.0 (6.2) | -8.1 (4.6) | **-7.5 (2.9)** |
+| warships sunk - lost | +2.0 | -0.5 | +0.9 | -0.5 | +0.5 (0.5) |
+
+Soldiers, buildings, food from fish and fishing boats lost: within noise in both versions.
+
+The first version waited for its first choice and paid for a ship less an hour. Taking the next payable role
+didn't change the result.
+
+**Both AIs with the mix** (current version, Small Islands, 20 seeds each, 60 min; navy_mix 0 -> 1, per AI):
+
+| | Small e5 | Small e9 |
+|---|---|---|
+| frigates / battleships / galleys / subs afloat (average) | 0.6/0.1/0.4/0 -> 0.7/0.3/0.2/0 | 0.5/0.2/0/0.3 -> 0.5/0.2/0/0.2 |
+| lost by role F/L/A/S | 4.8/0.7/2.9/0 -> 6.1/1.7/0.8/0 | 4.7/1.0/0/0.7 -> 4.2/1.5/0/0.7 |
+| navy lost (= sunk) | 12.4 -> 12.0 | 9.3 -> 8.9 |
+| kills / losses | 71.7/81.3 -> 62.9/74.2 | 44.5/51.5 -> 41.7/51.2 |
+| food from fish / all food | 3562/11308 -> 3264/10694 | 3354/8911 -> 4057/10951 |
+| landings sailed | 1.8 -> 1.9 | 1.6 -> 1.6 |
+
+All within noise (std. error: kills 3-5, food 300-700). 80 runs, no crash. With the first version (also 20 seeds)
+e5 was the same picture: navy lost 13.2 -> 11.0, kills 63 -> 74.
+
+**Why it stays off:** the AI with the mix loses about 8 units more per game than the one without (2.6-3 std.
+errors, both versions). The sea exchange is even. The likely reasons:
+- The fleets are tiny: 1-1.5 warships on average, 3-5 at most, so a mix hardly forms.
+- The game's sea groups still decide where the ships go. The mix's battleships go where the game sends them and
+  are lost more often (Large e5: 2.4 vs 0.8), against coasts where the x4.5 is real.
+- The gold that battleships take is missed elsewhere (the mix AI spent +86 gold and -73 iron on ships).
+
+Retest once stage 3 gives the fleet its own tasks and keeps it away from coastal siege.
 
 ### Stage 3 - fleet tasks (a mod-led sea subgroup, as landing.c leads its units)
 
