@@ -14,7 +14,10 @@
 // reused by then) - the line names the nearest unit of the killer's player within 12 tiles (soldier, tower, ship ...).
 // Mines (in the # eco line): the stone / gold / iron sites the AI knows (its towns' site lists, player +0xB50, as
 // navy.c navy_nodes) - m<R>n mines within 12 tiles of a drop site (not granaries), m<R>slots their worker slots (table
-// value 0x16 a mine), m<R>g their gatherers (0x52E5F7), m<R>far gatherers at mines farther out.
+// value 0x16 a mine), m<R>g their gatherers (0x52E5F7), m<R>far gatherers at mines farther out, m<R>nd known mines
+// (active zone, explored) on the base's continent with no drop site within 12 tiles. The zones are the map's, shared
+// by all players, and 0x52E5F7 counts every player's gatherers: m<R>far is mostly the other side's miners at its own
+// mines, m<R>g at mines near one's own drop sites nearly all one's own.
 // Spending (in the # eco line): every unit of the player in the minute's scan that wasn't there at the last one (by
 // address: a dead unit's memory is reused, so the set is the last scan's, not every unit ever seen) - trained citizens (tc) and soldiers (ts, army families) and their prices (unit_cost, econ.c): citizens' food
 // (tcF), soldiers' food (tsF) and other resources (tsX). Units trained and killed within the same minute are missed.
@@ -59,7 +62,7 @@ static void eco_soldier_costs(void *pl) {   // once a game: the land soldiers' p
     fputc('\n', g_log);
     LeaveCriticalSection(&g_lock);
 }
-struct eco_mines { int n[7], slots[7], g[7], far_[7]; };
+struct eco_mines { int n[7], slots[7], g[7], far_[7], nd[7]; };
 static void eco_mines(void *pl, struct eco_mines *c) {
     memset(c, 0, sizeof *c);
     static uint8_t *seen[1024];
@@ -67,6 +70,10 @@ static void eco_mines(void *pl, struct eco_mines *c) {
     unsigned cap = ((unsigned (__thiscall *)(void *, int))FN_TABLE_VALUE)((void *)0x917BB0, 0x16);
     drops_cached(pl);
     unsigned pi = (unsigned)pidx(pl);
+    int base_reg = -1;   // the base's continent
+    {   uint8_t *cm = FIELD(pl, 0xB90, uint8_t *), *bm = cm ? FIELD(cm, 0x3C, uint8_t *) : NULL;
+        int b[2] = { bm ? FIELD(bm, 0x12C, int) : -10000, bm ? FIELD(bm, 0x130, int) : -10000 };
+        if (b[0] != -10000 && b[1] != -10000) base_reg = ((short (__thiscall *)(void *, int *, int))FN_REGION)((void *)0x917BC8, b, 2); }
     void **tb = FIELD(pl, 0xB50, void **), **te = FIELD(pl, 0xB54, void **);
     for (int t = 0; tb && tb + t < te && t < 256; t++) {
         uint8_t *town = tb[t];
@@ -86,7 +93,96 @@ static void eco_mines(void *pl, struct eco_mines *c) {
             }
             if (dd <= 144) { c->n[r]++; c->slots[r] += (int)cap; c->g[r] += (int)g; }
             else c->far_[r] += (int)g;
+            if (dd > 144 && FIELD(town, 0x18, uint8_t) && ((char (__thiscall *)(void *, void *))FN_EXPLORED)(FIELD(st, 0x14, void *), pl)) {
+                int pos[2] = { x, y };   // known, explored, no drop site within 12 tiles, on the base's continent
+                if (base_reg < 0 || ((short (__thiscall *)(void *, int *, int))FN_REGION)((void *)0x917BC8, pos, 2) == base_reg) c->nd[r]++;
+            }
         }
+    }
+}
+
+// Food sources (in the # eco line): the food list's gatherers by what they gather - fo forage (berry bushes, type 0x37),
+// fh hunt (animals: food units of class +0x4C4 0x11 - Deer, Goat, Ostrich, Elephant ...; the carcass too), ff fields
+// (0x2A), fb fishing boats (family 22), fx anything else. The hunt list (rm +0x88: built once at the AI's start
+// (0x48D263 -> 0x48B778) from the world's food units of class 0x11, sorted by distance, pruned of the dead every 15 s;
+// fish, class 0x12, go to rm +0x98): hl its entries with food left, hlF their food, hl15 / hl30 those within 15 / 30
+// tiles of a drop site (not granaries). Animals on the map (grid, class 0x11, food left): an all, an30 within 30 tiles
+// of a drop site, anF30 their food, anNew30 those within 30 that are not in the hunt list (born or come later - the
+// game never adds them). Forage (the sites of every zone, 0x37, food left): fsN / fsF within 30 tiles, fsN20 / fsF20
+// within site_max_distance of the base (what wild_food counts). Fish: fish / fishF in rm +0x98. Fields: fld all,
+// fldOK finished.
+static const char *eco_goal(uint8_t *u, int *res);
+struct eco_food { int fo, fh, ff, fb, fx, hl, hlF, hl15, hl30, an, an30, anF30, anNew30, fsN, fsF, fsN20, fsF20, fish, fishF, fld, fldOK; };
+static int eco_drop_d2(void *pl, int x, int y) {   // squared tiles to the nearest drop site for everything
+    unsigned pi = (unsigned)pidx(pl);
+    int dd = 0x7FFFFFFF;
+    for (int i = 0; i < g_drops[pi].n; i++) {
+        int *d = g_drops[pi].d[i], dx = d[0] - x, dy = d[1] - y;
+        if (!d[2] && dx * dx + dy * dy < dd) dd = dx * dx + dy * dy;
+    }
+    return dd;
+}
+static void eco_food(void *pl, uint8_t *rm, struct eco_food *f) {
+    memset(f, 0, sizeof *f);
+    if (!rm) return;
+    drops_cached(pl);
+    uint8_t *list = rm + RM_LISTS + 2 * 0x14;
+    for (unsigned k = 0, first = FIELD(list, 0xC, unsigned), n = FIELD(list, 0x10, unsigned); k < n && k < 1024; k++) {
+        uint8_t *u = deque_at(list, first + k), *td = u ? FIELD(u, 0x2C, uint8_t *) : NULL;
+        if (!td || FIELD(u, 0x3C, int) <= 0) continue;
+        int res;
+        if (strcmp(eco_goal(u, &res), "gather")) continue;
+        if (FIELD(td, 0x4B4, int) == 22) f->fb++;
+        else if (res == 0x37) f->fo++;
+        else if (res == 0x2A) f->ff++;
+        else {
+            uint8_t *g = FIELD(u, 0x1EC, uint8_t *), *s = FIELD(g, 0x38, uint8_t *), *st = s ? FIELD(s, 0x2C, uint8_t *) : NULL;
+            if (st && FIELD(st, 0x4C4, int) == 0x11) f->fh++; else f->fx++;
+        }
+    }
+    void **hb = FIELD(rm, 0x88, void **), **he = FIELD(rm, 0x8C, void **);
+    for (void **h = hb; hb && h < he && h - hb < 4096; h++) {
+        uint8_t *a = *h;
+        if (!a || !a[0x2B] || FIELD(a, 0x40, int) <= 0) continue;
+        f->hl++; f->hlF += FIELD(a, 0x40, int);
+        int d2 = eco_drop_d2(pl, FIELD(a, 0x1C, int), FIELD(a, 0x20, int));
+        if (d2 <= 225) f->hl15++;
+        if (d2 <= 900) f->hl30++;
+    }
+    void **qb = FIELD(rm, 0x98, void **), **qe = FIELD(rm, 0x9C, void **);
+    for (void **h = qb; qb && h < qe && h - qb < 4096; h++)
+        if (*h && FIELD(*h, 0x40, int) > 0) { f->fish++; f->fishF += FIELD(*h, 0x40, int); }
+    for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
+        uint8_t *u = it.u, *td = it.td;
+        if (!td || FIELD(u, 0x38, int) != 2 || FIELD(u, 0x40, int) <= 0 || FIELD(td, 0x4C4, int) != 0x11) continue;
+        f->an++;
+        if (eco_drop_d2(pl, FIELD(u, 0x1C, int), FIELD(u, 0x20, int)) > 900) continue;
+        f->an30++; f->anF30 += FIELD(u, 0x40, int);
+        void **h = hb;
+        while (hb && h < he && *h != u) h++;
+        if (!hb || h >= he) f->anNew30++;
+    }
+    uint8_t *cm = FIELD(pl, 0xB90, uint8_t *), *bm = cm ? FIELD(cm, 0x3C, uint8_t *) : NULL;
+    int bx = bm ? FIELD(bm, 0x12C, int) : -10000, by = bm ? FIELD(bm, 0x130, int) : -10000;
+    void **zb = FIELD(pl, 0xB50, void **), **ze = FIELD(pl, 0xB54, void **);
+    for (int z = 0; zb && zb + z < ze && z < 256; z++) {
+        uint8_t *zone = zb[z];
+        void **sb = zone ? FIELD(zone, 8, void **) : NULL, **se = zone ? FIELD(zone, 0xC, void **) : NULL;
+        for (int k = 0; sb && sb + k < se && k < 4096; k++) {
+            uint8_t *st = sb[k], *td = st ? FIELD(st, 0x2C, uint8_t *) : NULL;
+            if (!td || FIELD(st, 0x38, int) != 2 || FIELD(td, 0x4B8, int) != 0x37 || FIELD(st, 0x40, int) <= 0) continue;
+            int x = FIELD(st, 0x1C, int), y = FIELD(st, 0x20, int), dx = x - bx, dy = y - by;
+            if (eco_drop_d2(pl, x, y) <= 900) { f->fsN++; f->fsF += FIELD(st, 0x40, int); }
+            if (bx != -10000 && dx * dx + dy * dy < g_site_max_dist * g_site_max_dist) { f->fsN20++; f->fsF20 += FIELD(st, 0x40, int); }
+        }
+    }
+    void *um = cm ? FIELD(cm, 0x44, void *) : NULL;
+    uint8_t *fq = um ? ((uint8_t *(__thiscall *)(void *, int))0x0048F8AF)(um, 0x2A) : NULL;
+    for (unsigned k = 0, first = fq ? FIELD(fq, 0xC, unsigned) : 0, n = fq ? FIELD(fq, 0x10, unsigned) : 0; k < n && k < 512; k++) {
+        uint8_t *fl = deque_at(fq, first + k), *b = fl ? FIELD(fl, 0x30, uint8_t *) : NULL;
+        if (!fl) continue;
+        f->fld++;
+        if (b && b[0x340]) f->fldOK++;
     }
 }
 
@@ -161,19 +257,23 @@ static void ecolog_tick(void *pl, uint32_t now) {
     eco_soldier_costs(pl);
     struct eco_mines mn;
     eco_mines(pl, &mn);
+    struct eco_food fd;
+    eco_food(pl, rm, &fd);
     struct eco_spend *sp = &g_eco_sp[idx];
     struct eco_dead *d = &g_eco_dead[idx];
     EnterCriticalSection(&g_lock);
     fprintf(g_log, "# eco: P%u at %u min: cit=%d gF=%d gW=%d gS=%d gG=%d gI=%d g0=%d build=%d walk=%d attack=%d load=%d other=%d none=%d "
             "idle0=%d soldiers=%d pop=%d cap=%d inprod=%d cdead=%u cd_town=%u cd_near=%u cd_far=%u cd_army=%u cd_bld=%u "
             "cd_ship=%u cd_air=%u cd_unk=%u refused=%u tc=%u tcF=%u ts=%u tsF=%u tsX=%u mSn=%d mSslots=%d mSg=%d mSfar=%d "
-            "mGn=%d mGslots=%d mGg=%d mGfar=%d mIn=%d mIslots=%d mIg=%d mIfar=%d\n",
+            "mGn=%d mGslots=%d mGg=%d mGfar=%d mIn=%d mIslots=%d mIg=%d mIfar=%d mSnd=%d mGnd=%d mInd=%d "
+            "fo=%d fh=%d ff=%d fb=%d fx=%d hl=%d hlF=%d hl15=%d hl30=%d an=%d an30=%d anF30=%d anNew30=%d fsN=%d fsF=%d fsN20=%d fsF20=%d fish=%d fishF=%d fld=%d fldOK=%d\n",
             idx, now / 60000, cit, gat[2], gat[3], gat[4], gat[5], gat[6], gat[0], build, walk, att, load, other, none, idle0,
             army_size(pl), ((int (__thiscall *)(void *, int, int))0x00556E11)(pl, 1, 0),
             ((int (__thiscall *)(void *, int))(*(void ***)pl)[31])(pl, 0), ump ? FIELD(ump, 0x13C, int) : -1,
             d->n, d->town, d->near_, d->far_, d->army, d->bld, d->ship, d->air, d->unk, is_vanilla(pl) ? 0u : g_site_refused[idx],
             sp->tc, sp->tcF, sp->ts, sp->tsF, sp->tsX, mn.n[4], mn.slots[4], mn.g[4], mn.far_[4], mn.n[5], mn.slots[5], mn.g[5],
-            mn.far_[5], mn.n[6], mn.slots[6], mn.g[6], mn.far_[6]);
+            mn.far_[5], mn.n[6], mn.slots[6], mn.g[6], mn.far_[6], mn.nd[4], mn.nd[5], mn.nd[6],
+            fd.fo, fd.fh, fd.ff, fd.fb, fd.fx, fd.hl, fd.hlF, fd.hl15, fd.hl30, fd.an, fd.an30, fd.anF30, fd.anNew30, fd.fsN, fd.fsF, fd.fsN20, fd.fsF20, fd.fish, fd.fishF, fd.fld, fd.fldOK);
     LeaveCriticalSection(&g_lock);
 }
 
