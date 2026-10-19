@@ -16,6 +16,7 @@ static const uintptr_t k_food_sites[] = { 0x48ab8d, 0x48ac2b, 0x48ae14, 0x48aeb4
 typedef char (__thiscall *EnemyNearFn)(void *, int, int);
 static int site_danger(void *pl, uint8_t *site, int food);   // attack.c: known enemy towers on the way
 static int site_danger_res(void *pl, uint8_t *site, int food, int res);   // attack.c: res 2 food .. 6 iron
+static uint8_t *food_near_pick(uint8_t *rm, int near_base, uint8_t *unit);   // food.c (food_plan NEAR)
 static unsigned g_site_refused[16];   // dangerous sites the searches refused (logged by attack.c)
 
 static int route_safe(void *bm, const int base[2], const int to[2]) {
@@ -235,7 +236,10 @@ static void *__fastcall hook_find_mine(uint8_t *rm, void *edx, int type, uint8_t
 static void *__fastcall hook_find_food(uint8_t *rm, void *edx, uintptr_t need_drop, uintptr_t near_base, uint8_t *unit) {
     (void)edx;
     if (is_vanilla(rm_player(rm))) return ((Fn3)FN_FIND_FOOD)(rm, need_drop, near_base, (uintptr_t)unit);
-    if (!cfg_of(rm_player(rm))->safe_sites) return refuse_danger(rm, ((Fn3)FN_FIND_FOOD)(rm, need_drop, near_base, (uintptr_t)unit), 1, 2);
+    if (!cfg_of(rm_player(rm))->safe_sites) {
+        uint8_t *s = food_near_pick(rm, (int)(near_base & 0xFF), unit);   // food_plan NEAR: the bush nearest to a drop site
+        return s ? s : refuse_danger(rm, ((Fn3)FN_FIND_FOOD)(rm, need_drop, near_base, (uintptr_t)unit), 1, 2);
+    }
     void *pl = rm_player(rm);
     int r6 = pl ? FIELD(pl, 0xE10, int) : 6;
     int max_d2 = (near_base & 0xFF) ? r6 * r6 * 4 : r6 * r6 * 36;   // same passes as the original

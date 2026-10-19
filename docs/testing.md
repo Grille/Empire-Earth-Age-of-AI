@@ -552,6 +552,18 @@ citizens killed -7.7 (3.7). Without the cheat: 6 -> 0, citizens killed -14 (3.3)
 games were identical. A is on by default. Head-to-head against the control (24 games, Continental e0, 4 AIs): B - A alive
 +0.08 (0.04), kills - losses +16, workers +4.8 (2.1). B, C and the alternative, and why they are off: docs/economy.md.
 
+### Food and mines against the base AI (docs/economy.md "Food and mines")
+
+2026-10-20: `scripts/eco_ablate.sh` with `MAPS="cont si5 li5"` (Large Islands e5 added) and `CHEATS`, scored with
+`scripts/eco_ablate.py -base <name>` and `scripts/eco_food.py -base <name>` (food gatherers by source, hunt list and
+animals, forage, fields, mine slots and gatherers, epoch-up minutes, paired differences). Give each run's base
+variant its own name - older `ab-base-*` logs from other builds match the same glob (pass the files explicitly).
+`food_plan=3` (PLAN + PULL) is on: Continental e0 the first epoch 7.7 / 8.7 minutes earlier (no cheat / cheat),
+workers +8.7 / +6.7 at minute 30, food gatherers ~17 (the base AI's level), mod wins 13 -> 22 without the cheat;
+islands within the noise; head-to-head (24 games) no regression. HUNT, NEAR, WILD, CAMP and `mine_fill` stay off
+(tables in docs/economy.md). # food: / # mines: lines every 5 minutes (autotest) count what the features did. The
+fix in militia_answer (53f8ced) came out of these runs: 2 of 240 games crashed there.
+
 ### Mass before striking, the mines (navy stage 5)
 
 2026-10-19, `navy_fleet=2` with `navy_fleet_mass=1` and `navy_mines=1` (dll/fleet.c fl_rally, navy.c navy_nodes /

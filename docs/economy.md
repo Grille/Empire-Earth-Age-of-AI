@@ -98,3 +98,63 @@ re-measurement above.
   does best (6/0/14, kills - losses +23). Mixed result. Off: `copper_plan=1` stays, its brake now partly offset by B.
 - **The alternative** (4 soldiers by minute 8 instead of A) is the worst variant. With the cheat the base AI wins 9
   of 20 and 30 citizens die. The playtester's tower-and-bait opening is the better one for this AI.
+
+## Food and mines (2026-10-20, dll/food.c, dll/mines.c)
+
+The playtester: hunting is the first step and herds should be taken fast; farms only when wild food runs low (in
+late starts too: herds, forage, fish first); every mine the AI can get hold of filled, the home island's always.
+Measured first with the economy log (`# eco:` fo / fh / ff / fb, the hunt list, animals, forage, fields, mines
+without a drop site; `scripts/eco_food.py`), base AI at hard, 60 min, game_seed 1-20 x both seats:
+
+- **Food sources.** Continental e0: the mod's AI had 9-11 food gatherers (the base AI 10-21), 7-9 of them at bushes,
+  1-2 hunters (the base AI 3-5). Forage is the main wild food (bushes of 2500, ~10000-16000 food within 30 tiles of
+  the drop sites all game - it does not run out); animals are few (22 on the whole map, ~4200 food). The islands
+  (e5): one bush and ~4 animals at home, 24000 fish; the base AI fished with 6-8 boats and built no field, the mod
+  built 8 fields by minute 10 and had no fishing boat before minute 20.
+- **How the game feeds its AI.** The assignment's food passes (0x48A554): forage near the base (the *first* free bush
+  in zone order, not the nearest), finished fields, hunting (one hunter an animal a pass, from the hunt list rm +0x88 -
+  built once at the AI's start and only pruned, so animals born or come later are never hunted), forage and hunting
+  farther out, then field foundations (land) or fishing boats (+0xEFA). All of it only up to the food target, and no
+  gatherer is ever taken back: a raid sent 20 food gatherers home, the leftover pass put them on gold, and they stayed
+  there (1 on food, target 30, 1400 gold unused).
+- **The real limit before farms** was the worker plan: food got workers only for the epoch reserve's shortfall, not
+  for the citizens the Town Center trains, and the game's wood demand (refused requests, 4500 in epoch 0) took half
+  the workers.
+
+`food_plan` ([all], bits; `v_food_plan` for head-to-head): 1 PLAN - before farms the plan counts the citizens' food
+(50 a citizen for the next 10 while short) and the wood only of real buildings; 2 PULL - every 10 s up to 4 gatherers
+back to food from the list farthest above its target; 4 NEAR - forage at the bush nearest a drop site; 8 HUNT - idle
+citizens hunt every animal within `food_hunt_range` (15) tiles of a drop site (newborns too), 3 to an animal; 16 WILD -
+from the Copper Age no field builders while wild food is free; 32 CAMP - a Settlement (100 wood) by the richest wild
+food far from the drop sites, before farms. **Default 3 (PLAN + PULL).**
+
+Paired against the shipped build (40 games a cell; d = variant - shipped, standard error; epoch-up = the minute of the
+first epoch advance):
+
+| Continental e0 | cheat | M/V/D | d kills-losses | d workers 30 / 60 | food gatherers 20 min | d epoch-up |
+|---|---|---|---|---|---|---|
+| shipped | no | 13/0/27 | | 47 / 64 | 10.1 | (32.3 min) |
+| 3 PLAN+PULL | no | 22/1/17 | +9.6 (6.3) | +8.7 (1.7) / +7.3 (2.7) | 17.7 | -7.7 (1.5) |
+| shipped | yes | 2/3/35 | | 45 / 53 | 10.4 | (33.5 min) |
+| 3 PLAN+PULL | yes | 2/4/34 | +13.0 (13.9) | +6.7 (2.4) / +3.4 (4.9) | 16.1 | -8.7 (2.6) |
+
+Other variants on Continental (no cheat / cheat, d kills-losses, d workers 30): 1 PLAN +4.5 / +20.2, +5.3 / +4.8;
+4 NEAR +0.2 / -10.1, +7.0 / +1.2; 8 HUNT -6.5 / -12.6, -3.5 / -3.7 (23 of 28 citizens chased 15 animals; with twice
+the food gatherers the food gathered by minute 20 rose only 5% - the walk decides wild food's rate, and hunting is
+the longest walk); 32 CAMP +8.2 / -2.3; 7 and 35 more workers than 3, worse fights. Islands e5 (only PULL acts there):
+3 kills-losses +11.4 / +4.0 (Large, no cheat / cheat), +0.0 / -5.8 (Small), workers within +-2 at 30 min. 19 (+ WILD)
+on the islands: the fields waited until minute 25-30 but the game's boats came no sooner - workers -7 to -10 at 30
+min, the base AI's wins on Small Islands 3 -> 5 / 25 -> 28. Head-to-head against the control AI (Continental e0,
+map_size 1, 4 AIs, 60 min, 24 games, `v_food_plan=3`): B - A alive +0.06 (0.03), epoch +0.10 (0.05), workers +2.8
+(2.1), kills -0.4 (4.1), losses +7.0 (7.2) - no regression.
+
+**Mines.** Small Islands e5: the home island's mines have 30 slots near the Town Center; the mod's AI worked 12-17,
+the base AI 15 at minute 20 and then built Settlements (76 slots by the end). `mine_fill` ([all], bits, `v_mine_fill`):
+1 FILL - from the Copper Age the metals' targets are at least their slots near drop sites (the home continent's only
+under a population cap of 120), unless 1500+ already lie in stock; workers from piled-up wood, spare food and idle
+citizens; 2 DROP - a Settlement at the home continent's unworked mine nearest to a drop site; 4 FIRST - the slots
+before wood and food beyond a fifth / a third of the workers. 3 changed next to nothing (the givers are rarely
+there: wood is spent as it comes; mine gatherers +-0). 7 put 5-8 more on the mines and raised kills - losses by
++8 / +10 (Large, no cheat / cheat) and +9 (Small with the cheat), but the workers fell by 4-12 (wood went short) and
+Small Islands without the cheat lost more (base AI wins 3 -> 7). **Off (0)**: filling the mines pays only with
+wood to spare - the next step is more woodcutters' income, not fewer.

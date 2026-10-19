@@ -48,6 +48,12 @@ static int g_early_workers = 60;           // [all] early_army_workers: below, t
 static int copper_mode(void *pl);          // below: copper_plan (per difficulty) or the variant's v_copper_plan
 static void early_tick(void *pl, unsigned idx, uint32_t now);   // early.c
 static int early_tower_stone(void *pl);
+static void food_plan_needs(void *pl, uint8_t *rm, int *need, const int *stock, const int *reserve);   // food.c
+static void food_log(void *pl, unsigned idx, uint32_t now);
+static int food_fields_wait(void *pl, uint8_t *rm);
+static void mine_drops(void *pl, unsigned idx, uint32_t now);   // mines.c
+static void mines_log(void *pl, unsigned idx, uint32_t now);
+static int g_mine_fill, g_v_mine_fill;
 static int early_cover(void *pl, int x, int y);
 static int early_core_spot(void *pl, int type, int *ox, int *oy);
 static unsigned g_early_mil_refused[16];   // defence.c militia_answer: citizens kept out of a fight (early_militia)
@@ -671,6 +677,9 @@ static void econ_tick(void *pl, uint32_t now) {
     }
     int ep = current_epoch(pl);
     early_tick(pl, ai, now);   // early.c: towers, the bait, the first army
+    food_log(pl, ai, now);   // food.c
+    mine_drops(pl, ai, now);   // mines.c
+    mines_log(pl, ai, now);
     early_requirements(pl, ai, now, copper_mode(pl) && ep < FARM_EPOCH);
     // pull the attempt forward: before farms with the copper plan, in every epoch with epoch_pacing=fast
     if (!(copper_mode(pl) && ep < FARM_EPOCH) && !c->pacing_fast) return;
@@ -929,6 +938,7 @@ static void econ_targets(uint8_t *rm) {
         if (r >= 4 && reserve[r] - stock[r] > need[r]) need[r] = reserve[r] - stock[r];
     }
     need[4] += early_tower_stone(pl);   // early.c: the stone of the town's first towers
+    food_plan_needs(pl, rm, need, stock, reserve);   // food.c (food_plan PLAN): the citizens' food, the real wood need
     // reserve plan: by worker-minutes (shortfall / measured rate per worker), so all arrive at about the same time
     float w[7] = { 0 }, wsum = 0;
     for (int r = 2; r < 7; r++) {
@@ -1228,7 +1238,8 @@ static void econ_fields(uint8_t *rm) {   // before the citizen assignment
     g_fields_open[idx] = nt;
     more_granaries(pl, idx, rm, cm, um, nt + nd, now);
     int wood = FIELD(pl, PL_STOCK + 3 * 4, int);
-    for (int i = 0; i < nt && wood >= 50; i++) {
+    int wild = nt && food_fields_wait(pl, rm);   // food.c (food_plan WILD): wild food first
+    for (int i = 0; i < nt && wood >= 50 && !wild; i++) {
         uint8_t *site = field_site(todo[i]), *best = NULL;
         int fx = FIELD(todo[i], 0x1C, int), fy = FIELD(todo[i], 0x20, int), bd = 0x7FFFFFFF, busy = 0;
         for (int r = 0; r < 7 && !busy; r++) {   // a builder already on it?
@@ -1295,12 +1306,12 @@ static void econ_rebalance(uint8_t *rm) {
     if (!g_rebalance || !pl) return;
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     uint32_t *target = (uint32_t *)(rm + RM_TARGET);
-    int moves = 0, dry = 0;   // dry: donor lists without a movable citizen
+    int moves = 0, dry = 0, most = PV(idx, g_v_mine_fill, g_mine_fill) & 1 ? 4 : 2;   // dry: donor lists without a movable citizen; mine_fill: 4
     // wood too with late_targets (the game's own wood search, 0x48C060(1, unit), safe_sites' danger check): 38 on gold
     // above their target stayed there for good while wood had 3
     int first = (PV(idx, g_v_late, g_late_targets) & 2) && current_epoch(pl) >= FARM_EPOCH ? 3 : 4;
-    for (int r = first; r < 7 && moves < 2; r++) {
-        while (moves < 2 && (int)target[r] - rm_count(rm, r) >= 2) {
+    for (int r = first; r < 7 && moves < most; r++) {
+        while (moves < most && (int)target[r] - rm_count(rm, r) >= 2) {
             int d = -1, best = 2;
             for (int t = 2; t < 7; t++) {
                 int s = rm_count(rm, t) - (int)target[t];

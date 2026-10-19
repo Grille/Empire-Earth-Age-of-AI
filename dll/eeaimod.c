@@ -76,6 +76,11 @@ static void persist_load(const char *name);
 static void econ_targets(uint8_t *rm);
 static void econ_rebalance(uint8_t *rm);
 static void econ_fields(uint8_t *rm);
+static void food_hunt(uint8_t *rm);   // food.c
+static void food_pull(uint8_t *rm);
+static void food_new_game(void);
+static void mine_fill(uint8_t *rm);   // mines.c
+static void mines_new_game(void);
 static void citizens_safety(uint8_t *rm);
 static void attack_tick(void *pl, uint32_t now);
 static void vanilla_tick(void *pl, uint32_t now);
@@ -250,7 +255,7 @@ static char __fastcall hook_compute_targets(void *rm, void *edx) {
     (void)edx;
     log_state(rm, "pre_targets", game_time());
     char changed = ((RmFn)FN_COMPUTE_TARGETS)(rm);
-    if (!is_vanilla(rm_player(rm))) econ_targets((uint8_t *)rm);
+    if (!is_vanilla(rm_player(rm))) { econ_targets((uint8_t *)rm); mine_fill((uint8_t *)rm); }   // mines.c: every mine slot
     log_state(rm, "post_targets", game_time());
     return changed;
 }
@@ -264,8 +269,10 @@ static char __fastcall hook_assign_citizens(void *rm, void *edx) {
     }
     econ_fields((uint8_t *)rm);   // farm fields (econ.c)
     citizens_safety((uint8_t *)rm);   // away from known enemy towers (attack.c)
+    food_hunt((uint8_t *)rm);   // idle citizens to animals (food.c)
     char r = ((RmFn)FN_ASSIGN_CITIZENS)(rm);
     econ_rebalance((uint8_t *)rm);
+    food_pull((uint8_t *)rm);   // gatherers back to food (food.c)
     log_state(rm, "post_assign", game_time());
     return r;
 }
@@ -676,6 +683,8 @@ static char __fastcall hook_game_start(void *state, void *edx, uint8_t *setup, v
     navy_new_game();
     bunker_new_game();
     early_new_game();
+    food_new_game();
+    mines_new_game();
     defence_new_game();
     assault_new_game();
     sites_new_game();
@@ -701,6 +710,8 @@ static char __fastcall hook_game_start(void *state, void *edx, uint8_t *setup, v
 #include "landing.c"
 #include "bunker.c"
 #include "early.c"
+#include "food.c"
+#include "mines.c"
 #include "intel.c"
 #include "expr.c"
 #include "persona.c"
@@ -951,6 +962,8 @@ static void install(HMODULE self) {
         if (g_log) fprintf(g_log, "# skip_intro: %s\n", ok ? "ok" : "FAILED");
     }
     econ_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
+    food_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
+    mines_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
     attack_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
     assault_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
     landing_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
