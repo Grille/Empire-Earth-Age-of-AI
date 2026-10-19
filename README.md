@@ -189,6 +189,13 @@ siege, home guard.
 3. Optional: copy the folder [`config/aimod_ai`](config/aimod_ai) into the same folder for the AI
    personalities. Add or edit `.eeai` files there to make your own; they are read when Empire Earth starts.
 4. Start the game normally. Changes to `aimod.ini` take effect when a game starts or a save is loaded.
+5. Optional: copy `dinput.dll` into the same folder too. The game then keeps its own settings (graphics,
+   sound, scroll speed, the last game's options - what the options screen sets) in `eesettings.ini` in the
+   game folder instead of the Windows registry, so they travel with the folder; the first start copies the
+   registry's values into it. It is a stand-in Windows loads at the start: the game's one DirectInput call
+   goes on to the system's `dinput.dll`. If another program in the folder already has a `dinput.dll`, keep
+   that one - everything works without ours, the settings then simply stay in the registry. Delete it to go
+   back to the registry (the file is then ignored).
 
 `aimod.ini` is required: without it Empire Earth shows an error and closes. To play the original game,
 set `enabled=0` at the top of `aimod.ini` (the mod then installs nothing), or delete `eeaimod.dll` to

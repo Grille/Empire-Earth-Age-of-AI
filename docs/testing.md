@@ -60,7 +60,7 @@ powershell -ExecutionPolicy Bypass -File scripts/run_test.ps1 -Save newgame.ees 
     -IniExtra "random_map=Continental,map_size=0,ai_count=3,seed=101,teams=ffa,ai_cheat=0,ai_ignore=1"
 ```
 
-- Sound and music are muted for the run and restored afterwards (a backup in `work/` covers interrupted runs).
+- **The game's own settings.** With the mod's `dinput.dll` in the game folder (dll/eesettings.c - the game's registry settings in a file) every run reads a copy of `-Settings` (env `SETTINGS`, default `config/test/eesettings.ini`: a player's settings of 2026-10-19 without the personal values, sound and music off) as `work/settings_slot<n>.ini` - not the player's `eesettings.ini`, not the registry; the log says `# game settings: <file>`. So tests no longer depend on the player's options (animal herds, scroll speed, the engine's tick rates ...), and nothing is muted. Checked 2026-10-19: the registry byte for byte unchanged after a run and after 2 parallel slots. Without the dinput.dll (`# game settings: registry ...`): sound and music are muted in the registry for the run and restored afterwards (a backup in `work/` covers interrupted runs). `-Mute:$false`: the player's own settings.
 - The log is moved to `work/autotest_<stamp><tag>.csv`.
 - `-Scenario <name>` plays `Data\Scenarios\<name>.scn` instead.
 - `-IniExtra` keys replace the same keys from `autotest.ini`.

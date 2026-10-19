@@ -1,0 +1,11 @@
+; exports of dinput.dll (eesettings.c): the system dinput.dll's, passed through, and the mod's mark
+LIBRARY dinput.dll
+EXPORTS
+DirectInputCreateA=DirectInputCreateA@16
+DirectInputCreateW=DirectInputCreateW@16
+DirectInputCreateEx=DirectInputCreateEx@20
+DllCanUnloadNow=DllCanUnloadNow@0 PRIVATE
+DllGetClassObject=DllGetClassObject@12 PRIVATE
+DllRegisterServer=DllRegisterServer@0 PRIVATE
+DllUnregisterServer=DllUnregisterServer@0 PRIVATE
+EEAimodSettings=EEAimodSettings@0

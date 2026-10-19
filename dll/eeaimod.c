@@ -878,6 +878,10 @@ static void install(HMODULE self) {
         fprintf(g_log, "# config: %s (personalities: %s)\n", g_aimod_ini, g_ai_dir);
         if (g_slot) fprintf(g_log, "# slot: %d (pipe eeaimod%d, ports %d/%d, files in %s)\n", g_slot, g_slot,
                             33334 + 2 * g_slot, 33335 + 2 * g_slot, dir);
+        // the game's settings: eesettings.ini through the optional dinput.dll (eesettings.c), else the registry
+        char gs[MAX_PATH + 64];
+        if (!GetEnvironmentVariableA("EEAIMOD_SETTINGS_FILE", gs, sizeof gs)) lstrcpyA(gs, "registry (no dinput.dll of the mod)");
+        fprintf(g_log, "# game settings: %s\n", gs);
     }
 
     BOOL a = patch_call(CALL_COMPUTE_TARGETS, FN_COMPUTE_TARGETS, hook_compute_targets);

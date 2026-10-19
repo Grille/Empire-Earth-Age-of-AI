@@ -12,7 +12,8 @@
 # start (docs/testing.md, Parallel runs). Slot 0 (default) is the game folder as before.
 param([string]$Save = "aitest.ees", [int]$TimeoutSec = 900, [string]$Tag = "", [bool]$Mute = $true,
       [string]$Scenario = "", [string[]]$IniExtra = @(), [string]$Exe = "Empire Earth.exe",
-      [string]$Config = $env:CONFIG, [string]$AiDir = $env:AI_DIR, [int]$Slot = [int]$env:SLOT)
+      [string]$Config = $env:CONFIG, [string]$AiDir = $env:AI_DIR, [int]$Slot = [int]$env:SLOT,
+      [string]$Settings = $env:SETTINGS)
 $g = (Resolve-Path "$PSScriptRoot\..\..").Path   # game folder; the repository lives in <game>\_aimod
 if ($Slot -lt 0 -or $Slot -gt 30) { "slot must be 0..30"; exit 1 }
 $sdir = if ($Slot) { "$g\_aimod\work\slot$Slot" } else { $g }   # this run's test ini, log and dumps
@@ -83,7 +84,18 @@ if (Get-Process -Name "Empire Earth" -ErrorAction SilentlyContinue | Where-Objec
     Remove-Item $lock -Confirm:$false; "game already running - aborting"; exit 1
 }
 if (-not $others) { Restore-Sound }   # leftover from an interrupted run (with other slots running: theirs)
-if ($Mute -and -not (Test-Path $backup)) {   # muted once for all slots that run at the same time
+# The game's settings. With the mod's dinput.dll in the game folder (dll/eesettings.c) every run reads a copy of
+# -Settings (env SETTINGS; default config\test\eesettings.ini: fixed settings, sound off) - not the player's
+# eesettings.ini, not the registry - and nothing needs muting. -Mute:$false: the player's own settings.
+$proxy = (Test-Path "$g\dinput.dll") -and (Select-String -Path "$g\dinput.dll" -Pattern 'EEAimodSettings' -SimpleMatch -Quiet)
+if (-not $Settings) { $Settings = "$g\_aimod\config\test\eesettings.ini" }
+elseif (-not [System.IO.Path]::IsPathRooted($Settings)) { $Settings = Join-Path "$g\_aimod" $Settings }
+if ($proxy -and $Mute) {
+    if (-not (Test-Path $Settings)) { Remove-Item $lock -Confirm:$false; "settings file not found: $Settings"; exit 1 }
+    $env:EEAIMOD_SETTINGS = "$g\_aimod\work\settings_slot$Slot.ini"
+    Copy-Item $Settings $env:EEAIMOD_SETTINGS -Force
+} else { Remove-Item Env:EEAIMOD_SETTINGS -ErrorAction SilentlyContinue }
+if ($Mute -and -not $proxy -and -not (Test-Path $backup)) {   # muted once for all slots that run at the same time
     $cur = Get-ItemProperty $key
     $o = @{}; foreach ($n in $names) { $o[$n] = $cur.$n }
     $o | ConvertTo-Json | Set-Content $backup

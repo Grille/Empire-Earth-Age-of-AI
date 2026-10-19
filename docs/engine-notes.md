@@ -645,7 +645,11 @@ RegDeleteValueA, RegDeleteKeyA, RegCloseKey; RegQueryValueExA at 0x1007F0CC/F1D5
 two Set). Traced 2026-10-19 by hooking those imports from our DLL: after the engine has loaded it the game queries
 no value at all - every setting is read before - and at exit it writes all of them back (also `Game Options`). So a
 redirect of the settings (to an ini next to the game) needs code that runs before the engine reads: a proxy DLL the
-loader brings in (one of the engine's imports, e.g. DINPUT.dll) or the suspended start of a test run.
+loader brings in (one of the engine's imports, e.g. DINPUT.dll) or the suspended start of a test run. Done that way:
+`dll/eesettings.c`, built as `dinput.dll` (README, Installing: optional) - DINPUT.dll is no KnownDLL, so the game
+folder's comes first; it passes DirectInputCreateA (the engine's only DINPUT import) to the system's and points the 7
+imports at `eesettings.ini` (all 7 or none). The engine opens HKCU with no subkey first, then the game's key below
+that handle - the redirect follows handle paths. Two values were REG_SZ of 0 bytes (WonNet Password, Last Quick Save).
 
 ## Art of Conquest (EE-AOC.exe) - first overview
 
