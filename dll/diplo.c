@@ -23,12 +23,14 @@
 //   no peace within pride/20 minutes of his declaration; otherwise
 //   score = opinion + 25 x log2(his power / own power) (at most +-40) + 0.4 x (50 - aggression) - 0.3 x (pride - 50)
 //           + 15 if he fights the AI's strongest enemy        accept if score > 0.
+//   The score is the personality's [decide] peace_score when it has one (persona.c; the shipped files: this formula
+//   in _eeaimod_shared.eeai); the pride/20 minutes are the rule's.
 // Power = sum of soldier hit points + 30 per building (scan every 10 s).
 //
 // AI INITIATIVE ([all] ai_diplomacy, default 1; not in scenarios/campaigns, not with locked teams), per AI every
 // 60 s from minute 10:
-//   alliance: at war with a leader (power > 1.5 x own) - offer an alliance to another enemy of the leader it is at
-//     war with (opinion > -20): an AI decides like a peace offer (+15 common enemy); a human gets the offer as a
+//   alliance: at war with a leader (power > 1.5 x own; [decide] seek_ally) - offer an alliance to another enemy of
+//     the leader it is at war with, the one it likes best (opinion; [decide] ally_score) if above -20: an AI decides like a peace offer (+15 common enemy); a human gets the offer as a
 //     line and 2 minutes to answer by turning allied - only then does the AI turn allied - otherwise it is withdrawn.
 //   betrayal: allied for 10+ minutes with a player of under half its power, opinion < 30: chance per minute
 //     (100 - loyalty) x aggression / 100000 - then war (betray line). Never the player it capitulated to.
@@ -367,12 +369,15 @@ static float det_log2f(float x) {
     return (float)e + 2.0f * t * (1.0f + t2 * (1.0f / 3 + t2 * (1.0f / 5 + t2 * (1.0f / 7)))) * 1.44269504f;
 }
 
-// would AI pl make peace / an alliance with player j now? (score > 0)
+// would AI pl make peace / an alliance with player j now? (score > 0) - its [decide] peace_score when it has one
+// (me = pl, them = j, enemy = its strongest enemy); the cooling-off after j's declaration is the rule's, not the score's
 static float peace_score(void *pl, int ai, int j, uint32_t now) {
     if (g_war_since[ai][j] && now - g_war_since[ai][j] < (uint32_t)trait(pl, T_PRIDE) * 3000u) return -1000;
-    float r = power_of(j) / power_of(ai);
     int lead = strongest_enemy(pl, ai);
     void *pj = player_at(j);
+    double d;
+    if (persona_decide(pl, D_PEACE_SCORE, pj, lead ? player_at(lead) : NULL, &d)) return (float)d;
+    float r = power_of(j) / power_of(ai);
     float pw = 25.0f * det_log2f(r);
     if (pw > 40) pw = 40; else if (pw < -40) pw = -40;   // a much weaker player can still buy peace
     float s = g_opinion[ai][j] + pw + 0.4f * (float)(50 - trait(pl, T_AGGRESSION)) - 0.3f * (float)(trait(pl, T_PRIDE) - 50);
@@ -816,10 +821,12 @@ static void diplo_initiative(void *pl, int ai, uint32_t now) {
     if (!g_ai_diplomacy || TEAMS_LOCKED || scenario_game() || now < 600000) return;
     if (is_vassal(ai)) { vassal_rebellion(pl, ai, now, 1); return; }
     int lead = strongest_enemy(pl, ai);
-    // alliance against the leader
-    if (lead && g_ws.power[lead] > 1.5f * power_of(ai)) {
+    // alliance against the leader ([decide] seek_ally: me = pl, enemy = the leader; ally_score: them = the candidate)
+    double d;
+    void *pe = lead ? player_at(lead) : NULL;
+    if (lead && (persona_decide(pl, D_SEEK_ALLY, NULL, pe, &d) ? d != 0 : g_ws.power[lead] > 1.5f * power_of(ai))) {
         int best = 0;
-        float bs = -20;
+        double bs = -20;
         for (int j = 1; j < nplayers(); j++) {
             void *pj = player_at(j);
             if (!pj || j == ai || j == lead || is_out(pj) || !stance_of(pl, j) || !stance_of(pj, lead)) continue;
@@ -827,8 +834,9 @@ static void diplo_initiative(void *pl, int ai, uint32_t now) {
             if (g_offer_t[ai][j] || (g_offer_last[ai][j] &&
                                      now - g_offer_last[ai][j] < (600000u << (g_offer_ignored[ai][j] < 2 ? g_offer_ignored[ai][j] : 2))))
                 continue;
-            if (g_opinion[ai][j] <= bs || block_veto(ai, j, now, NULL)) continue;   // not with someone its side can't stand
-            bs = g_opinion[ai][j]; best = j;
+            double sc = persona_decide(pl, D_ALLY_SCORE, pj, pe, &d) ? d : g_opinion[ai][j];
+            if (sc <= bs || block_veto(ai, j, now, NULL)) continue;   // not with someone its side can't stand
+            bs = sc; best = j;
         }
         if (best) {
             if (!llm_propose(ai, best, P_ALLY, lead, now)) offer_alliance(ai, best, lead, now);

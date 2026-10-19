@@ -17,7 +17,7 @@
 // names (a placeholder of the text, a [vars] entry, a game value - x_builtin in diplo.c), ( ), + - * /,
 // < <= > >= == !=, and or not (only the words: && || ! are a mistake), a ? b : c, a ? b, a ?? b, the functions
 // chance(p) (true with the probability p, 0..1: chance(70%)), rnd(n) (0 <= x < n, n 1 when left out), min, max, abs,
-// round, floor (down to a whole number), the lists' len(l), first(l), item(l, i) (from 1), contains(l, x) and
+// round, floor (down to a whole number), log2 (of a number above 0), the lists' len(l), first(l), item(l, i) (from 1), contains(l, x) and
 // map_range(x, [limits], [values]) (the value of the first limit x is below, the last past them all - a value no
 // list is a list of one), str(x) / number(x) (its text only / its number, a text's when it is one, else nothing), and
 // the players' relations: them.opinion(me) (x_method in diplo.c). A player (me, them, ...) is a value: its
@@ -57,6 +57,7 @@ struct xctx {
     int depth, level, failed, bad, circle;  // nesting: vars in vars, the parser (all together); mistakes while working
                                             // it out (x_fail, told); not an expression; too deep
     int nogame;                             // before the game (a personality's color): its values and players are mistakes
+    int game;                               // a decision ([decide]): it changes the game - draws from the game's generator
     int missed;                             // x_missing from the game's values (diplo.c): the primary fails (xp_primary)
     const char *top;                        // the source being worked out (for the mistakes' messages)
 };
@@ -82,6 +83,8 @@ static int x_is_value(const char *name);   // diplo.c: a name that is a value of
 static int x_method(struct xctx *c, const char *name, const struct xval *a, int na, struct xval *v);
 static int x_fill(char *out, int cap, const char *tmpl, struct xctx *c);
 static int rnd(int n);   // persona.c: the display generator
+static int rnd_game(int n);   // persona.c: the game's (decisions)
+static float det_log2f(float x);   // diplo.c: log2 with the same bits on every PC
 static int g_x_logged;   // expression errors written to the log (at most 60)
 // STRICT PARSING ([general] strict_parsing=1, for whoever writes the texts; default 0: a mistake is logged and skipped,
 // the game goes on): every mistake also comes up at once - those in the files at startup in a message box, those
@@ -301,7 +304,9 @@ static int xp_op(struct xp *p, const char *op) {
     return 1;
 }
 static void xp_expr(struct xp *p, struct xval *v);
-static double x_rnd01(void) { return rnd(1 << 30) / (double)(1 << 30); }   // 0 <= x < 1 (the display generator)
+// a draw: the display generator - in a decision (c->game) the game's, which every PC draws alike (persona.c)
+static int x_rnd(const struct xctx *c, int n) { return c->game ? rnd_game(n) : rnd(n); }
+static double x_rnd01(const struct xctx *c) { return x_rnd(c, 1 << 30) / (double)(1 << 30); }   // 0 <= x < 1
 // a player who isn't there (lord without one), used without a check (lord ? .. / lord ?? .. / lord == them): a
 // mistake like any other (x_fail) - a line built on a lord that isn't there makes no sense
 static void x_missing(struct xctx *c, const char *who) {
@@ -490,7 +495,7 @@ static void xp_primary(struct xp *p, struct xval *v) {
             if (p->err) goto out;
             if (!p->skip && it.w > 0) {
                 total += it.w;
-                if (rnd(total) < it.w) *v = it;
+                if (x_rnd(p->c, total) < it.w) *v = it;
                 if (it.ln) for (int k = 0; k < it.ln; k++) { if (n < XL_ITEMS) idx[n++] = g_xl_idx[it.li + k]; else lost = 1; }   // its items
                 else if (it.w > 1 || n == XL_ITEMS || g_xl_nval == XL_VALS) lost = 1;   // a list kept whole no more
                 else { g_xl_val[g_xl_nval] = it; idx[n++] = g_xl_nval++; }
@@ -546,7 +551,7 @@ static void xp_primary(struct xp *p, struct xval *v) {
                 !lstrcmpiA(name, "len") && na == 1 ? 7 : !lstrcmpiA(name, "first") && na == 1 ? 8 :
                 !lstrcmpiA(name, "item") && na == 2 ? 9 : !lstrcmpiA(name, "contains") && na == 2 ? 10 :
                 !lstrcmpiA(name, "map_range") && na == 3 ? 11 : !lstrcmpiA(name, "str") && na == 1 ? 12 :
-                !lstrcmpiA(name, "number") && na == 1 ? 13 : 0;
+                !lstrcmpiA(name, "number") && na == 1 ? 13 : !lstrcmpiA(name, "log2") && na == 1 ? 14 : 0;
         for (int i = 0; f && i < na; i++) x_use(p, &a[i]);   // a function's arguments (a relation checks its players)
         if (p->err) goto out;
         if (f == 1 && a[0].has_n && a[0].n > 1 && (p->check || !p->skip)) {   // chance(70): meant 70%
@@ -554,9 +559,10 @@ static void xp_primary(struct xp *p, struct xval *v) {
             x_fail(p, "chance(%g): a probability is 0 to 1 - chance(70%%) or chance(0.7)", a[0].n);
             goto out;
         }
-        if (!p->skip && f && f <= 6)   // the number functions: numbers (or nothing) only
+        if (!p->skip && f && (f <= 6 || f == 14))   // the number functions: numbers (or nothing) only
             for (int i = 0; i < na; i++) if (!x_numeric_ok(p, &a[i])) goto out;
         if (!p->skip && (f == 9 ? !x_numeric_ok(p, &a[1]) : f == 11 && !x_numeric_ok(p, &a[0]))) goto out;
+        if (!p->skip && f == 14 && !(xto_num(&a[0]) > 0)) { x_fail(p, "log2(%g): only of a number above 0", xto_num(&a[0])); goto out; }
         if (!p->skip && f == 11)
             for (int i = 0; i < xl_n(&a[1]); i++) if (!x_numeric_ok(p, xl_at(&a[1], i))) goto out;
         if (!f && !strchr(name, '.')) {   // a function of [vars]: name(a, b) = ...
@@ -579,7 +585,7 @@ static void xp_primary(struct xp *p, struct xval *v) {
             else if (p->skip) xnothing(v);
         }
         else if (p->skip) xnothing(v);
-        else if (f == 1) xnum(v, x_rnd01() < xto_num(&a[0]));   // a probability: chance(70%), chance(0.7)
+        else if (f == 1) xnum(v, x_rnd01(p->c) < xto_num(&a[0]));   // a probability: chance(70%), chance(0.7)
         else if (f == 2) {
             int mx = !lstrcmpiA(name, "max");
             double r = xto_num(&a[0]);
@@ -597,7 +603,7 @@ static void xp_primary(struct xp *p, struct xval *v) {
             else if (xnumeric(a[0].s, &x)) xnum(v, x);
         }
         else if (f == 7) xnum(v, a[0].ln ? a[0].ln : a[0].w);   // len: how many items (one value 1, nothing 0)
-        else if (f >= 8 && f != 10) {   // an item: first(l), item(l, i) from 1, map_range(x, limits, values)
+        else if (f == 8 || f == 9 || f == 11) {   // an item: first(l), item(l, i) from 1, map_range(x, limits, values)
             const struct xval *l = &a[f == 11 ? 2 : 0];
             int i = f == 8 ? 0 : f == 9 ? (int)xto_num(&a[1]) - 1 : 0;
             if (f == 11) {   // the value of the first limit x is below, the last value past them all
@@ -610,7 +616,8 @@ static void xp_primary(struct xp *p, struct xval *v) {
             for (int i = 0; i < xl_n(&a[0]) && !hit; i++) hit = a[1].w && !xcmp(xl_at(&a[0], i), &a[1]);
             xnum(v, hit);
         }
-        else xnum(v, x_rnd01() * (na ? xto_num(&a[0]) : 1));   // rnd(n): 0 <= x < n, rnd(): 0 <= x < 1
+        else if (f == 14) xnum(v, det_log2f((float)xto_num(&a[0])));   // the same bits on every PC (diplo.c)
+        else xnum(v, x_rnd01(p->c) * (na ? xto_num(&a[0]) : 1));   // rnd(n): 0 <= x < n, rnd(): 0 <= x < 1
     } else p->err = 1;
 out:
     if (p->c->missed) { p->c->missed = 0; p->err = 1; p->why = "a mistake while working it out"; }   // told (x_missing)

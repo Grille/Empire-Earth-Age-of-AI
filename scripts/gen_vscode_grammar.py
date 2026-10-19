@@ -1,7 +1,7 @@
 """Writes vscode/eeaimod-texts/syntaxes/eeai.tmLanguage.json - the highlighting of the aimod_ai\\*.eeai files
 (personalities, _system.eeai, _template.eeai; the format: dll/expr.c THE TEXT FILES) - with the names the DLL knows,
-read from its sources: the game's values (diplo.c k_xmembers, k_xglobals), the epochs and functions (expr.c), the situations and
-traits (persona.c), the system and prompt keys (texts.c, texts_prompt.h), the style keys (settings.c). A key the DLL
+read from its sources: the game's values (diplo.c k_xmembers, k_xglobals), the epochs and functions (expr.c), the situations,
+traits and decisions (persona.c), the system and prompt keys (texts.c, texts_prompt.h), the style keys (settings.c). A key the DLL
 doesn't know in its section shows as an error. Run it after changing one of them, then scripts/pack_vscode.py:
 venv/Scripts/python.exe scripts/gen_vscode_grammar.py"""
 import json
@@ -30,6 +30,7 @@ units = re.findall(r'"(\w+)"', re.search(r'k_units_const\[6\] = \{(.*?)\};', exp
 funcs = sorted(set(re.findall(r'!lstrcmpiA\(name, "(\w+)"\)', expr)) - {'true', 'false'})
 situations = re.findall(r'\{ "(\w+)", \d+, \d+, A_\w+ \}', persona)
 traits = re.findall(r'"(\w+)"', re.search(r'k_trait_keys\[T_N\] = \{(.*?)\};', persona).group(1))
+decisions = re.findall(r'"(\w+)"', re.search(r'k_decide_keys\[D_N\] = \{(.*?)\};', persona).group(1))
 sys_keys = re.findall(r'^    \{ "(\w+)", "', texts[texts.index('k_sys[] = {'):texts.index('#define N_SYS')], re.M)
 tpl_keys = re.findall(r'^    \{ "(\w+)", ', tpl[tpl.index('k_tpl[] = {'):], re.M)   # [prompt] only, not the built-in [vars]
 style_keys = re.findall(r'\{ "(\w+)", offsetof', settings)
@@ -114,6 +115,7 @@ grammar = {
         section('style', style_keys, 'support.type.property-name.eeaimod'),
         section('vars', None, 'entity.name.variable.eeaimod', functions=True),
         section('lines', situations, 'support.type.property-name.situation.eeaimod'),
+        section('decide', decisions, 'support.type.property-name.eeaimod'),
         section('system', sys_keys, 'support.type.property-name.eeaimod'),
         section('prompt', tpl_keys, 'support.type.property-name.eeaimod'),
         section(r'[^\]:]+', [], ''),

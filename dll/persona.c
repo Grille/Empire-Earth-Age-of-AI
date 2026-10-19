@@ -13,6 +13,8 @@
 //   war_declared = ["Variant one", opinion < -50 ? "Variant two {them}"]   any expression: one string, a list ...
 //   [lines:de]                         in a game of that language these replace [lines] situation by situation
 //   [vars] / [vars:de]                 named strings and expressions for its lines, before _system.eeai's
+//   [decide]                           its decisions as expressions (persona_decide; diplo.c the defaults)
+//   peace_score = opinion + ...        a number; a key it has none of: its includes', else the built-in rule
 //   [style]                            EXPERIMENTAL, only with [general] ai_style=1 (default 0): aimod.ini keys
 //   first_attack_min = 15              (settings.c k_style_keys) on top of the difficulty's settings for this AI
 // In braces: {them} the player the line is about, {me} the speaker, {enemy} a third player (alliances),
@@ -60,6 +62,13 @@ static const struct { const char *key; int chance, cooldown; enum audience aud; 
     { "ask_lord", 100, 60, A_NAME },
 };
 
+// DECISIONS ([decide]): what an AI wants, worked out by diplo.c with me = the AI, them = the other player, enemy = the
+// AI's strongest enemy (none: a missing player, to be checked) - a number each; a mistake (or no number) is the built-in
+// rule for that time (told once). The rules around them (who may be asked, timers, the offers) stay diplo.c's.
+enum decide { D_PEACE_SCORE, D_SEEK_ALLY, D_ALLY_SCORE, D_N };
+static const char *const k_decide_keys[D_N] = { "peace_score", "seek_ally", "ally_score" };
+static int decide_key(const char *key) { int k = 0; while (k < D_N && lstrcmpiA(key, k_decide_keys[k])) k++; return k; }
+
 #define MAX_PERSONAS 32
 #define MAX_VARIANTS 12
 struct persona {
@@ -71,6 +80,7 @@ struct persona {
     int nstyle;
     char *line[L_N];   // a situation's line: an expression (expr.c) - a string, a list of them, conditions
     struct xvars vars;   // [vars] (+ [vars:<game language>])
+    char *decide[D_N];   // [decide]: a decision's expression (its own, else its includes'); NULL: the built-in rule
 };
 static struct persona g_personas[MAX_PERSONAS];
 static int g_npersonas;
@@ -219,8 +229,8 @@ static int g_personas_only_computer;   // autotest personas=0: only computer.eea
 // expression: a list of colours, worked out at the game start - persona_colors), the traits (numbers 0-100); [style] (numbers); [vars] / [vars:<language>]; [lines] /
 // [lines:<language>] - each situation a string or a list of them, "if" conditions
 // INCLUDES: before its first section a file may name others in its folder - include = "_shared.eeai" or a list of
-// them - whose [vars] / [vars:<language>] it uses after its own (the first named first); an included file holds only
-// [vars] and includes of its own (4 deep, no circles). Only a plain file name: no path, so a pack of files dropped into
+// them - whose [vars] / [vars:<language>] and [decide] it uses after its own (the first named first); an included file
+// holds only [vars], [decide] and includes of its own (4 deep, no circles). Only a plain file name: no path, so a pack of files dropped into
 // aimod_ai brings its own shared vars without touching anyone else's. Files starting with _ are no personalities.
 #define INCLUDES_MAX 8
 struct includes { int n; char name[INCLUDES_MAX][64]; };
@@ -239,17 +249,23 @@ static int include_key(struct includes *inc, const char *sec, const char *key, s
     if (!x_plain_strings(v->src, include_add, &a)) tl_error(l, "include = \"_file.eeai\" or a list of them expected");
     return 1;
 }
-struct inc_read { struct xvars base, lang; struct includes inc; };
+struct inc_read { struct xvars base, lang; struct includes inc; char *decide[D_N]; };
 static void inc_key(void *arg, const char *sec, const char *key, struct tval *v, struct tlex *l) {
     struct inc_read *r = arg;
     if (include_key(&r->inc, sec, key, v, l)) return;
     if (!lstrcmpiA(sec, "vars")) xvars_set(&r->base, key, v->src);
     else if (!_strnicmp(sec, "vars:", 5)) { if (lang_matches(sec + 5)) xvars_set(&r->lang, key, v->src); }
-    else tl_error(l, *sec ? "an included file holds [vars] only" : "a key before the first section (only include =)");
+    else if (!lstrcmpiA(sec, "decide")) {
+        int k = decide_key(key);
+        if (k == D_N) { tl_error(l, "an unknown decision (peace_score, seek_ally, ally_score)"); return; }
+        free(r->decide[k]);
+        r->decide[k] = _strdup(v->src);
+    }
+    else tl_error(l, *sec ? "an included file holds [vars] and [decide] only" : "a key before the first section (only include =)");
 }
 static void xvars_free(struct xvars *v) { for (int i = 0; i < v->n; i++) { free(v->key[i]); free(v->val[i]); } v->n = 0; }
 // the [vars] of the files inc names (dir: the folder) into vars, where vars has no such name yet (by: who names them)
-static void includes_load(const char *dir, const struct includes *inc, struct xvars *vars, const char *by, int depth) {
+static void includes_load(const char *dir, const struct includes *inc, struct xvars *vars, char **decide, const char *by, int depth) {
     for (int i = 0; i < inc->n; i++) {
         char path[MAX_PATH];
         if (depth >= 4) { x_error("%s: include \"%s\": more than 4 deep (a circle?)", by, inc->name[i]); return; }
@@ -267,7 +283,11 @@ static void includes_load(const char *dir, const struct includes *inc, struct xv
                 if (vars->n == XVARS_MAX) { x_error("%s: more than %d [vars] with its includes", by, XVARS_MAX); break; }
                 xvars_set(vars, r->base.key[k], r->base.val[k]);
             }
-        includes_load(dir, &r->inc, vars, inc->name[i], depth + 1);
+        for (int k = 0; k < D_N; k++) {   // its decisions where the file has none yet
+            if (!decide[k]) decide[k] = r->decide[k];
+            else free(r->decide[k]);
+        }
+        includes_load(dir, &r->inc, vars, decide, inc->name[i], depth + 1);
         xvars_free(&r->base);
         xvars_free(&r->lang);
         free(r);
@@ -329,6 +349,11 @@ static void persona_key(void *arg, const char *sec, const char *key, struct tval
         if (p->nstyle < 16) { p->style_key[p->nstyle] = _strdup(key); p->style_val[p->nstyle++] = _strdup(v->text); }
     } else if (!lstrcmpiA(sec, "vars") || (!_strnicmp(sec, "vars:", 5) && lang_matches(sec + 5))) {
         xvars_set(sec[4] ? &r->vl : &p->vars, key, v->src);
+    } else if (!lstrcmpiA(sec, "decide")) {
+        int k = decide_key(key);
+        if (k == D_N) { tl_error(l, "an unknown decision (peace_score, seek_ally, ally_score)"); return; }
+        free(p->decide[k]);
+        p->decide[k] = _strdup(v->src);
     } else if (!lstrcmpiA(sec, "lines") || (!_strnicmp(sec, "lines:", 6) && lang_matches(sec + 6))) {
         int k = 0;
         while (k < L_N && lstrcmpiA(key, k_lines[k].key)) k++;
@@ -360,7 +385,7 @@ static void persona_load(const char *path, const char *file) {
     lstrcpynA(dir, path, sizeof dir);
     char *bs = strrchr(dir, '\\');
     if (bs) bs[1] = 0; else dir[0] = 0;
-    includes_load(dir, &r.inc, &p->vars, file, 0);
+    includes_load(dir, &r.inc, &p->vars, p->decide, file, 0);
     for (int k = 0; k < L_N; k++)   // the language's lines where it has them, [lines] for the rest
         if (r.ll[k]) { free(p->line[k]); p->line[k] = r.ll[k]; }
     if (comp) {   // the neutral fallback lines (read into g_computer), no personality of its own
@@ -450,6 +475,31 @@ static void line_ctx_init(struct line_ctx *l, void *pl, void *other, void *third
     l->c.pn = l->pn; l->c.pv = l->pv; l->c.np = 1;
     l->c.vars[1] = &(persona_of(pl) ? persona_of(pl) : &g_computer)->vars;
     l->c.vars[2] = &g_vars_sys;
+}
+// decision k of AI pl about them (enemy: its strongest enemy, or NULL) - its [decide] expression's number into *out;
+// 0: none, or not a number now (a mistake, told once): the caller's built-in rule
+static int persona_decide(void *pl, int k, void *them, void *enemy, double *out) {
+    struct persona *p = persona_of(pl);
+    if (!p) p = &g_computer;
+    if (!p->decide[k]) return 0;
+    texts_load();
+    struct xctx c;
+    memset(&c, 0, sizeof c);
+    c.pl = pl; c.other = them; c.third = enemy; c.found = 1;
+    c.vars[0] = &p->vars;
+    c.vars[2] = &g_vars_sys;
+    c.game = 1;
+    struct xval x;
+    if (!x_eval(p->decide[k], &c, &x)) {
+        if (!c.failed) x_log_bad("a decision that is no expression", p->decide[k]);
+        return 0;
+    }
+    if (!x.w || !x.has_n || x.pl) {   // nothing, a text, a player: no number to decide by
+        x_error("[decide] %s of %s: not a number - the built-in rule instead", k_decide_keys[k], p->file);
+        return 0;
+    }
+    *out = x.n;
+    return 1;
 }
 static uint32_t text_hash(const char *s) { uint32_t h = 2166136261u; while (*s) h = (h ^ (uint8_t)*s++) * 16777619u; return h | 1; }
 // p's line for situation k, worked out now (out, cap bytes): its value - one of a list's items, what holds of its

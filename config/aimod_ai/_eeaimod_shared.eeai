@@ -1,5 +1,5 @@
-; eeaimod's shared [vars] for its personalities - each names this file: include = "_eeaimod_shared.eeai".
-; A personality's own [vars] come first: one of the same name replaces these for it.
+; eeaimod's shared [vars] and [decide] for its personalities - each names this file: include = "_eeaimod_shared.eeai".
+; A personality's own [vars] and [decide] come first: one of the same name replaces these for it.
 ; A pack of your own brings its own shared file (another name), so packs never touch each other's.
 
 [vars]
@@ -9,3 +9,22 @@ this_war = me.war_minutes(them)
 many_dead = max(10, max_population / 3)
 ; tribute that counts as much at this stage of the game: half of what I hold (1500 at least)
 big_tribute = max(1500, me.stock / 2)
+
+[decide]
+; What the AI wants in its diplomacy - me is the AI, them the other player, enemy my strongest enemy (there may be
+; none: check it, enemy and ...). Each a number. A mistake: the built-in rule (the same as these), told in the log.
+; The rules around them stay the mod's: who can be asked, how long an offer stands, no peace within pride/20 minutes
+; of their declaration of war.
+
+; Peace (or an alliance) with them: yes when above 0. How much I like them, how strong they are against me (at most
+; +-40: even a much weaker player can buy peace), my temper - and +15 when they fight my strongest enemy too.
+peace_score = (opinion
+    + max(-40, min(40, 25 * log2(max(1, them.strength) / max(1, me.strength))))
+    + 0.4 * (50 - aggression) - 0.3 * (pride - 50)
+    + (enemy and enemy != them and them.hostile(enemy) ? 15 : 0))
+
+; Look for an ally against my strongest enemy (every minute from minute 10): when it is half again as strong as me.
+seek_ally = enemy and enemy.strength > 1.5 * max(1, me.strength)
+
+; Which of my strongest enemy's other enemies to ask: the highest score, if above -20.
+ally_score = opinion
