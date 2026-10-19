@@ -1505,8 +1505,34 @@ static void __fastcall hook_unit_release(uint8_t *u, void *edx) {
     ((void (__thiscall *)(void *))FN_UNIT_RELEASE)(u);
 }
 
+// RANGE SORT: 0x630466 (under EEUnitClass vf48 0x620122, a unit's look at the enemies around it) sorts the enemies in
+// its range by 0x62D5A4(unit, enemy) (a distance) with std::sort (0x63A355; 0x63AB78 / 0x63B79D). Its unguarded
+// partition (0x63B9E5) compares a key just computed on the x87 stack (80 bits) with the pivot's, stored as a float: the
+// pivot can compare greater than itself, and the scan runs off the array - a crash at 0x62D5AC reading 0x88000F20 /
+// 0x8C000F8D (6 of 360 games against the base AI with more citizens, deterministic: it takes 17+ enemies in range,
+// below that the game's insertion sort is guarded). Replaced by an insertion sort on keys computed once (floats), ties
+// kept in their order - the order of the game's insertion sort.
+#define CALL_RANGE_SORT 0x0063052E
+#define FN_RANGE_SORT   0x0063A355
+static void __cdecl hook_range_sort(void **b, void **e, void *unit) {
+    int n = b && e > b ? (int)(e - b) : 0;
+    if (n < 2) return;
+    if (n > 1024) { ((void (__cdecl *)(void **, void **, void *))FN_RANGE_SORT)(b, e, unit); return; }
+    static float key[1024];   // the simulation's thread only
+    for (int i = 0; i < n; i++) key[i] = ((float (__cdecl *)(void *, void *))0x0062D5A4)(unit, b[i]);
+    for (int i = 1; i < n; i++) {
+        float k = key[i];
+        void *v = b[i];
+        int j = i;
+        for (; j > 0 && key[j - 1] > k; j--) { key[j] = key[j - 1]; b[j] = b[j - 1]; }
+        key[j] = k; b[j] = v;
+    }
+}
+
 static void attack_install(const char *aimod_ini, const char *autotest_ini) {
-    int list_guard = patch_call(CALL_NODE_DEL_1, FN_OP_DELETE, unit_node_free_thunk) +
+    BOOL sort_guard = patch_call(CALL_RANGE_SORT, FN_RANGE_SORT, hook_range_sort);
+    if (g_log) fprintf(g_log, "# engine guard: the range sort %s\n", sort_guard ? "ok" : "FAILED");
+    int list_guard =patch_call(CALL_NODE_DEL_1, FN_OP_DELETE, unit_node_free_thunk) +
                      patch_call(CALL_NODE_DEL_2, FN_OP_DELETE, unit_node_free_thunk) +
                      patch_vtable(VT_COMPLEX_UNIT, 13, FN_UNIT_RELEASE, hook_unit_release);
     if (g_log) fprintf(g_log, "# engine guard: units freed while in the unit list or twice %d/3\n", list_guard);
