@@ -700,7 +700,9 @@ the display DLLs' 16x16 probe windows activated ~21 times per start and the game
 taskbar button - with several slots starting, the taskbar flickered and the desktop kept losing the focus.
 The mod's dinput.dll installs it at the process start (`EEAIMOD_HEADLESS=1`, set by run_test.ps1), before
 the display DLLs probe; eeaimod.dll only from its own load on (without the mod's dinput.dll, 6 probes still
-activate). Nothing of the game should become visible or take the focus.
+activate). Nothing of the game should become visible or take the focus. Backups of a DLL never go into the game
+folder (`work/dll_backup/`): the engine loads every `*.dll` there - a second dinput.dll (`dinput.old.dll`) crashed
+every start on 2026-10-19 from 21:42 on (now a copy does nothing).
 
 | Command | |
 |---|---|

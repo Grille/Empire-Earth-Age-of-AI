@@ -383,6 +383,12 @@ static int slot_write(uintptr_t *slot, void *hook) {
     return 1;
 }
 static void start(HINSTANCE self) {
+    // a copy of this DLL beside it (dinput.old.dll, a backup): the engine LoadLibrary()s every *.dll in the game folder
+    // and FreeLibrary()s those that aren't its own again. A copy that hooked too crashed the game: the registry hooked
+    // twice, a key opened in one copy queried in the other (0x52AB16, reading the settings), a window hook left in
+    // freed code (2026-10-19). The one Windows loaded for the engine does everything, a copy nothing.
+    HMODULE first = GetModuleHandleA("dinput.dll");
+    if (first && first != (HMODULE)self && GetProcAddress(first, "EEAimodSettings")) return;
     char why[MAX_PATH + 64] = "";
     InitializeCriticalSection(&g_cs);
     HMODULE lle = GetModuleHandleA("Low-Level Engine.dll");   // its imports bring us in: it is there, not yet run
@@ -404,15 +410,18 @@ static void start(HINSTANCE self) {
             { "RegSetValueExA", (void *)s_set }, { "RegDeleteValueA", (void *)s_delete_value },
             { "RegDeleteKeyA", (void *)s_delete_key }, { "RegCloseKey", (void *)s_close } };
         // all or nothing: a key opened in the file but read from the registry would lose settings
+        static void *const k_real[7] = { (void *)RegOpenKeyExA, (void *)RegCreateKeyExA, (void *)RegQueryValueExA,
+            (void *)RegSetValueExA, (void *)RegDeleteValueA, (void *)RegDeleteKeyA, (void *)RegCloseKey };
         uintptr_t *slot[7];
-        int found = 0, put = 0;
+        int found = 0, put = 0, taken = 0;
         for (int i = 0; i < 7; i++) found += (slot[i] = iat_slot(lle, k_hooks[i].fn)) != NULL;
-        if (found == 7) for (int i = 0; i < 7; i++) put += slot_write(slot[i], k_hooks[i].hook);
+        // taken already (another program's hook, or a copy of this DLL under another name loaded first): left alone
+        for (int i = 0; i < 7 && found == 7; i++) taken += *slot[i] != (uintptr_t)k_real[i];
+        if (found == 7 && !taken) for (int i = 0; i < 7; i++) put += slot_write(slot[i], k_hooks[i].hook);
         if (put == 7) { g_on = 1; lstrcpyA(why, g_file); }
+        else if (taken) lstrcpyA(why, "registry (the engine's registry imports are hooked already)");
         else if (!put) wsprintfA(why, "registry (%d of 7 engine imports found)", found);
         else {   // can't happen short of a failing VirtualProtect: the registry's own functions back in
-            static void *const k_real[7] = { (void *)RegOpenKeyExA, (void *)RegCreateKeyExA, (void *)RegQueryValueExA,
-                (void *)RegSetValueExA, (void *)RegDeleteValueA, (void *)RegDeleteKeyA, (void *)RegCloseKey };
             for (int i = 0; i < 7; i++) slot_write(slot[i], k_real[i]);
             lstrcpyA(why, "registry (the engine's imports couldn't be changed)");
         }
@@ -426,6 +435,9 @@ const char *WINAPI EEAimodSettings(void) { return g_on ? g_file : NULL; }
 BOOL WINAPI DllMain(HINSTANCE self, DWORD reason, LPVOID reserved) {
     (void)reserved;
     if (reason == DLL_PROCESS_ATTACH) { DisableThreadLibraryCalls(self); start(self); }
-    else if (reason == DLL_PROCESS_DETACH && g_on) file_save();
+    else if (reason == DLL_PROCESS_DETACH) {
+        if (g_on) file_save();
+        if (g_hl_cbt) UnhookWindowsHookEx(g_hl_cbt);
+    }
     return TRUE;
 }
