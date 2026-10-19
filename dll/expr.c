@@ -61,6 +61,7 @@ struct xctx {
                                             // it out (x_fail, told); not an expression; too deep
     int nogame;                             // before the game (a personality's color): its values and players are mistakes
     int game;                               // a decision ([decide]): it changes the game - draws from the game's generator
+    int fixed;                              // an ini file's number (ini.c): no names, no draws, no lists - told quietly
     int missed;                             // x_missing from the game's values (diplo.c): the primary fails (xp_primary)
     const char *top;                        // the source being worked out (for the mistakes' messages)
 };
@@ -340,7 +341,7 @@ static void x_fail(struct xp *p, const char *fmt, ...) {
     va_start(ap, fmt);
     vsnprintf(g_x_last_fail, sizeof g_x_last_fail, fmt, ap);
     va_end(ap);
-    x_error("%s: %.100s", g_x_last_fail, p->c->top ? p->c->top : "");
+    if (!p->c->fixed) x_error("%s: %.100s", g_x_last_fail, p->c->top ? p->c->top : "");   // fixed: ini.c tells it
     p->c->failed++;
     p->err = 1;
     p->why = "a mistake while working it out";
@@ -397,6 +398,7 @@ static void x_nogame(struct xp *p, const char *name) {   // a game value or a pl
 static void xp_ident(struct xp *p, const char *name, struct xval *v) {
     struct xctx *c = p->c;
     if (p->skip) { if (p->check) x_name_check(name); xnothing(v); return; }
+    if (c->fixed) { x_fail(p, "%s: a name - a setting is a number (35%%, 2 * 60, min(...))", name); xnothing(v); return; }
     for (int i = 0; i < c->fnp; i++)   // a parameter of the function being worked out
         if (!strcmp(c->fpn[i], name)) { *v = c->fpv[i]; return; }
     for (int i = 0; i < c->np; i++)
@@ -484,6 +486,9 @@ static void xp_primary(struct xp *p, struct xval *v) {
             if (p->c->failed > f0) { p->err = 1; p->why = "a mistake while working it out"; goto out; }   // told in x_fill
             xstr(v, f);
         }
+    } else if (*s == '[' && p->c->fixed && !p->skip) {   // a setting: one number, no random item
+        x_fail(p, "a list - a setting is one number");
+        p->err = 1;
     } else if (*s == '[') {   // a list: one of its items - each of them as often as the items it was chosen from
         struct xval it;
         int total = 0, par = p->par, idx[XL_ITEMS], n = 0, lost = 0;
@@ -566,6 +571,10 @@ static void xp_primary(struct xp *p, struct xval *v) {
                 !lstrcmpiA(name, "number") && na == 1 ? 13 : !lstrcmpiA(name, "log2") && na == 1 ? 14 : 0;
         for (int i = 0; f && i < na; i++) x_use(p, &a[i]);   // a function's arguments (a relation checks its players)
         if (p->err) goto out;
+        if (p->c->fixed && !p->skip && (f == 1 || f == 5 || !f)) {   // a setting: fixed - no draws, no [vars] functions
+            x_fail(p, "%s(): a setting is a fixed number (no chance(), rnd() or names)", name);
+            goto out;
+        }
         if (f == 1 && a[0].has_n && a[0].n > 1 && (p->check || !p->skip)) {   // chance(70): meant 70%
             if (p->check) { p->err = 1; p->why = "chance takes a probability, 0 to 1: chance(70%) or chance(0.7)"; goto out; }
             x_fail(p, "chance(%g): a probability is 0 to 1 - chance(70%%) or chance(0.7)", a[0].n);
@@ -790,6 +799,19 @@ static int x_eval(const char *src, struct xctx *c, struct xval *v) {   // its va
     return ok;   // 0 and c->failed up: a mistake while working it out, told
 }
 
+// an ini file's number (ini.c): a constant expression - numbers, %, + - * / ( ), min, max, abs, round, floor, log2;
+// 0: a mistake, *why (not logged here)
+static int x_const_eval(const char *src, double *out, const char **why) {
+    struct xctx c;
+    memset(&c, 0, sizeof c);
+    c.found = 1; c.nogame = 1; c.fixed = 1;
+    struct xval v;
+    g_x_last_fail[0] = 0;
+    if (!x_eval(src, &c, &v)) { *why = g_x_last_fail[0] ? g_x_last_fail : "not a number or an expression"; return 0; }
+    if (!v.w || !v.has_n || v.has_s || v.pl) { *why = "a number expected"; return 0; }
+    *out = v.n;
+    return 1;
+}
 // the syntax of an expression, nothing worked out (no game needed: the files are checked when read); 0: a mistake, *why
 // what it is when known
 static int x_syntax(const char *src, const char **why) {

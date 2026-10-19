@@ -705,15 +705,15 @@ static void navy_install(const char *aimod_ini, const char *autotest_ini) {
     int ok = g_fish_boat ? patch_call(0x0048F823, FN_FISH_TYPE, (void *)hook_fish_type) + patch_call(0x0048FB16, FN_FISH_TYPE, (void *)hook_fish_type) : 0;
     if (g_log) fprintf(g_log, "# fishing: boat choice %s (hooks %d/2)\n", g_fish_boat ? "newest available" : "the game's", ok);
     g_navy = cfg_int(aimod_ini, autotest_ini, 1, "navy", 1);
-    g_navy_share = cfg_int(aimod_ini, autotest_ini, 1, "navy_share", 25);
+    g_navy_share = cfg_pct(aimod_ini, autotest_ini, 1, "navy_share", 25, 100);
     if (g_navy_share < 0) g_navy_share = 0;
     if (g_navy_share > 80) g_navy_share = 80;
     g_navy_mix = cfg_int(aimod_ini, autotest_ini, 1, "navy_mix", 0);
-    g_navy_fleet_pop = cfg_int(aimod_ini, autotest_ini, 1, "navy_fleet_pop", 15);
-    g_navy_share_max = cfg_int(aimod_ini, autotest_ini, 1, "navy_share_max", 50);
+    g_navy_fleet_pop = cfg_pct(aimod_ini, autotest_ini, 1, "navy_fleet_pop", 15, 100);
+    g_navy_share_max = cfg_pct(aimod_ini, autotest_ini, 1, "navy_share_max", 50, 100);
     if (g_navy_share_max > 80) g_navy_share_max = 80;
-    if (autotest_ini) g_v_navy = GetPrivateProfileIntA("autotest", "v_navy", -1, autotest_ini);
-    if (autotest_ini) g_v_navy_mix = GetPrivateProfileIntA("autotest", "v_navy_mix", -1, autotest_ini);
+    if (autotest_ini) g_v_navy = ini_int("autotest", "v_navy", -1, autotest_ini);
+    if (autotest_ini) g_v_navy_mix = ini_int("autotest", "v_navy_mix", -1, autotest_ini);
     if (g_log) fprintf(g_log, "# navy: account %s, share %d%% on islands, fleet mix %s (v_navy %d, v_navy_mix %d for the variant players)\n",
                        g_navy ? "on" : "off", g_navy_share, g_navy_mix ? "on" : "off", g_v_navy, g_v_navy_mix);
     fleet_install(aimod_ini, autotest_ini);

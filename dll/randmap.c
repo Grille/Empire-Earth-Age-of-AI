@@ -23,21 +23,21 @@ typedef void *(__thiscall *UStrAssignFn)(void *ustr, const char *s);
 
 static void randmap_load(const char *ini) {
     GetPrivateProfileStringA("autotest", "random_map", "", g_rm.map, sizeof g_rm.map, ini);
-    g_rm.size = GetPrivateProfileIntA("autotest", "map_size", 0, ini);
-    g_rm.ais = GetPrivateProfileIntA("autotest", "ai_count", 3, ini);
+    g_rm.size = ini_int("autotest", "map_size", 0, ini);
+    g_rm.ais = ini_int("autotest", "ai_count", 3, ini);
     if (g_rm.ais < 1) g_rm.ais = 1;
     if (g_rm.ais > 7) g_rm.ais = 7;
-    g_rm.start_epoch = GetPrivateProfileIntA("autotest", "start_epoch", 0, ini);
-    g_rm.seed = GetPrivateProfileIntA("autotest", "seed", 0, ini);
+    g_rm.start_epoch = ini_int("autotest", "start_epoch", 0, ini);
+    g_rm.seed = ini_int("autotest", "seed", 0, ini);
     char t[16];
     GetPrivateProfileStringA("autotest", "teams", "ffa", t, sizeof t, ini);
     g_rm.pairs = !lstrcmpiA(t, "pairs");
-    g_rm.citizens = GetPrivateProfileIntA("autotest", "citizens", 5, ini);
-    g_rm.unit_limit = GetPrivateProfileIntA("autotest", "unit_limit", 500, ini);   // the game's, shared by all players
-    g_rm.ai_cheat = GetPrivateProfileIntA("autotest", "ai_cheat", -1, ini);
-    g_rm.ai_ignore = GetPrivateProfileIntA("autotest", "ai_ignore", -1, ini);
-    g_rm.epoch_min = GetPrivateProfileIntA("autotest", "epoch_min", 0, ini);
-    g_rm.epoch_max = GetPrivateProfileIntA("autotest", "epoch_max", g_rm.epoch_min, ini);
+    g_rm.citizens = ini_int("autotest", "citizens", 5, ini);
+    g_rm.unit_limit = ini_int("autotest", "unit_limit", 500, ini);   // the game's, shared by all players
+    g_rm.ai_cheat = ini_int("autotest", "ai_cheat", -1, ini);
+    g_rm.ai_ignore = ini_int("autotest", "ai_ignore", -1, ini);
+    g_rm.epoch_min = ini_int("autotest", "epoch_min", 0, ini);
+    g_rm.epoch_max = ini_int("autotest", "epoch_max", g_rm.epoch_min, ini);
 }
 
 // Called from hook_game_start before the original runs.

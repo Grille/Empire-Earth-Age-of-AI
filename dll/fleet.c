@@ -1150,7 +1150,7 @@ static void fleet_tick(void *pl, uint32_t now) {
 static void fleet_new_game(void) { memset(g_fl, 0, sizeof g_fl); memset(g_tf, 0, sizeof g_tf); memset(g_ntfm, 0, sizeof g_ntfm); }
 static void fleet_install(const char *aimod_ini, const char *autotest_ini) {
     g_navy_fleet = cfg_int(aimod_ini, autotest_ini, 1, "navy_fleet", 0);
-    if (autotest_ini) g_v_navy_fleet = GetPrivateProfileIntA("autotest", "v_navy_fleet", -1, autotest_ini);
+    if (autotest_ini) g_v_navy_fleet = ini_int("autotest", "v_navy_fleet", -1, autotest_ini);
     g_fl_boats = cfg_int(aimod_ini, autotest_ini, 1, "navy_fleet_boats", 1);
     g_fl_coast = cfg_int(aimod_ini, autotest_ini, 1, "navy_fleet_coast", 1);
     g_fl_raid = cfg_int(aimod_ini, autotest_ini, 1, "navy_fleet_raid", 130);

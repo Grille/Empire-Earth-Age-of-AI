@@ -182,8 +182,8 @@ static void persist_load(const char *name) {
 
 // all call sites of the save function: E8 rel32 to it in .text
 static void persist_install(const char *ini, const char *test_ini) {
-    g_persist = GetPrivateProfileIntA("general", "save_state", 1, ini);
-    if (test_ini) g_persist = GetPrivateProfileIntA("autotest", "save_state", g_persist, test_ini);
+    g_persist = ini_int("general", "save_state", 1, ini);
+    if (test_ini) g_persist = ini_int("autotest", "save_state", g_persist, test_ini);
     uint8_t *base = (uint8_t *)GetModuleHandleA(NULL);
     IMAGE_NT_HEADERS *nt = (IMAGE_NT_HEADERS *)(base + ((IMAGE_DOS_HEADER *)base)->e_lfanew);
     IMAGE_SECTION_HEADER *sec = IMAGE_FIRST_SECTION(nt);

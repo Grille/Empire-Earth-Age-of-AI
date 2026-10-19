@@ -162,9 +162,9 @@ static uintptr_t __fastcall tr_train_citizens(void *um, void *edx, uintptr_t a) 
 }
 
 static void trace_start(const char *ini) {
-    g_trace_player = GetPrivateProfileIntA("autotest", "trace_player", -1, ini);
+    g_trace_player = ini_int("autotest", "trace_player", -1, ini);
     if (g_trace_player < 0) return;
-    g_trace_until_ms = (uint32_t)GetPrivateProfileIntA("autotest", "trace_until_min", 0, ini) * 60000u;
+    g_trace_until_ms = (uint32_t)ini_int("autotest", "trace_until_min", 0, ini) * 60000u;
     static const uintptr_t food[] = { 0x48ab8d, 0x48ac2b, 0x48ae14, 0x48aeb4, 0x48aefa, 0x48af99 };
     static const uintptr_t gather[] = { 0x48a2a6, 0x48a372, 0x48a9b8, 0x48ab53, 0x48abf3, 0x48acb7, 0x48adc6,
                                         0x48ae7a, 0x48af60, 0x48b0a6, 0x48b261 };
@@ -293,7 +293,7 @@ static void sync_step(void *phys) {   // after each step (control.c hook_phys_st
 }
 
 static void sync_trace_start(const char *ini) {
-    g_sync_left = (unsigned)GetPrivateProfileIntA("autotest", "sync_trace", 0, ini);
+    g_sync_left = (unsigned)ini_int("autotest", "sync_trace", 0, ini);
     if (!g_sync_left) return;
     char path[MAX_PATH];
     snprintf(path, sizeof path, "%s", ini);

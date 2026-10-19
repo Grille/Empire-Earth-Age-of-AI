@@ -1154,9 +1154,9 @@ static void defence_install(const char *aimod_ini, const char *autotest_ini) {
     g_csiege = cfg_int(aimod_ini, autotest_ini, 1, "counter_siege", 1);
     g_militia = cfg_int(aimod_ini, autotest_ini, 1, "citizen_militia", 1);
     g_militia_est = cfg_int(aimod_ini, autotest_ini, 1, "militia_estimate", 0);
-    g_militia_share = cfg_float(aimod_ini, autotest_ini, 1, "militia_caught_share", "1");
+    g_militia_share = cfg_share(aimod_ini, autotest_ini, 1, "militia_caught_share", 1, 0, 1);
     g_home_guard = cfg_int(aimod_ini, autotest_ini, 1, "home_guard", 4);
-    g_home_share = cfg_float(aimod_ini, autotest_ini, 1, "home_guard_share", "0.35");
+    g_home_share = cfg_share(aimod_ini, autotest_ini, 1, "home_guard_share", 0.35, 0, 1);
     g_muster = cfg_int(aimod_ini, autotest_ini, 1, "muster", 1);
     g_fight_est = cfg_int(aimod_ini, autotest_ini, 1, "fight_estimate", 0);
     g_aa = cfg_int(aimod_ini, autotest_ini, 1, "anti_air", 1);

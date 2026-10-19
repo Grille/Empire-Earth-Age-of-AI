@@ -184,11 +184,11 @@ static void cmd_chatme(char *out, const char *args) {
 }
 
 static void chat_install(const char *ini, const char *test_ini) {
-    g_chat = GetPrivateProfileIntA("general", "chat", 0, ini);
-    g_chat_ms = GetPrivateProfileIntA("general", "chat_seconds", 15, ini) * 1000;
+    g_chat = ini_int("general", "chat", 0, ini);
+    g_chat_ms = ini_int("general", "chat_seconds", 15, ini) * 1000;
     if (test_ini) {
-        g_chat = GetPrivateProfileIntA("autotest", "chat", g_chat, test_ini);
-        g_chat_ms = GetPrivateProfileIntA("autotest", "chat_seconds", g_chat_ms / 1000, test_ini) * 1000;
+        g_chat = ini_int("autotest", "chat", g_chat, test_ini);
+        g_chat_ms = ini_int("autotest", "chat_seconds", g_chat_ms / 1000, test_ini) * 1000;
     }
     if (g_log) fprintf(g_log, "# chat: level %d, %d s per line\n", g_chat, g_chat_ms / 1000);
 }

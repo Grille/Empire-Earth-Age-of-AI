@@ -120,7 +120,7 @@ static void watch_start(const char *ini) {
     GetPrivateProfileStringA("autotest", "watch", "", buf, sizeof buf, ini);
     if (!buf[0]) return;
     g_watch_addr = (uintptr_t)strtoul(buf, NULL, 16);
-    g_watch_len = GetPrivateProfileIntA("autotest", "watch_len", 1, ini);
+    g_watch_len = ini_int("autotest", "watch_len", 1, ini);
     if (g_watch_len != 2 && g_watch_len != 4) g_watch_len = 1;
     g_watch_addr &= ~(uintptr_t)(g_watch_len - 1);   // debug registers need aligned addresses
     AddVectoredExceptionHandler(1, watch_handler);

@@ -94,8 +94,8 @@ static void camera_install(const char *aimod_ini, const char *autotest_ini) {
         GetPrivateProfileStringA("autotest", "camera_scroll", tmp, mode, sizeof mode, autotest_ini);
     }
     g_scroll_aoc = !lstrcmpiA(mode, "aoc");
-    g_cam_smooth = GetPrivateProfileIntA("camera", "smooth", 1, aimod_ini);
-    if (autotest_ini) g_cam_smooth = GetPrivateProfileIntA("autotest", "camera_smooth", g_cam_smooth, autotest_ini);
+    g_cam_smooth = ini_int("camera", "smooth", 1, aimod_ini);
+    if (autotest_ini) g_cam_smooth = ini_int("autotest", "camera_smooth", g_cam_smooth, autotest_ini);
     if (!g_scroll_aoc && !g_cam_smooth) return;   // ee without smoothing: leave the game untouched
     int ok = patch_vtable(VT_SCROLL, 1, FN_SCROLL_EXECUTE, hook_scroll_execute);
     uint8_t *p = (uint8_t *)SITE_SCROLL_TIMER;

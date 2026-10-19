@@ -273,7 +273,7 @@ unprotected in e9 too (9-10 per AI) - the playtester's point: farms first, the b
 
 ### Stage 1 - water-map detection and the navy account - DONE
 
-Built (dll/navy.c, econ.c; `[all] navy=1`, `navy_share=25`):
+Built (dll/navy.c, econ.c; `[all] navy=1`, `navy_share=25%`):
 
 - **Water map** (`navy_detect`, once per AI 10 s in): the home continent (area_id kind 2 at the build manager's
   base point) and every enemy's buildings - across the water when none stands on that continent. Strength = the
@@ -675,7 +675,7 @@ error in brackets; 128 games):
 
 - The mod trained 18-31 warships an hour per AI; the most afloat 12-21 (the target 26 is not reached: the islands'
   gold and iron - 110 a minute at e5 - pay a frigate a minute at best, and ships are lost).
-- Earlier versions, 64-128 games each: everything split always +21 / +28 (5); with `navy_share_max=70` +26 (6), more
+- Earlier versions, 64-128 games each: everything split always +21 / +28 (5); with `navy_share_max=70%` +26 (6), more
   ships (+7.1 afloat) but fewer soldiers; the stage-3 fleet was -4.5 (3.4).
 - Both AIs with it (8 seeds, Small e5 / Large e9): kills 62.6/62.2 -> 58.2/36.6, losses 76.3/72.8 -> 61.9/44.6,
   workers +4.5/+8.5. Continental: detection "land", games identical. No crash in about 1000 runs.

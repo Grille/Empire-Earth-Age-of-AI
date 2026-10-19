@@ -1643,7 +1643,7 @@ static void econ_install(const char *aimod_ini, const char *autotest_ini) {
     g_hoard_cap = cfg_int(aimod_ini, autotest_ini, 1, "hoard_cap", 3000);
     g_hoard_cap_mineral = cfg_int(aimod_ini, autotest_ini, 1, "hoard_cap_mineral", 200);
     g_min_workforce = cfg_int(aimod_ini, autotest_ini, 1, "min_workforce", 40);
-    g_wild_share = cfg_float(aimod_ini, autotest_ini, 1, "wild_food_share", "0.6");
+    g_wild_share = cfg_share(aimod_ini, autotest_ini, 1, "wild_food_share", 0.6, 0, 1);
     g_reserve_window_ms = cfg_int(aimod_ini, autotest_ini, 1, "reserve_window_min", 5) * 60000;
     g_rebalance = cfg_int(aimod_ini, autotest_ini, 1, "rebalance_workers", 1);
     g_late_targets = cfg_int(aimod_ini, autotest_ini, 1, "late_targets", 7);
@@ -1654,7 +1654,7 @@ static void econ_install(const char *aimod_ini, const char *autotest_ini) {
     g_train_room = cfg_int(aimod_ini, autotest_ini, 1, "train_room", 0xFFFF);
     g_build_fields = cfg_int(aimod_ini, autotest_ini, 1, "build_fields", 1);
     g_paid_upgrades = cfg_int(aimod_ini, autotest_ini, 1, "paid_upgrades", 1);
-    if (autotest_ini) g_tech_log = GetPrivateProfileIntA("autotest", "tech_log", 0, autotest_ini);
+    if (autotest_ini) g_tech_log = ini_int("autotest", "tech_log", 0, autotest_ini);
     if (g_tech_log) {
         void **slot = (void **)0x00830874;
         DWORD old;
@@ -1671,9 +1671,9 @@ static void econ_install(const char *aimod_ini, const char *autotest_ini) {
         char vp[32];
         GetPrivateProfileStringA("autotest", "variant_players", "", vp, sizeof vp, autotest_ini);
         for (char *c = vp; *c; c++) if (*c >= '0' && *c <= '9') g_var_mask |= 1u << (*c - '0');
-        g_v_late = GetPrivateProfileIntA("autotest", "v_late_targets", -1, autotest_ini);
-        g_v_hoard_mineral = GetPrivateProfileIntA("autotest", "v_hoard_cap_mineral", -1, autotest_ini);
-        g_v_sub_wait = GetPrivateProfileIntA("autotest", "v_substitute_wait", -1, autotest_ini);
+        g_v_late = ini_int("autotest", "v_late_targets", -1, autotest_ini);
+        g_v_hoard_mineral = ini_int("autotest", "v_hoard_cap_mineral", -1, autotest_ini);
+        g_v_sub_wait = ini_int("autotest", "v_substitute_wait", -1, autotest_ini);
         if (g_var_mask && g_log)
             fprintf(g_log, "# variant: players %s play B: late_targets %d hoard_cap_mineral %d substitute_wait %d "
                     "(A: %d %d %d)\n", vp, g_v_late >= 0 ? g_v_late : g_late_targets, g_v_hoard_mineral >= 0 ? g_v_hoard_mineral :

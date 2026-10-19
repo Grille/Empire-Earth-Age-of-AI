@@ -930,10 +930,10 @@ static void x_errors_show(void) {
     LeaveCriticalSection(&g_x_lock);
 }
 static void persona_install(const char *ini, const char *test_ini) {
-    g_ai_talk = GetPrivateProfileIntA("general", "ai_talk", 1, ini);
-    g_ai_names = GetPrivateProfileIntA("general", "ai_names", 1, ini);
-    g_ai_style = GetPrivateProfileIntA("general", "ai_style", 0, ini);
-    g_strict = GetPrivateProfileIntA("general", "strict_parsing", 0, ini);
+    g_ai_talk = ini_int("general", "ai_talk", 1, ini);
+    g_ai_names = ini_int("general", "ai_names", 1, ini);
+    g_ai_style = ini_int("general", "ai_style", 0, ini);
+    g_strict = ini_int("general", "strict_parsing", 0, ini);
     InitializeCriticalSection(&g_x_lock);
     for (int i = 0; i < 16; i++) {
         char key[24];
@@ -942,11 +942,11 @@ static void persona_install(const char *ini, const char *test_ini) {
         if (test_ini) GetPrivateProfileStringA("autotest", key, g_persona_force[i], g_persona_force[i], sizeof g_persona_force[i], test_ini);
     }
     if (test_ini) {
-        g_ai_talk = GetPrivateProfileIntA("autotest", "ai_talk", g_ai_talk, test_ini);
-        g_ai_names = GetPrivateProfileIntA("autotest", "ai_names", g_ai_names, test_ini);
-        g_ai_style = GetPrivateProfileIntA("autotest", "ai_style", g_ai_style, test_ini);
-        g_strict = GetPrivateProfileIntA("autotest", "strict_parsing", g_strict, test_ini);
-        g_personas_only_computer = !GetPrivateProfileIntA("autotest", "personas", 1, test_ini);
+        g_ai_talk = ini_int("autotest", "ai_talk", g_ai_talk, test_ini);
+        g_ai_names = ini_int("autotest", "ai_names", g_ai_names, test_ini);
+        g_ai_style = ini_int("autotest", "ai_style", g_ai_style, test_ini);
+        g_strict = ini_int("autotest", "strict_parsing", g_strict, test_ini);
+        g_personas_only_computer = !ini_int("autotest", "personas", 1, test_ini);
     }
     g_rnd ^= test_ini ? 0x5EED : GetTickCount();
     g_rnd_game ^= test_ini ? 0x5EED : GetTickCount() * 2654435761u;

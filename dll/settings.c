@@ -104,22 +104,39 @@ static void cfg_style_fix(struct ai_cfg *c) {   // a max below its min follows t
     if (c->attack_max < c->attack_min) c->attack_max = c->attack_min;
 }
 
+// the text that counts for key in difficulty d: [autotest] of the test ini, else [<difficulty>], else [all] (*file,
+// *sec: where); 0: none (the default)
+static int cfg_raw(const char *ini, const char *test_ini, int d, const char *key, char *out, int cap, const char **file, const char **sec) {
+    if (test_ini && ini_raw("autotest", key, test_ini, out, cap)) { *file = test_ini; *sec = "autotest"; return 1; }
+    if (ini_raw(k_diff_sections[d], key, ini, out, cap)) { *file = ini; *sec = k_diff_sections[d]; return 1; }
+    if (ini_raw("all", key, ini, out, cap)) { *file = ini; *sec = "all"; return 1; }
+    return 0;
+}
 static int cfg_int(const char *ini, const char *test_ini, int d, const char *key, int def) {
-    int v = GetPrivateProfileIntA("all", key, def, ini);
-    v = GetPrivateProfileIntA(k_diff_sections[d], key, v, ini);
-    if (test_ini) v = GetPrivateProfileIntA("autotest", key, v, test_ini);
-    return v;
+    char v[128];
+    const char *f, *s;
+    double x;
+    int r;
+    if (!cfg_raw(ini, test_ini, d, key, v, sizeof v, &f, &s) || !ini_eval(f, s, key, v, &x) || !ini_whole(f, s, key, v, x, &r)) return def;
+    return r;
+}
+// a share kept as whole percents (attack_on_contact=20% -> 20), 0% .. max_pct%
+static int cfg_pct(const char *ini, const char *test_ini, int d, const char *key, int def, int max_pct) {
+    char v[128];
+    const char *f, *s;
+    return cfg_raw(ini, test_ini, d, key, v, sizeof v, &f, &s) ? ini_pct_of(f, s, key, v, def, max_pct) : def;
+}
+// a share kept as it is (home_guard_share=35% -> 0.35), lo .. hi
+static float cfg_share(const char *ini, const char *test_ini, int d, const char *key, double def, double lo, double hi) {
+    char v[128];
+    const char *f, *s;
+    return (float)(cfg_raw(ini, test_ini, d, key, v, sizeof v, &f, &s) ? ini_share_of(f, s, key, v, def, lo, hi) : def);
 }
 static void cfg_str(const char *ini, const char *test_ini, int d, const char *key, const char *def, char *out, int cap) {
     char tmp[64];
     GetPrivateProfileStringA("all", key, def, tmp, sizeof tmp, ini);
     GetPrivateProfileStringA(k_diff_sections[d], key, tmp, out, cap, ini);
     if (test_ini) { lstrcpynA(tmp, out, sizeof tmp); GetPrivateProfileStringA("autotest", key, tmp, out, cap, test_ini); }
-}
-static float cfg_float(const char *ini, const char *test_ini, int d, const char *key, const char *def) {
-    char buf[32];
-    cfg_str(ini, test_ini, d, key, def, buf, sizeof buf);
-    return (float)atof(buf);
 }
 
 static void settings_load(const char *ini, const char *test_ini) {
@@ -128,10 +145,10 @@ static void settings_load(const char *ini, const char *test_ini) {
         c->copper_plan = cfg_int(ini, test_ini, d, "copper_plan", 1);
         c->budget = cfg_int(ini, test_ini, d, "budget", 1) || c->copper_plan;   // the plan works through the budget
         c->safe_sites = cfg_int(ini, test_ini, d, "safe_sites", 0);
-        c->mil_start_share = cfg_float(ini, test_ini, d, "military_start_share", "0.30");
-        c->mil_income_share = cfg_float(ini, test_ini, d, "military_income_share", "0.40");
-        c->mil_income_share_farms = cfg_float(ini, test_ini, d, "military_income_share_farms", "0.65");
-        c->cost_percent = cfg_int(ini, test_ini, d, "cost_percent", 100);
+        c->mil_start_share = cfg_share(ini, test_ini, d, "military_start_share", 0.30, 0, 1);
+        c->mil_income_share = cfg_share(ini, test_ini, d, "military_income_share", 0.40, 0, 1);
+        c->mil_income_share_farms = cfg_share(ini, test_ini, d, "military_income_share_farms", 0.65, 0, 1);
+        c->cost_percent = cfg_pct(ini, test_ini, d, "cost_percent", 100, 1000);
         char pacing[16];
         cfg_str(ini, test_ini, d, "epoch_pacing", "timer", pacing, sizeof pacing);
         c->pacing_fast = !lstrcmpiA(pacing, "fast");
@@ -145,12 +162,12 @@ static void settings_load(const char *ini, const char *test_ini) {
         c->attack_min = cfg_int(ini, test_ini, d, "attack_interval_min", 20);
         c->attack_max = cfg_int(ini, test_ini, d, "attack_interval_max", 25);
         if (c->attack_max < c->attack_min) c->attack_max = c->attack_min;
-        c->attack_group_percent = cfg_int(ini, test_ini, d, "attack_group_percent", 150);
-        c->attack_on_contact = cfg_int(ini, test_ini, d, "attack_on_contact", 0);
-        c->attack_for_resources = cfg_int(ini, test_ini, d, "attack_for_resources", 0);
-        c->attack_revenge = cfg_int(ini, test_ini, d, "attack_revenge", -1);
-        c->citizen_share = cfg_float(ini, test_ini, d, "citizen_share", "0");
-        c->home_guard_share = cfg_float(ini, test_ini, d, "home_guard_share", "-1");
+        c->attack_group_percent = cfg_pct(ini, test_ini, d, "attack_group_percent", 150, 1000);
+        c->attack_on_contact = cfg_pct(ini, test_ini, d, "attack_on_contact", 0, 100);
+        c->attack_for_resources = cfg_pct(ini, test_ini, d, "attack_for_resources", 0, 100);
+        c->attack_revenge = cfg_pct(ini, test_ini, d, "attack_revenge", -1, 100);
+        c->citizen_share = cfg_share(ini, test_ini, d, "citizen_share", 0, 0, 1);
+        c->home_guard_share = cfg_share(ini, test_ini, d, "home_guard_share", -1, 0, 1);
         c->pop_follow = cfg_int(ini, test_ini, d, "pop_follow_human", d == 0);   // [easy] follows the human
         if (g_log)
             fprintf(g_log, "# settings %-6s copper_plan=%d budget=%d (military %.2f/%.2f/%.2f) safe_sites=%d cost=%d%% "

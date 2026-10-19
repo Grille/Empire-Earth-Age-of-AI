@@ -13,8 +13,8 @@ static int g_draw_limit = 4096;
 static uint8_t *g_draw_recs;
 
 static void drawlist_install(const char *aimod_ini, const char *autotest_ini) {
-    g_draw_limit = GetPrivateProfileIntA("display", "draw_limit", 4096, aimod_ini);
-    if (autotest_ini) g_draw_limit = GetPrivateProfileIntA("autotest", "draw_limit", g_draw_limit, autotest_ini);
+    g_draw_limit = ini_int("display", "draw_limit", 4096, aimod_ini);
+    if (autotest_ini) g_draw_limit = ini_int("autotest", "draw_limit", g_draw_limit, autotest_ini);
     if (g_draw_limit <= DRAW_OLD_N) {
         if (g_log) fprintf(g_log, "# draw limit: the original %d\n", DRAW_OLD_N);
         return;

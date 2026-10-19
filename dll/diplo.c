@@ -1771,22 +1771,22 @@ static void cmd_diplo(char *out, const char *args) {
 }
 
 static void diplo_install(const char *ini, const char *test_ini) {
-    g_answer_war = GetPrivateProfileIntA("all", "answer_war", 1, ini);
-    g_ai_diplomacy = GetPrivateProfileIntA("all", "ai_diplomacy", 1, ini);
-    g_surrender = GetPrivateProfileIntA("all", "surrender", 1, ini);
-    g_blocks = GetPrivateProfileIntA("all", "alliance_blocks", 1, ini);
-    g_stance_lines = GetPrivateProfileIntA("all", "stance_lines", 1, ini);
-    g_offer_min = GetPrivateProfileIntA("all", "offer_minutes", 2, ini);
-    g_auto_victory = GetPrivateProfileIntA("general", "auto_victory", 1, ini);
+    g_answer_war = ini_int("all", "answer_war", 1, ini);
+    g_ai_diplomacy = ini_int("all", "ai_diplomacy", 1, ini);
+    g_surrender = ini_int("all", "surrender", 1, ini);
+    g_blocks = ini_int("all", "alliance_blocks", 1, ini);
+    g_stance_lines = ini_int("all", "stance_lines", 1, ini);
+    g_offer_min = ini_int("all", "offer_minutes", 2, ini);
+    g_auto_victory = ini_int("general", "auto_victory", 1, ini);
     if (test_ini) {
-        g_answer_war = GetPrivateProfileIntA("autotest", "answer_war", g_answer_war, test_ini);
-        g_ai_diplomacy = GetPrivateProfileIntA("autotest", "ai_diplomacy", g_ai_diplomacy, test_ini);
-        g_surrender = GetPrivateProfileIntA("autotest", "surrender", g_surrender, test_ini);
-        g_blocks = GetPrivateProfileIntA("autotest", "alliance_blocks", g_blocks, test_ini);
-        g_stance_lines = GetPrivateProfileIntA("autotest", "stance_lines", g_stance_lines, test_ini);
-        g_offer_min = GetPrivateProfileIntA("autotest", "offer_minutes", g_offer_min, test_ini);
-        g_auto_victory = GetPrivateProfileIntA("autotest", "auto_victory", g_auto_victory, test_ini);
-        g_block_observer = GetPrivateProfileIntA("autotest", "block_observer", 0, test_ini);
+        g_answer_war = ini_int("autotest", "answer_war", g_answer_war, test_ini);
+        g_ai_diplomacy = ini_int("autotest", "ai_diplomacy", g_ai_diplomacy, test_ini);
+        g_surrender = ini_int("autotest", "surrender", g_surrender, test_ini);
+        g_blocks = ini_int("autotest", "alliance_blocks", g_blocks, test_ini);
+        g_stance_lines = ini_int("autotest", "stance_lines", g_stance_lines, test_ini);
+        g_offer_min = ini_int("autotest", "offer_minutes", g_offer_min, test_ini);
+        g_auto_victory = ini_int("autotest", "auto_victory", g_auto_victory, test_ini);
+        g_block_observer = ini_int("autotest", "block_observer", 0, test_ini);
     }
     int ok = patch_vtable(VT_PAY_TRIBUTE, 10, FN_PAY_TRIBUTE, (void *)hook_tribute);
     int chat = patch_vtable(VT_INGAME_CHAT, 10, FN_INGAME_CHAT, (void *)hook_ingame_chat);

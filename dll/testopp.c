@@ -940,11 +940,11 @@ static void cmd_seaop(char *out, const char *args) {
     if (ai < 2 || ai > 15 || !pls[1] || !pls[ai] || !*(uint8_t **)G_MAP) { REPLY("error: seaop start <ai> [level] - no player %d or no game\n", ai); return; }
     memset(&g_so, 0, sizeof g_so);
     g_so.ai = ai;
-    g_so.level = level >= 1 && level <= 3 ? level : GetPrivateProfileIntA("autotest", "seaop_level", 2, g_ini);
+    g_so.level = level >= 1 && level <= 3 ? level : ini_int("autotest", "seaop_level", 2, g_ini);
     if (g_so.level < 1 || g_so.level > 3) g_so.level = 2;
-    g_so.land = GetPrivateProfileIntA("autotest", "seaop_landings", 1, g_ini);
-    g_so.trace = GetPrivateProfileIntA("autotest", "seaop_trace", 0, g_ini);
-    int st = GetPrivateProfileIntA("autotest", "seaop_start", -1, g_ini);
+    g_so.land = ini_int("autotest", "seaop_landings", 1, g_ini);
+    g_so.trace = ini_int("autotest", "seaop_trace", 0, g_ini);
+    int st = ini_int("autotest", "seaop_start", -1, g_ini);
     if (st >= 0) g_so.start_ms = (uint32_t)st * 60000u + 1;
     static const int waves[4][3] = { { 0, 0, 0 }, { 35, 0, 0 }, { 25, 45, 0 }, { 20, 32, 44 } };
     for (int k = 0; k < 3; k++) g_so.wave_min[k] = waves[g_so.level][k];

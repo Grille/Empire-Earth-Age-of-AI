@@ -1149,41 +1149,41 @@ static void display_install(const char *aimod_ini, const char *autotest_ini) {
         if (g_log) fprintf(g_log, "# display: unknown mode '%s' in aimod.ini, using native\n", wmode);
         dmode = 0;
     }
-    if (autotest_ini) g_headless = GetPrivateProfileIntA("autotest", "headless", 0, autotest_ini);
+    if (autotest_ini) g_headless = ini_int("autotest", "headless", 0, autotest_ini);
     if (g_headless) dmode = 1;   // a normal (off-screen) window
     g_borderless = dmode == 2;
     int windowed = dmode != 0;
-    if (autotest_ini) g_present_every = GetPrivateProfileIntA("autotest", "present_every", 0, autotest_ini);
-    if (autotest_ini) g_diag_skip = GetPrivateProfileIntA("autotest", "diag_skip", 0, autotest_ini);
-    g_diag = (autotest_ini && GetPrivateProfileIntA("autotest", "diag_hooks", 0, autotest_ini))
-             || GetPrivateProfileIntA("display", "diag", 0, aimod_ini);
+    if (autotest_ini) g_present_every = ini_int("autotest", "present_every", 0, autotest_ini);
+    if (autotest_ini) g_diag_skip = ini_int("autotest", "diag_skip", 0, autotest_ini);
+    g_diag = (autotest_ini && ini_int("autotest", "diag_hooks", 0, autotest_ini))
+             || ini_int("display", "diag", 0, aimod_ini);
     if (windowed) {
         uint8_t was = *(uint8_t *)G_FULLSCREEN;
         if (was == 1) *(uint8_t *)G_FULLSCREEN = g_fullscreen = 0;
-        g_text_dc = GetPrivateProfileIntA("display", "text_dc", 1, aimod_ini);
-        if (autotest_ini) g_text_dc = GetPrivateProfileIntA("autotest", "text_dc", g_text_dc, autotest_ini);
-        g_text_bitmap = GetPrivateProfileIntA("display", "text_bitmap", 1, aimod_ini);
-        if (autotest_ini) g_atlas_dump = GetPrivateProfileIntA("autotest", "atlas_dump", 0, autotest_ini);
-        if (autotest_ini) g_text_bitmap = GetPrivateProfileIntA("autotest", "text_bitmap", g_text_bitmap, autotest_ini);
+        g_text_dc = ini_int("display", "text_dc", 1, aimod_ini);
+        if (autotest_ini) g_text_dc = ini_int("autotest", "text_dc", g_text_dc, autotest_ini);
+        g_text_bitmap = ini_int("display", "text_bitmap", 1, aimod_ini);
+        if (autotest_ini) g_atlas_dump = ini_int("autotest", "atlas_dump", 0, autotest_ini);
+        if (autotest_ini) g_text_bitmap = ini_int("autotest", "text_bitmap", g_text_bitmap, autotest_ini);
         if (g_text_bitmap) {
             g_text_bitmap = text_bitmap_install();
             if (g_log) fprintf(g_log, "# text bitmap: %s\n", g_text_bitmap ? "on (umlaut patch 2/2)" : "engine functions not found - off");
         }
-        g_frame_watch = GetPrivateProfileIntA("display", "frame_watch", 0, aimod_ini);
-        if (autotest_ini && (g_fw_test = GetPrivateProfileIntA("autotest", "frame_watch", -1, autotest_ini)) >= 0) g_frame_watch = g_fw_test;
+        g_frame_watch = ini_int("display", "frame_watch", 0, aimod_ini);
+        if (autotest_ini && (g_fw_test = ini_int("autotest", "frame_watch", -1, autotest_ini)) >= 0) g_frame_watch = g_fw_test;
         else g_fw_test = 0;
         int hooks = install_windowed_present();
         GetPrivateProfileStringA("display", "lock_mouse", "auto", tmp, sizeof tmp, aimod_ini);
         g_lock_mouse = !lstrcmpiA(tmp, "auto") ? 2 : atoi(tmp) ? 1 : 0;
         int input = install_windowed_input();
-        g_smooth = GetPrivateProfileIntA("display", "smooth", 0, aimod_ini);
+        g_smooth = ini_int("display", "smooth", 0, aimod_ini);
         GetPrivateProfileStringA("display", "present", "auto", tmp, sizeof tmp, aimod_ini);
         if (autotest_ini) { char at[32]; lstrcpynA(at, tmp, sizeof at); GetPrivateProfileStringA("autotest", "present", at, tmp, sizeof tmp, autotest_ini); }
         g_present_mode = !lstrcmpiA(tmp, "d3d") ? 1 : !lstrcmpiA(tmp, "gdi") ? 2 : !lstrcmpiA(tmp, "primary") ? 3 : 0;
         g_present_d3d = g_present_mode <= 1;
-        g_vsync = GetPrivateProfileIntA("display", "vsync", 0, aimod_ini);
+        g_vsync = ini_int("display", "vsync", 0, aimod_ini);
         int dpi = 0;
-        if (GetPrivateProfileIntA("display", "dpi_aware", 1, aimod_ini)) {
+        if (ini_int("display", "dpi_aware", 1, aimod_ini)) {
             HMODULE u = GetModuleHandleA("user32.dll");
             g_set_thread_dpi = (SetThreadDpiFn)(void *)GetProcAddress(u, "SetThreadDpiAwarenessContext");
             g_get_window_dpi = (GetWindowDpiFn)(void *)GetProcAddress(u, "GetWindowDpiAwarenessContext");

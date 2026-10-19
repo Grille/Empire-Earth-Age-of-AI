@@ -70,8 +70,8 @@ static void cmd_seltest(char *out, const char *args) {
 }
 
 static void select_install(const char *aimod_ini, const char *autotest_ini) {
-    g_big_selection = GetPrivateProfileIntA("general", "big_selection", 1, aimod_ini);
-    if (autotest_ini) g_big_selection = GetPrivateProfileIntA("autotest", "big_selection", g_big_selection, autotest_ini);
+    g_big_selection = ini_int("general", "big_selection", 1, aimod_ini);
+    if (autotest_ini) g_big_selection = ini_int("autotest", "big_selection", g_big_selection, autotest_ini);
     BOOL ok = patch_call(CALL_SEL_PACK, FN_SEL_PACK, hook_sel_pack);
     if (g_log) fprintf(g_log, "# selection: big_selection=%d (hook %s)\n", g_big_selection, ok ? "ok" : "FAILED");
 }

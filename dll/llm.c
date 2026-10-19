@@ -1696,47 +1696,47 @@ static void cmd_llm(char *out, const char *args) {
 }
 
 static void llm_install(const char *ini, const char *test_ini) {
-    g_llm_on = GetPrivateProfileIntA("llm", "enabled", 0, ini);
-    g_llm_lines = GetPrivateProfileIntA("llm", "lines", 1, ini);
-    g_llm_chat = GetPrivateProfileIntA("llm", "chat", 1, ini);
-    g_llm_timeout = GetPrivateProfileIntA("llm", "timeout", 20, ini);
-    g_llm_max_tokens = GetPrivateProfileIntA("llm", "max_tokens", 300, ini);
-    g_llm_temp = GetPrivateProfileIntA("llm", "temperature", 80, ini);
-    g_llm_log = GetPrivateProfileIntA("llm", "log", 1, ini);
-    g_llm_think = GetPrivateProfileIntA("llm", "think", 0, ini);
-    g_llm_decide = GetPrivateProfileIntA("llm", "decide", 0, ini);
-    g_llm_ai_talk = GetPrivateProfileIntA("llm", "ai_talk", 0, ini);
-    g_llm_talk_show = GetPrivateProfileIntA("llm", "ai_talk_show", 1, ini);
-    g_llm_talk_gap = GetPrivateProfileIntA("llm", "ai_talk_gap", 60, ini);
-    g_llm_talk_turns = GetPrivateProfileIntA("llm", "ai_talk_turns", 4, ini);
-    g_llm_ai_decide = GetPrivateProfileIntA("llm", "ai_decide", 0, ini);
-    g_llm_equal = GetPrivateProfileIntA("llm", "equal", 0, ini);
-    g_llm_memory = GetPrivateProfileIntA("llm", "memory", 8, ini);
+    g_llm_on = ini_int("llm", "enabled", 0, ini);
+    g_llm_lines = ini_int("llm", "lines", 1, ini);
+    g_llm_chat = ini_int("llm", "chat", 1, ini);
+    g_llm_timeout = ini_int("llm", "timeout", 20, ini);
+    g_llm_max_tokens = ini_int("llm", "max_tokens", 300, ini);
+    g_llm_temp = ini_pct("llm", "temperature", 80, 200, ini);   // 80% = 0.8
+    g_llm_log = ini_int("llm", "log", 1, ini);
+    g_llm_think = ini_int("llm", "think", 0, ini);
+    g_llm_decide = ini_int("llm", "decide", 0, ini);
+    g_llm_ai_talk = ini_int("llm", "ai_talk", 0, ini);
+    g_llm_talk_show = ini_int("llm", "ai_talk_show", 1, ini);
+    g_llm_talk_gap = ini_int("llm", "ai_talk_gap", 60, ini);
+    g_llm_talk_turns = ini_int("llm", "ai_talk_turns", 4, ini);
+    g_llm_ai_decide = ini_int("llm", "ai_decide", 0, ini);
+    g_llm_equal = ini_int("llm", "equal", 0, ini);
+    g_llm_memory = ini_int("llm", "memory", 8, ini);
     char mm[16];
     GetPrivateProfileStringA("llm", "memory_mode", "pair", mm, sizeof mm, ini);
     char fb[16];
     GetPrivateProfileStringA("llm", "fallback", "rules", fb, sizeof fb, ini);
-    g_llm_constrained = GetPrivateProfileIntA("llm", "constrained", 1, ini);
+    g_llm_constrained = ini_int("llm", "constrained", 1, ini);
     GetPrivateProfileStringA("llm", "url", g_llm_url, g_llm_url, sizeof g_llm_url, ini);
     GetPrivateProfileStringA("llm", "model", "", g_llm_model, sizeof g_llm_model, ini);
     GetPrivateProfileStringA("llm", "api_key", "", g_llm_key, sizeof g_llm_key, ini);
     GetPrivateProfileStringA("llm", "extra", "", g_llm_extra, sizeof g_llm_extra, ini);
     if (test_ini) {
-        g_llm_on = GetPrivateProfileIntA("autotest", "llm", g_llm_on, test_ini);
-        g_llm_lines = GetPrivateProfileIntA("autotest", "llm_lines", g_llm_lines, test_ini);
-        g_llm_chat = GetPrivateProfileIntA("autotest", "llm_chat", g_llm_chat, test_ini);
-        g_llm_timeout = GetPrivateProfileIntA("autotest", "llm_timeout", g_llm_timeout, test_ini);
-        g_llm_decide = GetPrivateProfileIntA("autotest", "llm_decide", g_llm_decide, test_ini);
-        g_llm_ai_talk = GetPrivateProfileIntA("autotest", "llm_ai_talk", g_llm_ai_talk, test_ini);
-        g_llm_talk_show = GetPrivateProfileIntA("autotest", "llm_ai_talk_show", g_llm_talk_show, test_ini);
-        g_llm_talk_gap = GetPrivateProfileIntA("autotest", "llm_ai_talk_gap", g_llm_talk_gap, test_ini);
-        g_llm_talk_turns = GetPrivateProfileIntA("autotest", "llm_ai_talk_turns", g_llm_talk_turns, test_ini);
-        g_llm_ai_decide = GetPrivateProfileIntA("autotest", "llm_ai_decide", g_llm_ai_decide, test_ini);
-        g_llm_equal = GetPrivateProfileIntA("autotest", "llm_equal", g_llm_equal, test_ini);
-        g_llm_memory = GetPrivateProfileIntA("autotest", "llm_memory", g_llm_memory, test_ini);
+        g_llm_on = ini_int("autotest", "llm", g_llm_on, test_ini);
+        g_llm_lines = ini_int("autotest", "llm_lines", g_llm_lines, test_ini);
+        g_llm_chat = ini_int("autotest", "llm_chat", g_llm_chat, test_ini);
+        g_llm_timeout = ini_int("autotest", "llm_timeout", g_llm_timeout, test_ini);
+        g_llm_decide = ini_int("autotest", "llm_decide", g_llm_decide, test_ini);
+        g_llm_ai_talk = ini_int("autotest", "llm_ai_talk", g_llm_ai_talk, test_ini);
+        g_llm_talk_show = ini_int("autotest", "llm_ai_talk_show", g_llm_talk_show, test_ini);
+        g_llm_talk_gap = ini_int("autotest", "llm_ai_talk_gap", g_llm_talk_gap, test_ini);
+        g_llm_talk_turns = ini_int("autotest", "llm_ai_talk_turns", g_llm_talk_turns, test_ini);
+        g_llm_ai_decide = ini_int("autotest", "llm_ai_decide", g_llm_ai_decide, test_ini);
+        g_llm_equal = ini_int("autotest", "llm_equal", g_llm_equal, test_ini);
+        g_llm_memory = ini_int("autotest", "llm_memory", g_llm_memory, test_ini);
         GetPrivateProfileStringA("autotest", "llm_memory_mode", mm, mm, sizeof mm, test_ini);
         GetPrivateProfileStringA("autotest", "llm_fallback", fb, fb, sizeof fb, test_ini);
-        g_llm_constrained = GetPrivateProfileIntA("autotest", "llm_constrained", g_llm_constrained, test_ini);
+        g_llm_constrained = ini_int("autotest", "llm_constrained", g_llm_constrained, test_ini);
         GetPrivateProfileStringA("autotest", "llm_url", g_llm_url, g_llm_url, sizeof g_llm_url, test_ini);
         GetPrivateProfileStringA("autotest", "llm_model", g_llm_model, g_llm_model, sizeof g_llm_model, test_ini);
     }

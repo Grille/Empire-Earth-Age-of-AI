@@ -106,6 +106,7 @@ static char g_ini[MAX_PATH], g_aimod_ini[MAX_PATH];   // aimod_autotest.ini, aim
 static char g_game_dir[MAX_PATH], g_ai_dir[MAX_PATH];
 static int g_slot;   // a test slot (TEST SLOTS, at slot_dir), 0: none
 static BOOL patch_srand(void);
+#include "ini.c"
 #define G_SCENARIO_FLAG 0x00918819   // byte: game is a scenario/campaign (settings 0x918410 + 0x409)
 
 // FIX (scenario bug): the scenario/campaign branch of the game start (0x52599B) sets gamestate+0x411,
@@ -372,16 +373,14 @@ static void autotest_first_tick(void *pl) {
 static void load_autotest(const char *ini) {
     g_auto.enabled = GetFileAttributesA(ini) != INVALID_FILE_ATTRIBUTES;
     if (!g_auto.enabled) return;
-    g_auto.skip_intro = GetPrivateProfileIntA("autotest", "skip_intro", 1, ini);
-    g_auto.quit_minutes = GetPrivateProfileIntA("autotest", "quit_minutes", 0, ini);
-    g_auto.scenario_mode = GetPrivateProfileIntA("autotest", "scenario_mode", 0, ini);
-    g_auto.turbo = GetPrivateProfileIntA("autotest", "turbo", 0, ini);
-    g_auto.game_seed = GetPrivateProfileIntA("autotest", "game_seed", 0, ini);
+    g_auto.skip_intro = ini_int("autotest", "skip_intro", 1, ini);
+    g_auto.quit_minutes = ini_int("autotest", "quit_minutes", 0, ini);
+    g_auto.scenario_mode = ini_int("autotest", "scenario_mode", 0, ini);
+    g_auto.turbo = ini_int("autotest", "turbo", 0, ini);
+    g_auto.game_seed = ini_int("autotest", "game_seed", 0, ini);
     GetPrivateProfileStringA("autotest", "setup", "", g_setup_path, sizeof g_setup_path, ini);
     randmap_load(ini);
-    char buf[32];
-    GetPrivateProfileStringA("autotest", "speed", "0", buf, sizeof buf, ini);
-    g_auto.speed = (float)atof(buf);
+    g_auto.speed = (float)ini_num("autotest", "speed", 0, ini);
 }
 
 static void apply_game_speed(float s) {
@@ -856,15 +855,15 @@ static void install(HMODULE self) {
         // required: missing -> error and quit; [general] enabled=0 -> no hooks
         if (GetFileAttributesA(g_aimod_ini) == INVALID_FILE_ATTRIBUTES) config_missing(g_aimod_ini);
         wsprintfA(g_log_path, "%saimod_econ.csv", dir);
-        if (!GetPrivateProfileIntA("general", "enabled", 1, g_aimod_ini)) {
+        if (!ini_int("general", "enabled", 1, g_aimod_ini)) {
             FILE *f = fopen(g_log_path, "a");
             if (f) { fputs("# eeaimod: switched off in aimod.ini (enabled=0) - nothing installed\n", f); fclose(f); }
             return;
         }
-        g_fix_scenario_ai = GetPrivateProfileIntA("general", "scenario_ai",
-                                                  GetPrivateProfileIntA("fixes", "scenario_ai", 1, g_aimod_ini), g_aimod_ini);
-        g_mem_dumps = g_auto.enabled || GetPrivateProfileIntA("general", "memory_dumps", 0, g_aimod_ini);
-        if (g_mem_dumps || g_auto.enabled || GetPrivateProfileIntA("general", "control_pipe", 0, g_aimod_ini))
+        g_fix_scenario_ai = ini_int("general", "scenario_ai",
+                                                  ini_int("fixes", "scenario_ai", 1, g_aimod_ini), g_aimod_ini);
+        g_mem_dumps = g_auto.enabled || ini_int("general", "memory_dumps", 0, g_aimod_ini);
+        if (g_mem_dumps || g_auto.enabled || ini_int("general", "control_pipe", 0, g_aimod_ini))
             CreateDirectoryA(g_dump_dir, NULL);   // memory dumps, shot / ddinfo pictures
     }
     g_session = GetTickCount();
@@ -877,6 +876,7 @@ static void install(HMODULE self) {
         fprintf(g_log, "# session %04d-%02d-%02d %02d:%02d:%02d\n",
                 st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond);
         log_header();
+        ini_flush();   // a setting's mistakes found before the log was open
         fprintf(g_log, "# config: %s (personalities: %s)\n", g_aimod_ini, g_ai_dir);
         char me[MAX_PATH];
         if (GetEnvironmentVariableA("EEAIMOD_DLL", me, sizeof me) && GetModuleFileNameA(self, me, sizeof me))
@@ -909,7 +909,7 @@ static void install(HMODULE self) {
         fflush(g_log);
     }
     // normal play: aimod.ini [general] skip_intro = 1 skips the intro movies (autotest has its own key)
-    if (!g_auto.enabled && GetPrivateProfileIntA("general", "skip_intro", 0, g_aimod_ini)) {
+    if (!g_auto.enabled && ini_int("general", "skip_intro", 0, g_aimod_ini)) {
         BOOL ok = skip_intro_movies();
         if (g_log) fprintf(g_log, "# skip_intro: %s\n", ok ? "ok" : "FAILED");
     }
@@ -931,7 +931,7 @@ static void install(HMODULE self) {
     select_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
     drawlist_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
     llm_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
-    ctl_start(g_auto.enabled || GetPrivateProfileIntA("general", "control_pipe", 0, g_aimod_ini));
+    ctl_start(g_auto.enabled || ini_int("general", "control_pipe", 0, g_aimod_ini));
     if (g_auto.enabled && g_auto.game_seed) {
         BOOL ok = patch_srand(), start = start_hook();
         if (g_log) fprintf(g_log, "# autotest: game_seed=%d (srand hook %s, start message hook %s)\n", g_auto.game_seed,
