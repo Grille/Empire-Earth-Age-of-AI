@@ -1,8 +1,9 @@
 # Send one command to the running game through eeaimod's control pipe and print the reply.
 # usage: python eectl.py status | camera [x y] | speed [s] | pause | resume | quit | peek <hex> [len] | poke <hex> <bytes> | ping
-import sys, threading, time
+#        SLOT=n: the game in test slot n (run_test.ps1 -Slot n, its pipe eeaimod<n>); ee_mcp.py goes through here too
+import os, sys, threading, time
 
-PIPE = r'\\.\pipe\eeaimod'
+PIPE = r'\\.\pipe\eeaimod' + (os.environ.get('SLOT', '') if os.environ.get('SLOT', '0') not in ('', '0') else '')
 
 
 def _exchange(cmd, result):

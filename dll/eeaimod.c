@@ -104,6 +104,7 @@ static char g_ini[MAX_PATH], g_aimod_ini[MAX_PATH];   // aimod_autotest.ini, aim
 // aimod_autotest.ini [autotest] config / ai_dir (run_test.ps1: the repository's config\ by default), so tests measure
 // the shipped files, not the player's own ..\aimod.ini; normal play: always next to the game.
 static char g_game_dir[MAX_PATH], g_ai_dir[MAX_PATH];
+static int g_slot;   // a test slot (TEST SLOTS, at slot_dir), 0: none
 static BOOL patch_srand(void);
 #define G_SCENARIO_FLAG 0x00918819   // byte: game is a scenario/campaign (settings 0x918410 + 0x409)
 
@@ -423,7 +424,32 @@ static void log_line(const char *fmt, const char *a, int b) {
     LeaveCriticalSection(&g_lock);
 }
 
+// A test slot's own network ports: the engine's network server - a single-player game runs through it too - binds UDP
+// 33334 and TCP 33335 (push/mov immediates in TCP Protocol.dll). A second game can't, NEProtocol::Publish fails and
+// NESynchronousServer::ProcessLocalUserInput later reads its missing record object (+0x16C): a crash. Slot n: +2n.
+// At the command line, not in DllMain: the engine loads the module later (LoadLibrary under the loader lock is none of
+// ours); loaded here it stays, and the engine's own LoadLibrary gets this copy.
+static void slot_ports(void) {
+    static const uint32_t imm[] = { 0x17E2, 0x196F, 0x19EB, 0x1EB8, 0x1FBD, 0x2148, 0x279C, 0x2F2C };   // RVAs
+    static int done;
+    if (!g_slot || done) return;
+    done = 1;
+    char p[MAX_PATH];
+    wsprintfA(p, "%sTCP Protocol.dll", g_game_dir);
+    HMODULE m = GetModuleHandleA("TCP Protocol.dll");
+    if (!m) m = LoadLibraryA(p);
+    int n = 0;
+    for (size_t i = 0; m && i < sizeof imm / sizeof *imm; i++) {
+        uintptr_t at = (uintptr_t)m + imm[i];
+        uint32_t old = *(uint32_t *)at;
+        if (old == 33334 || old == 33335) n += patch_code32(at, old, old + 2 * g_slot);
+    }
+    char t[80];
+    wsprintfA(t, "%d/%d (%d of 8 patched)", 33334 + 2 * g_slot, 33335 + 2 * g_slot, n);
+    log_line("# slot: network ports %s%.0d\n", t, 0);
+}
 static char __cdecl hook_parse_cmdline(const char *cmd) {
+    slot_ports();
     log_line("# cmdline parse: \"%s\"%.0d\n", cmd ? cmd : "(null)", 0);
     char r = ((ParseFn)FN_PARSE_CMDLINE)(cmd);
     log_line("# cmdline parse returned %s%d (1 = continue to main menu)\n", "", r);
@@ -729,6 +755,19 @@ static int game_build(uint32_t *hash) {
     for (size_t i = 0; i < sizeof k_exe_builds / sizeof *k_exe_builds; i++) if (*hash == k_exe_builds[i]) return 1;
     return name && !lstrcmpiA(name + 1, "Empire Earth.exe") ? -1 : 0;   // a renamed copy of a known build counts above
 }
+// TEST SLOTS: parallel test games (run_test.ps1 -Slot n; docs/testing.md, Parallel runs). The runner starts slot
+// n (1..30) with EEAIMOD_SLOT=n and EEAIMOD_SLOT_DIR=<its folder>: the test ini, the log and the dumps are there instead
+// of the game folder, the control pipe is \\.\pipe\eeaimod<n>, the engine's network ports are moved by 2n
+// (slot_ports) - and the runner patches the game's single-instance check (docs/engine-notes.md, Exe builds). 0: none.
+static void slot_dir(char *dir) {   // dir: the game folder (with its \) -> where this game's test files are
+    char v[MAX_PATH];
+    g_slot = GetEnvironmentVariableA("EEAIMOD_SLOT", v, sizeof v) ? atoi(v) : 0;
+    if (g_slot < 0 || g_slot > 30) g_slot = 0;
+    if (g_slot && GetEnvironmentVariableA("EEAIMOD_SLOT_DIR", v, sizeof v) && v[0]) {
+        size_t n = strlen(v);
+        snprintf(dir, MAX_PATH, "%s%s", v, v[n - 1] == '\\' || v[n - 1] == '/' ? "" : "\\");
+    }
+}
 // Another build: nothing installed - the player is told once a start (a test run, which has nobody to click: only
 // the log), and the game runs as it is
 static void build_unknown(HINSTANCE self, uint32_t hash) {
@@ -740,6 +779,7 @@ static void build_unknown(HINSTANCE self, uint32_t hash) {
     GetModuleFileNameA(self, dir, MAX_PATH);
     char *slash = strrchr(dir, '\\');
     if (slash) slash[1] = 0; else dir[0] = 0;
+    slot_dir(dir);
     wsprintfA(path, "%saimod_econ.csv", dir);
     FILE *f = fopen(path, "a");
     if (f) { fprintf(f, "# eeaimod: Empire Earth.exe is another build (code %08X) - nothing installed\n", hash); fclose(f); }
@@ -796,42 +836,39 @@ static void install(HMODULE self) {
     GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_PIN,
                        (LPCSTR)&install, &pinned);
 
-    char path[MAX_PATH];
+    char path[MAX_PATH], dir[MAX_PATH];
     GetModuleFileNameA(self, path, MAX_PATH);
     char *slash = strrchr(path, '\\');
     if (slash) {
-        *slash = 0;
-        wsprintfA(g_dump_dir, "%s\\aimod_dumps", path);
-        *slash = '\\';
         slash[1] = 0;
         lstrcpyA(g_game_dir, path);
         wsprintfA(g_ai_dir, "%saimod_ai\\", path);
-        lstrcpyA(slash + 1, "aimod_autotest.ini");
+        lstrcpyA(dir, path);
+        slot_dir(dir);   // the test ini, the log and the dumps: the game folder, a test slot's own folder
+        wsprintfA(g_dump_dir, "%saimod_dumps", dir);
+        wsprintfA(path, "%saimod_autotest.ini", dir);
         load_autotest(path);
         lstrcpyA(g_ini, path);
-        lstrcpyA(slash + 1, "aimod.ini");
-        lstrcpyA(g_aimod_ini, path);
+        wsprintfA(g_aimod_ini, "%saimod.ini", g_game_dir);
         if (g_auto.enabled) config_paths();
         // required: missing -> error and quit; [general] enabled=0 -> no hooks
         if (GetFileAttributesA(g_aimod_ini) == INVALID_FILE_ATTRIBUTES) config_missing(g_aimod_ini);
+        wsprintfA(g_log_path, "%saimod_econ.csv", dir);
         if (!GetPrivateProfileIntA("general", "enabled", 1, g_aimod_ini)) {
-            lstrcpyA(slash + 1, "aimod_econ.csv");
-            FILE *f = fopen(path, "a");
+            FILE *f = fopen(g_log_path, "a");
             if (f) { fputs("# eeaimod: switched off in aimod.ini (enabled=0) - nothing installed\n", f); fclose(f); }
             return;
         }
         g_fix_scenario_ai = GetPrivateProfileIntA("general", "scenario_ai",
                                                   GetPrivateProfileIntA("fixes", "scenario_ai", 1, g_aimod_ini), g_aimod_ini);
-        lstrcpyA(slash + 1, "aimod_econ.csv");
         g_mem_dumps = g_auto.enabled || GetPrivateProfileIntA("general", "memory_dumps", 0, g_aimod_ini);
         if (g_mem_dumps || g_auto.enabled || GetPrivateProfileIntA("general", "control_pipe", 0, g_aimod_ini))
             CreateDirectoryA(g_dump_dir, NULL);   // memory dumps, shot / ddinfo pictures
-        lstrcpynA(g_log_path, path, sizeof g_log_path);
     }
     g_session = GetTickCount();
     InitializeCriticalSection(&g_lock);
     log_rotate();
-    g_log = fopen(path, "a");
+    g_log = fopen(g_log_path, "a");
     if (g_log) {
         SYSTEMTIME st;
         GetLocalTime(&st);
@@ -839,6 +876,8 @@ static void install(HMODULE self) {
                 st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond);
         log_header();
         fprintf(g_log, "# config: %s (personalities: %s)\n", g_aimod_ini, g_ai_dir);
+        if (g_slot) fprintf(g_log, "# slot: %d (pipe eeaimod%d, ports %d/%d, files in %s)\n", g_slot, g_slot,
+                            33334 + 2 * g_slot, 33335 + 2 * g_slot, dir);
     }
 
     BOOL a = patch_call(CALL_COMPUTE_TARGETS, FN_COMPUTE_TARGETS, hook_compute_targets);
