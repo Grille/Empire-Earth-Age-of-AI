@@ -424,6 +424,42 @@ and for the second version `h2h.sh` seeds 1-30). Scored per game: the mix AI min
 - Both AIs (Small Islands e5/e9, 20 seeds, `JOBS=8`, navy_mix 0 vs 1): all within noise.
 - No crash in 360 runs. `navy_mix` stays 0. Tables: docs/navy.md stage 2.
 
+### Fleet (navy stage 3)
+
+2026-10-19, `navy_fleet` (dll/fleet.c), off by default.
+
+**Setup:**
+- Head-to-head, one AI leads its fleet: `h2h.sh` with `"v_navy_fleet=1"`; with the fleet mix too: `"v_navy_fleet=1,v_navy_mix=1"`.
+- The control games: `"v_navy_fleet=0"`, the same seeds.
+- Maps: Small/Large Islands e5/e9 (`"random_map=<map>,map_size=0,ai_count=2,seed=101,start_epoch=<e>"`), 60 min.
+- Seeds 1-32 (`SEED0=16` for the second half), `JOBS=8`, the run's own DLL (`DLL=`).
+- Both AIs with the fleet: `scen.sh ... "<name>:navy_fleet=1"`, seeds 1-16.
+
+**Scoring:** `python scripts/fleet_ab.py [-strip n] -ctl <ctl> -h2h <variants> -both <variants> <logs>`.
+- Run names are `<variant><map>`, e.g. `flSe5` (h2h.sh `NAME`, scen.sh variant names); `-strip 1` drops a one-letter run prefix, so rounds with other seeds pool.
+- It pairs each game with the control game of its seed:
+  - *seat*: the variant seat minus the same seat in the control game;
+  - *DiD*: (seat - other) minus that difference in the control game;
+  - *both*: per AI, the variant game minus the control game.
+- Control games played identical with 3 different builds (the fleet off).
+
+**Log:** `# navy: P<n> fleet at N min: <task> (<why>) | at x,y -> target guard x,y | ships, hp | ratio vs known, near | danger <zones> | lost/sunk warships, boats | pulled flees hunts retreats defends escorts | repaired | orders refused sea-updates-skipped maint-skipped | attack groups`.
+
+**Test keys:**
+- `navy_fleet_boats=0`: no fishing boats pulled back;
+- `navy_fleet_coast=0`: no shelling of the coast in a hunt;
+- `navy_fleet_raid=<percent>`: the strength ratio for raids on boats, the coast and the fishing grounds (130).
+
+**Results** (128 games per variant):
+- Fleet AI, seat: warships sunk - lost +1.9 (std. error 0.45; DiD +3.9 (0.9)), positive on all 4 maps. Own warships lost -1.4 (0.4).
+- Kills - losses -4.5 (3.4), DiD -10.2 (6.2). Large e9 alone: -14.9 (6.1).
+- Fish food -47 (143), fishing boats lost -0.6 (0.7), soldiers +0.2 (0.5).
+- With the mix: sea +2.1, kills - losses -6.3 (3.8).
+- Raids at ratio 1.0 instead of 1.3: no better.
+- Both AIs: kills/losses -4.7/-4.5, soldiers +1.8 (0.6), fish +288 (173), boats lost -1.2 (0.8).
+- About 1000 runs, no crash.
+- `navy_fleet` and `navy_mix` stay 0. Tables: docs/navy.md stage 3.
+
 ### Farm fields
 
 2026-10-13, 2 AIs, start epoch 13, 31 min, game seeds 1-3 (`objs P 42`: 1 hp = foundation). Without the fix the 8

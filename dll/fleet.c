@@ -32,7 +32,9 @@
 //     of its hit points - first gathered, then the enemy's warships, then its fishing boats and transports (seen now
 //     or remembered 2 minutes), then the water off its nearest known dock (its fishing grounds); retreat (to the
 //     guard point, 60 s at least) once the hit points fall below half of what it had when the hunt began, or the
-//     enemy ships near the fleet are stronger (ratio < 0.8);
+//     enemy ships near the fleet are stronger (ratio < 0.8); its coast (seen within 4 tiles of the sea, 3 tiles
+//     clear of danger) after the boats; test keys navy_fleet_raid (the ratio for boats, coast and fishing grounds,
+//     130 - 100 was no better), navy_fleet_coast, navy_fleet_boats;
 //   guard: the point between the fishing boats (or the docks) and the nearest known enemy building, on open water,
 //     out of danger; ships within 6 tiles of it stay (they shoot at what comes in range).
 //   Ships below 35% hit points go back to the dock (repair: logged as the hit points regained there).
@@ -42,7 +44,7 @@
 // `# navy: P<n> fleet at N min:` every minute and on a change of task: task and why, where, ships and hit points,
 // strength against the enemy ships known (and near), the danger zones, losses and kills, boats pulled back, orders.
 static int g_navy_fleet = 0, g_v_navy_fleet = -1;
-static int g_fl_boats = 1, g_fl_coast = 1;   // test: navy_fleet_boats (fishing boats pulled back), navy_fleet_coast (the hunt shells the coast)
+static int g_fl_boats = 1, g_fl_coast = 1, g_fl_raid = 130;   // navy_fleet_raid: the ratio (%) for raids on boats and the coast   // test: navy_fleet_boats (fishing boats pulled back), navy_fleet_coast (the hunt shells the coast)
 #define FL_MAX 40
 #define FL_DZ 384
 #define FL_ES 160
@@ -573,11 +575,12 @@ static void fleet_tick(void *pl, uint32_t now) {
             fl_set(f, FT_RETREAT, hp < 0.5f * f->hp0 ? "half the hit points lost" : "outmatched near", now);
         }
         if (f->task == FT_RETREAT && now - f->retreat_t < 60000) { task = FT_RETREAT; why = f->why; }
-        else if (f->ratio >= 1.3f && hp >= 0.6f * hmax) {
-            // the hunt's target: the enemy's warships (nearest to the fleet; out of danger, reachable on its sea),
-            // its fishing boats and transports, the water off its nearest known dock
+        else if (f->ratio >= g_fl_raid / 100.0f && hp >= 0.6f * hmax) {
+            // the hunt's target: the enemy's warships (nearest to the fleet; out of danger, reachable on its sea) when
+            // clearly stronger (1.3), else - not weaker (navy_fleet_raid, 1.0) - its fishing boats and transports, its
+            // coast, the water off its nearest known dock
             int best = -1, bd = 0x7FFFFFFF, prey_i = -1, pd = 0x7FFFFFFF;
-            for (int j = 0; j < g_fs.ne; j++) {
+            for (int j = 0; j < g_fs.ne && f->ratio >= 1.3f; j++) {
                 struct fl_ship *e = &g_fs.es[j];
                 int d = (e->x - cx) * (e->x - cx) + (e->y - cy) * (e->y - cy);
                 if (d < bd && (int)area_id(e->x, e->y, 1) == f->ocean && !fl_in_danger_m(e->x, e->y, 3.0f)) { bd = d; best = j; }
@@ -606,7 +609,7 @@ static void fleet_tick(void *pl, uint32_t now) {
                 }
                 if (hx2 >= 0) why = "the enemy's fishing grounds";
             }
-            if (hx2 < 0 && (f->task == FT_HUNT || f->task == FT_GATHER) && now - f->task_t < 30000) { hx2 = f->dx; hy2 = f->dy; why = f->why; }
+            if (hx2 < 0 && (f->task == FT_HUNT || f->task == FT_GATHER) && now - f->task_t < 30000) { hx2 = f->dx; hy2 = f->dy; why = f->task == FT_HUNT ? f->why : "the last target"; }
             if (hx2 >= 0) {
                 // gathered first: every ship within 8 tiles of the middle (60 s at most)
                 int spread = 0;
@@ -636,6 +639,7 @@ static void fleet_install(const char *aimod_ini, const char *autotest_ini) {
     if (autotest_ini) g_v_navy_fleet = GetPrivateProfileIntA("autotest", "v_navy_fleet", -1, autotest_ini);
     g_fl_boats = cfg_int(aimod_ini, autotest_ini, 1, "navy_fleet_boats", 1);
     g_fl_coast = cfg_int(aimod_ini, autotest_ini, 1, "navy_fleet_coast", 1);
+    g_fl_raid = cfg_int(aimod_ini, autotest_ini, 1, "navy_fleet_raid", 130);
     int ok = 0;
     if (g_navy_fleet || g_v_navy_fleet > 0) {
         ok = asg_order_hooks() + patch_call(CALL_NV_MAINT_DELETE, FN_DELETE_FOR_ROOM, (void *)hook_nv_maint_delete);

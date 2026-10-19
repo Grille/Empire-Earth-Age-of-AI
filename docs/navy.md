@@ -4,7 +4,8 @@ The playtester: on water and island maps a strong standing navy decides the game
 cannot expand or counter-attack. "Each ship has specific roles and counters." This file holds the research
 (the ship data, the game's own AI), a baseline on island maps, and a staged design. Stage 0 (the food hole) and
 stage 1 (the navy's money, docks and room) are done. Stage 2 (the fleet mix) is built but off by default: it brought
-no head-to-head gain. The ships still do what the game's AI tells them (stages 3-4).
+no head-to-head gain. Stage 3 (the mod leads the fleet) is built and off by default too: it wins the sea (about 2
+warships a game net in head-to-head) but brings no gain on land yet.
 
 The playtester's notes on this plan:
 - **Farms are always needed.** "Fish is very useful but a limited resource; fishing boats have to go further and
@@ -426,20 +427,126 @@ errors, both versions). The sea exchange is even. The likely reasons:
   are lost more often (Large e5: 2.4 vs 0.8), against coasts where the x4.5 is real.
 - The gold that battleships take is missed elsewhere (the mix AI spent +86 gold and -73 iron on ships).
 
-Retest once stage 3 gives the fleet its own tasks and keeps it away from coastal siege.
+Retested with stage 3 (below, `fm`): with the fleet led, the mix adds nothing either.
 
-### Stage 3 - fleet tasks (a mod-led sea subgroup, as landing.c leads its units)
+### Stage 3 - the mod leads the fleet - BUILT, OFF (`navy_fleet=0`)
 
-- **Guard:** home waters and the fishing grounds. A patrol point between the docks and the fish, and the
-  enemy's ships within 15 tiles of own buildings or fishing boats attacked first. Fishing boats near enemy
-  warships are pulled back to the dock (the user's "citizens stay safe" for boats).
-- **Hunt** when stronger than the seen enemy fleet (1.3x): its fleet, then its fishing boats and transports, then
-  its docks (galleys). Retreat at 50% strength or when a fight turns (the attack_retreat estimate).
-- **Escort** landings: landing.c already takes escorts by the table. The standing fleet becomes its source, and
-  the landing waits for sea control instead of building its own fleet.
-- **Bombard:** the landing's beach towers with galleys or catapult ships and missile subs, out of siege reach.
-- **Repair:** damaged ships go to the dock. The game's repair round sends citizens, check that it reaches ships.
-  Losses are replaced from the account.
+Built (dll/fleet.c; `[all] navy_fleet`, `[autotest] v_navy_fleet`; test keys `navy_fleet_boats`, `navy_fleet_coast`,
+`navy_fleet_raid`):
+
+- **Who:** every warship and submarine of an AI on a water map (navy_detect: enemies across the water) that is not a
+  landing's. Carriers, transports and fishing boats stay the game's.
+- **Taken from the game** as landing.c takes its units:
+  - a sea subgroup holding a fleet ship is not updated (hook_asg_sea_update);
+  - the subgroups' orders to a fleet ship (vf57) are refused in hook_asg_give_goal. The land subgroup's hand-off,
+    which uses the goal after a refusal, keeps its exception; it never orders a fleet ship. The order hooks are now
+    installed once (`asg_order_hooks`) for the landing and the fleet;
+  - the naval maintenance (0x4779FA) deletes own units for room when it is short of "Ships to Maintain"
+    (0x430D40 called from 0x477B17). That call is skipped while the fleet leads. In the runs it was short only once,
+    because the fleet's ships count for it.
+  - Only a few orders came through vf57 at all (0-12 a game, `refused`). The skipped sea updates were 400-3000 a
+    game. The attack commander's groups stayed at 5-9 at the end of 60 minutes, so no frozen groups pile up.
+- **Danger zones** (every 2 s):
+  - what counts: enemy defence buildings with a ground attack, and land units that hit battleships x3 or more
+    (catapults, cannons, artillery, elephants ...) or reach 7+ tiles, as long as they hit ships;
+  - from where: seen now, and with honest_vision those remembered (buildings until their spot is looked at again,
+    siege 5 minutes);
+  - size: the range + 2 tiles.
+  - No ship sits or sails inside a zone. A ship inside sails out, away from the zone's centre, or 45/90 degrees off
+    that direction. A way that crosses a zone goes round a waypoint 8 or 16 tiles off the line, or is not taken.
+  - A target must be 3 tiles clear of every zone, because the ship shooting it stands nearer to the zone. Without
+    that margin, ships went in and out of a tower's reach hundreds of times a game.
+- **Strength:**
+  - each side's hit points x its damage a second (attack x 1000 / (reload + 2000)) x the hit table's factor against
+    the other side's ships, spread over their hit points;
+  - the ratio is sqrt(own hp x own dps / (enemy hp x enemy dps)).
+- **Tasks:**
+  - *support / escort:* while a landing sails or is ashore, the ships it didn't take stay off its beach, out of
+    danger. While a landing gets its transports and enemy warships are known on its route, the fleet goes there
+    and fights them if the ratio is at least 1. The landing still takes up to 6 warships as escorts (all of them,
+    with these fleet sizes).
+  - *defend:* enemy warships seen within 15 tiles of its buildings, fishing boats or guard point are attacked when
+    the ratio is at least 0.8. Each ship takes the nearest one it can hit.
+  - *hunt:* starts when the ratio against every enemy warship known (seen now, or remembered for 5 minutes) is 1.3
+    or more and the fleet has 60% of its hit points. It gathers first (within 8 tiles, 60 s at most). Then it goes
+    for, in this order:
+    1. the enemy's warships;
+    2. its fishing boats and transports;
+    3. units and buildings on its coast;
+    4. the water off its nearest known dock (its fishing grounds), skipped for 3 minutes once it has been there.
+
+    A hunt or gather lasts 30 s at least. The fleet retreats to the guard point for at least 60 s when its hit
+    points fall below half of what it had when the hunt began, or when the enemy near the fleet is stronger
+    (ratio < 0.8).
+  - *guard:* a point 5 tiles from the fishing boats (or the docks) toward the nearest known enemy building, on open
+    water and out of danger.
+  - Ships below 35% hit points go to the dock. The game repairs them there (`repaired`: 0-2800 hit points a game).
+- **Fishing boats:** an enemy warship seen within 10 tiles of a boat, and no fleet within 20 tiles that wins
+  (ratio of at least 1): the boat goes to its nearest dock.
+- **Log:** `# navy: P<n> fleet at N min:` every minute and on a change of task. It shows the task and why, the
+  fleet's position, target and guard point, its ships and hit points, the ratio against the enemy ships known and
+  near, the danger zones, warships lost and sunk, fishing boats lost and sunk, and counters (boats pulled, flees,
+  hunts, retreats, defends, escorts, hit points repaired, orders, refused, sea updates skipped, maintenance skipped,
+  attack groups).
+
+What the fleet did, Small/Large Islands e5/e9:
+- From the 2-minute looks: guarding and defending at home about half the time, hunting about a quarter (mostly the
+  enemy's fishing grounds and boats; few enemy fleets were ever stronger than 1.3 to 1), support for landings the
+  rest.
+- Fleets were still small: 1-3 warships, 8-10 in some e9 games late on.
+
+**Head-to-head, seed-paired.**
+- Setup: one AI leads its fleet (`v_navy_fleet=1`); both AIs have the navy account. Small/Large Islands e5/e9,
+  seed 101 map, 60 min, game seeds 1-32 (`h2h.sh`: odd seeds P2, even seeds P3).
+- Each fleet game is compared with the control game of the same seed (`v_navy_fleet=0`). The control games are
+  identical between builds: checked at 3 seeds x 2 maps, and the code is unchanged with the fleet off.
+- Two scores: *seat* is the fleet AI minus the same seat in the control game. *DiD* is (fleet AI - other) minus
+  the same difference in the control game.
+- Scored with `scripts/fleet_ab.py -strip 1 -ctl ctl -h2h fl,fm,fr`. Per game; std. error in brackets; 32 games
+  per map:
+
+| fleet AI, seat (DiD) | Small e5 | Small e9 | Large e5 | Large e9 | all 128 |
+|---|---|---|---|---|---|
+| warships sunk - lost (sea exchange) | +2.3 (+4.6) | +1.9 (+3.8) | +1.7 (+3.3) | +1.9 (+3.9) | **+1.9 (0.45) / DiD +3.9 (0.9)** |
+| own warships lost | -1.9 | -0.9 | -0.9 | -1.8 | -1.4 (0.4) |
+| warships afloat (average) | +0.0 | +0.2 | +0.1 | +0.3 | +0.2 (0.06) |
+| kills - losses | +3.6 (+8.6) | -4.9 (-8.5) | -1.7 (-7.4) | **-14.9 (-33.5)** | -4.5 (3.4) / DiD -10.2 (6.2) |
+| fishing boats lost / sunk | +0.6 / -1.7 | -1.8 / +0.4 | -1.1 / +0.8 | 0.0 / -4.1 | -0.6 (0.7) / -1.1 (0.8) |
+| food from fish | -295 | +150 | +200 | -243 | -47 (143) |
+| soldiers | +2.0 | -1.0 | +0.6 | -0.9 | +0.2 (0.5) |
+| landings ashore | -0.4 | +0.1 | -0.1 | +0.4 | 0.0 (0.14) |
+
+- **It wins the sea on every map.** It loses 1.4 warships fewer a game and sinks about 0.5 more.
+- **The war on land is not better.** Kills - losses is -4.5 (3.4) overall. Large e9 is -15 (6.1), with 12 kills
+  fewer: 4 of them enemy fishing boats, the rest probably what the game's sea groups shell on the enemy's coast
+  when they roam freely. The fleet keeps out of the reach of towers and cannons and, against a known U-boat, has
+  no ratio to hunt with (battleships can't hit submarines).
+- The other maps are within noise.
+- Fishing boats are not kept better. Pulling them to the dock changed nothing: `navy_fleet_boats=0` (64 games)
+  gave fish -238 (227), like -230 with it.
+- Variants, 128 games each:
+  - With the fleet mix (`fm`, `v_navy_mix=1` too): sea +2.1 (0.46), kills - losses -6.3 (3.8);
+  - Raids on boats and the coast already at ratio 1.0 (`navy_fleet_raid=100`): sea +1.7, kills - losses -4.9 (3.3),
+    Large e9 again -14.8.
+
+**Both AIs with the fleet** (navy_fleet 0 -> 1, seeds 1-16, 64 games, per AI against the same seed's control game):
+- kills -4.7 (2.6) and losses -4.5 (2.8): a less bloody war;
+- soldiers +1.8 (0.6);
+- food from fish +288 (173), fishing boats lost -1.2 (0.8);
+- warships afloat +0.15 (0.08), landings ashore +0.24 (0.13).
+
+About 1000 runs in all, no crash, every game finished.
+
+**Why it stays off:** the fleet does what it is meant to do at sea: it holds home waters, sinks more than it loses
+and keeps out of tower and cannon range. But a 1-3 ship fleet's sea control doesn't turn into more kills or
+buildings on land, and on Large Islands e9 the AI with it does worse than with the game's roaming sea groups. What
+is missing:
+- shelling the coast where it is safe while guarding, not only in a hunt;
+- a way to handle known submarines (frigates only);
+- escorts for the game's own transport attacks;
+- landings planned around sea control (stage 4).
+
+`navy_mix` stays 0 as well.
 
 ### Stage 4 - tie-in and measurement
 

@@ -5,7 +5,7 @@ names, no underscores), e.g. ctlSe5, flSe5, fmSe5, bothSe5: the variant is the p
   same seat in the control game (paired), and the difference in differences: (B seat - other) in the variant game
   minus (that seat - other) in the control game.
 - both variants (scen.sh, every AI with it): per seed and AI, the variant game minus the control game.
-usage: python scripts/fleet_ab.py -ctl ctl -h2h fl,fm -both both "work/autotest_*_h2h2026..._*.csv" ...
+usage: python scripts/fleet_ab.py [-strip n] -ctl ctl -h2h fl,fm -both both "work/autotest_*_h2h2026..._*.csv" ...
 """
 import sys, re, glob, collections, math
 args = sys.argv[1:]
@@ -13,7 +13,7 @@ def opt(name, default):
     if name in args:
         i = args.index(name); v = args[i + 1]; del args[i:i + 2]; return v
     return default
-CTL = opt('-ctl', 'ctl'); H2H = opt('-h2h', 'fl').split(','); BOTH = [x for x in opt('-both', '').split(',') if x]
+STRIP = int(opt('-strip', '0')); CTL = opt('-ctl', 'ctl'); H2H = opt('-h2h', 'fl').split(','); BOTH = [x for x in opt('-both', '').split(',') if x]
 runs = {}   # (variant, map, seed) -> {p: metrics}
 crashes = collections.Counter(); unfinished = collections.Counter()
 def avg(v): return sum(v) / len(v) if v else 0.0
@@ -35,11 +35,11 @@ def metrics(txt, p):
         ws.append(gi('war') + gi('subs')); foes.append(gi('foes-home')); home.append(gi('home'))
         ro = re.search(r'lost-roles F(\d+) L(\d+) A(\d+) S(\d+) AA(\d+) T(\d+) \| sunk-roles F(\d+) L(\d+) A(\d+) S(\d+) AA(\d+) T(\d+)', s)
         r = [int(x) for x in ro.groups()] if ro else [0] * 12
-        last = dict(lost=sum(r[0:5]), sunk=sum(r[6:11]), tsunk=r[11], blost=gi('boats-lost'), bsunk=gi('boats-sunk'), food=gi('food'))
+        last = dict(lost=sum(r[0:5]), sunk=sum(r[6:11]), tsunk=r[11], tlost=r[5], blost=gi('boats-lost'), bsunk=gi('boats-sunk'), food=gi('food'))
     if not last: return None
     m['war'] = avg(ws); m['home'] = avg(home); m['foes'] = avg(foes)
     m['wlost'] = last['lost']; m['wsunk'] = last['sunk']; m['sea'] = last['sunk'] - last['lost']
-    m['blost'] = last['blost']; m['bsunk'] = last['bsunk']; m['fish'] = last['food']; m['trsunk'] = last['tsunk']
+    m['blost'] = last['blost']; m['bsunk'] = last['bsunk']; m['fish'] = last['food']; m['trsunk'] = last['tsunk']; m['trlost'] = last['tlost']
     ar = re.findall(r'^# army: P%d at \d+ min: (\d+) soldiers' % p, txt, re.M)
     m['sold'] = avg([int(x) for x in ar])
     m['ashore'] = len(re.findall(r'^# landing: P%d at [\d.]+ min: all \d+ ashore' % p, txt, re.M))
@@ -51,11 +51,12 @@ for pat in args:
         mm = re.search(r'_(?:h2h|suite)\d+_\d+_([A-Za-z]+?)([SL]e\d+)_[^_]+-r(\d+)\.csv$', f)
         if not mm: continue
         var, mp, seed = mm.group(1), mm.group(2), int(mm.group(3))
+        if STRIP: var = var[STRIP:]   # -strip n: a run prefix of n letters dropped (rounds with other seeds pooled)
         txt = open(f, errors='replace').read()
         crashes[var + mp] += txt.count('\n# exception')
         unfinished[var + mp] += not (('# autotest: reached' in txt) or ('game over' in txt))
         runs[(var, mp, seed)] = {p: metrics(txt, p) for p in (2, 3)}
-K = ['net', 'kills', 'losses', 'war', 'wsunk', 'wlost', 'sea', 'foes', 'blost', 'bsunk', 'fish', 'trsunk', 'sold', 'ashore', 'razed', 'bldlost', 'won']
+K = ['net', 'kills', 'losses', 'war', 'wsunk', 'wlost', 'sea', 'foes', 'blost', 'bsunk', 'fish', 'trsunk', 'trlost', 'sold', 'ashore', 'razed', 'bldlost', 'won']
 maps = sorted({k[1] for k in runs})
 print('runs:', len(runs), ' crashes:', dict(c for c in crashes.items() if c[1]), ' unfinished:', dict(c for c in unfinished.items() if c[1]))
 def line(label, rows):
