@@ -462,6 +462,32 @@ and for the second version `h2h.sh` seeds 1-30). Scored per game: the mix AI min
 - About 1000 runs, no crash.
 - `navy_fleet` and `navy_mix` stay 0. Tables: docs/navy.md stage 3.
 
+### Fleet in task forces (navy stage 4)
+
+2026-10-19, `navy_fleet=2` (dll/fleet.c, navy.c), off by default. Details and tables: docs/navy.md stage 4.
+
+**Setup:**
+- Head-to-head: `h2h.sh` with `"v_navy_fleet=2"`, the control `"v_navy_fleet=0"`, the same seeds; Small/Large Islands
+  e5/e9, seed 101 map, 60 min, seeds 1-32, `JOBS=6 SLOT0=20` (scripts/jobs.sh: `SLOT0=k` plays in slots k+1..k+JOBS, so
+  two sessions don't share slots), the run's own DLL. Score: `fleet_ab.py -strip 1 -ctl ctl -h2h tf <logs>`.
+- Sea opponent: `scen.sh 60 seaop "random_map=<map>,map_size=0,ai_count=1,seed=101,start_epoch=<e>" "fzSe5:navy_fleet=0"
+  "fhSe5:navy_fleet=2"` (and `seaop_level=1|3`), score `seacontrol.py -ctl fz`.
+- Keys: `navy_fleet_pop` (15: the target, % of the population cap x the map strength), `navy_share_max` (50).
+
+**Log:** `# navy: P<n> tf <force> at N min: ...` per task force; the fleet line's `target built refused | haven ... |
+forces ... | lost by force ... | by task ... | kills W B T C Bd O`; `# navy: P<n> at N min: the fleet trains a warship`.
+
+**Results:**
+- Head-to-head, 128 games: kills - losses +18.3 (4.2), DiD +38.8 (7.8); losses -15.8 (2.6); warships afloat +5.5,
+  most +12.0 (fleet AI: 5-9 on average, 12-21 at most, 18-31 trained by the mod an hour); sea exchange -0.4 (0.65);
+  own fishing boats lost -3.4 (0.9), enemy's sunk +1.9; fish food +1110 (181); enemy transports sunk +1.8; soldiers
+  +3.7 (0.7); buildings lost -1.6 (0.5). Large e9 alone -10 (8).
+- Sea opponent (paired, fleet - control): medium (10 seeds) kills - losses +9 to +27 per map, sea exchange -4 to -10,
+  fishing boats lost -3 to -6; weak (6) sea exchange -9 to -16 and kills - losses -17 to -39 on 3 maps; strong:
+  sea exchange -1 to -9.
+- Both AIs with it (8 seeds, Small e5 / Large e9): fewer kills and losses, workers +4.5/+8.5. Continental: identical.
+- About 1000 runs, no crash.
+
 ### Sea opponent (navy measurement)
 
 2026-10-19, dll/testopp.c, `scenarios/seaop.txt`, `scripts/seacontrol.py`. Measuring an AI's navy against another AI's

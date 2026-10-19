@@ -5,7 +5,9 @@ cannot expand or counter-attack. "Each ship has specific roles and counters." Th
 (the ship data, the game's own AI), a baseline on island maps, and a staged design. Stage 0 (the food hole) and
 stage 1 (the navy's money, docks and room) are done. Stage 2 (the fleet mix) is built but off by default: it brought
 no head-to-head gain. Stage 3 (the mod leads the fleet) is built and off by default too: it wins the sea (about 2
-warships a game net in head-to-head) but brings no gain on land yet.
+warships a game net in head-to-head) but brings no gain on land yet. Stage 4 (a big fleet in task forces,
+`navy_fleet=2`) is built and off: it beats the control AI (+18 kills - losses a game, more fish, fewer boats lost) but
+not the human-like sea opponent.
 
 The playtester's notes on this plan:
 - **Farms are always needed.** "Fish is very useful but a limited resource; fishing boats have to go further and
@@ -600,18 +602,109 @@ What a human-level AI navy would have to show here: more warships afloat when th
 ships all game and is refused - section 3), fishing boats kept (fish food), transports through, and a sea exchange
 above 0 against the main fleet.
 
-### Stage 4 - tie-in and measurement
+### Stage 4 - a big fleet in task forces - BUILT, OFF (`navy_fleet=2`)
 
-- landing.c: plan landings only with sea control near the route, or with escorts from the standing fleet.
-  `landing_bombard` uses the fleet instead of training on demand.
-- **Success measures** (`# navy:` and navy.py):
-  - sea control: own vs enemy warships in own and enemy waters, and the share of looks holding home waters;
-  - fishing boats kept vs lost, and food from fish;
-  - enemy fleet sunk vs own lost (resource-weighted);
-  - landings ashore and enemy landings stopped;
-  - games won within 90 minutes (2 AIs and the reference-style 3-AI maps).
-- A/B: navy on vs off, both AIs, 20 seeds, Small/Large Islands e5/e9. Also one AI with and one without, for the
-  head-to-head effect (`scripts/h2h.sh`).
+The playtester (2026-10-19): "at least 20 ships on a low population game, way more with higher limits, split into
+smaller fleets and task forces for proper map control"; "the fleet needs to go out and do things: hunt fishing boats and
+shell citizens to disturb the economy, hunt enemy warships to prevent the enemy from massing a force at sea, patrol for
+transports ... Any unit that just sits there is a huge opportunity cost"; "the fleet can't be scared off by a few subs -
+that's what the frigates are for".
+
+Built (dll/navy.c, dll/fleet.c, econ.c, diplo.c; `[all] navy_fleet=2`, `[autotest] v_navy_fleet=2`; keys
+`navy_fleet_pop` 15, `navy_share_max` 50):
+
+- **Size.** The target is `navy_fleet_pop` % of the AI's population cap x the map strength: 26 warships at the tests'
+  cap of 176, 20 at a cap of 135.
+  - Below the target the account's share grows from `navy_share` (25) toward `navy_share_max` (50) with what is missing.
+  - A warship spends the account through the reserve (the epoch's and the landing's): it is the navy's money. Large
+    e9 before: 524 frigate orders refused in an hour with the account full (W600 G600 I546).
+  - Room held for the fleet and docks wanted (2 + target / 8, at most 5) follow the target.
+  - The mod trains the missing warships itself, one every 10 s while the warships afloat plus those ordered in the
+    last 90 s are below the target (`# navy: P<n> at N min: the fleet trains a warship (type, role)`). The game's
+    own warship orders go on.
+- **Composition.** The fleet mix (stage 2) chooses the type of the mod's orders and the game's. When the role most
+  missing can't be paid, any role it can pay, the most missing first: iron comes in slowly on islands (e5: account W600
+  G574 I41, 488 frigate orders refused), so battleships (wood + gold) fill in.
+- **Task forces** (fleet.c `tf_*`), only while the fleet is clearly the stronger at sea (ratio 1.5 against every
+  enemy warship known, 6+ ships; one fleet again under 1.1). Split forces of 1-3 ships lost to a concentrated enemy.
+  - Sizes: an escort of a quarter while a landing gets ready or is under way; of the rest, a sixth home guard, a fifth
+    raiders, a sixth patrol (from 6 ships), the rest hunters. 20 ships: home 3, raid 4, patrol 3, hunt 10.
+  - Ships keep their force. A force over its size (one more is kept) lets the least fitting go; one under it takes
+    the best fitting free ship. Fit by role: hunters battleships and submarines, then frigates; raiders and patrol
+    frigates and galleys; home battleships, galleys, cruisers.
+  - *Home guard*: the stage-3 decision without hunts (defend when the ratio against the ships at home is 0.8+).
+  - *Hunters*: the enemy warship group (within 12 tiles of one) where they are 1.2+ stronger, near ones first -
+    strike before they mass. All groups stronger: they hold. They help the home guard when it can't hold alone.
+  - *Raiders*: transports (weight 4), fishing boats (3), citizens on the coast (3), docks (2), other buildings (1),
+    soldiers (0.5), over (1 + distance / 25), where the enemy ships within 12 tiles are not stronger.
+  - *Patrol*: transports seen within 16 tiles, then warships there it beats (else back off); otherwise waypoints on
+    the sea lane to the nearest known enemy building (35% and 65% of the way, 10 tiles to each side half way).
+  - *Escort*: the stage-3 support / route clearing, and covering the route while the landing gets its transports.
+  - No target: the enemy's fishing grounds (off its docks, not cleared in the last 3 minutes), its shore, a sweep.
+  - Retreat at half the hit points of the start or outmatched near (0.8), 45 s.
+- **One fleet** (not split): the stage-3 decision on all ships. **Shelter** (fleet in being): against an enemy fleet
+  known much stronger (ratio < 0.6, 3+ warships), or while losing at sea (4+ warships lost in 10 minutes and twice
+  what it sank), every ship waits at the haven - water by an own tower near the sea, the one farthest from the
+  enemy, else by such a dock. The mod trains none then, and the share is back to the base. Out again at 0.9.
+- **Combined arms in the orders:** frigates take submarines first; raiders citizens first (soldiers last). Points the
+  forces go to are 3 tiles clear of every danger zone (at the edge ships went in and out: 1900 flees an hour).
+  Tried and dropped: ships that can't hit a submarine near them (battleships) keeping 8 tiles off - no gain.
+- **Log:** `# navy: P<n> tf <home|hunt|raid|patrol|escort> at N min: task (why) | ships n F L A S AA hp | at -> to |
+  ratio | kills W B T C Bd O lost | hunts retreats defends orders flees` on a change and every minute. The fleet line
+  adds `target built refused | haven x,y sheltering/split/one fleet (n times) | forces ... | lost by force ... | by
+  task ... | kills W B T C Bd O`. Kills are counted by the ships' targets when the unit dies (diplo.c hook_kill_stat
+  -> fleet_kill, fleet_lost).
+- `scripts/fleet_ab.py` columns `wmax` (most warships), `fcit` / `fkill` (citizens / everything the led fleet killed).
+
+**Head-to-head against the control AI** (one AI `v_navy_fleet=2`, both with the navy account; Small/Large Islands
+e5/e9, seed 101 map, 60 min, game seeds 1-32, each game paired with the control game of its seed; fleet_ab.py; std.
+error in brackets; 128 games):
+
+| fleet AI, seat (DiD) | Small e5 | Small e9 | Large e5 | Large e9 | all |
+|---|---|---|---|---|---|
+| kills - losses | +27.9 | +9.1 | +46.5 | -10.2 (8.2) | **+18.3 (4.2) / DiD +38.8 (7.8)** |
+| losses | -22.6 | -3.4 | -34.4 | -2.9 | -15.8 (2.6) |
+| warships afloat (average / most), fleet AI | 4.9 / 12.5 | 6.9 / 16.1 | 6.1 / 15.9 | 9.3 / 21.2 | +5.5 / +12.0 vs control |
+| warships sunk - lost | +0.2 | -1.3 | +1.1 | -1.7 | -0.4 (0.65) |
+| own fishing boats lost / enemy's sunk | -5.4 / +5.0 | -2.6 / +4.2 | -5.3 / +3.8 | -0.3 / -5.6 | -3.4 (0.9) / +1.9 (0.9) |
+| food from fish | +1739 | +1776 | +1012 | -89 | +1110 (181) |
+| enemy transports sunk | +3.5 | +2.3 | +1.3 | +0.3 | +1.8 (0.3) |
+| citizens killed by the fleet (game) | 1.8 | 1.0 | 1.6 | 0.2 | 1.2 |
+| soldiers | +0.6 | +3.7 | +2.0 | +8.3 | +3.7 (0.7) |
+| buildings lost | -2.6 | -0.8 | -2.5 | -0.6 | -1.6 (0.5) |
+
+- The mod trained 18-31 warships an hour per AI; the most afloat 12-21 (the target 26 is not reached: the islands'
+  gold and iron - 110 a minute at e5 - pay a frigate a minute at best, and ships are lost).
+- Earlier versions, 64-128 games each: everything split always +21 / +28 (5); with `navy_share_max=70` +26 (6), more
+  ships (+7.1 afloat) but fewer soldiers; the stage-3 fleet was -4.5 (3.4).
+- Both AIs with it (8 seeds, Small e5 / Large e9): kills 62.6/62.2 -> 58.2/36.6, losses 76.3/72.8 -> 61.9/44.6,
+  workers +4.5/+8.5. Continental: detection "land", games identical. No crash in about 1000 runs.
+
+**Against the sea opponent** (docs/testing.md "Sea opponent"; 1 AI, navy_fleet 0 vs 2 paired by seed, 60 min;
+seacontrol.py; medium 10 seeds, weak and strong 6):
+
+| fleet AI - control | Small e5 | Small e9 | Large e5 | Large e9 |
+|---|---|---|---|---|
+| medium: kills - losses | +11.0 (11.8) | +26.7 (12.5) | +9.4 (9.8) | +24.0 (11.5) |
+| medium: sea exchange (opp sunk - AI lost) | -4.4 (3.0) | -9.8 (2.9) | -4.0 (2.6) | -6.8 (4.0) |
+| medium: fishing boats lost | -5.0 | -5.9 | -5.0 | -2.6 |
+| weak: kills - losses | +6.3 (12.7) | -38.7 (25) | -16.7 (11.2) | -17.2 (14.2) |
+| weak: sea exchange | -8.8 (3.7) | -16.3 (6.3) | -11.5 (2.6) | -11.5 (2.6) |
+| strong: sea exchange (first shelter version) | -1.5 (1.0) | -8.8 (3.9) | -1.0 (2.1) | -4.8 (2.0) |
+
+- The first version (always split, no shelter) lost 5-18 more warships a game than the control against the medium
+  opponent: ships went out one by one and were sunk at the guard point (`lost by task`: guard 10-22 a game). The
+  shelter and the split gate cut that to 2-8, and the games' kills - losses turned positive.
+- The opponent's 16 warships come for free (44 an hour); the AI's 18-30 an hour are paid from 110-250 gold + iron a
+  minute and arrive one by one, so it never holds 3+ at once there (0.4-1.2 afloat on average). Against the weak
+  opponent (8-12 warships) it builds and loses more than the control without sinking more.
+
+**Why it stays off:** it beats the control AI clearly (+18 kills - losses, +1100 fish food, fewer boats lost, more
+soldiers) but not the sea opponent: against the weak one it loses the sea and the land exchange on 3 maps, against
+medium the sea exchange is worse though the land exchange is better. What is missing:
+- a fleet that grows unseen before it fights: the build-up comes one ship at a time to a sea the enemy holds;
+- the gold/iron economy for 20+ warships (the metals' workers follow the army's refusals, not the navy's target);
+- Large Islands e9 against the control: -10 (8).
 
 ### Risks
 
