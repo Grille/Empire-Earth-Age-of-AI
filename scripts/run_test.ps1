@@ -131,6 +131,9 @@ Set-Content "$sdir\aimod_autotest.ini" (@($lines) + $extra)
 # the game started from here sees the slot (and a slot-0 run none, whatever this shell has set)
 if ($Slot) { $env:EEAIMOD_SLOT = "$Slot"; $env:EEAIMOD_SLOT_DIR = $sdir }
 else { Remove-Item Env:EEAIMOD_SLOT, Env:EEAIMOD_SLOT_DIR -ErrorAction SilentlyContinue }
+# headless: the mod's dinput.dll keeps every window of the game from taking the focus or a taskbar button, from the
+# process start on (dll/headless_win.c; eeaimod.dll alone only from its load on)
+if ($extra -contains "headless=1") { $env:EEAIMOD_HEADLESS = "1" } else { Remove-Item Env:EEAIMOD_HEADLESS -ErrorAction SilentlyContinue }
 try {
     # an existing log in the game folder is from normal play (tests archive theirs below): keep it, never delete it;
     # in a slot's folder: a crashed run's
@@ -167,6 +170,7 @@ public static class SuspendedStart {
   // nopped - the mutex "StainlessSteelStudiosPresentsEmpireEarth" is created before the engine loads our DLL)
   public static int Start(string exe, string args, string dir, bool splash, bool multi, out bool splashOk, out bool multiOk) {
     SI si = new SI(); si.cb = Marshal.SizeOf(si); PI pi;
+    if (splash) si.flags = 0x80;   // headless: STARTF_FORCEOFFFEEDBACK - no busy cursor while it starts
     if (!CreateProcessW(exe, "\"" + exe + "\" " + args, IntPtr.Zero, IntPtr.Zero, false, 4, IntPtr.Zero, dir, ref si, out pi))
       throw new Exception("CreateProcess failed: " + Marshal.GetLastWin32Error());
     splashOk = splash && Patch(pi.hp, 0x534400, new byte[] { 0x75, 0x2F }, new byte[] { 0xEB });

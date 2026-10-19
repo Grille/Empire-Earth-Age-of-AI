@@ -1150,7 +1150,7 @@ static void display_install(const char *aimod_ini, const char *autotest_ini) {
         dmode = 0;
     }
     if (autotest_ini) g_headless = ini_int("autotest", "headless", 0, autotest_ini);
-    if (g_headless) dmode = 1;   // a normal (off-screen) window
+    if (g_headless) { dmode = 1; headless_windows(); }   // a normal (off-screen) window, never activated
     g_borderless = dmode == 2;
     int windowed = dmode != 0;
     if (autotest_ini) g_present_every = ini_int("autotest", "present_every", 0, autotest_ini);

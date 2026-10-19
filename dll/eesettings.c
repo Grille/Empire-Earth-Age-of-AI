@@ -12,6 +12,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include "headless_win.c"
 
 // ---- the system's dinput.dll: the engine's DirectInputCreateA (and the rest of its exports, for anyone else) ----
 static HMODULE g_real;
@@ -417,6 +418,8 @@ static void start(HINSTANCE self) {
         }
     }
     SetEnvironmentVariableA("EEAIMOD_SETTINGS_FILE", why);
+    char hl[4];
+    if (GetEnvironmentVariableA("EEAIMOD_HEADLESS", hl, sizeof hl) == 1 && hl[0] == '1') headless_windows();   // a test
 }
 const char *WINAPI EEAimodSettings(void) { return g_on ? g_file : NULL; }
 

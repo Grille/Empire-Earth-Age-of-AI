@@ -708,6 +708,7 @@ static char __fastcall hook_game_start(void *state, void *edx, uint8_t *setup, v
 #include "persist.c"
 #include "aim.c"
 #include "camera.c"
+#include "headless_win.c"
 #include "display.c"
 #include "playername.c"
 #include "sound.c"

@@ -343,7 +343,8 @@ dll/              the mod (C), one module per file:
                     landing.c landings; navy.c the navy log (observation only)
                     display.c / present_d3d.c windowed mode (display_text.c text DC and bitmap fonts, display_diag.c
                     frame watch and diagnostics, playername.c the menu name fix), camera.c scrolling, editor_layout.h editor
-                    randmap.c test-game setup, watch.c watchpoints, trace.c call tracing
+                    randmap.c test-game setup, watch.c watchpoints, trace.c call tracing, headless_win.c
+                    test windows without focus or taskbar button (also in dinput.dll)
 config/           aimod.ini and the aimod_ai personalities, shipped to players
 scenarios/        setup scripts that turn a save into a test scenario (attacks, sieges, raids)
 scripts/          test runner, suite, log analysis, control client, MCP server, RE helpers

@@ -682,8 +682,13 @@ Intercept: flight times the same (1.9-2.2 s). Pursuit already hits: missiles 2.5
 Autotest key `headless=1`: the game window is created off-screen, never activates and ignores focus
 changes, so nothing on the desktop, the mouse or the keyboard is touched. Drive it through the pipe:
 `run_test.ps1` starts headless runs suspended and switches off the loading splash before the game runs (it
-appears before the engine loads the DLL, centred on screen, and takes the focus); the display DLL's probe
-window is moved off-screen too. Nothing of the game should become visible or take the focus.
+appears before the engine loads the DLL, centred on screen, and takes the focus) and the busy cursor.
+Every window of the game gets no taskbar button and is never activated (dll/headless_win.c, a CBT hook):
+the display DLLs' 16x16 probe windows activated ~21 times per start and the game window once, each with a
+taskbar button - with several slots starting, the taskbar flickered and the desktop kept losing the focus.
+The mod's dinput.dll installs it at the process start (`EEAIMOD_HEADLESS=1`, set by run_test.ps1), before
+the display DLLs probe; eeaimod.dll only from its own load on (without the mod's dinput.dll, 6 probes still
+activate). Nothing of the game should become visible or take the focus.
 
 | Command | |
 |---|---|
