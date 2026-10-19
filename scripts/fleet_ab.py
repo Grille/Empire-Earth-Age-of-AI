@@ -37,7 +37,11 @@ def metrics(txt, p):
         r = [int(x) for x in ro.groups()] if ro else [0] * 12
         last = dict(lost=sum(r[0:5]), sunk=sum(r[6:11]), tsunk=r[11], tlost=r[5], blost=gi('boats-lost'), bsunk=gi('boats-sunk'), food=gi('food'))
     if not last: return None
-    m['war'] = avg(ws); m['home'] = avg(home); m['foes'] = avg(foes)
+    m['war'] = avg(ws); m['home'] = avg(home); m['foes'] = avg(foes); m['wmax'] = max(ws) if ws else 0
+    # the fleet's kills by its ships' targets (stage 3/4 fleet line): citizens, buildings, all
+    fk = re.findall(r'^# navy: P%d fleet at [\d.]+ min: .*\| kills W(\d+) B(\d+) T(\d+) C(\d+) Bd(\d+) O(\d+)' % p, txt, re.M)
+    fk = [int(x) for x in fk[-1]] if fk else [0] * 6
+    m['fcit'] = fk[3]; m['fbld'] = fk[4]; m['fkill'] = sum(fk)
     m['wlost'] = last['lost']; m['wsunk'] = last['sunk']; m['sea'] = last['sunk'] - last['lost']
     m['blost'] = last['blost']; m['bsunk'] = last['bsunk']; m['fish'] = last['food']; m['trsunk'] = last['tsunk']; m['trlost'] = last['tlost']
     ar = re.findall(r'^# army: P%d at \d+ min: (\d+) soldiers' % p, txt, re.M)
@@ -56,7 +60,7 @@ for pat in args:
         crashes[var + mp] += txt.count('\n# exception')
         unfinished[var + mp] += not (('# autotest: reached' in txt) or ('game over' in txt))
         runs[(var, mp, seed)] = {p: metrics(txt, p) for p in (2, 3)}
-K = ['net', 'kills', 'losses', 'war', 'wsunk', 'wlost', 'sea', 'foes', 'blost', 'bsunk', 'fish', 'trsunk', 'trlost', 'sold', 'ashore', 'razed', 'bldlost', 'won']
+K = ['net', 'kills', 'losses', 'war', 'wmax', 'wsunk', 'wlost', 'sea', 'foes', 'blost', 'bsunk', 'fish', 'trsunk', 'trlost', 'fcit', 'fkill', 'sold', 'ashore', 'razed', 'bldlost', 'won']
 maps = sorted({k[1] for k in runs})
 print('runs:', len(runs), ' crashes:', dict(c for c in crashes.items() if c[1]), ' unfinished:', dict(c for c in unfinished.items() if c[1]))
 def line(label, rows):
@@ -90,3 +94,4 @@ print('seat: the variant seat, variant game - control game (same seed); DiD: (se
 print('both: per AI, variant game - control game. net = kills - losses; war: warships+subs afloat (2-min looks);')
 print('wsunk/wlost: enemy warships sunk / own lost (subs incl.), sea = wsunk - wlost; foes: enemy warships in own waters;')
 print('blost/bsunk: fishing boats lost / sunk; fish: food from fish; trsunk: transports sunk; ashore: landings ashore')
+print('wmax: most warships afloat; fcit / fkill: citizens / all units and buildings killed by the targets of the led fleet')

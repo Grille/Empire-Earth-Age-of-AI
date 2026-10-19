@@ -366,6 +366,7 @@ static int navy_pays(unsigned idx, int type);
 static int navy_economy(unsigned idx, int type, int landing_order);
 static void navy_hold(void *pl, unsigned idx, int reserve[7]);
 static int navy_account(unsigned idx, int r);
+static int navy_earmarked(unsigned idx);   // navy.c (stage 4): a warship spends the account through the reserve
 static void navy_paid(unsigned idx, int type, const int *spent, int got);
 static int navy_room_reserve(void *pl);
 static int navy_pick(void *pl, unsigned idx, int asked);
@@ -1496,7 +1497,7 @@ static void train_budget(void *pl, unsigned idx, const struct ai_cfg *cfg, const
         no_work = scarce && total >= 10 && idle > g_citizen_slack && idle * 100 > total * 15;
     }
     for (int r = 2; r < 7; r++) {
-        int visible = req_unit ? stock[r] : stock[r] - reserve[r];   // a requirement unit: the epoch waits for it
+        int visible = req_unit || (ship && navy_earmarked(idx)) ? stock[r] : stock[r] - reserve[r];   // a requirement unit: the epoch waits for it
         // citizens before farms: they pay only food, and only what the food budget (stock + reachable wild
         // food) doesn't need for the epochs; a tiny workforce always grows
         if (is_citizen_type(req[0]) && cfg->copper_plan && current_epoch(pl) < FARM_EPOCH) {

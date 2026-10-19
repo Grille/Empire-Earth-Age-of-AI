@@ -319,6 +319,8 @@ static void kills_window(int k, int v, int minutes, uint32_t out[K_N]) {   // k'
 }
 static void kills_recent(int k, int v, uint32_t out[K_N]) { kills_window(k, v, KILLS_RECENT_MIN, out); }
 __attribute__((used)) uint8_t *g_kill_unit;   // the dead unit: esi at the call site
+static void fleet_kill(int k, uint8_t *dead, int n);   // fleet.c: which task force had it as its target
+static void fleet_lost(int v, uint8_t *dead);          // fleet.c: an own ship of a task force sunk
 __attribute__((used)) void __fastcall hook_kill_stat(uint8_t *stats, void *edx, int n, int d) {
     (void)edx;
     void *owner = g_kill_unit ? FIELD(g_kill_unit, 0x18, void *) : NULL;
@@ -334,6 +336,8 @@ __attribute__((used)) void __fastcall hook_kill_stat(uint8_t *stats, void *edx, 
             g_nv_lost_type[v & 15][FIELD(td, 0x4B8, int)] += (uint16_t)d; g_nv_sunk_type[k & 15][FIELD(td, 0x4B8, int)] += (uint16_t)d;
         }
         g_kills_min[b][k][v][c] += (uint16_t)d;
+        fleet_kill(k, g_kill_unit, n);
+        if (n == 3) fleet_lost(v, g_kill_unit);
     }
     ((void (__thiscall *)(void *, int, int))FN_STAT_ADD)(stats, n, d);
 }

@@ -45,6 +45,12 @@ static void fleet_new_game(void);   // fleet.c (stage 3)
 static void fleet_install(const char *aimod_ini, const char *autotest_ini);
 static void fleet_tick(void *pl, uint32_t now);
 static int nv_role(uint8_t *td);
+static int fleet_builds(unsigned idx);   // fleet.c: stage 4 (navy_fleet=2) for this AI - the fleet's size target below
+// THE FLEET'S SIZE (stage 4, navy_fleet=2; docs/navy.md): the playtester expects 20+ warships at a low population
+// limit and more with higher ones - navy_fleet_pop % (15) of the AI's population cap x the map strength (cap 176 in
+// the 2-AI island tests: 26; cap 135: 20). Below it the account's share grows toward navy_share_max (50) with what is
+// missing, the room held for the fleet and the docks wanted follow it, and fleet.c trains the missing warships itself.
+static int g_nv_target[16], g_navy_fleet_pop = 15, g_navy_share_max = 50;
 
 static void navy_new_game(void) {
     memset(g_nv_fish, 0, sizeof g_nv_fish);
@@ -58,6 +64,7 @@ static void navy_new_game(void) {
     memset(g_nv_ord, 0, sizeof g_nv_ord);
     memset(g_nv_own, 0, sizeof g_nv_own);
     g_nv_count_t = 0;
+    memset(g_nv_target, 0, sizeof g_nv_target);
     nv_mix_reset();
     fleet_new_game();
     memset(g_nv_lost_type, 0, sizeof g_nv_lost_type);
@@ -252,8 +259,16 @@ static void navy_detect(void *pl, unsigned idx, uint32_t now) {
 static int g_navy = 1, g_navy_share = 25;
 static int g_v_navy = -1;   // head-to-head (autotest): [autotest] v_navy for the variant_players (econ.c PV)
 static float navy_share(unsigned idx) {
-    return PV(idx, g_v_navy, g_navy) && g_nv_map[idx & 15].done ? (float)g_navy_share / 100.0f * g_nv_map[idx & 15].strength : 0.0f;
+    if (!PV(idx, g_v_navy, g_navy) || !g_nv_map[idx & 15].done) return 0.0f;
+    float sh = (float)g_navy_share;
+    int t = g_nv_target[idx & 15], miss = t - g_nv_own[idx & 15].war;
+    if (t > 0 && miss > 0 && g_navy_share_max > g_navy_share && fleet_builds(idx)) sh += (float)(g_navy_share_max - g_navy_share) * (float)miss / (float)t;
+    return sh / 100.0f * g_nv_map[idx & 15].strength;
 }
+// stage 4: the account is the navy's own money - a warship spends it even where the reserve (epochs, landing ...)
+// would hold the stock (econ.c train_budget); the others never saw it (navy_hold): Large Islands e9, 524 frigate
+// orders refused in an hour with the account full (W600 G600 I546) - the stock above the reserve was short of iron
+static int navy_earmarked(unsigned idx) { return fleet_builds(idx) && g_nv_target[idx & 15] > 0; }
 static void navy_income(unsigned idx, int type, int amount) {
     float sh = navy_share(idx);
     if (sh <= 0 || (type != 3 && type != 5 && type != 6)) return;
@@ -367,7 +382,8 @@ static int navy_room_reserve(void *pl) {
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     struct nv_orders *o = &g_nv_ord[idx];
     float sh = navy_share(idx);
-    int t = o->want ? o->want : o->last, missing = (int)(4.0f * g_nv_map[idx].strength + 0.5f) - g_nv_own[idx].war, total = 0;
+    int t = o->want ? o->want : o->last, total = 0;
+    int missing = (fleet_builds(idx) ? g_nv_target[idx] : (int)(4.0f * g_nv_map[idx].strength + 0.5f)) - g_nv_own[idx].war;   // stage 4: the fleet's target
     if (sh <= 0 || !t || missing <= 0 || !g_nv_own[idx].docks_built) return (int)(o->held_room = 0);
     for (int r = 3; r < 7; r++) if (r != 4) total += unit_cost(pl, t, r);
     int n = total > 0 ? navy_account(idx, 3) / total : 0;
@@ -545,7 +561,7 @@ static void nv_roles(void *pl, unsigned idx, struct nv_pick *pk, uint32_t now, i
 }
 // the type to train for the game's warship order asked (0: the game's own)
 static int navy_pick(void *pl, unsigned idx, int asked) {
-    if (!PV(idx, g_v_navy_mix, g_navy_mix) || !navy_pays(idx, asked)) return 0;
+    if ((!PV(idx, g_v_navy_mix, g_navy_mix) && !fleet_builds(idx)) || !navy_pays(idx, asked)) return 0;   // stage 4: the mix too
     int k = navy_type_kind(asked);
     if (k != NV_WAR && k != NV_SUB) return 0;
     uint32_t now = game_time();
@@ -568,7 +584,9 @@ static int navy_pick(void *pl, unsigned idx, int asked) {
             float d = w[r] / wsum * (float)(all + 1) - (float)have[r];
             if (w[r] > 0 && !done[r] && (!r0 || d > d0)) { d0 = d; r0 = r; }
         }
-        if (!r0 || (pass && d0 <= 0)) break;
+        // stage 4: any role it can pay, the most missing first - the iron the frigates need comes in slowly while the
+        // account's wood and gold lay unused (Small Islands e5: account W600 G574 I41, 488 frigate orders refused)
+        if (!r0 || (pass && d0 <= 0 && !fleet_builds(idx))) break;
         done[r0] = 1;
         if (!pass) br = r0;
         int pay = 1, total = 0;
@@ -576,6 +594,13 @@ static int navy_pick(void *pl, unsigned idx, int asked) {
         if (pay && total <= pool) { if (r0 != br) pk->cheaper++; return best[r0]; }
     }
     return br ? best[br] : 0;
+}
+// stage 4 (fleet.c fl_build): the type of the mod's own warship order - the mix's choice, asked as its first ship type
+static int navy_fleet_type(void *pl, unsigned idx) {
+    struct nv_pick *pk = &g_nv_pk[idx & 15];
+    nv_cands(pl, pk, game_time());
+    for (int k = 0; k < pk->nc; k++) if (pk->crole[k] != NR_AA) return navy_pick(pl, idx, pk->ctype[k]);
+    return 0;
 }
 // after the order: counts, the wait for a refused type, a type the game can't train
 static void navy_pick_done(void *pl, unsigned idx, int pick, int asked, const int *before, const int *stock, int blocked) {
@@ -597,7 +622,7 @@ static void navy_pick_done(void *pl, unsigned idx, int pick, int asked, const in
 }
 static void navy_mix_log(void *pl, unsigned idx, uint32_t now) {
     struct nv_pick *pk = &g_nv_pk[idx & 15];
-    if (!g_log || !PV(idx, g_v_navy_mix, g_navy_mix) || navy_share(idx) <= 0) return;
+    if (!g_log || (!PV(idx, g_v_navy_mix, g_navy_mix) && !fleet_builds(idx)) || navy_share(idx) <= 0) return;
     nv_cands(pl, pk, now);
     nv_seen(pl, idx, pk, now);
     int best[NR_N], have[NR_N];
@@ -631,6 +656,11 @@ static void navy_docks(void *pl, unsigned idx, uint32_t now) {
     if (navy_share(idx) <= 0 || (now >= o->dock_t && now - o->dock_t < 60000)) return;
     o->dock_t = now;
     int want = 2 + (g_nv_map[idx].kind == NV_ISLANDS && (w->fish >= 12 || (o->want && now - o->want_t < 120000)));
+    if (fleet_builds(idx) && g_nv_target[idx] > 0) {   // stage 4: a dock per 8 warships of the target (training in parallel), at most 5
+        int f = 2 + g_nv_target[idx] / 8;
+        if (f > 5) f = 5;
+        if (f > want) want = f;
+    }
     void *cm = FIELD(pl, 0xB90, void *);
     uint8_t *bm = cm ? FIELD(cm, 0x3C, uint8_t *) : NULL;
     if (!bm || w->docks >= want || w->docks_built < w->docks || ((char (__thiscall *)(void *, int))0x00465640)(bm, 36)) return;
@@ -678,6 +708,9 @@ static void navy_install(const char *aimod_ini, const char *autotest_ini) {
     if (g_navy_share < 0) g_navy_share = 0;
     if (g_navy_share > 80) g_navy_share = 80;
     g_navy_mix = cfg_int(aimod_ini, autotest_ini, 1, "navy_mix", 0);
+    g_navy_fleet_pop = cfg_int(aimod_ini, autotest_ini, 1, "navy_fleet_pop", 15);
+    g_navy_share_max = cfg_int(aimod_ini, autotest_ini, 1, "navy_share_max", 50);
+    if (g_navy_share_max > 80) g_navy_share_max = 80;
     if (autotest_ini) g_v_navy = GetPrivateProfileIntA("autotest", "v_navy", -1, autotest_ini);
     if (autotest_ini) g_v_navy_mix = GetPrivateProfileIntA("autotest", "v_navy_mix", -1, autotest_ini);
     if (g_log) fprintf(g_log, "# navy: account %s, share %d%% on islands, fleet mix %s (v_navy %d, v_navy_mix %d for the variant players)\n",
@@ -691,6 +724,10 @@ static void navy_tick(void *pl, uint32_t now) {
     if (now < m->t) memset(m, 0, sizeof *m);
     if (!m->done && now >= 10000 && now - m->t >= 10000) { m->t = now; navy_detect(pl, idx, now); }
     if (now < g_nv_count_t || now - g_nv_count_t >= 10000) { g_nv_count_t = now; navy_count(); }
+    if (fleet_builds(idx)) {   // the fleet's size target (stage 4): navy_fleet_pop % of the population cap x the map strength
+        int cap = ((int (__thiscall *)(void *, int))(*(void ***)pl)[31])(pl, 0);   // vf31(0), as bk_room
+        g_nv_target[idx] = (int)((float)cap * (float)g_navy_fleet_pop / 100.0f * m->strength + 0.5f);
+    } else g_nv_target[idx] = 0;
     navy_budget_log(pl, idx, now);
     navy_docks(pl, idx, now);
     fleet_tick(pl, now);
