@@ -154,9 +154,11 @@ static int landing_has_unit(void *pl, uint8_t *u) {   // a transport, warship or
 }
 #define VT_ASG_SEA 0x00826F10
 #define FN_ASG_SEA_UPDATE 0x0044ED11   // EECPASGSea slot 90: update(now)
+static int fleet_leads(uint8_t *sg);                // fleet.c: a sea subgroup holding a ship the fleet leads
+static int fleet_refuses(uint8_t *sg, uint8_t *u);  // fleet.c: an order to one of them
 static void __fastcall hook_asg_sea_update(uint8_t *sg, void *edx, int now) {
     (void)edx;
-    if (landing_leads(sg)) return;
+    if (landing_leads(sg) || fleet_leads(sg)) return;
     ((void (__thiscall *)(void *, int))FN_ASG_SEA_UPDATE)(sg, now);
 }
 #define VT_ASG_AIR 0x00826610
@@ -250,7 +252,7 @@ static unsigned g_ld_refused, g_ld_kept_goal;
 static void ld_fu_given(void *g, int ok);   // below (the game's unload orders to landing transports)
 static char __fastcall hook_asg_give_goal(uint8_t *sg, void *edx, uint8_t *u, void *goal, int a, int prio) {
     (void)edx;
-    if (landing_leads(sg)) {
+    if (landing_leads(sg) || fleet_refuses(sg, u)) {   // the fleet (fleet.c): its ships in any subgroup
         g_ld_refused++;
         if ((uintptr_t)__builtin_return_address(0) == RET_ASG_LAND_HANDOFF_GIVE) { g_ld_kept_goal++; return 1; }
         ld_fu_given(goal, 0);
@@ -2352,6 +2354,15 @@ static int __fastcall hook_idle_unload_shore(void *mgr, void *edx, uint8_t *tr) 
     return ((int (__thiscall *)(void *, void *))0x0042C49A)(mgr, tr);
 }
 
+// the subgroups' orders (vf57: transport, sea, land, air) through hook_asg_give_goal - once, for the landing and the
+// fleet (fleet.c)
+static int asg_order_hooks(void) {
+    static int done;
+    if (!done)
+        done = patch_vtable(VT_ASG_SEA_TRANSPORT, 57, FN_ASG_GIVE_GOAL, hook_asg_give_goal) + patch_vtable(VT_ASG_SEA, 57, FN_ASG_GIVE_GOAL, hook_asg_give_goal) +
+               patch_vtable(VT_ASG_LAND, 57, FN_ASG_GIVE_GOAL, hook_asg_give_goal) + patch_vtable(VT_ASG_AIR, 57, FN_ASG_AIR_GIVE_GOAL, hook_asg_air_give_goal);
+    return done;
+}
 static void landing_install(const char *aimod_ini, const char *autotest_ini) {
     BOOL gs = patch_call(CALL_GOALSET_ASK, FN_GOALSET_ASK, (void *)hook_goalset_ask) & patch_call(CALL_GOALSET_AGAIN, FN_GOALSET_ASK, (void *)hook_goalset_ask) &
               patch_goalset_read();
@@ -2378,10 +2389,7 @@ static void landing_install(const char *aimod_ini, const char *autotest_ini) {
     int h = patch_vtable(VT_ASG_SEA_TRANSPORT, 90, FN_ASG_SEA_TRANSPORT_UPDATE, hook_asg_sea_transport_update) &
             patch_vtable(VT_ASG_SEA, 90, FN_ASG_SEA_UPDATE, hook_asg_sea_update) &
             patch_vtable(VT_ASG_AIR, 90, FN_ASG_AIR_UPDATE, hook_asg_air_update);
-    int gg = 0;
-    if (g_landing)   // the subgroups' own orders refused while the landing leads them: transport, sea, land, air
-        gg = patch_vtable(VT_ASG_SEA_TRANSPORT, 57, FN_ASG_GIVE_GOAL, hook_asg_give_goal) + patch_vtable(VT_ASG_SEA, 57, FN_ASG_GIVE_GOAL, hook_asg_give_goal) +
-             patch_vtable(VT_ASG_LAND, 57, FN_ASG_GIVE_GOAL, hook_asg_give_goal) + patch_vtable(VT_ASG_AIR, 57, FN_ASG_AIR_GIVE_GOAL, hook_asg_air_give_goal);
+    int gg = g_landing ? asg_order_hooks() : 0;   // the subgroups' own orders refused while the landing leads them
     if (g_log) fprintf(g_log, "# landing: %s, %d transports (transport subgroup hook %s, order hooks %d/4)\n", g_landing ? "on" : "off", g_land_ships, h ? "ok" : "FAILED", gg);
 }
 

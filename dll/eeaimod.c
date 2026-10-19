@@ -678,6 +678,7 @@ static char __fastcall hook_game_start(void *state, void *edx, uint8_t *setup, v
 #include "texts.c"
 #include "diplo.c"
 #include "navy.c"
+#include "fleet.c"
 #include "persist.c"
 #include "aim.c"
 #include "camera.c"

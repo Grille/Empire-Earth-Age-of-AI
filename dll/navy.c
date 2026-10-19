@@ -41,6 +41,9 @@ static struct nv_own g_nv_own[16];
 static uint32_t g_nv_count_t;
 
 static void nv_mix_reset(void);   // the fleet mix (below)
+static void fleet_new_game(void);   // fleet.c (stage 3)
+static void fleet_install(const char *aimod_ini, const char *autotest_ini);
+static void fleet_tick(void *pl, uint32_t now);
 static int nv_role(uint8_t *td);
 
 static void navy_new_game(void) {
@@ -56,6 +59,7 @@ static void navy_new_game(void) {
     memset(g_nv_own, 0, sizeof g_nv_own);
     g_nv_count_t = 0;
     nv_mix_reset();
+    fleet_new_game();
     memset(g_nv_lost_type, 0, sizeof g_nv_lost_type);
     memset(g_nv_sunk_type, 0, sizeof g_nv_sunk_type);
 }
@@ -678,6 +682,7 @@ static void navy_install(const char *aimod_ini, const char *autotest_ini) {
     if (autotest_ini) g_v_navy_mix = GetPrivateProfileIntA("autotest", "v_navy_mix", -1, autotest_ini);
     if (g_log) fprintf(g_log, "# navy: account %s, share %d%% on islands, fleet mix %s (v_navy %d, v_navy_mix %d for the variant players)\n",
                        g_navy ? "on" : "off", g_navy_share, g_navy_mix ? "on" : "off", g_v_navy, g_v_navy_mix);
+    fleet_install(aimod_ini, autotest_ini);
 }
 
 static void navy_tick(void *pl, uint32_t now) {
@@ -688,6 +693,7 @@ static void navy_tick(void *pl, uint32_t now) {
     if (now < g_nv_count_t || now - g_nv_count_t >= 10000) { g_nv_count_t = now; navy_count(); }
     navy_budget_log(pl, idx, now);
     navy_docks(pl, idx, now);
+    fleet_tick(pl, now);
     if (!g_auto.enabled || !g_log) return;
     if (now < g_nv_fish_t) g_nv_fish_t = g_nv_log_t = 0;
     if (now - g_nv_fish_t >= 15000) { g_nv_fish_t = now; navy_fish(); }
