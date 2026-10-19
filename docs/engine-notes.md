@@ -637,6 +637,16 @@ there); the mod's own engine patches are elsewhere.
 returns false when it already exists; its caller quits with the `je` at 0x535CDA (`0F 84 BE 02 00 00`; NeoEE nops these
 6 bytes). This runs before `Low-Level Engine.dll` loads the folder's DLLs - only a suspended start can patch it.
 
+**Settings (registry):** HKCU\Software\SSSI\Empire Earth (60 values) and its subkey `Game Options` (16: the last
+game's setup). The exe imports no registry function; all of it goes through the engine's `URegistry`
+(`GetRegistryValue` / `SetRegistryValue` for DWORD and string, `Create/DeleteRegistryKey/Value`), which calls the 7
+ADVAPI32 imports of `Low-Level Engine.dll` (RegOpenKeyExA, RegCreateKeyExA, RegQueryValueExA, RegSetValueExA,
+RegDeleteValueA, RegDeleteKeyA, RegCloseKey; RegQueryValueExA at 0x1007F0CC/F1D5 in the two Get, 0x1007F2EB/F421 in the
+two Set). Traced 2026-10-19 by hooking those imports from our DLL: after the engine has loaded it the game queries
+no value at all - every setting is read before - and at exit it writes all of them back (also `Game Options`). So a
+redirect of the settings (to an ini next to the game) needs code that runs before the engine reads: a proxy DLL the
+loader brings in (one of the engine's imports, e.g. DINPUT.dll) or the suspended start of a test run.
+
 ## Art of Conquest (EE-AOC.exe) - first overview
 
 Not supported yet; notes for the port. Steam and GOG `EE-AOC.exe` have identical code. AoC's `Low-Level Engine.dll`
