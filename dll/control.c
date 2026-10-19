@@ -565,13 +565,28 @@ static BOOL patch_sim_wait(void) {
 // With turbo the wait times out as soon as the simulation has processed every tick sent (+0x10 processed in
 // physics == +0x190 current tick) and used up its steps (EEPhysics [0x919774] +0xB8 == 0): the next tick follows
 // at once. Ticks are thereby sent at the same points of the simulation as at normal pace, where the simulation
-// always finishes a tick long before the next one - player and AI inputs land in the same ticks.
+// always finishes a tick long before the next one - player and AI inputs land in the same ticks. "Used up" means out
+// of the last step too: +0xB8 is 0 already while the last step runs, and the AI hands its messages to the server
+// during a step (the last one's too) - sent before it ends, the next tick went out without them and they landed a
+// tick late, now and then (game_seed runs parted: docs/testing.md). g_in_step: hook_phys_step around each step.
+#define VTBL_PHYS_STEP 0x0082CB7C   // EEPhysics vtable slot 8: one simulation step
+#define FN_PHYS_STEP   0x00546C63
+static volatile LONG g_in_step;
+static void (*g_step_after)(void *phys);   // trace.c: the sync trace's line after each step
+static void __fastcall hook_phys_step(void *phys, void *edx) {
+    (void)edx;
+    InterlockedExchange(&g_in_step, 1);
+    ((void (__thiscall *)(void *))FN_PHYS_STEP)(phys);
+    InterlockedExchange(&g_in_step, 0);
+    if (g_step_after) g_step_after(phys);
+}
 #define LLE_SEND_WAIT_RVA 0x55DF5
 #define LLE_IAT_WFMO_RVA  0x940EC
 
 static int sim_drained(void) {
     uint8_t *srv = *(uint8_t **)G_SERVER, *phys = *(uint8_t **)G_WORLD_CLOCK;
-    return srv && phys && FIELD(srv, 0x10, unsigned) == FIELD(srv, 0x190, unsigned) && FIELD(phys, 0xB8, unsigned) == 0;
+    return srv && phys && FIELD(srv, 0x10, unsigned) == FIELD(srv, 0x190, unsigned) && FIELD(phys, 0xB8, unsigned) == 0 &&
+           !g_in_step;
 }
 
 static DWORD WINAPI hook_send_wait(DWORD n, const HANDLE *h, BOOL all, DWORD ms) {
@@ -762,7 +777,9 @@ static void ctl_start(int pipe) {
     if (g_auto.enabled) {
         g_turbo = g_auto.turbo;
         int a = patch_sim_wait(), b = patch_send_wait();
-        ctl_log("turbo hooks: sim wait %s, tick send %s; turbo %d", a ? "ok" : "FAILED", b ? "ok" : "FAILED", g_turbo);
+        int c = patch_code32(VTBL_PHYS_STEP, FN_PHYS_STEP, (uint32_t)(uintptr_t)hook_phys_step);
+        ctl_log("turbo hooks: sim wait %s, tick send %s, step %s; turbo %d", a ? "ok" : "FAILED", b ? "ok" : "FAILED",
+                c ? "ok" : "FAILED", g_turbo);
     }
     g_req.done = CreateEventA(NULL, TRUE, FALSE, NULL);
     ctl_log("pipe %s", pipe ? "on" : "off (aimod.ini [general] control_pipe=0)");

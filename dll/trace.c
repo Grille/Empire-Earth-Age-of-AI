@@ -184,14 +184,15 @@ static void trace_start(const char *ini) {
 }
 
 // Sync trace (autotest ini: sync_trace=<steps>): synctrace.txt next to the log. "start message: ..." when the
-// game start message runs, then after each of the first <steps> simulation steps a line
-// "<step> <game ms> <seed> <inputs> <stock hash>": the step counter (EEPhysics +0x80, 15 per lockstep tick), the
-// synchronised random generator's seed (EEPhysics +0x14 URandom, seed +0x18: the "mRandomNumberGenerator" of the
-// game's out-of-synch dump; the exe draws from it with inlined code, not through LLE's exports), the user-input
-// messages processed so far (0x919B68) and a hash of the stock of players 1.. (player 0's first fields are not
-// set). Two runs of one game_seed diffed show the first step they part, and whether the generator went first.
-#define SYNC_PHYS_VTBL_STEP 0x0082CB7C   // EEPhysics vtable slot 8: the step 0x546C63
-#define SYNC_PHYS_STEP      0x00546C63
+// game start message runs, then after each of the first <steps> simulation steps (control.c hook_phys_step) a line
+// "<step> <game ms> <seed> <inputs> <stock hash> <units> <unit hash>": the step counter (EEPhysics +0x80, 15 per
+// lockstep tick), the synchronised random generator's seed (EEPhysics +0x14 URandom, seed +0x18: the
+// "mRandomNumberGenerator" of the game's out-of-synch dump; the exe draws from it with inlined code, not through
+// LLE's exports), the user-input messages processed so far (0x919B68), a hash of the stock of players 1.. (player 0's
+// first fields are not set), the units on the grid and a hash of them (owner, type, tile, hit points). Before a
+// step's line, each message the step handed to the lockstep server: "  m type <n> from <return address> S" (S: the
+// simulation thread). sync_dump=<from ms>-<to ms>: every unit of each step in that window ("  u ..."). Two runs of
+// one game_seed diffed show the first step they part - and whether the generator, an input or the units went first.
 static FILE *g_sync;
 static unsigned g_sync_left;
 typedef void (__thiscall *StepFn)(void *);
@@ -219,9 +220,59 @@ static int start_hook(void) {
     return done || (done = patch_code32(START_VTBL_EXEC, START_EXEC, (uint32_t)(uintptr_t)hook_start_exec));
 }
 
-static void __fastcall sync_step(void *phys, void *edx) {
+// the units' part of a step's line: how many, and a sum of each one's hash (owner, type, tile, hit points) - the
+// grid's order doesn't matter. sync_dump=<from ms>-<to ms>: every unit of each step in that window, "  u ..." lines
+struct sync_units { unsigned n; uint32_t h; };
+static uint32_t g_sync_dump0, g_sync_dump1;
+static uint32_t sync_unit_hash(uint8_t *u) {
+    void *owner = FIELD(u, 0x18, void *);
+    uint8_t *td = FIELD(u, 0x2C, uint8_t *);
+    uint32_t v[5] = { owner ? (uint32_t)(FIELD(owner, PL_INDEX, int) & 15) : 99u, td ? (uint32_t)FIELD(td, 0x4B8, int) : 0u,
+                      (uint32_t)FIELD(u, 0x1C, int), (uint32_t)FIELD(u, 0x20, int), (uint32_t)FIELD(u, 0x3C, int) }, h = 2166136261u;
+    for (int i = 0; i < 5; i++) h = (h ^ v[i]) * 16777619u;
+    return h;
+}
+static void sync_unit(uint8_t *u, void *ctx) {
+    struct sync_units *s = ctx;
+    s->n++;
+    s->h += sync_unit_hash(u);
+}
+static void sync_unit_dump(uint8_t *u, void *ctx) {
+    (void)ctx;
+    void *owner = FIELD(u, 0x18, void *);
+    uint8_t *td = FIELD(u, 0x2C, uint8_t *);
+    fprintf(g_sync, "  u P%d type %d at %d,%d hp %d\n", owner ? FIELD(owner, PL_INDEX, int) & 15 : -1, td ? FIELD(td, 0x4B8, int) : -1,
+            FIELD(u, 0x1C, int), FIELD(u, 0x20, int), FIELD(u, 0x3C, int));
+}
+// the messages handed to the lockstep server (EEServer [0x91984C] vtable slot 6: (msg, 0xFF)): "  m <type> <caller>
+// <S|thread>" - what goes into the next tick the server sends, and from where
+static DWORD g_sync_tid;
+static void (__thiscall *g_srv_send)(void *, void *, int);
+static void __fastcall sync_srv_send(void *srv, void *edx, uint8_t *msg, int to) {
     (void)edx;
-    ((StepFn)SYNC_PHYS_STEP)(phys);
+    uintptr_t ret = (uintptr_t)__builtin_return_address(0);
+    DWORD tid = GetCurrentThreadId();
+    EnterCriticalSection(&g_lock);
+    if (g_sync) fprintf(g_sync, "  m type %u from %06x %s%lu\n", msg ? msg[8] : 0, (unsigned)ret, tid == g_sync_tid ? "S" : "thread ", tid == g_sync_tid ? 0 : tid);
+    LeaveCriticalSection(&g_lock);
+    g_srv_send(srv, msg, to);
+}
+static void sync_hook_server(void) {
+    static int done;
+    void **srv = *(void ***)G_SERVER;
+    if (done || !srv) return;
+    done = 1;
+    void **slot = &((void **)srv[0])[6];
+    DWORD old;
+    if (!VirtualProtect(slot, 4, PAGE_READWRITE, &old)) return;
+    g_srv_send = (void (__thiscall *)(void *, void *, int))*slot;
+    *slot = (void *)sync_srv_send;
+    VirtualProtect(slot, 4, old, &old);
+    if (g_log) fprintf(g_log, "# sync trace: server messages hooked (vtable %p)\n", srv[0]);
+}
+static void sync_step(void *phys) {   // after each step (control.c hook_phys_step)
+    g_sync_tid = GetCurrentThreadId();
+    sync_hook_server();
     if (!g_sync || !g_sync_left) return;
     uint32_t h = 2166136261u;
     unsigned n = *(unsigned *)0x009183CC;
@@ -230,9 +281,13 @@ static void __fastcall sync_step(void *phys, void *edx) {
         if (!pl) continue;
         for (int k = 0; k < 7 * 4; k++) h = (h ^ pl[PL_STOCK + k]) * 16777619u;
     }
+    struct sync_units su = { 0, 0 };
+    grid_each(sync_unit, &su);
     EnterCriticalSection(&g_lock);
-    fprintf(g_sync, "%u %u %u %u %08x\n", FIELD(phys, 0x80, unsigned), FIELD(phys, 0xD0, unsigned),
-            FIELD(phys, 0x18, unsigned), *(unsigned *)0x00919B68, h);
+    fprintf(g_sync, "%u %u %u %u %08x %u %08x\n", FIELD(phys, 0x80, unsigned), FIELD(phys, 0xD0, unsigned),
+            FIELD(phys, 0x18, unsigned), *(unsigned *)0x00919B68, h, su.n, su.h);
+    if (g_sync_dump0 && FIELD(phys, 0xD0, unsigned) >= g_sync_dump0 && FIELD(phys, 0xD0, unsigned) <= g_sync_dump1)
+        grid_each(sync_unit_dump, NULL);
     if (!--g_sync_left) { fclose(g_sync); g_sync = NULL; }
     LeaveCriticalSection(&g_lock);
 }
@@ -245,7 +300,11 @@ static void sync_trace_start(const char *ini) {
     char *slash = strrchr(path, '\\');
     snprintf(slash ? slash + 1 : path, sizeof path - (slash ? (size_t)(slash + 1 - path) : 0), "synctrace.txt");
     g_sync = fopen(path, "w");
-    int ok = g_sync && patch_code32(SYNC_PHYS_VTBL_STEP, SYNC_PHYS_STEP, (uint32_t)(uintptr_t)sync_step);
+    char dump[40];
+    GetPrivateProfileStringA("autotest", "sync_dump", "", dump, sizeof dump, ini);
+    if (dump[0]) { g_sync_dump0 = (uint32_t)strtoul(dump, NULL, 10); const char *m = strchr(dump, '-'); g_sync_dump1 = m ? (uint32_t)strtoul(m + 1, NULL, 10) : g_sync_dump0; }
+    int ok = g_sync && *(uint32_t *)VTBL_PHYS_STEP == (uint32_t)(uintptr_t)hook_phys_step;   // control.c's, autotest
+    if (ok) g_step_after = sync_step;
     if (g_log) fprintf(g_log, "# sync trace: %u steps into %s (%s)\n", g_sync_left, path,
                        ok && start_hook() ? "ok" : "FAILED");
 }
