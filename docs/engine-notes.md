@@ -607,6 +607,36 @@ breaks (crashes 0x628D6F, 0x53110D, 0x531131); guarded in attack.c (unit_node_fr
   human has, in slot order - a computer slot's colour is ignored (call 0x5262E4, player in edi). In the game the
   UI shows the player's rgb (diplomacy screen, chat), no index is kept.
 
+## Exe builds
+
+The mod's addresses are those of the 1.04 exe with the 2017 "Difficulty Setting & Multiplayer Lobby" update (build
+timestamp 0x594D0000). eeaimod.c `game_build` checks the exe file before installing anything: an FNV-1a hash over every
+section but `.rsrc` (`k_exe_builds`); another build gets no hooks and one message (`build_unknown`). Compared on
+2026-10-19 (the community setups unpacked with innoextract, nothing run):
+
+| Build | Hash | Code |
+|---|---|---|
+| GOG 1.04 (this install) | 4FB6A479 | the reference |
+| empireearth.eu "Vanilla" setup v1.7.2 (`EE_Setup.exe`, SHA1 134dcacf...) | 4FB6A479 | identical; only `.rsrc` and a signature differ |
+| Steam Gold Edition | not checked here | README: the same code + a signature and a DPI manifest |
+| NeoEE (`NeoEE_Setup.exe` v1.7.2, game 2.0.0.5) | 3F62B3FB | the same compile (timestamp 0x3D8F43F9, 2002-09-23) with a packer, see below |
+
+The "2017" exe is evidently the 2002 retail 1.04 code with the copy protection stripped and the import table rebuilt.
+NeoEE's exe keeps the protection's layout: section names shuffled, the code at the same RVA and size as ours, an
+encrypted 3.4 MB blob at RVA 0x7C1000 (it fills `.cms_t`/`.cms_d`, 0x946000-0x9F2000, zeros in the file, at startup)
+and a `.neoee` section. Of its code differences all 32320 but 39 are `call [import]` operands (its import table at RVA
+0x72F000, in another order); game globals (`.data`) are identical. The 39: imports routed through `nop; call stub`,
+patches at 0x4B98EA, 0x535CDA (the single-instance check, below), 0x67937A..0x6793C3. None of the mod's addresses is
+near them; the mod's 23 fixed import-table slots (0x82319C..0x824648) would have to be looked up by name instead.
+NeoEE's `Low-Level Engine.dll` changes two network timeouts (0x10052D5B 10000 -> 5000, 0x10053127 75000 -> 25000).
+Our (GOG) `Low-Level Engine.dll` differs from the community's in 4 spots, 0x1005E81D-0x1005E8DA: two divisions nopped,
+`xor eax,eax` for `inc al`, `jmp` for `je` - apparently a fix for a division by zero (the community's is original
+there); the mod's own engine patches are elsewhere.
+
+**Single instance:** `0x53883F` creates the mutex "StainlessSteelStudiosPresentsEmpireEarth" (handle to 0x919860) and
+returns false when it already exists; its caller quits with the `je` at 0x535CDA (`0F 84 BE 02 00 00`; NeoEE nops these
+6 bytes). This runs before `Low-Level Engine.dll` loads the folder's DLLs - only a suspended start can patch it.
+
 ## Art of Conquest (EE-AOC.exe) - first overview
 
 Not supported yet; notes for the port. Steam and GOG `EE-AOC.exe` have identical code. AoC's `Low-Level Engine.dll`

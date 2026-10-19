@@ -9,9 +9,11 @@ The current focus is the **computer player**: it should play fair, build a real 
 itself, and feel like an opponent with a character. The tooling here works for any part of the game: hooks,
 control pipe, automated tests and the engine notes.
 
-Retail/Gold and the **Steam Gold Edition** (`steamapps\common\Empire Earth Gold Edition\Empire Earth`)
-both work: the Steam exe has the same code, only a signature and a DPI manifest are added, and there's no
-DRM wrapper. Art of Conquest (`EE-AOC.exe`) isn't supported yet. The mod coexists with community DLL
+The mod needs the 1.04 exe of the 2017 update: the **GOG** version, the **Steam Gold Edition**
+(`steamapps\common\Empire Earth Gold Edition\Empire Earth` - the same code, only a signature and a DPI manifest are
+added) or the **Vanilla** setup from empireearth.eu. Old CD versions, no-CD exes and NeoEE have their code in other
+places: the mod recognizes the exe when the game starts and stays switched off with another one, with a message
+(docs/engine-notes.md, Exe builds). Art of Conquest (`EE-AOC.exe`) isn't supported yet. The mod coexists with community DLL
 patches such as *Empire Earth Tweaks* or *dreXmod*, which patch different places.
 
 **Documentation**
