@@ -10,10 +10,12 @@
 # log and dumps are in work\slot<n>\ (the DLL learns it from EEAIMOD_SLOT / EEAIMOD_SLOT_DIR), its control pipe is
 # \\.\pipe\eeaimod<n>, the DLL moves its network ports by 2n, and the game's single-instance check is patched at the
 # start (docs/testing.md, Parallel runs). Slot 0 (default) is the game folder as before.
+# -Dll <path> (env DLL): this run plays with that eeaimod.dll build instead of the installed one - copied to
+# work\eeaimod_slot<n>.dll (the source can be rebuilt meanwhile), named in EEAIMOD_DLL; the installed DLL loads it.
 param([string]$Save = "aitest.ees", [int]$TimeoutSec = 900, [string]$Tag = "", [bool]$Mute = $true,
       [string]$Scenario = "", [string[]]$IniExtra = @(), [string]$Exe = "Empire Earth.exe",
       [string]$Config = $env:CONFIG, [string]$AiDir = $env:AI_DIR, [int]$Slot = [int]$env:SLOT,
-      [string]$Settings = $env:SETTINGS)
+      [string]$Settings = $env:SETTINGS, [string]$Dll = $env:DLL)
 $g = (Resolve-Path "$PSScriptRoot\..\..").Path   # game folder; the repository lives in <game>\_aimod
 if ($Slot -lt 0 -or $Slot -gt 30) { "slot must be 0..30"; exit 1 }
 $sdir = if ($Slot) { "$g\_aimod\work\slot$Slot" } else { $g }   # this run's test ini, log and dumps
@@ -95,6 +97,17 @@ if ($proxy -and $Mute) {
     $env:EEAIMOD_SETTINGS = "$g\_aimod\work\settings_slot$Slot.ini"
     Copy-Item $Settings $env:EEAIMOD_SETTINGS -Force
 } else { Remove-Item Env:EEAIMOD_SETTINGS -ErrorAction SilentlyContinue }
+# this run's own DLL: the installed one (which needs to know EEAIMOD_DLL) loads the copy and stays out of the way
+if ($Dll) {
+    if (-not [System.IO.Path]::IsPathRooted($Dll)) { $Dll = Join-Path "$g\_aimod" $Dll }
+    $why = if (-not (Test-Path $Dll)) { "-Dll not found: $Dll" }
+           elseif (-not (Select-String -Path "$g\eeaimod.dll" -Pattern 'EEAIMOD_DLL' -SimpleMatch -Quiet)) {
+               "the installed eeaimod.dll predates -Dll (install a current build once: sh dll/build.sh install)" }
+    if ($why) { Remove-Item $lock -Confirm:$false; $why; exit 1 }
+    $env:EEAIMOD_DLL = "$g\_aimod\work\eeaimod_slot$Slot.dll"
+    try { Copy-Item $Dll $env:EEAIMOD_DLL -Force -ErrorAction Stop }
+    catch { Remove-Item $lock -Confirm:$false; "can't copy -Dll to $($env:EEAIMOD_DLL): $_"; exit 1 }
+} else { Remove-Item Env:EEAIMOD_DLL -ErrorAction SilentlyContinue }
 if ($Mute -and -not $proxy -and -not (Test-Path $backup)) {   # muted once for all slots that run at the same time
     $cur = Get-ItemProperty $key
     $o = @{}; foreach ($n in $names) { $o[$n] = $cur.$n }

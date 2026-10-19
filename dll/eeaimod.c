@@ -770,13 +770,13 @@ static void slot_dir(char *dir) {   // dir: the game folder (with its \) -> wher
 }
 // Another build: nothing installed - the player is told once a start (a test run, which has nobody to click: only
 // the log), and the game runs as it is
-static void build_unknown(HINSTANCE self, uint32_t hash) {
+static void build_unknown(uint32_t hash) {
     char dir[MAX_PATH], path[MAX_PATH + 32];
     // the engine loads the folder's DLLs several times (it frees those that are no render plugin): told once - the
     // process's environment outlives the DLL
     if (GetEnvironmentVariableA("EEAIMOD_BUILD_TOLD", dir, sizeof dir)) return;
     SetEnvironmentVariableA("EEAIMOD_BUILD_TOLD", "1");
-    GetModuleFileNameA(self, dir, MAX_PATH);
+    GetModuleFileNameA(NULL, dir, MAX_PATH);   // the game folder (the exe's)
     char *slash = strrchr(dir, '\\');
     if (slash) slash[1] = 0; else dir[0] = 0;
     slot_dir(dir);
@@ -837,7 +837,7 @@ static void install(HMODULE self) {
                        (LPCSTR)&install, &pinned);
 
     char path[MAX_PATH], dir[MAX_PATH];
-    GetModuleFileNameA(self, path, MAX_PATH);
+    GetModuleFileNameA(NULL, path, MAX_PATH);   // the game folder: the exe's (a test run's own DLL is elsewhere)
     char *slash = strrchr(path, '\\');
     if (slash) {
         slash[1] = 0;
@@ -876,6 +876,9 @@ static void install(HMODULE self) {
                 st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond);
         log_header();
         fprintf(g_log, "# config: %s (personalities: %s)\n", g_aimod_ini, g_ai_dir);
+        char me[MAX_PATH];
+        if (GetEnvironmentVariableA("EEAIMOD_DLL", me, sizeof me) && GetModuleFileNameA(self, me, sizeof me))
+            fprintf(g_log, "# dll: %s (the test run's own, built %s %s)\n", me, __DATE__, __TIME__);
         if (g_slot) fprintf(g_log, "# slot: %d (pipe eeaimod%d, ports %d/%d, files in %s)\n", g_slot, g_slot,
                             33334 + 2 * g_slot, 33335 + 2 * g_slot, dir);
         // the game's settings: eesettings.ini through the optional dinput.dll (eesettings.c), else the registry
@@ -953,14 +956,41 @@ static BOOL patch_srand(void) {   // the exe imports srand from msvcrt.dll
     return iat_hook(IAT_SRAND, "msvcrt.dll", "srand", (void *)hook_srand, (void **)&g_srand);
 }
 
+// A test run's own DLL (run_test.ps1 -Dll; docs/testing.md): EEAIMOD_DLL names a copy outside the game folder (the
+// engine loads every DLL in there, so it can't sit beside this one). The game folder's eeaimod.dll then loads that
+// file and installs nothing itself; the copy pins itself in install() and takes the game folder from the exe. A copy
+// that doesn't load: nothing installed, one log line (the runner stops a game that doesn't report autotest mode) -
+// never this DLL in its place, which would test the wrong build. Normal play never sets the variable.
+static int run_other_dll(HINSTANCE self) {
+    char want[MAX_PATH], full[MAX_PATH], me[MAX_PATH];
+    if (!GetEnvironmentVariableA("EEAIMOD_DLL", want, sizeof want) || !want[0]) return 0;
+    if (!GetFullPathNameA(want, sizeof full, full, NULL)) lstrcpyA(full, want);
+    if (GetModuleFileNameA(self, me, sizeof me) && !lstrcmpiA(me, full)) return 0;   // this is the copy
+    // LoadLibrary inside DllMain: the loader lock is the same thread's (re-entrant); the copy's own DllMain runs now
+    if (LoadLibraryA(full)) return 1;
+    DWORD err = GetLastError();
+    char dir[MAX_PATH], path[MAX_PATH + 32];
+    if (GetEnvironmentVariableA("EEAIMOD_DLL_TOLD", dir, sizeof dir)) return 1;   // logged once (loaded several times)
+    SetEnvironmentVariableA("EEAIMOD_DLL_TOLD", "1");
+    GetModuleFileNameA(NULL, dir, MAX_PATH);
+    char *slash = strrchr(dir, '\\');
+    if (slash) slash[1] = 0; else dir[0] = 0;
+    slot_dir(dir);
+    wsprintfA(path, "%saimod_econ.csv", dir);
+    FILE *f = fopen(path, "a");
+    if (f) { fprintf(f, "# eeaimod: EEAIMOD_DLL %s didn't load (error %lu) - nothing installed\n", full, err); fclose(f); }
+    return 1;
+}
+
 BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, LPVOID reserved) {
     (void)reserved;
     if (reason == DLL_PROCESS_ATTACH) {
         DisableThreadLibraryCalls(inst);
+        if (run_other_dll(inst)) return TRUE;
         uint32_t hash;
         int build = game_build(&hash);
         if (build > 0) install(inst);
-        else if (build < 0) build_unknown(inst, hash);
+        else if (build < 0) build_unknown(hash);
     }
     return TRUE;
 }
