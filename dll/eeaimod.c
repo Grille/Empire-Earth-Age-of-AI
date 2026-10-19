@@ -79,6 +79,8 @@ static void econ_fields(uint8_t *rm);
 static void citizens_safety(uint8_t *rm);
 static void attack_tick(void *pl, uint32_t now);
 static void vanilla_tick(void *pl, uint32_t now);
+static void ecolog_tick(void *pl, uint32_t now);   // ecolog.c: the economy log (autotest)
+static void ecolog_new_game(void);
 static void assault_tick(void *pl, uint32_t now);
 static void landing_tick(void *pl, uint32_t now);
 static void navy_tick(void *pl, uint32_t now);
@@ -374,6 +376,7 @@ static void __fastcall hook_rm_update(void *rm, void *edx, uint32_t now) {
     ((RmUpdateFn)FN_RM_UPDATE)(rm, now);
     if (pl && is_vanilla(pl)) vanilla_tick(pl, now);   // the game's own AI: only the mod's log lines (attack.c)
     else if (pl) { intel_tick(pl, now); econ_tick(pl, now); attack_tick(pl, now); assault_tick(pl, now); landing_tick(pl, now); navy_tick(pl, now); }
+    if (pl) ecolog_tick(pl, now);
     g_rm_seen = 1;
     autotest_tick(now);
 }
@@ -665,6 +668,7 @@ static char __fastcall hook_game_start(void *state, void *edx, uint8_t *setup, v
     // the systems' per-game state: game times start over and the units, subgroups and players are new objects that
     // can reuse the last game's addresses (the "time went backwards" checks in the ticks stay as a fallback)
     econ_new_game();
+    ecolog_new_game();
     attack_new_game();
     aim_new_game();
     landing_new_game();
@@ -712,6 +716,7 @@ static char __fastcall hook_game_start(void *state, void *edx, uint8_t *setup, v
 #include "llm.c"
 #include "testcmd.c"
 #include "testopp.c"
+#include "ecolog.c"
 
 // Redirect an E8 rel32 call, verifying it currently targets `expected`.
 static BOOL patch_call(uintptr_t site, uintptr_t expected, void *hook) {

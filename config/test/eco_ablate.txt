@@ -1,0 +1,22 @@
+# eco_ablate.sh variants (2026-10-19): base = shipped config, then one feature off at a time, minimal = most off
+base|
+mw200|min_workforce=200
+cp0|copper_plan=0
+cpb0|copper_plan=0,budget=0
+ct0|citizen_threats=0
+atc0|avoid_towers_citizens=0
+bk0|bunkers=0,bunker_reserve=0
+tr0|train_room=0
+mil0|citizen_militia=0
+nav0|navy=0
+lnd0|landing=0
+rp0|reserve_plan=0
+er0|early_requirements=0
+smd40|site_max_distance=40
+mc0|mine_choice=0
+rb0|rebalance_workers=0
+hg0|home_guard=0,muster=0
+lt0|late_targets=0
+def0|defence_layout=0
+fast|epoch_pacing=fast
+minimal|copper_plan=0,budget=0,citizen_threats=0,avoid_towers_citizens=0,bunkers=0,bunker_reserve=0,train_room=0,citizen_militia=0,navy=0,landing=0,reserve_plan=0,early_requirements=0,mine_choice=0,rebalance_workers=0,home_guard=0,muster=0,late_targets=0,defence_layout=0,build_fix=0,build_fields=0,paid_upgrades=0,more_granaries=0,fishing_boat=0,gather_research=0,unit_substitution=0

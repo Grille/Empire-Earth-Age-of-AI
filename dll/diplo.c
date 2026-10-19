@@ -323,6 +323,7 @@ static void kills_window(int k, int v, int minutes, uint32_t out[K_N]) {   // k'
 }
 static void kills_recent(int k, int v, uint32_t out[K_N]) { kills_window(k, v, KILLS_RECENT_MIN, out); }
 __attribute__((used)) uint8_t *g_kill_unit;   // the dead unit: esi at the call site
+static void eco_death(uint8_t *dead, int k, int v);   // ecolog.c: the citizen-loss log (autotest)
 static void fleet_kill(int k, uint8_t *dead, int n);   // fleet.c: which task force had it as its target
 static void fleet_lost(int v, uint8_t *dead);          // fleet.c: an own ship of a task force sunk
 __attribute__((used)) void __fastcall hook_kill_stat(uint8_t *stats, void *edx, int n, int d) {
@@ -342,6 +343,7 @@ __attribute__((used)) void __fastcall hook_kill_stat(uint8_t *stats, void *edx, 
         g_kills_min[b][k][v][c] += (uint16_t)d;
         fleet_kill(k, g_kill_unit, n);
         if (n == 3) fleet_lost(v, g_kill_unit);
+        if (n == 3) eco_death(g_kill_unit, k, v);
     }
     ((void (__thiscall *)(void *, int, int))FN_STAT_ADD)(stats, n, d);
 }
