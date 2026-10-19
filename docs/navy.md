@@ -6,8 +6,10 @@ cannot expand or counter-attack. "Each ship has specific roles and counters." Th
 stage 1 (the navy's money, docks and room) are done. Stage 2 (the fleet mix) is built but off by default: it brought
 no head-to-head gain. Stage 3 (the mod leads the fleet) is built and off by default too: it wins the sea (about 2
 warships a game net in head-to-head) but brings no gain on land yet. Stage 4 (a big fleet in task forces,
-`navy_fleet=2`) is built and off: it beats the control AI (+18 kills - losses a game, more fish, fewer boats lost) but
-not the human-like sea opponent.
+`navy_fleet=2`) beat the control AI (+18 kills - losses a game, more fish, fewer boats lost) but not the human-like sea
+opponent. Stage 5 (mass under the towers before striking, the mines worked for the navy) makes `navy_fleet=2` the
+default: +24 kills - losses against the control AI, and the sea exchange against the sea opponent positive on every
+map.
 
 The playtester's notes on this plan:
 - **Farms are always needed.** "Fish is very useful but a limited resource; fishing boats have to go further and
@@ -602,7 +604,7 @@ What a human-level AI navy would have to show here: more warships afloat when th
 ships all game and is refused - section 3), fishing boats kept (fish food), transports through, and a sea exchange
 above 0 against the main fleet.
 
-### Stage 4 - a big fleet in task forces - BUILT, OFF (`navy_fleet=2`)
+### Stage 4 - a big fleet in task forces - BUILT, ON WITH STAGE 5 (`navy_fleet=2`)
 
 The playtester (2026-10-19): "at least 20 ships on a low population game, way more with higher limits, split into
 smaller fleets and task forces for proper map control"; "the fleet needs to go out and do things: hunt fishing boats and
@@ -699,12 +701,102 @@ seacontrol.py; medium 10 seeds, weak and strong 6):
   minute and arrive one by one, so it never holds 3+ at once there (0.4-1.2 afloat on average). Against the weak
   opponent (8-12 warships) it builds and loses more than the control without sinking more.
 
-**Why it stays off:** it beats the control AI clearly (+18 kills - losses, +1100 fish food, fewer boats lost, more
+**Why it stayed off (stage 5 mends it):** it beats the control AI clearly (+18 kills - losses, +1100 fish food, fewer boats lost, more
 soldiers) but not the sea opponent: against the weak one it loses the sea and the land exchange on 3 maps, against
 medium the sea exchange is worse though the land exchange is better. What is missing:
 - a fleet that grows unseen before it fights: the build-up comes one ship at a time to a sea the enemy holds;
 - the gold/iron economy for 20+ warships (the metals' workers follow the army's refusals, not the navy's target);
 - Large Islands e9 against the control: -10 (8).
+
+### Stage 5 - mass before striking; the mines - BUILT, ON (`navy_fleet=2`, `navy_fleet_mass=1`, `navy_mines=1`)
+
+The playtester: "massing a fleet under the protection of towers and land units is an important step"; the AI should
+"exploit all resource nodes it has on its island quite quickly, and after that try to expand to other islands". Against
+the sea opponent stage 4 lost because its ships came one at a time into a sea the opponent held (0.3-0.8 afloat on
+average, 8-20 sunk a game, most at the guard point).
+
+Built (dll/fleet.c `fl_rally`, `fl_rally_tower`, fl_decide `FLD_MASS`; dll/navy.c `navy_nodes`, `navy_mines`; econ.c
+econ_targets calls navy_mines):
+
+- **Massing** (`navy_fleet_mass`, replaces the shelter). While the fleet is weaker than the enemy fleet known (ratio
+  under 1.0) or under its critical mass (a quarter of the fleet's target, at least 4; both with a margin of 3/4),
+  every ship waits at the rally and the mod keeps training - the rally is where the fleet grows. It strikes as one
+  force at ratio 1.25 with the critical mass; from there the stage-4 decision (one fleet, task forces only when
+  clearly superior).
+- **The rally**: the water tile of the fleet's sea inside the reach (range - 1) of the most own towers, then by a dock,
+  far from the nearest known enemy building, near its tower; out of danger. Re-chosen every 20 s.
+  - The fleet fights there whatever comes into the cover (towers' range + 2): at ratio 0.5 with towers covering, 0.8
+    without. It never chases out of it (a target farther than the radius + 3 from the rally is dropped).
+  - No tower covers the fleet's sea: the rally is the haven (by the dock farthest from the enemy), and a tower is
+    queued by that dock (land within 5 tiles with the sea within 4, placeable; the best tower type it can build and
+    pay; every 2 minutes while none is queued, 3 a game at most). 24 requests in 39 games against the sea opponent.
+  - Land units at the rally are not counted yet.
+- **The nodes** (`# nodes:` with the 5-minute budget line): the stone, gold and iron sites the AI knows on its home
+  island - worked, gatherers of the slots (6 a mine), near (12 tiles) or far from a drop site - and elsewhere.
+  - Small Islands e5 home: 1 stone, 2 gold, 2 iron mines (30 slots); Large Islands e9: 2 stone, 3 gold, 3 iron.
+  - Every home mine lies near a drop site from minute ~10 (the game's own Settlements) - no Settlements needed for
+    the home island. But the slots stay empty: 2-5 of the 12 iron slots worked at minute 20 on Small e5, the gold
+    full only at minute 25, while 40+ woodcutters piled up 5000 wood.
+  - Elsewhere (other islands, known): 2-5 stone, 4-7 gold, 4-6 iron mines. The game's AI expands there by itself
+    now and then (towns on other islands: 0.4-1.4 at most on Small Islands, none on Large). Claiming them
+    (Settlements by transport under fleet cover) is the next step, not built.
+- **The mines** (`navy_mines`): on a water map, after the game's targets, gold and iron are wanted at the target + the
+  workers for the navy's missing warships' metal within 10 minutes (stage 4: up to 6 missing, ~100 gold + 100 iron
+  each, less the account and the stock beyond the reserve), and from minute 15 with 35+ workers every slot at the home
+  island's mines near a drop site; never beyond the home island's slots. A pull of 2 every 10 s toward that while wood
+  piles up (500 beyond its need) or food is 400 beyond its reserve and the mines take those sent; 4 back when food
+  falls under its reserve + 100. Taken from wood first (half its target kept), then food (60% kept). Early on food
+  and wood keep their priority by the donors' rule.
+
+**Against the sea opponent** (1 AI, 60 min, paired by seed with `navy_fleet=0,navy_mines=0`; medium 10 seeds, weak and
+strong 6 (Small e9 weak and Large e5 strong 14); seacontrol.py; std. error in brackets):
+
+| stage 5 (fm) | Small e5 | Small e9 | Large e5 | Large e9 |
+|---|---|---|---|---|
+| medium: warships afloat avg / most (control) | 3.3 / 9.6 (0.2 / 2.4) | 6.0 / 13.3 (1.0 / 4.0) | 5.0 / 12.6 (0.4 / 2.6) | 7.6 / 19.3 (0.7 / 3.6) |
+| medium: sea exchange (control) | **+24.9** (+1.1) | **+14.6** (+6.7) | **+2.8** (-7.9) | **+6.5** (-3.2) |
+| medium: sea exchange, paired | +23.8 (4.8) | +7.9 (3.3) | +10.0 (4.2) | +9.7 (6.2) |
+| medium: opponent warships sunk by the AI | 33.4 | 35.0 | 30.8 | 33.5 |
+| medium: kills - losses, paired | +48.0 (9.0) | +47.1 (15.1) | +30.8 (11.0) | +33.9 (9.7) |
+| medium: fishing boats lost / fish food, paired | -8.5 / +930 | -9.5 / +1483 | +1.6 / +436 | -0.8 / +363 |
+| weak: sea exchange, paired | +6.2 (4.0) | -3.9 (4.1) | -0.3 (7.6) | +1.8 (3.9) |
+| weak: kills - losses, paired | +47.2 (13.9) | +24.0 (12.9) | +58.3 (22.1) | +11.7 (12.9) |
+| strong: sea exchange, paired | +17.8 (6.8) | +22.0 (5.1) | +21.6 (4.1) | +10.7 (5.4) |
+| strong: kills - losses, paired | +12.3 (10.5) | +19.3 (24.3) | +11.6 (8.6) | +32.7 (31.7) |
+| strong: AI defeated (control) | 3 of 6 (5) | 3 of 6 (5) | 0.5 of 13 (0.3 of 14) | 3 of 6 (4) |
+
+- The opponent's fleet breaks itself on the rally: it comes for the AI's ships and meets towers and fleet together
+  (its own rule keeps its targets out of the towers' reach + 4, but a fight that started outside drifts in). The
+  sea exchange turned positive on every map at medium (stage 4: -3 to -12).
+- Mines alone (`fi`: navy_fleet=0, navy_mines=1) changed nothing against it (sea exchange -0.8..+2.2, kills -
+  losses +1..+6): the food stock stays near 0 under the raids, so the pull stays 0 (773 of 838 looks).
+
+**Head-to-head against the control AI** (one AI `v_navy_fleet=2`, control `v_navy_fleet=0`, both with the navy account
+and the mines; seed 101 maps, 60 min, seeds 1-32; fleet_ab.py; 123 games, 5 lost to start races):
+
+| fleet AI, seat | Small e5 | Small e9 | Large e5 | Large e9 | all (stage 4) |
+|---|---|---|---|---|---|
+| kills - losses | +21.9 (6.2) | +5.8 (5.1) | +42.9 (8.3) | +24.7 (8.2) | **+23.7 (3.7)** (+18.3 (4.2)) |
+| losses | -22.9 | -7.6 | -32.3 | -25.7 | -22.0 (2.8) (-15.8) |
+| warships afloat avg / most vs control | +3.8 / +8.8 | +6.3 / +13.5 | +5.9 / +15.1 | +9.0 / +18.0 | +6.3 / +14.0 (+5.5 / +12.0) |
+| sea exchange | -3.4 (1.1) | -1.6 (1.6) | +3.1 (1.4) | +2.1 (1.6) | +0.15 (0.75) (-0.4) |
+| fishing boats lost / fish food | -4.4 / +1522 | -2.8 / +2300 | -4.6 / +688 | -5.3 / +80 | -4.3 / +1139 (-3.4 / +1110) |
+| enemy transports sunk; soldiers | +3.3; -0.7 | +1.5; +4.0 | +4.0; +2.8 | +1.0; +13.0 | +2.4; +5.0 |
+
+Large Islands e9, -10 (8) in stage 4, is now +25 (8).
+
+**Mines, head-to-head** (navy_fleet=0 as before; one AI `v_navy_mines=1`, both else `navy_mines=0`; 128 games): kills -
+losses +1.1 (1.7), gold +200 and iron +150 in the hour (+3-4%), everything else within noise. On by default: the
+navy's supply path and the playtester's "work every node", at no cost seen.
+
+**Default on**: `navy_fleet=2` beats the control AI (+24 kills - losses a game, every map positive) and does better than
+`navy_fleet=0` against the sea opponent at every level on kills - losses (all 12 cells positive) and on the sea
+exchange in 10 of 12 (weak Small e9 -3.9 (4.1), weak Large e5 -0.3 (7.6): within noise). Caveat: strong Large e5
+AI defeated in half of 13 games against 0.3 of 14 (+0.2, std. error 0.2). Continental: detection "land", the games identical with and
+without (2 seeds, 25 min). About 1000 runs, no crash.
+
+Still missing: land units at the rally; expansion to other islands' mines under fleet cover; the patrol and raids
+when the opponent fleet is out of sight but stronger (the fleet waits at the rally then).
 
 ### Risks
 

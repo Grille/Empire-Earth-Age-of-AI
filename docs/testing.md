@@ -465,7 +465,7 @@ and for the second version `h2h.sh` seeds 1-30). Scored per game: the mix AI min
 
 ### Fleet in task forces (navy stage 4)
 
-2026-10-19, `navy_fleet=2` (dll/fleet.c, navy.c), off by default. Details and tables: docs/navy.md stage 4.
+2026-10-19, `navy_fleet=2` (dll/fleet.c, navy.c); on by default since stage 5 (below). Details and tables: docs/navy.md stage 4.
 
 **Setup:**
 - Head-to-head: `h2h.sh` with `"v_navy_fleet=2"`, the control `"v_navy_fleet=0"`, the same seeds; Small/Large Islands
@@ -538,6 +538,37 @@ Continental game ended with the mod resigning at 23-50 min after 27-43 citizens 
 (22 of 40, kills - losses +110 a game) but on the islands it only holds: more losses, an epoch behind, though it sinks
 more ships. Where to work: the economy's size (workers) and keeping the citizens alive against early waves on land;
 on the islands the land war after the crossings.
+
+### Mass before striking, the mines (navy stage 5)
+
+2026-10-19, `navy_fleet=2` with `navy_fleet_mass=1` and `navy_mines=1` (dll/fleet.c fl_rally, navy.c navy_nodes /
+navy_mines), on by default. Details and tables: docs/navy.md stage 5.
+
+**Setup:**
+- Sea opponent: `scen.sh 60 seaop "random_map=<map>,map_size=0,ai_count=1,seed=101,start_epoch=<e>[,seaop_level=1|3]"
+  "fz<map>:navy_fleet=0,navy_mines=0" "fm<map>:navy_fleet=2" "fi<map>:navy_fleet=0"`, `JOBS=6 SLOT0=20`, the run's own
+  DLL; score `seacontrol.py -ctl fz`.
+- Head-to-head: `h2h.sh` with `"v_navy_fleet=2"` against `"v_navy_fleet=0"` (NAME `ntf<map>` / `nctl<map>`), seeds 1-32;
+  `fleet_ab.py -strip 1 -ctl ctl -h2h tf`. The mines: base `navy_mines=0`, `"v_navy_mines=1"` against `"v_navy_mines=0"`.
+- Keys: `navy_fleet_mass` (0: stage 4 with the shelter), `navy_mines`, `v_navy_mines`.
+- A test script's `tasklist | grep empire` check also sees other sessions' test games (slots with a lock in work/) -
+  check the command line / locks before calling it the user's game.
+
+**Log:** the fleet line's `| rally x,y towers n massing|striking (massed n, struck n, towers asked n)` and the task
+`mass`; `# navy: P<n> at N min: no tower covers the fleet's sea - tower T queued at x,y by the dock x,y`;
+`# nodes: P<n> at N min: home island S/G/I worked/known (gatherers of slots, near, far) | elsewhere S G I | drop sites |
+mines pull n (wanted G I)` every 5 minutes with the navy budget line.
+
+**Results:**
+- Sea opponent, medium (10 seeds a map): sea exchange +24.9/+14.6/+2.8/+6.5 (Small e5/e9, Large e5/e9; control
+  +1.1/+6.7/-7.9/-3.2), kills - losses +31 to +48 better (paired), warships afloat 3-8 on average, 10-19 at most. Weak and
+  strong: kills - losses better in all 8 cells; sea exchange better in 6, weak Small e9 -3.9 (4.1), weak Large e5
+  -0.3 (7.6). Strong Large e5: defeated 0.5 of the games against 0.3.
+- Head-to-head, 123 games: kills - losses +23.7 (3.7) (stage 4: +18.3), every map positive (Large e9 +24.7, was -10);
+  losses -22; warships afloat +6.3, most +14; sea exchange +0.15 (0.75); fish food +1139; boats lost -4.3.
+- Mines (128 games, navy_fleet=0): kills - losses +1.1 (1.7), gold +200 / iron +150 an hour; against the sea opponent
+  the pull stays 0 (no spare food).
+- Continental: the same game with and without (2 seeds). About 1000 runs, no crash.
 
 ### Sea opponent (navy measurement)
 

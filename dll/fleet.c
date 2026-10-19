@@ -1,4 +1,4 @@
-// FLEET ([all] navy_fleet, default 0; [autotest] v_navy_fleet for the variant players; docs/navy.md stage 3): the mod
+// FLEET ([all] navy_fleet, default 2 (stage 4: navy_fleet=2, with massing: navy_fleet_mass); [autotest] v_navy_fleet for the variant players; docs/navy.md stage 3): the mod
 // leads an AI's warships on a water map (navy_detect: enemies across the water) instead of the game's sea groups.
 // Included by eeaimod.c after navy.c (navy_kind, nv_f, g_nv_map), landing.c (g_ld, ld_hits, ld_open_water, unit
 // goals), intel.c (g_intel).
@@ -43,7 +43,7 @@
 //   there, as with the citizens sent home from danger).
 // `# navy: P<n> fleet at N min:` every minute and on a change of task: task and why, where, ships and hit points,
 // strength against the enemy ships known (and near), the danger zones, losses and kills, boats pulled back, orders.
-static int g_navy_fleet = 0, g_v_navy_fleet = -1;
+static int g_navy_fleet = 2, g_v_navy_fleet = -1;
 static int g_fl_boats = 1, g_fl_coast = 1, g_fl_raid = 130;   // navy_fleet_raid: the ratio (%) for raids on boats and the coast   // test: navy_fleet_boats (fishing boats pulled back), navy_fleet_coast (the hunt shells the coast)
 #define FL_MAX 64
 #define FL_DZ 384
@@ -1271,7 +1271,7 @@ static void fleet_tick(void *pl, uint32_t now) {
 
 static void fleet_new_game(void) { memset(g_fl, 0, sizeof g_fl); memset(g_tf, 0, sizeof g_tf); memset(g_ntfm, 0, sizeof g_ntfm); }
 static void fleet_install(const char *aimod_ini, const char *autotest_ini) {
-    g_navy_fleet = cfg_int(aimod_ini, autotest_ini, 1, "navy_fleet", 0);
+    g_navy_fleet = cfg_int(aimod_ini, autotest_ini, 1, "navy_fleet", 2);
     if (autotest_ini) g_v_navy_fleet = ini_int("autotest", "v_navy_fleet", -1, autotest_ini);
     g_fl_boats = cfg_int(aimod_ini, autotest_ini, 1, "navy_fleet_boats", 1);
     g_fl_coast = cfg_int(aimod_ini, autotest_ini, 1, "navy_fleet_coast", 1);
