@@ -24,6 +24,7 @@
 // name, equal only to itself.
 // A placeholder's number is written with up to 2 decimals, or by its format after the last ':' that belongs to no
 // '?' (x_fmt_at): {x:%} a share (0.5 -> 50%), {x:.1%}, {x:.2} - 50% in an expression is only 0.5, never a format.
+// A choice before a format goes in ( ): {(a ? 1 : 0):%}.
 // A value has a number, a text or both: the epoch is 3 and "Copper Age", a placeholder the code fills with "12" is 12
 // and "12" - a string in a file is a text only ("12" + 1 is "121"; "12" == 12 is a mistake, false). The number
 // counts in arithmetic, in comparisons with a number and as true/false; the text where the value ends up in the text
@@ -807,8 +808,11 @@ static const char *x_close(const char *s);
 // ternary's own colons pair with its ?s), how its number is written: % as a share (0.5 -> 50%), .N with N decimals
 // (0..6; both: .1% -> 62.5%). Without one a number is written as it is (up to 2 decimals). A number is never
 // written as a share by itself: 50% in an expression is only another way to write 0.5.
-static int x_fmt_at(const char *s, int n) {   // the format's ':' in s[0..n), -1: none
+// A choice in front of a format must be in ( ): {(a ? 1 : 0):%} - written {a ? 1 : 0:%} the format reads as the 0's
+// only (likewise {a ?? b:%}); *choice: a ? or ?? outside brackets before the format's ':'
+static int x_fmt_at(const char *s, int n, int *choice) {   // the format's ':' in s[0..n), -1: none
     int depth = 0, q = 0;
+    *choice = 0;
     for (int i = 0; i < n; i++) {
         char ch = s[i];
         if (ch == '"' || ch == '\'') {   // a string: to its closing quote (\" inside)
@@ -818,7 +822,7 @@ static int x_fmt_at(const char *s, int n) {   // the format's ':' in s[0..n), -1
         if (ch == '(' || ch == '[' || ch == '{') depth++;
         else if (ch == ')' || ch == ']' || ch == '}') depth--;
         else if (depth) ;
-        else if (ch == '?') { if (i + 1 < n && s[i + 1] == '?') i++; else q++; }   // ?? is no ternary
+        else if (ch == '?') { *choice = 1; if (i + 1 < n && s[i + 1] == '?') i++; else q++; }   // ?? is no ternary
         else if (ch == ':') { if (q) q--; else return i; }
     }
     return -1;
@@ -840,6 +844,7 @@ static void x_fmt_num(double n, int dec, int pct, char *out, int cap) {
     if (*out == '-' && (!*d || *d == '%')) memmove(out, out + 1, strlen(out));
 }
 static const char *const k_fmt_why = "a placeholder's format is %, .1%, .2 ... ({share:%}, {x:.1})";
+static const char *const k_fmt_choice = "a choice before a format goes in ( ): {(a ? 1 : 0):%}";
 // a text's {placeholders} that are expressions (not a plain name): their syntax - and a plain name's (x_name_check)
 static int x_fills_ok(const char *text, const char **why) {
     for (const char *s = strchr(text, '{'); s; s = strchr(s + 1, '{')) {
@@ -849,9 +854,10 @@ static int x_fills_ok(const char *text, const char **why) {
         if (n < 0 || n >= (int)sizeof src) continue;
         memcpy(src, s + 1, (size_t)n);
         src[n] = 0;
-        int f = x_fmt_at(src, n), dec, pct;
+        int choice, f = x_fmt_at(src, n, &choice), dec, pct;
         if (f >= 0) {
             if (!x_fmt_parse(src + f + 1, &dec, &pct)) { *why = k_fmt_why; return 0; }
+            if (choice) { *why = k_fmt_choice; return 0; }
             while (f > 0 && src[f - 1] == ' ') f--;
             src[n = f] = 0;
         }
@@ -893,14 +899,15 @@ static int x_fill(char *out, int cap, const char *tmpl, struct xctx *c) {
         if (n > 0 && n < (int)sizeof src) {
             memcpy(src, s + 1, (size_t)n);
             src[n] = 0;
-            int f = x_fmt_at(src, n);
+            int choice, f = x_fmt_at(src, n, &choice);
             if (f >= 0) {   // {x:%}: the expression before the ':', its number written so
                 fmt = x_fmt_parse(src + f + 1, &dec, &pct) ? 1 : -1;
+                if (fmt > 0 && choice) { x_error("%s: {%.60s}", k_fmt_choice, src); fmt = -2; }
                 while (f > 0 && src[f - 1] == ' ') f--;
                 src[f] = 0;
             }
             for (int i = 0; i < c->np && !rep; i++) if (!strcmp(c->pn[i], src)) rep = c->pv[i];
-            if (fmt < 0) { x_error("%s: {%.60s}", k_fmt_why, src); c->failed++; val[0] = 0; rep = val; }
+            if (fmt < 0) { if (fmt == -1) x_error("%s: {%.60s}", k_fmt_why, src); c->failed++; val[0] = 0; rep = val; }
             else if (rep && fmt) {   // the code's placeholder: a number only ("12" is one here)
                 char *e;
                 double x = strtod(rep, &e);

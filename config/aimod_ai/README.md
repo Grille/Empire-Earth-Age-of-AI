@@ -463,8 +463,9 @@ format after a `:` says - the last thing in the braces:
 | `{x:.0}`, `{x:.2}` - with that many decimals (0 to 6) | 1, 0.63 | 1235, 1234.50 |
 
 `50%` in an expression is only another way to write 0.5 - a value never remembers how it was written: `{aggression}`
-writes 0.6, `{aggression:%}` 60%. The `:` of a format belongs to no `?`, so a choice still works in front of one:
-`{opinion > 0 ? opinion : 0:%}`. A format on a text or a player, or one that is no format, is a mistake.
+writes 0.6, `{aggression:%}` 60%. A choice in front of a format goes in parentheses - `{(opinion > 0 ? opinion : 0):%}`
+- since `{opinion > 0 ? opinion : 0:%}` reads as if only the 0 were formatted (the same for `??`); without them it is
+a mistake. A format on a text or a player, or one that is no format, is a mistake too.
 
 `_system.eeai` and `_template.eeai` use the same expressions - `{me}` is the AI, `{them}` the one it talks to (in
 `_system.eeai` you), `{them.epoch}`, `{me.attack_minutes(them)}` - and add a few texts only the mod has: `{stance}`,
