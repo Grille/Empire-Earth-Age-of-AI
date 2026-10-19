@@ -84,6 +84,7 @@ they behave normally. The mod clears the flag only while an AI updates.
 | cheating prices | `cost_percent` per difficulty |
 | scenario AI asleep | clear the scenario flag during AI updates (`scenario_ai`) |
 | pre-farm overspending | **copper plan** (`copper_plan`): grow to `min_workforce` workers if stock + 60% of the explored wild food covers the epoch costs, then save for Stone and Copper Age; military only from the excess |
+| early raids kill the citizens (vs the base AI: 39-48 a game on Continental, 0 soldiers until minute 22) | **early game** (docs/economy.md, dll/early.c): `early_towers` (2 towers by the Town Center in epochs 0-1, builders for every unfinished tower), `tower_bait` (attacked citizens fall back under a tower), `early_militia` (fight soldiers only with cover and no expected loss); `early_army`, `copper_plan=2` measured, off |
 | no budget at all | **budget** (`budget`, `military_start_share`, `military_income_share`): soldiers paid from an account (share of start stock + share of income); requests trimmed to what the account pays *before* the game queues them |
 | epoch stuck on requirements | re-request the requirement techs after 5 min; advance as soon as affordable before farms |
 | worker targets | before farms: targets by shortfall towards the next epoch cost, floors of 2 on food and wood |

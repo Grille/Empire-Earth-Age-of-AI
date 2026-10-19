@@ -539,6 +539,18 @@ Continental game ended with the mod resigning at 23-50 min after 27-43 citizens 
 more ships. Where to work: the economy's size (workers) and keeping the citizens alive against early waves on land;
 on the islands the land war after the crossings.
 
+### The early game against the base AI (docs/economy.md)
+
+2026-10-19: towers first, the bait, the careful militia (`early_towers`, `tower_bait`, `early_militia`: A), the early
+army (`early_army`: B), `copper_plan=2` (C), the alternative `early_soldiers=4`. Each one is an `[all]` key. They
+were run through the scratchpad runner (scripts/vanilla.sh per variant x cheat x map, tags `ab-<variant>-c<cheat>-<map>`)
+and scored with `scripts/eco_ablate.py -base <base variant>`. `# early:` once a minute (autotest): towers by the Town
+Center finished/all, all towers, builders sent, bait orders, militia refused, soldiers, the army's and the epoch's
+accounts. The new DLL without the keys played the very same games as the build before (20 games, Continental with
+the cheat). Continental with the cheat, 40 games: the base AI's wins went 12 -> 4 with A, kills - losses +32 (10),
+citizens killed -7.7 (3.7). Without the cheat: 6 -> 0, citizens killed -14 (3.3). On Small / Large Islands e5 the
+games were identical. B, C and the alternative, and why they are off: docs/economy.md.
+
 ### Mass before striking, the mines (navy stage 5)
 
 2026-10-19, `navy_fleet=2` with `navy_fleet_mass=1` and `navy_mines=1` (dll/fleet.c fl_rally, navy.c navy_nodes /
