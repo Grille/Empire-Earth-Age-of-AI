@@ -549,7 +549,8 @@ Center finished/all, all towers, builders sent, bait orders, militia refused, so
 accounts. The new DLL without the keys played the very same games as the build before (20 games, Continental with
 the cheat). Continental with the cheat, 40 games: the base AI's wins went 12 -> 4 with A, kills - losses +32 (10),
 citizens killed -7.7 (3.7). Without the cheat: 6 -> 0, citizens killed -14 (3.3). On Small / Large Islands e5 the
-games were identical. B, C and the alternative, and why they are off: docs/economy.md.
+games were identical. A is on by default. Head-to-head against the control (24 games, Continental e0, 4 AIs): B - A alive
++0.08 (0.04), kills - losses +16, workers +4.8 (2.1). B, C and the alternative, and why they are off: docs/economy.md.
 
 ### Mass before striking, the mines (navy stage 5)
 

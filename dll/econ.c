@@ -33,7 +33,7 @@ static int g_v_late = -1, g_v_hoard_mineral = -1, g_v_sub_wait = -1;
 static struct { uint32_t last_t; int init; float mil[7]; int income[7], mil_spent[7], cit_blocked, mil_limited; } g_bud[16];
 // EARLY GAME (dll/early.c, docs/economy.md - the playtester's opening): [all] early_towers, tower_bait, early_militia,
 // early_army, early_soldiers; copper_plan=2. Head-to-head: v_early_towers ... v_copper_plan for the variant players.
-static int g_early_towers = 0, g_tower_bait = 0, g_early_militia = 0, g_early_army = 0, g_early_soldiers = 0;
+static int g_early_towers = 1, g_tower_bait = 1, g_early_militia = 1, g_early_army = 0, g_early_soldiers = 0;
 static int g_v_early_towers = -1, g_v_tower_bait = -1, g_v_early_militia = -1, g_v_early_army = -1, g_v_early_soldiers = -1;
 static int g_v_copper = -1;
 static float g_early_food_share = 0.10f;   // [all] early_army_food_share: of the food income for the army before farms
@@ -1798,9 +1798,9 @@ static void econ_install(const char *aimod_ini, const char *autotest_ini) {
     g_unit_sub = cfg_int(aimod_ini, autotest_ini, 1, "unit_substitution", 1);
     g_sub_wait = cfg_int(aimod_ini, autotest_ini, 1, "substitute_wait", 90);
     g_gather_research = cfg_int(aimod_ini, autotest_ini, 1, "gather_research", 1);
-    g_early_towers = cfg_int(aimod_ini, autotest_ini, 1, "early_towers", 0);
-    g_tower_bait = cfg_int(aimod_ini, autotest_ini, 1, "tower_bait", 0);
-    g_early_militia = cfg_int(aimod_ini, autotest_ini, 1, "early_militia", 0);
+    g_early_towers = cfg_int(aimod_ini, autotest_ini, 1, "early_towers", 1);
+    g_tower_bait = cfg_int(aimod_ini, autotest_ini, 1, "tower_bait", 1);
+    g_early_militia = cfg_int(aimod_ini, autotest_ini, 1, "early_militia", 1);
     g_early_army = cfg_int(aimod_ini, autotest_ini, 1, "early_army", 0);
     g_early_soldiers = cfg_int(aimod_ini, autotest_ini, 1, "early_soldiers", 0);
     g_early_food_share = cfg_share(aimod_ini, autotest_ini, 1, "early_army_food_share", 0.10, 0, 1);

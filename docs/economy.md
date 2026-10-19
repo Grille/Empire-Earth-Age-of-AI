@@ -80,17 +80,19 @@ re-measurement above.
 
 ## Status (2026-10-19)
 
-- **A** (towers, bait, careful militia) is the clear winner against the base AI on Continental. With the cheat the
-  base AI's wins drop from 12 to 4 of 40, kills - losses goes +32, and 8 fewer citizens die. Without the cheat it
-  never wins (6 -> 0) and 14 fewer citizens die. On the islands (epoch 5 starts) the games are identical. It stays
-  off in code and in config/aimod.ini only until the AI-vs-AI head-to-head check against the control:
-  `sh scripts/h2h.sh 60 late "random_map=Continental,seed=101,map_size=1,ai_count=4,start_epoch=0"
-  "v_early_towers=1,v_tower_bait=1,v_early_militia=1"`. That check could not run, because every test start crashed
-  from 21:42 on (the base game's display code, 0x52AB16 / Low-Level Engine +0x809F8, 87 of 92 starts, the old
-  eeaimod builds too), after the game folder's dinput.dll was replaced by the headless-window build.
+- **A** (towers, bait, careful militia) is **on by default** (code and config/aimod.ini). Against the base AI on
+  Continental it clearly wins: with the cheat the base AI's wins drop from 12 to 4 of 40, kills - losses goes +32, and
+  8 fewer citizens die; without the cheat the base AI never wins (6 -> 0) and 14 fewer citizens die. On the islands
+  (epoch 5 starts) the games are identical. Head-to-head against the control AI (build e120a6c,
+  `REPEAT=24 sh scripts/h2h.sh 60 late "random_map=Continental,seed=101,map_size=1,ai_count=4,start_epoch=0"
+  "v_early_towers=1,v_tower_bait=1,v_early_militia=1"`, 24 games, 48 AIs a side), B - A per game: alive +0.08
+  (0.04), kills +6.9 (5.1), losses -9.3 (5.6), workers +4.8 (2.1), soldiers +1.4 (2.1), epoch -0.08 (0.06). No
+  regression.
 - **B** (early army) on top of A gets the same or a little better with the cheat (kills - losses +38, 10-11 fewer
   dead, 24 and 20 games). Without the cheat it wins fewer (3 of 20 vs 8). It is not clearly better than A, and it
-  also acts on the islands (substitution while under 60 workers), where it was not measured after the rebase. Off.
+  also acts on the islands (substitution while under 60 workers). The islands with the cheat (A+B against shipped,
+  40 games each) came out neutral: Small Islands e5 kills - losses -3.2 (4.8), citizens killed +1.4 (4.2); Large
+  Islands e5 +1.1 (7.5), -2.1 (4.6). Off.
 - **C** (`copper_plan=2`) brings more workers at 20/30 minutes (+5 to +13). With the cheat it costs at 60 minutes
   (fewer workers, kills - losses), because the slower Stone Age delays the army. With epoch_share 60% and no cheat it
   does best (6/0/14, kills - losses +23). Mixed result. Off: `copper_plan=1` stays, its brake now partly offset by B.
