@@ -82,7 +82,12 @@ try {
 # a game that is no test slot's - the player's own - is never disturbed (its sound settings, its log)
 $others = @(Other-Runs)
 $ours = @($others | ForEach-Object { $_ | Select-Object -Skip 1 })
-if (Get-Process -Name "Empire Earth" -ErrorAction SilentlyContinue | Where-Object { $ours -notcontains $_.Id }) {
+# a game another runner has just started, before its PID is in that runner's lock: its parent is that runner
+$runners = @($others | ForEach-Object { $_[0] })
+$foreign = @(Get-Process -Name "Empire Earth" -ErrorAction SilentlyContinue | Where-Object { $ours -notcontains $_.Id } | Where-Object {
+    $pp = (Get-CimInstance Win32_Process -Filter "ProcessId=$($_.Id)" -ErrorAction SilentlyContinue).ParentProcessId
+    -not ($pp -and $runners -contains [int]$pp) })
+if ($foreign) {
     Remove-Item $lock -Confirm:$false; "game already running - aborting"; exit 1
 }
 if (-not $others) { Restore-Sound }   # leftover from an interrupted run (with other slots running: theirs)
