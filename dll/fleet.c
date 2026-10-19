@@ -42,6 +42,7 @@
 // `# navy: P<n> fleet at N min:` every minute and on a change of task: task and why, where, ships and hit points,
 // strength against the enemy ships known (and near), the danger zones, losses and kills, boats pulled back, orders.
 static int g_navy_fleet = 0, g_v_navy_fleet = -1;
+static int g_fl_boats = 1, g_fl_coast = 1;   // test: navy_fleet_boats (fishing boats pulled back), navy_fleet_coast (the hunt shells the coast)
 #define FL_MAX 40
 #define FL_DZ 384
 #define FL_ES 160
@@ -103,6 +104,7 @@ static struct fl_scan {
     void *pl; unsigned idx;
     struct fl_ship es[FL_ES]; int ne;                 // enemy warships and submarines (seen now, then remembered)
     struct fl_ship ev[64]; int nev;                   // enemy fishing boats and transports (prey)
+    struct fl_ship ec[96]; int nec;                   // enemy units and buildings on the coast of the fleet's sea (seen now)
     struct { int x, y; float r; } dz[FL_DZ];          // danger zones (radius incl. the margin)
     uint8_t *boat[96]; int nb;                        // own fishing boats
     int bx[256], by[256], nbl;                        // own buildings
@@ -149,6 +151,14 @@ static int fl_in_danger(int x, int y) {
     }
     return 0;
 }
+static int fl_in_danger_m(int x, int y, float m) {   // within a zone + m tiles
+    struct fleet *f = &g_fl[g_fs.idx];
+    for (int k = 0; k < f->ndz; k++) {
+        float dx = (float)(x - g_fs.dz[k].x), dy = (float)(y - g_fs.dz[k].y), r = g_fs.dz[k].r + m;
+        if (dx * dx + dy * dy <= r * r) return 1;
+    }
+    return 0;
+}
 static int fl_way_safe(int x0, int y0, int x1, int y1) {   // the straight way, every 2 tiles (the start left out)
     float dx = (float)(x1 - x0), dy = (float)(y1 - y0), len = sqrtf(dx * dx + dy * dy);
     int steps = (int)(len / 2.0f) + 1;
@@ -178,11 +188,17 @@ static int fl_safe_toward(int fx, int fy, int tx, int ty, unsigned oc, int *ox, 
     }
     return 0;
 }
+static int fl_coast(int x, int y, int oc) {   // land with the sea oc within 4 tiles (12 looks)
+    static const signed char d[12][2] = { { 2, 0 }, { -2, 0 }, { 0, 2 }, { 0, -2 }, { 4, 0 }, { -4, 0 }, { 0, 4 }, { 0, -4 }, { 3, 3 }, { -3, 3 }, { 3, -3 }, { -3, -3 } };
+    if (area_id(x, y, 1)) return 0;
+    for (int k = 0; k < 12; k++) if ((int)area_id(x + d[k][0], y + d[k][1], 1) == oc) return 1;
+    return 0;
+}
 static void fl_scan(void *pl, unsigned idx) {
     struct fl_scan *s = &g_fs;
     struct fleet *f = &g_fl[idx];
     s->pl = pl; s->idx = idx;
-    s->ne = s->nev = s->nb = s->nbl = s->nd = s->ned = 0; s->eb = 0;
+    s->ne = s->nev = s->nec = s->nb = s->nbl = s->nd = s->ned = 0; s->eb = 0;
     f->n = 0; f->ndz = 0;
     void *cm = FIELD(pl, 0xB90, void *);
     uint8_t *bm = cm ? FIELD(cm, 0x3C, uint8_t *) : NULL;
@@ -209,6 +225,9 @@ static void fl_scan(void *pl, unsigned idx) {
         if (k == NV_FISH || k == NV_TRANSPORT) {
             if (s->nev < 64) { struct fl_ship *e = &s->ev[s->nev++]; e->u = u; e->td = td; e->x = x; e->y = y; e->hp = FIELD(u, 0x3C, int); e->pi = ld_pidx(u); e->seen = 1; e->dps = 0; }
             continue;
+        }
+        if (f->ocean && s->nec < 96 && (fam == 2 || fam == 29 || is_soldier(td) || is_siege(FIELD(td, 0x4B8, int))) && !is_wall(FIELD(td, 0x4B8, int)) && fl_coast(x, y, f->ocean)) {
+            struct fl_ship *e = &s->ec[s->nec++]; e->u = u; e->td = td; e->x = x; e->y = y; e->hp = FIELD(u, 0x3C, int); e->pi = ld_pidx(u); e->seen = 1; e->dps = 0;
         }
         if (fam == 2 || fam == 29) {
             int dx = x - hx, dy = y - hy;
@@ -368,7 +387,7 @@ static uint8_t *fl_pick(uint8_t *u, const unsigned char *sel, int x, int y, int 
     float bd = 1e9f;
     for (int j = 0; j < g_fs.ne; j++) {
         struct fl_ship *e = &g_fs.es[j];
-        if (!e->seen || (sel && !sel[j]) || fl_in_danger(e->x, e->y)) continue;
+        if (!e->seen || (sel && !sel[j]) || fl_in_danger_m(e->x, e->y, 3.0f)) continue;
         int dx = e->x - x, dy = e->y - y;
         if (dx * dx + dy * dy > r * r || (oc && (int)area_id(e->x, e->y, 1) != oc) || !ld_hits(u, e->u)) continue;
         float d = (float)((e->x - ux) * (e->x - ux) + (e->y - uy) * (e->y - uy));
@@ -394,11 +413,12 @@ static void fl_orders(struct fleet *f, const unsigned char *sel, int x, int y, i
             continue;
         }
         uint8_t *t = fl_pick(u, sel, x, y, r);
-        if (!t && hunt_prey) {   // the hunt: prey seen now, near the hunt point
+        for (int pass = 0; !t && hunt_prey && pass < 2; pass++) {   // the hunt: prey seen now near the hunt point, then the coast
             float bd = 1e9f;
-            for (int j = 0; j < g_fs.nev; j++) {
-                struct fl_ship *e = &g_fs.ev[j];
-                if (!e->seen || fl_in_danger(e->x, e->y) || !ld_hits(u, e->u)) continue;
+            struct fl_ship *list = pass ? g_fs.ec : g_fs.ev;
+            for (int j = 0; j < (pass ? g_fs.nec : g_fs.nev); j++) {
+                struct fl_ship *e = &list[j];
+                if (!e->seen || fl_in_danger_m(e->x, e->y, 3.0f) || !ld_hits(u, e->u)) continue;
                 float d = (float)((e->x - x) * (e->x - x) + (e->y - y) * (e->y - y));
                 if (d <= (float)(r * r) && d < bd) { bd = d; t = e->u; }
             }
@@ -413,6 +433,7 @@ static void fl_orders(struct fleet *f, const unsigned char *sel, int x, int y, i
 // fishing boats near enemy warships the fleet doesn't win against: to the nearest dock
 static void fl_boats(struct fleet *f, int cx, int cy) {
     static unsigned char sel[FL_ES];
+    if (!g_fl_boats) return;
     for (int k = 0; k < g_fs.nb; k++) {
         uint8_t *b = g_fs.boat[k];
         int x = FIELD(b, 0x1C, int), y = FIELD(b, 0x20, int), nfoe = 0;
@@ -559,16 +580,22 @@ static void fleet_tick(void *pl, uint32_t now) {
             for (int j = 0; j < g_fs.ne; j++) {
                 struct fl_ship *e = &g_fs.es[j];
                 int d = (e->x - cx) * (e->x - cx) + (e->y - cy) * (e->y - cy);
-                if (d < bd && (int)area_id(e->x, e->y, 1) == f->ocean && !fl_in_danger(e->x, e->y)) { bd = d; best = j; }
+                if (d < bd && (int)area_id(e->x, e->y, 1) == f->ocean && !fl_in_danger_m(e->x, e->y, 3.0f)) { bd = d; best = j; }
             }
             for (int j = 0; j < g_fs.nev && best < 0; j++) {
                 struct fl_ship *e = &g_fs.ev[j];
                 int d = (e->x - cx) * (e->x - cx) + (e->y - cy) * (e->y - cy);
-                if (d < pd && (int)area_id(e->x, e->y, 1) == f->ocean && !fl_in_danger(e->x, e->y)) { pd = d; prey_i = j; }
+                if (d < pd && (int)area_id(e->x, e->y, 1) == f->ocean && !fl_in_danger_m(e->x, e->y, 3.0f)) { pd = d; prey_i = j; }
             }
-            int hx2 = -1, hy2 = -1;
+            int hx2 = -1, hy2 = -1, coast_i = -1, cd = 0x7FFFFFFF;
+            for (int j = 0; j < g_fs.nec && best < 0 && prey_i < 0 && g_fl_coast; j++) {   // the coast out of danger (+3 tiles)
+                struct fl_ship *e = &g_fs.ec[j];
+                int d = (e->x - cx) * (e->x - cx) + (e->y - cy) * (e->y - cy);
+                if (d < cd && !fl_in_danger_m(e->x, e->y, 3.0f)) { cd = d; coast_i = j; }
+            }
             if (best >= 0) { hx2 = g_fs.es[best].x; hy2 = g_fs.es[best].y; why = "the enemy fleet"; }
             else if (prey_i >= 0) { hx2 = g_fs.ev[prey_i].x; hy2 = g_fs.ev[prey_i].y; why = "fishing boats, transports"; }
+            else if (coast_i >= 0 && fl_safe_toward(cx, cy, g_fs.ec[coast_i].x, g_fs.ec[coast_i].y, (unsigned)f->ocean, &hx2, &hy2)) why = "the enemy's coast";
             else {
                 for (int k = 0; k < g_fs.ned; k++) {   // the enemy's fishing grounds: off its nearest dock, not cleared lately
                     int wx, wy, skip = 0, d = (g_fs.edx[k] - cx) * (g_fs.edx[k] - cx) + (g_fs.edy[k] - cy) * (g_fs.edy[k] - cy);
@@ -579,11 +606,12 @@ static void fleet_tick(void *pl, uint32_t now) {
                 }
                 if (hx2 >= 0) why = "the enemy's fishing grounds";
             }
+            if (hx2 < 0 && (f->task == FT_HUNT || f->task == FT_GATHER) && now - f->task_t < 30000) { hx2 = f->dx; hy2 = f->dy; why = f->why; }
             if (hx2 >= 0) {
                 // gathered first: every ship within 8 tiles of the middle (60 s at most)
                 int spread = 0;
                 for (int i = 0; i < f->n; i++) { int dx = FIELD(f->u[i], 0x1C, int) - cx, dy = FIELD(f->u[i], 0x20, int) - cy; spread |= dx * dx + dy * dy > 64; }
-                if (f->task != FT_HUNT && spread && !(f->task == FT_GATHER && now - f->task_t >= 60000)) { task = FT_GATHER; why = "before the hunt"; tx = cx; ty = cy; }
+                if (f->task != FT_HUNT && spread && !(f->task == FT_GATHER && now - f->task_t >= 60000)) { task = FT_GATHER; why = "before the hunt"; tx = cx; ty = cy; if (!fl_safe_toward(f->gx, f->gy, cx, cy, (unsigned)f->ocean, &tx, &ty)) { tx = f->gx; ty = f->gy; } }
                 else {
                     task = FT_HUNT; tx = hx2; ty = hy2; r = 14; prey = 1;
                     if (f->task != FT_HUNT) { f->hunts++; f->hp0 = hp; }
@@ -606,6 +634,8 @@ static void fleet_new_game(void) { memset(g_fl, 0, sizeof g_fl); }
 static void fleet_install(const char *aimod_ini, const char *autotest_ini) {
     g_navy_fleet = cfg_int(aimod_ini, autotest_ini, 1, "navy_fleet", 0);
     if (autotest_ini) g_v_navy_fleet = GetPrivateProfileIntA("autotest", "v_navy_fleet", -1, autotest_ini);
+    g_fl_boats = cfg_int(aimod_ini, autotest_ini, 1, "navy_fleet_boats", 1);
+    g_fl_coast = cfg_int(aimod_ini, autotest_ini, 1, "navy_fleet_coast", 1);
     int ok = 0;
     if (g_navy_fleet || g_v_navy_fleet > 0) {
         ok = asg_order_hooks() + patch_call(CALL_NV_MAINT_DELETE, FN_DELETE_FOR_ROOM, (void *)hook_nv_maint_delete);

@@ -22,8 +22,8 @@ def se(v):
     a = avg(v); return math.sqrt(sum((x - a) ** 2 for x in v) / (len(v) - 1) / len(v))
 def metrics(txt, p):
     m = {}
-    bt = re.search(r'^# battle: P%d at \d+ min: (.*)' % p, txt, re.M)
-    bt = [int(x) for x in bt.group(1).split()] if bt else [0] * 6
+    bt = re.findall(r'^# battle: P%d at \d+ min: (.*)' % p, txt, re.M)
+    bt = [int(x) for x in bt[-1].split()] if bt else [0] * 6
     m['kills'] = bt[3]; m['losses'] = bt[4]; m['razed'] = bt[2]; m['bldlost'] = bt[1]
     over = re.search(r'# autotest: game over at [0-9.]+ min:(.*)', txt)
     m['won'] = 1 if over and re.search(r'P%d=1' % p, over.group(1)) else 0
