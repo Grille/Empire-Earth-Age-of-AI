@@ -689,6 +689,7 @@ static char __fastcall hook_game_start(void *state, void *edx, uint8_t *setup, v
 #include "drawlist.c"
 #include "llm.c"
 #include "testcmd.c"
+#include "testopp.c"
 
 // Redirect an E8 rel32 call, verifying it currently targets `expected`.
 static BOOL patch_call(uintptr_t site, uintptr_t expected, void *hook) {

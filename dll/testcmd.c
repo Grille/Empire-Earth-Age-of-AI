@@ -603,7 +603,9 @@ static void cmd_charge(char *out, const char *args) {
     g_charge.a = a; g_charge.d = d; g_charge.t = g_charge.logged = game_time();
     charge_pass(out, a, d);
 }
+static void seaop_tick(uint32_t now);   // testopp.c
 static void charge_tick(uint32_t now) {
+    seaop_tick(now);
     if (g_charge.d < 0) return;
     if (now < g_charge.t) { g_charge.a = g_charge.d = -1; return; }   // a new game
     if (now - g_charge.t < 10000) return;

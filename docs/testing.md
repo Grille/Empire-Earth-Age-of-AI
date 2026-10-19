@@ -94,6 +94,7 @@ sh scripts/scen.sh 30 towers_on_path "random_map=Continental,map_size=0,ai_count
 | `raid` (Continental 101, 2 AIs, Prehistoric start, base ini `epoch_min=15,epoch_max=20`, 55 min) | a grown base raided at minute 46 by 15 spearmen and 10 bowmen; `count 3` at 54 |
 | `late` (empty setup) | a plain late start (base `start_epoch=8`) for economy changes |
 | `waves` (Continental 101, 1 AI, 120 min) | stress: P2 builds up for 60 min, then every 5 min the idle P1 gets 50, 75, 100, 150 ... 1000% of P2's army (`wave`, at P1's Town Center) and charges P2's town (`charge`, every 10 s); the minute P2 falls (game over) is the score. First run: army broken at the 150% wave (75 min), fallen at 98 |
+| `seaop` (Small/Large Islands 101, 1 AI, e5/e9, 60 min) | the AI's navy against a human-like navy: the idle P1 builds up a fleet and uses it as the playtester does (raids on fishing boats and the coast, hunts warships, patrols for transports, lands soldiers) - see "Sea opponent" below |
 
 Head-to-head: suites with one variant for all AIs measure how decisive the wars are, not which variant is
 stronger (alive 70-78% with a standard error of ~6 points per variant). `scripts/h2h.sh` lets some AIs of the
@@ -214,6 +215,7 @@ venv/Scripts/python scripts/eectl.py <command>
 | `army P [type]` | soldiers of player P (optionally only one unit type) grouped by current goal (EEUGLocation = marching, EEUGAttackUnit = fighting; goal +0x30 = target unit), with centre and the goal's first dwords |
 | `wave A D pct [x y]` | player A gets pct% of player D's army, type by type, the most of each type D had at a wave so far (ships and aircraft left out), in groups of 16 around A's Town Center (the spot is kept for later waves); A and D become enemies |
 | `charge A D` / `charge off` | from now on every 10 s (at most 80 orders a pass, logged every minute): each soldier of A without a fight attacks the nearest soldier of D within 15 tiles, else the nearest citizen within 20, else D's nearest building, wall or tower (farther than 20 tiles: walks there first) |
+| `seaop start P [level]` / `seaop` / `seaop ships` / `seaop off` | the sea opponent (dll/testopp.c, "Sea opponent" below): P1 at war with AI P and playing a navy against it from now on; the state; each of P1's warships (group, type, tile, hit points, goal, the AI's units within 10 tiles, in danger) and the danger zones |
 | `objs P T` | every object of type T of player P: tile, hit points, goal (e.g. `objs 2 42`: farm fields, 1 hp = not built) |
 | `build P bx by x y r` | player P's citizens within r tiles of x,y build P's building at bx,by (EEUGBuildRepair, the game's order) - with `found`: enemy builders at a tower |
 | `techs P` | techs player P has researched, and which are new since the last call (with tech epoch and cost) |
@@ -459,6 +461,68 @@ and for the second version `h2h.sh` seeds 1-30). Scored per game: the mix AI min
 - Both AIs: kills/losses -4.7/-4.5, soldiers +1.8 (0.6), fish +288 (173), boats lost -1.2 (0.8).
 - About 1000 runs, no crash.
 - `navy_fleet` and `navy_mix` stay 0. Tables: docs/navy.md stage 3.
+
+### Sea opponent (navy measurement)
+
+2026-10-19, dll/testopp.c, `scenarios/seaop.txt`, `scripts/seacontrol.py`. Measuring an AI's navy against another AI's
+says little - AIs are weak at sea (1-3 warships). The playtester on an island map builds 20+ ships early and uses them:
+hunts fishing boats, shells coastal citizens, hunts warships before they mass, patrols for transports, lands. The sea
+opponent plays that with the idle human P1 against one AI. Test code only: nothing runs unless the setup line
+`seaop start <ai> [level]` starts it.
+
+**What it does** (details in the file's header comment):
+- At war with the AI from 2 s (before the AI's navy detection at 10 s). Two docks on P1's island, a beach to embark from.
+- Warships spawned at the docks (P1 has no economy) on a human-like schedule, one per dock every 30 s at most, losses
+  replaced up to an hour's budget; the newest type of each role P1 or the AI could build (keeps the AI's epoch):
+  frigates 40%, battleships 30%, galleys / catapult ships 30% (attack subs where there are no galleys).
+- Three groups every 2 s: *raid* (fishing boats, transports, citizens / docks / buildings at the coast; else the
+  fishing grounds, docks, coast ring), *main* (defend, escort a landing, hunt warships at ratio 1.2+, shell docks, hold
+  the sea lane), *patrol* (the lane between the islands; transports within 25 tiles, boats within 12). Retreat at
+  ratio < 0.8 (patrol 1.0) or 45% of the hit points; ships under 35% go home; danger zones (defences, siege, ranged
+  soldiers that hit ships) are neither entered nor crossed (a waypoint round them), a ship inside sails out.
+- Honest sight: P1 knows an AI unit only within 9 tiles of its own units (warships remembered 3 min, buildings until
+  the spot is seen empty). Shortcut: the AI's home position is known from the start.
+- Landings: 2-3 transports full of soldiers of the AI's own land types, loaded with the game's load goal, to a beach
+  out of danger (else the one under the fewest zones), the main fleet escorting, then they attack.
+- Home: a guard of the AI's soldier types and 2 towers of its tower type on P1's island (an idle base ended the
+  first games at the AI's first landing).
+
+**Levels** (`[autotest] seaop_level`, default 2; `seaop_start=<min>`; `seaop_landings=0`; `seaop_trace=1` logs
+each ship lost with what was near):
+
+| | weak (1) | medium (2) | strong (3) |
+|---|---|---|---|
+| first ships | min 8, 2 | min 5, 3 | min 3, 4 |
+| warships by min 20 / at most | 8 / 12 | 16 / 22 | 22 / 30 |
+| ships an hour (budget) | 24 | 44 | 60 |
+| landings (minute: transports) | 35: 2 | 25, 45: 3 | 20, 32, 44: 4 |
+| home guard | 6 | 10 | 14 |
+
+**Run:**
+```sh
+JOBS=6 REPEAT=10 sh scripts/scen.sh 60 seaop "random_map=Small Islands,map_size=0,ai_count=1,seed=101,start_epoch=5" \
+    "n0:navy=0" "f0:" "f1:navy_fleet=1"
+python scripts/seacontrol.py [-v] [-ctl f0] "work/autotest_*_suite<stamp>_*_seaop-r*.csv"
+```
+Name the variants `<variant><map>` (e.g. `f0Se5`) to pool maps per variant as fleet_ab.py does; `-ctl` pairs each run
+with the control variant's run of the same map and seed. The game_seed holds: reruns of the same seed gave identical
+`# sea:` lines (4 of 4).
+
+**Log** (every minute): `# sea: P1 vs P2 at <m> min (<level>): opp_war= raid= main= patrol= F= L= A= S= opp_hp= spawned=
+opp_lost= opp_lost_by_ai= ai_war= ai_war_most= ai_war_lost= ai_tr= ai_tr_lost= ai_boats= ai_boats_lost= ai_fish=
+ai_cit_killed= ai_cit_by_ships= waves= sailed= ashore= stopped= landed= opp_tr_lost= ai_held_s= opp_held_s= total_s=
+ai_isl_bld= ai_isl_towns= ai_on_opp= seen_war= mem_war= dz= guard= retreats= flees= detours= orders= | <group tasks>`;
+also `# sea: wave N ...` (spawned, sails, ashore / stopped). Held: no enemy warship within 12 tiles of the side's
+buildings. The AI's losses come from diplo.c's kills by pair (with one AI every loss at sea is P1's doing); citizens
+killed count as by ships while P1 has no soldier on other land and the AI none on P1's island. `flees` counts ticks.
+
+**Baseline** (HEAD 5868f55 + the opponent, medium, 1 AI, seed 101 maps, 60 min, game seeds 1-10 per map; tables in
+docs/navy.md "Against a human-like navy"): 163 runs (120 + 39 levels + 4 reruns), no crash, one run lost to a start race ("game already running").
+The opponent holds the AI's waters (AI home waters held 12-22% of the time on Small Islands), the AI's fish food drops
+to 160-780 an hour (AI against AI: 2000-4500), the AI keeps 0.2-1.0 warships afloat against 16; navy=0 against navy=1
+(the AI that builds a navy sinks 1-6 more of the opponent's ships and loses 3-9 more) separates in the warship counts;
+navy_fleet=1 changes nothing beyond noise but Small e9 (sea exchange -8.1, std. error 2.1). The levels scale: weak
+lets the AI fish (850-2650) and win 3 of 19 games, strong defeats it in 10 of 20.
 
 ### Farm fields
 

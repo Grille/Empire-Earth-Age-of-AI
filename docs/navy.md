@@ -548,6 +548,58 @@ is missing:
 
 `navy_mix` stays 0 as well.
 
+### Against a human-like navy (the sea opponent)
+
+Measuring an AI's navy against another AI's is weak evidence: both have 1-3 warships, and nobody holds any water. The
+playtester builds 20+ ships early on an island map and uses them. dll/testopp.c (test code, started by the setup line
+in `scenarios/seaop.txt`) plays that with the idle P1 against one AI: a scheduled build-up (medium: 3 ships at minute
+5, 16 by 20, at most 22, losses replaced), raiders on the fishing boats and the coast, a main fleet that hunts the
+AI's warships when it is 1.2 times stronger and retreats when weaker, a patrol on the sea lane against transports,
+two landings with transports, honest sight (9 tiles around its own units). How to run it and the log: docs/testing.md
+"Sea opponent". Score: `python scripts/seacontrol.py -ctl f0 <logs>`.
+
+**Baseline** (HEAD 5868f55, medium opponent, 1 AI, seed 101 map, 60 min, game seeds 1-10 per cell; n0 = navy=0, f0 =
+shipped (navy account, the game's sea groups), f1 = navy_fleet=1; per game, std. error in brackets):
+
+| f0 (shipped) | Small e5 | Large e5 | Small e9 | Large e9 |
+|---|---|---|---|---|
+| AI warships afloat avg / most | 0.2 / 2.4 | 0.5 / 3.1 | 1.0 / 4.0 | 0.7 / 4.8 |
+| AI warships sunk / opponent ships sunk by the AI | 6.0 / 7.1 | 13.8 / 5.6 | 11.7 / 18.4 | 12.0 / 9.8 |
+| opponent warships afloat (avg) | 16.0 | 16.4 | 15.8 | 16.2 |
+| AI fishing boats avg / lost; food from fish | 2.5 / 12.9; 450 | 1.3 / 14.9; 449 | 3.7 / 12.2; 782 | 0.8 / 10.3; 160 |
+| AI citizens killed (by ships) | 25.0 (1.9) | 11.3 (7.8) | 11.7 (0.5) | 15.4 (0.9) |
+| AI transports sunk; AI landings sailed / ashore | 1.8; 0.4 / 0 | 8.2; 0.3 / 0 | 5.6; 0.4 / 0 | 5.0; 0.4 / 0.2 |
+| opponent landings ashore / stopped (of 2) | 1.6 / 0.4 | 1.6 / 0.4 | 1.1 / 0.9 | 1.8 / 0.2 |
+| AI home waters held | 13% | 53% | 22% | 46% |
+| AI buildings / towns on other islands | 1.5 / 0.4 | 0 | 4.0 / 1.0 | 0 |
+| AI kills - losses; AI defeated | -32 (10); 2 of 10 | -59 (5); 0 | -45 (12); 1 | -44 (10); 1 |
+
+AI against AI (stages 0-1) the AIs fished 2000-4500 an hour; here 160-780: the opponent holds its waters (on Large
+Islands the AI's buildings stand farther from the sea, so "held" is higher), sinks its boats, transports and the few
+warships it builds, and lands. The AI sails 0.3-0.4 landings a game; 2 of 40 got ashore.
+
+**Passive against active** (paired by seed, variant minus f0):
+
+| | Small e5 | Large e5 | Small e9 | Large e9 |
+|---|---|---|---|---|
+| n0: AI warships sunk | -4.8 (1.2) | -9.2 (1.5) | -3.2 (2.5) | -5.3 (2.0) |
+| n0: opponent ships sunk by the AI | -6.0 (3.6) | -0.8 (2.4) | -5.5 (4.0) | -0.8 (4.8) |
+| n0: AI home waters held | -0.5 | +10.2 (7.1) | -0.8 | +26.3 (5.4) |
+| f1: sea exchange (opponent sunk - AI lost) | -3.2 (3.1) | -0.8 (2.4) | **-8.1 (2.1)** | -1.3 (4.2) |
+| f1: food from fish | +238 (121) | -156 (72) | +27 (254) | +124 (174) |
+
+- Without the navy account (n0) the AI builds fewer warships, loses fewer and sinks fewer of the opponent's: the
+  metrics see the navy. With it (f0) its 1-5 warships are a cost against 16: about even in the sea exchange on
+  Small Islands, -8 on Large e5.
+- The mod's fleet (f1) is no better against this opponent; on Small e9 it sinks 7.8 fewer of its ships (it keeps
+  out of the way of a stronger fleet). Fishing a little better on Small e5 (+238, 2 std. errors).
+- **Levels** (f0, 5 seeds per map): weak - the AI fishes 860-2650, holds its waters 27-57%, wins 3 of 19 games;
+  strong (19-22 ships) - fish 8-310, AI defeated in 10 of 20.
+
+What a human-level AI navy would have to show here: more warships afloat when the opponent comes (the AI asks for
+ships all game and is refused - section 3), fishing boats kept (fish food), transports through, and a sea exchange
+above 0 against the main fleet.
+
 ### Stage 4 - tie-in and measurement
 
 - landing.c: plan landings only with sea control near the route, or with escorts from the standing fleet.

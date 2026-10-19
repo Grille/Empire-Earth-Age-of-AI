@@ -44,6 +44,7 @@ static void cmd_minecheck(char *out, const char *args);   // sites.c
 static void cmd_texts(char *out, const char *args);       // texts.c
 static void cmd_wave(char *out, const char *args);
 static void cmd_charge(char *out, const char *args);
+static void cmd_seaop(char *out, const char *args);   // testopp.c
 static void cmd_count(char *out, const char *args);
 static void cmd_gridcheck(char *out, const char *args);
 static void cmd_objs(char *out, const char *args);
@@ -412,6 +413,7 @@ static void execute(const char *cmd, char *out) {
     else if (!strcmp(verb, "army")) cmd_army(out, args);
     else if (!strcmp(verb, "wave")) cmd_wave(out, args);
     else if (!strcmp(verb, "charge")) cmd_charge(out, args);
+    else if (!strcmp(verb, "seaop")) cmd_seaop(out, args);
     else if (!strcmp(verb, "count")) cmd_count(out, args);
     else if (!strcmp(verb, "gridcheck")) cmd_gridcheck(out, args);
     else if (!strcmp(verb, "objs")) cmd_objs(out, args);
