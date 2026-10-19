@@ -928,16 +928,19 @@ static void install(HMODULE self) {
     llm_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
     ctl_start(g_auto.enabled || GetPrivateProfileIntA("general", "control_pipe", 0, g_aimod_ini));
     if (g_auto.enabled && g_auto.game_seed) {
-        BOOL ok = patch_srand();
-        if (g_log) fprintf(g_log, "# autotest: game_seed=%d (srand hook %s)\n", g_auto.game_seed, ok ? "ok" : "FAILED");
+        BOOL ok = patch_srand(), start = start_hook();
+        if (g_log) fprintf(g_log, "# autotest: game_seed=%d (srand hook %s, start message hook %s)\n", g_auto.game_seed,
+                           ok ? "ok" : "FAILED", start ? "ok" : "FAILED");
     }
-    if (g_auto.enabled) { watch_start(g_ini); trace_start(g_ini); }
+    if (g_auto.enabled) { watch_start(g_ini); trace_start(g_ini); sync_trace_start(g_ini); }
     AddVectoredExceptionHandler(1, crash_handler);   // logs the first exceptions (module+offset, backtrace) - also in normal play
 }
 
 // Autotest game_seed: starting a game from the menu (EEUIELEStart::vf1 0x5C9B91, 0x67E1D6) seeds the C library
 // with the clock, srand(TMGetTime()), and sends rand() along with the start message (0x5D, +0x14) - the game's
-// random seed, so random-map runs differ even with the same map seed. With game_seed every srand uses that seed.
+// random seed, so random-map runs differ even with the same map seed. With game_seed every srand uses that seed,
+// and the start message carries it whichever start built it (hook_start_exec, trace.c: the load-game start a test
+// run uses puts TMGetTime() in it directly).
 #define IAT_SRAND 0x00824644
 typedef void (__cdecl *SrandFn)(unsigned);
 static SrandFn g_srand;

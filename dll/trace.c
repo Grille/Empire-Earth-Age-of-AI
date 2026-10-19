@@ -182,3 +182,70 @@ static void trace_start(const char *ini) {
     for (size_t i = 0; i < sizeof mine / sizeof *mine; i++) { total++; ok += patch_call(mine[i], FN_FIND_MINE, tr_find_mine); }
     if (g_log) fprintf(g_log, "# trace: player %d, %d/%d call sites hooked\n", g_trace_player, ok, total);
 }
+
+// Sync trace (autotest ini: sync_trace=<steps>): synctrace.txt next to the log. "start message: ..." when the
+// game start message runs, then after each of the first <steps> simulation steps a line
+// "<step> <game ms> <seed> <inputs> <stock hash>": the step counter (EEPhysics +0x80, 15 per lockstep tick), the
+// synchronised random generator's seed (EEPhysics +0x14 URandom, seed +0x18: the "mRandomNumberGenerator" of the
+// game's out-of-synch dump; the exe draws from it with inlined code, not through LLE's exports), the user-input
+// messages processed so far (0x919B68) and a hash of the stock of players 1.. (player 0's first fields are not
+// set). Two runs of one game_seed diffed show the first step they part, and whether the generator went first.
+#define SYNC_PHYS_VTBL_STEP 0x0082CB7C   // EEPhysics vtable slot 8: the step 0x546C63
+#define SYNC_PHYS_STEP      0x00546C63
+static FILE *g_sync;
+static unsigned g_sync_left;
+typedef void (__thiscall *StepFn)(void *);
+
+// The game start message (type 0x5D, vtable 0x8285B0, built by 0x522DFC(flag, seed)) sets the simulation's
+// random seed when it runs (slot 10, 0x4BEE57): EEPhysics +0x18 and world +0x54 = message +0x14. The menu's start
+// sends rand() after srand(TMGetTime()) - hook_srand covers that - but the load-game and scenario starts (also a
+// test run's random map, which randmap.c makes from a -loadgame start) build it with TMGetTime() itself (0x522113,
+// 0x5D7A25, 0x5D8871, 0x65C955): there game_seed takes effect only here.
+#define START_VTBL_EXEC 0x008285D8
+#define START_EXEC      0x004BEE57
+static void __fastcall hook_start_exec(void *msg, void *edx) {
+    (void)edx;
+    if (g_auto.game_seed) FIELD(msg, 0x14, unsigned) = (unsigned)g_auto.game_seed;
+    uint8_t *phys = *(uint8_t **)G_WORLD_CLOCK, *world = *(uint8_t **)0x0091977C;
+    unsigned map_seed = world ? FIELD(world, 0x54, unsigned) : 0;
+    ((StepFn)START_EXEC)(msg);
+    EnterCriticalSection(&g_lock);
+    if (g_sync) fprintf(g_sync, "start message: seed %u (generator %u, world+0x54 was %u)\n", FIELD(msg, 0x14, unsigned),
+                        phys ? FIELD(phys, 0x18, unsigned) : 0, map_seed);
+    LeaveCriticalSection(&g_lock);
+}
+static int start_hook(void) {
+    static int done;
+    return done || (done = patch_code32(START_VTBL_EXEC, START_EXEC, (uint32_t)(uintptr_t)hook_start_exec));
+}
+
+static void __fastcall sync_step(void *phys, void *edx) {
+    (void)edx;
+    ((StepFn)SYNC_PHYS_STEP)(phys);
+    if (!g_sync || !g_sync_left) return;
+    uint32_t h = 2166136261u;
+    unsigned n = *(unsigned *)0x009183CC;
+    for (unsigned i = 1; i < n && i < 16; i++) {
+        uint8_t *pl = ((uint8_t **)0x00918374)[i];
+        if (!pl) continue;
+        for (int k = 0; k < 7 * 4; k++) h = (h ^ pl[PL_STOCK + k]) * 16777619u;
+    }
+    EnterCriticalSection(&g_lock);
+    fprintf(g_sync, "%u %u %u %u %08x\n", FIELD(phys, 0x80, unsigned), FIELD(phys, 0xD0, unsigned),
+            FIELD(phys, 0x18, unsigned), *(unsigned *)0x00919B68, h);
+    if (!--g_sync_left) { fclose(g_sync); g_sync = NULL; }
+    LeaveCriticalSection(&g_lock);
+}
+
+static void sync_trace_start(const char *ini) {
+    g_sync_left = (unsigned)GetPrivateProfileIntA("autotest", "sync_trace", 0, ini);
+    if (!g_sync_left) return;
+    char path[MAX_PATH];
+    snprintf(path, sizeof path, "%s", ini);
+    char *slash = strrchr(path, '\\');
+    snprintf(slash ? slash + 1 : path, sizeof path - (slash ? (size_t)(slash + 1 - path) : 0), "synctrace.txt");
+    g_sync = fopen(path, "w");
+    int ok = g_sync && patch_code32(SYNC_PHYS_VTBL_STEP, SYNC_PHYS_STEP, (uint32_t)(uintptr_t)sync_step);
+    if (g_log) fprintf(g_log, "# sync trace: %u steps into %s (%s)\n", g_sync_left, path,
+                       ok && start_hook() ? "ok" : "FAILED");
+}
