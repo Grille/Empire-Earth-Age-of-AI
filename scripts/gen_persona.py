@@ -69,7 +69,9 @@ w('character = ""')
 w('')
 w('[style]')
 w('; EXPERIMENTAL - only with ai_style=1 in aimod.ini (default off: every AI plays the same, tested way). The same')
-w('; keys as in aimod.ini; they replace the difficulty\'s values for this AI. Uncomment what it should change.')
+w('; keys as in aimod.ini; they replace the difficulty\'s values for this AI. Uncomment what it should change. Each an')
+w('; expression worked out at the game start (like color =): shares and chances with % (home_guard_share = 35%,')
+w('; attack_on_contact = 20%, attack_group_percent = 150%), minutes as numbers - chance(50%) ? 15 : 25 works too.')
 for k in ['military_start_share', 'military_income_share', 'military_income_share_farms', 'epoch_min', 'epoch_max',
           'first_attack_min', 'first_attack_max', 'attack_interval_min', 'attack_interval_max', 'attack_group_percent',
           'attack_on_contact', 'attack_for_resources', 'attack_revenge', 'citizen_share', 'home_guard_share']:

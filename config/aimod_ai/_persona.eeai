@@ -42,7 +42,9 @@ character = ""
 
 [style]
 ; EXPERIMENTAL - only with ai_style=1 in aimod.ini (default off: every AI plays the same, tested way). The same
-; keys as in aimod.ini; they replace the difficulty's values for this AI. Uncomment what it should change.
+; keys as in aimod.ini; they replace the difficulty's values for this AI. Uncomment what it should change. Each an
+; expression worked out at the game start (like color =): shares and chances with % (home_guard_share = 35%,
+; attack_on_contact = 20%, attack_group_percent = 150%), minutes as numbers - chance(50%) ? 15 : 25 works too.
 ;military_start_share = 
 ;military_income_share = 
 ;military_income_share_farms = 

@@ -20,12 +20,12 @@ character = "A scheming princess, charming and polite on the surface, cold and c
 ; EXPERIMENTAL - only with ai_style=1 in aimod.ini (default off: every AI plays the same, tested way).
 ; The same keys as in aimod.ini; they replace the difficulty's values for this AI. Game defaults for
 ; comparison (medium difficulty): first attack 20-40 min, then every 20-25 min; instant attacks on
-; contact 0%, for resources 0%, as revenge 10%; home_guard_share 0.35, military_income_share 0.40.
+; contact 0%, for resources 0%, as revenge 10%; home_guard_share 35%, military_income_share 40%.
 first_attack_min = 18
 first_attack_max = 30
-attack_on_contact = 20
-attack_for_resources = 25
-attack_revenge = 30
+attack_on_contact = 20%
+attack_for_resources = 25%
+attack_revenge = 30%
 
 [vars]
 ; Livia weighs everyone by their use to her: a pawn to be moved, a rival to be handled with care

@@ -76,7 +76,7 @@ struct persona {
     char character[300];   // character=: a few words about it for the language model (llm.c)
     int trait[T_N];
     char *color;   // color=: the favoured player colours, an expression - a list in order of preference (persona_colors)
-    char *style_key[16], *style_val[16];   // [style]: aimod.ini settings for this personality (ai_style=1)
+    char *style_key[16], *style_val[16];   // [style]: aimod.ini settings for this personality (ai_style=1) - expressions
     int nstyle;
     char *line[L_N];   // a situation's line: an expression (expr.c) - a string, a list of them, conditions
     struct xvars vars;   // [vars] (+ [vars:<game language>])
@@ -349,8 +349,8 @@ static void persona_key(void *arg, const char *sec, const char *key, struct tval
             }
         tl_error(l, "an unknown key in [personality]");
     } else if (!lstrcmpiA(sec, "style")) {
-        if (v->kind != TV_NUMBER && v->kind != TV_STRING) { tl_error(l, "a number expected"); return; }
-        if (p->nstyle < 16) { p->style_key[p->nstyle] = _strdup(key); p->style_val[p->nstyle++] = _strdup(v->text); }
+        if (style_key(key) < 0) { tl_error(l, "an unknown [style] key"); return; }
+        if (p->nstyle < 16) { p->style_key[p->nstyle] = _strdup(key); p->style_val[p->nstyle++] = _strdup(v->src); }
     } else if (!lstrcmpiA(sec, "vars") || (!_strnicmp(sec, "vars:", 5) && lang_matches(sec + 5))) {
         xvars_set(sec[4] ? &r->vl : &p->vars, key, v->src);
     } else if (!lstrcmpiA(sec, "decide")) {
@@ -698,19 +698,35 @@ static void persona_apply(void *pl, unsigned idx, int pick) {
     }
     // PLAY STYLE (experimental, ai_style=1): the personality's [style] keys on top of the difficulty's settings,
     // from now on what cfg_of() returns for this player; settings_apply runs right after (hook_rm_update).
+    // Each value an expression worked out now, before the game's values count (xctx nogame, like color =): constants,
+    // chance(), rnd(), language and [vars] - its draws from the game's generator (game: every PC alike). A mistake or a
+    // value out of its range: that key keeps the difficulty's value (told).
     if (g_ai_style && p->nstyle) {
         struct ai_cfg c = *cfg_of(pl);
-        for (int k = 0; k < p->nstyle; k++)
-            if (!cfg_style_set(&c, p->style_key[k], p->style_val[k]) && g_log)
-                fprintf(g_log, "# persona: %s: [style] key '%s' unknown, ignored\n", p->file, p->style_key[k]);
+        char used[600] = "";
+        for (int k = 0; k < p->nstyle; k++) {
+            int sk = style_key(p->style_key[k]);
+            struct xctx xc = { 0 };
+            xc.found = 1; xc.nogame = 1; xc.game = 1;
+            xc.vars[0] = &p->vars;
+            xc.vars[1] = &g_vars_sys;
+            struct xval v;
+            const char *why = "a number expected";
+            if (sk < 0) continue;
+            if (!x_eval(p->style_val[k], &xc, &v)) { if (!xc.failed) x_log_bad("a [style] value that is no expression", p->style_val[k]); continue; }
+            if (!v.w || !v.has_n || v.pl || !cfg_style_set(&c, sk, v.n, &why)) {
+                x_error("%s: [style] %s = %.60s: %s - the difficulty's value instead", p->file, p->style_key[k], p->style_val[k], why);
+                continue;
+            }
+            size_t n = strlen(used);   // as set, in aimod.ini's units (a chance 40 for 40%)
+            void *at = (uint8_t *)&c + k_style_keys[sk].off;
+            if (k_style_keys[sk].kind == SK_SHARE) snprintf(used + n, sizeof used - n, " %s=%.2f", p->style_key[k], *(float *)at);
+            else snprintf(used + n, sizeof used - n, " %s=%d", p->style_key[k], *(int *)at);
+        }
         cfg_style_fix(&c);
         g_cfg_pl[idx] = c;
         g_cfg_pl_on[idx] = 1;
-        if (g_log) {
-            fprintf(g_log, "# persona: P%u plays with %s's style:", idx, p->file);
-            for (int k = 0; k < p->nstyle; k++) fprintf(g_log, " %s=%s", p->style_key[k], p->style_val[k]);
-            fprintf(g_log, "\n");
-        }
+        if (g_log) fprintf(g_log, "# persona: P%u plays with %s's style:%s\n", idx, p->file, used);
     }
 }
 

@@ -20,14 +20,14 @@ character = "A loud, hot-headed tribal chieftain who loves a brawl: shouts, laug
 ; EXPERIMENTAL - only with ai_style=1 in aimod.ini (default off: every AI plays the same, tested way).
 ; The same keys as in aimod.ini; they replace the difficulty's values for this AI. Game defaults for
 ; comparison (medium difficulty): first attack 20-40 min, then every 20-25 min; instant attacks on
-; contact 0%, for resources 0%, as revenge 10%; home_guard_share 0.35, military_income_share 0.40.
+; contact 0%, for resources 0%, as revenge 10%; home_guard_share 35%, military_income_share 40%.
 first_attack_min = 12
 first_attack_max = 20
 attack_interval_min = 8
 attack_interval_max = 12
-attack_on_contact = 60
-attack_revenge = 80
-home_guard_share = 0.20
+attack_on_contact = 60%
+attack_revenge = 80%
+home_guard_share = 20%
 
 [vars]
 ; Brann sizes everyone up for a brawl
