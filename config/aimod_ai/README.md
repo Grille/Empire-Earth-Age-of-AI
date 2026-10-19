@@ -346,7 +346,7 @@ Shortcuts: my own `epoch`, traits, `allies` and `enemies` without `me.` (`aggres
 | `X.vassals` | how many have capitulated to it |
 | `X.allies` | how many are allied with it (both ways), still in - allies alone: mine |
 | `X.enemies` | how many it treats as enemies, still in - enemies alone: mine |
-| `X.aggression`, `X.loyalty`, `X.pride`, `X.greed`, `X.forgiveness`, `X.caution`, `X.talk` | its traits, 0% to 100% (50% without a personality) - in a text "60%"; `chance(aggression)`: as likely as it is aggressive |
+| `X.aggression`, `X.loyalty`, `X.pride`, `X.greed`, `X.forgiveness`, `X.caution`, `X.talk` | its traits, 0% to 100% (50% without a personality) - a number: `{aggression}` writes 0.6, `{aggression:%}` 60%; `chance(aggression)`: as likely as it is aggressive |
 | `X.food`, `X.wood`, `X.stone`, `X.gold`, `X.iron` | its stock - another's too (the AI's spies): them.gold |
 | `X.stock` | the five resources together - to scale amounts: them.tribute(me) &gt; me.stock / 2 |
 | `X.lord` | its lord, the player it capitulated to - a player: them.lord.name, lord == them; nothing when it has none |
@@ -451,6 +451,20 @@ sea_war = them.kills(me, 10, units.marine) > 3 ? "Leave my ships alone, {them}!"
 In a line, `{...}` holds any expression: `{them}`, `{me}`, `{enemy}`, `{epoch}`, `{opinion}`, a `[vars]` name,
 `{them.soldiers}`, `{round(me.strength / 100)}`. Personality lines also have one placeholder, `{tribute}`: what a
 capitulation pays, by resource ("200 gold, 800 iron").
+
+A number is written as it is, with up to 2 decimals: `{0.625}` writes 0.63 (a half rounds away from 0). How else, a
+format after a `:` says - the last thing in the braces:
+
+| | 0.625 | 1234.5 |
+|---|---|---|
+| `{x}` | 0.63 | 1234.5 |
+| `{x:%}` - as a share | 63% | |
+| `{x:.1%}` - a share with 1 decimal | 62.5% | |
+| `{x:.0}`, `{x:.2}` - with that many decimals (0 to 6) | 1, 0.63 | 1235, 1234.50 |
+
+`50%` in an expression is only another way to write 0.5 - a value never remembers how it was written: `{aggression}`
+writes 0.6, `{aggression:%}` 60%. The `:` of a format belongs to no `?`, so a choice still works in front of one:
+`{opinion > 0 ? opinion : 0:%}`. A format on a text or a player, or one that is no format, is a mistake.
 
 `_system.eeai` and `_template.eeai` use the same expressions - `{me}` is the AI, `{them}` the one it talks to (in
 `_system.eeai` you), `{them.epoch}`, `{me.attack_minutes(them)}` - and add a few texts only the mod has: `{stance}`,

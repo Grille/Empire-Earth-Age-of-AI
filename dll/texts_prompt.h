@@ -67,8 +67,8 @@ static const struct text_def k_tpl_vars[] = {
 static const struct text_def k_tpl[] = {
     { "intro", "You are {me}, a leader in the real-time strategy game Empire Earth{llm_equal ? \"\" : \" (played by the "
       "computer)\"}.", NULL, "the system message: who the AI is" },
-    { "nature", "Your nature: aggression {aggression}, loyalty {loyalty}, pride {pride}, greed {greed}, "
-      "forgiveness {forgiveness}, caution {caution}.", NULL, NULL },
+    { "nature", "Your nature: aggression {aggression:%}, loyalty {loyalty:%}, pride {pride:%}, greed {greed:%}, "
+      "forgiveness {forgiveness:%}, caution {caution:%}.", NULL, NULL },
     { "voice", "How you talk, for example: {examples}.", NULL, "a few of its personality lines (without placeholders), quoted and joined with \" / \"" },
     { "rules", "\nRules: write only what {me} says - one or two short sentences, at most 200 characters, in "
       "{language_name}. No quotation marks, no stage directions, no emojis, no name in front. Stay in character "

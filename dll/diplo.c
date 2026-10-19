@@ -1924,12 +1924,7 @@ static void x_member(void *px, const struct xmember *m, struct xval *v) {
     else if (!strcmp(n, "allies") || !strcmp(n, "enemies"))
         for (int j = 1; j < nplayers(); j++) r += j != x && x_alive(j) && (n[0] == 'a' ? allied_with(x, j) : stance_of(px, j) != 0);
     else for (int t = 0; t < T_N; t++)
-        if (!strcmp(n, k_trait_keys[t])) {   // a share: 60 is 60% (0.6), written so in a text
-            char pc[8];
-            wsprintfA(pc, "%d%%", trait(px, (enum trait)t));
-            xdual(v, trait(px, (enum trait)t) / 100.0, pc);
-            return;
-        }
+        if (!strcmp(n, k_trait_keys[t])) { xnum(v, trait(px, (enum trait)t) / 100.0); return; }   // a share: 60% is 0.6
     xnum(v, r);
 }
 // the relations that count events, with a time window in minutes as a second argument: them.tribute(me, 15)

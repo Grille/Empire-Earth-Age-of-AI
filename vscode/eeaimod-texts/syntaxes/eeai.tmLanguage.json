@@ -674,6 +674,10 @@
           "include": "#placeholder"
         },
         {
+          "name": "constant.other.placeholder-format.eeaimod",
+          "match": ":\\s*(?:\\.[0-6])?%?\\s*(?=\\})"
+        },
+        {
           "include": "#string"
         },
         {

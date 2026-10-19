@@ -142,7 +142,9 @@ grammar = {
             'end': r'\}',
             'endCaptures': {'0': {'name': 'punctuation.definition.template-expression.end.eeaimod'}},
             'contentName': 'meta.embedded.expression.eeaimod',
-            'patterns': [{'include': '#placeholder'}] + expression,
+            # {x:%} {x:.1%} {x:.2}: the format, after a ':' right before the }
+            'patterns': [{'include': '#placeholder'},
+                         {'name': 'constant.other.placeholder-format.eeaimod', 'match': r':\s*(?:\.[0-6])?%?\s*(?=\})'}] + expression,
         },
         'string_single': {
             'begin': "'",

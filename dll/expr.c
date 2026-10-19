@@ -22,6 +22,8 @@
 // list is a list of one), str(x) / number(x) (its text only / its number, a text's when it is one, else nothing), and
 // the players' relations: them.opinion(me) (x_method in diplo.c). A player (me, them, ...) is a value: its
 // name, equal only to itself.
+// A placeholder's number is written with up to 2 decimals, or by its format after the last ':' that belongs to no
+// '?' (x_fmt_at): {x:%} a share (0.5 -> 50%), {x:.1%}, {x:.2} - 50% in an expression is only 0.5, never a format.
 // A value has a number, a text or both: the epoch is 3 and "Copper Age", a placeholder the code fills with "12" is 12
 // and "12" - a string in a file is a text only ("12" + 1 is "121"; "12" == 12 is a mistake, false). The number
 // counts in arithmetic, in comparisons with a number and as true/false; the text where the value ends up in the text
@@ -246,12 +248,21 @@ static void xdual(struct xval *v, double n, const char *s) { xstr(v, s); v->has_
 static int xis_num(const struct xval *v, double *n) { if (v->has_n) *n = v->n; return v->has_n; }
 static double xto_num(const struct xval *v) { return v->has_n ? v->n : 0; }
 static int xtrue(const struct xval *v) { return v->w && (v->pl || (v->has_n ? v->n != 0 : v->s[0] != 0)); }   // a player: true, whatever its name
+// n to dec decimals, a half away from 0 (0.625 -> 0.63, 62.5 -> 63) - printf's own rounding takes a half to the even
+// digit (0.62, 62), which nobody writing a text expects
+static double x_round_dec(double n, int dec) {
+    double m = 1, a = n < 0 ? -n : n;
+    for (int i = 0; i < dec; i++) m *= 10;
+    if (a * m >= 9e15) return n;
+    a = (double)(long long)(a * m + 0.5) / m;
+    return n < 0 ? -a : a;
+}
 static void xto_text(const struct xval *v, char *out, int cap) {
     if (v->has_s || !v->w) { lstrcpynA(out, v->w ? v->s : "", cap); return; }
     double r = v->n < 0 ? -v->n : v->n;
     if (r - (double)(long long)r < 1e-9 && r < 1e15) snprintf(out, (size_t)cap, "%lld", (long long)v->n);
     else {
-        snprintf(out, (size_t)cap, "%.2f", v->n);
+        snprintf(out, (size_t)cap, "%.2f", x_round_dec(v->n, 2));
         char *e = out + strlen(out);
         while (e > out && e[-1] == '0') *--e = 0;
         if (e > out && e[-1] == '.') e[-1] = 0;
@@ -792,6 +803,43 @@ static int x_syntax(const char *src, const char **why) {
     return !p.err;
 }
 static const char *x_close(const char *s);
+// A placeholder's FORMAT: {x:%} {x:.1%} {x:.2} - after a ':' that belongs to no '?' (outside strings and brackets: the
+// ternary's own colons pair with its ?s), how its number is written: % as a share (0.5 -> 50%), .N with N decimals
+// (0..6; both: .1% -> 62.5%). Without one a number is written as it is (up to 2 decimals). A number is never
+// written as a share by itself: 50% in an expression is only another way to write 0.5.
+static int x_fmt_at(const char *s, int n) {   // the format's ':' in s[0..n), -1: none
+    int depth = 0, q = 0;
+    for (int i = 0; i < n; i++) {
+        char ch = s[i];
+        if (ch == '"' || ch == '\'') {   // a string: to its closing quote (\" inside)
+            for (i++; i < n && s[i] != ch; i++) if (s[i] == '\\' && i + 1 < n) i++;
+            continue;
+        }
+        if (ch == '(' || ch == '[' || ch == '{') depth++;
+        else if (ch == ')' || ch == ']' || ch == '}') depth--;
+        else if (depth) ;
+        else if (ch == '?') { if (i + 1 < n && s[i + 1] == '?') i++; else q++; }   // ?? is no ternary
+        else if (ch == ':') { if (q) q--; else return i; }
+    }
+    return -1;
+}
+static int x_fmt_parse(const char *f, int *dec, int *pct) {   // "%", ".N", ".N%"; 0: no format
+    while (*f == ' ') f++;
+    *dec = -1; *pct = 0;
+    if (*f == '.') { if (f[1] < '0' || f[1] > '6') return 0; *dec = f[1] - '0'; f += 2; }
+    if (*f == '%') { *pct = 1; f++; }
+    while (*f == ' ') f++;
+    return !*f && (*dec >= 0 || *pct);
+}
+static void x_fmt_num(double n, int dec, int pct, char *out, int cap) {
+    if (pct) n *= 100;
+    if (dec < 0) dec = 0;
+    snprintf(out, (size_t)cap, "%.*f%s", dec, x_round_dec(n, dec), pct ? "%" : "");
+    const char *d = out + (*out == '-');   // no "-0", "-0.0%": a minus only on what isn't 0 as written
+    while (*d == '0' || *d == '.') d++;
+    if (*out == '-' && (!*d || *d == '%')) memmove(out, out + 1, strlen(out));
+}
+static const char *const k_fmt_why = "a placeholder's format is %, .1%, .2 ... ({share:%}, {x:.1})";
 // a text's {placeholders} that are expressions (not a plain name): their syntax - and a plain name's (x_name_check)
 static int x_fills_ok(const char *text, const char **why) {
     for (const char *s = strchr(text, '{'); s; s = strchr(s + 1, '{')) {
@@ -801,6 +849,12 @@ static int x_fills_ok(const char *text, const char **why) {
         if (n < 0 || n >= (int)sizeof src) continue;
         memcpy(src, s + 1, (size_t)n);
         src[n] = 0;
+        int f = x_fmt_at(src, n), dec, pct;
+        if (f >= 0) {
+            if (!x_fmt_parse(src + f + 1, &dec, &pct)) { *why = k_fmt_why; return 0; }
+            while (f > 0 && src[f - 1] == ' ') f--;
+            src[n = f] = 0;
+        }
         if (strpbrk(src, " <>=?\"'(+[!&|")) { if (!x_syntax(src, why)) return 0; }
         else if (n && strspn(src, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_.") == (size_t)n && !isdigit((unsigned char)*src))
             x_name_check(src);
@@ -835,10 +889,25 @@ static int x_fill(char *out, int cap, const char *tmpl, struct xctx *c) {
         char src[400], val[XVAL_CAP];
         int n = (int)(close - s - 1);
         const char *rep = NULL;
+        int fmt = 0, dec = -1, pct = 0;
         if (n > 0 && n < (int)sizeof src) {
             memcpy(src, s + 1, (size_t)n);
             src[n] = 0;
+            int f = x_fmt_at(src, n);
+            if (f >= 0) {   // {x:%}: the expression before the ':', its number written so
+                fmt = x_fmt_parse(src + f + 1, &dec, &pct) ? 1 : -1;
+                while (f > 0 && src[f - 1] == ' ') f--;
+                src[f] = 0;
+            }
             for (int i = 0; i < c->np && !rep; i++) if (!strcmp(c->pn[i], src)) rep = c->pv[i];
+            if (fmt < 0) { x_error("%s: {%.60s}", k_fmt_why, src); c->failed++; val[0] = 0; rep = val; }
+            else if (rep && fmt) {   // the code's placeholder: a number only ("12" is one here)
+                char *e;
+                double x = strtod(rep, &e);
+                if (e == rep || *e) { x_error("{%s:...}: a format for a number, %s is none", src, rep); c->failed++; val[0] = 0; }
+                else x_fmt_num(x, dec, pct, val, sizeof val);
+                rep = val;
+            }
             if (!rep && c->depth < 6) {
                 struct xval v;
                 int f0 = c->failed;
@@ -846,7 +915,13 @@ static int x_fill(char *out, int cap, const char *tmpl, struct xctx *c) {
                 int ok = x_eval(src, c, &v) && !c->circle;
                 c->depth--;
                 if (c->circle && !c->depth) { c->circle = 0; x_log_bad("[vars] naming each other in a circle", src); }
-                if (ok) { xto_text(&v, val, sizeof val); rep = val; }
+                if (ok && fmt && !(v.w && v.has_n && !v.pl)) {   // {name:%}: a text, a player, nothing - a mistake
+                    x_error("{%s:...}: a format for a number, this is none", src);
+                    c->failed++;
+                    val[0] = 0; rep = val;
+                }
+                else if (ok && fmt) { x_fmt_num(v.n, dec, pct, val, sizeof val); rep = val; }
+                else if (ok) { xto_text(&v, val, sizeof val); rep = val; }
                 else if (c->failed > f0) { val[0] = 0; rep = val; }   // a mistake (told): nothing written ("Hi {foo}")
                 else if (strpbrk(src, " <>=?\"'(+[")) { c->bad++; x_log_bad("not an expression", src); }
             }
