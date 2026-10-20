@@ -248,7 +248,7 @@ static void cmd_spawn(char *out, const char *args) {
         ((void (__thiscall *)(void *, int *, float *, char))0x00650B3C)(msg, &type, xy, (char)p);
         ((void (__thiscall *)(void *, void *, int))(*(void ***)srv)[6])(srv, msg, 0xFF);
     }
-    REPLY("ok: %d x type %d for P%d at %d,%d queued\n", n, type, p, x, y);
+    REPLY("ok: %d x type %d (%s) for P%d at %d,%d queued\n", n, type, unit_ident(type), p, x, y);
 }
 
 // spawnline <player> <type> <x0> <y0> <x1> <y1> [step]: one unit every <step> tiles (default 1) along the line,
@@ -272,7 +272,7 @@ static void cmd_spawnline(char *out, const char *args) {
         ((void (__thiscall *)(void *, void *, int))(*(void ***)srv)[6])(srv, msg, 0xFF);
         n++;
     }
-    REPLY("ok: %d x type %d for P%d from %d,%d to %d,%d queued\n", n, type, p, x0, y0, x1, y1);
+    REPLY("ok: %d x type %d (%s) for P%d from %d,%d to %d,%d queued\n", n, type, unit_ident(type), p, x0, y0, x1, y1);
 }
 
 // bqueue P: the build manager's per-epoch queues (bq_entry); $ = can be built now (0x555710, the build manager's

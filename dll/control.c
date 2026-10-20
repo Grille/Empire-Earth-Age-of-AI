@@ -381,6 +381,11 @@ static void execute(const char *cmd, char *out) {
     int n = 0;
     sscanf(cmd, "%31s %n", verb, &n);
     const char *args = cmd + n;
+    char targs[512];   // a type's identifier in its place: its number (unitnames.c)
+    const char *bad;
+    int bad_n, ta = type_args(verb, args, targs, sizeof targs, &bad, &bad_n);
+    if (ta < 0) { REPLY("error: %s: '%.*s' is no type (the identifiers: docs/units.md)\n", verb, bad_n, bad); return; }
+    if (ta > 0) args = targs;
     if (!strcmp(verb, "ping")) REPLY("pong\n");
     else if (!strcmp(verb, "status")) cmd_status(out);
     else if (!strcmp(verb, "camera")) cmd_camera(out, args);

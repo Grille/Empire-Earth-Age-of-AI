@@ -1,13 +1,13 @@
 # Continental seed 101, 2 AIs, start epoch 3: P2 base ~80,52, P3 base ~40,42.
 # Same-era defences: a cluster of 5 bronze guard towers (range 5) in front of P3; P2 brings 6 catapults (range 7).
-spawn 3 462 51 44
-spawn 3 462 53 47
-spawn 3 462 51 49
-spawn 3 462 54 43
-spawn 3 462 55 48
-spawn 2 24 76 50 20
-spawn 2 10 76 58 10
-spawn 2 137 82 58 6
-spawn 2 104 72 54 6
-spawn 3 24 47 44 8
-spawn 3 10 47 49 6
+spawn 3 b_guard_tower_bronze 51 44
+spawn 3 b_guard_tower_bronze 53 47
+spawn 3 b_guard_tower_bronze 51 49
+spawn 3 b_guard_tower_bronze 54 43
+spawn 3 b_guard_tower_bronze 55 48
+spawn 2 inf02_spearman 76 50 20
+spawn 2 arch03_simple_bowman 76 58 10
+spawn 2 cav04_bronze_spear_cavalry 82 58 6
+spawn 2 gun_siege04_catapult 72 54 6
+spawn 3 inf02_spearman 47 44 8
+spawn 3 arch03_simple_bowman 47 49 6

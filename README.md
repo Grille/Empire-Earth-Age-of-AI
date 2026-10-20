@@ -345,12 +345,15 @@ dll/              the mod (C), one module per file:
                     frame watch and diagnostics, playername.c the menu name fix), camera.c scrolling, editor_layout.h editor
                     randmap.c test-game setup, watch.c watchpoints, trace.c call tracing, headless_win.c
                     test windows without focus or taskbar button (also in dinput.dll)
+                    unitnames.c the type identifiers in commands (unit_names.h, generated)
 config/           aimod.ini and the aimod_ai personalities, shipped to players
 scenarios/        setup scripts that turn a save into a test scenario (attacks, sieges, raids)
 scripts/          test runner, suite, log analysis, control client, MCP server, RE helpers
+                    gen_units.py + dat_read.py: docs/units.md and dll/unit_names.h from the game data
+                    (the community DB editor's field layouts and English strings, downloaded into dats/)
 ghidra_scripts/   Ghidra headless script that names and decompiles the exe
 mod/              generator for a tuned dbcpbehavior.dat (AI settings table; superseded by aimod.ini)
-docs/             engine notes, AI analysis, testing guide
+docs/             engine notes, AI analysis, testing guide, units.md (every type: id, identifier, stats)
 ```
 
 ## License

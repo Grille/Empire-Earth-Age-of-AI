@@ -176,6 +176,12 @@ game state run on the simulation thread. The pipe is open in autotest runs; in a
 aimod.ini `[general] control_pipe=1` (default 0 since 2026-10-17 - a command on one PC desyncs multiplayer).
 Setup files (`setup=`) run their commands directly, not through the pipe.
 
+A unit or building type is given by its number or by its identifier, in every command that takes one (`spawn`,
+`spawnline`, `train`, `objs`, `found`, `hurt`, `watchtype`, `army`, `seltest`, `plan P retry`, `tinfo`, `costs`,
+`stats vs/fight/engage`): `spawn 3 b_guard_tower_bronze 51 44` is `spawn 3 462 51 44`. The identifiers, by epoch with
+the English names and stats: [units.md](units.md) (`scripts/gen_units.py` makes it and `dll/unit_names.h` from the
+game data). A word in a type's place that is no identifier is an error naming it.
+
 ```sh
 venv/Scripts/python scripts/eectl.py <command>
 ```
@@ -253,7 +259,7 @@ venv/Scripts/python scripts/eectl.py <command>
 | `diplo [A B S]`, `diplo observer 0\|1` | stance matrix, AI opinions, power and wars answered; with arguments player A takes stance S (0 allied, 1 enemy) towards B, as the stance message does |
 | `diplo tribute A B N` | player A's tribute of N reaches AI B (the tribute hook's logic) |
 | `persona [P name]` | personalities loaded and assigned (traits, lines said); with arguments AI P gets personality `name` |
-| `spawn P type x y [n]` | create n units of a type for player P around tile x, y (2-tile grid), through the game's own debug spawner (EEMHackANewUnit, executed in the next tick like a player command). Type ids: `data/db/converteroutput.log` |
+| `spawn P type x y [n]` | create n units of a type for player P around tile x, y (2-tile grid), through the game's own debug spawner (EEMHackANewUnit, executed in the next tick like a player command). Types: [units.md](units.md) |
 | `spawnline P type x0 y0 x1 y1 [step]` | one unit every step tiles along a line, e.g. a wall |
 | `watch <hex> [len]` | set the hardware watchpoint at runtime |
 | `save <name>` | save the running game to `Data\Saved Games\<name>.ees`, a fixture for later runs (`run_test.ps1 -Save <name>.ees`, without `random_map`). Known quirk: such a save loaded with `turbo=1` never starts simulating (the AI makes no step; without turbo it runs, and autosaves run with turbo) |

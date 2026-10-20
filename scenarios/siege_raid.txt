@@ -3,8 +3,8 @@
 # small escort (4 spearmen) just outside the tower range - its siege controller shells P3's towers.
 # A/B: "nocs:counter_siege=0" vs "cs:".
 defence 2 0
-@12 spawn 3 24 42 40 8
-@12 spawn 2 104 58 44 4
-@12 spawn 2 24 60 46 4
+@12 spawn 3 inf02_spearman 42 40 8
+@12 spawn 2 gun_siege04_catapult 58 44 4
+@12 spawn 2 inf02_spearman 60 46 4
 @24 count 2
 @24 count 3

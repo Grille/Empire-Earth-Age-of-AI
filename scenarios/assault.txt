@@ -3,7 +3,7 @@
 # big army at minute 15 to attack with (first attacks from minute 16-18 via the base ini).
 # A/B: "def:" (P3 uses the layout) vs "nodef:defence_layout=0" (nobody does).
 defence 2 0
-@15 spawn 2 24 76 50 20
-@15 spawn 2 10 76 58 12
-@15 spawn 2 137 82 58 8
-@15 spawn 2 104 72 54 3
+@15 spawn 2 inf02_spearman 76 50 20
+@15 spawn 2 arch03_simple_bowman 76 58 12
+@15 spawn 2 cav04_bronze_spear_cavalry 82 58 8
+@15 spawn 2 gun_siege04_catapult 72 54 3

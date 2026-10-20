@@ -3,6 +3,6 @@
 # the defence features (defence 2 0). Measure P3's buildings lost / soldiers by the end (count at 54).
 # A/B e.g. "noguard:home_guard=0" vs "guard:".
 defence 2 0
-@46 spawn 2 24 48 44 15
-@46 spawn 2 10 50 46 10
+@46 spawn 2 inf02_spearman 48 44 15
+@46 spawn 2 arch03_simple_bowman 50 46 10
 @54 count 3

@@ -715,6 +715,7 @@ static char __fastcall hook_game_start(void *state, void *edx, uint8_t *setup, v
     return r;
 }
 
+#include "unitnames.c"
 #include "control.c"
 #include "grid.c"
 #include "watch.c"

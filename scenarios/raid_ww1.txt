@@ -3,8 +3,8 @@
 # base; every 20 s they attack the nearest enemy that they can hurt within 30 tiles (stats engage), citizens included.
 # The militia question: fight back, or run (tanks are faster than citizens)? Measure P3's workers and losses.
 defence 2 0
-@12 spawn 2 204 48 44 6
-@16 spawn 2 153 50 46 2
+@12 spawn 2 inf10_doughboy 48 44 6
+@16 spawn 2 tank10_mk_v 50 46 2
 @12.20 stats engage 2 46 44 20
 @12.53 stats engage 2 46 44 20
 @12.86 stats engage 2 46 44 20

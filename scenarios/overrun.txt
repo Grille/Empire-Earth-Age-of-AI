@@ -3,7 +3,7 @@
 # attacks from minute 16-18 (base ini). The muster question: does gathering and striking once (or fleeing) leave P3
 # more than defending piece by piece? A/B "off:muster=0" vs "on:".
 defence 2 0
-@15 spawn 2 24 76 50 40
-@15 spawn 2 10 76 58 30
-@15 spawn 2 137 82 58 15
-@15 spawn 2 104 72 54 5
+@15 spawn 2 inf02_spearman 76 50 40
+@15 spawn 2 arch03_simple_bowman 76 58 30
+@15 spawn 2 cav04_bronze_spear_cavalry 82 58 15
+@15 spawn 2 gun_siege04_catapult 72 54 5
