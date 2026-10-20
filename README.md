@@ -118,7 +118,7 @@ peace or alliances. With the mod:
 - **Personalities** (optional folder [`config/aimod_ai`](config/aimod_ai)): every AI gets a name, a favoured
   colour on random maps, character traits (aggression, loyalty, pride, greed, forgiveness, caution, talk) and
   its own lines for situations of the game: greetings, attacks, being attacked, new ages, winning and losing,
-  diplomacy. Six personalities are included, in English and German; the game's language is detected
+  diplomacy. Six personalities are included, in English for now; the game's language is detected
   (`[lines:de]`, `[lines:fr]`... replace the English `[lines]`). A saved game finds its personalities again.
   `computer.eeai` in the same folder is no personality but the fallback: neutral lines for what must not go
   unsaid (war, peace, offers waiting for your answer, capitulation, victory). A personality without a line for

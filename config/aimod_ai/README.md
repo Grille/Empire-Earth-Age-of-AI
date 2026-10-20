@@ -30,8 +30,8 @@ name:de = "Kapitänin Ines"
 civilization = "Free Harbours"
 civilization:de = "Freie Häfen"
 color = ["lightblue", "cyan"]
-aggression = 40
-loyalty = 70
+aggression = 40%
+loyalty = 70%
 character = "A sea captain: dry humour, proud of her fleet, keeps her word."
 
 [vars]
@@ -133,7 +133,10 @@ How a line is chosen:
 
 `[lines:de]` (or `:fr`, `:es`, `:it`, `:pl`, `:pt-br`, `:ru`, `:ko`, `:zh-cn`, `:zh-tw`) replaces `[lines]`
 situation by situation in a game of that language; the language is detected from the game (or set with
-`language=` in aimod.ini). The same works for `name:de` and `[vars:de]`.
+`language=` in aimod.ini). The same works for `name:de` and `[vars:de]`. The included personalities are English only
+while their lines still change; translations come with a release, in a format still to be designed (a language
+needs conditions of its own for its grammar - one listener or several, gender - but the AI's decisions what to say
+should stay the same in every language).
 
 ### Conditions and variety
 
