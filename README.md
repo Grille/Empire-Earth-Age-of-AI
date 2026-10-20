@@ -281,7 +281,7 @@ cd eeaimod
 echo "X:/Games/Empire Earth Gold/Empire Earth" > game_dir.txt
 # unpack llvm-mingw to tools/llvm-mingw (or set CC=/path/to/i686-w64-mingw32-clang)
 sh dll/build.sh            # -> dll/eeaimod.dll
-sh scripts/install.sh      # the committed build into the game folder (waits until no game runs)
+sh scripts/install.sh      # the committed build into the game folder (reserves it: waits until no game runs)
 ```
 
 The DLL is a single translation unit: `dll/eeaimod.c` includes the other `.c` files.

@@ -81,6 +81,18 @@ function Other-Runs {
         if ($f -and (Get-Process -Id ([int]$f[0]) -ErrorAction SilentlyContinue)) { , @($f | ForEach-Object { [int]$_ }) }
     }
 }
+# the game folder reserved for a task that needs it to itself (scripts/reserve.sh: an install, a slot-0 run): no game
+# starts until it is done - checked right before the start; the task's own runs (EEAIMOD_RESERVED) pass
+function Wait-Reservation {
+    $told = $false
+    while (Test-Path "$g\eeaimod_reserved.lock") {
+        $r = (Get-Content "$g\eeaimod_reserved.lock" -Raw -ErrorAction SilentlyContinue) -split ' ', 2
+        $holder = [int]($r[0] -as [int])
+        if (-not $holder -or $holder -eq [int]$env:EEAIMOD_RESERVED -or -not (Get-Process -Id $holder -ErrorAction SilentlyContinue)) { break }
+        if (-not $told) { "waiting: the game folder is reserved ($("$($r[1])".Trim()))"; $told = $true }
+        Start-Sleep -Seconds 5
+    }
+}
 # Keep the PC awake while the run lasts (the screen may still turn off): ES_CONTINUOUS | ES_SYSTEM_REQUIRED for this
 # thread - Windows drops it when this process exits. Unattended suites were stopped by the PC going to sleep.
 try {
@@ -168,6 +180,7 @@ try {
         Move-Item "$sdir\aimod_econ.csv" $kept -Force
         "kept the previous log: $kept"
     }
+    Wait-Reservation
     $t0 = Get-Date
     # headless or beside other games: start suspended and patch before the game runs (else a plain start)
     if ($extra -contains "headless=1" -or $Slot -or $others) {

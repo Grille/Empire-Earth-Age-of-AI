@@ -13,7 +13,9 @@ Several sessions may work in this tree at the same time - see Git below.
   regenerates `dll/persist_layout.h` and `dll/cmd_verbs.h`). One translation unit: `dll/eeaimod.c` includes the rest.
   A build must be free of warnings.
 - `sh scripts/install.sh` puts the committed build into the game: built from a clean `git archive HEAD` (never the
-  working tree), copied only while no `Empire Earth.exe` runs (a loaded DLL can't be replaced). Commit first.
+  working tree), copied under a reservation of the game folder (a loaded DLL can't be replaced). Commit first.
+- A task that needs the game folder to itself (an install, a slot-0 run): `sh scripts/reserve.sh "<what>" <command>`
+  - test runs start no game meanwhile, the running ones (and the player's) are waited for; nobody has to pause.
 - The engine loads every DLL in the game folder: never leave copies of DLLs there (a stray dinput copy crashed it).
 - The game reads the personality files from `config/aimod_ai/` (`ai_dir` in the user's aimod.ini): a change to
   their format needs the matching installed DLL.
