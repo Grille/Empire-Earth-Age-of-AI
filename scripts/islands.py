@@ -9,7 +9,7 @@ gold + iron income (# spend), kills - losses, wins. With -base NAME: paired diff
 that variant. With -v: one line per game. Team games (scripts/isl_ablate.sh siL2: two mod AIs against two vanilla
 ones): every number is the side's players' mean, a side alive while one of them is. Also: enemy land soldiers on the
 side's home island (# isl home_foe: the most at a 5-minute sample, and the samples with any - landings, raids), all
-income (F+W+S+G+I) and idle citizens at the end (# cit).
+income (F+W+S+G+I) and its citizens ashore at the last # isl sample.
 usage: python scripts/islands.py [-base NAME] [-v] "work/autotest_*_ab-<name>-*.csv" ..."""
 import csv, glob, re, sys
 from collections import defaultdict
@@ -60,8 +60,6 @@ def load(path):
     inc = {}
     for m in re.finditer(r'^# spend: P(\d+) at \d+ min:.*income F(-?\d+) W(-?\d+) S(-?\d+) G(-?\d+) I(-?\d+)', txt, re.M):
         inc[int(m.group(1))] = [int(x) for x in m.group(2, 3, 4, 5, 6)]
-    idle = {}
-    for m in re.finditer(r'^# cit: P(\d+) at \d+ min: prod \d+ cit \d+ other \d+ idle (\d+)', txt, re.M): idle[int(m.group(1))] = int(m.group(2))
     battle, army, navy = {}, {}, {}
     for m in re.finditer(r'^# battle: P(\d+) at \d+ min: (.*)$', txt, re.M): battle[int(m.group(1))] = [int(x) for x in m.group(2).split()]
     for m in re.finditer(r'^# army: P(\d+) at [0-9.]+ min: (\d+) soldiers', txt, re.M): army[int(m.group(1))] = int(m.group(2))
@@ -106,7 +104,7 @@ def load(path):
         g['sol'] = army.get(p, 0); g['war'] = navy.get(p, 0)
         g['metal'] = sum(inc.get(p, [0] * 5)[2:]) if side == 'M' else float('nan')
         g['income'] = sum(inc.get(p, [0] * 5)) if side == 'M' else float('nan')
-        g['idle'] = float(idle.get(p, 0))
+        g['cits'] = float(sum(at(999).get(k, {}).get('cit', 0) for k in CL))
         foes = [e.get('foe', 0) for e in isl[p].values()]
         g['foe'] = float(max(foes)) if foes else 0.0
         g['foen'] = float(sum(1 for f in foes if f > 0))
@@ -140,9 +138,9 @@ for c in conds:
         for side in 'MV':
             gs = [g[side] for g in games.values()]
             wins = sum(1 for g in games.values() if g[side]['alive'] and not g['VM'[side == 'V']]['alive'])
-            print('  %-10s %s n=%d won %d settled %.2f (first %.1f min) new-off-home %.1f | w60 %.1f sol %.1f war %.1f metal %.0f income %.0f idle %.1f kills %.1f losses %.1f kl %.1f | home foe %.1f (in %.1f samples)' % (
+            print('  %-10s %s n=%d won %d settled %.2f (first %.1f min) new-off-home %.1f | w60 %.1f sol %.1f war %.1f metal %.0f income %.0f cit %.1f kills %.1f losses %.1f kl %.1f | home foe %.1f (in %.1f samples)' % (
                 v, side, len(gs), wins, mean([g['settled'] for g in gs]), mean([g['first'] for g in gs]), mean([g['new'] for g in gs]),
-                *[mean([g[k] for g in gs]) for k in ('w60', 'sol', 'war', 'metal', 'income', 'idle', 'kills', 'losses', 'kl', 'foe', 'foen')]))
+                *[mean([g[k] for g in gs]) for k in ('w60', 'sol', 'war', 'metal', 'income', 'cits', 'kills', 'losses', 'kl', 'foe', 'foen')]))
             for mi in MINS:
                 print('  %-10s %s  @%2d  ' % ('', side, mi) + '  '.join('%s %.1f' % (k, mean([g['%s%d' % (k, mi)] for g in gs])) for k in TL))
             if side == 'M' and any(g['x_plans'] for g in gs):

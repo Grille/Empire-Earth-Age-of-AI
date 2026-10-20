@@ -24,12 +24,13 @@ struct ex_cont {
     short gat[16][7];                          // gatherers per player and resource of the site
     short mexp[16], eseen[16], etow[16];       // per AI (viewer): mines it has explored, enemy buildings / defences it knows there
     short town[16];                            // Town Centers and Capitols per player (a player's home island)
+    short etown[16];                           // per AI (viewer): enemy Town Centers and Capitols it knows there
     int msx, msy, mn;                          // the mines' positions summed (their middle)
 };
 static struct ex_scan { uint32_t t; int n; struct ex_cont c[EX_NC]; int tr[16], aboard[16]; } g_exs;
 static uint32_t g_ex_log_t[16], g_ex_new_t;
 static int g_ex_map_logged;
-static struct { int id, p; } g_ex_seen[512];   // buildings off their owner's home continent already logged (# isl new)
+static struct { int id, p; uint32_t t; uint16_t known; } g_ex_seen[512];   // buildings off their owner's home continent already logged (# isl new): since, the enemies that saw it (# isl seen)
 static int g_ex_nseen;
 static int ex_home(void *pl);
 
@@ -85,15 +86,27 @@ static void ex_scan(void *pl, uint32_t now, int new_log) {
         if (fam == 2 || fam == 29) {
             if (is_wall(t)) continue;
             c->bld[pi]++;
-            if (new_log && g_players[pi] && c->id != (unsigned)ex_home(g_players[pi])) {   // # isl new: off its home continent, first seen
+            // # isl new: off its home continent, first seen - on land with sites (a dock stands in its shore area, a
+            // continent of its own)
+            if (new_log && g_players[pi] && c->id != (unsigned)ex_home(g_players[pi]) && (c->site[2] || c->mn)) {
                 int id = FIELD(u, 0x60, int), j;
                 for (j = 0; j < g_ex_nseen && !(g_ex_seen[j].id == id && g_ex_seen[j].p == pi); j++) ;
                 if (j == g_ex_nseen && g_ex_nseen < 512) {
-                    g_ex_seen[g_ex_nseen].id = id; g_ex_seen[g_ex_nseen++].p = pi;
+                    g_ex_seen[g_ex_nseen].id = id; g_ex_seen[g_ex_nseen].t = now; g_ex_seen[g_ex_nseen].known = 0; g_ex_seen[g_ex_nseen++].p = pi;
                     uint8_t *bs = FIELD(u, 0x30, uint8_t *);
                     EnterCriticalSection(&g_lock);
                     fprintf(g_log, "# isl new: P%d at %.1f min: type %d at %d,%d on c%u (home c%d)%s\n", pi, now / 60000.0, t, x, y, c->id,
                             ex_home(g_players[pi]), bs && bs[0x340] ? "" : " - a foundation");
+                    LeaveCriticalSection(&g_lock);
+                }
+                // # isl seen: the first time each enemy AI knows it (honest_vision's seen or remembered) - how late
+                // the players notice each other's expansions (the playtester: map control)
+                for (int v = 1; j < g_ex_nseen && v < 16; v++) {
+                    if (!g_players[v] || v == pi || (g_ex_seen[j].known >> v & 1) || !is_enemy(g_players[v], o) || !seen_by(u, g_players[v])) continue;
+                    g_ex_seen[j].known |= (uint16_t)(1u << v);
+                    EnterCriticalSection(&g_lock);
+                    fprintf(g_log, "# isl seen: P%d at %.1f min: P%d's type %d on c%u (there since %.1f min)\n", v, now / 60000.0, pi, t, c->id,
+                            g_ex_seen[j].t / 60000.0);
                     LeaveCriticalSection(&g_lock);
                 }
             }
@@ -103,7 +116,10 @@ static void ex_scan(void *pl, uint32_t now, int new_log) {
             int def = defence_stats(u, &rr, &a);
             if (def) c->tower[pi]++;
             for (int v = 1; v < 16; v++)   // what each AI knows of its enemies there (honest_vision: seen, or remembered)
-                if (g_players[v] && v != pi && is_enemy(g_players[v], o) && seen_by(u, g_players[v])) { c->eseen[v]++; c->etow[v] += def; }
+                if (g_players[v] && v != pi && is_enemy(g_players[v], o) && seen_by(u, g_players[v])) {
+                    c->eseen[v]++; c->etow[v] += def;
+                    if (t == 35 || t == 41) c->etown[v]++;
+                }
         } else if (is_citizen_type(t)) {
             c->cit[pi]++;
             uint8_t *g = FIELD(u, 0x1EC, uint8_t *), *s = g && !strcmp(rtti_name(g), "EEUGGather@@") ? FIELD(g, 0x38, uint8_t *) : NULL;
@@ -138,7 +154,8 @@ static void ex_log(void *pl, unsigned idx, uint32_t now) {
     struct { int n, site[7], my[7], oth, drop, bld, cit, sold, tower; } k[EXC_N];
     memset(k, 0, sizeof k);
     uint8_t *cm = FIELD(pl, 0xB90, uint8_t *), *bm = cm ? FIELD(cm, 0x3C, uint8_t *) : NULL;
-    int bx = FIELD(bm, 0x12C, int), by = FIELD(bm, 0x130, int), near_d = -1, near_m = 0, foe_s = 0, foe_b = 0;
+    int bx = FIELD(bm, 0x12C, int), by = FIELD(bm, 0x130, int), near_d = -1, near_m = 0, foe_s = 0, foe_b = 0, km = 0, am = 0;
+    for (int j = 0; j < g_exs.n; j++) { am += g_exs.c[j].mn; km += g_exs.c[j].mexp[pi]; }   // the map's mines and those it has explored
     for (int j = 0; j < g_exs.n; j++) {
         struct ex_cont *c = &g_exs.c[j];
         int cl = ex_class(pl, c, hc), mines = c->site[4] + c->site[5] + c->site[6];
@@ -172,7 +189,8 @@ static void ex_log(void *pl, unsigned idx, uint32_t now) {
         fprintf(g_log, " %s n=%d S%d G%d I%d W%d F%d my F%d W%d S%d G%d I%d oth %d drop %d bld %d tow %d cit %d sold %d |", k_exc[cl], k[cl].n,
                 k[cl].site[4], k[cl].site[5], k[cl].site[6], k[cl].site[3], k[cl].site[2], k[cl].my[2], k[cl].my[3], k[cl].my[4], k[cl].my[5],
                 k[cl].my[6], k[cl].oth, k[cl].drop, k[cl].bld, k[cl].tower, k[cl].cit, k[cl].sold);
-    fprintf(g_log, " tr %d aboard %d | near_empty %d (%d mines) | home_foe sold %d bld %d\n", g_exs.tr[pi], g_exs.aboard[pi], near_d, near_m, foe_s, foe_b);
+    fprintf(g_log, " tr %d aboard %d | near_empty %d (%d mines) | home_foe sold %d bld %d | known mines %d of %d\n", g_exs.tr[pi], g_exs.aboard[pi], near_d, near_m,
+            foe_s, foe_b, km, am);
     LeaveCriticalSection(&g_lock);
 }
 
@@ -359,17 +377,20 @@ static unsigned ex_pick(void *pl, unsigned idx, struct ex_st *x, unsigned hc, in
         struct ex_cont *c = &g_exs.c[j];
         if (c->id == hc || c->mexp[idx] < 2 || !c->mn) continue;
         any = 1;
-        int ally = 0, town = 0;
+        int ally = 0, town = c->etown[idx];
         for (int p = 1; p < 16; p++) {
             if (p == (int)idx || !c->bld[p]) continue;
             void *pp = player_at(p);
             if (pp && !is_enemy(pl, pp)) ally = 1;
-            else town += c->town[p];
         }
-        // an enemy's town (Town Center, Capitol) there: its home island, never a free one - known as a player knows where
-        // the others started (the honest_vision count saw nothing of an unscouted home and the AI landed citizens there:
-        // Tournament Islands kills - losses -10)
+        // an enemy's town (Town Center, Capitol) it knows there (honest_vision: seen or remembered): its home island,
+        // never a free one. Until 2026-10-20 every enemy town counted, seen or not (no player knows where the others
+        // started - that was the game's knowledge); now only what it saw, and an island it knows too little of is no
+        // pick: half its mines explored at least (the explored flag of the site, as a player sees it on the map). The
+        // ferry itself is the last scout: an enemy town seen there before it sails or once ashore ends the outpost
+        // (that island never again; ex_enemy_home).
         if (town || (ally && !(EXPAND(idx) & 4)) || c->etow[idx] || c->eseen[idx] > 3 || ex_gone(x, c->id, now)) continue;
+        if (c->mexp[idx] * 2 < c->mn) continue;
         int mx = c->msx / c->mn, my = c->msy / c->mn, n = 0;
         float hp = 0, att = 0;
         intel_soldiers(pl, mx, my, 20, &hp, &att, NULL, &n);
@@ -795,6 +816,18 @@ static int ex_outmatched(void *pl, float *mine, float *theirs) {
     *mine = ld_strength(oh, oa); *theirs = ld_strength(eh, ea);
     return *theirs > *mine;
 }
+// an enemy town (Town Center, Capitol) seen on the outpost's island - an enemy's home, not a free island: the ferry
+// back home (unloaded at the home shore), the outpost off, that island never again
+static void ex_enemy_home(void *pl, unsigned idx, struct ex_st *x, uint32_t now) {
+    ex_scan(pl, now, 0);
+    struct ex_cont *c = ex_cont_of(x->cont, 0);
+    if (!c || !c->etown[idx]) return;
+    while (ex_mark_lost(x, x->cont, now) < 3 && x->ngone < 8) ;
+    if (x->fphase == 3) x->fphase = 2;   // unloaded at the home shore, not on that island
+    if (x->fphase) ex_ferry_end(pl, idx, x, now, NULL);
+    x->active = 0; x->given++; x->next_try = now + 60000;
+    ex_say(idx, now, "an enemy town seen on the island %u - an enemy's home: outpost off, never again", x->cont);
+}
 // a new outpost (phase 0, every 30 s) or more citizens for it
 static void ex_plan(void *pl, unsigned idx, struct ex_st *x, uint32_t now) {
     static const char *last_why[16];
@@ -887,6 +920,7 @@ static void expand_act(void *pl, unsigned idx, uint32_t now) {
         if (!x->ever_ashore) { ex_mark_lost(x, x->cont, now); x->active = 0; x->lost++; }
         (void)aboard;
     }
+    if (x->active) ex_enemy_home(pl, idx, x, now);
     if (x->fphase == 1) ex_ferry_ship(pl, idx, x, now);
     else if (x->fphase == 2) ex_ferry_board(pl, idx, x, now);
     else if (x->fphase == 3) ex_ferry_sail(pl, idx, x, now);

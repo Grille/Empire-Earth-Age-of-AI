@@ -15,7 +15,7 @@ The `[autotest]` keys:
 | `start_epoch=N` | (random maps) starting epoch, e.g. 2 = Copper Age, for tests that should begin later in the game |
 | `speed=7.5` | game speed (normal 2.5). The simulation runs a fixed number of steps per real second (the lockstep server grants 15 steps every 350 ms); the speed only sets the game time per step, `1000 * speed / 44` ms (57 ms at 2.5, 170 ms at 7.5). Higher speeds make the steps coarser (movement artifacts). |
 | `turbo=1` | the steps follow each other as fast as the CPU allows instead of 43 per second: the server sends the next tick as soon as the simulation has used up the last one, the simulation loop skips its 22 ms timer, and a headless window renders only a few frames a second. Same steps, same game: a 75-minute game takes ~15 s instead of ~10 min. Pipe: `turbo 0\|1` |
-| `random_map=Continental` | starts a random map instead of the save. Also: `map_size` (0 tiny..), `ai_count`, `seed`, `teams=ffa\|pairs`, `start_epoch`, `citizens`, `unit_limit` (500, the game's, shared by all players incl. the idle human), `ai_cheat`, `ai_ignore`, `epoch_min`/`epoch_max` (test epoch timer, not for vanilla players), `difficulty=easy\|medium\|hard` (the AIs' difficulty, default medium - the setup and the global 0x918C14 the AIs copy). The human player (slot 0) idles, sees the whole map and is allied with every AI. |
+| `random_map=Continental` | starts a random map instead of the save. Also: `map_scale` (`tiny`, `small`, `medium`, `large`, `huge`, `gigantic` or 0..5; default small - the real map size, setup +0x3DC, see "Large island maps"), `map_size` (the old key: it wrote setup +0x3E8, an option index, not the size - every test map before 2026-10-20 was Small whatever map_size said; kept so old commands play the same maps), `ai_count`, `seed`, `teams=ffa\|pairs`, `start_epoch`, `citizens`, `unit_limit` (500, the game's, shared by all players incl. the idle human), `ai_cheat`, `ai_ignore`, `epoch_min`/`epoch_max` (test epoch timer, not for vanilla players), `difficulty=easy\|medium\|hard` (the AIs' difficulty, default medium - the setup and the global 0x918C14 the AIs copy). The human player (slot 0) idles, sees the whole map and is allied with every AI. |
 | `vanilla_players=3` (digits), `vanilla_difficulty`, `vanilla_cheat=0\|1` | those players play the game's own AI, unmodified, with their own difficulty and the game's Cheat (see "Against the base-game AI") |
 | `game_seed=N` | the game's random seed at game start: the same game_seed (with the same map, `seed`, and config) plays the same game, step for step. The simulation draws from one generator (EEPhysics +0x14, seed +0x18), seeded by the game start message (type 0x5D, executed by 0x4BEE57, which also writes world +0x54). The menu start puts rand() after srand(TMGetTime()) in it (`hook_srand`), the load-game and scenario starts TMGetTime() itself (0x522DFC's callers) - a test run's random map is a load-game start, so until 2026-10-19 every run had its own seed and runs parted from ~5 s on; now `hook_start_exec` (trace.c) writes game_seed into the message whichever start built it. Checked: two runs of Continental 101 / 3 AIs / game_seed=1, 10 game minutes: the per-step trace identical (3479 steps), the AI log identical but for a column of heap pointers; turbo=0 and turbo=1 identical (the turbo run only logs idle steps before the first tick). Then one more hole: of three runs of Continental 101 / 5 AIs / 60 min, one parted at 28.7 min - the trace showed an AI message (type 129, handed to the lockstep server in a tick's last step) landing a tick late: turbo let the server send the next tick while that step still ran (EEPhysics +0xB8 is 0 already then); now turbo waits for the step's end too (control.c hook_phys_step, g_in_step). Checked: 6 runs of that game identical for 60 min, 6 more maps twice each (ai_diplomacy=1) identical, and turbo=0 identical to turbo=1 for 30 min. The map comes from `seed` (randmap.c writes world +0x54 after the start message). Without game_seed the start stays the clock's. |
 | `sync_trace=<steps>` | writes `synctrace.txt` next to the test log: the start message's seed, then one line per simulation step for the first <steps> steps - step counter, game ms, the generator's seed, user inputs processed, a hash of the AI players' stock. Also the units (count and a hash), the messages each step hands to the lockstep server (`  m` lines) and with `sync_dump=<from ms>-<to ms>` every unit of the steps in that window. Diff two runs' files to find the first step they part (trace.c) |
@@ -659,6 +659,38 @@ an outpost in 24 of 40 games, other islands' miners +5.4 (2.0) at 60 minutes, al
 Islands (no free island) 37-40 of 40 games the same; head-to-head losses -5.3 (4.7), kills +2.2 (2.9), workers -1.0
 (0.7). The build with `expand_islands=0` played the same games as the measurement build (78 of 80) and Continental e0
 the same as main (40 of 40).
+
+### Large island maps (2026-10-20)
+
+The playtester: most players play Large or Huge maps, even 1v1, with a high population limit - several free islands,
+and taking islands towards the enemy is part of the game. Every test map so far was Small: `map_size` wrote the setup's
++0x3E8 (an option index the setup copy 0x524B.. checks against a list), the map size is +0x3DC (clamped below 6,
+default 1 = Small; 0x524E1F turns 0..5 into 42/58/75/105/160/220, and the map script's `IsLargeMap` etc. include
+`<map> Large.rmv`). `map_scale=large|huge|...` (randmap.c) sets it; the log's `# random map:` line names the scale and
+the unit limit with the game's default and most (13208). The unit limit is shared by every player including the tests'
+idle human: 1500 = 500 a player in 1v1 (the AIs' cap 505 in `# cit:`), 2500 in 2v2.
+
+What the maps hold (`# isl map`, map seed 101, Middle Ages, 2 AIs + the idle human): Small Islands Large - 3 home
+islands, 4 free islands of 5 mines (S1 G2 I2); Huge - 9 free (2-5 mines). Tournament Islands Large - 3 free; Huge - 5
+free (4-5 mines). Large Islands Large - no free island (3 homes of 10 mines); Huge - 3 free (4-5 mines). Mediterranean
+is a land map to the mod (one continent, 7% water) - there is no fourth water map type. With 4 AIs (Small Islands Large)
+7 islands with sites, 2 free.
+
+`scripts/isl_ablate.sh <variants file>` (like eco_ablate.sh, through vanilla.sh: hard, game_seed 1..REPEAT x both
+seats; `vanilla.sh` takes `AIS`, `TEAMS`, `SEATS` for team games) runs the maps of `MAPS`: `siL` (Small Islands Large),
+`tiH` (Tournament Islands Huge), `liH` (Large Islands Huge), `siH` (Small Islands Huge) - 1v1, unit limit 1500, 75
+minutes -, `siL2` (Small Islands Large, 2v2: the mod's P2+P3 against vanilla P4+P5 and swapped, unit limit 2500, 75
+minutes) and the old `si5` / `ti5` / `li5` (Small, 60 minutes, unit limit 500). Logs `ab-<name>-c<cheat>-<map>`; the
+variant names must be new (the scorers glob the work folder). A 75-minute 1v1 game on a Huge map takes 30-45 s with
+turbo, a 2v2 ~60 s: with `JOBS=8` a cell of 40 games (20 seeds x 2 seats) takes 3-4 minutes (2v2 ~6), the default set
+(`siL tiH liH`, both cheats) ~25 minutes, everything above under an hour.
+
+Scorers: `scripts/islands.py` (per side; a team's players averaged, alive while one is) adds the income, the citizens,
+the enemy soldiers on the side's home island (`# isl ... home_foe sold N bld N`, the most at a sample and the samples
+with any); `scripts/isl_timeline.py` the timelines and the first failure per game (see docs/economy.md "Large island
+maps"). `# isl seen: P<v> at <m> min: P<o>'s type T on c<n> (there since <m0> min)` (once a game minute, autotest): the
+first time an enemy AI knew a building off its owner's home island - how late the expansions are noticed;
+`# isl: ... | known mines K of N` the map's mines the player has explored.
 
 ### Mass before striking, the mines (navy stage 5)
 

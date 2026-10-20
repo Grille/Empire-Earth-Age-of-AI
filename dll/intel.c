@@ -15,7 +15,7 @@
 // game's view (nothing remembered, everything looked at now), so every system works under both.
 #define INTEL_REC 1024
 #define INTEL_CELL 6
-#define INTEL_NC (150 / INTEL_CELL + 1)
+#define INTEL_NC (600 / INTEL_CELL + 1)   // the map up to 600 tiles (150 until 2026-10-20: on Large / Huge maps, up to ~330 tiles, everything beyond 150 counted as never looked at - landing.c assumed every beach there held)
 struct intel_rec { uint8_t *u; int owner, type, kind, x, y, hp; float att; uint32_t t; };   // kind 0 building, 1 soldier, 2 ship, 3 aircraft, 4 other
 static struct intel {
     struct intel_rec r[INTEL_REC]; int n;
