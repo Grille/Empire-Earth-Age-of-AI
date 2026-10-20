@@ -28,6 +28,9 @@ static struct { uint32_t t; int goal, game, feed, home, slots, extra; } g_czp[16
 
 static void cz_new_game(void) { memset(g_cz, 0, sizeof g_cz); memset(g_czp, 0, sizeof g_czp); g_cz_np = -1; }
 
+// a building is finished at [unit +0x30] +0x340 (unit +0x340 is something else)
+static int cz_finished(uint8_t *b) { uint8_t *bs = FIELD(b, 0x30, uint8_t *); return bs && bs[0x340]; }
+
 // the producer types of citizens (once a game: the citizen tech's building list)
 static void cz_types(void *pl) {
     if (g_cz_np >= 0) return;
@@ -75,7 +78,7 @@ static void cz_sample(void *pl, unsigned idx) {
         uint8_t *q = ((uint8_t *(__thiscall *)(void *, int))0x0048F8AF)(um, g_cz_ptypes[k]);
         for (unsigned j = 0, f = q ? FIELD(q, 0xC, unsigned) : 0, n = q ? FIELD(q, 0x10, unsigned) : 0; j < n && j < 64; j++) {
             uint8_t *b = deque_at(q, f + j);
-            if (!b || FIELD(b, 0x3C, int) <= 0 || !b[0x340]) continue;
+            if (!b || FIELD(b, 0x3C, int) <= 0 || !cz_finished(b)) continue;
             z->m.prod++;
             int cur = FIELD(b, 0x25C, int), *qb = FIELD(b, 0x4C, int *), *qe = FIELD(b, 0x50, int *), cit = cz_is_cit_tech(cur);
             int busy = cur > 0 && cur != 100000;
@@ -169,7 +172,7 @@ static int cz_producers(void *pl) {
         uint8_t *q = ((uint8_t *(__thiscall *)(void *, int))0x0048F8AF)(um, g_cz_ptypes[k]);
         for (unsigned j = 0, f = q ? FIELD(q, 0xC, unsigned) : 0, c = q ? FIELD(q, 0x10, unsigned) : 0; j < c && j < 64; j++) {
             uint8_t *b = deque_at(q, f + j);
-            if (b && FIELD(b, 0x3C, int) > 0 && b[0x340]) n++;
+            if (b && FIELD(b, 0x3C, int) > 0 && cz_finished(b)) n++;
         }
     }
     return n;
