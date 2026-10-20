@@ -8,11 +8,11 @@ cd "$(dirname "$0")/.."
 . scripts/jobs.sh
 MIN=$1; SCEN=$2; BASE=$3; B=$4
 REPEAT=${REPEAT:-6}; NAME=${NAME:-h2h}; SEED0=${SEED0:-0}   # SEED0: game_seed = SEED0 + 1..n
-[ -f "scenarios/$SCEN.txt" ] || { echo "no scenarios/$SCEN.txt"; exit 1; }
+[ -f "scenarios/$SCEN.eeai" ] || { echo "no scenarios/$SCEN.eeai"; exit 1; }
 STAMP=$(date +%Y%m%d_%H%M)
 for r in $(seq $((SEED0 + 1)) $((SEED0 + REPEAT))); do
     seats=24; [ $((r % 2)) -eq 0 ] && seats=35
-    ini="$BASE,teams=ffa,ai_cheat=0,ai_ignore=1,headless=1,turbo=1,quit_minutes=$MIN,game_seed=$r,setup=_aimod/scenarios/$SCEN.txt"
+    ini="$BASE,teams=ffa,ai_cheat=0,ai_ignore=1,headless=1,turbo=1,quit_minutes=$MIN,game_seed=$r,setup=_aimod/scenarios/$SCEN.eeai"
     ini="$ini,variant_players=$seats,$B"
     job -Save newgame.ees -TimeoutSec $((MIN * 12 + 120)) -Tag "_h2h${STAMP}_${NAME}_${SCEN}-r$r" -IniExtra "$ini"
 done

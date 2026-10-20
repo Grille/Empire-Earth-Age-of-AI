@@ -1,8 +1,8 @@
 {
   "name": "eeaimod-texts",
   "displayName": "eeaimod texts",
-  "description": "Highlighting for the eeaimod text files (.eeai): personalities, _system.eeai, _template.eeai - sections, keys, strings, placeholders, expressions - and the setup scripts (scenarios/*.txt, *.setup): statements, functions, commands",
-  "version": "0.9.0",
+  "description": "Highlighting for the eeaimod text files (.eeai): personalities, _system.eeai, _template.eeai - sections, keys, strings, placeholders, expressions - and the setup scripts (scenarios, scripts): statements, functions, commands",
+  "version": "0.9.1",
   "publisher": "eeaimod",
   "license": "MIT",
   "engines": { "vscode": "^1.60.0" },
@@ -12,8 +12,7 @@
       {
         "id": "eeai",
         "aliases": ["eeaimod texts"],
-        "extensions": [".eeai", ".setup"],
-        "filenamePatterns": ["**/_aimod/scenarios/*.txt"],
+        "extensions": [".eeai"],
         "configuration": "./language-configuration.json"
       }
     ],

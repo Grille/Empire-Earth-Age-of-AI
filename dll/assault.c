@@ -18,9 +18,9 @@
 // - Fight together: enemies within 12 tiles of the centre - every member without a fight attacks the nearest.
 // - Newcomers wait at the base for the next wave. Half the wave lost (or, with assault_outmatched, facing 1.5 x
 //   twice): called off, the next attack within 5 minutes.
-// Measured: the reference save with a camp that plays (scripts/refcamp.setup): P3 killed 6-10 of the player's
+// Measured: the reference save with a camp that plays (scripts/refcamp.eeai): P3 killed 6-10 of the player's
 // soldiers and 9-16 aircraft (game's attack: 28-34 and 32-34), lost more citizens - the army left the town to the
-// camp's pushes. pathtest (scripts/pathtest_as.setup): P2's 84 went straight at P3's army among the lasers and
+// camp's pushes. pathtest (scripts/pathtest_as.eeai): P2's 84 went straight at P3's army among the lasers and
 // lost half in 1.5 minutes; P3 soldiers killed in 20 minutes 20-33 (game's attack, with the mod's tower-avoiding
 // routes: 50). What it lacks: the route planner's way around defences, and a reason to leave a town under attack.
 static int g_assault = 0;   // aimod.ini [all] assault

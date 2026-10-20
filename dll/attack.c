@@ -742,7 +742,7 @@ static void flee_point(void *pl, int x, int y, float rx, float ry, float *fx, fl
 // one lost some, the spot is remembered for 2 minutes. A site within 6 tiles of such spots is dangerous: food and wood
 // from one (they can be had elsewhere), stone, gold and iron from 3 (worth some risk). Aircraft count only where they
 // do harm, so a town they merely fly over keeps working. The searches refuse such sites too (no sent back, sent again).
-// Hunters' losses don't count (the animals). scenarios/shelling.txt, bombing.txt (10 seeds, P3 off vs on): shelling
+// Hunters' losses don't count (the animals). scenarios/shelling.eeai, bombing.eeai (10 seeds, P3 off vs on): shelling
 // alive 5 vs 7 of 10, workers 7.1 vs 17.6, losses 14.3 vs 10.8, buildings lost 6.1 vs 3.9; bombing workers 42.9 vs
 // 54.7, losses 25.5 vs 21.0. Idle citizens rose (bombing 2.9 vs 6.3 on average): no safe site of their resource left.
 #define HURT_N 64

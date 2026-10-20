@@ -1,4 +1,4 @@
-# bombing.txt 15 minutes later (airport 34.5, aircraft 35, attacks to 49): time for what the AI builds ahead (a fortress)
+# bombing.eeai 15 minutes later (airport 34.5, aircraft 35, attacks to 49): time for what the AI builds ahead (a fortress)
 
 defence(2, 0)
 at(34.50min, () => spawn(2, unit.b_airport, 92, 56, 1))

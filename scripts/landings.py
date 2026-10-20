@@ -1,6 +1,6 @@
 """Landings per run: planned, sailed, ashore (soldiers), called off (beach too strong / boarding failed / other),
 told to unload by the game (refused by the transport manager, kept off the shore while boarding, retries refused), the bombardment
-(fleets planned, sailed, beaches shelled free), the ships lost (islands_rich.txt asks), and the score line (kills, losses, razed). usage: python scripts/landings.py logs..."""
+(fleets planned, sailed, beaches shelled free), the ships lost (islands_rich.eeai asks), and the score line (kills, losses, razed). usage: python scripts/landings.py logs..."""
 import re, sys, subprocess, os
 
 here = os.path.dirname(os.path.abspath(__file__))
@@ -9,7 +9,7 @@ for f in sys.argv[1:]:
     c = lambda pat: len(re.findall(pat, txt))
     ashore = sum(int(m) for m in re.findall(r'# landing: P\d at [\d.]+ min: all (\d+) ashore', txt))
     ashore += sum(int(m) for m in re.findall(r'# landing: P\d at [\d.]+ min: ashore near [\d,]+ - (\d+) landed', txt)) and 0
-    # islands_rich.txt asks at the end: the ships (marine units) each AI lost (-1: not asked)
+    # islands_rich.eeai asks at the end: the ships (marine units) each AI lost (-1: not asked)
     sl = re.findall(r'# setup: texts eval \d \d them\.kills\(me, 60, units\.marine\) -> (\d+)', txt)
     ships = sum(int(m) for m in sl) if sl else -1
     out = subprocess.run([sys.executable, os.path.join(here, 'score.py'), f], capture_output=True, text=True).stdout

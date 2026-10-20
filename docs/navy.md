@@ -20,7 +20,7 @@ The playtester's notes on this plan:
   (long range, high attack, x1 against them), so the whole fleet must keep away from coastal siege and towers.
 
 Tools:
-- `navy types A B [all]` / `navy table` (pipe or setup). `scripts/navy_types.setup` dumps every type and the hit
+- `navy types A B [all]` / `navy table` (pipe or setup). `scripts/navy_types.eeai` dumps every type and the hit
   table into the log.
 - `scripts/navy.py types <log>` builds the role table below.
 - `# navy:` log lines (autotest, every 2 minutes per AI) and `scripts/navy.py <logs>` for the baseline.
@@ -556,7 +556,7 @@ is missing:
 
 Measuring an AI's navy against another AI's is weak evidence: both have 1-3 warships, and nobody holds any water. The
 playtester builds 20+ ships early on an island map and uses them. dll/testopp.c (test code, started by the setup line
-in `scenarios/seaop.txt`) plays that with the idle P1 against one AI: a scheduled build-up (medium: 3 ships at minute
+in `scenarios/seaop.eeai`) plays that with the idle P1 against one AI: a scheduled build-up (medium: 3 ships at minute
 5, 16 by 20, at most 22, losses replaced), raiders on the fishing boats and the coast, a main fleet that hunts the
 AI's warships when it is 1.2 times stronger and retreats when weaker, a patrol on the sea lane against transports,
 two landings with transports, honest sight (9 tiles around its own units). How to run it and the log: docs/testing.md

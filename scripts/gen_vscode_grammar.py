@@ -1,6 +1,6 @@
 """Writes vscode/eeaimod-texts/syntaxes/eeai.tmLanguage.json - the highlighting of the aimod_ai\\*.eeai files
 (personalities, _system.eeai, _template.eeai; the format: dll/expr.c THE TEXT FILES) and of the setup scripts
-(scenarios/*.txt, *.setup: docs/scripts.md - statements, functions, the commands) - with the names the DLL knows,
+(scenarios/*.eeai, scripts/*.eeai: docs/scripts.md - statements, functions, the commands) - with the names the DLL knows,
 read from its sources: the game's values (diplo.c k_xmembers, k_xglobals), the epochs and functions (expr.c), the situations,
 traits and decisions (persona.c), the system and prompt keys (texts.c, texts_prompt.h), the style keys (settings.c). A key the DLL
 doesn't know in its section shows as an error. Run it after changing one of them, then scripts/pack_vscode.py:

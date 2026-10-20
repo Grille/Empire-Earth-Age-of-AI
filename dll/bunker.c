@@ -77,7 +77,7 @@ static void cmd_bunker(char *out, const char *args) {
 // manager's placement (0x46580A) failed every fortress, at a spot or with its own search (0,0) - the foundation is laid
 // as the landing's forward base lays its (0x62EF8A, which pays), when it has the wood, 3 gatherers build it, an
 // unfinished one gets 2 again every minute (the game's builders mostly finish it first); its wood is held back from
-// unit training while it waits (bunker_reserve). scenarios/bombing_late.txt (the bombing at 35 min, P3 off vs on):
+// unit training while it waits (bunker_reserve). scenarios/bombing_late.eeai (the bombing at 35 min, P3 off vs on):
 // 20 seeds - workers 57.4 vs 66.2, buildings lost 2.4 vs 1.4, games down to 4-28 workers 4 vs 2 (10-seed batches
 // gave 72.6, 61.7 and 52.2 against 53.1: noise); shelling and raid_ww1 (the fortress up only after minute 20 there:
 // a WW1 start leaves little wood) about even.
@@ -279,7 +279,7 @@ static void bunker_reserve(void *pl, int *reserve) {
 // come within 20 tiles of it, the fullest fortress lets everyone out (not one where citizens shelter). The room the
 // training sees (cap - in production - population) was no guide: its count of units in production ran up to 16-30
 // while nothing came out, the reserve filled to 39 and never let anyone out - P3's losses fell (23 -> 14), its kills
-// didn't rise. scenarios/lowpop.txt (unit_limit 60 = 20 a player, cap 30; 10 seeds, P3 off vs on): kills 21.3 vs 21.3,
+// didn't rise. scenarios/lowpop.eeai (unit_limit 60 = 20 a player, cap 30; 10 seeds, P3 off vs on): kills 21.3 vs 21.3,
 // losses 23.1 vs 19.0, buildings lost 9.4 vs 9.5 - no clear gain: of 153 soldiers ordered in, about 30 were inside at
 // once (the AI's own groups take free soldiers back), and its units-in-production count, not the cap, held training
 // back - the mod's own orders queued with no room (fixed: train_room, econ.c). With that, 20 seeds, P3 off vs on (both

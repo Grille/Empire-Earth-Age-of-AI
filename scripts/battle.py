@@ -1,4 +1,4 @@
-"""battle.py: the stats fight lines of a battle200.setup log, one per snapshot (det: each type's share).
+"""battle.py: the stats fight lines of a battle200.eeai log, one per snapshot (det: each type's share).
 usage: python scripts/battle.py work/autotest_*_big*.csv [det]"""
 import re,sys
 k=0; L=open(sys.argv[1],encoding='latin1').read().split('\n')

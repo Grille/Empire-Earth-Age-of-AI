@@ -9,12 +9,12 @@ cd "$(dirname "$0")/.."
 . scripts/jobs.sh
 MIN=$1; SCEN=$2; BASE=$3; shift 3
 REPEAT=${REPEAT:-5}
-[ -f "scenarios/$SCEN.txt" ] || { echo "no scenarios/$SCEN.txt"; exit 1; }
+[ -f "scenarios/$SCEN.eeai" ] || { echo "no scenarios/$SCEN.eeai"; exit 1; }
 STAMP=$(date +%Y%m%d_%H%M)
 for v in "$@"; do
     name=${v%%:*}; extra=${v#*:}
     for r in $(seq 1 $REPEAT); do
-        ini="$BASE,teams=ffa,ai_cheat=0,ai_ignore=1,headless=1,turbo=1,quit_minutes=$MIN,game_seed=$r,setup=_aimod/scenarios/$SCEN.txt"
+        ini="$BASE,teams=ffa,ai_cheat=0,ai_ignore=1,headless=1,turbo=1,quit_minutes=$MIN,game_seed=$r,setup=_aimod/scenarios/$SCEN.eeai"
         [ -n "$extra" ] && ini="$ini,$extra"
         job -Save newgame.ees -TimeoutSec $((MIN * 12 + 120)) -Tag "_suite${STAMP}_${name}_${SCEN}-r$r" -IniExtra "$ini"
     done

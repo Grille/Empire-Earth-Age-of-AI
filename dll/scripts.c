@@ -111,7 +111,7 @@ static void WINAPI script_fiber(void *arg) {
 static void run_setup(uint32_t now) {
     if (g_nscripts < 0) {
         g_nscripts = 0;
-        for (const char *p = g_setup_path; *p && g_nscripts < SCRIPTS_MAX; ) {   // setup=a.txt;b.txt (or ,): side by side
+        for (const char *p = g_setup_path; *p && g_nscripts < SCRIPTS_MAX; ) {   // setup=a.eeai;b.eeai (or ,): side by side
             int n = (int)strcspn(p, ",;");
             struct script *s = &g_scripts[g_nscripts];
             memset(s, 0, sizeof *s);

@@ -1,7 +1,7 @@
 // SEA OPPONENT (tests only; docs/testing.md "Sea opponent", docs/navy.md stage 3 measurement): the idle human slot P1
 // plays a navy the way the playtester does on an island map, so an AI's navy can be measured against what a human
 // does - not only against another AI's (AIs are weak at sea; a 1-3 ship AI fleet holds nothing). Started by the setup
-// line "seaop start <ai> [level]" (scenarios/seaop.txt), off otherwise; nothing here runs in normal play.
+// line "seaop start <ai> [level]" (scenarios/seaop.eeai), off otherwise; nothing here runs in normal play.
 // - War: P1 and the AI are made enemies at once (the test maps ally the idle human with every AI) - at 2 s, before the
 //   AI's navy_detect (10 s) looks for enemies across the water.
 // - Build-up (spawned - P1 has no economy): warships at its docks on a schedule like a human's, a few early, most by
