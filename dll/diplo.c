@@ -23,14 +23,14 @@
 //   no peace within pride/20 minutes of his declaration; otherwise
 //   score = opinion + 25 x log2(his power / own power) (at most +-40) + 0.4 x (50 - aggression) - 0.3 x (pride - 50)
 //           + 15 if he fights the AI's strongest enemy        accept if score > 0.
-//   The score is the personality's [decide] peace_score when it has one (persona.c; the shipped files: this formula
+//   The score is the personality's decide peace_score when it has one (persona.c; the shipped files: this formula
 //   in _eeaimod_shared.eeai); the pride/20 minutes are the rule's.
 // Power = sum of soldier hit points + 30 per building (scan every 10 s).
 //
 // AI INITIATIVE ([all] ai_diplomacy, default 1; not in scenarios/campaigns, not with locked teams), per AI every
 // 60 s from minute 10:
-//   alliance: at war with a leader (power > 1.5 x own; [decide] seek_ally) - offer an alliance to another enemy of
-//     the leader it is at war with, the one it likes best (opinion; [decide] ally_score) if above -20: an AI decides like a peace offer (+15 common enemy); a human gets the offer as a
+//   alliance: at war with a leader (power > 1.5 x own; decide seek_ally) - offer an alliance to another enemy of
+//     the leader it is at war with, the one it likes best (opinion; decide ally_score) if above -20: an AI decides like a peace offer (+15 common enemy); a human gets the offer as a
 //     line and 2 minutes to answer by turning allied - only then does the AI turn allied - otherwise it is withdrawn.
 //   betrayal: allied for 10+ minutes with a player of under half its power, opinion < 30: chance per minute
 //     (100 - loyalty) x aggression / 100000 - then war (betray line). Never the player it capitulated to.
@@ -154,6 +154,12 @@ static uint32_t hlog_sum(int kind, int a, int b, uint32_t since) {   // a's even
         if (g_hlog.e[i].kind == kind && g_hlog.e[i].a == a && g_hlog.e[i].b == b && g_hlog.e[i].t >= since) r += g_hlog.e[i].n;
     return r;
 }
+// THE EVENT A LINE IS ABOUT is not counted in it: in betrayed them.betrayals(me) counts the betrayals before this one,
+// in tribute_thanks / tribute_small them.tribute(me) the tributes before this one - whenever the history counted it.
+// Set by the caller around persona_say: a's events of this kind towards b from game time t on are left out (x_relation)
+static struct { int kind, a, b; uint32_t t; } g_tell;
+static void tell_event(int kind, int a, int b, uint32_t t) { g_tell.kind = t ? kind : 0; g_tell.a = a; g_tell.b = b; g_tell.t = t; }
+static uint32_t g_betrayal_t[16][16];   // [x][y]: game time of x's last betrayal of y the history counted (its hlog entry; not saved)
 // WHAT A HUMAN PRESUMABLY THINKS of an AI - a guess for the texts (them.opinion(me) when them is a human), from what
 // the AI did to them: war (-40, a betrayal -60), peace (+10), tribute, a refused offer, their losses, slow drift as an
 // AI of middling traits (allied up, at war down, a grudge fading). Never read by the AI's decisions (the blocks read
@@ -219,8 +225,8 @@ static void hist_scan(uint32_t now) {
                 int held = !ox && !oy && now - g_hist.since[x][y] >= 120000;
                 if (sx != ox && now >= 15000) hum_turned(x, y, sx, held, sy);   // an AI's turn towards a human
                 if (sy != oy && now >= 15000) hum_turned(y, x, sy, held, sx);
-                if (held && sx) { g_hist.betrayals[x][y]++; hlog_add(HE_BETRAYAL, x, y, 1); }   // allied, and x turned
-                if (held && sy) { g_hist.betrayals[y][x]++; hlog_add(HE_BETRAYAL, y, x, 1); }
+                if (held && sx) { g_hist.betrayals[x][y]++; hlog_add(HE_BETRAYAL, x, y, 1); g_betrayal_t[x][y] = game_time(); }   // allied, and x turned
+                if (held && sy) { g_hist.betrayals[y][x]++; hlog_add(HE_BETRAYAL, y, x, 1); g_betrayal_t[y][x] = game_time(); }
                 int old = ox && oy ? 2 : !ox && !oy ? 1 : 0;
                 if (old != state) g_hist.since[x][y] = g_hist.since[y][x] = now;
             }
@@ -381,7 +387,7 @@ static float det_log2f(float x) {
     return (float)e + 2.0f * t * (1.0f + t2 * (1.0f / 3 + t2 * (1.0f / 5 + t2 * (1.0f / 7)))) * 1.44269504f;
 }
 
-// would AI pl make peace / an alliance with player j now? (score > 0) - its [decide] peace_score when it has one
+// would AI pl make peace / an alliance with player j now? (score > 0) - its decide peace_score when it has one
 // (me = pl, them = j, enemy = its strongest enemy); the cooling-off after j's declaration is the rule's, not the score's
 static float peace_score(void *pl, int ai, int j, uint32_t now) {
     if (g_war_since[ai][j] && now - g_war_since[ai][j] < (uint32_t)trait(pl, T_PRIDE) * 3000u) return -1000;
@@ -833,7 +839,7 @@ static void diplo_initiative(void *pl, int ai, uint32_t now) {
     if (!g_ai_diplomacy || TEAMS_LOCKED || scenario_game() || now < 600000) return;
     if (is_vassal(ai)) { vassal_rebellion(pl, ai, now, 1); return; }
     int lead = strongest_enemy(pl, ai);
-    // alliance against the leader ([decide] seek_ally: me = pl, enemy = the leader; ally_score: them = the candidate)
+    // alliance against the leader (decide seek_ally: me = pl, enemy = the leader; ally_score: them = the candidate)
     double d;
     void *pe = lead ? player_at(lead) : NULL;
     if (lead && (persona_decide(pl, D_SEEK_ALLY, NULL, pe, &d) ? d != 0 : g_ws.power[lead] > 1.5f * power_of(ai))) {
@@ -1311,7 +1317,13 @@ static void diplo_tick(void *pl, unsigned ai, uint32_t now) {
             if (!s || stance_of(pl, j) || is_out(pj)) continue;   // peace again, or already at war
             set_stance((int)ai, j, 1);
             stance_note((int)ai, j, 1);
+            // a betrayal: counted by the history when the stances changed (hist_scan) - not in its line. One counted in
+            // the last minute is this one (an earlier one needs an alliance of 2 minutes in between); none there (the
+            // history's 2 minutes not reached): nothing left out
+            if (g_war_betrayal[ai][j] && g_betrayal_t[j][ai] && now - g_betrayal_t[j][ai] <= 60000)
+                tell_event(HE_BETRAYAL, j, (int)ai, g_betrayal_t[j][ai]);
             persona_say(pl, g_war_betrayal[ai][j] ? L_BETRAYED : L_WAR_DECLARED, pj, NULL);
+            tell_event(0, 0, 0, 0);
             void *cbm = FIELD(pl, 0xB8C, void *);
             if (cbm) ((void (__thiscall *)(void *, void *))FN_REVENGE)(cbm, pj);
             g_diplo_answers[ai]++;
@@ -1346,9 +1358,9 @@ static void diplo_tick(void *pl, unsigned ai, uint32_t now) {
             } else if (now - g_offer_t[ai][j] > (uint32_t)g_offer_min * 60000u) {
                 g_offer_t[ai][j] = 0;
                 if (capit) { promise_escrow((int)ai, 0); memset(g_promise[ai], 0, sizeof g_promise[ai]); }
-                else if (!unity) g_offer_ignored[ai][j]++;
                 if (capit && g_log) fprintf(g_log, "# diplomacy: P%u at %.1f min: P%d ignored the capitulation\n", ai, now / 60000.0, j);
                 persona_say(pl, capit ? L_CAPITULATE_REFUSED : L_OFFER_WITHDRAWN, pj, NULL);
+                if (!capit && !unity) g_offer_ignored[ai][j]++;   // after its line: them.ignored(me) there counts the offers before
                 if (!stance_of(pl, j)) {   // the capitulation's cease-fire ends (an offer never changed its stance)
                     set_stance((int)ai, j, 1);
                     stance_note((int)ai, j, 1);
@@ -1416,6 +1428,7 @@ static void diplo_new_game(void) {
     memset(g_offer_t, 0, sizeof g_offer_t);
     memset(g_offer_last, 0, sizeof g_offer_last);
     memset(g_offer_ignored, 0, sizeof g_offer_ignored);
+    memset(g_betrayal_t, 0, sizeof g_betrayal_t);
     memset(g_opinion, 0, sizeof g_opinion);
     memset(g_kills, 0, sizeof g_kills);
     memset(g_kills_min, 0, sizeof g_kills_min);
@@ -1450,24 +1463,34 @@ static void diplo_new_game(void) {
 // +0x24, amounts +0x10 food, +0x14 gold, +0x18 iron, +0x1C stone, +0x20 wood.
 #define VT_PAY_TRIBUTE 0x008289C0
 #define FN_PAY_TRIBUTE 0x004BA6BE
-static void diplo_tribute(void *to, void *from, int total) {
+// a tribute reached AI to: amount by resource (stock index 2..6) - its opinion, its thanks ({tribute} in them)
+static void diplo_tribute(void *to, void *from, const int *amount) {
+    int total = 0;
+    for (int r = 2; r < 7; r++) total += amount[r] > 0 ? amount[r] : 0;
     if (!to || !from || to == from || !mod_ai(pidx(to)) || total <= 0) return;
     int ai = pidx(to), j = pidx(from);
     float gain = (float)total / tribute_worth(to);
     opinion_add(ai, j, gain);
     if (g_log) fprintf(g_log, "# diplomacy: P%d receives %d tribute from P%d: opinion +%.0f -> %.0f\n", ai, total, j, gain, g_opinion[ai][j]);
     if (j == (int)*(unsigned *)G_LOCAL_PLAYER) { char n[16], e[300]; tsub(e, sizeof e, tpl_text("ev_tribute_in"), to, from, "total", tnum(n, total), NULL); llm_happened(ai, "%s", e); }
+    tell_event(HE_TRIBUTE, j, ai, game_time() ? game_time() : 1);   // this tribute not in its line (counted before or after)
+    int keep[7];   // {tribute}: this one (a capitulation's terms may be in g_say_tribute)
+    memcpy(keep, g_say_tribute, sizeof keep);
+    memcpy(g_say_tribute, amount, sizeof keep);
     persona_say(to, gain >= 5 ? L_TRIBUTE_THANKS : L_TRIBUTE_SMALL, from, NULL);
+    memcpy(g_say_tribute, keep, sizeof keep);
+    tell_event(0, 0, 0, 0);
     if (!stance_of(from, ai) && stance_of(to, j)) g_peace_due[ai][j] = game_time() + 3000;   // ask again now
 }
 static void __fastcall hook_tribute(uint8_t *msg, void *edx) {
     (void)edx;
     int total = FIELD(msg, 0x10, int) + FIELD(msg, 0x14, int) + FIELD(msg, 0x18, int) + FIELD(msg, 0x1C, int) + FIELD(msg, 0x20, int);
+    int amount[7] = { 0, 0, FIELD(msg, 0x10, int), FIELD(msg, 0x20, int), FIELD(msg, 0x1C, int), FIELD(msg, 0x14, int), FIELD(msg, 0x18, int) };
     void *to = player_at(msg[0x24]);
     void *from = ((void *(__thiscall *)(void *, int))0x0052E6EF)(GAME_STATE, (int)(int8_t)msg[0xA]);
     ((void (__thiscall *)(void *))FN_PAY_TRIBUTE)(msg);
     if (from && to) hist_tribute(pidx(from), pidx(to), total);
-    diplo_tribute(to, from, total);
+    diplo_tribute(to, from, amount);
 }
 
 // VICTORY OVER VASSALS: the game ends only when everyone still in is allied with everyone else (0x531913 every step:
@@ -1746,8 +1769,9 @@ static void cmd_diplo(char *out, const char *args) {
               g_promise[a][5], g_promise[a][6], g_lord[a] == b ? " - accepted" : "");
         return;
     }
-    if (sscanf(args, "tribute %d %d %d", &a, &b, &s) == 3) {   // diplo tribute A B N: A's tribute of N reaches AI B
-        diplo_tribute(player_at(b), player_at(a), s);
+    if (sscanf(args, "tribute %d %d %d", &a, &b, &s) == 3) {   // diplo tribute A B N: A's tribute of N gold reaches AI B
+        int amount[7] = { 0, 0, 0, 0, 0, s, 0 };
+        diplo_tribute(player_at(b), player_at(a), amount);
         hist_tribute(a, b, s);
         REPLY("P%d -> P%d: tribute %d, opinion %.0f\n", a, b, s, b > 0 && b < 16 && a > 0 && a < 16 ? g_opinion[b][a] : 0.0f);
         return;
@@ -1852,10 +1876,10 @@ static const struct xmember k_xmembers[] = {
     { "hostile", XM_REL, "1 when A treats B as an enemy (whatever B does)" },
     { "war_minutes", XM_REL, "how long the war of A and B has lasted: from both enemies until both are allied again (a peace offer doesn't end it; in peace_accept: the war just ended) - nothing without a war" },
     { "alliance_minutes", XM_REL, "how long A and B have been allied - nothing when they are not" },
-    { "betrayals", XM_REL, "how often A turned on B while they were allied (an alliance of 2 minutes or more: a peace broken at once is war, not betrayal) - (B, minutes): in the last minutes" },
+    { "betrayals", XM_REL, "how often A turned on B while they were allied (an alliance of 2 minutes or more: a peace broken at once is war, not betrayal) - (B, minutes): in the last minutes; in betrayed the betrayals before the one it is about" },
     { "refusals", XM_REL, "how often A refused B's offers of peace or alliance - (B, minutes): in the last minutes" },
-    { "ignored", XM_REL, "B's alliance offers A let run out, in a row" },
-    { "tribute", XM_REL, "resources A has paid B in this game - (B, minutes): in the last minutes, them.tribute(me, 15)" },
+    { "ignored", XM_REL, "B's alliance offers A let run out, in a row - in offer_withdrawn those before the one withdrawn" },
+    { "tribute", XM_REL, "resources A has paid B in this game - (B, minutes): in the last minutes, them.tribute(me, 15); in tribute_thanks / tribute_small what was paid before this tribute" },
     { "near", XM_REL, "A's soldiers within 20 tiles of B's base now, while B treats A as an enemy (an AI's base)" },
     { "in_town", XM_REL, "1 when A's army is in B's town: its soldiers have stayed near B's base for a while (an AI's base)" },
     { "attack_minutes", XM_REL, "minutes since A's last attack wave set out against B - nothing if none (an AI's waves)" },
@@ -1985,6 +2009,11 @@ static void x_relation(void *pa, void *pb, const struct xmember *m, double win, 
     else if (!strcmp(n, "refusals")) r = whole ? g_hist.refused[a][b] : hlog_sum(HE_REFUSED, a, b, since);
     else if (!strcmp(n, "ignored")) r = g_offer_ignored[b][a];
     else if (!strcmp(n, "tribute")) r = whole ? g_hist.tribute[a][b] : hlog_sum(HE_TRIBUTE, a, b, since);
+    if (g_tell.kind && g_tell.a == a && g_tell.b == b
+        && ((g_tell.kind == HE_BETRAYAL && !strcmp(n, "betrayals")) || (g_tell.kind == HE_TRIBUTE && !strcmp(n, "tribute")))) {
+        r -= hlog_sum(g_tell.kind, a, b, g_tell.t > since ? g_tell.t : since);   // the event the line is about
+        if (r < 0) r = 0;
+    }
     else if (!strcmp(n, "near")) { if (!g_players[b]) return; r = g_ws.close_by[b][a]; }
     else if (!strcmp(n, "in_town")) { if (!g_players[b]) return; r = g_pressure[b][a] >= 10; }
     else if (!strcmp(n, "attack_minutes")) {

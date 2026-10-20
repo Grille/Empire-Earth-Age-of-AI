@@ -29,7 +29,7 @@ The `[autotest]` keys:
 | `seltest T [x0 y0 x1 y1]` (pipe/setup) | builds the double-click selection message for unit type T (screen rectangle 0x8D2778 or the given one) and carries it out: units found, packed, unpacked, selected |
 | `texts`, `texts dump [force]` (pipe/setup) | the text files read (`aimod_ai\_system.eeai`, `_template.eeai`); dump writes both with every key and its built-in text (existing files kept without force) - regenerate them after changing a built-in text (dll/texts.c, dll/texts_prompt.h) |
 | `strict_parsing=1` | every mistake in the texts also queued and shown: in a test no message box (the files' mistakes come as system lines at the first AI update), the log says `# texts: strict parsing: N mistake(s) shown in the game`. Test of 2026-10-14 on `llmtest.eeai` with the mock: no mistake in the built-in texts (no placeholder left unfilled) |
-| `texts eval [P [Q]] <expression>`, `texts line P <situation> [Q [R]]` (pipe/setup) | an expression's value with P speaking to Q (default the local player), with _system.eeai's and P's personality's `[vars]` (dll/expr.c); the variant P would say now in that situation, its condition checked and filled. The system lines the player is shown are logged (`# system line:`). Test of 2026-10-14: a temporary personality with `[vars]`, `[vars:de]` and conditioned variants, `[vars]` in both files, a prompt piece and two system lines with expressions - all as written; old/new DLL on `llmtest.eeai` with the mock: the same prompts but for the stock amounts |
+| `texts eval [P [Q]] <expression>`, `texts line P <situation> [Q [R]]` (pipe/setup) | an expression's value with P speaking to Q (default the local player), with _system.eeai's and P's personality's names (vars; dll/expr.c); the variant P would say now in that situation, its condition checked and filled. The system lines the player is shown are logged (`# system line:`). Test of 2026-10-14: a temporary personality with `[vars]`, `[vars:de]` and conditioned variants, `[vars]` in both files, a prompt piece and two system lines with expressions - all as written; old/new DLL on `llmtest.eeai` with the mock: the same prompts but for the stock amounts |
 | `diplo offer A B C`, `diplo capit A B` (pipe/setup) | AI A offers B an alliance against C / capitulates to B, as its initiative would (with `llm_ai_decide`: B's model answers) |
 | `diplo propose A alliance\|betray\|capitulate\|rebel [C]` (pipe/setup) | put a move of the rules towards the local player to AI A's model, as the rules do (`llm_decide=1`; C: the third player of an alliance). An empty answer that ended by itself is its no (the proposal says "write nothing"); only one cut off (max_tokens) or an error lets the rules go ahead |
 | `diplo rebel A` (pipe/setup) | AI A's rebellion against its lord now, without the dice: it rebels, or why not (loyal, served under 10 minutes, thinks well of its lord, too weak against its lord's side) |
@@ -834,15 +834,17 @@ Intercept: flight times the same (1.9-2.2 s). Pursuit already hits: missiles 2.5
 
 The text language's engine (dll/expr.c) was rewritten on 2026-10-20 (a tree parsed once, statements, functions,
 scripts). Before the old engine went, `texts corpus [file]` (a pipe command; default `aimod_dumps\texts_corpus.txt`)
-was added to it and run in the old and the new build: every personality's line, `[vars]` entry, `[decide]` key, colour
-and `[style]` value for every AI speaking to every other player, every system line and prompt piece filled, every
+was added to it and run in the old and the new build: every personality's line, vars entry, decide key, colour
+and style value for every AI speaking to every other player, every system line and prompt piece filled, every
 aimod.ini number, and the hand-written cases of `scripts/text_engine_cases.txt` (with their syntax check) - each with
 the generators set to fixed values first: its value, its items, its mistakes' messages and the draws it made. Continental
 3 AIs (game_seed 777) at minutes 5, 15, 30 (4971 lines each) and Highlands 5 AIs (game_seed 4242) at 12 and 40 (12651
 each): the same but for 3 lines - input that is no expression (`[1, 2`, `["x" "y"]`, a URL in the ini) the old engine
 worked out partly (a list item drawn, a name looked up) before it found the mistake; the new one works out nothing of
 it. The games themselves were the same, row for row. A change to the engine: run the corpus before and after (`texts
-corpus` at the same minutes of the same game_seed) and compare.
+corpus` at the same minutes of the same game_seed) and compare. The text files' records (`lines = { ... }` instead of
+`[lines]`, 2026-10-21): the old reader with the old files against the new one with the converted files, Continental
+game_seed 777 at 5, 15, 30 - every line the same.
 
 ### Headless UI tests (menus, editor)
 

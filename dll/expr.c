@@ -1,6 +1,7 @@
 // THE TEXT FILES (<game>\aimod_ai\*.eeai: the personalities, _system.eeai, _template.eeai) and the EXPRESSIONS in them.
-// A file: sections [name] / [name:<language>], "key = value" lines, comments from ; or # to the line's end (outside a
-// string). A value is an expression - over several lines while a ( [ or { is open:
+// A file: "name = value" lines - a name the file's lines use (or, for a few names, what the file is about), records
+// "lines = {" ... "}" (the keys the code reads, one "key = value" a line), include("_shared.eeai") - and comments from #
+// to the line's end (outside a string). A value is an expression - over several lines while a ( [ or { is open:
 //   "text"                          a string; \" \\ \n escapes. {expressions} in it - {them} -
 //                                   {opinion > 30 ? "friend" : "stranger"}: the quotes inside the braces are the
 //                                   expression's, not the string's end; a string stays on its line
@@ -14,7 +15,7 @@
 // personality's line is such a value: [allied ? "Welcome back.", opinion < -50 ? angry] ?? ["Greetings.", "Hello."]
 // A mistake is logged with the file and line (# texts:) and that key is skipped.
 // The expressions: numbers (70% is 0.7 - % only right after a number), "texts" (or 'texts', the same rules), lists,
-// names (a placeholder of the text, a [vars] entry, a game value - x_builtin in diplo.c), ( ), + - * /,
+// names (a placeholder of the text, a vars entry, a game value - x_builtin in diplo.c), ( ), + - * /,
 // < <= > >= == !=, and or not (only the words: && || ! are a mistake), a ? b : c, a ? b, a ?? b, the functions
 // chance(p) (true with the probability p, 0..1: chance(70%)), rnd(n) (0 <= x < n, n 1 when left out), min, max, abs,
 // round, floor (down to a whole number), log2 (of a number above 0), the lists' len(l), first(l), item(l, i) (from 1), contains(l, x) and
@@ -39,8 +40,9 @@
 // FUNCTIONS AND STATEMENTS: (a, b) => value, (i) => { statements } is a function, a value like any other; called by
 // the name it is in (row(3)), its parameters and the names of the code around where it was made visible (those read
 // only: frames, x_call_value), the values it made freed when it returns but what it hands back (never a function made
-// in it). Statements (a block's, a script's - one a line): name = value, return [value], an expression. In the text
-// files they don't occur (keys and values only) and nothing loops: a text can't hang the game. Scripts (scripts.c,
+// in it). Statements (a block's, a script's - one a line): name = value, return [value], an expression. The text
+// files hold names, records and include() only - nothing runs from the top: their values are worked out where the
+// code needs them, for whoever speaks to whom - and nothing loops: a text can't hang the game. Scripts (scripts.c,
 // docs/scripts.md) add the commands, wait, wait_until, every (bounded), for (bounded), player(n), time, stop and 20s / 19.5min.
 // MISTAKES WHILE WORKING OUT (x_fail; the file was fine, the value isn't): an unknown name, a text in arithmetic
 // ("a" * 2), a text and a number added or compared ("12" + 1, "12" == 12), chance(70), a player who isn't there used
@@ -68,7 +70,7 @@ struct xctx {
     int depth, level, failed, bad, circle;  // nesting: vars in vars, the parser's levels (all together); mistakes while
                                             // working it out (x_fail, told); not an expression; too deep
     int nogame;                             // before the game (a personality's color): its values and players are mistakes
-    int game;                               // a decision ([decide]): it changes the game - draws from the game's generator
+    int game;                               // a decision (decide): it changes the game - draws from the game's generator
     int fixed;                              // an ini file's number (ini.c): no names, no draws, no lists - told quietly
     int missed;                             // x_missing from the game's values (diplo.c): the primary fails
     int script;                             // a script (scenarios): its functions (wait, wait_until, every, for ...) and commands
@@ -85,7 +87,7 @@ struct xfn;
 struct xval { int has_n, has_s, w, pl, ln, kind; double n; const char *s; const struct xval *it; const struct xfn *fn; char miss[24]; };
 static int xl_n(const struct xval *v) { return v->ln ? v->ln : v->w > 0; }   // its items (one value: 1, nothing: 0)
 static const struct xval *xl_at(const struct xval *v, int i) { return v->ln ? &v->it[i] : v; }
-static struct xvars g_vars_sys, g_vars_tpl;   // _system.ini [vars] (+ [vars:<language>]), _template.ini [vars] (texts.c)
+static struct xvars g_vars_sys, g_vars_tpl;   // _system.eeai vars, _template.eeai vars (texts.c)
 static int x_builtin(struct xctx *c, const char *name, struct xval *v);   // diplo.c: the game's values
 static int x_is_value(const char *name);   // diplo.c: a name that is a value of its own (them, epoch, minutes ...)
 // diplo.c: a relation, them.opinion(me) - 0: name is none (v NULL: only that checked)
@@ -192,7 +194,7 @@ static void x_error(const char *fmt, ...) {
     LeaveCriticalSection(&g_x_lock);
 }
 
-// [vars] keys: "name" or a function "name(a,b)" (its parameters, tfile_parse) - the same name is the same entry
+// vars keys: "name" or a function "name(a,b)" (its parameters, tfile_parse) - the same name is the same entry
 static int xkey_is(const char *key, const char *name) {
     size_t n = strcspn(key, "(");
     return n == strcspn(name, "(") && !_strnicmp(key, name, n);
@@ -236,22 +238,31 @@ static int x_check_par_has(const char *s, int n) {
     }
     return 0;
 }
-// THE [vars] NAMES of all the files too (x_name_check: an entry may come from another file, or later in this one)
+// THE NAMES (vars) of all the files too (x_name_check: an entry may come from another file, or later in this one)
 static char g_xvn[256][40];
 static int g_xvn_n;
 static void x_var_add(const char *b, size_t n) { if (n && n < 40 && g_xvn_n < 256) lstrcpynA(g_xvn[g_xvn_n++], b, (int)n + 1); }
-static void x_fn_scan(const char *text) {   // the lines "name(a, b) =" of a file, and "name =" in [vars] / [vars:..]
-    int vars = 0;
+static int x_record_open(const char *e) {   // after "name =": "{" and nothing more on the line (a comment) - a record
+    while (*e == ' ' || *e == '\t') e++;
+    if (*e++ != '{') return 0;
+    while (*e == ' ' || *e == '\t' || *e == '\r') e++;
+    return !*e || *e == '\n' || *e == '#';
+}
+static void x_fn_scan(const char *text) {   // the lines "name(a, b) =" of a file, and "name =" outside its records
+    int rec = 0;
     for (const char *s = text; *s; ) {
-        if (*s == '[') vars = !_strnicmp(s + 1, "vars", 4) && (s[5] == ']' || s[5] == ':');   // a section
         while (*s == ' ' || *s == '\t') s++;
+        if (*s == '}') rec = 0;   // a record's end
         const char *b = s;
         while (isalnum((unsigned char)*s) || *s == '_') s++;
         size_t n = (size_t)(s - b);
-        if (vars && n && *s != '(') {
+        if (!rec && n && *s != '(') {
             const char *e = s;
             while (*e == ' ' || *e == '\t') e++;
-            if (*e == '=' && e[1] != '=') x_var_add(b, n);
+            if (*e == '=' && e[1] != '=') {
+                if (x_record_open(e + 1)) rec = 1;
+                else x_var_add(b, n);
+            }
         }
         if (n && n < 40 && *s == '(') {
             int k = 1, empty = 1;
@@ -279,7 +290,7 @@ static int x_var_known(const char *name) {
     for (int i = 0; i < g_xvn_n; i++) if (!lstrcmpiA(g_xvn[i], name)) return 1;
     return 0;
 }
-// THE NAMES CHECK while a file is read (tfile_parse): a name that is nothing known - no parameter, constant, [vars]
+// THE NAMES CHECK while a file is read (tfile_parse): a name that is nothing known - no parameter, constant, vars
 // entry of any file, game value or placeholder the code fills for this key - is told with its file and line (strict
 // parsing: in the startup box); the key is kept, at run time the name fails what it is in (x_fail)
 static const char *g_x_check_file, *g_x_check_ph;   // the file being read; " a b " the code's placeholders for the key
@@ -287,7 +298,7 @@ static int g_x_check_line;
 static int x_name_valid(const char *name);   // diplo.c: a name x_builtin takes (them, epoch, them.lord.soldiers ...)
 static const char *x_code_placeholders(const char *file, const char *sec, const char *key);   // texts.c
 static int x_const(const char *name, struct xval *v);
-static int x_name_known(const char *name) {   // a parameter, constant, [vars] entry, game value or the code's placeholder
+static int x_name_known(const char *name) {   // a parameter, constant, vars entry, game value or the code's placeholder
     struct xval t;
     char w[48];
     if (strlen(name) > 40) return 1;
@@ -957,7 +968,7 @@ static const struct xunit *x_compiled(const char *src) {
     return &e->u;
 }
 
-// the builtin functions: their number by name and argument count (0: none - a [vars] function or a relation)
+// the builtin functions: their number by name and argument count (0: none - a vars function or a relation)
 static int x_fn_id(const char *name, int na) {
     return !lstrcmpiA(name, "chance") && na == 1 ? 1 : (!lstrcmpiA(name, "min") || !lstrcmpiA(name, "max")) && na ? 2 :
            !lstrcmpiA(name, "abs") && na == 1 ? 3 : !lstrcmpiA(name, "round") && na == 1 ? 4 :
@@ -967,7 +978,7 @@ static int x_fn_id(const char *name, int na) {
            !lstrcmpiA(name, "map_range") && na == 3 ? 11 : !lstrcmpiA(name, "str") && na == 1 ? 12 :
            !lstrcmpiA(name, "number") && na == 1 ? 13 : !lstrcmpiA(name, "log2") && na == 1 ? 14 : 0;
 }
-static int x_par_count(const char *par) {   // a [vars] function's parameters "a,b)": how many
+static int x_par_count(const char *par) {   // a vars function's parameters "a,b)": how many
     int want = *par == ')' ? 0 : 1;
     for (const char *q = par; *q && *q != ')'; q++) want += *q == ',';
     return want;
@@ -977,7 +988,7 @@ static int x_par_count(const char *par) {   // a [vars] function's parameters "a
 // In source order: a name nobody knows (logged with the file and line - in a script a mistake), a function nobody has
 // or with the wrong number of arguments, chance(70), a text compared with a number written as such ("12" == 12), a
 // variable of the code around a function changed in it. The names a function sees: its parameters, what its own
-// body and every body around it assign, the [vars], the game's values.
+// body and every body around it assign, the vars, the game's values.
 struct xscope { const struct xscope *up; const char *name[64]; int n; };
 static int xsc_find(const struct xscope *s, const char *name, size_t len, int *own) {   // 1: there (*own: this scope's)
     for (int level = 0; s; s = s->up, level++)
@@ -1173,9 +1184,9 @@ static int xcmp(const struct xval *a, const struct xval *b) {   // <0, 0, >0: pl
     return lstrcmpiA(xtext_of(a), xtext_of(b));
 }
 static void x_nogame(struct xe *e, const char *name) {   // a game value or a player where there is no game yet
-    x_fail(e, "%s: no game yet - only constants, chance(), rnd(), language and [vars] here", name);
+    x_fail(e, "%s: no game yet - only constants, chance(), rnd(), language and vars here", name);
 }
-// the body of a [vars] entry or function (its source) worked out in this context: compiled, deep enough to go on
+// the body of a vars entry or function (its source) worked out in this context: compiled, deep enough to go on
 // (the levels together with where it is used), its value
 static int x_body(struct xe *e, const char *src, struct xval *v) {
     const struct xunit *u = x_compiled(src);
@@ -1213,7 +1224,7 @@ static void xe_ident(struct xe *e, const char *name, struct xval *v) {
     x_fail(e, !strcmp(name, "name") ? "an unknown name: name - the other player is them (them.name)" : "an unknown name: %s", name);
 }
 // a function's body (def), its parameters (par "a,b)") bound to the arguments: they alone are its names besides the
-// game's values and the [vars] - a function calling itself ends at the nesting limit like vars in a circle
+// game's values and the vars - a function calling itself ends at the nesting limit like vars in a circle
 static void x_call(struct xe *e, const char *def, const char *par, const struct xval *a, int na, struct xval *v) {
     struct xctx *c = e->c;
     char names[8][24];
@@ -1403,7 +1414,7 @@ static void xe_call(struct xe *e, const struct xnode *n, struct xval *v) {
     int f = x_fn_id(name, na);
     for (int i = 0; f && i < na; i++) if (a[i].miss[0]) x_use(e, &a[i]);   // a function's arguments (a relation checks its players) - each told
     if (e->err) return;
-    if (e->c->fixed && (f == 1 || f == 5 || !f)) {   // a setting: fixed - no draws, no [vars] functions
+    if (e->c->fixed && (f == 1 || f == 5 || !f)) {   // a setting: fixed - no draws, no vars functions
         x_fail(e, "%s(): a setting is a fixed number (no chance(), rnd() or names)", name);
         return;
     }
@@ -1417,14 +1428,14 @@ static void xe_call(struct xe *e, const struct xnode *n, struct xval *v) {
     if (f == 14 && !(xto_num(&a[0]) > 0)) { x_fail(e, "log2(%g): only of a number above 0", xto_num(&a[0])); return; }
     if (f == 11)
         for (int i = 0; i < xl_n(&a[1]); i++) if (!x_numeric_ok(e, xl_at(&a[1], i))) return;
-    if (!f && !strchr(name, '.')) {   // a function of [vars]: name(a, b) = ...
+    if (!f && !strchr(name, '.')) {   // a function of vars: name(a, b) = ...
         const char *par = NULL, *def = NULL;
         for (int k = 0; k < 3 && !def; k++) def = xvars_fn(e->c->vars[k], name, &par);
         int want = def ? x_par_count(par) : x_fn_known(name);
         if (want >= 0) {
             static char why[80];
             if (want != na) { snprintf(why, sizeof why, "%s takes %d argument%s", name, want, want == 1 ? "" : "s"); e->err = 1; e->why = why; return; }
-            if (!def) { snprintf(why, sizeof why, "%s: a function of another file's [vars]", name); e->err = 1; e->why = why; return; }
+            if (!def) { snprintf(why, sizeof why, "%s: a function of another file's vars", name); e->err = 1; e->why = why; return; }
             x_call(e, def, par, a, na, v);
             return;
         }
@@ -1687,7 +1698,7 @@ static int x_eval(const char *src, struct xctx *c, struct xval *v) {   // its va
     int ok = !e.err && !c->circle;
     if (ok) { x_use(&e, v); ok = !e.err; }   // a player who isn't there, written in the text
     if (top) c->top = NULL;
-    if (c->circle && !c->depth) { c->circle = 0; x_log_bad("[vars] naming each other in a circle", src); }
+    if (c->circle && !c->depth) { c->circle = 0; x_log_bad("vars naming each other in a circle", src); }
     return ok;   // 0 and c->failed up: a mistake while working it out, told
 }
 
@@ -1835,7 +1846,7 @@ static int x_fill(char *out, int cap, const char *tmpl, struct xctx *c) {
                 c->depth++;
                 int ok = x_eval(src, c, &v) && !c->circle;
                 c->depth--;
-                if (c->circle && !c->depth) { c->circle = 0; x_log_bad("[vars] naming each other in a circle", src); }
+                if (c->circle && !c->depth) { c->circle = 0; x_log_bad("vars naming each other in a circle", src); }
                 if (ok && fmt && !(v.w && v.has_n && !v.pl)) {   // {name:%}: a text, a player, nothing - a mistake
                     x_error("{%s:...}: a format for a number, this is none", src);
                     c->failed++;
@@ -1902,13 +1913,12 @@ static void tl_blank(struct tlex *l, int lines) {   // spaces; with lines: line 
         char c = *l->s;
         if (c == ' ' || c == '\t' || c == '\r') l->s++;
         else if (lines && c == '\n') { l->line++; l->s++; }
-        else if (lines && (c == ';' || c == '#')) while (*l->s && *l->s != '\n') l->s++;
+        else if (lines && c == '#') while (*l->s && *l->s != '\n') l->s++;
         else return;
     }
 }
 static void tval_free(struct tval *v) { free(v->text); free(v->src); memset(v, 0, sizeof *v); }
-static int tl_key_line(const char *t) {   // a line that starts a key ("name =", "name(a, b) =", not "a == b") or a section
-    if (*t == '[') return 1;   // a section: [ at the line's start (an indented [ is a list in a value)
+static int tl_key_line(const char *t) {   // a line that starts a key ("name =", "name(a, b) =", not "a == b")
     while (*t == ' ' || *t == '\t') t++;
     const char *k = t;
     while (*t && (isalnum((unsigned char)*t) || strchr("_:.-", *t))) t++;
@@ -1952,7 +1962,8 @@ static void tl_value(struct tlex *l, struct tval *v) {
         if (!c || (c == '\n' && !depth)) break;
         if (c == '\n' && tl_key_line(l->s + 1)) { l->line++; l->s++; break; }   // the next key: depth tells
         if (c == '\n' || c == '\r' || c == '\t') { if (c == '\n') l->line++; l->s++; c = ' '; }
-        else if (c == ';' || c == '#') { while (*l->s && *l->s != '\n') l->s++; continue; }
+        else if (c == '#') { while (*l->s && *l->s != '\n') l->s++; continue; }
+        else if (c == ';') { tl_error(l, "; - a comment starts with #"); free(r); return; }
         else if (c == '"' || c == '\'') {   // a string, copied as written
             const char *e, *why;
             if (x_string(l->s, NULL, 0, &e, &why) < 0) { tl_error(l, why); free(r); return; }
@@ -1997,31 +2008,69 @@ static void tl_value(struct tlex *l, struct tval *v) {
         tval_free(v);
     }
 }
-// read a text file: fn(arg, section, key, value) for every key ("" before the first section); mistakes logged with
-// the file and line, their keys skipped
-typedef void (*tfile_fn)(void *arg, const char *section, const char *key, struct tval *v, struct tlex *l);
+// a line where reading goes on after a mistake: one that starts a key, a record's end (}) - or an old [section] / ; comment
+static int tl_stop_line(const char *t) {
+    if (tl_key_line(t)) return 1;
+    while (*t == ' ' || *t == '\t') t++;
+    return *t == '}' || *t == '[' || *t == ';';
+}
+static int tl_line_end(struct tlex *l, const char *what) {   // nothing more on the line but a comment; 0: a mistake told
+    tl_blank(l, 0);
+    if (*l->s == '#') while (*l->s && *l->s != '\n') l->s++;
+    if (*l->s && *l->s != '\n') { tl_error(l, what); return 0; }
+    return 1;
+}
+// read a text file: fn(arg, record, key, value) for every key - record "" for a name outside the records, and
+// include("a.eeai", ...) as the key "include" with the list ["a.eeai", ...]; mistakes logged with the file and line,
+// their keys skipped
+typedef void (*tfile_fn)(void *arg, const char *record, const char *key, struct tval *v, struct tlex *l);
 static void tfile_parse(const char *file, const char *text, tfile_fn fn, void *arg) {
     struct tlex l = { text, file, 1, 0 };
-    char section[48] = "";
+    char record[48] = "";   // the record being read: name = { ... }
+    int record_line = 0;
     for (;;) {
         tl_blank(&l, 1);
-        if (!*l.s) return;
+        if (!*l.s) {
+            if (*record) { l.line = record_line; tl_error(&l, "a record without its }"); }
+            return;
+        }
         l.err = 0;
-        if (*l.s == '[') {
-            const char *e = strchr(l.s, ']'), *nl = strchr(l.s, '\n');
-            if (!e || (nl && e > nl) || e - l.s - 1 >= (int)sizeof section) { l.s++; lstrcpyA(section, "?"); tl_error(&l, "a section without its ], with its keys"); }
-            else {
-                lstrcpynA(section, l.s + 1, (int)(e - l.s));
-                l.s = e + 1;
-                tl_blank(&l, 0);
-                if (*l.s == ';' || *l.s == '#') while (*l.s && *l.s != '\n') l.s++;
-                if (*l.s && *l.s != '\n') tl_error(&l, "something after the section");
-            }
+        const char *start = l.s;
+        if (*l.s == '}') {
+            if (!*record) { l.s++; tl_error(&l, "a } too many"); }
+            else { record[0] = 0; l.s++; tl_line_end(&l, "something after the record's }"); }
+        } else if (*l.s == '[') {
+            tl_error(&l, "a [section]: the files have records now - lines = { greeting = ... }");
+        } else if (*l.s == ';') {
+            tl_error(&l, "; - a comment starts with #");
         } else {
             char key[160];
             int n = 0;
-            while (*l.s && (isalnum((unsigned char)*l.s) || strchr("_:.-", *l.s)) && n < 47) key[n++] = *l.s++;
+            while (*l.s && (isalnum((unsigned char)*l.s) || *l.s == '_') && n < 47) key[n++] = *l.s++;
             key[n] = 0;
+            if (n && *l.s == '(' && !*record && !strcmp(key, "include")) {   // include("a.eeai", ...): ["a.eeai", ...]
+                struct tval v;
+                memset(&v, 0, sizeof v);
+                v.line = l.line;
+                v.kind = TV_EXPR;
+                const char *b = ++l.s, *e, *why;
+                while (*l.s && *l.s != ')' && *l.s != '\n')
+                    if (*l.s == '"' || *l.s == '\'') { if (x_string(l.s, NULL, 0, &e, &why) < 0) break; l.s = e; }
+                    else l.s++;
+                if (*l.s != ')') { tl_error(&l, "include(\"_file.eeai\"): a ) missing"); }
+                else {
+                    size_t k = (size_t)(l.s - b);
+                    v.src = malloc(k + 3);
+                    v.src[0] = '[';
+                    memcpy(v.src + 1, b, k);
+                    v.src[k + 1] = ']';
+                    v.src[k + 2] = 0;
+                    l.s++;
+                    if (tl_line_end(&l, "something after include(...)")) fn(arg, "", "include", &v, &l);
+                }
+                tval_free(&v);
+                goto next;
+            }
             if (n && *l.s == '(') {   // a function: name(a, b) - its parameters into the key as "name(a,b)"
                 const char *why = NULL;
                 int np = 0;
@@ -2048,32 +2097,45 @@ static void tfile_parse(const char *file, const char *text, tfile_fn fn, void *a
             }
             if (n >= 0) tl_blank(&l, 0);
             if (n < 0) ;   // (its mistake told)
-            else if (!n || *l.s != '=') tl_error(&l, "no key = value");
-
-            else {
+            else if (!n || *l.s != '=') tl_error(&l, "no name = value");
+            else if (x_record_open(l.s + 1)) {   // name = { - a record, its keys on the lines up to its }
+                if (*record) tl_error(&l, "a record in a record");
+                else if (strchr(key, '(')) tl_error(&l, "a record has no parameters");
+                else {
+                    lstrcpyA(record, key);
+                    record_line = l.line;
+                    l.s = strchr(l.s, '{') + 1;
+                    tl_line_end(&l, "");
+                }
+            } else if (!*record && !strcmp(key, "include")) {
+                tl_error(&l, "include(\"_file.eeai\") - a call, not a name");
+            } else if (l.s[1 + strspn(l.s + 1, " \t")] == '{') {
+                tl_error(&l, "a record: name = { at the end of its line, a key = value a line below it, } on a line of its own");
+            } else {
                 l.s++;
                 struct tval v;
                 g_x_check_par = strchr(key, '(') ? strchr(key, '(') + 1 : NULL;
                 g_x_check_file = file;
                 g_x_check_line = l.line;
-                g_x_check_ph = x_code_placeholders(file, section, key);
+                g_x_check_ph = x_code_placeholders(file, record, key);
                 tl_value(&l, &v);
                 g_x_check_par = NULL;
                 g_x_check_file = NULL;
-                if (!l.err && strcmp(section, "?")) fn(arg, section, key, &v, &l);
+                if (!l.err) fn(arg, record, key, &v, &l);
                 tval_free(&v);
             }
         }
-        if (l.err) {   // on to the next line that starts a key or a section (past the rest of a broken value)
+    next:
+        if (l.err) {   // on to the next line that starts a key or ends a record (past the rest of a broken value)
             const char *b = l.s;
             while (b > text && (b[-1] == ' ' || b[-1] == '\t')) b--;
-            if ((b == text || b[-1] == '\n') && tl_key_line(b)) continue;   // already there
+            if (l.s != start && (b == text || b[-1] == '\n') && tl_stop_line(b)) continue;   // already there (and on)
             for (;;) {
                 while (*l.s && *l.s != '\n') l.s++;
-                if (!*l.s) return;
+                if (!*l.s) break;
                 l.s++;
                 l.line++;
-                if (tl_key_line(l.s)) break;
+                if (tl_stop_line(l.s)) break;
             }
         }
     }

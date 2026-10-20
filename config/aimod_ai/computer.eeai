@@ -1,97 +1,97 @@
-; computer.eeai - the neutral fallback lines for eeaimod. Not a personality: never given to an AI.
-; When an AI's personality has no line for a situation (nor for the situation's fallback: betrayed -> war_declared,
-; ask_lord -> peace_refuse, block_refuse_own -> block_refuse -> peace_refuse, surrender -> defeated), the line comes
-; from here; AIs without any personality use only these. So this file holds what must not go unsaid - war, peace,
-; offers that wait for the player's answer, capitulation, victory - and nothing else (an AI without a line for a
-; mere comment stays silent). Placeholders as in the personalities: {them} the player the line is about, {me} the
-; AI, {enemy} a third player, {tribute} what a capitulation pays, by
-; resource ("200 gold, 800 iron").
+# computer.eeai - the neutral fallback lines for eeaimod. Not a personality: never given to an AI.
+# When an AI's personality has no line for a situation (nor for the situation's fallback: betrayed -> war_declared,
+# ask_lord -> peace_refuse, block_refuse_own -> block_refuse -> peace_refuse, surrender -> defeated), the line comes
+# from here; AIs without any personality use only these. So this file holds what must not go unsaid - war, peace,
+# offers that wait for the player's answer, capitulation, victory - and nothing else (an AI without a line for a
+# mere comment stays silent). Placeholders as in the personalities: {them} the player the line is about, {me} the
+# AI, {enemy} a third player, {tribute} what a capitulation pays, by
+# resource ("200 gold, 800 iron").
 
-include = "_eeaimod_shared.eeai"
-[lines]
-war_declared = [
-    them.betrayals(me) > 0 ? [
-        "You broke an alliance with us before, {them}. Now you attack. This means war.",
-        "Your betrayal is on record, {them}. So is this attack. This means war.",
-    ],
-    them.tribute(me, 20) > 0 ? [
-        "You paid us tribute, {them}. Now you attack us. This means war.",
-        "{them.tribute(me, 20)} resources in tribute, and now an attack, {them}. This means war.",
-    ],
-] ?? "You attacked us, {them}. This means war."
-; this betrayal is counted already: betrayals(me) > 1 is the second time
-betrayed = [
-    them.betrayals(me) > 1 ? [
-        "You have broken an alliance with us again, {them}. This means war.",
-        "{them.betrayals(me)} broken alliances with us, {them}. This means war.",
-    ],
-    me.betrayals(them) > 0 ? [
-        "We broke an alliance with you once, {them}. Now you broke ours. This means war.",
-        "We betrayed you once, {them}. You have answered in kind. This means war.",
-    ],
-] ?? "You broke our alliance, {them}. This means war."
-peace_accept = [
-    them.betrayals(me) > 0 ? [
-        "We accept peace, {them}. Your betrayal is on record.",
-        "Peace accepted, {them}. We will watch you: you have broken an alliance with us before.",
-    ],
-    them.kills(me, this_war) > many_dead and them.kills(me, this_war) > me.kills(them, this_war) and chance(60%) ? "We accept peace, {them}. This war cost us {them.kills(me, this_war)} units.",
-] ?? "We accept peace, {them}."
-peace_refuse = [
-    them.betrayals(me) > 0 ? [
-        "We refuse, {them}. You have broken an alliance with us before.",
-        "We refuse, {them}. Your word was broken once. We do not take it again.",
-    ],
-    them.refusals(me, 30) > 0 and chance(70%) ? "We refuse your offer of peace, {them}. You refused ours.",
-] ?? "We refuse your offer of peace, {them}."
-; ignored(me): our earlier offers they let run out, in a row
-alliance_offer = [
-    them.ignored(me) > 0 ? [
-        "{them}, once more: we propose an alliance against {enemy}.",
-        "{them}, our last offer went unanswered. We propose an alliance against {enemy} again.",
-    ],
-] ?? "{them}, we propose an alliance against {enemy}."
-offer_accepted = [
-    them.betrayals(me) > 0 ? [
-        "Our alliance stands, {them}. Your earlier betrayal is on record.",
-        "Our alliance stands, {them}. Do not break this one.",
-    ],
-] ?? "Our alliance stands, {them}."
-; ignored(me) counts this one already
-offer_withdrawn = them.ignored(me) > 1 ? [
-    "No answer again, {them}. Our offer is withdrawn.",
-    "{them.ignored(me)} offers without an answer, {them}. This one is withdrawn as well.",
-] : [
-    "No answer, {them}. Our offer is withdrawn.",
-    "Our offer has expired, {them}. You did not answer.",
-]
-betray = [
-    them.betrayals(me) > 0 ? [
-        "Our alliance is over, {them}. You broke one with us first.",
-        "We end our alliance, {them}. You did the same to us before.",
-    ],
-] ?? "Our alliance is over, {them}."
-tribute_thanks = [
-    at_war ? [
-        "Tribute received, {them}. We are still at war.",
-        "Your tribute is noted, {them}. It does not end the war.",
-    ],
-    them.tribute(me) > big_tribute and chance(50%) ? "Tribute received. {them.tribute(me)} resources from you so far, {them}. Thank you.",
-] ?? "Tribute received. Thank you, {them}."
-capitulate = "{them}, we surrender. We offer {tribute} for peace."
-capitulate_accepted = "{tribute} paid. We will stand by you, {them}."
-capitulate_refused = "No answer, {them}. Then we fight on."
-block_refuse = "We refuse, {them}: no peace while {enemy} is your ally."
-block_refuse_own = "We refuse, {them}: our ally {enemy} will not make peace with you."
-ask_lord = "We are a vassal of {enemy}, {them}. Negotiate with them."
-vassal_grumble = "As you command, {them}. Peace with {enemy}."
-all_submitted = "Every player has submitted to you, {them}."
-other_victory = lord == them ? [
-    "Victory to our lord, {them}.",
-    "Our lord has won, {them}. We served to the end.",
-] : [
-    "Victory to our alliance, {them}.",
-    "The war is won, {them}. Our alliance held.",
-]
-surrender = "We give up."
-defeated = "We have been defeated."
+include("_eeaimod_shared.eeai")
+
+lines = {
+    war_declared = [
+        them.betrayals(me) > 0 ? [
+            "You broke an alliance with us before, {them}. Now you attack. This means war.",
+            "Your betrayal is on record, {them}. So is this attack. This means war.",
+        ],
+        them.tribute(me, 20) > 0 ? [
+            "You paid us tribute, {them}. Now you attack us. This means war.",
+            "{them.tribute(me, 20)} resources in tribute, and now an attack, {them}. This means war.",
+        ],
+    ] ?? "You attacked us, {them}. This means war."
+    betrayed = [
+        them.betrayals(me) > 0 ? [
+            "You have broken an alliance with us again, {them}. This means war.",
+            "{them.betrayals(me) + 1} broken alliances with us, {them}. This means war.",
+        ],
+        me.betrayals(them) > 0 ? [
+            "We broke an alliance with you once, {them}. Now you broke ours. This means war.",
+            "We betrayed you once, {them}. You have answered in kind. This means war.",
+        ],
+    ] ?? "You broke our alliance, {them}. This means war."
+    peace_accept = [
+        them.betrayals(me) > 0 ? [
+            "We accept peace, {them}. Your betrayal is on record.",
+            "Peace accepted, {them}. We will watch you: you have broken an alliance with us before.",
+        ],
+        them.kills(me, this_war) > many_dead and them.kills(me, this_war) > me.kills(them, this_war) and chance(60%) ? "We accept peace, {them}. This war cost us {them.kills(me, this_war)} units.",
+    ] ?? "We accept peace, {them}."
+    peace_refuse = [
+        them.betrayals(me) > 0 ? [
+            "We refuse, {them}. You have broken an alliance with us before.",
+            "We refuse, {them}. Your word was broken once. We do not take it again.",
+        ],
+        them.refusals(me, 30) > 0 and chance(70%) ? "We refuse your offer of peace, {them}. You refused ours.",
+    ] ?? "We refuse your offer of peace, {them}."
+    # ignored(me): our earlier offers they let run out, in a row
+    alliance_offer = [
+        them.ignored(me) > 0 ? [
+            "{them}, once more: we propose an alliance against {enemy}.",
+            "{them}, our last offer went unanswered. We propose an alliance against {enemy} again.",
+        ],
+    ] ?? "{them}, we propose an alliance against {enemy}."
+    offer_accepted = [
+        them.betrayals(me) > 0 ? [
+            "Our alliance stands, {them}. Your earlier betrayal is on record.",
+            "Our alliance stands, {them}. Do not break this one.",
+        ],
+    ] ?? "Our alliance stands, {them}."
+    offer_withdrawn = them.ignored(me) > 0 ? [
+        "No answer again, {them}. Our offer is withdrawn.",
+        "{them.ignored(me) + 1} offers without an answer, {them}. This one is withdrawn as well.",
+    ] : [
+        "No answer, {them}. Our offer is withdrawn.",
+        "Our offer has expired, {them}. You did not answer.",
+    ]
+    betray = [
+        them.betrayals(me) > 0 ? [
+            "Our alliance is over, {them}. You broke one with us first.",
+            "We end our alliance, {them}. You did the same to us before.",
+        ],
+    ] ?? "Our alliance is over, {them}."
+    tribute_thanks = [
+        at_war ? [
+            "Tribute received, {them}: {tribute}. We are still at war.",
+            "Your tribute is noted, {them}. It does not end the war.",
+        ],
+        them.tribute(me) > big_tribute and chance(50%) ? "Tribute received: {tribute}. {them.tribute(me) + tribute_total} resources from you so far, {them}. Thank you.",
+    ] ?? "Tribute received: {tribute}. Thank you, {them}."
+    capitulate = "{them}, we surrender. We offer {tribute} for peace."
+    capitulate_accepted = "{tribute} paid. We will stand by you, {them}."
+    capitulate_refused = "No answer, {them}. Then we fight on."
+    block_refuse = "We refuse, {them}: no peace while {enemy} is your ally."
+    block_refuse_own = "We refuse, {them}: our ally {enemy} will not make peace with you."
+    ask_lord = "We are a vassal of {enemy}, {them}. Negotiate with them."
+    vassal_grumble = "As you command, {them}. Peace with {enemy}."
+    all_submitted = "Every player has submitted to you, {them}."
+    other_victory = lord == them ? [
+        "Victory to our lord, {them}.",
+        "Our lord has won, {them}. We served to the end.",
+    ] : [
+        "Victory to our alliance, {them}.",
+        "The war is won, {them}. Our alliance held.",
+    ]
+    surrender = "We give up."
+    defeated = "We have been defeated."
+}

@@ -118,19 +118,22 @@ peace or alliances. With the mod:
 - **Personalities** (optional folder [`config/aimod_ai`](config/aimod_ai)): every AI gets a name, a favoured
   colour on random maps, character traits (aggression, loyalty, pride, greed, forgiveness, caution, talk) and
   its own lines for situations of the game: greetings, attacks, being attacked, new ages, winning and losing,
-  diplomacy. Six personalities are included, in English for now; the game's language is detected
-  (`[lines:de]`, `[lines:fr]`... replace the English `[lines]`). A saved game finds its personalities again.
+  diplomacy. Six personalities are included, in English (other languages: at the release, a file each). A saved
+  game finds its personalities again.
   `computer.eeai` in the same folder is no personality but the fallback: neutral lines for what must not go
   unsaid (war, peace, offers waiting for your answer, capitulation, victory). A personality without a line for
   such a situation uses it, and AIs without any personality speak only these lines. `_persona.eeai` is an empty
   personality with every key explained: copy it to a new name to make your own.
 - **The mod's own texts** are in the same folder too (files starting with `_` are no personalities):
   `_system.eeai` holds the system lines it shows you (offers waiting for your answer, chat hints, victory) in
-  English and German - `[system:fr]` etc. adds a language -, `_template.eeai` everything it tells the language
+  English (German built in, for a German game), `_template.eeai` everything it tells the language
   model (the AI voice: who the AI is, the rules, the game as it stands, the situations, the tools). Placeholders in
   braces are filled in; a key or file left out keeps the built-in text.
-- **The format** of all these files: `key = value`, where a value is an expression - a `"string"` with
-  `{placeholders}` and `{expressions}` in it, a `["list", "of", "strings"]` (one at random), conditions
+- **The format** of all these files is the scripts' language ([docs/scripts.md](docs/scripts.md)), without the
+  commands: the keys the mod reads in records - `personality = { ... }`, `lines = { greeting = ... }` - and names
+  of the file's own outside them (`weakling = them.strength * 2 < me.strength`), each `name = value`, where a
+  value is an expression - a `"string"` with `{placeholders}` and `{expressions}` in it, a
+  `["list", "of", "strings"]` (one at random), conditions
   (`allied ? "Welcome back."`), fallbacks (`a ?? b`) - over the game as it stands: what the AI thinks of you, how
   strong each side is, how long the war has lasted, whether you betrayed it before, what you paid it, its epoch.
   Everything - the format, the expressions, every value, every situation - is in
@@ -138,7 +141,7 @@ peace or alliances. With the mod:
   logged with the file and line and only that key is skipped; `strict_parsing=1` in aimod.ini shows every mistake
   at once (for whoever writes texts).
 - **Editing them in VS Code:** [`vscode/eeaimod-texts`](vscode/eeaimod-texts) highlights the `.eeai`
-  files - sections, keys, strings, placeholders, expressions; an unknown key, situation or epoch name shows as an
+  files - records, keys, strings, placeholders, expressions; an unknown key, situation or epoch name shows as an
   error. `python scripts/pack_vscode.py`, then `code --install-extension work/eeaimod-texts.vsix`
   and reload the window. The grammar takes the names from the DLL's sources (`scripts/gen_vscode_grammar.py`).
 - **Play style** (experimental, `ai_style=1`, off by default): a personality can also change how its AI plays

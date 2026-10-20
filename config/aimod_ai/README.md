@@ -25,40 +25,47 @@ gets a personality at random, each one once before any repeats; on random maps i
 give a player a particular one, set `personality_P2=seefahrer` (the file name without `.eeai`) in aimod.ini.
 `ai_talk=0` in aimod.ini silences all lines, `ai_names=0` keeps the game's own player and civilization names.
 
-```ini
-[personality]
-name = "Captain Ines"
-name:de = "Kapitänin Ines"
-civilization = "Free Harbours"
-civilization:de = "Freie Häfen"
-color = ["lightblue", "cyan"]
-aggression = 40%
-loyalty = 70%
-character = "A sea captain: dry humour, proud of her fleet, keeps her word."
+```
+include("_eeaimod_shared.eeai")
 
-[vars]
+personality = {
+    name = "Captain Ines"
+    civilization = "Free Harbours"
+    color = ["lightblue", "cyan"]
+    aggression = 40%
+    loyalty = 70%
+    character = "A sea captain: dry humour, proud of her fleet, keeps her word."
+}
+
+# a name of the file's own, for its lines
 friend = opinion > 30% ? "old friend" : "captain"
 
-[lines]
-greeting = ["Fair winds, {them}.", "The tide is with us today."]
-war_declared = [
-    them.betrayals(me) > 0 ? "Again, {them}? I should have known.",
-    "You will regret this, {them}.",
-]
-peace_accept = [them.kills(me) > 100 ? "Fine. I will not forget my dead."] ?? "Peace it is, {friend}."
-
-[lines:de]
-greeting = ["Guten Wind, {them}.", "Die Flut ist heute mit uns."]
+lines = {
+    greeting = ["Fair winds, {them}.", "The tide is with us today."]
+    war_declared = [
+        them.betrayals(me) > 0 ? "Again, {them}? I should have known.",
+        "You will regret this, {them}.",
+    ]
+    peace_accept = [them.kills(me) > 100 ? "Fine. I will not forget my dead."] ?? "Peace it is, {friend}."
+}
 ```
 
 ## The format
 
-The same language runs the mod's test scenarios, with statements, variables and functions on top
-([docs/scripts.md](../../docs/scripts.md) in the mod's sources) - a personality's file has keys and values only.
+The same language runs the mod's test scenarios, with commands and statements on top
+([docs/scripts.md](../../docs/scripts.md) in the mod's sources) - a personality's file only names values.
 
-A file is made of **sections** - `[personality]`, `[lines]`, `[lines:de]` ... - and **keys**, one `key = value` per
-line. A comment runs from `;` or `#` to the end of the line, also after a value (not inside a string). A value is
-an **expression**; it may go over several lines while a `(`, `[` or `{` is open:
+A file is made of `name = value` lines, one a line:
+
+- **Records** hold the keys the mod reads: `personality = {`, then one `key = value` a line, then `}` on a line of
+  its own. A personality has `personality`, `lines`, `style` and `decide`; `_system.eeai` has `system`,
+  `_template.eeai` `prompt`. A record's `{` ends its line; records don't nest.
+- **Names outside the records** are the file's own (its *vars*): values its lines use, `{friend}` or `friend` -
+  written anywhere outside the records, before or after the lines that use them.
+- **`include("_eeaimod_shared.eeai")`** names files whose names and `decide` keys the personality shares (see below).
+
+A comment runs from `#` to the end of the line, also after a value (not inside a string). A value is an
+**expression**; it may go over several lines while a `(`, `[` or `{` is open:
 
 | Value | Meaning |
 |---|---|
@@ -75,9 +82,9 @@ the string.
 
 **Long values over several lines.** A line break counts as a space while a `(`, `[` or `{` is open. A string itself
 (and a `{...}` inside it) stays on one line - for a long text, put strings side by side in `( )`: they are one
-string. That works for every key, also in `[prompt]` and `[system]`, which take strings only:
+string. That works for every key, also in `prompt` and `system`, which take strings only:
 
-```ini
+```
 peace_offer = ("Peace, {them}? "
     "My walls have held so far - "
     "but I would rather build than fight.")
@@ -93,11 +100,10 @@ report = (
 ```
 
 Only inside `( )`: in a list, `["Hello" "Hi"]` stays a mistake (a missing comma), not one joined string. `+` joins
-texts too (`"a " + "b"`), but adds when both sides are numbers. A line that starts with `[` at its very beginning is
-a new section; indent the `[` of a list that starts a line of a value.
+texts too (`"a " + "b"`), but adds when both sides are numbers.
 
 **A mistake** - a missing quote or bracket, an expression that doesn't parse (also in a string's `{placeholder}`), an
-unknown key, situation or section - is written to the log (`aimod_econ.csv` next to the game, lines starting with
+unknown key, situation or record, a line outside `lines = { }` - is written to the log (`aimod_econ.csv` next to the game, lines starting with
 `# texts:`) with the file and line, and only that key is skipped. The files are checked when the game starts, every
 line, not only those that happen to be said. A bad file never stops the game.
 
@@ -116,11 +122,13 @@ situations and `epoch.` names.
 
 ## Lines
 
-Each key of `[lines]` is a **situation**; its value is what the AI says then - usually a string or a list:
+Each key of `lines = { ... }` is a **situation**; its value is what the AI says then - usually a string or a list:
 
-```ini
-attack = "My riders are on their way."
-greeting = ["Hello.", "Greetings, {them}.", "Who are you?"]
+```
+lines = {
+    attack = "My riders are on their way."
+    greeting = ["Hello.", "Greetings, {them}.", "Who are you?"]
+}
 ```
 
 How a line is chosen:
@@ -136,34 +144,40 @@ How a line is chosen:
 5. With the AI voice on (`[llm]` in aimod.ini) a language model says the line in the AI's own words, from its
    `character`, its traits and the game as it stands; the chosen line is its example.
 
-`[lines:de]` (or `:fr`, `:es`, `:it`, `:pl`, `:pt-br`, `:ru`, `:ko`, `:zh-cn`, `:zh-tw`) replaces `[lines]`
-situation by situation in a game of that language; the language is detected from the game (or set with
-`language=` in aimod.ini). The same works for `name:de` and `[vars:de]`. The included personalities are English only
-while their lines still change; translations come with a release, in a format still to be designed (a language
-needs conditions of its own for its grammar - one listener or several, gender - but the AI's decisions what to say
-should stay the same in every language).
+**A line about an event doesn't count that event yet**: in `betrayed`, `them.betrayals(me) > 0` means they betrayed
+me before - this is the second time; in `offer_withdrawn`, `them.ignored(me)` counts the offers they let run out
+before this one; in `tribute_thanks` and `tribute_small`, `them.tribute(me)` is what they paid before this tribute
+(`{tribute}` is this one). To say the count with this one: `{them.ignored(me) + 1} offers without an answer`,
+`{them.tribute(me) + tribute_total} in all`.
+
+The lines are English while they still change; translations come with a release - a file per language, in a form
+still to be designed (a language needs conditions of its own for its grammar - one listener or several, gender - but
+the AI's decisions what to say should stay the same in every language).
 
 ### Conditions and variety
 
-```ini
-; nothing unless the condition holds - a list leaves it out
-greeting = [allied ? "Good to see you, ally.", "Hello, {them}."]
-
-; one or the other
-winning = opinion > 0 ? "Let us stay friends." : "You are next, {them}."
-
-; the angry lines when they hate it, else the friendly ones
+```
 angry = ["Go away.", "You again?"]
-tribute_thanks = [opinion < -50% ? angry] ?? ["Thank you!", "Most generous."]
 
-; a list in a list: each of its items counts as one (here a third each)
-greeting = ["Hello.", angry]
+lines = {
+    # nothing unless the condition holds - a list leaves it out
+    greeting = [allied ? "Good to see you, ally.", "Hello, {them}."]
 
-; now and then
-epoch_up = [chance(30%) ? "Progress, finally.", "A new age begins."]
+    # one or the other
+    winning = opinion > 0 ? "Let us stay friends." : "You are next, {them}."
 
-; one situation, told apart by how I stand with them: someone else has won
-other_victory = lord == them ? "Long live {them}, my lord!" : allied ? "We won together, {them}!" : "Enjoy it while it lasts."
+    # the angry lines when they hate it, else the friendly ones
+    tribute_thanks = [opinion < -50% ? angry] ?? ["Thank you!", "Most generous."]
+
+    # a list in a list: each of its items counts as one (here a third each)
+    peace_refuse = ["No.", angry]
+
+    # now and then
+    epoch_up = [chance(30%) ? "Progress, finally.", "A new age begins."]
+
+    # one situation, told apart by how I stand with them: someone else has won
+    other_victory = lord == them ? "Long live {them}, my lord!" : allied ? "We won together, {them}!" : "Enjoy it while it lasts."
+}
 ```
 
 ### Situations
@@ -180,8 +194,8 @@ other_victory = lord == them ? "Long live {them}, my lord!" : allied ? "We won t
 | `offer_accepted` | {them} has accepted your alliance offer | {them} | always |  |  |
 | `offer_withdrawn` | your alliance offer to {them} has expired unanswered | {them} | always |  |  |
 | `betray` | you betray {them}, your ally, and declare war on them | {them} | always |  |  |
-| `tribute_thanks` | {them} sent you a generous tribute | {them} | always | 20 s |  |
-| `tribute_small` | {them} sent you a tribute - a small one | {them} | always | 60 s |  |
+| `tribute_thanks` | {them} sent you a generous tribute: {tribute} | {them} | always | 20 s |  |
+| `tribute_small` | {them} sent you a tribute - a small one: {tribute} | {them} | always | 60 s |  |
 | `attack` | your army sets out to attack {them} | its allies | 40% | 300 s |  |
 | `under_attack` | your town is under attack | its allies | 60% | 240 s |  |
 | `building_lost` | you lost a building | its allies | 25% | 180 s |  |
@@ -240,63 +254,64 @@ other_victory = lord == them ? "Long live {them}, my lord!" : allied ? "We won t
 - Only what is chosen is worked out: the other side of `? :`, `??`, `and`, `or` is not (no random draws, no
   errors from text that isn't said).
 - Mistakes are never guessed around: an unknown name, a text where a number belongs, a division by 0 leave out the
-  list item they are in, else the whole line (see "A name nobody knows" above). There are no loops and no
-  assignments: a text can't hang the game.
+  list item they are in, else the whole line (see "A name nobody knows" above). Nothing runs from the top of a file
+  and nothing loops - a name's value is worked out where it is used: a text can't hang the game.
 
-### [vars]
+### Names of your own (vars)
 
-`[vars]` names strings and expressions for the texts. A personality's own `[vars]` come first, then those of
-`_system.eeai`; `_template.eeai` has its own for the prompts. `[vars:de]` replaces them in a German game.
+A name outside the records holds a string or an expression for the texts. A personality's own names come first, then
+those of its includes, then those of `_system.eeai`; `_template.eeai` has its own for the prompts. A record's key
+can't be one (`greeting = ...` outside `lines = { }` is a mistake: it belongs in the record).
 
-```ini
-[vars]
+```
 address = opinion > 30% ? "friend" : opinion < -30% ? "enemy" : "neighbour"
 title = "my lord {them}"
 angry = ["Go away.", "You again?"]
 ```
 
-Then `{address}`, `{title}` in a line, or `angry` in an expression. A `[vars]` entry is worked out anew wherever it
+Then `{address}`, `{title}` in a line, or `angry` in an expression. A name is worked out anew wherever it
 is used: `"{angry} {angry}"` picks twice, maybe two different items, and `len(angry)` is 2. A function's parameter
 is worked out once, when it is called: given a list, it keeps the list (`len(l)` inside) and the item it picked
 (`{l}` is the same item every time).
 
-**Functions:** a `[vars]` entry with parameters is worked out with the values it is given:
+**Functions:** a name with parameters is worked out with the values it is given:
 
-```ini
-[vars]
+```
 losses(minutes) = them.kills(me, minutes)
 fighting_report(minutes) = "you killed {me.kills(them, minutes, units.army)} of their soldiers and sank {me.kills(them, minutes, units.marine)} of their ships; they killed {them.kills(me, minutes, units.military)} of yours"
 
-[lines]
-under_attack = losses(10) > many_dead / 3 ? "{losses(10)} dead in ten minutes. Enough!"
+lines = {
+    under_attack = losses(10) > many_dead / 3 ? "{losses(10)} dead in ten minutes. Enough!"
+}
 ```
 
 - Inside the function its parameters are names like any other; outside it they don't exist. Its other names are the
-  game's values and the `[vars]`, as everywhere (a `[vars]` entry it uses doesn't see its parameters).
+  game's values and the file's names, as everywhere (a name it uses doesn't see its parameters).
 - It is called with exactly as many values as it has parameters (`losses()` or `losses(1, 2)` is a mistake, found
   when the file is read). Up to 8 parameters; none is fine too: `greeting_line() = ...`.
 - A parameter may have the name of a value - `minutes`, `them` - and then means the parameter inside its function.
 - A function may call others; one that calls itself stops at the nesting limit (a mistake, never a hang).
-- Lookup is as for the other `[vars]`: the personality's own first, then its includes, then `_system.eeai`.
+- Lookup is as for the other names: the personality's own first, then its includes, then `_system.eeai`.
 
-### Shared [vars]: include
+### Shared names: include
 
-`[vars]` that several personalities share go into a file of their own, which each of them names before its first
-section:
+Names that several personalities share go into a file of their own, which each of them names:
 
-```ini
-include = "_eeaimod_shared.eeai"
-[personality]
-...
+```
+include("_eeaimod_shared.eeai")
+
+personality = {
+    ...
+}
 ```
 
-or several: `include = ["_eeaimod_shared.eeai", "_knights.eeai"]`. Their `[vars]` (and `[vars:de]` in a German game)
-come after the personality's own - a name it defines itself wins - in the order named; its `[decide]` likewise. An
-included file holds only `[vars]` and `[decide]` and may include others (4 deep, no circles). Only a file name in this folder: no path.
+or several: `include("_eeaimod_shared.eeai", "_knights.eeai")`. Their names come after the personality's own - a name
+it defines itself wins - in the order named; their `decide` keys likewise. An included file holds only names,
+`decide = { }` and includes of its own (4 deep, no circles). Only a file name in this folder: no path.
 
 Start a shared file's name with `_` (no personality is read from it), and give a pack of your own its own shared file
 with its own name: packs dropped into this folder then never depend on each other. eeaimod's personalities share
-`_eeaimod_shared.eeai`: `this_war`, `many_dead`, `big_tribute`, and the `[decide]` rules.
+`_eeaimod_shared.eeai`: `this_war`, `many_dead`, `big_tribute`, and the `decide` rules.
 
 ## The game's values
 
@@ -316,10 +331,12 @@ not a fact.
 
 A player who isn't there - no third player in a greeting, no lord - is nothing. **Check it before you use it:**
 
-```ini
-under_attack = lord ? "My lord {lord} will hear of this!" : "To arms!"
-greeting = [lord and lord.soldiers > 50 ? "My lord's army is mighty, {them}."] ?? "Greetings, {them}."
-tribute_thanks = "{lord ?? me} thanks you, {them}."
+```
+lines = {
+    under_attack = lord ? "My lord {lord} will hear of this!" : "To arms!"
+    greeting = [lord and lord.soldiers > 50 ? "My lord's army is mighty, {them}."] ?? "Greetings, {them}."
+    tribute_thanks = "{lord ?? me} thanks you, {them}."
+}
 ```
 
 A condition (`lord ? ...`, `lord and ...`, `not lord`), `??` and a comparison (`lord == them`) check it. Used without
@@ -354,7 +371,7 @@ Shortcuts: my own `epoch`, traits, `allies` and `enemies` without `me.` (`aggres
 | `X.vassals` | how many have capitulated to it |
 | `X.allies` | how many are allied with it (both ways), still in - allies alone: mine |
 | `X.enemies` | how many it treats as enemies, still in - enemies alone: mine |
-| `X.aggression`, `X.loyalty`, `X.pride`, `X.greed`, `X.forgiveness`, `X.caution`, `X.talk` | its traits, 0% to 100% (50% without a personality) - a number: `{aggression}` writes 0.6, `{aggression:%}` 60%; `chance(aggression)`: as likely as it is aggressive |
+| `X.aggression`, `X.loyalty`, `X.pride`, `X.greed`, `X.forgiveness`, `X.caution`, `X.talk` | its traits, 0-100 (50 without a personality) |
 | `X.food`, `X.wood`, `X.stone`, `X.gold`, `X.iron` | its stock - another's too (the AI's spies): them.gold |
 | `X.stock` | the five resources together - to scale amounts: them.tribute(me) &gt; me.stock / 2 |
 | `X.lord` | its lord, the player it capitulated to - a player: them.lord.name, lord == them; nothing when it has none |
@@ -363,16 +380,16 @@ Shortcuts: my own `epoch`, traits, `allies` and `enemies` without `me.` (`aggres
 
 | Relation | |
 |---|---|
-| `A.opinion(B)` | -100% to 100%: what A thinks of B, 0 indifferent - in a text in words: hostile, unfriendly, indifferent, friendly, trusting (round(opinion * 100): the number). An AI's opinion; a human's of an AI is a guess from what the AI did to them (war, a betrayal, peace, tribute, a refusal, their losses), nothing of another human |
+| `A.opinion(B)` | -100..100: what A thinks of B - in a text in words: hostile, unfriendly, indifferent, friendly, trusting (round(opinion): the number). An AI's opinion; a human's of an AI is a guess from what the AI did to them (war, a betrayal, peace, tribute, a refusal, their losses), nothing of another human |
 | `A.at_war(B)` | 1 when A and B are enemies, both of them |
 | `A.allied(B)` | 1 when A and B are allied, both of them |
 | `A.hostile(B)` | 1 when A treats B as an enemy (whatever B does) |
 | `A.war_minutes(B)` | how long the war of A and B has lasted: from both enemies until both are allied again (a peace offer doesn't end it; in peace_accept: the war just ended) - nothing without a war |
 | `A.alliance_minutes(B)` | how long A and B have been allied - nothing when they are not |
-| `A.betrayals(B)` | how often A turned on B while they were allied (an alliance of 2 minutes or more: a peace broken at once is war, not betrayal) - (B, minutes): in the last minutes |
+| `A.betrayals(B)` | how often A turned on B while they were allied (an alliance of 2 minutes or more: a peace broken at once is war, not betrayal) - (B, minutes): in the last minutes; in betrayed the betrayals before the one it is about |
 | `A.refusals(B)` | how often A refused B's offers of peace or alliance - (B, minutes): in the last minutes |
-| `A.ignored(B)` | B's alliance offers A let run out, in a row |
-| `A.tribute(B)` | resources A has paid B in this game - (B, minutes): in the last minutes, them.tribute(me, 15) |
+| `A.ignored(B)` | B's alliance offers A let run out, in a row - in offer_withdrawn those before the one withdrawn |
+| `A.tribute(B)` | resources A has paid B in this game - (B, minutes): in the last minutes, them.tribute(me, 15); in tribute_thanks / tribute_small what was paid before this tribute |
 | `A.near(B)` | A's soldiers within 20 tiles of B's base now, while B treats A as an enemy (an AI's base) |
 | `A.in_town(B)` | 1 when A's army is in B's town: its soldiers have stayed near B's base for a while (an AI's base) |
 | `A.attack_minutes(B)` | minutes since A's last attack wave set out against B - nothing if none (an AI's waves) |
@@ -425,8 +442,8 @@ with these names, the same in every language (a name in quotes would only match 
 | `epoch.space` | 15 | Space |
 <!-- /epochs -->
 
-```ini
-epoch_up = [epoch >= epoch.middle ? "Steel and stone!", "Another age, {them}."]
+```
+    epoch_up = [epoch >= epoch.middle ? "Steel and stone!", "Another age, {them}."]
 ```
 
 A player's colour works the same way: `them.color` is its name in a line (in the game's language - "dunkelrot" in a
@@ -435,8 +452,8 @@ German game) and a number in a comparison. Compare it with `color.blue`, `color.
 `color.grey`, `color.silver`, `color.lightyellow`, `color.lime`, `color.lightblue`, `color.pink`, `color.darkgrey2`.
 `them.civilization` is the name of its civilization as the game shows it - a text only, in the game's language.
 
-```ini
-greeting = them.color == color.red ? "Red banners, {them}? Mine are redder." : "Greetings, {them} of {them.civilization}."
+```
+    greeting = them.color == color.red ? "Red banners, {them}? Mine are redder." : "Greetings, {them} of {them.civilization}."
 ```
 
 Which units `kills` counts - its last argument, after the minutes if any:
@@ -450,15 +467,16 @@ Which units `kills` counts - its last argument, after the minutes if any:
 | `units.military` | army, airforce and marine |
 | `units.civilian` | citizens and fishing boats |
 
-```ini
+```
 sea_war = them.kills(me, 10, units.marine) > 3 ? "Leave my ships alone, {them}!"
 ```
 
 ## Placeholders
 
-In a line, `{...}` holds any expression: `{them}`, `{me}`, `{enemy}`, `{epoch}`, `{opinion}`, a `[vars]` name,
-`{them.soldiers}`, `{round(me.strength / 100)}`. Personality lines also have one placeholder, `{tribute}`: what a
-capitulation pays, by resource ("200 gold, 800 iron").
+In a line, `{...}` holds any expression: `{them}`, `{me}`, `{enemy}`, `{epoch}`, `{opinion}`, a name of the file,
+`{them.soldiers}`, `{round(me.strength / 100)}`. Personality lines also have two placeholders of their own:
+`{tribute}` - what a capitulation pays or a tribute brought (`capitulate...`, `tribute_thanks`, `tribute_small`), by
+resource ("200 gold, 800 iron") - and `{tribute_total}`, the same in all, a number (1000).
 
 A number is written as it is, with up to 2 decimals: `{0.625}` writes 0.63 (a half rounds away from 0). How else, a
 format after a `:` says - the last thing in the braces:
@@ -480,13 +498,15 @@ a mistake. A format on a text or a player, or one that is no format, is a mistak
 `{terms}`, `{tribute}`, `{ally}` ... Each key's are listed above it in the file. None of them has the name of a
 value: `{epoch}` is always the speaker's epoch, wherever it stands.
 
-## [personality] and [style]
+## personality and style
+
+`personality = { ... }`:
 
 | Key | Value |
 |---|---|
-| `name`, `name:de`, ... | The player's name in the game (`name:de` in a German game) |
-| `civilization`, `civilization:de`, ... | The name of its civilization as the game shows it, instead of the one it plays (that one stays in `X.civilization_en`) |
-| `color` | Favoured colours on random maps, the first free one wins: `["blue", "cyan"]` - blue, red, yellow, magenta, orange, green, cyan, darkred, darkgrey, purple, grey, silver, lightyellow, lime, lightblue, pink (or the German names, or a number 1..17 as `them.color` has it: `color.red` or `2`, not `"2"`). An expression like any other, worked out when the game starts - before there are players, so only constants, `chance()`, `rnd()`, `language` and `[vars]`: `chance(50%) ? ["red", "orange"] : ["grey"]`, `language == "de" ? color.yellow : color.blue` |
+| `name` | The player's name in the game |
+| `civilization` | The name of its civilization as the game shows it, instead of the one it plays (that one stays in `X.civilization_en`) |
+| `color` | Favoured colours on random maps, the first free one wins: `["blue", "cyan"]` - blue, red, yellow, magenta, orange, green, cyan, darkred, darkgrey, purple, grey, silver, lightyellow, lime, lightblue, pink (or the German names, or a number 1..17 as `them.color` has it: `color.red` or `2`, not `"2"`). An expression like any other, worked out when the game starts - before there are players, so only constants, `chance()`, `rnd()`, `language` and the file's names: `chance(50%) ? ["red", "orange"] : ["grey"]`, `language == "de" ? color.yellow : color.blue` |
 | `aggression` | 0% to 100% - written with the %: `aggression = 60%` (50% when left out): betrays, refuses peace |
 | `loyalty` | keeps its alliances; a vassal under 50% rebels against its lord once it has served 10 minutes and is clearly stronger than its lord's side (1 + 2 x (loyalty + 100% - pride) times: loyalty 35% and pride 80% 2.1 times) - with or without the language model |
 | `pride` | how long it holds a grudge and refuses peace after a declaration of war (pride x 5 minutes: 60% 3 minutes), how long it fights on before it capitulates, how soon it rebels as a vassal |
@@ -496,9 +516,9 @@ value: `{epoch}` is always the speaker's epoch, wherever it stands.
 | `talk` | how often it says the lines that are not always said |
 | `character` | For the AI voice: who this is, in a few words - the model plays it |
 
-`[style]` is **experimental** and only read with `ai_style=1` in aimod.ini (off by default: every AI plays the same,
+`style = { ... }` is **experimental** and only read with `ai_style=1` in aimod.ini (off by default: every AI plays the same,
 tested way). Its keys are aimod.ini settings that replace the difficulty's values for this AI. Each value is an
-expression worked out once when the game starts, like `color` (constants, `chance()`, `rnd()`, `language`, `[vars]`):
+expression worked out once when the game starts, like `color` (constants, `chance()`, `rnd()`, `language`, names):
 shares and chances with `%` - `home_guard_share = 35%`, `attack_on_contact = 20%`, `attack_group_percent = 150%` (aimod.ini
 writes these as whole percents: 35 is 0.35 there, 20, 150) - minutes and epochs as numbers: `first_attack_min = 15`,
 `first_attack_max = chance(50%) ? 20 : 30`. A value out of its range (`attack_on_contact = 20` would be 2000%) is a
@@ -508,11 +528,11 @@ mistake: that key keeps the difficulty's value.
 `military_start_share`, `military_income_share`, `military_income_share_farms`, `epoch_min`, `epoch_max`, `first_attack_min`, `first_attack_max`, `attack_interval_min`, `attack_interval_max`, `attack_group_percent`, `attack_on_contact`, `attack_for_resources`, `attack_revenge`, `citizen_share`, `home_guard_share`
 <!-- /style -->
 
-## [decide]: what the AI wants
+## decide: what the AI wants
 
 The AI's diplomacy decides by numbers worked out from expressions - the same ones as in its lines, with `me` the AI,
 `them` the other player and `enemy` its strongest enemy (there may be none: check it, `enemy and ...`). eeaimod's
-are in `_eeaimod_shared.eeai`; a personality that writes one of them in its own `[decide]` decides that its own way:
+are in `_eeaimod_shared.eeai`; a personality that writes one of them in its own `decide = { }` decides that its own way:
 
 | Key | When | The AI ... |
 |---|---|---|
@@ -520,11 +540,12 @@ are in `_eeaimod_shared.eeai`; a personality that writes one of them in its own 
 | `seek_ally` | every minute from minute 10, at war with a strongest enemy | looks for an ally against it when true |
 | `ally_score` | for each of that enemy's other enemies (`them`) | asks the one with the highest score, if above -20% |
 
-```ini
-[decide]
-; a fox: an alliance as soon as anyone gets ahead - and with the strongest when it can
-seek_ally = enemy and enemy.strength > me.strength
-ally_score = them.rank == 1 ? 100% : opinion
+```
+decide = {
+    # a fox: an alliance as soon as anyone gets ahead - and with the strongest when it can
+    seek_ally = enemy and enemy.strength > me.strength
+    ally_score = them.rank == 1 ? 100% : opinion
+}
 ```
 
 What stays the mod's: who can be asked at all (not someone whose army is in its town, not twice in a row too soon),
@@ -535,18 +556,18 @@ multiplayer game decides alike. Every PC must have the same files then.
 
 ## _system.eeai and _template.eeai
 
-`_system.eeai` holds the lines the mod shows you itself: `[system]` in English, `[system:de]` (or another language)
-replaces what it has in a game of that language. `_template.eeai` holds everything the language model is told, in
-English (the model is told which language to answer in); its pieces are joined with a space. Both files list every
-key with its built-in text and its placeholders. `[vars]` in `_system.eeai` serve the system lines and every
-personality's lines; `[vars]` in `_template.eeai` serve the prompts only.
+`_system.eeai` holds the lines the mod shows you itself, `system = { ... }`, in English (in a German game the mod's
+built-in German lines come first). `_template.eeai` holds everything the language model is told, `prompt = { ... }`,
+in English (the model is told which language to answer in); its pieces are joined with a space. Both files list every
+key with its built-in text and its placeholders. The names in `_system.eeai` serve the system lines and every
+personality's lines; the names in `_template.eeai` serve the prompts only.
 
-`_template.eeai` comes with `[vars]` of its own: the pieces of `game_state_other`, what the AI is told about the one it
+`_template.eeai` comes with names of its own: the pieces of `game_state_other`, what the AI is told about the one it
 talks to - `stance`, `power` (from `strength_ratio`), `town`, `attacks`, `fighting` and `fighting_recent` (with the
 functions `destroyed(by, of, minutes)` and `fought(minutes)`, `recent_minutes = 20`) and `bond` (lord or vassal).
-Change one by writing it in the file's `[vars]`; take one out of `game_state_other` by leaving its `{name}` out. A
+Change one by writing it anew in the file; take one out of `game_state_other` by leaving its `{name}` out. A
 function's parameter can be a player: `destroyed(me, them, 0)` uses `by.kills(of, ...)`. `texts dump force` writes
-the built-in ones again and keeps your own `[vars]` below them.
+the built-in ones again and keeps your own names below them.
 
 ## Trying things out
 

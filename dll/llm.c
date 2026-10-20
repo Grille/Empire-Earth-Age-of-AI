@@ -14,7 +14,7 @@
 // (llm_tick, control.c), each AI's in the order it said them (at most 3 waiting per AI, else the fixed line). A line waits at most [llm] timeout seconds (queue + answer), else the fixed line shows;
 // while the server can't be reached (for 60 s after a failed connection) fixed lines show at once and the chat gets
 // no answer - a system line says so once per game. Only on the local PC: in multiplayer each PC asks its own model
-// (or none). [personality] character= in a personality file: a few words about it for the model.
+// (or none). personality character= in a personality file: a few words about it for the model.
 // DECIDE ([llm] decide=1, default 0; single player, not in scenarios, not with fixed teams): the model makes the AI's
 // diplomatic decisions towards the local player itself, through tool calls (OpenAI "tools") - the rules only say
 // what is possible and give their verdict as advice:
@@ -704,7 +704,7 @@ static void llm_system(struct sbuf *b, void *pl, int ai, int h, int tools) {
     void *ph = player_at(h);
     tput(t, &o, sizeof t, "game_state_me", NULL);
     if (ph && h != ai) {
-        tput(t, &o, sizeof t, "game_state_other", NULL);   // stance, forces, attacks, fighting ...: the [vars] of _template.eeai
+        tput(t, &o, sizeof t, "game_state_other", NULL);   // stance, forces, attacks, fighting ...: the vars of _template.eeai
         char terms[600];
         if (peace_terms(ai, h, terms, sizeof terms) && decide)   // the rules' verdict: advice when it decides itself
             tput(t, &o, sizeof t, "terms_advice", "terms", terms, NULL);
@@ -844,16 +844,19 @@ static void llm_queue(struct llm_job *j, char *body) {
     SET_STATE(j, J_QUEUED);
     SetEvent(g_llm_event);
 }
-// a situation for the model: its expressions filled (x_fill, _template.eeai's [vars]) - pl speaking to other (none:
-// to everyone), third the enemy - and {tribute}
+// a situation for the model: its expressions filled (x_fill, _template.eeai's vars) - pl speaking to other (none:
+// to everyone), third the enemy - and {tribute}, {tribute_total} (as in the lines: line_ctx_init)
 static void llm_subst(char *out, int cap, const char *s, void *pl, void *other, void *third) {
-    char trib[96];
+    char trib[96], tot[16];
+    int total = 0;
     tribute_text(g_say_tribute, trib, sizeof trib);
-    const char *pn[1] = { "tribute" };
-    const char *pv[1] = { trib };
+    for (int r = 2; r < 7; r++) total += g_say_tribute[r] > 0 ? g_say_tribute[r] : 0;
+    wsprintfA(tot, "%d", total);
+    const char *pn[2] = { "tribute", "tribute_total" };
+    const char *pv[2] = { trib, tot };
     struct xctx c = { 0 };
     c.pl = pl; c.other = other; c.third = third; c.found = 1;
-    c.pn = pn; c.pv = pv; c.np = 1;
+    c.pn = pn; c.pv = pv; c.np = 2;
     c.vars[0] = &g_vars_tpl;
     x_fill(out, cap, s, &c);
 }
@@ -925,8 +928,9 @@ static int tool_tribute_ok(int ai, uint32_t now) {   // every 3 minutes
 static int tribute_cap(int have) { return have <= 0 ? 0 : g_llm_constrained ? have / 4 : have; }   // a quarter of each
 // a tribute the model chose (send_tribute): amt by resource (stock index 2..6), each capped by tribute_cap, moved from
 // pl's stock to ph's; the total paid (noted in the history, what = the amounts' text) or 0
-static int llm_pay(void *pl, void *ph, int ai, int h, const int *amt, uint32_t now, char *what, int wcap) {
-    int *from = (int *)((uint8_t *)pl + PL_STOCK), *to = (int *)((uint8_t *)ph + PL_STOCK), paid[7] = { 0 }, total = 0;
+static int llm_pay(void *pl, void *ph, int ai, int h, const int *amt, uint32_t now, char *what, int wcap, int *paid) {
+    int *from = (int *)((uint8_t *)pl + PL_STOCK), *to = (int *)((uint8_t *)ph + PL_STOCK), total = 0;
+    memset(paid, 0, 7 * sizeof *paid);   // by resource (stock index 2..6)
     for (int r = 2; r < 7; r++) {
         int n = amt[r], cap = tribute_cap(from[r]);
         n = n < 0 ? 0 : n > cap ? cap : n;
@@ -1089,7 +1093,8 @@ static void llm_apply(struct llm_job *j, int ok) {
         did |= TOOL_WAR;
     }
     if ((j->act & j->tools & TOOL_TRIBUTE) && tool_tribute_ok(ai, now)) {
-        int total = llm_pay(pl, ph, ai, h, j->amt, now, what, sizeof what);
+        int paid[7];
+        int total = llm_pay(pl, ph, ai, h, j->amt, now, what, sizeof what, paid);
         if (total > 0) {
             block_line(h, sysf("tribute_sent", pl, ph, NULL, "tribute", what, NULL));
             tsub(ev[nev++], sizeof ev[0], tpl_text("ev_sent_tribute"), pl, ph, "tribute", what, NULL);
@@ -1390,11 +1395,12 @@ static int talk_apply(struct llm_job *j) {
         did |= TOOL_WAR;
     }
     if ((act & TOOL_TRIBUTE) && tool_tribute_ok(ai, now)) {
-        int total = llm_pay(pl, ph, ai, h, j->amt, now, what, sizeof what);
+        int paid[7];
+        int total = llm_pay(pl, ph, ai, h, j->amt, now, what, sizeof what, paid);
         if (total > 0) {
             tsub(ev, sizeof ev, tpl_text("ev3_tribute"), pl, ph, "tribute", what, NULL);
             pair_add(ai, h, 16, ev);
-            diplo_tribute(ph, pl, total);   // its opinion; its thanks wait (the pair is talking)
+            diplo_tribute(ph, pl, paid);   // its opinion; its thanks wait (the pair is talking)
             did |= TOOL_TRIBUTE;
         }
     }

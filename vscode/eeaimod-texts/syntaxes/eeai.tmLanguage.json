@@ -8,48 +8,38 @@
       "include": "#comment"
     },
     {
-      "begin": "^\\s*(include)\\s*(=)",
-      "beginCaptures": {
+      "match": "^\\s*(include)(?=\\s*\\()",
+      "captures": {
         "1": {
           "name": "keyword.control.import.eeaimod"
+        }
+      }
+    },
+    {
+      "begin": "^\\s*(personality)\\s*(=)\\s*(\\{)\\s*(?=$|#)",
+      "beginCaptures": {
+        "1": {
+          "name": "entity.name.section.eeaimod"
         },
         "2": {
           "name": "keyword.operator.assignment.eeaimod"
-        }
-      },
-      "end": "$",
-      "patterns": [
-        {
-          "include": "#value"
-        }
-      ]
-    },
-    {
-      "begin": "^\\s*(\\[)(personality)(?:(:)([^\\]]*))?(\\])",
-      "beginCaptures": {
-        "1": {
-          "name": "punctuation.definition.section.eeaimod"
-        },
-        "2": {
-          "name": "entity.name.section.eeaimod"
         },
         "3": {
-          "name": "punctuation.separator.eeaimod"
-        },
-        "4": {
-          "name": "constant.language.language-code.eeaimod"
-        },
-        "5": {
-          "name": "punctuation.definition.section.eeaimod"
+          "name": "punctuation.definition.record.begin.eeaimod"
         }
       },
-      "end": "(?=^\\s*\\[)",
+      "end": "^\\s*(\\})",
+      "endCaptures": {
+        "1": {
+          "name": "punctuation.definition.record.end.eeaimod"
+        }
+      },
       "patterns": [
         {
           "include": "#comment"
         },
         {
-          "begin": "^\\s*((?:civilization|forgiveness|aggression|character|loyalty|caution|colour|color|farbe|pride|greed|name|talk)(?::[\\w-]+)?)\\s*(=)",
+          "begin": "^\\s*((?:civilization|forgiveness|aggression|character|loyalty|caution|colour|color|farbe|pride|greed|name|talk))\\s*(=)",
           "beginCaptures": {
             "1": {
               "name": "support.type.property-name.eeaimod"
@@ -85,31 +75,30 @@
       ]
     },
     {
-      "begin": "^\\s*(\\[)(style)(?:(:)([^\\]]*))?(\\])",
+      "begin": "^\\s*(style)\\s*(=)\\s*(\\{)\\s*(?=$|#)",
       "beginCaptures": {
         "1": {
-          "name": "punctuation.definition.section.eeaimod"
-        },
-        "2": {
           "name": "entity.name.section.eeaimod"
         },
+        "2": {
+          "name": "keyword.operator.assignment.eeaimod"
+        },
         "3": {
-          "name": "punctuation.separator.eeaimod"
-        },
-        "4": {
-          "name": "constant.language.language-code.eeaimod"
-        },
-        "5": {
-          "name": "punctuation.definition.section.eeaimod"
+          "name": "punctuation.definition.record.begin.eeaimod"
         }
       },
-      "end": "(?=^\\s*\\[)",
+      "end": "^\\s*(\\})",
+      "endCaptures": {
+        "1": {
+          "name": "punctuation.definition.record.end.eeaimod"
+        }
+      },
       "patterns": [
         {
           "include": "#comment"
         },
         {
-          "begin": "^\\s*((?:military_income_share_farms|military_income_share|military_start_share|attack_group_percent|attack_for_resources|attack_interval_min|attack_interval_max|attack_on_contact|first_attack_min|first_attack_max|home_guard_share|attack_revenge|citizen_share|epoch_min|epoch_max)(?::[\\w-]+)?)\\s*(=)",
+          "begin": "^\\s*((?:military_income_share_farms|military_income_share|military_start_share|attack_group_percent|attack_for_resources|attack_interval_min|attack_interval_max|attack_on_contact|first_attack_min|first_attack_max|home_guard_share|attack_revenge|citizen_share|epoch_min|epoch_max))\\s*(=)",
           "beginCaptures": {
             "1": {
               "name": "support.type.property-name.eeaimod"
@@ -145,100 +134,30 @@
       ]
     },
     {
-      "begin": "^\\s*(\\[)(vars)(?:(:)([^\\]]*))?(\\])",
+      "begin": "^\\s*(lines)\\s*(=)\\s*(\\{)\\s*(?=$|#)",
       "beginCaptures": {
         "1": {
-          "name": "punctuation.definition.section.eeaimod"
-        },
-        "2": {
           "name": "entity.name.section.eeaimod"
         },
+        "2": {
+          "name": "keyword.operator.assignment.eeaimod"
+        },
         "3": {
-          "name": "punctuation.separator.eeaimod"
-        },
-        "4": {
-          "name": "constant.language.language-code.eeaimod"
-        },
-        "5": {
-          "name": "punctuation.definition.section.eeaimod"
+          "name": "punctuation.definition.record.begin.eeaimod"
         }
       },
-      "end": "(?=^\\s*\\[)",
+      "end": "^\\s*(\\})",
+      "endCaptures": {
+        "1": {
+          "name": "punctuation.definition.record.end.eeaimod"
+        }
+      },
       "patterns": [
         {
           "include": "#comment"
         },
         {
-          "begin": "^\\s*([A-Za-z_]\\w*)\\s*(\\()([^)]*)(\\))\\s*(=)",
-          "beginCaptures": {
-            "1": {
-              "name": "entity.name.function.eeaimod"
-            },
-            "2": {
-              "name": "punctuation.definition.parameters.begin.eeaimod"
-            },
-            "3": {
-              "name": "variable.parameter.eeaimod"
-            },
-            "4": {
-              "name": "punctuation.definition.parameters.end.eeaimod"
-            },
-            "5": {
-              "name": "keyword.operator.assignment.eeaimod"
-            }
-          },
-          "end": "$",
-          "patterns": [
-            {
-              "include": "#value"
-            }
-          ]
-        },
-        {
-          "begin": "^\\s*([\\w:.-]+)\\s*(=)",
-          "beginCaptures": {
-            "1": {
-              "name": "entity.name.variable.eeaimod"
-            },
-            "2": {
-              "name": "keyword.operator.assignment.eeaimod"
-            }
-          },
-          "end": "$",
-          "patterns": [
-            {
-              "include": "#value"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "begin": "^\\s*(\\[)(lines)(?:(:)([^\\]]*))?(\\])",
-      "beginCaptures": {
-        "1": {
-          "name": "punctuation.definition.section.eeaimod"
-        },
-        "2": {
-          "name": "entity.name.section.eeaimod"
-        },
-        "3": {
-          "name": "punctuation.separator.eeaimod"
-        },
-        "4": {
-          "name": "constant.language.language-code.eeaimod"
-        },
-        "5": {
-          "name": "punctuation.definition.section.eeaimod"
-        }
-      },
-      "end": "(?=^\\s*\\[)",
-      "patterns": [
-        {
-          "include": "#comment"
-        },
-        {
-          "begin": "^\\s*((?:capitulate_accepted|capitulate_refused|block_refuse_own|offer_withdrawn|alliance_offer|offer_accepted|tribute_thanks|enemy_defeated|vassal_grumble|tribute_small|building_lost|ally_defeated|wonder_threat|wonder_nohelp|attack_threat|all_submitted|other_victory|war_declared|peace_accept|peace_refuse|under_attack|block_refuse|enemy_ahead|wonder_help|help_naval|capitulate|desperate|help_land|help_none|surrender|greeting|betrayed|epoch_up|defeated|help_air|ask_lord|winning|betray|attack|losing)(?::[\\w-]+)?)\\s*(=)",
+          "begin": "^\\s*((?:capitulate_accepted|capitulate_refused|block_refuse_own|offer_withdrawn|alliance_offer|offer_accepted|tribute_thanks|enemy_defeated|vassal_grumble|tribute_small|building_lost|ally_defeated|wonder_threat|wonder_nohelp|attack_threat|all_submitted|other_victory|war_declared|peace_accept|peace_refuse|under_attack|block_refuse|enemy_ahead|wonder_help|help_naval|capitulate|desperate|help_land|help_none|surrender|greeting|betrayed|epoch_up|defeated|help_air|ask_lord|winning|betray|attack|losing))\\s*(=)",
           "beginCaptures": {
             "1": {
               "name": "support.type.property-name.situation.eeaimod"
@@ -274,31 +193,30 @@
       ]
     },
     {
-      "begin": "^\\s*(\\[)(decide)(?:(:)([^\\]]*))?(\\])",
+      "begin": "^\\s*(decide)\\s*(=)\\s*(\\{)\\s*(?=$|#)",
       "beginCaptures": {
         "1": {
-          "name": "punctuation.definition.section.eeaimod"
-        },
-        "2": {
           "name": "entity.name.section.eeaimod"
         },
+        "2": {
+          "name": "keyword.operator.assignment.eeaimod"
+        },
         "3": {
-          "name": "punctuation.separator.eeaimod"
-        },
-        "4": {
-          "name": "constant.language.language-code.eeaimod"
-        },
-        "5": {
-          "name": "punctuation.definition.section.eeaimod"
+          "name": "punctuation.definition.record.begin.eeaimod"
         }
       },
-      "end": "(?=^\\s*\\[)",
+      "end": "^\\s*(\\})",
+      "endCaptures": {
+        "1": {
+          "name": "punctuation.definition.record.end.eeaimod"
+        }
+      },
       "patterns": [
         {
           "include": "#comment"
         },
         {
-          "begin": "^\\s*((?:peace_score|ally_score|seek_ally)(?::[\\w-]+)?)\\s*(=)",
+          "begin": "^\\s*((?:peace_score|ally_score|seek_ally))\\s*(=)",
           "beginCaptures": {
             "1": {
               "name": "support.type.property-name.eeaimod"
@@ -334,31 +252,30 @@
       ]
     },
     {
-      "begin": "^\\s*(\\[)(system)(?:(:)([^\\]]*))?(\\])",
+      "begin": "^\\s*(system)\\s*(=)\\s*(\\{)\\s*(?=$|#)",
       "beginCaptures": {
         "1": {
-          "name": "punctuation.definition.section.eeaimod"
-        },
-        "2": {
           "name": "entity.name.section.eeaimod"
         },
+        "2": {
+          "name": "keyword.operator.assignment.eeaimod"
+        },
         "3": {
-          "name": "punctuation.separator.eeaimod"
-        },
-        "4": {
-          "name": "constant.language.language-code.eeaimod"
-        },
-        "5": {
-          "name": "punctuation.definition.section.eeaimod"
+          "name": "punctuation.definition.record.begin.eeaimod"
         }
       },
-      "end": "(?=^\\s*\\[)",
+      "end": "^\\s*(\\})",
+      "endCaptures": {
+        "1": {
+          "name": "punctuation.definition.record.end.eeaimod"
+        }
+      },
       "patterns": [
         {
           "include": "#comment"
         },
         {
-          "begin": "^\\s*((?:vassal_ask_lord|victory_vassals|victory_not_yet|chat_unanswered|alliance_offer|chat_filtered|llm_wait_down|capitulation|tribute_sent|victory_none|block_peace|block_unity|peace_offer|chat_unread|chat_nobody|veto_block|llm_failed|now_enemy|chat_down|chat_busy|now_ally|veto_own|chat_who|llm_down|llm_wait|opinion1|opinion2|opinion3|opinion4|opinion5|talk_to|nothing|stone|food|wood|gold|iron)(?::[\\w-]+)?)\\s*(=)",
+          "begin": "^\\s*((?:vassal_ask_lord|victory_vassals|victory_not_yet|chat_unanswered|alliance_offer|chat_filtered|llm_wait_down|capitulation|tribute_sent|victory_none|block_peace|block_unity|peace_offer|chat_unread|chat_nobody|veto_block|llm_failed|now_enemy|chat_down|chat_busy|now_ally|veto_own|chat_who|llm_down|llm_wait|opinion1|opinion2|opinion3|opinion4|opinion5|talk_to|nothing|stone|food|wood|gold|iron))\\s*(=)",
           "beginCaptures": {
             "1": {
               "name": "support.type.property-name.eeaimod"
@@ -394,31 +311,30 @@
       ]
     },
     {
-      "begin": "^\\s*(\\[)(prompt)(?:(:)([^\\]]*))?(\\])",
+      "begin": "^\\s*(prompt)\\s*(=)\\s*(\\{)\\s*(?=$|#)",
       "beginCaptures": {
         "1": {
-          "name": "punctuation.definition.section.eeaimod"
-        },
-        "2": {
           "name": "entity.name.section.eeaimod"
         },
+        "2": {
+          "name": "keyword.operator.assignment.eeaimod"
+        },
         "3": {
-          "name": "punctuation.separator.eeaimod"
-        },
-        "4": {
-          "name": "constant.language.language-code.eeaimod"
-        },
-        "5": {
-          "name": "punctuation.definition.section.eeaimod"
+          "name": "punctuation.definition.record.begin.eeaimod"
         }
       },
-      "end": "(?=^\\s*\\[)",
+      "end": "^\\s*(\\})",
+      "endCaptures": {
+        "1": {
+          "name": "punctuation.definition.record.end.eeaimod"
+        }
+      },
       "patterns": [
         {
           "include": "#comment"
         },
         {
-          "begin": "^\\s*((?:tool_offer_alliance_automated|tool_accept_capitulation|pair_capitulate_accepted|sit_capitulate_accepted|pair_capitulate_refused|sit_capitulate_refused|pair_block_refuse_own|tool_accept_alliance|sit_block_refuse_own|pair_offer_withdrawn|tool_offer_alliance|sit_offer_withdrawn|pair_alliance_offer|pair_offer_accepted|pair_tribute_thanks|pair_vassal_grumble|sit_alliance_offer|sit_offer_accepted|sit_tribute_thanks|sit_enemy_defeated|sit_vassal_grumble|pair_tribute_small|pair_attack_threat|pair_all_submitted|talk_capitulation|what_capitulation|tool_accept_peace|ev_accepted_offer|sit_tribute_small|sit_building_lost|sit_ally_defeated|sit_wonder_threat|sit_wonder_nohelp|sit_attack_threat|sit_all_submitted|sit_other_victory|pair_war_declared|pair_peace_accept|pair_peace_refuse|pair_block_refuse|game_state_other|terms_veto_block|ev_offered_peace|sit_war_declared|sit_peace_accept|sit_peace_refuse|sit_under_attack|sit_block_refuse|audience_allies|tool_capitulate|ev_declared_war|ev_sent_tribute|ev_offers_peace|prop_capitulate|sit_enemy_ahead|sit_wonder_help|pair_capitulate|terms_veto_own|ev_capitulated|sit_help_naval|sit_capitulate|game_state_me|audience_them|talk_alliance|what_alliance|ev_made_peace|ev_war_on_you|ev_tribute_in|prop_alliance|sit_desperate|sit_help_land|sit_help_none|sit_surrender|pair_betrayed|pair_ask_lord|rules_decide|terms_advice|terms_vassal|audience_all|peace_answer|talk_confirm|tool_tribute|ev3_accepted|sit_greeting|sit_betrayed|sit_epoch_up|sit_defeated|sit_help_air|sit_ask_lord|pair_winning|rules_words|teams_fixed|other_enemy|terms_teams|terms_pride|terms_price|talk_answer|tool_refuse|ev3_offered|ev3_tribute|prop_betray|sit_winning|pair_betray|terms_real|other_ally|terms_free|terms_none|talk_usual|what_peace|prop_rebel|sit_betray|sit_attack|sit_losing|mem_heard|mem_event|talk_open|talk_last|mem_rule|mem_said|tool_war|proposal|no_step|ev3_war|nature|others|writes|intro|voice|rules|whose|event|line|keep)(?::[\\w-]+)?)\\s*(=)",
+          "begin": "^\\s*((?:tool_offer_alliance_automated|tool_accept_capitulation|pair_capitulate_accepted|sit_capitulate_accepted|pair_capitulate_refused|sit_capitulate_refused|pair_block_refuse_own|tool_accept_alliance|sit_block_refuse_own|pair_offer_withdrawn|tool_offer_alliance|sit_offer_withdrawn|pair_alliance_offer|pair_offer_accepted|pair_tribute_thanks|pair_vassal_grumble|sit_alliance_offer|sit_offer_accepted|sit_tribute_thanks|sit_enemy_defeated|sit_vassal_grumble|pair_tribute_small|pair_attack_threat|pair_all_submitted|talk_capitulation|what_capitulation|tool_accept_peace|ev_accepted_offer|sit_tribute_small|sit_building_lost|sit_ally_defeated|sit_wonder_threat|sit_wonder_nohelp|sit_attack_threat|sit_all_submitted|sit_other_victory|pair_war_declared|pair_peace_accept|pair_peace_refuse|pair_block_refuse|game_state_other|terms_veto_block|ev_offered_peace|sit_war_declared|sit_peace_accept|sit_peace_refuse|sit_under_attack|sit_block_refuse|audience_allies|tool_capitulate|ev_declared_war|ev_sent_tribute|ev_offers_peace|prop_capitulate|sit_enemy_ahead|sit_wonder_help|pair_capitulate|terms_veto_own|ev_capitulated|sit_help_naval|sit_capitulate|game_state_me|audience_them|talk_alliance|what_alliance|ev_made_peace|ev_war_on_you|ev_tribute_in|prop_alliance|sit_desperate|sit_help_land|sit_help_none|sit_surrender|pair_betrayed|pair_ask_lord|rules_decide|terms_advice|terms_vassal|audience_all|peace_answer|talk_confirm|tool_tribute|ev3_accepted|sit_greeting|sit_betrayed|sit_epoch_up|sit_defeated|sit_help_air|sit_ask_lord|pair_winning|rules_words|teams_fixed|other_enemy|terms_teams|terms_pride|terms_price|talk_answer|tool_refuse|ev3_offered|ev3_tribute|prop_betray|sit_winning|pair_betray|terms_real|other_ally|terms_free|terms_none|talk_usual|what_peace|prop_rebel|sit_betray|sit_attack|sit_losing|mem_heard|mem_event|talk_open|talk_last|mem_rule|mem_said|tool_war|proposal|no_step|ev3_war|nature|others|writes|intro|voice|rules|whose|event|line|keep))\\s*(=)",
           "beginCaptures": {
             "1": {
               "name": "support.type.property-name.eeaimod"
@@ -454,45 +370,27 @@
       ]
     },
     {
-      "begin": "^\\s*(\\[)([^\\]:]+)(?:(:)([^\\]]*))?(\\])",
+      "begin": "^\\s*([A-Za-z_]\\w*)\\s*(=)\\s*(\\{)\\s*(?=$|#)",
       "beginCaptures": {
         "1": {
-          "name": "punctuation.definition.section.eeaimod"
+          "name": "invalid.illegal.unknown-record.eeaimod"
         },
         "2": {
-          "name": "entity.name.section.eeaimod"
+          "name": "keyword.operator.assignment.eeaimod"
         },
         "3": {
-          "name": "punctuation.separator.eeaimod"
-        },
-        "4": {
-          "name": "constant.language.language-code.eeaimod"
-        },
-        "5": {
-          "name": "punctuation.definition.section.eeaimod"
+          "name": "punctuation.definition.record.begin.eeaimod"
         }
       },
-      "end": "(?=^\\s*\\[)",
+      "end": "^\\s*(\\})",
+      "endCaptures": {
+        "1": {
+          "name": "punctuation.definition.record.end.eeaimod"
+        }
+      },
       "patterns": [
         {
           "include": "#comment"
-        },
-        {
-          "begin": "^\\s*((?:)(?::[\\w-]+)?)\\s*(=)",
-          "beginCaptures": {
-            "1": {
-              "name": ""
-            },
-            "2": {
-              "name": "keyword.operator.assignment.eeaimod"
-            }
-          },
-          "end": "$",
-          "patterns": [
-            {
-              "include": "#value"
-            }
-          ]
         },
         {
           "begin": "^\\s*([\\w:.-]+)\\s*(=)",
@@ -510,6 +408,36 @@
               "include": "#value"
             }
           ]
+        }
+      ]
+    },
+    {
+      "name": "invalid.illegal.section.eeaimod",
+      "match": "^\\[[^\\]]*\\]"
+    },
+    {
+      "begin": "^\\s*([A-Za-z_]\\w*)\\s*(\\()([^)]*)(\\))\\s*(=)(?![=>])",
+      "beginCaptures": {
+        "1": {
+          "name": "entity.name.function.eeaimod"
+        },
+        "2": {
+          "name": "punctuation.definition.parameters.begin.eeaimod"
+        },
+        "3": {
+          "name": "variable.parameter.eeaimod"
+        },
+        "4": {
+          "name": "punctuation.definition.parameters.end.eeaimod"
+        },
+        "5": {
+          "name": "keyword.operator.assignment.eeaimod"
+        }
+      },
+      "end": "$",
+      "patterns": [
+        {
+          "include": "#value"
         }
       ]
     },
@@ -536,8 +464,16 @@
   ],
   "repository": {
     "comment": {
-      "name": "comment.line.eeaimod",
-      "match": "[;#].*$"
+      "patterns": [
+        {
+          "name": "comment.line.eeaimod",
+          "match": "#.*$"
+        },
+        {
+          "name": "invalid.illegal.comment.eeaimod",
+          "match": ";.*$"
+        }
+      ]
     },
     "value": {
       "patterns": [

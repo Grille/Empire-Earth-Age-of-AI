@@ -360,7 +360,7 @@ static void __fastcall hook_rm_update(void *rm, void *edx, uint32_t now) {
     if (pl) {
         unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
         ctl_note_player(pl);
-        if (g_settings_done[idx] != pl) {   // the personality first: its [style] (ai_style=1) is part of the settings
+        if (g_settings_done[idx] != pl) {   // the personality first: its style (ai_style=1) is part of the settings
             g_settings_done[idx] = pl;
             if (!is_vanilla(pl)) {
                 persona_assign(pl);

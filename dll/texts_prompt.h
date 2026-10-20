@@ -1,6 +1,6 @@
-// k_tpl: the language model's instructions (texts.c TEXTS; aimod_ai\_template.eeai [prompt] overrides them).
+// k_tpl: the language model's instructions (texts.c TEXTS; aimod_ai\_template.eeai prompt overrides them).
 // Generated once from llm.c by scratch gen_tpl.py; edit here.
-// k_tpl_vars: _template.eeai [vars] built in - the pieces of game_state_other, tool_tribute's tribute_room (a [vars] of
+// k_tpl_vars: _template.eeai vars built in - the pieces of game_state_other, tool_tribute's tribute_room (a vars of
 // the file replaces one of the same name; the dump writes them as they are here, over several lines).
 static const struct text_def k_tpl_vars[] = {
     { "stance", "(\n"
@@ -88,7 +88,7 @@ static const struct text_def k_tpl[] = {
       "stone {me.stone}, gold {me.gold}, iron {me.iron}.", NULL, NULL },
     { "game_state_other", "{them} (the player you talk to) is in the {them.epoch}. {stance} Their forces are {power}. Your opinion of "
       "them: {opinion}.{town}{attacks} Their defences: {them.towers} towers, {them.walls} wall pieces. Yours: "
-      "{me.towers} towers, {me.walls} wall pieces.{fighting}{fighting_recent}{bond}", NULL, "the other player as the AI sees them - the pieces are the [vars] above" },
+      "{me.towers} towers, {me.walls} wall pieces.{fighting}{fighting_recent}{bond}", NULL, "the other player as the AI sees them - the pieces are the vars above" },
     { "terms_advice", "\nWhat your nature would say about peace with them (advice - you decide): {terms}", NULL, NULL },
     { "terms_real", "\nYour terms (they are real - state them when it fits, never offer less, never invent other deals): "
       "{terms}", NULL, NULL },
@@ -188,8 +188,8 @@ static const struct text_def k_tpl[] = {
     { "sit_offer_accepted", "{them} has accepted your alliance offer", NULL, NULL },
     { "sit_offer_withdrawn", "your alliance offer to {them} has expired unanswered", NULL, NULL },
     { "sit_betray", "you betray {them}, your ally, and declare war on them", NULL, NULL },
-    { "sit_tribute_thanks", "{them} sent you a generous tribute", NULL, NULL },
-    { "sit_tribute_small", "{them} sent you a tribute - a small one", NULL, NULL },
+    { "sit_tribute_thanks", "{them} sent you a generous tribute: {tribute}", NULL, NULL },
+    { "sit_tribute_small", "{them} sent you a tribute - a small one: {tribute}", NULL, NULL },
     { "sit_attack", "your army sets out to attack {them}", NULL, NULL },
     { "sit_under_attack", "your town is under attack", NULL, NULL },
     { "sit_building_lost", "you lost a building", NULL, NULL },
@@ -230,8 +230,8 @@ static const struct text_def k_tpl[] = {
     { "pair_offer_accepted", "{them} accepted the alliance {me} offered", NULL, NULL },
     { "pair_offer_withdrawn", "the alliance {me} offered {them} expired unanswered", NULL, NULL },
     { "pair_betray", "{me} betrays {them}, their ally, and declares war on them", NULL, NULL },
-    { "pair_tribute_thanks", "{them} sent {me} a generous tribute", NULL, NULL },
-    { "pair_tribute_small", "{them} sent {me} a tribute - a small one", NULL, NULL },
+    { "pair_tribute_thanks", "{them} sent {me} a generous tribute: {tribute}", NULL, NULL },
+    { "pair_tribute_small", "{them} sent {me} a tribute - a small one: {tribute}", NULL, NULL },
     { "pair_winning", "{me} is winning the war against {them}", NULL, NULL },
     { "pair_capitulate", "{me} capitulates to {them}: {me} offers to PAY {them} a tribute ({tribute}) for peace", NULL, NULL },
     { "pair_capitulate_accepted", "{them} accepted the capitulation of {me}: {me} pays the tribute ({tribute}) and serves {them} from "

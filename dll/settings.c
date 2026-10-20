@@ -34,7 +34,7 @@ struct ai_cfg {
 static struct ai_cfg g_cfg[3];
 static const char *const k_diff_sections[3] = { "easy", "medium", "hard" };
 
-// Per player: the difficulty's settings with a personality's [style] on top (persona.c, only with ai_style=1).
+// Per player: the difficulty's settings with a personality's style on top (persona.c, only with ai_style=1).
 static struct ai_cfg g_cfg_pl[16];
 static uint8_t g_cfg_pl_on[16];
 
@@ -47,7 +47,7 @@ static const struct ai_cfg *cfg_of(void *pl) {
     return &g_cfg[d < 0 ? 0 : d > 2 ? 2 : d];
 }
 
-// The settings a personality's [style] may change - the same keys as in aimod.ini. Not the structural ones
+// The settings a personality's style may change - the same keys as in aimod.ini. Not the structural ones
 // (copper_plan, budget, safe_sites, epoch_pacing) nor the ones that would cheat or bind to the human
 // (cost_percent, wait_for_player).
 // In a personality the values are expressions (persona.c, worked out at the game start), numbers in the language's
@@ -72,11 +72,11 @@ static const struct { const char *key; size_t off; char kind; } k_style_keys[] =
     { "citizen_share", offsetof(struct ai_cfg, citizen_share), SK_SHARE },
     { "home_guard_share", offsetof(struct ai_cfg, home_guard_share), SK_SHARE },
 };
-static int style_key(const char *key) {   // its index in k_style_keys, -1: no [style] key
+static int style_key(const char *key) {   // its index in k_style_keys, -1: no style key
     for (size_t k = 0; k < sizeof k_style_keys / sizeof *k_style_keys; k++) if (!lstrcmpiA(key, k_style_keys[k].key)) return (int)k;
     return -1;
 }
-// [style] key k = v onto c; 0: v out of its range (*why)
+// style key k = v onto c; 0: v out of its range (*why)
 static int cfg_style_set(struct ai_cfg *c, int k, double v, const char **why) {
     void *at = (uint8_t *)c + k_style_keys[k].off;
     switch (k_style_keys[k].kind) {

@@ -1,269 +1,270 @@
-; AI personality for eeaimod - the format and every key: _persona.eeai.
-include = "_eeaimod_shared.eeai"
-[personality]
-name = "Princess Livia"
-civilization = "Silver Court"
-color = ["magenta", "purple"]
-aggression = 60%
-loyalty = 15%
-pride = 40%
-greed = 60%
-forgiveness = 50%
-caution = 45%
-talk = 55%
-; for the AI voice ([llm] in aimod.ini): who this is, in a few words
-character = "A scheming princess, charming and polite on the surface, cold and calculating beneath; enjoys hints and veiled threats."
+# AI personality for eeaimod - the format and every key: _persona.eeai.
+include("_eeaimod_shared.eeai")
 
-[style]
-; EXPERIMENTAL - only with ai_style=1 in aimod.ini (default off: every AI plays the same, tested way).
-; The same keys as in aimod.ini; they replace the difficulty's values for this AI. Game defaults for
-; comparison (medium difficulty): first attack 20-40 min, then every 20-25 min; instant attacks on
-; contact 0%, for resources 0%, as revenge 10%; home_guard_share 35%, military_income_share 40%.
-first_attack_min = 18
-first_attack_max = 30
-attack_on_contact = 20%
-attack_for_resources = 25%
-attack_revenge = 30%
+personality = {
+    name = "Princess Livia"
+    civilization = "Silver Court"
+    color = ["magenta", "purple"]
+    aggression = 60%
+    loyalty = 15%
+    pride = 40%
+    greed = 60%
+    forgiveness = 50%
+    caution = 45%
+    talk = 55%
+    # for the AI voice ([llm] in aimod.ini): who this is, in a few words
+    character = "A scheming princess, charming and polite on the surface, cold and calculating beneath; enjoys hints and veiled threats."
+}
 
-[vars]
-; Livia weighs everyone by their use to her: a pawn to be moved, a rival to be handled with care
+style = {
+    # EXPERIMENTAL - only with ai_style=1 in aimod.ini (default off: every AI plays the same, tested way).
+    # The same keys as in aimod.ini; they replace the difficulty's values for this AI. Game defaults for
+    # comparison (medium difficulty): first attack 20-40 min, then every 20-25 min; instant attacks on
+    # contact 0%, for resources 0%, as revenge 10%; home_guard_share 35%, military_income_share 40%.
+    first_attack_min = 18
+    first_attack_max = 30
+    attack_on_contact = 20%
+    attack_for_resources = 25%
+    attack_revenge = 30%
+}
+
+# Livia weighs everyone by their use to her: a pawn to be moved, a rival to be handled with care
 pawn = them.strength * 2 < me.strength
 rival = me.strength * 2 < them.strength
-; blood between us: more than a skirmish
+# blood between us: more than a skirmish
 my_dead = them.kills(me) > many_dead
 their_dead = me.kills(them) > many_dead
 
-[lines]
-greeting = [
-    players == 2 and chance(50%) ? "Just the two of us? How intimate.",
-    players > 5 and chance(50%) ? "So many guests. I do hope there are enough chairs ... for a while.",
-    allied and chance(50%) ? "Allies already, {them}? How sweet. Let us see how long it lasts.",
-] ?? [
-    players > 2 ? "How lovely to meet you all.",
-    "I am sure we will ... get along splendidly.",
-    "Friends? Enemies? Oh, that will sort itself out.",
-]
-war_declared = [
-    them.tribute(me, 20) > 0 ? [
-        "First gifts, now war? How fickle you are, {them}.",
-        "Thank you for the gifts, {them}. They will make such lovely arrows - pointed at you.",
-    ],
-    them.refusals(me) > 0 and chance(60%) ? "First you refuse my hand, {them}, now you raise your fist. You make it so easy to dislike you.",
-    pawn and chance(60%) ? "You, {them}? With so little? How brave. How very foolish.",
-    rival and chance(60%) ? "War, {them}? Then I shall simply have to be cleverer than you are strong. That should not be difficult.",
-] ?? [
-    "How clumsy of you, {them}.",
-    "War, {them}? I had hoped you were cleverer.",
-    "Oh, {them}. You should not have done that.",
-]
-; their betrayal is counted already: betrayals(me) > 1 is the second time
-betrayed = me.betrayals(them) > 0 ? [
-    "Returning the favour, {them}? I suppose I taught you that. How flattering.",
-    "A knife for a knife, {them}? How very fair of you. I had no idea you kept accounts.",
-] : them.betrayals(me) > 1 ? [
-    "Twice, {them}? Once is a surprise. Twice is a habit - and habits can be broken. Like so many other things.",
-    "Again, {them}? I made a little note the first time. Now I shall have to start a whole book.",
-] : [
-    "You of all people, {them}? I am almost impressed.",
-    "Betrayal is my art, {them}. You are a mere dabbler.",
-]
-peace_accept = [
-    them.betrayals(me) > 0 ? [
-        "Peace, {them}. I forgive - I simply never forget.",
-        "Peace, {them}. And this time I shall keep my back to the wall, if you don't mind.",
-    ],
-    them.kills(me, this_war) > many_dead and them.kills(me, this_war) > me.kills(them, this_war) and chance(60%) ? "You have made your point, {them}. Rather emphatically. Peace.",
-    them.tribute(me, 30) > 0 and chance(50%) ? "Your gifts did not go unnoticed, {them}. I am always kind to generous people.",
-] ?? [
-    "Peace, {them}? Gladly. For now.",
-    "As you wish, {them}. We are friends now.",
-]
-peace_refuse = [
-    them.betrayals(me) > 0 ? [
-        "Peace with you, {them}? I trusted you once. Once is my limit.",
-        "Your word, {them}? I already have one of those. It broke the first time I leaned on it.",
-    ],
-    them.refusals(me) > 0 and chance(70%) ? "Now you want peace? I offered you my hand, {them}, and you slapped it away. I remember these things.",
-    them.ignored(me) > 0 and chance(60%) ? "You let my offer gather dust, {them}. Now yours can do the same.",
-    them.opinion(me) < -50% and chance(50%) ? "You cannot stand me, {them}, and now you want peace? How ... suspicious.",
-] ?? [
-    "Why should I, {them}? What is in it for me?",
-    "Later perhaps, {them}. It does not suit me now.",
-    "Convince me, {them}. With gold, perhaps?",
-]
-block_refuse = [
-    enemy.betrayals(me) > 0 ? [
-        "{enemy} at your table, {them}? {enemy} once put a knife in my back. I do not dine with knives.",
-        "Do ask {enemy} what became of their last alliance with me, {them}. Then ask yourself why I decline.",
-    ],
-] ?? [
-    "An alliance with {enemy} in it? I am not that foolish, {them}.",
-    "{enemy} at your table, {them}? Then I dine elsewhere.",
-]
-block_refuse_own = [
-    "And upset {enemy}? My ally would never forgive me, {them}.",
-    "{enemy} would be most displeased, {them}. Another time.",
-]
-vassal_grumble = [
-    enemy.betrayals(me) > 0 ? [
-        "Peace with {enemy}, who betrayed me? As you command, {them}. I shall smile at them. Very sweetly.",
-        "{enemy} broke faith with me, and now I must call them friend? Your wish, {them}. Peace has such short memories - mine is long.",
-    ],
-] ?? "Peace with {enemy}? If you insist, {them}. I shall keep an eye on them."
-ask_lord = [
-    "Oh, I would love to, {them}. But {enemy} holds my leash now.",
-    "Ask {enemy}, {them}. I am merely the humble servant.",
-]
-alliance_offer = [
-    enemy.betrayals(them) > 0 ? [
-        "{enemy} betrayed you once, {them}. I would never ... well. Shall we teach them some manners together?",
-        "Does it still sting, {them}, what {enemy} did to you? Revenge is so much sweeter shared.",
-    ],
-    enemy.strength > me.strength + them.strength and chance(60%) ? "{enemy} is stronger than the two of us together, {them}. Alone we are dessert. Together we might be the cook.",
-    them.refusals(me) > 0 and chance(60%) ? "I know, {them}, you turned me down before. But {enemy} changes things, doesn't it?",
-    them.opinion(me) > 30% and chance(60%) ? "You have always thought so well of me, {them}. Let us make it official - against {enemy}.",
-] ?? [
-    "{them}, darling, {enemy} will devour us both. Shouldn't we ... work together?",
-    "A proposal, {them}: the two of us against {enemy}. What do you say?",
-]
-offer_accepted = [
-    them.betrayals(me) > 0 ? [
-        "Friends again, {them}. I shall keep a chair for you - and a dagger under it. Just in case.",
-        "Allies once more, {them}. Last time you ended it. This time, I think, I shall.",
-    ],
-    them.refusals(me) > 0 and chance(60%) ? "You said no before, {them}. I knew you would come round.",
-] ?? [
-    enemy ? "Wonderful, {them}. {enemy} will not like this at all.",
-    "How nice, we understand each other.",
-]
-; ignored(me) counts this one already
-offer_withdrawn = them.ignored(me) > 1 ? [
-    "Ignored again, {them}? I keep a little list, you know. You are on it {them.ignored(me)} times now.",
-    "{them.ignored(me)} offers, {them}, and not one answer. Silence is an answer too, you know. I heard it.",
-] : [
-    "You hesitated too long, {them}. Such a pity.",
-    "Never mind, {them}. I will remember this.",
-]
-betray = [
-    them.betrayals(me) > 0 ? [
-        "You taught me this game yourself, {them}. Do you like my progress?",
-        "Did you think I had forgotten, {them}? I was only waiting for the right moment. This is it.",
-    ],
-    them.tribute(me, 30) > 0 and chance(50%) ? "Thank you for all the gifts, {them}. They will pay for the war.",
-    pawn and chance(60%) ? "You have become such a burden, {them}. A lady must travel light.",
-] ?? [
-    "I am so sorry, {them}. No, not really.",
-    "You were useful, {them}. Now you are not.",
-    "Did you really think I was your friend, {them}?",
-]
-tribute_thanks = [
-    at_war ? [
-        "Gold in the middle of a war, {them}? How touching. It changes nothing - well, almost nothing.",
-        "Paying your enemy, {them}? I shall spend it carefully. On soldiers, most likely.",
-    ],
-    them.betrayals(me) > 0 and chance(60%) ? "Gifts from a traitor, {them}? Guilt suits you.",
-    them.tribute(me) > big_tribute and chance(60%) ? "{them.tribute(me)} in gifts already, {them}. One could almost think you were afraid of me.",
-] ?? [
-    "For me? How thoughtful, {them}.",
-    "You know how to treat a lady, {them}.",
-]
-tribute_small = at_war ? [
-    "A trinket in the middle of a war, {them}? You do value yourself cheaply.",
-    "Is that the price of peace in your eyes, {them}? Then the war goes on.",
-] : [
-    "Is that all, {them}?",
-    "How ... modest, {them}. I shall find a small drawer for it.",
-]
-attack = [
-    them.razed(me, 20) > 0 and chance(60%) ? "{them} broke some of my lovely things. Let us return the courtesy.",
-    them.betrayals(me) > 0 and chance(60%) ? "{them} once broke faith with me. Today the bill arrives.",
-    them.refusals(me) > 1 and chance(50%) ? "{them} has said no to me so often. Let us see if they can say no to this.",
-] ?? [
-    "Time for a little surprise for {them}.",
-    "Our troops are on their way to {them}. Quietly.",
-]
-attack_threat = [
-    them.betrayals(me) > 0 and chance(60%) ? "Do you sleep well, {them}? Traitors usually don't.",
-    them.refusals(me) > 0 and chance(50%) ? "You should have accepted my offer, {them}. Do you remember it? I do.",
-    their_dead and chance(50%) ? "{me.kills(them)} of your people already, {them}. I could stop counting - but I so enjoy it.",
-] ?? [
-    "Let us see how well you sleep, {them}.",
-    "A little surprise is on its way to you, {them}.",
-    "{them}, do look behind you now and then.",
-]
-under_attack = [
-    me.soldiers < 10 ? [
-        "Guests, and nobody home to receive them? Everyone to the gates - now!",
-        "Where are my soldiers when I need them? Servants, cooks, anyone - take up a spear!",
-    ],
-    lord and chance(50%) ? "My lord {lord} will be so displeased to hear of this.",
-] ?? [
-    "How rude, to turn up unannounced!",
-    "Guards! Throw these people out!",
-]
-building_lost = [
-    "Annoying.",
-    "That was my favourite building.",
-]
-epoch_up = [
-    epoch >= epoch.industrial and chance(50%) ? "{epoch}. Smoke and steel - so vulgar, so effective.",
-    me.rank == 1 and chance(50%) ? "{epoch}. First in strength, first in fashion.",
-] ?? [
-    "{epoch}. New toys.",
-    "A new age - how exciting.",
-]
-enemy_ahead = "{them} is in a hurry? Those who run fast stumble easily."
-winning = [
-    them.betrayals(me) > 0 and chance(60%) ? "You betrayed me, {them}. Did you think I would let that go? How sweet.",
-    their_dead and chance(50%) ? "{me.kills(them)} of yours, {them}, and I have hardly creased my gown.",
-] ?? [
-    "{them}, you should start begging for mercy.",
-    "Everything is going to plan.",
-]
-losing = [
-    enemies > 1 and chance(50%) ? "Everyone against me at once? I suppose I should be flattered.",
-    my_dead and them.kills(me) > me.kills(them) and chance(50%) ? "{them.kills(me)} of my people, {them}. I shall remember every one of them - and so will you.",
-] ?? [
-    "Hm. That was not the plan.",
-    "Perhaps we should talk, {them}?",
-]
-desperate = [
-    lord and chance(70%) ? "My lord {lord}! Your humble servant needs you - now!",
-    allies > 0 and chance(60%) ? "Friends, now would be a lovely moment to remember everything I did for you!",
-] ?? [
-    "I am not giving up - I am merely changing tactics!",
-    "This is not over yet!",
-]
-enemy_defeated = [
-    them.betrayals(me) > 0 ? [
-        "Poor {them}. Traitors so rarely age well.",
-        "{them} broke faith with me, and now {them} is broken. I do like it when things come full circle.",
-    ],
-    them.refusals(me) > 0 and chance(50%) ? "{them} said no to me once. Look where it got them.",
-    their_dead and chance(60%) ? "And {them} is history. I may have helped. A little.",
-] ?? [
-    "Poor {them}.",
-    "And just like that, {them} is history.",
-]
-ally_defeated = "{them} is gone. Oh well, one finds new friends."
-defeated = [
-    "That ... was not ... the plan.",
-    "Very well. A game is a game.",
-]
-surrender = [
-    "I know when a game is lost. Well played, {them}.",
-    "Time for a graceful exit.",
-]
-capitulate = "Darling {them}, why fight when we could be friends? {tribute} say we are."
-capitulate_accepted = "{tribute} - a small price for such good company."
-capitulate_refused = "Pity. I would have made such a charming ally."
-all_submitted = "Well, {them}, it seems we all work for you now. Take your bow."
-other_victory = lord == them ? [
-    "Well played, {them}. Truly.",
-    "I do love a good ending. Bravo, {them}.",
-] : [
-    "How fortunate that we were friends, {them}. For both of us.",
-    "A shared victory, {them}. I shall remember who stood by me.",
-]
-wonder_threat = "What a pretty wonder. It would be a shame if something happened to it."
-help_none = "Help? Me? Whatever gave you that idea?"
+lines = {
+    greeting = [
+        players == 2 and chance(50%) ? "Just the two of us? How intimate.",
+        players > 5 and chance(50%) ? "So many guests. I do hope there are enough chairs ... for a while.",
+        allied and chance(50%) ? "Allies already, {them}? How sweet. Let us see how long it lasts.",
+    ] ?? [
+        players > 2 ? "How lovely to meet you all.",
+        "I am sure we will ... get along splendidly.",
+        "Friends? Enemies? Oh, that will sort itself out.",
+    ]
+    war_declared = [
+        them.tribute(me, 20) > 0 ? [
+            "First gifts, now war? How fickle you are, {them}.",
+            "Thank you for the gifts, {them}. They will make such lovely arrows - pointed at you.",
+        ],
+        them.refusals(me) > 0 and chance(60%) ? "First you refuse my hand, {them}, now you raise your fist. You make it so easy to dislike you.",
+        pawn and chance(60%) ? "You, {them}? With so little? How brave. How very foolish.",
+        rival and chance(60%) ? "War, {them}? Then I shall simply have to be cleverer than you are strong. That should not be difficult.",
+    ] ?? [
+        "How clumsy of you, {them}.",
+        "War, {them}? I had hoped you were cleverer.",
+        "Oh, {them}. You should not have done that.",
+    ]
+    betrayed = me.betrayals(them) > 0 ? [
+        "Returning the favour, {them}? I suppose I taught you that. How flattering.",
+        "A knife for a knife, {them}? How very fair of you. I had no idea you kept accounts.",
+    ] : them.betrayals(me) > 0 ? [
+        "Twice, {them}? Once is a surprise. Twice is a habit - and habits can be broken. Like so many other things.",
+        "Again, {them}? I made a little note the first time. Now I shall have to start a whole book.",
+    ] : [
+        "You of all people, {them}? I am almost impressed.",
+        "Betrayal is my art, {them}. You are a mere dabbler.",
+    ]
+    peace_accept = [
+        them.betrayals(me) > 0 ? [
+            "Peace, {them}. I forgive - I simply never forget.",
+            "Peace, {them}. And this time I shall keep my back to the wall, if you don't mind.",
+        ],
+        them.kills(me, this_war) > many_dead and them.kills(me, this_war) > me.kills(them, this_war) and chance(60%) ? "You have made your point, {them}. Rather emphatically. Peace.",
+        them.tribute(me, 30) > 0 and chance(50%) ? "Your gifts did not go unnoticed, {them}. I am always kind to generous people.",
+    ] ?? [
+        "Peace, {them}? Gladly. For now.",
+        "As you wish, {them}. We are friends now.",
+    ]
+    peace_refuse = [
+        them.betrayals(me) > 0 ? [
+            "Peace with you, {them}? I trusted you once. Once is my limit.",
+            "Your word, {them}? I already have one of those. It broke the first time I leaned on it.",
+        ],
+        them.refusals(me) > 0 and chance(70%) ? "Now you want peace? I offered you my hand, {them}, and you slapped it away. I remember these things.",
+        them.ignored(me) > 0 and chance(60%) ? "You let my offer gather dust, {them}. Now yours can do the same.",
+        them.opinion(me) < -50% and chance(50%) ? "You cannot stand me, {them}, and now you want peace? How ... suspicious.",
+    ] ?? [
+        "Why should I, {them}? What is in it for me?",
+        "Later perhaps, {them}. It does not suit me now.",
+        "Convince me, {them}. With gold, perhaps?",
+    ]
+    block_refuse = [
+        enemy.betrayals(me) > 0 ? [
+            "{enemy} at your table, {them}? {enemy} once put a knife in my back. I do not dine with knives.",
+            "Do ask {enemy} what became of their last alliance with me, {them}. Then ask yourself why I decline.",
+        ],
+    ] ?? [
+        "An alliance with {enemy} in it? I am not that foolish, {them}.",
+        "{enemy} at your table, {them}? Then I dine elsewhere.",
+    ]
+    block_refuse_own = [
+        "And upset {enemy}? My ally would never forgive me, {them}.",
+        "{enemy} would be most displeased, {them}. Another time.",
+    ]
+    vassal_grumble = [
+        enemy.betrayals(me) > 0 ? [
+            "Peace with {enemy}, who betrayed me? As you command, {them}. I shall smile at them. Very sweetly.",
+            "{enemy} broke faith with me, and now I must call them friend? Your wish, {them}. Peace has such short memories - mine is long.",
+        ],
+    ] ?? "Peace with {enemy}? If you insist, {them}. I shall keep an eye on them."
+    ask_lord = [
+        "Oh, I would love to, {them}. But {enemy} holds my leash now.",
+        "Ask {enemy}, {them}. I am merely the humble servant.",
+    ]
+    alliance_offer = [
+        enemy.betrayals(them) > 0 ? [
+            "{enemy} betrayed you once, {them}. I would never ... well. Shall we teach them some manners together?",
+            "Does it still sting, {them}, what {enemy} did to you? Revenge is so much sweeter shared.",
+        ],
+        enemy.strength > me.strength + them.strength and chance(60%) ? "{enemy} is stronger than the two of us together, {them}. Alone we are dessert. Together we might be the cook.",
+        them.refusals(me) > 0 and chance(60%) ? "I know, {them}, you turned me down before. But {enemy} changes things, doesn't it?",
+        them.opinion(me) > 30% and chance(60%) ? "You have always thought so well of me, {them}. Let us make it official - against {enemy}.",
+    ] ?? [
+        "{them}, darling, {enemy} will devour us both. Shouldn't we ... work together?",
+        "A proposal, {them}: the two of us against {enemy}. What do you say?",
+    ]
+    offer_accepted = [
+        them.betrayals(me) > 0 ? [
+            "Friends again, {them}. I shall keep a chair for you - and a dagger under it. Just in case.",
+            "Allies once more, {them}. Last time you ended it. This time, I think, I shall.",
+        ],
+        them.refusals(me) > 0 and chance(60%) ? "You said no before, {them}. I knew you would come round.",
+    ] ?? [
+        enemy ? "Wonderful, {them}. {enemy} will not like this at all.",
+        "How nice, we understand each other.",
+    ]
+    offer_withdrawn = them.ignored(me) > 0 ? [
+        "Ignored again, {them}? I keep a little list, you know. You are on it {them.ignored(me) + 1} times now.",
+        "{them.ignored(me) + 1} offers, {them}, and not one answer. Silence is an answer too, you know. I heard it.",
+    ] : [
+        "You hesitated too long, {them}. Such a pity.",
+        "Never mind, {them}. I will remember this.",
+    ]
+    betray = [
+        them.betrayals(me) > 0 ? [
+            "You taught me this game yourself, {them}. Do you like my progress?",
+            "Did you think I had forgotten, {them}? I was only waiting for the right moment. This is it.",
+        ],
+        them.tribute(me, 30) > 0 and chance(50%) ? "Thank you for all the gifts, {them}. They will pay for the war.",
+        pawn and chance(60%) ? "You have become such a burden, {them}. A lady must travel light.",
+    ] ?? [
+        "I am so sorry, {them}. No, not really.",
+        "You were useful, {them}. Now you are not.",
+        "Did you really think I was your friend, {them}?",
+    ]
+    tribute_thanks = [
+        at_war ? [
+            "Gold in the middle of a war, {them}? How touching. It changes nothing - well, almost nothing.",
+            "Paying your enemy, {them}? I shall spend it carefully. On soldiers, most likely.",
+        ],
+        them.betrayals(me) > 0 and chance(60%) ? "Gifts from a traitor, {them}? Guilt suits you.",
+        them.tribute(me) > big_tribute and chance(60%) ? "{them.tribute(me) + tribute_total} in gifts already, {them}. One could almost think you were afraid of me.",
+    ] ?? [
+        "For me? How thoughtful, {them}.",
+        "You know how to treat a lady, {them}.",
+    ]
+    tribute_small = at_war ? [
+        "A trinket in the middle of a war, {them}? You do value yourself cheaply.",
+        "Is that the price of peace in your eyes, {them}? Then the war goes on.",
+    ] : [
+        "Is that all, {them}?",
+        "How ... modest, {them}. I shall find a small drawer for it.",
+    ]
+    attack = [
+        them.razed(me, 20) > 0 and chance(60%) ? "{them} broke some of my lovely things. Let us return the courtesy.",
+        them.betrayals(me) > 0 and chance(60%) ? "{them} once broke faith with me. Today the bill arrives.",
+        them.refusals(me) > 1 and chance(50%) ? "{them} has said no to me so often. Let us see if they can say no to this.",
+    ] ?? [
+        "Time for a little surprise for {them}.",
+        "Our troops are on their way to {them}. Quietly.",
+    ]
+    attack_threat = [
+        them.betrayals(me) > 0 and chance(60%) ? "Do you sleep well, {them}? Traitors usually don't.",
+        them.refusals(me) > 0 and chance(50%) ? "You should have accepted my offer, {them}. Do you remember it? I do.",
+        their_dead and chance(50%) ? "{me.kills(them)} of your people already, {them}. I could stop counting - but I so enjoy it.",
+    ] ?? [
+        "Let us see how well you sleep, {them}.",
+        "A little surprise is on its way to you, {them}.",
+        "{them}, do look behind you now and then.",
+    ]
+    under_attack = [
+        me.soldiers < 10 ? [
+            "Guests, and nobody home to receive them? Everyone to the gates - now!",
+            "Where are my soldiers when I need them? Servants, cooks, anyone - take up a spear!",
+        ],
+        lord and chance(50%) ? "My lord {lord} will be so displeased to hear of this.",
+    ] ?? [
+        "How rude, to turn up unannounced!",
+        "Guards! Throw these people out!",
+    ]
+    building_lost = [
+        "Annoying.",
+        "That was my favourite building.",
+    ]
+    epoch_up = [
+        epoch >= epoch.industrial and chance(50%) ? "{epoch}. Smoke and steel - so vulgar, so effective.",
+        me.rank == 1 and chance(50%) ? "{epoch}. First in strength, first in fashion.",
+    ] ?? [
+        "{epoch}. New toys.",
+        "A new age - how exciting.",
+    ]
+    enemy_ahead = "{them} is in a hurry? Those who run fast stumble easily."
+    winning = [
+        them.betrayals(me) > 0 and chance(60%) ? "You betrayed me, {them}. Did you think I would let that go? How sweet.",
+        their_dead and chance(50%) ? "{me.kills(them)} of yours, {them}, and I have hardly creased my gown.",
+    ] ?? [
+        "{them}, you should start begging for mercy.",
+        "Everything is going to plan.",
+    ]
+    losing = [
+        enemies > 1 and chance(50%) ? "Everyone against me at once? I suppose I should be flattered.",
+        my_dead and them.kills(me) > me.kills(them) and chance(50%) ? "{them.kills(me)} of my people, {them}. I shall remember every one of them - and so will you.",
+    ] ?? [
+        "Hm. That was not the plan.",
+        "Perhaps we should talk, {them}?",
+    ]
+    desperate = [
+        lord and chance(70%) ? "My lord {lord}! Your humble servant needs you - now!",
+        allies > 0 and chance(60%) ? "Friends, now would be a lovely moment to remember everything I did for you!",
+    ] ?? [
+        "I am not giving up - I am merely changing tactics!",
+        "This is not over yet!",
+    ]
+    enemy_defeated = [
+        them.betrayals(me) > 0 ? [
+            "Poor {them}. Traitors so rarely age well.",
+            "{them} broke faith with me, and now {them} is broken. I do like it when things come full circle.",
+        ],
+        them.refusals(me) > 0 and chance(50%) ? "{them} said no to me once. Look where it got them.",
+        their_dead and chance(60%) ? "And {them} is history. I may have helped. A little.",
+    ] ?? [
+        "Poor {them}.",
+        "And just like that, {them} is history.",
+    ]
+    ally_defeated = "{them} is gone. Oh well, one finds new friends."
+    defeated = [
+        "That ... was not ... the plan.",
+        "Very well. A game is a game.",
+    ]
+    surrender = [
+        "I know when a game is lost. Well played, {them}.",
+        "Time for a graceful exit.",
+    ]
+    capitulate = "Darling {them}, why fight when we could be friends? {tribute} say we are."
+    capitulate_accepted = "{tribute} - a small price for such good company."
+    capitulate_refused = "Pity. I would have made such a charming ally."
+    all_submitted = "Well, {them}, it seems we all work for you now. Take your bow."
+    other_victory = lord == them ? [
+        "Well played, {them}. Truly.",
+        "I do love a good ending. Bravo, {them}.",
+    ] : [
+        "How fortunate that we were friends, {them}. For both of us.",
+        "A shared victory, {them}. I shall remember who stood by me.",
+    ]
+    wonder_threat = "What a pretty wonder. It would be a shame if something happened to it."
+    help_none = "Help? Me? Whatever gave you that idea?"
+}
