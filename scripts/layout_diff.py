@@ -7,7 +7,8 @@ import pefile, capstone
 from capstone import x86
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-EXES = {'base': os.path.join(HERE, '..', '..', 'Empire Earth.exe'),
+from game_dir import game_dir
+EXES = {'base': os.path.join(game_dir(), 'Empire Earth.exe'),
         'aoc': os.path.join(HERE, '..', 'aoc', 'work', 'EE-AOC.exe')}
 TSV = {'base': os.path.join(HERE, '..', 'decomp', 'functions.tsv'),
        'aoc': os.path.join(HERE, '..', 'aoc', 'decomp', 'functions.tsv')}

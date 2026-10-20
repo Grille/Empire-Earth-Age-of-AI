@@ -26,3 +26,6 @@ __pycache__/
 
 # Art of Conquest analysis workspace (derived from EE-AOC.exe)
 /aoc/
+
+# the game folder when the repository is somewhere else (scripts/game_dir.sh, run_test.ps1)
+/game_dir.txt

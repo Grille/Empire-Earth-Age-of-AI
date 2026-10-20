@@ -1,6 +1,6 @@
 # Scripts (test scenarios)
 
-A test run's `setup=<file>` (autotest, `run_test.ps1 -IniExtra "setup=_aimod/scenarios/bombing.eeai"`) is a script in
+A test run's `setup=<file>` (autotest, `run_test.ps1 -IniExtra "setup=scenarios/bombing.eeai"` - relative to the repository) is a script in
 the text language of the personalities ([config/aimod_ai/README.md](../config/aimod_ai/README.md)): the same
 expressions, plus statements, variables, functions and the pipe's commands. It runs from 2 s game time, top to
 bottom; waiting (`wait`, `wait_until`, `every`) lets the game go on until that game time. The runner: `dll/scripts.c`.

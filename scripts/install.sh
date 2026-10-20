@@ -3,10 +3,11 @@
 # `git archive HEAD` - never from the working tree, which may hold another session's unfinished changes. A DLL a
 # running game has loaded can't be replaced: it waits until no Empire Earth.exe runs (the player's game or a test's),
 # builds, and copies only if still none runs. HEAD is taken when it builds, so a commit made while it waits goes in.
-# usage: sh scripts/install.sh            (from _aimod; prints "installed <commit>" or why not)
-A="$(cd "$(dirname "$0")/.." && pwd)"
-G="$(cd "$A/.." && pwd)"
-B="$A/work/install_build"
+# usage: sh scripts/install.sh            (prints "installed <commit>" or why not; the game folder: game_dir.sh)
+. "$(dirname "$0")/game_dir.sh"   # GAME, REPO
+A="$REPO"
+G="$GAME"
+B="${A:?no repository}/work/install_build"
 idle() { ! tasklist //FI "IMAGENAME eq Empire Earth.exe" 2>/dev/null | grep -q "Empire Earth"; }
 until idle; do sleep 30; done
 rm -rf "$B" && mkdir -p "$B"

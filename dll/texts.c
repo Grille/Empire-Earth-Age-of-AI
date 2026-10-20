@@ -518,8 +518,9 @@ static void texts_corpus(char *out, const char *path) {
     }
     {   // the hand-written cases (scripts/text_engine_cases.txt: an expression a line, # comments): the syntax check,
         // then worked out with P2 speaking to P1 (P3 the enemy) with computer.eeai's and _system.eeai's vars
-        char cp[MAX_PATH], ln[1024];
-        wsprintfA(cp, "%s_aimod\\scripts\\text_engine_cases.txt", g_game_dir);
+        char cp[MAX_PATH], ln[1024], repo[MAX_PATH];   // the repository: EEAIMOD_REPO (run_test.ps1), else <game>\_aimod
+        if (!GetEnvironmentVariableA("EEAIMOD_REPO", repo, sizeof repo) || !repo[0]) wsprintfA(repo, "%s_aimod", g_game_dir);
+        snprintf(cp, sizeof cp, "%s\\scripts\\text_engine_cases.txt", repo);
         FILE *cf = fopen(cp, "rb");
         int no = 0;
         while (cf && fgets(ln, sizeof ln, cf)) {

@@ -433,7 +433,7 @@ Guesses are marked as guesses. Not run in game: the armour bug and the "Any Reso
 
 ## EE 1.04 trigger effects: categories 2..6 (Player, Trigger, Media, Game, AI)
 
-Sources: static disassembly plus the Ghidra export `_aimod/decomp/*.c`. The editor field names come from the
+Sources: static disassembly plus the Ghidra export `decomp/*.c`. The editor field names come from the
 `EESETSET*::vf2` (dialog -> effect) and `vf5` (layout) functions. "pl" = EEPlayer*, "cp" = EEComputerPlayer*,
 "cm" = combat manager `[cp+0xB8C]`. Everything is thiscall unless marked otherwise. Guesses are marked (guess).
 

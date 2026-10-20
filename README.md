@@ -275,12 +275,13 @@ Requirements: Windows, any 32-bit MinGW C compiler. The project uses
 POSIX shell (Git Bash).
 
 ```sh
-# the repository is expected at <Empire Earth folder>/_aimod
-git clone <this repo> "X:/Games/Empire Earth Gold/Empire Earth/_aimod"
-cd _aimod
+git clone <this repo> eeaimod     # anywhere; inside the game folder (<game>/_aimod) needs no setting
+cd eeaimod
+# elsewhere: name the game folder (or set EE_GAME_DIR) - the tests and the install use it
+echo "X:/Games/Empire Earth Gold/Empire Earth" > game_dir.txt
 # unpack llvm-mingw to tools/llvm-mingw (or set CC=/path/to/i686-w64-mingw32-clang)
 sh dll/build.sh            # -> dll/eeaimod.dll
-sh dll/build.sh install    # build and copy into the game folder
+sh scripts/install.sh      # the committed build into the game folder (waits until no game runs)
 ```
 
 The DLL is a single translation unit: `dll/eeaimod.c` includes the other `.c` files.

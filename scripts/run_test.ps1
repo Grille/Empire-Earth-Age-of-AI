@@ -1,6 +1,8 @@
 # Launches Empire Earth on a saved game (Data\Saved Games\<Save>) in eeaimod autotest mode, waits for
-# the game to exit (or TimeoutSec), then archives the log to _aimod\work\.
-# Test settings come from _aimod\autotest.ini, copied next to the game only for the run, so normal play
+# the game to exit (or TimeoutSec), then archives the log to the repository's work\.
+# The game folder: env EE_GAME_DIR, else the line in the repository's game_dir.txt (git-ignored), else the folder the
+# repository sits in (<game>\_aimod) - Empire Earth.exe must be there.
+# Test settings come from the repository's autotest.ini, copied next to the game only for the run, so normal play
 # is never sped up or auto-quit. -Mute (default on) zeroes the game's sound/music volume in the
 # registry for the run and restores it afterwards (a backup file covers interrupted runs).
 # -Scenario <name> (without .scn) starts Data\Scenarios\<name>.scn through the game's real "play scenario"
@@ -16,9 +18,14 @@ param([string]$Save = "aitest.ees", [int]$TimeoutSec = 900, [string]$Tag = "", [
       [string]$Scenario = "", [string[]]$IniExtra = @(), [string]$Exe = "Empire Earth.exe",
       [string]$Config = $env:CONFIG, [string]$AiDir = $env:AI_DIR, [int]$Slot = [int]$env:SLOT,
       [string]$Settings = $env:SETTINGS, [string]$Dll = $env:DLL)
-$g = (Resolve-Path "$PSScriptRoot\..\..").Path   # game folder; the repository lives in <game>\_aimod
+$repo = (Resolve-Path "$PSScriptRoot\..").Path
+$g = $env:EE_GAME_DIR
+if (-not $g -and (Test-Path "$repo\game_dir.txt")) { $g = (Get-Content "$repo\game_dir.txt" | Where-Object { $_.Trim() } | Select-Object -First 1).Trim() }
+if (-not $g) { $g = Split-Path $repo -Parent }
+if (-not (Test-Path (Join-Path $g $Exe))) { "no $Exe in $g - name the game folder in EE_GAME_DIR or $repo\game_dir.txt"; exit 1 }
+$g = (Resolve-Path $g).Path.TrimEnd('\')
 if ($Slot -lt 0 -or $Slot -gt 30) { "slot must be 0..30"; exit 1 }
-$sdir = if ($Slot) { "$g\_aimod\work\slot$Slot" } else { $g }   # this run's test ini, log and dumps
+$sdir = if ($Slot) { "$repo\work\slot$Slot" } else { $g }   # this run's test ini, log and dumps
 if ($Scenario) {
     # beside other slots the file may be open in another game: copy it only when it differs
     $src = "$g\Data\Scenarios\$Scenario.scn"; $dst = "$g\Data\Saved Games\$Scenario.ees"
@@ -26,12 +33,12 @@ if ($Scenario) {
     $Save = "$Scenario.ees"
 }
 $key = 'HKCU:\Software\SSSI\Empire Earth'
-$backup = "$g\_aimod\work\sound_settings_backup.json"
+$backup = "$repo\work\sound_settings_backup.json"
 $names = 'Sound Volume', 'Music Volume', 'Music Enabled'
 
 # $userCopy keeps the last settings that weren't muted, so a backup taken in a muted state (overlapping runs)
 # can't lose the player's real volumes.
-$userCopy = "$g\_aimod\work\sound_settings_user.json"
+$userCopy = "$repo\work\sound_settings_user.json"
 function Restore-Sound {
     if (Test-Path $backup) {
         $b = Get-Content $backup -Raw | ConvertFrom-Json
@@ -45,19 +52,20 @@ function Restore-Sound {
 
 if ($Save -match '[-/]') { "save name must not contain - or /"; exit 1 }
 # The settings the DLL plays with: -Config (or env CONFIG) = an aimod.ini, -AiDir (or env AI_DIR) = the personality
-# folder; relative paths from _aimod. Default: the shipped config\aimod.ini and config\aimod_ai - what players get,
-# never the player's own ..\aimod.ini (its experiments would bias every A/B). CONFIG=../aimod.ini tests the player's.
+# folder; relative paths from the repository. Default: the shipped config\aimod.ini and config\aimod_ai - what players get,
+# never the player's own aimod.ini in the game folder (its experiments would bias every A/B); CONFIG=<game>\aimod.ini
+# tests it.
 if (-not $Config) { $Config = "config\aimod.ini" }
 if (-not $AiDir) { $AiDir = "config\aimod_ai" }
-if (-not [System.IO.Path]::IsPathRooted($Config)) { $Config = Join-Path "$g\_aimod" $Config }
-if (-not [System.IO.Path]::IsPathRooted($AiDir)) { $AiDir = Join-Path "$g\_aimod" $AiDir }
+if (-not [System.IO.Path]::IsPathRooted($Config)) { $Config = Join-Path $repo $Config }
+if (-not [System.IO.Path]::IsPathRooted($AiDir)) { $AiDir = Join-Path $repo $AiDir }
 if (-not (Test-Path $Config -PathType Leaf)) { "config not found: $Config"; exit 1 }
 if (-not (Test-Path $AiDir -PathType Container)) { "personality folder not found: $AiDir"; exit 1 }
 $Config = (Resolve-Path $Config).Path; $AiDir = (Resolve-Path $AiDir).Path
 # One run per slot: the slot's lock holds the owner's PID (and, once started, its game's); only the owner removes
 # the test ini, so a run that was interrupted (or is still waiting for its game) can't clean up under a newer run.
-$lock = if ($Slot) { "$g\_aimod\work\run_test_slot$Slot.lock" } else { "$g\_aimod\work\run_test.lock" }
-New-Item -ItemType Directory -Force "$g\_aimod\work" | Out-Null
+$lock = if ($Slot) { "$repo\work\run_test_slot$Slot.lock" } else { "$repo\work\run_test.lock" }
+New-Item -ItemType Directory -Force "$repo\work" | Out-Null
 New-Item -ItemType Directory -Force $sdir | Out-Null
 if (Test-Path $lock) {
     $owner = [int]((Get-Content $lock -Raw -ErrorAction SilentlyContinue) -split ' ')[0]
@@ -68,7 +76,7 @@ if (Test-Path $lock) {
 Set-Content $lock $PID
 # the other slots' runs still going: "runner game" PIDs from their locks
 function Other-Runs {
-    Get-ChildItem "$g\_aimod\work" -Filter "run_test*.lock" | Where-Object { $_.FullName -ne $lock } | ForEach-Object {
+    Get-ChildItem "$repo\work" -Filter "run_test*.lock" | Where-Object { $_.FullName -ne $lock } | ForEach-Object {
         $f = (Get-Content $_.FullName -Raw -ErrorAction SilentlyContinue) -split '\s+' | Where-Object { $_ }
         if ($f -and (Get-Process -Id ([int]$f[0]) -ErrorAction SilentlyContinue)) { , @($f | ForEach-Object { [int]$_ }) }
     }
@@ -98,21 +106,21 @@ if (-not $others) { Restore-Sound }   # leftover from an interrupted run (with o
 # The game's settings. With the mod's dinput.dll in the game folder (dll/eesettings.c) every run reads a copy of
 # -Settings (env SETTINGS; default config\test\eesettings.ini: fixed settings, sound off) - not the player's
 # eesettings.ini, not the registry - and nothing needs muting. -Mute:$false: the player's own settings.
-if (-not $Settings) { $Settings = "$g\_aimod\config\test\eesettings.ini" }
-elseif (-not [System.IO.Path]::IsPathRooted($Settings)) { $Settings = Join-Path "$g\_aimod" $Settings }
+if (-not $Settings) { $Settings = "$repo\config\test\eesettings.ini" }
+elseif (-not [System.IO.Path]::IsPathRooted($Settings)) { $Settings = Join-Path $repo $Settings }
 if ($proxy -and $Mute) {
     if (-not (Test-Path $Settings)) { Remove-Item $lock -Confirm:$false; "settings file not found: $Settings"; exit 1 }
-    $env:EEAIMOD_SETTINGS = "$g\_aimod\work\settings_slot$Slot.ini"
+    $env:EEAIMOD_SETTINGS = "$repo\work\settings_slot$Slot.ini"
     Copy-Item $Settings $env:EEAIMOD_SETTINGS -Force
 } else { Remove-Item Env:EEAIMOD_SETTINGS -ErrorAction SilentlyContinue }
 # this run's own DLL: the installed one (which needs to know EEAIMOD_DLL) loads the copy and stays out of the way
 if ($Dll) {
-    if (-not [System.IO.Path]::IsPathRooted($Dll)) { $Dll = Join-Path "$g\_aimod" $Dll }
+    if (-not [System.IO.Path]::IsPathRooted($Dll)) { $Dll = Join-Path $repo $Dll }
     $why = if (-not (Test-Path $Dll)) { "-Dll not found: $Dll" }
            elseif (-not (Select-String -Path "$g\eeaimod.dll" -Pattern 'EEAIMOD_DLL' -SimpleMatch -Quiet)) {
                "the installed eeaimod.dll predates -Dll (install a current build once: sh dll/build.sh install)" }
     if ($why) { Remove-Item $lock -Confirm:$false; $why; exit 1 }
-    $env:EEAIMOD_DLL = "$g\_aimod\work\eeaimod_slot$Slot.dll"
+    $env:EEAIMOD_DLL = "$repo\work\eeaimod_slot$Slot.dll"
     try { Copy-Item $Dll $env:EEAIMOD_DLL -Force -ErrorAction Stop }
     catch { Remove-Item $lock -Confirm:$false; "can't copy -Dll to $($env:EEAIMOD_DLL): $_"; exit 1 }
 } else { Remove-Item Env:EEAIMOD_DLL -ErrorAction SilentlyContinue }
@@ -126,14 +134,29 @@ if ($Mute -and -not $proxy -and -not (Test-Path $backup)) {   # muted once for a
 # test ini = autotest.ini + -IniExtra; an extra key replaces the same key from autotest.ini (the DLL reads the
 # first occurrence). (-File passes "a=1,b=2" as one string, so split on commas as well)
 $extra = @(($IniExtra -join ',').Split(',') | Where-Object { $_ })
+# setup=<file>[;<file>...]: relative to the repository (scenarios/x.eeai), made absolute for the game
+for ($i = 0; $i -lt $extra.Count; $i++) {
+    if ($extra[$i] -notmatch '^\s*setup\s*=(.*)$') { continue }
+    $files = @()
+    foreach ($f in $Matches[1].Split(';')) {
+        $f = $f.Trim()
+        if (-not $f) { continue }
+        if ($f -match '^_aimod[\\/]') { Remove-Item $lock -Confirm:$false; "setup=$f`: relative to the repository now ($($f.Substring(7)))"; exit 1 }
+        if (-not [System.IO.Path]::IsPathRooted($f)) { $f = Join-Path $repo $f }
+        if (-not (Test-Path $f)) { Remove-Item $lock -Confirm:$false; "setup: no file $f"; exit 1 }
+        $files += $f
+    }
+    $extra[$i] = "setup=" + ($files -join ';')
+}
 if ($Scenario) { $extra += "scenario_mode=1" }
 $extra += "config=$Config", "ai_dir=$AiDir"
 $keys = $extra | ForEach-Object { ($_ -split '=', 2)[0].Trim() }
-$lines = Get-Content "$g\_aimod\autotest.ini" | Where-Object { $keys -notcontains (($_ -split '=', 2)[0].Trim()) }
+$lines = Get-Content "$repo\autotest.ini" | Where-Object { $keys -notcontains (($_ -split '=', 2)[0].Trim()) }
 Set-Content "$sdir\aimod_autotest.ini" (@($lines) + $extra)
 # the game started from here sees the slot (and a slot-0 run none, whatever this shell has set)
 if ($Slot) { $env:EEAIMOD_SLOT = "$Slot"; $env:EEAIMOD_SLOT_DIR = $sdir }
 else { Remove-Item Env:EEAIMOD_SLOT, Env:EEAIMOD_SLOT_DIR -ErrorAction SilentlyContinue }
+$env:EEAIMOD_REPO = $repo   # the repository (texts corpus: its scripts\text_engine_cases.txt)
 # headless: the mod's dinput.dll keeps every window of the game from taking the focus or a taskbar button, from the
 # process start on (dll/headless_win.c; eeaimod.dll alone only from its load on)
 if ($extra -contains "headless=1") { $env:EEAIMOD_HEADLESS = "1" } else { Remove-Item Env:EEAIMOD_HEADLESS -ErrorAction SilentlyContinue }
@@ -141,7 +164,7 @@ try {
     # an existing log in the game folder is from normal play (tests archive theirs below): keep it, never delete it;
     # in a slot's folder: a crashed run's
     if (Test-Path "$sdir\aimod_econ.csv") {
-        $kept = "$g\_aimod\work\$(if ($Slot) { 'slot' + $Slot + '_left_' } else { 'play_' })$(Get-Date -Format yyyyMMdd_HHmmss).csv"
+        $kept = "$repo\work\$(if ($Slot) { 'slot' + $Slot + '_left_' } else { 'play_' })$(Get-Date -Format yyyyMMdd_HHmmss).csv"
         Move-Item "$sdir\aimod_econ.csv" $kept -Force
         "kept the previous log: $kept"
     }
@@ -215,6 +238,6 @@ public static class SuspendedStart {
     }
 }
 $stamp = Get-Date -Format "yyyyMMdd_HHmmss"
-$dest = "$g\_aimod\work\autotest_${stamp}$(if ($Slot) { "_s$Slot" })${Tag}.csv"
+$dest = "$repo\work\autotest_${stamp}$(if ($Slot) { "_s$Slot" })${Tag}.csv"
 if (Test-Path "$sdir\aimod_econ.csv") { Move-Item "$sdir\aimod_econ.csv" $dest }
 "finished in $secs s real time, exit code $($p.ExitCode), log: $dest"

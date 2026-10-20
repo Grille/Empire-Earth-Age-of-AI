@@ -1,7 +1,10 @@
 # eeaimod - working notes for Claude sessions
 
-An AI and tuning mod for Empire Earth 1.04 (32-bit, German retail + DSML), injected as `eeaimod.dll`. This repo is
-`<game>\_aimod`; the game folder is one level up. What the mod does: README.md; how it is tested: docs/testing.md.
+An AI and tuning mod for Empire Earth 1.04 (32-bit, German retail + DSML), injected as `eeaimod.dll`. The game
+folder: env `EE_GAME_DIR`, else `game_dir.txt` in the repo (git-ignored), else the repo's parent (`<game>\_aimod`,
+the setup here) - scripts find it through `scripts/game_dir.sh` / `game_dir.py` / run_test.ps1; paths in the repo
+(`setup=scenarios/x.eeai`, `CONFIG=...`) are relative to the repo. What the mod does: README.md; how it is tested:
+docs/testing.md.
 Several sessions may work in this tree at the same time - see Git below.
 
 ## Build and install

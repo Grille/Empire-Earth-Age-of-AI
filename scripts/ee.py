@@ -1,6 +1,6 @@
 import pefile,struct,re,capstone,functools,os
-# the repository lives in <game folder>/_aimod; EE_EXE overrides
-EXE=os.environ.get("EE_EXE") or os.path.join(os.path.dirname(os.path.abspath(__file__)),"..","..","Empire Earth.exe")
+# the game's exe: EE_EXE, else the one in the game folder (game_dir.py)
+EXE=os.environ.get("EE_EXE") or os.path.join(__import__("game_dir").game_dir(),"Empire Earth.exe")
 pe=pefile.PE(EXE,fast_load=True)
 IB=pe.OPTIONAL_HEADER.ImageBase
 img=pe.get_memory_mapped_image()

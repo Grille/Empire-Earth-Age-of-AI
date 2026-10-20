@@ -3,6 +3,7 @@
 # usage: sh scripts/editor_headless.sh [editor_resolution]      e.g. game | aoc | 1920x1080
 # Then drive it with: eectl.py vmouse/vclick/wclick/shot (see docs/testing.md). Quit with: eectl.py quit
 cd "$(dirname "$0")/.." || exit 1
+REPO="$(pwd)"; . scripts/game_dir.sh   # GAME: its log is the game folder's (slot 0)
 res=${1:-game}
 py=venv/Scripts/python
 if tasklist | grep -qi "empire earth"; then echo "a game is running - close it first"; exit 1; fi
@@ -11,7 +12,7 @@ if tasklist | grep -qi "empire earth"; then echo "a game is running - close it f
 # main menu: wait until the control pipe answers and a frame can be taken
 for i in $(seq 1 60); do sleep 2; $py scripts/eectl.py shot menu >/dev/null 2>&1 && break; done
 sleep 3
-log=../aimod_econ.csv
+log="$GAME/aimod_econ.csv"
 if [ "$res" = "ee" ]; then   # original editor: the mod hooks nothing, so no log line - click once, check by shot
     $py scripts/eectl.py vmouse 500 460 >/dev/null; sleep 1
     $py scripts/eectl.py vclick 512 472 >/dev/null; sleep 4
@@ -24,9 +25,9 @@ for try in 1 2 3 4 5; do
     $py scripts/eectl.py vclick 512 472 >/dev/null; sleep 4     # main menu: game tools
     $py scripts/eectl.py vmouse 500 360 >/dev/null; sleep 1
     $py scripts/eectl.py vclick 512 370 >/dev/null              # game tools: scenario editor
-    for i in $(seq 1 15); do sleep 1; grep -aq "# editor: building" $log && break; done
-    if grep -aq "# editor: building" $log; then
-        sleep 8; grep -a "# editor: \(building\|resolution [0-9]\)\|# exception" $log; echo "editor open"; exit 0
+    for i in $(seq 1 15); do sleep 1; grep -aq "# editor: building" "$log" && break; done
+    if grep -aq "# editor: building" "$log"; then
+        sleep 8; grep -a "# editor: \(building\|resolution [0-9]\)\|# exception" "$log"; echo "editor open"; exit 0
     fi
     $py scripts/eectl.py vclick 512 680 >/dev/null; sleep 3     # back to the main menu (bottom button) and retry
 done

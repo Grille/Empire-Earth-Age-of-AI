@@ -1,7 +1,7 @@
 """Navy: ship roles from the game's data, and the navy baseline from the `# navy:` log lines (dll/navy.c, docs/navy.md).
 
 usage:
-  python scripts/navy.py types LOG        the ship types (a run with setup=_aimod/scripts/navy_types.eeai): per naval
+  python scripts/navy.py types LOG        the ship types (a run with setup=scripts/navy_types.eeai): per naval
                                           type its epoch, cost, hit points, attack, range, speed and the game's hit
                                           factor (0x8D200C [target category][weapon kind]) against ship, building,
                                           land and air categories; then who hits each ship category hardest
