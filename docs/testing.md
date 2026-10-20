@@ -578,6 +578,23 @@ miners +2 to +8, the base AI with the cheat won 31 of 120 games instead of 45; h
 razed +6, losses +10.7 (6.1); lowpop (`h2h.sh 60 lowpop "...,unit_limit=60" "v_citizen_plan=3"`, 20 games) kills -
 losses +23. Tables: docs/economy.md.
 
+### Economy into army against the base AI (docs/economy.md "Economy into army")
+
+2026-10-20: `# mil:` once a minute (autotest, dll/army.c, both sides): `stock` F W S G I, `acc` the military account,
+`sold siege ships air` and `value` (prices without the Cheat), `bld` the finished Barracks, Archery Range, Stable, Siege
+Factory, Dock, Navy Yard, Airport, Tank Factory, Cyber Factory, Fortress and `busy` (5-s samples training / all),
+`towers walls` (finished), `tech up7 cost` (researched techs, line upgrades and their price), `wish` (soldiers in the
+unit manager's request lists), `pop cap room`, this minute's military orders (`calls asked trained`, refused by
+`budget` / `poor` (the stock can't pay) / `room` / `game` (no building, not researched), `subs`), the budget's short
+resources (`short`), the reserve a land soldier sees (`res`) and what army_plan did (`plan float fill bld mix`).
+`# pool:` at minutes 30 and 50: the research manager's candidate techs. `scripts/milspend.py [-base NAME]
+"work/autotest_*_ab-*.csv"` scores them per side, at 20/30/45/60 min, with paired differences. Runs:
+`scripts/eco_ablate.sh` with `MAPS="cont si5 li5"`, 20 seeds. `army_plan=7` (and 15, 16, 23) measured, **off**:
+Continental soldiers +4.5 / +5.3 at 60 min, kills - losses -0.8 / +7.0, head-to-head (`h2h.sh 60 late
+"random_map=Continental,seed=101,map_size=1,ai_count=4,start_epoch=0" "v_army_plan=7"`, 24 games) losses +14.4 (5.8),
+kills +1.1; lowpop (`h2h.sh 60 lowpop "random_map=Continental,map_size=0,ai_count=2,seed=101,start_epoch=9,unit_limit=60"
+"v_army_plan=7"`, 20 games) kills - losses +45.
+
 ### Mass before striking, the mines (navy stage 5)
 
 2026-10-19, `navy_fleet=2` with `navy_fleet_mass=1` and `navy_mines=1` (dll/fleet.c fl_rally, navy.c navy_nodes /

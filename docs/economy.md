@@ -218,3 +218,58 @@ workers +10.2 (0.3), soldiers -3.8 (0.7), kills +10.2 (3.0), losses -12.6 (3.1),
 The runs also found an engine crash that more citizens set off: 0x630466 sorts the enemies in a unit's range with
 std::sort, whose partition compares an 80-bit key with the pivot's float and runs off the array (0x62D5AC, 6 of 360
 games; dll/attack.c range sort guard, 29914e2).
+
+## Economy into army (2026-10-20, dll/army.c)
+
+The playtester: "later everything it can get hold of should be exploited and converted into better attack and
+defence capability". citizen_plan brought more workers and +700..+2000 stone/gold/iron an hour, but no bigger army.
+
+**Measured** (`# mil:` once a minute, autotest, both sides: stock, military account, reserve, army and its value,
+production buildings and their busy share, towers, walls, techs, the game's unit wishes, the military orders and why
+they were refused; `scripts/milspend.py`). Base AI at hard, 60 min, 20 seeds x both seats, mod (M) / base AI (V) at 60
+min; refused = the mod's military orders the budget refused from minute 20 (wood / gold / iron short):
+
+| Map | cheat | army M / V | value M / V | production bld M / V | busy M / V | towers M / V | stock M / V | refused (W/G/I short) |
+|---|---|---|---|---|---|---|---|---|
+| Continental e0 | no | 39 / 4 | 3870 / 430 | 5.7 / 1.2 | 34 / 31% | 6.2 / 3.1 | 4240 / 7600 | 2600 (580/760/680) |
+| Small Islands e5 | no | 22 / 34 | 3730 / 4150 | 11.1 / 12.7 | 21 / 21% | 6.3 / 3.5 | 5740 / 8100 | 4590 (2210/1970/1470) |
+| Large Islands e5 | no | 32 / 25 | 6090 / 2880 | 13.7 / 10.2 | 28 / 20% | 10.4 / 2.9 | 7560 / 6060 | 3760 (1980/1560/1130) |
+| Continental e0 | yes | 24 / 10 | 2390 / 1020 | 5.8 / 3.0 | 28 / 33% | 4.5 / 7.6 | 2630 / 18960 | 2480 (580/820/770) |
+| Small Islands e5 | yes | 6 / 32 | 820 / 4340 | 6.7 / 14.3 | 12 / 20% | 3.6 / 2.8 | 1150 / 16950 | 2880 (1470/850/1100) |
+| Large Islands e5 | yes | 13 / 43 | 2020 / 6290 | 8.8 / 17.1 | 24 / 17% | 5.4 / 3.5 | 2680 / 23140 | 5070 (2390/2000/1590) |
+
+The money is spent: from minute 20 the mod's stock averaged 950-3000 (the base AI 2900-12500, it trains little of what
+it asks for), the reserves held 0-560, the military account 2000-11000 more than the stock ever had; the budget refused
+the army 2600-5000 times, each time short of wood, gold or iron (food rarely); the production buildings trained 12-34%
+of the time, room refused nothing. Food and wood pile up only in the last 15 minutes (the 60-minute stock). The mod
+researches more than the base AI (Continental 31 techs to 13) but pays its line upgrades (category 7, ~40 on the islands,
+about 3700 an hour), which the base AI gets free. Towers it has more (4-10 to 3-8); stone is spent (150-390 at 60 min).
+So the economy's size and mix, not the budget, buildings or room, caps the army.
+
+`army_plan` ([all], bits, `v_army_plan`; from the Copper Age, only with an enemy on the AI's own continent): 1 FLOAT - the
+stock above every reserve that stayed for 2 minutes (less `army_float_keep` 300 food/wood, `army_float_keep_mineral` 100)
+tops up the military account; 2 FILL - every 10 s, while the account and stock pay one, up to 5 soldiers into the room
+the citizens' goal leaves (the game's own requested type when it can train it, else the strongest); 4 BUILD - one more
+Barracks / Archery Range / Stable (the kind of that soldier) when they trained 70%+ of the time and the account holds
+600, up to 2 + workers / 15; 8 MIX - with food 500 above its reserve for 2 minutes, up to 8 food workers to the wood,
+gold or iron the army's orders lacked; 16 UPGRADE - line upgrades wait until the line is in use. **Default 0.**
+
+Paired against the same build without (40 games a cell; d = with - without, standard error):
+
+| Variant | Map | cheat | d soldiers 45 / 60 | d trained | d bld | d kills-losses | base AI wins |
+|---|---|---|---|---|---|---|---|
+| 7 | Continental e0 | no | +2.0 (1.8) / +4.5 (1.6) | +22 | +2.3 | -0.8 (3.3) | 1 -> 1 |
+| 7 | Continental e0 | yes | +0.8 (1.4) / +5.3 (2.2) | +11 | +0.8 | +7.0 (4.6) | 3 -> 3 |
+| 7 (first, on islands too) | Small Islands e5 | no | -4.7 (2.6) / +0.1 (3.3) | -6 | +0.4 | -6.6 (9.8) | 2 -> 3 |
+| 7 (first) | Small Islands e5 | yes | +2.2 (1.9) / +2.9 (2.1) | +5 | +0.5 | +12.8 (5.6) | 19 -> 17 |
+| 7 (first) | Large Islands e5 | no / yes | +1.4 / +1.5, +1.1 / +0.2 | +8 / -3 | +1.5 / +0.7 | -7.2 (8.7) / +7.2 (7.0) | 1 -> 1, 9 -> 10 |
+| 15 (+ MIX) | all | | as 7 (MIX moved a few workers, rarely) | | | | |
+| 16 UPGRADE | all | | -1.4 .. +6.7 at 45 | +-3 | | -0.6 .. +5.0 | 19 -> 21 (Small, cheat) |
+
+Head-to-head against the control AI (Continental e0, map_size 1, 4 AIs, 60 min, 24 games, `v_army_plan=7`): B - A
+soldiers +4.2 (2.1), kills +1.1 (4.6), **losses +14.4 (5.8)**, razed +2.6 (2.0), alive +0.02. Low population (`lowpop`,
+cap 30, 20 games): soldiers +1.9 (1.0), kills +22.6 (11.1), losses -22.4 (10.2), razed +8.1 (3.0). On the islands the
+games with 7 are now the same as without (16 checked). The extra soldiers come in a trickle and the game's attacks and
+home guard feed them in piecemeal: more soldiers, as many kills, more losses - against the base AI they changed nothing
+that counts. Off by default; the next lever is the economy's mix (wood, gold, iron income) and how the army fights, not
+its budget.
