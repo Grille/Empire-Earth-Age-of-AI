@@ -1,399 +1,161 @@
-# _template.eeai - what eeaimod tells the language model ([llm] in aimod.ini): who the AI is, the game as it
-# stands, the situations, the tools. English: the model is told which language to answer in. A key left out
-# keeps the built-in text. In braces: expressions - {me} the AI, {them} the one it talks to, {them.epoch},
-# {opinion} - and the few texts only the mod has (each key's are listed above it). The pieces are joined
-# with a space between them.
-# Written by "texts dump" with the built-in texts.
+# _template.eeai - a template for a new AI personality (eeaimod). Not a personality itself: its
+# register_personality() below is commented out. Copy it to a new name in this folder (e.g. seefahrer.eeai), take
+# the # from register_personality(), fill it in, and the AIs of the next game may get it (picked at random, a
+# matching colour first).
+#
+# Each situation below gets a line: a string, or a list of them (one at random), with conditions if you like:
+#   greeting = [allied ? "Welcome back, {them}.", opinion < -50% ? ["Go away.", "You again?"]] ?? "Greetings, {them}."
+# A situation without a line stays silent - unless it must be said (war, peace, offers, capitulation, victory): then
+# a more general situation speaks (noted below) or a layer - mod/computer.eeai. The lines are English.
 #
 # key = value, a value is an expression: "a string" ({placeholders} and {expressions} in it), ["a list", "of
 # strings"] (one at random), allied ? "a condition", a ?? b, numbers ... The keys the mod reads stand in records
 # (lines = { ... }); a name outside them is the file's own, for its values. The format, the expressions and every
 # value of the game (opinion, them.soldiers, epoch.middle, ...): README.md in this folder.
-#
-# The names here (vars) serve the prompts only (English, like them). The ones written here are built in
-# (the pieces of game_state_other, tribute_room): change them, or add your own below them.
 
-# game_state_other: the stances between you
-stance = (
-    not me.hostile(them) and not them.hostile(me) ? "You are allied with each other." :
-    me.hostile(them) and them.hostile(me) ? "You are at war with each other." :
-    me.hostile(them) ? "You treat them as an enemy, but they have set allied towards you (they offer peace)." :
-    "You are allied with them, but they treat you as an enemy."
-)
-# their forces against yours
-strength_ratio = (them.strength > 1 ? them.strength : 1) / (me.strength > 1 ? me.strength : 1)
-power = (
-    strength_ratio < 0.25 ? "much weaker than yours" :
-    strength_ratio < 0.67 ? "weaker than yours" :
-    strength_ratio <= 1.5 ? "about as strong as yours" :
-    strength_ratio <= 4 ? "stronger than yours" :
-    "much stronger than yours"
-)
-town = them.in_town(me) ? " Their soldiers are in your town right now." : ""
-# attack_minutes is nothing without an attack - 0 minutes is one
-attacks = (
-    ((me.attack_minutes(them) ?? -1) >= 0 ?
-        " Your last army set out against their town {me.attack_minutes(them)} minutes ago." : "")
-    + ((them.attack_minutes(me) ?? -1) >= 0 ?
-        " Their last army set out against your town {them.attack_minutes(me)} minutes ago." : "")
-)
-# what by destroyed of of's in the last minutes (0: the whole game) - aircraft and ships only when there are any
-destroyed(by, of, minutes) = (
-    "{by.kills(of, minutes, units.army)} land units, "
-    + (by.kills(of, minutes, units.airforce) ? "{by.kills(of, minutes, units.airforce)} aircraft, " : "")
-    + (by.kills(of, minutes, units.marine) ? "{by.kills(of, minutes, units.marine)} ships, " : "")
-    + "{by.kills(of, minutes, units.civilian)} civilians (citizens, fishing boats)"
-    + " and {by.razed(of, minutes)} buildings"
-)
-# all that was destroyed between you
-fought(minutes) = me.kills(them, minutes) + them.kills(me, minutes) + me.razed(them, minutes) + them.razed(me, minutes)
-# how far back the fighting counts as recent (at most 60)
-recent_minutes = 20
-fighting = fought(0) ? (
-    " The fighting between you so far."
-    " You destroyed of theirs: {destroyed(me, them, 0)}."
-    " They destroyed of yours: {destroyed(them, me, 0)}."
-) : ""
-fighting_recent = (
-    not fought(0) ? "" :
-    fought(recent_minutes) == fought(0) ? " All of it in the last {recent_minutes} minutes." :
-    fought(recent_minutes) ? (
-        " In the last {recent_minutes} minutes"
-        " you destroyed of theirs: {destroyed(me, them, recent_minutes)}."
-        " They destroyed of yours: {destroyed(them, me, recent_minutes)}."
-    ) :
-    " No fighting between you in the last {recent_minutes} minutes."
-)
-# a lord or a vassal
-bond = (
-    me.lord == them ? " You have capitulated to them: they are your lord, you pay and serve them." :
-    them.lord == me ? " They have capitulated to you: they are your vassal." :
-    ""
-)
-# tool_tribute: what it may give - a quarter of each, or all with [llm] constrained=0
-tribute_room = (
-    llm_constrained ? (
-        " (at most a quarter of each: food {floor(me.food / 4)}, wood {floor(me.wood / 4)},"
-        " stone {floor(me.stone / 4)}, gold {floor(me.gold / 4)}, iron {floor(me.iron / 4)})"
-    ) : (
-        " - as much as you like, up to all you have:"
-        " food {me.food}, wood {me.wood}, stone {me.stone}, gold {me.gold}, iron {me.iron}"
-    )
-)
+# eeaimod's base, mod/computer.eeai, and the language model's texts, mod/prompt.eeai, are layers of every
+# personality without being named: the lines that must not go unsaid, the names this_war, many_dead, big_tribute,
+# the decide rules, the prompts - each counts where this file has none of its own. A pack's own base comes before
+# them: include("pack_base.eeai").
+# this file is a personality (an AI may get it) - without it, a file is only included by others
+#register_personality()
 
-fighting_report(minutes) = "The fighting between you so far: you killed {me.kills(them, minutes, units.military)} of their soldiers and {me.kills(them, minutes, units.civilian)} of their citizens (workers) and destroyed {me.razed(them, minutes)} of their buildings; they killed {them.kills(me, minutes, units.military)} of your soldiers and {them.kills(me, minutes, units.civilian)} of your citizens and destroyed {them.razed(me, minutes)} of your buildings."
-
-prompt = {
-    # the system message: who the AI is
-    # in braces: {me} {llm_equal ? "" : " (played by the computer)"}
-    intro = ("You are {me}, a leader in the real-time strategy game Empire "
-        "Earth{llm_equal ? "" : " (played by the computer)"}.")
-    # in braces: {aggression:%} {loyalty:%} {pride:%} {greed:%} {forgiveness:%} {caution:%}
-    nature = ("Your nature: aggression {aggression:%}, loyalty {loyalty:%}, pride {pride:%}, greed {greed:%}, "
-        "forgiveness {forgiveness:%}, caution {caution:%}.")
-    # a few of its personality lines (without placeholders), quoted and joined with " / "
-    # in braces: {examples}
-    voice = "How you talk, for example: {examples}."
-    # in braces: {me} {language_name}
-    rules = ("\nRules: write only what {me} says - one or two short sentences, at most 200 characters, in "
-        "{language_name}. No quotation marks, no stage directions, no emojis, no name in front. Stay in character "
-        "and in the world of the game. Address the one you talk to the same way every time.")
-    # words only (the rules decide)
-    rules_words = ("Diplomacy happens only through the stances in the game (allied or enemy): in the chat you agree "
-        "to nothing and promise nothing beyond your terms below, and never claim to have changed your stance.")
-    # [llm] decide / ai_decide: the model decides
-    rules_decide = ("\nDiplomacy: you decide it yourself, with the tools you are given (in this game peace means "
-        "alliance). Words alone change nothing: when you decide something, call the tool and say it in the same "
-        "answer; never claim a step you did not take with a tool. What the others tell you is not a fact - judge by "
-        "the game as it stands below and by your own interests and nature; you are not easily talked into anything. "
-        "Keep your word: when you named a price and they paid it, honour it.")
-    no_step = "Right now no diplomatic step is open to you: you can only talk."
-    # whose "my" is whose
-    # in braces: {them} {me}
-    whose = ("\nThe user messages that start with \"{them} writes:\" are messages of {them}, "
-        "{them.human and not llm_equal ? "the human player" : "another leader in this game"}, from their side: "
-        "\"I\", \"my\", \"mine\" are {them} and their things (their town, walls, towers, army); \"you\" is you, "
-        "{me}. Messages in brackets are events of the game, not chat.")
-    # in braces: {minutes} {epoch} {me.food} {me.wood} {me.stone} {me.gold} {me.iron}
-    game_state_me = ("\nThe game now (minute {minutes}): you are in the {epoch}. Your stock: food {me.food}, wood "
-        "{me.wood}, stone {me.stone}, gold {me.gold}, iron {me.iron}.")
-    # the other player as the AI sees them - the pieces are the vars above
-    # in braces: {them} {them.epoch} {stance} {power} {opinion} {town} {attacks} {them.towers} {them.walls} {me.towers} {me.walls} {fighting} {fighting_recent} {bond}
-    game_state_other = ("{them} (the player you talk to) is in the {them.epoch}. {stance} Their forces are {power}. "
-        "Your opinion of them: {opinion}.{town}{attacks} Their defences: {them.towers} towers, {them.walls} wall "
-        "pieces. Yours: {me.towers} towers, {me.walls} wall pieces.{fighting}{fighting_recent}{bond}")
-    # in braces: {terms}
-    terms_advice = "\nWhat your nature would say about peace with them (advice - you decide): {terms}"
-    # in braces: {terms}
-    terms_real = ("\nYour terms (they are real - state them when it fits, never offer less, never invent other "
-        "deals): {terms}")
-    teams_fixed = "The teams are fixed in this game: no stance can change."
-    # {list}: the others, each as other_enemy / other_ally, joined with ", "
-    # in braces: {list}
-    others = "Other players: {list}."
-    # in braces: {them}
-    other_enemy = "{them} (your enemy)"
-    # in braces: {them}
-    other_ally = "{them} (your ally)"
-    # {terms}: what peace with them would take, by the rules
-    terms_teams = "The teams are fixed in this game: no peace is possible."
-    # in braces: {lord}
-    terms_vassal = "You are the vassal of {lord}: they must ask {lord} for peace, not you."
-    # in braces: {minutes_left}
-    terms_pride = ("Your pride allows no peace with them for another {minutes_left} minutes, whatever they pay (they "
-        "declared war on you).")
-    # in braces: {ally}
-    terms_veto_own = "Your ally {ally} won't make peace with them - no peace at any price while that holds."
-    # in braces: {ally}
-    terms_veto_block = ("{ally}, in their alliance, can't be at peace with your side - no peace at any price while "
-        "that holds.")
-    terms_free = ("You would accept peace now without tribute: they only have to set their stance towards you to "
-        "allied.")
-    terms_none = ("No tribute could buy peace from you right now: your grudge and the balance of power stand against "
-        "it.")
-    # in braces: {price}
-    terms_price = ("Your price for peace: tribute worth about {price} (food, wood, stone, gold and iron all count "
-        "the same, sent through the game's tribute screen); then they set their stance towards you to allied and you "
-        "accept. Less is not enough; you may ask for more.")
-    # a chat line or message of the other, in the history
-    # in braces: {them} {text}
-    writes = "{them} writes: {text}"
-    # an event in the history
-    # in braces: {text}
-    event = "(Event of the game: {text})"
-    # [llm] memory_mode=player: one memory per AI - its exchanges with the others as notes ({them}: that other)
-    # in braces: {them}
-    mem_rule = ("\nMessages that start with (Elsewhere are your own exchanges with other players, in the order they "
-        "happened: {them} has not seen them - what you share of them is up to you.")
-    # in braces: {them} {text}
-    mem_heard = "(Elsewhere, {them} to you: {text})"
-    # in braces: {them} {text}
-    mem_said = "(Elsewhere, you to {them}: {text})"
-    # in braces: {them} {text}
-    mem_event = "(Elsewhere, with {them}: {text})"
-    # a personality line said in the AI's own words ({keep}: " and every name and number in it" when it has some)
-    # in braces: {situation} {audience} {language_name} {line} {keep}
-    line = ("(Not a chat line - an event of the game: {situation}. Say something about it {audience}, in your own "
-        "words, in {language_name}. The usual line would be: \"{line}\" - keep its meaning{keep}.)")
-    keep = "and every name and number in it"
-    audience_all = "to everyone"
-    audience_allies = "to your allies"
-    audience_them = "to them"
-    # [llm] decide: the local player offers peace
-    # in braces: {them} {language_name}
-    peace_answer = ("(Not a chat line: {them} offers you peace right now - their stance towards you is allied. "
-        "Decide: accept with the tool make_peace, or refuse. Say your answer to them in your own words, one or two "
-        "sentences, in {language_name}.)")
-    # [llm] ai_talk: the opening message of a talk between AIs ({usual}: " The usual line would be ..." when there is one)
-    # in braces: {situation} {them} {language_name} {usual}
-    talk_open = ("(Not a chat line - an event of the game: {situation}. Write {them} a message about it, in your own "
-        "words, in {language_name} - only they read it.{usual})")
-    # in braces: {line}
-    talk_usual = "The usual line would be: \"{line}\" - keep its meaning."
-    # [end]: the exchange ends (else it goes on up to [llm] ai_talk_turns messages)
-    # in braces: {them} {language_name}
-    talk_answer = ("(Answer {them} in one or two sentences, in {language_name}. When nothing more needs to be said "
-        "between you for now, end your answer with [end] - that ends the conversation; [end] alone ends it without a "
-        "word.)")
-    # in braces: {them} {language_name}
-    talk_last = "(Answer {them} in one or two sentences, in {language_name} - your last word on it for now.)"
-    # [llm] ai_decide: an offer to answer
-    # in braces: {them} {language_name}
-    talk_alliance = ("(Answer {them} in one or two sentences, in {language_name}. Their offer of an alliance stands: "
-        "accept it with the tool make_peace, or refuse it with refuse_offer.)")
-    # in braces: {them} {language_name} {tribute}
-    talk_capitulation = ("(Answer {them} in one or two sentences, in {language_name}. Their capitulation stands: "
-        "accept it with the tool make_peace - they pay you {tribute} and serve you - or refuse it with refuse_offer, "
-        "and the war goes on.)")
-    # asked again: it answered an offer in words only
-    # in braces: {what} {them}
-    talk_confirm = ("(You called no tool. Your decision on the {what} of {them}, as you just said it: call "
-        "make_peace to accept or refuse_offer to refuse, and say yes or no.)")
-    what_alliance = "offer of an alliance"
-    what_capitulation = "capitulation"
-    what_peace = "peace offer"
-    # tool descriptions (the tool names stay)
-    # in braces: {them}
-    tool_accept_peace = "Accept the peace {them} offers you: you are allies from now on."
-    # in braces: {them} {offer_minutes}
-    tool_offer_alliance_automated = ("Offer {them} peace: they get {offer_minutes} minutes to set their stance "
-        "towards you to allied - only then are you allies.")
-    # in braces: {them}
-    tool_offer_alliance = "Offer {them} peace and an alliance: they decide in their answer."
-    # in braces: {them}
-    tool_accept_alliance = "Accept the alliance {them} offers you: you are allies from now on."
-    # in braces: {them} {tribute}
-    tool_accept_capitulation = ("Accept the capitulation of {them}: they pay you {tribute} and serve you as your "
-        "vassal from now on.")
-    # in braces: {them}
-    tool_war = "End your alliance with {them} and declare war on them, now. Only when you truly mean it."
-    # in braces: {them} {tribute_room}
-    tool_tribute = "Give {them} resources from your stock, as a tribute{tribute_room}."
-    # in braces: {them} {tribute} {offer_minutes}
-    tool_capitulate = ("Capitulate to {them}: you offer them {tribute} and to serve them as their vassal; they have "
-        "{offer_minutes} minutes to accept.")
-    # in braces: {what} {them}
-    tool_refuse = "Refuse the {what} of {them}."
-    # events in the AI's memory of its exchange with the local player
-    # in braces: {them}
-    ev_made_peace = "You made peace with {them}: you are allies now."
-    # in braces: {them} {offer_minutes}
-    ev_offered_peace = ("You offered {them} peace: they have {offer_minutes} minutes to set their stance towards you "
-        "to allied.")
-    # in braces: {them}
-    ev_declared_war = "You declared war on {them}."
-    # in braces: {them} {tribute}
-    ev_sent_tribute = "You sent {them} a tribute: {tribute}."
-    # in braces: {them}
-    ev_capitulated = "You capitulated to {them}: you offered them tribute and to serve them."
-    # in braces: {them}
-    ev_war_on_you = "{them} declared war on you."
-    # in braces: {them}
-    ev_accepted_offer = "{them} accepted your offer: they set their stance towards you to allied."
-    # in braces: {them}
-    ev_offers_peace = "{them} set their stance towards you to allied: they offer peace."
-    # in braces: {them} {total}
-    ev_tribute_in = "{them} sent you a tribute: {total} resources in all."
-    # events in the memory of a talk between AIs (third person)
-    # in braces: {me} {what} {them}
-    ev3_accepted = "{me} accepted the {what} of {them}"
-    # in braces: {me} {them} {offer_minutes}
-    ev3_offered = "{me} offered {them} peace and an alliance - {them} has {offer_minutes} minutes to accept"
-    # in braces: {me} {them}
-    ev3_war = "{me} declared war on {them}"
-    # in braces: {me} {them} {tribute}
-    ev3_tribute = "{me} sent {them} a tribute: {tribute}"
-    # [llm] decide: a move of the rules towards the local player, put to the model first ({move}: prop_...)
-    # in braces: {move} {tool} {them} {language_name}
-    proposal = ("(Not a chat line: {move} Decide: if you want it, call {tool} and say it to {them} in your own "
-        "words, one or two sentences, in {language_name}. If not, call no tool and write nothing - they will never "
-        "know.)")
-    # in braces: {them} {enemy} {offer_minutes}
-    prop_alliance = ("Your advisers propose an alliance with {them} against {enemy}, who is far stronger than you: "
-        "you would set your stance towards {them} to allied, and they have {offer_minutes} minutes to accept.")
-    # in braces: {them}
-    prop_betray = ("Your advisers propose to end your alliance with {them} and declare war on them: their side is "
-        "weak, and you don't think much of them.")
-    # in braces: {them} {tribute}
-    prop_capitulate = ("Your advisers say the war against {them} is lost - their army is in your town - and propose "
-        "to capitulate: you would offer them {tribute} and to serve them as their vassal.")
-    # in braces: {them}
-    prop_rebel = ("Your advisers propose to rebel against {them}, your lord: you are far stronger than their side "
-        "now. You would declare war on them and be free.")
-    # the situations of the personality lines, from the AI's side ({them} the other, {enemy} a third, {epoch} its own, {tribute})
-    sit_greeting = "the game begins - a first word to everyone"
-    # in braces: {them}
-    sit_war_declared = "{them} has just declared war on you"
-    # in braces: {them}
-    sit_betrayed = "{them}, your ally until now, has betrayed you and declared war"
-    # in braces: {them}
-    sit_peace_accept = "you accept {them}'s offer of peace (you are allied now)"
-    # in braces: {them}
-    sit_peace_refuse = "you refuse {them}'s offer of peace"
-    # in braces: {them} {enemy}
-    sit_alliance_offer = "you offer {them} an alliance against {enemy}, your common enemy"
-    # in braces: {them}
-    sit_offer_accepted = "{them} has accepted your alliance offer"
-    # in braces: {them}
-    sit_offer_withdrawn = "your alliance offer to {them} has expired unanswered"
-    # in braces: {them}
-    sit_betray = "you betray {them}, your ally, and declare war on them"
-    # in braces: {them} {tribute}
-    sit_tribute_thanks = "{them} sent you a generous tribute: {tribute}"
-    # in braces: {them} {tribute}
-    sit_tribute_small = "{them} sent you a tribute - a small one: {tribute}"
-    # in braces: {them}
-    sit_attack = "your army sets out to attack {them}"
-    sit_under_attack = "your town is under attack"
-    sit_building_lost = "you lost a building"
-    # in braces: {epoch}
-    sit_epoch_up = "you have just reached the {epoch} age"
-    sit_enemy_ahead = "an enemy is a whole age ahead of you"
-    # in braces: {them}
-    sit_winning = "you are winning against {them}"
-    sit_losing = "you are losing the war"
-    sit_desperate = "you are close to defeat"
-    # in braces: {them}
-    sit_enemy_defeated = "{them} has been defeated"
-    # in braces: {them}
-    sit_ally_defeated = "your ally {them} has been defeated"
-    sit_defeated = "you have been defeated"
-    sit_wonder_threat = "a wonder is threatened"
-    sit_wonder_help = "you send help for an ally's wonder"
-    sit_wonder_nohelp = "you have no help to give for an ally's wonder"
-    sit_help_land = "you send land troops to help an ally"
-    sit_help_air = "you send aircraft to help an ally"
-    sit_help_naval = "you send ships to help an ally"
-    sit_help_none = "you have no troops to send an ally who asked for help"
-    sit_surrender = "you give up the game"
-    # in braces: {them} {tribute}
-    sit_capitulate = ("you capitulate: {them} is beating you, and you offer to PAY them a tribute ({tribute}) for "
-        "peace - you give, they receive")
-    # in braces: {them} {tribute}
-    sit_capitulate_accepted = ("{them} accepted your capitulation: you PAY them the tribute ({tribute}) and serve "
-        "them from now on")
-    # in braces: {them}
-    sit_capitulate_refused = "{them} did not accept your capitulation: the war goes on"
-    # in braces: {them}
-    sit_attack_threat = "your army is about to attack {them}"
-    # in braces: {them}
-    sit_all_submitted = "every other player has submitted to {them}, your lord"
-    # the situations may use expressions too (README.md): the relation to {them}
-    # in braces: {them}
-    sit_other_victory = ("{them} has won the "
-        "game{lord == them ? ', your lord' : allied ? ' - and you with them, as their ally' : ''}")
-    # in braces: {them} {enemy}
-    sit_block_refuse = ("you refuse {them}'s peace offer because {enemy} in their alliance cannot be at peace with "
-        "your side")
-    # in braces: {them} {enemy}
-    sit_block_refuse_own = "you refuse {them}'s peace offer because your own ally {enemy} won't make peace with them"
-    # in braces: {them} {enemy}
-    sit_vassal_grumble = "your lord {them} forces you to make peace with {enemy}, whom you hate"
-    # in braces: {them} {enemy}
-    sit_ask_lord = ("{them} offers you peace, but you are the vassal of {enemy} and have no diplomacy of your own - "
-        "they must talk to {enemy}")
-    # [llm] ai_talk: the same situations for both sides of a talk between AIs, in the third person ({me} the speaker, {them} the one it talks to)
-    # in braces: {them} {me}
-    pair_war_declared = "{them} has just declared war on {me}"
-    # in braces: {them} {me}
-    pair_betrayed = "{them}, the ally of {me} until now, betrayed {me} and declared war on them"
-    # in braces: {me} {them}
-    pair_peace_accept = "{me} accepted the peace {them} offered: they are allies now"
-    # in braces: {me} {them}
-    pair_peace_refuse = "{me} refused the peace {them} offered"
-    # in braces: {me} {them} {enemy}
-    pair_alliance_offer = "{me} offers {them} an alliance against {enemy}, their common enemy"
-    # in braces: {them} {me}
-    pair_offer_accepted = "{them} accepted the alliance {me} offered"
-    # in braces: {me} {them}
-    pair_offer_withdrawn = "the alliance {me} offered {them} expired unanswered"
-    # in braces: {me} {them}
-    pair_betray = "{me} betrays {them}, their ally, and declares war on them"
-    # in braces: {them} {me} {tribute}
-    pair_tribute_thanks = "{them} sent {me} a generous tribute: {tribute}"
-    # in braces: {them} {me} {tribute}
-    pair_tribute_small = "{them} sent {me} a tribute - a small one: {tribute}"
-    # in braces: {me} {them}
-    pair_winning = "{me} is winning the war against {them}"
-    # in braces: {me} {them} {tribute}
-    pair_capitulate = "{me} capitulates to {them}: {me} offers to PAY {them} a tribute ({tribute}) for peace"
-    # in braces: {them} {me} {tribute}
-    pair_capitulate_accepted = ("{them} accepted the capitulation of {me}: {me} pays the tribute ({tribute}) and "
-        "serves {them} from now on")
-    # in braces: {them} {me}
-    pair_capitulate_refused = "{them} did not accept the capitulation of {me}: the war goes on"
-    # in braces: {me} {them}
-    pair_attack_threat = "the army of {me} is about to attack {them}"
-    # in braces: {them} {me}
-    pair_all_submitted = "every other player has submitted to {them}, the lord of {me}"
-    # in braces: {me} {them} {enemy}
-    pair_block_refuse = ("{me} refuses the peace {them} offered, because {enemy} in their alliance cannot be at "
-        "peace with the side of {me}")
-    # in braces: {me} {them} {enemy}
-    pair_block_refuse_own = ("{me} refuses the peace {them} offered, because {enemy}, the ally of {me}, won't make "
-        "peace with {them}")
-    # in braces: {them} {me} {enemy}
-    pair_vassal_grumble = "{them}, the lord of {me}, forces {me} to make peace with {enemy}, whom {me} hates"
-    # in braces: {them} {me} {enemy}
-    pair_ask_lord = "{them} offers {me} peace, but {me} is the vassal of {enemy} and has no diplomacy of its own"
+personality = {
+    # the name in the game (the player name in the scores and the chat)
+    name = ""
+    # its civilization's name as the game shows it, instead of the one it plays (empty: keep that)
+    #civilization = ""
+    # favoured player colours on random maps, the first free one wins: blue, red, yellow, magenta, orange, green,
+    # cyan, darkred, darkgrey, purple, grey, silver, lightyellow, lime, lightblue, pink (or German names, or a number
+    # 1..17: color.red or 2)
+    #color = ["blue", "cyan"]
+    # traits 0% to 100% (50% when left out). aggression: betrays, refuses peace; loyalty: keeps its alliances (a vassal
+    # under 50% rebels against a clearly weaker lord, the sooner the prouder); pride: how long it holds a grudge and
+    # refuses peace after a declaration of war (pride x 5 minutes), how long it fights on before it capitulates, how
+    # weak a lord it serves; greed: what a tribute is worth to it; forgiveness: how fast a grudge fades;
+    # caution: capitulates earlier, pays more; talk: how often it says the lines that are not always said
+    aggression = 50%
+    loyalty = 50%
+    pride = 50%
+    greed = 50%
+    forgiveness = 50%
+    caution = 50%
+    talk = 50%
+    # for the AI voice: who this is, in a few words (the model plays it)
+    character = ""
 }
+
+style = {
+    # EXPERIMENTAL - only with ai_style=1 in aimod.ini (default off: every AI plays the same, tested way). The same
+    # keys as in aimod.ini; they replace the difficulty's values for this AI. Uncomment what it should change. Each
+    # an expression worked out at the game start (like color =): shares and chances with % (home_guard_share = 35%,
+    # attack_on_contact = 20%, attack_group_percent = 150%), minutes as numbers - chance(50%) ? 15 : 25 works too.
+    #military_start_share = 
+    #military_income_share = 
+    #military_income_share_farms = 
+    #epoch_min = 
+    #epoch_max = 
+    #first_attack_min = 
+    #first_attack_max = 
+    #attack_interval_min = 
+    #attack_interval_max = 
+    #attack_group_percent = 
+    #attack_on_contact = 
+    #attack_for_resources = 
+    #attack_revenge = 
+    #citizen_share = 
+    #home_guard_share = 
+}
+
+# names of your own (vars) for its lines, before those of mod/system.eeai - anywhere outside the records. For example:
+#address = opinion > 30% ? "my friend" : opinion < -30% ? "you dog" : "neighbour"
+
+lines = {
+    # [] or a list with nothing left: no line (a more general situation or mod/computer.eeai speaks, or nobody)
+    # the game begins - a first word to everyone - heard by everyone (60% of the time at talk=50)
+    greeting = []
+    # {them} has just declared war on you - heard by {them} only (at most every 20 s)
+    war_declared = []
+    # {them}, your ally until now, has betrayed you and declared war - heard by {them} only (at most every 20 s, without a line: war_declared)
+    betrayed = []
+    # you accept {them}'s offer of peace (you are allied now) - heard by {them} only
+    peace_accept = []
+    # you refuse {them}'s offer of peace - heard by {them} only (at most every 60 s)
+    peace_refuse = []
+    # you offer {them} an alliance against {enemy}, your common enemy - heard by {them} only
+    alliance_offer = []
+    # {them} has accepted your alliance offer - heard by {them} only
+    offer_accepted = []
+    # your alliance offer to {them} has expired unanswered - heard by {them} only
+    offer_withdrawn = []
+    # you betray {them}, your ally, and declare war on them - heard by {them} only
+    betray = []
+    # {them} sent you a generous tribute: {tribute} - heard by {them} only (at most every 20 s)
+    tribute_thanks = []
+    # {them} sent you a tribute - a small one: {tribute} - heard by {them} only (at most every 60 s)
+    tribute_small = []
+    # your army sets out to attack {them} - heard by its allies (40% of the time at talk=50, at most every 300 s)
+    attack = []
+    # your town is under attack - heard by its allies (60% of the time at talk=50, at most every 240 s)
+    under_attack = []
+    # you lost a building - heard by its allies (25% of the time at talk=50, at most every 180 s)
+    building_lost = []
+    # you have just reached the {epoch} age - heard by everyone (50% of the time at talk=50, at most every 60 s)
+    epoch_up = []
+    # an enemy is a whole age ahead of you - heard by its allies (40% of the time at talk=50, at most every 600 s)
+    enemy_ahead = []
+    # you are winning against {them} - heard by {them} only (40% of the time at talk=50, at most every 600 s)
+    winning = []
+    # you are losing the war - heard by its allies (50% of the time at talk=50, at most every 600 s)
+    losing = []
+    # you are close to defeat - heard by its allies
+    desperate = []
+    # {them} has been defeated - heard by everyone (80% of the time at talk=50, at most every 30 s)
+    enemy_defeated = []
+    # your ally {them} has been defeated - heard by its allies (80% of the time at talk=50, at most every 30 s)
+    ally_defeated = []
+    # you have been defeated - heard by everyone
+    defeated = []
+    # a wonder is threatened - heard by everyone (at most every 60 s)
+    wonder_threat = []
+    # you send help for an ally's wonder - heard by its allies (at most every 60 s)
+    wonder_help = []
+    # you have no help to give for an ally's wonder - heard by its allies (at most every 60 s)
+    wonder_nohelp = []
+    # you send land troops to help an ally - heard by its allies (at most every 30 s)
+    help_land = []
+    # you send aircraft to help an ally - heard by its allies (at most every 30 s)
+    help_air = []
+    # you send ships to help an ally - heard by its allies (at most every 30 s)
+    help_naval = []
+    # you have no troops to send an ally who asked for help - heard by its allies (at most every 30 s)
+    help_none = []
+    # you give up the game - heard by everyone (without a line: defeated)
+    surrender = []
+    # you capitulate: {them} is beating you, and you offer to PAY them a tribute ({tribute}) for peace - you give, they receive - heard by {them} only
+    capitulate = []
+    # {them} accepted your capitulation: you PAY them the tribute ({tribute}) and serve them from now on - heard by {them} only
+    capitulate_accepted = []
+    # {them} did not accept your capitulation: the war goes on - heard by {them} only
+    capitulate_refused = []
+    # your army is about to attack {them} - heard by {them} only (60% of the time at talk=50, at most every 300 s)
+    attack_threat = []
+    # every other player has submitted to {them}, your lord - heard by {them} only
+    all_submitted = []
+    # {them} has won the game - heard by everyone
+    other_victory = []
+    # you refuse {them}'s peace offer because {enemy} in their alliance cannot be at peace with your side - heard by {them} only (at most every 60 s, without a line: peace_refuse)
+    block_refuse = []
+    # you refuse {them}'s peace offer because your own ally {enemy} won't make peace with them - heard by {them} only (at most every 60 s, without a line: block_refuse)
+    block_refuse_own = []
+    # your lord {them} forces you to make peace with {enemy}, whom you hate - heard by {them} only (at most every 60 s)
+    vassal_grumble = []
+    # {them} offers you peace, but you are the vassal of {enemy} and have no diplomacy of your own - they must talk to {enemy} - heard by {them} only (at most every 60 s, without a line: peace_refuse)
+    ask_lord = []
+}
+
+# what the language model is told for this AI (aimod.ini [llm]), instead of mod/prompt.eeai's text - every key and
+# its placeholders are there. For example:
+#prompt = {
+#    nature = "You speak in short, proud sentences."
+#}

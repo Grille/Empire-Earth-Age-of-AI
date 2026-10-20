@@ -1,4 +1,4 @@
-"""Writes config/aimod_ai/_persona.eeai - an empty personality with every key explained - from the DLL's sources:
+"""Writes config/aimod_ai/_template.eeai - an empty personality with every key explained - from the DLL's sources:
 the situations (persona.c k_lines: who hears them, how often, their fallbacks), their descriptions (texts_prompt.h
 sit_<key>), the head (texts.c k_format_help; the rest is in README.md). Run it after changing one of them:
 venv/Scripts/python.exe scripts/gen_persona.py"""
@@ -32,7 +32,7 @@ fallback = {a.lower(): b.lower() for a, b in re.findall(r'case L_(\w+): return L
 
 out = []
 w = out.append
-w('# _persona.eeai - a template for a new AI personality (eeaimod). Not a personality itself: its')
+w('# _template.eeai - a template for a new AI personality (eeaimod). Not a personality itself: its')
 w('# register_personality() below is commented out. Copy it to a new name in this folder (e.g. seefahrer.eeai), take')
 w('# the # from register_personality(), fill it in, and the AIs of the next game may get it (picked at random, a')
 w('# matching colour first).')
@@ -40,13 +40,14 @@ w('#')
 w('# Each situation below gets a line: a string, or a list of them (one at random), with conditions if you like:')
 w('#   greeting = [allied ? "Welcome back, {them}.", opinion < -50% ? ["Go away.", "You again?"]] ?? "Greetings, {them}."')
 w('# A situation without a line stays silent - unless it must be said (war, peace, offers, capitulation, victory): then')
-w('# a more general situation speaks (noted below) or an included file - computer.eeai. The lines are English.')
+w('# a more general situation speaks (noted below) or a layer - mod/computer.eeai. The lines are English.')
 for ln in help_text('k_format_help'):
     w(ln)
 w('')
-w('# eeaimod\'s base: the lines that must not go unsaid, the names this_war, many_dead, big_tribute, the decide rules -')
-w('# each counts where this file has none of its own')
-w('include("computer.eeai")')
+w('# eeaimod\'s base, mod/computer.eeai, and the language model\'s texts, mod/prompt.eeai, are layers of every')
+w('# personality without being named: the lines that must not go unsaid, the names this_war, many_dead, big_tribute,')
+w('# the decide rules, the prompts - each counts where this file has none of its own. A pack\'s own base comes before')
+w('# them: include("pack_base.eeai").')
 w('# this file is a personality (an AI may get it) - without it, a file is only included by others')
 w('#register_personality()')
 w('')
@@ -81,11 +82,11 @@ for k in ['military_start_share', 'military_income_share', 'military_income_shar
     w('    #%s = ' % k)
 w('}')
 w('')
-w('# names of your own (vars) for its lines, before those of _system.eeai - anywhere outside the records. For example:')
+w('# names of your own (vars) for its lines, before those of mod/system.eeai - anywhere outside the records. For example:')
 w('#address = opinion > 30% ? "my friend" : opinion < -30% ? "you dog" : "neighbour"')
 w('')
 w('lines = {')
-w('    # [] or a list with nothing left: no line (a more general situation or computer.eeai speaks, or nobody)')
+w('    # [] or a list with nothing left: no line (a more general situation or mod/computer.eeai speaks, or nobody)')
 for key, chance, cooldown, a in lines:
     note = '    # %s - heard by %s' % (sit(key), aud[a])
     extra = []
@@ -96,6 +97,12 @@ for key, chance, cooldown, a in lines:
     w(note)
     w('    %s = []' % key)
 w('}')
-path = os.path.join(root, 'config', 'aimod_ai', '_persona.eeai')
+w('')
+w('# what the language model is told for this AI (aimod.ini [llm]), instead of mod/prompt.eeai\'s text - every key and')
+w('# its placeholders are there. For example:')
+w('#prompt = {')
+w('#    nature = "You speak in short, proud sentences."')
+w('#}')
+path = os.path.join(root, 'config', 'aimod_ai', '_template.eeai')
 open(path, 'w', encoding='utf-8', newline='\n').write('\n'.join(out) + '\n')
 print(path, len(lines), 'situations')

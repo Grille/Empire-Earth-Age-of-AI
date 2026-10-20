@@ -27,9 +27,9 @@ The `[autotest]` keys:
 | `sndstate`, `sndchan N` (pipe/setup) | the sound manager's channels with their sound ids and Miles status, the mixer's channels, categories in use, the paused queue / SetMaxChannels(N) as the options screen does |
 | `sound_channels=N`, `clamp_channels=0/1` | aimod.ini `[sound] channels` / `clamp_channels` for the run |
 | `seltest T [x0 y0 x1 y1]` (pipe/setup) | builds the double-click selection message for unit type T (screen rectangle 0x8D2778 or the given one) and carries it out: units found, packed, unpacked, selected |
-| `texts`, `texts dump [force]` (pipe/setup) | the text files read (`aimod_ai\_system.eeai`, `_template.eeai`); dump writes both with every key and its built-in text (existing files kept without force) - regenerate them after changing a built-in text (dll/texts.c, dll/texts_prompt.h) |
+| `texts`, `texts dump [force]` (pipe/setup) | the text files read (`aimod_ai\mod\system.eeai`, `mod\prompt.eeai`); dump writes both with every key and its built-in text (existing files kept without force) - regenerate them after changing a built-in text (dll/texts.c, dll/texts_prompt.h) |
 | `strict_parsing=1` | every mistake in the texts also queued and shown: in a test no message box (the files' mistakes come as system lines at the first AI update), the log says `# texts: strict parsing: N mistake(s) shown in the game`. Test of 2026-10-14 on `llmtest.eeai` with the mock: no mistake in the built-in texts (no placeholder left unfilled) |
-| `texts eval [P [Q]] <expression>`, `texts line P <situation> [Q [R]]` (pipe/setup) | an expression's value with P speaking to Q (default the local player), with _system.eeai's and P's personality's names (vars; dll/expr.c); the variant P would say now in that situation, its condition checked and filled. The system lines the player is shown are logged (`# system line:`). Test of 2026-10-14: a temporary personality with `[vars]`, `[vars:de]` and conditioned variants, `[vars]` in both files, a prompt piece and two system lines with expressions - all as written; old/new DLL on `llmtest.eeai` with the mock: the same prompts but for the stock amounts |
+| `texts eval [P [Q]] <expression>`, `texts line P <situation> [Q [R]]` (pipe/setup) | an expression's value with P speaking to Q (default the local player), with mod/system.eeai's and P's personality's names (vars; dll/expr.c); the variant P would say now in that situation, its condition checked and filled. The system lines the player is shown are logged (`# system line:`). Test of 2026-10-14: a temporary personality with `[vars]`, `[vars:de]` and conditioned variants, `[vars]` in both files, a prompt piece and two system lines with expressions - all as written; old/new DLL on `llmtest.eeai` with the mock: the same prompts but for the stock amounts |
 | `diplo offer A B C`, `diplo capit A B` (pipe/setup) | AI A offers B an alliance against C / capitulates to B, as its initiative would (with `llm_ai_decide`: B's model answers) |
 | `diplo propose A alliance\|betray\|capitulate\|rebel [C]` (pipe/setup) | put a move of the rules towards the local player to AI A's model, as the rules do (`llm_decide=1`; C: the third player of an alliance). An empty answer that ended by itself is its no (the proposal says "write nothing"); only one cut off (max_tokens) or an error lets the rules go ahead |
 | `diplo rebel A` (pipe/setup) | AI A's rebellion against its lord now, without the dice: it rebels, or why not (loyal, served under 10 minutes, thinks well of its lord, too weak against its lord's side) |
@@ -345,8 +345,8 @@ DDrawCompat v0.7.1 (narzoul) instead of dgVoodoo's ddraw.dll: 7.9 ms per frame w
 `CpuAffinity = 1` (whole game on one core), **5.6 ms (~177 fps) with `CpuAffinity = all`**
 (`DDrawCompat-Empire Earth.ini`); game, editor and windowed/borderless present work.
 
-Autotest `personas=0`: only `aimod_ai/computer.eeai` is loaded - the AIs have no personality and say its neutral
-lines (the `# talk:` log marks them `computer.eeai`; a fallback situation as `X as Y`).
+Autotest `personas=0`: only `aimod_ai/mod/computer.eeai` is loaded - the AIs have no personality and say its neutral
+lines (the `# talk:` log marks them `mod/computer.eeai`; a fallback situation as `X as Y`).
 
 ### Alliance blocks
 
@@ -848,7 +848,11 @@ game_seed 777 at 5, 15, 30 - every line the same. Since 2026-10-21 the corpus al
 row for every AI, listener and situation: the line `line_source` would choose (its file, the situation it came from,
 the text) - the fallbacks and layers, not only each expression. computer.eeai as an included layer
 (`register_personality()`, `_eeaimod_shared.eeai` merged into it): Continental 777 at 5/15/30 and Highlands 5 AIs
-(seed 202, game_seed 4242) at 12/40, 43295 rows - every one the same.
+(seed 202, game_seed 4242) at 12/40, 43295 rows - every one the same. The mod's own files moved to `mod/`
+(computer.eeai, prompt.eeai - both every personality's layers unnamed, a personality's `prompt = { }` first -
+system.eeai): Continental 777 at 5/15/30, 5331 rows each the same (tags renamed: `_template` -> `prompt`, `_system`
+-> `mod/system`, `computer.eeai` -> `mod/computer`) and 630 new ones: each personality's vars now hold prompt.eeai's
+names (`eroberer vars stance` ...).
 
 ### Headless UI tests (menus, editor)
 

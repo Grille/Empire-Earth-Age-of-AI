@@ -1,5 +1,5 @@
 # Hand-written cases for the text engine comparison (texts corpus, docs/testing.md "Text engine comparison"): one
-# expression a line, worked out with P2 speaking to P1 (P3 the enemy), computer.eeai's and _system.eeai's names (vars) -
+# expression a line, worked out with P2 speaking to P1 (P3 the enemy), mod/computer.eeai's and mod/system.eeai's names (vars) -
 # and the line as a template too. Mistakes on purpose: they must stay the same mistakes.
 # numbers and arithmetic
 1

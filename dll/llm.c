@@ -638,18 +638,20 @@ static const char *llm_language(void) {
     for (size_t i = 0; i < sizeof k / sizeof *k; i++) if (!_strnicmp(g_lang, k[i][0], 2)) return k[i][1];
     return "English";
 }
-// what situation k is, for the model (_template.eeai sit_<line key>); in the third person for both sides of a talk
-// between AIs (pair_<line key>; in the speaker's words "has betrayed you" the other's model took the betrayal for its
-// own) - NULL where there is none
-static const char *llm_situation(int k) {
+// what situation k is, for pl's model (prompt sit_<line key>); in the third person for both sides of a talk between
+// AIs (pair_<line key>; in the speaker's words "has betrayed you" the other's model took the betrayal for its own) -
+// NULL where there is none; *vars: the names to fill it with (tpl_find)
+static const char *llm_situation(void *pl, int k, const struct xvars **vars) {
     char key[64];
     wsprintfA(key, "sit_%s", k_lines[k].key);
-    return text_index(k_tpl, N_TPL, key) >= 0 ? tpl_text(key) : k_lines[k].key;
+    if (tpl_key(key) >= 0) return tpl_find(pl, key, vars);
+    *vars = &g_prompt.vars;
+    return k_lines[k].key;
 }
-static const char *llm_event3(int k) {
+static const char *llm_event3(void *pl, int k, const struct xvars **vars) {
     char key[64];
     wsprintfA(key, "pair_%s", k_lines[k].key);
-    return text_index(k_tpl, N_TPL, key) >= 0 ? tpl_text(key) : NULL;
+    return tpl_key(key) >= 0 ? tpl_find(pl, key, vars) : NULL;
 }
 // append to t (cap bytes, *o used): never past the end, however long the names and lines are
 static void tcat(char *t, int *o, int cap, const char *fmt, ...) {
@@ -704,7 +706,7 @@ static void llm_system(struct sbuf *b, void *pl, int ai, int h, int tools) {
     void *ph = player_at(h);
     tput(t, &o, sizeof t, "game_state_me", NULL);
     if (ph && h != ai) {
-        tput(t, &o, sizeof t, "game_state_other", NULL);   // stance, forces, attacks, fighting ...: the vars of _template.eeai
+        tput(t, &o, sizeof t, "game_state_other", NULL);   // stance, forces, attacks, fighting ...: mod/prompt.eeai's vars
         char terms[600];
         if (peace_terms(ai, h, terms, sizeof terms) && decide)   // the rules' verdict: advice when it decides itself
             tput(t, &o, sizeof t, "terms_advice", "terms", terms, NULL);
@@ -718,7 +720,7 @@ static void llm_system(struct sbuf *b, void *pl, int ai, int h, int tools) {
         void *pj = player_at(j);
         if (!pj || j == ai || j == h || is_out(pj)) continue;
         if (lo) tcat(list, &lo, sizeof list, ", ");
-        lo += tsub(list + lo, sizeof list - lo, tpl_text(stance_of(pl, j) ? "other_enemy" : "other_ally"), pl, pj, NULL);
+        lo += tsub(list + lo, sizeof list - lo, stance_of(pl, j) ? "other_enemy" : "other_ally", pl, pj, NULL);
     }
     if (lo) tput(t, &o, sizeof t, "others", "list", list, NULL);
     g_xc_pl = g_xc_other = NULL;
@@ -738,12 +740,12 @@ static void self_history(struct sbuf *b, int ai, int other) {
             if (role == 3) {   // the event that opened an AI talk
                 char ev[LLM_MAXLEN + 40];
                 wsprintfA(ev, "%s.", t);
-                tsub(u, sizeof u, tpl_text("event"), pa, po, "text", ev, NULL);
-            } else tsub(u, sizeof u, tpl_text(role == 2 ? "event" : "writes"), pa, po, "text", t, NULL);
+                tsub(u, sizeof u, "event", pa, po, "text", ev, NULL);
+            } else tsub(u, sizeof u, role == 2 ? "event" : "writes", pa, po, "text", t, NULL);
         } else {
             void *pw = player_at(with);
             if (!pw) continue;
-            tsub(u, sizeof u, tpl_text(role == 0 ? "mem_heard" : role == 1 ? "mem_said" : "mem_event"), pa, pw, "text", t, NULL);
+            tsub(u, sizeof u, role == 0 ? "mem_heard" : role == 1 ? "mem_said" : "mem_event", pa, pw, "text", t, NULL);
         }
         sb_msg(b, "user", u);
     }
@@ -755,11 +757,11 @@ static void llm_history(struct sbuf *b, int ai) {   // his lines framed with his
         char u[LLM_MAXLEN + 120];
         if (g_llm_hist[ai].kind[i] == 1) { sb_msg(b, "assistant", g_llm_hist[ai].text[i]); continue; }
         if (g_llm_hist[ai].kind[i] == 2) {
-            tsub(u, sizeof u, tpl_text("event"), pl, ph, "text", g_llm_hist[ai].text[i], NULL);
+            tsub(u, sizeof u, "event", pl, ph, "text", g_llm_hist[ai].text[i], NULL);
             sb_msg(b, "user", u);
             continue;
         }
-        tsub(u, sizeof u, tpl_text("writes"), pl, ph, "text", g_llm_hist[ai].text[i], NULL);
+        tsub(u, sizeof u, "writes", pl, ph, "text", g_llm_hist[ai].text[i], NULL);
         sb_msg(b, "user", u);
     }
 }
@@ -786,29 +788,29 @@ static void sb_tools(struct sbuf *b, int tools, int ai, int h) {
     int k = (tools & TOOL_PEACE) && g_players[h] ? pair_accept(ai, h) : -1;
     if (tools & TOOL_PEACE) {
         if (k == 1) tribute_text(g_promise[h], what, sizeof what);
-        tsub(d, sizeof d, tpl_text(k == 1 ? "tool_accept_capitulation" : k == 0 ? "tool_accept_alliance" :
+        tsub(d, sizeof d, k == 1 ? "tool_accept_capitulation" : k == 0 ? "tool_accept_alliance" :
                                    !stance_of(ph, ai) ? "tool_accept_peace" : g_players[h] ? "tool_offer_alliance" :
-                                   "tool_offer_alliance_automated"), pl, ph, "tribute", what, NULL);
+                                   "tool_offer_alliance_automated", pl, ph, "tribute", what, NULL);
         sb_tool(b, "make_peace", d, "{\"type\":\"object\",\"properties\":{}}");
     }
     if (tools & TOOL_WAR) {
-        tsub(d, sizeof d, tpl_text("tool_war"), pl, ph, NULL);
+        tsub(d, sizeof d, "tool_war", pl, ph, NULL);
         sb_tool(b, "declare_war", d, "{\"type\":\"object\",\"properties\":{}}");
     }
     if (tools & TOOL_TRIBUTE) {
-        tsub(d, sizeof d, tpl_text("tool_tribute"), pl, ph, NULL);   // what it may give
+        tsub(d, sizeof d, "tool_tribute", pl, ph, NULL);   // what it may give
         sb_tool(b, "send_tribute", d, "{\"type\":\"object\",\"properties\":{\"food\":{\"type\":\"integer\"},\"wood\":{\"type\":"
                 "\"integer\"},\"stone\":{\"type\":\"integer\"},\"gold\":{\"type\":\"integer\"},\"iron\":{\"type\":\"integer\"}}}");
     }
     if (tools & TOOL_REFUSE) {
-        tsub(d, sizeof d, tpl_text("tool_refuse"), pl, ph, "what", tpl_text(k == 1 ? "what_capitulation" : "what_alliance"), NULL);
+        tsub(d, sizeof d, "tool_refuse", pl, ph, "what", tpl_text(pl, k == 1 ? "what_capitulation" : "what_alliance"), NULL);
         sb_tool(b, "refuse_offer", d, "{\"type\":\"object\",\"properties\":{}}");
     }
     if (tools & TOOL_CAPIT) {   // what it would offer (capitulate: the same share of its stock then)
         int offer[7] = { 0 };
         capit_offer(pl, offer);
         tribute_text(offer, what, sizeof what);
-        tsub(d, sizeof d, tpl_text("tool_capitulate"), pl, ph, "tribute", what, NULL);
+        tsub(d, sizeof d, "tool_capitulate", pl, ph, "tribute", what, NULL);
         sb_tool(b, "capitulate", d, "{\"type\":\"object\",\"properties\":{}}");
     }
     sb_puts(b, "],\"tool_choice\":\"auto\"");
@@ -844,9 +846,9 @@ static void llm_queue(struct llm_job *j, char *body) {
     SET_STATE(j, J_QUEUED);
     SetEvent(g_llm_event);
 }
-// a situation for the model: its expressions filled (x_fill, _template.eeai's vars) - pl speaking to other (none:
+// a situation for the model: its expressions filled (x_fill, with vars: llm_situation's) - pl speaking to other (none:
 // to everyone), third the enemy - and {tribute}, {tribute_total} (as in the lines: line_ctx_init)
-static void llm_subst(char *out, int cap, const char *s, void *pl, void *other, void *third) {
+static void llm_subst(char *out, int cap, const char *s, const struct xvars *vars, void *pl, void *other, void *third) {
     char trib[96], tot[16];
     int total = 0;
     tribute_text(g_say_tribute, trib, sizeof trib);
@@ -857,7 +859,7 @@ static void llm_subst(char *out, int cap, const char *s, void *pl, void *other, 
     struct xctx c = { 0 };
     c.pl = pl; c.other = other; c.third = third; c.found = 1;
     c.pn = pn; c.pv = pv; c.np = 2;
-    c.vars[0] = &g_vars_tpl;
+    c.vars[0] = vars;
     x_fill(out, cap, s, &c);
 }
 
@@ -888,10 +890,12 @@ static int llm_line(void *pl, enum line_kind k, void *other, void *third, const 
     llm_system(&b, pl, ai, h, -1);
     llm_history(&b, ai);
     char sit[400], u[1200];
-    llm_subst(sit, sizeof sit, llm_situation(k), pl, other, third);
+    const struct xvars *sv;
+    const char *st = llm_situation(pl, k, &sv);
+    llm_subst(sit, sizeof sit, st, sv, pl, other, third);
     char keep[160] = "";
-    if (j->nmust) snprintf(keep, sizeof keep, " %s", tpl_text("keep"));   // _template.eeai's text: any length
-    tsub(u, sizeof u, tpl_text("line"), pl, other, "situation", sit, "audience", tpl_text(k_lines[k].aud == A_ALL ? "audience_all" :
+    if (j->nmust) snprintf(keep, sizeof keep, " %s", tpl_text(pl, "keep"));   // a prompt text: any length
+    tsub(u, sizeof u, "line", pl, other, "situation", sit, "audience", tpl_text(pl, k_lines[k].aud == A_ALL ? "audience_all" :
          k_lines[k].aud == A_ALLIES ? "audience_allies" : "audience_them"), "language_name", llm_language(), "line", fixed, "keep",
          keep, NULL);
     sb_msg(&b, "user", u);
@@ -973,7 +977,7 @@ static int llm_peace_answer(void *pl, int ai, int j, uint32_t now) {
     llm_system(&b, pl, ai, h, TOOL_PEACE);
     llm_history(&b, ai);
     char u[600];
-    tsub(u, sizeof u, tpl_text("peace_answer"), pl, player_at(j), "language_name", llm_language(), NULL);
+    tsub(u, sizeof u, "peace_answer", pl, player_at(j), "language_name", llm_language(), NULL);
     sb_msg(&b, "user", u);
     if (!b.p) return 0;
     llm_queue(jb, llm_finish(&b, TOOL_PEACE, ai, h));
@@ -1007,8 +1011,8 @@ static int llm_propose(int ai, int h, int kind, int third, uint32_t now) {
     char move[600], u[1200], what[120] = "";
     int offer[7] = { 0 };
     if (kind == P_CAPIT) { capit_offer(pl, offer); tribute_text(offer, what, sizeof what); }
-    tsub3(move, sizeof move, tpl_text(key[kind]), pl, ph, third ? player_at(third) : NULL, "tribute", what, NULL);
-    tsub(u, sizeof u, tpl_text("proposal"), pl, ph, "move", move, "tool", k_tool_name[kind == P_CAPIT ? 4 : kind == P_ALLY ? 0 : 1],
+    tsub3(move, sizeof move, key[kind], pl, ph, third ? player_at(third) : NULL, "tribute", what, NULL);
+    tsub(u, sizeof u, "proposal", pl, ph, "move", move, "tool", k_tool_name[kind == P_CAPIT ? 4 : kind == P_ALLY ? 0 : 1],
          "language_name", llm_language(), NULL);
     sb_msg(&b, "user", u);
     if (!b.p) { SET_STATE(jb, J_FREE); return 0; }
@@ -1047,7 +1051,7 @@ static void llm_apply(struct llm_job *j, int ok) {
             prop_do(ai, h, j->prop, j->third, now);
             g_say_instead = NULL;
             char e[300];
-            tsub(e, sizeof e, tpl_text(j->prop == P_ALLY ? "ev_offered_peace" : j->prop == P_CAPIT ? "ev_capitulated" : "ev_declared_war"),
+            tsub(e, sizeof e, j->prop == P_ALLY ? "ev_offered_peace" : j->prop == P_CAPIT ? "ev_capitulated" : "ev_declared_war",
                  pl, ph, NULL);
             llm_happened(ai, "%s", e);
         } else g_prop_no[ai][j->prop] = now ? now : 1;   // not now: 10 minutes before the rules propose it again
@@ -1075,20 +1079,20 @@ static void llm_apply(struct llm_job *j, int ok) {
     if ((j->act & j->tools & TOOL_PEACE) && tool_peace_ok(ai, h, now)) {
         if (!stance_of(ph, ai)) {   // he is allied already: peace now
             make_peace(ai, h, now);
-            tsub(ev[nev++], sizeof ev[0], tpl_text("ev_made_peace"), pl, ph, NULL);
+            tsub(ev[nev++], sizeof ev[0], "ev_made_peace", pl, ph, NULL);
             fixed = j->decide == 1 ? L_PEACE_ACCEPT : L_OFFER_ACCEPTED;
         } else {   // its offer: he has 2 minutes (diplo_tick, as its alliance offers)
             g_offer_t[ai][h] = now ? now : 1;
             g_offer_kind[ai][h] = 0;
             g_offer_vs[ai][h] = 0;
             block_line(h, sysf("peace_offer", pl, ph, NULL, NULL));
-            tsub(ev[nev++], sizeof ev[0], tpl_text("ev_offered_peace"), pl, ph, NULL);
+            tsub(ev[nev++], sizeof ev[0], "ev_offered_peace", pl, ph, NULL);
         }
         did |= TOOL_PEACE;
     }
     if ((j->act & j->tools & TOOL_WAR) && tool_war_ok(ai, h, now)) {
         declare_war(ai, h, now);
-        tsub(ev[nev++], sizeof ev[0], tpl_text("ev_declared_war"), pl, ph, NULL);
+        tsub(ev[nev++], sizeof ev[0], "ev_declared_war", pl, ph, NULL);
         fixed = L_BETRAY;
         did |= TOOL_WAR;
     }
@@ -1097,7 +1101,7 @@ static void llm_apply(struct llm_job *j, int ok) {
         int total = llm_pay(pl, ph, ai, h, j->amt, now, what, sizeof what, paid);
         if (total > 0) {
             block_line(h, sysf("tribute_sent", pl, ph, NULL, "tribute", what, NULL));
-            tsub(ev[nev++], sizeof ev[0], tpl_text("ev_sent_tribute"), pl, ph, "tribute", what, NULL);
+            tsub(ev[nev++], sizeof ev[0], "ev_sent_tribute", pl, ph, "tribute", what, NULL);
             did |= TOOL_TRIBUTE;
         }
     }
@@ -1278,11 +1282,11 @@ static void pair_history(struct sbuf *b, int ai, int other) {   // from ai's sid
         if (w >= 16) {   // the event that opened an exchange
             char ev[LLM_MAXLEN + 40];
             wsprintfA(ev, "%s.", g_pair_hist[lo][hi].text[i]);
-            tsub(u, sizeof u, tpl_text("event"), pa, po, "text", ev, NULL);
+            tsub(u, sizeof u, "event", pa, po, "text", ev, NULL);
             sb_msg(b, "user", u);
             continue;
         }
-        tsub(u, sizeof u, tpl_text("writes"), pa, po, "text", g_pair_hist[lo][hi].text[i], NULL);
+        tsub(u, sizeof u, "writes", pa, po, "text", g_pair_hist[lo][hi].text[i], NULL);
         sb_msg(b, "user", u);
     }
 }
@@ -1326,16 +1330,16 @@ static int talk_request(int speaker, int listener, int turn, const char *sit, co
     const char *lang = llm_language();
     if (turn == 1) {
         char usual[400] = "";
-        if (fixed && *fixed) { usual[0] = ' '; tsub(usual + 1, sizeof usual - 1, tpl_text("talk_usual"), pl, po, "line", fixed, NULL); }
-        tsub(u, sizeof u, tpl_text("talk_open"), pl, po, "situation", sit, "language_name", lang, "usual", usual, NULL);
+        if (fixed && *fixed) { usual[0] = ' '; tsub(usual + 1, sizeof usual - 1, "talk_usual", pl, po, "line", fixed, NULL); }
+        tsub(u, sizeof u, "talk_open", pl, po, "situation", sit, "language_name", lang, "usual", usual, NULL);
     } else if (j->confirm && j->offer >= 0)
-        tsub(u, sizeof u, tpl_text("talk_confirm"), pl, po, "what", tpl_text(j->offer ? "what_capitulation" : "what_alliance"), NULL);
+        tsub(u, sizeof u, "talk_confirm", pl, po, "what", tpl_text(pl, j->offer ? "what_capitulation" : "what_alliance"), NULL);
     else if (j->offer == 1) {
         char what[120];
         tribute_text(g_promise[listener], what, sizeof what);
-        tsub(u, sizeof u, tpl_text("talk_capitulation"), pl, po, "language_name", lang, "tribute", what, NULL);
-    } else if (j->offer == 0) tsub(u, sizeof u, tpl_text("talk_alliance"), pl, po, "language_name", lang, NULL);
-    else tsub(u, sizeof u, tpl_text(turn >= g_llm_talk_turns ? "talk_last" : "talk_answer"), pl, po, "language_name", lang, NULL);
+        tsub(u, sizeof u, "talk_capitulation", pl, po, "language_name", lang, "tribute", what, NULL);
+    } else if (j->offer == 0) tsub(u, sizeof u, "talk_alliance", pl, po, "language_name", lang, NULL);
+    else tsub(u, sizeof u, turn >= g_llm_talk_turns ? "talk_last" : "talk_answer", pl, po, "language_name", lang, NULL);
     sb_msg(&b, "user", u);
     if (!b.p) { SET_STATE(j, J_FREE); return 0; }
     if (j->confirm) g_llm_tok_once = g_llm_max_tokens > 1200 ? g_llm_max_tokens : 1200;   // asked again: it thinks first
@@ -1351,8 +1355,10 @@ static int llm_ai_offer(int from, int to, int kind, int third) {
     void *pf = player_at(from), *pt = player_at(to), *p3 = third ? player_at(third) : NULL;
     enum line_kind k = kind ? L_CAPITULATE : L_ALLIANCE_OFFER;
     char sit[400], ev[400];
-    llm_subst(sit, sizeof sit, llm_situation(k), pf, pt, p3);
-    llm_subst(ev, sizeof ev, llm_event3(k), pf, pt, p3);
+    const struct xvars *sv, *ev3v;
+    const char *st = llm_situation(pf, k, &sv), *e3 = llm_event3(pf, k, &ev3v);
+    llm_subst(sit, sizeof sit, st, sv, pf, pt, p3);
+    llm_subst(ev, sizeof ev, e3, ev3v, pf, pt, p3);
     if (!talk_request(from, to, 1, sit, "", kind + 1)) return 0;
     for (int i = 0; i < 4; i++)   // the offer's line waits as a talk: this exchange is it
         if (g_talk_wait[i].t && ((g_talk_wait[i].a == from && g_talk_wait[i].b == to) || (g_talk_wait[i].a == to && g_talk_wait[i].b == from)))
@@ -1374,8 +1380,8 @@ static int talk_apply(struct llm_job *j) {
         int k = pair_accept(ai, h);
         if (k >= 0 || (!stance_of(ph, ai) && tool_peace_ok(ai, h, now))) {   // its offer, or its allied stance: accepted
             make_peace(ai, h, now);   // h's turn (diplo_tick) completes an offer: allied both ways / tribute and vassal
-            tsub(ev, sizeof ev, tpl_text("ev3_accepted"), pl, ph, "what",
-                 tpl_text(k == 1 ? "what_capitulation" : k == 0 ? "what_alliance" : "what_peace"), NULL);
+            tsub(ev, sizeof ev, "ev3_accepted", pl, ph, "what",
+                 tpl_text(pl, k == 1 ? "what_capitulation" : k == 0 ? "what_alliance" : "what_peace"), NULL);
             pair_add(ai, h, 16, ev);
             did |= TOOL_PEACE;
         } else if (stance_of(ph, ai) && tool_peace_ok(ai, h, now) && !g_offer_t[h][ai]) {   // its offer: h decides next
@@ -1383,14 +1389,14 @@ static int talk_apply(struct llm_job *j) {
             g_offer_kind[ai][h] = 0;
             g_offer_vs[ai][h] = 0;
             g_offer_last[ai][h] = now;
-            tsub(ev, sizeof ev, tpl_text("ev3_offered"), pl, ph, NULL);
+            tsub(ev, sizeof ev, "ev3_offered", pl, ph, NULL);
             pair_add(ai, h, 16, ev);
             did |= TOOL_PEACE;
         }
     }
     if ((act & TOOL_WAR) && tool_war_ok(ai, h, now)) {
         declare_war(ai, h, now);
-        tsub(ev, sizeof ev, tpl_text("ev3_war"), pl, ph, NULL);
+        tsub(ev, sizeof ev, "ev3_war", pl, ph, NULL);
         pair_add(ai, h, 16, ev);
         did |= TOOL_WAR;
     }
@@ -1398,7 +1404,7 @@ static int talk_apply(struct llm_job *j) {
         int paid[7];
         int total = llm_pay(pl, ph, ai, h, j->amt, now, what, sizeof what, paid);
         if (total > 0) {
-            tsub(ev, sizeof ev, tpl_text("ev3_tribute"), pl, ph, "tribute", what, NULL);
+            tsub(ev, sizeof ev, "ev3_tribute", pl, ph, "tribute", what, NULL);
             pair_add(ai, h, 16, ev);
             diplo_tribute(ph, pl, paid);   // its opinion; its thanks wait (the pair is talking)
             did |= TOOL_TRIBUTE;
@@ -1431,9 +1437,11 @@ static void llm_talk_event(void *pl, enum line_kind k, void *other, void *third,
     }
     g_talk_wait[w].a = a;
     g_talk_wait[w].b = b;
-    llm_subst(g_talk_wait[w].sit, sizeof g_talk_wait[w].sit, llm_situation(k), pl, other, third);
-    llm_subst(g_talk_wait[w].ev, sizeof g_talk_wait[w].ev, llm_event3(k) ? llm_event3(k) : g_talk_wait[w].sit, pl,
-              other, third);
+    const struct xvars *sv, *ev3v;
+    const char *st = llm_situation(pl, k, &sv), *e3 = llm_event3(pl, k, &ev3v);
+    llm_subst(g_talk_wait[w].sit, sizeof g_talk_wait[w].sit, st, sv, pl, other, third);
+    if (e3) llm_subst(g_talk_wait[w].ev, sizeof g_talk_wait[w].ev, e3, ev3v, pl, other, third);
+    else lstrcpynA(g_talk_wait[w].ev, g_talk_wait[w].sit, sizeof g_talk_wait[w].ev);
     lstrcpynA(g_talk_wait[w].fixed, fixed, sizeof g_talk_wait[w].fixed);
     g_talk_wait[w].t = game_time() ? game_time() : 1;
 }

@@ -1,6 +1,6 @@
-// THE TEXT FILES (<game>\aimod_ai\*.eeai: the personalities, _system.eeai, _template.eeai) and the EXPRESSIONS in them.
+// THE TEXT FILES (<game>\aimod_ai\*.eeai: the personalities; mod\*.eeai: computer, prompt, system) and the EXPRESSIONS in them.
 // A file: "name = value" lines - a name the file's lines use (or, for a few names, what the file is about), records
-// "lines = {" ... "}" (the keys the code reads, one "key = value" a line), include("computer.eeai"),
+// "lines = {" ... "}" (the keys the code reads, one "key = value" a line), include("pack_base.eeai"),
 // register_personality() - and comments from # to the line's end (outside a string). A value is an expression - over
 // several lines while a ( [ or { is open:
 //   "text"                          a string; \" \\ \n escapes. {expressions} in it - {them} -
@@ -89,7 +89,7 @@ struct xfn;
 struct xval { int has_n, has_s, w, pl, ln, kind; double n; const char *s; const struct xval *it; const struct xfn *fn; char miss[24]; };
 static int xl_n(const struct xval *v) { return v->ln ? v->ln : v->w > 0; }   // its items (one value: 1, nothing: 0)
 static const struct xval *xl_at(const struct xval *v, int i) { return v->ln ? &v->it[i] : v; }
-static struct xvars g_vars_sys, g_vars_tpl;   // _system.eeai vars, _template.eeai vars (texts.c)
+static struct xvars g_vars_sys;   // mod/system.eeai vars (texts.c)
 static int x_builtin(struct xctx *c, const char *name, struct xval *v);   // diplo.c: the game's values
 static int x_is_value(const char *name);   // diplo.c: a name that is a value of its own (them, epoch, minutes ...)
 // diplo.c: a relation, them.opinion(me) - 0: name is none (v NULL: only that checked)
@@ -224,7 +224,7 @@ static const char *xvars_fn(const struct xvars *v, const char *name, const char 
     return v->val[i];
 }
 // THE FUNCTIONS of all the files in the folder (name and how many parameters): the files are checked when read, a
-// function may come from a file read later (an include, _system.eeai) - scanned from every file first (x_fn_known)
+// function may come from a file read later (an include, mod/system.eeai) - scanned from every file first (x_fn_known)
 static struct { char name[40]; int n; } g_xfn[96];
 static int g_xfn_n, g_xfn_scanned;
 static void x_fn_scan_dir(void);   // persona.c: every .eeai of the folder through x_fn_scan
@@ -2112,7 +2112,7 @@ static void tfile_parse(const char *file, const char *text, tfile_fn fn, void *a
                     tl_line_end(&l, "");
                 }
             } else if (!*record && tl_declaration(key)) {
-                tl_error(&l, key[0] == 'i' ? "include(\"computer.eeai\") - a call, not a name" : "register_personality() - a call, not a name");
+                tl_error(&l, key[0] == 'i' ? "include(\"pack_base.eeai\") - a call, not a name" : "register_personality() - a call, not a name");
             } else if (l.s[1 + strspn(l.s + 1, " \t")] == '{') {
                 tl_error(&l, "a record: name = { at the end of its line, a key = value a line below it, } on a line of its own");
             } else {

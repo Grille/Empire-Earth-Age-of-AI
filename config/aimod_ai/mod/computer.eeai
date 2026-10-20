@@ -1,6 +1,6 @@
-# computer.eeai - eeaimod's base for its personalities: no personality itself (it doesn't declare
-# register_personality()), included by each of them - include("computer.eeai") - and the voice of AIs without any
-# personality.
+# mod/computer.eeai - eeaimod's base for every personality: no personality itself (it doesn't declare
+# register_personality()), a layer of each of them without being named - after their own includes, unless one of
+# them names it already (include("mod/computer.eeai")) - and the voice of AIs without any personality.
 # Its lines come after a personality's own: when the personality has no line for a situation (nor for the
 # situation's fallback: betrayed -> war_declared, ask_lord -> peace_refuse, block_refuse_own -> block_refuse ->
 # peace_refuse, surrender -> defeated) that has something to say now, the line comes from here. So it holds what must
@@ -8,7 +8,7 @@
 # without a line for a mere comment stays silent). Its names and decide keys count where a personality has none of its
 # own. Placeholders as in the personalities: {them} the player the line is about, {me} the AI, {enemy} a third player,
 # {tribute} what a capitulation pays or a tribute brought, by resource ("200 gold, 800 iron").
-# A pack of your own may bring a base of its own (another name) - its personalities include that one.
+# A pack of your own may bring a base of its own (another name): its personalities include it, this one comes after it.
 
 # the war now going on (in peace_accept: the one just ended) - a window for "this war": them.kills(me, this_war)
 this_war = me.war_minutes(them)

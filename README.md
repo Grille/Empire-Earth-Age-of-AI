@@ -25,9 +25,8 @@ patches such as *Empire Earth Tweaks* or *dreXmod*, which patch different places
 | [docs/testing.md](docs/testing.md) | Autotest mode, test scenarios, log format, control pipe commands |
 | [config/aimod.ini](config/aimod.ini) | Every setting, explained |
 | [config/aimod_ai/README.md](config/aimod_ai/README.md) | The personalities and texts: format, expressions, values, situations |
-| [config/aimod_ai/_persona.eeai](config/aimod_ai/_persona.eeai) | An empty personality with every key explained, to copy |
-| [config/aimod_ai/_system.eeai](config/aimod_ai/_system.eeai) | The system lines the mod shows (English, German) |
-| [config/aimod_ai/_template.eeai](config/aimod_ai/_template.eeai) | What the mod tells the language model (the AI voice) |
+| [config/aimod_ai/_template.eeai](config/aimod_ai/_template.eeai) | An empty personality with every key explained, to copy |
+| [config/aimod_ai/mod/](config/aimod_ai/mod/) | The mod's own texts: `computer.eeai` (every personality's base), `prompt.eeai` (what the mod tells the language model - the AI voice), `system.eeai` (the system lines the mod shows, English and German) |
 
 ## Computer player
 
@@ -120,17 +119,17 @@ peace or alliances. With the mod:
   its own lines for situations of the game: greetings, attacks, being attacked, new ages, winning and losing,
   diplomacy. Six personalities are included, in English (other languages: at the release, a file each). A saved
   game finds its personalities again.
-  A file is a personality when it says so (`register_personality()`); `computer.eeai` in the same folder is none
-  but their base, which each of them includes (`include("computer.eeai")`): neutral lines for what must not go
-  unsaid (war, peace, offers waiting for your answer, capitulation, victory), the diplomacy's rules and a few
-  shared values. A personality without a line for such a situation uses its line, and AIs without any personality
-  speak only these lines. `_persona.eeai` is an empty personality with every key explained: copy it to a new
-  name to make your own.
-- **The mod's own texts** are in the same folder too:
-  `_system.eeai` holds the system lines it shows you (offers waiting for your answer, chat hints, victory) in
-  English (German built in, for a German game), `_template.eeai` everything it tells the language
-  model (the AI voice: who the AI is, the rules, the game as it stands, the situations, the tools). Placeholders in
-  braces are filled in; a key or file left out keeps the built-in text.
+  A file is a personality when it says so (`register_personality()`). `_template.eeai` is an empty personality
+  with every key explained: copy it to a new name to make your own.
+- **The mod's own texts** are in its subfolder `mod/`: `computer.eeai` is no personality but the base of every
+  one, without being named: neutral lines for what must not go unsaid (war, peace, offers waiting for your answer,
+  capitulation, victory), the diplomacy's rules and a few shared values. A personality without a line for such a
+  situation uses its line, and AIs without any personality speak only these lines. `prompt.eeai` holds everything
+  the mod tells the language model (the AI voice: who the AI is, the rules, the game as it stands, the situations,
+  the tools) - every personality's last layer, so a personality can say any of it its own way
+  (`prompt = { ... }`). `system.eeai` holds the system lines it shows you (offers waiting for your answer, chat
+  hints, victory) in English (German built in, for a German game). Placeholders in braces are filled in; a key or
+  file left out of `prompt.eeai` or `system.eeai` keeps the built-in text.
 - **The format** of all these files is the scripts' language ([docs/scripts.md](docs/scripts.md)), without the
   commands: the keys the mod reads in records - `personality = { ... }`, `lines = { greeting = ... }` - and names
   of the file's own outside them (`weakling = them.strength * 2 < me.strength`), each `name = value`, where a

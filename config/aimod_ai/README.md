@@ -10,25 +10,25 @@ or absolute).
 | File | What it is |
 |---|---|
 | `eroberer.eeai`, `haendler.eeai`, ... | One personality each (`register_personality()`): a name, colours, character traits and the lines it says |
-| `computer.eeai` | No personality but their base, included by each: neutral lines for what must not go unsaid (war, peace, offers, capitulation, victory), the `decide` rules, `this_war`, `many_dead`, `big_tribute`. AIs without a personality speak with it |
-| `_persona.eeai` | An empty personality with every key, to copy |
-| `_system.eeai` | The system lines the mod shows you (white, from nobody in particular) |
-| `_template.eeai` | What the mod tells the language model (`[llm]` in aimod.ini): who the AI is, the game as it stands, the situations, the tools |
+| `_template.eeai` | An empty personality with every key, to copy |
+| `mod/computer.eeai` | No personality but the base of every one: neutral lines for what must not go unsaid (war, peace, offers, capitulation, victory), the `decide` rules, `this_war`, `many_dead`, `big_tribute`. AIs without a personality speak with it |
+| `mod/prompt.eeai` | What the mod tells the language model (`[llm]` in aimod.ini): who the AI is, the game as it stands, the situations, the tools - for every personality that doesn't say it its own way |
+| `mod/system.eeai` | The system lines the mod shows you (white, from nobody in particular) |
 
-A file is a personality only when it declares `register_personality()`; any other is a library that personalities
-include. A key left out of `_system.eeai` or `_template.eeai` keeps the built-in text; delete either file to get
-every built-in text back.
+A file of this folder is a personality only when it declares `register_personality()`; any other is a library that
+personalities include. `mod/` holds the mod's own files: every personality builds on `mod/computer.eeai` and
+`mod/prompt.eeai` without naming them (see "Building on other files" below). A key left out of `mod/system.eeai` or
+`mod/prompt.eeai` keeps the built-in text; delete either file to get every built-in text back.
 
 ## A new personality
 
-Copy `_persona.eeai` to a new name in this folder, for example `seefahrer.eeai`, take the `#` from its
+Copy `_template.eeai` to a new name in this folder, for example `seefahrer.eeai`, take the `#` from its
 `#register_personality()` and fill it in. Every AI of a game
 gets a personality at random, each one once before any repeats; on random maps its favoured colour comes first. To
 give a player a particular one, set `personality_P2=seefahrer` (the file name without `.eeai`) in aimod.ini.
 `ai_talk=0` in aimod.ini silences all lines, `ai_names=0` keeps the game's own player and civilization names.
 
 ```
-include("computer.eeai")
 register_personality()
 
 personality = {
@@ -61,11 +61,11 @@ The same language runs the mod's test scenarios, with commands and statements on
 A file is made of `name = value` lines, one a line:
 
 - **Records** hold the keys the mod reads: `personality = {`, then one `key = value` a line, then `}` on a line of
-  its own. A personality has `personality`, `lines`, `style` and `decide`; `_system.eeai` has `system`,
-  `_template.eeai` `prompt`. A record's `{` ends its line; records don't nest.
+  its own. A personality has `personality`, `lines`, `style`, `decide` and `prompt`; `mod/system.eeai` has
+  `system`. A record's `{` ends its line; records don't nest.
 - **Names outside the records** are the file's own (its *vars*): values its lines use, `{friend}` or `friend` -
   written anywhere outside the records, before or after the lines that use them.
-- **`include("computer.eeai")`** names files whose lines, names and keys the personality builds on (see below);
+- **`include("pack_base.eeai")`** names files whose lines, names and keys the personality builds on (see below);
   **`register_personality()`** makes the file a personality.
 
 A comment runs from `#` to the end of the line, also after a value (not inside a string). A value is an
@@ -143,7 +143,8 @@ How a line is chosen:
 2. The value is worked out: a list gives one of its items at random, conditions leave items out. The same text as
    last time is avoided when there is another.
 3. **Nothing to say** - no key, `[]`, or a list whose conditions all fail - falls back to a more general situation
-   (the fallback column), then to the included files (`computer.eeai`) the same way, else the AI stays silent.
+   (the fallback column), then to the layers (an included file, `mod/computer.eeai` last) the same way, else the AI
+   stays silent.
    A personality must have a line for what must not go unsaid (war, peace, offers, capitulation, victory, defeat),
    its own or an included file's - else it is a mistake, told when the files are read.
 4. Only those it is meant for hear it: everyone, the AI's allies, or the player it is said to (`{them}`).
@@ -252,7 +253,7 @@ lines = {
   arithmetic, and a comparison with nothing is false (`war_minutes > 5` and `war_minutes < 5` are both false when
   there is no war).
 - **Numbers and texts at once:** some values are both - the epoch is 3 and "Copper Age", an opinion is -62% (-0.62) and
-  "hostile" (hostile, unfriendly, indifferent, friendly, trusting: `opinion1`..`opinion5` in `_system.eeai`). The
+  "hostile" (hostile, unfriendly, indifferent, friendly, trusting: `opinion1`..`opinion5` in `mod/system.eeai`). The
   number counts in arithmetic, in comparisons with a number and as true/false; the text counts in a line and next to
   texts (`"Age: " + epoch`). Arithmetic gives a plain number: `{round(opinion * 100)}` writes -62.
 - **A string is always a text**, even when it looks like a number: `"12" + 1` is `"121"`, and `"12"` is no colour
@@ -266,8 +267,10 @@ lines = {
 ### Names of your own (vars)
 
 A name outside the records holds a string or an expression for the texts. A personality's own names come first, then
-those of its includes, then those of `_system.eeai`; `_template.eeai` has its own for the prompts. A record's key
-can't be one (`greeting = ...` outside `lines = { }` is a mistake: it belongs in the record).
+those of its layers (`mod/prompt.eeai`'s too: `stance`, `power` ...), then those of `mod/system.eeai`. A prompt text
+is filled with the names of the file it comes from: `mod/prompt.eeai`'s own `power` in its texts, whatever a
+personality calls `power`. A record's key can't be one (`greeting = ...` outside `lines = { }` is a mistake: it
+belongs in the record).
 
 ```
 address = opinion > 30% ? "friend" : opinion < -30% ? "enemy" : "neighbour"
@@ -297,14 +300,16 @@ lines = {
   when the file is read). Up to 8 parameters; none is fine too: `greeting_line() = ...`.
 - A parameter may have the name of a value - `minutes`, `them` - and then means the parameter inside its function.
 - A function may call others; one that calls itself stops at the nesting limit (a mistake, never a hang).
-- Lookup is as for the other names: the personality's own first, then its includes, then `_system.eeai`.
+- Lookup is as for the other names: the personality's own first, then its layers, then `mod/system.eeai`.
 
 ### Includes: building on other files
 
-A personality names the files it builds on - eeaimod's personalities `computer.eeai`:
+Every personality builds on two files of eeaimod's without naming them: `mod/computer.eeai` (the lines that must
+not go unsaid, the `decide` rules) and then `mod/prompt.eeai` (what the language model is told). A personality names
+the other files it builds on:
 
 ```
-include("computer.eeai")
+include("_knights.eeai")
 register_personality()
 
 personality = {
@@ -312,24 +317,27 @@ personality = {
 }
 ```
 
-or several: `include("_knights.eeai", "computer.eeai")`. The included files are its **layers**, in the order named,
-each one's own includes right after it (4 deep, no circles; only a file name in this folder, no path):
+or several: `include("_knights.eeai", "_castles.eeai")`. The included files are its **layers**, in the order named,
+each one's own includes right after it (4 deep, no circles; a file name of this folder, no path), then
+`mod/computer.eeai` and `mod/prompt.eeai` - unless a file of the chain names them already, which puts them where it
+names them: `include("mod/computer.eeai", "_knights.eeai")` puts the knights after eeaimod's base.
 
 - **Lines:** a situation's line comes from the personality's own chain first (the situation, then its fallbacks),
   then from each layer's chain in turn - the first that has something to say now. An included file's line is worked
   out with its own names first.
-- **Names, `decide`, `personality` and `style` keys:** the personality's own win; a key it doesn't write comes from
-  the first layer that has it (`aggression` from `_knights.eeai` when the knight doesn't set its own).
+- **Names, `decide`, `personality`, `style` and `prompt` keys:** the personality's own win; a key it doesn't write
+  comes from the first layer that has it (`aggression` from `_knights.eeai` when the knight doesn't set its own;
+  `prompt = { nature = "..." }` in a personality tells the language model its own words, the other prompt texts come
+  from `mod/prompt.eeai`).
 
 A file without `register_personality()` is only a library: no AI gets it. Give a pack of your own its own base (a
-file of its own name that includes `computer.eeai`, or replaces it): packs dropped into this folder then never
-depend on each other.
+file of its own name, before `mod/computer.eeai`): packs dropped into this folder then never depend on each other.
 
 ## The game's values
 
 A line is said by one AI - **me** - to or about another player - **them**. Some lines also involve a
 third player - **enemy** (`{enemy}`): the enemy in an alliance offer, the ally or lord in some lines. **lord** is
-my lord - the player I capitulated to - in every line, and nothing while I have none. In `_system.eeai` `them` is
+my lord - the player I capitulated to - in every line, and nothing while I have none. In `mod/system.eeai` `them` is
 you, the local player.
 
 Each of them is a player: in a text its name (`{me}`, `{them}`, `{enemy}`, `{lord}`), in a
@@ -505,8 +513,8 @@ writes 0.6, `{aggression:%}` 60%. A choice in front of a format goes in parenthe
 - since `{opinion > 0 ? opinion : 0:%}` reads as if only the 0 were formatted (the same for `??`); without them it is
 a mistake. A format on a text or a player, or one that is no format, is a mistake too.
 
-`_system.eeai` and `_template.eeai` use the same expressions - `{me}` is the AI, `{them}` the one it talks to (in
-`_system.eeai` you), `{them.epoch}`, `{me.attack_minutes(them)}` - and add a few texts only the mod has: `{stance}`,
+`mod/system.eeai` and the prompt texts use the same expressions - `{me}` is the AI, `{them}` the one it talks to (in
+`mod/system.eeai` you), `{them.epoch}`, `{me.attack_minutes(them)}` - and add a few texts only the mod has: `{stance}`,
 `{terms}`, `{tribute}`, `{ally}` ... Each key's are listed above it in the file. None of them has the name of a
 value: `{epoch}` is always the speaker's epoch, wherever it stands.
 
@@ -544,7 +552,7 @@ mistake: that key keeps the difficulty's value.
 
 The AI's diplomacy decides by numbers worked out from expressions - the same ones as in its lines, with `me` the AI,
 `them` the other player and `enemy` its strongest enemy (there may be none: check it, `enemy and ...`). eeaimod's
-are in `computer.eeai`; a personality that writes one of them in its own `decide = { }` decides that its own way:
+are in `mod/computer.eeai`; a personality that writes one of them in its own `decide = { }` decides that its own way:
 
 | Key | When | The AI ... |
 |---|---|---|
@@ -566,15 +574,17 @@ mistake in one (or a value that is no number) is logged once and the mod's built
 as the shipped expressions. `chance()` and random choices here draw from the game's own generator, so every PC of a
 multiplayer game decides alike. Every PC must have the same files then.
 
-## _system.eeai and _template.eeai
+## mod/system.eeai and mod/prompt.eeai
 
-`_system.eeai` holds the lines the mod shows you itself, `system = { ... }`, in English (in a German game the mod's
-built-in German lines come first). `_template.eeai` holds everything the language model is told, `prompt = { ... }`,
-in English (the model is told which language to answer in); its pieces are joined with a space. Both files list every
-key with its built-in text and its placeholders. The names in `_system.eeai` serve the system lines and every
-personality's lines; the names in `_template.eeai` serve the prompts only.
+`mod/system.eeai` holds the lines the mod shows you itself, `system = { ... }`, in English (in a German game the
+mod's built-in German lines come first). `mod/prompt.eeai` holds everything the language model is told, `prompt = {
+... }`, in English (the model is told which language to answer in); its pieces are joined with a space. Both files
+list every key with its built-in text and its placeholders. The names in `mod/system.eeai` serve the system lines and
+every personality's lines. `mod/prompt.eeai` is the last layer of every personality: a personality's own `prompt = {
+... }` (or a layer's before it) replaces single texts for its AI - `nature = "You speak in short, proud sentences."` -
+and its names serve the prompts and, after their own, the personalities' lines.
 
-`_template.eeai` comes with names of its own: the pieces of `game_state_other`, what the AI is told about the one it
+`mod/prompt.eeai` comes with names of its own: the pieces of `game_state_other`, what the AI is told about the one it
 talks to - `stance`, `power` (from `strength_ratio`), `town`, `attacks`, `fighting` and `fighting_recent` (with the
 functions `destroyed(by, of, minutes)` and `fought(minutes)`, `recent_minutes = 20`) and `bond` (lord or vassal).
 Change one by writing it anew in the file; take one out of `game_state_other` by leaving its `{name}` out. A

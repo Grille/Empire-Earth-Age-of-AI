@@ -1,6 +1,6 @@
-// k_tpl: the language model's instructions (texts.c TEXTS; aimod_ai\_template.eeai prompt overrides them).
+// k_tpl: the language model's instructions (texts.c TEXTS; aimod_ai\mod\prompt.eeai and the personalities' prompt = { ... } override them).
 // Generated once from llm.c by scratch gen_tpl.py; edit here.
-// k_tpl_vars: _template.eeai vars built in - the pieces of game_state_other, tool_tribute's tribute_room (a vars of
+// k_tpl_vars: mod/prompt.eeai vars built in - the pieces of game_state_other, tool_tribute's tribute_room (a vars of
 // the file replaces one of the same name; the dump writes them as they are here, over several lines).
 static const struct text_def k_tpl_vars[] = {
     { "stance", "(\n"

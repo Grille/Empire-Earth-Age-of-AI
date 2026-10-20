@@ -35,7 +35,7 @@ Several sessions may work in this tree at the same time - see Git below.
 |---|---|
 | a pipe command, a saved variable | `sh dll/build.sh` (does both) |
 | names the text files know (values, situations, keys) | `scripts/gen_vscode_grammar.py`, then `scripts/pack_vscode.py` |
-| situations, the format help | `scripts/gen_persona.py` (`_persona.eeai`), `scripts/gen_eeai_readme.py` (aimod_ai README tables) |
+| situations, the format help | `scripts/gen_persona.py` (`_template.eeai`), `scripts/gen_eeai_readme.py` (aimod_ai README tables) |
 | the game data's unit types | `scripts/gen_units.py` (docs/units.md) |
 
 Python: `venv/Scripts/python.exe`.

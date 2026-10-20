@@ -1,4 +1,4 @@
-# _system.eeai - the system lines eeaimod shows the player (white, from nobody in particular). Not a
+# mod/system.eeai - the system lines eeaimod shows the player (white, from nobody in particular). Not a
 # personality. English (in a German game the built-in German lines come first). A key left out keeps the
 # built-in text. In braces: expressions - {me} the AI, {them} you - and the few texts only the mod has
 # (listed above each key).

@@ -24,7 +24,7 @@
 //   score = opinion + 25 x log2(his power / own power) (at most +-40) + 0.4 x (50 - aggression) - 0.3 x (pride - 50)
 //           + 15 if he fights the AI's strongest enemy        accept if score > 0.
 //   The score is the personality's decide peace_score when it has one (persona.c; the shipped files: this formula
-//   in computer.eeai); the pride/20 minutes are the rule's.
+//   in mod/computer.eeai); the pride/20 minutes are the rule's.
 // Power = sum of soldier hit points + 30 per building (scan every 10 s).
 //
 // AI INITIATIVE ([all] ai_diplomacy, default 1; not in scenarios/campaigns, not with locked teams), per AI every
@@ -701,16 +701,16 @@ static int peace_terms(int ai, int j, char *out, int cap) {
     out[0] = 0;
     if (!pl || !pj || !stance_of(pl, j)) return 0;
     uint32_t now = game_time();
-    if (TEAMS_LOCKED) { tsub(out, cap, tpl_text("terms_teams"), pl, pj, NULL); return 1; }
+    if (TEAMS_LOCKED) { tsub(out, cap, "terms_teams", pl, pj, NULL); return 1; }
     if (is_vassal(ai)) {
-        tsub(out, cap, tpl_text("terms_vassal"), pl, pj, NULL);
+        tsub(out, cap, "terms_vassal", pl, pj, NULL);
         return 1;
     }
     uint32_t hold = (uint32_t)trait(pl, T_PRIDE) * 3000u;
     if (g_war_since[ai][j] && now - g_war_since[ai][j] < hold) {
         unsigned m = (hold - (now - g_war_since[ai][j]) + 59999u) / 60000u;
         char n[16];
-        tsub(out, cap, tpl_text("terms_pride"), pl, pj, "minutes_left", tnum(n, (int)m), NULL);
+        tsub(out, cap, "terms_pride", pl, pj, "minutes_left", tnum(n, (int)m), NULL);
         return 1;
     }
     int own = 0;
@@ -718,22 +718,22 @@ static int peace_terms(int ai, int j, char *out, int cap) {
     int veto = block_veto(ai, j, now, &own);
     g_veto_quiet = 0;
     if (veto) {
-        tsub(out, cap, tpl_text(own ? "terms_veto_own" : "terms_veto_block"), pl, pj, "ally", player_name(player_at(veto)), NULL);
+        tsub(out, cap, own ? "terms_veto_own" : "terms_veto_block", pl, pj, "ally", player_name(player_at(veto)), NULL);
         return 1;
     }
     float s = peace_score(pl, ai, j, now);
     if (s > 0) {
-        tsub(out, cap, tpl_text("terms_free"), pl, pj, NULL);
+        tsub(out, cap, "terms_free", pl, pj, NULL);
         return 1;
     }
     float need = 1.0f - s, room = 100.0f - g_opinion[ai][j];
     if (need > room) {
-        tsub(out, cap, tpl_text("terms_none"), pl, pj, NULL);
+        tsub(out, cap, "terms_none", pl, pj, NULL);
         return 1;
     }
     int price = ((int)(need * tribute_worth(pl)) + 49) / 50 * 50;
     char n[16];
-    tsub(out, cap, tpl_text("terms_price"), pl, pj, "price", tnum(n, price), NULL);
+    tsub(out, cap, "terms_price", pl, pj, "price", tnum(n, price), NULL);
     return price;
 }
 
@@ -1302,11 +1302,11 @@ static void diplo_tick(void *pl, unsigned ai, uint32_t now) {
             }
             if (g_log) fprintf(g_log, "# diplomacy: P%u at %.1f min: P%d declared war on it%s\n", ai, now / 60000.0, j,
                                betrayal ? " (betrayal)" : "");
-            if (j == (int)*(unsigned *)G_LOCAL_PLAYER) { char e[300]; tsub(e, sizeof e, tpl_text("ev_war_on_you"), player_at((int)ai), pj, NULL); llm_happened((int)ai, "%s", e); }
+            if (j == (int)*(unsigned *)G_LOCAL_PLAYER) { char e[300]; tsub(e, sizeof e, "ev_war_on_you", player_at((int)ai), pj, NULL); llm_happened((int)ai, "%s", e); }
         }
         if (g_diplo_seen[ai] && !s && g_diplo_prev[ai][j] && mine) {   // j offers peace
             if (j == (int)*(unsigned *)G_LOCAL_PLAYER)
-                { char e[300]; tsub(e, sizeof e, tpl_text(g_offer_t[ai][j] ? "ev_accepted_offer" : "ev_offers_peace"), player_at((int)ai), pj, NULL); llm_happened((int)ai, "%s", e); }
+                { char e[300]; tsub(e, sizeof e, g_offer_t[ai][j] ? "ev_accepted_offer" : "ev_offers_peace", player_at((int)ai), pj, NULL); llm_happened((int)ai, "%s", e); }
             g_peace_due[ai][j] = now + 4000 + (uint32_t)((ai * 5 + (unsigned)j) % 5) * 1000;
             g_peace_refused[ai][j] = 0;
         }
@@ -1472,7 +1472,7 @@ static void diplo_tribute(void *to, void *from, const int *amount) {
     float gain = (float)total / tribute_worth(to);
     opinion_add(ai, j, gain);
     if (g_log) fprintf(g_log, "# diplomacy: P%d receives %d tribute from P%d: opinion +%.0f -> %.0f\n", ai, total, j, gain, g_opinion[ai][j]);
-    if (j == (int)*(unsigned *)G_LOCAL_PLAYER) { char n[16], e[300]; tsub(e, sizeof e, tpl_text("ev_tribute_in"), to, from, "total", tnum(n, total), NULL); llm_happened(ai, "%s", e); }
+    if (j == (int)*(unsigned *)G_LOCAL_PLAYER) { char n[16], e[300]; tsub(e, sizeof e, "ev_tribute_in", to, from, "total", tnum(n, total), NULL); llm_happened(ai, "%s", e); }
     tell_event(HE_TRIBUTE, j, ai, game_time() ? game_time() : 1);   // this tribute not in its line (counted before or after)
     int keep[7];   // {tribute}: this one (a capitulation's terms may be in g_say_tribute)
     memcpy(keep, g_say_tribute, sizeof keep);
@@ -1838,7 +1838,7 @@ static void diplo_install(const char *ini, const char *test_ini) {
 // player: me.opinion(them) is what the speaker thinks of them, them.opinion(me) what they think of it,
 // enemy.opinion(them) ... Shortcuts: the speaker's own without "me." - epoch, traits, a relation (opinion(enemy) =
 // me.opinion(enemy)) - and opinion, at_war, allied alone: the speaker's with them (me.opinion(them)). An opinion is
-// a number and words (_system.eeai opinion1..5): "hostile" in a text. Nothing where a value doesn't apply (a relation
+// a number and words (mod/system.eeai opinion1..5): "hostile" in a text. Nothing where a value doesn't apply (a relation
 // with oneself, a war that isn't, a player who isn't there).
 // The tables also make the documentation: scripts/gen_eeai_readme.py writes them into aimod_ai\README.md.
 enum { XM_PLAYER, XM_LINK, XM_REL };   // a player's own, a player (them.lord), A.<relation>(B)

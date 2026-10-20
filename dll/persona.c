@@ -3,7 +3,8 @@
 // before diplo.c (which makes the decisions and raises most of the situations).
 //
 // File format (UTF-8 or ANSI; the syntax: expr.c THE TEXT FILES):
-//   include("computer.eeai")           a layer: its lines, names, keys after its own (FILES below)
+//   include("pack_base.eeai")          a layer: its lines, names, keys after its own; mod/computer.eeai and
+//                                      mod/prompt.eeai are layers of every personality unnamed (FILES below)
 //   register_personality()             this file is a personality (else a library, for others to include)
 //   personality = {
 //       name = "Merchant Benedict"     the player's name in the game (replaces "Computer"; empty = keep)
@@ -12,7 +13,7 @@
 //       character = "..."              for the language model (llm.c)
 //   }
 //   rich = me.stock > 5000             a name outside the records (vars): an expression for its lines, before
-//                                      _system.eeai's
+//                                      mod/system.eeai's
 //   lines = {                          English (other languages: a file of their own, at the release)
 //       war_declared = ["Variant one", opinion < -50 ? "Variant two {them}"]   any expression: one string, a list ...
 //   }
@@ -22,9 +23,12 @@
 //   style = {                          EXPERIMENTAL, only with [general] ai_style=1 (default 0): aimod.ini keys
 //       first_attack_min = 15          (settings.c k_style_keys) on top of the difficulty's settings for this AI
 //   }
+//   prompt = {                         what its language model is told (texts.c; mod/prompt.eeai has every key)
+//       intro = "..."
+//   }
 // In braces: {them} the player the line is about, {me} the speaker, {enemy} a third player (alliances),
 // {epoch} the speaker's age, {tribute} the resources offered / paid (capitulation), or an expression (expr.c). A
-// situation without a line (or one that is nothing now) falls back (line_fallback, the layers: computer.eeai) or stays silent
+// situation without a line (or one that is nothing now) falls back (line_fallback, the layers: mod/computer.eeai) or stays silent
 // (the game's own lines for wonders, flares and war remain where the personality has none).
 //
 // Assignment at the AI's first update: aimod.ini [general] personality_P<n>=<file name without .ini>, otherwise
@@ -89,6 +93,7 @@ struct persona {
     char *line[L_N];   // a situation's line: an expression (expr.c) - a string, a list of them, conditions
     struct xvars vars;   // its names outside the records (vars), its includes' after them
     char *decide[D_N];   // decide: a decision's expression (its own, else its includes'); NULL: the built-in rule
+    char **prompt;   // prompt: the language model's texts by k_tpl index, its own only (texts.c tpl_find); NULL: none
     struct includes inc;   // include(...)
     struct persona *layer[LAYERS_MAX];   // its includes, each one's own right after it (persona_layers)
     int nlayer, registered, resolving;   // registered: register_personality() - a personality, else a library
@@ -231,23 +236,27 @@ static void lang_detect(void) {
                        h ? "read" : "NOT FOUND", age, hostile, g_lang);
 }
 
-// FILES: every .eeai of the folder but _system.eeai and _template.eeai (texts.c) is read the same way (the format:
-// expr.c): personality = { name, civilization, character (strings), color (an expression: a list of colours, worked
-// out at the game start - persona_colors), the traits (shares 0%-100%) }, style = { numbers }, decide = { ... },
-// lines = { each situation a string or a list of them, conditions } - and its names outside them (vars). A file that
-// declares register_personality() is a personality (an AI may get it); any other is a library, read when a file
-// includes it.
-// INCLUDES: include("computer.eeai", ...) - only a plain file name of this folder, so a pack of files dropped into
-// aimod_ai brings its own without touching anyone else's. The files a file includes are its LAYERS, in order, each
-// one's own includes right after it (4 deep, no circles): their names, decide keys, personality and style keys count
-// where the file has none of its own; their lines come after the file's - a situation's line from the first layer
-// whose chain (the situation, then its fallbacks: line_fallback) has something to say now, worked out with that
-// layer's names first (line_source).
-// computer.eeai: the neutral lines for what must not go unsaid (war, peace, offers, capitulation, victory: k_must) -
-// the shipped personalities include it; an AI without a personality speaks with it alone (autotest personas=0). A
-// personality without a line for one of k_must (its own or a layer's, the situation's or a fallback's) is a mistake.
+// FILES: every .eeai of the folder (not its subfolders) is read the same way (the format: expr.c): personality = {
+// name, civilization, character (strings), color (an expression: a list of colours, worked out at the game start -
+// persona_colors), the traits (shares 0%-100%) }, style = { numbers }, decide = { ... }, lines = { each situation a
+// string or a list of them, conditions }, prompt = { the language model's texts (texts.c) } - and its names outside
+// them (vars). A file that declares register_personality() is a personality (an AI may get it); any other is a
+// library, read when a file includes it (_template.eeai, the one to copy, too).
+// INCLUDES: include("pack_base.eeai", ...) - a plain file name of this folder, so a pack of files dropped into aimod_ai
+// brings its own without touching anyone else's - or one of the mod's own, "mod/computer.eeai", "mod/prompt.eeai". The
+// files a file includes are its LAYERS, in order, each one's own includes right after it (4 deep, no circles): their
+// names, decide keys, personality and style keys count where the file has none of its own; their lines and prompt
+// texts come after the file's - a situation's line from the first layer whose chain (the situation, then its
+// fallbacks: line_fallback) has something to say now, worked out with that layer's names first (line_source).
+// THE MOD'S OWN (aimod_ai\mod\): computer.eeai and prompt.eeai are the last layers of every personality, unnamed -
+// unless it names them itself (or a layer does), which puts them where it names them; prompt.eeai is computer.eeai's
+// last layer too. computer.eeai: the neutral lines for what must not go unsaid (war, peace, offers, capitulation,
+// victory: k_must); an AI without a personality speaks with it alone (autotest personas=0). A personality without a
+// line for one of k_must (its own or a layer's, the situation's or a fallback's) is a mistake. prompt.eeai: what the
+// language model is told (texts.c) - a missing file or key keeps the built-in text. system.eeai (texts.c): the system
+// lines, no layer of anyone.
 static int line_fallback(int k);
-static struct persona g_computer;
+static struct persona g_computer, g_prompt;
 static int g_has_computer;
 static int g_personas_only_computer;   // autotest personas=0: only computer.eeai (AIs without a personality)
 static const enum line_kind k_must[] = {
@@ -259,10 +268,21 @@ struct inc_add { struct includes *inc; struct tlex *l; };
 static void include_add(const char *name, void *arg) {
     struct inc_add *a = arg;
     size_t n = strlen(name);
-    if (n < 6 || n >= 64 || lstrcmpiA(name + n - 5, ".eeai") || strpbrk(name, "/\\:") || strstr(name, ".."))
-        x_error("%s:%d: include \"%s\": a file name in this folder expected (\"computer.eeai\")", a->l->file, a->l->line, name);
+    int mod = !lstrcmpiA(name, "mod/computer.eeai") || !lstrcmpiA(name, "mod/prompt.eeai");
+    if (!mod && (n < 6 || n >= 64 || lstrcmpiA(name + n - 5, ".eeai") || strpbrk(name, "/\\:") || strstr(name, "..")))
+        x_error("%s:%d: include \"%s\": a file name in this folder expected (\"pack_base.eeai\"), or \"mod/computer.eeai\", "
+                "\"mod/prompt.eeai\"", a->l->file, a->l->line, name);
     else if (a->inc->n < INCLUDES_MAX) lstrcpynA(a->inc->name[a->inc->n++], name, 64);
+    else x_error("%s:%d: include \"%s\": more than %d included files", a->l->file, a->l->line, name, INCLUDES_MAX);
 }
+// the mod's files every personality has as layers, after the ones it names (persona_layers leaves out one it has)
+static void include_unnamed(struct persona *p, const char *name) {
+    for (int i = 0; i < p->inc.n; i++) if (!lstrcmpiA(p->inc.name[i], name)) return;
+    if (p->inc.n < INCLUDES_MAX) lstrcpynA(p->inc.name[p->inc.n++], name, 64);
+    else x_error("%s.eeai: no room for %s after its %d includes", p->file, name, INCLUDES_MAX);
+}
+static int tpl_key(const char *key);   // texts.c: a prompt key's index, -1 none
+static void persona_prompt_key(struct persona *p, const char *key, struct tval *v, struct tlex *l);
 // the record a key of the files belongs in (a situation: lines, a trait: personality ...); NULL: none - a name
 static const char *record_of_key(const char *key) {
     for (int k = 0; k < L_N; k++) if (!lstrcmpiA(key, k_lines[k].key)) return "lines";
@@ -270,6 +290,7 @@ static const char *record_of_key(const char *key) {
     if (!lstrcmpiA(key, "name") || !lstrcmpiA(key, "civilization") || !lstrcmpiA(key, "character") || !lstrcmpiA(key, "color")) return "personality";
     if (decide_key(key) < D_N) return "decide";
     if (style_key(key) >= 0) return "style";
+    if (tpl_key(key) >= 0) return "prompt";
     return NULL;
 }
 struct color_read { struct tlex *l; int line; };
@@ -281,7 +302,7 @@ static void persona_key(void *arg, const char *sec, const char *key, struct tval
     struct persona *p = arg;
     if (!*sec && !lstrcmpiA(key, "include")) {   // include("a.eeai", ...) (tfile_parse: the list of its names)
         struct inc_add a = { &p->inc, l };
-        if (!x_plain_strings(v->src, include_add, &a)) tl_error(l, "include(\"computer.eeai\", ...): file names expected");
+        if (!x_plain_strings(v->src, include_add, &a)) tl_error(l, "include(\"pack_base.eeai\", ...): file names expected");
         return;
     }
     if (!*sec && !lstrcmpiA(key, "register_personality")) { p->registered = 1; return; }
@@ -334,7 +355,8 @@ static void persona_key(void *arg, const char *sec, const char *key, struct tval
         if (v->kind == TV_NUMBER) { tl_error(l, "a string or a list of them expected"); return; }
         free(p->line[k]);
         p->line[k] = _strdup(v->src);
-    } else tl_error(l, "an unknown record (personality, style, decide, lines)");
+    } else if (!lstrcmpiA(sec, "prompt")) persona_prompt_key(p, key, v, l);
+    else tl_error(l, "an unknown record (personality, style, decide, lines, prompt)");
 }
 // read file (in the folder dir) into p - its own keys only (persona_layers adds its includes'); 0: no such file
 static int persona_parse(const char *dir, const char *file, struct persona *p) {
@@ -351,11 +373,12 @@ static int persona_parse(const char *dir, const char *file, struct persona *p) {
     free(text);
     return 1;
 }
-// THE LIBRARIES: the included files, each read once (computer.eeai into g_computer)
+// THE LIBRARIES: the included files, each read once (mod/computer.eeai into g_computer, mod/prompt.eeai into g_prompt)
 #define MAX_LIBS 16
 static struct persona *g_libs[MAX_LIBS];
 static int g_nlibs;
 static void persona_layers(struct persona *p, const char *dir, int depth);
+static void prompt_builtin_vars(struct persona *p);   // texts.c
 static struct persona *lib_get(const char *dir, const char *file, const char *by, int depth) {
     for (int i = 0; i < g_nlibs; i++)
         if (!lstrcmpiA(g_libs[i]->file, file) || (!_strnicmp(g_libs[i]->file, file, strlen(g_libs[i]->file)) && !lstrcmpiA(file + strlen(g_libs[i]->file), ".eeai"))) {
@@ -364,13 +387,20 @@ static struct persona *lib_get(const char *dir, const char *file, const char *by
         }
     if (depth > 4) { x_error("%s: include \"%s\": more than 4 deep", by, file); return NULL; }
     if (g_nlibs == MAX_LIBS) { x_error("%s: include \"%s\": more than %d included files", by, file, MAX_LIBS); return NULL; }
-    struct persona *p = !lstrcmpiA(file, "computer.eeai") ? &g_computer : malloc(sizeof *p);
+    struct persona *p = !lstrcmpiA(file, "mod/computer.eeai") ? &g_computer : !lstrcmpiA(file, "mod/prompt.eeai") ? &g_prompt :
+                        malloc(sizeof *p);
     if (!persona_parse(dir, file, p)) {
-        x_error("%s: include \"%s\": no such file in aimod_ai", by, file);
-        if (p != &g_computer) free(p);
-        return NULL;
+        if (p == &g_prompt) {   // no file: the built-in prompt texts
+            memset(p, 0, sizeof *p);
+            lstrcpyA(p->file, "mod/prompt");
+        } else {
+            x_error("%s: include \"%s\": no such file in aimod_ai", by, file);
+            if (p != &g_computer) free(p);
+            return NULL;
+        }
     }
-    if (p == &g_computer) g_has_computer = 1;
+    if (p == &g_computer) { g_has_computer = 1; include_unnamed(p, "mod/prompt.eeai"); }
+    if (p == &g_prompt) prompt_builtin_vars(p);
     g_libs[g_nlibs++] = p;
     persona_layers(p, dir, depth);
     return p;
@@ -418,7 +448,7 @@ static void persona_must_check(const struct persona *p) {   // every situation o
     char miss[400] = "";
     for (size_t i = 0; i < sizeof k_must / sizeof *k_must; i++)
         if (!layer_has(p, k_must[i]) && strlen(miss) < sizeof miss - 30) { lstrcatA(miss, " "); lstrcatA(miss, k_lines[k_must[i]].key); }
-    if (miss[0]) x_error("%s.eeai: no line for%s - a personality must have one (its own or an included file's: include(\"computer.eeai\"))", p->file, miss);
+    if (miss[0]) x_error("%s.eeai: no line for%s - a personality must have one (its own or a layer's: mod/computer.eeai)", p->file, miss);
 }
 static void personas_load(void) {
     char dir[MAX_PATH], pat[MAX_PATH];
@@ -426,17 +456,18 @@ static void personas_load(void) {
     g_nlibs = 0;
     g_has_computer = 0;
     lstrcpyA(dir, g_ai_dir);
-    if (lib_get(dir, "computer.eeai", "eeaimod", 0)) persona_must_check(&g_computer);   // the AIs without a personality
+    lib_get(dir, "mod/prompt.eeai", "eeaimod", 0);   // first: there without computer.eeai too
+    if (lib_get(dir, "mod/computer.eeai", "eeaimod", 0)) persona_must_check(&g_computer);   // the AIs without a personality
     snprintf(pat, sizeof pat, "%s*.eeai", dir);
     WIN32_FIND_DATAA fd;
     HANDLE h = FindFirstFileA(pat, &fd);
     if (h == INVALID_HANDLE_VALUE) return;
     static struct persona p;
     do {
-        // _system.eeai, _template.eeai: no personality format (texts.c); the libraries are read when included
-        if (!lstrcmpiA(fd.cFileName, "_system.eeai") || !lstrcmpiA(fd.cFileName, "_template.eeai")) continue;
         if (g_personas_only_computer || g_npersonas >= MAX_PERSONAS || !persona_parse(dir, fd.cFileName, &p)) continue;
         if (!p.registered) continue;   // a library (its mistakes are told when it is read)
+        include_unnamed(&p, "mod/computer.eeai");
+        include_unnamed(&p, "mod/prompt.eeai");
         g_personas[g_npersonas] = p;
         persona_layers(&g_personas[g_npersonas], dir, 0);
         persona_must_check(&g_personas[g_npersonas]);
@@ -445,17 +476,14 @@ static void personas_load(void) {
     FindClose(h);
 }
 
-// expr.c x_fn_known: the functions of every file in the folder (name(a, b) = ...), before any file is checked - and
-// _template.eeai's built in (texts.c)
+// expr.c x_fn_known: the functions of every file in the folder and in mod\ (name(a, b) = ...), before any file is
+// checked - and mod/prompt.eeai's built in (texts.c)
 static void tpl_vars_scan(void);
-static void x_fn_scan_dir(void) {
-    char dir[MAX_PATH], pat[MAX_PATH], path[MAX_PATH];
-    lstrcpyA(dir, g_ai_dir);   // <game>\aimod_ai\, [general] ai_dir or [autotest] ai_dir
+static void x_fn_scan_folder(const char *dir) {
+    char pat[MAX_PATH], path[MAX_PATH];
     snprintf(pat, sizeof pat, "%s*.eeai", dir);
     WIN32_FIND_DATAA fd;
     HANDLE h = FindFirstFileA(pat, &fd);
-    g_xfn_n = g_xvn_n = 0;
-    tpl_vars_scan();
     if (h == INVALID_HANDLE_VALUE) return;
     do {
         snprintf(path, sizeof path, "%s%s", dir, fd.cFileName);
@@ -463,6 +491,14 @@ static void x_fn_scan_dir(void) {
         if (text) { x_fn_scan(text); free(text); }
     } while (FindNextFileA(h, &fd));
     FindClose(h);
+}
+static void x_fn_scan_dir(void) {
+    char dir[MAX_PATH];
+    g_xfn_n = g_xvn_n = 0;
+    tpl_vars_scan();
+    x_fn_scan_folder(g_ai_dir);   // <game>\aimod_ai\, [general] ai_dir or [autotest] ai_dir
+    snprintf(dir, sizeof dir, "%smod\\", g_ai_dir);
+    x_fn_scan_folder(dir);
 }
 
 static struct persona *persona_of(void *pl) {
@@ -487,14 +523,14 @@ static int line_fallback(int k) {
     }
 }
 // A line's context for its {expressions} and conditions (expr.c): the speaker, them, enemy, the placeholder,
-// the vars of the line's personality, the speaker's own, _system.eeai's
+// the vars of the line's personality, the speaker's own, mod/system.eeai's
 struct line_ctx { struct xctx c; const char *pn[2], *pv[2]; char trib[96], trib_total[16]; };   // {me} {them} {enemy} {epoch}: the game values (diplo.c x_builtin)
 static void epoch_text(void *pl, char *out, int cap);
 static void epoch_text_n(int e, char *out, int cap);
 static const char *player_name(void *pl);
 static void tribute_text(const int *amount, char *buf, int cap);
 static int g_say_tribute[7];   // {tribute}, {tribute_total}: amounts by resource (stock index 2..6), set by the caller (diplo.c)
-static void texts_load(void);   // texts.c: _system.eeai's vars
+static void texts_load(void);   // texts.c: mod/system.eeai's vars
 static void line_ctx_init(struct line_ctx *l, void *pl, void *other, void *third) {
     memset(&l->c, 0, sizeof l->c);
     texts_load();
@@ -560,7 +596,7 @@ static int line_pick(struct persona *p, int k, struct xctx *c, uint32_t last, ch
     }
     return x.w;
 }
-// where situation k's line comes from for this AI: its personality (computer.eeai without one), then its layers (its
+// where situation k's line comes from for this AI: its personality (mod/computer.eeai without one), then its layers (its
 // includes) - the first whose chain (k, then its fallbacks) has something to say now (*kk the situation, *n how many
 // it was chosen from)
 static struct persona *line_source(void *pl, int k, int *kk, struct xctx *c, uint32_t last, char *out, int cap, int *n) {
@@ -876,7 +912,7 @@ static int persona_say(void *pl, enum line_kind k, void *other, void *third) {
         chat_line(pl, dbg, g_chat_ms);
     }
     if (g_log) fprintf(g_log, "# talk: P%u at %.1f min (%s%s%s%s%s): %s\n", idx, now / 60000.0, k_lines[k].key,
-                       kk != (int)k ? " as " : "", kk != (int)k ? k_lines[kk].key : "", p == &g_computer ? ", computer.eeai" : "",
+                       kk != (int)k ? " as " : "", kk != (int)k ? k_lines[kk].key : "", p == &g_computer ? ", mod/computer.eeai" : "",
                        heard ? "" : ", not for the player", buf);
     return 1;
 }
@@ -994,7 +1030,7 @@ static void persona_install(const char *ini, const char *test_ini) {
     if (test_ini) GetPrivateProfileStringA("autotest", "language", g_lang, g_lang, sizeof g_lang, test_ini);
     if (!g_lang[0]) lang_detect();
     personas_load();
-    texts_load();   // _system.eeai, _template.eeai now: their mistakes come up with the personalities'
+    texts_load();   // mod/system.eeai now: its mistakes come up with the personalities'
     if (g_strict && g_x_total && !test_ini) {   // at startup: a message box (its own thread - this runs in DllMain)
         HANDLE t = CreateThread(NULL, 0, x_errors_box, NULL, 0, NULL);
         if (t) CloseHandle(t);
@@ -1002,5 +1038,5 @@ static void persona_install(const char *ini, const char *test_ini) {
     int okc = patch_call(CALL_PLAYER_COLOR, FN_COLOR_RGB, (void *)hook_player_color), ok = 0;
     static const uintptr_t sites[] = { 0x470040, 0x4715F8, 0x47166E, 0x47280E, 0x472B9D };
     for (size_t i = 0; i < sizeof sites / sizeof *sites; i++) ok += patch_call(sites[i], FN_NATIVE_CHAT, (void *)hook_native_chat);
-    if (g_log) fprintf(g_log, "# persona: %d personalities, computer.eeai %d, language '%s', talk %d, names %d, native line hooks %d/5, colour hook %d\n", g_npersonas, g_has_computer, g_lang, g_ai_talk, g_ai_names, ok, okc);
+    if (g_log) fprintf(g_log, "# persona: %d personalities, mod/computer.eeai %d, language '%s', talk %d, names %d, native line hooks %d/5, colour hook %d\n", g_npersonas, g_has_computer, g_lang, g_ai_talk, g_ai_names, ok, okc);
 }

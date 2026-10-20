@@ -1,5 +1,4 @@
-# AI personality for eeaimod - the format and every key: _persona.eeai.
-include("computer.eeai")
+# AI personality for eeaimod - the format and every key: _template.eeai.
 register_personality()
 
 personality = {
