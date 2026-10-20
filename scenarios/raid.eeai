@@ -4,8 +4,8 @@
 # A/B e.g. "noguard:home_guard=0" vs "guard:".
 
 defence(2, 0)
-at(46min, () => {
-    spawn(2, unit.inf02_spearman, 48, 44, 15)
-    spawn(2, unit.arch03_simple_bowman, 50, 46, 10)
-})
-at(54min, () => count(3))
+wait_until(46min)
+spawn(2, unit.inf02_spearman, 48, 44, 15)
+spawn(2, unit.arch03_simple_bowman, 50, 46, 10)
+wait_until(54min)
+count(3)

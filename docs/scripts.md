@@ -3,17 +3,17 @@
 A test run's `setup=<file>` (autotest, `run_test.ps1 -IniExtra "setup=_aimod/scenarios/bombing.eeai"`) is a script in
 the text language of the personalities ([config/aimod_ai/README.md](../config/aimod_ai/README.md)): the same
 expressions, plus statements, variables, functions and the pipe's commands. It runs from 2 s game time, top to
-bottom; waiting (`wait`, `at`, `every`) lets the game go on until that game time. The runner: `dll/scripts.c`.
+bottom; waiting (`wait`, `wait_until`, `every`) lets the game go on until that game time. The runner: `dll/scripts.c`.
 
 ```
 # Bombing: an airport at minute 19.5, fighters and bombers at 20, every 20 s they attack P3's town
 fighter = unit.a_strafe_fighter10_fokker_dr_1
 defence(2, 0)
-at(19.5min, () => spawn(2, unit.b_airport, 92, 56, 1))
-at(20min, () => {
-    spawn(2, fighter, 92, 60, 25)
-    spawn(2, unit.a_bomber_11_b_17, 94, 62, 4)
-})
+wait_until(19.5min)
+spawn(2, unit.b_airport, 92, 56, 1)
+wait_until(20min)
+spawn(2, fighter, 92, 60, 25)
+spawn(2, unit.a_bomber_11_b_17, 94, 62, 4)
 every(0.33min, 20.10min, 33.96min, (run) => {
     stats("engage", 2, 92, 58, 60, fighter, 40, 40)
     stats("engage", 2, 92, 58, 60, unit.a_bomber_11_b_17, 40, 40)
@@ -52,7 +52,7 @@ Everything the personalities' expressions have (numbers, `70%`, texts with `{pla
 | Function | |
 |---|---|
 | `wait(10s)` | the script waits that long (game time) |
-| `at(t, f)` | waits until game time `t` (none if it is past) and calls `f()` |
+| `wait_until(t)` | the script waits until game time `t` (not at all if it is past) |
 | `every(step, from, until, f)` | `f(run)` at `from`, `from + step` ... up to `until` (inclusive) - `run` 1, 2, 3 ...; `return stop` ends it |
 | `for(a, b, f)` | `f(i)` for every whole `i` from `a` to `b` (both in); `return stop` ends it |
 | `player(n)` | player n as a value |

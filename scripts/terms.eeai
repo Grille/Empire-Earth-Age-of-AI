@@ -1,20 +1,18 @@
 # peace terms: P1 (human) declares war on P2 (haendler, pride 30 = 90 s), then pays and offers peace
 
-at(1min, () => diplo(1, 2, 1))
-at(2min, () => diplo("terms", 2, 1))
-at(3min, () => {
-    diplo("terms", 2, 1)
-    cmd("llm say 2 Was willst du fuer Frieden?")
-})
-at(4min, () => {
-    diplo("tribute", 1, 2, 3000)
-    diplo("terms", 2, 1)
-})
-at(5min, () => {
-    cmd("llm say 2 Ich habe bezahlt. Frieden?")
-    diplo(1, 2, 0)
-})
-at(6min, () => {
-    diplo("terms", 2, 1)
-    diplo()
-})
+wait_until(1min)
+diplo(1, 2, 1)
+wait_until(2min)
+diplo("terms", 2, 1)
+wait_until(3min)
+diplo("terms", 2, 1)
+cmd("llm say 2 Was willst du fuer Frieden?")
+wait_until(4min)
+diplo("tribute", 1, 2, 3000)
+diplo("terms", 2, 1)
+wait_until(5min)
+cmd("llm say 2 Ich habe bezahlt. Frieden?")
+diplo(1, 2, 0)
+wait_until(6min)
+diplo("terms", 2, 1)
+diplo()

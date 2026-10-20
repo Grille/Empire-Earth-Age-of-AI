@@ -1,10 +1,12 @@
 # a landing behind the player's lines: the reference save, P3 given resources (it is broke there), landing=1
 
-at(75.85min, () => give(3, 3000))
-at(75.9min, () => attacknow(3))
-at(75.95min, () => landing(3, "now"))
+wait_until(75.85min)
+give(3, 3000)
+wait_until(75.9min)
+attacknow(3)
+wait_until(75.95min)
+landing(3, "now")
 every(1min, 77min, 89min, (run) => landing(3))
-at(89.8min, () => {
-    diplo("kills")
-    count(1)
-})
+wait_until(89.8min)
+diplo("kills")
+count(1)

@@ -1,7 +1,7 @@
 // SCRIPTS (autotest setup=<file>[;<file>...]): scenario scripts in the text language (expr.c; docs/scripts.md) -
 // statements one a line, top to bottom, from 2 s game time: the pipe's commands as functions (spawn(3,
 // unit.b_guard_tower_bronze, 51, 44), stats("engage", ...)), variables, functions ((i) => ...), and the waiting ones:
-// wait(20s), at(19.5min, () => ...), every(20s, from, until, (run) => ...), for(1, 5, (i) => ...). Each script runs in
+// wait(20s), wait_until(19.5min), every(20s, from, until, (run) => ...), for(1, 5, (i) => ...). Each script runs in
 // a fiber of its own on the game's thread: waiting hands the turn back to the game until that game second, so the
 // game never stops for a script and everything a script reads is the game as it is. Several scripts run side by side,
 // each in turn, always in the order given (the same game twice the same). Its values live in a region of its own.

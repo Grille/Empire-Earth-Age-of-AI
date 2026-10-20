@@ -3,15 +3,12 @@
 # before minute 20-40): they reach the cap and fight; who keeps the stronger army?
 
 defence(2, 0)
-at(1min, () => {
-    give(2, 3000)
-    give(3, 3000)
-})
-at(15min, () => {
-    give(2, 3000)
-    give(3, 3000)
-})
-at(30min, () => {
-    give(2, 3000)
-    give(3, 3000)
-})
+wait_until(1min)
+give(2, 3000)
+give(3, 3000)
+wait_until(15min)
+give(2, 3000)
+give(3, 3000)
+wait_until(30min)
+give(2, 3000)
+give(3, 3000)

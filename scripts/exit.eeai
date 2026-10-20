@@ -1,4 +1,6 @@
 # exit test: saved, then the game closed its own way (WM_CLOSE) - the teardown the autotest never runs
 
-at(77min, () => save("zz_exit2"))
-at(77.5min, () => wmclose())
+wait_until(77min)
+save("zz_exit2")
+wait_until(77.5min)
+wmclose()

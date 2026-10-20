@@ -1,11 +1,11 @@
 # bombing.eeai 15 minutes later (airport 34.5, aircraft 35, attacks to 49): time for what the AI builds ahead (a fortress)
 
 defence(2, 0)
-at(34.50min, () => spawn(2, unit.b_airport, 92, 56, 1))
-at(35.00min, () => {
-    spawn(2, unit.a_strafe_fighter10_fokker_dr_1, 92, 60, 25)
-    spawn(2, unit.a_bomber_11_b_17, 94, 62, 4)
-})
+wait_until(34.50min)
+spawn(2, unit.b_airport, 92, 56, 1)
+wait_until(35.00min)
+spawn(2, unit.a_strafe_fighter10_fokker_dr_1, 92, 60, 25)
+spawn(2, unit.a_bomber_11_b_17, 94, 62, 4)
 every(0.33min, 35.10min, 48.96min, (run) => {
     stats("engage", 2, 92, 58, 60, unit.a_strafe_fighter10_fokker_dr_1, 40, 40)
     stats("engage", 2, 92, 58, 60, unit.a_bomber_11_b_17, 40, 40)

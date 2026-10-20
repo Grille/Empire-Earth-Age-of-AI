@@ -5,10 +5,9 @@
 # (stats engage). Do P3's citizens keep away (citizen_threats)? Measure P3's workers, losses.
 
 defence(2, 0)
-at(15min, () => {
-    spawn(2, unit.gun_artillery13_colossus, 56, 44, 4)
-    spawn(2, unit.inf10_machine_gun, 55, 46, 6)
-})
+wait_until(15min)
+spawn(2, unit.gun_artillery13_colossus, 56, 44, 4)
+spawn(2, unit.inf10_machine_gun, 55, 46, 6)
 every(0.33min, 15.10min, 29.95min, (run) => {
     stats("engage", 2, 56, 44, 30, unit.gun_artillery13_colossus, 40, 40)
     stats("engage", 2, 56, 44, 12)

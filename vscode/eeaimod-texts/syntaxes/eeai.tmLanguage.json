@@ -604,7 +604,7 @@
         },
         {
           "name": "support.function.script.eeaimod",
-          "match": "\\b(?:player|every|wait|for|cmd|at)\\b(?=\\s*\\()"
+          "match": "\\b(?:wait_until|player|every|wait|for|cmd)\\b(?=\\s*\\()"
         },
         {
           "name": "support.function.command.eeaimod",
@@ -776,7 +776,7 @@
         },
         {
           "name": "support.function.script.eeaimod",
-          "match": "\\b(?:player|every|wait|for|cmd|at)\\b(?=\\s*\\()"
+          "match": "\\b(?:wait_until|player|every|wait|for|cmd)\\b(?=\\s*\\()"
         },
         {
           "name": "support.function.command.eeaimod",

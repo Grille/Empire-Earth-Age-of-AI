@@ -4,9 +4,8 @@
 # A/B: "def:" (P3 uses the layout) vs "nodef:defence_layout=0" (nobody does).
 
 defence(2, 0)
-at(15min, () => {
-    spawn(2, unit.inf02_spearman, 76, 50, 20)
-    spawn(2, unit.arch03_simple_bowman, 76, 58, 12)
-    spawn(2, unit.cav04_bronze_spear_cavalry, 82, 58, 8)
-    spawn(2, unit.gun_siege04_catapult, 72, 54, 3)
-})
+wait_until(15min)
+spawn(2, unit.inf02_spearman, 76, 50, 20)
+spawn(2, unit.arch03_simple_bowman, 76, 58, 12)
+spawn(2, unit.cav04_bronze_spear_cavalry, 82, 58, 8)
+spawn(2, unit.gun_siege04_catapult, 72, 54, 3)

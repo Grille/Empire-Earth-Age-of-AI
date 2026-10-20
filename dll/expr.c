@@ -41,7 +41,7 @@
 // only: frames, x_call_value), the values it made freed when it returns but what it hands back (never a function made
 // in it). Statements (a block's, a script's - one a line): name = value, return [value], an expression. In the text
 // files they don't occur (keys and values only) and nothing loops: a text can't hang the game. Scripts (scripts.c,
-// docs/scripts.md) add the commands, wait, at, every (bounded), for (bounded), player(n), time, stop and 20s / 19.5min.
+// docs/scripts.md) add the commands, wait, wait_until, every (bounded), for (bounded), player(n), time, stop and 20s / 19.5min.
 // MISTAKES WHILE WORKING OUT (x_fail; the file was fine, the value isn't): an unknown name, a text in arithmetic
 // ("a" * 2), a text and a number added or compared ("12" + 1, "12" == 12), chance(70), a player who isn't there used
 // without a check (lord.soldiers without a lord - x_missing). Nothing is guessed: the
@@ -71,7 +71,7 @@ struct xctx {
     int game;                               // a decision ([decide]): it changes the game - draws from the game's generator
     int fixed;                              // an ini file's number (ini.c): no names, no draws, no lists - told quietly
     int missed;                             // x_missing from the game's values (diplo.c): the primary fails
-    int script;                             // a script (scenarios): its functions (wait, at, every, for ...) and commands
+    int script;                             // a script (scenarios): its functions (wait, wait_until, every, for ...) and commands
     int calls;                              // functions called inside each other now
     const char *top;                        // the source being worked out (for the mistakes' messages)
 };
@@ -1022,7 +1022,7 @@ static int x_command_verb(const char *name) {   // a pipe command (control.c exe
     for (size_t i = 0; i < sizeof k_cmd_verbs / sizeof *k_cmd_verbs; i++) if (!strcmp(k_cmd_verbs[i], name)) return 1;
     return 0;
 }
-static int x_script_fn(const char *name);   // the script functions (wait, at, every, for, player, cmd): their arguments, -1 none
+static int x_script_fn(const char *name);   // the script functions (wait, wait_until, every, for, player, cmd): their arguments, -1 none
 static int x_name_known(const char *name);
 static int xc_fail(struct xcheck *k, const struct xnode *n, const char *why) { k->why = why; k->line = n->line; return 0; }
 static int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc);
@@ -1294,9 +1294,9 @@ static void x_call_value(struct xe *e, const struct xval *fv, const struct xval 
     x_region_free(&tmp);
     free(nf);
 }
-// the script functions: wait(seconds), at(time, f), every(step, from, until, f), for(from, to, f), player(n), cmd(text)
+// the script functions: wait(seconds), wait_until(time), every(step, from, until, f), for(from, to, f), player(n), cmd(text)
 static int x_script_fn(const char *name) {
-    static const struct { const char *n; int args; } k[] = { { "wait", 1 }, { "at", 2 }, { "every", 4 }, { "for", 3 }, { "player", 1 }, { "cmd", 1 } };
+    static const struct { const char *n; int args; } k[] = { { "wait", 1 }, { "wait_until", 1 }, { "every", 4 }, { "for", 3 }, { "player", 1 }, { "cmd", 1 } };
     for (size_t i = 0; i < sizeof k / sizeof *k; i++) if (!strcmp(k[i].n, name)) return k[i].args;
     return -1;
 }
@@ -1343,18 +1343,14 @@ static void xe_script(struct xe *e, const char *name, const struct xval *a, int 
         if (!x_player_n((int)xto_num(&a[0]), v)) x_fail(e, "player(%g): no such player", xto_num(&a[0]));
         return;
     }
-    int fi = !strcmp(name, "at") ? 1 : !strcmp(name, "every") ? 3 : !strcmp(name, "for") ? 2 : -1;   // the function's place
+    int fi = !strcmp(name, "every") ? 3 : !strcmp(name, "for") ? 2 : -1;   // the function's place
     for (int i = 0; i < na; i++) {
         if (i == fi) { if (a[i].kind != XV_FN) { x_fail(e, "%s(...): its last argument is a function - (i) => ...", name); return; } }
         else if (!x_numeric_ok(e, &a[i]) || !a[i].w) { if (!e->err) x_fail(e, "%s(...): a number where nothing is", name); return; }
     }
     double now = g_x_hooks.now ? g_x_hooks.now() : 0;
     if (!strcmp(name, "wait")) { x_wait_until(e, now + a[0].n); return; }
-    if (!strcmp(name, "at")) {
-        if (a[0].n > now && !x_wait_until(e, a[0].n)) return;
-        x_call_value(e, &a[1], NULL, 0, v);
-        return;
-    }
+    if (!strcmp(name, "wait_until")) { if (a[0].n > now) x_wait_until(e, a[0].n); return; }   // (past: no wait)
     if (!strcmp(name, "for")) {   // for(from, to, f): f(i) for every whole i from..to, both ends in; stop ends it
         for (double i = a[0].n; i <= a[1].n + 1e-9 && !e->err; i += 1) {
             struct xval iv, r;

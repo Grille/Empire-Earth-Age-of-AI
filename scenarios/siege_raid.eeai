@@ -4,12 +4,10 @@
 # A/B: "nocs:counter_siege=0" vs "cs:".
 
 defence(2, 0)
-at(12min, () => {
-    spawn(3, unit.inf02_spearman, 42, 40, 8)
-    spawn(2, unit.gun_siege04_catapult, 58, 44, 4)
-    spawn(2, unit.inf02_spearman, 60, 46, 4)
-})
-at(24min, () => {
-    count(2)
-    count(3)
-})
+wait_until(12min)
+spawn(3, unit.inf02_spearman, 42, 40, 8)
+spawn(2, unit.gun_siege04_catapult, 58, 44, 4)
+spawn(2, unit.inf02_spearman, 60, 46, 4)
+wait_until(24min)
+count(2)
+count(3)

@@ -1,2 +1,4 @@
-at(75.9min, () => asgtrace(3))
-at(76min, () => attacknow(3))
+wait_until(75.9min)
+asgtrace(3)
+wait_until(76min)
+attacknow(3)

@@ -12,22 +12,22 @@ for d in "$@"; do
     set -- $d
     gap=${5:-8}; ch=${6:-}
     {   # the duel and its measurements (a script, docs/scripts.md)
-        echo "at(0.1min, () => {"
-        echo "    spawn(2, $1, $((60 - gap / 2)), 31, $2)"
-        echo "    spawn(3, $3, $((60 + gap / 2)), 31, $4)"
-        echo "})"
-        echo "at(0.13min, () => {"
-        echo "    stats(\"types\", 2, $1, $(($1 + 1)))"
-        echo "    stats(\"types\", 3, $3, $(($3 + 1)))"
-        echo "})"
+        echo "wait_until(0.1min)"
+        echo "spawn(2, $1, $((60 - gap / 2)), 31, $2)"
+        echo "spawn(3, $3, $((60 + gap / 2)), 31, $4)"
+        echo "wait_until(0.13min)"
+        echo "stats(\"types\", 2, $1, $(($1 + 1)))"
+        echo "stats(\"types\", 3, $3, $(($3 + 1)))"
         echo "every(0.05min, 0.14min, 2.59min, (run) => stats(\"fight\", 60, 31, $((gap / 2 + 10)), $1, $3))"
-        echo "at(2.6min, () => firerate())"
+        echo "wait_until(2.6min)"
+        echo "firerate()"
     } > scripts/zz_duel.eeai
     setup="_aimod/scripts/zz_duel.eeai"
     if [ -n "$ch" ]; then   # the attacker's orders: a script of their own beside it (setup=a;b)
         x=$((ch == 2 ? 60 - gap / 2 : 60 + gap / 2))
         {
-            echo "at(0.12min, () => stats(\"engage\", $ch, $x, 31, $((gap / 2 + 6))))"
+            echo "wait_until(0.12min)"
+            echo "stats(\"engage\", $ch, $x, 31, $((gap / 2 + 6)))"
             echo "every(0.2min, 0.3min, 1.9min, (run) => stats(\"engage\", $ch, $x, 31, $((gap / 2 + 6))))"
         } > scripts/zz_duel_engage.eeai
         setup="_aimod/scripts/zz_duel_engage.eeai;$setup"

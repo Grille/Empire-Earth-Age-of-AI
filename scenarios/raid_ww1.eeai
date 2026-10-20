@@ -4,7 +4,9 @@
 # The militia question: fight back, or run (tanks are faster than citizens)? Measure P3's workers and losses.
 
 defence(2, 0)
-at(12min, () => spawn(2, unit.inf10_doughboy, 48, 44, 6))
+wait_until(12min)
+spawn(2, unit.inf10_doughboy, 48, 44, 6)
 every(0.33min, 12.20min, 15.83min, (run) => stats("engage", 2, 46, 44, 20))
-at(16min, () => spawn(2, unit.tank10_mk_v, 50, 46, 2))
+wait_until(16min)
+spawn(2, unit.tank10_mk_v, 50, 46, 2)
 every(0.33min, 16.16min, 23.75min, (run) => stats("engage", 2, 46, 44, 20))

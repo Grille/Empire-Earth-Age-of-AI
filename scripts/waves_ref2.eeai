@@ -1,7 +1,6 @@
-at(76min, () => {
-    objs(1, unit.b_barracks)
-    objs(1, unit.b_town_center)
-    objs(3, unit.b_barracks)
-    objs(3, unit.b_dock)
-    objs(3, unit.b_house)
-})
+wait_until(76min)
+objs(1, unit.b_barracks)
+objs(1, unit.b_town_center)
+objs(3, unit.b_barracks)
+objs(3, unit.b_dock)
+objs(3, unit.b_house)

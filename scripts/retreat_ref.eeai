@@ -1,6 +1,10 @@
 # attack retreat on the reference save: P3 attacks the player at 76 min (attacknow) - pull-backs, P3 losses
 
-at(76min, () => attacknow(3))
-at(77min, () => army(3))
-at(79min, () => army(3))
-at(86min, () => count(3))
+wait_until(76min)
+attacknow(3)
+wait_until(77min)
+army(3)
+wait_until(79min)
+army(3)
+wait_until(86min)
+count(3)

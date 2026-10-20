@@ -4,9 +4,8 @@
 # more than defending piece by piece? A/B "off:muster=0" vs "on:".
 
 defence(2, 0)
-at(15min, () => {
-    spawn(2, unit.inf02_spearman, 76, 50, 40)
-    spawn(2, unit.arch03_simple_bowman, 76, 58, 30)
-    spawn(2, unit.cav04_bronze_spear_cavalry, 82, 58, 15)
-    spawn(2, unit.gun_siege04_catapult, 72, 54, 5)
-})
+wait_until(15min)
+spawn(2, unit.inf02_spearman, 76, 50, 40)
+spawn(2, unit.arch03_simple_bowman, 76, 58, 30)
+spawn(2, unit.cav04_bronze_spear_cavalry, 82, 58, 15)
+spawn(2, unit.gun_siege04_catapult, 72, 54, 5)

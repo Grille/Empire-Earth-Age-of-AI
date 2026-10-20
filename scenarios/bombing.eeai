@@ -5,11 +5,11 @@
 # lost, losses, workers, and the aircraft left.
 
 defence(2, 0)
-at(19.5min, () => spawn(2, unit.b_airport, 92, 56, 1))
-at(20min, () => {
-    spawn(2, unit.a_strafe_fighter10_fokker_dr_1, 92, 60, 25)
-    spawn(2, unit.a_bomber_11_b_17, 94, 62, 4)
-})
+wait_until(19.5min)
+spawn(2, unit.b_airport, 92, 56, 1)
+wait_until(20min)
+spawn(2, unit.a_strafe_fighter10_fokker_dr_1, 92, 60, 25)
+spawn(2, unit.a_bomber_11_b_17, 94, 62, 4)
 every(0.33min, 20.10min, 33.96min, (run) => {
     stats("engage", 2, 92, 58, 60, unit.a_strafe_fighter10_fokker_dr_1, 40, 40)
     stats("engage", 2, 92, 58, 60, unit.a_bomber_11_b_17, 40, 40)

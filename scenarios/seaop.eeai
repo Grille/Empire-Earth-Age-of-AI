@@ -6,5 +6,7 @@
 # seaop_start=<minute of the first ships>. Score with scripts/seacontrol.py (the "# sea:" lines).
 
 seaop("start", 2)
-at(10min, () => seaop())
-at(30min, () => seaop())
+wait_until(10min)
+seaop()
+wait_until(30min)
+seaop()

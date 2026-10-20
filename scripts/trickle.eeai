@@ -1,1 +1,2 @@
-at(76.05min, () => pause())
+wait_until(76.05min)
+pause()
