@@ -613,6 +613,22 @@ map_size=0,ai_count=2,seed=101,start_epoch=9,unit_limit=60" "v_army_mass=1"` (20
 GATHER (1) kills - losses +11.0 (3.4) without the cheat, -9.7 (8.0) with it (kills -17), losses -4 / -7; head-to-head
 kills +9.0 (3.6), losses +1.3; lowpop kills +9.6, losses -6.9. Tables: docs/economy.md.
 
+The attack as one front (2026-10-20, docs/economy.md "The attack as one front"): `# mass2:` once a minute
+(autotest, both sides): `form march fight other` - per subgroup state class the members and their stragglers at
+home / ahead of / behind the middle (means over the 5-s samples), `fronts multi` (out subgroups 20+ tiles from each
+other; share of samples with 2+ out), `orders` moves/attacks per class (the subgroups' vf57 orders), `tethered
+regrouped joined` (army_mass 16 / 32 / 64), `died pack ahead behind home none` (where this minute's land soldiers
+killed stood). `scripts/mass.py -states "work/autotest_*_ab-<name>-*.csv"`. Runs as above (`eco_ablate.sh`, `MAPS=cont`,
+20 seeds, the 144 cells again with `SEED0=20`; `h2h.sh` with `v_army_mass=144`, `SEED0=24` for games 25-48). Give
+each variant a name of its own: `eco_ablate.py` / `mass.py` pair by name, seed and seat, and an older run's logs with
+the same name (e.g. `fbase` of 2026-10-19) are taken in as well. TETHER (16, 128), REGROUP (32), JOIN (64) and their
+mixes with GATHER measured, **off**: 16 losses -7.4 (2.8) / -4.8 (4.0) but kills -13.9 (5.6) against the cheat; 144
+(80 games a cell) kills - losses +2.6 (1.5) / -2.5 (3.5), head-to-head (48 games) losses +6.0 (4.0), lowpop neutral;
+GATHER + any of them like GATHER. The builds with `army_mass=0` played the same games as 007044a (the final build 80 of 80, 007044a's own DLL 40 of 40); a rerun
+of 144 played all 80 games the same; Small Islands e5 games with 144 identical to without (8 checked). Seed 2 / seat 3 of
+Continental e0 without the cheat parted at minute 43 between two runs of the same build: such a late split happens
+now and then (it shows as 39 of 40 "same").
+
 ### Mass before striking, the mines (navy stage 5)
 
 2026-10-19, `navy_fleet=2` with `navy_fleet_mass=1` and `navy_mines=1` (dll/fleet.c fl_rally, navy.c navy_nodes /

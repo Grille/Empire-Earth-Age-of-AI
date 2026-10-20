@@ -460,6 +460,7 @@ static int guarded(void *pl, int x, int y, int r) {
     return 0;
 }
 
+static int mass_tether(uint8_t *sg, uint8_t *me, uint8_t *enemy);   // mass.c
 typedef float (__thiscall *AsguScoreFn)(void *self, uint8_t *info);
 static float __fastcall hook_asgu_score(uint8_t *self, void *edx, uint8_t *info) {
     (void)edx;
@@ -495,6 +496,7 @@ static float __fastcall hook_asgu_score(uint8_t *self, void *edx, uint8_t *info)
     if (etd && is_wall(FIELD(etd, 0x4B8, int)) && breach_of(sg, &bx, &by) &&
         abs(FIELD(enemy, 0x1C, int) - bx) <= 1 && abs(FIELD(enemy, 0x20, int) - by) <= 1)
         return FIELD(enemy, 0x1C, int) == bx && FIELD(enemy, 0x20, int) == by ? 1000.0f : 500.0f;
+    if (s != 0.0f && mass_tether(sg, me, enemy)) return 0.0f;   // mass.c army_mass 16: not far from the pack
     if (!g_leash || s == 0.0f) return s;
     void *pl = FIELD(sg, 0x190, void *);
     if (!pl) return s;

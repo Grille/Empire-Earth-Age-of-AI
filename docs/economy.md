@@ -333,3 +333,70 @@ seldom comes while weaker - the game launches with what it has, under a minute o
 attacks back that were trading well against the cheating AI. Off by default. Next: the attack itself (subgroups
 walking separate legs, a quarter of their members strung out) - one front instead of several, without assault's
 failures (docs/ai-analysis.md); forward bases / rally points on islands once the landing is ashore.
+
+### The attack as one front (2026-10-20)
+
+**Measured first** (`# mass2:` once a minute, autotest, both sides; `scripts/mass.py -states`): the land subgroups'
+members by state (forming, marching 2000s, fighting 3000s, other), their stragglers (12+ tiles from the middle) at
+home - the replacements -, ahead of the middle (away from the base) and behind it; the fronts (out subgroups 20+
+tiles from each other); the subgroups' orders (vf57, moves / attacks); and where the land soldiers that die stood -
+in an out subgroup's pack (within 12 tiles of its middle), ahead of it, behind it, on the way from home, in no
+subgroup out. Base AI at hard, Continental e0, 20 seeds x both seats, the mod as shipped:
+
+| cheat | members fighting / marching / forming | stragglers fighting: home / ahead / behind | marching | killed in the pack / ahead / behind / from home / none out |
+|---|---|---|---|---|
+| no | 8.3 / 1.2 / 0.7 | 10% / 15% / 7% | 8% | 67% / 13% / 7% / 1% / 13% |
+| yes | 7.8 / 0.6 / 0.7 | 11% / 18% / 9% | 15% | 61% / 16% / 8% / 1% / 13% |
+
+So the attack is not strung out on the march - a marching subgroup holds together (its few stragglers are mostly
+replacements still at home), and the march waits while any
+member is engaged, so the subgroups spend most of an attack in the fight state. The quarter of stragglers are
+fighters chasing targets 12+ tiles ahead of their pack or left behind, and the replacements; two thirds of the
+soldiers killed die in their pack (the 6-tile "alone" count of the `# mass:` line is too tight for a pack fighting
+over 10-20 tiles), one in eight chasing ahead of it, hardly any on the way from home. With 2+ subgroups out (a
+third of the minutes) 4.9 subgroups stand on 2.1 fronts - but a land subgroup asks for a route only ~17 times a game:
+the fronts come from the fights (each subgroup's members pick targets among the enemies it sees), not the marches.
+
+Built (`army_mass` bits, land and mixed maps as before):
+
+- 16 TETHER - a member of a land subgroup out picks no target more than `army_mass_tether` (12) tiles from the
+  middle of its members away from the base, unless the target is within its own range + 2 (attack.c
+  hook_asgu_score: the scorer returns 0, as the leash does for tower range). Nothing left in reach: the subgroup is
+  not engaged, so its march goes on - the pack moves together. 128 (with 16): only buildings - enemy units are
+  fought wherever they are.
+- 32 REGROUP - a member out, 16+ tiles from that middle and attacking nothing, walks back to it (acted under once a
+  minute: the strays are fighting).
+- 64 JOIN (with 1) - GATHER's released reinforcements walk to their subgroup's pack instead of waiting for its
+  next order.
+- A goal switch for one front (a subgroup's route request to an enemy building turned to the goal of the biggest
+  other subgroup out on the same player, as the weak spot switches goals, the route planner still planning the
+  way) never acted in 80 games - dropped.
+
+Paired against the build without (d = with - without, standard error; Continental e0, base AI at hard, 20 seeds x
+both seats = 40 games a cell unless noted):
+
+| Variant | cheat | d kills - losses | d kills | d losses | d razed | stragglers | mod wins / base AI wins |
+|---|---|---|---|---|---|---|---|
+| 16 TETHER | no | +6.3 (3.9) | -1.1 (3.8) | -7.4 (2.8) | +2.2 (1.3) | 22% -> 17% | 20/1 -> 19/1 |
+| 16 TETHER | yes | -9.1 (5.7) | -13.9 (5.6) | -4.8 (4.0) | -0.4 (1.2) | 25% -> 17% | 3/3 -> 1/2 |
+| 16, tether 20 | no / yes | +2.5 (3.0) / -2.6 (4.4) | -1.0 / -7.7 (4.9) | -3.5 / -5.2 (3.0) | +0.1 / -1.2 | | 20/1 -> 19/1, 3/3 -> 1/3 |
+| 48 TETHER + REGROUP | no / yes | +6.2 (4.0) / -5.8 (5.2) | +2.2 / -12.7 (5.3) | -4.0 / -6.9 (3.0) | +1.6 / +0.2 | 22% -> 16%, 25% -> 14% | 20/1 -> 18/1, 3/3 -> 1/2 |
+| 144 TETHER buildings (80 games) | no | +2.6 (1.5) | +0.7 (1.2) | -1.8 (1.3) | -0.3 (0.6) | | 40/2 -> 42/2 |
+| 144 (80 games) | yes | -2.5 (3.5) | -1.9 (2.6) | +0.6 (1.8) | -0.2 (0.4) | | 4/5 -> 3/5 |
+| 17 GATHER + TETHER | no / yes | +9.4 (3.7) / -16.4 (6.0) | +2.2 / -24.4 (7.1) | -7.1 / -8.0 (4.0) | -2.2 / -1.9 | | 20/1 -> 12/1, 3/3 -> 0/2 |
+| 65 GATHER + JOIN | no / yes | +6.7 (3.5) / -11.8 (7.5) | +2.7 / -20.4 (7.5) | -4.0 / -8.7 (3.9) | -0.6 / -2.5 (1.2) | | 20/1 -> 19/1, 3/3 -> 0/4 |
+| 145 GATHER + TETHER buildings | no / yes | +7.9 (3.2) / -10.3 (7.8) | +3.2 / -15.3 (8.6) | -4.6 / -4.9 (3.5) | -0.1 / -2.6 (1.1) | | 20/1 -> 13/1, 3/3 -> 2/3 |
+
+Head-to-head against the control AI (`v_army_mass=144`): Continental e0, map_size 1, 4 AIs, 48 games (game_seed
+1-48): B - A kills +1.1 (3.2), losses +6.0 (4.0), razed +2.5 (1.6), soldiers +1.8 (1.5), alive 0; lowpop (20
+games): kills +1.4 (3.3), losses -0.9 (2.7), razed +2.8 (1.7), soldiers -1.2 (0.8).
+
+Holding the army together works as measured - TETHER cut the stragglers by a quarter to a third and the losses
+without the cheat by 7 - but every way of holding it back (GATHER, TETHER on units, both) costs kills against the
+cheating base AI (-14 to -24): against twice the army the chasers' kills count, and the pack that waits trades
+less. TETHER on buildings only (144) is neutral everywhere (80 games a cell within 1.5 standard errors, the
+head-to-head losses +6 (4)). JOIN made GATHER's released groups keep the pressure (no-cheat wins 20 -> 19 instead of
+14) but not its cost against the cheat. Nothing gains clearly without a loss elsewhere: all **off** (`army_mass=0`).
+What the numbers point to instead: the deaths are in the pack's fights, so the lever is which fights the pack takes
+and when it breaks one off (the fight estimate, the retreat's thresholds against what the pack really faces), not
+how it walks.

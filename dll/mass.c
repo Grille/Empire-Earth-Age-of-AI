@@ -26,25 +26,52 @@
 // 4 RETREAT: attack_retreat (defence.c) for this AI - an attack down to half its peak, or facing 1.5 x its strength
 //   twice, goes home and comes again within 5 minutes.
 // 8 (with 1): GATHER only while that subgroup fights (state 3000/3003).
+// 16 TETHER: a member of a land subgroup out picks no target more than army_mass_tether (12) tiles from the middle of
+//   its members away from the base unless it is within its own range + 2 (attack.c hook_asgu_score); 128 (with 16):
+//   only buildings - enemy units are fought wherever they are. 32 REGROUP: a member out, tether + 4 tiles from that
+//   middle, attacking nothing, walks back to it. 64 JOIN (with 1): released reinforcements walk to their subgroup's
+//   middle (else the subgroup's next orders take them).
+// "# mass2:" once a game minute (autotest): the land subgroups' members by state - forming, marching (2000s),
+// fighting (3000s), other - and their stragglers at home / ahead of / behind the middle; the fronts (out subgroups
+// 20+ tiles from each other) and the share of samples with 2+ out; the subgroups' orders (vf57: moves / attacks);
+// TETHER, REGROUP and JOIN counts; the land soldiers killed - in an out subgroup's pack (12 tiles), ahead of it,
+// behind it, on the way from home, in none out. Measured against the base AI (hard, Continental e0, 40 games):
+// 8 of a subgroup's ~10 members are in the fight state at a time, stragglers are fighters 12+ tiles ahead (15-18%) or
+// behind (7-9%) and replacements from home (9-11%); marching subgroups stay together (their stragglers mostly the
+// replacements at home); 61-67% of the soldiers killed die in the pack, 13-16% ahead of it, 7-8% behind, 1% on the
+// way from home. With 2+ subgroups out (a third of the minutes) 4.9 of them stand on 2.1 fronts - but a land
+// subgroup requests ~17 routes a game: the fronts come from the fights, not the marches (a goal switch at the route
+// request never acted).
 // Measured (base AI at hard, Continental e0, 40 games a cell): half the mod's land soldiers that die die alone, 70-84%
 // of them away from the base; a quarter of an attack subgroup's members string out 12+ tiles. Paired, 1 against the
 // build without: no cheat kills - losses +11.0 (3.4), losses -4.0 (2.7), mod wins 20 -> 14; with the cheat losses -7.3
 // (3.5) but kills -17.0 (8.1), razed -2.3 (1.0), base AI wins 3 -> 4; head-to-head (24 games) kills +9.0 (3.6), losses
 // +1.3 (5.8); lowpop (20) kills +9.6, losses -6.9. 9 milder, 2 hardly acts, 4 and 7 cost kills against the cheat
-// (-20). Default 0.
+// (-20). 16 (no cheat / cheat): losses -7.4 (2.8) / -4.8 (4.0), kills -1.1 / -13.9 (5.6); 144: 80 games a cell kills
+// - losses +2.6 (1.4) / -2.5 (3.5), head-to-head (48 games) kills +1.1 (3.2), losses +6.0 (4.0); 17, 65, 145 like
+// GATHER (wins without the cheat 20 -> 12-19, kills with it -15 to -24). Default 0.
 static int g_army_mass = 0, g_v_army_mass = -1;
-static int g_mass_group = 5, g_mass_hold = 120, g_mass_ratio = 130, g_mass_wait = 10;
+static int g_mass_group = 5, g_mass_hold = 120, g_mass_ratio = 130, g_mass_wait = 10, g_mass_tether = 12;
 #define ARMY_MASS(idx) PV(idx, g_v_army_mass, g_army_mass)
 #define MS_HOLD 96
+#define MS_SG 64
 static struct mass {
     uint32_t ts, tf, tr, tw; unsigned min; int started;
     unsigned samples, sold, iso, away, isoaway, eng, engiso, sg, out, asg, strag;   // sums over the samples
     unsigned die, die_iso, die_away, die_isoaway, die_outn;
+    unsigned dsg[5];   // land soldiers killed: in an out subgroup's pack (within 12 tiles of its middle), ahead of it, behind it, behind at home, none
     struct { uint8_t *u, *sg; uint32_t since; } hold[MS_HOLD]; int nh;
     struct { uint8_t *u; uint32_t t; } gone[MS_HOLD]; int ng;   // released: not held again for 3 minutes
     int rx, ry;
     uint32_t wait0, wait_until;                    // WAIT: the first postponement of this attack, the time it was due
     unsigned held, released, refused, waits, waited, goes;   // since the last line (refused: the subgroups' orders)
+    // "# mass2:" (autotest): per subgroup state class (0 forming/other < 2000, 1 march 2000s, 2 fight 3000s, 3 other)
+    // its members, stragglers at home, out ahead of / behind the middle (toward the base); fronts (out subgroups 20+
+    // tiles apart), samples with 2+ out; the subgroups' orders (vf57) per class: moves, attacks
+    unsigned dm[4], dsh[4], dsa[4], dsb[4], fronts, multi, omv[4], oat[4];
+    // TETHER / REGROUP (16 / 32): the subgroups out and their members' middle (every 2 s); targets skipped, regroup orders
+    struct { uint8_t *sg; int cx, cy; } tc[MS_SG]; int ntc;
+    unsigned tethered, regrouped, joined;
 } g_mss[16];
 static void mass_new_game(void) { memset(g_mss, 0, sizeof g_mss); }
 
@@ -73,7 +100,6 @@ static int ms_near(void *pl, uint8_t *u, int x, int y, int r, int *en) {
     return n;
 }
 // the land attack subgroups of pl (attack commander player +0xB8C +0x48, groups' subgroup vectors +8..+0xC)
-#define MS_SG 64
 static struct ms_sg { uint8_t *sg; int n, na, cx, cy, state, out; } g_msg[MS_SG];
 static int ms_subgroups(void *pl, int bx, int by) {
     int ns = 0;
@@ -109,6 +135,7 @@ static int ms_subgroups(void *pl, int bx, int by) {
 }
 
 // ---- the measurement ----
+static int ms_cls(int st) { return st >= 2000 && st < 3000 ? 1 : st >= 3000 && st < 4000 ? 2 : st >= 4000 ? 3 : 0; }
 static void mass_sample(void *pl, struct mass *m, int bx, int by) {
     m->samples++;
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
@@ -129,11 +156,26 @@ static void mass_sample(void *pl, struct mass *m, int bx, int by) {
         }
         if (n < 2) continue;
         cx /= n; cy /= n;
+        int c = ms_cls(s->state);
         for (uint8_t **r = FIELD(s->sg, 0x54, uint8_t **); r && r < FIELD(s->sg, 0x58, uint8_t **); r++) {
             uint8_t *u = *r ? FIELD(*r, 0x44, uint8_t *) : NULL;
-            if (u && FIELD(u, 0x3C, int) > 0 && FIELD(u, 0x1C, int) >= 0) m->strag += ms_d2(FIELD(u, 0x1C, int), FIELD(u, 0x20, int), cx, cy) > 12 * 12;
+            if (!u || FIELD(u, 0x3C, int) <= 0 || FIELD(u, 0x1C, int) < 0) continue;
+            int ux = FIELD(u, 0x1C, int), uy = FIELD(u, 0x20, int), st = ms_d2(ux, uy, cx, cy) > 12 * 12;
+            m->strag += st; m->dm[c]++;
+            if (!st) continue;
+            if (ms_d2(ux, uy, bx, by) <= 25 * 25) m->dsh[c]++;
+            else if ((ux - cx) * (cx - bx) + (uy - cy) * (cy - by) > 0) m->dsa[c]++;
+            else m->dsb[c]++;
         }
     }
+    int no = 0, fr = 0;   // fronts: out subgroups, a new front when 20+ tiles from every earlier one
+    for (int k = 0; k < ns; k++) {
+        if (!g_msg[k].out) continue;
+        int cl = 0;
+        for (int j = 0; j < k && !cl; j++) cl = g_msg[j].out && ms_d2(g_msg[j].cx, g_msg[j].cy, g_msg[k].cx, g_msg[k].cy) <= 20 * 20;
+        no++; fr += !cl;
+    }
+    m->fronts += (unsigned)fr; m->multi += no >= 2;
 }
 // a unit died (diplo.c hook_kill_stat, n 3; autotest): a land soldier - who stood by it
 static void mass_death(uint8_t *dead) {
@@ -148,6 +190,15 @@ static void mass_death(uint8_t *dead) {
     ms_near(pl, dead, x, y, 8, &en);
     int iso = own <= 2, away = ms_d2(x, y, bx, by) > 25 * 25;
     m->die++; m->die_iso += iso; m->die_away += away; m->die_isoaway += iso && away; m->die_outn += en >= 2 * (own + 1);
+    int ns = ms_subgroups(pl, bx, by), w = 4;
+    for (int k = 0; k < ns && w == 4; k++) {
+        struct ms_sg *s = &g_msg[k];
+        if (!s->out) continue;
+        for (uint8_t **r = FIELD(s->sg, 0x54, uint8_t **); r && r < FIELD(s->sg, 0x58, uint8_t **) && w == 4; r++)
+            if (*r && FIELD(*r, 0x44, uint8_t *) == dead)
+                w = ms_d2(x, y, s->cx, s->cy) <= 12 * 12 ? 0 : !away ? 3 : (x - s->cx) * (s->cx - bx) + (y - s->cy) * (s->cy - by) > 0 ? 1 : 2;
+    }
+    m->dsg[w]++;
 }
 
 // ---- army_mass ----
@@ -174,10 +225,14 @@ static int ms_held(struct mass *m, uint8_t *u, uint8_t *sg) {
     return 0;
 }
 // landing.c hook_asg_give_goal: a land subgroup's order to a member held at the rally
-static int mass_refuses(uint8_t *sg, uint8_t *u) {
+static int mass_refuses(uint8_t *sg, uint8_t *u, void *goal) {
     void *pl = FIELD(sg, 0x190, void *);
     if (!pl || *(uintptr_t *)sg != VT_ASG_LAND) return 0;
     struct mass *m = &g_mss[(unsigned)FIELD(pl, PL_INDEX, int) & 15];
+    if (g_auto.enabled) {
+        int c = ms_cls(FIELD(sg, 0x1D0, int));
+        if (goal && *(uintptr_t *)goal == VT_GOAL_ATTACK) m->oat[c]++; else m->omv[c]++;
+    }
     if (!m->nh || !ms_held(m, u, sg)) return 0;
     m->refused++;
     return 1;
@@ -217,7 +272,11 @@ static void ms_gather(void *pl, unsigned idx, struct mass *m, uint32_t now, int 
             if (m->hold[j].sg == sg) { n++; if (now - m->hold[j].since > oldest) oldest = now - m->hold[j].since; }
         if (n >= g_mass_group || (n >= 3 && oldest >= (uint32_t)g_mass_hold * 1000u) || oldest >= (uint32_t)g_mass_hold * 2000u) {
             if (g_log && g_auto.enabled) fprintf(g_log, "# mass: P%u at %.1f min: %d reinforcements go together (held %.1f min)\n", idx, now / 60000.0, n, oldest / 60000.0);
+            int jx = -1, jy = -1;   // 64 JOIN: they walk to the subgroup's pack (its members away from the base)
+            for (int i = 0; i < ns && (ARMY_MASS(idx) & 64); i++)
+                if (g_msg[i].sg == sg && g_msg[i].na >= 2) { jx = g_msg[i].cx; jy = g_msg[i].cy; }
             for (int j = m->nh - 1; j >= 0; j--) if (m->hold[j].sg == sg) {
+                if (jx >= 0) m->joined += unit_goal(m->hold[j].u, goal_move((float)jx + 0.5f + (float)(j % 3) - 1.0f, (float)jy + 0.5f + (float)(j / 3 % 3) - 1.0f), 0, 0x1F40) != 0;
                 int o = 0;   // a free slot of the released list, else its oldest
                 if (m->ng < MS_HOLD) o = m->ng++;
                 else for (int i = 1; i < MS_HOLD; i++) if (m->gone[i].t < m->gone[o].t) o = i;
@@ -267,6 +326,52 @@ static void ms_wait(void *pl, unsigned idx, struct mass *m, uint32_t now) {
     FIELD(pl, 0xED8, uint32_t) = m->wait_until = now + 20000;
     g_last_attack_time[idx] = m->wait_until;   // no launch (econ.c's attack line)
 }
+// TETHER (16): the subgroups out (as GATHER's) and the middle of their members away from the base - the pack; a member
+// of one picks no target more than army_mass_tether (12) tiles from that middle unless it is within its own range + 2
+// of it (attack.c hook_asgu_score; measured: 8 of a subgroup's ~10 members are in combat state at a time, 15% of
+// them 12+ tiles ahead of the middle, chasing - the march waits while any member is engaged, so the pack itself only
+// moves on once nothing near it is left). REGROUP (32): a member out, in a fighting subgroup, tether + 4 tiles or more
+// from the middle and attacking nothing walks back to it.
+static void ms_tether(void *pl, struct mass *m, int plan, int bx, int by) {
+    int ns = ms_subgroups(pl, bx, by), t = g_mass_tether + 4;
+    m->ntc = 0;
+    for (int k = 0; k < ns; k++) {
+        struct ms_sg *s = &g_msg[k];
+        if (!s->out || s->na < 2) continue;
+        m->tc[m->ntc].sg = s->sg; m->tc[m->ntc].cx = s->cx; m->tc[m->ntc].cy = s->cy; m->ntc++;
+        if (!(plan & 32) || s->state < 3000 || s->state >= 4000) continue;
+        for (uint8_t **r = FIELD(s->sg, 0x54, uint8_t **); r && r < FIELD(s->sg, 0x58, uint8_t **); r++) {
+            uint8_t *u = *r ? FIELD(*r, 0x44, uint8_t *) : NULL;
+            if (!u || !ms_land_soldier(u, FIELD(u, 0x2C, uint8_t *)) || fl_attacking(u)) continue;
+            int x = FIELD(u, 0x1C, int), y = FIELD(u, 0x20, int);
+            if (ms_d2(x, y, bx, by) <= 25 * 25 || ms_d2(x, y, s->cx, s->cy) < t * t ||
+                as_goal_near(u, (float)s->cx + 0.5f, (float)s->cy + 0.5f, 4.0f)) continue;
+            m->regrouped += unit_goal(u, goal_move((float)s->cx + 0.5f, (float)s->cy + 0.5f), 0, 0x1F40) != 0;
+        }
+    }
+}
+// attack.c hook_asgu_score: a target too far from the pack of an out subgroup's member
+static int mass_tether(uint8_t *sg, uint8_t *me, uint8_t *enemy) {
+    void *pl = FIELD(sg, 0x190, void *);
+    if (!pl || !me || !enemy) return 0;
+    unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
+    struct mass *m = &g_mss[idx];
+    int plan = ARMY_MASS(idx);
+    if (!m->ntc || !(plan & 16)) return 0;
+    uint8_t *etd = FIELD(enemy, 0x2C, uint8_t *);   // 128: buildings only - enemy units are fought wherever they are
+    if ((plan & 128) && (!etd || (FIELD(etd, 0x4B4, int) != 2 && FIELD(etd, 0x4B4, int) != 29))) return 0;
+    int k = 0;
+    while (k < m->ntc && m->tc[k].sg != sg) k++;
+    if (k == m->ntc) return 0;
+    int ex = FIELD(enemy, 0x1C, int), ey = FIELD(enemy, 0x20, int);
+    if (ms_d2(ex, ey, m->tc[k].cx, m->tc[k].cy) <= g_mass_tether * g_mass_tether) return 0;
+    uint8_t *st = FIELD(me, 0x34, uint8_t *), *td = FIELD(me, 0x2C, uint8_t *);
+    float r = (st ? FIELD(st, 0x9C, float) : td ? FIELD(td, 0x420, float) : 1.0f) + 2.0f;
+    int dx = ex - FIELD(me, 0x1C, int), dy = ey - FIELD(me, 0x20, int);
+    if ((float)(dx * dx + dy * dy) <= r * r) return 0;
+    m->tethered++;
+    return 1;
+}
 static int mass_retreat(unsigned idx) { return (ARMY_MASS(idx) & 4) != 0; }   // defence.c attack_retreat
 static void mass_tick(void *pl, uint32_t now) {
     if (!pl) return;
@@ -278,9 +383,10 @@ static void mass_tick(void *pl, uint32_t now) {
     int plan = is_vanilla(pl) ? 0 : ARMY_MASS(idx);
     if (plan && (!m->tf || now - m->tf >= 2000)) {
         m->tf = now ? now : 1;
-        if (!navy_land(idx)) m->nh = 0;
+        if (!navy_land(idx)) m->nh = m->ntc = 0;
         else {
             if (plan & 1) ms_gather(pl, idx, m, now, bx, by); else m->nh = 0;
+            if (plan & 48) ms_tether(pl, m, plan, bx, by); else m->ntc = 0;
             if ((plan & 2) && (!m->tw || now - m->tw >= 5000)) { m->tw = now ? now : 1; ms_wait(pl, idx, m, now); }
         }
     }
@@ -295,7 +401,17 @@ static void mass_tick(void *pl, uint32_t now) {
             idx, m->min, m->sold / s, m->iso / s, m->away / s, m->isoaway / s, m->eng / s, m->engiso / s, m->sg / s, m->out / s, m->asg / s,
             m->strag / s, m->die, m->die_iso, m->die_away, m->die_isoaway, m->die_outn, m->held, m->released, m->refused, m->nh,
             m->waits, m->waited, m->goes);
+    fprintf(g_log, "# mass2: P%u at %u min: form %.1f %.1f %.1f %.1f | march %.1f %.1f %.1f %.1f | fight %.1f %.1f %.1f %.1f | "
+            "other %.1f %.1f %.1f %.1f | fronts %.2f multi %.2f | orders %u/%u %u/%u %u/%u %u/%u | tethered %u regrouped %u joined %u | died pack %u ahead %u behind %u home %u none %u\n", idx, m->min,
+            m->dm[0] / s, m->dsh[0] / s, m->dsa[0] / s, m->dsb[0] / s, m->dm[1] / s, m->dsh[1] / s, m->dsa[1] / s, m->dsb[1] / s,
+            m->dm[2] / s, m->dsh[2] / s, m->dsa[2] / s, m->dsb[2] / s, m->dm[3] / s, m->dsh[3] / s, m->dsa[3] / s, m->dsb[3] / s,
+            m->fronts / s, m->multi / s, m->omv[0], m->oat[0], m->omv[1], m->oat[1], m->omv[2], m->oat[2], m->omv[3], m->oat[3], m->tethered, m->regrouped, m->joined,
+            m->dsg[0], m->dsg[1], m->dsg[2], m->dsg[3], m->dsg[4]);
     LeaveCriticalSection(&g_lock);
+    m->tethered = m->regrouped = m->joined = 0;
+    memset(m->dsg, 0, sizeof m->dsg);
+    memset(m->dm, 0, sizeof m->dm); memset(m->dsh, 0, sizeof m->dsh); memset(m->dsa, 0, sizeof m->dsa); memset(m->dsb, 0, sizeof m->dsb);
+    memset(m->omv, 0, sizeof m->omv); memset(m->oat, 0, sizeof m->oat); m->fronts = m->multi = 0;
     m->samples = m->sold = m->iso = m->away = m->isoaway = m->eng = m->engiso = m->sg = m->out = m->asg = m->strag = 0;
     m->die = m->die_iso = m->die_away = m->die_isoaway = m->die_outn = 0;
     m->held = m->released = m->refused = m->waits = m->waited = m->goes = 0;
@@ -307,7 +423,8 @@ static void mass_install(const char *aimod_ini, const char *autotest_ini) {
     g_mass_hold = cfg_int(aimod_ini, autotest_ini, 1, "army_mass_hold", 120);
     g_mass_ratio = cfg_pct(aimod_ini, autotest_ini, 1, "army_mass_ratio", 130, 1000);
     g_mass_wait = cfg_int(aimod_ini, autotest_ini, 1, "army_mass_wait", 10);
+    g_mass_tether = cfg_int(aimod_ini, autotest_ini, 1, "army_mass_tether", 12);
     if (autotest_ini) g_v_army_mass = ini_int("autotest", "v_army_mass", -1, autotest_ini);
-    if (g_log) fprintf(g_log, "# army mass: %d (variant %d), group %d, hold %d s, ratio %d%%, wait %d min\n", g_army_mass, g_v_army_mass,
-                       g_mass_group, g_mass_hold, g_mass_ratio, g_mass_wait);
+    if (g_log) fprintf(g_log, "# army mass: %d (variant %d), group %d, hold %d s, ratio %d%%, wait %d min, tether %d\n", g_army_mass, g_v_army_mass,
+                       g_mass_group, g_mass_hold, g_mass_ratio, g_mass_wait, g_mass_tether);
 }

@@ -6,7 +6,11 @@ Logs of scripts/eco_ablate.sh (the mod M against the base AI V, tags ab-<variant
 per variant and condition both sides, with -base NAME the paired differences of the mod's side (kills - losses,
 kills, losses, razed, lost, workers, soldiers, alive, wins) against that variant.
 Head-to-head logs (scripts/h2h.sh, '# variant: players'): the B players against the others, per game B - A.
-usage: python scripts/mass.py [-base NAME] "work/autotest_*_ab-*.csv"      python scripts/mass.py -h2h "work/*_h2h*_name_*.csv" """
+-states: the '# mass2:' lines instead - per variant and condition the mod's attack subgroup members by state (forming,
+marching, fighting, other), their stragglers at home / ahead of / behind the middle, the fronts (out subgroups 20+
+tiles apart), the subgroups' orders (moves / attacks) a minute, TETHER's skipped targets, REGROUP's and JOIN's orders.
+usage: python scripts/mass.py [-base NAME] "work/autotest_*_ab-*.csv"      python scripts/mass.py -h2h "work/*_h2h*_name_*.csv"
+       python scripts/mass.py -states "work/autotest_*_ab-*.csv" """
 import glob, os, re, sys
 from collections import defaultdict
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -18,7 +22,8 @@ def opt(name, default):
     return default
 base = opt('-base', None)
 h2h = '-h2h' in args
-args = [a for a in args if a != '-h2h']
+states = '-states' in args
+args = [a for a in args if a not in ('-h2h', '-states')]
 paths = [p for a in args for p in (glob.glob(a) if any(c in a for c in '*?') else [a])]
 MASS = re.compile(r'^# mass: P(\d+) at (\d+) min: sold ([\d.]+) iso ([\d.]+) away ([\d.]+) isoaway ([\d.]+) eng ([\d.]+) engiso ([\d.]+) \| '
                   r'sg ([\d.]+) out ([\d.]+) asg ([\d.]+) strag ([\d.]+) \| died (\d+) iso (\d+) away (\d+) isoaway (\d+) outn (\d+) \| '
@@ -49,6 +54,39 @@ SHOW = ('sold', 'isoS', 'awayS', 'isoawayS', 'engisoS', 'out', 'stragS', 'die', 
         'held', 'released', 'refused', 'waits', 'waited', 'goes')
 def line(gs):
     return '  '.join('%s %s' % (k, ('%.2f' if k.endswith('S') else '%.1f') % mean([g[k] for g in gs])) for k in SHOW)
+
+M2 = re.compile(r'^# mass2: P(\d+) at (\d+) min: form (.*?) \| march (.*?) \| fight (.*?) \| other (.*?) \| fronts ([\d.]+) multi ([\d.]+) \| '
+                r'orders ([\d/ ]+?)(?: \| tethered (\d+) regrouped (\d+)(?: joined (\d+))?)?'
+                r'(?: \| died pack (\d+) ahead (\d+) behind (\d+) home (\d+) none (\d+))?$', re.M)
+CLS = ('form', 'march', 'fight', 'other')
+if states:
+    tot = defaultdict(lambda: defaultdict(float))
+    for path in paths:
+        m = re.search(r'_ab-(.+?)-(c\d-\w+?)-r(\d+)v(\d+)\.csv$', path)
+        if not m: continue
+        van = int(m.group(4))
+        for x in M2.finditer(open(path, errors='replace').read()):
+            t = tot[(m.group(1), m.group(2), 'V' if int(x.group(1)) == van else 'M')]
+            t['mins'] += 1
+            for c, g in zip(CLS, x.groups()[2:6]):
+                for k, a in zip(('m', 'sh', 'sa', 'sb'), g.split()): t[c + k] += float(a)
+            t['fronts'] += float(x.group(7)); t['multi'] += float(x.group(8))
+            for k, gi in (('tethered', 10), ('regrouped', 11), ('joined', 12), ('dpack', 13), ('dahead', 14), ('dbehind', 15), ('dhome', 16), ('dnone', 17)):
+                t[k] += int(x.group(gi) or 0)
+            for c, o in zip(CLS, x.group(9).split()):
+                mv, at = o.split('/'); t[c + 'mv'] += int(mv); t[c + 'at'] += int(at)
+    for (v, c, sd), t in sorted(tot.items()):
+        mi = max(t['mins'], 1)
+        nd = max(sum(t[k] for k in ('dpack', 'dahead', 'dbehind', 'dhome', 'dnone')), 1e-9)
+        print('%s %s %s: %d min, fronts %.2f, 2+ out %.0f%%, a minute: tethered %.0f regrouped %.2f joined %.2f' % (
+              v, c, sd, t['mins'], t['fronts'] / mi, 100 * t['multi'] / mi, t['tethered'] / mi, t['regrouped'] / mi, t['joined'] / mi))
+        if nd >= 1: print('    killed: in an out subgroup - in its pack %.0f%%, ahead %.0f%%, behind %.0f%%, on the way from home %.0f%%; in none out %.0f%%' % tuple(
+            100 * t[k] / nd for k in ('dpack', 'dahead', 'dbehind', 'dhome', 'dnone')))
+        for k in CLS:
+            mm = max(t[k + 'm'], 1e-9)
+            print('    %-6s members %.2f  stragglers home %.1f%% ahead %.1f%% behind %.1f%%  orders a minute: move %.1f attack %.1f' % (
+                  k, t[k + 'm'] / mi, 100 * t[k + 'sh'] / mm, 100 * t[k + 'sa'] / mm, 100 * t[k + 'sb'] / mm, t[k + 'mv'] / mi, t[k + 'at'] / mi))
+    sys.exit()
 
 if h2h:
     side = {'A': [], 'B': []}; d = defaultdict(list)
