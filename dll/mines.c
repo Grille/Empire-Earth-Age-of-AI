@@ -134,7 +134,7 @@ static void mine_fill(uint8_t *rm) {
 // DROP: every 2 minutes (econ_tick)
 static void mine_drops(void *pl, unsigned idx, uint32_t now) {
     struct mf_st *m = &g_mf[idx];
-    if (!(MINE_FILL(idx) & 2) || !mf_active(pl, now) || m->drops_queued >= 6) return;
+    if (!((MINE_FILL(idx) & 2) || (PV(idx, g_v_cit_plan, g_cit_plan) & 4)) || !mf_active(pl, now) || m->drops_queued >= 6) return;   // citizen_plan DROP too
     if (m->drop_t && now >= m->drop_t && now - m->drop_t < 120000) return;
     m->drop_t = now ? now : 1;
     mf_scan(pl, idx, now);

@@ -54,6 +54,9 @@ static int food_fields_wait(void *pl, uint8_t *rm);
 static void mine_drops(void *pl, unsigned idx, uint32_t now);   // mines.c
 static void mines_log(void *pl, unsigned idx, uint32_t now);
 static int g_mine_fill, g_v_mine_fill;
+static int g_cit_plan, g_v_cit_plan;   // citizens.c: citizen_plan
+static int cz_visible_food(void *pl, unsigned idx, const int *stock, int visible);
+static void cz_budget_note(void *pl, unsigned idx, const int *req, const int *stock, const int *visibles, int blocked, int afford);   // citizens.c
 static int early_cover(void *pl, int x, int y);
 static int early_core_spot(void *pl, int type, int *ox, int *oy);
 static unsigned g_early_mil_refused[16];   // defence.c militia_answer: citizens kept out of a fight (early_militia)
@@ -1306,7 +1309,7 @@ static void econ_rebalance(uint8_t *rm) {
     if (!g_rebalance || !pl) return;
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     uint32_t *target = (uint32_t *)(rm + RM_TARGET);
-    int moves = 0, dry = 0, most = PV(idx, g_v_mine_fill, g_mine_fill) & 1 ? 4 : 2;   // dry: donor lists without a movable citizen; mine_fill: 4
+    int moves = 0, dry = 0, most = (PV(idx, g_v_mine_fill, g_mine_fill) & 1) || (PV(idx, g_v_cit_plan, g_cit_plan) & 1) ? 4 : 2;   // dry: donor lists without a movable citizen; mine_fill, citizen_plan: 4
     // wood too with late_targets (the game's own wood search, 0x48C060(1, unit), safe_sites' danger check): 38 on gold
     // above their target stayed there for good while wood had 3
     int first = (PV(idx, g_v_late, g_late_targets) & 2) && current_epoch(pl) >= FARM_EPOCH ? 3 : 4;
@@ -1624,6 +1627,7 @@ static void train_budget(void *pl, unsigned idx, const struct ai_cfg *cfg, const
             if (r == 2 && (int)(wild_food(pl) * g_wild_share) < epoch_cost(pl, ep + 1, 2) - acc + 500)
                 visible = stock[2] - epoch_cost(pl, ep + 1, 2);
         }
+        if (cit && r == 2) visible = cz_visible_food(pl, idx, stock, visible);   // citizen_plan FIRST (citizens.c)
         if (cit && early && g_bud[idx].mil[r] > 0) visible -= (int)g_bud[idx].mil[r];   // not the army's food
         if (military && !g_priority_mil && !req_unit) {   // priority requests (siege) and requirement units spend
                                                            // the stock above the reserve
@@ -1771,6 +1775,7 @@ __attribute__((noinline)) static uintptr_t __fastcall hook_train_units(void *um,
     const struct ai_cfg *cfg = pl ? cfg_of(pl) : NULL;
     if (stock && cfg->budget) train_budget(pl, idx, cfg, req, military, req_unit, ship, stock, reserve, visibles, &blocked, &afford, &sub_type);
     else if (stock) memcpy(visibles, stock, sizeof visibles);
+    if (stock && !military && is_citizen_type(req[0])) cz_budget_note(pl, idx, req, stock, visibles, blocked, cfg->budget ? afford : req[1]);
     uintptr_t res = train_call(um, pl, idx, req, b, blocked, afford, sub_type, ra, military, ship);
     train_account(pl, idx, cfg, req, res, military, ship, sub_type, stock, before, reserve, visibles, ra);
     if (pick) { navy_pick_done(pl, idx, pick, asked, before, stock, blocked); req[0] = asked; }
