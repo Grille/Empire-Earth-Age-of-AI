@@ -2174,6 +2174,12 @@ static int x_method(struct xctx *c, const char *name, const struct xval *a, int 
         xnothing(v);
         return 1;
     }
+    if (nw > 1 && xto_num(&a[1]) < 0) {   // not "older than": that is the whole game minus the window
+        x_error("%s(..., %g): the minutes are a window back from now, 0 the whole game - older events: %s(B) - %s(B, %g)",
+                name, xto_num(&a[1]), name, name, -xto_num(&a[1]));
+        xnothing(v);
+        return 1;
+    }
     x_relation(pa, pb, m, nw > 1 ? xto_num(&a[1]) : 0, filter, v);
     return 1;
 }
