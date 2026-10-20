@@ -158,3 +158,63 @@ there: wood is spent as it comes; mine gatherers +-0). 7 put 5-8 more on the min
 +8 / +10 (Large, no cheat / cheat) and +9 (Small with the cheat), but the workers fell by 4-12 (wood went short) and
 Small Islands without the cheat lost more (base AI wins 3 -> 7). **Off (0)**: filling the mines pays only with
 wood to spare - the next step is more woodcutters' income, not fewer.
+
+## Citizen production (2026-10-20, dll/citizens.c)
+
+The playtester: "Filling the mines is a task after ensuring enough food income that citizens can continuously be
+trained; not enough citizens should never be a real limit to filling a mine after the early game or in very low pop
+games."
+
+**How the game trains citizens** (unit manager 0x490AD6, at 0x490B60): a request only while there is room under the
+cap, the attention flag um +0x140 is on, no citizen request waits and no producer has a citizen queued; for the
+citizens wanted (0x48EDDB: player +0xBDC x cap, 45% - 75 of a cap of 166) less those there, at most 10 (5 on water
+maps). 0x49014F hands them round-robin to every finished Town Center / Capitol. A citizen takes ~28 s of a producer.
+
+**Measured** (`# cit:` once a minute, autotest: per producer and second training a citizen / something else / nothing,
+and why nothing; `scripts/cit.py`). Base AI at hard, 60 min, 20 seeds x both seats. Producer time idle and the main
+reason (mod; minutes 10-30 / 30-60):
+
+| Map | cheat | idle 10-30 | why | idle 30-60 | why |
+|---|---|---|---|---|---|
+| Continental e0 | no | 49% | 37% the mod's budget (the epoch reserve) | 81% | 58% the citizens wanted are there |
+| Small Islands e5 | no | 34% | 22% under 50 food in stock | 83% | 56% wanted are there |
+| Large Islands e5 | no | 27% | 18% food | 85% | 56% wanted are there |
+| Continental e0 | yes | 52% | 31% budget, 14% food | 77% | 42% wanted, 20% food |
+| Small Islands e5 | yes | 48% | 39% food | 85% | 62% food |
+| Large Islands e5 | yes | 36% | 30% food | 81% | 42% food, 24% wanted |
+
+So the game's 45% share stopped the citizens at ~75 while 40-60 mine slots near the drop sites had 12-24 miners, and
+food ran short on the islands. Houses play no part: the cap is the game's (+0xCCC), not built.
+
+`citizen_plan` ([all], bits, `v_citizen_plan`): 1 GOAL - from the Copper Age the citizens wanted are the goal when more:
+every mine slot within 12 tiles of a drop site (home and wherever the AI holds one), the food and wood gatherers, the
+idle and 4 builders, within the cap less `citizen_army_share` (40%) for the army (the home mines always fit, at most
+80% of the cap); the metals' targets go up to those slots from food beyond its floor (FEED, fields + 2) and wood
+beyond its late target, never from a mine. 2 FEED - food gets the gatherers that pay the producers the missing
+citizens need (one producer per 10 missing). 4 DROP - mines.c's Settlement at the home continent's unworked mine.
+8 FIRST - citizens before the epoch reserve while the food income pays both. **Default 3.**
+
+Paired against the same build without (build 29914e2 + citizens.c, 40 games a cell; d = with - without, standard
+error; metal = the mod's stone + gold + iron income in 60 min; wins = mod / base AI):
+
+| Map | cheat | d workers 60 | d miners 60 | d metal | d soldiers 60 | d kills-losses | wins without -> with |
+|---|---|---|---|---|---|---|---|
+| Continental e0 | no | +16.1 (3.2) | +6.4 (2.2) | +955 (303) | -8.5 (3.3) | -5.8 (3.6) | 21/1 -> 20/1 |
+| Small Islands e5 | no | +29.9 (4.4) | +4.5 (1.9) | +1175 (611) | -4.5 (2.9) | -9.0 (8.0) | 1/2 -> 0/2 |
+| Large Islands e5 | no | +32.1 (3.3) | +8.0 (1.8) | +2040 (426) | -3.9 (2.7) | +1.3 (6.3) | 0/1 -> 1/1 |
+| Continental e0 | yes | +15.2 (4.8) | +7.3 (2.5) | +680 (281) | -0.5 (3.7) | +0.4 (9.4) | 2/5 -> 3/3 |
+| Small Islands e5 | yes | +7.6 (7.7) | +1.7 (1.8) | -102 (599) | +0.2 (2.3) | -4.8 (5.7) | 0/26 -> 0/19 |
+| Large Islands e5 | yes | +34.9 (8.0) | +7.3 (3.1) | +1720 (825) | +2.8 (3.8) | -16.0 (6.6) | 0/14 -> 0/9 |
+
+Producer time idle from minute 30 fell 5-12 points. Small Islands' home mines have 30 slots near the drop sites and
+they were full: there the extra citizens cut wood and gather food - more mines need drop sites on other islands.
+The first FEED fed every producer nonstop and took from the largest target (the mines): +19 workers on Continental,
+all on food, no fuller mines, 11-13 soldiers fewer. 7 (+ DROP) put 6-9 more on Continental's mines (16 home mines had
+no drop site) but cost 13 soldiers; FIRST changed nothing. Head-to-head against the control AI (Continental e0,
+map_size 1, 4 AIs, 60 min, 24 games, `v_citizen_plan=3`): B - A alive +0.02 (0.02), workers +24.5 (2.4), razed +6.0
+(1.7), soldiers +1.7 (1.7), kills -1.8 (3.7), losses +10.7 (6.1). Low population (`lowpop`, cap 30, 20 games):
+workers +10.2 (0.3), soldiers -3.8 (0.7), kills +10.2 (3.0), losses -12.6 (3.1), razed -4.2 (2.2).
+
+The runs also found an engine crash that more citizens set off: 0x630466 sorts the enemies in a unit's range with
+std::sort, whose partition compares an 80-bit key with the pivot's float and runs off the array (0x62D5AC, 6 of 360
+games; dll/attack.c range sort guard, 29914e2).

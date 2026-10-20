@@ -564,6 +564,20 @@ islands within the noise; head-to-head (24 games) no regression. HUNT, NEAR, WIL
 (tables in docs/economy.md). # food: / # mines: lines every 5 minutes (autotest) count what the features did. The
 fix in militia_answer (53f8ced) came out of these runs: 2 of 240 games crashed there.
 
+### Citizen production against the base AI (docs/economy.md "Citizen production")
+
+2026-10-20: `# cit:` once a minute (autotest, dll/citizens.c): per producer (Town Center, Capitol) and second of the
+minute `cit` / `other` / `idle`, the idle seconds by reason (`cap` no room, `target` the citizens wanted there,
+`pfood` under 50 food - the game's own check, `pbud` the mod's budget refused, `batch`, `att`), the budget's
+citizen requests (`req`, `blocked` by food / epoch reserve / other), the game's `wanted` / `have` / `room` / `cap`,
+food stock / gatherers / target, workers and the plan's `goal feed slots home extra`. `scripts/cit.py [-base NAME]
+"work/autotest_*_ab-<name>-*.csv"` scores it per side and phase with the paired differences (workers, miners, metal
+income, soldiers, kills - losses, alive). Runs: `scripts/eco_ablate.sh` with `MAPS="cont si5 li5"`, 20 seeds
+(`SEED0=10 REPEAT=10` adds seeds 11-20 to a run of 10). `citizen_plan=3` is on: workers +8 to +35 at 60 min,
+miners +2 to +8, the base AI with the cheat won 31 of 120 games instead of 45; head-to-head (24 games) workers +24,
+razed +6, losses +10.7 (6.1); lowpop (`h2h.sh 60 lowpop "...,unit_limit=60" "v_citizen_plan=3"`, 20 games) kills -
+losses +23. Tables: docs/economy.md.
+
 ### Mass before striking, the mines (navy stage 5)
 
 2026-10-19, `navy_fleet=2` with `navy_fleet_mass=1` and `navy_mines=1` (dll/fleet.c fl_rally, navy.c navy_nodes /

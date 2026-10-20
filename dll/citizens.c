@@ -154,8 +154,8 @@ static void cz_tick(void *pl, uint32_t now) {
 // Islands with the cheat +8), mine gatherers +2 to +8, stone+gold+iron income +700 to +2000 an hour (Small Islands
 // with the cheat -100: its mines' 30 slots were full), the base AI's wins with the cheat 45 -> 31 of 120; soldiers
 // -8 on Continental without the cheat, kills - losses within the noise but Large Islands with the cheat -16 (7). 7 (+ DROP) 6-9 more on Continental's mines but 13 soldiers fewer; FIRST
-// changed nothing. Head-to-head: workers +24, razed +6; lowpop (cap 30) workers +10, kills - losses +23.
-static int g_cit_plan = 0, g_v_cit_plan = -1, g_cit_train_ms = 28000;
+// changed nothing. Head-to-head: workers +24, razed +6; lowpop (cap 30) workers +10, kills - losses +23. Default 3.
+static int g_cit_plan = 3, g_v_cit_plan = -1, g_cit_train_ms = 28000;
 static float g_cit_army = 0.40f;   // [all] citizen_army_share
 #define CIT_PLAN(idx) PV(idx, g_v_cit_plan, g_cit_plan)
 
@@ -266,7 +266,7 @@ static int cz_visible_food(void *pl, unsigned idx, const int *stock, int visible
     return stock[2] > visible ? stock[2] : visible;
 }
 static void cz_install(const char *aimod_ini, const char *autotest_ini) {
-    g_cit_plan = cfg_int(aimod_ini, autotest_ini, 1, "citizen_plan", 0);
+    g_cit_plan = cfg_int(aimod_ini, autotest_ini, 1, "citizen_plan", 3);
     g_cit_army = cfg_share(aimod_ini, autotest_ini, 1, "citizen_army_share", 0.40, 0, 0.9);
     g_cit_train_ms = cfg_int(aimod_ini, autotest_ini, 1, "citizen_train_ms", 28000);
     if (g_cit_train_ms < 5000) g_cit_train_ms = 5000;
