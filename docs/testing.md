@@ -595,6 +595,24 @@ Continental soldiers +4.5 / +5.3 at 60 min, kills - losses -0.8 / +7.0, head-to-
 kills +1.1; lowpop (`h2h.sh 60 lowpop "random_map=Continental,map_size=0,ai_count=2,seed=101,start_epoch=9,unit_limit=60"
 "v_army_plan=7"`, 20 games) kills - losses +45.
 
+### The army as one against the base AI (docs/economy.md "The army as one")
+
+2026-10-20: `# mass:` once a minute (autotest, dll/mass.c, both sides; the scorer reads it from the vanilla and the
+head-to-head logs): `sold iso away isoaway eng engiso` (land soldiers, alone - 2 or fewer own within 6 tiles -, away -
+25+ tiles from the base -, both, in a fight, alone in it; means over 5-s samples), `sg out asg strag` (land attack
+subgroups, those out, their members, stragglers 12+ tiles from their subgroup's middle), `died iso away isoaway outn`
+(land soldiers killed this minute - alone, away, both, outnumbered 2:1 within 8 tiles), `held released refused
+holding` (GATHER), `waits waited goes` (WAIT; seconds). `# mass: P<n> at M min: <k> reinforcements go together` and
+`the attack goes after ...`. `scripts/mass.py [-base NAME] "work/autotest_*_ab-*.csv"` (vanilla logs: both sides,
+paired kills - losses, kills, losses, razed, lost, workers, soldiers, deaths alone / outnumbered, alive, wins),
+`scripts/mass.py -h2h "work/*_h2h<stamp>_<name>_*.csv"` (B - A per game). Runs: `scripts/eco_ablate.sh` with
+`MAPS=cont`, 20 seeds (`SEED0=10` for 11-20); head-to-head `h2h.sh 60 late "random_map=Continental,seed=101,
+map_size=1,ai_count=4,start_epoch=0" "v_army_mass=1"` (24 games) and `h2h.sh 60 lowpop "random_map=Continental,
+map_size=0,ai_count=2,seed=101,start_epoch=9,unit_limit=60" "v_army_mass=1"` (20). The build with the measurement and
+`army_mass=0` played the same games as the one before (20 checked). `army_mass` 1, 2, 4, 7, 9 measured, **off**:
+GATHER (1) kills - losses +11.0 (3.4) without the cheat, -9.7 (8.0) with it (kills -17), losses -4 / -7; head-to-head
+kills +9.0 (3.6), losses +1.3; lowpop kills +9.6, losses -6.9. Tables: docs/economy.md.
+
 ### Mass before striking, the mines (navy stage 5)
 
 2026-10-19, `navy_fleet=2` with `navy_fleet_mass=1` and `navy_mines=1` (dll/fleet.c fl_rally, navy.c navy_nodes /

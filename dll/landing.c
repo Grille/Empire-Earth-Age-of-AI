@@ -156,6 +156,7 @@ static int landing_has_unit(void *pl, uint8_t *u) {   // a transport, warship or
 #define FN_ASG_SEA_UPDATE 0x0044ED11   // EECPASGSea slot 90: update(now)
 static int fleet_leads(uint8_t *sg);                // fleet.c: a sea subgroup holding a ship the fleet leads
 static int fleet_refuses(uint8_t *sg, uint8_t *u);  // fleet.c: an order to one of them
+static int mass_refuses(uint8_t *sg, uint8_t *u);   // mass.c: an order to a reinforcement held at the rally
 static void __fastcall hook_asg_sea_update(uint8_t *sg, void *edx, int now) {
     (void)edx;
     if (!is_vanilla(FIELD(sg, 0x190, void *)) && (landing_leads(sg) || fleet_leads(sg))) return;
@@ -252,7 +253,7 @@ static unsigned g_ld_refused, g_ld_kept_goal;
 static void ld_fu_given(void *g, int ok);   // below (the game's unload orders to landing transports)
 static char __fastcall hook_asg_give_goal(uint8_t *sg, void *edx, uint8_t *u, void *goal, int a, int prio) {
     (void)edx;
-    if (!is_vanilla(FIELD(sg, 0x190, void *)) && (landing_leads(sg) || fleet_refuses(sg, u))) {   // the fleet (fleet.c): its ships in any subgroup
+    if (!is_vanilla(FIELD(sg, 0x190, void *)) && (landing_leads(sg) || fleet_refuses(sg, u) || mass_refuses(sg, u))) {   // the fleet (fleet.c): its ships in any subgroup; mass.c
         g_ld_refused++;
         if ((uintptr_t)__builtin_return_address(0) == RET_ASG_LAND_HANDOFF_GIVE) { g_ld_kept_goal++; return 1; }
         ld_fu_given(goal, 0);

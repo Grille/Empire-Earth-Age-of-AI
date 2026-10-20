@@ -22,6 +22,7 @@ static int g_def = 1, g_def_dist = 10, g_def_walls = 1, g_def_more = 1;
 static int g_aa = 1, g_aa_ahead = 1, g_aa_ahead_b = 3;   // [all] anti_air, aa_ahead, aa_ahead_buildings (below)
 static int g_hold = 0;   // [all] hold_town (below)
 static int g_retreat = 0;   // [all] attack_retreat (below)
+static int mass_retreat(unsigned idx);   // mass.c: army_mass 4 - attack_retreat for this AI
 static uint8_t g_def_off[16];   // per player, pipe "defence P 0|1" (A/B scenarios)
 static unsigned g_def_towers[16], g_def_walls_built[16];
 struct front { int fx, fy, enemy; float dx, dy; int wall_tries; uint32_t wall_t; };
@@ -963,7 +964,7 @@ static void rt_face_unit(uint8_t *u, void *ctx) {   // attack_retreat: an enemy 
 }
 static void attack_retreat(void *pl, unsigned idx, uint32_t now) {
     static uint32_t last[16];
-    if (!g_retreat || (now >= last[idx] && now - last[idx] < 5000)) return;
+    if (!(g_retreat || mass_retreat(idx)) || (now >= last[idx] && now - last[idx] < 5000)) return;
     if (now < last[idx]) memset(g_rt[idx], 0, sizeof g_rt[idx]);   // a new game
     last[idx] = now;
     void *cm = FIELD(pl, 0xB90, void *);

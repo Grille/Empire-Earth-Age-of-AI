@@ -273,3 +273,63 @@ games with 7 are now the same as without (16 checked). The extra soldiers come i
 home guard feed them in piecemeal: more soldiers, as many kills, more losses - against the base AI they changed nothing
 that counts. Off by default; the next lever is the economy's mix (wood, gold, iron income) and how the army fights, not
 its budget.
+
+## The army as one (2026-10-20, dll/mass.c)
+
+The playtester: against the base game's nonstop waves a proper AI gathers under cover (towers, Town Center,
+production), lets the waves break on the towers and the massed army, strikes only when the mass is strong enough
+against the force it knows, and never feeds single soldiers into a fight - reinforcements gather and join as groups.
+
+**Measured** (`# mass:` once a minute, autotest, both sides, sampled every 5 s: land soldiers alone - 2 or fewer own
+within 6 tiles -, away from the base - 25+ tiles -, in a fight; the land attack subgroups out and their stragglers -
+12+ tiles from their subgroup's middle -; the land soldiers killed - alone, away, outnumbered 2:1 within 8 tiles;
+`scripts/mass.py`). Base AI at hard, Continental e0, 60 min, 20 seeds x both seats, the mod's AI as shipped:
+
+| | cheat | soldiers | alone | alone and away | stragglers | killed | killed alone | killed away | alone and away | outnumbered |
+|---|---|---|---|---|---|---|---|---|---|---|
+| mod | no | 12.6 | 36% | 20% | 22% | 32.6 | 50% | 84% | 47% | 17% |
+| mod | yes | 10.0 | 39% | 20% | 25% | 45.9 | 48% | 70% | 44% | 23% |
+| base AI (20 games) | no | 3.3 | 78% | 27% | 11% | 44.4 | 84% | 60% | 51% | 45% |
+
+Head-to-head (Continental e0, 4 AIs) the control AI's soldiers died alone in 65% of the cases, 45% of them away from
+the base; lowpop 84%. So half the mod's soldiers die alone, nearly all of them out on an attack: the game's
+attack subgroups of ~10 walk their own legs, a quarter of their members string out, and the attack commander hands
+every newly trained soldier to a subgroup that is out - it walks there alone (the trickle).
+
+`army_mass` ([all], bits, `v_army_mass`; only with an enemy on the AI's own continent, navy_land - island games are
+the same as without, 8 checked): 1 GATHER - a member of a land attack subgroup that is out (past forming, its members'
+middle 30+ tiles from the base) standing at home (a replacement) is held: the subgroup's orders to it are refused (vf57,
+as for the fleet and the landing) and it walks to the rally point (by the own tower nearest the point 6 tiles out
+toward the subgroup); the held members of a subgroup go together once 5 wait (`army_mass_group`), 3 for 2 minutes
+(`army_mass_hold`), any after 4; a released one isn't held again for 3 minutes. 8 - GATHER only while that subgroup
+fights (state 3000/3003). 2 WAIT - the attack time (+0xED8) moves on by 20 s while the land soldiers' hit points x
+attack are under `army_mass_ratio` (130%) of the strongest enemy's army known (intel.c), `army_mass_wait` (10)
+minutes at most. 4 RETREAT - attack_retreat (defence.c) for this AI. **Default 0.**
+
+Paired against the build without (d = with - without, standard error; Continental e0, base AI at hard, 20 seeds x
+both seats = 40 games a cell unless noted):
+
+| Variant | cheat | d kills - losses | d kills | d losses | d razed | alone and away | mod wins / base AI wins |
+|---|---|---|---|---|---|---|---|
+| 1 GATHER | no | +11.0 (3.4) | +7.0 (3.4) | -4.0 (2.7) | -0.6 (1.1) | 20% -> 14% | 20/1 -> 14/1 |
+| 1 GATHER | yes | -9.7 (8.0) | -17.0 (8.1) | -7.3 (3.5) | -2.3 (1.0) | 20% -> 14% | 3/3 -> 0/4 |
+| 9 (only while fighting) | no | +3.8 (2.9) | -1.2 (2.9) | -5.0 (2.8) | -2.0 (0.9) | 20% -> 17% | 20/1 -> 17/1 |
+| 9 | yes | -5.9 (5.6) | -9.0 (6.0) | -3.1 (2.8) | -2.3 (1.1) | 20% -> 13% | 3/3 -> 1/3 |
+| 1, group 3, hold 60 s (20 games) | no / yes | +4.8 (4.7) / +5.5 (7.9) | +7.0 / -4.2 | +2.2 / -9.6 (4.6) | -1.0 / -0.3 | | 12/0 -> 9/0, 0/2 -> 0/2 |
+| 2 WAIT (20 games) | no / yes | -1.0 (4.6) / -0.2 (6.7) | | +5.1 / +3.7 | | | 12/0 -> 13/0, 0/2 -> 0/4 |
+| 4 RETREAT (20 games) | no / yes | +2.7 (2.8) / -19.8 (8.3) | +1.5 / -28.7 (9.4) | -1.2 / -8.9 (3.9) | | | 12/0 -> 9/0, 0/2 -> 0/3 |
+| 7 (20 games) | no / yes | -6.6 (6.7) / -19.5 (12.2) | -7.2 / -26.8 | -0.6 / -7.3 | | | 12/0 -> 5/0, 0/2 -> 0/2 |
+| army_plan 7 + 1 against army_plan 7 (20 games) | no / yes | +3.4 (7.3) / +6.9 (12.1) | | -2.8 / -5.1 | | | 13/0 -> 10/0, 0/2 -> 0/3 |
+
+Head-to-head against the control AI (`v_army_mass=1`): Continental e0, map_size 1, 4 AIs, 24 games: B - A kills
++9.0 (3.6), losses +1.3 (5.8), soldiers +1.1 (1.6), razed -0.5 (2.1), alive +0.02; its soldiers alone 49% -> 30%,
+outnumbered at death 49% -> 36%. lowpop (cap 30, 20 games): kills +9.6 (5.4), losses -6.9 (5.0), razed -3.5 (1.8),
+the soldiers killed in the `# mass` count 19.1 -> 9.7.
+
+GATHER does what it should - fewer soldiers alone, fewer lost, and against the control AI and the base AI without
+the cheat more kills - but the attacks hit with less at once: razed buildings fall everywhere and against the
+cheating base AI (twice the army) it kills 17 fewer and loses 1 game more of 40. WAIT hardly acts (the attack time
+seldom comes while weaker - the game launches with what it has, under a minute of waiting a game); RETREAT turns
+attacks back that were trading well against the cheating AI. Off by default. Next: the attack itself (subgroups
+walking separate legs, a quarter of their members strung out) - one front instead of several, without assault's
+failures (docs/ai-analysis.md); forward bases / rally points on islands once the landing is ashore.

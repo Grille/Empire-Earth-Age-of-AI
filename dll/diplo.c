@@ -326,6 +326,7 @@ __attribute__((used)) uint8_t *g_kill_unit;   // the dead unit: esi at the call 
 static void eco_death(uint8_t *dead, int k, int v);   // ecolog.c: the citizen-loss log (autotest)
 static void fleet_kill(int k, uint8_t *dead, int n);   // fleet.c: which task force had it as its target
 static void fleet_lost(int v, uint8_t *dead);          // fleet.c: an own ship of a task force sunk
+static void mass_death(uint8_t *dead);                 // mass.c: a land soldier killed - who stood by it
 __attribute__((used)) void __fastcall hook_kill_stat(uint8_t *stats, void *edx, int n, int d) {
     (void)edx;
     void *owner = g_kill_unit ? FIELD(g_kill_unit, 0x18, void *) : NULL;
@@ -343,6 +344,7 @@ __attribute__((used)) void __fastcall hook_kill_stat(uint8_t *stats, void *edx, 
         g_kills_min[b][k][v][c] += (uint16_t)d;
         fleet_kill(k, g_kill_unit, n);
         if (n == 3) fleet_lost(v, g_kill_unit);
+        if (n == 3) mass_death(g_kill_unit);
         if (n == 3) eco_death(g_kill_unit, k, v);
     }
     ((void (__thiscall *)(void *, int, int))FN_STAT_ADD)(stats, n, d);

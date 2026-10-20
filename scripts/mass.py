@@ -1,0 +1,110 @@
+"""The army as one (dll/mass.c, docs/economy.md "The army as one"): the '# mass:' lines once a game minute - land
+soldiers alone (2 or fewer own within 6 tiles), away from the base, in a fight; attack subgroups out and their
+stragglers; the land soldiers killed - alone, away, outnumbered; what army_mass did (held / released reinforcements,
+subgroup orders refused, attack waits).
+Logs of scripts/eco_ablate.sh (the mod M against the base AI V, tags ab-<variant>-c<cheat>-<map>-r<seed>v<seat>):
+per variant and condition both sides, with -base NAME the paired differences of the mod's side (kills - losses,
+kills, losses, razed, lost, workers, soldiers, alive, wins) against that variant.
+Head-to-head logs (scripts/h2h.sh, '# variant: players'): the B players against the others, per game B - A.
+usage: python scripts/mass.py [-base NAME] "work/autotest_*_ab-*.csv"      python scripts/mass.py -h2h "work/*_h2h*_name_*.csv" """
+import glob, os, re, sys
+from collections import defaultdict
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+args = sys.argv[1:]
+def opt(name, default):
+    if name in args:
+        i = args.index(name); v = args[i + 1]; del args[i:i + 2]; return v
+    return default
+base = opt('-base', None)
+h2h = '-h2h' in args
+args = [a for a in args if a != '-h2h']
+paths = [p for a in args for p in (glob.glob(a) if any(c in a for c in '*?') else [a])]
+MASS = re.compile(r'^# mass: P(\d+) at (\d+) min: sold ([\d.]+) iso ([\d.]+) away ([\d.]+) isoaway ([\d.]+) eng ([\d.]+) engiso ([\d.]+) \| '
+                  r'sg ([\d.]+) out ([\d.]+) asg ([\d.]+) strag ([\d.]+) \| died (\d+) iso (\d+) away (\d+) isoaway (\d+) outn (\d+) \| '
+                  r'held (\d+) released (\d+) refused (\d+) holding (-?\d+) \| waits (\d+) waited (\d+) goes (\d+)$', re.M)
+F = ('sold', 'iso', 'away', 'isoaway', 'eng', 'engiso', 'sg', 'out', 'asg', 'strag', 'die', 'die_iso', 'die_away', 'die_isoaway', 'die_outn',
+     'held', 'released', 'refused', 'holding', 'waits', 'waited', 'goes')
+
+def mass_of(txt):
+    per = defaultdict(lambda: defaultdict(float))
+    for x in MASS.finditer(txt):
+        p = int(x.group(1)); g = per[p]
+        g['mins'] += 1
+        for k, v in zip(F, x.groups()[2:]): g[k] += float(v)
+    out = {}
+    for p, g in per.items():
+        n = max(g['mins'], 1)
+        out[p] = dict(sold=g['sold'] / n, isoS=g['iso'] / max(g['sold'], 1e-9), isoawayS=g['isoaway'] / max(g['sold'], 1e-9),
+                      awayS=g['away'] / max(g['sold'], 1e-9), engisoS=g['engiso'] / max(g['eng'], 1e-9), out=g['out'] / n,
+                      stragS=g['strag'] / max(g['asg'], 1e-9), die=g['die'], die_isoS=g['die_iso'] / max(g['die'], 1e-9),
+                      die_awayS=g['die_away'] / max(g['die'], 1e-9), die_isoawayS=g['die_isoaway'] / max(g['die'], 1e-9),
+                      die_outnS=g['die_outn'] / max(g['die'], 1e-9), die_iso=g['die_iso'], die_outn=g['die_outn'],
+                      held=g['held'], released=g['released'], refused=g['refused'], waits=g['waits'], waited=g['waited'] / 60.0, goes=g['goes'])
+    return out
+
+mean = lambda v: sum(v) / len(v) if v else float('nan')
+se = lambda v: (sum((x - mean(v)) ** 2 for x in v) / max(len(v) - 1, 1) / len(v)) ** 0.5 if v else 0
+SHOW = ('sold', 'isoS', 'awayS', 'isoawayS', 'engisoS', 'out', 'stragS', 'die', 'die_isoS', 'die_awayS', 'die_isoawayS', 'die_outnS',
+        'held', 'released', 'refused', 'waits', 'waited', 'goes')
+def line(gs):
+    return '  '.join('%s %s' % (k, ('%.2f' if k.endswith('S') else '%.1f') % mean([g[k] for g in gs])) for k in SHOW)
+
+if h2h:
+    side = {'A': [], 'B': []}; d = defaultdict(list)
+    for path in paths:
+        txt = open(path, errors='replace').read()
+        m = re.search(r'^# variant: players (\d+)', txt, re.M)
+        ms = mass_of(txt)
+        if not m or not ms: continue
+        bset = {int(c) for c in m.group(1)}
+        grp = {'A': [ms[p] for p in ms if p not in bset and p != 1], 'B': [ms[p] for p in ms if p in bset]}
+        if not grp['A'] or not grp['B']: continue
+        for s in 'AB': side[s] += grp[s]
+        for k in SHOW: d[k].append(mean([g[k] for g in grp['B']]) - mean([g[k] for g in grp['A']]))
+    for s in 'AB': print('%s n=%d  %s' % (s, len(side[s]), line(side[s])))
+    print('B - A per game: ' + '  '.join('%s %+.2f (%.2f)' % (k, mean(d[k]), se(d[k])) for k in SHOW))
+    sys.exit()
+
+_ns = {}   # vanilla.py's load() (the file scores its arguments when imported)
+_src = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'vanilla.py')).read()
+exec(_src[:_src.index('keys = (')], _ns)
+vload = _ns['load']
+data = defaultdict(dict)
+for path in paths:
+    m = re.search(r'_ab-(.+?)-(c\d-\w+?)-r(\d+)v(\d+)\.csv$', path)
+    if not m: continue
+    txt = open(path, errors='replace').read()
+    v = vload(path); ms = mass_of(txt)
+    if not v or not ms: continue
+    players, van, over = v
+    mod = [p for p in players if p not in van and p != 1]; vp = [p for p in players if p in van]
+    if not mod or not vp or mod[0] not in ms or vp[0] not in ms: continue
+    g = {}
+    for s, p in (('M', mod[0]), ('V', vp[0])):
+        g[s] = dict(ms[p]); g[s].update(players[p]); g[s]['kl'] = players[p]['kills'] - players[p]['losses']
+    data[(m.group(1), m.group(2))][(int(m.group(3)), int(m.group(4)))] = g
+wins = lambda gg: (sum(1 for g in gg if g['M']['alive'] and not g['V']['alive']), sum(1 for g in gg if g['V']['alive'] and not g['M']['alive']))
+for c in sorted({c for _, c in data}):
+    print('== %s' % c)
+    for (v, cc), games in sorted(data.items()):
+        if cc != c: continue
+        w = wins(games.values())
+        for s in 'MV':
+            gs = [g[s] for g in games.values()]
+            print('  %-8s %s n=%d won %d  kl %.1f razed %.1f workers %.1f soldiers %.1f | %s' % (v, s, len(gs), w[s == 'V'],
+                  mean([g['kl'] for g in gs]), mean([g['razed'] for g in gs]), mean([g['workers'] for g in gs]), mean([g['soldiers'] for g in gs]), line(gs)))
+    if base and (base, c) in data:
+        bg = data[(base, c)]
+        for (v, cc), games in sorted(data.items()):
+            if cc != c or v == base: continue
+            keys = [k for k in games if k in bg]
+            parts = []
+            for name in ('kl', 'kills', 'losses', 'razed', 'lost', 'workers', 'soldiers', 'die', 'die_iso', 'die_outn', 'isoawayS'):
+                d = [games[k]['M'][name] - bg[k]['M'][name] for k in keys]
+                parts.append('%s %+.2f (%.2f)' % (name, mean(d), se(d)))
+            d = [(games[k]['M']['alive'] - games[k]['V']['alive']) - (bg[k]['M']['alive'] - bg[k]['V']['alive']) for k in keys]
+            parts.append('alive %+.2f (%.2f)' % (mean(d), se(d)))
+            same = sum(1 for k in keys if games[k]['M']['kl'] == bg[k]['M']['kl'] and games[k]['V']['kl'] == bg[k]['V']['kl'])
+            print('  d %s - %s (%d paired, %d same): %s; wins M/V %d/%d -> %d/%d' % (v, base, len(keys), same, '  '.join(parts),
+                  *wins([bg[k] for k in keys]), *wins([games[k] for k in keys])))
