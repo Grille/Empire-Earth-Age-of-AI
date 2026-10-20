@@ -1,8 +1,15 @@
 # islands with money: both AIs get 3000 of each at minutes 10 and 25 (does the bombardment work when it can pay?)
-@10 give 2 3000
-@10 give 3 3000
-@25 give 2 3000
-@25 give 3 3000
+
+at(10min, () => {
+    give(2, 3000)
+    give(3, 3000)
+})
+at(25min, () => {
+    give(2, 3000)
+    give(3, 3000)
+})
 # at the end, the warships each lost (scripts/landings.py: ships-lost)
-@59.5 texts eval 2 3 them.kills(me, 60, units.marine)
-@59.5 texts eval 3 2 them.kills(me, 60, units.marine)
+at(59.5min, () => {
+    cmd("texts eval 2 3 them.kills(me, 60, units.marine)")
+    cmd("texts eval 3 2 them.kills(me, 60, units.marine)")
+})

@@ -1,2 +1,3 @@
 # no setup: a plain random map (late start, AI against AI)
-llm
+
+llm()

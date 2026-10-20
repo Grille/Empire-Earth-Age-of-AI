@@ -1,2 +1,2 @@
-@75.9 asgtrace 3
-@76 attacknow 3
+at(75.9min, () => asgtrace(3))
+at(76min, () => attacknow(3))

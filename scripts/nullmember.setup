@@ -1,5 +1,6 @@
 # engine guard test: a member of a running attack loses its unit and the attack is called off in the same step (as
 # diplo_safe_point does) - the state of the crash at 0x45AD70 (attack.c asg_purge)
-@23.3 nullmember 5 off
-@27.3 nullmember 3 off
-@31.3 nullmember 4 off
+
+at(23.3min, () => nullmember(5, "off"))
+at(27.3min, () => nullmember(3, "off"))
+at(31.3min, () => nullmember(4, "off"))

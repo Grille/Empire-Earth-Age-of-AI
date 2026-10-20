@@ -1,35 +1,54 @@
 # the reference save with a camp that plays like the user's: P1's camp near 108,75 gets reinforcements every 2
 # minutes, pushes into P3's town every 4 (charge) and pulls back after a minute (move); P2 and P3 attack at once
-@75.9 attacknow 3
-@75.9 attacknow 2
-@76 spawn 1 121 108 72 4
-@76 spawn 1 153 110 78 1
-@76 spawn 1 143 112 75 1
-@78 spawn 1 121 108 72 4
-@78 spawn 1 153 110 78 1
-@80 spawn 1 121 108 72 4
-@80 spawn 1 153 110 78 1
-@80 spawn 1 143 112 75 1
-@82 spawn 1 121 108 72 4
-@82 spawn 1 153 110 78 1
-@84 spawn 1 121 108 72 4
-@84 spawn 1 153 110 78 1
-@84 spawn 1 143 112 75 1
-@86 spawn 1 121 108 72 4
-@86 spawn 1 153 110 78 1
-@88 spawn 1 121 108 72 4
-@88 spawn 1 153 110 78 1
-@88 spawn 1 143 112 75 1
-@78 charge 1 3
-@79 charge off
-@79.1 move 1 80 115 30 108 75
-@82 charge 1 3
-@83 charge off
-@83.1 move 1 80 115 30 108 75
-@86 charge 1 3
-@87 charge off
-@87.1 move 1 80 115 30 108 75
-@89.8 diplo kills
-@89.8 army 1
-@89.8 assault 2
-@89.8 assault 3
+
+at(75.9min, () => {
+    attacknow(3)
+    attacknow(2)
+})
+at(76min, () => {
+    spawn(1, unit.inf10_machine_gun, 108, 72, 4)
+    spawn(1, unit.tank10_mk_v, 110, 78, 1)
+    spawn(1, unit.gun_artillery10_artillery, 112, 75, 1)
+})
+at(78min, () => {
+    spawn(1, unit.inf10_machine_gun, 108, 72, 4)
+    spawn(1, unit.tank10_mk_v, 110, 78, 1)
+    charge(1, 3)
+})
+at(79min, () => charge("off"))
+at(79.1min, () => move(1, 80, 115, 30, 108, 75))
+at(80min, () => {
+    spawn(1, unit.inf10_machine_gun, 108, 72, 4)
+    spawn(1, unit.tank10_mk_v, 110, 78, 1)
+    spawn(1, unit.gun_artillery10_artillery, 112, 75, 1)
+})
+at(82min, () => {
+    spawn(1, unit.inf10_machine_gun, 108, 72, 4)
+    spawn(1, unit.tank10_mk_v, 110, 78, 1)
+    charge(1, 3)
+})
+at(83min, () => charge("off"))
+at(83.1min, () => move(1, 80, 115, 30, 108, 75))
+at(84min, () => {
+    spawn(1, unit.inf10_machine_gun, 108, 72, 4)
+    spawn(1, unit.tank10_mk_v, 110, 78, 1)
+    spawn(1, unit.gun_artillery10_artillery, 112, 75, 1)
+})
+at(86min, () => {
+    spawn(1, unit.inf10_machine_gun, 108, 72, 4)
+    spawn(1, unit.tank10_mk_v, 110, 78, 1)
+    charge(1, 3)
+})
+at(87min, () => charge("off"))
+at(87.1min, () => move(1, 80, 115, 30, 108, 75))
+at(88min, () => {
+    spawn(1, unit.inf10_machine_gun, 108, 72, 4)
+    spawn(1, unit.tank10_mk_v, 110, 78, 1)
+    spawn(1, unit.gun_artillery10_artillery, 112, 75, 1)
+})
+at(89.8min, () => {
+    diplo("kills")
+    army(1)
+    assault(2)
+    assault(3)
+})

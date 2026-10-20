@@ -1,20 +1,20 @@
 # the sea held (reference save): P1 (the player) has 7 U-boats and 6 strafing Fokkers before its coast; P2 a big landing with 4 frigates and 2 cruisers (zz variant without them: it waits and calls off)
-@75.8 give 2 4000
-@75.8 spawn 2 152 36 84 40
-@75.8 spawn 2 113 22 53 3
-@76.2 attacknow 2
-@75.8 terrain 68 63 8
-@75.8 spawn 1 250 66 63 4
-@75.8 spawn 1 250 56 52 3
-@75.8 spawn 1 71 74 62 6
-@76.2 attacknow 2
-@76.3 landing 2 now
-@78 landing 2
-@80 landing 2
-@82 landing 2
-@84 landing 2
-@86 landing 2
-@88 landing 2
-@75.8 spawn 2 193 24 51 4
-@75.8 spawn 2 163 26 55 2
-@89.8 count 1
+
+at(75.8min, () => {
+    give(2, 4000)
+    spawn(2, unit.inf10_trench_mortar, 36, 84, 40)
+    spawn(2, unit.s10_atomic_age_transport, 22, 53, 3)
+    terrain(68, 63, 8)
+    spawn(1, unit.s10_u_boat, 66, 63, 4)
+    spawn(1, unit.s10_u_boat, 56, 52, 3)
+    spawn(1, unit.a_strafe_fighter10_fokker_dr_1, 74, 62, 6)
+    spawn(2, unit.s10_good_hope_frigate, 24, 51, 4)
+    spawn(2, unit.s10_cruiser, 26, 55, 2)
+})
+at(76.2min, () => {
+    attacknow(2)
+    attacknow(2)
+})
+at(76.3min, () => landing(2, "now"))
+every(2min, 78min, 88min, (run) => landing(2))
+at(89.8min, () => count(1))

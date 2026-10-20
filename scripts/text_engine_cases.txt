@@ -1,0 +1,240 @@
+# Hand-written cases for the text engine comparison (texts corpus, docs/testing.md "Text engine comparison"): one
+# expression a line, worked out with P2 speaking to P1 (P3 the enemy), computer.eeai's and _system.eeai's [vars] -
+# and the line as a template too. Mistakes on purpose: they must stay the same mistakes.
+# numbers and arithmetic
+1
+1.5
+70%
+.5
+2 + 3 * 4
+(2 + 3) * 4
+10 / 4
+1 / 0
+-3
+- - 3
+-(2 + 3)
+7 - 2 - 1
+2 * 3 / 4
+0.1 + 0.2
+1e3
+3 %
+5 % 2
+# texts
+"plain"
+'single'
+"a" + "b"
+"a" + 1
+1 + "a"
+"12" + 1
+"12" == 12
+"abc" == "ABC"
+"abc" < "abd"
+"a\"b"
+"a\\b"
+"line\nbreak"
+"bad \q escape"
+"unclosed
+("joined " "texts")
+("one" "two" "three")
+"a" "b"
+["x" "y"]
+str(12)
+str(epoch)
+number("12")
+number("12x")
+number(epoch)
+number("x") ?? 0
+"Age: " + epoch
+epoch + 1
+"{them} and {me}"
+"{1 + 2}"
+"{opinion:%}"
+"{opinion:.1%}"
+"{0.625:.2}"
+"{62.5:.0}"
+"{-0.0001:.1}"
+"{(opinion > 0 ? 1 : 0):%}"
+"{opinion > 0 ? 1 : 0:%}"
+"{them:%}"
+"{x:%}"
+"{1:.9}"
+"{nosuchname}"
+"{them.soldiers} soldiers"
+"{ them }"
+"{}"
+"{ {nested} }"
+"a {"
+"{\"quoted\"}"
+"{'q'}"
+# booleans and logic
+true
+false
+TRUE
+not true
+not 0
+not ""
+not them
+1 and 2
+0 and nosuch
+1 or nosuch
+0 or 0
+1 && 1
+1 || 0
+!1
+1 != 2
+2 >= 2
+2 <= 1
+1 < 2 < 3
+# choices
+1 ? "yes" : "no"
+0 ? "yes" : "no"
+0 ? "yes"
+1 ? "yes"
+1 ? 0 ? "a" : "b" : "c"
+0 ? "a" : 1 ? "b" : "c"
+nothing ?? "fallback"
+lord ?? "no lord"
+lord ? lord.soldiers : 0
+lord.soldiers
+lord
+lord == them
+them ?? "x"
+0 ?? 5
+"" ?? 5
+[] ?? 5
+# lists
+["a", "b", "c"]
+["a"]
+[]
+["a", 0 ? "b", "c"]
+["a", ["b", "c"], "d"]
+[["a", "b"], ["c"]]
+[1, 2, 3]
+["a", nosuch, "b"]
+[nosuch]
+["a", "b",]
+[0 ? "a"] ?? ["b", "c"]
+len(["a", "b", "c"])
+len("x")
+len([])
+len(["a", ["b", "c"]])
+first(["a", "b"])
+first([])
+item(["a", "b", "c"], 2)
+item(["a", "b", "c"], 0)
+item(["a", "b", "c"], 4)
+item(["a", "b"], "1")
+contains(["a", "b"], "b")
+contains(["a", "b"], "B")
+contains(["a", "b"], "c")
+contains([1, 2], 2)
+contains([1, 2], "2")
+map_range(5, [3, 7], ["low", "mid", "high"])
+map_range(2, [3, 7], ["low", "mid", "high"])
+map_range(9, [3, 7], ["low", "mid", "high"])
+map_range(7, [3, 7], ["low", "mid", "high"])
+map_range("x", [3], ["a", "b"])
+map_range(1, [3, "x"], ["a", "b", "c"])
+["a", "b"] + "!"
+[1, 2] + 10
+# functions
+min(3, 1, 2)
+max(3, 1, 2)
+min()
+max(1)
+abs(-2.5)
+round(2.5)
+round(-2.5)
+round(2.4)
+floor(-1.5)
+floor(1.9)
+log2(8)
+log2(0)
+log2(-1)
+abs("x")
+min(1, "2")
+chance(50%)
+chance(0.5)
+chance(70)
+chance(0)
+chance(1)
+rnd()
+rnd(10)
+rnd(10) < 5 ? "low" : "high"
+nosuchfunction(1)
+min
+chance(50%) ? "heads" : "tails"
+[chance(50%) ? "a", chance(50%) ? "b", "c"]
+# names and the game
+me
+them
+enemy
+them.name
+me.soldiers
+them.soldiers + them.citizens
+them.strength > me.strength
+epoch
+epoch >= epoch.bronze
+epoch.middle
+epoch.nosuch
+color.red
+color.nosuch
+them.color == color.red
+units.army
+units.nosuch
+opinion
+opinion > 30% ? "friend" : "stranger"
+them.opinion(me)
+opinion(them)
+them.kills(me)
+them.kills(me, 10)
+them.kills(me, units.army)
+them.kills(me, 10, units.army)
+them.kills(me, units.army, 10)
+them.tribute(me, 15)
+them.opinion(5)
+them.opinion("x")
+them.opinion()
+them.nosuch
+them.lord.soldiers
+lord.opinion(them)
+minutes
+players
+language
+aggression
+me.aggression
+them.aggression
+allied
+at_war
+them.allied(me)
+me.rank
+them.alive
+them.human
+max_population
+population_limit
+tribute
+many_dead
+this_war
+them.kills(me, this_war) > many_dead
+# errors and odd input
+(1
+1)
+1 +
+* 2
+1 2
+"a" * 2
+-"a"
+them + 1
+them == "x"
+?
+:
+a.b.c.d.e
+x_y_z
+_under
+a1b2
+2abc
+1..2
+[1, 2
+"x" + [1, 2]
+(((((((((((((((((((((((((1)))))))))))))))))))))))))
+- - - - - - - - - - - - - - - - - - - - - - - - - 1

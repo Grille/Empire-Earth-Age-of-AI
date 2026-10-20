@@ -1,7 +1,3 @@
-@76 attacknow 3
-@78 attacks 3
-@80 attacks 3
-@82 attacks 3
-@84 attacks 3
-@86 attacks 3
-@87.8 battle
+at(76min, () => attacknow(3))
+every(2min, 78min, 86min, (run) => attacks(3))
+# (@87.8 battle: no such command any more - left out)

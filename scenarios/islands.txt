@@ -1,1 +1,2 @@
 # no setup: a plain random map (islands: do the AIs land on each other?)
+

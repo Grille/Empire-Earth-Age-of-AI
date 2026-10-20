@@ -1,4 +1,4 @@
-// THE TEXT FILES (<game>\aimod_ai\*.ini: the personalities, _system.ini, _template.ini) and the EXPRESSIONS in them.
+// THE TEXT FILES (<game>\aimod_ai\*.eeai: the personalities, _system.eeai, _template.eeai) and the EXPRESSIONS in them.
 // A file: sections [name] / [name:<language>], "key = value" lines, comments from ; or # to the line's end (outside a
 // string). A value is an expression - over several lines while a ( [ or { is open:
 //   "text"                          a string; \" \\ \n escapes. {expressions} in it - {them} -
@@ -34,18 +34,26 @@
 // conditions compare its number (epoch >= epoch.middle), never its name. epoch.prehistoric .. epoch.space are the
 // epochs' numbers 1..15, the same in every language (a "." is part of a name); a player's colour likewise
 // (them.color == color.red, color.blue .. 1..17). True: a number not 0, a player, a text not
-// empty; nothing is false and an empty text. Only what is chosen is worked out (?: ?? and or). No loops, no
-// assignments: a text can't hang the game. A placeholder that is not a valid expression stays in the text as written
-// (logged).
+// empty; nothing is false and an empty text. Only what is chosen is worked out (?: ?? and or). A placeholder that is
+// not a valid expression stays in the text as written (logged); \{ \} in a string are braces that are text.
+// FUNCTIONS AND STATEMENTS: (a, b) => value, (i) => { statements } is a function, a value like any other; called by
+// the name it is in (row(3)), its parameters and the names of the code around where it was made visible (those read
+// only: frames, x_call_value), the values it made freed when it returns but what it hands back (never a function made
+// in it). Statements (a block's, a script's - one a line): name = value, return [value], an expression. In the text
+// files they don't occur (keys and values only) and nothing loops: a text can't hang the game. Scripts (scripts.c,
+// docs/scripts.md) add the commands, wait, at, every (bounded), for (bounded), player(n), time, stop and 20s / 19.5min.
 // MISTAKES WHILE WORKING OUT (x_fail; the file was fine, the value isn't): an unknown name, a text in arithmetic
 // ("a" * 2), a text and a number added or compared ("12" + 1, "12" == 12), chance(70), a player who isn't there used
 // without a check (lord.soldiers without a lord - x_missing). Nothing is guessed: the
 // mistake is logged (once) and fails what it is in - up to the nearest list item, which is left out, else the whole
 // value: a line then falls back like one with nothing to say, a {placeholder} writes nothing. Not "nothing": that
 // would make "not foo" true. The names are checked when the files are read too (x_name_check) - told, the key kept.
-// Included by eeaimod.c before persona.c.
+// THE ENGINE: an expression is parsed once into a tree (x_parse; cached by its text, x_compiled) and the tree is
+// worked out (xe); the file check (x_syntax) is the same parser with the checks the files get when they are read, in
+// the order they appear. The values' texts and lists live in a region (x_alloc) that the outermost evaluation starts
+// afresh. Included by eeaimod.c before persona.c.
 #define XVARS_MAX 48
-#define XVAL_CAP 512   // a text value (a [vars] function may return a whole prompt paragraph)
+#define XVAL_CAP 512   // the callers' text buffers (xto_text cuts there); a value's own text has no limit
 struct xvars { int n; char *key[XVARS_MAX], *val[XVARS_MAX]; };   // val: an expression's source
 struct xval;
 struct xctx {
@@ -57,29 +65,26 @@ struct xctx {
     const char *const *pn, *const *pv;      // the text's placeholders
     int np;
     const struct xvars *vars[3];            // searched in order: the personality's, the file's
-    int depth, level, failed, bad, circle;  // nesting: vars in vars, the parser (all together); mistakes while working
-                                            // it out (x_fail, told); not an expression; too deep
+    int depth, level, failed, bad, circle;  // nesting: vars in vars, the parser's levels (all together); mistakes while
+                                            // working it out (x_fail, told); not an expression; too deep
     int nogame;                             // before the game (a personality's color): its values and players are mistakes
     int game;                               // a decision ([decide]): it changes the game - draws from the game's generator
     int fixed;                              // an ini file's number (ini.c): no names, no draws, no lists - told quietly
-    int missed;                             // x_missing from the game's values (diplo.c): the primary fails (xp_primary)
+    int missed;                             // x_missing from the game's values (diplo.c): the primary fails
+    int script;                             // a script (scenarios): its functions (wait, at, every, for ...) and commands
+    int calls;                              // functions called inside each other now
     const char *top;                        // the source being worked out (for the mistakes' messages)
 };
 // a number, a text or both - or nothing (w 0); w: how many items it was chosen from (a list's weight in a list);
 // pl: a player (its index + 1; its text is its name) - equal only to itself; miss: a player who isn't there (lord
 // without one) - nothing, which may only be checked (lord ? .., lord ?? .., lord == them): used, it is a mistake
-// li, ln: a list's items (ln 0: no list) - its value meanwhile is one of them, at random
-struct xval { int has_n, has_s, w, pl, li, ln; double n; char s[XVAL_CAP], miss[24]; };
-// LISTS: a [ ] keeps its items - flattened, a list in a list giving its own - for what wants them all (len, first,
-// item, contains, map_range); used as one value (in a text, + - < ...) it is the item it picked. The items live
-// until the outermost x_eval ends (g_xl_busy); a list too big for them is one value only (len counts it whole).
-#define XL_VALS 384
-#define XL_IDX 1024
-#define XL_ITEMS 256   // in one list
-static struct xval g_xl_val[XL_VALS];
-static int g_xl_idx[XL_IDX], g_xl_nval, g_xl_nidx, g_xl_busy, g_xl_told;
+// it, ln: a list's items (ln 0: no list) - its value meanwhile is one of them, at random; kind: a function (fn: its
+// definition and where it was made) or stop (a for / every body's "no more") - neither number nor text
+enum { XV_PLAIN, XV_FN, XV_STOP };
+struct xfn;
+struct xval { int has_n, has_s, w, pl, ln, kind; double n; const char *s; const struct xval *it; const struct xfn *fn; char miss[24]; };
 static int xl_n(const struct xval *v) { return v->ln ? v->ln : v->w > 0; }   // its items (one value: 1, nothing: 0)
-static const struct xval *xl_at(const struct xval *v, int i) { return v->ln ? &g_xl_val[g_xl_idx[v->li + i]] : v; }
+static const struct xval *xl_at(const struct xval *v, int i) { return v->ln ? &v->it[i] : v; }
 static struct xvars g_vars_sys, g_vars_tpl;   // _system.ini [vars] (+ [vars:<language>]), _template.ini [vars] (texts.c)
 static int x_builtin(struct xctx *c, const char *name, struct xval *v);   // diplo.c: the game's values
 static int x_is_value(const char *name);   // diplo.c: a name that is a value of its own (them, epoch, minutes ...)
@@ -89,7 +94,66 @@ static int x_fill(char *out, int cap, const char *tmpl, struct xctx *c);
 static int rnd(int n);   // persona.c: the display generator
 static int rnd_game(int n);   // persona.c: the game's (decisions)
 static float det_log2f(float x);   // diplo.c: log2 with the same bits on every PC
+static int x_player_n(int n, struct xval *v);   // diplo.c: player n as a value (0: none)
 static int g_x_logged;   // expression errors written to the log (at most 60)
+// a script's world (eeaimod.c script runner): the game's time in seconds, waiting until a game second (the script's
+// fiber yields to the game), a pipe command run with its reply
+static struct { double (*now)(void); void (*wait)(double until); void (*command)(const char *cmd, char *reply, int cap); } g_x_hooks;
+
+// THE VALUES' REGIONS: their texts and lists, in chunks. The shared one (the lines, prompts, settings) starts afresh
+// with the outermost evaluation (x_eval, x_fill from outside): what a caller reads of a value it got lives until the
+// next. A script has its own (its variables outlive anything else worked out meanwhile), and a function's call frees
+// what it made (x_mark / x_release) but what it hands back.
+struct xchunk { struct xchunk *next; size_t cap, used; char d[]; };
+struct xregion { struct xchunk *first, *cur; int busy; };
+static struct xregion g_xr_shared, *g_xr = &g_xr_shared;
+static void *x_alloc(size_t n) {
+    struct xregion *r = g_xr;
+    n = (n + 7) & ~(size_t)7;
+    if (!r->cur || r->cur->used + n > r->cur->cap) {
+        size_t cap = n > 65536 ? n : 65536;
+        struct xchunk *k = malloc(sizeof *k + cap);
+        if (!k) return NULL;
+        k->next = NULL; k->cap = cap; k->used = 0;
+        if (r->cur) r->cur->next = k; else r->first = k;
+        r->cur = k;
+    }
+    void *p = r->cur->d + r->cur->used;
+    r->cur->used += n;
+    return p;
+}
+static void x_region_reset(struct xregion *r) {   // empty again (its first chunk kept)
+    if (!r->first) return;
+    for (struct xchunk *k = r->first->next, *nx; k; k = nx) { nx = k->next; free(k); }
+    r->first->next = NULL;
+    r->first->used = 0;
+    r->cur = r->first;
+}
+static void x_region_free(struct xregion *r) {
+    for (struct xchunk *k = r->first, *nx; k; k = nx) { nx = k->next; free(k); }
+    r->first = r->cur = NULL;
+}
+struct xmark { struct xchunk *k; size_t used; };
+static struct xmark x_mark(void) {   // the region's top now
+    if (!g_xr->cur) x_alloc(8);
+    struct xmark m = { g_xr->cur, g_xr->cur ? g_xr->cur->used : 0 };
+    return m;
+}
+static void x_release(struct xmark m) {   // everything made since the mark freed
+    if (!m.k) return;
+    for (struct xchunk *k = m.k->next, *nx; k; k = nx) { nx = k->next; free(k); }
+    m.k->next = NULL;
+    m.k->used = m.used;
+    g_xr->cur = m.k;
+}
+static const char *x_strdup(const char *s, size_t n) {   // n bytes of s as a text in the region
+    char *r = x_alloc(n + 1);
+    if (!r) return "";
+    memcpy(r, s, n);
+    r[n] = 0;
+    return r;
+}
+
 // STRICT PARSING ([general] strict_parsing=1, for whoever writes the texts; default 0: a mistake is logged and skipped,
 // the game goes on): every mistake also comes up at once - those in the files at startup in a message box, those
 // found while the game runs (an unknown name, a text in arithmetic ...) as a system line in the game (x_errors_show,
@@ -98,12 +162,18 @@ static int g_strict;
 static CRITICAL_SECTION g_x_lock;   // the queue: filled on the game's thread, read by the startup box's (x_errors_box)
 static char g_x_queue[8][240];
 static int g_x_queued, g_x_total, g_x_dropped;
+static char *g_x_capture;   // texts corpus: every mistake's message appended here too (each time, not once)
+static int g_x_capture_cap;
 static void x_error(const char *fmt, ...) {
     char msg[240];
     va_list ap;
     va_start(ap, fmt);
     vsnprintf(msg, sizeof msg, fmt, ap);
     va_end(ap);
+    if (g_x_capture) {
+        size_t o = strlen(g_x_capture);
+        snprintf(g_x_capture + o, (size_t)g_x_capture_cap - o, "%s{%s}", o ? " " : "", msg);
+    }
     static uint32_t told[64];   // the same mistake again (a line said again, a placeholder in every prompt): once
     uint32_t h = 2166136261u;
     for (const char *s = msg; *s; s++) h = (h ^ (uint8_t)*s) * 16777619u;
@@ -217,13 +287,16 @@ static int g_x_check_line;
 static int x_name_valid(const char *name);   // diplo.c: a name x_builtin takes (them, epoch, them.lord.soldiers ...)
 static const char *x_code_placeholders(const char *file, const char *sec, const char *key);   // texts.c
 static int x_const(const char *name, struct xval *v);
-static void x_name_check(const char *name) {
+static int x_name_known(const char *name) {   // a parameter, constant, [vars] entry, game value or the code's placeholder
     struct xval t;
     char w[48];
-    if (!g_x_check_file || strlen(name) > 40) return;
+    if (strlen(name) > 40) return 1;
     wsprintfA(w, " %s ", name);
-    if (x_check_par_has(name, (int)strlen(name)) || x_const(name, &t) || x_var_known(name) || x_name_valid(name) ||
-        (g_x_check_ph && strstr(g_x_check_ph, w))) return;
+    return x_check_par_has(name, (int)strlen(name)) || x_const(name, &t) || x_var_known(name) || x_name_valid(name) ||
+           (g_x_check_ph && strstr(g_x_check_ph, w));
+}
+static void x_name_check(const char *name) {
+    if (!g_x_check_file || x_name_known(name)) return;
     x_error("%s:%d: an unknown name: %s", g_x_check_file, g_x_check_line, name);
 }
 
@@ -233,14 +306,17 @@ static int xnumeric(const char *s, double *n) {   // the whole text a number ("1
     *n = strtod(s, &e);
     return e != s && !*e;
 }
-static void xnothing(struct xval *v) { v->has_n = v->has_s = v->w = v->pl = v->ln = 0; v->n = 0; v->s[0] = v->miss[0] = 0; }
-static void xnum(struct xval *v, double n) { v->has_n = 1; v->has_s = v->pl = v->ln = 0; v->w = 1; v->n = n; v->miss[0] = 0; }
+static void xnothing(struct xval *v) { v->has_n = v->has_s = v->w = v->pl = v->ln = v->kind = 0; v->n = 0; v->s = ""; v->it = NULL; v->fn = NULL; v->miss[0] = 0; }
+static void xnum(struct xval *v, double n) { v->has_n = 1; v->has_s = v->pl = v->ln = v->kind = 0; v->w = 1; v->n = n; v->s = ""; v->it = NULL; v->fn = NULL; v->miss[0] = 0; }
 static void xstr(struct xval *v, const char *s) {   // a text, only that: "12" in a file is no number
-    lstrcpynA(v->s, s ? s : "", XVAL_CAP);
+    if (!s) s = "";
+    v->s = x_strdup(s, strlen(s));
     v->has_s = 1;
     v->w = 1;
     v->has_n = 0;
-    v->pl = v->ln = 0;
+    v->pl = v->ln = v->kind = 0;
+    v->it = NULL;
+    v->fn = NULL;
     v->miss[0] = 0;
 }
 // a placeholder the code fills ({tribute}, {minutes}): a text - and its number when it is one, the code's numbers
@@ -249,7 +325,7 @@ static void xstr_or_num(struct xval *v, const char *s) { xstr(v, s); v->has_n = 
 static void xdual(struct xval *v, double n, const char *s) { xstr(v, s); v->has_n = 1; v->n = n; }
 static int xis_num(const struct xval *v, double *n) { if (v->has_n) *n = v->n; return v->has_n; }
 static double xto_num(const struct xval *v) { return v->has_n ? v->n : 0; }
-static int xtrue(const struct xval *v) { return v->w && (v->pl || (v->has_n ? v->n != 0 : v->s[0] != 0)); }   // a player: true, whatever its name
+static int xtrue(const struct xval *v) { return v->w && (v->pl || v->kind || (v->has_n ? v->n != 0 : v->s[0] != 0)); }   // a player, a function: true
 // n to dec decimals, a half away from 0 (0.625 -> 0.63, 62.5 -> 63) - printf's own rounding takes a half to the even
 // digit (0.62, 62), which nobody writing a text expects
 static double x_round_dec(double n, int dec) {
@@ -259,21 +335,34 @@ static double x_round_dec(double n, int dec) {
     a = (double)(long long)(a * m + 0.5) / m;
     return n < 0 ? -a : a;
 }
-static void xto_text(const struct xval *v, char *out, int cap) {
-    if (v->has_s || !v->w) { lstrcpynA(out, v->w ? v->s : "", cap); return; }
-    double r = v->n < 0 ? -v->n : v->n;
-    if (r - (double)(long long)r < 1e-9 && r < 1e15) snprintf(out, (size_t)cap, "%lld", (long long)v->n);
+static void xnum_text(double n, char *out, int cap) {   // a number as a text: whole, or up to 2 decimals
+    double r = n < 0 ? -n : n;
+    if (r - (double)(long long)r < 1e-9 && r < 1e15) snprintf(out, (size_t)cap, "%lld", (long long)n);
     else {
-        snprintf(out, (size_t)cap, "%.2f", x_round_dec(v->n, 2));
+        snprintf(out, (size_t)cap, "%.2f", x_round_dec(n, 2));
         char *e = out + strlen(out);
         while (e > out && e[-1] == '0') *--e = 0;
         if (e > out && e[-1] == '.') e[-1] = 0;
     }
 }
+static void xto_text(const struct xval *v, char *out, int cap) {
+    if (v->kind && v->w) { lstrcpynA(out, v->kind == XV_FN ? "function" : "stop", cap); return; }
+    if (v->has_s || !v->w) { lstrcpynA(out, v->w ? v->s : "", cap); return; }
+    xnum_text(v->n, out, cap);
+}
+static const char *xtext_of(const struct xval *v) {   // its text, whole (in the region for a number)
+    if (v->kind && v->w) return v->kind == XV_FN ? "function" : "stop";
+    if (v->has_s || !v->w) return v->w ? v->s : "";
+    char t[48];
+    xnum_text(v->n, t, sizeof t);
+    return x_strdup(t, strlen(t));
+}
 
 // a string literal at s (" or '): its text into out (cap bytes) - escapes undone, {braces} kept as written (an
 // expression's quotes are its own there); *end after the closing quote. Returns the length, -1 on a mistake (*why).
 // out NULL, cap 0: only checked.
+#define X_LBRACE '\x01'   // \{ and \} in a string: braces that are text, not a placeholder (x_fill writes them)
+#define X_RBRACE '\x02'
 static int x_string(const char *s, char *out, int cap, const char **end, const char **why) {
     char q0 = *s, q = 0;
     int o = 0, depth = 0;
@@ -288,36 +377,17 @@ static int x_string(const char *s, char *out, int cap, const char **end, const c
         } else if (c == q0) { if (cap > 0) out[o < cap ? o : cap - 1] = 0; *end = s + 1; return o; }
         else if (c == '\\') {
             char e = s[1];
-            if (e != 'n' && e != '"' && e != '\'' && e != '\\') { *why = "an unknown escape (\\\" \\\\ \\n)"; return -1; }
-            c = e == 'n' ? '\n' : e;
+            if (e != 'n' && e != '"' && e != '\'' && e != '\\' && e != '{' && e != '}') { *why = "an unknown escape (\\\" \\\\ \\n \\{ \\})"; return -1; }
+            c = e == 'n' ? '\n' : e == '{' ? X_LBRACE : e == '}' ? X_RBRACE : e;   // \{ \}: a brace as it is, no placeholder
             s++;
         } else if (c == '{') depth = 1;
         if (o < cap - 1) out[o++] = c;
     }
 }
 
-// the parser evaluates as it reads; skip: only reads (a branch not chosen)
-// check: only the syntax (the files when read: skip, and the strings' placeholders too); why: what is wrong, if known
-struct xp { const char *s; struct xctx *c; int err, skip, check; const char *why; int par; };   // par: in ( ), not in [ ]
-static int x_syntax(const char *src, const char **why);
 static int x_fills_ok(const char *text, const char **why);
-static void xp_space(struct xp *p) { while (*p->s == ' ' || *p->s == '\t' || *p->s == '\n' || *p->s == '\r') p->s++; }   // line breaks: the built-in [vars]
-static int xp_word(struct xp *p, const char *w) {   // a keyword (and, or, not), not the start of a longer name
-    xp_space(p);
-    size_t n = strlen(w);
-    if (_strnicmp(p->s, w, n) || isalnum((unsigned char)p->s[n]) || p->s[n] == '_') return 0;
-    p->s += n;
-    return 1;
-}
-static int xp_op(struct xp *p, const char *op) {
-    xp_space(p);
-    size_t n = strlen(op);
-    if (strncmp(p->s, op, n)) return 0;
-    p->s += n;
-    return 1;
-}
-static void xp_expr(struct xp *p, struct xval *v);
 // a draw: the display generator - in a decision (c->game) the game's, which every PC draws alike (persona.c)
+static void xdual(struct xval *v, double n, const char *s);
 static int x_rnd(const struct xctx *c, int n) { return c->game ? rnd_game(n) : rnd(n); }
 static double x_rnd01(const struct xctx *c) { return x_rnd(c, 1 << 30) / (double)(1 << 30); }   // 0 <= x < 1
 // a player who isn't there (lord without one), used without a check (lord ? .. / lord ?? .. / lord == them): a
@@ -326,44 +396,6 @@ static void x_missing(struct xctx *c, const char *who) {
     x_error("%s is used, but there is none here - check it first (%s ? ... / %s ?? ...): %.100s", who, who, who, c->top ? c->top : "");
     c->failed++;
     c->missed = 1;
-}
-static void x_use(struct xp *p, const struct xval *v) {
-    if (!v->miss[0] || p->skip) return;
-    x_missing(p->c, v->miss);
-    p->c->missed = 0;
-    p->err = 1;
-    p->why = "a mistake while working it out";
-}
-// a mistake while working it out (MISTAKES WHILE WORKING OUT above): told once, and what it is in fails
-static char g_x_last_fail[160];   // the last one, for texts eval (the log has each once only)
-static void x_fail(struct xp *p, const char *fmt, ...) {
-    va_list ap;
-    va_start(ap, fmt);
-    vsnprintf(g_x_last_fail, sizeof g_x_last_fail, fmt, ap);
-    va_end(ap);
-    if (!p->c->fixed) x_error("%s: %.100s", g_x_last_fail, p->c->top ? p->c->top : "");   // fixed: ini.c tells it
-    p->c->failed++;
-    p->err = 1;
-    p->why = "a mistake while working it out";
-}
-static int x_numeric_ok(struct xp *p, const struct xval *v) {   // v counts as a number: one, or nothing (0) - a text is a mistake
-    if (!v->w || v->has_n) return 1;
-    char t[XVAL_CAP];
-    xto_text(v, t, sizeof t);
-    x_fail(p, "a text (\"%.40s\") where a number belongs - number(x) makes a number of a text", t);
-    return 0;
-}
-// a text against a number ("12" == 12, "9" < 10): no comparison - neither turns into the other
-static int xmismatch(const struct xval *a, const struct xval *b) { return (!a->has_n && !b->has_s) || (!a->has_s && !b->has_n); }
-static int xcmp(const struct xval *a, const struct xval *b) {   // <0, 0, >0: players the same one or not, numbers, else texts
-    double x, y;
-    if (a->pl && b->pl) return a->pl - b->pl;
-    if (xmismatch(a, b)) return 2;   // unequal
-    if (xis_num(a, &x) && xis_num(b, &y)) return x < y ? -1 : x > y;
-    char l[XVAL_CAP], r[XVAL_CAP];
-    xto_text(a, l, sizeof l);
-    xto_text(b, r, sizeof r);
-    return lstrcmpiA(l, r);
 }
 // epoch.<name>: an epoch's number, in every language the same (the names the game's own are in another language)
 static const char *const k_epoch_const[15] = { "prehistoric", "stone", "copper", "bronze", "dark", "middle", "renaissance",
@@ -388,47 +420,794 @@ static int x_const(const char *name, struct xval *v) {
             if (!lstrcmpiA(name + 6, k_units_const[k])) { char t[24]; wsprintfA(t, "units.%s", k_units_const[k]); xstr(v, t); return 1; }
         return 0;
     }
+    if (!_strnicmp(name, "unit.", 5)) {   // unit.b_guard_tower_bronze: a unit or building type - its number and identifier
+        int t = unit_type_named(name + 5, (int)strlen(name + 5));
+        if (t < 0) return 0;
+        xdual(v, t, name + 5);
+        return 1;
+    }
     if (_strnicmp(name, "epoch.", 6)) return 0;
     for (int e = 0; e < 15; e++) if (!lstrcmpiA(name + 6, k_epoch_const[e])) { xnum(v, e + 1); return 1; }
     return 0;
 }
-static void x_nogame(struct xp *p, const char *name) {   // a game value or a player where there is no game yet
-    x_fail(p, "%s: no game yet - only constants, chance(), rnd(), language and [vars] here", name);
+
+// ===== THE PARSER: the source into a tree =====
+// A node: one of the expressions or statements. lvl: the nesting levels entering it takes (the old parser's own
+// levels - an expression, a primary, a unary operator: at most 24 deep together within one expression); depth: its
+// deepest path, itself included (a function's body counts on its own). line, at: where it starts in the source.
+enum { XN_NUM, XN_STR, XN_NAME, XN_CALL, XN_LIST, XN_NEG, XN_NOT, XN_MUL, XN_ADD, XN_CMP, XN_AND, XN_OR, XN_COAL, XN_COND,
+       XN_LAMBDA, XN_BLOCK, XN_ASSIGN, XN_RETURN };
+struct xnode {
+    unsigned char k, op, lvl, depth;
+    int n_items;                 // a list's items, a call's arguments (all; the first 8 are used), a function's
+                                 // parameters, a block's statements
+    int line;                    // the line in the source (1 the first)
+    double n;                    // a number
+    const char *s;               // a name, a string's text (as a template: its {placeholders} filled when worked out)
+    const char *at;              // where it starts in the source (a statement's text for the messages)
+    struct xnode *a, *b, *c;     // operands: a op b, c ? a : b (c the condition); a function's body; a value
+    struct xnode **items;        // a list's items, a call's arguments, a function's parameters (names), statements
+};
+#define X_LEVELS 24   // the levels of the old parser - a deeper expression is none (not an expression)
+#define X_CALLS 64    // functions called inside each other
+// the parser's state
+struct xps {
+    const char *s, *why, *src0;
+    int err, par;          // par: in ( ), not in [ ] (strings side by side join there)
+    int nl;                // a line break in the space last skipped, which ends at nl_pos
+    const char *nl_pos;
+    int line;              // the line of lc (counting up from src0)
+    const char *lc;
+    char *mem;             // the nodes' memory (one block: copied out when done)
+    size_t used, cap;
+};
+static int xps_line(struct xps *p, const char *at) {   // the line at a place in the source
+    if (at < p->lc) { p->lc = p->src0; p->line = 1; }
+    for (; p->lc < at; p->lc++) if (*p->lc == '\n') p->line++;
+    return p->line;
 }
-static void xp_ident(struct xp *p, const char *name, struct xval *v) {
-    struct xctx *c = p->c;
-    if (p->skip) { if (p->check) x_name_check(name); xnothing(v); return; }
-    if (c->fixed) { x_fail(p, "%s: a name - a setting is a number (35%%, 2 * 60, min(...))", name); xnothing(v); return; }
-    for (int i = 0; i < c->fnp; i++)   // a parameter of the function being worked out
+static struct xnode *xn_new(struct xps *p, int k, const char *at) {
+    if (p->used + sizeof(struct xnode) > p->cap) {
+        size_t cap = p->cap ? p->cap * 2 : 4096;
+        char *m = realloc(p->mem, cap);
+        if (!m) { p->err = 1; return NULL; }
+        p->mem = m;
+        p->cap = cap;
+    }
+    struct xnode *n = (struct xnode *)(p->mem + p->used);   // an offset until copied out (x_relocate)
+    p->used += sizeof *n;
+    memset(n, 0, sizeof *n);
+    n->k = (unsigned char)k;
+    n->at = at;
+    n->line = xps_line(p, at);
+    return n;
+}
+// the nodes live in p->mem, which moves as it grows: they are kept as offsets (+1, 0 none) while parsing
+#define XOFF(p, n) ((n) ? (struct xnode *)((char *)(n) - (p)->mem + 1) : NULL)
+#define XPTR(p, o) ((o) ? (struct xnode *)((p)->mem + (uintptr_t)(o) - 1) : NULL)
+// spaces, line breaks and comments (# to the line's end); nl: whether a line break was among them
+static void xps_space(struct xps *p) {
+    const char *b = p->s;
+    int nl = 0;
+    for (;;) {
+        char c = *p->s;
+        if (c == ' ' || c == '\t' || c == '\r') p->s++;
+        else if (c == '\n') { nl = 1; p->s++; }
+        else if (c == '#') { while (*p->s && *p->s != '\n') p->s++; }
+        else break;
+    }
+    if (p->s != b) { p->nl = nl; p->nl_pos = p->s; }
+}
+static int xps_newline_before(struct xps *p) { return p->nl && p->nl_pos == p->s; }   // after xps_space
+static int xps_word(struct xps *p, const char *w) {   // a keyword (and, or, not, return), not the start of a longer name
+    xps_space(p);
+    size_t n = strlen(w);
+    if (_strnicmp(p->s, w, n) || isalnum((unsigned char)p->s[n]) || p->s[n] == '_') return 0;
+    p->s += n;
+    return 1;
+}
+static int xps_op(struct xps *p, const char *op) {
+    xps_space(p);
+    size_t n = strlen(op);
+    if (strncmp(p->s, op, n)) return 0;
+    p->s += n;
+    return 1;
+}
+static void xps_expr(struct xps *p, struct xnode **out);
+static void xps_block(struct xps *p, struct xnode **out);
+static int xps_items_add(struct xps *p, uintptr_t **it, int *n, int *cap, struct xnode *x) {
+    if (*n == *cap) {
+        *cap = *cap ? *cap * 2 : 8;
+        uintptr_t *m = realloc(*it, (size_t)*cap * sizeof **it);
+        if (!m) { p->err = 1; return 0; }
+        *it = m;
+    }
+    (*it)[(*n)++] = (uintptr_t)x;
+    return 1;
+}
+// "(a, b) =>" at s: a function's head - its parameters' names (at most 8) and where its body starts; NULL: none
+static const char *xps_lambda_head(const char *s, char names[8][24], int *n) {
+    *n = 0;
+    s++;
+    while (*s == ' ' || *s == '\t' || *s == '\n' || *s == '\r') s++;
+    if (*s != ')') for (;;) {
+        if (!isalpha((unsigned char)*s) && *s != '_') return NULL;
+        int k = 0;
+        while ((isalnum((unsigned char)*s) || *s == '_') && k < 23) names[*n][k++] = *s++;
+        names[*n][k] = 0;
+        if (isalnum((unsigned char)*s) || *s == '_' || *s == '.' || ++*n > 8) return NULL;
+        while (*s == ' ' || *s == '\t' || *s == '\n' || *s == '\r') s++;
+        if (*s == ',') { s++; while (*s == ' ' || *s == '\t' || *s == '\n' || *s == '\r') s++; continue; }
+        break;
+    }
+    if (*s != ')') return NULL;
+    s++;
+    while (*s == ' ' || *s == '\t') s++;
+    return s[0] == '=' && s[1] == '>' ? s + 2 : NULL;
+}
+static void xps_primary(struct xps *p, struct xnode **out) {
+    xps_space(p);
+    const char *s = p->s;
+    struct xnode *o = NULL;
+    char pn[8][24];
+    int npn;
+    const char *body;
+    *out = NULL;
+    if (*s == '(' && (body = xps_lambda_head(s, pn, &npn)) != NULL) {   // a function: (a, b) => value, or => { ... }
+        uintptr_t *it = NULL;
+        int n = 0, cap = 0;
+        for (int i = 0; i < npn; i++) {
+            for (int j = 0; j < i; j++) if (!strcmp(pn[i], pn[j])) { p->err = 1; p->why = "a parameter twice"; free(it); return; }
+            struct xnode *x = xn_new(p, XN_NAME, s);
+            if (!x) { free(it); return; }
+            x->s = _strdup(pn[i]);
+            if (!xps_items_add(p, &it, &n, &cap, XOFF(p, x))) { free(it); return; }
+        }
+        p->s = body;
+        xps_space(p);
+        int par = p->par;
+        p->par = 0;
+        struct xnode *b;
+        if (*p->s == '{') xps_block(p, &b);
+        else xps_expr(p, &b);
+        p->par = par;
+        if (p->err) { free(it); return; }
+        o = xn_new(p, XN_LAMBDA, s);
+        if (!o) { free(it); return; }
+        o->n_items = n;
+        o->items = (struct xnode **)it;
+        o->a = b;
+        o = XOFF(p, o);
+    } else if (*s == '(') {
+        p->s++;
+        p->par++;
+        xps_expr(p, &o);
+        p->par--;
+        if (!p->err && !xps_op(p, ")")) p->err = 1;
+        if (p->err) return;
+    } else if (*s == '"' || *s == '\'') {   // a string: its text, a template (filled when worked out)
+        const char *e, *why, *q;
+        if (x_string(s, NULL, 0, &e, &why) < 0) { p->err = 1; return; }   // (the file check tells it: tl_value)
+        size_t span = (size_t)(e - s);   // the source's length: its text is no longer
+        // ("a" "b"): strings side by side in ( ) are one - a long text over several lines (in a list a missing comma
+        // stays a mistake)
+        for (q = e; p->par; ) {
+            while (*q == ' ' || *q == '\t' || *q == '\n' || *q == '\r') q++;
+            if (*q != '"' && *q != '\'') break;
+            const char *e2;
+            if (x_string(q, NULL, 0, &e2, &why) < 0) { p->err = 1; return; }
+            span += (size_t)(e2 - q);
+            q = e = e2;
+        }
+        char *t = malloc(span + 1), *w = t;
+        if (!t) { p->err = 1; return; }
+        for (q = s; q < e; ) {   // each string's text, joined
+            while (q < e && (*q == ' ' || *q == '\t' || *q == '\n' || *q == '\r')) q++;
+            if (q >= e) break;
+            int k = x_string(q, w, (int)(span + 1 - (size_t)(w - t)), &q, &why);
+            if (k > 0) w += k;
+        }
+        *w = 0;
+        p->s = e;
+        o = xn_new(p, XN_STR, s);
+        if (!o) { free(t); return; }
+        o->s = t;   // copied out with the tree
+        o = XOFF(p, o);
+    } else if (*s == '[') {   // a list: its items
+        int par = p->par, n = 0, cap = 0;
+        uintptr_t *it = NULL;
+        p->s++;
+        p->par = 0;
+        for (;;) {
+            if (xps_op(p, "]")) break;
+            struct xnode *x;
+            xps_expr(p, &x);
+            if (p->err || !xps_items_add(p, &it, &n, &cap, x)) { free(it); p->par = par; return; }
+            if (xps_op(p, ",")) continue;
+            if (!xps_op(p, "]")) p->err = 1;
+            break;
+        }
+        p->par = par;
+        if (p->err) { free(it); return; }
+        o = xn_new(p, XN_LIST, s);
+        if (!o) { free(it); return; }
+        o->n_items = n;
+        o->items = (struct xnode **)it;   // offsets until copied out
+        o = XOFF(p, o);
+    } else if ((*s >= '0' && *s <= '9') || (*s == '.' && s[1] >= '0' && s[1] <= '9')) {
+        char *e;
+        double n = strtod(s, &e);
+        if (*e == '%') { n /= 100; e++; }   // 70% = 0.7
+        else if (*e == 's' && !isalnum((unsigned char)e[1]) && e[1] != '_') e++;   // 20s: seconds
+        else if (!strncmp(e, "min", 3) && !isalnum((unsigned char)e[3]) && e[3] != '_') { n *= 60; e += 3; }   // 19.5min
+        p->s = e;
+        o = xn_new(p, XN_NUM, s);
+        if (!o) return;
+        o->n = n;
+        o = XOFF(p, o);
+    } else if (isalpha((unsigned char)*s) || *s == '_') {
+        char name[40];
+        int n = 0;
+        while ((isalnum((unsigned char)*s) || *s == '_' || (*s == '.' && isalpha((unsigned char)s[1]))) && n < 39) name[n++] = *s++;
+        name[n] = 0;
+        p->s = s;
+        if (!lstrcmpiA(name, "true") || !lstrcmpiA(name, "false")) {
+            o = xn_new(p, XN_NUM, s - n);
+            if (!o) return;
+            o->n = !lstrcmpiA(name, "true");
+            o = XOFF(p, o);
+        } else {
+            xps_space(p);
+            if (*p->s != '(') {
+                o = xn_new(p, XN_NAME, s - n);
+                if (!o) return;
+                o->s = _strdup(name);
+                o = XOFF(p, o);
+            } else {
+                p->s++;   // a function: its arguments
+                int na = 0, cap = 0;
+                uintptr_t *it = NULL;
+                xps_space(p);
+                if (*p->s == ')') p->s++;
+                else for (;;) {
+                    struct xnode *x;
+                    xps_expr(p, &x);
+                    if (p->err || !xps_items_add(p, &it, &na, &cap, x)) { free(it); return; }
+                    if (xps_op(p, ",")) continue;
+                    if (!xps_op(p, ")")) { p->err = 1; free(it); return; }
+                    break;
+                }
+                o = xn_new(p, XN_CALL, s - n);
+                if (!o) { free(it); return; }
+                o->s = _strdup(name);
+                o->n_items = na;
+                o->items = (struct xnode **)it;
+                o = XOFF(p, o);
+            }
+        }
+    } else { p->err = 1; return; }
+    XPTR(p, o)->lvl++;   // the primary's level
+    *out = o;
+}
+static void xps_unary(struct xps *p, struct xnode **out) {
+    *out = NULL;
+    const char *at = (xps_space(p), p->s);
+    int neg = xps_op(p, "-"), inv = !neg && xps_word(p, "not");
+    if (neg || inv) {
+        struct xnode *a;
+        xps_unary(p, &a);
+        if (p->err) return;
+        struct xnode *o = xn_new(p, neg ? XN_NEG : XN_NOT, at);
+        if (!o) return;
+        o->a = a;
+        o->lvl = 1;
+        *out = XOFF(p, o);
+        return;
+    }
+    if (*p->s == '!' && p->s[1] != '=') { p->err = 1; p->why = "! - write not"; return; }
+    xps_primary(p, out);
+}
+static struct xnode *xps_bin(struct xps *p, int k, int op, struct xnode *a, struct xnode *b) {
+    struct xnode *o = xn_new(p, k, XPTR(p, a)->at);
+    if (!o) return NULL;
+    o->op = (unsigned char)op;
+    o->a = a;
+    o->b = b;
+    return XOFF(p, o);
+}
+static void xps_mul(struct xps *p, struct xnode **out) {
+    xps_unary(p, out);
+    while (!p->err) {
+        xps_space(p);
+        if (*p->s == '%') { p->err = 1; p->why = "% belongs right after a number: 70% is 0.7 (there is no remainder)"; return; }
+        int op = xps_op(p, "*") ? '*' : xps_op(p, "/") ? '/' : 0;
+        if (!op) return;
+        struct xnode *b;
+        xps_unary(p, &b);
+        if (p->err) return;
+        *out = xps_bin(p, XN_MUL, op, *out, b);
+    }
+}
+static void xps_add(struct xps *p, struct xnode **out) {
+    xps_mul(p, out);
+    while (!p->err) {
+        int op = xps_op(p, "+") ? '+' : xps_op(p, "-") ? '-' : 0;
+        if (!op) return;
+        struct xnode *b;
+        xps_mul(p, &b);
+        if (p->err) return;
+        *out = xps_bin(p, XN_ADD, op, *out, b);
+    }
+}
+static void xps_cmp(struct xps *p, struct xnode **out) {
+    xps_add(p, out);
+    if (p->err) return;
+    int op = xps_op(p, "<=") ? 'l' : xps_op(p, ">=") ? 'g' : xps_op(p, "==") ? '=' : xps_op(p, "!=") ? '!' :
+             xps_op(p, "<") ? '<' : xps_op(p, ">") ? '>' : 0;
+    if (!op) return;
+    struct xnode *b;
+    xps_add(p, &b);
+    if (p->err) return;
+    *out = xps_bin(p, XN_CMP, op, *out, b);
+}
+static void xps_and(struct xps *p, struct xnode **out) {
+    xps_cmp(p, out);
+    if (!p->err && (xps_space(p), *p->s == '&')) { p->err = 1; p->why = "&& - write and"; }
+    while (!p->err && xps_word(p, "and")) {
+        struct xnode *b;
+        xps_cmp(p, &b);
+        if (p->err) return;
+        *out = xps_bin(p, XN_AND, 0, *out, b);
+        if (!p->err && (xps_space(p), *p->s == '&')) { p->err = 1; p->why = "&& - write and"; }
+    }
+}
+static void xps_or(struct xps *p, struct xnode **out) {
+    xps_and(p, out);
+    if (!p->err && (xps_space(p), *p->s == '|')) { p->err = 1; p->why = "|| - write or"; }
+    while (!p->err && xps_word(p, "or")) {
+        struct xnode *b;
+        xps_and(p, &b);
+        if (p->err) return;
+        *out = xps_bin(p, XN_OR, 0, *out, b);
+        if (!p->err && (xps_space(p), *p->s == '|')) { p->err = 1; p->why = "|| - write or"; }
+    }
+}
+static void xps_coalesce(struct xps *p, struct xnode **out) {   // a ?? b: a, unless it is nothing
+    xps_or(p, out);
+    while (!p->err && xps_op(p, "??")) {
+        struct xnode *b;
+        xps_or(p, &b);
+        if (p->err) return;
+        *out = xps_bin(p, XN_COAL, 0, *out, b);
+    }
+}
+static void xps_expr(struct xps *p, struct xnode **out) {   // c ? a : b, c ? a (nothing when c doesn't hold)
+    *out = NULL;
+    xps_coalesce(p, out);
+    if (!p->err && xps_op(p, "?")) {
+        struct xnode *a, *b = NULL;
+        xps_expr(p, &a);
+        if (!p->err && xps_op(p, ":")) xps_expr(p, &b);
+        if (p->err) return;
+        struct xnode *o = xn_new(p, XN_COND, XPTR(p, *out)->at);
+        if (!o) return;
+        o->c = *out;
+        o->a = a;
+        o->b = b;
+        *out = XOFF(p, o);
+    }
+    if (!p->err && *out) XPTR(p, *out)->lvl++;   // the expression's level
+}
+// a statement: name = value, return [value], or an expression (a call)
+static void xps_stmt(struct xps *p, struct xnode **out) {
+    xps_space(p);
+    const char *at = p->s, *q = at;
+    *out = NULL;
+    if (xps_word(p, "return")) {
+        struct xnode *v = NULL;
+        xps_space(p);
+        if (*p->s && *p->s != '}' && !xps_newline_before(p)) { xps_expr(p, &v); if (p->err) return; }
+        struct xnode *o = xn_new(p, XN_RETURN, at);
+        if (!o) return;
+        o->a = v;
+        *out = XOFF(p, o);
+        return;
+    }
+    if (isalpha((unsigned char)*q) || *q == '_') {   // name = ...
+        while (isalnum((unsigned char)*q) || *q == '_') q++;
+        const char *r = q;
+        while (*r == ' ' || *r == '\t') r++;
+        if (*r == '=' && r[1] != '=' && r[1] != '>') {
+            char name[40];
+            if (q - at >= (int)sizeof name) { p->err = 1; p->why = "a name over 39 characters"; return; }
+            lstrcpynA(name, at, (int)(q - at) + 1);
+            if (!lstrcmpiA(name, "true") || !lstrcmpiA(name, "false") || !lstrcmpiA(name, "return") || !lstrcmpiA(name, "and") ||
+                !lstrcmpiA(name, "or") || !lstrcmpiA(name, "not")) { p->err = 1; p->why = "a word of the language is no name"; return; }
+            p->s = r + 1;
+            struct xnode *v;
+            xps_expr(p, &v);
+            if (p->err) return;
+            struct xnode *o = xn_new(p, XN_ASSIGN, at);
+            if (!o) return;
+            o->s = _strdup(name);
+            o->a = v;
+            *out = XOFF(p, o);
+            return;
+        }
+    }
+    xps_expr(p, out);
+}
+// statements, one a line, up to the block's } (brace) or the source's end (a script)
+static void xps_stmts(struct xps *p, struct xnode **out, int brace, const char *at) {
+    uintptr_t *it = NULL;
+    int n = 0, cap = 0;
+    *out = NULL;
+    for (;;) {
+        xps_space(p);
+        if (brace && *p->s == '}') { p->s++; break; }
+        if (!*p->s) { if (brace) { p->err = 1; p->why = "a { without its }"; free(it); return; } break; }
+        if (n && !xps_newline_before(p)) { p->err = 1; p->why = "one statement a line"; free(it); return; }
+        struct xnode *x;
+        xps_stmt(p, &x);
+        if (p->err || !xps_items_add(p, &it, &n, &cap, x)) { free(it); return; }
+    }
+    struct xnode *o = xn_new(p, XN_BLOCK, at);
+    if (!o) { free(it); return; }
+    o->n_items = n;
+    o->items = (struct xnode **)it;
+    *out = XOFF(p, o);
+}
+static void xps_block(struct xps *p, struct xnode **out) {   // at its {
+    const char *at = p->s;
+    p->s++;
+    xps_stmts(p, out, 1, at);
+}
+
+// A COMPILED SOURCE: its tree (pointers now), its deepest level, whether it is one at all (why not, where)
+struct xunit { struct xnode *root; int depth, ok, line; const char *why; };
+// each node's deepest path (its own levels included); a function's body is its own: too deep there, *bad
+static unsigned char x_depth_of(struct xnode *n, int *bad) {
+    if (!n) return 0;
+    int d = 0, k;
+    if (n->k == XN_LAMBDA || n->k == XN_BLOCK) {   // statements and bodies: each on its own
+        if (n->k == XN_LAMBDA && (k = x_depth_of(n->a, bad)) > X_LEVELS) *bad = 1;
+        for (int i = 0; n->k == XN_BLOCK && i < n->n_items; i++) if (x_depth_of(n->items[i], bad) > X_LEVELS) *bad = 1;
+        n->depth = n->lvl;
+        return n->depth;
+    }
+    if ((k = x_depth_of(n->a, bad)) > d) d = k;
+    if ((k = x_depth_of(n->b, bad)) > d) d = k;
+    if ((k = x_depth_of(n->c, bad)) > d) d = k;
+    for (int i = 0; i < n->n_items; i++) if ((k = x_depth_of(n->items[i], bad)) > d) d = k;
+    d += n->lvl;
+    n->depth = (unsigned char)(d > 255 ? 255 : d);
+    return n->depth;
+}
+// the tree out of the parser's block: offsets to pointers into a block of its own (kept: compiled sources stay)
+static struct xnode *x_relocate(struct xps *p, struct xnode *o, struct xnode *base) {
+    if (!o) return NULL;
+    struct xnode *n = (struct xnode *)((char *)base + ((uintptr_t)o - 1));
+    n->a = x_relocate(p, n->a, base);
+    n->b = x_relocate(p, n->b, base);
+    n->c = x_relocate(p, n->c, base);
+    if (n->n_items || n->items) {
+        uintptr_t *it = (uintptr_t *)n->items;
+        struct xnode **pi = n->n_items ? malloc((size_t)n->n_items * sizeof *pi) : NULL;
+        for (int i = 0; i < n->n_items; i++) pi[i] = x_relocate(p, (struct xnode *)it[i], base);
+        free(it);
+        n->items = pi;
+    }
+    return n;
+}
+// src whole as an expression (prog: as statements, a script); the tree, or ok 0 and why (NULL: not an expression)
+static struct xunit x_parse(const char *src, int prog) {
+    struct xps p;
+    memset(&p, 0, sizeof p);
+    p.s = p.src0 = p.lc = src;
+    p.line = 1;
+    struct xnode *root = NULL;
+    if (prog) xps_stmts(&p, &root, 0, src);
+    else xps_expr(&p, &root);
+    xps_space(&p);
+    struct xunit u = { NULL, 0, 0, 0, NULL };
+    if (!p.err && *p.s) { p.err = 1; if (!p.why) p.why = "something after the expression"; }
+    if (p.err || !root) {   // (what was built before the mistake is lost - a broken source is rare)
+        u.line = xps_line(&p, p.s);
+        free(p.mem);
+        u.why = p.why;
+        return u;
+    }
+    struct xnode *base = malloc(p.used);
+    if (!base) { free(p.mem); return u; }
+    memcpy(base, p.mem, p.used);
+    free(p.mem);
+    u.root = x_relocate(&p, root, base);
+    int bad = 0;
+    u.depth = x_depth_of(u.root, &bad);
+    if (bad || u.depth > X_LEVELS) { u.root = NULL; return u; }   // too deep: the old parser's limit
+    u.ok = 1;
+    return u;
+}
+// the cache: an expression's text -> its tree (an expression is parsed once, however often it is worked out)
+#define XC_BUCKETS 4096
+struct xcentry { struct xcentry *next; uint32_t h; struct xunit u; char src[]; };
+static struct xcentry *g_xc[XC_BUCKETS];
+static int g_xc_n;
+static const struct xunit *x_compiled(const char *src) {
+    uint32_t h = 2166136261u;
+    for (const char *s = src; *s; s++) h = (h ^ (uint8_t)*s) * 16777619u;
+    for (struct xcentry *e = g_xc[h % XC_BUCKETS]; e; e = e->next) if (e->h == h && !strcmp(e->src, src)) return &e->u;
+    size_t n = strlen(src);
+    struct xcentry *e = g_xc_n < 20000 ? malloc(sizeof *e + n + 1) : NULL;
+    if (!e) { static struct xunit once; once = x_parse(src, 0); return &once; }   // too many (texts eval): this time only
+    memcpy(e->src, src, n + 1);
+    e->h = h;
+    e->u = x_parse(e->src, 0);   // the tree points into the cached copy (its statements' texts)
+    e->next = g_xc[h % XC_BUCKETS];
+    g_xc[h % XC_BUCKETS] = e;
+    g_xc_n++;
+    return &e->u;
+}
+
+// the builtin functions: their number by name and argument count (0: none - a [vars] function or a relation)
+static int x_fn_id(const char *name, int na) {
+    return !lstrcmpiA(name, "chance") && na == 1 ? 1 : (!lstrcmpiA(name, "min") || !lstrcmpiA(name, "max")) && na ? 2 :
+           !lstrcmpiA(name, "abs") && na == 1 ? 3 : !lstrcmpiA(name, "round") && na == 1 ? 4 :
+           !lstrcmpiA(name, "rnd") && na <= 1 ? 5 : !lstrcmpiA(name, "floor") && na == 1 ? 6 :
+           !lstrcmpiA(name, "len") && na == 1 ? 7 : !lstrcmpiA(name, "first") && na == 1 ? 8 :
+           !lstrcmpiA(name, "item") && na == 2 ? 9 : !lstrcmpiA(name, "contains") && na == 2 ? 10 :
+           !lstrcmpiA(name, "map_range") && na == 3 ? 11 : !lstrcmpiA(name, "str") && na == 1 ? 12 :
+           !lstrcmpiA(name, "number") && na == 1 ? 13 : !lstrcmpiA(name, "log2") && na == 1 ? 14 : 0;
+}
+static int x_par_count(const char *par) {   // a [vars] function's parameters "a,b)": how many
+    int want = *par == ')' ? 0 : 1;
+    for (const char *q = par; *q && *q != ')'; q++) want += *q == ',';
+    return want;
+}
+
+// ===== THE CHECK: what a file gets when it is read (after its syntax) =====
+// In source order: a name nobody knows (logged with the file and line - in a script a mistake), a function nobody has
+// or with the wrong number of arguments, chance(70), a text compared with a number written as such ("12" == 12), a
+// variable of the code around a function changed in it. The names a function sees: its parameters, what its own
+// body and every body around it assign, the [vars], the game's values.
+struct xscope { const struct xscope *up; const char *name[64]; int n; };
+static int xsc_find(const struct xscope *s, const char *name, size_t len, int *own) {   // 1: there (*own: this scope's)
+    for (int level = 0; s; s = s->up, level++)
+        for (int i = 0; i < s->n; i++)
+            if (strlen(s->name[i]) == len && !strncmp(s->name[i], name, len)) { if (own) *own = !level; return 1; }
+    return 0;
+}
+static void xsc_add(struct xscope *s, const char *name) {
+    for (int i = 0; i < s->n; i++) if (!strcmp(s->name[i], name)) return;
+    if (s->n < 64) s->name[s->n++] = name;
+}
+struct xcheck { struct xctx *c; int script; const char *why; int line; char whybuf[120]; };
+// a node's value as the old parser saw it while only reading: a number or a text written as such, nothing for the
+// rest - what "12" == 12 is caught with when a file is read
+struct xsv { int w, has_n, has_s; double n; };
+static struct xsv xsv_of(const struct xnode *n) {
+    struct xsv r = { 0, 0, 0, 0 };
+    if (!n) return r;
+    switch (n->k) {
+    case XN_NUM: r.w = r.has_n = 1; r.n = n->n; break;
+    case XN_STR: r.w = r.has_s = 1; break;
+    case XN_NEG: { struct xsv a = xsv_of(n->a); r.w = r.has_n = 1; r.n = -(a.has_n ? a.n : 0); break; }
+    case XN_NOT: { struct xsv a = xsv_of(n->a); r.w = r.has_n = 1; r.n = !(a.w && (a.has_n ? a.n != 0 : 0)); break; }
+    case XN_AND: case XN_OR: {
+        struct xsv a = xsv_of(n->a), b = xsv_of(n->b);
+        int t = a.w && (a.has_n ? a.n != 0 : 0), u = b.w && (b.has_n ? b.n != 0 : 0);
+        r.w = r.has_n = 1;
+        r.n = n->k == XN_AND ? t && u : t || u;
+        break;
+    }
+    case XN_CMP: {
+        struct xsv a = xsv_of(n->a), b = xsv_of(n->b);
+        int op = n->op;
+        r.w = r.has_n = 1;
+        if (!a.w || !b.w) r.n = 0;
+        else if (a.has_n && b.has_n) { int d = a.n < b.n ? -1 : a.n > b.n;
+            r.n = op == '<' ? d < 0 : op == '>' ? d > 0 : op == 'l' ? d <= 0 : op == 'g' ? d >= 0 : op == '=' ? d == 0 : d != 0; }
+        else r.n = op == 'l' || op == 'g' || op == '=';   // two texts "" and ""
+        break;
+    }
+    case XN_COAL: { struct xsv a = xsv_of(n->a); r = a.w > 0 ? a : xsv_of(n->b); break; }
+    case XN_COND: { struct xsv c = xsv_of(n->c); int t = c.w && (c.has_n ? c.n != 0 : 0);
+        if (t) r = xsv_of(n->a); else if (n->b) r = xsv_of(n->b); break; }
+    default: break;   // names, calls, lists, functions and arithmetic: nothing while only reading
+    }
+    return r;
+}
+#include "cmd_verbs.h"
+static int x_command_verb(const char *name) {   // a pipe command (control.c execute) - a script calls it as a function
+    for (size_t i = 0; i < sizeof k_cmd_verbs / sizeof *k_cmd_verbs; i++) if (!strcmp(k_cmd_verbs[i], name)) return 1;
+    return 0;
+}
+static int x_script_fn(const char *name);   // the script functions (wait, at, every, for, player, cmd): their arguments, -1 none
+static int x_name_known(const char *name);
+static int xc_fail(struct xcheck *k, const struct xnode *n, const char *why) { k->why = why; k->line = n->line; return 0; }
+static int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc);
+static int x_check_body(struct xcheck *k, const struct xnode *body, struct xscope *sc) {   // a block: its names first
+    if (!body || body->k != XN_BLOCK) return x_check(k, body, sc);
+    for (int i = 0; i < body->n_items; i++) {   // what it assigns - also what is used before (a function called later)
+        const struct xnode *s = body->items[i];
+        if (s->k != XN_ASSIGN) continue;
+        int own = 0;
+        if (xsc_find(sc->up, s->s, strlen(s->s), &own)) {
+            snprintf(k->whybuf, sizeof k->whybuf, "%s belongs to the code around this function: read it here, don't change it", s->s);
+            return xc_fail(k, s, k->whybuf);
+        }
+        xsc_add(sc, s->s);
+    }
+    for (int i = 0; i < body->n_items; i++) if (!x_check(k, body->items[i], sc)) return 0;
+    return 1;
+}
+static int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc) {
+    if (!n) return 1;
+    switch (n->k) {
+    case XN_NUM: return 1;
+    case XN_STR: {
+        const char *why;
+        g_x_check_line = k->script ? n->line : g_x_check_line;
+        if (!x_fills_ok(n->s, &why)) return xc_fail(k, n, why);
+        return 1;
+    }
+    case XN_NAME: {
+        size_t len = strcspn(n->s, ".");
+        if (xsc_find(sc, n->s, len, NULL)) return 1;   // a parameter or a variable (its members: diplo.c)
+        if (k->script && (!strcmp(n->s, "stop") || !strcmp(n->s, "time"))) return 1;
+        if (k->script) {
+            if (x_name_known(n->s)) return 1;
+            snprintf(k->whybuf, sizeof k->whybuf, "an unknown name: %s", n->s);
+            return xc_fail(k, n, k->whybuf);
+        }
+        if (g_x_check_file) { int keep = g_x_check_line; x_name_check(n->s); g_x_check_line = keep; }
+        return 1;
+    }
+    case XN_LAMBDA: {
+        struct xscope s = { sc, { 0 }, 0 };
+        for (int i = 0; i < n->n_items; i++) xsc_add(&s, n->items[i]->s);
+        return x_check_body(k, n->a, &s);
+    }
+    case XN_BLOCK: {   // a script's statements (its top)
+        return x_check_body(k, n, sc);
+    }
+    case XN_ASSIGN: return x_check(k, n->a, sc);
+    case XN_RETURN: return x_check(k, n->a, sc);
+    case XN_CALL: {
+        for (int i = 0; i < n->n_items; i++) if (!x_check(k, n->items[i], sc)) return 0;   // the arguments first
+        const char *name = n->s;
+        int nk = n->n_items < 8 ? n->n_items : 8, f = x_fn_id(name, nk);
+        struct xsv a0 = nk ? xsv_of(n->items[0]) : (struct xsv){ 0, 0, 0, 0 };
+        if (f == 1 && a0.has_n && a0.n > 1) return xc_fail(k, n, "chance takes a probability, 0 to 1: chance(70%) or chance(0.7)");
+        if (f) return 1;
+        if (!strchr(name, '.')) {
+            if (xsc_find(sc, name, strlen(name), NULL)) return 1;   // a function in a variable
+            int sf = k->script ? x_script_fn(name) : -1;
+            if (sf >= 0) {
+                if (sf != nk) { snprintf(k->whybuf, sizeof k->whybuf, "%s takes %d argument%s", name, sf, sf == 1 ? "" : "s"); return xc_fail(k, n, k->whybuf); }
+                return 1;
+            }
+            if (k->script && x_command_verb(name)) return 1;
+            int want = x_fn_known(name);
+            if (want >= 0) {
+                if (want != nk) { snprintf(k->whybuf, sizeof k->whybuf, "%s takes %d argument%s", name, want, want == 1 ? "" : "s"); return xc_fail(k, n, k->whybuf); }
+                return 1;
+            }
+        }
+        if (!x_method(k->c, name, NULL, nk, NULL)) {
+            if (!k->script) return xc_fail(k, n, "an unknown function or relation (or the wrong number of arguments)");
+            snprintf(k->whybuf, sizeof k->whybuf, "%s(...): no such function, relation or command (or the wrong number of arguments)", name);
+            return xc_fail(k, n, k->whybuf);
+        }
+        return 1;
+    }
+    case XN_LIST:
+        for (int i = 0; i < n->n_items; i++) if (!x_check(k, n->items[i], sc)) return 0;
+        return 1;
+    case XN_CMP: {
+        if (!x_check(k, n->a, sc) || !x_check(k, n->b, sc)) return 0;
+        struct xsv a = xsv_of(n->a), b = xsv_of(n->b);   // a text and a number, both written as such: "12" == 12
+        if (a.w && b.w && ((!a.has_n && !b.has_s) || (!a.has_s && !b.has_n))) {
+            x_error("a text (\"\") compared with a number - a number has no quotes, number(t) makes one: ");
+            k->c->failed++;
+            return xc_fail(k, n, "a mistake while working it out");
+        }
+        return 1;
+    }
+    default:
+        return x_check(k, n->c, sc) && x_check(k, n->a, sc) && x_check(k, n->b, sc);
+    }
+}
+
+// ===== WORKING IT OUT =====
+// A frame: the names a function sees - its parameters and what it assigns (own), and those of the code around it
+// (copied in when it is called: read only). The context's c->fpn / fpv point at them while it runs, so the game's
+// values find a player in one (p.soldiers - diplo.c x_path).
+#define XF_MAX 48
+struct xframe { int n; const char *name[XF_MAX]; struct xval val[XF_MAX]; unsigned char own[XF_MAX]; };
+struct xfn { const struct xnode *lam; struct xframe *env; };   // a function value: its definition and where it was made
+// err: what is being worked out failed (its mistake told, or none: not an expression); why: what it was; f: the
+// frame of the function (or script) running; ret: a return given (its value in *retv); err_at: the statement it
+// failed in
+struct xe { struct xctx *c; int err; const char *why; struct xframe *f; int ret; struct xval *retv; const struct xnode *err_at; };
+static void xe(struct xe *e, const struct xnode *n, struct xval *v);
+static void x_use(struct xe *e, const struct xval *v) {
+    if (!v->miss[0]) return;
+    x_missing(e->c, v->miss);
+    e->c->missed = 0;
+    e->err = 1;
+    e->why = "a mistake while working it out";
+}
+// a mistake while working it out (MISTAKES WHILE WORKING OUT above): told once, and what it is in fails
+static char g_x_last_fail[160];   // the last one, for texts eval (the log has each once only)
+static void x_fail(struct xe *e, const char *fmt, ...) {
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(g_x_last_fail, sizeof g_x_last_fail, fmt, ap);
+    va_end(ap);
+    if (!e->c->fixed) x_error("%s: %.100s", g_x_last_fail, e->c->top ? e->c->top : "");   // fixed: ini.c tells it
+    e->c->failed++;
+    e->err = 1;
+    e->why = "a mistake while working it out";
+}
+static int x_numeric_ok(struct xe *e, const struct xval *v) {   // v counts as a number: one, or nothing (0) - a text is a mistake
+    if (!v->w || v->has_n) return 1;
+    x_fail(e, "a text (\"%.40s\") where a number belongs - number(x) makes a number of a text", xtext_of(v));
+    return 0;
+}
+// a text against a number ("12" == 12, "9" < 10): no comparison - neither turns into the other
+static int xmismatch(const struct xval *a, const struct xval *b) { return (!a->has_n && !b->has_s) || (!a->has_s && !b->has_n); }
+static int xcmp(const struct xval *a, const struct xval *b) {   // <0, 0, >0: players the same one or not, numbers, else texts
+    double x, y;
+    if (a->pl && b->pl) return a->pl - b->pl;
+    if (xmismatch(a, b)) return 2;   // unequal
+    if (xis_num(a, &x) && xis_num(b, &y)) return x < y ? -1 : x > y;
+    return lstrcmpiA(xtext_of(a), xtext_of(b));
+}
+static void x_nogame(struct xe *e, const char *name) {   // a game value or a player where there is no game yet
+    x_fail(e, "%s: no game yet - only constants, chance(), rnd(), language and [vars] here", name);
+}
+// the body of a [vars] entry or function (its source) worked out in this context: compiled, deep enough to go on
+// (the levels together with where it is used), its value
+static int x_body(struct xe *e, const char *src, struct xval *v) {
+    const struct xunit *u = x_compiled(src);
+    if (!u->ok || e->c->level + u->depth > X_LEVELS) { xnothing(v); return 0; }
+    struct xe q = { e->c, 0, NULL, NULL, 0, NULL, NULL };
+    xe(&q, u->root, v);
+    return !q.err;
+}
+static void xe_ident(struct xe *e, const char *name, struct xval *v) {
+    struct xctx *c = e->c;
+    if (c->fixed) { x_fail(e, "%s: a name - a setting is a number (35%%, 2 * 60, min(...))", name); xnothing(v); return; }
+    for (int i = 0; i < c->fnp; i++)   // a parameter or variable of the function being worked out
         if (!strcmp(c->fpn[i], name)) { *v = c->fpv[i]; return; }
     for (int i = 0; i < c->np; i++)
         if (!strcmp(c->pn[i], name)) { xstr_or_num(v, c->pv[i]); return; }
     for (int k = 0; k < 3; k++) {
         const char *def = xvars_get(c->vars[k], name);
         if (!def) continue;
-        if (c->depth >= 6) { c->circle = 1; p->err = 1; return; }   // vars naming each other in a circle
+        if (c->depth >= 6) { c->circle = 1; e->err = 1; return; }   // vars naming each other in a circle
         const char *const *fpn = c->fpn;   // a variable sees no parameters (only its own function's body does)
         const struct xval *fpv = c->fpv;
         int fnp = c->fnp;
         c->fnp = 0;
         c->depth++;
-        struct xp q = { def, c, 0, 0, 0, NULL, 0 };
-        xp_expr(&q, v);
-        xp_space(&q);
-        if (q.err || *q.s || c->circle) p->err = 1;
+        if (!x_body(e, def, v) || c->circle) e->err = 1;
         c->depth--;
         c->fpn = fpn; c->fpv = fpv; c->fnp = fnp;
         return;
     }
+    if (c->script && !strcmp(name, "stop")) { xnothing(v); v->w = 1; v->kind = XV_STOP; return; }   // for / every: no more
+    if (c->script && !strcmp(name, "time")) { xnum(v, g_x_hooks.now ? g_x_hooks.now() : 0); return; }   // game seconds
     if (x_const(name, v)) return;
-    if (c->nogame && lstrcmpiA(name, "language") && (x_is_value(name) || strchr(name, '.'))) { x_nogame(p, name); return; }
+    if (c->nogame && lstrcmpiA(name, "language") && (x_is_value(name) || strchr(name, '.'))) { x_nogame(e, name); return; }
     if (x_builtin(c, name, v)) return;
-    x_fail(p, !strcmp(name, "name") ? "an unknown name: name - the other player is them (them.name)" : "an unknown name: %s", name);
+    x_fail(e, !strcmp(name, "name") ? "an unknown name: name - the other player is them (them.name)" : "an unknown name: %s", name);
 }
 // a function's body (def), its parameters (par "a,b)") bound to the arguments: they alone are its names besides the
 // game's values and the [vars] - a function calling itself ends at the nesting limit like vars in a circle
-static void x_call(struct xp *p, const char *def, const char *par, const struct xval *a, int na, struct xval *v) {
-    struct xctx *c = p->c;
+static void x_call(struct xe *e, const char *def, const char *par, const struct xval *a, int na, struct xval *v) {
+    struct xctx *c = e->c;
     char names[8][24];
     const char *pn[8];
     int n = 0;
@@ -440,360 +1219,469 @@ static void x_call(struct xp *p, const char *def, const char *par, const struct 
         n++;
         if (*par == ',') par++;
     }
-    if (n != na) { p->err = 1; return; }
-    if (c->depth >= 6) { c->circle = 1; p->err = 1; return; }
+    if (n != na) { e->err = 1; return; }
+    if (c->depth >= 6) { c->circle = 1; e->err = 1; return; }
     const char *const *fpn = c->fpn;
     const struct xval *fpv = c->fpv;
     int fnp = c->fnp;
     c->fpn = pn; c->fpv = a; c->fnp = n;
     c->depth++;
-    struct xp q = { def, c, 0, 0, 0, NULL, 0 };
-    xp_expr(&q, v);
-    xp_space(&q);
-    if (q.err || *q.s || c->circle) p->err = 1;
+    if (!x_body(e, def, v) || c->circle) e->err = 1;
     c->depth--;
     c->fpn = fpn; c->fpv = fpv; c->fnp = fnp;
 }
-static void xp_primary(struct xp *p, struct xval *v) {
-    xp_space(p);
-    const char *s = p->s;
-    xnothing(v);
-    if (++p->c->level > 24) { p->c->level--; p->err = 1; return; }
-    if (*s == '(') {
-        p->s++;
-        p->par++;
-        xp_expr(p, v);
-        p->par--;
-        if (!xp_op(p, ")")) p->err = 1;
-    } else if (*s == '"' || *s == '\'') {   // a string: its placeholders filled
-        char t[XVAL_CAP], f[XVAL_CAP];
-        const char *why;
-        if (x_string(s, t, sizeof t, &p->s, &why) < 0) { p->err = 1; goto out; }
-        // ("a" "b"): strings side by side in ( ) are one - a long text over several lines (in a list a missing comma
-        // stays a mistake)
-        for (; p->par; ) {
-            xp_space(p);
-            if (*p->s != '"' && *p->s != '\'') break;
-            char t2[XVAL_CAP];
-            size_t n = strlen(t);
-            if (x_string(p->s, t2, sizeof t2, &p->s, &why) < 0) { p->err = 1; goto out; }
-            lstrcpynA(t + n, t2, (int)(sizeof t - n));
-        }
-        if (p->skip) { xstr(v, ""); if (p->check && !x_fills_ok(t, &p->why)) p->err = 1; }
-        else {
-            int f0 = p->c->failed;
-            x_fill(f, sizeof f, t, p->c);
-            if (p->c->failed > f0) { p->err = 1; p->why = "a mistake while working it out"; goto out; }   // told in x_fill
-            xstr(v, f);
-        }
-    } else if (*s == '[' && p->c->fixed && !p->skip) {   // a setting: one number, no random item
-        x_fail(p, "a list - a setting is one number");
-        p->err = 1;
-    } else if (*s == '[') {   // a list: one of its items - each of them as often as the items it was chosen from
-        struct xval it;
-        int total = 0, par = p->par, idx[XL_ITEMS], n = 0, lost = 0;
-        p->s++;
-        p->par = 0;
-        for (;;) {
-            if (xp_op(p, "]")) break;
-            const char *item = p->s;
-            int f0 = p->c->failed;
-            xp_expr(p, &it);
-            if (!p->err) x_use(p, &it);
-            if (p->err && !p->skip && p->c->failed > f0 && !p->c->circle) {   // a mistake (told): the item left out -
-                p->err = 0;                                                    // read again, not worked out, to its end
-                p->why = NULL;
-                p->s = item;
-                p->skip = 1;
-                xp_expr(p, &it);
-                p->skip = 0;
-                xnothing(&it);
-            }
-            if (p->err) goto out;
-            if (!p->skip && it.w > 0) {
-                total += it.w;
-                if (x_rnd(p->c, total) < it.w) *v = it;
-                if (it.ln) for (int k = 0; k < it.ln; k++) { if (n < XL_ITEMS) idx[n++] = g_xl_idx[it.li + k]; else lost = 1; }   // its items
-                else if (it.w > 1 || n == XL_ITEMS || g_xl_nval == XL_VALS) lost = 1;   // a list kept whole no more
-                else { g_xl_val[g_xl_nval] = it; idx[n++] = g_xl_nval++; }
-            }
-            if (xp_op(p, ",")) continue;
-            if (!xp_op(p, "]")) p->err = 1;
-            break;
-        }
-        p->par = par;
-        v->w = total;
-        v->ln = 0;
-        if (!total) xnothing(v);
-        else if (!lost && g_xl_nidx + n <= XL_IDX) {
-            memcpy(g_xl_idx + g_xl_nidx, idx, (size_t)n * sizeof *idx);
-            v->li = g_xl_nidx;
-            v->ln = n;
-            g_xl_nidx += n;
-        } else if (!g_xl_told) { g_xl_told = 1; x_error("a list too long to keep its items (len, first, item ... see one): %.100s", p->c->top ? p->c->top : ""); }
-    } else if ((*s >= '0' && *s <= '9') || (*s == '.' && s[1] >= '0' && s[1] <= '9')) {
-        char *e;
-        double n = strtod(s, &e);
-        if (*e == '%') { n /= 100; e++; }   // 70% = 0.7
-        xnum(v, n);
-        p->s = e;
-    } else if (isalpha((unsigned char)*s) || *s == '_') {
-        char name[40];
-        int n = 0;
-        while ((isalnum((unsigned char)*s) || *s == '_' || (*s == '.' && isalpha((unsigned char)s[1]))) && n < 39) name[n++] = *s++;
-        name[n] = 0;
-        p->s = s;
-        if (!lstrcmpiA(name, "true")) { xnum(v, 1); goto out; }
-        if (!lstrcmpiA(name, "false")) { xnum(v, 0); goto out; }
-        xp_space(p);
-        if (*p->s != '(') { xp_ident(p, name, v); goto out; }
-        p->s++;   // a function: its arguments
-        struct xval a[8];
-        int na = 0;
-        xp_space(p);
-        if (*p->s == ')') p->s++;
-        else for (;;) {
-            struct xval tmp;
-            xp_expr(p, na < 8 ? &a[na] : &tmp);
-            if (na < 8) na++;
-            if (p->err) goto out;
-            if (xp_op(p, ",")) continue;
-            if (!xp_op(p, ")")) p->err = 1;
-            break;
-        }
-        if (p->err) goto out;
-        int f = !lstrcmpiA(name, "chance") && na == 1 ? 1 : (!lstrcmpiA(name, "min") || !lstrcmpiA(name, "max")) && na ? 2 :
-                !lstrcmpiA(name, "abs") && na == 1 ? 3 : !lstrcmpiA(name, "round") && na == 1 ? 4 :
-                !lstrcmpiA(name, "rnd") && na <= 1 ? 5 : !lstrcmpiA(name, "floor") && na == 1 ? 6 :
-                !lstrcmpiA(name, "len") && na == 1 ? 7 : !lstrcmpiA(name, "first") && na == 1 ? 8 :
-                !lstrcmpiA(name, "item") && na == 2 ? 9 : !lstrcmpiA(name, "contains") && na == 2 ? 10 :
-                !lstrcmpiA(name, "map_range") && na == 3 ? 11 : !lstrcmpiA(name, "str") && na == 1 ? 12 :
-                !lstrcmpiA(name, "number") && na == 1 ? 13 : !lstrcmpiA(name, "log2") && na == 1 ? 14 : 0;
-        for (int i = 0; f && i < na; i++) x_use(p, &a[i]);   // a function's arguments (a relation checks its players)
-        if (p->err) goto out;
-        if (p->c->fixed && !p->skip && (f == 1 || f == 5 || !f)) {   // a setting: fixed - no draws, no [vars] functions
-            x_fail(p, "%s(): a setting is a fixed number (no chance(), rnd() or names)", name);
-            goto out;
-        }
-        if (f == 1 && a[0].has_n && a[0].n > 1 && (p->check || !p->skip)) {   // chance(70): meant 70%
-            if (p->check) { p->err = 1; p->why = "chance takes a probability, 0 to 1: chance(70%) or chance(0.7)"; goto out; }
-            x_fail(p, "chance(%g): a probability is 0 to 1 - chance(70%%) or chance(0.7)", a[0].n);
-            goto out;
-        }
-        if (!p->skip && f && (f <= 6 || f == 14))   // the number functions: numbers (or nothing) only
-            for (int i = 0; i < na; i++) if (!x_numeric_ok(p, &a[i])) goto out;
-        if (!p->skip && (f == 9 ? !x_numeric_ok(p, &a[1]) : f == 11 && !x_numeric_ok(p, &a[0]))) goto out;
-        if (!p->skip && f == 14 && !(xto_num(&a[0]) > 0)) { x_fail(p, "log2(%g): only of a number above 0", xto_num(&a[0])); goto out; }
-        if (!p->skip && f == 11)
-            for (int i = 0; i < xl_n(&a[1]); i++) if (!x_numeric_ok(p, xl_at(&a[1], i))) goto out;
-        if (!f && !strchr(name, '.')) {   // a function of [vars]: name(a, b) = ...
-            const char *par = NULL, *def = NULL;
-            for (int k = 0; k < 3 && !def; k++) def = xvars_fn(p->c->vars[k], name, &par);
-            int want = def ? (*par == ')' ? 0 : 1) : x_fn_known(name);
-            for (const char *q = par; def && *q && *q != ')'; q++) want += *q == ',';
-            if (want >= 0) {
-                static char why[80];
-                if (want != na) { snprintf(why, sizeof why, "%s takes %d argument%s", name, want, want == 1 ? "" : "s"); p->err = 1; p->why = why; goto out; }
-                if (p->skip) { xnothing(v); goto out; }
-                if (!def) { snprintf(why, sizeof why, "%s: a function of another file's [vars]", name); p->err = 1; p->why = why; goto out; }
-                x_call(p, def, par, a, na, v);
-                goto out;
-            }
-        }
-        if (!f) {   // a relation: them.opinion(me)
-            if (p->c->nogame && !p->skip) x_nogame(p, name);
-            else if (!x_method(p->c, name, a, na, p->skip ? NULL : v)) { p->err = 1; p->why = "an unknown function or relation (or the wrong number of arguments)"; }
-            else if (p->skip) xnothing(v);
-        }
-        else if (p->skip) xnothing(v);
-        else if (f == 1) xnum(v, x_rnd01(p->c) < xto_num(&a[0]));   // a probability: chance(70%), chance(0.7)
-        else if (f == 2) {
-            int mx = !lstrcmpiA(name, "max");
-            double r = xto_num(&a[0]);
-            for (int i = 1; i < na; i++) { double x = xto_num(&a[i]); if (mx ? x > r : x < r) r = x; }
-            xnum(v, r);
-        } else if (f == 3) { double x = xto_num(&a[0]); xnum(v, x < 0 ? -x : x); }
-        else if (f == 4) { double x = xto_num(&a[0]); xnum(v, (double)(long long)(x < 0 ? x - 0.5 : x + 0.5)); }
-        else if (f == 6) { double x = xto_num(&a[0]), r = (double)(long long)x; xnum(v, r > x ? r - 1 : r); }   // down: floor(-1.5) -2
-        else if (f == 12 || f == 13) {   // str(x): its text only (epoch: "Copper Age"); number(x): its number - a text
-            double x;                        // that is one ("12"), else nothing (number(t) ?? 0)
-            char t[XVAL_CAP];
-            if (!a[0].w) ;
-            else if (f == 12) { xto_text(&a[0], t, sizeof t); xstr(v, t); }
-            else if (a[0].has_n) xnum(v, a[0].n);
-            else if (xnumeric(a[0].s, &x)) xnum(v, x);
-        }
-        else if (f == 7) xnum(v, a[0].ln ? a[0].ln : a[0].w);   // len: how many items (one value 1, nothing 0)
-        else if (f == 8 || f == 9 || f == 11) {   // an item: first(l), item(l, i) from 1, map_range(x, limits, values)
-            const struct xval *l = &a[f == 11 ? 2 : 0];
-            int i = f == 8 ? 0 : f == 9 ? (int)xto_num(&a[1]) - 1 : 0;
-            if (f == 11) {   // the value of the first limit x is below, the last value past them all
-                double x = xto_num(&a[0]);
-                while (i < xl_n(&a[1]) && x >= xto_num(xl_at(&a[1], i))) i++;
-            }
-            if (i >= 0 && i < xl_n(l)) { *v = *xl_at(l, i); v->w = 1; v->ln = 0; }
-        } else if (f == 10) {   // contains(l, x): one of its items equal to x (as ==)
-            int hit = 0;
-            for (int i = 0; i < xl_n(&a[0]) && !hit; i++) hit = a[1].w && !xcmp(xl_at(&a[0], i), &a[1]);
-            xnum(v, hit);
-        }
-        else if (f == 14) xnum(v, det_log2f((float)xto_num(&a[0])));   // the same bits on every PC (diplo.c)
-        else xnum(v, x_rnd01(p->c) * (na ? xto_num(&a[0]) : 1));   // rnd(n): 0 <= x < n, rnd(): 0 <= x < 1
-    } else p->err = 1;
-out:
-    if (p->c->missed) { p->c->missed = 0; p->err = 1; p->why = "a mistake while working it out"; }   // told (x_missing)
-    p->c->level--;
+static void x_exec(struct xe *e, const struct xnode *blk);
+// a value with its texts and lists copied into the region now (what a function hands back, copied past its frame)
+static void xv_copy(struct xval *dst, const struct xval *src) {
+    *dst = *src;
+    if (src->has_s || src->w) dst->s = x_strdup(src->s, strlen(src->s));
+    if (src->ln) {
+        struct xval *it = x_alloc((size_t)src->ln * sizeof *it);
+        if (!it) { dst->ln = 0; dst->it = NULL; return; }
+        for (int i = 0; i < src->ln; i++) xv_copy(&it[i], &src->it[i]);
+        dst->it = it;
+    }
 }
-static void xp_unary(struct xp *p, struct xval *v) {
-    int neg = xp_op(p, "-"), inv = !neg && xp_word(p, "not");
-    if (neg || inv) {   // an operator counts in the nesting too: "- - - ... x" recursed without a limit
-        if (++p->c->level > 24) { p->c->level--; p->err = 1; xnothing(v); return; }
-        xp_unary(p, v);
-        if (neg && !p->err) { x_use(p, v); if (p->err || (!p->skip && !x_numeric_ok(p, v))) { p->c->level--; return; } xnum(v, -xto_num(v)); }
-        else xnum(v, !xtrue(v));
-        p->c->level--;
+static int xv_made_in(const struct xval *v, const struct xframe *f) {   // a function made in frame f, in it or its items
+    if (v->kind == XV_FN && v->fn->env == f) return 1;
+    for (int i = 0; i < v->ln; i++) if (xv_made_in(&v->it[i], f)) return 1;
+    return 0;
+}
+// call function value fv with its arguments: a frame of its own (the names around where it was made, read only, and
+// its parameters), its body worked out - a value, or a block's return - and its values freed but what it hands back
+static void x_call_value(struct xe *e, const struct xval *fv, const struct xval *a, int na, struct xval *v) {
+    struct xctx *c = e->c;
+    const struct xnode *lam = fv->fn->lam;
+    if (na != lam->n_items) { x_fail(e, "a function of %d argument%s called with %d", lam->n_items, lam->n_items == 1 ? "" : "s", na); return; }
+    if (c->calls >= X_CALLS) { x_fail(e, "functions called inside each other %d deep - one that calls itself without end?", X_CALLS); return; }
+    struct xframe *nf = malloc(sizeof *nf);
+    if (!nf) { e->err = 1; return; }
+    nf->n = 0;
+    const struct xframe *env = fv->fn->env;
+    for (int i = 0; env && i < env->n; i++) { nf->name[nf->n] = env->name[i]; nf->val[nf->n] = env->val[i]; nf->own[nf->n++] = 0; }
+    for (int i = 0; i < na; i++) {   // the parameters (one with a name from around it: its own now)
+        const char *pn = lam->items[i]->s;
+        int j = 0;
+        while (j < nf->n && strcmp(nf->name[j], pn)) j++;
+        if (j == nf->n) { if (nf->n == XF_MAX) { free(nf); x_fail(e, "more than %d names in a function", XF_MAX); return; } nf->n++; }
+        nf->name[j] = pn; nf->val[j] = a[i]; nf->own[j] = 1;
+    }
+    const char *const *fpn = c->fpn;
+    const struct xval *fpv = c->fpv;
+    int fnp = c->fnp, level = c->level, ret = e->ret;
+    struct xframe *f0 = e->f;
+    struct xval *retv0 = e->retv;
+    struct xmark m = x_mark();
+    struct xval rv;
+    xnothing(&rv);
+    c->fpn = nf->name; c->fpv = nf->val; c->fnp = nf->n;
+    c->level = 0;
+    c->calls++;
+    e->f = nf;
+    if (lam->a->k == XN_BLOCK) { e->retv = &rv; e->ret = 0; x_exec(e, lam->a); }
+    else xe(e, lam->a, &rv);
+    c->calls--;
+    c->fpn = fpn; c->fpv = fpv; c->fnp = fnp; c->level = level;
+    e->f = f0; e->retv = retv0; e->ret = ret;
+    if (!e->err && xv_made_in(&rv, nf)) x_fail(e, "a function made inside a function can't be handed out of it");
+    struct xregion tmp = { 0 }, *r0 = g_xr;
+    g_xr = &tmp;
+    struct xval t;
+    if (!e->err) xv_copy(&t, &rv);
+    g_xr = r0;
+    x_release(m);
+    if (!e->err) xv_copy(v, &t);
+    x_region_free(&tmp);
+    free(nf);
+}
+// the script functions: wait(seconds), at(time, f), every(step, from, until, f), for(from, to, f), player(n), cmd(text)
+static int x_script_fn(const char *name) {
+    static const struct { const char *n; int args; } k[] = { { "wait", 1 }, { "at", 2 }, { "every", 4 }, { "for", 3 }, { "player", 1 }, { "cmd", 1 } };
+    for (size_t i = 0; i < sizeof k / sizeof *k; i++) if (!strcmp(k[i].n, name)) return k[i].args;
+    return -1;
+}
+// a value as a command's argument: a number (whole without decimals), a text as it is, a player its number, a type
+// its number (unit.x: both)
+static int x_cmd_arg(struct xe *e, const char *verb, const struct xval *v, char *out, int cap) {
+    if (v->kind || !v->w) { x_fail(e, "%s(...): %s as a command's argument", verb, v->kind == XV_FN ? "a function" : v->kind ? "stop" : "nothing"); return 0; }
+    if (v->pl) snprintf(out, (size_t)cap, "%d", v->pl - 1);
+    else if (v->has_n) {
+        double r = v->n < 0 ? -v->n : v->n;
+        if (r - (double)(long long)r < 1e-9 && r < 1e15) snprintf(out, (size_t)cap, "%lld", (long long)v->n);
+        else snprintf(out, (size_t)cap, "%.6g", v->n);
+    } else {
+        if (strchr(v->s, '\n')) { x_fail(e, "%s(...): a line break in a command's argument", verb); return 0; }
+        lstrcpynA(out, v->s, cap);
+    }
+    return 1;
+}
+// a command run (the game's thread): its reply's first line is the value; a reply "error..." is a mistake
+static void x_command(struct xe *e, const char *cmd, struct xval *v) {
+    static char reply[16384];
+    reply[0] = 0;
+    if (!g_x_hooks.command) { x_fail(e, "%.40s: commands only in a script", cmd); return; }
+    g_x_hooks.command(cmd, reply, sizeof reply);
+    char *nl = strchr(reply, '\n');
+    size_t n = nl ? (size_t)(nl - reply) : strlen(reply);
+    if (!strncmp(reply, "error", 5)) { x_fail(e, "%.60s -> %.*s", cmd, (int)(n < 120 ? n : 120), reply); return; }
+    v->s = x_strdup(reply, n);
+    v->has_s = 1; v->w = 1; v->has_n = 0; v->pl = v->ln = 0; v->it = NULL; v->miss[0] = 0; v->kind = 0;
+}
+static int x_wait_until(struct xe *e, double t) {   // the script waits until game second t (0: no script to wait in)
+    if (!g_x_hooks.wait) { x_fail(e, "waiting only in a script"); return 0; }
+    g_x_hooks.wait(t);
+    return 1;
+}
+static void xe_script(struct xe *e, const char *name, const struct xval *a, int na, struct xval *v) {
+    if (!strcmp(name, "cmd")) {
+        if (!a[0].has_s || a[0].has_n) { x_fail(e, "cmd(text): a command as a text"); return; }
+        x_command(e, a[0].s, v);
         return;
     }
-    if (*p->s == '!' && p->s[1] != '=') { p->err = 1; p->why = "! - write not"; xnothing(v); return; }
-    xp_primary(p, v);
-}
-static void xp_mul(struct xp *p, struct xval *v) {
-    xp_unary(p, v);
-    while (!p->err) {
-        xp_space(p);
-        if (*p->s == '%') { p->err = 1; p->why = "% belongs right after a number: 70% is 0.7 (there is no remainder)"; return; }
-        int op = xp_op(p, "*") ? '*' : xp_op(p, "/") ? '/' : 0;
-        if (!op) return;
-        struct xval b;
-        xp_unary(p, &b);
-        if (p->err || p->skip) { xnothing(v); continue; }
-        x_use(p, v);
-        if (!p->err) x_use(p, &b);
-        if (p->err || !x_numeric_ok(p, v) || !x_numeric_ok(p, &b)) return;
-        double x = xto_num(v), y = xto_num(&b);
-        if (op == '/' && y == 0) { x_fail(p, "a division by 0"); return; }
-        xnum(v, op == '*' ? x * y : x / y);
+    if (!strcmp(name, "player")) {
+        if (!x_numeric_ok(e, &a[0])) return;
+        if (!x_player_n((int)xto_num(&a[0]), v)) x_fail(e, "player(%g): no such player", xto_num(&a[0]));
+        return;
+    }
+    int fi = !strcmp(name, "at") ? 1 : !strcmp(name, "every") ? 3 : !strcmp(name, "for") ? 2 : -1;   // the function's place
+    for (int i = 0; i < na; i++) {
+        if (i == fi) { if (a[i].kind != XV_FN) { x_fail(e, "%s(...): its last argument is a function - (i) => ...", name); return; } }
+        else if (!x_numeric_ok(e, &a[i]) || !a[i].w) { if (!e->err) x_fail(e, "%s(...): a number where nothing is", name); return; }
+    }
+    double now = g_x_hooks.now ? g_x_hooks.now() : 0;
+    if (!strcmp(name, "wait")) { x_wait_until(e, now + a[0].n); return; }
+    if (!strcmp(name, "at")) {
+        if (a[0].n > now && !x_wait_until(e, a[0].n)) return;
+        x_call_value(e, &a[1], NULL, 0, v);
+        return;
+    }
+    if (!strcmp(name, "for")) {   // for(from, to, f): f(i) for every whole i from..to, both ends in; stop ends it
+        for (double i = a[0].n; i <= a[1].n + 1e-9 && !e->err; i += 1) {
+            struct xval iv, r;
+            xnum(&iv, i);
+            x_call_value(e, &a[2], &iv, 1, &r);
+            if (!e->err && r.kind == XV_STOP) break;
+        }
+        return;
+    }
+    // every(step, from, until, f): f(run) at from, from + step ... until (in); stop ends it
+    if (!(a[0].n > 0)) { x_fail(e, "every(%g, ...): the step must be above 0", a[0].n); return; }
+    for (int k = 1; !e->err; k++) {
+        double t = a[1].n + (k - 1) * a[0].n;
+        if (t > a[2].n + 1e-9) break;
+        if (t > (g_x_hooks.now ? g_x_hooks.now() : 0) && !x_wait_until(e, t)) return;
+        struct xval kv, r;
+        xnum(&kv, k);
+        x_call_value(e, &a[3], &kv, 1, &r);
+        if (!e->err && r.kind == XV_STOP) break;
     }
 }
-static void xp_add(struct xp *p, struct xval *v) {
-    xp_mul(p, v);
-    while (!p->err) {
-        int op = xp_op(p, "+") ? '+' : xp_op(p, "-") ? '-' : 0;
-        if (!op) return;
-        struct xval b;
-        xp_mul(p, &b);
-        if (p->err || p->skip) { xnothing(v); continue; }
-        x_use(p, v);
-        if (!p->err) x_use(p, &b);
-        if (p->err) return;
-        double x, y;
-        if (op == '-') {
-            if (!x_numeric_ok(p, v) || !x_numeric_ok(p, &b)) return;
-            xnum(v, xto_num(v) - xto_num(&b));
-        }
-        else if (!v->w || !b.w) { if (!v->w) *v = b; v->ln = 0; }   // nothing: 0 to a number, "" to a text
-        else if (xis_num(v, &x) && xis_num(&b, &y)) xnum(v, x + y);   // numbers (an epoch is one too: epoch + 1)
-        else if (v->has_s && b.has_s) {   // texts joined ("Age: " + epoch: its text)
-            char l[XVAL_CAP], r[XVAL_CAP], j[XVAL_CAP];
-            xto_text(v, l, sizeof l);
-            xto_text(&b, r, sizeof r);
-            snprintf(j, sizeof j, "%s%s", l, r);
-            xstr(v, j);
-        } else {   // a text and a number: neither turns into the other
-            char t[XVAL_CAP];
-            xto_text(v->has_s ? v : &b, t, sizeof t);
-            x_fail(p, "a text (\"%.40s\") and a number added - \"...{x}\" or str(x) for a text, number(t) for a number", t);
+static void xe_call(struct xe *e, const struct xnode *n, struct xval *v) {
+    const char *name = n->s;
+    struct xval a[32];   // the arguments in order: a command, a script's function all (up to 32); the others the first 8
+    int nall = 0;
+    for (int i = 0; i < n->n_items; i++) {
+        struct xval tmp;
+        xe(e, n->items[i], nall < 32 ? &a[nall] : &tmp);
+        if (nall < 32) nall++;
+        if (e->err) return;
+    }
+    if (n->n_items > 32) { x_fail(e, "%s(...): more than 32 arguments", name); return; }
+    int na = nall < 8 ? nall : 8;
+    if (!strchr(name, '.'))   // a function in a variable or parameter
+        for (int i = 0; i < e->c->fnp; i++)
+            if (!strcmp(e->c->fpn[i], name)) {
+                if (e->c->fpv[i].kind != XV_FN) { x_fail(e, "%s is no function", name); return; }
+                struct xval fv = e->c->fpv[i];
+                x_call_value(e, &fv, a, nall, v);
+                return;
+            }
+    int f = x_fn_id(name, na);
+    for (int i = 0; f && i < na; i++) if (a[i].miss[0]) x_use(e, &a[i]);   // a function's arguments (a relation checks its players) - each told
+    if (e->err) return;
+    if (e->c->fixed && (f == 1 || f == 5 || !f)) {   // a setting: fixed - no draws, no [vars] functions
+        x_fail(e, "%s(): a setting is a fixed number (no chance(), rnd() or names)", name);
+        return;
+    }
+    if (f == 1 && a[0].has_n && a[0].n > 1) {   // chance(70): meant 70%
+        x_fail(e, "chance(%g): a probability is 0 to 1 - chance(70%%) or chance(0.7)", a[0].n);
+        return;
+    }
+    if (f && (f <= 6 || f == 14))   // the number functions: numbers (or nothing) only
+        for (int i = 0; i < na; i++) if (!x_numeric_ok(e, &a[i])) return;
+    if (f == 9 ? !x_numeric_ok(e, &a[1]) : f == 11 && !x_numeric_ok(e, &a[0])) return;
+    if (f == 14 && !(xto_num(&a[0]) > 0)) { x_fail(e, "log2(%g): only of a number above 0", xto_num(&a[0])); return; }
+    if (f == 11)
+        for (int i = 0; i < xl_n(&a[1]); i++) if (!x_numeric_ok(e, xl_at(&a[1], i))) return;
+    if (!f && !strchr(name, '.')) {   // a function of [vars]: name(a, b) = ...
+        const char *par = NULL, *def = NULL;
+        for (int k = 0; k < 3 && !def; k++) def = xvars_fn(e->c->vars[k], name, &par);
+        int want = def ? x_par_count(par) : x_fn_known(name);
+        if (want >= 0) {
+            static char why[80];
+            if (want != na) { snprintf(why, sizeof why, "%s takes %d argument%s", name, want, want == 1 ? "" : "s"); e->err = 1; e->why = why; return; }
+            if (!def) { snprintf(why, sizeof why, "%s: a function of another file's [vars]", name); e->err = 1; e->why = why; return; }
+            x_call(e, def, par, a, na, v);
             return;
         }
+        if (e->c->script) {   // a script's own functions and the pipe's commands
+            int sf = x_script_fn(name);
+            if (sf >= 0) {
+                if (sf != nall) { x_fail(e, "%s takes %d argument%s", name, sf, sf == 1 ? "" : "s"); return; }
+                xe_script(e, name, a, nall, v);
+                return;
+            }
+            if (x_command_verb(name)) {
+                char cmd[512], t[256];
+                int o = snprintf(cmd, sizeof cmd, "%s", name);
+                for (int i = 0; i < nall; i++) {
+                    if (!x_cmd_arg(e, name, &a[i], t, sizeof t)) return;
+                    o += snprintf(cmd + o, sizeof cmd - (size_t)o, " %s", t);
+                    if (o >= (int)sizeof cmd - 1) { x_fail(e, "%s(...): a command over %d characters", name, (int)sizeof cmd - 1); return; }
+                }
+                x_command(e, cmd, v);
+                return;
+            }
+        }
     }
-}
-static void xp_cmp(struct xp *p, struct xval *v) {
-    xp_add(p, v);
-    if (p->err) return;
-    int op = xp_op(p, "<=") ? 'l' : xp_op(p, ">=") ? 'g' : xp_op(p, "==") ? '=' : xp_op(p, "!=") ? '!' :
-             xp_op(p, "<") ? '<' : xp_op(p, ">") ? '>' : 0;
-    if (!op) return;
-    struct xval b;
-    xp_add(p, &b);
-    if (p->err) return;
-    if (!v->w || !b.w) { xnum(v, 0); return; }   // nothing compares with nothing: false
-    if (!(v->pl && b.pl) && xmismatch(v, &b)) {
-        char l[XVAL_CAP];
-        xto_text(v->has_s ? v : &b, l, sizeof l);
-        x_fail(p, "a text (\"%.40s\") compared with a number - a number has no quotes, number(t) makes one", l);
+    if (!f) {   // a relation: them.opinion(me)
+        if (e->c->nogame) x_nogame(e, name);
+        else if (!x_method(e->c, name, a, na, v)) { e->err = 1; e->why = "an unknown function or relation (or the wrong number of arguments)"; }
         return;
     }
-    int d = xcmp(v, &b);
-    xnum(v,op == '<' ? d < 0 : op == '>' ? d > 0 : op == 'l' ? d <= 0 : op == 'g' ? d >= 0 : op == '=' ? d == 0 : d != 0);
-}
-static void xp_and(struct xp *p, struct xval *v) {
-    xp_cmp(p, v);
-    if (!p->err && (xp_space(p), *p->s == '&')) { p->err = 1; p->why = "&& - write and"; }
-    while (!p->err && xp_word(p, "and")) {
-        struct xval b;
-        int sk = p->skip, t = xtrue(v);
-        p->skip = sk || !t;
-        xp_cmp(p, &b);
-        p->skip = sk;
-        xnum(v, t && xtrue(&b));
-        if (!p->err && (xp_space(p), *p->s == '&')) { p->err = 1; p->why = "&& - write and"; }
+    if (f == 1) xnum(v, x_rnd01(e->c) < xto_num(&a[0]));   // a probability: chance(70%), chance(0.7)
+    else if (f == 2) {
+        int mx = !lstrcmpiA(name, "max");
+        double r = xto_num(&a[0]);
+        for (int i = 1; i < na; i++) { double x = xto_num(&a[i]); if (mx ? x > r : x < r) r = x; }
+        xnum(v, r);
+    } else if (f == 3) { double x = xto_num(&a[0]); xnum(v, x < 0 ? -x : x); }
+    else if (f == 4) { double x = xto_num(&a[0]); xnum(v, (double)(long long)(x < 0 ? x - 0.5 : x + 0.5)); }
+    else if (f == 6) { double x = xto_num(&a[0]), r = (double)(long long)x; xnum(v, r > x ? r - 1 : r); }   // down: floor(-1.5) -2
+    else if (f == 12 || f == 13) {   // str(x): its text only (epoch: "Copper Age"); number(x): its number - a text
+        double x;                        // that is one ("12"), else nothing (number(t) ?? 0)
+        if (!a[0].w) ;
+        else if (f == 12) xstr(v, xtext_of(&a[0]));
+        else if (a[0].has_n) xnum(v, a[0].n);
+        else if (xnumeric(a[0].s, &x)) xnum(v, x);
     }
-}
-static void xp_or(struct xp *p, struct xval *v) {
-    xp_and(p, v);
-    if (!p->err && (xp_space(p), *p->s == '|')) { p->err = 1; p->why = "|| - write or"; }
-    while (!p->err && xp_word(p, "or")) {
-        struct xval b;
-        int sk = p->skip, t = xtrue(v);
-        p->skip = sk || t;
-        xp_and(p, &b);
-        p->skip = sk;
-        xnum(v, t || xtrue(&b));
-        if (!p->err && (xp_space(p), *p->s == '|')) { p->err = 1; p->why = "|| - write or"; }
-    }
-}
-static void xp_coalesce(struct xp *p, struct xval *v) {   // a ?? b: a, unless it is nothing
-    xp_or(p, v);
-    while (!p->err && xp_op(p, "??")) {
-        struct xval b;
-        int sk = p->skip, have = v->w > 0;
-        p->skip = sk || have;
-        xp_or(p, &b);
-        p->skip = sk;
-        if (!have) *v = b;
-    }
-}
-static void xp_expr(struct xp *p, struct xval *v) {   // c ? a : b, c ? a (nothing when c doesn't hold)
-    if (++p->c->level > 24) { p->c->level--; p->err = 1; return; }
-    xp_coalesce(p, v);
-    if (!p->err && xp_op(p, "?")) {
-        struct xval a, b;
-        int sk = p->skip, t = xtrue(v);
-        p->skip = sk || !t;
-        xp_expr(p, &a);
-        p->skip = sk;
-        xnothing(&b);
-        if (!p->err && xp_op(p, ":")) {
-            p->skip = sk || t;
-            xp_expr(p, &b);
-            p->skip = sk;
+    else if (f == 7) xnum(v, a[0].ln ? a[0].ln : a[0].w);   // len: how many items (one value 1, nothing 0)
+    else if (f == 8 || f == 9 || f == 11) {   // an item: first(l), item(l, i) from 1, map_range(x, limits, values)
+        const struct xval *l = &a[f == 11 ? 2 : 0];
+        int i = f == 8 ? 0 : f == 9 ? (int)xto_num(&a[1]) - 1 : 0;
+        if (f == 11) {   // the value of the first limit x is below, the last value past them all
+            double x = xto_num(&a[0]);
+            while (i < xl_n(&a[1]) && x >= xto_num(xl_at(&a[1], i))) i++;
         }
-        if (!p->err) *v = t ? a : b;
+        if (i >= 0 && i < xl_n(l)) { *v = *xl_at(l, i); v->w = 1; v->ln = 0; v->it = NULL; }
+    } else if (f == 10) {   // contains(l, x): one of its items equal to x (as ==)
+        int hit = 0;
+        for (int i = 0; i < xl_n(&a[0]) && !hit; i++) hit = a[1].w && !xcmp(xl_at(&a[0], i), &a[1]);
+        xnum(v, hit);
     }
-    p->c->level--;
+    else if (f == 14) xnum(v, det_log2f((float)xto_num(&a[0])));   // the same bits on every PC (diplo.c)
+    else xnum(v, x_rnd01(e->c) * (na ? xto_num(&a[0]) : 1));   // rnd(n): 0 <= x < n, rnd(): 0 <= x < 1
+}
+// a list: one of its items - each of them as often as the items it was chosen from; a mistake in an item (told)
+// leaves it out
+static void xe_list(struct xe *e, const struct xnode *n, struct xval *v) {
+    if (e->c->fixed) { x_fail(e, "a list - a setting is one number"); return; }
+    int total = 0, cnt = 0, cap = 0, lost = 0;
+    struct xval *items = NULL;
+    for (int i = 0; i < n->n_items; i++) {
+        struct xval it;
+        int f0 = e->c->failed;
+        xe(e, n->items[i], &it);
+        if (!e->err) x_use(e, &it);
+        if (e->err && e->c->failed > f0 && !e->c->circle) { e->err = 0; e->why = NULL; xnothing(&it); }   // left out
+        if (e->err) { free(items); return; }
+        if (it.w > 0) {
+            total += it.w;
+            if (x_rnd(e->c, total) < it.w) *v = it;
+            int add = it.ln ? it.ln : 1;
+            if (!it.ln && it.w > 1) lost = 1;   // a list kept whole no more
+            else {
+                if (cnt + add > cap) { cap = (cnt + add) * 2; struct xval *m = realloc(items, (size_t)cap * sizeof *m); if (!m) { lost = 1; continue; } items = m; }
+                for (int k = 0; k < add; k++) items[cnt++] = it.ln ? it.it[k] : it;
+            }
+        }
+    }
+    v->w = total;
+    v->ln = 0;
+    v->it = NULL;
+    if (!total) xnothing(v);
+    else if (!lost && cnt) {
+        struct xval *keep = x_alloc((size_t)cnt * sizeof *keep);
+        if (keep) { memcpy(keep, items, (size_t)cnt * sizeof *keep); v->it = keep; v->ln = cnt; }
+    }
+    free(items);
+}
+static void xe_str(struct xe *e, const struct xnode *n, struct xval *v) {   // a string: its placeholders filled
+    int f0 = e->c->failed;
+    size_t cap = strlen(n->s) * 2 + 4096;
+    char *f = malloc(cap);
+    if (!f) { e->err = 1; return; }
+    x_fill(f, (int)cap, n->s, e->c);
+    if (e->c->failed > f0) { free(f); e->err = 1; e->why = "a mistake while working it out"; return; }   // told in x_fill
+    xstr(v, f);
+    free(f);
+}
+// a variable of the running function set: its own (new, or again), never one of the code around it
+static void x_assign(struct xe *e, const char *name, const struct xval *v) {
+    struct xframe *f = e->f;
+    if (!f) { x_fail(e, "%s = ...: a variable only in a script or a function", name); return; }
+    int i = 0;
+    while (i < f->n && strcmp(f->name[i], name)) i++;
+    if (i < f->n && !f->own[i]) { x_fail(e, "%s belongs to the code around this function: read it here, don't change it", name); return; }
+    if (i == f->n) { if (f->n == XF_MAX) { x_fail(e, "more than %d names in a function", XF_MAX); return; } f->n++; }
+    f->name[i] = name; f->val[i] = *v; f->own[i] = 1;
+    e->c->fpn = f->name; e->c->fpv = f->val; e->c->fnp = f->n;
+}
+// a block's statements in order; a mistake ends it (err_at: the statement), a return too
+static void x_exec(struct xe *e, const struct xnode *blk) {
+    struct xctx *c = e->c;
+    const char *top = c->top;
+    for (int i = 0; i < blk->n_items && !e->err && !e->ret; i++) {
+        const struct xnode *s = blk->items[i];
+        struct xval v;
+        c->top = s->at;   // the mistakes' messages show the statement
+        if (s->k == XN_ASSIGN) { xe(e, s->a, &v); if (!e->err) x_assign(e, s->s, &v); }
+        else if (s->k == XN_RETURN) {
+            if (s->a) xe(e, s->a, e->retv ? e->retv : &v);
+            else if (e->retv) xnothing(e->retv);
+            e->ret = 1;
+        }
+        else xe(e, s, &v);
+        if (e->err && !e->err_at) e->err_at = s;
+    }
+    c->top = top;
+}
+static void xe(struct xe *e, const struct xnode *n, struct xval *v) {
+    struct xctx *c = e->c;
+    xnothing(v);
+    c->level += n->lvl;
+    switch (n->k) {
+    case XN_NUM: xnum(v, n->n); break;
+    case XN_STR: xe_str(e, n, v); break;
+    case XN_NAME:
+        xe_ident(e, n->s, v);
+        if (c->missed) { c->missed = 0; e->err = 1; e->why = "a mistake while working it out"; }   // told (x_missing)
+        break;
+    case XN_CALL:
+        xe_call(e, n, v);
+        if (c->missed) { c->missed = 0; e->err = 1; e->why = "a mistake while working it out"; }
+        break;
+    case XN_LIST: xe_list(e, n, v); break;
+    case XN_LAMBDA: {   // a function: a value (with where it was made: the names it reads)
+        struct xfn *fn = x_alloc(sizeof *fn);
+        if (!fn) { e->err = 1; break; }
+        fn->lam = n;
+        fn->env = e->f;
+        v->w = 1;
+        v->kind = XV_FN;
+        v->fn = fn;
+        break;
+    }
+    case XN_NEG: case XN_NOT:
+        xe(e, n->a, v);
+        if (e->err) break;
+        if (n->k == XN_NEG) {
+            x_use(e, v);
+            if (e->err || !x_numeric_ok(e, v)) break;
+            xnum(v, -xto_num(v));
+        } else xnum(v, !xtrue(v));
+        break;
+    case XN_MUL: case XN_ADD: {
+        struct xval b;
+        xe(e, n->a, v);
+        if (e->err) break;
+        xe(e, n->b, &b);
+        if (e->err) break;
+        x_use(e, v);
+        if (!e->err) x_use(e, &b);
+        if (e->err) break;
+        double x, y;
+        if (n->k == XN_MUL || n->op == '-') {
+            if (!x_numeric_ok(e, v) || !x_numeric_ok(e, &b)) break;
+            x = xto_num(v); y = xto_num(&b);
+            if (n->op == '/' && y == 0) { x_fail(e, "a division by 0"); break; }
+            xnum(v, n->op == '*' ? x * y : n->op == '/' ? x / y : x - y);
+        }
+        else if (!v->w || !b.w) { if (!v->w) *v = b; v->ln = 0; v->it = NULL; }   // nothing: 0 to a number, "" to a text
+        else if (xis_num(v, &x) && xis_num(&b, &y)) xnum(v, x + y);   // numbers (an epoch is one too: epoch + 1)
+        else if (v->has_s && b.has_s) {   // texts joined ("Age: " + epoch: its text)
+            const char *l = xtext_of(v), *r = xtext_of(&b);
+            size_t ln = strlen(l), rn = strlen(r);
+            char *j = x_alloc(ln + rn + 1);
+            if (!j) { e->err = 1; break; }
+            memcpy(j, l, ln); memcpy(j + ln, r, rn + 1);
+            xnothing(v);
+            v->s = j; v->has_s = 1; v->w = 1;
+        } else {   // a text and a number: neither turns into the other
+            x_fail(e, "a text (\"%.40s\") and a number added - \"...{x}\" or str(x) for a text, number(t) for a number", xtext_of(v->has_s ? v : &b));
+        }
+        break;
+    }
+    case XN_CMP: {
+        struct xval b;
+        xe(e, n->a, v);
+        if (e->err) break;
+        xe(e, n->b, &b);
+        if (e->err) break;
+        if (!v->w || !b.w) { xnum(v, 0); break; }   // nothing compares with nothing: false
+        if (!(v->pl && b.pl) && xmismatch(v, &b)) {
+            x_fail(e, "a text (\"%.40s\") compared with a number - a number has no quotes, number(t) makes one", xtext_of(v->has_s ? v : &b));
+            break;
+        }
+        int d = xcmp(v, &b), op = n->op;
+        xnum(v, op == '<' ? d < 0 : op == '>' ? d > 0 : op == 'l' ? d <= 0 : op == 'g' ? d >= 0 : op == '=' ? d == 0 : d != 0);
+        break;
+    }
+    case XN_AND: case XN_OR: {
+        xe(e, n->a, v);
+        if (e->err) break;
+        int t = xtrue(v);
+        if (n->k == XN_AND ? !t : t) { xnum(v, t); break; }   // the right side not worked out
+        struct xval b;
+        xe(e, n->b, &b);
+        if (e->err) break;
+        xnum(v, xtrue(&b));
+        break;
+    }
+    case XN_COAL:
+        xe(e, n->a, v);
+        if (e->err || v->w > 0) break;
+        xe(e, n->b, v);
+        break;
+    case XN_COND: {
+        xe(e, n->c, v);
+        if (e->err) break;
+        int t = xtrue(v);
+        if (t) xe(e, n->a, v);
+        else if (n->b) xe(e, n->b, v);
+        else xnothing(v);
+        break;
+    }
+    default:   // a block or a statement where a value belongs (the parser makes none)
+        e->err = 1;
+        break;
+    }
+    c->level -= n->lvl;
 }
 // evaluate the whole of src (an expression and nothing after it); 0: not an expression
 static void x_log_bad(const char *what, const char *src) { x_error("%s: %.120s", what, src); }
 static int x_eval(const char *src, struct xctx *c, struct xval *v) {   // its value ends up in a text: a line, a {placeholder}
-    struct xp p = { src, c, 0, 0, 0, NULL, 0 };
     int top = !c->top;
     if (top) c->top = src;
-    if (!g_xl_busy++) g_xl_nval = g_xl_nidx = 0;   // the outermost: the last one's lists are done with
-    xp_expr(&p, v);
-    g_xl_busy--;
-    xp_space(&p);
-    int ok = !p.err && !*p.s && !c->circle;
-    if (ok) { x_use(&p, v); ok = !p.err; }   // a player who isn't there, written in the text
+    if (!g_xr->busy++) x_region_reset(g_xr);   // the outermost: the last one's values are done with
+    const struct xunit *u = x_compiled(src);
+    struct xe e = { c, 0, NULL, NULL, 0, NULL, NULL };
+    xnothing(v);
+    if (!u->ok || c->level + u->depth > X_LEVELS) e.err = 1;
+    else xe(&e, u->root, v);
+    g_xr->busy--;
+    int ok = !e.err && !c->circle;
+    if (ok) { x_use(&e, v); ok = !e.err; }   // a player who isn't there, written in the text
     if (top) c->top = NULL;
     if (c->circle && !c->depth) { c->circle = 0; x_log_bad("[vars] naming each other in a circle", src); }
     return ok;   // 0 and c->failed up: a mistake while working it out, told
@@ -808,23 +1696,23 @@ static int x_const_eval(const char *src, double *out, const char **why) {
     struct xval v;
     g_x_last_fail[0] = 0;
     if (!x_eval(src, &c, &v)) { *why = g_x_last_fail[0] ? g_x_last_fail : "not a number or an expression"; return 0; }
-    if (!v.w || !v.has_n || v.has_s || v.pl) { *why = "a number expected"; return 0; }
+    if (!v.w || !v.has_n || v.has_s || v.pl || v.kind) { *why = "a number expected"; return 0; }
     *out = v.n;
     return 1;
 }
-// the syntax of an expression, nothing worked out (no game needed: the files are checked when read); 0: a mistake, *why
-// what it is when known
+// the syntax of an expression, and the checks a file gets when read (x_check); nothing worked out (no game needed);
+// 0: a mistake, *why what it is when known
 static int x_syntax(const char *src, const char **why) {
     struct xctx c = { 0 };
     c.found = 1;   // no players looked up
-    struct xp p = { src, &c, 0, 1, 1, NULL, 0 };
-    struct xval v;
-    xp_expr(&p, &v);
-    xp_space(&p);
-    if (!p.err && *p.s) { p.err = 1; if (!p.why) p.why = "something after the expression"; }
-    if (p.err) *why = p.why ? p.why : "not an expression";
-    return !p.err;
+    const struct xunit *u = x_compiled(src);
+    if (!u->ok) { *why = u->why ? u->why : "not an expression"; return 0; }
+    struct xcheck k = { &c, 0, NULL, 0, "" };
+    struct xscope sc = { NULL, { 0 }, 0 };
+    if (!x_check(&k, u->root, &sc)) { *why = k.why ? k.why : "not an expression"; return 0; }
+    return 1;
 }
+
 static const char *x_close(const char *s);
 // A placeholder's FORMAT: {x:%} {x:.1%} {x:.2} - after a ':' that belongs to no '?' (outside strings and brackets: the
 // ternary's own colons pair with its ?s), how its number is written: % as a share (0.5 -> 50%), .N with N decimals
@@ -913,8 +1801,8 @@ static int x_fill(char *out, int cap, const char *tmpl, struct xctx *c) {
     if (top) c->top = tmpl;
     for (const char *s = tmpl; *s && o < cap - 1;) {
         const char *close = *s == '{' ? x_close(s) : NULL;
-        if (!close) { out[o++] = *s++; continue; }
-        char src[400], val[XVAL_CAP];
+        if (!close) { char ch = *s++; out[o++] = ch == X_LBRACE ? '{' : ch == X_RBRACE ? '}' : ch; continue; }
+        char src[400], val[64];
         int n = (int)(close - s - 1);
         const char *rep = NULL;
         int fmt = 0, dec = -1, pct = 0;
@@ -950,7 +1838,7 @@ static int x_fill(char *out, int cap, const char *tmpl, struct xctx *c) {
                     val[0] = 0; rep = val;
                 }
                 else if (ok && fmt) { x_fmt_num(v.n, dec, pct, val, sizeof val); rep = val; }
-                else if (ok) { xto_text(&v, val, sizeof val); rep = val; }
+                else if (ok) rep = xtext_of(&v);
                 else if (c->failed > f0) { val[0] = 0; rep = val; }   // a mistake (told): nothing written ("Hi {foo}")
                 else if (strpbrk(src, " <>=?\"'(+[")) { c->bad++; x_log_bad("not an expression", src); }
             }

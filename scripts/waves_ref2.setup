@@ -1,5 +1,7 @@
-@76 objs 1 34
-@76 objs 1 35
-@76 objs 3 34
-@76 objs 3 36
-@76 objs 3 37
+at(76min, () => {
+    objs(1, unit.b_barracks)
+    objs(1, unit.b_town_center)
+    objs(3, unit.b_barracks)
+    objs(3, unit.b_dock)
+    objs(3, unit.b_house)
+})

@@ -1,9 +1,10 @@
 # llm.c test (with a mock or a real server): AI lines in the model's words, chat answers
-llm
-@1 llm say 2 Hallo, wer bist du?
-@2 diplo chat Temur, was hältst du von Benedikt?
-@3 diplo chat Benedikt, verkaufst du mir Gold?
-@4 diplo chat Und was sagt der Rest?
-@5 diplo capitulate 3 1
-@6 diplo capitulate 4 1
-@7 llm
+
+llm()
+at(1min, () => cmd("llm say 2 Hallo, wer bist du?"))
+at(2min, () => cmd("diplo chat Temur, was hältst du von Benedikt?"))
+at(3min, () => cmd("diplo chat Benedikt, verkaufst du mir Gold?"))
+at(4min, () => cmd("diplo chat Und was sagt der Rest?"))
+at(5min, () => diplo("capitulate", 3, 1))
+at(6min, () => diplo("capitulate", 4, 1))
+at(7min, () => llm())

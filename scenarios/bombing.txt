@@ -3,93 +3,14 @@
 # 20 s they attack whatever of P3's is nearest to them within 15 tiles of 40,40 (stats engage ... T tx ty) - they go
 # back to the airport to refuel on their own. Does AA built ahead (aa_ahead) save P3's town? Measure P3's buildings
 # lost, losses, workers, and the aircraft left.
-defence 2 0
-@19.5 spawn 2 b_airport 92 56 1
-@20 spawn 2 a_strafe_fighter10_fokker_dr_1 92 60 25
-@20 spawn 2 a_bomber_11_b_17 94 62 4
-@20.10 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@20.43 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@20.76 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@21.09 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@21.42 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@21.75 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@22.08 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@22.41 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@22.74 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@23.07 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@23.40 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@23.73 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@24.06 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@24.39 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@24.72 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@25.05 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@25.38 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@25.71 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@26.04 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@26.37 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@26.70 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@27.03 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@27.36 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@27.69 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@28.02 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@28.35 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@28.68 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@29.01 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@29.34 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@29.67 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@30.00 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@30.33 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@30.66 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@30.99 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@31.32 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@31.65 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@31.98 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@32.31 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@32.64 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@32.97 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@33.30 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@33.63 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@33.96 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@20.10 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@20.43 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@20.76 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@21.09 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@21.42 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@21.75 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@22.08 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@22.41 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@22.74 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@23.07 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@23.40 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@23.73 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@24.06 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@24.39 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@24.72 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@25.05 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@25.38 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@25.71 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@26.04 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@26.37 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@26.70 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@27.03 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@27.36 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@27.69 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@28.02 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@28.35 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@28.68 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@29.01 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@29.34 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@29.67 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@30.00 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@30.33 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@30.66 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@30.99 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@31.32 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@31.65 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@31.98 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@32.31 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@32.64 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@32.97 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@33.30 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@33.63 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@33.96 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
+
+defence(2, 0)
+at(19.5min, () => spawn(2, unit.b_airport, 92, 56, 1))
+at(20min, () => {
+    spawn(2, unit.a_strafe_fighter10_fokker_dr_1, 92, 60, 25)
+    spawn(2, unit.a_bomber_11_b_17, 94, 62, 4)
+})
+every(0.33min, 20.10min, 33.96min, (run) => {
+    stats("engage", 2, 92, 58, 60, unit.a_strafe_fighter10_fokker_dr_1, 40, 40)
+    stats("engage", 2, 92, 58, 60, unit.a_bomber_11_b_17, 40, 40)
+})

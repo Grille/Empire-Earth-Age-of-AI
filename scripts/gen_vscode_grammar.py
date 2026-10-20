@@ -1,5 +1,6 @@
 """Writes vscode/eeaimod-texts/syntaxes/eeai.tmLanguage.json - the highlighting of the aimod_ai\\*.eeai files
-(personalities, _system.eeai, _template.eeai; the format: dll/expr.c THE TEXT FILES) - with the names the DLL knows,
+(personalities, _system.eeai, _template.eeai; the format: dll/expr.c THE TEXT FILES) and of the setup scripts
+(scenarios/*.txt, *.setup: docs/scripts.md - statements, functions, the commands) - with the names the DLL knows,
 read from its sources: the game's values (diplo.c k_xmembers, k_xglobals), the epochs and functions (expr.c), the situations,
 traits and decisions (persona.c), the system and prompt keys (texts.c, texts_prompt.h), the style keys (settings.c). A key the DLL
 doesn't know in its section shows as an error. Run it after changing one of them, then scripts/pack_vscode.py:
@@ -27,7 +28,10 @@ values = bare
 epochs = re.findall(r'"(\w+)"', re.search(r'k_epoch_const\[15\] = \{(.*?)\};', expr, re.S).group(1))
 colors = re.findall(r'\{ "(\w+)", "', re.search(r'k_color_names\[17\]\[3\] = \{(.*?)\};', persona, re.S).group(1))   # the English names
 units = re.findall(r'"(\w+)"', re.search(r'k_units_const\[6\] = \{(.*?)\};', expr, re.S).group(1))
-funcs = sorted(set(re.findall(r'!lstrcmpiA\(name, "(\w+)"\)', expr)) - {'true', 'false'})
+funcs = sorted(set(re.findall(r'!lstrcmpiA\(name, "(\w+)"\)', expr)) - {'true', 'false', 'return', 'and', 'or', 'not'})
+script_funcs = re.findall(r'\{ "(\w+)", \d \}', re.search(r'x_script_fn\(const char \*name\) \{(.*?)\n\}', expr, re.S).group(1))
+commands = re.findall(r'"(\w+)"', open(os.path.join(root, 'dll', 'cmd_verbs.h'), encoding='utf-8').read())
+unit_ids = re.findall(r'^    "(\w+)",', open(os.path.join(root, 'dll', 'unit_names.h'), encoding='utf-8').read(), re.M)
 situations = re.findall(r'\{ "(\w+)", \d+, \d+, A_\w+ \}', persona)
 traits = re.findall(r'"(\w+)"', re.search(r'k_trait_keys\[T_N\] = \{(.*?)\};', persona).group(1))
 decisions = re.findall(r'"(\w+)"', re.search(r'k_decide_keys\[D_N\] = \{(.*?)\};', persona).group(1))
@@ -35,6 +39,7 @@ sys_keys = re.findall(r'^    \{ "(\w+)", "', texts[texts.index('k_sys[] = {'):te
 tpl_keys = re.findall(r'^    \{ "(\w+)", ', tpl[tpl.index('k_tpl[] = {'):], re.M)   # [prompt] only, not the built-in [vars]
 style_keys = re.findall(r'\{ "(\w+)", offsetof', settings)
 assert len(colors) == 17, colors
+assert len(script_funcs) >= 6 and len(commands) > 50 and len(unit_ids) > 500, (script_funcs, len(commands), len(unit_ids))
 assert len(values) > 15 and len(relations) > 12 and len(epochs) == 15 and 'chance' in funcs and len(situations) >= 40 and len(traits) == 7
 assert len(sys_keys) > 20 and len(tpl_keys) > 100 and len(style_keys) > 10, (len(sys_keys), len(tpl_keys), len(style_keys))
 
@@ -51,6 +56,13 @@ expression = [
     {'name': 'invalid.illegal.unknown-color.eeaimod', 'match': r'\bcolor\.[A-Za-z_][\w.]*'},
     {'name': 'support.constant.units.eeaimod', 'match': r'\bunits\.(?:' + '|'.join(units) + r')\b(?!\.)'},
     {'name': 'invalid.illegal.unknown-units.eeaimod', 'match': r'\bunits\.[A-Za-z_][\w.]*'},
+    {'name': 'support.constant.unit-type.eeaimod', 'match': r'\bunit\.(?:' + '|'.join(unit_ids) + r')\b(?!\.)'},   # docs/units.md
+    {'name': 'invalid.illegal.unknown-unit-type.eeaimod', 'match': r'\bunit\.[A-Za-z_][\w.]*'},
+    {'name': 'keyword.control.return.eeaimod', 'match': r'\breturn\b'},
+    {'name': 'storage.type.function.arrow.eeaimod', 'match': r'=>'},
+    {'name': 'support.function.script.eeaimod', 'match': words(script_funcs) + r'(?=\s*\()'},   # scripts: wait, at, every ...
+    {'name': 'support.function.command.eeaimod', 'match': words(commands) + r'(?=\s*\()'},   # scripts: the pipe's commands
+    {'name': 'constant.language.script.eeaimod', 'match': r'\b(?:stop|time)\b(?![.\w(])'},
     {'name': 'support.function.eeaimod', 'match': words(funcs) + r'(?=\s*\()'},
     {'name': 'constant.language.boolean.eeaimod', 'match': r'\b(?:true|false)\b'},
     {'name': 'keyword.control.logical.eeaimod', 'match': r'\b(?:and|or|not)\b'},
@@ -61,14 +73,21 @@ expression = [
     {'name': 'variable.language.game-value.eeaimod', 'match': player + r'\.' + words(member_names) + r'(?![.\w(])'},
     {'name': 'invalid.illegal.unknown-member.eeaimod', 'match': player + r'\.[A-Za-z_][\w.]*'},
     {'name': 'variable.language.game-value.eeaimod', 'match': words(values) + r'(?!\.)'},
-    {'name': 'constant.numeric.eeaimod', 'match': r'(?<![\w.])(?:\d+(?:\.\d+)?|\.\d+)%?'},   # 70% = 0.7
+    {'name': 'constant.numeric.eeaimod', 'match': r'(?<![\w.])(?:\d+(?:\.\d+)?|\.\d+)(?:%|s\b|min\b)?'},   # 70% = 0.7, 20s, 19.5min
     {'name': 'invalid.illegal.operator.eeaimod', 'match': r'&&?|\|\|?|!(?!=)|%'},   # and, or, not - only the words; % only right after a number
     {'name': 'keyword.operator.eeaimod', 'match': r'\?\?|<=|>=|==|!=|[-+*/<>?:]'},
     {'name': 'punctuation.separator.comma.eeaimod', 'match': ','},
     {'name': 'punctuation.parenthesis.eeaimod', 'match': r'[()]'},
     {'name': 'variable.other.eeaimod', 'match': r'[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*'},
 ]
-value = [{'include': '#comment'}, {'include': '#string'}, {'include': '#list'}, {'include': '#group'}] + expression
+value = [{'include': '#comment'}, {'include': '#string'}, {'include': '#list'}, {'include': '#group'}, {'include': '#block'}] + expression
+# a statement (a script's, a function's block): name = value
+assignment = {
+    'begin': r'^\s*([A-Za-z_]\w*)\s*(=)(?![=>])',
+    'beginCaptures': {'1': {'name': 'variable.other.assignment.eeaimod'}, '2': {'name': 'keyword.operator.assignment.eeaimod'}},
+    'end': r'$',
+    'patterns': [{'include': '#value'}],
+}
 
 def section(names, keys, key_scope, functions=False):
     """[names] / [names:<language>] up to the next section: its known keys, anything else an error; functions: also
@@ -119,6 +138,8 @@ grammar = {
         section('system', sys_keys, 'support.type.property-name.eeaimod'),
         section('prompt', tpl_keys, 'support.type.property-name.eeaimod'),
         section(r'[^\]:]+', [], ''),
+        assignment,   # a script: its statements
+        {'include': '#value'},
     ],
     'repository': {
         'comment': {'name': 'comment.line.eeaimod', 'match': r'[;#].*$'},
@@ -131,7 +152,7 @@ grammar = {
             'endCaptures': {'0': {'name': 'punctuation.definition.string.end.eeaimod'}},
             'name': 'string.quoted.double.eeaimod',
             'patterns': [
-                {'name': 'constant.character.escape.eeaimod', 'match': r'''\\["'\\n]'''},   # as the files' reader: \" \' \\ \n
+                {'name': 'constant.character.escape.eeaimod', 'match': r'''\\["'\\n{}]'''},   # as the files' reader: \" \' \\ \n
                 {'name': 'invalid.illegal.unknown-escape.eeaimod', 'match': r'\\.'},
                 {'include': '#placeholder'},
             ],
@@ -153,10 +174,18 @@ grammar = {
             'endCaptures': {'0': {'name': 'punctuation.definition.string.end.eeaimod'}},
             'name': 'string.quoted.single.eeaimod',
             'patterns': [
-                {'name': 'constant.character.escape.eeaimod', 'match': r'''\\["'\\n]'''},
+                {'name': 'constant.character.escape.eeaimod', 'match': r'''\\["'\\n{}]'''},
                 {'name': 'invalid.illegal.unknown-escape.eeaimod', 'match': r'\\.'},
                 {'include': '#placeholder'},
             ],
+        },
+        # a function's statements: (i) => { ... }
+        'block': {
+            'begin': r'\{',
+            'beginCaptures': {'0': {'name': 'punctuation.definition.block.begin.eeaimod'}},
+            'end': r'\}',
+            'endCaptures': {'0': {'name': 'punctuation.definition.block.end.eeaimod'}},
+            'patterns': [assignment, {'include': '#value'}],
         },
         # [ "a", allied ? "b", ] and ( ... ) - over several lines
         'list': {

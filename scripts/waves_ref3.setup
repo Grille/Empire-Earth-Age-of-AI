@@ -1,5 +1,3 @@
-@76 attacknow 3
-@77.5 attacks 3
-@79 attacks 3
-@81 attacks 3
-@83 attacks 3
+at(76min, () => attacknow(3))
+at(77.5min, () => attacks(3))
+every(2min, 79min, 83min, (run) => attacks(3))

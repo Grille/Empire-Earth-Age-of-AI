@@ -2,8 +2,11 @@
 # A hopeless fight at home: P3 builds for 15 minutes; P2 (no defence layout) gets about 90 units at minute 15 and
 # attacks from minute 16-18 (base ini). The muster question: does gathering and striking once (or fleeing) leave P3
 # more than defending piece by piece? A/B "off:muster=0" vs "on:".
-defence 2 0
-@15 spawn 2 inf02_spearman 76 50 40
-@15 spawn 2 arch03_simple_bowman 76 58 30
-@15 spawn 2 cav04_bronze_spear_cavalry 82 58 15
-@15 spawn 2 gun_siege04_catapult 72 54 5
+
+defence(2, 0)
+at(15min, () => {
+    spawn(2, unit.inf02_spearman, 76, 50, 40)
+    spawn(2, unit.arch03_simple_bowman, 76, 58, 30)
+    spawn(2, unit.cav04_bronze_spear_cavalry, 82, 58, 15)
+    spawn(2, unit.gun_siege04_catapult, 72, 54, 5)
+})

@@ -1,29 +1,36 @@
 # kills' filter: P1 (human) kills P3's army, citizens, a helicopter, ships and fishing boats (water at 3-10,57-60)
-@0.05 diplo 1 3 1
-@0.1 spawn 1 19 40 40 8
-@0.1 spawn 1 2 40 40 12
-@0.1 spawn 3 20 42 42 6
-@0.1 spawn 3 32 42 42 6
-@0.1 spawn 3 6 42 42 3
-@0.1 spawn 1 117 6 60 3
-@0.1 spawn 3 108 8 58 3
-@0.1 spawn 3 110 8 58 2
-@1 objs 1 117
-@1 objs 3 108
-@1 objs 3 110
-@3 diplo kills
-@3 texts eval 3 1 them.kills(me)
-@3 texts eval 3 1 them.kills(me, units.army)
-@3 texts eval 3 1 them.kills(me, units.airforce)
-@3 texts eval 3 1 them.kills(me, units.marine)
-@3 texts eval 3 1 them.kills(me, units.military)
-@3 texts eval 3 1 them.kills(me, units.civilian)
-@3 texts eval 3 1 them.razed(me, units.army)
-@3 texts eval 3 1 them.tribute(me, units.army)
-@3 texts eval 3 1 them.kills(me, "5")
-@3 llm prompt 3 1
-@3 texts eval 3 1 them.kills(me, 2, units.military)
-@3 texts eval 3 1 them.kills(me, "army")
-@3 texts eval 3 1 them.kills(me, units.navy)
-@3 texts eval 3 1 them.kills(me, 5, "army")
-@3 texts eval 3 1 "{them.kills(me, units.civilian)} civilians, {units.marine}"
+
+at(0.05min, () => diplo(1, 3, 1))
+at(0.1min, () => {
+    spawn(1, unit.aa10_stinger_soldier, 40, 40, 8)
+    spawn(1, unit.cav09_dragoon_gun, 40, 40, 12)
+    spawn(3, unit.inf01_clubman, 42, 42, 6)
+    spawn(3, unit.citizen, 42, 42, 6)
+    spawn(3, unit.a_helicopter_apache_longbow_12, 42, 42, 3)
+    spawn(1, unit.s08_imperial_battleship, 6, 60, 3)
+    spawn(3, unit.s02_fishing_boat_stone, 8, 58, 3)
+    spawn(3, unit.s03_copper_transport, 8, 58, 2)
+})
+at(1min, () => {
+    objs(1, unit.s08_imperial_battleship)
+    objs(3, unit.s02_fishing_boat_stone)
+    objs(3, unit.s03_copper_transport)
+})
+at(3min, () => {
+    diplo("kills")
+    cmd("texts eval 3 1 them.kills(me)")
+    cmd("texts eval 3 1 them.kills(me, units.army)")
+    cmd("texts eval 3 1 them.kills(me, units.airforce)")
+    cmd("texts eval 3 1 them.kills(me, units.marine)")
+    cmd("texts eval 3 1 them.kills(me, units.military)")
+    cmd("texts eval 3 1 them.kills(me, units.civilian)")
+    cmd("texts eval 3 1 them.razed(me, units.army)")
+    cmd("texts eval 3 1 them.tribute(me, units.army)")
+    cmd("texts eval 3 1 them.kills(me, \"5\")")
+    llm("prompt", 3, 1)
+    cmd("texts eval 3 1 them.kills(me, 2, units.military)")
+    cmd("texts eval 3 1 them.kills(me, \"army\")")
+    cmd("texts eval 3 1 them.kills(me, units.navy)")
+    cmd("texts eval 3 1 them.kills(me, 5, \"army\")")
+    cmd("texts eval 3 1 \"\{them.kills(me, units.civilian)\} civilians, \{units.marine\}\"")
+})

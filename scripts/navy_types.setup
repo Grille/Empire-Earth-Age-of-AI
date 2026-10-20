@@ -1,14 +1,15 @@
 # navy types: every type's hit-table category/kind and stats, the naval ones with cost and P2's stats record; the hit factor table (docs/navy.md; scripts/navy.py types)
-navy table
-navy types 0 59 all
-navy types 60 119 all
-navy types 120 179 all
-navy types 180 239 all
-navy types 240 299 all
-navy types 300 359 all
-navy types 360 419 all
-navy types 420 479 all
-navy types 480 539 all
-navy types 540 599 all
-navy types 600 659 all
-navy types 660 719 all
+
+navy("table")
+navy("types", 0, 59, "all")
+navy("types", 60, 119, "all")
+navy("types", 120, 179, "all")
+navy("types", 180, 239, "all")
+navy("types", 240, 299, "all")
+navy("types", 300, 359, "all")
+navy("types", 360, 419, "all")
+navy("types", 420, 479, "all")
+navy("types", 480, 539, "all")
+navy("types", 540, 599, "all")
+navy("types", 600, 659, "all")
+navy("types", 660, 719, "all")

@@ -3,24 +3,25 @@
 # P2's town (charge: every 10 s, see attack.c STRESS WAVES). The minute P2
 # falls (game over) is the score; count 2 after each wave shows what is left.
 # base e.g. "random_map=Continental,map_size=0,ai_count=1,seed=101", 120 min
-@60 wave 1 2 50
-@60.05 charge 1 2
-@60.2 count 2
-@65 wave 1 2 75
-@65.2 count 2
-@70 wave 1 2 100
-@70.2 count 2
-@75 wave 1 2 150
-@75.2 count 2
-@80 wave 1 2 200
-@80.2 count 2
-@85 wave 1 2 300
-@85.2 count 2
-@90 wave 1 2 400
-@90.2 count 2
-@95 wave 1 2 600
-@95.2 count 2
-@100 wave 1 2 800
-@100.2 count 2
-@105 wave 1 2 1000
-@105.2 count 2
+
+at(60min, () => wave(1, 2, 50))
+at(60.05min, () => charge(1, 2))
+at(60.2min, () => count(2))
+at(65min, () => wave(1, 2, 75))
+at(65.2min, () => count(2))
+at(70min, () => wave(1, 2, 100))
+at(70.2min, () => count(2))
+at(75min, () => wave(1, 2, 150))
+at(75.2min, () => count(2))
+at(80min, () => wave(1, 2, 200))
+at(80.2min, () => count(2))
+at(85min, () => wave(1, 2, 300))
+at(85.2min, () => count(2))
+at(90min, () => wave(1, 2, 400))
+at(90.2min, () => count(2))
+at(95min, () => wave(1, 2, 600))
+at(95.2min, () => count(2))
+at(100min, () => wave(1, 2, 800))
+at(100.2min, () => count(2))
+at(105min, () => wave(1, 2, 1000))
+at(105.2min, () => count(2))

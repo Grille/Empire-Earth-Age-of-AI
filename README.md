@@ -346,14 +346,18 @@ dll/              the mod (C), one module per file:
                     randmap.c test-game setup, watch.c watchpoints, trace.c call tracing, headless_win.c
                     test windows without focus or taskbar button (also in dinput.dll)
                     unitnames.c the type identifiers in commands (unit_names.h, generated)
+                    expr.c the text language (parsed once into a tree; statements, functions), scripts.c the
+                    setup scripts (fibers on the game's thread; cmd_verbs.h, generated: the commands they call)
 config/           aimod.ini and the aimod_ai personalities, shipped to players
-scenarios/        setup scripts that turn a save into a test scenario (attacks, sieges, raids)
+scenarios/        setup scripts (docs/scripts.md) that turn a save into a test scenario (attacks, sieges, raids)
 scripts/          test runner, suite, log analysis, control client, MCP server, RE helpers
                     gen_units.py + dat_read.py: docs/units.md and dll/unit_names.h from the game data
-                    (the community DB editor's field layouts and English strings, downloaded into dats/)
+                    (the community DB editor's field layouts and English strings, downloaded into dats/);
+                    gen_cmd_verbs.py: dll/cmd_verbs.h; text_engine_cases.txt: the text engine comparison's cases
 ghidra_scripts/   Ghidra headless script that names and decompiles the exe
 mod/              generator for a tuned dbcpbehavior.dat (AI settings table; superseded by aimod.ini)
-docs/             engine notes, AI analysis, testing guide, units.md (every type: id, identifier, stats)
+docs/             engine notes, AI analysis, testing guide, units.md (every type: id, identifier, stats),
+                  scripts.md (the setup scripts)
 ```
 
 ## License

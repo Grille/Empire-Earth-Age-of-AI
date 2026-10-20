@@ -2,9 +2,14 @@
 # Counter-siege test: P3 builds its defences for 12 minutes and gets 8 spearmen; then P2 gets 4 catapults with a
 # small escort (4 spearmen) just outside the tower range - its siege controller shells P3's towers.
 # A/B: "nocs:counter_siege=0" vs "cs:".
-defence 2 0
-@12 spawn 3 inf02_spearman 42 40 8
-@12 spawn 2 gun_siege04_catapult 58 44 4
-@12 spawn 2 inf02_spearman 60 46 4
-@24 count 2
-@24 count 3
+
+defence(2, 0)
+at(12min, () => {
+    spawn(3, unit.inf02_spearman, 42, 40, 8)
+    spawn(2, unit.gun_siege04_catapult, 58, 44, 4)
+    spawn(2, unit.inf02_spearman, 60, 46, 4)
+})
+at(24min, () => {
+    count(2)
+    count(3)
+})

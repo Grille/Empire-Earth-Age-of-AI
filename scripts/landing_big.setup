@@ -1,14 +1,11 @@
 # a big landing (reference save): P2 given 40 machine gunners at home, 3 transports and resources - the size, the gathering at sea, the waves
-@75.8 give 2 4000
-@75.8 spawn 2 152 36 84 40
-@75.8 spawn 2 113 22 53 3
-@76.2 attacknow 2
-@76.3 landing 2 now
-@78 landing 2
-@80 landing 2
-@82 landing 2
-@84 landing 2
-@86 landing 2
-@88 landing 2
-@90 landing 2
-@91.8 diplo kills
+
+at(75.8min, () => {
+    give(2, 4000)
+    spawn(2, unit.inf10_trench_mortar, 36, 84, 40)
+    spawn(2, unit.s10_atomic_age_transport, 22, 53, 3)
+})
+at(76.2min, () => attacknow(2))
+at(76.3min, () => landing(2, "now"))
+every(2min, 78min, 90min, (run) => landing(2))
+at(91.8min, () => diplo("kills"))

@@ -1,9 +1,11 @@
-@75.9 attacks 3
-@75.9 attacks 2
-@76 attacknow 3
-@76.3 attacks 3
-@76.8 attacks 3
-@77.5 attacks 3
-@78.5 attacks 3
-@80 attacks 3
-@82 attacks 3
+at(75.9min, () => {
+    attacks(3)
+    attacks(2)
+})
+at(76min, () => attacknow(3))
+at(76.3min, () => attacks(3))
+at(76.8min, () => attacks(3))
+at(77.5min, () => attacks(3))
+at(78.5min, () => attacks(3))
+at(80min, () => attacks(3))
+at(82min, () => attacks(3))

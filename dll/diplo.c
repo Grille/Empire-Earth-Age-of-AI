@@ -1899,6 +1899,12 @@ static void x_player(struct xval *v, void *p, const char *who) {   // a player a
     xstr(v, *player_name(p) && *player_name(p) != '?' ? player_name(p) : "the player");   // a test's idle human has no name
     v->pl = pidx(p) + 1;
 }
+static int x_player_n(int n, struct xval *v) {   // expr.c: player(n) in a script - player n, 0: none there
+    void *p = n >= 1 && n < nplayers() ? player_at(n) : NULL;
+    if (!p) return 0;
+    x_player(v, p, "");
+    return 1;
+}
 static void *x_player_of(const struct xval *v) {   // the player a value is - or names (a placeholder: {ally})
     if (!v->w) return NULL;
     if (v->pl) return player_at(v->pl - 1);

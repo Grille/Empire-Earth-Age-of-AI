@@ -1,91 +1,12 @@
 # bombing.txt 15 minutes later (airport 34.5, aircraft 35, attacks to 49): time for what the AI builds ahead (a fortress)
-defence 2 0
-@34.50 spawn 2 b_airport 92 56 1
-@35.00 spawn 2 a_strafe_fighter10_fokker_dr_1 92 60 25
-@35.00 spawn 2 a_bomber_11_b_17 94 62 4
-@35.10 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@35.43 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@35.76 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@36.09 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@36.42 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@36.75 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@37.08 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@37.41 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@37.74 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@38.07 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@38.40 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@38.73 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@39.06 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@39.39 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@39.72 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@40.05 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@40.38 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@40.71 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@41.04 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@41.37 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@41.70 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@42.03 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@42.36 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@42.69 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@43.02 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@43.35 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@43.68 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@44.01 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@44.34 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@44.67 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@45.00 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@45.33 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@45.66 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@45.99 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@46.32 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@46.65 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@46.98 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@47.31 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@47.64 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@47.97 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@48.30 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@48.63 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@48.96 stats engage 2 92 58 60 a_strafe_fighter10_fokker_dr_1 40 40
-@35.10 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@35.43 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@35.76 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@36.09 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@36.42 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@36.75 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@37.08 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@37.41 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@37.74 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@38.07 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@38.40 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@38.73 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@39.06 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@39.39 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@39.72 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@40.05 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@40.38 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@40.71 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@41.04 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@41.37 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@41.70 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@42.03 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@42.36 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@42.69 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@43.02 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@43.35 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@43.68 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@44.01 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@44.34 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@44.67 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@45.00 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@45.33 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@45.66 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@45.99 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@46.32 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@46.65 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@46.98 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@47.31 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@47.64 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@47.97 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@48.30 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@48.63 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
-@48.96 stats engage 2 92 58 60 a_bomber_11_b_17 40 40
+
+defence(2, 0)
+at(34.50min, () => spawn(2, unit.b_airport, 92, 56, 1))
+at(35.00min, () => {
+    spawn(2, unit.a_strafe_fighter10_fokker_dr_1, 92, 60, 25)
+    spawn(2, unit.a_bomber_11_b_17, 94, 62, 4)
+})
+every(0.33min, 35.10min, 48.96min, (run) => {
+    stats("engage", 2, 92, 58, 60, unit.a_strafe_fighter10_fokker_dr_1, 40, 40)
+    stats("engage", 2, 92, 58, 60, unit.a_bomber_11_b_17, 40, 40)
+})

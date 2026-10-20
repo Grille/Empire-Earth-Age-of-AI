@@ -2,42 +2,9 @@
 # Raiders at P3's citizens: at minute 12 P2 gets 6 doughboys (204), at 16 two Mk V tanks (153), at the edge of P3's
 # base; every 20 s they attack the nearest enemy that they can hurt within 30 tiles (stats engage), citizens included.
 # The militia question: fight back, or run (tanks are faster than citizens)? Measure P3's workers and losses.
-defence 2 0
-@12 spawn 2 inf10_doughboy 48 44 6
-@16 spawn 2 tank10_mk_v 50 46 2
-@12.20 stats engage 2 46 44 20
-@12.53 stats engage 2 46 44 20
-@12.86 stats engage 2 46 44 20
-@13.19 stats engage 2 46 44 20
-@13.52 stats engage 2 46 44 20
-@13.85 stats engage 2 46 44 20
-@14.18 stats engage 2 46 44 20
-@14.51 stats engage 2 46 44 20
-@14.84 stats engage 2 46 44 20
-@15.17 stats engage 2 46 44 20
-@15.50 stats engage 2 46 44 20
-@15.83 stats engage 2 46 44 20
-@16.16 stats engage 2 46 44 20
-@16.49 stats engage 2 46 44 20
-@16.82 stats engage 2 46 44 20
-@17.15 stats engage 2 46 44 20
-@17.48 stats engage 2 46 44 20
-@17.81 stats engage 2 46 44 20
-@18.14 stats engage 2 46 44 20
-@18.47 stats engage 2 46 44 20
-@18.80 stats engage 2 46 44 20
-@19.13 stats engage 2 46 44 20
-@19.46 stats engage 2 46 44 20
-@19.79 stats engage 2 46 44 20
-@20.12 stats engage 2 46 44 20
-@20.45 stats engage 2 46 44 20
-@20.78 stats engage 2 46 44 20
-@21.11 stats engage 2 46 44 20
-@21.44 stats engage 2 46 44 20
-@21.77 stats engage 2 46 44 20
-@22.10 stats engage 2 46 44 20
-@22.43 stats engage 2 46 44 20
-@22.76 stats engage 2 46 44 20
-@23.09 stats engage 2 46 44 20
-@23.42 stats engage 2 46 44 20
-@23.75 stats engage 2 46 44 20
+
+defence(2, 0)
+at(12min, () => spawn(2, unit.inf10_doughboy, 48, 44, 6))
+every(0.33min, 12.20min, 15.83min, (run) => stats("engage", 2, 46, 44, 20))
+at(16min, () => spawn(2, unit.tank10_mk_v, 50, 46, 2))
+every(0.33min, 16.16min, 23.75min, (run) => stats("engage", 2, 46, 44, 20))

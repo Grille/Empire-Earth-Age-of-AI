@@ -1,6 +1,4 @@
-@76 attacknow 3
-@77 attacks 3 raw
-@78 attacks 3 raw
-@79 attacks 3 raw
-@80.5 attacks 3 raw
-@82 attacks 3 raw
+at(76min, () => attacknow(3))
+every(1min, 77min, 79min, (run) => attacks(3, "raw"))
+at(80.5min, () => attacks(3, "raw"))
+at(82min, () => attacks(3, "raw"))

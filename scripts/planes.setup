@@ -1,11 +1,13 @@
-@76 count 2
-@76 count 3
-@76 objs 2 66
-@76 objs 3 66
-@76 costs 2 66 71 72 602
-@76 tinfo 2 66 71 72
-@76 tinfo 3 66 71 72
-@76 bqueue 2
-@76 plan 2
-@76 drops 2
-@76 sites 2
+at(76min, () => {
+    count(2)
+    count(3)
+    objs(2, unit.b_airport)
+    objs(3, unit.b_airport)
+    costs(2, unit.b_airport, unit.a_strafe_fighter10_fokker_dr_1, unit.a_fighter10_sopwith_camel_f_1, unit.gun_siege10_howitzer_cannon)
+    tinfo(2, unit.b_airport, unit.a_strafe_fighter10_fokker_dr_1, unit.a_fighter10_sopwith_camel_f_1)
+    tinfo(3, unit.b_airport, unit.a_strafe_fighter10_fokker_dr_1, unit.a_fighter10_sopwith_camel_f_1)
+    bqueue(2)
+    plan(2)
+    drops(2)
+    sites(2)
+})

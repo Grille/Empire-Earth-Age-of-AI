@@ -79,6 +79,7 @@ static void cmd_diplo(char *out, const char *args);
 static void cmd_persona(char *out, const char *args);
 static void cmd_spawn(char *out, const char *args);
 static void cmd_spawnline(char *out, const char *args);
+static void cmd_script(char *out, const char *args);   // scripts.c: script dryrun <file> <out>
 static volatile int g_turbo;           // autotest turbo: the simulation loop skips its timer wait
 static void cmd_scrolltest(char *out, const char *args);
 static void cmd_camtrace(char *out, const char *args);
@@ -453,6 +454,7 @@ static void execute(const char *cmd, char *out) {
     else if (!strcmp(verb, "persona")) cmd_persona(out, args);
     else if (!strcmp(verb, "spawn")) cmd_spawn(out, args);
     else if (!strcmp(verb, "spawnline")) cmd_spawnline(out, args);
+    else if (!strcmp(verb, "script")) cmd_script(out, args);
     else if (!strcmp(verb, "save")) cmd_save(out, args);
     else if (!strcmp(verb, "scrolltest")) cmd_scrolltest(out, args);
     else if (!strcmp(verb, "camtrace")) cmd_camtrace(out, args);

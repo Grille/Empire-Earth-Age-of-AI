@@ -4,6 +4,7 @@
 # Base e.g. "random_map=Small Islands,map_size=0,ai_count=1,seed=101,start_epoch=5" (also Large Islands, e9), 60 min;
 # variants by [autotest] keys: seaop_level=1|2|3 (weak / medium / strong, default 2), seaop_landings=0|1,
 # seaop_start=<minute of the first ships>. Score with scripts/seacontrol.py (the "# sea:" lines).
-seaop start 2
-@10 seaop
-@30 seaop
+
+seaop("start", 2)
+at(10min, () => seaop())
+at(30min, () => seaop())

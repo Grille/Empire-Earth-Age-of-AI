@@ -19,7 +19,7 @@ The `[autotest]` keys:
 | `vanilla_players=3` (digits), `vanilla_difficulty`, `vanilla_cheat=0\|1` | those players play the game's own AI, unmodified, with their own difficulty and the game's Cheat (see "Against the base-game AI") |
 | `game_seed=N` | the game's random seed at game start: the same game_seed (with the same map, `seed`, and config) plays the same game, step for step. The simulation draws from one generator (EEPhysics +0x14, seed +0x18), seeded by the game start message (type 0x5D, executed by 0x4BEE57, which also writes world +0x54). The menu start puts rand() after srand(TMGetTime()) in it (`hook_srand`), the load-game and scenario starts TMGetTime() itself (0x522DFC's callers) - a test run's random map is a load-game start, so until 2026-10-19 every run had its own seed and runs parted from ~5 s on; now `hook_start_exec` (trace.c) writes game_seed into the message whichever start built it. Checked: two runs of Continental 101 / 3 AIs / game_seed=1, 10 game minutes: the per-step trace identical (3479 steps), the AI log identical but for a column of heap pointers; turbo=0 and turbo=1 identical (the turbo run only logs idle steps before the first tick). Then one more hole: of three runs of Continental 101 / 5 AIs / 60 min, one parted at 28.7 min - the trace showed an AI message (type 129, handed to the lockstep server in a tick's last step) landing a tick late: turbo let the server send the next tick while that step still ran (EEPhysics +0xB8 is 0 already then); now turbo waits for the step's end too (control.c hook_phys_step, g_in_step). Checked: 6 runs of that game identical for 60 min, 6 more maps twice each (ai_diplomacy=1) identical, and turbo=0 identical to turbo=1 for 30 min. The map comes from `seed` (randmap.c writes world +0x54 after the start message). Without game_seed the start stays the clock's. |
 | `sync_trace=<steps>` | writes `synctrace.txt` next to the test log: the start message's seed, then one line per simulation step for the first <steps> steps - step counter, game ms, the generator's seed, user inputs processed, a hash of the AI players' stock. Also the units (count and a hash), the messages each step hands to the lockstep server (`  m` lines) and with `sync_dump=<from ms>-<to ms>` every unit of the steps in that window. Diff two runs' files to find the first step they part (trace.c) |
-| `setup=<file>` | control-pipe commands (one per line, `#` comments) run once at 2 s game time; `@<min> <command>` waits until that game minute, path relative to the game folder - e.g. `spawn` lines that turn a map into a test scenario (see Scenarios); replies of more than one line go into the log as `#   ` lines |
+| `setup=<file>[;<file>...]` | a script ([scripts.md](scripts.md)) run from 2 s game time, path relative to the game folder - the pipe's commands as functions (`spawn(3, unit.b_guard_tower_bronze, 51, 44)`), waiting with `at(19.5min, ...)`, `every(...)`, `wait(...)` - e.g. what turns a map into a test scenario (see Scenarios). Several (`;`) run side by side. Every command is logged `# setup: <command> -> <reply>` (replies of more than one line as `#   ` lines) |
 | `scenario_mode=1` | starts `Data\Scenarios\<save>.scn` through the real scenario path (set by `-Scenario`) |
 | any `aimod.ini` key | overrides that setting for all difficulties, e.g. `avoid_towers=0` - read like aimod.ini (dll/ini.c): a share with its `%` (`navy_share=30%`, `home_guard_share=50%`; a bare `navy_share=30` is 3000%: logged as `# ini:` and the default used), small expressions (`epoch_min=2*25`) - no commas in a value here (-IniExtra splits on them) |
 | `watch=<hex>`, `watch_len` | hardware write-watchpoint, logs every writer of an address |
@@ -72,10 +72,11 @@ powershell -ExecutionPolicy Bypass -File scripts/run_test.ps1 -Save newgame.ees 
 - **A run's own DLL.** `-Dll <path>` (env `DLL`, also through scen.sh / suite.sh / h2h.sh) plays that eeaimod.dll build instead of the installed one, so sessions can test their own builds side by side without touching the game folder: run_test copies it to `work/eeaimod_slot<n>.dll` (the source can be rebuilt while the game runs) and names it in `EEAIMOD_DLL`; the installed eeaimod.dll loads that file instead of installing itself (dll/eeaimod.c `run_other_dll`), the copy takes the game folder from the exe and logs `# dll: <path> (the test run's own, built <date time>)`. It can't sit in the game folder - the engine loads every DLL in there. The installed DLL must be one that knows EEAIMOD_DLL (from 2026-10-19; run_test refuses otherwise). A copy that doesn't load: `# eeaimod: EEAIMOD_DLL ... didn't load (error n) - nothing installed`, and the runner stops the game after 10 s - never the installed build in its place. Typical: build into a scratch file (`cd dll && $CC ... -o /tmp/x/eeaimod.dll eeaimod.c ...`, the flags of build.sh) and `DLL=/tmp/x/eeaimod.dll JOBS=4 sh scripts/suite.sh ...`. Checked 2026-10-19: a slot with -Dll beside a slot with the installed DLL, same game_seed: identical games.
 - Safety: if the DLL doesn't report autotest mode within 10 s, the game is killed (no unmuted game with intros at normal speed).
 - Fixtures: start a random map with the wanted settings (`start_epoch`, `citizens`, ...), let it run, `eectl.py save copper40` at the interesting moment, then run tests from that save.
-- Saved state (.aimod, dll/persist.c): a setup line `@1.5 save zz_name` on a random map writes zz_name.ees + .aimod; `run_test.ps1 -Save zz_name.ees` then logs `# persist: state of ... restored: N blocks, 0 skipped` (2026-10-17: 37 blocks; a block with a flipped layout hash: `skipped (another layout)`; a format-1 file (saves made before 2026-10-17, e.g. a copy of the reference save with its .ees write time set to the one in the .aimod header - the original copy has another): `has format 1 (blocks matched by tag, size - no layout check)`, 36 blocks). Note: a save made this way stalls at its start time under `turbo=1` (also with the DLL before, also with save_state=0) - load it with `turbo=0`.
+- Saved state (.aimod, dll/persist.c): a setup line `at(1.5min, () => save("zz_name"))` on a random map writes zz_name.ees + .aimod; `run_test.ps1 -Save zz_name.ees` then logs `# persist: state of ... restored: N blocks, 0 skipped` (2026-10-17: 37 blocks; a block with a flipped layout hash: `skipped (another layout)`; a format-1 file (saves made before 2026-10-17, e.g. a copy of the reference save with its .ees write time set to the one in the .aimod header - the original copy has another): `has format 1 (blocks matched by tag, size - no layout check)`, 36 blocks). Note: a save made this way stalls at its start time under `turbo=1` (also with the DLL before, also with save_state=0) - load it with `turbo=0`.
 - Continental stalls (2026-10-18): 60-minute Continental runs (`islands` setup; 2 AIs from epoch 5, or 3 AIs from 0) stopped logging near the end and were killed at the timeout, or crashed at 0x628D6F / 0x53110D / 0x531131 / 0x62D5AC. The cause: the unit list sorted by x (docs/engine-notes.md, Units) broken by units the game gives back to its pool twice or while still linked - set off by the attack call-off at the safe point that `attack_retreat=1` makes (the user's own aimod.ini sets it; the tests read it). Then the moves (0x5310B3) or range searches (0x62FE01) loop for good. 24 runs each (12 seeds x both setups, `game_seed` 1-12, 300 s timeout): the DLL before the review (9425949) 2 failed, HEAD 865865e 6; HEAD with `attack_retreat=0`, 48 runs: 0; with the guard (attack.c unit_node_free, hook_unit_release), 48 runs (seeds 1-24): 0, the guard took ~1 double release every few games. Seed 8 of the 3-AI setup also ended with exit code 3 (no exception logged) on both DLLs without the guard.
 
-Scenarios: a base map plus a setup file in `scenarios/` (spawned towers, armies, ...), built for one question.
+Scenarios: a base map plus a setup script in `scenarios/` ([scripts.md](scripts.md): spawned towers, armies, their
+orders over time ...), built for one question.
 `scripts/scen.sh` runs variants on it, REPEAT (default 5) runs each with game_seed 1..n, scored like the suite:
 
 ```sh
@@ -174,7 +175,7 @@ Scripts:
 While the game runs, the DLL serves `\\.\pipe\eeaimod`, one command per connection. Commands that touch
 game state run on the simulation thread. The pipe is open in autotest runs; in a normal game only with
 aimod.ini `[general] control_pipe=1` (default 0 since 2026-10-17 - a command on one PC desyncs multiplayer).
-Setup files (`setup=`) run their commands directly, not through the pipe.
+Setup scripts (`setup=`, [scripts.md](scripts.md)) call the commands as functions - `spawn(2, unit.inf02_spearman, 70, 50)` - directly, not through the pipe.
 
 A unit or building type is given by its number or by its identifier, in every command that takes one (`spawn`,
 `spawnline`, `train`, `objs`, `found`, `hurt`, `watchtype`, `army`, `seltest`, `plan P retry`, `tinfo`, `costs`,
@@ -194,7 +195,7 @@ venv/Scripts/python scripts/eectl.py <command>
 | `peek <hex> [len]`, `poke <hex> <bytes>` | read/write memory (safe: bad addresses return an error) |
 | `sites P`, `foodcheck P`, `units P` | resource sites, food search, citizens by job for AI player P |
 | `costs P [types]` | next epoch and unit costs |
-| `wmclose` | WM_CLOSE to the game's windows: the game's own way out with its teardown - `quit` and the end of a run (`quit_minutes`) terminate the process and never run it, so exit crashes need this. `scripts/exit.setup` (on a copy of a save: `@77 save zz_exit2`, `@77.5 wmclose`) |
+| `wmclose` | WM_CLOSE to the game's windows: the game's own way out with its teardown - `quit` and the end of a run (`quit_minutes`) terminate the process and never run it, so exit crashes need this. `scripts/exit.setup` (on a copy of a save: `at(77min, () => save("zz_exit2"))`, `at(77.5min, () => wmclose())`) |
 | `attacks P` | AI P's attack groups: target, next attack time, per subgroup its class (EECPASGLand, Sea, Air, SeaTransport ...), members alive and their centre (about -1000 or -10000: aboard a transport), how many march, fight, do something else or nothing. `scripts/waves_ref*.setup` (copies of `aimod_ref_ww1.ees`): P3's main force stays in its own town for 9+ minutes, re-routed to its docks again and again, only stragglers leave; 3 more transports change nothing |
 | `attacks P raw` | as `attacks P`, plus per subgroup its state (+0x1D0), mission, goal, waypoints, engaged members, and per member its type, tile, hit points, goal (with an attack goal: the target, its owner, type and family), then the subgroup's fields +0x100..+0x260 |
 | `asgtrace P [off]` | logs every state or goal change of AI P's attack subgroups (`# asgtrace:`): class, state old -> new, mission, goal, members alive, centre, waypoints, engaged members, march/fight/other/idle, the group's fields +0x28..+0x6C. `scripts/asgtrace.setup` |
@@ -261,6 +262,8 @@ venv/Scripts/python scripts/eectl.py <command>
 | `persona [P name]` | personalities loaded and assigned (traits, lines said); with arguments AI P gets personality `name` |
 | `spawn P type x y [n]` | create n units of a type for player P around tile x, y (2-tile grid), through the game's own debug spawner (EEMHackANewUnit, executed in the next tick like a player command). Types: [units.md](units.md) |
 | `spawnline P type x0 y0 x1 y1 [step]` | one unit every step tiles along a line, e.g. a wall |
+| `script dryrun <file> <out>` | a setup script run without the game: the clock jumps to where it waits, its commands go into `<out>` (`<ms> <command>`) instead of being run - [scripts.md](scripts.md) |
+| `texts corpus [file]` | every expression of the text files worked out, for comparing two builds of the engine - "Text engine comparison" below |
 | `watch <hex> [len]` | set the hardware watchpoint at runtime |
 | `save <name>` | save the running game to `Data\Saved Games\<name>.ees`, a fixture for later runs (`run_test.ps1 -Save <name>.ees`, without `random_map`). Known quirk: such a save loaded with `turbo=1` never starts simulating (the AI makes no step; without turbo it runs, and autosaves run with turbo) |
 | `ddinfo [dump\|blit\|notex1]` | DirectDraw state (screen, surfaces, z-buffer, display mode, counters); `dump` writes front/back/window to `aimod_dumps/dd_*.bmp`. Note: it locks the z-buffer, which changes the windowed rendering state |
@@ -794,6 +797,20 @@ Missiles (2026-10-12, same map, AA missile towers 147 vs P3 Apache helicopters (
 | spread on (switched 5/4, held 46/84) | 53/53, 53/53 | 0, 0 |
 
 Intercept: flight times the same (1.9-2.2 s). Pursuit already hits: missiles 2.5 tiles/s vs 1.05.
+
+### Text engine comparison
+
+The text language's engine (dll/expr.c) was rewritten on 2026-10-20 (a tree parsed once, statements, functions,
+scripts). Before the old engine went, `texts corpus [file]` (a pipe command; default `aimod_dumps\texts_corpus.txt`)
+was added to it and run in the old and the new build: every personality's line, `[vars]` entry, `[decide]` key, colour
+and `[style]` value for every AI speaking to every other player, every system line and prompt piece filled, every
+aimod.ini number, and the hand-written cases of `scripts/text_engine_cases.txt` (with their syntax check) - each with
+the generators set to fixed values first: its value, its items, its mistakes' messages and the draws it made. Continental
+3 AIs (game_seed 777) at minutes 5, 15, 30 (4971 lines each) and Highlands 5 AIs (game_seed 4242) at 12 and 40 (12651
+each): the same but for 3 lines - input that is no expression (`[1, 2`, `["x" "y"]`, a URL in the ini) the old engine
+worked out partly (a list item drawn, a name looked up) before it found the mistake; the new one works out nothing of
+it. The games themselves were the same, row for row. A change to the engine: run the corpus before and after (`texts
+corpus` at the same minutes of the same game_seed) and compare.
 
 ### Headless UI tests (menus, editor)
 

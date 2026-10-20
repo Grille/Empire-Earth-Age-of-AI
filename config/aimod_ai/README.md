@@ -53,13 +53,16 @@ greeting = ["Guten Wind, {them}.", "Die Flut ist heute mit uns."]
 
 ## The format
 
+The same language runs the mod's test scenarios, with statements, variables and functions on top
+([docs/scripts.md](../../docs/scripts.md) in the mod's sources) - a personality's file has keys and values only.
+
 A file is made of **sections** - `[personality]`, `[lines]`, `[lines:de]` ... - and **keys**, one `key = value` per
 line. A comment runs from `;` or `#` to the end of the line, also after a value (not inside a string). A value is
 an **expression**; it may go over several lines while a `(`, `[` or `{` is open:
 
 | Value | Meaning |
 |---|---|
-| `"text"` | A string. `\"` is a quote, `\\` a backslash, `\n` a line break. `'text'` works too. |
+| `"text"` | A string. `\"` is a quote, `\\` a backslash, `\n` a line break, `\{` `\}` braces that are text (no placeholder). `'text'` works too. |
 | `85`, `0.5` | A number |
 | `["a", "b", "c"]` | A list. Said or used as one value, it is one of its items, at random; `len`, `first`, `item`, `contains` and `map_range` see all of them. A comma after the last item is fine. |
 | `allied ? "Welcome back."` | A condition without `:` - nothing when it doesn't hold |

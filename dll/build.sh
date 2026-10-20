@@ -8,8 +8,8 @@ CC=${CC:-../tools/llvm-mingw/bin/i686-w64-mingw32-clang}
 # the layout hashes of the saved-game blocks (persist.c): persist_layout.h, kept in git for a build without Python
 PY=../venv/Scripts/python.exe
 [ -x "$PY" ] || PY=$(command -v python3 || command -v python)
-if [ -n "$PY" ]; then "$PY" ../scripts/persist_layout.py || exit 1
-else echo "no Python: persist_layout.h left as it is (run scripts/persist_layout.py after changing a saved variable)"; fi
+if [ -n "$PY" ]; then "$PY" ../scripts/persist_layout.py && "$PY" ../scripts/gen_cmd_verbs.py || exit 1
+else echo "no Python: persist_layout.h and cmd_verbs.h left as they are (scripts/persist_layout.py after changing a saved variable, gen_cmd_verbs.py after a new pipe command)"; fi
 "$CC" -O2 -mstackrealign -Wall -Wextra -shared -static -o eeaimod.dll eeaimod.c -lgdi32 -ldxguid -lwinmm -lwinhttp -Wl,--image-base,0x6E000000 || exit 1
 # dinput.dll (optional): the game's settings in eesettings.ini instead of the registry (eesettings.c)
 "$CC" -O2 -Wall -Wextra -shared -static -o dinput.dll eesettings.c eesettings.def -ladvapi32 -luser32 || exit 1
