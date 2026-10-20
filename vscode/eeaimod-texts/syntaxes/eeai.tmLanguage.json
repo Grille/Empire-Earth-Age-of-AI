@@ -8,7 +8,7 @@
       "include": "#comment"
     },
     {
-      "match": "^\\s*(include)(?=\\s*\\()",
+      "match": "^\\s*(include|register_personality)(?=\\s*\\()",
       "captures": {
         "1": {
           "name": "keyword.control.import.eeaimod"

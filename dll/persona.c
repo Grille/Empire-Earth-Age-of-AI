@@ -3,7 +3,8 @@
 // before diplo.c (which makes the decisions and raises most of the situations).
 //
 // File format (UTF-8 or ANSI; the syntax: expr.c THE TEXT FILES):
-//   include("_eeaimod_shared.eeai")    other files' names and decide keys, after its own
+//   include("computer.eeai")           a layer: its lines, names, keys after its own (FILES below)
+//   register_personality()             this file is a personality (else a library, for others to include)
 //   personality = {
 //       name = "Merchant Benedict"     the player's name in the game (replaces "Computer"; empty = keep)
 //       color = ["yellow", "lightyellow"]  favoured colours on random maps
@@ -23,7 +24,7 @@
 //   }
 // In braces: {them} the player the line is about, {me} the speaker, {enemy} a third player (alliances),
 // {epoch} the speaker's age, {tribute} the resources offered / paid (capitulation), or an expression (expr.c). A
-// situation without a line (or one that is nothing now) falls back (line_fallback, computer.eeai) or stays silent
+// situation without a line (or one that is nothing now) falls back (line_fallback, the layers: computer.eeai) or stays silent
 // (the game's own lines for wonders, flares and war remain where the personality has none).
 //
 // Assignment at the AI's first update: aimod.ini [general] personality_P<n>=<file name without .ini>, otherwise
@@ -75,6 +76,9 @@ static int decide_key(const char *key) { int k = 0; while (k < D_N && lstrcmpiA(
 
 #define MAX_PERSONAS 32
 #define MAX_VARIANTS 12
+#define INCLUDES_MAX 8
+#define LAYERS_MAX 8
+struct includes { int n; char name[INCLUDES_MAX][64]; };
 struct persona {
     char file[40], name[48], civ[48];   // civ: civilization= - the civilization's name the game shows for it
     char character[300];   // character=: a few words about it for the language model (llm.c)
@@ -85,6 +89,10 @@ struct persona {
     char *line[L_N];   // a situation's line: an expression (expr.c) - a string, a list of them, conditions
     struct xvars vars;   // its names outside the records (vars), its includes' after them
     char *decide[D_N];   // decide: a decision's expression (its own, else its includes'); NULL: the built-in rule
+    struct includes inc;   // include(...)
+    struct persona *layer[LAYERS_MAX];   // its includes, each one's own right after it (persona_layers)
+    int nlayer, registered, resolving;   // registered: register_personality() - a personality, else a library
+    unsigned trait_set;   // the traits it sets itself (bit per trait): the others from its layers, else 50%
 };
 static struct persona g_personas[MAX_PERSONAS];
 static int g_npersonas;
@@ -223,36 +231,37 @@ static void lang_detect(void) {
                        h ? "read" : "NOT FOUND", age, hostile, g_lang);
 }
 
-// computer.eeai: no personality - never assigned - but the fallback for every AI: a situation a personality has no
-// line for (and none of the situation's fallbacks either) is said with computer.eeai's line; AIs without a
-// personality use it alone. It holds neutral lines for what must not go unsaid (diplomacy, capitulation, victory).
+// FILES: every .eeai of the folder but _system.eeai and _template.eeai (texts.c) is read the same way (the format:
+// expr.c): personality = { name, civilization, character (strings), color (an expression: a list of colours, worked
+// out at the game start - persona_colors), the traits (shares 0%-100%) }, style = { numbers }, decide = { ... },
+// lines = { each situation a string or a list of them, conditions } - and its names outside them (vars). A file that
+// declares register_personality() is a personality (an AI may get it); any other is a library, read when a file
+// includes it.
+// INCLUDES: include("computer.eeai", ...) - only a plain file name of this folder, so a pack of files dropped into
+// aimod_ai brings its own without touching anyone else's. The files a file includes are its LAYERS, in order, each
+// one's own includes right after it (4 deep, no circles): their names, decide keys, personality and style keys count
+// where the file has none of its own; their lines come after the file's - a situation's line from the first layer
+// whose chain (the situation, then its fallbacks: line_fallback) has something to say now, worked out with that
+// layer's names first (line_source).
+// computer.eeai: the neutral lines for what must not go unsaid (war, peace, offers, capitulation, victory: k_must) -
+// the shipped personalities include it; an AI without a personality speaks with it alone (autotest personas=0). A
+// personality without a line for one of k_must (its own or a layer's, the situation's or a fallback's) is a mistake.
+static int line_fallback(int k);
 static struct persona g_computer;
 static int g_has_computer;
 static int g_personas_only_computer;   // autotest personas=0: only computer.eeai (AIs without a personality)
-// a personality file (the format: expr.c): personality = { name, civilization, character (strings), color (an
-// expression: a list of colours, worked out at the game start - persona_colors), the traits (shares 0%-100%) },
-// style = { numbers }, decide = { ... }, lines = { each situation a string or a list of them, conditions } - and its
-// names outside them (vars)
-// INCLUDES: a file may name others in its folder - include("_shared.eeai", ...) - whose names (vars) and decide keys
-// it uses after its own (the first named first); an included file holds only names, decide = { } and includes of its
-// own (4 deep, no circles). Only a plain file name: no path, so a pack of files dropped into aimod_ai brings its own
-// shared vars without touching anyone else's. Files starting with _ are no personalities.
-#define INCLUDES_MAX 8
-struct includes { int n; char name[INCLUDES_MAX][64]; };
+static const enum line_kind k_must[] = {
+    L_WAR_DECLARED, L_BETRAYED, L_PEACE_ACCEPT, L_PEACE_REFUSE, L_ALLIANCE_OFFER, L_OFFER_ACCEPTED, L_OFFER_WITHDRAWN,
+    L_BETRAY, L_CAPITULATE, L_CAPITULATE_ACCEPTED, L_CAPITULATE_REFUSED, L_BLOCK_REFUSE, L_BLOCK_REFUSE_OWN, L_ASK_LORD,
+    L_ALL_SUBMITTED, L_OTHER_VICTORY, L_SURRENDER, L_DEFEATED,
+};
 struct inc_add { struct includes *inc; struct tlex *l; };
 static void include_add(const char *name, void *arg) {
     struct inc_add *a = arg;
     size_t n = strlen(name);
     if (n < 6 || n >= 64 || lstrcmpiA(name + n - 5, ".eeai") || strpbrk(name, "/\\:") || strstr(name, ".."))
-        x_error("%s:%d: include \"%s\": a file name in this folder expected (\"_shared.eeai\")", a->l->file, a->l->line, name);
+        x_error("%s:%d: include \"%s\": a file name in this folder expected (\"computer.eeai\")", a->l->file, a->l->line, name);
     else if (a->inc->n < INCLUDES_MAX) lstrcpynA(a->inc->name[a->inc->n++], name, 64);
-}
-// include("a.eeai", ...) (tfile_parse: the key "include" outside the records): its names into inc; 0: not one
-static int include_key(struct includes *inc, const char *sec, const char *key, struct tval *v, struct tlex *l) {
-    if (*sec || lstrcmpiA(key, "include")) return 0;
-    struct inc_add a = { inc, l };
-    if (!x_plain_strings(v->src, include_add, &a)) tl_error(l, "include(\"_file.eeai\", ...): file names expected");
-    return 1;
 }
 // the record a key of the files belongs in (a situation: lines, a trait: personality ...); NULL: none - a name
 static const char *record_of_key(const char *key) {
@@ -263,63 +272,19 @@ static const char *record_of_key(const char *key) {
     if (style_key(key) >= 0) return "style";
     return NULL;
 }
-struct inc_read { struct xvars base; struct includes inc; char *decide[D_N]; };
-static void inc_key(void *arg, const char *sec, const char *key, struct tval *v, struct tlex *l) {
-    struct inc_read *r = arg;
-    if (include_key(&r->inc, sec, key, v, l)) return;
-    if (!*sec) {
-        const char *rec = record_of_key(key);
-        if (rec) { char why[120]; snprintf(why, sizeof why, "%s belongs in %s = { ... }", key, rec); tl_error(l, why); return; }
-        xvars_set(&r->base, key, v->src);
-    } else if (!lstrcmpiA(sec, "decide")) {
-        int k = decide_key(key);
-        if (k == D_N) { tl_error(l, "an unknown decision (peace_score, seek_ally, ally_score)"); return; }
-        free(r->decide[k]);
-        r->decide[k] = _strdup(v->src);
-    }
-    else tl_error(l, "an included file holds names, decide = { } and include() only");
-}
-static void xvars_free(struct xvars *v) { for (int i = 0; i < v->n; i++) { free(v->key[i]); free(v->val[i]); } v->n = 0; }
-// the vars of the files inc names (dir: the folder) into vars, where vars has no such name yet (by: who names them)
-static void includes_load(const char *dir, const struct includes *inc, struct xvars *vars, char **decide, const char *by, int depth) {
-    for (int i = 0; i < inc->n; i++) {
-        char path[MAX_PATH];
-        if (depth >= 4) { x_error("%s: include \"%s\": more than 4 deep (a circle?)", by, inc->name[i]); return; }
-        snprintf(path, sizeof path, "%s%s", dir, inc->name[i]);
-        char *text = read_text_acp(path);
-        if (!text) { x_error("%s: include \"%s\": no such file in aimod_ai", by, inc->name[i]); continue; }
-        static struct inc_read r0;
-        struct inc_read *r = malloc(sizeof *r);
-        *r = r0;
-        tfile_parse(inc->name[i], text, inc_key, r);
-        free(text);
-        for (int k = 0; k < r->base.n; k++)
-            if (xvars_find(vars, r->base.key[k]) < 0) {   // (a function too: the file's own wins)
-                if (vars->n == XVARS_MAX) { x_error("%s: more than %d names (vars) with its includes", by, XVARS_MAX); break; }
-                xvars_set(vars, r->base.key[k], r->base.val[k]);
-            }
-        for (int k = 0; k < D_N; k++) {   // its decisions where the file has none yet
-            if (!decide[k]) decide[k] = r->decide[k];
-            else free(r->decide[k]);
-        }
-        includes_load(dir, &r->inc, vars, decide, inc->name[i], depth + 1);
-        xvars_free(&r->base);
-        free(r);
-    }
-}
-struct persona_read {
-    struct persona *p;
-    struct includes inc;   // include(...)
-};
 struct color_read { struct tlex *l; int line; };
 static void color_check(const char *name, void *arg) {   // a colour name as written: known? (the rest at the game start)
     struct color_read *r = arg;
     if (color_index(name) < 0) x_error("%s:%d: unknown colour \"%s\"", r->l->file, r->line, name);
 }
 static void persona_key(void *arg, const char *sec, const char *key, struct tval *v, struct tlex *l) {
-    struct persona_read *r = arg;
-    struct persona *p = r->p;
-    if (include_key(&r->inc, sec, key, v, l)) return;
+    struct persona *p = arg;
+    if (!*sec && !lstrcmpiA(key, "include")) {   // include("a.eeai", ...) (tfile_parse: the list of its names)
+        struct inc_add a = { &p->inc, l };
+        if (!x_plain_strings(v->src, include_add, &a)) tl_error(l, "include(\"computer.eeai\", ...): file names expected");
+        return;
+    }
+    if (!*sec && !lstrcmpiA(key, "register_personality")) { p->registered = 1; return; }
     if (!*sec) {   // a name outside the records (vars) - not one of a record's keys, written where it is no key
         const char *rec = record_of_key(key);
         if (rec) { char why[120]; snprintf(why, sizeof why, "%s belongs in %s = { ... }", key, rec); tl_error(l, why); return; }
@@ -350,6 +315,7 @@ static void persona_key(void *arg, const char *sec, const char *key, struct tval
                 while (*e == ' ' || *e == '\t') e++;
                 if (e == v->src || *e != '%' || e[1]) { tl_error(l, "a share 0% to 100% expected (aggression = 60%)"); return; }
                 p->trait[t] = n < 0 ? 0 : n > 100 ? 100 : (int)(n + 0.5);
+                p->trait_set |= 1u << t;
                 return;
             }
         tl_error(l, "an unknown key in personality");
@@ -370,32 +336,113 @@ static void persona_key(void *arg, const char *sec, const char *key, struct tval
         p->line[k] = _strdup(v->src);
     } else tl_error(l, "an unknown record (personality, style, decide, lines)");
 }
-static void persona_load(const char *path, const char *file) {
-    int comp = !lstrcmpiA(file, "computer.eeai");   // the neutral lines are read even with 32 personalities loaded
-    if (g_npersonas >= MAX_PERSONAS && !comp) return;
+// read file (in the folder dir) into p - its own keys only (persona_layers adds its includes'); 0: no such file
+static int persona_parse(const char *dir, const char *file, struct persona *p) {
+    char path[MAX_PATH];
+    snprintf(path, sizeof path, "%s%s", dir, file);
     char *text = read_text_acp(path);
-    if (!text) return;
-    struct persona *p = comp ? &g_computer : &g_personas[g_npersonas];
+    if (!text) return 0;
     memset(p, 0, sizeof *p);
     lstrcpynA(p->file, file, sizeof p->file);
     char *dot = strrchr(p->file, '.');
     if (dot) *dot = 0;
     for (int t = 0; t < T_N; t++) p->trait[t] = 50;
-    static struct persona_read r;
-    memset(&r, 0, sizeof r);
-    r.p = p;
-    tfile_parse(file, text, persona_key, &r);
+    tfile_parse(file, text, persona_key, p);
     free(text);
-    char dir[MAX_PATH];   // its includes' names (vars) after its own
-    lstrcpynA(dir, path, sizeof dir);
-    char *bs = strrchr(dir, '\\');
-    if (bs) bs[1] = 0; else dir[0] = 0;
-    includes_load(dir, &r.inc, &p->vars, p->decide, file, 0);
-    if (comp) {   // the neutral fallback lines (read into g_computer), no personality of its own
-        g_has_computer = 1;
-        return;
+    return 1;
+}
+// THE LIBRARIES: the included files, each read once (computer.eeai into g_computer)
+#define MAX_LIBS 16
+static struct persona *g_libs[MAX_LIBS];
+static int g_nlibs;
+static void persona_layers(struct persona *p, const char *dir, int depth);
+static struct persona *lib_get(const char *dir, const char *file, const char *by, int depth) {
+    for (int i = 0; i < g_nlibs; i++)
+        if (!lstrcmpiA(g_libs[i]->file, file) || (!_strnicmp(g_libs[i]->file, file, strlen(g_libs[i]->file)) && !lstrcmpiA(file + strlen(g_libs[i]->file), ".eeai"))) {
+            if (g_libs[i]->resolving) { x_error("%s: include \"%s\": a circle", by, file); return NULL; }
+            return g_libs[i];
+        }
+    if (depth > 4) { x_error("%s: include \"%s\": more than 4 deep", by, file); return NULL; }
+    if (g_nlibs == MAX_LIBS) { x_error("%s: include \"%s\": more than %d included files", by, file, MAX_LIBS); return NULL; }
+    struct persona *p = !lstrcmpiA(file, "computer.eeai") ? &g_computer : malloc(sizeof *p);
+    if (!persona_parse(dir, file, p)) {
+        x_error("%s: include \"%s\": no such file in aimod_ai", by, file);
+        if (p != &g_computer) free(p);
+        return NULL;
     }
-    g_npersonas++;
+    if (p == &g_computer) g_has_computer = 1;
+    g_libs[g_nlibs++] = p;
+    persona_layers(p, dir, depth);
+    return p;
+}
+// p's layers - its includes, each one's own right after it - and what it takes from them where it has none of its own
+static void persona_layers(struct persona *p, const char *dir, int depth) {
+    p->resolving = 1;
+    for (int i = 0; i < p->inc.n; i++) {
+        struct persona *lib = lib_get(dir, p->inc.name[i], p->file, depth + 1);
+        if (!lib) continue;
+        for (int j = -1; j < lib->nlayer; j++) {
+            struct persona *add = j < 0 ? lib : lib->layer[j];
+            int seen = add == p;
+            for (int k = 0; k < p->nlayer && !seen; k++) seen = p->layer[k] == add;
+            if (!seen && p->nlayer < LAYERS_MAX) p->layer[p->nlayer++] = add;
+        }
+    }
+    p->resolving = 0;
+    for (int i = 0; i < p->nlayer; i++) {
+        const struct persona *q = p->layer[i];
+        for (int k = 0; k < q->vars.n; k++)   // its names where p has no such name (a function too: p's own wins)
+            if (xvars_find(&p->vars, q->vars.key[k]) < 0) {
+                if (p->vars.n == XVARS_MAX) { x_error("%s: more than %d names (vars) with its includes", p->file, XVARS_MAX); break; }
+                xvars_set(&p->vars, q->vars.key[k], q->vars.val[k]);
+            }
+        for (int k = 0; k < D_N; k++) if (!p->decide[k] && q->decide[k]) p->decide[k] = _strdup(q->decide[k]);
+        for (int t = 0; t < T_N; t++) if (!(p->trait_set >> t & 1) && (q->trait_set >> t & 1)) { p->trait[t] = q->trait[t]; p->trait_set |= 1u << t; }
+        if (!p->name[0]) lstrcpyA(p->name, q->name);
+        if (!p->civ[0]) lstrcpyA(p->civ, q->civ);
+        if (!p->character[0]) lstrcpyA(p->character, q->character);
+        if (!p->color && q->color) p->color = _strdup(q->color);
+        for (int k = 0; k < q->nstyle; k++) {
+            int have = 0;
+            for (int m = 0; m < p->nstyle && !have; m++) have = !lstrcmpiA(p->style_key[m], q->style_key[k]);
+            if (!have && p->nstyle < 16) { p->style_key[p->nstyle] = _strdup(q->style_key[k]); p->style_val[p->nstyle++] = _strdup(q->style_val[k]); }
+        }
+    }
+}
+static int layer_has(const struct persona *p, int k) {   // a line for situation k (or a fallback) in p or its layers
+    for (int i = -1; p && i < p->nlayer; i++)
+        for (int t = k; t >= 0; t = line_fallback(t)) if ((i < 0 ? p : p->layer[i])->line[t]) return 1;
+    return 0;
+}
+static void persona_must_check(const struct persona *p) {   // every situation of k_must has a line somewhere
+    char miss[400] = "";
+    for (size_t i = 0; i < sizeof k_must / sizeof *k_must; i++)
+        if (!layer_has(p, k_must[i]) && strlen(miss) < sizeof miss - 30) { lstrcatA(miss, " "); lstrcatA(miss, k_lines[k_must[i]].key); }
+    if (miss[0]) x_error("%s.eeai: no line for%s - a personality must have one (its own or an included file's: include(\"computer.eeai\"))", p->file, miss);
+}
+static void personas_load(void) {
+    char dir[MAX_PATH], pat[MAX_PATH];
+    g_xfn_scanned = 0;   // the files may have changed since: scanned again when a function is first met
+    g_nlibs = 0;
+    g_has_computer = 0;
+    lstrcpyA(dir, g_ai_dir);
+    if (lib_get(dir, "computer.eeai", "eeaimod", 0)) persona_must_check(&g_computer);   // the AIs without a personality
+    snprintf(pat, sizeof pat, "%s*.eeai", dir);
+    WIN32_FIND_DATAA fd;
+    HANDLE h = FindFirstFileA(pat, &fd);
+    if (h == INVALID_HANDLE_VALUE) return;
+    static struct persona p;
+    do {
+        // _system.eeai, _template.eeai: no personality format (texts.c); the libraries are read when included
+        if (!lstrcmpiA(fd.cFileName, "_system.eeai") || !lstrcmpiA(fd.cFileName, "_template.eeai")) continue;
+        if (g_personas_only_computer || g_npersonas >= MAX_PERSONAS || !persona_parse(dir, fd.cFileName, &p)) continue;
+        if (!p.registered) continue;   // a library (its mistakes are told when it is read)
+        g_personas[g_npersonas] = p;
+        persona_layers(&g_personas[g_npersonas], dir, 0);
+        persona_must_check(&g_personas[g_npersonas]);
+        g_npersonas++;
+    } while (FindNextFileA(h, &fd));
+    FindClose(h);
 }
 
 // expr.c x_fn_known: the functions of every file in the folder (name(a, b) = ...), before any file is checked - and
@@ -417,21 +464,6 @@ static void x_fn_scan_dir(void) {
     } while (FindNextFileA(h, &fd));
     FindClose(h);
 }
-static void personas_load(void) {
-    char dir[MAX_PATH], pat[MAX_PATH], path[MAX_PATH];
-    g_xfn_scanned = 0;   // the files may have changed since: scanned again when a function is first met
-    lstrcpyA(dir, g_ai_dir);
-    snprintf(pat, sizeof pat, "%s*.eeai", dir);
-    WIN32_FIND_DATAA fd;
-    HANDLE h = FindFirstFileA(pat, &fd);
-    if (h == INVALID_HANDLE_VALUE) return;
-    do {
-        snprintf(path, sizeof path, "%s%s", dir, fd.cFileName);
-        if (fd.cFileName[0] == '_') continue;   // _system.eeai, _template.eeai, _persona.eeai: no personalities (texts.c)
-        if (!g_personas_only_computer || !lstrcmpiA(fd.cFileName, "computer.eeai")) persona_load(path, fd.cFileName);
-    } while (FindNextFileA(h, &fd));
-    FindClose(h);
-}
 
 static struct persona *persona_of(void *pl) {
     if (!pl) return NULL;
@@ -443,7 +475,7 @@ static int trait(void *pl, enum trait t) { struct persona *p = persona_of(pl); r
 static float tribute_worth(void *pl) { return 20.0f + 0.8f * (float)(100 - trait(pl, T_GREED)); }
 // the share of each resource pl offers in a capitulation, by its caution and greed
 static float capit_share(void *pl) { return 0.2f + (float)trait(pl, T_CAUTION) / 400.0f + (float)(100 - trait(pl, T_GREED)) / 400.0f; }
-// A situation without a line falls back to a more general one; then computer.eeai.
+// A situation without a line falls back to a more general one; then the next layer (line_source).
 static int line_fallback(int k) {
     switch (k) {
     case L_BETRAYED: return L_WAR_DECLARED;
@@ -528,21 +560,23 @@ static int line_pick(struct persona *p, int k, struct xctx *c, uint32_t last, ch
     }
     return x.w;
 }
-// where situation k's line comes from for this AI: its personality (k or a fallback of it), else computer.eeai - the
-// first whose line has something to say now (*kk the situation, *n how many it was chosen from)
+// where situation k's line comes from for this AI: its personality (computer.eeai without one), then its layers (its
+// includes) - the first whose chain (k, then its fallbacks) has something to say now (*kk the situation, *n how many
+// it was chosen from)
 static struct persona *line_source(void *pl, int k, int *kk, struct xctx *c, uint32_t last, char *out, int cap, int *n) {
     struct persona *p = persona_of(pl);
-    for (int t = k; t >= 0 && p; t = line_fallback(t))
-        if (p->line[t] && (*n = line_pick(p, t, c, t == k ? last : 0, out, cap)) > 0) { *kk = t; return p; }
-    for (int t = k; t >= 0 && g_has_computer; t = line_fallback(t))
-        if (g_computer.line[t] && (*n = line_pick(&g_computer, t, c, t == k ? last : 0, out, cap)) > 0) { *kk = t; return &g_computer; }
+    if (!p && g_has_computer) p = &g_computer;
+    for (int i = -1; p && i < p->nlayer; i++) {
+        struct persona *q = i < 0 ? p : p->layer[i];
+        for (int t = k; t >= 0; t = line_fallback(t))
+            if (q->line[t] && (*n = line_pick(q, t, c, t == k ? last : 0, out, cap)) > 0) { *kk = t; return q; }
+    }
     return NULL;
 }
 static int persona_has(void *pl, enum line_kind k) {   // a line for it somewhere (whether it has something to say now or not)
     if (!pl || !g_ai_talk) return 0;
     struct persona *p = persona_of(pl);
-    for (int t = k; t >= 0; t = line_fallback(t)) if ((p && p->line[t]) || (g_has_computer && g_computer.line[t])) return 1;
-    return 0;
+    return layer_has(p ? p : g_has_computer ? &g_computer : NULL, k);
 }
 
 // Personalities in use this game (each once before any repeats)

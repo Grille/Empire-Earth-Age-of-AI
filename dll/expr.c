@@ -1,7 +1,8 @@
 // THE TEXT FILES (<game>\aimod_ai\*.eeai: the personalities, _system.eeai, _template.eeai) and the EXPRESSIONS in them.
 // A file: "name = value" lines - a name the file's lines use (or, for a few names, what the file is about), records
-// "lines = {" ... "}" (the keys the code reads, one "key = value" a line), include("_shared.eeai") - and comments from #
-// to the line's end (outside a string). A value is an expression - over several lines while a ( [ or { is open:
+// "lines = {" ... "}" (the keys the code reads, one "key = value" a line), include("computer.eeai"),
+// register_personality() - and comments from # to the line's end (outside a string). A value is an expression - over
+// several lines while a ( [ or { is open:
 //   "text"                          a string; \" \\ \n escapes. {expressions} in it - {them} -
 //                                   {opinion > 30 ? "friend" : "stranger"}: the quotes inside the braces are the
 //                                   expression's, not the string's end; a string stays on its line
@@ -41,8 +42,9 @@
 // the name it is in (row(3)), its parameters and the names of the code around where it was made visible (those read
 // only: frames, x_call_value), the values it made freed when it returns but what it hands back (never a function made
 // in it). Statements (a block's, a script's - one a line): name = value, return [value], an expression. The text
-// files hold names, records and include() only - nothing runs from the top: their values are worked out where the
-// code needs them, for whoever speaks to whom - and nothing loops: a text can't hang the game. Scripts (scripts.c,
+// files hold names, records and the declarations include(), register_personality() only - nothing runs from the
+// top: their values are worked out where the code needs them, for whoever speaks to whom - and nothing loops: a text
+// can't hang the game. Scripts (scripts.c,
 // docs/scripts.md) add the commands, wait, wait_until, every (bounded), for (bounded), player(n), time, stop and 20s / 19.5min.
 // MISTAKES WHILE WORKING OUT (x_fail; the file was fine, the value isn't): an unknown name, a text in arithmetic
 // ("a" * 2), a text and a number added or compared ("12" + 1, "12" == 12), chance(70), a player who isn't there used
@@ -2020,9 +2022,10 @@ static int tl_line_end(struct tlex *l, const char *what) {   // nothing more on 
     if (*l->s && *l->s != '\n') { tl_error(l, what); return 0; }
     return 1;
 }
-// read a text file: fn(arg, record, key, value) for every key - record "" for a name outside the records, and
-// include("a.eeai", ...) as the key "include" with the list ["a.eeai", ...]; mistakes logged with the file and line,
-// their keys skipped
+// read a text file: fn(arg, record, key, value) for every key - record "" for a name outside the records, and the
+// declarations include("a.eeai", ...) as the key "include" with the list ["a.eeai", ...], register_personality() as
+// the key "register_personality" ([]); mistakes logged with the file and line, their keys skipped
+static int tl_declaration(const char *key) { return !strcmp(key, "include") || !strcmp(key, "register_personality"); }
 typedef void (*tfile_fn)(void *arg, const char *record, const char *key, struct tval *v, struct tlex *l);
 static void tfile_parse(const char *file, const char *text, tfile_fn fn, void *arg) {
     struct tlex l = { text, file, 1, 0 };
@@ -2048,7 +2051,7 @@ static void tfile_parse(const char *file, const char *text, tfile_fn fn, void *a
             int n = 0;
             while (*l.s && (isalnum((unsigned char)*l.s) || *l.s == '_') && n < 47) key[n++] = *l.s++;
             key[n] = 0;
-            if (n && *l.s == '(' && !*record && !strcmp(key, "include")) {   // include("a.eeai", ...): ["a.eeai", ...]
+            if (n && *l.s == '(' && !*record && tl_declaration(key)) {   // include("a.eeai", ...): ["a.eeai", ...]
                 struct tval v;
                 memset(&v, 0, sizeof v);
                 v.line = l.line;
@@ -2057,7 +2060,7 @@ static void tfile_parse(const char *file, const char *text, tfile_fn fn, void *a
                 while (*l.s && *l.s != ')' && *l.s != '\n')
                     if (*l.s == '"' || *l.s == '\'') { if (x_string(l.s, NULL, 0, &e, &why) < 0) break; l.s = e; }
                     else l.s++;
-                if (*l.s != ')') { tl_error(&l, "include(\"_file.eeai\"): a ) missing"); }
+                if (*l.s != ')') { tl_error(&l, "a ) missing"); }
                 else {
                     size_t k = (size_t)(l.s - b);
                     v.src = malloc(k + 3);
@@ -2066,7 +2069,8 @@ static void tfile_parse(const char *file, const char *text, tfile_fn fn, void *a
                     v.src[k + 1] = ']';
                     v.src[k + 2] = 0;
                     l.s++;
-                    if (tl_line_end(&l, "something after include(...)")) fn(arg, "", "include", &v, &l);
+                    if (key[0] == 'r' && k) tl_error(&l, "register_personality() takes nothing");
+                    else if (tl_line_end(&l, "something after the )")) fn(arg, "", key, &v, &l);
                 }
                 tval_free(&v);
                 goto next;
@@ -2107,8 +2111,8 @@ static void tfile_parse(const char *file, const char *text, tfile_fn fn, void *a
                     l.s = strchr(l.s, '{') + 1;
                     tl_line_end(&l, "");
                 }
-            } else if (!*record && !strcmp(key, "include")) {
-                tl_error(&l, "include(\"_file.eeai\") - a call, not a name");
+            } else if (!*record && tl_declaration(key)) {
+                tl_error(&l, key[0] == 'i' ? "include(\"computer.eeai\") - a call, not a name" : "register_personality() - a call, not a name");
             } else if (l.s[1 + strspn(l.s + 1, " \t")] == '{') {
                 tl_error(&l, "a record: name = { at the end of its line, a key = value a line below it, } on a line of its own");
             } else {

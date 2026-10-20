@@ -9,24 +9,27 @@ or absolute).
 
 | File | What it is |
 |---|---|
-| `eroberer.eeai`, `haendler.eeai`, ... | One personality each: a name, colours, character traits and the lines it says |
-| `computer.eeai` | No personality but the fallback: neutral lines for what must not go unsaid (war, peace, offers, capitulation, victory) |
+| `eroberer.eeai`, `haendler.eeai`, ... | One personality each (`register_personality()`): a name, colours, character traits and the lines it says |
+| `computer.eeai` | No personality but their base, included by each: neutral lines for what must not go unsaid (war, peace, offers, capitulation, victory), the `decide` rules, `this_war`, `many_dead`, `big_tribute`. AIs without a personality speak with it |
 | `_persona.eeai` | An empty personality with every key, to copy |
 | `_system.eeai` | The system lines the mod shows you (white, from nobody in particular) |
 | `_template.eeai` | What the mod tells the language model (`[llm]` in aimod.ini): who the AI is, the game as it stands, the situations, the tools |
 
-Files whose names start with `_` are no personalities. A key left out of `_system.eeai` or `_template.eeai` keeps
-the built-in text; delete either file to get every built-in text back.
+A file is a personality only when it declares `register_personality()`; any other is a library that personalities
+include. A key left out of `_system.eeai` or `_template.eeai` keeps the built-in text; delete either file to get
+every built-in text back.
 
 ## A new personality
 
-Copy `_persona.eeai` to a new name in this folder, for example `seefahrer.eeai`, and fill it in. Every AI of a game
+Copy `_persona.eeai` to a new name in this folder, for example `seefahrer.eeai`, take the `#` from its
+`#register_personality()` and fill it in. Every AI of a game
 gets a personality at random, each one once before any repeats; on random maps its favoured colour comes first. To
 give a player a particular one, set `personality_P2=seefahrer` (the file name without `.eeai`) in aimod.ini.
 `ai_talk=0` in aimod.ini silences all lines, `ai_names=0` keeps the game's own player and civilization names.
 
 ```
-include("_eeaimod_shared.eeai")
+include("computer.eeai")
+register_personality()
 
 personality = {
     name = "Captain Ines"
@@ -62,7 +65,8 @@ A file is made of `name = value` lines, one a line:
   `_template.eeai` `prompt`. A record's `{` ends its line; records don't nest.
 - **Names outside the records** are the file's own (its *vars*): values its lines use, `{friend}` or `friend` -
   written anywhere outside the records, before or after the lines that use them.
-- **`include("_eeaimod_shared.eeai")`** names files whose names and `decide` keys the personality shares (see below).
+- **`include("computer.eeai")`** names files whose lines, names and keys the personality builds on (see below);
+  **`register_personality()`** makes the file a personality.
 
 A comment runs from `#` to the end of the line, also after a value (not inside a string). A value is an
 **expression**; it may go over several lines while a `(`, `[` or `{` is open:
@@ -139,7 +143,9 @@ How a line is chosen:
 2. The value is worked out: a list gives one of its items at random, conditions leave items out. The same text as
    last time is avoided when there is another.
 3. **Nothing to say** - no key, `[]`, or a list whose conditions all fail - falls back to a more general situation
-   (the fallback column), then to `computer.eeai`, else the AI stays silent.
+   (the fallback column), then to the included files (`computer.eeai`) the same way, else the AI stays silent.
+   A personality must have a line for what must not go unsaid (war, peace, offers, capitulation, victory, defeat),
+   its own or an included file's - else it is a mistake, told when the files are read.
 4. Only those it is meant for hear it: everyone, the AI's allies, or the player it is said to (`{them}`).
 5. With the AI voice on (`[llm]` in aimod.ini) a language model says the line in the AI's own words, from its
    `character`, its traits and the game as it stands; the chosen line is its example.
@@ -293,25 +299,31 @@ lines = {
 - A function may call others; one that calls itself stops at the nesting limit (a mistake, never a hang).
 - Lookup is as for the other names: the personality's own first, then its includes, then `_system.eeai`.
 
-### Shared names: include
+### Includes: building on other files
 
-Names that several personalities share go into a file of their own, which each of them names:
+A personality names the files it builds on - eeaimod's personalities `computer.eeai`:
 
 ```
-include("_eeaimod_shared.eeai")
+include("computer.eeai")
+register_personality()
 
 personality = {
     ...
 }
 ```
 
-or several: `include("_eeaimod_shared.eeai", "_knights.eeai")`. Their names come after the personality's own - a name
-it defines itself wins - in the order named; their `decide` keys likewise. An included file holds only names,
-`decide = { }` and includes of its own (4 deep, no circles). Only a file name in this folder: no path.
+or several: `include("_knights.eeai", "computer.eeai")`. The included files are its **layers**, in the order named,
+each one's own includes right after it (4 deep, no circles; only a file name in this folder, no path):
 
-Start a shared file's name with `_` (no personality is read from it), and give a pack of your own its own shared file
-with its own name: packs dropped into this folder then never depend on each other. eeaimod's personalities share
-`_eeaimod_shared.eeai`: `this_war`, `many_dead`, `big_tribute`, and the `decide` rules.
+- **Lines:** a situation's line comes from the personality's own chain first (the situation, then its fallbacks),
+  then from each layer's chain in turn - the first that has something to say now. An included file's line is worked
+  out with its own names first.
+- **Names, `decide`, `personality` and `style` keys:** the personality's own win; a key it doesn't write comes from
+  the first layer that has it (`aggression` from `_knights.eeai` when the knight doesn't set its own).
+
+A file without `register_personality()` is only a library: no AI gets it. Give a pack of your own its own base (a
+file of its own name that includes `computer.eeai`, or replaces it): packs dropped into this folder then never
+depend on each other.
 
 ## The game's values
 
@@ -532,7 +544,7 @@ mistake: that key keeps the difficulty's value.
 
 The AI's diplomacy decides by numbers worked out from expressions - the same ones as in its lines, with `me` the AI,
 `them` the other player and `enemy` its strongest enemy (there may be none: check it, `enemy and ...`). eeaimod's
-are in `_eeaimod_shared.eeai`; a personality that writes one of them in its own `decide = { }` decides that its own way:
+are in `computer.eeai`; a personality that writes one of them in its own `decide = { }` decides that its own way:
 
 | Key | When | The AI ... |
 |---|---|---|

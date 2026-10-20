@@ -1,5 +1,6 @@
 # AI personality for eeaimod - the format and every key: _persona.eeai.
-include("_eeaimod_shared.eeai")
+include("computer.eeai")
+register_personality()
 
 personality = {
     name = "Khan Temur"

@@ -120,11 +120,13 @@ peace or alliances. With the mod:
   its own lines for situations of the game: greetings, attacks, being attacked, new ages, winning and losing,
   diplomacy. Six personalities are included, in English (other languages: at the release, a file each). A saved
   game finds its personalities again.
-  `computer.eeai` in the same folder is no personality but the fallback: neutral lines for what must not go
-  unsaid (war, peace, offers waiting for your answer, capitulation, victory). A personality without a line for
-  such a situation uses it, and AIs without any personality speak only these lines. `_persona.eeai` is an empty
-  personality with every key explained: copy it to a new name to make your own.
-- **The mod's own texts** are in the same folder too (files starting with `_` are no personalities):
+  A file is a personality when it says so (`register_personality()`); `computer.eeai` in the same folder is none
+  but their base, which each of them includes (`include("computer.eeai")`): neutral lines for what must not go
+  unsaid (war, peace, offers waiting for your answer, capitulation, victory), the diplomacy's rules and a few
+  shared values. A personality without a line for such a situation uses its line, and AIs without any personality
+  speak only these lines. `_persona.eeai` is an empty personality with every key explained: copy it to a new
+  name to make your own.
+- **The mod's own texts** are in the same folder too:
   `_system.eeai` holds the system lines it shows you (offers waiting for your answer, chat hints, victory) in
   English (German built in, for a German game), `_template.eeai` everything it tells the language
   model (the AI voice: who the AI is, the rules, the game as it stands, the situations, the tools). Placeholders in

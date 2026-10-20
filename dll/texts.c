@@ -97,7 +97,7 @@ static int g_texts_sys_n, g_texts_tpl_n, g_texts_var_n;   // keys read (log)
 static void texts_key(void *arg, const char *sec, const char *key, struct tval *v, struct tlex *l) {
     int sys = arg != NULL;
     if (!*sec) {
-        if (!lstrcmpiA(key, "include")) { tl_error(l, "include() is for the personalities"); return; }
+        if (!lstrcmpiA(key, "include") || !lstrcmpiA(key, "register_personality")) { tl_error(l, "include() and register_personality() are for the personalities"); return; }
         xvars_set(sys ? &g_vars_sys : &g_vars_tpl, key, v->src);
         g_texts_var_n++;
         return;
@@ -473,6 +473,31 @@ static void texts_corpus(char *out, const char *path) {
                     corpus_eval(tag, p->decide[k], pls[a], pls[b], third, &p->vars, 1, 0);
                 }
                 n0++;
+            }
+        }
+    }
+    for (int a = 1; a < np && a < 16; a++) {   // what each AI would say: the line chosen (its source, the situation)
+        if (!g_players[a] || !pls[a]) continue;
+        for (int b = 1; b < np && b < 16; b++) {
+            if (b == a || !pls[b]) continue;
+            void *third = NULL;
+            for (int t = 1; t < np && t < 16 && !third; t++) if (t != a && t != b && pls[t]) third = pls[t];
+            for (int k = 0; k < L_N; k++) {
+                uint32_t r0 = g_rnd, g0 = g_rnd_game;
+                g_rnd = 0x13579BDFu; g_rnd_game = 0x2468ACE0u;
+                struct line_ctx l;
+                line_ctx_init(&l, pls[a], pls[b], third);
+                char buf[512];
+                int kk = k, cnt = 0;
+                corpus_begin();
+                struct persona *p = line_source(pls[a], k, &kk, &l.c, 0, buf, sizeof buf, &cnt);
+                snprintf(tag, sizeof tag, "said P%d>P%d %s", a, b, k_lines[k].key);
+                fprintf(g_corpus, "%s | %s as %s, one of %d [", tag, p ? (p == &g_computer ? "computer.eeai" : p->file) : "-",
+                        k_lines[kk].key, p ? cnt : 0);
+                if (p) corpus_esc(buf);
+                fprintf(g_corpus, "] rnd %08x %08x", g_rnd, g_rnd_game);
+                corpus_end();
+                g_rnd = r0; g_rnd_game = g0;
             }
         }
     }

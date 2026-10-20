@@ -24,7 +24,7 @@
 //   score = opinion + 25 x log2(his power / own power) (at most +-40) + 0.4 x (50 - aggression) - 0.3 x (pride - 50)
 //           + 15 if he fights the AI's strongest enemy        accept if score > 0.
 //   The score is the personality's decide peace_score when it has one (persona.c; the shipped files: this formula
-//   in _eeaimod_shared.eeai); the pride/20 minutes are the rule's.
+//   in computer.eeai); the pride/20 minutes are the rule's.
 // Power = sum of soldier hit points + 30 per building (scan every 10 s).
 //
 // AI INITIATIVE ([all] ai_diplomacy, default 1; not in scenarios/campaigns, not with locked teams), per AI every

@@ -1,20 +1,23 @@
-# _persona.eeai - a template for a new AI personality (eeaimod). Not a personality itself: files starting with "_"
-# are skipped. Copy it to a new name in this folder (e.g. seefahrer.eeai), fill it in, and the AIs of the next game
-# may get it (picked at random, a matching colour first).
+# _persona.eeai - a template for a new AI personality (eeaimod). Not a personality itself: its
+# register_personality() below is commented out. Copy it to a new name in this folder (e.g. seefahrer.eeai), take
+# the # from register_personality(), fill it in, and the AIs of the next game may get it (picked at random, a
+# matching colour first).
 #
 # Each situation below gets a line: a string, or a list of them (one at random), with conditions if you like:
 #   greeting = [allied ? "Welcome back, {them}.", opinion < -50% ? ["Go away.", "You again?"]] ?? "Greetings, {them}."
 # A situation without a line stays silent - unless it must be said (war, peace, offers, capitulation, victory): then
-# a more general situation speaks (noted below) or computer.eeai. The lines are English.
+# a more general situation speaks (noted below) or an included file - computer.eeai. The lines are English.
 #
 # key = value, a value is an expression: "a string" ({placeholders} and {expressions} in it), ["a list", "of
 # strings"] (one at random), allied ? "a condition", a ?? b, numbers ... The keys the mod reads stand in records
 # (lines = { ... }); a name outside them is the file's own, for its values. The format, the expressions and every
 # value of the game (opinion, them.soldiers, epoch.middle, ...): README.md in this folder.
 
-# the shared names (vars) and decide keys of other files in this folder, after this one's own (this_war, many_dead,
-# big_tribute):
-include("_eeaimod_shared.eeai")
+# eeaimod's base: the lines that must not go unsaid, the names this_war, many_dead, big_tribute, the decide rules -
+# each counts where this file has none of its own
+include("computer.eeai")
+# this file is a personality (an AI may get it) - without it, a file is only included by others
+#register_personality()
 
 personality = {
     # the name in the game (the player name in the scores and the chat)

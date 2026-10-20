@@ -844,7 +844,11 @@ worked out partly (a list item drawn, a name looked up) before it found the mist
 it. The games themselves were the same, row for row. A change to the engine: run the corpus before and after (`texts
 corpus` at the same minutes of the same game_seed) and compare. The text files' records (`lines = { ... }` instead of
 `[lines]`, 2026-10-21): the old reader with the old files against the new one with the converted files, Continental
-game_seed 777 at 5, 15, 30 - every line the same.
+game_seed 777 at 5, 15, 30 - every line the same. Since 2026-10-21 the corpus also has a `said P2>P1 <situation>`
+row for every AI, listener and situation: the line `line_source` would choose (its file, the situation it came from,
+the text) - the fallbacks and layers, not only each expression. computer.eeai as an included layer
+(`register_personality()`, `_eeaimod_shared.eeai` merged into it): Continental 777 at 5/15/30 and Highlands 5 AIs
+(seed 202, game_seed 4242) at 12/40, 43295 rows - every one the same.
 
 ### Headless UI tests (menus, editor)
 
