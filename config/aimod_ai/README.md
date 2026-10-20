@@ -3,7 +3,9 @@
 This folder holds the words of eeaimod's computer players: their personalities, the system lines the mod shows
 you, and what it tells a language model when the AI voice is on. Every file is plain text (UTF-8) with the
 extension `.eeai`; this README is not read by the game. The files are read once, when Empire Earth starts - restart
-the game after editing.
+the game after editing. The folder sits next to Empire Earth.exe; `ai_dir=` in aimod.ini's `[general]` reads it from
+somewhere else instead (for example where you edit it: `ai_dir=_aimod\config\aimod_ai`, relative to the game folder
+or absolute).
 
 | File | What it is |
 |---|---|

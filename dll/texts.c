@@ -89,7 +89,7 @@ static int text_index(const struct text_def *t, int n, const char *key) {
     return -1;
 }
 static void texts_dir(char *dir) {
-    lstrcpyA(dir, g_ai_dir);   // <game>\aimod_ai\ (autotest: [autotest] ai_dir)
+    lstrcpyA(dir, g_ai_dir);   // <game>\aimod_ai\, [general] ai_dir or [autotest] ai_dir
 }
 static int g_texts_sys_n, g_texts_tpl_n, g_texts_var_n;   // keys read (log)
 static struct xvars g_vars_sys_lang;   // _system.eeai [vars:<language>], merged into g_vars_sys after loading

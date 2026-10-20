@@ -123,7 +123,8 @@ static void *g_players[16];   // EEComputerPlayer seen by the AI hooks, by playe
 static char g_ini[MAX_PATH], g_aimod_ini[MAX_PATH];   // aimod_autotest.ini, aimod.ini (paths set in DllMain)
 // <game>\ and <game>\aimod_ai\ (with the backslash). Under autotest the config and the personality folder come from
 // aimod_autotest.ini [autotest] config / ai_dir (run_test.ps1: the repository's config\ by default), so tests measure
-// the shipped files, not the player's own ..\aimod.ini; normal play: always next to the game.
+// the shipped files, not the player's own ..\aimod.ini; normal play: aimod.ini next to the game, the personalities
+// from its [general] ai_dir (a developer's game reading the repository's files) or next to the game.
 static char g_game_dir[MAX_PATH], g_ai_dir[MAX_PATH];
 static int g_slot;   // a test slot (TEST SLOTS, at slot_dir), 0: none
 static BOOL patch_srand(void);
@@ -878,23 +879,37 @@ static void config_missing(const char *ini) {
 // Autotest: [autotest] config = the aimod.ini to play with, ai_dir = the personality folder (aimod_ai), each absolute
 // or relative to the game folder; unset = the files next to the game as in normal play. Every reader of the settings
 // goes through g_aimod_ini / g_ai_dir, so the whole file ([general], [all], the difficulties, [display], [llm] ...)
-// comes from the chosen one.
+// comes from the chosen one. The personality folder otherwise: aimod.ini [general] ai_dir (the same path rules), so a
+// developer's game reads the repository's files (ai_dir = _aimod\config\aimod_ai) instead of a copy. A folder that
+// isn't there: the one next to the game, told in the log (g_ai_dir_why).
+static char g_ai_dir_why[MAX_PATH + 64];
+static void game_path(const char *v, char *out, int cap) {   // absolute, or relative to the game folder; '/' as '\'
+    if (v[1] == ':' || (v[0] == '\\' && v[1] == '\\')) lstrcpynA(out, v, cap);
+    else snprintf(out, cap, "%s%s", g_game_dir, v);
+    for (char *c = out; *c; c++) if (*c == '/') *c = '\\';
+}
 static void config_paths(void) {
     char v[MAX_PATH];
-    GetPrivateProfileStringA("autotest", "config", "", v, sizeof v, g_ini);
-    if (v[0]) {
-        if (v[1] == ':' || (v[0] == '\\' && v[1] == '\\')) lstrcpynA(g_aimod_ini, v, MAX_PATH);
-        else snprintf(g_aimod_ini, MAX_PATH, "%s%s", g_game_dir, v);
-        for (char *c = g_aimod_ini; *c; c++) if (*c == '/') *c = '\\';
+    if (g_auto.enabled) {
+        GetPrivateProfileStringA("autotest", "config", "", v, sizeof v, g_ini);
+        if (v[0]) game_path(v, g_aimod_ini, MAX_PATH);
     }
-    GetPrivateProfileStringA("autotest", "ai_dir", "", v, sizeof v, g_ini);
-    if (v[0]) {
-        if (v[1] == ':' || (v[0] == '\\' && v[1] == '\\')) lstrcpynA(g_ai_dir, v, MAX_PATH - 1);
-        else snprintf(g_ai_dir, MAX_PATH - 1, "%s%s", g_game_dir, v);
-        for (char *c = g_ai_dir; *c; c++) if (*c == '/') *c = '\\';
-        size_t n = strlen(g_ai_dir);
-        if (n && g_ai_dir[n - 1] != '\\') lstrcatA(g_ai_dir, "\\");
+    const char *from = "autotest";
+    if (!g_auto.enabled || !ini_raw("autotest", "ai_dir", g_ini, v, sizeof v)) {
+        from = "general";
+        if (!ini_raw("general", "ai_dir", g_aimod_ini, v, sizeof v)) return;
     }
+    char dir[MAX_PATH];
+    game_path(v, dir, MAX_PATH - 1);
+    size_t n = strlen(dir);
+    while (n > 3 && (dir[n - 1] == '\\' || dir[n - 1] == ' ')) dir[--n] = 0;
+    DWORD a = GetFileAttributesA(dir);
+    if (a == INVALID_FILE_ATTRIBUTES || !(a & FILE_ATTRIBUTE_DIRECTORY)) {
+        snprintf(g_ai_dir_why, sizeof g_ai_dir_why, "[%s] ai_dir %s: no such folder", from, dir);
+        return;
+    }
+    lstrcatA(dir, "\\");
+    lstrcpyA(g_ai_dir, dir);
 }
 
 static void install(HMODULE self) {
@@ -917,7 +932,7 @@ static void install(HMODULE self) {
         load_autotest(path);
         lstrcpyA(g_ini, path);
         wsprintfA(g_aimod_ini, "%saimod.ini", g_game_dir);
-        if (g_auto.enabled) config_paths();
+        config_paths();
         // required: missing -> error and quit; [general] enabled=0 -> no hooks
         if (GetFileAttributesA(g_aimod_ini) == INVALID_FILE_ATTRIBUTES) config_missing(g_aimod_ini);
         wsprintfA(g_log_path, "%saimod_econ.csv", dir);
@@ -943,7 +958,7 @@ static void install(HMODULE self) {
                 st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond);
         log_header();
         ini_flush();   // a setting's mistakes found before the log was open
-        fprintf(g_log, "# config: %s (personalities: %s)\n", g_aimod_ini, g_ai_dir);
+        fprintf(g_log, "# config: %s (personalities: %s%s%s)\n", g_aimod_ini, g_ai_dir, g_ai_dir_why[0] ? " - " : "", g_ai_dir_why);
         char me[MAX_PATH];
         if (GetEnvironmentVariableA("EEAIMOD_DLL", me, sizeof me) && GetModuleFileNameA(self, me, sizeof me))
             fprintf(g_log, "# dll: %s (the test run's own, built %s %s)\n", me, __DATE__, __TIME__);
