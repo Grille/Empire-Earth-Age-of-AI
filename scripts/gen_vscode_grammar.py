@@ -28,6 +28,7 @@ values = bare
 epochs = re.findall(r'"(\w+)"', re.search(r'k_epoch_const\[15\] = \{(.*?)\};', expr, re.S).group(1))
 colors = re.findall(r'\{ "(\w+)", "', re.search(r'k_color_names\[17\]\[3\] = \{(.*?)\};', persona, re.S).group(1))   # the English names
 units = re.findall(r'"(\w+)"', re.search(r'k_units_const\[6\] = \{(.*?)\};', expr, re.S).group(1))
+resources = re.findall(r'"(\w+)"', re.search(r'k_resource_const\[5\] = \{(.*?)\};', expr, re.S).group(1)) + ['all']
 funcs = sorted(set(re.findall(r'!lstrcmpiA\(name, "(\w+)"\)', expr)) - {'true', 'false', 'return', 'and', 'or', 'not'})
 script_funcs = re.findall(r'\{ "(\w+)", \d \}', re.search(r'x_script_fn\(const char \*name\) \{(.*?)\n\}', expr, re.S).group(1))
 commands = re.findall(r'"(\w+)"', open(os.path.join(root, 'dll', 'cmd_verbs.h'), encoding='utf-8').read())
@@ -56,6 +57,8 @@ expression = [
     {'name': 'invalid.illegal.unknown-color.eeaimod', 'match': r'\bcolor\.[A-Za-z_][\w.]*'},
     {'name': 'support.constant.units.eeaimod', 'match': r'\bunits\.(?:' + '|'.join(units) + r')\b(?!\.)'},
     {'name': 'invalid.illegal.unknown-units.eeaimod', 'match': r'\bunits\.[A-Za-z_][\w.]*'},
+    {'name': 'support.constant.resource.eeaimod', 'match': r'\bresource\.(?:' + '|'.join(resources) + r')\b(?!\.)'},
+    {'name': 'invalid.illegal.unknown-resource.eeaimod', 'match': r'\bresource\.[A-Za-z_][\w.]*'},
     {'name': 'support.constant.unit-type.eeaimod', 'match': r'\bunit\.(?:' + '|'.join(unit_ids) + r')\b(?!\.)'},   # docs/units.md
     {'name': 'invalid.illegal.unknown-unit-type.eeaimod', 'match': r'\bunit\.[A-Za-z_][\w.]*'},
     {'name': 'keyword.control.return.eeaimod', 'match': r'\breturn\b'},

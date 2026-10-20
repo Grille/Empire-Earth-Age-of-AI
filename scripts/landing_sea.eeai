@@ -1,7 +1,7 @@
 # the sea held (reference save): P1 (the player) has 7 U-boats and 6 strafing Fokkers before its coast; P2 a big landing with 4 frigates and 2 cruisers (zz variant without them: it waits and calls off)
 
 wait_until(75.8min)
-give(2, 4000)
+give(2, 4000, resource.all)
 spawn(2, unit.inf10_trench_mortar, 36, 84, 40)
 spawn(2, unit.s10_atomic_age_transport, 22, 53, 3)
 terrain(68, 63, 8)

@@ -1,7 +1,7 @@
 # a landing behind the player's lines: the reference save, P3 given resources (it is broke there), landing=1
 
 wait_until(75.85min)
-give(3, 3000)
+give(3, 3000, resource.all)
 wait_until(75.9min)
 attacknow(3)
 wait_until(75.95min)

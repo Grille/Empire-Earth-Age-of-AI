@@ -1,7 +1,7 @@
 wait_until(75.9min)
 asgtrace(3)
 wait_until(75.92min)
-give(3, 3000)
+give(3, 3000, resource.all)
 wait_until(76min)
 attacknow(3)
 wait_until(80min)

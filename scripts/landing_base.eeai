@@ -1,7 +1,7 @@
 # a forward base (reference save): P2 given 60 machine gunners at home, 5 transports and resources - 10 citizens along build towers, barracks, town center, hospital, factory
 
 wait_until(75.8min)
-give(2, 4000)
+give(2, 4000, resource.all)
 spawn(2, unit.inf10_trench_mortar, 36, 84, 60)
 spawn(2, unit.s10_atomic_age_transport, 22, 53, 5)
 wait_until(76.2min)

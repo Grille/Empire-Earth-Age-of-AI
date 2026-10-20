@@ -400,6 +400,9 @@ static void x_missing(struct xctx *c, const char *who) {
 // epoch.<name>: an epoch's number, in every language the same (the names the game's own are in another language)
 static const char *const k_epoch_const[15] = { "prehistoric", "stone", "copper", "bronze", "dark", "middle", "renaissance",
     "imperial", "industrial", "atomic_wwi", "atomic_wwii", "atomic_modern", "digital", "nano", "space" };
+// resource.<name>: a resource's number 1..5 (food, wood, stone, gold, iron - the game's order), its text its name;
+// resource.all 0 (give: each of them)
+static const char *const k_resource_const[5] = { "food", "wood", "stone", "gold", "iron" };
 // units.<kind>: which units kills counts (diplo.c x_method) - a value of its own, its text its name
 static const char *const k_units_const[6] = { "all", "army", "airforce", "marine", "military", "civilian" };
 static int x_units_filter(const struct xval *v) {   // the kind a units.<kind> value stands for; -1: none
@@ -418,6 +421,11 @@ static int x_const(const char *name, struct xval *v) {
     if (!_strnicmp(name, "units.", 6)) {
         for (int k = 0; k < 6; k++)
             if (!lstrcmpiA(name + 6, k_units_const[k])) { char t[24]; wsprintfA(t, "units.%s", k_units_const[k]); xstr(v, t); return 1; }
+        return 0;
+    }
+    if (!_strnicmp(name, "resource.", 9)) {   // resource.gold: 4 (and "gold"); resource.all: 0 - each of them
+        if (!lstrcmpiA(name + 9, "all")) { xdual(v, 0, "all"); return 1; }
+        for (int k = 0; k < 5; k++) if (!lstrcmpiA(name + 9, k_resource_const[k])) { xdual(v, k + 1, k_resource_const[k]); return 1; }
         return 0;
     }
     if (!_strnicmp(name, "unit.", 5)) {   // unit.b_guard_tower_bronze: a unit or building type - its number and identifier

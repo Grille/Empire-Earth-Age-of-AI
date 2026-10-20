@@ -199,14 +199,14 @@ static void cmd_targets(char *out, const char *args) {
 // float xy[2], char player)) handed to the lockstep server ([0x91984C] slot 6: (msg, 0xFF)). The simulation
 // executes it in a coming tick (EEMHackANewUnit::vf10 0x4B7044: ground height, buildings checked against the
 // map) - like any player command. Several units go on a grid of 2 tiles around x, y.
-// give P amount (test): player P's stock of food, wood, stone, gold and iron each grows by amount
+// give P amount R (test): player P's stock of resource R grows by amount - R 1 food .. 5 iron, 0 each of them (a
+// script: resource.gold, resource.all)
 static void cmd_give(char *out, const char *args) {
-    int p = 0, amount = 0;
-    sscanf(args, "%d %d", &p, &amount);
-    void *pl = (p >= 0 && p < 16) ? g_players[p] : NULL;
-    if (!pl) { REPLY("error: give P amount\n"); return; }
+    int p = 0, amount = 0, r = -1;
+    void *pl = sscanf(args, "%d %d %d", &p, &amount, &r) == 3 && p >= 0 && p < 16 ? g_players[p] : NULL;
+    if (!pl || r < 0 || r > 5) { REPLY("error: give P amount R (R: 0 all, 1 food .. 5 iron - resource.all, resource.gold ...)\n"); return; }
     int *stock = (int *)((uint8_t *)pl + PL_STOCK);
-    for (int k = 2; k < 7; k++) stock[k] += amount;
+    for (int k = 2; k < 7; k++) if (!r || k == r + 1) stock[k] += amount;
     REPLY("P%d: stock %d/%d/%d/%d/%d\n", p, stock[2], stock[3], stock[4], stock[5], stock[6]);
 }
 
