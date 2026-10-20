@@ -3,11 +3,15 @@
 //   16 player slots of 0x38 bytes: +0 type (1 human, 0 computer, 4 closed; 3 = unused in saved games),
 //     +4 = 3, +8 UString name, +0x20 slot index, +0x24 colour, +0x28 team (0 = none), +0x2C starting
 //     citizens, +0x34 flags (human 0x75010001, computer 0x77010000).
-//   +0x3A8 UString map script name ("Continental"), +0x3D8 mode (0 random map), +0x3E0 start epoch
-//   (14 = random), +0x3E4 end epoch (13 = Nano), +0x3E8 map size (0 small), +0x3F0 unit limit,
-//   +0x3F4 wonders for victory, +0x3F8 difficulty (1 medium), +0x400 option bytes.
+//   +0x3A8 UString map script name ("Continental"), +0x3D8 mode (0 random map), +0x3DC map size (0 Tiny, 1 Small,
+//   2 Medium, 3 Large, 4 Huge, 5 Gigantic - the setup copy 0x524B.. clamps it below 6, default 1; 0x524E1F turns it into
+//   42/58/75/105/160/220 and the map script's IsLargeMap etc. pick "<map> Large.rmv"), +0x3E0 start epoch (14 = random),
+//   +0x3E4 end epoch (13 = Nano), +0x3E8 an option index (checked against the list at 0x8CF52C - NOT the map size: until
+//   2026-10-20 map_size wrote it and every test map was Small), +0x3F0 unit limit, +0x3F4 wonders for victory, +0x3F8
+//   difficulty (1 medium), +0x400 option bytes.
 //   Map seed: world (0x91977C) +0x54.
-// Ini keys: random_map=<script name>, map_size, ai_count (1..7), start_epoch, seed, teams=ffa|pairs,
+// Ini keys: random_map=<script name>, map_scale (tiny|small|medium|large|huge|gigantic or 0..5, default small - the
+//   real map size), map_size (the old key: the +0x3E8 index, kept so old test commands play the same maps), ai_count (1..7), start_epoch, seed, teams=ffa|pairs,
 //   citizens, unit_limit (500), difficulty (easy|medium|hard or 0..2: the setup's +0x3F8 and 0x918C14, every AI's +0xBA4 - the
 //   menu's AI difficulty; default medium). AI toggles at their first update: ai_cheat (0/1), ai_ignore (Ignorieren 0/1).
 // VANILLA PLAYERS (eeaimod.c is_vanilla): vanilla_players=<digits>, and for them only vanilla_difficulty (as difficulty)
@@ -22,12 +26,13 @@
 
 static struct {
     char map[64];
-    int size, ais, start_epoch, seed, pairs, citizens, unit_limit;
+    int size, scale, ais, start_epoch, seed, pairs, citizens, unit_limit;
     int ai_cheat, ai_ignore;   // -1 = leave as the game sets them
     int epoch_min, epoch_max;  // test-only epoch timer in minutes (0 = game setting)
     int difficulty;            // the setup's (every AI), 0..2
     int v_difficulty, v_cheat; // the vanilla players' own (-1: as the others)
-} g_rm = { "", 0, 3, 0, 0, 0, 5, 500, -1, -1, 0, 0, 1, -1, -1 };
+} g_rm = { "", 0, 1, 3, 0, 0, 0, 5, 500, -1, -1, 0, 0, 1, -1, -1 };
+static const char *const k_rm_scale[6] = { "tiny", "small", "medium", "large", "huge", "gigantic" };
 
 static int difficulty_key(const char *ini, const char *key, int def) {   // easy|medium|hard or 0..2
     char v[16];
@@ -46,6 +51,11 @@ typedef void *(__thiscall *UStrAssignFn)(void *ustr, const char *s);
 static void randmap_load(const char *ini) {
     GetPrivateProfileStringA("autotest", "random_map", "", g_rm.map, sizeof g_rm.map, ini);
     g_rm.size = ini_int("autotest", "map_size", 0, ini);
+    char sc[16];
+    GetPrivateProfileStringA("autotest", "map_scale", "", sc, sizeof sc, ini);
+    g_rm.scale = 1;
+    for (int k = 0; k < 6; k++) if (!lstrcmpiA(sc, k_rm_scale[k])) g_rm.scale = k;
+    if (sc[0] >= '0' && sc[0] <= '5' && !sc[1]) g_rm.scale = sc[0] - '0';
     g_rm.ais = ini_int("autotest", "ai_count", 3, ini);
     if (g_rm.ais < 1) g_rm.ais = 1;
     if (g_rm.ais > 7) g_rm.ais = 7;
@@ -87,7 +97,7 @@ static void randmap_rewrite(uint8_t *setup) {
         *(uint32_t *)(slot + 0x34) = i == 0 ? 0x75010001u : 0x77010000u;
     }
     *(int *)(setup + 0x3D4) = 1;
-    *(int *)(setup + 0x3DC) = 1;
+    *(int *)(setup + 0x3DC) = g_rm.scale;   // the map size (1 Small: what every test map was before map_scale)
     *(int *)(setup + 0x3E0) = g_rm.start_epoch;
     *(int *)(setup + 0x3E4) = 13;
     *(int *)(setup + 0x3E8) = g_rm.size;
@@ -104,8 +114,11 @@ static void randmap_rewrite(uint8_t *setup) {
     uint8_t *world = *(uint8_t **)0x0091977C;
     if (world && g_rm.seed) *(int *)(world + 0x54) = g_rm.seed;
     if (g_log) {
-        fprintf(g_log, "# random map: \"%s\" size %d, %d AIs (%s), start epoch %d, seed %d, difficulty %d\n", g_rm.map, g_rm.size,
-                g_rm.ais, g_rm.pairs ? "pairs" : "ffa", g_rm.start_epoch, world ? *(int *)(world + 0x54) : -1, g_rm.difficulty);
+        uint8_t *lim = *(uint8_t **)0x00917BB8;   // the game's unit limits: default +0x2E8, the most +0x2EC (more: the default)
+        fprintf(g_log, "# random map: \"%s\" size %d, %d AIs (%s), start epoch %d, seed %d, difficulty %d%s%s, unit limit %d (game default %d, max %d)\n",
+                g_rm.map, g_rm.size, g_rm.ais, g_rm.pairs ? "pairs" : "ffa", g_rm.start_epoch, world ? *(int *)(world + 0x54) : -1, g_rm.difficulty,
+                g_rm.scale != 1 ? ", map scale " : "", g_rm.scale != 1 ? k_rm_scale[g_rm.scale] : "", g_rm.unit_limit,
+                lim ? *(int *)(lim + 0x2E8) : -1, lim ? *(int *)(lim + 0x2EC) : -1);
         fflush(g_log);
     }
 }

@@ -138,10 +138,15 @@ static void ex_log(void *pl, unsigned idx, uint32_t now) {
     struct { int n, site[7], my[7], oth, drop, bld, cit, sold, tower; } k[EXC_N];
     memset(k, 0, sizeof k);
     uint8_t *cm = FIELD(pl, 0xB90, uint8_t *), *bm = cm ? FIELD(cm, 0x3C, uint8_t *) : NULL;
-    int bx = FIELD(bm, 0x12C, int), by = FIELD(bm, 0x130, int), near_d = -1, near_m = 0;
+    int bx = FIELD(bm, 0x12C, int), by = FIELD(bm, 0x130, int), near_d = -1, near_m = 0, foe_s = 0, foe_b = 0;
     for (int j = 0; j < g_exs.n; j++) {
         struct ex_cont *c = &g_exs.c[j];
         int cl = ex_class(pl, c, hc), mines = c->site[4] + c->site[5] + c->site[6];
+        if (c->id == hc)   // the enemies on its home island: landings, raids, forward bases
+            for (int p = 1; p < 16; p++) {
+                void *pp = p != pi ? player_at(p) : NULL;
+                if (pp && is_enemy(pl, pp)) { foe_s += c->sold[p]; foe_b += c->bld[p]; }
+            }
         if (!c->site[2] && !mines && c->id != hc) continue;   // no site: a dock's shore area (an id of its own) or a bare islet
         k[cl].n++;
         for (int r = 2; r < 7; r++) { k[cl].site[r] += c->site[r]; k[cl].my[r] += c->gat[pi][r]; }
@@ -167,7 +172,7 @@ static void ex_log(void *pl, unsigned idx, uint32_t now) {
         fprintf(g_log, " %s n=%d S%d G%d I%d W%d F%d my F%d W%d S%d G%d I%d oth %d drop %d bld %d tow %d cit %d sold %d |", k_exc[cl], k[cl].n,
                 k[cl].site[4], k[cl].site[5], k[cl].site[6], k[cl].site[3], k[cl].site[2], k[cl].my[2], k[cl].my[3], k[cl].my[4], k[cl].my[5],
                 k[cl].my[6], k[cl].oth, k[cl].drop, k[cl].bld, k[cl].tower, k[cl].cit, k[cl].sold);
-    fprintf(g_log, " tr %d aboard %d | near_empty %d (%d mines)\n", g_exs.tr[pi], g_exs.aboard[pi], near_d, near_m);
+    fprintf(g_log, " tr %d aboard %d | near_empty %d (%d mines) | home_foe sold %d bld %d\n", g_exs.tr[pi], g_exs.aboard[pi], near_d, near_m, foe_s, foe_b);
     LeaveCriticalSection(&g_lock);
 }
 

@@ -6,7 +6,10 @@ its buildings and no enemy's; contest: both), their mines, its miners, drop site
 the empty islands' mines, the first minute it had a drop site on another island (settled: share of games, mean
 minute), buildings it put off its home island (# isl new), and the end: workers, soldiers, warships, the mod's stone +
 gold + iron income (# spend), kills - losses, wins. With -base NAME: paired differences (same seed and seat) against
-that variant. With -v: one line per game.
+that variant. With -v: one line per game. Team games (scripts/isl_ablate.sh siL2: two mod AIs against two vanilla
+ones): every number is the side's players' mean, a side alive while one of them is. Also: enemy land soldiers on the
+side's home island (# isl home_foe: the most at a 5-minute sample, and the samples with any - landings, raids), all
+income (F+W+S+G+I) and idle citizens at the end (# cit).
 usage: python scripts/islands.py [-base NAME] [-v] "work/autotest_*_ab-<name>-*.csv" ..."""
 import csv, glob, re, sys
 from collections import defaultdict
@@ -33,6 +36,8 @@ def parse_isl(s):
                                    tow=v[14], cit=v[15], sold=v[16])
         m = re.match(r'\s*tr (\d+) aboard (\d+)', part)
         if m: out['tr'] = int(m.group(1)); out['aboard'] = int(m.group(2))
+        m = re.match(r'\s*home_foe sold (\d+) bld (\d+)', part)
+        if m: out['foe'] = int(m.group(1)); out['foeb'] = int(m.group(2))
     return out
 
 def load(path):
@@ -55,6 +60,8 @@ def load(path):
     inc = {}
     for m in re.finditer(r'^# spend: P(\d+) at \d+ min:.*income F(-?\d+) W(-?\d+) S(-?\d+) G(-?\d+) I(-?\d+)', txt, re.M):
         inc[int(m.group(1))] = [int(x) for x in m.group(2, 3, 4, 5, 6)]
+    idle = {}
+    for m in re.finditer(r'^# cit: P(\d+) at \d+ min: prod \d+ cit \d+ other \d+ idle (\d+)', txt, re.M): idle[int(m.group(1))] = int(m.group(2))
     battle, army, navy = {}, {}, {}
     for m in re.finditer(r'^# battle: P(\d+) at \d+ min: (.*)$', txt, re.M): battle[int(m.group(1))] = [int(x) for x in m.group(2).split()]
     for m in re.finditer(r'^# army: P(\d+) at [0-9.]+ min: (\d+) soldiers', txt, re.M): army[int(m.group(1))] = int(m.group(2))
@@ -71,8 +78,7 @@ def load(path):
     vp = [p for p in work if p in van]
     if not mod or not vp: return None
     end = max(max(w) for w in work.values())
-    out = {}
-    for side, p in (('M', mod[0]), ('V', vp[0])):
+    def one(p, side):
         g = {}
         def at(mi):
             ks = [x for x in isl[p] if x <= mi]
@@ -99,12 +105,21 @@ def load(path):
         g['w60'] = work[p][max(ks)] if ks else 0
         g['sol'] = army.get(p, 0); g['war'] = navy.get(p, 0)
         g['metal'] = sum(inc.get(p, [0] * 5)[2:]) if side == 'M' else float('nan')
+        g['income'] = sum(inc.get(p, [0] * 5)) if side == 'M' else float('nan')
+        g['idle'] = float(idle.get(p, 0))
+        foes = [e.get('foe', 0) for e in isl[p].values()]
+        g['foe'] = float(max(foes)) if foes else 0.0
+        g['foen'] = float(sum(1 for f in foes if f > 0))
         b = battle.get(p, [0] * 6)
         g['kl'] = b[3] - b[4]; g['kills'] = b[3]; g['losses'] = b[4]
         w = work[p][max(work[p])] if work[p] else 0
         g['alive'] = float(res.get(p) == 1) if res else float(bool(work[p]) and max(work[p]) >= end - 1 and w > 0)
         for k in ('plans', 'sails', 'ashore', 'drop', 'lost', 'given', 'abort'): g['x_' + k] = float(ex[p][k])
-        out[side] = g
+        return g
+    out = {}
+    for side, ps in (('M', mod), ('V', vp)):
+        gs = [one(p, side) for p in ps]
+        out[side] = {k: (max(g[k] for g in gs) if k == 'alive' else sum(g[k] for g in gs) / len(gs)) for k in gs[0]}
     return out
 
 data = defaultdict(dict)
@@ -125,9 +140,9 @@ for c in conds:
         for side in 'MV':
             gs = [g[side] for g in games.values()]
             wins = sum(1 for g in games.values() if g[side]['alive'] and not g['VM'[side == 'V']]['alive'])
-            print('  %-10s %s n=%d won %d settled %.2f (first %.1f min) new-off-home %.1f | w60 %.1f sol %.1f war %.1f metal %.0f kills %.1f losses %.1f kl %.1f' % (
+            print('  %-10s %s n=%d won %d settled %.2f (first %.1f min) new-off-home %.1f | w60 %.1f sol %.1f war %.1f metal %.0f income %.0f idle %.1f kills %.1f losses %.1f kl %.1f | home foe %.1f (in %.1f samples)' % (
                 v, side, len(gs), wins, mean([g['settled'] for g in gs]), mean([g['first'] for g in gs]), mean([g['new'] for g in gs]),
-                *[mean([g[k] for g in gs]) for k in ('w60', 'sol', 'war', 'metal', 'kills', 'losses', 'kl')]))
+                *[mean([g[k] for g in gs]) for k in ('w60', 'sol', 'war', 'metal', 'income', 'idle', 'kills', 'losses', 'kl', 'foe', 'foen')]))
             for mi in MINS:
                 print('  %-10s %s  @%2d  ' % ('', side, mi) + '  '.join('%s %.1f' % (k, mean([g['%s%d' % (k, mi)] for g in gs])) for k in TL))
             if side == 'M' and any(g['x_plans'] for g in gs):
@@ -149,6 +164,8 @@ for c in conds:
             for name, f in (('og30', lambda g: g['M']['og30']), ('og60', lambda g: g['M']['og60']), ('mg30', lambda g: g['M']['mg30']),
                             ('mg60', lambda g: g['M']['mg60']), ('Vmg60', lambda g: g['V']['mg60']), ('w60', lambda g: g['M']['w60']),
                             ('sol', lambda g: g['M']['sol']), ('war', lambda g: g['M']['war']), ('metal', lambda g: g['M']['metal']),
+                            ('income', lambda g: g['M']['income']), ('foe', lambda g: g['M']['foe']), ('foen', lambda g: g['M']['foen']),
+                            ('on60', lambda g: g['M']['on60']),
                             ('kills', lambda g: g['M']['kills']), ('losses', lambda g: g['M']['losses']), ('kl', lambda g: g['M']['kl']),
                             ('alive', lambda g: g['M']['alive'] - g['V']['alive'])):
                 d = D(f)
