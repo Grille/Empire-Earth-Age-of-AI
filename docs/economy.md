@@ -400,3 +400,84 @@ head-to-head losses +6 (4)). JOIN made GATHER's released groups keep the pressur
 What the numbers point to instead: the deaths are in the pack's fights, so the lever is which fights the pack takes
 and when it breaks one off (the fight estimate, the retreat's thresholds against what the pack really faces), not
 how it walks.
+
+## Other islands (2026-10-20, dll/expand.c)
+
+The playtester: "work every resource node on the home island fast, then expand to other islands - early it must
+prioritise, later everything it can get hold of"; "a lone mining camp with a few citizens on an empty island won't
+hold: a few towers and even barracks for reinforcement are needed".
+
+**Measured** (`# isl:` every 5 minutes, autotest, both sides; `scripts/islands.py`). Base AI at hard, 60 min, map seed
+101, 20 seeds x both seats. The land continents by what they are to each player (home, own, contest, enemy, ally - the
+tests' idle human -, empty), their mines (stone + gold + iron sites of the zones; trees are no zone sites) and the
+player's miners there:
+
+- **The maps.** Small Islands e5: home 5 mines (30 slots), one free island in the middle with 7 (S3 G3 I1, 42 slots,
+  40-50 tiles off), the idle human's island 5. Large Islands e5: home 8 mines (48 slots), no free island (the idle
+  human's has 8). Tournament Islands e5: home 5, no free island (the human's 5). The same on map seeds 102-106 and
+  with map_size 1-4 (the size setting changes nothing on these starts).
+- **Who settles.** The base AI puts drop sites on another island in 90-100% of the games, first at minute 31-35
+  without the cheat, 22-25 with it; by minute 45 it has 9-10 mines and 9-12 miners there on Small Islands (2-4
+  Settlements, no tower) - on Large and Tournament Islands the idle human's island. The mod's AI never settled one by
+  itself: the drop sites it had off its home island (47% of the Small and Large Islands games without the cheat, from
+  minute ~47; 0-7% with the cheat) were its landings' forward bases on the enemy's island.
+- **Its home mines** were not the limit: 24-38 miners at 60 minutes without the cheat (Small Islands 24 of 30 slots,
+  Large 38 of 48), the base AI's 21-33; with the cheat the mod's collapse (8-24 at 60 minutes) decides.
+
+| Map | cheat | home miners M / V at 30 | at 60 | other islands' miners M / V at 60 | V settled (first min) | mod won / base AI won |
+|---|---|---|---|---|---|---|
+| Small Islands e5 | no | 19.8 / 19.2 | 24.0 / 21.6 | 4.3 / 10.8 | 100% (31) | 0 / 2 |
+| Large Islands e5 | no | 26.2 / 17.7 | 38.2 / 21.1 | 1.8 / 5.3 | 90% (35) | 1 / 1 |
+| Tournament Islands e5 | no | 26.4 / 18.7 | 25.5 / 23.0 | 1.7 / 7.5 | 95% (32) | 0 / 4 |
+| Small Islands e5 | yes | 11.0 / 22.6 | 7.6 / 23.3 | 0.0 / 13.9 | 97% (23) | 0 / 19 |
+| Large Islands e5 | yes | 21.3 / 26.7 | 23.5 / 33.5 | 0.1 / 10.2 | 100% (25) | 0 / 9 |
+| Tournament Islands e5 | yes | 9.7 / 21.6 | 3.2 / 22.2 | 0.0 / 15.6 | 100% (22) | 0 / 31 |
+
+So on these maps only Small Islands has a free island, and it is the base AI's from minute 23-31.
+
+`expand_islands` ([all], bits, `v_expand_islands` for head-to-head; header of dll/expand.c): 1 SETTLE - from the Copper
+Age, minute 8 (`expand_minute`), once the home island's mine slots are half worked (or from minute 15), with 25+ workers
+and a land army not weaker than the enemy army it knows: the island with the most mines it has explored, no ally's
+building, no enemy town (Town Center, Capitol), no known enemy defence, at most 3 known enemy buildings and no more
+known enemy soldiers than its guard. A transport (its own idle one, else trained as a landing's) takes 8 citizens
+(`expand_citizens`; never miners) and 3 land soldiers (`expand_guard`) from the home shore nearest the base and the
+island to the island's shore nearest its mines (the sea on the way checked as the landing does - held: unloaded at home
+at once). Ashore: a Settlement by the mines, a tower between the mines and the sea, one by the Settlement; once the
+Settlement stands the citizens gather at the island's free mines (the game's assignment), the guard stays by it; more
+citizens every 2 minutes up to the mine slots (`expand_trips` 4 in all); a transport, a Settlement and a tower are held
+back from unit orders until laid. Lost (nothing of it left there): again after 8 minutes, 3 losses: never again. 2 =
+a barracks there too; 4 = islands with an ally's buildings count as free.
+
+What the first versions ran into (fixed): the AI's stock is spent as it comes - "can't pay a Settlement and a tower"
+held it up 5-10 minutes (now the reserve); a transport waiting loaded at the shore while the sea was held was sunk with
+everyone aboard in 9 of 10 cases (now unloaded at once); a Town Center as the drop site took the towers' stone; a
+transport counted as a guard soldier (`is_soldier`) got a part of its own load goal - the load goal was deleted and the
+next part called it (`_purecall`, 2 of 80 games; guards are land soldiers now, and a load goal is only split into parts
+while it is the transport's goal); with honest_vision an unscouted enemy home island looked free (Tournament Islands
+kills - losses -10, now no island with an enemy town).
+
+**Paired** against the same build without (`expand_islands=0`; it plays the same games as the measurement build, 78
+of 80 on Small Islands; Continental e0 the same games as main, 40 of 40). d = with - without, standard error; og =
+miners on other islands, mg = all miners, metal = the mod's stone + gold + iron income in 60 min:
+
+| Map | cheat | same games | d og60 | d mg60 | d workers 60 | d soldiers 60 | d metal | d kills - losses | mod / base AI won |
+|---|---|---|---|---|---|---|---|---|---|
+| Small Islands e5 | no | 5 of 40 | +5.4 (2.0) | +2.7 (3.3) | -4.5 (3.5) | +5.2 (2.0) | +578 (599) | -0.1 (7.3) | 0/2 -> 0/2 |
+| Small Islands e5 | yes | 16 of 40 | +0.2 (0.2) | +3.8 (2.4) | -5.6 (3.5) | -0.7 (0.9) | -126 (229) | -3.3 (3.5) | 0/19 -> 0/21 |
+| Large Islands e5 | no | 37 of 40 | +0.1 | -0.3 | -0.4 | +0.3 | +77 | +0.7 (0.4) | 1/1 -> 0/1 |
+| Large Islands e5 | yes | 39 of 40 | 0 | 0 | -0.1 | 0 | 0 | 0 | 0/9 -> 0/9 |
+| Tournament Islands e5 | no / yes | 40 / 40 of 40 | 0 | 0 | 0 | 0 | 0 | 0 | unchanged |
+
+Without the cheat an outpost stood in 24 of 40 Small Islands games (1.2 trips ashore a game, 0.12 lost), 5-6 more
+miners on the middle island at 60 minutes - but the home island lost about as many (the citizens shipped off; the
+citizen plan trains them again only slowly), so total miners, income and fights moved within the noise. With the cheat
+it rarely got going (0.3 trips a game: the army outmatched, the sea held, the base AI on the island by minute 23) and
+the base AI's waves took what went (0.25 outposts lost a game). Head-to-head against the control AI (Small Islands
+e5, map_size 0, 4 AIs, 60 min, 24 games, `v_expand_islands=1`): B - A per game alive +0.00, soldiers +1.3 (1.4), kills
++2.2 (2.9), losses -5.3 (4.7), razed -0.2 (0.2), workers -1.0 (0.7) (59 plans, 10 trips ashore, 2 outposts lost).
+Nothing clearly better: **off** (`expand_islands=0`).
+
+What it would take: the free island must be taken before the base AI's (minute 15-20, i.e. a transport ready before
+the plan), the citizens it ships must be additional (more citizens trained for the island's slots, not taken from
+wood and food at home), and the maps tested here have one free island at most - a test map with several free islands
+(larger maps, more players) would show more. The idle human's island (`4`) is a test artifact, not measured.

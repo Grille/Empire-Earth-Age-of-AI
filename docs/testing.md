@@ -635,6 +635,28 @@ of 144 played all 80 games the same; Small Islands e5 games with 144 identical t
 Continental e0 without the cheat parted at minute 43 between two runs of the same build: such a late split happens
 now and then (it shows as 39 of 40 "same").
 
+### Other islands against the base AI (docs/economy.md "Other islands")
+
+2026-10-20: `# isl:` every 5 minutes (autotest, dll/expand.c, both sides): per class of land continent (`home`, `own` -
+its buildings and no enemy's -, `contest`, `enemy`, `ally`, `empty`) `n=` continents with a food or mine site, the
+sites `S G I F` (stone, gold, iron mines, food; `W` stays 0 - trees are no zone sites), `my F W S G I` the player's
+gatherers whose site lies there, `oth` the other players' miners there, its `drop` sites, `bld` buildings, `tow`
+defences, `cit` citizens, `sold` land soldiers; then `tr` transports, citizens `aboard`, `near_empty` (tiles from the
+base to the nearest free continent with mines). `# isl map:` once a game (every continent with sites), `# isl new:`
+(once a game minute) every building first seen off its owner's home continent. `# expand:` the outposts (plans,
+transport, boarding, sails, ashore, buildings laid / finished / destroyed, lost, why none planned, a status line every 5
+minutes). `scripts/islands.py [-base NAME] [-v] "work/autotest_*_ab-<name>-*.csv"` scores them per side at 10/20/30/45/60
+minutes (home mines and miners, other islands held, their mines, miners, drop sites, towers, citizens, soldiers, settled
+and its first minute) with the paired differences. Runs: a driver like `scripts/eco_ablate.sh` over `scripts/vanilla.sh`
+(tags `ab-<name>-c<cheat>-<map>`) with Small, Large and Tournament Islands e5 (`random_map=Tournament Islands`), 20
+seeds; head-to-head `h2h.sh 60 late "random_map=Small Islands,seed=101,map_size=0,ai_count=4,start_epoch=5,
+difficulty=hard" "v_expand_islands=1"` (24 games). `expand_islands=1` measured, **off**: Small Islands without the cheat
+an outpost in 24 of 40 games, other islands' miners +5.4 (2.0) at 60 minutes, all miners +2.7 (3.3), workers -4.5
+(3.5), kills - losses -0.1 (7.3); with the cheat base AI wins 19 -> 21 of 40, workers -5.6 (3.5); Large / Tournament
+Islands (no free island) 37-40 of 40 games the same; head-to-head losses -5.3 (4.7), kills +2.2 (2.9), workers -1.0
+(0.7). The build with `expand_islands=0` played the same games as the measurement build (78 of 80) and Continental e0
+the same as main (40 of 40).
+
 ### Mass before striking, the mines (navy stage 5)
 
 2026-10-19, `navy_fleet=2` with `navy_fleet_mass=1` and `navy_mines=1` (dll/fleet.c fl_rally, navy.c navy_nodes /

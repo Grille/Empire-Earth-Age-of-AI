@@ -1558,6 +1558,7 @@ static int substitute_soldier(void *pl, unsigned idx, const int *vis, int want, 
 static int g_priority_mil;   // set by the siege controller around its own requests
 static int g_landing_order;   // set by the landing around its transport order (its reserve is not held from it)
 static void landing_reserve(void *pl, int reserve[7]);   // landing.c
+static void expand_reserve(void *pl, int reserve[7]);    // expand.c
 static int landing_room_reserve(void *pl);   // landing.c: population room held for a bombardment's fleet
 // ROOM: the game's own callers ask the unit manager for room first (cap - in production - population, the start check
 // of the buildings 0x624DF8 the same); the mod's own orders (AA units, siege, home guard, transports) didn't. At the cap
@@ -1580,6 +1581,7 @@ static void train_budget(void *pl, unsigned idx, const struct ai_cfg *cfg, const
     spend_reserve(pl, idx, reserve, NULL);
     reserve[3] += field_wood(idx);   // the next fields' wood (build_fields)
     landing_reserve(pl, reserve);   // transports a landing waits for
+    expand_reserve(pl, reserve);    // an outpost's drop site and tower (expand.c)
     bunker_reserve(pl, reserve);    // a fortress's wood (bunker.c)
     if (!ship && !req_unit && !g_priority_mil && !g_landing_order) navy_hold(pl, idx, reserve);   // the navy account: only warships spend it (navy.c)
     if (!g_bud[idx].init) {

@@ -814,3 +814,7 @@ when the opponent fleet is out of sight but stronger (the fleet waits at the ral
 - **Pathing:** fleets at sea near shores and between islands can stick. The transports' unload problems may also
   show up as patrol problems at narrow waters.
 - **Honest vision:** react only to ships seen (intel), not to the floor of the human's units.
+
+### Outposts on other islands (2026-10-20, dll/expand.c, off)
+
+The expansion to free islands (docs/economy.md "Other islands", `expand_islands`, off) sails one transport with citizens and a guard; it checks the sea on the way as the landing does (ld_sea_threat / ld_sea_risk against all its warships) and unloads at home at once when it is held: a transport waiting loaded at the shore for the fleet was sunk with everyone aboard in 9 of 10 cases. The fleet does not escort it (fleet.c's escort follows only the landing).

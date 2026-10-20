@@ -157,9 +157,14 @@ static int landing_has_unit(void *pl, uint8_t *u) {   // a transport, warship or
 static int fleet_leads(uint8_t *sg);                // fleet.c: a sea subgroup holding a ship the fleet leads
 static int fleet_refuses(uint8_t *sg, uint8_t *u);  // fleet.c: an order to one of them
 static int mass_refuses(uint8_t *sg, uint8_t *u, void *goal);   // mass.c: an order to a reinforcement held at the rally
+static int expand_ship(uint8_t *u);                 // expand.c: the transport of an outpost's ferry (its player), 0: none
+static int expand_refuses(uint8_t *sg, uint8_t *u); // expand.c: the ferry's transport and passengers, an outpost's guard
+static int expand_leads(uint8_t *sg);               // expand.c: a subgroup holding the ferry's transport
+static int expand_unload_ok(uint8_t *u, int gx, int gy);   // expand.c: the game's unload retry at the ferry's own point
+static int expand_has(void *pl, uint8_t *u);        // expand.c: a passenger of the ferry (the landing leaves it)
 static void __fastcall hook_asg_sea_update(uint8_t *sg, void *edx, int now) {
     (void)edx;
-    if (!is_vanilla(FIELD(sg, 0x190, void *)) && (landing_leads(sg) || fleet_leads(sg))) return;
+    if (!is_vanilla(FIELD(sg, 0x190, void *)) && (landing_leads(sg) || fleet_leads(sg) || expand_leads(sg))) return;
     ((void (__thiscall *)(void *, int))FN_ASG_SEA_UPDATE)(sg, now);
 }
 #define VT_ASG_AIR 0x00826610
@@ -173,7 +178,7 @@ static void __fastcall hook_asg_air_update(uint8_t *sg, void *edx, int now) {
 #define FN_ASG_SEA_TRANSPORT_UPDATE 0x0044FB92   // EECPASGSeaTransport slot 90: update(now)
 static void __fastcall hook_asg_sea_transport_update(uint8_t *sg, void *edx, int now) {
     (void)edx;
-    if (!is_vanilla(FIELD(sg, 0x190, void *)) && landing_leads(sg)) return;
+    if (!is_vanilla(FIELD(sg, 0x190, void *)) && (landing_leads(sg) || expand_leads(sg))) return;
     ((void (__thiscall *)(void *, int))FN_ASG_SEA_TRANSPORT_UPDATE)(sg, now);
 }
 
@@ -253,7 +258,7 @@ static unsigned g_ld_refused, g_ld_kept_goal;
 static void ld_fu_given(void *g, int ok);   // below (the game's unload orders to landing transports)
 static char __fastcall hook_asg_give_goal(uint8_t *sg, void *edx, uint8_t *u, void *goal, int a, int prio) {
     (void)edx;
-    if (!is_vanilla(FIELD(sg, 0x190, void *)) && (landing_leads(sg) || fleet_refuses(sg, u) || mass_refuses(sg, u, goal))) {   // the fleet (fleet.c): its ships in any subgroup; mass.c
+    if (!is_vanilla(FIELD(sg, 0x190, void *)) && (landing_leads(sg) || fleet_refuses(sg, u) || mass_refuses(sg, u, goal) || expand_refuses(sg, u))) {   // the fleet (fleet.c): its ships in any subgroup; mass.c; expand.c
         g_ld_refused++;
         if ((uintptr_t)__builtin_return_address(0) == RET_ASG_LAND_HANDOFF_GIVE) { g_ld_kept_goal++; return 1; }
         ld_fu_given(goal, 0);
@@ -302,7 +307,7 @@ static void ld_unit(uint8_t *u, void *ctx) {
         s->bx[s->nb] = FIELD(u, 0x1C, int); s->by[s->nb++] = FIELD(u, 0x20, int);
     } else if (o == s->pl && t == 36 && s->nd < 16) {
         s->dx[s->nd] = FIELD(u, 0x1C, int); s->dy[s->nd++] = FIELD(u, 0x20, int);
-    } else if (o == s->pl && is_transport(t) && FIELD(u, 0x1C, int) >= 0 && s->nt < 32) s->tr[s->nt++] = u;
+    } else if (o == s->pl && is_transport(t) && FIELD(u, 0x1C, int) >= 0 && !expand_ship(u) && s->nt < 32) s->tr[s->nt++] = u;   // not an outpost's ferry (expand.c)
     else if (o == s->pl && fam == 4 && !is_transport(t) && !is_fishing_boat(t) && FIELD(td, 0x510, int) > 0 && s->nw < 32)
         s->war[s->nw++] = u;
     else if (o == s->pl && (fam == 3 || fam == 7 || fam == 17) && FIELD(td, 0x510, int) > 0 && FIELD(u, 0x1C, int) >= 0 && !is_aa(u) && s->na < 16)
@@ -789,7 +794,7 @@ struct ld_cits { void *pl; int x, y, n; uint8_t *u[32]; int d[32]; };
 static void ld_cit_unit(uint8_t *u, void *ctx) {
     struct ld_cits *c = ctx;
     int t = FIELD(FIELD(u, 0x2C, uint8_t *), 0x4B8, int);
-    if (FIELD(u, 0x18, void *) != c->pl || !is_citizen_type(t) || FIELD(u, 0x3C, int) <= 0 || FIELD(u, 0x1C, int) < 0 || c->n >= 32) return;
+    if (FIELD(u, 0x18, void *) != c->pl || !is_citizen_type(t) || FIELD(u, 0x3C, int) <= 0 || FIELD(u, 0x1C, int) < 0 || c->n >= 32 || expand_has(c->pl, u)) return;
     int dx = FIELD(u, 0x1C, int) - c->x, dy = FIELD(u, 0x20, int) - c->y, d = dx * dx + dy * dy;
     if (d > 625) return;
     c->u[c->n] = u; c->d[c->n++] = d;
@@ -1037,7 +1042,7 @@ static void ld_wave(void *pl, unsigned pi, struct landing *l, uint8_t *dq, unsig
                 l->frozen[l->nfrozen++] = sg;
                 for (uint8_t **r = FIELD(sg, 0x54, uint8_t **); r && r < FIELD(sg, 0x58, uint8_t **); r++) {
                     uint8_t *u = *r ? FIELD(*r, 0x44, uint8_t *) : NULL;
-                    if (ld_alive(u) && !ld_aboard(u) && is_soldier(FIELD(u, 0x2C, uint8_t *)) && l->nw < want && l->nw < LD_PASS) l->wpass[l->nw++] = u;
+                    if (ld_alive(u) && !ld_aboard(u) && is_soldier(FIELD(u, 0x2C, uint8_t *)) && !expand_has(pl, u) && l->nw < want && l->nw < LD_PASS) l->wpass[l->nw++] = u;
                 }
             }
         }
@@ -1608,7 +1613,7 @@ static int ld_phase_ships(void *pl, unsigned pi, struct landing *l, uint8_t *um,
             l->frozen[l->nfrozen++] = sg;
             for (uint8_t **r = FIELD(sg, 0x54, uint8_t **); r && r < FIELD(sg, 0x58, uint8_t **); r++) {
                 uint8_t *u = *r ? FIELD(*r, 0x44, uint8_t *) : NULL;
-                if (ld_alive(u) && FIELD(u, 0x1C, int) >= 0 && is_soldier(FIELD(u, 0x2C, uint8_t *)) && l->npass < l->want_n && l->npass < LD_PASS)
+                if (ld_alive(u) && FIELD(u, 0x1C, int) >= 0 && is_soldier(FIELD(u, 0x2C, uint8_t *)) && !expand_has(pl, u) && l->npass < l->want_n && l->npass < LD_PASS)
                     l->pass[l->npass++] = u;
             }
         }
@@ -2292,6 +2297,7 @@ static void ld_fu_check(uint32_t now) {
 static void *__fastcall hook_unload_ctor(void *g, void *edx, uint8_t *tr, int x, int y, int flag) {
     (void)edx;
     uintptr_t ret = (uintptr_t)__builtin_return_address(0) - 5;
+    if (ret == 0x48CC5D && tr && expand_ship(tr)) return NULL;   // an outpost's ferry (expand.c): not the transport manager's crossing
     for (int p = 0; p < 16 && tr && !is_vanilla(FIELD(tr, 0x18, void *)); p++)   // a vanilla player's transport: never a landing's
         for (int k = 0; k < g_ld[p].nships && g_ld[p].phase; k++)
             if (g_ld[p].ships[k] == tr) {
@@ -2325,6 +2331,11 @@ static void *__fastcall hook_unload_ctor(void *g, void *edx, uint8_t *tr, int x,
 static unsigned g_ld_retry_refused;
 static void __fastcall hook_unload_retry_give(uint8_t *u, void *edx, uint8_t *goal, int slot) {
     (void)edx;
+    if (goal && expand_ship(u) && !expand_unload_ok(u, FIELD(goal, 0x34, int), FIELD(goal, 0x38, int))) {   // an outpost's ferry (expand.c)
+        ld_fu_given(goal, 0);
+        ((void (__thiscall *)(void *, int))(*(void ***)goal)[0])(goal, 1);
+        return;
+    }
     for (int p = 0; p < 16 && goal && !is_vanilla(FIELD(u, 0x18, void *)); p++) {
         struct landing *l = &g_ld[p];
         for (int k = 0; k < l->nships && l->phase; k++)
@@ -2349,6 +2360,7 @@ give:
 // land) unloads a transport of a landing waiting for its last passengers or for the warships: for those "nowhere"
 static int __fastcall hook_idle_unload_shore(void *mgr, void *edx, uint8_t *tr) {
     (void)edx;
+    if (tr && expand_ship(tr)) return 0;   // an outpost's ferry (expand.c) unloads where it decides
     for (int p = 0; p < 16 && tr && !is_vanilla(FIELD(tr, 0x18, void *)); p++)   // a vanilla player's transport: never a landing's
         for (int k = 0; k < g_ld[p].nships && g_ld[p].phase; k++)
             if (g_ld[p].ships[k] == tr) return 0;
