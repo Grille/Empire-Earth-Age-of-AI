@@ -1,8 +1,6 @@
 # mod/system.eeai - the system lines eeaimod shows the player (white, from nobody in particular). Not a
-# personality. English (in a German game the built-in German lines come first). A key left out keeps the
-# built-in text. In braces: expressions - {me} the AI, {them} you - and the few texts only the mod has
-# (listed above each key).
-# Written by "texts dump" with the built-in texts.
+# personality. English. Every key must be here (the mod has no texts of its own). In braces: expressions -
+# {me} the AI, {them} you - and the few texts only the mod has (listed above each key).
 #
 # key = value, a value is an expression: "a string" ({placeholders} and {expressions} in it), ["a list", "of
 # strings"] (one at random), allied ? "a condition", a ?? b, numbers ... The keys the mod reads stand in records

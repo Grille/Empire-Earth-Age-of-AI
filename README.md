@@ -128,8 +128,9 @@ peace or alliances. With the mod:
   the mod tells the language model (the AI voice: who the AI is, the rules, the game as it stands, the situations,
   the tools) - every personality's last layer, so a personality can say any of it its own way
   (`prompt = { ... }`). `system.eeai` holds the system lines it shows you (offers waiting for your answer, chat
-  hints, victory) in English (German built in, for a German game). Placeholders in braces are filled in; a key or
-  file left out of `prompt.eeai` or `system.eeai` keeps the built-in text.
+  hints, victory) in English. Placeholders in braces are filled in. The mod has no texts of its own: these files
+  belong to it like the DLL - without them it says nothing (no personalities, no AI voice, no diplomacy of its own;
+  a message at the start tells so).
 - **The format** of all these files is the scripts' language ([docs/scripts.md](docs/scripts.md)), without the
   commands: the keys the mod reads in records - `personality = { ... }`, `lines = { greeting = ... }` - and names
   of the file's own outside them (`weakling = them.strength * 2 < me.strength`), each `name = value`, where a

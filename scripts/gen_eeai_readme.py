@@ -1,9 +1,10 @@
 """Fills the generated tables of config/aimod_ai/README.md from the DLL's sources - the situations (persona.c k_lines,
-texts_prompt.h sit_<key>, line_fallback), the game's values (diplo.c k_xmembers, k_xglobals), the epochs (expr.c
+line_fallback; their descriptions: mod/prompt.eeai sit_<key>), the game's values (diplo.c k_xmembers, k_xglobals), the epochs (expr.c
 k_epoch_const), the style keys (settings.c k_style_keys) - between its <!-- name: ... --> and <!-- /name --> markers.
 Run it after changing one of them: venv/Scripts/python.exe scripts/gen_eeai_readme.py"""
 import os
 import re
+from eeai_prompt import prompt_texts
 
 root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 def src(name):
@@ -14,7 +15,8 @@ def c_string(code):   # the text of the C string literals in code, escapes undon
 def cell(t):
     return t.replace('|', '\\|').replace('<', '&lt;').replace('>', '&gt;')
 
-pers, tpl, diplo, expr, settings = (src(n) for n in ('persona.c', 'texts_prompt.h', 'diplo.c', 'expr.c', 'settings.c'))
+pers, diplo, expr, settings = (src(n) for n in ('persona.c', 'diplo.c', 'expr.c', 'settings.c'))
+prompt = prompt_texts(root)
 
 # situations
 lines = re.findall(r'\{ "([a-z_]+)", (\d+), (\d+), (A_ALL|A_ALLIES|A_NAME) \}', pers)
@@ -22,9 +24,8 @@ fb = re.search(r'static int line_fallback\(int k\) \{(.*?)\n\}', pers, re.S).gro
 fallback = {a.lower(): b.lower() for a, b in re.findall(r'case L_(\w+): return L_(\w+);', fb)}
 aud = {'A_ALL': 'everyone', 'A_ALLIES': 'its allies', 'A_NAME': '{them}'}
 def sit(key):
-    m = re.search(r'\{ "sit_%s", ((?:\s*"(?:[^"\\]|\\.)*")+)' % key, tpl)
     # an expression in it ({lord == them ? ...}) left out: the plain words describe the situation
-    return re.sub(r'\{[^{}]*[ ?][^{}]*\}', '', c_string(m.group(1))) if m else ''
+    return re.sub(r'\{[^{}]*[ ?][^{}]*\}', '', prompt.get('sit_' + key, ''))
 t = ['| Situation | When - "you" is the AI | Heard by | Chance | Cooldown | Without a line |', '|---|---|---|---|---|---|']
 for key, chance, cooldown, a in lines:
     t.append('| `%s` | %s | %s | %s | %s | %s |' % (key, cell(sit(key)), aud[a], 'always' if chance == '100' else chance + '%',

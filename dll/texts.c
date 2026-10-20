@@ -1,83 +1,29 @@
 // TEXTS: the mod's own words, from <game>\aimod_ai\mod\: system.eeai - the system lines the player reads, system = {
-// ... } (English; in a German game the built-in German texts come first); prompt.eeai - the language model's
-// instructions, prompt = { ... } (English: the model is told which language to answer in), the last layer of every
-// personality (persona.c FILES): a personality's own prompt = { ... } and its other layers' come first (tpl_find). A
-// missing file or key keeps the built-in text; "texts dump" (control pipe) writes both files with every key and its
-// built-in text (existing files are kept unless "texts dump force"). In braces: expressions, as in the personalities'
-// lines - {me}, {them}, {them.epoch}, {opinion} (expr.c) - and a few texts only the code has ({tribute}, {terms}, ...):
-// each key's are listed above it in the dump; an unknown one writes nothing (logged). "\n" in a value is a line break.
+// ... }; prompt.eeai - the language model's instructions, prompt = { ... }, the last layer of every personality
+// (persona.c FILES): a personality's own prompt = { ... } and its other layers' come first (tpl_find). English (the
+// model is told which language to answer in). The files are part of the mod like the DLL: every key the code asks for
+// must be in them (a missing one is a mistake, told when they are read); without them (or without computer.eeai) the
+// mod says nothing - no personalities, no AI voice, no AI diplomacy (g_texts_missing). In braces: expressions, as in
+// the personalities' lines - {me}, {them}, {them.epoch}, {opinion} (expr.c) - and a few texts only the code has
+// ({tribute}, {terms}, ...: k_sys, k_tpl); an unknown one writes nothing (logged). "\n" in a value is a line break.
 // The names outside the records (vars) are expressions for the texts: system.eeai's for what the player reads (a
 // personality's own first), those of the file a prompt text comes from for the prompts. Included by eeaimod.c after
 // persona.c.
-struct text_def { const char *key, *en, *de, *note; };
-static const struct text_def k_sys[] = {
-    { "now_enemy", "{me} is now your enemy.", "{me} ist jetzt Ihr Feind.", "an AI's stance towards you changed" },
-    { "now_ally", "{me} is now your ally.", "{me} ist jetzt mit Ihnen verb\xfcndet.", NULL },
-    { "vassal_ask_lord", "{me} is a vassal of {lord}: negotiate with {lord}.", "{me} ist Vasall von {lord}: verhandeln Sie mit {lord}.",
-      "your peace offer to a vassal" },
-    { "block_peace", "{me} and {ally} make peace: they are in the same alliance.",
-      "{me} und {ally} schlie\xdf" "en Frieden: sie stehen im selben B\xfcndnis.", "two members of your alliance block made peace" },
-    { "block_unity", "{me} is allied with your allies and offers peace: turn allied within {offer_minutes} minutes, or the alliance breaks.",
-      "{me} ist mit Ihren Verb\xfcndeten verb\xfcndet und bietet Frieden an: stellen Sie binnen {offer_minutes} Minuten auf Verb\xfcndet, sonst "
-      "zerbricht das B\xfcndnis.", NULL },
-    { "veto_own", "{me} refuses: its ally {ally} won't make peace with {them}.",
-      "{me} lehnt ab: der Verb\xfcndete {ally} will keinen Frieden mit {them}.", "a peace offer refused for an ally's sake" },
-    { "veto_block", "{me} refuses: no peace with {them} while allied with {ally}.",
-      "{me} lehnt ab: kein Frieden mit {them} und dessen B\xfcndnis mit {ally}.", NULL },
-    { "alliance_offer", "{me} offers an alliance against {enemy}: set {me} to allied within {offer_minutes} minutes to accept.",
-      "{me} bietet ein B\xfcndnis gegen {enemy} an: stellen Sie {me} binnen {offer_minutes} Minuten auf Verb\xfcndet, um anzunehmen.", NULL },
-    { "capitulation", "{me} surrenders and offers {tribute}: set {me} to allied within {offer_minutes} minutes to accept.",
-      "{me} kapituliert und bietet {tribute}: stellen Sie {me} binnen {offer_minutes} Minuten auf Verb\xfcndet, um anzunehmen.", NULL },
-    { "peace_offer", "{me} offers peace: set {me} to allied within {offer_minutes} minutes to accept.",
-      "{me} bietet Frieden an: stellen Sie {me} binnen {offer_minutes} Minuten auf Verb\xfcndet, um anzunehmen.",
-      "the language model's peace offer ([llm] decide)" },
-    { "tribute_sent", "{me} sends you a tribute: {tribute}.", "{me} schickt Ihnen Tribut: {tribute}.", NULL },
-    { "victory_vassals", "All remaining opponents have submitted to you. Type 'victory' in the chat to end the game as the "
-      "winner - or play on.", "Alle verbliebenen Gegner haben sich Euch unterworfen. Schreibt 'sieg' in den Chat, um das Spiel "
-      "als Sieger zu beenden - oder spielt weiter.", "victory over vassals (the chat words 'victory' and 'sieg' stay)" },
-    { "victory_none", "No opponent stands against you any more. Type 'victory' in the chat to end the game as the winner - or "
-      "play on.", "Kein Gegner steht mehr gegen Euch. Schreibt 'sieg' in den Chat, um das Spiel als Sieger zu beenden - oder "
-      "spielt weiter.", NULL },
-    { "victory_not_yet", "No victory yet - not submitted: {names}.", "Noch kein Sieg - nicht unterworfen: {names}.", NULL },
-    { "chat_unread", "The computer players don't read the chat (AI voice off: [llm] enabled=1 in aimod.ini).",
-      "Die Computerspieler lesen den Chat nicht (KI-Stimme aus: [llm] enabled=1 in aimod.ini).",
-      "your chat line gets no answer" },
-    { "chat_unanswered", "The computer players don't answer the chat ([llm] chat=1 in aimod.ini).",
-      "Die Computerspieler beantworten den Chat nicht ([llm] chat=1 in aimod.ini).", NULL },
-    { "chat_filtered", "No answer: {me} doesn't get your message (chat filter).",
-      "Keine Antwort: {me} bekommt die Nachricht nicht (Chat-Filter).", NULL },
-    { "chat_nobody", "No answer: your chat filter reaches no computer player.",
-      "Keine Antwort: Ihr Chat-Filter erreicht keinen Computerspieler.", NULL },
-    { "chat_who", "No answer: who do you mean? Name one ({names}) or choose them in the chat filter.",
-      "Keine Antwort: wen meinen Sie? Nennen Sie einen Namen ({names}) oder w\xe4hlen Sie ihn im Chat-Filter.", NULL },
-    { "chat_down", "No answer: the language model ({url}) can't be reached.",
-      "Keine Antwort: das Sprachmodell ({url}) ist nicht erreichbar.", NULL },
-    { "chat_busy", "No answer: the language model is too busy - try again in a moment.",
-      "Keine Antwort: das Sprachmodell hat zu viel zu tun - versuchen Sie es gleich noch einmal.", NULL },
-    { "llm_down", "AI voice: no answer from {url} ({error}) - the computer players say their fixed lines.",
-      "KI-Stimme: keine Antwort von {url} ({error}) - die Computerspieler sprechen ihre festen Zeilen.", NULL },
-    { "llm_failed", "AI voice: no usable answer this time ({error}) - just this once the computer player says its fixed "
-      "line or goes by the rules.",
-      "KI-Stimme: diesmal keine brauchbare Antwort ({error}) - nur dieses eine Mal spricht der Computerspieler seine feste "
-      "Zeile oder folgt den Regeln.", "one answer failed, the server is there (llm_down: it can't be reached) - once a game" },
-    { "llm_wait", "AI voice: the language model is taking long - the game is paused until it answers (resume it to play on).",
-      "KI-Stimme: das Sprachmodell braucht lange - das Spiel ist pausiert, bis es antwortet (fortsetzen, um weiterzuspielen).",
-      "[llm] fallback=pause: the game waits for the model" },
-    { "llm_wait_down", "AI voice: {url} can't be reached - the game is paused, trying again every 5 seconds (resume it to play on).",
-      "KI-Stimme: {url} ist nicht erreichbar - das Spiel ist pausiert, neuer Versuch alle 5 Sekunden (fortsetzen, um weiterzuspielen).",
-      NULL },
-    { "talk_to", "to {them}: {text}", "an {them}: {text}", "an AI's message to another AI ([llm] ai_talk_show)" },
-    { "food", "food", "Nahrung", "resources in a tribute ({tribute})" },
-    { "wood", "wood", "Holz", NULL },
-    { "stone", "stone", "Stein", NULL },
-    { "gold", "gold", "Gold", NULL },
-    { "iron", "iron", "Eisen", NULL },
-    { "nothing", "nothing", "nichts", NULL },
-    { "opinion1", "hostile", "feindselig", "an opinion in words: its text - {opinion}, {them.opinion(me)} - while conditions count its number: 1 -100..-51, 2 -50..-16, 3 -15..15, 4 16..50, 5 51..100" },
-    { "opinion2", "unfriendly", "ablehnend", NULL },
-    { "opinion3", "indifferent", "gleichg\xfcltig", NULL },
-    { "opinion4", "friendly", "freundlich", NULL },
-    { "opinion5", "trusting", "vertrauensvoll", NULL },
+// THE KEYS the code asks for - their texts are in the files only (mod/system.eeai, mod/prompt.eeai, a
+// personality's prompt = { }): each key with the placeholders the code fills in it ({tribute}, {url} ...;
+// the game's values - {me}, {offer_minutes} - and the files' names are no placeholders)
+struct text_key { const char *key, *ph; };
+// k_sys: the system lines the player reads (mod/system.eeai)
+static const struct text_key k_sys[] = {
+    { "now_enemy", "" }, { "now_ally", "" }, { "vassal_ask_lord", "" }, { "block_peace", "ally" },
+    { "block_unity", "" }, { "veto_own", "ally" }, { "veto_block", "ally" }, { "alliance_offer", "" },
+    { "capitulation", "tribute" }, { "peace_offer", "" }, { "tribute_sent", "tribute" }, { "victory_vassals", "" },
+    { "victory_none", "" }, { "victory_not_yet", "names" }, { "chat_unread", "" }, { "chat_unanswered", "" },
+    { "chat_filtered", "" }, { "chat_nobody", "" }, { "chat_who", "names" }, { "chat_down", "url" },
+    { "chat_busy", "" }, { "llm_down", "url error" }, { "llm_failed", "error" }, { "llm_wait", "" },
+    { "llm_wait_down", "url" }, { "talk_to", "text" }, { "food", "" }, { "wood", "" }, { "stone", "" },
+    { "gold", "" }, { "iron", "" }, { "nothing", "" }, { "opinion1", "" }, { "opinion2", "" }, { "opinion3", "" },
+    { "opinion4", "" }, { "opinion5", "" },
 };
 #define N_SYS (int)(sizeof k_sys / sizeof *k_sys)
 #include "texts_prompt.h"   // k_tpl: the language model's instructions
@@ -85,7 +31,7 @@ static const struct text_def k_sys[] = {
 static char *g_sys_base[N_SYS];
 static int g_texts_loaded;
 
-static int text_index(const struct text_def *t, int n, const char *key) {
+static int text_index(const struct text_key *t, int n, const char *key) {
     for (int i = 0; i < n; i++) if (!lstrcmpiA(t[i].key, key)) return i;
     return -1;
 }
@@ -115,9 +61,10 @@ static void texts_file(void) {
     texts_dir(path);
     lstrcatA(path, "system.eeai");
     char *text = read_text_acp(path);
-    if (!text) return;
+    if (!text) { x_error("mod/system.eeai: no such file - the mod says nothing"); g_texts_missing = 1; return; }
     tfile_parse("mod/system.eeai", text, texts_key, NULL);
     free(text);
+    for (int i = 0; i < N_SYS; i++) if (!g_sys_base[i]) x_error("mod/system.eeai: no text for %s", k_sys[i].key);
 }
 // THE PROMPTS: mod/prompt.eeai is read as a layer (persona.c lib_get into g_prompt), its prompt = { ... } as any
 // personality's (persona_key): a text by key, kept in the file's persona
@@ -130,12 +77,11 @@ static void persona_prompt_key(struct persona *p, const char *key, struct tval *
     free(p->prompt[i]);
     p->prompt[i] = _strdup(v->text);
 }
-static void prompt_builtin_vars(struct persona *p) {   // mod/prompt.eeai's built-in names where the file has none
-    for (int i = 0; i < N_TPL_VARS; i++)
-        if (xvars_find(&p->vars, k_tpl_vars[i].key) < 0) xvars_set(&p->vars, k_tpl_vars[i].key, k_tpl_vars[i].en);
+static void prompt_check(const struct persona *p) {   // mod/prompt.eeai: a text for every key
+    for (int i = 0; i < N_TPL; i++) if (!p->prompt || !p->prompt[i]) x_error("mod/prompt.eeai: no text for %s", k_tpl[i].key);
 }
 // the text of prompt key for the model of AI pl: its personality's own, else the first of its layers' (mod/prompt.eeai
-// the last), else built in; *vars: the names it is filled with - those of the file it came from (with its layers')
+// the last); *vars: the names it is filled with - those of the file it came from (with its layers')
 static const char *tpl_find(void *pl, const char *key, const struct xvars **vars) {
     const struct persona *p = persona_of(pl);
     if (!p) p = g_has_computer ? &g_computer : &g_prompt;   // an AI without a personality, a human player
@@ -146,43 +92,35 @@ static const char *tpl_find(void *pl, const char *key, const struct xvars **vars
         if (q->prompt && q->prompt[i]) { *vars = &q->vars; return q->prompt[i]; }
     }
     *vars = &g_prompt.vars;
-    return i < 0 ? key : k_tpl[i].en;
+    return key;   // no such key, or none in mod/prompt.eeai (told when it was read)
 }
 static const char *tpl_text(void *pl, const char *key) { const struct xvars *v; return tpl_find(pl, key, &v); }
-static void tpl_vars_scan(void) {   // the built-in names (vars) of mod/prompt.eeai, for x_fn_known and x_var_known
-    for (int i = 0; i < N_TPL_VARS; i++)
-        if (strchr(k_tpl_vars[i].key, '(')) { char t[96]; wsprintfA(t, "%s = 0\n", k_tpl_vars[i].key); x_fn_scan(t); }
-        else x_var_add(k_tpl_vars[i].key, strlen(k_tpl_vars[i].key));
-}
-static void ph_add(char *out, size_t cap, const char *text) {   // text's {name} placeholders into out (" a b ")
-    for (const char *s = text; s && (s = strchr(s, '{')) != NULL; s++) {
-        const char *e = s + 1;
-        while (isalnum((unsigned char)*e) || *e == '_') e++;
-        size_t n = (size_t)(e - s - 1);
-        if (*e != '}' || !n || n > 40) continue;
-        char w[48];
-        w[0] = ' ';
-        memcpy(w + 1, s + 1, n);
-        w[n + 1] = ' ';
-        w[n + 2] = 0;
-        if (!strstr(out, w) && strlen(out) + n + 2 < cap) lstrcatA(out, w + 1);
-    }
-}
-// expr.c x_name_check: the placeholders the code fills for a key - those its built-in texts use ({url}, {what} ...);
-// for the names (vars: they may serve any key) and the rest: all of them
+// expr.c x_name_check: the placeholders the code fills for a key (k_sys, k_tpl; a situation's description, sit_ and
+// pair_, and a personality's line: {tribute}, {tribute_total} - line_ctx_init, llm_subst); for the names (vars: they
+// may serve any key) and the rest: all of them
 static const char *x_code_placeholders(const char *file, const char *sec, const char *key) {
-    static char one[1000], all[6000];
+    static char one[400], all[2000];
     if (!all[0]) {
         lstrcpyA(all, " tribute tribute_total ");
-        for (int i = 0; i < N_SYS; i++) { ph_add(all, sizeof all, k_sys[i].en); ph_add(all, sizeof all, k_sys[i].de); }
-        for (int i = 0; i < N_TPL; i++) ph_add(all, sizeof all, k_tpl[i].en);
+        for (int t = 0; t < 2; t++)
+            for (int i = 0; i < (t ? N_TPL : N_SYS); i++) {
+                const char *ph = t ? k_tpl[i].ph : k_sys[i].ph;
+                for (const char *w = ph; *w; ) {
+                    int n = (int)strcspn(w, " ");
+                    char x[48];
+                    snprintf(x, sizeof x, " %.*s ", n < 40 ? n : 40, w);
+                    if (!strstr(all, x) && strlen(all) + n + 2 < sizeof all) lstrcatA(all, x + 1);
+                    w += n;
+                    while (*w == ' ') w++;
+                }
+            }
     }
     (void)file;
     int sys = !lstrcmpiA(sec, "system"), tpl = !lstrcmpiA(sec, "prompt");   // system: only mod/system.eeai has it
     if (sys || tpl) {
         int i = sys ? text_index(k_sys, N_SYS, key) : text_index(k_tpl, N_TPL, key);
-        lstrcpyA(one, " ");
-        if (i >= 0) { ph_add(one, sizeof one, sys ? k_sys[i].en : k_tpl[i].en); if (sys) ph_add(one, sizeof one, k_sys[i].de); }
+        int sit = tpl && (!_strnicmp(key, "sit_", 4) || !_strnicmp(key, "pair_", 5));
+        wsprintfA(one, " %s %s", i < 0 ? "" : sys ? k_sys[i].ph : k_tpl[i].ph, sit ? "tribute tribute_total " : "");
         return one;
     }
     if (!lstrcmpiA(sec, "lines")) return " tribute tribute_total ";   // a personality's line (line_ctx_init)
@@ -192,14 +130,13 @@ static void texts_load(void) {
     if (g_texts_loaded) return;
     g_texts_loaded = 1;
     texts_file();
-    if (g_log) fprintf(g_log, "# texts: mod/system.eeai %d keys (the rest built in), %d names (vars)\n", g_texts_sys_n, g_texts_var_n);
+    if (g_log) fprintf(g_log, "# texts: mod/system.eeai %d keys, %d names (vars)\n", g_texts_sys_n, g_texts_var_n);
 }
-// a system line's text in the game's language: the built-in German for "de", mod/system.eeai's, the built-in English
+// a system line's text: mod/system.eeai's (the key itself when it has none - told when it was read)
 static const char *sys_text(const char *key) {
     texts_load();
     int i = text_index(k_sys, N_SYS, key);
-    if (i < 0) return key;
-    return lang_matches("de") && k_sys[i].de ? k_sys[i].de : g_sys_base[i] ? g_sys_base[i] : k_sys[i].en;
+    return i >= 0 && g_sys_base[i] ? g_sys_base[i] : key;
 }
 // out = tmpl filled (x_fill, with these names - vars): its expressions - {me}, {them.epoch}, {opinion} - for pl speaking to
 // other (NULL: the local player; in a system line the reader) with third as enemy, and the few texts only the code has
@@ -273,116 +210,6 @@ static void tput(char *t, int *o, int cap, const char *key, ...) {
 }
 static const char *tnum(char *buf, int n) { wsprintfA(buf, "%d", n); return buf; }
 
-// texts dump [force]: both files with every key and its built-in text (UTF-8)
-// a string as the files write it: "...", the game's code page -> UTF-8, \" \\ \n - inside {braces} as written (an
-// expression's quotes are its own). One longer than the line (pre: what is on it already) in pieces, a line each:
-// ("..." <line break> "...") - the file's reader joins strings side by side in ( ); cut after a space outside braces
-#define DUMP_LINE 118
-static void text_write(FILE *f, const char *acp, int pre, int ind) {
-    WCHAR w[2048];
-    char u[6144], e[12288];
-    int n = MultiByteToWideChar(CP_ACP, 0, acp, -1, w, 2048);
-    if (n <= 0) return;
-    WideCharToMultiByte(CP_UTF8, 0, w, -1, u, sizeof u, NULL, NULL);
-    int depth = 0, o = 0, cut[512], nc = 0;
-    for (const char *s = u; *s && o < (int)sizeof e - 3; s++) {
-        if (*s == '{') depth++;
-        else if (*s == '}' && depth) depth--;
-        if (*s == '\n') { e[o++] = '\\'; e[o++] = 'n'; }
-        else if (!depth && (*s == '"' || *s == '\\')) { e[o++] = '\\'; e[o++] = *s; }
-        else e[o++] = *s;
-        if (*s == ' ' && !depth && nc < 512) cut[nc++] = o;   // a piece may end after this space
-    }
-    e[o] = 0;
-    if (pre + o + 2 <= DUMP_LINE || !nc) { fprintf(f, "\"%s\"", e); return; }
-    int from = 0, col = pre + 1, i = 0;
-    fputc('(', f);
-    for (;;) {
-        int to = o;
-        if (col + (o - from) + 3 > DUMP_LINE) {   // the last cut that keeps the piece on its line (else the next one)
-            int best = -1;
-            for (; i < nc && col + (cut[i] - from) + 2 <= DUMP_LINE; i++) best = cut[i];
-            if (best <= from && i < nc) best = cut[i++];
-            if (best > from) to = best;
-        }
-        if (from) fprintf(f, "\n%*s", ind + 4, "");
-        fprintf(f, "\"%.*s\"", to - from, e + from);
-        if (to >= o) break;
-        from = to;
-        col = ind + 4;
-    }
-    fputc(')', f);
-}
-// the names (vars) of the file as written - comments, line breaks - read before it is written anew: every one outside
-// the records (all: mod/system.eeai), or those that aren't built in (mod/prompt.eeai) - an entry from its line (and the
-// comment lines right above it) to the next one, a record or the end. NULL: none
-static char *vars_kept(const char *path, int all) {
-    FILE *f = fopen(path, "rb");
-    if (!f) return NULL;
-    fseek(f, 0, SEEK_END);
-    long size = ftell(f);
-    fseek(f, 0, SEEK_SET);
-    char *b = malloc((size_t)size + 1), *out = malloc((size_t)size + 2);
-    size = (long)fread(b, 1, (size_t)size, f);
-    fclose(f);
-    b[size] = 0;
-    int o = 0, rec = 0, keep = 0;
-    const char *chunk = NULL, *com = NULL;   // the entry's start; the first of the comment lines right above a line
-    for (const char *l = b; *l; ) {
-        const char *nl = strchr(l, '\n'), *e = nl ? nl + 1 : l + strlen(l), *t = l;
-        while (*t == ' ' || *t == '\t') t++;
-        int key = !rec && (tl_key_line(l) || !strncmp(t, "include(", 8)), open = 0;
-        if (key) {   // the entry before ends here (with the comments above this line)
-            const char *end = com ? com : l, *eq = strchr(t, '=');
-            if (chunk && keep) { memcpy(out + o, chunk, (size_t)(end - chunk)); o += (int)(end - chunk); }
-            chunk = NULL;
-            open = eq && eq < e && x_record_open(eq + 1);
-        }
-        if (open) rec = 1;
-        else if (key && strncmp(t, "include(", 8)) {
-            char name[48];
-            int n = 0;
-            while ((isalnum((unsigned char)t[n]) || t[n] == '_') && n < 47) { name[n] = t[n]; n++; }
-            name[n] = 0;
-            int j = 0;
-            while (!all && j < N_TPL_VARS && !xkey_is(k_tpl_vars[j].key, name)) j++;
-            chunk = com ? com : l;
-            keep = all || j == N_TPL_VARS;   // a built-in one is written afresh
-        } else if (rec && *t == '}') rec = 0;
-        com = !rec && *t == '#' ? (com ? com : l) : NULL;
-        l = e;
-    }
-    if (chunk && keep) { size_t r = strlen(chunk); memcpy(out + o, chunk, r); o += (int)r; }
-    while (o && (out[o - 1] == '\n' || out[o - 1] == '\r' || out[o - 1] == ' ')) o--;   // its blank lines at the end
-    free(b);
-    if (!o) { free(out); return NULL; }
-    out[o++] = '\n';
-    out[o] = 0;
-    return out;
-}
-static void text_placeholders(FILE *f, const char *a, const char *b, int ind) {   // "# in braces: {me} {them}" - those the texts use
-    char seen[1000] = "";
-    for (int t = 0; t < 2; t++)
-        for (const char *s = t ? b : a; s && (s = strchr(s, '{')) != NULL; s++) {
-            const char *c = x_close(s);   // the matching brace: quotes and nested braces skipped
-            if (!c || c - s > 70) continue;
-            char ph[72];
-            lstrcpynA(ph, s, (int)(c - s) + 2);
-            if (!strstr(seen, ph) && strlen(seen) + strlen(ph) < sizeof seen - 2) { lstrcatA(seen, " "); lstrcatA(seen, ph); }
-        }
-    if (seen[0]) fprintf(f, "%*s# in braces:%s\n", ind, "", seen);
-}
-static void var_write(FILE *f, const char *key, const char *val) {   // "name(a,b)" as it is written: name(a, b) = ...
-    for (; *key; key++) { fputc(*key, f); if (*key == ',') fputc(' ', f); }
-    fprintf(f, " = %s\n", val);
-}
-// the head of the dumped files (gen_persona.py writes the same into _template.eeai): the rest is in README.md
-static const char k_format_help[] =
-    "#\n"
-    "# key = value, a value is an expression: \"a string\" ({placeholders} and {expressions} in it), [\"a list\", \"of\n"
-    "# strings\"] (one at random), allied ? \"a condition\", a ?? b, numbers ... The keys the mod reads stand in records\n"
-    "# (lines = { ... }); a name outside them is the file's own, for its values. The format, the expressions and every\n"
-    "# value of the game (opinion, them.soldiers, epoch.middle, ...): README.md in this folder.\n";
 // TEXTS CORPUS (texts corpus): every expression of the text files worked out, for comparing two builds of the
 // engine (docs/testing.md "Text engine comparison") - the personalities' lines, vars, decide, colours and style,
 // the system lines and prompt pieces filled, aimod.ini's numbers; each for every AI speaking to every other player,
@@ -599,8 +426,7 @@ static void texts_corpus(char *out, const char *path) {
 // mod/system.eeai's vars and P's personality's; texts line P <situation> [Q [R]]: the variant P would say now, filled
 // (R: the third player - {enemy})
 static void cmd_texts(char *out, const char *args) {
-    char dir[MAX_PATH], path[MAX_PATH];
-    int force = strstr(args, "force") != NULL;
+    char path[MAX_PATH];
     if (!strncmp(args, "corpus", 6)) {   // texts corpus [file]: default aimod_dumps\texts_corpus.txt
         const char *f = args + 6;
         while (*f == ' ') f++;
@@ -656,65 +482,9 @@ static void cmd_texts(char *out, const char *args) {
               p->file, buf);
         return;
     }
-    if (strncmp(args, "dump", 4)) {
-        texts_load();
-        int tn = 0;
-        for (int i = 0; g_prompt.prompt && i < N_TPL; i++) tn += g_prompt.prompt[i] != NULL;
-        REPLY("texts: mod/system.eeai %d keys, mod/prompt.eeai %d keys read; %d system texts, %d prompt texts built in; language %s; "
-              "names (vars): mod/system.eeai %d, mod/prompt.eeai %d\n", g_texts_sys_n, tn, N_SYS, N_TPL, g_lang, g_vars_sys.n, g_prompt.vars.n);
-        return;
-    }
-    texts_dir(dir);
-    CreateDirectoryA(dir, NULL);
-    for (int sys = 1; sys >= 0; sys--) {
-        wsprintfA(path, "%s%s", dir, sys ? "system.eeai" : "prompt.eeai");
-        if (!force && GetFileAttributesA(path) != INVALID_FILE_ATTRIBUTES) { REPLY("kept %s (texts dump force overwrites)\n", path); continue; }
-        char *kept = vars_kept(path, sys);   // the file's own names (vars), as written
-        FILE *f = fopen(path, "wb");
-        if (!f) { REPLY("error: cannot write %s\n", path); free(kept); continue; }
-        const struct text_def *t = sys ? k_sys : k_tpl;
-        int nt = sys ? N_SYS : N_TPL;
-        if (sys) {
-            fputs("# mod/system.eeai - the system lines eeaimod shows the player (white, from nobody in particular). Not a\n"
-                  "# personality. English (in a German game the built-in German lines come first). A key left out keeps the\n"
-                  "# built-in text. In braces: expressions - {me} the AI, {them} you - and the few texts only the mod has\n"
-                  "# (listed above each key).\n"
-                  "# Written by \"texts dump\" with the built-in texts.\n", f);
-            fputs(k_format_help, f);
-            fputs("#\n# The names here (vars) serve the system lines and every personality's lines (a personality's own\n"
-                  "# first).\n", f);
-            fputs(kept ? "\n" : "#mood = opinion > 30% ? \"gladly\" : \"\"\n", f);
-            if (kept) fputs(kept, f);
-            fputs("\nsystem = {\n", f);
-        } else {
-            fputs("# mod/prompt.eeai - what eeaimod tells the language model ([llm] in aimod.ini): who the AI is, the game as\n"
-                  "# it stands, the situations, the tools. English: the model is told which language to answer in. A key left\n"
-                  "# out keeps the built-in text; a personality's own prompt = { ... } comes first (this file is the last layer\n"
-                  "# of every personality). In braces: expressions - {me} the AI, {them} the one it talks to, {them.epoch},\n"
-                  "# {opinion} - and the few texts only the mod has (each key's are listed above it). The pieces are joined\n"
-                  "# with a space between them.\n"
-                  "# Written by \"texts dump\" with the built-in texts.\n", f);
-            fputs(k_format_help, f);
-            fputs("#\n# The names here (vars) serve the prompts (English, like them) - and the personalities' lines, after their\n"
-                  "# own. The ones written here are built in (the pieces of game_state_other, tribute_room): change them, or add\n"
-                  "# your own below them.\n\n", f);
-            for (int i = 0; i < N_TPL_VARS; i++) {
-                if (k_tpl_vars[i].note) { fputs("# ", f); fputs(k_tpl_vars[i].note, f); fputs("\n", f); }
-                var_write(f, k_tpl_vars[i].key, k_tpl_vars[i].en);
-            }
-            if (kept) { fputs("\n", f); fputs(kept, f); }   // the file's own, as written, after them
-            fputs("\nprompt = {\n", f);
-        }
-        for (int i = 0; i < nt; i++) {
-            if (t[i].note) { fputs("    # ", f); fputs(t[i].note, f); fputs("\n", f); }
-            text_placeholders(f, t[i].en, NULL, 4);
-            fprintf(f, "    %s = ", t[i].key);
-            text_write(f, t[i].en, 4 + (int)strlen(t[i].key) + 3, 4);
-            fputs("\n", f);
-        }
-        fputs("}\n", f);
-        fclose(f);
-        free(kept);
-        REPLY("written %s\n", path);
-    }
+    int tn = 0;
+    for (int i = 0; g_prompt.prompt && i < N_TPL; i++) tn += g_prompt.prompt[i] != NULL;
+    REPLY("texts: mod/system.eeai %d of %d keys, mod/prompt.eeai %d of %d; language %s; names (vars): mod/system.eeai %d, "
+          "mod/prompt.eeai %d%s\n", g_texts_sys_n, N_SYS, tn, N_TPL, g_lang, g_vars_sys.n, g_prompt.vars.n,
+          g_texts_missing ? " - the mod's files are missing: it says nothing" : "");
 }

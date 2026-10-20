@@ -387,20 +387,12 @@ static float det_log2f(float x) {
     return (float)e + 2.0f * t * (1.0f + t2 * (1.0f / 3 + t2 * (1.0f / 5 + t2 * (1.0f / 7)))) * 1.44269504f;
 }
 
-// would AI pl make peace / an alliance with player j now? (score > 0) - its decide peace_score when it has one
-// (me = pl, them = j, enemy = its strongest enemy); the cooling-off after j's declaration is the rule's, not the score's
+// would AI pl make peace / an alliance with player j now? (score > 0) - its decide peace_score (me = pl, them = j,
+// enemy = its strongest enemy: mod/computer.eeai has the base); the cooling-off after j's declaration is the rule's
 static float peace_score(void *pl, int ai, int j, uint32_t now) {
     if (g_war_since[ai][j] && now - g_war_since[ai][j] < (uint32_t)trait(pl, T_PRIDE) * 3000u) return -1000;
     int lead = strongest_enemy(pl, ai);
-    void *pj = player_at(j);
-    double d;
-    if (persona_decide(pl, D_PEACE_SCORE, pj, lead ? player_at(lead) : NULL, &d)) return (float)d;
-    float r = power_of(j) / power_of(ai);
-    float pw = 25.0f * det_log2f(r);
-    if (pw > 40) pw = 40; else if (pw < -40) pw = -40;   // a much weaker player can still buy peace
-    float s = g_opinion[ai][j] + pw + 0.4f * (float)(50 - trait(pl, T_AGGRESSION)) - 0.3f * (float)(trait(pl, T_PRIDE) - 50);
-    if (lead && lead != j && pj && stance_of(pj, lead)) s += 15;
-    return s;
+    return (float)persona_decide(pl, D_PEACE_SCORE, player_at(j), lead ? player_at(lead) : NULL);
 }
 
 // STANCE LINES ([all] stance_lines): every AI stance change used to show the game's line "<AI> wechselt
@@ -840,9 +832,8 @@ static void diplo_initiative(void *pl, int ai, uint32_t now) {
     if (is_vassal(ai)) { vassal_rebellion(pl, ai, now, 1); return; }
     int lead = strongest_enemy(pl, ai);
     // alliance against the leader (decide seek_ally: me = pl, enemy = the leader; ally_score: them = the candidate)
-    double d;
     void *pe = lead ? player_at(lead) : NULL;
-    if (lead && (persona_decide(pl, D_SEEK_ALLY, NULL, pe, &d) ? d != 0 : g_ws.power[lead] > 1.5f * power_of(ai))) {
+    if (lead && persona_decide(pl, D_SEEK_ALLY, NULL, pe) != 0) {
         int best = 0;
         double bs = -20;
         for (int j = 1; j < nplayers(); j++) {
@@ -852,7 +843,7 @@ static void diplo_initiative(void *pl, int ai, uint32_t now) {
             if (g_offer_t[ai][j] || (g_offer_last[ai][j] &&
                                      now - g_offer_last[ai][j] < (600000u << (g_offer_ignored[ai][j] < 2 ? g_offer_ignored[ai][j] : 2))))
                 continue;
-            double sc = persona_decide(pl, D_ALLY_SCORE, pj, pe, &d) ? d : g_opinion[ai][j];
+            double sc = persona_decide(pl, D_ALLY_SCORE, pj, pe);
             if (sc <= bs || block_veto(ai, j, now, NULL)) continue;   // not with someone its side can't stand
             bs = sc; best = j;
         }
@@ -1820,6 +1811,7 @@ static void diplo_install(const char *ini, const char *test_ini) {
         g_auto_victory = ini_int("autotest", "auto_victory", g_auto_victory, test_ini);
         g_block_observer = ini_int("autotest", "block_observer", 0, test_ini);
     }
+    if (g_texts_missing) g_ai_diplomacy = g_surrender = g_blocks = g_stance_lines = g_auto_victory = 0;   // they speak (texts.c)
     int ok = patch_vtable(VT_PAY_TRIBUTE, 10, FN_PAY_TRIBUTE, (void *)hook_tribute);
     int chat = patch_vtable(VT_INGAME_CHAT, 10, FN_INGAME_CHAT, (void *)hook_ingame_chat);
     BOOL kills = patch_call(CALL_KILL_STAT, FN_STAT_ADD, kill_stat_thunk);

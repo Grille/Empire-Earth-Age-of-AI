@@ -17,7 +17,7 @@
 //   lines = {                          English (other languages: a file of their own, at the release)
 //       war_declared = ["Variant one", opinion < -50 ? "Variant two {them}"]   any expression: one string, a list ...
 //   }
-//   decide = {                         its decisions as expressions (persona_decide; diplo.c the defaults)
+//   decide = {                         its decisions as expressions (persona_decide; mod/computer.eeai's the base)
 //       peace_score = opinion + ...    a number; a key it has none of: its includes', else the built-in rule
 //   }
 //   style = {                          EXPERIMENTAL, only with [general] ai_style=1 (default 0): aimod.ini keys
@@ -72,8 +72,10 @@ static const struct { const char *key; int chance, cooldown; enum audience aud; 
 };
 
 // DECISIONS (decide): what an AI wants, worked out by diplo.c with me = the AI, them = the other player, enemy = the
-// AI's strongest enemy (none: a missing player, to be checked) - a number each; a mistake (or no number) is the built-in
-// rule for that time (told once). The rules around them (who may be asked, timers, the offers) stay diplo.c's.
+// AI's strongest enemy (none: a missing player, to be checked) - a number each, from the personality or the first of
+// its layers that has the key (mod/computer.eeai the last); a mistake (or no number) passes it to the next layer, and
+// with none left the answer is no (told once). The rules around them (who may be asked, timers, the offers) stay
+// diplo.c's.
 enum decide { D_PEACE_SCORE, D_SEEK_ALLY, D_ALLY_SCORE, D_N };
 static const char *const k_decide_keys[D_N] = { "peace_score", "seek_ally", "ally_score" };
 static int decide_key(const char *key) { int k = 0; while (k < D_N && lstrcmpiA(key, k_decide_keys[k])) k++; return k; }
@@ -253,11 +255,12 @@ static void lang_detect(void) {
 // last layer too. computer.eeai: the neutral lines for what must not go unsaid (war, peace, offers, capitulation,
 // victory: k_must); an AI without a personality speaks with it alone (autotest personas=0). A personality without a
 // line for one of k_must (its own or a layer's, the situation's or a fallback's) is a mistake. prompt.eeai: what the
-// language model is told (texts.c) - a missing file or key keeps the built-in text. system.eeai (texts.c): the system
-// lines, no layer of anyone.
+// language model is told (texts.c). system.eeai (texts.c): the system lines, no layer of anyone. The mod has no texts
+// of its own: without these files it says nothing (g_texts_missing).
 static int line_fallback(int k);
 static struct persona g_computer, g_prompt;
 static int g_has_computer;
+static int g_texts_missing;   // the mod's files aren't there (mod/system.eeai, prompt.eeai, computer.eeai): it says nothing
 static int g_personas_only_computer;   // autotest personas=0: only computer.eeai (AIs without a personality)
 static const enum line_kind k_must[] = {
     L_WAR_DECLARED, L_BETRAYED, L_PEACE_ACCEPT, L_PEACE_REFUSE, L_ALLIANCE_OFFER, L_OFFER_ACCEPTED, L_OFFER_WITHDRAWN,
@@ -378,7 +381,7 @@ static int persona_parse(const char *dir, const char *file, struct persona *p) {
 static struct persona *g_libs[MAX_LIBS];
 static int g_nlibs;
 static void persona_layers(struct persona *p, const char *dir, int depth);
-static void prompt_builtin_vars(struct persona *p);   // texts.c
+static void prompt_check(const struct persona *p);   // texts.c
 static struct persona *lib_get(const char *dir, const char *file, const char *by, int depth) {
     for (int i = 0; i < g_nlibs; i++)
         if (!lstrcmpiA(g_libs[i]->file, file) || (!_strnicmp(g_libs[i]->file, file, strlen(g_libs[i]->file)) && !lstrcmpiA(file + strlen(g_libs[i]->file), ".eeai"))) {
@@ -390,17 +393,12 @@ static struct persona *lib_get(const char *dir, const char *file, const char *by
     struct persona *p = !lstrcmpiA(file, "mod/computer.eeai") ? &g_computer : !lstrcmpiA(file, "mod/prompt.eeai") ? &g_prompt :
                         malloc(sizeof *p);
     if (!persona_parse(dir, file, p)) {
-        if (p == &g_prompt) {   // no file: the built-in prompt texts
-            memset(p, 0, sizeof *p);
-            lstrcpyA(p->file, "mod/prompt");
-        } else {
-            x_error("%s: include \"%s\": no such file in aimod_ai", by, file);
-            if (p != &g_computer) free(p);
-            return NULL;
-        }
+        x_error("%s: include \"%s\": no such file in aimod_ai", by, file);
+        if (p != &g_computer && p != &g_prompt) free(p);
+        return NULL;
     }
     if (p == &g_computer) { g_has_computer = 1; include_unnamed(p, "mod/prompt.eeai"); }
-    if (p == &g_prompt) prompt_builtin_vars(p);
+    if (p == &g_prompt) prompt_check(p);
     g_libs[g_nlibs++] = p;
     persona_layers(p, dir, depth);
     return p;
@@ -456,8 +454,13 @@ static void personas_load(void) {
     g_nlibs = 0;
     g_has_computer = 0;
     lstrcpyA(dir, g_ai_dir);
-    lib_get(dir, "mod/prompt.eeai", "eeaimod", 0);   // first: there without computer.eeai too
-    if (lib_get(dir, "mod/computer.eeai", "eeaimod", 0)) persona_must_check(&g_computer);   // the AIs without a personality
+    // the mod's own files first (prompt.eeai is computer.eeai's layer too): without them it says nothing (texts.c)
+    if (!lib_get(dir, "mod/prompt.eeai", "eeaimod", 0) || !lib_get(dir, "mod/computer.eeai", "eeaimod", 0)) {
+        g_texts_missing = 1;
+        g_has_computer = 0;
+        return;
+    }
+    persona_must_check(&g_computer);   // the AIs without a personality speak with it
     snprintf(pat, sizeof pat, "%s*.eeai", dir);
     WIN32_FIND_DATAA fd;
     HANDLE h = FindFirstFileA(pat, &fd);
@@ -476,9 +479,8 @@ static void personas_load(void) {
     FindClose(h);
 }
 
-// expr.c x_fn_known: the functions of every file in the folder and in mod\ (name(a, b) = ...), before any file is
-// checked - and mod/prompt.eeai's built in (texts.c)
-static void tpl_vars_scan(void);
+// expr.c x_fn_known: the functions and names of every file in the folder and in mod\ (name(a, b) = ...), before any
+// file is checked
 static void x_fn_scan_folder(const char *dir) {
     char pat[MAX_PATH], path[MAX_PATH];
     snprintf(pat, sizeof pat, "%s*.eeai", dir);
@@ -495,7 +497,6 @@ static void x_fn_scan_folder(const char *dir) {
 static void x_fn_scan_dir(void) {
     char dir[MAX_PATH];
     g_xfn_n = g_xvn_n = 0;
-    tpl_vars_scan();
     x_fn_scan_folder(g_ai_dir);   // <game>\aimod_ai\, [general] ai_dir or [autotest] ai_dir
     snprintf(dir, sizeof dir, "%smod\\", g_ai_dir);
     x_fn_scan_folder(dir);
@@ -552,30 +553,40 @@ static void line_ctx_init(struct line_ctx *l, void *pl, void *other, void *third
     l->c.vars[1] = &(persona_of(pl) ? persona_of(pl) : &g_computer)->vars;
     l->c.vars[2] = &g_vars_sys;
 }
-// decision k of AI pl about them (enemy: its strongest enemy, or NULL) - its decide expression's number into *out;
-// 0: none, or not a number now (a mistake, told once): the caller's built-in rule
-static int persona_decide(void *pl, int k, void *them, void *enemy, double *out) {
-    struct persona *p = persona_of(pl);
-    if (!p) p = &g_computer;
-    if (!p->decide[k]) return 0;
+// decision k of AI pl about them (enemy: its strongest enemy, or NULL): the number of its personality's decide
+// expression, worked out with that file's names - or, when it fails now (a mistake, told once; no number), of the
+// next layer's (one a layer took over from the file before it is that one again: skipped); none left: no
+static double persona_decide(void *pl, int k, void *them, void *enemy) {
+    static const double no[D_N] = { -100, 0, -100 };   // peace refused, no ally sought, nobody asked
+    const struct persona *p = persona_of(pl);
+    if (!p && g_has_computer) p = &g_computer;
+    const char *tried[LAYERS_MAX + 1];
+    int nt = 0;
     texts_load();
-    struct xctx c;
-    memset(&c, 0, sizeof c);
-    c.pl = pl; c.other = them; c.third = enemy; c.found = 1;
-    c.vars[0] = &p->vars;
-    c.vars[2] = &g_vars_sys;
-    c.game = 1;
-    struct xval x;
-    if (!x_eval(p->decide[k], &c, &x)) {
-        if (!c.failed) x_log_bad("a decision that is no expression", p->decide[k]);
-        return 0;
+    for (int i = -1; p && i < p->nlayer; i++) {
+        const struct persona *q = i < 0 ? p : p->layer[i];
+        int seen = !q->decide[k];
+        for (int t = 0; t < nt && !seen; t++) seen = !strcmp(tried[t], q->decide[k]);
+        if (seen) continue;
+        tried[nt++] = q->decide[k];
+        struct xctx c;
+        memset(&c, 0, sizeof c);
+        c.pl = pl; c.other = them; c.third = enemy; c.found = 1;
+        c.vars[0] = &q->vars;
+        c.vars[2] = &g_vars_sys;
+        c.game = 1;
+        struct xval x;
+        if (!x_eval(q->decide[k], &c, &x)) {
+            if (!c.failed) x_log_bad("a decision that is no expression", q->decide[k]);
+            continue;
+        }
+        if (!x.w || !x.has_n || x.pl) {   // nothing, a text, a player: no number to decide by
+            x_error("decide %s of %s: not a number - the next layer's instead", k_decide_keys[k], q->file);
+            continue;
+        }
+        return k == D_SEEK_ALLY ? x.n : x.n * 100;   // a score: the language's shares, the code's points (opinion -100..100)
     }
-    if (!x.w || !x.has_n || x.pl) {   // nothing, a text, a player: no number to decide by
-        x_error("decide %s of %s: not a number - the built-in rule instead", k_decide_keys[k], p->file);
-        return 0;
-    }
-    *out = k == D_SEEK_ALLY ? x.n : x.n * 100;   // a score: the language's shares, the code's points (opinion -100..100)
-    return 1;
+    return no[k];
 }
 static uint32_t text_hash(const char *s) { uint32_t h = 2166136261u; while (*s) h = (h ^ (uint8_t)*s++) * 16777619u; return h | 1; }
 // p's line for situation k, worked out now (out, cap bytes): its value - one of a list's items, what holds of its
@@ -976,6 +987,16 @@ static void cmd_persona(char *out, const char *args) {
     }
 }
 
+// the mod's files aren't there (g_texts_missing): told once, at startup - not only in the log nobody reads
+static DWORD WINAPI texts_missing_box(LPVOID arg) {
+    (void)arg;
+    char text[600];
+    wsprintfA(text, "eeaimod's text files are missing: %smod\\ needs computer.eeai, prompt.eeai and system.eeai.\n\n"
+              "The computer players play on, but without personalities, AI voice and diplomacy. Copy the mod's aimod_ai "
+              "folder next to Empire Earth.exe again (or set ai_dir in aimod.ini).", g_ai_dir);
+    MessageBoxA(NULL, text, "eeaimod", MB_OK | MB_ICONWARNING | MB_TOPMOST | MB_SETFOREGROUND);
+    return 0;
+}
 // strict parsing: the mistakes in the files, at startup
 static DWORD WINAPI x_errors_box(LPVOID arg) {
     (void)arg;
@@ -1031,6 +1052,13 @@ static void persona_install(const char *ini, const char *test_ini) {
     if (!g_lang[0]) lang_detect();
     personas_load();
     texts_load();   // mod/system.eeai now: its mistakes come up with the personalities'
+    if (g_texts_missing) {   // nobody speaks: diplo_install and llm_install switch off what needs the texts
+        g_npersonas = 0;
+        g_has_computer = 0;
+        if (g_log) fprintf(g_log, "# texts: the mod's files are missing in %smod\\ - no personalities, no AI voice, no AI diplomacy\n", g_ai_dir);
+        HANDLE t = test_ini ? NULL : CreateThread(NULL, 0, texts_missing_box, NULL, 0, NULL);
+        if (t) CloseHandle(t);
+    }
     if (g_strict && g_x_total && !test_ini) {   // at startup: a message box (its own thread - this runs in DllMain)
         HANDLE t = CreateThread(NULL, 0, x_errors_box, NULL, 0, NULL);
         if (t) CloseHandle(t);

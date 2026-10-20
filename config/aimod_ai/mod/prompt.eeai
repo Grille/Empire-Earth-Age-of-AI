@@ -1,10 +1,9 @@
 # mod/prompt.eeai - what eeaimod tells the language model ([llm] in aimod.ini): who the AI is, the game as
-# it stands, the situations, the tools. English: the model is told which language to answer in. A key left
-# out keeps the built-in text; a personality's own prompt = { ... } comes first (this file is the last layer
-# of every personality). In braces: expressions - {me} the AI, {them} the one it talks to, {them.epoch},
-# {opinion} - and the few texts only the mod has (each key's are listed above it). The pieces are joined
-# with a space between them.
-# Written by "texts dump" with the built-in texts.
+# it stands, the situations, the tools. English: the model is told which language to answer in. Every key
+# must be here (the mod has no texts of its own); a personality's own prompt = { ... } comes first (this file
+# is the last layer of every personality). In braces: expressions - {me} the AI, {them} the one it talks to,
+# {them.epoch}, {opinion} - and the few texts only the mod has (each key's are listed above it). The pieces
+# are joined with a space between them.
 #
 # key = value, a value is an expression: "a string" ({placeholders} and {expressions} in it), ["a list", "of
 # strings"] (one at random), allied ? "a condition", a ?? b, numbers ... The keys the mod reads stand in records
@@ -12,8 +11,7 @@
 # value of the game (opinion, them.soldiers, epoch.middle, ...): README.md in this folder.
 #
 # The names here (vars) serve the prompts (English, like them) - and the personalities' lines, after their
-# own. The ones written here are built in (the pieces of game_state_other, tribute_room): change them, or add
-# your own below them.
+# own: the pieces of game_state_other, tribute_room - change them, or add your own.
 
 # game_state_other: the stances between you
 stance = (

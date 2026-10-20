@@ -1,30 +1,31 @@
 """Writes config/aimod_ai/_template.eeai - an empty personality with every key explained - from the DLL's sources:
-the situations (persona.c k_lines: who hears them, how often, their fallbacks), their descriptions (texts_prompt.h
-sit_<key>), the head (texts.c k_format_help; the rest is in README.md). Run it after changing one of them:
+the situations (persona.c k_lines: who hears them, how often, their fallbacks), their descriptions (mod/prompt.eeai
+sit_<key>). Run it after changing one of them:
 venv/Scripts/python.exe scripts/gen_persona.py"""
 import os
 import re
+from eeai_prompt import prompt_texts
 
 root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 def src(name):
     return open(os.path.join(root, 'dll', name), encoding='latin-1').read()
 
-pers, tpl, texts = src('persona.c'), src('texts_prompt.h'), src('texts.c')
+pers = src('persona.c')
+prompt = prompt_texts(root)
 lines = re.findall(r'\{ "([a-z_]+)", (\d+), (\d+), (A_ALL|A_ALLIES|A_NAME) \}', pers)
 assert len(lines) >= 40
 
-def c_string(code):   # the text of the C string literals in code, escapes undone
-    raw = ''.join(re.findall(r'"((?:[^"\\]|\\.)*)"', code))
-    return re.sub(r'\\(.)', lambda m: '\n' if m.group(1) == 'n' else m.group(1), raw)
-
 def sit(key):
-    m = re.search(r'\{ "sit_%s", ((?:\s*"(?:[^"\\]|\\.)*")+)' % key, tpl)
     # an expression in it ({lord == them ? ...}) left out: the plain words describe the situation
-    return re.sub(r'\{[^{}]*[ ?][^{}]*\}', '', c_string(m.group(1))) if m else key
+    return re.sub(r'\{[^{}]*[ ?][^{}]*\}', '', prompt.get('sit_' + key, key))
 
-def help_text(name):
-    a = texts.index('static const char %s[] =' % name)
-    return [ln for ln in c_string(texts[a:texts.index(';\n', a)]).split('\n') if ln]
+FORMAT_HELP = [   # the rest is in README.md
+    '#',
+    '# key = value, a value is an expression: "a string" ({placeholders} and {expressions} in it), ["a list", "of',
+    '# strings"] (one at random), allied ? "a condition", a ?? b, numbers ... The keys the mod reads stand in records',
+    '# (lines = { ... }); a name outside them is the file\'s own, for its values. The format, the expressions and every',
+    '# value of the game (opinion, them.soldiers, epoch.middle, ...): README.md in this folder.',
+]
 
 aud = {'A_ALL': 'everyone', 'A_ALLIES': 'its allies', 'A_NAME': '{them} only'}
 fb = re.search(r'static int line_fallback\(int k\) \{(.*?)\n\}', pers, re.S).group(1)
@@ -41,7 +42,7 @@ w('# Each situation below gets a line: a string, or a list of them (one at rando
 w('#   greeting = [allied ? "Welcome back, {them}.", opinion < -50% ? ["Go away.", "You again?"]] ?? "Greetings, {them}."')
 w('# A situation without a line stays silent - unless it must be said (war, peace, offers, capitulation, victory): then')
 w('# a more general situation speaks (noted below) or a layer - mod/computer.eeai. The lines are English.')
-for ln in help_text('k_format_help'):
+for ln in FORMAT_HELP:
     w(ln)
 w('')
 w('# eeaimod\'s base, mod/computer.eeai, and the language model\'s texts, mod/prompt.eeai, are layers of every')

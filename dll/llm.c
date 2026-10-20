@@ -1192,7 +1192,7 @@ static void llm_chat_hint(const char *text) {
 // else the last one he heard within 5 minutes, else the only one that gets it. In single player a line nobody will
 // answer gets a system line saying why (with the AI voice off: once per game).
 static void llm_player_chat(const char *text) {
-    if (!text || !*text || victory_word(text)) return;
+    if (!text || !*text || victory_word(text) || g_texts_missing) return;   // no texts: no hints either
     if (!g_llm_on || !g_llm_chat) {
         if (!g_llm_off_told) {
             g_llm_off_told = 1;
@@ -1762,6 +1762,7 @@ static void llm_install(const char *ini, const char *test_ini) {
     if (g_llm_max_tokens > 8000) g_llm_max_tokens = 8000;
     if (g_llm_talk_gap < 10) g_llm_talk_gap = 10;
     if (g_llm_talk_turns < 1) g_llm_talk_turns = 1;   // no upper limit: [end] or the turns, whatever comes first
+    if (g_texts_missing) g_llm_on = 0;   // no prompt texts (texts.c)
     if (!g_llm_on) { if (g_log) fprintf(g_log, "# llm: off\n"); return; }
     WCHAR wurl[256];
     MultiByteToWideChar(CP_ACP, 0, g_llm_url, -1, wurl, 256);

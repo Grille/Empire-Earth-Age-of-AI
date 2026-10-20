@@ -17,8 +17,11 @@ or absolute).
 
 A file of this folder is a personality only when it declares `register_personality()`; any other is a library that
 personalities include. `mod/` holds the mod's own files: every personality builds on `mod/computer.eeai` and
-`mod/prompt.eeai` without naming them (see "Building on other files" below). A key left out of `mod/system.eeai` or
-`mod/prompt.eeai` keeps the built-in text; delete either file to get every built-in text back.
+`mod/prompt.eeai` without naming them (see "Building on other files" below). They are part of the mod like its DLL -
+the mod has no texts of its own: a key missing in `mod/system.eeai` or `mod/prompt.eeai` is a mistake, and without
+the `mod/` files the mod says nothing (a message at the start): no personalities, no AI voice, no diplomacy of its
+own - the computer players play on. A folder without any personality is fine: every AI speaks with
+`mod/computer.eeai` then.
 
 ## A new personality
 
@@ -570,16 +573,16 @@ decide = {
 
 What stays the mod's: who can be asked at all (not someone whose army is in its town, not twice in a row too soon),
 how long an offer stands, how it is answered - and no peace within pride x 5 minutes of a declaration of war. A
-mistake in one (or a value that is no number) is logged once and the mod's built-in rule decides instead: the same
-as the shipped expressions. `chance()` and random choices here draw from the game's own generator, so every PC of a
+mistake in one (or a value that is no number) is logged once and the next layer's decides instead - eeaimod's in
+`mod/computer.eeai` last; when one of those fails the answer is no (no peace, no ally). `chance()` and random choices here draw from the game's own generator, so every PC of a
 multiplayer game decides alike. Every PC must have the same files then.
 
 ## mod/system.eeai and mod/prompt.eeai
 
-`mod/system.eeai` holds the lines the mod shows you itself, `system = { ... }`, in English (in a German game the
-mod's built-in German lines come first). `mod/prompt.eeai` holds everything the language model is told, `prompt = {
-... }`, in English (the model is told which language to answer in); its pieces are joined with a space. Both files
-list every key with its built-in text and its placeholders. The names in `mod/system.eeai` serve the system lines and
+`mod/system.eeai` holds the lines the mod shows you itself, `system = { ... }`, in English. `mod/prompt.eeai`
+holds everything the language model is told, `prompt = { ... }`, in English (the model is told which language to
+answer in); its pieces are joined with a space. Both files have every key the mod asks for, with its placeholders
+listed above it. The names in `mod/system.eeai` serve the system lines and
 every personality's lines. `mod/prompt.eeai` is the last layer of every personality: a personality's own `prompt = {
 ... }` (or a layer's before it) replaces single texts for its AI - `nature = "You speak in short, proud sentences."` -
 and its names serve the prompts and, after their own, the personalities' lines.
@@ -588,8 +591,7 @@ and its names serve the prompts and, after their own, the personalities' lines.
 talks to - `stance`, `power` (from `strength_ratio`), `town`, `attacks`, `fighting` and `fighting_recent` (with the
 functions `destroyed(by, of, minutes)` and `fought(minutes)`, `recent_minutes = 20`) and `bond` (lord or vassal).
 Change one by writing it anew in the file; take one out of `game_state_other` by leaving its `{name}` out. A
-function's parameter can be a player: `destroyed(me, them, 0)` uses `by.kills(of, ...)`. `texts dump force` writes
-the built-in ones again and keeps your own names below them.
+function's parameter can be a player: `destroyed(me, them, 0)` uses `by.kills(of, ...)`.
 
 ## Trying things out
 

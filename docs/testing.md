@@ -27,7 +27,7 @@ The `[autotest]` keys:
 | `sndstate`, `sndchan N` (pipe/setup) | the sound manager's channels with their sound ids and Miles status, the mixer's channels, categories in use, the paused queue / SetMaxChannels(N) as the options screen does |
 | `sound_channels=N`, `clamp_channels=0/1` | aimod.ini `[sound] channels` / `clamp_channels` for the run |
 | `seltest T [x0 y0 x1 y1]` (pipe/setup) | builds the double-click selection message for unit type T (screen rectangle 0x8D2778 or the given one) and carries it out: units found, packed, unpacked, selected |
-| `texts`, `texts dump [force]` (pipe/setup) | the text files read (`aimod_ai\mod\system.eeai`, `mod\prompt.eeai`); dump writes both with every key and its built-in text (existing files kept without force) - regenerate them after changing a built-in text (dll/texts.c, dll/texts_prompt.h) |
+| `texts` (pipe/setup) | the text files read (`aimod_ai\mod\system.eeai`, `mod\prompt.eeai`: how many of the keys the code asks for each has, their names) - the texts are only there (a key added to dll/texts.c k_sys or dll/texts_prompt.h k_tpl needs its text in the file) |
 | `strict_parsing=1` | every mistake in the texts also queued and shown: in a test no message box (the files' mistakes come as system lines at the first AI update), the log says `# texts: strict parsing: N mistake(s) shown in the game`. Test of 2026-10-14 on `llmtest.eeai` with the mock: no mistake in the built-in texts (no placeholder left unfilled) |
 | `texts eval [P [Q]] <expression>`, `texts line P <situation> [Q [R]]` (pipe/setup) | an expression's value with P speaking to Q (default the local player), with mod/system.eeai's and P's personality's names (vars; dll/expr.c); the variant P would say now in that situation, its condition checked and filled. The system lines the player is shown are logged (`# system line:`). Test of 2026-10-14: a temporary personality with `[vars]`, `[vars:de]` and conditioned variants, `[vars]` in both files, a prompt piece and two system lines with expressions - all as written; old/new DLL on `llmtest.eeai` with the mock: the same prompts but for the stock amounts |
 | `diplo offer A B C`, `diplo capit A B` (pipe/setup) | AI A offers B an alliance against C / capitulates to B, as its initiative would (with `llm_ai_decide`: B's model answers) |
@@ -852,7 +852,11 @@ the text) - the fallbacks and layers, not only each expression. computer.eeai as
 (computer.eeai, prompt.eeai - both every personality's layers unnamed, a personality's `prompt = { }` first -
 system.eeai): Continental 777 at 5/15/30, 5331 rows each the same (tags renamed: `_template` -> `prompt`, `_system`
 -> `mod/system`, `computer.eeai` -> `mod/computer`) and 630 new ones: each personality's vars now hold prompt.eeai's
-names (`eroberer vars stance` ...).
+names (`eroberer vars stance` ...). The built-in texts gone (the files the only source, German system lines dropped):
+the same game against that build - every row the same but the expected: the German system words now English (in a
+German game), and in the system/prompt rows and the hand-written cases' fills a value or a prompt name (`{me}`,
+`{opinion}`, `{stance}`) worked out, where the corpus had put `<me>` before (the lists of code placeholders came from
+the built-in texts and held them too).
 
 ### Headless UI tests (menus, editor)
 

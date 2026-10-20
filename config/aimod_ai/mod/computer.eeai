@@ -19,7 +19,8 @@ big_tribute = max(1500, me.stock / 2)
 
 decide = {
     # What the AI wants in its diplomacy - me is the AI, them the other player, enemy my strongest enemy (there may be
-    # none: check it, enemy and ...). Each a number. A mistake: the built-in rule (the same as these), told in the log.
+    # none: check it, enemy and ...). Each a number. A personality's own come first; when one fails (a mistake, told in
+    # the log) the next layer's decides - these last, and when one of these fails the answer is no.
     # The rules around them stay the mod's: who can be asked, how long an offer stands, no peace within pride x 5 minutes
     # of their declaration of war (pride 60%: 3 minutes).
 

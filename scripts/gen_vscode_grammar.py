@@ -36,8 +36,8 @@ unit_ids = re.findall(r'^    "(\w+)",', open(os.path.join(root, 'dll', 'unit_nam
 situations = re.findall(r'\{ "(\w+)", \d+, \d+, A_\w+ \}', persona)
 traits = re.findall(r'"(\w+)"', re.search(r'k_trait_keys\[T_N\] = \{(.*?)\};', persona).group(1))
 decisions = re.findall(r'"(\w+)"', re.search(r'k_decide_keys\[D_N\] = \{(.*?)\};', persona).group(1))
-sys_keys = re.findall(r'^    \{ "(\w+)", "', texts[texts.index('k_sys[] = {'):texts.index('#define N_SYS')], re.M)
-tpl_keys = re.findall(r'^    \{ "(\w+)", ', tpl[tpl.index('k_tpl[] = {'):], re.M)   # prompt only, not the built-in names (vars)
+sys_keys = re.findall(r'\{ "(\w+)", "', texts[texts.index('k_sys[] = {'):texts.index('#define N_SYS')])
+tpl_keys = re.findall(r'\{ "(\w+)", "', tpl[tpl.index('k_tpl[] = {'):])
 style_keys = re.findall(r'\{ "(\w+)", offsetof', settings)
 assert len(colors) == 17, colors
 assert len(script_funcs) >= 6 and len(commands) > 50 and len(unit_ids) > 500, (script_funcs, len(commands), len(unit_ids))
