@@ -79,7 +79,10 @@ try {
     Add-Type -Namespace EEAimod -Name Power -MemberDefinition '[DllImport("kernel32.dll")] public static extern uint SetThreadExecutionState(uint f);' -ErrorAction Stop
     [void][EEAimod.Power]::SetThreadExecutionState([uint32]"0x80000001")
 } catch { "keep-awake request failed: $_" }
-# a game that is no test slot's - the player's own - is never disturbed (its sound settings, its log)
+# a game that is no test slot's - the player's own - is never disturbed. A slot (1..30) has its own test ini, log,
+# dumps and pipe, and with the mod's dinput.dll its own settings: it runs beside the player's game. Slot 0 shares the
+# game folder's (and without that dinput.dll every run mutes the sound in the registry): not while the player plays
+$proxy = (Test-Path "$g\dinput.dll") -and (Select-String -Path "$g\dinput.dll" -Pattern 'EEAimodSettings' -SimpleMatch -Quiet)
 $others = @(Other-Runs)
 $ours = @($others | ForEach-Object { $_ | Select-Object -Skip 1 })
 # a game another runner has just started, before its PID is in that runner's lock: its parent is that runner
@@ -87,14 +90,14 @@ $runners = @($others | ForEach-Object { $_[0] })
 $foreign = @(Get-Process -Name "Empire Earth" -ErrorAction SilentlyContinue | Where-Object { $ours -notcontains $_.Id } | Where-Object {
     $pp = (Get-CimInstance Win32_Process -Filter "ProcessId=$($_.Id)" -ErrorAction SilentlyContinue).ParentProcessId
     -not ($pp -and $runners -contains [int]$pp) })
-if ($foreign) {
-    Remove-Item $lock -Confirm:$false; "game already running - aborting"; exit 1
+if ($foreign -and (-not $Slot -or ($Mute -and -not $proxy))) {
+    Remove-Item $lock -Confirm:$false
+    "game already running - aborting$(if (-not $Slot) { ' (slot 0 shares its folder: -Slot n runs beside it)' } else { ' (no mod dinput.dll: the run would mute it)' })"; exit 1
 }
 if (-not $others) { Restore-Sound }   # leftover from an interrupted run (with other slots running: theirs)
 # The game's settings. With the mod's dinput.dll in the game folder (dll/eesettings.c) every run reads a copy of
 # -Settings (env SETTINGS; default config\test\eesettings.ini: fixed settings, sound off) - not the player's
 # eesettings.ini, not the registry - and nothing needs muting. -Mute:$false: the player's own settings.
-$proxy = (Test-Path "$g\dinput.dll") -and (Select-String -Path "$g\dinput.dll" -Pattern 'EEAimodSettings' -SimpleMatch -Quiet)
 if (-not $Settings) { $Settings = "$g\_aimod\config\test\eesettings.ini" }
 elseif (-not [System.IO.Path]::IsPathRooted($Settings)) { $Settings = Join-Path "$g\_aimod" $Settings }
 if ($proxy -and $Mute) {
