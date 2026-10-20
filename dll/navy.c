@@ -277,6 +277,8 @@ static float navy_share(unsigned idx) {
 // would hold the stock (econ.c train_budget); the others never saw it (navy_hold): Large Islands e9, 524 frigate
 // orders refused in an hour with the account full (W600 G600 I546) - the stock above the reserve was short of iron
 static int navy_earmarked(unsigned idx) { return fleet_builds(idx) && g_nv_target[idx & 15] > 0; }
+// army.c: the map is known (navy_detect) and an enemy stands on this AI's continent (land or mixed)
+static int navy_land(unsigned idx) { return g_nv_map[idx & 15].done && g_nv_map[idx & 15].kind != NV_ISLANDS; }
 static void navy_income(unsigned idx, int type, int amount) {
     float sh = navy_share(idx);
     if (sh <= 0 || (type != 3 && type != 5 && type != 6)) return;

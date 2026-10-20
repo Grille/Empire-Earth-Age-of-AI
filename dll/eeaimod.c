@@ -82,6 +82,7 @@ static void food_new_game(void);
 static void mine_fill(uint8_t *rm);   // mines.c
 static void mines_new_game(void);
 static void cz_targets(uint8_t *rm);   // citizens.c
+static void ap_targets(uint8_t *rm);   // army.c
 static void citizens_safety(uint8_t *rm);
 static void attack_tick(void *pl, uint32_t now);
 static void vanilla_tick(void *pl, uint32_t now);
@@ -89,6 +90,11 @@ static void ecolog_tick(void *pl, uint32_t now);   // ecolog.c: the economy log 
 static void ecolog_new_game(void);
 static void cz_tick(void *pl, uint32_t now);   // citizens.c: citizen production
 static void cz_new_game(void);
+static void am_tick(void *pl, uint32_t now);   // army.c: army spending
+static void am_new_game(void);
+static void ap_new_game(void);
+static void army_plan_tick(void *pl, unsigned idx, uint32_t now);
+static void ap_install(const char *aimod_ini, const char *autotest_ini);
 static void early_new_game(void);   // early.c
 static void assault_tick(void *pl, uint32_t now);
 static void landing_tick(void *pl, uint32_t now);
@@ -258,7 +264,7 @@ static char __fastcall hook_compute_targets(void *rm, void *edx) {
     (void)edx;
     log_state(rm, "pre_targets", game_time());
     char changed = ((RmFn)FN_COMPUTE_TARGETS)(rm);
-    if (!is_vanilla(rm_player(rm))) { econ_targets((uint8_t *)rm); mine_fill((uint8_t *)rm); cz_targets((uint8_t *)rm); }   // mines.c: every mine slot; citizens.c
+    if (!is_vanilla(rm_player(rm))) { econ_targets((uint8_t *)rm); mine_fill((uint8_t *)rm); cz_targets((uint8_t *)rm); ap_targets((uint8_t *)rm); }   // mines.c: every mine slot; citizens.c
     log_state(rm, "post_targets", game_time());
     return changed;
 }
@@ -386,9 +392,11 @@ static void __fastcall hook_rm_update(void *rm, void *edx, uint32_t now) {
     }
     ((RmUpdateFn)FN_RM_UPDATE)(rm, now);
     if (pl && is_vanilla(pl)) vanilla_tick(pl, now);   // the game's own AI: only the mod's log lines (attack.c)
-    else if (pl) { intel_tick(pl, now); econ_tick(pl, now); attack_tick(pl, now); assault_tick(pl, now); landing_tick(pl, now); navy_tick(pl, now); }
+    else if (pl) { intel_tick(pl, now); econ_tick(pl, now); attack_tick(pl, now); assault_tick(pl, now); landing_tick(pl, now); navy_tick(pl, now);
+                army_plan_tick(pl, (unsigned)FIELD(pl, PL_INDEX, int) & 15, now); }
     if (pl) ecolog_tick(pl, now);
     if (pl) cz_tick(pl, now);
+    if (pl) am_tick(pl, now);
     g_rm_seen = 1;
     autotest_tick(now);
 }
@@ -690,6 +698,8 @@ static char __fastcall hook_game_start(void *state, void *edx, uint8_t *setup, v
     food_new_game();
     mines_new_game();
     cz_new_game();
+    am_new_game();
+    ap_new_game();
     defence_new_game();
     assault_new_game();
     sites_new_game();
@@ -718,6 +728,7 @@ static char __fastcall hook_game_start(void *state, void *edx, uint8_t *setup, v
 #include "food.c"
 #include "mines.c"
 #include "citizens.c"
+#include "army.c"
 #include "intel.c"
 #include "expr.c"
 #include "persona.c"
@@ -971,6 +982,7 @@ static void install(HMODULE self) {
     food_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
     mines_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
     cz_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
+    ap_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
     attack_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
     assault_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
     landing_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);

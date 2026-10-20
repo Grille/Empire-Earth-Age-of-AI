@@ -236,6 +236,7 @@ static void gather_research(void *pl, unsigned idx, uint32_t now) {
 // EEPlayer::vf41 grants nothing. Here the call (0x43D365) schedules each one with the research manager instead
 // (0x485F57, as gather_research does): researched at its building and paid like a player's.
 static int g_paid_upgrades = 1;
+static int ap_upgrade_later(void *pl, uint8_t *data);   // army.c
 static void __fastcall hook_epoch_upgrades(uint8_t *node, void *edx, int cat) {
     (void)edx;
     uint8_t *tt = FIELD(node, 0xC, uint8_t *);
@@ -256,6 +257,7 @@ static void __fastcall hook_epoch_upgrades(uint8_t *node, void *edx, int cat) {
         uint8_t *d = FIELD(c, 8, uint8_t *);
         if (!d || FIELD(d, 0x48, int) != 7 || c[4]) continue;
         int id = FIELD(d, 0x4C, int);
+        if (ap_upgrade_later(pl, d)) continue;   // army.c army_plan UPGRADE: a line it doesn't use yet
         ((void (__thiscall *)(void *, int))FN_RS_SCHEDULE)(rs, id);
         size_t l = strlen(ids);
         if (l < sizeof ids - 8) snprintf(ids + l, sizeof ids - l, " %d", id);
@@ -1565,6 +1567,8 @@ static int landing_room_reserve(void *pl);   // landing.c: population room held 
 // without): P3 kills 23.4 vs 28.2, losses 32.2 vs 28.9 (P2's losses 22.3 vs 28.6). The AI's cap follows the human's
 // population: at the cap is common in normal games too.
 static int g_train_room = 0xFFFF;
+static int g_am_noroom;   // army.c: the last request was cut to no room
+static void am_train_note(void *pl, unsigned idx, const int *req, int blocked, int sub_type, unsigned n, const int *stock, const int *vis);
 static unsigned g_noroom[16][6];   // units ordered with no room (cap - in production - population <= 0), by call site
 // the budget's part of a training request: what the AI may spend on it (visibles), how many it pays for (afford,
 // blocked when none), a substitute soldier (sub_type) - reserve gets the stock held back
@@ -1685,6 +1689,7 @@ static void train_budget(void *pl, unsigned idx, const struct ai_cfg *cfg, const
 static uintptr_t train_call(void *um, void *pl, unsigned idx, int *req, uintptr_t b, int blocked, int afford, int sub_type,
                             uintptr_t ra, int military, int ship) {
     uintptr_t res = 0;
+    g_am_noroom = 0;
     if (blocked) { if (b) *(unsigned *)b = 0; }
     else {
         int saved_count = req[1], saved_type = req[0];
@@ -1697,16 +1702,17 @@ static uintptr_t train_call(void *um, void *pl, unsigned idx, int *req, uintptr_
         unsigned got0 = 0;
         if (!b) b = (uintptr_t)&got0;
         if (!game_site && (g_train_room >> idx & 1) && room0 < (req[1] > 0 ? req[1] : 1)) {   // the mod's own order: no more than the room
-            if (room0 <= 0) { *(unsigned *)b = 0; req[1] = saved_count; req[0] = saved_type; return 0; }
+            if (room0 <= 0) { *(unsigned *)b = 0; req[1] = saved_count; req[0] = saved_type; g_am_noroom = 1; return 0; }
             req[1] = room0;
         }
         int hold = military && !g_priority_mil && !g_landing_order && pl ? landing_room_reserve(pl) : 0;
         if (military && !ship && !g_priority_mil && !g_landing_order && pl) hold += navy_room_reserve(pl);   // the fleet's (navy.c)
         if (hold > 0 && room0 - hold < (req[1] > 0 ? req[1] : 1)) {   // the fleet's room: other soldiers only beyond it
-            if (room0 - hold <= 0) { *(unsigned *)b = 0; req[1] = saved_count; req[0] = saved_type; return 0; }
+            if (room0 - hold <= 0) { *(unsigned *)b = 0; req[1] = saved_count; req[0] = saved_type; g_am_noroom = 1; return 0; }
             req[1] = room0 - hold;
         }
         res = ((uintptr_t (__thiscall *)(void *, int *, uintptr_t))FN_TRAIN_UNITS)(um, req, b);
+        if (room0 <= 0 && !*(unsigned *)b) g_am_noroom = 1;   // the game's own call at the cap
         if (room0 <= 0 && *(unsigned *)b) {
             int site = 5;
             for (int k = 0; k < 5; k++) if (k_train_sites[k] == ra) site = k;
@@ -1755,7 +1761,18 @@ __attribute__((noinline)) static uintptr_t __fastcall hook_train_units(void *um,
             void *p = is_vanilla_idx((int)i) ? ((void **)0x00918374)[i] : NULL, *cm = p ? FIELD(p, 0xB90, void *) : NULL;
             if (cm && FIELD(cm, 0x44, void *) == um) own = p;
         }
-        if (is_vanilla(own)) return ((uintptr_t (__thiscall *)(void *, int *, uintptr_t))FN_TRAIN_UNITS)(um, req, b);
+        if (is_vanilla(own)) {
+            unsigned vn = 0;
+            uintptr_t vb = b ? b : (uintptr_t)&vn;
+            int vreq0 = req[0], vreq1 = req[1];
+            uintptr_t r = ((uintptr_t (__thiscall *)(void *, int *, uintptr_t))FN_TRAIN_UNITS)(um, req, vb);
+            if (own && !is_citizen_type(vreq0)) {   // army.c: the vanilla side's requests too (blocked: never)
+                int q[2] = { vreq0, vreq1 };
+                g_am_noroom = 0;
+                am_train_note(own, (unsigned)FIELD(own, PL_INDEX, int) & 15, q, 0, 0, *(unsigned *)vb, NULL, NULL);
+            }
+            return r;
+        }
     }
     int *stock = pl ? (int *)((uint8_t *)pl + PL_STOCK) : NULL;
     int before[7] = { 0 }, reserve[7] = { 0 }, visibles[7] = { 0 }, blocked = 0, afford = 0, sub_type = 0;
@@ -1776,7 +1793,11 @@ __attribute__((noinline)) static uintptr_t __fastcall hook_train_units(void *um,
     if (stock && cfg->budget) train_budget(pl, idx, cfg, req, military, req_unit, ship, stock, reserve, visibles, &blocked, &afford, &sub_type);
     else if (stock) memcpy(visibles, stock, sizeof visibles);
     if (stock && !military && is_citizen_type(req[0])) cz_budget_note(pl, idx, req, stock, visibles, blocked, cfg->budget ? afford : req[1]);
+    unsigned got_local = 0;
+    if (!b) b = (uintptr_t)&got_local;   // train_call did the same; army.c reads the count
+    int req0 = req[0], req1 = req[1];
     uintptr_t res = train_call(um, pl, idx, req, b, blocked, afford, sub_type, ra, military, ship);
+    if (pl && military) { int q[2] = { req0, req1 }; am_train_note(pl, idx, q, blocked, sub_type, *(unsigned *)b, stock, visibles); }
     train_account(pl, idx, cfg, req, res, military, ship, sub_type, stock, before, reserve, visibles, ra);
     if (pick) { navy_pick_done(pl, idx, pick, asked, before, stock, blocked); req[0] = asked; }
     return res;
