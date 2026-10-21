@@ -448,7 +448,7 @@
     O(TECHDATA, 0x50, 0x50, 0x50) /* v: the tech tree code's reads (unchanged) */ \
     O(TECHDATA, 0x6C, 0x6C, 0x6C) /* v: the tech tree code's reads (unchanged) */ \
     O(TECHDATA, 0x7D, 0x7D, 0x7D) /* v: the tech tree code's reads (unchanged) */ \
-    O(TECHDATA, 0x81, 0x81, 0x81) /* h: AoC's epoch upgrades (only new) skip a tech with it set - read in AoC only */ \
+    O(TECHDATA, 0x81, 0x81, 0x81) /* h: AoC's epoch upgrades (standard only) grant only a tech with it set: dbtechtree byte 0xF7, clear on civ power and special unit upgrades (0 on all of the 2017 update's) - read in AoC only */ \
     O(TECHNODE, 0x8, 0x8, 0x8) /* c */ \
     O(TECHNODE, 0xC, 0xC, 0xC) /* c */ \
     O(TECHNODE, 0x24, 0x24, 0x24) /* v */ \

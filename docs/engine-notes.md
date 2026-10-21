@@ -683,10 +683,23 @@ Each row is checked another way (the same instruction, the callers agreeing, the
 - Virtual functions inserted: EEUCMissile and EEUCProjectile have 58 slots (base 57), the missile's launch is slot 43
   (base 42), the projectile's coming down slot 56 (base 55); EECPASGLand's extra slot lies behind 97. Vtable slots
   are per build in addr.h (SLOT_ rows).
-- Rewritten (the address is right, the hook's assumptions need a test in AoC): AssignCitizens 0x48EECF (28% of the
-  code alike; a new block 0x48F3F5-0x48F458 about shores and transports - gathering on other islands), the epoch
-  upgrades 0x5CE8C5 (20%; handled, "The first test games" below), ComputeTargets 0x491B78 (36%), the unit and citizen orders 0x494F42 / 0x493B97, the
-  tech requests 0x48A91E, fire 0x631312 (35%), EEAScroll::Execute 0x40478E (the velocity ramp).
+- Rewritten - compared with the 2017 update's in meaning (most of the difference is offsets and the Space Age):
+  - ComputeTargets 0x491B78: both bugs above kept; gatherers per site from player +0xAE4 (game data, a tech effect
+    can raise it) instead of the table's 6; no food target from the Space Age on.
+  - AssignCitizens 0x48EECF: the overseas mine ferry (0x48F3F5-0x48F458) fixed - only citizens land-connected to home
+    and not to the mine go on the boat list; the 2017 update's takes every home citizen, also to a mine they could
+    walk to (and runs with no deficit once the overseas timer is due) - a backport candidate (a find_mine filter at
+    MINE_SITES[5]: only mines in another region than the base). The searches test connectivity through AoC's own
+    area graph (0x422872) instead of region(pos, 2); the leftover pass, boats, fish and the ferry unchanged.
+  - The citizen orders 0x493B97 (spreading a producer type's queue over its producers): unchanged. The unit orders
+    0x494F42: a carrier's fighters are queued only at carriers with room (+0x2A8, the 2017 update's +0x2A4).
+  - The tech requests 0x48A91E: a candidate must pass the build manager's site finder (0x46A228 - buildings only: no
+    statues, but no units as requirements either), Dock 36 and Naval Yard 65 are skipped on a map without water (world
+    flag &2) - the 2017 update can ask for a dock it can't place: a backport candidate, measure first.
+  - Fire 0x631312: AoC's specials only (Missile Base, the capital ships' and the legionnaire's special shot); the
+    damage 0x630FD2 skips a missing stats record. The attack goal's new byte (+0x40) is the Crusaders' special attack
+    (the AI sets it at 35%); its ctor also spares rams (family 0x1E) the retargeting to the nearest wall piece.
+  - The epoch upgrades 0x5CE8C5: below. EEAScroll::Execute 0x40478E: the velocity ramp (camera.c has both).
 - The player name (playername.c): AoC's campaign, civ campaign and main menu buttons copy the name field into the
   player name first (0x5E8ACC) - not saved, not on Load Game / Random Map; the mod's hook still saves it.
 - Object sizes the mod allocates: the same but the attack goal (EEUGAttackUnit 0x40 -> 0x44); vtable slots called
@@ -727,8 +740,10 @@ the game data's unit limits unchanged (0x2E8, 0x2EC, not +4). The shifts:
 
 Test runs play in AoC's folder (docs/testing.md "Art of Conquest"); the mod stays off there in normal play. The first
 games crashed at once, then after 4 minutes; what AoC had changed beyond addresses and offsets:
-- The epoch upgrades (0x5CE8C5): thiscall(node, category, only new) - `ret 8`; the computer player passes 1, and a
-  tech whose data has +0x81 set isn't granted. A tech node's children are a map (head +0x28, the child at an entry's
+- The epoch upgrades (0x5CE8C5): thiscall(node, category, standard only) - `ret 8`; the computer player passes 1, and
+  then only a tech whose data has +0x81 set is granted (dbtechtree byte 0xF7: set on AoC's 150 line upgrades, clear on
+  the 8 civ power and special unit ones - 1039, 1046, 3059, 4080, 5081, 6078, 6079, 6094; 0 on all of the 2017
+  update's 145, which grants them all). A tech node's children are a map (head +0x28, the child at an entry's
   +0x10) instead of a vector of 0x20-byte nodes (game/tech.c walks either). EETechTreeNode::vf6 takes an argument.
 - The attack goal's constructor (0x61D337) takes a fourth argument, a byte at the goal's new +0x40 - the AI's calls
   pass 0; called with three, every attack order the mod gave left 4 bytes on the stack. `port_check.py rets` compares

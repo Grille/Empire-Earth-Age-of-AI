@@ -241,8 +241,9 @@ static void gather_research(void *pl, unsigned idx, uint32_t now) {
 // type 20 -> 21; 3051 = 50 stone: watch tower 47 -> 461). A human player researches each at its building and pays;
 // EEPlayer::vf41 grants nothing. Here the call (0x43D365) schedules each one with the research manager instead
 // (0x485F57, as gather_research does): researched at its building and paid like a player's.
-// Art of Conquest rewrote 0x5BDDBD (0x5CE8C5): thiscall(node, category, only new) - the computer player passes 1: a
-// tech with data +0x81 set isn't granted - and its children in a map (game/tech.c); its vf6 takes an argument (0).
+// Art of Conquest rewrote 0x5BDDBD (0x5CE8C5): thiscall(node, category, standard only) - the computer player passes 1:
+// only a tech with data +0x81 set is granted (the line upgrades; clear on the civ power and special unit upgrades) -
+// and its children in a map (game/tech.c); its vf6 takes an argument (0).
 static int g_paid_upgrades = 1;
 static int ap_upgrade_later(void *pl, uint8_t *data);   // army.c
 static void epoch_upgrades(uint8_t *node, int cat, int only_new);
@@ -275,7 +276,7 @@ static void epoch_upgrades(uint8_t *node, int cat, int only_new) {
     uint8_t *c;
     for (struct tech_kids k = tech_kids(node); (c = tech_kid_next(&k)); ) {   // as the original walks them
         uint8_t *d = FIELD(c, OF(TECHCHILD, 0x8), uint8_t *);
-        if (!d || FIELD(d, OF(TECHDATA, 0x48), int) != 7 || c[4] || (only_new && d[OF(TECHDATA, 0x81)])) continue;
+        if (!d || FIELD(d, OF(TECHDATA, 0x48), int) != 7 || c[4] || (only_new && !d[OF(TECHDATA, 0x81)])) continue;
         int id = FIELD(d, OF(TECHDATA, 0x4C), int);
         if (ap_upgrade_later(pl, d)) continue;   // army.c army_plan UPGRADE: a line it doesn't use yet
         GF(FN_RS_SCHEDULE)(rs, id);
