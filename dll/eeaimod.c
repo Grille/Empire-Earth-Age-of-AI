@@ -417,7 +417,7 @@ static void __fastcall hook_rm_update(void *rm, void *edx, uint32_t now) {
 #define FN_ADD_MOVIE     0x00441432                               // __thiscall, ret 4
 #define G_GAME_SPEED     0x009183C0   // float; set like EEMGameSpeed::Apply (0x4B6BD4)
 #define G_SPEED_NOTIFY   0x00918300   // object; vtable slot 11 called after a speed change
-static struct { int enabled, skip_intro, quit_minutes, scenario_mode, turbo, game_seed; float speed; } g_auto;
+static struct { int enabled, skip_intro, scenario_mode, turbo, game_seed; double quit_minutes; float speed; } g_auto;
 
 #include "randmap.c"
 
@@ -429,7 +429,7 @@ static void load_autotest(const char *ini) {
     g_auto.enabled = GetFileAttributesA(ini) != INVALID_FILE_ATTRIBUTES;
     if (!g_auto.enabled) return;
     g_auto.skip_intro = ini_int("autotest", "skip_intro", 1, ini);
-    g_auto.quit_minutes = ini_int("autotest", "quit_minutes", 0, ini);
+    g_auto.quit_minutes = ini_num("autotest", "quit_minutes", 0, ini);   // 3.2: 3 minutes 12 seconds
     g_auto.scenario_mode = ini_int("autotest", "scenario_mode", 0, ini);
     g_auto.turbo = ini_int("autotest", "turbo", 0, ini);
     g_auto.game_seed = ini_int("autotest", "game_seed", 0, ini);
@@ -533,10 +533,10 @@ static void autotest_tick(uint32_t now) {
             LeaveCriticalSection(&g_lock);
         }
     }
-    if (g_auto.quit_minutes <= 0 || now < (uint32_t)g_auto.quit_minutes * 60000u) return;
+    if (g_auto.quit_minutes <= 0 || now < (uint32_t)(g_auto.quit_minutes * 60000.0 + 0.5)) return;
     EnterCriticalSection(&g_lock);   // the pipe, the LLM worker and the render thread write the log too
     if (g_log) {
-        fprintf(g_log, "# autotest: reached %d game minutes, exiting\n", g_auto.quit_minutes);
+        fprintf(g_log, "# autotest: reached %g game minutes, exiting\n", g_auto.quit_minutes);
         fclose(g_log);
         g_log = NULL;
     }
@@ -936,7 +936,7 @@ static void install(HMODULE self) {
         fprintf(g_log, "# game start hook: %s\n", gs ? "ok" : "FAILED");
         fprintf(g_log, "# cmdline hooks: parse=%s load=%s\n", d ? "ok" : "FAILED", e ? "ok" : "FAILED");
         if (g_auto.enabled)
-            fprintf(g_log, "# autotest: skip_intro=%s quit_minutes=%d cmdline=%s\n",
+            fprintf(g_log, "# autotest: skip_intro=%s quit_minutes=%g cmdline=%s\n",
                     g_auto.skip_intro ? (skip_intro_movies() ? "ok" : "FAILED") : "off",
                     g_auto.quit_minutes, GetCommandLineA());
         if (g_vanilla_mask) {
