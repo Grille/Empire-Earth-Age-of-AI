@@ -1,16 +1,83 @@
-// OBJECT TYPE IDENTIFIERS (docs/units.md, generated with dll/unit_names.h by scripts/gen_units.py): every unit and
-// building type has its internal name from the game data, the same in every language; lowercase with '_' for the
-// rest it is the identifier - b_guard_tower_bronze for 462. The pipe and setup commands that take a type take its
-// identifier as well (type_args, control.c execute); the replies name the type next to its number.
+// OBJECT TYPE IDENTIFIERS (docs/units.md): every unit and building type has its internal name from the game data,
+// the same in every language; lowercase with '_' for the rest it is the identifier - b_guard_tower_bronze for 462. Read
+// from the data the game has loaded (its type table G_TYPES: the name behind +0x1C, the family at +0x4C4), so a data
+// mod's own types and families count too - once the game has loaded it (before its menu; the text files are read
+// earlier: unit.<identifier> names in them are checked then - unit_name_later). The kinds are the engine's families,
+// by name (unit_names.h k_kind_ident, from the game data's converter log); each kind's types are listed here once.
+// The pipe and setup commands that take a type take its identifier as well (type_args, control.c execute); the
+// replies name the type next to its number.
 #include "unit_names.h"
 
+static void x_error(const char *fmt, ...);   // expr.c
+static char g_unit_ident[G_TYPES_N][64];      // "" no such type
+static unsigned short g_kind_first[UNIT_KINDS + 1], g_kind_types[G_TYPES_N];   // a kind's types: g_kind_types[first[k]..first[k + 1])
+static int g_unit_types_n;                    // the types read; 0: the game hasn't loaded its data yet
+static struct { char name[48], file[48]; int line; } g_unit_later[32];   // unit.<identifier> in the files, before
+static int g_unit_nlater;                                                 // the data was loaded: checked then
+static void unit_types_check_later(void);
+// the type table into the identifiers and kinds - once the game has loaded its data (0 before: fewer than 100 types)
+static int unit_types_load(void) {
+    if (g_unit_types_n) return 1;
+    int n = 0;
+    for (int t = 0; t < G_TYPES_N; t++) n += type_data(t) != NULL;
+    if (n < 100) return 0;
+    unsigned short cnt[UNIT_KINDS] = { 0 };
+    static unsigned char kind[G_TYPES_N];
+    for (int t = 0; t < G_TYPES_N; t++) {
+        uint8_t *td = type_data(t);
+        const char *s = td ? FIELD(td, 0x1C, const char *) : NULL;
+        int o = 0, gap = 0;
+        kind[t] = 255;
+        if (!s) continue;
+        for (; *s && o < 62; s++) {   // lowercase, every run of other characters one '_', none at either end
+            char c = *s >= 'A' && *s <= 'Z' ? (char)(*s + 32) : *s;
+            if ((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9')) { if (gap && o) g_unit_ident[t][o++] = '_'; g_unit_ident[t][o++] = c; gap = 0; }
+            else gap = 1;
+        }
+        g_unit_ident[t][o] = 0;
+        for (int u = 0; u < t && o; u++)
+            if (!strcmp(g_unit_ident[u], g_unit_ident[t])) {   // a data mod's two names alike: the first type keeps it
+                x_error("unit.%s names the types %d and %d in the game's data - it stands for %d", g_unit_ident[t], u, t, u);
+                g_unit_ident[t][0] = 0;
+                break;
+            }
+        int f = FIELD(td, 0x4C4, int);
+        if (f >= 0 && f < UNIT_KINDS && k_kind_ident[f]) { kind[t] = (unsigned char)f; cnt[f]++; }
+        else x_error("type %d (unit.%s): its family %d has no kind - in no kind.<kind>", t, g_unit_ident[t], f);
+    }
+    g_kind_first[0] = 0;
+    for (int k = 0; k < UNIT_KINDS; k++) g_kind_first[k + 1] = (unsigned short)(g_kind_first[k] + cnt[k]);
+    unsigned short at[UNIT_KINDS];
+    memcpy(at, g_kind_first, sizeof at);
+    for (int t = 0; t < G_TYPES_N; t++) if (kind[t] != 255) g_kind_types[at[kind[t]]++] = (unsigned short)t;
+    g_unit_types_n = n;
+    if (g_log) fprintf(g_log, "# units: %d types from the game's data, %d of them in kinds\n", n, g_kind_first[UNIT_KINDS]);
+    unit_types_check_later();
+    return 1;
+}
 static const char *unit_ident(int t) {   // "?" for no such type
-    return t >= 0 && t < UNIT_TYPES && k_unit_ident[t] ? k_unit_ident[t] : "?";
+    unit_types_load();
+    return t >= 0 && t < G_TYPES_N && g_unit_ident[t][0] ? g_unit_ident[t] : "?";
 }
 static int unit_type_named(const char *name, int n) {   // the type of an identifier (n characters), -1: none
-    for (int t = 0; t < UNIT_TYPES; t++)
-        if (k_unit_ident[t] && !strncmp(k_unit_ident[t], name, n) && !k_unit_ident[t][n]) return t;
+    if (!unit_types_load()) return -1;
+    for (int t = 0; t < G_TYPES_N; t++)
+        if (g_unit_ident[t][0] && !strncmp(g_unit_ident[t], name, n) && !g_unit_ident[t][n]) return t;
     return -1;
+}
+// a unit.<identifier> in a file read before the game loaded its data: checked when it has (unit_types_load)
+static void unit_name_later(const char *name, const char *file, int line) {
+    if (g_unit_nlater == (int)(sizeof g_unit_later / sizeof *g_unit_later)) return;
+    lstrcpynA(g_unit_later[g_unit_nlater].name, name, 48);
+    lstrcpynA(g_unit_later[g_unit_nlater].file, file, 48);
+    g_unit_later[g_unit_nlater++].line = line;
+}
+static void unit_types_check_later(void) {
+    for (int i = 0; i < g_unit_nlater; i++)
+        if (unit_type_named(g_unit_later[i].name, (int)strlen(g_unit_later[i].name)) < 0)
+            x_error("%s:%d: an unknown name: unit.%s (no such type in the game's data - docs/units.md)", g_unit_later[i].file,
+                    g_unit_later[i].line, g_unit_later[i].name);
+    g_unit_nlater = 0;
 }
 
 // The commands with a type among their arguments (sub: the first argument, for stats), and where: bit k = argument k

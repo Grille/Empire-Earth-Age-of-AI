@@ -112,7 +112,7 @@ static struct {
 } g_ws;
 // the same scan's units and buildings by type (X.count): not saved with the game - g_ws_types_t != g_ws.t after a load,
 // so the first scan runs at once
-static uint16_t g_ws_types[16][UNIT_TYPES];
+static uint16_t g_ws_types[16][G_TYPES_N];
 static uint32_t g_ws_types_t;
 
 static void *player_at(int i) {
@@ -249,7 +249,7 @@ static void ws_unit(uint8_t *u, void *ctx) {
     if (o == 0) return;   // nature (wild animals): hostile to everyone, not an attack
     uint8_t *td = FIELD(u, 0x2C, uint8_t *);
     int fam = FIELD(td, 0x4B4, int), type = FIELD(td, 0x4B8, int);
-    if ((unsigned)type < UNIT_TYPES) g_ws_types[o][type]++;
+    if ((unsigned)type < G_TYPES_N) g_ws_types[o][type]++;
     if (is_citizen_type(type)) { g_ws.citizens[o]++; return; }
     if (type == 35 || type == 41) g_ws.centers[o]++;   // Town Center, Capitol: where citizens are trained
     if (is_tower_type(type)) g_ws.towers[o]++;
@@ -268,6 +268,7 @@ static void ws_unit(uint8_t *u, void *ctx) {
 }
 static void world_scan(uint32_t now) {
     if (g_ws.t && now - g_ws.t < 10000 && g_ws_types_t == g_ws.t) return;
+    unit_types_load();   // the game's data is there: the identifiers and kinds (and the files' unit. names checked)
     g_ws.t = g_ws_types_t = now ? now : 1;
     memset(g_ws_types, 0, sizeof g_ws_types);
     for (int i = 0; i < 16; i++) {
@@ -2142,15 +2143,15 @@ static int x_name_valid(const char *name) {
 }
 // a filter of unit types: unit.<identifier>, kind.<kind> (each type of that family) or a list of them, nested too -
 // any of them: into sel (set, not cleared); 0: something else in it (a mistake, told)
-static int x_type_filter(const char *name, const struct xval *f, unsigned char sel[UNIT_TYPES]) {
+static int x_type_filter(const char *name, const struct xval *f, unsigned char sel[G_TYPES_N]) {
     if (!f->w && !f->ln) { x_error("%s(...): no filter - nothing", name); return 0; }
     for (int i = 0; i < (f->ln ? f->ln : 1); i++) {
         const struct xval *it = xl_at(f, i);
         int t = it->has_n ? (int)it->n : -1;
         if (it->ln) { if (!x_type_filter(name, it, sel)) return 0; }
         else if (it->has_s && !_strnicmp(it->s, "kind.", 5) && t >= 0 && t < UNIT_KINDS) {
-            for (int j = k_kind_first[t]; j < k_kind_first[t + 1]; j++) sel[k_kind_types[j]] = 1;   // its types (unit_names.h)
-        } else if (it->has_s && t > 0 && t < UNIT_TYPES && k_unit_ident[t] && !lstrcmpiA(it->s, k_unit_ident[t])) sel[t] = 1;
+            for (int j = g_kind_first[t]; j < g_kind_first[t + 1]; j++) sel[g_kind_types[j]] = 1;   // its types (unitnames.c)
+        } else if (it->has_s && t > 0 && t < G_TYPES_N && !lstrcmpiA(it->s, unit_ident(t))) sel[t] = 1;
         else {
             char x[48];
             xto_text(it, x, sizeof x);
@@ -2168,11 +2169,11 @@ static int x_count(struct xctx *c, const char *name, const char *dot, const stru
     if (!ok) return 0;
     if (!v) return 1;
     if (!p) { x_missing(c, who); xnothing(v); return 1; }   // lord.count(...) without a lord
-    static unsigned char sel[UNIT_TYPES];
+    static unsigned char sel[G_TYPES_N];
     memset(sel, 0, sizeof sel);
     if (!x_type_filter(name, f, sel)) { xnothing(v); return 1; }
     int i = pidx(p), r = 0;
-    for (int t = 0; t < UNIT_TYPES; t++) if (sel[t]) r += g_ws_types[i][t];
+    for (int t = 0; t < G_TYPES_N; t++) if (sel[t]) r += g_ws_types[i][t];
     xnum(v, r);
     return 1;
 }

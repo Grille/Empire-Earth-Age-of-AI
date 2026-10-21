@@ -33,7 +33,7 @@ funcs = sorted(set(re.findall(r'!lstrcmpiA\(name, "(\w+)"\)', expr)) - {'true', 
 script_funcs = re.findall(r'\{ "(\w+)", \d \}', re.search(r'x_script_fn\(const char \*name\) \{(.*?)\n\}', expr, re.S).group(1))
 commands = re.findall(r'"(\w+)"', open(os.path.join(root, 'dll', 'cmd_verbs.h'), encoding='utf-8').read())
 unit_names = open(os.path.join(root, 'dll', 'unit_names.h'), encoding='utf-8').read()
-unit_ids = re.findall(r'^    "(\w+)",', unit_names[:unit_names.index('k_kind_ident')], re.M)
+unit_ids = re.findall(r'^\| \d+ \| `(\w+)` \|', open(os.path.join(root, 'docs', 'units.md'), encoding='utf-8').read(), re.M)   # the retail data's
 kind_ids = re.findall(r'"(\w+)"', re.search(r'k_kind_ident\[UNIT_KINDS\] = \{(.*?)\};', unit_names, re.S).group(1))
 situations = re.findall(r'\{ "(\w+)", \d+, \d+, A_\w+ \}', persona)
 traits = re.findall(r'"(\w+)"', re.search(r'k_trait_keys\[T_N\] = \{(.*?)\};', persona).group(1))

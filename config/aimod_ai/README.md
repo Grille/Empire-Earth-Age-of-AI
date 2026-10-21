@@ -496,8 +496,10 @@ lines = {
 }
 ```
 
-A misspelt identifier or kind is a mistake when the file is read; anything else as a filter (a number, a text) when
-the line is worked out.
+The types are the game's own, read from the data it has loaded - a data mod's new types and families count too
+(docs/units.md lists the retail game's). A misspelt kind is a mistake when the file is read, a misspelt identifier
+once the game has loaded its data (at the start of a game); anything else as a filter (a number, a text) when the
+line is worked out.
 
 Which units `kills` counts - its last argument, after the minutes if any:
 

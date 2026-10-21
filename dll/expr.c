@@ -448,6 +448,11 @@ static int x_const(const char *name, struct xval *v) {
     }
     if (!_strnicmp(name, "unit.", 5)) {   // unit.b_guard_tower_bronze: a unit or building type - its number and identifier
         int t = unit_type_named(name + 5, (int)strlen(name + 5));
+        if (t < 0 && !g_unit_types_n && g_x_check_file) {   // the game hasn't loaded its data yet: checked when it has
+            unit_name_later(name + 5, g_x_check_file, g_x_check_line);
+            xdual(v, -1, name + 5);
+            return 1;
+        }
         if (t < 0) return 0;
         xdual(v, t, name + 5);
         return 1;
