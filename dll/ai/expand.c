@@ -193,6 +193,9 @@ static void ex_log(void *pl, unsigned idx, uint32_t now) {
                 k[cl].my[6], k[cl].oth, k[cl].drop, k[cl].bld, k[cl].tower, k[cl].cit, k[cl].sold);
     fprintf(g_log, " tr %d aboard %d | near_empty %d (%d mines) | home_foe sold %d bld %d | known mines %d of %d\n", g_exs.tr[pi], g_exs.aboard[pi], near_d, near_m,
             foe_s, foe_b, km, am);
+    unsigned *ov = g_oversea[idx];
+    if (ov[0]) fprintf(g_log, "# overseas mines: P%u at %u min: %u searches, %u found a home mine (%s), %u an overseas one, %u replaced\n", idx,
+                       now / 60000, ov[0], ov[1], g_overseas_mines && !is_vanilla(pl) ? "refused" : "shipped to", ov[2], ov[3]);
     LeaveCriticalSection(&g_lock);
 }
 

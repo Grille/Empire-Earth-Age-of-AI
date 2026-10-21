@@ -162,7 +162,8 @@ static void cmd_minecheck(char *out, const char *args) {
               k >= 0 ? d[k][1] : 0, k >= 0 ? sqrtf((float)dd) : 0.0f, why);
     }
 }
-static uint8_t *select_mine_near_drop(uint8_t *rm, int type, uint8_t *unit) {
+// not_region: a continent (region class 2) whose mines don't count, -1 none (overseas_mines)
+static uint8_t *select_mine_near_drop(uint8_t *rm, int type, uint8_t *unit, int not_region) {
     void *pl = rm_player(rm);
     uint8_t *cm = FIELD(rm, RM_OWNER, uint8_t *);
     void *bm = cm ? FIELD(cm, OF(CM, 0x3C), void *) : NULL;
@@ -192,6 +193,7 @@ static uint8_t *select_mine_near_drop(uint8_t *rm, int type, uint8_t *unit) {
         if (!GF(FN_EXPLORED)(FIELD(s, OF(UNIT, 0x14), void *), pl)) continue;
         if (GF(FN_SITE_GATHERERS)((void *)GA(G_GAME_STATE), s) >= cap) continue;
         if (unit && region((void *)GA(G_MAP_AREAS), pos, 2) != ref_region) continue;
+        if (not_region >= 0 && region((void *)GA(G_MAP_AREAS), pos, 2) == not_region) continue;
         if (((EnemyNearFn)GA(FN_ENEMY_NEAR))(bm, pos[0], pos[1])) continue;
         int from[2] = { d[k][0], d[k][1] };
         if (!route_safe(bm, from, pos) || site_danger_res(pl, s, 0, type)) continue;
@@ -210,12 +212,44 @@ static void trace_site(uint8_t *rm, const char *what, uintptr_t caller, void *un
     trace_emit(buf);
 }
 
+// OVERSEAS MINES ([all] overseas_mines, default 0 - Art of Conquest's fix): on a water map the citizen assignment
+// (0x48A554) asks at its last call (MINE_SITES[5]) for any mine, no unit given, whenever a mine type is still short or
+// the overseas timer (0x43123A) is due - with nobody short too - and puts every idle citizen of the home island on the
+// transport manager's crossing to it (0x48A382). Any free mine does, the home island's too (60-75% of the searches;
+// with mine_choice the nearest to a drop site): the boat mostly never comes, and the citizens taken off that pass miss
+// the leftover pass after it (run only while idle ones are left) - idle until the next. Art of Conquest (0x48F3F5)
+// ships only citizens connected to home and not to the mine. Here that search gets only a mine on another continent
+// (region class 2, as the searches compare) than the base, none if there is none. Counted for every player (the
+// game's own AI too): "# overseas mines:" with the islands log.
+static int g_overseas_mines = 0;
+static unsigned g_oversea[16][4];   // per player: searches, home mines found, overseas mines found, home ones replaced
+static void *find_mine_pick(uint8_t *rm, int type, uint8_t *unit, uintptr_t rev, uintptr_t caller);
 static void *__fastcall hook_find_mine(uint8_t *rm, void *edx, int type, uint8_t *unit, uintptr_t rev) {
     (void)edx;
     uintptr_t caller = CALLER();
+    uint8_t *r = find_mine_pick(rm, type, unit, rev, caller);
+    void *pl = rm_player(rm);
+    uint8_t *cm = FIELD(rm, RM_OWNER, uint8_t *), *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL;
+    if (caller != GL(MINE_SITES)[5] || !pl || !bm) return r;
+    int base[2] = { FIELD(bm, OF(BM, 0x12C), int), FIELD(bm, OF(BM, 0x130), int) };
+    if (base[0] == -10000) return r;   // no base point: the game ships everyone
+    short (__thiscall *region)(void *, int *, int) = (void *)GA(FN_REGION);
+    int home = region((void *)GA(G_MAP_AREAS), base, 2);
+    unsigned *n = g_oversea[(unsigned)FIELD(pl, PL_INDEX, int) & 15];
+    n[0]++;
+    if (!r) return r;
+    int pos[2] = { FIELD(r, OF(UNIT, 0x1C), int), FIELD(r, OF(UNIT, 0x20), int) };
+    if (region((void *)GA(G_MAP_AREAS), pos, 2) != home) { n[2]++; return r; }
+    n[1]++;
+    if (!g_overseas_mines || is_vanilla(pl)) return r;
+    r = g_mine_choice && type >= 4 && type < 7 ? select_mine_near_drop(rm, type, NULL, home) : NULL;
+    if (r) n[3]++;
+    return r;
+}
+static void *find_mine_pick(uint8_t *rm, int type, uint8_t *unit, uintptr_t rev, uintptr_t caller) {
     if (is_vanilla(rm_player(rm))) return ((Fn3)GA(FN_FIND_MINE))(rm, (uintptr_t)type, (uintptr_t)unit, rev);   // the game's search
     if (!cfg_of(rm_player(rm))->safe_sites) {
-        uint8_t *r = g_mine_choice && type >= 4 && type < 7 ? select_mine_near_drop(rm, type, unit) : NULL;
+        uint8_t *r = g_mine_choice && type >= 4 && type < 7 ? select_mine_near_drop(rm, type, unit, -1) : NULL;
         return r ? r : refuse_danger(rm, ((Fn3)GA(FN_FIND_MINE))(rm, (uintptr_t)type, (uintptr_t)unit, rev), type == 2, type);
     }
     if (caller < GA(LEFTOVER_SITE_END) && type >= 2 && type < 7) {
@@ -285,6 +319,7 @@ static void *__fastcall hook_find_wood(uint8_t *rm, void *edx, uintptr_t flag, u
 static void sites_install(const char *aimod_ini, const char *autotest_ini) {
     g_site_max_dist = cfg_int(aimod_ini, autotest_ini, 1, "site_max_distance", 20);
     g_mine_choice = cfg_int(aimod_ini, autotest_ini, 1, "mine_choice", 1);
+    g_overseas_mines = cfg_int(aimod_ini, autotest_ini, 1, "overseas_mines", 0);
     int ok = 0, total = 0;
     // always: the searches refuse sites behind known enemy towers (avoid_towers_citizens, attack.c)
     for (size_t i = 0; i < sizeof GL(MINE_SITES) / sizeof *GL(MINE_SITES); i++, total++)
@@ -296,11 +331,12 @@ static void sites_install(const char *aimod_ini, const char *autotest_ini) {
     total += 4;
     ok += patch_call(GA(CALL_FARMS), GA(FN_FARMS), hook_farms) + patch_call(GA(CALL_UNBUILT_FARMS), GA(FN_UNBUILT_FARMS), hook_unbuilt_farms) +
           patch_call(GA(CALL_HUNT_1), GA(FN_HUNT), hook_hunt) + patch_call(GA(CALL_HUNT_2), GA(FN_HUNT), hook_hunt);
-    if (g_log) fprintf(g_log, "# safe_sites hooks: %d/%d, max distance %d; mine_choice=%d\n", ok, total, g_site_max_dist, g_mine_choice);
+    if (g_log) fprintf(g_log, "# safe_sites hooks: %d/%d, max distance %d; mine_choice=%d, overseas_mines=%d\n", ok, total, g_site_max_dist, g_mine_choice, g_overseas_mines);
 }
 
 // a new game (the game start hook)
 static void sites_new_game(void) {
     memset(g_drops, 0, sizeof g_drops);
     memset(g_site_refused, 0, sizeof g_site_refused);
+    memset(g_oversea, 0, sizeof g_oversea);
 }

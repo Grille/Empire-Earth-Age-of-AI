@@ -53,6 +53,7 @@ have since changed. Before reading an old "off" as "doesn't work", check which o
 | `early_soldiers` | 4 soldiers in epoch 0 instead of towers | the worst variant: base AI wins 9 of 20, 30 citizens die | the soldiers' food starves the economy | **REMOVE** |
 | `idle_citizen_slack` | no new citizens while many stand idle | stalled growth | the wrong lever; citizen_plan / CAP handle the goal | **REMOVE** |
 | `food_plan` 8 HUNT | hunt every animal near a drop site | kl -6.5 / -12.6 | hunting is the longest walk; twice the hunters gathered 5% more | **REMOVE** |
+| `overseas_mines` | the game's overseas mine ferry only to mines on another island (Art of Conquest's fix) | si5 e5 / Large Islands e9, 36 seeds: citizens +4.2 (2.5) / +2.3 (1.1), home miners +3.1 (1.7) / +1.7 (1.3), income within noise | (not failed: a small gain, within 2 standard errors) | **RETEST** with expand_islands |
 | `citizen_attacks=0` | (not an experiment: 0 is the fix - attack groups of half citizens are called off) | | | keep 0 |
 
 ## Patterns across the failures
@@ -346,6 +347,20 @@ Citizens only within 20 tiles of the base, routes clear of known enemies. No mea
 mining (gold/iron) on open maps". Turned on, it bypasses mine_choice, food_plan NEAR and `refuse_danger` (the
 tower / threat refusals) - all of which do its job better now - and 20 tiles is far short of where the mines are on
 large maps. **REMOVE** (superseded).
+
+### overseas_mines (dll/ai/sites.c; 2026-10-21)
+
+Art of Conquest's fix (docs/engine-notes.md, "Rewritten"). On a water map the citizen assignment asks at its last mine
+search (MINE_SITES[5]) for any free mine, whenever a mine type is short or the overseas timer is due, and puts every
+idle citizen of the home island on the transport manager's crossing to it. Any mine does, the home island's too: in
+the 2017 update 60-75% of these searches found a home mine (`# overseas mines:`, 110-175 a game per AI). The boats
+mostly never sail (no citizen aboard in any 5-minute sample of 144 games), but the block takes every idle citizen out
+of that pass, and the leftover pass after it is skipped: they stand idle until the next one (10 s). With the switch
+the search gets only a mine on another continent than the base (140 a game instead of 62-93), none otherwise.
+`scenarios/islands.eeai`, 60 min, 36 seeds x 2 AIs, on - off: Small Islands e5 - citizens +4.2 (2.5), home miners
++3.1 (1.7), miners on other islands +2.2 (1.8), income +659 (1017); Large Islands e9 - citizens +2.3 (1.1), home
+miners +1.7 (1.3), income +25 (536); kills, losses, epochs within noise, no crash. A small gain on every count, none
+beyond 2 standard errors. **RETEST** with expand_islands (an outpost gives the overseas mines a drop site).
 
 ### idle_citizen_slack, citizen_attacks, ai_style
 

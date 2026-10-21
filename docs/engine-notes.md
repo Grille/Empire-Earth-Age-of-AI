@@ -688,8 +688,8 @@ Each row is checked another way (the same instruction, the callers agreeing, the
     can raise it) instead of the table's 6; no food target from the Space Age on.
   - AssignCitizens 0x48EECF: the overseas mine ferry (0x48F3F5-0x48F458) fixed - only citizens land-connected to home
     and not to the mine go on the boat list; the 2017 update's takes every home citizen, also to a mine they could
-    walk to (and runs with no deficit once the overseas timer is due) - a backport candidate (a find_mine filter at
-    MINE_SITES[5]: only mines in another region than the base). The searches test connectivity through AoC's own
+    walk to (and runs with no deficit once the overseas timer is due) - backported as `overseas_mines` (off: a find_mine filter
+    at MINE_SITES[5], only mines in another region than the base; docs/experiments.md). The searches test connectivity through AoC's own
     area graph (0x422872) instead of region(pos, 2); the leftover pass, boats, fish and the ferry unchanged.
   - The citizen orders 0x493B97 (spreading a producer type's queue over its producers): unchanged. The unit orders
     0x494F42: a carrier's fighters are queued only at carriers with room (+0x2A8, the 2017 update's +0x2A4).
