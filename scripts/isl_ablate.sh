@@ -2,7 +2,7 @@
 # Island ablations against the base-game AI on the maps players play (docs/testing.md "Large island maps"): every
 # variant of a list x cheat 0/1 x the maps of MAPS through scripts/vanilla.sh (hard, seeds x both seats).
 # usage: sh scripts/isl_ablate.sh <variants file>      lines: name|[autotest] keys (comma-separated; empty = shipped)
-#   MAPS (default "siL tiH liH"), CHEATS (default "0 1"), REPEAT=n seeds (default 20), JOBS/SLOT0/DLL/CONFIG as for
+#   MAPS (default "siL tiH liH"), CHEATS (default "0 1"), REPEAT=n seeds (default 20), JOBS/DLL/CONFIG as for
 #   vanilla.sh. Logs tagged ab-<name>-c<cheat>-<map>; scored by scripts/islands.py [-base NAME] "work/autotest_*_ab-<name>-*.csv"
 #   (and scripts/vanilla.py). Variant names must be new (the scorers glob the work folder).
 # The maps (all Middle Ages starts, map seed 101):

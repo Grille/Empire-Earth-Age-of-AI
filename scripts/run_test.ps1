@@ -11,7 +11,8 @@
 # -Slot n (1..30; env SLOT for the scripts that call this one): a test game that runs beside others. Its test ini,
 # log and dumps are in work\slot<n>\ (the DLL learns it from EEAIMOD_SLOT / EEAIMOD_SLOT_DIR), its control pipe is
 # \\.\pipe\eeaimod<n>, the DLL moves its network ports by 2n, and the game's single-instance check is patched at the
-# start (docs/testing.md, Parallel runs). Slot 0 (default) is the game folder as before.
+# start (docs/testing.md, Parallel runs). Slot 0 (default) is the game folder as before. -Slots a-b (env SLOTS): the
+# first free slot of that range (scripts/jobs.sh: 1-30), waiting while all are taken.
 # -Dll <path> (env DLL): this run plays with that eeaimod.dll build instead of the installed one - copied to
 # work\eeaimod_slot<n>.dll (the source can be rebuilt meanwhile), named in EEAIMOD_DLL; the installed DLL loads it.
 # Art of Conquest: EE_GAME_DIR=<its folder> (EE-AOC.exe is found there; -Exe names another). The mod plays there in
@@ -20,7 +21,7 @@
 param([string]$Save = "aitest.ees", [int]$TimeoutSec = 900, [string]$Tag = "", [bool]$Mute = $true,
       [string]$Scenario = "", [string[]]$IniExtra = @(), [string]$Exe = "",
       [string]$Config = $env:CONFIG, [string]$AiDir = $env:AI_DIR, [int]$Slot = [int]$env:SLOT,
-      [string]$Settings = $env:SETTINGS, [string]$Dll = $env:DLL)
+      [string]$Settings = $env:SETTINGS, [string]$Dll = $env:DLL, [string]$Slots = $env:SLOTS)
 $repo = (Resolve-Path "$PSScriptRoot\..").Path
 $g = $env:EE_GAME_DIR
 if (-not $g -and (Test-Path "$repo\game_dir.txt")) { $g = (Get-Content "$repo\game_dir.txt" | Where-Object { $_.Trim() } | Select-Object -First 1).Trim() }
@@ -37,6 +38,48 @@ $build = if ($aoc) { @{ Key = 'HKCU:\Software\Mad Doc Software\EE-AOC'; Splash =
 $exeName = [System.IO.Path]::GetFileNameWithoutExtension($Exe)   # its process
 $g = (Resolve-Path $g).Path.TrimEnd('\')
 if ($Slot -lt 0 -or $Slot -gt 30) { "slot must be 0..30"; exit 1 }
+$slotFrom = $Slot; $slotTo = $Slot
+if ($Slots) {
+    if ($Slots -notmatch '^\s*(\d+)\s*(?:-\s*(\d+))?\s*$') { "slots must be n or a-b"; exit 1 }
+    $slotFrom = [int]$Matches[1]; $slotTo = if ($Matches[2]) { [int]$Matches[2] } else { $slotFrom }
+    if ($slotFrom -lt 1 -or $slotTo -gt 30 -or $slotFrom -gt $slotTo) { "slots must lie in 1..30"; exit 1 }
+}
+# Who holds what is told by named objects of this Windows session, not by files: creating one is a single step that
+# either makes it or finds it there (two runs can't both get it), and it is gone once the last process holding a
+# handle ends, however it ended (no stale state, no PID reused by another process).
+#   eeaimod_slot<n>      the slot: its runner and (a handle given to it at the start) its game - a game that outlives a
+#                        killed runner still keeps its slot, so no second game plays into its test ini, log and pipe
+#   eeaimod_runner_<pid> a runner is going;  eeaimod_game_<pid> a test game (held by the game only)
+#   eeaimod_reserved_<game folder>  scripts/reserve.sh holds the game folder
+function New-Named([string]$name) {   # the new object, or $null when it exists already
+    $made = $false
+    $e = [System.Threading.EventWaitHandle]::new($false, [System.Threading.EventResetMode]::ManualReset, "Local\$name", [ref]$made)
+    if ($made) { return $e }
+    $e.Dispose(); $null
+}
+function Test-Named([string]$name) {
+    $e = $null
+    if (-not [System.Threading.EventWaitHandle]::TryOpenExisting("Local\$name", [ref]$e)) { return $false }
+    $e.Dispose(); $true
+}
+$runner = New-Named "eeaimod_runner_$PID"
+# One run per slot. -Slots a-b (env SLOTS, scripts/jobs.sh): the first free slot of the range, waiting while all are
+# taken. Nothing to release by hand: the handles close with this process.
+$told = $false
+for (;;) {
+    for ($s = $slotFrom; $s -le $slotTo -and -not $slotHeld; $s++) {
+        $slotHeld = New-Named "eeaimod_slot$s"
+        # changeover (2026-10-22, remove once no run of the old run_test is left): its lock file with a live runner
+        $old = "$repo\work\run_test$(if ($s) { "_slot$s" }).lock"
+        $owner = if (Test-Path $old) { [int]((Get-Content $old -Raw -ErrorAction SilentlyContinue) -split ' ')[0] }
+        if ($slotHeld -and $owner -and (Get-Process -Id $owner -ErrorAction SilentlyContinue)) { $slotHeld.Dispose(); $slotHeld = $null }
+        if ($slotHeld) { $Slot = $s }
+    }
+    if ($slotHeld) { break }
+    if ($slotFrom -eq $slotTo -and -not $Slots) { "another test run is active in slot $Slot - aborting"; exit 1 }
+    if (-not $told) { "waiting: slots $slotFrom..$slotTo are all taken"; $told = $true }
+    Start-Sleep -Seconds 2
+}
 $sdir = if ($Slot) { "$repo\work\slot$Slot" } else { $g }   # this run's test ini, log and dumps
 if ($Scenario) {
     # beside other slots the file may be open in another game: copy it only when it differs
@@ -74,34 +117,21 @@ if (-not [System.IO.Path]::IsPathRooted($AiDir)) { $AiDir = Join-Path $repo $AiD
 if (-not (Test-Path $Config -PathType Leaf)) { "config not found: $Config"; exit 1 }
 if (-not (Test-Path $AiDir -PathType Container)) { "personality folder not found: $AiDir"; exit 1 }
 $Config = (Resolve-Path $Config).Path; $AiDir = (Resolve-Path $AiDir).Path
-# One run per slot: the slot's lock holds the owner's PID (and, once started, its game's); only the owner removes
-# the test ini, so a run that was interrupted (or is still waiting for its game) can't clean up under a newer run.
-$lock = if ($Slot) { "$repo\work\run_test_slot$Slot.lock" } else { "$repo\work\run_test.lock" }
 New-Item -ItemType Directory -Force "$repo\work" | Out-Null
 New-Item -ItemType Directory -Force $sdir | Out-Null
-if (Test-Path $lock) {
-    $owner = [int]((Get-Content $lock -Raw -ErrorAction SilentlyContinue) -split ' ')[0]
-    if ($owner -and $owner -ne $PID -and (Get-Process -Id $owner -ErrorAction SilentlyContinue)) {
-        "another test run (PID $owner) is active in slot $Slot - aborting"; exit 1
-    }
-}
-Set-Content $lock $PID
-# the other slots' runs still going: "runner game" PIDs from their locks
-function Other-Runs {
-    Get-ChildItem "$repo\work" -Filter "run_test*.lock" | Where-Object { $_.FullName -ne $lock } | ForEach-Object {
-        $f = (Get-Content $_.FullName -Raw -ErrorAction SilentlyContinue) -split '\s+' | Where-Object { $_ }
-        if ($f -and (Get-Process -Id ([int]$f[0]) -ErrorAction SilentlyContinue)) { , @($f | ForEach-Object { [int]$_ }) }
-    }
+# the other runners still going (their PIDs)
+function Other-Runners {
+    @(Get-Process -Name powershell, pwsh -ErrorAction SilentlyContinue |
+      Where-Object { $_.Id -ne $PID -and (Test-Named "eeaimod_runner_$($_.Id)") } | ForEach-Object { $_.Id })
 }
 # the game folder reserved for a task that needs it to itself (scripts/reserve.sh: an install, a slot-0 run): no game
-# starts until it is done - checked right before the start; the task's own runs (EEAIMOD_RESERVED) pass
+# starts until it is done - checked right before the start; the task's own runs (EEAIMOD_RESERVED) pass. The name is
+# the folder's, as scripts/hold.ps1 makes it.
 function Wait-Reservation {
+    if ($env:EEAIMOD_RESERVED) { return }
     $told = $false
-    while (Test-Path "$g\eeaimod_reserved.lock") {
-        $r = (Get-Content "$g\eeaimod_reserved.lock" -Raw -ErrorAction SilentlyContinue) -split ' ', 2
-        $holder = [int]($r[0] -as [int])
-        if (-not $holder -or $holder -eq [int]$env:EEAIMOD_RESERVED -or -not (Get-Process -Id $holder -ErrorAction SilentlyContinue)) { break }
-        if (-not $told) { "waiting: the game folder is reserved ($("$($r[1])".Trim()))"; $told = $true }
+    while (Test-Named ("eeaimod_reserved_" + ($g.ToLower() -replace '\\', '/'))) {
+        if (-not $told) { "waiting: the game folder is reserved (scripts/reserve.sh)"; $told = $true }
         Start-Sleep -Seconds 5
     }
 }
@@ -115,15 +145,12 @@ try {
 # dumps and pipe, and with the mod's dinput.dll its own settings: it runs beside the player's game. Slot 0 shares the
 # game folder's (and without that dinput.dll every run mutes the sound in the registry): not while the player plays
 $proxy = (Test-Path "$g\dinput.dll") -and (Select-String -Path "$g\dinput.dll" -Pattern 'EEAimodSettings' -SimpleMatch -Quiet)
-$others = @(Other-Runs)
-$ours = @($others | ForEach-Object { $_ | Select-Object -Skip 1 })
-# a game another runner has just started, before its PID is in that runner's lock: its parent is that runner
-$runners = @($others | ForEach-Object { $_[0] })
-$foreign = @(Get-Process -Name $exeName -ErrorAction SilentlyContinue | Where-Object { $ours -notcontains $_.Id } | Where-Object {
+$others = Other-Runners
+# a test game holds its eeaimod_game_<pid>; one a runner is just starting may not have it yet: its parent is a runner
+$foreign = @(Get-Process -Name $exeName -ErrorAction SilentlyContinue | Where-Object { -not (Test-Named "eeaimod_game_$($_.Id)") } | Where-Object {
     $pp = (Get-CimInstance Win32_Process -Filter "ProcessId=$($_.Id)" -ErrorAction SilentlyContinue).ParentProcessId
-    -not ($pp -and $runners -contains [int]$pp) })
+    -not ($pp -and (Test-Named "eeaimod_runner_$pp")) })
 if ($foreign -and (-not $Slot -or ($Mute -and -not $proxy))) {
-    Remove-Item $lock -Confirm:$false
     "game already running - aborting$(if (-not $Slot) { ' (slot 0 shares its folder: -Slot n runs beside it)' } else { ' (no mod dinput.dll: the run would mute it)' })"; exit 1
 }
 if (-not $others) { Restore-Sound }   # leftover from an interrupted run (with other slots running: theirs)
@@ -133,7 +160,7 @@ if (-not $others) { Restore-Sound }   # leftover from an interrupted run (with o
 if (-not $Settings) { $Settings = "$repo\config\test\eesettings.ini" }
 elseif (-not [System.IO.Path]::IsPathRooted($Settings)) { $Settings = Join-Path $repo $Settings }
 if ($proxy -and $Mute) {
-    if (-not (Test-Path $Settings)) { Remove-Item $lock -Confirm:$false; "settings file not found: $Settings"; exit 1 }
+    if (-not (Test-Path $Settings)) { "settings file not found: $Settings"; exit 1 }
     $env:EEAIMOD_SETTINGS = "$repo\work\settings_slot$Slot.ini"
     Copy-Item $Settings $env:EEAIMOD_SETTINGS -Force
     # Art of Conquest checks for the 2017 update's install ("needs the original game") by its "Installed From" values -
@@ -157,10 +184,10 @@ if ($Dll) {
     $why = if (-not (Test-Path $Dll)) { "-Dll not found: $Dll" }
            elseif (-not (Select-String -Path "$g\eeaimod.dll" -Pattern 'EEAIMOD_DLL' -SimpleMatch -Quiet)) {
                "the installed eeaimod.dll predates -Dll (install a current build once: sh dll/build.sh install)" }
-    if ($why) { Remove-Item $lock -Confirm:$false; $why; exit 1 }
+    if ($why) { $why; exit 1 }
     $env:EEAIMOD_DLL = "$repo\work\eeaimod_slot$Slot.dll"
     try { Copy-Item $Dll $env:EEAIMOD_DLL -Force -ErrorAction Stop }
-    catch { Remove-Item $lock -Confirm:$false; "can't copy -Dll to $($env:EEAIMOD_DLL): $_"; exit 1 }
+    catch { "can't copy -Dll to $($env:EEAIMOD_DLL): $_"; exit 1 }
 } else { Remove-Item Env:EEAIMOD_DLL -ErrorAction SilentlyContinue }
 if ($Mute -and -not $proxy -and -not (Test-Path $backup)) {   # muted once for all slots that run at the same time
     $cur = Get-ItemProperty $key
@@ -179,9 +206,9 @@ for ($i = 0; $i -lt $extra.Count; $i++) {
     foreach ($f in $Matches[1].Split(';')) {
         $f = $f.Trim()
         if (-not $f) { continue }
-        if ($f -match '^_aimod[\\/]') { Remove-Item $lock -Confirm:$false; "setup=$f`: relative to the repository now ($($f.Substring(7)))"; exit 1 }
+        if ($f -match '^_aimod[\\/]') { "setup=$f`: relative to the repository now ($($f.Substring(7)))"; exit 1 }
         if (-not [System.IO.Path]::IsPathRooted($f)) { $f = Join-Path $repo $f }
-        if (-not (Test-Path $f)) { Remove-Item $lock -Confirm:$false; "setup: no file $f"; exit 1 }
+        if (-not (Test-Path $f)) { "setup: no file $f"; exit 1 }
         $files += $f
     }
     $extra[$i] = "setup=" + ($files -join ';')
@@ -209,12 +236,10 @@ try {
     }
     Wait-Reservation
     $t0 = Get-Date
-    # headless or beside other games: start suspended and patch before the game runs (else a plain start)
-    if ($extra -contains "headless=1" -or $Slot -or $others) {
-        # headless: start suspended and switch off the loading splash before the game runs - it comes up before
-        # the engine loads our DLL, centred on screen, and takes the focus (its jne -> jmp, see display.c)
-        Add-Type @"
-using System; using System.Runtime.InteropServices;
+    # the game gets handles of its own to the slot and to eeaimod_game_<pid> (DuplicateHandle): they live as long as
+    # it does, whatever happens to this runner
+    Add-Type @"
+using System; using System.Runtime.InteropServices; using System.Threading;
 public static class SuspendedStart {
   [StructLayout(LayoutKind.Sequential, CharSet=CharSet.Unicode)] struct SI { public int cb; public string a, b, c;
     public int x, y, w, h, xc, yc, fill, flags; public short show, r2; public IntPtr r3, i, o, e; }
@@ -226,6 +251,17 @@ public static class SuspendedStart {
   [DllImport("kernel32")] static extern bool VirtualProtectEx(IntPtr p, IntPtr a, int n, int prot, out int old);
   [DllImport("kernel32")] static extern int ResumeThread(IntPtr t);
   [DllImport("kernel32")] static extern bool CloseHandle(IntPtr h);
+  [DllImport("kernel32")] static extern IntPtr GetCurrentProcess();
+  [DllImport("kernel32")] static extern bool DuplicateHandle(IntPtr sp, IntPtr sh, IntPtr tp, out IntPtr th, int a, bool inh, int o);
+  static bool Give(IntPtr hp, IntPtr h) {   // a copy of the handle h in process hp (DUPLICATE_SAME_ACCESS)
+    IntPtr th; return DuplicateHandle(GetCurrentProcess(), h, hp, out th, 0, false, 2);
+  }
+  // the game process hp (its pid) gets a handle to the slot and its eeaimod_game_<pid>, which only it holds then
+  public static bool Mark(IntPtr hp, int pid, WaitHandle slot) {
+    bool made;
+    using (EventWaitHandle m = new EventWaitHandle(false, EventResetMode.ManualReset, "Local\\eeaimod_game_" + pid, out made))
+      return Give(hp, slot.SafeWaitHandle.DangerousGetHandle()) & Give(hp, m.SafeWaitHandle.DangerousGetHandle());
+  }
   static bool Patch(IntPtr hp, int at, byte[] want, byte[] put) {   // only while the bytes are the expected ones
     byte[] cur = new byte[want.Length]; IntPtr n; int old;
     if (!ReadProcessMemory(hp, new IntPtr(at), cur, cur.Length, out n)) return false;
@@ -234,23 +270,30 @@ public static class SuspendedStart {
   }
   // splash: the loading splash off (its jne -> jmp); multi: the single-instance check off (its je nopped - the mutex,
   // "StainlessSteelStudiosPresentsEmpireEarth" in the 2017 update, is created before the engine loads our DLL)
-  public static int Start(string exe, string args, string dir, bool splash, int splashAt, bool multi, int multiAt,
-                          byte[] multiWant, out bool splashOk, out bool multiOk) {
+  public static bool Start(string exe, string args, string dir, bool splash, int splashAt, bool multi, int multiAt,
+                          byte[] multiWant, WaitHandle slot, out bool splashOk, out bool multiOk, out int pid) {
     SI si = new SI(); si.cb = Marshal.SizeOf(si); PI pi;
     if (splash) si.flags = 0x80;   // headless: STARTF_FORCEOFFFEEDBACK - no busy cursor while it starts
     if (!CreateProcessW(exe, "\"" + exe + "\" " + args, IntPtr.Zero, IntPtr.Zero, false, 4, IntPtr.Zero, dir, ref si, out pi))
       throw new Exception("CreateProcess failed: " + Marshal.GetLastWin32Error());
     splashOk = splash && Patch(pi.hp, splashAt, new byte[] { 0x75, 0x2F }, new byte[] { 0xEB });
     multiOk = multi && Patch(pi.hp, multiAt, multiWant, new byte[] { 0x90, 0x90, 0x90, 0x90, 0x90, 0x90 });
+    bool given = Mark(pi.hp, pi.pid, slot);   // before it runs: no test game without its handles
+    pid = pi.pid;
     ResumeThread(pi.ht); CloseHandle(pi.ht); CloseHandle(pi.hp);
-    return pi.pid;
+    return given;
   }
 }
 "@
+    # headless or beside other games: start suspended and patch before the game runs (else a plain start)
+    if ($extra -contains "headless=1" -or $Slot -or $others) {
+        # headless: start suspended and switch off the loading splash before the game runs - it comes up before
+        # the engine loads our DLL, centred on screen, and takes the focus (its jne -> jmp, see display.c)
         $headless = $extra -contains "headless=1"; $multi = [bool]($Slot -or $others)
-        $splashOk = $false; $multiOk = $false
-        $p = Get-Process -Id ([SuspendedStart]::Start("$g\$Exe", "-loadgame `"$Save`"", $g, $headless, $build.Splash, $multi,
-                                                      $build.Multi, $build.MultiBytes, [ref]$splashOk, [ref]$multiOk))
+        $splashOk = $false; $multiOk = $false; $gamePid = 0
+        $given = [SuspendedStart]::Start("$g\$Exe", "-loadgame `"$Save`"", $g, $headless, $build.Splash, $multi,
+                                         $build.Multi, $build.MultiBytes, $slotHeld, [ref]$splashOk, [ref]$multiOk, [ref]$gamePid)
+        $p = Get-Process -Id $gamePid
         $null = $p.Handle   # keep a handle, else ExitCode is lost
         if ($headless -and -not $splashOk) { "warning: loading splash not switched off (unexpected bytes at $('{0:X}' -f $build.Splash))" }
         if ($multi -and -not $multiOk) { "warning: single-instance check not switched off (unexpected bytes at $('{0:X}' -f $build.Multi))" }
@@ -259,8 +302,9 @@ public static class SuspendedStart {
         $psi.FileName = "$g\$Exe";$psi.Arguments = "-loadgame `"$Save`""
         $psi.WorkingDirectory = $g; $psi.UseShellExecute = $false
         $p = [System.Diagnostics.Process]::Start($psi)
+        $given = [SuspendedStart]::Mark($p.Handle, $p.Id, $slotHeld)   # it runs already: a runner's child meanwhile
     }
-    Set-Content $lock "$PID $($p.Id)"   # the game is a test slot's: another run doesn't take it for the player's
+    if (-not $given) { "warning: the game didn't get its slot handles - a killed runner would free its slot" }
     # safety: the DLL logs "# autotest:" at load when it found the test ini; without it the game would run at
     # normal speed with intros and (if the ini vanished) sound - kill it instead
     $ok = $false
@@ -272,11 +316,9 @@ public static class SuspendedStart {
     elseif (-not $p.WaitForExit($TimeoutSec * 1000)) { $p.Kill(); $p.WaitForExit(); "TIMEOUT after $TimeoutSec s - killed" }
     $secs = [int]((Get-Date) - $t0).TotalSeconds
 } finally {
-    if ((Get-Content $lock -Raw -ErrorAction SilentlyContinue) -match "^$PID") {
-        Remove-Item "$sdir\aimod_autotest.ini" -Confirm:$false -ErrorAction SilentlyContinue
-        Remove-Item $lock -Confirm:$false -ErrorAction SilentlyContinue
-        if (-not @(Other-Runs)) { Restore-Sound }   # the last slot running restores the player's sound
-    }
+    # the slot is this run's until it ends: its test ini can go (the game read it at its start)
+    Remove-Item "$sdir\aimod_autotest.ini" -Confirm:$false -ErrorAction SilentlyContinue
+    if (-not (Other-Runners)) { Restore-Sound }   # the last slot running restores the player's sound
 }
 $stamp = Get-Date -Format "yyyyMMdd_HHmmss"
 $dest = "$repo\work\autotest_${stamp}$(if ($Slot) { "_s$Slot" })${Tag}.csv"
