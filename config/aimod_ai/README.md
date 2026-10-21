@@ -78,7 +78,7 @@ A comment runs from `#` to the end of the line, also after a value (not inside a
 |---|---|
 | `"text"` | A string. `\"` is a quote, `\\` a backslash, `\n` a line break, `\{` `\}` braces that are text (no placeholder). `'text'` works too. |
 | `85`, `0.5` | A number |
-| `["a", "b", "c"]` | A list. Said or used as one value, it is one of its items, at random; `len`, `first`, `item`, `contains` and `map_range` see all of them. A comma after the last item is fine. |
+| `["a", "b", "c"]` | A list: its items, nothing else. Said - as a line, in a `{placeholder}` - it is one of them, at random; `pick(l)` takes one in an expression. `len`, `first`, `item`, `contains`, `map_range` and the filters (`count`, `kills`) see all of them. A comma after the last item is fine. |
 | `allied ? "Welcome back."` | A condition without `:` - nothing when it doesn't hold |
 | `opinion > 30% ? "friend" : "stranger"` | One or the other |
 | `a ?? b` | `a`, unless it is nothing: then `b` |
@@ -106,8 +106,8 @@ report = (
 )
 ```
 
-Only inside `( )`: in a list, `["Hello" "Hi"]` stays a mistake (a missing comma), not one joined string. `+` joins
-texts too (`"a " + "b"`), but adds when both sides are numbers.
+Only inside `( )`: in a list, `["Hello" "Hi"]` stays a mistake (a missing comma), not one joined string. A text is
+built in its string, never with `+` (which adds numbers): `"Gold: {me.gold}"`, `"{greeting}{farewell}"`.
 
 **A mistake** - a missing quote or bracket, an expression that doesn't parse (also in a string's `{placeholder}`), an
 unknown key, situation or record, a line outside `lines = { }` - is written to the log (`aimod_econ.csv` next to the game, lines starting with
@@ -143,7 +143,7 @@ How a line is chosen:
 1. The situation happens (the table below). Lines that aren't always said have a **chance** (scaled by the
    personality's `talk`: at talk=100 twice as often as at 50), a **cooldown** per AI, and need 3 seconds since the
    AI's last line.
-2. The value is worked out: a list gives one of its items at random, conditions leave items out. The same text as
+2. The value is worked out: conditions leave items out, and of a list the line says one of its items, at random. The same text as
    last time is avoided when there is another.
 3. **Nothing to say** - no key, `[]`, or a list whose conditions all fail - falls back to a more general situation
    (the fallback column), then to the layers (an included file, `mod/computer.eeai` last) the same way, else the AI
@@ -242,14 +242,14 @@ lines = {
 | | |
 |---|---|
 | Numbers, texts | `85`, `0.5`, `70%` (the same as `0.7` - `%` only right after a number), `"text"`, `'text'` |
-| Arithmetic | `+ - * /` on numbers; `+` also joins texts. A text and a number is a mistake: write `"Gold: {me.gold}"` or `"Gold: " + str(me.gold)`. Dividing by 0 is a mistake too; `me.strength * 150%` |
-| Comparisons | `< <= > >= == !=` - numbers when both are numbers, else texts (case ignored). A text against a number (`"12" == 12`) is a mistake: logged, and only `!=` holds |
+| Arithmetic | `+ - * /` on numbers only. A text is built in its string: `"Gold: {me.gold}"`, `"{a}{b}"` - `"a" + b` is a mistake (b added to the text, or the text to each of b's items?). Dividing by 0 is a mistake too; `me.strength * 150%` |
+| Comparisons | `< <= > >= == !=` - numbers when both are numbers, else texts (case ignored). A text against a number (`"12" == 12`) is a mistake: logged, and only `!=` holds. A list compared is a mistake - `contains(l, x)` |
 | Logic | `and or not` - only the words (`&&`, `\|\|` and `!` are a mistake; `!=` is a comparison) |
 | Choice | `a ? b : c`, `a ? b` (nothing when `a` doesn't hold), `a ?? b` (`b` when `a` is nothing) |
-| Lists | `[a, b, c]` - leaving out what is nothing, a list in a list giving its items; as one value (in a line, `+`, `<` ...) one of them at random |
+| Lists | `[a, b, c]` - leaving out what is nothing, a list in a list giving its items. A list holds its items only: a line and a `{placeholder}` say one of them at random, `pick(l)` takes one; where one value belongs otherwise (`+`, `<`, a number's place) it is a mistake. A list with items is true, an empty one nothing |
 | Functions | `chance(p)` - true with the probability p, 0 to 1: `chance(25%)` or `chance(0.25)` (`chance(25)` is a mistake); `rnd()` - a random number, 0 up to but not 1 (`rnd() < 25%` is `chance(25%)`); `rnd(n)` - 0 up to n; `min(a, b, ...)`, `max(a, b, ...)`, `abs(a)`, `round(a)`, `floor(a)` (down to a whole number: `floor(me.gold / 4)`), `log2(a)` (of a number above 0: `log2(2)` is 1, `log2(0.5)` is -1 - for ratios: `log2(them.strength / me.strength)`) |
-| List functions | `len(l)` - how many items (a single value 1, nothing 0); `first(l)` - the first item, not a random one (`first([a ? "x", b ? "y", "z"])`: the first that holds); `item(l, i)` - the i-th, from 1 (nothing past the end); `contains(l, x)` - an item equal to x (as `==`); `map_range(x, [limits], [values])` - the value of the first limit x is below, the last value when it is below none: `map_range(ratio, [0.25, 0.67, 1.5, 4], ["much weaker", "weaker", "about as strong", "stronger", "much stronger"])`. A value that is no list counts as a list of one. |
-| Text and number | `str(x)` - x as a text only (`str(epoch)` is "Copper Age", `str(12) + 1` is "121"); `number(x)` - x as a number: a value's number, or a text that is one (`number("12") + 1` is 13), else nothing (`number(t) ?? 0`). Rarely needed - for a text that holds a number |
+| List functions | `pick(l)` - one of its items at random (`pick([10, 20]) + 5`; a single value is itself); `len(l)` - how many items (a single value 1, nothing 0); `first(l)` - the first item, not a random one (`first([a ? "x", b ? "y", "z"])`: the first that holds); `item(l, i)` - the i-th, from 1 (nothing past the end); `contains(l, x)` - an item equal to x (as `==`); `map_range(x, [limits], [values])` - the value of the first limit x is below, the last value when it is below none: `map_range(ratio, [0.25, 0.67, 1.5, 4], ["much weaker", "weaker", "about as strong", "stronger", "much stronger"])`. A value that is no list counts as a list of one. |
+| Text and number | `str(x)` - x as a text only (`str(epoch)` is "Copper Age", `str(epoch) == "Copper Age"`); `number(x)` - x as a number: a value's number, or a text that is one (`number("12") + 1` is 13), else nothing (`number(t) ?? 0`). Rarely needed - for a text that holds a number |
 | Grouping | `( )` |
 
 - **True** is a number other than 0 or a text that isn't empty. **Nothing** is false, an empty text in a line, 0 in
@@ -257,9 +257,9 @@ lines = {
   there is no war).
 - **Numbers and texts at once:** some values are both - the epoch is 3 and "Copper Age", an opinion is -62% (-0.62) and
   "hostile" (hostile, unfriendly, indifferent, friendly, trusting: `opinion1`..`opinion5` in `mod/system.eeai`). The
-  number counts in arithmetic, in comparisons with a number and as true/false; the text counts in a line and next to
-  texts (`"Age: " + epoch`). Arithmetic gives a plain number: `{round(opinion * 100)}` writes -62.
-- **A string is always a text**, even when it looks like a number: `"12" + 1` is `"121"`, and `"12"` is no colour
+  number counts in arithmetic, in comparisons with a number and as true/false; the text counts in a line and in a
+  string (`"Age: {epoch}"`). Arithmetic gives a plain number: `{round(opinion * 100)}` writes -62.
+- **A string is always a text**, even when it looks like a number: `"12" + 1` is a mistake, and `"12"` is no colour
   number. Write numbers without quotes.
 - Only what is chosen is worked out: the other side of `? :`, `??`, `and`, `or` is not (no random draws, no
   errors from text that isn't said).

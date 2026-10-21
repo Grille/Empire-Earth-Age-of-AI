@@ -489,7 +489,7 @@ static void cmd_texts(char *out, const char *args) {
             if (v.has_n && v.has_s) { struct xval nv; xnum(&nv, v.n); xto_text(&nv, num, sizeof num); }
             REPLY("%s%s%s%s%s  (%s%s", v.has_s ? "\"" : "", t, v.has_s ? "\"" : "", num[0] ? " = " : "", num,
                   v.has_n && v.has_s ? "number and text" : v.has_s ? "text" : "number", l.c.failed ? "; a mistake left something out - see the log" : "");
-            if (v.w > 1) REPLY("; one of %d", v.w);
+            if (v.ln) REPLY("; a list of %d", v.ln);
             for (int i = 0; i < v.ln; i++) { xto_text(xl_at(&v, i), t, sizeof t); REPLY("%s%s", i ? " | " : ": ", t); }
             REPLY(")\n");
             return;

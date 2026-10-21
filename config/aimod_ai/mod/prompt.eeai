@@ -34,19 +34,15 @@ power = (
 )
 town = them.in_town(me) ? " Their soldiers are in your town right now." : ""
 # attack_minutes is nothing without an attack - 0 minutes is one
-attacks = (
-    ((me.attack_minutes(them) ?? -1) >= 0 ?
-        " Your last army set out against their town {me.attack_minutes(them)} minutes ago." : "")
-    + ((them.attack_minutes(me) ?? -1) >= 0 ?
-        " Their last army set out against your town {them.attack_minutes(me)} minutes ago." : "")
-)
+my_attack = (me.attack_minutes(them) ?? -1) >= 0 ? " Your last army set out against their town {me.attack_minutes(them)} minutes ago." : ""
+their_attack = (them.attack_minutes(me) ?? -1) >= 0 ? " Their last army set out against your town {them.attack_minutes(me)} minutes ago." : ""
+attacks = "{my_attack}{their_attack}"
 # what by destroyed of of's in the last minutes (0: the whole game) - aircraft and ships only when there are any
 destroyed(by, of, minutes) = (
     "{by.kills(of, minutes, army)} land units, "
-    + (by.kills(of, minutes, airforce) ? "{by.kills(of, minutes, airforce)} aircraft, " : "")
-    + (by.kills(of, minutes, marine) ? "{by.kills(of, minutes, marine)} ships, " : "")
-    + "{by.kills(of, minutes, civilians)} civilians (citizens, fishing boats)"
-    + " and {by.kills(of, minutes, buildings)} buildings"
+    "{by.kills(of, minutes, airforce) ? "{by.kills(of, minutes, airforce)} aircraft, " : ""}"
+    "{by.kills(of, minutes, marine) ? "{by.kills(of, minutes, marine)} ships, " : ""}"
+    "{by.kills(of, minutes, civilians)} civilians (citizens, fishing boats) and {by.kills(of, minutes, buildings)} buildings"
 )
 # all that was destroyed between you, units and buildings
 fought(minutes) = me.kills(them, minutes) + them.kills(me, minutes)

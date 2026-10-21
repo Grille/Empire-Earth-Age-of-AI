@@ -599,17 +599,19 @@ static uint32_t text_hash(const char *s) { uint32_t h = 2166136261u; while (*s) 
 static int line_pick(struct persona *p, int k, struct xctx *c, uint32_t last, char *out, int cap) {
     struct xval x;
     c->vars[0] = &p->vars;
-    for (int tries = 0; tries < 3; tries++) {
-        int f0 = c->failed;
-        if (!x_eval(p->line[k], c, &x)) {   // a mistake while working it out (told): nothing to say - the fallback
-            if (c->failed == f0) x_log_bad("a line that is no expression", p->line[k]);
-            return 0;
-        }
-        if (!x.w) return 0;
-        xto_text(&x, out, cap);
-        if (x.w < 2 || text_hash(out) != last) break;
+    int f0 = c->failed;
+    if (!x_eval(p->line[k], c, &x)) {   // a mistake while working it out (told): nothing to say - the fallback
+        if (c->failed == f0) x_log_bad("a line that is no expression", p->line[k]);
+        return 0;
     }
-    return x.w;
+    if (!x.w) return 0;
+    for (int tries = 0; tries < 3; tries++) {   // the line said: one of a list's items (another than the last if it can)
+        struct xval one = x;
+        x_pick(c, &one);
+        xto_text(&one, out, cap);
+        if (x.ln < 2 || text_hash(out) != last) break;
+    }
+    return x.ln ? x.ln : 1;
 }
 // where situation k's line comes from for this AI: its personality (mod/computer.eeai without one), then its layers (its
 // includes) - the first whose chain (k, then its fallbacks) has something to say now (*kk the situation, *n how many

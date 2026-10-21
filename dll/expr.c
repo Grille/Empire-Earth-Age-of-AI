@@ -342,7 +342,7 @@ static void xdual_kept(struct xval *v, double n, const char *s) {   // the same 
 }
 static int xis_num(const struct xval *v, double *n) { if (v->has_n) *n = v->n; return v->has_n; }
 static double xto_num(const struct xval *v) { return v->has_n ? v->n : 0; }
-static int xtrue(const struct xval *v) { return v->w && (v->pl || v->kind || (v->has_n ? v->n != 0 : v->s[0] != 0)); }   // a player, a function: true
+static int xtrue(const struct xval *v) { return v->w && (v->ln || v->pl || v->kind || (v->has_n ? v->n != 0 : v->s[0] != 0)); }   // a list, a player, a function: true
 // n to dec decimals, a half away from 0 (0.625 -> 0.63, 62.5 -> 63) - printf's own rounding takes a half to the even
 // digit (0.62, 62), which nobody writing a text expects
 static double x_round_dec(double n, int dec) {
@@ -363,11 +363,25 @@ static void xnum_text(double n, char *out, int cap) {   // a number as a text: w
     }
 }
 static void xto_text(const struct xval *v, char *out, int cap) {
+    if (v->ln) {   // a list: its items, as it would be written - no one of them (that is pick's, a line's, a {placeholder}'s)
+        int o = 0;
+        out[o++] = '[';
+        for (int i = 0; i < v->ln && o < cap - 6; i++) {
+            if (i) { out[o++] = ','; out[o++] = ' '; }
+            xto_text(&v->it[i], out + o, cap - o - 2);
+            o += (int)strlen(out + o);
+        }
+        if (o > cap - 2) o = cap - 2;
+        out[o++] = ']';
+        out[o] = 0;
+        return;
+    }
     if (v->kind && v->w) { lstrcpynA(out, v->kind == XV_FN ? "function" : "stop", cap); return; }
     if (v->has_s || !v->w) { lstrcpynA(out, v->w ? v->s : "", cap); return; }
     xnum_text(v->n, out, cap);
 }
-static const char *xtext_of(const struct xval *v) {   // its text, whole (in the region for a number)
+static const char *xtext_of(const struct xval *v) {   // its text, whole (in the region for a number, a list)
+    if (v->ln) { char t[XVAL_CAP]; xto_text(v, t, sizeof t); return x_strdup(t, strlen(t)); }
     if (v->kind && v->w) return v->kind == XV_FN ? "function" : "stop";
     if (v->has_s || !v->w) return v->w ? v->s : "";
     char t[48];
@@ -407,6 +421,11 @@ static int x_fills_ok(const char *text, const char **why);
 static void xdual(struct xval *v, double n, const char *s);
 static int x_rnd(const struct xctx *c, int n) { return c->game ? rnd_game(n) : rnd(n); }
 static double x_rnd01(const struct xctx *c) { return x_rnd(c, 1 << 30) / (double)(1 << 30); }   // 0 <= x < 1
+// a list's one item at random - for a consumer that wants one value (a line, a {placeholder}, pick(l)); a single value
+// stays itself, nothing stays nothing
+static void x_pick(const struct xctx *c, struct xval *v) {
+    if (v->ln) *v = v->it[v->ln > 1 ? x_rnd(c, v->ln) : 0];
+}
 // a player who isn't there (lord without one), used without a check (lord ? .. / lord ?? .. / lord == them): a
 // mistake like any other (x_fail) - a line built on a lord that isn't there makes no sense
 static void x_missing(struct xctx *c, const char *who) {
@@ -986,7 +1005,7 @@ static int x_fn_id(const char *name, int na) {
            !lstrcmpiA(name, "len") && na == 1 ? 7 : !lstrcmpiA(name, "first") && na == 1 ? 8 :
            !lstrcmpiA(name, "item") && na == 2 ? 9 : !lstrcmpiA(name, "contains") && na == 2 ? 10 :
            !lstrcmpiA(name, "map_range") && na == 3 ? 11 : !lstrcmpiA(name, "str") && na == 1 ? 12 :
-           !lstrcmpiA(name, "number") && na == 1 ? 13 : !lstrcmpiA(name, "log2") && na == 1 ? 14 : 0;
+           !lstrcmpiA(name, "number") && na == 1 ? 13 : !lstrcmpiA(name, "log2") && na == 1 ? 14 : !lstrcmpiA(name, "pick") && na == 1 ? 15 : 0;
 }
 static int x_par_count(const char *par) {   // a vars function's parameters "a,b)": how many
     int want = *par == ')' ? 0 : 1;
@@ -1133,7 +1152,15 @@ static int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc) {
     case XN_LIST:
         for (int i = 0; i < n->n_items; i++) if (!x_check(k, n->items[i], sc)) return 0;
         return 1;
+    case XN_ADD: case XN_MUL: case XN_NEG:   // [1, 2] + 10, "a" + b: as written - a mistake before it is worked out
+        if ((n->a && n->a->k == XN_LIST) || (n->b && n->b->k == XN_LIST))
+            return xc_fail(k, n, "a list where one number belongs - pick(l) for one of its items, \"{l}\" in a text");
+        if (n->k == XN_ADD && ((n->a && n->a->k == XN_STR) || (n->b && n->b->k == XN_STR)))
+            return xc_fail(k, n, "+ adds numbers - a text is built in its string: \"Age: {epoch}\", \"{a}{b}\"");
+        return x_check(k, n->a, sc) && x_check(k, n->b, sc);
     case XN_CMP: {
+        if ((n->a && n->a->k == XN_LIST) || (n->b && n->b->k == XN_LIST))
+            return xc_fail(k, n, "a list compared - contains(l, x) for one of its items");
         if (!x_check(k, n->a, sc) || !x_check(k, n->b, sc)) return 0;
         struct xsv a = xsv_of(n->a), b = xsv_of(n->b);   // a text and a number, both written as such: "12" == 12
         if (a.w && b.w && ((!a.has_n && !b.has_s) || (!a.has_s && !b.has_n))) {
@@ -1180,6 +1207,7 @@ static void x_fail(struct xe *e, const char *fmt, ...) {
     e->why = "a mistake while working it out";
 }
 static int x_numeric_ok(struct xe *e, const struct xval *v) {   // v counts as a number: one, or nothing (0) - a text is a mistake
+    if (v->ln) { x_fail(e, "a list (%.40s) where one number belongs - %s", xtext_of(v), "pick(l) for one of its items"); return 0; }
     if (!v->w || v->has_n) return 1;
     x_fail(e, "a text (\"%.40s\") where a number belongs - number(x) makes a number of a text", xtext_of(v));
     return 0;
@@ -1340,7 +1368,7 @@ static int x_script_fn(const char *name) {
 // a value as a command's argument: a number (whole without decimals), a text as it is, a player its number, a type
 // its number (unit.x: both)
 static int x_cmd_arg(struct xe *e, const char *verb, const struct xval *v, char *out, int cap) {
-    if (v->kind || !v->w) { x_fail(e, "%s(...): %s as a command's argument", verb, v->kind == XV_FN ? "a function" : v->kind ? "stop" : "nothing"); return 0; }
+    if (v->kind || !v->w || v->ln) { x_fail(e, "%s(...): %s as a command's argument", verb, v->ln ? "a list" : v->kind == XV_FN ? "a function" : v->kind ? "stop" : "nothing"); return 0; }
     if (v->pl) snprintf(out, (size_t)cap, "%d", v->pl - 1);
     else if (v->has_n) {
         double r = v->n < 0 ? -v->n : v->n;
@@ -1491,9 +1519,11 @@ static void xe_call(struct xe *e, const struct xnode *n, struct xval *v) {
     } else if (f == 3) { double x = xto_num(&a[0]); xnum(v, x < 0 ? -x : x); }
     else if (f == 4) { double x = xto_num(&a[0]); xnum(v, (double)(long long)(x < 0 ? x - 0.5 : x + 0.5)); }
     else if (f == 6) { double x = xto_num(&a[0]), r = (double)(long long)x; xnum(v, r > x ? r - 1 : r); }   // down: floor(-1.5) -2
+    else if (f == 15) { *v = a[0]; x_pick(e->c, v); }   // pick(l): one of its items at random (a value: itself)
     else if (f == 12 || f == 13) {   // str(x): its text only (epoch: "Copper Age"); number(x): its number - a text
         double x;                        // that is one ("12"), else nothing (number(t) ?? 0)
-        if (!a[0].w) ;
+        if (a[0].ln) x_fail(e, "%s(%.40s): a list - pick(l) for one of its items", name, xtext_of(&a[0]));
+        else if (!a[0].w) ;
         else if (f == 12) xstr(v, xtext_of(&a[0]));
         else if (a[0].has_n) xnum(v, a[0].n);
         else if (xnumeric(a[0].s, &x)) xnum(v, x);
@@ -1515,45 +1545,37 @@ static void xe_call(struct xe *e, const struct xnode *n, struct xval *v) {
     else if (f == 14) xnum(v, det_log2f((float)xto_num(&a[0])));   // the same bits on every PC (diplo.c)
     else xnum(v, x_rnd01(e->c) * (na ? xto_num(&a[0]) : 1));   // rnd(n): 0 <= x < n, rnd(): 0 <= x < 1
 }
-// a list: one of its items - each of them as often as the items it was chosen from; a mistake in an item (told)
-// leaves it out. One draw when there is a choice (two items or more), made once its items are known - not one an
-// item: a list used whole (a filter, mod/units.eeai's groups) needn't move the generator on for every item
+// a list: its items, a list in it its items in its place; a mistake in an item (told) leaves it out, so does
+// nothing ([a ? "x", "y"]); none left: nothing. It holds no one of them - one at random is what a consumer that
+// wants one value takes (x_pick: a line, a {placeholder}, pick(l)); used whole by len, first, item, contains,
+// map_range and the filters (count, kills)
 static void xe_list(struct xe *e, const struct xnode *n, struct xval *v) {
     if (e->c->fixed) { x_fail(e, "a list - a setting is one number"); return; }
-    int total = 0, cnt = 0, cap = 0, lost = 0, ntop = 0;
-    struct xval *items = NULL, top_buf[16], *tops = n->n_items <= 16 ? top_buf : malloc((size_t)n->n_items * sizeof *tops);
-    if (!tops) { x_fail(e, "no memory for a list"); return; }
+    int cnt = 0, cap = 0;
+    struct xval *items = NULL;
     for (int i = 0; i < n->n_items; i++) {
         struct xval it;
         int f0 = e->c->failed;
         xe(e, n->items[i], &it);
         if (!e->err) x_use(e, &it);
         if (e->err && e->c->failed > f0 && !e->c->circle) { e->err = 0; e->why = NULL; xnothing(&it); }   // left out
-        if (e->err) { free(items); if (tops != top_buf) free(tops); return; }
-        if (it.w > 0) {
-            total += it.w;
-            tops[ntop++] = it;
-            int add = it.ln ? it.ln : 1;
-            if (!it.ln && it.w > 1) lost = 1;   // a list kept whole no more
-            else {
-                if (cnt + add > cap) { cap = (cnt + add) * 2; struct xval *m = realloc(items, (size_t)cap * sizeof *m); if (!m) { lost = 1; continue; } items = m; }
-                for (int k = 0; k < add; k++) items[cnt++] = it.ln ? it.it[k] : it;
-            }
+        if (e->err) { free(items); return; }
+        if (!it.w) continue;
+        int add = it.ln ? it.ln : 1;
+        if (cnt + add > cap) {
+            cap = (cnt + add) * 2;
+            struct xval *m = realloc(items, (size_t)cap * sizeof *m);
+            if (!m) { free(items); x_fail(e, "no memory for a list"); return; }
+            items = m;
         }
+        for (int k = 0; k < add; k++) items[cnt++] = it.ln ? it.it[k] : it;
     }
-    if (ntop) {   // the item drawn: each as often as its weight (a list in it: its items)
-        int r = ntop > 1 ? x_rnd(e->c, total) : 0, j = 0;
-        while (j < ntop - 1 && r >= tops[j].w) r -= tops[j++].w;
-        *v = tops[j];
-    }
-    if (tops != top_buf) free(tops);
-    v->w = total;
-    v->ln = 0;
-    v->it = NULL;
-    if (!total) xnothing(v);
-    else if (!lost && cnt) {
+    xnothing(v);
+    if (cnt) {
         struct xval *keep = x_alloc((size_t)cnt * sizeof *keep);
-        if (keep) { memcpy(keep, items, (size_t)cnt * sizeof *keep); v->it = keep; v->ln = cnt; }
+        if (!keep) { free(items); x_fail(e, "no memory for a list"); return; }
+        memcpy(keep, items, (size_t)cnt * sizeof *keep);
+        v->it = keep; v->ln = v->w = cnt;
     }
     free(items);
 }
@@ -1655,19 +1677,12 @@ static void xe(struct xe *e, const struct xnode *n, struct xval *v) {
             if (n->op == '/' && y == 0) { x_fail(e, "a division by 0"); break; }
             xnum(v, n->op == '*' ? x * y : n->op == '/' ? x / y : x - y);
         }
-        else if (!v->w || !b.w) { if (!v->w) *v = b; v->ln = 0; v->it = NULL; }   // nothing: 0 to a number, "" to a text
-        else if (xis_num(v, &x) && xis_num(&b, &y)) xnum(v, x + y);   // numbers (an epoch is one too: epoch + 1)
-        else if (v->has_s && b.has_s) {   // texts joined ("Age: " + epoch: its text)
-            const char *l = xtext_of(v), *r = xtext_of(&b);
-            size_t ln = strlen(l), rn = strlen(r);
-            char *j = x_alloc(ln + rn + 1);
-            if (!j) { e->err = 1; break; }
-            memcpy(j, l, ln); memcpy(j + ln, r, rn + 1);
-            xnothing(v);
-            v->s = j; v->has_s = 1; v->w = 1;
-        } else {   // a text and a number: neither turns into the other
-            x_fail(e, "a text (\"%.40s\") and a number added - \"...{x}\" or str(x) for a text, number(t) for a number", xtext_of(v->has_s ? v : &b));
-        }
+        // + adds numbers only: a text is built in its string ("Age: {epoch}", "{a}{b}") - "a" + b could mean b
+        // added to the text or the text to b's items; nothing counts as 0
+        else if ((v->has_s && !v->has_n) || (b.has_s && !b.has_n))
+            x_fail(e, "a text (\"%.40s\") added - + adds numbers, a text is built in its string: \"Age: {epoch}\", \"{a}{b}\"", xtext_of(v->has_s && !v->has_n ? v : &b));
+        else if (!x_numeric_ok(e, v) || !x_numeric_ok(e, &b)) break;
+        else xnum(v, xto_num(v) + xto_num(&b));   // an epoch is a number too: epoch + 1
         break;
     }
     case XN_CMP: {
@@ -1676,6 +1691,10 @@ static void xe(struct xe *e, const struct xnode *n, struct xval *v) {
         if (e->err) break;
         xe(e, n->b, &b);
         if (e->err) break;
+        if (v->ln || b.ln) {   // [1, 2] == 1: no one of them - contains(l, x)
+            x_fail(e, "a list (%.40s) compared - contains(l, x) for one of its items", xtext_of(v->ln ? v : &b));
+            break;
+        }
         if (!v->w || !b.w) { xnum(v, 0); break; }   // nothing compares with nothing: false
         if (!(v->pl && b.pl) && xmismatch(v, &b)) {
             x_fail(e, "a text (\"%.40s\") compared with a number - a number has no quotes, number(t) makes one", xtext_of(v->has_s ? v : &b));
@@ -1883,6 +1902,7 @@ static int x_fill(char *out, int cap, const char *tmpl, struct xctx *c) {
                 int ok = x_eval(src, c, &v) && !c->circle;
                 c->depth--;
                 if (c->circle && !c->depth) { c->circle = 0; x_log_bad("vars naming each other in a circle", src); }
+                if (ok) x_pick(c, &v);   // a list said: one of its items
                 if (ok && fmt && !(v.w && v.has_n && !v.pl)) {   // {name:%}: a text, a player, nothing - a mistake
                     x_error("{%s:...}: a format for a number, this is none", src);
                     c->failed++;

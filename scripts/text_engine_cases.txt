@@ -238,3 +238,16 @@ a1b2
 "x" + [1, 2]
 (((((((((((((((((((((((((1)))))))))))))))))))))))))
 - - - - - - - - - - - - - - - - - - - - - - - - - 1
+# lists hold their items only; one at random is the consumer's (a line, a {placeholder}, pick) - 2026-10-21
+pick([1, 2]) + 10
+"{["a", "b"]}!"
+pick(["a", "b"])
+pick(5)
+[1, 2] == 1
+contains([1, 2], 2)
+[1, 2] ? "yes" : "no"
+[] ?? "none"
+str([1, 2])
+len([[1, 2], 3])
+"Age: {epoch}"
+epoch + 1
