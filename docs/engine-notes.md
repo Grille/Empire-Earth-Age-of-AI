@@ -701,7 +701,7 @@ The mod reads ~3600 fields: 438 (kind, offset) pairs in dll/game/fields.h, with 
 methods (vtable slots and what they call with `this` in ecx) aligned with every number masked, [this + X] in the base
 reads [this + Y] in AoC (the AI's save/load serializer, EEComputerPlayer::vf6, names most player fields); then the
 offsets of all paired code (any object) for structures without methods, accepted only where they agree with a
-neighbouring field's shift. 146 fields moved, 61 of the engine DLLs' objects aren't mapped. The shifts:
+neighbouring field's shift. 146 fields moved (the engine DLLs' objects none, below). The shifts:
 - Player: 0..~0x9B0 the same; the tech tree -8 (0x9D4 -> 0x9CC, 0x9BC -> 0x9AC ...); 0xAF0..0xB2C +4 (the stock
   0xAF0 -> 0xAF4); 0xB50..0xBB4 +0x34 (combat manager 0xB8C -> 0xBC0, civilization manager 0xB90 -> 0xBC4,
   difficulty 0xBA4 -> 0xBD8); 0xBDC..0xD5C +0x38; 0xE10..0xE20 +0x3C; 0xED8..0xF02 +0x50 (the AI switches).
@@ -723,6 +723,23 @@ neighbouring field's shift. 146 fields moved, 61 of the engine DLLs' objects are
 | EEASaveGame / EEAUserPauseGame vtable | 0x825084 / 0x830E94 | 0x839060 / 0x846790 |
 
 `scripts/vtables.py` (with `EE_EXE=<exe>`) prints vtables and slots for any class.
+
+### The engine DLLs (scripts/port_dll.py, 2026-10-21)
+
+AoC ships its own builds of the DLLs the mod reaches into: Low-Level Engine (AoC's is the older, Aug 2002; the base's
+Sep 2002), DX7HRDisplay / DX7HRTnLDisplay (the base's from 2001) and the Miles mixer. They export their C++ classes by
+name (Low-Level Engine 4427 names in both), so the script pairs functions by name first (Ghidra's lists of each build:
+decomp/dll/, aoc/decomp/dll/), then like the exes. Found:
+- The objects' fields are the same in both: GEWindow, ISMouse, GEText, GEFont, SESoundManager and its nodes have
+  byte-identical code (only placed elsewhere); DX7Rasterizer (+0x20 per-screen state, +0x6C), DX7Screen, DX7Surface
+  and the per-screen state (+0x2A8 .. +0x338) read the same offsets in every paired function of both display DLLs.
+- The code moved: Low-Level Engine's functions are 0xAE00 .. 0x11E00 lower (ISMouse::Resume 0x4C82F -> 0x3B9FC,
+  SESoundManager::Play 0x5B50B -> 0x506DF). The mod's patch sites there are RVA_ rows in addr.h; the sound
+  manager's queries it called by address are exports, now taken by name. The mixer's functions moved 3 bytes, its
+  data (channels +0x52AC, maximum +0x5320) not.
+- What the mod had filed as the input device's (E_MOUSE +4/+8/+0xA4) is partly the exe's game cursor (RTSMouse,
+  [G_MOUSE]: position floats +4/+8, frozen +0xA4) - the kind MOUSE now; the same in AoC (FN_MOUSE_CLAMP and
+  FN_MOUSE_UPDATE have the same code).
 
 ### What AoC changed in the code (scripts/diff_exes.py)
 

@@ -308,6 +308,9 @@ mkdir -p work && venv/Scripts/python scripts/rtti_names.py work/names.tsv
 cp "../Empire Earth.exe" work/EE.exe
 tools/ghidra12/support/analyzeHeadless ghidra_proj EE -import work/EE.exe \
     -scriptPath ghidra_scripts -postScript ExportDecomp.java "$(pwd)/decomp"
+# the same for each engine DLL (scripts/port_dll.py; Art of Conquest's into aoc/decomp/dll/ from its folder)
+tools/ghidra12/support/analyzeHeadless ghidra_proj DLL_LowLevelEngine -import "../Low-Level Engine.dll" \
+    -scriptPath ghidra_scripts -postScript ExportDecomp.java "$(pwd)/decomp/dll/LowLevelEngine"
 # string table of the German Language.dll -> strings_de.json
 venv/Scripts/python scripts/strtab.py "../Language.dll"
 ```

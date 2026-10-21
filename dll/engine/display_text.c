@@ -9,7 +9,7 @@
 // gives only a few fonts one. That path draws into the current render target whatever the surface argument is, so
 // a bitmap font of ours is set on the font only while text goes to the back buffer (screen 0 +0x2B0) and taken off
 // again after the call. It reads characters as signed bytes (�/�/� negative, no glyph): both Draw functions'
-// movsx (LLE +0x27A46, +0x27C9A) become movzx.
+// movsx (RVA_LLE_FONT_MOVSX_1, _2) become movzx.
 static int g_text_bitmap = 1;
 static struct { void *font, *bmp, *hfont; } g_fbm[64];
 // A font the game destroys (dialogs and screens make theirs anew each time) leaves its entry behind: the next font
@@ -207,7 +207,7 @@ static int text_bitmap_install(void) {   // constructor and the two movsx -> mov
     if (!font_vt) return 0;   // without the hook the cache can't tell a new font from a dead one
     g_font_delete = (void *(__thiscall *)(void *, unsigned))font_vt[0];
     if (!patch_vtable((uintptr_t)font_vt, 0, (uintptr_t)font_vt[0], (void *)hook_font_delete)) return 0;
-    static const uint32_t sites[2] = { 0x27A46, 0x27C9A };
+    const uint32_t sites[2] = { GA(RVA_LLE_FONT_MOVSX_1), GA(RVA_LLE_FONT_MOVSX_2) };
     int ok = 0;
     for (int i = 0; i < 2; i++) {
         uint8_t *p = (uint8_t *)lle + sites[i];
@@ -512,7 +512,7 @@ static BOOL WINAPI hook_text_out_w(HDC dc, int x, int y, LPCWSTR str, int n) {
 }
 static long __fastcall hook_text_lock(uint8_t *surf, void *edx) {
     (void)edx;
-    if (surf[0x5D] == 1) return 2;
+    if (FIELD(surf, OF(E_SURF, 0x5D), uint8_t) == 1) return 2;
     IDirectDrawSurface7 *dds = FIELD(surf, OF(E_SURF, 0x48), IDirectDrawSurface7 *);
     int a = -1;
     for (int i = 0; i < 8; i++) if (!g_tdc_active[i].surf) { a = i; break; }
@@ -541,7 +541,7 @@ static long __fastcall hook_text_lock(uint8_t *surf, void *edx) {
     g_tdc_active[a].surf = surf;
     g_tdc_active[a].slot = slot;
     FIELD(surf, OF(E_SURF, 0x54), HDC) = g_tdc[slot].dc;
-    surf[0x5D] = 1;
+    FIELD(surf, OF(E_SURF, 0x5D), uint8_t) = 1;
     return 0;
 }
 static long __fastcall hook_text_unlock(uint8_t *surf, void *edx) {
@@ -554,6 +554,6 @@ static long __fastcall hook_text_unlock(uint8_t *surf, void *edx) {
     tdc_store(a);
     SelectObject(g_tdc[slot].dc, g_tdc_stock);
     g_tdc_active[a].surf = NULL;
-    surf[0x5D] = 0;
+    FIELD(surf, OF(E_SURF, 0x5D), uint8_t) = 0;
     return 0;
 }

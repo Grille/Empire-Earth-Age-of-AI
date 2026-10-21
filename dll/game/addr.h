@@ -4,11 +4,11 @@
 // its row, GL(NAME) a list of addresses (its count: sizeof GL(NAME) / sizeof *GL(NAME)). Another build - Art of
 // Conquest, another release, a patched exe - is one more hash and one more value per row. The names: FN_ a function,
 // CALL_ a call (patched), SITE_/CODE_ an instruction or operand, G_ data, VT_ a vtable, VTS_ a vtable slot's address,
-// SLOT_ a vtable slot's index (a class may have gained a virtual function), SIZE_ an object's size, IAT_ an import slot. Tables of their own
-// for one build: editor_layout.h (generated for the 2017 update: apply_editor_layout only there).
+// SLOT_ a vtable slot's index (a class may have gained a virtual function), SIZE_ an object's size, IAT_ an import
+// slot, RVA_ a place in an engine DLL. Tables of their own for one build: editor_layout.h (generated for the 2017
+// update: apply_editor_layout only there). The objects' fields: fields.h, the same columns.
 // Art of Conquest's column: scripts/port_addrs.py (the two exes' code paired; its HAND table the few found by hand,
-// each with its reason). Its objects have layouts of their own and the struct offsets (FIELD(pl, 0x45C ...)) are the
-// base's only yet: until they are per build too, AoC isn't ready - the mod stays off there.
+// each with its reason). Not ready: nothing ran there yet - the mod stays off there.
 #define ADDR_BUILDS 2
 static const struct exe_build { uint32_t hash; const char *name; int ready; } k_exe_builds[ADDR_BUILDS] = {
     { 0x4FB6A479, "ee", 1 },    // the 2017 update (GOG, Steam, empireearth.eu Vanilla)
@@ -366,8 +366,16 @@ static const struct exe_build { uint32_t hash; const char *name; int ready; } k_
 
 // numbers that aren't addresses: SLOT_ a virtual function's index in its class's vtable (patch_vtable, a call through
 // the vtable; slot 0, the deleting destructor in both builds, stays a plain 0), SIZE_ the size of a game object the
-// mod makes itself (FN_NEW, then its constructor)
+// mod makes itself (FN_NEW, then its constructor), RVA_ a place in an engine DLL relative to its base - each build
+// ships its own DLLs (scripts/port_dll.py); what the DLLs export is taken by name instead. A patch there checks the
+// bytes first: a DLL from elsewhere is left alone.
 #define ADDR_NUMBERS(D) \
+    D(RVA_LLE_MOUSE_COOP, 0x4C838, 0x3BA05)   /* Low-Level Engine, ISMouse::Resume: the 5 of push 5 (DISCL_ flags) */ \
+    D(RVA_LLE_INPUT_COOP, 0x4A76F, 0x39607)   /* ISInitialize's, setting up the device */ \
+    D(RVA_LLE_FONT_MOVSX_1, 0x27A46, 0x15C01) /* GEFontBitmap::Draw (both overloads): movsx of a character */ \
+    D(RVA_LLE_FONT_MOVSX_2, 0x27C9A, 0x15E55) \
+    D(RVA_MIX_CHANNELS, 0x52AC, 0x52AC)       /* Miles Sound System Mixer.dll: its channels, a vector of 8 bytes each */ \
+    D(RVA_MIX_MAX_CHANNELS, 0x5320, 0x5320)   /* int: the most channels it gives */ \
     D(SLOT_ROUTE_COST, 1, 1)            /* VT_ROUTE_PLANNER: FN_ROUTE_COST */ \
     D(SLOT_SCROLL_EXECUTE, 1, 1)        /* VT_SCROLL: Execute */ \
     D(SLOT_SP_BUTTON, 1, 1)             /* SP_VTABLES: a button's handler */ \

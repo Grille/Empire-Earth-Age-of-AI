@@ -4,11 +4,11 @@
 // read of a field not in the table doesn't build. The kinds are below; the runtime library's layouts (std::deque,
 // vector, map nodes, UString) and the mod's own structures stay plain numbers.
 // Art of Conquest's column: scripts/port_fields.py (in the two exes' paired code, [this + X] read as [this + Y] in a
-// class's methods; and every read's offsets for objects without methods). How each value was found, the last column:
+// class's methods; and every read's offsets for objects without methods), for the engine DLLs' objects (E_: AoC ships
+// its own builds of them) scripts/port_dll.py. How each value was found, the last column:
 //   c  its class's code          b  between two fields of the kind with the same shift
 //   v  the code's reads agree with a neighbouring field's shift     s  kept: no read of this object says otherwise
 //   h  by hand, with its reason                                     -  not known yet (NA)
-// The engine DLLs' objects (E_: Low-Level Engine, the DX7 display DLLs) are AoC's own DLLs there - not mapped yet.
 // The kinds:
 //   PL           a player (EEPlayer, EEComputerPlayer)
 //   UNIT         a unit, building or resource on the map (EEUnit, EEComplexUnit); its +0x30 is a unit too
@@ -65,8 +65,12 @@
 //   NATIVECHAT   the object of FN_NATIVE_CHAT
 //   UIFORM       the UI manager's current form
 //   UISCREEN     a single-player menu screen (EEUIESP*)
-//   E_*          the engine DLLs' objects: E_RAS the rasterizer, E_SCRSTATE its per-screen state, E_SCREEN, E_SURF,
-//                E_WINDOW, E_MOUSE, E_TEXT, E_FONT, E_DSTATE, E_SOUND (the sound manager and its mixer), E_FILE
+//   MOUSE        the game cursor, [G_MOUSE] (RTSMouse) - not the DirectInput device (E_MOUSE)
+//   E_*          the engine DLLs' objects: E_RAS the rasterizer (DX7Rasterizer), E_SCRSTATE its per-screen state,
+//                E_SCREEN (DX7Screen), E_SURF (DX7Surface), E_DSTATE the rasterizer's +0x6C[0]; Low-Level Engine's
+//                E_WINDOW (GEWindow), E_MOUSE (ISMouse), E_TEXT (GEText), E_FONT (GEFont), E_SOUNDMGR
+//                (SESoundManager), E_SNDCAT its categories, E_SNDNODE (SESMInstanceNode), E_SAMPLE (SESample),
+//                E_MIXER (SEMixer: the mixer plugin's functions)
 #define NA 0xFFFFFFFFu   // a build hasn't got it, or it isn't known yet
 
 // O(kind, offset in the 2017 update, value per build)
@@ -138,67 +142,67 @@
     O(EPOCHTECHS, 0x8, 0x8, 0x8) /* s */ \
     O(EPOCHTECHS, 0xC, 0xC, 0xC) /* s */ \
     O(EPOCHTECHS, 0x10, 0x10, 0x10) /* s */ \
-    O(E_DSTATE, 0x1C, 0x1C, NA) /* - */ \
-    O(E_FILE, 0x4, 0x4, NA) /* - */ \
-    O(E_FONT, 0x18, 0x18, NA) /* - */ \
-    O(E_FONT, 0x24, 0x24, NA) /* - */ \
-    O(E_MOUSE, 0x4, 0x4, NA) /* - */ \
-    O(E_MOUSE, 0x8, 0x8, NA) /* - */ \
-    O(E_MOUSE, 0x44, 0x44, NA) /* - */ \
-    O(E_MOUSE, 0xA4, 0xA4, NA) /* - */ \
-    O(E_RAS, 0x20, 0x20, NA) /* - */ \
-    O(E_RAS, 0x6C, 0x6C, NA) /* - */ \
-    O(E_SCREEN, 0x10, 0x10, NA) /* - */ \
-    O(E_SCREEN, 0x14, 0x14, NA) /* - */ \
-    O(E_SCREEN, 0x30, 0x30, NA) /* - */ \
-    O(E_SCREEN, 0x38, 0x38, NA) /* - */ \
-    O(E_SCREEN, 0x3C, 0x3C, NA) /* - */ \
-    O(E_SCREEN, 0x3D, 0x3D, NA) /* - */ \
-    O(E_SCRSTATE, 0x2A8, 0x2A8, NA) /* - */ \
-    O(E_SCRSTATE, 0x2AC, 0x2AC, NA) /* - */ \
-    O(E_SCRSTATE, 0x2B0, 0x2B0, NA) /* - */ \
-    O(E_SCRSTATE, 0x2BC, 0x2BC, NA) /* - */ \
-    O(E_SCRSTATE, 0x2C4, 0x2C4, NA) /* - */ \
-    O(E_SCRSTATE, 0x2C8, 0x2C8, NA) /* - */ \
-    O(E_SCRSTATE, 0x2CC, 0x2CC, NA) /* - */ \
-    O(E_SCRSTATE, 0x2D0, 0x2D0, NA) /* - */ \
-    O(E_SCRSTATE, 0x2D4, 0x2D4, NA) /* - */ \
-    O(E_SCRSTATE, 0x2D8, 0x2D8, NA) /* - */ \
-    O(E_SCRSTATE, 0x2DC, 0x2DC, NA) /* - */ \
-    O(E_SCRSTATE, 0x2E0, 0x2E0, NA) /* - */ \
-    O(E_SCRSTATE, 0x2E4, 0x2E4, NA) /* - */ \
-    O(E_SCRSTATE, 0x328, 0x328, NA) /* - */ \
-    O(E_SCRSTATE, 0x32C, 0x32C, NA) /* - */ \
-    O(E_SCRSTATE, 0x330, 0x330, NA) /* - */ \
-    O(E_SCRSTATE, 0x334, 0x334, NA) /* - */ \
-    O(E_SCRSTATE, 0x338, 0x338, NA) /* - */ \
-    O(E_SOUND, 0x0, 0x0, NA) /* - */ \
-    O(E_SOUND, 0x4, 0x4, NA) /* - */ \
-    O(E_SOUND, 0x8, 0x8, NA) /* - */ \
-    O(E_SOUND, 0xC, 0xC, NA) /* - */ \
-    O(E_SOUND, 0x1C, 0x1C, NA) /* - */ \
-    O(E_SOUND, 0x20, 0x20, NA) /* - */ \
-    O(E_SOUND, 0x24, 0x24, NA) /* - */ \
-    O(E_SOUND, 0x34, 0x34, NA) /* - */ \
-    O(E_SOUND, 0x38, 0x38, NA) /* - */ \
-    O(E_SOUND, 0x54, 0x54, NA) /* - */ \
-    O(E_SOUND, 0x58, 0x58, NA) /* - */ \
-    O(E_SOUND, 0x70, 0x70, NA) /* - */ \
-    O(E_SOUND, 0x88, 0x88, NA) /* - */ \
-    O(E_SOUND, 0xB0, 0xB0, NA) /* - */ \
-    O(E_SOUND, 0xD0, 0xD0, NA) /* - */ \
-    O(E_SOUND, 0xD8, 0xD8, NA) /* - */ \
-    O(E_SOUND, 0xF0, 0xF0, NA) /* - */ \
-    O(E_SURF, 0x48, 0x48, NA) /* - */ \
-    O(E_SURF, 0x54, 0x54, NA) /* - */ \
-    O(E_SURF, 0x5D, 0x5D, NA) /* - */ \
-    O(E_TEXT, 0x34, 0x34, NA) /* - */ \
-    O(E_TEXT, 0x44, 0x44, NA) /* - */ \
-    O(E_WINDOW, 0x0, 0x0, NA) /* - */ \
-    O(E_WINDOW, 0x4, 0x4, NA) /* - */ \
-    O(E_WINDOW, 0x8, 0x8, NA) /* - */ \
-    O(E_WINDOW, 0xC, 0xC, NA) /* - */ \
-    O(E_WINDOW, 0x10, 0x10, NA) /* - */ \
+    O(E_DSTATE, 0x1C, 0x1C, 0x1C) /* c */ \
+    O(E_FONT, 0x18, 0x18, 0x18) /* c */ \
+    O(E_FONT, 0x24, 0x24, 0x24) /* c */ \
+    O(E_MIXER, 0xB0, 0xB0, 0xB0) /* c */ \
+    O(E_MIXER, 0xD0, 0xD0, 0xD0) /* c */ \
+    O(E_MIXER, 0xD8, 0xD8, 0xD8) /* c */ \
+    O(E_MIXER, 0xF0, 0xF0, 0xF0) /* c */ \
+    O(E_MOUSE, 0x4, 0x4, 0x4) /* c */ \
+    O(E_MOUSE, 0x18, 0x18, 0x18) /* c */ \
+    O(E_MOUSE, 0x44, 0x44, 0x44) /* c */ \
+    O(E_RAS, 0x20, 0x20, 0x20) /* c */ \
+    O(E_RAS, 0x6C, 0x6C, 0x6C) /* c */ \
+    O(E_SAMPLE, 0x24, 0x24, 0x24) /* c */ \
+    O(E_SCREEN, 0x10, 0x10, 0x10) /* c */ \
+    O(E_SCREEN, 0x14, 0x14, 0x14) /* c */ \
+    O(E_SCREEN, 0x30, 0x30, 0x30) /* c */ \
+    O(E_SCREEN, 0x38, 0x38, 0x38) /* c */ \
+    O(E_SCREEN, 0x3C, 0x3C, 0x3C) /* c */ \
+    O(E_SCREEN, 0x3D, 0x3D, 0x3D) /* c */ \
+    O(E_SCRSTATE, 0x2A8, 0x2A8, 0x2A8) /* c */ \
+    O(E_SCRSTATE, 0x2AC, 0x2AC, 0x2AC) /* c */ \
+    O(E_SCRSTATE, 0x2B0, 0x2B0, 0x2B0) /* c */ \
+    O(E_SCRSTATE, 0x2BC, 0x2BC, 0x2BC) /* c */ \
+    O(E_SCRSTATE, 0x2C4, 0x2C4, 0x2C4) /* c */ \
+    O(E_SCRSTATE, 0x2C8, 0x2C8, 0x2C8) /* c */ \
+    O(E_SCRSTATE, 0x2CC, 0x2CC, 0x2CC) /* c */ \
+    O(E_SCRSTATE, 0x2D0, 0x2D0, 0x2D0) /* c */ \
+    O(E_SCRSTATE, 0x2D4, 0x2D4, 0x2D4) /* c */ \
+    O(E_SCRSTATE, 0x2D8, 0x2D8, 0x2D8) /* c */ \
+    O(E_SCRSTATE, 0x2DC, 0x2DC, 0x2DC) /* c */ \
+    O(E_SCRSTATE, 0x2E0, 0x2E0, 0x2E0) /* c */ \
+    O(E_SCRSTATE, 0x2E4, 0x2E4, 0x2E4) /* c */ \
+    O(E_SCRSTATE, 0x328, 0x328, 0x328) /* c */ \
+    O(E_SCRSTATE, 0x32C, 0x32C, 0x32C) /* c */ \
+    O(E_SCRSTATE, 0x330, 0x330, 0x330) /* c */ \
+    O(E_SCRSTATE, 0x334, 0x334, 0x334) /* c */ \
+    O(E_SCRSTATE, 0x338, 0x338, 0x338) /* c */ \
+    O(E_SNDCAT, 0x0, 0x0, 0x0) /* c */ \
+    O(E_SNDCAT, 0x4, 0x4, 0x4) /* c */ \
+    O(E_SNDCAT, 0x8, 0x8, 0x8) /* c */ \
+    O(E_SNDCAT, 0xC, 0xC, 0xC) /* c */ \
+    O(E_SNDNODE, 0xC, 0xC, 0xC) /* c */ \
+    O(E_SNDNODE, 0x1C, 0x1C, 0x1C) /* c */ \
+    O(E_SNDNODE, 0x20, 0x20, 0x20) /* c */ \
+    O(E_SOUNDMGR, 0x24, 0x24, 0x24) /* c */ \
+    O(E_SOUNDMGR, 0x34, 0x34, 0x34) /* c */ \
+    O(E_SOUNDMGR, 0x38, 0x38, 0x38) /* c */ \
+    O(E_SOUNDMGR, 0x54, 0x54, 0x54) /* c */ \
+    O(E_SOUNDMGR, 0x58, 0x58, 0x58) /* c */ \
+    O(E_SOUNDMGR, 0x70, 0x70, 0x70) /* c */ \
+    O(E_SOUNDMGR, 0x88, 0x88, 0x88) /* c */ \
+    O(E_SURF, 0x48, 0x48, 0x48) /* c */ \
+    O(E_SURF, 0x54, 0x54, 0x54) /* c */ \
+    O(E_SURF, 0x5D, 0x5D, 0x5D) /* c */ \
+    O(E_TEXT, 0x34, 0x34, 0x34) /* c */ \
+    O(E_TEXT, 0x44, 0x44, 0x44) /* c */ \
+    O(E_WINDOW, 0x0, 0x0, 0x0) /* c */ \
+    O(E_WINDOW, 0x4, 0x4, 0x4) /* c */ \
+    O(E_WINDOW, 0x8, 0x8, 0x8) /* c */ \
+    O(E_WINDOW, 0xC, 0xC, 0xC) /* c */ \
+    O(E_WINDOW, 0x10, 0x10, 0x10) /* c */ \
     O(GAMEDATA, 0x2CC, 0x2CC, 0x2CC) /* s */ \
     O(GAMEDATA, 0x2E8, 0x2E8, 0x2EC) /* h: votes 19/23 +4 (a field inserted after 0x2CC, which kept its place) */ \
     O(GAMEDATA, 0x2EC, 0x2EC, 0x2F0) /* h: votes 15/25 +4 (a field inserted after 0x2CC, which kept its place) */ \
@@ -226,6 +230,9 @@
     O(MAP, 0x1816FC, 0x1816FC, 0x195618) /* c */ \
     O(MAP, 0x181724, 0x181724, 0x195640) /* c */ \
     O(MAP, 0x181730, 0x181730, 0x19564C) /* c */ \
+    O(MOUSE, 0x4, 0x4, 0x4) /* c */ \
+    O(MOUSE, 0x8, 0x8, 0x8) /* c */ \
+    O(MOUSE, 0xA4, 0xA4, 0xA4) /* c */ \
     O(MSG_CHAT, 0xA, 0xA, 0xA) /* b */ \
     O(MSG_CHAT, 0x10, 0x10, 0x10) /* c */ \
     O(MSG_SELECT, 0x10, 0x10, 0x10) /* b */ \

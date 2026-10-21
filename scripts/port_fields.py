@@ -100,6 +100,8 @@ def all_votes(path):
     json.dump(out, open(path, 'w'))
 
 
+if __name__ == "__main__":
+    P.load()
 if __name__ == "__main__" and sys.argv[1] == "--all":
     all_votes(sys.argv[2])
 elif __name__ == "__main__" and sys.argv[1] != "--global":

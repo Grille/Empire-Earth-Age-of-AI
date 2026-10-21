@@ -421,7 +421,7 @@ static int present_primary(uint8_t *ras, unsigned screen, uint8_t *scr, uint8_t 
 static int present_to_window(uint8_t *ras, unsigned screen) {
     uint8_t *st = FIELD(ras, OF(E_RAS, 0x20), uint8_t **)[screen];
     uint8_t *scr = FIELD(st, OF(E_SCRSTATE, 0x2A8), uint8_t *), *back = FIELD(st, OF(E_SCRSTATE, 0x2B0), uint8_t *), *win = FIELD(st, OF(E_SCRSTATE, 0x2BC), uint8_t *);
-    if (!scr || scr[0x3D] || !back || !win) return 0;
+    if (!scr || FIELD(scr, OF(E_SCREEN, 0x3D), uint8_t) || !back || !win) return 0;
     IDirectDrawSurface7 *s = FIELD(back, OF(E_SURF, 0x48), IDirectDrawSurface7 *);
     HWND hwnd = FIELD(win, OF(E_WINDOW, 0x0), HWND);
     if (!s || !hwnd) return 0;
@@ -595,7 +595,7 @@ static int __fastcall hook_show_scene(void *ras, void *edx, unsigned screen) {
 
 static int __fastcall hook_set_mode(void *scr, void *edx, unsigned mode) {
     (void)edx;
-    if (((uint8_t *)scr)[0x3D]) return g_show[DISPLAY_DLL(scr)].set_mode(scr, mode);
+    if (FIELD(scr, OF(E_SCREEN, 0x3D), uint8_t)) return g_show[DISPLAY_DLL(scr)].set_mode(scr, mode);
     FIELD(scr, OF(E_SCREEN, 0x38), unsigned) = mode;
     return 0;
 }
@@ -605,7 +605,7 @@ static int __fastcall hook_set_mode(void *scr, void *edx, unsigned mode) {
 // Modes: vector of 0x14-byte GEVideoMode at +0x10 (begin) / +0x14 (end).
 static unsigned screen_mode_index(uint8_t *scr) {
     unsigned n = (FIELD(scr, OF(E_SCREEN, 0x14), uintptr_t) - FIELD(scr, OF(E_SCREEN, 0x10), uintptr_t)) / 0x14;
-    if (!scr[0x3D] && FIELD(scr, OF(E_SCREEN, 0x38), unsigned) >= n) FIELD(scr, OF(E_SCREEN, 0x38), unsigned) = 0;
+    if (!FIELD(scr, OF(E_SCREEN, 0x3D), uint8_t) && FIELD(scr, OF(E_SCREEN, 0x38), unsigned) >= n) FIELD(scr, OF(E_SCREEN, 0x38), unsigned) = 0;
     return FIELD(scr, OF(E_SCREEN, 0x38), unsigned);
 }
 static void *__fastcall hook_get_current_mode(uint8_t *scr) {
@@ -731,7 +731,7 @@ static int install_windowed_present(void) {
 }
 
 // Windowed input. Fullscreen-era behaviour that breaks a window:
-// - the mouse is a DirectInput device in exclusive mode (ISMouse::Resume, Low-Level Engine.dll +0x4C837
+// - the mouse is a DirectInput device in exclusive mode (ISMouse::Resume, Low-Level Engine.dll RVA_LLE_MOUSE_COOP
 //   SetCooperativeLevel(hwnd, 5 = EXCLUSIVE|FOREGROUND)): Windows hides its cursor and gets no mouse messages,
 //   so the title bar can't be clicked. Windowed we take it non-exclusive (6), like the keyboard already is.
 // - the game cursor (RTSMouse [0x9197A8], +4/+8 position floats, x range +0x18..+0x1C, y +0x20..+0x14) moves
@@ -965,7 +965,7 @@ static void mouse_acquire(int want) {
     uint8_t *ms = is_mouse();
     if (!ms) return;
     void **dev = FIELD(ms, OF(E_MOUSE, 0x44), void **);
-    if (!dev || ms[4]) { unacquired = 0; return; }   // +4: suspended by the game (window inactive)
+    if (!dev || FIELD(ms, OF(E_MOUSE, 0x4), uint8_t)) { unacquired = 0; return; }   // +4: suspended by the game (window inactive)
     typedef HRESULT (__stdcall *DevFn)(void *);
     if (want) {
         up_frames = 0;
@@ -988,7 +988,7 @@ static void mouse_acquire(int want) {
 static volatile LONG g_input_resumes;
 static void resume_if_suspended(uintptr_t imp, DWORD *last) {
     uint8_t **p = *(uint8_t ***)imp, *d = p ? *p : NULL;
-    if (!d || !d[4] || GetTickCount() - *last < 250) return;   // +4: suspended
+    if (!d || !FIELD(d, OF(E_MOUSE, 0x4), uint8_t) || GetTickCount() - *last < 250) return;   // +4: suspended (ISDevice)
     *last = GetTickCount();
     ((ThisFn)(*(void ***)d)[4])(d);   // Resume (vtable +0x10)
     InterlockedIncrement(&g_input_resumes);
@@ -1001,14 +1001,14 @@ static void resume_if_suspended(uintptr_t imp, DWORD *last) {
 static volatile LONG g_vm_x = -1, g_vm_y = -1, g_vm_button = -1, g_vm_step, g_vm_clicks;
 static void virtual_mouse(uint8_t *m, int frozen) {
     if (g_vm_x >= 0 && !frozen) {
-        FIELD(m, OF(E_MOUSE, 0x4), float) = (float)g_vm_x;
-        FIELD(m, OF(E_MOUSE, 0x8), float) = (float)g_vm_y;
+        FIELD(m, OF(MOUSE, 0x4), float) = (float)g_vm_x;
+        FIELD(m, OF(MOUSE, 0x8), float) = (float)g_vm_y;
         ((ThisFn)GA(FN_MOUSE_CLAMP))(m);
     }
     uint8_t *ms = is_mouse();
     LONG b = g_vm_button;
     if (!ms || b < 0 || b > 3) return;
-    uint8_t *st = ms + 0x18 + b;
+    uint8_t *st = &FIELD(ms, OF(E_MOUSE, 0x18), uint8_t) + b;
     static DWORD down_at;
     LONG step = g_vm_step++;
     if (step == 0) {                                // down, held ~150 ms like a real click
@@ -1063,18 +1063,18 @@ static void window_mouse_in(uint8_t *m, int frozen, uint8_t *win, HWND hwnd) {
     if (gw < 2 || gh < 2) return;
     RECT v = view_rect(&rc, (int)gw, (int)gh);   // borderless: the image may have bars
     if (v.right - v.left < 2 || v.bottom - v.top < 2) return;
-    FIELD(m, OF(E_MOUSE, 0x4), float) = (float)(c.x - v.left) * (float)gw / (float)(v.right - v.left - 1);
-    FIELD(m, OF(E_MOUSE, 0x8), float) = (float)(c.y - v.top) * (float)gh / (float)(v.bottom - v.top - 1);
+    FIELD(m, OF(MOUSE, 0x4), float) = (float)(c.x - v.left) * (float)gw / (float)(v.right - v.left - 1);
+    FIELD(m, OF(MOUSE, 0x8), float) = (float)(c.y - v.top) * (float)gh / (float)(v.bottom - v.top - 1);
     ((ThisFn)GA(FN_MOUSE_CLAMP))(m);
     InterlockedIncrement(&g_mouse_updates);
 }
 
 static void __fastcall hook_mouse_update(uint8_t *m, void *edx) {
     (void)edx;
-    uint8_t frozen = m[0xA4];
-    m[0xA4] = 1;   // the original then only reads the wheel
+    uint8_t frozen = FIELD(m, OF(MOUSE, 0xA4), uint8_t);
+    FIELD(m, OF(MOUSE, 0xA4), uint8_t) = 1;   // the original then only reads the wheel
     ((ThisFn)GA(FN_MOUSE_UPDATE))(m);
-    m[0xA4] = frozen;
+    FIELD(m, OF(MOUSE, 0xA4), uint8_t) = frozen;
     window_mouse(m, frozen);
 }
 
@@ -1085,8 +1085,8 @@ static int install_windowed_input(void) {
     if (lle) {
         uint8_t *b = (uint8_t *)lle;
         // push 5 -> push 6 before SetCooperativeLevel: ISMouse::Resume and the device setup in ISInitialize
-        if (b[0x4C837] == 0x6A) n += patch_byte((uintptr_t)b + 0x4C838, 5, 6);
-        if (b[0x4A76E] == 0x6A) n += patch_byte((uintptr_t)b + 0x4A76F, 5, 6);
+        if (b[GA(RVA_LLE_MOUSE_COOP) - 1] == 0x6A) n += patch_byte((uintptr_t)b + GA(RVA_LLE_MOUSE_COOP), 5, 6);
+        if (b[GA(RVA_LLE_INPUT_COOP) - 1] == 0x6A) n += patch_byte((uintptr_t)b + GA(RVA_LLE_INPUT_COOP), 5, 6);
         g_recompute_buttons = (ThisFn)(void *)GetProcAddress(lle, "?RecomputeCurrentButtonState@ISMouse@@AAEXXZ");
     }
     for (size_t i = 0; i < sizeof GL(MOUSE_UPDATE_SITES) / sizeof *GL(MOUSE_UPDATE_SITES); i++) n += patch_call(GL(MOUSE_UPDATE_SITES)[i], GA(FN_MOUSE_UPDATE), hook_mouse_update);
@@ -1695,7 +1695,7 @@ static void cmd_ddinfo(char *out, const char *args) {
     uint8_t *st = ras ? FIELD(ras, OF(E_RAS, 0x20), uint8_t **)[idx] : NULL;
     if (!st) { REPLY("error: no rasterizer\n"); return; }
     uint8_t *scr = FIELD(st, OF(E_SCRSTATE, 0x2A8), uint8_t *), *win = FIELD(st, OF(E_SCRSTATE, 0x2BC), uint8_t *);
-    REPLY("screen %p fullscreen=%d desktop=%d flag=%d renderer %s\n", (void *)scr, scr[0x3D], scr[0x3C], g_fullscreen,
+    REPLY("screen %p fullscreen=%d desktop=%d flag=%d renderer %s\n", (void *)scr, FIELD(scr, OF(E_SCREEN, 0x3D), uint8_t), FIELD(scr, OF(E_SCREEN, 0x3C), uint8_t), g_fullscreen,
           g_show[DISPLAY_DLL(ras)].dll);
     {
         void **svt = *(void ***)scr;
@@ -1764,7 +1764,7 @@ static void cmd_ddinfo(char *out, const char *args) {
     if (rm) REPLY("mouse: game cursor %.1f,%.1f of x %.0f..%.0f y %.0f..%.0f, updates %ld, unacquired %ld, reacquired %ld, "
                   "device %s, resumed by us %ld, subclassed %p\n", FIELD(rm, OF(RM, 0x4), float), FIELD(rm, OF(RM, 0x8), float), FIELD(rm, OF(RM, 0x18), float),
                   FIELD(rm, OF(RM, 0x1C), float), FIELD(rm, OF(RM, 0x20), float), FIELD(rm, OF(RM, 0x14), float), g_mouse_updates, g_mouse_unacq,
-                  g_mouse_reacq, ms ? (ms[4] ? "suspended" : "active") : "-", g_input_resumes, (void *)g_subclassed);
+                  g_mouse_reacq, ms ? (FIELD(ms, OF(E_MOUSE, 0x4), uint8_t) ? "suspended" : "active") : "-", g_input_resumes, (void *)g_subclassed);
     {
         LARGE_INTEGER f;
         QueryPerformanceFrequency(&f);

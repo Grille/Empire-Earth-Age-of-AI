@@ -4,6 +4,7 @@
 # the two functions' code. Vtables are paired by their RTTI class (and so their slots' functions), imports by name;
 # functions whose struct offsets moved by their code with every number masked. Each row says how it was found.
 # usage: python port_addrs.py [other.exe] [other functions.tsv]   (default: the AoC exe beside the game, aoc/decomp)
+# Imported, load() pairs two images (the exes by default; port_dll.py: an engine DLL's two builds, by name first).
 import bisect, collections, difflib, os, re, struct, sys
 import capstone, pefile
 sys.path.insert(0, os.path.dirname(__file__))
@@ -31,17 +32,25 @@ class Exe:
         for d in pe.DIRECTORY_ENTRY_IMPORT:
             for i in d.imports:
                 self.imports[i.address] = (d.dll.lower(), i.name or i.ordinal)
-        self.fns = []
+        self.fns, self.name = [], {}
         for l in open(fns, encoding='utf-8', errors='replace'):
             f = l.split('\t')
             if len(f) >= 3:
                 self.fns.append((int(f[0], 16), int(f[2])))
+                self.name[int(f[0], 16)] = f[1]
         self.fns.sort()
         self.starts = [a for a, _ in self.fns]
         self.size = dict(self.fns)
         self.cs = capstone.Cs(capstone.CS_ARCH_X86, capstone.CS_MODE_32)
         self._code = {}
         self.vt = self.vtables()
+
+    def names(self):
+        """name -> function, for the names one function has (not Ghidra's FUN_ ones; overloads share a name)"""
+        d = collections.defaultdict(list)
+        for f, n in self.name.items():
+            if not n.startswith('FUN_'): d[n].append(f)
+        return {n: v[0] for n, v in d.items() if len(v) == 1}
 
     def rd(self, va, n): return self.img[va - self.ib:va - self.ib + n]
     def u32(self, va): return struct.unpack('<I', self.rd(va, 4))[0]
@@ -87,10 +96,8 @@ class Exe:
         return out
 
 
-A, B = Exe(EXE_A, FN_A), Exe(EXE_B, FN_B)
-
 # found by hand (EE-AOC.exe): the base's address -> the other's, and why
-HAND = {
+EXE_HAND = {
     0x0048BBA8: (0x00490602, 'FN_FIND_FOOD: AssignCitizens (0x48EECF) calls it six times where the base calls 0x48BBA8'),
     0x004050C2: (0x00404734, 'the scroll timer period: push 0xA in the EEAScroll ctor (0x404733; the base: push 0x19)'),
     0x00617780: (0x0062A2DF, 'the kill statistic: the call of FN_STAT_ADD just before the attack alert, as in the base'),
@@ -101,8 +108,6 @@ HAND = {
     0x005007CC: (0x0050B2C8, 'cmp esi, its end (DRAW_OLD + 0x58 + 0x200 x 0x148)'),
     0x005D88C0: (0x005E8B68, 'EEUIESPEMainMenu slot 1: AoC\'s copies the name field first (0x5E8ACC) - a partial fix of its own'),
 }
-vt_b = {v[:2]: (k, v[2]) for k, v in B.vt.items()}
-
 
 def texts(e, f): return [t for _, _, t, _ in e.insns(f)]
 def unique(e, key):
@@ -111,20 +116,11 @@ def unique(e, key):
     return {h: v[0] for h, v in d.items() if len(v) == 1}
 
 
-pair, how = {}, {}
 def add(x, y, why, shared=False):
     """x is y; shared: y may already be another's (the AoC linker folded functions with the same code into one)"""
     if x in pair or (y in paired_b and not shared): return 0
     pair[x] = y; how[x] = why; paired_b.add(y)
     return 1
-paired_b = set()
-
-# 1. functions with the same code (addresses masked) once in each exe
-ua, ub = unique(A, lambda e, f: hash(tuple(texts(e, f)))), unique(B, lambda e, f: hash(tuple(texts(e, f))))
-for h, f in ua.items():
-    if h in ub: add(f, ub[h], 'code')
-print('functions: %d and %d, the same code once in both: %d' % (len(A.fns), len(B.fns), len(pair)), file=sys.stderr)
-anchors = sorted(pair)
 
 
 def fits(x, y):
@@ -143,68 +139,87 @@ def align(fa, fb):
     return {blk.a + k: blk.b + k for blk in m.get_matching_blocks() for k in range(blk.size)}
 
 
-# 2. the same class's vtables pair their slots' functions (only where both have as many slots: an added virtual
-# function shifts the rest)
-for vt, (cls, off, n) in A.vt.items():
-    if (cls, off) in vt_b and vt_b[(cls, off)][1] == n:
-        vb = vt_b[(cls, off)][0]
-        for k in range(n):
-            x, y = A.u32(vt + 4 * k), B.u32(vb + 4 * k)
-            if x in A.size and y in B.size and pair.get(x, y) == y: add(x, y, 'vtable %s slot %d' % (cls, k))
-print('with the vtables\' slots: %d' % len(pair), file=sys.stderr)
+def load(path_a=EXE_A, fns_a=FN_A, path_b=EXE_B, fns_b=FN_B, hand=None, by_name=False):
+    """pair the functions of two builds of one image (the exes, or an engine DLL): A, B, pair, how, data_votes"""
+    global A, B, HAND, vt_b, pair, how, paired_b, anchors, data_votes
+    HAND = EXE_HAND if hand is None else hand
+    A, B = Exe(path_a, fns_a), Exe(path_b, fns_b)
+    vt_b = {v[:2]: (k, v[2]) for k, v in B.vt.items()}
+    pair, how, paired_b = {}, {}, set()
+    if by_name:   # the same name once in each (the DLLs' exports: Ghidra names them after the mangled symbol)
+        na, nb = A.names(), B.names()
+        for n, f in na.items():
+            if n in nb: add(f, nb[n], 'name')
+        print('the same name in both: %d' % len(pair), file=sys.stderr)
+    # 1. functions with the same code (addresses masked) once in each
+    ua, ub = unique(A, lambda e, f: hash(tuple(texts(e, f)))), unique(B, lambda e, f: hash(tuple(texts(e, f))))
+    for h, f in ua.items():
+        if h in ub: add(f, ub[h], 'code')
+    print('functions: %d and %d, the same code once in both: %d' % (len(A.fns), len(B.fns), len(pair)), file=sys.stderr)
+    anchors = sorted(pair)
 
-# 3. follow the pairs: what a paired function calls and uses, aligned instruction by instruction; functions still
-# unpaired by their code with every number masked (struct offsets moved), and by their place between paired neighbours
-loose = lambda e, f: hash(tuple(HEX.sub('N', t) for t in texts(e, f)))
-data_votes = collections.defaultdict(collections.Counter)
-done = set()
-for rnd in range(60):
-    call_votes = collections.defaultdict(collections.Counter)
-    for fa, fb in list(pair.items()):
-        if fa in done: continue
-        done.add(fa)
-        ia, ib = A.insns(fa), B.insns(fb)
-        for ka, kb in align(fa, fb).items():
-            va, vb = ia[ka][3], ib[kb][3]
-            if len(va) != len(vb): continue
-            for x, y in zip(va, vb):
-                if x in A.size and y in B.size: call_votes[x][y] += 1
-                else: data_votes[x][y] += 1
-    new = 0
-    for x, c in call_votes.items():   # most of its callers agree (one caller: and it fits the order)
-        (y, n), = c.most_common(1)
-        if n >= 0.8 * sum(c.values()) and (n >= 2 or fits(x, y)):
-            new += add(x, y, 'called (%d of %d)' % (n, sum(c.values())), shared=n >= 3)
-    if not new:
-        la = unique(A, loose); lb = unique(B, loose)
-        for h, f in la.items():
-            if h in lb and f not in pair: new += add(f, lb[h], 'code but numbers')
-    if not new:   # a class's vtable with a slot more or less: its slots' functions by the most alike near the same slot
-        for vt, (cls, off, n) in A.vt.items():
-            if (cls, off) not in vt_b or vt_b[(cls, off)][1] == n: continue
-            vb, nb = vt_b[(cls, off)]
+    # 2. the same class's vtables pair their slots' functions (only where both have as many slots: an added virtual
+    # function shifts the rest)
+    for vt, (cls, off, n) in A.vt.items():
+        if (cls, off) in vt_b and vt_b[(cls, off)][1] == n:
+            vb = vt_b[(cls, off)][0]
             for k in range(n):
-                x = A.u32(vt + 4 * k)
-                if x in pair or x not in A.size: continue
-                cand = [B.u32(vb + 4 * j) for j in (k - 1, k, k + 1) if 0 <= j < nb]
-                cand = [y for y in cand if y in B.size and y not in paired_b]
-                r = sorted(((difflib.SequenceMatcher(None, texts(A, x), texts(B, y), autojunk=False).ratio(), y) for y in set(cand)), reverse=True)
-                if r and r[0][0] >= 0.6 and (len(r) == 1 or r[1][0] < r[0][0] - 0.15):
-                    new += add(x, r[0][1], 'vtable %s near slot %d' % (cls, k))
-    if not new:   # between paired neighbours: the unpaired function there most alike
-        for k in range(1, len(A.fns) - 1):
-            f = A.fns[k][0]
-            p, q = pair.get(A.fns[k - 1][0]), pair.get(A.fns[k + 1][0])
-            if f in pair or p is None or q is None or not p < q: continue
-            j, j2 = B.starts.index(p), B.starts.index(q)
-            cand = [y for y, _ in B.fns[j + 1:j2] if y not in paired_b]
-            if not cand or len(cand) > 8: continue
-            r = sorted(((difflib.SequenceMatcher(None, texts(A, f), texts(B, y), autojunk=False).ratio(), y) for y in cand), reverse=True)
-            if r[0][0] >= 0.5 and (len(r) == 1 or r[1][0] < r[0][0] - 0.15):
-                new += add(f, r[0][1], 'between paired neighbours')
-    print('round %d: %d more functions paired' % (rnd + 1, new), file=sys.stderr)
-    if not new: break
-for x, y in pair.items(): data_votes[x][y] += 1   # a function's address used as data (vtables, callbacks)
+                x, y = A.u32(vt + 4 * k), B.u32(vb + 4 * k)
+                if x in A.size and y in B.size and pair.get(x, y) == y: add(x, y, 'vtable %s slot %d' % (cls, k))
+    print('with the vtables\' slots: %d' % len(pair), file=sys.stderr)
+
+    # 3. follow the pairs: what a paired function calls and uses, aligned instruction by instruction; functions still
+    # unpaired by their code with every number masked (struct offsets moved), and by their place between paired neighbours
+    loose = lambda e, f: hash(tuple(HEX.sub('N', t) for t in texts(e, f)))
+    data_votes = collections.defaultdict(collections.Counter)
+    done = set()
+    for rnd in range(60):
+        call_votes = collections.defaultdict(collections.Counter)
+        for fa, fb in list(pair.items()):
+            if fa in done: continue
+            done.add(fa)
+            ia, ib = A.insns(fa), B.insns(fb)
+            for ka, kb in align(fa, fb).items():
+                va, vb = ia[ka][3], ib[kb][3]
+                if len(va) != len(vb): continue
+                for x, y in zip(va, vb):
+                    if x in A.size and y in B.size: call_votes[x][y] += 1
+                    else: data_votes[x][y] += 1
+        new = 0
+        for x, c in call_votes.items():   # most of its callers agree (one caller: and it fits the order)
+            (y, n), = c.most_common(1)
+            if n >= 0.8 * sum(c.values()) and (n >= 2 or fits(x, y)):
+                new += add(x, y, 'called (%d of %d)' % (n, sum(c.values())), shared=n >= 3)
+        if not new:
+            la = unique(A, loose); lb = unique(B, loose)
+            for h, f in la.items():
+                if h in lb and f not in pair: new += add(f, lb[h], 'code but numbers')
+        if not new:   # a class's vtable with a slot more or less: its slots' functions by the most alike near the same slot
+            for vt, (cls, off, n) in A.vt.items():
+                if (cls, off) not in vt_b or vt_b[(cls, off)][1] == n: continue
+                vb, nb = vt_b[(cls, off)]
+                for k in range(n):
+                    x = A.u32(vt + 4 * k)
+                    if x in pair or x not in A.size: continue
+                    cand = [B.u32(vb + 4 * j) for j in (k - 1, k, k + 1) if 0 <= j < nb]
+                    cand = [y for y in cand if y in B.size and y not in paired_b]
+                    r = sorted(((difflib.SequenceMatcher(None, texts(A, x), texts(B, y), autojunk=False).ratio(), y) for y in set(cand)), reverse=True)
+                    if r and r[0][0] >= 0.6 and (len(r) == 1 or r[1][0] < r[0][0] - 0.15):
+                        new += add(x, r[0][1], 'vtable %s near slot %d' % (cls, k))
+        if not new:   # between paired neighbours: the unpaired function there most alike
+            for k in range(1, len(A.fns) - 1):
+                f = A.fns[k][0]
+                p, q = pair.get(A.fns[k - 1][0]), pair.get(A.fns[k + 1][0])
+                if f in pair or p is None or q is None or not p < q: continue
+                j, j2 = B.starts.index(p), B.starts.index(q)
+                cand = [y for y, _ in B.fns[j + 1:j2] if y not in paired_b]
+                if not cand or len(cand) > 8: continue
+                r = sorted(((difflib.SequenceMatcher(None, texts(A, f), texts(B, y), autojunk=False).ratio(), y) for y in cand), reverse=True)
+                if r[0][0] >= 0.5 and (len(r) == 1 or r[1][0] < r[0][0] - 0.15):
+                    new += add(f, r[0][1], 'between paired neighbours')
+        print('round %d: %d more functions paired' % (rnd + 1, new), file=sys.stderr)
+        if not new: break
+    for x, y in pair.items(): data_votes[x][y] += 1   # a function's address used as data (vtables, callbacks)
 
 
 def vt_at(e, va):
@@ -296,12 +311,13 @@ def port(x):
     return 0, 'not found'
 
 
-if __name__ == '__main__':   # (imported: the pairs only - port_fields.py)
+if __name__ == '__main__':   # (imported: load() pairs - port_fields.py, port_dll.py)
+    load()
     rows = []
     src = open(os.path.join(ROOT, 'dll', 'game', 'addr.h'), encoding='latin-1').read()
     for m in re.finditer(r'^\s*([FD])\((\w+),(.*)$', src, re.M):
         v = re.findall(r'0x[0-9A-Fa-f]{8}', m.group(3).split('/*')[0])
-        rows.append((m.group(2), int(v[0], 16)))
+        if v: rows.append((m.group(2), int(v[0], 16)))   # (the numbers - SLOT_, SIZE_, RVA_ - have no address)
     for m in re.finditer(r'L\((\w+), (\d+), \(([^)]*)\)', src):   # the base's values: the first set
         for k, v in enumerate(re.findall(r'0x[0-9A-Fa-f]{8}', m.group(3))):
             rows.append(('%s[%d]' % (m.group(1), k), int(v, 16)))

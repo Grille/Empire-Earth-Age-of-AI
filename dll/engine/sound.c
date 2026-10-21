@@ -5,10 +5,10 @@
 // Vista always 16. The log counts per sound id the plays the game asks for and the ones the manager drops (Play
 // returns -1 / PlayAndReturnReferencedNode NULL), and the mixer's refusals (SetChannelSample / PlayChannel != 0).
 #define LLE_DLL "Low-Level Engine.dll"   // the sound manager's imports (by name, the slots checked against it)
-#define SM_MIXER OF(E_SOUND, 0x70)               // SEMixer *; the mixer's SPIM function pointers are fields of it
-#define SM_CHANNELS OF(E_SOUND, 0x88)
-#define MX_SET_CHANNEL_SAMPLE OF(E_SOUND, 0xD8)  // int (cdecl *)(int channel, SESample *)
-#define MX_PLAY_CHANNEL OF(E_SOUND, 0xD0)        // int (cdecl *)(int channel)
+#define SM_MIXER OF(E_SOUNDMGR, 0x70)            // SEMixer *; the mixer's SPIM function pointers are fields of it
+#define SM_CHANNELS OF(E_SOUNDMGR, 0x88)
+#define MX_SET_CHANNEL_SAMPLE OF(E_MIXER, 0xD8)  // int (cdecl *)(int channel, SESample *)
+#define MX_PLAY_CHANNEL OF(E_MIXER, 0xD0)        // int (cdecl *)(int channel)
 #define SND_IDS 2048
 
 static int g_sound_log;
@@ -22,22 +22,26 @@ static mix_set_fn g_mix_set;
 static mix_play_fn g_mix_play;
 typedef int (__cdecl *mix_vol_fn)(void *, float);
 static mix_vol_fn g_mix_vol;
-static uintptr_t g_mss_mixer;                   // Miles Sound System Mixer.dll base: channel handles at +0x52AC
+static uintptr_t g_mss_mixer;                   // Miles Sound System Mixer.dll base: its channels at RVA_MIX_CHANNELS
 static int (__stdcall *g_ail_status)(void *);   // AIL_sample_status: 4 = playing
 static int snd_status(int ch) {
-    uint8_t *v = g_mss_mixer ? *(uint8_t **)(g_mss_mixer + 0x52AC) : NULL, *ve = v ? *(uint8_t **)(g_mss_mixer + 0x52B0) : NULL;
+    uint8_t *v = g_mss_mixer ? *(uint8_t **)(g_mss_mixer + GA(RVA_MIX_CHANNELS)) : NULL, *ve = v ? *(uint8_t **)(g_mss_mixer + GA(RVA_MIX_CHANNELS) + 4) : NULL;
     if (!v || !g_ail_status || ch < 0 || v + ch * 8 >= ve) return -1;
     return g_ail_status(*(void **)(v + ch * 8));
 }
 
-// Why the manager dropped a play (Low-Level Engine.dll, thiscall(sm, id), relative to its Play export 0x1005B50B):
-// 0x1005AC64 the sound's copies in use, 0x1005ABDD its copies, 0x1005AC31 its category's channels in use,
-// 0x1005ABAA the category's maximum, 0x1005A9E8 the category.
-static uintptr_t g_lle;
+// Why the manager dropped a play (Low-Level Engine.dll's SESoundManager, thiscall(sm, id), exported by name - each
+// build has them elsewhere): the sound's copies in use and its copies, its category's channels in use and maximum,
+// the category.
+enum { SM_INSTANCES, SM_MAX_INSTANCES, SM_CAT_INSTANCES, SM_MAX_CAT_INSTANCES, SM_CATEGORY, SM_QUERIES };
+static const char *const k_sm_query[SM_QUERIES] = {
+    "?GetNumberOfInstances@SESoundManager@@AAEKK@Z", "?GetMaxInstances@SESoundManager@@AAEKK@Z",
+    "?GetNumberOfCategoryInstances@SESoundManager@@AAEKK@Z", "?GetMaxCategoryInstances@SESoundManager@@AAEKK@Z",
+    "?GetCategory@SESoundManager@@AAEKK@Z",
+};
+typedef uint32_t (__thiscall *sm_query_fn)(void *, uint32_t);
+static sm_query_fn g_sm_query[SM_QUERIES];   // all or none
 static uint32_t g_drop_copies, g_drop_cat, g_drop_chan, g_cat_drop[64];
-static uint32_t lle_call(uint32_t rva, void *sm, uint32_t id) {
-    return ((uint32_t (__thiscall *)(void *, uint32_t))(g_lle + rva))(sm, id);
-}
 static void snd_count(void *sm, uint32_t id, float vol, int failed) {
     g_snd_req_total++;
     if (vol == 0.0f) { g_snd_zero_vol++; if (failed) g_snd_drop_total++; return; }   // out of earshot: skipped
@@ -45,9 +49,10 @@ static void snd_count(void *sm, uint32_t id, float vol, int failed) {
     if (!failed) return;
     g_snd_drop_total++;
     if (id < SND_IDS) g_snd_drop[id]++;
-    if (!g_lle) return;
-    uint32_t used = lle_call(0x5AC64, sm, id), copies = lle_call(0x5ABDD, sm, id);
-    uint32_t cused = lle_call(0x5AC31, sm, id), cmax = lle_call(0x5ABAA, sm, id), cat = lle_call(0x5A9E8, sm, id);
+    if (!g_sm_query[0]) return;
+    uint32_t used = g_sm_query[SM_INSTANCES](sm, id), copies = g_sm_query[SM_MAX_INSTANCES](sm, id);
+    uint32_t cused = g_sm_query[SM_CAT_INSTANCES](sm, id), cmax = g_sm_query[SM_MAX_CAT_INSTANCES](sm, id);
+    uint32_t cat = g_sm_query[SM_CATEGORY](sm, id);
     if (used >= copies) g_drop_copies++;
     else if (cused >= cmax) { g_drop_cat++; g_cat_drop[cat & 63]++; }
     else g_drop_chan++;
@@ -69,7 +74,7 @@ static uint32_t __fastcall hook_snd_playref(void *sm, void *edx, uint32_t id, fl
     snd_count(sm, id, vol, r == 0);
     if (g_sound_log >= 2 && g_log)
         log_locked("# snd: %.3f min playref id %u vol %.3f pan %.2f pitch %.2f queue %d -> node %08x channel %d, caller %06x\n",
-                game_time() / 60000.0, id, vol, pan, pitch, queue & 0xFF, r, r ? FIELD((void *)(uintptr_t)r, OF(E_SOUND, 0x1C), int) : -9,
+                game_time() / 60000.0, id, vol, pan, pitch, queue & 0xFF, r, r ? FIELD((void *)(uintptr_t)r, OF(E_SNDNODE, 0x1C), int) : -9,
                 (unsigned)(uintptr_t)__builtin_return_address(0));
     return r;
 }
@@ -89,7 +94,7 @@ static int __cdecl hook_mix_play(int ch) {
 static int __cdecl hook_mix_vol(void *sample, float vol) {
     int r = g_mix_vol(sample, vol);
     if (g_sound_log >= 2 && g_log && sample)
-        log_locked("# snd:   volume %.3f on channel %d\n", vol, FIELD(sample, OF(E_SOUND, 0x24), int));
+        log_locked("# snd:   volume %.3f on channel %d\n", vol, FIELD(sample, OF(E_SAMPLE, 0x24), int));
     return r;
 }
 
@@ -103,11 +108,14 @@ static void sound_tick(uint32_t now) {
     if (!hooked) {
         hooked = 1;
         int a = iat_hook(GA(IAT_SND_PLAY), LLE_DLL, "?Play@SESoundManager@@QAEKKMMM_NPAD@Z", (void *)hook_snd_play, (void **)&g_snd_play);
-        if (a) g_lle = (uintptr_t)g_snd_play - 0x5B50B;
-        uint8_t **cv = FIELD(sm, OF(E_SOUND, 0x54), uint8_t **), **ce = FIELD(sm, OF(E_SOUND, 0x58), uint8_t **);
+        HMODULE lle = GetModuleHandleA(LLE_DLL);
+        int q = 0;
+        for (int i = 0; lle && i < SM_QUERIES; i++) q += (g_sm_query[i] = (sm_query_fn)(void *)GetProcAddress(lle, k_sm_query[i])) != NULL;
+        if (q != SM_QUERIES) memset(g_sm_query, 0, sizeof g_sm_query);
+        uint8_t **cv = FIELD(sm, OF(E_SOUNDMGR, 0x54), uint8_t **), **ce = FIELD(sm, OF(E_SOUNDMGR, 0x58), uint8_t **);
         for (int i = 0; cv && cv + i < ce; i++)   // categories: share, max channels, in use, priority
             if (cv[i]) fprintf(g_log, "# sound: category %d: %.2f of the channels = %d, in use %d, priority %d\n", i,
-                               FIELD(cv[i], OF(E_SOUND, 0x0), float), FIELD(cv[i], OF(E_SOUND, 0x4), int), FIELD(cv[i], OF(E_SOUND, 0x8), int), FIELD(cv[i], OF(E_SOUND, 0xC), int));
+                               FIELD(cv[i], OF(E_SNDCAT, 0x0), float), FIELD(cv[i], OF(E_SNDCAT, 0x4), int), FIELD(cv[i], OF(E_SNDCAT, 0x8), int), FIELD(cv[i], OF(E_SNDCAT, 0xC), int));
         int b = iat_hook(GA(IAT_SND_PLAYREF), LLE_DLL, "?PlayAndReturnReferencedNode@SESoundManager@@QAEPAVSESMInstanceNode@@KMMM_NPAD@Z",
                          (void *)hook_snd_playref, (void **)&g_snd_playref);
         if (!a || !b) fprintf(g_log, "# sound: play hooks %d/2 - FAILED (exe differs)\n", a + b);
@@ -117,13 +125,14 @@ static void sound_tick(uint32_t now) {
             g_mix_play = FIELD(mx, MX_PLAY_CHANNEL, mix_play_fn);
             FIELD(mx, MX_SET_CHANNEL_SAMPLE, void *) = (void *)hook_mix_set;
             FIELD(mx, MX_PLAY_CHANNEL, void *) = (void *)hook_mix_play;
-            g_mix_vol = FIELD(mx, OF(E_SOUND, 0xF0), mix_vol_fn);   // SPIMSetSampleVolume
-            FIELD(mx, OF(E_SOUND, 0xF0), void *) = (void *)hook_mix_vol;
-            g_mss_mixer = (uintptr_t)g_mix_set - 0x1874;   // SPIMSetChannelSample = base + 0x1874
+            g_mix_vol = FIELD(mx, OF(E_MIXER, 0xF0), mix_vol_fn);   // SPIMSetSampleVolume
+            FIELD(mx, OF(E_MIXER, 0xF0), void *) = (void *)hook_mix_vol;
+            g_mss_mixer = (uintptr_t)GetModuleHandleA("Miles Sound System Mixer.dll");
             HMODULE mss = GetModuleHandleA("mss32.dll");
             if (mss) g_ail_status = (int (__stdcall *)(void *))GetProcAddress(mss, "_AIL_sample_status@4");
         }
-        fprintf(g_log, "# sound: log on, %u channels\n", FIELD(sm, SM_CHANNELS, uint32_t));
+        fprintf(g_log, "# sound: log on, %u channels, why a play was dropped: %s\n", FIELD(sm, SM_CHANNELS, uint32_t),
+                g_sm_query[0] ? "known" : "not known (the manager's queries not exported)");
         last = now;
         return;
     }
@@ -176,7 +185,7 @@ static int __fastcall hook_set_max_channels(uint8_t *sm, void *edx, uint32_t n) 
     (void)edx;
     static int raised;
     uint8_t *mx = sm ? FIELD(sm, SM_MIXER, uint8_t *) : NULL;
-    uint8_t *get_max = mx ? FIELD(mx, OF(E_SOUND, 0xB0), uint8_t *) : NULL;   // SPIMGetMaximumChannelCount
+    uint8_t *get_max = mx ? FIELD(mx, OF(E_MIXER, 0xB0), uint8_t *) : NULL;   // SPIMGetMaximumChannelCount
     if (!raised && get_max && g_sound_channels >= 8 && g_sound_channels <= 63 && get_max[0] == 0xA1 && get_max[5] == 0xC3) {
         raised = 1;
         uint32_t *gmax = *(uint32_t **)(get_max + 1);
@@ -219,23 +228,23 @@ static void cmd_sndstate(char *out, const char *args) {
     (void)args;
     uint8_t *sm = *(uint8_t **)GA(G_SOUND_MANAGER);
     if (!sm) { REPLY("error: no sound manager\n"); return; }
-    uint8_t *mv = g_mss_mixer ? *(uint8_t **)(g_mss_mixer + 0x52AC) : NULL, *me = mv ? *(uint8_t **)(g_mss_mixer + 0x52B0) : NULL;
+    uint8_t *mv = g_mss_mixer ? *(uint8_t **)(g_mss_mixer + GA(RVA_MIX_CHANNELS)) : NULL, *me = mv ? *(uint8_t **)(g_mss_mixer + GA(RVA_MIX_CHANNELS) + 4) : NULL;
     REPLY("setting %.2f (0x9193B8), mixer maximum %d, ", *(float *)GA(G_SOUND_PERCENT),
-          g_mss_mixer ? *(int *)(g_mss_mixer + 0x5320) : -1);
+          g_mss_mixer ? *(int *)(g_mss_mixer + GA(RVA_MIX_MAX_CHANNELS)) : -1);
     int nulls = 0;
     for (uint8_t *h = mv; h && h < me; h += 8) nulls += !*(void **)h;
     REPLY("handles missing %d, ", nulls);
     REPLY("channels %u, mixer channels %d, paused %d:", FIELD(sm, SM_CHANNELS, uint32_t), mv ? (int)((me - mv) / 8) : -1,
-          (int)((FIELD(sm, OF(E_SOUND, 0x38), uint8_t *) - FIELD(sm, OF(E_SOUND, 0x34), uint8_t *)) / 4));
-    uint8_t **slots = FIELD(sm, OF(E_SOUND, 0x24), uint8_t **);
+          (int)((FIELD(sm, OF(E_SOUNDMGR, 0x38), uint8_t *) - FIELD(sm, OF(E_SOUNDMGR, 0x34), uint8_t *)) / 4));
+    uint8_t **slots = FIELD(sm, OF(E_SOUNDMGR, 0x24), uint8_t **);
     for (uint32_t i = 0; slots && i < FIELD(sm, SM_CHANNELS, uint32_t); i++) {
-        uint8_t *n = slots[i], *smp = n ? FIELD(n, OF(E_SOUND, 0x20), uint8_t *) : NULL;
-        if (n) REPLY(" [%u: id %d node ch %d sample ch %d status %d]", i, FIELD(n, OF(E_SOUND, 0xC), int), FIELD(n, OF(E_SOUND, 0x1C), int),
-                     smp ? FIELD(smp, OF(E_SOUND, 0x24), int) : -9, snd_status((int)i));
+        uint8_t *n = slots[i], *smp = n ? FIELD(n, OF(E_SNDNODE, 0x20), uint8_t *) : NULL;
+        if (n) REPLY(" [%u: id %d node ch %d sample ch %d status %d]", i, FIELD(n, OF(E_SNDNODE, 0xC), int), FIELD(n, OF(E_SNDNODE, 0x1C), int),
+                     smp ? FIELD(smp, OF(E_SAMPLE, 0x24), int) : -9, snd_status((int)i));
     }
-    uint8_t **cv = FIELD(sm, OF(E_SOUND, 0x54), uint8_t **), **ce = FIELD(sm, OF(E_SOUND, 0x58), uint8_t **);
+    uint8_t **cv = FIELD(sm, OF(E_SOUNDMGR, 0x54), uint8_t **), **ce = FIELD(sm, OF(E_SOUNDMGR, 0x58), uint8_t **);
     for (int i = 0; cv && cv + i < ce; i++)
-        if (cv[i] && FIELD(cv[i], OF(E_SOUND, 0x8), int)) REPLY(" cat %d %d/%d", i, FIELD(cv[i], OF(E_SOUND, 0x8), int), FIELD(cv[i], OF(E_SOUND, 0x4), int));
+        if (cv[i] && FIELD(cv[i], OF(E_SNDCAT, 0x8), int)) REPLY(" cat %d %d/%d", i, FIELD(cv[i], OF(E_SNDCAT, 0x8), int), FIELD(cv[i], OF(E_SNDCAT, 0x4), int));
     REPLY("\n");
 }
 static void cmd_sndchan(char *out, const char *args) {

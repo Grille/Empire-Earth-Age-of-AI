@@ -123,7 +123,7 @@ static void persist_write(const char *folder, const char *file) {
 static int __cdecl hook_save_game(void *file, int a, int b, struct ustring folder) {
     // the folder is passed by value and destroyed by the original: read both names first
     char fname[MAX_PATH] = "", dname[MAX_PATH] = "";
-    const char *fp = file ? FIELD(file, OF(E_FILE, 0x4), const char *) : NULL, *dp = FIELD(folder.raw, 4, const char *);
+    const char *fp = file ? FIELD(file, 4, const char *) : NULL, *dp = FIELD(folder.raw, 4, const char *);
     if (fp) lstrcpynA(fname, fp, MAX_PATH);
     if (dp) lstrcpynA(dname, dp, MAX_PATH);
     int r = GF(FN_SAVE_GAME)(file, a, b, folder);
