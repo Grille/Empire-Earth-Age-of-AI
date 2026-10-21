@@ -25,6 +25,15 @@ static void *player_at(int i) {
 // the game's unit limit for a player (EEPlayer::vf31(0), as FN_GAME_LIMIT; it pops its argument)
 static int unit_limit(void *pl) { return ((int (__thiscall *)(void *, int))(*(void ***)pl)[GA(SLOT_UNIT_LIMIT)])(pl, 0); }
 static int nplayers(void) { unsigned n = *(unsigned *)GA(G_PLAYERS_N); return n > 16 ? 16 : (int)n; }
+// the players the game counts as human (SLOT_PLAYER_HUMAN), as FN_HUMAN_EPOCH walks them: from index 1
+static int human_count(void) {
+    int n = 0;
+    for (int i = 1; i < nplayers(); i++) {
+        void *p = player_at(i);
+        if (p && ((char (__thiscall *)(void *))(*(void ***)p)[GA(SLOT_PLAYER_HUMAN)])(p)) n++;
+    }
+    return n;
+}
 static int stance_of(void *a, int b) { return FIELD(a, OF(PL, 0x9E4) + b * 4, int); }
 static int is_out(void *p) { return !p || FIELD(p, OF(PL, 0x467), uint8_t); }
 

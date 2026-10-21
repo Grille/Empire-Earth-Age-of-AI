@@ -498,8 +498,16 @@ breaks (crashes 0x628D6F, 0x53110D, 0x531131); guarded in attack.c (unit_node_fr
   +0x5C, +0x60 military buildings (31 s), +0x64 build, +0x68, +0x6C (59 s), +0x75 one-time setup done,
   +0x76 epoch requirement pending.
 - Epoch: SetNextEpochAdvanceTime 0x46DE8C = random(record 28 min..max) minutes x difficulty factor, x2 when
-  ahead of / /2 when behind the highest human epoch; AttemptEpochAdvance 0x46C966 asks the research manager
-  once for the required techs (0x4860D6).
+  ahead of / /2 when behind the highest human epoch (0x46D436; only with Ignorieren +0xF02 clear); AttemptEpochAdvance
+  0x46C966 asks the research manager once for the required techs (0x4860D6), and with +0xF02 clear waits a minute
+  while its current epoch is above the highest human's (one epoch ahead at most).
+- Catch-up, whatever +0xF02 says: a human reaching a new epoch (EEPlayer::vf41 0x55A569, its vf29 = human) makes
+  every computer player behind it redraw its attempt (0x431533) to now + random(+0xD68..+0xD6C minutes, the
+  behaviour table, x the difficulty's factor; 1-2 minutes in epoch 9) - unless it already lies in that window. Test
+  2026-10-21 (`epochup` on the idle human, Continental e3): the AIs followed 5.7-6.3 minutes later in every pacing
+  mode; without the human's advance they stayed (timer 53 min). The tech tree's epoch: 0x5BC893 sets it (event 0xC,
+  availability), 0x5BC15D the next one (the cheat EEMIncrementEpic); the epoch tech isn't grantable (vf6 refuses
+  category 3).
 - Build manager (cm+0x3C): init 0x465E4F (placement area at +0x11C, per-epoch build lists at +4 + i*0x14);
   the lists are 14 deques of {type, x, y} (0x155 per block, front 0x44CD5E, pop 0x44CAAF, append 0x468C37);
   Update 0x468540 every 3 s: the first list whose front 0x555710 (available, affordable, a builder) passes is

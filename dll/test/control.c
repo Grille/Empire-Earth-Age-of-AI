@@ -53,6 +53,7 @@ static void cmd_drops(char *out, const char *args);
 static void cmd_bqueue(char *out, const char *args);
 static void cmd_canbuild(char *out, const char *args);
 static void cmd_tech(char *out, const char *args);
+static void cmd_epochup(char *out, const char *args);
 static void cmd_rlist(char *out, const char *args);
 static void cmd_basemap(char *out, const char *args);
 static void cmd_defence(char *out, const char *args);
@@ -390,6 +391,7 @@ static void execute(const char *cmd, char *out) {
     else if (!strcmp(verb, "bqueue")) cmd_bqueue(out, args);
     else if (!strcmp(verb, "canbuild")) cmd_canbuild(out, args);
     else if (!strcmp(verb, "tech")) cmd_tech(out, args);
+    else if (!strcmp(verb, "epochup")) cmd_epochup(out, args);
     else if (!strcmp(verb, "rlist")) cmd_rlist(out, args);
     else if (!strcmp(verb, "basemap")) cmd_basemap(out, args);
     else if (!strcmp(verb, "defence")) cmd_defence(out, args);

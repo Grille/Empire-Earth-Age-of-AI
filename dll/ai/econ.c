@@ -514,6 +514,15 @@ static void *um_owner(void *um) {
 static int copper_mode(void *pl) {
     return PV((unsigned)FIELD(pl, PL_INDEX, int) & 15, g_v_copper, cfg_of(pl)->copper_plan);
 }
+// EPOCH PACING follow (settings.c): the AI never gets ahead of the highest human epoch and advances as soon as it can
+// pay once a human is ahead; meanwhile it prepares (the next epoch's requirements are asked for) but holds no
+// resources back for the advance - a human may stay in an epoch for an hour. In every epoch, the copper plan's too.
+// Without a human in the game: the timer alone. 1 = the next epoch held now.
+static int follow_held(void *pl) {
+    uint8_t *tt = FIELD(pl, PL_TECHTREE, uint8_t *);
+    if (cfg_of(pl)->pacing != PACE_FOLLOW || !tt || !human_count()) return 0;
+    return GF(FN_HUMAN_EPOCH)() <= FIELD(tt, TT_EPOCH, int);
+}
 
 static int workforce(void *pl) {
     void *cm = FIELD(pl, OF(PL, 0xB90), void *);
@@ -704,9 +713,23 @@ static void econ_tick(void *pl, uint32_t now) {
     mine_drops(pl, ai, now);   // mines.c
     mines_log(pl, ai, now);
     early_requirements(pl, ai, now, copper_mode(pl) && ep < FARM_EPOCH);
-    // pull the attempt forward: before farms with the copper plan, in every epoch with epoch_pacing=fast
-    if (!(copper_mode(pl) && ep < FARM_EPOCH) && !c->pacing_fast) return;
     uint8_t *cm = FIELD(pl, OF(PL, 0xB90), uint8_t *);
+    // epoch_pacing=follow, no human ahead: the attempt kept a minute off (as the game's own wait does) - the
+    // requirements are asked for meanwhile (early_requirements: within 10 minutes of it), the cost isn't held
+    static int8_t held_at[16];   // the epoch follow held at (logged once), -1 none
+    int held = follow_held(pl);
+    if (c->pacing == PACE_FOLLOW && held != (held_at[ai] == ep) && g_log)
+        fprintf(g_log, "# epoch plan: P%u at %.1f min, epoch %d: %s (follow, the humans' highest %d of %d humans)\n", ai,
+                now / 60000.0, ep, held ? "held" : "free to advance", GF(FN_HUMAN_EPOCH)(), human_count());
+    held_at[ai] = held ? (int8_t)ep : -1;
+    if (held) {
+        uint32_t *t = cm ? (uint32_t *)(cm + CM_TIMERS) : NULL;
+        if (t && *t < now + 60000) *t = now + 60000;
+        return;
+    }
+    // pull the attempt forward: before farms with the copper plan, in every epoch with epoch_pacing=rush, and with
+    // follow once a human is ahead
+    if (!(copper_mode(pl) && ep < FARM_EPOCH) && c->pacing != PACE_RUSH && !(c->pacing == PACE_FOLLOW && human_count())) return;
     // AttemptEpochAdvance (0x46C966) asks the research manager once for the techs the next epoch requires
     // (record +0x40 needed, +0x48 done) and then waits while cm+0x76 is set; re-arm it after 5 minutes.
     uint32_t *pending_since = g_epoch_req_t;   // shared with early_requirements' renewal
@@ -1377,6 +1400,7 @@ static void rates_update(void *pl, unsigned idx, uint32_t now) {
 static int g_reserve_window_ms = 5 * 60000;   // aimod.ini [budget] reserve_window_min
 static void budget_reserve(void *pl, int reserve[7]) {
     memset(reserve, 0, 7 * sizeof *reserve);
+    if (follow_held(pl)) return;   // epoch_pacing=follow: nothing held while it may not advance
     uint8_t *tt = FIELD(pl, PL_TECHTREE, uint8_t *);
     uint8_t *cm = FIELD(pl, OF(PL, 0xB90), uint8_t *);
     if (!tt || !cm) return;
@@ -1410,6 +1434,7 @@ static void spend_reserve(void *pl, unsigned idx, int reserve[7], float *horizon
     if (horizon) *horizon = -1;
     if (!g_reserve_plan) { budget_reserve(pl, reserve); return; }
     memset(reserve, 0, 7 * sizeof *reserve);
+    if (follow_held(pl)) return;
     uint8_t *tt = FIELD(pl, PL_TECHTREE, uint8_t *), *cm = FIELD(pl, OF(PL, 0xB90), uint8_t *);
     if (!tt || !cm) return;
     int ep = FIELD(tt, TT_EPOCH, int), next = ep + 1;

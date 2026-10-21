@@ -1,0 +1,8 @@
+# epoch_pacing=follow: the idle human (P1) moves ahead at set minutes - the AIs must never be ahead of it and must
+# follow soon after each step (# epoch lines, `techs` / epochs.py). With classic the AIs may be one epoch ahead.
+
+wait_until(10min)
+epochup(1)
+wait_until(25min)
+epochup(1)
+epochup(1)

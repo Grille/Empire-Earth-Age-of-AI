@@ -5,6 +5,18 @@
 // stay with their feature.
 
 // ---- from econ.c ----
+// epochup P: player P - any, the tests' idle human too - gets its next epoch at once, unpaid (FN_EPOCH_NEXT: the tech
+// tree's epoch, its event and what becomes available; the epoch tech itself stays unresearched - FN_TECH_GRANT refuses
+// epoch techs, category 3). For epoch_pacing=follow's test: the human ahead at a set minute.
+static void cmd_epochup(char *out, const char *args) {
+    int p = atoi(args);
+    void *pl = player_at(p);
+    uint8_t *tt = pl ? FIELD(pl, PL_TECHTREE, uint8_t *) : NULL;
+    if (!tt) { REPLY("error: no player %d\n", p); return; }
+    int e = FIELD(tt, TT_EPOCH, int);
+    GF(FN_EPOCH_NEXT)(tt);
+    REPLY("P%d epoch %d -> %d\n", p, e, FIELD(tt, TT_EPOCH, int));
+}
 // tech P id...: the player's tech record (tech tree lookup 0x4019A1): first bytes and the data's cost
 static void cmd_tech(char *out, const char *args) {
     int p = 0, n = 0, id;
