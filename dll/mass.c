@@ -80,8 +80,10 @@ static int ms_land_soldier(uint8_t *u, uint8_t *td) {
     return FIELD(u, 0x3C, int) > 0 && FIELD(u, 0x1C, int) >= 0 && is_soldier(td) && fam != 3 && fam != 4 && fam != 7 &&
            fam != 10 && fam != 17 && fam != 18 && fam != 21 && fam != 22;
 }
-static int ms_base(void *pl, int *bx, int *by) {
-    uint8_t *cm = pl ? FIELD(pl, 0xB90, uint8_t *) : NULL, *bm = cm ? FIELD(cm, 0x3C, uint8_t *) : NULL;
+static int ms_base(void *pl, int *bx, int *by) {   // an AI's (a human player's +0xB90 is no computer manager: garbage)
+    int i = pl ? FIELD(pl, PL_INDEX, int) & 15 : 0;
+    if (!pl || !(g_players[i] || is_vanilla_idx(i))) return 0;
+    uint8_t *cm = FIELD(pl, 0xB90, uint8_t *), *bm = cm ? FIELD(cm, 0x3C, uint8_t *) : NULL;
     if (!bm || FIELD(bm, 0x12C, int) == -10000) return 0;
     *bx = FIELD(bm, 0x12C, int); *by = FIELD(bm, 0x130, int);
     return 1;

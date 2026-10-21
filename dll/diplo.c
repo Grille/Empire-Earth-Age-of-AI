@@ -305,12 +305,12 @@ static float power_of(int i) { return g_ws.power[i] > 1.0f ? g_ws.power[i] : 1.0
 // or one's own. Here also by pair: g_kills[killer][victim][kind] (kill_kind: army, buildings, civilian, airforce,
 // marine - by the class at type data +0x4B4, dbobjects.dat) for the whole game, and the same per
 // game minute in a ring of KILLS_RING buckets (g_kills_min_t: the minute each holds) for the recent fighting - the
-// last KILLS_RECENT_MIN minutes for the AI and the language model (llm.c), up to KILLS_RING for the texts' windows
-// (me.kills(them, 10)); saved with the game.
+// last KILLS_RECENT_MIN minutes, for the AI. The texts' kills and razed count by type (the kill log, g_kl); all
+// saved with the game.
 #define CALL_KILL_STAT 0x00617780
 #define FN_STAT_ADD    0x0055DBCF
 #define KILLS_RECENT_MIN 20
-#define KILLS_RING 60
+#define KILLS_RING KILLS_RECENT_MIN
 enum { K_ARMY, K_BUILDINGS, K_CIVIL, K_AIR, K_NAVY, K_N };
 #define K_MILITARY(k) ((k)[K_ARMY] + (k)[K_AIR] + (k)[K_NAVY])
 // the class +0x4B4: 6 citizens (and the engineer), 22 fishing boats; 3 aircraft, 7 helicopters and balloons, 17
@@ -327,14 +327,117 @@ static uint16_t g_kills_min[KILLS_RING][16][16][K_N];
 static uint32_t g_kills_min_t[KILLS_RING];   // game minute + 1 the bucket holds (0 empty)
 static uint32_t g_nv_boat_kills[16][16];     // [killer][victim]: fishing boats (family 22) - navy.c's log, reset there
 static uint16_t g_nv_lost_type[16][G_TYPES_N], g_nv_sunk_type[16][G_TYPES_N];   // navy (K_NAVY) by type: [victim] / [killer] - navy.c's log
-static void kills_window(int k, int v, int minutes, uint32_t out[K_N]) {   // k's kills of v in the last minutes (whole)
-    uint32_t m = game_time() / 60000u + 1, w = (uint32_t)(minutes < 1 ? 1 : minutes > KILLS_RING ? KILLS_RING : minutes);
+static void kills_recent(int k, int v, uint32_t out[K_N]) {   // k's kills of v in the last KILLS_RECENT_MIN minutes (whole)
+    uint32_t m = game_time() / 60000u + 1;
     for (int c = 0; c < K_N; c++) out[c] = 0;
     for (int b = 0; b < KILLS_RING; b++)
-        if (g_kills_min_t[b] && g_kills_min_t[b] + w > m)
+        if (g_kills_min_t[b] && g_kills_min_t[b] + KILLS_RECENT_MIN > m)
             for (int c = 0; c < K_N; c++) out[c] += g_kills_min[b][k][v][c];
 }
-static void kills_recent(int k, int v, uint32_t out[K_N]) { kills_window(k, v, KILLS_RECENT_MIN, out); }
+// THE KILL LOG, for the texts' kills and razed (a filter of types, any window): per pair, killer and victim, the
+// totals by type for the whole game and a log in the order of the game's minutes, {minute, type (| KL_BUILDING for a
+// building - razed), count} - one entry a minute and type, so a window walks back from the end over its own minutes'
+// entries only, however long the game. A pair's room comes with its first kill; saved as a block of its own
+// (kill_log_save). The types' numbers are those of the game's loaded data, as in the filters (unitnames.c).
+#define KL_BUILDING 0x8000
+struct kl_entry { uint16_t min, type, n; };
+_Static_assert(sizeof(struct kl_entry) == 6, "the saved log's entries are 6 bytes");
+static struct kl_pair { uint32_t *total; struct kl_entry *e; uint32_t n, cap; } g_kl[16][16];   // total[building][type]
+static void kl_add(int k, int v, int type, int bld, int d) {
+    struct kl_pair *p = &g_kl[k & 15][v & 15];
+    if ((unsigned)type >= G_TYPES_N || d <= 0) return;
+    if (!p->total && !(p->total = calloc(2 * G_TYPES_N, sizeof *p->total))) return;
+    p->total[bld * G_TYPES_N + type] += (uint32_t)d;
+    uint32_t m = game_time() / 60000u;
+    uint16_t ty = (uint16_t)(type | (bld ? KL_BUILDING : 0));
+    if (m > 0xFFFF) m = 0xFFFF;
+    for (uint32_t i = p->n; i-- && p->e[i].min == m; )   // this minute's entries are the last ones
+        if (p->e[i].type == ty && p->e[i].n + d <= 0xFFFF) { p->e[i].n = (uint16_t)(p->e[i].n + d); return; }
+    if (p->n == p->cap) {
+        uint32_t cap = p->cap ? p->cap * 2 : 64;
+        struct kl_entry *e = realloc(p->e, cap * sizeof *e);
+        if (!e) return;
+        p->e = e;
+        p->cap = cap;
+    }
+    p->e[p->n++] = (struct kl_entry){ (uint16_t)m, ty, (uint16_t)d };
+}
+// k's units (bld 0) or buildings (1) of v destroyed, of the types in sel (NULL: all) - in the last win minutes (whole,
+// the current one counts), win 0: the whole game
+static uint32_t kl_count(int k, int v, int bld, const unsigned char *sel, double win) {
+    const struct kl_pair *p = &g_kl[k & 15][v & 15];
+    uint32_t r = 0;
+    if (!p->total) return 0;
+    if (!(win > 0)) {
+        for (int t = 0; t < G_TYPES_N; t++) if (!sel || sel[t]) r += p->total[bld * G_TYPES_N + t];
+        return r;
+    }
+    long w = win >= 65536 ? 65536 : (long)(win + 0.999), from = (long)(game_time() / 60000u) - (w < 1 ? 1 : w);
+    for (uint32_t i = p->n; i-- && (long)p->e[i].min > from; )
+        if (!(p->e[i].type & KL_BUILDING) == !bld && (!sel || sel[p->e[i].type & ~KL_BUILDING])) r += p->e[i].n;
+    return r;
+}
+static void kl_reset(void) {
+    for (int i = 0; i < 16 * 16; i++) { struct kl_pair *p = &g_kl[i / 16][i % 16]; free(p->total); free(p->e); }
+    memset(g_kl, 0, sizeof g_kl);
+}
+// the saved game's block: {G_TYPES_N}, then for each pair with kills {killer, victim (a byte each), the totals' count
+// (2 bytes), each {index building * G_TYPES_N + type (2), count (4)}, the log's length (4), its entries (6 each)} -
+// malloc'd, *size its length (NULL: nothing to keep)
+static uint8_t *kill_log_save(uint32_t *size) {
+    uint32_t cap = 4, o = 0, g = G_TYPES_N;
+    for (int i = 0; i < 16 * 16; i++) if (g_kl[i / 16][i % 16].total) cap += 8 + 2 * G_TYPES_N * 6 + g_kl[i / 16][i % 16].n * 6;
+    uint8_t *b = cap > 4 ? malloc(cap) : NULL;
+    if (!b) { *size = 0; return NULL; }
+    memcpy(b, &g, 4);
+    o = 4;
+    for (int i = 0; i < 16 * 16; i++) {
+        const struct kl_pair *p = &g_kl[i / 16][i % 16];
+        if (!p->total) continue;
+        b[o++] = (uint8_t)(i / 16);
+        b[o++] = (uint8_t)(i % 16);
+        uint32_t at = o;
+        uint16_t nt = 0;
+        o += 2;
+        for (uint16_t x = 0; x < 2 * G_TYPES_N; x++)
+            if (p->total[x]) { memcpy(b + o, &x, 2); memcpy(b + o + 2, &p->total[x], 4); o += 6; nt++; }
+        memcpy(b + at, &nt, 2);
+        memcpy(b + o, &p->n, 4);
+        memcpy(b + o + 4, p->e, p->n * 6);
+        o += 4 + p->n * 6;
+    }
+    *size = o;
+    return b;
+}
+static void kill_log_load(const uint8_t *b, uint32_t size) {   // (after kl_reset)
+    uint32_t g, o = 4, pairs = 0, entries = 0;
+    if (size < 4 || (memcpy(&g, b, 4), g != G_TYPES_N)) {
+        if (g_log) fprintf(g_log, "# persist: kill_log of another type count - left out\n");
+        return;
+    }
+    while (o + 4 <= size) {
+        struct kl_pair *p = &g_kl[b[o] & 15][b[o + 1] & 15];
+        uint16_t nt;
+        uint32_t n;
+        memcpy(&nt, b + o + 2, 2);
+        o += 4;
+        if (o + nt * 6u + 4 > size || p->total || !(p->total = calloc(2 * G_TYPES_N, sizeof *p->total))) break;
+        for (int j = 0; j < nt; j++, o += 6) {
+            uint16_t x;
+            memcpy(&x, b + o, 2);
+            if (x < 2 * G_TYPES_N) memcpy(&p->total[x], b + o + 2, 4);
+        }
+        memcpy(&n, b + o, 4);
+        o += 4;
+        if (n > (size - o) / 6 || (n && !(p->e = malloc(n * sizeof *p->e)))) break;
+        memcpy(p->e, b + o, n * 6);
+        p->n = p->cap = n;
+        o += n * 6;
+        pairs++;
+        entries += n;
+    }
+    if (g_log) fprintf(g_log, "# persist: kill log restored, %u pairs, %u entries%s\n", pairs, entries, o < size ? " - cut short" : "");
+}
 __attribute__((used)) uint8_t *g_kill_unit;   // the dead unit: esi at the call site
 static void eco_death(uint8_t *dead, int k, int v);   // ecolog.c: the citizen-loss log (autotest)
 static void fleet_kill(int k, uint8_t *dead, int n);   // fleet.c: which task force had it as its target
@@ -355,6 +458,7 @@ __attribute__((used)) void __fastcall hook_kill_stat(uint8_t *stats, void *edx, 
             g_nv_lost_type[v & 15][FIELD(td, 0x4B8, int)] += (uint16_t)d; g_nv_sunk_type[k & 15][FIELD(td, 0x4B8, int)] += (uint16_t)d;
         }
         g_kills_min[b][k][v][c] += (uint16_t)d;
+        if (td) kl_add(k, v, FIELD(td, 0x4B8, int), n == 2, d);
         fleet_kill(k, g_kill_unit, n);
         if (n == 3) fleet_lost(v, g_kill_unit);
         if (n == 3) mass_death(g_kill_unit);
@@ -1431,6 +1535,7 @@ static void diplo_new_game(void) {
     memset(g_kills, 0, sizeof g_kills);
     memset(g_kills_min, 0, sizeof g_kills_min);
     memset(g_kills_min_t, 0, sizeof g_kills_min_t);
+    kl_reset();
     memset(g_war_betrayal, 0, sizeof g_war_betrayal);
     memset(g_diplo_answers, 0, sizeof g_diplo_answers);
     memset(&g_ws, 0, sizeof g_ws);
@@ -1883,8 +1988,8 @@ static const struct xmember k_xmembers[] = {
     { "near", XM_REL, "A's soldiers within 20 tiles of B's base now, while B treats A as an enemy (an AI's base)" },
     { "in_town", XM_REL, "1 when A's army is in B's town: its soldiers have stayed near B's base for a while (an AI's base)" },
     { "attack_minutes", XM_REL, "minutes since A's last attack wave set out against B - nothing if none (an AI's waves)" },
-    { "kills", XM_REL, "B's units A has destroyed - (B, minutes): in the last minutes (whole minutes, at most 60); a last argument picks which: units.all (the default), units.army (on land: also priests, heroes, siege), units.airforce, units.marine, units.military (the three), units.civilian (citizens, fishing boats) - them.kills(me, units.marine), me.kills(them, 10, units.military)" },
-    { "razed", XM_REL, "B's buildings A has destroyed - (B, minutes) as kills" },
+    { "kills", XM_REL, "B's units A has destroyed - (B, minutes): in the last minutes (whole minutes, the current one counts); a filter last picks which, as count's - unit.<identifier>, kind.<kind>, a list of them - or units.all (the default), units.army (on land: also priests, heroes, siege), units.airforce, units.marine, units.military (the three), units.civilian (citizens, fishing boats): them.kills(me, units.marine), me.kills(them, 10, kind.tank)" },
+    { "razed", XM_REL, "B's buildings A has destroyed - (B, minutes) and a filter of types as kills: them.razed(me, 20, kind.towers)" },
 };
 #define N_XMEMBERS (int)(sizeof k_xmembers / sizeof *k_xmembers)
 static const struct xmember k_xglobals[] = {
@@ -1973,15 +2078,15 @@ static void x_member(void *px, const struct xmember *m, struct xval *v) {
 static int x_windowed(const char *n) {
     return !strcmp(n, "tribute") || !strcmp(n, "refusals") || !strcmp(n, "betrayals") || !strcmp(n, "kills") || !strcmp(n, "razed");
 }
-// relation m of player pa with player pb: pa.<m>(pb), in the last win minutes (0: the whole game) where it counts events
-static void x_relation(void *pa, void *pb, const struct xmember *m, double win, int filter, struct xval *v) {
+// relation m of player pa with player pb: pa.<m>(pb), in the last win minutes (0: the whole game) where it counts
+// events; kills and razed of the types in sel (NULL: all)
+static void x_relation(void *pa, void *pb, const struct xmember *m, double win, const unsigned char *sel, struct xval *v) {
     xnothing(v);
     if (!pa || !pb || pa == pb) return;
     int a = pidx(pa), b = pidx(pb);
     const char *n = m->name;
     uint32_t now = game_time();
     int war = stance_of(pa, b) && stance_of(pb, a), ally = !stance_of(pa, b) && !stance_of(pb, a);
-    uint32_t rk[K_N];
     uint32_t since = win > 0 && win * 60000.0 < now ? now - (uint32_t)(win * 60000.0) : 0;
     int whole = !(win > 0);
     double r = 0;
@@ -2020,12 +2125,7 @@ static void x_relation(void *pa, void *pb, const struct xmember *m, double win, 
         if (!g_attack_sent[a][b]) return;
         r = (double)((now - g_attack_sent[a][b]) / 60000u);
     }
-    else if (!strcmp(n, "kills") || !strcmp(n, "razed")) {
-        const uint32_t *k = g_kills[a][b];
-        if (!whole) { kills_window(a, b, (int)(win + 0.999), rk); k = rk; }   // started minutes count whole
-        r = n[0] == 'r' ? k[K_BUILDINGS] : filter == 1 ? k[K_ARMY] : filter == 2 ? k[K_AIR] : filter == 3 ? k[K_NAVY] :
-            filter == 4 ? K_MILITARY(k) : filter == 5 ? k[K_CIVIL] : K_MILITARY(k) + k[K_CIVIL];
-    }
+    else if (!strcmp(n, "kills") || !strcmp(n, "razed")) r = kl_count(a, b, n[0] == 'r', sel, whole ? 0 : win);
 
     xnum(v, r);
 }
@@ -2091,7 +2191,7 @@ static int x_builtin(struct xctx *c, const char *name, struct xval *v) {
     while (g < N_XGLOBALS && strcmp(k_xglobals[g].name, name)) g++;
     if (g < N_XGLOBALS && k_xglobals[g].kind == XM_REL) {   // opinion, at_war, allied: mine with them
         if (!c->pl || !c->other) { x_missing(c, c->pl ? "them" : "me"); xnothing(v); return 1; }
-        x_relation(c->pl, c->other, x_find_member(name, (int)strlen(name)), 0, 0, v);
+        x_relation(c->pl, c->other, x_find_member(name, (int)strlen(name)), 0, NULL, v);
         return 1;
     }
     if (g < N_XGLOBALS) {
@@ -2185,8 +2285,9 @@ static int x_method(struct xctx *c, const char *name, const struct xval *a, int 
     const char *rel = dot ? dot + 1 : name;
     const struct xmember *m = x_find_member(rel, (int)strlen(rel));
     if (m && m->kind == XM_FILTER) return na == 1 && x_count(c, name, dot, a, v);
-    // (B) or, counting events, (B, minutes) - kills also with its filter: (B, units.army), (B, minutes, units.army)
-    if (!m || m->kind != XM_REL || na < 1 || na > (!strcmp(rel, "kills") ? 3 : x_windowed(rel) ? 2 : 1)) return 0;
+    // (B) or, counting events, (B, minutes) - kills and razed also with a filter last: (B, kind.tank), (B, 10, kind.tank)
+    int kr = !strcmp(rel, "kills") || !strcmp(rel, "razed");
+    if (!m || m->kind != XM_REL || na < 1 || na > (kr ? 3 : x_windowed(rel) ? 2 : 1)) return 0;
     int ok = 1;
     char who[24] = "me";
     void *pa = dot ? x_path(c, name, (int)(dot - name), &ok, who) : (x_players(c), c->pl);
@@ -2205,18 +2306,16 @@ static int x_method(struct xctx *c, const char *name, const struct xval *a, int 
         xnothing(v);
         return 1;
     }
-    int filter = 0, nw = na;   // kills: a units.<kind> last is the filter
-    if (na > 1 && !strcmp(rel, "kills") && (filter = x_units_filter(&a[na - 1])) >= 0) nw--;
-    else filter = 0;
-    if (nw > 2) {   // (B, minutes, x): x must be the filter
-        x_error("%s(...): the last argument is the filter - units.all, units.army, units.airforce, units.marine, "
-                "units.military or units.civilian", name);
+    int fl = kr && na > 1 && (a[na - 1].ln || a[na - 1].has_s), nw = na - fl;   // anything but a number last: the filter
+    if (nw > 1 && (a[1].ln || a[1].has_s)) {   // tribute(B, kind.tank), kills(B, "army", 5): no minutes
+        char t[48];
+        xto_text(&a[1], t, sizeof t);
+        x_error("%s(...): %s - the minutes are a number%s", name, t, kr ? " (the filter comes last)" : " (only kills and razed have a filter)");
         xnothing(v);
         return 1;
     }
-    if (nw > 1 && a[1].has_s && !a[1].has_n) {   // razed(B, units.army), kills(B, "army"): no minutes, no filter
-        x_error("%s(...): %.40s - the minutes are a number%s", name, a[1].s, strcmp(rel, "kills") ? x_units_filter(&a[1]) >= 0 ?
-                " (only kills has a filter)" : "" : " (a filter is units.army, ...)");
+    if (nw > 2) {   // kills(B, 5, 10)
+        x_error("%s(B, minutes, filter): the last argument is the filter - unit.<identifier>, kind.<kind>, units.<kind> or a list", name);
         xnothing(v);
         return 1;
     }
@@ -2226,6 +2325,24 @@ static int x_method(struct xctx *c, const char *name, const struct xval *a, int 
         xnothing(v);
         return 1;
     }
-    x_relation(pa, pb, m, nw > 1 ? xto_num(&a[1]) : 0, filter, v);
+    static unsigned char sel[G_TYPES_N];
+    if (fl) {
+        memset(sel, 0, sizeof sel);
+        int u = x_units_filter(&a[na - 1]);
+        if (u >= 0 && rel[0] == 'r') {   // always 0
+            x_error("%s(..., %s): units.<kind> are units - razed counts buildings (a filter of their types: kind.towers ...)", name, a[na - 1].s);
+            xnothing(v);
+            return 1;
+        }
+        if (u >= 0) {   // units.army ...: the types of those kill classes (kill_kind)
+            for (int t = 0; t < G_TYPES_N; t++) {
+                uint8_t *td = type_data(t);
+                int k = td ? kill_kind(td) : -1;
+                sel[t] = td && (u == 0 || (u == 1 && k == K_ARMY) || (u == 2 && k == K_AIR) || (u == 3 && k == K_NAVY) ||
+                                (u == 4 && k != K_CIVIL) || (u == 5 && k == K_CIVIL));
+            }
+        } else if (!x_type_filter(name, &a[na - 1], sel)) { xnothing(v); return 1; }
+    }
+    x_relation(pa, pb, m, nw > 1 ? xto_num(&a[1]) : 0, fl ? sel : NULL, v);
     return 1;
 }

@@ -417,8 +417,8 @@ Shortcuts: my own `epoch`, traits, `allies` and `enemies` without `me.` (`aggres
 | `A.near(B)` | A's soldiers within 20 tiles of B's base now, while B treats A as an enemy (an AI's base) |
 | `A.in_town(B)` | 1 when A's army is in B's town: its soldiers have stayed near B's base for a while (an AI's base) |
 | `A.attack_minutes(B)` | minutes since A's last attack wave set out against B - nothing if none (an AI's waves) |
-| `A.kills(B)` | B's units A has destroyed - (B, minutes): in the last minutes (whole minutes, at most 60); a last argument picks which: units.all (the default), units.army (on land: also priests, heroes, siege), units.airforce, units.marine, units.military (the three), units.civilian (citizens, fishing boats) - them.kills(me, units.marine), me.kills(them, 10, units.military) |
-| `A.razed(B)` | B's buildings A has destroyed - (B, minutes) as kills |
+| `A.kills(B)` | B's units A has destroyed - (B, minutes): in the last minutes (whole minutes, the current one counts); a filter last picks which, as count's - unit.&lt;identifier&gt;, kind.&lt;kind&gt;, a list of them - or units.all (the default), units.army (on land: also priests, heroes, siege), units.airforce, units.marine, units.military (the three), units.civilian (citizens, fishing boats): them.kills(me, units.marine), me.kills(them, 10, kind.tank) |
+| `A.razed(B)` | B's buildings A has destroyed - (B, minutes) and a filter of types as kills: them.razed(me, 20, kind.towers) |
 
 **The game:**
 
@@ -501,7 +501,9 @@ The types are the game's own, read from the data it has loaded - a data mod's ne
 once the game has loaded its data (at the start of a game); anything else as a filter (a number, a text) when the
 line is worked out.
 
-Which units `kills` counts - its last argument, after the minutes if any:
+Which units `kills` and which buildings `razed` count - their last argument, after the minutes if any: the same
+filters, `them.kills(me, 10, kind.tank)`, `me.razed(them, kind.towers)` - counted by type for the whole game and
+any window, however long. For `kills` also these (not for `razed`: they are units):
 
 | Name | Counts |
 |---|---|

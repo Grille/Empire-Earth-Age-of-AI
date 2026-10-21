@@ -4,7 +4,7 @@
 // colours; what the mod rebuilds by itself (income rates, defence layout, siege, threat) needs nothing. Lost without
 // this file: opinions and grudges, alliance times, who capitulated to whom, pending offers and promised tribute, the
 // "already said" flags of the situations, the army accounts of the budget, the language model's memories (what it
-// and you, and the AIs among themselves, said - block llm_memory).
+// and you, and the AIs among themselves, said - block llm_memory), who killed which types of whose and when (kill_log).
 //
 // Every save goes through 0x540ACA cdecl(UString *file, int, int, UString folder by value) -> 0 on success
 // (save dialog EEASaveGame::vf1, autosave, quicksave, the network save message: 4 call sites, all redirected). After a
@@ -32,11 +32,16 @@ static const struct { const char *tag; void *p; size_t n; } k_blocks[] = {
 };
 static uint8_t *llm_mem_save(uint32_t *size);              // llm.c: the language model's memories (variable size)
 static void llm_mem_load(const uint8_t *p, uint32_t size);
+// the blocks of a variable size: their own format, checked as they are read (no layout hash)
+static const struct { const char *tag; uint8_t *(*save)(uint32_t *size); void (*load)(const uint8_t *p, uint32_t size); } k_var_blocks[] = {
+    { "llm_memory", llm_mem_save, llm_mem_load },
+    { "kill_log", kill_log_save, kill_log_load },   // diplo.c
+};
 struct persist_head { char magic[8]; uint32_t version, game_time; uint64_t ees_size; FILETIME ees_time; };
 #define PERSIST_FORMAT 2   // 1: blocks {tag[32], size, bytes}; 2: {tag[32], size, layout, bytes}
 #define PERSIST_MAX_BLOCK (64u << 20)   // more is a broken file (the largest block, g_intel, is ~0.9 MB)
 #include "persist_layout.h"
-static uint32_t block_layout(const char *tag) {   // 0: no hash (llm_memory: its own format, checked as it is read)
+static uint32_t block_layout(const char *tag) {   // 0: no hash (k_var_blocks: their own format, checked as they are read)
     for (size_t i = 0; i < sizeof k_layout / sizeof *k_layout; i++) if (!strcmp(k_layout[i].tag, tag)) return k_layout[i].hash;
     return 0;
 }
@@ -80,11 +85,13 @@ static void persist_write(const char *folder, const char *file) {
         fwrite(&lay, sizeof lay, 1, f);
         fwrite(k_blocks[i].p, 1, n, f);
     }
-    uint32_t mn;
-    uint8_t *mp = llm_mem_save(&mn);
-    if (mp) {
-        char tag[32] = "llm_memory";
+    for (size_t i = 0; i < sizeof k_var_blocks / sizeof *k_var_blocks; i++) {
+        uint32_t mn;
+        uint8_t *mp = k_var_blocks[i].save(&mn);
+        if (!mp) continue;
+        char tag[32] = { 0 };
         uint32_t lay = 0;
+        lstrcpynA(tag, k_var_blocks[i].tag, sizeof tag);
         fwrite(tag, sizeof tag, 1, f);
         fwrite(&mn, sizeof mn, 1, f);
         fwrite(&lay, sizeof lay, 1, f);
@@ -160,9 +167,10 @@ static void persist_load(const char *name) {
         // read whole before it is used: a block cut short (a broken file) left half old, half new state
         uint8_t *mp = malloc(n ? n : 1);
         if (!mp || fread(mp, 1, n, f) != n) { free(mp); broken = 1; break; }
-        size_t i = 0;
+        size_t i = 0, j = 0;
         while (i < sizeof k_blocks / sizeof *k_blocks && strcmp(k_blocks[i].tag, tag)) i++;
-        if (!strcmp(tag, "llm_memory")) { llm_mem_load(mp, n); got++; }   // the model's memories: their own format
+        while (j < sizeof k_var_blocks / sizeof *k_var_blocks && strcmp(k_var_blocks[j].tag, tag)) j++;
+        if (j < sizeof k_var_blocks / sizeof *k_var_blocks) { k_var_blocks[j].load(mp, n); got++; }
         else if (i < sizeof k_blocks / sizeof *k_blocks && k_blocks[i].n == n && (v1 || lay == block_layout(tag))) {
             memcpy(k_blocks[i].p, mp, n);
             got++;
