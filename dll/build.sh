@@ -9,6 +9,8 @@
 # -Wformat=2 (the printf-like functions marked PRINTF_LIKE: their calls checked), -Wstrict-prototypes (f() takes any
 # arguments before C23 - f(void) none), -Wimplicit-fallthrough (a case running into the next), -Wvla (an array
 # sized at run time on the stack): C's legacy traps the code has none of, kept out
+# --exclude-all-symbols: the DLL exports nothing (without an export list mingw exports every name without static -
+# dxguid's 1370 GUIDs and a few hooks; nothing looks them up: the hooks are reached by patched addresses)
 cd "$(dirname "$0")"
 CC=${CC:-../tools/llvm-mingw/bin/i686-w64-mingw32-clang}
 # the layout hashes of the saved-game blocks (persist.c): persist_layout.h, kept in git for a build without Python
@@ -18,7 +20,7 @@ PY=../venv/Scripts/python.exe
 # and the C style the compiler leaves open (scripts/style.py: int* a, b - only a is a pointer)
 if [ -n "$PY" ]; then "$PY" ../scripts/persist_layout.py && "$PY" ../scripts/gen_cmd_verbs.py && "$PY" ../scripts/layers.py --quiet && "$PY" ../scripts/style.py || exit 1
 else echo "no Python: persist_layout.h and cmd_verbs.h left as they are, the folders' rules unchecked (scripts/persist_layout.py after changing a saved variable, gen_cmd_verbs.py after a new pipe command)"; fi
-"$CC" -O2 -mstackrealign -fno-strict-aliasing -Wall -Wextra -Wformat=2 -Wstrict-prototypes -Wimplicit-fallthrough -Wvla -shared -static -I. -o eeaimod.dll eeaimod.c -lgdi32 -ldxguid -lwinmm -lwinhttp -Wl,--image-base,0x6E000000 || exit 1
+"$CC" -O2 -mstackrealign -fno-strict-aliasing -Wall -Wextra -Wformat=2 -Wstrict-prototypes -Wimplicit-fallthrough -Wvla -shared -static -I. -o eeaimod.dll eeaimod.c -lgdi32 -ldxguid -lwinmm -lwinhttp -Wl,--image-base,0x6E000000 -Wl,--exclude-all-symbols || exit 1
 # dinput.dll (optional): the game's settings in eesettings.ini instead of the registry (dinput/eesettings.c)
 "$CC" -O2 -Wall -Wextra -Wformat=2 -Wstrict-prototypes -Wimplicit-fallthrough -Wvla -shared -static -o dinput.dll dinput/eesettings.c dinput/eesettings.def -ladvapi32 -luser32 || exit 1
 if [ "$1" = install ]; then   # the working tree's build (scripts/install.sh: the committed one) into the game folder
