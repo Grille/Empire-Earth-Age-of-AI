@@ -80,7 +80,7 @@ static int fleet_builds(unsigned idx) { return fleet_on(idx) && PV(idx & 15, g_v
 static int fleet_sheltering(unsigned idx) { return g_fl[idx & 15].shelter; }
 static int g_fl_mass = 1;   // navy_fleet_mass: stage 4 masses at the rally while weaker (fl_rally, below)
 static int g_fl_s4;   // set while a stage-4 fleet is led (fl_orders' preferences, fl_safe_toward's margin)
-static int fleet_has(void *pl, uint8_t *u) {
+static int fleet_has(ee_player *pl, uint8_t *u) {
     if (!pl || !u) return 0;
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     if (!fleet_on(idx)) return 0;
@@ -90,7 +90,7 @@ static int fleet_has(void *pl, uint8_t *u) {
 }
 // a sea subgroup holding one of the fleet's ships: its update skipped (landing.c hook_asg_sea_update)
 static int fleet_leads(uint8_t *sg) {
-    void *pl = FIELD(sg, OF(ASG, 0x190), void *);
+    ee_player *pl = FIELD(sg, OF(ASG, 0x190), void *);
     if (!pl || !g_fl[(unsigned)FIELD(pl, PL_INDEX, int) & 15].n) return 0;
     for (uint8_t **r = FIELD(sg, OF(ASG, 0x54), uint8_t **); r && r < FIELD(sg, OF(ASG, 0x58), uint8_t **); r++)
         if (*r && fleet_has(pl, FIELD(*r, OF(ASGU, 0x44), uint8_t *))) { g_fl[(unsigned)FIELD(pl, PL_INDEX, int) & 15].sg_skipped++; return 1; }
@@ -98,14 +98,14 @@ static int fleet_leads(uint8_t *sg) {
 }
 // a subgroup's order (vf57) to one of the fleet's ships (landing.c hook_asg_give_goal refuses it)
 static int fleet_refuses(uint8_t *sg, uint8_t *u) {
-    void *pl = FIELD(sg, OF(ASG, 0x190), void *);
+    ee_player *pl = FIELD(sg, OF(ASG, 0x190), void *);
     if (!fleet_has(pl, u)) return 0;
     g_fl_refused++; g_fl[(unsigned)FIELD(pl, PL_INDEX, int) & 15].refused++;
     return 1;
 }
 // the naval maintenance (0x4779FA) short of its "Ships to Maintain": it deletes own units for the room (0x430D40,
 // thiscall(player, request, 0)) and opens a Defend group - the deletion is skipped while the fleet leads the ships
-static int __fastcall hook_nv_maint_delete(void *pl, void *edx, void *req, int flag) {
+static int __fastcall hook_nv_maint_delete(ee_player *pl, void *edx, void *req, int flag) {
     (void)edx;
     if (pl && !is_vanilla(pl) && fleet_on((unsigned)FIELD(pl, PL_INDEX, int))) { g_fl[(unsigned)FIELD(pl, PL_INDEX, int) & 15].maint_skipped++; return 0; }
     return GF(FN_DELETE_FOR_ROOM)(pl, req, flag);
@@ -114,7 +114,7 @@ static int __fastcall hook_nv_maint_delete(void *pl, void *edx, void *req, int f
 // THE SCAN (every 2 s per AI with the fleet): own warships, fishing boats, docks and buildings; enemy ships; danger
 struct fl_ship { uint8_t *u, *td; int x, y, hp, pi, seen; float dps; };
 static struct fl_scan {
-    void *pl; unsigned idx;
+    ee_player *pl; unsigned idx;
     struct fl_ship es[FL_ES]; int ne;                 // enemy warships and submarines (seen now, then remembered)
     struct fl_ship ev[64]; int nev;                   // enemy fishing boats and transports (prey)
     struct fl_ship ec[96]; int nec;                   // enemy units and buildings on the coast of the fleet's sea (seen now)
@@ -212,7 +212,7 @@ static int fl_coast(int x, int y, int oc) {   // land with the sea oc within 4 t
     for (int k = 0; k < 12; k++) if ((int)area_id(x + d[k][0], y + d[k][1], 1) == oc) return 1;
     return 0;
 }
-static void fl_scan(void *pl, unsigned idx) {
+static void fl_scan(ee_player *pl, unsigned idx) {
     struct fl_scan *s = &g_fs;
     struct fleet *f = &g_fl[idx];
     s->pl = pl; s->idx = idx;
@@ -222,7 +222,8 @@ static void fl_scan(void *pl, unsigned idx) {
     uint8_t *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL;
     int hx = bm ? FIELD(bm, OF(BM, 0x12C), int) : 0, hy = bm ? FIELD(bm, OF(BM, 0x130), int) : 0, bd = 0x7FFFFFFF;
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
-        uint8_t *u = it.u, *td = it.td, *o = FIELD(u, OF(UNIT, 0x18), uint8_t *);
+        uint8_t *u = it.u, *td = it.td;
+        ee_player *o = unit_owner(u);
         int x = FIELD(u, OF(UNIT, 0x1C), int), y = FIELD(u, OF(UNIT, 0x20), int), fam = FIELD(td, OF(TD, 0x4B4), int);
         if (!o || FIELD(u, OF(UNIT, 0x3C), int) <= 0 || x < 0) continue;
         int k = navy_kind(td);
@@ -547,7 +548,7 @@ static const signed char k_tf_fit[TF_N][NR_N] = {
     { 1, 2, 2, 2, 1, 2 },   // escort
 };
 
-static void fl_log(void *pl, unsigned idx, struct fleet *f, uint32_t now, int cx, int cy) {
+static void fl_log(ee_player *pl, unsigned idx, struct fleet *f, uint32_t now, int cx, int cy) {
     if (!g_log) return;
     float hp = fl_hp(f), hm = 0;
     for (int i = 0; i < f->n; i++) hm += fl_hp_max(f->u[i]);
@@ -700,7 +701,7 @@ static void fl_rally(struct fleet *m, uint32_t now) {
 // within 5 tiles of it with the sea within 3, placeable - through the build manager's queue with its position (as
 // defence.c queues its towers: 0x468C37 on the epoch's queue), the best tower type it can build and pay now
 // (0x555710); every 2 minutes while none is queued, 3 a game at most
-static void fl_rally_tower(void *pl, unsigned idx, struct fleet *m, uint32_t now) {
+static void fl_rally_tower(ee_player *pl, unsigned idx, struct fleet *m, uint32_t now) {
     if (m->rcover || m->rally_towers >= 3 || (m->tower_t && now >= m->tower_t && now - m->tower_t < 120000) || !g_fs.nd) return;
     m->tower_t = now ? now : 1;
     void *cm = FIELD(pl, OF(PL, 0xB90), void *);
@@ -1182,7 +1183,7 @@ static void tf_log(unsigned idx, int k, struct fleet *f, uint32_t now) {
 // the target (navy.c g_nv_target) and the population has room, one warship of the type the mix wants (navy.c
 // navy_fleet_type: the role furthest below its share, payable now) through the game's training (econ.c
 // hook_train_units: paid from the navy account, cut to the room). The game's own warship orders go on as well.
-static void fl_build(void *pl, unsigned idx, struct fleet *m, uint32_t now) {
+static void fl_build(ee_player *pl, unsigned idx, struct fleet *m, uint32_t now) {
     if (now >= m->build_t && now - m->build_t < 10000) return;
     m->build_t = now ? now : 1;
     int t = g_nv_target[idx], recent = 0;
@@ -1203,7 +1204,7 @@ static void fl_build(void *pl, unsigned idx, struct fleet *m, uint32_t now) {
     if (got && g_log) fprintf(g_log, "# navy: P%u at %.1f min: the fleet trains a warship (type %d, role %s) - %d afloat, target %d\n", idx, now / 60000.0, type,
                               k_nr[nv_role(type_data(type))], g_nv_own[idx].war, t);
 }
-static void tf_tick(void *pl, unsigned idx, struct fleet *m, uint32_t now) {
+static void tf_tick(ee_player *pl, unsigned idx, struct fleet *m, uint32_t now) {
     struct landing *l = &g_ld[idx];
     int land = g_landing && l->phase >= 1 && l->phase != 5 && l->ocean == m->ocean, want[TF_N], ch[TF_N] = { 0 };
     tf_sizes(m->n, land, want);
@@ -1235,7 +1236,7 @@ static void tf_tick(void *pl, unsigned idx, struct fleet *m, uint32_t now) {
     fl_build(pl, idx, m, now);
 }
 
-static void fleet_tick(void *pl, uint32_t now) {
+static void fleet_tick(ee_player *pl, uint32_t now) {
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     struct fleet *f = &g_fl[idx];
     if (now < f->last) { memset(f, 0, sizeof *f); memset(g_tf[idx], 0, sizeof g_tf[idx]); g_ntfm[idx] = 0; }   // a new game (also fleet_new_game)

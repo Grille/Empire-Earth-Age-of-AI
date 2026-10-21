@@ -21,7 +21,7 @@
 #define ST_TABLE ((float *)GA(G_DAMAGE_TABLE))
 static int g_fight_est = 0;   // [all] fight_estimate
 
-static uint8_t *st_rec(void *pl, int type) {   // the player's stats record of a type
+static uint8_t *st_rec(ee_player *pl, int type) {   // the player's stats record of a type
     if (!pl || type < 0) return NULL;
     uint8_t *vec = (uint8_t *)pl + OF(PL, 0x874);
     if ((unsigned)type >= GF(FN_VECTOR_SIZE)(vec)) return NULL;
@@ -47,7 +47,7 @@ static int st_shot_t(uint8_t *atd, uint8_t *ast, int api, uint8_t *ttd, uint8_t 
     int r = (int)(d + 0.5f);
     return r < 1 ? 1 : r;
 }
-static int st_pidx(uint8_t *u) { uint8_t *o = FIELD(u, OF(UNIT, 0x18), uint8_t *); return o ? FIELD(o, PL_INDEX, int) : 0; }
+static int st_pidx(uint8_t *u) { ee_player *o = unit_owner(u); return o ? FIELD(o, PL_INDEX, int) : 0; }
 static int st_shot(uint8_t *a, uint8_t *t) {
     return st_shot_t(FIELD(a, OF(UNIT, 0x2C), uint8_t *), FIELD(a, OF(UNIT, 0x34), uint8_t *), st_pidx(a), FIELD(t, OF(UNIT, 0x2C), uint8_t *),
                      FIELD(t, OF(UNIT, 0x34), uint8_t *), st_pidx(t));
@@ -250,7 +250,7 @@ static void cmd_stats(char *out, const char *args) {
     if (!strncmp(args, "types", 5)) {   // types P [from to]: the player's stats of every type
         int p = 1, lo = 0, hi = 0x300;
         sscanf(args + 5, "%d %d %d", &p, &lo, &hi);
-        void *pl = st_player(p);
+        ee_player *pl = st_player(p);
         if (!pl) { REPLY("error: stats types P [from to]\n"); return; }
         for (int t = lo; t < hi && t < 0x300; t++) {
             uint8_t *td = type_data(t), *st = st_rec(pl, t);

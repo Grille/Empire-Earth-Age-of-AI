@@ -50,7 +50,7 @@ static int eco_new_id(unsigned pi, uint32_t id) {   // 1 when id wasn't in the l
     if (!eco_in(cur, id, 1)) g_eco_nids[pi]++;
     return !eco_in(last, id, 0);
 }
-static void eco_soldier_costs(void *pl) {   // once a game: the land soldiers' prices
+static void eco_soldier_costs(ee_player *pl) {   // once a game: the land soldiers' prices
     if (g_eco_costs_logged) return;
     g_eco_costs_logged = 1;
     EnterCriticalSection(&g_lock);
@@ -63,7 +63,7 @@ static void eco_soldier_costs(void *pl) {   // once a game: the land soldiers' p
     LeaveCriticalSection(&g_lock);
 }
 struct eco_mines { int n[7], slots[7], g[7], far_[7], nd[7]; };
-static void eco_mines(void *pl, struct eco_mines *c) {
+static void eco_mines(ee_player *pl, struct eco_mines *c) {
     memset(c, 0, sizeof *c);
     static uint8_t *seen[1024];
     int ns = 0;
@@ -113,7 +113,7 @@ static void eco_mines(void *pl, struct eco_mines *c) {
 // fldOK finished.
 static const char *eco_goal(uint8_t *u, int *res);
 struct eco_food { int fo, fh, ff, fb, fx, hl, hlF, hl15, hl30, an, an30, anF30, anNew30, fsN, fsF, fsN20, fsF20, fish, fishF, fld, fldOK; };
-static int eco_drop_d2(void *pl, int x, int y) {   // squared tiles to the nearest drop site for everything
+static int eco_drop_d2(ee_player *pl, int x, int y) {   // squared tiles to the nearest drop site for everything
     unsigned pi = (unsigned)pidx(pl);
     int dd = 0x7FFFFFFF;
     for (int i = 0; i < g_drops[pi].n; i++) {
@@ -122,7 +122,7 @@ static int eco_drop_d2(void *pl, int x, int y) {   // squared tiles to the neare
     }
     return dd;
 }
-static void eco_food(void *pl, ee_resource_mgr *rm, struct eco_food *f) {
+static void eco_food(ee_player *pl, ee_resource_mgr *rm, struct eco_food *f) {
     memset(f, 0, sizeof *f);
     if (!rm) return;
     drops_cached(pl);
@@ -203,7 +203,7 @@ static const char *eco_goal(uint8_t *u, int *res) {   // what a citizen does; re
     return "other";
 }
 
-static void ecolog_tick(void *pl, uint32_t now) {
+static void ecolog_tick(ee_player *pl, uint32_t now) {
     if (!g_autotest || !g_log || !pl) return;
     unsigned idx = (unsigned)pidx(pl);
     if (now >= g_eco_t[idx] && now / 60000 == g_eco_t[idx] / 60000 && g_eco_t[idx]) return;
@@ -224,7 +224,7 @@ static void ecolog_tick(void *pl, uint32_t now) {
     }
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {   // every citizen on the map
         uint8_t *u = it.u, *td = it.td;
-        if (FIELD(u, OF(UNIT, 0x18), void *) != pl || FIELD(u, OF(UNIT, 0x3C), int) <= 0 || !is_citizen_type(FIELD(td, OF(TD, 0x4B8), int))) continue;
+        if (unit_owner(u) != pl || FIELD(u, OF(UNIT, 0x3C), int) <= 0 || !is_citizen_type(FIELD(td, OF(TD, 0x4B8), int))) continue;
         cit++;
         int res;
         const char *g = eco_goal(u, &res);
@@ -243,7 +243,7 @@ static void ecolog_tick(void *pl, uint32_t now) {
         struct eco_spend *sp = &g_eco_sp[idx];
         for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
             uint8_t *u = it.u, *td = it.td;
-            if (FIELD(u, OF(UNIT, 0x18), void *) != pl || FIELD(u, OF(UNIT, 0x3C), int) <= 0) continue;
+            if (unit_owner(u) != pl || FIELD(u, OF(UNIT, 0x3C), int) <= 0) continue;
             int t = FIELD(td, OF(TD, 0x4B8), int), fam = FIELD(td, OF(TD, 0x4B4), int), cit = is_citizen_type(t);
             if (!cit && !is_army_family(fam)) continue;
             if (!eco_new_id(idx, (uint32_t)(uintptr_t)u) || first) continue;
@@ -281,7 +281,7 @@ static void ecolog_tick(void *pl, uint32_t now) {
 static void eco_death(uint8_t *dead, int k, int v) {
     if (!g_autotest || !g_log || !dead) return;
     uint8_t *td = FIELD(dead, OF(UNIT, 0x2C), uint8_t *);
-    void *pl = FIELD(dead, OF(UNIT, 0x18), void *);
+    ee_player *pl = unit_owner(dead);
     if (!td || !pl || !is_citizen_type(FIELD(td, OF(TD, 0x4B8), int))) return;
     int x = FIELD(dead, OF(UNIT, 0x1C), int), y = FIELD(dead, OF(UNIT, 0x20), int), dd[2], dist = -1;
     if (nearest_drop(pl, x, y, 1, dd)) dist = (int)sqrtf((float)((dd[0] - x) * (dd[0] - x) + (dd[1] - y) * (dd[1] - y)));
@@ -293,7 +293,7 @@ static void eco_death(uint8_t *dead, int k, int v) {
     for (struct grid_it it = grid_it_box(x, y, 12, 1); grid_it_next(&it); ) {
         uint8_t *u = it.u, *t = it.td;
         if (!t || FIELD(u, OF(UNIT, 0x3C), int) <= 0) continue;
-        void *o = FIELD(u, OF(UNIT, 0x18), void *);
+        ee_player *o = unit_owner(u);
         int ux = FIELD(u, OF(UNIT, 0x1C), int) - x, uy = FIELD(u, OF(UNIT, 0x20), int) - y, d2 = ux * ux + uy * uy;
         int fam = FIELD(t, OF(TD, 0x4B4), int);
         int sc = d2 + (is_army_family(fam) ? 0 : fam == 0x1D ? 1000 : 2000);   // soldiers, ships, aircraft first, then towers

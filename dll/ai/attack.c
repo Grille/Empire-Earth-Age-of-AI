@@ -35,11 +35,11 @@ static int g_avoid_margin = 6;        // tiles added to the tower's range
 // the game keeps it - all-knowing about the human.
 static int g_honest_vision = 1;
 static uint8_t g_vis_floor[16][16];               // [viewer][owner]: the least count among the owner's units (intel.c)
-static int intel_remembers(void *pl, uint8_t *u);   // intel.c: a building pl has seen
-static void intel_soldiers(void *pl, int x, int y, int r, float *hp, float *att, float *pw, int *n);   // intel.c
-static void intel_army(void *pl, float *hp, float *att, float *pw, int *n);
-static uint32_t intel_looked_ago(void *pl, int x, int y);
-static int seen_by(uint8_t *u, void *pl) {
+static int intel_remembers(ee_player *pl, uint8_t *u);   // intel.c: a building pl has seen
+static void intel_soldiers(ee_player *pl, int x, int y, int r, float *hp, float *att, float *pw, int *n);   // intel.c
+static void intel_army(ee_player *pl, float *hp, float *att, float *pw, int *n);
+static uint32_t intel_looked_ago(ee_player *pl, int x, int y);
+static int seen_by(uint8_t *u, ee_player *pl) {
     uint8_t *v = FIELD(u, OF(UNIT, 0x14), uint8_t *);
     unsigned pi = (unsigned)FIELD(pl, PL_INDEX, int);
     if (!v || pi >= 16) return 0;
@@ -47,7 +47,7 @@ static int seen_by(uint8_t *u, void *pl) {
     if (!vis) return 0;
     unsigned c = vis[pi] & 0xFF;
     if (!g_honest_vision) return c != 0;
-    void *o = FIELD(u, OF(UNIT, 0x18), void *);
+    ee_player *o = unit_owner(u);
     unsigned oi = o ? (unsigned)FIELD(o, PL_INDEX, int) & 15 : 0;
     if (c > g_vis_floor[pi][oi]) return 1;
     int fam = FIELD(FIELD(u, OF(UNIT, 0x2C), uint8_t *), OF(TD, 0x4B4), int);
@@ -69,7 +69,7 @@ static int defence_stats(uint8_t *u, float *range, float *attack) {
     return 1;
 }
 
-static void threat_refresh(void *pl, uint32_t now) {
+static void threat_refresh(ee_player *pl, uint32_t now) {
     unsigned pi = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     if (g_threat[pi].refreshed && now >= g_threat[pi].refreshed && now - g_threat[pi].refreshed < 5000) return;
     g_threat[pi].refreshed = now ? now : 1;
@@ -77,14 +77,14 @@ static void threat_refresh(void *pl, uint32_t now) {
     for (struct grid_it it = grid_it_all(1); n < MAX_DEFENCES && grid_it_next(&it); ) {
         uint8_t *u = it.u;
         float r, a;
-        if (!is_enemy(pl, FIELD(u, OF(UNIT, 0x18), void *)) || !defence_stats(u, &r, &a) || !seen_by(u, pl)) continue;
+        if (!is_enemy(pl, unit_owner(u)) || !defence_stats(u, &r, &a) || !seen_by(u, pl)) continue;
         int x = FIELD(u, OF(UNIT, 0x1C), int), y = FIELD(u, OF(UNIT, 0x20), int), k;
         for (k = 0; k < n; k++)                     // one defence per tile (the iterator already visits a big building once)
             if (g_threat[pi].d[k].x == x && g_threat[pi].d[k].y == y) break;
         if (k < n) continue;
         struct defence *d = &g_threat[pi].d[n++];
         d->x = x; d->y = y; d->range = r; d->attack = a;
-        d->owner = FIELD(FIELD(u, OF(UNIT, 0x18), void *), PL_INDEX, int);
+        d->owner = FIELD(unit_owner(u), PL_INDEX, int);
         d->type = FIELD(FIELD(u, OF(UNIT, 0x2C), uint8_t *), OF(TD, 0x4B8), int);
         d->u = u;
     }
@@ -111,7 +111,7 @@ static int __fastcall hook_route_cost(uint8_t *self, void *edx, int *edge, uint8
     (void)edx;
     int cost = ((RouteCostFn)GA(FN_ROUTE_COST))(self, edge, node);
     unsigned pi = (unsigned)FIELD(self, OF(ROUTEPLANNER, 0x48), int) & 15;     // planner +0x48 = own player index
-    void *pl = is_vanilla_idx((int)pi) ? NULL : g_players[pi];   // a vanilla player: the game's cost
+    ee_player *pl = is_vanilla_idx((int)pi) ? NULL : g_players[pi];   // a vanilla player: the game's cost
     if (!g_route_thread) {
         g_route_thread = GetCurrentThreadId();
         if (g_log) fprintf(g_log, "# routes: cost hook runs on thread %lu\n", g_route_thread);
@@ -136,13 +136,13 @@ static int g_weak_radius = 60;        // tiles around the original goal searched
 
 // Only goals at an enemy building are retargeted: the subgroup also marches to other goals (enemy armies,
 // own territory to defend), which must not be diverted.
-static int building_at(void *pl, const int *dest, int r) {
+static int building_at(ee_player *pl, const int *dest, int r) {
     uint8_t *map = *(uint8_t **)GA(G_MAP);
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     if (!grid) return 0;
     for (struct grid_it it = grid_it_box(dest[0], dest[1], r, 1); grid_it_next(&it); ) {
         uint8_t *u = it.u, *td = it.td;
-        if (!td || FIELD(td, OF(TD, 0x4B4), int) != 2 || is_wall(FIELD(td, OF(TD, 0x4B8), int)) || !is_enemy(pl, FIELD(u, OF(UNIT, 0x18), void *)))
+        if (!td || FIELD(td, OF(TD, 0x4B4), int) != 2 || is_wall(FIELD(td, OF(TD, 0x4B8), int)) || !is_enemy(pl, unit_owner(u)))
             continue;
         int dx = FIELD(u, OF(UNIT, 0x1C), int) - dest[0], dy = FIELD(u, OF(UNIT, 0x20), int) - dest[1];
         if (dx * dx + dy * dy <= r * r) return 1;
@@ -150,7 +150,7 @@ static int building_at(void *pl, const int *dest, int r) {
     return 0;
 }
 
-static uint8_t *find_weak_spot(void *pl, unsigned pi, const int *start, const int *dest) {
+static uint8_t *find_weak_spot(ee_player *pl, unsigned pi, const int *start, const int *dest) {
     uint8_t *map = *(uint8_t **)GA(G_MAP);
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     if (!grid) return NULL;
@@ -161,7 +161,7 @@ static uint8_t *find_weak_spot(void *pl, unsigned pi, const int *start, const in
     int r = g_weak_radius;
     for (struct grid_it it = grid_it_box(dest[0], dest[1], r, 1); grid_it_next(&it); ) {
         uint8_t *u = it.u, *td = it.td;
-        if (!td || FIELD(td, OF(TD, 0x4B4), int) != 2 || is_wall(FIELD(td, OF(TD, 0x4B8), int)) || !is_enemy(pl, FIELD(u, OF(UNIT, 0x18), void *)) ||
+        if (!td || FIELD(td, OF(TD, 0x4B4), int) != 2 || is_wall(FIELD(td, OF(TD, 0x4B8), int)) || !is_enemy(pl, unit_owner(u)) ||
             !seen_by(u, pl))
             continue;
         int pos[2] = { FIELD(u, OF(UNIT, 0x1C), int), FIELD(u, OF(UNIT, 0x20), int) };
@@ -184,7 +184,7 @@ static int g_breach = 1;              // aimod.ini [all] attack_breach
 // The owner is kept with the entry: a subgroup the game deleted (its attack over) is never read again.
 static struct { void *sg, *pl; int x, y; } g_breaches[64];   // subgroup (of player pl) -> wall tile it is to breach
 
-static void breach_note(void *pl, void *sg, int x, int y) {
+static void breach_note(ee_player *pl, void *sg, int x, int y) {
     int free_k = -1;
     for (int k = 0; k < 64; k++) {
         if (g_breaches[k].sg == sg) { g_breaches[k].x = x; g_breaches[k].y = y; if (x < 0) g_breaches[k].sg = NULL; return; }
@@ -196,14 +196,14 @@ static void breach_note(void *pl, void *sg, int x, int y) {
 }
 
 // before the game deletes subgroups of player pl (diplo.c: attacks called off): forget their breaches
-static void breach_forget(void *pl) {
+static void breach_forget(ee_player *pl) {
     for (int k = 0; k < 64; k++)
         if (g_breaches[k].sg && g_breaches[k].pl == pl) g_breaches[k].sg = NULL;
 }
 // every AI tick: breaches of subgroups no longer in pl's attack groups (the attack ended, the subgroup was deleted -
 // nothing told the table, and a phantom breach kept siege_want at 2 and the siege firing at that wall for good)
-static int asg_live(void *pl, uint8_t *sg);   // assault.c
-static void breach_prune(void *pl) {
+static int asg_live(ee_player *pl, uint8_t *sg);   // assault.c
+static void breach_prune(ee_player *pl) {
     for (int k = 0; k < 64; k++)
         if (g_breaches[k].sg && g_breaches[k].pl == pl && !asg_live(pl, g_breaches[k].sg)) g_breaches[k].sg = NULL;
 }
@@ -214,7 +214,7 @@ static int breach_of(void *sg, int *x, int *y) {
     return 0;
 }
 
-static uint8_t *wall_at(void *pl, int x, int y) {
+static uint8_t *wall_at(ee_player *pl, int x, int y) {
     uint8_t *map = *(uint8_t **)GA(G_MAP);
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     if (!grid) return NULL;
@@ -225,14 +225,14 @@ static uint8_t *wall_at(void *pl, int x, int y) {
     for (uint8_t **b = FIELD(cell, 4, uint8_t **); b && b < FIELD(cell, 8, uint8_t **); b++) {
         uint8_t *u = *b, *td = u ? FIELD(u, OF(UNIT, 0x2C), uint8_t *) : NULL;
         if (td && FIELD(u, OF(UNIT, 0x1C), int) == x && FIELD(u, OF(UNIT, 0x20), int) == y && is_wall(FIELD(td, OF(TD, 0x4B8), int)) &&
-            is_enemy(pl, FIELD(u, OF(UNIT, 0x18), void *)) && seen_by(u, pl))
+            is_enemy(pl, unit_owner(u)) && seen_by(u, pl))
             return u;
     }
     return NULL;
 }
 
 // First known enemy wall tile on the straight line start -> dest (half-tile steps), or NULL.
-static uint8_t *wall_crossing(void *pl, const int *start, const int *dest) {
+static uint8_t *wall_crossing(ee_player *pl, const int *start, const int *dest) {
     int dx = dest[0] - start[0], dy = dest[1] - start[1];
     int n = 2 * (abs(dx) > abs(dy) ? abs(dx) : abs(dy));
     for (int i = 1; i < n; i++) {
@@ -245,7 +245,7 @@ static uint8_t *wall_crossing(void *pl, const int *start, const int *dest) {
 
 // Follows the crossed wall (8-connected wall tiles) up to 60 tiles from the crossing and takes the segment outside
 // known tower range with the shortest detour start -> segment -> dest.
-static uint8_t *find_breach(void *pl, unsigned pi, const int *start, const int *dest, const uint8_t *cross) {
+static uint8_t *find_breach(ee_player *pl, unsigned pi, const int *start, const int *dest, const uint8_t *cross) {
     enum { MAXQ = 512 };
     static int qx[MAXQ], qy[MAXQ];
     int head = 0, tail = 0, cx = FIELD(cross, OF(UNIT, 0x1C), int), cy = FIELD(cross, OF(UNIT, 0x20), int);
@@ -296,7 +296,7 @@ static void subgroup_count(uint8_t *sg, int *n, int *cit) {   // members of an a
         *cit += is_citizen_type(FIELD(td, OF(TD, 0x4B8), int));
     }
 }
-static void citizen_attack_scan(void *pl, uint32_t now) {
+static void citizen_attack_scan(ee_player *pl, uint32_t now) {
     static uint32_t last[16];
     unsigned i = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     if (g_citizen_attacks || (now >= last[i] && now - last[i] < 5000)) return;
@@ -306,7 +306,8 @@ static void citizen_attack_scan(void *pl, uint32_t now) {
     uint8_t *dq = cmd + 4;
     unsigned first = FIELD(dq, 0xC, unsigned), cnt = FIELD(dq, 0x10, unsigned);
     for (unsigned k = 0; k < cnt && k < 64; k++) {
-        uint8_t *g = deque_at(dq, first + k), *target = g ? FIELD(g, OF(AG, 0x48), uint8_t *) : NULL;
+        uint8_t *g = deque_at(dq, first + k);
+        ee_player *target = g ? FIELD(g, OF(AG, 0x48), ee_player *) : NULL;
         if (!target) continue;
         int n = 0, cit = 0;
         for (uint8_t **s = FIELD(g, OF(AG, 0x8), uint8_t **); s && s < FIELD(g, OF(AG, 0xC), uint8_t **); s++)
@@ -320,7 +321,7 @@ static void citizen_attack_scan(void *pl, uint32_t now) {
 }
 static void __fastcall hook_asg_route(uint8_t *self, void *edx, int *start, int *dest) {
     (void)edx;
-    void *pl = FIELD(self, OF(ASG, 0x190), void *);
+    ee_player *pl = FIELD(self, OF(ASG, 0x190), void *);
     if (is_vanilla(pl)) pl = NULL;   // the game's own route: no weak spot, breach, call-off, nor its log
     void *target = FIELD(self, OF(ASG, 0x11C), void *);
     if (pl && target && !g_citizen_attacks) {
@@ -341,7 +342,7 @@ static void __fastcall hook_asg_route(uint8_t *self, void *edx, int *start, int 
             if (g_log)
                 fprintf(g_log, "# weak spot: P%u goal %d,%d (threat %.1f, target kind %d id %d) -> type %d of P%d at %d,%d\n",
                         pi, dest[0], dest[1], t, FIELD(tg, 0x10, int), FIELD(tg, 0xC, int),
-                        FIELD(FIELD(u, OF(UNIT, 0x2C), uint8_t *), OF(TD, 0x4B8), int), FIELD(FIELD(u, OF(UNIT, 0x18), void *), PL_INDEX, int),
+                        FIELD(FIELD(u, OF(UNIT, 0x2C), uint8_t *), OF(TD, 0x4B8), int), FIELD(unit_owner(u), PL_INDEX, int),
                         FIELD(u, OF(UNIT, 0x1C), int), FIELD(u, OF(UNIT, 0x20), int));
             dest[0] = FIELD(u, OF(UNIT, 0x1C), int); dest[1] = FIELD(u, OF(UNIT, 0x20), int);
             FIELD(tg, 4, int) = dest[0]; FIELD(tg, 8, int) = dest[1];
@@ -418,13 +419,13 @@ static unsigned g_ram_waits, g_air_skips;
 static int g_ignore_air = 1;          // aimod.ini [all] attack_ignore_air
 
 // Enemy soldiers (no citizens, no siege) of player pl's enemies within r tiles of (x, y)?
-static int guarded(void *pl, int x, int y, int r) {
+static int guarded(ee_player *pl, int x, int y, int r) {
     uint8_t *map = *(uint8_t **)GA(G_MAP);
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     if (!pl || !grid) return 0;
     for (struct grid_it it = grid_it_box(x, y, r, 1); grid_it_next(&it); ) {
         uint8_t *u = it.u, *td = it.td;
-        if (!td || FIELD(td, OF(TD, 0x4B4), int) != 5 || FIELD(u, OF(UNIT, 0x3C), int) <= 0 || !is_enemy(pl, FIELD(u, OF(UNIT, 0x18), void *)))
+        if (!td || FIELD(td, OF(TD, 0x4B4), int) != 5 || FIELD(u, OF(UNIT, 0x3C), int) <= 0 || !is_enemy(pl, unit_owner(u)))
             continue;
         int t = FIELD(td, OF(TD, 0x4B8), int);
         if (ut_role(t, UTR_CITIZEN | UTR_RAM | UTR_SIEGE))
@@ -444,7 +445,7 @@ static float __fastcall hook_asgu_score(uint8_t *self, void *edx, uint8_t *info)
     if (!sg || !enemy || *(uintptr_t *)sg != GA(VT_ASG_LAND) || is_vanilla(FIELD(sg, OF(ASG, 0x190), void *))) return s;
     // rams (melee, helpless against soldiers): no building while enemy soldiers guard it - they wait with the
     // army until the guards are dealt with
-    uint8_t *me = FIELD(self, OF(ASGU, 0x44), uint8_t *), *mtd = me ? FIELD(me, OF(PL, 0x2C), uint8_t *) : NULL;
+    uint8_t *me = FIELD(self, OF(ASGU, 0x44), uint8_t *), *mtd = me ? FIELD(me, OF(UNIT, 0x2C), uint8_t *) : NULL;
     if (g_siege && mtd && is_ram(FIELD(mtd, OF(TD, 0x4B8), int)) && s != 0.0f &&
         guarded(FIELD(sg, OF(ASG, 0x190), void *), FIELD(enemy, OF(UNIT, 0x1C), int), FIELD(enemy, OF(UNIT, 0x20), int), 5)) {
         g_ram_waits++;
@@ -457,7 +458,7 @@ static float __fastcall hook_asgu_score(uint8_t *self, void *edx, uint8_t *info)
     uint8_t *etd = FIELD(enemy, OF(UNIT, 0x2C), uint8_t *);
     int efam = etd ? FIELD(etd, OF(TD, 0x4B4), int) : 0;
     if (g_ignore_air && s != 0.0f && me && (efam == 3 || efam == 7 || efam == 17)) {
-        uint8_t *st = FIELD(me, OF(PL, 0x34), uint8_t *);
+        uint8_t *st = FIELD(me, OF(UNIT, 0x34), uint8_t *);
         float r = (st ? FIELD(st, OF(USTAT, 0x9C), float) : FIELD(mtd, OF(TD, 0x420), float)) + 3.0f;
         int dx = FIELD(enemy, OF(UNIT, 0x1C), int) - FIELD(me, OF(PL, 0x1C), int), dy = FIELD(enemy, OF(UNIT, 0x20), int) - FIELD(me, OF(PL, 0x20), int);
         if ((float)(dx * dx + dy * dy) > r * r) {
@@ -473,7 +474,7 @@ static float __fastcall hook_asgu_score(uint8_t *self, void *edx, uint8_t *info)
         return FIELD(enemy, OF(UNIT, 0x1C), int) == bx && FIELD(enemy, OF(UNIT, 0x20), int) == by ? 1000.0f : 500.0f;
     if (s != 0.0f && mass_tether(sg, me, enemy)) return 0.0f;   // mass.c army_mass 16: not far from the pack
     if (!g_leash || s == 0.0f) return s;
-    void *pl = FIELD(sg, OF(ASG, 0x190), void *);
+    ee_player *pl = FIELD(sg, OF(ASG, 0x190), void *);
     if (!pl) return s;
     unsigned pi = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     int ex = FIELD(enemy, OF(UNIT, 0x1C), int), ey = FIELD(enemy, OF(UNIT, 0x20), int);
@@ -505,7 +506,7 @@ static int *route_waypoint(uint8_t *asg, unsigned i) {
 typedef void (__thiscall *AsgFn)(void *self);
 static void __fastcall hook_asg_route_done(uint8_t *self, void *edx) {
     (void)edx;
-    void *pl = FIELD(self, OF(ASG, 0x190), void *);
+    ee_player *pl = FIELD(self, OF(ASG, 0x190), void *);
     if (g_log && pl) {
         unsigned pi = (unsigned)FIELD(pl, PL_INDEX, int) & 15, n = FIELD(self, OF(ASG, 0x70), unsigned), hot = 0;
         char buf[600]; int len = 0;
@@ -523,14 +524,14 @@ static void __fastcall hook_asg_route_done(uint8_t *self, void *edx) {
 }
 
 // Soldiers (not buildings, walls, citizens) of a player, from the unit grid.
-static int army_size(void *pl) {
+static int army_size(ee_player *pl) {
     uint8_t *map = *(uint8_t **)GA(G_MAP);
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     if (!grid) return -1;
     int n = 0;
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
         uint8_t *u = it.u, *td = it.td;
-        if (!td || FIELD(u, OF(UNIT, 0x18), void *) != pl) continue;
+        if (!td || unit_owner(u) != pl) continue;
         // units only sit in the cell of their position
         if (is_army_family(FIELD(td, OF(TD, 0x4B4), int))) n++;
     }
@@ -624,7 +625,7 @@ static void *goal_move(float x, float y) {
 // in 20 minutes). Builders of walls and towers near known enemy towers only (no soldiers there) are left alone: the
 // wall manager sends them again and again.
 static int g_avoid_citizens = 1;
-static int nearest_drop(void *pl, int x, int y, int food, int out[2]);   // sites.c
+static int nearest_drop(ee_player *pl, int x, int y, int food, int out[2]);   // sites.c
 static int tower_covers(unsigned pi, float x, float y) {
     for (int k = 0; k < g_threat[pi].n; k++) {
         struct defence *d = &g_threat[pi].d[k];
@@ -633,7 +634,7 @@ static int tower_covers(unsigned pi, float x, float y) {
     }
     return 0;
 }
-static int route_covered(void *pl, int fx, int fy, int tx, int ty) {   // fx = -10000: the site only
+static int route_covered(ee_player *pl, int fx, int fy, int tx, int ty) {   // fx = -10000: the site only
     if (!pl) return 0;
     unsigned pi = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     threat_refresh(pl, game_time());
@@ -646,7 +647,7 @@ static int route_covered(void *pl, int fx, int fy, int tx, int ty) {   // fx = -
         if (tower_covers(pi, (float)fx + dx * (float)t / (float)n, (float)fy + dy * (float)t / (float)n)) return 1;
     return 0;
 }
-static int route_danger(void *pl, int fx, int fy, int tx, int ty) {
+static int route_danger(ee_player *pl, int fx, int fy, int tx, int ty) {
     return g_avoid_citizens && route_covered(pl, fx, fy, tx, ty);
 }
 // Raiders: enemy soldiers (land units or ships with an attack, not citizens) this AI can see within r tiles of x, y -
@@ -658,7 +659,7 @@ static int route_danger(void *pl, int fx, int fy, int tx, int ty) {
 #define RAID_MAX    15
 #define RAID_FAR    27   // citizen_threats: artillery (12-14), mortars (10-11), ships (24) at their own reach
 static int g_cit_threats = 1;   // [all] citizen_threats (below, DAMAGE MEMORY)
-static int raiders_near(void *pl, int x, int y, int r0) {
+static int raiders_near(ee_player *pl, int x, int y, int r0) {
     int rmax = g_cit_threats ? RAID_FAR : RAID_MAX;
     int r = r0 > rmax ? r0 : rmax;   // the search box; each unit then by its own reach
     uint8_t *map = *(uint8_t **)GA(G_MAP);
@@ -675,13 +676,13 @@ static int raiders_near(void *pl, int x, int y, int r0) {
         if (reach > rmax) reach = rmax;
         if (reach < r0) reach = r0;
         if (abs(FIELD(u, OF(UNIT, 0x1C), int) - x) > reach || abs(FIELD(u, OF(UNIT, 0x20), int) - y) > reach) continue;
-        void *o = FIELD(u, OF(UNIT, 0x18), void *);   // not nature (player 0: wild animals)
+        ee_player *o = unit_owner(u);   // not nature (player 0: wild animals)
         if (o && FIELD(o, PL_INDEX, int) > 0 && is_enemy(pl, o) && seen_by(u, pl)) return 1;
     }
     return 0;
 }
 // enemy soldiers on the way from x0,y0 to x1,y1 (every 4 tiles from the 5th, within 4) or within 6 of the end
-static int path_raided(void *pl, int x0, int y0, int x1, int y1) {
+static int path_raided(ee_player *pl, int x0, int y0, int x1, int y1) {
     float dx = (float)(x1 - x0), dy = (float)(y1 - y0), l = sqrtf(dx * dx + dy * dy);
     for (float t = 5; t < l; t += 4)
         if (raiders_near(pl, x0 + (int)(dx / l * t), y0 + (int)(dy / l * t), 4)) return 1;
@@ -689,7 +690,7 @@ static int path_raided(void *pl, int x0, int y0, int x1, int y1) {
 }
 // where a citizen at x,y flees while the base is overrun: the rally point if the way is clear, else 12 tiles in the
 // clear direction (of 8) nearest the rally point; none clear: the rally point after all
-static void flee_point(void *pl, int x, int y, float rx, float ry, float *fx, float *fy) {
+static void flee_point(ee_player *pl, int x, int y, float rx, float ry, float *fx, float *fy) {
     *fx = rx; *fy = ry;
     if (!path_raided(pl, x, y, (int)rx, (int)ry)) return;
     float msz = (float)*(uint32_t *)(*(uint8_t **)GA(G_MAP) + OF(MAP, 0x1816FC)), best = 1e9f;
@@ -749,11 +750,11 @@ static int hurt_near(unsigned pi, int x, int y) {   // citizens hurt within 6 ti
     }
     return n;
 }
-static int hurt_danger(void *pl, int x, int y, int res) {   // res: 2 food, 3 wood, 4 stone, 5 gold, 6 iron, -1 unknown
+static int hurt_danger(ee_player *pl, int x, int y, int res) {   // res: 2 food, 3 wood, 4 stone, 5 gold, 6 iron, -1 unknown
     if (!g_cit_threats || !pl) return 0;
     return hurt_near((unsigned)FIELD(pl, PL_INDEX, int) & 15, x, y) >= (res >= 4 ? 3 : 1);
 }
-static int site_danger_res(void *pl, void *site, int food, int res) {   // from the nearest drop site
+static int site_danger_res(ee_player *pl, void *site, int food, int res) {   // from the nearest drop site
     if (!g_avoid_citizens || !pl || !site) return 0;
     int x = FIELD(site, OF(UNIT, 0x1C), int), y = FIELD(site, OF(UNIT, 0x20), int), d[2];
     if (raiders_near(pl, x, y, 6)) return 1;   // the searches refuse a raided site too (else: sent back, sent again)
@@ -761,7 +762,7 @@ static int site_danger_res(void *pl, void *site, int food, int res) {   // from 
     if (!nearest_drop(pl, x, y, food, d)) d[0] = -10000;
     return route_danger(pl, d[0], d[1], x, y);
 }
-static int site_danger(void *pl, void *site, int food) { return site_danger_res(pl, site, food, food ? 2 : -1); }
+static int site_danger(ee_player *pl, void *site, int food) { return site_danger_res(pl, site, food, food ? 2 : -1); }
 static void *goal_move(float x, float y);
 static int unit_goal(uint8_t *u, void *goal, int append, int prio);
 static int muster_rally(unsigned idx, float *x, float *y);   // defence.c: the rally point while the base is overrun
@@ -772,17 +773,17 @@ static unsigned g_repair_refused[16];   // repair orders refused at buildings un
 // citizens, so they marched on and died there: all 34 of Hedda's, first into the player's town, then into Livia's
 // (her economy dead at minute 46, the stock frozen). A citizen of list 0 walking to a point within 6 tiles of an
 // enemy building and over 15 tiles from its own drop sites is sent home (not to the muster's rally point).
-static int building_at(void *pl, const int *dest, int r);
+static int building_at(ee_player *pl, const int *dest, int r);
 static unsigned g_noroom[16][6];   // econ.c
 static int g_bunkers;   // bunker.c: citizens under fire into a fortress
-static void bk_refresh(void *pl, unsigned pi);
-static int bk_shelter(void *pl, uint8_t *u);
-static void bk_flush(void *pl, unsigned pi, uint32_t now);
-static void bk_build(void *pl, unsigned pi, uint32_t now);
-static void bk_reserve_tick(void *pl, unsigned pi, uint32_t now);
+static void bk_refresh(ee_player *pl, unsigned pi);
+static int bk_shelter(ee_player *pl, uint8_t *u);
+static void bk_flush(ee_player *pl, unsigned pi, uint32_t now);
+static void bk_build(ee_player *pl, unsigned pi, uint32_t now);
+static void bk_reserve_tick(ee_player *pl, unsigned pi, uint32_t now);
 static int g_bk_res;
 static void citizens_safety(ee_resource_mgr *rm) {   // before the citizen assignment
-    void *pl = rm_player(rm);
+    ee_player *pl = rm_player(rm);
     if (!g_avoid_citizens || !pl) return;
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     static uint32_t next[16], logged[16];
@@ -884,7 +885,7 @@ static void citizens_safety(ee_resource_mgr *rm) {   // before the citizen assig
         char other[64] = "";
         for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
             uint8_t *u = it.u, *td = it.td;
-            if (FIELD(u, OF(UNIT, 0x18), void *) != pl || FIELD(u, OF(UNIT, 0x3C), int) <= 0 || !is_citizen_type(FIELD(td, OF(TD, 0x4B8), int))) continue;
+            if (unit_owner(u) != pl || FIELD(u, OF(UNIT, 0x3C), int) <= 0 || !is_citizen_type(FIELD(td, OF(TD, 0x4B8), int))) continue;
             uint8_t *g = FIELD(u, OF(UNIT, 0x1EC), uint8_t *);
             const char *gd = g ? rtti_name(g) : "";
             int k = !g ? 5 : !strcmp(gd, "EEUGGather@@") ? 0 : !strcmp(gd, "EEUGBuildRepair@@") ? 1 :
@@ -924,7 +925,7 @@ static void citizens_safety(ee_resource_mgr *rm) {   // before the citizen assig
 // building (as citizens_safety): the goal deleted (its vf0, which lets go of the building), the citizen keeps its work.
 static void __fastcall hook_repair_goal(uint8_t *u, void *edx, uint8_t *goal, int append, int prio) {
     (void)edx;
-    void *pl = u ? FIELD(u, OF(UNIT, 0x18), void *) : NULL;
+    ee_player *pl = u ? unit_owner(u) : NULL;
     uint8_t *b = goal && *(uintptr_t *)goal == GA(VT_GOAL_BUILD) ? FIELD(goal, OF(GOAL, 0x3C), uint8_t *) : NULL;
     if (g_avoid_citizens && pl && b && !is_vanilla(pl) && raiders_near(pl, FIELD(b, OF(UNIT, 0x1C), int), FIELD(b, OF(UNIT, 0x20), int), 8)) {
         g_repair_refused[(unsigned)FIELD(pl, PL_INDEX, int) & 15]++;
@@ -976,13 +977,13 @@ static int bq_has(uint8_t *bm, int type) {
     return 0;
 }
 
-static int siege_want(void *pl, unsigned pi) {   // 2 + a quarter of the known enemy defences, at most 4; a breach: 2
+static int siege_want(ee_player *pl, unsigned pi) {   // 2 + a quarter of the known enemy defences, at most 4; a breach: 2
     int want = g_threat[pi].n ? 2 + g_threat[pi].n / 4 : 0;
     for (int k = 0; k < 64 && !want; k++)
         if (g_breaches[k].sg && g_breaches[k].pl == pl) want = 2;
     return want > 4 ? 4 : want;
 }
-static void siege_train(void *pl, unsigned pi, int have, uint32_t now) {
+static void siege_train(ee_player *pl, unsigned pi, int have, uint32_t now) {
     int want = siege_want(pl, pi);
     if (have >= want || (now >= g_siege_train[pi].last_try && now - g_siege_train[pi].last_try < 30000)) return;
     if (now < g_siege_st[pi].pause_until && g_siege_st[pi].pause_until - now <= 600000) return;   // lost too many
@@ -994,7 +995,7 @@ static void siege_train(void *pl, unsigned pi, int have, uint32_t now) {
     int factory = 0;
     for (struct grid_it it = grid_it_all(1); !factory && grid_it_next(&it); ) {
         uint8_t *u = it.u, *td = it.td;
-        if (td && FIELD(u, OF(UNIT, 0x18), void *) == pl && FIELD(td, OF(TD, 0x4B8), int) == UT(B_SIEGE_FACTORY)) { factory = 1; break; }
+        if (td && unit_owner(u) == pl && FIELD(td, OF(TD, 0x4B8), int) == UT(B_SIEGE_FACTORY)) { factory = 1; break; }
     }
     if (!factory) {
         // the build manager (cm +0x3C) works through per-epoch queues (+4 + epoch*0x14, 12-byte entries {type, x, y};
@@ -1034,7 +1035,7 @@ static void siege_train(void *pl, unsigned pi, int have, uint32_t now) {
     g_siege_train[pi].failed++;
 }
 
-static void siege_tick(void *pl, uint32_t now) {
+static void siege_tick(ee_player *pl, uint32_t now) {
     unsigned pi = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     if (!g_siege || (now >= g_siege_st[pi].last && now - g_siege_st[pi].last < 2000)) return;
     g_siege_st[pi].last = now;
@@ -1046,7 +1047,7 @@ static void siege_tick(void *pl, uint32_t now) {
     uint8_t *siege[MAXS]; int ns = 0; float sx = 0, sy = 0, srange = 99;
     for (struct grid_it it = grid_it_all(1); ns < MAXS && grid_it_next(&it); ) {
         uint8_t *u = it.u, *td = it.td;
-        if (!td || FIELD(u, OF(UNIT, 0x18), void *) != pl || !is_siege(FIELD(td, OF(TD, 0x4B8), int)) || FIELD(u, OF(UNIT, 0x3C), int) <= 0) continue;
+        if (!td || unit_owner(u) != pl || !is_siege(FIELD(td, OF(TD, 0x4B8), int)) || FIELD(u, OF(UNIT, 0x3C), int) <= 0) continue;
         uint8_t *st = FIELD(u, OF(UNIT, 0x34), uint8_t *);
         float r = st ? FIELD(st, OF(USTAT, 0x9C), float) : FIELD(td, OF(TD, 0x420), float);
         if (r < srange) srange = r;
@@ -1164,7 +1165,7 @@ static void siege_tick(void *pl, uint32_t now) {
     int want = nhome * 3 / 2 < 4 ? 4 : nhome * 3 / 2, escorts = 0, idle = 0;
     for (struct grid_it it = grid_it_all(1); idle < 2 && grid_it_next(&it); ) {
         uint8_t *u = it.u, *td = it.td;
-        if (!td || FIELD(u, OF(UNIT, 0x18), void *) != pl || FIELD(u, OF(UNIT, 0x1EC), void *) || FIELD(u, OF(UNIT, 0x3C), int) <= 0) continue;
+        if (!td || unit_owner(u) != pl || FIELD(u, OF(UNIT, 0x1EC), void *) || FIELD(u, OF(UNIT, 0x3C), int) <= 0) continue;
         int fam = FIELD(td, OF(TD, 0x4B4), int);
         idle += fam == 5 && is_soldier(td);   // land soldiers (is_soldier: no citizens, siege, rams - the ram 158 was missed)
     }
@@ -1186,7 +1187,7 @@ static void siege_tick(void *pl, uint32_t now) {
     // the hand-written loop checked MAXE only per cell)
     for (struct grid_it it = grid_it_all(1); escorts < want && escorts < MAXE && grid_it_next(&it); ) {
         uint8_t *u = it.u, *td = it.td;
-        if (FIELD(u, OF(UNIT, 0x18), void *) != pl || FIELD(u, OF(UNIT, 0x1EC), void *) || FIELD(u, OF(UNIT, 0x3C), int) <= 0) continue;
+        if (unit_owner(u) != pl || FIELD(u, OF(UNIT, 0x1EC), void *) || FIELD(u, OF(UNIT, 0x3C), int) <= 0) continue;
         int fam = FIELD(td, OF(TD, 0x4B4), int);
         if (fam != 5 || !is_soldier(td)) continue;   // land soldiers only (no citizens, siege, rams - 158 too)
         float ex = (float)FIELD(u, OF(UNIT, 0x1C), int) - px, ey = (float)FIELD(u, OF(UNIT, 0x20), int) - py;
@@ -1206,7 +1207,7 @@ static void charge_tick(uint32_t now);
 // members alive and their centre, waypoints, engaged members, what the members do (march/fight/other/idle)
 static unsigned g_trace_mask;
 static struct { uint8_t *sg; int state, goal_x, goal_y; } g_trace[64];
-static void asg_trace_tick(void *pl, uint32_t now) {
+static void asg_trace_tick(ee_player *pl, uint32_t now) {
     unsigned p = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     if (!(g_trace_mask & (1u << p)) || !g_log) return;
     uint8_t *cbm = FIELD(pl, OF(PL, 0xB8C), uint8_t *), *cmd = cbm ? FIELD(cbm, OF(AM, 0x48), uint8_t *) : NULL;
@@ -1262,8 +1263,8 @@ static void cmd_asgtrace(char *out, const char *args) {
     REPLY("attack subgroup trace: mask %x\n", g_trace_mask);
 }
 
-static void attack_log(void *pl, uint32_t now);
-static void attack_tick(void *pl, uint32_t now) {
+static void attack_log(ee_player *pl, uint32_t now);
+static void attack_tick(ee_player *pl, uint32_t now) {
     asg_trace_tick(pl, now);
     charge_tick(now);
     threat_refresh(pl, now);   // also with avoid_towers=0: the route log compares both
@@ -1274,12 +1275,12 @@ static void attack_tick(void *pl, uint32_t now) {
 }
 // a vanilla player (game/players.c is_vanilla): the game's own AI - only the mod's log lines (army, battle statistics,
 // spending, gathering, attack times), so the scorers see both sides
-static void vanilla_tick(void *pl, uint32_t now) {
+static void vanilla_tick(ee_player *pl, uint32_t now) {
     econ_vanilla_log(pl, now);
     attack_log(pl, now);
 }
 // the army line every 5 minutes, the battle statistics every 10
-static void attack_log(void *pl, uint32_t now) {
+static void attack_log(ee_player *pl, uint32_t now) {
     {
         unsigned i = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
         if (g_log && now / 300000 != g_mil[i].last_log / 300000) {
@@ -1363,7 +1364,7 @@ static void asg_purge(uint8_t *sg) {
 }
 // every attack subgroup of AI pl: before the mod calls its attacks off (0x43033E with 1, which reads the members first,
 // 0x454B90) - with a record without its unit it crashed there at once (test: nullmember P off)
-static void asg_purge_all(void *pl) {
+static void asg_purge_all(ee_player *pl) {
     uint8_t *cbm = pl ? FIELD(pl, OF(PL, 0xB8C), uint8_t *) : NULL, *cmd = cbm ? FIELD(cbm, OF(AM, 0x48), uint8_t *) : NULL;
     if (!cmd) return;
     uint8_t *dq = cmd + 4;
@@ -1539,7 +1540,7 @@ static void attack_install(const char *aimod_ini, const char *autotest_ini) {
 // threat <player>: the enemy defences this AI knows about
 static void cmd_threat(char *out, const char *args) {
     int p = atoi(args);
-    void *pl = (p >= 0 && p < 16) ? g_players[p] : NULL;
+    ee_player *pl = (p >= 0 && p < 16) ? g_players[p] : NULL;
     if (!pl) { REPLY("error: no AI player %d\n", p); return; }
     threat_refresh(pl, 0);
     REPLY("P%d knows %d enemy defences (route steps costed %u, penalised %u)\n", p, g_threat[p].n,
@@ -1554,14 +1555,15 @@ static void cmd_threat(char *out, const char *args) {
 // many of them march (EEUGLocation), fight (EEUGAttackUnit), sit in or wait for a transport, or do nothing
 static void cmd_attacks(char *out, const char *args) {
     int p = atoi(args);
-    void *pl = (p > 0 && p < 16) ? g_players[p] : NULL;
+    ee_player *pl = (p > 0 && p < 16) ? g_players[p] : NULL;
     uint8_t *cbm = pl ? FIELD(pl, OF(PL, 0xB8C), uint8_t *) : NULL, *cmd = cbm ? FIELD(cbm, OF(AM, 0x48), uint8_t *) : NULL;
     if (!cmd) { REPLY("error: no AI player %d with an attack commander\n", p); return; }
     uint8_t *dq = cmd + 4;
     unsigned first = FIELD(dq, 0xC, unsigned), cnt = FIELD(dq, 0x10, unsigned);
     REPLY("P%d: %u attack groups, next attack at %.1f min\n", p, cnt, FIELD(pl, OF(PL, 0xED8), uint32_t) / 60000.0);
     for (unsigned k = 0; k < cnt && k < 16; k++) {
-        uint8_t *g = deque_at(dq, first + k), *target = g ? FIELD(g, OF(AG, 0x48), uint8_t *) : NULL;
+        uint8_t *g = deque_at(dq, first + k);
+        ee_player *target = g ? FIELD(g, OF(AG, 0x48), ee_player *) : NULL;
         if (!g) continue;
         int ns = 0;
         for (uint8_t **sp = FIELD(g, OF(AG, 0x8), uint8_t **); sp && sp < FIELD(g, OF(AG, 0xC), uint8_t **); sp++) ns++;
@@ -1597,7 +1599,7 @@ static void cmd_attacks(char *out, const char *args) {
                     if (gl && *(uintptr_t *)gl == GA(VT_GOAL_ATTACK)) t = FIELD(gl, OF(GOAL, 0x30), uint8_t *);
                     REPLY("       %d at %d,%d hp %d: %s", FIELD(FIELD(u, OF(UNIT, 0x2C), uint8_t *), OF(TD, 0x4B8), int),
                           FIELD(u, OF(UNIT, 0x1C), int), FIELD(u, OF(UNIT, 0x20), int), FIELD(u, OF(UNIT, 0x3C), int), gl ? rtti_name(gl) : "-");
-                    if (t) REPLY(" P%d's %d (family %d) at %d,%d", FIELD(FIELD(t, OF(UNIT, 0x18), uint8_t *), PL_INDEX, int),
+                    if (t) REPLY(" P%d's %d (family %d) at %d,%d", FIELD(unit_owner(t), PL_INDEX, int),
                                  FIELD(FIELD(t, OF(UNIT, 0x2C), uint8_t *), OF(TD, 0x4B8), int), FIELD(FIELD(t, OF(UNIT, 0x2C), uint8_t *), OF(TD, 0x4B4), int),
                                  FIELD(t, OF(UNIT, 0x1C), int), FIELD(t, OF(UNIT, 0x20), int));
                     REPLY(" rec+48 %08x\n", FIELD(*r, OF(ASGU, 0x48), unsigned));

@@ -641,14 +641,14 @@ static const char *llm_language(void) {
 // what situation k is, for pl's model (prompt sit_<line key>); in the third person for both sides of a talk between
 // AIs (pair_<line key>; in the speaker's words "has betrayed you" the other's model took the betrayal for its own) -
 // NULL where there is none; *vars: the names to fill it with (tpl_find)
-static const char *llm_situation(void *pl, int k, const struct xvars **vars) {
+static const char *llm_situation(ee_player *pl, int k, const struct xvars **vars) {
     char key[64];
     wsprintfA(key, "sit_%s", k_lines[k].key);
     if (tpl_key(key) >= 0) return tpl_find(pl, key, vars);
     *vars = &g_prompt.vars;
     return k_lines[k].key;
 }
-static const char *llm_event3(void *pl, int k, const struct xvars **vars) {
+static const char *llm_event3(ee_player *pl, int k, const struct xvars **vars) {
     char key[64];
     wsprintfA(key, "pair_%s", k_lines[k].key);
     return tpl_key(key) >= 0 ? tpl_find(pl, key, vars) : NULL;
@@ -666,7 +666,7 @@ static void tcat(char *t, int *o, int cap, const char *fmt, ...) {
 static int llm_deciding(void);
 static int llm_ai_deciding(void);
 // tools: -1 a line (no decision), else the TOOL_ bits offered with this request (decide mode)
-static void llm_system(struct sbuf *b, void *pl, int ai, int h, int tools) {
+static void llm_system(struct sbuf *b, ee_player *pl, int ai, int h, int tools) {
     int decide = tools >= 0 && (g_players[h & 15] ? llm_ai_deciding() : llm_deciding());
     struct persona *p = persona_of(pl);
     char t[4096];
@@ -743,7 +743,7 @@ static void self_history(struct sbuf *b, int ai, int other) {
                 tsub(u, sizeof u, "event", pa, po, "text", ev, NULL);
             } else tsub(u, sizeof u, role == 2 ? "event" : "writes", pa, po, "text", t, NULL);
         } else {
-            void *pw = player_at(with);
+            ee_player *pw = player_at(with);
             if (!pw) continue;
             tsub(u, sizeof u, role == 0 ? "mem_heard" : role == 1 ? "mem_said" : "mem_event", pa, pw, "text", t, NULL);
         }
@@ -751,7 +751,7 @@ static void self_history(struct sbuf *b, int ai, int other) {
     }
 }
 static void llm_history(struct sbuf *b, int ai) {   // his lines framed with his name (whose "my" it is)
-    void *pl = player_at(ai), *ph = player_at((int)*(unsigned *)GA(G_LOCAL_PLAYER));
+    ee_player *pl = player_at(ai), *ph = player_at((int)*(unsigned *)GA(G_LOCAL_PLAYER));
     if (g_llm_mem_player) { self_history(b, ai, (int)(*(unsigned *)GA(G_LOCAL_PLAYER) & 15)); return; }
     for (int i = 0; i < g_llm_hist[ai].n; i++) {
         char u[LLM_MAXLEN + 120];
@@ -773,7 +773,7 @@ static void sb_tool(struct sbuf *b, const char *name, const char *desc, const ch
 }
 // AI DECIDE: h's offer to AI ai stands and ai may take it - 0 an alliance, 1 a capitulation; -1 none
 static int pair_accept(int ai, int h) {
-    void *pl = player_at(ai), *ph = player_at(h);
+    ee_player *pl = player_at(ai), *ph = player_at(h);
     if (!pl || !ph || is_out(pl) || is_out(ph) || !g_offer_t[h][ai] || g_offer_kind[h][ai] > 1 || (g_llm_constrained && is_vassal(ai))) return -1;
     g_veto_quiet = 1;
     int veto = block_veto(ai, h, game_time(), NULL);
@@ -848,7 +848,7 @@ static void llm_queue(struct llm_job *j, char *body) {
 }
 // a situation for the model: its expressions filled (x_fill, with vars: llm_situation's) - pl speaking to other (none:
 // to everyone), third the enemy - and {tribute}, {tribute_total} (as in the lines: line_ctx_init)
-static void llm_subst(char *out, int cap, const char *s, const struct xvars *vars, void *pl, void *other, void *third) {
+static void llm_subst(char *out, int cap, const char *s, const struct xvars *vars, ee_player *pl, ee_player *other, ee_player *third) {
     char trib[96], tot[16];
     int total = 0;
     tribute_text(g_say_tribute, trib, sizeof trib);
@@ -864,7 +864,7 @@ static void llm_subst(char *out, int cap, const char *s, const struct xvars *var
 }
 
 // persona_say: a line the local player hears - 1 if the model says it (later), 0: show the fixed line now
-static int llm_line(void *pl, enum line_kind k, void *other, void *third, const char *fixed) {
+static int llm_line(ee_player *pl, enum line_kind k, ee_player *other, ee_player *third, const char *fixed) {
     if (g_llm_bypass || !llm_ready() || !g_llm_lines || !pl) return 0;
     int ai = pidx(pl), h = (int)*(unsigned *)GA(G_LOCAL_PLAYER);
     int pending = 0;
@@ -909,7 +909,7 @@ static int llm_deciding(void) {
     return llm_ready() && g_llm_decide && !g_mp && !scenario_game() && !TEAMS_LOCKED;
 }
 static int tool_peace_ok(int ai, int h, uint32_t now) {   // at war with h, and peace is possible
-    void *pl = player_at(ai), *ph = player_at(h);
+    ee_player *pl = player_at(ai), *ph = player_at(h);
     if (!pl || !ph || is_out(ph) || is_out(pl) || !stance_of(pl, h) || g_offer_t[ai][h]) return 0;
     if (!g_llm_constrained) return 1;
     if (is_vassal(ai)) return 0;
@@ -920,7 +920,7 @@ static int tool_peace_ok(int ai, int h, uint32_t now) {   // at war with h, and 
     return !veto;
 }
 static int tool_war_ok(int ai, int h, uint32_t now) {   // allied with h for 5+ minutes, h not its lord
-    void *pl = player_at(ai), *ph = player_at(h);
+    ee_player *pl = player_at(ai), *ph = player_at(h);
     if (!pl || !ph || is_out(ph) || is_out(pl) || stance_of(pl, h) || g_offer_t[ai][h]) return 0;
     if (!g_llm_constrained) return 1;
     if (is_vassal(ai) || g_lord[ai] == h) return 0;
@@ -932,7 +932,7 @@ static int tool_tribute_ok(int ai, uint32_t now) {   // every 3 minutes
 static int tribute_cap(int have) { return have <= 0 ? 0 : g_llm_constrained ? have / 4 : have; }   // a quarter of each
 // a tribute the model chose (send_tribute): amt by resource (stock index 2..6), each capped by tribute_cap, moved from
 // pl's stock to ph's; the total paid (noted in the history, what = the amounts' text) or 0
-static int llm_pay(void *pl, void *ph, int ai, int h, const int *amt, uint32_t now, char *what, int wcap, int *paid) {
+static int llm_pay(ee_player *pl, void *ph, int ai, int h, const int *amt, uint32_t now, char *what, int wcap, int *paid) {
     int *from = (int *)((uint8_t *)pl + PL_STOCK), *to = (int *)((uint8_t *)ph + PL_STOCK), total = 0;
     memset(paid, 0, 7 * sizeof *paid);   // by resource (stock index 2..6)
     for (int r = 2; r < 7; r++) {
@@ -959,7 +959,7 @@ static int llm_tools_for(int ai, int h, uint32_t now) {
 }
 // the local player j offers AI ai peace (diplo.c peace_offer): 1 = the model decides (now asked, or still asking),
 // 0 = the rules decide
-static int llm_peace_answer(void *pl, int ai, int j, uint32_t now) {
+static int llm_peace_answer(ee_player *pl, int ai, int j, uint32_t now) {
     int h = (int)*(unsigned *)GA(G_LOCAL_PLAYER);
     if (g_llm_rules || j != h || !llm_deciding() || !tool_peace_ok(ai, j, now)) return 0;
     g_peace_due[ai][j] = now + 120000;   // asked again in 2 minutes while the offer stands
@@ -988,7 +988,7 @@ static int llm_peace_answer(void *pl, int ai, int j, uint32_t now) {
 // or it declined that move in the last 10 minutes: not now), 0: the rules go ahead (no model deciding, or no room)
 static uint32_t g_prop_no[16][P_N];   // [ai][move]: when the model last declined it
 static int llm_propose(int ai, int h, int kind, int third, uint32_t now) {
-    void *pl = player_at(ai), *ph = player_at(h);
+    ee_player *pl = player_at(ai), *ph = player_at(h);
     if (g_llm_rules || !pl || !ph || h != (int)*(unsigned *)GA(G_LOCAL_PLAYER) || !llm_deciding() || kind < 0 || kind >= P_N) return 0;
     if (g_prop_no[ai][kind] && now - g_prop_no[ai][kind] < 600000) return 1;
     for (int i = 0; i < LLM_JOBS; i++)
@@ -1022,14 +1022,14 @@ static int llm_propose(int ai, int h, int kind, int third, uint32_t now) {
 }
 // a decision's answer (game thread, seconds after the question): its tools re-checked and carried out, then its words
 // - or, without words, the fixed line for what it did
-static void llm_fixed(void *pl, enum line_kind k, void *other) {
+static void llm_fixed(ee_player *pl, enum line_kind k, ee_player *other) {
     g_llm_bypass = 1;
     persona_say(pl, k, other, NULL);
     g_llm_bypass = 0;
 }
 static void llm_apply(struct llm_job *j, int ok) {
     int ai = j->ai, h = j->to;
-    void *pl = player_at(ai), *ph = player_at(h);
+    ee_player *pl = player_at(ai), *ph = player_at(h);
     uint32_t now = game_time();
     if (!pl || !ph || h < 1) return;
     char ev[3][300];   // what it did, for its memory - after its words
@@ -1295,7 +1295,7 @@ static int llm_ai_deciding(void) {
 }
 // the steps open to AI ai towards AI h in a message
 static int pair_tools(int ai, int h, uint32_t now) {
-    void *pl = player_at(ai), *ph = player_at(h);
+    ee_player *pl = player_at(ai), *ph = player_at(h);
     if (!llm_ai_deciding() || !pl || !ph || is_out(pl) || is_out(ph)) return 0;
     int t = 0;
     if (pair_accept(ai, h) >= 0) t |= TOOL_PEACE;   // accept its offer
@@ -1307,7 +1307,7 @@ static int pair_tools(int ai, int h, uint32_t now) {
 // a message of speaker to listener: turn 1 opens the exchange on an event (sit, its usual line fixed - or none), later
 // turns answer the other's last message; dec: the exchange is about an offer (AI DECIDE)
 static int talk_request(int speaker, int listener, int turn, const char *sit, const char *fixed, int dec) {
-    void *pl = player_at(speaker), *po = player_at(listener);
+    ee_player *pl = player_at(speaker), *po = player_at(listener);
     if (!pl || !po || !g_players[speaker] || is_out(pl) || is_out(po) || !llm_ready()) return 0;
     struct llm_job *j = llm_slot();
     if (!j) return 0;
@@ -1370,7 +1370,7 @@ static int llm_ai_offer(int from, int to, int kind, int third) {
 // AI DECIDE: the steps a message called, checked again and carried out; events for the pair's memory
 static int talk_apply(struct llm_job *j) {
     int ai = j->ai, h = j->to, did = 0, act = j->act & j->tools;
-    void *pl = player_at(ai), *ph = player_at(h);
+    ee_player *pl = player_at(ai), *ph = player_at(h);
     uint32_t now = game_time();
     if (!pl || !ph || is_out(pl) || is_out(ph)) return 0;
     char ev[400], what[120] = "";
@@ -1420,7 +1420,7 @@ static int talk_apply(struct llm_job *j) {
     return did;
 }
 // persona_say: AI pl's line k to AI other, which the local player doesn't hear - an exchange between them (waits)
-static void llm_talk_event(void *pl, enum line_kind k, void *other, void *third, const char *fixed) {
+static void llm_talk_event(ee_player *pl, enum line_kind k, ee_player *other, ee_player *third, const char *fixed) {
     if (!g_llm_on || !g_llm_ai_talk || g_mp || !pl || !other || k_lines[k].aud != A_NAME) return;
     int a = pidx(pl), b = pidx(other), h = (int)*(unsigned *)GA(G_LOCAL_PLAYER);
     if (a == b || b == h || a == h || !mod_ai(a) || !mod_ai(b)) return;
@@ -1483,7 +1483,7 @@ static int talk_end_mark(char *s) {
 static void talk_done(struct llm_job *j, int ok) {
     if (j->gen != g_llm_gen) return;
     int a = j->ai, b = j->to;
-    void *pl = player_at(a), *po = player_at(b);
+    ee_player *pl = player_at(a), *po = player_at(b);
     if (!ok || (!j->reply[0] && !j->act) || !pl || !po) {
         g_talk_n_fail++;
         if (g_llm_log && g_log) fprintf(g_log, "# llm: talk P%d -> P%d (message %d) no answer (%s)\n", a, b, j->talk, g_llm_last_err);
@@ -1608,7 +1608,7 @@ static void llm_tick(void) {
             older |= o != i && g_llm_jobs[o].state != J_FREE && !g_llm_jobs[o].talk && g_llm_jobs[o].ai == j->ai &&
                      (int)(g_llm_jobs[o].seq - j->seq) < 0;
         if (older) continue;
-        void *pl = j->ai > 0 && j->ai < 16 ? g_players[j->ai] : NULL;
+        ee_player *pl = j->ai > 0 && j->ai < 16 ? g_players[j->ai] : NULL;
         int ok = j->state == J_DONE;
         for (int m = 0; ok && m < j->nmust; m++)
             if (!strstr(j->reply, j->must[m])) {
@@ -1643,7 +1643,7 @@ static void llm_tick(void) {
 
 // a line the local player heard with its fixed text (no model): the AI that spoke last; part of the exchange if it
 // was said to him
-static void llm_heard(void *pl, void *other, const char *text) {
+static void llm_heard(ee_player *pl, ee_player *other, const char *text) {
     if (!g_llm_on || !pl) return;
     if (other && other == player_at((int)*(unsigned *)GA(G_LOCAL_PLAYER))) llm_hist_add(pidx(pl), 1, text);
     g_llm_last_ai = pidx(pl);
@@ -1656,25 +1656,25 @@ static void llm_heard(void *pl, void *other, const char *text) {
 static void cmd_llm(char *out, const char *args) {
     int p = 0, n = 0;
     if (sscanf(args, "filter %d %n", &p, &n) == 1) {
-        uint8_t *pm = player_at((int)*(unsigned *)GA(G_LOCAL_PLAYER));
+        ee_player *pm = player_at((int)*(unsigned *)GA(G_LOCAL_PLAYER));
         if (!pm || p < 0 || p > 3) { REPLY("error: no local player or bad mode\n"); return; }
         FIELD(pm, OF(PL, 0x9E0), int) = p;
-        for (int i = 0; i < 16; i++) pm[0xB2C + i] = 0;
+        for (int i = 0; i < 16; i++) FIELD(pm, OF(PL, 0xB2C) + i, uint8_t) = 0;
         for (const char *s = args + n; p == 3 && *s;) {
             char *e;
             long v = strtol(s, &e, 10);
             if (e == s) break;
-            if (v >= 0 && v < 16) pm[0xB2C + v] = 1;
+            if (v >= 0 && v < 16) FIELD(pm, OF(PL, 0xB2C) + v, uint8_t) = 1;
             s = e;
         }
         REPLY("chat mode %d, chosen:", p);
-        for (int i = 0; i < 16; i++) if (pm[0xB2C + i]) REPLY(" P%d", i);
+        for (int i = 0; i < 16; i++) if (FIELD(pm, OF(PL, 0xB2C) + i, uint8_t)) REPLY(" P%d", i);
         REPLY("\n");
         return;
     }
     int h2 = 0;
     if (sscanf(args, "prompt %d %d", &p, &h2) == 2) {   // the system message and the tools AI p would get towards h2: the log
-        void *pl = player_at(p);
+        ee_player *pl = player_at(p);
         if (!pl || !g_players[p] || !player_at(h2)) { REPLY("error: P%d is no AI or no player %d\n", p, h2); return; }
         struct sbuf b = { 0 };
         llm_system(&b, pl, p, h2, TOOL_PEACE | TOOL_WAR | TOOL_TRIBUTE);
@@ -1687,7 +1687,7 @@ static void cmd_llm(char *out, const char *args) {
         return;
     }
     if (sscanf(args, "say %d %n", &p, &n) == 1 && n) {
-        void *pl = player_at(p);
+        ee_player *pl = player_at(p);
         if (!pl || !g_players[p]) { REPLY("error: P%d is no AI\n", p); return; }
         g_llm_last_ai = p;
         g_llm_last_t = game_time();

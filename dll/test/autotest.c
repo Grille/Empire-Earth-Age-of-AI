@@ -5,7 +5,7 @@ static struct { int skip_intro, scenario_mode, turbo, game_seed; double quit_min
 
 #include "test/randmap.c"
 
-static void autotest_first_tick(void *pl) {
+static void autotest_first_tick(ee_player *pl) {
     if (g_autotest) randmap_ai_toggles(pl);
 }
 

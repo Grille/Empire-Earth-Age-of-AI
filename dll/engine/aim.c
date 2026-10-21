@@ -180,7 +180,7 @@ static void __cdecl hook_aim(uint8_t *u, uint8_t **target, float *aim, void *zer
                 T1, reach1);
     }
     if (g_measure) aim_measure(t, aim, T0, led, T1, g_lead ? reach1 : reach0);
-    if (g_lead && T1 >= 0 && memcmp(led, aim, sizeof led) && !is_vanilla(FIELD(u, OF(UNIT, 0x18), void *))) {   // a vanilla player's units: measured, not led
+    if (g_lead && T1 >= 0 && memcmp(led, aim, sizeof led) && !is_vanilla(unit_owner(u))) {   // a vanilla player's units: measured, not led
         memcpy(aim, led, sizeof led);
         g_led++;
     }
@@ -276,7 +276,7 @@ static void __cdecl hook_missile_aim(uint8_t *m, uint8_t **target, float *aim, v
     g_msl[k].t = t; g_msl[k].last = now;
     memcpy(g_msl[k].p, tp, sizeof tp);
     if (dist < g_msl[k].dist) g_msl[k].dist = dist;
-    if (!g_lead_missiles || !g_msl[k].nv || !(s > 0.01f) || is_vanilla(FIELD(m, OF(UNIT, 0x18), void *))) return;   // tracked, not steered
+    if (!g_lead_missiles || !g_msl[k].nv || !(s > 0.01f) || is_vanilla(unit_owner(m))) return;   // tracked, not steered
     float *v = g_msl[k].v;
     float a = v[0] * v[0] + v[1] * v[1] + v[2] * v[2] - s * s, b = 2 * (r[0] * v[0] + r[1] * v[1] + r[2] * v[2]);
     float c = dist * dist, T = -1;
@@ -306,12 +306,14 @@ static int g_spread = 1;
 static unsigned g_spread_held, g_spread_switched, g_launched;
 
 static int missile_damage(uint8_t *m, uint8_t *t) {
-    uint8_t *lc = FIELD(m, OF(UNIT, 0x1C0), uint8_t *), *pl = FIELD(m, OF(UNIT, 0x18), uint8_t *), *tc = FIELD(t, OF(UNIT, 0x2C), uint8_t *);
-    uint8_t *tpl = FIELD(t, OF(UNIT, 0x18), uint8_t *), *ts = FIELD(t, OF(UNIT, 0x34), uint8_t *);
+    uint8_t *lc = FIELD(m, OF(UNIT, 0x1C0), uint8_t *), *tc = FIELD(t, OF(UNIT, 0x2C), uint8_t *);
+    ee_player *pl = unit_owner(m);
+    ee_player *tpl = unit_owner(t);
+    uint8_t *ts = FIELD(t, OF(UNIT, 0x34), uint8_t *);
     if (!lc || !pl || !tc || !tpl || !ts) return 0;
     int ac = FIELD(lc, OF(TD, 0x4C0), int), dc = FIELD(tc, OF(TD, 0x4C0), int);
     if (ac < 0 || ac > 5 || dc < 0 || dc > 15) return 0;
-    uint8_t **rec = GF(FN_TYPE_STATS)(pl + OF(PL, 0x874), FIELD(lc, OF(TD, 0x4B8), int));
+    uint8_t **rec = GF(FN_TYPE_STATS)(FIELD_AT(pl, OF(PL, 0x874)), FIELD(lc, OF(TD, 0x4B8), int));
     float atk = rec && *rec ? FIELD(*rec, OF(USTAT, 0xD8), float) : 0;
     if (!(atk > 0)) return 0;
     float bonus = GF(FN_ATTACK_BONUS)((void *)GA(G_BONUS_TABLE), FIELD(lc, OF(TD, 0x4C8), int),
@@ -355,7 +357,7 @@ static int __fastcall hook_missile_launch(uint8_t *cls, void *edx, uint8_t *m, f
 
 // The nearest enemy of the same kind as t within u's range, seen by u's owner and not covered yet.
 static uint8_t *spread_target(uint8_t *u, uint8_t *t) {
-    void *pl = FIELD(u, OF(UNIT, 0x18), void *);
+    ee_player *pl = unit_owner(u);
     if (!pl) return NULL;
     int fam = FIELD(FIELD(t, OF(UNIT, 0x2C), uint8_t *), OF(TD, 0x4B4), int);
     float x = FIELD(u, OF(UNIT, 0x13C), float), y = FIELD(u, OF(UNIT, 0x14C), float), range = FIELD(FIELD(u, OF(UNIT, 0x34), uint8_t *), OF(USTAT, 0x9C), float);
@@ -366,7 +368,7 @@ static uint8_t *spread_target(uint8_t *u, uint8_t *t) {
     for (struct grid_it it = grid_it_box((int)x, (int)y, r, 1); grid_it_next(&it); ) {
         uint8_t *c = it.u, *cc = it.td;
         if (c == t || FIELD(c, OF(UNIT, 0x3C), int) <= 0 || FIELD(cc, OF(TD, 0x4B4), int) != fam) continue;
-        if (!is_enemy(pl, FIELD(c, OF(UNIT, 0x18), void *)) || !seen_by(c, pl) || doomed(c)) continue;
+        if (!is_enemy(pl, unit_owner(c)) || !seen_by(c, pl) || doomed(c)) continue;
         float dx = FIELD(c, OF(UNIT, 0x13C), float) - x, dy = FIELD(c, OF(UNIT, 0x14C), float) - y, d = dx * dx + dy * dy;
         if (d <= bd) { bd = d; best = c; }
     }
@@ -408,7 +410,7 @@ static void __fastcall hook_fire(uint8_t *cls, void *edx, uint8_t *u) {
     fr_note(u);
     uint8_t *pc = FIELD(cls, OF(TD, 0x3FC), uint8_t *), *goal = FIELD(u, OF(UNIT, 0x1EC), uint8_t *);
     uint8_t *t = goal && goal[5] == 2 ? FIELD(goal, OF(GOAL, 0x30), uint8_t *) : NULL;
-    if (g_spread && t && pc && *(uintptr_t *)pc == GA(VT_MISSILE) && !is_vanilla(FIELD(u, OF(UNIT, 0x18), void *)) && doomed(t)) {
+    if (g_spread && t && pc && *(uintptr_t *)pc == GA(VT_MISSILE) && !is_vanilla(unit_owner(u)) && doomed(t)) {
         uint8_t *alt = spread_target(u, t);
         if (!alt) { g_spread_held++; return; }
         g_spread_switched++;

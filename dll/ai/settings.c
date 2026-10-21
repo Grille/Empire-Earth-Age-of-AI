@@ -46,7 +46,7 @@ static const char *const k_diff_sections[3] = { "easy", "medium", "hard" };
 static struct ai_cfg g_cfg_pl[16];
 static uint8_t g_cfg_pl_on[16];
 
-static const struct ai_cfg *cfg_of(void *pl) {
+static const struct ai_cfg *cfg_of(ee_player *pl) {
     if (pl) {
         unsigned i = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
         if (g_cfg_pl_on[i]) return &g_cfg_pl[i];
@@ -192,7 +192,7 @@ static void settings_load(const char *ini, const char *test_ini) {
 }
 
 // Once per AI player per game (first AI update).
-static void settings_apply(void *pl) {
+static void settings_apply(ee_player *pl) {
     const struct ai_cfg *c = cfg_of(pl);
     int d = FIELD(pl, PL_DIFFICULTY, int);
     if (c->cost_percent > 0) {

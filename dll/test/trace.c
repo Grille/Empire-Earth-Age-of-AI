@@ -7,7 +7,7 @@ static uint32_t g_trace_until_ms;
 
 static int tracing(void *rm) {
     if (g_trace_player < 0) return 0;
-    void *pl = rm_player(rm);
+    ee_player *pl = rm_player(rm);
     if (!pl || (FIELD(pl, PL_INDEX, int) != g_trace_player)) return 0;
     return !g_trace_until_ms || game_time() < g_trace_until_ms;
 }
@@ -112,24 +112,24 @@ static void *__fastcall tr_farms(void *rm, void *edx, uintptr_t n, uintptr_t out
 // [1] count, ...), 0x48EE84(?) is the citizen-training path. Logged with the player's stock deltas.
 static void *um_player(void *um) {
     for (int i = 0; i < 16; i++) {
-        void *pl = g_players[i];
+        ee_player *pl = g_players[i];
         void *cm = pl ? FIELD(pl, OF(PL, 0xB90), void *) : NULL;
         if (cm && FIELD(cm, OF(CM, 0x44), void *) == um) return pl;
     }
     return NULL;
 }
-static void stock_delta(char *buf, size_t cap, void *pl, const int *before) {
+static void stock_delta(char *buf, size_t cap, ee_player *pl, const int *before) {
     size_t n = strlen(buf);
     snprintf(buf + n, cap - n, " spent(f,w,s,g,i)=%d,%d,%d,%d,%d", before[2] - FIELD(pl, PL_STOCK + 8, int),
              before[3] - FIELD(pl, PL_STOCK + 12, int), before[4] - FIELD(pl, PL_STOCK + 16, int),
              before[5] - FIELD(pl, PL_STOCK + 20, int), before[6] - FIELD(pl, PL_STOCK + 24, int));
 }
-static int trace_pl(void *pl) {
+static int trace_pl(ee_player *pl) {
     return pl && FIELD(pl, PL_INDEX, int) == g_trace_player && (!g_trace_until_ms || game_time() < g_trace_until_ms);
 }
 
 // Called by econ.c's hook_train_units after every unit-training call.
-static void trace_train(void *pl, int *req, uintptr_t r, const int *before, const int *reserve) {
+static void trace_train(ee_player *pl, int *req, uintptr_t r, const int *before, const int *reserve) {
     if (!trace_pl(pl)) return;
     if (!memcmp(before, (uint8_t *)pl + PL_STOCK, 7 * sizeof(int)) && r == 0) return;   // nothing happened
     char buf[300];
@@ -140,7 +140,7 @@ static void trace_train(void *pl, int *req, uintptr_t r, const int *before, cons
 
 static uintptr_t __fastcall tr_train_citizens(void *um, void *edx, uintptr_t a) {
     (void)edx;
-    void *pl = um_player(um);
+    ee_player *pl = um_player(um);
     int before[7];
     if (pl) memcpy(before, (uint8_t *)pl + PL_STOCK, sizeof before);
     uintptr_t r = GF(FN_TRAIN_CITIZENS)(um, a);
@@ -211,7 +211,7 @@ static int start_hook(void) {
 struct sync_units { unsigned n; uint32_t h; };
 static uint32_t g_sync_dump0, g_sync_dump1;
 static uint32_t sync_unit_hash(uint8_t *u) {
-    void *owner = FIELD(u, OF(UNIT, 0x18), void *);
+    ee_player *owner = unit_owner(u);
     uint8_t *td = FIELD(u, OF(UNIT, 0x2C), uint8_t *);
     uint32_t v[5] = { owner ? (uint32_t)(FIELD(owner, PL_INDEX, int) & 15) : 99u, td ? (uint32_t)FIELD(td, OF(TD, 0x4B8), int) : 0u,
                       (uint32_t)FIELD(u, OF(UNIT, 0x1C), int), (uint32_t)FIELD(u, OF(UNIT, 0x20), int), (uint32_t)FIELD(u, OF(UNIT, 0x3C), int) }, h = 2166136261u;
@@ -225,7 +225,7 @@ static void sync_unit(uint8_t *u, void *ctx) {
 }
 static void sync_unit_dump(uint8_t *u, void *ctx) {
     (void)ctx;
-    void *owner = FIELD(u, OF(UNIT, 0x18), void *);
+    ee_player *owner = unit_owner(u);
     uint8_t *td = FIELD(u, OF(UNIT, 0x2C), uint8_t *);
     fprintf(g_sync, "  u P%d type %d at %d,%d hp %d\n", owner ? FIELD(owner, PL_INDEX, int) & 15 : -1, td ? FIELD(td, OF(TD, 0x4B8), int) : -1,
             FIELD(u, OF(UNIT, 0x1C), int), FIELD(u, OF(UNIT, 0x20), int), FIELD(u, OF(UNIT, 0x3C), int));
@@ -263,9 +263,9 @@ static void sync_step(void *phys) {   // after each step (control.c hook_phys_st
     uint32_t h = 2166136261u;
     unsigned n = *(unsigned *)GA(G_PLAYERS_N);
     for (unsigned i = 1; i < n && i < 16; i++) {
-        uint8_t *pl = ((uint8_t **)GA(G_PLAYERS))[i];
+        ee_player *pl = ((ee_player **)GA(G_PLAYERS))[i];
         if (!pl) continue;
-        for (int k = 0; k < 7 * 4; k++) h = (h ^ pl[PL_STOCK + k]) * 16777619u;
+        for (int k = 0; k < 7 * 4; k++) h = (h ^ FIELD(pl, PL_STOCK + k, uint8_t)) * 16777619u;
     }
     struct sync_units su = { 0, 0 };
     grid_each(sync_unit, &su);

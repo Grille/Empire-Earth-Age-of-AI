@@ -82,7 +82,7 @@ static void prompt_check(const struct persona *p) {   // mod/prompt.eeai: a text
 }
 // the text of prompt key for the model of AI pl: its personality's own, else the first of its layers' (mod/prompt.eeai
 // the last); *vars: the names it is filled with - those of the file it came from (with its layers')
-static const char *tpl_find(void *pl, const char *key, const struct xvars **vars) {
+static const char *tpl_find(ee_player *pl, const char *key, const struct xvars **vars) {
     const struct persona *p = persona_of(pl);
     if (!p) p = g_has_computer ? &g_computer : &g_prompt;   // an AI without a personality, a human player
     int i = tpl_key(key);
@@ -94,7 +94,7 @@ static const char *tpl_find(void *pl, const char *key, const struct xvars **vars
     *vars = &g_prompt.vars;
     return key;   // no such key, or none in mod/prompt.eeai (told when it was read)
 }
-static const char *tpl_text(void *pl, const char *key) { const struct xvars *v; return tpl_find(pl, key, &v); }
+static const char *tpl_text(ee_player *pl, const char *key) { const struct xvars *v; return tpl_find(pl, key, &v); }
 // expr.c x_name_check: the placeholders the code fills for a key (k_sys, k_tpl; a situation's description, sit_ and
 // pair_, and a personality's line: {tribute}, {tribute_total} - line_ctx_init, llm_subst); for the names (vars: they
 // may serve any key) and the rest: all of them
@@ -143,7 +143,7 @@ static const char *sys_text(const char *key) {
 // - {tribute}, {terms} ... - from the name/value pairs (NULL-terminated). None of those may have a value's name: it
 // would hide that value ({epoch} the other's here, mine in a line) - such a pair is a mistake. Returns the length.
 static void *g_xc_pl, *g_xc_other;   // tput: who llm_system's pieces are for
-static int tsubv_vars(char *out, int cap, const char *tmpl, void *pl, void *other, void *third, va_list ap0,
+static int tsubv_vars(char *out, int cap, const char *tmpl, ee_player *pl, ee_player *other, ee_player *third, va_list ap0,
                       const struct xvars *vars) {
     const char *pn[24], *pv[24];
     int np = 0;
@@ -165,7 +165,7 @@ static int tsubv_vars(char *out, int cap, const char *tmpl, void *pl, void *othe
     return x_fill(out, cap, tmpl, &c);
 }
 // a prompt piece (key) filled for pl speaking to other - pl's model is the one told it (tpl_find: its personality's)
-static int tsub(char *out, int cap, const char *key, void *pl, void *other, ...) {
+static int tsub(char *out, int cap, const char *key, ee_player *pl, ee_player *other, ...) {
     const struct xvars *vars;
     const char *tmpl = tpl_find(pl, key, &vars);
     va_list ap;
@@ -175,7 +175,7 @@ static int tsub(char *out, int cap, const char *key, void *pl, void *other, ...)
     return n;
 }
 // a prompt piece for pl speaking to other, third the enemy
-static int tsub3(char *out, int cap, const char *key, void *pl, void *other, void *third, ...) {
+static int tsub3(char *out, int cap, const char *key, ee_player *pl, ee_player *other, ee_player *third, ...) {
     const struct xvars *vars;
     const char *tmpl = tpl_find(pl, key, &vars);
     va_list ap;
@@ -186,7 +186,7 @@ static int tsub3(char *out, int cap, const char *key, void *pl, void *other, voi
 }
 // a system line about AI pl (me) for the reader other (them; NULL: the local player), third the enemy, filled (4
 // rotating buffers: a few may be in use at once)
-static const char *sysf(const char *key, void *pl, void *other, void *third, ...) {
+static const char *sysf(const char *key, ee_player *pl, ee_player *other, ee_player *third, ...) {
     static char buf[4][512];
     static int k;
     char *out = buf[k++ & 3];
@@ -243,7 +243,7 @@ static void corpus_val(const char *tag, const struct xval *v, int ok, int failed
     }
     fprintf(g_corpus, " rnd %08x %08x", g_rnd, g_rnd_game);
 }
-static void corpus_eval(const char *tag, const char *src, void *pl, void *other, void *third, const struct xvars *own, int game, int nogame) {
+static void corpus_eval(const char *tag, const char *src, ee_player *pl, ee_player *other, ee_player *third, const struct xvars *own, int game, int nogame) {
     if (!src) return;
     uint32_t r0 = g_rnd, g0 = g_rnd_game;
     g_rnd = 0x13579BDFu; g_rnd_game = 0x2468ACE0u;
@@ -260,7 +260,7 @@ static void corpus_eval(const char *tag, const char *src, void *pl, void *other,
     corpus_end();
     g_rnd = r0; g_rnd_game = g0;
 }
-static void corpus_fill(const char *tag, const char *tmpl, void *pl, void *other, void *third, const struct xvars *vars) {
+static void corpus_fill(const char *tag, const char *tmpl, ee_player *pl, ee_player *other, ee_player *third, const struct xvars *vars) {
     static const char *pn[200], *pv[200];
     static char names[200][48];
     static int np = -1;
@@ -310,7 +310,7 @@ static void texts_corpus(char *out, const char *path) {
             if (!g_players[a] || !pls[a]) continue;
             for (int b = 1; b < np && b < 16; b++) {
                 if (b == a || !pls[b]) continue;
-                void *third = NULL;
+                ee_player *third = NULL;
                 for (int t = 1; t < np && t < 16 && !third; t++) if (t != a && t != b && pls[t]) third = pls[t];
                 for (int k = 0; k < L_N; k++) {
                     snprintf(tag, sizeof tag, "%s P%d>P%d line %s", pf, a, b, k_lines[k].key);
@@ -333,7 +333,7 @@ static void texts_corpus(char *out, const char *path) {
         if (!g_players[a] || !pls[a]) continue;
         for (int b = 1; b < np && b < 16; b++) {
             if (b == a || !pls[b]) continue;
-            void *third = NULL;
+            ee_player *third = NULL;
             for (int t = 1; t < np && t < 16 && !third; t++) if (t != a && t != b && pls[t]) third = pls[t];
             for (int k = 0; k < L_N; k++) {
                 uint32_t r0 = g_rnd, g0 = g_rnd_game;
@@ -358,7 +358,7 @@ static void texts_corpus(char *out, const char *path) {
         if (!g_players[a] || !pls[a]) continue;
         for (int b = 1; b < np && b < 16; b++) {
             if (b == a || !pls[b]) continue;
-            void *third = NULL;
+            ee_player *third = NULL;
             for (int t = 1; t < np && t < 16 && !third; t++) if (t != a && t != b && pls[t]) third = pls[t];
             for (int k = 0; k < g_vars_sys.n; k++) {
                 if (strchr(g_vars_sys.key[k], '(')) continue;

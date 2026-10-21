@@ -113,7 +113,7 @@ static int cv_mil(uint8_t *td) {
 }
 static int cv_alive(uint8_t *u) { return FIELD(u, OF(UNIT, 0x3C), int) > 0 && FIELD(u, OF(UNIT, 0x1C), int) >= 0; }
 static int cv_built(uint8_t *u) { uint8_t *bs = FIELD(u, OF(UNIT, 0x30), uint8_t *); return bs && bs[OF(UNIT, 0x340)]; }
-static int cv_value(void *pl, int type) {   // the base price, F+W+S+G+I (no cheat)
+static int cv_value(ee_player *pl, int type) {   // the base price, F+W+S+G+I (no cheat)
     uint8_t *obj = type_data(type), *tt = pl ? FIELD(pl, PL_TECHTREE, uint8_t *) : NULL;
     uint8_t *tech = obj && tt ? GF(FN_TECH_LOOKUP)(tt, FIELD(obj, OF(TD, 0x4E0), int)) : NULL;
     uint8_t *data = tech ? FIELD(tech, OF(TECH, 0x8), uint8_t *) : NULL;
@@ -134,11 +134,11 @@ static int cv_foe_near(int x, int y, int seen) {
 // THE LOCAL FIGHT at (x, y) for pl: own and allied fighters within r against the enemy's within r, defences on both
 // sides whose reach (+1) covers the spot; honest: only the enemies pl sees. st_ratio: above 1 own stronger (the square
 // root of the time ratio), 1e6 nothing to fight
-static float cv_local(void *pl, int x, int y, int r, int honest) {
+static float cv_local(ee_player *pl, int x, int y, int r, int honest) {
     st_side_clear(&g_cvs_own); st_side_clear(&g_cvs_foe);
     for (struct grid_it it = grid_it_box(x, y, r + 10, 1); grid_it_next(&it); ) {
         uint8_t *u = it.u, *td = it.td;
-        void *o = FIELD(u, OF(UNIT, 0x18), void *);
+        ee_player *o = unit_owner(u);
         if (!o || FIELD(o, PL_INDEX, int) <= 0 || !cv_alive(u)) continue;
         int fam = FIELD(td, OF(TD, 0x4B4), int), d2 = cv_d2(FIELD(u, OF(UNIT, 0x1C), int), FIELD(u, OF(UNIT, 0x20), int), x, y);
         float rg, at;
@@ -152,12 +152,12 @@ static float cv_local(void *pl, int x, int y, int r, int honest) {
     return st_ratio(&g_cvs_own, &g_cvs_foe);
 }
 // an enemy defence covers (x, y) (its range + 1; all, not only the known ones)
-static int cv_enemy_def(void *pl, int x, int y) {
+static int cv_enemy_def(ee_player *pl, int x, int y) {
     for (struct grid_it it = grid_it_box(x, y, 12, 1); grid_it_next(&it); ) {
         uint8_t *u = it.u, *td = it.td;
         int fam = FIELD(td, OF(TD, 0x4B4), int);
         float rg, at;
-        if ((fam != 2 && fam != 29) || !cv_alive(u) || !is_enemy(pl, FIELD(u, OF(UNIT, 0x18), void *)) || !defence_stats(u, &rg, &at) || at <= 0 || !cv_built(u)) continue;
+        if ((fam != 2 && fam != 29) || !cv_alive(u) || !is_enemy(pl, unit_owner(u)) || !defence_stats(u, &rg, &at) || at <= 0 || !cv_built(u)) continue;
         if ((float)cv_d2(FIELD(u, OF(UNIT, 0x1C), int), FIELD(u, OF(UNIT, 0x20), int), x, y) <= (rg + 1.0f) * (rg + 1.0f)) return 1;
     }
     return 0;
@@ -175,13 +175,13 @@ static int cv_held(struct cv_pl *c, uint8_t *u) {
 // THE SCAN: own Hospitals, Docks and defences (finished), the enemy fighters by cell, and the own military units
 static uint8_t *g_cv_units[CV_MIL];
 static int g_cv_nu;
-static void cv_scan(void *pl, struct cv_pl *c) {
+static void cv_scan(ee_player *pl, struct cv_pl *c) {
     c->nhs = c->ndk = c->ncv = 0; g_cv_nu = 0;
     memset(g_cv_foe, 0, sizeof g_cv_foe); memset(g_cv_seen, 0, sizeof g_cv_seen);
     c->base = ms_base(pl, &c->bx, &c->by);
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
         uint8_t *u = it.u, *td = it.td;
-        void *o = FIELD(u, OF(UNIT, 0x18), void *);
+        ee_player *o = unit_owner(u);
         if (!o || FIELD(o, PL_INDEX, int) <= 0 || !cv_alive(u)) continue;
         int fam = FIELD(td, OF(TD, 0x4B4), int), t = FIELD(td, OF(TD, 0x4B8), int), x = FIELD(u, OF(UNIT, 0x1C), int), y = FIELD(u, OF(UNIT, 0x20), int);
         if (o == pl) {
@@ -205,7 +205,7 @@ static void cv_scan(void *pl, struct cv_pl *c) {
 }
 
 // the measurement's sample (every 5 s, autotest)
-static void cv_sample(void *pl, struct cv_pl *c, uint32_t now) {
+static void cv_sample(ee_player *pl, struct cv_pl *c, uint32_t now) {
     static struct { int cx, cy; float r; } cache[256];
     int nc = 0;
     c->samples++;
@@ -248,7 +248,7 @@ static void cv_sample(void *pl, struct cv_pl *c, uint32_t now) {
 static void cover_death(uint8_t *dead, int k) {
     if (!g_autotest || !g_log || !dead) return;
     uint8_t *td = FIELD(dead, OF(UNIT, 0x2C), uint8_t *);
-    void *pl = FIELD(dead, OF(UNIT, 0x18), void *);
+    ee_player *pl = unit_owner(dead);
     if (!td || !pl || FIELD(dead, OF(UNIT, 0x1C), int) < 0) return;
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     int kind = cv_mil(td);
@@ -262,7 +262,7 @@ static void cover_death(uint8_t *dead, int k) {
     else if (FIELD(td, OF(TD, 0x4C4), int) == KIND_HERO) line = 'h';
     else switch (mt_line(pl, t)) { case MB_INF: line = 'i'; break; case MB_RNG: line = 'r'; break; case MB_CAV: line = 'c'; break; case MB_SIE: line = 's'; break; default: break; }
     for (struct grid_it it = grid_it_box(x, y, 6, 1); grid_it_next(&it); ) {
-        void *o = FIELD(it.u, OF(UNIT, 0x18), void *);
+        ee_player *o = unit_owner(it.u);
         if (it.u != dead && o && FIELD(o, PL_INDEX, int) > 0 && !is_enemy(pl, o) && cv_alive(it.u) && cv_mil(it.td) &&
             cv_d2(FIELD(it.u, OF(UNIT, 0x1C), int), FIELD(it.u, OF(UNIT, 0x20), int), x, y) <= 36) nb++;
     }
@@ -282,7 +282,7 @@ static void cover_death(uint8_t *dead, int k) {
 // ---- fall_back ----
 // landing.c hook_asg_give_goal: an attack subgroup's order to a unit held here
 static int cover_refuses(uint8_t *sg, uint8_t *u) {
-    void *pl = FIELD(sg, OF(ASG, 0x190), void *);
+    ee_player *pl = FIELD(sg, OF(ASG, 0x190), void *);
     if (!pl) return 0;
     struct cv_pl *c = &g_cv[(unsigned)FIELD(pl, PL_INDEX, int) & 15];
     if (!c->nh || !cv_held(c, u)) return 0;
@@ -292,7 +292,7 @@ static int cover_refuses(uint8_t *sg, uint8_t *u) {
 static int cover_sea(unsigned idx) { return (FALL_BACK(idx & 15) & 4) != 0; }   // fleet.c
 // the cover for a unit at (x, y) on land area a: the nearest own defence no known enemy defence covers (2 tiles on the
 // base's side of it), else a Hospital, else the base; 0 none within reach
-static int cv_cover(void *pl, struct cv_pl *c, int x, int y, unsigned a, int *tx, int *ty) {
+static int cv_cover(ee_player *pl, struct cv_pl *c, int x, int y, unsigned a, int *tx, int *ty) {
     unsigned pi = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     int best = -1, bd = g_fb_dist * g_fb_dist + 1;
     threat_refresh(pl, game_time());
@@ -319,13 +319,13 @@ static void cv_take(struct cv_pl *c, uint8_t *u, int kind, int tx, int ty, uint3
     struct cv_hold *h = &c->hold[c->nh++];
     h->u = u; h->id = FIELD(u, OF(UNIT, 0x60), int); h->kind = kind; h->tx = tx; h->ty = ty; h->since = now ? now : 1; h->at = 0;
 }
-static void cv_behave(void *pl, unsigned idx, struct cv_pl *c, uint32_t now, int plan) {
+static void cv_behave(ee_player *pl, unsigned idx, struct cv_pl *c, uint32_t now, int plan) {
     // the held units: gone, healed, arrived and rested - let go
     for (int k = c->nh - 1; k >= 0; k--) {
         struct cv_hold *h = &c->hold[k];
         uint8_t *u = h->u;
         int go = 0;
-        if (!cv_alive(u) || FIELD(u, OF(UNIT, 0x60), int) != h->id || FIELD(u, OF(UNIT, 0x18), void *) != pl) go = 1;
+        if (!cv_alive(u) || FIELD(u, OF(UNIT, 0x60), int) != h->id || unit_owner(u) != pl) go = 1;
         else {
             int d2 = cv_d2(FIELD(u, OF(UNIT, 0x1C), int), FIELD(u, OF(UNIT, 0x20), int), h->tx, h->ty);
             if (d2 <= 9 && !h->at) h->at = now ? now : 1;
@@ -380,7 +380,7 @@ static void cv_behave(void *pl, unsigned idx, struct cv_pl *c, uint32_t now, int
     }
 }
 
-static void cover_tick(void *pl, uint32_t now) {
+static void cover_tick(ee_player *pl, uint32_t now) {
     if (!pl) return;
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     struct cv_pl *c = &g_cv[idx];

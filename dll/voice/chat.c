@@ -30,7 +30,7 @@ static const char *epoch_name(int e) { return e >= 0 && e < 15 ? k_epoch_names[e
 
 
 // one chat line from player pl (name and colour from the player), shown for ms milliseconds
-static void chat_line(void *pl, const char *text, int ms) {
+static void chat_line(ee_player *pl, const char *text, int ms) {
     void *ui = *(void **)GA(G_WORLD);
     if (!pl || !ui || !*text) return;
     __attribute__((aligned(8))) uint8_t s[32];
@@ -62,7 +62,7 @@ static void system_line(const char *text, int ms) {
     dtor(name);
 }
 
-static void chat_stance_line(void *pl, int stance) {
+static void chat_stance_line(ee_player *pl, int stance) {
     void *res = *(void **)GA(G_RESOURCES), *ui = *(void **)GA(G_WORLD);
     uint8_t *opt = *(uint8_t **)GA(G_GAME_DATA);
     if (!pl || !res || !ui || !opt) return;
@@ -84,7 +84,7 @@ static void chat_stance_line(void *pl, int stance) {
 }
 
 // a line of kind `kind` if chat is on and the cooldowns allow it; returns 1 if it was shown
-static int ai_say(void *pl, enum chat_kind kind, const char *fmt, ...) {
+static int ai_say(ee_player *pl, enum chat_kind kind, const char *fmt, ...) {
     if (!pl || (!g_chat && kind != CHAT_SAY)) return 0;
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     uint32_t now = game_time();
@@ -110,8 +110,8 @@ static int ai_say(void *pl, enum chat_kind kind, const char *fmt, ...) {
 }
 
 // every AI update (econ_tick): epoch changes, the 5-minute status line (chat=2)
-static int home_soldiers_now(void *pl);
-static int current_epoch(void *pl);
+static int home_soldiers_now(ee_player *pl);
+static int current_epoch(ee_player *pl);
 static int g_chat_epoch[16] = { -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 };
 static uint32_t g_chat_status[16];
 static void chat_new_game(void) {
@@ -120,7 +120,7 @@ static void chat_new_game(void) {
     memset(g_chat_lines, 0, sizeof g_chat_lines);
     memset(g_chat_dropped, 0, sizeof g_chat_dropped);
 }
-static void chat_tick(void *pl, unsigned idx, uint32_t now) {
+static void chat_tick(ee_player *pl, unsigned idx, uint32_t now) {
     int *last_epoch = g_chat_epoch;
     uint32_t *last_status = g_chat_status;
     if (!g_chat) return;
@@ -150,7 +150,7 @@ static void cmd_chat(char *out, const char *args) {
 static void cmd_say(char *out, const char *args) {
     int p = -1, n = 0;
     sscanf(args, "%d %n", &p, &n);
-    void *pl = p >= 0 && p < 16 ? g_players[p] : NULL;
+    ee_player *pl = p >= 0 && p < 16 ? g_players[p] : NULL;
     if (!pl || !n) { REPLY("error: say P text (P = an AI player seen this game)\n"); return; }
     ai_say(pl, CHAT_SAY, "%s", args + n);
     REPLY("ok\n");

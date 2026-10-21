@@ -26,7 +26,7 @@ static struct am_st {
 static void am_new_game(void) { memset(g_am, 0, sizeof g_am); }
 
 // the price of a type without the Cheat (unit_cost's tech data, no AdjustCost)
-static int am_raw_cost(void *pl, int type) {
+static int am_raw_cost(ee_player *pl, int type) {
     uint8_t *obj = type_data(type), *tt = FIELD(pl, PL_TECHTREE, uint8_t *);
     if (!obj || !tt) return 0;
     uint8_t *tech = GF(FN_TECH_LOOKUP)(tt, FIELD(obj, OF(TD, 0x4E0), int));
@@ -36,7 +36,7 @@ static int am_raw_cost(void *pl, int type) {
     return c;
 }
 // a military training request through hook_train_units (econ.c), after the call: n trained
-static void am_train_note(void *pl, unsigned idx, const int *req, int blocked, int sub_type, unsigned n, const int *stock, const int *vis) {
+static void am_train_note(ee_player *pl, unsigned idx, const int *req, int blocked, int sub_type, unsigned n, const int *stock, const int *vis) {
     struct am_min *m = &g_am[idx & 15].m;
     m->calls++;
     m->asked += (unsigned)(req[1] > 0 ? req[1] : 1);
@@ -83,7 +83,7 @@ static int am_wishes(uint8_t *um) {
 }
 // what a land soldier's request sees held back (econ.c train_budget): the epoch, the fields' wood, a landing's
 // transports, a fortress's wood, the navy account
-static void am_reserve(void *pl, unsigned idx, int reserve[7]) {
+static void am_reserve(ee_player *pl, unsigned idx, int reserve[7]) {
     spend_reserve(pl, idx, reserve, NULL);
     reserve[3] += field_wood(idx);
     landing_reserve(pl, reserve);
@@ -131,12 +131,12 @@ static uint8_t g_apo[16][768];   // types owned or wished (ap_owned)
 static uint32_t g_apo_t[16];
 static struct { int id[48], n; } g_apu[16];   // line upgrades scheduled (UPGRADE)
 static void ap_new_game(void) { memset(g_ap, 0, sizeof g_ap); memset(g_apo_t, 0, sizeof g_apo_t); memset(g_apu, 0, sizeof g_apu); }
-static void ap_upgrades(void *pl, unsigned idx);
+static void ap_upgrades(ee_player *pl, unsigned idx);
 static int navy_land(unsigned idx);   // navy.c
 
 // the land soldier type to train with what vis pays: the first the game asks for (its request lists) that it can train
 // now and vis pays, else the strongest trainable that vis pays (substitute_soldier)
-static int ap_type(void *pl, unsigned idx, uint8_t *um, const int *vis) {
+static int ap_type(ee_player *pl, unsigned idx, uint8_t *um, const int *vis) {
     for (int i = 0; i < 14; i++) {
         uint8_t *dq = um + OF(UM, 0xC) + i * 0x14;
         unsigned first = FIELD(dq, 0xC, unsigned), cnt = FIELD(dq, 0x10, unsigned), mapsz = FIELD(dq, 8, unsigned);
@@ -154,7 +154,7 @@ static int ap_type(void *pl, unsigned idx, uint8_t *um, const int *vis) {
     return substitute_soldier(pl, idx, vis, 1, &got);
 }
 // the production building of a unit type (its tech's building list, data +0x10..+0x14) among the land kinds
-static int ap_producer(void *pl, int type) {
+static int ap_producer(ee_player *pl, int type) {
     uint8_t *td = type_data(type), *tt = FIELD(pl, PL_TECHTREE, uint8_t *);
     uint8_t *t = td && tt ? GF(FN_TECH_LOOKUP)(tt, FIELD(td, OF(TD, 0x4E0), int)) : NULL;
     uint8_t *d = t ? FIELD(t, OF(TECH, 0x8), uint8_t *) : NULL;
@@ -163,7 +163,7 @@ static int ap_producer(void *pl, int type) {
         for (size_t k = 0; k < sizeof k_ap_land / sizeof *k_ap_land; k++) if (*p == g_ut[k_ap_land[k]]) return *p;
     return 0;
 }
-static void army_plan_tick(void *pl, unsigned idx, uint32_t now) {
+static void army_plan_tick(ee_player *pl, unsigned idx, uint32_t now) {
     int wfa = wf_army(pl, idx), plan = ARMY_PLAN(idx) | wfa;   // citizens.c workforce_plan ARMY: FILL + BUILD at a high cap
     struct ap_st *a = &g_ap[idx];
     if (now < a->t) memset(a, 0, sizeof *a);
@@ -247,7 +247,7 @@ static void army_plan_tick(void *pl, unsigned idx, uint32_t now) {
 // food keeps two thirds of its target and citizen_plan's FEED; econ_rebalance then moves the gatherers
 static int g_army_mix_food = 500;
 static void ap_targets(ee_resource_mgr *rm) {
-    void *pl = rm_player(rm);
+    ee_player *pl = rm_player(rm);
     if (!pl) return;
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     struct ap_st *a = &g_ap[idx];
@@ -280,14 +280,14 @@ static void ap_targets(ee_resource_mgr *rm) {
 // a line upgrade (an effect of kind 0x13: type +0x14 -> +0x18, 0x5BA59D) waits until the AI has a unit or building of
 // the old or the new type, or the game asks for one of them (its request lists); every 30 s the waiting ones (available
 // +6, not researched +4) whose line is in use are scheduled (0x485F57), each once
-static void ap_owned(void *pl, unsigned idx) {
+static void ap_owned(ee_player *pl, unsigned idx) {
     uint32_t now = game_time();
     if (g_apo_t[idx] && now >= g_apo_t[idx] && now - g_apo_t[idx] < 5000) return;
     g_apo_t[idx] = now ? now : 1;
     memset(g_apo[idx], 0, sizeof g_apo[idx]);
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
         int t = FIELD(it.td, OF(TD, 0x4B8), int);
-        if (FIELD(it.u, OF(UNIT, 0x18), void *) == pl && FIELD(it.u, OF(UNIT, 0x3C), int) > 0 && t >= 0 && t < 768) g_apo[idx][t] = 1;
+        if (unit_owner(it.u) == pl && FIELD(it.u, OF(UNIT, 0x3C), int) > 0 && t >= 0 && t < 768) g_apo[idx][t] = 1;
     }
     uint8_t *cm = FIELD(pl, OF(PL, 0xB90), uint8_t *), *um = cm ? FIELD(cm, OF(CM, 0x44), uint8_t *) : NULL;
     for (int i = 0; um && i < 14; i++) {
@@ -303,7 +303,7 @@ static void ap_owned(void *pl, unsigned idx) {
     }
 }
 // a line upgrade's types (effects of kind 0x13): 0 = none, else 1 when one of them is in use
-static int ap_upg_line(void *pl, unsigned idx, uint8_t *d, int *used) {
+static int ap_upg_line(ee_player *pl, unsigned idx, uint8_t *d, int *used) {
     int ei = FIELD(d, OF(TECHDATA, 0x50), int), n = 0;
     *used = 0;
     if (ei < 0 || ei > 0x5DC) return 0;
@@ -319,7 +319,7 @@ static int ap_upg_line(void *pl, unsigned idx, uint8_t *d, int *used) {
     }
     return n;
 }
-static int ap_upgrade_later(void *pl, uint8_t *d) {
+static int ap_upgrade_later(ee_player *pl, uint8_t *d) {
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     int used;
     if (!(ARMY_PLAN(idx) & 16) || !ap_upg_line(pl, idx, d, &used)) return 0;
@@ -333,7 +333,7 @@ static int ap_rs_has(uint8_t *rs, int id) {   // in one of the research manager'
     }
     return 0;
 }
-static void ap_upgrades(void *pl, unsigned idx) {
+static void ap_upgrades(ee_player *pl, unsigned idx) {
     uint8_t *cm = FIELD(pl, OF(PL, 0xB90), uint8_t *), *rs = cm ? FIELD(cm, OF(CM, 0x40), uint8_t *) : NULL, *tt = FIELD(pl, PL_TECHTREE, uint8_t *);
     if (!rs || !tt) return;
     for (int id = 1000; id < 15000; id++) {
@@ -359,7 +359,7 @@ static void ap_install(const char *aimod_ini, const char *autotest_ini) {
 
 // "# pool:" (autotest, minutes 30 and 50): the research manager's candidate techs (rs +8 vector) - id, researched /
 // available, category (+0x48), price, and the first effects (kind +0x20 / unit type +0x14 / attribute +0x2C)
-static void am_pool_log(void *pl, unsigned idx) {
+static void am_pool_log(ee_player *pl, unsigned idx) {
     uint8_t *cm = FIELD(pl, OF(PL, 0xB90), uint8_t *), *rs = cm ? FIELD(cm, OF(CM, 0x40), uint8_t *) : NULL, *tt = FIELD(pl, PL_TECHTREE, uint8_t *);
     if (!rs || !tt) return;
     int *b = FIELD(rs, OF(RS, 0x8), int *), *e = FIELD(rs, OF(RS, 0xC), int *);
@@ -386,7 +386,7 @@ static void am_pool_log(void *pl, unsigned idx) {
     fputc('\n', g_log);
     LeaveCriticalSection(&g_lock);
 }
-static void am_tick(void *pl, uint32_t now) {
+static void am_tick(ee_player *pl, uint32_t now) {
     if (!g_autotest || !g_log || !pl) return;
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     struct am_st *a = &g_am[idx];
@@ -410,7 +410,7 @@ static void am_tick(void *pl, uint32_t now) {
     for (int k = 0; k < AM_NK; k++) { int b; am_bld(um, g_ut[k_am_bld[k]], &nb[k], &b); }
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
         uint8_t *u = it.u, *td = it.td;
-        if (FIELD(u, OF(UNIT, 0x18), void *) != pl || FIELD(u, OF(UNIT, 0x3C), int) <= 0) continue;
+        if (unit_owner(u) != pl || FIELD(u, OF(UNIT, 0x3C), int) <= 0) continue;
         int t = FIELD(td, OF(TD, 0x4B8), int), fam = FIELD(td, OF(TD, 0x4B4), int);
         uint8_t *bs = FIELD(u, OF(UNIT, 0x30), uint8_t *);
         if (ut_role(t, UTR_TOWER)) { towers += bs && bs[OF(UNIT, 0x340)]; continue; }

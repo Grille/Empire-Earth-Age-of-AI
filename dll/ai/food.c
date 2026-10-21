@@ -39,7 +39,7 @@ static void food_new_game(void);
 static int food_fierce(int t) { return t == UT(RES_TIGER) || t == UT(RES_WOLF); }
 // a free animal to hunt for unit u (NULL: the best for any): within food_hunt_range tiles of a non-granary drop site, food left,
 // not fierce, under 3 hunters, explored, the unit's continent, no enemy near, no known towers on the way
-static uint8_t *food_animal(void *pl, ee_resource_mgr *rm, uint8_t *u) {
+static uint8_t *food_animal(ee_player *pl, ee_resource_mgr *rm, uint8_t *u) {
     uint8_t *cm = FIELD(rm, RM_OWNER, uint8_t *);
     void *bm = cm ? FIELD(cm, OF(CM, 0x3C), void *) : NULL;
     if (!bm) return NULL;
@@ -69,7 +69,7 @@ static uint8_t *food_animal(void *pl, ee_resource_mgr *rm, uint8_t *u) {
     return best;
 }
 // the free bush nearest to a food drop site (NEAR), within max_d2 of the base; NULL: none
-static uint8_t *food_bush(void *pl, ee_resource_mgr *rm, uint8_t *u, int max_d2) {
+static uint8_t *food_bush(ee_player *pl, ee_resource_mgr *rm, uint8_t *u, int max_d2) {
     uint8_t *cm = FIELD(rm, RM_OWNER, uint8_t *);
     void *bm = cm ? FIELD(cm, OF(CM, 0x3C), void *) : NULL;
     if (!bm) return NULL;
@@ -110,7 +110,7 @@ static uint8_t *food_bush(void *pl, ee_resource_mgr *rm, uint8_t *u, int max_d2)
 }
 // hook_find_food (sites.c) with NEAR: the nearest-to-a-drop bush within the pass's reach (near: 2 x +0xE10, else 6 x)
 static uint8_t *food_near_pick(ee_resource_mgr *rm, int near_base, uint8_t *unit) {
-    void *pl = rm_player(rm);
+    ee_player *pl = rm_player(rm);
     if (!pl) return NULL;
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     if (!(FOOD_PLAN(idx) & 4)) return NULL;
@@ -121,7 +121,7 @@ static uint8_t *food_near_pick(ee_resource_mgr *rm, int near_base, uint8_t *unit
 }
 // before the assignment (hook_assign_citizens): idle citizens to animals (HUNT, before farms)
 static void food_hunt(ee_resource_mgr *rm) {
-    void *pl = rm_player(rm);
+    ee_player *pl = rm_player(rm);
     if (!pl) return;
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     if (!(FOOD_PLAN(idx) & 8) || current_epoch(pl) >= FARM_EPOCH) return;
@@ -144,7 +144,7 @@ static void food_hunt(ee_resource_mgr *rm) {
 }
 // after the assignment (hook_assign_citizens, after econ_rebalance): PULL
 static void food_pull(ee_resource_mgr *rm) {
-    void *pl = rm_player(rm);
+    ee_player *pl = rm_player(rm);
     if (!pl) return;
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     if (!(FOOD_PLAN(idx) & 2)) return;
@@ -170,7 +170,7 @@ static void food_pull(ee_resource_mgr *rm) {
     }
 }
 // PLAN (econ_targets, before farms): the citizens' food and the real wood need
-static void food_plan_needs(void *pl, ee_resource_mgr *rm, int *need, const int *stock, const int *reserve) {
+static void food_plan_needs(ee_player *pl, ee_resource_mgr *rm, int *need, const int *stock, const int *reserve) {
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     if (!(FOOD_PLAN(idx) & 1)) return;
     int wf = workforce(pl), want = (int)(FIELD(pl, OF(PL, 0xBDC), float) * (float)FIELD(pl, OF(PL, 0xCCC), int));
@@ -199,7 +199,7 @@ static void food_plan_needs(void *pl, ee_resource_mgr *rm, int *need, const int 
 //   queued on the epoch's build queue with its position. The walk decides wild food's rate: with twice the food
 //   gatherers (HUNT, PULL) the food gathered by minute 20 rose 5%.
 static struct { uint32_t t; int n; } g_camp[16];
-static void food_camp(void *pl, unsigned idx, uint32_t now) {
+static void food_camp(ee_player *pl, unsigned idx, uint32_t now) {
     if (!(FOOD_PLAN(idx) & 32) || current_epoch(pl) >= FARM_EPOCH) return;
     if (now < g_camp[idx].t) memset(&g_camp[idx], 0, sizeof g_camp[idx]);
     if (g_camp[idx].n >= 2 || (g_camp[idx].t && now - g_camp[idx].t < 120000)) return;
@@ -268,7 +268,7 @@ static void food_camp(void *pl, unsigned idx, uint32_t now) {
                 return;
             }
 }
-static void food_log(void *pl, unsigned idx, uint32_t now) {
+static void food_log(ee_player *pl, unsigned idx, uint32_t now) {
     static uint32_t last[16];
     food_camp(pl, idx, now);
     if (!g_log || !g_autotest || (!g_food_plan && g_v_food_plan < 0)) return;
@@ -293,7 +293,7 @@ static void food_install(const char *aimod_ini, const char *autotest_ini) {
 //   6 boats and no field). Measured (islands e5, food_plan 19 against 3): the fields waited until minute 25-30, but the
 //   game's fishing boats came no sooner (0-1 until minute 20) - workers -7 to -11 at minute 30, the base AI's wins on
 //   Small Islands 2 -> 5 of 40. Fish comes too slowly to replace the fields; off.
-static int food_fields_wait(void *pl, ee_resource_mgr *rm) {
+static int food_fields_wait(ee_player *pl, ee_resource_mgr *rm) {
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     if (!(FOOD_PLAN(idx) & 16) || current_epoch(pl) < FARM_EPOCH) return 0;
     int r6 = FIELD(pl, OF(PL, 0xE10), int);

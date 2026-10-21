@@ -38,7 +38,7 @@ static void intel_loaded(void) {   // the memories came with the save: their uni
 }
 
 static unsigned intel_hash(uint8_t *u) { return (unsigned)(((uintptr_t)u >> 4) * 2654435761u) & 4095; }
-static int intel_remembers(void *pl, uint8_t *u) {
+static int intel_remembers(ee_player *pl, uint8_t *u) {
     struct intel *in = &g_intel[(unsigned)FIELD(pl, PL_INDEX, int) & 15];
     for (unsigned h = intel_hash(u), k = 0; k < 4096 && in->known[h]; h = (h + 1) & 4095, k++)
         if (in->known[h] == u) return 1;
@@ -53,7 +53,7 @@ static int intel_kind(uint8_t *td) {
     return 4;
 }
 // ms since a unit of pl or an ally was near (x, y); 0 with honest_vision off (the game's view: everything at once)
-static uint32_t intel_looked_ago(void *pl, int x, int y) {
+static uint32_t intel_looked_ago(ee_player *pl, int x, int y) {
     struct intel *in = &g_intel[(unsigned)FIELD(pl, PL_INDEX, int) & 15];
     if (!g_honest_vision) return 0;
     int cx = x / INTEL_CELL, cy = y / INTEL_CELL;
@@ -62,7 +62,7 @@ static uint32_t intel_looked_ago(void *pl, int x, int y) {
 }
 // soldiers (and siege) remembered within r tiles of (x, y) and not seen now, seen within the last 5 minutes: hit
 // points and attack summed, how many. Nothing with honest_vision off (all of them are seen)
-static void intel_soldiers(void *pl, int x, int y, int r, float *hp, float *att, float *pw, int *n) {
+static void intel_soldiers(ee_player *pl, int x, int y, int r, float *hp, float *att, float *pw, int *n) {
     struct intel *in = &g_intel[(unsigned)FIELD(pl, PL_INDEX, int) & 15];
     if (!g_honest_vision) return;
     for (int k = 0; k < in->n; k++) {
@@ -75,7 +75,7 @@ static void intel_soldiers(void *pl, int x, int y, int r, float *hp, float *att,
     }
 }
 // the enemy army it knows of: soldiers seen within 10 minutes (seen now included), summed
-static void intel_army(void *pl, float *hp, float *att, float *pw, int *n) {
+static void intel_army(ee_player *pl, float *hp, float *att, float *pw, int *n) {
     struct intel *in = &g_intel[(unsigned)FIELD(pl, PL_INDEX, int) & 15];
     for (int k = 0; k < in->n; k++)
         if (in->r[k].kind == 1 && in->now - in->r[k].t <= 600000) {
@@ -85,14 +85,14 @@ static void intel_army(void *pl, float *hp, float *att, float *pw, int *n) {
 }
 
 struct intel_scan {
-    void *pl; unsigned pi;
+    ee_player *pl; unsigned pi;
     int nlive; uint8_t *live[6000];      // every unit (identity only - a remembered pointer is read only when it is in here)
     uint8_t floor[16]; int fseen[16];
     int ne, ex[3000], ey[3000];          // eyes: its and its allies' units
 };
 static void intel_unit(uint8_t *u, void *ctx) {
     struct intel_scan *s = ctx;
-    void *o = FIELD(u, OF(UNIT, 0x18), void *);
+    ee_player *o = unit_owner(u);
     if (!o || FIELD(u, OF(UNIT, 0x3C), int) <= 0 || FIELD(u, OF(UNIT, 0x1C), int) < 0) return;
     int oi = FIELD(o, PL_INDEX, int);
     if (oi <= 0 || oi >= 16) return;
@@ -110,7 +110,7 @@ static int intel_ptr_cmp(const void *a, const void *b) {
 static int intel_live(struct intel_scan *s, uint8_t *u) {
     return bsearch(&u, s->live, (size_t)s->nlive, sizeof *s->live, intel_ptr_cmp) != NULL;
 }
-static void intel_tick(void *pl, uint32_t now) {
+static void intel_tick(ee_player *pl, uint32_t now) {
     unsigned pi = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     struct intel *in = &g_intel[pi];
     if (now < in->now) memset(in, 0, sizeof *in);   // a new game
@@ -136,7 +136,7 @@ static void intel_tick(void *pl, uint32_t now) {
     int seed = g_intel_seed && now > 60000 && !in->n;
     for (int k = 0; k < s.nlive; k++) {
         uint8_t *u = s.live[k], *td = FIELD(u, OF(UNIT, 0x2C), uint8_t *);
-        void *o = FIELD(u, OF(UNIT, 0x18), void *);
+        ee_player *o = unit_owner(u);
         if (!is_enemy(pl, o) || intel_kind(td) != 0) continue;
         int x = FIELD(u, OF(UNIT, 0x1C), int), y = FIELD(u, OF(UNIT, 0x20), int), t = FIELD(td, OF(TD, 0x4B8), int), oi = FIELD(o, PL_INDEX, int) & 15;
         if (seed && in->n < INTEL_REC) {
@@ -157,7 +157,7 @@ static void intel_tick(void *pl, uint32_t now) {
     in->seen_now = 0;
     for (int k = 0; k < s.nlive; k++) {
         uint8_t *u = s.live[k];
-        void *o = FIELD(u, OF(UNIT, 0x18), void *);
+        ee_player *o = unit_owner(u);
         if (!is_enemy(pl, o)) continue;
         uint8_t *v = FIELD(u, OF(UNIT, 0x14), uint8_t *);
         uint16_t *vis = v ? FIELD(v, 0xC, uint16_t *) : NULL;
@@ -254,14 +254,14 @@ static void cmd_intel(char *out, const char *args) {
 // its low byte) means for moving units - "seen now" or "seen once". For each enemy unit of AI P: the value, and the
 // distance to the nearest unit or building of P (its eyes); a histogram by distance and kind.
 struct vis_scan {
-    void *pl, *target;
+    ee_player *pl, *target;
     int allies;                          // its allies' units are eyes too (shared vision)
     int ne, ex[4000], ey[4000];          // P's own units and buildings
     int nu; uint8_t *u[4000];            // the enemies
 };
 static void vis_unit(uint8_t *u, void *ctx) {
     struct vis_scan *s = ctx;
-    void *o = FIELD(u, OF(UNIT, 0x18), void *);
+    ee_player *o = unit_owner(u);
     if (FIELD(u, OF(UNIT, 0x3C), int) <= 0 || !o || FIELD(u, OF(UNIT, 0x1C), int) < 0) return;
     if (o == s->pl || (s->allies && FIELD(o, PL_INDEX, int) > 0 && !is_enemy(s->pl, o))) { if (s->ne < 4000) { s->ex[s->ne] = FIELD(u, OF(UNIT, 0x1C), int); s->ey[s->ne++] = FIELD(u, OF(UNIT, 0x20), int); } }
     else if ((s->target ? o == s->target : is_enemy(s->pl, o)) && FIELD(o, PL_INDEX, int) > 0 && s->nu < 4000) s->u[s->nu++] = u;
@@ -269,7 +269,7 @@ static void vis_unit(uint8_t *u, void *ctx) {
 static void *g_vis_find[16];
 static void vis_owner(uint8_t *u, void *ctx) {   // player objects by index, also of humans (g_players holds the AIs)
     (void)ctx;
-    void *o = FIELD(u, OF(UNIT, 0x18), void *);
+    ee_player *o = unit_owner(u);
     int i = o ? FIELD(o, PL_INDEX, int) : -1;
     if (i > 0 && i < 16) g_vis_find[i] = o;
 }
@@ -309,7 +309,7 @@ static void cmd_vis(char *out, const char *args) {
         hi[kind][bin] += (v >> 8) != 0;
         if (shown < 30 && kind != 0 && (strstr(args, "all") || ((v & 0xFF) != 0) != (d <= 12))) {
             shown++;
-            REPLY("  P%d type %d (%s) at %d,%d: value %04X, nearest eye of P%d %.1f tiles\n", FIELD(FIELD(u, OF(UNIT, 0x18), void *), PL_INDEX, int),
+            REPLY("  P%d type %d (%s) at %d,%d: value %04X, nearest eye of P%d %.1f tiles\n", FIELD(unit_owner(u), PL_INDEX, int),
                   FIELD(td, OF(TD, 0x4B8), int), kinds[kind], x, y, v, p, d);
         }
     }

@@ -20,7 +20,7 @@ static void dump_region(FILE *f, const char *tag, const void *p, uint32_t len) {
 }
 
 static void dump_player(void *rm, uint32_t now) {
-    void *pl = rm_player(rm);
+    ee_player *pl = rm_player(rm);
     void *cm = FIELD(rm, RM_OWNER, void *);
     if (!pl || !cm || !g_dump_dir[0] || !g_mem_dumps) return;
     char path[MAX_PATH];

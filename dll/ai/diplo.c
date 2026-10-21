@@ -92,7 +92,7 @@ static int g_promise[16][7];            // [ai]: resources offered with a capitu
 static uint8_t g_escrow[16];            // [ai]: the promise is taken out of its stock while a human decides
 static int g_victory_told;               // victory over vassals (below the tribute hook)
 static int g_victory_off, g_victory_claimed;   // auto_victory=0: the mod cleared the end byte / the player ended the game
-static void victory_hint(void *pl, int ai);
+static void victory_hint(ee_player *pl, int ai);
 static uint32_t g_capit_last[16];       // [ai]: last capitulation offer (one per 10 minutes)
 static int g_lord[16];                  // [ai]: the player it capitulated to (0 none) - never betrayed
 static uint32_t g_lord_since[16];       // [ai]: its capitulation was accepted at (reputation)
@@ -234,7 +234,7 @@ static void hist_scan(uint32_t now) {
 }
 static void ws_unit(uint8_t *u, void *ctx) {
     (void)ctx;
-    void *owner = FIELD(u, OF(UNIT, 0x18), void *);
+    ee_player *owner = unit_owner(u);
     if (!owner || FIELD(u, OF(UNIT, 0x3C), int) <= 0) return;
     int o = pidx(owner);
     if (o == 0) return;   // nature (wild animals): hostile to everyone, not an attack
@@ -283,7 +283,7 @@ static void world_scan(uint32_t now) {
     hist_scan(now);
 }
 static int base_threatened(unsigned idx) {   // econ.c: enemy soldiers in its base (pressure as for capitulation)
-    void *pl = player_at((int)idx & 15);
+    ee_player *pl = player_at((int)idx & 15);
     for (int j = 1; pl && j < nplayers(); j++)
         if (j != (int)idx && g_pressure[idx & 15][j] >= 10 && stance_of(pl, j)) return 1;
     return 0;
@@ -436,7 +436,7 @@ static void mass_death(uint8_t *dead);                 // mass.c: a land soldier
 static void cover_death(uint8_t *dead, int k);         // cover.c: a military unit killed - its fight, its hit points
 __attribute__((used)) void __fastcall hook_kill_stat(uint8_t *stats, void *edx, int n, int d) {
     (void)edx;
-    void *owner = g_kill_unit ? FIELD(g_kill_unit, OF(UNIT, 0x18), void *) : NULL;
+    ee_player *owner = g_kill_unit ? unit_owner(g_kill_unit) : NULL;
     if (stats && owner && (n == 2 || n == 3)) {
         int k = pidx(stats - 0x4A8), v = pidx(owner);
         uint32_t m = game_time() / 60000u + 1, b = m % KILLS_RING;
@@ -463,7 +463,7 @@ __attribute__((naked, used)) void kill_stat_thunk(void) {
             "jmp @hook_kill_stat@16");
 }
 // the strongest player the AI is at war with (or 0)
-static int strongest_enemy(void *pl, int ai) {
+static int strongest_enemy(ee_player *pl, int ai) {
     int best = 0;
     for (int j = 1; j < nplayers(); j++) {
         void *pj = player_at(j);
@@ -484,7 +484,7 @@ static void opinion_add(int ai, int j, float d) {
 
 // would AI pl make peace / an alliance with player j now? (score > 0) - its decide peace_score (me = pl, them = j,
 // enemy = its strongest enemy: mod/computer.eeai has the base); the cooling-off after j's declaration is the rule's
-static float peace_score(void *pl, int ai, int j, uint32_t now) {
+static float peace_score(ee_player *pl, int ai, int j, uint32_t now) {
     if (g_war_since[ai][j] && now - g_war_since[ai][j] < (uint32_t)trait(pl, T_PRIDE) * 3000u) return -1000;
     int lead = strongest_enemy(pl, ai);
     return (float)persona_decide(pl, D_PEACE_SCORE, player_at(j), lead ? player_at(lead) : NULL);
@@ -497,7 +497,7 @@ static float peace_score(void *pl, int ai, int j, uint32_t now) {
 static int g_stance_lines = 1;
 static void block_line(int to, const char *text);   // below
 static void stance_note(int ai, int j, int s) {
-    void *pl = player_at(ai), *pj = player_at(j);
+    ee_player *pl = player_at(ai), *pj = player_at(j);
     if (!pl || !pj) return;
     if (g_stance_lines >= 2) { chat_stance_line(pl, s); return; }
     if (g_stance_lines != 1 || g_players[j]) return;
@@ -507,7 +507,7 @@ static void stance_note(int ai, int j, int s) {
 }
 
 static void make_peace(int ai, int j, uint32_t now) {
-    void *pl = player_at(ai), *pj = player_at(j);
+    ee_player *pl = player_at(ai), *pj = player_at(j);
     if (!pl || !pj) return;
     if (stance_of(pl, j)) { set_stance(ai, j, 0); stance_note(ai, j, 0); }
     g_ally_since[ai][j] = g_ally_since[j][ai] = now ? now : 1;
@@ -518,7 +518,7 @@ static void make_peace(int ai, int j, uint32_t now) {
 }
 
 static void declare_war(int ai, int j, uint32_t now) {
-    void *pl = player_at(ai);
+    ee_player *pl = player_at(ai);
     if (!pl || stance_of(pl, j)) return;
     if (g_lord[ai] == j) {   // a vassal rebels (only the language model, [llm] constrained=0): free
         g_lord[ai] = 0;
@@ -537,11 +537,11 @@ static void declare_war(int ai, int j, uint32_t now) {
 // who turns on his vassal sets it free.
 static int is_vassal(int ai) {
     int l = g_lord[ai];
-    void *pl = player_at(ai), *pk = l ? player_at(l) : NULL;
+    ee_player *pl = player_at(ai), *pk = l ? player_at(l) : NULL;
     return pk && pl && !is_out(pk) && !stance_of(pl, l);
 }
 static int block_veto(int ai, int j, uint32_t now, int *own);   // alliance blocks (below)
-static void block_refuse(void *pl, int j, int who, int own);
+static void block_refuse(ee_player *pl, int j, int who, int own);
 // THE RULES' MOVES TOWARDS THE LOCAL PLAYER, put to the language model first ([llm] decide=1): an alliance offer, a
 // betrayal, a capitulation, a rebellion. llm_propose (llm.c) asks it - 1: it decides (asked, still asking, or it
 // declined that move lately), 0: the rules go ahead. Its yes carries the move out with its words (prop_do), its no
@@ -550,7 +550,7 @@ enum { P_ALLY, P_BETRAY, P_CAPIT, P_REBEL, P_N };
 static int g_llm_rules;   // llm.c: the rules decide in the model's place
 
 // A pending peace offer of j (allied towards the AI while the AI is at war with him)
-static void peace_offer(void *pl, int ai, int j, uint32_t now) {
+static void peace_offer(ee_player *pl, int ai, int j, uint32_t now) {
     void *pj = player_at(j);
     if (is_vassal(ai) && !llm_unbound()) {   // not its decision (unless the model decides, unconstrained)
 
@@ -639,7 +639,7 @@ static void block_line(int to, const char *text) {   // a system line, only on t
     if (g_log) fprintf(g_log, "# system line: %s\n", text);
 }
 
-static int surrender_instead(void *pl, int ai, uint32_t now);   // below (surrender)
+static int surrender_instead(ee_player *pl, int ai, uint32_t now);   // below (surrender)
 // agg turned hostile towards vic, both of block `old`: every other AI of it takes a side
 static void block_split(int agg, int vic, const int *blk, uint32_t now) {
     int old = blk[vic];
@@ -766,7 +766,7 @@ static int block_veto(int ai, int j, uint32_t now, int *own) {
                               ai, j, who, mine ? "the first one's" : "the other", worst);
     return who;
 }
-static void block_refuse(void *pl, int j, int who, int own) {   // the refusal: a line, and a system line for him
+static void block_refuse(ee_player *pl, int j, int who, int own) {   // the refusal: a line, and a system line for him
     void *pj = player_at(j), *pw = player_at(who);
     persona_say(pl, own ? L_BLOCK_REFUSE_OWN : L_BLOCK_REFUSE, pj, pw);
     if (!g_players[j])
@@ -778,7 +778,7 @@ static void block_refuse(void *pl, int j, int who, int own) {   // the refusal: 
 // (20 + 0.8 x (100 - greed))), rounded up to 50, or why no price would do (fixed teams, a vassal, its pride's time
 // after his declaration, a block veto, an opinion that can't rise far enough). 0 = not at war with him.
 static int peace_terms(int ai, int j, char *out, int cap) {
-    void *pl = player_at(ai), *pj = player_at(j);
+    ee_player *pl = player_at(ai), *pj = player_at(j);
     out[0] = 0;
     if (!pl || !pj || !stance_of(pl, j)) return 0;
     uint32_t now = game_time();
@@ -819,7 +819,7 @@ static int peace_terms(int ai, int j, char *out, int cap) {
 }
 
 // what AI ai would offer in a capitulation: a share of each resource by its caution and greed (out: [2..6])
-static int capit_offer(void *pl, int *out) {
+static int capit_offer(ee_player *pl, int *out) {
     int *stock = (int *)((uint8_t *)pl + PL_STOCK), total = 0;
     float share = capit_share(pl);
     for (int r = 2; r < 7; r++) total += out[r] = stock[r] > 0 ? (int)((float)stock[r] * share) : 0;
@@ -827,7 +827,7 @@ static int capit_offer(void *pl, int *out) {
 }
 // AI ai offers player best an alliance against lead (diplo_initiative; tests: diplo offer)
 static void offer_alliance(int ai, int best, int lead, uint32_t now) {
-    void *pl = player_at(ai);
+    ee_player *pl = player_at(ai);
     void *pj = player_at(best);
     g_offer_last[ai][best] = now;
     persona_say(pl, L_ALLIANCE_OFFER, pj, player_at(lead));
@@ -853,7 +853,7 @@ static void offer_alliance(int ai, int best, int lead, uint32_t now) {
     }
 }
 // the rebellion of vassal ai: its line, war on its lord's side, free
-static void rebel_now(void *pl, int ai, uint32_t now) {
+static void rebel_now(ee_player *pl, int ai, uint32_t now) {
     int l = g_lord[ai], blk[16];
     if (!l) return;
     persona_say(pl, L_BETRAY, player_at(l), NULL);
@@ -873,7 +873,7 @@ static void rebel_now(void *pl, int ai, uint32_t now) {
 // / 50000 (Temur 10%): a betrayal - war on the lord's side, free (declare_war). Its traits, so it happens with or
 // without the language model; constrained=0 lets the model rebel whenever it likes. Returns why not (NULL: it
 // rebelled); dice 0: without the chance (diplo rebel A, tests).
-static const char *vassal_rebellion(void *pl, int ai, uint32_t now, int dice) {
+static const char *vassal_rebellion(ee_player *pl, int ai, uint32_t now, int dice) {
     static char why[120];
     int l = g_lord[ai], loy = trait(pl, T_LOYALTY), pride = trait(pl, T_PRIDE);
     void *pk = player_at(l);
@@ -903,7 +903,7 @@ static const char *vassal_rebellion(void *pl, int ai, uint32_t now, int dice) {
     return NULL;
 }
 // the betrayal of ally j: its line, war on j - and with blocks on j's whole block (no one left to take sides)
-static void betray_now(void *pl, int ai, int j, uint32_t now) {
+static void betray_now(ee_player *pl, int ai, int j, uint32_t now) {
     persona_say(pl, L_BETRAY, player_at(j), NULL);
     int blk[16];
     if (blocks_on()) blocks_compute(blk);
@@ -916,12 +916,12 @@ static void betray_now(void *pl, int ai, int j, uint32_t now) {
             }
 }
 // AI ai's own initiative (every 60 s)
-static void diplo_initiative(void *pl, int ai, uint32_t now) {
+static void diplo_initiative(ee_player *pl, int ai, uint32_t now) {
     if (!g_ai_diplomacy || TEAMS_LOCKED || scenario_game() || now < 600000) return;
     if (is_vassal(ai)) { vassal_rebellion(pl, ai, now, 1); return; }
     int lead = strongest_enemy(pl, ai);
     // alliance against the leader (decide seek_ally: me = pl, enemy = the leader; ally_score: them = the candidate)
-    void *pe = lead ? player_at(lead) : NULL;
+    ee_player *pe = lead ? player_at(lead) : NULL;
     if (lead && persona_decide(pl, D_SEEK_ALLY, NULL, pe) != 0) {
         int best = 0;
         double bs = -20;
@@ -975,7 +975,7 @@ static struct {   // per AI: what it has said / seen (reset by diplo_new_game)
     uint32_t last_min[16], last_sit[16];
 } g_sit;
 static int g_sit_looked;   // AIs past their first look (bits; reset by diplo_new_game, not saved)
-static void diplo_situations(void *pl, int ai, uint32_t now) {
+static void diplo_situations(ee_player *pl, int ai, uint32_t now) {
     if (!g_sit.said_greeting[ai] && now >= 20000 + (uint32_t)ai * 4000u) {   // at the start only, not after a load
         g_sit.said_greeting[ai] = 1;
         if (now < 90000) persona_say(pl, L_GREETING, NULL, NULL);
@@ -1018,7 +1018,7 @@ static void diplo_situations(void *pl, int ai, uint32_t now) {
 // a capitulation offered to a human: the tribute leaves the stock at once, so it can't be spent while he decides
 // (in a game: 1454 promised, 1211 left 40 s later); back into the stock before paying or when he ignores it
 static void promise_escrow(int ai, int take) {
-    void *pl = player_at(ai);
+    ee_player *pl = player_at(ai);
     if (!pl || g_escrow[ai] == take) return;
     int *stock = (int *)((uint8_t *)pl + PL_STOCK), total = 0;
     for (int r = 2; r < 7; r++) {
@@ -1031,7 +1031,7 @@ static void promise_escrow(int ai, int take) {
     if (g_log) fprintf(g_log, "# diplomacy: P%d tribute of %d %s\n", ai, total, take ? "held back from its stock" : "back in its stock");
 }
 static int pay_promise(int ai, int j, int *paid) {   // what was offered, as far as the stock still has it
-    void *pl = player_at(ai), *pj = player_at(j);
+    ee_player *pl = player_at(ai), *pj = player_at(j);
     int total = 0;
     if (paid) memset(paid, 0, 7 * sizeof *paid);
     promise_escrow(ai, 0);
@@ -1048,7 +1048,7 @@ static int pay_promise(int ai, int j, int *paid) {   // what was offered, as far
     hist_tribute(ai, j, total);
     return total;
 }
-static void capitulate(void *pl, int ai, int a, uint32_t now) {
+static void capitulate(ee_player *pl, int ai, int a, uint32_t now) {
     void *pa = player_at(a);
     int total = capit_offer(pl, g_promise[ai]);
     float share = capit_share(pl);
@@ -1128,7 +1128,7 @@ static void ai_offer_rules(int from, int to) {
 static int g_surrender = 1;
 static uint32_t g_no_citizens_since[16];
 static volatile LONG g_resign_queue;   // bit per player
-static int citizen_trainable(void *pl, int ai) {   // a Town Center/Capitol and enough to pay a citizen
+static int citizen_trainable(ee_player *pl, int ai) {   // a Town Center/Capitol and enough to pay a citizen
     int *stock = (int *)((uint8_t *)pl + PL_STOCK);
     if (g_ws.centers[ai] <= 0) return 0;
     for (int r = 2; r < 7; r++) {
@@ -1137,8 +1137,8 @@ static int citizen_trainable(void *pl, int ai) {   // a Town Center/Capitol and 
     }
     return 1;
 }
-static int beyond_saving(void *pl, int ai) { return g_ws.citizens[ai] <= 0 && !citizen_trainable(pl, ai); }
-static int victor_of(void *pl, int ai) {   // whoever destroyed the most of it lately, else its strongest enemy
+static int beyond_saving(ee_player *pl, int ai) { return g_ws.citizens[ai] <= 0 && !citizen_trainable(pl, ai); }
+static int victor_of(ee_player *pl, int ai) {   // whoever destroyed the most of it lately, else its strongest enemy
     int best = 0;
     uint32_t most = 0;
     for (int j = 1; j < nplayers(); j++) {
@@ -1150,7 +1150,7 @@ static int victor_of(void *pl, int ai) {   // whoever destroyed the most of it l
     }
     return best ? best : strongest_enemy(pl, ai);
 }
-static void surrender_now(void *pl, int ai) {
+static void surrender_now(ee_player *pl, int ai) {
     int v = victor_of(pl, ai);
     uint32_t r[K_N] = {0};
     if (v) kills_recent(v, ai, r);
@@ -1161,7 +1161,7 @@ static void surrender_now(void *pl, int ai) {
                        "in %d minutes)\n", ai, v, r[K_BUILDINGS], r[K_CIVIL], K_MILITARY(r), KILLS_RECENT_MIN);
 }
 // a block split: an AI the scan has seen without citizens and without a way to train one resigns at once
-static int surrender_instead(void *pl, int ai, uint32_t now) {
+static int surrender_instead(ee_player *pl, int ai, uint32_t now) {
     (void)now;
     if (!g_surrender || scenario_game() || !pl) return 0;
     if (g_resign_queue & (1 << ai)) return 1;
@@ -1169,7 +1169,7 @@ static int surrender_instead(void *pl, int ai, uint32_t now) {
     surrender_now(pl, ai);
     return 1;
 }
-static void check_capitulation(void *pl, int ai, uint32_t now) {
+static void check_capitulation(ee_player *pl, int ai, uint32_t now) {
     if (!g_ai_diplomacy || TEAMS_LOCKED || scenario_game() || now < 600000 || is_vassal(ai)) return;
     if (g_surrender && beyond_saving(pl, ai)) return;   // nothing left to keep: it resigns instead (surrender)
     if (g_capit_last[ai] && now - g_capit_last[ai] < 600000) return;
@@ -1189,7 +1189,7 @@ static void check_capitulation(void *pl, int ai, uint32_t now) {
 }
 // a move put to the model: still possible when its answer comes? (the game went on meanwhile)
 static int prop_valid(int ai, int h, int kind, int third) {
-    void *pl = player_at(ai), *ph = player_at(h);
+    ee_player *pl = player_at(ai), *ph = player_at(h);
     if (!pl || !ph || is_out(pl) || is_out(ph) || g_offer_t[ai][h]) return 0;
     int war = stance_of(pl, h) && stance_of(ph, ai), ally = !stance_of(pl, h) && !stance_of(ph, ai);
     switch (kind) {
@@ -1202,7 +1202,7 @@ static int prop_valid(int ai, int h, int kind, int third) {
 }
 // carry the move out, as the rules would (its line: the model's words when persona_say has them, g_say_instead)
 static void prop_do(int ai, int h, int kind, int third, uint32_t now) {
-    void *pl = player_at(ai);
+    ee_player *pl = player_at(ai);
     if (g_log) fprintf(g_log, "# diplomacy: P%d at %.1f min: %s P%d%s\n", ai, now / 60000.0, kind == P_ALLY ? "offers an alliance to" :
                        kind == P_BETRAY ? "betrays" : kind == P_CAPIT ? "capitulates to" : "rebels against its lord",
                        h, g_llm_rules ? " (the rules: no answer from the model)" : " (the model's decision)");
@@ -1212,7 +1212,7 @@ static void prop_do(int ai, int h, int kind, int third, uint32_t now) {
     else rebel_now(pl, ai, now);
 }
 
-static void check_surrender(void *pl, int ai, uint32_t now) {
+static void check_surrender(ee_player *pl, int ai, uint32_t now) {
     if (!g_surrender || scenario_game() || (g_resign_queue & (1 << ai))) return;
     if (g_ws.citizens[ai] > 0) { g_no_citizens_since[ai] = 0; return; }
     if (!g_no_citizens_since[ai]) { g_no_citizens_since[ai] = now ? now : 1; return; }
@@ -1238,7 +1238,7 @@ static void cancel_citizen_attack(int ai, int target) {
 static void diplo_cancel_attacks(int ai, int j) {
     if (ai > 0 && ai < 16 && j > 0 && j < 16 && mod_ai(ai)) InterlockedOr(&g_cancel_queue[ai], 1 << j);
 }
-static int attack_groups(void *pl) {   // the attack commander's deque count
+static int attack_groups(ee_player *pl) {   // the attack commander's deque count
     uint8_t *cbm = FIELD(pl, OF(PL, 0xB8C), uint8_t *), *cmd = cbm ? FIELD(cbm, OF(AM, 0x48), uint8_t *) : NULL;
     return cmd ? FIELD(cmd, OF(AMCMD, 0x14), int) : -1;
 }
@@ -1345,7 +1345,7 @@ static void reputation_pass(uint32_t now) {
     g_rep_seen = 1;
 }
 
-static void diplo_tick(void *pl, unsigned ai, uint32_t now) {
+static void diplo_tick(ee_player *pl, unsigned ai, uint32_t now) {
     persona_assign(pl);
     x_errors_show();   // strict parsing: a mistake in the texts at once
     hist_scan(now);    // the history up to date before anything is said (a betrayal: them.betrayals(me))
@@ -1612,7 +1612,7 @@ static int vassals_of(int me) {   // how many vassals, if every other player sti
     }
     return n;
 }
-static void victory_hint(void *pl, int ai) {   // every 10 s per AI, after the scan
+static void victory_hint(ee_player *pl, int ai) {   // every 10 s per AI, after the scan
     int me = (int)*(unsigned *)GA(G_LOCAL_PLAYER);
     if (g_victory_told || g_lord[ai] != me || !vassals_of(me)) return;
     g_victory_told = 1;

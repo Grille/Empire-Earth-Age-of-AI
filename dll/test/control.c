@@ -157,7 +157,7 @@ static void cmd_status(char *out) {
     REPLY("time_ms=%u speed=%.2f paused=%d game_type=%d\n", game_time(), *(float *)GA(G_GAME_SPEED),
         *(uint8_t *)GA(G_PAUSED), *(int *)GA(G_GAME_TYPE));
     for (int i = 0; i < 16; i++) {
-        void *pl = g_players[i];
+        ee_player *pl = g_players[i];
         if (!pl) continue;
         void *tt = FIELD(pl, PL_TECHTREE, void *);
         REPLY("P%d @%p epoch=%d difficulty=%d cheat=%d popcap=%d (own %d, game %d) citizen_share=%.2f stock(food,wood,stone,gold,iron)=", i, pl,
@@ -203,7 +203,7 @@ static void cmd_camera(char *out, const char *args) {
 // cap from table 0x917BB0 entry 0x16 (0x48E817) when it picks a mine.
 static void cmd_sites(char *out, const char *args) {
     int p = atoi(args);
-    void *pl = (p >= 0 && p < 16) ? g_players[p] : NULL;
+    ee_player *pl = (p >= 0 && p < 16) ? g_players[p] : NULL;
     if (!pl) { REPLY("error: no AI player %d (AI players are registered on their first update)\n", p); return; }
     unsigned cap = GF(FN_TABLE_VALUE)((void *)GA(G_TABLE_VALUES), 0x16);
     REPLY("P%d cap(table 0x16)=%u\n", p, cap);
@@ -227,7 +227,7 @@ static void cmd_sites(char *out, const char *args) {
 // zone (0x4886F2(2)), relative to the AI's base (build manager +0x12C/+0x130).
 static void cmd_foodcheck(char *out, const char *args) {
     int p = atoi(args);
-    void *pl = (p >= 0 && p < 16) ? g_players[p] : NULL;
+    ee_player *pl = (p >= 0 && p < 16) ? g_players[p] : NULL;
     void *cm = pl ? FIELD(pl, OF(PL, 0xB90), void *) : NULL;
     if (!cm) { REPLY("error: no AI player %d\n", p); return; }
     void *bm = FIELD(cm, OF(CM, 0x3C), void *);
@@ -265,7 +265,7 @@ static void print_costs(char *out, const char *tag, uint8_t *data) {
 static void cmd_costs(char *out, const char *args) {
     int p = 0, n = 0;
     sscanf(args, "%d %n", &p, &n);
-    void *pl = (p >= 0 && p < 16) ? g_players[p] : NULL;
+    ee_player *pl = (p >= 0 && p < 16) ? g_players[p] : NULL;
     if (!pl) { REPLY("error: no AI player %d\n", p); return; }
     uint8_t *tt = FIELD(pl, PL_TECHTREE, uint8_t *);
     int ep = FIELD(tt, TT_EPOCH, int);
@@ -293,7 +293,7 @@ static void cmd_costs(char *out, const char *args) {
 // +0x10 count), grouped by current goal (unit+0x1EC) and gather target (EEUGGather+0x38).
 static void cmd_units(char *out, const char *args) {
     int p = atoi(args);
-    void *pl = (p >= 0 && p < 16) ? g_players[p] : NULL;
+    ee_player *pl = (p >= 0 && p < 16) ? g_players[p] : NULL;
     void *cm = pl ? FIELD(pl, OF(PL, 0xB90), void *) : NULL;
     ee_resource_mgr *rm = cm ? FIELD(cm, OF(CM, 0x38), ee_resource_mgr *) : NULL;
     if (!rm) { REPLY("error: no AI player %d\n", p); return; }
@@ -704,7 +704,7 @@ static DWORD WINAPI gameover_watch(LPVOID unused) {
     for (;;) {
         Sleep(500);
         unsigned me = *(unsigned *)GA(G_LOCAL_PLAYER);
-        uint8_t *pl = me < 16 ? ((uint8_t **)GA(G_PLAYERS))[me] : NULL;
+        ee_player *pl = me < 16 ? ((ee_player **)GA(G_PLAYERS))[me] : NULL;
         if (!pl || !game_time() || !FIELD(pl, OF(PL, 0xA30), int)) continue;
         if (g_log) {
             EnterCriticalSection(&g_lock);

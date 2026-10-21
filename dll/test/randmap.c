@@ -127,7 +127,7 @@ static void randmap_rewrite(uint8_t *setup) {
 // Diplomacy array: player+0x9E4[index].
 
 // Called once per AI player at its first update of a game.
-static void randmap_ai_toggles(void *pl) {
+static void randmap_ai_toggles(ee_player *pl) {
     if (g_rm.ai_cheat >= 0) FIELD(pl, PL_CHEAT, uint8_t) = (uint8_t)g_rm.ai_cheat;
     if (g_rm.ai_ignore >= 0) FIELD(pl, OF(PL, 0xF02), uint8_t) = (uint8_t)g_rm.ai_ignore;
     int vanilla = is_vanilla(pl), idx = FIELD(pl, PL_INDEX, int);
@@ -161,13 +161,13 @@ static void randmap_ai_toggles(void *pl) {
                            g_rm.epoch_min, g_rm.epoch_max, (game_time() + delay) / 60000.0);
     }
     if (!g_rm.map[0]) return;
-    uint8_t *human = ((uint8_t **)GA(G_PLAYERS))[*(int *)GA(G_LOCAL_PLAYER)];
+    ee_player *human = ((ee_player **)GA(G_PLAYERS))[*(int *)GA(G_LOCAL_PLAYER)];
     if (!human || human == pl) return;
     // The idle human slot: civilization counts as chosen (else the civ-selection timer opens a dialog that
     // freezes the game), and allied with every AI so the AIs fight each other and the game can't end in
     // the human's defeat.
-    human[OF(PL, 0xB46)] = 1;
-    human[OF(PL, 0x465)] = 1;   // the watching human sees the whole map (AIs still have to explore)
+    FIELD(human, OF(PL, 0xB46), uint8_t) = 1;
+    FIELD(human, OF(PL, 0x465), uint8_t) = 1;   // the watching human sees the whole map (AIs still have to explore)
     void (__thiscall *set_dip)(void *, void *, int, int) = (void *)GA(FN_SET_DIPLOMACY);
     set_dip(human, pl, 0, 0);
     set_dip(pl, human, 0, 0);

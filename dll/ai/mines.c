@@ -31,7 +31,7 @@ static void mines_new_game(void) { memset(g_mf, 0, sizeof g_mf); }
 
 // the slots of the mines near a drop site (all / the base's continent), and the free far mine of the home continent
 // nearest to a drop site (DROP), every 10 s
-static void mf_scan(void *pl, unsigned idx, uint32_t now) {
+static void mf_scan(ee_player *pl, unsigned idx, uint32_t now) {
     struct mf_st *m = &g_mf[idx];
     if (m->t && now >= m->t && now - m->t < 10000) return;
     m->t = now ? now : 1;
@@ -76,12 +76,12 @@ static void mf_scan(void *pl, unsigned idx, uint32_t now) {
         }
     }
 }
-static int mf_active(void *pl, uint32_t now) {
+static int mf_active(ee_player *pl, uint32_t now) {
     return current_epoch(pl) >= FARM_EPOCH && now >= 3 * 60000 && workforce(pl) >= 30;   // before farms food comes first (Continental e0: fewer workers)
 }
 // FILL: after the worker targets (hook_compute_targets, after econ_targets)
 static void mine_fill(ee_resource_mgr *rm) {
-    void *pl = rm_player(rm);
+    ee_player *pl = rm_player(rm);
     if (!pl) return;
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     uint32_t now = game_time();
@@ -132,7 +132,7 @@ static void mine_fill(ee_resource_mgr *rm) {
     }
 }
 // DROP: every 2 minutes (econ_tick)
-static void mine_drops(void *pl, unsigned idx, uint32_t now) {
+static void mine_drops(ee_player *pl, unsigned idx, uint32_t now) {
     struct mf_st *m = &g_mf[idx];
     if (!((MINE_FILL(idx) & 2) || (PV(idx, g_v_cit_plan, g_cit_plan) & 4)) || !mf_active(pl, now) || m->drops_queued >= 6) return;   // citizen_plan DROP too
     if (m->drop_t && now >= m->drop_t && now - m->drop_t < 120000) return;
@@ -168,7 +168,7 @@ static void mine_drops(void *pl, unsigned idx, uint32_t now) {
                 return;
             }
 }
-static void mines_log(void *pl, unsigned idx, uint32_t now) {
+static void mines_log(ee_player *pl, unsigned idx, uint32_t now) {
     static uint32_t last[16];
     if (!g_log || !g_autotest || (!g_mine_fill && g_v_mine_fill < 0)) return;
     if (now / 300000 == last[idx] / 300000 && last[idx]) return;

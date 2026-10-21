@@ -39,11 +39,11 @@ static void autotest_tick(uint32_t now);
 static volatile int g_rm_seen;   // an AI resource manager has ticked (else the sim loop drives autotest_tick)
 static void execute(const char *cmd, char *out);
 static char g_setup_path[MAX_PATH];
-static void autotest_first_tick(void *pl);
-static void settings_apply(void *pl);
-static void econ_tick(void *pl, uint32_t now);
+static void autotest_first_tick(ee_player *pl);
+static void settings_apply(ee_player *pl);
+static void econ_tick(ee_player *pl, uint32_t now);
 static void persona_new_game(uint8_t *setup);
-static void persona_assign(void *pl);
+static void persona_assign(ee_player *pl);
 static void diplo_new_game(void);
 static void chat_new_game(void);
 static void llm_new_game(void);
@@ -58,38 +58,38 @@ static void mine_fill(ee_resource_mgr *rm);   // mines.c
 static void mines_new_game(void);
 static void cz_targets(ee_resource_mgr *rm);   // citizens.c
 static void wf_targets(ee_resource_mgr *rm);   // citizens.c: workforce_plan
-static void wf_tick(void *pl, uint32_t now);
+static void wf_tick(ee_player *pl, uint32_t now);
 static void wf_new_game(void);
 static void ap_targets(ee_resource_mgr *rm);   // army.c
 static void citizens_safety(ee_resource_mgr *rm);
-static void attack_tick(void *pl, uint32_t now);
-static void vanilla_tick(void *pl, uint32_t now);
-static void ecolog_tick(void *pl, uint32_t now);   // ecolog.c: the economy log (autotest)
+static void attack_tick(ee_player *pl, uint32_t now);
+static void vanilla_tick(ee_player *pl, uint32_t now);
+static void ecolog_tick(ee_player *pl, uint32_t now);   // ecolog.c: the economy log (autotest)
 static void ecolog_new_game(void);
-static void cz_tick(void *pl, uint32_t now);   // citizens.c: citizen production
+static void cz_tick(ee_player *pl, uint32_t now);   // citizens.c: citizen production
 static void cz_new_game(void);
-static void am_tick(void *pl, uint32_t now);   // army.c: army spending
-static void mt_tick(void *pl, uint32_t now);   // metal.c: gold and iron
+static void am_tick(ee_player *pl, uint32_t now);   // army.c: army spending
+static void mt_tick(ee_player *pl, uint32_t now);   // metal.c: gold and iron
 static void mt_install(const char *aimod_ini, const char *autotest_ini);
 static void am_new_game(void);
-static void mass_tick(void *pl, uint32_t now);   // mass.c: the army as one
+static void mass_tick(ee_player *pl, uint32_t now);   // mass.c: the army as one
 static void mass_new_game(void);
 static void mass_install(const char *aimod_ini, const char *autotest_ini);
-static void cover_tick(void *pl, uint32_t now);   // cover.c: fall back to cover
+static void cover_tick(ee_player *pl, uint32_t now);   // cover.c: fall back to cover
 static void cover_new_game(void);
 static void cover_install(const char *aimod_ini, const char *autotest_ini);
-static void expand_tick(void *pl, uint32_t now);   // expand.c: other islands
+static void expand_tick(ee_player *pl, uint32_t now);   // expand.c: other islands
 static void expand_new_game(void);
 static void expand_install(const char *aimod_ini, const char *autotest_ini);
 static void ap_new_game(void);
 static void mt_new_game(void);   // metal.c
-static void army_plan_tick(void *pl, unsigned idx, uint32_t now);
+static void army_plan_tick(ee_player *pl, unsigned idx, uint32_t now);
 static void ap_install(const char *aimod_ini, const char *autotest_ini);
 static void early_new_game(void);   // early.c
-static void assault_tick(void *pl, uint32_t now);
-static void landing_tick(void *pl, uint32_t now);
-static void navy_tick(void *pl, uint32_t now);
-static void intel_tick(void *pl, uint32_t now);
+static void assault_tick(ee_player *pl, uint32_t now);
+static void landing_tick(ee_player *pl, uint32_t now);
+static void navy_tick(ee_player *pl, uint32_t now);
+static void intel_tick(ee_player *pl, uint32_t now);
 static void intel_new_game(int from_save);
 static void econ_new_game(void);
 static void attack_new_game(void);
@@ -149,7 +149,7 @@ static void __fastcall hook_rm_update(void *rm, void *edx, uint32_t now) {
     (void)edx;
     static uint32_t last[16];
     static uint8_t dumped[16];   // bit0: 10 s snapshot taken, bit1: 60 s snapshot taken
-    void *pl = rm_player(rm);
+    ee_player *pl = rm_player(rm);
     if (pl) {
         unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
         ctl_note_player(pl);

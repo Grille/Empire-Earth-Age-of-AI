@@ -25,31 +25,31 @@ enum chat_kind { CHAT_SAY, CHAT_EPOCH, CHAT_ATTACK, CHAT_ROUTE, CHAT_TOWER, CHAT
 static int g_say_tribute[7];   // {tribute}, {tribute_total}: amounts by resource (stock index 2..6), set by the caller (diplo.c)
 static int g_texts_missing;   // the mod's files aren't there (mod/system.eeai, prompt.eeai, computer.eeai, units.eeai): it says nothing
 
-static int ai_say(void *pl, enum chat_kind kind, const char *fmt, ...);   // a debug chat line (aimod.ini chat)
+static int ai_say(ee_player *pl, enum chat_kind kind, const char *fmt, ...);   // a debug chat line (aimod.ini chat)
 static int chat_level(void);
-static void chat_tick(void *pl, unsigned idx, uint32_t now);
-static void chat_stance_line(void *pl, int stance);   // the game's own line on a change of stance
+static void chat_tick(ee_player *pl, unsigned idx, uint32_t now);
+static void chat_stance_line(ee_player *pl, int stance);   // the game's own line on a change of stance
 static void system_line(const char *text, int ms);
-static int persona_say(void *pl, enum line_kind k, void *other, void *third);   // a situation's line
-static void persona_attack(void *pl, void *target);   // the attack line
+static int persona_say(ee_player *pl, enum line_kind k, ee_player *other, ee_player *third);   // a situation's line
+static void persona_attack(ee_player *pl, ee_player *target);   // the attack line
 static void persona_attack_launched(unsigned ai);
-static void persona_assign(void *pl);
-static double persona_decide(void *pl, int k, void *them, void *enemy);
-static const char *player_name(void *pl);
-static int trait(void *pl, enum trait t);
-static float capit_share(void *pl);
-static float tribute_worth(void *pl);
+static void persona_assign(ee_player *pl);
+static double persona_decide(ee_player *pl, int k, ee_player *them, ee_player *enemy);
+static const char *player_name(ee_player *pl);
+static int trait(ee_player *pl, enum trait t);
+static float capit_share(ee_player *pl);
+static float tribute_worth(ee_player *pl);
 static void tribute_text(const int *amount, char *buf, int cap);
 static void x_errors_show(void);   // strict parsing: the mistakes in the texts as system lines
 // the system texts (mod/system.eeai): one filled, by its key
-static const char *sysf(const char *key, void *pl, void *other, void *third, ...);
-static int tsub(char *out, int cap, const char *key, void *pl, void *other, ...);
+static const char *sysf(const char *key, ee_player *pl, ee_player *other, ee_player *third, ...);
+static int tsub(char *out, int cap, const char *key, ee_player *pl, ee_player *other, ...);
 static const char *tnum(char *buf, int n);
 // the language model ([llm]): it decides, answers, remembers
 static int llm_ai_deciding(void);
 static int llm_ai_offer(int from, int to, int kind, int third);
 static void llm_happened(int ai, const char *fmt, ...);
-static int llm_peace_answer(void *pl, int ai, int j, uint32_t now);
+static int llm_peace_answer(ee_player *pl, int ai, int j, uint32_t now);
 static void llm_player_chat(const char *text);
 static int llm_propose(int ai, int h, int kind, int third, uint32_t now);
 static int llm_unbound(void);

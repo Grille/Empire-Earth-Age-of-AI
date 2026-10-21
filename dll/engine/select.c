@@ -58,7 +58,7 @@ static void cmd_seltest(char *out, const char *args) {
     REPLY("rect %.0f %.0f %.0f %.0f: found %u, packed %u in %u bytes, unpacked %d (big_selection %d)", r[0], r[1], r[2],
           r[3], g_sel_last_in, g_sel_last_out, msg[OF(MSG_SELECT, 0x134)], b ? (int)(e - b) : 0, g_big_selection);
     // carried out as the message does (EEMSelectUnits::vf10 -> 0x55B3FB on the player): the selected group (+0x9BC)
-    void *pl = ((void **)GA(G_PLAYERS))[*(unsigned *)GA(G_LOCAL_PLAYER)];
+    ee_player *pl = ((void **)GA(G_PLAYERS))[*(unsigned *)GA(G_LOCAL_PLAYER)];
     int *grp = pl ? FIELD(pl, OF(PL, 0x9BC), int *) : NULL;
     if (grp) {
         GF(FN_SELECT_UNITS)(pl, msg + OF(MSG_SELECT, 0x10));

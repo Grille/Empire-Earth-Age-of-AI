@@ -32,7 +32,7 @@ static uint32_t g_ex_log_t[16], g_ex_new_t;
 static int g_ex_map_logged;
 static struct { int id, p; uint32_t t; uint16_t known; } g_ex_seen[512];   // buildings off their owner's home continent already logged (# isl new): since, the enemies that saw it (# isl seen)
 static int g_ex_nseen;
-static int ex_home(void *pl);
+static int ex_home(ee_player *pl);
 
 static struct ex_cont *ex_cont_of(unsigned id, int add) {
     if (!id) return NULL;
@@ -44,7 +44,7 @@ static struct ex_cont *ex_cont_of(unsigned id, int add) {
     return c;
 }
 // the whole map, at most once a second (every player's line reads the same scan)
-static void ex_scan(void *pl, uint32_t now, int new_log) {
+static void ex_scan(ee_player *pl, uint32_t now, int new_log) {
     if (!new_log && g_exs.t && now >= g_exs.t && now - g_exs.t < 1000) return;
     memset(&g_exs, 0, sizeof g_exs);
     g_exs.t = now ? now : 1;
@@ -77,7 +77,8 @@ static void ex_scan(void *pl, uint32_t now, int new_log) {
         }
     }
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
-        uint8_t *u = it.u, *td = it.td, *o = FIELD(u, OF(UNIT, 0x18), uint8_t *);
+        uint8_t *u = it.u, *td = it.td;
+        ee_player *o = unit_owner(u);
         if (!o || FIELD(u, OF(UNIT, 0x3C), int) <= 0) continue;
         int pi = FIELD(o, PL_INDEX, int), fam = FIELD(td, OF(TD, 0x4B4), int), t = FIELD(td, OF(TD, 0x4B8), int), x = FIELD(u, OF(UNIT, 0x1C), int), y = FIELD(u, OF(UNIT, 0x20), int);
         if (pi <= 0 || pi >= 16) continue;
@@ -132,13 +133,13 @@ static void ex_scan(void *pl, uint32_t now, int new_log) {
         } else if (is_soldier(td)) c->sold[pi]++;
     }
 }
-static int ex_home(void *pl) {
+static int ex_home(ee_player *pl) {
     uint8_t *cm = FIELD(pl, OF(PL, 0xB90), uint8_t *), *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL;
     if (!bm || FIELD(bm, OF(BM, 0x12C), int) == -10000) return 0;
     return (int)area_id(FIELD(bm, OF(BM, 0x12C), int), FIELD(bm, OF(BM, 0x130), int), 2);
 }
 // a continent's class for player pl (home: hc)
-static int ex_class(void *pl, const struct ex_cont *c, unsigned hc) {
+static int ex_class(ee_player *pl, const struct ex_cont *c, unsigned hc) {
     if (c->id == hc) return EXC_HOME;
     int pi = pidx(pl), mine = c->bld[pi] > 0, foe = 0, ally = 0;
     for (int p = 1; p < 16; p++) {
@@ -148,7 +149,7 @@ static int ex_class(void *pl, const struct ex_cont *c, unsigned hc) {
     }
     return mine ? (foe ? EXC_CONTEST : EXC_OWN) : foe ? EXC_ENEMY : ally ? EXC_ALLY : EXC_EMPTY;
 }
-static void ex_log(void *pl, unsigned idx, uint32_t now) {
+static void ex_log(ee_player *pl, unsigned idx, uint32_t now) {
     unsigned hc = (unsigned)ex_home(pl);
     if (!hc) return;
     ex_scan(pl, now, 0);
@@ -290,9 +291,9 @@ static struct ex_st {
     uint32_t scout_at;                    // the scouting transport at the island's shore since
 } g_xs[16];
 
-static int ex_alive(struct ex_unit *e, void *pl) {
+static int ex_alive(struct ex_unit *e, ee_player *pl) {
     uint8_t *u = e->u, *td = u ? FIELD(u, OF(UNIT, 0x2C), uint8_t *) : NULL;
-    return td && FIELD(u, OF(UNIT, 0x3C), int) > 0 && FIELD(u, OF(UNIT, 0x60), int) == e->id && FIELD(u, OF(UNIT, 0x18), void *) == pl;
+    return td && FIELD(u, OF(UNIT, 0x3C), int) > 0 && FIELD(u, OF(UNIT, 0x60), int) == e->id && unit_owner(u) == pl;
 }
 static void ex_say(unsigned idx, uint32_t now, const char *fmt, ...) {
     if (!g_log) return;
@@ -313,7 +314,7 @@ static int expand_ship(uint8_t *u) {
     return 0;
 }
 static int expand_refuses(uint8_t *sg, uint8_t *u) {
-    void *pl = FIELD(sg, OF(ASG, 0x190), void *);
+    ee_player *pl = FIELD(sg, OF(ASG, 0x190), void *);
     unsigned pi = pl ? (unsigned)FIELD(pl, PL_INDEX, int) & 15 : 0;
     struct ex_st *x = &g_xs[pi];
     if (!u || (!x->fphase && !x->active)) return 0;
@@ -327,7 +328,7 @@ static int expand_refuses(uint8_t *sg, uint8_t *u) {
     for (int k = 0; k < x->nguard; k++) if (x->guard[k].u == u) return 1;   // FORWARD: its guard only
     return 0;
 }
-static int expand_has(void *pl, uint8_t *u) {
+static int expand_has(ee_player *pl, uint8_t *u) {
     struct ex_st *x = &g_xs[(unsigned)FIELD(pl, PL_INDEX, int) & 15];
     for (int k = 0; x->fphase && k < x->npass; k++) if (x->pass[k].u == u) return 1;
     return 0;
@@ -335,7 +336,7 @@ static int expand_has(void *pl, uint8_t *u) {
 // the drop site and a tower an outpost waits for (planned and short of them, or ashore with them not laid yet): held
 // back from every unit order (econ.c train_budget, as a landing's transports) - the AI spends its stock as it comes,
 // and outposts were held up 5-10 minutes with "can't pay"
-static void expand_reserve(void *pl, int reserve[7]) {
+static void expand_reserve(ee_player *pl, int reserve[7]) {
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     struct ex_st *x = &g_xs[idx];
     if (!EXPAND(idx) || g_landing_order) return;   // its own transport (and a landing's) spend it
@@ -348,7 +349,7 @@ static void expand_reserve(void *pl, int reserve[7]) {
     for (int r = 2; r < 7; r++) reserve[r] += unit_cost(pl, UT(B_SETTLEMENT), r) + (tt ? unit_cost(pl, tt, r) : unit_cost(pl, UT(B_GUARD_TOWER_MIDDLE), r));
 }
 static int expand_leads(uint8_t *sg) {   // a subgroup holding the ferry's transport: its update skipped
-    void *pl = FIELD(sg, OF(ASG, 0x190), void *);
+    ee_player *pl = FIELD(sg, OF(ASG, 0x190), void *);
     unsigned pi = pl ? (unsigned)FIELD(pl, PL_INDEX, int) & 15 : 0;
     struct ex_st *x = &g_xs[pi];
     if (!x->fphase || !x->ship.u) return 0;
@@ -389,7 +390,7 @@ static int ex_mark_lost(struct ex_st *x, unsigned cont, uint32_t now) {   // the
 }
 // the ferry's end: the passengers still at home are free again, a transport with someone aboard unloads at the land
 // nearest to it
-static void ex_ferry_end(void *pl, unsigned idx, struct ex_st *x, uint32_t now, const char *why) {
+static void ex_ferry_end(ee_player *pl, unsigned idx, struct ex_st *x, uint32_t now, const char *why) {
     // those still walking to the transport first (its load goal alive): their part of it replaced by a stop where they
     // are - left as it was, the unload below deleted the load goal and the next order to them called the deleted
     // goal (_purecall, 2 of 80 island games)
@@ -411,7 +412,7 @@ static void ex_ferry_end(void *pl, unsigned idx, struct ex_st *x, uint32_t now, 
 }
 
 // the free island for a new outpost (0: none) - and why not
-static unsigned ex_pick(void *pl, unsigned idx, struct ex_st *x, unsigned hc, int ocean, int bx, int by, uint32_t now, const char **why) {
+static unsigned ex_pick(ee_player *pl, unsigned idx, struct ex_st *x, unsigned hc, int ocean, int bx, int by, uint32_t now, const char **why) {
     unsigned best = 0;
     float bs = -1e9f;
     int any = 0;
@@ -453,11 +454,11 @@ static unsigned ex_pick(void *pl, unsigned idx, struct ex_st *x, unsigned hc, in
     return best;
 }
 // the passengers: citizens nearest the home shore (within 35 tiles), soldiers at home (free ones first)
-struct ex_pick_scan { void *pl; void *cm; struct ex_st *x; unsigned hc; int cx, cy, nc, ns; uint8_t *c[48], *s[48]; int cd[48], sd[48]; };
+struct ex_pick_scan { ee_player *pl; void *cm; struct ex_st *x; unsigned hc; int cx, cy, nc, ns; uint8_t *c[48], *s[48]; int cd[48], sd[48]; };
 static void ex_pick_unit(uint8_t *u, void *ctx) {
     struct ex_pick_scan *p = ctx;
     uint8_t *td = FIELD(u, OF(UNIT, 0x2C), uint8_t *);
-    if (FIELD(u, OF(UNIT, 0x18), void *) != p->pl || FIELD(u, OF(UNIT, 0x3C), int) <= 0 || !td || FIELD(u, OF(UNIT, 0x1C), int) < 0 || FIELD(u, OF(UNIT, 0x33B), uint8_t)) return;
+    if (unit_owner(u) != p->pl || FIELD(u, OF(UNIT, 0x3C), int) <= 0 || !td || FIELD(u, OF(UNIT, 0x1C), int) < 0 || FIELD(u, OF(UNIT, 0x33B), uint8_t)) return;
     int x = FIELD(u, OF(UNIT, 0x1C), int), y = FIELD(u, OF(UNIT, 0x20), int), d = (x - p->cx) * (x - p->cx) + (y - p->cy) * (y - p->cy);
     if (d > 35 * 35 || area_id(x, y, 2) != p->hc || landing_has_unit(p->pl, u)) return;
     int t = FIELD(td, OF(TD, 0x4B8), int);
@@ -486,15 +487,15 @@ static int ex_take(uint8_t **u, int *d, int n) {   // the nearest left (index), 
     return b;
 }
 // phase 1: a transport (its own, idle and empty, else trained), then the passengers
-static float ex_sea_risk(void *pl, struct ex_st *x, uint8_t *trtd, float hp);   // below
-static void ex_ferry_ship(void *pl, unsigned idx, struct ex_st *x, uint32_t now) {
+static float ex_sea_risk(ee_player *pl, struct ex_st *x, uint8_t *trtd, float hp);   // below
+static void ex_ferry_ship(ee_player *pl, unsigned idx, struct ex_st *x, uint32_t now) {
     void *cm = FIELD(pl, OF(PL, 0xB90), void *);
     uint8_t *um = cm ? FIELD(cm, OF(CM, 0x44), uint8_t *) : NULL;
     uint8_t *best = NULL;
     int bd = 0x7FFFFFFF, all = 0, nl = 0, nld = 0, no = 0;
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
         uint8_t *u = it.u;
-        if (FIELD(u, OF(UNIT, 0x18), void *) != pl || FIELD(u, OF(UNIT, 0x3C), int) <= 0 || !is_transport(FIELD(it.td, OF(TD, 0x4B8), int)) || FIELD(u, OF(UNIT, 0x1C), int) < 0) continue;
+        if (unit_owner(u) != pl || FIELD(u, OF(UNIT, 0x3C), int) <= 0 || !is_transport(FIELD(it.td, OF(TD, 0x4B8), int)) || FIELD(u, OF(UNIT, 0x1C), int) < 0) continue;
         all++;
         if (landing_has_unit(pl, u)) { nl++; continue; }
         if (ex_cargo(u) > 0) { nld++; continue; }
@@ -578,13 +579,13 @@ static void ex_ferry_ship(void *pl, unsigned idx, struct ex_st *x, uint32_t now)
            nc, x->npass - nc, x->hx, x->hy, x->cont, x->mx, x->my, x->ux, x->uy, FIELD(best, OF(UNIT, 0x1C), int), FIELD(best, OF(UNIT, 0x20), int));
 }
 // the sea on the way: enemy ships, submarines and aircraft that hit the transport, against its warships (landing.c)
-static float ex_sea_risk(void *pl, struct ex_st *x, uint8_t *trtd, float hp) {
+static float ex_sea_risk(ee_player *pl, struct ex_st *x, uint8_t *trtd, float hp) {
     static struct ld_sea e, o;
     memset(&o, 0, sizeof o);
     ld_sea_threat(pl, trtd, x->hwx, x->hwy, x->uwx, x->uwy, x->ux, x->uy, &e);
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
         uint8_t *u = it.u;
-        if (FIELD(u, OF(UNIT, 0x18), void *) != pl || FIELD(u, OF(UNIT, 0x3C), int) <= 0 || FIELD(u, OF(UNIT, 0x1C), int) < 0) continue;
+        if (unit_owner(u) != pl || FIELD(u, OF(UNIT, 0x3C), int) <= 0 || FIELD(u, OF(UNIT, 0x1C), int) < 0) continue;
         int fam = FIELD(it.td, OF(TD, 0x4B4), int), t = FIELD(it.td, OF(TD, 0x4B8), int);
         if ((fam == 4 || fam == 10) && !is_transport(t) && !is_fishing_boat(t) && FIELD(it.td, OF(TD, 0x510), int) > 0) ld_sea_add(&o, &e, u);
     }
@@ -592,7 +593,7 @@ static float ex_sea_risk(void *pl, struct ex_st *x, uint8_t *trtd, float hp) {
 }
 // phase 4: the empty transport looks at the island (its mines' water): enemy town, defence or 4+ known buildings - that
 // island never again; looked at - back to the home shore for the passengers (phase 1 again); 4 minutes: given up
-static void ex_ferry_scout(void *pl, unsigned idx, struct ex_st *x, uint32_t now) {
+static void ex_ferry_scout(ee_player *pl, unsigned idx, struct ex_st *x, uint32_t now) {
     uint8_t *sh = x->ship.u;
     ex_scan(pl, now, 0);
     struct ex_cont *c = ex_cont_of(x->cont, 0);
@@ -626,7 +627,7 @@ static void ex_ferry_scout(void *pl, unsigned idx, struct ex_st *x, uint32_t now
         x->orders += unit_goal(sh, goal_move((float)x->uwx + 0.5f, (float)x->uwy + 0.5f), 0, 0x1F40);
 }
 // phase 2: to the home shore, aboard, then off
-static void ex_ferry_board(void *pl, unsigned idx, struct ex_st *x, uint32_t now) {
+static void ex_ferry_board(ee_player *pl, unsigned idx, struct ex_st *x, uint32_t now) {
     uint8_t *sh = x->ship.u;
     int n = 0, aboard = 0, cits = 0;
     for (int k = 0; k < x->npass; k++)
@@ -706,7 +707,7 @@ static void ex_ferry_board(void *pl, unsigned idx, struct ex_st *x, uint32_t now
     for (int k = 0; k < m; k++) x->orders += unit_goal(list[k], goal_load_part(g), 0, 0x1F40);
 }
 // phase 3: at sea - unloaded again where it stopped with someone aboard; all ashore: the transport back, the ferry ends
-static void ex_ferry_sail(void *pl, unsigned idx, struct ex_st *x, uint32_t now) {
+static void ex_ferry_sail(ee_player *pl, unsigned idx, struct ex_st *x, uint32_t now) {
     uint8_t *sh = x->ship.u, *cur = FIELD(sh, OF(UNIT, 0x1EC), uint8_t *);
     int n = ex_cargo(sh);
     if (n <= 0) {
@@ -728,10 +729,11 @@ static void ex_ferry_sail(void *pl, unsigned idx, struct ex_st *x, uint32_t now)
 }
 
 // THE OUTPOST'S WORK (every 2 s): the projects, builders, miners and the guard
-struct ex_isle { void *pl; unsigned cont; int nc, ns, nb; uint8_t *c[64], *s[32]; int foe; uint8_t *fu; int fd, fx, fy; };
+struct ex_isle { ee_player *pl; unsigned cont; int nc, ns, nb; uint8_t *c[64], *s[32]; int foe; uint8_t *fu; int fd, fx, fy; };
 static void ex_isle_unit(uint8_t *u, void *ctx) {
     struct ex_isle *e = ctx;
-    uint8_t *td = FIELD(u, OF(UNIT, 0x2C), uint8_t *), *o = FIELD(u, OF(UNIT, 0x18), uint8_t *);
+    uint8_t *td = FIELD(u, OF(UNIT, 0x2C), uint8_t *);
+    ee_player *o = unit_owner(u);
     if (!o || !td || FIELD(u, OF(UNIT, 0x3C), int) <= 0 || FIELD(u, OF(UNIT, 0x1C), int) < 0) return;
     int x = FIELD(u, OF(UNIT, 0x1C), int), y = FIELD(u, OF(UNIT, 0x20), int);
     if (o == e->pl) {
@@ -749,12 +751,12 @@ static void ex_isle_unit(uint8_t *u, void *ctx) {
     e->foe++;
     if (!e->fu || d < e->fd) { e->fu = u; e->fd = d; }
 }
-static int ex_kind_type(void *pl, int kind) {
+static int ex_kind_type(ee_player *pl, int kind) {
     if (kind == XK_TOWER) return ld_kind_type(pl, LDB_TOWER);
     if (kind == XK_BARRACKS) return ld_can_build(pl, UT(B_BARRACKS)) ? UT(B_BARRACKS) : 0;
     return ld_can_build(pl, UT(B_SETTLEMENT)) ? UT(B_SETTLEMENT) : 0;   // a Settlement (a Town Center first took the stone of the towers)
 }
-static int ex_spot(void *pl, unsigned idx, struct ex_st *x, int type, int cx, int cy, int *ox, int *oy) {
+static int ex_spot(ee_player *pl, unsigned idx, struct ex_st *x, int type, int cx, int cy, int *ox, int *oy) {
     uint8_t *td = type_data(type);
     int sz = td ? FIELD(td, OF(TD, 0x58C), int) : 1, found = 0;
     float best = 1e9f;
@@ -776,7 +778,7 @@ static int ex_proj_alive(struct ex_proj *p) {
     return td && FIELD(b, OF(UNIT, 0x3C), int) > 0 && FIELD(b, OF(UNIT, 0x60), int) == p->id;
 }
 // the free mine of the island nearest to (x, y): its gatherers below the cap
-static uint8_t *ex_free_mine(void *pl, struct ex_st *x, int px, int py) {
+static uint8_t *ex_free_mine(ee_player *pl, struct ex_st *x, int px, int py) {
     unsigned cap = GF(FN_TABLE_VALUE)((void *)GA(G_TABLE_VALUES), 0x16);
     uint8_t *best = NULL;
     int bd = 0x7FFFFFFF;
@@ -799,7 +801,7 @@ static uint8_t *ex_free_mine(void *pl, struct ex_st *x, int px, int py) {
 // SEA CONTROL as the AI knows it (honest_vision: intel.c's memory): no enemy warship seen in its own waters (navy.c
 // navy_waters - the waters of its nearest building) within 5 minutes, and its warships at least the enemy's it saw
 // within 10 minutes
-static int sea_held(void *pl, unsigned idx, int *mine, int *theirs, int *inw) {
+static int sea_held(ee_player *pl, unsigned idx, int *mine, int *theirs, int *inw) {
     struct intel *in = &g_intel[idx & 15];
     int foe = 0, n = 0, own = 0;
     for (int k = 0; k < in->n; k++) {
@@ -812,7 +814,7 @@ static int sea_held(void *pl, unsigned idx, int *mine, int *theirs, int *inw) {
         if (e->x >= 0 && in->now - e->t <= 300000 && navy_waters(e->x, e->y) == (int)idx) foe++;
     }
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
-        if (FIELD(it.u, OF(UNIT, 0x18), void *) != pl || FIELD(it.u, OF(UNIT, 0x3C), int) <= 0) continue;
+        if (unit_owner(it.u) != pl || FIELD(it.u, OF(UNIT, 0x3C), int) <= 0) continue;
         int nk = navy_kind(it.td);
         own += nk == NV_WAR || nk == NV_SUB;
     }
@@ -823,7 +825,7 @@ static int sea_held(void *pl, unsigned idx, int *mine, int *theirs, int *inw) {
 }
 // FORWARD: the outpost nearer the enemy's known buildings than its home - a barracks and two more towers there, while
 // it holds the sea (once; a project that waits for the sea is laid when it holds it again)
-static void ex_forward(void *pl, unsigned idx, struct ex_st *x, uint32_t now) {
+static void ex_forward(ee_player *pl, unsigned idx, struct ex_st *x, uint32_t now) {
     if (x->fwd_added) return;
     if (!x->forward) {
         struct intel *in = &g_intel[idx & 15];
@@ -862,7 +864,7 @@ static void ex_forward(void *pl, unsigned idx, struct ex_st *x, uint32_t now) {
 }
 // MORE: the outpost holds - its Settlement and towers stand (or were dropped), no enemy there for 3 minutes, its trips
 // made or its slots filled: left to the game's economy, the next island planned
-static int ex_holds(void *pl, unsigned idx, struct ex_st *x, uint32_t now) {
+static int ex_holds(ee_player *pl, unsigned idx, struct ex_st *x, uint32_t now) {
     int slots = 0;
     for (int j = 0; j < g_exs.n; j++) if (g_exs.c[j].id == x->cont) slots = g_exs.c[j].slots;
     for (int j = 0; j < x->nproj; j++) if (x->proj[j].state != 2 && x->proj[j].state != 3) return 0;
@@ -877,7 +879,7 @@ static int ex_holds(void *pl, unsigned idx, struct ex_st *x, uint32_t now) {
     (void)pl;
     return 1;
 }
-static void ex_outpost(void *pl, unsigned idx, struct ex_st *x, uint32_t now) {
+static void ex_outpost(ee_player *pl, unsigned idx, struct ex_st *x, uint32_t now) {
     int dx0 = x->mx, dy0 = x->my;   // the outpost's middle: its drop site once laid
     for (int j = 0; j < x->nproj; j++) if (x->proj[j].kind == XK_DROP && x->proj[j].state && x->proj[j].state != 3) { dx0 = x->proj[j].x; dy0 = x->proj[j].y; }
     static struct ex_isle e;
@@ -996,13 +998,13 @@ static void ex_outpost(void *pl, unsigned idx, struct ex_st *x, uint32_t now) {
 }
 // the enemy army it knows (intel.c: seen within 10 minutes) stronger than its own land army (strength: sqrt(hit points x
 // attack), landing.c) - with the cheat the base AI's waves took the citizens shipped off and the home they left
-static int ex_outmatched(void *pl, float *mine, float *theirs) {
+static int ex_outmatched(ee_player *pl, float *mine, float *theirs) {
     float eh = 0, ea = 0, oh = 0, oa = 0;
     int en = 0;
     intel_army(pl, &eh, &ea, NULL, &en);
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
         uint8_t *u = it.u;
-        if (FIELD(u, OF(UNIT, 0x18), void *) != pl || FIELD(u, OF(UNIT, 0x3C), int) <= 0 || FIELD(u, OF(UNIT, 0x1C), int) < 0 || !land_soldier(FIELD(it.td, OF(TD, 0x4B8), int))) continue;
+        if (unit_owner(u) != pl || FIELD(u, OF(UNIT, 0x3C), int) <= 0 || FIELD(u, OF(UNIT, 0x1C), int) < 0 || !land_soldier(FIELD(it.td, OF(TD, 0x4B8), int))) continue;
         oh += (float)FIELD(u, OF(UNIT, 0x3C), int); oa += ld_attack(u);
     }
     *mine = ld_strength(oh, oa); *theirs = ld_strength(eh, ea);
@@ -1010,7 +1012,7 @@ static int ex_outmatched(void *pl, float *mine, float *theirs) {
 }
 // an enemy town (Town Center, Capitol) seen on the outpost's island - an enemy's home, not a free island: the ferry
 // back home (unloaded at the home shore), the outpost off, that island never again
-static void ex_enemy_home(void *pl, unsigned idx, struct ex_st *x, uint32_t now) {
+static void ex_enemy_home(ee_player *pl, unsigned idx, struct ex_st *x, uint32_t now) {
     ex_scan(pl, now, 0);
     struct ex_cont *c = ex_cont_of(x->cont, 0);
     if (!c || !c->etown[idx]) return;
@@ -1021,7 +1023,7 @@ static void ex_enemy_home(void *pl, unsigned idx, struct ex_st *x, uint32_t now)
     ex_say(idx, now, "an enemy town seen on the island %u - an enemy's home: outpost off, never again", x->cont);
 }
 // FOLLOW: why not now (NULL: the sea held, the army 1.5 x the enemy's it knows)
-static const char *ex_follow_no(void *pl, unsigned idx, float mine, float theirs) {
+static const char *ex_follow_no(ee_player *pl, unsigned idx, float mine, float theirs) {
     if (!(EXPAND(idx) & 128)) return NULL;
     int a, b, c;
     if (!sea_held(pl, idx, &a, &b, &c)) return "the sea not held (FOLLOW)";
@@ -1029,7 +1031,7 @@ static const char *ex_follow_no(void *pl, unsigned idx, float mine, float theirs
     return NULL;
 }
 // a new outpost (phase 0, every 30 s) or more citizens for it
-static void ex_plan(void *pl, unsigned idx, struct ex_st *x, uint32_t now) {
+static void ex_plan(ee_player *pl, unsigned idx, struct ex_st *x, uint32_t now) {
     static const char *last_why[16];
     const char *why = NULL;
     uint8_t *cm = FIELD(pl, OF(PL, 0xB90), uint8_t *), *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL;
@@ -1079,7 +1081,7 @@ static void ex_plan(void *pl, unsigned idx, struct ex_st *x, uint32_t now) {
     int ocean = 0;
     if (!why) {
         for (struct grid_it it = grid_it_all(1); grid_it_next(&it) && !ocean; )
-            if (FIELD(it.u, OF(UNIT, 0x18), void *) == pl && FIELD(it.td, OF(TD, 0x4B8), int) == UT(B_DOCK) && FIELD(it.u, OF(UNIT, 0x3C), int) > 0)
+            if (unit_owner(it.u) == pl && FIELD(it.td, OF(TD, 0x4B8), int) == UT(B_DOCK) && FIELD(it.u, OF(UNIT, 0x3C), int) > 0)
                 ocean = (int)ocean_near(FIELD(it.u, OF(UNIT, 0x1C), int), FIELD(it.u, OF(UNIT, 0x20), int), 4, NULL, NULL);
         if (!ocean) why = "no dock";
     }
@@ -1123,7 +1125,7 @@ static void ex_plan(void *pl, unsigned idx, struct ex_st *x, uint32_t now) {
     ex_say(idx, now, "plans an outpost on the island %u (%d mines explored, %d known enemy buildings, mines by %d,%d) - unload at %d,%d, board at %d,%d",
            cont, c->mexp[idx], c->eseen[idx], mx, my, x->ux, x->uy, x->hx, x->hy);
 }
-static void expand_act(void *pl, unsigned idx, uint32_t now) {
+static void expand_act(ee_player *pl, unsigned idx, uint32_t now) {
     struct ex_st *x = &g_xs[idx];
     if (now < x->t) { memset(x, 0, sizeof *x); }   // a new game (also expand_new_game)
     if (x->t && now - x->t < 2000) return;
@@ -1158,7 +1160,7 @@ static void expand_act(void *pl, unsigned idx, uint32_t now) {
 
 // EXTRA: the citizens an outpost still needs before its Settlement stands (citizen_plan's goal, citizens.c) - then the
 // mines' slots near it count, as every drop site's
-static int expand_cit_need(void *pl, unsigned idx) {
+static int expand_cit_need(ee_player *pl, unsigned idx) {
     struct ex_st *x = &g_xs[idx & 15];
     (void)pl;
     if (!(EXPAND(idx) & 16) || !x->active || x->drop_ok) return 0;
@@ -1172,7 +1174,7 @@ static void expand_new_game(void) {
     g_ex_map_logged = 0;
     g_ex_nseen = 0; g_ex_new_t = 0;
 }
-static void expand_tick(void *pl, uint32_t now) {
+static void expand_tick(ee_player *pl, uint32_t now) {
     if (!pl) return;
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     if (now < g_ex_log_t[idx]) g_ex_log_t[idx] = 0;   // a new game (also expand_new_game)

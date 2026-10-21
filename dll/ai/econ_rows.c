@@ -1,6 +1,6 @@
 // THE ECONOMY ROWS of the log: per AI every 10 s its stock, demand, gatherer targets and lists, the managers' timers
 static void log_state(void *rm, const char *phase, uint32_t now) {
-    void *pl = rm_player(rm);
+    ee_player *pl = rm_player(rm);
     if (!g_log || !pl) return;
     EnterCriticalSection(&g_lock);
     fprintf(g_log, "%u,%d,%s,%d,%d", now, FIELD(pl, PL_INDEX, int), phase,

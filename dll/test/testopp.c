@@ -197,7 +197,7 @@ static void so_spawn(int type, int x, int y, int n) {
 static int so_home_of(int p, int *x, int *y) {   // a player's Capitol, else Town Center, else any building
     int got = 0;
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
-        void *o = FIELD(it.u, OF(UNIT, 0x18), void *);
+        ee_player *o = unit_owner(it.u);
         if (!o || FIELD(o, PL_INDEX, int) != p || FIELD(it.u, OF(UNIT, 0x3C), int) <= 0 || so_family(it.td) != 2) continue;
         int t = FIELD(it.td, OF(TD, 0x4B8), int), pr = t == UT(B_CAPITOL) ? 3 : t == UT(B_TOWN_CENTER) ? 2 : 1;
         if (pr > got) { got = pr; *x = FIELD(it.u, OF(UNIT, 0x1C), int); *y = FIELD(it.u, OF(UNIT, 0x20), int); }
@@ -229,7 +229,7 @@ static void so_types(void) {
     int tower = 0;
     float tr = 0;
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
-        void *o = FIELD(it.u, OF(UNIT, 0x18), void *);
+        ee_player *o = unit_owner(it.u);
         if (!o || FIELD(o, PL_INDEX, int) != g_so.ai || FIELD(it.u, OF(UNIT, 0x3C), int) <= 0) continue;
         int t = FIELD(it.td, OF(TD, 0x4B8), int), fam = so_family(it.td);
         float r, a;
@@ -250,7 +250,7 @@ static void so_scan(uint32_t now) {
     memset(&g_sos, 0, sizeof g_sos);
     for (it = grid_it_all(1); grid_it_next(&it); ) {
         uint8_t *u = it.u, *td = it.td;
-        void *o = FIELD(u, OF(UNIT, 0x18), void *);
+        ee_player *o = unit_owner(u);
         if (!o || FIELD(u, OF(UNIT, 0x3C), int) <= 0) continue;
         int p = FIELD(o, PL_INDEX, int), x = FIELD(u, OF(UNIT, 0x1C), int), y = FIELD(u, OF(UNIT, 0x20), int), fam = so_family(td), t = FIELD(td, OF(TD, 0x4B8), int);
         if (x < 0) continue;   // aboard
@@ -637,7 +637,7 @@ static void so_group(int gi, uint32_t now) {
             if (t) g->why = "intercept";
         } else t = so_pick(u, m, w, cx, cy, r);
         if (t) { so_attack(u, t); continue; }
-        if (so_cur_target(u, &cur) && FIELD(cur, OF(UNIT, 0x18), void *) == ((void **)GA(G_PLAYERS))[g_so.ai]) {
+        if (so_cur_target(u, &cur) && unit_owner(cur) == ((void **)GA(G_PLAYERS))[g_so.ai]) {
             int x = FIELD(cur, OF(UNIT, 0x1C), int), y = FIELD(cur, OF(UNIT, 0x20), int);
             if (x >= 0 && !so_in_danger(x, y, SO_MARGIN) && so_seg_zone(FIELD(u, OF(UNIT, 0x1C), int), FIELD(u, OF(UNIT, 0x20), int), x, y) < 0) continue;   // its own choice
             if (tx >= 0) { g_so.orders += (unsigned)unit_goal(u, goal_move((float)tx + 0.5f, (float)ty + 0.5f), 0, 0x1F40); continue; }   // not that one
@@ -798,7 +798,7 @@ static void so_soldiers(uint32_t now) {
         int x = FIELD(u, OF(UNIT, 0x1C), int), y = FIELD(u, OF(UNIT, 0x20), int), home = cont_at(x, y) == g_so.hcont;
         if (home && !(g_so.boarding && so_is_wsol(u))) guard++;
         if (home && g_so.boarding && so_is_wsol(u)) continue;   // waiting to board
-        if (so_cur_target(u, &cur) && FIELD(cur, OF(UNIT, 0x18), void *) == ((void **)GA(G_PLAYERS))[g_so.ai]) continue;
+        if (so_cur_target(u, &cur) && unit_owner(cur) == ((void **)GA(G_PLAYERS))[g_so.ai]) continue;
         if (orders >= 40) continue;
         uint8_t *best = NULL;
         float bd = 1e12f;
