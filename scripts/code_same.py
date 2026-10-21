@@ -17,7 +17,7 @@ WORK = os.path.join(ROOT, 'work', 'code_same')
 
 
 def compile_dir(d, out):
-    flags = ['-O2', '-mstackrealign', '-ffunction-sections', '-fdata-sections', '-c', '-I', d,
+    flags = ['-O2', '-mstackrealign', '-fno-strict-aliasing', '-ffunction-sections', '-fdata-sections', '-c', '-I', d,
              '-Wno-builtin-macro-redefined', '-D__DATE__="-"', '-D__TIME__="-"']   # the build time: the same
     subprocess.run([CC] + flags + ['-o', out, os.path.join(d, 'eeaimod.c')], check=True, cwd=d)
 
