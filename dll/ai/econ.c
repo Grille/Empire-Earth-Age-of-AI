@@ -104,6 +104,7 @@ static void spend_log(unsigned idx, uint32_t now) {
 // a decoration) is tried again every 2 minutes with the build manager's own placement (0x46580A, spot 0,0: the
 // game's search) while the AI has none of it and can pay for it; given up after 5 failed retries.
 static int defence_spot(void *pl, int type, int *ox, int *oy);   // defence.c
+static int can_place(void *pl, int type, int x, int y);   // defence.c: the game's placement test, every tile
 static void defence_tick(void *pl, unsigned idx, uint32_t now);
 static void anti_air(void *pl, unsigned idx, uint32_t now);   // defence.c
 static void bunker_reserve(void *pl, int *reserve);   // bunker.c
@@ -143,6 +144,17 @@ static char __fastcall hook_place(uint8_t *bm, void *edx, int type, int x, int y
     if (is_vanilla(owner)) return GF(FN_PLACE)(bm, type, x, y);
     int place_as = g_build_fix && type == UT(X_SINGLE_PLAYER_SETTLEMENT) && ut_has(UT(B_SETTLEMENT)) ? UT(B_SETTLEMENT) : type;
     place_as = upgraded_type(FIELD(bm, OF(BM, 0x138), void *), place_as);   // queued before its upgrade: the new type
+    // A tower queued with its spot (defence.c defence_tick) is laid there unchecked: with a position the placement
+    // (0x46580A) only looks for a builder and makes the foundation (0x62EF8A). Another building put on that spot in
+    // the meantime blocks it - the build manager's round (0x465C9F) finds the builder waiting at a foundation with
+    // another unit in its footprint (0x60CDCF), deletes the foundation, refunds it and queues it again at the same
+    // spot (0x468BA7): in a Small Islands Large game 127 times in 13 minutes, 175 stone each. Such a spot is given up:
+    // the defence plan's next slot (defence_spot, below), else the game's own search.
+    if ((x || y) && is_tower_type(type) && !can_place(owner, place_as, x, y)) {
+        if (g_log) fprintf(g_log, "# place: P%d at %.1f min: tower %d at %d,%d no longer fits - another spot\n",
+                           FIELD(owner, PL_INDEX, int) & 15, game_time() / 60000.0, place_as, x, y);
+        x = y = 0;
+    }
     if (!x && !y) defence_spot(FIELD(bm, OF(BM, 0x138), void *), type, &x, &y);   // towers: where the defence plan wants them
     char ok = GF(FN_PLACE)(bm, place_as, x, y);
     void *pl = FIELD(bm, OF(BM, 0x138), void *);
