@@ -523,6 +523,17 @@ static int follow_held(void *pl) {
     if (cfg_of(pl)->pacing != PACE_FOLLOW || !tt || !human_count()) return 0;
     return GF(FN_HUMAN_EPOCH)() <= FIELD(tt, TT_EPOCH, int);
 }
+// The game's catch-up (FN_EPOCH_CATCH_UP, settings.c): a human reaching an epoch redraws the attempt of every computer
+// player behind it to a few minutes from now. epoch_pacing=timer goes without it - the timer alone counts.
+static void __fastcall hook_epoch_catch_up(void *pl, void *edx, void *human) {
+    (void)edx;
+    if (!is_vanilla(pl) && cfg_of(pl)->pacing == PACE_TIMER) {
+        if (g_log) fprintf(g_log, "# epoch plan: P%u at %.1f min: no catch-up (timer)\n",
+                           (unsigned)FIELD(pl, PL_INDEX, int) & 15, game_time() / 60000.0);
+        return;
+    }
+    GF(FN_EPOCH_CATCH_UP)(pl, human);
+}
 
 static int workforce(void *pl) {
     void *cm = FIELD(pl, OF(PL, 0xB90), void *);
@@ -1949,6 +1960,8 @@ static void econ_install(const char *aimod_ini, const char *autotest_ini) {
     int up_ok = patch_call(GA(CALL_EPOCH_UPGRADES), GA(FN_EPOCH_UPGRADES),
                            build_is("aoc") ? (void *)hook_epoch_upgrades_aoc : (void *)hook_epoch_upgrades);
     if (g_log) fprintf(g_log, "# paid upgrades: %d (hook %d)\n", g_paid_upgrades, up_ok);
+    int catch_ok = patch_call(GA(CALL_EPOCH_CATCH_UP), GA(FN_EPOCH_CATCH_UP), hook_epoch_catch_up);
+    if (g_log) fprintf(g_log, "# epoch catch-up hook: %d\n", catch_ok);
     int pop_ok = patch_call(GA(CALL_POP_CAP_1), GA(FN_POP_CAP), hook_pop_cap) + patch_call(GA(CALL_POP_CAP_2), GA(FN_POP_CAP), hook_pop_cap) +
                  patch_call(GA(CALL_POP_CAP_3), GA(FN_POP_CAP), hook_pop_cap);
     if (g_log) fprintf(g_log, "# population limit (easy/medium/hard): %s/%s/%s (hooks %d/3)\n", g_cfg[0].pop_follow ? "follows the humans" : "game limit",

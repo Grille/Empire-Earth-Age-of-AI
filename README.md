@@ -49,7 +49,7 @@ information a human couldn't have (it only uses enemy buildings it has seen).
 | Paid upgrades | The original AI got all unit and tower upgrades of an epoch for free the moment it reached it. It now researches them at their buildings and pays, like a player. |
 | Working build queue | The original build list started with a building that can't be placed, which blocked everything after it (granary, archery range, siege factory, university...). |
 | Short ways to work | Citizens mine the free mine nearest to a drop site, move from oversupplied resources to short ones, and get the gathering upgrades the original AI rarely researched. |
-| Epoch pacing | `classic` (the game's timer, at most one epoch ahead of the human), `timer`, `rush` (as soon as affordable) or `follow` (never ahead of the human, prepared to follow at once). |
+| Epoch pacing | `classic` (the game's timer, at most one epoch ahead of the human), `timer` (the timer alone), `rush` (as soon as affordable), `follow` (never ahead of the human, prepared to follow at once) or `independent` (the default: the timer, and a few minutes after a human's advance the AIs behind follow). |
 
 **Defence and army**
 

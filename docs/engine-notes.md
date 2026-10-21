@@ -505,7 +505,8 @@ breaks (crashes 0x628D6F, 0x53110D, 0x531131); guarded in attack.c (unit_node_fr
   every computer player behind it redraw its attempt (0x431533) to now + random(+0xD68..+0xD6C minutes, the
   behaviour table, x the difficulty's factor; 1-2 minutes in epoch 9) - unless it already lies in that window. Test
   2026-10-21 (`epochup` on the idle human, Continental e3): the AIs followed 5.7-6.3 minutes later in every pacing
-  mode; without the human's advance they stayed (timer 53 min). The tech tree's epoch: 0x5BC893 sets it (event 0xC,
+  mode; without the human's advance they stayed (timer 53 min). The mod skips it for epoch_pacing=timer (its one
+  call 0x55A5B5 / AoC 0x569633; AoC's 0x42F064 is the same function). The tech tree's epoch: 0x5BC893 sets it (event 0xC,
   availability), 0x5BC15D the next one (the cheat EEMIncrementEpic); the epoch tech isn't grantable (vf6 refuses
   category 3).
 - Build manager (cm+0x3C): init 0x465E4F (placement area at +0x11C, per-epoch build lists at +4 + i*0x14);

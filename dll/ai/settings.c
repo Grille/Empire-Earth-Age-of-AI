@@ -12,8 +12,11 @@
 //   postpones by a minute while the AI's epoch is above the highest human epoch (0x46D436: one epoch ahead at most),
 //   and the epoch timer is x2 while ahead / /2 while behind (Art of Conquest: x0.25 more when 3+ behind); the toggle
 //   also gives the game's population cap that follows the humans (pop_follow_human) and lets the AI delete own units
-//   for room (0x430D40). timer, rush, follow: the toggle set (1); rush and follow are econ.c's (the attempt moved up,
-//   follow's hold). independent: the name kept for a mode that weighs when the next epoch pays off - not built yet.
+//   for room (0x430D40). Every other mode: the toggle set (1). Whatever the toggle, a human reaching an epoch redraws
+//   the attempt of every computer player behind it to a few minutes later (0x431533, the catch-up). timer: the timer
+//   alone, without the catch-up (econ.c hook_epoch_catch_up); rush and follow are econ.c's (the attempt moved up,
+//   follow's hold, both with the catch-up). independent: meant to weigh when the next epoch pays off - for now the
+//   timer with the catch-up (the default: what timer was before it lost the catch-up).
 // Epoch timer: SetNextEpochAdvanceTime (0x46DE8C) draws player+0xD58..+0xD5C minutes (x difficulty factor).
 // Attacks (copied from the AI settings table by 0x431697): first attack min/max minutes +0xD2C/+0xD28,
 //   minutes between attacks min/max +0xD00/+0xCFC (next attack time +0xED8, scheduled by 0x43DD2F; +0xEF5 =
@@ -144,10 +147,9 @@ static int cfg_pacing(const char *ini, const char *test_ini, int d, int def) {
     if (!cfg_raw(ini, test_ini, d, "epoch_pacing", v, sizeof v, &f, &s)) return def;
     for (int i = 0; i < PACE_N; i++) {
         if (lstrcmpA(v, k_pacing[i])) continue;
-        if (i == PACE_INDEPENDENT) { ini_error(f, s, "epoch_pacing", v, "not built yet"); return def; }
         return i;
     }
-    ini_error(f, s, "epoch_pacing", v, "classic, timer, rush or follow expected");
+    ini_error(f, s, "epoch_pacing", v, "classic, timer, rush, follow or independent expected");
     return def;
 }
 
@@ -161,7 +163,7 @@ static void settings_load(const char *ini, const char *test_ini) {
         c->mil_income_share = cfg_share(ini, test_ini, d, "military_income_share", 0.40, 0, 1);
         c->mil_income_share_farms = cfg_share(ini, test_ini, d, "military_income_share_farms", 0.65, 0, 1);
         c->cost_percent = cfg_pct(ini, test_ini, d, "cost_percent", 100, 1000);
-        c->pacing = cfg_pacing(ini, test_ini, d, d == 0 ? PACE_CLASSIC : PACE_TIMER);   // [easy] keeps to the human
+        c->pacing = cfg_pacing(ini, test_ini, d, d == 0 ? PACE_CLASSIC : PACE_INDEPENDENT);   // [easy] keeps to the human
         c->epoch_min = cfg_int(ini, test_ini, d, "epoch_min", 50);
         c->epoch_max = cfg_int(ini, test_ini, d, "epoch_max", 70);
         if (c->epoch_max < c->epoch_min) c->epoch_max = c->epoch_min;
