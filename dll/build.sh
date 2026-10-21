@@ -9,7 +9,8 @@ CC=${CC:-../tools/llvm-mingw/bin/i686-w64-mingw32-clang}
 PY=../venv/Scripts/python.exe
 [ -x "$PY" ] || PY=$(command -v python3 || command -v python)
 # the folders' rules (which part may use which: scripts/layers.py) - a use across them fails the build
-if [ -n "$PY" ]; then "$PY" ../scripts/persist_layout.py && "$PY" ../scripts/gen_cmd_verbs.py && "$PY" ../scripts/layers.py --quiet || exit 1
+# and the C style the compiler leaves open (scripts/style.py: int* a, b - only a is a pointer)
+if [ -n "$PY" ]; then "$PY" ../scripts/persist_layout.py && "$PY" ../scripts/gen_cmd_verbs.py && "$PY" ../scripts/layers.py --quiet && "$PY" ../scripts/style.py || exit 1
 else echo "no Python: persist_layout.h and cmd_verbs.h left as they are, the folders' rules unchecked (scripts/persist_layout.py after changing a saved variable, gen_cmd_verbs.py after a new pipe command)"; fi
 "$CC" -O2 -mstackrealign -Wall -Wextra -shared -static -I. -o eeaimod.dll eeaimod.c -lgdi32 -ldxguid -lwinmm -lwinhttp -Wl,--image-base,0x6E000000 || exit 1
 # dinput.dll (optional): the game's settings in eesettings.ini instead of the registry (dinput/eesettings.c)
