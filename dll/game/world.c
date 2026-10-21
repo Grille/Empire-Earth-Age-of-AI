@@ -13,3 +13,23 @@ static void *rm_player(void *rm) {
     void *owner = FIELD(rm, RM_OWNER, void *);
     return owner ? FIELD(owner, 0x4C, void *) : NULL;
 }
+
+// the game's UString (passed by value to some of its functions)
+struct ustring { uint8_t raw[16]; };
+
+// RTTI class name of a polymorphic object (MSVC: vtable[-1] -> complete object locator, +0xC type
+// descriptor, name at +8 like ".?AVEEUGGather@@").
+static const char *rtti_name(void *obj) {
+    if (!obj) return "none";
+    uint8_t *col = ((uint8_t **)*(void **)obj)[-1];
+    const char *n = *(const char **)(col + 0xC) + 8;
+    return n[0] == '.' && n[1] == '?' && n[2] == 'A' ? n + 4 : n;
+}
+
+// Element i of an MSVC std::deque<T*> (block of 1024 pointers; container +4 map, +8 map size), as the
+// game's iterator deref 0x5F1BC6 computes it.
+static void *deque_at(uint8_t *dq, unsigned off) {
+    unsigned blk = off >> 10, mapsz = FIELD(dq, 8, unsigned);
+    if (blk >= mapsz) blk -= mapsz;
+    return FIELD(dq, 4, void ***)[blk][off & 1023];
+}

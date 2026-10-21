@@ -341,16 +341,17 @@ venv/Scripts/python scripts/eectl.py status | army 2 | diplo | persona | say 2 H
 ```
 dll/              the mod (C), one translation unit: eeaimod.c includes every part - the game start, the AI's update
                   hooks that call the parts, install, DllMain; persist.c the mod's state in saved games
-  base/             the DLL's own helpers: log, patching, aimod.ini (ini.c), the exe build (exe.c), watchpoints,
-                    headless_win.c test windows without focus or taskbar button (also in dinput.dll)
-  game/             what the mod knows of the game: addr.h its addresses per exe build, layout.h its objects' fields,
-                    world.c type data and game time, the unit types (unit_ids.h, unitnames.c, unit_names.h generated),
-                    grid.c the unit grid (iterator), stats.c the damage tables, editor_layout.h (generated)
+  base/             the DLL's own helpers: log, patching, the pipe commands' REPLY, paths and the test slot, aimod.ini
+                    (ini.c), watchpoints, headless_win.c test windows without focus or taskbar button (also in dinput.dll)
+  game/             what the mod knows of the game: exe.c the exe build, addr.h its addresses per build, layout.h its
+                    objects' fields, world.c type data, game time, RTTI names, players.c the players (and the vanilla
+                    ones), the unit types (unit_ids.h, unitnames.c, unit_names.h generated) and roles.c what a type is,
+                    grid.c the unit grid (iterator), editor_layout.h (generated)
   engine/           fixes and features of the game itself: display.c / present_d3d.c windowed mode (display_text.c,
                     display_diag.c), camera.c scrolling, aim.c leading targets, sound.c, select.c, drawlist.c,
                     playername.c the menu name fix, scenario_ai.c the scenario AI fix
   ai/               the computer players: econ.c budget, epoch plan, build queue, workers, research; sites.c gathering
-                    sites; attack.c attack routing, siege, unit choice; defence.c towers, walls, home guard; diplo.c
+                    sites; attack.c attack routing, siege, unit choice; stats.c fight estimates; defence.c towers, walls, home guard; diplo.c
                     diplomacy; landing.c landings; navy.c / fleet.c the navy; settings.c aimod.ini's AI settings ...
   script/           expr.c the text language (parsed once into a tree; statements, functions)
   voice/            what the AI says: persona.c personalities, texts.c the text files, chat.c chat lines, llm.c the

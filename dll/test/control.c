@@ -4,7 +4,6 @@
 // on the pipe thread so a bad address returns an error instead of crashing the game.
 // Included by eeaimod.c (shares FIELD, game_time, apply_game_speed, g_auto).
 
-#define G_UNIT_GRID_OFS 0x181724    // map +: unit grid (see attack.c)
 
 static void watch_set(uintptr_t addr, int len);
 static void cmd_threat(char *out, const char *args);
@@ -84,7 +83,7 @@ static BOOL CALLBACK close_own_window(HWND w, LPARAM lp);
 static void cmd_profile(const char *args, char *out);
 static struct {
     char cmd[512];
-    char out[16384];
+    char out[REPLY_CAP];
     volatile LONG state;            // 0 idle, 1 pending, 2 running, 3 done, 4 cancelled
     HANDLE done;
 } g_req;
@@ -102,20 +101,7 @@ static void ctl_log(const char *fmt, ...) {
     LeaveCriticalSection(&g_lock);
 }
 
-static void ctl_note_player(void *pl) {
-    g_players[(unsigned)FIELD(pl, PL_INDEX, int) & 15] = pl;
-}
 
-static int out_printf(char *out, size_t cap, const char *fmt, ...) {
-    size_t len = strlen(out);
-    if (len >= cap - 1) return 0;
-    va_list ap;
-    va_start(ap, fmt);
-    int n = vsnprintf(out + len, cap - len, fmt, ap);
-    va_end(ap);
-    return n;
-}
-#define REPLY(...) out_printf(out, sizeof g_req.out, __VA_ARGS__)
 
 typedef void (__thiscall *QueueFn)(void *world, void *action);
 typedef void (__thiscall *ReleaseFn)(void *action);
@@ -142,7 +128,6 @@ static int queue_pause_toggle(void) {
 // save <name>: same as the save dialog (EEUIESLESaveFile::vf1 0x5D60CD) - queues an EEASaveGame
 // action (ctor 0x404FA1: thiscall(const UString &file, bool, UString folder by value), 0x30 bytes) for
 // <game>\data\Saved Games\<name>.ees; the file can then be started with run_test.ps1 -Save <name>.ees.
-struct ustring { uint8_t raw[16]; };
 static void cmd_save(char *out, const char *args) {
     char name[96] = "", path[MAX_PATH];
     int n = 0;
@@ -301,22 +286,7 @@ static void cmd_costs(char *out, const char *args) {
     }
 }
 
-// RTTI class name of a polymorphic object (MSVC: vtable[-1] -> complete object locator, +0xC type
-// descriptor, name at +8 like ".?AVEEUGGather@@").
-static const char *rtti_name(void *obj) {
-    if (!obj) return "none";
-    uint8_t *col = ((uint8_t **)*(void **)obj)[-1];
-    const char *n = *(const char **)(col + 0xC) + 8;
-    return n[0] == '.' && n[1] == '?' && n[2] == 'A' ? n + 4 : n;
-}
 
-// Element i of an MSVC std::deque<T*> (block of 1024 pointers; container +4 map, +8 map size), as the
-// game's iterator deref 0x5F1BC6 computes it.
-static void *deque_at(uint8_t *dq, unsigned off) {
-    unsigned blk = off >> 10, mapsz = FIELD(dq, 8, unsigned);
-    if (blk >= mapsz) blk -= mapsz;
-    return FIELD(dq, 4, void ***)[blk][off & 1023];
-}
 
 // units <player>: the AI's citizens per resource list (rm+0xA4 + i*0x14, deque: +0xC first offset,
 // +0x10 count), grouped by current goal (unit+0x1EC) and gather target (EEUGGather+0x38).
@@ -675,7 +645,7 @@ static DWORD WINAPI pipe_thread(LPVOID unused) {
     static char cmd[512], reply[sizeof g_req.out];
     for (;;) {
         char name[32] = "\\\\.\\pipe\\eeaimod";
-        if (g_slot) wsprintfA(name + lstrlenA(name), "%d", g_slot);   // a test slot's own (base/exe.c, TEST SLOTS)
+        if (g_slot) wsprintfA(name + lstrlenA(name), "%d", g_slot);   // a test slot's own (base/paths.c, TEST SLOTS)
         HANDLE p = CreateNamedPipeA(name, PIPE_ACCESS_DUPLEX,
                                     PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT | PIPE_REJECT_REMOTE_CLIENTS,
                                     1, sizeof reply, sizeof cmd, 0, NULL);
@@ -756,8 +726,8 @@ static DWORD WINAPI gameover_watch(LPVOID unused) {
 // with aimod.ini [general] control_pipe=1 (scripts/eectl.py, the MCP server scripts/ee_mcp.py on a normal game).
 static void ctl_start(int pipe) {
     ctl_log("sim loop hook %s", patch_sim_loop() ? "ok" : "FAILED");
-    if (g_auto.enabled) CloseHandle(CreateThread(NULL, 0, gameover_watch, NULL, 0, NULL));
-    if (g_auto.enabled) {
+    if (g_autotest) CloseHandle(CreateThread(NULL, 0, gameover_watch, NULL, 0, NULL));
+    if (g_autotest) {
         g_turbo = g_auto.turbo;
         int a = patch_sim_wait(), b = patch_send_wait();
         int c = patch_code32(GA(VTBL_PHYS_STEP), GA(FN_PHYS_STEP), (uint32_t)(uintptr_t)hook_phys_step);

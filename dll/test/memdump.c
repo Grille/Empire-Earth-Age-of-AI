@@ -1,7 +1,6 @@
 // ---- memory snapshots: raw dumps of a player's AI objects, for diffing working vs broken games ----
 // Autotest, or aimod.ini [general] memory_dumps=1: 2 files per AI and game, never deleted (17,000 files / 0.4 GB
 // in normal play before) - off for players.
-static char g_dump_dir[MAX_PATH];   // also the folder of the control pipe's shot / ddinfo dump pictures
 static int g_mem_dumps;
 static DWORD g_session;
 

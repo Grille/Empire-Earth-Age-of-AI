@@ -19,18 +19,20 @@
 struct ustring;
 #include "game/addr.h"     // the game's addresses by name, per exe build: GA(G_WORLD_CLOCK), GF(FN_CAN_BUILD)(pl, t, 0x20, 0)
 #include "game/layout.h"
+#include "game/players.c"
 
 typedef char (__thiscall *RmFn)(void *self);
 typedef void (__thiscall *RmUpdateFn)(void *self, uint32_t now);
 
 #include "base/log.c"
 #include "base/patch.c"
+#include "base/reply.c"
+#include "base/paths.c"
 
 static void autotest_tick(uint32_t now);
 static volatile int g_rm_seen;   // an AI resource manager has ticked (else the sim loop drives autotest_tick)
 static void execute(const char *cmd, char *out);
 static char g_setup_path[MAX_PATH];
-static void ctl_note_player(void *pl);
 static void autotest_first_tick(void *pl);
 static void settings_apply(void *pl);
 static void econ_tick(void *pl, uint32_t now);
@@ -91,18 +93,9 @@ static void landing_install(const char *aimod_ini, const char *autotest_ini);
 static void navy_install(const char *aimod_ini, const char *autotest_ini);
 static void assault_install(const char *aimod_ini, const char *autotest_ini);
 static void log_line(const char *fmt, const char *a, int b);
-static void *g_players[16];   // EEComputerPlayer seen by the AI hooks, by player index (filled in control.c)
-static char g_ini[MAX_PATH], g_aimod_ini[MAX_PATH];   // aimod_autotest.ini, aimod.ini (paths set in DllMain)
-// <game>\ and <game>\aimod_ai\ (with the backslash). Under autotest the config and the personality folder come from
-// aimod_autotest.ini [autotest] config / ai_dir (run_test.ps1: the repository's config\ by default), so tests measure
-// the shipped files, not the player's own ..\aimod.ini; normal play: aimod.ini next to the game, the personalities
-// from its [general] ai_dir (a developer's game reading the repository's files) or next to the game.
-static char g_game_dir[MAX_PATH], g_ai_dir[MAX_PATH];
-static int g_slot;   // a test slot (TEST SLOTS, at slot_dir), 0: none
 static BOOL patch_srand(void);
 #include "base/ini.c"
 #include "engine/scenario_ai.c"
-#include "test/vanilla.c"
 #include "game/world.c"
 #include "ai/econ_rows.c"
 
@@ -231,7 +224,7 @@ static BOOL log_copy(const char *from, const char *to) {   // CopyFile can't: th
 }
 static void log_rotate(void) {
     WIN32_FILE_ATTRIBUTE_DATA fa;
-    if (g_auto.enabled || !g_log_path[0] || !GetFileAttributesExA(g_log_path, GetFileExInfoStandard, &fa)
+    if (g_autotest || !g_log_path[0] || !GetFileAttributesExA(g_log_path, GetFileExInfoStandard, &fa)
         || (!fa.nFileSizeHigh && fa.nFileSizeLow < LOG_ROTATE_BYTES)) return;
     char old[MAX_PATH];
     lstrcpynA(old, g_log_path, sizeof old - 8);
@@ -277,8 +270,8 @@ static char __fastcall hook_game_start(void *state, void *edx, uint8_t *setup, v
         fflush(g_log);
         LeaveCriticalSection(&g_lock);
     }
-    if (g_auto.enabled && g_rm.map[0] && mode == 2) randmap_rewrite(setup);
-    if (g_auto.enabled && g_auto.scenario_mode && mode == 2 && name) {
+    if (g_autotest && g_rm.map[0] && mode == 2) randmap_rewrite(setup);
+    if (g_autotest && g_auto.scenario_mode && mode == 2 && name) {
         size_t n = strlen(name);
         if (n > 4 && !lstrcmpiA(name + n - 4, ".ees")) memcpy(name + n - 4, ".scn", 4);   // same length, in place
         *(int *)(setup + SETUP_MODE) = 1;
@@ -322,6 +315,7 @@ static char __fastcall hook_game_start(void *state, void *edx, uint8_t *setup, v
 }
 
 #include "game/unitnames.c"
+#include "game/roles.c"
 #include "test/control.c"
 #include "game/grid.c"
 #include "base/watch.c"
@@ -332,7 +326,7 @@ static char __fastcall hook_game_start(void *state, void *edx, uint8_t *setup, v
 #include "ai/sites.c"
 #include "ai/econ.c"
 #include "ai/attack.c"
-#include "game/stats.c"
+#include "ai/stats.c"
 #include "ai/defence.c"
 #include "ai/assault.c"
 #include "ai/landing.c"
@@ -366,7 +360,7 @@ static char __fastcall hook_game_start(void *state, void *edx, uint8_t *setup, v
 #include "test/testopp.c"
 #include "test/ecolog.c"
 
-#include "base/exe.c"
+#include "game/exe.c"
 
 
 // No aimod.ini next to the DLL: tell the player and stop, instead of running on built-in defaults nobody
@@ -378,7 +372,7 @@ static void config_missing(const char *ini) {
     wsprintfA(msg, "The Empire Earth AI mod (eeaimod.dll) needs its settings file:\n\n%s\n\n"
                    "Copy aimod.ini from the mod's config folder next to Empire Earth.exe, or delete eeaimod.dll "
                    "to play without the mod.\n\nEmpire Earth will close now.", ini);
-    if (!g_auto.enabled)   // a headless test has nobody to click the box: it quits at once (run_test.ps1 checks first)
+    if (!g_autotest)   // a headless test has nobody to click the box: it quits at once (run_test.ps1 checks first)
         MessageBoxA(NULL, msg, "Empire Earth AI mod: aimod.ini missing", MB_OK | MB_ICONERROR | MB_TOPMOST | MB_SETFOREGROUND);
     TerminateProcess(GetCurrentProcess(), 1);
 }
@@ -397,12 +391,12 @@ static void game_path(const char *v, char *out, int cap) {   // absolute, or rel
 }
 static void config_paths(void) {
     char v[MAX_PATH];
-    if (g_auto.enabled) {
+    if (g_autotest) {
         GetPrivateProfileStringA("autotest", "config", "", v, sizeof v, g_ini);
         if (v[0]) game_path(v, g_aimod_ini, MAX_PATH);
     }
     const char *from = "autotest";
-    if (!g_auto.enabled || !ini_raw("autotest", "ai_dir", g_ini, v, sizeof v)) {
+    if (!g_autotest || !ini_raw("autotest", "ai_dir", g_ini, v, sizeof v)) {
         from = "general";
         if (!ini_raw("general", "ai_dir", g_aimod_ini, v, sizeof v)) return;
     }
@@ -450,8 +444,8 @@ static void install(HMODULE self) {
         }
         g_fix_scenario_ai = ini_int("general", "scenario_ai",
                                                   ini_int("fixes", "scenario_ai", 1, g_aimod_ini), g_aimod_ini);
-        g_mem_dumps = g_auto.enabled || ini_int("general", "memory_dumps", 0, g_aimod_ini);
-        if (g_mem_dumps || g_auto.enabled || ini_int("general", "control_pipe", 0, g_aimod_ini))
+        g_mem_dumps = g_autotest || ini_int("general", "memory_dumps", 0, g_aimod_ini);
+        if (g_mem_dumps || g_autotest || ini_int("general", "control_pipe", 0, g_aimod_ini))
             CreateDirectoryA(g_dump_dir, NULL);   // memory dumps, shot / ddinfo pictures
     }
     g_session = GetTickCount();
@@ -491,7 +485,7 @@ static void install(HMODULE self) {
         BOOL e = patch_call(GA(CALL_LOAD_SAVED), GA(FN_LOAD_SAVED), hook_load_saved);
         fprintf(g_log, "# game start hook: %s\n", gs ? "ok" : "FAILED");
         fprintf(g_log, "# cmdline hooks: parse=%s load=%s\n", d ? "ok" : "FAILED", e ? "ok" : "FAILED");
-        if (g_auto.enabled)
+        if (g_autotest)
             fprintf(g_log, "# autotest: skip_intro=%s quit_minutes=%g cmdline=%s\n",
                     g_auto.skip_intro ? (skip_intro_movies() ? "ok" : "FAILED") : "off",
                     g_auto.quit_minutes, GetCommandLineA());
@@ -503,41 +497,41 @@ static void install(HMODULE self) {
         fflush(g_log);
     }
     // normal play: aimod.ini [general] skip_intro = 1 skips the intro movies (autotest has its own key)
-    if (!g_auto.enabled && ini_int("general", "skip_intro", 0, g_aimod_ini)) {
+    if (!g_autotest && ini_int("general", "skip_intro", 0, g_aimod_ini)) {
         BOOL ok = skip_intro_movies();
         if (g_log) fprintf(g_log, "# skip_intro: %s\n", ok ? "ok" : "FAILED");
     }
-    econ_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
-    food_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
-    mines_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
-    cz_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
-    ap_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
-    mass_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
-    expand_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
-    attack_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
-    assault_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
-    landing_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
-    navy_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
-    intel_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
-    defence_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
-    chat_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
-    persona_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
-    diplo_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
-    persist_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
-    aim_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
-    camera_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
-    display_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
-    sound_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
-    select_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
-    drawlist_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
-    llm_install(g_aimod_ini, g_auto.enabled ? g_ini : NULL);
-    ctl_start(g_auto.enabled || ini_int("general", "control_pipe", 0, g_aimod_ini));
-    if (g_auto.enabled && g_auto.game_seed) {
+    econ_install(g_aimod_ini, g_autotest ? g_ini : NULL);
+    food_install(g_aimod_ini, g_autotest ? g_ini : NULL);
+    mines_install(g_aimod_ini, g_autotest ? g_ini : NULL);
+    cz_install(g_aimod_ini, g_autotest ? g_ini : NULL);
+    ap_install(g_aimod_ini, g_autotest ? g_ini : NULL);
+    mass_install(g_aimod_ini, g_autotest ? g_ini : NULL);
+    expand_install(g_aimod_ini, g_autotest ? g_ini : NULL);
+    attack_install(g_aimod_ini, g_autotest ? g_ini : NULL);
+    assault_install(g_aimod_ini, g_autotest ? g_ini : NULL);
+    landing_install(g_aimod_ini, g_autotest ? g_ini : NULL);
+    navy_install(g_aimod_ini, g_autotest ? g_ini : NULL);
+    intel_install(g_aimod_ini, g_autotest ? g_ini : NULL);
+    defence_install(g_aimod_ini, g_autotest ? g_ini : NULL);
+    chat_install(g_aimod_ini, g_autotest ? g_ini : NULL);
+    persona_install(g_aimod_ini, g_autotest ? g_ini : NULL);
+    diplo_install(g_aimod_ini, g_autotest ? g_ini : NULL);
+    persist_install(g_aimod_ini, g_autotest ? g_ini : NULL);
+    aim_install(g_aimod_ini, g_autotest ? g_ini : NULL);
+    camera_install(g_aimod_ini, g_autotest ? g_ini : NULL);
+    display_install(g_aimod_ini, g_autotest ? g_ini : NULL);
+    sound_install(g_aimod_ini, g_autotest ? g_ini : NULL);
+    select_install(g_aimod_ini, g_autotest ? g_ini : NULL);
+    drawlist_install(g_aimod_ini, g_autotest ? g_ini : NULL);
+    llm_install(g_aimod_ini, g_autotest ? g_ini : NULL);
+    ctl_start(g_autotest || ini_int("general", "control_pipe", 0, g_aimod_ini));
+    if (g_autotest && g_auto.game_seed) {
         BOOL ok = patch_srand(), start = start_hook();
         if (g_log) fprintf(g_log, "# autotest: game_seed=%d (srand hook %s, start message hook %s)\n", g_auto.game_seed,
                            ok ? "ok" : "FAILED", start ? "ok" : "FAILED");
     }
-    if (g_auto.enabled) { watch_start(g_ini); trace_start(g_ini); sync_trace_start(g_ini); }
+    if (g_autotest) { watch_start(g_ini); trace_start(g_ini); sync_trace_start(g_ini); }
     AddVectoredExceptionHandler(1, crash_handler);   // logs the first exceptions (module+offset, backtrace) - also in normal play
 }
 

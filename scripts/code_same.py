@@ -3,6 +3,7 @@ functions from one file to another): the order of the functions, the constants a
 with them, so the DLLs differ byte for byte, but every function's instructions must stay the same.
 
 usage: python scripts/code_same.py <old: a dll/ folder or a git revision> [<new: a dll/ folder, default dll/>]
+                                  [--same old_symbol=new_symbol ...]   (a variable that only got another name)
 Compiles eeaimod.c of both into objects (each function and variable in its own section, otherwise as dll/build.sh
 does) and compares each function's instructions without addresses: a reference to a variable by its name, to a
 constant by the bytes it points at. A revision is checked out into work/code_same/tree (a git worktree)."""
@@ -95,7 +96,9 @@ def functions(obj):
 
 
 def main():
-    old, new = sys.argv[1], os.path.abspath(sys.argv[2] if len(sys.argv) > 2 else os.path.join(ROOT, 'dll'))
+    args = [a for a in sys.argv[1:] if not a.startswith('--same')]
+    same = dict(a.split('=', 1)[1].split('=') for a in sys.argv[1:] if a.startswith('--same='))
+    old, new = args[0], os.path.abspath(args[1] if len(args) > 1 else os.path.join(ROOT, 'dll'))
     if os.path.isdir(old): old = os.path.abspath(old)
     os.makedirs(WORK, exist_ok=True)
     if not os.path.isdir(old):   # a revision
@@ -106,6 +109,9 @@ def main():
     compile_dir(old, os.path.join(WORK, 'old.o'))
     compile_dir(new, os.path.join(WORK, 'new.o'))
     a, b = functions(os.path.join(WORK, 'old.o')), functions(os.path.join(WORK, 'new.o'))
+    back = {v: k for k, v in same.items()}
+    for k in b:   # a new name as the old one: both count as the same variable
+        b[k] = [re.sub(r'-> (\S+)$', lambda m: '-> ' + back.get(m.group(1), m.group(1)), ln) for ln in b[k]]
     bad = 0
     for k in sorted(set(a) | set(b)):
         if k not in a or k not in b:

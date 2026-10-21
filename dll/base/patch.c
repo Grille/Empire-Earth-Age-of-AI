@@ -48,3 +48,34 @@ static BOOL patch_call(uintptr_t site, uintptr_t expected, void *hook) {
     FlushInstructionCache(GetCurrentProcess(), p, 5);
     return TRUE;
 }
+
+// a vtable slot, only while it holds `expected`
+static int patch_vtable(uintptr_t vt, int slot, uintptr_t expected, void *hook) {
+    void **p = (void **)(vt + slot * 4);
+    if (*p != (void *)expected) return 0;
+    DWORD old;
+    if (!VirtualProtect(p, 4, PAGE_READWRITE, &old)) return 0;
+    *p = hook;
+    VirtualProtect(p, 4, old, &old);
+    return 1;
+}
+
+// one byte of the code, only while it holds `expected`
+static int patch_byte(uintptr_t at, uint8_t expected, uint8_t val) {
+    uint8_t *p = (uint8_t *)at;
+    DWORD old;
+    if (*p != expected || !VirtualProtect(p, 1, PAGE_EXECUTE_READWRITE, &old)) return 0;
+    *p = val;
+    VirtualProtect(p, 1, old, &old);
+    FlushInstructionCache(GetCurrentProcess(), p, 1);
+    return 1;
+}
+
+// an operand apply_editor_layout checked against the original the first time (or one it patched itself)
+static void write_code32(uint32_t *p, uint32_t v) {
+    DWORD old;
+    if (!VirtualProtect(p, 4, PAGE_EXECUTE_READWRITE, &old)) return;
+    *p = v;
+    VirtualProtect(p, 4, old, &old);
+    FlushInstructionCache(GetCurrentProcess(), p, 4);
+}

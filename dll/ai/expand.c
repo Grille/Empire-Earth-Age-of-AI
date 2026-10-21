@@ -1124,7 +1124,7 @@ static void expand_act(void *pl, unsigned idx, uint32_t now) {
         if (!x->active) x->plan_t = now ? now : 1;
         ex_plan(pl, idx, x, now);
     }
-    if (g_auto.enabled && g_log && (!x->log_t || now / 300000 != x->log_t / 300000) && x->plans) {   // (log_t is shared with ex_plan's why lines)
+    if (g_autotest && g_log && (!x->log_t || now / 300000 != x->log_t / 300000) && x->plans) {   // (log_t is shared with ex_plan's why lines)
         x->log_t = now ? now : 1;
         ex_say(idx, now, "status - %s island %u, ferry %d, citizens %d soldiers %d there, drop site %d | plans %u sails %u ashore %u drop sites %u built %u lost %u "
                "assigned %u transports trained %u orders %u | held %d (graduated %u, lost %u) forward %u%s | scouted %u (enemy %u)", x->active ? "outpost on" : "no outpost, last", x->cont, x->fphase, x->ncit, x->nsold, x->drop_ok,
@@ -1154,8 +1154,8 @@ static void expand_tick(void *pl, uint32_t now) {
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     if (now < g_ex_log_t[idx]) g_ex_log_t[idx] = 0;   // a new game (also expand_new_game)
     if (now < g_ex_new_t) g_ex_new_t = 0;
-    if (g_auto.enabled && g_log && (!g_ex_new_t || now - g_ex_new_t >= 60000)) { g_ex_new_t = now ? now : 1; ex_scan(pl, now, 1); }   // once a game minute: # isl new
-    if (g_auto.enabled && g_log && now >= 60000 && (!g_ex_log_t[idx] || now / 300000 != g_ex_log_t[idx] / 300000)) {
+    if (g_autotest && g_log && (!g_ex_new_t || now - g_ex_new_t >= 60000)) { g_ex_new_t = now ? now : 1; ex_scan(pl, now, 1); }   // once a game minute: # isl new
+    if (g_autotest && g_log && now >= 60000 && (!g_ex_log_t[idx] || now / 300000 != g_ex_log_t[idx] / 300000)) {
         g_ex_log_t[idx] = now ? now : 1;
         ex_log(pl, idx, now);
     }

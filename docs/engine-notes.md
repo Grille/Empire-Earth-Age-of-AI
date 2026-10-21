@@ -162,7 +162,7 @@ breaks (crashes 0x628D6F, 0x53110D, 0x531131); guarded in attack.c (unit_node_fr
   shock, shock at arrow and arrow at pierce. The hit factor carries the type bonuses (reference save: artillery 143
   at a WW1 tower x3, the tower at artillery x0.12, a Mk V at machine gunners x2, machine gunner at machine gunner
   x2.1). Stats record (per player and type, 0x492969 on player +0x874): +0xD8 attack, +0xE0.. armour (floats),
-  +0x138 reload ms and +0x144 max hp (ints), +0x9C range, +0xA0 area. dll/game/stats.c computes it (`stats` command).
+  +0x138 reload ms and +0x144 max hp (ints), +0x9C range, +0xA0 area. dll/ai/stats.c computes it (`stats` command).
   In fights a shot takes the reload plus about 2 s (duels, scripts/duels.sh: machine gunners with a 1 s reload
   fired every 3.3-5.1 s, Mk V tanks with 4 s every 4.6-7.1 s).
 - Area damage (0x61DAE6, stats +0xA0 = radius in tiles): every unit within the radius of the hit (the tiles around,
@@ -610,7 +610,7 @@ breaks (crashes 0x628D6F, 0x53110D, 0x531131); guarded in attack.c (unit_node_fr
 ## Exe builds
 
 The mod's addresses are those of the 1.04 exe with the 2017 "Difficulty Setting & Multiplayer Lobby" update (build
-timestamp 0x594D0000). base/exe.c `game_build` checks the exe file before installing anything: an FNV-1a hash over every
+timestamp 0x594D0000). game/exe.c `game_build` checks the exe file before installing anything: an FNV-1a hash over every
 section but `.rsrc` (`k_exe_builds`); another build gets no hooks and one message (`build_unknown`). All addresses are
 in `dll/game/addr.h`, one row per name with a value per known build (the hash's index picks the column): supporting
 another build means its hash and its column there - the generated editor layout (`editor_layout.h`) and the two

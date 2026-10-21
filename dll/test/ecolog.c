@@ -204,7 +204,7 @@ static const char *eco_goal(uint8_t *u, int *res) {   // what a citizen does; re
 }
 
 static void ecolog_tick(void *pl, uint32_t now) {
-    if (!g_auto.enabled || !g_log || !pl) return;
+    if (!g_autotest || !g_log || !pl) return;
     unsigned idx = (unsigned)pidx(pl);
     if (now >= g_eco_t[idx] && now / 60000 == g_eco_t[idx] / 60000 && g_eco_t[idx]) return;
     g_eco_t[idx] = now ? now : 1;
@@ -279,7 +279,7 @@ static void ecolog_tick(void *pl, uint32_t now) {
 
 // a unit of v killed by k (diplo.c hook_kill_stat, n 3 = a unit): citizens only
 static void eco_death(uint8_t *dead, int k, int v) {
-    if (!g_auto.enabled || !g_log || !dead) return;
+    if (!g_autotest || !g_log || !dead) return;
     uint8_t *td = FIELD(dead, 0x2C, uint8_t *);
     void *pl = FIELD(dead, 0x18, void *);
     if (!td || !pl || !is_citizen_type(FIELD(td, 0x4B8, int))) return;

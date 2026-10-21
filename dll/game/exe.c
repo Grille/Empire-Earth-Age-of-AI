@@ -45,19 +45,6 @@ static int game_build(uint32_t *hash) {
         }
     return name && !lstrcmpiA(name + 1, "Empire Earth.exe") ? -1 : 0;   // a renamed copy of a known build counts above
 }
-// TEST SLOTS: parallel test games (run_test.ps1 -Slot n; docs/testing.md, Parallel runs). The runner starts slot
-// n (1..30) with EEAIMOD_SLOT=n and EEAIMOD_SLOT_DIR=<its folder>: the test ini, the log and the dumps are there instead
-// of the game folder, the control pipe is \\.\pipe\eeaimod<n>, the engine's network ports are moved by 2n
-// (slot_ports) - and the runner patches the game's single-instance check (docs/engine-notes.md, Exe builds). 0: none.
-static void slot_dir(char *dir) {   // dir: the game folder (with its \) -> where this game's test files are
-    char v[MAX_PATH];
-    g_slot = GetEnvironmentVariableA("EEAIMOD_SLOT", v, sizeof v) ? atoi(v) : 0;
-    if (g_slot < 0 || g_slot > 30) g_slot = 0;
-    if (g_slot && GetEnvironmentVariableA("EEAIMOD_SLOT_DIR", v, sizeof v) && v[0]) {
-        size_t n = strlen(v);
-        snprintf(dir, MAX_PATH, "%s%s", v, v[n - 1] == '\\' || v[n - 1] == '/' ? "" : "\\");
-    }
-}
 // Another build: nothing installed - the player is told once a start (a test run, which has nobody to click: only
 // the log), and the game runs as it is
 static void build_unknown(uint32_t hash) {

@@ -271,7 +271,7 @@ static void food_camp(void *pl, unsigned idx, uint32_t now) {
 static void food_log(void *pl, unsigned idx, uint32_t now) {
     static uint32_t last[16];
     food_camp(pl, idx, now);
-    if (!g_log || !g_auto.enabled || (!g_food_plan && g_v_food_plan < 0)) return;
+    if (!g_log || !g_autotest || (!g_food_plan && g_v_food_plan < 0)) return;
     if (now / 300000 == last[idx] / 300000 && last[idx]) return;
     last[idx] = now ? now : 1;
     (void)pl;

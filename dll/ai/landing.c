@@ -76,7 +76,6 @@ static struct landing {
     unsigned bombards, bomb_won;
 } g_ld[16];
 
-static int is_transport(int t) { return ut_role(t, UTR_TRANSPORT); }   // a transport ship (its class)
 static int ld_cap(int t) {   // soldiers a transport holds: its type's +0x54C (raft, copper: 10, bronze: 12, imperial on: 14; copper held 10 in the board test)
     uint8_t *td = t > 0 ? type_data(t) : NULL;
     int c = td ? FIELD(td, 0x54C, int) : 0;
@@ -285,7 +284,6 @@ static unsigned ocean_near(int x, int y, int r, int *wx, int *wy) {   // an ocea
 }
 
 struct ld_scan { void *pl; uint8_t *target; int nb, bx[2000], by[2000]; int nd, dx[16], dy[16]; int nt; uint8_t *tr[32]; int nw; uint8_t *war[32]; int na; uint8_t *air[16]; };
-static int is_fishing_boat(int t) { return ut_role(t, UTR_FISHING_BOAT); }
 static void ld_unit(uint8_t *u, void *ctx) {
     struct ld_scan *s = ctx;
     uint8_t *td = FIELD(u, 0x2C, uint8_t *);

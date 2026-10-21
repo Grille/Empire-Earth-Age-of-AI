@@ -170,7 +170,7 @@ static void mine_drops(void *pl, unsigned idx, uint32_t now) {
 }
 static void mines_log(void *pl, unsigned idx, uint32_t now) {
     static uint32_t last[16];
-    if (!g_log || !g_auto.enabled || (!g_mine_fill && g_v_mine_fill < 0)) return;
+    if (!g_log || !g_autotest || (!g_mine_fill && g_v_mine_fill < 0)) return;
     if (now / 300000 == last[idx] / 300000 && last[idx]) return;
     last[idx] = now ? now : 1;
     struct mf_st *m = &g_mf[idx];

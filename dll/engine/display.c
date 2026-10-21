@@ -23,14 +23,6 @@ static uint32_t g_layout_consts[N_LAYOUT];
 static int8_t g_layout_state[N_LAYOUT];   // 0 unchecked, 1 patched, -1 didn't match (skipped)
 static int g_buttons_state;
 
-// an operand apply_editor_layout checked against the original the first time (or one it patched itself)
-static void write_code32(uint32_t *p, uint32_t v) {
-    DWORD old;
-    if (!VirtualProtect(p, 4, PAGE_EXECUTE_READWRITE, &old)) return;
-    *p = v;
-    VirtualProtect(p, 4, old, &old);
-    FlushInstructionCache(GetCurrentProcess(), p, 4);
-}
 
 static int apply_editor_layout(int w, int h) {
     int ok = 0, bad = 0;
@@ -1086,15 +1078,6 @@ static void __fastcall hook_mouse_update(uint8_t *m, void *edx) {
     window_mouse(m, frozen);
 }
 
-static int patch_byte(uintptr_t at, uint8_t expected, uint8_t val) {
-    uint8_t *p = (uint8_t *)at;
-    DWORD old;
-    if (*p != expected || !VirtualProtect(p, 1, PAGE_EXECUTE_READWRITE, &old)) return 0;
-    *p = val;
-    VirtualProtect(p, 1, old, &old);
-    FlushInstructionCache(GetCurrentProcess(), p, 1);
-    return 1;
-}
 
 static int install_windowed_input(void) {
     int n = 0;

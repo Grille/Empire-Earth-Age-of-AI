@@ -107,7 +107,7 @@ static void cz_sample(void *pl, unsigned idx) {
 
 static void wf_log(void *pl, unsigned idx, unsigned min);   // below: workforce_plan's # wf line
 static void cz_tick(void *pl, uint32_t now) {
-    if (!g_auto.enabled || !g_log || !pl) return;
+    if (!g_autotest || !g_log || !pl) return;
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     struct cz_st *z = &g_cz[idx];
     if (now < z->t) memset(z, 0, sizeof *z);
@@ -326,7 +326,7 @@ static void wf_tick(void *pl, uint32_t now) {
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     struct wf_st *w = &g_wf[idx];
     if (now < w->t) memset(w, 0, sizeof *w);
-    if (!WF_PLAN(idx) && !g_auto.enabled) return;
+    if (!WF_PLAN(idx) && !g_autotest) return;
     if (w->t && now - w->t < 10000) return;
     w->t = now ? now : 1;
     w->inc[w->k] = g_bud[idx].income[3];

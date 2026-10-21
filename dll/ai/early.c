@@ -249,7 +249,7 @@ static void early_tick(void *pl, unsigned idx, uint32_t now) {
     early_bait(pl, idx, now);
     early_range(pl, idx, now);
     struct early_st *st = &g_early[idx];
-    if (!g_auto.enabled || !g_log || (st->log_t && now >= st->log_t && now / 60000 == st->log_t / 60000)) return;
+    if (!g_autotest || !g_log || (st->log_t && now >= st->log_t && now / 60000 == st->log_t / 60000)) return;
     st->log_t = now ? now : 1;
     if (!EARLY(idx, early_towers) && !EARLY(idx, tower_bait) && !EARLY(idx, early_militia) && !EARLY(idx, early_army) &&
         copper_mode(pl) != 2) return;

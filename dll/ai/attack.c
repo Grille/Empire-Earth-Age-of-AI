@@ -30,11 +30,6 @@ static int g_avoid_towers = 1;        // aimod.ini [all] avoid_towers
 static int g_avoid_weight = 2000;     // route cost per tower covering a step (a step costs 10-14)
 static int g_avoid_margin = 6;        // tiles added to the tower's range
 
-static int is_enemy(void *pl, void *other) {
-    if (!other || other == pl) return 0;
-    unsigned oi = (unsigned)FIELD(other, PL_INDEX, int);
-    return oi < 16 && FIELD(pl, 0x9E4 + oi * 4, int) != 0;
-}
 
 // What player pl knows of unit u. The count (u +0x14 -> +0xC, per player slot) is how many of pl's (and its allies')
 // units see u now - plus a floor every unit of the human carries in the AIs' slots, everywhere and always (the AIs
@@ -141,8 +136,6 @@ static int __fastcall hook_route_cost(uint8_t *self, void *edx, int *edge, uint8
 static int g_weak_spots = 1;          // aimod.ini [all] attack_weak_spots
 static int g_weak_radius = 60;        // tiles around the original goal searched for a weak spot
 
-// Walls and gates are no weak spot (no economy behind them, only a detour): the family walls (barbed wire too).
-static int is_wall(int type) { return ut_role(type, UTR_WALL); }
 
 // Only goals at an enemy building are retargeted: the subgroup also marches to other goals (enemy armies,
 // own territory to defend), which must not be diverted.
@@ -426,10 +419,6 @@ static struct { unsigned skipped, logged; } g_leash_stats[16];
 static int g_siege = 1;               // aimod.ini [all] attack_siege (siege controller below; also rams here)
 static unsigned g_ram_waits, g_air_skips;
 static int g_ignore_air = 1;          // aimod.ini [all] attack_ignore_air
-// a unit family of the army (soldiers, siege, ships, aircraft ... - not buildings, walls, towers, gates, resources):
-// the families as in the statistics code 0x5EB000/0x55DD66
-static int is_army_family(int fam) { return !(fam == 2 || fam == 6 || fam == 0x13 || fam == 0x16 || fam == 0x18 || fam == 0x19 || fam == 0x1D || fam == 0 || fam == 1); }
-static int is_ram(int type) { return ut_role(type, UTR_RAM); }
 
 // Enemy soldiers (no citizens, no siege) of player pl's enemies within r tiles of (x, y)?
 static int guarded(void *pl, int x, int y, int r) {
@@ -568,7 +557,6 @@ static struct {
     unsigned waves, lost, pauses, held, logged_min;
 } g_siege_st[16];
 
-static int is_siege(int type) { return ut_role(type, UTR_SIEGE); }
 
 static uint8_t *unit_at(int x, int y, int type) {
     if (x < 0 || y < 0) return NULL;
@@ -775,7 +763,6 @@ static int site_danger_res(void *pl, uint8_t *site, int food, int res) {   // fr
 static int site_danger(void *pl, uint8_t *site, int food) { return site_danger_res(pl, site, food, food ? 2 : -1); }
 static void *goal_move(float x, float y);
 static int unit_goal(uint8_t *u, void *goal, int append, int prio);
-static int is_soldier(uint8_t *td);   // defence.c
 static int muster_rally(unsigned idx, float *x, float *y);   // defence.c: the rally point while the base is overrun
 static struct { unsigned sent; } g_cit_stats[16];
 static unsigned g_repair_refused[16];   // repair orders refused at buildings under attack (hook_repair_goal)
@@ -1284,7 +1271,7 @@ static void attack_tick(void *pl, uint32_t now) {
     siege_tick(pl, now);
     attack_log(pl, now);
 }
-// a vanilla player (test/vanilla.c is_vanilla): the game's own AI - only the mod's log lines (army, battle statistics,
+// a vanilla player (game/players.c is_vanilla): the game's own AI - only the mod's log lines (army, battle statistics,
 // spending, gathering, attack times), so the scorers see both sides
 static void vanilla_tick(void *pl, uint32_t now) {
     econ_vanilla_log(pl, now);
@@ -1334,15 +1321,6 @@ static void attack_log(void *pl, uint32_t now) {
     last_stats[pi] = now;
 }
 
-static int patch_vtable(uintptr_t vt, int slot, uintptr_t expected, void *hook) {
-    void **p = (void **)(vt + slot * 4);
-    if (*p != (void *)expected) return 0;
-    DWORD old;
-    if (!VirtualProtect(p, 4, PAGE_READWRITE, &old)) return 0;
-    *p = hook;
-    VirtualProtect(p, 4, old, &old);
-    return 1;
-}
 
 // Engine guard: an attack subgroup's member records (+0x50 vector, record +0x44 = unit) are summed up by 0x4504FD ->
 // 0x450554 (thiscall(stats, unit)) without a check. A record without its unit crashed there (read [0 + 0x34]) in a
@@ -1637,7 +1615,6 @@ static int is_ship_or_air(uint8_t *td) {   // movement type +0x10C... unknown: b
     int fam = FIELD(td, 0x4B4, int);
     return fam == 0x0B || fam == 0x0C || fam == 0x0D || fam == 0x0E || fam == 0x0F || fam == 0x10 || fam == 0x11;
 }
-static void *player_at(int i);   // diplo.c
 
 // a new game (the game start hook): subgroups, units and times of the last game - a breach, a citizen's hit points
 // (hurt_note: a new citizen at a dead one's address seemed hurt), a traced subgroup, a pending call-off's reason

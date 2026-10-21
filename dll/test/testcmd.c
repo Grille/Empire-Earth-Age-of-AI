@@ -379,7 +379,6 @@ static void cmd_objs(char *out, const char *args) {
 
 // found P T x y: lay out a building of type T for player P at x, y, unfinished (1 hp) - as the build manager does
 // (0x62EF8A cdecl(player, type, x, y), which also pays its cost, except for fields). Tests: an enemy tower going up.
-static void *player_at(int i);
 static void cmd_found(char *out, const char *args) {
     int p, t, x, y;
     if (sscanf(args, "%d %d %d %d", &p, &t, &x, &y) < 4) { REPLY("error: usage: found P T x y\n"); return; }

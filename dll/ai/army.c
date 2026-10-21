@@ -387,7 +387,7 @@ static void am_pool_log(void *pl, unsigned idx) {
     LeaveCriticalSection(&g_lock);
 }
 static void am_tick(void *pl, uint32_t now) {
-    if (!g_auto.enabled || !g_log || !pl) return;
+    if (!g_autotest || !g_log || !pl) return;
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     struct am_st *a = &g_am[idx];
     if (now < a->ts) memset(a, 0, sizeof *a);

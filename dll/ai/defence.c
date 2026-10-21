@@ -32,7 +32,6 @@ static struct def_plan {
 } g_plan[16];
 
 static unsigned area_id(int x, int y, int kind);   // assault.c: 1 the sea, 2 the land there (0 none)
-static int is_tower_type(int t) { return ut_role(t, UTR_TOWER) || t == UT(B_TANK_OBSTACLE); }   // the tank barrier holds a front too
 static const enum ut_name k_tower_line[] = { UT_TOWER_LINE };   // oldest first
 static int tower_newest(void *pl) {   // the best tower the game lets this player build now (0: none)
     for (int i = 6; i >= 0; i--)
@@ -269,11 +268,6 @@ static void defence_tick(void *pl, unsigned idx, uint32_t now) {
 // that towers and walls would have held.
 static int g_csiege = 1;
 static unsigned g_csiege_orders[16], g_csiege_skipped[16];
-static int is_soldier(uint8_t *td) {
-    int fam = FIELD(td, 0x4B4, int), type = FIELD(td, 0x4B8, int);
-    if (!is_army_family(fam)) return 0;
-    return !is_siege(type) && !is_ram(type) && !is_citizen_type(type);
-}
 struct cs_scan {
     void *pl;
     int nb, bx[256], by[256];           // own buildings
@@ -315,7 +309,7 @@ static void cs_unit(uint8_t *u, void *ctx) {
 // are attacked by the AI's citizens within 10 tiles, at most 3 per enemy and against at most 6 - only when those
 // citizens' strength (hit points x attack) is 3 times that of the enemies within 6 tiles: Bronze Age soldiers (119 hp)
 // killed 10 citizens of a count-based militia while losing 49 hit points. Gathering or idle citizens only; afterwards the assignment puts them back to work.
-// [all] militia_estimate (default 0): 1 = the citizens decide with the stats estimate (dll/game/stats.c) instead, in every
+// [all] militia_estimate (default 0): 1 = the citizens decide with the stats estimate (dll/ai/stats.c) instead, in every
 // epoch (the playtester: "a hard limit isn't right... tower builders without guards should always be engaged; troops
 // in later ages should be avoided, but many units are faster than citizens - caught alone and running, they get
 // chased down"): enemies without soldiers among them (builders, a foundation) when the citizens win (ratio >= 1);
@@ -332,7 +326,7 @@ static float unit_power(uint8_t *u) {   // hit points x attack (live stats), a r
     float a = st ? FIELD(st, 0xD8, float) : (float)FIELD(FIELD(u, 0x2C, uint8_t *), 0x510, int);
     return (float)FIELD(u, 0x3C, int) * (a > 0 ? a : 0);
 }
-static struct st_side g_mil_own, g_mil_foe;   // fight_estimate (dll/game/stats.c)
+static struct st_side g_mil_own, g_mil_foe;   // fight_estimate (dll/ai/stats.c)
 static int militia_answer(struct cs_scan *s, uint8_t *t, int *nfree) {   // citizens -> t; returns the number ordered
     int x = FIELD(t, 0x1C, int), y = FIELD(t, 0x20, int), enemies = 0, ordered = 0;
     float epow = 0, cpow = 0, fast = 1e9f, cspeed = 0;
@@ -586,7 +580,7 @@ static void home_guard(void *pl, unsigned idx, uint32_t now) {
                             idx, now / 60000.0, home, target, n, type);
 }
 
-// MUSTER ([all] muster, default 1; with fight_estimate the sides are compared with dll/game/stats.c's estimate): an enemy army in the base got the AI's defenders one by one - every soldier the
+// MUSTER ([all] muster, default 1; with fight_estimate the sides are compared with dll/ai/stats.c's estimate): an enemy army in the base got the AI's defenders one by one - every soldier the
 // home guard trained walked into it alone, and the next one, and the next. A player would pull back what is left,
 // gather, and strike once there is a force that can win. Every 3 s per AI: enemy soldiers within 22 tiles of the
 // base (strength = hit points x attack) against its own soldiers within 35 and its towers within 22. Only when the
@@ -608,7 +602,7 @@ struct mus_scan {
     void *pl; int bx, by, en, no, ne;
     float epow, opow, tpow, ex, ey;
     uint8_t *own[256], *enemy[128];
-    struct st_side *os, *es;   // fight_estimate: own soldiers and towers, the enemies (dll/game/stats.c)
+    struct st_side *os, *es;   // fight_estimate: own soldiers and towers, the enemies (dll/ai/stats.c)
 };
 static struct mus_scan g_ms;
 static struct st_side g_ms_own, g_ms_foe, g_ms_rally;

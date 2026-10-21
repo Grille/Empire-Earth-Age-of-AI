@@ -1,6 +1,7 @@
 // THE LOG (aimod_econ.csv, or a test slot's): g_log, under g_lock for the threads other than the simulation's
 static FILE *g_log;
 static CRITICAL_SECTION g_lock;
+static int g_autotest;   // an autotest run (aimod_autotest.ini): the parts' test-only log lines
 
 // a log line from a thread other than the simulation's (render, window, sound): under g_lock, flushed - as the pipe
 // thread (ctl_log), the crash handler and the autotest/quit exits that close the log hold it

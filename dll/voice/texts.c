@@ -217,7 +217,6 @@ static const char *tnum(char *buf, int n) { wsprintfA(buf, "%d", n); return buf;
 // One line each: what was worked out, whether it worked, its value (text, number, weight, items) and the generators'
 // state after it (the draws it made).
 static FILE *g_corpus;
-static int nplayers(void);   // diplo.c
 static void corpus_esc(const char *s) {
     for (; *s; s++) {
         if (*s == '\n') fputs("\\n", g_corpus);

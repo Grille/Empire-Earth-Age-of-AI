@@ -851,7 +851,7 @@ static void navy_tick(void *pl, uint32_t now) {
     navy_budget_log(pl, idx, now);
     navy_docks(pl, idx, now);
     fleet_tick(pl, now);
-    if (!g_auto.enabled || !g_log) return;
+    if (!g_autotest || !g_log) return;
     if (now < g_nv_fish_t) g_nv_fish_t = g_nv_log_t = 0;
     if (now - g_nv_fish_t >= 15000) { g_nv_fish_t = now; navy_fish(); }
     if (now >= 120000 && now / 120000 != g_nv_log_t / 120000) { g_nv_log_t = now; navy_log_all(now); }

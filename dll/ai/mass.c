@@ -181,7 +181,7 @@ static void mass_sample(void *pl, struct mass *m, int bx, int by) {
 }
 // a unit died (diplo.c hook_kill_stat, n 3; autotest): a land soldier - who stood by it
 static void mass_death(uint8_t *dead) {
-    if (!g_auto.enabled || !dead) return;
+    if (!g_autotest || !dead) return;
     uint8_t *td = FIELD(dead, 0x2C, uint8_t *);
     void *pl = FIELD(dead, 0x18, void *);
     int bx, by, fam = td ? FIELD(td, 0x4B4, int) : 3;
@@ -231,7 +231,7 @@ static int mass_refuses(uint8_t *sg, uint8_t *u, void *goal) {
     void *pl = FIELD(sg, 0x190, void *);
     if (!pl || *(uintptr_t *)sg != GA(VT_ASG_LAND)) return 0;
     struct mass *m = &g_mss[(unsigned)FIELD(pl, PL_INDEX, int) & 15];
-    if (g_auto.enabled) {
+    if (g_autotest) {
         int c = ms_cls(FIELD(sg, 0x1D0, int));
         if (goal && *(uintptr_t *)goal == GA(VT_GOAL_ATTACK)) m->oat[c]++; else m->omv[c]++;
     }
@@ -273,7 +273,7 @@ static void ms_gather(void *pl, unsigned idx, struct mass *m, uint32_t now, int 
         for (int j = 0; j < m->nh; j++)
             if (m->hold[j].sg == sg) { n++; if (now - m->hold[j].since > oldest) oldest = now - m->hold[j].since; }
         if (n >= g_mass_group || (n >= 3 && oldest >= (uint32_t)g_mass_hold * 1000u) || oldest >= (uint32_t)g_mass_hold * 2000u) {
-            if (g_log && g_auto.enabled) fprintf(g_log, "# mass: P%u at %.1f min: %d reinforcements go together (held %.1f min)\n", idx, now / 60000.0, n, oldest / 60000.0);
+            if (g_log && g_autotest) fprintf(g_log, "# mass: P%u at %.1f min: %d reinforcements go together (held %.1f min)\n", idx, now / 60000.0, n, oldest / 60000.0);
             int jx = -1, jy = -1;   // 64 JOIN: they walk to the subgroup's pack (its members away from the base)
             for (int i = 0; i < ns && (ARMY_MASS(idx) & 64); i++)
                 if (g_msg[i].sg == sg && g_msg[i].na >= 2) { jx = g_msg[i].cx; jy = g_msg[i].cy; }
@@ -317,7 +317,7 @@ static void ms_wait(void *pl, unsigned idx, struct mass *m, uint32_t now) {
     if (top <= 0 || own * 100.0f >= top * (float)g_mass_ratio || now - m->wait0 >= (uint32_t)g_mass_wait * 60000u) {
         if (now - m->wait0 >= 20000) {
             m->goes++;
-            if (g_log && g_auto.enabled) fprintf(g_log, "# mass: P%u at %.1f min: the attack goes after %.1f min - army %.0f, the strongest enemy's known %.0f\n",
+            if (g_log && g_autotest) fprintf(g_log, "# mass: P%u at %.1f min: the attack goes after %.1f min - army %.0f, the strongest enemy's known %.0f\n",
                                                  idx, now / 60000.0, (now - m->wait0) / 60000.0, own, top);
         }
         m->wait0 = 0;
@@ -392,7 +392,7 @@ static void mass_tick(void *pl, uint32_t now) {
             if ((plan & 2) && (!m->tw || now - m->tw >= 5000)) { m->tw = now ? now : 1; ms_wait(pl, idx, m, now); }
         }
     }
-    if (!g_auto.enabled || !g_log) return;
+    if (!g_autotest || !g_log) return;
     if (!m->ts || now - m->ts >= 5000) { m->ts = now ? now : 1; mass_sample(pl, m, bx, by); }
     if (!m->started) { m->started = 1; m->min = now / 60000; return; }
     if (now / 60000 == m->min) return;

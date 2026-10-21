@@ -441,7 +441,6 @@ static void __fastcall hook_pop_cap(void *pl, void *edx) {
     if (!cfg_of(pl)->pop_follow && !is_vanilla(pl)) FIELD(pl, 0xCCC, int) = GF(FN_GAME_LIMIT)(pl, 0);
 }
 
-static int is_citizen_type(int type) { return ut_role(type, UTR_CITIZEN); }
 
 // Citizens without useful work: unassigned ones plus those beyond their resource's target.
 static int idle_citizens(void *pl) {
@@ -615,7 +614,7 @@ static void retry_dropped(void *pl, unsigned idx, uint32_t now) {
     }
 }
 static uint32_t g_last_attack_time[16];   // +0xED8 at the last look (defence.c attack_retreat moves it on, not a launch)
-// a vanilla player (test/vanilla.c is_vanilla): econ_tick's log lines only - spending, gathering, the game's attack times
+// a vanilla player (game/players.c is_vanilla): econ_tick's log lines only - spending, gathering, the game's attack times
 static void econ_vanilla_log(void *pl, uint32_t now) {
     unsigned ai = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     spend_log(ai, now);

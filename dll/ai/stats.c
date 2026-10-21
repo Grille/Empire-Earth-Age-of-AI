@@ -20,7 +20,6 @@
 
 #define ST_TABLE ((float *)GA(G_DAMAGE_TABLE))
 static int g_fight_est = 0;   // [all] fight_estimate
-static int is_soldier(uint8_t *td);   // defence.c
 
 static uint8_t *st_rec(void *pl, int type) {   // the player's stats record of a type
     if (!pl || type < 0) return NULL;

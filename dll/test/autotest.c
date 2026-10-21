@@ -1,17 +1,17 @@
 // ---- autotest mode (aimod_autotest.ini next to the DLL) ----
 // The game itself accepts:  "Empire Earth.exe" -loadgame "name.ees"   (file in Data\Saved Games\,
 // name must not contain '-' or '/'). This mode adds: skip intro movies, quit after N game minutes.
-static struct { int enabled, skip_intro, scenario_mode, turbo, game_seed; double quit_minutes; float speed; } g_auto;
+static struct { int skip_intro, scenario_mode, turbo, game_seed; double quit_minutes; float speed; } g_auto;
 
 #include "test/randmap.c"
 
 static void autotest_first_tick(void *pl) {
-    if (g_auto.enabled) randmap_ai_toggles(pl);
+    if (g_autotest) randmap_ai_toggles(pl);
 }
 
 static void load_autotest(const char *ini) {
-    g_auto.enabled = GetFileAttributesA(ini) != INVALID_FILE_ATTRIBUTES;
-    if (!g_auto.enabled) return;
+    g_autotest = GetFileAttributesA(ini) != INVALID_FILE_ATTRIBUTES;
+    if (!g_autotest) return;
     g_auto.skip_intro = ini_int("autotest", "skip_intro", 1, ini);
     g_auto.quit_minutes = ini_num("autotest", "quit_minutes", 0, ini);   // 3.2: 3 minutes 12 seconds
     g_auto.scenario_mode = ini_int("autotest", "scenario_mode", 0, ini);
@@ -93,7 +93,7 @@ static int __cdecl hook_load_saved(void *name) {
 static void run_setup(uint32_t now);
 
 static void autotest_tick(uint32_t now) {
-    if (!g_auto.enabled) return;
+    if (!g_autotest) return;
     if (g_setup_path[0] && now >= 2000) run_setup(now);
     float cur = *(float *)GA(G_GAME_SPEED);
     if (g_auto.speed > 0 && (cur < g_auto.speed - 0.01f || cur > g_auto.speed + 0.01f)) {

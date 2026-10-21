@@ -29,3 +29,4 @@
 #define CM_FLAGS_LEN    9
 
 #define FIELD(p, off, T) (*(T *)((uint8_t *)(p) + (off)))
+#define G_UNIT_GRID_OFS 0x181724    // map +: unit grid (see attack.c)

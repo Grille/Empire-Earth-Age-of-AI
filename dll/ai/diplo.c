@@ -113,13 +113,6 @@ static struct {
 static uint16_t g_ws_types[16][G_TYPES_N];
 static uint32_t g_ws_types_t;
 
-static void *player_at(int i) {
-    unsigned n = *(unsigned *)GA(G_PLAYERS_N);
-    return i > 0 && (unsigned)i < n && i < 16 ? ((void **)GA(G_PLAYERS))[i] : NULL;
-}
-static int nplayers(void) { unsigned n = *(unsigned *)GA(G_PLAYERS_N); return n > 16 ? 16 : (int)n; }
-static int stance_of(void *a, int b) { return FIELD(a, 0x9E4 + b * 4, int); }
-static int is_out(void *p) { return !p || FIELD(p, 0x467, uint8_t); }
 static int pidx(void *p) { return (int)((unsigned)FIELD(p, PL_INDEX, int) & 15); }
 static int scenario_game(void) { return g_is_scenario != 0; }
 
@@ -171,7 +164,7 @@ static struct {
     uint32_t seen[16][16];  // [ai][h]: h's soldiers, citizens and buildings ai destroyed, counted so far
     uint8_t set[16][16];    // [h][ai]: started (as an AI starts: enemy -10, ally 20)
 } g_hum;
-// an AI the mod's diplomacy decides for: not a vanilla player (test/vanilla.c is_vanilla - the game's own AI, which the
+// an AI the mod's diplomacy decides for: not a vanilla player (game/players.c is_vanilla - the game's own AI, which the
 // diplomacy treats as it treats a human: it never answers, the mod never acts for it, and no AI of the mod's offers it
 // an alliance or capitulates to it - the game's AI does no diplomacy)
 static int mod_ai(int i) { return i > 0 && i < 16 && g_players[i] && !is_vanilla_idx(i); }
