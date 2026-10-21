@@ -28,9 +28,12 @@ Several sessions may work in this tree at the same time - see Git below.
   `GA(SIZE_GOAL_BUILD)` - never a literal address, slot or size in the code. The game objects' fields likewise live
   in `dll/game/fields.h`, by kind and the 2017 update's offset: `FIELD(pl, OF(PL, 0x9D4), void *)` (a field not in
   the table doesn't build; the runtime library's layouts - deque, vector, string - stay plain numbers). Two columns:
-  the 2017 update and Art of Conquest (not ready: nothing ran there yet). A new row needs both:
-  `scripts/port_addrs.py` / `scripts/port_fields.py Class[,Class] offset` find the AoC value, `scripts/port_dll.py`
-  for the engine DLLs (AoC ships its own builds: an RVA_ row, or better the export by name).
+  the 2017 update and Art of Conquest (not ready: tested in AoC only since 2026-10-21 - test runs play it,
+  `EE_GAME_DIR=<its folder>`, docs/testing.md). A new row needs both: `scripts/port_addrs.py` /
+  `scripts/port_fields.py Class[,Class] offset` find the AoC value, `scripts/port_check.py` checks it in the object's
+  own code (and a called function's stack arguments: `rets`), `scripts/port_dll.py` for the engine DLLs (AoC ships
+  its own builds: an RVA_ row, or better the export by name). Code that differs by more than an address:
+  `build_is("aoc")` (AoC rewrote a few functions - docs/engine-notes.md).
 - The engine loads every DLL in the game folder: never leave copies of DLLs there (a stray dinput copy crashed it).
 - The game reads the personality files from `config/aimod_ai/` (`ai_dir` in the user's aimod.ini): a change to
   their format needs the matching installed DLL.

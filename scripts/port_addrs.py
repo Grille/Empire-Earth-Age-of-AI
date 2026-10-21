@@ -105,7 +105,7 @@ EXE_HAND = {
     0x00607D79: (0x00619604, 'the second of the calls of FN_FIRE, after the projectile code (FN_PROJ_DOWN 0x619143)'),
     0x0050FEC8: (0x0051A487, 'the call of FN_MOUSE_UPDATE the others leave'),
     0x005007B2: (0x0050B2AD, 'mov esi, DRAW_OLD + 0x58 (the draw records\' init loop)'),
-    0x005007CC: (0x0050B2C8, 'cmp esi, its end (DRAW_OLD + 0x58 + 0x200 x 0x148)'),
+    0x005007CC: (0x0050B2C7, 'cmp esi, its end (DRAW_OLD + 0x58 + 0x200 x 0x148): the operand of the cmp at 0x50B2C5'),
     0x005D88C0: (0x005E8B68, 'EEUIESPEMainMenu slot 1: AoC\'s copies the name field first (0x5E8ACC) - a partial fix of its own'),
 }
 
@@ -145,6 +145,21 @@ def load(path_a=EXE_A, fns_a=FN_A, path_b=EXE_B, fns_b=FN_B, hand=None, by_name=
     HAND = EXE_HAND if hand is None else hand
     A, B = Exe(path_a, fns_a), Exe(path_b, fns_b)
     vt_b = {v[:2]: (k, v[2]) for k, v in B.vt.items()}
+    # the pairs of the same inputs (the images, the lists, this script, the hand pairs) from work/: a minute saved
+    import hashlib, pickle
+    key = hashlib.sha1(repr([(p, os.path.getsize(p), os.path.getmtime(p)) for p in (path_a, fns_a, path_b, fns_b, __file__)]
+                            + [sorted(HAND.items()), by_name]).encode()).hexdigest()[:16]
+    cache = os.path.join(ROOT, 'work', 'port_pairs_%s.pkl' % key)
+    if os.path.exists(cache):
+        pair, how, paired_b, anchors, data_votes = pickle.load(open(cache, 'rb'))
+        return
+    _pair(by_name)
+    os.makedirs(os.path.dirname(cache), exist_ok=True)
+    pickle.dump((pair, how, paired_b, anchors, data_votes), open(cache, 'wb'))
+
+
+def _pair(by_name):
+    global pair, how, paired_b, anchors, data_votes
     pair, how, paired_b = {}, {}, set()
     if by_name:   # the same name once in each (the DLLs' exports: Ghidra names them after the mangled symbol)
         na, nb = A.names(), B.names()

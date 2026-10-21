@@ -194,8 +194,8 @@ static const struct exe_build { uint32_t hash; const char *name; int ready; } k_
     F(FN_CAMACT_CTOR, void *, __thiscall, (void *), 0x00560179, 0x0056FAD4)   /* EEACenterCamera ctor (0x1C bytes) */ \
     F(FN_EDITOR_FORM, void *, __thiscall, (void *, void *), 0x0058D3E1, 0x0059D615) \
     F(SM_RUN_EFFECT, void, __thiscall, (void *, int), 0x005AD29B, 0x005BD5EB) \
-    F(FN_EPOCH_UPGRADES, void, __thiscall, (void *, int), 0x005BDDBD, 0x005CE8C5) /* tech tree node, category */ \
-    F(FN_TECH_GRANT, int, __thiscall, (void *), 0x005BF335, 0x005CFA53) \
+    D(FN_EPOCH_UPGRADES, 0x005BDDBD, 0x005CE8C5)                              /* thiscall(node, category), AoC's (+ only new): econ.c */ \
+    F(FN_TECH_GRANT, int, __thiscall, (void *), 0x005BF335, 0x005CFA53)       /* AoC's takes an argument: called in the 2017 update only */ \
     F(FN_CHEAT_MSG_CTOR, void *, __thiscall, (void *, int, int), 0x005C29FB, 0x005D3162) /* new 0x18; (code, arg) */ \
     F(FN_CHAT_MSG_CTOR, void *, __thiscall, (void *, void *), 0x005C2A2F, 0x005D3196) /* new 0x24; (UWideString *) */ \
     F(FN_RESIGN_SEND, void, __cdecl, (void), 0x005D05CC, 0x005E0E7F) \
@@ -212,7 +212,7 @@ static const struct exe_build { uint32_t hash; const char *name; int ready; } k_
     /* EEUCMissile vf42, thiscall(class, missile, aim) - ret 8, the aim unused */ \
     F(FN_MISSILE_LAUNCH, int, __thiscall, (void *, uint8_t *, float *), 0x00606109, 0x0061799B) \
     F(FN_PROJ_DOWN, char, __thiscall, (void *, uint8_t *), 0x006078F9, 0x00619143) \
-    F(FN_GOAL_ATTACK_CTOR, void *, __thiscall, (void *, void *, void *, int), 0x0060AD45, 0x0061D337) /* EEUGAttack: new 0x40 */ \
+    D(FN_GOAL_ATTACK_CTOR, 0x0060AD45, 0x0061D337)                            /* EEUGAttack(unit, target, 1); AoC + a byte: attack.c */ \
     /* EEUGBuildRepair constructor: thiscall(goal, player, building, 1) */ \
     F(FN_BUILD_GOAL, void *, __thiscall, (void *, void *, void *, int), 0x0060BAD0, 0x0061E164) \
     /* thiscall(goal 0xFBA object, unit) (0x5ED24B) */ \
@@ -374,6 +374,8 @@ static const struct exe_build { uint32_t hash; const char *name; int ready; } k_
     D(RVA_LLE_INPUT_COOP, 0x4A76F, 0x39607)   /* ISInitialize's, setting up the device */ \
     D(RVA_LLE_FONT_MOVSX_1, 0x27A46, 0x15C01) /* GEFontBitmap::Draw (both overloads): movsx of a character */ \
     D(RVA_LLE_FONT_MOVSX_2, 0x27C9A, 0x15E55) \
+    D(RVA_LLE_SEND_WAIT, 0x55DF5, 0x49DDA)    /* NESynchronousServer::Send: call [WaitForMultipleObjects] (turbo) */ \
+    D(RVA_LLE_IAT_WFMO, 0x940EC, 0x970EC)     /* its import slot */ \
     D(RVA_MIX_CHANNELS, 0x52AC, 0x52AC)       /* Miles Sound System Mixer.dll: its channels, a vector of 8 bytes each */ \
     D(RVA_MIX_MAX_CHANNELS, 0x5320, 0x5320)   /* int: the most channels it gives */ \
     D(SLOT_ROUTE_COST, 1, 1)            /* VT_ROUTE_PLANNER: FN_ROUTE_COST */ \
@@ -409,6 +411,9 @@ static const struct exe_build { uint32_t hash; const char *name; int ready; } k_
 
 // lists: L(name, count, (values of build 1), (values of build 2) ...)
 #define ADDR_LISTS(L) \
+    /* TCP Protocol.dll, relative to its base: the network ports' immediates (UDP 33334, TCP 33335), moved for a test slot */ \
+    L(RVA_TCP_PORTS, 8, (0x17E2, 0x196F, 0x19EB, 0x1EB8, 0x1FBD, 0x2148, 0x279C, 0x2F2C), \
+        (0x1684, 0x185C, 0x18D8, 0x1DA5, 0x1EAA, 0x2035, 0x2689, 0x2E1C)) \
     /* the calls of FN_TRAIN_UNITS (econ.c: the game's unit orders) */ \
     L(TRAIN_SITES, 5, (0x0046CCE6, 0x00490CAC, 0x00490E12, 0x00490F1F, 0x00490FA9), \
         (0x0046F786, 0x00495AFF, 0x00495C65, 0x00495D72, 0x00495DFC)) \
@@ -464,7 +469,7 @@ static const struct exe_build { uint32_t hash; const char *name; int ready; } k_
     /* the draw list's operands to move (drawlist.c, in its table's order) */ \
     L(DRAW_SITES, 9, (0x0050099C, 0x00504158, 0x005007B2, 0x005007CC, 0x00503C69, 0x00503ED0, 0x00503FCC, 0x005043B5, \
         0x0050DC5A), \
-        (0x0050B497, 0x0050F093, 0x0050B2AD, 0x0050B2C8, 0x0050EBA4, 0x0050EE0B, 0x0050EF07, 0x0050F2F0, 0x0051854F)) \
+        (0x0050B497, 0x0050F093, 0x0050B2AD, 0x0050B2C7, 0x0050EBA4, 0x0050EE0B, 0x0050EF07, 0x0050F2F0, 0x0051854F)) \
 
 
 #define ADDR_ENUM_F(n, r, cc, a, ...) A_##n,
@@ -486,6 +491,8 @@ static const char *const k_addr_name[A_N] = { ADDRS(ADDR_NAME_F, ADDR_NAME_D) AD
 ADDR_LISTS(ADDR_LIST)
 
 static int g_exe_build = -1;           // the column of the running exe (-1: none known - the mod stays off)
+// the running build by its name ("ee", "aoc"): for code that differs by more than an address (AoC's rewrites)
+static int build_is(const char *name) { return g_exe_build >= 0 && !lstrcmpA(k_exe_builds[g_exe_build].name, name); }
 static uintptr_t g_addr[A_N];
 #define GA(n) (g_addr[A_##n])
 #define GF(n) ((n##_fn)g_addr[A_##n])

@@ -56,7 +56,7 @@ typedef int (__cdecl *LoadFn)(void *);
 // At the command line, not in DllMain: the engine loads the module later (LoadLibrary under the loader lock is none of
 // ours); loaded here it stays, and the engine's own LoadLibrary gets this copy.
 static void slot_ports(void) {
-    static const uint32_t imm[] = { 0x17E2, 0x196F, 0x19EB, 0x1EB8, 0x1FBD, 0x2148, 0x279C, 0x2F2C };   // RVAs
+    const uint32_t *imm = GL(RVA_TCP_PORTS);
     static int done;
     if (!g_slot || done) return;
     done = 1;
@@ -65,7 +65,7 @@ static void slot_ports(void) {
     HMODULE m = GetModuleHandleA("TCP Protocol.dll");
     if (!m) m = LoadLibraryA(p);
     int n = 0;
-    for (size_t i = 0; m && i < sizeof imm / sizeof *imm; i++) {
+    for (size_t i = 0; m && i < sizeof GL(RVA_TCP_PORTS) / sizeof *imm; i++) {
         uintptr_t at = (uintptr_t)m + imm[i];
         uint32_t old = *(uint32_t *)at;
         if (old == 33334 || old == 33335) n += patch_code32(at, old, old + 2 * g_slot);

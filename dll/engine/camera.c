@@ -85,7 +85,7 @@ static void __fastcall hook_scroll_execute(uint8_t *self, void *edx) {
 
 static void camera_install(const char *aimod_ini, const char *autotest_ini) {
     char mode[16], tmp[16];
-    int build_aoc = !lstrcmpA(k_exe_builds[g_exe_build].name, "aoc");
+    int build_aoc = build_is("aoc");
     GetPrivateProfileStringA("camera", "scroll", "game", mode, sizeof mode, aimod_ini);
     if (autotest_ini) {   // tests: [autotest] camera_scroll overrides
         lstrcpynA(tmp, mode, sizeof tmp);

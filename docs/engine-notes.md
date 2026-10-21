@@ -685,7 +685,7 @@ Each row is checked another way (the same instruction, the callers agreeing, the
   are per build in addr.h (SLOT_ rows).
 - Rewritten (the address is right, the hook's assumptions need a test in AoC): AssignCitizens 0x48EECF (28% of the
   code alike; a new block 0x48F3F5-0x48F458 about shores and transports - gathering on other islands), the epoch
-  upgrades 0x5CE8C5 (20%), ComputeTargets 0x491B78 (36%), the unit and citizen orders 0x494F42 / 0x493B97, the
+  upgrades 0x5CE8C5 (20%; handled, "The first test games" below), ComputeTargets 0x491B78 (36%), the unit and citizen orders 0x494F42 / 0x493B97, the
   tech requests 0x48A91E, fire 0x631312 (35%), EEAScroll::Execute 0x40478E (the velocity ramp).
 - The player name (playername.c): AoC's campaign, civ campaign and main menu buttons copy the name field into the
   player name first (0x5E8ACC) - not saved, not on Load Game / Random Map; the mod's hook still saves it.
@@ -697,11 +697,18 @@ Each row is checked another way (the same instruction, the callers agreeing, the
 
 ### The objects' fields (scripts/port_fields.py, 2026-10-21)
 
-The mod reads ~3600 fields: 438 (kind, offset) pairs in dll/game/fields.h, with AoC's column. Found per class: in its
+The mod reads ~3600 fields: 442 (kind, offset) pairs in dll/game/fields.h, with AoC's column. Found per class: in its
 methods (vtable slots and what they call with `this` in ecx) aligned with every number masked, [this + X] in the base
 reads [this + Y] in AoC (the AI's save/load serializer, EEComputerPlayer::vf6, names most player fields); then the
 offsets of all paired code (any object) for structures without methods, accepted only where they agree with a
-neighbouring field's shift. 146 fields moved (the engine DLLs' objects none, below). The shifts:
+neighbouring field's shift. 98 fields moved (the engine DLLs' objects none, below).
+That wasn't enough: the first AoC test games (below) crashed on fields of objects with few virtual functions, taken as
+kept for lack of a vote, or voted by other objects' reads. scripts/port_check.py checks every row in its object's own
+code instead: the source file's (bounded by the static initializers Ghidra names `<Class>_persist_`), or through the
+pointer that reaches it (a unit's +0x34, a player's +0xB98), or the type data's constructors - 311 of the 442 rows
+now rest on that. It found the build manager +0x24 from 0x12C (the owner 0x138 -> 0x15C: the placement hook read a
+player from a wrong field), the unit manager +0x14 from 0x134, the civilization manager +4 from 0x74 (its flags), and
+the game data's unit limits unchanged (0x2E8, 0x2EC, not +4). The shifts:
 - Player: 0..~0x9B0 the same; the tech tree -8 (0x9D4 -> 0x9CC, 0x9BC -> 0x9AC ...); 0xAF0..0xB2C +4 (the stock
   0xAF0 -> 0xAF4); 0xB50..0xBB4 +0x34 (combat manager 0xB8C -> 0xBC0, civilization manager 0xB90 -> 0xBC4,
   difficulty 0xBA4 -> 0xBD8); 0xBDC..0xD5C +0x38; 0xE10..0xE20 +0x3C; 0xED8..0xF02 +0x50 (the AI switches).
@@ -711,9 +718,28 @@ neighbouring field's shift. 146 fields moved (the engine DLLs' objects none, bel
 - Units: the same up to ~0x250, then +4 (0x25C, 0x28C, 0x2A0), +0xC around 0x33B..0x346.
 - Map: the unit grid 0x181724 -> 0x195640, the size 0x1816FC -> 0x195618 (a bigger map array).
 - Attack subgroups +4 from 0x190 (the player 0x190 -> 0x194, state 0x1D0 -> 0x1D4); the research manager +0x10 from
-  0xF4; game data +4 after 0x2CC (unit limit 0x2EC -> 0x2F0); the UI form's 0x5D8 -> 0x5E8.
-- The same: goals, the subgroups' unit records, the civilization, resource, build and unit managers, the camera,
-  the scroll action, messages.
+  0xF4; the build manager +0x24 from 0x12C, the unit manager +0x14 from 0x134, the civilization manager +4 from
+  0x74; the UI form's 0x5D8 -> 0x5E8.
+- The same: goals, the subgroups' unit records, the resource manager, the civilization manager up to 0x70, the game
+  setup and game data, the scenario manager, the camera, the scroll action, messages.
+
+### The first test games (2026-10-21)
+
+Test runs play in AoC's folder (docs/testing.md "Art of Conquest"); the mod stays off there in normal play. The first
+games crashed at once, then after 4 minutes; what AoC had changed beyond addresses and offsets:
+- The epoch upgrades (0x5CE8C5): thiscall(node, category, only new) - `ret 8`; the computer player passes 1, and a
+  tech whose data has +0x81 set isn't granted. A tech node's children are a map (head +0x28, the child at an entry's
+  +0x10) instead of a vector of 0x20-byte nodes (game/tech.c walks either). EETechTreeNode::vf6 takes an argument.
+- The attack goal's constructor (0x61D337) takes a fourth argument, a byte at the goal's new +0x40 - the AI's calls
+  pass 0; called with three, every attack order the mod gave left 4 bytes on the stack. `port_check.py rets` compares
+  the stack arguments (ret N) of every addr.h function: these three differ, the rest match.
+- AoC checks for the 2017 update's install ("needs the original game") through the HKCU\Software\SSSI\Empire Earth
+  values "Installed From Volume" / "Directory" - read through Low-Level Engine's registry imports, so through the
+  settings dinput.dll's file; a test slot's copy gets them from the registry.
+- Its single-instance check's je is at 0x540DA6 (the base's 0x535CDA); TCP Protocol.dll's port immediates moved
+  (RVA_TCP_PORTS); Low-Level Engine's NESynchronousServer::Send wait (turbo) is RVA_LLE_SEND_WAIT.
+Then: 20- and 30-minute games on Continental and Small Islands, two at once, ran to their end - the AIs grew 44-52
+citizens by minute 20-30 and trained armies, about as in the 2017 update's game from the same command.
 
 | | base | AoC |
 |---|---|---|

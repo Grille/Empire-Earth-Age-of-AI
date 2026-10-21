@@ -229,10 +229,20 @@ static void gather_research(void *pl, unsigned idx, uint32_t now) {
 // type 20 -> 21; 3051 = 50 stone: watch tower 47 -> 461). A human player researches each at its building and pays;
 // EEPlayer::vf41 grants nothing. Here the call (0x43D365) schedules each one with the research manager instead
 // (0x485F57, as gather_research does): researched at its building and paid like a player's.
+// Art of Conquest rewrote 0x5BDDBD (0x5CE8C5): thiscall(node, category, only new) - the computer player passes 1: a
+// tech with data +0x81 set isn't granted - and its children in a map (game/tech.c); its vf6 takes an argument (0).
 static int g_paid_upgrades = 1;
 static int ap_upgrade_later(void *pl, uint8_t *data);   // army.c
-static void __fastcall hook_epoch_upgrades(uint8_t *node, void *edx, int cat) {
+static void epoch_upgrades(uint8_t *node, int cat, int only_new);
+static void __fastcall hook_epoch_upgrades(uint8_t *node, void *edx, int cat) {   // the 2017 update's
     (void)edx;
+    epoch_upgrades(node, cat, 0);
+}
+static void __fastcall hook_epoch_upgrades_aoc(uint8_t *node, void *edx, int cat, int only_new) {
+    (void)edx;
+    epoch_upgrades(node, cat, only_new & 0xFF);
+}
+static void epoch_upgrades(uint8_t *node, int cat, int only_new) {
     uint8_t *tt = FIELD(node, OF(TECHNODE, 0xC), uint8_t *);
     int pi = tt ? FIELD(tt, OF(TT, 0x4), int) : -1;
     // the game's own player array, not g_players: back in the scenario editor after a test run the editor sets the
@@ -243,13 +253,17 @@ static void __fastcall hook_epoch_upgrades(uint8_t *node, void *edx, int cat) {
     if (pl && (FIELD(pl, PL_INDEX, int) & 15) != pi) pl = NULL;
     void *cm = pl ? FIELD(pl, OF(PL, 0xB90), void *) : NULL;
     uint8_t *rs = cm ? FIELD(cm, OF(CM, 0x40), uint8_t *) : NULL;
-    if (!g_paid_upgrades || !rs || cat != 7 || is_vanilla(pl)) { GF(FN_EPOCH_UPGRADES)(node, cat); return; }
-    uint8_t *v = FIELD(node, OF(TECHNODE, 0x24), uint8_t *), *ve = FIELD(node, OF(TECHNODE, 0x28), uint8_t *);
+    if (!g_paid_upgrades || !rs || cat != 7 || is_vanilla(pl)) {
+        if (build_is("aoc")) ((void (__thiscall *)(void *, int, int))GA(FN_EPOCH_UPGRADES))(node, cat, only_new);
+        else ((void (__thiscall *)(void *, int))GA(FN_EPOCH_UPGRADES))(node, cat);
+        return;
+    }
     char ids[256] = "";
     int n = 0;
-    for (uint8_t *c = v; v && c < ve; c += 0x20) {   // the children, 0x20-byte nodes (as 0x5BDDBD walks them)
+    uint8_t *c;
+    for (struct tech_kids k = tech_kids(node); (c = tech_kid_next(&k)); ) {   // as the original walks them
         uint8_t *d = FIELD(c, OF(TECHCHILD, 0x8), uint8_t *);
-        if (!d || FIELD(d, OF(TECHDATA, 0x48), int) != 7 || c[4]) continue;
+        if (!d || FIELD(d, OF(TECHDATA, 0x48), int) != 7 || c[4] || (only_new && d[OF(TECHDATA, 0x81)])) continue;
         int id = FIELD(d, OF(TECHDATA, 0x4C), int);
         if (ap_upgrade_later(pl, d)) continue;   // army.c army_plan UPGRADE: a line it doesn't use yet
         GF(FN_RS_SCHEDULE)(rs, id);
@@ -1817,7 +1831,9 @@ static void econ_install(const char *aimod_ini, const char *autotest_ini) {
     g_build_fields = cfg_int(aimod_ini, autotest_ini, 1, "build_fields", 1);
     g_paid_upgrades = cfg_int(aimod_ini, autotest_ini, 1, "paid_upgrades", 1);
     if (autotest_ini) g_tech_log = ini_int("autotest", "tech_log", 0, autotest_ini);
-    if (g_tech_log) {
+    if (g_tech_log && build_is("aoc")) {   // AoC's vf6 takes an argument: the hook is the 2017 update's only yet
+        if (g_log) fprintf(g_log, "# tech_log: free research not logged in this build\n");
+    } else if (g_tech_log) {
         void **slot = (void **)GA(VTS_TECH_RESEARCHED);
         DWORD old;
         if (*slot == (void *)GA(FN_TECH_GRANT) && VirtualProtect(slot, 4, PAGE_READWRITE, &old)) {
@@ -1875,7 +1891,8 @@ static void econ_install(const char *aimod_ini, const char *autotest_ini) {
         ok++;
     }
     patch_call(GA(CALL_PLACE), GA(FN_PLACE), hook_place);
-    int up_ok = patch_call(GA(CALL_EPOCH_UPGRADES), GA(FN_EPOCH_UPGRADES), hook_epoch_upgrades);
+    int up_ok = patch_call(GA(CALL_EPOCH_UPGRADES), GA(FN_EPOCH_UPGRADES),
+                           build_is("aoc") ? (void *)hook_epoch_upgrades_aoc : (void *)hook_epoch_upgrades);
     if (g_log) fprintf(g_log, "# paid upgrades: %d (hook %d)\n", g_paid_upgrades, up_ok);
     int pop_ok = patch_call(GA(CALL_POP_CAP_1), GA(FN_POP_CAP), hook_pop_cap) + patch_call(GA(CALL_POP_CAP_2), GA(FN_POP_CAP), hook_pop_cap) +
                  patch_call(GA(CALL_POP_CAP_3), GA(FN_POP_CAP), hook_pop_cap);

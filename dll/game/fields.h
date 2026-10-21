@@ -5,7 +5,8 @@
 // vector, map nodes, UString) and the mod's own structures stay plain numbers.
 // Art of Conquest's column: scripts/port_fields.py (in the two exes' paired code, [this + X] read as [this + Y] in a
 // class's methods; and every read's offsets for objects without methods), for the engine DLLs' objects (E_: AoC ships
-// its own builds of them) scripts/port_dll.py. How each value was found, the last column:
+// its own builds of them) scripts/port_dll.py; scripts/port_check.py checks a row in its object's own code (its source
+// file, the pointer that reaches it, its constructors). How each value was found, the last column:
 //   c  its class's code          b  between two fields of the kind with the same shift
 //   v  the code's reads agree with a neighbouring field's shift     s  kept: no read of this object says otherwise
 //   h  by hand, with its reason                                     -  not known yet (NA)
@@ -105,11 +106,11 @@
     O(ASGU, 0x48, 0x48, 0x48) /* c */ \
     O(ASGU, 0x4C, 0x4C, 0x4C) /* c */ \
     O(ASGUINFO, 0x4, 0x4, 0x4) /* s */ \
-    O(BM, 0x12C, 0x12C, 0x12C) /* s */ \
-    O(BM, 0x130, 0x130, 0x130) /* s */ \
-    O(BM, 0x134, 0x134, 0x134) /* s */ \
-    O(BM, 0x138, 0x138, 0x138) /* s */ \
-    O(BM, 0x148, 0x148, 0x148) /* s */ \
+    O(BM, 0x12C, 0x12C, 0x150) /* c: its file's code (+0x24, 5 votes) */ \
+    O(BM, 0x130, 0x130, 0x154) /* c: its file's code (+0x24) */ \
+    O(BM, 0x134, 0x134, 0x158) /* c: its file's code (+0x24, 18 votes) */ \
+    O(BM, 0x138, 0x138, 0x15C) /* c: its file's code (+0x24, 33 votes) */ \
+    O(BM, 0x148, 0x148, 0x16C) /* c: its file's code (+0x24) */ \
     O(CAMERA, 0x78, 0x78, 0x78) /* s */ \
     O(CAMERA, 0x7C, 0x7C, 0x7C) /* s */ \
     O(CAMERA, 0xE0, 0xE0, 0xE0) /* s */ \
@@ -121,27 +122,27 @@
     O(CM, 0x48, 0x48, 0x48) /* c */ \
     O(CM, 0x50, 0x50, 0x50) /* c */ \
     O(CM, 0x58, 0x58, 0x58) /* v */ \
-    O(CM, 0x74, 0x74, 0x74) /* v */ \
-    O(CM, 0x75, 0x75, 0x75) /* h: kept: every known field of the civilization manager kept its place */ \
-    O(CM, 0x76, 0x76, 0x76) /* h: kept: every known field of the civilization manager kept its place */ \
-    O(CM, 0x78, 0x78, 0x78) /* v */ \
-    O(CM, 0x7A, 0x7A, 0x7A) /* v */ \
-    O(CM, 0x7B, 0x7B, 0x7B) /* v */ \
-    O(CM, 0x7C, 0x7C, 0x7C) /* v */ \
+    O(CM, 0x74, 0x74, 0x78) /* c: its file's code (+4 from 0x74) */ \
+    O(CM, 0x75, 0x75, 0x79) /* c: its file's code (+4 from 0x74) */ \
+    O(CM, 0x76, 0x76, 0x7A) /* c: its file's code (+4 from 0x74) */ \
+    O(CM, 0x78, 0x78, 0x7C) /* c: its file's code (+4 from 0x74) */ \
+    O(CM, 0x7A, 0x7A, 0x7E) /* c: its file's code (+4 from 0x74) */ \
+    O(CM, 0x7B, 0x7B, 0x7F) /* c: its file's code (+4 from 0x74) */ \
+    O(CM, 0x7C, 0x7C, 0x80) /* c: its file's code (+4 from 0x74) */ \
     O(CMLIST, 0x0, 0x0, 0x0) /* s */ \
     O(CMLIST, 0xC, 0xC, 0xC) /* s */ \
     O(CMLIST, 0x10, 0x10, 0x10) /* s */ \
     O(DMGMODEL, 0x14C, 0x14C, 0x14C) /* s */ \
     O(DRAWREC, 0x58, 0x58, 0x58) /* h: the same in AoC: its draw list sites read DRAW_OLD + 0x58 and + 0xFC (0x50B2AD, 0x50EF07) */ \
     O(DRAWREC, 0xFC, 0xFC, 0xFC) /* h: the same in AoC: its draw list sites read DRAW_OLD + 0x58 and + 0xFC (0x50B2AD, 0x50EF07) */ \
-    O(EFFECT, 0x14, 0x14, 0x14) /* s */ \
-    O(EFFECT, 0x18, 0x18, 0x18) /* s */ \
-    O(EFFECT, 0x20, 0x20, 0x20) /* s */ \
-    O(EFFECT, 0x2C, 0x2C, 0x2C) /* s */ \
-    O(EPOCHTECHS, 0x4, 0x4, 0x4) /* s */ \
-    O(EPOCHTECHS, 0x8, 0x8, 0x8) /* s */ \
-    O(EPOCHTECHS, 0xC, 0xC, 0xC) /* s */ \
-    O(EPOCHTECHS, 0x10, 0x10, 0x10) /* s */ \
+    O(EFFECT, 0x14, 0x14, 0x14) /* v: the tech tree code's reads (unchanged) */ \
+    O(EFFECT, 0x18, 0x18, 0x18) /* v: the tech tree code's reads (unchanged) */ \
+    O(EFFECT, 0x20, 0x20, 0x20) /* v: the tech tree code's reads (unchanged) */ \
+    O(EFFECT, 0x2C, 0x2C, 0x2C) /* v: the tech tree code's reads (unchanged) */ \
+    O(EPOCHTECHS, 0x4, 0x4, 0x4) /* v: the tech tree code's reads (unchanged) */ \
+    O(EPOCHTECHS, 0x8, 0x8, 0x8) /* v: the tech tree code's reads (unchanged) */ \
+    O(EPOCHTECHS, 0xC, 0xC, 0xC) /* v: the tech tree code's reads (unchanged) */ \
+    O(EPOCHTECHS, 0x10, 0x10, 0x10) /* v: the tech tree code's reads (unchanged) */ \
     O(E_DSTATE, 0x1C, 0x1C, 0x1C) /* c */ \
     O(E_FONT, 0x18, 0x18, 0x18) /* c */ \
     O(E_FONT, 0x24, 0x24, 0x24) /* c */ \
@@ -203,9 +204,9 @@
     O(E_WINDOW, 0x8, 0x8, 0x8) /* c */ \
     O(E_WINDOW, 0xC, 0xC, 0xC) /* c */ \
     O(E_WINDOW, 0x10, 0x10, 0x10) /* c */ \
-    O(GAMEDATA, 0x2CC, 0x2CC, 0x2CC) /* s */ \
-    O(GAMEDATA, 0x2E8, 0x2E8, 0x2EC) /* h: votes 19/23 +4 (a field inserted after 0x2CC, which kept its place) */ \
-    O(GAMEDATA, 0x2EC, 0x2EC, 0x2F0) /* h: votes 15/25 +4 (a field inserted after 0x2CC, which kept its place) */ \
+    O(GAMEDATA, 0x2CC, 0x2CC, 0x2CC) /* c: the code reading [G_GAME_DATA] */ \
+    O(GAMEDATA, 0x2E8, 0x2E8, 0x2E8) /* c: the code reading [G_GAME_DATA] (the setup copy 0x524B8F) */ \
+    O(GAMEDATA, 0x2EC, 0x2EC, 0x2EC) /* c: the code reading [G_GAME_DATA] (the setup copy 0x524B8F) */ \
     O(GOAL, 0x5, 0x5, 0x5) /* b */ \
     O(GOAL, 0x8, 0x8, 0x8) /* c */ \
     O(GOAL, 0xC, 0xC, 0xC) /* c */ \
@@ -312,26 +313,26 @@
     O(PL, 0xEFB, 0xEFB, 0xF4B) /* c */ \
     O(PL, 0xEFC, 0xEFC, 0xF4C) /* b */ \
     O(PL, 0xF02, 0xF02, 0xF52) /* c */ \
-    O(PLB98, 0x2D, 0x2D, 0x2D) /* s */ \
+    O(PLB98, 0x2D, 0x2D, 0x2D) /* c: read through a player's +0xB98 */ \
     O(PLSTATS, 0x1C, 0x1C, 0x1C) /* b */ \
     O(PLSTATS, 0x20, 0x20, 0x20) /* b */ \
-    O(RM, 0x4, 0x4, 0x4) /* s */ \
-    O(RM, 0x8, 0x8, 0x8) /* s */ \
-    O(RM, 0x14, 0x14, 0x14) /* s */ \
-    O(RM, 0x18, 0x18, 0x18) /* s */ \
-    O(RM, 0x1C, 0x1C, 0x1C) /* s */ \
-    O(RM, 0x20, 0x20, 0x20) /* s */ \
-    O(RM, 0x88, 0x88, 0x88) /* s */ \
-    O(RM, 0x8C, 0x8C, 0x8C) /* s */ \
-    O(RM, 0x98, 0x98, 0x98) /* s */ \
-    O(RM, 0x9C, 0x9C, 0x9C) /* s */ \
-    O(RM, 0xA4, 0xA4, 0xA4) /* s */ \
-    O(RM, 0x130, 0x130, 0x130) /* s */ \
-    O(RM, 0x134, 0x134, 0x134) /* s */ \
-    O(RM, 0x150, 0x150, 0x150) /* s */ \
-    O(RM, 0x16C, 0x16C, 0x16C) /* s */ \
-    O(RM, 0x187, 0x187, 0x187) /* s */ \
-    O(RM, 0x188, 0x188, 0x188) /* s */ \
+    O(RM, 0x4, 0x4, 0x4) /* c: its file's code (the resource manager) */ \
+    O(RM, 0x8, 0x8, 0x8) /* c: its file's code (the resource manager) */ \
+    O(RM, 0x14, 0x14, 0x14) /* c: its file's code (the resource manager) */ \
+    O(RM, 0x18, 0x18, 0x18) /* c: its file's code (the resource manager) */ \
+    O(RM, 0x1C, 0x1C, 0x1C) /* c: its file's code (the resource manager) */ \
+    O(RM, 0x20, 0x20, 0x20) /* c: its file's code (the resource manager) */ \
+    O(RM, 0x88, 0x88, 0x88) /* c: its file's code (the resource manager) */ \
+    O(RM, 0x8C, 0x8C, 0x8C) /* c: its file's code (the resource manager) */ \
+    O(RM, 0x98, 0x98, 0x98) /* c: its file's code (the resource manager) */ \
+    O(RM, 0x9C, 0x9C, 0x9C) /* c: its file's code (the resource manager) */ \
+    O(RM, 0xA4, 0xA4, 0xA4) /* c: its file's code (the resource manager) */ \
+    O(RM, 0x130, 0x130, 0x130) /* c: its file's code (the resource manager) */ \
+    O(RM, 0x134, 0x134, 0x134) /* c: its file's code (the resource manager) */ \
+    O(RM, 0x150, 0x150, 0x150) /* c: its file's code (the resource manager) */ \
+    O(RM, 0x16C, 0x16C, 0x16C) /* c: its file's code (the resource manager) */ \
+    O(RM, 0x187, 0x187, 0x187) /* c: its file's code (the resource manager) */ \
+    O(RM, 0x188, 0x188, 0x188) /* c: its file's code (the resource manager) */ \
     O(ROUTENODE, 0x3C, 0x3C, 0x3C) /* s */ \
     O(ROUTENODE, 0x40, 0x40, 0x40) /* s */ \
     O(ROUTEPLANNER, 0x48, 0x48, 0x48) /* c */ \
@@ -342,41 +343,41 @@
     O(RS, 0x114, 0x114, 0x124) /* v */ \
     O(RS, 0x118, 0x118, 0x128) /* v */ \
     O(RS, 0x11A, 0x11A, 0x12A) /* v */ \
-    O(SCEN, 0x4, 0x4, 0x4) /* s */ \
-    O(SCEN, 0x8, 0x8, 0x8) /* s */ \
-    O(SCEN, 0xC, 0xC, 0xC) /* s */ \
-    O(SCEN, 0x18, 0x18, 0x18) /* s */ \
-    O(SCEN, 0x2C, 0x2C, 0x2C) /* s */ \
-    O(SCEN, 0x40, 0x40, 0x40) /* s */ \
-    O(SCEN, 0x44, 0x44, 0x44) /* s */ \
-    O(SCEN, 0x4C, 0x4C, 0x4C) /* s */ \
-    O(SCEN, 0x50, 0x50, 0x50) /* s */ \
-    O(SCEN, 0x58, 0x58, 0x58) /* s */ \
-    O(SCEN, 0x59, 0x59, 0x59) /* s */ \
-    O(SCEN, 0x5A, 0x5A, 0x5A) /* s */ \
-    O(SCEN, 0x5C, 0x5C, 0x5C) /* s */ \
-    O(SCEN, 0x60, 0x60, 0x60) /* s */ \
-    O(SCEN, 0x64, 0x64, 0x64) /* s */ \
-    O(SCEN, 0x6C, 0x6C, 0x6C) /* s */ \
-    O(SCEN, 0x70, 0x70, 0x70) /* s */ \
-    O(SCEN, 0x78, 0x78, 0x78) /* s */ \
-    O(SCEN, 0x80, 0x80, 0x80) /* s */ \
-    O(SCEN, 0x81, 0x81, 0x81) /* s */ \
-    O(SCEN, 0x83, 0x83, 0x83) /* s */ \
-    O(SCEN, 0xE4, 0xE4, 0xE4) /* s */ \
-    O(SCEN, 0xE8, 0xE8, 0xE8) /* s */ \
-    O(SCEN, 0xF0, 0xF0, 0xF0) /* s */ \
-    O(SCEN, 0xF8, 0xF8, 0xF8) /* s */ \
-    O(SCEN, 0xFC, 0xFC, 0xFC) /* s */ \
-    O(SCEN, 0x100, 0x100, 0x100) /* s */ \
-    O(SCEN, 0x104, 0x104, 0x104) /* s */ \
-    O(SCEN, 0x108, 0x108, 0x108) /* s */ \
-    O(SCEN, 0x118, 0x118, 0x118) /* s */ \
-    O(SCEN, 0x128, 0x128, 0x128) /* s */ \
-    O(SCEN, 0x13C, 0x13C, 0x13C) /* s */ \
-    O(SCEN, 0x158, 0x158, 0x158) /* s */ \
+    O(SCEN, 0x4, 0x4, 0x4) /* c: its file's code (the scenario manager) */ \
+    O(SCEN, 0x8, 0x8, 0x8) /* c: its file's code (the scenario manager) */ \
+    O(SCEN, 0xC, 0xC, 0xC) /* c: its file's code (the scenario manager) */ \
+    O(SCEN, 0x18, 0x18, 0x18) /* c: its file's code (the scenario manager) */ \
+    O(SCEN, 0x2C, 0x2C, 0x2C) /* c: its file's code (the scenario manager) */ \
+    O(SCEN, 0x40, 0x40, 0x40) /* c: its file's code (the scenario manager) */ \
+    O(SCEN, 0x44, 0x44, 0x44) /* c: its file's code (the scenario manager) */ \
+    O(SCEN, 0x4C, 0x4C, 0x4C) /* c: its file's code (the scenario manager) */ \
+    O(SCEN, 0x50, 0x50, 0x50) /* c: its file's code (the scenario manager) */ \
+    O(SCEN, 0x58, 0x58, 0x58) /* c: its file's code (the scenario manager) */ \
+    O(SCEN, 0x59, 0x59, 0x59) /* c: its file's code (the scenario manager) */ \
+    O(SCEN, 0x5A, 0x5A, 0x5A) /* c: its file's code (the scenario manager) */ \
+    O(SCEN, 0x5C, 0x5C, 0x5C) /* c: its file's code (the scenario manager) */ \
+    O(SCEN, 0x60, 0x60, 0x60) /* c: its file's code (the scenario manager) */ \
+    O(SCEN, 0x64, 0x64, 0x64) /* c: its file's code (the scenario manager) */ \
+    O(SCEN, 0x6C, 0x6C, 0x6C) /* c: its file's code (the scenario manager) */ \
+    O(SCEN, 0x70, 0x70, 0x70) /* c: its file's code (the scenario manager) */ \
+    O(SCEN, 0x78, 0x78, 0x78) /* c: its file's code (the scenario manager) */ \
+    O(SCEN, 0x80, 0x80, 0x80) /* c: its file's code (the scenario manager) */ \
+    O(SCEN, 0x81, 0x81, 0x81) /* c: its file's code (the scenario manager) */ \
+    O(SCEN, 0x83, 0x83, 0x83) /* c: its file's code (the scenario manager) */ \
+    O(SCEN, 0xE4, 0xE4, 0xE4) /* c: its file's code (the scenario manager) */ \
+    O(SCEN, 0xE8, 0xE8, 0xE8) /* c: its file's code (the scenario manager) */ \
+    O(SCEN, 0xF0, 0xF0, 0xF0) /* c: its file's code (the scenario manager) */ \
+    O(SCEN, 0xF8, 0xF8, 0xF8) /* c: its file's code (the scenario manager) */ \
+    O(SCEN, 0xFC, 0xFC, 0xFC) /* c: its file's code (the scenario manager) */ \
+    O(SCEN, 0x100, 0x100, 0x100) /* c: its file's code (the scenario manager) */ \
+    O(SCEN, 0x104, 0x104, 0x104) /* c: its file's code (the scenario manager) */ \
+    O(SCEN, 0x108, 0x108, 0x108) /* c: its file's code (the scenario manager) */ \
+    O(SCEN, 0x118, 0x118, 0x118) /* c: its file's code (the scenario manager) */ \
+    O(SCEN, 0x128, 0x128, 0x128) /* c: its file's code (the scenario manager) */ \
+    O(SCEN, 0x13C, 0x13C, 0x13C) /* c: its file's code (the scenario manager) */ \
+    O(SCEN, 0x158, 0x158, 0x158) /* c: its file's code (the scenario manager) */ \
     O(SCEN, 0x180, 0x180, 0x180) /* h: kept, unsure (98 uses keep it, 49 say +4; only the test command scen reads it) */ \
-    O(SCEN, 0x210, 0x210, 0x210) /* s */ \
+    O(SCEN, 0x210, 0x210, 0x210) /* c: its file's code (the scenario manager) */ \
     O(SCROLL, 0x40, 0x40, 0x40) /* v */ \
     O(SCROLL, 0x44, 0x44, 0x44) /* v */ \
     O(SCROLL, 0x45, 0x45, 0x45) /* v */ \
@@ -384,24 +385,24 @@
     O(SCROLL, 0x47, 0x47, 0x47) /* v */ \
     O(SERVER, 0x10, 0x10, 0x10) /* b */ \
     O(SERVER, 0x190, 0x190, 0x190) /* b */ \
-    O(SETUP, 0x3A8, 0x3A8, 0x3A8) /* s */ \
-    O(SETUP, 0x3D4, 0x3D4, 0x3D4) /* h: kept, unsure (most uses keep it, like the setup's other fields) */ \
-    O(SETUP, 0x3D8, 0x3D8, 0x3D8) /* s */ \
-    O(SETUP, 0x3DC, 0x3DC, 0x3DC) /* h: kept, unsure (most uses keep it, like the setup's other fields) */ \
-    O(SETUP, 0x3E0, 0x3E0, 0x3E0) /* s */ \
-    O(SETUP, 0x3E4, 0x3E4, 0x3E4) /* s */ \
-    O(SETUP, 0x3E8, 0x3E8, 0x3E8) /* s */ \
-    O(SETUP, 0x3EC, 0x3EC, 0x3EC) /* s */ \
-    O(SETUP, 0x3F0, 0x3F0, 0x3F0) /* s */ \
-    O(SETUP, 0x3F4, 0x3F4, 0x3F4) /* h: kept, unsure (most uses keep it, like the setup's other fields) */ \
-    O(SETUP, 0x3F8, 0x3F8, 0x3F8) /* s */ \
-    O(SETUP, 0x3FC, 0x3FC, 0x3FC) /* h: kept, unsure (most uses keep it, like the setup's other fields) */ \
-    O(SETUP, 0x400, 0x400, 0x400) /* h: kept, unsure (most uses keep it, like the setup's other fields) */ \
-    O(SETUP, 0x401, 0x401, 0x401) /* s */ \
-    O(SETUP, 0x402, 0x402, 0x402) /* s */ \
-    O(SETUP, 0x403, 0x403, 0x403) /* s */ \
-    O(SETUPSLOT, 0x0, 0x0, 0x0) /* s */ \
-    O(SETUPSLOT, 0x24, 0x24, 0x24) /* s */ \
+    O(SETUP, 0x3A8, 0x3A8, 0x3A8) /* c: the setup copy 0x524B8F and FN_GAME_START */ \
+    O(SETUP, 0x3D4, 0x3D4, 0x3D4) /* c: the setup copy 0x524B8F and FN_GAME_START */ \
+    O(SETUP, 0x3D8, 0x3D8, 0x3D8) /* c: the setup copy 0x524B8F and FN_GAME_START */ \
+    O(SETUP, 0x3DC, 0x3DC, 0x3DC) /* c: the setup copy 0x524B8F and FN_GAME_START */ \
+    O(SETUP, 0x3E0, 0x3E0, 0x3E0) /* c: the setup copy 0x524B8F and FN_GAME_START */ \
+    O(SETUP, 0x3E4, 0x3E4, 0x3E4) /* c: the setup copy 0x524B8F and FN_GAME_START */ \
+    O(SETUP, 0x3E8, 0x3E8, 0x3E8) /* c: the setup copy 0x524B8F and FN_GAME_START */ \
+    O(SETUP, 0x3EC, 0x3EC, 0x3EC) /* c: the setup copy 0x524B8F and FN_GAME_START */ \
+    O(SETUP, 0x3F0, 0x3F0, 0x3F0) /* c: the setup copy 0x524B8F and FN_GAME_START */ \
+    O(SETUP, 0x3F4, 0x3F4, 0x3F4) /* c: the setup copy 0x524B8F and FN_GAME_START */ \
+    O(SETUP, 0x3F8, 0x3F8, 0x3F8) /* c: the setup copy 0x524B8F and FN_GAME_START */ \
+    O(SETUP, 0x3FC, 0x3FC, 0x3FC) /* c: the setup copy 0x524B8F and FN_GAME_START */ \
+    O(SETUP, 0x400, 0x400, 0x400) /* c: the setup copy 0x524B8F and FN_GAME_START */ \
+    O(SETUP, 0x401, 0x401, 0x401) /* c: the setup copy 0x524B8F and FN_GAME_START */ \
+    O(SETUP, 0x402, 0x402, 0x402) /* c: the setup copy 0x524B8F and FN_GAME_START */ \
+    O(SETUP, 0x403, 0x403, 0x403) /* c: the setup copy 0x524B8F and FN_GAME_START */ \
+    O(SETUPSLOT, 0x0, 0x0, 0x0) /* c: the setup code */ \
+    O(SETUPSLOT, 0x24, 0x24, 0x24) /* c: the setup code */ \
     O(SITEOWN, 0x4, 0x4, 0x4) /* s */ \
     O(STRATEGY, 0x3C, 0x3C, 0x3C) /* s */ \
     O(STRATEGY, 0x40, 0x40, 0x40) /* s */ \
@@ -412,56 +413,57 @@
     O(TD, 0x0, 0x0, 0x0) /* c */ \
     O(TD, 0x1C, 0x1C, 0x1C) /* v */ \
     O(TD, 0x3FC, 0x3FC, 0xF8) /* c */ \
-    O(TD, 0x41C, 0x41C, 0x120) /* b */ \
-    O(TD, 0x420, 0x420, 0x124) /* b */ \
-    O(TD, 0x424, 0x424, 0x128) /* b */ \
-    O(TD, 0x42C, 0x42C, 0x130) /* b */ \
-    O(TD, 0x430, 0x430, 0x134) /* b */ \
-    O(TD, 0x438, 0x438, 0x13C) /* b */ \
+    O(TD, 0x41C, 0x41C, 0x120) /* c: the type data's constructors */ \
+    O(TD, 0x420, 0x420, 0x124) /* c: the type data's constructors */ \
+    O(TD, 0x424, 0x424, 0x128) /* c: the type data's constructors */ \
+    O(TD, 0x42C, 0x42C, 0x130) /* c: the type data's constructors */ \
+    O(TD, 0x430, 0x430, 0x134) /* c: the type data's constructors */ \
+    O(TD, 0x438, 0x438, 0x13C) /* c: the type data's constructors */ \
     O(TD, 0x4B4, 0x4B4, 0x1B8) /* c */ \
     O(TD, 0x4B8, 0x4B8, 0x1BC) /* c */ \
-    O(TD, 0x4C0, 0x4C0, 0x1C4) /* v */ \
-    O(TD, 0x4C4, 0x4C4, 0x1C8) /* v */ \
-    O(TD, 0x4C8, 0x4C8, 0x1CC) /* v */ \
-    O(TD, 0x4E0, 0x4E0, 0x1E4) /* v */ \
-    O(TD, 0x50C, 0x50C, 0x210) /* v */ \
-    O(TD, 0x510, 0x510, 0x214) /* v */ \
-    O(TD, 0x54C, 0x54C, 0x24C) /* v */ \
-    O(TD, 0x550, 0x550, 0x250) /* v */ \
-    O(TD, 0x55C, 0x55C, 0x25C) /* b */ \
-    O(TD, 0x588, 0x588, 0x288) /* b */ \
+    O(TD, 0x4C0, 0x4C0, 0x1C4) /* c: the type data's constructors */ \
+    O(TD, 0x4C4, 0x4C4, 0x1C8) /* c: the type data's constructors */ \
+    O(TD, 0x4C8, 0x4C8, 0x1CC) /* c: the type data's constructors */ \
+    O(TD, 0x4E0, 0x4E0, 0x1E4) /* c: the type data's constructors */ \
+    O(TD, 0x50C, 0x50C, 0x210) /* c: the type data's constructors */ \
+    O(TD, 0x510, 0x510, 0x214) /* c: the type data's constructors */ \
+    O(TD, 0x54C, 0x54C, 0x24C) /* c: the type data's constructors */ \
+    O(TD, 0x550, 0x550, 0x250) /* c: the type data's constructors */ \
+    O(TD, 0x55C, 0x55C, 0x25C) /* c: the type data's constructors */ \
+    O(TD, 0x588, 0x588, 0x288) /* c: the type data's constructors */ \
     O(TD, 0x58C, 0x58C, 0x28C) /* c */ \
-    O(TD, 0x621, 0x621, 0x31F) /* v */ \
-    O(TECH, 0x8, 0x8, 0x8) /* s */ \
-    O(TECH, 0x14, 0x14, 0x14) /* s */ \
-    O(TECHCHILD, 0x8, 0x8, 0x8) /* s */ \
-    O(TECHDATA, 0x10, 0x10, 0x10) /* s */ \
-    O(TECHDATA, 0x14, 0x14, 0x14) /* s */ \
-    O(TECHDATA, 0x24, 0x24, 0x24) /* s */ \
-    O(TECHDATA, 0x28, 0x28, 0x28) /* s */ \
-    O(TECHDATA, 0x2C, 0x2C, 0x2C) /* s */ \
-    O(TECHDATA, 0x30, 0x30, 0x30) /* s */ \
-    O(TECHDATA, 0x34, 0x34, 0x34) /* s */ \
-    O(TECHDATA, 0x48, 0x48, 0x48) /* s */ \
-    O(TECHDATA, 0x4C, 0x4C, 0x4C) /* s */ \
-    O(TECHDATA, 0x50, 0x50, 0x50) /* s */ \
-    O(TECHDATA, 0x6C, 0x6C, 0x6C) /* s */ \
-    O(TECHDATA, 0x7D, 0x7D, 0x7D) /* s */ \
+    O(TD, 0x621, 0x621, 0x31F) /* c: the type data's constructors */ \
+    O(TECH, 0x8, 0x8, 0x8) /* v: the tech tree code's reads (unchanged) */ \
+    O(TECH, 0x14, 0x14, 0x14) /* v: the tech tree code's reads (unchanged) */ \
+    O(TECHCHILD, 0x8, 0x8, 0x8) /* v: the tech tree code's reads (unchanged) */ \
+    O(TECHDATA, 0x10, 0x10, 0x10) /* v: the tech tree code's reads (unchanged) */ \
+    O(TECHDATA, 0x14, 0x14, 0x14) /* v: the tech tree code's reads (unchanged) */ \
+    O(TECHDATA, 0x24, 0x24, 0x24) /* v: the tech tree code's reads (unchanged) */ \
+    O(TECHDATA, 0x28, 0x28, 0x28) /* v: the tech tree code's reads (unchanged) */ \
+    O(TECHDATA, 0x2C, 0x2C, 0x2C) /* v: the tech tree code's reads (unchanged) */ \
+    O(TECHDATA, 0x30, 0x30, 0x30) /* v: the tech tree code's reads (unchanged) */ \
+    O(TECHDATA, 0x34, 0x34, 0x34) /* v: the tech tree code's reads (unchanged) */ \
+    O(TECHDATA, 0x48, 0x48, 0x48) /* v: the tech tree code's reads (unchanged) */ \
+    O(TECHDATA, 0x4C, 0x4C, 0x4C) /* v: the tech tree code's reads (unchanged) */ \
+    O(TECHDATA, 0x50, 0x50, 0x50) /* v: the tech tree code's reads (unchanged) */ \
+    O(TECHDATA, 0x6C, 0x6C, 0x6C) /* v: the tech tree code's reads (unchanged) */ \
+    O(TECHDATA, 0x7D, 0x7D, 0x7D) /* v: the tech tree code's reads (unchanged) */ \
+    O(TECHDATA, 0x81, 0x81, 0x81) /* h: AoC's epoch upgrades (only new) skip a tech with it set - read in AoC only */ \
     O(TECHNODE, 0x8, 0x8, 0x8) /* c */ \
     O(TECHNODE, 0xC, 0xC, 0xC) /* c */ \
     O(TECHNODE, 0x24, 0x24, 0x24) /* v */ \
     O(TECHNODE, 0x28, 0x28, 0x28) /* v */ \
     O(TT, 0x4, 0x4, 0x4) /* v */ \
     O(TT, 0x4E4, 0x4E4, 0x538) /* v */ \
-    O(TTREC, 0x8, 0x8, 0x8) /* s */ \
-    O(TTREC, 0x40, 0x40, 0x40) /* s */ \
-    O(TTREC, 0x48, 0x48, 0x48) /* s */ \
+    O(TTREC, 0x8, 0x8, 0x8) /* v: the tech tree code's reads (unchanged) */ \
+    O(TTREC, 0x40, 0x40, 0x40) /* v: the tech tree code's reads (unchanged) */ \
+    O(TTREC, 0x48, 0x48, 0x48) /* v: the tech tree code's reads (unchanged) */ \
     O(UIFORM, 0x5D8, 0x5D8, 0x5E8) /* h: votes 6/7 */ \
     O(UISCREEN, 0xF8, 0xF8, 0xF8) /* v */ \
-    O(UM, 0xC, 0xC, 0xC) /* s */ \
-    O(UM, 0x134, 0x134, 0x134) /* s */ \
-    O(UM, 0x13C, 0x13C, 0x13C) /* s */ \
-    O(UM, 0x140, 0x140, 0x140) /* s */ \
+    O(UM, 0xC, 0xC, 0xC) /* c: its file's code (the unit manager) */ \
+    O(UM, 0x134, 0x134, 0x148) /* c: its file's code (+0x14, 31 votes) */ \
+    O(UM, 0x13C, 0x13C, 0x150) /* c: its file's code (+0x14) */ \
+    O(UM, 0x140, 0x140, 0x154) /* c: its file's code (+0x14) */ \
     O(UNIT, 0x4, 0x4, 0x4) /* c */ \
     O(UNIT, 0x8, 0x8, 0x8) /* c */ \
     O(UNIT, 0x10, 0x10, 0x10) /* c */ \
@@ -501,16 +503,16 @@
     O(UNIT, 0x33B, 0x33B, 0x347) /* c */ \
     O(UNIT, 0x340, 0x340, 0x34C) /* c */ \
     O(UNIT, 0x341, 0x341, 0x34D) /* c */ \
-    O(USTAT, 0x60, 0x60, 0x60) /* s */ \
-    O(USTAT, 0x98, 0x98, 0x98) /* s */ \
-    O(USTAT, 0x9C, 0x9C, 0x9C) /* s */ \
-    O(USTAT, 0xA0, 0xA0, 0xA0) /* s */ \
-    O(USTAT, 0xAC, 0xAC, 0xAC) /* s */ \
-    O(USTAT, 0xC0, 0xC0, 0xC0) /* s */ \
-    O(USTAT, 0xD8, 0xD8, 0xD8) /* s */ \
-    O(USTAT, 0xE0, 0xE0, 0xE0) /* s */ \
-    O(USTAT, 0x138, 0x138, 0x138) /* s */ \
-    O(USTAT, 0x144, 0x144, 0x144) /* s */ \
+    O(USTAT, 0x60, 0x60, 0x60) /* b: between fields read through a unit's +0x34, unchanged */ \
+    O(USTAT, 0x98, 0x98, 0x98) /* c: read through a unit's +0x34 */ \
+    O(USTAT, 0x9C, 0x9C, 0x9C) /* c: read through a unit's +0x34 */ \
+    O(USTAT, 0xA0, 0xA0, 0xA0) /* c: read through a unit's +0x34 */ \
+    O(USTAT, 0xAC, 0xAC, 0xAC) /* c: read through a unit's +0x34 */ \
+    O(USTAT, 0xC0, 0xC0, 0xC0) /* b: between fields read through a unit's +0x34, unchanged */ \
+    O(USTAT, 0xD8, 0xD8, 0xD8) /* c: read through a unit's +0x34 */ \
+    O(USTAT, 0xE0, 0xE0, 0xE0) /* b: between fields read through a unit's +0x34, unchanged */ \
+    O(USTAT, 0x138, 0x138, 0x138) /* c: read through a unit's +0x34 */ \
+    O(USTAT, 0x144, 0x144, 0x144) /* c: read through a unit's +0x34 */ \
     O(WORLD, 0x54, 0x54, 0x54) /* b */ \
     O(ZONE, 0x8, 0x8, 0x8) /* s */ \
     O(ZONE, 0xC, 0xC, 0xC) /* s */ \

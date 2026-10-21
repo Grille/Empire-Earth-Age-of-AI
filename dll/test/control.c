@@ -533,8 +533,6 @@ static void __fastcall hook_phys_step(void *phys, void *edx) {
     InterlockedExchange(&g_in_step, 0);
     if (g_step_after) g_step_after(phys);
 }
-#define LLE_SEND_WAIT_RVA 0x55DF5
-#define LLE_IAT_WFMO_RVA  0x940EC
 
 static int sim_drained(void) {
     uint8_t *srv = *(uint8_t **)GA(G_SERVER), *phys = *(uint8_t **)GA(G_WORLD_CLOCK);
@@ -563,8 +561,8 @@ static DWORD WINAPI hook_send_wait(DWORD n, const HANDLE *h, BOOL all, DWORD ms)
 static BOOL patch_send_wait(void) {
     uint8_t *base = (uint8_t *)GetModuleHandleA("low-level engine.dll");
     if (!base) return FALSE;
-    uint8_t *p = base + LLE_SEND_WAIT_RVA;
-    if (p[0] != 0xFF || p[1] != 0x15 || *(uint8_t **)(p + 2) != base + LLE_IAT_WFMO_RVA) return FALSE;
+    uint8_t *p = base + GA(RVA_LLE_SEND_WAIT);
+    if (p[0] != 0xFF || p[1] != 0x15 || *(uint8_t **)(p + 2) != base + GA(RVA_LLE_IAT_WFMO)) return FALSE;
     DWORD old;
     if (!VirtualProtect(p, 6, PAGE_EXECUTE_READWRITE, &old)) return FALSE;
     p[0] = 0xE8;

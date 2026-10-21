@@ -580,9 +580,13 @@ static int unit_goal(uint8_t *u, void *goal, int append, int prio) {
     return 1;
 }
 
+// Art of Conquest's constructor takes a fourth argument, a byte it keeps at the goal's new +0x40: 0 as the AI's own
+// calls pass it
 static void *goal_attack(uint8_t *u, uint8_t *target) {
     void *g = GF(FN_NEW)(GA(SIZE_GOAL_ATTACK));
-    return g ? GF(FN_GOAL_ATTACK_CTOR)(g, u, target, 1) : NULL;
+    if (!g) return NULL;
+    if (build_is("aoc")) return ((void *(__thiscall *)(void *, void *, void *, int, int))GA(FN_GOAL_ATTACK_CTOR))(g, u, target, 1, 0);
+    return ((void *(__thiscall *)(void *, void *, void *, int))GA(FN_GOAL_ATTACK_CTOR))(g, u, target, 1);
 }
 
 // a transport's (or a fortress's) load goal (EEUGLoadTransport, engine-notes.md: new(0x68), 0x61487F with the units'

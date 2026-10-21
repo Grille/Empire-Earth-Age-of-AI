@@ -136,6 +136,20 @@ if ($proxy -and $Mute) {
     if (-not (Test-Path $Settings)) { Remove-Item $lock -Confirm:$false; "settings file not found: $Settings"; exit 1 }
     $env:EEAIMOD_SETTINGS = "$repo\work\settings_slot$Slot.ini"
     Copy-Item $Settings $env:EEAIMOD_SETTINGS -Force
+    # Art of Conquest checks for the 2017 update's install ("needs the original game") by its "Installed From" values -
+    # the player's own, not in the shared file: the registry's (both keys; doubled backslashes: the file's escape)
+    if ($aoc) {
+        $add = @()
+        foreach ($k in 'HKCU:\Software\SSSI\Empire Earth', $build.Key) {
+            $r = Get-ItemProperty $k -ErrorAction SilentlyContinue
+            if (-not $r) { continue }
+            $add += "", "[$($k -replace '^HKCU:', 'HKCU')]"
+            foreach ($n in 'Installed From Volume', 'Installed From Directory') {
+                if ($r.$n) { $add += "$n=`"$($r.$n -replace '\\', '\\' -replace '"', '\"')`"" }
+            }
+        }
+        Add-Content $env:EEAIMOD_SETTINGS $add
+    }
 } else { Remove-Item Env:EEAIMOD_SETTINGS -ErrorAction SilentlyContinue }
 # this run's own DLL: the installed one (which needs to know EEAIMOD_DLL) loads the copy and stays out of the way
 if ($Dll) {

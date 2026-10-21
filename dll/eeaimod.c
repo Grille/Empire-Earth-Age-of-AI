@@ -27,6 +27,7 @@ struct ustring;
 #include "game/fields.h"   // the game's objects' fields by kind, per exe build: OF(PL, 0x9D4)
 #include "game/layout.h"
 #include "game/players.c"
+#include "game/tech.c"      // a tech node's children (kept differently by build)
 #include "game/random.c"
 #include "voice/say.h"   // the AI's door to what it says (voice/)
 
