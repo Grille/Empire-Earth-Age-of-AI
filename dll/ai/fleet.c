@@ -1193,7 +1193,7 @@ static void fl_build(ee_player *pl, unsigned idx, struct fleet *m, uint32_t now)
     for (int q = 0; q < 8; q++) recent += m->bring_t[q] && now >= m->bring_t[q] && now - m->bring_t[q] < 90000;
     if (t <= 0 || m->shelter || g_nv_own[idx].war + recent >= t || !g_nv_own[idx].docks_built || bk_room(pl) <= 0) return;
     void *cm = FIELD(pl, OF(PL, 0xB90), void *);
-    uint8_t *um = cm ? FIELD(cm, OF(CM, 0x44), uint8_t *) : NULL;
+    ee_unit_mgr *um = cm ? FIELD(cm, OF(CM, 0x44), ee_unit_mgr *) : NULL;
     int type = um ? navy_fleet_type(pl, idx) : 0;
     if (!type) return;
     int *stock = (int *)((uint8_t *)pl + PL_STOCK), before[7];
@@ -1314,7 +1314,7 @@ static void fleet_install(const char *aimod_ini, const char *autotest_ini) {
     g_fl_mass = cfg_int(aimod_ini, autotest_ini, 1, "navy_fleet_mass", 1);
     int ok = 0;
     if (g_navy_fleet || g_v_navy_fleet > 0) {
-        ok = asg_order_hooks() + patch_call(GA(CALL_NV_MAINT_DELETE), GA(FN_DELETE_FOR_ROOM), (void *)hook_nv_maint_delete);
+        ok = asg_order_hooks() + patch_maint_delete(hook_nv_maint_delete);
     }
     if (g_log) fprintf(g_log, "# navy: fleet %s (v_navy_fleet %d; hooks %d)\n", g_navy_fleet ? "on" : "off", g_v_navy_fleet, ok);
 }

@@ -41,8 +41,7 @@ static void mf_scan(ee_player *pl, unsigned idx, uint32_t now) {
     ee_build_mgr *bm = cm ? FIELD(cm, OF(CM, 0x3C), ee_build_mgr *) : NULL;
     if (!bm || FIELD(bm, OF(BM, 0x12C), int) == -10000) return;
     int base[2] = { FIELD(bm, OF(BM, 0x12C), int), FIELD(bm, OF(BM, 0x130), int) };
-    short (__thiscall *region)(void *, int *, int) = (void *)GA(FN_REGION);
-    short hr = region((void *)GA(G_MAP_AREAS), base, 2);
+    short hr = (short)map_area(base, 2);
     unsigned cap = table_value(0x16);
     drops_cached(pl);
     static ee_unit *seen[1024];
@@ -63,7 +62,7 @@ static void mf_scan(ee_player *pl, unsigned idx, uint32_t now) {
                 int *d = g_drops[idx].d[i], dx = d[0] - pos[0], dy = d[1] - pos[1];
                 if (!d[2] && dx * dx + dy * dy < dd) dd = dx * dx + dy * dy;
             }
-            int home = region((void *)GA(G_MAP_AREAS), pos, 2) == hr;
+            int home = (short)map_area(pos, 2) == hr;
             if (dd <= 144) {
                 m->slots[r] += (int)cap;
                 if (home) m->home_slots[r] += (int)cap;

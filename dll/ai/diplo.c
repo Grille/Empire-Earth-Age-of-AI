@@ -1561,12 +1561,12 @@ static void diplo_tribute(void *to, void *from, const int *amount) {
     tell_event(0, 0, 0, 0);
     if (!stance_of(from, ai) && stance_of(to, j)) g_peace_due[ai][j] = game_time() + 3000;   // ask again now
 }
-static void __fastcall hook_tribute(uint8_t *msg, void *edx) {
+static void __fastcall hook_tribute(void *msg, void *edx) {
     (void)edx;
     int total = FIELD(msg, OF(MSG_TRIBUTE, 0x10), int) + FIELD(msg, OF(MSG_TRIBUTE, 0x14), int) + FIELD(msg, OF(MSG_TRIBUTE, 0x18), int) + FIELD(msg, OF(MSG_TRIBUTE, 0x1C), int) + FIELD(msg, OF(MSG_TRIBUTE, 0x20), int);
     int amount[7] = { 0, 0, FIELD(msg, OF(MSG_TRIBUTE, 0x10), int), FIELD(msg, OF(MSG_TRIBUTE, 0x20), int), FIELD(msg, OF(MSG_TRIBUTE, 0x1C), int), FIELD(msg, OF(MSG_TRIBUTE, 0x14), int), FIELD(msg, OF(MSG_TRIBUTE, 0x18), int) };
-    void *to = player_at(msg[OF(MSG_TRIBUTE, 0x24)]);
-    void *from = game_player((int)(int8_t)msg[OF(MSG_TRIBUTE, 0xA)]);
+    void *to = player_at(FIELD(msg, OF(MSG_TRIBUTE, 0x24), uint8_t));
+    void *from = game_player((int)(int8_t)FIELD(msg, OF(MSG_TRIBUTE, 0xA), uint8_t));
     msg_pay_tribute(msg);
     if (from && to) hist_tribute(pidx(from), pidx(to), total);
     diplo_tribute(to, from, amount);
@@ -1679,9 +1679,9 @@ static void victory_off_pass(void) {   // auto_victory=0, every pass between sim
 // every opponent has submitted gets the victory instead. Exit Game (EEUIEMGOEExitGame::vf1 0x5D0AFB, confirmed:
 // 0x5D0B4F, pushed at 0x5D0B2B) leaves without any result - in that situation it resigns instead, which ends the
 // game with the victory screen, the statistics and then the menu as usual.
-static void __fastcall hook_resign(uint8_t *msg, void *edx) {
+static void __fastcall hook_resign(void *msg, void *edx) {
     (void)edx;
-    int8_t from = (int8_t)msg[OF(MSG_CHAT, 0xA)];
+    int8_t from = (int8_t)FIELD(msg, OF(MSG_CHAT, 0xA), uint8_t);
     for (int i = 1; i < nplayers(); i++) {
         void *p = player_at(i);
         if (p && FIELD(p, OF(PL, 0x464), int8_t) == from && !g_players[i] && !is_out(p) && (g_victory_off ? can_claim(i) : vassals_of(i))) {
@@ -1702,17 +1702,17 @@ static void __cdecl hook_exit_confirm(void) {
     exit_confirm();
 }
 
-static void __fastcall hook_ingame_chat(uint8_t *msg, void *edx) {
+static void __fastcall hook_ingame_chat(void *msg, void *edx) {
     (void)edx;
     // chat runs on every PC: the claim goes by the sender (+0xA, as hook_resign), so every PC ends the game alike
     // (only the local player's own word claimed before - a multiplayer desync); the refusal line is the sender's only
     int me = (int)*(unsigned *)GA(G_LOCAL_PLAYER), from = 0;
     void *pm = player_at(me);
     const char *text = FIELD(msg + OF(MSG_CHAT, 0x10), 4, const char *);
-    int refused = 0, local = pm && FIELD(pm, OF(PL, 0x464), int8_t) == (int8_t)msg[OF(MSG_CHAT, 0xA)];
+    int refused = 0, local = pm && FIELD(pm, OF(PL, 0x464), int8_t) == (int8_t)FIELD(msg, OF(MSG_CHAT, 0xA), uint8_t);
     for (int i = 1; text && !from && i < nplayers(); i++) {
         void *p = player_at(i);
-        if (p && !g_players[i] && FIELD(p, OF(PL, 0x464), int8_t) == (int8_t)msg[OF(MSG_CHAT, 0xA)]) from = i;
+        if (p && !g_players[i] && FIELD(p, OF(PL, 0x464), int8_t) == (int8_t)FIELD(msg, OF(MSG_CHAT, 0xA), uint8_t)) from = i;
     }
     if (from && text && victory_word(text))
         refused = !claim_victory(from, "the chat word");
@@ -1892,12 +1892,11 @@ static void diplo_install(const char *ini, const char *test_ini) {
         g_block_observer = ini_int("autotest", "block_observer", 0, test_ini);
     }
     if (g_texts_missing) g_ai_diplomacy = g_surrender = g_blocks = g_stance_lines = g_auto_victory = 0;   // they speak (texts.c)
-    int ok = patch_vtable(GA(VT_PAY_TRIBUTE), GA(SLOT_MSG_EXECUTE), GA(FN_PAY_TRIBUTE), (void *)hook_tribute);
-    int chat = patch_vtable(GA(VT_INGAME_CHAT), GA(SLOT_MSG_EXECUTE), GA(FN_INGAME_CHAT), (void *)hook_ingame_chat);
-    BOOL kills = patch_call(GA(CALL_KILL_STAT), GA(FN_STAT_ADD), kill_stat_thunk);
+    int ok = patch_msg_pay_tribute(hook_tribute);
+    int chat = patch_msg_ingame_chat(hook_ingame_chat);
+    BOOL kills = patch_kill_stat(kill_stat_thunk);
     if (g_log) fprintf(g_log, "# diplomacy: kills by pair %s\n", kills ? "ok" : "FAILED");
-    int leave = patch_vtable(GA(VT_RESIGN), GA(SLOT_MSG_EXECUTE), GA(FN_RESIGN), (void *)hook_resign) +
-                patch_code32(GA(EXIT_CONFIRM_AT), GA(FN_EXIT_CONFIRM), (uint32_t)(uintptr_t)hook_exit_confirm);
+    int leave = patch_msg_resign(hook_resign) + patch_exit_confirm(hook_exit_confirm);
     if (g_log) fprintf(g_log, "# diplomacy: answer_war=%d ai_diplomacy=%d surrender=%d alliance_blocks=%d auto_victory=%d, tribute hook %d, chat hook %d, leave hooks %d/2\n",
                        g_answer_war, g_ai_diplomacy, g_surrender, g_blocks, g_auto_victory, ok, chat, leave);
 }

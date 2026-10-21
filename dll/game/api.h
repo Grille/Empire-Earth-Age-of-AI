@@ -166,6 +166,9 @@ static inline void bm_queue_add(ee_build_mgr *bm, int e, int *entry) { GF(FN_BQ_
 static inline void build_wall(void *wall_mgr, int *a, int *b, int type) { GF(FN_BUILD_WALL)(wall_mgr, a, b, type, 0); }
 // the unit (its state, unit +0x30) in none of the civilization manager's groups
 static inline char cm_unit_free(void *cm, void *unit_state) { return GF(FN_CM_UNIT_FREE)(cm, unit_state); }
+// a unit of type ordered but not started yet, one in production (the unit manager's queues)
+static inline char um_pending(ee_unit_mgr *um, int type) { return ((char (__thiscall *)(void *, int))GA(FN_UM_PENDING))(um, type); }
+static inline char um_in_production(ee_unit_mgr *um, int type) { return ((char (__thiscall *)(void *, int))GA(FN_UM_IN_PRODUCTION))(um, type); }
 // the unit manager's citizens, the citizens it wants (share x population cap: the original of citizens.c's hook)
 static inline int um_citizens(ee_unit_mgr *um) { return GF(FN_UM_CITIZENS)(um); }
 static inline int um_citizens_wanted(ee_unit_mgr *um) { return GF(FN_UM_CITIZENS_WANTED)(um); }

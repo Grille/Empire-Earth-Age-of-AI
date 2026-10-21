@@ -1779,8 +1779,7 @@ static uintptr_t train_call(void *um, ee_player *pl, unsigned idx, int *req, uin
         if (afford > 0 && (afford < req[1] || sub_type)) req[1] = afford;   // the caller reads back how many via *b
         int room0 = pl ? unit_limit(pl) - FIELD(um, OF(UM, 0x13C), int) -
                          population(pl, 1, 0) : 1;
-        int game_site = 0;
-        for (int k = 0; k < 5; k++) game_site |= GL(TRAIN_SITES)[k] == ra;
+        int game_site = train_site(ra) >= 0;
         unsigned got0 = 0;
         if (!b) b = (uintptr_t)&got0;
         if (!game_site && (g_train_room >> idx & 1) && room0 < (req[1] > 0 ? req[1] : 1)) {   // the mod's own order: no more than the room
@@ -1796,8 +1795,7 @@ static uintptr_t train_call(void *um, ee_player *pl, unsigned idx, int *req, uin
         res = um_train(um, req, b);
         if (room0 <= 0 && !*(unsigned *)b) g_am_noroom = 1;   // the game's own call at the cap
         if (room0 <= 0 && *(unsigned *)b) {
-            int site = 5;
-            for (int k = 0; k < 5; k++) if (GL(TRAIN_SITES)[k] == ra) site = k;
+            int site = train_site(ra) >= 0 ? train_site(ra) : 5;
             g_noroom[idx][site] += *(unsigned *)b;
             if (site == 5 && g_log) fprintf(g_log, "# noroom: P%u %u x type %d from the mod's call at %p (room %d)\n", idx, *(unsigned *)b, req[0], (void *)ra, room0);
         }
@@ -1834,7 +1832,7 @@ static void train_account(ee_player *pl, unsigned idx, const struct ai_cfg *cfg,
     }
 }
 // noinline: it reads its own return address (the call site) - also when the mod calls it
-__attribute__((noinline)) static uintptr_t __fastcall hook_train_units(void *um, void *edx, int *req, uintptr_t b) {
+__attribute__((noinline)) static uintptr_t __fastcall hook_train_units(ee_unit_mgr *um, void *edx, int *req, uintptr_t b) {
     (void)edx;
     ee_player *pl = um_owner(um);
     if (g_vanilla_mask) {   // a vanilla player's unit manager (before its first update too: the game's player array)
@@ -1863,8 +1861,7 @@ __attribute__((noinline)) static uintptr_t __fastcall hook_train_units(void *um,
     uintptr_t ra = (uintptr_t)__builtin_return_address(0) - 5;   // the call site: read here, in the hook
     // the fleet mix (navy.c): a warship the game asks for at its own sites is trained as the type the mix wants; the
     // request entry (req points into the unit manager's list) gets its own type back afterwards
-    int asked = req[0], pick = 0, game_site = 0;
-    for (int k = 0; k < 5; k++) game_site |= GL(TRAIN_SITES)[k] == ra;
+    int asked = req[0], pick = 0, game_site = train_site(ra) >= 0;
     if (pl && game_site && !g_priority_mil && !g_landing_order) pick = navy_pick(pl, idx, asked);
     if (pick) req[0] = pick;
     // fishing boats and the landing's transports: economy (navy.c); warships on a water map: the navy account
@@ -1908,12 +1905,7 @@ static void econ_install(const char *aimod_ini, const char *autotest_ini) {
     if (g_tech_log && build_is("aoc")) {   // AoC's vf6 takes an argument: the hook is the 2017 update's only yet
         if (g_log) fprintf(g_log, "# tech_log: free research not logged in this build\n");
     } else if (g_tech_log) {
-        void **slot = (void **)GA(VTS_TECH_RESEARCHED);
-        DWORD old;
-        if (*slot == (void *)GA(FN_TECH_GRANT) && VirtualProtect(slot, 4, PAGE_READWRITE, &old)) {
-            *slot = (void *)hook_tech_grant;
-            VirtualProtect(slot, 4, old, &old);
-        }
+        patch_tech_grant(hook_tech_grant);
     }
     g_more_granaries = cfg_int(aimod_ini, autotest_ini, 1, "more_granaries", 1);
     g_unit_sub = cfg_int(aimod_ini, autotest_ini, 1, "unit_substitution", 1);
@@ -1948,35 +1940,18 @@ static void econ_install(const char *aimod_ini, const char *autotest_ini) {
                     g_hoard_cap_mineral, g_v_sub_wait >= 0 ? g_v_sub_wait : g_sub_wait, g_late_targets, g_hoard_cap_mineral,
                     g_sub_wait);
     }
-    int ok = 0;
-    void **sp = (void **)(GA(VT_COMPUTER_PLAYER) + 45 * 4);
-    if (*sp == (void *)GA(FN_CP_PAY)) {
-        DWORD old;
-        VirtualProtect(sp, 4, PAGE_READWRITE, &old);
-        *sp = (void *)hook_pay;
-        VirtualProtect(sp, 4, old, &old);
-    }
-    void **slot = (void **)(GA(VT_COMPUTER_PLAYER) + 18 * 4);
-    if (*slot == (void *)GA(FN_CP_ADD_RESOURCE)) {
-        DWORD old;
-        VirtualProtect(slot, 4, PAGE_READWRITE, &old);
-        *slot = (void *)hook_add_resource;
-        VirtualProtect(slot, 4, old, &old);
-        ok++;
-    }
-    patch_call(GA(CALL_PLACE), GA(FN_PLACE), hook_place);
-    int up_ok = patch_call(GA(CALL_EPOCH_UPGRADES), GA(FN_EPOCH_UPGRADES),
-                           build_is("aoc") ? (void *)hook_epoch_upgrades_aoc : (void *)hook_epoch_upgrades);
+    patch_cp_pay(hook_pay);
+    int ok = patch_cp_add_resource(hook_add_resource), of = 1;
+    patch_place(hook_place);
+    int up_ok = patch_epoch_upgrades(hook_epoch_upgrades, hook_epoch_upgrades_aoc);
     if (g_log) fprintf(g_log, "# paid upgrades: %d (hook %d)\n", g_paid_upgrades, up_ok);
-    int catch_ok = patch_call(GA(CALL_EPOCH_CATCH_UP), GA(FN_EPOCH_CATCH_UP), hook_epoch_catch_up);
+    int catch_ok = patch_epoch_catch_up(hook_epoch_catch_up);
     if (g_log) fprintf(g_log, "# epoch catch-up hook: %d\n", catch_ok);
-    int pop_ok = patch_call(GA(CALL_POP_CAP_1), GA(FN_POP_CAP), hook_pop_cap) + patch_call(GA(CALL_POP_CAP_2), GA(FN_POP_CAP), hook_pop_cap) +
-                 patch_call(GA(CALL_POP_CAP_3), GA(FN_POP_CAP), hook_pop_cap);
+    int pop_ok = patch_pop_cap(hook_pop_cap, NULL);
     if (g_log) fprintf(g_log, "# population limit (easy/medium/hard): %s/%s/%s (hooks %d/3)\n", g_cfg[0].pop_follow ? "follows the humans" : "game limit",
                        g_cfg[1].pop_follow ? "follows the humans" : "game limit", g_cfg[2].pop_follow ? "follows the humans" : "game limit", pop_ok);
-    for (size_t i = 0; i < sizeof GL(TRAIN_SITES) / sizeof *GL(TRAIN_SITES); i++)
-        ok += patch_call(GL(TRAIN_SITES)[i], GA(FN_TRAIN_UNITS), hook_train_units);
-    if (g_log) fprintf(g_log, "# economy hooks: %d/%d\n", ok, (int)(sizeof GL(TRAIN_SITES) / sizeof *GL(TRAIN_SITES)) + 1);
+    ok += patch_train_units(hook_train_units, &of);
+    if (g_log) fprintf(g_log, "# economy hooks: %d/%d\n", ok, of);
 }
 
 // a new game (the game start hook, before persist_load restores g_bud): the last game's counts, times and slots go -

@@ -162,17 +162,17 @@ static int cover_refuses(uint8_t *sg, ee_unit *u);  // cover.c: a unit falling b
 static int expand_leads(uint8_t *sg);               // expand.c: a subgroup holding the ferry's transport
 static int expand_unload_ok(ee_unit *u, int gx, int gy);   // expand.c: the game's unload retry at the ferry's own point
 static int expand_has(ee_player *pl, ee_unit *u);        // expand.c: a passenger of the ferry (the landing leaves it)
-static void __fastcall hook_asg_sea_update(uint8_t *sg, void *edx, int now) {
+static void __fastcall hook_asg_sea_update(void *sg, void *edx, int now) {
     (void)edx;
     if (!is_vanilla(FIELD(sg, OF(ASG, 0x190), void *)) && (landing_leads(sg) || fleet_leads(sg) || expand_leads(sg))) return;
     asg_sea_update(sg, now);
 }
-static void __fastcall hook_asg_air_update(uint8_t *sg, void *edx, int now) {
+static void __fastcall hook_asg_air_update(void *sg, void *edx, int now) {
     (void)edx;
     if (!is_vanilla(FIELD(sg, OF(ASG, 0x190), void *)) && landing_leads(sg)) return;
     asg_air_update(sg, now);
 }
-static void __fastcall hook_asg_sea_transport_update(uint8_t *sg, void *edx, int now) {
+static void __fastcall hook_asg_sea_transport_update(void *sg, void *edx, int now) {
     (void)edx;
     if (!is_vanilla(FIELD(sg, OF(ASG, 0x190), void *)) && (landing_leads(sg) || expand_leads(sg))) return;
     asg_sea_transport_update(sg, now);
@@ -223,16 +223,6 @@ __attribute__((naked, used)) void goalset_read_thunk(void) {
             "movl 0x1e8(%esi), %ecx\n\t"
             "ret");
 }
-static int patch_goalset_read(void) {
-    static const uint8_t want[6] = { 0x8B, 0x8E, 0xE8, 0x01, 0x00, 0x00 };
-    uint8_t *p = (uint8_t *)GA(AT_GOAL_SET_READ);
-    DWORD old;
-    if (memcmp(p, want, 6) || !VirtualProtect(p, 6, PAGE_EXECUTE_READWRITE, &old)) return 0;
-    p[0] = 0xE8; *(int32_t *)(p + 1) = (int32_t)((uintptr_t)goalset_read_thunk - (GA(AT_GOAL_SET_READ) + 5)); p[5] = 0x90;
-    VirtualProtect(p, 6, old, &old);
-    FlushInstructionCache(GetCurrentProcess(), p, 6);
-    return 1;
-}
 
 // A subgroup gives one of its units an order through vf57 (thiscall(sg, unit, goal, 0, priority), 0x45CBEA, air
 // 0x442AD8; 0 refused - the caller deletes the goal). Its update is skipped while the landing leads it, but its event
@@ -245,7 +235,7 @@ static int patch_goalset_read(void) {
 // itself never refuses there; for that caller the goal is taken and not given (the goal's few bytes are lost).
 static unsigned g_ld_refused, g_ld_kept_goal;
 static void ld_fu_given(void *g, int ok);   // below (the game's unload orders to landing transports)
-static char __fastcall hook_asg_give_goal(uint8_t *sg, void *edx, ee_unit *u, void *goal, int a, int prio) {
+static char __fastcall hook_asg_give_goal(void *sg, void *edx, ee_unit *u, void *goal, int a, int prio) {
     (void)edx;
     if (!is_vanilla(FIELD(sg, OF(ASG, 0x190), void *)) && (landing_leads(sg) || fleet_refuses(sg, u) || mass_refuses(sg, u, goal) || expand_refuses(sg, u) || cover_refuses(sg, u))) {   // the fleet (fleet.c): its ships in any subgroup; mass.c; expand.c; cover.c
         g_ld_refused++;
@@ -257,7 +247,7 @@ static char __fastcall hook_asg_give_goal(uint8_t *sg, void *edx, ee_unit *u, vo
     ld_fu_given(goal, r != 0);
     return r;
 }
-static char __fastcall hook_asg_air_give_goal(uint8_t *sg, void *edx, ee_unit *u, void *goal, int a, int prio) {
+static char __fastcall hook_asg_air_give_goal(void *sg, void *edx, ee_unit *u, void *goal, int a, int prio) {
     (void)edx;
     if (!is_vanilla(FIELD(sg, OF(ASG, 0x190), void *)) && landing_leads(sg)) { g_ld_refused++; return 0; }
     return asg_air_give_goal(sg, u, goal, a, prio);
@@ -1306,7 +1296,7 @@ static void ld_bomb_trace(ee_player *pl, unsigned pi, struct landing *l, uint32_
         fprintf(g_log, "\n");
     }
 }
-static void ld_bombard_tick(ee_player *pl, unsigned pi, struct landing *l, uint8_t *um, uint32_t now) {
+static void ld_bombard_tick(ee_player *pl, unsigned pi, struct landing *l, ee_unit_mgr *um, uint32_t now) {
     static struct ld_scan s;
     memset(&s, 0, sizeof s); s.pl = pl; s.target = l->target;
     grid_each(ld_unit, &s);
@@ -1414,7 +1404,7 @@ static void ld_bombard_tick(ee_player *pl, unsigned pi, struct landing *l, uint8
 // (gathering, run in), 4 ashore and waves, 5 bombardment (ld_bombard_tick). Each returns 1 when the tick ends there.
 static struct ld_scan g_ld_scan;   // the phases' scan of the map (ld_unit) - filled where it is used
 // phase 0: a target (the attack with the most land members), a beach, the size - or why not (ld_why)
-static void ld_phase_plan(ee_player *pl, unsigned pi, struct landing *l, uint8_t *um, uint8_t *dq, unsigned first, unsigned cnt, uint32_t now) {
+static void ld_phase_plan(ee_player *pl, unsigned pi, struct landing *l, ee_unit_mgr *um, uint8_t *dq, unsigned first, unsigned cnt, uint32_t now) {
     struct ld_scan *s = &g_ld_scan;
     (void)um;
     if (now < l->next_try) return;
@@ -1532,7 +1522,7 @@ static void ld_phase_plan(ee_player *pl, unsigned pi, struct landing *l, uint8_t
 }
 // phase 1: the transports (trained when missing), the warships and aircraft along, the passengers' subgroups;
 // 1 = waiting (or given up), 0 = boarding begins (phase 2)
-static int ld_phase_ships(ee_player *pl, unsigned pi, struct landing *l, uint8_t *um, uint8_t *dq, unsigned first, unsigned cnt, uint32_t now) {
+static int ld_phase_ships(ee_player *pl, unsigned pi, struct landing *l, ee_unit_mgr *um, uint8_t *dq, unsigned first, unsigned cnt, uint32_t now) {
     struct ld_scan *s = &g_ld_scan;
     memset(s, 0, sizeof *s); s->pl = pl; s->target = l->target;
     grid_each(ld_unit, s);
@@ -1658,7 +1648,7 @@ static int ld_phase_ships(ee_player *pl, unsigned pi, struct landing *l, uint8_t
     return 0;
 }
 // phase 2: to the meeting point, then boarding - the last look at the beach and the sea before it sails (phase 3)
-static void ld_phase_board(ee_player *pl, unsigned pi, struct landing *l, uint8_t *um, uint8_t *dq, unsigned first, unsigned cnt, uint32_t now) {
+static void ld_phase_board(ee_player *pl, unsigned pi, struct landing *l, ee_unit_mgr *um, uint8_t *dq, unsigned first, unsigned cnt, uint32_t now) {
     struct ld_scan *s = &g_ld_scan;
     (void)um; (void)dq; (void)first; (void)cnt;
     if (l->phase == 2 && !l->gathered) {   // to the meeting point first: the transports to the water in front, the soldiers to the shore
@@ -1867,7 +1857,7 @@ static void ld_phase_gather(struct landing *l, unsigned pi, uint32_t now) {
     return;
 }
 // phases 3 and 4: sailing and unloading, ashore - the waves, the bridgehead, raiding
-static void ld_phase_land(ee_player *pl, unsigned pi, struct landing *l, uint8_t *um, uint8_t *dq, unsigned first, unsigned cnt, uint32_t now) {
+static void ld_phase_land(ee_player *pl, unsigned pi, struct landing *l, ee_unit_mgr *um, uint8_t *dq, unsigned first, unsigned cnt, uint32_t now) {
     (void)um;
     // sail and unload (3), ashore (4) - while some are still aboard, the ones ashore already fight
     int aboard = 0, ashore = 0;
@@ -1946,7 +1936,8 @@ static void landing_tick(ee_player *pl, uint32_t now) {
     }
     l->last = now;
     void *cm = FIELD(pl, OF(PL, 0xB90), void *);
-    uint8_t *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL, *um = cm ? FIELD(cm, OF(CM, 0x44), uint8_t *) : NULL;
+    uint8_t *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL;
+    ee_unit_mgr *um = cm ? FIELD(cm, OF(CM, 0x44), ee_unit_mgr *) : NULL;
     uint8_t *cbm = FIELD(pl, OF(PL, 0xB8C), uint8_t *), *cmd = cbm ? FIELD(cbm, OF(AM, 0x48), uint8_t *) : NULL;
     if (!cmd || !bm || !um || FIELD(bm, OF(BM, 0x12C), int) == -10000) { if (l->phase) ld_release(pi, "no base", now); return; }
     uint8_t *dq = cmd + 4;
@@ -2283,7 +2274,6 @@ static void cmd_board(char *out, const char *args) {
 // point (phase 3/4), two while boarding (phase 2) - an unload of the game's crossing the transport had before the
 // landing took it (resumed after the load goal, not made at any of these sites) carried 8 and 12 soldiers 40-70
 // tiles off and put them ashore there. 0x615AE6 is the unload goal's copy (vf4) - never seen.
-#define k_unload_sites GL(UNLOAD_SITES)
 static unsigned g_foreign_unload[8], g_ld_mgr_refused;
 static int g_land_keep = 1;   // landing_keep_transports: the transport manager's unload refused
 // the game's unload orders let through (diagnostic): each one followed until it is refused, never becomes the
@@ -2297,7 +2287,7 @@ static void ld_fu_log(struct ld_fu *f, const char *what, int now_aboard) {
     while (k < l->nships && l->ships[k] != f->sh) k++;
     if (k < l->nships) { lx = l->phase == 3 && !l->staged ? l->stx : l->ux[k]; ly = l->phase == 3 && !l->staged ? l->sty : l->uy[k]; }
     if (g_log) fprintf(g_log, "# ldforeign: P%d 0x%X at %.1f min (phase %d, wave state %d): unload at %d,%d, the landing's point %d,%d, ship at %d,%d - %s, aboard %d -> %d\n",
-                       f->p, (unsigned)k_unload_sites[f->site], f->t / 60000.0, f->phase, l->wst, f->x, f->y, lx, ly,
+                       f->p, (unsigned)unload_site_at(f->site), f->t / 60000.0, f->phase, l->wst, f->x, f->y, lx, ly,
                        ld_alive(f->sh) ? FIELD(f->sh, OF(UNIT, 0x1C), int) : -1, ld_alive(f->sh) ? FIELD(f->sh, OF(UNIT, 0x20), int) : -1, what, f->aboard, now_aboard);
     f->sh = NULL;
 }
@@ -2328,14 +2318,14 @@ static void ld_fu_check(uint32_t now) {
 static void *__fastcall hook_unload_ctor(void *g, void *edx, ee_unit *tr, int x, int y, int flag) {
     (void)edx;
     uintptr_t ret = (uintptr_t)__builtin_return_address(0) - 5;
-    if (ret == GA(CALL_UNLOAD_RM) && tr && expand_ship(tr)) return NULL;   // an outpost's ferry (expand.c): not the transport manager's crossing
+    if (unload_from_rm(ret) && tr && expand_ship(tr)) return NULL;   // an outpost's ferry (expand.c): not the transport manager's crossing
     for (int p = 0; p < 16 && tr && !is_vanilla(unit_owner(tr)); p++)   // a vanilla player's transport: never a landing's
         for (int k = 0; k < g_ld[p].nships && g_ld[p].phase; k++)
             if (g_ld[p].ships[k] == tr) {
-                int site = 0;
-                while (site < 7 && k_unload_sites[site] != ret) site++;   // 0x615AE6: the unload goal's copy (vf4)
+                int site = unload_site(ret);   // 7 (0x615AE6): the unload goal's copy (vf4), and an unknown one
+                if (site < 0) site = 7;
                 g_foreign_unload[site]++;
-                if (ret == GA(CALL_UNLOAD_RM) && g_land_keep) {
+                if (unload_from_rm(ret) && g_land_keep) {
                     g_ld_mgr_refused++;
                     if (g_log) fprintf(g_log, "# landing: P%d's transport %d (phase %d) - the game's transport manager wanted it for a crossing to %d,%d: refused\n", p, k, g_ld[p].phase, x, y);
                     return NULL;
@@ -2359,7 +2349,7 @@ static void *__fastcall hook_unload_ctor(void *g, void *edx, ee_unit *tr, int x,
 // it only while the landing unloads (phase 3, phase 4 with the first landing or a wave at sea) and at its own point;
 // otherwise the new goal is deleted, never given (the caller does not touch it after this call)
 static unsigned g_ld_retry_refused;
-static void __fastcall hook_unload_retry_give(ee_unit *u, void *edx, uint8_t *goal, int slot) {
+static void __fastcall hook_unload_retry_give(ee_unit *u, void *edx, void *goal, int slot) {
     (void)edx;
     if (goal && expand_ship(u) && !expand_unload_ok(u, FIELD(goal, OF(GOAL, 0x34), int), FIELD(goal, OF(GOAL, 0x38), int))) {   // an outpost's ferry (expand.c)
         ld_fu_given(goal, 0);
@@ -2402,13 +2392,11 @@ static int __fastcall hook_idle_unload_shore(void *mgr, void *edx, ee_unit *tr) 
 static int asg_order_hooks(void) {
     static int done;
     if (!done)
-        done = patch_vtable(GA(VT_ASG_SEA_TRANSPORT), GA(SLOT_ASG_GIVE_GOAL), GA(FN_ASG_GIVE_GOAL), hook_asg_give_goal) + patch_vtable(GA(VT_ASG_SEA), GA(SLOT_ASG_GIVE_GOAL), GA(FN_ASG_GIVE_GOAL), hook_asg_give_goal) +
-               patch_vtable(GA(VT_ASG_LAND), GA(SLOT_ASG_GIVE_GOAL), GA(FN_ASG_GIVE_GOAL), hook_asg_give_goal) + patch_vtable(GA(VT_ASG_AIR), GA(SLOT_ASG_GIVE_GOAL), GA(FN_ASG_AIR_GIVE_GOAL), hook_asg_air_give_goal);
+        done = patch_asg_give_goal(hook_asg_give_goal, hook_asg_air_give_goal);
     return done;
 }
 static void landing_install(const char *aimod_ini, const char *autotest_ini) {
-    BOOL gs = patch_call(GA(CALL_GOALSET_ASK), GA(FN_GOALSET_ASK), (void *)hook_goalset_ask) & patch_call(GA(CALL_GOALSET_AGAIN), GA(FN_GOALSET_ASK), (void *)hook_goalset_ask) &
-              patch_goalset_read();
+    BOOL gs = patch_goalset_ask(hook_goalset_ask, NULL) == 2 && patch_goalset_read(goalset_read_thunk);
     if (g_log) fprintf(g_log, "# engine guard: goal set after a dropped goal %s\n", gs ? "ok" : "FAILED");
     g_landing = cfg_int(aimod_ini, autotest_ini, 1, "landing", 1);
     g_land_bombard = cfg_int(aimod_ini, autotest_ini, 1, "landing_bombard", 0);
@@ -2425,13 +2413,13 @@ static void landing_install(const char *aimod_ini, const char *autotest_ini) {
     if (g_land_cits > 10) g_land_cits = 10;
     if (g_land_ships < 1) g_land_ships = 1;
     if (g_land_ships > LD_SHIPS) g_land_ships = LD_SHIPS;
-    if (g_landing) patch_call(GA(CALL_SHORE_TO_UNLOAD), GA(FN_SHORE_TO_UNLOAD), (void *)hook_idle_unload_shore);
-    if (g_landing)
-        for (size_t k = 0; k < sizeof k_unload_sites / sizeof *k_unload_sites; k++) patch_call(k_unload_sites[k], GA(FN_GOAL_UNLOAD_CTOR), (void *)hook_unload_ctor);
-    if (g_landing) patch_call(GA(CALL_UNLOAD_RETRY_GIVE), GA(FN_GIVE_GOAL), (void *)hook_unload_retry_give);
-    int h = patch_vtable(GA(VT_ASG_SEA_TRANSPORT), GA(SLOT_ASG_UPDATE), GA(FN_ASG_SEA_TRANSPORT_UPDATE), hook_asg_sea_transport_update) &
-            patch_vtable(GA(VT_ASG_SEA), GA(SLOT_ASG_UPDATE), GA(FN_ASG_SEA_UPDATE), hook_asg_sea_update) &
-            patch_vtable(GA(VT_ASG_AIR), GA(SLOT_ASG_UPDATE), GA(FN_ASG_AIR_UPDATE), hook_asg_air_update);
+    if (g_landing) {
+        patch_shore_to_unload(hook_idle_unload_shore);
+        patch_unload_ctor(hook_unload_ctor, NULL);
+        patch_unload_retry_give(hook_unload_retry_give);
+    }
+    int h = patch_asg_sea_transport_update(hook_asg_sea_transport_update) & patch_asg_sea_update(hook_asg_sea_update) &
+            patch_asg_air_update(hook_asg_air_update);
     int gg = g_landing ? asg_order_hooks() : 0;   // the subgroups' own orders refused while the landing leads them
     if (g_log) fprintf(g_log, "# landing: %s, %d transports (transport subgroup hook %s, order hooks %d/4)\n", g_landing ? "on" : "off", g_land_ships, h ? "ok" : "FAILED", gg);
 }

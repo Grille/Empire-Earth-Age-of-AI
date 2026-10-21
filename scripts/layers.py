@@ -48,9 +48,9 @@ EXCEPTIONS = [
     ('voice/llm.c', 'test/control.c', 'queue_pause_toggle', 'the game paused while the language model answers'),
 ]
 
-# THE FOLDERS AND FILES MOVED OVER to the typed game functions (game/api.h): a call of the game there - GF, a cast of
-# GA(FN_..), a vtable slot GA(SLOT_..) - fails the build. When every folder outside game/ is in it, the rule becomes
-# "the game's functions only in game/".
+# THE FOLDERS AND FILES MOVED OVER to the typed game functions (game/api.h: the calls, game/hooks.h: the hooks'
+# installers): GF, GA(FN_..), GA(CALL_..), GA(SLOT_..) or GL(..) there fails the build. When every folder outside
+# game/ is in it, the rule becomes "the game's functions only in game/".
 TYPED = ['ai/']
 
 IDENT = re.compile(r'[A-Za-z_]\w*')
@@ -240,8 +240,8 @@ def main():
             if inc != '../base/headless_win.c': bad.append('dinput/%s includes %s' % (os.path.basename(f), inc))
     # the files moved over to game/api.h: the game's functions only through its typed wrappers
     for f in (f for f in files if any(f == t or (t.endswith('/') and f.startswith(t)) for t in TYPED)):
-        for m in re.finditer(r'\bGF\s*\(\s*(\w+)|\)\s*GA\s*\(\s*(FN_\w+)\s*\)\s*\)\s*\(|\[\s*GA\s*\(\s*(SLOT_\w+)\s*\)\s*\]\s*\)\s*\(', code[f]):
-            bad.append('%s calls %s - moved over to game/api.h: add a wrapper there' % (f, m.group(1) or m.group(2) or m.group(3)))
+        for m in re.finditer(r'\bGF\s*\(\s*(\w+)|\bGA\s*\(\s*((?:FN|CALL|SLOT)_\w+)|\bGL\s*\(\s*(\w+)', code[f]):
+            bad.append('%s uses %s - moved over to game/api.h and hooks.h: a wrapper or an installer there' % (f, m.group(1) or m.group(2) or m.group(3)))
     stale = [e for e in EXCEPTIONS if (e[0], e[1], e[2]) not in used]
     for b in bad: print('layers: ' + b)
     for e in stale: print('layers: exception no longer needed: %s -> %s (%s) - take it out of scripts/layers.py' % e[:3])

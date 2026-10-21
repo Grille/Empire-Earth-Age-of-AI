@@ -396,6 +396,8 @@ static const struct exe_build { uint32_t hash; const char *name; int ready; } k_
     D(SLOT_TYPE_ASSIGN, 29, 29)         /* EEUnitClass: thiscall(type data, unit), as the game's goal assignment */ \
     D(SLOT_PLAYER_HUMAN, 29, 29)        /* EEPlayer: char thiscall(player) - human (EEHumanPlayer's returns 1; FN_HUMAN_EPOCH's test) */ \
     D(SLOT_UNIT_LIMIT, 31, 31)          /* EEPlayer: int thiscall(player, 0), the unit limit (FN_GAME_LIMIT) */ \
+    D(SLOT_CP_ADD_RESOURCE, 18, 18)     /* VT_COMPUTER_PLAYER: FN_CP_ADD_RESOURCE (econ.c's hook; AoC as before) */ \
+    D(SLOT_CP_PAY, 45, 45)              /* VT_COMPUTER_PLAYER: FN_CP_PAY (econ.c's hook; AoC as before) */ \
     D(SLOT_MISSILE_LAUNCH, 42, 43)      /* VT_MISSILE */ \
     D(SLOT_PROJ_DOWN, 55, 56)           /* VT_PROJECTILE */ \
     D(SLOT_ASG_GIVE_GOAL, 57, 57)       /* the attack subgroups */ \

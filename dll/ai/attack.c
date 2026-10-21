@@ -107,7 +107,7 @@ typedef int (__thiscall *RouteCostFn)(void *self, int *edge, uint8_t *node);
 static struct { unsigned calls, penalised; } g_route_stats[16];
 static DWORD g_route_thread;
 
-static int __fastcall hook_route_cost(uint8_t *self, void *edx, int *edge, uint8_t *node) {
+static int __fastcall hook_route_cost(void *self, void *edx, int *edge, uint8_t *node) {
     (void)edx;
     int cost = route_cost(self, edge, node);
     unsigned pi = (unsigned)FIELD(self, OF(ROUTEPLANNER, 0x48), int) & 15;     // planner +0x48 = own player index
@@ -155,8 +155,7 @@ static ee_unit *find_weak_spot(ee_player *pl, unsigned pi, const int *start, con
     uint8_t *map = *(uint8_t **)GA(G_MAP);
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     if (!grid) return NULL;
-    short (__thiscall *region)(void *, int *, int) = (void *)GA(FN_REGION);
-    short home = region((void *)GA(G_MAP_AREAS), (int *)start, 2);
+    short home = (short)map_area((int *)start, 2);
     ee_unit *best = NULL;
     float best_score = 1e30f;
     int r = g_weak_radius;
@@ -169,7 +168,7 @@ static ee_unit *find_weak_spot(ee_player *pl, unsigned pi, const int *start, con
         int pos[2] = { FIELD(u, OF(UNIT, 0x1C), int), FIELD(u, OF(UNIT, 0x20), int) };
         float dx = (float)(pos[0] - dest[0]), dy = (float)(pos[1] - dest[1]);
         if (dx * dx + dy * dy > (float)(r * r) || threat_at(pi, pos[0], pos[1]) > 0) continue;
-        if (region((void *)GA(G_MAP_AREAS), pos, 2) != home) continue;
+        if ((short)map_area(pos, 2) != home) continue;
         float sx = (float)(pos[0] - start[0]), sy = (float)(pos[1] - start[1]);
         float score = sqrtf(sx * sx + sy * sy) + 0.5f * sqrtf(dx * dx + dy * dy);
         if (score < best_score) { best_score = score; best = u; }
@@ -323,7 +322,7 @@ static void citizen_attack_scan(ee_player *pl, uint32_t now) {
         }
     }
 }
-static void __fastcall hook_asg_route(uint8_t *self, void *edx, int *start, int *dest) {
+static void __fastcall hook_asg_route(void *self, void *edx, int *start, int *dest) {
     (void)edx;
     ee_player *pl = FIELD(self, OF(ASG, 0x190), void *);
     if (is_vanilla(pl)) pl = NULL;   // the game's own route: no weak spot, breach, call-off, nor its log
@@ -443,7 +442,7 @@ static int guarded(ee_player *pl, int x, int y, int r) {
 
 static int mass_tether(uint8_t *sg, ee_unit *me, ee_unit *enemy);   // mass.c
 typedef float (__thiscall *AsguScoreFn)(void *self, uint8_t *info);
-static float __fastcall hook_asgu_score(uint8_t *self, void *edx, uint8_t *info) {
+static float __fastcall hook_asgu_score(void *self, void *edx, uint8_t *info) {
     (void)edx;
     float s = asgu_score(self, info);
     uint8_t *sg = FIELD(self, OF(ASGU, 0x4C), uint8_t *);
@@ -511,7 +510,7 @@ static int *route_waypoint(uint8_t *asg, unsigned i) {
 }
 
 typedef void (__thiscall *AsgFn)(void *self);
-static void __fastcall hook_asg_route_done(uint8_t *self, void *edx) {
+static void __fastcall hook_asg_route_done(void *self, void *edx) {
     (void)edx;
     ee_player *pl = FIELD(self, OF(ASG, 0x190), void *);
     if (g_log && pl) {
@@ -934,7 +933,7 @@ static void citizens_safety(ee_resource_mgr *rm) {   // before the citizen assig
 // army (P3: 17 in 15 minutes, sent back by citizens_safety only once it was on its way). Its order (EEUGBuildRepair,
 // 0x60BAD0) is refused at the handing-over (0x5F05BD at 0x46DA88) while enemy soldiers stand within 8 tiles (or their range + 3) of the
 // building (as citizens_safety): the goal deleted (its vf0, which lets go of the building), the citizen keeps its work.
-static void __fastcall hook_repair_goal(ee_unit *u, void *edx, uint8_t *goal, int append, int prio) {
+static void __fastcall hook_repair_goal(ee_unit *u, void *edx, void *goal, int append, int prio) {
     (void)edx;
     ee_player *pl = u ? unit_owner(u) : NULL;
     ee_unit *b = goal && *(uintptr_t *)goal == GA(VT_GOAL_BUILD) ? FIELD(goal, OF(GOAL, 0x3C), ee_unit *) : NULL;
@@ -1396,12 +1395,12 @@ static void asg_purge_all(ee_player *pl) {
             if (*sp) asg_purge(*sp);
     }
 }
-static void __fastcall hook_asg_stats(uint8_t *sg, void *edx) {
+static void __fastcall hook_asg_stats(void *sg, void *edx) {
     (void)edx;
     asg_purge(sg);
     asg_stats(sg);
 }
-static void __fastcall hook_asg_land_stats(uint8_t *sg, void *edx) {
+static void __fastcall hook_asg_land_stats(void *sg, void *edx) {
     (void)edx;
     asg_purge(sg);
     asg_land_stats(sg);
@@ -1486,7 +1485,7 @@ static void __fastcall hook_unit_release(ee_unit *u, void *edx) {
 // 0x8C000F8D (6 of 360 games against the base AI with more citizens, deterministic: it takes 17+ enemies in range,
 // below that the game's insertion sort is guarded). Replaced by an insertion sort on keys computed once (floats), ties
 // kept in their order - the order of the game's insertion sort.
-static void __cdecl hook_range_sort(void **b, void **e, void *unit) {
+static void __cdecl hook_range_sort(void **b, void **e, ee_unit *unit) {
     int n = b && e > b ? (int)(e - b) : 0;
     if (n < 2) return;
     if (n > 1024) { range_sort(b, e, unit); return; }
@@ -1515,29 +1514,25 @@ static char __fastcall hook_goal_cast(void *goal, void *edx, void *unit) {
     return 0;
 }
 static void attack_install(const char *aimod_ini, const char *autotest_ini) {
-    BOOL cast_guard = patch_call(GA(CALL_GOAL_FBA_CHECK), GA(FN_GOAL_FBA_CHECK), hook_goal_cast);
+    BOOL cast_guard = patch_goal_fits(hook_goal_cast);
     if (g_log) fprintf(g_log, "# engine guard: goal 0xFBA without its object %s\n", cast_guard ? "ok" : "FAILED");
-    g_op_delete = GA(FN_OP_DELETE);
-    BOOL sort_guard = patch_call(GA(CALL_RANGE_SORT), GA(FN_RANGE_SORT), hook_range_sort);
+    g_op_delete = game_op_delete();
+    BOOL sort_guard = patch_range_sort(hook_range_sort);
     if (g_log) fprintf(g_log, "# engine guard: the range sort %s\n", sort_guard ? "ok" : "FAILED");
-    int list_guard =patch_call(GA(CALL_NODE_DEL_1), GA(FN_OP_DELETE), unit_node_free_thunk) +
-                     patch_call(GA(CALL_NODE_DEL_2), GA(FN_OP_DELETE), unit_node_free_thunk) +
-                     patch_vtable(GA(VT_COMPLEX_UNIT), GA(SLOT_UNIT_RELEASE), GA(FN_UNIT_RELEASE), hook_unit_release);
+    int list_guard = patch_unit_node_free(unit_node_free_thunk, NULL) + patch_unit_release(hook_unit_release);
     if (g_log) fprintf(g_log, "# engine guard: units freed while in the unit list or twice %d/3\n", list_guard);
-    BOOL stat_guard = patch_call(GA(CALL_GROUP_STAT), GA(FN_GROUP_STAT), hook_group_stat);
-    int sg_guard = patch_vtable(GA(VT_ASG_LAND), GA(SLOT_ASG_STATS), GA(FN_ASG_LAND_STATS), hook_asg_land_stats);
-    for (unsigned k = 0; k < sizeof GL(ASG_VTABLES) / sizeof *GL(ASG_VTABLES); k++)
-        sg_guard += patch_vtable(GL(ASG_VTABLES)[k], GA(SLOT_ASG_STATS), GA(FN_ASG_STATS), hook_asg_stats);
+    BOOL stat_guard = patch_group_stat(hook_group_stat);
+    int sg_guard = patch_asg_land_stats(hook_asg_land_stats) + patch_asg_stats(hook_asg_stats, NULL);
     if (g_log) fprintf(g_log, "# engine guard: attack subgroup stats %d/7\n", sg_guard);
     if (g_log) fprintf(g_log, "# engine guard: attack subgroup members %s\n", stat_guard ? "ok" : "FAILED");
-    BOOL add_guard = patch_call(GA(CALL_UNIT_TO_GROUP), GA(FN_UNIT_TO_GROUP), hook_unit_to_group);
+    BOOL add_guard = patch_unit_to_group(hook_unit_to_group);
     if (g_log) fprintf(g_log, "# engine guard: no unit offered to attack groups during a call-off %s\n", add_guard ? "ok" : "FAILED");
     g_avoid_towers = cfg_int(aimod_ini, autotest_ini, 1, "avoid_towers", 1);
     g_avoid_citizens = cfg_int(aimod_ini, autotest_ini, 1, "avoid_towers_citizens", 1);
     g_cit_threats = cfg_int(aimod_ini, autotest_ini, 1, "citizen_threats", 1);
     g_bunkers = cfg_int(aimod_ini, autotest_ini, 1, "bunkers", 1);
     g_bk_res = cfg_int(aimod_ini, autotest_ini, 1, "bunker_reserve", 0xFFFF);
-    BOOL repair = patch_call(GA(CALL_REPAIR_GOAL), GA(FN_SET_GOAL), hook_repair_goal);
+    BOOL repair = patch_repair_goal(hook_repair_goal);
     if (g_log) fprintf(g_log, "# repairs under attack: refused (hook %s)\n", repair ? "ok" : "FAILED");
     g_avoid_weight = cfg_int(aimod_ini, autotest_ini, 1, "avoid_towers_weight", 2000);
     g_avoid_margin = cfg_int(aimod_ini, autotest_ini, 1, "avoid_towers_margin", 6);
@@ -1548,12 +1543,10 @@ static void attack_install(const char *aimod_ini, const char *autotest_ini) {
     g_breach = cfg_int(aimod_ini, autotest_ini, 1, "attack_breach", 1);
     g_siege = cfg_int(aimod_ini, autotest_ini, 1, "attack_siege", 1);
     g_ignore_air = cfg_int(aimod_ini, autotest_ini, 1, "attack_ignore_air", 1);
-    int a = patch_vtable(GA(VT_ROUTE_PLANNER), GA(SLOT_ROUTE_COST), GA(FN_ROUTE_COST), hook_route_cost);
-    int b = patch_vtable(GA(VT_ASG_LAND), GA(SLOT_ASG_ROUTE), GA(FN_ASG_ROUTE), hook_asg_route);
-    int c = patch_vtable(GA(VT_ASG_LAND), GA(SLOT_ASG_ROUTE_DONE), GA(FN_ASG_ROUTE_DONE), hook_asg_route_done);
-    int d = 1;
-    for (unsigned k = 0; k < sizeof GL(ASGU_VTABLES) / sizeof *GL(ASGU_VTABLES); k++)   // land unit records: base, hero, priests and prophets
-        d &= patch_vtable(GL(ASGU_VTABLES)[k], GA(SLOT_ASGU_SCORE), GA(FN_ASGU_SCORE), hook_asgu_score);
+    int a = patch_route_cost(hook_route_cost);
+    int b = patch_asg_route(hook_asg_route);
+    int c = patch_asg_route_done(hook_asg_route_done);
+    int nd = 0, d = patch_asgu_score(hook_asgu_score, &nd) == nd;   // land unit records: base, hero, priests and prophets
     if (g_log) fprintf(g_log, "# attack routing: avoid_towers=%d weight=%d margin=%d weak_spots=%d radius=%d leash=%d breach=%d hooks %d/4\n",
                        g_avoid_towers, g_avoid_weight, g_avoid_margin, g_weak_spots, g_weak_radius, g_leash, g_breach, a + b + c + d);
 }

@@ -819,7 +819,7 @@ static int __fastcall hook_fish_type(void *o, void *edx) {
 }
 static void navy_install(const char *aimod_ini, const char *autotest_ini) {
     g_fish_boat = cfg_int(aimod_ini, autotest_ini, 1, "fishing_boat", 1);
-    int ok = g_fish_boat ? patch_call(GA(CALL_FISH_TYPE_1), GA(FN_FISH_TYPE), (void *)hook_fish_type) + patch_call(GA(CALL_FISH_TYPE_2), GA(FN_FISH_TYPE), (void *)hook_fish_type) : 0;
+    int ok = g_fish_boat ? patch_fish_type(hook_fish_type, NULL) : 0;
     if (g_log) fprintf(g_log, "# fishing: boat choice %s (hooks %d/2)\n", g_fish_boat ? "newest available" : "the game's", ok);
     g_navy = cfg_int(aimod_ini, autotest_ini, 1, "navy", 1);
     g_navy_share = cfg_pct(aimod_ini, autotest_ini, 1, "navy_share", 25, 100);

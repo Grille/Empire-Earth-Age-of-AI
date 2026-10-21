@@ -493,7 +493,7 @@ static int ex_take(ee_unit **u, int *d, int n) {   // the nearest left (index), 
 static float ex_sea_risk(ee_player *pl, struct ex_st *x, uint8_t *trtd, float hp);   // below
 static void ex_ferry_ship(ee_player *pl, unsigned idx, struct ex_st *x, uint32_t now) {
     void *cm = FIELD(pl, OF(PL, 0xB90), void *);
-    uint8_t *um = cm ? FIELD(cm, OF(CM, 0x44), uint8_t *) : NULL;
+    ee_unit_mgr *um = cm ? FIELD(cm, OF(CM, 0x44), ee_unit_mgr *) : NULL;
     ee_unit *best = NULL;
     int bd = 0x7FFFFFFF, all = 0, nl = 0, nld = 0, no = 0;
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {

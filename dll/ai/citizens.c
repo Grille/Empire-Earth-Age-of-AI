@@ -95,13 +95,12 @@ static void cz_sample(ee_player *pl, unsigned idx) {
     int wanted = um_citizens_wanted(um), have = um_citizens(um);
     z->wanted = wanted; z->have = have; z->room = room; z->cap = cap;
     if (!idle) return;
-    char (__thiscall *pend)(void *, int) = (void *)GA(FN_UM_PENDING), (__thiscall *inprod)(void *, int) = (void *)GA(FN_UM_IN_PRODUCTION);
     unsigned *r;
     if (room <= 0) r = &z->m.cap;
     else if (wanted - have <= 0) r = &z->m.target;
-    else if ((ut_has(UT(CITIZEN)) && pend(um, UT(CITIZEN))) || (ut_has(UT(FEMALE_CITIZEN)) && pend(um, UT(FEMALE_CITIZEN))))   // the game asks vf32 (can pay one) before 0x49014F: food short, else the budget
+    else if ((ut_has(UT(CITIZEN)) && um_pending(um, UT(CITIZEN))) || (ut_has(UT(FEMALE_CITIZEN)) && um_pending(um, UT(FEMALE_CITIZEN))))   // the game asks vf32 (can pay one) before 0x49014F: food short, else the budget
         r = FIELD(pl, PL_STOCK + 8, int) < unit_cost(pl, UT(CITIZEN), 2) ? &z->m.pfood : &z->m.pbud;
-    else if ((ut_has(UT(CITIZEN)) && inprod(um, UT(CITIZEN))) || (ut_has(UT(FEMALE_CITIZEN)) && inprod(um, UT(FEMALE_CITIZEN)))) r = &z->m.batch;
+    else if ((ut_has(UT(CITIZEN)) && um_in_production(um, UT(CITIZEN))) || (ut_has(UT(FEMALE_CITIZEN)) && um_in_production(um, UT(FEMALE_CITIZEN)))) r = &z->m.batch;
     else if (!FIELD(um, OF(UM, 0x140), uint8_t)) r = &z->m.att;
     else r = &z->m.rest;
     *r += (unsigned)idle;
@@ -259,7 +258,7 @@ static void cz_targets(ee_resource_mgr *rm) {
     g_czp[idx].extra = moved;
 }
 // the citizens wanted at the request (0x490BC2: call 0x48EDDB thiscall(um))
-static int __fastcall hook_cit_wanted(void *um, void *edx) {
+static int __fastcall hook_cit_wanted(ee_unit_mgr *um, void *edx) {
     (void)edx;
     int n = um_citizens_wanted(um);
     ee_player *pl = FIELD(um, OF(UM, 0x134), void *);
@@ -438,7 +437,7 @@ static void cz_install(const char *aimod_ini, const char *autotest_ini) {
     g_wf_army_cap = cfg_int(aimod_ini, autotest_ini, 1, "workforce_army_cap", 250);
     if (autotest_ini) g_v_wf_plan = ini_int("autotest", "v_workforce_plan", -1, autotest_ini);
     if (g_log) fprintf(g_log, "# workforce plan: %d (variant %d), army from a cap of %d\n", g_wf_plan, g_v_wf_plan, g_wf_army_cap);
-    BOOL ok = patch_call(GA(CALL_CITIZENS_WANTED), GA(FN_UM_CITIZENS_WANTED), hook_cit_wanted);
+    BOOL ok = patch_citizens_wanted(hook_cit_wanted);
     if (g_log) fprintf(g_log, "# citizens: citizen_plan %d (variant %d), army share %.0f%%, hook %s\n", g_cit_plan, g_v_cit_plan,
                        g_cit_army * 100.0f, ok ? "ok" : "FAILED");
 }

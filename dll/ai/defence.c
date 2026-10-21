@@ -1200,7 +1200,7 @@ static void defence_install(const char *aimod_ini, const char *autotest_ini) {
     g_aa_ahead_b = cfg_int(aimod_ini, autotest_ini, 1, "aa_ahead_buildings", 3);
     g_hold = cfg_int(aimod_ini, autotest_ini, 1, "hold_town", 0);
     g_retreat = cfg_int(aimod_ini, autotest_ini, 1, "attack_retreat", 0);
-    BOOL guard = patch_call(GA(CALL_DAMAGE_POINTS), GA(FN_DAMAGE_POINTS), damage_points_thunk);
+    BOOL guard = patch_damage_points(damage_points_thunk);
     if (g_log) fprintf(g_log, "# engine guard: damage points %s\n", guard ? "ok" : "FAILED");
     if (g_log) fprintf(g_log, "# defence: layout=%d distance=%d walls=%d own towers=%d counter-siege=%d home guard=%d/epoch, %.2f of the military room, fight_estimate=%d hold_town=%d attack_retreat=%d\n", g_def, g_def_dist, g_def_walls, g_def_more, g_csiege, g_home_guard, g_home_share, g_fight_est, g_hold, g_retreat);
 }
@@ -1429,10 +1429,9 @@ static int upgraded_type(ee_player *pl, int type) {
     for (int l = 0; l < 3; l++)
         for (int i = 0; i < 7 && UPG(l, i) >= 0; i++) {
             if (UPG(l, i) != type) continue;
-            char (__thiscall *can)(void *, int, int, int) = (char (__thiscall *)(void *, int, int, int))GA(FN_CAN_BUILD);
-            if (can(pl, type, 0x20, 0)) return type;
+            if (can_build(pl, type)) return type;
             for (int j = 6; j > i; j--)
-                if (UPG(l, j) >= 0 && can(pl, UPG(l, j), 0x20, 0)) {
+                if (UPG(l, j) >= 0 && can_build(pl, UPG(l, j))) {
                     if (g_log) fprintf(g_log, "# upgrades: P%d places %d instead of %d (upgraded since it was queued)\n",
                                        FIELD(pl, PL_INDEX, int), UPG(l, j), type);
                     return UPG(l, j);

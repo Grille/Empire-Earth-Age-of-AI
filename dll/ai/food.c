@@ -45,9 +45,8 @@ static ee_unit *food_animal(ee_player *pl, ee_resource_mgr *rm, ee_unit *u) {
     if (!bm) return NULL;
     unsigned pi = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     drops_cached(pl);
-    short (__thiscall *region)(void *, int *, int) = (void *)GA(FN_REGION);
     short ur = 0;
-    if (u) { int up[2] = { FIELD(u, OF(UNIT, 0x1C), int), FIELD(u, OF(UNIT, 0x20), int) }; ur = region((void *)GA(G_MAP_AREAS), up, 2); }
+    if (u) { int up[2] = { FIELD(u, OF(UNIT, 0x1C), int), FIELD(u, OF(UNIT, 0x20), int) }; ur = (short)map_area(up, 2); }
     ee_unit *best = NULL;
     int bd = g_hunt_range * g_hunt_range + 1;
     for (int i = 0; i < g_drops[pi].n; i++) {
@@ -62,7 +61,7 @@ static ee_unit *food_animal(ee_player *pl, ee_resource_mgr *rm, ee_unit *u) {
             if (d2 >= bd) continue;
             if (site_gatherers(a) >= 3) continue;
             int pos[2] = { x, y };
-            if (u && region((void *)GA(G_MAP_AREAS), pos, 2) != ur) continue;
+            if (u && (short)map_area(pos, 2) != ur) continue;
             if (bm_enemy_near(bm, x, y) || site_danger(pl, a, 1)) continue;
             best = a; bd = d2;
         }
@@ -79,9 +78,8 @@ static ee_unit *food_bush(ee_player *pl, ee_resource_mgr *rm, ee_unit *u, int ma
     unsigned pi = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     drops_cached(pl);
     unsigned cap = table_value(0x16);
-    short (__thiscall *region)(void *, int *, int) = (void *)GA(FN_REGION);
     short ur = 0;
-    if (u) { int up[2] = { FIELD(u, OF(UNIT, 0x1C), int), FIELD(u, OF(UNIT, 0x20), int) }; ur = region((void *)GA(G_MAP_AREAS), up, 2); }
+    if (u) { int up[2] = { FIELD(u, OF(UNIT, 0x1C), int), FIELD(u, OF(UNIT, 0x20), int) }; ur = (short)map_area(up, 2); }
     ee_unit *best = NULL;
     int bd = 0x7FFFFFFF;
     void **zb = FIELD(pl, OF(PL, 0xB50), void **), **ze = FIELD(pl, OF(PL, 0xB54), void **);
@@ -103,7 +101,7 @@ static ee_unit *food_bush(ee_player *pl, ee_resource_mgr *rm, ee_unit *u, int ma
             if (dd >= bd) continue;
             if (!explored_by(s, pl)) continue;
             if (site_gatherers(s) >= cap) continue;
-            if (u && region((void *)GA(G_MAP_AREAS), pos, 2) != ur) continue;
+            if (u && (short)map_area(pos, 2) != ur) continue;
             if (bm_enemy_near(bm, pos[0], pos[1]) || site_danger_res(pl, s, 1, 2)) continue;
             best = s; bd = dd;
         }

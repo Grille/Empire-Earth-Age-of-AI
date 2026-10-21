@@ -87,7 +87,7 @@ static int assault_has_unit(ee_player *pl, ee_unit *u) {   // a member of the wa
 }
 
 static int landing_leads(uint8_t *sg);   // landing.c
-static void __fastcall hook_asg_update(uint8_t *sg, void *edx, int now) {
+static void __fastcall hook_asg_update(void *sg, void *edx, int now) {
     (void)edx;
     if (!is_vanilla(FIELD(sg, OF(ASG, 0x190), void *)) && ((g_assault && assault_leads(sg)) || landing_leads(sg))) return;
     asg_update(sg, now);
@@ -485,7 +485,7 @@ static void cmd_assault(char *out, const char *args) {
 static void assault_install(const char *aimod_ini, const char *autotest_ini) {
     g_assault = cfg_int(aimod_ini, autotest_ini, 1, "assault", 0);
     g_as_outmatched = cfg_int(aimod_ini, autotest_ini, 1, "assault_outmatched", 0);
-    int h = patch_vtable(GA(VT_ASG_LAND), GA(SLOT_ASG_UPDATE), GA(FN_ASG_UPDATE), hook_asg_update);
+    int h = patch_asg_update(hook_asg_update);
     if (g_log) fprintf(g_log, "# assault: %s (subgroup update hook %s)\n", g_assault ? "on" : "off", h ? "ok" : "FAILED");
 }
 

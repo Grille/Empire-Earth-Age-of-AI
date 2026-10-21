@@ -27,6 +27,7 @@ struct ustring;
 #include "game/fields.h"   // the game's objects' fields by kind, per exe build: OF(PL, 0x9D4)
 #include "game/layout.h"
 #include "game/api.h"       // the objects typed and the functions over them: explored_by(site, pl)
+#include "game/hooks.h"     // the game's functions the mod hooks: their hook types and installers
 #include "game/players.c"
 #include "game/tech.c"      // a tech node's children (kept differently by build)
 #include "game/random.c"
