@@ -1500,7 +1500,22 @@ static void __cdecl hook_range_sort(void **b, void **e, void *unit) {
     }
 }
 
+// A unit whose goal says 0xFBA (+0x1E8 -> +0x24) but whose goal object (+0x1F0) is not of the class that goal id
+// belongs to: 0x5ED24B dynamic_casts +0x1F0 (0x5ED9B4) and calls 0x60FE7E on the result unchecked - NULL, read at
+// +0x38 (0x60FED3). Seen with workforce_plan ARMY in one Tournament Islands Huge game (3 of 3 runs at minute 31). The
+// guard answers "no" for a NULL goal, as the cast's own failure would mean (the branch then changes nothing).
+static unsigned g_goal_cast_null;
+static char __fastcall hook_goal_cast(void *goal, void *edx, void *unit) {
+    (void)edx;
+    if (goal) return GF(FN_GOAL_FBA_CHECK)(goal, unit);
+    if (g_log && g_goal_cast_null++ < 5)
+        fprintf(g_log, "# engine guard: a unit's goal 0xFBA without its goal object (type %d) at %.1f min - skipped\n",
+                unit && FIELD(unit, 0x2C, uint8_t *) ? FIELD(FIELD(unit, 0x2C, uint8_t *), 0x4B8, int) : -1, game_time() / 60000.0);
+    return 0;
+}
 static void attack_install(const char *aimod_ini, const char *autotest_ini) {
+    BOOL cast_guard = patch_call(GA(CALL_GOAL_FBA_CHECK), GA(FN_GOAL_FBA_CHECK), hook_goal_cast);
+    if (g_log) fprintf(g_log, "# engine guard: goal 0xFBA without its object %s\n", cast_guard ? "ok" : "FAILED");
     g_op_delete = GA(FN_OP_DELETE);
     BOOL sort_guard = patch_call(GA(CALL_RANGE_SORT), GA(FN_RANGE_SORT), hook_range_sort);
     if (g_log) fprintf(g_log, "# engine guard: the range sort %s\n", sort_guard ? "ok" : "FAILED");

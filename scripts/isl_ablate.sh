@@ -12,6 +12,8 @@
 #   siH  Small Islands, Huge, 1v1, 75 min: 9 free islands (2-5 mines)
 #   siL2 Small Islands, Large, 2v2 (P2+P3 / P4+P5, the vanilla pair swapped), 75 min
 #   si5 / ti5 / li5  the old small maps (map_scale small), 1v1, 60 min, unit limit 500
+#   coL  Continental, Large map, 1v1, unit limit 1500, Middle Ages, 75 min (a land map at high population)
+#   cont Continental e0, Small (eco_ablate.sh's), 1v1, 60 min, unit limit 500
 # Unit limit: the game's, shared by every player incl. the idle human - 1500 = 500 a player in 1v1 (the AIs' cap 505),
 # 2500 in 2v2.
 cd "$(dirname "$0")/.."
@@ -31,6 +33,8 @@ while IFS='|' read -r name keys; do
                 si5) base="random_map=Small Islands,map_size=0,$e"; min=60;;
                 ti5) base="random_map=Tournament Islands,map_size=0,$e"; min=60;;
                 li5) base="random_map=Large Islands,map_size=0,$e"; min=60;;
+                coL) base="random_map=Continental,map_scale=large,unit_limit=1500,$e";;
+                cont) base="random_map=Continental,map_size=0,seed=101,start_epoch=0,difficulty=hard"; min=60;;
                 *) echo "unknown map $map"; continue;;
             esac
             v="vanilla_cheat=$ch"; [ -n "$keys" ] && v="$v,$keys"

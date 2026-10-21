@@ -196,6 +196,7 @@ static const uint32_t k_exe_builds[ADDR_BUILDS] = { 0x4FB6A479 };   // the 2017 
     D(EXIT_CONFIRM_AT, 0x005D0B2C) \
     F(FN_EXIT_CONFIRM, void, __cdecl, (void), 0x005D0B4F) \
     F(FN_UNIT_RELEASE, void, __thiscall, (void *), 0x005ED71E) \
+    D(CALL_GOAL_FBA_CHECK, 0x005ED9BF)                            /* in 0x5ED24B: FN_GOAL_FBA_CHECK on a dynamic_cast, unchecked */ \
     /* thiscall(unit, 0x1F51) - as the assignment does after the order */ \
     F(FN_UNIT_SAY, void, __thiscall, (void *, int), 0x005EFCF0) \
     D(FN_SET_GOAL, 0x005F05BD)                                    /* thiscall(unit, goal, 0, 0) */ \
@@ -208,6 +209,8 @@ static const uint32_t k_exe_builds[ADDR_BUILDS] = { 0x4FB6A479 };   // the 2017 
     F(FN_GOAL_ATTACK_CTOR, void *, __thiscall, (void *, void *, void *, int), 0x0060AD45) /* EEUGAttack: new 0x40 */ \
     /* EEUGBuildRepair constructor: thiscall(goal, player, building, 1) */ \
     F(FN_BUILD_GOAL, void *, __thiscall, (void *, void *, void *, int), 0x0060BAD0) \
+    /* thiscall(goal 0xFBA object, unit) (0x5ED24B) */ \
+    F(FN_GOAL_FBA_CHECK, char, __thiscall, (void *, void *), 0x0060FE7E) \
     /* EEUGLoadTransport: new 0x68 */ \
     F(FN_GOAL_LOAD_CTOR, void *, __thiscall, (void *, void *, void *, int), 0x0061487F) \
     /* new 0x38 */ \

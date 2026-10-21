@@ -164,7 +164,7 @@ static int ap_producer(void *pl, int type) {
     return 0;
 }
 static void army_plan_tick(void *pl, unsigned idx, uint32_t now) {
-    int plan = ARMY_PLAN(idx);
+    int wfa = wf_army(pl, idx), plan = ARMY_PLAN(idx) | wfa;   // citizens.c workforce_plan ARMY: FILL + BUILD at a high cap
     struct ap_st *a = &g_ap[idx];
     if (now < a->t) memset(a, 0, sizeof *a);
     if (!plan || (a->t && now - a->t < 10000)) return;
@@ -172,7 +172,7 @@ static void army_plan_tick(void *pl, unsigned idx, uint32_t now) {
     if ((plan & 16) && (now < a->tb || now - a->tb >= 30000)) { a->tb = now ? now : 1; ap_upgrades(pl, idx); }   // UPGRADE
     // only with an enemy on its own continent (navy.c navy_detect, 10 s in): on the islands (every enemy across the water)
     // the money is the navy's and the landings' - the first plan there (all of it) cost soldiers on Small Islands
-    if (current_epoch(pl) < FARM_EPOCH || !cfg_of(pl)->budget || !navy_land(idx)) return;
+    if (current_epoch(pl) < FARM_EPOCH || !cfg_of(pl)->budget || (!navy_land(idx) && !wfa)) return;
     uint8_t *cm = FIELD(pl, 0xB90, uint8_t *), *um = cm ? FIELD(cm, 0x44, uint8_t *) : NULL, *bm = cm ? FIELD(cm, 0x3C, uint8_t *) : NULL;
     if (!um || !bm) return;
     int *stock = (int *)((uint8_t *)pl + PL_STOCK);

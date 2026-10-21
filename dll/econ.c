@@ -1492,6 +1492,9 @@ static int soldier_score(int type) {
     return FIELD(td, 0x55C, int) * FIELD(td, 0x510, int);
 }
 static int g_sub_spare_food;   // train_budget's early_army substitution (below)
+static int g_sub_thrift;       // train_budget's workforce_plan THRIFT substitution: the most score per gold + iron
+static int wf_thrift(void *pl, unsigned idx, int type, const int *vis);   // citizens.c
+static void wf_thrift_note(unsigned idx, int type, int n);
 static int g_hg_call;          // set by the home guard (defence.c) around its order: early_soldiers in the first epoch
 static int substitute_soldier(void *pl, unsigned idx, const int *vis, int want, int *got) {
     uint32_t now = game_time();
@@ -1521,6 +1524,11 @@ static int substitute_soldier(void *pl, unsigned idx, const int *vis, int want, 
             if (c > 0) { paid = 1; if (vis[r] / c < n) n = vis[r] / c; }
         }
         if (!paid || n <= 0 || !GF(FN_CAN_BUILD)(pl, t, 0x20, 0)) continue;
+        if (g_sub_thrift) {   // THRIFT: score per gold + iron (at least 10), the pile pays the rest
+            float s = (float)soldier_score(t) / (float)(unit_cost(pl, t, 5) + unit_cost(pl, t, 6) > 10 ? unit_cost(pl, t, 5) + unit_cost(pl, t, 6) : 10);
+            if (s > bs) { bs = s; best = t; bn = n; }
+            continue;
+        }
         if (!g_sub_spare_food) { *got = n; return t; }
         // early_army: the food-free ranged soldiers first (Slinger, Simple Bowman, Javelin, Composite Bow, Long Bow ...)
         // - score x2 with a range, a quarter with a food price: the citizens keep the food while the economy grows
@@ -1657,7 +1665,10 @@ static void train_budget(void *pl, unsigned idx, const struct ai_cfg *cfg, const
     g_sub_spare_food = EARLY(idx, early_army) && ep >= 1 && (ep < FARM_EPOCH || workforce(pl) < g_early_workers) &&
                        military && !ship && !req_unit && g_unit_sub && !g_priority_mil && substitutable(req[0]);
     if (g_sub_spare_food && unit_cost(pl, req[0], 2) > 0) sub = 2;
-    if (sub == 1 && trainable) {   // the budget refused a unit it can train: save for it first
+    // workforce_plan THRIFT (citizens.c): food and wood pile while the refused soldier waits for gold or iron - the
+    // soldier that does most per gold and iron at once, no saving (the gold went to the warships and techs meanwhile)
+    g_sub_thrift = sub == 1 && *blocked && !ship && !req_unit && wf_thrift(pl, idx, req[0], visibles);
+    if (sub == 1 && trainable && !g_sub_thrift) {   // the budget refused a unit it can train: save for it first
         if (!g_save_since[idx] || now < g_save_since[idx]) g_save_since[idx] = now ? now : 1;
         int sw = PV(idx, g_v_sub_wait, g_sub_wait);
         sub = !sw || now - g_save_since[idx] >= (uint32_t)sw * 1000u || base_threatened(idx);
@@ -1665,9 +1676,9 @@ static void train_budget(void *pl, unsigned idx, const struct ai_cfg *cfg, const
     }
     if (sub) {
         int got = 0, alt = substitute_soldier(pl, idx, visibles, want, &got);
-        if (alt) { *sub_type = alt; *afford = got; *blocked = 0; g_mil[idx].subs++; }
+        if (alt) { *sub_type = alt; *afford = got; *blocked = 0; g_mil[idx].subs++; if (g_sub_thrift) wf_thrift_note(idx, alt, got); }
     }
-    g_sub_spare_food = 0;
+    g_sub_spare_food = g_sub_thrift = 0;
 }
 // the request as the budget allows it (blocked: none) through the game's own training, cut to the room under the
 // population cap for the mod's own orders; ra = the call site (a game's or the mod's); the game's result

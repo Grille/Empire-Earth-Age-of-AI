@@ -105,6 +105,7 @@ static void cz_sample(void *pl, unsigned idx) {
     *r += (unsigned)idle;
 }
 
+static void wf_log(void *pl, unsigned idx, unsigned min);   // below: workforce_plan's # wf line
 static void cz_tick(void *pl, uint32_t now) {
     if (!g_auto.enabled || !g_log || !pl) return;
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
@@ -126,6 +127,7 @@ static void cz_tick(void *pl, uint32_t now) {
                     g_czp[idx].home, g_czp[idx].extra);
             LeaveCriticalSection(&g_lock);
         }
+        if (z->t > 60000) wf_log(pl, idx, z->min);   // workforce_plan's line (below)
         memset(&z->m, 0, sizeof z->m);
         z->calls = z->blocked = z->b_food = z->b_reserve = z->b_epoch = z->trained = 0;
         z->min = now / 60000;
@@ -162,6 +164,7 @@ static int g_cit_plan = 3, g_v_cit_plan = -1, g_cit_train_ms = 28000;
 static float g_cit_army = 0.40f;   // [all] citizen_army_share
 #define CIT_PLAN(idx) PV(idx, g_v_cit_plan, g_cit_plan)
 static int expand_cit_need(void *pl, unsigned idx);   // expand.c: the citizens an outpost still needs (EXTRA)
+static int wf_cap_wanted(unsigned idx, int n);         // below: workforce_plan CAP
 
 // finished producers of citizens (Town Center, Capitol)
 static int cz_producers(void *pl) {
@@ -257,8 +260,9 @@ static int __fastcall hook_cit_wanted(void *um, void *edx) {
     void *pl = FIELD(um, 0x134, void *);
     if (!pl || is_vanilla(pl)) return n;
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
-    if (!(CIT_PLAN(idx) & 1) || game_time() < g_czp[idx].t || game_time() - g_czp[idx].t > 15000) return n;
-    return g_czp[idx].goal > n ? g_czp[idx].goal : n;
+    int fresh = game_time() >= g_czp[idx].t && game_time() - g_czp[idx].t <= 15000;
+    int r = (CIT_PLAN(idx) & 1) && fresh && g_czp[idx].goal > n ? g_czp[idx].goal : n;
+    return wf_cap_wanted(idx, r);   // workforce_plan CAP: no more than the economy uses
 }
 // FIRST (train_budget, a citizen's food): the stock without the epoch reserve while the income pays both
 static int cz_visible_food(void *pl, unsigned idx, const int *stock, int visible) {
@@ -269,12 +273,162 @@ static int cz_visible_food(void *pl, unsigned idx, const int *stock, int visible
     if (g_rate[idx].rate[2] < 2.0f * spend) return visible;
     return stock[2] > visible ? stock[2] : visible;
 }
+// ---- workforce_plan ([all], bits; [autotest] v_workforce_plan for the variant players; docs/economy.md "Workforce
+// into army") ----
+// The playtester: citizens are needed to fill every mine, a lack of them should not be the limit - nor should an
+// oversized, wood-heavy workforce starve the army; workers on wood beyond what is spent are waste.
+// Measured first (the shipped build against the base AI at hard, unit limit 1500 = a cap of 505 each, 75 min, Small
+// Islands Large / Tournament Islands Huge / Large Islands Huge, 40 games a cell; scripts/workforce.py): at minute 60
+// the mod's AI had 170-227 citizens (the base AI 122), 31-63 of them idle (3-14), 68-107 on wood (61-68) with
+// 8400-14900 wood in stock (3400-7600) - 22000-29000 wood came in over minutes 30-60, 14000-17000 were spent - and
+// 35-62 soldiers (70-81); it had trained 116-148 soldiers by then (238-279), with 3.5-4.5 land production buildings
+// (10). Why so many citizens: citizen_plan's goal counts the citizens there - the woodcutters and the idle - so
+// whoever is trained and finds no mine raises it, up to the cap less citizen_army_share (303 of 505); the game's
+// own 45% of the cap (227) is a floor on top. Why so many on wood: LATE WOOD's target closes the game's wood
+// "demand" (refused requests stay on its books, ~80000) - the 2000 it counts at most ask for 40% of the workers. The
+// island's mines near drop sites were full (the slots elsewhere are other islands', out of a walking citizen's reach),
+// its forest cut back: the extra citizens stood idle or cut wood nobody spent. Why so few soldiers: every soldier
+// costs gold or iron (Middle Ages: Long Sword / Pikeman 30 iron, Long Bow 30 gold, Knight 60 gold, the warships
+// 125-250) - the gold and iron stock stayed at ~200 the whole game, the army's orders refused 10000-12000 times
+// from minute 20 for gold and iron while food and wood piled up.
+// 1 CAP: from the Copper Age the citizens wanted (the game's share of the cap and citizen_plan's goal alike) are at
+//   most what the economy uses: the mines' slots near drop sites (or the miners, if more), the food gatherers (at
+//   least the fields + 2 and FEED's), the wood workers the wood actually spent needs (wood spent over the last 5
+//   minutes - income less the stock's growth - at the measured rate per worker, + 25% and 3), the outpost's
+//   (expand.c EXTRA), 4 builders and a margin of cap / 40 (at least 4); never the idle or woodcutters beyond the
+//   need. After 5 minutes of samples, never under 30.
+// 2 WOOD: while the wood stock holds 3 minutes of its spending + 1000, the wood target is at most that need: the rest
+//   goes to the metals' targets up to their slots near drop sites, then to food up to its fields + 2
+//   (econ_rebalance moves the gatherers); what has nowhere to go stays on wood.
+// 4 ARMY: army_plan's FILL and BUILD (army.c) on every map, the islands too, from a population cap of
+//   workforce_army_cap (250): soldiers into the room the capped goal leaves while the account and the stock pay, one
+//   more land production building when they train 70%+ of the time (up to 2 + workers / 15).
+// 8 THRIFT: from the Copper Age, while food or wood lie at 800+, a soldier refused for gold or iron is replaced at once
+//   (no saving first, econ.c substitute_wait) by the soldier with the most score (hit points x attack) per gold +
+//   iron that the budget pays: Long Bows (30 gold, 40 wood) and Pikemen (30 iron, 30 food) for the Knights (60 gold)
+//   the game asks for - the metal is the army's limit, the food and wood are there.
+static int g_wf_plan = 0, g_v_wf_plan = -1, g_wf_army_cap = 250;
+#define WF_PLAN(idx) PV(idx, g_v_wf_plan, g_wf_plan)
+#define WF_N 31   // 10-s samples: 5 minutes
+static struct wf_st {
+    uint32_t t, tc;                   // last sample, CAP's last pass
+    int inc[WF_N], stk[WF_N], k, n;   // wood income so far (g_bud) and the wood stock, oldest at k once full
+    int spent, need;                  // wood spent a minute (5-minute mean), the wood workers it needs
+    int cap, metal, food;             // CAP's goal and its parts
+    int asked, given;                 // the last citizens wanted: asked (the game's / citizen_plan's), given
+    int rs0;                          // # wf: the techs' gold + iron at the first line (the start epoch's)
+    unsigned held, moved, thrift;     // this minute: wanted calls held back, wood targets moved, THRIFT's soldiers
+} g_wf[16];
+static void wf_new_game(void) { memset(g_wf, 0, sizeof g_wf); }
+
+// every 10 s (the mod's AIs): the wood spent over the last 5 minutes and the woodcutters it needs
+static void wf_tick(void *pl, uint32_t now) {
+    unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
+    struct wf_st *w = &g_wf[idx];
+    if (now < w->t) memset(w, 0, sizeof *w);
+    if (!WF_PLAN(idx) && !g_auto.enabled) return;
+    if (w->t && now - w->t < 10000) return;
+    w->t = now ? now : 1;
+    w->inc[w->k] = g_bud[idx].income[3];
+    w->stk[w->k] = FIELD(pl, PL_STOCK + 12, int);
+    w->k = (w->k + 1) % WF_N;
+    if (w->n < WF_N) w->n++;
+    if (w->n < WF_N) return;
+    int nw = (w->k + WF_N - 1) % WF_N, sp = (w->inc[nw] - w->inc[w->k]) - (w->stk[nw] - w->stk[w->k]);
+    w->spent = sp > 0 ? sp / 5 : 0;
+    float pw = g_rate[idx].per_worker[3];
+    if (pw < 5.0f) pw = 5.0f;
+    w->need = (int)((float)w->spent * 1.25f / pw + 0.99f) + 3;
+}
+// after the worker targets (hook_compute_targets, after cz_targets): CAP's goal, WOOD's targets
+static void wf_targets(uint8_t *rm) {
+    void *pl = rm_player(rm);
+    if (!pl) return;
+    unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
+    struct wf_st *w = &g_wf[idx];
+    int plan = WF_PLAN(idx);
+    w->cap = 0;
+    if (!(plan & 3) || current_epoch(pl) < FARM_EPOCH || w->n < WF_N) return;
+    uint8_t *cm = FIELD(pl, 0xB90, uint8_t *), *um = cm ? FIELD(cm, 0x44, uint8_t *) : NULL;
+    if (!um) return;
+    uint32_t now = game_time();
+    uint32_t *target = (uint32_t *)(rm + RM_TARGET);
+    struct mf_st *m = &g_mf[idx];
+    mf_scan(pl, idx, now);
+    void *fq = type_list(um, UT(B_FARM));
+    int fields = fq ? FIELD(fq, 0x10, int) : 0, metal = 0, food = rm_count(rm, 2);
+    for (int r = 4; r < 7; r++) metal += m->slots[r] > rm_count(rm, r) ? m->slots[r] : rm_count(rm, r);
+    if (food < fields + 2) food = fields + 2;
+    if (food < g_czp[idx].feed) food = g_czp[idx].feed;
+    if (plan & 1) {
+        int cap = ((int (__thiscall *)(void *, int))(*(void ***)pl)[31])(pl, 0), margin = cap / 40 > 4 ? cap / 40 : 4;
+        int c = metal + food + w->need + 4 + margin + expand_cit_need(pl, idx);
+        w->cap = c > 30 ? c : 30;
+        w->metal = metal; w->food = food; w->tc = now ? now : 1;
+        if (g_czp[idx].goal > w->cap) g_czp[idx].goal = w->cap;   // army_plan FILL's room counts the capped goal
+    }
+    if ((plan & 2) && FIELD(pl, PL_STOCK + 12, int) >= 3 * w->spent + 1000 && (int)target[3] > w->need) {
+        int extra = (int)target[3] - w->need;
+        for (int r = 4; r < 7; r++)
+            for (; extra > 0 && (int)target[r] < m->slots[r]; extra--) { target[r]++; target[3]--; w->moved++; }
+        for (; extra > 0 && (int)target[2] < fields + 2; extra--) { target[2]++; target[3]--; w->moved++; }
+    }
+}
+// the citizens wanted at the request (hook_cit_wanted): CAP's goal at most
+static int wf_cap_wanted(unsigned idx, int n) {
+    struct wf_st *w = &g_wf[idx & 15];
+    uint32_t now = game_time();
+    w->asked = n;
+    if ((WF_PLAN(idx) & 1) && w->cap && now >= w->tc && now - w->tc <= 60000 && n > w->cap) { w->held++; n = w->cap; }
+    w->given = n;
+    return n;
+}
+// ARMY: army_plan's FILL + BUILD on every map at a high population cap (army.c army_plan_tick)
+static int wf_army(void *pl, unsigned idx) {
+    if (!(WF_PLAN(idx) & 4) || current_epoch(pl) < FARM_EPOCH) return 0;
+    int cap = ((int (__thiscall *)(void *, int))(*(void ***)pl)[31])(pl, 0);
+    return cap >= g_wf_army_cap ? 6 : 0;
+}
+// THRIFT (econ.c train_budget, a refused soldier): food or wood pile and the soldier lacks gold or iron
+static int wf_thrift(void *pl, unsigned idx, int type, const int *vis) {
+    if (!(WF_PLAN(idx) & 8) || current_epoch(pl) < FARM_EPOCH) return 0;
+    if (FIELD(pl, PL_STOCK + 8, int) < 800 && FIELD(pl, PL_STOCK + 12, int) < 800) return 0;
+    for (int r = 5; r < 7; r++) if (vis[r] < unit_cost(pl, type, r)) return 1;
+    return 0;
+}
+static void wf_thrift_note(unsigned idx, int type, int n) { (void)type; g_wf[idx & 15].thrift += (unsigned)(n > 0 ? n : 0); }
+// "# wf:" once a minute (autotest, both sides): the wood spent a minute and the woodcutters it needs, wood workers,
+// target, stock; CAP's goal and parts, the citizens wanted asked / given, calls held, wood targets moved; the idle; the
+// gold + iron paid for the techs researched so far (their prices, all techs with the researched flag)
+static void wf_log(void *pl, unsigned idx, unsigned min) {
+    struct wf_st *w = &g_wf[idx & 15];
+    uint8_t *cm = FIELD(pl, 0xB90, uint8_t *), *rm = cm ? FIELD(cm, 0x38, uint8_t *) : NULL, *tt = FIELD(pl, PL_TECHTREE, uint8_t *);
+    if (!rm) return;
+    int rs = 0;
+    for (int id = 1000; tt && id < 15000; id++) {
+        uint8_t *t = GF(FN_TECH_LOOKUP)(tt, id), *d = t ? FIELD(t, 8, uint8_t *) : NULL;
+        if (d && t[4]) rs += FIELD(d, 0x30, int) + FIELD(d, 0x34, int);
+    }
+    if (!w->rs0) w->rs0 = rs ? rs : 1;
+    rs -= w->rs0;
+    EnterCriticalSection(&g_lock);
+    fprintf(g_log, "# wf: P%u at %u min: spent %d need %d have %d target %d stock %d | cap %d metal %d food %d asked %d given %d held %u "
+            "moved %u thrift %u | idle %d | rsch %d\n", idx, min, w->spent, w->need, rm_count(rm, 3), FIELD(rm, RM_TARGET + 12, int),
+            FIELD(pl, PL_STOCK + 12, int), w->cap, w->metal, w->food, w->asked, w->given, w->held, w->moved, w->thrift, rm_count(rm, 0), rs);
+    LeaveCriticalSection(&g_lock);
+    w->held = w->moved = w->thrift = 0;
+}
+
 static void cz_install(const char *aimod_ini, const char *autotest_ini) {
     g_cit_plan = cfg_int(aimod_ini, autotest_ini, 1, "citizen_plan", 3);
     g_cit_army = cfg_share(aimod_ini, autotest_ini, 1, "citizen_army_share", 0.40, 0, 0.9);
     g_cit_train_ms = cfg_int(aimod_ini, autotest_ini, 1, "citizen_train_ms", 28000);
     if (g_cit_train_ms < 5000) g_cit_train_ms = 5000;
     if (autotest_ini) g_v_cit_plan = ini_int("autotest", "v_citizen_plan", -1, autotest_ini);
+    g_wf_plan = cfg_int(aimod_ini, autotest_ini, 1, "workforce_plan", 0);
+    g_wf_army_cap = cfg_int(aimod_ini, autotest_ini, 1, "workforce_army_cap", 250);
+    if (autotest_ini) g_v_wf_plan = ini_int("autotest", "v_workforce_plan", -1, autotest_ini);
+    if (g_log) fprintf(g_log, "# workforce plan: %d (variant %d), army from a cap of %d\n", g_wf_plan, g_v_wf_plan, g_wf_army_cap);
     BOOL ok = patch_call(GA(CALL_CITIZENS_WANTED), GA(FN_UM_CITIZENS_WANTED), hook_cit_wanted);
     if (g_log) fprintf(g_log, "# citizens: citizen_plan %d (variant %d), army share %.0f%%, hook %s\n", g_cit_plan, g_v_cit_plan,
                        g_cit_army * 100.0f, ok ? "ok" : "FAILED");

@@ -616,3 +616,85 @@ without towers) are open levers; (4) fishing: the mod's AI has no fishing boat b
 base AI 3-4 at minute 10), though fish is the cheapest food on islands. For land maps the same forward-base idea needs
 the home guard and flank checks without the sea test (expand.c's `sea_held` / `ex_forward` are island-only; the
 holding test, `ex_holds`, and the forward test against the enemy's known buildings are not).
+
+## Workforce into army (2026-10-21, dll/citizens.c workforce_plan)
+
+The playtester: citizens are needed to fill every mine, a lack of them should not be the limit - nor should an
+oversized, wood-heavy workforce starve the army; workers on wood beyond what is spent are waste.
+
+**Measured** (the shipped build `lgA` against the base AI at hard, unit limit 1500 = cap 505 each, 75 min, 40 games a
+cell; `scripts/workforce.py`, the `# wf:` line). At minute 60 without the cheat (siL / tiH / liH), mod against base AI:
+
+| | mod | base AI |
+|---|---|---|
+| citizens | 170-227 | 122 |
+| idle citizens | 31-63 | 3-14 |
+| on wood | 68-107 | 61-68 |
+| wood stock | 8400-14900 | 3400-7600 |
+| soldiers (all kinds) | 35-62 | 70-81 |
+| soldiers trained by 60 | 116-148 | 238-279 |
+| land production buildings | 3.5-4.5 | ~10 |
+| gold + iron stock | ~200 all game | 700-1500 |
+
+Wood came in at 22000-29000 over minutes 30-60 and 14000-17000 was spent; from minute 20 the army's orders were refused
+10000-12000 times, always for gold and iron.
+
+**Why so many citizens:** citizen_plan's goal counts the citizens already there, the woodcutters and the idle
+included. So whoever is trained and finds no mine raises the goal, up to the cap less citizen_army_share (303 of 505).
+On top of that, the game's own 45% of the cap (227) is a floor. **Why so many on wood:** LATE WOOD's target closes the
+game's wood "demand" (refused requests stay on its books, ~80000), and the 2000 it counts at most ask for 40% of the
+workers. The island's mines near drop sites were full (the free slots that remain are on other islands, out of a
+walking citizen's reach) and its forest was cut back, so the extra citizens stood idle (up to 150-200 in single games)
+or cut wood nobody spent.
+
+**Why so few soldiers:** every soldier needs gold or iron (Middle Ages: Long Sword / Pikeman 30 iron, Long Bow 30
+gold, Knight 60 gold, warships 125-250; data/db/dbtechtree.dat). The gold and iron are spent the moment they come in.
+On the islands the navy account holds part of them. Techs took little: the researched techs' gold + iron from the
+start epoch on is 1000-1500 a game (`# wf ... rsch`). The game's requests are for gold-heavy units (Knights, Cavalry
+Archers, Cuirassiers), and the budget saves 90 s for them (substitute_wait) while the gold goes elsewhere. So the
+idle citizens and the wood are a symptom: on island maps the army is bounded by the metal the home island gives;
+more needs the other islands (expand.c, transports).
+
+**`workforce_plan`** ([all], bits; `v_workforce_plan`; **default 0**):
+- 1 CAP: from the Copper Age, the citizens wanted (the game's share and citizen_plan's goal alike) are capped at what
+  the economy uses: the mines' slots near drop sites (or the miners, if more), the food gatherers (at least the
+  fields + 2 and FEED's), the woodcutters the wood actually spent needs (5-minute spending at the measured rate per
+  worker, + 25% and 3), the outpost's, 4 builders and a margin of cap / 40.
+- 2 WOOD: while the wood stock holds 3 minutes of spending + 1000, wood's target is at most that need. The rest goes
+  to the metals up to their slots near drop sites, then to food up to its fields + 2.
+- 4 ARMY: army_plan's FILL and BUILD on every map (islands too) at a cap of `workforce_army_cap` (250) and above.
+- 8 THRIFT: while food or wood lie at 800+, a soldier refused for gold or iron is replaced at once (no saving) by the
+  one with the most hit points x attack per gold + iron the budget pays.
+
+**Paired results** (the same build with 0; d = with - without, standard error; screening 20 games a cell (`wB`, bits
+1 / 3 / 8 / 15), then 40 games a cell for 4 and 12 (`wC`, seeds 1-20 x both seats)):
+
+| Bits | Map | cheat | d citizens 75 | d soldiers 60 | d soldiers 75 | d kills - losses | mod / base AI won |
+|---|---|---|---|---|---|---|---|
+| 1 CAP | siL / liH | no | -30 (12) / -43 (12) | -5 (4) / 0 (5) | | +6 (18) / +20 (14) | unchanged |
+| 1 CAP | siL / liH | yes | -3 (10) / -32 (11) | | | -12 (5) / +7 (9) | 15 -> 15, 6 -> 8 |
+| 3 CAP+WOOD | siL | yes | | | | -11 (4) | |
+| 8 THRIFT | cont | no / yes | | +4.1 (1.8) / +3.5 (1.5) | | +3.8 (2.1) / +1.6 (2.3) | 4/0 -> 3/0 |
+| 8 THRIFT | siL | no | | -4 (4) | | -37 (16) | |
+| 4 ARMY | coL / liH / tiH / siL | no | -3 .. +11 | +14 (7) / +10 (5) / +12 (6) / +3 (4) | +19 (8) / +16 (7) / +14 (7) / +1 (7) | -1 (10) / +11 (13) / +14 (19) / -9 (15) | coL 9/2 -> 11/4 |
+| 4 ARMY | coL / liH / tiH / siL | yes | | -1 / -1 / +4 / -1 | | +2 (8) / -1 (14) / -11 (16) / -10 (10) | 37 -> 37, 11 -> 12, 7 -> 5, 29 -> 24 |
+| 12 ARMY+THRIFT | coL / liH / tiH / siL | no | | +16 (7) / +9 (5) / +6 (6) / -3 (4) | +23 (7) / +18 (7) / +8 (8) / +2 (7) | -1 (13) / +14 (13) / +6 (18) / -18 (15) | coL 9/1 -> 11/5 |
+| 12 ARMY+THRIFT | cont / si5 | no | | +3.1 (1.3) / +1.8 (1.6) | | +1.1 (1.3) / -1.1 (6.3) | cont 12/1 -> 9/1 |
+| 12 ARMY+THRIFT | coL / liH / tiH / siL | yes | | -1 / -1 / +3 / -1 | | +3 (8) / -13 (12) / -13 (15) / -19 (12) | 37 -> 38, 12 -> 9, 7 -> 6, 27 -> 23 |
+
+CAP does what it says: 30-60 fewer citizens on the large maps, and wood near its need. But the soldiers do not rise,
+because neither population room (180-250 free) nor food is what limits them. ARMY puts 10-20 more soldiers on the
+large maps without the cheat. With the cheat it does nothing, and against the base AI with the cheat it trained
+20 (8) fewer on Continental Large. THRIFT adds 3-4 soldiers on small Continental but lost on Small Islands Large
+(-37 (16)). Kills - losses stay within the noise or go against it, and the mod's wins on Continental e0 went
+12 -> 9 of 40 with 12. No clear gain without a loss elsewhere: **off**. Not measured: head-to-head against the control
+AI (normal and lowpop), Small Islands Large 2v2.
+
+**Fixed on the way:** an engine crash that ARMY set off in one Tournament Islands Huge game, 3 of 3 runs at minute 31:
+0x5ED24B dynamic_casts a unit's goal object (+0x1F0) for goal 0xFBA and calls 0x60FE7E on a NULL result (read at
++0x38). attack.c `hook_goal_cast` answers "no" for a NULL goal (`# engine guard: a unit's goal 0xFBA without its
+goal object`). The guarded game played to its end (a citizen, type 32).
+
+**Leads:** the metal. On islands that means other islands' mines (transports, outposts that hold). Everywhere it
+means what the gold and iron buy (the game's gold-heavy requests, the 90-s saving, the navy account's share), and
+production buildings when the army has the metal.

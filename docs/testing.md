@@ -701,6 +701,20 @@ load: with 8 games at a time, 3 of 4 Small Islands Large games parted after minu
 keep a long A/B on one personality folder (`AI_DIR` to a fixed copy) while other sessions change `config/aimod_ai`: a
 format change on main mid-run made the B runs' personalities fail to load (`# texts: ... skipped`).
 
+### Workforce into army (2026-10-21)
+
+`# wf:` once a minute (autotest, dll/citizens.c; the mod's AIs): the wood spent a minute (5-minute mean, income less
+the stock's growth) and the woodcutters it needs, those on wood, wood's target and stock; CAP's goal and its parts
+(metal slots, food), the citizens wanted asked / given, wanted calls held back, wood targets moved, THRIFT's soldiers;
+the idle; the researched techs' gold + iron since the start (`rsch`). `scripts/workforce.py [-base NAME]
+"work/autotest_*_ab-<name>-*.csv"` lays both sides side by side (citizens and their jobs, soldiers, stocks, goal at
+15-75 min; busy share, refusals by resource, wood in / spent) and gives the paired differences. `scripts/isl_ablate.sh`
+has `coL` (Continental Large, 1v1, unit limit 1500, Middle Ages, 75 min: a land map at high population) and `cont`
+(Continental e0, Small, 60 min) now. `workforce_plan` 1 / 3 / 4 / 8 / 12 / 15 measured, **off**: docs/economy.md
+"Workforce into army". The build with 0 played main's games (Continental e0 4 games, Small Islands Large 2, 25 min,
+JOBS=4: every # eco / # mil / # battle line the same). Under 8 parallel games, other sessions' runs in the same slots
+(11-16) crashed 13 game starts at LLE+0x51D37 (the ports - pick slots nobody uses).
+
 ### Mass before striking, the mines (navy stage 5)
 
 2026-10-19, `navy_fleet=2` with `navy_fleet_mass=1` and `navy_mines=1` (dll/fleet.c fl_rally, navy.c navy_nodes /
