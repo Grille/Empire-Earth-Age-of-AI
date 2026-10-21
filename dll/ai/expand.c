@@ -295,7 +295,7 @@ static int ex_alive(struct ex_unit *e, ee_player *pl) {
     uint8_t *u = e->u, *td = u ? FIELD(u, OF(UNIT, 0x2C), uint8_t *) : NULL;
     return td && FIELD(u, OF(UNIT, 0x3C), int) > 0 && FIELD(u, OF(UNIT, 0x60), int) == e->id && unit_owner(u) == pl;
 }
-static void ex_say(unsigned idx, uint32_t now, const char *fmt, ...) {
+static PRINTF_LIKE(3, 4) void ex_say(unsigned idx, uint32_t now, const char *fmt, ...) {
     if (!g_log) return;
     char buf[400];
     va_list ap;

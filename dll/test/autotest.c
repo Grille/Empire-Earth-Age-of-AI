@@ -72,20 +72,20 @@ static void slot_ports(void) {
     }
     char t[80];
     wsprintfA(t, "%d/%d (%d of 8 patched)", 33334 + 2 * g_slot, 33335 + 2 * g_slot, n);
-    log_line("# slot: network ports %s%.0d\n", t, 0);
+    log_line("# slot: network ports %s\n", t);
 }
 static char __cdecl hook_parse_cmdline(const char *cmd) {
     slot_ports();
-    log_line("# cmdline parse: \"%s\"%.0d\n", cmd ? cmd : "(null)", 0);
+    log_line("# cmdline parse: \"%s\"\n", cmd ? cmd : "(null)");
     char r = ((ParseFn)GA(FN_PARSE_CMDLINE))(cmd);
-    log_line("# cmdline parse returned %s%d (1 = continue to main menu)\n", "", r);
+    log_line("# cmdline parse returned %d (1 = continue to main menu)\n", r);
     return r;
 }
 
 static int __cdecl hook_load_saved(void *name) {
-    log_line("# cmdline loadgame: calling loader%s%.0d\n", "", 0);
+    log_line("# cmdline loadgame: calling loader\n");
     int r = ((LoadFn)GA(FN_LOAD_SAVED))(name);
-    log_line("# cmdline loadgame: loader returned %s%d\n", "", r);
+    log_line("# cmdline loadgame: loader returned %d\n", r);
     return r;
 }
 

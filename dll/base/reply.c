@@ -1,7 +1,7 @@
 // A PIPE COMMAND'S REPLY: every part has its own commands (cmd_<verb>(out, args), control.c execute dispatches them);
 // REPLY appends to the reply text `out` (REPLY_CAP bytes, the control pipe's buffer).
 #define REPLY_CAP 16384
-static int out_printf(char *out, size_t cap, const char *fmt, ...) {
+static PRINTF_LIKE(3, 4) int out_printf(char *out, size_t cap, const char *fmt, ...) {
     size_t len = strlen(out);
     if (len >= cap - 1) return 0;
     va_list ap;

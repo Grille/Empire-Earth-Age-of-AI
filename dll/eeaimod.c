@@ -104,7 +104,7 @@ static void intel_install(const char *aimod_ini, const char *autotest_ini);
 static void landing_install(const char *aimod_ini, const char *autotest_ini);
 static void navy_install(const char *aimod_ini, const char *autotest_ini);
 static void assault_install(const char *aimod_ini, const char *autotest_ini);
-static void log_line(const char *fmt, const char *a, int b);
+static PRINTF_LIKE(1, 2) void log_line(const char *fmt, ...);
 static BOOL patch_srand(void);
 #include "base/ini.c"
 #include "engine/scenario_ai.c"
@@ -289,7 +289,7 @@ static char __fastcall hook_game_start(void *state, void *edx, uint8_t *setup, v
         size_t n = strlen(name);
         if (n > 4 && !lstrcmpiA(name + n - 4, ".ees")) memcpy(name + n - 4, ".scn", 4);   // same length, in place
         *(int *)(setup + SETUP_MODE) = 1;
-        log_line("# game start: switched to scenario mode, loading Scenarios\\%s%.0d\n", name, 0);
+        log_line("# game start: switched to scenario mode, loading Scenarios\\%s\n", name);
     }
     unit_types_load();   // the game's types by name (UT(B_FARM) ...) before any AI code runs - the data is loaded by now
     // the last game's AI players are gone: a second game in one session (loading capittest after an autosave)
@@ -326,7 +326,7 @@ static char __fastcall hook_game_start(void *state, void *edx, uint8_t *setup, v
     sites_new_game();
     if (mode == 2) persist_load(name);   // a saved game: the mod's state from its .aimod file
     char r = ((GameStartFn)GA(FN_GAME_START))(state, setup, p2);
-    log_line("# game start returned %s%d\n", "", r);
+    log_line("# game start returned %d\n", r);
     return r;
 }
 

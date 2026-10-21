@@ -178,7 +178,7 @@ static void so_side_add(struct so_side *s, uint8_t *td, float hp, float dps) {
     s->td[s->n] = td; s->hp[s->n] = hp; s->dps[s->n] = dps; s->n++;
 }
 
-static void so_log(const char *fmt, ...) {
+static PRINTF_LIKE(1, 2) void so_log(const char *fmt, ...) {
     if (!g_log) return;
     va_list ap;
     va_start(ap, fmt);

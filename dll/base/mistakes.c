@@ -11,7 +11,7 @@ static char g_x_queue[8][240];
 static int g_x_queued, g_x_total, g_x_dropped;
 static char *g_x_capture;   // texts corpus: every mistake's message appended here too (each time, not once)
 static int g_x_capture_cap;
-static void x_error(const char *fmt, ...) {
+static PRINTF_LIKE(1, 2) void x_error(const char *fmt, ...) {
     char msg[240];
     va_list ap;
     va_start(ap, fmt);

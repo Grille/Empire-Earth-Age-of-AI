@@ -53,6 +53,8 @@ EXCEPTIONS = [
 TYPED = ['ai/econ.c']
 
 IDENT = re.compile(r'[A-Za-z_]\w*')
+# a declaration's attributes, written out or by base/'s macro (static PRINTF_LIKE(1, 2) void f(...)): not its name
+ATTRIBUTES = re.compile(r'__attribute__\s*\(\((?:[^()]|\([^()]*\))*\)\)|\bPRINTF_LIKE\s*\([^()]*\)')
 KEYWORDS = set('''if for while switch return sizeof static const struct enum union typedef unsigned signed int char void
 float double long short volatile extern inline do else case default break continue goto __attribute__ __asm__ asm
 __thiscall __cdecl __stdcall __fastcall __declspec'''.split())
@@ -118,7 +120,7 @@ def definitions(code):
     for st in re.split(r';|\}(?=\s*(?:\n|$))', t):
         s = ' '.join(st.split())
         if not s: continue
-        s = re.sub(r'__attribute__\s*\(\((?:[^()]|\([^()]*\))*\)\)', ' ', s)
+        s = ATTRIBUTES.sub(' ', s)
         m = re.match(r'.*?\b(\w+)\s*\(([^{}]*)\)\s*\{\s*$', s)            # a function definition: name(...) {
         if m and m.group(1) not in KEYWORDS:
             names.add(m.group(1)); continue
@@ -189,7 +191,7 @@ def analyse():
 def declared(code):
     """what a header declares: its definitions and its prototypes"""
     names = definitions(code)
-    for m in re.finditer(r'^static\s[^;{=]*?\b(\w+)\s*\([^;{]*\)\s*;', code, re.M):
+    for m in re.finditer(r'^static\s[^;{=]*?\b(\w+)\s*\([^;{]*\)\s*;', ATTRIBUTES.sub(' ', code), re.M):
         names.add(m.group(1))
     return names
 

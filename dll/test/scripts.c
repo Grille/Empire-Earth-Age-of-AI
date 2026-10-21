@@ -108,7 +108,7 @@ static int script_run(const char *path, const struct xunit *u) {
 static void WINAPI script_fiber(void *arg) {
     struct script *s = arg;
     script_run(s->path, &s->u);
-    log_line("# setup: %s: done%.0d\n", s->path, 0);
+    log_line("# setup: %s: done\n", s->path);
     s->done = 1;
     for (;;) SwitchToFiber(g_main_fiber);
 }
@@ -128,10 +128,10 @@ static void run_setup(uint32_t now) {
                 if (g_log) { EnterCriticalSection(&g_lock); fprintf(g_log, "# setup: %s:%d: %s - not run\n", s->path, line, why); fflush(g_log); LeaveCriticalSection(&g_lock); }
                 continue;
             }
-            log_line("# setup: %s%.0d\n", s->path, 0);
+            log_line("# setup: %s\n", s->path);
             if (!g_main_fiber) g_main_fiber = IsThreadAFiber() ? GetCurrentFiber() : ConvertThreadToFiber(NULL);
             s->fiber = g_main_fiber ? CreateFiber(1 << 20, script_fiber, s) : NULL;
-            if (!s->fiber) { log_line("# setup: %s: no fiber - not run%.0d\n", s->path, 0); continue; }
+            if (!s->fiber) { log_line("# setup: %s: no fiber - not run\n", s->path); continue; }
             s->reg.busy = 1;   // its evaluations never start its region afresh
             g_nscripts++;
         }

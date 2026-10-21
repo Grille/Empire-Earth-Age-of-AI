@@ -1099,7 +1099,7 @@ static void x_use(struct xe *e, const struct xval *v) {
 }
 // a mistake while working it out (MISTAKES WHILE WORKING OUT above): told once, and what it is in fails
 static char g_x_last_fail[160];   // the last one, for texts eval (the log has each once only)
-static void x_fail(struct xe *e, const char *fmt, ...) {
+static PRINTF_LIKE(2, 3) void x_fail(struct xe *e, const char *fmt, ...) {
     va_list ap;
     va_start(ap, fmt);
     vsnprintf(g_x_last_fail, sizeof g_x_last_fail, fmt, ap);

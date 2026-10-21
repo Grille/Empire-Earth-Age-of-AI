@@ -290,7 +290,7 @@ static void sb_put(struct sbuf *b, const char *s, size_t n) {
     b->p[b->n] = 0;
 }
 static void sb_puts(struct sbuf *b, const char *s) { sb_put(b, s, strlen(s)); }
-static void sb_printf(struct sbuf *b, const char *fmt, ...) {
+static PRINTF_LIKE(2, 3) void sb_printf(struct sbuf *b, const char *fmt, ...) {
     char t[1024];
     va_list ap;
     va_start(ap, fmt);
@@ -654,7 +654,7 @@ static const char *llm_event3(ee_player *pl, int k, const struct xvars **vars) {
     return tpl_key(key) >= 0 ? tpl_find(pl, key, vars) : NULL;
 }
 // append to t (cap bytes, *o used): never past the end, however long the names and lines are
-static void tcat(char *t, int *o, int cap, const char *fmt, ...) {
+static PRINTF_LIKE(4, 5) void tcat(char *t, int *o, int cap, const char *fmt, ...) {
     if (*o >= cap - 1) return;
     va_list ap;
     va_start(ap, fmt);

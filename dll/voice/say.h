@@ -25,7 +25,7 @@ enum chat_kind { CHAT_SAY, CHAT_EPOCH, CHAT_ATTACK, CHAT_ROUTE, CHAT_TOWER, CHAT
 static int g_say_tribute[7];   // {tribute}, {tribute_total}: amounts by resource (stock index 2..6), set by the caller (diplo.c)
 static int g_texts_missing;   // the mod's files aren't there (mod/system.eeai, prompt.eeai, computer.eeai, units.eeai): it says nothing
 
-static int ai_say(ee_player *pl, enum chat_kind kind, const char *fmt, ...);   // a debug chat line (aimod.ini chat)
+static PRINTF_LIKE(3, 4) int ai_say(ee_player *pl, enum chat_kind kind, const char *fmt, ...);   // a debug chat line (aimod.ini chat)
 static int chat_level(void);
 static void chat_tick(ee_player *pl, unsigned idx, uint32_t now);
 static void chat_stance_line(ee_player *pl, int stance);   // the game's own line on a change of stance
@@ -48,7 +48,7 @@ static const char *tnum(char *buf, int n);
 // the language model ([llm]): it decides, answers, remembers
 static int llm_ai_deciding(void);
 static int llm_ai_offer(int from, int to, int kind, int third);
-static void llm_happened(int ai, const char *fmt, ...);
+static PRINTF_LIKE(2, 3) void llm_happened(int ai, const char *fmt, ...);
 static int llm_peace_answer(ee_player *pl, int ai, int j, uint32_t now);
 static void llm_player_chat(const char *text);
 static int llm_propose(int ai, int h, int kind, int third, uint32_t now);

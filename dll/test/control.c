@@ -89,7 +89,7 @@ static struct {
     HANDLE done;
 } g_req;
 
-static void ctl_log(const char *fmt, ...) {
+static PRINTF_LIKE(1, 2) void ctl_log(const char *fmt, ...) {
     if (!g_log) return;
     EnterCriticalSection(&g_lock);
     fputs("# control: ", g_log);
