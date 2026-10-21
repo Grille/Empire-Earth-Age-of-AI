@@ -419,12 +419,49 @@ static uint8_t *fl_pick(uint8_t *u, const unsigned char *sel, int x, int y, int 
 // the leash while massing (fl_decide FLD_MASS): a ship keeps fighting only a target within g_fl_lr of the rally - it
 // doesn't chase an enemy out of the towers' cover
 static int g_fl_lx, g_fl_ly, g_fl_lr;
+static int cover_sea(unsigned idx);   // cover.c: fall_back 4 SEA
+// SEA (fall_back 4): where a retreat and a damaged force go - under the towers (the rally while towers cover it), else
+// the haven (by the dock farthest from the enemy), else the guard point
+static void fl_cover_point(unsigned idx, int *tx, int *ty) {
+    struct fleet *m = &g_fl[idx & 15];
+    if (m->rcover && (m->rx || m->ry)) { *tx = m->rx; *ty = m->ry; }
+    else if (m->hvx || m->hvy) { *tx = m->hvx; *ty = m->hvy; }
+}
+// SEA: the dock a damaged ship goes to - the nearest out of danger, one with an own tower within 8 tiles counting
+// as half the way; -1 none
+static int fl_repair_dock(int x, int y) {
+    int b = -1;
+    float bd = 1e18f;
+    for (int k = 0; k < g_fs.nd; k++) {
+        if (fl_in_danger(g_fs.dkx[k], g_fs.dky[k])) continue;
+        int cov = 0;
+        for (int j = 0; j < g_fs.ntw && !cov; j++) cov = (g_fs.twx[j] - g_fs.dkx[k]) * (g_fs.twx[j] - g_fs.dkx[k]) + (g_fs.twy[j] - g_fs.dky[k]) * (g_fs.twy[j] - g_fs.dky[k]) <= 64;
+        float d = sqrtf((float)((g_fs.dkx[k] - x) * (g_fs.dkx[k] - x) + (g_fs.dky[k] - y) * (g_fs.dky[k] - y))) * (cov ? 0.5f : 1.0f);
+        if (d < bd) { bd = d; b = k; }
+    }
+    return b;
+}
 // each ship: out of danger first; a target inside a danger zone dropped; then the task's target, else to (x, y)
 static void fl_orders(struct fleet *f, const unsigned char *sel, int x, int y, int r, int hunt_prey, int retreat) {
     for (int i = 0; i < f->n; i++) {
         uint8_t *u = f->u[i];
         if (fl_flee(f, u)) continue;
         uint8_t *cur = fl_target_of(u);
+        // SEA: a damaged ship off to the dock before anything else (it kept fighting at 34% while it had a target) and
+        // until 80% (it sailed again at 35%)
+        int sea = cover_sea(g_fs.idx), dock = -1;
+        if (sea && g_fs.nd) {
+            struct fleet *m = &g_fl[g_fs.idx];
+            int hp = FIELD(u, OF(UNIT, 0x3C), int), j;
+            for (j = 0; j < m->ndocked && m->docked[j] != u; j++) ;
+            if ((hp < 0.5f * fl_hp_max(u) || j < m->ndocked) && (dock = fl_repair_dock(FIELD(u, OF(UNIT, 0x1C), int), FIELD(u, OF(UNIT, 0x20), int))) >= 0) {
+                if (j == m->ndocked && j < FL_MAX) { m->docked[j] = u; m->docked_hp[j] = hp; m->ndocked++; }
+                int dx = g_fs.dkx[dock] - FIELD(u, OF(UNIT, 0x1C), int), dy = g_fs.dky[dock] - FIELD(u, OF(UNIT, 0x20), int), wx, wy;
+                // to the water by the dock (the dock's own tile is land), once within 4 tiles of it no more orders
+                if (dx * dx + dy * dy > 16 && ocean_near(g_fs.dkx[dock], g_fs.dky[dock], 4, &wx, &wy)) fl_move(f, u, wx, wy, 0);
+                continue;
+            }
+        }
         if (retreat) { fl_move(f, u, x, y, i); continue; }   // off the fight
         int leashed = 0;
         if (g_fl_lr && cur) { int dx = FIELD(cur, OF(UNIT, 0x1C), int) - g_fl_lx, dy = FIELD(cur, OF(UNIT, 0x20), int) - g_fl_ly; leashed = dx * dx + dy * dy > g_fl_lr * g_fl_lr; }
@@ -847,7 +884,7 @@ static int fl_decide(unsigned idx, struct fleet *f, uint32_t now, int flags) {
             }
         }
     }
-    if (task == FT_RETREAT) { tx = f->gx; ty = f->gy; }
+    if (task == FT_RETREAT) { tx = f->gx; ty = f->gy; if (cover_sea(idx)) fl_cover_point(idx, &tx, &ty); }
     int changed = task != prev;
     fl_set(f, task, why, now);
     f->dx = tx; f->dy = ty;
@@ -1042,7 +1079,7 @@ static int tf_decide(unsigned idx, int kind, struct fleet *f, struct fleet *home
         f->retreats++; f->retreat_t = now;
         task = FT_RETREAT; why = hp < 0.5f * f->hp0 ? "half the hit points lost" : "outmatched near";
     } else if (prev == FT_RETREAT && now - f->retreat_t < 45000) { task = FT_RETREAT; why = f->why; }
-    else if (hp < 0.5f * hmax) { task = FT_GUARD; why = "damaged - repairs"; }
+    else if (hp < 0.5f * hmax) { task = FT_GUARD; why = "damaged - repairs"; if (cover_sea(idx)) fl_cover_point(idx, &tx, &ty); }
     else {
         int found = kind == TF_HUNT ? tf_target_fleet(f, cx, cy, &tx, &ty, &why) : kind == TF_RAID ? tf_target_prey(f, cx, cy, &tx, &ty, &why) :
                     tf_target_patrol(f, cx, cy, now, &tx, &ty, &why, &use);
@@ -1065,7 +1102,7 @@ static int tf_decide(unsigned idx, int kind, struct fleet *f, struct fleet *home
             }
         }
     }
-    if (task == FT_RETREAT) { tx = f->gx; ty = f->gy; }
+    if (task == FT_RETREAT) { tx = f->gx; ty = f->gy; if (cover_sea(idx)) fl_cover_point(idx, &tx, &ty); }
     int changed = task != prev || (f->why && strcmp(f->why, why));
     fl_set(f, task, why, now);
     f->dx = tx; f->dy = ty;

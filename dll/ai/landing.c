@@ -158,6 +158,7 @@ static int fleet_refuses(uint8_t *sg, uint8_t *u);  // fleet.c: an order to one 
 static int mass_refuses(uint8_t *sg, uint8_t *u, void *goal);   // mass.c: an order to a reinforcement held at the rally
 static int expand_ship(uint8_t *u);                 // expand.c: the transport of an outpost's ferry (its player), 0: none
 static int expand_refuses(uint8_t *sg, uint8_t *u); // expand.c: the ferry's transport and passengers, an outpost's guard
+static int cover_refuses(uint8_t *sg, uint8_t *u);  // cover.c: a unit falling back to cover or at the Hospital
 static int expand_leads(uint8_t *sg);               // expand.c: a subgroup holding the ferry's transport
 static int expand_unload_ok(uint8_t *u, int gx, int gy);   // expand.c: the game's unload retry at the ferry's own point
 static int expand_has(void *pl, uint8_t *u);        // expand.c: a passenger of the ferry (the landing leaves it)
@@ -246,7 +247,7 @@ static unsigned g_ld_refused, g_ld_kept_goal;
 static void ld_fu_given(void *g, int ok);   // below (the game's unload orders to landing transports)
 static char __fastcall hook_asg_give_goal(uint8_t *sg, void *edx, uint8_t *u, void *goal, int a, int prio) {
     (void)edx;
-    if (!is_vanilla(FIELD(sg, OF(ASG, 0x190), void *)) && (landing_leads(sg) || fleet_refuses(sg, u) || mass_refuses(sg, u, goal) || expand_refuses(sg, u))) {   // the fleet (fleet.c): its ships in any subgroup; mass.c; expand.c
+    if (!is_vanilla(FIELD(sg, OF(ASG, 0x190), void *)) && (landing_leads(sg) || fleet_refuses(sg, u) || mass_refuses(sg, u, goal) || expand_refuses(sg, u) || cover_refuses(sg, u))) {   // the fleet (fleet.c): its ships in any subgroup; mass.c; expand.c; cover.c
         g_ld_refused++;
         if ((uintptr_t)__builtin_return_address(0) == GA(RET_ASG_LAND_HANDOFF_GIVE)) { g_ld_kept_goal++; return 1; }
         ld_fu_given(goal, 0);

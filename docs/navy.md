@@ -798,6 +798,18 @@ without (2 seeds, 25 min). About 1000 runs, no crash.
 Still missing: land units at the rally; expansion to other islands' mines under fleet cover; the patrol and raids
 when the opponent fleet is out of sight but stronger (the fleet waits at the rally then).
 
+### Ships to cover and to the docks (2026-10-21, dll/ai/fleet.c with dll/ai/cover.c `fall_back` 4, ON)
+
+Measured (`# cvd`, base AI at hard, 40 games a map): on the big island maps two thirds of the value the mod lost was
+warships, 5000-5700 of it in fights lost when they began (Tournament / Large Islands Huge, no cheat); the docks repaired
+3500-5000 hit points a game - ships went at 35% and sailed again at 35%, and a ship with a target never went. SEA: the
+fleet's retreat and a damaged force go to the rally under its towers (else the haven by a dock) instead of the open-
+water guard point; a warship below half its hit points breaks off at once to the water by a dock (one an own tower
+covers counts half the way) and stays until 80%. Alone (20 games a cell): Large Islands Huge without the cheat
+kills - losses +21 (13) / +41 (13), warships +8 to +10, the docks' repairs 5000 -> 12900; with the cheat within the
+noise. With 1 + 2 (fall_back 7, on): warships at the end +0 to +9.5 (2.0), head-to-head (Small Islands Large) warships
++8.1 (2.1), sunk +12.3 (4.3), ships lost -5.6 (2.5). docs/economy.md "Fall back to cover".
+
 ### Risks
 
 - **The engine's own subgroup orders.**

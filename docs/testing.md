@@ -741,6 +741,27 @@ the cell's last games are still being written pairs fewer games (31 of 40 once) 
 main's games (Continental e0 and Small Islands Large, 2 seeds x both seats: 6 of 8 identical, the other two parted at
 minute 43 and 55 under 8 parallel games).
 
+### Fall back to cover (2026-10-21)
+
+`# cvd:` (autotest, dll/ai/cover.c; the mod's AIs and the vanilla players) for every military unit killed: its line and
+type, base price, hit points, the fight estimate when it took its target (x 100, -1 none in the last 2 minutes) and how
+long ago, the estimate at its death, an enemy defence covering the spot, own fighters within 6 tiles, seconds below half
+its hit points and a quiet moment then, tiles to the nearest own Hospital / Dock, held by fall_back, the killer.
+`# cover:` once a game minute: military units, damaged, damaged in a quiet moment; hit points regained by the Hospitals,
+the Docks, elsewhere; Hospitals, Docks, defences standing; what fall_back did (to the Hospital, healed, broke off,
+back, held, subgroup orders refused, estimates made). `scripts/cover.py [-base NAME] "work/autotest_*_ab-<name>-*.csv"`
+(per side; the paired differences with the standard measures, value lost / killed, value lost in lost fights,
+log(killed / lost), wins) and `-h2h`. Runs: `scripts/isl_ablate.sh` with `MAPS="siL tiH liH coL cont si5"`, both
+cheats, 20 seeds, base variant `fbB0` (`fall_back=0`); head-to-head `h2h.sh 75 late "random_map=Small Islands,seed=101,
+map_scale=large,unit_limit=2500,ai_count=4,start_epoch=5,difficulty=hard" "v_fall_back=7"`, `h2h.sh 60 late
+"random_map=Continental,seed=101,map_size=1,ai_count=4,start_epoch=0,difficulty=hard"`, `h2h.sh 60 lowpop
+"random_map=Continental,seed=101,map_size=0,ai_count=2,start_epoch=9,unit_limit=60,difficulty=hard"`. `fall_back` 1 /
+2 / 4 / 3 / 7 measured, **7 on**: docs/economy.md "Fall back to cover". Healing in the game (pipe `spawn` + `hurt` on
+the idle P1, Small Islands e5): a Hospital heals all own land units within ~4 tiles, 3 hit points a second; a Dock
+repairs ships within ~3 tiles, 2 a second each. 0x628D6F (the broken unit list) came once in 240 games with ships
+ordered onto a dock's tile - reproducible with that seed (tiH, game_seed 5, vanilla P3 with the cheat); with the water
+tile by the dock none in the ~800 games with SEA on since.
+
 ### Mass before striking, the mines (navy stage 5)
 
 2026-10-19, `navy_fleet=2` with `navy_fleet_mass=1` and `navy_mines=1` (dll/ai/fleet.c fl_rally, navy.c navy_nodes /

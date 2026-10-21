@@ -74,6 +74,9 @@ static void am_new_game(void);
 static void mass_tick(void *pl, uint32_t now);   // mass.c: the army as one
 static void mass_new_game(void);
 static void mass_install(const char *aimod_ini, const char *autotest_ini);
+static void cover_tick(void *pl, uint32_t now);   // cover.c: fall back to cover
+static void cover_new_game(void);
+static void cover_install(const char *aimod_ini, const char *autotest_ini);
 static void expand_tick(void *pl, uint32_t now);   // expand.c: other islands
 static void expand_new_game(void);
 static void expand_install(const char *aimod_ini, const char *autotest_ini);
@@ -195,6 +198,7 @@ static void __fastcall hook_rm_update(void *rm, void *edx, uint32_t now) {
     if (pl) am_tick(pl, now);
     if (pl) mt_tick(pl, now);
     if (pl) mass_tick(pl, now);
+    if (pl) cover_tick(pl, now);
     if (pl) expand_tick(pl, now);
     g_rm_seen = 1;
     autotest_tick(now);
@@ -312,6 +316,7 @@ static char __fastcall hook_game_start(void *state, void *edx, uint8_t *setup, v
     wf_new_game();
     am_new_game();
     mass_new_game();
+    cover_new_game();
     expand_new_game();
     ap_new_game();
     mt_new_game();
@@ -359,6 +364,7 @@ static char __fastcall hook_game_start(void *state, void *edx, uint8_t *setup, v
 #include "ai/mass.c"
 #include "ai/expand.c"
 #include "ai/metal.c"
+#include "ai/cover.c"
 #include "persist.c"
 #include "engine/aim.c"
 #include "engine/camera.c"
@@ -542,6 +548,7 @@ static void install(HMODULE self) {
     ap_install(g_aimod_ini, g_autotest ? g_ini : NULL);
     mt_install(g_aimod_ini, g_autotest ? g_ini : NULL);
     mass_install(g_aimod_ini, g_autotest ? g_ini : NULL);
+    cover_install(g_aimod_ini, g_autotest ? g_ini : NULL);
     expand_install(g_aimod_ini, g_autotest ? g_ini : NULL);
     attack_install(g_aimod_ini, g_autotest ? g_ini : NULL);
     assault_install(g_aimod_ini, g_autotest ? g_ini : NULL);

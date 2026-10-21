@@ -824,3 +824,94 @@ but the fights stay within the noise. Head-to-head against the control AI (Small
 -0.9 (2.1), stone income +316 (147). No variant is a clear gain without a loss elsewhere: **off** (`expand_islands=0`).
 What it would take: an outpost on an island the base AI does not contest, or an army there that beats its landing - the
 land army's size on islands is the metal again (the warships take two thirds of it, "Gold and iron").
+
+## Fall back to cover (2026-10-21, dll/ai/cover.c)
+
+The playtester: the AI loses expensive units in fights it cannot win, for nothing - a player pulls a lost fight back
+under his towers, sends damaged units to the hospital and damaged ships to the docks, and comes back healed. Before:
+the fleet retreated a failed hunt to its open-water guard point, ships below 35% went to a dock (and sailed again at
+35%, or never went while they had a target), land units never fell back (attack_retreat, hold_town and army_mass 4
+call whole attacks back - they cost kills against the cheating base AI and are off).
+
+What the game does (pipe tests on the idle player's units, Middle Ages): a Hospital heals every own land unit within
+~4 tiles of its centre at once, 3 hit points a second (a Long Sword 100 -> 400 in 100 s; 5 tiles away nothing); a
+Dock repairs the ships within ~3 tiles, 2 a second each; nothing else regains hit points.
+
+**Measured** (`# cvd` / `# cover`, autotest, both sides; `scripts/cover.py`): for every military unit killed its base
+price (F+W+S+G+I, no cheat), the fight estimate when it took its target (stats.c st_ratio, own and allied fighters
+within 10 tiles against the enemy's and the enemy defences covering the spot - all units, not only those seen), how
+long it had been below half its hit points and whether it then had a quiet moment (no enemy fighter within ~8-16
+tiles), whether it died alone or under an enemy defence. Base AI at hard, 75 minutes (cont / si5 60), 20 seeds x both
+seats, the mod's AI as shipped before (`fbB0`), means per game, mod / base AI:
+
+| Map | cheat | value lost (land / sea) | in fights the estimate called lost (< 0.5) | value killed / lost | died damaged with time to heal | Hospital hit points healed |
+|---|---|---|---|---|---|---|
+| Continental Large | no | 11585 / 1156 vs 10338 / 1100 | 33% vs 38% | 0.90 | 8.1 vs 9.0 | 125 vs 115 |
+| Continental e0 | no | 2377 / 81 vs 2722 / 12 | 24% vs 40% | 1.11 | 2.9 vs 0.8 | 0 |
+| Large Islands Huge | no | 3797 / 16194 vs 4546 / 11575 | 34% vs 43% | 0.81 | 7.2 vs 4.7 | 141 vs 72 |
+| Small Islands e5 | no | 2173 / 6056 vs 3442 / 7156 | 17% vs 31% | 1.29 | 3.6 vs 1.6 | 261 vs 313 |
+| Small Islands Large | no | 3601 / 10775 vs 5488 / 11550 | 26% vs 35% | 1.19 | 5.2 vs 3.4 | 308 vs 97 |
+| Tournament Islands Huge | no | 4360 / 12300 vs 4565 / 9450 | 40% vs 35% | 0.84 | 6.4 vs 4.0 | 369 vs 170 |
+| Continental Large | yes | 6710 / 175 vs 11673 / 331 | 38% vs 36% | 1.74 | 3.8 vs 6.0 | 113 vs 166 |
+| Large Islands Huge | yes | 5478 / 11019 vs 10482 / 8031 | 32% vs 32% | 1.12 | 6.3 vs 5.3 | 166 vs 247 |
+| Small Islands Large | yes | 2871 / 5312 vs 6923 / 9650 | 23% vs 25% | 2.03 | 3.4 vs 3.2 | 296 vs 129 |
+| Tournament Islands Huge | yes | 4418 / 8981 vs 7161 / 11806 | 26% vs 25% | 1.42 | 6.5 vs 3.6 | 440 vs 128 |
+
+A quarter to two fifths of the mod's lost value died in fights that were lost when they began; on the island maps
+two thirds of the value lost is warships, and most of the lost-fight value too (Tournament Islands Huge 5100 of 6700).
+3-10 units a game died after a minute or more below half their hit points with time to heal; the AIs build 1-3
+Hospitals (the mod's healed 100-400 hit points a game there), the Docks repaired 3500-5000 hit points of the mod's
+ships on the big island maps. 13-20 expensive units (value 100+, siege, heroes, cavalry, warships) a game died alone
+(mostly warships); the base AI loses 2-6x more under the mod's towers than the mod under its.
+
+**fall_back** ([all], bits, `v_fall_back`; per unit, an attack is never called back; mod AIs only):
+- 1 HEAL: a land unit worth `fall_back_value` (100) or more below `fall_back_hp` (40%) walks to the nearest own Hospital
+  on its land within `fall_back_dist` (60) tiles (no enemy seen near it), 2 tiles from its centre, stays until 90% (4
+  minutes at most) - its attack subgroup's orders refused meanwhile (landing.c hook_asg_give_goal, as for the fleet)
+  - then the subgroup has it again.
+- 2 BREAK: a land unit with enemies seen within ~8-16 tiles whose fight is clearly lost - the estimate with only what
+  the AI sees (its fighters and the allies' within 10 tiles, the enemy's seen, the enemy defences whose reach covers
+  the spot) below `fall_back_ratio` (50%) - falls back to cover: the nearest own defence building on its land within
+  `fall_back_dist` tiles that no known enemy defence covers, 2 tiles on the base's side of it; else a Hospital; else
+  the base. Held until 20 s after it arrived (90 s at most), not while within 4 tiles of the cover already (it fights
+  there, the towers with it). On another island without own cover it fights on. Estimates cached per 4-tile cell.
+- 4 SEA (fleet.c): the fleet's retreat (a hunt or task force gone wrong) and a damaged force go to the rally under its
+  towers (else the haven by the dock farthest from the enemy) instead of the open-water guard point; a warship below
+  half its hit points breaks off at once to the water by a dock (one an own tower covers counts half the way) and
+  stays until 80%. (Ordered onto the dock's own tile, a land tile, one Tournament Islands Huge game went into the
+  engine's broken unit list, 0x628D6F, reproducibly - the water tile by the dock doesn't.)
+
+Paired with `fbB0` (d = with - without, se; 40 games a cell; `fbA7` = 7, `fbA3` = 1 + 2):
+
+| Map | cheat | d kills - losses 7 | d losses 7 | d soldiers at 75 | d warships | d value lost | value lost in lost fights | log(killed/lost) | base AI wins | 3: d kills - losses |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Continental Large | no | +56.0 (10.2) | -37.1 (12.0) | +19.4 (6.1) | +0.2 | -3213 (1021) | 4187 -> 1701 | +0.44 (0.08) | 2 -> 2 (mod 9 -> 10) | +59.3 (9.8) |
+| Continental e0 | no | +12.7 (4.2) | -5.4 (2.2) | +2.4 (2.0) | +0.3 | -290 (180) | 586 -> 231 | +0.16 (0.09) | 1 -> 1 (mod 11 -> 12) | +12.7 (4.2) |
+| Large Islands Huge | no | +42.2 (13.1) | -40.1 (12.2) | +3.5 (5.0) | +9.5 (2.0) | -4539 (896) | 6857 -> 5677 | +0.32 (0.07) | 0 -> 0 | +38.2 (10.8) |
+| Small Islands e5 | no | -5.0 (7.2) | -2.1 (6.6) | +3.2 (2.3) | +1.3 | -722 (565) | 1370 -> 1161 | +0.04 (0.07) | 3 -> 1 | +7.6 (3.7) |
+| Small Islands Large | no | +18.0 (10.7) | -20.9 (9.1) | +12.0 (4.0) | +3.2 (1.8) | +131 (749) | 3747 -> 3423 | 0.00 (0.05) | 2 -> 0 | +12.2 (10.5) |
+| Tournament Islands Huge | no | +23.0 (11.0) | -20.0 (9.5) | +10.8 (4.4) | +5.5 (2.2) | -2245 (947) | 6680 -> 4885 | +0.26 (0.09) | 0 -> 0 | +18.4 (9.8) |
+| Continental Large | yes | +35.6 (8.2) | -22.9 (14.3) | +0.4 | +0.1 | -858 (694) | 2610 -> 877 | +0.29 (0.06) | 37 -> 34 | +35.6 (8.2) |
+| Continental e0 | yes | +4.8 (5.4) | -9.2 (2.9) | +7.2 (2.2) | -0.1 | -547 (257) | 1044 -> 408 | +0.16 (0.05) | 3 -> 2 (mod 2 -> 0) | +4.8 (5.4) |
+| Large Islands Huge | yes | +17.9 (11.6) | -0.1 (14.2) | +8.2 (2.4) | +0.6 | -81 (708) | 5323 -> 3805 | +0.13 (0.06) | 11 -> 7 | +23.2 (10.9) |
+| Small Islands e5 | yes | +15.6 (6.2) | -15.1 (7.2) | +3.1 (1.9) | +0.3 | +345 (409) | 908 -> 797 | +0.01 (0.08) | 19 -> 20 | +11.0 (5.9) |
+| Small Islands Large | yes | -4.7 (12.4) | +27.6 (17.1) | +3.6 (1.8) | +0.6 | +933 (728) | 1855 -> 1486 | +0.04 (0.07) | 30 -> 19 | -5.9 (10.5) |
+| Tournament Islands Huge | yes | +1.9 (12.0) | +5.5 (14.4) | +3.3 (2.5) | +1.8 | -208 (860) | 3502 -> 2575 | +0.09 (0.06) | 8 -> 4 | +12.5 (11.7) |
+
+With the cheat on Small Islands Large the mod kills 23 (10) more and loses 28 (17) more - it stands longer (the base AI
+wins 30 -> 19 of 40). The value lost in lost fights falls on every map (by 15-65%), the base AI wins less often on
+5 of 6 maps with the cheat. dmgdied (died with time to heal) rises by 2-7 on the land maps: BREAK keeps damaged units
+alive that HEAL can't reach (no Hospital, 0.1-0.3 on Continental) - they die later. 10-20 seeds alone (1, 2, 4 each,
+20 games a cell): HEAL Continental Large +21.6 (9.1), else within the noise (fewer Hospitals than units to heal: 26
+sent, 8 healed, 11 died on the way); BREAK +31 to +43 on the large maps both cheats, Continental e0 +14 / +17; SEA
+Large Islands Huge +21 to +41 without the cheat, warships +8 to +10, within the noise with it.
+
+Head-to-head against the control AI (`v_fall_back=7`, B - A per game, se; `cover.py -h2h`): Small Islands Large (4 AIs,
+unit limit 2500, 75 min, 24 games) kills - losses +28.2 (18.4), kills +20.5 (10.9), soldiers +24.1 (6.7) (h2h.py),
+warships +8.1 (2.1), sunk +12.3 (4.3), ships lost -5.6 (2.5), value lost -2302 (1020); Continental (map_size 1, 4 AIs,
+60 min, 24 games) +11.5 (6.7), kills +8.3 (3.5), alive +0.06 (0.03); lowpop (Continental e9, unit limit 60, 20 games)
++21.1 (6.9), kills +10.7 (4.4), losses -10.4 (3.1). **On by default (`fall_back=7`).** The build with it off plays the
+games of the build before (Continental e0 and Small Islands Large, 25 min: every # mil / # battle / # eco line the same).
+Left: Hospitals - the AIs have 0-1 on Continental (HEAL rarely acts there); a unit that breaks off away from cover on
+an enemy island fights on; the estimate counts a static tower out of reach of anything that outranges it (ships
+dying to towers show "won" fights).
