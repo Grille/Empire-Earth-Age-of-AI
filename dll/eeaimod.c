@@ -17,17 +17,16 @@
 #include <psapi.h>   // types only (K32GetProcessMemoryInfo by GetProcAddress)
 
 struct ustring;
+#include "base/log.c"
+#include "base/patch.c"
+#include "base/reply.c"
+#include "base/paths.c"
 #include "game/addr.h"     // the game's addresses by name, per exe build: GA(G_WORLD_CLOCK), GF(FN_CAN_BUILD)(pl, t, 0x20, 0)
 #include "game/layout.h"
 #include "game/players.c"
 
 typedef char (__thiscall *RmFn)(void *self);
 typedef void (__thiscall *RmUpdateFn)(void *self, uint32_t now);
-
-#include "base/log.c"
-#include "base/patch.c"
-#include "base/reply.c"
-#include "base/paths.c"
 
 static void autotest_tick(uint32_t now);
 static volatile int g_rm_seen;   // an AI resource manager has ticked (else the sim loop drives autotest_tick)

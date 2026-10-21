@@ -12,6 +12,11 @@ Several sessions may work in this tree at the same time - see Git below.
 - `sh dll/build.sh` builds `dll/eeaimod.dll` and `dll/dinput.dll` (llvm-mingw in `tools/`, 32-bit; it also
   regenerates `dll/persist_layout.h` and `dll/test/cmd_verbs.h`). One translation unit: `dll/eeaimod.c` includes the rest.
   A build must be free of warnings.
+- `dll/` has a folder per part, and which part may use which is a rule the build checks (`scripts/layers.py`):
+  base (nothing) <- game <- engine, ai; script (base only: the language knows no game); voice (base, game, ai, script);
+  test and the wiring (`eeaimod.c`, `persist.c`) everything. A new crossing fails the build - put the code where it
+  belongs (a shared helper down into base/ or game/) instead of adding an exception. `--why <folder>` lists the uses.
+- A move that should change no code (files, functions between files): `scripts/code_same.py HEAD` must say "0 differ".
 - `sh scripts/install.sh` puts the committed build into the game: built from a clean `git archive HEAD` (never the
   working tree), copied under a reservation of the game folder (a loaded DLL can't be replaced). Commit first.
 - A task that needs the game folder to itself (an install, a slot-0 run): `sh scripts/reserve.sh "<what>" <command>`

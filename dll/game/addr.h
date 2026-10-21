@@ -423,8 +423,6 @@ static uintptr_t g_addr[A_N];
 #define GA(n) (g_addr[A_##n])
 #define GF(n) ((n##_fn)g_addr[A_##n])
 #define GL(n) (k_addr_list_##n[g_exe_build])
-static uintptr_t g_code_lo, g_code_hi;   // the exe's code section and its whole image (its PE header: the same test
-static uintptr_t g_image_lo, g_image_hi; // for every build)
 static int g_addr_missing;               // names the running build hasn't got (logged at the start: addr_log)
 
 // the running exe's column into g_addr; the names it hasn't got (0) are counted - the caller logs them
@@ -432,17 +430,7 @@ static int addr_select(int build) {
     int missing = 0;
     g_exe_build = build;
     for (int i = 0; i < A_N; i++) missing += !(g_addr[i] = k_addr[i][build]);
-    uint8_t *b = (uint8_t *)GetModuleHandleA(NULL);
-    IMAGE_NT_HEADERS32 *nt = (IMAGE_NT_HEADERS32 *)(b + *(uint32_t *)(b + 0x3C));
-    g_image_lo = (uintptr_t)b;
-    g_image_hi = g_image_lo + nt->OptionalHeader.SizeOfImage;
-    IMAGE_SECTION_HEADER *s = IMAGE_FIRST_SECTION(nt);
-    for (int i = 0; i < nt->FileHeader.NumberOfSections; i++, s++)
-        if (s->Characteristics & IMAGE_SCN_CNT_CODE) {
-            g_code_lo = (uintptr_t)b + s->VirtualAddress;
-            g_code_hi = g_code_lo + s->Misc.VirtualSize;
-            break;
-        }
+    image_ranges();
     return missing;
 }
 static void addr_log(FILE *log) {   // the names the running build hasn't got: what uses them doesn't work there
