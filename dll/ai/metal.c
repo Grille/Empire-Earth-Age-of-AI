@@ -38,7 +38,7 @@ static void mt_new_game(void) { memset(g_mt, 0, sizeof g_mt); }
 static int mt_line(void *pl, int t) {
     uint8_t *td = type_data(t);
     if (!td) return MB_UNK;
-    int fam = FIELD(td, 0x4B4, int);
+    int fam = FIELD(td, OF(TD, 0x4B4), int);
     if (is_citizen_type(t)) return MB_CIT;
     if (ut_role(t, UTR_TOWER)) return MB_TOWER;
     if (ut_role(t, UTR_WALL)) return MB_WALL;
@@ -52,8 +52,8 @@ static int mt_line(void *pl, int t) {
     if (is_siege(t) || is_ram(t)) return MB_SIE;
     if (!is_army_family(fam)) return MB_UNK;
     uint8_t *tt = FIELD(pl, PL_TECHTREE, uint8_t *);
-    uint8_t *tech = tt ? GF(FN_TECH_LOOKUP)(tt, FIELD(td, 0x4E0, int)) : NULL, *d = tech ? FIELD(tech, 8, uint8_t *) : NULL;
-    int *b = d ? FIELD(d, 0x10, int *) : NULL, *e = d ? FIELD(d, 0x14, int *) : NULL;
+    uint8_t *tech = tt ? GF(FN_TECH_LOOKUP)(tt, FIELD(td, OF(TD, 0x4E0), int)) : NULL, *d = tech ? FIELD(tech, OF(TECH, 0x8), uint8_t *) : NULL;
+    int *b = d ? FIELD(d, OF(TECHDATA, 0x10), int *) : NULL, *e = d ? FIELD(d, OF(TECHDATA, 0x14), int *) : NULL;
     for (int *p = b; b && e > b && e - b < 16 && p < e; p++) {
         if (*p == UT(B_BARRACKS)) return MB_INF;
         if (*p == UT(B_ARCHERY_RANGE)) return MB_RNG;
@@ -68,12 +68,12 @@ static void mt_income(void *pl, int type, int amount) {
 // a payment (econ.c hook_pay, every player): what = the tech paid
 static void mt_paid(void *pl, uint8_t *what, const int *before, const int *stock) {
     struct mt_st *m = &g_mt[(unsigned)FIELD(pl, PL_INDEX, int) & 15];
-    uint8_t *d = what ? FIELD(what, 8, uint8_t *) : NULL;
+    uint8_t *d = what ? FIELD(what, OF(TECH, 0x8), uint8_t *) : NULL;
     int b = MB_UNK;
     if (d) {
-        int t = FIELD(d, 0x6C, int);
+        int t = FIELD(d, OF(TECHDATA, 0x6C), int);
         if (t >= 0 && type_data(t)) b = mt_line(pl, t);
-        else if (FIELD(d, 0x48, int) == 7) b = MB_UP7;
+        else if (FIELD(d, OF(TECHDATA, 0x48), int) == 7) b = MB_UP7;
         else {
             b = MB_TECH;
             for (int e = 1; e <= 14; e++) if (d == epoch_tech(pl, e)) { b = MB_EP; break; }
@@ -137,7 +137,7 @@ static float mt_dps(uint8_t *atd, uint8_t *ast, int api, uint8_t *ttd, uint8_t *
     int s = st_shot_t(atd, ast, api, ttd, tst, tpi);
     return s > 0 ? (float)s / (st_reload_t(atd, ast) + ST_SHOT_OVERHEAD) : 0.0f;
 }
-static float mt_range_t(uint8_t *td, uint8_t *st) { return st ? FIELD(st, 0x9C, float) : FIELD(td, 0x420, float); }
+static float mt_range_t(uint8_t *td, uint8_t *st) { return st ? FIELD(st, OF(USTAT, 0x9C), float) : FIELD(td, OF(TD, 0x420), float); }
 static float mt_price(void *pl, unsigned idx, int t, const int *stock, const int *reserve);
 // the values of the trainable land soldiers against the known enemy mix, every 30 s
 static void mt_values(void *pl, unsigned idx) {
@@ -149,7 +149,7 @@ static void mt_values(void *pl, unsigned idx) {
     if (!tt) return;
     for (int t = 0; t < 724 && v->n < MT_CAND; t++) {
         if (!land_soldier(t) || soldier_score(t) <= 0) continue;
-        uint8_t *tech = GF(FN_TECH_LOOKUP)(tt, FIELD(type_data(t), 0x4E0, int));
+        uint8_t *tech = GF(FN_TECH_LOOKUP)(tt, FIELD(type_data(t), OF(TD, 0x4E0), int));
         int c = 0;
         for (int r = 2; r < 7; r++) c += unit_cost(pl, t, r);
         if (!tech || !tech[4] || c < 20) continue;   // nothing for free: the Court Jester (0), heroes of scenarios
@@ -293,8 +293,8 @@ static void mt_log(void *pl, unsigned idx, unsigned min) {
     struct mt_st *m = &g_mt[idx];
     int army[MT_NB] = { 0 }, foe[MT_NB] = { 0 };
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
-        if (FIELD(it.u, 0x18, void *) != pl || FIELD(it.u, 0x3C, int) <= 0) continue;
-        int t = FIELD(it.td, 0x4B8, int), b = mt_line(pl, t);
+        if (FIELD(it.u, OF(UNIT, 0x18), void *) != pl || FIELD(it.u, OF(UNIT, 0x3C), int) <= 0) continue;
+        int t = FIELD(it.td, OF(TD, 0x4B8), int), b = mt_line(pl, t);
         if (b >= MB_INF && b <= MB_AIR) army[b]++;
     }
     if (!is_vanilla(pl)) {
@@ -343,8 +343,8 @@ static void mt_tick(void *pl, uint32_t now) {
                 memset(g_mt_own[idx], 0, sizeof g_mt_own[idx]);
                 g_mt_army[idx] = 0;
                 for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
-                    if (FIELD(it.u, 0x18, void *) != pl || FIELD(it.u, 0x3C, int) <= 0) continue;
-                    int t = FIELD(it.td, 0x4B8, int);
+                    if (FIELD(it.u, OF(UNIT, 0x18), void *) != pl || FIELD(it.u, OF(UNIT, 0x3C), int) <= 0) continue;
+                    int t = FIELD(it.td, OF(TD, 0x4B8), int);
                     if (t >= 0 && t < 768 && land_soldier(t)) { g_mt_own[idx][t]++; g_mt_army[idx]++; }
                 }
             }
