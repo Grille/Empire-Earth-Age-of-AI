@@ -1,5 +1,5 @@
 """The object types' identifiers: docs/units.md (every type by epoch: id, identifier, English name, kind, stats, cost)
-and dll/unit_names.h (the identifiers for the DLL, by type id; the kinds - the game's families - and each type's).
+and dll/unit_names.h (the identifiers for the DLL, by type id; the kinds - the game's families - and their types).
 
 An identifier is the type's internal name from the game's data (dbobjects.dat - the same in every game language),
 lowercase, every run of other characters one '_': "b  Guard Tower - Bronze" -> b_guard_tower_bronze. One rule, no
@@ -86,10 +86,22 @@ def main():
             if len(line) + len(item) > 118: f.write(line + '\n'); line = '   '
             line += item
         f.write(line + '\n};\n')
-        f.write('// each type\'s kind (k_kind_ident), by type id; 255: no type\n')
-        f.write('static const unsigned char k_unit_kind[UNIT_TYPES] = {\n')
-        for i in range(0, top, 24):
-            f.write('    %s,\n' % ', '.join(str(by_id[j]['Family ID'] if j in by_id else 255) for j in range(i, min(i + 24, top))))
+        # each kind's types, built here once (a kind in a filter sets only its own types): k_kind_types[k_kind_first[k]]
+        # up to k_kind_first[k + 1]
+        of_kind = [sorted(r['ID'] for r in objs if r['Family ID'] == k) for k in range(max(kinds) + 1)]
+        first, at = [], 0
+        for ts in of_kind:
+            first.append(at); at += len(ts)
+        first.append(at)
+        f.write('// the types of each kind (k_kind_ident): k_kind_types[k_kind_first[k]] .. k_kind_types[k_kind_first[k + 1] - 1]\n')
+        f.write('static const unsigned short k_kind_first[UNIT_KINDS + 1] = {\n')
+        for i in range(0, len(first), 20):
+            f.write('    %s,\n' % ', '.join(str(x) for x in first[i:i + 20]))
+        f.write('};\n')
+        flat = [t for ts in of_kind for t in ts]
+        f.write('static const unsigned short k_kind_types[%d] = {\n' % len(flat))
+        for i in range(0, len(flat), 20):
+            f.write('    %s,\n' % ', '.join(str(x) for x in flat[i:i + 20]))
         f.write('};\n')
 
     rows = collections.defaultdict(list)

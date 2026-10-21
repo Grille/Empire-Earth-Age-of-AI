@@ -2149,7 +2149,7 @@ static int x_type_filter(const char *name, const struct xval *f, unsigned char s
         int t = it->has_n ? (int)it->n : -1;
         if (it->ln) { if (!x_type_filter(name, it, sel)) return 0; }
         else if (it->has_s && !_strnicmp(it->s, "kind.", 5) && t >= 0 && t < UNIT_KINDS) {
-            for (int u = 0; u < UNIT_TYPES; u++) if (k_unit_kind[u] == t) sel[u] = 1;
+            for (int j = k_kind_first[t]; j < k_kind_first[t + 1]; j++) sel[k_kind_types[j]] = 1;   // its types (unit_names.h)
         } else if (it->has_s && t > 0 && t < UNIT_TYPES && k_unit_ident[t] && !lstrcmpiA(it->s, k_unit_ident[t])) sel[t] = 1;
         else {
             char x[48];
