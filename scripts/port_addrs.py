@@ -12,9 +12,10 @@ from game_dir import game_dir
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 GAME = game_dir()
 EXE_A = os.path.join(GAME, 'Empire Earth.exe')
-EXE_B = sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.path.dirname(GAME), 'Empire Earth - The Art of Conquest', 'EE-AOC.exe')
+ARGS = sys.argv[1:] if __name__ == '__main__' else []
+EXE_B = ARGS[0] if len(ARGS) > 0 else os.path.join(os.path.dirname(GAME), 'Empire Earth - The Art of Conquest', 'EE-AOC.exe')
 FN_A = os.path.join(ROOT, 'decomp', 'functions.tsv')
-FN_B = sys.argv[2] if len(sys.argv) > 2 else os.path.join(ROOT, 'aoc', 'decomp', 'functions.tsv')
+FN_B = ARGS[1] if len(ARGS) > 1 else os.path.join(ROOT, 'aoc', 'decomp', 'functions.tsv')
 HEX = re.compile(r'0x[0-9a-f]+')
 
 
@@ -295,41 +296,42 @@ def port(x):
     return 0, 'not found'
 
 
-rows = []
-src = open(os.path.join(ROOT, 'dll', 'game', 'addr.h'), encoding='latin-1').read()
-for m in re.finditer(r'^\s*([FD])\((\w+),(.*)$', src, re.M):
-    v = re.findall(r'0x[0-9A-Fa-f]{8}', m.group(3).split('/*')[0])
-    rows.append((m.group(2), int(v[0], 16)))
-for m in re.finditer(r'L\((\w+), (\d+), \(([^)]*)\)\)', src):
-    for k, v in enumerate(re.findall(r'0x[0-9A-Fa-f]{8}', m.group(3))):
-        rows.append(('%s[%d]' % (m.group(1), k), int(v, 16)))
-def insn_at(e, va):
-    """the instruction at va (masked like insns), and its start"""
-    f = e.func_of(va)
-    for i in e.insns(f) if f is not None else ():
-        if i[0] <= va < i[0] + i[1]: return i
-    i = next(e.cs.disasm(e.rd(va, 16), va), None)   # outside the function lists: as it decodes there
-    return (i.address, i.size, i.mnemonic + ' ' + HEX.sub(lambda m: 'A' if e.in_image(int(m.group(0), 16)) else m.group(0), i.op_str), []) if i else None
+if __name__ == '__main__':   # (imported: the pairs only - port_fields.py)
+    rows = []
+    src = open(os.path.join(ROOT, 'dll', 'game', 'addr.h'), encoding='latin-1').read()
+    for m in re.finditer(r'^\s*([FD])\((\w+),(.*)$', src, re.M):
+        v = re.findall(r'0x[0-9A-Fa-f]{8}', m.group(3).split('/*')[0])
+        rows.append((m.group(2), int(v[0], 16)))
+    for m in re.finditer(r'L\((\w+), (\d+), \(([^)]*)\)', src):   # the base's values: the first set
+        for k, v in enumerate(re.findall(r'0x[0-9A-Fa-f]{8}', m.group(3))):
+            rows.append(('%s[%d]' % (m.group(1), k), int(v, 16)))
+    def insn_at(e, va):
+        """the instruction at va (masked like insns), and its start"""
+        f = e.func_of(va)
+        for i in e.insns(f) if f is not None else ():
+            if i[0] <= va < i[0] + i[1]: return i
+        i = next(e.cs.disasm(e.rd(va, 16), va), None)   # outside the function lists: as it decodes there
+        return (i.address, i.size, i.mnemonic + ' ' + HEX.sub(lambda m: 'A' if e.in_image(int(m.group(0), 16)) else m.group(0), i.op_str), []) if i else None
 
 
-def check(x, y):
-    """an independent look at a pair: the code alike, the instruction the same, its callers agree"""
-    if not y or not A.in_code(x): return ''
-    if x in A.size and y in B.size:
-        r = difflib.SequenceMatcher(None, texts(A, x), texts(B, y), autojunk=False).ratio()
-        callers = [(f, k) for f in pair for k, i in enumerate(A.insns(f)) if x in i[3]]
-        agree = sum(1 for f, k in callers if (al := align(f, pair[f])).get(k) is not None
-                    and y in B.insns(pair[f])[al[k]][3])
-        return 'code %3d%%, callers %d/%d' % (r * 100, agree, len(callers))
-    ia, ib = insn_at(A, x), insn_at(B, y)
-    if not ia or not ib: return 'NO INSTRUCTION'
-    same = ia[2].replace('L', '') == ib[2].replace('L', '') if ia[2].split()[0] == ib[2].split()[0] else False
-    return ('insn same' if same and x - ia[0] == y - ib[0] else 'INSN DIFFERS: %s / %s' % (ia[2], ib[2]))
+    def check(x, y):
+        """an independent look at a pair: the code alike, the instruction the same, its callers agree"""
+        if not y or not A.in_code(x): return ''
+        if x in A.size and y in B.size:
+            r = difflib.SequenceMatcher(None, texts(A, x), texts(B, y), autojunk=False).ratio()
+            callers = [(f, k) for f in pair for k, i in enumerate(A.insns(f)) if x in i[3]]
+            agree = sum(1 for f, k in callers if (al := align(f, pair[f])).get(k) is not None
+                        and y in B.insns(pair[f])[al[k]][3])
+            return 'code %3d%%, callers %d/%d' % (r * 100, agree, len(callers))
+        ia, ib = insn_at(A, x), insn_at(B, y)
+        if not ia or not ib: return 'NO INSTRUCTION'
+        same = ia[2].replace('L', '') == ib[2].replace('L', '') if ia[2].split()[0] == ib[2].split()[0] else False
+        return ('insn same' if same and x - ia[0] == y - ib[0] else 'INSN DIFFERS: %s / %s' % (ia[2], ib[2]))
 
 
-found = 0
-for name, x in rows:
-    y, why = port(x)
-    found += y != 0
-    print('%-28s %08X  %08X  %-44s %s' % (name, x, y, why, check(x, y)))
-print('%d of %d found' % (found, len(rows)), file=sys.stderr)
+    found = 0
+    for name, x in rows:
+        y, why = port(x)
+        found += y != 0
+        print('%-28s %08X  %08X  %-44s %s' % (name, x, y, why, check(x, y)))
+    print('%d of %d found' % (found, len(rows)), file=sys.stderr)

@@ -644,15 +644,15 @@ static void persona_new_game(uint8_t *setup) {
     memset(g_say_tribute, 0, sizeof g_say_tribute);
     memset(g_cfg_pl_on, 0, sizeof g_cfg_pl_on);
     int humans = 0;
-    for (int s = 0; s < 16; s++) humans += FIELD(setup + s * 0x38, 0, int) == 1;
+    for (int s = 0; s < 16; s++) humans += FIELD(setup + s * 0x38, OF(SETUPSLOT, 0x0), int) == 1;
     g_mp = humans > 1; g_mp_seeded = 0;
     // multiplayer: no planning here (each PC would pick on its own, and the colours are the lobby's) - the
     // personalities are picked at the AIs' first updates from the game generator, the same on every PC
-    if (!g_npersonas || *(int *)(setup + 0x3D8) != 0 || g_mp) return;
+    if (!g_npersonas || *(int *)(setup + OF(SETUP, 0x3D8)) != 0 || g_mp) return;
     int used[17] = { 0 }, player = 0;
     for (int s = 0; s < 16; s++) {
         uint8_t *slot = setup + s * 0x38;
-        int type = FIELD(slot, 0, int), c = FIELD(slot, 0x24, int);
+        int type = FIELD(slot, OF(SETUPSLOT, 0x0), int), c = FIELD(slot, OF(SETUPSLOT, 0x24), int);
         if (type != 0 && type != 1) continue;
         player++;
         if (type == 1) { if (c >= 0 && c < 17) used[c] = 1; continue; }
@@ -669,7 +669,7 @@ static void persona_new_game(uint8_t *setup) {
         for (int s = 0; s < 16; s++) {
             if (g_plan_persona[s] < 0 || g_plan_color[s] >= 0) continue;
             struct persona *p = &g_personas[g_plan_persona[s]];
-            int c = -1, own = FIELD(setup + s * 0x38, 0x24, int);
+            int c = -1, own = FIELD(setup + s * 0x38, OF(SETUPSLOT, 0x24), int);
             for (int k = 0; k < nfav[s] && c < 0; k++) if (!used[fav[s][k]]) c = fav[s][k];
             if (c < 0 && pass == 0) continue;
             if (c < 0 && own >= 0 && own < 17 && !used[own]) c = own;
@@ -677,14 +677,14 @@ static void persona_new_game(uint8_t *setup) {
             if (c < 0) continue;
             used[c] = 1;
             g_plan_color[s] = c;
-            FIELD(setup + s * 0x38, 0x24, int) = c;
+            FIELD(setup + s * 0x38, OF(SETUPSLOT, 0x24), int) = c;
             if (g_log) fprintf(g_log, "# persona: setup slot %d -> %s, colour %d (%s, was %d)\n", s, p->file, c, k_color_names[c][0], own);
         }
     for (int c = 0; c < 17; c++) g_color_human[c] = 0;
     g_ai_color_n = g_ai_color_k = 0;
     for (int s = 0; s < 16; s++) {
         uint8_t *slot = setup + s * 0x38;
-        int type = FIELD(slot, 0, int), c = FIELD(slot, 0x24, int);
+        int type = FIELD(slot, OF(SETUPSLOT, 0x0), int), c = FIELD(slot, OF(SETUPSLOT, 0x24), int);
         if (type == 1 && c >= 0 && c < 17) g_color_human[c] = 1;
         if (type == 0) g_ai_colors[g_ai_color_n++] = g_plan_color[s];
     }
@@ -712,7 +712,7 @@ static void persona_assign(void *pl) {
     g_persona_assigned[idx] = 1;
     if (!g_npersonas) return;
     int pick = persona_forced((int)idx);
-    const float *rgb = (const float *)((uint8_t *)pl + 0x438);
+    const float *rgb = (const float *)((uint8_t *)pl + OF(PL, 0x438));
     for (int s = 0; s < 16 && pick < 0; s++) {
         const float *c = g_plan_persona[s] >= 0 ? color_rgb(g_plan_color[s]) : NULL;
         if (c && c[0] == rgb[0] && c[1] == rgb[1] && c[2] == rgb[2]) { pick = g_plan_persona[s]; g_plan_persona[s] = -1; }
@@ -728,11 +728,11 @@ static void persona_apply(void *pl, unsigned idx, int pick) {
     g_cfg_pl_on[idx] = 0;   // the last one's style (cmd_persona)
     struct persona *p = &g_personas[pick];
     if (g_ai_names && p->name[0])
-        ((void *(__thiscall *)(void *, const char *))*(void **)GA(IAT_WSTRING_ASSIGN))((uint8_t *)pl + 0x24, p->name);
+        ((void *(__thiscall *)(void *, const char *))*(void **)GA(IAT_WSTRING_ASSIGN))((uint8_t *)pl + OF(PL, 0x24), p->name);
     // its civilization's name as the game shows it: the UString at +0x488 (the text at +0x48C) - the database's own
     // name at +0x7AC stays (X.civilization_en)
     if (g_ai_names && p->civ[0] && player_civ(pl))
-        ((void *(__thiscall *)(void *, const char *))*(void **)GA(IAT_WSTRING_ASSIGN))((uint8_t *)pl + 0x488, p->civ);
+        ((void *(__thiscall *)(void *, const char *))*(void **)GA(IAT_WSTRING_ASSIGN))((uint8_t *)pl + OF(PL, 0x488), p->civ);
     if (g_log) {
         fprintf(g_log, "# persona: P%u is %s (%s):", idx, p->file, p->name[0] ? p->name : "-");
         for (int t = 0; t < T_N; t++) fprintf(g_log, " %s %d", k_trait_keys[t], p->trait[t]);
@@ -773,7 +773,7 @@ static void persona_apply(void *pl, unsigned idx, int pick) {
 }
 
 static const char *player_name(void *pl) {
-    const char *s = pl ? FIELD(pl, 0x28, const char *) : NULL;
+    const char *s = pl ? FIELD(pl, OF(PL, 0x28), const char *) : NULL;
     return s ? s : "?";
 }
 // the player's civilization as the game shows it, in its language (+0x48C: "Karthago" - or a personality's
@@ -785,7 +785,7 @@ static const char *player_civ_of(void *pl, int en) {
 static const char *player_civ(void *pl) { return player_civ_of(pl, 0); }
 // the player's colour: its index 0..16 in the colour table (+0x438 holds the table entry's rgb) - -1: another one
 static int player_color(void *pl) {
-    const float *rgb = (const float *)((uint8_t *)pl + 0x438);
+    const float *rgb = (const float *)((uint8_t *)pl + OF(PL, 0x438));
     for (int c = 0; c < 17; c++) {
         const float *t = color_rgb(c);
         if (t && t[0] == rgb[0] && t[1] == rgb[1] && t[2] == rgb[2]) return c;
@@ -816,7 +816,7 @@ static int line_heard(void *pl, enum line_kind k, void *other) {
     void *me = h < 16 ? ((void **)GA(G_PLAYERS))[h] : NULL;
     if (!me || me == pl || k_lines[k].aud == A_ALL) return 1;
     if (k_lines[k].aud == A_NAME) return other == me;
-    return !FIELD(pl, 0x9E4 + h * 4, int) && !FIELD(me, 0x9E4 + (FIELD(pl, PL_INDEX, int) & 15) * 4, int);
+    return !FIELD(pl, OF(PL, 0x9E4) + h * 4, int) && !FIELD(me, OF(PL, 0x9E4) + (FIELD(pl, PL_INDEX, int) & 15) * 4, int);
 }
 
 // say a line of situation k (other = them, third = enemy); returns 1 if said (heard or not: the situation is
@@ -841,7 +841,7 @@ static void llm_talk_event(void *pl, enum line_kind k, void *other, void *third,
 static const char *g_say_instead;
 static int persona_say(void *pl, enum line_kind k, void *other, void *third) {
     struct persona *own = persona_of(pl);
-    if (!pl || !g_ai_talk || (FIELD(pl, 0x467, uint8_t) && k != L_DEFEATED && k != L_SURRENDER)) return 0;
+    if (!pl || !g_ai_talk || (FIELD(pl, OF(PL, 0x467), uint8_t) && k != L_DEFEATED && k != L_SURRENDER)) return 0;
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     uint32_t now = game_time();
     if (g_say_instead) {
@@ -905,7 +905,7 @@ static void persona_attack(void *pl, void *target) {
 // here when the personality has one.
 static char __fastcall hook_native_chat(uint8_t *pim, void *edx, int base, int ms) {
     (void)edx;
-    void *pl = pim ? FIELD(pim, 0x20, void *) : NULL;
+    void *pl = pim ? FIELD(pim, OF(NATIVECHAT, 0x20), void *) : NULL;
     int k = base == 12000 ? L_WONDER_THREAT : base == 12100 ? L_WONDER_HELP : base == 12200 ? L_WONDER_NOHELP :
             base == 12300 ? L_HELP_LAND : base == 12330 ? L_HELP_AIR : base == 12360 ? L_HELP_NAVAL :
             base == 12400 ? L_HELP_NONE : base == 12500 ? L_WAR_DECLARED : -1;

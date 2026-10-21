@@ -41,6 +41,7 @@ static int game_build(uint32_t *hash) {
     for (int i = 0; i < ADDR_BUILDS; i++)
         if (*hash == k_exe_builds[i].hash && k_exe_builds[i].ready) {
             g_addr_missing = addr_select(i);
+            g_of_missing = fields_select(i);
             return 1;
         }
     return name && !lstrcmpiA(name + 1, "Empire Earth.exe") ? -1 : 0;   // a renamed copy of a known build counts above

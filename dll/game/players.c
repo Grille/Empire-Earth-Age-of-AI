@@ -22,14 +22,16 @@ static void *player_at(int i) {
     unsigned n = *(unsigned *)GA(G_PLAYERS_N);
     return i > 0 && (unsigned)i < n && i < 16 ? ((void **)GA(G_PLAYERS))[i] : NULL;
 }
+// the game's unit limit for a player (EEPlayer::vf31(0), as FN_GAME_LIMIT; it pops its argument)
+static int unit_limit(void *pl) { return ((int (__thiscall *)(void *, int))(*(void ***)pl)[GA(SLOT_UNIT_LIMIT)])(pl, 0); }
 static int nplayers(void) { unsigned n = *(unsigned *)GA(G_PLAYERS_N); return n > 16 ? 16 : (int)n; }
-static int stance_of(void *a, int b) { return FIELD(a, 0x9E4 + b * 4, int); }
-static int is_out(void *p) { return !p || FIELD(p, 0x467, uint8_t); }
+static int stance_of(void *a, int b) { return FIELD(a, OF(PL, 0x9E4) + b * 4, int); }
+static int is_out(void *p) { return !p || FIELD(p, OF(PL, 0x467), uint8_t); }
 
 static int is_enemy(void *pl, void *other) {
     if (!other || other == pl) return 0;
     unsigned oi = (unsigned)FIELD(other, PL_INDEX, int);
-    return oi < 16 && FIELD(pl, 0x9E4 + oi * 4, int) != 0;
+    return oi < 16 && FIELD(pl, OF(PL, 0x9E4) + oi * 4, int) != 0;
 }
 
 // Player colours: index into the game's colour table (0x8CFA74: pointers to {?, float r, g, b}); entries 0-16 are

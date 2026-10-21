@@ -39,11 +39,11 @@ static void dump_player(void *rm, uint32_t now) {
         wsprintfA(tag, "cm+%02x", off);
         dump_region(f, tag, FIELD(cm, off, void *), 0x400);
     }
-    dump_region(f, "pl+b8c", FIELD(pl, 0xB8C, void *), 0x400);
-    dump_region(f, "pl+b90", FIELD(pl, 0xB90, void *), 0x400);
+    dump_region(f, "pl+b8c", FIELD(pl, OF(PL, 0xB8C), void *), 0x400);
+    dump_region(f, "pl+b90", FIELD(pl, OF(PL, 0xB90), void *), 0x400);
     dump_region(f, "pl+9d4", FIELD(pl, PL_TECHTREE, void *), 0x800);
     // towns / resource centers (player +0xB50 vector of pointers)
-    void **tb = FIELD(pl, 0xB50, void **), **te = FIELD(pl, 0xB54, void **);
+    void **tb = FIELD(pl, OF(PL, 0xB50), void **), **te = FIELD(pl, OF(PL, 0xB54), void **);
     for (int i = 0; tb && tb + i < te && i < 32; i++) {
         char tag[16];
         wsprintfA(tag, "town%02d", i);

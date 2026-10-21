@@ -116,7 +116,7 @@ static int queue_pause_toggle(void) {
     void **client = *(void ***)GA(G_SERVER);
     if (!client || !((uint32_t *)client)[4]) return 0;
     if (!((char (__thiscall *)(void *))(*(void ***)client)[4])(client)) return 0;
-    uint8_t *act = GF(FN_NEW)(0xC);
+    uint8_t *act = GF(FN_NEW)(GA(SIZE_PAUSE_ACTION));
     if (!act) return 0;
     *(uint32_t *)act = GA(VT_PAUSE_ACTION);
     *(uint32_t *)(act + 4) = 1;
@@ -142,7 +142,7 @@ static void cmd_save(char *out, const char *args) {
     struct ustring upath, udir;
     uctor(&upath); uset(&upath, path);
     uctor(&udir); uset(&udir, "data\\Saved Games\\");   // relative to the game folder
-    uint8_t *act = GF(FN_NEW)(0x30);
+    uint8_t *act = GF(FN_NEW)(GA(SIZE_SAVE_ACTION));
     if (!act) { udtor(&upath); udtor(&udir); REPLY("error: out of memory\n"); return; }
     // the ctor takes the folder by value and destroys its copy: ownership passes with the bytes
     GF(FN_SAVE_ACTION_CTOR)(act, &upath, 1, udir);
@@ -161,11 +161,11 @@ static void cmd_status(char *out) {
         void *tt = FIELD(pl, PL_TECHTREE, void *);
         REPLY("P%d @%p epoch=%d difficulty=%d cheat=%d popcap=%d (own %d, game %d) citizen_share=%.2f stock(food,wood,stone,gold,iron)=", i, pl,
             tt ? FIELD(tt, TT_EPOCH, int) : -1, FIELD(pl, PL_DIFFICULTY, int), FIELD(pl, PL_CHEAT, uint8_t),
-            ((int (__thiscall *)(void *, int))(*(void ***)pl)[31])(pl, 0), FIELD(pl, 0xCCC, int), *(int *)GA(G_POP_LIMIT),
-            FIELD(pl, 0xBDC, float));
+            unit_limit(pl), FIELD(pl, OF(PL, 0xCCC), int), *(int *)GA(G_POP_LIMIT),
+            FIELD(pl, OF(PL, 0xBDC), float));
         for (int r = 2; r < 7; r++) REPLY("%d%s", ((int *)((uint8_t *)pl + PL_STOCK))[r], r < 6 ? "," : "");
-        void *cm = FIELD(pl, 0xB90, void *);
-        void *rm = cm ? FIELD(cm, 0x38, void *) : NULL;
+        void *cm = FIELD(pl, OF(PL, 0xB90), void *);
+        void *rm = cm ? FIELD(cm, OF(CM, 0x38), void *) : NULL;
         if (rm) {
             REPLY(" workers=");
             for (int r = 2; r < 7; r++) REPLY("%d%s", FIELD(rm, RM_LISTS + r * 0x14 + 0x10, int), r < 6 ? "," : "");
@@ -179,12 +179,12 @@ static void cmd_status(char *out) {
 }
 
 static void cmd_camera(char *out, const char *args) {
-    float *cam = (float *)(GA(G_CAMERA) + 0x78);   // current look-at; +0x40 = previous (interpolated per frame)
+    float *cam = (float *)(GA(G_CAMERA) + OF(CAMERA, 0x78));   // current look-at; +0x40 = previous (interpolated per frame)
     int x, y;
     if (sscanf(args, "%d %d", &x, &y) == 2) {
-        uint32_t size = *(uint32_t *)(*(uint8_t **)GA(G_MAP) + 0x1816FC);
+        uint32_t size = *(uint32_t *)(*(uint8_t **)GA(G_MAP) + OF(MAP, 0x1816FC));
         if (x < 0 || y < 0 || (uint32_t)x >= size || (uint32_t)y >= size) { REPLY("error: tile outside map (size %u)\n", size); return; }
-        void *act = GF(FN_NEW)(0x1C);
+        void *act = GF(FN_NEW)(GA(SIZE_CAMERA_ACTION));
         if (!act) { REPLY("error: alloc\n"); return; }
         act = GF(FN_CAMACT_CTOR)(act);
         GF(FN_CAMACT_SET)(act, x, y);
@@ -193,7 +193,7 @@ static void cmd_camera(char *out, const char *args) {
         return;
     }
     REPLY("x=%.2f y=%.2f z=%.2f zoom=%.3f map_size=%u\n", cam[0], cam[1], cam[2],
-        *(float *)(GA(G_CAMERA) + 0xE0), *(uint32_t *)(*(uint8_t **)GA(G_MAP) + 0x1816FC));
+        *(float *)(GA(G_CAMERA) + OF(CAMERA, 0xE0)), *(uint32_t *)(*(uint8_t **)GA(G_MAP) + OF(MAP, 0x1816FC)));
 }
 
 // sites <player>: resource sites the AI knows per town (EECP town 0x28 bytes at player+0xB50[i]: +0x18 active,
@@ -206,18 +206,18 @@ static void cmd_sites(char *out, const char *args) {
     if (!pl) { REPLY("error: no AI player %d (AI players are registered on their first update)\n", p); return; }
     unsigned cap = GF(FN_TABLE_VALUE)((void *)GA(G_TABLE_VALUES), 0x16);
     REPLY("P%d cap(table 0x16)=%u\n", p, cap);
-    void **tb = FIELD(pl, 0xB50, void **), **te = FIELD(pl, 0xB54, void **);
+    void **tb = FIELD(pl, OF(PL, 0xB50), void **), **te = FIELD(pl, OF(PL, 0xB54), void **);
     for (int t = 0; tb && tb + t < te; t++) {
         uint8_t *town = tb[t];
         if (!town) continue;
-        REPLY(" town %d active=%d\n", t, town[0x18]);
-        void **sb = FIELD(town, 8, void **), **se = FIELD(town, 0xC, void **);
+        REPLY(" town %d active=%d\n", t, town[OF(ZONE, 0x18)]);
+        void **sb = FIELD(town, OF(ZONE, 0x8), void **), **se = FIELD(town, OF(ZONE, 0xC), void **);
         for (int s = 0; sb && sb + s < se; s++) {
             uint8_t *site = sb[s];
             if (!site) continue;
             unsigned n = GF(FN_SITE_GATHERERS)((void *)GA(G_GAME_STATE), site);
-            REPLY("  site %p type=%d amount=%d pos=%d,%d gatherers=%u\n", (void *)site, FIELD(site, 0x38, int),
-                  FIELD(site, 0x40, int), FIELD(site, 0x1C, int), FIELD(site, 0x20, int), n);
+            REPLY("  site %p type=%d amount=%d pos=%d,%d gatherers=%u\n", (void *)site, FIELD(site, OF(UNIT, 0x38), int),
+                  FIELD(site, OF(UNIT, 0x40), int), FIELD(site, OF(UNIT, 0x1C), int), FIELD(site, OF(UNIT, 0x20), int), n);
         }
     }
 }
@@ -227,29 +227,29 @@ static void cmd_sites(char *out, const char *args) {
 static void cmd_foodcheck(char *out, const char *args) {
     int p = atoi(args);
     void *pl = (p >= 0 && p < 16) ? g_players[p] : NULL;
-    void *cm = pl ? FIELD(pl, 0xB90, void *) : NULL;
+    void *cm = pl ? FIELD(pl, OF(PL, 0xB90), void *) : NULL;
     if (!cm) { REPLY("error: no AI player %d\n", p); return; }
-    void *bm = FIELD(cm, 0x3C, void *);
-    int base[2] = { FIELD(bm, 0x12C, int), FIELD(bm, 0x130, int) };
-    int r = FIELD(pl, 0xE10, int);
+    void *bm = FIELD(cm, OF(CM, 0x3C), void *);
+    int base[2] = { FIELD(bm, OF(BM, 0x12C), int), FIELD(bm, OF(BM, 0x130), int) };
+    int r = FIELD(pl, OF(PL, 0xE10), int);
     short (__thiscall *region)(void *, int *, int) = (void *)GA(FN_REGION);
     short base_region = region((void *)GA(G_MAP_AREAS), base, 2);
     unsigned cap = GF(FN_TABLE_VALUE)((void *)GA(G_TABLE_VALUES), 0x16);
     REPLY("P%d base=%d,%d region=%d radius=%d (pass1 d2<%d, pass3 d2<%d) cap=%u\n", p, base[0], base[1],
           base_region, r, r * r * 4, r * r * 36, cap);
-    void **tb = FIELD(pl, 0xB50, void **), **te = FIELD(pl, 0xB54, void **);
+    void **tb = FIELD(pl, OF(PL, 0xB50), void **), **te = FIELD(pl, OF(PL, 0xB54), void **);
     for (int t = 0; tb && tb + t < te; t++) {
         uint8_t *zone = tb[t];
         uint8_t *s = zone ? GF(FN_ZONE_SITE)(zone, 2) : NULL;
         if (!s) continue;
-        int pos[2] = { FIELD(s, 0x1C, int), FIELD(s, 0x20, int) };
+        int pos[2] = { FIELD(s, OF(UNIT, 0x1C), int), FIELD(s, OF(UNIT, 0x20), int) };
         int dx = pos[0] - base[0], dy = pos[1] - base[1];
         REPLY(" zone %2d active=%d site %d,%d class=%#x region=%d explored=%d gatherers=%u amount=%d state=%d"
-              " zone+14=%d enemy=%d d2=%d\n", t, zone[0x18], pos[0], pos[1], FIELD(FIELD(s, 0x2C, uint8_t *), 0x4B8, int),
+              " zone+14=%d enemy=%d d2=%d\n", t, zone[OF(ZONE, 0x18)], pos[0], pos[1], FIELD(FIELD(s, OF(UNIT, 0x2C), uint8_t *), OF(TD, 0x4B8), int),
               region((void *)GA(G_MAP_AREAS), pos, 2),
-              GF(FN_EXPLORED)(FIELD(s, 0x14, void *), pl),
+              GF(FN_EXPLORED)(FIELD(s, OF(UNIT, 0x14), void *), pl),
               GF(FN_SITE_GATHERERS)((void *)GA(G_GAME_STATE), s),
-              FIELD(s, 0x40, int), FIELD(FIELD(s, 0x14, uint8_t *), 4, int), FIELD(zone, 0x14, int),
+              FIELD(s, OF(UNIT, 0x40), int), FIELD(FIELD(s, OF(UNIT, 0x14), uint8_t *), OF(SITEOWN, 0x4), int), FIELD(zone, OF(ZONE, 0x14), int),
               GF(FN_ENEMY_NEAR)(bm, pos[0], pos[1]), dx * dx + dy * dy);
     }
 }
@@ -258,8 +258,8 @@ static void cmd_foodcheck(char *out, const char *args) {
 // costs at +0x24.. food,wood,stone,gold,iron) and unit costs (object data 0x9418A0[type], same layout).
 static void print_costs(char *out, const char *tag, uint8_t *data) {
     if (!data) { REPLY("%s: no data\n", tag); return; }
-    REPLY("%s: data=%p cost(f,w,s,g,i)=%d,%d,%d,%d,%d\n", tag, (void *)data, FIELD(data, 0x24, int), FIELD(data, 0x28, int),
-          FIELD(data, 0x2C, int), FIELD(data, 0x30, int), FIELD(data, 0x34, int));
+    REPLY("%s: data=%p cost(f,w,s,g,i)=%d,%d,%d,%d,%d\n", tag, (void *)data, FIELD(data, OF(TECHDATA, 0x24), int), FIELD(data, OF(TECHDATA, 0x28), int),
+          FIELD(data, OF(TECHDATA, 0x2C), int), FIELD(data, OF(TECHDATA, 0x30), int), FIELD(data, OF(TECHDATA, 0x34), int));
 }
 static void cmd_costs(char *out, const char *args) {
     int p = 0, n = 0;
@@ -271,8 +271,8 @@ static void cmd_costs(char *out, const char *args) {
     for (int e = ep + 1; e <= ep + 2 && e <= 13; e++) {
         uint8_t *rec = tt + 8 + e * 0x54;
         char tag[48];
-        wsprintfA(tag, "epoch %d tech (req %d)", e, FIELD(rec, 0x40, int));
-        print_costs(out, tag, FIELD(rec, 8, uint8_t *));
+        wsprintfA(tag, "epoch %d tech (req %d)", e, FIELD(rec, OF(TTREC, 0x40), int));
+        print_costs(out, tag, FIELD(rec, OF(TTREC, 0x8), uint8_t *));
     }
     const char *a = args + n;
     int type, k;
@@ -280,8 +280,8 @@ static void cmd_costs(char *out, const char *args) {
         char tag[32];
         wsprintfA(tag, "unit %d", type);
         uint8_t *obj = type_data(type);
-        uint8_t *tech = obj ? GF(FN_TECH_LOOKUP)(tt, FIELD(obj, 0x4E0, int)) : NULL;
-        print_costs(out, tag, tech ? FIELD(tech, 8, uint8_t *) : NULL);   // costs live in the unit's tech
+        uint8_t *tech = obj ? GF(FN_TECH_LOOKUP)(tt, FIELD(obj, OF(TD, 0x4E0), int)) : NULL;
+        print_costs(out, tag, tech ? FIELD(tech, OF(TECH, 0x8), uint8_t *) : NULL);   // costs live in the unit's tech
         a += k;
     }
 }
@@ -293,8 +293,8 @@ static void cmd_costs(char *out, const char *args) {
 static void cmd_units(char *out, const char *args) {
     int p = atoi(args);
     void *pl = (p >= 0 && p < 16) ? g_players[p] : NULL;
-    void *cm = pl ? FIELD(pl, 0xB90, void *) : NULL;
-    uint8_t *rm = cm ? FIELD(cm, 0x38, uint8_t *) : NULL;
+    void *cm = pl ? FIELD(pl, OF(PL, 0xB90), void *) : NULL;
+    uint8_t *rm = cm ? FIELD(cm, OF(CM, 0x38), uint8_t *) : NULL;
     if (!rm) { REPLY("error: no AI player %d\n", p); return; }
     static const char *names[7] = { "list0", "list1", "food", "wood", "stone", "gold", "iron" };
     for (int i = 0; i < 7; i++) {
@@ -307,15 +307,15 @@ static void cmd_units(char *out, const char *args) {
         for (unsigned k = 0; k < n; k++) {
             uint8_t *u = deque_at(dq, first + k);
             if (!u) continue;
-            void *goal = FIELD(u, 0x1EC, void *);
+            void *goal = FIELD(u, OF(UNIT, 0x1EC), void *);
             const char *gn = rtti_name(goal);
-            void *tgt = (goal && !strcmp(gn, "EEUGGather@@")) ? FIELD(goal, 0x38, void *) : NULL;
+            void *tgt = (goal && !strcmp(gn, "EEUGGather@@")) ? FIELD(goal, OF(GOAL, 0x38), void *) : NULL;
             int j = 0;
             while (j < ng && !(g[j].goal == gn && g[j].target == tgt)) j++;
             if (j == ng) {
                 if (ng == 48) continue;
                 g[ng].goal = gn; g[ng].target = tgt; g[ng].count = 0;
-                g[ng].x = FIELD(u, 0x1C, int); g[ng].y = FIELD(u, 0x20, int);
+                g[ng].x = FIELD(u, OF(UNIT, 0x1C), int); g[ng].y = FIELD(u, OF(UNIT, 0x20), int);
                 ng++;
             }
             g[j].count++;
@@ -496,7 +496,7 @@ static long __fastcall hook_sim_wait(void *ev, void *edx, unsigned long ms) {
     // only while steps are granted: otherwise a real (short) wait, so the client, server and pathfinding threads
     // the simulation waits for get the CPU instead of a spinning loop
     uint8_t *phys = *(uint8_t **)GA(G_WORLD_CLOCK);
-    if (g_turbo && phys && FIELD(phys, 0xB8, unsigned)) return 0;
+    if (g_turbo && phys && FIELD(phys, OF(PHYS, 0xB8), unsigned)) return 0;
     return (*(EventWaitFn *)GA(IAT_TS_WAIT))(ev, g_turbo ? 1 : ms);
 }
 
@@ -538,7 +538,7 @@ static void __fastcall hook_phys_step(void *phys, void *edx) {
 
 static int sim_drained(void) {
     uint8_t *srv = *(uint8_t **)GA(G_SERVER), *phys = *(uint8_t **)GA(G_WORLD_CLOCK);
-    return srv && phys && FIELD(srv, 0x10, unsigned) == FIELD(srv, 0x190, unsigned) && FIELD(phys, 0xB8, unsigned) == 0 &&
+    return srv && phys && FIELD(srv, OF(SERVER, 0x10), unsigned) == FIELD(srv, OF(SERVER, 0x190), unsigned) && FIELD(phys, OF(PHYS, 0xB8), unsigned) == 0 &&
            !g_in_step;
 }
 
@@ -705,13 +705,13 @@ static DWORD WINAPI gameover_watch(LPVOID unused) {
         Sleep(500);
         unsigned me = *(unsigned *)GA(G_LOCAL_PLAYER);
         uint8_t *pl = me < 16 ? ((uint8_t **)GA(G_PLAYERS))[me] : NULL;
-        if (!pl || !game_time() || !FIELD(pl, 0xA30, int)) continue;
+        if (!pl || !game_time() || !FIELD(pl, OF(PL, 0xA30), int)) continue;
         if (g_log) {
             EnterCriticalSection(&g_lock);
             fprintf(g_log, "# autotest: game over at %.1f min:", game_time() / 60000.0);
             for (int i = 1; i < 16; i++) {
                 uint8_t *p = ((uint8_t **)GA(G_PLAYERS))[i];
-                if (p) fprintf(g_log, " P%d=%d", i, FIELD(p, 0xA30, int));
+                if (p) fprintf(g_log, " P%d=%d", i, FIELD(p, OF(PL, 0xA30), int));
             }
             fputc(10, g_log);
             fclose(g_log);

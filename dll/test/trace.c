@@ -15,7 +15,7 @@ static int tracing(void *rm) {
 static void trace_obj(char *buf, size_t cap, const char *tag, void *o) {
     size_t n = strlen(buf);
     if (!o) { snprintf(buf + n, cap - n, " %s=0", tag); return; }
-    snprintf(buf + n, cap - n, " %s=%p(%s %d,%d)", tag, o, rtti_name(o), FIELD(o, 0x1C, int), FIELD(o, 0x20, int));
+    snprintf(buf + n, cap - n, " %s=%p(%s %d,%d)", tag, o, rtti_name(o), FIELD(o, OF(UNIT, 0x1C), int), FIELD(o, OF(UNIT, 0x20), int));
 }
 
 static void trace_emit(const char *line) {
@@ -113,8 +113,8 @@ static void *__fastcall tr_farms(void *rm, void *edx, uintptr_t n, uintptr_t out
 static void *um_player(void *um) {
     for (int i = 0; i < 16; i++) {
         void *pl = g_players[i];
-        void *cm = pl ? FIELD(pl, 0xB90, void *) : NULL;
-        if (cm && FIELD(cm, 0x44, void *) == um) return pl;
+        void *cm = pl ? FIELD(pl, OF(PL, 0xB90), void *) : NULL;
+        if (cm && FIELD(cm, OF(CM, 0x44), void *) == um) return pl;
     }
     return NULL;
 }
@@ -192,13 +192,13 @@ typedef void (__thiscall *StepFn)(void *);
 // 0x5D7A25, 0x5D8871, 0x65C955): there game_seed takes effect only here.
 static void __fastcall hook_start_exec(void *msg, void *edx) {
     (void)edx;
-    if (g_auto.game_seed) FIELD(msg, 0x14, unsigned) = (unsigned)g_auto.game_seed;
+    if (g_auto.game_seed) FIELD(msg, OF(MSG_START, 0x14), unsigned) = (unsigned)g_auto.game_seed;
     uint8_t *phys = *(uint8_t **)GA(G_WORLD_CLOCK), *world = *(uint8_t **)GA(G_WORLD);
-    unsigned map_seed = world ? FIELD(world, 0x54, unsigned) : 0;
+    unsigned map_seed = world ? FIELD(world, OF(WORLD, 0x54), unsigned) : 0;
     ((StepFn)GA(START_EXEC))(msg);
     EnterCriticalSection(&g_lock);
-    if (g_sync) fprintf(g_sync, "start message: seed %u (generator %u, world+0x54 was %u)\n", FIELD(msg, 0x14, unsigned),
-                        phys ? FIELD(phys, 0x18, unsigned) : 0, map_seed);
+    if (g_sync) fprintf(g_sync, "start message: seed %u (generator %u, world+0x54 was %u)\n", FIELD(msg, OF(MSG_START, 0x14), unsigned),
+                        phys ? FIELD(phys, OF(PHYS, 0x18), unsigned) : 0, map_seed);
     LeaveCriticalSection(&g_lock);
 }
 static int start_hook(void) {
@@ -211,10 +211,10 @@ static int start_hook(void) {
 struct sync_units { unsigned n; uint32_t h; };
 static uint32_t g_sync_dump0, g_sync_dump1;
 static uint32_t sync_unit_hash(uint8_t *u) {
-    void *owner = FIELD(u, 0x18, void *);
-    uint8_t *td = FIELD(u, 0x2C, uint8_t *);
-    uint32_t v[5] = { owner ? (uint32_t)(FIELD(owner, PL_INDEX, int) & 15) : 99u, td ? (uint32_t)FIELD(td, 0x4B8, int) : 0u,
-                      (uint32_t)FIELD(u, 0x1C, int), (uint32_t)FIELD(u, 0x20, int), (uint32_t)FIELD(u, 0x3C, int) }, h = 2166136261u;
+    void *owner = FIELD(u, OF(UNIT, 0x18), void *);
+    uint8_t *td = FIELD(u, OF(UNIT, 0x2C), uint8_t *);
+    uint32_t v[5] = { owner ? (uint32_t)(FIELD(owner, PL_INDEX, int) & 15) : 99u, td ? (uint32_t)FIELD(td, OF(TD, 0x4B8), int) : 0u,
+                      (uint32_t)FIELD(u, OF(UNIT, 0x1C), int), (uint32_t)FIELD(u, OF(UNIT, 0x20), int), (uint32_t)FIELD(u, OF(UNIT, 0x3C), int) }, h = 2166136261u;
     for (int i = 0; i < 5; i++) h = (h ^ v[i]) * 16777619u;
     return h;
 }
@@ -225,10 +225,10 @@ static void sync_unit(uint8_t *u, void *ctx) {
 }
 static void sync_unit_dump(uint8_t *u, void *ctx) {
     (void)ctx;
-    void *owner = FIELD(u, 0x18, void *);
-    uint8_t *td = FIELD(u, 0x2C, uint8_t *);
-    fprintf(g_sync, "  u P%d type %d at %d,%d hp %d\n", owner ? FIELD(owner, PL_INDEX, int) & 15 : -1, td ? FIELD(td, 0x4B8, int) : -1,
-            FIELD(u, 0x1C, int), FIELD(u, 0x20, int), FIELD(u, 0x3C, int));
+    void *owner = FIELD(u, OF(UNIT, 0x18), void *);
+    uint8_t *td = FIELD(u, OF(UNIT, 0x2C), uint8_t *);
+    fprintf(g_sync, "  u P%d type %d at %d,%d hp %d\n", owner ? FIELD(owner, PL_INDEX, int) & 15 : -1, td ? FIELD(td, OF(TD, 0x4B8), int) : -1,
+            FIELD(u, OF(UNIT, 0x1C), int), FIELD(u, OF(UNIT, 0x20), int), FIELD(u, OF(UNIT, 0x3C), int));
 }
 // the messages handed to the lockstep server (EEServer [0x91984C] vtable slot 6: (msg, 0xFF)): "  m <type> <caller>
 // <S|thread>" - what goes into the next tick the server sends, and from where
@@ -270,9 +270,9 @@ static void sync_step(void *phys) {   // after each step (control.c hook_phys_st
     struct sync_units su = { 0, 0 };
     grid_each(sync_unit, &su);
     EnterCriticalSection(&g_lock);
-    fprintf(g_sync, "%u %u %u %u %08x %u %08x\n", FIELD(phys, 0x80, unsigned), FIELD(phys, 0xD0, unsigned),
-            FIELD(phys, 0x18, unsigned), *(unsigned *)GA(G_INPUT_MSGS_DONE), h, su.n, su.h);
-    if (g_sync_dump0 && FIELD(phys, 0xD0, unsigned) >= g_sync_dump0 && FIELD(phys, 0xD0, unsigned) <= g_sync_dump1)
+    fprintf(g_sync, "%u %u %u %u %08x %u %08x\n", FIELD(phys, OF(PHYS, 0x80), unsigned), FIELD(phys, OF(PHYS, 0xD0), unsigned),
+            FIELD(phys, OF(PHYS, 0x18), unsigned), *(unsigned *)GA(G_INPUT_MSGS_DONE), h, su.n, su.h);
+    if (g_sync_dump0 && FIELD(phys, OF(PHYS, 0xD0), unsigned) >= g_sync_dump0 && FIELD(phys, OF(PHYS, 0xD0), unsigned) <= g_sync_dump1)
         grid_each(sync_unit_dump, NULL);
     if (!--g_sync_left) { fclose(g_sync); g_sync = NULL; }
     LeaveCriticalSection(&g_lock);

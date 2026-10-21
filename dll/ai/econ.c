@@ -120,7 +120,7 @@ static int upgraded_type(void *pl, int type);   // defence.c: the type an upgrad
 static struct { int type; uint32_t next; uint8_t tries; } g_retry[16][16];   // dropped types, tried again
 static int is_decoration(int type) {   // the editor's "x ..." objects (name at object data +0x1C)
     uint8_t *od = type_data(type);
-    const char *name = od ? FIELD(od, 0x1C, const char *) : NULL;
+    const char *name = od ? FIELD(od, OF(TD, 0x1C), const char *) : NULL;
     return name && name[0] == 'x' && name[1] == ' ';
 }
 static void retry_note(unsigned idx, int type, uint32_t now) {
@@ -137,15 +137,15 @@ static void retry_note(unsigned idx, int type, uint32_t now) {
 }
 static char __fastcall hook_place(uint8_t *bm, void *edx, int type, int x, int y) {
     (void)edx;
-    void *owner = FIELD(bm, 0x138, void *);
+    void *owner = FIELD(bm, OF(BM, 0x138), void *);
     // a field without foundation would crash (see there) - the guard alone for a vanilla player (nothing laid out)
     if (type == UT(B_FARM) && !field_place_ok(bm, x, y, !is_vanilla(owner))) return 1;
     if (is_vanilla(owner)) return GF(FN_PLACE)(bm, type, x, y);
     int place_as = g_build_fix && type == UT(X_SINGLE_PLAYER_SETTLEMENT) && ut_has(UT(B_SETTLEMENT)) ? UT(B_SETTLEMENT) : type;
-    place_as = upgraded_type(FIELD(bm, 0x138, void *), place_as);   // queued before its upgrade: the new type
-    if (!x && !y) defence_spot(FIELD(bm, 0x138, void *), type, &x, &y);   // towers: where the defence plan wants them
+    place_as = upgraded_type(FIELD(bm, OF(BM, 0x138), void *), place_as);   // queued before its upgrade: the new type
+    if (!x && !y) defence_spot(FIELD(bm, OF(BM, 0x138), void *), type, &x, &y);   // towers: where the defence plan wants them
     char ok = GF(FN_PLACE)(bm, place_as, x, y);
-    void *pl = FIELD(bm, 0x138, void *);
+    void *pl = FIELD(bm, OF(BM, 0x138), void *);
     unsigned idx = pl ? (unsigned)FIELD(pl, PL_INDEX, int) & 15 : 0;
     int k = 0;
     while (k < 64 && g_place[idx][k].tries && g_place[idx][k].type != type) k++;
@@ -188,16 +188,16 @@ static int workforce(void *pl);
 static int g_gather_research = 1;
 static unsigned g_researched[16];
 static int is_gather_tech(uint8_t *tech) {
-    uint8_t *d = FIELD(tech, 8, uint8_t *);
-    int ei = d ? FIELD(d, 0x50, int) : -1;
+    uint8_t *d = FIELD(tech, OF(TECH, 0x8), uint8_t *);
+    int ei = d ? FIELD(d, OF(TECHDATA, 0x50), int) : -1;
     if (ei < 0 || ei > 0x5DC) return 0;
     uint8_t *list = (uint8_t *)GA(G_EPOCH_TECHS) + ei * 0x10;
-    unsigned n = FIELD(list, 8, unsigned), *ids = FIELD(list, 4, unsigned *);
+    unsigned n = FIELD(list, OF(EPOCHTECHS, 0x8), unsigned), *ids = FIELD(list, OF(EPOCHTECHS, 0x4), unsigned *);
     for (unsigned k = 0; ids && k < n && k < 64; k++) {
         if (ids[k] >= 2000) continue;
         uint8_t *ef = (uint8_t *)GA(G_EFFECTS) + ids[k] * 0x44;
-        int a = FIELD(ef, 0x2C, int), on = FIELD(ef, 0x14, int);
-        if (FIELD(ef, 0x20, int) == 2 && (on == UT(CITIZEN) || on == UT(FEMALE_CITIZEN) || on == -1) && a >= 0x1A && a <= 0x21 && a != 0x1E) return 1;
+        int a = FIELD(ef, OF(EFFECT, 0x2C), int), on = FIELD(ef, OF(EFFECT, 0x14), int);
+        if (FIELD(ef, OF(EFFECT, 0x20), int) == 2 && (on == UT(CITIZEN) || on == UT(FEMALE_CITIZEN) || on == -1) && a >= 0x1A && a <= 0x21 && a != 0x1E) return 1;
     }
     return 0;
 }
@@ -205,16 +205,16 @@ static void gather_research(void *pl, unsigned idx, uint32_t now) {
     static uint32_t last[16];
     if (!g_gather_research || (now >= last[idx] && now - last[idx] < 15000)) return;
     last[idx] = now;
-    void *cm = FIELD(pl, 0xB90, void *);
-    uint8_t *rs = cm ? FIELD(cm, 0x40, uint8_t *) : NULL, *tt = FIELD(pl, PL_TECHTREE, uint8_t *);
+    void *cm = FIELD(pl, OF(PL, 0xB90), void *);
+    uint8_t *rs = cm ? FIELD(cm, OF(CM, 0x40), uint8_t *) : NULL, *tt = FIELD(pl, PL_TECHTREE, uint8_t *);
     if (!rs || !tt || workforce(pl) < 10) return;
-    int *b = FIELD(rs, 8, int *), *e = FIELD(rs, 0xC, int *);
+    int *b = FIELD(rs, OF(RS, 0x8), int *), *e = FIELD(rs, OF(RS, 0xC), int *);
     for (int *q = b; b && q < e && e - b < 500; q++) {
         uint8_t *t = GF(FN_TECH_LOOKUP)(tt, *q);   // FN_TECH_LOOKUP
         if (!t || t[4] || !t[6] || !is_gather_tech(t)) continue;
         int id = *q;
         memmove(q, q + 1, (size_t)(e - q - 1) * sizeof *q);   // out of the pool, as the planner does
-        FIELD(rs, 0xC, int *) = e - 1;
+        FIELD(rs, OF(RS, 0xC), int *) = e - 1;
         GF(FN_RS_SCHEDULE)(rs, id);
         g_researched[idx]++;
         if (g_log) fprintf(g_log, "# research: P%u schedules gathering tech %d at %.1f min\n", idx, id, now / 60000.0);
@@ -233,24 +233,24 @@ static int g_paid_upgrades = 1;
 static int ap_upgrade_later(void *pl, uint8_t *data);   // army.c
 static void __fastcall hook_epoch_upgrades(uint8_t *node, void *edx, int cat) {
     (void)edx;
-    uint8_t *tt = FIELD(node, 0xC, uint8_t *);
-    int pi = tt ? FIELD(tt, 4, int) : -1;
+    uint8_t *tt = FIELD(node, OF(TECHNODE, 0xC), uint8_t *);
+    int pi = tt ? FIELD(tt, OF(TT, 0x4), int) : -1;
     // the game's own player array, not g_players: back in the scenario editor after a test run the editor sets the
     // computer players' epochs again (here) while g_players still held the test run's deleted players - the game
     // crashed reading one (eeaimod.dll+5e188)
     unsigned np = *(unsigned *)GA(G_PLAYERS_N);
     void *pl = pi > 0 && pi < 16 && (unsigned)pi < np ? ((void **)GA(G_PLAYERS))[pi] : NULL;
     if (pl && (FIELD(pl, PL_INDEX, int) & 15) != pi) pl = NULL;
-    void *cm = pl ? FIELD(pl, 0xB90, void *) : NULL;
-    uint8_t *rs = cm ? FIELD(cm, 0x40, uint8_t *) : NULL;
+    void *cm = pl ? FIELD(pl, OF(PL, 0xB90), void *) : NULL;
+    uint8_t *rs = cm ? FIELD(cm, OF(CM, 0x40), uint8_t *) : NULL;
     if (!g_paid_upgrades || !rs || cat != 7 || is_vanilla(pl)) { GF(FN_EPOCH_UPGRADES)(node, cat); return; }
-    uint8_t *v = FIELD(node, 0x24, uint8_t *), *ve = FIELD(node, 0x28, uint8_t *);
+    uint8_t *v = FIELD(node, OF(TECHNODE, 0x24), uint8_t *), *ve = FIELD(node, OF(TECHNODE, 0x28), uint8_t *);
     char ids[256] = "";
     int n = 0;
     for (uint8_t *c = v; v && c < ve; c += 0x20) {   // the children, 0x20-byte nodes (as 0x5BDDBD walks them)
-        uint8_t *d = FIELD(c, 8, uint8_t *);
-        if (!d || FIELD(d, 0x48, int) != 7 || c[4]) continue;
-        int id = FIELD(d, 0x4C, int);
+        uint8_t *d = FIELD(c, OF(TECHCHILD, 0x8), uint8_t *);
+        if (!d || FIELD(d, OF(TECHDATA, 0x48), int) != 7 || c[4]) continue;
+        int id = FIELD(d, OF(TECHDATA, 0x4C), int);
         if (ap_upgrade_later(pl, d)) continue;   // army.c army_plan UPGRADE: a line it doesn't use yet
         GF(FN_RS_SCHEDULE)(rs, id);
         size_t l = strlen(ids);
@@ -266,19 +266,19 @@ static void __fastcall hook_epoch_upgrades(uint8_t *node, void *edx, int cat) {
 // 6 [b8c+0x4C]+0x48, 7 b98+0x2D, 8 b8c+0x62. Share of AI ticks each was on, logged as "# attention:" every 10 min.
 static struct { unsigned ticks, on[9]; } g_att[16];
 static void attention_note(void *pl, unsigned idx, uint32_t now) {
-    uint8_t *cm = FIELD(pl, 0xB90, uint8_t *), *b8c = FIELD(pl, 0xB8C, uint8_t *), *b98 = FIELD(pl, 0xB98, uint8_t *);
+    uint8_t *cm = FIELD(pl, OF(PL, 0xB90), uint8_t *), *b8c = FIELD(pl, OF(PL, 0xB8C), uint8_t *), *b98 = FIELD(pl, OF(PL, 0xB98), uint8_t *);
     if (!cm || !b8c || !b98) return;
-    uint8_t *rm = FIELD(cm, 0x38, uint8_t *), *rs = FIELD(cm, 0x40, uint8_t *), *um = FIELD(cm, 0x44, uint8_t *);
-    uint8_t *b8c4c = FIELD(b8c, 0x4C, uint8_t *);
-    uint8_t f[9] = { cm[0x7A], rm ? rm[0x188] : 0, rs ? rs[0x11A] : 0, um ? um[0x140] : 0, cm[0x7B], cm[0x7C],
-                     b8c4c ? b8c4c[0x48] : 0, b98[0x2D], b8c[0x62] };
+    uint8_t *rm = FIELD(cm, OF(CM, 0x38), uint8_t *), *rs = FIELD(cm, OF(CM, 0x40), uint8_t *), *um = FIELD(cm, OF(CM, 0x44), uint8_t *);
+    uint8_t *b8c4c = FIELD(b8c, OF(AM, 0x4C), uint8_t *);
+    uint8_t f[9] = { cm[OF(CM, 0x7A)], rm ? rm[OF(RM, 0x188)] : 0, rs ? rs[OF(RS, 0x11A)] : 0, um ? um[OF(UM, 0x140)] : 0,
+                     cm[OF(CM, 0x7B)], cm[OF(CM, 0x7C)], b8c4c ? b8c4c[OF(AM4C, 0x48)] : 0, b98[OF(PLB98, 0x2D)], b8c[OF(AM, 0x62)] };
     g_att[idx].ticks++;
     for (int i = 0; i < 9; i++) g_att[idx].on[i] += f[i] != 0;
     static uint32_t last[16];
     if (!g_log || now / 600000 == last[idx] / 600000) return;
     last[idx] = now;
     EnterCriticalSection(&g_lock);
-    fprintf(g_log, "# attention: P%u at %u min, E20=%d A28=%d, on %%:", idx, now / 60000, FIELD(pl, 0xE20, int), FIELD(pl, 0xA28, int));
+    fprintf(g_log, "# attention: P%u at %u min, E20=%d A28=%d, on %%:", idx, now / 60000, FIELD(pl, OF(PL, 0xE20), int), FIELD(pl, OF(PL, 0xA28), int));
     for (int i = 0; i < 9; i++) fprintf(g_log, " %d:%u", i, g_att[idx].ticks ? g_att[idx].on[i] * 100 / g_att[idx].ticks : 0);
     fputc('\n', g_log);
     fflush(g_log);
@@ -293,10 +293,10 @@ static int __fastcall hook_tech_grant(uint8_t *node, void *edx) {
     uint8_t before = node[4];
     int r = GF(FN_TECH_GRANT)(node);
     if (g_log && !before && node[4]) {
-        uint8_t *d = FIELD(node, 8, uint8_t *), *owner = FIELD(node, 0xC, uint8_t *);
+        uint8_t *d = FIELD(node, OF(TECHNODE, 0x8), uint8_t *), *owner = FIELD(node, OF(TECHNODE, 0xC), uint8_t *);
         uintptr_t *fp = (uintptr_t *)__builtin_frame_address(0);
         fprintf(g_log, "# techgrant: tech %d player %d at %.2f min, caller %08x, stack",
-                d ? FIELD(d, 0x4C, int) : -1, owner ? FIELD(owner, 4, int) : -1, game_time() / 60000.0,
+                d ? FIELD(d, OF(TECHDATA, 0x4C), int) : -1, owner ? FIELD(owner, OF(PL, 0x4), int) : -1, game_time() / 60000.0,
                 (unsigned)(uintptr_t)__builtin_return_address(0));
         for (int k = 0; k < 64; k++) {   // return addresses into the exe on the stack
             uintptr_t v = fp[k];
@@ -325,8 +325,8 @@ static void tech_log_tick(void *pl, unsigned idx, uint32_t now) {
         uint8_t *t = GF(FN_TECH_LOOKUP)(tt, id);
         int done = t && t[4];
         if (done && !seen[idx][id]) {
-            uint8_t *d = FIELD(t, 8, uint8_t *);
-            for (int r = 2; r < 7 && d; r++) cost[r] += FIELD(d, 0x24 + (r - 2) * 4, int);
+            uint8_t *d = FIELD(t, OF(TECH, 0x8), uint8_t *);
+            for (int r = 2; r < 7 && d; r++) cost[r] += FIELD(d, OF(TECHDATA, 0x24) + (r - 2) * 4, int);
             if (o < 900) o += snprintf(buf + o, sizeof buf - o, " %d", id);
             n++;
         }
@@ -348,8 +348,8 @@ static void gather_log(void *pl, unsigned idx, uint32_t now) {
     int (*last_income)[7] = g_gather_income;
     if (!g_log || now / 300000 == last[idx] / 300000) return;
     last[idx] = now;
-    void *cm = FIELD(pl, 0xB90, void *);
-    uint8_t *rm = cm ? FIELD(cm, 0x38, uint8_t *) : NULL;
+    void *cm = FIELD(pl, OF(PL, 0xB90), void *);
+    uint8_t *rm = cm ? FIELD(cm, OF(CM, 0x38), uint8_t *) : NULL;
     if (!rm) return;
     static int d[64][3];
     int nd = drop_sites(pl, d, 64), ndrop = 0;
@@ -361,10 +361,10 @@ static void gather_log(void *pl, unsigned idx, uint32_t now) {
         unsigned first = FIELD(dq, 0xC, unsigned), n = FIELD(dq, 0x10, unsigned), m = 0;
         int sum = 0;
         for (unsigned k = 0; k < n; k++) {
-            uint8_t *u = deque_at(dq, first + k), *goal = u ? FIELD(u, 0x1EC, uint8_t *) : NULL;
-            uint8_t *site = goal && !strcmp(rtti_name(goal), "EEUGGather@@") ? FIELD(goal, 0x38, uint8_t *) : NULL;
+            uint8_t *u = deque_at(dq, first + k), *goal = u ? FIELD(u, OF(UNIT, 0x1EC), uint8_t *) : NULL;
+            uint8_t *site = goal && !strcmp(rtti_name(goal), "EEUGGather@@") ? FIELD(goal, OF(GOAL, 0x38), uint8_t *) : NULL;
             if (!site) continue;
-            sum += drop_dist(d, nd, FIELD(site, 0x1C, int), FIELD(site, 0x20, int), r == 2);
+            sum += drop_dist(d, nd, FIELD(site, OF(UNIT, 0x1C), int), FIELD(site, OF(UNIT, 0x20), int), r == 2);
             m++;
         }
         int inc = g_bud[idx].income[r] - last_income[idx][r];
@@ -437,14 +437,14 @@ static void __fastcall hook_add_resource(void *pl, void *edx, int type, int amou
 static void __fastcall hook_pop_cap(void *pl, void *edx) {
     (void)edx;
     GF(FN_POP_CAP)(pl);
-    if (!cfg_of(pl)->pop_follow && !is_vanilla(pl)) FIELD(pl, 0xCCC, int) = GF(FN_GAME_LIMIT)(pl, 0);
+    if (!cfg_of(pl)->pop_follow && !is_vanilla(pl)) FIELD(pl, OF(PL, 0xCCC), int) = GF(FN_GAME_LIMIT)(pl, 0);
 }
 
 
 // Citizens without useful work: unassigned ones plus those beyond their resource's target.
 static int idle_citizens(void *pl) {
-    void *cm = FIELD(pl, 0xB90, void *);
-    uint8_t *rm = cm ? FIELD(cm, 0x38, uint8_t *) : NULL;
+    void *cm = FIELD(pl, OF(PL, 0xB90), void *);
+    uint8_t *rm = cm ? FIELD(cm, OF(CM, 0x38), uint8_t *) : NULL;
     if (!rm) return 0;
     int idle = FIELD(rm, RM_LISTS + 0x10, int);   // list 0: not assigned to a resource
     for (int t = 2; t < 7; t++) {
@@ -457,8 +457,8 @@ static int idle_citizens(void *pl) {
 static void *um_owner(void *um) {
     for (int i = 0; i < 16; i++) {
         void *pl = g_players[i];
-        void *cm = pl ? FIELD(pl, 0xB90, void *) : NULL;
-        if (cm && FIELD(cm, 0x44, void *) == um) return pl;
+        void *cm = pl ? FIELD(pl, OF(PL, 0xB90), void *) : NULL;
+        if (cm && FIELD(cm, OF(CM, 0x44), void *) == um) return pl;
     }
     return NULL;
 }
@@ -485,8 +485,8 @@ static int copper_mode(void *pl) {
 }
 
 static int workforce(void *pl) {
-    void *cm = FIELD(pl, 0xB90, void *);
-    uint8_t *rm = cm ? FIELD(cm, 0x38, uint8_t *) : NULL;
+    void *cm = FIELD(pl, OF(PL, 0xB90), void *);
+    uint8_t *rm = cm ? FIELD(cm, OF(CM, 0x38), uint8_t *) : NULL;
     int n = 0;
     for (int t = 0; rm && t < 7; t++) n += FIELD(rm, RM_LISTS + t * 0x14 + 0x10, int);
     return n;
@@ -495,11 +495,11 @@ static int workforce(void *pl) {
 static uint8_t *epoch_tech(void *pl, int e) {
     uint8_t *tt = FIELD(pl, PL_TECHTREE, uint8_t *);
     if (!tt || e > 13 || e > *(int *)GA(G_END_EPOCH)) return NULL;
-    return FIELD(tt + 8 + e * 0x54, 8, uint8_t *);
+    return FIELD(tt + 8 + e * 0x54, OF(TTREC, 0x8), uint8_t *);
 }
 static int epoch_cost(void *pl, int e, int r) {
     uint8_t *d = epoch_tech(pl, e);
-    int c = d ? FIELD(d, 0x24 + (r - 2) * 4, int) : 0;
+    int c = d ? FIELD(d, OF(TECHDATA, 0x24) + (r - 2) * 4, int) : 0;
     return c > 0 ? c : 0;
 }
 static int current_epoch(void *pl) {
@@ -527,15 +527,15 @@ static int requirements_missing(void *pl) {
     int next = FIELD(tt, TT_EPOCH, int) + 1;
     if (next > 13 || next > *(int *)GA(G_END_EPOCH)) return 0;
     uint8_t *rec = tt + 8 + next * 0x54;
-    return FIELD(rec, 0x40, int) - FIELD(rec, 0x48, int);
+    return FIELD(rec, OF(TTREC, 0x40), int) - FIELD(rec, OF(TTREC, 0x48), int);
 }
 // unit type whose first training counts for the next epoch (its tech: object data 0x9418A0[type] +0x4E0)
 static int requirement_unit(void *pl, int type) {
     uint8_t *tt = FIELD(pl, PL_TECHTREE, uint8_t *), *od = type_data(type);
     if (!g_early_requirements || !tt || !od || requirements_missing(pl) < 1) return 0;
-    uint8_t *t = GF(FN_TECH_LOOKUP)(tt, FIELD(od, 0x4E0, int));
-    uint8_t *d = t ? FIELD(t, 8, uint8_t *) : NULL;
-    return d && !t[4] && d[0x7D];
+    uint8_t *t = GF(FN_TECH_LOOKUP)(tt, FIELD(od, OF(TD, 0x4E0), int));
+    uint8_t *d = t ? FIELD(t, OF(TECH, 0x8), uint8_t *) : NULL;
+    return d && !t[4] && d[OF(TECHDATA, 0x7D)];
 }
 // Decoration (the editor's "x ..." objects: statues, houses, flags, ruins - name at object data +0x1C) counts as
 // an epoch requirement too. When nothing else can be made right now (0x485C8F), the request falls back to every
@@ -552,11 +552,11 @@ static void decoration_fix(void *pl, unsigned ai) {
     int n = 0;
     for (int type = 0; type < 0x300; type++) {   // the table's size, as the game checks it (0x4B..: < 0x300)
         uint8_t *od = type_data(type);
-        const char *name = od ? FIELD(od, 0x1C, const char *) : NULL;
+        const char *name = od ? FIELD(od, OF(TD, 0x1C), const char *) : NULL;
         if (!name || name[0] != 'x' || name[1] != ' ') continue;
-        uint8_t *t = GF(FN_TECH_LOOKUP)(tt, FIELD(od, 0x4E0, int));
-        uint8_t *d = t ? FIELD(t, 8, uint8_t *) : NULL;
-        if (d && d[0x7D]) { d[0x7D] = 0; n++; }
+        uint8_t *t = GF(FN_TECH_LOOKUP)(tt, FIELD(od, OF(TD, 0x4E0), int));
+        uint8_t *d = t ? FIELD(t, OF(TECH, 0x8), uint8_t *) : NULL;
+        if (d && d[OF(TECHDATA, 0x7D)]) { d[OF(TECHDATA, 0x7D)] = 0; n++; }
     }
     if (g_log) fprintf(g_log, "# epoch plan: P%u: %d decoration objects no longer count as epoch requirements\n", ai, n);
 }
@@ -568,17 +568,17 @@ static void early_requirements(void *pl, unsigned ai, uint32_t now, int prefarm)
     static uint32_t asked[16];
     decoration_fix(pl, ai);
     static int asked_missing[16];
-    uint8_t *cm = FIELD(pl, 0xB90, uint8_t *), *tt = FIELD(pl, PL_TECHTREE, uint8_t *);
-    if (!g_early_requirements || !cm || !tt || !FIELD(cm, 0x40, void *)) return;
+    uint8_t *cm = FIELD(pl, OF(PL, 0xB90), uint8_t *), *tt = FIELD(pl, PL_TECHTREE, uint8_t *);
+    if (!g_early_requirements || !cm || !tt || !FIELD(cm, OF(CM, 0x40), void *)) return;
     int missing = requirements_missing(pl);
     if (missing < 1) { asked[ai] = 0; return; }
-    if (cm[0x76]) {   // a request is out: renew it after 3 minutes without progress
+    if (cm[OF(CM, 0x76)]) {   // a request is out: renew it after 3 minutes without progress
         if (asked[ai] && now >= asked[ai] && now - asked[ai] < 180000) return;
         if (asked[ai] && missing < asked_missing[ai]) { asked[ai] = g_epoch_req_t[ai] = now ? now : 1; asked_missing[ai] = missing; return; }
     }
-    if (!prefarm && (int)(FIELD(cm, 0x58, uint32_t) - now) > 10 * 60000) return;
-    GF(FN_REQUEST_TECHS)(FIELD(cm, 0x40, void *), missing);
-    cm[0x76] = 1;
+    if (!prefarm && (int)(FIELD(cm, OF(CM, 0x58), uint32_t) - now) > 10 * 60000) return;
+    GF(FN_REQUEST_TECHS)(FIELD(cm, OF(CM, 0x40), void *), missing);
+    cm[OF(CM, 0x76)] = 1;
     asked[ai] = g_epoch_req_t[ai] = now ? now : 1;
     asked_missing[ai] = missing;
     if (g_log) fprintf(g_log, "# epoch plan: P%u at %.1f min asks for %d new things for epoch %d\n", ai, now / 60000.0,
@@ -590,9 +590,9 @@ static int unit_cost(void *pl, int type, int r);   // below
 static void retry_dropped(void *pl, unsigned idx, uint32_t now) {
     if (!g_build_fix) return;
     if (now < 30000) { memset(g_retry[idx], 0, sizeof g_retry[idx]); return; }   // new game
-    void *cm = FIELD(pl, 0xB90, void *);
-    uint8_t *bm = cm ? FIELD(cm, 0x3C, uint8_t *) : NULL;
-    void *um = cm ? FIELD(cm, 0x44, void *) : NULL;
+    void *cm = FIELD(pl, OF(PL, 0xB90), void *);
+    uint8_t *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL;
+    void *um = cm ? FIELD(cm, OF(CM, 0x44), void *) : NULL;
     int *stock = (int *)((uint8_t *)pl + PL_STOCK);
     if (!bm || !um) return;
     for (int k = 0; k < 16; k++) {
@@ -618,7 +618,7 @@ static void econ_vanilla_log(void *pl, uint32_t now) {
     unsigned ai = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     spend_log(ai, now);
     gather_log(pl, ai, now);
-    uint32_t t_attack = FIELD(pl, 0xED8, uint32_t);
+    uint32_t t_attack = FIELD(pl, OF(PL, 0xED8), uint32_t);
     if (t_attack != g_last_attack_time[ai]) {
         if (g_last_attack_time[ai] && g_log)
             fprintf(g_log, "# attack: P%u at %.1f min, next at %.1f min\n", ai, now / 60000.0, t_attack / 60000.0);
@@ -646,9 +646,9 @@ static void econ_tick(void *pl, uint32_t now) {
     {   // the base the AI plans around (build manager +0x12C/+0x130): log when it moves (a lost base, a new one?)
         static int bx[16] = { -10000, -10000, -10000, -10000, -10000, -10000, -10000, -10000, -10000, -10000, -10000,
                               -10000, -10000, -10000, -10000, -10000 }, by[16];
-        void *cm = FIELD(pl, 0xB90, void *);
-        uint8_t *bm = cm ? FIELD(cm, 0x3C, uint8_t *) : NULL;
-        int x = bm ? FIELD(bm, 0x12C, int) : -10000, y = bm ? FIELD(bm, 0x130, int) : -10000;
+        void *cm = FIELD(pl, OF(PL, 0xB90), void *);
+        uint8_t *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL;
+        int x = bm ? FIELD(bm, OF(BM, 0x12C), int) : -10000, y = bm ? FIELD(bm, OF(BM, 0x130), int) : -10000;
         if (bm && (x != bx[ai] || y != by[ai])) {
             if (g_log) fprintf(g_log, "# base: P%u at %.1f min: %d,%d -> %d,%d\n", ai, now / 60000.0, bx[ai], by[ai], x, y);
             bx[ai] = x;
@@ -658,7 +658,7 @@ static void econ_tick(void *pl, uint32_t now) {
     chat_tick(pl, ai, now);
     diplo_tick(pl, ai, now);
     rates_update(pl, ai, now);
-    uint32_t t_attack = FIELD(pl, 0xED8, uint32_t);
+    uint32_t t_attack = FIELD(pl, OF(PL, 0xED8), uint32_t);
     if (t_attack != g_last_attack_time[ai]) {
         if (g_last_attack_time[ai] && g_log)
             fprintf(g_log, "# attack: P%u at %.1f min, next at %.1f min\n", ai, now / 60000.0, t_attack / 60000.0);
@@ -675,15 +675,15 @@ static void econ_tick(void *pl, uint32_t now) {
     early_requirements(pl, ai, now, copper_mode(pl) && ep < FARM_EPOCH);
     // pull the attempt forward: before farms with the copper plan, in every epoch with epoch_pacing=fast
     if (!(copper_mode(pl) && ep < FARM_EPOCH) && !c->pacing_fast) return;
-    uint8_t *cm = FIELD(pl, 0xB90, uint8_t *);
+    uint8_t *cm = FIELD(pl, OF(PL, 0xB90), uint8_t *);
     // AttemptEpochAdvance (0x46C966) asks the research manager once for the techs the next epoch requires
     // (record +0x40 needed, +0x48 done) and then waits while cm+0x76 is set; re-arm it after 5 minutes.
     uint32_t *pending_since = g_epoch_req_t;   // shared with early_requirements' renewal
     unsigned pi = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
-    if (cm && cm[0x76]) {
+    if (cm && cm[OF(CM, 0x76)]) {
         if (!pending_since[pi] || now < pending_since[pi]) pending_since[pi] = now ? now : 1;
         else if (now - pending_since[pi] > 5 * 60000) {
-            cm[0x76] = 0;
+            cm[OF(CM, 0x76)] = 0;
             pending_since[pi] = 0;
             if (g_log) fprintf(g_log, "# copper plan: P%u epoch requirement still pending after 5 min, re-requesting\n", pi);
         }
@@ -692,7 +692,7 @@ static void econ_tick(void *pl, uint32_t now) {
     int *stock = (int *)((uint8_t *)pl + PL_STOCK);
     for (int r = 2; r < 7; r++)
         if (stock[r] < epoch_cost(pl, ep + 1, r)) return;
-    uint32_t *t_epoch = (uint32_t *)(cm + 0x58);
+    uint32_t *t_epoch = (uint32_t *)(cm + CM_TIMERS);
     if (*t_epoch > now + 5000) {
         if (g_log) fprintf(g_log, "# epoch plan: P%d can pay epoch %d at %.1f min, attempt moved up from %.1f min\n",
                            FIELD(pl, PL_INDEX, int), ep + 1, now / 60000.0, *t_epoch / 60000.0);
@@ -705,14 +705,14 @@ static void econ_tick(void *pl, uint32_t now) {
         last_wait[pi] = now;
         uint8_t *tt = FIELD(pl, PL_TECHTREE, uint8_t *), *rec = tt + 8 + (ep + 1) * 0x54;
         fprintf(g_log, "# epoch wait: P%u at %.1f min, epoch %d: requirements %d/%d, pending %d, scheduled %d, attention %d;",
-                pi, now / 60000.0, ep + 1, FIELD(rec, 0x48, int), FIELD(rec, 0x40, int), cm[0x76], cm[0x78], cm[0x7A]);
+                pi, now / 60000.0, ep + 1, FIELD(rec, OF(TTREC, 0x48), int), FIELD(rec, OF(TTREC, 0x40), int), cm[OF(CM, 0x76)], cm[OF(CM, 0x78)], cm[OF(CM, 0x7A)]);
         // the research manager's list of this epoch: tech id (* researched) building +0x6C, cost food..iron
-        uint8_t *rs = FIELD(cm, 0x40, uint8_t *);
-        int *b = rs ? FIELD(rs, 0x18 + ep * 0x10, int *) : NULL, *en = rs ? FIELD(rs, 0x1C + ep * 0x10, int *) : NULL;
+        uint8_t *rs = FIELD(cm, OF(CM, 0x40), uint8_t *);
+        int *b = rs ? FIELD(rs, OF(RS, 0x18) + ep * 0x10, int *) : NULL, *en = rs ? FIELD(rs, OF(RS, 0x1C) + ep * 0x10, int *) : NULL;
         for (int *q = b; b && en > b && en - b < 100 && q < en; q++) {
-            uint8_t *t = GF(FN_TECH_LOOKUP)(tt, *q), *d = t ? FIELD(t, 8, uint8_t *) : NULL;
-            if (d) fprintf(g_log, " %d%s@%d(%d/%d/%d/%d/%d)", *q, t[4] ? "*" : "", FIELD(d, 0x6C, int), FIELD(d, 0x24, int),
-                           FIELD(d, 0x28, int), FIELD(d, 0x2C, int), FIELD(d, 0x30, int), FIELD(d, 0x34, int));
+            uint8_t *t = GF(FN_TECH_LOOKUP)(tt, *q), *d = t ? FIELD(t, OF(TECH, 0x8), uint8_t *) : NULL;
+            if (d) fprintf(g_log, " %d%s@%d(%d/%d/%d/%d/%d)", *q, t[4] ? "*" : "", FIELD(d, OF(TECHDATA, 0x6C), int), FIELD(d, OF(TECHDATA, 0x24), int),
+                           FIELD(d, OF(TECHDATA, 0x28), int), FIELD(d, OF(TECHDATA, 0x2C), int), FIELD(d, OF(TECHDATA, 0x30), int), FIELD(d, OF(TECHDATA, 0x34), int));
         }
         fputc('\n', g_log);
     }
@@ -723,20 +723,20 @@ static void econ_tick(void *pl, uint32_t now) {
 // of it will actually be gathered (competition, losses), hence g_wild_share.
 static float g_wild_share = 0.6f;   // aimod.ini [budget] wild_food_share
 static int wild_food(void *pl) {
-    uint8_t *cm = FIELD(pl, 0xB90, uint8_t *);
-    void *bm = cm ? FIELD(cm, 0x3C, void *) : NULL;
+    uint8_t *cm = FIELD(pl, OF(PL, 0xB90), uint8_t *);
+    void *bm = cm ? FIELD(cm, OF(CM, 0x3C), void *) : NULL;
     if (!bm) return 0;
-    int bx = FIELD(bm, 0x12C, int), by = FIELD(bm, 0x130, int);
+    int bx = FIELD(bm, OF(BM, 0x12C), int), by = FIELD(bm, OF(BM, 0x130), int);
     if (bx == -10000) return 0;
     int lim = g_site_max_dist * g_site_max_dist, total = 0;
-    void **zb = FIELD(pl, 0xB50, void **), **ze = FIELD(pl, 0xB54, void **);
+    void **zb = FIELD(pl, OF(PL, 0xB50), void **), **ze = FIELD(pl, OF(PL, 0xB54), void **);
     for (int z = 0; zb && zb + z < ze; z++) {
         uint8_t *s = zb[z] ? GF(FN_ZONE_SITE)(zb[z], 2) : NULL;
-        if (!s || FIELD(FIELD(s, 0x2C, uint8_t *), 0x4B8, int) != UT(RES_FORAGE_BUSH)) continue;
-        int dx = FIELD(s, 0x1C, int) - bx, dy = FIELD(s, 0x20, int) - by;
+        if (!s || FIELD(FIELD(s, OF(UNIT, 0x2C), uint8_t *), OF(TD, 0x4B8), int) != UT(RES_FORAGE_BUSH)) continue;
+        int dx = FIELD(s, OF(UNIT, 0x1C), int) - bx, dy = FIELD(s, OF(UNIT, 0x20), int) - by;
         if (dx * dx + dy * dy >= lim) continue;
-        if (!GF(FN_EXPLORED)(FIELD(s, 0x14, void *), pl)) continue;
-        total += FIELD(s, 0x40, int);
+        if (!GF(FN_EXPLORED)(FIELD(s, OF(UNIT, 0x14), void *), pl)) continue;
+        total += FIELD(s, OF(UNIT, 0x40), int);
     }
     return total;
 }
@@ -834,7 +834,7 @@ static void econ_targets(uint8_t *rm) {
         // can't pay for is no demand at all (the queue's "can build", 0x555710, tests the cost too) - the airport
         // (425 wood) and tank factory waited with 115 wood in stock and a demand of 55, so no AA tank either
         void *cm = FIELD(rm, RM_OWNER, void *);
-        uint8_t *bm = cm ? FIELD(cm, 0x3C, uint8_t *) : NULL;
+        uint8_t *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL;
         int queued = 0, nq = 0;
         for (int e = 0; bm && e <= current_epoch(pl) && e < 14 && nq < 3; e++)
             for (unsigned i = 0; nq < 3; i++) {
@@ -858,7 +858,7 @@ static void econ_targets(uint8_t *rm) {
             target[from]--;
             target[3]++;
         }
-        void *um = cm ? FIELD(cm, 0x44, void *) : NULL;
+        void *um = cm ? FIELD(cm, OF(CM, 0x44), void *) : NULL;
         uint8_t *fq = type_list(um, UT(B_FARM));
         int fields = fq ? FIELD(fq, 0x10, int) : 0;
         if (lt & 4) {   // the overflow to the metals (see LATE WOOD, bit 4)
@@ -977,9 +977,9 @@ static uint8_t *movable_gatherer(uint8_t *rm, int t) {
     unsigned first = FIELD(dq, 0xC, unsigned), n = FIELD(dq, 0x10, unsigned);
     for (unsigned k = n; k-- > 0; ) {   // the newest first
         uint8_t *u = deque_at(dq, first + k);
-        if (!u || FIELD(u, 0x3C, int) <= 0 || FIELD(u, 0x33B, uint8_t) || FIELD(u, 0x341, uint8_t) || FIELD(u, 0x68, int))
+        if (!u || FIELD(u, OF(UNIT, 0x3C), int) <= 0 || FIELD(u, OF(UNIT, 0x33B), uint8_t) || FIELD(u, OF(UNIT, 0x341), uint8_t) || FIELD(u, OF(UNIT, 0x68), int))
             continue;
-        void *goal = FIELD(u, 0x1EC, void *);
+        void *goal = FIELD(u, OF(UNIT, 0x1EC), void *);
         if (goal && !strcmp(rtti_name(goal), "EEUGGather@@")) return u;
     }
     return NULL;
@@ -1006,15 +1006,15 @@ static int g_build_fields = 1;
 static int g_fields_open[16];   // unfinished fields per player (econ_fields), for the wood reserve
 static int field_wood(unsigned idx) { return g_build_fields ? 50 * (g_fields_open[idx] < 2 ? g_fields_open[idx] : 2) : 0; }
 static uint8_t *field_site(uint8_t *f) {   // what a BuildRepair goal holds (+0x3C) for this field (0x60BAD0)
-    uint8_t *p = FIELD(f, 0x30, uint8_t *), *last = f;
-    while (p) { last = p; p = FIELD(p, 0x1CC, uint8_t *); }
+    uint8_t *p = FIELD(f, OF(UNIT, 0x30), uint8_t *), *last = f;
+    while (p) { last = p; p = FIELD(p, OF(UNIT, 0x1CC), uint8_t *); }
     return last;
 }
 static int citizen_free(uint8_t *u, int idle) {   // idle, or (idle=0) gathering
-    if (!u || FIELD(u, 0x3C, int) <= 0 || FIELD(u, 0x33B, uint8_t) || FIELD(u, 0x341, uint8_t) || FIELD(u, 0x68, int) ||
-        FIELD(u, 0x1C, int) == -10000)
+    if (!u || FIELD(u, OF(UNIT, 0x3C), int) <= 0 || FIELD(u, OF(UNIT, 0x33B), uint8_t) || FIELD(u, OF(UNIT, 0x341), uint8_t) || FIELD(u, OF(UNIT, 0x68), int) ||
+        FIELD(u, OF(UNIT, 0x1C), int) == -10000)
         return 0;
-    void *goal = FIELD(u, 0x1EC, void *);
+    void *goal = FIELD(u, OF(UNIT, 0x1EC), void *);
     return idle ? !goal : goal && !strcmp(rtti_name(goal), "EEUGGather@@");
 }
 // plan P: the building plan's entries (cm+8: list head, node +0 next, +0xC type, +0x10 wanted count), as 0x46CD18
@@ -1028,21 +1028,21 @@ static void cmd_plan(char *out, const char *args) {
         return;
     }
     void *pl = (p >= 0 && p < 16) ? g_players[p] : NULL;
-    uint8_t *cm = pl ? FIELD(pl, 0xB90, uint8_t *) : NULL, *head = cm ? FIELD(cm, 8, uint8_t *) : NULL;
+    uint8_t *cm = pl ? FIELD(pl, OF(PL, 0xB90), uint8_t *) : NULL, *head = cm ? FIELD(cm, OF(CM, 0x8), uint8_t *) : NULL;
     if (!head) { REPLY("error: no AI player %d\n", p); return; }
-    REPLY("P%d plan (build flag %d, attention %d):", p, FIELD(pl, 0xEFC, uint8_t), FIELD(cm, 0x7B, uint8_t));
+    REPLY("P%d plan (build flag %d, attention %d):", p, FIELD(pl, OF(PL, 0xEFC), uint8_t), FIELD(cm, OF(CM, 0x7B), uint8_t));
     int n = 0;
-    for (uint8_t *nd = FIELD(head, 0, uint8_t *); nd && nd != head && n < 200; nd = FIELD(nd, 0, uint8_t *), n++)
-        REPLY(" %d:%d", FIELD(nd, 0xC, int), FIELD(nd, 0x10, int));
+    for (uint8_t *nd = FIELD(head, OF(CMLIST, 0x0), uint8_t *); nd && nd != head && n < 200; nd = FIELD(nd, OF(CMLIST, 0x0), uint8_t *), n++)
+        REPLY(" %d:%d", FIELD(nd, OF(CMLIST, 0xC), int), FIELD(nd, OF(CMLIST, 0x10), int));
     REPLY("\n");
 }
 static int field_worked(uint8_t *rm, uint8_t *f) {   // a citizen of this AI farms it or is on its way
     // (0x52E5F7 counts only those at the field - one carrying food to the granary left it "free")
     for (int r = 0; r < 7; r++) {
         uint8_t *list = rm + RM_LISTS + r * 0x14;
-        for (unsigned k = 0, first = FIELD(list, 0xC, unsigned), cnt = FIELD(list, 0x10, unsigned); k < cnt; k++) {
-            uint8_t *u = deque_at(list, first + k), *goal = u ? FIELD(u, 0x1EC, uint8_t *) : NULL;
-            if (goal && FIELD(goal, 0x38, uint8_t *) == f && !strcmp(rtti_name(goal), "EEUGGather@@")) return 1;
+        for (unsigned k = 0, first = FIELD(list, OF(EPOCHTECHS, 0xC), unsigned), cnt = FIELD(list, OF(EPOCHTECHS, 0x10), unsigned); k < cnt; k++) {
+            uint8_t *u = deque_at(list, first + k), *goal = u ? FIELD(u, OF(UNIT, 0x1EC), uint8_t *) : NULL;
+            if (goal && FIELD(goal, OF(GOAL, 0x38), uint8_t *) == f && !strcmp(rtti_name(goal), "EEUGGather@@")) return 1;
         }
     }
     return 0;
@@ -1064,8 +1064,8 @@ static void fields_rebuild(void *pl, unsigned idx, void *um, uint8_t *dq, uint32
     unsigned first = dq ? FIELD(dq, 0xC, unsigned) : 0, cnt = dq ? FIELD(dq, 0x10, unsigned) : 0;
     for (unsigned k = 0; k < cnt; k++) {   // remember every field's tile
         uint8_t *f = deque_at(dq, first + k);
-        if (!f || FIELD(f, 0x3C, int) <= 0) continue;
-        int x = FIELD(f, 0x1C, int), y = FIELD(f, 0x20, int), j = 0;
+        if (!f || FIELD(f, OF(UNIT, 0x3C), int) <= 0) continue;
+        int x = FIELD(f, OF(UNIT, 0x1C), int), y = FIELD(f, OF(UNIT, 0x20), int), j = 0;
         while (j < g_field_n[idx] && (g_field_at[idx][j].x != x || g_field_at[idx][j].y != y)) j++;
         if (j == g_field_n[idx] && j < 32) { g_field_at[idx][j].x = (int16_t)x; g_field_at[idx][j].y = (int16_t)y;
                                             g_field_at[idx][j].queued = 0; g_field_n[idx]++; }
@@ -1077,12 +1077,12 @@ static void fields_rebuild(void *pl, unsigned idx, void *um, uint8_t *dq, uint32
         int x = g_field_at[idx][j].x, y = g_field_at[idx][j].y, there = 0, granary = 0;
         for (unsigned k = 0; k < cnt && !there; k++) {
             uint8_t *f = deque_at(dq, first + k);
-            there = f && FIELD(f, 0x3C, int) > 0 && FIELD(f, 0x1C, int) == x && FIELD(f, 0x20, int) == y;
+            there = f && FIELD(f, OF(UNIT, 0x3C), int) > 0 && FIELD(f, OF(UNIT, 0x1C), int) == x && FIELD(f, OF(UNIT, 0x20), int) == y;
         }
         if (there || (g_field_at[idx][j].queued && now - g_field_at[idx][j].queued < 120000)) continue;
         for (unsigned k = 0, gf = FIELD(gq, 0xC, unsigned), gc = FIELD(gq, 0x10, unsigned); k < gc && !granary; k++) {
             uint8_t *g = deque_at(gq, gf + k);
-            granary = g && FIELD(g, 0x3C, int) > 0 && abs(FIELD(g, 0x1C, int) - x) <= 4 && abs(FIELD(g, 0x20, int) - y) <= 4;
+            granary = g && FIELD(g, OF(UNIT, 0x3C), int) > 0 && abs(FIELD(g, OF(UNIT, 0x1C), int) - x) <= 4 && abs(FIELD(g, OF(UNIT, 0x20), int) - y) <= 4;
         }
         if (!granary) continue;
         if (raiders_near(pl, x, y, 8)) continue;   // raided: later (builders: 8 tiles, as citizens_safety)
@@ -1113,8 +1113,8 @@ static int granary_spot(void *pl, void *um, int *ox, int *oy) {
         uint8_t *q = type_list(um, g_ut[centers[c]]);
         for (unsigned k = 0, f = q ? FIELD(q, 0xC, unsigned) : 0, n = q ? FIELD(q, 0x10, unsigned) : 0; k < n; k++) {
             uint8_t *b = deque_at(q, f + k);
-            if (!b || FIELD(b, 0x3C, int) <= 0) continue;
-            int cx = FIELD(b, 0x1C, int), cy = FIELD(b, 0x20, int);
+            if (!b || FIELD(b, OF(UNIT, 0x3C), int) <= 0) continue;
+            int cx = FIELD(b, OF(UNIT, 0x1C), int), cy = FIELD(b, OF(UNIT, 0x20), int);
             for (int r = 4; r <= 12; r++)
                 for (int ax = -r; ax <= r; ax++)
                     for (int ay = -r; ay <= r; ay++) {
@@ -1139,12 +1139,12 @@ static void more_granaries(void *pl, unsigned idx, uint8_t *rm, void *cm, void *
     if (now < next[idx] && next[idx] - now <= 60000) return;
     next[idx] = now + 60000;
     int want = (int)FIELD(rm, RM_TARGET + 2 * 4, uint32_t), have = rm_count(rm, 2);
-    uint8_t *bm = FIELD(cm, 0x3C, uint8_t *), *gq = type_list(um, UT(B_GRANARY));
+    uint8_t *bm = FIELD(cm, OF(CM, 0x3C), uint8_t *), *gq = type_list(um, UT(B_GRANARY));
     int granaries = 0;
     for (unsigned k = 0, f = gq ? FIELD(gq, 0xC, unsigned) : 0, c = gq ? FIELD(gq, 0x10, unsigned) : 0; k < c; k++) {
-        uint8_t *g = deque_at(gq, f + k), *st = g ? FIELD(g, 0x30, uint8_t *) : NULL;
-        if (!g || FIELD(g, 0x3C, int) <= 0) continue;
-        if (!st || !FIELD(st, 0x340, uint8_t)) return;   // one is being built
+        uint8_t *g = deque_at(gq, f + k), *st = g ? FIELD(g, OF(UNIT, 0x30), uint8_t *) : NULL;
+        if (!g || FIELD(g, OF(UNIT, 0x3C), int) <= 0) continue;
+        if (!st || !FIELD(st, OF(UNIT, 0x340), uint8_t)) return;   // one is being built
         granaries++;
     }
     // the first granary as soon as food lacks 2 citizens (farms are the food base, fish only a bonus - the
@@ -1176,13 +1176,13 @@ static void more_granaries(void *pl, unsigned idx, uint8_t *rm, void *cm, void *
 // hook_place lets a field through only with a foundation on its tile - laid out first if the tile is free - and
 // reports the others as placed (dropped).
 static int field_place_ok(uint8_t *bm, int x, int y, int lay_out) {
-    void *pl = FIELD(bm, 0x138, void *), *cm = FIELD(bm, 0x134, void *);
-    void *um = cm ? FIELD(cm, 0x44, void *) : NULL;
+    void *pl = FIELD(bm, OF(BM, 0x138), void *), *cm = FIELD(bm, OF(BM, 0x134), void *);
+    void *um = cm ? FIELD(cm, OF(CM, 0x44), void *) : NULL;
     if (!pl || !um || (!x && !y)) return 0;
     uint8_t *dq = type_list(um, UT(B_FARM));
     for (unsigned k = 0, first = dq ? FIELD(dq, 0xC, unsigned) : 0, cnt = dq ? FIELD(dq, 0x10, unsigned) : 0; k < cnt; k++) {
         uint8_t *f = deque_at(dq, first + k);
-        if (f && FIELD(f, 0x3C, int) > 0 && FIELD(f, 0x1C, int) == x && FIELD(f, 0x20, int) == y) return 1;
+        if (f && FIELD(f, OF(UNIT, 0x3C), int) > 0 && FIELD(f, OF(UNIT, 0x1C), int) == x && FIELD(f, OF(UNIT, 0x20), int) == y) return 1;
     }
     if (!lay_out || !ut_has(UT(B_FARM)) || !can_place(pl, UT(B_FARM), x, y)) return 0;
     GF(FN_PLACE_BUILDING)(pl, UT(B_FARM), x, y);
@@ -1199,7 +1199,7 @@ static void econ_fields(uint8_t *rm) {   // before the citizen assignment
     if (now < next[idx] && next[idx] - now <= 5000) return;
     next[idx] = now + 5000;
     void *cm = FIELD(rm, RM_OWNER, void *);
-    void *um = cm ? FIELD(cm, 0x44, void *) : NULL;   // unit manager: per-type lists (0x48F8AF)
+    void *um = cm ? FIELD(cm, OF(CM, 0x44), void *) : NULL;   // unit manager: per-type lists (0x48F8AF)
     uint8_t *dq = type_list(um, UT(B_FARM));
     if (um) fields_rebuild(pl, idx, um, dq, now);
     if (!dq) {   // no field yet (no list of fields): only the granary pass - it brings the first one (water maps)
@@ -1210,16 +1210,16 @@ static void econ_fields(uint8_t *rm) {   // before the citizen assignment
     uint8_t *todo[16], *done[16];
     int nt = 0, nd = 0, ordered = 0, farmers = 0;
     for (unsigned k = 0, first = FIELD(dq, 0xC, unsigned), cnt = FIELD(dq, 0x10, unsigned); k < cnt && nt < 16; k++) {
-        uint8_t *f = deque_at(dq, first + k), *st = f ? FIELD(f, 0x30, uint8_t *) : NULL;
-        if (!st || FIELD(f, 0x3C, int) <= 0) continue;
+        uint8_t *f = deque_at(dq, first + k), *st = f ? FIELD(f, OF(UNIT, 0x30), uint8_t *) : NULL;
+        if (!st || FIELD(f, OF(UNIT, 0x3C), int) <= 0) continue;
         if (site_danger(pl, f, 1)) continue;   // under known enemy towers: no builders, no farmers (attack.c)
         // raided: a player doesn't send his citizens one by one into the raiders - the same distances as
         // citizens_safety (attack.c: 8 for builders, 6 for farmers): with 6 here a builder went every 10 s to a
         // field with bowmen 7 tiles away, was sent back 4 s later, and the next one went (the player's army shot
         // them on the way)
-        if (raiders_near(pl, FIELD(f, 0x1C, int), FIELD(f, 0x20, int), FIELD(st, 0x340, uint8_t) ? 6 : 8))
+        if (raiders_near(pl, FIELD(f, OF(UNIT, 0x1C), int), FIELD(f, OF(UNIT, 0x20), int), FIELD(st, OF(UNIT, 0x340), uint8_t) ? 6 : 8))
             continue;
-        if (!FIELD(st, 0x340, uint8_t)) todo[nt++] = f;
+        if (!FIELD(st, OF(UNIT, 0x340), uint8_t)) todo[nt++] = f;
         else if (nd < 16 && !field_worked(rm, f)) done[nd++] = f;
     }
     g_fields_open[idx] = nt;
@@ -1228,12 +1228,12 @@ static void econ_fields(uint8_t *rm) {   // before the citizen assignment
     int wild = nt && food_fields_wait(pl, rm);   // food.c (food_plan WILD): wild food first
     for (int i = 0; i < nt && wood >= 50 && !wild; i++) {
         uint8_t *site = field_site(todo[i]), *best = NULL;
-        int fx = FIELD(todo[i], 0x1C, int), fy = FIELD(todo[i], 0x20, int), bd = 0x7FFFFFFF, busy = 0;
+        int fx = FIELD(todo[i], OF(UNIT, 0x1C), int), fy = FIELD(todo[i], OF(UNIT, 0x20), int), bd = 0x7FFFFFFF, busy = 0;
         for (int r = 0; r < 7 && !busy; r++) {   // a builder already on it?
             uint8_t *list = rm + RM_LISTS + r * 0x14;
-            for (unsigned k = 0, first = FIELD(list, 0xC, unsigned), cnt = FIELD(list, 0x10, unsigned); k < cnt; k++) {
-                uint8_t *u = deque_at(list, first + k), *goal = u ? FIELD(u, 0x1EC, uint8_t *) : NULL;
-                if (goal && FIELD(goal, 0x3C, uint8_t *) == site && !strcmp(rtti_name(goal), "EEUGBuildRepair@@")) { busy = 1; break; }
+            for (unsigned k = 0, first = FIELD(list, OF(EPOCHTECHS, 0xC), unsigned), cnt = FIELD(list, OF(EPOCHTECHS, 0x10), unsigned); k < cnt; k++) {
+                uint8_t *u = deque_at(list, first + k), *goal = u ? FIELD(u, OF(UNIT, 0x1EC), uint8_t *) : NULL;
+                if (goal && FIELD(goal, OF(GOAL, 0x3C), uint8_t *) == site && !strcmp(rtti_name(goal), "EEUGBuildRepair@@")) { busy = 1; break; }
             }
         }
         if (busy) continue;
@@ -1241,21 +1241,21 @@ static void econ_fields(uint8_t *rm) {   // before the citizen assignment
             for (int r = 0; r < 7; r++) {
                 if (pass == 1 ? r != 2 : pass == 2 ? r < 4 : 0) continue;
                 uint8_t *list = rm + RM_LISTS + r * 0x14;
-                for (unsigned k = 0, first = FIELD(list, 0xC, unsigned), cnt = FIELD(list, 0x10, unsigned); k < cnt; k++) {
+                for (unsigned k = 0, first = FIELD(list, OF(EPOCHTECHS, 0xC), unsigned), cnt = FIELD(list, OF(EPOCHTECHS, 0x10), unsigned); k < cnt; k++) {
                     uint8_t *u = deque_at(list, first + k);
                     if (!citizen_free(u, pass == 0)) continue;
-                    int dx = FIELD(u, 0x1C, int) - fx, dy = FIELD(u, 0x20, int) - fy, d = dx * dx + dy * dy;
+                    int dx = FIELD(u, OF(UNIT, 0x1C), int) - fx, dy = FIELD(u, OF(UNIT, 0x20), int) - fy, d = dx * dx + dy * dy;
                     if (d < bd) { bd = d; best = u; }
                 }
             }
         if (!best) break;
-        void *goal = GF(FN_NEW)(0x5C);
+        void *goal = GF(FN_NEW)(GA(SIZE_GOAL_BUILD));
         if (!goal) break;
         GF(FN_BUILD_GOAL)(goal, pl, todo[i], 1);
         ((void (__thiscall *)(void *, void *, int, int))GA(FN_SET_GOAL))(best, goal, 0, 0);
         GF(FN_UNIT_SAY)(best, 0x1F51);
-        uint8_t *td = FIELD(best, 0x2C, uint8_t *);
-        (*(void (__thiscall **)(void *, void *))(FIELD(td, 0, uint8_t *) + 0x74))(td, best);
+        uint8_t *td = FIELD(best, OF(UNIT, 0x2C), uint8_t *);
+        (*(void (__thiscall **)(void *, void *))(FIELD(td, OF(TD, 0x0), uint8_t *) + 0x74))(td, best);
         ordered++;
         wood -= 50;
     }
@@ -1265,15 +1265,15 @@ static void econ_fields(uint8_t *rm) {   // before the citizen assignment
     int room = (int)target[2] - rm_count(rm, 2);
     for (int i = 0; i < nd && farmers < room; i++) {   // farmers for finished fields
         uint8_t *best = NULL;
-        int fx = FIELD(done[i], 0x1C, int), fy = FIELD(done[i], 0x20, int), bd = 0x7FFFFFFF;
+        int fx = FIELD(done[i], OF(UNIT, 0x1C), int), fy = FIELD(done[i], OF(UNIT, 0x20), int), bd = 0x7FFFFFFF;
         for (int pass = 0; pass < 2 && !best; pass++)
             for (int r = pass ? 4 : 0; r < 7; r++) {
                 if (pass && rm_count(rm, r) <= (int)target[r]) continue;   // only a surplus
                 uint8_t *list = rm + RM_LISTS + r * 0x14;
-                for (unsigned k = 0, first = FIELD(list, 0xC, unsigned), cnt = FIELD(list, 0x10, unsigned); k < cnt; k++) {
+                for (unsigned k = 0, first = FIELD(list, OF(EPOCHTECHS, 0xC), unsigned), cnt = FIELD(list, OF(EPOCHTECHS, 0x10), unsigned); k < cnt; k++) {
                     uint8_t *u = deque_at(list, first + k);
                     if (!citizen_free(u, pass == 0)) continue;
-                    int dx = FIELD(u, 0x1C, int) - fx, dy = FIELD(u, 0x20, int) - fy, d = dx * dx + dy * dy;
+                    int dx = FIELD(u, OF(UNIT, 0x1C), int) - fx, dy = FIELD(u, OF(UNIT, 0x20), int) - fy, d = dx * dx + dy * dy;
                     if (d < bd) { bd = d; best = u; }
                 }
             }
@@ -1330,8 +1330,8 @@ static void rates_update(void *pl, unsigned idx, uint32_t now) {
         g_rate[idx].t = now ? now : 1;
         return;
     }
-    void *cm = FIELD(pl, 0xB90, void *);
-    uint8_t *rm = cm ? FIELD(cm, 0x38, uint8_t *) : NULL;
+    void *cm = FIELD(pl, OF(PL, 0xB90), void *);
+    uint8_t *rm = cm ? FIELD(cm, OF(CM, 0x38), uint8_t *) : NULL;
     float min = (float)(now - g_rate[idx].t) / 60000.0f;
     for (int r = 2; r < 7; r++) {
         float inc = (float)(g_bud[idx].income[r] - g_rate[idx].last[r]);
@@ -1347,22 +1347,22 @@ static int g_reserve_window_ms = 5 * 60000;   // aimod.ini [budget] reserve_wind
 static void budget_reserve(void *pl, int reserve[7]) {
     memset(reserve, 0, 7 * sizeof *reserve);
     uint8_t *tt = FIELD(pl, PL_TECHTREE, uint8_t *);
-    uint8_t *cm = FIELD(pl, 0xB90, uint8_t *);
+    uint8_t *cm = FIELD(pl, OF(PL, 0xB90), uint8_t *);
     if (!tt || !cm) return;
     int next = FIELD(tt, TT_EPOCH, int) + 1;
     if (next > 13 || next > *(int *)GA(G_END_EPOCH)) return;   // end epoch of this game
-    uint8_t *data = FIELD(tt + 8 + next * 0x54, 8, uint8_t *);
+    uint8_t *data = FIELD(tt + 8 + next * 0x54, OF(TTREC, 0x8), uint8_t *);
     if (!data) return;
     if (copper_mode(pl) && next <= FARM_EPOCH) {   // copper_plan=2: only the next epoch's
         for (int r = 2; r < 7; r++)
             for (int e = next; e <= (copper_mode(pl) == 2 ? next : FARM_EPOCH); e++) reserve[r] += epoch_cost(pl, e, r);
         return;
     }
-    int remaining = (int)(FIELD(cm, 0x58, uint32_t) - game_time());
+    int remaining = (int)(FIELD(cm, OF(CM, 0x58), uint32_t) - game_time());
     float f = remaining <= 0 ? 1.0f : remaining >= g_reserve_window_ms ? 0.0f
             : 1.0f - (float)remaining / (float)g_reserve_window_ms;
     for (int r = 2; r < 7; r++) {
-        int c = FIELD(data, 0x24 + (r - 2) * 4, int);
+        int c = FIELD(data, OF(TECHDATA, 0x24) + (r - 2) * 4, int);
         reserve[r] = c > 0 ? (int)(c * f) : 0;
     }
 }
@@ -1379,12 +1379,12 @@ static void spend_reserve(void *pl, unsigned idx, int reserve[7], float *horizon
     if (horizon) *horizon = -1;
     if (!g_reserve_plan) { budget_reserve(pl, reserve); return; }
     memset(reserve, 0, 7 * sizeof *reserve);
-    uint8_t *tt = FIELD(pl, PL_TECHTREE, uint8_t *), *cm = FIELD(pl, 0xB90, uint8_t *);
+    uint8_t *tt = FIELD(pl, PL_TECHTREE, uint8_t *), *cm = FIELD(pl, OF(PL, 0xB90), uint8_t *);
     if (!tt || !cm) return;
     int ep = FIELD(tt, TT_EPOCH, int), next = ep + 1;
     if (next > 13 || next > *(int *)GA(G_END_EPOCH) || !epoch_tech(pl, next)) return;
     if (copper_mode(pl) && next <= FARM_EPOCH) { budget_reserve(pl, reserve); return; }
-    int remaining = (int)(FIELD(cm, 0x58, uint32_t) - game_time());
+    int remaining = (int)(FIELD(cm, OF(CM, 0x58), uint32_t) - game_time());
     if (remaining > 10 * 60000) return;
     float until = remaining > 0 ? (float)remaining / 60000.0f : 0;   // minutes until the attempt
     for (int r = 2; r < 7; r++) reserve[r] = epoch_cost(pl, next, r);
@@ -1435,13 +1435,13 @@ static int unit_cost(void *pl, int type, int r) {
     uint8_t *obj = type_data(type);
     uint8_t *tt = FIELD(pl, PL_TECHTREE, uint8_t *);
     if (!obj || !tt || r < 2 || r > 6) return 0;
-    uint8_t *tech = GF(FN_TECH_LOOKUP)(tt, FIELD(obj, 0x4E0, int));
-    uint8_t *data = tech ? FIELD(tech, 8, uint8_t *) : NULL;
+    uint8_t *tech = GF(FN_TECH_LOOKUP)(tt, FIELD(obj, OF(TD, 0x4E0), int));
+    uint8_t *data = tech ? FIELD(tech, OF(TECH, 0x8), uint8_t *) : NULL;
     if (!data) return 0;
-    float c = (float)FIELD(data, 0x24 + (r - 2) * 4, int);
+    float c = (float)FIELD(data, OF(TECHDATA, 0x24) + (r - 2) * 4, int);
     if (FIELD(pl, PL_CHEAT, uint8_t)) {
         int d = FIELD(pl, PL_DIFFICULTY, int);
-        float pct = d == 0 ? (float)FIELD(pl, 0xD48, int) : d == 2 ? (float)FIELD(pl, 0xD4C, int) : FIELD(pl, 0xBB4, float);
+        float pct = d == 0 ? (float)FIELD(pl, OF(PL, 0xD48), int) : d == 2 ? (float)FIELD(pl, OF(PL, 0xD4C), int) : FIELD(pl, OF(PL, 0xBB4), float);
         c = c * pct * 0.01f;
     }
     return (int)c;
@@ -1468,7 +1468,7 @@ static int base_threatened(unsigned idx);   // diplo.c: enemy soldiers in its ba
 static struct { void *pl; uint32_t t; int n; int type[48]; } g_cand[16];
 static int land_soldier(int type) {
     uint8_t *td = type_data(type);
-    if (!td || FIELD(td, 0x4B8, int) != type || FIELD(td, 0x4B4, int) != 5) return 0;   // a real record of this type
+    if (!td || FIELD(td, OF(TD, 0x4B8), int) != type || FIELD(td, OF(TD, 0x4B4), int) != 5) return 0;   // a real record of this type
     if (ut_role(type, UTR_SIEGE | UTR_RAM | UTR_CITIZEN) || type == UT(PRIEST) || type == UT(PROPHET)) return 0;
     return 1;
 }
@@ -1479,15 +1479,15 @@ static int land_soldier(int type) {
 // a land soldier, and so could a transport, a submarine or a carrier.
 static int substitutable(int type) {
     uint8_t *td = type_data(type);
-    if (!td || FIELD(td, 0x4B8, int) != type) return 0;
-    int fam = FIELD(td, 0x4B4, int);
+    if (!td || FIELD(td, OF(TD, 0x4B8), int) != type) return 0;
+    int fam = FIELD(td, OF(TD, 0x4B4), int);
     if (fam == 4 || fam == 10 || fam == 18 || fam == 21 || fam == 22) return 0;
     if (ut_role(type, UTR_SIEGE | UTR_RAM | UTR_CITIZEN)) return 0;
     return 1;
 }
 static int soldier_score(int type) {
     uint8_t *td = type_data(type);
-    return FIELD(td, 0x55C, int) * FIELD(td, 0x510, int);
+    return FIELD(td, OF(TD, 0x55C), int) * FIELD(td, OF(TD, 0x510), int);
 }
 static int g_sub_spare_food;   // train_budget's early_army substitution (below)
 static int g_sub_thrift;       // train_budget's workforce_plan THRIFT substitution: the most score per gold + iron
@@ -1502,7 +1502,7 @@ static int substitute_soldier(void *pl, unsigned idx, const int *vis, int want, 
         g_cand[idx].pl = pl; g_cand[idx].t = now; g_cand[idx].n = 0;
         for (int t = 0; t < 724; t++) {   // type ids end at 723 (data/db/converteroutput.log); the table ends there
             if (!land_soldier(t) || soldier_score(t) <= 0) continue;   // no attack: never a soldier
-            uint8_t *tech = GF(FN_TECH_LOOKUP)(tt, FIELD(type_data(t), 0x4E0, int));
+            uint8_t *tech = GF(FN_TECH_LOOKUP)(tt, FIELD(type_data(t), OF(TD, 0x4E0), int));
             if (!tech || !tech[4]) continue;
             int n = g_cand[idx].n, k = n < 48 ? n : 47;   // insert sorted by score, strongest first
             while (k > 0 && soldier_score(g_cand[idx].type[k - 1]) < soldier_score(t)) {
@@ -1530,7 +1530,7 @@ static int substitute_soldier(void *pl, unsigned idx, const int *vis, int want, 
         if (!g_sub_spare_food) { *got = n; return t; }
         // early_army: the food-free ranged soldiers first (Slinger, Simple Bowman, Javelin, Composite Bow, Long Bow ...)
         // - score x2 with a range, a quarter with a food price: the citizens keep the food while the economy grows
-        float s = (float)soldier_score(t) * (FIELD(type_data(t), 0x420, float) > 2.0f ? 2.0f : 1.0f) *
+        float s = (float)soldier_score(t) * (FIELD(type_data(t), OF(TD, 0x420), float) > 2.0f ? 2.0f : 1.0f) *
                   (unit_cost(pl, t, 2) > 0 ? 0.25f : 1.0f);
         if (s > bs) { bs = s; best = t; bn = n; }
     }
@@ -1581,8 +1581,8 @@ static void train_budget(void *pl, unsigned idx, const struct ai_cfg *cfg, const
     }
     int no_work = 0;
     if (!military) {
-        void *cm = FIELD(pl, 0xB90, void *);
-        uint8_t *rm = cm ? FIELD(cm, 0x38, uint8_t *) : NULL;
+        void *cm = FIELD(pl, OF(PL, 0xB90), void *);
+        uint8_t *rm = cm ? FIELD(cm, OF(CM, 0x38), uint8_t *) : NULL;
         int total = 0;
         for (int t = 0; rm && t < 7; t++) total += FIELD(rm, RM_LISTS + t * 0x14 + 0x10, int);
         int idle = idle_citizens(pl);
@@ -1649,8 +1649,8 @@ static void train_budget(void *pl, unsigned idx, const struct ai_cfg *cfg, const
     // copper_plan=2: while the epoch's cost is still being saved, only citizen_queue citizens paid ahead (the game asks
     // for 10 at a time and pays them all at once) - what the Town Center can't train yet stays in the stock
     if (cit && cmode == 2 && g_cit_queue > 0 && ep < FARM_EPOCH && stock[2] < reserve[2]) {
-        void *cm = FIELD(pl, 0xB90, void *), *um = cm ? FIELD(cm, 0x44, void *) : NULL;
-        int room = g_cit_queue - (um ? FIELD(um, 0x13C, int) : 0);
+        void *cm = FIELD(pl, OF(PL, 0xB90), void *), *um = cm ? FIELD(cm, OF(CM, 0x44), void *) : NULL;
+        int room = g_cit_queue - (um ? FIELD(um, OF(UM, 0x13C), int) : 0);
         if (*afford > room) *afford = room < 0 ? 0 : room;
     }
     *blocked = *afford <= 0;
@@ -1689,7 +1689,7 @@ static uintptr_t train_call(void *um, void *pl, unsigned idx, int *req, uintptr_
         int saved_count = req[1], saved_type = req[0];
         if (sub_type) req[0] = sub_type;
         if (afford > 0 && (afford < req[1] || sub_type)) req[1] = afford;   // the caller reads back how many via *b
-        int room0 = pl ? ((int (__thiscall *)(void *, int))(*(void ***)pl)[31])(pl, 0) - FIELD(um, 0x13C, int) -
+        int room0 = pl ? unit_limit(pl) - FIELD(um, OF(UM, 0x13C), int) -
                          GF(FN_POPULATION)(pl, 1, 0) : 1;
         int game_site = 0;
         for (int k = 0; k < 5; k++) game_site |= GL(TRAIN_SITES)[k] == ra;
@@ -1752,8 +1752,8 @@ __attribute__((noinline)) static uintptr_t __fastcall hook_train_units(void *um,
     if (g_vanilla_mask) {   // a vanilla player's unit manager (before its first update too: the game's player array)
         void *own = pl;
         for (unsigned i = 1, n = *(unsigned *)GA(G_PLAYERS_N); !own && i < n && i < 16; i++) {
-            void *p = is_vanilla_idx((int)i) ? ((void **)GA(G_PLAYERS))[i] : NULL, *cm = p ? FIELD(p, 0xB90, void *) : NULL;
-            if (cm && FIELD(cm, 0x44, void *) == um) own = p;
+            void *p = is_vanilla_idx((int)i) ? ((void **)GA(G_PLAYERS))[i] : NULL, *cm = p ? FIELD(p, OF(PL, 0xB90), void *) : NULL;
+            if (cm && FIELD(cm, OF(CM, 0x44), void *) == um) own = p;
         }
         if (is_vanilla(own)) {
             unsigned vn = 0;

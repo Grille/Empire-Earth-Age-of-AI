@@ -24,6 +24,7 @@ struct ustring;
 #include "base/mistakes.c"
 #include "base/math.c"
 #include "game/addr.h"     // the game's addresses by name, per exe build: GA(G_WORLD_CLOCK), GF(FN_CAN_BUILD)(pl, t, 0x20, 0)
+#include "game/fields.h"   // the game's objects' fields by kind, per exe build: OF(PL, 0x9D4)
 #include "game/layout.h"
 #include "game/players.c"
 #include "game/random.c"
@@ -269,7 +270,7 @@ static char __fastcall hook_game_start(void *state, void *edx, uint8_t *setup, v
             const char *pn = *(const char **)(setup + i * 0x38 + 0xC);
             fprintf(g_log, "# setup slot %d type=%d name=\"%s\"\n", i, *(int *)(setup + i * 0x38), pn ? pn : "");
         }
-        fprintf(g_log, "# setup seed(world+0x54)=%u\n", *(void **)GA(G_WORLD) ? *(unsigned *)(*(uint8_t **)GA(G_WORLD) + 0x54) : 0);
+        fprintf(g_log, "# setup seed(world+0x54)=%u\n", *(void **)GA(G_WORLD) ? *(unsigned *)(*(uint8_t **)GA(G_WORLD) + OF(WORLD, 0x54)) : 0);
         fflush(g_log);
         LeaveCriticalSection(&g_lock);
     }
@@ -484,6 +485,7 @@ static void install(HMODULE self) {
         log_header();
         ini_flush();   // a setting's mistakes found before the log was open
         addr_log(g_log);
+        fields_log(g_log);
         fprintf(g_log, "# config: %s (personalities: %s%s%s)\n", g_aimod_ini, g_ai_dir, g_ai_dir_why[0] ? " - " : "", g_ai_dir_why);
         char me[MAX_PATH];
         if (GetEnvironmentVariableA("EEAIMOD_DLL", me, sizeof me) && GetModuleFileNameA(self, me, sizeof me))

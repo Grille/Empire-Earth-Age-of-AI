@@ -26,10 +26,10 @@ static struct grid_it grid_it_area(int x0, int y0, int x1, int y1, int once) {  
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     it.gx = 1; it.x1 = 0;   // nothing unless set below
     if (!grid) return it;
-    int nx = FIELD(grid, 0x10, int);
-    it.cells = FIELD(grid, 4, uint8_t *);
-    it.cs = FIELD(grid, 8, int);
-    it.ny = FIELD(grid, 0x14, int);
+    int nx = FIELD(grid, OF(GRID, 0x10), int);
+    it.cells = FIELD(grid, OF(GRID, 0x4), uint8_t *);
+    it.cs = FIELD(grid, OF(GRID, 0x8), int);
+    it.ny = FIELD(grid, OF(GRID, 0x14), int);
     if (!it.cells || it.cs <= 0) return it;
     if (x0 < 0) x0 = 0;
     if (y0 < 0) y0 = 0;
@@ -44,18 +44,18 @@ static struct grid_it grid_it_area(int x0, int y0, int x1, int y1, int once) {  
 static struct grid_it grid_it_box(int x, int y, int r, int once) {
     uint8_t *map = *(uint8_t **)GA(G_MAP);
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
-    int cs = grid ? FIELD(grid, 8, int) : 0;
+    int cs = grid ? FIELD(grid, OF(GRID, 0x8), int) : 0;
     if (cs <= 0) return grid_it_area(1, 1, 0, 0, once);
     return grid_it_area((x - r) / cs, (y - r) / cs, (x + r) / cs, (y + r) / cs, once);
 }
 static struct grid_it grid_it_all(int once) { return grid_it_area(0, 0, 0x7FFFFFFF, 0x7FFFFFFF, once); }
 static int grid_it_next(struct grid_it *it) {
     for (;;) {
-        while (it->b && it->b < FIELD(it->cell, 8, uint8_t **)) {
-            uint8_t *u = *it->b++, *td = u ? FIELD(u, 0x2C, uint8_t *) : NULL;
+        while (it->b && it->b < FIELD(it->cell, OF(GRIDCELL, 0x8), uint8_t **)) {
+            uint8_t *u = *it->b++, *td = u ? FIELD(u, OF(UNIT, 0x2C), uint8_t *) : NULL;
             if (!td) continue;
             if (it->once) {   // only in its own cell, or the area's cell nearest to it
-                int ox = FIELD(u, 0x1C, int) / it->cs, oy = FIELD(u, 0x20, int) / it->cs;
+                int ox = FIELD(u, OF(UNIT, 0x1C), int) / it->cs, oy = FIELD(u, OF(UNIT, 0x20), int) / it->cs;
                 ox = ox < it->x0 ? it->x0 : ox > it->x1 ? it->x1 : ox;
                 oy = oy < it->y0 ? it->y0 : oy > it->y1 ? it->y1 : oy;
                 if (ox != it->cx || oy != it->cy) continue;
@@ -66,7 +66,7 @@ static int grid_it_next(struct grid_it *it) {
         if (it->gx > it->x1) return 0;
         it->cx = it->gx; it->cy = it->gy;
         it->cell = it->cells + (it->cx * it->ny + it->cy) * 16;
-        it->b = FIELD(it->cell, 4, uint8_t **);
+        it->b = FIELD(it->cell, OF(GRIDCELL, 0x4), uint8_t **);
         if (++it->gy > it->y1) { it->gy = it->y0; it->gx++; }
     }
 }

@@ -234,12 +234,12 @@ static void hist_scan(uint32_t now) {
 }
 static void ws_unit(uint8_t *u, void *ctx) {
     (void)ctx;
-    void *owner = FIELD(u, 0x18, void *);
-    if (!owner || FIELD(u, 0x3C, int) <= 0) return;
+    void *owner = FIELD(u, OF(UNIT, 0x18), void *);
+    if (!owner || FIELD(u, OF(UNIT, 0x3C), int) <= 0) return;
     int o = pidx(owner);
     if (o == 0) return;   // nature (wild animals): hostile to everyone, not an attack
-    uint8_t *td = FIELD(u, 0x2C, uint8_t *);
-    int fam = FIELD(td, 0x4B4, int), type = FIELD(td, 0x4B8, int);
+    uint8_t *td = FIELD(u, OF(UNIT, 0x2C), uint8_t *);
+    int fam = FIELD(td, OF(TD, 0x4B4), int), type = FIELD(td, OF(TD, 0x4B8), int);
     if ((unsigned)type < G_TYPES_N) g_ws_types[o][type]++;
     if (is_citizen_type(type)) { g_ws.citizens[o]++; return; }
     if (type == UT(B_TOWN_CENTER) || type == UT(B_CAPITOL)) g_ws.centers[o]++;   // where citizens are trained
@@ -248,8 +248,8 @@ static void ws_unit(uint8_t *u, void *ctx) {
     if (fam == 2 || fam == 29) { g_ws.buildings[o]++; g_ws.power[o] += 30; return; }
     if (!is_soldier(td)) return;
     g_ws.soldiers[o]++;
-    g_ws.power[o] += (float)FIELD(u, 0x3C, int);
-    int x = FIELD(u, 0x1C, int), y = FIELD(u, 0x20, int);
+    g_ws.power[o] += (float)FIELD(u, OF(UNIT, 0x3C), int);
+    int x = FIELD(u, OF(UNIT, 0x1C), int), y = FIELD(u, OF(UNIT, 0x20), int);
     for (int a = 1; a < 16; a++) {
         void *pa = g_players[a];
         if (!pa || a == o || g_ws.bx[a] == -10000 || !stance_of(pa, o)) continue;
@@ -266,9 +266,9 @@ static void world_scan(uint32_t now) {
         g_ws.power[i] = 0; g_ws.soldiers[i] = g_ws.buildings[i] = g_ws.close[i] = g_ws.citizens[i] = g_ws.centers[i] = 0;
         g_ws.towers[i] = g_ws.walls[i] = 0;
         g_ws.bx[i] = -10000;
-        void *cm = g_players[i] ? FIELD(g_players[i], 0xB90, void *) : NULL;
-        uint8_t *bm = cm ? FIELD(cm, 0x3C, uint8_t *) : NULL;
-        if (bm && FIELD(bm, 0x12C, int) != -10000) { g_ws.bx[i] = FIELD(bm, 0x12C, int); g_ws.by[i] = FIELD(bm, 0x130, int); }
+        void *cm = g_players[i] ? FIELD(g_players[i], OF(PL, 0xB90), void *) : NULL;
+        uint8_t *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL;
+        if (bm && FIELD(bm, OF(BM, 0x12C), int) != -10000) { g_ws.bx[i] = FIELD(bm, OF(BM, 0x12C), int); g_ws.by[i] = FIELD(bm, OF(BM, 0x130), int); }
     }
     memset(g_ws.close_by, 0, sizeof g_ws.close_by);
     grid_each(ws_unit, NULL);
@@ -305,8 +305,8 @@ enum { K_ARMY, K_BUILDINGS, K_CIVIL, K_AIR, K_NAVY, K_N };
 // the class +0x4B4: 6 citizens (and the engineer), 22 fishing boats; 3 aircraft, 7 helicopters and balloons, 17
 // transport helicopters; 4 ships, 10 submarines, 18 transports, 21 carriers; the rest on land - priests, heroes, siege
 static int kill_kind(uint8_t *td) {
-    int c = td ? FIELD(td, 0x4B4, int) : 5;
-    if (c == 6 || c == 22 || (td && is_citizen_type(FIELD(td, 0x4B8, int)))) return K_CIVIL;
+    int c = td ? FIELD(td, OF(TD, 0x4B4), int) : 5;
+    if (c == 6 || c == 22 || (td && is_citizen_type(FIELD(td, OF(TD, 0x4B8), int)))) return K_CIVIL;
     if (c == 3 || c == 7 || c == 17) return K_AIR;
     if (c == 4 || c == 10 || c == 18 || c == 21) return K_NAVY;
     return K_ARMY;
@@ -435,20 +435,20 @@ static void fleet_lost(int v, uint8_t *dead);          // fleet.c: an own ship o
 static void mass_death(uint8_t *dead);                 // mass.c: a land soldier killed - who stood by it
 __attribute__((used)) void __fastcall hook_kill_stat(uint8_t *stats, void *edx, int n, int d) {
     (void)edx;
-    void *owner = g_kill_unit ? FIELD(g_kill_unit, 0x18, void *) : NULL;
+    void *owner = g_kill_unit ? FIELD(g_kill_unit, OF(UNIT, 0x18), void *) : NULL;
     if (stats && owner && (n == 2 || n == 3)) {
         int k = pidx(stats - 0x4A8), v = pidx(owner);
         uint32_t m = game_time() / 60000u + 1, b = m % KILLS_RING;
         if (g_kills_min_t[b] != m) { memset(g_kills_min[b], 0, sizeof g_kills_min[b]); g_kills_min_t[b] = m; }
-        uint8_t *td = FIELD(g_kill_unit, 0x2C, uint8_t *);
+        uint8_t *td = FIELD(g_kill_unit, OF(UNIT, 0x2C), uint8_t *);
         int c = n == 2 ? K_BUILDINGS : kill_kind(td);
         g_kills[k][v][c] += (uint32_t)d;
-        if (n == 3 && td && FIELD(td, 0x4B4, int) == 22) g_nv_boat_kills[k][v] += (uint32_t)d;
-        if (n == 3 && c == K_NAVY && td && (unsigned)FIELD(td, 0x4B8, int) < G_TYPES_N) {
-            g_nv_lost_type[v & 15][FIELD(td, 0x4B8, int)] += (uint16_t)d; g_nv_sunk_type[k & 15][FIELD(td, 0x4B8, int)] += (uint16_t)d;
+        if (n == 3 && td && FIELD(td, OF(TD, 0x4B4), int) == 22) g_nv_boat_kills[k][v] += (uint32_t)d;
+        if (n == 3 && c == K_NAVY && td && (unsigned)FIELD(td, OF(TD, 0x4B8), int) < G_TYPES_N) {
+            g_nv_lost_type[v & 15][FIELD(td, OF(TD, 0x4B8), int)] += (uint16_t)d; g_nv_sunk_type[k & 15][FIELD(td, OF(TD, 0x4B8), int)] += (uint16_t)d;
         }
         g_kills_min[b][k][v][c] += (uint16_t)d;
-        if (td) kl_add(k, v, FIELD(td, 0x4B8, int), d);
+        if (td) kl_add(k, v, FIELD(td, OF(TD, 0x4B8), int), d);
         fleet_kill(k, g_kill_unit, n);
         if (n == 3) fleet_lost(v, g_kill_unit);
         if (n == 3) mass_death(g_kill_unit);
@@ -633,7 +633,7 @@ static int blocks_on(void) { return g_blocks && g_ai_diplomacy && !TEAMS_LOCKED 
 static void block_line(int to, const char *text) {   // a system line, only on that player's PC
     if (to != (int)*(unsigned *)GA(G_LOCAL_PLAYER)) return;
     uint8_t *opt = *(uint8_t **)GA(G_GAME_DATA);
-    system_line(text, opt ? FIELD(opt, 0x2CC, int) * 2 : 20000);
+    system_line(text, opt ? FIELD(opt, OF(GAMEDATA, 0x2CC), int) * 2 : 20000);
     if (g_log) fprintf(g_log, "# system line: %s\n", text);
 }
 
@@ -1237,8 +1237,8 @@ static void diplo_cancel_attacks(int ai, int j) {
     if (ai > 0 && ai < 16 && j > 0 && j < 16 && mod_ai(ai)) InterlockedOr(&g_cancel_queue[ai], 1 << j);
 }
 static int attack_groups(void *pl) {   // the attack commander's deque count
-    uint8_t *cbm = FIELD(pl, 0xB8C, uint8_t *), *cmd = cbm ? FIELD(cbm, 0x48, uint8_t *) : NULL;
-    return cmd ? FIELD(cmd, 0x14, int) : -1;
+    uint8_t *cbm = FIELD(pl, OF(PL, 0xB8C), uint8_t *), *cmd = cbm ? FIELD(cbm, OF(AM, 0x48), uint8_t *) : NULL;
+    return cmd ? FIELD(cmd, OF(AMCMD, 0x14), int) : -1;
 }
 
 static void victory_off_pass(void);   // below, with the victory
@@ -1297,7 +1297,7 @@ static void diplo_safe_point(void) {
         if (!(q & (1 << i)) || !p || is_out(p)) continue;
         GF(FN_GAME_PLAYER_OUT)(GAME_STATE, 0, i);
         GF(FN_PLAYER_RESIGN)(p, 2);
-        if (g_log) { fprintf(g_log, "# surrender: P%d resigned (out %d)\n", i, FIELD(p, 0x467, uint8_t)); fflush(g_log); }
+        if (g_log) { fprintf(g_log, "# surrender: P%d resigned (out %d)\n", i, FIELD(p, OF(PL, 0x467), uint8_t)); fflush(g_log); }
     }
 }
 
@@ -1348,7 +1348,7 @@ static void diplo_tick(void *pl, unsigned ai, uint32_t now) {
     x_errors_show();   // strict parsing: a mistake in the texts at once
     hist_scan(now);    // the history up to date before anything is said (a betrayal: them.betrayals(me))
     reputation_pass(now);
-    if (FIELD(pl, 0x467, uint8_t)) {   // defeated: last words once
+    if (FIELD(pl, OF(PL, 0x467), uint8_t)) {   // defeated: last words once
         if (!g_sit.said_defeat[ai]) { g_sit.said_defeat[ai] = 1; persona_say(pl, L_DEFEATED, NULL, NULL); }
         return;
     }
@@ -1402,7 +1402,7 @@ static void diplo_tick(void *pl, unsigned ai, uint32_t now) {
                 tell_event(HE_BETRAYAL, j, (int)ai, g_betrayal_t[j][ai]);
             persona_say(pl, g_war_betrayal[ai][j] ? L_BETRAYED : L_WAR_DECLARED, pj, NULL);
             tell_event(0, 0, 0, 0);
-            void *cbm = FIELD(pl, 0xB8C, void *);
+            void *cbm = FIELD(pl, OF(PL, 0xB8C), void *);
             if (cbm) GF(FN_REVENGE)(cbm, pj);
             g_diplo_answers[ai]++;
             if (g_log) fprintf(g_log, "# diplomacy: P%u at %.1f min answers war: now enemy of P%d (stance %d)\n",
@@ -1561,10 +1561,10 @@ static void diplo_tribute(void *to, void *from, const int *amount) {
 }
 static void __fastcall hook_tribute(uint8_t *msg, void *edx) {
     (void)edx;
-    int total = FIELD(msg, 0x10, int) + FIELD(msg, 0x14, int) + FIELD(msg, 0x18, int) + FIELD(msg, 0x1C, int) + FIELD(msg, 0x20, int);
-    int amount[7] = { 0, 0, FIELD(msg, 0x10, int), FIELD(msg, 0x20, int), FIELD(msg, 0x1C, int), FIELD(msg, 0x14, int), FIELD(msg, 0x18, int) };
-    void *to = player_at(msg[0x24]);
-    void *from = GF(FN_GAME_PLAYER)(GAME_STATE, (int)(int8_t)msg[0xA]);
+    int total = FIELD(msg, OF(MSG_TRIBUTE, 0x10), int) + FIELD(msg, OF(MSG_TRIBUTE, 0x14), int) + FIELD(msg, OF(MSG_TRIBUTE, 0x18), int) + FIELD(msg, OF(MSG_TRIBUTE, 0x1C), int) + FIELD(msg, OF(MSG_TRIBUTE, 0x20), int);
+    int amount[7] = { 0, 0, FIELD(msg, OF(MSG_TRIBUTE, 0x10), int), FIELD(msg, OF(MSG_TRIBUTE, 0x20), int), FIELD(msg, OF(MSG_TRIBUTE, 0x1C), int), FIELD(msg, OF(MSG_TRIBUTE, 0x14), int), FIELD(msg, OF(MSG_TRIBUTE, 0x18), int) };
+    void *to = player_at(msg[OF(MSG_TRIBUTE, 0x24)]);
+    void *from = GF(FN_GAME_PLAYER)(GAME_STATE, (int)(int8_t)msg[OF(MSG_TRIBUTE, 0xA)]);
     GF(FN_PAY_TRIBUTE)(msg);
     if (from && to) hist_tribute(pidx(from), pidx(to), total);
     diplo_tribute(to, from, amount);
@@ -1616,7 +1616,7 @@ static void victory_hint(void *pl, int ai) {   // every 10 s per AI, after the s
     g_victory_told = 1;
     persona_say(pl, L_ALL_SUBMITTED, player_at(me), NULL);   // in character; the how in a system line after it
     uint8_t *opt = *(uint8_t **)GA(G_GAME_DATA);
-    system_line(sysf("victory_vassals", NULL, NULL, NULL, NULL), opt ? FIELD(opt, 0x2CC, int) * 3 : 30000);
+    system_line(sysf("victory_vassals", NULL, NULL, NULL, NULL), opt ? FIELD(opt, OF(GAMEDATA, 0x2CC), int) * 3 : 30000);
     if (g_log) fprintf(g_log, "# victory: P%d at %.1f min: every other player is a vassal of P%d - \"sieg\" ends the game\n",
                        ai, game_time() / 60000.0, me);
 }
@@ -1658,7 +1658,7 @@ static void victory_off_pass(void) {   // auto_victory=0, every pass between sim
     if (!g_victory_off) return;
     for (int i = 1; i < nplayers(); i++) {   // the game's elimination: no units left
         void *p = player_at(i);
-        if (p && !is_out(p) && FIELD(p, 0xB14, int) < 1 && !(g_resign_queue & (1 << i))) {
+        if (p && !is_out(p) && FIELD(p, OF(PL, 0xB14), int) < 1 && !(g_resign_queue & (1 << i))) {
             if (g_log) fprintf(g_log, "# victory: P%d has no units left - out\n", i);
             InterlockedOr(&g_resign_queue, 1 << i);
         }
@@ -1669,7 +1669,7 @@ static void victory_off_pass(void) {   // auto_victory=0, every pass between sim
     for (int j = 1; j < nplayers(); j++)   // a vassal says it in character, if there is one
         if (g_players[j] && g_lord[j] == me && !is_out(player_at(j))) { persona_say(player_at(j), L_ALL_SUBMITTED, player_at(me), NULL); break; }
     uint8_t *opt = *(uint8_t **)GA(G_GAME_DATA);
-    system_line(sysf("victory_none", NULL, NULL, NULL, NULL), opt ? FIELD(opt, 0x2CC, int) * 3 : 30000);
+    system_line(sysf("victory_none", NULL, NULL, NULL, NULL), opt ? FIELD(opt, OF(GAMEDATA, 0x2CC), int) * 3 : 30000);
     if (g_log) fprintf(g_log, "# victory: P%d at %.1f min: no opponent left - \"sieg\" ends the game\n", me, game_time() / 60000.0);
 }
 // Leaving a won game counts too. The menu's Resign (EEUIEMGOEResign::vf1 0x5D0578, confirmed: 0x5D05CC) sends
@@ -1679,10 +1679,10 @@ static void victory_off_pass(void) {   // auto_victory=0, every pass between sim
 // game with the victory screen, the statistics and then the menu as usual.
 static void __fastcall hook_resign(uint8_t *msg, void *edx) {
     (void)edx;
-    int8_t from = (int8_t)msg[0xA];
+    int8_t from = (int8_t)msg[OF(MSG_CHAT, 0xA)];
     for (int i = 1; i < nplayers(); i++) {
         void *p = player_at(i);
-        if (p && FIELD(p, 0x464, int8_t) == from && !g_players[i] && !is_out(p) && (g_victory_off ? can_claim(i) : vassals_of(i))) {
+        if (p && FIELD(p, OF(PL, 0x464), int8_t) == from && !g_players[i] && !is_out(p) && (g_victory_off ? can_claim(i) : vassals_of(i))) {
             claim_victory(i, "resign");
             return;
         }
@@ -1706,11 +1706,11 @@ static void __fastcall hook_ingame_chat(uint8_t *msg, void *edx) {
     // (only the local player's own word claimed before - a multiplayer desync); the refusal line is the sender's only
     int me = (int)*(unsigned *)GA(G_LOCAL_PLAYER), from = 0;
     void *pm = player_at(me);
-    const char *text = FIELD(msg + 0x10, 4, const char *);
-    int refused = 0, local = pm && FIELD(pm, 0x464, int8_t) == (int8_t)msg[0xA];
+    const char *text = FIELD(msg + OF(MSG_CHAT, 0x10), 4, const char *);
+    int refused = 0, local = pm && FIELD(pm, OF(PL, 0x464), int8_t) == (int8_t)msg[OF(MSG_CHAT, 0xA)];
     for (int i = 1; text && !from && i < nplayers(); i++) {
         void *p = player_at(i);
-        if (p && !g_players[i] && FIELD(p, 0x464, int8_t) == (int8_t)msg[0xA]) from = i;
+        if (p && !g_players[i] && FIELD(p, OF(PL, 0x464), int8_t) == (int8_t)msg[OF(MSG_CHAT, 0xA)]) from = i;
     }
     if (from && text && victory_word(text))
         refused = !claim_victory(from, "the chat word");
@@ -1729,7 +1729,7 @@ static void __fastcall hook_ingame_chat(uint8_t *msg, void *edx) {
     lstrcpynA(line, sysf("victory_not_yet", NULL, NULL, NULL, "names", names, NULL), sizeof line);
 
     uint8_t *opt = *(uint8_t **)GA(G_GAME_DATA);
-    system_line(line, opt ? FIELD(opt, 0x2CC, int) * 2 : 20000);
+    system_line(line, opt ? FIELD(opt, OF(GAMEDATA, 0x2CC), int) * 2 : 20000);
     if (g_log) fprintf(g_log, "# victory: refusal shown: %s\n", line);
 }
 static void chat_send(const char *text) {   // a chat line from the local player, as the chat box sends it (tests)
@@ -1738,10 +1738,10 @@ static void chat_send(const char *text) {   // a chat line from the local player
     __attribute__((aligned(8))) uint8_t u[32];
     ((void (__thiscall *)(void *))*(void **)GA(IAT_WSTRING_CTOR))(u);
     ((void *(__thiscall *)(void *, const char *))*(void **)GA(IAT_WSTRING_ASSIGN))(u, text);
-    void *msg = GF(FN_NEW)(0x24);
+    void *msg = GF(FN_NEW)(GA(SIZE_MSG_CHAT));
     if (msg) {
         GF(FN_CHAT_MSG_CTOR)(msg, u);
-        ((void (__thiscall *)(void *, void *, int))(*(void ***)net)[6])(net, msg, 0xFF);
+        ((void (__thiscall *)(void *, void *, int))(*(void ***)net)[GA(SLOT_SERVER_SEND)])(net, msg, 0xFF);
     }
     ((void (__thiscall *)(void *))*(void **)GA(IAT_WSTRING_DTOR))(u);
 }

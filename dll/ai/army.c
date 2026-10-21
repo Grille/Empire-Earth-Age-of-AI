@@ -29,10 +29,10 @@ static void am_new_game(void) { memset(g_am, 0, sizeof g_am); }
 static int am_raw_cost(void *pl, int type) {
     uint8_t *obj = type_data(type), *tt = FIELD(pl, PL_TECHTREE, uint8_t *);
     if (!obj || !tt) return 0;
-    uint8_t *tech = GF(FN_TECH_LOOKUP)(tt, FIELD(obj, 0x4E0, int));
-    uint8_t *data = tech ? FIELD(tech, 8, uint8_t *) : NULL;
+    uint8_t *tech = GF(FN_TECH_LOOKUP)(tt, FIELD(obj, OF(TD, 0x4E0), int));
+    uint8_t *data = tech ? FIELD(tech, OF(TECH, 0x8), uint8_t *) : NULL;
     int c = 0;
-    for (int r = 2; data && r < 7; r++) c += FIELD(data, 0x24 + (r - 2) * 4, int);
+    for (int r = 2; data && r < 7; r++) c += FIELD(data, OF(TECHDATA, 0x24) + (r - 2) * 4, int);
     return c;
 }
 // a military training request through hook_train_units (econ.c), after the call: n trained
@@ -57,10 +57,10 @@ static void am_bld(void *um, int type, int *have, int *busy) {
     *have = *busy = 0;
     for (unsigned j = 0, f = q ? FIELD(q, 0xC, unsigned) : 0, c = q ? FIELD(q, 0x10, unsigned) : 0; j < c && j < 128; j++) {
         uint8_t *b = deque_at(q, f + j);
-        uint8_t *bs = b ? FIELD(b, 0x30, uint8_t *) : NULL;   // [unit +0x30] +0x340: finished
-        if (!b || FIELD(b, 0x3C, int) <= 0 || !bs || !bs[0x340]) continue;
+        uint8_t *bs = b ? FIELD(b, OF(UNIT, 0x30), uint8_t *) : NULL;   // [unit +0x30] +0x340: finished
+        if (!b || FIELD(b, OF(UNIT, 0x3C), int) <= 0 || !bs || !bs[OF(UNIT, 0x340)]) continue;
         (*have)++;
-        int cur = FIELD(b, 0x25C, int), *qb = FIELD(b, 0x4C, int *), *qe = FIELD(b, 0x50, int *);
+        int cur = FIELD(b, OF(UNIT, 0x25C), int), *qb = FIELD(b, OF(UNIT, 0x4C), int *), *qe = FIELD(b, OF(UNIT, 0x50), int *);
         if ((cur > 0 && cur != 100000) || (qb && qe > qb)) (*busy)++;
     }
 }
@@ -69,7 +69,7 @@ static void am_bld(void *um, int type, int *have, int *busy) {
 static int am_wishes(uint8_t *um) {
     int n = 0;
     for (int i = 0; i < 14; i++) {
-        uint8_t *dq = um + 0xC + i * 0x14;
+        uint8_t *dq = um + OF(UM, 0xC) + i * 0x14;
         unsigned first = FIELD(dq, 0xC, unsigned), cnt = FIELD(dq, 0x10, unsigned), mapsz = FIELD(dq, 8, unsigned);
         int **map = FIELD(dq, 4, int **);
         for (unsigned k = 0; map && k < cnt && k < 512; k++) {
@@ -138,7 +138,7 @@ static int navy_land(unsigned idx);   // navy.c
 // now and vis pays, else the strongest trainable that vis pays (substitute_soldier)
 static int ap_type(void *pl, unsigned idx, uint8_t *um, const int *vis) {
     for (int i = 0; i < 14; i++) {
-        uint8_t *dq = um + 0xC + i * 0x14;
+        uint8_t *dq = um + OF(UM, 0xC) + i * 0x14;
         unsigned first = FIELD(dq, 0xC, unsigned), cnt = FIELD(dq, 0x10, unsigned), mapsz = FIELD(dq, 8, unsigned);
         int **map = FIELD(dq, 4, int **);
         for (unsigned k = 0; map && k < cnt && k < 512; k++) {
@@ -156,9 +156,9 @@ static int ap_type(void *pl, unsigned idx, uint8_t *um, const int *vis) {
 // the production building of a unit type (its tech's building list, data +0x10..+0x14) among the land kinds
 static int ap_producer(void *pl, int type) {
     uint8_t *td = type_data(type), *tt = FIELD(pl, PL_TECHTREE, uint8_t *);
-    uint8_t *t = td && tt ? GF(FN_TECH_LOOKUP)(tt, FIELD(td, 0x4E0, int)) : NULL;
-    uint8_t *d = t ? FIELD(t, 8, uint8_t *) : NULL;
-    int *b = d ? FIELD(d, 0x10, int *) : NULL, *e = d ? FIELD(d, 0x14, int *) : NULL;
+    uint8_t *t = td && tt ? GF(FN_TECH_LOOKUP)(tt, FIELD(td, OF(TD, 0x4E0), int)) : NULL;
+    uint8_t *d = t ? FIELD(t, OF(TECH, 0x8), uint8_t *) : NULL;
+    int *b = d ? FIELD(d, OF(TECHDATA, 0x10), int *) : NULL, *e = d ? FIELD(d, OF(TECHDATA, 0x14), int *) : NULL;
     for (int *p = b; b && e > b && e - b < 16 && p < e; p++)
         for (size_t k = 0; k < sizeof k_ap_land / sizeof *k_ap_land; k++) if (*p == g_ut[k_ap_land[k]]) return *p;
     return 0;
@@ -173,7 +173,7 @@ static void army_plan_tick(void *pl, unsigned idx, uint32_t now) {
     // only with an enemy on its own continent (navy.c navy_detect, 10 s in): on the islands (every enemy across the water)
     // the money is the navy's and the landings' - the first plan there (all of it) cost soldiers on Small Islands
     if (current_epoch(pl) < FARM_EPOCH || !cfg_of(pl)->budget || (!navy_land(idx) && !wfa)) return;
-    uint8_t *cm = FIELD(pl, 0xB90, uint8_t *), *um = cm ? FIELD(cm, 0x44, uint8_t *) : NULL, *bm = cm ? FIELD(cm, 0x3C, uint8_t *) : NULL;
+    uint8_t *cm = FIELD(pl, OF(PL, 0xB90), uint8_t *), *um = cm ? FIELD(cm, OF(CM, 0x44), uint8_t *) : NULL, *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL;
     if (!um || !bm) return;
     int *stock = (int *)((uint8_t *)pl + PL_STOCK);
     if (plan & 9) {   // FLOAT (the 2-minute watch MIX reads too)
@@ -200,8 +200,8 @@ static void army_plan_tick(void *pl, unsigned idx, uint32_t now) {
             vis[r] = stock[r] - res[r];
             if (vis[r] > (int)g_bud[idx].mil[r]) vis[r] = (int)g_bud[idx].mil[r];
         }
-        int cap = ((int (__thiscall *)(void *, int))(*(void ***)pl)[31])(pl, 0);
-        int room = cap - FIELD(um, 0x13C, int) - GF(FN_POPULATION)(pl, 1, 0);
+        int cap = unit_limit(pl);
+        int room = cap - FIELD(um, OF(UM, 0x13C), int) - GF(FN_POPULATION)(pl, 1, 0);
         int goal = g_czp[idx].goal ? g_czp[idx].goal : GF(FN_UM_CITIZENS_WANTED)(um);
         int miss = goal - workforce(pl);
         int free = room - (miss > 0 ? miss : 0) - landing_room_reserve(pl) - navy_room_reserve(pl) - 2;
@@ -286,12 +286,12 @@ static void ap_owned(void *pl, unsigned idx) {
     g_apo_t[idx] = now ? now : 1;
     memset(g_apo[idx], 0, sizeof g_apo[idx]);
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
-        int t = FIELD(it.td, 0x4B8, int);
-        if (FIELD(it.u, 0x18, void *) == pl && FIELD(it.u, 0x3C, int) > 0 && t >= 0 && t < 768) g_apo[idx][t] = 1;
+        int t = FIELD(it.td, OF(TD, 0x4B8), int);
+        if (FIELD(it.u, OF(UNIT, 0x18), void *) == pl && FIELD(it.u, OF(UNIT, 0x3C), int) > 0 && t >= 0 && t < 768) g_apo[idx][t] = 1;
     }
-    uint8_t *cm = FIELD(pl, 0xB90, uint8_t *), *um = cm ? FIELD(cm, 0x44, uint8_t *) : NULL;
+    uint8_t *cm = FIELD(pl, OF(PL, 0xB90), uint8_t *), *um = cm ? FIELD(cm, OF(CM, 0x44), uint8_t *) : NULL;
     for (int i = 0; um && i < 14; i++) {
-        uint8_t *dq = um + 0xC + i * 0x14;
+        uint8_t *dq = um + OF(UM, 0xC) + i * 0x14;
         unsigned first = FIELD(dq, 0xC, unsigned), cnt = FIELD(dq, 0x10, unsigned), mapsz = FIELD(dq, 8, unsigned);
         int **map = FIELD(dq, 4, int **);
         for (unsigned k = 0; map && k < cnt && k < 512; k++) {
@@ -304,17 +304,17 @@ static void ap_owned(void *pl, unsigned idx) {
 }
 // a line upgrade's types (effects of kind 0x13): 0 = none, else 1 when one of them is in use
 static int ap_upg_line(void *pl, unsigned idx, uint8_t *d, int *used) {
-    int ei = FIELD(d, 0x50, int), n = 0;
+    int ei = FIELD(d, OF(TECHDATA, 0x50), int), n = 0;
     *used = 0;
     if (ei < 0 || ei > 0x5DC) return 0;
     uint8_t *list = (uint8_t *)GA(G_EPOCH_TECHS) + ei * 0x10;
-    unsigned cnt = FIELD(list, 8, unsigned), *ids = FIELD(list, 4, unsigned *);
+    unsigned cnt = FIELD(list, OF(EPOCHTECHS, 0x8), unsigned), *ids = FIELD(list, OF(EPOCHTECHS, 0x4), unsigned *);
     for (unsigned k = 0; ids && k < cnt && k < 64; k++) {
         if (ids[k] >= 2000) continue;
         uint8_t *ef = (uint8_t *)GA(G_EFFECTS) + ids[k] * 0x44;
-        if (FIELD(ef, 0x20, int) != 0x13) continue;
+        if (FIELD(ef, OF(EFFECT, 0x20), int) != 0x13) continue;
         if (!n++) ap_owned(pl, idx);
-        int a = FIELD(ef, 0x14, int), b = FIELD(ef, 0x18, int);
+        int a = FIELD(ef, OF(EFFECT, 0x14), int), b = FIELD(ef, OF(EFFECT, 0x18), int);
         if ((a >= 0 && a < 768 && g_apo[idx][a]) || (b >= 0 && b < 768 && g_apo[idx][b])) *used = 1;
     }
     return n;
@@ -323,22 +323,22 @@ static int ap_upgrade_later(void *pl, uint8_t *d) {
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     int used;
     if (!(ARMY_PLAN(idx) & 16) || !ap_upg_line(pl, idx, d, &used)) return 0;
-    if (used && g_apu[idx].n < 48) g_apu[idx].id[g_apu[idx].n++] = FIELD(d, 0x4C, int);   // scheduled now (econ.c)
+    if (used && g_apu[idx].n < 48) g_apu[idx].id[g_apu[idx].n++] = FIELD(d, OF(TECHDATA, 0x4C), int);   // scheduled now (econ.c)
     return !used;
 }
 static int ap_rs_has(uint8_t *rs, int id) {   // in one of the research manager's epoch lists (rs +0x18 + e*0x10)
     for (int e = 0; e < 14; e++) {
-        int *b = FIELD(rs, 0x18 + e * 0x10, int *), *x = FIELD(rs, 0x1C + e * 0x10, int *);
+        int *b = FIELD(rs, OF(RS, 0x18) + e * 0x10, int *), *x = FIELD(rs, OF(RS, 0x1C) + e * 0x10, int *);
         for (int *q = b; b && x > b && x - b < 512 && q < x; q++) if (*q == id) return 1;
     }
     return 0;
 }
 static void ap_upgrades(void *pl, unsigned idx) {
-    uint8_t *cm = FIELD(pl, 0xB90, uint8_t *), *rs = cm ? FIELD(cm, 0x40, uint8_t *) : NULL, *tt = FIELD(pl, PL_TECHTREE, uint8_t *);
+    uint8_t *cm = FIELD(pl, OF(PL, 0xB90), uint8_t *), *rs = cm ? FIELD(cm, OF(CM, 0x40), uint8_t *) : NULL, *tt = FIELD(pl, PL_TECHTREE, uint8_t *);
     if (!rs || !tt) return;
     for (int id = 1000; id < 15000; id++) {
-        uint8_t *t = GF(FN_TECH_LOOKUP)(tt, id), *d = t ? FIELD(t, 8, uint8_t *) : NULL;
-        if (!d || t[4] || !t[6] || FIELD(d, 0x48, int) != 7) continue;
+        uint8_t *t = GF(FN_TECH_LOOKUP)(tt, id), *d = t ? FIELD(t, OF(TECH, 0x8), uint8_t *) : NULL;
+        if (!d || t[4] || !t[6] || FIELD(d, OF(TECHDATA, 0x48), int) != 7) continue;
         int used, k;
         if (!ap_upg_line(pl, idx, d, &used) || !used) continue;
         for (k = 0; k < g_apu[idx].n && g_apu[idx].id[k] != id; k++) ;
@@ -360,25 +360,25 @@ static void ap_install(const char *aimod_ini, const char *autotest_ini) {
 // "# pool:" (autotest, minutes 30 and 50): the research manager's candidate techs (rs +8 vector) - id, researched /
 // available, category (+0x48), price, and the first effects (kind +0x20 / unit type +0x14 / attribute +0x2C)
 static void am_pool_log(void *pl, unsigned idx) {
-    uint8_t *cm = FIELD(pl, 0xB90, uint8_t *), *rs = cm ? FIELD(cm, 0x40, uint8_t *) : NULL, *tt = FIELD(pl, PL_TECHTREE, uint8_t *);
+    uint8_t *cm = FIELD(pl, OF(PL, 0xB90), uint8_t *), *rs = cm ? FIELD(cm, OF(CM, 0x40), uint8_t *) : NULL, *tt = FIELD(pl, PL_TECHTREE, uint8_t *);
     if (!rs || !tt) return;
-    int *b = FIELD(rs, 8, int *), *e = FIELD(rs, 0xC, int *);
+    int *b = FIELD(rs, OF(RS, 0x8), int *), *e = FIELD(rs, OF(RS, 0xC), int *);
     EnterCriticalSection(&g_lock);
     fprintf(g_log, "# pool: P%u %d techs:", idx, b && e > b ? (int)(e - b) : 0);
     for (int *q = b; b && q < e && q - b < 300; q++) {
-        uint8_t *t = GF(FN_TECH_LOOKUP)(tt, *q), *d = t ? FIELD(t, 8, uint8_t *) : NULL;
+        uint8_t *t = GF(FN_TECH_LOOKUP)(tt, *q), *d = t ? FIELD(t, OF(TECH, 0x8), uint8_t *) : NULL;
         if (!d) continue;
         int c = 0;
-        for (int r = 2; r < 7; r++) c += FIELD(d, 0x24 + (r - 2) * 4, int);
-        fprintf(g_log, " %d(%d%d c%d $%d", *q, t[4], t[6], FIELD(d, 0x48, int), c);
-        int ei = FIELD(d, 0x50, int);
+        for (int r = 2; r < 7; r++) c += FIELD(d, OF(TECHDATA, 0x24) + (r - 2) * 4, int);
+        fprintf(g_log, " %d(%d%d c%d $%d", *q, t[4], t[6], FIELD(d, OF(TECHDATA, 0x48), int), c);
+        int ei = FIELD(d, OF(TECHDATA, 0x50), int);
         if (ei >= 0 && ei <= 0x5DC) {
             uint8_t *list = (uint8_t *)GA(G_EPOCH_TECHS) + ei * 0x10;
-            unsigned n = FIELD(list, 8, unsigned), *ids = FIELD(list, 4, unsigned *);
+            unsigned n = FIELD(list, OF(EPOCHTECHS, 0x8), unsigned), *ids = FIELD(list, OF(EPOCHTECHS, 0x4), unsigned *);
             for (unsigned k = 0; ids && k < n && k < 3; k++) {
                 if (ids[k] >= 2000) continue;
                 uint8_t *ef = (uint8_t *)GA(G_EFFECTS) + ids[k] * 0x44;
-                fprintf(g_log, " %d/%d/%d", FIELD(ef, 0x20, int), FIELD(ef, 0x14, int), FIELD(ef, 0x2C, int));
+                fprintf(g_log, " %d/%d/%d", FIELD(ef, OF(EFFECT, 0x20), int), FIELD(ef, OF(EFFECT, 0x14), int), FIELD(ef, OF(EFFECT, 0x2C), int));
             }
         }
         fputc(')', g_log);
@@ -391,7 +391,7 @@ static void am_tick(void *pl, uint32_t now) {
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     struct am_st *a = &g_am[idx];
     if (now < a->ts) memset(a, 0, sizeof *a);
-    uint8_t *cm = FIELD(pl, 0xB90, uint8_t *), *um = cm ? FIELD(cm, 0x44, uint8_t *) : NULL;
+    uint8_t *cm = FIELD(pl, OF(PL, 0xB90), uint8_t *), *um = cm ? FIELD(cm, OF(CM, 0x44), uint8_t *) : NULL;
     if (!um) return;
     if (!a->ts || now - a->ts >= 5000) {   // the busy share: a sample every 5 s
         a->ts = now ? now : 1;
@@ -410,11 +410,11 @@ static void am_tick(void *pl, uint32_t now) {
     for (int k = 0; k < AM_NK; k++) { int b; am_bld(um, g_ut[k_am_bld[k]], &nb[k], &b); }
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
         uint8_t *u = it.u, *td = it.td;
-        if (FIELD(u, 0x18, void *) != pl || FIELD(u, 0x3C, int) <= 0) continue;
-        int t = FIELD(td, 0x4B8, int), fam = FIELD(td, 0x4B4, int);
-        uint8_t *bs = FIELD(u, 0x30, uint8_t *);
-        if (ut_role(t, UTR_TOWER)) { towers += bs && bs[0x340]; continue; }
-        if (ut_role(t, UTR_WALL) && !ut_role(t, UTR_GATE)) { walls += bs && bs[0x340]; continue; }
+        if (FIELD(u, OF(UNIT, 0x18), void *) != pl || FIELD(u, OF(UNIT, 0x3C), int) <= 0) continue;
+        int t = FIELD(td, OF(TD, 0x4B8), int), fam = FIELD(td, OF(TD, 0x4B4), int);
+        uint8_t *bs = FIELD(u, OF(UNIT, 0x30), uint8_t *);
+        if (ut_role(t, UTR_TOWER)) { towers += bs && bs[OF(UNIT, 0x340)]; continue; }
+        if (ut_role(t, UTR_WALL) && !ut_role(t, UTR_GATE)) { walls += bs && bs[OF(UNIT, 0x340)]; continue; }
         if (!is_army_family(fam) || is_citizen_type(t) || fam == 18) continue;   // transports aside
         if (fam == 4 || fam == 10 || fam == 21) ships++;
         else if (fam == 3 || fam == 7 || fam == 17) air++;
@@ -427,13 +427,13 @@ static void am_tick(void *pl, uint32_t now) {
     for (int id = 1000; tt && id < 15000; id++) {
         uint8_t *t = GF(FN_TECH_LOOKUP)(tt, id);
         if (!t || !t[4]) continue;
-        uint8_t *d = FIELD(t, 8, uint8_t *);
+        uint8_t *d = FIELD(t, OF(TECH, 0x8), uint8_t *);
         tech++;
-        if (d && FIELD(d, 0x48, int) == 7) { up7++; for (int r = 2; r < 7; r++) up7c += FIELD(d, 0x24 + (r - 2) * 4, int); }
+        if (d && FIELD(d, OF(TECHDATA, 0x48), int) == 7) { up7++; for (int r = 2; r < 7; r++) up7c += FIELD(d, OF(TECHDATA, 0x24) + (r - 2) * 4, int); }
     }
     int *st = (int *)((uint8_t *)pl + PL_STOCK);
-    int cap = ((int (__thiscall *)(void *, int))(*(void ***)pl)[31])(pl, 0);
-    int pop = GF(FN_POPULATION)(pl, 1, 0), inprod = FIELD(um, 0x13C, int);
+    int cap = unit_limit(pl);
+    int pop = GF(FN_POPULATION)(pl, 1, 0), inprod = FIELD(um, OF(UM, 0x13C), int);
     struct am_min *m = &a->m;
     int res[7] = { 0 };
     if (!is_vanilla(pl)) am_reserve(pl, idx, res);

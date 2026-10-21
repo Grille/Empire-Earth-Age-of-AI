@@ -689,9 +689,31 @@ Each row is checked another way (the same instruction, the callers agreeing, the
   tech requests 0x48A91E, fire 0x631312 (35%), EEAScroll::Execute 0x40478E (the velocity ramp).
 - The player name (playername.c): AoC's campaign, civ campaign and main menu buttons copy the name field into the
   player name first (0x5E8ACC) - not saved, not on Load Game / Random Map; the mod's hook still saves it.
+- Object sizes the mod allocates: the same but the attack goal (EEUGAttackUnit 0x40 -> 0x44); vtable slots called
+  from the code (player vf31 unit limit, type data vf29, goal vf0/vf4, tech vf1, server vf6) the same.
 - Scrolling: the same EEAScroll object (+0x40 ticks, +0x44..+0x47 directions; a byte +0x48 = 1 for the ramp), the
   timer `push 0xA` at 0x404733; the velocities are globals 0x8E5BE4 / 0x8E5BE0. camera.c does either build's way
   in either build ([camera] scroll = game | ee | aoc).
+
+### The objects' fields (scripts/port_fields.py, 2026-10-21)
+
+The mod reads ~3600 fields: 438 (kind, offset) pairs in dll/game/fields.h, with AoC's column. Found per class: in its
+methods (vtable slots and what they call with `this` in ecx) aligned with every number masked, [this + X] in the base
+reads [this + Y] in AoC (the AI's save/load serializer, EEComputerPlayer::vf6, names most player fields); then the
+offsets of all paired code (any object) for structures without methods, accepted only where they agree with a
+neighbouring field's shift. 146 fields moved, 61 of the engine DLLs' objects aren't mapped. The shifts:
+- Player: 0..~0x9B0 the same; the tech tree -8 (0x9D4 -> 0x9CC, 0x9BC -> 0x9AC ...); 0xAF0..0xB2C +4 (the stock
+  0xAF0 -> 0xAF4); 0xB50..0xBB4 +0x34 (combat manager 0xB8C -> 0xBC0, civilization manager 0xB90 -> 0xBC4,
+  difficulty 0xBA4 -> 0xBD8); 0xBDC..0xD5C +0x38; 0xE10..0xE20 +0x3C; 0xED8..0xF02 +0x50 (the AI switches).
+- Unit type data moved down: 0x3FC -> 0xF8, 0x4B4 (family) -> 0x1B8, 0x4B8 (type id) -> 0x1BC, -0x2FC up to 0x510,
+  -0x300 from 0x54C, -0x302 / -0x304 around 0x5F4..0x624 - AoC's type data has its fields in another order or
+  fewer before them.
+- Units: the same up to ~0x250, then +4 (0x25C, 0x28C, 0x2A0), +0xC around 0x33B..0x346.
+- Map: the unit grid 0x181724 -> 0x195640, the size 0x1816FC -> 0x195618 (a bigger map array).
+- Attack subgroups +4 from 0x190 (the player 0x190 -> 0x194, state 0x1D0 -> 0x1D4); the research manager +0x10 from
+  0xF4; game data +4 after 0x2CC (unit limit 0x2EC -> 0x2F0); the UI form's 0x5D8 -> 0x5E8.
+- The same: goals, the subgroups' unit records, the civilization, resource, build and unit managers, the camera,
+  the scroll action, messages.
 
 | | base | AoC |
 |---|---|---|

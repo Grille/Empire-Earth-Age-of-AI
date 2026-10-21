@@ -24,11 +24,11 @@ static void drawlist_install(const char *aimod_ini, const char *autotest_ini) {
     const struct { uint32_t at, want; int kind; } k[] = {
         { at[0], 0x200, 0 },                     // cmp [0x912538], 0x200 (0x5008B8: room for one more)
         { at[1], 0x200, 0 },                     // push 0x200 (0x5035AD: its sub-objects)
-        { at[2], GA(DRAW_OLD) + 0x58, 1 },       // mov esi, records +0x58 (init loop at game start)
-        { at[3], GA(DRAW_OLD) + DRAW_OLD_N * DRAW_REC + 0x58, 2 },   // cmp esi, its end
+        { at[2], GA(DRAW_OLD) + OF(DRAWREC, 0x58), 1 },       // mov esi, records +0x58 (init loop at game start)
+        { at[3], GA(DRAW_OLD) + DRAW_OLD_N * DRAW_REC + OF(DRAWREC, 0x58), 2 },   // cmp esi, its end
         { at[4], GA(DRAW_OLD), 1 },              // push records (0x500D10: frame start)
         { at[5], GA(DRAW_OLD), 1 },              // mov edi, records (collection)
-        { at[6], GA(DRAW_OLD) + 0xFC, 1 },       // add eax, records +0xFC
+        { at[6], GA(DRAW_OLD) + OF(DRAWREC, 0xFC), 1 },       // add eax, records +0xFC
         { at[7], GA(DRAW_OLD), 1 },              // push records (frame end)
         { at[8], GA(DRAW_OLD), 1 },              // push records (0x50BD9D: drawing)
     };

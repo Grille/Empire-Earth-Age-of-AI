@@ -36,8 +36,8 @@ static void chat_line(void *pl, const char *text, int ms) {
     __attribute__((aligned(8))) uint8_t s[32];
     ((void (__thiscall *)(void *))*(void **)GA(IAT_WSTRING_CTOR))(s);
     ((void *(__thiscall *)(void *, const char *))*(void **)GA(IAT_WSTRING_ASSIGN))(s, text);
-    GF(FN_UI_LINE)(ui, (uint8_t *)pl + 0x438,
-                                                                              (uint8_t *)pl + 0x24, s, ms, 0);
+    GF(FN_UI_LINE)(ui, (uint8_t *)pl + OF(PL, 0x438),
+                                                                              (uint8_t *)pl + OF(PL, 0x24), s, ms, 0);
     ((void (__thiscall *)(void *))*(void **)GA(IAT_WSTRING_DTOR))(s);
 }
 
@@ -74,10 +74,10 @@ static void chat_stance_line(void *pl, int stance) {
     ((void (__thiscall *)(void *, unsigned long))*(void **)GA(IAT_WSTRING_RESERVE))(line, 0x400);
     get(res, 0x7B71, verb);
     get(res, stance ? 0x734A : 0x7349, word);
-    ((int (__cdecl *)(void *, const char *, ...))*(void **)GA(IAT_WSTRING_FORMAT))(line, "%s %s %s", FIELD(pl, 0x28, void *),
+    ((int (__cdecl *)(void *, const char *, ...))*(void **)GA(IAT_WSTRING_FORMAT))(line, "%s %s %s", FIELD(pl, OF(PL, 0x28), void *),
                                                                        FIELD(verb, 4, void *), FIELD(word, 4, void *));
-    GF(FN_UI_LINE)(ui, (uint8_t *)pl + 0x438,
-                                                                              (uint8_t *)pl + 0x24, line, FIELD(opt, 0x2CC, int), 0);
+    GF(FN_UI_LINE)(ui, (uint8_t *)pl + OF(PL, 0x438),
+                                                                              (uint8_t *)pl + OF(PL, 0x24), line, FIELD(opt, OF(GAMEDATA, 0x2CC), int), 0);
     dtor(line);
     dtor(word);
     dtor(verb);
@@ -130,8 +130,8 @@ static void chat_tick(void *pl, unsigned idx, uint32_t now) {
     last_epoch[idx] = e;
     if (g_chat >= 2 && now / 300000 != last_status[idx] / 300000 && now >= 60000) {
         last_status[idx] = now;
-        int *stock = &FIELD(pl, 0xAF0, int);
-        int cap = ((int (__thiscall *)(void *, int))(*(void ***)pl)[31])(pl, 0);
+        int *stock = &FIELD(pl, OF(PL, 0xAF0), int);
+        int cap = unit_limit(pl);
         ai_say(pl, CHAT_STATUS, "[ai] %.0f min: %d at home of %d cap; food %d wood %d stone %d gold %d iron %d",
                now / 60000.0, home_soldiers_now(pl), cap, stock[2], stock[3], stock[4], stock[5], stock[6]);
     }
@@ -166,16 +166,16 @@ static void cmd_chatme(char *out, const char *args) {
     if (!net || !*args) { REPLY("error: chatme text (in a game)\n"); return; }
     __attribute__((aligned(8))) uint8_t s[32];
     ((void (__thiscall *)(void *, const char *))*(void **)GA(IAT_WSTRING_CTOR_C))(s, args);
-    void (__thiscall *send)(void *, void *, int) = (void (__thiscall *)(void *, void *, int))(*(void ***)net)[6];
+    void (__thiscall *send)(void *, void *, int) = (void (__thiscall *)(void *, void *, int))(*(void ***)net)[GA(SLOT_SERVER_SEND)];
     int code = 0, arg = 0, cheats = *(char *)GA(G_CHEATS_ON) != 0;
     if (cheats && *(void **)GA(G_CHEAT_PARSER)) {
         GF(FN_CHEAT_PARSE)(*(void **)GA(G_CHEAT_PARSER), s, &code, &arg);
         if (code) {
-            void *m = GF(FN_NEW)(0x18);
+            void *m = GF(FN_NEW)(GA(SIZE_CHEAT_MSG));
             if (m) send(net, GF(FN_CHEAT_MSG_CTOR)(m, code, arg), 0xFF);
         }
     }
-    void *m = GF(FN_NEW)(0x24);
+    void *m = GF(FN_NEW)(GA(SIZE_MSG_CHAT));
     if (m) send(net, GF(FN_CHAT_MSG_CTOR)(m, s), 0xFF);
     ((void (__thiscall *)(void *))*(void **)GA(IAT_WSTRING_DTOR))(s);
     REPLY("ok: sent \"%s\" (cheats %s, cheat code %d)\n", args, cheats ? "on" : "off", code);

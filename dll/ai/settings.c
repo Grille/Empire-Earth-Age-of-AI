@@ -186,39 +186,39 @@ static void settings_apply(void *pl) {
     int d = FIELD(pl, PL_DIFFICULTY, int);
     if (c->cost_percent > 0) {
         FIELD(pl, PL_CHEAT, uint8_t) = c->cost_percent != 100;
-        if (d == 0) FIELD(pl, 0xD48, int) = c->cost_percent;
-        else if (d == 2) FIELD(pl, 0xD4C, int) = c->cost_percent;
-        else FIELD(pl, 0xBB4, float) = (float)c->cost_percent;
+        if (d == 0) FIELD(pl, OF(PL, 0xD48), int) = c->cost_percent;
+        else if (d == 2) FIELD(pl, OF(PL, 0xD4C), int) = c->cost_percent;
+        else FIELD(pl, OF(PL, 0xBB4), float) = (float)c->cost_percent;
     }
-    if (c->wait_for_player >= 0) FIELD(pl, 0xF02, uint8_t) = !c->wait_for_player;
+    if (c->wait_for_player >= 0) FIELD(pl, OF(PL, 0xF02), uint8_t) = !c->wait_for_player;
     if (c->epoch_min > 0) {
-        FIELD(pl, 0xD58, int) = c->epoch_min;
-        FIELD(pl, 0xD5C, int) = c->epoch_max;
+        FIELD(pl, OF(PL, 0xD58), int) = c->epoch_min;
+        FIELD(pl, OF(PL, 0xD5C), int) = c->epoch_max;
         // the first attempt was drawn before this runs: redraw it if it lies outside the new range
-        uint8_t *cm = FIELD(pl, 0xB90, uint8_t *);
+        uint8_t *cm = FIELD(pl, OF(PL, 0xB90), uint8_t *);
         uint32_t now = game_time();
         if (cm) {
-            uint32_t t = FIELD(cm, 0x58, uint32_t);
+            uint32_t t = FIELD(cm, OF(CM, 0x58), uint32_t);
             uint32_t lo = now + (uint32_t)c->epoch_min * 60000u, hi = now + (uint32_t)c->epoch_max * 60000u;
             if (t < lo || t > hi) {
                 int span = c->epoch_max - c->epoch_min + 1, idx = FIELD(pl, PL_INDEX, int);
-                FIELD(cm, 0x58, uint32_t) = lo + (uint32_t)((idx * 7) % span) * 60000u;
+                FIELD(cm, OF(CM, 0x58), uint32_t) = lo + (uint32_t)((idx * 7) % span) * 60000u;
             }
         }
     }
     if (c->first_attack_min > 0) {
-        FIELD(pl, 0xD2C, int) = c->first_attack_min;
-        FIELD(pl, 0xD28, int) = c->first_attack_max;
-        if (!FIELD(pl, 0xEF5, uint8_t)) {   // first attack still pending: redraw it with the new range
+        FIELD(pl, OF(PL, 0xD2C), int) = c->first_attack_min;
+        FIELD(pl, OF(PL, 0xD28), int) = c->first_attack_max;
+        if (!FIELD(pl, OF(PL, 0xEF5), uint8_t)) {   // first attack still pending: redraw it with the new range
             int span = c->first_attack_max - c->first_attack_min + 1, idx = FIELD(pl, PL_INDEX, int);
-            FIELD(pl, 0xED8, uint32_t) = game_time() + (uint32_t)(c->first_attack_min + (idx * 5) % span) * 60000u;
+            FIELD(pl, OF(PL, 0xED8), uint32_t) = game_time() + (uint32_t)(c->first_attack_min + (idx * 5) % span) * 60000u;
         }
     }
-    if (c->attack_min > 0) { FIELD(pl, 0xD00, int) = c->attack_min; FIELD(pl, 0xCFC, int) = c->attack_max; }
+    if (c->attack_min > 0) { FIELD(pl, OF(PL, 0xD00), int) = c->attack_min; FIELD(pl, OF(PL, 0xCFC), int) = c->attack_max; }
     if (c->attack_group_percent > 0) FIELD(pl, d == 0 ? 0xD30 : d == 2 ? 0xD38 : 0xD34, int) = c->attack_group_percent;
-    if (c->attack_on_contact >= 0) FIELD(pl, 0xCD8, int) = c->attack_on_contact;
-    if (c->attack_for_resources >= 0) FIELD(pl, 0xCDC, int) = c->attack_for_resources;
-    if (c->attack_revenge >= 0) FIELD(pl, 0xCE0, int) = c->attack_revenge;
-    if (c->citizen_share > 0.0f && c->citizen_share < 1.0f) FIELD(pl, 0xBDC, float) = c->citizen_share;
+    if (c->attack_on_contact >= 0) FIELD(pl, OF(PL, 0xCD8), int) = c->attack_on_contact;
+    if (c->attack_for_resources >= 0) FIELD(pl, OF(PL, 0xCDC), int) = c->attack_for_resources;
+    if (c->attack_revenge >= 0) FIELD(pl, OF(PL, 0xCE0), int) = c->attack_revenge;
+    if (c->citizen_share > 0.0f && c->citizen_share < 1.0f) FIELD(pl, OF(PL, 0xBDC), float) = c->citizen_share;
     if (g_log) fprintf(g_log, "# settings applied: P%d difficulty %d\n", FIELD(pl, PL_INDEX, int), d);
 }

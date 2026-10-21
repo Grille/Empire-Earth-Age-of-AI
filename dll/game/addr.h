@@ -4,7 +4,7 @@
 // its row, GL(NAME) a list of addresses (its count: sizeof GL(NAME) / sizeof *GL(NAME)). Another build - Art of
 // Conquest, another release, a patched exe - is one more hash and one more value per row. The names: FN_ a function,
 // CALL_ a call (patched), SITE_/CODE_ an instruction or operand, G_ data, VT_ a vtable, VTS_ a vtable slot's address,
-// SLOT_ a vtable slot's index (a class may have gained a virtual function), IAT_ an import slot. Tables of their own
+// SLOT_ a vtable slot's index (a class may have gained a virtual function), SIZE_ an object's size, IAT_ an import slot. Tables of their own
 // for one build: editor_layout.h (generated for the 2017 update: apply_editor_layout only there).
 // Art of Conquest's column: scripts/port_addrs.py (the two exes' code paired; its HAND table the few found by hand,
 // each with its reason). Its objects have layouts of their own and the struct offsets (FIELD(pl, 0x45C ...)) are the
@@ -364,8 +364,40 @@ static const struct exe_build { uint32_t hash; const char *name; int ready; } k_
     D(G_TYPES, 0x009418A0, 0x009636AC) \
 
 
-// vtable slots: the index of a virtual function in its class's vtable (patch_vtable)
-#define ADDR_SLOTS(D)     D(SLOT_ROUTE_COST, 1, 1)            /* VT_ROUTE_PLANNER: FN_ROUTE_COST */     D(SLOT_SCROLL_EXECUTE, 1, 1)        /* VT_SCROLL: Execute */     D(SLOT_SP_BUTTON, 1, 1)             /* SP_VTABLES: a button's handler */     D(SLOT_ASGU_SCORE, 2, 2)            /* ASGU_VTABLES */     D(SLOT_MSG_EXECUTE, 10, 10)         /* VT_PAY_TRIBUTE, VT_INGAME_CHAT, VT_RESIGN: the message's Execute */     D(SLOT_UNIT_RELEASE, 13, 13)        /* VT_COMPLEX_UNIT */     D(SLOT_ASG_STATS, 20, 20)           /* the attack subgroups: FN_ASG_STATS, VT_ASG_LAND's FN_ASG_LAND_STATS */     D(SLOT_MISSILE_LAUNCH, 42, 43)      /* VT_MISSILE */     D(SLOT_PROJ_DOWN, 55, 56)           /* VT_PROJECTILE */     D(SLOT_ASG_GIVE_GOAL, 57, 57)       /* the attack subgroups */     D(SLOT_ASG_UPDATE, 90, 90)          /* the attack subgroups: update(now) */     D(SLOT_ASG_ROUTE, 94, 94)           /* VT_ASG_LAND */     D(SLOT_ASG_ROUTE_DONE, 97, 97)      /* VT_ASG_LAND */
+// numbers that aren't addresses: SLOT_ a virtual function's index in its class's vtable (patch_vtable, a call through
+// the vtable; slot 0, the deleting destructor in both builds, stays a plain 0), SIZE_ the size of a game object the
+// mod makes itself (FN_NEW, then its constructor)
+#define ADDR_NUMBERS(D) \
+    D(SLOT_ROUTE_COST, 1, 1)            /* VT_ROUTE_PLANNER: FN_ROUTE_COST */ \
+    D(SLOT_SCROLL_EXECUTE, 1, 1)        /* VT_SCROLL: Execute */ \
+    D(SLOT_SP_BUTTON, 1, 1)             /* SP_VTABLES: a button's handler */ \
+    D(SLOT_TECH_AVAILABLE, 1, 1)        /* EETechTreeNode: char thiscall(tech) */ \
+    D(SLOT_ASGU_SCORE, 2, 2)            /* ASGU_VTABLES */ \
+    D(SLOT_GOAL_PART, 4, 4)             /* EEUGLoadTransport: a unit's part of the load goal */ \
+    D(SLOT_SERVER_SEND, 6, 6)           /* [G_SERVER] (EEServer, EEClient): thiscall(net, message, 0xFF) */ \
+    D(SLOT_GROUP_COUNT, 6, 6)           /* the selected group (player +0x9BC): unsigned thiscall(group); AoC not checked */ \
+    D(SLOT_MSG_EXECUTE, 10, 10)         /* VT_PAY_TRIBUTE, VT_INGAME_CHAT, VT_RESIGN: the message's Execute */ \
+    D(SLOT_UNIT_RELEASE, 13, 13)        /* VT_COMPLEX_UNIT */ \
+    D(SLOT_ASG_STATS, 20, 20)           /* the attack subgroups: FN_ASG_STATS, VT_ASG_LAND's FN_ASG_LAND_STATS */ \
+    D(SLOT_TYPE_ASSIGN, 29, 29)         /* EEUnitClass: thiscall(type data, unit), as the game's goal assignment */ \
+    D(SLOT_UNIT_LIMIT, 31, 31)          /* EEPlayer: int thiscall(player, 0), the unit limit (FN_GAME_LIMIT) */ \
+    D(SLOT_MISSILE_LAUNCH, 42, 43)      /* VT_MISSILE */ \
+    D(SLOT_PROJ_DOWN, 55, 56)           /* VT_PROJECTILE */ \
+    D(SLOT_ASG_GIVE_GOAL, 57, 57)       /* the attack subgroups */ \
+    D(SLOT_ASG_UPDATE, 90, 90)          /* the attack subgroups: update(now) */ \
+    D(SLOT_ASG_ROUTE, 94, 94)           /* VT_ASG_LAND */ \
+    D(SLOT_ASG_ROUTE_DONE, 97, 97)      /* VT_ASG_LAND */ \
+    D(SIZE_PAUSE_ACTION, 0xC, 0xC)      /* EEAUserPauseGame: vtable, refcount, byte */ \
+    D(SIZE_CHEAT_MSG, 0x18, 0x18)       /* FN_CHEAT_MSG_CTOR */ \
+    D(SIZE_CAMERA_ACTION, 0x1C, 0x1C)   /* FN_CAMACT_CTOR */ \
+    D(SIZE_NEW_UNIT_MSG, 0x20, 0x20)    /* FN_NEW_UNIT_MSG_CTOR */ \
+    D(SIZE_MSG_CHAT, 0x24, 0x24)        /* FN_CHAT_MSG_CTOR */ \
+    D(SIZE_SAVE_ACTION, 0x30, 0x30)     /* FN_SAVE_ACTION_CTOR */ \
+    D(SIZE_GOAL_MOVE, 0x38, 0x38)       /* FN_GOAL_MOVE_CTOR */ \
+    D(SIZE_GOAL_ATTACK, 0x40, 0x44)     /* FN_GOAL_ATTACK_CTOR */ \
+    D(SIZE_GOAL_UNLOAD, 0x40, 0x40)     /* FN_GOAL_UNLOAD_CTOR */ \
+    D(SIZE_GOAL_BUILD, 0x5C, 0x5C)      /* FN_BUILD_GOAL */ \
+    D(SIZE_GOAL_LOAD, 0x68, 0x68)       /* FN_GOAL_LOAD_CTOR */
 
 // lists: L(name, count, (values of build 1), (values of build 2) ...)
 #define ADDR_LISTS(L) \
@@ -429,16 +461,16 @@ static const struct exe_build { uint32_t hash; const char *name; int ready; } k_
 
 #define ADDR_ENUM_F(n, r, cc, a, ...) A_##n,
 #define ADDR_ENUM_D(n, ...) A_##n,
-enum addr_name { ADDRS(ADDR_ENUM_F, ADDR_ENUM_D) ADDR_SLOTS(ADDR_ENUM_D) A_N };
+enum addr_name { ADDRS(ADDR_ENUM_F, ADDR_ENUM_D) ADDR_NUMBERS(ADDR_ENUM_D) A_N };
 #define ADDR_TYPE_F(n, r, cc, a, ...) typedef r (cc *n##_fn) a;
 #define ADDR_TYPE_D(n, ...)
 ADDRS(ADDR_TYPE_F, ADDR_TYPE_D)
 #define ADDR_ROW_F(n, r, cc, a, ...) { __VA_ARGS__ },
 #define ADDR_ROW_D(n, ...) { __VA_ARGS__ },
-static const uint32_t k_addr[A_N][ADDR_BUILDS] = { ADDRS(ADDR_ROW_F, ADDR_ROW_D) ADDR_SLOTS(ADDR_ROW_D) };
+static const uint32_t k_addr[A_N][ADDR_BUILDS] = { ADDRS(ADDR_ROW_F, ADDR_ROW_D) ADDR_NUMBERS(ADDR_ROW_D) };
 #define ADDR_NAME_F(n, r, cc, a, ...) #n,
 #define ADDR_NAME_D(n, ...) #n,
-static const char *const k_addr_name[A_N] = { ADDRS(ADDR_NAME_F, ADDR_NAME_D) ADDR_SLOTS(ADDR_NAME_D) };
+static const char *const k_addr_name[A_N] = { ADDRS(ADDR_NAME_F, ADDR_NAME_D) ADDR_NUMBERS(ADDR_NAME_D) };
 #define ADDR_UNPAREN(...) { __VA_ARGS__ }
 #define ADDR_LIST_COL(v) ADDR_UNPAREN v,
 #define ADDR_LIST(n, k, ...) static const uint32_t k_addr_list_##n[ADDR_BUILDS][k] = { ADDR_LIST_EACH(__VA_ARGS__) };

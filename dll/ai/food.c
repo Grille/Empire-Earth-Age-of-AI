@@ -41,13 +41,13 @@ static int food_fierce(int t) { return t == UT(RES_TIGER) || t == UT(RES_WOLF); 
 // not fierce, under 3 hunters, explored, the unit's continent, no enemy near, no known towers on the way
 static uint8_t *food_animal(void *pl, uint8_t *rm, uint8_t *u) {
     uint8_t *cm = FIELD(rm, RM_OWNER, uint8_t *);
-    void *bm = cm ? FIELD(cm, 0x3C, void *) : NULL;
+    void *bm = cm ? FIELD(cm, OF(CM, 0x3C), void *) : NULL;
     if (!bm) return NULL;
     unsigned pi = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     drops_cached(pl);
     short (__thiscall *region)(void *, int *, int) = (void *)GA(FN_REGION);
     short ur = 0;
-    if (u) { int up[2] = { FIELD(u, 0x1C, int), FIELD(u, 0x20, int) }; ur = region((void *)GA(G_MAP_AREAS), up, 2); }
+    if (u) { int up[2] = { FIELD(u, OF(UNIT, 0x1C), int), FIELD(u, OF(UNIT, 0x20), int) }; ur = region((void *)GA(G_MAP_AREAS), up, 2); }
     uint8_t *best = NULL;
     int bd = g_hunt_range * g_hunt_range + 1;
     for (int i = 0; i < g_drops[pi].n; i++) {
@@ -55,9 +55,9 @@ static uint8_t *food_animal(void *pl, uint8_t *rm, uint8_t *u) {
         if (d[2]) continue;
         for (struct grid_it it = grid_it_box(d[0], d[1], g_hunt_range, 1); grid_it_next(&it); ) {
             uint8_t *a = it.u, *td = it.td;
-            if (!td || FIELD(a, 0x38, int) != 2 || FIELD(a, 0x40, int) <= 0 || FIELD(td, 0x4C4, int) != 0x11) continue;
-            if (food_fierce(FIELD(td, 0x4B8, int))) continue;
-            int x = FIELD(a, 0x1C, int), y = FIELD(a, 0x20, int), dx = x - d[0], dy = y - d[1], d2 = dx * dx + dy * dy;
+            if (!td || FIELD(a, OF(UNIT, 0x38), int) != 2 || FIELD(a, OF(UNIT, 0x40), int) <= 0 || FIELD(td, OF(TD, 0x4C4), int) != 0x11) continue;
+            if (food_fierce(FIELD(td, OF(TD, 0x4B8), int))) continue;
+            int x = FIELD(a, OF(UNIT, 0x1C), int), y = FIELD(a, OF(UNIT, 0x20), int), dx = x - d[0], dy = y - d[1], d2 = dx * dx + dy * dy;
             if (d2 >= bd) continue;
             if (GF(FN_SITE_GATHERERS)((void *)GA(G_GAME_STATE), a) >= 3) continue;
             int pos[2] = { x, y };
@@ -71,27 +71,27 @@ static uint8_t *food_animal(void *pl, uint8_t *rm, uint8_t *u) {
 // the free bush nearest to a food drop site (NEAR), within max_d2 of the base; NULL: none
 static uint8_t *food_bush(void *pl, uint8_t *rm, uint8_t *u, int max_d2) {
     uint8_t *cm = FIELD(rm, RM_OWNER, uint8_t *);
-    void *bm = cm ? FIELD(cm, 0x3C, void *) : NULL;
+    void *bm = cm ? FIELD(cm, OF(CM, 0x3C), void *) : NULL;
     if (!bm) return NULL;
-    int base[2] = { FIELD(bm, 0x12C, int), FIELD(bm, 0x130, int) };
+    int base[2] = { FIELD(bm, OF(BM, 0x12C), int), FIELD(bm, OF(BM, 0x130), int) };
     if (base[0] == -10000 || base[1] == -10000) return NULL;
     unsigned pi = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     drops_cached(pl);
     unsigned cap = GF(FN_TABLE_VALUE)((void *)GA(G_TABLE_VALUES), 0x16);
     short (__thiscall *region)(void *, int *, int) = (void *)GA(FN_REGION);
     short ur = 0;
-    if (u) { int up[2] = { FIELD(u, 0x1C, int), FIELD(u, 0x20, int) }; ur = region((void *)GA(G_MAP_AREAS), up, 2); }
+    if (u) { int up[2] = { FIELD(u, OF(UNIT, 0x1C), int), FIELD(u, OF(UNIT, 0x20), int) }; ur = region((void *)GA(G_MAP_AREAS), up, 2); }
     uint8_t *best = NULL;
     int bd = 0x7FFFFFFF;
-    void **zb = FIELD(pl, 0xB50, void **), **ze = FIELD(pl, 0xB54, void **);
+    void **zb = FIELD(pl, OF(PL, 0xB50), void **), **ze = FIELD(pl, OF(PL, 0xB54), void **);
     for (int z = 0; zb && zb + z < ze && z < 256; z++) {
         uint8_t *zone = zb[z];
-        void **sb = zone ? FIELD(zone, 8, void **) : NULL, **se = zone ? FIELD(zone, 0xC, void **) : NULL;
+        void **sb = zone ? FIELD(zone, OF(ZONE, 0x8), void **) : NULL, **se = zone ? FIELD(zone, OF(ZONE, 0xC), void **) : NULL;
         for (int k = 0; sb && sb + k < se && k < 4096; k++) {
-            uint8_t *s = sb[k], *td = s ? FIELD(s, 0x2C, uint8_t *) : NULL;
-            if (!td || FIELD(s, 0x38, int) != 2 || FIELD(td, 0x4B8, int) != UT(RES_FORAGE_BUSH) || FIELD(s, 0x40, int) <= 0) continue;
-            if (FIELD(FIELD(s, 0x14, uint8_t *), 4, int) == 1) continue;
-            int pos[2] = { FIELD(s, 0x1C, int), FIELD(s, 0x20, int) }, dx = pos[0] - base[0], dy = pos[1] - base[1];
+            uint8_t *s = sb[k], *td = s ? FIELD(s, OF(UNIT, 0x2C), uint8_t *) : NULL;
+            if (!td || FIELD(s, OF(UNIT, 0x38), int) != 2 || FIELD(td, OF(TD, 0x4B8), int) != UT(RES_FORAGE_BUSH) || FIELD(s, OF(UNIT, 0x40), int) <= 0) continue;
+            if (FIELD(FIELD(s, OF(UNIT, 0x14), uint8_t *), OF(SITEOWN, 0x4), int) == 1) continue;
+            int pos[2] = { FIELD(s, OF(UNIT, 0x1C), int), FIELD(s, OF(UNIT, 0x20), int) }, dx = pos[0] - base[0], dy = pos[1] - base[1];
             if (dx * dx + dy * dy >= max_d2) continue;
             int dd = 0x7FFFFFFF;   // to the nearest drop site that takes food
             for (int i = 0; i < g_drops[pi].n; i++) {
@@ -99,7 +99,7 @@ static uint8_t *food_bush(void *pl, uint8_t *rm, uint8_t *u, int max_d2) {
                 if (ex * ex + ey * ey < dd) dd = ex * ex + ey * ey;
             }
             if (dd >= bd) continue;
-            if (!GF(FN_EXPLORED)(FIELD(s, 0x14, void *), pl)) continue;
+            if (!GF(FN_EXPLORED)(FIELD(s, OF(UNIT, 0x14), void *), pl)) continue;
             if (GF(FN_SITE_GATHERERS)((void *)GA(G_GAME_STATE), s) >= cap) continue;
             if (u && region((void *)GA(G_MAP_AREAS), pos, 2) != ur) continue;
             if (((EnemyNearFn)GA(FN_ENEMY_NEAR))(bm, pos[0], pos[1]) || site_danger_res(pl, s, 1, 2)) continue;
@@ -114,7 +114,7 @@ static uint8_t *food_near_pick(uint8_t *rm, int near_base, uint8_t *unit) {
     if (!pl) return NULL;
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     if (!(FOOD_PLAN(idx) & 4)) return NULL;
-    int r6 = FIELD(pl, 0xE10, int);
+    int r6 = FIELD(pl, OF(PL, 0xE10), int);
     uint8_t *s = food_bush(pl, rm, unit, near_base ? r6 * r6 * 4 : r6 * r6 * 36);
     if (s) g_fd[idx].near_pick++;
     return s;
@@ -130,9 +130,9 @@ static void food_hunt(uint8_t *rm) {
     uint8_t *dq = rm + RM_LISTS;   // list 0: idle
     for (unsigned k = FIELD(dq, 0x10, unsigned), first = FIELD(dq, 0xC, unsigned); k-- > 0 && room > 0; ) {
         uint8_t *u = deque_at(dq, first + k);
-        if (!u || FIELD(u, 0x3C, int) <= 0 || FIELD(u, 0x33B, uint8_t) || FIELD(u, 0x341, uint8_t) || FIELD(u, 0x68, int)) continue;
-        uint8_t *td = FIELD(u, 0x2C, uint8_t *);
-        if (!td || !is_citizen_type(FIELD(td, 0x4B8, int)) || FIELD(u, 0x1EC, void *)) continue;
+        if (!u || FIELD(u, OF(UNIT, 0x3C), int) <= 0 || FIELD(u, OF(UNIT, 0x33B), uint8_t) || FIELD(u, OF(UNIT, 0x341), uint8_t) || FIELD(u, OF(UNIT, 0x68), int)) continue;
+        uint8_t *td = FIELD(u, OF(UNIT, 0x2C), uint8_t *);
+        if (!td || !is_citizen_type(FIELD(td, OF(TD, 0x4B8), int)) || FIELD(u, OF(UNIT, 0x1EC), void *)) continue;
         uint8_t *a = food_animal(pl, rm, u);
         if (!a) break;
         int before = rm_count(rm, 2);
@@ -149,7 +149,7 @@ static void food_pull(uint8_t *rm) {
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     if (!(FOOD_PLAN(idx) & 2)) return;
     uint32_t *target = (uint32_t *)(rm + RM_TARGET);
-    int pre = current_epoch(pl) < FARM_EPOCH, moves = 0, dry = 0, r6 = FIELD(pl, 0xE10, int);
+    int pre = current_epoch(pl) < FARM_EPOCH, moves = 0, dry = 0, r6 = FIELD(pl, OF(PL, 0xE10), int);
     while (moves < 4 && (int)target[2] - rm_count(rm, 2) >= 2) {
         int d = -1, best = 1;
         for (int t = 3; t < 7; t++) {
@@ -173,13 +173,13 @@ static void food_pull(uint8_t *rm) {
 static void food_plan_needs(void *pl, uint8_t *rm, int *need, const int *stock, const int *reserve) {
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     if (!(FOOD_PLAN(idx) & 1)) return;
-    int wf = workforce(pl), want = (int)(FIELD(pl, 0xBDC, float) * (float)FIELD(pl, 0xCCC, int));
+    int wf = workforce(pl), want = (int)(FIELD(pl, OF(PL, 0xBDC), float) * (float)FIELD(pl, OF(PL, 0xCCC), int));
     if (copper_mode(pl) == 1 && want > g_min_workforce) want = g_min_workforce;   // the plan saves from there on
     int more = want - wf;
     if (more > 10) more = 10;
     if (more > 0) need[2] += 50 * more;
     void *cm = FIELD(rm, RM_OWNER, void *);
-    uint8_t *bm = cm ? FIELD(cm, 0x3C, uint8_t *) : NULL;
+    uint8_t *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL;
     int queued = 0, nq = 0;
     for (int e = 0; bm && e <= current_epoch(pl) && e < 14 && nq < 3; e++)
         for (unsigned i = 0; nq < 3; i++) {
@@ -204,33 +204,33 @@ static void food_camp(void *pl, unsigned idx, uint32_t now) {
     if (now < g_camp[idx].t) memset(&g_camp[idx], 0, sizeof g_camp[idx]);
     if (g_camp[idx].n >= 2 || (g_camp[idx].t && now - g_camp[idx].t < 120000)) return;
     g_camp[idx].t = now ? now : 1;
-    uint8_t *cm = FIELD(pl, 0xB90, uint8_t *), *bm = cm ? FIELD(cm, 0x3C, uint8_t *) : NULL;
-    void *um = cm ? FIELD(cm, 0x44, void *) : NULL;
-    if (!bm || !um || !ut_has(UT(B_SETTLEMENT)) || FIELD(bm, 0x12C, int) == -10000 || bq_has(bm, UT(B_SETTLEMENT)) || bq_has(bm, UT(X_SINGLE_PLAYER_SETTLEMENT))) return;
+    uint8_t *cm = FIELD(pl, OF(PL, 0xB90), uint8_t *), *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL;
+    void *um = cm ? FIELD(cm, OF(CM, 0x44), void *) : NULL;
+    if (!bm || !um || !ut_has(UT(B_SETTLEMENT)) || FIELD(bm, OF(BM, 0x12C), int) == -10000 || bq_has(bm, UT(B_SETTLEMENT)) || bq_has(bm, UT(X_SINGLE_PLAYER_SETTLEMENT))) return;
     uint8_t *q = type_list(um, UT(B_SETTLEMENT));
     for (unsigned k = 0, f = q ? FIELD(q, 0xC, unsigned) : 0, n = q ? FIELD(q, 0x10, unsigned) : 0; k < n; k++) {
-        uint8_t *b = deque_at(q, f + k), *st = b ? FIELD(b, 0x30, uint8_t *) : NULL;
-        if (b && FIELD(b, 0x3C, int) > 0 && (!st || !FIELD(st, 0x340, uint8_t))) return;
+        uint8_t *b = deque_at(q, f + k), *st = b ? FIELD(b, OF(UNIT, 0x30), uint8_t *) : NULL;
+        if (b && FIELD(b, OF(UNIT, 0x3C), int) > 0 && (!st || !FIELD(st, OF(UNIT, 0x340), uint8_t))) return;
     }
     if (!GF(FN_CAN_BUILD)(pl, UT(B_SETTLEMENT), 0x20, 0)) return;
-    int bx = FIELD(bm, 0x12C, int), by = FIELD(bm, 0x130, int);
+    int bx = FIELD(bm, OF(BM, 0x12C), int), by = FIELD(bm, OF(BM, 0x130), int);
     static int fx[512], fy[512], ff[512];
     int n = 0;
     for (struct grid_it it = grid_it_box(bx, by, 30, 1); grid_it_next(&it) && n < 512; ) {   // animals
         uint8_t *a = it.u, *td = it.td;
-        if (!td || FIELD(a, 0x38, int) != 2 || FIELD(a, 0x40, int) <= 0 || FIELD(td, 0x4C4, int) != 0x11 || food_fierce(FIELD(td, 0x4B8, int))) continue;
-        fx[n] = FIELD(a, 0x1C, int); fy[n] = FIELD(a, 0x20, int); ff[n++] = FIELD(a, 0x40, int);
+        if (!td || FIELD(a, OF(UNIT, 0x38), int) != 2 || FIELD(a, OF(UNIT, 0x40), int) <= 0 || FIELD(td, OF(TD, 0x4C4), int) != 0x11 || food_fierce(FIELD(td, OF(TD, 0x4B8), int))) continue;
+        fx[n] = FIELD(a, OF(UNIT, 0x1C), int); fy[n] = FIELD(a, OF(UNIT, 0x20), int); ff[n++] = FIELD(a, OF(UNIT, 0x40), int);
     }
-    void **zb = FIELD(pl, 0xB50, void **), **ze = FIELD(pl, 0xB54, void **);   // bushes
+    void **zb = FIELD(pl, OF(PL, 0xB50), void **), **ze = FIELD(pl, OF(PL, 0xB54), void **);   // bushes
     for (int z = 0; zb && zb + z < ze && z < 256; z++) {
-        void **sb = zb[z] ? FIELD(zb[z], 8, void **) : NULL, **se = zb[z] ? FIELD(zb[z], 0xC, void **) : NULL;
+        void **sb = zb[z] ? FIELD(zb[z], OF(ZONE, 0x8), void **) : NULL, **se = zb[z] ? FIELD(zb[z], OF(ZONE, 0xC), void **) : NULL;
         for (int k = 0; sb && sb + k < se && k < 4096 && n < 512; k++) {
-            uint8_t *st = sb[k], *td = st ? FIELD(st, 0x2C, uint8_t *) : NULL;
-            if (!td || FIELD(st, 0x38, int) != 2 || FIELD(td, 0x4B8, int) != UT(RES_FORAGE_BUSH) || FIELD(st, 0x40, int) <= 0) continue;
-            int x = FIELD(st, 0x1C, int), y = FIELD(st, 0x20, int);
+            uint8_t *st = sb[k], *td = st ? FIELD(st, OF(UNIT, 0x2C), uint8_t *) : NULL;
+            if (!td || FIELD(st, OF(UNIT, 0x38), int) != 2 || FIELD(td, OF(TD, 0x4B8), int) != UT(RES_FORAGE_BUSH) || FIELD(st, OF(UNIT, 0x40), int) <= 0) continue;
+            int x = FIELD(st, OF(UNIT, 0x1C), int), y = FIELD(st, OF(UNIT, 0x20), int);
             if ((x - bx) * (x - bx) + (y - by) * (y - by) > 900) continue;
-            if (!GF(FN_EXPLORED)(FIELD(st, 0x14, void *), pl)) continue;
-            fx[n] = x; fy[n] = y; ff[n++] = FIELD(st, 0x40, int);
+            if (!GF(FN_EXPLORED)(FIELD(st, OF(UNIT, 0x14), void *), pl)) continue;
+            fx[n] = x; fy[n] = y; ff[n++] = FIELD(st, OF(UNIT, 0x40), int);
         }
     }
     unsigned pi = idx & 15;
@@ -296,18 +296,18 @@ static void food_install(const char *aimod_ini, const char *autotest_ini) {
 static int food_fields_wait(void *pl, uint8_t *rm) {
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     if (!(FOOD_PLAN(idx) & 16) || current_epoch(pl) < FARM_EPOCH) return 0;
-    int r6 = FIELD(pl, 0xE10, int);
+    int r6 = FIELD(pl, OF(PL, 0xE10), int);
     if (food_bush(pl, rm, NULL, r6 * r6 * 36) || food_animal(pl, rm, NULL)) return 1;
-    if (!FIELD(pl, 0xEFA, uint8_t)) return 0;
+    if (!FIELD(pl, OF(PL, 0xEFA), uint8_t)) return 0;
     int fish = 0, boats = 0;
-    void **qb = FIELD(rm, 0x98, void **), **qe = FIELD(rm, 0x9C, void **);
+    void **qb = FIELD(rm, OF(RM, 0x98), void **), **qe = FIELD(rm, OF(RM, 0x9C), void **);
     for (void **h = qb; qb && h < qe && h - qb < 4096; h++)
-        if (*h && FIELD(*h, 0x40, int) > 0) fish += FIELD(*h, 0x40, int);
+        if (*h && FIELD(*h, OF(UNIT, 0x40), int) > 0) fish += FIELD(*h, OF(UNIT, 0x40), int);
     if (fish < 3000) return 0;
     uint8_t *list = rm + RM_LISTS + 2 * 0x14;
     for (unsigned k = 0, first = FIELD(list, 0xC, unsigned), n = FIELD(list, 0x10, unsigned); k < n && k < 1024; k++) {
-        uint8_t *u = deque_at(list, first + k), *td = u ? FIELD(u, 0x2C, uint8_t *) : NULL;
-        if (td && FIELD(u, 0x3C, int) > 0 && FIELD(td, 0x4B4, int) == 22) boats++;
+        uint8_t *u = deque_at(list, first + k), *td = u ? FIELD(u, OF(UNIT, 0x2C), uint8_t *) : NULL;
+        if (td && FIELD(u, OF(UNIT, 0x3C), int) > 0 && FIELD(td, OF(TD, 0x4B4), int) == 22) boats++;
     }
     int short_ = (int)FIELD(rm, RM_TARGET + 2 * 4, uint32_t) - rm_count(rm, 2);
     return !(boats >= 8 && short_ >= 4);

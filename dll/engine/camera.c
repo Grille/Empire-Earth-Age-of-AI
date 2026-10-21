@@ -54,7 +54,7 @@ static void __fastcall hook_scroll_execute(uint8_t *self, void *edx) {
     InterlockedIncrement(&g_scroll_calls);
     if (g_scroll_native && !g_cam_smooth) { GF(FN_SCROLL_EXECUTE)(self); return; }
     // elapsed time: real time with fine scrolling, else the timer's ticks (10 ms AoC)
-    float ms = (float)FIELD(self, 0x40, unsigned) * 10.0f;
+    float ms = (float)FIELD(self, OF(SCROLL, 0x40), unsigned) * 10.0f;
     if (g_cam_smooth) {
         LARGE_INTEGER now;
         if (!g_cam_freq.QuadPart) QueryPerformanceFrequency(&g_cam_freq);
@@ -70,15 +70,15 @@ static void __fastcall hook_scroll_execute(uint8_t *self, void *edx) {
     float dx = 0, dy = 0;
     if (!g_scroll_aoc) {   // EE: constant speed, as 0x4050FC
         float step = speed * maxv * ms * 0.01f;
-        dx = self[0x45] ? step : self[0x44] ? -step : 0;
-        dy = self[0x46] ? step : self[0x47] ? -step : 0;
+        dx = self[OF(SCROLL, 0x45)] ? step : self[OF(SCROLL, 0x44)] ? -step : 0;
+        dy = self[OF(SCROLL, 0x46)] ? step : self[OF(SCROLL, 0x47)] ? -step : 0;
     } else {               // AoC: velocity ramp
         DWORD t = GetTickCount();
         if (t - g_scroll_last > 100) g_vel_x = g_vel_y = 0;   // scrolling had stopped: start slow again
         g_scroll_last = t;
         float minv = maxv * 0.1f, scale = speed * ms * 0.01f, ramp = ms * 0.001f * maxv;
-        if (self[0x44] || self[0x45]) { scroll_axis(&g_vel_x, self[0x44], self[0x45], minv, maxv, ramp); dx = g_vel_x * scale; }
-        if (self[0x47] || self[0x46]) { scroll_axis(&g_vel_y, self[0x47], self[0x46], minv, maxv, ramp); dy = g_vel_y * scale; }
+        if (self[OF(SCROLL, 0x44)] || self[OF(SCROLL, 0x45)]) { scroll_axis(&g_vel_x, self[OF(SCROLL, 0x44)], self[OF(SCROLL, 0x45)], minv, maxv, ramp); dx = g_vel_x * scale; }
+        if (self[OF(SCROLL, 0x47)] || self[OF(SCROLL, 0x46)]) { scroll_axis(&g_vel_y, self[OF(SCROLL, 0x47)], self[OF(SCROLL, 0x46)], minv, maxv, ramp); dy = g_vel_y * scale; }
     }
     if (dx != 0 || dy != 0) GF(FN_CAMERA_MOVE)((void *)GA(G_CAMERA), dx, dy);
 }
@@ -124,7 +124,7 @@ static void camtrace_frame(void) {   // the render thread, every presented frame
     QueryPerformanceCounter(&now);
     QueryPerformanceFrequency(&f);
     uint8_t *cam = (uint8_t *)GA(G_CAMERA);
-    float x = FIELD(cam, 0x78, float), y = FIELD(cam, 0x7C, float);
+    float x = FIELD(cam, OF(CAMERA, 0x78), float), y = FIELD(cam, OF(CAMERA, 0x7C), float);
     if (g_ct_n < CT_MAX && g_ct_last.QuadPart) {
         g_ct[g_ct_n].dt = (float)((double)(now.QuadPart - g_ct_last.QuadPart) * 1000.0 / (double)f.QuadPart);
         g_ct[g_ct_n].dx = x - g_ct_x;
@@ -156,16 +156,17 @@ static void cmd_scrolltest(char *out, const char *args) {
     sscanf(args, "%15s %d", dir, &n);
     uint8_t obj[0x50] = { 0 };
     *(uint32_t *)obj = GA(VT_SCROLL);
-    *(unsigned *)(obj + 0x40) = 1;
-    obj[0x44] = dir[0] == 'l'; obj[0x45] = dir[0] == 'r'; obj[0x46] = dir[0] == 'd'; obj[0x47] = dir[0] == 'u';
+    *(unsigned *)(obj + OF(SCROLL, 0x40)) = 1;
+    obj[OF(SCROLL, 0x44)] = dir[0] == 'l'; obj[OF(SCROLL, 0x45)] = dir[0] == 'r'; obj[OF(SCROLL, 0x46)] = dir[0] == 'd';
+    obj[OF(SCROLL, 0x47)] = dir[0] == 'u';
     uint8_t *cam = (uint8_t *)GA(G_CAMERA);
-    float x0 = FIELD(cam, 0x78, float), y0 = FIELD(cam, 0x7C, float);
+    float x0 = FIELD(cam, OF(CAMERA, 0x78), float), y0 = FIELD(cam, OF(CAMERA, 0x7C), float);
     REPLY("mode %s, start %.2f,%.2f\n", g_scroll_aoc ? "aoc" : "ee", x0, y0);
     for (int i = 0; i < n && i < 200; i++) {
-        float x = FIELD(cam, 0x78, float), y = FIELD(cam, 0x7C, float);
+        float x = FIELD(cam, OF(CAMERA, 0x78), float), y = FIELD(cam, OF(CAMERA, 0x7C), float);
         hook_scroll_execute(obj, NULL);
         if (i < 12 || i == n - 1)
-            REPLY("  call %2d: moved %.3f,%.3f (velocity %.3f,%.3f)\n", i, FIELD(cam, 0x78, float) - x,
-                  FIELD(cam, 0x7C, float) - y, g_vel_x, g_vel_y);
+            REPLY("  call %2d: moved %.3f,%.3f (velocity %.3f,%.3f)\n", i, FIELD(cam, OF(CAMERA, 0x78), float) - x,
+                  FIELD(cam, OF(CAMERA, 0x7C), float) - y, g_vel_x, g_vel_y);
     }
 }

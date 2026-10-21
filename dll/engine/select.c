@@ -54,15 +54,15 @@ static void cmd_seltest(char *out, const char *args) {
     memset(msg, 0, sizeof msg);
     g_sel_last_in = g_sel_last_out = 0;
     GF(FN_SELECT_MSG_INIT)(msg, r, type, 0x4E);
-    uint32_t *b = FIELD(msg, 0x14, uint32_t *), *e = FIELD(msg, 0x18, uint32_t *);
+    uint32_t *b = FIELD(msg, OF(MSG_SELECT, 0x14), uint32_t *), *e = FIELD(msg, OF(MSG_SELECT, 0x18), uint32_t *);
     REPLY("rect %.0f %.0f %.0f %.0f: found %u, packed %u in %u bytes, unpacked %d (big_selection %d)", r[0], r[1], r[2],
-          r[3], g_sel_last_in, g_sel_last_out, msg[0x134], b ? (int)(e - b) : 0, g_big_selection);
+          r[3], g_sel_last_in, g_sel_last_out, msg[OF(MSG_SELECT, 0x134)], b ? (int)(e - b) : 0, g_big_selection);
     // carried out as the message does (EEMSelectUnits::vf10 -> 0x55B3FB on the player): the selected group (+0x9BC)
     void *pl = ((void **)GA(G_PLAYERS))[*(unsigned *)GA(G_LOCAL_PLAYER)];
-    int *grp = pl ? FIELD(pl, 0x9BC, int *) : NULL;
+    int *grp = pl ? FIELD(pl, OF(PL, 0x9BC), int *) : NULL;
     if (grp) {
-        GF(FN_SELECT_UNITS)(pl, msg + 0x10);
-        REPLY(", selected %u", ((unsigned (__thiscall *)(void *))(*(void ***)grp)[6])(grp));
+        GF(FN_SELECT_UNITS)(pl, msg + OF(MSG_SELECT, 0x10));
+        REPLY(", selected %u", ((unsigned (__thiscall *)(void *))(*(void ***)grp)[GA(SLOT_GROUP_COUNT)])(grp));
     }
     REPLY("\n");
 }

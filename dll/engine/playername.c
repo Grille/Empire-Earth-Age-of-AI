@@ -9,7 +9,7 @@
 // and save them (0x52AA81 thiscall(settings): every setting into the registry, as the options screens do).
 static void *g_sp_orig[6];
 static void keep_player_name(uint8_t *screen) {
-    uint8_t **ctl = screen ? FIELD(screen, 0xF8, uint8_t **) : NULL;
+    uint8_t **ctl = screen ? FIELD(screen, OF(UISCREEN, 0xF8), uint8_t **) : NULL;
     void *edit = ctl ? ctl[8] : NULL;
     if (!edit) return;
     const char *t = ((const char *(__thiscall *)(void *, unsigned long))*(void **)GA(IAT_EDIT_GET_TEXT))(edit, 0);   // UIEditBox::GetText

@@ -1173,11 +1173,11 @@ static int word_in(const char *text, const char *name) {
 // players (a byte per player index at +0xB2C)
 static int chat_reaches(void *pm, void *pj) {
     int j = FIELD(pj, PL_INDEX, int) & 15;
-    switch (FIELD(pm, 0x9E0, int)) {
+    switch (FIELD(pm, OF(PL, 0x9E0), int)) {
     case 0: return 1;
     case 1: return !stance_of(pm, j);
     case 2: return stance_of(pm, j) != 0;
-    case 3: return FIELD(pm, 0xB2C + j, uint8_t) != 0;
+    case 3: return FIELD(pm, OF(PL, 0xB2C) + j, uint8_t) != 0;
     default: return 1;
     }
 }
@@ -1185,7 +1185,7 @@ static int chat_reaches(void *pm, void *pj) {
 static void llm_chat_hint(const char *text) {
     if (g_mp) return;
     uint8_t *opt = *(uint8_t **)GA(G_GAME_DATA);
-    system_line(text, opt ? FIELD(opt, 0x2CC, int) : 15000);
+    system_line(text, opt ? FIELD(opt, OF(GAMEDATA, 0x2CC), int) : 15000);
     if (g_log) fprintf(g_log, "# llm: hint for the player: %s\n", text);
 }
 // the local player wrote `text` in the chat: one AI that gets it (the chat filter) answers - the one it names first,
@@ -1229,7 +1229,7 @@ static void llm_player_chat(const char *text) {
     if (!to && got == 1) to = only;
     if (!to) {
         if (g_llm_log && g_log) fprintf(g_log, "# llm: chat line (mode %d, gets it:%s) meant for no AI - name one: %s\n",
-                                        FIELD(pm, 0x9E0, int), got ? who : " none", text);
+                                        FIELD(pm, OF(PL, 0x9E0), int), got ? who : " none", text);
         if (!got) llm_chat_hint(sysf("chat_nobody", NULL, NULL, NULL, NULL));
         else {
             char names[200] = "";
@@ -1267,7 +1267,7 @@ static void llm_player_chat(const char *text) {
     if (!b.p) return;
     llm_queue(j, llm_finish(&b, j->tools, to, h));
     if (g_llm_log && g_log) fprintf(g_log, "# llm: chat line for P%d (mode %d, gets it:%s) asked: %s\n", to,
-                                    FIELD(pm, 0x9E0, int), who, text);
+                                    FIELD(pm, OF(PL, 0x9E0), int), who, text);
 }
 
 // ---- AI TALK ----
@@ -1564,7 +1564,7 @@ static void llm_wait_tick(void) {
         g_llm_paused_t = now;
         uint8_t *opt = *(uint8_t **)GA(G_GAME_DATA);
         const char *l = sysf(g_llm_unreach ? "llm_wait_down" : "llm_wait", NULL, NULL, NULL, "url", g_llm_url, NULL);
-        system_line(l, opt ? FIELD(opt, 0x2CC, int) * 2 : 20000);
+        system_line(l, opt ? FIELD(opt, OF(GAMEDATA, 0x2CC), int) * 2 : 20000);
         if (g_log) fprintf(g_log, "# llm: paused at %.1f min - waiting for the model (%s)\n", game_time() / 60000.0,
                            g_llm_unreach ? g_llm_last_err : "slow");
     } else if (stalled && g_llm_paused == 1 && !paused && now - g_llm_paused_t > 3000) {   // the player resumed it
@@ -1658,7 +1658,7 @@ static void cmd_llm(char *out, const char *args) {
     if (sscanf(args, "filter %d %n", &p, &n) == 1) {
         uint8_t *pm = player_at((int)*(unsigned *)GA(G_LOCAL_PLAYER));
         if (!pm || p < 0 || p > 3) { REPLY("error: no local player or bad mode\n"); return; }
-        FIELD(pm, 0x9E0, int) = p;
+        FIELD(pm, OF(PL, 0x9E0), int) = p;
         for (int i = 0; i < 16; i++) pm[0xB2C + i] = 0;
         for (const char *s = args + n; p == 3 && *s;) {
             char *e;

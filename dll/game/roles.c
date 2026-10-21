@@ -12,7 +12,7 @@ static int is_transport(int t) { return ut_role(t, UTR_TRANSPORT); }   // a tran
 static int is_fishing_boat(int t) { return ut_role(t, UTR_FISHING_BOAT); }
 // a soldier: of an army family, no siege weapon, ram or citizen
 static int is_soldier(uint8_t *td) {
-    int fam = FIELD(td, 0x4B4, int), type = FIELD(td, 0x4B8, int);
+    int fam = FIELD(td, OF(TD, 0x4B4), int), type = FIELD(td, OF(TD, 0x4B8), int);
     if (!is_army_family(fam)) return 0;
     return !is_siege(type) && !is_ram(type) && !is_citizen_type(type);
 }

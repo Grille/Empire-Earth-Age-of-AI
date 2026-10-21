@@ -6,12 +6,12 @@ static inline uint8_t *type_data(int t) { return t >= 0 && t < G_TYPES_N ? ((uin
 
 static uint32_t game_time(void) {
     uint8_t *clock = *(uint8_t **)GA(G_WORLD_CLOCK);
-    return clock ? FIELD(clock, 0xD0, uint32_t) : 0;
+    return clock ? FIELD(clock, OF(PHYS, 0xD0), uint32_t) : 0;
 }
 
 static void *rm_player(void *rm) {
     void *owner = FIELD(rm, RM_OWNER, void *);
-    return owner ? FIELD(owner, 0x4C, void *) : NULL;
+    return owner ? FIELD(owner, OF(PL, 0x4C), void *) : NULL;
 }
 
 // the game's UString (passed by value to some of its functions)

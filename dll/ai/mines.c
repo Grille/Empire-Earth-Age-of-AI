@@ -37,27 +37,27 @@ static void mf_scan(void *pl, unsigned idx, uint32_t now) {
     m->t = now ? now : 1;
     memset(m->slots, 0, sizeof m->slots); memset(m->home_slots, 0, sizeof m->home_slots); memset(m->g, 0, sizeof m->g);
     m->far_r = 0;
-    uint8_t *cm = FIELD(pl, 0xB90, uint8_t *), *bm = cm ? FIELD(cm, 0x3C, uint8_t *) : NULL;
-    if (!bm || FIELD(bm, 0x12C, int) == -10000) return;
-    int base[2] = { FIELD(bm, 0x12C, int), FIELD(bm, 0x130, int) };
+    uint8_t *cm = FIELD(pl, OF(PL, 0xB90), uint8_t *), *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL;
+    if (!bm || FIELD(bm, OF(BM, 0x12C), int) == -10000) return;
+    int base[2] = { FIELD(bm, OF(BM, 0x12C), int), FIELD(bm, OF(BM, 0x130), int) };
     short (__thiscall *region)(void *, int *, int) = (void *)GA(FN_REGION);
     short hr = region((void *)GA(G_MAP_AREAS), base, 2);
     unsigned cap = GF(FN_TABLE_VALUE)((void *)GA(G_TABLE_VALUES), 0x16);
     drops_cached(pl);
     static uint8_t *seen[1024];
     int ns = 0, bd = 0x7FFFFFFF;
-    void **tb = FIELD(pl, 0xB50, void **), **te = FIELD(pl, 0xB54, void **);
+    void **tb = FIELD(pl, OF(PL, 0xB50), void **), **te = FIELD(pl, OF(PL, 0xB54), void **);
     for (int t = 0; tb && tb + t < te && t < 256; t++) {
         uint8_t *zone = tb[t];
-        void **sb = zone ? FIELD(zone, 8, void **) : NULL, **se = zone ? FIELD(zone, 0xC, void **) : NULL;
+        void **sb = zone ? FIELD(zone, OF(ZONE, 0x8), void **) : NULL, **se = zone ? FIELD(zone, OF(ZONE, 0xC), void **) : NULL;
         for (int k = 0; sb && sb + k < se && k < 4096; k++) {
             uint8_t *s = sb[k];
-            int r = s ? FIELD(s, 0x38, int) : 0, j;
-            if (r < 4 || r > 6 || FIELD(s, 0x40, int) <= 0) continue;
+            int r = s ? FIELD(s, OF(UNIT, 0x38), int) : 0, j;
+            if (r < 4 || r > 6 || FIELD(s, OF(UNIT, 0x40), int) <= 0) continue;
             for (j = 0; j < ns && seen[j] != s; j++) ;
             if (j < ns) continue;
             if (ns < 1024) seen[ns++] = s;
-            int pos[2] = { FIELD(s, 0x1C, int), FIELD(s, 0x20, int) }, dd = 0x7FFFFFFF;
+            int pos[2] = { FIELD(s, OF(UNIT, 0x1C), int), FIELD(s, OF(UNIT, 0x20), int) }, dd = 0x7FFFFFFF;
             for (int i = 0; i < g_drops[idx].n; i++) {
                 int *d = g_drops[idx].d[i], dx = d[0] - pos[0], dy = d[1] - pos[1];
                 if (!d[2] && dx * dx + dy * dy < dd) dd = dx * dx + dy * dy;
@@ -69,8 +69,8 @@ static void mf_scan(void *pl, unsigned idx, uint32_t now) {
                 m->g[r] += (int)GF(FN_SITE_GATHERERS)((void *)GA(G_GAME_STATE), s);
                 continue;
             }
-            if (!home || dd >= bd || !zone[0x18]) continue;
-            if (!GF(FN_EXPLORED)(FIELD(s, 0x14, void *), pl)) continue;
+            if (!home || dd >= bd || !zone[OF(ZONE, 0x18)]) continue;
+            if (!GF(FN_EXPLORED)(FIELD(s, OF(UNIT, 0x14), void *), pl)) continue;
             if (((EnemyNearFn)GA(FN_ENEMY_NEAR))(bm, pos[0], pos[1]) || site_danger_res(pl, s, 0, r)) continue;
             bd = dd; m->far_x = pos[0]; m->far_y = pos[1]; m->far_r = r;
         }
@@ -93,7 +93,7 @@ static void mine_fill(uint8_t *rm) {
     uint32_t *target = (uint32_t *)(rm + RM_TARGET);
     int *stock = (int *)((uint8_t *)pl + PL_STOCK), *demand = (int *)(rm + RM_DEMAND), reserve[7];
     budget_reserve(pl, reserve);
-    int low = FIELD(pl, 0xCCC, int) < 120, gap = 0, want[7] = { 0 };
+    int low = FIELD(pl, OF(PL, 0xCCC), int) < 120, gap = 0, want[7] = { 0 };
     for (int r = 4; r < 7; r++) {
         want[r] = low ? m->home_slots[r] : m->slots[r];
         if (stock[r] - reserve[r] > 1500) want[r] = 0;   // piling up already (gold to 1600 unused): not this one
@@ -139,13 +139,13 @@ static void mine_drops(void *pl, unsigned idx, uint32_t now) {
     m->drop_t = now ? now : 1;
     mf_scan(pl, idx, now);
     if (!m->far_r) return;
-    uint8_t *cm = FIELD(pl, 0xB90, uint8_t *), *bm = cm ? FIELD(cm, 0x3C, uint8_t *) : NULL;
-    void *um = cm ? FIELD(cm, 0x44, void *) : NULL;
+    uint8_t *cm = FIELD(pl, OF(PL, 0xB90), uint8_t *), *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL;
+    void *um = cm ? FIELD(cm, OF(CM, 0x44), void *) : NULL;
     if (!bm || !um || !ut_has(UT(B_SETTLEMENT)) || bq_has(bm, UT(B_SETTLEMENT)) || bq_has(bm, UT(X_SINGLE_PLAYER_SETTLEMENT))) return;
     uint8_t *q = type_list(um, UT(B_SETTLEMENT));   // one being built: wait for it
     for (unsigned k = 0, f = q ? FIELD(q, 0xC, unsigned) : 0, n = q ? FIELD(q, 0x10, unsigned) : 0; k < n; k++) {
-        uint8_t *b = deque_at(q, f + k), *st = b ? FIELD(b, 0x30, uint8_t *) : NULL;
-        if (b && FIELD(b, 0x3C, int) > 0 && (!st || !FIELD(st, 0x340, uint8_t))) return;
+        uint8_t *b = deque_at(q, f + k), *st = b ? FIELD(b, OF(UNIT, 0x30), uint8_t *) : NULL;
+        if (b && FIELD(b, OF(UNIT, 0x3C), int) > 0 && (!st || !FIELD(st, OF(UNIT, 0x340), uint8_t))) return;
     }
     if (!GF(FN_CAN_BUILD)(pl, UT(B_SETTLEMENT), 0x20, 0)) return;   // can't build or pay now
     int e = current_epoch(pl);

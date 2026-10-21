@@ -24,9 +24,12 @@ Several sessions may work in this tree at the same time - see Git below.
 - A task that needs the game folder to itself (an install, a slot-0 run): `sh scripts/reserve.sh "<what>" <command>`
   - test runs start no game meanwhile, the running ones (and the player's) are waited for; nobody has to pause.
 - Game addresses live only in `dll/game/addr.h`, by name with one value per exe build: `GA(G_WORLD_CLOCK)`,
-  `GF(FN_CAN_BUILD)(pl, t, 0x20, 0)`, `GL(TRAIN_SITES)`, a vtable slot `GA(SLOT_ASG_UPDATE)` - never a literal
-  address or slot in the code. Two columns: the 2017 update and Art of Conquest (not ready: its struct offsets
-  aren't per build yet). A new row needs both: `scripts/port_addrs.py` finds the AoC value and says how.
+  `GF(FN_CAN_BUILD)(pl, t, 0x20, 0)`, `GL(TRAIN_SITES)`, a vtable slot `GA(SLOT_ASG_UPDATE)`, an object's size
+  `GA(SIZE_GOAL_BUILD)` - never a literal address, slot or size in the code. The game objects' fields likewise live
+  in `dll/game/fields.h`, by kind and the 2017 update's offset: `FIELD(pl, OF(PL, 0x9D4), void *)` (a field not in
+  the table doesn't build; the runtime library's layouts - deque, vector, string - stay plain numbers). Two columns:
+  the 2017 update and Art of Conquest (not ready: the engine DLLs' objects aren't mapped, and nothing ran there yet).
+  A new row needs both: `scripts/port_addrs.py` / `scripts/port_fields.py Class[,Class] offset` find the AoC value.
 - The engine loads every DLL in the game folder: never leave copies of DLLs there (a stray dinput copy crashed it).
 - The game reads the personality files from `config/aimod_ai/` (`ai_dir` in the user's aimod.ini): a change to
   their format needs the matching installed DLL.

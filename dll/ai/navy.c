@@ -11,12 +11,12 @@
 // Transports and fishing boats also by their type ids (landing.c), in case a family differs.
 enum { NV_NONE, NV_WAR, NV_SUB, NV_CARRIER, NV_TRANSPORT, NV_FISH };
 static int navy_kind(uint8_t *td) {
-    int fam = FIELD(td, 0x4B4, int), t = FIELD(td, 0x4B8, int);
+    int fam = FIELD(td, OF(TD, 0x4B4), int), t = FIELD(td, OF(TD, 0x4B8), int);
     if (fam == 22 || is_fishing_boat(t)) return NV_FISH;
     if (fam == 18 || is_transport(t)) return NV_TRANSPORT;
     if (fam == 10) return NV_SUB;
     if (fam == 21) return NV_CARRIER;
-    if (fam == 4) return FIELD(td, 0x510, int) > 0 ? NV_WAR : NV_NONE;
+    if (fam == 4) return FIELD(td, OF(TD, 0x510), int) > 0 ? NV_WAR : NV_NONE;
     return NV_NONE;
 }
 
@@ -84,16 +84,16 @@ static void navy_fish(void) {
     static int seen[NV_FISH_MAX];
     int ng = 0;
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {   // the boats at work: their sites
-        uint8_t *o = FIELD(it.u, 0x18, uint8_t *), *goal = FIELD(it.u, 0x1EC, uint8_t *);
-        if (!o || !goal || FIELD(it.u, 0x3C, int) <= 0 || navy_kind(it.td) != NV_FISH || ng >= 512) continue;
-        gath[ng].site = FIELD(goal, 0x38, uint8_t *); gath[ng++].owner = FIELD(o, PL_INDEX, int) & 15;
+        uint8_t *o = FIELD(it.u, OF(UNIT, 0x18), uint8_t *), *goal = FIELD(it.u, OF(UNIT, 0x1EC), uint8_t *);
+        if (!o || !goal || FIELD(it.u, OF(UNIT, 0x3C), int) <= 0 || navy_kind(it.td) != NV_FISH || ng >= 512) continue;
+        gath[ng].site = FIELD(goal, OF(GOAL, 0x38), uint8_t *); gath[ng++].owner = FIELD(o, PL_INDEX, int) & 15;
     }
     memset(seen, 0, sizeof seen);
     int left = 0;
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
-        if (FIELD(it.td, 0x4B8, int) != UT(RES_FISH)) continue;
+        if (FIELD(it.td, OF(TD, 0x4B8), int) != UT(RES_FISH)) continue;
         uint8_t *u = it.u;
-        int id = FIELD(u, 0x60, int), amt = FIELD(u, 0x40, int), owner = -1, k;
+        int id = FIELD(u, OF(UNIT, 0x60), int), amt = FIELD(u, OF(UNIT, 0x40), int), owner = -1, k;
         left += amt > 0 ? amt : 0;
         for (int g = 0; g < ng; g++) if (gath[g].site == u) { owner = gath[g].owner; break; }
         for (k = 0; k < g_nv_nfish; k++) if (g_nv_fish[k].u == u && g_nv_fish[k].id == id) break;
@@ -121,10 +121,10 @@ static void navy_fish(void) {
 static int navy_waters(int x, int y) {
     int best = -1, bd = 401;
     for (struct grid_it it = grid_it_box(x, y, 20, 1); grid_it_next(&it); ) {
-        int fam = FIELD(it.td, 0x4B4, int);
-        uint8_t *o = FIELD(it.u, 0x18, uint8_t *);
-        if ((fam != 2 && fam != 29) || !o || FIELD(it.u, 0x3C, int) <= 0) continue;
-        int pi = FIELD(o, PL_INDEX, int), dx = FIELD(it.u, 0x1C, int) - x, dy = FIELD(it.u, 0x20, int) - y;
+        int fam = FIELD(it.td, OF(TD, 0x4B4), int);
+        uint8_t *o = FIELD(it.u, OF(UNIT, 0x18), uint8_t *);
+        if ((fam != 2 && fam != 29) || !o || FIELD(it.u, OF(UNIT, 0x3C), int) <= 0) continue;
+        int pi = FIELD(o, PL_INDEX, int), dx = FIELD(it.u, OF(UNIT, 0x1C), int) - x, dy = FIELD(it.u, OF(UNIT, 0x20), int) - y;
         if (pi <= 0 || pi >= 16 || dx * dx + dy * dy >= bd) continue;
         bd = dx * dx + dy * dy; best = pi;
     }
@@ -139,9 +139,9 @@ static void navy_log_all(uint32_t now) {
     static struct nv_count c[16];
     memset(c, 0, sizeof c);
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
-        uint8_t *o = FIELD(it.u, 0x18, uint8_t *);
-        int x = FIELD(it.u, 0x1C, int), y = FIELD(it.u, 0x20, int), t = FIELD(it.td, 0x4B8, int);
-        if (!o || FIELD(it.u, 0x3C, int) <= 0) continue;
+        uint8_t *o = FIELD(it.u, OF(UNIT, 0x18), uint8_t *);
+        int x = FIELD(it.u, OF(UNIT, 0x1C), int), y = FIELD(it.u, OF(UNIT, 0x20), int), t = FIELD(it.td, OF(TD, 0x4B8), int);
+        if (!o || FIELD(it.u, OF(UNIT, 0x3C), int) <= 0) continue;
         int pi = FIELD(o, PL_INDEX, int);
         if (pi <= 0 || pi >= 16) continue;
         struct nv_count *m = &c[pi];
@@ -149,7 +149,7 @@ static void navy_log_all(uint32_t now) {
         if (t == UT(B_NAVY_YARD)) { m->yards++; continue; }
         int k = navy_kind(it.td);
         if (k == NV_NONE) continue;
-        m->n[k]++; m->hp[k] += FIELD(it.u, 0x3C, int);
+        m->n[k]++; m->hp[k] += FIELD(it.u, OF(UNIT, 0x3C), int);
         if (k != NV_WAR && k != NV_SUB && k != NV_CARRIER) continue;
         int j;
         for (j = 0; j < m->nt && m->wt[j].type != t; j++) ;
@@ -160,7 +160,7 @@ static void navy_log_all(uint32_t now) {
         if (w == pi) m->home++;
         else if (pw && is_enemy(o, pw)) {
             m->away++;
-            c[w].foe_home++; c[w].foe_home_hp += FIELD(it.u, 0x3C, int);
+            c[w].foe_home++; c[w].foe_home_hp += FIELD(it.u, OF(UNIT, 0x3C), int);
         }
     }
     EnterCriticalSection(&g_lock);
@@ -210,19 +210,19 @@ static void navy_log_all(uint32_t now) {
 struct nv_bld { int x[16][64], y[16][64], n[16]; };
 static void navy_detect(void *pl, unsigned idx, uint32_t now) {
     static struct nv_bld b;
-    void *cm = FIELD(pl, 0xB90, void *);
-    uint8_t *bm = cm ? FIELD(cm, 0x3C, uint8_t *) : NULL, *map = *(uint8_t **)GA(G_MAP);
+    void *cm = FIELD(pl, OF(PL, 0xB90), void *);
+    uint8_t *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL, *map = *(uint8_t **)GA(G_MAP);
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
-    unsigned hc = bm ? area_id(FIELD(bm, 0x12C, int), FIELD(bm, 0x130, int), 2) : 0;
+    unsigned hc = bm ? area_id(FIELD(bm, OF(BM, 0x12C), int), FIELD(bm, OF(BM, 0x130), int), 2) : 0;
     if (!hc || !grid) return;
     memset(b.n, 0, sizeof b.n);
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
-        int fam = FIELD(it.td, 0x4B4, int);
-        uint8_t *o = FIELD(it.u, 0x18, uint8_t *);
-        if ((fam != 2 && fam != 29) || !o || FIELD(it.u, 0x3C, int) <= 0) continue;
+        int fam = FIELD(it.td, OF(TD, 0x4B4), int);
+        uint8_t *o = FIELD(it.u, OF(UNIT, 0x18), uint8_t *);
+        if ((fam != 2 && fam != 29) || !o || FIELD(it.u, OF(UNIT, 0x3C), int) <= 0) continue;
         int pi = FIELD(o, PL_INDEX, int);
         if (pi <= 0 || pi >= 16 || b.n[pi] >= 64) continue;
-        b.x[pi][b.n[pi]] = FIELD(it.u, 0x1C, int); b.y[pi][b.n[pi]++] = FIELD(it.u, 0x20, int);
+        b.x[pi][b.n[pi]] = FIELD(it.u, OF(UNIT, 0x1C), int); b.y[pi][b.n[pi]++] = FIELD(it.u, OF(UNIT, 0x20), int);
     }
     int enemies = 0, across = 0, none = 0;
     for (int p = 1; p < nplayers(); p++) {
@@ -234,7 +234,7 @@ static void navy_detect(void *pl, unsigned idx, uint32_t now) {
         enemies++; across += !home;
     }
     if (none && now < 180000) return;   // an enemy without buildings yet: wait for them
-    int nx = FIELD(grid, 0x10, int) * FIELD(grid, 8, int), ny = FIELD(grid, 0x14, int) * FIELD(grid, 8, int), sea = 0, all = 0;
+    int nx = FIELD(grid, OF(GRID, 0x10), int) * FIELD(grid, OF(GRID, 0x8), int), ny = FIELD(grid, OF(GRID, 0x14), int) * FIELD(grid, OF(GRID, 0x8), int), sea = 0, all = 0;
     for (int x = 1; x < nx; x += 4)
         for (int y = 1; y < ny; y += 4, all++) sea += area_id(x, y, 1) != 0;
     struct nv_map *m = &g_nv_map[idx];
@@ -246,7 +246,7 @@ static void navy_detect(void *pl, unsigned idx, uint32_t now) {
     if (g_log) fprintf(g_log, "# navy: P%u map at %.1f min: %s (strength %.2f) - %d of %d enemies across the water, water %.0f%% of the map, "
                        "home continent %u; the game's water flag %d, +0xEFA %d\n", idx, now / 60000.0,
                        m->kind == NV_ISLANDS ? "islands" : m->kind == NV_MIXED ? "mixed" : "land", m->strength, across, enemies,
-                       100.0f * m->water, hc, w ? (int)(FIELD(w, 0x181730, uint32_t) & 1) : -1, (int)FIELD(pl, 0xEFA, uint8_t));
+                       100.0f * m->water, hc, w ? (int)(FIELD(w, OF(MAP, 0x181730), uint32_t) & 1) : -1, (int)FIELD(pl, OF(PL, 0xEFA), uint8_t));
 }
 
 // NAVY ACCOUNT ([all] navy, navy_share; docs/navy.md stage 1). Every ship order went through the military budget,
@@ -363,18 +363,18 @@ static void navy_nodes(void *pl, unsigned idx, uint32_t now) {
     unsigned cap = GF(FN_TABLE_VALUE)((void *)GA(G_TABLE_VALUES), 0x16);
     drops_cached(pl);
     unsigned pi = idx & 15;
-    void **tb = FIELD(pl, 0xB50, void **), **te = FIELD(pl, 0xB54, void **);
+    void **tb = FIELD(pl, OF(PL, 0xB50), void **), **te = FIELD(pl, OF(PL, 0xB54), void **);
     for (int t = 0; tb && tb + t < te && t < 256; t++) {
         uint8_t *town = tb[t];
-        void **sb = town ? FIELD(town, 8, void **) : NULL, **se = town ? FIELD(town, 0xC, void **) : NULL;
+        void **sb = town ? FIELD(town, OF(ZONE, 0x8), void **) : NULL, **se = town ? FIELD(town, OF(ZONE, 0xC), void **) : NULL;
         for (int k = 0; sb && sb + k < se && k < 4096; k++) {
             uint8_t *s = sb[k];
-            int r = s ? FIELD(s, 0x38, int) : 0, j;
-            if (r < 4 || r > 6 || FIELD(s, 0x40, int) <= 0) continue;   // stone, gold, iron
+            int r = s ? FIELD(s, OF(UNIT, 0x38), int) : 0, j;
+            if (r < 4 || r > 6 || FIELD(s, OF(UNIT, 0x40), int) <= 0) continue;   // stone, gold, iron
             for (j = 0; j < ns && seen[j] != s; j++) ;
             if (j < ns) continue;
             if (ns < 512) seen[ns++] = s;
-            int x = FIELD(s, 0x1C, int), y = FIELD(s, 0x20, int);
+            int x = FIELD(s, OF(UNIT, 0x1C), int), y = FIELD(s, OF(UNIT, 0x20), int);
             if (area_id(x, y, 2) != hc) { c->other[r]++; continue; }
             unsigned g = GF(FN_SITE_GATHERERS)((void *)GA(G_GAME_STATE), s);
             int dd = 0x7FFFFFFF;
@@ -387,7 +387,7 @@ static void navy_nodes(void *pl, unsigned idx, uint32_t now) {
             else {
                 c->remote[r]++;
                 // the unworked far one nearest to a drop site: where a Settlement would claim it (navy_claim)
-                if (!g && dd < bd[r] && GF(FN_EXPLORED)(FIELD(s, 0x14, void *), pl)) { bd[r] = dd; c->free_far[r] = s; c->fx[r] = x; c->fy[r] = y; }
+                if (!g && dd < bd[r] && GF(FN_EXPLORED)(FIELD(s, OF(UNIT, 0x14), void *), pl)) { bd[r] = dd; c->free_far[r] = s; c->fx[r] = x; c->fy[r] = y; }
             }
         }
     }
@@ -478,14 +478,14 @@ static void navy_budget_log(void *pl, unsigned idx, uint32_t now) {
 static void navy_count(void) {
     memset(g_nv_own, 0, sizeof g_nv_own);
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
-        uint8_t *o = FIELD(it.u, 0x18, uint8_t *);
-        if (!o || FIELD(it.u, 0x3C, int) <= 0) continue;
+        uint8_t *o = FIELD(it.u, OF(UNIT, 0x18), uint8_t *);
+        if (!o || FIELD(it.u, OF(UNIT, 0x3C), int) <= 0) continue;
         int pi = FIELD(o, PL_INDEX, int);
         if (pi <= 0 || pi >= 16) continue;
-        if (FIELD(it.td, 0x4B8, int) == UT(B_DOCK)) {
-            uint8_t *st = FIELD(it.u, 0x30, uint8_t *);
+        if (FIELD(it.td, OF(TD, 0x4B8), int) == UT(B_DOCK)) {
+            uint8_t *st = FIELD(it.u, OF(UNIT, 0x30), uint8_t *);
             g_nv_own[pi].docks++;
-            g_nv_own[pi].docks_built += st && FIELD(st, 0x340, uint8_t);
+            g_nv_own[pi].docks_built += st && FIELD(st, OF(UNIT, 0x340), uint8_t);
             continue;
         }
         int k = navy_kind(it.td);
@@ -556,7 +556,7 @@ static float nv_f(int kind, int cat) {   // the hit factor [cat][kind]; 0 outsid
         for (int t = 0; t < G_TYPES_N; t++) {
             uint8_t *td = type_data(t);
             if (!td) continue;
-            int c = FIELD(td, 0x4C4, int), k = FIELD(td, 0x4C8, int), fam = FIELD(td, 0x4B4, int);
+            int c = FIELD(td, OF(TD, 0x4C4), int), k = FIELD(td, OF(TD, 0x4C8), int), fam = FIELD(td, OF(TD, 0x4B4), int);
             if (c >= 0 && c < 64 && c >= g_nv_nc) g_nv_nc = c + 1;
             if (k >= 0 && k < 64 && k >= g_nv_nk) g_nv_nk = k + 1;
             if ((fam == 3 || fam == 7 || fam == 17) && c >= 0 && c < 64) g_nv_aircat |= 1ull << c;
@@ -573,14 +573,14 @@ static float nv_air_f(int kind) {   // the best factor against an aircraft categ
     return b;
 }
 static int nv_role(uint8_t *td) {
-    int t = td ? FIELD(td, 0x4B8, int) : -1;
+    int t = td ? FIELD(td, OF(TD, 0x4B8), int) : -1;
     if (t < 0 || t >= G_TYPES_N) return NR_NONE;
     if (g_nv_role[t]) return g_nv_role[t] - 1;
-    int r = NR_NONE, fam = FIELD(td, 0x4B4, int), kind = FIELD(td, 0x4C8, int), cat = FIELD(td, 0x4C4, int);
+    int r = NR_NONE, fam = FIELD(td, OF(TD, 0x4B4), int), kind = FIELD(td, OF(TD, 0x4C8), int), cat = FIELD(td, OF(TD, 0x4C4), int);
     // ships only by their target category (the Naval Mine 386 is family 4, category 22, 1350 attack and 1 hit point);
     // not the hero ships Golden Hind and Agincourt (x07_golden_hind, x09_agincourt_battleship: tech 9035 - no dock trains them)
     int ship = cat == NV_C_SUB || cat == NV_C_FRIG || cat == NV_C_LINE || cat == NV_C_GALLEY;
-    if ((fam == 4 || fam == 10) && ship && t != UT(X09_AGINCOURT_BATTLESHIP) && t != UT(X07_GOLDEN_HIND) && FIELD(td, 0x510, int) > 0 && !is_transport(t) && !is_fishing_boat(t)) {
+    if ((fam == 4 || fam == 10) && ship && t != UT(X09_AGINCOURT_BATTLESHIP) && t != UT(X07_GOLDEN_HIND) && FIELD(td, OF(TD, 0x510), int) > 0 && !is_transport(t) && !is_fishing_boat(t)) {
         if (nv_f(kind, NV_C_FRIG) <= 0 && nv_f(kind, NV_C_LINE) <= 0 && nv_f(kind, NV_C_GALLEY) <= 0) r = nv_air_f(kind) > 0 ? NR_AA : NR_NONE;
         else if (fam == 10) r = NR_SUB;
         else if (nv_f(kind, NV_C_LINE) >= 3.0f) r = NR_ANTI;
@@ -592,12 +592,12 @@ static int nv_role(uint8_t *td) {
 }
 static float nv_score(void *pl, int t, int role) {   // in its role: factor x attack / (reload + 2 s) x hp / cost^2
     uint8_t *td = type_data(t);
-    int kind = FIELD(td, 0x4C8, int), cost = 0;
+    int kind = FIELD(td, OF(TD, 0x4C8), int), cost = 0;
     for (int r = 2; r < 7; r++) cost += unit_cost(pl, t, r);
     float f = role == NR_LINE ? nv_f(kind, NV_C_FRIG) : role == NR_AA ? nv_air_f(kind) : role != NR_FRIG ? nv_f(kind, NV_C_LINE) :
               nv_f(kind, NV_C_GALLEY) > nv_f(kind, NV_C_SUB) ? nv_f(kind, NV_C_GALLEY) : nv_f(kind, NV_C_SUB);
     if (cost <= 0 || f <= 0) return 0;
-    return f * (float)FIELD(td, 0x510, int) * 1000.0f / (float)(FIELD(td, 0x50C, int) + 2000) * (float)FIELD(td, 0x55C, int) / ((float)cost * (float)cost);
+    return f * (float)FIELD(td, OF(TD, 0x510), int) * 1000.0f / (float)(FIELD(td, OF(TD, 0x50C), int) + 2000) * (float)FIELD(td, OF(TD, 0x55C), int) / ((float)cost * (float)cost);
 }
 struct nv_pick {
     void *pl; uint32_t cand_t, seen_t, log_t;
@@ -615,7 +615,7 @@ static void nv_cands(void *pl, struct nv_pick *pk, uint32_t now) {
     pk->pl = pl; pk->cand_t = now ? now : 1; pk->nc = 0;
     for (int t = 1; t < G_TYPES_N && pk->nc < 24; t++) {
         uint8_t *td = type_data(t);
-        if (!td || FIELD(td, 0x4B8, int) != t) continue;
+        if (!td || FIELD(td, OF(TD, 0x4B8), int) != t) continue;
         int r = nv_role(td);
         if (r == NR_NONE || !ld_type_avail(pl, t)) continue;
         pk->ctype[pk->nc] = t; pk->crole[pk->nc++] = r;
@@ -628,13 +628,13 @@ static int nv_near_sea(int x, int y) {
 }
 static void nv_seen_one(struct nv_pick *pk, uint8_t *td, int x, int y) {
     if (!td) return;
-    int fam = FIELD(td, 0x4B4, int);
+    int fam = FIELD(td, OF(TD, 0x4B4), int);
     if (fam == 3 || fam == 7 || fam == 17) { pk->air++; return; }
     if (fam == 21) { pk->carriers++; return; }
     int r = nv_role(td);
     if (r != NR_NONE) { pk->e[r]++; return; }
-    if (fam == 4 || fam == 10 || fam == 18 || fam == 22 || FIELD(td, 0x510, int) <= 0 || x < 0) return;
-    if (nv_f(FIELD(td, 0x4C8, int), NV_C_LINE) >= 3.0f && nv_near_sea(x, y)) pk->coast++;   // hits battleships x3+ from the coast
+    if (fam == 4 || fam == 10 || fam == 18 || fam == 22 || FIELD(td, OF(TD, 0x510), int) <= 0 || x < 0) return;
+    if (nv_f(FIELD(td, OF(TD, 0x4C8), int), NV_C_LINE) >= 3.0f && nv_near_sea(x, y)) pk->coast++;   // hits battleships x3+ from the coast
 }
 // the enemy seen: intel's memory (10 minutes; buildings until looked at again) - or, with the game's view, every
 // enemy unit it sees now; then the wanted shares
@@ -650,9 +650,9 @@ static void nv_seen(void *pl, unsigned idx, struct nv_pick *pk, uint32_t now) {
         }
     } else
         for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
-            void *o = FIELD(it.u, 0x18, void *);
-            if (!o || FIELD(it.u, 0x3C, int) <= 0 || !is_enemy(pl, o) || !seen_by(it.u, pl)) continue;
-            nv_seen_one(pk, it.td, FIELD(it.u, 0x1C, int), FIELD(it.u, 0x20, int));
+            void *o = FIELD(it.u, OF(UNIT, 0x18), void *);
+            if (!o || FIELD(it.u, OF(UNIT, 0x3C), int) <= 0 || !is_enemy(pl, o) || !seen_by(it.u, pl)) continue;
+            nv_seen_one(pk, it.td, FIELD(it.u, OF(UNIT, 0x1C), int), FIELD(it.u, OF(UNIT, 0x20), int));
         }
     int afloat = pk->e[NR_FRIG] + pk->e[NR_LINE] + pk->e[NR_ANTI] + pk->e[NR_AA];
     float air = (float)(pk->air + 3 * pk->carriers);
@@ -781,8 +781,8 @@ static void navy_docks(void *pl, unsigned idx, uint32_t now) {
         if (f > 5) f = 5;
         if (f > want) want = f;
     }
-    void *cm = FIELD(pl, 0xB90, void *);
-    uint8_t *bm = cm ? FIELD(cm, 0x3C, uint8_t *) : NULL;
+    void *cm = FIELD(pl, OF(PL, 0xB90), void *);
+    uint8_t *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL;
     if (!bm || !ut_has(UT(B_DOCK)) || w->docks >= want || w->docks_built < w->docks || GF(FN_BM_QUEUED)(bm, UT(B_DOCK))) return;
     if (!GF(FN_CAN_BUILD)(pl, UT(B_DOCK), 0x20, 0)) return;
     GF(FN_BM_REQUEST)(bm, UT(B_DOCK), 1, 0);
@@ -802,12 +802,12 @@ static int g_fish_boat = 1;
 static int __fastcall hook_fish_type(void *o, void *edx) {
     (void)edx;
     int t = GF(FN_FISH_TYPE)(o);
-    void *pl = o ? FIELD(o, 0x4C, void *) : NULL;
+    void *pl = o ? FIELD(o, OF(PL, 0x4C), void *) : NULL;
     if (!g_fish_boat || !pl || !FIELD(pl, PL_TECHTREE, void *) || is_vanilla(pl)) return t;
     int best = 0, bt = 0;
     for (int b = 0; b < G_TYPES_N; b++) {
         if (!is_fishing_boat(b) || !ld_type_avail(pl, b)) continue;
-        if (FIELD(type_data(b), 0x4E0, int) > bt) { bt = FIELD(type_data(b), 0x4E0, int); best = b; }
+        if (FIELD(type_data(b), OF(TD, 0x4E0), int) > bt) { bt = FIELD(type_data(b), OF(TD, 0x4E0), int); best = b; }
     }
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     if (best && best != g_fish_last[idx] && g_log)
@@ -844,7 +844,7 @@ static void navy_tick(void *pl, uint32_t now) {
     if (!m->done && now >= 10000 && now - m->t >= 10000) { m->t = now; navy_detect(pl, idx, now); }
     if (now < g_nv_count_t || now - g_nv_count_t >= 10000) { g_nv_count_t = now; navy_count(); }
     if (fleet_builds(idx)) {   // the fleet's size target (stage 4): navy_fleet_pop % of the population cap x the map strength
-        int cap = ((int (__thiscall *)(void *, int))(*(void ***)pl)[31])(pl, 0);   // vf31(0), as bk_room
+        int cap = unit_limit(pl);
         g_nv_target[idx] = (int)((float)cap * (float)g_navy_fleet_pop / 100.0f * m->strength + 0.5f);
     } else g_nv_target[idx] = 0;
     if (m->done && (now < g_nv_nodes[idx].t || now - g_nv_nodes[idx].t >= 60000)) navy_nodes(pl, idx, now);   // once a minute
@@ -872,19 +872,19 @@ static void cmd_navy(char *out, const char *args) {
         for (int t = a; t <= b; t++) {
             uint8_t *td = type_data(t);
             if (!td) continue;
-            int naval = navy_kind(td) != NV_NONE || FIELD(td, 0x4B4, int) == 4;
+            int naval = navy_kind(td) != NV_NONE || FIELD(td, OF(TD, 0x4B4), int) == 4;
             if (!naval && !all) continue;
             REPLY("T %d fam %d cat %d kind %d cls %d hp %d att %d rng %.1f min %.1f area %.2f rel %d tech %d",
-                  t, FIELD(td, 0x4B4, int), FIELD(td, 0x4C4, int), FIELD(td, 0x4C8, int), FIELD(td, 0x4C0, int),
-                  FIELD(td, 0x55C, int), FIELD(td, 0x510, int), FIELD(td, 0x420, float), FIELD(td, 0x41C, float),
-                  FIELD(td, 0x424, float), FIELD(td, 0x50C, int), FIELD(td, 0x4E0, int));
+                  t, FIELD(td, OF(TD, 0x4B4), int), FIELD(td, OF(TD, 0x4C4), int), FIELD(td, OF(TD, 0x4C8), int), FIELD(td, OF(TD, 0x4C0), int),
+                  FIELD(td, OF(TD, 0x55C), int), FIELD(td, OF(TD, 0x510), int), FIELD(td, OF(TD, 0x420), float), FIELD(td, OF(TD, 0x41C), float),
+                  FIELD(td, OF(TD, 0x424), float), FIELD(td, OF(TD, 0x50C), int), FIELD(td, OF(TD, 0x4E0), int));
             if (naval && pl) {
                 REPLY(" cost %d %d %d %d %d", unit_cost(pl, t, 2), unit_cost(pl, t, 3), unit_cost(pl, t, 4), unit_cost(pl, t, 5), unit_cost(pl, t, 6));
-                uint8_t **rec = GF(FN_TYPE_STATS)((uint8_t *)pl + 0x874, t);
+                uint8_t **rec = GF(FN_TYPE_STATS)((uint8_t *)pl + OF(PL, 0x874), t);
                 uint8_t *r = rec ? *rec : NULL;
                 if (r) {
-                    REPLY(" | hp %d att %.1f rng %.1f spd %.2f arm", FIELD(r, 0x144, int), FIELD(r, 0xD8, float), FIELD(r, 0x9C, float), FIELD(r, 0xAC, float));
-                    for (int k = 0; k < 6; k++) REPLY(" %g", FIELD(r, 0xE0 + k * 4, float));
+                    REPLY(" | hp %d att %.1f rng %.1f spd %.2f arm", FIELD(r, OF(USTAT, 0x144), int), FIELD(r, OF(USTAT, 0xD8), float), FIELD(r, OF(USTAT, 0x9C), float), FIELD(r, OF(USTAT, 0xAC), float));
+                    for (int k = 0; k < 6; k++) REPLY(" %g", FIELD(r, OF(USTAT, 0xE0) + k * 4, float));
                 }
             }
             REPLY("\n");
@@ -896,7 +896,7 @@ static void cmd_navy(char *out, const char *args) {
         for (int t = 0; t < G_TYPES_N; t++) {
             uint8_t *td = type_data(t);
             if (!td) continue;
-            int c = FIELD(td, 0x4C4, int), k = FIELD(td, 0x4C8, int);
+            int c = FIELD(td, OF(TD, 0x4C4), int), k = FIELD(td, OF(TD, 0x4C8), int);
             if (c >= 0 && c < 64 && c >= nc) nc = c + 1;
             if (k >= 0 && k < 64 && k >= nk) nk = k + 1;
         }

@@ -79,8 +79,8 @@ static void randmap_load(const char *ini) {
 
 // Called from hook_game_start before the original runs.
 static void randmap_rewrite(uint8_t *setup) {
-    (*(UStrAssignFn *)GA(IAT_USTRING_ASSIGN))(setup + 0x3A8, g_rm.map);
-    *(int *)(setup + 0x3D8) = 0;
+    (*(UStrAssignFn *)GA(IAT_USTRING_ASSIGN))(setup + OF(SETUP, 0x3A8), g_rm.map);
+    *(int *)(setup + OF(SETUP, 0x3D8)) = 0;
     for (int i = 0; i < 16; i++) {
         uint8_t *slot = setup + i * 0x38;
         int type = i == 0 ? 1 : i <= g_rm.ais ? 0 : 4;
@@ -95,29 +95,29 @@ static void randmap_rewrite(uint8_t *setup) {
         *(int *)(slot + 0x30) = 0;
         *(uint32_t *)(slot + 0x34) = i == 0 ? 0x75010001u : 0x77010000u;
     }
-    *(int *)(setup + 0x3D4) = 1;
-    *(int *)(setup + 0x3DC) = g_rm.scale;   // the map size (1 Small: what every test map was before map_scale)
-    *(int *)(setup + 0x3E0) = g_rm.start_epoch;
-    *(int *)(setup + 0x3E4) = 13;
-    *(int *)(setup + 0x3E8) = g_rm.size;
-    *(int *)(setup + 0x3EC) = 3;
-    *(int *)(setup + 0x3F0) = g_rm.unit_limit;
-    *(int *)(setup + 0x3F4) = 3;
-    *(int *)(setup + 0x3F8) = g_rm.difficulty;
+    *(int *)(setup + OF(SETUP, 0x3D4)) = 1;
+    *(int *)(setup + OF(SETUP, 0x3DC)) = g_rm.scale;   // the map size (1 Small: what every test map was before map_scale)
+    *(int *)(setup + OF(SETUP, 0x3E0)) = g_rm.start_epoch;
+    *(int *)(setup + OF(SETUP, 0x3E4)) = 13;
+    *(int *)(setup + OF(SETUP, 0x3E8)) = g_rm.size;
+    *(int *)(setup + OF(SETUP, 0x3EC)) = 3;
+    *(int *)(setup + OF(SETUP, 0x3F0)) = g_rm.unit_limit;
+    *(int *)(setup + OF(SETUP, 0x3F4)) = 3;
+    *(int *)(setup + OF(SETUP, 0x3F8)) = g_rm.difficulty;
     // the AIs' difficulty: their set-up (0x431697) copies the global 0x918C14 (set by the game options messages,
     // EEMFullGameOptions 0x4B642F, which a load-game start never sends - the setup's +0x3F8 alone left medium)
     *(int *)GA(G_DIFFICULTY) = g_rm.difficulty;
-    *(int *)(setup + 0x3FC) = 0;
-    setup[0x400] = 1; setup[0x401] = 0; setup[0x402] = 0; setup[0x403] = 1;
+    *(int *)(setup + OF(SETUP, 0x3FC)) = 0;
+    setup[OF(SETUP, 0x400)] = 1; setup[OF(SETUP, 0x401)] = 0; setup[OF(SETUP, 0x402)] = 0; setup[OF(SETUP, 0x403)] = 1;
     *(int *)GA(G_GAME_TYPE) = 0;   // game type: random map
     uint8_t *world = *(uint8_t **)GA(G_WORLD);
-    if (world && g_rm.seed) *(int *)(world + 0x54) = g_rm.seed;
+    if (world && g_rm.seed) *(int *)(world + OF(WORLD, 0x54)) = g_rm.seed;
     if (g_log) {
         uint8_t *lim = *(uint8_t **)GA(G_GAME_DATA);   // the game's unit limits: default +0x2E8, the most +0x2EC (more: the default)
         fprintf(g_log, "# random map: \"%s\" size %d, %d AIs (%s), start epoch %d, seed %d, difficulty %d%s%s, unit limit %d (game default %d, max %d)\n",
-                g_rm.map, g_rm.size, g_rm.ais, g_rm.pairs ? "pairs" : "ffa", g_rm.start_epoch, world ? *(int *)(world + 0x54) : -1, g_rm.difficulty,
+                g_rm.map, g_rm.size, g_rm.ais, g_rm.pairs ? "pairs" : "ffa", g_rm.start_epoch, world ? *(int *)(world + OF(WORLD, 0x54)) : -1, g_rm.difficulty,
                 g_rm.scale != 1 ? ", map scale " : "", g_rm.scale != 1 ? k_rm_scale[g_rm.scale] : "", g_rm.unit_limit,
-                lim ? *(int *)(lim + 0x2E8) : -1, lim ? *(int *)(lim + 0x2EC) : -1);
+                lim ? *(int *)(lim + OF(GAMEDATA, 0x2E8)) : -1, lim ? *(int *)(lim + OF(GAMEDATA, 0x2EC)) : -1);
         fflush(g_log);
     }
 }
@@ -129,34 +129,34 @@ static void randmap_rewrite(uint8_t *setup) {
 // Called once per AI player at its first update of a game.
 static void randmap_ai_toggles(void *pl) {
     if (g_rm.ai_cheat >= 0) FIELD(pl, PL_CHEAT, uint8_t) = (uint8_t)g_rm.ai_cheat;
-    if (g_rm.ai_ignore >= 0) FIELD(pl, 0xF02, uint8_t) = (uint8_t)g_rm.ai_ignore;
+    if (g_rm.ai_ignore >= 0) FIELD(pl, OF(PL, 0xF02), uint8_t) = (uint8_t)g_rm.ai_ignore;
     int vanilla = is_vanilla(pl), idx = FIELD(pl, PL_INDEX, int);
     if (vanilla && g_rm.v_cheat >= 0) FIELD(pl, PL_CHEAT, uint8_t) = (uint8_t)g_rm.v_cheat;
     if (vanilla && g_rm.v_difficulty >= 0 && g_rm.v_difficulty != FIELD(pl, PL_DIFFICULTY, int)) {
         FIELD(pl, PL_DIFFICULTY, int) = g_rm.v_difficulty;
-        uint8_t *cm = FIELD(pl, 0xB90, uint8_t *);
+        uint8_t *cm = FIELD(pl, OF(PL, 0xB90), uint8_t *);
         uint32_t now = game_time();
         if (cm) GF(FN_SET_EPOCH_TIME)(cm, now, 0);   // the epoch attempt, drawn anew
-        if (!FIELD(pl, 0xEF5, uint8_t)) GF(FN_SCHEDULE_ATTACK)(pl, now);   // the first attack
+        if (!FIELD(pl, OF(PL, 0xEF5), uint8_t)) GF(FN_SCHEDULE_ATTACK)(pl, now);   // the first attack
         if (g_log) fprintf(g_log, "# vanilla: P%d difficulty %d - first epoch attempt at %.1f min, first attack at %.1f min\n", idx,
-                           g_rm.v_difficulty, cm ? FIELD(cm, 0x58, uint32_t) / 60000.0 : -1.0, FIELD(pl, 0xED8, uint32_t) / 60000.0);
+                           g_rm.v_difficulty, cm ? FIELD(cm, OF(CM, 0x58), uint32_t) / 60000.0 : -1.0, FIELD(pl, OF(PL, 0xED8), uint32_t) / 60000.0);
     }
     if (g_log) {   // the cheat as the game will apply it: AdjustCost (vf27) on a price of 1000
         int cost = GF(FN_ADJUST_COST)(pl, 1000);
         fprintf(g_log, "# cheat: P%d (%s) difficulty %d, cheat %d: a price of 1000 costs %d (pct easy %d, medium %.1f, hard %d)\n", idx,
-                vanilla ? "vanilla" : "mod", FIELD(pl, PL_DIFFICULTY, int), FIELD(pl, PL_CHEAT, uint8_t), cost, FIELD(pl, 0xD48, int),
-                FIELD(pl, 0xBB4, float), FIELD(pl, 0xD4C, int));
+                vanilla ? "vanilla" : "mod", FIELD(pl, PL_DIFFICULTY, int), FIELD(pl, PL_CHEAT, uint8_t), cost, FIELD(pl, OF(PL, 0xD48), int),
+                FIELD(pl, OF(PL, 0xBB4), float), FIELD(pl, OF(PL, 0xD4C), int));
     }
     if (g_rm.epoch_min > 0 && !vanilla) {   // the vanilla players keep the game's timer
         // Test-only: shorter epoch timer. SetNextEpochAdvanceTime (0x46DE8C) draws the delay between
         // player+0xD58 and +0xD5C minutes (x difficulty factor) into civ manager +0x58; the first one is
         // drawn before this hook runs, so reschedule it here (deterministic per player index).
-        FIELD(pl, 0xD58, int) = g_rm.epoch_min;
-        FIELD(pl, 0xD5C, int) = g_rm.epoch_max;
+        FIELD(pl, OF(PL, 0xD58), int) = g_rm.epoch_min;
+        FIELD(pl, OF(PL, 0xD5C), int) = g_rm.epoch_max;
         int span = g_rm.epoch_max - g_rm.epoch_min + 1;
         uint32_t delay = (uint32_t)(g_rm.epoch_min + (idx * 7) % (span > 0 ? span : 1)) * 60000u;
-        uint8_t *cm = FIELD(pl, 0xB90, uint8_t *);
-        if (cm) FIELD(cm, 0x58, uint32_t) = game_time() + delay;
+        uint8_t *cm = FIELD(pl, OF(PL, 0xB90), uint8_t *);
+        if (cm) FIELD(cm, OF(CM, 0x58), uint32_t) = game_time() + delay;
         if (g_log) fprintf(g_log, "# test epoch timer: P%d %d-%d min, first attempt at %.1f min\n", idx,
                            g_rm.epoch_min, g_rm.epoch_max, (game_time() + delay) / 60000.0);
     }
@@ -166,8 +166,8 @@ static void randmap_ai_toggles(void *pl) {
     // The idle human slot: civilization counts as chosen (else the civ-selection timer opens a dialog that
     // freezes the game), and allied with every AI so the AIs fight each other and the game can't end in
     // the human's defeat.
-    human[0xB46] = 1;
-    human[0x465] = 1;   // the watching human sees the whole map (AIs still have to explore)
+    human[OF(PL, 0xB46)] = 1;
+    human[OF(PL, 0x465)] = 1;   // the watching human sees the whole map (AIs still have to explore)
     void (__thiscall *set_dip)(void *, void *, int, int) = (void *)GA(FN_SET_DIPLOMACY);
     set_dip(human, pl, 0, 0);
     set_dip(pl, human, 0, 0);

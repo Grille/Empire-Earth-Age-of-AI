@@ -26,7 +26,7 @@ static int unit_types_load(void) {
     static unsigned char kind[G_TYPES_N];
     for (int t = 0; t < G_TYPES_N; t++) {
         uint8_t *td = type_data(t);
-        const char *s = td ? FIELD(td, 0x1C, const char *) : NULL;
+        const char *s = td ? FIELD(td, OF(TD, 0x1C), const char *) : NULL;
         int o = 0, gap = 0;
         kind[t] = 255;
         if (!s) continue;
@@ -42,7 +42,7 @@ static int unit_types_load(void) {
                 g_unit_ident[t][0] = 0;
                 break;
             }
-        int f = FIELD(td, 0x4C4, int);
+        int f = FIELD(td, OF(TD, 0x4C4), int);
         if (f >= 0 && f < UNIT_KINDS && k_kind_ident[f]) { kind[t] = (unsigned char)f; cnt[f]++; }
         else x_error("type %d (unit.%s): its family %d has no kind - in no kind.<kind>", t, g_unit_ident[t], f);
     }
@@ -65,11 +65,11 @@ static int unit_types_load(void) {
     }
     for (int t = 0; t < G_TYPES_N; t++) {   // what each type is (unit_ids.h, the roles)
         uint8_t *td = type_data(t);
-        if (!td || FIELD(td, 0x4B8, int) != t) continue;
-        int f = FIELD(td, 0x4C4, int), c = FIELD(td, 0x4B4, int);
+        if (!td || FIELD(td, OF(TD, 0x4B8), int) != t) continue;
+        int f = FIELD(td, OF(TD, 0x4C4), int), c = FIELD(td, OF(TD, 0x4B4), int);
         g_ut_role[t] = (unsigned char)((f == KIND_TOWERS ? UTR_TOWER : 0) | (f == KIND_WALLS ? UTR_WALL : 0) |
             (c == CLS_GATE ? UTR_GATE : 0) |
-            (c == CLS_LAND && (f == KIND_SIEGE || f == KIND_MACHINES) && FIELD(td, 0x420, float) >= 3.0f ? UTR_SIEGE : 0) |
+            (c == CLS_LAND && (f == KIND_SIEGE || f == KIND_MACHINES) && FIELD(td, OF(TD, 0x420), float) >= 3.0f ? UTR_SIEGE : 0) |
             (c == CLS_LAND && f == KIND_RAM ? UTR_RAM : 0) | (c == CLS_CITIZEN && f == KIND_CITIZEN ? UTR_CITIZEN : 0) |
             (c == CLS_TRANSPORT ? UTR_TRANSPORT : 0) | (c == CLS_FISHING_BOAT ? UTR_FISHING_BOAT : 0));
     }

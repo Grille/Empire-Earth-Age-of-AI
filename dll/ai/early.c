@@ -38,20 +38,20 @@ static void early_new_game(void) {
 
 static int early_tower_type(void *pl) { return tower_newest(pl); }   // the best tower it can build now (as defence_tick)
 static int early_base(void *pl, int *bx, int *by) {
-    void *cm = FIELD(pl, 0xB90, void *);
-    uint8_t *bm = cm ? FIELD(cm, 0x3C, uint8_t *) : NULL;
-    if (!bm || FIELD(bm, 0x12C, int) == -10000) return 0;
-    *bx = FIELD(bm, 0x12C, int); *by = FIELD(bm, 0x130, int);
+    void *cm = FIELD(pl, OF(PL, 0xB90), void *);
+    uint8_t *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL;
+    if (!bm || FIELD(bm, OF(BM, 0x12C), int) == -10000) return 0;
+    *bx = FIELD(bm, OF(BM, 0x12C), int); *by = FIELD(bm, OF(BM, 0x130), int);
     return 1;
 }
-static int early_finished(uint8_t *u) { uint8_t *bs = FIELD(u, 0x30, uint8_t *); return bs && FIELD(bs, 0x340, uint8_t); }
+static int early_finished(uint8_t *u) { uint8_t *bs = FIELD(u, OF(UNIT, 0x30), uint8_t *); return bs && FIELD(bs, OF(UNIT, 0x340), uint8_t); }
 // own towers within r of x, y: finished / all (foundations too)
 static void early_towers_at(void *pl, int x, int y, int r, int *fin, int *all) {
     *fin = *all = 0;
     for (struct grid_it it = grid_it_box(x, y, r, 1); grid_it_next(&it); ) {
         uint8_t *u = it.u, *td = it.td;
-        if (!td || FIELD(u, 0x18, void *) != pl || FIELD(u, 0x3C, int) <= 0 || !is_tower_type(FIELD(td, 0x4B8, int))) continue;
-        if (abs(FIELD(u, 0x1C, int) - x) > r || abs(FIELD(u, 0x20, int) - y) > r) continue;
+        if (!td || FIELD(u, OF(UNIT, 0x18), void *) != pl || FIELD(u, OF(UNIT, 0x3C), int) <= 0 || !is_tower_type(FIELD(td, OF(TD, 0x4B8), int))) continue;
+        if (abs(FIELD(u, OF(UNIT, 0x1C), int) - x) > r || abs(FIELD(u, OF(UNIT, 0x20), int) - y) > r) continue;
         (*all)++;
         *fin += early_finished(u);
     }
@@ -69,7 +69,7 @@ static void early_slot(void *pl, unsigned idx, int bx, int by, int k, int *x, in
     if (p->nf) { dx = p->f[0].dx; dy = p->f[0].dy; }
     else {
         uint8_t *map = *(uint8_t **)GA(G_MAP);
-        int n = map ? (int)FIELD(map, 0x1816FC, uint32_t) : 0;
+        int n = map ? (int)FIELD(map, OF(MAP, 0x1816FC), uint32_t) : 0;
         dx = (float)(n / 2 - bx); dy = (float)(n / 2 - by);
         float l = sqrtf(dx * dx + dy * dy);
         if (l < 1) { dx = 1; dy = 0; } else { dx /= l; dy /= l; }
@@ -78,8 +78,8 @@ static void early_slot(void *pl, unsigned idx, int bx, int by, int k, int *x, in
         float sx = 0, sy = 0;
         for (struct grid_it it = grid_it_box(bx, by, 15, 1); grid_it_next(&it); ) {
             uint8_t *u = it.u, *td = it.td;
-            if (!td || FIELD(u, 0x18, void *) != pl || FIELD(u, 0x3C, int) <= 0 || !is_citizen_type(FIELD(td, 0x4B8, int))) continue;
-            sx += (float)(FIELD(u, 0x1C, int) - bx); sy += (float)(FIELD(u, 0x20, int) - by);
+            if (!td || FIELD(u, OF(UNIT, 0x18), void *) != pl || FIELD(u, OF(UNIT, 0x3C), int) <= 0 || !is_citizen_type(FIELD(td, OF(TD, 0x4B8), int))) continue;
+            sx += (float)(FIELD(u, OF(UNIT, 0x1C), int) - bx); sy += (float)(FIELD(u, OF(UNIT, 0x20), int) - by);
         }
         float px = -dy, py = dx;
         if (px * sx + py * sy < 0) { px = -px; py = -py; }
@@ -130,10 +130,10 @@ static void early_towers_tick(void *pl, unsigned idx, uint32_t now) {
     st->tower_t = now ? now : 1;
     int bx, by;
     if (!early_base(pl, &bx, &by)) return;
-    void *cm = FIELD(pl, 0xB90, void *);
-    uint8_t *bm = cm ? FIELD(cm, 0x3C, uint8_t *) : NULL;
+    void *cm = FIELD(pl, OF(PL, 0xB90), void *);
+    uint8_t *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL;
     int *stock = (int *)((uint8_t *)pl + PL_STOCK), type = early_tower_type(pl), e = current_epoch(pl);
-    if (type && !st->range) { uint8_t *td = type_data(type); st->range = td ? FIELD(td, 0x420, float) : 0; }
+    if (type && !st->range) { uint8_t *td = type_data(type); st->range = td ? FIELD(td, OF(TD, 0x420), float) : 0; }
     int fin, all, x, y;
     early_towers_at(pl, bx, by, EARLY_DIST + 3, &fin, &all);
     if (!bm) return;
@@ -150,12 +150,12 @@ static void early_towers_tick(void *pl, unsigned idx, uint32_t now) {
     int nt = 0;
     for (struct grid_it it = grid_it_box(bx, by, 20, 1); grid_it_next(&it) && nt < 8; ) {
         uint8_t *u = it.u, *td = it.td;
-        if (!td || FIELD(u, 0x18, void *) != pl || FIELD(u, 0x3C, int) <= 0 || !is_tower_type(FIELD(td, 0x4B8, int)) ||
+        if (!td || FIELD(u, OF(UNIT, 0x18), void *) != pl || FIELD(u, OF(UNIT, 0x3C), int) <= 0 || !is_tower_type(FIELD(td, OF(TD, 0x4B8), int)) ||
             early_finished(u)) continue;
         todo[nt++] = u;
     }
     for (int i = 0; i < nt; i++)
-        if (!raiders_near(pl, FIELD(todo[i], 0x1C, int), FIELD(todo[i], 0x20, int), 8)) st->builders += (unsigned)bk_builders(pl, todo[i], 2);
+        if (!raiders_near(pl, FIELD(todo[i], OF(UNIT, 0x1C), int), FIELD(todo[i], OF(UNIT, 0x20), int), 8)) st->builders += (unsigned)bk_builders(pl, todo[i], 2);
 }
 
 // own buildings that shoot (finished) near x, y: 1 when one reaches x, y (its range - 0.5)
@@ -163,8 +163,8 @@ static int early_cover(void *pl, int x, int y) {
     for (struct grid_it it = grid_it_box(x, y, 16, 1); grid_it_next(&it); ) {
         uint8_t *u = it.u;
         float r, a;
-        if (FIELD(u, 0x18, void *) != pl || FIELD(u, 0x3C, int) <= 0 || !defence_stats(u, &r, &a) || !early_finished(u)) continue;
-        float dx = (float)(FIELD(u, 0x1C, int) - x), dy = (float)(FIELD(u, 0x20, int) - y);
+        if (FIELD(u, OF(UNIT, 0x18), void *) != pl || FIELD(u, OF(UNIT, 0x3C), int) <= 0 || !defence_stats(u, &r, &a) || !early_finished(u)) continue;
+        float dx = (float)(FIELD(u, OF(UNIT, 0x1C), int) - x), dy = (float)(FIELD(u, OF(UNIT, 0x20), int) - y);
         if (dx * dx + dy * dy <= (r - 0.5f) * (r - 0.5f)) return 1;
     }
     return 0;
@@ -180,24 +180,24 @@ static void early_bait(void *pl, unsigned idx, uint32_t now) {
     int nc = 0, ne = 0;
     for (struct grid_it it = grid_it_box(bx, by, 36, 1); grid_it_next(&it); ) {
         uint8_t *u = it.u, *td = it.td;
-        if (!td || FIELD(u, 0x3C, int) <= 0) continue;
-        void *o = FIELD(u, 0x18, void *);
+        if (!td || FIELD(u, OF(UNIT, 0x3C), int) <= 0) continue;
+        void *o = FIELD(u, OF(UNIT, 0x18), void *);
         float r, a;
         if (o == pl) {
-            if (nc < 24 && defence_stats(u, &r, &a) && early_finished(u)) { cov[nc].x = FIELD(u, 0x1C, int); cov[nc].y = FIELD(u, 0x20, int); cov[nc++].r = r; }
+            if (nc < 24 && defence_stats(u, &r, &a) && early_finished(u)) { cov[nc].x = FIELD(u, OF(UNIT, 0x1C), int); cov[nc].y = FIELD(u, OF(UNIT, 0x20), int); cov[nc++].r = r; }
         } else if (ne < 64 && o && FIELD(o, PL_INDEX, int) > 0 && is_soldier(td) && is_enemy(pl, o) && seen_by(u, pl)) {
-            uint8_t *g = FIELD(u, 0x1EC, uint8_t *);
-            en[ne].u = u; en[ne].x = FIELD(u, 0x1C, int); en[ne].y = FIELD(u, 0x20, int);
-            en[ne++].t = g && *(uintptr_t *)g == GA(VT_GOAL_ATTACK) ? FIELD(g, 0x30, uint8_t *) : NULL;
+            uint8_t *g = FIELD(u, OF(UNIT, 0x1EC), uint8_t *);
+            en[ne].u = u; en[ne].x = FIELD(u, OF(UNIT, 0x1C), int); en[ne].y = FIELD(u, OF(UNIT, 0x20), int);
+            en[ne++].t = g && *(uintptr_t *)g == GA(VT_GOAL_ATTACK) ? FIELD(g, OF(GOAL, 0x30), uint8_t *) : NULL;
         }
     }
     if (!nc || !ne) return;
     int sent = 0;
     for (struct grid_it it = grid_it_box(bx, by, 32, 1); grid_it_next(&it); ) {
         uint8_t *u = it.u, *td = it.td;
-        if (!td || FIELD(u, 0x18, void *) != pl || FIELD(u, 0x3C, int) <= 0 || !is_citizen_type(FIELD(td, 0x4B8, int)) ||
-            FIELD(u, 0x33B, uint8_t) || FIELD(u, 0x1C, int) == -10000) continue;
-        int ux = FIELD(u, 0x1C, int), uy = FIELD(u, 0x20, int), hit = -1;
+        if (!td || FIELD(u, OF(UNIT, 0x18), void *) != pl || FIELD(u, OF(UNIT, 0x3C), int) <= 0 || !is_citizen_type(FIELD(td, OF(TD, 0x4B8), int)) ||
+            FIELD(u, OF(UNIT, 0x33B), uint8_t) || FIELD(u, OF(UNIT, 0x1C), int) == -10000) continue;
+        int ux = FIELD(u, OF(UNIT, 0x1C), int), uy = FIELD(u, OF(UNIT, 0x20), int), hit = -1;
         for (int k = 0; k < ne && hit < 0; k++)
             if (en[k].t == u || (abs(en[k].x - ux) <= 5 && abs(en[k].y - uy) <= 5)) hit = k;
         if (hit < 0) continue;
@@ -209,11 +209,11 @@ static void early_bait(void *pl, unsigned idx, uint32_t now) {
             if (d < bd) { bd = d; best = c; }
         }
         if (best < 0) continue;
-        uint8_t *g = FIELD(u, 0x1EC, uint8_t *);
+        uint8_t *g = FIELD(u, OF(UNIT, 0x1EC), uint8_t *);
         if (g && *(uintptr_t *)g == GA(VT_GOAL_ATTACK)) continue;   // the militia's: a fight it wins
         float ex = (float)(cov[best].x - en[hit].x), ey = (float)(cov[best].y - en[hit].y), l = sqrtf(ex * ex + ey * ey);
         float sx = (float)cov[best].x + 0.5f + (l > 0.5f ? ex / l * 1.5f : 0), sy = (float)cov[best].y + 0.5f + (l > 0.5f ? ey / l * 1.5f : 0);
-        if (g && *(uintptr_t *)g == GA(VT_GOAL_LOCATION) && fabsf(FIELD(g, 0x20, float) - sx) < 2 && fabsf(FIELD(g, 0x24, float) - sy) < 2)
+        if (g && *(uintptr_t *)g == GA(VT_GOAL_LOCATION) && fabsf(FIELD(g, OF(GOAL, 0x20), float) - sx) < 2 && fabsf(FIELD(g, OF(GOAL, 0x24), float) - sy) < 2)
             continue;   // on its way there
         if (unit_goal(u, goal_move(sx, sy), 0, 0x1F40)) sent++;
     }
@@ -229,13 +229,13 @@ static void early_range(void *pl, unsigned idx, uint32_t now) {
     int e = current_epoch(pl);
     if (!EARLY(idx, early_army) || e < 1 || e > 3 || (st->range_t && now >= st->range_t && now - st->range_t < 60000)) return;
     st->range_t = now ? now : 1;
-    void *cm = FIELD(pl, 0xB90, void *), *um = cm ? FIELD(cm, 0x44, void *) : NULL;
-    uint8_t *bm = cm ? FIELD(cm, 0x3C, uint8_t *) : NULL;
+    void *cm = FIELD(pl, OF(PL, 0xB90), void *), *um = cm ? FIELD(cm, OF(CM, 0x44), void *) : NULL;
+    uint8_t *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL;
     if (!um || !bm) return;
     uint8_t *q = type_list(um, UT(B_ARCHERY_RANGE));
     for (unsigned k = 0, f = q ? FIELD(q, 0xC, unsigned) : 0, n = q ? FIELD(q, 0x10, unsigned) : 0; k < n; k++) {
         uint8_t *b = deque_at(q, f + k);
-        if (b && FIELD(b, 0x3C, int) > 0) return;
+        if (b && FIELD(b, OF(UNIT, 0x3C), int) > 0) return;
     }
     if (!ut_has(UT(B_ARCHERY_RANGE)) || GF(FN_BM_QUEUED)(bm, UT(B_ARCHERY_RANGE))) return;
     GF(FN_BM_REQUEST)(bm, UT(B_ARCHERY_RANGE), 1, 0);

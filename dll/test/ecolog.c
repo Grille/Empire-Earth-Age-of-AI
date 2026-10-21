@@ -71,21 +71,21 @@ static void eco_mines(void *pl, struct eco_mines *c) {
     drops_cached(pl);
     unsigned pi = (unsigned)pidx(pl);
     int base_reg = -1;   // the base's continent
-    {   uint8_t *cm = FIELD(pl, 0xB90, uint8_t *), *bm = cm ? FIELD(cm, 0x3C, uint8_t *) : NULL;
-        int b[2] = { bm ? FIELD(bm, 0x12C, int) : -10000, bm ? FIELD(bm, 0x130, int) : -10000 };
+    {   uint8_t *cm = FIELD(pl, OF(PL, 0xB90), uint8_t *), *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL;
+        int b[2] = { bm ? FIELD(bm, OF(BM, 0x12C), int) : -10000, bm ? FIELD(bm, OF(BM, 0x130), int) : -10000 };
         if (b[0] != -10000 && b[1] != -10000) base_reg = ((short (__thiscall *)(void *, int *, int))GA(FN_REGION))((void *)GA(G_MAP_AREAS), b, 2); }
-    void **tb = FIELD(pl, 0xB50, void **), **te = FIELD(pl, 0xB54, void **);
+    void **tb = FIELD(pl, OF(PL, 0xB50), void **), **te = FIELD(pl, OF(PL, 0xB54), void **);
     for (int t = 0; tb && tb + t < te && t < 256; t++) {
         uint8_t *town = tb[t];
-        void **sb = town ? FIELD(town, 8, void **) : NULL, **se = town ? FIELD(town, 0xC, void **) : NULL;
+        void **sb = town ? FIELD(town, OF(ZONE, 0x8), void **) : NULL, **se = town ? FIELD(town, OF(ZONE, 0xC), void **) : NULL;
         for (int k = 0; sb && sb + k < se && k < 4096; k++) {
             uint8_t *st = sb[k];
-            int r = st ? FIELD(st, 0x38, int) : 0, j;
-            if (r < 4 || r > 6 || FIELD(st, 0x40, int) <= 0) continue;   // stone, gold, iron with something left
+            int r = st ? FIELD(st, OF(UNIT, 0x38), int) : 0, j;
+            if (r < 4 || r > 6 || FIELD(st, OF(UNIT, 0x40), int) <= 0) continue;   // stone, gold, iron with something left
             for (j = 0; j < ns && seen[j] != st; j++) ;
             if (j < ns) continue;
             if (ns < 1024) seen[ns++] = st;
-            int x = FIELD(st, 0x1C, int), y = FIELD(st, 0x20, int), dd = 0x7FFFFFFF;
+            int x = FIELD(st, OF(UNIT, 0x1C), int), y = FIELD(st, OF(UNIT, 0x20), int), dd = 0x7FFFFFFF;
             unsigned g = GF(FN_SITE_GATHERERS)((void *)GA(G_GAME_STATE), st);
             for (int i = 0; i < g_drops[pi].n; i++) {
                 int *d = g_drops[pi].d[i], dx = d[0] - x, dy = d[1] - y;
@@ -93,7 +93,7 @@ static void eco_mines(void *pl, struct eco_mines *c) {
             }
             if (dd <= 144) { c->n[r]++; c->slots[r] += (int)cap; c->g[r] += (int)g; }
             else c->far_[r] += (int)g;
-            if (dd > 144 && FIELD(town, 0x18, uint8_t) && GF(FN_EXPLORED)(FIELD(st, 0x14, void *), pl)) {
+            if (dd > 144 && FIELD(town, OF(ZONE, 0x18), uint8_t) && GF(FN_EXPLORED)(FIELD(st, OF(UNIT, 0x14), void *), pl)) {
                 int pos[2] = { x, y };   // known, explored, no drop site within 12 tiles, on the base's continent
                 if (base_reg < 0 || ((short (__thiscall *)(void *, int *, int))GA(FN_REGION))((void *)GA(G_MAP_AREAS), pos, 2) == base_reg) c->nd[r]++;
             }
@@ -128,74 +128,74 @@ static void eco_food(void *pl, uint8_t *rm, struct eco_food *f) {
     drops_cached(pl);
     uint8_t *list = rm + RM_LISTS + 2 * 0x14;
     for (unsigned k = 0, first = FIELD(list, 0xC, unsigned), n = FIELD(list, 0x10, unsigned); k < n && k < 1024; k++) {
-        uint8_t *u = deque_at(list, first + k), *td = u ? FIELD(u, 0x2C, uint8_t *) : NULL;
-        if (!td || FIELD(u, 0x3C, int) <= 0) continue;
+        uint8_t *u = deque_at(list, first + k), *td = u ? FIELD(u, OF(UNIT, 0x2C), uint8_t *) : NULL;
+        if (!td || FIELD(u, OF(UNIT, 0x3C), int) <= 0) continue;
         int res;
         if (strcmp(eco_goal(u, &res), "gather")) continue;
-        if (FIELD(td, 0x4B4, int) == 22) f->fb++;
+        if (FIELD(td, OF(TD, 0x4B4), int) == 22) f->fb++;
         else if (res == UT(RES_FORAGE_BUSH)) f->fo++;
         else if (res == UT(B_FARM)) f->ff++;
         else {
-            uint8_t *g = FIELD(u, 0x1EC, uint8_t *), *s = FIELD(g, 0x38, uint8_t *), *st = s ? FIELD(s, 0x2C, uint8_t *) : NULL;
-            if (st && FIELD(st, 0x4C4, int) == 0x11) f->fh++; else f->fx++;
+            uint8_t *g = FIELD(u, OF(UNIT, 0x1EC), uint8_t *), *s = FIELD(g, OF(GOAL, 0x38), uint8_t *), *st = s ? FIELD(s, OF(UNIT, 0x2C), uint8_t *) : NULL;
+            if (st && FIELD(st, OF(TD, 0x4C4), int) == 0x11) f->fh++; else f->fx++;
         }
     }
-    void **hb = FIELD(rm, 0x88, void **), **he = FIELD(rm, 0x8C, void **);
+    void **hb = FIELD(rm, OF(RM, 0x88), void **), **he = FIELD(rm, OF(RM, 0x8C), void **);
     for (void **h = hb; hb && h < he && h - hb < 4096; h++) {
         uint8_t *a = *h;
-        if (!a || !a[0x2B] || FIELD(a, 0x40, int) <= 0) continue;
-        f->hl++; f->hlF += FIELD(a, 0x40, int);
-        int d2 = eco_drop_d2(pl, FIELD(a, 0x1C, int), FIELD(a, 0x20, int));
+        if (!a || !a[OF(UNIT, 0x2B)] || FIELD(a, OF(UNIT, 0x40), int) <= 0) continue;
+        f->hl++; f->hlF += FIELD(a, OF(UNIT, 0x40), int);
+        int d2 = eco_drop_d2(pl, FIELD(a, OF(UNIT, 0x1C), int), FIELD(a, OF(UNIT, 0x20), int));
         if (d2 <= 225) f->hl15++;
         if (d2 <= 900) f->hl30++;
     }
-    void **qb = FIELD(rm, 0x98, void **), **qe = FIELD(rm, 0x9C, void **);
+    void **qb = FIELD(rm, OF(RM, 0x98), void **), **qe = FIELD(rm, OF(RM, 0x9C), void **);
     for (void **h = qb; qb && h < qe && h - qb < 4096; h++)
-        if (*h && FIELD(*h, 0x40, int) > 0) { f->fish++; f->fishF += FIELD(*h, 0x40, int); }
+        if (*h && FIELD(*h, OF(UNIT, 0x40), int) > 0) { f->fish++; f->fishF += FIELD(*h, OF(UNIT, 0x40), int); }
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
         uint8_t *u = it.u, *td = it.td;
-        if (!td || FIELD(u, 0x38, int) != 2 || FIELD(u, 0x40, int) <= 0 || FIELD(td, 0x4C4, int) != 0x11) continue;
+        if (!td || FIELD(u, OF(UNIT, 0x38), int) != 2 || FIELD(u, OF(UNIT, 0x40), int) <= 0 || FIELD(td, OF(TD, 0x4C4), int) != 0x11) continue;
         f->an++;
-        if (eco_drop_d2(pl, FIELD(u, 0x1C, int), FIELD(u, 0x20, int)) > 900) continue;
-        f->an30++; f->anF30 += FIELD(u, 0x40, int);
+        if (eco_drop_d2(pl, FIELD(u, OF(UNIT, 0x1C), int), FIELD(u, OF(UNIT, 0x20), int)) > 900) continue;
+        f->an30++; f->anF30 += FIELD(u, OF(UNIT, 0x40), int);
         void **h = hb;
         while (hb && h < he && *h != u) h++;
         if (!hb || h >= he) f->anNew30++;
     }
-    uint8_t *cm = FIELD(pl, 0xB90, uint8_t *), *bm = cm ? FIELD(cm, 0x3C, uint8_t *) : NULL;
-    int bx = bm ? FIELD(bm, 0x12C, int) : -10000, by = bm ? FIELD(bm, 0x130, int) : -10000;
-    void **zb = FIELD(pl, 0xB50, void **), **ze = FIELD(pl, 0xB54, void **);
+    uint8_t *cm = FIELD(pl, OF(PL, 0xB90), uint8_t *), *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL;
+    int bx = bm ? FIELD(bm, OF(BM, 0x12C), int) : -10000, by = bm ? FIELD(bm, OF(BM, 0x130), int) : -10000;
+    void **zb = FIELD(pl, OF(PL, 0xB50), void **), **ze = FIELD(pl, OF(PL, 0xB54), void **);
     for (int z = 0; zb && zb + z < ze && z < 256; z++) {
         uint8_t *zone = zb[z];
-        void **sb = zone ? FIELD(zone, 8, void **) : NULL, **se = zone ? FIELD(zone, 0xC, void **) : NULL;
+        void **sb = zone ? FIELD(zone, OF(ZONE, 0x8), void **) : NULL, **se = zone ? FIELD(zone, OF(ZONE, 0xC), void **) : NULL;
         for (int k = 0; sb && sb + k < se && k < 4096; k++) {
-            uint8_t *st = sb[k], *td = st ? FIELD(st, 0x2C, uint8_t *) : NULL;
-            if (!td || FIELD(st, 0x38, int) != 2 || FIELD(td, 0x4B8, int) != UT(RES_FORAGE_BUSH) || FIELD(st, 0x40, int) <= 0) continue;
-            int x = FIELD(st, 0x1C, int), y = FIELD(st, 0x20, int), dx = x - bx, dy = y - by;
-            if (eco_drop_d2(pl, x, y) <= 900) { f->fsN++; f->fsF += FIELD(st, 0x40, int); }
-            if (bx != -10000 && dx * dx + dy * dy < g_site_max_dist * g_site_max_dist) { f->fsN20++; f->fsF20 += FIELD(st, 0x40, int); }
+            uint8_t *st = sb[k], *td = st ? FIELD(st, OF(UNIT, 0x2C), uint8_t *) : NULL;
+            if (!td || FIELD(st, OF(UNIT, 0x38), int) != 2 || FIELD(td, OF(TD, 0x4B8), int) != UT(RES_FORAGE_BUSH) || FIELD(st, OF(UNIT, 0x40), int) <= 0) continue;
+            int x = FIELD(st, OF(UNIT, 0x1C), int), y = FIELD(st, OF(UNIT, 0x20), int), dx = x - bx, dy = y - by;
+            if (eco_drop_d2(pl, x, y) <= 900) { f->fsN++; f->fsF += FIELD(st, OF(UNIT, 0x40), int); }
+            if (bx != -10000 && dx * dx + dy * dy < g_site_max_dist * g_site_max_dist) { f->fsN20++; f->fsF20 += FIELD(st, OF(UNIT, 0x40), int); }
         }
     }
-    void *um = cm ? FIELD(cm, 0x44, void *) : NULL;
+    void *um = cm ? FIELD(cm, OF(CM, 0x44), void *) : NULL;
     uint8_t *fq = type_list(um, UT(B_FARM));
     for (unsigned k = 0, first = fq ? FIELD(fq, 0xC, unsigned) : 0, n = fq ? FIELD(fq, 0x10, unsigned) : 0; k < n && k < 512; k++) {
-        uint8_t *fl = deque_at(fq, first + k), *b = fl ? FIELD(fl, 0x30, uint8_t *) : NULL;
+        uint8_t *fl = deque_at(fq, first + k), *b = fl ? FIELD(fl, OF(GOAL, 0x30), uint8_t *) : NULL;
         if (!fl) continue;
         f->fld++;
-        if (b && b[0x340]) f->fldOK++;
+        if (b && b[OF(UNIT, 0x340)]) f->fldOK++;
     }
 }
 
 static const char *eco_goal(uint8_t *u, int *res) {   // what a citizen does; res: the gather site's type id (or -1)
-    uint8_t *g = FIELD(u, 0x1EC, uint8_t *);
+    uint8_t *g = FIELD(u, OF(UNIT, 0x1EC), uint8_t *);
     *res = -1;
     if (!g) return "none";
     if (*(uintptr_t *)g == GA(VT_GOAL_LOCATION)) return "walk";
     if (*(uintptr_t *)g == GA(VT_GOAL_ATTACK)) return "attack";
     const char *n = rtti_name(g);
     if (!strcmp(n, "EEUGGather@@")) {
-        uint8_t *s = FIELD(g, 0x38, uint8_t *), *td = s ? FIELD(s, 0x2C, uint8_t *) : NULL;
-        if (td) *res = FIELD(td, 0x4B8, int);
+        uint8_t *s = FIELD(g, OF(GOAL, 0x38), uint8_t *), *td = s ? FIELD(s, OF(UNIT, 0x2C), uint8_t *) : NULL;
+        if (td) *res = FIELD(td, OF(TD, 0x4B8), int);
         return "gather";
     }
     if (!strcmp(n, "EEUGBuildRepair@@")) return "build";
@@ -208,14 +208,14 @@ static void ecolog_tick(void *pl, uint32_t now) {
     unsigned idx = (unsigned)pidx(pl);
     if (now >= g_eco_t[idx] && now / 60000 == g_eco_t[idx] / 60000 && g_eco_t[idx]) return;
     g_eco_t[idx] = now ? now : 1;
-    void *cm = FIELD(pl, 0xB90, void *), *ump = cm ? FIELD(cm, 0x44, void *) : NULL;
-    uint8_t *rm = cm ? FIELD(cm, 0x38, uint8_t *) : NULL;
+    void *cm = FIELD(pl, OF(PL, 0xB90), void *), *ump = cm ? FIELD(cm, OF(CM, 0x44), void *) : NULL;
+    uint8_t *rm = cm ? FIELD(cm, OF(CM, 0x38), uint8_t *) : NULL;
     int cit = 0, gat[7] = { 0 }, build = 0, walk = 0, att = 0, load = 0, other = 0, none = 0, idle0 = 0;
     for (int r = 0; rm && r < 7; r++) {   // the resource lists (deques): who gathers for which resource, list 0 idle
         uint8_t *list = rm + RM_LISTS + r * 0x14;
         for (unsigned k = 0, first = FIELD(list, 0xC, unsigned), n = FIELD(list, 0x10, unsigned); k < n && k < 1024; k++) {
             uint8_t *u = deque_at(list, first + k);
-            if (!u || FIELD(u, 0x3C, int) <= 0) continue;
+            if (!u || FIELD(u, OF(UNIT, 0x3C), int) <= 0) continue;
             int res;
             const char *g = eco_goal(u, &res);
             if (!strcmp(g, "gather")) gat[r]++;
@@ -224,7 +224,7 @@ static void ecolog_tick(void *pl, uint32_t now) {
     }
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {   // every citizen on the map
         uint8_t *u = it.u, *td = it.td;
-        if (FIELD(u, 0x18, void *) != pl || FIELD(u, 0x3C, int) <= 0 || !is_citizen_type(FIELD(td, 0x4B8, int))) continue;
+        if (FIELD(u, OF(UNIT, 0x18), void *) != pl || FIELD(u, OF(UNIT, 0x3C), int) <= 0 || !is_citizen_type(FIELD(td, OF(TD, 0x4B8), int))) continue;
         cit++;
         int res;
         const char *g = eco_goal(u, &res);
@@ -243,8 +243,8 @@ static void ecolog_tick(void *pl, uint32_t now) {
         struct eco_spend *sp = &g_eco_sp[idx];
         for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
             uint8_t *u = it.u, *td = it.td;
-            if (FIELD(u, 0x18, void *) != pl || FIELD(u, 0x3C, int) <= 0) continue;
-            int t = FIELD(td, 0x4B8, int), fam = FIELD(td, 0x4B4, int), cit = is_citizen_type(t);
+            if (FIELD(u, OF(UNIT, 0x18), void *) != pl || FIELD(u, OF(UNIT, 0x3C), int) <= 0) continue;
+            int t = FIELD(td, OF(TD, 0x4B8), int), fam = FIELD(td, OF(TD, 0x4B4), int), cit = is_citizen_type(t);
             if (!cit && !is_army_family(fam)) continue;
             if (!eco_new_id(idx, (uint32_t)(uintptr_t)u) || first) continue;
             if (cit) { sp->tc++; sp->tcF += (unsigned)unit_cost(pl, t, 2); }
@@ -269,7 +269,7 @@ static void ecolog_tick(void *pl, uint32_t now) {
             "fo=%d fh=%d ff=%d fb=%d fx=%d hl=%d hlF=%d hl15=%d hl30=%d an=%d an30=%d anF30=%d anNew30=%d fsN=%d fsF=%d fsN20=%d fsF20=%d fish=%d fishF=%d fld=%d fldOK=%d\n",
             idx, now / 60000, cit, gat[2], gat[3], gat[4], gat[5], gat[6], gat[0], build, walk, att, load, other, none, idle0,
             army_size(pl), GF(FN_POPULATION)(pl, 1, 0),
-            ((int (__thiscall *)(void *, int))(*(void ***)pl)[31])(pl, 0), ump ? FIELD(ump, 0x13C, int) : -1,
+            unit_limit(pl), ump ? FIELD(ump, OF(UM, 0x13C), int) : -1,
             d->n, d->town, d->near_, d->far_, d->army, d->bld, d->ship, d->air, d->unk, is_vanilla(pl) ? 0u : g_site_refused[idx],
             sp->tc, sp->tcF, sp->ts, sp->tsF, sp->tsX, mn.n[4], mn.slots[4], mn.g[4], mn.far_[4], mn.n[5], mn.slots[5], mn.g[5],
             mn.far_[5], mn.n[6], mn.slots[6], mn.g[6], mn.far_[6], mn.nd[4], mn.nd[5], mn.nd[6],
@@ -280,10 +280,10 @@ static void ecolog_tick(void *pl, uint32_t now) {
 // a unit of v killed by k (diplo.c hook_kill_stat, n 3 = a unit): citizens only
 static void eco_death(uint8_t *dead, int k, int v) {
     if (!g_autotest || !g_log || !dead) return;
-    uint8_t *td = FIELD(dead, 0x2C, uint8_t *);
-    void *pl = FIELD(dead, 0x18, void *);
-    if (!td || !pl || !is_citizen_type(FIELD(td, 0x4B8, int))) return;
-    int x = FIELD(dead, 0x1C, int), y = FIELD(dead, 0x20, int), dd[2], dist = -1;
+    uint8_t *td = FIELD(dead, OF(UNIT, 0x2C), uint8_t *);
+    void *pl = FIELD(dead, OF(UNIT, 0x18), void *);
+    if (!td || !pl || !is_citizen_type(FIELD(td, OF(TD, 0x4B8), int))) return;
+    int x = FIELD(dead, OF(UNIT, 0x1C), int), y = FIELD(dead, OF(UNIT, 0x20), int), dd[2], dist = -1;
     if (nearest_drop(pl, x, y, 1, dd)) dist = (int)sqrtf((float)((dd[0] - x) * (dd[0] - x) + (dd[1] - y) * (dd[1] - y)));
     int res;
     const char *goal = eco_goal(dead, &res);
@@ -292,17 +292,17 @@ static void eco_death(uint8_t *dead, int k, int v) {
     void *kp = player_at(k);
     for (struct grid_it it = grid_it_box(x, y, 12, 1); grid_it_next(&it); ) {
         uint8_t *u = it.u, *t = it.td;
-        if (!t || FIELD(u, 0x3C, int) <= 0) continue;
-        void *o = FIELD(u, 0x18, void *);
-        int ux = FIELD(u, 0x1C, int) - x, uy = FIELD(u, 0x20, int) - y, d2 = ux * ux + uy * uy;
-        int fam = FIELD(t, 0x4B4, int);
+        if (!t || FIELD(u, OF(UNIT, 0x3C), int) <= 0) continue;
+        void *o = FIELD(u, OF(UNIT, 0x18), void *);
+        int ux = FIELD(u, OF(UNIT, 0x1C), int) - x, uy = FIELD(u, OF(UNIT, 0x20), int) - y, d2 = ux * ux + uy * uy;
+        int fam = FIELD(t, OF(TD, 0x4B4), int);
         int sc = d2 + (is_army_family(fam) ? 0 : fam == 0x1D ? 1000 : 2000);   // soldiers, ships, aircraft first, then towers
-        if (o == kp && sc < best && d2 <= 144 && fam != 6 && fam != 22 && fam != 0 && fam != 1 && !is_citizen_type(FIELD(t, 0x4B8, int))) { best = sc; att = u; }
+        if (o == kp && sc < best && d2 <= 144 && fam != 6 && fam != 22 && fam != 0 && fam != 1 && !is_citizen_type(FIELD(t, OF(TD, 0x4B8), int))) { best = sc; att = u; }
         if (!is_army_family(fam)) continue;
         if (o == pl && d2 <= 100) own++;
         else if (o == kp && d2 <= 64) foe++;
     }
-    int atype = att ? FIELD(FIELD(att, 0x2C, uint8_t *), 0x4B8, int) : -1, acls = att ? FIELD(FIELD(att, 0x2C, uint8_t *), 0x4B4, int) : -1;
+    int atype = att ? FIELD(FIELD(att, OF(UNIT, 0x2C), uint8_t *), OF(TD, 0x4B8), int) : -1, acls = att ? FIELD(FIELD(att, OF(UNIT, 0x2C), uint8_t *), OF(TD, 0x4B4), int) : -1;
     struct eco_dead *d = &g_eco_dead[v & 15];
     d->n++;
     if (dist >= 0 && dist <= 6) d->town++; else if (dist >= 0 && dist <= 15) d->near_++; else d->far_++;
