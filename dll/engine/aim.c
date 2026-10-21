@@ -16,8 +16,8 @@
 // code 0x54A55B; 0 when it stands) along its facing (matrix +0x130, local y axis). Tile-centre aims stay tile
 // centres (the tile the target will be on), hit-offset aims move by the same distance; the height follows the
 // ground. (+0x118/+0x11C is not the previous position but a waypoint.)
-typedef void (__cdecl *AimFn)(uint8_t *u, uint8_t **target, float *aim, void *zero);
-typedef char (__cdecl *BallisticFn)(uint8_t *u, uint8_t *type, float *from, float *to, float *pitch);
+typedef void (__cdecl *AimFn)(ee_unit *u, ee_unit **target, float *aim, void *zero);
+typedef char (__cdecl *BallisticFn)(ee_unit *u, uint8_t *type, float *from, float *to, float *pitch);
 // Multiplayer: everything here changes the simulation, so every PC must compute the same bits (lockstep). Only
 // + - * / and sqrt (SSE, exact) and the game's own math DLL - the C runtime's cosf comes with Windows and may differ
 // between versions. UMCos (cdecl float(float)) through the game's import table.
@@ -42,7 +42,7 @@ static int tile_height(int x, int y, float *h) {
 // Seconds the projectile flies from `from` towards `to` with the arc the launch will pick, < 0 if unknown. Out of
 // the arc's reach the game launches at 45 degrees anyway and the projectile comes down short, after flying its
 // longest distance v^2 / g (*reach = 0).
-static float flight_time(uint8_t *u, const float *from, const float *to, int *reach) {
+static float flight_time(ee_unit *u, const float *from, const float *to, int *reach) {
     uint8_t *type = FIELD(u, OF(UNIT, 0x34), uint8_t *), *cls = type ? FIELD(type, OF(USTAT, 0x60), uint8_t *) : NULL;
     uint8_t *pc = cls ? FIELD(cls, OF(TD, 0x3FC), uint8_t *) : NULL;
     float v = type ? FIELD(type, OF(USTAT, 0xC0), float) : 0, g = pc ? FIELD(pc, OF(PL, 0x438), float) : 0, pitch = 0, a[3], b[3];
@@ -59,13 +59,13 @@ static float flight_time(uint8_t *u, const float *from, const float *to, int *re
     return d / (v * c);
 }
 
-static void launch_point(uint8_t *u, float *from) {   // about the launch point (0x62028B: the model's fire point)
+static void launch_point(ee_unit *u, float *from) {   // about the launch point (0x62028B: the model's fire point)
     from[0] = FIELD(u, OF(UNIT, 0x13C), float);
     from[1] = FIELD(u, OF(UNIT, 0x14C), float);
     from[2] = FIELD(u, OF(UNIT, 0x15C), float) + 0.5f * FIELD(FIELD(u, OF(UNIT, 0x34), uint8_t *), OF(USTAT, 0x98), float);
 }
 
-static int target_velocity(uint8_t *t, float *vx, float *vy) {
+static int target_velocity(ee_unit *t, float *vx, float *vy) {
     float s = FIELD(t, OF(UNIT, 0x238), float), fx = FIELD(t, OF(UNIT, 0x134), float), fy = FIELD(t, OF(UNIT, 0x144), float);
     float l = sqrtf(fx * fx + fy * fy);
     *vx = *vy = 0;
@@ -75,7 +75,7 @@ static int target_velocity(uint8_t *t, float *vx, float *vy) {
 }
 
 // The aim point for the target's velocity: the original aim moved to where the target is after the flight.
-static float lead_aim(uint8_t *u, uint8_t *t, const float *aim, float T, float vx, float vy, float *out, int *reach) {
+static float lead_aim(ee_unit *u, ee_unit *t, const float *aim, float T, float vx, float vy, float *out, int *reach) {
     float from[3];
     launch_point(u, from);
     int tx = FIELD(t, OF(UNIT, 0x1C), int), ty = FIELD(t, OF(UNIT, 0x20), int);
@@ -105,12 +105,12 @@ static float lead_aim(uint8_t *u, uint8_t *t, const float *aim, float T, float v
 // target stands on the aim's tile then - the condition for a hit (if the shot reaches). Split by targets that moved
 // (> 0.3 tiles during the flight) or stood, and shots in or out of the arc's reach.
 enum { AIM_PEND = 512 };
-static struct { uint8_t *t; uint32_t due[2]; float ax[2], ay[2], x0, y0; uint8_t done, reach; } g_pend[AIM_PEND];
+static struct { ee_unit *t; uint32_t due[2]; float ax[2], ay[2], x0, y0; uint8_t done, reach; } g_pend[AIM_PEND];
 static unsigned g_pend_n;
 static struct { unsigned n, on_tile; double err; } g_ast[2][2][2];   // [moved][in reach][aim]
 static unsigned g_shots, g_shots_unit, g_led, g_lost;
 
-static uint8_t *find_unit_near(uint8_t *want, float x, float y, int r) {
+static ee_unit *find_unit_near(ee_unit *want, float x, float y, int r) {
     for (struct grid_it it = grid_it_box((int)x, (int)y, r, 1); grid_it_next(&it); )
         if (it.u == want) return FIELD(want, OF(UNIT, 0x3C), int) > 0 ? want : NULL;
     return NULL;
@@ -127,7 +127,7 @@ static void aim_tick(void) {   // the simulation thread, every pass
         for (int e = 0; e < 2; e++) {
             if ((g_pend[i].done >> e & 1) || now < g_pend[i].due[e]) continue;
             g_pend[i].done |= (uint8_t)(1 << e);
-            uint8_t *t = find_unit_near(g_pend[i].t, g_pend[i].x0, g_pend[i].y0, 12);
+            ee_unit *t = find_unit_near(g_pend[i].t, g_pend[i].x0, g_pend[i].y0, 12);
             if (!t) { if (e == 0) g_lost++; continue; }
             float x = FIELD(t, OF(UNIT, 0x13C), float), y = FIELD(t, OF(UNIT, 0x14C), float);
             float mx = x - g_pend[i].x0, my = y - g_pend[i].y0, dx = x - g_pend[i].ax[e], dy = y - g_pend[i].ay[e];
@@ -141,7 +141,7 @@ static void aim_tick(void) {   // the simulation thread, every pass
     }
 }
 
-static void aim_measure(uint8_t *t, const float *aim, float T0, const float *led, float T1, int reach) {
+static void aim_measure(ee_unit *t, const float *aim, float T0, const float *led, float T1, int reach) {
     if (T0 < 0 || g_pend_n >= AIM_PEND) return;
     for (unsigned i = 0; i < AIM_PEND; i++) {
         if (g_pend[i].t) continue;
@@ -157,10 +157,11 @@ static void aim_measure(uint8_t *t, const float *aim, float T0, const float *led
     }
 }
 
-static uint8_t *g_retarget;            // spread_missiles: set while 0x61E11C fires at another target
-static void __cdecl hook_aim(uint8_t *u, uint8_t **target, float *aim, void *zero) {
+static ee_unit *g_retarget;            // spread_missiles: set while 0x61E11C fires at another target
+static void __cdecl hook_aim(ee_unit *u, ee_unit **target, float *aim, void *zero) {
     ((AimFn)GA(FN_AIM))(u, target, aim, g_retarget ? (void *)g_retarget : zero);
-    uint8_t *t = *target, *cls = FIELD(u, OF(UNIT, 0x2C), uint8_t *), *pc = cls ? FIELD(cls, OF(TD, 0x3FC), uint8_t *) : NULL;
+    ee_unit *t = *target;
+    uint8_t *cls = FIELD(u, OF(UNIT, 0x2C), uint8_t *), *pc = cls ? FIELD(cls, OF(TD, 0x3FC), uint8_t *) : NULL;
     g_shots++;
     if (!t || t == u || !pc || *(uintptr_t *)pc != GA(VT_PROJECTILE)) return;
     g_shots_unit++;
@@ -191,7 +192,8 @@ static void __cdecl hook_aim(uint8_t *u, uint8_t **target, float *aim, void *zer
 static unsigned g_down, g_hits;
 static char __fastcall hook_proj_down(void *cls, void *edx, uint8_t *pr) {
     (void)edx;
-    uint8_t *goal = FIELD(pr, OF(UNIT, 0x1F0), uint8_t *), *t = goal && goal[5] == 2 ? FIELD(goal, OF(GOAL, 0x30), uint8_t *) : NULL;
+    uint8_t *goal = FIELD(pr, OF(UNIT, 0x1F0), uint8_t *);
+    ee_unit *t = goal && goal[5] == 2 ? FIELD(goal, OF(GOAL, 0x30), ee_unit *) : NULL;
     char r = GF(FN_PROJ_DOWN)(cls, pr);
     if (r && t && g_measure) {
         g_down++;
@@ -216,13 +218,13 @@ static char __fastcall hook_proj_down(void *cls, void *edx, uint8_t *pr) {
 static int g_lead_missiles = 0;
 enum { MSL_MAX = 256 };
 static struct {
-    uint8_t *m, *t;
+    ee_unit *m, *t;
     uint32_t first, last;
     float p[3], v[3], dist;   // target position at the last step, its velocity (tiles/s)
     int nv, moving, dmg;      // dmg: what it will do to its target (spread_missiles)
 } g_msl[MSL_MAX];
 static struct { unsigned n, close, gone; double ms, speed; } g_mst[2];   // tests: [target moving at launch]
-static int missile_damage(uint8_t *m, uint8_t *t);
+static int missile_damage(ee_unit *m, ee_unit *t);
 
 // A missile is gone when it hasn't been steered for 3 steps (last = the end of its climb until it steers).
 static void missile_tick(uint32_t now) {
@@ -242,9 +244,9 @@ static void missile_tick(uint32_t now) {
         }
 }
 
-static void __cdecl hook_missile_aim(uint8_t *m, uint8_t **target, float *aim, void *zero) {
+static void __cdecl hook_missile_aim(ee_unit *m, ee_unit **target, float *aim, void *zero) {
     ((AimFn)GA(FN_AIM))(m, target, aim, zero);
-    uint8_t *t = *target;
+    ee_unit *t = *target;
     if (!t || t == m) return;
     uint32_t now = game_time();
     float tp[3] = { FIELD(t, OF(UNIT, 0x13C), float), FIELD(t, OF(UNIT, 0x14C), float), FIELD(t, OF(UNIT, 0x15C), float) };
@@ -305,7 +307,7 @@ static void __cdecl hook_missile_aim(uint8_t *m, uint8_t **target, float *aim, v
 static int g_spread = 1;
 static unsigned g_spread_held, g_spread_switched, g_launched;
 
-static int missile_damage(uint8_t *m, uint8_t *t) {
+static int missile_damage(ee_unit *m, ee_unit *t) {
     uint8_t *lc = FIELD(m, OF(UNIT, 0x1C0), uint8_t *), *tc = FIELD(t, OF(UNIT, 0x2C), uint8_t *);
     ee_player *pl = unit_owner(m);
     ee_player *tpl = unit_owner(t);
@@ -325,18 +327,19 @@ static int missile_damage(uint8_t *m, uint8_t *t) {
     return n < 1 ? 1 : n;
 }
 
-static int incoming(uint8_t *t) {
+static int incoming(ee_unit *t) {
     int sum = 0;
     for (int i = 0; i < MSL_MAX; i++)
         if (g_msl[i].m && g_msl[i].t == t) sum += g_msl[i].dmg;
     return sum;
 }
-static int doomed(uint8_t *t) { return FIELD(t, OF(UNIT, 0x3C), int) > 0 && incoming(t) >= FIELD(t, OF(UNIT, 0x3C), int); }
+static int doomed(ee_unit *t) { return FIELD(t, OF(UNIT, 0x3C), int) > 0 && incoming(t) >= FIELD(t, OF(UNIT, 0x3C), int); }
 
-static int __fastcall hook_missile_launch(uint8_t *cls, void *edx, uint8_t *m, float *aim) {   // ret 8: (missile, aim)
+static int __fastcall hook_missile_launch(uint8_t *cls, void *edx, ee_unit *m, float *aim) {   // ret 8: (missile, aim)
     (void)edx;
     int r = GF(FN_MISSILE_LAUNCH)(cls, m, aim);
-    uint8_t *goal = FIELD(m, OF(UNIT, 0x1EC), uint8_t *), *t = goal && goal[5] == 2 ? FIELD(goal, OF(GOAL, 0x30), uint8_t *) : NULL;
+    uint8_t *goal = FIELD(m, OF(UNIT, 0x1EC), uint8_t *);
+    ee_unit *t = goal && goal[5] == 2 ? FIELD(goal, OF(GOAL, 0x30), ee_unit *) : NULL;
     g_launched++;
     if (!t) return r;
     uint32_t now = game_time();
@@ -356,17 +359,18 @@ static int __fastcall hook_missile_launch(uint8_t *cls, void *edx, uint8_t *m, f
 }
 
 // The nearest enemy of the same kind as t within u's range, seen by u's owner and not covered yet.
-static uint8_t *spread_target(uint8_t *u, uint8_t *t) {
+static ee_unit *spread_target(ee_unit *u, ee_unit *t) {
     ee_player *pl = unit_owner(u);
     if (!pl) return NULL;
     int fam = FIELD(FIELD(t, OF(UNIT, 0x2C), uint8_t *), OF(TD, 0x4B4), int);
     float x = FIELD(u, OF(UNIT, 0x13C), float), y = FIELD(u, OF(UNIT, 0x14C), float), range = FIELD(FIELD(u, OF(UNIT, 0x34), uint8_t *), OF(USTAT, 0x9C), float);
     int r = (int)range + 1;
-    uint8_t *best = NULL;
+    ee_unit *best = NULL;
     float bd = range * range;
     if (!(range > 0)) return NULL;
     for (struct grid_it it = grid_it_box((int)x, (int)y, r, 1); grid_it_next(&it); ) {
-        uint8_t *c = it.u, *cc = it.td;
+        ee_unit *c = it.u;
+        uint8_t *cc = it.td;
         if (c == t || FIELD(c, OF(UNIT, 0x3C), int) <= 0 || FIELD(cc, OF(TD, 0x4B4), int) != fam) continue;
         if (!is_enemy(pl, unit_owner(c)) || !seen_by(c, pl) || doomed(c)) continue;
         float dx = FIELD(c, OF(UNIT, 0x13C), float) - x, dy = FIELD(c, OF(UNIT, 0x14C), float) - y, d = dx * dx + dy * dy;
@@ -377,9 +381,9 @@ static uint8_t *spread_target(uint8_t *u, uint8_t *t) {
 
 // firerate (test): per unit firing, its shots and the game time of the first and the last - the time between shots
 // by type (the median of the units with 4+ shots)
-static struct { uint8_t *u; int type, n; uint32_t t0, t1; } g_fr[512];
+static struct { ee_unit *u; int type, n; uint32_t t0, t1; } g_fr[512];
 static int g_fr_n, g_fr_on;   // on in tests
-static void fr_note(uint8_t *u) {
+static void fr_note(ee_unit *u) {
     uint8_t *td = u ? FIELD(u, OF(UNIT, 0x2C), uint8_t *) : NULL;
     if (!td || !g_fr_on) return;
     uint32_t now = game_time();
@@ -405,13 +409,13 @@ static void cmd_firerate(char *out, const char *args) {
               td ? FIELD(td, OF(TD, 0x438), float) : 0.0f);
     }
 }
-static void __fastcall hook_fire(uint8_t *cls, void *edx, uint8_t *u) {
+static void __fastcall hook_fire(uint8_t *cls, void *edx, ee_unit *u) {
     (void)edx;
     fr_note(u);
     uint8_t *pc = FIELD(cls, OF(TD, 0x3FC), uint8_t *), *goal = FIELD(u, OF(UNIT, 0x1EC), uint8_t *);
-    uint8_t *t = goal && goal[5] == 2 ? FIELD(goal, OF(GOAL, 0x30), uint8_t *) : NULL;
+    ee_unit *t = goal && goal[5] == 2 ? FIELD(goal, OF(GOAL, 0x30), ee_unit *) : NULL;
     if (g_spread && t && pc && *(uintptr_t *)pc == GA(VT_MISSILE) && !is_vanilla(unit_owner(u)) && doomed(t)) {
-        uint8_t *alt = spread_target(u, t);
+        ee_unit *alt = spread_target(u, t);
         if (!alt) { g_spread_held++; return; }
         g_spread_switched++;
         g_retarget = alt;

@@ -65,7 +65,7 @@ static void eco_soldier_costs(ee_player *pl) {   // once a game: the land soldie
 struct eco_mines { int n[7], slots[7], g[7], far_[7], nd[7]; };
 static void eco_mines(ee_player *pl, struct eco_mines *c) {
     memset(c, 0, sizeof *c);
-    static uint8_t *seen[1024];
+    static ee_unit *seen[1024];
     int ns = 0;
     unsigned cap = GF(FN_TABLE_VALUE)((void *)GA(G_TABLE_VALUES), 0x16);
     drops_cached(pl);
@@ -79,7 +79,7 @@ static void eco_mines(ee_player *pl, struct eco_mines *c) {
         uint8_t *town = tb[t];
         void **sb = town ? FIELD(town, OF(ZONE, 0x8), void **) : NULL, **se = town ? FIELD(town, OF(ZONE, 0xC), void **) : NULL;
         for (int k = 0; sb && sb + k < se && k < 4096; k++) {
-            uint8_t *st = sb[k];
+            ee_unit *st = sb[k];
             int r = st ? FIELD(st, OF(UNIT, 0x38), int) : 0, j;
             if (r < 4 || r > 6 || FIELD(st, OF(UNIT, 0x40), int) <= 0) continue;   // stone, gold, iron with something left
             for (j = 0; j < ns && seen[j] != st; j++) ;
@@ -111,7 +111,7 @@ static void eco_mines(ee_player *pl, struct eco_mines *c) {
 // game never adds them). Forage (the sites of every zone, res_forage_bush, food left): fsN / fsF within 30 tiles, fsN20 / fsF20
 // within site_max_distance of the base (what wild_food counts). Fish: fish / fishF in rm +0x98. Fields: fld all,
 // fldOK finished.
-static const char *eco_goal(uint8_t *u, int *res);
+static const char *eco_goal(ee_unit *u, int *res);
 struct eco_food { int fo, fh, ff, fb, fx, hl, hlF, hl15, hl30, an, an30, anF30, anNew30, fsN, fsF, fsN20, fsF20, fish, fishF, fld, fldOK; };
 static int eco_drop_d2(ee_player *pl, int x, int y) {   // squared tiles to the nearest drop site for everything
     unsigned pi = (unsigned)pidx(pl);
@@ -128,7 +128,8 @@ static void eco_food(ee_player *pl, ee_resource_mgr *rm, struct eco_food *f) {
     drops_cached(pl);
     uint8_t *list = FIELD_AT(rm, RM_LISTS + 2 * 0x14);
     for (unsigned k = 0, first = FIELD(list, 0xC, unsigned), n = FIELD(list, 0x10, unsigned); k < n && k < 1024; k++) {
-        uint8_t *u = deque_at(list, first + k), *td = u ? FIELD(u, OF(UNIT, 0x2C), uint8_t *) : NULL;
+        ee_unit *u = deque_at(list, first + k);
+        uint8_t *td = u ? FIELD(u, OF(UNIT, 0x2C), uint8_t *) : NULL;
         if (!td || FIELD(u, OF(UNIT, 0x3C), int) <= 0) continue;
         int res;
         if (strcmp(eco_goal(u, &res), "gather")) continue;
@@ -136,7 +137,9 @@ static void eco_food(ee_player *pl, ee_resource_mgr *rm, struct eco_food *f) {
         else if (res == UT(RES_FORAGE_BUSH)) f->fo++;
         else if (res == UT(B_FARM)) f->ff++;
         else {
-            uint8_t *g = FIELD(u, OF(UNIT, 0x1EC), uint8_t *), *s = FIELD(g, OF(GOAL, 0x38), uint8_t *), *st = s ? FIELD(s, OF(UNIT, 0x2C), uint8_t *) : NULL;
+            uint8_t *g = FIELD(u, OF(UNIT, 0x1EC), uint8_t *);
+            ee_unit *s = FIELD(g, OF(GOAL, 0x38), ee_unit *);
+            uint8_t *st = s ? FIELD(s, OF(UNIT, 0x2C), uint8_t *) : NULL;
             if (st && FIELD(st, OF(TD, 0x4C4), int) == 0x11) f->fh++; else f->fx++;
         }
     }
@@ -153,7 +156,8 @@ static void eco_food(ee_player *pl, ee_resource_mgr *rm, struct eco_food *f) {
     for (void **h = qb; qb && h < qe && h - qb < 4096; h++)
         if (*h && FIELD(*h, OF(UNIT, 0x40), int) > 0) { f->fish++; f->fishF += FIELD(*h, OF(UNIT, 0x40), int); }
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
-        uint8_t *u = it.u, *td = it.td;
+        ee_unit *u = it.u;
+        uint8_t *td = it.td;
         if (!td || FIELD(u, OF(UNIT, 0x38), int) != 2 || FIELD(u, OF(UNIT, 0x40), int) <= 0 || FIELD(td, OF(TD, 0x4C4), int) != 0x11) continue;
         f->an++;
         if (eco_drop_d2(pl, FIELD(u, OF(UNIT, 0x1C), int), FIELD(u, OF(UNIT, 0x20), int)) > 900) continue;
@@ -179,14 +183,14 @@ static void eco_food(ee_player *pl, ee_resource_mgr *rm, struct eco_food *f) {
     void *um = cm ? FIELD(cm, OF(CM, 0x44), void *) : NULL;
     uint8_t *fq = type_list(um, UT(B_FARM));
     for (unsigned k = 0, first = fq ? FIELD(fq, 0xC, unsigned) : 0, n = fq ? FIELD(fq, 0x10, unsigned) : 0; k < n && k < 512; k++) {
-        uint8_t *fl = deque_at(fq, first + k), *b = fl ? FIELD(fl, OF(GOAL, 0x30), uint8_t *) : NULL;
+        ee_unit *fl = deque_at(fq, first + k), *b = fl ? FIELD(fl, OF(UNIT, 0x30), ee_unit *) : NULL;
         if (!fl) continue;
         f->fld++;
-        if (b && b[OF(UNIT, 0x340)]) f->fldOK++;
+        if (b && FIELD(b, OF(UNIT, 0x340), uint8_t)) f->fldOK++;
     }
 }
 
-static const char *eco_goal(uint8_t *u, int *res) {   // what a citizen does; res: the gather site's type id (or -1)
+static const char *eco_goal(ee_unit *u, int *res) {   // what a citizen does; res: the gather site's type id (or -1)
     uint8_t *g = FIELD(u, OF(UNIT, 0x1EC), uint8_t *);
     *res = -1;
     if (!g) return "none";
@@ -194,7 +198,8 @@ static const char *eco_goal(uint8_t *u, int *res) {   // what a citizen does; re
     if (*(uintptr_t *)g == GA(VT_GOAL_ATTACK)) return "attack";
     const char *n = rtti_name(g);
     if (!strcmp(n, "EEUGGather@@")) {
-        uint8_t *s = FIELD(g, OF(GOAL, 0x38), uint8_t *), *td = s ? FIELD(s, OF(UNIT, 0x2C), uint8_t *) : NULL;
+        ee_unit *s = FIELD(g, OF(GOAL, 0x38), ee_unit *);
+        uint8_t *td = s ? FIELD(s, OF(UNIT, 0x2C), uint8_t *) : NULL;
         if (td) *res = FIELD(td, OF(TD, 0x4B8), int);
         return "gather";
     }
@@ -214,7 +219,7 @@ static void ecolog_tick(ee_player *pl, uint32_t now) {
     for (int r = 0; rm && r < 7; r++) {   // the resource lists (deques): who gathers for which resource, list 0 idle
         uint8_t *list = FIELD_AT(rm, RM_LISTS + r * 0x14);
         for (unsigned k = 0, first = FIELD(list, 0xC, unsigned), n = FIELD(list, 0x10, unsigned); k < n && k < 1024; k++) {
-            uint8_t *u = deque_at(list, first + k);
+            ee_unit *u = deque_at(list, first + k);
             if (!u || FIELD(u, OF(UNIT, 0x3C), int) <= 0) continue;
             int res;
             const char *g = eco_goal(u, &res);
@@ -223,7 +228,8 @@ static void ecolog_tick(ee_player *pl, uint32_t now) {
         }
     }
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {   // every citizen on the map
-        uint8_t *u = it.u, *td = it.td;
+        ee_unit *u = it.u;
+        uint8_t *td = it.td;
         if (unit_owner(u) != pl || FIELD(u, OF(UNIT, 0x3C), int) <= 0 || !is_citizen_type(FIELD(td, OF(TD, 0x4B8), int))) continue;
         cit++;
         int res;
@@ -242,7 +248,8 @@ static void ecolog_tick(ee_player *pl, uint32_t now) {
         g_eco_nids[idx] = 0;
         struct eco_spend *sp = &g_eco_sp[idx];
         for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
-            uint8_t *u = it.u, *td = it.td;
+            ee_unit *u = it.u;
+            uint8_t *td = it.td;
             if (unit_owner(u) != pl || FIELD(u, OF(UNIT, 0x3C), int) <= 0) continue;
             int t = FIELD(td, OF(TD, 0x4B8), int), fam = FIELD(td, OF(TD, 0x4B4), int), cit = is_citizen_type(t);
             if (!cit && !is_army_family(fam)) continue;
@@ -278,7 +285,7 @@ static void ecolog_tick(ee_player *pl, uint32_t now) {
 }
 
 // a unit of v killed by k (diplo.c hook_kill_stat, n 3 = a unit): citizens only
-static void eco_death(uint8_t *dead, int k, int v) {
+static void eco_death(ee_unit *dead, int k, int v) {
     if (!g_autotest || !g_log || !dead) return;
     uint8_t *td = FIELD(dead, OF(UNIT, 0x2C), uint8_t *);
     ee_player *pl = unit_owner(dead);
@@ -288,10 +295,11 @@ static void eco_death(uint8_t *dead, int k, int v) {
     int res;
     const char *goal = eco_goal(dead, &res);
     int own = 0, foe = 0, best = 0x7FFFFFFF;
-    uint8_t *att = NULL;   // the killer's nearest unit
+    ee_unit *att = NULL;   // the killer's nearest unit
     void *kp = player_at(k);
     for (struct grid_it it = grid_it_box(x, y, 12, 1); grid_it_next(&it); ) {
-        uint8_t *u = it.u, *t = it.td;
+        ee_unit *u = it.u;
+        uint8_t *t = it.td;
         if (!t || FIELD(u, OF(UNIT, 0x3C), int) <= 0) continue;
         ee_player *o = unit_owner(u);
         int ux = FIELD(u, OF(UNIT, 0x1C), int) - x, uy = FIELD(u, OF(UNIT, 0x20), int) - y, d2 = ux * ux + uy * uy;

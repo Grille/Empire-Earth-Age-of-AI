@@ -60,8 +60,8 @@ static struct mass {
     unsigned samples, sold, iso, away, isoaway, eng, engiso, sg, out, asg, strag;   // sums over the samples
     unsigned die, die_iso, die_away, die_isoaway, die_outn;
     unsigned dsg[5];   // land soldiers killed: in an out subgroup's pack (within 12 tiles of its middle), ahead of it, behind it, behind at home, none
-    struct { uint8_t *u, *sg; uint32_t since; } hold[MS_HOLD]; int nh;
-    struct { uint8_t *u; uint32_t t; } gone[MS_HOLD]; int ng;   // released: not held again for 3 minutes
+    struct { ee_unit *u; uint8_t *sg; uint32_t since; } hold[MS_HOLD]; int nh;
+    struct { ee_unit *u; uint32_t t; } gone[MS_HOLD]; int ng;   // released: not held again for 3 minutes
     int rx, ry;
     uint32_t wait0, wait_until;                    // WAIT: the first postponement of this attack, the time it was due
     unsigned held, released, refused, waits, waited, goes;   // since the last line (refused: the subgroups' orders)
@@ -75,7 +75,7 @@ static struct mass {
 } g_mss[16];
 static void mass_new_game(void) { memset(g_mss, 0, sizeof g_mss); }
 
-static int ms_land_soldier(uint8_t *u, uint8_t *td) {
+static int ms_land_soldier(ee_unit *u, uint8_t *td) {
     int fam = FIELD(td, OF(TD, 0x4B4), int);
     return FIELD(u, OF(UNIT, 0x3C), int) > 0 && FIELD(u, OF(UNIT, 0x1C), int) >= 0 && is_soldier(td) && fam != 3 && fam != 4 && fam != 7 &&
            fam != 10 && fam != 17 && fam != 18 && fam != 21 && fam != 22;
@@ -90,7 +90,7 @@ static int ms_base(ee_player *pl, int *bx, int *by) {   // an AI's (a human play
 }
 static int ms_d2(int x0, int y0, int x1, int y1) { return (x1 - x0) * (x1 - x0) + (y1 - y0) * (y1 - y0); }
 // own land soldiers (pl's) within r tiles of (x, y), not counting u; enemy soldiers of pl there (en)
-static int ms_near(ee_player *pl, uint8_t *u, int x, int y, int r, int *en) {
+static int ms_near(ee_player *pl, ee_unit *u, int x, int y, int r, int *en) {
     int n = 0;
     if (en) *en = 0;
     for (struct grid_it it = grid_it_box(x, y, r, 1); grid_it_next(&it); ) {
@@ -118,7 +118,7 @@ static int ms_subgroups(ee_player *pl, int bx, int by) {
             float x = 0, y = 0, ax = 0, ay = 0;
             s->sg = sg; s->n = s->na = 0; s->state = FIELD(sg, OF(ASG, 0x1D0), int);
             for (uint8_t **r = FIELD(sg, OF(ASG, 0x54), uint8_t **); r && r < FIELD(sg, OF(ASG, 0x58), uint8_t **); r++) {
-                uint8_t *u = *r ? FIELD(*r, OF(ASGU, 0x44), uint8_t *) : NULL;
+                ee_unit *u = *r ? FIELD(*r, OF(ASGU, 0x44), ee_unit *) : NULL;
                 if (!u || FIELD(u, OF(UNIT, 0x3C), int) <= 0 || FIELD(u, OF(UNIT, 0x1C), int) < 0) continue;
                 int ux = FIELD(u, OF(UNIT, 0x1C), int), uy = FIELD(u, OF(UNIT, 0x20), int);
                 x += (float)ux; y += (float)uy; s->n++;
@@ -141,7 +141,7 @@ static int ms_cls(int st) { return st >= 2000 && st < 3000 ? 1 : st >= 3000 && s
 static void mass_sample(ee_player *pl, struct mass *m, int bx, int by) {
     m->samples++;
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
-        uint8_t *u = it.u;
+        ee_unit *u = it.u;
         if (unit_owner(u) != pl || !ms_land_soldier(u, it.td)) continue;
         int x = FIELD(u, OF(UNIT, 0x1C), int), y = FIELD(u, OF(UNIT, 0x20), int);
         int iso = ms_near(pl, u, x, y, 6, NULL) <= 2, away = ms_d2(x, y, bx, by) > 25 * 25, eng = fl_attacking(u);
@@ -153,14 +153,14 @@ static void mass_sample(ee_player *pl, struct mass *m, int bx, int by) {
         m->sg++; m->out += s->out; m->asg += (unsigned)s->n;
         int cx = 0, cy = 0, n = 0;   // stragglers: from the middle of all its members
         for (uint8_t **r = FIELD(s->sg, OF(ASG, 0x54), uint8_t **); r && r < FIELD(s->sg, OF(ASG, 0x58), uint8_t **); r++) {
-            uint8_t *u = *r ? FIELD(*r, OF(ASGU, 0x44), uint8_t *) : NULL;
+            ee_unit *u = *r ? FIELD(*r, OF(ASGU, 0x44), ee_unit *) : NULL;
             if (u && FIELD(u, OF(UNIT, 0x3C), int) > 0 && FIELD(u, OF(UNIT, 0x1C), int) >= 0) { cx += FIELD(u, OF(UNIT, 0x1C), int); cy += FIELD(u, OF(UNIT, 0x20), int); n++; }
         }
         if (n < 2) continue;
         cx /= n; cy /= n;
         int c = ms_cls(s->state);
         for (uint8_t **r = FIELD(s->sg, OF(ASG, 0x54), uint8_t **); r && r < FIELD(s->sg, OF(ASG, 0x58), uint8_t **); r++) {
-            uint8_t *u = *r ? FIELD(*r, OF(ASGU, 0x44), uint8_t *) : NULL;
+            ee_unit *u = *r ? FIELD(*r, OF(ASGU, 0x44), ee_unit *) : NULL;
             if (!u || FIELD(u, OF(UNIT, 0x3C), int) <= 0 || FIELD(u, OF(UNIT, 0x1C), int) < 0) continue;
             int ux = FIELD(u, OF(UNIT, 0x1C), int), uy = FIELD(u, OF(UNIT, 0x20), int), st = ms_d2(ux, uy, cx, cy) > 12 * 12;
             m->strag += st; m->dm[c]++;
@@ -180,7 +180,7 @@ static void mass_sample(ee_player *pl, struct mass *m, int bx, int by) {
     m->fronts += (unsigned)fr; m->multi += no >= 2;
 }
 // a unit died (diplo.c hook_kill_stat, n 3; autotest): a land soldier - who stood by it
-static void mass_death(uint8_t *dead) {
+static void mass_death(ee_unit *dead) {
     if (!g_autotest || !dead) return;
     uint8_t *td = FIELD(dead, OF(UNIT, 0x2C), uint8_t *);
     ee_player *pl = unit_owner(dead);
@@ -197,7 +197,7 @@ static void mass_death(uint8_t *dead) {
         struct ms_sg *s = &g_msg[k];
         if (!s->out) continue;
         for (uint8_t **r = FIELD(s->sg, OF(ASG, 0x54), uint8_t **); r && r < FIELD(s->sg, OF(ASG, 0x58), uint8_t **) && w == 4; r++)
-            if (*r && FIELD(*r, OF(ASGU, 0x44), uint8_t *) == dead)
+            if (*r && FIELD(*r, OF(ASGU, 0x44), ee_unit *) == dead)
                 w = ms_d2(x, y, s->cx, s->cy) <= 12 * 12 ? 0 : !away ? 3 : (x - s->cx) * (s->cx - bx) + (y - s->cy) * (s->cy - by) > 0 ? 1 : 2;
     }
     m->dsg[w]++;
@@ -212,7 +212,8 @@ static void ms_rally(ee_player *pl, struct mass *m, int bx, int by, int tx, int 
     int px = bx + (int)(6.0f * dx / l), py = by + (int)(6.0f * dy / l), bd = 0x7FFFFFFF;
     m->rx = px; m->ry = py;
     for (struct grid_it it = grid_it_box(bx, by, 14, 1); grid_it_next(&it); ) {
-        uint8_t *u = it.u, *bs = FIELD(u, OF(UNIT, 0x30), uint8_t *);
+        ee_unit *u = it.u;
+        uint8_t *bs = FIELD(u, OF(UNIT, 0x30), uint8_t *);
         float r, a;
         int x = FIELD(u, OF(UNIT, 0x1C), int), y = FIELD(u, OF(UNIT, 0x20), int), d = ms_d2(x, y, px, py);
         if (unit_owner(u) != pl || FIELD(u, OF(UNIT, 0x3C), int) <= 0 || !bs || !bs[OF(UNIT, 0x340)] || !defence_stats(u, &r, &a) ||
@@ -222,12 +223,12 @@ static void ms_rally(ee_player *pl, struct mass *m, int bx, int by, int tx, int 
         m->rx = x + (el >= 1 ? (int)(2.0f * ex / el) : 0); m->ry = y + (el >= 1 ? (int)(2.0f * ey / el) : 0);
     }
 }
-static int ms_held(struct mass *m, uint8_t *u, uint8_t *sg) {
+static int ms_held(struct mass *m, ee_unit *u, uint8_t *sg) {
     for (int k = 0; k < m->nh; k++) if (m->hold[k].u == u && (!sg || m->hold[k].sg == sg)) return k + 1;
     return 0;
 }
 // landing.c hook_asg_give_goal: a land subgroup's order to a member held at the rally
-static int mass_refuses(uint8_t *sg, uint8_t *u, void *goal) {
+static int mass_refuses(uint8_t *sg, ee_unit *u, void *goal) {
     ee_player *pl = FIELD(sg, OF(ASG, 0x190), void *);
     if (!pl || *(uintptr_t *)sg != GA(VT_ASG_LAND)) return 0;
     struct mass *m = &g_mss[(unsigned)FIELD(pl, PL_INDEX, int) & 15];
@@ -249,7 +250,7 @@ static void ms_gather(ee_player *pl, unsigned idx, struct mass *m, uint32_t now,
         if (!s->out || ((ARMY_MASS(idx) & 8) && s->state != 3000 && s->state != 3003)) continue;   // 8: only while it fights
         if (best < 0 || ms_d2(s->cx, s->cy, bx, by) < ms_d2(tx, ty, bx, by)) { best = k; tx = s->cx; ty = s->cy; }
         for (uint8_t **r = FIELD(s->sg, OF(ASG, 0x54), uint8_t **); r && r < FIELD(s->sg, OF(ASG, 0x58), uint8_t **); r++) {
-            uint8_t *u = *r ? FIELD(*r, OF(ASGU, 0x44), uint8_t *) : NULL;
+            ee_unit *u = *r ? FIELD(*r, OF(ASGU, 0x44), ee_unit *) : NULL;
             if (!u || !ms_land_soldier(u, FIELD(u, OF(UNIT, 0x2C), uint8_t *)) || ms_d2(FIELD(u, OF(UNIT, 0x1C), int), FIELD(u, OF(UNIT, 0x20), int), bx, by) > 25 * 25 ||
                 landing_has_unit(pl, u)) continue;
             int h = ms_held(m, u, s->sg);
@@ -289,7 +290,8 @@ static void ms_gather(ee_player *pl, unsigned idx, struct mass *m, uint32_t now,
         }
     }
     for (int k = 0; k < m->nh; k++) {   // to the rally - a member fighting near it keeps fighting
-        uint8_t *u = m->hold[k].u, *t = fl_target_of(u);
+        ee_unit *u = m->hold[k].u;
+        ee_unit *t = fl_target_of(u);
         int x = FIELD(u, OF(UNIT, 0x1C), int), y = FIELD(u, OF(UNIT, 0x20), int);
         if (ms_d2(x, y, m->rx, m->ry) <= 9 || as_goal_near(u, (float)m->rx + 0.5f, (float)m->ry + 0.5f, 2.5f)) continue;
         if (t && fl_attacking(u) && ms_d2(FIELD(t, OF(UNIT, 0x1C), int), FIELD(t, OF(UNIT, 0x20), int), m->rx, m->ry) <= 15 * 15) continue;
@@ -343,7 +345,7 @@ static void ms_tether(ee_player *pl, struct mass *m, int plan, int bx, int by) {
         m->tc[m->ntc].sg = s->sg; m->tc[m->ntc].cx = s->cx; m->tc[m->ntc].cy = s->cy; m->ntc++;
         if (!(plan & 32) || s->state < 3000 || s->state >= 4000) continue;
         for (uint8_t **r = FIELD(s->sg, OF(ASG, 0x54), uint8_t **); r && r < FIELD(s->sg, OF(ASG, 0x58), uint8_t **); r++) {
-            uint8_t *u = *r ? FIELD(*r, OF(ASGU, 0x44), uint8_t *) : NULL;
+            ee_unit *u = *r ? FIELD(*r, OF(ASGU, 0x44), ee_unit *) : NULL;
             if (!u || !ms_land_soldier(u, FIELD(u, OF(UNIT, 0x2C), uint8_t *)) || fl_attacking(u)) continue;
             int x = FIELD(u, OF(UNIT, 0x1C), int), y = FIELD(u, OF(UNIT, 0x20), int);
             if (ms_d2(x, y, bx, by) <= 25 * 25 || ms_d2(x, y, s->cx, s->cy) < t * t ||
@@ -353,7 +355,7 @@ static void ms_tether(ee_player *pl, struct mass *m, int plan, int bx, int by) {
     }
 }
 // attack.c hook_asgu_score: a target too far from the pack of an out subgroup's member
-static int mass_tether(uint8_t *sg, uint8_t *me, uint8_t *enemy) {
+static int mass_tether(uint8_t *sg, ee_unit *me, ee_unit *enemy) {
     ee_player *pl = FIELD(sg, OF(ASG, 0x190), void *);
     if (!pl || !me || !enemy) return 0;
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
@@ -369,7 +371,7 @@ static int mass_tether(uint8_t *sg, uint8_t *me, uint8_t *enemy) {
     if (ms_d2(ex, ey, m->tc[k].cx, m->tc[k].cy) <= g_mass_tether * g_mass_tether) return 0;
     uint8_t *st = FIELD(me, OF(UNIT, 0x34), uint8_t *), *td = FIELD(me, OF(UNIT, 0x2C), uint8_t *);
     float r = (st ? FIELD(st, OF(USTAT, 0x9C), float) : td ? FIELD(td, OF(TD, 0x420), float) : 1.0f) + 2.0f;
-    int dx = ex - FIELD(me, OF(PL, 0x1C), int), dy = ey - FIELD(me, OF(PL, 0x20), int);
+    int dx = ex - FIELD(me, OF(UNIT, 0x1C), int), dy = ey - FIELD(me, OF(UNIT, 0x20), int);
     if ((float)(dx * dx + dy * dy) <= r * r) return 0;
     m->tethered++;
     return 1;

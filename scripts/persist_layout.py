@@ -110,7 +110,9 @@ def layout(var):
         names.add(m)
         todo += re.findall(r'\b[A-Z][A-Z0-9_]+\b', macro(m))
     parts += ['%s=%s' % (m, macro(m)) for m in sorted(names)]
-    return '\n'.join(parts)
+    # the game's objects typed (game/api.h: ee_unit * ...) are the same pointers the blocks held as uint8_t * before -
+    # the same bytes, the same hash: a save of before the typing still loads them
+    return re.sub(r'\bee_\w+ \*', 'uint8_t *', '\n'.join(parts))
 
 def fnv(s):
     h = 0x811C9DC5

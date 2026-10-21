@@ -232,7 +232,7 @@ static void hist_scan(uint32_t now) {
             g_hist.stance[y][x] = (int8_t)sy;
         }
 }
-static void ws_unit(uint8_t *u, void *ctx) {
+static void ws_unit(ee_unit *u, void *ctx) {
     (void)ctx;
     ee_player *owner = unit_owner(u);
     if (!owner || FIELD(u, OF(UNIT, 0x3C), int) <= 0) return;
@@ -428,12 +428,12 @@ static void kill_log_load(const uint8_t *b, uint32_t size) {   // (after kl_rese
     }
     if (g_log) fprintf(g_log, "# persist: kill log restored, %u pairs, %u entries%s\n", pairs, entries, o < size ? " - cut short" : "");
 }
-__attribute__((used)) uint8_t *g_kill_unit;   // the dead unit: esi at the call site
-static void eco_death(uint8_t *dead, int k, int v);   // ecolog.c: the citizen-loss log (autotest)
-static void fleet_kill(int k, uint8_t *dead, int n);   // fleet.c: which task force had it as its target
-static void fleet_lost(int v, uint8_t *dead);          // fleet.c: an own ship of a task force sunk
-static void mass_death(uint8_t *dead);                 // mass.c: a land soldier killed - who stood by it
-static void cover_death(uint8_t *dead, int k);         // cover.c: a military unit killed - its fight, its hit points
+__attribute__((used)) ee_unit *g_kill_unit;   // the dead unit: esi at the call site
+static void eco_death(ee_unit *dead, int k, int v);   // ecolog.c: the citizen-loss log (autotest)
+static void fleet_kill(int k, ee_unit *dead, int n);   // fleet.c: which task force had it as its target
+static void fleet_lost(int v, ee_unit *dead);          // fleet.c: an own ship of a task force sunk
+static void mass_death(ee_unit *dead);                 // mass.c: a land soldier killed - who stood by it
+static void cover_death(ee_unit *dead, int k);         // cover.c: a military unit killed - its fight, its hit points
 __attribute__((used)) void __fastcall hook_kill_stat(uint8_t *stats, void *edx, int n, int d) {
     (void)edx;
     ee_player *owner = g_kill_unit ? unit_owner(g_kill_unit) : NULL;

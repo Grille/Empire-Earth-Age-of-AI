@@ -30,10 +30,10 @@ static struct assault {
     ee_player *target;                     // target player
     int phase;                           // 0 none, 1 gather, 2 march
     int cont, rx, ry;                    // home continent, rally point
-    uint8_t *obj; int ox, oy;            // objective building
+    ee_unit *obj; int ox, oy;            // objective building
     int wx, wy; uint32_t wset;           // waypoint and when it was set
     uint32_t since, last, logged;
-    int nwave, launch_n, bad, doorstep, threat; uint8_t *wave[AS_WAVE];
+    int nwave, launch_n, bad, doorstep, threat; ee_unit *wave[AS_WAVE];
     uint8_t *taken[64]; int ntaken;      // subgroups led (their updates skipped)
     unsigned launches, spent, done, orders, objectives;
 } g_as[16];
@@ -74,14 +74,14 @@ static int asg_live(ee_player *pl, uint8_t *sg) {
     }
     return 0;
 }
-static int assault_has_unit(ee_player *pl, uint8_t *u) {   // a member of the wave or the army gathering (hold_town leaves them)
+static int assault_has_unit(ee_player *pl, ee_unit *u) {   // a member of the wave or the army gathering (hold_town leaves them)
     unsigned pi = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     if (!g_assault || !g_as[pi].phase) return 0;
     for (int k = 0; k < g_as[pi].ntaken; k++) {
         uint8_t *sg = g_as[pi].taken[k];
         if (!asg_live(pl, sg)) continue;
         for (uint8_t **r = FIELD(sg, OF(ASG, 0x54), uint8_t **); r && r < FIELD(sg, OF(ASG, 0x58), uint8_t **); r++)
-            if (*r && FIELD(*r, OF(ASGU, 0x44), uint8_t *) == u) return 1;
+            if (*r && FIELD(*r, OF(ASGU, 0x44), ee_unit *) == u) return 1;
     }
     return 0;
 }
@@ -93,8 +93,8 @@ static void __fastcall hook_asg_update(uint8_t *sg, void *edx, int now) {
     GF(FN_ASG_UPDATE)(sg, now);
 }
 
-struct as_obj { ee_player *pl; ee_player *target; unsigned pi, cont; int x, y; uint8_t *best; float score; };
-static void as_obj_unit(uint8_t *u, void *ctx) {
+struct as_obj { ee_player *pl; ee_player *target; unsigned pi, cont; int x, y; ee_unit *best; float score; };
+static void as_obj_unit(ee_unit *u, void *ctx) {
     struct as_obj *s = ctx;
     uint8_t *td = FIELD(u, OF(UNIT, 0x2C), uint8_t *);
     int fam = FIELD(td, OF(TD, 0x4B4), int);
@@ -107,7 +107,7 @@ static void as_obj_unit(uint8_t *u, void *ctx) {
     if (!cont_ok(x, y, s->cont)) return;
     s->best = u; s->score = sc;
 }
-static uint8_t *as_objective(ee_player *pl, unsigned pi, ee_player *target, unsigned cont, int x, int y) {
+static ee_unit *as_objective(ee_player *pl, unsigned pi, ee_player *target, unsigned cont, int x, int y) {
     struct as_obj s = { pl, target, pi, cont, x, y, NULL, 0 };
     grid_each(as_obj_unit, &s);
     return s.best;
@@ -115,15 +115,16 @@ static uint8_t *as_objective(ee_player *pl, unsigned pi, ee_player *target, unsi
 
 // the nearest enemy within r tiles of (x, y): soldiers and siege first (r), then defences, then (buildings != 0) any
 // building of the target within 8 tiles
-static uint8_t *as_enemy_near(ee_player *pl, ee_player *target, int x, int y, int r, int buildings, int *soldiers) {
+static ee_unit *as_enemy_near(ee_player *pl, ee_player *target, int x, int y, int r, int buildings, int *soldiers) {
     uint8_t *map = *(uint8_t **)GA(G_MAP);
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     if (!grid) return NULL;
-    uint8_t *best[3] = { 0 };
+    ee_unit *best[3] = { 0 };
     float bd[3] = { 1e9f, 1e9f, 1e9f };
     if (soldiers) *soldiers = 0;
     for (struct grid_it it = grid_it_box(x, y, r, 1); grid_it_next(&it); ) {
-        uint8_t *u = it.u, *td = it.td;
+        ee_unit *u = it.u;
+        uint8_t *td = it.td;
         if (!td || FIELD(u, OF(UNIT, 0x3C), int) <= 0) continue;
         ee_player *o = unit_owner(u);
         if (!o || FIELD(o, PL_INDEX, int) <= 0 || !is_enemy(pl, o)) continue;
@@ -141,7 +142,7 @@ static uint8_t *as_enemy_near(ee_player *pl, ee_player *target, int x, int y, in
     return best[0] ? best[0] : best[1] ? best[1] : best[2];
 }
 
-static int is_aa(uint8_t *u) {   // anti-air units (AA tank, Stinger, Skywatcher): they stay home
+static int is_aa(ee_unit *u) {   // anti-air units (AA tank, Stinger, Skywatcher): they stay home
     int t = FIELD(FIELD(u, OF(UNIT, 0x2C), uint8_t *), OF(TD, 0x4B8), int);
     return t == UT(AA10_TANK) || t == UT(AA10_STINGER_SOLDIER) || t == UT(AA13_TANK_SKYWATCHER);
 }
@@ -155,7 +156,8 @@ static float as_enemy_power(ee_player *pl, int x, int y, int r, float *cx, float
     if (!grid) return 0;
     int rr = r + 12;
     for (struct grid_it it = grid_it_box(x, y, rr, 1); grid_it_next(&it); ) {
-        uint8_t *u = it.u, *td = it.td;
+        ee_unit *u = it.u;
+        uint8_t *td = it.td;
         if (!td || FIELD(u, OF(UNIT, 0x3C), int) <= 0) continue;
         ee_player *o = unit_owner(u);
         if (!o || FIELD(o, PL_INDEX, int) <= 0 || !is_enemy(pl, o) || !seen_by(u, pl)) continue;
@@ -178,26 +180,26 @@ static float as_enemy_power(ee_player *pl, int x, int y, int r, float *cx, float
 
 // Stored unit pointers: a unit's memory is freed when it dies (and reused) - read only while it is still on the map
 // (the objective, a building at its spot) or still a member (the wave, against this tick's members)
-struct as_find { uint8_t *u; int found; };
-static void as_find_fn(uint8_t *u, void *ctx) { struct as_find *f = ctx; if (u == f->u) f->found = 1; }
-static int as_on_map(uint8_t *u, int x, int y) {
+struct as_find { ee_unit *u; int found; };
+static void as_find_fn(ee_unit *u, void *ctx) { struct as_find *f = ctx; if (u == f->u) f->found = 1; }
+static int as_on_map(ee_unit *u, int x, int y) {
     struct as_find f = { u, 0 };
     if (u) grid_box(x, y, 2, as_find_fn, &f);
     return f.found;
 }
-static int as_member(uint8_t **mem, int n, uint8_t *u) {
+static int as_member(ee_unit **mem, int n, ee_unit *u) {
     for (int j = 0; j < n; j++) if (mem[j] == u) return 1;
     return 0;
 }
-static int as_in_wave(struct assault *a, uint8_t *u) {
+static int as_in_wave(struct assault *a, ee_unit *u) {
     for (int k = 0; k < a->nwave; k++) if (a->wave[k] == u) return 1;
     return 0;
 }
-static int as_goal_near(uint8_t *u, float x, float y, float r) {   // walking there already
+static int as_goal_near(ee_unit *u, float x, float y, float r) {   // walking there already
     uint8_t *g = FIELD(u, OF(UNIT, 0x1EC), uint8_t *);
     return g && *(uintptr_t *)g == GA(VT_GOAL_LOCATION) && fabsf(FIELD(g, OF(AG, 0x20), float) - x) < r && fabsf(FIELD(g, OF(AG, 0x24), float) - y) < r;
 }
-static int as_fighting(uint8_t *u) {
+static int as_fighting(ee_unit *u) {
     uint8_t *g = FIELD(u, OF(UNIT, 0x1EC), uint8_t *), *t = g && *(uintptr_t *)g == GA(VT_GOAL_ATTACK) ? FIELD(g, OF(AG, 0x30), uint8_t *) : NULL;
     return t && FIELD(t, OF(UNIT, 0x3C), int) > 0;
 }
@@ -216,7 +218,7 @@ static void as_end(ee_player *pl, unsigned pi, uint32_t now, const char *why, in
 }
 
 struct as_home { ee_player *pl; int nb, bx[512], by[512]; int ne, ex[512], ey[512]; };
-static void as_home_unit(uint8_t *u, void *ctx) {
+static void as_home_unit(ee_unit *u, void *ctx) {
     struct as_home *h = ctx;
     uint8_t *td = FIELD(u, OF(UNIT, 0x2C), uint8_t *);
     ee_player *o = unit_owner(u);
@@ -293,7 +295,7 @@ static void assault_tick(ee_player *pl, uint32_t now) {
         a->threat = 0;
     }
     // members: on land, not aboard; subgroups with members aboard a transport stay with the game
-    static uint8_t *mem[512];
+    static ee_unit *mem[512];
     int n = 0;
     uint8_t *taken[64];
     int ntaken = 0;
@@ -305,7 +307,8 @@ static void assault_tick(ee_player *pl, uint32_t now) {
             if (!sg || *(uintptr_t *)sg != GA(VT_ASG_LAND) || ntaken == 64) continue;
             int aboard = 0, m0 = n;
             for (uint8_t **r = FIELD(sg, OF(ASG, 0x54), uint8_t **); r && r < FIELD(sg, OF(ASG, 0x58), uint8_t **); r++) {
-                uint8_t *u = *r ? FIELD(*r, OF(ASGU, 0x44), uint8_t *) : NULL, *td = u ? FIELD(u, OF(UNIT, 0x2C), uint8_t *) : NULL;
+                ee_unit *u = *r ? FIELD(*r, OF(ASGU, 0x44), ee_unit *) : NULL;
+                uint8_t *td = u ? FIELD(u, OF(UNIT, 0x2C), uint8_t *) : NULL;
                 if (!td || FIELD(u, OF(UNIT, 0x3C), int) <= 0) continue;
                 if (FIELD(u, OF(UNIT, 0x1C), int) < 0) { aboard = 1; continue; }
                 if (!cont_ok(FIELD(u, OF(UNIT, 0x1C), int), FIELD(u, OF(UNIT, 0x20), int), hc)) { aboard = 1; continue; }   // landed elsewhere
@@ -331,7 +334,7 @@ static void assault_tick(ee_player *pl, uint32_t now) {
             for (int k = 0; k < a->nwave; k++) if (as_member(mem, n, a->wave[k])) { sx += FIELD(a->wave[k], OF(UNIT, 0x1C), int); sy += FIELD(a->wave[k], OF(UNIT, 0x20), int); m++; }
             if (m) { fx = (int)(sx / m); fy = (int)(sy / m); }
         }
-        uint8_t *o = as_objective(pl, pi, target, hc, fx, fy);
+        ee_unit *o = as_objective(pl, pi, target, hc, fx, fy);
         if ((a->obj || a->doorstep) && o) a->objectives++;
         a->obj = o;
         if (o) { a->ox = FIELD(o, OF(UNIT, 0x1C), int); a->oy = FIELD(o, OF(UNIT, 0x20), int); }
@@ -357,7 +360,7 @@ static void assault_tick(ee_player *pl, uint32_t now) {
     // the reserve (not in the wave): to the rally point, wait there (fights near home go on)
     int at_rally = 0, reserve = 0;
     for (int k = 0; k < n; k++) {
-        uint8_t *u = mem[k];
+        ee_unit *u = mem[k];
         if (a->phase == 2 && as_in_wave(a, u)) continue;
         reserve++;
         float dx = (float)FIELD(u, OF(UNIT, 0x1C), int) + 0.5f - rx, dy = (float)FIELD(u, OF(UNIT, 0x20), int) + 0.5f - ry;
@@ -401,7 +404,7 @@ static void assault_tick(ee_player *pl, uint32_t now) {
     int alive = 0;
     float cx = 0, cy = 0, pow = 0;
     for (int k = 0; k < a->nwave; k++) {
-        uint8_t *u = a->wave[k];
+        ee_unit *u = a->wave[k];
         int still = 0;
         for (int j = 0; j < n && !still; j++) still = mem[j] == u;   // still a member (not dead, not handed back)
         if (!still) { a->wave[k--] = a->wave[--a->nwave]; continue; }
@@ -412,7 +415,7 @@ static void assault_tick(ee_player *pl, uint32_t now) {
     int icx = (int)cx, icy = (int)cy, soldiers = 0;
     float odx = (float)a->ox - cx, ody = (float)a->oy - cy, od = sqrtf(odx * odx + ody * ody);
     int at_obj = od <= 6.0f && a->obj;
-    uint8_t *foe = as_enemy_near(pl, target, icx, icy, 12, at_obj, &soldiers);
+    ee_unit *foe = as_enemy_near(pl, target, icx, icy, 12, at_obj, &soldiers);
     {   // outmatched where it stands (1.5 x its strength, twice in a row): back home
         float ex, ey; int en;
         float here = foe ? as_enemy_power(pl, icx, icy, 12, &ex, &ey, &en, 1) : 0;
@@ -425,12 +428,12 @@ static void assault_tick(ee_player *pl, uint32_t now) {
                 pi, now / 60000.0, alive, a->launch_n, cx, cy, od, foe ? "fighting" : "marching", reserve, at_rally);
     }
     for (int k = 0; k < a->nwave; k++) {
-        uint8_t *u = a->wave[k];
+        ee_unit *u = a->wave[k];
         float ux = (float)FIELD(u, OF(UNIT, 0x1C), int), uy = (float)FIELD(u, OF(UNIT, 0x20), int);
         float dx = ux - cx, dy = uy - cy;
         if (foe) {   // fight together: the nearest enemy to each one without a fight
             if (as_fighting(u)) continue;
-            uint8_t *e = as_enemy_near(pl, target, (int)ux, (int)uy, 14, at_obj, NULL);
+            ee_unit *e = as_enemy_near(pl, target, (int)ux, (int)uy, 14, at_obj, NULL);
             if (!e) e = foe;
             a->orders += unit_goal(u, goal_attack(u, e), 0, 0x1F40);
             continue;
@@ -460,7 +463,7 @@ static void assault_tick(ee_player *pl, uint32_t now) {
         a->wx = wx; a->wy = wy; a->wset = now;
     }
     for (int k = 0; k < a->nwave; k++) {
-        uint8_t *u = a->wave[k];
+        ee_unit *u = a->wave[k];
         float dx = (float)FIELD(u, OF(UNIT, 0x1C), int) - cx, dy = (float)FIELD(u, OF(UNIT, 0x20), int) - cy;
         if (dx * dx + dy * dy >= 144.0f || as_fighting(u)) continue;
         if (!as_goal_near(u, (float)a->wx + 0.5f, (float)a->wy + 0.5f, 2.0f))

@@ -24,7 +24,7 @@ static int navy_kind(uint8_t *td) {
 // since the last look goes to the owner of the fishing boat gathering it (its goal +0x38 = the site, compared as a
 // pointer only), or to its last gatherer; a fish gone (eaten up) gives its last amount to its last gatherer.
 #define NV_FISH_MAX 1024
-static struct { uint8_t *u; int id, amount, owner; } g_nv_fish[NV_FISH_MAX];
+static struct { ee_unit *u; int id, amount, owner; } g_nv_fish[NV_FISH_MAX];
 static int g_nv_nfish, g_nv_fish_food[16], g_nv_fish_left;
 static uint32_t g_nv_fish_t, g_nv_log_t;
 static int g_fish_last[16];   // the fishing boat last picked per player (hook_fish_type, its log line)
@@ -53,7 +53,7 @@ static int fleet_builds(unsigned idx);   // fleet.c: stage 4 (navy_fleet=2) for 
 // missing, the room held for the fleet and the docks wanted follow it, and fleet.c trains the missing warships itself.
 static int g_nv_target[16], g_navy_fleet_pop = 15, g_navy_share_max = 50;
 // the resource nodes the AI knows (navy_nodes, below)
-struct nv_nodes { int n[7], worked[7], g[7], slots[7], near_slots[7], remote[7], other[7]; int fx[7], fy[7]; uint8_t *free_far[7]; uint32_t t; };
+struct nv_nodes { int n[7], worked[7], g[7], slots[7], near_slots[7], remote[7], other[7]; int fx[7], fy[7]; ee_unit *free_far[7]; uint32_t t; };
 static struct nv_nodes g_nv_nodes[16];
 struct nv_mine { int pull, want[7], given; uint32_t t; };   // navy_mines (below)
 static struct nv_mine g_nv_mine[16];
@@ -80,20 +80,20 @@ static void navy_new_game(void) {
 }
 
 static void navy_fish(void) {
-    static struct { uint8_t *site; int owner; } gath[512];
+    static struct { ee_unit *site; int owner; } gath[512];
     static int seen[NV_FISH_MAX];
     int ng = 0;
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {   // the boats at work: their sites
         ee_player *o = unit_owner(it.u);
         uint8_t *goal = FIELD(it.u, OF(UNIT, 0x1EC), uint8_t *);
         if (!o || !goal || FIELD(it.u, OF(UNIT, 0x3C), int) <= 0 || navy_kind(it.td) != NV_FISH || ng >= 512) continue;
-        gath[ng].site = FIELD(goal, OF(GOAL, 0x38), uint8_t *); gath[ng++].owner = FIELD(o, PL_INDEX, int) & 15;
+        gath[ng].site = FIELD(goal, OF(GOAL, 0x38), ee_unit *); gath[ng++].owner = FIELD(o, PL_INDEX, int) & 15;
     }
     memset(seen, 0, sizeof seen);
     int left = 0;
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
         if (FIELD(it.td, OF(TD, 0x4B8), int) != UT(RES_FISH)) continue;
-        uint8_t *u = it.u;
+        ee_unit *u = it.u;
         int id = FIELD(u, OF(UNIT, 0x60), int), amt = FIELD(u, OF(UNIT, 0x40), int), owner = -1, k;
         left += amt > 0 ? amt : 0;
         for (int g = 0; g < ng; g++) if (gath[g].site == u) { owner = gath[g].owner; break; }
@@ -358,7 +358,7 @@ static void navy_nodes(ee_player *pl, unsigned idx, uint32_t now) {
     memset(c, 0, sizeof *c);
     c->t = now ? now : 1;
     if (!hc) return;
-    static uint8_t *seen[512];
+    static ee_unit *seen[512];
     int ns = 0, bd[7];
     for (int r = 0; r < 7; r++) bd[r] = 0x7FFFFFFF;
     unsigned cap = GF(FN_TABLE_VALUE)((void *)GA(G_TABLE_VALUES), 0x16);
@@ -369,7 +369,7 @@ static void navy_nodes(ee_player *pl, unsigned idx, uint32_t now) {
         uint8_t *town = tb[t];
         void **sb = town ? FIELD(town, OF(ZONE, 0x8), void **) : NULL, **se = town ? FIELD(town, OF(ZONE, 0xC), void **) : NULL;
         for (int k = 0; sb && sb + k < se && k < 4096; k++) {
-            uint8_t *s = sb[k];
+            ee_unit *s = sb[k];
             int r = s ? FIELD(s, OF(UNIT, 0x38), int) : 0, j;
             if (r < 4 || r > 6 || FIELD(s, OF(UNIT, 0x40), int) <= 0) continue;   // stone, gold, iron
             for (j = 0; j < ns && seen[j] != s; j++) ;

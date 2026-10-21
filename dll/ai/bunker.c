@@ -7,14 +7,14 @@
 // after landing.c (the load goal as the transports': EEUGLoadTransport 0x61487F on the holder, its part for each unit).
 
 #define FORTRESS_TYPE UT(B_FORTRESS)
-static int bk_capacity(uint8_t *u) {   // what a building holds as a transport does, 0 = none
+static int bk_capacity(ee_unit *u) {   // what a building holds as a transport does, 0 = none
     uint8_t *td = u ? FIELD(u, OF(UNIT, 0x2C), uint8_t *) : NULL;
     return td && FIELD(td, OF(TD, 0x4B4), int) == 29 ? FIELD(td, OF(TD, 0x54C), int) : 0;
 }
-static int bk_held(uint8_t *u) { return GF(FN_UNITS_INSIDE)(u); }   // units inside
+static int bk_held(ee_unit *u) { return GF(FN_UNITS_INSIDE)(u); }   // units inside
 
-struct bk_scan { ee_player *pl; int x, y, r, nf, nc; uint8_t *f[8], *c[128]; };
-static void bk_unit(uint8_t *u, void *ctx) {
+struct bk_scan { ee_player *pl; int x, y, r, nf, nc; ee_unit *f[8], *c[128]; };
+static void bk_unit(ee_unit *u, void *ctx) {
     struct bk_scan *b = ctx;
     uint8_t *td = FIELD(u, OF(UNIT, 0x2C), uint8_t *);
     int dx = FIELD(u, OF(UNIT, 0x1C), int) - b->x, dy = FIELD(u, OF(UNIT, 0x20), int) - b->y, t = FIELD(td, OF(TD, 0x4B8), int);
@@ -23,14 +23,14 @@ static void bk_unit(uint8_t *u, void *ctx) {
     else if (is_citizen_type(t) && b->nc < 128) b->c[b->nc++] = u;
 }
 // the holder loads these units (each walks in): 1 if ordered
-static int bk_load(uint8_t *f, uint8_t **units, int n) {
+static int bk_load(ee_unit *f, ee_unit **units, int n) {
     if (!n) return 0;
     void *g = goal_load(f, units, n);
     if (!g) return 0;   // refused: deleted by unit_goal, no parts from it
     for (int j = 0; j < n; j++) unit_goal(units[j], goal_load_part(g), 0, 0x1F40);
     return 1;
 }
-static int bk_unload(uint8_t *f, int x, int y) {
+static int bk_unload(ee_unit *f, int x, int y) {
     void *g = goal_unload(f, x, y, 1);
     return g ? unit_goal(f, g, 0, 0x1F40) : 0;
 }
@@ -52,7 +52,7 @@ static void cmd_bunker(char *out, const char *args) {
     REPLY("ok: P%d population %d (with fortresses' %d), %d fortresses, %d citizens within %d of %d,%d:", p, pop1, pop2, b.nf, b.nc, b.r, b.x, b.y);
     int used = 0;
     for (int k = 0; k < b.nf; k++) {
-        uint8_t *f = b.f[k];
+        ee_unit *f = b.f[k];
         int cap = bk_capacity(f), held = bk_held(f), fx = FIELD(f, OF(UNIT, 0x1C), int), fy = FIELD(f, OF(UNIT, 0x20), int);
         uint8_t *bs = FIELD(f, OF(UNIT, 0x30), uint8_t *);
         REPLY(" [%d,%d %s, hp %d, holds %d of %d", fx, fy, bs && FIELD(bs, OF(UNIT, 0x340), uint8_t) ? "finished" : "going up", FIELD(f, OF(UNIT, 0x3C), int), held, cap);
@@ -84,7 +84,7 @@ static void cmd_bunker(char *out, const char *args) {
 static int g_bunkers = 1;   // [all] bunkers
 static int g_bk_res = 0xFFFF;   // [all] bunker_reserve (below)
 static int bk_room(ee_player *pl);
-static struct { int nf, nall; uint8_t *f[8], *all[8]; int nq[8]; uint8_t *q[8][40]; uint32_t build_t, quiet_t[8]; unsigned in, out; int need_wood; uint32_t shelter[8]; int walk[8]; } g_bk[16];   // shelter: when citizens were sent in (the quiet release); walk: units on their way in
+static struct { int nf, nall; ee_unit *f[8], *all[8]; int nq[8]; ee_unit *q[8][40]; uint32_t build_t, quiet_t[8]; unsigned in, out; int need_wood; uint32_t shelter[8]; int walk[8]; } g_bk[16];   // shelter: when citizens were sent in (the quiet release); walk: units on their way in
 static int bk_hurt_recent(unsigned pi, int x, int y, int r, uint32_t ms) {
     uint32_t now = game_time();
     int n = 0;
@@ -94,15 +94,16 @@ static int bk_hurt_recent(unsigned pi, int x, int y, int r, uint32_t ms) {
     }
     return n;
 }
-struct bk_own { ee_player *pl; int nf, nall; uint8_t *f[8], *all[8]; int nw; uint8_t *w[256]; };
-static uint8_t *bk_walking_into(uint8_t *u) {   // the holder unit u walks into (its load goal's part), else NULL
-    uint8_t *g = FIELD(u, OF(UNIT, 0x1EC), uint8_t *), *h = g && *(uintptr_t *)g == GA(VT_GOAL_LOAD) ? FIELD(g, OF(GOAL, 0x50), uint8_t *) : NULL;
+struct bk_own { ee_player *pl; int nf, nall; ee_unit *f[8], *all[8]; int nw; ee_unit *w[256]; };
+static ee_unit *bk_walking_into(ee_unit *u) {   // the holder unit u walks into (its load goal's part), else NULL
+    uint8_t *g = FIELD(u, OF(UNIT, 0x1EC), uint8_t *);
+    ee_unit *h = g && *(uintptr_t *)g == GA(VT_GOAL_LOAD) ? FIELD(g, OF(GOAL, 0x50), ee_unit *) : NULL;
     return h != u ? h : NULL;   // the holder's own goal names itself
 }
-static void bk_own_unit(uint8_t *u, void *ctx) {   // finished ones (f) and foundations too (all); who walks in (w)
+static void bk_own_unit(ee_unit *u, void *ctx) {   // finished ones (f) and foundations too (all); who walks in (w)
     struct bk_own *o = ctx;
     if (unit_owner(u) != o->pl || FIELD(u, OF(UNIT, 0x3C), int) <= 0) return;
-    uint8_t *h = bk_walking_into(u);
+    ee_unit *h = bk_walking_into(u);
     if (h && o->nw < 256) o->w[o->nw++] = h;
     if (bk_capacity(u) <= 0) return;
     uint8_t *bs = FIELD(u, OF(UNIT, 0x30), uint8_t *);
@@ -132,15 +133,15 @@ static void bk_refresh(ee_player *pl, unsigned pi) {   // the player's fortresse
     memset(g_bk[pi].nq, 0, sizeof g_bk[pi].nq);
 }
 // citizen u is under fire: queued for the nearest fortress with room within 15 tiles - 1 if so
-static int bk_shelter(ee_player *pl, uint8_t *u) {
+static int bk_shelter(ee_player *pl, ee_unit *u) {
     unsigned pi = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     if (!g_bunkers || !g_bk[pi].nf) return 0;
     int ux = FIELD(u, OF(UNIT, 0x1C), int), uy = FIELD(u, OF(UNIT, 0x20), int), best = -1, bd = 15 * 15 + 1;
-    uint8_t *h = bk_walking_into(u);   // on its way into one of them already (the 4 s passes queued it again and again:
+    ee_unit *h = bk_walking_into(u);   // on its way into one of them already (the 4 s passes queued it again and again:
     for (int k = 0; h && k < g_bk[pi].nf; k++) if (g_bk[pi].f[k] == h) return 1;   // the fortress re-ordered, over-filled)
     if (bk_hurt_recent(pi, ux, uy, 6, 30000) < 1 && !raiders_near(pl, ux, uy, 8)) return 0;   // not under fire right now
     for (int k = 0; k < g_bk[pi].nf; k++) {
-        uint8_t *f = g_bk[pi].f[k];
+        ee_unit *f = g_bk[pi].f[k];
         int dx = FIELD(f, OF(UNIT, 0x1C), int) - ux, dy = FIELD(f, OF(UNIT, 0x20), int) - uy;
         if (dx * dx + dy * dy < bd && bk_held(f) + g_bk[pi].walk[k] + g_bk[pi].nq[k] < bk_capacity(f) && g_bk[pi].nq[k] < 40) { bd = dx * dx + dy * dy; best = k; }
     }
@@ -150,7 +151,7 @@ static int bk_shelter(ee_player *pl, uint8_t *u) {
 }
 static void bk_flush(ee_player *pl, unsigned pi, uint32_t now) {   // the queued citizens walk in; quiet fortresses let them out
     for (int k = 0; k < g_bk[pi].nf; k++) {
-        uint8_t *f = g_bk[pi].f[k];
+        ee_unit *f = g_bk[pi].f[k];
         int fx = FIELD(f, OF(UNIT, 0x1C), int), fy = FIELD(f, OF(UNIT, 0x20), int);
         if (g_bk[pi].nq[k] && bk_load(f, g_bk[pi].q[k], g_bk[pi].nq[k])) {
             g_bk[pi].in += (unsigned)g_bk[pi].nq[k];
@@ -176,7 +177,7 @@ static void bk_flush(ee_player *pl, unsigned pi, uint32_t now) {   // the queued
     }
 }
 // builders for fortress b: the n nearest gathering citizens that aren't building it already
-static int bk_builders(ee_player *pl, uint8_t *b, int n) {
+static int bk_builders(ee_player *pl, ee_unit *b, int n) {
     void *cm = FIELD(pl, OF(PL, 0xB90), void *);
     ee_resource_mgr *rm = cm ? FIELD(cm, OF(CM, 0x38), ee_resource_mgr *) : NULL;
     int bx = FIELD(b, OF(UNIT, 0x1C), int), by = FIELD(b, OF(UNIT, 0x20), int), have = 0, sent = 0;
@@ -185,16 +186,16 @@ static int bk_builders(ee_player *pl, uint8_t *b, int n) {
         uint8_t *list = FIELD_AT(rm, RM_LISTS + r * 0x14);
         for (unsigned k = 0, first = FIELD(list, 0xC, unsigned), cnt = FIELD(list, 0x10, unsigned); k < cnt; k++) {
             uint8_t *u = deque_at(list, first + k), *g = u ? FIELD(u, OF(UNIT, 0x1EC), uint8_t *) : NULL;
-            if (g && !strcmp(rtti_name(g), "EEUGBuildRepair@@") && FIELD(g, OF(GOAL, 0x3C), uint8_t *) == b) have++;
+            if (g && !strcmp(rtti_name(g), "EEUGBuildRepair@@") && FIELD(g, OF(GOAL, 0x3C), ee_unit *) == b) have++;
         }
     }
     while (have + sent < n) {
-        uint8_t *best = NULL;
+        ee_unit *best = NULL;
         int bd = 0x7FFFFFFF;
         for (int r = 2; r < 7; r++) {
             uint8_t *list = FIELD_AT(rm, RM_LISTS + r * 0x14);
             for (unsigned k = 0, first = FIELD(list, 0xC, unsigned), cnt = FIELD(list, 0x10, unsigned); k < cnt; k++) {
-                uint8_t *u = deque_at(list, first + k);
+                ee_unit *u = deque_at(list, first + k);
                 if (!citizen_free(u, 0)) continue;
                 int dx = FIELD(u, OF(UNIT, 0x1C), int) - bx, dy = FIELD(u, OF(UNIT, 0x20), int) - by;
                 if (dx * dx + dy * dy < bd) { bd = dx * dx + dy * dy; best = u; }
@@ -257,7 +258,7 @@ static void bk_build(ee_player *pl, unsigned pi, uint32_t now) {
                 int x = d[0] + ax, y = d[1] + ay;
                 if ((abs(ax) != r && abs(ay) != r) || !can_place(pl, FORTRESS_TYPE, x, y) || !can_place(pl, FORTRESS_TYPE, x + 1, y + 1) ||
                     !can_place(pl, FORTRESS_TYPE, x - 1, y - 1) || raiders_near(pl, x, y, 8)) continue;
-                uint8_t *b = GF(FN_PLACE_BUILDING)(pl, FORTRESS_TYPE, x, y);
+                ee_unit *b = GF(FN_PLACE_BUILDING)(pl, FORTRESS_TYPE, x, y);
                 int sent = b ? bk_builders(pl, b, 3) : 0;
                 if (g_log) fprintf(g_log, "# bunker: P%u at %.1f min: fortress foundation at %d,%d %s, %d builders (%s, %d citizens, %d fortresses)\n", pi,
                                    now / 60000.0, x, y, b ? "laid" : "refused", sent, air ? "aircraft possible" : "citizens hurt", cit, g_bk[pi].nall);
@@ -289,8 +290,8 @@ static int bk_room(ee_player *pl) {   // cap - population on the map (the fortre
     int cap = unit_limit(pl);
     return cap - GF(FN_POPULATION)(pl, 0, 0);
 }
-struct bk_free { ee_player *pl; uint8_t *cm; int bx, by, n; uint8_t *u[64]; };
-static void bk_free_unit(uint8_t *u, void *ctx) {
+struct bk_free { ee_player *pl; uint8_t *cm; int bx, by, n; ee_unit *u[64]; };
+static void bk_free_unit(ee_unit *u, void *ctx) {
     struct bk_free *f = ctx;
     uint8_t *td = FIELD(u, OF(UNIT, 0x2C), uint8_t *);
     if (unit_owner(u) != f->pl || FIELD(u, OF(UNIT, 0x3C), int) <= 0 || !td || f->n >= 64) return;
@@ -305,7 +306,7 @@ static void bk_reserve_tick(ee_player *pl, unsigned pi, uint32_t now) {
     last[pi] = now ? now : 1;
     int room = bk_room(pl), threat = -1;
     for (int k = 0; k < g_bk[pi].nf && threat < 0; k++) {
-        uint8_t *fo = g_bk[pi].f[k];
+        ee_unit *fo = g_bk[pi].f[k];
         if (!g_bk[pi].shelter[k] && bk_held(fo) > 0 && raiders_near(pl, FIELD(fo, OF(UNIT, 0x1C), int), FIELD(fo, OF(UNIT, 0x20), int), 20)) threat = k;
     }
     if (room <= 1 && threat < 0) {
@@ -331,12 +332,12 @@ static void bk_reserve_tick(ee_player *pl, unsigned pi, uint32_t now) {
     } else if (threat >= 0 || (room >= 4 && (!g_bk_res_load_t[pi] || now - g_bk_res_load_t[pi] >= 60000))) {
         int best = threat, held = threat >= 0 ? bk_held(g_bk[pi].f[threat]) : 0;
         for (int k = 0; k < g_bk[pi].nf && threat < 0; k++) {
-            uint8_t *fo = g_bk[pi].f[k];
+            ee_unit *fo = g_bk[pi].f[k];
             int h = bk_held(fo);
             if (h > held && !g_bk[pi].shelter[k]) { held = h; best = k; }
         }
         if (best < 0) return;
-        uint8_t *fo = g_bk[pi].f[best];
+        ee_unit *fo = g_bk[pi].f[best];
         if (!bk_unload(fo, FIELD(fo, OF(UNIT, 0x1C), int), FIELD(fo, OF(UNIT, 0x20), int) + 3)) return;
         g_bk_res_out[pi] += (unsigned)held;
         if (g_log) fprintf(g_log, "# reserve: P%u at %.1f min: room %d%s - the fortress at %d,%d lets %d out (%u in, %u out so far)\n", pi, now / 60000.0,

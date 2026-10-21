@@ -214,7 +214,7 @@ static void cmd_sites(char *out, const char *args) {
         REPLY(" town %d active=%d\n", t, town[OF(ZONE, 0x18)]);
         void **sb = FIELD(town, OF(ZONE, 0x8), void **), **se = FIELD(town, OF(ZONE, 0xC), void **);
         for (int s = 0; sb && sb + s < se; s++) {
-            uint8_t *site = sb[s];
+            ee_unit *site = sb[s];
             if (!site) continue;
             unsigned n = GF(FN_SITE_GATHERERS)((void *)GA(G_GAME_STATE), site);
             REPLY("  site %p type=%d amount=%d pos=%d,%d gatherers=%u\n", (void *)site, FIELD(site, OF(UNIT, 0x38), int),
@@ -240,13 +240,13 @@ static void cmd_foodcheck(char *out, const char *args) {
           base_region, r, r * r * 4, r * r * 36, cap);
     void **tb = FIELD(pl, OF(PL, 0xB50), void **), **te = FIELD(pl, OF(PL, 0xB54), void **);
     for (int t = 0; tb && tb + t < te; t++) {
-        uint8_t *zone = tb[t];
-        uint8_t *s = zone ? GF(FN_ZONE_SITE)(zone, 2) : NULL;
+        ee_zone *zone = tb[t];
+        ee_unit *s = zone ? zone_site(zone, 2) : NULL;
         if (!s) continue;
         int pos[2] = { FIELD(s, OF(UNIT, 0x1C), int), FIELD(s, OF(UNIT, 0x20), int) };
         int dx = pos[0] - base[0], dy = pos[1] - base[1];
         REPLY(" zone %2d active=%d site %d,%d class=%#x region=%d explored=%d gatherers=%u amount=%d state=%d"
-              " zone+14=%d enemy=%d d2=%d\n", t, zone[OF(ZONE, 0x18)], pos[0], pos[1], FIELD(FIELD(s, OF(UNIT, 0x2C), uint8_t *), OF(TD, 0x4B8), int),
+              " zone+14=%d enemy=%d d2=%d\n", t, FIELD(zone, OF(ZONE, 0x18), uint8_t), pos[0], pos[1], FIELD(FIELD(s, OF(UNIT, 0x2C), uint8_t *), OF(TD, 0x4B8), int),
               region((void *)GA(G_MAP_AREAS), pos, 2),
               GF(FN_EXPLORED)(FIELD(s, OF(UNIT, 0x14), void *), pl),
               GF(FN_SITE_GATHERERS)((void *)GA(G_GAME_STATE), s),

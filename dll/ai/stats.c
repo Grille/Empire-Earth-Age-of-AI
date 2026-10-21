@@ -47,8 +47,8 @@ static int st_shot_t(uint8_t *atd, uint8_t *ast, int api, uint8_t *ttd, uint8_t 
     int r = (int)(d + 0.5f);
     return r < 1 ? 1 : r;
 }
-static int st_pidx(uint8_t *u) { ee_player *o = unit_owner(u); return o ? FIELD(o, PL_INDEX, int) : 0; }
-static int st_shot(uint8_t *a, uint8_t *t) {
+static int st_pidx(ee_unit *u) { ee_player *o = unit_owner(u); return o ? FIELD(o, PL_INDEX, int) : 0; }
+static int st_shot(ee_unit *a, ee_unit *t) {
     return st_shot_t(FIELD(a, OF(UNIT, 0x2C), uint8_t *), FIELD(a, OF(UNIT, 0x34), uint8_t *), st_pidx(a), FIELD(t, OF(UNIT, 0x2C), uint8_t *),
                      FIELD(t, OF(UNIT, 0x34), uint8_t *), st_pidx(t));
 }
@@ -57,7 +57,7 @@ static float st_reload_t(uint8_t *atd, uint8_t *ast) {   // seconds between shot
     if (ms <= 0 && atd) ms = FIELD(atd, OF(TD, 0x50C), int);
     return ms > 0 ? ms / 1000.0f : 1.0f;
 }
-static float st_reload(uint8_t *a) {   // the unit's own (scenario triggers change it), else its class's
+static float st_reload(ee_unit *a) {   // the unit's own (scenario triggers change it), else its class's
     int own = FIELD(a, OF(UNIT, 0x2A0), int);
     return own > 0 ? own / 1000.0f : st_reload_t(FIELD(a, OF(UNIT, 0x2C), uint8_t *), FIELD(a, OF(UNIT, 0x34), uint8_t *));
 }
@@ -65,16 +65,16 @@ static float st_reload(uint8_t *a) {   // the unit's own (scenario triggers chan
 // 2026-10-17 (scripts/zz_duel.sh): machine gunners (reload 1 s) fired every 3.3-5.1 s, Mk V tanks (4 s) every
 // 4.6-7.1 s; about 2 s on every shot
 #define ST_SHOT_OVERHEAD 2.0f
-static float st_dps(uint8_t *a, uint8_t *t) { return st_shot(a, t) / (st_reload(a) + ST_SHOT_OVERHEAD); }
-static float st_range(uint8_t *u) { uint8_t *st = FIELD(u, OF(UNIT, 0x34), uint8_t *); return st ? FIELD(st, OF(USTAT, 0x9C), float) : FIELD(FIELD(u, OF(UNIT, 0x2C), uint8_t *), OF(TD, 0x420), float); }
-static float st_speed(uint8_t *u) { uint8_t *st = FIELD(u, OF(UNIT, 0x34), uint8_t *); return st ? FIELD(st, OF(USTAT, 0xAC), float) : 0.0f; }   // tiles/s, 0 = cannot move
+static float st_dps(ee_unit *a, ee_unit *t) { return st_shot(a, t) / (st_reload(a) + ST_SHOT_OVERHEAD); }
+static float st_range(ee_unit *u) { uint8_t *st = FIELD(u, OF(UNIT, 0x34), uint8_t *); return st ? FIELD(st, OF(USTAT, 0x9C), float) : FIELD(FIELD(u, OF(UNIT, 0x2C), uint8_t *), OF(TD, 0x420), float); }
+static float st_speed(ee_unit *u) { uint8_t *st = FIELD(u, OF(UNIT, 0x34), uint8_t *); return st ? FIELD(st, OF(USTAT, 0xAC), float) : 0.0f; }   // tiles/s, 0 = cannot move
 // RANGE (the user: "it can even overpower all the other stats since a unit can be eliminated from range before ever
 // getting a chance to fire back"): a unit that cannot move never hits one that outranges it; a unit that is
 // outranged walks the difference under fire first (st_close)
-static int st_reaches(uint8_t *a, uint8_t *t) { return st_speed(a) > 0 || st_range(a) + 0.5f >= st_range(t); }
-static float st_minrange(uint8_t *u) { return FIELD(FIELD(u, OF(UNIT, 0x2C), uint8_t *), OF(TD, 0x41C), float); }
+static int st_reaches(ee_unit *a, ee_unit *t) { return st_speed(a) > 0 || st_range(a) + 0.5f >= st_range(t); }
+static float st_minrange(ee_unit *u) { return FIELD(FIELD(u, OF(UNIT, 0x2C), uint8_t *), OF(TD, 0x41C), float); }
 // once a mobile target has closed to its own range, an attacker whose minimum range is longer cannot hit it (artillery)
-static int st_inside_min(uint8_t *a, uint8_t *t) { return st_speed(t) > 0 && st_minrange(a) > 0 && st_minrange(a) >= st_range(t); }
+static int st_inside_min(ee_unit *a, ee_unit *t) { return st_speed(t) > 0 && st_minrange(a) > 0 && st_minrange(a) >= st_range(t); }
 static int st_maxhp(uint8_t *td, uint8_t *st) { return st && FIELD(st, OF(USTAT, 0x144), int) > 0 ? FIELD(st, OF(USTAT, 0x144), int) : FIELD(td, OF(TD, 0x55C), int); }
 
 // --- a fight between two sides ------------------------------------------------------------------------------------
@@ -89,7 +89,7 @@ static int st_maxhp(uint8_t *td, uint8_t *st) { return st && FIELD(st, OF(USTAT,
 // (3 artillery against 8 machine gunners: about the target and two more; 200 v 200 with all neighbours counted, 20
 // artillery made 60% of an army's estimate and the army lost)
 #define ST_AREA_MAX 2.0f
-struct st_group { uint8_t *rep; int type, owner, count; float hp, nbr[ST_RADII], part; };   // part: its share of the last st_side_dps
+struct st_group { ee_unit *rep; int type, owner, count; float hp, nbr[ST_RADII], part; };   // part: its share of the last st_side_dps
 struct st_side {
     int ng, n;
     float hp;
@@ -101,7 +101,7 @@ struct st_side {
     int nr; float radius[ST_RADII];     // radii whose neighbour counts are known
 };
 static void st_side_clear(struct st_side *s) { free(s->cnt); memset(s, 0, sizeof *s); }
-static int st_side_add(struct st_side *s, uint8_t *u) {   // 0 when full
+static int st_side_add(struct st_side *s, ee_unit *u) {   // 0 when full
     uint8_t *td = FIELD(u, OF(UNIT, 0x2C), uint8_t *);
     int type = FIELD(td, OF(TD, 0x4B8), int), owner = st_pidx(u), k = 0;
     while (k < s->ng && (s->g[k].type != type || s->g[k].owner != owner)) k++;
@@ -156,10 +156,11 @@ static float st_neighbours(struct st_side *s, int k, float r) {
 static float st_side_dps(struct st_side *a, struct st_side *b, int contact) {
     float s = 0;
     for (int i = 0; i < a->ng; i++) {
-        uint8_t *u = a->g[i].rep, *ast = FIELD(u, OF(UNIT, 0x34), uint8_t *);
+        ee_unit *u = a->g[i].rep;
+        uint8_t *ast = FIELD(u, OF(UNIT, 0x34), uint8_t *);
         float area = ast ? FIELD(ast, OF(USTAT, 0xA0), float) : 0, num = 0, den = 0;
         for (int j = 0; j < b->ng; j++) {
-            uint8_t *t = b->g[j].rep;
+            ee_unit *t = b->g[j].rep;
             float d = st_reaches(u, t) && !(contact && st_inside_min(u, t)) ? st_dps(u, t) : 0;
             if (d <= 0) continue;
             if (area > 0) { float nb = st_neighbours(b, j, area); d *= 1.0f + (nb < ST_AREA_MAX ? nb : ST_AREA_MAX); }
@@ -176,7 +177,7 @@ static float st_close(struct st_side *a, struct st_side *b) {
     float rb = 0, t = 0, w = 0;
     for (int j = 0; j < b->ng; j++) if (st_range(b->g[j].rep) > rb) rb = st_range(b->g[j].rep);
     for (int i = 0; i < a->ng; i++) {
-        uint8_t *u = a->g[i].rep;
+        ee_unit *u = a->g[i].rep;
         float d = 0, v = st_speed(u), gap = rb - st_range(u);
         for (int j = 0; j < b->ng && d <= 0; j++) d = st_dps(u, b->g[j].rep);
         if (d <= 0 || v <= 0) continue;
@@ -218,12 +219,12 @@ static float st_ratio(struct st_side *own, struct st_side *foe) {
 // --- test command -------------------------------------------------------------------------------------------------
 
 struct st_scan { int x, y, r2, ta, tb; struct st_side *side[16]; };
-static int st_counts(uint8_t *u, uint8_t *td) {   // soldiers, citizens and buildings that shoot
+static int st_counts(ee_unit *u, uint8_t *td) {   // soldiers, citizens and buildings that shoot
     if (is_citizen_type(FIELD(td, OF(TD, 0x4B8), int))) return 1;
     if (is_soldier(td)) return 1;
     return (FIELD(td, OF(TD, 0x4B4), int) == 2 || FIELD(td, OF(TD, 0x4B4), int) == 29) && FIELD(td, OF(TD, 0x510), int) > 0 && u;
 }
-static void st_scan_unit(uint8_t *u, void *ctx) {
+static void st_scan_unit(ee_unit *u, void *ctx) {
     struct st_scan *f = ctx;
     uint8_t *td = FIELD(u, OF(UNIT, 0x2C), uint8_t *);
     int p = st_pidx(u), dx = FIELD(u, OF(UNIT, 0x1C), int) - f->x, dy = FIELD(u, OF(UNIT, 0x20), int) - f->y;
@@ -341,11 +342,12 @@ static void cmd_stats(char *out, const char *args) {
         int na = sscanf(args + 6, "%d %d %d %d %d %d %d", &p, &x, &y, &r, &tt, &tx, &ty);
         if ((na != 4 && na != 7) || !st_player(p)) { REPLY("error: stats engage P x y r [T tx ty]\n"); return; }
         if (na == 4) tt = -1;
-        static uint8_t *mu[ST_UNITS], *fu[ST_UNITS];
+        static ee_unit *mu[ST_UNITS], *fu[ST_UNITS];
         uint8_t *map = *(uint8_t **)GA(G_MAP), *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
         if (!grid) { REPLY("error: no map\n"); return; }
         for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
-            uint8_t *u = it.u, *td = it.td;
+            ee_unit *u = it.u;
+            uint8_t *td = it.td;
             int q = st_pidx(u);
             if (FIELD(u, OF(UNIT, 0x3C), int) <= 0 || q <= 0 || q > 15) continue;
             if (tt >= 0) {
@@ -360,7 +362,7 @@ static void cmd_stats(char *out, const char *args) {
             else if (q != p && d2 <= 40 * 40 && is_enemy(st_player(p), st_player(q)) && nf < ST_UNITS) fu[nf++] = u;
         }
         for (int i = 0; i < nm; i++) {
-            uint8_t *u = mu[i], *best = NULL;
+            ee_unit *u = mu[i], *best = NULL;
             float bd = tt >= 0 ? 1e9f : 30.0f * 30.0f;
             for (int k = 0; k < nf; k++) {
                 float dx = (float)(FIELD(fu[k], OF(UNIT, 0x1C), int) - FIELD(u, OF(UNIT, 0x1C), int)), dy = (float)(FIELD(fu[k], OF(UNIT, 0x20), int) - FIELD(u, OF(UNIT, 0x20), int));
@@ -397,20 +399,21 @@ static void cmd_stats(char *out, const char *args) {
     if (!strncmp(args, "danger", 6)) {   // danger P: P's citizens within an enemy's reach + 3, by threat type
         int p;
         if (sscanf(args + 6, "%d", &p) != 1 || p < 1 || p > 15 || !st_player(p)) { REPLY("error: usage: stats danger P\n"); return; }
-        static uint8_t *cit[4096], *foe[4096];
+        static ee_unit *cit[4096], *foe[4096];
         int nc = 0, nf = 0, hit = 0, seen = 0, flagged = 0, ntype = 0, tt[32] = { 0 }, tn[32] = { 0 }, tf[32] = { 0 };
         float tr[32] = { 0 };
         uint8_t *map = *(uint8_t **)GA(G_MAP), *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
         if (!grid) { REPLY("error: no map\n"); return; }
         for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
-            uint8_t *u = it.u, *td = it.td;
+            ee_unit *u = it.u;
+            uint8_t *td = it.td;
             int q = st_pidx(u);
             if (FIELD(u, OF(UNIT, 0x3C), int) <= 0 || q <= 0 || q > 15) continue;
             if (q == p && is_citizen_type(FIELD(td, OF(TD, 0x4B8), int))) { if (nc < 4096) cit[nc++] = u; }
             else if (q != p && is_enemy(st_player(p), st_player(q)) && FIELD(td, OF(TD, 0x510), int) > 0 && nf < 4096) foe[nf++] = u;
         }
         for (int i = 0; i < nc; i++) {
-            uint8_t *c = cit[i], *best = NULL;
+            ee_unit *c = cit[i], *best = NULL;
             float bd = 1e9f;
             for (int k = 0; k < nf; k++) {
                 float dx = (float)(FIELD(foe[k], OF(UNIT, 0x1C), int) - FIELD(c, OF(UNIT, 0x1C), int)), dy = (float)(FIELD(foe[k], OF(UNIT, 0x20), int) - FIELD(c, OF(UNIT, 0x20), int));

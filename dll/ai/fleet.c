@@ -51,7 +51,7 @@ static int g_fl_boats = 1, g_fl_coast = 1, g_fl_raid = 130;   // navy_fleet_raid
 enum { FT_GUARD, FT_DEFEND, FT_GATHER, FT_HUNT, FT_RETREAT, FT_ESCORT, FT_SUPPORT, FT_RAID, FT_PATROL, FT_SCOUT, FT_MASS, FT_N };
 static const char *const k_ft[FT_N] = { "guard", "defend", "gather", "hunt", "retreat", "escort", "support", "raid", "patrol", "scout", "mass" };
 static struct fleet {
-    uint8_t *u[FL_MAX]; int n;
+    ee_unit *u[FL_MAX]; int n;
     uint32_t last, log_t, task_t, retreat_t;
     int task, last_task; const char *why;
     int gx, gy, dx, dy, ocean;           // the guard point, where the fleet goes now, its sea
@@ -61,11 +61,11 @@ static struct fleet {
     float hp0, ratio, near_ratio; int eknown, enear, ndz;
     uint8_t *htgt; int hx, hy;           // the hunt's target (or point)
     struct { int x, y; uint32_t until; } cleared[8]; int ci;
-    int docked_hp[FL_MAX]; uint8_t *docked[FL_MAX]; int ndocked; unsigned repaired;   // ships sent to the dock: their hp then
+    int docked_hp[FL_MAX]; ee_unit *docked[FL_MAX]; int ndocked; unsigned repaired;   // ships sent to the dock: their hp then
     unsigned orders, flees, pulls, hunts, retreats, defends, escorts, refused, maint_skipped, sg_skipped;
     // stage 4 (task forces): kills by its ships' targets (fleet_kill: warships, fishing boats, transports, citizens,
     // buildings, others), the targets now (pointer + unit id), the patrol's or the scouting's waypoint, the mod's orders
-    unsigned kills[6], lost, lost_task[FT_N]; uint8_t *tgt[FL_MAX]; int tgt_id[FL_MAX], ntgt;   // lost: its ships sunk (lost_task: by its task then)
+    unsigned kills[6], lost, lost_task[FT_N]; ee_unit *tgt[FL_MAX]; int tgt_id[FL_MAX], ntgt;   // lost: its ships sunk (lost_task: by its task then)
     int wp; uint32_t wp_t, build_t; unsigned built, build_refused;
     uint32_t bring_t[8]; int bring_i;   // the mod's warship orders of the last 90 s (not afloat yet)
 } g_fl[16];
@@ -80,7 +80,7 @@ static int fleet_builds(unsigned idx) { return fleet_on(idx) && PV(idx & 15, g_v
 static int fleet_sheltering(unsigned idx) { return g_fl[idx & 15].shelter; }
 static int g_fl_mass = 1;   // navy_fleet_mass: stage 4 masses at the rally while weaker (fl_rally, below)
 static int g_fl_s4;   // set while a stage-4 fleet is led (fl_orders' preferences, fl_safe_toward's margin)
-static int fleet_has(ee_player *pl, uint8_t *u) {
+static int fleet_has(ee_player *pl, ee_unit *u) {
     if (!pl || !u) return 0;
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     if (!fleet_on(idx)) return 0;
@@ -93,11 +93,11 @@ static int fleet_leads(uint8_t *sg) {
     ee_player *pl = FIELD(sg, OF(ASG, 0x190), void *);
     if (!pl || !g_fl[(unsigned)FIELD(pl, PL_INDEX, int) & 15].n) return 0;
     for (uint8_t **r = FIELD(sg, OF(ASG, 0x54), uint8_t **); r && r < FIELD(sg, OF(ASG, 0x58), uint8_t **); r++)
-        if (*r && fleet_has(pl, FIELD(*r, OF(ASGU, 0x44), uint8_t *))) { g_fl[(unsigned)FIELD(pl, PL_INDEX, int) & 15].sg_skipped++; return 1; }
+        if (*r && fleet_has(pl, FIELD(*r, OF(ASGU, 0x44), ee_unit *))) { g_fl[(unsigned)FIELD(pl, PL_INDEX, int) & 15].sg_skipped++; return 1; }
     return 0;
 }
 // a subgroup's order (vf57) to one of the fleet's ships (landing.c hook_asg_give_goal refuses it)
-static int fleet_refuses(uint8_t *sg, uint8_t *u) {
+static int fleet_refuses(uint8_t *sg, ee_unit *u) {
     ee_player *pl = FIELD(sg, OF(ASG, 0x190), void *);
     if (!fleet_has(pl, u)) return 0;
     g_fl_refused++; g_fl[(unsigned)FIELD(pl, PL_INDEX, int) & 15].refused++;
@@ -112,33 +112,33 @@ static int __fastcall hook_nv_maint_delete(ee_player *pl, void *edx, void *req, 
 }
 
 // THE SCAN (every 2 s per AI with the fleet): own warships, fishing boats, docks and buildings; enemy ships; danger
-struct fl_ship { uint8_t *u, *td; int x, y, hp, pi, seen; float dps; };
+struct fl_ship { ee_unit *u; uint8_t *td; int x, y, hp, pi, seen; float dps; };
 static struct fl_scan {
     ee_player *pl; unsigned idx;
     struct fl_ship es[FL_ES]; int ne;                 // enemy warships and submarines (seen now, then remembered)
     struct fl_ship ev[64]; int nev;                   // enemy fishing boats and transports (prey)
     struct fl_ship ec[96]; int nec;                   // enemy units and buildings on the coast of the fleet's sea (seen now)
     struct { int x, y; float r; } dz[FL_DZ];          // danger zones (radius incl. the margin)
-    uint8_t *boat[96]; int nb;                        // own fishing boats
+    ee_unit *boat[96]; int nb;                        // own fishing boats
     int bx[256], by[256], nbl;                        // own buildings
     int dkx[16], dky[16], nd;                         // own docks
     int ebx, eby, eb; int edx[16], edy[16], ned;      // the nearest known enemy building (to the guard base), enemy docks
     int twx[32], twy[32], ntw; float twr[32];         // own towers and defence buildings (their range)
 } g_fs;
-static float fl_dps(uint8_t *u, uint8_t *td) {
+static float fl_dps(ee_unit *u, uint8_t *td) {
     uint8_t *st = u ? FIELD(u, OF(UNIT, 0x34), uint8_t *) : NULL;
     float a = st ? FIELD(st, OF(USTAT, 0xD8), float) : (float)FIELD(td, OF(TD, 0x510), int);
     int rl = FIELD(td, OF(TD, 0x50C), int);
     return a > 0 ? a * 1000.0f / (float)((rl > 0 ? rl : 2000) + 2000) : 0.0f;
 }
-static float fl_range(uint8_t *u, uint8_t *td) {
+static float fl_range(ee_unit *u, uint8_t *td) {
     uint8_t *st = u ? FIELD(u, OF(UNIT, 0x34), uint8_t *) : NULL;
     float r = st ? FIELD(st, OF(USTAT, 0x9C), float) : FIELD(td, OF(TD, 0x420), float) + 1.0f;   // remembered: the base range + an upgrade
     return r > 0 && r < 40 ? r : 0;
 }
 // does a land unit or building of type td threaten ships: a defence with a ground attack (attack.c defence_stats), or
 // a unit whose weapon hits battleships x3+ (catapults, cannons, artillery ...) or reaches 7+ tiles, and hits ships
-static float fl_danger_r(uint8_t *u, uint8_t *td) {
+static float fl_danger_r(ee_unit *u, uint8_t *td) {
     int fam = FIELD(td, OF(TD, 0x4B4), int), t = FIELD(td, OF(TD, 0x4B8), int), kind = FIELD(td, OF(TD, 0x4C8), int);
     if (fam == 4 || fam == 10 || fam == 18 || fam == 21 || fam == 22 || fam == 3 || fam == 7 || fam == 17) return 0;   // afloat, aircraft
     if (FIELD(td, OF(TD, 0x510), int) <= 0 || (nv_f(kind, NV_C_FRIG) <= 0 && nv_f(kind, NV_C_LINE) <= 0)) return 0;
@@ -222,7 +222,8 @@ static void fl_scan(ee_player *pl, unsigned idx) {
     uint8_t *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL;
     int hx = bm ? FIELD(bm, OF(BM, 0x12C), int) : 0, hy = bm ? FIELD(bm, OF(BM, 0x130), int) : 0, bd = 0x7FFFFFFF;
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
-        uint8_t *u = it.u, *td = it.td;
+        ee_unit *u = it.u;
+        uint8_t *td = it.td;
         ee_player *o = unit_owner(u);
         int x = FIELD(u, OF(UNIT, 0x1C), int), y = FIELD(u, OF(UNIT, 0x20), int), fam = FIELD(td, OF(TD, 0x4B4), int);
         if (!o || FIELD(u, OF(UNIT, 0x3C), int) <= 0 || x < 0) continue;
@@ -289,14 +290,15 @@ static float fl_ratio(struct fleet *f, int x, int y, int r, const unsigned char 
     for (int j = 0; j < g_fs.ne; j++) if (!sel || sel[j]) he += (float)g_fs.es[j].hp;
     int any = 0;
     for (int i = 0; i < f->n; i++) {
-        uint8_t *u = f->u[i];
+        ee_unit *u = f->u[i];
         if (r > 0) { int dx = FIELD(u, OF(UNIT, 0x1C), int) - x, dy = FIELD(u, OF(UNIT, 0x20), int) - y; if (dx * dx + dy * dy > r * r) continue; }
         ho += (float)FIELD(u, OF(UNIT, 0x3C), int); any = 1;
     }
     if (he <= 0) return 99.0f;
     if (!any || ho <= 0) return 0.0f;
     for (int i = 0; i < f->n; i++) {
-        uint8_t *u = f->u[i], *td = FIELD(u, OF(UNIT, 0x2C), uint8_t *);
+        ee_unit *u = f->u[i];
+        uint8_t *td = FIELD(u, OF(UNIT, 0x2C), uint8_t *);
         if (r > 0) { int dx = FIELD(u, OF(UNIT, 0x1C), int) - x, dy = FIELD(u, OF(UNIT, 0x20), int) - y; if (dx * dx + dy * dy > r * r) continue; }
         float fh = 0, hpu = (float)FIELD(u, OF(UNIT, 0x3C), int), dp = fl_dps(u, td);
         for (int j = 0; j < g_fs.ne; j++) {
@@ -322,7 +324,7 @@ static float fl_hp(struct fleet *f) {
     for (int i = 0; i < f->n; i++) h += (float)FIELD(f->u[i], OF(UNIT, 0x3C), int);
     return h;
 }
-static float fl_hp_max(uint8_t *u) {
+static float fl_hp_max(ee_unit *u) {
     uint8_t *st = FIELD(u, OF(UNIT, 0x34), uint8_t *);
     int m = st ? FIELD(st, OF(USTAT, 0x144), int) : 0;
     return (float)(m > 0 ? m : FIELD(FIELD(u, OF(UNIT, 0x2C), uint8_t *), OF(TD, 0x55C), int));
@@ -332,7 +334,7 @@ static float fl_hp_max(uint8_t *u) {
 static void fl_guard_point(struct fleet *f) {
     float bx = 0, by = 0; int n = 0;
     for (int k = 0; k < g_fs.nb; k++) {
-        uint8_t *b = g_fs.boat[k];
+        ee_unit *b = g_fs.boat[k];
         if (area_id(FIELD(b, OF(UNIT, 0x1C), int), FIELD(b, OF(UNIT, 0x20), int), 1) == (unsigned)f->ocean) { bx += FIELD(b, OF(UNIT, 0x1C), int); by += FIELD(b, OF(UNIT, 0x20), int); n++; }
     }
     if (n < 2) {
@@ -347,17 +349,18 @@ static void fl_guard_point(struct fleet *f) {
     }
     if (fl_safe_toward(px, py, tx, ty, (unsigned)f->ocean, &wx, &wy)) { f->gx = wx; f->gy = wy; }
 }
-static int fl_ship_ocean(uint8_t *u) { return (int)area_id(FIELD(u, OF(UNIT, 0x1C), int), FIELD(u, OF(UNIT, 0x20), int), 1); }
-static int fl_attacking(uint8_t *u) {   // its current attack target (alive), else NULL
-    uint8_t *g = FIELD(u, OF(UNIT, 0x1EC), uint8_t *), *t = g && *(uintptr_t *)g == GA(VT_GOAL_ATTACK) ? FIELD(g, OF(GOAL, 0x30), uint8_t *) : NULL;
+static int fl_ship_ocean(ee_unit *u) { return (int)area_id(FIELD(u, OF(UNIT, 0x1C), int), FIELD(u, OF(UNIT, 0x20), int), 1); }
+static int fl_attacking(ee_unit *u) {   // its current attack target (alive), else NULL
+    uint8_t *g = FIELD(u, OF(UNIT, 0x1EC), uint8_t *);
+    ee_unit *t = g && *(uintptr_t *)g == GA(VT_GOAL_ATTACK) ? FIELD(g, OF(GOAL, 0x30), ee_unit *) : NULL;
     return t && FIELD(t, OF(UNIT, 0x3C), int) > 0 && FIELD(t, OF(UNIT, 0x1C), int) >= 0;
 }
-static uint8_t *fl_target_of(uint8_t *u) {
+static ee_unit *fl_target_of(ee_unit *u) {
     uint8_t *g = FIELD(u, OF(UNIT, 0x1EC), uint8_t *);
-    return g && *(uintptr_t *)g == GA(VT_GOAL_ATTACK) ? FIELD(g, OF(GOAL, 0x30), uint8_t *) : NULL;
+    return g && *(uintptr_t *)g == GA(VT_GOAL_ATTACK) ? FIELD(g, OF(GOAL, 0x30), ee_unit *) : NULL;
 }
 // to (x, y) - round a danger zone on the way through a waypoint off the line (8 or 16 tiles to a side), else not at all
-static void fl_move(struct fleet *f, uint8_t *u, int x, int y, int k) {
+static void fl_move(struct fleet *f, ee_unit *u, int x, int y, int k) {
     int ux = FIELD(u, OF(UNIT, 0x1C), int), uy = FIELD(u, OF(UNIT, 0x20), int), oc = fl_ship_ocean(u);
     if (!oc) oc = f->ocean;
     x += (k % 3) - 1; y += (k / 3 % 3) - 1;   // not all on one tile
@@ -378,7 +381,7 @@ static void fl_move(struct fleet *f, uint8_t *u, int x, int y, int k) {
     f->orders += unit_goal(u, goal_move((float)x + 0.5f, (float)y + 0.5f), 0, 0x1F40);
 }
 // out of a danger zone: away from its centre to its edge + 3 tiles (or 45/90 degrees off that), else the guard point
-static int fl_flee(struct fleet *f, uint8_t *u) {
+static int fl_flee(struct fleet *f, ee_unit *u) {
     int ux = FIELD(u, OF(UNIT, 0x1C), int), uy = FIELD(u, OF(UNIT, 0x20), int), z = fl_in_danger(ux, uy), oc = fl_ship_ocean(u);
     if (!z) return 0;
     z--;
@@ -402,8 +405,8 @@ static int fl_flee(struct fleet *f, uint8_t *u) {
     return 1;
 }
 // the nearest enemy ship seen now (in sel) that u can hit, out of danger, within r of (x, y)
-static uint8_t *fl_pick(uint8_t *u, const unsigned char *sel, int x, int y, int r) {
-    uint8_t *best = NULL;
+static ee_unit *fl_pick(ee_unit *u, const unsigned char *sel, int x, int y, int r) {
+    ee_unit *best = NULL;
     int ux = FIELD(u, OF(UNIT, 0x1C), int), uy = FIELD(u, OF(UNIT, 0x20), int), oc = fl_ship_ocean(u);
     float bd = 1e9f;
     for (int j = 0; j < g_fs.ne; j++) {
@@ -445,9 +448,9 @@ static int fl_repair_dock(int x, int y) {
 // each ship: out of danger first; a target inside a danger zone dropped; then the task's target, else to (x, y)
 static void fl_orders(struct fleet *f, const unsigned char *sel, int x, int y, int r, int hunt_prey, int retreat) {
     for (int i = 0; i < f->n; i++) {
-        uint8_t *u = f->u[i];
+        ee_unit *u = f->u[i];
         if (fl_flee(f, u)) continue;
-        uint8_t *cur = fl_target_of(u);
+        ee_unit *cur = fl_target_of(u);
         // SEA: a damaged ship off to the dock before anything else (it kept fighting at 34% while it had a target) and
         // until 80% (it sailed again at 35%)
         int sea = cover_sea(g_fs.idx), dock = -1;
@@ -477,7 +480,7 @@ static void fl_orders(struct fleet *f, const unsigned char *sel, int x, int y, i
             if (bd > 16) fl_move(f, u, g_fs.dkx[b], g_fs.dky[b], 0);
             continue;
         }
-        uint8_t *t = fl_pick(u, sel, x, y, r);
+        ee_unit *t = fl_pick(u, sel, x, y, r);
         for (int pass = 0; !t && hunt_prey && pass < 2; pass++) {   // the hunt: prey seen now near the hunt point, then the coast
             float bd = 1e9f;
             struct fl_ship *list = pass ? g_fs.ec : g_fs.ev;
@@ -501,7 +504,7 @@ static void fl_boats(struct fleet *f, int cx, int cy) {
     static unsigned char sel[FL_ES];
     if (!g_fl_boats) return;
     for (int k = 0; k < g_fs.nb; k++) {
-        uint8_t *b = g_fs.boat[k];
+        ee_unit *b = g_fs.boat[k];
         int x = FIELD(b, OF(UNIT, 0x1C), int), y = FIELD(b, OF(UNIT, 0x20), int), nfoe = 0;
         memset(sel, 0, sizeof sel);
         for (int j = 0; j < g_fs.ne; j++) {
@@ -537,7 +540,7 @@ static uint32_t fl_lost(unsigned idx, int sunk) {   // warships and submarines l
 enum { TF_HOME, TF_HUNT, TF_RAID, TF_PATROL, TF_ESCORT, TF_N };
 static const char *const k_tf[TF_N] = { "home", "hunt", "raid", "patrol", "escort" };
 static struct fleet g_tf[16][TF_N];
-static struct { uint8_t *u; int id; signed char tf; } g_tfm[16][FL_MAX];   // the ship's force (pointer + unit id +0x60)
+static struct { ee_unit *u; int id; signed char tf; } g_tfm[16][FL_MAX];   // the ship's force (pointer + unit id +0x60)
 static int g_ntfm[16], g_help;
 // how well a role fits a force (NR_NONE, F, L, A, S, AA)
 static const signed char k_tf_fit[TF_N][NR_N] = {
@@ -593,7 +596,7 @@ static void fl_set(struct fleet *f, int task, const char *why, uint32_t now) {
 static void fl_targets(struct fleet *f) {
     f->ntgt = 0;
     for (int i = 0; i < f->n; i++) {
-        uint8_t *t = fl_target_of(f->u[i]);
+        ee_unit *t = fl_target_of(f->u[i]);
         if (t && f->ntgt < FL_MAX) { f->tgt[f->ntgt] = t; f->tgt_id[f->ntgt++] = FIELD(t, OF(UNIT, 0x60), int); }
     }
 }
@@ -611,7 +614,7 @@ static void fl_ring(struct fleet *m, int sunk) {
 // a unit of the enemy died (diplo.c hook_kill_stat, k the killer's index, n 2 a building, 3 a unit): the force (stage 4)
 // or the fleet (stage 3) whose ship had it as its target gets the kill - warship, fishing boat, transport, citizen,
 // building, other
-static void fleet_kill(int k, uint8_t *dead, int n) {
+static void fleet_kill(int k, ee_unit *dead, int n) {
     if (k <= 0 || k >= 16 || !dead || !g_fl[k].n || !fleet_on((unsigned)k)) return;
     uint8_t *td = FIELD(dead, OF(UNIT, 0x2C), uint8_t *);
     int id = FIELD(dead, OF(UNIT, 0x60), int), c = 5;
@@ -629,7 +632,7 @@ static void fleet_kill(int k, uint8_t *dead, int n) {
 
 // one of the AI's own ships sunk (diplo.c hook_kill_stat, v the victim's index): counted for its force and the task
 // that force had (stage 4) - where the fleet loses its ships
-static void fleet_lost(int v, uint8_t *dead) {
+static void fleet_lost(int v, ee_unit *dead) {
     if (v <= 0 || v >= 16 || !dead || !fleet_builds((unsigned)v)) return;
     int id = FIELD(dead, OF(UNIT, 0x60), int);
     for (int j = 0; j < g_ntfm[v]; j++)
@@ -1120,7 +1123,7 @@ static void tf_sizes(int n, int land, int want[TF_N]) {
     int h = rest / 6 > 1 ? rest / 6 : 1, rd = rest / 5 > 1 ? rest / 5 : 1, p = rest >= 6 ? (rest / 6 > 1 ? rest / 6 : 1) : 0;
     want[TF_ESCORT] = e; want[TF_HOME] = h; want[TF_RAID] = rd; want[TF_PATROL] = p; want[TF_HUNT] = rest - h - rd - p;
 }
-static int tf_fit(int t, uint8_t *u) { return k_tf_fit[t][nv_role(FIELD(u, OF(UNIT, 0x2C), uint8_t *))]; }
+static int tf_fit(int t, ee_unit *u) { return k_tf_fit[t][nv_role(FIELD(u, OF(UNIT, 0x2C), uint8_t *))]; }
 // each ship stays in its force; a force over its size (one more is kept, so no ship goes back and forth) lets the
 // least fitting go, a force under it takes the best fitting free ship (else one from a force over its size); the rest
 // hunt
@@ -1129,7 +1132,7 @@ static void tf_assign(unsigned idx, struct fleet *m, const int want[TF_N]) {
     static const int order[TF_N] = { TF_ESCORT, TF_HOME, TF_HUNT, TF_RAID, TF_PATROL };
     int cnt[TF_N] = { 0 };
     for (int i = 0; i < m->n; i++) {
-        uint8_t *u = m->u[i];
+        ee_unit *u = m->u[i];
         int id = FIELD(u, OF(UNIT, 0x60), int);
         of[i] = -1;
         for (int j = 0; j < g_ntfm[idx]; j++) if (g_tfm[idx][j].u == u && g_tfm[idx][j].id == id) { of[i] = g_tfm[idx][j].tf; break; }
@@ -1253,7 +1256,7 @@ static void fleet_tick(ee_player *pl, uint32_t now) {
     if (!f->gx && !f->gy) return;
     // repaired at the dock: hit points regained by the ships sent there
     for (int j = 0; j < f->ndocked; j++) {
-        uint8_t *u = f->docked[j];
+        ee_unit *u = f->docked[j];
         int k;
         for (k = 0; k < f->n && f->u[k] != u; k++) ;
         if (k == f->n) { f->docked[j] = f->docked[--f->ndocked]; f->docked_hp[j--] = f->docked_hp[f->ndocked]; continue; }

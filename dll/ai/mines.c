@@ -44,14 +44,14 @@ static void mf_scan(ee_player *pl, unsigned idx, uint32_t now) {
     short hr = region((void *)GA(G_MAP_AREAS), base, 2);
     unsigned cap = GF(FN_TABLE_VALUE)((void *)GA(G_TABLE_VALUES), 0x16);
     drops_cached(pl);
-    static uint8_t *seen[1024];
+    static ee_unit *seen[1024];
     int ns = 0, bd = 0x7FFFFFFF;
     void **tb = FIELD(pl, OF(PL, 0xB50), void **), **te = FIELD(pl, OF(PL, 0xB54), void **);
     for (int t = 0; tb && tb + t < te && t < 256; t++) {
         uint8_t *zone = tb[t];
         void **sb = zone ? FIELD(zone, OF(ZONE, 0x8), void **) : NULL, **se = zone ? FIELD(zone, OF(ZONE, 0xC), void **) : NULL;
         for (int k = 0; sb && sb + k < se && k < 4096; k++) {
-            uint8_t *s = sb[k];
+            ee_unit *s = sb[k];
             int r = s ? FIELD(s, OF(UNIT, 0x38), int) : 0, j;
             if (r < 4 || r > 6 || FIELD(s, OF(UNIT, 0x40), int) <= 0) continue;
             for (j = 0; j < ns && seen[j] != s; j++) ;

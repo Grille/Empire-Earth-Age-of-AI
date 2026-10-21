@@ -4,9 +4,8 @@
 // passed where a player is wanted, or the arguments swapped, doesn't build (a void * still passes - code not moved
 // over yet). FIELD reads them as before. addr.h has the addresses and the raw signatures; the code outside game/
 // calls these instead (moved over so far: ai/econ.c's calls; typed in every file: the players, the resource
-// manager). Each wrapper is the call itself: inlined, the machine code is the same as GF's (scripts/code_same.py) -
-// but for the order of loads: clang tells pointer types apart for aliasing (pointer TBAA), so a read as ee_player *
-// instead of void * may be scheduled differently.
+// manager, the units). Each wrapper is the call itself: inlined, the machine code is the same as GF's
+// (scripts/code_same.py; dll/build.sh's -fno-strict-aliasing keeps the types out of the optimizer's aliasing).
 
 typedef struct ee_player ee_player;             // PL: a player (EEPlayer, EEComputerPlayer)
 typedef struct ee_unit ee_unit;                 // UNIT: a unit, building or resource on the map
@@ -49,8 +48,8 @@ static inline void cp_update_pop_cap(ee_player *pl) { GF(FN_POP_CAP)(pl); }
 static inline void cp_epoch_catch_up(ee_player *ai, ee_player *human) { GF(FN_EPOCH_CATCH_UP)(ai, human); }
 
 // UNITS
-// the player a unit belongs to (player 0: nature - wild animals, resources); u a void * until the units are typed
-static inline ee_player *unit_owner(const void *u) { return FIELD(u, OF(UNIT, 0x18), ee_player *); }
+// the player a unit belongs to (player 0: nature - wild animals, resources)
+static inline ee_player *unit_owner(const ee_unit *u) { return FIELD(u, OF(UNIT, 0x18), ee_player *); }
 // the unit says sound (an answer to an order: 0x1F51 "building")
 static inline void unit_say(ee_unit *u, int sound) { GF(FN_UNIT_SAY)(u, sound); }
 // the unit's goal set (the unit takes it over)

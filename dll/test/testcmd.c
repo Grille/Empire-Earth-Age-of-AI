@@ -166,8 +166,8 @@ static void cmd_nullmember(char *out, const char *args) {
             subgroup_count(*sp, &n, &cit);
             uint8_t **b = FIELD(*sp, OF(ASG, 0x54), uint8_t **);
             if (n < 2 || !b || !*b) continue;
-            uint8_t *u = FIELD(*b, OF(ASGU, 0x44), uint8_t *);
-            FIELD(*b, OF(ASGU, 0x44), uint8_t *) = NULL;
+            ee_unit *u = FIELD(*b, OF(ASGU, 0x44), ee_unit *);
+            FIELD(*b, OF(ASGU, 0x44), ee_unit *) = NULL;
             REPLY("P%d subgroup %p (vt %06x, %d members): record %p lost its unit %p\n", p, (void *)*sp,
                   *(unsigned *)*sp, n, (void *)*b, (void *)u);
             ee_player *target = FIELD(g, OF(AG, 0x48), ee_player *);
@@ -194,7 +194,8 @@ static void cmd_targets(char *out, const char *args) {
     if (!grid) { REPLY("error: no map\n"); return; }
     unsigned n = 0;
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
-        uint8_t *u = it.u, *td = it.td;
+        ee_unit *u = it.u;
+        uint8_t *td = it.td;
         if (!td || (FIELD(td, OF(TD, 0x4B4), int) != 2 && FIELD(td, OF(TD, 0x4B4), int) != 29) || !is_enemy(pl, unit_owner(u)))
             continue;
         int x = FIELD(u, OF(UNIT, 0x1C), int), y = FIELD(u, OF(UNIT, 0x20), int);
@@ -327,7 +328,8 @@ static void cmd_count(char *out, const char *args) {
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     if (!grid) { REPLY("error: no map\n"); return; }
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
-        uint8_t *u = it.u, *td = it.td;
+        ee_unit *u = it.u;
+        uint8_t *td = it.td;
         ee_player *owner = unit_owner(u);
         if (!td || !owner || FIELD(owner, PL_INDEX, int) != p) continue;
         int t = FIELD(td, OF(TD, 0x4B8), int);
@@ -343,7 +345,7 @@ static void cmd_count(char *out, const char *args) {
 static void cmd_gridcheck(char *out, const char *args) {
     (void)args;
     enum { HN = 16384 };
-    static struct { uint8_t *u; int cells, own, fam; } h[HN];
+    static struct { ee_unit *u; int cells, own, fam; } h[HN];
     memset(h, 0, sizeof h);
     if (!*(uint8_t **)GA(G_MAP)) { REPLY("error: no map\n"); return; }
     int full = 0;
@@ -379,7 +381,8 @@ static void cmd_objs(char *out, const char *args) {
     if (!grid) { REPLY("error: no map\n"); return; }
     REPLY("P%d type %d:", p, t);
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
-        uint8_t *u = it.u, *td = it.td;
+        ee_unit *u = it.u;
+        uint8_t *td = it.td;
         ee_player *owner = unit_owner(u);
         if (!td || !owner || FIELD(owner, PL_INDEX, int) != p || (t >= 0 && FIELD(td, OF(TD, 0x4B8), int) != t) || strlen(out) > 15000) continue;
         if (t < 0) REPLY(" T%d", FIELD(td, OF(TD, 0x4B8), int));   // all types: each with its type
@@ -409,10 +412,12 @@ static void cmd_build(char *out, const char *args) {
     uint8_t *map = *(uint8_t **)GA(G_MAP);
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     if (!pl || !grid) { REPLY("error: no player %d or map\n", p); return; }
-    uint8_t *bld = NULL, *civ[32];
+    ee_unit *bld = NULL;
+    ee_unit *civ[32];
     int nc = 0;
     for (struct grid_it it = grid_it_box(x, y, r + 4, 1); grid_it_next(&it); ) {   // wide enough for the building too
-        uint8_t *u = it.u, *td = it.td;
+        ee_unit *u = it.u;
+        uint8_t *td = it.td;
         if (unit_owner(u) != pl || FIELD(u, OF(UNIT, 0x3C), int) <= 0) continue;
         int t = FIELD(td, OF(TD, 0x4B8), int), ux = FIELD(u, OF(UNIT, 0x1C), int), uy = FIELD(u, OF(UNIT, 0x20), int);
         if (ux == bx && uy == by && (FIELD(td, OF(TD, 0x4B4), int) == 2 || FIELD(td, OF(TD, 0x4B4), int) == 29)) bld = u;
@@ -442,10 +447,11 @@ static void cmd_watchtype(char *out, const char *args) {
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     if (!grid) { REPLY("error: no map\n"); return; }
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
-        uint8_t *u = it.u, *td = it.td;
+        ee_unit *u = it.u;
+        uint8_t *td = it.td;
         ee_player *owner = unit_owner(u);
         if (!td || !owner || FIELD(owner, PL_INDEX, int) != p || FIELD(td, OF(TD, 0x4B8), int) != t) continue;
-        watch_set((unsigned)(uintptr_t)(u + off), 4);
+        watch_set((unsigned)(uintptr_t)FIELD_AT(u, off), 4);
         REPLY("ok: watching unit %p +%x (type %d of P%d at %d,%d)\n", u, off, t, p, FIELD(u, OF(UNIT, 0x1C), int), FIELD(u, OF(UNIT, 0x20), int));
         return;
     }
@@ -461,9 +467,10 @@ static void cmd_hurt(char *out, const char *args) {
     uint8_t *map = *(uint8_t **)GA(G_MAP);
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     if (!grid) { REPLY("error: no map\n"); return; }
-    uint8_t *hit[64];
+    ee_unit *hit[64];
     for (struct grid_it it = grid_it_box(x, y, r, 1); n < 64 && grid_it_next(&it); ) {
-        uint8_t *u = it.u, *td = it.td;
+        ee_unit *u = it.u;
+        uint8_t *td = it.td;
         ee_player *owner = u ? unit_owner(u) : NULL;
         if (!td || !owner || FIELD(owner, PL_INDEX, int) != p || FIELD(td, OF(TD, 0x4B8), int) != t || FIELD(u, OF(UNIT, 0x3C), int) <= 0) continue;
         if (abs(FIELD(u, OF(UNIT, 0x1C), int) - x) > r || abs(FIELD(u, OF(UNIT, 0x20), int) - y) > r) continue;
@@ -486,7 +493,7 @@ static void cmd_hurt(char *out, const char *args) {
 // 20, else D's nearest building (one already fighting a unit of D keeps it). The first runs went for the nearest
 // building only: 500 archers at the walls razed 16 buildings in 45 minutes. Setup lines, e.g. "@60 wave 1 2 50",
 // "@60.5 charge 1 2" ... - the minute D falls (game over) is the score.
-struct w_scan { int n; uint8_t *u[1024]; };
+struct w_scan { int n; ee_unit *u[1024]; };
 static void units_of(int p, int want, struct w_scan *o) {   // want: 0 soldiers (cmd_army's filter), 1 the rest
                                                              // (buildings, walls, towers), 2 citizens
     uint8_t *map = *(uint8_t **)GA(G_MAP);
@@ -494,7 +501,8 @@ static void units_of(int p, int want, struct w_scan *o) {   // want: 0 soldiers 
     o->n = 0;
     if (!grid) return;
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
-        uint8_t *u = it.u, *td = it.td;
+        ee_unit *u = it.u;
+        uint8_t *td = it.td;
         ee_player *owner = unit_owner(u);
         if (!td || !owner || FIELD(owner, PL_INDEX, int) != p || FIELD(u, OF(UNIT, 0x3C), int) <= 0) continue;
         int fam = FIELD(td, OF(TD, 0x4B4), int), ty = FIELD(td, OF(TD, 0x4B8), int);
@@ -581,16 +589,17 @@ static void charge_pass(char *out, int a, int d) {
     units_of(d, 2, &civ);
     for (int i0 = 0; i0 < mine.n; i0++) {
         int i = (int)((i0 + g_charge.rot) % (unsigned)mine.n);
-        uint8_t *u = mine.u[i], *goal = FIELD(u, OF(UNIT, 0x1EC), uint8_t *);
+        ee_unit *u = mine.u[i];
+        uint8_t *goal = FIELD(u, OF(UNIT, 0x1EC), uint8_t *);
         if (goal && !strcmp(rtti_name(goal), "EEUGAttackUnit@@")) {
-            uint8_t *t = FIELD(goal, OF(GOAL, 0x30), uint8_t *);
+            ee_unit *t = FIELD(goal, OF(GOAL, 0x30), ee_unit *);
             void *to = t ? unit_owner(t) : NULL;
             if (to && FIELD(to, PL_INDEX, int) == d && FIELD(t, OF(UNIT, 0x3C), int) > 0) { kept++; continue; }
         }
         if (goal && !strcmp(rtti_name(goal), "EEUGLocation@@")) { marching++; continue; }
         if (++idle > 80) continue;   // 80 orders a pass: 500 at once lost their goal within 10 s (the path search)
         float ux = (float)FIELD(u, OF(UNIT, 0x1C), int), uy = (float)FIELD(u, OF(UNIT, 0x20), int), best = 15.0f * 15.0f;
-        uint8_t *tgt = NULL;
+        ee_unit *tgt = NULL;
         for (int k = 0; k < foe.n; k++) {
             float dx = (float)FIELD(foe.u[k], OF(UNIT, 0x1C), int) - ux, dy = (float)FIELD(foe.u[k], OF(UNIT, 0x20), int) - uy;
             if (dx * dx + dy * dy < best) { best = dx * dx + dy * dy; tgt = foe.u[k]; }
@@ -651,10 +660,11 @@ static void cmd_army(char *out, const char *args) {
     uint8_t *map = *(uint8_t **)GA(G_MAP);
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     if (!grid) { REPLY("error: no map\n"); return; }
-    struct { const char *goal; int n; long sx, sy; uint8_t *first; } g[32];
+    struct { const char *goal; int n; long sx, sy; ee_unit *first; } g[32];
     int ng = 0, total = 0;
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
-        uint8_t *u = it.u, *td = it.td;
+        ee_unit *u = it.u;
+        uint8_t *td = it.td;
         ee_player *owner = unit_owner(u);
         if (!td || !owner || FIELD(owner, PL_INDEX, int) != p) continue;
         if (!is_army_family(FIELD(td, OF(TD, 0x4B4), int))) continue;
@@ -699,8 +709,8 @@ static void cmd_continent(char *out, const char *args) {
 // Task (0x34, ctor 0x441FB3): +4 location (0x47C8B7 = location 0x18, ctor 0x47C4E8, point at +4), target unit via
 // 0x442246, +0x20 target player, +0x28 mission, +0x2C 2, +0x30 1. Strategy (0x44, ctor 0x473BC4, reset 0x473CA7):
 // +0x3C 4 attack / 5 defend. Then cm 0x47067A(task, strategy, vector<int> ids) and [cm+0x48] 0x45106C(same).
-struct ag_scan { ee_player *pl; uint8_t *cm; int n, ids[256]; long sx, sy; int x, y, nodef; uint8_t *best; long bd; };
-static void ag_unit(uint8_t *u, void *ctx) {
+struct ag_scan { ee_player *pl; uint8_t *cm; int n, ids[256]; long sx, sy; int x, y, nodef; ee_unit *best; long bd; };
+static void ag_unit(ee_unit *u, void *ctx) {
     struct ag_scan *s = ctx;
     uint8_t *td = FIELD(u, OF(UNIT, 0x2C), uint8_t *);
     ee_player *owner = unit_owner(u);
@@ -733,7 +743,7 @@ static void cmd_aigroup(char *out, const char *args) {
     s.x = x >= 0 ? x : (int)(s.sx / s.n); s.y = y >= 0 ? y : (int)(s.sy / s.n);
     grid_each(ag_unit, &s);
     if (!s.best) { REPLY("error: no enemy building\n"); return; }
-    uint8_t *t = s.best;
+    ee_unit *t = s.best;
         ee_player *tpl = unit_owner(t);
     __attribute__((aligned(8))) uint8_t task[0x40], loc[0x20], strat[0x50];
     GF(FN_TASK_CTOR)(task);
@@ -781,7 +791,8 @@ static void cmd_uinfo(char *out, const char *args) {
     if (!*(uint8_t **)GA(G_MAP)) { REPLY("error: no map\n"); return; }
     REPLY("t %u\n", game_time());
     for (struct grid_it it = grid_it_box(x, y, r, 1); grid_it_next(&it); ) {
-        uint8_t *u = it.u, *td = it.td;
+        ee_unit *u = it.u;
+        uint8_t *td = it.td;
         int ux = FIELD(u, OF(UNIT, 0x1C), int), uy = FIELD(u, OF(UNIT, 0x20), int);
         if (abs(ux - x) > r || abs(uy - y) > r || strlen(out) > 15000) continue;
         ee_player *owner = unit_owner(u);
@@ -798,10 +809,11 @@ static void cmd_move(char *out, const char *args) {
     int p, x, y, r, tx, ty, n = 0;
     if (sscanf(args, "%d %d %d %d %d %d", &p, &x, &y, &r, &tx, &ty) < 6) { REPLY("error: usage: move P x y r tx ty\n"); return; }
     if (!*(uint8_t **)GA(G_MAP)) { REPLY("error: no map\n"); return; }
-    uint8_t *found[200];
+    ee_unit *found[200];
     int nf = 0;
     for (struct grid_it it = grid_it_box(x, y, r, 1); nf < 200 && grid_it_next(&it); ) {
-        uint8_t *u = it.u, *td = it.td;
+        ee_unit *u = it.u;
+        uint8_t *td = it.td;
         ee_player *owner = unit_owner(u);
         if (!owner || FIELD(owner, PL_INDEX, int) != p || FIELD(td, OF(TD, 0x4B4), int) == 2) continue;
         if (abs(FIELD(u, OF(UNIT, 0x1C), int) - x) > r || abs(FIELD(u, OF(UNIT, 0x20), int) - y) > r) continue;

@@ -12,10 +12,12 @@
 // 36 loops it replaced did that, except those with their own own-cell test). A footprint is a rectangle of cells
 // holding the own cell, so the nearest area cell to the own cell is one of it. break / continue / return in the loop
 // body work as in a plain loop:
-//     for (struct grid_it it = grid_it_box(x, y, r, 1); grid_it_next(&it); ) { uint8_t *u = it.u, *td = it.td; ... }
+//     for (struct grid_it it = grid_it_box(x, y, r, 1); grid_it_next(&it); ) { ee_unit *u = it.u; uint8_t *td = it.td; ... }
 struct grid_it {
-    uint8_t *cells, *cell, **b;   // the grid's cells, the current cell, the next entry in it
-    uint8_t *u, *td;              // the unit found and its type
+    uint8_t *cells, *cell;        // the grid's cells, the current cell
+    ee_unit **b;                  // the next entry in it
+    ee_unit *u;                   // the unit found
+    uint8_t *td;                  // and its type
     int cs, ny, once;
     int cx, cy;                   // the current cell
     int gx, gy, x0, x1, y0, y1;   // the next cell, the area's columns and rows
@@ -51,8 +53,9 @@ static struct grid_it grid_it_box(int x, int y, int r, int once) {
 static struct grid_it grid_it_all(int once) { return grid_it_area(0, 0, 0x7FFFFFFF, 0x7FFFFFFF, once); }
 static int grid_it_next(struct grid_it *it) {
     for (;;) {
-        while (it->b && it->b < FIELD(it->cell, OF(GRIDCELL, 0x8), uint8_t **)) {
-            uint8_t *u = *it->b++, *td = u ? FIELD(u, OF(UNIT, 0x2C), uint8_t *) : NULL;
+        while (it->b && it->b < FIELD(it->cell, OF(GRIDCELL, 0x8), ee_unit **)) {
+            ee_unit *u = *it->b++;
+            uint8_t *td = u ? FIELD(u, OF(UNIT, 0x2C), uint8_t *) : NULL;
             if (!td) continue;
             if (it->once) {   // only in its own cell, or the area's cell nearest to it
                 int ox = FIELD(u, OF(UNIT, 0x1C), int) / it->cs, oy = FIELD(u, OF(UNIT, 0x20), int) / it->cs;
@@ -66,17 +69,17 @@ static int grid_it_next(struct grid_it *it) {
         if (it->gx > it->x1) return 0;
         it->cx = it->gx; it->cy = it->gy;
         it->cell = it->cells + (it->cx * it->ny + it->cy) * 16;
-        it->b = FIELD(it->cell, OF(GRIDCELL, 0x4), uint8_t **);
+        it->b = FIELD(it->cell, OF(GRIDCELL, 0x4), ee_unit **);
         if (++it->gy > it->y1) { it->gy = it->y0; it->gx++; }
     }
 }
 
 // Callback over every unit of the unit grid (each unit once: only in the cell of its own position).
-static void grid_each(void (*fn)(uint8_t *u, void *ctx), void *ctx) {
+static void grid_each(void (*fn)(ee_unit *u, void *ctx), void *ctx) {
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) fn(it.u, ctx);
 }
 // the same within the cells covering tiles x-r..x+r, y-r..y+r: each unit once (a big building stands in several cells -
 // counted by hand, an AA building counted 2-4 times); fn checks the distance
-static void grid_box(int x, int y, int r, void (*fn)(uint8_t *u, void *ctx), void *ctx) {
+static void grid_box(int x, int y, int r, void (*fn)(ee_unit *u, void *ctx), void *ctx) {
     for (struct grid_it it = grid_it_box(x, y, r, 1); grid_it_next(&it); ) fn(it.u, ctx);
 }

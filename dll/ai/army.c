@@ -409,7 +409,8 @@ static void am_tick(ee_player *pl, uint32_t now) {
     long value = 0;
     for (int k = 0; k < AM_NK; k++) { int b; am_bld(um, g_ut[k_am_bld[k]], &nb[k], &b); }
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
-        uint8_t *u = it.u, *td = it.td;
+        ee_unit *u = it.u;
+        uint8_t *td = it.td;
         if (unit_owner(u) != pl || FIELD(u, OF(UNIT, 0x3C), int) <= 0) continue;
         int t = FIELD(td, OF(TD, 0x4B8), int), fam = FIELD(td, OF(TD, 0x4B4), int);
         uint8_t *bs = FIELD(u, OF(UNIT, 0x30), uint8_t *);

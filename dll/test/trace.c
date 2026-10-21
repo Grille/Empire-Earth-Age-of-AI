@@ -210,7 +210,7 @@ static int start_hook(void) {
 // grid's order doesn't matter. sync_dump=<from ms>-<to ms>: every unit of each step in that window, "  u ..." lines
 struct sync_units { unsigned n; uint32_t h; };
 static uint32_t g_sync_dump0, g_sync_dump1;
-static uint32_t sync_unit_hash(uint8_t *u) {
+static uint32_t sync_unit_hash(ee_unit *u) {
     ee_player *owner = unit_owner(u);
     uint8_t *td = FIELD(u, OF(UNIT, 0x2C), uint8_t *);
     uint32_t v[5] = { owner ? (uint32_t)(FIELD(owner, PL_INDEX, int) & 15) : 99u, td ? (uint32_t)FIELD(td, OF(TD, 0x4B8), int) : 0u,
@@ -218,12 +218,12 @@ static uint32_t sync_unit_hash(uint8_t *u) {
     for (int i = 0; i < 5; i++) h = (h ^ v[i]) * 16777619u;
     return h;
 }
-static void sync_unit(uint8_t *u, void *ctx) {
+static void sync_unit(ee_unit *u, void *ctx) {
     struct sync_units *s = ctx;
     s->n++;
     s->h += sync_unit_hash(u);
 }
-static void sync_unit_dump(uint8_t *u, void *ctx) {
+static void sync_unit_dump(ee_unit *u, void *ctx) {
     (void)ctx;
     ee_player *owner = unit_owner(u);
     uint8_t *td = FIELD(u, OF(UNIT, 0x2C), uint8_t *);

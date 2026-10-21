@@ -214,8 +214,8 @@ static const struct exe_build { uint32_t hash; const char *name; int ready; } k_
     D(CALL_GOALSET_ASK, 0x005F0FFA, 0x005FF364) \
     D(CALL_GOALSET_AGAIN, 0x005F1029, 0x005FF393) \
     /* EEUCMissile vf42, thiscall(class, missile, aim) - ret 8, the aim unused */ \
-    F(FN_MISSILE_LAUNCH, int, __thiscall, (void *, uint8_t *, float *), 0x00606109, 0x0061799B) \
-    F(FN_PROJ_DOWN, char, __thiscall, (void *, uint8_t *), 0x006078F9, 0x00619143) \
+    F(FN_MISSILE_LAUNCH, int, __thiscall, (void *, void *, float *), 0x00606109, 0x0061799B) \
+    F(FN_PROJ_DOWN, char, __thiscall, (void *, void *), 0x006078F9, 0x00619143) \
     D(FN_GOAL_ATTACK_CTOR, 0x0060AD45, 0x0061D337)                            /* EEUGAttack(unit, target, 1); AoC + a byte: attack.c */ \
     /* EEUGBuildRepair constructor: thiscall(goal, player, building, 1) */ \
     F(FN_BUILD_GOAL, void *, __thiscall, (void *, void *, void *, int), 0x0060BAD0, 0x0061E164) \
@@ -231,7 +231,7 @@ static const struct exe_build { uint32_t hash; const char *name; int ready; } k_
     D(CALL_ATTACK_ALERT, 0x006177CF, 0x0062A366) \
     F(FN_GOALSET_ASK, int, __thiscall, (void *, void *, int *), 0x00619FF5, 0x0062CD8B) \
     F(FN_VECTOR_FREE, void, __thiscall, (void *), 0x0061ABEC, 0x006002C7)     /* a vector's dtor (the game's delete) */ \
-    F(FN_FIRE, void, __thiscall, (void *, uint8_t *), 0x0061E11C, 0x00631312) /* thiscall(attacker class, attacker) */ \
+    F(FN_FIRE, void, __thiscall, (void *, void *), 0x0061E11C, 0x00631312) /* thiscall(attacker class, attacker) */ \
     D(CALL_AIM, 0x0061E1D7, 0x006313D6) \
     D(CALL_NODE_DEL_2, 0x00628B7F, 0x0063D930) \
     D(CALL_NODE_DEL_1, 0x00628BE7, 0x0063D998) \

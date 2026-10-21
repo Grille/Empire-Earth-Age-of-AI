@@ -390,7 +390,7 @@ static void gather_log(ee_player *pl, unsigned idx, uint32_t now) {
         int sum = 0;
         for (unsigned k = 0; k < n; k++) {
             uint8_t *u = deque_at(dq, first + k), *goal = u ? FIELD(u, OF(UNIT, 0x1EC), uint8_t *) : NULL;
-            uint8_t *site = goal && !strcmp(rtti_name(goal), "EEUGGather@@") ? FIELD(goal, OF(GOAL, 0x38), uint8_t *) : NULL;
+            ee_unit *site = goal && !strcmp(rtti_name(goal), "EEUGGather@@") ? FIELD(goal, OF(GOAL, 0x38), ee_unit *) : NULL;
             if (!site) continue;
             sum += drop_dist(d, nd, FIELD(site, OF(UNIT, 0x1C), int), FIELD(site, OF(UNIT, 0x20), int), r == 2);
             m++;
@@ -1042,7 +1042,7 @@ static void econ_targets(ee_resource_mgr *rm) {
 static int g_rebalance = 1;   // aimod.ini [all] rebalance_workers
 static unsigned g_moved[16][7];
 static int rm_count(ee_resource_mgr *rm, int t) { return FIELD(rm, RM_LISTS + t * 0x14 + 0x10, int); }
-static void *movable_gatherer(ee_resource_mgr *rm, int t) {
+static ee_unit *movable_gatherer(ee_resource_mgr *rm, int t) {
     uint8_t *dq = FIELD_AT(rm, RM_LISTS + t * 0x14);
     unsigned first = FIELD(dq, 0xC, unsigned), n = FIELD(dq, 0x10, unsigned);
     for (unsigned k = n; k-- > 0; ) {   // the newest first
@@ -1075,12 +1075,12 @@ static void *movable_gatherer(ee_resource_mgr *rm, int t) {
 static int g_build_fields = 1;
 static int g_fields_open[16];   // unfinished fields per player (econ_fields), for the wood reserve
 static int field_wood(unsigned idx) { return g_build_fields ? 50 * (g_fields_open[idx] < 2 ? g_fields_open[idx] : 2) : 0; }
-static void *field_site(void *f) {   // what a BuildRepair goal holds (+0x3C) for this field (0x60BAD0)
+static ee_unit *field_site(ee_unit *f) {   // what a BuildRepair goal holds (+0x3C) for this field (0x60BAD0)
     ee_unit *p = FIELD(f, OF(UNIT, 0x30), ee_unit *), *last = f;
     while (p) { last = p; p = FIELD(p, OF(UNIT, 0x1CC), ee_unit *); }
     return last;
 }
-static int citizen_free(void *u, int idle) {   // idle, or (idle=0) gathering
+static int citizen_free(ee_unit *u, int idle) {   // idle, or (idle=0) gathering
     if (!u || FIELD(u, OF(UNIT, 0x3C), int) <= 0 || FIELD(u, OF(UNIT, 0x33B), uint8_t) || FIELD(u, OF(UNIT, 0x341), uint8_t) || FIELD(u, OF(UNIT, 0x68), int) ||
         FIELD(u, OF(UNIT, 0x1C), int) == -10000)
         return 0;
@@ -1261,7 +1261,7 @@ static int field_place_ok(ee_build_mgr *bm, int x, int y, int lay_out) {
     if (g_log) fprintf(g_log, "# fields: P%d: build list field at %d,%d - foundation laid out first\n", FIELD(pl, PL_INDEX, int), x, y);
     return 1;
 }
-static int site_danger(ee_player *pl, void *site, int food);   // attack.c: known enemy towers on the way
+static int site_danger(ee_player *pl, ee_unit *site, int food);   // attack.c: known enemy towers on the way
 static void econ_fields(ee_resource_mgr *rm) {   // before the citizen assignment
     ee_player *pl = rm_player(rm);
     if (!g_build_fields || !pl) return;
