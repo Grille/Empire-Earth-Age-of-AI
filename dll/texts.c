@@ -435,6 +435,29 @@ static void cmd_texts(char *out, const char *args) {
         texts_corpus(out, path);
         return;
     }
+    if (!strncmp(args, "bench", 5)) {   // texts bench N P Q <expression>: N times as texts eval works it out - the time
+        int cnt = 0, a = 0, b = 0, n = 0;   // and the draws one takes (filters in AI code must be quick)
+        const char *s = args + 5;
+        if (sscanf(s, "%d %d %d %n", &cnt, &a, &b, &n) < 3 || cnt < 1 || !s[n]) { REPLY("usage: texts bench N P Q <expression>\n"); return; }
+        s += n;
+        struct line_ctx l;
+        line_ctx_init(&l, player_at(a), player_at(b), NULL);
+        l.c.vars[0] = NULL;
+        struct xval v;
+        LARGE_INTEGER f, t0, t1;
+        unsigned d0 = g_rnd_draws;
+        int ok = 1;
+        QueryPerformanceFrequency(&f);
+        QueryPerformanceCounter(&t0);
+        for (int i = 0; i < cnt && ok; i++) ok = x_eval(s, &l.c, &v);
+        QueryPerformanceCounter(&t1);
+        char t[XVAL_CAP];
+        if (!ok) { REPLY("error: %s\n", l.c.failed ? g_x_last_fail : "not an expression"); return; }
+        xto_text(&v, t, sizeof t);
+        REPLY("%.2f us each, %.1f draws each, %d times: %.60s\n", (double)(t1.QuadPart - t0.QuadPart) * 1e6 / (double)f.QuadPart / cnt,
+              (double)(g_rnd_draws - d0) / cnt, cnt, t);
+        return;
+    }
     if (!strncmp(args, "eval", 4) || !strncmp(args, "line", 4)) {
         int line = args[0] == 'l', a = 0, b = -1, c3 = -1, n = 0;
         const char *s = args + 4;

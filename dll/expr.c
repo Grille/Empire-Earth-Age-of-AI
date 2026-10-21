@@ -336,6 +336,10 @@ static void xstr(struct xval *v, const char *s) {   // a text, only that: "12" i
 // coming as texts
 static void xstr_or_num(struct xval *v, const char *s) { xstr(v, s); v->has_n = xnumeric(v->s, &v->n); }
 static void xdual(struct xval *v, double n, const char *s) { xstr(v, s); v->has_n = 1; v->n = n; }
+static void xdual_kept(struct xval *v, double n, const char *s) {   // the same with a text that stays (not copied)
+    v->s = s; v->has_s = v->has_n = 1; v->n = n; v->w = 1;
+    v->pl = v->ln = v->kind = 0; v->it = NULL; v->fn = NULL; v->miss[0] = 0;
+}
 static int xis_num(const struct xval *v, double *n) { if (v->has_n) *n = v->n; return v->has_n; }
 static double xto_num(const struct xval *v) { return v->has_n ? v->n : 0; }
 static int xtrue(const struct xval *v) { return v->w && (v->pl || v->kind || (v->has_n ? v->n != 0 : v->s[0] != 0)); }   // a player, a function: true
@@ -431,7 +435,12 @@ static int x_const(const char *name, struct xval *v) {
     }
     if (!_strnicmp(name, "kind.", 5)) {   // kind.towers: one of the game's families (docs/units.md) - its number and "kind.towers"
         for (int k = 0; k < UNIT_KINDS; k++)
-            if (k_kind_ident[k] && !lstrcmpiA(name + 5, k_kind_ident[k])) { char t[48]; wsprintfA(t, "kind.%s", k_kind_ident[k]); xdual(v, k, t); return 1; }
+            if (k_kind_ident[k] && !lstrcmpiA(name + 5, k_kind_ident[k])) {
+                static char text[UNIT_KINDS][48];   // "kind.towers" as it stays (a constant's text in its node: xe)
+                if (!text[k][0]) wsprintfA(text[k], "kind.%s", k_kind_ident[k]);
+                xdual_kept(v, k, text[k]);
+                return 1;
+            }
         return 0;
     }
     if (!_strnicmp(name, "unit.", 5)) {   // unit.b_guard_tower_bronze: a unit or building type - its number and identifier
@@ -442,7 +451,7 @@ static int x_const(const char *name, struct xval *v) {
             return 1;
         }
         if (t < 0) return 0;
-        xdual(v, t, name + 5);
+        xdual_kept(v, t, unit_ident(t));   // the game's text, as it stays
         return 1;
     }
     if (_strnicmp(name, "epoch.", 6)) return 0;
@@ -466,6 +475,7 @@ struct xnode {
     const char *at;              // where it starts in the source (a statement's text for the messages)
     struct xnode *a, *b, *c;     // operands: a op b, c ? a : b (c the condition); a function's body; a value
     struct xnode **items;        // a list's items, a call's arguments, a function's parameters (names), statements
+    const char *cs;              // a name that is a kind. or unit. constant: its text once looked up (its number in n)
 };
 #define X_LEVELS 24   // the levels of the old parser - a deeper expression is none (not an expression)
 #define X_CALLS 64    // functions called inside each other
@@ -1506,21 +1516,23 @@ static void xe_call(struct xe *e, const struct xnode *n, struct xval *v) {
     else xnum(v, x_rnd01(e->c) * (na ? xto_num(&a[0]) : 1));   // rnd(n): 0 <= x < n, rnd(): 0 <= x < 1
 }
 // a list: one of its items - each of them as often as the items it was chosen from; a mistake in an item (told)
-// leaves it out
+// leaves it out. One draw when there is a choice (two items or more), made once its items are known - not one an
+// item: a list used whole (a filter, mod/units.eeai's groups) needn't move the generator on for every item
 static void xe_list(struct xe *e, const struct xnode *n, struct xval *v) {
     if (e->c->fixed) { x_fail(e, "a list - a setting is one number"); return; }
-    int total = 0, cnt = 0, cap = 0, lost = 0;
-    struct xval *items = NULL;
+    int total = 0, cnt = 0, cap = 0, lost = 0, ntop = 0;
+    struct xval *items = NULL, top_buf[16], *tops = n->n_items <= 16 ? top_buf : malloc((size_t)n->n_items * sizeof *tops);
+    if (!tops) { x_fail(e, "no memory for a list"); return; }
     for (int i = 0; i < n->n_items; i++) {
         struct xval it;
         int f0 = e->c->failed;
         xe(e, n->items[i], &it);
         if (!e->err) x_use(e, &it);
         if (e->err && e->c->failed > f0 && !e->c->circle) { e->err = 0; e->why = NULL; xnothing(&it); }   // left out
-        if (e->err) { free(items); return; }
+        if (e->err) { free(items); if (tops != top_buf) free(tops); return; }
         if (it.w > 0) {
             total += it.w;
-            if (x_rnd(e->c, total) < it.w) *v = it;
+            tops[ntop++] = it;
             int add = it.ln ? it.ln : 1;
             if (!it.ln && it.w > 1) lost = 1;   // a list kept whole no more
             else {
@@ -1529,6 +1541,12 @@ static void xe_list(struct xe *e, const struct xnode *n, struct xval *v) {
             }
         }
     }
+    if (ntop) {   // the item drawn: each as often as its weight (a list in it: its items)
+        int r = ntop > 1 ? x_rnd(e->c, total) : 0, j = 0;
+        while (j < ntop - 1 && r >= tops[j].w) r -= tops[j++].w;
+        *v = tops[j];
+    }
+    if (tops != top_buf) free(tops);
     v->w = total;
     v->ln = 0;
     v->it = NULL;
@@ -1587,7 +1605,14 @@ static void xe(struct xe *e, const struct xnode *n, struct xval *v) {
     case XN_NUM: xnum(v, n->n); break;
     case XN_STR: xe_str(e, n, v); break;
     case XN_NAME:
+        if (n->cs) { xdual_kept(v, n->n, n->cs); break; }   // a kind. or unit. constant, looked up before
         xe_ident(e, n->s, v);
+        // kind.tank, unit.citizen: no parameter, name of a file or placeholder has a dot - the same constant every
+        // time, kept in the node (filters must be quick: AI code); unit. only once the game's types are there
+        if (!e->err && v->has_s && v->has_n && v->n >= 0 && (!strncmp(n->s, "kind.", 5) || (!strncmp(n->s, "unit.", 5) && g_unit_types_n))) {
+            ((struct xnode *)n)->n = v->n;
+            ((struct xnode *)n)->cs = v->s;
+        }
         if (c->missed) { c->missed = 0; e->err = 1; e->why = "a mistake while working it out"; }   // told (x_missing)
         break;
     case XN_CALL:

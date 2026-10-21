@@ -2249,9 +2249,9 @@ static int x_type_filter(const char *name, const struct xval *f, unsigned char s
         const struct xval *it = xl_at(f, i);
         int t = it->has_n ? (int)it->n : -1;
         if (it->ln) { if (!x_type_filter(name, it, sel)) return 0; }
-        else if (it->has_s && !_strnicmp(it->s, "kind.", 5) && t >= 0 && t < UNIT_KINDS) {
+        else if (it->has_s && !strncmp(it->s, "kind.", 5) && t >= 0 && t < UNIT_KINDS) {
             for (int j = g_kind_first[t]; j < g_kind_first[t + 1]; j++) sel[g_kind_types[j]] = 1;   // its types (unitnames.c)
-        } else if (it->has_s && t > 0 && t < G_TYPES_N && !lstrcmpiA(it->s, unit_ident(t))) sel[t] = 1;
+        } else if (it->has_s && t > 0 && t < G_TYPES_N && (it->s == g_unit_ident[t] || !strcmp(it->s, g_unit_ident[t]))) sel[t] = 1;
         else {
             char x[48];
             xto_text(it, x, sizeof x);

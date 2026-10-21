@@ -116,7 +116,8 @@ static uint8_t g_attack_news[16];        // [ai]: an attack launched, not told y
 static uint32_t g_rnd = 0x9E3779B9u;
 
 static uint32_t rnd32(void) { g_rnd ^= g_rnd << 13; g_rnd ^= g_rnd >> 17; g_rnd ^= g_rnd << 5; return g_rnd; }
-static int rnd(int n) { return n > 0 ? (int)(rnd32() % (unsigned)n) : 0; }
+static unsigned g_rnd_draws;   // how many draws so far (texts bench)
+static int rnd(int n) { g_rnd_draws++; return n > 0 ? (int)(rnd32() % (unsigned)n) : 0; }
 
 // Two generators: rnd() for what is only shown (chat lines; ai_talk and the audience differ per PC), rnd_game() for
 // decisions that change the game (the personality, a betrayal). Multiplayer is lockstep - every PC simulates every
