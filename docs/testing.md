@@ -720,6 +720,27 @@ has `coL` (Continental Large, 1v1, unit limit 1500, Middle Ages, 75 min: a land 
 JOBS=4: every # eco / # mil / # battle line the same). Under 8 parallel games, other sessions' runs in the same slots
 (11-16) crashed 13 game starts at LLE+0x51D37 (the ports - pick slots nobody uses).
 
+### Gold and iron, more metal (2026-10-21)
+
+`# metal:` every 5 minutes (autotest, dll/ai/metal.c, both sides): `inc` F W S G I since the start (AddResource -
+refunds count too), `stock`, then every payment by what it bought as `line=n:F/W/S/G/I` (from the tech paid: cit, inf
+rng cav = land soldiers by Barracks / Archery Range / Stable, sie, oth, wsh warships, boat fishing boats and transports,
+air, ep, up7 line upgrades, tech, tower, wall, mbl military buildings, bld), `army` alive by line, `foe` the enemy
+soldiers the mod knows by line, `save n/m gi g refused r` (5-s samples the budget was saving for a refused unit, the
+gold + iron in stock then), `gi` / `navy` (means of the gold + iron stock and the navy account's), `plan` (metal_plan's
+picks / kept / nowait / waited / navy cuts). `# value:` (with VALUE) the trainable soldiers' values. `scripts/metal.py
+[-base NAME] "work/autotest_*_ab-<name>-*.csv"` - what the gold + iron bought by 60, the army and foe by line, the
+saving, and the paired differences (kills - losses, soldiers 30-75, trained, workers, G+I and stone income, refused
+for gold / iron, warships, sunk, ship lost, wins); `-h2h` for head-to-head logs. Runs: `scripts/isl_ablate.sh` with
+`MAPS="siL tiH liH coL cont si5"`, both cheats, 20 seeds (`SEED0=10 REPEAT=10` adds 11-20), the base variant `mtB0`
+(the build with everything off); head-to-head `h2h.sh 75 late "random_map=Small Islands,seed=101,map_scale=large,
+unit_limit=2500,ai_count=4,start_epoch=5,difficulty=hard" "v_metal_plan=24,..."`. A test that looks at the log while
+the cell's last games are still being written pairs fewer games (31 of 40 once) - score after `ISL_ABLATE DONE`.
+`metal_plan` 1 / 2 / 5 / 8 / 16 / 24 / 27 and `expand_islands` 57 / 185 / 249 / 185 + `workforce_plan=1` / 185 +
+`metal_plan=24` measured, all **off**: docs/economy.md "Gold and iron", "More metal". The build with them off played
+main's games (Continental e0 and Small Islands Large, 2 seeds x both seats: 6 of 8 identical, the other two parted at
+minute 43 and 55 under 8 parallel games).
+
 ### Mass before striking, the mines (navy stage 5)
 
 2026-10-19, `navy_fleet=2` with `navy_fleet_mass=1` and `navy_mines=1` (dll/ai/fleet.c fl_rally, navy.c navy_nodes /

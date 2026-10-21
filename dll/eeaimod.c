@@ -68,6 +68,8 @@ static void ecolog_new_game(void);
 static void cz_tick(void *pl, uint32_t now);   // citizens.c: citizen production
 static void cz_new_game(void);
 static void am_tick(void *pl, uint32_t now);   // army.c: army spending
+static void mt_tick(void *pl, uint32_t now);   // metal.c: gold and iron
+static void mt_install(const char *aimod_ini, const char *autotest_ini);
 static void am_new_game(void);
 static void mass_tick(void *pl, uint32_t now);   // mass.c: the army as one
 static void mass_new_game(void);
@@ -76,6 +78,7 @@ static void expand_tick(void *pl, uint32_t now);   // expand.c: other islands
 static void expand_new_game(void);
 static void expand_install(const char *aimod_ini, const char *autotest_ini);
 static void ap_new_game(void);
+static void mt_new_game(void);   // metal.c
 static void army_plan_tick(void *pl, unsigned idx, uint32_t now);
 static void ap_install(const char *aimod_ini, const char *autotest_ini);
 static void early_new_game(void);   // early.c
@@ -190,6 +193,7 @@ static void __fastcall hook_rm_update(void *rm, void *edx, uint32_t now) {
     if (pl) ecolog_tick(pl, now);
     if (pl) cz_tick(pl, now);
     if (pl) am_tick(pl, now);
+    if (pl) mt_tick(pl, now);
     if (pl) mass_tick(pl, now);
     if (pl) expand_tick(pl, now);
     g_rm_seen = 1;
@@ -310,6 +314,7 @@ static char __fastcall hook_game_start(void *state, void *edx, uint8_t *setup, v
     mass_new_game();
     expand_new_game();
     ap_new_game();
+    mt_new_game();
     defence_new_game();
     assault_new_game();
     sites_new_game();
@@ -353,6 +358,7 @@ static char __fastcall hook_game_start(void *state, void *edx, uint8_t *setup, v
 #include "ai/fleet.c"
 #include "ai/mass.c"
 #include "ai/expand.c"
+#include "ai/metal.c"
 #include "persist.c"
 #include "engine/aim.c"
 #include "engine/camera.c"
@@ -534,6 +540,7 @@ static void install(HMODULE self) {
     mines_install(g_aimod_ini, g_autotest ? g_ini : NULL);
     cz_install(g_aimod_ini, g_autotest ? g_ini : NULL);
     ap_install(g_aimod_ini, g_autotest ? g_ini : NULL);
+    mt_install(g_aimod_ini, g_autotest ? g_ini : NULL);
     mass_install(g_aimod_ini, g_autotest ? g_ini : NULL);
     expand_install(g_aimod_ini, g_autotest ? g_ini : NULL);
     attack_install(g_aimod_ini, g_autotest ? g_ini : NULL);

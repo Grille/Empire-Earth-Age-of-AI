@@ -390,6 +390,8 @@ static void gather_log(void *pl, unsigned idx, uint32_t now) {
     LeaveCriticalSection(&g_lock);
 }
 
+static void mt_paid(void *pl, uint8_t *what, const int *before, const int *stock);   // metal.c: what the gold and iron buy
+static void mt_income(void *pl, int type, int amount);
 static void __fastcall hook_pay(void *pl, void *edx, void *what, int b, int c) {
     (void)edx;
     int *stock = (int *)((uint8_t *)pl + PL_STOCK), before[7];
@@ -398,6 +400,7 @@ static void __fastcall hook_pay(void *pl, void *edx, void *what, int b, int c) {
     uintptr_t site = (uintptr_t)__builtin_return_address(0);
     for (int r = 2; r < 7; r++)
         if (before[r] > stock[r]) spend_note((unsigned)FIELD(pl, PL_INDEX, int) & 15, r, before[r] - stock[r], site);
+    mt_paid(pl, what, before, stock);
 }
 // navy.c (docs/navy.md stage 1): the navy account on water maps
 static void navy_income(unsigned idx, int type, int amount);
@@ -417,6 +420,7 @@ static void __fastcall hook_add_resource(void *pl, void *edx, int type, int amou
     (void)edx;
     GF(FN_CP_ADD_RESOURCE)(pl, type, amount);
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
+    mt_income(pl, type, amount);   // metal.c (every player)
     if (amount > 0 && type >= 2 && type < 7 && g_bud[idx].init && !is_vanilla(pl)) {
         g_bud[idx].income[type] += amount;
         // from the Copper Age (farms: food no longer runs out) a player turns most of his income into army
@@ -1507,6 +1511,10 @@ static int g_sub_spare_food;   // train_budget's early_army substitution (below)
 static int g_sub_thrift;       // train_budget's workforce_plan THRIFT substitution: the most score per gold + iron
 static int wf_thrift(void *pl, unsigned idx, int type, const int *vis);   // citizens.c
 static void wf_thrift_note(unsigned idx, int type, int n);
+static int mt_choose(void *pl, unsigned idx, int asked, const int *vis, const int *stock, const int *reserve, int want,
+                     int blocked, int trainable, int *got);   // metal.c metal_plan VALUE
+static int mt_nowait(void *pl, unsigned idx, int type, const int *vis, int wait);   // NOWAIT
+static void mt_saving(unsigned idx);
 static int g_hg_call;          // set by the home guard (defence.c) around its order: early_soldiers in the first epoch
 static int substitute_soldier(void *pl, unsigned idx, const int *vis, int want, int *got) {
     uint32_t now = game_time();
@@ -1680,14 +1688,23 @@ static void train_budget(void *pl, unsigned idx, const struct ai_cfg *cfg, const
     // workforce_plan THRIFT (citizens.c): food and wood pile while the refused soldier waits for gold or iron - the
     // soldier that does most per gold and iron at once, no saving (the gold went to the warships and techs meanwhile)
     g_sub_thrift = sub == 1 && *blocked && !ship && !req_unit && wf_thrift(pl, idx, req[0], visibles);
+    // metal_plan VALUE (metal.c): a land soldier the budget pays is trained as the one that does most against the
+    // enemy it knows per gold + iron, when that one is 25% better
+    int value = sub != 2 && !g_sub_thrift && military && !ship && !req_unit && g_unit_sub && !g_priority_mil && land_soldier(req[0]);
+    if (value && !sub) {
+        int got = 0, alt = mt_choose(pl, idx, req[0], visibles, stock, reserve, want, 0, trainable, &got);
+        if (alt) { *sub_type = alt; *afford = got; g_mil[idx].subs++; g_sub_spare_food = 0; return; }
+    }
     if (sub == 1 && trainable && !g_sub_thrift) {   // the budget refused a unit it can train: save for it first
         if (!g_save_since[idx] || now < g_save_since[idx]) g_save_since[idx] = now ? now : 1;
         int sw = PV(idx, g_v_sub_wait, g_sub_wait);
-        sub = !sw || now - g_save_since[idx] >= (uint32_t)sw * 1000u || base_threatened(idx);
-        if (!sub) g_mil[idx].saving++;
+        // metal_plan NOWAIT: not for a unit whose gold or iron won't come within the wait
+        sub = !sw || now - g_save_since[idx] >= (uint32_t)sw * 1000u || base_threatened(idx) || mt_nowait(pl, idx, req[0], visibles, sw);
+        if (!sub) { g_mil[idx].saving++; mt_saving(idx); }
     }
     if (sub) {
-        int got = 0, alt = substitute_soldier(pl, idx, visibles, want, &got);
+        int got = 0, alt = value ? mt_choose(pl, idx, req[0], visibles, stock, reserve, want, 1, 0, &got) : 0;
+        if (!alt) alt = substitute_soldier(pl, idx, visibles, want, &got);
         if (alt) { *sub_type = alt; *afford = got; *blocked = 0; g_mil[idx].subs++; if (g_sub_thrift) wf_thrift_note(idx, alt, got); }
     }
     g_sub_spare_food = g_sub_thrift = 0;

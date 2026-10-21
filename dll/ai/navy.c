@@ -837,6 +837,7 @@ static void navy_install(const char *aimod_ini, const char *autotest_ini) {
     fleet_install(aimod_ini, autotest_ini);
 }
 
+static int mt_fleet_target(void *pl, unsigned idx, int t);   // metal.c metal_plan FLEET: at most what the sea needs
 static void navy_tick(void *pl, uint32_t now) {
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     struct nv_map *m = &g_nv_map[idx];
@@ -845,7 +846,7 @@ static void navy_tick(void *pl, uint32_t now) {
     if (now < g_nv_count_t || now - g_nv_count_t >= 10000) { g_nv_count_t = now; navy_count(); }
     if (fleet_builds(idx)) {   // the fleet's size target (stage 4): navy_fleet_pop % of the population cap x the map strength
         int cap = unit_limit(pl);
-        g_nv_target[idx] = (int)((float)cap * (float)g_navy_fleet_pop / 100.0f * m->strength + 0.5f);
+        g_nv_target[idx] = mt_fleet_target(pl, idx, (int)((float)cap * (float)g_navy_fleet_pop / 100.0f * m->strength + 0.5f));   // metal.c FLEET
     } else g_nv_target[idx] = 0;
     if (m->done && (now < g_nv_nodes[idx].t || now - g_nv_nodes[idx].t >= 60000)) navy_nodes(pl, idx, now);   // once a minute
     navy_budget_log(pl, idx, now);

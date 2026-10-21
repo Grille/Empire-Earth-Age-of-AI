@@ -698,3 +698,84 @@ goal object`). The guarded game played to its end (a citizen, type 32).
 **Leads:** the metal. On islands that means other islands' mines (transports, outposts that hold). Everywhere it
 means what the gold and iron buy (the game's gold-heavy requests, the 90-s saving, the navy account's share), and
 production buildings when the army has the metal.
+
+## Gold and iron (2026-10-21, dll/ai/metal.c)
+
+The playtester: convert the economy into attack and defence; early food is for citizens, units that need no food are a
+good alternative; the AI never cheats. "Workforce into army" found the army on the large maps limited by gold and iron.
+
+**Measured** (`# metal:` every 5 minutes, both sides: income since the start, every payment by what it bought - from the
+tech paid, so units, research and buildings apart -, the army alive by line, the enemy soldiers the mod knows by line,
+the time the budget saved for a refused unit, the gold + iron in stock and in the navy account; `scripts/metal.py`).
+The build without changes (`mtB0`) against the base AI at hard, 40 games a cell, gold + iron by minute 60, mod / base AI:
+
+| Map | cheat | G+I income | share on warships | land soldiers' share | saving (G+I in stock then) | G+I stock | soldiers 60 |
+|---|---|---|---|---|---|---|---|
+| siL | no | 9100 / 14600 | 65% / 52% | 33% / 46% | 62% of the time (227) | 234 / 629 | 35 / 81 |
+| tiH | no | 11200 / 12800 | 67% / 53% | 31% / 46% | 65% (218) | 226 / 517 | 48 / 72 |
+| liH | no | 12400 / 14700 | 65% / 55% | 33% / 43% | 69% (213) | 220 / 815 | 62 / 79 |
+| coL | no | 13000 / 8500 | 9% / 17% | 87% / 81% | 45% (956) | 1012 / 703 | 44 / 41 |
+| cont | no | 5500 / 3000 | 9% / 4% | 85% / 94% | 31% (885) | 931 / 950 | 40 / 4 |
+| si5 | no | 7200 / 10600 | 59% / 52% | 38% / 47% | 54% (283) | 300 / - | 22 / - |
+| siL | yes | 4700 / 18600 | 61% / 51% | 34% / 50% | 41% (282) | 281 / - | 3 / - |
+
+Research took 2-5% of the gold + iron (line upgrades ~1%, the Middle Ages start has no epoch left to pay much), towers
+and walls none (stone). On the island maps two thirds of it went into warships: the fleet's target (navy.c stage 4,
+`navy_fleet_pop` 15% of the population cap) is 76 warships at a cap of 505 - never reached, so the navy's share of the
+income stayed at its most (50%) all game, and still the mod had no more warships afloat at 60 minutes (13-19) than the
+base AI (15-18): they sank. The land army got a third of a smaller income (the base AI settles the free islands: 1.2-1.6x
+the mod's gold + iron). The budget was saving for a refused unit 60-70% of the time with ~220 gold + iron in stock - the
+saving holds little, the metal is simply not there. On the land maps the metal is not the limit: 900-1000 lay in stock.
+Also seen: in one Small Islands Large game a medieval tower was laid and given up 127 times in 13 minutes (each time 175
+stone paid and refunded - `# place: ... 463 130/3/1`), not followed further.
+
+`metal_plan` ([all], bits, `v_metal_plan`; only from a population cap of `metal_cap` (250); **default 0**):
+- 1 VALUE: a land soldier the game asks for is trained as the one that does most per gold + iron against the enemy army
+  it knows (intel.c: soldiers seen within 10 minutes; none known: its own types as the mix) when that is 25% better:
+  the enemies one kills in its life (stats.c damage - the game's class table and hit factors, armour, upgrades - against
+  each enemy type's hit points, times its own hit points over the mix's damage at it; ranged behind a melee mix take
+  60%), a little less for a type already half the army, over gold + iron + a quarter of food and wood + half the stone.
+  The substitute (unit_substitution) is picked the same way.
+- 2 NOWAIT: no saving (substitute_wait) for a unit whose missing gold or iron won't come within the wait.
+- 4 SPARE: VALUE's price counts food, wood and stone lying 1500+ unused at 5%, short ones fully.
+- 8 FLEET: the fleet's target at most `metal_fleet_pct` (250%) of the enemy warships it knows + 6, at least
+  `metal_fleet_min` (20) x the map strength.
+- 16 CALM: the sea calm for 3 minutes (no enemy warship in its waters for 5, its warships at least the enemy's known):
+  the navy account keeps 100 gold and 100 iron at most.
+
+**Paired** with `mtB0` (same seeds and seats, d = with - without, standard error; soldiers = land + siege + ships;
+trained = land soldiers; G+I = income by 60; refused = the army's orders refused short of gold / iron from minute 20).
+Screening (20 games a cell, siL liH coL cont): VALUE, NOWAIT and CALM alone within the noise (VALUE: Continental Large
+mod wins 5 -> 10 of 20 without the cheat, but kills -73 (20); Continental e0 3 -> 1); FLEET (150%, 12) the only one that
+moved the economy. Then 40 games a cell (before `metal_cap`; the small maps' cells are identical with it):
+
+| Variant | Map | cheat | d kills - losses | d soldiers 60 | d soldiers 75 | d trained | d G+I | d warships | mod / base AI won |
+|---|---|---|---|---|---|---|---|---|---|
+| 27 (1+2+8+16) | coL | no | +10.7 (11.5) | +8.4 (8.0) | +14.8 (8.3) | -22 (27) | +176 | -0.8 | 9/2 -> 15/3 |
+| 27 | cont | no | -2.1 (3.6) | -1.0 (2.1) | -1.0 (2.1) | +20 (5) | +112 | -0.3 | **11/1 -> 4/1** |
+| 27 | liH | no | +36.7 (14.0) | +37.9 (6.2) | +40.6 (8.1) | +101 (12) | +1434 | -5.4 | 0/0 |
+| 27 | siL | no | +6.5 (15.2) | +14.5 (4.7) | +25.7 (8.0) | +82 (16) | +1385 | -6.1 | 0/2 -> 0/1 |
+| 27 | tiH | no | -13.6 (15.0) | +21.3 (5.4) | +18.1 (5.4) | +83 (11) | +1640 | -11.7 | 0/0 |
+| 27 | si5 | no | **-26.4 (8.0)** | -1.9 (3.2) | | -3 (6) | -1187 | -3.1 | 0/2 -> 0/3 |
+| 27 | siL / liH / tiH | yes | -23.0 (12.7) / -3.6 (15.2) / **-51.6 (19.8)** | +2.8 / +7.2 / +3.8 | | +34 / +50 / +51 | +657 / +336 / +1034 | | 29 -> 20, 12 -> 11, 7 -> 8 |
+| 27 | coL / cont / si5 | yes | +8.1 / +4.6 / +3.0 | | | | | | 37 -> 36, 3 -> 3, 19 -> 20 |
+| 24 (8+16) | liH / siL / tiH | no | +24.3 (14.2) / +16.8 (15.5) / -18.1 (14.5) | +10.4 / +7.4 / +9.2 | +16.8 / +18.2 / +7.0 | +87 / +66 / +70 | +1676 / +1030 / +1196 | -6.8 / -5.5 / -11.6 | 0/0, 0/2 -> 0/0, 0/0 |
+| 24 | si5 | no | -11.4 (8.2) | +2.9 | | +12 | -117 | -1.6 | 0/2 -> 0/1 |
+| 24 | liH / siL / tiH | yes | +6.0 (9.5) / -13.0 (9.8) / **-48.6 (14.2)** | +6.0 / +2.4 / +1.2 | | +56 / +31 / +49 | +1117 / +661 / +1030 | | 12 -> 8, 29 -> 24, 7 -> 6 |
+| 24 (FLEET 250%, 20) | liH / siL / tiH | no | +23.0 (10.7) / +7.3 (15.1) / +5.8 (14.0) | +7.8 / +7.5 / +7.6 | +18.4 / +17.9 / +12.5 | +62 / +65 / +58 | +950 / +1128 / +1247 | -3.8 / -3.7 / -10.9 | 0/0, 0/2 -> 0/1, 0/0 |
+| 24 (250%, 20) | liH / siL / tiH | yes | -3.3 (9.6) / **-26.6 (13.6)** / -19.3 (16.9) | +2.1 / +2.2 / +1.5 | +4.1 / +4.7 / +1.6 | +36 / +33 / +26 | +378 / +969 / +124 | | 12 -> 7, 29 -> 20, 7 -> 8 |
+
+What it does: with FLEET the warships' share of the gold + iron falls from 65% to ~50% and the land army gets it - 60-100
+more soldiers trained, 7-40 more standing at 60-75 minutes on the large maps; the G+I income itself rose by 1000-1700
+(why was not followed further). Without
+the cheat that is mostly kills - losses up (liH +23 to +37). With the cheat the base AI won fewer games on Small and
+Large Islands (29 -> 20, 12 -> 7) but the mod's kills - losses fell (Small Islands Large -27 (14), Tournament Islands
+Huge -19 to -52): its larger army fights - and loses - more. VALUE (in 27) turned Continental e0 from 11 to 4 wins: on
+small maps the game's own choice is better (hence `metal_cap`). Head-to-head against the control AI (Small Islands Large,
+4 AIs, unit limit 2500, 75 minutes, 24 games, `v_metal_plan=24` with 250% / 20; `metal.py -h2h`): B - A per game soldiers
+60 +10.4 (4.9), land soldiers trained +71 (13), gold + iron +1380 (580), razed +6.4 (2.9), buildings lost -5.2 (3.3),
+kills +27 (13), losses +22 (12), kills - losses +5 (21), but warships -7.1 (1.6) and ships lost +8.5 (2.7) - the sea
+weaker. Head-to-head on Continental (normal: map_size 1, 4 AIs; lowpop; 8 games each, with `v_expand_islands=185` too):
+the variant never acted (below `metal_cap`, no water: 0 picks, no outpost) - B - A only the seats' noise (kills - losses
+-22 (18) / +13 (8)). No clear gain without a loss elsewhere: **off**.
+The next lever is the metal itself: other islands (below) and the warships that sink.
