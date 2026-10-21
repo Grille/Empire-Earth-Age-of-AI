@@ -161,6 +161,7 @@ static void cz_tick(void *pl, uint32_t now) {
 static int g_cit_plan = 3, g_v_cit_plan = -1, g_cit_train_ms = 28000;
 static float g_cit_army = 0.40f;   // [all] citizen_army_share
 #define CIT_PLAN(idx) PV(idx, g_v_cit_plan, g_cit_plan)
+static int expand_cit_need(void *pl, unsigned idx);   // expand.c: the citizens an outpost still needs (EXTRA)
 
 // finished producers of citizens (Town Center, Capitol)
 static int cz_producers(void *pl) {
@@ -223,7 +224,7 @@ static void cz_targets(uint8_t *rm) {
     // the goal: the mines' slots (or their gatherers, if more), food, wood, the idle and 4 builders - within the cap
     // less the army's share, the home mines always in
     int cap = ((int (__thiscall *)(void *, int))(*(void ***)pl)[31])(pl, 0);
-    int goal = slots + rm_count(rm, 2) + rm_count(rm, 3) + rm_count(rm, 0) + 4;
+    int goal = slots + rm_count(rm, 2) + rm_count(rm, 3) + rm_count(rm, 0) + 4 + expand_cit_need(pl, idx);   // expand.c EXTRA
     int lim = cap - (int)((float)cap * g_cit_army), hl = home + rm_count(rm, 2) / 2 + 4;
     if (hl > cap * 4 / 5) hl = cap * 4 / 5;
     if (lim < hl) lim = hl;

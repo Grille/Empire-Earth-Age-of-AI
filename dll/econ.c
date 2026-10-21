@@ -1557,6 +1557,7 @@ static int substitute_soldier(void *pl, unsigned idx, const int *vis, int want, 
 // subtracted from the population cap - after a while the AI could train nothing at all.)
 static int g_priority_mil;   // set by the siege controller around its own requests
 static int g_landing_order;   // set by the landing around its transport order (its reserve is not held from it)
+static int g_expand_order;    // expand.c EARLY: the outpost's transport before every reserve (250 wood; the reserves held it 6 minutes)
 static void landing_reserve(void *pl, int reserve[7]);   // landing.c
 static void expand_reserve(void *pl, int reserve[7]);    // expand.c
 static int landing_room_reserve(void *pl);   // landing.c: population room held for a bombardment's fleet
@@ -1643,6 +1644,7 @@ static void train_budget(void *pl, unsigned idx, const struct ai_cfg *cfg, const
             if (early && !ship) visible = stock[r];   // the account is the army's own
             if (visible > allowed) visible = allowed;
         }
+        if (g_expand_order) visible = stock[r];
         if (no_army) visible = 0;
         if (no_work) visible = 0;
         if (visible < 0) visible = 0;

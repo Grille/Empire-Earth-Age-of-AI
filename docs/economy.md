@@ -481,3 +481,138 @@ What it would take: the free island must be taken before the base AI's (minute 1
 the plan), the citizens it ships must be additional (more citizens trained for the island's slots, not taken from
 wood and food at home), and the maps tested here have one free island at most - a test map with several free islands
 (larger maps, more players) would show more. The idle human's island (`4`) is a test artifact, not measured.
+
+## Large island maps (2026-10-21, dll/expand.c, randmap.c)
+
+The playtester: most players play Large or Huge maps, even 1v1, with a high population limit; there are several free
+islands, and taking islands towards the enemy is part of the game; overexpanding is dangerous ("a few towers on every
+island won't hold"); he takes an island near the enemy and moves the military there, the far home island becomes the
+economic hub - but a forward base with open flanks lets the enemy sneak into the undefended heart, so only with sea
+control. Every test map so far was Small (`map_size` wrote the wrong setup field; docs/testing.md "Large island maps"):
+`map_scale` and `scripts/isl_ablate.sh` now play Small Islands Large (`siL`, 4 free islands), Tournament Islands Huge
+(`tiH`, 5), Large Islands Huge (`liH`, 3) at unit limit 1500 (500 a player), 75 minutes, and Small Islands Large 2v2
+(`siL2`, 2500), next to the old Small maps `si5` / `ti5` (60 minutes).
+
+**Baseline** (the mod against the base AI at hard, 20 seeds x both seats, mod - vanilla per game; the build before
+these changes, `lgbase`):
+
+| Map | cheat | mod / base AI won | soldiers | warships | workers | kills - losses | base AI's miners off home at 60 | mod's |
+|---|---|---|---|---|---|---|---|---|
+| siL | no | 0 / 2 | -67.5 (11.0) | -7.3 | +54 | -197 | 27.9 | 15.5 |
+| tiH | no | 0 / 0 | -31.3 (10.7) | -1.7 | +103 | -140 | 16.2 | 17.6 |
+| liH | no | 0 / 0 | -31.1 (9.5) | -6.0 | +109 | -142 | 12.1 | 15.8 |
+| siL2 (2v2) | no | 0 / 1 | -94.9 (4.9) | -20.6 | +17 | -198 | 49.0 | 6.9 |
+| siL | yes | 0 / 29 | -145.8 (6.9) | -27.7 | -161 | -130 | 69.4 | 0.7 |
+| tiH | yes | 0 / 5 | -142.3 (5.8) | -45.1 | -86 | -317 | 57.5 | 5.3 |
+| liH | yes | 0 / 12 | -146.0 (5.3) | -47.4 | -93 | -274 | 53.6 | 1.0 |
+| siL2 (2v2) | yes | 0 / 35 | -163.7 (4.6) | -32.6 | -191 | -128 | 111.5 | 0.1 |
+| si5 | yes | 0 / 19 | -32.9 (2.6) | -3.0 | -43 | -59 | 13.9 | 0.0 |
+| ti5 | yes | 0 / 31 | -45.5 (2.5) | -5.6 | -61 | -67 | 15.6 | 0.0 |
+
+Without the cheat the games stay undecided, but the mod's AI has 2-3 times fewer soldiers with more workers: at high
+population it trains up to ~300 citizens (citizen_army_share keeps 40% of the cap for the army, the base AI stays near
+180-200) and puts 70-150 of them on wood, while its home island's 5-8 mines (30-48 slots) are full by minute ~30. The
+base AI takes the free islands from minute 30-40 (22-29 with the cheat) and has 30-50% more metal gatherers by minute
+60-75 (siL: 60.6 against 38.6 at 75 minutes). The mod's own buildings off home (from minute ~45) are its landings' forward
+bases. It sees little of the map: the base AI's first building off its home island was known to the mod 12-21 minutes
+after it went up without the cheat (in 6-9 of 40 games never), 9-25 minutes with it (16-27 of 40 never; `# isl
+seen`, the shipped build); the sites' "explored"
+flag the old pick read is set for every AI from the start (`# isl ... known mines` 100% at minute 1) - an honest count
+(intel.c's looked-at cells) shows 5 of 35 mines known at minute 20 on Small Islands Large, 9 at 30.
+
+**What fails first** (`scripts/isl_timeline.py`, the first of four events per game the mod did not win: the enemy has
+a drop site on another island and the mod none, the enemy army 3x the mod's (20+), 5+ enemy soldiers on the mod's home
+island, 3+ enemy warships in its waters and fewer of its own; the shipped build `lgA`, 40 games a cell):
+
+| Map | cheat | enemy settled first | army gap | landing on home | sea lost | none | (ever: landing / sea lost, mean minute) |
+|---|---|---|---|---|---|---|---|
+| siL | no | 25 | 7 | 5 | 2 | 1 | 18 (44) / 22 (56) |
+| tiH | no | 25 | 8 | 3 | 1 | 3 | 27 (48) / 12 (62) |
+| liH | no | 17 | 7 | 12 | 3 | 1 | 27 (45) / 13 (63) |
+| siL2 | no | 20 | 4 | 11 | 5 | 0 | 39 (38) / 32 (54) |
+| siL | yes | 14 | 22 | 2 | 2 | 0 | 37 (40) / 38 (41) |
+| tiH | yes | 9 | 28 | 0 | 3 | 0 | 36 (42) / 36 (44) |
+| liH | yes | 8 | 28 | 2 | 2 | 0 | 39 (40) / 39 (44) |
+| siL2 | yes | 1 | 35 | 1 | 3 | 0 | 40 (30) / 40 (26) |
+
+(siL2 from the `lgbase` build.) So without the cheat the islands are lost first: the base AI settles them at minute
+30-40 and doubles its metal; with the cheat the army gap comes first (minute 14-25: the half price buys the base AI 3x
+the soldiers by minute 20-25, 8 against 24 on siL), then the sea (minute 26-45) and the landings on the mod's home
+island (minute 30-43), after which the mod's miners collapse (siL with the cheat: home miners 18 at 30 minutes, 6 at
+60). The fleet rarely loses the sea first on the large maps (1-5 of 40 games; Tournament Islands Small with the cheat 14), and the mod sinks more
+ships than it loses on the Small maps. The bigger lever with the cheat is the army's size in the first 25 minutes - an
+economy question beyond the islands (left for its own step).
+
+**Fixed on the way**: intel.c's looked-at grid covered 150 tiles - on Large / Huge maps (up to ~330 tiles) everything
+beyond counted as never looked at and landing.c assumed every beach there held (now 600 tiles). Paired with the
+build before (`lgA - lgbase`): the Small maps 157 of 160 games identical, the large ones within the noise both ways
+(liH all miners at 60 -5.4 (1.9), tiH with the cheat kills - losses +20.0 (6.7) but base AI wins 5 -> 8).
+
+**The no-cheat fix in the island pick** (step 3): the pick excluded islands with an enemy Town Center whether the AI had
+seen it or not (the game's knowledge); now only towns it has seen (honest_vision), and since the mines' explored flag
+says nothing, an island with fewer than half its mines looked at (intel.c) is scouted first: the empty transport sails
+to its shore water (the sea checked first), and an enemy town, defence or 4+ known buildings there means never again;
+an enemy town seen once the ferry is on its way or ashore ends the outpost (unloaded at home). Where islands and mines
+are comes from the game's resource zones, as for the base AI.
+
+**New bits** (`expand_islands`, header of dll/expand.c; all off): 8 EARLY (the plan from minute 8 without waiting for
+the home mines, from 20 workers; its transport before every reserve and retried every 2 s - the 250 wood are spent on
+buildings within seconds of coming in: transports waited 6 minutes at minute 12-20; 12 minutes before giving up),
+16 EXTRA (citizen_plan's goal + the outpost's citizens until its Settlement stands; wood cutters board first),
+32 MORE (the next island once the last holds - Settlement and towers standing, no enemy there for 3 minutes, 3+ citizens,
+its trips made or slots filled -, at most `expand_max` (3), the nearest to what it holds; a held island with nothing
+left is lost), 64 FORWARD (an outpost nearer the enemy's known buildings than home gets a barracks and two more
+towers while `sea_held`: no enemy warship seen in its waters for 5 minutes, its warships at least the enemy's known;
+home's towers, guard and militia untouched; only the outpost's own guard is held there, the rest is the game's army).
+
+**Measured** (paired with `lgA` = the same build, `expand_islands=0`; 40 games a cell; d = with - without, standard
+error; og = miners on other islands, mg = all miners, foe = the most enemy soldiers seen on the home island at a
+5-minute sample; the B logs were rerun with the worktree's personality files after a format change on main):
+
+| Map | cheat | bits | trips ashore | og30 | og60 | mg60 | foe | kills - losses | mod / base AI won |
+|---|---|---|---|---|---|---|---|---|---|
+| siL | no | 57 | 1.82 | +2.1 (0.6) | -4.5 (3.0) | -3.7 (4.0) | -3.4 (2.3) | -5.7 (12.9) | 0/2 -> 0/0 |
+| siL | no | 121 | 1.73 | +2.1 (0.6) | -1.0 (3.2) | -0.9 (4.1) | -2.4 (2.0) | -6.9 (11.4) | 0/2 -> 0/1 |
+| tiH | no | 57 | 2.52 | +2.5 (0.6) | +1.9 (3.2) | +5.5 (4.7) | -5.4 (1.6) | +1.4 (15.9) | 0/0 -> 0/0 |
+| tiH | no | 121 | 2.67 | +2.3 (0.6) | +3.6 (3.0) | +4.7 (4.4) | -4.5 (1.6) | +8.3 (13.3) | 0/0 -> 0/0 |
+| liH | no | 57 | 2.83 | +2.6 (0.7) | -2.2 (3.2) | -1.5 (5.1) | -4.9 (2.6) | +37.1 (13.8) | 0/0 -> 0/0 |
+| liH | no | 121 | 2.85 | +2.6 (0.7) | -3.5 (3.1) | -3.6 (4.8) | -5.3 (3.0) | +34.8 (12.8) | 0/0 -> 0/0 |
+| si5 | no | 57 | 1.68 | +2.8 (0.7) | +7.3 (2.5) | +2.4 (3.8) | -1.3 (1.0) | -5.2 (6.8) | 0/2 -> 0/2 |
+| si5 | no | 121 | 1.75 | +2.7 (0.7) | +4.8 (1.9) | +0.1 (3.2) | -0.8 (1.0) | -10.6 (6.6) | 0/2 -> 0/2 |
+| siL | yes | 57 | 0.50 | +0.8 (0.3) | +0.2 (0.5) | +1.6 (2.1) | +0.8 (3.7) | -9.6 (8.5) | 0/29 -> 0/22 |
+| siL | yes | 121 | 0.55 | +0.8 (0.3) | -0.3 (0.3) | +1.4 (2.2) | -2.4 (3.0) | -7.2 (9.2) | 0/29 -> 0/21 |
+| tiH | yes | 57 | 0.72 | +1.5 (0.6) | -1.8 (1.3) | -2.5 (3.7) | -2.6 (3.0) | -9.6 (13.3) | 0/8 -> 0/8 |
+| tiH | yes | 121 | 0.75 | +1.6 (0.7) | +1.2 (1.8) | +0.9 (2.8) | -4.6 (3.2) | -8.1 (11.9) | 0/8 -> 0/9 |
+| liH | yes | 57 | 0.72 | +1.3 (0.5) | -0.2 (0.9) | -5.1 (3.2) | -3.7 (3.4) | +12.2 (10.8) | 0/11 -> 0/14 |
+| liH | yes | 121 | 0.75 | +1.3 (0.5) | -0.2 (0.9) | -6.6 (3.7) | -0.5 (3.3) | +19.9 (12.6) | 0/11 -> 0/15 |
+| si5 | yes | 57 | 0.47 | +0.5 (0.4) | +1.3 (0.7) | +7.9 (2.4) | -0.2 (1.5) | +4.6 (5.8) | 0/19 -> 0/16 |
+| si5 | yes | 121 | 0.50 | +0.4 (0.4) | +0.7 (0.3) | +5.9 (2.2) | +0.1 (1.6) | +4.7 (6.1) | 0/19 -> 0/16 |
+
+Tournament Islands Small (`ti5`, no free island): 38-40 of 40 games the same. The outposts now go up from minute 25-30
+(2-3 per 75-minute game without the cheat, 0.5-0.75 with it), 2-3 miners more on other islands at minute 30, and the
+enemy's soldiers on the home island fall on the large maps (foe -2.4 to -5.4; the samples with any foe -0.5 to -1.0
+of ~2) - the outposts meet the base AI's landings away from home. But they do not hold: by minute 60 the other islands'
+miners are back where they were (og60 -4.5 to +3.6, all within the noise on the large maps), the outposts lost or
+emptied (0.2-0.4 losses a game; the base AI settles the same islands and its 2-3x larger army takes them), and the
+results go both ways: Large Islands Huge kills - losses +35 (13) without the cheat, but with the cheat the base AI's
+wins 11 -> 14 / 15; Small Islands Large with the cheat 29 -> 21 / 22 of 40, Small Islands Small 19 -> 16. FORWARD (121
+against 57) changed little: the forward base came where the base AI was already settling (the "nearer the enemy"
+test found its outpost 8-82 tiles from the enemy's buildings), and `sea_held` passed on the mod's own warships because
+the enemy's had rarely been seen. 
+Head-to-head against the control AI (Small Islands Large, 4 AIs, unit limit 2500, 75 minutes, 24 games, `v_expand_islands`, B - A per game): 57 soldiers +9.4 (5.4), kills +5.8 (14.7), losses -9.1 (9.9), razed -3.5 (2.6), workers +1.6 (6.5); 121 soldiers +1.8 (7.9), kills +0.3 (14.8), losses -2.1 (11.7), razed -3.0 (2.9), workers +5.9 (9.6) - nothing beyond the noise, the razed count leaning against it.
+
+No clear gain without losses elsewhere: **off** (`expand_islands=0`). The build with it off against main's build without
+these bits: Continental e0 39 of 40 games the same, Small Islands Large 1 of 4 seeds checked identical, and a rerun of
+one that parted (minute 70) identical to main's - with 8 games at a time, 3 of 4 Small Islands Large games parted after
+minute 56-70 also between two runs of the same DLL (the heavy load, not the code; a run with 2 at a time was exact).
+
+**What the diagnosis points to next** (not done here): (1) the army's size at high population - the mod's AI keeps up
+to 60% of the cap in citizens and over-staffs wood (70-150 woodcutters, 5000-8000 wood unspent at 60 minutes) while the
+base AI fields 2-3x the soldiers with fewer workers; with the cheat this gap at minute 15-25 decides the game; (2) the
+outposts must hold: the island where the base AI also lands needs the army (and the forward base the sea) first, i.e.
+an outpost should follow the army, not lead it; (3) map control: the mod sees the enemy's new islands 10-25 minutes
+late or never - scouting with the fleet and hitting a fresh enemy outpost early (a small landing on a Settlement
+without towers) are open levers; (4) fishing: the mod's AI has no fishing boat before minute ~25 on these maps (the
+base AI 3-4 at minute 10), though fish is the cheapest food on islands. For land maps the same forward-base idea needs
+the home guard and flank checks without the sea test (expand.c's `sea_held` / `ex_forward` are island-only; the
+holding test, `ex_holds`, and the forward test against the enemy's known buildings are not).

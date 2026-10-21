@@ -691,7 +691,13 @@ the enemy soldiers on the side's home island (`# isl ... home_foe sold N bld N`,
 with any); `scripts/isl_timeline.py` the timelines and the first failure per game (see docs/economy.md "Large island
 maps"). `# isl seen: P<v> at <m> min: P<o>'s type T on c<n> (there since <m0> min)` (once a game minute, autotest): the
 first time an enemy AI knew a building off its owner's home island - how late the expansions are noticed;
-`# isl: ... | known mines K of N` the map's mines the player has explored.
+`# isl: ... | known mines K of N` the map's mines the player has looked at (intel.c's cells; the sites' own explored flag is set for every AI from the start).
+
+Results (baseline, failure modes, `expand_islands` 57 / 121 paired, head-to-head): docs/economy.md "Large island maps". Mind the
+load: with 8 games at a time, 3 of 4 Small Islands Large games parted after minute 56-70 between two runs of the same DLL
+(2 at a time: exact) - compare builds on the CSV rows and count the games that are the same, as islands.py does. And
+keep a long A/B on one personality folder (`AI_DIR` to a fixed copy) while other sessions change `config/aimod_ai`: a
+format change on main mid-run made the B runs' personalities fail to load (`# texts: ... skipped`).
 
 ### Mass before striking, the mines (navy stage 5)
 
