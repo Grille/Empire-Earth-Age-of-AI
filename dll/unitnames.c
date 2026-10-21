@@ -64,6 +64,24 @@ static int unit_types_load(void) {
         g_ut[i] = t >= 0 ? t : UT_NONE;
         if (t < 0 && g_log) fprintf(g_log, "# units: %s, a type the AI knows by name, isn't in the game's data - left out\n", ut_ident[i]);
     }
+    for (int t = 0; t < G_TYPES_N; t++) {   // what each type is (unit_ids.h, the roles)
+        uint8_t *td = type_data(t);
+        if (!td || FIELD(td, 0x4B8, int) != t) continue;
+        int f = FIELD(td, 0x4C4, int), c = FIELD(td, 0x4B4, int);
+        g_ut_role[t] = (unsigned char)((f == KIND_TOWERS ? UTR_TOWER : 0) | (f == KIND_WALLS ? UTR_WALL : 0) |
+            (c == CLS_GATE ? UTR_GATE : 0) |
+            (c == CLS_LAND && (f == KIND_SIEGE || f == KIND_MACHINES) && FIELD(td, 0x420, float) >= 3.0f ? UTR_SIEGE : 0) |
+            (c == CLS_LAND && f == KIND_RAM ? UTR_RAM : 0) | (c == CLS_CITIZEN && f == KIND_CITIZEN ? UTR_CITIZEN : 0) |
+            (c == CLS_TRANSPORT ? UTR_TRANSPORT : 0) | (c == CLS_FISHING_BOAT ? UTR_FISHING_BOAT : 0));
+    }
+    if (g_log) {   // the roles' types by number: a data mod's new ones show here
+        static const char *const rn[8] = { "towers", "walls", "gates", "siege", "rams", "citizens", "transports", "fishing boats" };
+        for (int r = 0; r < 8; r++) {
+            fprintf(g_log, "# units: %s:", rn[r]);
+            for (int t = 0; t < G_TYPES_N; t++) if (g_ut_role[t] & (1 << r)) fprintf(g_log, " %d", t);
+            fprintf(g_log, "\n");
+        }
+    }
     unit_types_check_later();
     return 1;
 }

@@ -81,6 +81,14 @@ def main():
             if len(line) + len(item) > 118: f.write(line + '\n'); line = '   '
             line += item
         f.write(line + '\n};\n')
+        f.write('// the kinds as constants for the AI code (unit_ids.h, the roles): KIND_TOWERS\n')
+        f.write('enum unit_kind {\n')
+        line = '   '
+        for i in sorted(kinds):
+            item = ' KIND_%s = %d,' % (kinds[i].upper(), i)
+            if len(line) + len(item) > 118: f.write(line + '\n'); line = '   '
+            line += item
+        f.write(line + '\n};\n')
 
     rows = collections.defaultdict(list)
     other = []
@@ -116,7 +124,11 @@ def main():
     w('the types, their names and families from the data the game has loaded, so a data mod\'s types count too; this list')
     w('is the retail game\'s (some of its types the game doesn\'t load: the `x ... ME` variants, a few mines and trees).')
     w('The AI code names the types it needs by identifier as well (dll/unit_ids.h: `UT(B_FARM)`), looked up when the game')
-    w('starts - a type a data mod hasn\'t got is logged and left out. Buildings come first in each epoch.')
+    w('starts - a type a data mod hasn\'t got is logged and left out. What a type is to the AI (a tower, a wall, a gate,')
+    w('siege, a ram, a citizen, a transport, a fishing boat) it takes from the family and the game\'s class of the type, so')
+    w('a data mod\'s new tower or transport counts without a name; the game log lists them (`# units: towers: ...`). Towers,')
+    w('walls and gates it builds from their named lines: the game would let it build the Missile Base and castle walls')
+    w('too (the pipe\'s `canbuild P`). Buildings come first in each epoch.')
     w('')
     w('| kind | the game\'s name | types |')
     w('|---|---|---|')

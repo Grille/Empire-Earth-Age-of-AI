@@ -452,7 +452,7 @@ static void __fastcall hook_pop_cap(void *pl, void *edx) {
     if (!cfg_of(pl)->pop_follow && !is_vanilla(pl)) FIELD(pl, 0xCCC, int) = ((int (__thiscall *)(void *, int))FN_GAME_LIMIT)(pl, 0);
 }
 
-static int is_citizen_type(int type) { return type == UT(CITIZEN) || type == UT(FEMALE_CITIZEN); }
+static int is_citizen_type(int type) { return ut_role(type, UTR_CITIZEN); }
 
 // Citizens without useful work: unassigned ones plus those beyond their resource's target.
 static int idle_citizens(void *pl) {
@@ -1488,7 +1488,7 @@ static struct { void *pl; uint32_t t; int n; int type[48]; } g_cand[16];
 static int land_soldier(int type) {
     uint8_t *td = type_data(type);
     if (!td || FIELD(td, 0x4B8, int) != type || FIELD(td, 0x4B4, int) != 5) return 0;   // a real record of this type
-    if (UT_IN(type, UT_SIEGE_TYPES, UT_RAM_TYPES, UT_CITIZEN, UT_FEMALE_CITIZEN, UT_PRIEST, UT_PROPHET)) return 0;
+    if (ut_role(type, UTR_SIEGE | UTR_RAM | UTR_CITIZEN) || type == UT(PRIEST) || type == UT(PROPHET)) return 0;
     return 1;
 }
 // Requests that may be replaced: every military unit but ships (navies on water maps), siege and rams (the siege
@@ -1501,7 +1501,7 @@ static int substitutable(int type) {
     if (!td || FIELD(td, 0x4B8, int) != type) return 0;
     int fam = FIELD(td, 0x4B4, int);
     if (fam == 4 || fam == 10 || fam == 18 || fam == 21 || fam == 22) return 0;
-    if (UT_IN(type, UT_SIEGE_TYPES, UT_RAM_TYPES, UT_CITIZEN, UT_FEMALE_CITIZEN)) return 0;
+    if (ut_role(type, UTR_SIEGE | UTR_RAM | UTR_CITIZEN)) return 0;
     return 1;
 }
 static int soldier_score(int type) {

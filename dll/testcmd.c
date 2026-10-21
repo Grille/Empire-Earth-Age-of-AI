@@ -293,6 +293,19 @@ static void cmd_bqueue(char *out, const char *args) {
     }
 }
 
+// canbuild P: every type the game lets player P build or train now (0x555710: available in this epoch, affordable,
+// a builder) - which types of a family or class the data really offers (the Missile Base, campaign units)
+static void cmd_canbuild(char *out, const char *args) {
+    int p = atoi(args);
+    void *pl = (p >= 0 && p < 16) ? g_players[p] : NULL;
+    if (!pl) { REPLY("error: no player %d\n", p); return; }
+    REPLY("P%d can build:", p);
+    for (int t = 0; t < G_TYPES_N && strlen(out) < 15000; t++)
+        if (type_data(t) && ((char (__thiscall *)(void *, int, int, int))0x00555710)(pl, t, 0x20, 0))
+            REPLY(" %d %s,", t, unit_ident(t));
+    REPLY("\n");
+}
+
 // count P: all units and buildings of player P by type (type: count)
 static void cmd_count(char *out, const char *args) {
     int p = atoi(args);

@@ -2,11 +2,11 @@
 // the pipe commands a script may call as functions (expr.c x_command_verb)
 static const char *const k_cmd_verbs[] = {
     "aigroup", "aim", "army", "asgtrace", "assault", "attacknow", "attacks", "basemap", "board", "bqueue", "build",
-    "bunker", "calloff", "camera", "camtrace", "charge", "chat", "chatme", "continent", "costs", "count", "ddinfo",
-    "ddpoke", "defence", "diplo", "drawcount", "drops", "firerate", "foodcheck", "found", "give", "gridcheck",
-    "hurt", "intel", "landing", "llm", "minecheck", "move", "navy", "nullmember", "objs", "pause", "persona",
-    "ping", "plan", "quit", "resume", "rlist", "save", "say", "script", "scrolltest", "seaop", "seltest", "sites",
-    "sndchan", "sndstate", "spawn", "spawnline", "speed", "stats", "status", "targets", "tech", "techs", "terrain",
-    "textlog", "texts", "textstate", "threat", "tinfo", "topbar", "train", "trig", "turbo", "uinfo", "units", "vis",
-    "vistrack", "watch", "watchtech", "watchtype", "wave", "wmclose",
+    "bunker", "calloff", "camera", "camtrace", "canbuild", "charge", "chat", "chatme", "continent", "costs",
+    "count", "ddinfo", "ddpoke", "defence", "diplo", "drawcount", "drops", "firerate", "foodcheck", "found", "give",
+    "gridcheck", "hurt", "intel", "landing", "llm", "minecheck", "move", "navy", "nullmember", "objs", "pause",
+    "persona", "ping", "plan", "quit", "resume", "rlist", "save", "say", "script", "scrolltest", "seaop", "seltest",
+    "sites", "sndchan", "sndstate", "spawn", "spawnline", "speed", "stats", "status", "targets", "tech", "techs",
+    "terrain", "textlog", "texts", "textstate", "threat", "tinfo", "topbar", "train", "trig", "turbo", "uinfo",
+    "units", "vis", "vistrack", "watch", "watchtech", "watchtype", "wave", "wmclose",
 };

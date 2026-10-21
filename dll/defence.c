@@ -34,7 +34,7 @@ static struct def_plan {
 } g_plan[16];
 
 static unsigned area_id(int x, int y, int kind);   // assault.c: 1 the sea, 2 the land there (0 none)
-static int is_tower_type(int t) { return UT_IN(t, UT_TOWER_LINE, UT_B_TANK_OBSTACLE); }
+static int is_tower_type(int t) { return ut_role(t, UTR_TOWER) || t == UT(B_TANK_OBSTACLE); }   // the tank barrier holds a front too
 static const enum ut_name k_tower_line[] = { UT_TOWER_LINE };   // oldest first
 static int tower_newest(void *pl) {   // the best tower the game lets this player build now (0: none)
     for (int i = 6; i >= 0; i--)
@@ -1079,7 +1079,7 @@ static void basemap_unit(uint8_t *u, void *ctx) {
         int pi = FIELD(owner, PL_INDEX, int);
         if (pi <= 0) return;   // nature / gaia
         ch = (char)('0' + pi % 10);
-    } else if (is_wall(type)) ch = UT_IN(type, UT_GATE_LINE) ? 'G' : 'W';
+    } else if (is_wall(type)) ch = ut_role(type, UTR_GATE) ? 'G' : 'W';
     else if (defence_stats(u, &r, &a)) ch = 'T';
     else if (UT_IN(type, UT_TOWNS, UT_X_SINGLE_PLAYER_SETTLEMENT)) ch = 'C';
     else if (fam == 2 || fam == 29) ch = 'b';

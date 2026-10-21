@@ -11,7 +11,11 @@ counts every tower whatever its epoch, `unit.<identifier>` only that type (confi
 the types, their names and families from the data the game has loaded, so a data mod's types count too; this list
 is the retail game's (some of its types the game doesn't load: the `x ... ME` variants, a few mines and trees).
 The AI code names the types it needs by identifier as well (dll/unit_ids.h: `UT(B_FARM)`), looked up when the game
-starts - a type a data mod hasn't got is logged and left out. Buildings come first in each epoch.
+starts - a type a data mod hasn't got is logged and left out. What a type is to the AI (a tower, a wall, a gate,
+siege, a ram, a citizen, a transport, a fishing boat) it takes from the family and the game's class of the type, so
+a data mod's new tower or transport counts without a name; the game log lists them (`# units: towers: ...`). Towers,
+walls and gates it builds from their named lines: the game would let it build the Missile Base and castle walls
+too (the pipe's `canbuild P`). Buildings come first in each epoch.
 
 | kind | the game's name | types |
 |---|---|---|

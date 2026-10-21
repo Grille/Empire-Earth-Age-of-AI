@@ -146,10 +146,8 @@ static int __fastcall hook_route_cost(uint8_t *self, void *edx, int *edge, uint8
 static int g_weak_spots = 1;          // aimod.ini [all] attack_weak_spots
 static int g_weak_radius = 60;        // tiles around the original goal searched for a weak spot
 
-// Walls and gates are no weak spot (no economy behind them, only a detour).
-static int is_wall(int type) {
-    return UT_IN(type, UT_WALL_LINE, UT_GATE_LINE, UT_X_CASTLE_WALL_LEFT, UT_X_CASTLE_WALL_RIGHT);
-}
+// Walls and gates are no weak spot (no economy behind them, only a detour): the family walls (barbed wire too).
+static int is_wall(int type) { return ut_role(type, UTR_WALL); }
 
 // Only goals at an enemy building are retargeted: the subgroup also marches to other goals (enemy armies,
 // own territory to defend), which must not be diverted.
@@ -439,7 +437,7 @@ static int g_ignore_air = 1;          // aimod.ini [all] attack_ignore_air
 // a unit family of the army (soldiers, siege, ships, aircraft ... - not buildings, walls, towers, gates, resources):
 // the families as in the statistics code 0x5EB000/0x55DD66
 static int is_army_family(int fam) { return !(fam == 2 || fam == 6 || fam == 0x13 || fam == 0x16 || fam == 0x18 || fam == 0x19 || fam == 0x1D || fam == 0 || fam == 1); }
-static int is_ram(int type) { return UT_IN(type, UT_RAM_TYPES); }
+static int is_ram(int type) { return ut_role(type, UTR_RAM); }
 
 // Enemy soldiers (no citizens, no siege) of player pl's enemies within r tiles of (x, y)?
 static int guarded(void *pl, int x, int y, int r) {
@@ -451,7 +449,7 @@ static int guarded(void *pl, int x, int y, int r) {
         if (!td || FIELD(td, 0x4B4, int) != 5 || FIELD(u, 0x3C, int) <= 0 || !is_enemy(pl, FIELD(u, 0x18, void *)))
             continue;
         int t = FIELD(td, 0x4B8, int);
-        if (is_citizen_type(t) || is_ram(t) || t == UT(SIEGE04_TOWER) || UT_IN(t, UT_SIEGE_TYPES))
+        if (ut_role(t, UTR_CITIZEN | UTR_RAM | UTR_SIEGE))
             continue;
         int dx = FIELD(u, 0x1C, int) - x, dy = FIELD(u, 0x20, int) - y;
         if (dx * dx + dy * dy <= r * r) return 1;
@@ -581,7 +579,7 @@ static struct {
     unsigned waves, lost, pauses, held, logged_min;
 } g_siege_st[16];
 
-static int is_siege(int type) { return UT_IN(type, UT_SIEGE_TYPES); }
+static int is_siege(int type) { return ut_role(type, UTR_SIEGE); }
 
 static uint8_t *unit_at(int x, int y, int type) {
     if (x < 0 || y < 0) return NULL;

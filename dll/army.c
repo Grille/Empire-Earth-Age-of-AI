@@ -413,8 +413,8 @@ static void am_tick(void *pl, uint32_t now) {
         if (FIELD(u, 0x18, void *) != pl || FIELD(u, 0x3C, int) <= 0) continue;
         int t = FIELD(td, 0x4B8, int), fam = FIELD(td, 0x4B4, int);
         uint8_t *bs = FIELD(u, 0x30, uint8_t *);
-        if (UT_IN(t, UT_TOWER_LINE)) { towers += bs && bs[0x340]; continue; }
-        if (UT_IN(t, UT_WALL_LINE)) { walls += bs && bs[0x340]; continue; }
+        if (ut_role(t, UTR_TOWER)) { towers += bs && bs[0x340]; continue; }
+        if (ut_role(t, UTR_WALL) && !ut_role(t, UTR_GATE)) { walls += bs && bs[0x340]; continue; }
         if (!is_army_family(fam) || is_citizen_type(t) || fam == 18) continue;   // transports aside
         if (fam == 4 || fam == 10 || fam == 21) ships++;
         else if (fam == 3 || fam == 7 || fam == 17) air++;

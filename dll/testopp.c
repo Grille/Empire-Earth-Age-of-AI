@@ -219,10 +219,11 @@ static void so_types(void) {
         best[r] = tech; g_so.types[r] = t;
     }
     g_so.trtype = 0;
-    for (size_t k = 0; k < sizeof k_transports / sizeof *k_transports && !g_so.trtype; k++) {
-        int t = g_ut[k_transports[k].ut];
-        if (ut_has(t) && ((p1 && ld_type_avail(p1, t)) || (ai && ld_type_avail(ai, t)))) g_so.trtype = t;
-    }
+    for (int t = 0, bt = 0; t < G_TYPES_N; t++)   // the newest transport (as ld_transport_type)
+        if (is_transport(t) && ((p1 && ld_type_avail(p1, t)) || (ai && ld_type_avail(ai, t))) && FIELD(type_data(t), 0x4E0, int) > bt) {
+            bt = FIELD(type_data(t), 0x4E0, int);
+            g_so.trtype = t;
+        }
     static int cnt[G_TYPES_N];
     memset(cnt, 0, sizeof cnt);
     int tower = 0;
@@ -868,11 +869,11 @@ static void so_report(uint32_t now) {
     }
     int ai = g_so.ai, seen = 0, mem = 0;
     unsigned trl = 0;
-    for (size_t k = 0; k < sizeof k_transports / sizeof *k_transports; k++) if (ut_has(g_ut[k_transports[k].ut])) trl += g_nv_lost_type[ai][g_ut[k_transports[k].ut]];
+    for (int t = 0; t < G_TYPES_N; t++) if (is_transport(t)) trl += g_nv_lost_type[ai][t];
     for (int i = 0; i < g_sos.nu; i++) seen += g_sos.u[i].seen && g_sos.u[i].cls == SC_WAR;
     for (int k = 0; k < g_so.nm; k++) mem += g_so.m[k].kind == 0;
     unsigned opp_trl = 0;
-    for (size_t k = 0; k < sizeof k_transports / sizeof *k_transports; k++) if (ut_has(g_ut[k_transports[k].ut])) opp_trl += g_nv_lost_type[1][g_ut[k_transports[k].ut]];
+    for (int t = 0; t < G_TYPES_N; t++) if (is_transport(t)) opp_trl += g_nv_lost_type[1][t];
     so_log("# sea: P1 vs P%d at %u min (%s): opp_war=%d raid=%d main=%d patrol=%d F=%d L=%d A=%d S=%d opp_hp=%.0f spawned=%d "
            "opp_lost=%d opp_lost_by_ai=%u ai_war=%d ai_war_most=%d ai_war_lost=%u ai_tr=%d ai_tr_lost=%u ai_boats=%d "
            "ai_boats_lost=%u ai_fish=%d ai_cit_killed=%u ai_cit_by_ships=%d waves=%d sailed=%d ashore=%d stopped=%d "

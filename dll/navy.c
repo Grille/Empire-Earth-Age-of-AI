@@ -805,13 +805,10 @@ static int __fastcall hook_fish_type(void *o, void *edx) {
     int t = ((int (__thiscall *)(void *))FN_FISH_TYPE)(o);
     void *pl = o ? FIELD(o, 0x4C, void *) : NULL;
     if (!g_fish_boat || !pl || !FIELD(pl, PL_TECHTREE, void *) || is_vanilla(pl)) return t;
-    static const enum ut_name boats[] = { UT_FISHING_BOATS };
     int best = 0, bt = 0;
-    for (size_t k = 0; k < sizeof boats / sizeof *boats; k++) {
-        int b = g_ut[boats[k]];
-        uint8_t *td = type_data(b);
-        if (!td || FIELD(td, 0x4B8, int) != b || FIELD(td, 0x4B4, int) != 22 || !ld_type_avail(pl, b)) continue;
-        if (FIELD(td, 0x4E0, int) > bt) { bt = FIELD(td, 0x4E0, int); best = b; }
+    for (int b = 0; b < G_TYPES_N; b++) {
+        if (!is_fishing_boat(b) || !ld_type_avail(pl, b)) continue;
+        if (FIELD(type_data(b), 0x4E0, int) > bt) { bt = FIELD(type_data(b), 0x4E0, int); best = b; }
     }
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     if (best && best != g_fish_last[idx] && g_log)

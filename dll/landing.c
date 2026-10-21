@@ -76,13 +76,7 @@ static struct landing {
     unsigned bombards, bomb_won;
 } g_ld[16];
 
-static const struct { int epoch; enum ut_name ut; } k_transports[] = {   // newest first (g_ut[.ut]: the type)
-    { 13, UT_S13_GARGANTUA_TRANSPORT }, { 10, UT_S10_ATOMIC_AGE_TRANSPORT }, { 8, UT_S08_IMPERIAL_TRANSPORT },
-    { 4, UT_S04_BRONZE_TRANSPORT }, { 3, UT_S03_COPPER_TRANSPORT }, { 2, UT_S02_STONE_TRANSPORT } };
-static int is_transport(int t) {
-    for (size_t k = 0; k < sizeof k_transports / sizeof *k_transports; k++) if (g_ut[k_transports[k].ut] == t) return 1;
-    return 0;
-}
+static int is_transport(int t) { return ut_role(t, UTR_TRANSPORT); }   // a transport ship (its class)
 static int ld_cap(int t) {   // soldiers a transport holds: its type's +0x54C (raft, copper: 10, bronze: 12, imperial on: 14; copper held 10 in the board test)
     uint8_t *td = t > 0 ? type_data(t) : NULL;
     int c = td ? FIELD(td, 0x54C, int) : 0;
@@ -97,11 +91,17 @@ static int ld_cits_for(int ships, int cap) {
     if (c > cap) c = cap;
     return c;
 }
-static int ld_transport_type(void *pl) {   // the newest transport of its epoch
-    int epoch = current_epoch(pl) + 1;
-    for (size_t k = 0; k < sizeof k_transports / sizeof *k_transports; k++)
-        if (k_transports[k].epoch <= epoch && ut_has(g_ut[k_transports[k].ut])) return g_ut[k_transports[k].ut];
-    return 0;
+static int ld_type_avail(void *pl, int t);
+// the newest transport it can train: of the transport ships its tech record allows (an upgraded line's old type no
+// longer), the one of the highest tech - one per epoch in the game's data (raft, copper, bronze, imperial, atomic,
+// gargantua), a data mod's own included; 0: none
+static int ld_transport_type(void *pl) {
+    int best = 0, bt = 0;
+    for (int t = 0; t < G_TYPES_N; t++) {
+        if (!is_transport(t) || !ld_type_avail(pl, t)) continue;
+        if (FIELD(type_data(t), 0x4E0, int) > bt) { bt = FIELD(type_data(t), 0x4E0, int); best = t; }
+    }
+    return best;
 }
 static int ld_affordable(void *pl, int t) {   // how many of type t its stock pays now
     int *st = (int *)((uint8_t *)pl + PL_STOCK), n = 20;
@@ -298,7 +298,7 @@ static unsigned ocean_near(int x, int y, int r, int *wx, int *wy) {   // an ocea
 }
 
 struct ld_scan { void *pl; uint8_t *target; int nb, bx[2000], by[2000]; int nd, dx[16], dy[16]; int nt; uint8_t *tr[32]; int nw; uint8_t *war[32]; int na; uint8_t *air[16]; };
-static int is_fishing_boat(int t) { return UT_IN(t, UT_FISHING_BOATS); }
+static int is_fishing_boat(int t) { return ut_role(t, UTR_FISHING_BOAT); }
 static void ld_unit(uint8_t *u, void *ctx) {
     struct ld_scan *s = ctx;
     uint8_t *td = FIELD(u, 0x2C, uint8_t *);
@@ -822,13 +822,11 @@ static void ld_base_plan(struct landing *l) {
 }
 static int ld_can_build(void *pl, int t) { return ut_has(t) && ((char (__thiscall *)(void *, int, int, int))0x00555710)(pl, t, 0x20, 0) != 0; }
 static int ld_kind_type(void *pl, int kind) {   // the type of a kind it can build and pay now (0: none)
-    static const enum ut_name towers[] = { UT_B_GUARD_TOWER_DIGITAL, UT_B_GUARD_TOWER_WW1, UT_B_GUARD_TOWER_IMPERIAL,
-        UT_B_GUARD_TOWER_MIDDLE, UT_B_GUARD_TOWER_BRONZE, UT_B_GUARD_TOWER_COPPER, UT_B_GUARD_TOWER_PALEO },
-        centers[] = { UT_B_TOWN_CENTER, UT_B_SETTLEMENT },
+    static const enum ut_name centers[] = { UT_B_TOWN_CENTER, UT_B_SETTLEMENT },
         factories[] = { UT_B_CYBER_FACTORY, UT_B_TANK_FACTORY, UT_B_STABLE, UT_B_ARCHERY_RANGE };
     const enum ut_name *t = NULL; int n = 0;
     switch (kind) {
-    case LDB_TOWER: t = towers; n = 7; break;
+    case LDB_TOWER: return tower_newest(pl);
     case LDB_CENTER: t = centers; n = 2; break;
     case LDB_FACTORY: t = factories; n = 4; break;
     case LDB_BARRACKS: return ld_can_build(pl, UT(B_BARRACKS)) ? UT(B_BARRACKS) : 0;
@@ -1562,18 +1560,16 @@ static int ld_phase_ships(void *pl, unsigned pi, struct landing *l, uint8_t *um,
         // what was ordered takes time (ordered every 20 s: 7); nothing taken (not affordable): again in 20 s
         if (!l->trained_t || now - l->trained_t >= (l->tr_got ? 120000u : 20000u)) {
             l->trained_t = now;
-            int epoch = current_epoch(pl) + 1;
-            for (size_t k = 0; k < sizeof k_transports / sizeof *k_transports; k++) {
-                if (k_transports[k].epoch > epoch || !ut_has(g_ut[k_transports[k].ut])) continue;
-                int req[4] = { g_ut[k_transports[k].ut], want - s->nt, 0, 0 };
+            int tt = ld_transport_type(pl);
+            if (tt) {
+                int req[4] = { tt, want - s->nt, 0, 0 };
                 unsigned got = 0;
-                l->tr_type = g_ut[k_transports[k].ut];
+                l->tr_type = tt;
                 g_priority_mil = 1; g_landing_order = 1;
                 hook_train_units(um, NULL, req, (uintptr_t)&got);
                 g_priority_mil = 0; g_landing_order = 0;
                 l->tr_got = (int)got;
-                if (g_log) fprintf(g_log, "# landing: P%u at %.1f min: trains %u transports (type %d), has %d\n", pi, now / 60000.0, got, g_ut[k_transports[k].ut], s->nt);
-                break;
+                if (g_log) fprintf(g_log, "# landing: P%u at %.1f min: trains %u transports (type %d), has %d\n", pi, now / 60000.0, got, tt, s->nt);
             }
         }
         return 1;
