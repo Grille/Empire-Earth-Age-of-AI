@@ -1,5 +1,5 @@
-"""The object types' identifiers: docs/units.md (every type by epoch: id, identifier, English name, stats, cost) and
-dll/unit_names.h (the identifiers for the DLL, by type id).
+"""The object types' identifiers: docs/units.md (every type by epoch: id, identifier, English name, kind, stats, cost)
+and dll/unit_names.h (the identifiers for the DLL, by type id; the kinds - the game's families - and each type's).
 
 An identifier is the type's internal name from the game's data (dbobjects.dat - the same in every game language),
 lowercase, every run of other characters one '_': "b  Guard Tower - Bronze" -> b_guard_tower_bronze. One rule, no
@@ -49,6 +49,11 @@ def main():
                           extra_count_field='Num of tech builders')
     lang = dat_read.language(os.path.join(HERE, 'dats', 'language.txt'))
     fam = families(db)
+    kinds = {i: ident(n) for i, n in fam.items()}   # kind.<identifier> in the texts
+    if len(set(kinds.values())) != len(kinds):
+        raise SystemExit('kind identifiers used twice: %s' % kinds)
+    if max(kinds) >= 255:
+        raise SystemExit('more kinds than an unsigned char holds')
 
     names = {}
     for r in objs:
@@ -72,6 +77,20 @@ def main():
             r = by_id.get(i)
             f.write('    %s,%s\n' % ('"%s"' % ident(r['Name']) if r else 'NULL', '   // %d' % i if i % 10 == 0 else ''))
         f.write('};\n')
+        f.write('// the kinds: the game\'s families (the armour and bonus class, "Family ID") as identifiers - kind.towers\n')
+        f.write('#define UNIT_KINDS %d\n' % (max(kinds) + 1))
+        f.write('static const char *const k_kind_ident[UNIT_KINDS] = {\n')
+        line = '   '
+        for i in range(max(kinds) + 1):
+            item = ' "%s",' % kinds[i] if i in kinds else ' NULL,'
+            if len(line) + len(item) > 118: f.write(line + '\n'); line = '   '
+            line += item
+        f.write(line + '\n};\n')
+        f.write('// each type\'s kind (k_kind_ident), by type id; 255: no type\n')
+        f.write('static const unsigned char k_unit_kind[UNIT_TYPES] = {\n')
+        for i in range(0, top, 24):
+            f.write('    %s,\n' % ', '.join(str(by_id[j]['Family ID'] if j in by_id else 255) for j in range(i, min(i + 24, top))))
+        f.write('};\n')
 
     rows = collections.defaultdict(list)
     other = []
@@ -80,6 +99,7 @@ def main():
         disp = lang.get(r['Language ID'], '')
         kind = fam.get(r['Family ID'], '')
         building = r['Is building?'] or kind in BUILDINGS
+        kind = kinds.get(r['Family ID'], '')
         if not ts:
             other.append((ident(r['Name']), r['ID'], disp, kind, r['Health']))
             continue
@@ -101,7 +121,15 @@ def main():
     w('`b_guard_tower_bronze`). The prefixes are the designers\': `b` building, `a` aircraft, `inf`/`arch`/`cav` + the')
     w('epoch infantry, archers, cavalry, `gun` siege and guns, `x` special variants, `amb` animals, `res` resources.')
     w('')
-    w('Kind is the game\'s family of the type (its armour and bonus class). Buildings come first in each epoch.')
+    w('Kind is the game\'s family of the type (its armour and bonus class) - in the texts `kind.<kind>`: `me.count(kind.towers)`')
+    w('counts every tower whatever its epoch, `unit.<identifier>` only that type (config/aimod_ai/README.md). Buildings')
+    w('come first in each epoch.')
+    w('')
+    w('| kind | the game\'s name | types |')
+    w('|---|---|---|')
+    n_kind = collections.Counter(r['Family ID'] for r in objs)
+    for i in sorted(kinds):
+        w('| `%s` | %s | %d |' % (kinds[i], fam[i], n_kind.get(i, 0)))
     w('')
     w('The stats are the base values from the data, before upgrades and civilization bonuses: hit points, attack,')
     w('range and line of sight in tiles, speed, population, cost food/wood/stone/gold/iron and build time in seconds.')
@@ -113,7 +141,7 @@ def main():
         w('| id | identifier | name | kind | epochs | HP | attack | range | sight | speed | pop | cost F/W/S/G/I | time |')
         w('|---|---|---|---|---|---|---|---|---|---|---|---|---|')
         for x in sorted(rows[e]):
-            w('| %d | `%s` | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s |' % ((x[2], x[1]) + x[3:]))
+            w('| %d | `%s` | %s | `%s` | %s | %s | %s | %s | %s | %s | %s | %s | %s |' % ((x[2], x[1]) + x[3:]))
         w('')
     w('## Not built in a game')
     w('')
@@ -122,7 +150,7 @@ def main():
     w('| id | identifier | name | kind | HP |')
     w('|---|---|---|---|---|')
     for x in sorted(other):
-        w('| %d | `%s` | %s | %s | %s |' % (x[1], x[0], x[2], x[3], x[4] or ''))
+        w('| %d | `%s` | %s | `%s` | %s |' % (x[1], x[0], x[2], x[3], x[4] or ''))
     w('')
     with open(os.path.join(ROOT, 'docs', 'units.md'), 'w', encoding='utf-8', newline='\n') as f:
         f.write('\n'.join(out))

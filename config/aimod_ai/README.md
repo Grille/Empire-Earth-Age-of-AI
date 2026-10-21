@@ -398,6 +398,7 @@ Shortcuts: my own `epoch`, traits, `allies` and `enemies` without `me.` (`aggres
 | `X.food`, `X.wood`, `X.stone`, `X.gold`, `X.iron` | its stock - another's too (the AI's spies): them.gold |
 | `X.stock` | the five resources together - to scale amounts: them.tribute(me) &gt; me.stock / 2 |
 | `X.lord` | its lord, the player it capitulated to - a player: them.lord.name, lord == them; nothing when it has none |
+| `X.count(filter)` | its units and buildings of a filter: unit.&lt;identifier&gt; (one type), kind.&lt;kind&gt; (the game's family, every epoch's: kind.towers, kind.citizen), or a list of them - any of them: them.count(kind.towers), me.count([kind.tank, kind.tank_strong]) (docs/units.md: the identifiers and kinds) |
 
 **Relations** of player A with player B - `me.opinion(them)`, `them.opinion(me)`, `enemy.at_war(them)`; without `A.` mine (`opinion(enemy)`). Those that count events - `tribute`, `refusals`, `betrayals`, `kills`, `razed` - take a time window as a second argument: `them.tribute(me, 15)` counts the last 15 minutes only (`16.5` too), without it (or with 0) the whole game. Older events are the whole game minus the window - `them.betrayals(me) - them.betrayals(me, 20)` counts those more than 20 minutes ago, `me.razed(them, 60) - me.razed(them, 20)` those 20 to 60 minutes ago; a negative window is a mistake:
 
@@ -478,6 +479,25 @@ German game) and a number in a comparison. Compare it with `color.blue`, `color.
 ```
     greeting = them.color == color.red ? "Red banners, {them}? Mine are redder." : "Greetings, {them} of {them.civilization}."
 ```
+
+Which units and buildings a player has - `X.count(filter)`, counted every 10 seconds: the game's names, the same in
+every language (the mod's sources, docs/units.md, list them all):
+
+- `unit.<identifier>` - one type: `unit.b_guard_tower_bronze`, `unit.s02_fishing_boat_stone`;
+- `kind.<kind>` - every type of one of the game's families, whatever its epoch: `kind.towers`, `kind.citizen`,
+  `kind.tank`, `kind.ship` (warships and fishing boats alike: the families are the game's armour classes);
+- a list of them - any of them, lists in lists too: `me.count([kind.citizen, unit.s02_fishing_boat_stone])`.
+
+```
+fishing_boats = [unit.s02_fishing_boat_stone, unit.s04_fishing_boat_bronze, unit.s08_fishing_boat_imperial,
+                 unit.s11_fishing_boat_modern, unit.s13_digital_fishing_boat]
+lines = {
+    winning = them.count(kind.towers) == 0 ? "Not a single tower left, {them}." : []
+}
+```
+
+A misspelt identifier or kind is a mistake when the file is read; anything else as a filter (a number, a text) when
+the line is worked out.
 
 Which units `kills` counts - its last argument, after the minutes if any:
 

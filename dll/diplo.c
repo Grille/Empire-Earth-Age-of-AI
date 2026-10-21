@@ -110,6 +110,10 @@ static struct {
     int close_by[16][16];   // [ai][j]: j's soldiers within 20 tiles of the AI's base
     int bx[16], by[16];
 } g_ws;
+// the same scan's units and buildings by type (X.count): not saved with the game - g_ws_types_t != g_ws.t after a load,
+// so the first scan runs at once
+static uint16_t g_ws_types[16][UNIT_TYPES];
+static uint32_t g_ws_types_t;
 
 static void *player_at(int i) {
     unsigned n = *(unsigned *)0x009183CC;
@@ -245,6 +249,7 @@ static void ws_unit(uint8_t *u, void *ctx) {
     if (o == 0) return;   // nature (wild animals): hostile to everyone, not an attack
     uint8_t *td = FIELD(u, 0x2C, uint8_t *);
     int fam = FIELD(td, 0x4B4, int), type = FIELD(td, 0x4B8, int);
+    if ((unsigned)type < UNIT_TYPES) g_ws_types[o][type]++;
     if (is_citizen_type(type)) { g_ws.citizens[o]++; return; }
     if (type == 35 || type == 41) g_ws.centers[o]++;   // Town Center, Capitol: where citizens are trained
     if (is_tower_type(type)) g_ws.towers[o]++;
@@ -262,8 +267,9 @@ static void ws_unit(uint8_t *u, void *ctx) {
     }
 }
 static void world_scan(uint32_t now) {
-    if (g_ws.t && now - g_ws.t < 10000) return;
-    g_ws.t = now ? now : 1;
+    if (g_ws.t && now - g_ws.t < 10000 && g_ws_types_t == g_ws.t) return;
+    g_ws.t = g_ws_types_t = now ? now : 1;
+    memset(g_ws_types, 0, sizeof g_ws_types);
     for (int i = 0; i < 16; i++) {
         g_ws.power[i] = 0; g_ws.soldiers[i] = g_ws.buildings[i] = g_ws.close[i] = g_ws.citizens[i] = g_ws.centers[i] = 0;
         g_ws.towers[i] = g_ws.walls[i] = 0;
@@ -1833,7 +1839,7 @@ static void diplo_install(const char *ini, const char *test_ini) {
 // a number and words (mod/system.eeai opinion1..5): "hostile" in a text. Nothing where a value doesn't apply (a relation
 // with oneself, a war that isn't, a player who isn't there).
 // The tables also make the documentation: scripts/gen_eeai_readme.py writes them into aimod_ai\README.md.
-enum { XM_PLAYER, XM_LINK, XM_REL };   // a player's own, a player (them.lord), A.<relation>(B)
+enum { XM_PLAYER, XM_LINK, XM_REL, XM_FILTER };   // a player's own, a player (them.lord), A.<relation>(B), A.count(filter)
 struct xmember { const char *name; int kind; const char *doc; };
 static const struct xmember k_xmembers[] = {
     { "name", XM_PLAYER, "its name - the same as the player itself in a text: {them} = {them.name}" },
@@ -1843,6 +1849,7 @@ static const struct xmember k_xmembers[] = {
     { "buildings", XM_PLAYER, "its buildings" },
     { "towers", XM_PLAYER, "its towers" },
     { "walls", XM_PLAYER, "its wall pieces" },
+    { "count", XM_FILTER, "its units and buildings of a filter: unit.<identifier> (one type), kind.<kind> (the game's family, every epoch's: kind.towers, kind.citizen), or a list of them - any of them: them.count(kind.towers), me.count([kind.tank, kind.tank_strong]) (docs/units.md: the identifiers and kinds)" },
     { "centers", XM_PLAYER, "its Town Centers and Capitols" },
     { "strength", XM_PLAYER, "its fighting strength (its soldiers' hit points, 30 a building) - to compare: them.strength > me.strength * 2" },
     { "rank", XM_PLAYER, "its place by strength among the players still in, 1 = the strongest" },
@@ -2071,7 +2078,7 @@ static int x_builtin(struct xctx *c, const char *name, struct xval *v) {
     if (dot) {   // <player>.<member>
         void *p = x_path(c, name, (int)(dot - name), &ok, who);
         const struct xmember *m = ok ? x_find_member(dot + 1, (int)strlen(dot + 1)) : NULL;
-        if (!m || m->kind == XM_REL) return 0;   // a relation needs its other player: them.opinion(me)
+        if (!m || m->kind == XM_REL || m->kind == XM_FILTER) return 0;   // a relation needs its other player: them.opinion(me)
         if (!p) { x_missing(c, who); xnothing(v); return 1; }   // lord.soldiers without a lord
         if (m->kind == XM_LINK) { x_player(v, x_lord(p), name); return 1; }   // them.lord: a player, to be checked
         x_member(p, m, v);
@@ -2133,12 +2140,50 @@ static int x_name_valid(const char *name) {
     const struct xmember *m = x_find_member(dot + 1, (int)strlen(dot + 1));
     return m && m->kind != XM_REL;
 }
+// a filter of unit types: unit.<identifier>, kind.<kind> (each type of that family) or a list of them, nested too -
+// any of them: into sel (set, not cleared); 0: something else in it (a mistake, told)
+static int x_type_filter(const char *name, const struct xval *f, unsigned char sel[UNIT_TYPES]) {
+    if (!f->w && !f->ln) { x_error("%s(...): no filter - nothing", name); return 0; }
+    for (int i = 0; i < (f->ln ? f->ln : 1); i++) {
+        const struct xval *it = xl_at(f, i);
+        int t = it->has_n ? (int)it->n : -1;
+        if (it->ln) { if (!x_type_filter(name, it, sel)) return 0; }
+        else if (it->has_s && !_strnicmp(it->s, "kind.", 5) && t >= 0 && t < UNIT_KINDS) {
+            for (int u = 0; u < UNIT_TYPES; u++) if (k_unit_kind[u] == t) sel[u] = 1;
+        } else if (it->has_s && t > 0 && t < UNIT_TYPES && k_unit_ident[t] && !lstrcmpiA(it->s, k_unit_ident[t])) sel[t] = 1;
+        else {
+            char x[48];
+            xto_text(it, x, sizeof x);
+            x_error("%s(%s): a filter is unit.<identifier>, kind.<kind> or a list of them (docs/units.md)", name, x);
+            return 0;
+        }
+    }
+    return 1;
+}
+// <player>.count(filter), or count(filter) - mine: its units and buildings of those types, at the last world scan
+static int x_count(struct xctx *c, const char *name, const char *dot, const struct xval *f, struct xval *v) {
+    int ok = 1;
+    char who[24] = "me";
+    void *p = dot ? x_path(c, name, (int)(dot - name), &ok, who) : (x_players(c), c->pl);
+    if (!ok) return 0;
+    if (!v) return 1;
+    if (!p) { x_missing(c, who); xnothing(v); return 1; }   // lord.count(...) without a lord
+    static unsigned char sel[UNIT_TYPES];
+    memset(sel, 0, sizeof sel);
+    if (!x_type_filter(name, f, sel)) { xnothing(v); return 1; }
+    int i = pidx(p), r = 0;
+    for (int t = 0; t < UNIT_TYPES; t++) if (sel[t]) r += g_ws_types[i][t];
+    xnum(v, r);
+    return 1;
+}
 // a relation: <player>.<relation>(<player>[, minutes]), or <relation>(<player>) - the speaker's. v NULL: only whether
 // name is one
+static int x_count(struct xctx *c, const char *name, const char *dot, const struct xval *f, struct xval *v);
 static int x_method(struct xctx *c, const char *name, const struct xval *a, int na, struct xval *v) {
     const char *dot = strrchr(name, '.');
     const char *rel = dot ? dot + 1 : name;
     const struct xmember *m = x_find_member(rel, (int)strlen(rel));
+    if (m && m->kind == XM_FILTER) return na == 1 && x_count(c, name, dot, a, v);
     // (B) or, counting events, (B, minutes) - kills also with its filter: (B, units.army), (B, minutes, units.army)
     if (!m || m->kind != XM_REL || na < 1 || na > (!strcmp(rel, "kills") ? 3 : x_windowed(rel) ? 2 : 1)) return 0;
     int ok = 1;

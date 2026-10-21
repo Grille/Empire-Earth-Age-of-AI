@@ -19,8 +19,8 @@ def xtable(name):   # diplo.c k_xmembers / k_xglobals: (name, kind)
     return re.findall(r'\{ "(\w+)", (XM_\w+),', body)
 members = xtable('k_xmembers')
 globals_ = [n for n, k in xtable('k_xglobals')]
-member_names = [n for n, k in members if k != 'XM_REL']
-relations = [n for n, k in members if k == 'XM_REL']
+member_names = [n for n, k in members if k not in ('XM_REL', 'XM_FILTER')]
+relations = [n for n, k in members if k in ('XM_REL', 'XM_FILTER')]   # called: A.kills(B), A.count(kind.towers)
 # without a player: the globals (opinion, at_war, allied among them: mine with them), my epoch and traits (me.)
 bare = globals_ + ['epoch'] + \
        [n for n, k in members if k == 'XM_PLAYER' and n in ('aggression', 'loyalty', 'pride', 'greed', 'forgiveness', 'caution', 'talk', 'allies', 'enemies')]
@@ -32,7 +32,9 @@ resources = re.findall(r'"(\w+)"', re.search(r'k_resource_const\[5\] = \{(.*?)\}
 funcs = sorted(set(re.findall(r'!lstrcmpiA\(name, "(\w+)"\)', expr)) - {'true', 'false', 'return', 'and', 'or', 'not'})
 script_funcs = re.findall(r'\{ "(\w+)", \d \}', re.search(r'x_script_fn\(const char \*name\) \{(.*?)\n\}', expr, re.S).group(1))
 commands = re.findall(r'"(\w+)"', open(os.path.join(root, 'dll', 'cmd_verbs.h'), encoding='utf-8').read())
-unit_ids = re.findall(r'^    "(\w+)",', open(os.path.join(root, 'dll', 'unit_names.h'), encoding='utf-8').read(), re.M)
+unit_names = open(os.path.join(root, 'dll', 'unit_names.h'), encoding='utf-8').read()
+unit_ids = re.findall(r'^    "(\w+)",', unit_names[:unit_names.index('k_kind_ident')], re.M)
+kind_ids = re.findall(r'"(\w+)"', re.search(r'k_kind_ident\[UNIT_KINDS\] = \{(.*?)\};', unit_names, re.S).group(1))
 situations = re.findall(r'\{ "(\w+)", \d+, \d+, A_\w+ \}', persona)
 traits = re.findall(r'"(\w+)"', re.search(r'k_trait_keys\[T_N\] = \{(.*?)\};', persona).group(1))
 decisions = re.findall(r'"(\w+)"', re.search(r'k_decide_keys\[D_N\] = \{(.*?)\};', persona).group(1))
@@ -61,6 +63,8 @@ expression = [
     {'name': 'invalid.illegal.unknown-resource.eeaimod', 'match': r'\bresource\.[A-Za-z_][\w.]*'},
     {'name': 'support.constant.unit-type.eeaimod', 'match': r'\bunit\.(?:' + '|'.join(unit_ids) + r')\b(?!\.)'},   # docs/units.md
     {'name': 'invalid.illegal.unknown-unit-type.eeaimod', 'match': r'\bunit\.[A-Za-z_][\w.]*'},
+    {'name': 'support.constant.unit-kind.eeaimod', 'match': r'\bkind\.(?:' + '|'.join(kind_ids) + r')\b(?!\.)'},   # docs/units.md
+    {'name': 'invalid.illegal.unknown-unit-kind.eeaimod', 'match': r'\bkind\.[A-Za-z_][\w.]*'},
     {'name': 'keyword.control.return.eeaimod', 'match': r'\breturn\b'},
     {'name': 'storage.type.function.arrow.eeaimod', 'match': r'=>'},
     {'name': 'support.function.script.eeaimod', 'match': words(script_funcs) + r'(?=\s*\()'},   # scripts: wait, at, every ...

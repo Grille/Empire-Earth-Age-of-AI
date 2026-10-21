@@ -441,6 +441,11 @@ static int x_const(const char *name, struct xval *v) {
         for (int k = 0; k < 5; k++) if (!lstrcmpiA(name + 9, k_resource_const[k])) { xdual(v, k + 1, k_resource_const[k]); return 1; }
         return 0;
     }
+    if (!_strnicmp(name, "kind.", 5)) {   // kind.towers: one of the game's families (docs/units.md) - its number and "kind.towers"
+        for (int k = 0; k < UNIT_KINDS; k++)
+            if (k_kind_ident[k] && !lstrcmpiA(name + 5, k_kind_ident[k])) { char t[48]; wsprintfA(t, "kind.%s", k_kind_ident[k]); xdual(v, k, t); return 1; }
+        return 0;
+    }
     if (!_strnicmp(name, "unit.", 5)) {   // unit.b_guard_tower_bronze: a unit or building type - its number and identifier
         int t = unit_type_named(name + 5, (int)strlen(name + 5));
         if (t < 0) return 0;

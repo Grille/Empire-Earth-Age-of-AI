@@ -41,6 +41,7 @@ Everything the personalities' expressions have (numbers, `70%`, texts with `{pla
 |---|---|
 | `20s`, `19.5min` | a time - a number of seconds (`19.5min` is 1170, as `70%` is 0.7) |
 | `unit.b_guard_tower_bronze` | a unit or building type - its number and its identifier ([units.md](units.md)) |
+| `kind.towers` | one of the game's families - every type of it, whatever the epoch ([units.md](units.md)): `p3.count(kind.towers)` |
 | `resource.gold`, `resource.all` | a resource: food, wood, stone, gold, iron (1..5), all (0) - `give(2, 500, resource.gold)` |
 | `(a, b) => value`, `(i) => { ... }`, `() => ...` | a function: one value after `=>`, or statements in `{ }` with `return` |
 | `player(3)` | player 3 - `p3 = player(3)` then `p3.towers`, `p3.soldiers` ... (the values of `them.` in the README) |

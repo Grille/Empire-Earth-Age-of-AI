@@ -539,6 +539,14 @@
           "match": "\\bunit\\.[A-Za-z_][\\w.]*"
         },
         {
+          "name": "support.constant.unit-kind.eeaimod",
+          "match": "\\bkind\\.(?:no_family|resource|tank|building|anti_tank|aircraft|priest|submarine|hero|ship|spear_thrower|machines|human_musket|human_sword|mounted_archer|lancer|helicopter|animal|fish|curiassier|bomber|battleship|mines|human|aircraft_carrier_fighter|mech_minotaur|mech_medium|mech_zeus|mech_cyclops|human_archer|ram|siege|land_aa|mech_apollo|tank_strong|ambient|citizen|towers|human_machine_gun|medieval_field_weapon|human_spear|mounted_spear|atomic_bomber|mech_underwater|walls|viking|aa_building|ship_galley|war_elephant|elephant_archer|aircraft_carrier|elite_guard|artillery|cavalry_archer|placeholder)\\b(?!\\.)"
+        },
+        {
+          "name": "invalid.illegal.unknown-unit-kind.eeaimod",
+          "match": "\\bkind\\.[A-Za-z_][\\w.]*"
+        },
+        {
           "name": "keyword.control.return.eeaimod",
           "match": "\\breturn\\b"
         },
@@ -571,7 +579,7 @@
           "match": "\\b(?:and|or|not)\\b"
         },
         {
-          "match": "(?:(\\b(?:me|them|enemy|lord)(?:\\.lord)*|\\b[A-Za-z_]\\w*)(\\.))?(\\b(?:alliance_minutes|attack_minutes|war_minutes|betrayals|refusals|opinion|hostile|ignored|tribute|in_town|at_war|allied|kills|razed|near)\\b)(?=\\s*\\()",
+          "match": "(?:(\\b(?:me|them|enemy|lord)(?:\\.lord)*|\\b[A-Za-z_]\\w*)(\\.))?(\\b(?:alliance_minutes|attack_minutes|war_minutes|betrayals|refusals|opinion|hostile|ignored|tribute|in_town|at_war|allied|count|kills|razed|near)\\b)(?=\\s*\\()",
           "captures": {
             "1": {
               "name": "variable.language.game-value.eeaimod"
@@ -719,6 +727,14 @@
           "match": "\\bunit\\.[A-Za-z_][\\w.]*"
         },
         {
+          "name": "support.constant.unit-kind.eeaimod",
+          "match": "\\bkind\\.(?:no_family|resource|tank|building|anti_tank|aircraft|priest|submarine|hero|ship|spear_thrower|machines|human_musket|human_sword|mounted_archer|lancer|helicopter|animal|fish|curiassier|bomber|battleship|mines|human|aircraft_carrier_fighter|mech_minotaur|mech_medium|mech_zeus|mech_cyclops|human_archer|ram|siege|land_aa|mech_apollo|tank_strong|ambient|citizen|towers|human_machine_gun|medieval_field_weapon|human_spear|mounted_spear|atomic_bomber|mech_underwater|walls|viking|aa_building|ship_galley|war_elephant|elephant_archer|aircraft_carrier|elite_guard|artillery|cavalry_archer|placeholder)\\b(?!\\.)"
+        },
+        {
+          "name": "invalid.illegal.unknown-unit-kind.eeaimod",
+          "match": "\\bkind\\.[A-Za-z_][\\w.]*"
+        },
+        {
           "name": "keyword.control.return.eeaimod",
           "match": "\\breturn\\b"
         },
@@ -751,7 +767,7 @@
           "match": "\\b(?:and|or|not)\\b"
         },
         {
-          "match": "(?:(\\b(?:me|them|enemy|lord)(?:\\.lord)*|\\b[A-Za-z_]\\w*)(\\.))?(\\b(?:alliance_minutes|attack_minutes|war_minutes|betrayals|refusals|opinion|hostile|ignored|tribute|in_town|at_war|allied|kills|razed|near)\\b)(?=\\s*\\()",
+          "match": "(?:(\\b(?:me|them|enemy|lord)(?:\\.lord)*|\\b[A-Za-z_]\\w*)(\\.))?(\\b(?:alliance_minutes|attack_minutes|war_minutes|betrayals|refusals|opinion|hostile|ignored|tribute|in_town|at_war|allied|count|kills|razed|near)\\b)(?=\\s*\\()",
           "captures": {
             "1": {
               "name": "variable.language.game-value.eeaimod"

@@ -2,7 +2,7 @@
   "name": "eeaimod-texts",
   "displayName": "eeaimod texts",
   "description": "Highlighting for the eeaimod text files (.eeai): personalities, mod/computer.eeai, mod/prompt.eeai, mod/system.eeai - records, keys, strings, placeholders, expressions - and the setup scripts (scenarios, scripts): statements, functions, commands",
-  "version": "0.10.1",
+  "version": "0.11.0",
   "publisher": "eeaimod",
   "license": "MIT",
   "engines": { "vscode": "^1.60.0" },
