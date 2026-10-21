@@ -10,8 +10,7 @@
 // Effect wrapper: +4 kind (2 = "or" between random groups), +8 delay (s), +0xC effect.
 // An effect runs with 0x5AD29B thiscall(effect, bool cinematic) - on the game thread.
 
-#define SM_MGR (*(uint8_t **)0x00918E24)
-#define SM_RUN_EFFECT 0x005AD29B
+#define SM_MGR (*(uint8_t **)GA(G_SM_MGR))
 
 static const char *const k_sm_cond[8] = { "always", "object", "player-attribute", "player-tech", "trigger",
     "diplomacy", "game", "chat" };
@@ -119,7 +118,7 @@ static void cmd_trig(char *out, const char *args) {
         int e = atoi(arg);
         uint8_t *ef = sm_at(m + 0x108, e);
         if (!ef) { REPLY("error: no effect %d\n", e); return; }
-        ((void (__thiscall *)(void *, int))SM_RUN_EFFECT)(ef, 0);
+        GF(SM_RUN_EFFECT)(ef, 0);
         REPLY("ok: effect %d (category %d) ran\n", e, FIELD(ef, 0x100, int));
         return;
     }
@@ -133,7 +132,7 @@ static void cmd_trig(char *out, const char *args) {
         int ran = 0;
         for (int e = 0; e < sm_count(t + 0x40); e++) {
             uint8_t *w = sm_at(t + 0x40, e), *ef = w && FIELD(w, 4, int) != 2 ? sm_at(m + 0x108, FIELD(w, 0xC, int)) : NULL;
-            if (ef) { ((void (__thiscall *)(void *, int))SM_RUN_EFFECT)(ef, 0); ran++; }
+            if (ef) { GF(SM_RUN_EFFECT)(ef, 0); ran++; }
         }
         FIELD(t, 0x59, char) = 1;
         REPLY("ok: trigger %d fired, %d effects ran\n", idx, ran);

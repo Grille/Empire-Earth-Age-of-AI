@@ -7,8 +7,6 @@
 // (bits 8..23), n <= 63, then n bytes of id bits 0..7; an empty list is 0xFF. This packer writes the same format
 // for as many units as fit into the 255 bytes the length byte allows (about 240), so the message stays readable for
 // an unmodded game (multiplayer) and the game's own unpacker.
-#define CALL_SEL_PACK 0x004BD133
-#define FN_SEL_PACK   0x004BD15A
 static int g_big_selection = 1;
 static unsigned g_sel_last_in, g_sel_last_out;   // tests: units found / packed by the last pack
 
@@ -18,7 +16,7 @@ static int sel_cmp(const void *a, const void *b) {
 }
 static unsigned __cdecl hook_sel_pack(uint8_t *list, uint32_t player_byte, uint8_t *out) {
     if (!g_big_selection)
-        return ((unsigned (__cdecl *)(void *, uint32_t, uint8_t *))FN_SEL_PACK)(list, player_byte, out);
+        return GF(FN_SEL_PACK)(list, player_byte, out);
     uint32_t *v = FIELD(list, 4, uint32_t *), *ve = FIELD(list, 8, uint32_t *);
     static uint32_t ids[1024];
     unsigned n = 0;
@@ -51,19 +49,19 @@ static unsigned __cdecl hook_sel_pack(uint8_t *list, uint32_t player_byte, uint8
 static void cmd_seltest(char *out, const char *args) {
     int type = 0;
     float r[4];
-    if (sscanf(args, "%d %f %f %f %f", &type, &r[0], &r[1], &r[2], &r[3]) < 5) memcpy(r, (void *)0x008D2778, sizeof r);
+    if (sscanf(args, "%d %f %f %f %f", &type, &r[0], &r[1], &r[2], &r[3]) < 5) memcpy(r, (void *)GA(G_SELECT_RECT), sizeof r);
     static __attribute__((aligned(8))) uint8_t msg[0x140];
     memset(msg, 0, sizeof msg);
     g_sel_last_in = g_sel_last_out = 0;
-    ((void (__thiscall *)(void *, void *, int, int))0x004BD072)(msg, r, type, 0x4E);
+    GF(FN_SELECT_MSG_INIT)(msg, r, type, 0x4E);
     uint32_t *b = FIELD(msg, 0x14, uint32_t *), *e = FIELD(msg, 0x18, uint32_t *);
     REPLY("rect %.0f %.0f %.0f %.0f: found %u, packed %u in %u bytes, unpacked %d (big_selection %d)", r[0], r[1], r[2],
           r[3], g_sel_last_in, g_sel_last_out, msg[0x134], b ? (int)(e - b) : 0, g_big_selection);
     // carried out as the message does (EEMSelectUnits::vf10 -> 0x55B3FB on the player): the selected group (+0x9BC)
-    void *pl = ((void **)0x00918374)[*(unsigned *)G_LOCAL_PLAYER];
+    void *pl = ((void **)GA(G_PLAYERS))[*(unsigned *)GA(G_LOCAL_PLAYER)];
     int *grp = pl ? FIELD(pl, 0x9BC, int *) : NULL;
     if (grp) {
-        ((void (__thiscall *)(void *, void *))0x0055B3FB)(pl, msg + 0x10);
+        GF(FN_SELECT_UNITS)(pl, msg + 0x10);
         REPLY(", selected %u", ((unsigned (__thiscall *)(void *))(*(void ***)grp)[6])(grp));
     }
     REPLY("\n");
@@ -72,6 +70,6 @@ static void cmd_seltest(char *out, const char *args) {
 static void select_install(const char *aimod_ini, const char *autotest_ini) {
     g_big_selection = ini_int("general", "big_selection", 1, aimod_ini);
     if (autotest_ini) g_big_selection = ini_int("autotest", "big_selection", g_big_selection, autotest_ini);
-    BOOL ok = patch_call(CALL_SEL_PACK, FN_SEL_PACK, hook_sel_pack);
+    BOOL ok = patch_call(GA(CALL_SEL_PACK), GA(FN_SEL_PACK), hook_sel_pack);
     if (g_log) fprintf(g_log, "# selection: big_selection=%d (hook %s)\n", g_big_selection, ok ? "ok" : "FAILED");
 }

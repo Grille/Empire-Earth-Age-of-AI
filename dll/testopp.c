@@ -207,7 +207,7 @@ static int so_home_of(int p, int *x, int *y) {   // a player's Capitol, else Tow
 // the newest type of each role P1 or the AI could build now; the transport; the AI's two most common land soldiers
 // and its tower (seen anywhere - P1 builds the same epoch's)
 static void so_types(void) {
-    void *p1 = ((void **)G_PLAYERS)[1], *ai = ((void **)G_PLAYERS)[g_so.ai];
+    void *p1 = ((void **)GA(G_PLAYERS))[1], *ai = ((void **)GA(G_PLAYERS))[g_so.ai];
     int best[SR_N] = { 0 };
     for (int r = 0; r < SR_N; r++) g_so.types[r] = 0;
     for (int t = 1; t < 724; t++) {
@@ -425,7 +425,7 @@ static void so_spawn_tick(uint32_t now) {
 
 static int so_cur_target(uint8_t *u, uint8_t **t) {   // its attack goal's target (alive)
     uint8_t *g = FIELD(u, 0x1EC, uint8_t *);
-    *t = g && *(uintptr_t *)g == VT_GOAL_ATTACK ? FIELD(g, 0x30, uint8_t *) : NULL;
+    *t = g && *(uintptr_t *)g == GA(VT_GOAL_ATTACK) ? FIELD(g, 0x30, uint8_t *) : NULL;
     return *t && FIELD(*t, 0x3C, int) > 0;
 }
 static void so_attack(uint8_t *u, uint8_t *t) {
@@ -637,7 +637,7 @@ static void so_group(int gi, uint32_t now) {
             if (t) g->why = "intercept";
         } else t = so_pick(u, m, w, cx, cy, r);
         if (t) { so_attack(u, t); continue; }
-        if (so_cur_target(u, &cur) && FIELD(cur, 0x18, void *) == ((void **)G_PLAYERS)[g_so.ai]) {
+        if (so_cur_target(u, &cur) && FIELD(cur, 0x18, void *) == ((void **)GA(G_PLAYERS))[g_so.ai]) {
             int x = FIELD(cur, 0x1C, int), y = FIELD(cur, 0x20, int);
             if (x >= 0 && !so_in_danger(x, y, SO_MARGIN) && so_seg_zone(FIELD(u, 0x1C, int), FIELD(u, 0x20, int), x, y) < 0) continue;   // its own choice
             if (tx >= 0) { g_so.orders += (unsigned)unit_goal(u, goal_move((float)tx + 0.5f, (float)ty + 0.5f), 0, 0x1F40); continue; }   // not that one
@@ -705,7 +705,7 @@ static void so_waves(uint32_t now) {
         struct so_wave *w = &g_so.w[k];
         int alive = 0, aboard = 0;
         for (int j = 0; j < w->ntr; j++)
-            if (w->tr[j] && so_tr_alive(w->tr[j], w->tr_id[j])) { alive++; aboard += ((int (__thiscall *)(void *))0x0042E347)(w->tr[j]); }
+            if (w->tr[j] && so_tr_alive(w->tr[j], w->tr_id[j])) { alive++; aboard += GF(FN_UNITS_INSIDE)(w->tr[j]); }
             else w->tr[j] = NULL;
         if (w->st == 0 && now - w->t >= 4000) {   // the spawned units are there: load them
             int nt = 0;
@@ -742,7 +742,7 @@ static void so_waves(uint32_t now) {
                 int a = 0, cap = ld_cap(g_so.trtype);
                 for (int j = 0; j < w->ntr && a < nl; j++) {   // each transport its room's worth of those still ashore
                     if (!w->tr[j]) continue;
-                    int room = cap - ((int (__thiscall *)(void *))0x0042E347)(w->tr[j]), b = a + room > nl ? nl : a + room;
+                    int room = cap - GF(FN_UNITS_INSIDE)(w->tr[j]), b = a + room > nl ? nl : a + room;
                     if (b <= a) continue;
                     void *g = goal_load(w->tr[j], left + a, b - a);
                     for (int q = a; q < b && g; q++) g_so.orders += (unsigned)unit_goal(left[q], goal_load_part(g), 0, 0x1F40);
@@ -774,7 +774,7 @@ static void so_waves(uint32_t now) {
             int again = !w->load_t || now - w->load_t >= 20000;
             for (int j = 0; j < w->ntr; j++) {
                 uint8_t *sh = w->tr[j];
-                if (!sh || ((int (__thiscall *)(void *))0x0042E347)(sh) <= 0) continue;
+                if (!sh || GF(FN_UNITS_INSIDE)(sh) <= 0) continue;
                 float d = so_d2(FIELD(sh, 0x1C, int), FIELD(sh, 0x20, int), w->wx, w->wy);
                 if (d <= 16.0f || w->st == 3) {
                     if (w->st == 2) { w->st = 3; w->t = now; again = 1; }
@@ -798,7 +798,7 @@ static void so_soldiers(uint32_t now) {
         int x = FIELD(u, 0x1C, int), y = FIELD(u, 0x20, int), home = cont_at(x, y) == g_so.hcont;
         if (home && !(g_so.boarding && so_is_wsol(u))) guard++;
         if (home && g_so.boarding && so_is_wsol(u)) continue;   // waiting to board
-        if (so_cur_target(u, &cur) && FIELD(cur, 0x18, void *) == ((void **)G_PLAYERS)[g_so.ai]) continue;
+        if (so_cur_target(u, &cur) && FIELD(cur, 0x18, void *) == ((void **)GA(G_PLAYERS))[g_so.ai]) continue;
         if (orders >= 40) continue;
         uint8_t *best = NULL;
         float bd = 1e12f;
@@ -893,7 +893,7 @@ static void seaop_tick(uint32_t now) {
     if (now < g_so.last) { memset(&g_so, 0, sizeof g_so); return; }   // a new game
     if (now - g_so.last < 2000) return;
     g_so.last = now;
-    if (!((void **)G_PLAYERS)[1] || !((void **)G_PLAYERS)[g_so.ai] || !*(uint8_t **)G_MAP) return;
+    if (!((void **)GA(G_PLAYERS))[1] || !((void **)GA(G_PLAYERS))[g_so.ai] || !*(uint8_t **)GA(G_MAP)) return;
     if (!g_so.types_t || now - g_so.types_t >= 300000) { so_types(); g_so.types_t = now ? now : 1; }
     so_scan(now);
     so_ships();
@@ -937,8 +937,8 @@ static void cmd_seaop(char *out, const char *args) {
         return;
     }
     sscanf(args + 5, "%d %d", &ai, &level);
-    uint8_t **pls = (uint8_t **)G_PLAYERS;
-    if (ai < 2 || ai > 15 || !pls[1] || !pls[ai] || !*(uint8_t **)G_MAP) { REPLY("error: seaop start <ai> [level] - no player %d or no game\n", ai); return; }
+    uint8_t **pls = (uint8_t **)GA(G_PLAYERS);
+    if (ai < 2 || ai > 15 || !pls[1] || !pls[ai] || !*(uint8_t **)GA(G_MAP)) { REPLY("error: seaop start <ai> [level] - no player %d or no game\n", ai); return; }
     memset(&g_so, 0, sizeof g_so);
     g_so.ai = ai;
     g_so.level = level >= 1 && level <= 3 ? level : ini_int("autotest", "seaop_level", 2, g_ini);
@@ -952,7 +952,7 @@ static void cmd_seaop(char *out, const char *args) {
     if (!so_home_of(1, &g_so.hx, &g_so.hy) || !so_home_of(ai, &g_so.ex, &g_so.ey)) { REPLY("error: P1 or P%d has no buildings\n", ai); return; }
     g_so.hcont = cont_at(g_so.hx, g_so.hy); g_so.econt = cont_at(g_so.ex, g_so.ey);
     // war, both ways (FN_SET_DIPLOMACY: 1 = enemy)
-    void (__thiscall *set_dip)(void *, void *, int, int) = (void *)FN_SET_DIPLOMACY;
+    void (__thiscall *set_dip)(void *, void *, int, int) = (void *)GA(FN_SET_DIPLOMACY);
     if (FIELD(pls[1], 0x9E4 + ai * 4, int) != 1) set_dip(pls[1], pls[ai], 1, 0);
     if (FIELD(pls[ai], 0x9E4 + 4, int) != 1) set_dip(pls[ai], pls[1], 1, 0);
     // P1's docks: land of its island at the sea (open water within 4), toward the AI first, the second 10+ tiles away

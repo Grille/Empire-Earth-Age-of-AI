@@ -16,6 +16,9 @@ Several sessions may work in this tree at the same time - see Git below.
   working tree), copied under a reservation of the game folder (a loaded DLL can't be replaced). Commit first.
 - A task that needs the game folder to itself (an install, a slot-0 run): `sh scripts/reserve.sh "<what>" <command>`
   - test runs start no game meanwhile, the running ones (and the player's) are waited for; nobody has to pause.
+- Game addresses live only in `dll/addr.h`, by name with one value per exe build: `GA(G_WORLD_CLOCK)`,
+  `GF(FN_CAN_BUILD)(pl, t, 0x20, 0)`, `GL(TRAIN_SITES)` - never a literal address in the code (another build, e.g.
+  Art of Conquest, is one more column).
 - The engine loads every DLL in the game folder: never leave copies of DLLs there (a stray dinput copy crashed it).
 - The game reads the personality files from `config/aimod_ai/` (`ai_dir` in the user's aimod.ini): a change to
   their format needs the matching installed DLL.

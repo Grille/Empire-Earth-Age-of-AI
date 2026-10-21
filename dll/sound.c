@@ -4,16 +4,12 @@
 // SetMaxChannels). The mixer's maximum is DirectSound's free hardware buffers if 1..64, else 16 - on Windows since
 // Vista always 16. The log counts per sound id the plays the game asks for and the ones the manager drops (Play
 // returns -1 / PlayAndReturnReferencedNode NULL), and the mixer's refusals (SetChannelSample / PlayChannel != 0).
-#define G_SOUND_MANAGER 0x00919848
 #define LLE_DLL "Low-Level Engine.dll"   // the sound manager's imports (by name, the slots checked against it)
-#define IAT_SND_PLAY 0x008232D0      // SESoundManager::Play(id, vol, pan, pitch, bool queue, char *) -> id or -1
-#define IAT_SND_PLAYREF 0x008233EC   // SESoundManager::PlayAndReturnReferencedNode(same) -> node or NULL
 #define SM_MIXER 0x70                // SEMixer *; the mixer's SPIM function pointers are fields of it
 #define SM_CHANNELS 0x88
 #define MX_SET_CHANNEL_SAMPLE 0xD8   // int (cdecl *)(int channel, SESample *)
 #define MX_PLAY_CHANNEL 0xD0         // int (cdecl *)(int channel)
 #define SND_IDS 2048
-#define IAT_SND_SETMAXCH 0x00823AD4
 
 static int g_sound_log;
 static uint32_t g_snd_req[SND_IDS], g_snd_drop[SND_IDS], g_snd_req_total, g_snd_drop_total, g_snd_zero_vol;
@@ -102,17 +98,17 @@ static void sound_tick(uint32_t now) {
     static int hooked;
     static uint32_t last;
     if (!g_sound_log || !g_log) return;
-    uint8_t *sm = *(uint8_t **)G_SOUND_MANAGER;
+    uint8_t *sm = *(uint8_t **)GA(G_SOUND_MANAGER);
     if (!sm) return;
     if (!hooked) {
         hooked = 1;
-        int a = iat_hook(IAT_SND_PLAY, LLE_DLL, "?Play@SESoundManager@@QAEKKMMM_NPAD@Z", (void *)hook_snd_play, (void **)&g_snd_play);
+        int a = iat_hook(GA(IAT_SND_PLAY), LLE_DLL, "?Play@SESoundManager@@QAEKKMMM_NPAD@Z", (void *)hook_snd_play, (void **)&g_snd_play);
         if (a) g_lle = (uintptr_t)g_snd_play - 0x5B50B;
         uint8_t **cv = FIELD(sm, 0x54, uint8_t **), **ce = FIELD(sm, 0x58, uint8_t **);
         for (int i = 0; cv && cv + i < ce; i++)   // categories: share, max channels, in use, priority
             if (cv[i]) fprintf(g_log, "# sound: category %d: %.2f of the channels = %d, in use %d, priority %d\n", i,
                                FIELD(cv[i], 0, float), FIELD(cv[i], 4, int), FIELD(cv[i], 8, int), FIELD(cv[i], 0xC, int));
-        int b = iat_hook(IAT_SND_PLAYREF, LLE_DLL, "?PlayAndReturnReferencedNode@SESoundManager@@QAEPAVSESMInstanceNode@@KMMM_NPAD@Z",
+        int b = iat_hook(GA(IAT_SND_PLAYREF), LLE_DLL, "?PlayAndReturnReferencedNode@SESoundManager@@QAEPAVSESMInstanceNode@@KMMM_NPAD@Z",
                          (void *)hook_snd_playref, (void **)&g_snd_playref);
         if (!a || !b) fprintf(g_log, "# sound: play hooks %d/2 - FAILED (exe differs)\n", a + b);
         uint8_t *mx = FIELD(sm, SM_MIXER, uint8_t *);
@@ -176,7 +172,6 @@ static set_max_ch_fn g_set_max_ch;
 // game passes - percent x the old maximum - is worked out again from the slider (0x9193B8, 1.0 = 100%): 100% =
 // `channels`, 0% = 8, 200% is held to `channels` by clamp_channels.
 static int g_sound_channels = 32;
-#define G_SOUND_PERCENT 0x009193B8
 static int __fastcall hook_set_max_channels(uint8_t *sm, void *edx, uint32_t n) {
     (void)edx;
     static int raised;
@@ -194,7 +189,7 @@ static int __fastcall hook_set_max_channels(uint8_t *sm, void *edx, uint32_t n) 
         }
     }
     if (raised) {   // the game's count used the old maximum: percent x the new one, at least 8 as the game does
-        float pct = *(float *)G_SOUND_PERCENT;
+        float pct = *(float *)GA(G_SOUND_PERCENT);
         int want = (int)(pct * (float)g_sound_channels + 0.5f);
         n = (uint32_t)(want < 8 ? 8 : want);
     }
@@ -211,7 +206,7 @@ static void sound_install(const char *aimod_ini, const char *autotest_ini) {
     g_sound_channels = ini_int("sound", "channels", 32, aimod_ini);
     if (autotest_ini) g_sound_channels = ini_int("autotest", "sound_channels", g_sound_channels, autotest_ini);
     if (autotest_ini) g_clamp_channels = ini_int("autotest", "clamp_channels", g_clamp_channels, autotest_ini);
-    int ok = iat_hook(IAT_SND_SETMAXCH, LLE_DLL, "?SetMaxChannels@SESoundManager@@QAEJK@Z", (void *)hook_set_max_channels, (void **)&g_set_max_ch);
+    int ok = iat_hook(GA(IAT_SND_SETMAXCH), LLE_DLL, "?SetMaxChannels@SESoundManager@@QAEJK@Z", (void *)hook_set_max_channels, (void **)&g_set_max_ch);
     if (g_log) fprintf(g_log, "# sound: clamp_channels=%d channels=%d (hook %s)\n", g_clamp_channels, g_sound_channels, ok ? "ok" : "FAILED");
     // aimod.ini [sound] log = 1 (counts once a minute) | 2 (every play) - diagnostics in normal play too
     g_sound_log = ini_int("sound", "log", 0, aimod_ini);
@@ -222,10 +217,10 @@ static void sound_install(const char *aimod_ini, const char *autotest_ini) {
 // channels, categories in use, the paused queue. sndchan N: SetMaxChannels(N) as the options screen does. Tests.
 static void cmd_sndstate(char *out, const char *args) {
     (void)args;
-    uint8_t *sm = *(uint8_t **)G_SOUND_MANAGER;
+    uint8_t *sm = *(uint8_t **)GA(G_SOUND_MANAGER);
     if (!sm) { REPLY("error: no sound manager\n"); return; }
     uint8_t *mv = g_mss_mixer ? *(uint8_t **)(g_mss_mixer + 0x52AC) : NULL, *me = mv ? *(uint8_t **)(g_mss_mixer + 0x52B0) : NULL;
-    REPLY("setting %.2f (0x9193B8), mixer maximum %d, ", *(float *)0x009193B8,
+    REPLY("setting %.2f (0x9193B8), mixer maximum %d, ", *(float *)GA(G_SOUND_PERCENT),
           g_mss_mixer ? *(int *)(g_mss_mixer + 0x5320) : -1);
     int nulls = 0;
     for (uint8_t *h = mv; h && h < me; h += 8) nulls += !*(void **)h;
@@ -245,8 +240,8 @@ static void cmd_sndstate(char *out, const char *args) {
 }
 static void cmd_sndchan(char *out, const char *args) {
     int n = atoi(args);
-    uint8_t *sm = *(uint8_t **)G_SOUND_MANAGER;
+    uint8_t *sm = *(uint8_t **)GA(G_SOUND_MANAGER);
     if (!sm || n < 1 || n > 64) { REPLY("error: usage sndchan N (1..64)\n"); return; }
-    int r = (*(int (__thiscall **)(void *, int))IAT_SND_SETMAXCH)(sm, n);
+    int r = (*(int (__thiscall **)(void *, int))GA(IAT_SND_SETMAXCH))(sm, n);
     REPLY("ok: SetMaxChannels(%d) -> %d, now %u channels\n", n, r, FIELD(sm, SM_CHANNELS, uint32_t));
 }

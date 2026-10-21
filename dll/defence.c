@@ -16,8 +16,6 @@
 // front, an 11-tile wall arc goes up 3 tiles in front of them (the wall manager's own 0x497C3F(from, to, type): the
 // citizens get the same build-wall order a player gives). The ends stay open - own units walk round, attackers on
 // foot must break through or walk the length of it under tower fire.
-#define FN_CAN_PLACE   0x0062E940   // cdecl char(player, type, x, y, w, h, 0)
-#define FN_BUILD_WALL  0x00497C3F   // thiscall(wall manager, int from[2], int to[2], type, char)
 static int g_def = 1, g_def_dist = 10, g_def_walls = 1, g_def_more = 1;
 static int g_aa = 1, g_aa_ahead = 1, g_aa_ahead_b = 3;   // [all] anti_air, aa_ahead, aa_ahead_buildings (below)
 static int g_hold = 0;   // [all] hold_town (below)
@@ -38,7 +36,7 @@ static int is_tower_type(int t) { return ut_role(t, UTR_TOWER) || t == UT(B_TANK
 static const enum ut_name k_tower_line[] = { UT_TOWER_LINE };   // oldest first
 static int tower_newest(void *pl) {   // the best tower the game lets this player build now (0: none)
     for (int i = 6; i >= 0; i--)
-        if (ut_has(g_ut[k_tower_line[i]]) && ((char (__thiscall *)(void *, int, int, int))0x00555710)(pl, g_ut[k_tower_line[i]], 0x20, 0)) return g_ut[k_tower_line[i]];
+        if (ut_has(g_ut[k_tower_line[i]]) && GF(FN_CAN_BUILD)(pl, g_ut[k_tower_line[i]], 0x20, 0)) return g_ut[k_tower_line[i]];
     return 0;
 }
 static int bq_has(uint8_t *bm, int type);   // attack.c
@@ -48,11 +46,11 @@ static int tower_queued(uint8_t *bm) {   // a tower of the line in the build man
 }
 static int can_place(void *pl, int type, int x, int y) {
     uint8_t *td = type_data(type);
-    uint8_t *map = *(uint8_t **)G_MAP;
+    uint8_t *map = *(uint8_t **)GA(G_MAP);
     int n = map ? (int)FIELD(map, 0x1816FC, uint32_t) : 0, sz = td ? FIELD(td, 0x58C, int) : 0;
     if (!td || x < 2 || y < 2 || x >= n - 2 || y >= n - 2) return 0;
     if (sz < 1) sz = 1;
-    return ((char (__cdecl *)(void *, int, int, int, int, int, int))FN_CAN_PLACE)(pl, type, x, y, sz, sz, 0) != 0;
+    return GF(FN_CAN_PLACE)(pl, type, x, y, sz, sz, 0) != 0;
 }
 
 struct def_scan { void *pl; int bx, by; int d2[16], x[16], y[16]; int towers, tx[64], ty[64]; int walls, wx[256], wy[256]; };
@@ -98,7 +96,7 @@ static void def_refresh(void *pl, unsigned idx, uint32_t now) {
         float dx, dy;
         if (best >= 0) { dx = (float)(s->x[best] - p->bx); dy = (float)(s->y[best] - p->by); }
         else if (k == 0) {   // nothing seen yet: towards the map centre
-            uint8_t *map = *(uint8_t **)G_MAP;
+            uint8_t *map = *(uint8_t **)GA(G_MAP);
             int n = map ? (int)FIELD(map, 0x1816FC, uint32_t) : 0;
             dx = (float)(n / 2 - p->bx); dy = (float)(n / 2 - p->by);
         } else break;
@@ -205,7 +203,7 @@ static void defence_tick(void *pl, unsigned idx, uint32_t now) {
         if (!queued && ttype && stock[4] >= unit_cost(pl, ttype, 4) + 100 && e >= 0 && e < 14 &&
             defence_spot(pl, ttype, &x, &y)) {
             int entry[3] = { ttype, x, y };
-            ((void (__thiscall *)(void *, int *))0x00468C37)(bm + 4 + e * 0x14, entry);
+            GF(FN_BQ_ADD)(bm + 4 + e * 0x14, entry);
             last_tower[idx] = now ? now : 1;
             if (g_log) fprintf(g_log, "# defence: P%u queues tower %d at %d,%d (stone %d)\n", idx, ttype, x, y, stock[4]);
             ai_say(pl, CHAT_TOWER, "[ai] extra tower (type %d) at %d,%d, stone %d", ttype, x, y, stock[4]);
@@ -221,7 +219,7 @@ static void defence_tick(void *pl, unsigned idx, uint32_t now) {
         static const enum ut_name wline[] = { UT_WALL_LINE };   // oldest first
         int wtype = 0;
         for (int i = 5; i >= 0 && !wtype; i--)   // the newest it can build
-            if (ut_has(g_ut[wline[i]]) && ((char (__thiscall *)(void *, int, int, int))0x00555710)(pl, g_ut[wline[i]], 0x20, 0)) wtype = g_ut[wline[i]];
+            if (ut_has(g_ut[wline[i]]) && GF(FN_CAN_BUILD)(pl, g_ut[wline[i]], 0x20, 0)) wtype = g_ut[wline[i]];
         if (!wtype) continue;
         int ok = 1;
         for (int r = 2; r < 7; r++) if (stock[r] < 11 * unit_cost(pl, wtype, r)) ok = 0;
@@ -236,7 +234,7 @@ static void defence_tick(void *pl, unsigned idx, uint32_t now) {
             continue;   // or into an enemy army standing there
         // the arc on the map and on land, ends and middle: on an island map an arc into the water (or off the map)
         // crashed the game's wall placement (0x497C3F -> 0x636E30, a null tile object), twice on Small Islands
-        uint8_t *wmap = *(uint8_t **)G_MAP;
+        uint8_t *wmap = *(uint8_t **)GA(G_MAP);
         int mn = wmap ? (int)FIELD(wmap, 0x1816FC, uint32_t) : 0, land = mn > 0;
         for (int q = 0; q <= 2 && land; q++) {
             int qx = q == 0 ? a[0] : q == 1 ? b[0] : cx, qy = q == 0 ? a[1] : q == 1 ? b[1] : cy;
@@ -246,7 +244,7 @@ static void defence_tick(void *pl, unsigned idx, uint32_t now) {
         int have = 0;   // wall pieces standing on the arc (then a new order only repairs)
         for (int w = 0; w < s->walls; w++) have += on_segment(s->wx[w], s->wy[w], a, b);
         if (have >= 8) continue;
-        ((void (__thiscall *)(void *, int *, int *, int, char))FN_BUILD_WALL)(wm, a, b, wtype, 0);
+        GF(FN_BUILD_WALL)(wm, a, b, wtype, 0);
         f->wall_tries++;
         f->wall_t = now ? now : 1;
         g_def_walls_built[idx]++;
@@ -388,7 +386,7 @@ static int militia_answer(struct cs_scan *s, uint8_t *t, int *nfree) {   // citi
             struct st_result r;   // caught: running is no way out - fight if the citizens still do some good
             st_estimate(&g_mil_own, &g_mil_foe, &r);
             float share = r.time[0] < 1e9f ? r.time[1] / (r.time[0] > 0.1f ? r.time[0] : 0.1f) : 0;
-            int attacking = FIELD(t, 0x1EC, uint8_t *) && *(uintptr_t *)FIELD(t, 0x1EC, uint8_t *) == VT_GOAL_ATTACK;
+            int attacking = FIELD(t, 0x1EC, uint8_t *) && *(uintptr_t *)FIELD(t, 0x1EC, uint8_t *) == GA(VT_GOAL_ATTACK);
             if (!attacking || fast <= cspeed * 1.1f || share < g_militia_share) return 0;
             g_militia_caught[(unsigned)FIELD(s->pl, PL_INDEX, int) & 15]++;
         }
@@ -400,7 +398,7 @@ static int militia_answer(struct cs_scan *s, uint8_t *t, int *nfree) {   // citi
         uint8_t *u = s->civ[c];
         if (!u || abs(s->cx[c] - x) > 10 || abs(s->cy[c] - y) > 10) continue;
         uint8_t *g = FIELD(u, 0x1EC, uint8_t *);
-        if (g && *(uintptr_t *)g == VT_GOAL_ATTACK) { s->civ[c] = NULL; continue; }   // already fighting
+        if (g && *(uintptr_t *)g == GA(VT_GOAL_ATTACK)) { s->civ[c] = NULL; continue; }   // already fighting
         if (g && strcmp(rtti_name(g), "EEUGGather@@")) continue;   // building, walking: leave it
         if (unit_goal(u, goal_attack(u, t), 0, 0x1F40)) ordered++;
         s->civ[c] = NULL;   // one target per citizen per tick
@@ -420,7 +418,7 @@ static void militia(void *pl, unsigned idx, struct cs_scan *s, uint32_t now) {
             uint8_t *bs = FIELD(t, 0x30, uint8_t *);
             float r, a;
             if (bs && !FIELD(bs, 0x340, uint8_t) && defence_stats(t, &r, &a)) why = 1;   // a tower going up
-        } else if (early && *(uintptr_t *)g == VT_GOAL_ATTACK && (t = FIELD(g, 0x30, uint8_t *)) && FIELD(t, 0x18, void *) == pl)
+        } else if (early && *(uintptr_t *)g == GA(VT_GOAL_ATTACK) && (t = FIELD(g, 0x30, uint8_t *)) && FIELD(t, 0x18, void *) == pl)
             why = 2;   // attacking one of ours
         if (!why) continue;
         int close = 0;
@@ -478,7 +476,7 @@ static void counter_siege(void *pl, unsigned idx, uint32_t now) {
             uint8_t *g = FIELD(u, 0x1EC, uint8_t *);
             int dx = FIELD(u, 0x1C, int) - x, dy = FIELD(u, 0x20, int) - y, d2 = dx * dx + dy * dy;
             if (d2 > 400) continue;
-            if (g && *(uintptr_t *)g == VT_GOAL_ATTACK) {
+            if (g && *(uintptr_t *)g == GA(VT_GOAL_ATTACK)) {
                 uint8_t *t = FIELD(g, 0x30, uint8_t *);
                 int mine = t == e;
                 for (int b = 0; b < nbl && !mine; b++) mine = t == bl[b];
@@ -646,7 +644,7 @@ static void mus_rally(unsigned idx, struct mus_scan *s) {
     float cx = s->epow > 0 ? s->ex / s->epow : (float)s->bx + 1, cy = s->epow > 0 ? s->ey / s->epow : (float)s->by;
     float dx = (float)s->bx - cx, dy = (float)s->by - cy, l = sqrtf(dx * dx + dy * dy);
     if (l < 1.0f) { dx = 1.0f; dy = 0.0f; l = 1.0f; }
-    float msz = (float)*(uint32_t *)(*(uint8_t **)G_MAP + 0x1816FC);
+    float msz = (float)*(uint32_t *)(*(uint8_t **)GA(G_MAP) + 0x1816FC);
     float rx = (float)s->bx + dx / l * 18.0f, ry = (float)s->by + dy / l * 18.0f;
     if (msz > 8) {
         rx = rx < 3 ? 3 : rx > msz - 4 ? msz - 4 : rx;
@@ -769,7 +767,7 @@ static void muster(void *pl, unsigned idx, uint32_t now) {
         uint8_t *u = s->own[k], *goal = FIELD(u, 0x1EC, uint8_t *);
         float dx = (float)FIELD(u, 0x1C, int) - g_mus[idx].rx, dy = (float)FIELD(u, 0x20, int) - g_mus[idx].ry;
         if (dx * dx + dy * dy <= 36) continue;
-        if (goal && *(uintptr_t *)goal == VT_GOAL_LOCATION && fabsf(FIELD(goal, 0x20, float) - g_mus[idx].rx) < 2 &&
+        if (goal && *(uintptr_t *)goal == GA(VT_GOAL_LOCATION) && fabsf(FIELD(goal, 0x20, float) - g_mus[idx].rx) < 2 &&
             fabsf(FIELD(goal, 0x24, float) - g_mus[idx].ry) < 2) continue;
         if (unit_goal(u, goal_move(g_mus[idx].rx, g_mus[idx].ry), 0, 0x1F40)) ordered++;
     }
@@ -816,7 +814,7 @@ static void asg_units(void *pl) {   // the units of AI pl's attack subgroups (re
     }
 }
 static int set_behaviour(uint8_t *u, int b) {   // 1 when changed
-    void **tab = *(void ***)0x008D2044;
+    void **tab = *(void ***)GA(G_BEHAVIOUR_TABLE);
     uint8_t *td = FIELD(u, 0x2C, uint8_t *);
     if (!tab || !tab[b] || !td || !FIELD(td, 0x621, uint8_t) || FIELD(u, 0x208, void *) == tab[b]) return 0;
     FIELD(u, 0x208, void *) = tab[b];
@@ -830,7 +828,7 @@ static void hold_town(void *pl, unsigned idx, uint32_t now) {
     if (g_mus[idx].on) return;   // the muster has them
     void *cm = FIELD(pl, 0xB90, void *);
     uint8_t *bm = cm ? FIELD(cm, 0x3C, uint8_t *) : NULL;
-    void **tab = *(void ***)0x008D2044;
+    void **tab = *(void ***)GA(G_BEHAVIOUR_TABLE);
     if (!bm || FIELD(bm, 0x12C, int) == -10000 || !tab) return;
     struct mus_scan *s = &g_ms;
     memset(s, 0, sizeof *s);
@@ -872,7 +870,7 @@ static void hold_town(void *pl, unsigned idx, uint32_t now) {
         uint8_t *u = s->own[k], *g = FIELD(u, 0x1EC, uint8_t *);
         if (assault_has_unit(pl, u)) { set_behaviour(u, 5); continue; }   // the assault leads them
         if (landing_has_unit(pl, u)) continue;   // so does the landing (it ordered loaded transports at their docks against raiders)
-        if (g && *(uintptr_t *)g == VT_GOAL_LOCATION) {
+        if (g && *(uintptr_t *)g == GA(VT_GOAL_LOCATION)) {
             float dx = FIELD(g, 0x20, float) - (float)s->bx, dy = FIELD(g, 0x24, float) - (float)s->by;
             if (dx * dx + dy * dy > 35.0f * 35.0f) { set_behaviour(u, 5); continue; }   // marching out
         }
@@ -925,7 +923,7 @@ static void hold_town(void *pl, unsigned idx, uint32_t now) {
             changed += set_behaviour(u, 2);
             float ux = (float)FIELD(u, 0x1C, int) - hx, uy = (float)FIELD(u, 0x20, int) - hy;
             if (ux * ux + uy * uy <= 16.0f) continue;
-            if (g && *(uintptr_t *)g == VT_GOAL_LOCATION && fabsf(FIELD(g, 0x20, float) - hx) < 2 && fabsf(FIELD(g, 0x24, float) - hy) < 2) continue;
+            if (g && *(uintptr_t *)g == GA(VT_GOAL_LOCATION) && fabsf(FIELD(g, 0x20, float) - hx) < 2 && fabsf(FIELD(g, 0x24, float) - hy) < 2) continue;
             unit_goal(u, goal_move(hx + (float)(k % 5) - 2.0f, hy + (float)(k / 5 % 5) - 2.0f), 0, 0x1F40);
         }
         g_hold_st[idx].set += (unsigned)changed;
@@ -1104,7 +1102,7 @@ static void cmd_basemap(char *out, const char *args) {
     void **zb = FIELD(pl, 0xB50, void **), **ze = FIELD(pl, 0xB54, void **);   // mines
     for (int z = 0; zb && zb + z < ze; z++)
         for (int t = 4; zb[z] && t < 7; t++) {
-            uint8_t *s = ((uint8_t *(__thiscall *)(void *, int))FN_ZONE_SITE)(zb[z], t);
+            uint8_t *s = GF(FN_ZONE_SITE)(zb[z], t);
             if (!s) continue;
             int x = FIELD(s, 0x1C, int) - m.x0 + r, y = FIELD(s, 0x20, int) - m.y0 + r;
             if (x >= 0 && y >= 0 && x < w && y < w) g[y * w + x] = 'm';
@@ -1142,8 +1140,6 @@ static void cmd_defence(char *out, const char *args) {
 // by state, then the map found there by the index. Twice (in ~60 runs, not reproducible, since the defence layout) the
 // inner map had no head (+4 = 0) and the lookup crashed (0x4D3BD3, read 00000004). The call at 0x4F80A4 goes through
 // a check: such a model gets "no damage points" (the effect then shows one), logged once per type with the unit.
-#define CALL_DAMAGE_POINTS 0x004F80A4
-#define FN_DAMAGE_POINTS   0x004D291F
 __attribute__((used)) uint8_t *g_dmg_unit;   // the effect's unit: esi at the call site
 static uint8_t *rb_find(uint8_t *map, unsigned key) {   // MSVC map: +4 head; node +0 left, +4 parent, +8 right, +0xC key, +0x15 nil
     uint8_t *head = FIELD(map, 4, uint8_t *), *res, *n;
@@ -1170,7 +1166,7 @@ __attribute__((used)) int __fastcall hook_damage_points(uint8_t *model, void *ed
         }
         return 0;
     }
-    return ((int (__thiscall *)(void *, int, unsigned))FN_DAMAGE_POINTS)(model, index, state);
+    return GF(FN_DAMAGE_POINTS)(model, index, state);
 }
 __attribute__((naked, used)) void damage_points_thunk(void) {
     __asm__("movl %esi, _g_dmg_unit\n\t"
@@ -1195,7 +1191,7 @@ static void defence_install(const char *aimod_ini, const char *autotest_ini) {
     g_aa_ahead_b = cfg_int(aimod_ini, autotest_ini, 1, "aa_ahead_buildings", 3);
     g_hold = cfg_int(aimod_ini, autotest_ini, 1, "hold_town", 0);
     g_retreat = cfg_int(aimod_ini, autotest_ini, 1, "attack_retreat", 0);
-    BOOL guard = patch_call(CALL_DAMAGE_POINTS, FN_DAMAGE_POINTS, damage_points_thunk);
+    BOOL guard = patch_call(GA(CALL_DAMAGE_POINTS), GA(FN_DAMAGE_POINTS), damage_points_thunk);
     if (g_log) fprintf(g_log, "# engine guard: damage points %s\n", guard ? "ok" : "FAILED");
     if (g_log) fprintf(g_log, "# defence: layout=%d distance=%d walls=%d own towers=%d counter-siege=%d home guard=%d/epoch, %.2f of the military room, fight_estimate=%d hold_town=%d attack_retreat=%d\n", g_def, g_def_dist, g_def_walls, g_def_more, g_csiege, g_home_guard, g_home_share, g_fight_est, g_hold, g_retreat);
 }
@@ -1327,7 +1323,7 @@ static void anti_air(void *pl, unsigned idx, uint32_t now) {
         ((uncovered && !g_aa_st[idx].air) || nearest_drop(pl, g_aa_st[idx].ax, g_aa_st[idx].ay, 0, d))) {
         int bt = 0;
         for (size_t k = 0; k < sizeof k_aa_bldgs / sizeof *k_aa_bldgs && !bt; k++)
-            if (k_aa_bldgs[k].epoch <= epoch && ut_has(g_ut[k_aa_bldgs[k].type]) && ((char (__thiscall *)(void *, int, int, int))0x00555710)(pl, g_ut[k_aa_bldgs[k].type], 0x20, 0))
+            if (k_aa_bldgs[k].epoch <= epoch && ut_has(g_ut[k_aa_bldgs[k].type]) && GF(FN_CAN_BUILD)(pl, g_ut[k_aa_bldgs[k].type], 0x20, 0))
                 bt = g_ut[k_aa_bldgs[k].type];
         for (int r = 3; bt && r <= 7; r++)
             for (int ax = -r; ax <= r; ax++)
@@ -1335,7 +1331,7 @@ static void anti_air(void *pl, unsigned idx, uint32_t now) {
                     if ((abs(ax) != r && abs(ay) != r) || !can_place(pl, bt, d[0] + ax, d[1] + ay) ||
                         raiders_near(pl, d[0] + ax, d[1] + ay, 8)) continue;
                     int entry[3] = { bt, d[0] + ax, d[1] + ay };
-                    ((void (__thiscall *)(void *, int *))0x00468C37)(bm + 4 + e * 0x14, entry);
+                    GF(FN_BQ_ADD)(bm + 4 + e * 0x14, entry);
                     g_aa_st[idx].build_t = now ? now : 1;
                     g_aa_st[idx].queued++;
                     if (g_log) fprintf(g_log, "# anti-air: P%u at %.1f min queues type %d at %d,%d (enemy aircraft %d near %d,%d, %d seen anywhere; AA buildings %d of %d%s)\n",
@@ -1393,7 +1389,7 @@ static void upgrade_stragglers(void) {   // the safe point (control.c hook_sim_r
             g_upg.best[l] = -1;
             for (int i = 0; i < 7; i++) {
                 g_upg.avail[l][i] = UPG(l, i) >= 0 &&
-                    ((char (__thiscall *)(void *, int, int, int))0x00555710)(pl, UPG(l, i), 0x20, 0);
+                    GF(FN_CAN_BUILD)(pl, UPG(l, i), 0x20, 0);
                 if (g_upg.avail[l][i]) g_upg.best[l] = i;
             }
             any |= g_upg.best[l] > 0;
@@ -1407,7 +1403,7 @@ static void upgrade_stragglers(void) {   // the safe point (control.c hook_sim_r
             uint32_t data = (uint32_t)type_data(g_upg.to[k]);
             if (!data) continue;
             int from = FIELD(FIELD(g_upg.u[k], 0x2C, uint8_t *), 0x4B8, int), x = FIELD(g_upg.u[k], 0x1C, int), y = FIELD(g_upg.u[k], 0x20, int);
-            ((int (__cdecl *)(void *, int, uint32_t))0x0062F192)(g_upg.u[k], pi, data);
+            GF(FN_UNIT_CONVERT)(g_upg.u[k], pi, data);
             g_upg_done[p & 15]++;
             if (g_log) fprintf(g_log, "# upgrades: P%d at %.1f min: %d at %d,%d left behind by its upgrade - now %d\n", p,
                                now / 60000.0, from, x, y, g_upg.to[k]);
@@ -1424,7 +1420,7 @@ static int upgraded_type(void *pl, int type) {
     for (int l = 0; l < 3; l++)
         for (int i = 0; i < 7 && UPG(l, i) >= 0; i++) {
             if (UPG(l, i) != type) continue;
-            char (__thiscall *can)(void *, int, int, int) = (char (__thiscall *)(void *, int, int, int))0x00555710;
+            char (__thiscall *can)(void *, int, int, int) = (char (__thiscall *)(void *, int, int, int))GA(FN_CAN_BUILD);
             if (can(pl, type, 0x20, 0)) return type;
             for (int j = 6; j > i; j--)
                 if (UPG(l, j) >= 0 && can(pl, UPG(l, j), 0x20, 0)) {

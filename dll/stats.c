@@ -18,23 +18,23 @@
 // from it, 0x61E176); type +0x50C is the base. Stats record of a type for a player: player +0x874 vector,
 // 0x4A670A size, 0x492969 at. Max hit points stats +0x144, range +0x9C.
 
-#define ST_TABLE ((float *)0x008D2050)
+#define ST_TABLE ((float *)GA(G_DAMAGE_TABLE))
 static int g_fight_est = 0;   // [all] fight_estimate
 static int is_soldier(uint8_t *td);   // defence.c
 
 static uint8_t *st_rec(void *pl, int type) {   // the player's stats record of a type
     if (!pl || type < 0) return NULL;
     uint8_t *vec = (uint8_t *)pl + 0x874;
-    if ((unsigned)type >= ((unsigned (__thiscall *)(void *))0x004A670A)(vec)) return NULL;
-    uint8_t **p = ((uint8_t **(__thiscall *)(void *, int))0x00492969)(vec, type);
+    if ((unsigned)type >= GF(FN_VECTOR_SIZE)(vec)) return NULL;
+    uint8_t **p = GF(FN_TYPE_STATS)(vec, type);
     return p ? *p : NULL;
 }
 static void *st_player(int i) {   // any player (g_players has the AIs only)
-    return i >= 0 && i < 16 && (unsigned)i < *(unsigned *)0x009183CC ? ((void **)0x00918374)[i] : NULL;
+    return i >= 0 && i < 16 && (unsigned)i < *(unsigned *)GA(G_PLAYERS_N) ? ((void **)GA(G_PLAYERS))[i] : NULL;
 }
 static float st_factor(uint8_t *atd, int api, uint8_t *ttd, int tpi) {   // the game's hit factor, 0 = cannot hit
     if (!atd || !ttd) return 0.0f;
-    return ((float (__thiscall *)(void *, int, void *, int, int))0x004D5F2C)((void *)0x00917DE0, FIELD(atd, 0x4C8, int), ttd, api, tpi);
+    return GF(FN_ATTACK_BONUS)((void *)GA(G_BONUS_TABLE), FIELD(atd, 0x4C8, int), ttd, api, tpi);
 }
 // damage of one shot of type atd (stats ast, player index api) at type ttd (stats tst, tpi); 0 = cannot hurt it
 static int st_shot_t(uint8_t *atd, uint8_t *ast, int api, uint8_t *ttd, uint8_t *tst, int tpi) {
@@ -343,7 +343,7 @@ static void cmd_stats(char *out, const char *args) {
         if ((na != 4 && na != 7) || !st_player(p)) { REPLY("error: stats engage P x y r [T tx ty]\n"); return; }
         if (na == 4) tt = -1;
         static uint8_t *mu[ST_UNITS], *fu[ST_UNITS];
-        uint8_t *map = *(uint8_t **)G_MAP, *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
+        uint8_t *map = *(uint8_t **)GA(G_MAP), *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
         if (!grid) { REPLY("error: no map\n"); return; }
         for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
             uint8_t *u = it.u, *td = it.td;
@@ -401,7 +401,7 @@ static void cmd_stats(char *out, const char *args) {
         static uint8_t *cit[4096], *foe[4096];
         int nc = 0, nf = 0, hit = 0, seen = 0, flagged = 0, ntype = 0, tt[32] = { 0 }, tn[32] = { 0 }, tf[32] = { 0 };
         float tr[32] = { 0 };
-        uint8_t *map = *(uint8_t **)G_MAP, *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
+        uint8_t *map = *(uint8_t **)GA(G_MAP), *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
         if (!grid) { REPLY("error: no map\n"); return; }
         for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
             uint8_t *u = it.u, *td = it.td;

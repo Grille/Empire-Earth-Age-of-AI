@@ -45,7 +45,7 @@ static struct assault {
 static unsigned area_id(int x, int y, int kind) {
     int pt[2] = { x, y };
     if (x < 0 || y < 0) return 0;
-    return ((unsigned short (__thiscall *)(void *, int *, int))0x00425F9F)((void *)0x00917BC8, pt, kind);
+    return ((unsigned short (__thiscall *)(void *, int *, int))GA(FN_REGION))((void *)GA(G_MAP_AREAS), pt, kind);
 }
 static unsigned cont_at(int x, int y) { return area_id(x, y, 2); }
 static int cont_ok(int x, int y, unsigned hc) {   // land of continent hc (or an area without ids that is no ocean)
@@ -87,11 +87,10 @@ static int assault_has_unit(void *pl, uint8_t *u) {   // a member of the wave or
 }
 
 static int landing_leads(uint8_t *sg);   // landing.c
-#define FN_ASG_UPDATE 0x004491DD   // EECPASGLand slot 90: update(now)
 static void __fastcall hook_asg_update(uint8_t *sg, void *edx, int now) {
     (void)edx;
     if (!is_vanilla(FIELD(sg, 0x190, void *)) && ((g_assault && assault_leads(sg)) || landing_leads(sg))) return;
-    ((void (__thiscall *)(void *, int))FN_ASG_UPDATE)(sg, now);
+    GF(FN_ASG_UPDATE)(sg, now);
 }
 
 struct as_obj { void *pl; uint8_t *target; unsigned pi, cont; int x, y; uint8_t *best; float score; };
@@ -117,7 +116,7 @@ static uint8_t *as_objective(void *pl, unsigned pi, uint8_t *target, unsigned co
 // the nearest enemy within r tiles of (x, y): soldiers and siege first (r), then defences, then (buildings != 0) any
 // building of the target within 8 tiles
 static uint8_t *as_enemy_near(void *pl, uint8_t *target, int x, int y, int r, int buildings, int *soldiers) {
-    uint8_t *map = *(uint8_t **)G_MAP;
+    uint8_t *map = *(uint8_t **)GA(G_MAP);
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     if (!grid) return NULL;
     uint8_t *best[3] = { 0 };
@@ -149,7 +148,7 @@ static int is_aa(uint8_t *u) {   // anti-air units (AA tank, Stinger, Skywatcher
 // what player pl has seen of its enemies within r tiles of (x, y): soldiers and siege (hit points x attack), with
 // defences != 0 also defences whose range reaches the point; the soldiers' centre and number
 static float as_enemy_power(void *pl, int x, int y, int r, float *cx, float *cy, int *n, int defences) {
-    uint8_t *map = *(uint8_t **)G_MAP;
+    uint8_t *map = *(uint8_t **)GA(G_MAP);
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     float pow = 0, sx = 0, sy = 0;
     *n = 0; *cx = (float)x; *cy = (float)y;
@@ -196,10 +195,10 @@ static int as_in_wave(struct assault *a, uint8_t *u) {
 }
 static int as_goal_near(uint8_t *u, float x, float y, float r) {   // walking there already
     uint8_t *g = FIELD(u, 0x1EC, uint8_t *);
-    return g && *(uintptr_t *)g == VT_GOAL_LOCATION && fabsf(FIELD(g, 0x20, float) - x) < r && fabsf(FIELD(g, 0x24, float) - y) < r;
+    return g && *(uintptr_t *)g == GA(VT_GOAL_LOCATION) && fabsf(FIELD(g, 0x20, float) - x) < r && fabsf(FIELD(g, 0x24, float) - y) < r;
 }
 static int as_fighting(uint8_t *u) {
-    uint8_t *g = FIELD(u, 0x1EC, uint8_t *), *t = g && *(uintptr_t *)g == VT_GOAL_ATTACK ? FIELD(g, 0x30, uint8_t *) : NULL;
+    uint8_t *g = FIELD(u, 0x1EC, uint8_t *), *t = g && *(uintptr_t *)g == GA(VT_GOAL_ATTACK) ? FIELD(g, 0x30, uint8_t *) : NULL;
     return t && FIELD(t, 0x3C, int) > 0;
 }
 
@@ -266,7 +265,7 @@ static void assault_tick(void *pl, uint32_t now) {
         while (j < nt && tgt[j] != t) j++;
         if (j == nt) { if (nt == 16) continue; tgt[nt++] = t; }
         for (uint8_t **sp = FIELD(g, 8, uint8_t **); sp && sp < FIELD(g, 0xC, uint8_t **); sp++)
-            if (*sp && *(uintptr_t *)*sp == VT_ASG_LAND) tn[j] += (int)(FIELD(*sp, 0x58, uint8_t **) - FIELD(*sp, 0x54, uint8_t **));
+            if (*sp && *(uintptr_t *)*sp == GA(VT_ASG_LAND)) tn[j] += (int)(FIELD(*sp, 0x58, uint8_t **) - FIELD(*sp, 0x54, uint8_t **));
     }
     uint8_t *target = NULL;
     for (int j = 0, bestn = 0; j < nt; j++) if (tn[j] > bestn) { bestn = tn[j]; target = tgt[j]; }
@@ -301,7 +300,7 @@ static void assault_tick(void *pl, uint32_t now) {
         if (!g || FIELD(g, 0x48, uint8_t *) != target) continue;
         for (uint8_t **sp = FIELD(g, 8, uint8_t **); sp && sp < FIELD(g, 0xC, uint8_t **); sp++) {
             uint8_t *sg = *sp;
-            if (!sg || *(uintptr_t *)sg != VT_ASG_LAND || ntaken == 64) continue;
+            if (!sg || *(uintptr_t *)sg != GA(VT_ASG_LAND) || ntaken == 64) continue;
             int aboard = 0, m0 = n;
             for (uint8_t **r = FIELD(sg, 0x54, uint8_t **); r && r < FIELD(sg, 0x58, uint8_t **); r++) {
                 uint8_t *u = *r ? FIELD(*r, 0x44, uint8_t *) : NULL, *td = u ? FIELD(u, 0x2C, uint8_t *) : NULL;
@@ -481,7 +480,7 @@ static void cmd_assault(char *out, const char *args) {
 static void assault_install(const char *aimod_ini, const char *autotest_ini) {
     g_assault = cfg_int(aimod_ini, autotest_ini, 1, "assault", 0);
     g_as_outmatched = cfg_int(aimod_ini, autotest_ini, 1, "assault_outmatched", 0);
-    int h = patch_vtable(VT_ASG_LAND, 90, FN_ASG_UPDATE, hook_asg_update);
+    int h = patch_vtable(GA(VT_ASG_LAND), 90, GA(FN_ASG_UPDATE), hook_asg_update);
     if (g_log) fprintf(g_log, "# assault: %s (subgroup update hook %s)\n", g_assault ? "on" : "off", h ? "ok" : "FAILED");
 }
 

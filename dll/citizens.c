@@ -40,7 +40,7 @@ static void cz_types(void *pl) {
     for (int k = 0; k < 2; k++) {
         uint8_t *td = type_data(k ? UT(FEMALE_CITIZEN) : UT(CITIZEN));
         g_cz_tech[k] = td ? FIELD(td, 0x4E0, int) : -1;
-        uint8_t *t = td ? ((uint8_t *(__thiscall *)(void *, int))0x004019A1)(tt, g_cz_tech[k]) : NULL, *d = t ? FIELD(t, 8, uint8_t *) : NULL;
+        uint8_t *t = td ? GF(FN_TECH_LOOKUP)(tt, g_cz_tech[k]) : NULL, *d = t ? FIELD(t, 8, uint8_t *) : NULL;
         int *b = d ? FIELD(d, 0x10, int *) : NULL, *e = d ? FIELD(d, 0x14, int *) : NULL;
         for (int *p = b; b && e > b && e - b < 16 && p < e; p++) {
             int j;
@@ -75,7 +75,7 @@ static void cz_sample(void *pl, unsigned idx) {
     cz_types(pl);
     int idle = 0;
     for (int k = 0; k < g_cz_np; k++) {
-        uint8_t *q = ((uint8_t *(__thiscall *)(void *, int))0x0048F8AF)(um, g_cz_ptypes[k]);
+        uint8_t *q = GF(FN_UM_TYPE_LIST)(um, g_cz_ptypes[k]);
         for (unsigned j = 0, f = q ? FIELD(q, 0xC, unsigned) : 0, n = q ? FIELD(q, 0x10, unsigned) : 0; j < n && j < 64; j++) {
             uint8_t *b = deque_at(q, f + j);
             if (!b || FIELD(b, 0x3C, int) <= 0 || !cz_finished(b)) continue;
@@ -89,11 +89,11 @@ static void cz_sample(void *pl, unsigned idx) {
         }
     }
     int cap = ((int (__thiscall *)(void *, int))(*(void ***)pl)[31])(pl, 0);
-    int room = cap - FIELD(um, 0x13C, int) - ((int (__thiscall *)(void *, int, int))0x00556E11)(pl, 1, 0);
-    int wanted = ((int (__thiscall *)(void *))0x0048EDDB)(um), have = ((int (__thiscall *)(void *))0x0048F819)(um);
+    int room = cap - FIELD(um, 0x13C, int) - GF(FN_POPULATION)(pl, 1, 0);
+    int wanted = GF(FN_UM_CITIZENS_WANTED)(um), have = GF(FN_UM_CITIZENS)(um);
     z->wanted = wanted; z->have = have; z->room = room; z->cap = cap;
     if (!idle) return;
-    char (__thiscall *pend)(void *, int) = (void *)0x0048E9D8, (__thiscall *inprod)(void *, int) = (void *)0x0048EA2E;
+    char (__thiscall *pend)(void *, int) = (void *)GA(FN_UM_PENDING), (__thiscall *inprod)(void *, int) = (void *)GA(FN_UM_IN_PRODUCTION);
     unsigned *r;
     if (room <= 0) r = &z->m.cap;
     else if (wanted - have <= 0) r = &z->m.target;
@@ -170,7 +170,7 @@ static int cz_producers(void *pl) {
     if (!um) return 0;
     cz_types(pl);
     for (int k = 0; k < g_cz_np; k++) {
-        uint8_t *q = ((uint8_t *(__thiscall *)(void *, int))0x0048F8AF)(um, g_cz_ptypes[k]);
+        uint8_t *q = GF(FN_UM_TYPE_LIST)(um, g_cz_ptypes[k]);
         for (unsigned j = 0, f = q ? FIELD(q, 0xC, unsigned) : 0, c = q ? FIELD(q, 0x10, unsigned) : 0; j < c && j < 64; j++) {
             uint8_t *b = deque_at(q, f + j);
             if (b && FIELD(b, 0x3C, int) > 0 && cz_finished(b)) n++;
@@ -211,7 +211,7 @@ static void cz_targets(uint8_t *rm) {
     uint8_t *cm = FIELD(pl, 0xB90, uint8_t *), *um = cm ? FIELD(cm, 0x44, uint8_t *) : NULL;
     if (!um) return;
     uint32_t *target = (uint32_t *)(rm + RM_TARGET);
-    int wf = workforce(pl), game = ((int (__thiscall *)(void *))0x0048EDDB)(um);
+    int wf = workforce(pl), game = GF(FN_UM_CITIZENS_WANTED)(um);
     g_czp[idx].game = game;
     struct mf_st *m = &g_mf[idx];
     mf_scan(pl, idx, now);
@@ -253,7 +253,7 @@ static void cz_targets(uint8_t *rm) {
 // the citizens wanted at the request (0x490BC2: call 0x48EDDB thiscall(um))
 static int __fastcall hook_cit_wanted(void *um, void *edx) {
     (void)edx;
-    int n = ((int (__thiscall *)(void *))0x0048EDDB)(um);
+    int n = GF(FN_UM_CITIZENS_WANTED)(um);
     void *pl = FIELD(um, 0x134, void *);
     if (!pl || is_vanilla(pl)) return n;
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
@@ -275,7 +275,7 @@ static void cz_install(const char *aimod_ini, const char *autotest_ini) {
     g_cit_train_ms = cfg_int(aimod_ini, autotest_ini, 1, "citizen_train_ms", 28000);
     if (g_cit_train_ms < 5000) g_cit_train_ms = 5000;
     if (autotest_ini) g_v_cit_plan = ini_int("autotest", "v_citizen_plan", -1, autotest_ini);
-    BOOL ok = patch_call(0x00490BC2, 0x0048EDDB, hook_cit_wanted);
+    BOOL ok = patch_call(GA(CALL_CITIZENS_WANTED), GA(FN_UM_CITIZENS_WANTED), hook_cit_wanted);
     if (g_log) fprintf(g_log, "# citizens: citizen_plan %d (variant %d), army share %.0f%%, hook %s\n", g_cit_plan, g_v_cit_plan,
                        g_cit_army * 100.0f, ok ? "ok" : "FAILED");
 }

@@ -68,7 +68,7 @@ static void early_slot(void *pl, unsigned idx, int bx, int by, int k, int *x, in
     float dx, dy;
     if (p->nf) { dx = p->f[0].dx; dy = p->f[0].dy; }
     else {
-        uint8_t *map = *(uint8_t **)G_MAP;
+        uint8_t *map = *(uint8_t **)GA(G_MAP);
         int n = map ? (int)FIELD(map, 0x1816FC, uint32_t) : 0;
         dx = (float)(n / 2 - bx); dy = (float)(n / 2 - by);
         float l = sqrtf(dx * dx + dy * dy);
@@ -141,7 +141,7 @@ static void early_towers_tick(void *pl, unsigned idx, uint32_t now) {
     if (bm && type && all < EARLY_CORE && !queued && stock[4] >= unit_cost(pl, type, 4) && e >= 0 && e < 14 &&
         early_core_spot(pl, type, &x, &y)) {
         int entry[3] = { type, x, y };
-        ((void (__thiscall *)(void *, int *))0x00468C37)(bm + 4 + e * 0x14, entry);
+        GF(FN_BQ_ADD)(bm + 4 + e * 0x14, entry);
         st->queued++;
         if (g_log) fprintf(g_log, "# early: P%u queues tower %d at %d,%d (stone %d)\n", idx, type, x, y, stock[4]);
     }
@@ -188,7 +188,7 @@ static void early_bait(void *pl, unsigned idx, uint32_t now) {
         } else if (ne < 64 && o && FIELD(o, PL_INDEX, int) > 0 && is_soldier(td) && is_enemy(pl, o) && seen_by(u, pl)) {
             uint8_t *g = FIELD(u, 0x1EC, uint8_t *);
             en[ne].u = u; en[ne].x = FIELD(u, 0x1C, int); en[ne].y = FIELD(u, 0x20, int);
-            en[ne++].t = g && *(uintptr_t *)g == VT_GOAL_ATTACK ? FIELD(g, 0x30, uint8_t *) : NULL;
+            en[ne++].t = g && *(uintptr_t *)g == GA(VT_GOAL_ATTACK) ? FIELD(g, 0x30, uint8_t *) : NULL;
         }
     }
     if (!nc || !ne) return;
@@ -210,10 +210,10 @@ static void early_bait(void *pl, unsigned idx, uint32_t now) {
         }
         if (best < 0) continue;
         uint8_t *g = FIELD(u, 0x1EC, uint8_t *);
-        if (g && *(uintptr_t *)g == VT_GOAL_ATTACK) continue;   // the militia's: a fight it wins
+        if (g && *(uintptr_t *)g == GA(VT_GOAL_ATTACK)) continue;   // the militia's: a fight it wins
         float ex = (float)(cov[best].x - en[hit].x), ey = (float)(cov[best].y - en[hit].y), l = sqrtf(ex * ex + ey * ey);
         float sx = (float)cov[best].x + 0.5f + (l > 0.5f ? ex / l * 1.5f : 0), sy = (float)cov[best].y + 0.5f + (l > 0.5f ? ey / l * 1.5f : 0);
-        if (g && *(uintptr_t *)g == VT_GOAL_LOCATION && fabsf(FIELD(g, 0x20, float) - sx) < 2 && fabsf(FIELD(g, 0x24, float) - sy) < 2)
+        if (g && *(uintptr_t *)g == GA(VT_GOAL_LOCATION) && fabsf(FIELD(g, 0x20, float) - sx) < 2 && fabsf(FIELD(g, 0x24, float) - sy) < 2)
             continue;   // on its way there
         if (unit_goal(u, goal_move(sx, sy), 0, 0x1F40)) sent++;
     }
@@ -237,8 +237,8 @@ static void early_range(void *pl, unsigned idx, uint32_t now) {
         uint8_t *b = deque_at(q, f + k);
         if (b && FIELD(b, 0x3C, int) > 0) return;
     }
-    if (!ut_has(UT(B_ARCHERY_RANGE)) || ((char (__thiscall *)(void *, int))0x00465640)(bm, UT(B_ARCHERY_RANGE))) return;
-    ((void (__thiscall *)(void *, int, int, int))0x0046802D)(bm, UT(B_ARCHERY_RANGE), 1, 0);
+    if (!ut_has(UT(B_ARCHERY_RANGE)) || GF(FN_BM_QUEUED)(bm, UT(B_ARCHERY_RANGE))) return;
+    GF(FN_BM_REQUEST)(bm, UT(B_ARCHERY_RANGE), 1, 0);
     st->ranges++;
     if (g_log) fprintf(g_log, "# early: P%u at %.1f min: no Archery Range - one requested\n", idx, now / 60000.0);
 }

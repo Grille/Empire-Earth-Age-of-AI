@@ -17,7 +17,6 @@
 // bytes became other values. Each block carries a hash of its variable's definition, the structs it names and the
 // macros of its sizes (scripts/persist_layout.py -> persist_layout.h, run by build.sh). Files of format 1 (no
 // layout word: the saves made before it) are read as they always were, blocks matched by tag and size only.
-#define FN_SAVE_GAME 0x00540ACA
 static int g_persist = 1;   // aimod.ini [general] save_state
 static const struct { const char *tag; void *p; size_t n; } k_blocks[] = {
 #define B(x) { #x, &x, sizeof x }
@@ -127,7 +126,7 @@ static int __cdecl hook_save_game(void *file, int a, int b, struct ustring folde
     const char *fp = file ? FIELD(file, 4, const char *) : NULL, *dp = FIELD(folder.raw, 4, const char *);
     if (fp) lstrcpynA(fname, fp, MAX_PATH);
     if (dp) lstrcpynA(dname, dp, MAX_PATH);
-    int r = ((int (__cdecl *)(void *, int, int, struct ustring))FN_SAVE_GAME)(file, a, b, folder);
+    int r = GF(FN_SAVE_GAME)(file, a, b, folder);
     if (g_log) fprintf(g_log, "# persist: game saved as \"%s\" in \"%s\" (result %d)\n", fname, dname, r);
     if (!r && g_persist && fname[0]) persist_write(dname, fname);   // 0 = saved (else the error dialog 0x65C6A9)
     return r;
@@ -200,8 +199,8 @@ static void persist_install(const char *ini, const char *test_ini) {
         if (memcmp(sec->Name, ".text", 6)) continue;   // flagged as data like every section of this exe
         uint8_t *p = base + sec->VirtualAddress, *e = p + sec->Misc.VirtualSize - 5;
         for (; p < e; p++)
-            if (*p == 0xE8 && (uintptr_t)p + 5 + *(int32_t *)(p + 1) == FN_SAVE_GAME)
-                sites += patch_call((uintptr_t)p, FN_SAVE_GAME, (void *)hook_save_game);
+            if (*p == 0xE8 && (uintptr_t)p + 5 + *(int32_t *)(p + 1) == GA(FN_SAVE_GAME))
+                sites += patch_call((uintptr_t)p, GA(FN_SAVE_GAME), (void *)hook_save_game);
     }
     if (g_log) fprintf(g_log, "# persist: save_state=%d, save hooks %d/4\n", g_persist, sites);
 }

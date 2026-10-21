@@ -208,7 +208,7 @@ static LONG CALLBACK crash_handler(EXCEPTION_POINTERS *ep) {
     for (size_t k = 0, shown = 0; k < got / sizeof *words && shown < 30 && n < (int)sizeof g_crash_line - 200; k++) {
         HMODULE hm;
         MEMORY_BASIC_INFORMATION mbi;
-        if (words[k] >= 0x401000 && words[k] < 0x823000) {   // the game's code (its pages may not say execute)
+        if (words[k] >= g_code_lo && words[k] < g_code_hi) {   // the game's code (its pages may not say execute)
             n += snprintf(line + n, sizeof g_crash_line - n, " [%u]%08lx", (unsigned)k, (unsigned long)words[k]);
             shown++;
             continue;

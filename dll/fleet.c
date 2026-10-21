@@ -105,12 +105,10 @@ static int fleet_refuses(uint8_t *sg, uint8_t *u) {
 }
 // the naval maintenance (0x4779FA) short of its "Ships to Maintain": it deletes own units for the room (0x430D40,
 // thiscall(player, request, 0)) and opens a Defend group - the deletion is skipped while the fleet leads the ships
-#define CALL_NV_MAINT_DELETE 0x00477B17
-#define FN_DELETE_FOR_ROOM 0x00430D40
 static int __fastcall hook_nv_maint_delete(void *pl, void *edx, void *req, int flag) {
     (void)edx;
     if (pl && !is_vanilla(pl) && fleet_on((unsigned)FIELD(pl, PL_INDEX, int))) { g_fl[(unsigned)FIELD(pl, PL_INDEX, int) & 15].maint_skipped++; return 0; }
-    return ((int (__thiscall *)(void *, void *, int))FN_DELETE_FOR_ROOM)(pl, req, flag);
+    return GF(FN_DELETE_FOR_ROOM)(pl, req, flag);
 }
 
 // THE SCAN (every 2 s per AI with the fleet): own warships, fishing boats, docks and buildings; enemy ships; danger
@@ -350,12 +348,12 @@ static void fl_guard_point(struct fleet *f) {
 }
 static int fl_ship_ocean(uint8_t *u) { return (int)area_id(FIELD(u, 0x1C, int), FIELD(u, 0x20, int), 1); }
 static int fl_attacking(uint8_t *u) {   // its current attack target (alive), else NULL
-    uint8_t *g = FIELD(u, 0x1EC, uint8_t *), *t = g && *(uintptr_t *)g == VT_GOAL_ATTACK ? FIELD(g, 0x30, uint8_t *) : NULL;
+    uint8_t *g = FIELD(u, 0x1EC, uint8_t *), *t = g && *(uintptr_t *)g == GA(VT_GOAL_ATTACK) ? FIELD(g, 0x30, uint8_t *) : NULL;
     return t && FIELD(t, 0x3C, int) > 0 && FIELD(t, 0x1C, int) >= 0;
 }
 static uint8_t *fl_target_of(uint8_t *u) {
     uint8_t *g = FIELD(u, 0x1EC, uint8_t *);
-    return g && *(uintptr_t *)g == VT_GOAL_ATTACK ? FIELD(g, 0x30, uint8_t *) : NULL;
+    return g && *(uintptr_t *)g == GA(VT_GOAL_ATTACK) ? FIELD(g, 0x30, uint8_t *) : NULL;
 }
 // to (x, y) - round a danger zone on the way through a waypoint off the line (8 or 16 tiles to a side), else not at all
 static void fl_move(struct fleet *f, uint8_t *u, int x, int y, int k) {
@@ -688,7 +686,7 @@ static void fl_rally_tower(void *pl, unsigned idx, struct fleet *m, uint32_t now
                 int x = dx0 + ax, y = dy0 + ay;
                 if ((abs(ax) != r && abs(ay) != r) || !fl_coast(x, y, m->ocean) || raiders_near(pl, x, y, 10) || !can_place(pl, ttype, x, y)) continue;
                 int entry[3] = { ttype, x, y };
-                ((void (__thiscall *)(void *, int *))0x00468C37)(bm + 4 + e * 0x14, entry);
+                GF(FN_BQ_ADD)(bm + 4 + e * 0x14, entry);
                 m->rally_towers++;
                 if (g_log) fprintf(g_log, "# navy: P%u at %.1f min: no tower covers the fleet's sea - tower %d queued at %d,%d by the dock %d,%d\n",
                                    idx, now / 60000.0, ttype, x, y, dx0, dy0);
@@ -1275,7 +1273,7 @@ static void fleet_install(const char *aimod_ini, const char *autotest_ini) {
     g_fl_mass = cfg_int(aimod_ini, autotest_ini, 1, "navy_fleet_mass", 1);
     int ok = 0;
     if (g_navy_fleet || g_v_navy_fleet > 0) {
-        ok = asg_order_hooks() + patch_call(CALL_NV_MAINT_DELETE, FN_DELETE_FOR_ROOM, (void *)hook_nv_maint_delete);
+        ok = asg_order_hooks() + patch_call(GA(CALL_NV_MAINT_DELETE), GA(FN_DELETE_FOR_ROOM), (void *)hook_nv_maint_delete);
     }
     if (g_log) fprintf(g_log, "# navy: fleet %s (v_navy_fleet %d; hooks %d)\n", g_navy_fleet ? "on" : "off", g_v_navy_fleet, ok);
 }

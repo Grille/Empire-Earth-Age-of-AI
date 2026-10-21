@@ -128,7 +128,7 @@ static uint32_t g_rnd_game = 0x2545F491u;
 static int g_mp, g_mp_seeded;   // g_mp: more than one human in the setup (persona_new_game)
 static uint32_t rnd_game32(void) {
     if (g_mp && !g_mp_seeded) {
-        int (__cdecl *game_rand)(void) = *(int (__cdecl **)(void))0x00824648;
+        int (__cdecl *game_rand)(void) = *(int (__cdecl **)(void))GA(IAT_RAND);
         int a = game_rand(), b = game_rand();
         g_rnd_game = ((uint32_t)a << 15 ^ (uint32_t)b) * 2654435761u ^ 0x2545F491u;
         if (!g_rnd_game) g_rnd_game = 1;
@@ -181,7 +181,7 @@ static int color_index(const char *s) {   // by its name; -1: none
     return -1;
 }
 static const float *color_rgb(int c) {
-    uint8_t **b = *(uint8_t ***)0x008CFA74, **e = *(uint8_t ***)0x008CFA78;
+    uint8_t **b = *(uint8_t ***)GA(G_COLORS_BEGIN), **e = *(uint8_t ***)GA(G_COLORS_END);
     return b && c >= 0 && c < e - b && b[c] ? (const float *)(b[c] + 4) : NULL;
 }
 
@@ -540,8 +540,8 @@ static void line_ctx_init(struct line_ctx *l, void *pl, void *other, void *third
     memset(&l->c, 0, sizeof l->c);
     texts_load();
     if (!other) {   // a line to everyone (greeting, epoch_up ...): them is the player at this PC
-        unsigned h = *(unsigned *)G_LOCAL_PLAYER;
-        void *hp = h < 16 ? ((void **)0x00918374)[h] : NULL;
+        unsigned h = *(unsigned *)GA(G_LOCAL_PLAYER);
+        void *hp = h < 16 ? ((void **)GA(G_PLAYERS))[h] : NULL;
         if (hp != pl) other = hp;
     }
     l->c.pl = pl; l->c.other = other; l->c.third = third; l->c.found = 1;
@@ -742,14 +742,12 @@ static void persona_new_game(uint8_t *setup) {
 // slot's colour and every other player the next colour not taken by a human, in slot order (0x5262E4: the colour
 // table lookup 0x526B85(index) cdecl -> rgb, then 0x526B3A sets player +0x438). Here an AI's lookup returns its
 // planned colour instead. In the game everything shows the player's rgb (diplomacy screen, chat), not an index.
-#define CALL_PLAYER_COLOR 0x005262E4
-#define FN_COLOR_RGB      0x00526B85
 static void *__cdecl hook_player_color(unsigned idx) {
     if (!(idx < 17 && g_color_human[idx]) && g_ai_color_k < g_ai_color_n) {
         int c = g_ai_colors[g_ai_color_k++];
         if (c >= 0) idx = (unsigned)c;
     }
-    return ((void *(__cdecl *)(unsigned))FN_COLOR_RGB)(idx);
+    return GF(FN_COLOR_RGB)(idx);
 }
 
 // once per AI (its first update): pick and apply the personality - pinned by aimod.ini, planned at the game start
@@ -778,11 +776,11 @@ static void persona_apply(void *pl, unsigned idx, int pick) {
     g_cfg_pl_on[idx] = 0;   // the last one's style (cmd_persona)
     struct persona *p = &g_personas[pick];
     if (g_ai_names && p->name[0])
-        ((void *(__thiscall *)(void *, const char *))*(void **)0x00823224)((uint8_t *)pl + 0x24, p->name);
+        ((void *(__thiscall *)(void *, const char *))*(void **)GA(IAT_WSTRING_ASSIGN))((uint8_t *)pl + 0x24, p->name);
     // its civilization's name as the game shows it: the UString at +0x488 (the text at +0x48C) - the database's own
     // name at +0x7AC stays (X.civilization_en)
     if (g_ai_names && p->civ[0] && player_civ(pl))
-        ((void *(__thiscall *)(void *, const char *))*(void **)0x00823224)((uint8_t *)pl + 0x488, p->civ);
+        ((void *(__thiscall *)(void *, const char *))*(void **)GA(IAT_WSTRING_ASSIGN))((uint8_t *)pl + 0x488, p->civ);
     if (g_log) {
         fprintf(g_log, "# persona: P%u is %s (%s):", idx, p->file, p->name[0] ? p->name : "-");
         for (int t = 0; t < T_N; t++) fprintf(g_log, " %s %d", k_trait_keys[t], p->trait[t]);
@@ -849,21 +847,21 @@ static const char *color_name(int c) {   // in the game's language: the German n
 
 // the speaker's age, localized (strings 30145 + epoch: Vorzeit, Steinzeit, ...)
 static void epoch_text_n(int e, char *out, int cap) {   // epoch e (0 Prehistoric) by name
-    void *res = *(void **)0x00919770;
+    void *res = *(void **)GA(G_RESOURCES);
     lstrcpynA(out, epoch_name(e), cap);
     if (!res || e < 0 || e > 14) return;
     __attribute__((aligned(8))) uint8_t s[32];
-    ((void (__thiscall *)(void *))*(void **)0x008231A4)(s);
-    ((int (__thiscall *)(void *, int, void *))*(void **)0x0082319C)(res, 30145 + e, s);
+    ((void (__thiscall *)(void *))*(void **)GA(IAT_WSTRING_CTOR))(s);
+    ((int (__thiscall *)(void *, int, void *))*(void **)GA(IAT_RESOURCE_STRING))(res, 30145 + e, s);
     if (FIELD(s, 4, const char *)) lstrcpynA(out, FIELD(s, 4, const char *), cap);
-    ((void (__thiscall *)(void *))*(void **)0x00823AEC)(s);
+    ((void (__thiscall *)(void *))*(void **)GA(IAT_WSTRING_DTOR))(s);
 }
 static void epoch_text(void *pl, char *out, int cap) { epoch_text_n(current_epoch(pl), out, cap); }
 
 // is the local player (0x918E84) in the audience of AI pl's line k said to `other`? Allies: both stances allied.
 static int line_heard(void *pl, enum line_kind k, void *other) {
-    unsigned h = *(unsigned *)G_LOCAL_PLAYER;
-    void *me = h < 16 ? ((void **)0x00918374)[h] : NULL;
+    unsigned h = *(unsigned *)GA(G_LOCAL_PLAYER);
+    void *me = h < 16 ? ((void **)GA(G_PLAYERS))[h] : NULL;
     if (!me || me == pl || k_lines[k].aud == A_ALL) return 1;
     if (k_lines[k].aud == A_NAME) return other == me;
     return !FIELD(pl, 0x9E4 + h * 4, int) && !FIELD(me, 0x9E4 + (FIELD(pl, PL_INDEX, int) & 15) * 4, int);
@@ -944,8 +942,8 @@ static void persona_attack(void *pl, void *target) {
     if (!g_attack_news[ai]) return;
     g_attack_news[ai] = 0;
     if (target) g_attack_sent[ai][FIELD(target, PL_INDEX, int) & 15] = game_time() ? game_time() : 1;
-    unsigned h = *(unsigned *)G_LOCAL_PLAYER;
-    void *me = h < 16 ? ((void **)0x00918374)[h] : NULL;
+    unsigned h = *(unsigned *)GA(G_LOCAL_PLAYER);
+    void *me = h < 16 ? ((void **)GA(G_PLAYERS))[h] : NULL;
     persona_say(pl, target && target == me ? L_ATTACK_THREAT : L_ATTACK, target, NULL);
 }
 
@@ -953,7 +951,6 @@ static void persona_attack(void *pl, void *target) {
 // called at 0x470040 (12500 war), 0x4715F8/0x47166E/0x47280E/0x472B9D (wonders, flares): the personality's line
 // where it has one. 12500: diplo.c says the war line itself (with the declaring player's name), so it is dropped
 // here when the personality has one.
-#define FN_NATIVE_CHAT 0x00484EB3
 static char __fastcall hook_native_chat(uint8_t *pim, void *edx, int base, int ms) {
     (void)edx;
     void *pl = pim ? FIELD(pim, 0x20, void *) : NULL;
@@ -964,7 +961,7 @@ static char __fastcall hook_native_chat(uint8_t *pim, void *edx, int base, int m
         if (k != L_WAR_DECLARED) persona_say(pl, (enum line_kind)k, NULL, NULL);
         return 1;
     }
-    return ((char (__thiscall *)(void *, int, int))FN_NATIVE_CHAT)(pim, base, ms);
+    return GF(FN_NATIVE_CHAT)(pim, base, ms);
 }
 
 // cmd: persona [P name]: who is who; with arguments AI P gets personality <name> (file name) from now on
@@ -1069,8 +1066,7 @@ static void persona_install(const char *ini, const char *test_ini) {
         HANDLE t = CreateThread(NULL, 0, x_errors_box, NULL, 0, NULL);
         if (t) CloseHandle(t);
     }
-    int okc = patch_call(CALL_PLAYER_COLOR, FN_COLOR_RGB, (void *)hook_player_color), ok = 0;
-    static const uintptr_t sites[] = { 0x470040, 0x4715F8, 0x47166E, 0x47280E, 0x472B9D };
-    for (size_t i = 0; i < sizeof sites / sizeof *sites; i++) ok += patch_call(sites[i], FN_NATIVE_CHAT, (void *)hook_native_chat);
+    int okc = patch_call(GA(CALL_PLAYER_COLOR), GA(FN_COLOR_RGB), (void *)hook_player_color), ok = 0;
+    for (size_t i = 0; i < sizeof GL(NATIVE_CHAT_SITES) / sizeof *GL(NATIVE_CHAT_SITES); i++) ok += patch_call(GL(NATIVE_CHAT_SITES)[i], GA(FN_NATIVE_CHAT), (void *)hook_native_chat);
     if (g_log) fprintf(g_log, "# persona: %d personalities, mod/computer.eeai %d, language '%s', talk %d, names %d, native line hooks %d/5, colour hook %d\n", g_npersonas, g_has_computer, g_lang, g_ai_talk, g_ai_names, ok, okc);
 }

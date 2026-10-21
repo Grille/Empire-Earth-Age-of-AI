@@ -154,8 +154,6 @@ static int landing_has_unit(void *pl, uint8_t *u) {   // a transport, warship or
     for (int k = 0; k < l->nw; k++) if (l->wpass[k] == u) return 1;
     return 0;
 }
-#define VT_ASG_SEA 0x00826F10
-#define FN_ASG_SEA_UPDATE 0x0044ED11   // EECPASGSea slot 90: update(now)
 static int fleet_leads(uint8_t *sg);                // fleet.c: a sea subgroup holding a ship the fleet leads
 static int fleet_refuses(uint8_t *sg, uint8_t *u);  // fleet.c: an order to one of them
 static int mass_refuses(uint8_t *sg, uint8_t *u, void *goal);   // mass.c: an order to a reinforcement held at the rally
@@ -167,21 +165,17 @@ static int expand_has(void *pl, uint8_t *u);        // expand.c: a passenger of 
 static void __fastcall hook_asg_sea_update(uint8_t *sg, void *edx, int now) {
     (void)edx;
     if (!is_vanilla(FIELD(sg, 0x190, void *)) && (landing_leads(sg) || fleet_leads(sg) || expand_leads(sg))) return;
-    ((void (__thiscall *)(void *, int))FN_ASG_SEA_UPDATE)(sg, now);
+    GF(FN_ASG_SEA_UPDATE)(sg, now);
 }
-#define VT_ASG_AIR 0x00826610
-#define FN_ASG_AIR_UPDATE 0x00442DBA   // EECPASGAir slot 90: update(now)
 static void __fastcall hook_asg_air_update(uint8_t *sg, void *edx, int now) {
     (void)edx;
     if (!is_vanilla(FIELD(sg, 0x190, void *)) && landing_leads(sg)) return;
-    ((void (__thiscall *)(void *, int))FN_ASG_AIR_UPDATE)(sg, now);
+    GF(FN_ASG_AIR_UPDATE)(sg, now);
 }
-#define VT_ASG_SEA_TRANSPORT 0x008270F8
-#define FN_ASG_SEA_TRANSPORT_UPDATE 0x0044FB92   // EECPASGSeaTransport slot 90: update(now)
 static void __fastcall hook_asg_sea_transport_update(uint8_t *sg, void *edx, int now) {
     (void)edx;
     if (!is_vanilla(FIELD(sg, 0x190, void *)) && (landing_leads(sg) || expand_leads(sg))) return;
-    ((void (__thiscall *)(void *, int))FN_ASG_SEA_TRANSPORT_UPDATE)(sg, now);
+    GF(FN_ASG_SEA_TRANSPORT_UPDATE)(sg, now);
 }
 
 // A unit's goal step (0x5F0F7E): its goal set (+0x1E8) answers 2, 0x5EE965 drops the goal - and can clear the set too;
@@ -192,21 +186,18 @@ static void __fastcall hook_asg_sea_transport_update(uint8_t *sg, void *edx, int
 // Where the null sets come from: the set answers 1 (take the next) with no next set (out 0) - stored as the unit's set
 // (0x5F104E), and the unit type's vf29 right after read [0 + 5] (0x5FC4ED). That answer, at both asks (0x5F0FFA too),
 // gives the default set and 0.
-#define CALL_GOALSET_ASK   0x005F0FFA
-#define CALL_GOALSET_AGAIN 0x005F1029
-#define FN_GOALSET_ASK     0x00619FF5
 static unsigned g_goalset_null;
 static int __fastcall hook_goalset_ask(void *set, void *edx, uint8_t *unit, int *out) {
     (void)edx;
     if (!set) {
         if (g_log && g_goalset_null++ < 10) fprintf(g_log, "# engine guard: a unit's goal set gone after its goal was dropped - the default set\n");
-        ((void (__thiscall *)(void *, unsigned))0x005EFCF0)(unit, 5000);
+        GF(FN_UNIT_SAY)(unit, 5000);
         return 0;
     }
-    int r = ((int (__thiscall *)(void *, void *, int *))FN_GOALSET_ASK)(set, unit, out);
+    int r = GF(FN_GOALSET_ASK)(set, unit, out);
     if (r == 1 && out && !*out) {
         if (g_log && g_goalset_null++ < 10) fprintf(g_log, "# engine guard: a unit's goal set ended without a next one - the default set\n");
-        ((void (__thiscall *)(void *, unsigned))0x005EFCF0)(unit, 5000);
+        GF(FN_UNIT_SAY)(unit, 5000);
         return 0;
     }
     return r;
@@ -214,10 +205,9 @@ static int __fastcall hook_goalset_ask(void *set, void *edx, uint8_t *unit, int 
 // The same state elsewhere: a unit given a goal (0x5F05BD, 116 callers - the transport manager's 0x48CD3C, 0x4A28C3)
 // reads its goal set's +0x24 unchecked (0x5F0634: mov ecx, [esi + 0x1E8]; 0x5F063A: [ecx + 0x24]) - 3 of 72 island
 // games. That load goes through a thunk (8B 8E E8 01 00 00 -> E8 thunk, 90): no set, the default one first.
-#define AT_GOAL_SET_READ 0x005F0634
 __attribute__((used)) void goalset_fix(uint8_t *unit) {
     if (g_log && g_goalset_null++ < 10) fprintf(g_log, "# engine guard: a unit without a goal set given a goal - the default set\n");
-    ((void (__thiscall *)(void *, unsigned))0x005EFCF0)(unit, 5000);
+    GF(FN_UNIT_SAY)(unit, 5000);
 }
 __attribute__((naked, used)) void goalset_read_thunk(void) {
     __asm__("cmpl $0, 0x1e8(%esi)\n\t"
@@ -235,10 +225,10 @@ __attribute__((naked, used)) void goalset_read_thunk(void) {
 }
 static int patch_goalset_read(void) {
     static const uint8_t want[6] = { 0x8B, 0x8E, 0xE8, 0x01, 0x00, 0x00 };
-    uint8_t *p = (uint8_t *)AT_GOAL_SET_READ;
+    uint8_t *p = (uint8_t *)GA(AT_GOAL_SET_READ);
     DWORD old;
     if (memcmp(p, want, 6) || !VirtualProtect(p, 6, PAGE_EXECUTE_READWRITE, &old)) return 0;
-    p[0] = 0xE8; *(int32_t *)(p + 1) = (int32_t)((uintptr_t)goalset_read_thunk - (AT_GOAL_SET_READ + 5)); p[5] = 0x90;
+    p[0] = 0xE8; *(int32_t *)(p + 1) = (int32_t)((uintptr_t)goalset_read_thunk - (GA(AT_GOAL_SET_READ) + 5)); p[5] = 0x90;
     VirtualProtect(p, 6, old, &old);
     FlushInstructionCache(GetCurrentProcess(), p, 6);
     return 1;
@@ -248,38 +238,35 @@ static int patch_goalset_read(void) {
 // 0x442AD8; 0 refused - the caller deletes the goal). Its update is skipped while the landing leads it, but its event
 // handlers still give orders: the transport subgroup's (0x445A0F, through its second vtable) unloaded the waiting
 // landing transports 5 times in one run (the unload at 0x445AAD). Refused while the landing leads the subgroup.
-#define FN_ASG_GIVE_GOAL     0x0045CBEA
-#define FN_ASG_AIR_GIVE_GOAL 0x00442AD8
 // One caller uses the goal after a refusal: the land subgroup's vf131 (0x44AC8E - the transport subgroup hands it the
 // units no longer aboard, 0x4455D4) deletes the refused goal (0x44AF96) and then reads it and calls its vf4 (0x44AFB5):
 // the deleted goal's vtable is the abstract base's - msvcrt's _purecall, exception 0xC0000002, 1-6 of 12 Small Islands
 // games (more with the transport manager's unload refused, as more units come off transports while led). The game
 // itself never refuses there; for that caller the goal is taken and not given (the goal's few bytes are lost).
-#define RET_ASG_LAND_HANDOFF_GIVE 0x0044AF88
 static unsigned g_ld_refused, g_ld_kept_goal;
 static void ld_fu_given(void *g, int ok);   // below (the game's unload orders to landing transports)
 static char __fastcall hook_asg_give_goal(uint8_t *sg, void *edx, uint8_t *u, void *goal, int a, int prio) {
     (void)edx;
     if (!is_vanilla(FIELD(sg, 0x190, void *)) && (landing_leads(sg) || fleet_refuses(sg, u) || mass_refuses(sg, u, goal) || expand_refuses(sg, u))) {   // the fleet (fleet.c): its ships in any subgroup; mass.c; expand.c
         g_ld_refused++;
-        if ((uintptr_t)__builtin_return_address(0) == RET_ASG_LAND_HANDOFF_GIVE) { g_ld_kept_goal++; return 1; }
+        if ((uintptr_t)__builtin_return_address(0) == GA(RET_ASG_LAND_HANDOFF_GIVE)) { g_ld_kept_goal++; return 1; }
         ld_fu_given(goal, 0);
         return 0;
     }
-    char r = ((char (__thiscall *)(void *, void *, void *, int, int))FN_ASG_GIVE_GOAL)(sg, u, goal, a, prio);
+    char r = GF(FN_ASG_GIVE_GOAL)(sg, u, goal, a, prio);
     ld_fu_given(goal, r != 0);
     return r;
 }
 static char __fastcall hook_asg_air_give_goal(uint8_t *sg, void *edx, uint8_t *u, void *goal, int a, int prio) {
     (void)edx;
     if (!is_vanilla(FIELD(sg, 0x190, void *)) && landing_leads(sg)) { g_ld_refused++; return 0; }
-    return ((char (__thiscall *)(void *, void *, void *, int, int))FN_ASG_AIR_GIVE_GOAL)(sg, u, goal, a, prio);
+    return GF(FN_ASG_AIR_GIVE_GOAL)(sg, u, goal, a, prio);
 }
 
 // nothing (trees, buildings, units of any owner) on the 3x3 tiles around (x, y): room to unload - a landing site
 // on a wooded coast: every unload there ended at once, the transports circling with the soldiers aboard
 static int ld_tile_free(int x, int y) {
-    uint8_t *map = *(uint8_t **)G_MAP;
+    uint8_t *map = *(uint8_t **)GA(G_MAP);
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     if (!grid || x < 1 || y < 1) return 0;
     for (struct grid_it it = grid_it_box(x, y, 3, 1); grid_it_next(&it); )
@@ -321,7 +308,7 @@ static float ld_attack(uint8_t *u) { return FIELD(u, 0x3C, int) > 0 ? unit_power
 // what defends a beach (seen): soldiers within 15 tiles, defences reaching it, defences reaching the water in front
 // (they shoot at the transports)
 static void ld_defence(void *pl, int x, int y, int wx, int wy, struct ld_def *d) {
-    uint8_t *map = *(uint8_t **)G_MAP;
+    uint8_t *map = *(uint8_t **)GA(G_MAP);
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     float sh = 0, sa = 0, th = 0, ta = 0, wh = 0, wa = 0, bh = 0, ba = 0;
     d->n = 0;
@@ -451,7 +438,7 @@ static int ld_alive(uint8_t *u) { return u && FIELD(u, 0x3C, int) > 0 && FIELD(u
 
 // the nearest enemy defence or warship (seen) within r tiles - what shoots at the transports
 static uint8_t *ld_naval_target(void *pl, int x, int y, int r, int soldiers) {   // soldiers: enemy soldiers and siege as well
-    uint8_t *map = *(uint8_t **)G_MAP;
+    uint8_t *map = *(uint8_t **)GA(G_MAP);
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     if (!grid) return NULL;
     uint8_t *best = NULL;
@@ -490,7 +477,7 @@ enum { LDS_SHIP, LDS_SUB, LDS_AIR };   // for the log only: afloat, submarines (
 struct ld_sea { float h[64], a[64]; uint8_t *rep[64]; int rpi[64], n[3]; };
 static float ld_factor(uint8_t *atd, int api, uint8_t *ttd, int tpi) {
     if (!atd || !ttd || FIELD(atd, 0x510, int) <= 0) return 0.0f;
-    return ((float (__thiscall *)(void *, int, void *, int, int))0x004D5F2C)((void *)0x00917DE0, FIELD(atd, 0x4C8, int), ttd, api, tpi);
+    return GF(FN_ATTACK_BONUS)((void *)GA(G_BONUS_TABLE), FIELD(atd, 0x4C8, int), ttd, api, tpi);
 }
 static int ld_pidx(uint8_t *u) { uint8_t *o = FIELD(u, 0x18, uint8_t *); return o ? FIELD(o, 0x45C, int) : -1; }
 static int ld_hits(uint8_t *a, uint8_t *t) {   // can a hit t (the game's table)
@@ -560,7 +547,7 @@ static float ld_sea_risk(const struct ld_sea *e, const struct ld_sea *o, float t
 }
 // the nearest threat to the transports (type trtd) within r tiles that esc can hit (esc NULL: any)
 static uint8_t *ld_hunt(void *pl, int x, int y, int r, uint8_t *esc, uint8_t *trtd) {
-    uint8_t *map = *(uint8_t **)G_MAP;
+    uint8_t *map = *(uint8_t **)GA(G_MAP);
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     if (!grid || !trtd) return NULL;
     int tpi = FIELD(pl, 0x45C, int);
@@ -614,7 +601,7 @@ static uint8_t *ld_beach_tower(void *pl, struct landing *l, uint8_t *u) {
 static void ld_escorts(void *pl, struct landing *l) {
     for (int k = 0; k < l->nesc; k++) {
         uint8_t *u = l->esc[k], *g = FIELD(u, 0x1EC, uint8_t *);
-        uint8_t *cur = g && *(uintptr_t *)g == VT_GOAL_ATTACK && ld_alive(FIELD(g, 0x30, uint8_t *)) ? FIELD(g, 0x30, uint8_t *) : NULL;
+        uint8_t *cur = g && *(uintptr_t *)g == GA(VT_GOAL_ATTACK) && ld_alive(FIELD(g, 0x30, uint8_t *)) ? FIELD(g, 0x30, uint8_t *) : NULL;
         float cr, ca;
         if (cur && l->phase == 5 && !ld_is_air(u) && !defence_stats(cur, &cr, &ca)) {   // shelling: off a warship or soldier onto a tower of the beach
             uint8_t *t = FIELD(u, 0x1C, int) >= 0 ? ld_beach_tower(pl, l, u) : NULL;
@@ -684,7 +671,7 @@ static void *ld_unload(uint8_t *sh, int x, int y) {
 static void ld_unload_home(struct landing *l) {
     for (int k = 0; k < l->nships; k++) {
         uint8_t *sh = l->ships[k];
-        if (((int (__thiscall *)(void *))0x0042E347)(sh) <= 0) continue;   // nothing aboard
+        if (GF(FN_UNITS_INSIDE)(sh) <= 0) continue;   // nothing aboard
         int x0 = FIELD(sh, 0x1C, int), y0 = FIELD(sh, 0x20, int), ux = -1, uy = -1;
         for (int d = 1; d <= 10 && ux < 0; d++)
             for (int dx = -d; dx <= d && ux < 0; dx++)
@@ -744,7 +731,7 @@ static int ld_shore_tile(struct landing *l, int k, int x, int y, int ax, int ay,
 static void ld_run_in(struct landing *l, unsigned pi) {
     for (int k = 0; k < l->nships; k++) { l->ux[k] = -100; l->uy[k] = -100; }
     for (int k = 0; k < l->nships; k++)
-        if (((int (__thiscall *)(void *))0x0042E347)(l->ships[k]) <= 0) continue;   // empty (a wave on fewer transports): stays off the beach
+        if (GF(FN_UNITS_INSIDE)(l->ships[k]) <= 0) continue;   // empty (a wave on fewer transports): stays off the beach
         else if (!ld_shore_tile(l, k, l->sx, l->sy, -1, -1, 4, &l->ux[k], &l->uy[k]) && !ld_shore_tile(l, k, l->sx, l->sy, -1, -1, 3, &l->ux[k], &l->uy[k])) {
             l->ux[k] = l->sx; l->uy[k] = l->sy;
         }
@@ -820,7 +807,7 @@ static void ld_base_plan(struct landing *l) {
     for (int k = 0; k < n; k++) { l->proj[k].kind = pl[k]; l->proj[k].cits = cits[pl[k]]; }
     l->nproj = n; l->base_t = 0;
 }
-static int ld_can_build(void *pl, int t) { return ut_has(t) && ((char (__thiscall *)(void *, int, int, int))0x00555710)(pl, t, 0x20, 0) != 0; }
+static int ld_can_build(void *pl, int t) { return ut_has(t) && GF(FN_CAN_BUILD)(pl, t, 0x20, 0) != 0; }
 static int ld_kind_type(void *pl, int kind) {   // the type of a kind it can build and pay now (0: none)
     static const enum ut_name centers[] = { UT_B_TOWN_CENTER, UT_B_SETTLEMENT },
         factories[] = { UT_B_CYBER_FACTORY, UT_B_TANK_FACTORY, UT_B_STABLE, UT_B_ARCHERY_RANGE };
@@ -895,7 +882,7 @@ static void ld_bridgehead(void *pl, unsigned pi, struct landing *l, uint32_t now
             }
             break;
         }
-        uint8_t *b = ld_base_spot(pl, pi, l, t, cx, cy, &x, &y) ? ((uint8_t *(__cdecl *)(void *, int, int, int))0x0062EF8A)(pl, t, x, y) : NULL;
+        uint8_t *b = ld_base_spot(pl, pi, l, t, cx, cy, &x, &y) ? GF(FN_PLACE_BUILDING)(pl, t, x, y) : NULL;
         l->base_t = now;
         if (g_log) fprintf(g_log, "# landing: P%u at %.1f min: forward base - %s %d at %d,%d (%s), %d citizens ashore, %d free\n", pi, now / 60000.0,
                            ld_kind_name(p->kind), t, x, y, b ? "foundation laid" : "no room", n, free);
@@ -928,9 +915,9 @@ static void ld_bridgehead(void *pl, unsigned pi, struct landing *l, uint32_t now
         int j = l->cjob[k] >= 0 ? l->cjob[k] : helping;
         uint8_t *u = l->cit[k], *g = FIELD(u, 0x1EC, uint8_t *), *b = j >= 0 ? l->proj[j].b : NULL;
         if (!b || ld_aboard(u) || (g && !strcmp(rtti_name(g), "EEUGBuildRepair@@") && FIELD(g, 0x3C, uint8_t *) == b)) continue;
-        void *bg = ((void *(__cdecl *)(unsigned))0x00683718)(0x5C);
+        void *bg = GF(FN_NEW)(0x5C);
         if (!bg) continue;
-        bg = ((void *(__thiscall *)(void *, void *, void *, int))0x0060BAD0)(bg, pl, b, 0);
+        bg = GF(FN_BUILD_GOAL)(bg, pl, b, 0);
         l->orders += unit_goal(u, bg, 0, 0x1F51);
     }
 }
@@ -995,7 +982,7 @@ static void ld_wave_reunload(struct landing *l, unsigned pi, uint32_t now) {
     l->wre = now;
     for (int k = 0; k < l->nships; k++) {
         uint8_t *sh = l->ships[k], *cur = FIELD(sh, 0x1EC, uint8_t *);
-        if (!ld_alive(sh) || (cur && *(uintptr_t *)cur == VT_GOAL_UNLOAD) || ((int (__thiscall *)(void *))0x0042E347)(sh) <= 0) continue;
+        if (!ld_alive(sh) || (cur && *(uintptr_t *)cur == GA(VT_GOAL_UNLOAD)) || GF(FN_UNITS_INSIDE)(sh) <= 0) continue;
         ld_reunload(l, pi, k, now);
     }
 }
@@ -1007,7 +994,7 @@ static void ld_wave(void *pl, unsigned pi, struct landing *l, uint8_t *dq, unsig
         for (int k = 0; k < l->nships && l->all_ashore && l->meet; k++) {
             uint8_t *sh = l->ships[k], *g = FIELD(sh, 0x1EC, uint8_t *);
             int dx = FIELD(sh, 0x1C, int) - l->ewx, dy = FIELD(sh, 0x20, int) - l->ewy;
-            if (dx * dx + dy * dy > 49 && (!g || FIELD(g, 5, uint8_t) == 1) && ((int (__thiscall *)(void *))0x0042E347)(sh) <= 0)
+            if (dx * dx + dy * dy > 49 && (!g || FIELD(g, 5, uint8_t) == 1) && GF(FN_UNITS_INSIDE)(sh) <= 0)
                 l->orders += unit_goal(sh, goal_move((float)l->ewx + 0.5f, (float)l->ewy + 0.5f), 0, 0x1F40);
         }
         if (!l->all_ashore || l->waves >= g_land_waves || !l->meet || now - l->wt < 20000) return;
@@ -1019,7 +1006,7 @@ static void ld_wave(void *pl, unsigned pi, struct landing *l, uint8_t *dq, unsig
         for (unsigned k = 0; k < cnt && k < 64; k++) {
             uint8_t *g = deque_at(dq, first + k);
             for (uint8_t **sp = g ? FIELD(g, 8, uint8_t **) : NULL; sp && sp < FIELD(g, 0xC, uint8_t **); sp++) {
-                if (!*sp || *(uintptr_t *)*sp != VT_ASG_LAND || landing_leads(*sp) || (g_assault && assault_leads(*sp))) continue;
+                if (!*sp || *(uintptr_t *)*sp != GA(VT_ASG_LAND) || landing_leads(*sp) || (g_assault && assault_leads(*sp))) continue;
                 for (uint8_t **r = FIELD(*sp, 0x54, uint8_t **); r && r < FIELD(*sp, 0x58, uint8_t **); r++) {
                     uint8_t *u = *r ? FIELD(*r, 0x44, uint8_t *) : NULL;
                     home += ld_alive(u) && is_soldier(FIELD(u, 0x2C, uint8_t *)) && ld_at_home(FIELD(u, 0x1C, int), FIELD(u, 0x20, int));
@@ -1034,7 +1021,7 @@ static void ld_wave(void *pl, unsigned pi, struct landing *l, uint8_t *dq, unsig
             uint8_t *g = deque_at(dq, first + k);
             for (uint8_t **sp = g ? FIELD(g, 8, uint8_t **) : NULL; sp && sp < FIELD(g, 0xC, uint8_t **) && l->nw < want; sp++) {
                 uint8_t *sg = *sp;
-                if (!sg || l->nfrozen >= 96 || *(uintptr_t *)sg != VT_ASG_LAND || landing_leads(sg) || (g_assault && assault_leads(sg))) continue;
+                if (!sg || l->nfrozen >= 96 || *(uintptr_t *)sg != GA(VT_ASG_LAND) || landing_leads(sg) || (g_assault && assault_leads(sg))) continue;
                 int n = 0, at = 0;
                 for (uint8_t **r = FIELD(sg, 0x54, uint8_t **); r && r < FIELD(sg, 0x58, uint8_t **); r++) {
                     uint8_t *u = *r ? FIELD(*r, 0x44, uint8_t *) : NULL;
@@ -1093,10 +1080,10 @@ static void ld_wave(void *pl, unsigned pi, struct landing *l, uint8_t *dq, unsig
         for (int k = 0; k < l->nships; k++) {
             uint8_t *sh = l->ships[k], *g = FIELD(sh, 0x1EC, uint8_t *);
             int wx, wy;
-            if ((g && FIELD(g, 5, uint8_t) != 1 && *(uintptr_t *)g != VT_GOAL_UNLOAD) || ((int (__thiscall *)(void *))0x0042E347)(sh) <= 0) continue;
-            if (g && *(uintptr_t *)g == VT_GOAL_UNLOAD && g_log)
+            if ((g && FIELD(g, 5, uint8_t) != 1 && *(uintptr_t *)g != GA(VT_GOAL_UNLOAD)) || GF(FN_UNITS_INSIDE)(sh) <= 0) continue;
+            if (g && *(uintptr_t *)g == GA(VT_GOAL_UNLOAD) && g_log)
                 fprintf(g_log, "# landing: P%u at %.1f min: transport %d with %d aboard had the game's unload to %d,%d while boarding - kept off the shore\n",
-                        pi, now / 60000.0, k, ((int (__thiscall *)(void *))0x0042E347)(sh), FIELD(g, 0x34, int), FIELD(g, 0x38, int));
+                        pi, now / 60000.0, k, GF(FN_UNITS_INSIDE)(sh), FIELD(g, 0x34, int), FIELD(g, 0x38, int));
             if (ld_open_water(FIELD(sh, 0x1C, int), FIELD(sh, 0x20, int), (unsigned)l->ocean, &wx, &wy))
                 l->orders += unit_goal(sh, goal_move((float)wx + 0.5f, (float)wy + 0.5f), 0, 0x1F40);
         }
@@ -1196,7 +1183,7 @@ static uint8_t *ld_objective(void *pl, unsigned pi, uint8_t *target, unsigned co
 static int ld_type_avail(void *pl, int t) {
     uint8_t *td = type_data(t), *tt = FIELD(pl, PL_TECHTREE, uint8_t *);
     if (!td || !tt || FIELD(td, 0x4E0, int) < 2000) return 0;   // campaign heroes: tech 14xx (Golden Hind 611: 1446; ordering it crashed the game)
-    uint8_t *tech = ((uint8_t *(__thiscall *)(void *, int))0x004019A1)(tt, FIELD(td, 0x4E0, int));
+    uint8_t *tech = GF(FN_TECH_LOOKUP)(tt, FIELD(td, 0x4E0, int));
     return tech && ((char (__thiscall *)(void *))(*(void ***)tech)[1])(tech);
 }
 // the strongest defence of the target seen within 16 tiles of the beach (the fleet is picked against it: 463, the
@@ -1223,7 +1210,7 @@ static int ld_war_type(void *pl, uint8_t *target, uint8_t *tw, int now_only, flo
         uint8_t *td = type_data(t);
         if (!td || FIELD(td, 0x4B8, int) != t || FIELD(td, 0x4B4, int) != 4 || is_transport(t) || is_fishing_boat(t) || FIELD(td, 0x510, int) <= 0) continue;
         if (!ld_type_avail(pl, t)) continue;
-        if (now_only && !((char (__thiscall *)(void *, int, int, int))0x00555710)(pl, t, 0x20, 0)) continue;   // trainable and payable now
+        if (now_only && !GF(FN_CAN_BUILD)(pl, t, 0x20, 0)) continue;   // trainable and payable now
         float v = ld_war_value(pl, td, tw, target);
         if (g_land_trace && g_log && !now_only)
             fprintf(g_log, "# ldbomb: war type %d against %d: factor %.2f attack %d hp %d range %.1f - value %.0f\n", t, FIELD(tw, 0x4B8, int),
@@ -1283,7 +1270,7 @@ static float ld_range(uint8_t *u) {   // its range with upgrades (stats +0x9C), 
 // within 16 tiles of the beach (type, hit points, range, the nearest warship and whether each reaches the other)
 static void ld_bomb_trace(void *pl, unsigned pi, struct landing *l, uint32_t now) {
     for (int k = 0; k < l->nesc; k++) {
-        uint8_t *u = l->esc[k], *g = ld_alive(u) ? FIELD(u, 0x1EC, uint8_t *) : NULL, *t = g && *(uintptr_t *)g == VT_GOAL_ATTACK ? FIELD(g, 0x30, uint8_t *) : NULL;
+        uint8_t *u = l->esc[k], *g = ld_alive(u) ? FIELD(u, 0x1EC, uint8_t *) : NULL, *t = g && *(uintptr_t *)g == GA(VT_GOAL_ATTACK) ? FIELD(g, 0x30, uint8_t *) : NULL;
         if (!ld_alive(u) || ld_is_air(u)) continue;
         fprintf(g_log, "# ldbomb: P%u %.2f ship type %d hp %d/%d range %.1f at %d,%d goal %s", pi, now / 60000.0, FIELD(FIELD(u, 0x2C, uint8_t *), 0x4B8, int),
                 FIELD(u, 0x3C, int), FIELD(FIELD(u, 0x2C, uint8_t *), 0x55C, int), ld_range(u), FIELD(u, 0x1C, int), FIELD(u, 0x20, int), rtti_name(g));
@@ -1330,9 +1317,9 @@ static void ld_bombard_tick(void *pl, unsigned pi, struct landing *l, uint8_t *u
                 fprintf(g_log, "# ldbomb: P%u %.2f planned %d, epoch %d, room %d:", pi, now / 60000.0, l->war_type, current_epoch(pl), bk_room(pl));
                 for (size_t j = 0; j < sizeof tl / sizeof *tl; j++) {
                     uint8_t *td = type_data(tl[j]);
-                    uint8_t *tech = td && tt ? ((uint8_t *(__thiscall *)(void *, int))0x004019A1)(tt, FIELD(td, 0x4E0, int)) : NULL;
+                    uint8_t *tech = td && tt ? GF(FN_TECH_LOOKUP)(tt, FIELD(td, 0x4E0, int)) : NULL;
                     fprintf(g_log, " %d: tech %d/%d avail %d can %d;", tl[j], tech ? tech[4] : -1, tech ? tech[6] : -1,
-                            tech ? ((char (__thiscall *)(void *))(*(void ***)tech)[1])(tech) : -1, ((char (__thiscall *)(void *, int, int, int))0x00555710)(pl, tl[j], 0x20, 0));
+                            tech ? ((char (__thiscall *)(void *))(*(void ***)tech)[1])(tech) : -1, GF(FN_CAN_BUILD)(pl, tl[j], 0x20, 0));
                 }
                 fprintf(g_log, "\n");
             }
@@ -1431,7 +1418,7 @@ static void ld_phase_plan(void *pl, unsigned pi, struct landing *l, uint8_t *um,
         while (j < nt && tgt[j] != t) j++;
         if (j == nt) { if (nt == 16) continue; tgt[nt++] = t; }
         for (uint8_t **sp = FIELD(g, 8, uint8_t **); sp && sp < FIELD(g, 0xC, uint8_t **); sp++)
-            if (*sp && *(uintptr_t *)*sp == VT_ASG_LAND) tn[j] += (int)(FIELD(*sp, 0x58, uint8_t **) - FIELD(*sp, 0x54, uint8_t **));
+            if (*sp && *(uintptr_t *)*sp == GA(VT_ASG_LAND)) tn[j] += (int)(FIELD(*sp, 0x58, uint8_t **) - FIELD(*sp, 0x54, uint8_t **));
     }
     uint8_t *target = NULL;
     for (int j = 0, bn = 0; j < nt; j++) if (tn[j] > bn) { bn = tn[j]; target = tgt[j]; }
@@ -1450,7 +1437,7 @@ static void ld_phase_plan(void *pl, unsigned pi, struct landing *l, uint8_t *um,
     for (unsigned k = 0; k < cnt && k < 64; k++) {
         uint8_t *g = deque_at(dq, first + k);
         for (uint8_t **sp = g ? FIELD(g, 8, uint8_t **) : NULL; sp && sp < FIELD(g, 0xC, uint8_t **); sp++) {
-            if (!*sp || *(uintptr_t *)*sp != VT_ASG_LAND || (g_assault && assault_leads(*sp))) continue;
+            if (!*sp || *(uintptr_t *)*sp != GA(VT_ASG_LAND) || (g_assault && assault_leads(*sp))) continue;
             for (uint8_t **r = FIELD(*sp, 0x54, uint8_t **); r && r < FIELD(*sp, 0x58, uint8_t **); r++) {
                 uint8_t *u = *r ? FIELD(*r, 0x44, uint8_t *) : NULL;
                 if (!ld_alive(u) || !is_soldier(FIELD(u, 0x2C, uint8_t *))) continue;
@@ -1612,7 +1599,7 @@ static int ld_phase_ships(void *pl, unsigned pi, struct landing *l, uint8_t *um,
                 n++; home += ld_at_home(FIELD(u, 0x1C, int), FIELD(u, 0x20, int));
             }
             if (mine) { l->frozen[l->nfrozen++] = sg; continue; }
-            if (*(uintptr_t *)sg != VT_ASG_LAND || (g_assault && assault_leads(sg)) || !n || home * 2 < n ||
+            if (*(uintptr_t *)sg != GA(VT_ASG_LAND) || (g_assault && assault_leads(sg)) || !n || home * 2 < n ||
                 l->npass >= l->want_n)
                 continue;
             l->frozen[l->nfrozen++] = sg;
@@ -1702,11 +1689,11 @@ static void ld_phase_board(void *pl, unsigned pi, struct landing *l, uint8_t *um
     if (l->phase == 2)
         for (int k = 0; k < l->nships; k++) {
             uint8_t *sh = l->ships[k], *g = FIELD(sh, 0x1EC, uint8_t *);
-            if ((g && FIELD(g, 5, uint8_t) != 1 && *(uintptr_t *)g != VT_GOAL_UNLOAD) || ((int (__thiscall *)(void *))0x0042E347)(sh) <= 0) continue;
+            if ((g && FIELD(g, 5, uint8_t) != 1 && *(uintptr_t *)g != GA(VT_GOAL_UNLOAD)) || GF(FN_UNITS_INSIDE)(sh) <= 0) continue;
             int wx, wy;
-            if (g && *(uintptr_t *)g == VT_GOAL_UNLOAD && g_log)
+            if (g && *(uintptr_t *)g == GA(VT_GOAL_UNLOAD) && g_log)
                 fprintf(g_log, "# landing: P%u at %.1f min: transport %d with %d aboard had the game's unload to %d,%d while boarding - kept off the shore\n",
-                        pi, now / 60000.0, k, ((int (__thiscall *)(void *))0x0042E347)(sh), FIELD(g, 0x34, int), FIELD(g, 0x38, int));
+                        pi, now / 60000.0, k, GF(FN_UNITS_INSIDE)(sh), FIELD(g, 0x34, int), FIELD(g, 0x38, int));
             if (ld_open_water(FIELD(sh, 0x1C, int), FIELD(sh, 0x20, int), (unsigned)l->ocean, &wx, &wy))
                 l->orders += unit_goal(sh, goal_move((float)wx + 0.5f, (float)wy + 0.5f), 0, 0x1F40);
         }
@@ -1751,7 +1738,7 @@ static void ld_phase_board(void *pl, unsigned pi, struct landing *l, uint8_t *um
             if (g_land_trace && g_log && (now - l->boarded_t) % 10000 < 2000)
                 for (int k = 0; k < l->nships; k++)
                     fprintf(g_log, "# ldtrace: P%u %.2f waiting ship %d at %d,%d aboard %d goal %s\n", pi, now / 60000.0, k, FIELD(l->ships[k], 0x1C, int),
-                            FIELD(l->ships[k], 0x20, int), ((int (__thiscall *)(void *))0x0042E347)(l->ships[k]), rtti_name(FIELD(l->ships[k], 0x1EC, void *)));
+                            FIELD(l->ships[k], 0x20, int), GF(FN_UNITS_INSIDE)(l->ships[k]), rtti_name(FIELD(l->ships[k], 0x1EC, void *)));
             {   // the sea on the way (the user: subs and planes on patrol before the coast): held - the escorts get 3 minutes
                 // to clear it, then it is called off
                 struct ld_sea e;
@@ -1839,11 +1826,11 @@ static void ld_phase_board(void *pl, unsigned pi, struct landing *l, uint8_t *um
 static void ld_trace_ships(struct landing *l, unsigned pi, uint32_t now) {   // landing_trace (test)
     for (int k = 0; k < l->nships; k++) {
         uint8_t *sh = l->ships[k], *g = FIELD(sh, 0x1EC, uint8_t *);
-        int n = ((int (__thiscall *)(void *))0x0042E347)(sh);
+        int n = GF(FN_UNITS_INSIDE)(sh);
         if (!n) continue;
         fprintf(g_log, "# ldtrace: P%u %.2f ship %d at %d,%d hp %d aboard %d goal %s", pi, now / 60000.0, k, FIELD(sh, 0x1C, int), FIELD(sh, 0x20, int),
                 FIELD(sh, 0x3C, int), n, rtti_name(g));
-        if (g && *(uintptr_t *)g == VT_GOAL_UNLOAD)
+        if (g && *(uintptr_t *)g == GA(VT_GOAL_UNLOAD))
             fprintf(g_log, " @%p water %d,%d / %d,%d point %d,%d reach %.1f state %d", (void *)g, FIELD(g, 0x24, int), FIELD(g, 0x28, int), FIELD(g, 0x2C, int),
                     FIELD(g, 0x30, int), FIELD(g, 0x34, int), FIELD(g, 0x38, int), sqrtf(FIELD(g, 0x3C, float)), FIELD(g, 5, uint8_t));
         fputs("\n", g_log);
@@ -1882,8 +1869,8 @@ static void ld_phase_land(void *pl, unsigned pi, struct landing *l, uint8_t *um,
         // transports with soldiers aboard are afloat (a player lands before they are sunk)
         for (int k = 0; k < l->nships; k++) {
             uint8_t *sh = l->ships[k], *cur = FIELD(sh, 0x1EC, uint8_t *);
-            if (cur && *(uintptr_t *)cur == VT_GOAL_UNLOAD) continue;
-            if (((int (__thiscall *)(void *))0x0042E347)(sh) <= 0) continue;   // nothing aboard
+            if (cur && *(uintptr_t *)cur == GA(VT_GOAL_UNLOAD)) continue;
+            if (GF(FN_UNITS_INSIDE)(sh) <= 0) continue;   // nothing aboard
             ld_reunload(l, pi, k, now);
         }
     }
@@ -1997,7 +1984,7 @@ static void landing_tick(void *pl, uint32_t now) {
 // within 8 that are no defence, defences only when they reach it; nearest first within a kind. (Before: soldiers,
 // then any defence within 12, then buildings - the troops walked into towers past the citizens.)
 static uint8_t *ld_raid_target(void *pl, uint8_t *target, int x, int y, int r) {
-    uint8_t *map = *(uint8_t **)G_MAP;
+    uint8_t *map = *(uint8_t **)GA(G_MAP);
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     if (!grid) return NULL;
     uint8_t *best[4] = { 0 };
@@ -2060,7 +2047,7 @@ static void cmd_terrain(char *out, const char *args) {
             unsigned o = area_id(tx, ty, 1), c = area_id(tx, ty, 2);
             g[y * w + x] = o ? '~' : c == c0 && c ? '.' : c ? (char)('0' + c % 10) : '?';
         }
-    uint8_t *map = *(uint8_t **)G_MAP;
+    uint8_t *map = *(uint8_t **)GA(G_MAP);
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     if (grid) {
         for (struct grid_it it = grid_it_box(x0, y0, r, 1); grid_it_next(&it); ) {
@@ -2107,7 +2094,7 @@ static void cmd_landing(char *out, const char *args) {
     }
     for (int k = 0; k < l->nesc; k++)
         if (ld_alive(l->esc[k])) {
-            uint8_t *g = FIELD(l->esc[k], 0x1EC, uint8_t *), *t = g && *(uintptr_t *)g == VT_GOAL_ATTACK ? FIELD(g, 0x30, uint8_t *) : NULL;
+            uint8_t *g = FIELD(l->esc[k], 0x1EC, uint8_t *), *t = g && *(uintptr_t *)g == GA(VT_GOAL_ATTACK) ? FIELD(g, 0x30, uint8_t *) : NULL;
             REPLY("  %s type %d at %d,%d hp %d goal %s", ld_is_air(l->esc[k]) ? "aircraft" : "warship", FIELD(FIELD(l->esc[k], 0x2C, uint8_t *), 0x4B8, int), FIELD(l->esc[k], 0x1C, int),
                   FIELD(l->esc[k], 0x20, int), FIELD(l->esc[k], 0x3C, int), rtti_name(g));
             if (t) REPLY(" on type %d at %d,%d", FIELD(FIELD(t, 0x2C, uint8_t *), 0x4B8, int), FIELD(t, 0x1C, int), FIELD(t, 0x20, int));
@@ -2121,8 +2108,8 @@ static void cmd_landing(char *out, const char *args) {
         g = FIELD(u, 0x1EC, uint8_t *);
         REPLY("  passenger type %d at %d,%d hp %d goal %s", FIELD(FIELD(u, 0x2C, uint8_t *), 0x4B8, int), FIELD(u, 0x1C, int),
               FIELD(u, 0x20, int), FIELD(u, 0x3C, int), rtti_name(g));
-        if (g && *(uintptr_t *)g == VT_GOAL_LOCATION) REPLY(" to %.0f,%.0f", FIELD(g, 0x20, float), FIELD(g, 0x24, float));
-        if (g && *(uintptr_t *)g == VT_GOAL_ATTACK && FIELD(g, 0x30, uint8_t *))
+        if (g && *(uintptr_t *)g == GA(VT_GOAL_LOCATION)) REPLY(" to %.0f,%.0f", FIELD(g, 0x20, float), FIELD(g, 0x24, float));
+        if (g && *(uintptr_t *)g == GA(VT_GOAL_ATTACK) && FIELD(g, 0x30, uint8_t *))
             REPLY(" on type %d at %d,%d", FIELD(FIELD(FIELD(g, 0x30, uint8_t *), 0x2C, uint8_t *), 0x4B8, int),
                   FIELD(FIELD(g, 0x30, uint8_t *), 0x1C, int), FIELD(FIELD(g, 0x30, uint8_t *), 0x20, int));
         REPLY("\n");
@@ -2150,13 +2137,13 @@ static void cmd_board(char *out, const char *args) {
     if (!strncmp(args, "reload", 6)) {   // board reload P type: the first unit of P of type - every int and float that could hold reload times
         int p = 0, t = 0;
         sscanf(args + 6, "%d %d", &p, &t);
-        uint8_t *map = *(uint8_t **)G_MAP, *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL, *hit = NULL;
+        uint8_t *map = *(uint8_t **)GA(G_MAP), *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL, *hit = NULL;
         if (!grid) return;
         for (struct grid_it it = grid_it_all(1); !hit && grid_it_next(&it); )
             if (FIELD(it.td, 0x4B8, int) == t && FIELD(it.u, 0x18, uint8_t *) && FIELD(FIELD(it.u, 0x18, uint8_t *), PL_INDEX, int) == p) hit = it.u;
         if (!hit) { REPLY("no unit of type %d for P%d\n", t, p); return; }
         uint8_t *td = FIELD(hit, 0x2C, uint8_t *), *st = FIELD(hit, 0x34, uint8_t *), *pl = FIELD(hit, 0x18, uint8_t *);
-        uint8_t **rec = ((uint8_t **(__thiscall *)(void *, int))0x00492969)(pl + 0x874, t);
+        uint8_t **rec = GF(FN_TYPE_STATS)(pl + 0x874, t);
         uint8_t *r = rec ? *rec : NULL;
         REPLY("unit %p type %d: type +50C %d, stats %p, player record %p%s\n", (void *)hit, t, FIELD(td, 0x50C, int), (void *)st, (void *)r, r == st ? " (= stats)" : "");
         for (int pass = 0; pass < 3; pass++) {
@@ -2182,7 +2169,7 @@ static void cmd_board(char *out, const char *args) {
         for (size_t j = 0; j < sizeof ttn / sizeof *ttn; j++) tt[j] = g_ut[ttn[j]];
         struct ld_bd f = { 0 };
         for (size_t j = 0; j < sizeof tt / sizeof *tt; j++) {
-            uint8_t *map = *(uint8_t **)G_MAP, *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL, *hit = NULL;
+            uint8_t *map = *(uint8_t **)GA(G_MAP), *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL, *hit = NULL;
             if (!grid) break;
             for (struct grid_it it = grid_it_all(1); !hit && grid_it_next(&it); )
                 if (FIELD(it.td, 0x4B8, int) == tt[j] && FIELD(it.u, 0x18, uint8_t *) && FIELD(FIELD(it.u, 0x18, uint8_t *), PL_INDEX, int) == 1 && FIELD(it.u, 0x3C, int) > 0) hit = it.u;
@@ -2246,7 +2233,7 @@ static void cmd_board(char *out, const char *args) {
     grid_each(ld_bd_unit, &b);
     for (int k = 0; k < b.nt; k++) {
         uint8_t *sh = b.t[k];
-        int n = ((int (__thiscall *)(void *))0x0042E347)(sh);
+        int n = GF(FN_UNITS_INSIDE)(sh);
         REPLY("transport type %d at %d,%d holds %d", FIELD(FIELD(sh, 0x2C, uint8_t *), 0x4B8, int), FIELD(sh, 0x1C, int), FIELD(sh, 0x20, int), n);
         if (!n && b.ns) {
             void *g = goal_load(sh, b.s, b.ns);
@@ -2274,14 +2261,14 @@ static void cmd_board(char *out, const char *args) {
 // point (phase 3/4), two while boarding (phase 2) - an unload of the game's crossing the transport had before the
 // landing took it (resumed after the load goal, not made at any of these sites) carried 8 and 12 soldiers 40-70
 // tiles off and put them ashore there. 0x615AE6 is the unload goal's copy (vf4) - never seen.
-static const uintptr_t k_unload_sites[] = { 0x445AAD, 0x483E4D, 0x48CC5D, 0x48D022, 0x4BF82A, 0x5B3E23, 0x5DC81B, 0x615AE6 };
+#define k_unload_sites GL(UNLOAD_SITES)
 static unsigned g_foreign_unload[8], g_ld_mgr_refused;
 static int g_land_keep = 1;   // landing_keep_transports: the transport manager's unload refused
 // the game's unload orders let through (diagnostic): each one followed until it is refused, never becomes the
 // transport's goal, or was its goal and ended - then a "# ldforeign:" line: the soldiers aboard before and after and
 // where the landing itself wanted that transport (state 0 made, 1 given, 2 the transport's goal)
 static struct ld_fu { uint8_t *sh, *g; int site, p, x, y, aboard, state, phase; uint32_t t; } g_fu[16];
-static uint32_t ld_clock(void) { uint8_t *c = *(uint8_t **)G_WORLD_CLOCK; return c ? FIELD(c, 0xD0, uint32_t) : 0; }
+static uint32_t ld_clock(void) { uint8_t *c = *(uint8_t **)GA(G_WORLD_CLOCK); return c ? FIELD(c, 0xD0, uint32_t) : 0; }
 static void ld_fu_log(struct ld_fu *f, const char *what, int now_aboard) {
     struct landing *l = &g_ld[f->p & 15];
     int k = 0, lx = -1, ly = -1;
@@ -2310,7 +2297,7 @@ static void ld_fu_check(uint32_t now) {
         uint8_t *td = ld_alive(f->sh) ? FIELD(f->sh, 0x2C, uint8_t *) : NULL;
         if (!td || !is_transport(FIELD(td, 0x4B8, int))) { ld_fu_log(f, "transport lost", 0); continue; }
         uint8_t *cur = FIELD(f->sh, 0x1EC, uint8_t *);
-        int n = ((int (__thiscall *)(void *))0x0042E347)(f->sh), is = cur == f->g && *(uintptr_t *)cur == VT_GOAL_UNLOAD;
+        int n = GF(FN_UNITS_INSIDE)(f->sh), is = cur == f->g && *(uintptr_t *)cur == GA(VT_GOAL_UNLOAD);
         if (f->state < 2 && is) { f->state = 2; f->aboard = n; continue; }
         if (f->state == 2 && !is) ld_fu_log(f, "was its goal", n);
         else if (f->state < 2 && now - f->t > 30000) ld_fu_log(f, "never its goal", n);
@@ -2319,29 +2306,29 @@ static void ld_fu_check(uint32_t now) {
 static void *__fastcall hook_unload_ctor(void *g, void *edx, uint8_t *tr, int x, int y, int flag) {
     (void)edx;
     uintptr_t ret = (uintptr_t)__builtin_return_address(0) - 5;
-    if (ret == 0x48CC5D && tr && expand_ship(tr)) return NULL;   // an outpost's ferry (expand.c): not the transport manager's crossing
+    if (ret == GA(CALL_UNLOAD_RM) && tr && expand_ship(tr)) return NULL;   // an outpost's ferry (expand.c): not the transport manager's crossing
     for (int p = 0; p < 16 && tr && !is_vanilla(FIELD(tr, 0x18, void *)); p++)   // a vanilla player's transport: never a landing's
         for (int k = 0; k < g_ld[p].nships && g_ld[p].phase; k++)
             if (g_ld[p].ships[k] == tr) {
                 int site = 0;
                 while (site < 7 && k_unload_sites[site] != ret) site++;   // 0x615AE6: the unload goal's copy (vf4)
                 g_foreign_unload[site]++;
-                if (ret == 0x48CC5D && g_land_keep) {
+                if (ret == GA(CALL_UNLOAD_RM) && g_land_keep) {
                     g_ld_mgr_refused++;
                     if (g_log) fprintf(g_log, "# landing: P%d's transport %d (phase %d) - the game's transport manager wanted it for a crossing to %d,%d: refused\n", p, k, g_ld[p].phase, x, y);
                     return NULL;
                 }
                 if (g_log) fprintf(g_log, "# landing: P%d's transport %d (phase %d) told to unload at %d,%d by the game (call at 0x%X)\n", p, k, g_ld[p].phase, x, y, (unsigned)ret);
-                void *r = ((void *(__thiscall *)(void *, void *, int, int, int))0x00615A1F)(g, tr, x, y, flag);
+                void *r = GF(FN_GOAL_UNLOAD_CTOR)(g, tr, x, y, flag);
                 int j = 0;
                 while (j < 15 && g_fu[j].sh) j++;
                 if (r) {
                     if (g_fu[j].sh) ld_fu_log(&g_fu[j], "dropped from the list", g_fu[j].aboard);
-                    g_fu[j] = (struct ld_fu){ tr, r, site, p, x, y, ((int (__thiscall *)(void *))0x0042E347)(tr), 0, g_ld[p].phase, ld_clock() };
+                    g_fu[j] = (struct ld_fu){ tr, r, site, p, x, y, GF(FN_UNITS_INSIDE)(tr), 0, g_ld[p].phase, ld_clock() };
                 }
                 return r;
             }
-    return ((void *(__thiscall *)(void *, void *, int, int, int))0x00615A1F)(g, tr, x, y, flag);
+    return GF(FN_GOAL_UNLOAD_CTOR)(g, tr, x, y, flag);
 }
 // the game's retry of an unload (0x48CE8F, EEComputerPlayer vf50: a transport with cargo whose goal is an unload makes
 // a new one at the same point and gives it, 0x4412D4 at 0x48D03C). 48 island runs: at sea and ashore (phase 3, 4)
@@ -2349,7 +2336,6 @@ static void *__fastcall hook_unload_ctor(void *g, void *edx, uint8_t *tr, int x,
 // boarding (phase 2) the game's own crossing kept going with the landing's soldiers aboard. A landing transport gets
 // it only while the landing unloads (phase 3, phase 4 with the first landing or a wave at sea) and at its own point;
 // otherwise the new goal is deleted, never given (the caller does not touch it after this call)
-#define CALL_UNLOAD_RETRY_GIVE 0x0048D03C
 static unsigned g_ld_retry_refused;
 static void __fastcall hook_unload_retry_give(uint8_t *u, void *edx, uint8_t *goal, int slot) {
     (void)edx;
@@ -2375,7 +2361,7 @@ static void __fastcall hook_unload_retry_give(uint8_t *u, void *edx, uint8_t *go
     }
 give:
     ld_fu_given(goal, 1);
-    ((void (__thiscall *)(void *, void *, int))0x004412D4)(u, goal, slot);
+    GF(FN_GIVE_GOAL)(u, goal, slot);
 }
 
 // the game's idle-transport code (0x483E10: cargo aboard, no order, at a shore - 0x42C49A at 0x483E24 says where to
@@ -2386,7 +2372,7 @@ static int __fastcall hook_idle_unload_shore(void *mgr, void *edx, uint8_t *tr) 
     for (int p = 0; p < 16 && tr && !is_vanilla(FIELD(tr, 0x18, void *)); p++)   // a vanilla player's transport: never a landing's
         for (int k = 0; k < g_ld[p].nships && g_ld[p].phase; k++)
             if (g_ld[p].ships[k] == tr) return 0;
-    return ((int (__thiscall *)(void *, void *))0x0042C49A)(mgr, tr);
+    return GF(FN_SHORE_TO_UNLOAD)(mgr, tr);
 }
 
 // the subgroups' orders (vf57: transport, sea, land, air) through hook_asg_give_goal - once, for the landing and the
@@ -2394,12 +2380,12 @@ static int __fastcall hook_idle_unload_shore(void *mgr, void *edx, uint8_t *tr) 
 static int asg_order_hooks(void) {
     static int done;
     if (!done)
-        done = patch_vtable(VT_ASG_SEA_TRANSPORT, 57, FN_ASG_GIVE_GOAL, hook_asg_give_goal) + patch_vtable(VT_ASG_SEA, 57, FN_ASG_GIVE_GOAL, hook_asg_give_goal) +
-               patch_vtable(VT_ASG_LAND, 57, FN_ASG_GIVE_GOAL, hook_asg_give_goal) + patch_vtable(VT_ASG_AIR, 57, FN_ASG_AIR_GIVE_GOAL, hook_asg_air_give_goal);
+        done = patch_vtable(GA(VT_ASG_SEA_TRANSPORT), 57, GA(FN_ASG_GIVE_GOAL), hook_asg_give_goal) + patch_vtable(GA(VT_ASG_SEA), 57, GA(FN_ASG_GIVE_GOAL), hook_asg_give_goal) +
+               patch_vtable(GA(VT_ASG_LAND), 57, GA(FN_ASG_GIVE_GOAL), hook_asg_give_goal) + patch_vtable(GA(VT_ASG_AIR), 57, GA(FN_ASG_AIR_GIVE_GOAL), hook_asg_air_give_goal);
     return done;
 }
 static void landing_install(const char *aimod_ini, const char *autotest_ini) {
-    BOOL gs = patch_call(CALL_GOALSET_ASK, FN_GOALSET_ASK, (void *)hook_goalset_ask) & patch_call(CALL_GOALSET_AGAIN, FN_GOALSET_ASK, (void *)hook_goalset_ask) &
+    BOOL gs = patch_call(GA(CALL_GOALSET_ASK), GA(FN_GOALSET_ASK), (void *)hook_goalset_ask) & patch_call(GA(CALL_GOALSET_AGAIN), GA(FN_GOALSET_ASK), (void *)hook_goalset_ask) &
               patch_goalset_read();
     if (g_log) fprintf(g_log, "# engine guard: goal set after a dropped goal %s\n", gs ? "ok" : "FAILED");
     g_landing = cfg_int(aimod_ini, autotest_ini, 1, "landing", 1);
@@ -2417,13 +2403,13 @@ static void landing_install(const char *aimod_ini, const char *autotest_ini) {
     if (g_land_cits > 10) g_land_cits = 10;
     if (g_land_ships < 1) g_land_ships = 1;
     if (g_land_ships > LD_SHIPS) g_land_ships = LD_SHIPS;
-    if (g_landing) patch_call(0x00483E24, 0x0042C49A, (void *)hook_idle_unload_shore);
+    if (g_landing) patch_call(GA(CALL_SHORE_TO_UNLOAD), GA(FN_SHORE_TO_UNLOAD), (void *)hook_idle_unload_shore);
     if (g_landing)
-        for (size_t k = 0; k < sizeof k_unload_sites / sizeof *k_unload_sites; k++) patch_call(k_unload_sites[k], 0x00615A1F, (void *)hook_unload_ctor);
-    if (g_landing) patch_call(CALL_UNLOAD_RETRY_GIVE, 0x004412D4, (void *)hook_unload_retry_give);
-    int h = patch_vtable(VT_ASG_SEA_TRANSPORT, 90, FN_ASG_SEA_TRANSPORT_UPDATE, hook_asg_sea_transport_update) &
-            patch_vtable(VT_ASG_SEA, 90, FN_ASG_SEA_UPDATE, hook_asg_sea_update) &
-            patch_vtable(VT_ASG_AIR, 90, FN_ASG_AIR_UPDATE, hook_asg_air_update);
+        for (size_t k = 0; k < sizeof k_unload_sites / sizeof *k_unload_sites; k++) patch_call(k_unload_sites[k], GA(FN_GOAL_UNLOAD_CTOR), (void *)hook_unload_ctor);
+    if (g_landing) patch_call(GA(CALL_UNLOAD_RETRY_GIVE), GA(FN_GIVE_GOAL), (void *)hook_unload_retry_give);
+    int h = patch_vtable(GA(VT_ASG_SEA_TRANSPORT), 90, GA(FN_ASG_SEA_TRANSPORT_UPDATE), hook_asg_sea_transport_update) &
+            patch_vtable(GA(VT_ASG_SEA), 90, GA(FN_ASG_SEA_UPDATE), hook_asg_sea_update) &
+            patch_vtable(GA(VT_ASG_AIR), 90, GA(FN_ASG_AIR_UPDATE), hook_asg_air_update);
     int gg = g_landing ? asg_order_hooks() : 0;   // the subgroups' own orders refused while the landing leads them
     if (g_log) fprintf(g_log, "# landing: %s, %d transports (transport subgroup hook %s, order hooks %d/4)\n", g_landing ? "on" : "off", g_land_ships, h ? "ok" : "FAILED", gg);
 }

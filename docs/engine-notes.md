@@ -611,7 +611,10 @@ breaks (crashes 0x628D6F, 0x53110D, 0x531131); guarded in attack.c (unit_node_fr
 
 The mod's addresses are those of the 1.04 exe with the 2017 "Difficulty Setting & Multiplayer Lobby" update (build
 timestamp 0x594D0000). eeaimod.c `game_build` checks the exe file before installing anything: an FNV-1a hash over every
-section but `.rsrc` (`k_exe_builds`); another build gets no hooks and one message (`build_unknown`). Compared on
+section but `.rsrc` (`k_exe_builds`); another build gets no hooks and one message (`build_unknown`). All addresses are
+in `dll/addr.h`, one row per name with a value per known build (the hash's index picks the column): supporting
+another build means its hash and its column there - the generated editor layout (`editor_layout.h`) and the two
+Low-Level Engine.dll operands of display.c are that build's own as well. Compared on
 2026-10-19 (the community setups unpacked with innoextract, nothing run):
 
 | Build | Hash | Code |

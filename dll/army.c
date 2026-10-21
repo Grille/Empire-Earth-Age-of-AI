@@ -29,7 +29,7 @@ static void am_new_game(void) { memset(g_am, 0, sizeof g_am); }
 static int am_raw_cost(void *pl, int type) {
     uint8_t *obj = type_data(type), *tt = FIELD(pl, PL_TECHTREE, uint8_t *);
     if (!obj || !tt) return 0;
-    uint8_t *tech = ((uint8_t *(__thiscall *)(void *, int))FN_TECH_LOOKUP)(tt, FIELD(obj, 0x4E0, int));
+    uint8_t *tech = GF(FN_TECH_LOOKUP)(tt, FIELD(obj, 0x4E0, int));
     uint8_t *data = tech ? FIELD(tech, 8, uint8_t *) : NULL;
     int c = 0;
     for (int r = 2; data && r < 7; r++) c += FIELD(data, 0x24 + (r - 2) * 4, int);
@@ -147,7 +147,7 @@ static int ap_type(void *pl, unsigned idx, uint8_t *um, const int *vis) {
             int *e = (int *)((uint8_t *)map[blk] + (off & 255) * 16), ok = 1;
             if (!e || e[1] <= 0 || !land_soldier(e[0]) || soldier_score(e[0]) <= 0) continue;
             for (int r = 2; r < 7; r++) if (vis[r] < unit_cost(pl, e[0], r)) ok = 0;
-            if (ok && ((char (__thiscall *)(void *, int, int, int))0x00555710)(pl, e[0], 0x20, 0)) return e[0];
+            if (ok && GF(FN_CAN_BUILD)(pl, e[0], 0x20, 0)) return e[0];
         }
     }
     int got = 0;
@@ -156,7 +156,7 @@ static int ap_type(void *pl, unsigned idx, uint8_t *um, const int *vis) {
 // the production building of a unit type (its tech's building list, data +0x10..+0x14) among the land kinds
 static int ap_producer(void *pl, int type) {
     uint8_t *td = type_data(type), *tt = FIELD(pl, PL_TECHTREE, uint8_t *);
-    uint8_t *t = td && tt ? ((uint8_t *(__thiscall *)(void *, int))FN_TECH_LOOKUP)(tt, FIELD(td, 0x4E0, int)) : NULL;
+    uint8_t *t = td && tt ? GF(FN_TECH_LOOKUP)(tt, FIELD(td, 0x4E0, int)) : NULL;
     uint8_t *d = t ? FIELD(t, 8, uint8_t *) : NULL;
     int *b = d ? FIELD(d, 0x10, int *) : NULL, *e = d ? FIELD(d, 0x14, int *) : NULL;
     for (int *p = b; b && e > b && e - b < 16 && p < e; p++)
@@ -201,8 +201,8 @@ static void army_plan_tick(void *pl, unsigned idx, uint32_t now) {
             if (vis[r] > (int)g_bud[idx].mil[r]) vis[r] = (int)g_bud[idx].mil[r];
         }
         int cap = ((int (__thiscall *)(void *, int))(*(void ***)pl)[31])(pl, 0);
-        int room = cap - FIELD(um, 0x13C, int) - ((int (__thiscall *)(void *, int, int))0x00556E11)(pl, 1, 0);
-        int goal = g_czp[idx].goal ? g_czp[idx].goal : ((int (__thiscall *)(void *))0x0048EDDB)(um);
+        int room = cap - FIELD(um, 0x13C, int) - GF(FN_POPULATION)(pl, 1, 0);
+        int goal = g_czp[idx].goal ? g_czp[idx].goal : GF(FN_UM_CITIZENS_WANTED)(um);
         int miss = goal - workforce(pl);
         int free = room - (miss > 0 ? miss : 0) - landing_room_reserve(pl) - navy_room_reserve(pl) - 2;
         int ft = free > 0 ? ap_type(pl, idx, um, vis) : 0;
@@ -228,9 +228,9 @@ static void army_plan_tick(void *pl, unsigned idx, uint32_t now) {
             int bt = a->last_type ? ap_producer(pl, a->last_type) : 0;
             int lim = 2 + workforce(pl) / 15;
             if (bt && a->busy * 10 >= a->have * 7 && acc >= 600 && nb < lim &&
-                !((char (__thiscall *)(void *, int))0x00465640)(bm, bt) &&
-                ((char (__thiscall *)(void *, int, int, int))0x00555710)(pl, bt, 0x20, 0)) {
-                ((void (__thiscall *)(void *, int, int, int))0x0046802D)(bm, bt, 1, 0);
+                !GF(FN_BM_QUEUED)(bm, bt) &&
+                GF(FN_CAN_BUILD)(pl, bt, 0x20, 0)) {
+                GF(FN_BM_REQUEST)(bm, bt, 1, 0);
                 a->bld++;
                 if (g_log) fprintf(g_log, "# army: P%u at %.1f min: production busy %u/%u, %d buildings, account %.0f - one more %d (for type %d)\n",
                                    idx, now / 60000.0, a->busy, a->have, nb, acc, bt, a->last_type);
@@ -307,11 +307,11 @@ static int ap_upg_line(void *pl, unsigned idx, uint8_t *d, int *used) {
     int ei = FIELD(d, 0x50, int), n = 0;
     *used = 0;
     if (ei < 0 || ei > 0x5DC) return 0;
-    uint8_t *list = (uint8_t *)0x0093B1B8 + ei * 0x10;
+    uint8_t *list = (uint8_t *)GA(G_EPOCH_TECHS) + ei * 0x10;
     unsigned cnt = FIELD(list, 8, unsigned), *ids = FIELD(list, 4, unsigned *);
     for (unsigned k = 0; ids && k < cnt && k < 64; k++) {
         if (ids[k] >= 2000) continue;
-        uint8_t *ef = (uint8_t *)0x00919E70 + ids[k] * 0x44;
+        uint8_t *ef = (uint8_t *)GA(G_EFFECTS) + ids[k] * 0x44;
         if (FIELD(ef, 0x20, int) != 0x13) continue;
         if (!n++) ap_owned(pl, idx);
         int a = FIELD(ef, 0x14, int), b = FIELD(ef, 0x18, int);
@@ -337,14 +337,14 @@ static void ap_upgrades(void *pl, unsigned idx) {
     uint8_t *cm = FIELD(pl, 0xB90, uint8_t *), *rs = cm ? FIELD(cm, 0x40, uint8_t *) : NULL, *tt = FIELD(pl, PL_TECHTREE, uint8_t *);
     if (!rs || !tt) return;
     for (int id = 1000; id < 15000; id++) {
-        uint8_t *t = ((uint8_t *(__thiscall *)(void *, int))FN_TECH_LOOKUP)(tt, id), *d = t ? FIELD(t, 8, uint8_t *) : NULL;
+        uint8_t *t = GF(FN_TECH_LOOKUP)(tt, id), *d = t ? FIELD(t, 8, uint8_t *) : NULL;
         if (!d || t[4] || !t[6] || FIELD(d, 0x48, int) != 7) continue;
         int used, k;
         if (!ap_upg_line(pl, idx, d, &used) || !used) continue;
         for (k = 0; k < g_apu[idx].n && g_apu[idx].id[k] != id; k++) ;
         if (k < g_apu[idx].n || g_apu[idx].n >= 48 || ap_rs_has(rs, id)) continue;   // scheduled once
         g_apu[idx].id[g_apu[idx].n++] = id;
-        ((void (__thiscall *)(void *, int))FN_RS_SCHEDULE)(rs, id);
+        GF(FN_RS_SCHEDULE)(rs, id);
         if (g_log) fprintf(g_log, "# upgrades: P%u at %.1f min: line upgrade %d scheduled - the line is in use now\n", idx, game_time() / 60000.0, id);
     }
 }
@@ -366,18 +366,18 @@ static void am_pool_log(void *pl, unsigned idx) {
     EnterCriticalSection(&g_lock);
     fprintf(g_log, "# pool: P%u %d techs:", idx, b && e > b ? (int)(e - b) : 0);
     for (int *q = b; b && q < e && q - b < 300; q++) {
-        uint8_t *t = ((uint8_t *(__thiscall *)(void *, int))FN_TECH_LOOKUP)(tt, *q), *d = t ? FIELD(t, 8, uint8_t *) : NULL;
+        uint8_t *t = GF(FN_TECH_LOOKUP)(tt, *q), *d = t ? FIELD(t, 8, uint8_t *) : NULL;
         if (!d) continue;
         int c = 0;
         for (int r = 2; r < 7; r++) c += FIELD(d, 0x24 + (r - 2) * 4, int);
         fprintf(g_log, " %d(%d%d c%d $%d", *q, t[4], t[6], FIELD(d, 0x48, int), c);
         int ei = FIELD(d, 0x50, int);
         if (ei >= 0 && ei <= 0x5DC) {
-            uint8_t *list = (uint8_t *)0x0093B1B8 + ei * 0x10;
+            uint8_t *list = (uint8_t *)GA(G_EPOCH_TECHS) + ei * 0x10;
             unsigned n = FIELD(list, 8, unsigned), *ids = FIELD(list, 4, unsigned *);
             for (unsigned k = 0; ids && k < n && k < 3; k++) {
                 if (ids[k] >= 2000) continue;
-                uint8_t *ef = (uint8_t *)0x00919E70 + ids[k] * 0x44;
+                uint8_t *ef = (uint8_t *)GA(G_EFFECTS) + ids[k] * 0x44;
                 fprintf(g_log, " %d/%d/%d", FIELD(ef, 0x20, int), FIELD(ef, 0x14, int), FIELD(ef, 0x2C, int));
             }
         }
@@ -425,7 +425,7 @@ static void am_tick(void *pl, uint32_t now) {
     int tech = 0, up7 = 0, up7c = 0;
     uint8_t *tt = FIELD(pl, PL_TECHTREE, uint8_t *);
     for (int id = 1000; tt && id < 15000; id++) {
-        uint8_t *t = ((uint8_t *(__thiscall *)(void *, int))FN_TECH_LOOKUP)(tt, id);
+        uint8_t *t = GF(FN_TECH_LOOKUP)(tt, id);
         if (!t || !t[4]) continue;
         uint8_t *d = FIELD(t, 8, uint8_t *);
         tech++;
@@ -433,7 +433,7 @@ static void am_tick(void *pl, uint32_t now) {
     }
     int *st = (int *)((uint8_t *)pl + PL_STOCK);
     int cap = ((int (__thiscall *)(void *, int))(*(void ***)pl)[31])(pl, 0);
-    int pop = ((int (__thiscall *)(void *, int, int))0x00556E11)(pl, 1, 0), inprod = FIELD(um, 0x13C, int);
+    int pop = GF(FN_POPULATION)(pl, 1, 0), inprod = FIELD(um, 0x13C, int);
     struct am_min *m = &a->m;
     int res[7] = { 0 };
     if (!is_vanilla(pl)) am_reserve(pl, idx, res);

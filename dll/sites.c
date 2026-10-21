@@ -9,9 +9,6 @@
 // otherwise the game falls back to wood. Included by eeaimod.c before econ.c.
 
 static int g_site_max_dist = 20;   // tiles from the base, aimod.ini [all] site_max_distance
-static const uintptr_t k_mine_sites[] = { 0x48a247, 0x48a25f, 0x48a277, 0x48a952, 0x48a9f4, 0x48aa2b };
-static const uintptr_t k_food_sites[] = { 0x48ab8d, 0x48ac2b, 0x48ae14, 0x48aeb4, 0x48aefa, 0x48af99 };
-#define LEFTOVER_SITE_END 0x48a2b9   // call sites below this are in the leftover pass 0x48A1AE
 
 typedef char (__thiscall *EnemyNearFn)(void *, int, int);
 static int site_danger(void *pl, uint8_t *site, int food);   // attack.c: known enemy towers on the way
@@ -23,14 +20,14 @@ static int route_safe(void *bm, const int base[2], const int to[2]) {
     int dx = to[0] - base[0], dy = to[1] - base[1];
     int len = (int)sqrtf((float)(dx * dx + dy * dy));
     for (int t = 3; t < len; t += 2)   // skip the first tiles: our own base
-        if (((EnemyNearFn)FN_ENEMY_NEAR)(bm, base[0] + dx * t / len, base[1] + dy * t / len)) return 0;
+        if (((EnemyNearFn)GA(FN_ENEMY_NEAR))(bm, base[0] + dx * t / len, base[1] + dy * t / len)) return 0;
     return 1;
 }
 
 // Drop sites of a player from the unit grid: Town Center, Capitol, Settlement (also the single player one) take
 // everything, Granary (also the improved one) only food. Up to `max` entries {x, y, food_only}.
 static int drop_sites(void *pl, int (*out)[3], int max) {
-    uint8_t *map = *(uint8_t **)G_MAP;
+    uint8_t *map = *(uint8_t **)GA(G_MAP);
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     if (!grid) return 0;
     int n = 0;
@@ -64,18 +61,18 @@ static uint8_t *select_site(uint8_t *rm, int type, int need_drop, int max_d2, ui
     if (base[0] == -10000 || base[1] == -10000) return NULL;
     int lim = g_site_max_dist * g_site_max_dist;
     if (max_d2 <= 0 || max_d2 > lim) max_d2 = lim;
-    unsigned cap = ((unsigned (__thiscall *)(void *, int))FN_TABLE_VALUE)((void *)0x917BB0, 0x16);
-    short (__thiscall *region)(void *, int *, int) = (void *)FN_REGION;
+    unsigned cap = GF(FN_TABLE_VALUE)((void *)GA(G_TABLE_VALUES), 0x16);
+    short (__thiscall *region)(void *, int *, int) = (void *)GA(FN_REGION);
     int ref_pos[2] = { base[0], base[1] };
     if (unit) { ref_pos[0] = FIELD(unit, 0x1C, int); ref_pos[1] = FIELD(unit, 0x20, int); }
-    short ref_region = region((void *)0x917BC8, ref_pos, 2);
+    short ref_region = region((void *)GA(G_MAP_AREAS), ref_pos, 2);
     uint8_t *best = NULL;
     int best_d2 = 0x7FFFFFFF;
     void **zb = FIELD(pl, 0xB50, void **), **ze = FIELD(pl, 0xB54, void **);
     for (int z = 0; zb && zb + z < ze; z++) {
         uint8_t *zone = zb[z];
         if (!zone || (type != 2 && !zone[0x18])) continue;
-        uint8_t *s = ((uint8_t *(__thiscall *)(void *, int))FN_ZONE_SITE)(zone, type);
+        uint8_t *s = GF(FN_ZONE_SITE)(zone, type);
         if (!s) continue;
         if (type == 2 && FIELD(FIELD(s, 0x2C, uint8_t *), 0x4B8, int) != UT(RES_FORAGE_BUSH)) continue;   // forage only
         if (FIELD(s, 0x40, int) <= 0 || FIELD(FIELD(s, 0x14, uint8_t *), 4, int) == 1) continue;
@@ -83,10 +80,10 @@ static uint8_t *select_site(uint8_t *rm, int type, int need_drop, int max_d2, ui
         int pos[2] = { FIELD(s, 0x1C, int), FIELD(s, 0x20, int) };
         int dx = pos[0] - base[0], dy = pos[1] - base[1], d2 = dx * dx + dy * dy;
         if (d2 >= max_d2 || d2 >= best_d2) continue;
-        if (!((char (__thiscall *)(void *, void *))FN_EXPLORED)(FIELD(s, 0x14, void *), pl)) continue;
-        if (((unsigned (__thiscall *)(void *, void *))FN_SITE_GATHERERS)((void *)0x918300, s) >= cap) continue;
-        if (region((void *)0x917BC8, pos, 2) != ref_region) continue;
-        if (((EnemyNearFn)FN_ENEMY_NEAR)(bm, pos[0], pos[1])) continue;
+        if (!GF(FN_EXPLORED)(FIELD(s, 0x14, void *), pl)) continue;
+        if (GF(FN_SITE_GATHERERS)((void *)GA(G_GAME_STATE), s) >= cap) continue;
+        if (region((void *)GA(G_MAP_AREAS), pos, 2) != ref_region) continue;
+        if (((EnemyNearFn)GA(FN_ENEMY_NEAR))(bm, pos[0], pos[1])) continue;
         if (!route_safe(bm, base, pos) || site_danger_res(pl, s, type == 2, type)) continue;
         best = s;
         best_d2 = d2;
@@ -138,25 +135,25 @@ static void cmd_minecheck(char *out, const char *args) {
     if (!bm) { REPLY("error: no AI P%d\n", p); return; }
     drops_cached(pl);
     int nd = g_drops[p].n, (*d)[3] = g_drops[p].d;
-    unsigned cap = ((unsigned (__thiscall *)(void *, int))FN_TABLE_VALUE)((void *)0x917BB0, 0x16);
+    unsigned cap = GF(FN_TABLE_VALUE)((void *)GA(G_TABLE_VALUES), 0x16);
     void **zb = FIELD(pl, 0xB50, void **), **ze = FIELD(pl, 0xB54, void **);
     REPLY("P%d type %d, %d drop sites:", p, type, nd);
     for (int i = 0; i < nd; i++) REPLY(" %d,%d%s", d[i][0], d[i][1], d[i][2] ? "g" : "");
     REPLY("\n");
     for (int z = 0; zb && zb + z < ze; z++) {
         uint8_t *zone = zb[z];
-        uint8_t *s = zone ? ((uint8_t *(__thiscall *)(void *, int))FN_ZONE_SITE)(zone, type) : NULL;
+        uint8_t *s = zone ? GF(FN_ZONE_SITE)(zone, type) : NULL;
         if (!s) continue;
         int pos[2] = { FIELD(s, 0x1C, int), FIELD(s, 0x20, int) }, k = -1, dd = 0x7FFFFFFF;
         for (int i = 0; i < nd; i++) {
             int dx = d[i][0] - pos[0], dy = d[i][1] - pos[1];
             if (!d[i][2] && dx * dx + dy * dy < dd) { dd = dx * dx + dy * dy; k = i; }
         }
-        unsigned g = ((unsigned (__thiscall *)(void *, void *))FN_SITE_GATHERERS)((void *)0x918300, s);
+        unsigned g = GF(FN_SITE_GATHERERS)((void *)GA(G_GAME_STATE), s);
         const char *why = !zone[0x18] ? "zone inactive" : FIELD(s, 0x40, int) <= 0 ? "empty" :
             FIELD(FIELD(s, 0x14, uint8_t *), 4, int) == 1 ? "site flag" : k < 0 ? "no drop site" :
-            !((char (__thiscall *)(void *, void *))FN_EXPLORED)(FIELD(s, 0x14, void *), pl) ? "unexplored" :
-            g >= cap ? "full" : ((EnemyNearFn)FN_ENEMY_NEAR)(bm, pos[0], pos[1]) ? "enemy near" : NULL;
+            !GF(FN_EXPLORED)(FIELD(s, 0x14, void *), pl) ? "unexplored" :
+            g >= cap ? "full" : ((EnemyNearFn)GA(FN_ENEMY_NEAR))(bm, pos[0], pos[1]) ? "enemy near" : NULL;
         if (!why) {
             int from[2] = { d[k][0], d[k][1] };
             why = !route_safe(bm, from, pos) ? "route not safe" : site_danger(pl, s, 0) ? "site danger" : "ok";
@@ -173,17 +170,17 @@ static uint8_t *select_mine_near_drop(uint8_t *rm, int type, uint8_t *unit) {
     unsigned pi = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     drops_cached(pl);
     int nd = g_drops[pi].n, (*d)[3] = g_drops[pi].d;
-    unsigned cap = ((unsigned (__thiscall *)(void *, int))FN_TABLE_VALUE)((void *)0x917BB0, 0x16);
-    short (__thiscall *region)(void *, int *, int) = (void *)FN_REGION;
+    unsigned cap = GF(FN_TABLE_VALUE)((void *)GA(G_TABLE_VALUES), 0x16);
+    short (__thiscall *region)(void *, int *, int) = (void *)GA(FN_REGION);
     short ref_region = 0;
-    if (unit) { int up[2] = { FIELD(unit, 0x1C, int), FIELD(unit, 0x20, int) }; ref_region = region((void *)0x917BC8, up, 2); }
+    if (unit) { int up[2] = { FIELD(unit, 0x1C, int), FIELD(unit, 0x20, int) }; ref_region = region((void *)GA(G_MAP_AREAS), up, 2); }
     uint8_t *best = NULL;
     int best_d = 0x7FFFFFFF;
     void **zb = FIELD(pl, 0xB50, void **), **ze = FIELD(pl, 0xB54, void **);
     for (int z = 0; zb && zb + z < ze; z++) {
         uint8_t *zone = zb[z];
         if (!zone || !zone[0x18]) continue;
-        uint8_t *s = ((uint8_t *(__thiscall *)(void *, int))FN_ZONE_SITE)(zone, type);
+        uint8_t *s = GF(FN_ZONE_SITE)(zone, type);
         if (!s || FIELD(s, 0x40, int) <= 0 || FIELD(FIELD(s, 0x14, uint8_t *), 4, int) == 1) continue;
         int pos[2] = { FIELD(s, 0x1C, int), FIELD(s, 0x20, int) };
         int k = -1, dd = 0x7FFFFFFF;   // nearest drop site for all resources (squared distance)
@@ -192,10 +189,10 @@ static uint8_t *select_mine_near_drop(uint8_t *rm, int type, uint8_t *unit) {
             if (!d[i][2] && dx * dx + dy * dy < dd) { dd = dx * dx + dy * dy; k = i; }
         }
         if (k < 0 || dd >= best_d) continue;
-        if (!((char (__thiscall *)(void *, void *))FN_EXPLORED)(FIELD(s, 0x14, void *), pl)) continue;
-        if (((unsigned (__thiscall *)(void *, void *))FN_SITE_GATHERERS)((void *)0x918300, s) >= cap) continue;
-        if (unit && region((void *)0x917BC8, pos, 2) != ref_region) continue;
-        if (((EnemyNearFn)FN_ENEMY_NEAR)(bm, pos[0], pos[1])) continue;
+        if (!GF(FN_EXPLORED)(FIELD(s, 0x14, void *), pl)) continue;
+        if (GF(FN_SITE_GATHERERS)((void *)GA(G_GAME_STATE), s) >= cap) continue;
+        if (unit && region((void *)GA(G_MAP_AREAS), pos, 2) != ref_region) continue;
+        if (((EnemyNearFn)GA(FN_ENEMY_NEAR))(bm, pos[0], pos[1])) continue;
         int from[2] = { d[k][0], d[k][1] };
         if (!route_safe(bm, from, pos) || site_danger_res(pl, s, 0, type)) continue;
         best = s;
@@ -216,12 +213,12 @@ static void trace_site(uint8_t *rm, const char *what, uintptr_t caller, void *un
 static void *__fastcall hook_find_mine(uint8_t *rm, void *edx, int type, uint8_t *unit, uintptr_t rev) {
     (void)edx;
     uintptr_t caller = CALLER();
-    if (is_vanilla(rm_player(rm))) return ((Fn3)FN_FIND_MINE)(rm, (uintptr_t)type, (uintptr_t)unit, rev);   // the game's search
+    if (is_vanilla(rm_player(rm))) return ((Fn3)GA(FN_FIND_MINE))(rm, (uintptr_t)type, (uintptr_t)unit, rev);   // the game's search
     if (!cfg_of(rm_player(rm))->safe_sites) {
         uint8_t *r = g_mine_choice && type >= 4 && type < 7 ? select_mine_near_drop(rm, type, unit) : NULL;
-        return r ? r : refuse_danger(rm, ((Fn3)FN_FIND_MINE)(rm, (uintptr_t)type, (uintptr_t)unit, rev), type == 2, type);
+        return r ? r : refuse_danger(rm, ((Fn3)GA(FN_FIND_MINE))(rm, (uintptr_t)type, (uintptr_t)unit, rev), type == 2, type);
     }
-    if (caller < LEFTOVER_SITE_END && type >= 2 && type < 7) {
+    if (caller < GA(LEFTOVER_SITE_END) && type >= 2 && type < 7) {
         // leftover pass: only mines whose resource actually needs more workers
         int have = FIELD(rm, RM_LISTS + type * 0x14 + 0x10, int), want = ((int *)(rm + RM_TARGET))[type];
         if (have >= want) { trace_site(rm, "find_mine(leftover, not needed)", caller, unit, NULL); return NULL; }
@@ -235,10 +232,10 @@ static void *__fastcall hook_find_mine(uint8_t *rm, void *edx, int type, uint8_t
 
 static void *__fastcall hook_find_food(uint8_t *rm, void *edx, uintptr_t need_drop, uintptr_t near_base, uint8_t *unit) {
     (void)edx;
-    if (is_vanilla(rm_player(rm))) return ((Fn3)FN_FIND_FOOD)(rm, need_drop, near_base, (uintptr_t)unit);
+    if (is_vanilla(rm_player(rm))) return ((Fn3)GA(FN_FIND_FOOD))(rm, need_drop, near_base, (uintptr_t)unit);
     if (!cfg_of(rm_player(rm))->safe_sites) {
         uint8_t *s = food_near_pick(rm, (int)(near_base & 0xFF), unit);   // food_plan NEAR: the bush nearest to a drop site
-        return s ? s : refuse_danger(rm, ((Fn3)FN_FIND_FOOD)(rm, need_drop, near_base, (uintptr_t)unit), 1, 2);
+        return s ? s : refuse_danger(rm, ((Fn3)GA(FN_FIND_FOOD))(rm, need_drop, near_base, (uintptr_t)unit), 1, 2);
     }
     void *pl = rm_player(rm);
     int r6 = pl ? FIELD(pl, 0xE10, int) : 6;
@@ -248,7 +245,6 @@ static void *__fastcall hook_find_food(uint8_t *rm, void *edx, uintptr_t need_dr
     return r;
 }
 
-static const uintptr_t k_wood_sites[] = { 0x48a28e, 0x48aaf6 };
 // The assignment's lists (std::vector out: +4 begin, +8 end): finished fields without farmer (0x48BFD0, called at
 // 0x48AC54), unfinished fields (0x48BF4F at 0x48B0FD), game to hunt (0x48BA3B at 0x48ACE4, 0x48AFC4) - the
 // dangerous entries are taken out, as the searches refuse dangerous sites.
@@ -264,27 +260,26 @@ static void list_filter(uint8_t *rm, uint8_t *v, int food) {
 }
 static void *__fastcall hook_farms(uint8_t *rm, void *edx, uintptr_t n, uintptr_t out) {
     (void)edx;
-    void *r = ((Fn2)FN_FARMS)(rm, n, out);
+    void *r = ((Fn2)GA(FN_FARMS))(rm, n, out);
     list_filter(rm, (uint8_t *)out, 1);
     return r;
 }
-#define FN_UNBUILT_FARMS 0x0048BF4F
 static void *__fastcall hook_unbuilt_farms(uint8_t *rm, void *edx, uintptr_t n, uintptr_t out) {
     (void)edx;
-    void *r = ((Fn2)FN_UNBUILT_FARMS)(rm, n, out);
+    void *r = ((Fn2)GA(FN_UNBUILT_FARMS))(rm, n, out);
     list_filter(rm, (uint8_t *)out, 1);
     return r;
 }
 static void *__fastcall hook_hunt(uint8_t *rm, void *edx, uintptr_t n, uintptr_t f, uintptr_t out) {
     (void)edx;
-    void *r = ((Fn3)FN_HUNT)(rm, n, f, out);
+    void *r = ((Fn3)GA(FN_HUNT))(rm, n, f, out);
     list_filter(rm, (uint8_t *)out, 1);
     return r;
 }
 static void *__fastcall hook_find_wood(uint8_t *rm, void *edx, uintptr_t flag, uint8_t *unit) {
     (void)edx;
-    if (is_vanilla(rm_player(rm))) return ((Fn2)FN_FIND_WOOD)(rm, flag, (uintptr_t)unit);
-    return refuse_danger(rm, ((Fn2)FN_FIND_WOOD)(rm, flag, (uintptr_t)unit), 0, 3);
+    if (is_vanilla(rm_player(rm))) return ((Fn2)GA(FN_FIND_WOOD))(rm, flag, (uintptr_t)unit);
+    return refuse_danger(rm, ((Fn2)GA(FN_FIND_WOOD))(rm, flag, (uintptr_t)unit), 0, 3);
 }
 
 static void sites_install(const char *aimod_ini, const char *autotest_ini) {
@@ -292,15 +287,15 @@ static void sites_install(const char *aimod_ini, const char *autotest_ini) {
     g_mine_choice = cfg_int(aimod_ini, autotest_ini, 1, "mine_choice", 1);
     int ok = 0, total = 0;
     // always: the searches refuse sites behind known enemy towers (avoid_towers_citizens, attack.c)
-    for (size_t i = 0; i < sizeof k_mine_sites / sizeof *k_mine_sites; i++, total++)
-        ok += patch_call(k_mine_sites[i], FN_FIND_MINE, hook_find_mine);
-    for (size_t i = 0; i < sizeof k_food_sites / sizeof *k_food_sites; i++, total++)
-        ok += patch_call(k_food_sites[i], FN_FIND_FOOD, hook_find_food);
-    for (size_t i = 0; i < sizeof k_wood_sites / sizeof *k_wood_sites; i++, total++)
-        ok += patch_call(k_wood_sites[i], FN_FIND_WOOD, hook_find_wood);
+    for (size_t i = 0; i < sizeof GL(MINE_SITES) / sizeof *GL(MINE_SITES); i++, total++)
+        ok += patch_call(GL(MINE_SITES)[i], GA(FN_FIND_MINE), hook_find_mine);
+    for (size_t i = 0; i < sizeof GL(FOOD_SITES) / sizeof *GL(FOOD_SITES); i++, total++)
+        ok += patch_call(GL(FOOD_SITES)[i], GA(FN_FIND_FOOD), hook_find_food);
+    for (size_t i = 0; i < sizeof GL(WOOD_SITES) / sizeof *GL(WOOD_SITES); i++, total++)
+        ok += patch_call(GL(WOOD_SITES)[i], GA(FN_FIND_WOOD), hook_find_wood);
     total += 4;
-    ok += patch_call(0x48ac54, FN_FARMS, hook_farms) + patch_call(0x48b0fd, FN_UNBUILT_FARMS, hook_unbuilt_farms) +
-          patch_call(0x48ace4, FN_HUNT, hook_hunt) + patch_call(0x48afc4, FN_HUNT, hook_hunt);
+    ok += patch_call(GA(CALL_FARMS), GA(FN_FARMS), hook_farms) + patch_call(GA(CALL_UNBUILT_FARMS), GA(FN_UNBUILT_FARMS), hook_unbuilt_farms) +
+          patch_call(GA(CALL_HUNT_1), GA(FN_HUNT), hook_hunt) + patch_call(GA(CALL_HUNT_2), GA(FN_HUNT), hook_hunt);
     if (g_log) fprintf(g_log, "# safe_sites hooks: %d/%d, max distance %d; mine_choice=%d\n", ok, total, g_site_max_dist, g_mine_choice);
 }
 

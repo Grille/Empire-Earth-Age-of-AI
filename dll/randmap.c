@@ -46,7 +46,6 @@ static int difficulty_key(const char *ini, const char *key, int def) {   // easy
 }
 
 typedef void *(__thiscall *UStrAssignFn)(void *ustr, const char *s);
-#define IAT_USTRING_ASSIGN 0x00823228   // UString::operator=(const char *)
 
 static void randmap_load(const char *ini) {
     GetPrivateProfileStringA("autotest", "random_map", "", g_rm.map, sizeof g_rm.map, ini);
@@ -80,7 +79,7 @@ static void randmap_load(const char *ini) {
 
 // Called from hook_game_start before the original runs.
 static void randmap_rewrite(uint8_t *setup) {
-    (*(UStrAssignFn *)IAT_USTRING_ASSIGN)(setup + 0x3A8, g_rm.map);
+    (*(UStrAssignFn *)GA(IAT_USTRING_ASSIGN))(setup + 0x3A8, g_rm.map);
     *(int *)(setup + 0x3D8) = 0;
     for (int i = 0; i < 16; i++) {
         uint8_t *slot = setup + i * 0x38;
@@ -107,14 +106,14 @@ static void randmap_rewrite(uint8_t *setup) {
     *(int *)(setup + 0x3F8) = g_rm.difficulty;
     // the AIs' difficulty: their set-up (0x431697) copies the global 0x918C14 (set by the game options messages,
     // EEMFullGameOptions 0x4B642F, which a load-game start never sends - the setup's +0x3F8 alone left medium)
-    *(int *)0x00918C14 = g_rm.difficulty;
+    *(int *)GA(G_DIFFICULTY) = g_rm.difficulty;
     *(int *)(setup + 0x3FC) = 0;
     setup[0x400] = 1; setup[0x401] = 0; setup[0x402] = 0; setup[0x403] = 1;
-    *(int *)0x00918BF4 = 0;   // game type: random map
-    uint8_t *world = *(uint8_t **)0x0091977C;
+    *(int *)GA(G_GAME_TYPE) = 0;   // game type: random map
+    uint8_t *world = *(uint8_t **)GA(G_WORLD);
     if (world && g_rm.seed) *(int *)(world + 0x54) = g_rm.seed;
     if (g_log) {
-        uint8_t *lim = *(uint8_t **)0x00917BB8;   // the game's unit limits: default +0x2E8, the most +0x2EC (more: the default)
+        uint8_t *lim = *(uint8_t **)GA(G_GAME_DATA);   // the game's unit limits: default +0x2E8, the most +0x2EC (more: the default)
         fprintf(g_log, "# random map: \"%s\" size %d, %d AIs (%s), start epoch %d, seed %d, difficulty %d%s%s, unit limit %d (game default %d, max %d)\n",
                 g_rm.map, g_rm.size, g_rm.ais, g_rm.pairs ? "pairs" : "ffa", g_rm.start_epoch, world ? *(int *)(world + 0x54) : -1, g_rm.difficulty,
                 g_rm.scale != 1 ? ", map scale " : "", g_rm.scale != 1 ? k_rm_scale[g_rm.scale] : "", g_rm.unit_limit,
@@ -126,8 +125,6 @@ static void randmap_rewrite(uint8_t *setup) {
 // EEPlayer::SetDiplomacy(other, stance, ?) 0x55B8E1, thiscall, ret 0xC;
 // stance values: 0 = allied, 1 = enemy (verified: team mates have 0 toward each other, everyone else 1).
 // Diplomacy array: player+0x9E4[index].
-#define FN_SET_DIPLOMACY 0x0055B8E1
-#define G_PLAYERS        0x00918374
 
 // Called once per AI player at its first update of a game.
 static void randmap_ai_toggles(void *pl) {
@@ -139,13 +136,13 @@ static void randmap_ai_toggles(void *pl) {
         FIELD(pl, PL_DIFFICULTY, int) = g_rm.v_difficulty;
         uint8_t *cm = FIELD(pl, 0xB90, uint8_t *);
         uint32_t now = game_time();
-        if (cm) ((void (__thiscall *)(void *, uint32_t, char))0x0046DE8C)(cm, now, 0);   // the epoch attempt, drawn anew
-        if (!FIELD(pl, 0xEF5, uint8_t)) ((void (__thiscall *)(void *, uint32_t))0x0043DD2F)(pl, now);   // the first attack
+        if (cm) GF(FN_SET_EPOCH_TIME)(cm, now, 0);   // the epoch attempt, drawn anew
+        if (!FIELD(pl, 0xEF5, uint8_t)) GF(FN_SCHEDULE_ATTACK)(pl, now);   // the first attack
         if (g_log) fprintf(g_log, "# vanilla: P%d difficulty %d - first epoch attempt at %.1f min, first attack at %.1f min\n", idx,
                            g_rm.v_difficulty, cm ? FIELD(cm, 0x58, uint32_t) / 60000.0 : -1.0, FIELD(pl, 0xED8, uint32_t) / 60000.0);
     }
     if (g_log) {   // the cheat as the game will apply it: AdjustCost (vf27) on a price of 1000
-        int cost = ((int (__thiscall *)(void *, int))0x00430FBD)(pl, 1000);
+        int cost = GF(FN_ADJUST_COST)(pl, 1000);
         fprintf(g_log, "# cheat: P%d (%s) difficulty %d, cheat %d: a price of 1000 costs %d (pct easy %d, medium %.1f, hard %d)\n", idx,
                 vanilla ? "vanilla" : "mod", FIELD(pl, PL_DIFFICULTY, int), FIELD(pl, PL_CHEAT, uint8_t), cost, FIELD(pl, 0xD48, int),
                 FIELD(pl, 0xBB4, float), FIELD(pl, 0xD4C, int));
@@ -164,14 +161,14 @@ static void randmap_ai_toggles(void *pl) {
                            g_rm.epoch_min, g_rm.epoch_max, (game_time() + delay) / 60000.0);
     }
     if (!g_rm.map[0]) return;
-    uint8_t *human = ((uint8_t **)G_PLAYERS)[*(int *)G_LOCAL_PLAYER];
+    uint8_t *human = ((uint8_t **)GA(G_PLAYERS))[*(int *)GA(G_LOCAL_PLAYER)];
     if (!human || human == pl) return;
     // The idle human slot: civilization counts as chosen (else the civ-selection timer opens a dialog that
     // freezes the game), and allied with every AI so the AIs fight each other and the game can't end in
     // the human's defeat.
     human[0xB46] = 1;
     human[0x465] = 1;   // the watching human sees the whole map (AIs still have to explore)
-    void (__thiscall *set_dip)(void *, void *, int, int) = (void *)FN_SET_DIPLOMACY;
+    void (__thiscall *set_dip)(void *, void *, int, int) = (void *)GA(FN_SET_DIPLOMACY);
     set_dip(human, pl, 0, 0);
     set_dip(pl, human, 0, 0);
     if (g_log) fprintf(g_log, "# random map: P%d allied with human P%d\n", FIELD(pl, PL_INDEX, int), FIELD(human, PL_INDEX, int));

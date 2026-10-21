@@ -45,9 +45,9 @@ static uint8_t *food_animal(void *pl, uint8_t *rm, uint8_t *u) {
     if (!bm) return NULL;
     unsigned pi = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     drops_cached(pl);
-    short (__thiscall *region)(void *, int *, int) = (void *)FN_REGION;
+    short (__thiscall *region)(void *, int *, int) = (void *)GA(FN_REGION);
     short ur = 0;
-    if (u) { int up[2] = { FIELD(u, 0x1C, int), FIELD(u, 0x20, int) }; ur = region((void *)0x917BC8, up, 2); }
+    if (u) { int up[2] = { FIELD(u, 0x1C, int), FIELD(u, 0x20, int) }; ur = region((void *)GA(G_MAP_AREAS), up, 2); }
     uint8_t *best = NULL;
     int bd = g_hunt_range * g_hunt_range + 1;
     for (int i = 0; i < g_drops[pi].n; i++) {
@@ -59,10 +59,10 @@ static uint8_t *food_animal(void *pl, uint8_t *rm, uint8_t *u) {
             if (food_fierce(FIELD(td, 0x4B8, int))) continue;
             int x = FIELD(a, 0x1C, int), y = FIELD(a, 0x20, int), dx = x - d[0], dy = y - d[1], d2 = dx * dx + dy * dy;
             if (d2 >= bd) continue;
-            if (((unsigned (__thiscall *)(void *, void *))FN_SITE_GATHERERS)((void *)0x918300, a) >= 3) continue;
+            if (GF(FN_SITE_GATHERERS)((void *)GA(G_GAME_STATE), a) >= 3) continue;
             int pos[2] = { x, y };
-            if (u && region((void *)0x917BC8, pos, 2) != ur) continue;
-            if (((EnemyNearFn)FN_ENEMY_NEAR)(bm, x, y) || site_danger(pl, a, 1)) continue;
+            if (u && region((void *)GA(G_MAP_AREAS), pos, 2) != ur) continue;
+            if (((EnemyNearFn)GA(FN_ENEMY_NEAR))(bm, x, y) || site_danger(pl, a, 1)) continue;
             best = a; bd = d2;
         }
     }
@@ -77,10 +77,10 @@ static uint8_t *food_bush(void *pl, uint8_t *rm, uint8_t *u, int max_d2) {
     if (base[0] == -10000 || base[1] == -10000) return NULL;
     unsigned pi = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     drops_cached(pl);
-    unsigned cap = ((unsigned (__thiscall *)(void *, int))FN_TABLE_VALUE)((void *)0x917BB0, 0x16);
-    short (__thiscall *region)(void *, int *, int) = (void *)FN_REGION;
+    unsigned cap = GF(FN_TABLE_VALUE)((void *)GA(G_TABLE_VALUES), 0x16);
+    short (__thiscall *region)(void *, int *, int) = (void *)GA(FN_REGION);
     short ur = 0;
-    if (u) { int up[2] = { FIELD(u, 0x1C, int), FIELD(u, 0x20, int) }; ur = region((void *)0x917BC8, up, 2); }
+    if (u) { int up[2] = { FIELD(u, 0x1C, int), FIELD(u, 0x20, int) }; ur = region((void *)GA(G_MAP_AREAS), up, 2); }
     uint8_t *best = NULL;
     int bd = 0x7FFFFFFF;
     void **zb = FIELD(pl, 0xB50, void **), **ze = FIELD(pl, 0xB54, void **);
@@ -99,10 +99,10 @@ static uint8_t *food_bush(void *pl, uint8_t *rm, uint8_t *u, int max_d2) {
                 if (ex * ex + ey * ey < dd) dd = ex * ex + ey * ey;
             }
             if (dd >= bd) continue;
-            if (!((char (__thiscall *)(void *, void *))FN_EXPLORED)(FIELD(s, 0x14, void *), pl)) continue;
-            if (((unsigned (__thiscall *)(void *, void *))FN_SITE_GATHERERS)((void *)0x918300, s) >= cap) continue;
-            if (u && region((void *)0x917BC8, pos, 2) != ur) continue;
-            if (((EnemyNearFn)FN_ENEMY_NEAR)(bm, pos[0], pos[1]) || site_danger_res(pl, s, 1, 2)) continue;
+            if (!GF(FN_EXPLORED)(FIELD(s, 0x14, void *), pl)) continue;
+            if (GF(FN_SITE_GATHERERS)((void *)GA(G_GAME_STATE), s) >= cap) continue;
+            if (u && region((void *)GA(G_MAP_AREAS), pos, 2) != ur) continue;
+            if (((EnemyNearFn)GA(FN_ENEMY_NEAR))(bm, pos[0], pos[1]) || site_danger_res(pl, s, 1, 2)) continue;
             best = s; bd = dd;
         }
     }
@@ -136,7 +136,7 @@ static void food_hunt(uint8_t *rm) {
         uint8_t *a = food_animal(pl, rm, u);
         if (!a) break;
         int before = rm_count(rm, 2);
-        ((void (__thiscall *)(void *, void *, void *, int))FN_ASSIGN_TO_SITE)(rm, u, a, 0);
+        GF(FN_ASSIGN_TO_SITE)(rm, u, a, 0);
         if (rm_count(rm, 2) == before) break;
         g_fd[idx].hunt_sent++;
         room--;
@@ -163,7 +163,7 @@ static void food_pull(uint8_t *rm) {
         if (!site) site = food_bush(pl, rm, u, r6 * r6 * 36);
         if (!site) break;   // no free, safe food site in reach (fields: the fields pass)
         int before = rm_count(rm, 2);
-        ((void (__thiscall *)(void *, void *, void *, int))FN_ASSIGN_TO_SITE)(rm, u, site, 0);
+        GF(FN_ASSIGN_TO_SITE)(rm, u, site, 0);
         if (rm_count(rm, 2) == before) { dry |= 1 << d; continue; }
         g_fd[idx].pulled++;
         moves++;
@@ -212,7 +212,7 @@ static void food_camp(void *pl, unsigned idx, uint32_t now) {
         uint8_t *b = deque_at(q, f + k), *st = b ? FIELD(b, 0x30, uint8_t *) : NULL;
         if (b && FIELD(b, 0x3C, int) > 0 && (!st || !FIELD(st, 0x340, uint8_t))) return;
     }
-    if (!((char (__thiscall *)(void *, int, int, int))0x00555710)(pl, UT(B_SETTLEMENT), 0x20, 0)) return;
+    if (!GF(FN_CAN_BUILD)(pl, UT(B_SETTLEMENT), 0x20, 0)) return;
     int bx = FIELD(bm, 0x12C, int), by = FIELD(bm, 0x130, int);
     static int fx[512], fy[512], ff[512];
     int n = 0;
@@ -229,7 +229,7 @@ static void food_camp(void *pl, unsigned idx, uint32_t now) {
             if (!td || FIELD(st, 0x38, int) != 2 || FIELD(td, 0x4B8, int) != UT(RES_FORAGE_BUSH) || FIELD(st, 0x40, int) <= 0) continue;
             int x = FIELD(st, 0x1C, int), y = FIELD(st, 0x20, int);
             if ((x - bx) * (x - bx) + (y - by) * (y - by) > 900) continue;
-            if (!((char (__thiscall *)(void *, void *))FN_EXPLORED)(FIELD(st, 0x14, void *), pl)) continue;
+            if (!GF(FN_EXPLORED)(FIELD(st, 0x14, void *), pl)) continue;
             fx[n] = x; fy[n] = y; ff[n++] = FIELD(st, 0x40, int);
         }
     }
@@ -242,7 +242,7 @@ static void food_camp(void *pl, unsigned idx, uint32_t now) {
             int *d = g_drops[pi].d[j], ex = d[0] - fx[i], ey = d[1] - fy[i];
             if (ex * ex + ey * ey < dd) dd = ex * ex + ey * ey;
         }
-        if (dd < 100 || ((EnemyNearFn)FN_ENEMY_NEAR)(bm, fx[i], fy[i])) continue;
+        if (dd < 100 || ((EnemyNearFn)GA(FN_ENEMY_NEAR))(bm, fx[i], fy[i])) continue;
         int sum = 0;
         for (int j = 0; j < n; j++) if ((fx[j] - fx[i]) * (fx[j] - fx[i]) + (fy[j] - fy[i]) * (fy[j] - fy[i]) <= 36) sum += ff[j];
         if (sum > bf) { bf = sum; best = i; }
@@ -256,7 +256,7 @@ static void food_camp(void *pl, unsigned idx, uint32_t now) {
                 int x = fx[best] + ax, y = fy[best] + ay;
                 if (!can_place(pl, UT(B_SETTLEMENT), x, y) || raiders_near(pl, x, y, 12)) continue;
                 int entry[3] = { UT(B_SETTLEMENT), x, y };
-                ((void (__thiscall *)(void *, int *))0x00468C37)(bm + 4 + e * 0x14, entry);
+                GF(FN_BQ_ADD)(bm + 4 + e * 0x14, entry);
                 g_camp[idx].n++;
                 if (g_log) {
                     EnterCriticalSection(&g_lock);

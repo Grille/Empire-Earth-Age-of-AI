@@ -48,7 +48,7 @@ static void ex_scan(void *pl, uint32_t now, int new_log) {
     if (!new_log && g_exs.t && now >= g_exs.t && now - g_exs.t < 1000) return;
     memset(&g_exs, 0, sizeof g_exs);
     g_exs.t = now ? now : 1;
-    unsigned cap = ((unsigned (__thiscall *)(void *, int))FN_TABLE_VALUE)((void *)0x917BB0, 0x16);
+    unsigned cap = GF(FN_TABLE_VALUE)((void *)GA(G_TABLE_VALUES), 0x16);
     static uint8_t *seen[4096];
     int ns = 0;
     void **zb = FIELD(pl, 0xB50, void **), **ze = FIELD(pl, 0xB54, void **);
@@ -293,7 +293,7 @@ static void ex_say(unsigned idx, uint32_t now, const char *fmt, ...) {
     fprintf(g_log, "# expand: P%u at %.1f min: %s\n", idx, now / 60000.0, buf);
     LeaveCriticalSection(&g_lock);
 }
-static int ex_cargo(uint8_t *sh) { return ((int (__thiscall *)(void *))0x0042E347)(sh); }
+static int ex_cargo(uint8_t *sh) { return GF(FN_UNITS_INSIDE)(sh); }
 // the ferry's transport and passengers, and soldiers on an outpost's island (landing.c's order hooks)
 static int expand_ship(uint8_t *u) {
     if (!u) return 0;
@@ -463,7 +463,7 @@ static void ex_pick_unit(uint8_t *u, void *ctx) {
         }
         if (p->nc < 48) { p->c[p->nc] = u; p->cd[p->nc++] = d; }
     } else if (land_soldier(t) && is_soldier(td) && !is_ship_or_air(td) && !is_transport(t) && !is_siege(t) && !as_fighting(u) && p->ns < 48) {   // land soldiers only (a transport counted as one and got a part of its own load goal: _purecall)
-        if (!((char (__thiscall *)(void *, void *))0x004707D8)(p->cm, FIELD(u, 0x30, void *))) d += 10000;   // in a group: after the free ones
+        if (!GF(FN_CM_UNIT_FREE)(p->cm, FIELD(u, 0x30, void *))) d += 10000;   // in a group: after the free ones
         p->s[p->ns] = u; p->sd[p->ns++] = d;
     }
 }
@@ -708,7 +708,7 @@ static void ex_ferry_sail(void *pl, unsigned idx, struct ex_st *x, uint32_t now)
         return;
     }
     if (now - x->fsince >= 360000) { ex_ferry_end(pl, idx, x, now, "no landing within 6 minutes - unloaded where it is"); x->next_try = now + 300000; if (!x->ever_ashore) x->active = 0; return; }
-    if (cur && *(uintptr_t *)cur == VT_GOAL_UNLOAD) return;
+    if (cur && *(uintptr_t *)cur == GA(VT_GOAL_UNLOAD)) return;
     int x0 = FIELD(sh, 0x1C, int), y0 = FIELD(sh, 0x20, int), tx = x->ux, ty = x->uy, dx = x0 - x->ux, dy = y0 - x->uy;
     if (dx * dx + dy * dy <= 144) ex_shore(x->cont, x->ocean, x0, y0, 12, &tx, &ty, NULL, NULL);   // off the island: the nearest shore tile with room
     x->orders += unit_goal(sh, ld_unload(sh, tx, ty), 0, 0x1F40);
@@ -764,7 +764,7 @@ static int ex_proj_alive(struct ex_proj *p) {
 }
 // the free mine of the island nearest to (x, y): its gatherers below the cap
 static uint8_t *ex_free_mine(void *pl, struct ex_st *x, int px, int py) {
-    unsigned cap = ((unsigned (__thiscall *)(void *, int))FN_TABLE_VALUE)((void *)0x917BB0, 0x16);
+    unsigned cap = GF(FN_TABLE_VALUE)((void *)GA(G_TABLE_VALUES), 0x16);
     uint8_t *best = NULL;
     int bd = 0x7FFFFFFF;
     void **zb = FIELD(pl, 0xB50, void **), **ze = FIELD(pl, 0xB54, void **);
@@ -777,7 +777,7 @@ static uint8_t *ex_free_mine(void *pl, struct ex_st *x, int px, int py) {
             if (r < 4 || r > 6 || FIELD(s, 0x40, int) <= 0) continue;
             int sx = FIELD(s, 0x1C, int), sy = FIELD(s, 0x20, int), d = (sx - px) * (sx - px) + (sy - py) * (sy - py);
             if (d >= bd || area_id(sx, sy, 2) != x->cont) continue;
-            if (((unsigned (__thiscall *)(void *, void *))FN_SITE_GATHERERS)((void *)0x918300, s) >= cap) continue;
+            if (GF(FN_SITE_GATHERERS)((void *)GA(G_GAME_STATE), s) >= cap) continue;
             best = s; bd = d;
         }
     }
@@ -935,7 +935,7 @@ static void ex_outpost(void *pl, unsigned idx, struct ex_st *x, uint32_t now) {
                 if (first) { cx = (x->mx + x->ux) / 2; cy = (x->my + x->uy) / 2; } else { cx = dx0; cy = dy0; }
             } else if (p->kind == XK_BARRACKS) { cx = dx0; cy = dy0; }
             if (!ex_spot(pl, idx, x, t, cx, cy, &px, &py)) { if (++p->waits > 30 && p->kind != XK_DROP) p->state = 3; break; }
-            uint8_t *b = ((uint8_t *(__cdecl *)(void *, int, int, int))0x0062EF8A)(pl, t, px, py);
+            uint8_t *b = GF(FN_PLACE_BUILDING)(pl, t, px, py);
             if (!b) { if (++p->waits > 30 && p->kind != XK_DROP) p->state = 3; break; }
             p->b = b; p->id = FIELD(b, 0x60, int); p->type = t; p->x = px; p->y = py; p->state = 1; p->tries++;
             ex_say(idx, now, "%s %d laid at %d,%d (%d citizens, %d soldiers on the island)", k_xk[p->kind], t, px, py, e.nc, e.ns);
@@ -958,16 +958,16 @@ static void ex_outpost(void *pl, unsigned idx, struct ex_st *x, uint32_t now) {
         for (int q = 0; q < x->nproj; q++) if (x->proj[q].state == 1 && have[q] < want[q] && (j < 0 || x->proj[q].kind == XK_DROP)) j = q;
         int gathering = !strcmp(gn, "EEUGGather@@");
         if (j >= 0 && (!gathering || !drop_ok)) {
-            void *bg = ((void *(__cdecl *)(unsigned))0x00683718)(0x5C);
-            if (bg) bg = ((void *(__thiscall *)(void *, void *, void *, int))0x0060BAD0)(bg, pl, x->proj[j].b, 0);
+            void *bg = GF(FN_NEW)(0x5C);
+            if (bg) bg = GF(FN_BUILD_GOAL)(bg, pl, x->proj[j].b, 0);
             if (bg && unit_goal(u, bg, 0, 0x1F51)) { have[j]++; nb++; x->orders++; }
             continue;
         }
         if (gathering || !drop_ok || !rm) continue;
-        if (g && (*(uintptr_t *)g == VT_GOAL_LOCATION || *(uintptr_t *)g == VT_GOAL_ATTACK || !strcmp(gn, "EEUGBuildRepair@@"))) continue;   // once it stands still
+        if (g && (*(uintptr_t *)g == GA(VT_GOAL_LOCATION) || *(uintptr_t *)g == GA(VT_GOAL_ATTACK) || !strcmp(gn, "EEUGBuildRepair@@"))) continue;   // once it stands still
         uint8_t *s = ex_free_mine(pl, x, dx0, dy0);
         if (!s) continue;
-        ((void (__thiscall *)(void *, void *, void *, int))FN_ASSIGN_TO_SITE)(rm, u, s, 0);
+        GF(FN_ASSIGN_TO_SITE)(rm, u, s, 0);
         x->assigned++;
     }
     // the guard: by the drop site, attacking what it sees within 14 tiles
@@ -1046,7 +1046,7 @@ static void ex_plan(void *pl, unsigned idx, struct ex_st *x, uint32_t now) {
     if (!why) {
         ex_scan(pl, now, 0);
         struct ex_cont *h = ex_cont_of(hc, 0);
-        unsigned cap = ((unsigned (__thiscall *)(void *, int))FN_TABLE_VALUE)((void *)0x917BB0, 0x16);
+        unsigned cap = GF(FN_TABLE_VALUE)((void *)GA(G_TABLE_VALUES), 0x16);
         int slots = h ? (h->site[4] + h->site[5] + h->site[6]) * (int)cap : 0, miners = h ? h->gat[idx][4] + h->gat[idx][5] + h->gat[idx][6] : 0;
         int early = EXPAND(idx) & 8;
         if (!early && now < 900000 && miners * 2 < slots) why = "the home island's mines first";

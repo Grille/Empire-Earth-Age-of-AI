@@ -40,9 +40,9 @@ static void mf_scan(void *pl, unsigned idx, uint32_t now) {
     uint8_t *cm = FIELD(pl, 0xB90, uint8_t *), *bm = cm ? FIELD(cm, 0x3C, uint8_t *) : NULL;
     if (!bm || FIELD(bm, 0x12C, int) == -10000) return;
     int base[2] = { FIELD(bm, 0x12C, int), FIELD(bm, 0x130, int) };
-    short (__thiscall *region)(void *, int *, int) = (void *)FN_REGION;
-    short hr = region((void *)0x917BC8, base, 2);
-    unsigned cap = ((unsigned (__thiscall *)(void *, int))FN_TABLE_VALUE)((void *)0x917BB0, 0x16);
+    short (__thiscall *region)(void *, int *, int) = (void *)GA(FN_REGION);
+    short hr = region((void *)GA(G_MAP_AREAS), base, 2);
+    unsigned cap = GF(FN_TABLE_VALUE)((void *)GA(G_TABLE_VALUES), 0x16);
     drops_cached(pl);
     static uint8_t *seen[1024];
     int ns = 0, bd = 0x7FFFFFFF;
@@ -62,16 +62,16 @@ static void mf_scan(void *pl, unsigned idx, uint32_t now) {
                 int *d = g_drops[idx].d[i], dx = d[0] - pos[0], dy = d[1] - pos[1];
                 if (!d[2] && dx * dx + dy * dy < dd) dd = dx * dx + dy * dy;
             }
-            int home = region((void *)0x917BC8, pos, 2) == hr;
+            int home = region((void *)GA(G_MAP_AREAS), pos, 2) == hr;
             if (dd <= 144) {
                 m->slots[r] += (int)cap;
                 if (home) m->home_slots[r] += (int)cap;
-                m->g[r] += (int)((unsigned (__thiscall *)(void *, void *))FN_SITE_GATHERERS)((void *)0x918300, s);
+                m->g[r] += (int)GF(FN_SITE_GATHERERS)((void *)GA(G_GAME_STATE), s);
                 continue;
             }
             if (!home || dd >= bd || !zone[0x18]) continue;
-            if (!((char (__thiscall *)(void *, void *))FN_EXPLORED)(FIELD(s, 0x14, void *), pl)) continue;
-            if (((EnemyNearFn)FN_ENEMY_NEAR)(bm, pos[0], pos[1]) || site_danger_res(pl, s, 0, r)) continue;
+            if (!GF(FN_EXPLORED)(FIELD(s, 0x14, void *), pl)) continue;
+            if (((EnemyNearFn)GA(FN_ENEMY_NEAR))(bm, pos[0], pos[1]) || site_danger_res(pl, s, 0, r)) continue;
             bd = dd; m->far_x = pos[0]; m->far_y = pos[1]; m->far_r = r;
         }
     }
@@ -147,7 +147,7 @@ static void mine_drops(void *pl, unsigned idx, uint32_t now) {
         uint8_t *b = deque_at(q, f + k), *st = b ? FIELD(b, 0x30, uint8_t *) : NULL;
         if (b && FIELD(b, 0x3C, int) > 0 && (!st || !FIELD(st, 0x340, uint8_t))) return;
     }
-    if (!((char (__thiscall *)(void *, int, int, int))0x00555710)(pl, UT(B_SETTLEMENT), 0x20, 0)) return;   // can't build or pay now
+    if (!GF(FN_CAN_BUILD)(pl, UT(B_SETTLEMENT), 0x20, 0)) return;   // can't build or pay now
     int e = current_epoch(pl);
     if (e < 0 || e >= 14) return;
     for (int r = 3; r <= 6; r++)
@@ -157,7 +157,7 @@ static void mine_drops(void *pl, unsigned idx, uint32_t now) {
                 int x = m->far_x + ax, y = m->far_y + ay;
                 if (!can_place(pl, UT(B_SETTLEMENT), x, y) || raiders_near(pl, x, y, 12)) continue;
                 int entry[3] = { UT(B_SETTLEMENT), x, y };
-                ((void (__thiscall *)(void *, int *))0x00468C37)(bm + 4 + e * 0x14, entry);
+                GF(FN_BQ_ADD)(bm + 4 + e * 0x14, entry);
                 m->drops_queued++;
                 if (g_log) {
                     EnterCriticalSection(&g_lock);

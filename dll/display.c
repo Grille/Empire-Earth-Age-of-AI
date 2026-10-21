@@ -11,11 +11,6 @@
 
 #include <ddraw.h>
 
-#define SITE_EDITOR_MENU  0x006601F1
-#define SITE_EDITOR_RES   0x0065FD6D
-#define FN_SET_RESOLUTION 0x0065F314
-#define G_GAME_RES_W      0x009193FC
-#define G_GAME_RES_H      0x009193F8
 
 static int g_editor_w, g_editor_h, g_editor_game;   // 0 = leave
 
@@ -39,12 +34,13 @@ static void write_code32(uint32_t *p, uint32_t v) {
 
 static int apply_editor_layout(int w, int h) {
     int ok = 0, bad = 0;
+    if (g_exe_build != 0) return 0;   // editor_layout.h is the 2017 update's (addr.h k_exe_builds[0])
     for (size_t i = 0; i < N_LAYOUT; i++) {
         uint32_t *p = (uint32_t *)k_editor_layout[i].addr;
         if (!g_layout_state[i]) {   // first time: the original value must be there
             uint32_t *c = k_editor_layout[i].kind ? (uint32_t *)*p : p;
             int match = k_editor_layout[i].kind
-                ? (uintptr_t)c >= 0x401000 && (uintptr_t)c < 0xA00000 && *c == k_editor_layout[i].old
+                ? (uintptr_t)c >= g_image_lo && (uintptr_t)c < g_image_hi && *c == k_editor_layout[i].old
                 : *p == k_editor_layout[i].old;
             g_layout_state[i] = match ? 1 : -1;
             if (match && k_editor_layout[i].kind) write_code32(p, (uint32_t)(uintptr_t)&g_layout_consts[i]);
@@ -61,7 +57,7 @@ static int apply_editor_layout(int w, int h) {
     }
     // the file buttons (load, save, test, exit ...) come from a data table, not code: 0x8AE0A0, 6 entries of
     // {id, x, y, texture u0, v0, u1, v1, tooltip}; AoC (0x8C47B0) has them at x 647.. (step 35), y 736 for 1024x768
-    int32_t *t = (int32_t *)0x008AE0A0;
+    int32_t *t = (int32_t *)GA(G_EDITOR_FILE_BUTTONS);
     if (!g_buttons_state) g_buttons_state = t[1] == 415 && t[2] == 567 ? 1 : -1;
     if (g_buttons_state > 0)
         for (int i = 0; i < 6; i++, t += 8) {
@@ -75,8 +71,8 @@ static int apply_editor_layout(int w, int h) {
 }
 
 static void editor_size(int *w, int *h) {
-    int nw = g_editor_game ? *(int *)G_GAME_RES_W : g_editor_w;
-    int nh = g_editor_game ? *(int *)G_GAME_RES_H : g_editor_h;
+    int nw = g_editor_game ? *(int *)GA(G_GAME_RES_W) : g_editor_w;
+    int nh = g_editor_game ? *(int *)GA(G_GAME_RES_H) : g_editor_h;
     if (nw >= 800 && nh >= 600) { *w = nw; *h = nh; }
 }
 
@@ -87,13 +83,11 @@ typedef void (__stdcall *SetResolutionFn)(int w, int h, int force, int flag);
 // picture overshot it (only its upper left part visible). The 6 operands read our factors instead: in the
 // editor 1.28 / width and 1.28 / height (= the originals at 1024x768), elsewhere the originals.
 static float g_mm_fx = 1.0f / 800.0f, g_mm_fy = 1.0f / 600.0f;
-static const uintptr_t k_mm_fx_ops[] = { 0x0065E01D, 0x0065E8A3, 0x0065EB3E };
-static const uintptr_t k_mm_fy_ops[] = { 0x0065E032, 0x0065E8CE, 0x0065EB68 };
 static int redirect_minimap_scale(void) {
     int n = 0;
     for (int i = 0; i < 3; i++) {
-        n += patch_code32(k_mm_fx_ops[i], 0x008358A8, (uint32_t)(uintptr_t)&g_mm_fx);
-        n += patch_code32(k_mm_fy_ops[i], 0x0082CBCC, (uint32_t)(uintptr_t)&g_mm_fy);
+        n += patch_code32(GL(MINIMAP_FX_OPS)[i], GA(G_FLOAT_1_800), (uint32_t)(uintptr_t)&g_mm_fx);
+        n += patch_code32(GL(MINIMAP_FY_OPS)[i], GA(G_FLOAT_1_600), (uint32_t)(uintptr_t)&g_mm_fy);
     }
     return n;
 }
@@ -105,28 +99,25 @@ static void __stdcall hook_editor_resolution(int w, int h, int force, int flag) 
     g_mm_fx = 1.28f / (float)w;
     g_mm_fy = 1.28f / (float)h;
     if (g_log) { log_locked("# editor: resolution %dx%d, layout patches %d/%d\n", w, h, lay, (int)N_LAYOUT + 6); }
-    ((SetResolutionFn)FN_SET_RESOLUTION)(w, h, force, flag);
+    ((SetResolutionFn)GA(FN_SET_RESOLUTION))(w, h, force, flag);
 }
 
 // every other resolution switch (game, menus, test play from the editor): the original minimap factors
 static void __stdcall hook_other_resolution(int w, int h, int force, int flag) {
     g_mm_fx = 1.0f / 800.0f;
     g_mm_fy = 1.0f / 600.0f;
-    ((SetResolutionFn)FN_SET_RESOLUTION)(w, h, force, flag);
+    ((SetResolutionFn)GA(FN_SET_RESOLUTION))(w, h, force, flag);
 }
-static const uintptr_t k_other_resolution_sites[] = { 0x0065F30A, 0x0065F61B, 0x0065F945, 0x0065FAD4, 0x00660CD3, 0x00661329, 0x00661363 };
 
 // The editor's main form (constructor 0x58D3E1) is built once, on first use (0x65B9F5) - before the resolution
 // switch - and keeps its layout; its sub-pages are built later. The layout is computed right before it.
-#define SITE_EDITOR_FORM 0x0065BA13
-#define FN_EDITOR_FORM   0x0058D3E1
 static void *__fastcall hook_editor_form(void *form, void *edx, void *owner) {
     (void)edx;
     int w = 800, h = 600;
     editor_size(&w, &h);
     int lay = apply_editor_layout(w, h);
     if (g_log) { log_locked("# editor: building the editor for %dx%d, layout patches %d/%d\n", w, h, lay, (int)N_LAYOUT + 6); }
-    return ((void *(__thiscall *)(void *, void *))FN_EDITOR_FORM)(form, owner);
+    return GF(FN_EDITOR_FORM)(form, owner);
 }
 
 // Windowed mode: the engine still has the windowed path SSSI used during development - with the flag byte
@@ -136,7 +127,6 @@ static void *__fastcall hook_editor_form(void *form, void *edx, void *owner) {
 // minimizes/restores with ShowWindow. The byte is already 1 when the DLLs load and nothing writes it later, so
 // clearing it here switches every reader (including dreXmod's hook on the loading screen at 0x534433).
 // aimod.ini [display] windowed = 0 | 1
-#define G_FULLSCREEN 0x0091945A
 static uint8_t g_fullscreen = 1;
 static int g_present_every;   // autotest present_every (diagnostics)
 static volatile DWORD g_render_thread;   // thread that calls ShowScene (profile render)
@@ -763,11 +753,6 @@ static int install_windowed_present(void) {
 // aimod.ini [display] lock_mouse = 1 keeps the cursor inside the window while the game is in front; auto (default)
 // only in borderless (a full-screen picture: edge scrolling must not slide onto another monitor), not in a window
 // (Alt+Enter switches both). Native fullscreen needs nothing: the exclusive DirectInput mouse never leaves.
-#define FN_MOUSE_UPDATE  0x00510E5D
-#define FN_MOUSE_CLAMP   0x00510DAD
-#define G_GAME_WINDOW    0x009197A4   // GEWindow* (+0 HWND)
-#define IMP_IS_MOUSE     0x008235CC   // import: &ISMouse* in Low-Level Engine.dll
-#define SITE_CLOSE_WINDOW_JE 0x00662666   // je over the CloseWindow call on WM_ACTIVATEAPP(0)
 typedef void (__thiscall *ThisFn)(void *);
 static ThisFn g_recompute_buttons;   // ISMouse::RecomputeCurrentButtonState
 static int g_lock_mouse = 2;   // 0 never, 1 always, 2 auto (borderless only)
@@ -839,7 +824,7 @@ static RECT window_rect_for(HWND h) {
         GetMonitorInfoA(MonitorFromWindow(h, MONITOR_DEFAULTTONEAREST), &mi);
         return mi.rcMonitor;
     }
-    uint8_t *win = *(uint8_t **)G_GAME_WINDOW;
+    uint8_t *win = *(uint8_t **)GA(G_GAME_WINDOW);
     return normal_window_rect(h, win ? FIELD(win, 0xC, int) : 1024, win ? FIELD(win, 0x10, int) : 768);
 }
 
@@ -978,7 +963,7 @@ static BOOL WINAPI hook_set_window_pos(HWND h, HWND after, int x, int y, int cx,
 }
 
 static uint8_t *is_mouse(void) {
-    uint8_t **p = *(uint8_t ***)IMP_IS_MOUSE;
+    uint8_t **p = *(uint8_t ***)GA(IMP_IS_MOUSE);
     return p ? *p : NULL;
 }
 
@@ -1008,7 +993,6 @@ static void mouse_acquire(int want) {
 // The devices are resumed on WM_ACTIVATEAPP/WM_ACTIVATE, but Acquire (DISCL_FOREGROUND) fails while Windows hasn't
 // made the window foreground yet - a click into the window then leaves mouse and keyboard dead until it's minimized
 // and restored. The intro sequence (0x538xxx) also ends with Suspend. In front, a suspended device is resumed.
-#define IMP_IS_KEYBOARD  0x00823AF8   // import: &ISKeyboard* in Low-Level Engine.dll
 static volatile LONG g_input_resumes;
 static void resume_if_suspended(uintptr_t imp, DWORD *last) {
     uint8_t **p = *(uint8_t ***)imp, *d = p ? *p : NULL;
@@ -1027,7 +1011,7 @@ static void virtual_mouse(uint8_t *m, int frozen) {
     if (g_vm_x >= 0 && !frozen) {
         FIELD(m, 4, float) = (float)g_vm_x;
         FIELD(m, 8, float) = (float)g_vm_y;
-        ((ThisFn)FN_MOUSE_CLAMP)(m);
+        ((ThisFn)GA(FN_MOUSE_CLAMP))(m);
     }
     uint8_t *ms = is_mouse();
     LONG b = g_vm_button;
@@ -1047,7 +1031,7 @@ static void virtual_mouse(uint8_t *m, int frozen) {
 
 static void window_mouse_in(uint8_t *m, int frozen, uint8_t *win, HWND hwnd);
 static void window_mouse(uint8_t *m, int frozen) {
-    uint8_t *win = *(uint8_t **)G_GAME_WINDOW;
+    uint8_t *win = *(uint8_t **)GA(G_GAME_WINDOW);
     HWND hwnd = win ? FIELD(win, 0, HWND) : NULL;
     if (!hwnd) return;
     window_hook(hwnd);
@@ -1068,8 +1052,8 @@ static void window_mouse_in(uint8_t *m, int frozen, uint8_t *win, HWND hwnd) {
     int held = ((GetAsyncKeyState(VK_LBUTTON) | GetAsyncKeyState(VK_RBUTTON) | GetAsyncKeyState(VK_MBUTTON)) & 0x8000) != 0;
     if (fg && !IsIconic(hwnd)) {
         static DWORD last_mouse, last_keyboard;
-        resume_if_suspended(IMP_IS_MOUSE, &last_mouse);
-        resume_if_suspended(IMP_IS_KEYBOARD, &last_keyboard);
+        resume_if_suspended(GA(IMP_IS_MOUSE), &last_mouse);
+        resume_if_suspended(GA(IMP_IS_KEYBOARD), &last_keyboard);
     }
     mouse_acquire(inside || held);
     if (mouse_locked() && fg && inside) {
@@ -1089,7 +1073,7 @@ static void window_mouse_in(uint8_t *m, int frozen, uint8_t *win, HWND hwnd) {
     if (v.right - v.left < 2 || v.bottom - v.top < 2) return;
     FIELD(m, 4, float) = (float)(c.x - v.left) * (float)gw / (float)(v.right - v.left - 1);
     FIELD(m, 8, float) = (float)(c.y - v.top) * (float)gh / (float)(v.bottom - v.top - 1);
-    ((ThisFn)FN_MOUSE_CLAMP)(m);
+    ((ThisFn)GA(FN_MOUSE_CLAMP))(m);
     InterlockedIncrement(&g_mouse_updates);
 }
 
@@ -1097,7 +1081,7 @@ static void __fastcall hook_mouse_update(uint8_t *m, void *edx) {
     (void)edx;
     uint8_t frozen = m[0xA4];
     m[0xA4] = 1;   // the original then only reads the wheel
-    ((ThisFn)FN_MOUSE_UPDATE)(m);
+    ((ThisFn)GA(FN_MOUSE_UPDATE))(m);
     m[0xA4] = frozen;
     window_mouse(m, frozen);
 }
@@ -1122,9 +1106,8 @@ static int install_windowed_input(void) {
         if (b[0x4A76E] == 0x6A) n += patch_byte((uintptr_t)b + 0x4A76F, 5, 6);
         g_recompute_buttons = (ThisFn)(void *)GetProcAddress(lle, "?RecomputeCurrentButtonState@ISMouse@@AAEXXZ");
     }
-    static const uintptr_t sites[] = { 0x004B8ABB, 0x0050FEC8, 0x005111CF, 0x006618B8 };
-    for (size_t i = 0; i < sizeof sites / sizeof *sites; i++) n += patch_call(sites[i], FN_MOUSE_UPDATE, hook_mouse_update);
-    n += patch_byte(SITE_CLOSE_WINDOW_JE, 0x74, 0xEB);   // no minimize on focus loss
+    for (size_t i = 0; i < sizeof GL(MOUSE_UPDATE_SITES) / sizeof *GL(MOUSE_UPDATE_SITES); i++) n += patch_call(GL(MOUSE_UPDATE_SITES)[i], GA(FN_MOUSE_UPDATE), hook_mouse_update);
+    n += patch_byte(GA(SITE_CLOSE_WINDOW_JE), 0x74, 0xEB);   // no minimize on focus loss
     return n;
 }
 
@@ -1158,8 +1141,8 @@ static void display_install(const char *aimod_ini, const char *autotest_ini) {
     g_diag = (autotest_ini && ini_int("autotest", "diag_hooks", 0, autotest_ini))
              || ini_int("display", "diag", 0, aimod_ini);
     if (windowed) {
-        uint8_t was = *(uint8_t *)G_FULLSCREEN;
-        if (was == 1) *(uint8_t *)G_FULLSCREEN = g_fullscreen = 0;
+        uint8_t was = *(uint8_t *)GA(G_FULLSCREEN);
+        if (was == 1) *(uint8_t *)GA(G_FULLSCREEN) = g_fullscreen = 0;
         g_text_dc = ini_int("display", "text_dc", 1, aimod_ini);
         if (autotest_ini) g_text_dc = ini_int("autotest", "text_dc", g_text_dc, autotest_ini);
         g_text_bitmap = ini_int("display", "text_bitmap", 1, aimod_ini);
@@ -1200,7 +1183,7 @@ static void display_install(const char *aimod_ini, const char *autotest_ini) {
         // would leave it on screen; stop it in windowed mode too (jne at 0x53443D -> nop). Headless test runs
         // (run_test.ps1) start the game suspended and patch the start to jmp, so there is no splash at all, and
         // then the stop must be skipped as well (it waits for the splash thread without a time limit).
-        uint8_t *jne = (uint8_t *)0x0053443D, *jstart = (uint8_t *)0x00534400;
+        uint8_t *jne = (uint8_t *)GA(CODE_SPLASH_STOP_JNE), *jstart = (uint8_t *)GA(CODE_SPLASH_START_JNE);
         int splash = 0, nosplash = jstart[0] == 0xEB;
         if (jne[0] == 0x75 && jne[1] == 0x19) {
             DWORD old;
@@ -1231,12 +1214,12 @@ static void display_install(const char *aimod_ini, const char *autotest_ini) {
         if (g_log) fprintf(g_log, "# editor: bad resolution '%s' in aimod.ini, left at 800x600\n", mode);
         return;
     }
-    int ok = patch_call(SITE_EDITOR_MENU, FN_SET_RESOLUTION, hook_editor_resolution)
-           + patch_call(SITE_EDITOR_RES, FN_SET_RESOLUTION, hook_editor_resolution)
-           + patch_call(SITE_EDITOR_FORM, FN_EDITOR_FORM, hook_editor_form);
+    int ok = patch_call(GA(SITE_EDITOR_MENU), GA(FN_SET_RESOLUTION), hook_editor_resolution)
+           + patch_call(GA(SITE_EDITOR_RES), GA(FN_SET_RESOLUTION), hook_editor_resolution)
+           + patch_call(GA(SITE_EDITOR_FORM), GA(FN_EDITOR_FORM), hook_editor_form);
     int other = 0;
-    for (size_t i = 0; i < sizeof k_other_resolution_sites / sizeof *k_other_resolution_sites; i++)
-        other += patch_call(k_other_resolution_sites[i], FN_SET_RESOLUTION, hook_other_resolution);
+    for (size_t i = 0; i < sizeof GL(OTHER_RESOLUTION_SITES) / sizeof *GL(OTHER_RESOLUTION_SITES); i++)
+        other += patch_call(GL(OTHER_RESOLUTION_SITES)[i], GA(FN_SET_RESOLUTION), hook_other_resolution);
     int mm = redirect_minimap_scale();
     if (g_log) fprintf(g_log, "# editor: minimap scale operands %d/6, other resolution switches %d/7\n", mm, other);
     if (g_log) fprintf(g_log, "# editor: resolution=%s hooks %d/3\n", mode, ok);
@@ -1542,7 +1525,7 @@ static void cmd_headless(const char *verb, const char *args, char *out) {
     }
     if (!strncmp(args, "off", 3)) { g_vm_x = g_vm_y = -1; REPLY("ok: real mouse\n"); return; }
     if (!strcmp(verb, "wtype")) {   // wtype TEXT: the characters as WM_CHAR to the game window (edit boxes; tests)
-        uint8_t *win = *(uint8_t **)G_GAME_WINDOW;
+        uint8_t *win = *(uint8_t **)GA(G_GAME_WINDOW);
         HWND hwnd = win ? FIELD(win, 0, HWND) : NULL;
         if (!hwnd) { REPLY("error: no window\n"); return; }
         int n = 0;
@@ -1557,7 +1540,7 @@ static void cmd_headless(const char *verb, const char *args, char *out) {
     char which[16] = "";
     if (sscanf(args, "%d %d %15s", &x, &y, which) < 2 || x < 0 || y < 0) { REPLY("usage: %s x y%s\n", verb, *verb == 'v' && verb[1] == 'c' ? " [right|mid]" : ""); return; }
     if (!strcmp(verb, "wclick")) {   // window messages (WONAPI screens such as the civ builder read those, not the game cursor)
-        uint8_t *win = *(uint8_t **)G_GAME_WINDOW;
+        uint8_t *win = *(uint8_t **)GA(G_GAME_WINDOW);
         HWND hwnd = win ? FIELD(win, 0, HWND) : NULL;
         if (!hwnd) { REPLY("error: no window\n"); return; }
         RECT cr;
@@ -1636,8 +1619,8 @@ static void lock_unlock(char *out, const char *name, IDirectDrawSurface7 *s) {
     REPLY("%s lock/unlock hr=%08lx\n", name, hr);
 }
 static void cmd_ddpoke(char *out, const char *args) {
-    uint8_t *ras = *(uint8_t **)0x00919794;
-    uint8_t *st = ras ? FIELD(ras, 0x20, uint8_t **)[*(int *)0x00919428] : NULL;
+    uint8_t *ras = *(uint8_t **)GA(G_RASTERIZER);
+    uint8_t *st = ras ? FIELD(ras, 0x20, uint8_t **)[*(int *)GA(G_SCREEN)] : NULL;
     if (!st) { REPLY("error: no rasterizer\n"); return; }
     uint8_t *scr = FIELD(st, 0x2A8, uint8_t *), *front = FIELD(st, 0x2AC, uint8_t *), *back = FIELD(st, 0x2B0, uint8_t *);
     IDirectDrawSurface7 *b7 = back ? FIELD(back, 0x48, IDirectDrawSurface7 *) : NULL;
@@ -1652,7 +1635,7 @@ static void cmd_ddpoke(char *out, const char *args) {
         DDSURFACEDESC2 m = { .dwSize = sizeof m };
         REPLY("GetDisplayMode hr=%08lx\n", dd->lpVtbl->GetDisplayMode(dd, &m));
     } else if (!strncmp(args, "cursor", 6)) {   // cursor <client x> <client y>: place the Windows cursor (game's coordinates)
-        uint8_t *win = *(uint8_t **)G_GAME_WINDOW;
+        uint8_t *win = *(uint8_t **)GA(G_GAME_WINDOW);
         POINT p = { 0, 0 }, q;
         RECT rc = { 0 };
         sscanf(args + 6, "%ld %ld", &p.x, &p.y);
@@ -1714,8 +1697,8 @@ static void cmd_ddpoke(char *out, const char *args) {
 // [0x9197A0] while playing, UIManager::GetCurrentForm import 0x823D60): +0x5D8 = 0 the age, 1 the game clock,
 // 2 "FPS: n" (relabelled every update - each new text is drawn with GDI)
 static void cmd_topbar(char *out, const char *args) {
-    void *uim = *(void **)0x009197A0;
-    uint8_t *form = uim ? ((uint8_t *(__thiscall *)(void *))*(void **)0x00823D60)(uim) : NULL;
+    void *uim = *(void **)GA(G_UI_MANAGER);
+    uint8_t *form = uim ? ((uint8_t *(__thiscall *)(void *))*(void **)GA(IAT_UIM_FORM))(uim) : NULL;
     const char *rn = form ? rtti_name(form) : "";
     if (!form || !strstr(rn, "EEUIFMainGame")) { REPLY("error: the current form is %s, not the game screen\n", form ? rn : "none"); return; }
     int v = -1;
@@ -1724,8 +1707,8 @@ static void cmd_topbar(char *out, const char *args) {
 }
 
 static void cmd_ddinfo(char *out, const char *args) {
-    uint8_t *ras = *(uint8_t **)0x00919794;
-    int idx = *(int *)0x00919428;
+    uint8_t *ras = *(uint8_t **)GA(G_RASTERIZER);
+    int idx = *(int *)GA(G_SCREEN);
     uint8_t *st = ras ? FIELD(ras, 0x20, uint8_t **)[idx] : NULL;
     if (!st) { REPLY("error: no rasterizer\n"); return; }
     uint8_t *scr = FIELD(st, 0x2A8, uint8_t *), *win = FIELD(st, 0x2BC, uint8_t *);
@@ -1794,7 +1777,7 @@ static void cmd_ddinfo(char *out, const char *args) {
     }
     REPLY("windowed present: %ld frames, %ld failed; back buffer before ShowScene: %ld samples, %ld lit of 1024 avg, lock failed %ld\n",
           g_present_frames, g_present_fail, g_lit_frames, g_lit_frames ? g_lit_samples / g_lit_frames : 0, g_lock_fail);
-    uint8_t *rm = *(uint8_t **)0x009197A8, *ms = is_mouse();
+    uint8_t *rm = *(uint8_t **)GA(G_MOUSE), *ms = is_mouse();
     if (rm) REPLY("mouse: game cursor %.1f,%.1f of x %.0f..%.0f y %.0f..%.0f, updates %ld, unacquired %ld, reacquired %ld, "
                   "device %s, resumed by us %ld, subclassed %p\n", FIELD(rm, 4, float), FIELD(rm, 8, float), FIELD(rm, 0x18, float),
                   FIELD(rm, 0x1C, float), FIELD(rm, 0x20, float), FIELD(rm, 0x14, float), g_mouse_updates, g_mouse_unacq,

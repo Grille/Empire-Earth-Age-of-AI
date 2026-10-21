@@ -33,14 +33,14 @@ static void persona_attack(void *pl, void *target);   // persona.c: the attack l
 
 // one chat line from player pl (name and colour from the player), shown for ms milliseconds
 static void chat_line(void *pl, const char *text, int ms) {
-    void *ui = *(void **)0x0091977C;
+    void *ui = *(void **)GA(G_WORLD);
     if (!pl || !ui || !*text) return;
     __attribute__((aligned(8))) uint8_t s[32];
-    ((void (__thiscall *)(void *))*(void **)0x008231A4)(s);
-    ((void *(__thiscall *)(void *, const char *))*(void **)0x00823224)(s, text);
-    ((void (__thiscall *)(void *, void *, void *, void *, int, int))0x00661E91)(ui, (uint8_t *)pl + 0x438,
+    ((void (__thiscall *)(void *))*(void **)GA(IAT_WSTRING_CTOR))(s);
+    ((void *(__thiscall *)(void *, const char *))*(void **)GA(IAT_WSTRING_ASSIGN))(s, text);
+    GF(FN_UI_LINE)(ui, (uint8_t *)pl + 0x438,
                                                                               (uint8_t *)pl + 0x24, s, ms, 0);
-    ((void (__thiscall *)(void *))*(void **)0x00823AEC)(s);
+    ((void (__thiscall *)(void *))*(void **)GA(IAT_WSTRING_DTOR))(s);
 }
 
 // the game's own line for a stance change, as EEMSetDiplomaticStance::vf10 (0x4BDDCC) writes it: sprintf "%s %s %s"
@@ -50,35 +50,35 @@ static void chat_line(void *pl, const char *text, int ms) {
 // a line from nobody in particular, as the game shows "<name> wurde besiegt" (0x55BCEA): white, and as the
 // sender string 0x7C45 of the language file
 static void system_line(const char *text, int ms) {
-    void *res = *(void **)0x00919770, *ui = *(void **)0x0091977C;
+    void *res = *(void **)GA(G_RESOURCES), *ui = *(void **)GA(G_WORLD);
     if (!res || !ui || !*text) return;
     float white[3] = { 1.0f, 1.0f, 1.0f };
     __attribute__((aligned(8))) uint8_t name[32], line[32];
-    void (__thiscall *ctor)(void *) = *(void **)0x008231A4, (__thiscall *dtor)(void *) = *(void **)0x00823AEC;
+    void (__thiscall *ctor)(void *) = *(void **)GA(IAT_WSTRING_CTOR), (__thiscall *dtor)(void *) = *(void **)GA(IAT_WSTRING_DTOR);
     ctor(name);
     ctor(line);
-    ((int (__thiscall *)(void *, int, void *))*(void **)0x0082319C)(res, 0x7C45, name);
-    ((void *(__thiscall *)(void *, const char *))*(void **)0x00823224)(line, text);
-    ((void (__thiscall *)(void *, void *, void *, void *, int, int))0x00661E91)(ui, white, name, line, ms, 0);
+    ((int (__thiscall *)(void *, int, void *))*(void **)GA(IAT_RESOURCE_STRING))(res, 0x7C45, name);
+    ((void *(__thiscall *)(void *, const char *))*(void **)GA(IAT_WSTRING_ASSIGN))(line, text);
+    GF(FN_UI_LINE)(ui, white, name, line, ms, 0);
     dtor(line);
     dtor(name);
 }
 
 static void chat_stance_line(void *pl, int stance) {
-    void *res = *(void **)0x00919770, *ui = *(void **)0x0091977C;
-    uint8_t *opt = *(uint8_t **)0x00917BB8;
+    void *res = *(void **)GA(G_RESOURCES), *ui = *(void **)GA(G_WORLD);
+    uint8_t *opt = *(uint8_t **)GA(G_GAME_DATA);
     if (!pl || !res || !ui || !opt) return;
     __attribute__((aligned(8))) uint8_t verb[32], word[32], line[32];
-    void (__thiscall *ctor)(void *) = *(void **)0x008231A4, (__thiscall *dtor)(void *) = *(void **)0x00823AEC;
-    int (__thiscall *get)(void *, int, void *) = *(void **)0x0082319C;
+    void (__thiscall *ctor)(void *) = *(void **)GA(IAT_WSTRING_CTOR), (__thiscall *dtor)(void *) = *(void **)GA(IAT_WSTRING_DTOR);
+    int (__thiscall *get)(void *, int, void *) = *(void **)GA(IAT_RESOURCE_STRING);
     ctor(verb);
     ctor(word);
-    ((void (__thiscall *)(void *, unsigned long))*(void **)0x008235D0)(line, 0x400);
+    ((void (__thiscall *)(void *, unsigned long))*(void **)GA(IAT_WSTRING_RESERVE))(line, 0x400);
     get(res, 0x7B71, verb);
     get(res, stance ? 0x734A : 0x7349, word);
-    ((int (__cdecl *)(void *, const char *, ...))*(void **)0x008232C8)(line, "%s %s %s", FIELD(pl, 0x28, void *),
+    ((int (__cdecl *)(void *, const char *, ...))*(void **)GA(IAT_WSTRING_FORMAT))(line, "%s %s %s", FIELD(pl, 0x28, void *),
                                                                        FIELD(verb, 4, void *), FIELD(word, 4, void *));
-    ((void (__thiscall *)(void *, void *, void *, void *, int, int))0x00661E91)(ui, (uint8_t *)pl + 0x438,
+    GF(FN_UI_LINE)(ui, (uint8_t *)pl + 0x438,
                                                                               (uint8_t *)pl + 0x24, line, FIELD(opt, 0x2CC, int), 0);
     dtor(line);
     dtor(word);
@@ -163,23 +163,23 @@ static void cmd_say(char *out, const char *args) {
 // cheat message (new 0x18, 0x5C29FB(code, arg)); then the chat line (new 0x24, 0x5C2A2F(UWideString *)); both through
 // [0x91984C] vtable +0x18 (message, 0xFF = all) - scenario triggers on chat messages and cheat codes see it as typed
 static void cmd_chatme(char *out, const char *args) {
-    void **net = *(void ***)0x0091984C;
+    void **net = *(void ***)GA(G_SERVER);
     while (*args == ' ') args++;
     if (!net || !*args) { REPLY("error: chatme text (in a game)\n"); return; }
     __attribute__((aligned(8))) uint8_t s[32];
-    ((void (__thiscall *)(void *, const char *))*(void **)0x008232C4)(s, args);
+    ((void (__thiscall *)(void *, const char *))*(void **)GA(IAT_WSTRING_CTOR_C))(s, args);
     void (__thiscall *send)(void *, void *, int) = (void (__thiscall *)(void *, void *, int))(*(void ***)net)[6];
-    int code = 0, arg = 0, cheats = *(char *)0x00918E9A != 0;
-    if (cheats && *(void **)0x00919858) {
-        ((void (__thiscall *)(void *, void *, int *, int *))0x00520A17)(*(void **)0x00919858, s, &code, &arg);
+    int code = 0, arg = 0, cheats = *(char *)GA(G_CHEATS_ON) != 0;
+    if (cheats && *(void **)GA(G_CHEAT_PARSER)) {
+        GF(FN_CHEAT_PARSE)(*(void **)GA(G_CHEAT_PARSER), s, &code, &arg);
         if (code) {
-            void *m = ((void *(__cdecl *)(unsigned))0x00683718)(0x18);
-            if (m) send(net, ((void *(__thiscall *)(void *, int, int))0x005C29FB)(m, code, arg), 0xFF);
+            void *m = GF(FN_NEW)(0x18);
+            if (m) send(net, GF(FN_CHEAT_MSG_CTOR)(m, code, arg), 0xFF);
         }
     }
-    void *m = ((void *(__cdecl *)(unsigned))0x00683718)(0x24);
-    if (m) send(net, ((void *(__thiscall *)(void *, void *))0x005C2A2F)(m, s), 0xFF);
-    ((void (__thiscall *)(void *))*(void **)0x00823AEC)(s);
+    void *m = GF(FN_NEW)(0x24);
+    if (m) send(net, GF(FN_CHAT_MSG_CTOR)(m, s), 0xFF);
+    ((void (__thiscall *)(void *))*(void **)GA(IAT_WSTRING_DTOR))(s);
     REPLY("ok: sent \"%s\" (cheats %s, cheat code %d)\n", args, cheats ? "on" : "off", code);
 }
 

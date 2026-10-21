@@ -9,12 +9,6 @@
 // full speed (+1% of the maximum per elapsed tick); reversing an axis starts slow again and the velocity is reset
 // when scrolling stops. The top speed is the same as EE's: per second 100 x 0.1 vs 40 x 0.25.
 
-#define VT_SCROLL          0x00825098
-#define FN_SCROLL_EXECUTE  0x004050FC
-#define SITE_SCROLL_TIMER  0x004050C2   // operand of push 0x19 (timer period in ms)
-#define G_SCROLL_SPEED     0x00918DB0   // float
-#define G_SCROLL_SETTING   0x009193A8   // float, settings slider x 0.01
-#define FN_CAMERA_MOVE     0x0051E2E6   // thiscall on G_CAMERA (float dx, float dy)
 
 static int g_scroll_aoc;
 static float g_vel_x, g_vel_y;
@@ -55,7 +49,7 @@ static void scroll_axis(float *vel, int neg, int pos, float minv, float maxv, fl
 static void __fastcall hook_scroll_execute(uint8_t *self, void *edx) {
     (void)edx;
     InterlockedIncrement(&g_scroll_calls);
-    if (!g_scroll_aoc && !g_cam_smooth) { ((void (__thiscall *)(void *))FN_SCROLL_EXECUTE)(self); return; }
+    if (!g_scroll_aoc && !g_cam_smooth) { GF(FN_SCROLL_EXECUTE)(self); return; }
     // elapsed time: real time with fine scrolling, else the timer's ticks (10 ms AoC)
     float ms = (float)FIELD(self, 0x40, unsigned) * 10.0f;
     if (g_cam_smooth) {
@@ -69,7 +63,7 @@ static void __fastcall hook_scroll_execute(uint8_t *self, void *edx) {
         if (since > 30.0) d = 1.0;   // the first step after a pause: one timer period (the budget is old frames)
         ms = d > 50.0 ? 50.0f : (float)d;
     }
-    float speed = *(float *)G_SCROLL_SPEED + 0.5f, maxv = *(float *)G_SCROLL_SETTING + 0.5f;
+    float speed = *(float *)GA(G_SCROLL_SPEED) + 0.5f, maxv = *(float *)GA(G_SCROLL_SETTING) + 0.5f;
     float dx = 0, dy = 0;
     if (!g_scroll_aoc) {   // EE: constant speed, as 0x4050FC
         float step = speed * maxv * ms * 0.01f;
@@ -83,7 +77,7 @@ static void __fastcall hook_scroll_execute(uint8_t *self, void *edx) {
         if (self[0x44] || self[0x45]) { scroll_axis(&g_vel_x, self[0x44], self[0x45], minv, maxv, ramp); dx = g_vel_x * scale; }
         if (self[0x47] || self[0x46]) { scroll_axis(&g_vel_y, self[0x47], self[0x46], minv, maxv, ramp); dy = g_vel_y * scale; }
     }
-    if (dx != 0 || dy != 0) ((void (__thiscall *)(void *, float, float))FN_CAMERA_MOVE)((void *)G_CAMERA, dx, dy);
+    if (dx != 0 || dy != 0) GF(FN_CAMERA_MOVE)((void *)GA(G_CAMERA), dx, dy);
 }
 
 static void camera_install(const char *aimod_ini, const char *autotest_ini) {
@@ -97,8 +91,8 @@ static void camera_install(const char *aimod_ini, const char *autotest_ini) {
     g_cam_smooth = ini_int("camera", "smooth", 1, aimod_ini);
     if (autotest_ini) g_cam_smooth = ini_int("autotest", "camera_smooth", g_cam_smooth, autotest_ini);
     if (!g_scroll_aoc && !g_cam_smooth) return;   // ee without smoothing: leave the game untouched
-    int ok = patch_vtable(VT_SCROLL, 1, FN_SCROLL_EXECUTE, hook_scroll_execute);
-    uint8_t *p = (uint8_t *)SITE_SCROLL_TIMER;
+    int ok = patch_vtable(GA(VT_SCROLL), 1, GA(FN_SCROLL_EXECUTE), hook_scroll_execute);
+    uint8_t *p = (uint8_t *)GA(SITE_SCROLL_TIMER);
     if (p[-1] == 0x6A && p[0] == 0x19) {   // push 0x19 -> 10 ms ticks like AoC, 1 ms with fine scrolling
         DWORD old;
         VirtualProtect(p, 1, PAGE_EXECUTE_READWRITE, &old);
@@ -123,7 +117,7 @@ static void camtrace_frame(void) {   // the render thread, every presented frame
     LARGE_INTEGER now, f;
     QueryPerformanceCounter(&now);
     QueryPerformanceFrequency(&f);
-    uint8_t *cam = (uint8_t *)G_CAMERA;
+    uint8_t *cam = (uint8_t *)GA(G_CAMERA);
     float x = FIELD(cam, 0x78, float), y = FIELD(cam, 0x7C, float);
     if (g_ct_n < CT_MAX && g_ct_last.QuadPart) {
         g_ct[g_ct_n].dt = (float)((double)(now.QuadPart - g_ct_last.QuadPart) * 1000.0 / (double)f.QuadPart);
@@ -155,10 +149,10 @@ static void cmd_scrolltest(char *out, const char *args) {
     int n = 10;
     sscanf(args, "%15s %d", dir, &n);
     uint8_t obj[0x50] = { 0 };
-    *(uint32_t *)obj = VT_SCROLL;
+    *(uint32_t *)obj = GA(VT_SCROLL);
     *(unsigned *)(obj + 0x40) = 1;
     obj[0x44] = dir[0] == 'l'; obj[0x45] = dir[0] == 'r'; obj[0x46] = dir[0] == 'd'; obj[0x47] = dir[0] == 'u';
-    uint8_t *cam = (uint8_t *)G_CAMERA;
+    uint8_t *cam = (uint8_t *)GA(G_CAMERA);
     float x0 = FIELD(cam, 0x78, float), y0 = FIELD(cam, 0x7C, float);
     REPLY("mode %s, start %.2f,%.2f\n", g_scroll_aoc ? "aoc" : "ee", x0, y0);
     for (int i = 0; i < n && i < 200; i++) {

@@ -211,7 +211,7 @@ struct nv_bld { int x[16][64], y[16][64], n[16]; };
 static void navy_detect(void *pl, unsigned idx, uint32_t now) {
     static struct nv_bld b;
     void *cm = FIELD(pl, 0xB90, void *);
-    uint8_t *bm = cm ? FIELD(cm, 0x3C, uint8_t *) : NULL, *map = *(uint8_t **)G_MAP;
+    uint8_t *bm = cm ? FIELD(cm, 0x3C, uint8_t *) : NULL, *map = *(uint8_t **)GA(G_MAP);
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     unsigned hc = bm ? area_id(FIELD(bm, 0x12C, int), FIELD(bm, 0x130, int), 2) : 0;
     if (!hc || !grid) return;
@@ -242,7 +242,7 @@ static void navy_detect(void *pl, unsigned idx, uint32_t now) {
     m->strength = enemies ? (float)across / enemies : 0.0f;
     m->water = all ? (float)sea / all : 0.0f;
     m->kind = !enemies || !across ? NV_LAND : across == enemies ? NV_ISLANDS : NV_MIXED;
-    uint8_t *w = *(uint8_t **)0x009183BC;
+    uint8_t *w = *(uint8_t **)GA(G_MAP);
     if (g_log) fprintf(g_log, "# navy: P%u map at %.1f min: %s (strength %.2f) - %d of %d enemies across the water, water %.0f%% of the map, "
                        "home continent %u; the game's water flag %d, +0xEFA %d\n", idx, now / 60000.0,
                        m->kind == NV_ISLANDS ? "islands" : m->kind == NV_MIXED ? "mixed" : "land", m->strength, across, enemies,
@@ -360,7 +360,7 @@ static void navy_nodes(void *pl, unsigned idx, uint32_t now) {
     static uint8_t *seen[512];
     int ns = 0, bd[7];
     for (int r = 0; r < 7; r++) bd[r] = 0x7FFFFFFF;
-    unsigned cap = ((unsigned (__thiscall *)(void *, int))FN_TABLE_VALUE)((void *)0x917BB0, 0x16);
+    unsigned cap = GF(FN_TABLE_VALUE)((void *)GA(G_TABLE_VALUES), 0x16);
     drops_cached(pl);
     unsigned pi = idx & 15;
     void **tb = FIELD(pl, 0xB50, void **), **te = FIELD(pl, 0xB54, void **);
@@ -376,7 +376,7 @@ static void navy_nodes(void *pl, unsigned idx, uint32_t now) {
             if (ns < 512) seen[ns++] = s;
             int x = FIELD(s, 0x1C, int), y = FIELD(s, 0x20, int);
             if (area_id(x, y, 2) != hc) { c->other[r]++; continue; }
-            unsigned g = ((unsigned (__thiscall *)(void *, void *))FN_SITE_GATHERERS)((void *)0x918300, s);
+            unsigned g = GF(FN_SITE_GATHERERS)((void *)GA(G_GAME_STATE), s);
             int dd = 0x7FFFFFFF;
             for (int i = 0; i < g_drops[pi].n; i++) {
                 int *d = g_drops[pi].d[i], dx = d[0] - x, dy = d[1] - y;
@@ -387,7 +387,7 @@ static void navy_nodes(void *pl, unsigned idx, uint32_t now) {
             else {
                 c->remote[r]++;
                 // the unworked far one nearest to a drop site: where a Settlement would claim it (navy_claim)
-                if (!g && dd < bd[r] && ((char (__thiscall *)(void *, void *))FN_EXPLORED)(FIELD(s, 0x14, void *), pl)) { bd[r] = dd; c->free_far[r] = s; c->fx[r] = x; c->fy[r] = y; }
+                if (!g && dd < bd[r] && GF(FN_EXPLORED)(FIELD(s, 0x14, void *), pl)) { bd[r] = dd; c->free_far[r] = s; c->fx[r] = x; c->fy[r] = y; }
             }
         }
     }
@@ -551,7 +551,7 @@ static int8_t g_nv_role[G_TYPES_N];   // role + 1 per type (0: not worked out ye
 static int g_nv_nc, g_nv_nk;          // the hit table's size: categories, weapon kinds (cmd_navy's count)
 static uint64_t g_nv_aircat;          // the categories of aircraft (families 3, 7, 17)
 static float nv_f(int kind, int cat) {   // the hit factor [cat][kind]; 0 outside the table
-    uint8_t *tb = *(uint8_t **)0x008D200C;
+    uint8_t *tb = *(uint8_t **)GA(G_HIT_TABLE);
     if (!g_nv_nk) {
         for (int t = 0; t < G_TYPES_N; t++) {
             uint8_t *td = type_data(t);
@@ -783,9 +783,9 @@ static void navy_docks(void *pl, unsigned idx, uint32_t now) {
     }
     void *cm = FIELD(pl, 0xB90, void *);
     uint8_t *bm = cm ? FIELD(cm, 0x3C, uint8_t *) : NULL;
-    if (!bm || !ut_has(UT(B_DOCK)) || w->docks >= want || w->docks_built < w->docks || ((char (__thiscall *)(void *, int))0x00465640)(bm, UT(B_DOCK))) return;
-    if (!((char (__thiscall *)(void *, int, int, int))0x00555710)(pl, UT(B_DOCK), 0x20, 0)) return;
-    ((void (__thiscall *)(void *, int, int, int))0x0046802D)(bm, UT(B_DOCK), 1, 0);
+    if (!bm || !ut_has(UT(B_DOCK)) || w->docks >= want || w->docks_built < w->docks || GF(FN_BM_QUEUED)(bm, UT(B_DOCK))) return;
+    if (!GF(FN_CAN_BUILD)(pl, UT(B_DOCK), 0x20, 0)) return;
+    GF(FN_BM_REQUEST)(bm, UT(B_DOCK), 1, 0);
     o->docks_asked++;
     if (g_log) fprintf(g_log, "# navy: P%u at %.1f min: docks %d of %d - one more requested\n", idx, now / 60000.0, w->docks, want);
 }
@@ -798,11 +798,10 @@ static void navy_docks(void *pl, unsigned idx, uint32_t now) {
 // 0x48FB05 orders one when none of that type exists or is in production) get the newest fishing boat (family 22,
 // highest tech) the player has available by its tech record's own test (landing.c ld_type_avail: an upgraded line's
 // old type is not available any more), every epoch; none available: the game's pick.
-#define FN_FISH_TYPE 0x0046D209
 static int g_fish_boat = 1;
 static int __fastcall hook_fish_type(void *o, void *edx) {
     (void)edx;
-    int t = ((int (__thiscall *)(void *))FN_FISH_TYPE)(o);
+    int t = GF(FN_FISH_TYPE)(o);
     void *pl = o ? FIELD(o, 0x4C, void *) : NULL;
     if (!g_fish_boat || !pl || !FIELD(pl, PL_TECHTREE, void *) || is_vanilla(pl)) return t;
     int best = 0, bt = 0;
@@ -819,7 +818,7 @@ static int __fastcall hook_fish_type(void *o, void *edx) {
 }
 static void navy_install(const char *aimod_ini, const char *autotest_ini) {
     g_fish_boat = cfg_int(aimod_ini, autotest_ini, 1, "fishing_boat", 1);
-    int ok = g_fish_boat ? patch_call(0x0048F823, FN_FISH_TYPE, (void *)hook_fish_type) + patch_call(0x0048FB16, FN_FISH_TYPE, (void *)hook_fish_type) : 0;
+    int ok = g_fish_boat ? patch_call(GA(CALL_FISH_TYPE_1), GA(FN_FISH_TYPE), (void *)hook_fish_type) + patch_call(GA(CALL_FISH_TYPE_2), GA(FN_FISH_TYPE), (void *)hook_fish_type) : 0;
     if (g_log) fprintf(g_log, "# fishing: boat choice %s (hooks %d/2)\n", g_fish_boat ? "newest available" : "the game's", ok);
     g_navy = cfg_int(aimod_ini, autotest_ini, 1, "navy", 1);
     g_navy_share = cfg_pct(aimod_ini, autotest_ini, 1, "navy_share", 25, 100);
@@ -881,7 +880,7 @@ static void cmd_navy(char *out, const char *args) {
                   FIELD(td, 0x424, float), FIELD(td, 0x50C, int), FIELD(td, 0x4E0, int));
             if (naval && pl) {
                 REPLY(" cost %d %d %d %d %d", unit_cost(pl, t, 2), unit_cost(pl, t, 3), unit_cost(pl, t, 4), unit_cost(pl, t, 5), unit_cost(pl, t, 6));
-                uint8_t **rec = ((uint8_t **(__thiscall *)(void *, int))0x00492969)((uint8_t *)pl + 0x874, t);
+                uint8_t **rec = GF(FN_TYPE_STATS)((uint8_t *)pl + 0x874, t);
                 uint8_t *r = rec ? *rec : NULL;
                 if (r) {
                     REPLY(" | hp %d att %.1f rng %.1f spd %.2f arm", FIELD(r, 0x144, int), FIELD(r, 0xD8, float), FIELD(r, 0x9C, float), FIELD(r, 0xAC, float));
@@ -901,9 +900,9 @@ static void cmd_navy(char *out, const char *args) {
             if (c >= 0 && c < 64 && c >= nc) nc = c + 1;
             if (k >= 0 && k < 64 && k >= nk) nk = k + 1;
         }
-        REPLY("categories %d kinds %d; tables 8D200C %p 8D2008 %p 8D2010 %p mode %d\n", nc, nk, *(void **)0x008D200C,
-              *(void **)0x008D2008, *(void **)0x008D2010, *(int *)0x00918808);
-        uint8_t *tb = *(uint8_t **)0x008D200C;
+        REPLY("categories %d kinds %d; tables 8D200C %p 8D2008 %p 8D2010 %p mode %d\n", nc, nk, *(void **)GA(G_HIT_TABLE),
+              *(void **)GA(G_HIT_TABLE_A), *(void **)GA(G_HIT_TABLE_B), *(int *)GA(G_GAME_MODE));
+        uint8_t *tb = *(uint8_t **)GA(G_HIT_TABLE);
         for (int c = 0; tb && c < nc; c++) {
             float *row = FIELD(tb, c * 4, float *);
             REPLY("c%d:", c);
@@ -911,7 +910,7 @@ static void cmd_navy(char *out, const char *args) {
             REPLY("\n");
         }
         REPLY("class table 8D2050 [attacker + target x 6]:");
-        for (int k = 0; k < 36; k++) REPLY(" %g", ((float *)0x008D2050)[k]);
+        for (int k = 0; k < 36; k++) REPLY(" %g", ((float *)GA(G_DAMAGE_TABLE))[k]);
         REPLY("\n");
         return;
     }

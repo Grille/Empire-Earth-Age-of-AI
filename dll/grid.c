@@ -22,7 +22,7 @@ struct grid_it {
 };
 static struct grid_it grid_it_area(int x0, int y0, int x1, int y1, int once) {   // cells x0..x1, y0..y1 (clamped)
     struct grid_it it = { 0 };
-    uint8_t *map = *(uint8_t **)G_MAP;
+    uint8_t *map = *(uint8_t **)GA(G_MAP);
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     it.gx = 1; it.x1 = 0;   // nothing unless set below
     if (!grid) return it;
@@ -42,7 +42,7 @@ static struct grid_it grid_it_area(int x0, int y0, int x1, int y1, int once) {  
 // the cells covering tiles x-r..x+r, y-r..y+r. C division truncates toward 0: (x - r) / cs is cell 0 for -1..-(cs-1)
 // as well, below that negative and left out by the clamp - as the hand-written loops' `cx < 0` test did
 static struct grid_it grid_it_box(int x, int y, int r, int once) {
-    uint8_t *map = *(uint8_t **)G_MAP;
+    uint8_t *map = *(uint8_t **)GA(G_MAP);
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     int cs = grid ? FIELD(grid, 8, int) : 0;
     if (cs <= 0) return grid_it_area(1, 1, 0, 0, once);

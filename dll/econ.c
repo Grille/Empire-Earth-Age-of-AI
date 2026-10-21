@@ -14,8 +14,6 @@
 // - Citizens are only trained while the existing ones have work: no new citizens while the idle ones plus
 //   those beyond their resource's target (e.g. 36 on wood with a target of 3) exceed a small slack.
 
-#define FN_TRAIN_UNITS 0x0049014F
-static const uintptr_t k_train_sites[] = { 0x46cce6, 0x490cac, 0x490e12, 0x490f1f, 0x490fa9 };
 // per-difficulty switches and military shares: settings.c (cfg_of)
 static int g_citizen_slack = 9999;   // idle-citizen check: off by default (stalled growth in tests)
 static int g_hoard_cap = 3000;   // stock above reserve + this is free for military too, aimod.ini [budget] hoard_cap
@@ -116,8 +114,6 @@ static void home_guard(void *pl, unsigned idx, uint32_t now);
 static void muster(void *pl, unsigned idx, uint32_t now);       // defence.c: gather, then strike
 static void diplo_tick(void *pl, unsigned ai, uint32_t now);
 static void persona_attack_launched(unsigned ai);   // persona.c
-#define CALL_PLACE 0x00468629
-#define FN_PLACE   0x0046580A
 static int g_build_fix = 1;
 static struct { int type; unsigned tries, fails, dropped, streak; } g_place[16][64];   // every type the build lists hold
 static int field_place_ok(uint8_t *bm, int x, int y, int lay_out);   // below, with the farm fields
@@ -145,11 +141,11 @@ static char __fastcall hook_place(uint8_t *bm, void *edx, int type, int x, int y
     void *owner = FIELD(bm, 0x138, void *);
     // a field without foundation would crash (see there) - the guard alone for a vanilla player (nothing laid out)
     if (type == UT(B_FARM) && !field_place_ok(bm, x, y, !is_vanilla(owner))) return 1;
-    if (is_vanilla(owner)) return ((char (__thiscall *)(void *, int, int, int))FN_PLACE)(bm, type, x, y);
+    if (is_vanilla(owner)) return GF(FN_PLACE)(bm, type, x, y);
     int place_as = g_build_fix && type == UT(X_SINGLE_PLAYER_SETTLEMENT) && ut_has(UT(B_SETTLEMENT)) ? UT(B_SETTLEMENT) : type;
     place_as = upgraded_type(FIELD(bm, 0x138, void *), place_as);   // queued before its upgrade: the new type
     if (!x && !y) defence_spot(FIELD(bm, 0x138, void *), type, &x, &y);   // towers: where the defence plan wants them
-    char ok = ((char (__thiscall *)(void *, int, int, int))FN_PLACE)(bm, place_as, x, y);
+    char ok = GF(FN_PLACE)(bm, place_as, x, y);
     void *pl = FIELD(bm, 0x138, void *);
     unsigned idx = pl ? (unsigned)FIELD(pl, PL_INDEX, int) & 15 : 0;
     int k = 0;
@@ -189,7 +185,6 @@ static void place_log(unsigned idx, uint32_t now) {
 // with the planner's 0x485F57 (requests the building if missing, adds the cost to the demand) and taken out of the
 // pool. Gathering effect: type 2 (+0x20), attribute +0x2C 0x1A..0x21 (wood, gold, stone, iron, ...), applied to
 // citizens (+0x14 = 32/480) or to all (-1) - the planner's own test misses the -1 ones, which most of these are.
-#define FN_RS_SCHEDULE 0x00485F57
 static int workforce(void *pl);
 static int g_gather_research = 1;
 static unsigned g_researched[16];
@@ -197,11 +192,11 @@ static int is_gather_tech(uint8_t *tech) {
     uint8_t *d = FIELD(tech, 8, uint8_t *);
     int ei = d ? FIELD(d, 0x50, int) : -1;
     if (ei < 0 || ei > 0x5DC) return 0;
-    uint8_t *list = (uint8_t *)0x0093B1B8 + ei * 0x10;
+    uint8_t *list = (uint8_t *)GA(G_EPOCH_TECHS) + ei * 0x10;
     unsigned n = FIELD(list, 8, unsigned), *ids = FIELD(list, 4, unsigned *);
     for (unsigned k = 0; ids && k < n && k < 64; k++) {
         if (ids[k] >= 2000) continue;
-        uint8_t *ef = (uint8_t *)0x00919E70 + ids[k] * 0x44;
+        uint8_t *ef = (uint8_t *)GA(G_EFFECTS) + ids[k] * 0x44;
         int a = FIELD(ef, 0x2C, int), on = FIELD(ef, 0x14, int);
         if (FIELD(ef, 0x20, int) == 2 && (on == UT(CITIZEN) || on == UT(FEMALE_CITIZEN) || on == -1) && a >= 0x1A && a <= 0x21 && a != 0x1E) return 1;
     }
@@ -216,12 +211,12 @@ static void gather_research(void *pl, unsigned idx, uint32_t now) {
     if (!rs || !tt || workforce(pl) < 10) return;
     int *b = FIELD(rs, 8, int *), *e = FIELD(rs, 0xC, int *);
     for (int *q = b; b && q < e && e - b < 500; q++) {
-        uint8_t *t = ((uint8_t *(__thiscall *)(void *, int))0x004019A1)(tt, *q);   // FN_TECH_LOOKUP
+        uint8_t *t = GF(FN_TECH_LOOKUP)(tt, *q);   // FN_TECH_LOOKUP
         if (!t || t[4] || !t[6] || !is_gather_tech(t)) continue;
         int id = *q;
         memmove(q, q + 1, (size_t)(e - q - 1) * sizeof *q);   // out of the pool, as the planner does
         FIELD(rs, 0xC, int *) = e - 1;
-        ((void (__thiscall *)(void *, int))FN_RS_SCHEDULE)(rs, id);
+        GF(FN_RS_SCHEDULE)(rs, id);
         g_researched[idx]++;
         if (g_log) fprintf(g_log, "# research: P%u schedules gathering tech %d at %.1f min\n", idx, id, now / 60000.0);
         return;
@@ -244,12 +239,12 @@ static void __fastcall hook_epoch_upgrades(uint8_t *node, void *edx, int cat) {
     // the game's own player array, not g_players: back in the scenario editor after a test run the editor sets the
     // computer players' epochs again (here) while g_players still held the test run's deleted players - the game
     // crashed reading one (eeaimod.dll+5e188)
-    unsigned np = *(unsigned *)0x009183CC;
-    void *pl = pi > 0 && pi < 16 && (unsigned)pi < np ? ((void **)0x00918374)[pi] : NULL;
+    unsigned np = *(unsigned *)GA(G_PLAYERS_N);
+    void *pl = pi > 0 && pi < 16 && (unsigned)pi < np ? ((void **)GA(G_PLAYERS))[pi] : NULL;
     if (pl && (FIELD(pl, PL_INDEX, int) & 15) != pi) pl = NULL;
     void *cm = pl ? FIELD(pl, 0xB90, void *) : NULL;
     uint8_t *rs = cm ? FIELD(cm, 0x40, uint8_t *) : NULL;
-    if (!g_paid_upgrades || !rs || cat != 7 || is_vanilla(pl)) { ((void (__thiscall *)(void *, int))0x005BDDBD)(node, cat); return; }
+    if (!g_paid_upgrades || !rs || cat != 7 || is_vanilla(pl)) { GF(FN_EPOCH_UPGRADES)(node, cat); return; }
     uint8_t *v = FIELD(node, 0x24, uint8_t *), *ve = FIELD(node, 0x28, uint8_t *);
     char ids[256] = "";
     int n = 0;
@@ -258,7 +253,7 @@ static void __fastcall hook_epoch_upgrades(uint8_t *node, void *edx, int cat) {
         if (!d || FIELD(d, 0x48, int) != 7 || c[4]) continue;
         int id = FIELD(d, 0x4C, int);
         if (ap_upgrade_later(pl, d)) continue;   // army.c army_plan UPGRADE: a line it doesn't use yet
-        ((void (__thiscall *)(void *, int))FN_RS_SCHEDULE)(rs, id);
+        GF(FN_RS_SCHEDULE)(rs, id);
         size_t l = strlen(ids);
         if (l < sizeof ids - 8) snprintf(ids + l, sizeof ids - l, " %d", id);
         n++;
@@ -294,11 +289,10 @@ static void attention_note(void *pl, unsigned idx, uint32_t now) {
 
 // Free research (diagnostic, with tech_log): EETechTreeNode::vf6 0x5BF335 (vtable slot 0x830874) marks a tech
 // researched and applies it without any payment; logged with its caller.
-#define FN_TECH_GRANT 0x005BF335
 static int __fastcall hook_tech_grant(uint8_t *node, void *edx) {
     (void)edx;
     uint8_t before = node[4];
-    int r = ((int (__thiscall *)(void *))FN_TECH_GRANT)(node);
+    int r = GF(FN_TECH_GRANT)(node);
     if (g_log && !before && node[4]) {
         uint8_t *d = FIELD(node, 8, uint8_t *), *owner = FIELD(node, 0xC, uint8_t *);
         uintptr_t *fp = (uintptr_t *)__builtin_frame_address(0);
@@ -307,7 +301,7 @@ static int __fastcall hook_tech_grant(uint8_t *node, void *edx) {
                 (unsigned)(uintptr_t)__builtin_return_address(0));
         for (int k = 0; k < 64; k++) {   // return addresses into the exe on the stack
             uintptr_t v = fp[k];
-            if (v > 0x401000 && v < 0x700000) fprintf(g_log, " %06x", (unsigned)v);
+            if (v >= g_code_lo && v < g_code_hi) fprintf(g_log, " %06x", (unsigned)v);
         }
         fputc(10, g_log);
     }
@@ -329,7 +323,7 @@ static void tech_log_tick(void *pl, unsigned idx, uint32_t now) {
     char buf[1024];
     int o = 0, n = 0, cost[7] = { 0 };
     for (int id = 0; id < 16384; id++) {
-        uint8_t *t = ((uint8_t *(__thiscall *)(void *, int))0x004019A1)(tt, id);
+        uint8_t *t = GF(FN_TECH_LOOKUP)(tt, id);
         int done = t && t[4];
         if (done && !seen[idx][id]) {
             uint8_t *d = FIELD(t, 8, uint8_t *);
@@ -383,13 +377,11 @@ static void gather_log(void *pl, unsigned idx, uint32_t now) {
     LeaveCriticalSection(&g_lock);
 }
 
-#define VT_COMPUTER_PLAYER 0x008264C0
-#define FN_CP_PAY 0x0043F53D   // EEComputerPlayer::vf45(cost object, ?, ?): pays a unit/building/tech
 static void __fastcall hook_pay(void *pl, void *edx, void *what, int b, int c) {
     (void)edx;
     int *stock = (int *)((uint8_t *)pl + PL_STOCK), before[7];
     memcpy(before, stock, sizeof before);
-    ((void (__thiscall *)(void *, void *, int, int))FN_CP_PAY)(pl, what, b, c);
+    GF(FN_CP_PAY)(pl, what, b, c);
     uintptr_t site = (uintptr_t)__builtin_return_address(0);
     for (int r = 2; r < 7; r++)
         if (before[r] > stock[r]) spend_note((unsigned)FIELD(pl, PL_INDEX, int) & 15, r, before[r] - stock[r], site);
@@ -405,13 +397,12 @@ static void navy_paid(unsigned idx, int type, const int *spent, int got);
 static int navy_room_reserve(void *pl);
 static int navy_pick(void *pl, unsigned idx, int asked);
 static void navy_pick_done(void *pl, unsigned idx, int pick, int asked, const int *before, const int *stock, int blocked);
-#define FN_CP_ADD_RESOURCE 0x0042F783   // EEComputerPlayer::vf18(type, amount)
 #define FARM_EPOCH 2   // farms and granaries come with epoch 2, the Copper Age
 static int current_epoch(void *pl);
 static int epoch_cost(void *pl, int e, int r);
 static void __fastcall hook_add_resource(void *pl, void *edx, int type, int amount) {
     (void)edx;
-    ((void (__thiscall *)(void *, int, int))FN_CP_ADD_RESOURCE)(pl, type, amount);
+    GF(FN_CP_ADD_RESOURCE)(pl, type, amount);
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     if (amount > 0 && type >= 2 && type < 7 && g_bud[idx].init && !is_vanilla(pl)) {
         g_bud[idx].income[type] += amount;
@@ -444,12 +435,10 @@ static void __fastcall hook_add_resource(void *pl, void *edx, int type, int amou
 // limit) / 3 (dbcpbehavior records 92/93), times the difficulty's factor (record 98: 70 / 90 / 140%) - so the AI grows
 // with the human and doesn't flood him with units; Ignorieren (+0xF02) or game setting 0x9187FC = 4 give it the game
 // limit. pop_follow_human=0: the game limit (EEPlayer vf31 0x556EBC, as for a player) for every AI.
-#define FN_POP_CAP     0x0042F7A5   // thiscall(player), called at 0x4311E5, 0x43FA9B, 0x474AF0
-#define FN_GAME_LIMIT  0x00556EBC   // EEPlayer::vf31 thiscall(player, 0): the game's unit limit for this player
 static void __fastcall hook_pop_cap(void *pl, void *edx) {
     (void)edx;
-    ((void (__thiscall *)(void *))FN_POP_CAP)(pl);
-    if (!cfg_of(pl)->pop_follow && !is_vanilla(pl)) FIELD(pl, 0xCCC, int) = ((int (__thiscall *)(void *, int))FN_GAME_LIMIT)(pl, 0);
+    GF(FN_POP_CAP)(pl);
+    if (!cfg_of(pl)->pop_follow && !is_vanilla(pl)) FIELD(pl, 0xCCC, int) = GF(FN_GAME_LIMIT)(pl, 0);
 }
 
 static int is_citizen_type(int type) { return ut_role(type, UTR_CITIZEN); }
@@ -507,7 +496,7 @@ static int workforce(void *pl) {
 
 static uint8_t *epoch_tech(void *pl, int e) {
     uint8_t *tt = FIELD(pl, PL_TECHTREE, uint8_t *);
-    if (!tt || e > 13 || e > *(int *)0x009187F4) return NULL;
+    if (!tt || e > 13 || e > *(int *)GA(G_END_EPOCH)) return NULL;
     return FIELD(tt + 8 + e * 0x54, 8, uint8_t *);
 }
 static int epoch_cost(void *pl, int e, int r) {
@@ -538,7 +527,7 @@ static int requirements_missing(void *pl) {
     uint8_t *tt = FIELD(pl, PL_TECHTREE, uint8_t *);
     if (!tt) return 0;
     int next = FIELD(tt, TT_EPOCH, int) + 1;
-    if (next > 13 || next > *(int *)0x009187F4) return 0;
+    if (next > 13 || next > *(int *)GA(G_END_EPOCH)) return 0;
     uint8_t *rec = tt + 8 + next * 0x54;
     return FIELD(rec, 0x40, int) - FIELD(rec, 0x48, int);
 }
@@ -546,7 +535,7 @@ static int requirements_missing(void *pl) {
 static int requirement_unit(void *pl, int type) {
     uint8_t *tt = FIELD(pl, PL_TECHTREE, uint8_t *), *od = type_data(type);
     if (!g_early_requirements || !tt || !od || requirements_missing(pl) < 1) return 0;
-    uint8_t *t = ((uint8_t *(__thiscall *)(void *, int))0x004019A1)(tt, FIELD(od, 0x4E0, int));
+    uint8_t *t = GF(FN_TECH_LOOKUP)(tt, FIELD(od, 0x4E0, int));
     uint8_t *d = t ? FIELD(t, 8, uint8_t *) : NULL;
     return d && !t[4] && d[0x7D];
 }
@@ -567,7 +556,7 @@ static void decoration_fix(void *pl, unsigned ai) {
         uint8_t *od = type_data(type);
         const char *name = od ? FIELD(od, 0x1C, const char *) : NULL;
         if (!name || name[0] != 'x' || name[1] != ' ') continue;
-        uint8_t *t = ((uint8_t *(__thiscall *)(void *, int))0x004019A1)(tt, FIELD(od, 0x4E0, int));
+        uint8_t *t = GF(FN_TECH_LOOKUP)(tt, FIELD(od, 0x4E0, int));
         uint8_t *d = t ? FIELD(t, 8, uint8_t *) : NULL;
         if (d && d[0x7D]) { d[0x7D] = 0; n++; }
     }
@@ -590,7 +579,7 @@ static void early_requirements(void *pl, unsigned ai, uint32_t now, int prefarm)
         if (asked[ai] && missing < asked_missing[ai]) { asked[ai] = g_epoch_req_t[ai] = now ? now : 1; asked_missing[ai] = missing; return; }
     }
     if (!prefarm && (int)(FIELD(cm, 0x58, uint32_t) - now) > 10 * 60000) return;
-    ((void (__thiscall *)(void *, int))0x004860D6)(FIELD(cm, 0x40, void *), missing);
+    GF(FN_REQUEST_TECHS)(FIELD(cm, 0x40, void *), missing);
     cm[0x76] = 1;
     asked[ai] = g_epoch_req_t[ai] = now ? now : 1;
     asked_missing[ai] = missing;
@@ -612,12 +601,12 @@ static void retry_dropped(void *pl, unsigned idx, uint32_t now) {
         int type = g_retry[idx][k].type;
         if (!type || now < g_retry[idx][k].next) continue;
         type = upgraded_type(pl, type);
-        uint8_t *dq = ((uint8_t *(__thiscall *)(void *, int))0x0048F8AF)(um, type);
+        uint8_t *dq = GF(FN_UM_TYPE_LIST)(um, type);
         if (dq && FIELD(dq, 0x10, int) > 0) { g_retry[idx][k].type = 0; continue; }   // it has one now
         int pay = 1;
         for (int r = 2; r < 7; r++) if (unit_cost(pl, type, r) > stock[r]) pay = 0;
         if (!pay) { g_retry[idx][k].next = now + 30000; continue; }
-        char ok = ((char (__thiscall *)(void *, int, int, int))FN_PLACE)(bm, type, 0, 0);
+        char ok = GF(FN_PLACE)(bm, type, 0, 0);
         int give_up = !ok && ++g_retry[idx][k].tries >= 5;
         if (g_log) fprintf(g_log, "# place: P%u at %.1f min: dropped type %d tried again - %s\n", idx, now / 60000.0, type,
                            ok ? "placed" : give_up ? "failed, given up" : "failed");
@@ -723,7 +712,7 @@ static void econ_tick(void *pl, uint32_t now) {
         uint8_t *rs = FIELD(cm, 0x40, uint8_t *);
         int *b = rs ? FIELD(rs, 0x18 + ep * 0x10, int *) : NULL, *en = rs ? FIELD(rs, 0x1C + ep * 0x10, int *) : NULL;
         for (int *q = b; b && en > b && en - b < 100 && q < en; q++) {
-            uint8_t *t = ((uint8_t *(__thiscall *)(void *, int))0x004019A1)(tt, *q), *d = t ? FIELD(t, 8, uint8_t *) : NULL;
+            uint8_t *t = GF(FN_TECH_LOOKUP)(tt, *q), *d = t ? FIELD(t, 8, uint8_t *) : NULL;
             if (d) fprintf(g_log, " %d%s@%d(%d/%d/%d/%d/%d)", *q, t[4] ? "*" : "", FIELD(d, 0x6C, int), FIELD(d, 0x24, int),
                            FIELD(d, 0x28, int), FIELD(d, 0x2C, int), FIELD(d, 0x30, int), FIELD(d, 0x34, int));
         }
@@ -744,11 +733,11 @@ static int wild_food(void *pl) {
     int lim = g_site_max_dist * g_site_max_dist, total = 0;
     void **zb = FIELD(pl, 0xB50, void **), **ze = FIELD(pl, 0xB54, void **);
     for (int z = 0; zb && zb + z < ze; z++) {
-        uint8_t *s = zb[z] ? ((uint8_t *(__thiscall *)(void *, int))FN_ZONE_SITE)(zb[z], 2) : NULL;
+        uint8_t *s = zb[z] ? GF(FN_ZONE_SITE)(zb[z], 2) : NULL;
         if (!s || FIELD(FIELD(s, 0x2C, uint8_t *), 0x4B8, int) != UT(RES_FORAGE_BUSH)) continue;
         int dx = FIELD(s, 0x1C, int) - bx, dy = FIELD(s, 0x20, int) - by;
         if (dx * dx + dy * dy >= lim) continue;
-        if (!((char (__thiscall *)(void *, void *))FN_EXPLORED)(FIELD(s, 0x14, void *), pl)) continue;
+        if (!GF(FN_EXPLORED)(FIELD(s, 0x14, void *), pl)) continue;
         total += FIELD(s, 0x40, int);
     }
     return total;
@@ -982,7 +971,6 @@ static void econ_targets(uint8_t *rm) {
 // the resource with the largest surplus to a stone/gold/iron mine that is short, with the game's own site search
 // (0x48C204: free slot, explored, no enemy near, the citizen's continent) and assignment (0x48C81C: new gather
 // target, moves the citizen between the resource lists). Hysteresis: the targets jump with demand every 5 s.
-#define FN_ASSIGN_TO_SITE 0x0048C81C
 static int g_rebalance = 1;   // aimod.ini [all] rebalance_workers
 static unsigned g_moved[16][7];
 static int rm_count(uint8_t *rm, int t) { return FIELD(rm, RM_LISTS + t * 0x14 + 0x10, int); }
@@ -1016,10 +1004,6 @@ static uint8_t *movable_gatherer(uint8_t *rm, int t) {
 // - lost fields are laid out again (fields_rebuild). Fishing goes on as before.
 // None of it with enemy soldiers within 6 tiles (raiders_near, attack.c): a few bowmen next to a raided field got
 // every citizen the passes sent to rebuild or farm it, one by one.
-#define FN_NEW           0x00683718   // operator new (cdecl)
-#define FN_BUILD_GOAL    0x0060BAD0   // EEUGBuildRepair constructor: thiscall(goal, player, building, 1)
-#define FN_SET_GOAL      0x005F05BD   // thiscall(unit, goal, 0, 0)
-#define FN_UNIT_SAY      0x005EFCF0   // thiscall(unit, 0x1F51) - as the assignment does after the order
 static int g_build_fields = 1;
 static int g_fields_open[16];   // unfinished fields per player (econ_fields), for the wood reserve
 static int field_wood(unsigned idx) { return g_build_fields ? 50 * (g_fields_open[idx] < 2 ? g_fields_open[idx] : 2) : 0; }
@@ -1106,7 +1090,7 @@ static void fields_rebuild(void *pl, unsigned idx, void *um, uint8_t *dq, uint32
         if (raiders_near(pl, x, y, 8)) continue;   // raided: later (builders: 8 tiles, as citizens_safety)
         g_field_at[idx][j].queued = now;
         if (!ut_has(UT(B_FARM)) || !can_place(pl, UT(B_FARM), x, y)) continue;
-        ((void *(__cdecl *)(void *, int, int, int))0x0062EF8A)(pl, UT(B_FARM), x, y);
+        GF(FN_PLACE_BUILDING)(pl, UT(B_FARM), x, y);
         queued++;
     }
     if (queued && g_log) fprintf(g_log, "# fields: P%u at %.1f min: %d lost fields laid out again\n", idx, now / 60000.0, queued);
@@ -1170,12 +1154,12 @@ static void more_granaries(void *pl, unsigned idx, uint8_t *rm, void *cm, void *
     // water maps (+0xEFA) the game's build list and plan bring none (0x46CD18 counts the fields as wanted there)
     if (want < have + (granaries ? 6 : 2)) return;
     int cap = 1 + want / 8;
-    if (!bm || !ut_has(UT(B_GRANARY)) || granaries >= (cap < 8 ? cap : 8) || ((char (__thiscall *)(void *, int))0x00465640)(bm, UT(B_GRANARY))) return;
+    if (!bm || !ut_has(UT(B_GRANARY)) || granaries >= (cap < 8 ? cap : 8) || GF(FN_BM_QUEUED)(bm, UT(B_GRANARY))) return;
     static struct { uint32_t t; int n; } req[16];
     int x, y;
     if (now < req[idx].t) req[idx].t = 0;   // a new game
     if (req[idx].t && granaries <= req[idx].n && now - req[idx].t >= 50000 && granary_spot(pl, um, &x, &y)) {
-        char ok = ((char (__thiscall *)(void *, int, int, int))FN_PLACE)(bm, UT(B_GRANARY), x, y);
+        char ok = GF(FN_PLACE)(bm, UT(B_GRANARY), x, y);
         if (g_log) fprintf(g_log, "# fields: P%u at %.1f min: the last granary request brought none - our spot %d,%d: %s\n",
                            idx, now / 60000.0, x, y, ok ? "placed" : "refused");
         req[idx].t = now ? now : 1;
@@ -1184,7 +1168,7 @@ static void more_granaries(void *pl, unsigned idx, uint8_t *rm, void *cm, void *
     }
     req[idx].t = now ? now : 1;
     req[idx].n = granaries;
-    ((void (__thiscall *)(void *, int, int, int))0x0046802D)(bm, UT(B_GRANARY), 1, 0);
+    GF(FN_BM_REQUEST)(bm, UT(B_GRANARY), 1, 0);
     if (g_log) fprintf(g_log, "# fields: P%u at %.1f min: food target %d, %d on food, %d granaries - one more requested\n",
                        idx, now / 60000.0, want, have, granaries);
 }
@@ -1203,7 +1187,7 @@ static int field_place_ok(uint8_t *bm, int x, int y, int lay_out) {
         if (f && FIELD(f, 0x3C, int) > 0 && FIELD(f, 0x1C, int) == x && FIELD(f, 0x20, int) == y) return 1;
     }
     if (!lay_out || !ut_has(UT(B_FARM)) || !can_place(pl, UT(B_FARM), x, y)) return 0;
-    ((void *(__cdecl *)(void *, int, int, int))0x0062EF8A)(pl, UT(B_FARM), x, y);
+    GF(FN_PLACE_BUILDING)(pl, UT(B_FARM), x, y);
     if (g_log) fprintf(g_log, "# fields: P%d: build list field at %d,%d - foundation laid out first\n", FIELD(pl, PL_INDEX, int), x, y);
     return 1;
 }
@@ -1267,11 +1251,11 @@ static void econ_fields(uint8_t *rm) {   // before the citizen assignment
                 }
             }
         if (!best) break;
-        void *goal = ((void *(__cdecl *)(unsigned))FN_NEW)(0x5C);
+        void *goal = GF(FN_NEW)(0x5C);
         if (!goal) break;
-        ((void (__thiscall *)(void *, void *, void *, int))FN_BUILD_GOAL)(goal, pl, todo[i], 1);
-        ((void (__thiscall *)(void *, void *, int, int))FN_SET_GOAL)(best, goal, 0, 0);
-        ((void (__thiscall *)(void *, int))FN_UNIT_SAY)(best, 0x1F51);
+        GF(FN_BUILD_GOAL)(goal, pl, todo[i], 1);
+        ((void (__thiscall *)(void *, void *, int, int))GA(FN_SET_GOAL))(best, goal, 0, 0);
+        GF(FN_UNIT_SAY)(best, 0x1F51);
         uint8_t *td = FIELD(best, 0x2C, uint8_t *);
         (*(void (__thiscall **)(void *, void *))(FIELD(td, 0, uint8_t *) + 0x74))(td, best);
         ordered++;
@@ -1296,7 +1280,7 @@ static void econ_fields(uint8_t *rm) {   // before the citizen assignment
                 }
             }
         if (!best) break;
-        ((void (__thiscall *)(void *, void *, void *, int))FN_GATHER)(rm, best, done[i], 0);
+        GF(FN_ASSIGN_TO_SITE)(rm, best, done[i], 0);
         farmers++;
     }
     if (farmers && g_log)
@@ -1329,7 +1313,7 @@ static void econ_rebalance(uint8_t *rm) {
                                 : hook_find_mine(rm, NULL, r, u, 1);   // with mine_choice: nearest to a drop site
             if (!site) break;   // no free, safe mine of this resource
             int before = rm_count(rm, r);
-            ((void (__thiscall *)(void *, void *, void *, int))FN_ASSIGN_TO_SITE)(rm, u, site, 0);
+            GF(FN_ASSIGN_TO_SITE)(rm, u, site, 0);
             if (rm_count(rm, r) == before) { dry |= 1 << d; continue; }
             g_moved[idx][r]++;
             moves++;
@@ -1368,7 +1352,7 @@ static void budget_reserve(void *pl, int reserve[7]) {
     uint8_t *cm = FIELD(pl, 0xB90, uint8_t *);
     if (!tt || !cm) return;
     int next = FIELD(tt, TT_EPOCH, int) + 1;
-    if (next > 13 || next > *(int *)0x009187F4) return;   // end epoch of this game
+    if (next > 13 || next > *(int *)GA(G_END_EPOCH)) return;   // end epoch of this game
     uint8_t *data = FIELD(tt + 8 + next * 0x54, 8, uint8_t *);
     if (!data) return;
     if (copper_mode(pl) && next <= FARM_EPOCH) {   // copper_plan=2: only the next epoch's
@@ -1400,7 +1384,7 @@ static void spend_reserve(void *pl, unsigned idx, int reserve[7], float *horizon
     uint8_t *tt = FIELD(pl, PL_TECHTREE, uint8_t *), *cm = FIELD(pl, 0xB90, uint8_t *);
     if (!tt || !cm) return;
     int ep = FIELD(tt, TT_EPOCH, int), next = ep + 1;
-    if (next > 13 || next > *(int *)0x009187F4 || !epoch_tech(pl, next)) return;
+    if (next > 13 || next > *(int *)GA(G_END_EPOCH) || !epoch_tech(pl, next)) return;
     if (copper_mode(pl) && next <= FARM_EPOCH) { budget_reserve(pl, reserve); return; }
     int remaining = (int)(FIELD(cm, 0x58, uint32_t) - game_time());
     if (remaining > 10 * 60000) return;
@@ -1449,12 +1433,11 @@ static void mil_note(void *pl, unsigned idx, const int *req, const int *visible,
 // 0x4019A1 on the player's tech tree +0x9D4; tech +8 = data, costs +0x24.. food..iron, like the epoch techs)
 // x the AdjustCost percentage (vtable slot 27 0x430FBD: only while the Cheat toggle is on; easy +0xD48 int,
 // medium +0xBB4 float, hard +0xD4C int).
-#define FN_TECH_LOOKUP 0x004019A1
 static int unit_cost(void *pl, int type, int r) {
     uint8_t *obj = type_data(type);
     uint8_t *tt = FIELD(pl, PL_TECHTREE, uint8_t *);
     if (!obj || !tt || r < 2 || r > 6) return 0;
-    uint8_t *tech = ((uint8_t *(__thiscall *)(void *, int))FN_TECH_LOOKUP)(tt, FIELD(obj, 0x4E0, int));
+    uint8_t *tech = GF(FN_TECH_LOOKUP)(tt, FIELD(obj, 0x4E0, int));
     uint8_t *data = tech ? FIELD(tech, 8, uint8_t *) : NULL;
     if (!data) return 0;
     float c = (float)FIELD(data, 0x24 + (r - 2) * 4, int);
@@ -1518,7 +1501,7 @@ static int substitute_soldier(void *pl, unsigned idx, const int *vis, int want, 
         g_cand[idx].pl = pl; g_cand[idx].t = now; g_cand[idx].n = 0;
         for (int t = 0; t < 724; t++) {   // type ids end at 723 (data/db/converteroutput.log); the table ends there
             if (!land_soldier(t) || soldier_score(t) <= 0) continue;   // no attack: never a soldier
-            uint8_t *tech = ((uint8_t *(__thiscall *)(void *, int))0x004019A1)(tt, FIELD(type_data(t), 0x4E0, int));
+            uint8_t *tech = GF(FN_TECH_LOOKUP)(tt, FIELD(type_data(t), 0x4E0, int));
             if (!tech || !tech[4]) continue;
             int n = g_cand[idx].n, k = n < 48 ? n : 47;   // insert sorted by score, strongest first
             while (k > 0 && soldier_score(g_cand[idx].type[k - 1]) < soldier_score(t)) {
@@ -1537,7 +1520,7 @@ static int substitute_soldier(void *pl, unsigned idx, const int *vis, int want, 
             int c = unit_cost(pl, t, r);
             if (c > 0) { paid = 1; if (vis[r] / c < n) n = vis[r] / c; }
         }
-        if (!paid || n <= 0 || !((char (__thiscall *)(void *, int, int, int))0x00555710)(pl, t, 0x20, 0)) continue;
+        if (!paid || n <= 0 || !GF(FN_CAN_BUILD)(pl, t, 0x20, 0)) continue;
         if (!g_sub_spare_food) { *got = n; return t; }
         // early_army: the food-free ranged soldiers first (Slinger, Simple Bowman, Javelin, Composite Bow, Long Bow ...)
         // - score x2 with a range, a quarter with a food price: the citizens keep the food while the economy grows
@@ -1667,7 +1650,7 @@ static void train_budget(void *pl, unsigned idx, const struct ai_cfg *cfg, const
     *blocked = *afford <= 0;
     if (no_army) return;
     int trainable = military && g_unit_sub && !g_priority_mil && substitutable(req[0]) &&
-                    ((char (__thiscall *)(void *, int, int, int))0x00555710)(pl, req[0], 0x20, 0);
+                    GF(FN_CAN_BUILD)(pl, req[0], 0x20, 0);
     int sub = military && g_unit_sub && !g_priority_mil && substitutable(req[0]) && (*blocked || !trainable);
     // early_army: from the second epoch, while the economy grows, a soldier with a food price is replaced by the best
     // food-free (ranged first) one the account pays for (substitute_soldier's weighting) - at once, no saving first
@@ -1698,9 +1681,9 @@ static uintptr_t train_call(void *um, void *pl, unsigned idx, int *req, uintptr_
         if (sub_type) req[0] = sub_type;
         if (afford > 0 && (afford < req[1] || sub_type)) req[1] = afford;   // the caller reads back how many via *b
         int room0 = pl ? ((int (__thiscall *)(void *, int))(*(void ***)pl)[31])(pl, 0) - FIELD(um, 0x13C, int) -
-                         ((int (__thiscall *)(void *, int, int))0x00556E11)(pl, 1, 0) : 1;
+                         GF(FN_POPULATION)(pl, 1, 0) : 1;
         int game_site = 0;
-        for (int k = 0; k < 5; k++) game_site |= k_train_sites[k] == ra;
+        for (int k = 0; k < 5; k++) game_site |= GL(TRAIN_SITES)[k] == ra;
         unsigned got0 = 0;
         if (!b) b = (uintptr_t)&got0;
         if (!game_site && (g_train_room >> idx & 1) && room0 < (req[1] > 0 ? req[1] : 1)) {   // the mod's own order: no more than the room
@@ -1713,11 +1696,11 @@ static uintptr_t train_call(void *um, void *pl, unsigned idx, int *req, uintptr_
             if (room0 - hold <= 0) { *(unsigned *)b = 0; req[1] = saved_count; req[0] = saved_type; g_am_noroom = 1; return 0; }
             req[1] = room0 - hold;
         }
-        res = ((uintptr_t (__thiscall *)(void *, int *, uintptr_t))FN_TRAIN_UNITS)(um, req, b);
+        res = GF(FN_TRAIN_UNITS)(um, req, b);
         if (room0 <= 0 && !*(unsigned *)b) g_am_noroom = 1;   // the game's own call at the cap
         if (room0 <= 0 && *(unsigned *)b) {
             int site = 5;
-            for (int k = 0; k < 5; k++) if (k_train_sites[k] == ra) site = k;
+            for (int k = 0; k < 5; k++) if (GL(TRAIN_SITES)[k] == ra) site = k;
             g_noroom[idx][site] += *(unsigned *)b;
             if (site == 5 && g_log) fprintf(g_log, "# noroom: P%u %u x type %d from the mod's call at %p (room %d)\n", idx, *(unsigned *)b, req[0], (void *)ra, room0);
         }
@@ -1759,15 +1742,15 @@ __attribute__((noinline)) static uintptr_t __fastcall hook_train_units(void *um,
     void *pl = um_owner(um);
     if (g_vanilla_mask) {   // a vanilla player's unit manager (before its first update too: the game's player array)
         void *own = pl;
-        for (unsigned i = 1, n = *(unsigned *)0x009183CC; !own && i < n && i < 16; i++) {
-            void *p = is_vanilla_idx((int)i) ? ((void **)0x00918374)[i] : NULL, *cm = p ? FIELD(p, 0xB90, void *) : NULL;
+        for (unsigned i = 1, n = *(unsigned *)GA(G_PLAYERS_N); !own && i < n && i < 16; i++) {
+            void *p = is_vanilla_idx((int)i) ? ((void **)GA(G_PLAYERS))[i] : NULL, *cm = p ? FIELD(p, 0xB90, void *) : NULL;
             if (cm && FIELD(cm, 0x44, void *) == um) own = p;
         }
         if (is_vanilla(own)) {
             unsigned vn = 0;
             uintptr_t vb = b ? b : (uintptr_t)&vn;
             int vreq0 = req[0], vreq1 = req[1];
-            uintptr_t r = ((uintptr_t (__thiscall *)(void *, int *, uintptr_t))FN_TRAIN_UNITS)(um, req, vb);
+            uintptr_t r = GF(FN_TRAIN_UNITS)(um, req, vb);
             if (own && !is_citizen_type(vreq0)) {   // army.c: the vanilla side's requests too (blocked: never)
                 int q[2] = { vreq0, vreq1 };
                 g_am_noroom = 0;
@@ -1784,7 +1767,7 @@ __attribute__((noinline)) static uintptr_t __fastcall hook_train_units(void *um,
     // the fleet mix (navy.c): a warship the game asks for at its own sites is trained as the type the mix wants; the
     // request entry (req points into the unit manager's list) gets its own type back afterwards
     int asked = req[0], pick = 0, game_site = 0;
-    for (int k = 0; k < 5; k++) game_site |= k_train_sites[k] == ra;
+    for (int k = 0; k < 5; k++) game_site |= GL(TRAIN_SITES)[k] == ra;
     if (pl && game_site && !g_priority_mil && !g_landing_order) pick = navy_pick(pl, idx, asked);
     if (pick) req[0] = pick;
     // fishing boats and the landing's transports: economy (navy.c); warships on a water map: the navy account
@@ -1826,9 +1809,9 @@ static void econ_install(const char *aimod_ini, const char *autotest_ini) {
     g_paid_upgrades = cfg_int(aimod_ini, autotest_ini, 1, "paid_upgrades", 1);
     if (autotest_ini) g_tech_log = ini_int("autotest", "tech_log", 0, autotest_ini);
     if (g_tech_log) {
-        void **slot = (void **)0x00830874;
+        void **slot = (void **)GA(VTS_TECH_RESEARCHED);
         DWORD old;
-        if (*slot == (void *)FN_TECH_GRANT && VirtualProtect(slot, 4, PAGE_READWRITE, &old)) {
+        if (*slot == (void *)GA(FN_TECH_GRANT) && VirtualProtect(slot, 4, PAGE_READWRITE, &old)) {
             *slot = (void *)hook_tech_grant;
             VirtualProtect(slot, 4, old, &old);
         }
@@ -1867,31 +1850,31 @@ static void econ_install(const char *aimod_ini, const char *autotest_ini) {
                     g_sub_wait);
     }
     int ok = 0;
-    void **sp = (void **)(VT_COMPUTER_PLAYER + 45 * 4);
-    if (*sp == (void *)FN_CP_PAY) {
+    void **sp = (void **)(GA(VT_COMPUTER_PLAYER) + 45 * 4);
+    if (*sp == (void *)GA(FN_CP_PAY)) {
         DWORD old;
         VirtualProtect(sp, 4, PAGE_READWRITE, &old);
         *sp = (void *)hook_pay;
         VirtualProtect(sp, 4, old, &old);
     }
-    void **slot = (void **)(VT_COMPUTER_PLAYER + 18 * 4);
-    if (*slot == (void *)FN_CP_ADD_RESOURCE) {
+    void **slot = (void **)(GA(VT_COMPUTER_PLAYER) + 18 * 4);
+    if (*slot == (void *)GA(FN_CP_ADD_RESOURCE)) {
         DWORD old;
         VirtualProtect(slot, 4, PAGE_READWRITE, &old);
         *slot = (void *)hook_add_resource;
         VirtualProtect(slot, 4, old, &old);
         ok++;
     }
-    patch_call(CALL_PLACE, FN_PLACE, hook_place);
-    int up_ok = patch_call(0x0043D365, 0x005BDDBD, hook_epoch_upgrades);
+    patch_call(GA(CALL_PLACE), GA(FN_PLACE), hook_place);
+    int up_ok = patch_call(GA(CALL_EPOCH_UPGRADES), GA(FN_EPOCH_UPGRADES), hook_epoch_upgrades);
     if (g_log) fprintf(g_log, "# paid upgrades: %d (hook %d)\n", g_paid_upgrades, up_ok);
-    int pop_ok = patch_call(0x004311E5, FN_POP_CAP, hook_pop_cap) + patch_call(0x0043FA9B, FN_POP_CAP, hook_pop_cap) +
-                 patch_call(0x00474AF0, FN_POP_CAP, hook_pop_cap);
+    int pop_ok = patch_call(GA(CALL_POP_CAP_1), GA(FN_POP_CAP), hook_pop_cap) + patch_call(GA(CALL_POP_CAP_2), GA(FN_POP_CAP), hook_pop_cap) +
+                 patch_call(GA(CALL_POP_CAP_3), GA(FN_POP_CAP), hook_pop_cap);
     if (g_log) fprintf(g_log, "# population limit (easy/medium/hard): %s/%s/%s (hooks %d/3)\n", g_cfg[0].pop_follow ? "follows the humans" : "game limit",
                        g_cfg[1].pop_follow ? "follows the humans" : "game limit", g_cfg[2].pop_follow ? "follows the humans" : "game limit", pop_ok);
-    for (size_t i = 0; i < sizeof k_train_sites / sizeof *k_train_sites; i++)
-        ok += patch_call(k_train_sites[i], FN_TRAIN_UNITS, hook_train_units);
-    if (g_log) fprintf(g_log, "# economy hooks: %d/%d\n", ok, (int)(sizeof k_train_sites / sizeof *k_train_sites) + 1);
+    for (size_t i = 0; i < sizeof GL(TRAIN_SITES) / sizeof *GL(TRAIN_SITES); i++)
+        ok += patch_call(GL(TRAIN_SITES)[i], GA(FN_TRAIN_UNITS), hook_train_units);
+    if (g_log) fprintf(g_log, "# economy hooks: %d/%d\n", ok, (int)(sizeof GL(TRAIN_SITES) / sizeof *GL(TRAIN_SITES)) + 1);
 }
 
 // a new game (the game start hook, before persist_load restores g_bud): the last game's counts, times and slots go -

@@ -113,7 +113,7 @@ static int ms_subgroups(void *pl, int bx, int by) {
         uint8_t *g = deque_at(dq, first + k);
         for (uint8_t **sp = g ? FIELD(g, 8, uint8_t **) : NULL; sp && sp < FIELD(g, 0xC, uint8_t **) && ns < MS_SG; sp++) {
             uint8_t *sg = *sp;
-            if (!sg || *(uintptr_t *)sg != VT_ASG_LAND) continue;
+            if (!sg || *(uintptr_t *)sg != GA(VT_ASG_LAND)) continue;
             struct ms_sg *s = &g_msg[ns++];
             float x = 0, y = 0, ax = 0, ay = 0;
             s->sg = sg; s->n = s->na = 0; s->state = FIELD(sg, 0x1D0, int);
@@ -229,11 +229,11 @@ static int ms_held(struct mass *m, uint8_t *u, uint8_t *sg) {
 // landing.c hook_asg_give_goal: a land subgroup's order to a member held at the rally
 static int mass_refuses(uint8_t *sg, uint8_t *u, void *goal) {
     void *pl = FIELD(sg, 0x190, void *);
-    if (!pl || *(uintptr_t *)sg != VT_ASG_LAND) return 0;
+    if (!pl || *(uintptr_t *)sg != GA(VT_ASG_LAND)) return 0;
     struct mass *m = &g_mss[(unsigned)FIELD(pl, PL_INDEX, int) & 15];
     if (g_auto.enabled) {
         int c = ms_cls(FIELD(sg, 0x1D0, int));
-        if (goal && *(uintptr_t *)goal == VT_GOAL_ATTACK) m->oat[c]++; else m->omv[c]++;
+        if (goal && *(uintptr_t *)goal == GA(VT_GOAL_ATTACK)) m->oat[c]++; else m->omv[c]++;
     }
     if (!m->nh || !ms_held(m, u, sg)) return 0;
     m->refused++;

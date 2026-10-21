@@ -26,12 +26,6 @@ static void trace_emit(const char *line) {
     LeaveCriticalSection(&g_lock);
 }
 
-#define FN_FIND_FOOD  0x0048BBA8   // (char needDropsite, char nearBase, unit) -> site
-#define FN_GATHER     0x0048C81C   // (unit, target, 0)
-#define FN_FIND_MINE  0x0048C204   // (type, unit, reverse) -> site
-#define FN_FIND_WOOD  0x0048C060   // (flag, unit) -> target
-#define FN_HUNT       0x0048BA3B   // (count, flag, out list)
-#define FN_FARMS      0x0048BFD0   // (count, out list)
 typedef void *(__thiscall *Fn3)(void *, uintptr_t, uintptr_t, uintptr_t);
 typedef void *(__thiscall *Fn2)(void *, uintptr_t, uintptr_t);
 
@@ -39,14 +33,14 @@ typedef void *(__thiscall *Fn2)(void *, uintptr_t, uintptr_t);
 
 static void *__fastcall tr_find_food(void *rm, void *edx, uintptr_t a, uintptr_t b, uintptr_t u) {
     (void)edx;
-    void *r = ((Fn3)FN_FIND_FOOD)(rm, a, b, u);
+    void *r = ((Fn3)GA(FN_FIND_FOOD))(rm, a, b, u);
     if (tracing(rm)) {
         char buf[300];
         snprintf(buf, sizeof buf, "@%06x find_food(%u,%u)", (unsigned)CALLER(), (unsigned)(a & 0xFF), (unsigned)(b & 0xFF));
         trace_obj(buf, sizeof buf, "unit", (void *)u);
         trace_obj(buf, sizeof buf, "->", r);
         if (r) { size_t n = strlen(buf); snprintf(buf + n, sizeof buf - n, " gatherers=%u",
-                 ((unsigned (__thiscall *)(void *, void *))FN_SITE_GATHERERS)((void *)0x918300, r)); }
+                 GF(FN_SITE_GATHERERS)((void *)GA(G_GAME_STATE), r)); }
         trace_emit(buf);
     }
     return r;
@@ -61,12 +55,12 @@ static void *__fastcall tr_gather(void *rm, void *edx, uintptr_t u, uintptr_t t,
         trace_obj(buf, sizeof buf, "target", (void *)t);
         trace_emit(buf);
     }
-    return ((Fn3)FN_GATHER)(rm, u, t, c);
+    return ((Fn3)GA(FN_ASSIGN_TO_SITE))(rm, u, t, c);
 }
 
 static void *__fastcall tr_find_mine(void *rm, void *edx, uintptr_t type, uintptr_t u, uintptr_t rev) {
     (void)edx;
-    void *r = ((Fn3)FN_FIND_MINE)(rm, type, u, rev);
+    void *r = ((Fn3)GA(FN_FIND_MINE))(rm, type, u, rev);
     if (tracing(rm)) {
         char buf[300];
         snprintf(buf, sizeof buf, "@%06x find_mine(type %u)", (unsigned)CALLER(), (unsigned)type);
@@ -78,7 +72,7 @@ static void *__fastcall tr_find_mine(void *rm, void *edx, uintptr_t type, uintpt
 
 static void *__fastcall tr_find_wood(void *rm, void *edx, uintptr_t f, uintptr_t u) {
     (void)edx;
-    void *r = ((Fn2)FN_FIND_WOOD)(rm, f, u);
+    void *r = ((Fn2)GA(FN_FIND_WOOD))(rm, f, u);
     if (tracing(rm)) {
         char buf[300];
         snprintf(buf, sizeof buf, "@%06x find_wood(%u)", (unsigned)CALLER(), (unsigned)f);
@@ -90,7 +84,7 @@ static void *__fastcall tr_find_wood(void *rm, void *edx, uintptr_t f, uintptr_t
 
 static void *__fastcall tr_hunt(void *rm, void *edx, uintptr_t n, uintptr_t f, uintptr_t out) {
     (void)edx;
-    void *r = ((Fn3)FN_HUNT)(rm, n, f, out);
+    void *r = ((Fn3)GA(FN_HUNT))(rm, n, f, out);
     if (tracing(rm)) {
         char buf[200];
         uint8_t *v = (uint8_t *)out;   // std::vector: +4 begin, +8 end
@@ -103,7 +97,7 @@ static void *__fastcall tr_hunt(void *rm, void *edx, uintptr_t n, uintptr_t f, u
 
 static void *__fastcall tr_farms(void *rm, void *edx, uintptr_t n, uintptr_t out) {
     (void)edx;
-    void *r = ((Fn2)FN_FARMS)(rm, n, out);
+    void *r = ((Fn2)GA(FN_FARMS))(rm, n, out);
     if (tracing(rm)) {
         char buf[200];
         uint8_t *v = (uint8_t *)out;
@@ -116,8 +110,6 @@ static void *__fastcall tr_farms(void *rm, void *edx, uintptr_t n, uintptr_t out
 
 // Purchases by the unit manager (cm+0x44): 0x49014F(request, ?) trains units (request: [0] unit type id,
 // [1] count, ...), 0x48EE84(?) is the citizen-training path. Logged with the player's stock deltas.
-#define FN_TRAIN_UNITS    0x0049014F
-#define FN_TRAIN_CITIZENS 0x0048EE84
 static void *um_player(void *um) {
     for (int i = 0; i < 16; i++) {
         void *pl = g_players[i];
@@ -151,7 +143,7 @@ static uintptr_t __fastcall tr_train_citizens(void *um, void *edx, uintptr_t a) 
     void *pl = um_player(um);
     int before[7];
     if (pl) memcpy(before, (uint8_t *)pl + PL_STOCK, sizeof before);
-    uintptr_t r = ((uintptr_t (__thiscall *)(void *, uintptr_t))FN_TRAIN_CITIZENS)(um, a);
+    uintptr_t r = GF(FN_TRAIN_CITIZENS)(um, a);
     if (trace_pl(pl) && memcmp(before, (uint8_t *)pl + PL_STOCK, sizeof before)) {
         char buf[300];
         snprintf(buf, sizeof buf, "@%06x train_citizens arg=%u -> %u", (unsigned)CALLER(), (unsigned)a, (unsigned)r);
@@ -165,21 +157,17 @@ static void trace_start(const char *ini) {
     g_trace_player = ini_int("autotest", "trace_player", -1, ini);
     if (g_trace_player < 0) return;
     g_trace_until_ms = (uint32_t)ini_int("autotest", "trace_until_min", 0, ini) * 60000u;
-    static const uintptr_t food[] = { 0x48ab8d, 0x48ac2b, 0x48ae14, 0x48aeb4, 0x48aefa, 0x48af99 };
-    static const uintptr_t gather[] = { 0x48a2a6, 0x48a372, 0x48a9b8, 0x48ab53, 0x48abf3, 0x48acb7, 0x48adc6,
-                                        0x48ae7a, 0x48af60, 0x48b0a6, 0x48b261 };
-    static const uintptr_t wood[] = { 0x48a28e, 0x48aaf6 };
-    static const uintptr_t hunt[] = { 0x48ace4, 0x48afc4 };
+    const uint32_t *food = GL(FOOD_SITES), *gather = GL(GATHER_SITES), *wood = GL(WOOD_SITES), *mine = GL(MINE_SITES);
+    const uintptr_t hunt[] = { GA(CALL_HUNT_1), GA(CALL_HUNT_2) };
     int ok = 0, total = 0;
-    for (size_t i = 0; i < sizeof food / sizeof *food; i++, total++) ok += patch_call(food[i], FN_FIND_FOOD, tr_find_food);
-    for (size_t i = 0; i < sizeof gather / sizeof *gather; i++, total++) ok += patch_call(gather[i], FN_GATHER, tr_gather);
-    for (size_t i = 0; i < sizeof wood / sizeof *wood; i++, total++) ok += patch_call(wood[i], FN_FIND_WOOD, tr_find_wood);
-    for (size_t i = 0; i < sizeof hunt / sizeof *hunt; i++, total++) ok += patch_call(hunt[i], FN_HUNT, tr_hunt);
-    total++; ok += patch_call(0x48ac54, FN_FARMS, tr_farms);
-    total++; ok += patch_call(0x430740, FN_TRAIN_CITIZENS, tr_train_citizens);
+    for (size_t i = 0; i < sizeof GL(FOOD_SITES) / sizeof *food; i++, total++) ok += patch_call(food[i], GA(FN_FIND_FOOD), tr_find_food);
+    for (size_t i = 0; i < sizeof GL(GATHER_SITES) / sizeof *gather; i++, total++) ok += patch_call(gather[i], GA(FN_ASSIGN_TO_SITE), tr_gather);
+    for (size_t i = 0; i < sizeof GL(WOOD_SITES) / sizeof *wood; i++, total++) ok += patch_call(wood[i], GA(FN_FIND_WOOD), tr_find_wood);
+    for (size_t i = 0; i < sizeof hunt / sizeof *hunt; i++, total++) ok += patch_call(hunt[i], GA(FN_HUNT), tr_hunt);
+    total++; ok += patch_call(GA(CALL_FARMS), GA(FN_FARMS), tr_farms);
+    total++; ok += patch_call(GA(CALL_TRAIN_CITIZENS), GA(FN_TRAIN_CITIZENS), tr_train_citizens);
     // find_mine call sites
-    static const uintptr_t mine[] = { 0x48a247, 0x48a25f, 0x48a277, 0x48a952, 0x48a9f4, 0x48aa2b };
-    for (size_t i = 0; i < sizeof mine / sizeof *mine; i++) { total++; ok += patch_call(mine[i], FN_FIND_MINE, tr_find_mine); }
+    for (size_t i = 0; i < sizeof GL(MINE_SITES) / sizeof *mine; i++) { total++; ok += patch_call(mine[i], GA(FN_FIND_MINE), tr_find_mine); }
     if (g_log) fprintf(g_log, "# trace: player %d, %d/%d call sites hooked\n", g_trace_player, ok, total);
 }
 
@@ -202,14 +190,12 @@ typedef void (__thiscall *StepFn)(void *);
 // sends rand() after srand(TMGetTime()) - hook_srand covers that - but the load-game and scenario starts (also a
 // test run's random map, which randmap.c makes from a -loadgame start) build it with TMGetTime() itself (0x522113,
 // 0x5D7A25, 0x5D8871, 0x65C955): there game_seed takes effect only here.
-#define START_VTBL_EXEC 0x008285D8
-#define START_EXEC      0x004BEE57
 static void __fastcall hook_start_exec(void *msg, void *edx) {
     (void)edx;
     if (g_auto.game_seed) FIELD(msg, 0x14, unsigned) = (unsigned)g_auto.game_seed;
-    uint8_t *phys = *(uint8_t **)G_WORLD_CLOCK, *world = *(uint8_t **)0x0091977C;
+    uint8_t *phys = *(uint8_t **)GA(G_WORLD_CLOCK), *world = *(uint8_t **)GA(G_WORLD);
     unsigned map_seed = world ? FIELD(world, 0x54, unsigned) : 0;
-    ((StepFn)START_EXEC)(msg);
+    ((StepFn)GA(START_EXEC))(msg);
     EnterCriticalSection(&g_lock);
     if (g_sync) fprintf(g_sync, "start message: seed %u (generator %u, world+0x54 was %u)\n", FIELD(msg, 0x14, unsigned),
                         phys ? FIELD(phys, 0x18, unsigned) : 0, map_seed);
@@ -217,7 +203,7 @@ static void __fastcall hook_start_exec(void *msg, void *edx) {
 }
 static int start_hook(void) {
     static int done;
-    return done || (done = patch_code32(START_VTBL_EXEC, START_EXEC, (uint32_t)(uintptr_t)hook_start_exec));
+    return done || (done = patch_code32(GA(START_VTBL_EXEC), GA(START_EXEC), (uint32_t)(uintptr_t)hook_start_exec));
 }
 
 // the units' part of a step's line: how many, and a sum of each one's hash (owner, type, tile, hit points) - the
@@ -259,7 +245,7 @@ static void __fastcall sync_srv_send(void *srv, void *edx, uint8_t *msg, int to)
 }
 static void sync_hook_server(void) {
     static int done;
-    void **srv = *(void ***)G_SERVER;
+    void **srv = *(void ***)GA(G_SERVER);
     if (done || !srv) return;
     done = 1;
     void **slot = &((void **)srv[0])[6];
@@ -275,9 +261,9 @@ static void sync_step(void *phys) {   // after each step (control.c hook_phys_st
     sync_hook_server();
     if (!g_sync || !g_sync_left) return;
     uint32_t h = 2166136261u;
-    unsigned n = *(unsigned *)0x009183CC;
+    unsigned n = *(unsigned *)GA(G_PLAYERS_N);
     for (unsigned i = 1; i < n && i < 16; i++) {
-        uint8_t *pl = ((uint8_t **)0x00918374)[i];
+        uint8_t *pl = ((uint8_t **)GA(G_PLAYERS))[i];
         if (!pl) continue;
         for (int k = 0; k < 7 * 4; k++) h = (h ^ pl[PL_STOCK + k]) * 16777619u;
     }
@@ -285,7 +271,7 @@ static void sync_step(void *phys) {   // after each step (control.c hook_phys_st
     grid_each(sync_unit, &su);
     EnterCriticalSection(&g_lock);
     fprintf(g_sync, "%u %u %u %u %08x %u %08x\n", FIELD(phys, 0x80, unsigned), FIELD(phys, 0xD0, unsigned),
-            FIELD(phys, 0x18, unsigned), *(unsigned *)0x00919B68, h, su.n, su.h);
+            FIELD(phys, 0x18, unsigned), *(unsigned *)GA(G_INPUT_MSGS_DONE), h, su.n, su.h);
     if (g_sync_dump0 && FIELD(phys, 0xD0, unsigned) >= g_sync_dump0 && FIELD(phys, 0xD0, unsigned) <= g_sync_dump1)
         grid_each(sync_unit_dump, NULL);
     if (!--g_sync_left) { fclose(g_sync); g_sync = NULL; }
@@ -303,7 +289,7 @@ static void sync_trace_start(const char *ini) {
     char dump[40];
     GetPrivateProfileStringA("autotest", "sync_dump", "", dump, sizeof dump, ini);
     if (dump[0]) { g_sync_dump0 = (uint32_t)strtoul(dump, NULL, 10); const char *m = strchr(dump, '-'); g_sync_dump1 = m ? (uint32_t)strtoul(m + 1, NULL, 10) : g_sync_dump0; }
-    int ok = g_sync && *(uint32_t *)VTBL_PHYS_STEP == (uint32_t)(uintptr_t)hook_phys_step;   // control.c's, autotest
+    int ok = g_sync && *(uint32_t *)GA(VTBL_PHYS_STEP) == (uint32_t)(uintptr_t)hook_phys_step;   // control.c's, autotest
     if (ok) g_step_after = sync_step;
     if (g_log) fprintf(g_log, "# sync trace: %u steps into %s (%s)\n", g_sync_left, path,
                        ok && start_hook() ? "ok" : "FAILED");
