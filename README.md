@@ -346,7 +346,8 @@ dll/              the mod (C), one translation unit: eeaimod.c includes every pa
                     (ini.c), watchpoints, headless_win.c test windows without focus or taskbar button (also in dinput.dll)
   game/             what the mod knows of the game: exe.c the exe build, addr.h its addresses per build, layout.h its
                     objects' fields, world.c type data, game time, RTTI names, players.c the players (and the vanilla
-                    ones), the unit types (unit_ids.h, unitnames.c, unit_names.h generated) and roles.c what a type is,
+                    ones, the colours), random.c the decisions' generator (alike on every PC), the unit types
+                    (unit_ids.h, unitnames.c, unit_names.h generated) and roles.c what a type is,
                     grid.c the unit grid (iterator), editor_layout.h (generated)
   engine/           fixes and features of the game itself: display.c / present_d3d.c windowed mode (display_text.c,
                     display_diag.c), camera.c scrolling, aim.c leading targets, sound.c, select.c, drawlist.c,
@@ -356,8 +357,10 @@ dll/              the mod (C), one translation unit: eeaimod.c includes every pa
                     diplomacy; landing.c landings; navy.c / fleet.c the navy; settings.c aimod.ini's AI settings ...
   script/           expr.c the text language (parsed once into a tree; statements, functions) - it knows no game:
                     what it asks the program it runs in is script/host.h (eeaimod.c x_host_install sets the game's)
-  game_script/      the game in the language: constants.c (epoch., resource., color., kind., unit.)
-  voice/            what the AI says: persona.c personalities, texts.c the text files, chat.c chat lines, llm.c the
+  game_script/      the game in the language: constants.c (epoch., resource., color., kind., unit.), relations.c
+                    the players' values and relations (them.soldiers, them.kills(me) - from the AI's state)
+  voice/            what the AI says: say.h the AI's one door to it (its lines, its personality's traits and
+                    decisions, the language model), persona.c personalities, texts.c the text files, chat.c chat lines, llm.c the
                     language model
   test/             control.c the control pipe, testcmd.c / testopp.c test commands and the sea opponent, randmap.c
                     test-game setup, autotest.c, scripts.c the setup scripts (cmd_verbs.h, generated: the commands

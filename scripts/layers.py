@@ -21,19 +21,19 @@ MAY_USE = {
     'base':   [],                                          # the DLL's own helpers: no game, no part
     'game':   ['base'],                                    # what the mod knows of the game
     'engine': ['base', 'game'],                            # fixes and features of the game
-    'ai':     ['base', 'game'],                            # the computer players
+    'ai':     ['base', 'game', 'voice/say.h'],             # the computer players - they speak through say.h only
     'script': ['base'],                                    # the language: knows no game (script/host.h asks it)
-    'game_script': ['base', 'game', 'ai', 'script'],       # the game in the language: its constants, values, relations
-    'voice':  ['base', 'game', 'ai', 'script', 'game_script'],   # what the AI says: reads the AI, speaks the language
+    'game_script': ['base', 'game', 'ai', 'script', 'voice'],   # the game in the language: constants, values, relations
+    'voice':  ['base', 'game', 'ai', 'script'],            # what the AI says: reads the AI, speaks the language
     'test':   ['base', 'game', 'engine', 'ai', 'script', 'game_script', 'voice', 'dll'],
     'dll':    ['base', 'game', 'engine', 'ai', 'script', 'game_script', 'voice', 'test'],
 }
 
+# A FILE OF A FOLDER as the rule names it (voice/say.h): only what that file declares - its prototypes, types and
+# variables - not the rest of its folder
+
 # THE EXCEPTIONS still in the code: (using file, used file, names, why). Each is a debt; the next steps remove them.
 EXCEPTIONS = [
-    # step 4: the AI speaks through voice/say.h only; diplomacy's text bindings move to the language's game side
-    ('ai/*', 'voice/*', '*', 'step 4: the AI talks (ai_say, persona, texts, llm)'),
-    ('ai/diplo.c', 'script/expr.c', '*', 'step 4: the relations\' text bindings (x_method ...)'),
     # single crossings, to look at
     ('ai/diplo.c', 'engine/scenario_ai.c', 'g_is_scenario', 'a scenario: no diplomacy of the mod'),
     ('ai/attack.c', 'test/testcmd.c', 'charge_tick', 'a test command ticked from the AI update'),
@@ -182,6 +182,14 @@ def analyse():
     return files, code, edges
 
 
+def declared(code):
+    """what a header declares: its definitions and its prototypes"""
+    names = definitions(code)
+    for m in re.finditer(r'^static\s[^;{=]*?\b(\w+)\s*\([^;{]*\)\s*;', code, re.M):
+        names.add(m.group(1))
+    return names
+
+
 def excepted(u, d, n):
     for eu, ed, names, why in EXCEPTIONS:
         if (eu == u or eu.endswith('/*') and u.startswith(eu[:-1])) and (ed == d or ed.endswith('/*') and d.startswith(ed[:-1])) \
@@ -207,11 +215,14 @@ def main():
             for d, ns in sorted(edges[u].items()):
                 if (d == x or folder(d) == x) and folder(u) != folder(d): print('%s -> %s: %s' % (u, d, ', '.join(sorted(ns))))
         return 0
+    iface = {f: declared(code[f]) for f in {x for v in MAY_USE.values() for x in v if '/' in x}}
     bad, used = [], set()
     for u in sorted(edges):
         for d, ns in sorted(edges[u].items()):
             fu, fd = folder(u), folder(d)
             if fu == fd or fd in MAY_USE[fu]: continue
+            ns = {n for n in ns if not any(f in MAY_USE[fu] and n in iface[f] for f in iface)}   # a door it may use
+            if not ns: continue
             for n in sorted(ns):
                 e = excepted(u, d, n)
                 if e: used.add(e)

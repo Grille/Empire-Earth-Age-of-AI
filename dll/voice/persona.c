@@ -38,21 +38,12 @@
 // Strings: UWideString takes only char * (the game's ANSI code page), so UTF-8 files are converted on load.
 // Randomness: an own generator - the game's rand() is part of the simulation and must not be touched.
 
-enum trait { T_AGGRESSION, T_LOYALTY, T_PRIDE, T_GREED, T_FORGIVENESS, T_CAUTION, T_TALK, T_N };
 static const char *const k_trait_keys[T_N] = { "aggression", "loyalty", "pride", "greed", "forgiveness", "caution", "talk" };
 
 // situations: key, chance in % at talk=50 (100 = always, scaled by talk otherwise), cooldown s per AI, audience:
 // who is meant to hear it - everyone, the AI's allies (plans, worries, calls for help) or only {them}, the player
 // it is said to (taunts, diplomacy). The local player sees a line only when they are in its audience - an enemy AI
 // doesn't tell them that it attacks someone else. With [general] chat=1+ (debug) every line shows, marked.
-enum line_kind {
-    L_GREETING, L_WAR_DECLARED, L_BETRAYED, L_PEACE_ACCEPT, L_PEACE_REFUSE, L_ALLIANCE_OFFER, L_OFFER_ACCEPTED,
-    L_OFFER_WITHDRAWN, L_BETRAY, L_TRIBUTE_THANKS, L_TRIBUTE_SMALL, L_ATTACK, L_UNDER_ATTACK, L_BUILDING_LOST,
-    L_EPOCH_UP, L_ENEMY_AHEAD, L_WINNING, L_LOSING, L_DESPERATE, L_ENEMY_DEFEATED, L_ALLY_DEFEATED, L_DEFEATED,
-    L_WONDER_THREAT, L_WONDER_HELP, L_WONDER_NOHELP, L_HELP_LAND, L_HELP_AIR, L_HELP_NAVAL, L_HELP_NONE, L_SURRENDER,
-    L_CAPITULATE, L_CAPITULATE_ACCEPTED, L_CAPITULATE_REFUSED, L_ATTACK_THREAT, L_ALL_SUBMITTED, L_OTHER_VICTORY,
-    L_BLOCK_REFUSE, L_BLOCK_REFUSE_OWN, L_VASSAL_GRUMBLE, L_ASK_LORD, L_N
-};
 enum audience { A_ALL, A_ALLIES, A_NAME };
 static const struct { const char *key; int chance, cooldown; enum audience aud; } k_lines[L_N] = {
     { "greeting", 60, 0, A_ALL },             { "war_declared", 100, 20, A_NAME },     { "betrayed", 100, 20, A_NAME },
@@ -76,7 +67,6 @@ static const struct { const char *key; int chance, cooldown; enum audience aud; 
 // its layers that has the key (mod/computer.eeai the last); a mistake (or no number) passes it to the next layer, and
 // with none left the answer is no (told once). The rules around them (who may be asked, timers, the offers) stay
 // diplo.c's.
-enum decide { D_PEACE_SCORE, D_SEEK_ALLY, D_ALLY_SCORE, D_N };
 static const char *const k_decide_keys[D_N] = { "peace_score", "seek_ally", "ally_score" };
 static int decide_key(const char *key) { int k = 0; while (k < D_N && lstrcmpiA(key, k_decide_keys[k])) k++; return k; }
 
@@ -119,26 +109,6 @@ static uint32_t rnd32(void) { g_rnd ^= g_rnd << 13; g_rnd ^= g_rnd >> 17; g_rnd 
 static unsigned g_rnd_draws;   // how many draws so far (texts bench)
 static int rnd(int n) { g_rnd_draws++; return n > 0 ? (int)(rnd32() % (unsigned)n) : 0; }
 
-// Two generators: rnd() for what is only shown (chat lines; ai_talk and the audience differ per PC), rnd_game() for
-// decisions that change the game (the personality, a betrayal). Multiplayer is lockstep - every PC simulates every
-// AI and must decide the same - so in a game with more than one human the game generator is seeded from the game's
-// own rand() (msvcrt, import 0x824648) the first time the simulation needs it: every PC calls it at the same step.
-// Single player: seeded like rnd() (the clock; tests a constant).
-static uint32_t g_rnd_game = 0x2545F491u;
-static int g_mp, g_mp_seeded;   // g_mp: more than one human in the setup (persona_new_game)
-static uint32_t rnd_game32(void) {
-    if (g_mp && !g_mp_seeded) {
-        int (__cdecl *game_rand)(void) = *(int (__cdecl **)(void))GA(IAT_RAND);
-        int a = game_rand(), b = game_rand();
-        g_rnd_game = ((uint32_t)a << 15 ^ (uint32_t)b) * 2654435761u ^ 0x2545F491u;
-        if (!g_rnd_game) g_rnd_game = 1;
-        g_mp_seeded = 1;
-        if (g_log) fprintf(g_log, "# persona: multiplayer, game generator seeded from the game's rand (%d %d)\n", a, b);
-    }
-    g_rnd_game ^= g_rnd_game << 13; g_rnd_game ^= g_rnd_game >> 17; g_rnd_game ^= g_rnd_game << 5;
-    return g_rnd_game;
-}
-static int rnd_game(int n) { return n > 0 ? (int)(rnd_game32() % (unsigned)n) : 0; }
 
 // whole file as text in the ANSI code page (UTF-8 converted), malloc'd, or NULL
 static char *read_text_acp(const char *path) {
@@ -246,7 +216,6 @@ static void lang_detect(void) {
 static int line_fallback(int k);
 static struct persona g_computer, g_prompt;
 static int g_has_computer;
-static int g_texts_missing;   // the mod's files aren't there (mod/system.eeai, prompt.eeai, computer.eeai, units.eeai): it says nothing
 static int g_personas_only_computer;   // autotest personas=0: only computer.eeai (AIs without a personality)
 static const enum line_kind k_must[] = {
     L_WAR_DECLARED, L_BETRAYED, L_PEACE_ACCEPT, L_PEACE_REFUSE, L_ALLIANCE_OFFER, L_OFFER_ACCEPTED, L_OFFER_WITHDRAWN,
@@ -518,7 +487,6 @@ static void epoch_text(void *pl, char *out, int cap);
 static void epoch_text_n(int e, char *out, int cap);
 static const char *player_name(void *pl);
 static void tribute_text(const int *amount, char *buf, int cap);
-static int g_say_tribute[7];   // {tribute}, {tribute_total}: amounts by resource (stock index 2..6), set by the caller (diplo.c)
 static void texts_load(void);   // texts.c: mod/system.eeai's vars
 static void line_ctx_init(struct line_ctx *l, void *pl, void *other, void *third) {
     memset(&l->c, 0, sizeof l->c);

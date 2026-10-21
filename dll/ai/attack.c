@@ -397,7 +397,7 @@ static void __fastcall hook_asg_route(uint8_t *self, void *edx, int *start, int 
         diplo_cancel_attacks(FIELD(pl, PL_INDEX, int) & 15, FIELD(target, PL_INDEX, int) & 15);
     }
     if (pl && hostile) persona_attack(pl, target);
-    if (g_chat && pl && start && dest) {
+    if (chat_level() && pl && start && dest) {
         unsigned pi = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
         int dx = dest[0] - start[0], dy = dest[1] - start[1];
         ai_say(pl, CHAT_ROUTE, "[ai] marching on P%d at %d,%d (%.0f tiles), %d enemy defences known",

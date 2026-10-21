@@ -113,7 +113,6 @@ static void counter_siege(void *pl, unsigned idx, uint32_t now);
 static void home_guard(void *pl, unsigned idx, uint32_t now);
 static void muster(void *pl, unsigned idx, uint32_t now);       // defence.c: gather, then strike
 static void diplo_tick(void *pl, unsigned ai, uint32_t now);
-static void persona_attack_launched(unsigned ai);   // persona.c
 static int g_build_fix = 1;
 static struct { int type; unsigned tries, fails, dropped, streak; } g_place[16][64];   // every type the build lists hold
 static int field_place_ok(uint8_t *bm, int x, int y, int lay_out);   // below, with the farm fields

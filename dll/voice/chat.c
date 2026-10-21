@@ -16,10 +16,9 @@
 // say P text. Every line also goes to the log (# chat:). Per player at most one line per 4 s and per kind one per
 // kind's cooldown, the rest is dropped (not queued: a late line would be wrong).
 
-enum chat_kind { CHAT_SAY, CHAT_EPOCH, CHAT_ATTACK, CHAT_ROUTE, CHAT_TOWER, CHAT_WALL, CHAT_SIEGE, CHAT_COUNTER,
-                 CHAT_GUARD, CHAT_STATUS, CHAT_KINDS };
 static const uint32_t k_chat_cooldown[CHAT_KINDS] = { 0, 0, 30000, 60000, 60000, 60000, 60000, 30000, 60000, 0 };
 static int g_chat;
+static int chat_level(void) { return g_chat; }   // aimod.ini [general] chat: 0 off, 1 debug lines, 2 the status too
 static int g_chat_ms = 15000;
 static uint32_t g_chat_last[16], g_chat_kind_last[16][CHAT_KINDS];
 static unsigned g_chat_lines[16], g_chat_dropped[16];
@@ -29,7 +28,6 @@ static const char *const k_epoch_names[15] = { "Prehistoric", "Stone", "Copper",
     "Space" };
 static const char *epoch_name(int e) { return e >= 0 && e < 15 ? k_epoch_names[e] : "?"; }
 
-static void persona_attack(void *pl, void *target);   // persona.c: the attack line
 
 // one chat line from player pl (name and colour from the player), shown for ms milliseconds
 static void chat_line(void *pl, const char *text, int ms) {

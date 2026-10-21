@@ -26,6 +26,8 @@ struct ustring;
 #include "game/addr.h"     // the game's addresses by name, per exe build: GA(G_WORLD_CLOCK), GF(FN_CAN_BUILD)(pl, t, 0x20, 0)
 #include "game/layout.h"
 #include "game/players.c"
+#include "game/random.c"
+#include "voice/say.h"   // the AI's door to what it says (voice/)
 
 typedef char (__thiscall *RmFn)(void *self);
 typedef void (__thiscall *RmUpdateFn)(void *self, uint32_t now);
@@ -343,6 +345,7 @@ static char __fastcall hook_game_start(void *state, void *edx, uint8_t *setup, v
 #include "voice/persona.c"
 #include "voice/texts.c"
 #include "ai/diplo.c"
+#include "game_script/relations.c"
 #include "test/scripts.c"
 #include "ai/navy.c"
 #include "ai/fleet.c"

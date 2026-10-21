@@ -17,6 +17,8 @@ def cell(t):
     return t.replace('|', '\\|').replace('<', '&lt;').replace('>', '&gt;')
 
 pers, diplo, expr, settings = (src(n) for n in ('persona.c', 'diplo.c', 'expr.c', 'settings.c'))
+diplo += src('relations.c')   # the players' values and relations in the texts
+expr += src('constants.c')   # the game's constants (epoch., resource. ...) in the texts
 prompt = prompt_texts(root)
 
 # situations
