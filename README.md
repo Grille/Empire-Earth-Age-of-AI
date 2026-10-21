@@ -232,7 +232,9 @@ Settings in `aimod.ini`:
 - `[editor] resolution=aoc`: scenario editor at 1024x768 with The Art of Conquest's layout; `game` or any
   `WIDTHxHEIGHT` extends that layout to the resolution (map view fills the screen, panels at the bottom,
   minimap and file buttons at the bottom right).
-- `[camera] scroll=aoc`: AoC's smooth camera scrolling.
+- `[camera] scroll`: `game` (default) the build's own camera scrolling, `aoc` The Art of Conquest's acceleration
+  in either build, `ee` Empire Earth's constant speed in either build; `smooth=1` (default) moves the camera every
+  frame by the frame's time instead of the game's fixed timer steps (jitter) - in both builds.
 - `[general] lead_targets=1` (default): ranged units and towers aim where a moving target will be when the
   projectile comes down, not where it stood when it was fired. Before, slow projectiles (arrows, catapults,
   cannon balls) missed nearly everything walking across their line of fire.

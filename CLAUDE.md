@@ -24,8 +24,9 @@ Several sessions may work in this tree at the same time - see Git below.
 - A task that needs the game folder to itself (an install, a slot-0 run): `sh scripts/reserve.sh "<what>" <command>`
   - test runs start no game meanwhile, the running ones (and the player's) are waited for; nobody has to pause.
 - Game addresses live only in `dll/game/addr.h`, by name with one value per exe build: `GA(G_WORLD_CLOCK)`,
-  `GF(FN_CAN_BUILD)(pl, t, 0x20, 0)`, `GL(TRAIN_SITES)` - never a literal address in the code (another build, e.g.
-  Art of Conquest, is one more column).
+  `GF(FN_CAN_BUILD)(pl, t, 0x20, 0)`, `GL(TRAIN_SITES)`, a vtable slot `GA(SLOT_ASG_UPDATE)` - never a literal
+  address or slot in the code. Two columns: the 2017 update and Art of Conquest (not ready: its struct offsets
+  aren't per build yet). A new row needs both: `scripts/port_addrs.py` finds the AoC value and says how.
 - The engine loads every DLL in the game folder: never leave copies of DLLs there (a stray dinput copy crashed it).
 - The game reads the personality files from `config/aimod_ai/` (`ai_dir` in the user's aimod.ini): a change to
   their format needs the matching installed DLL.

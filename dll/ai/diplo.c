@@ -1890,11 +1890,11 @@ static void diplo_install(const char *ini, const char *test_ini) {
         g_block_observer = ini_int("autotest", "block_observer", 0, test_ini);
     }
     if (g_texts_missing) g_ai_diplomacy = g_surrender = g_blocks = g_stance_lines = g_auto_victory = 0;   // they speak (texts.c)
-    int ok = patch_vtable(GA(VT_PAY_TRIBUTE), 10, GA(FN_PAY_TRIBUTE), (void *)hook_tribute);
-    int chat = patch_vtable(GA(VT_INGAME_CHAT), 10, GA(FN_INGAME_CHAT), (void *)hook_ingame_chat);
+    int ok = patch_vtable(GA(VT_PAY_TRIBUTE), GA(SLOT_MSG_EXECUTE), GA(FN_PAY_TRIBUTE), (void *)hook_tribute);
+    int chat = patch_vtable(GA(VT_INGAME_CHAT), GA(SLOT_MSG_EXECUTE), GA(FN_INGAME_CHAT), (void *)hook_ingame_chat);
     BOOL kills = patch_call(GA(CALL_KILL_STAT), GA(FN_STAT_ADD), kill_stat_thunk);
     if (g_log) fprintf(g_log, "# diplomacy: kills by pair %s\n", kills ? "ok" : "FAILED");
-    int leave = patch_vtable(GA(VT_RESIGN), 10, GA(FN_RESIGN), (void *)hook_resign) +
+    int leave = patch_vtable(GA(VT_RESIGN), GA(SLOT_MSG_EXECUTE), GA(FN_RESIGN), (void *)hook_resign) +
                 patch_code32(GA(EXIT_CONFIRM_AT), GA(FN_EXIT_CONFIRM), (uint32_t)(uintptr_t)hook_exit_confirm);
     if (g_log) fprintf(g_log, "# diplomacy: answer_war=%d ai_diplomacy=%d surrender=%d alliance_blocks=%d auto_victory=%d, tribute hook %d, chat hook %d, leave hooks %d/2\n",
                        g_answer_war, g_ai_diplomacy, g_surrender, g_blocks, g_auto_victory, ok, chat, leave);

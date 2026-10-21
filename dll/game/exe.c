@@ -31,15 +31,15 @@ static uint32_t exe_build_hash(const char *path) {   // 0: not a readable PE fil
     CloseHandle(f);
     return h;
 }
-// 1: the game in a build the mod knows (its addresses selected: addr.h); 0: not the game (another program loading the
-// folder's DLLs); -1: the game, another build (*hash its hash)
+// 1: the game in a build the mod knows and is ready for (its addresses selected: addr.h); 0: not the game (another
+// program loading the folder's DLLs); -1: the game, another build (*hash its hash)
 static int game_build(uint32_t *hash) {
     char path[MAX_PATH];
     GetModuleFileNameA(NULL, path, MAX_PATH);
     const char *name = strrchr(path, '\\');
     *hash = exe_build_hash(path);
     for (int i = 0; i < ADDR_BUILDS; i++)
-        if (*hash == k_exe_builds[i]) {
+        if (*hash == k_exe_builds[i].hash && k_exe_builds[i].ready) {
             g_addr_missing = addr_select(i);
             return 1;
         }

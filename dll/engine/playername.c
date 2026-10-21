@@ -30,7 +30,7 @@ static void player_name_install(void) {
     int ok = 0;
     for (int i = 0; i < 6; i++) {
         g_sp_orig[i] = (void *)GL(SP_FNS)[i];
-        ok += patch_vtable(GL(SP_VTABLES)[i], 1, GL(SP_FNS)[i], hooks[i]);
+        ok += patch_vtable(GL(SP_VTABLES)[i], GA(SLOT_SP_BUTTON), GL(SP_FNS)[i], hooks[i]);
     }
     if (g_log) fprintf(g_log, "# player name: single-player menu buttons hooked %d/6%s\n", ok, ok < 6 ? " - FAILED (exe differs)" : "");
 }

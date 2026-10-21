@@ -444,7 +444,7 @@ static void aim_install(const char *aimod_ini, const char *autotest_ini) {
     BOOL own_hit = patch_call(GA(CALL_ATTACK_ALERT), GA(FN_ATTACK_ALERT), own_hit_alert_thunk);
     if (g_log) fprintf(g_log, "# aim: no attack alert for the player's own hits (hook %s)\n", own_hit ? "ok" : "FAILED");
     if (autotest_ini && ini_int("autotest", "aim_hits", 1, autotest_ini))
-        patch_vtable(GA(VT_PROJECTILE), 55, GA(FN_PROJ_DOWN), hook_proj_down);
+        patch_vtable(GA(VT_PROJECTILE), GA(SLOT_PROJ_DOWN), GA(FN_PROJ_DOWN), hook_proj_down);
     g_lead = ini_int("general", "lead_targets", 1, aimod_ini) != 0;
     g_lead_missiles = ini_int("general", "lead_missiles", 0, aimod_ini) != 0;
     g_spread = ini_int("general", "spread_missiles", 1, aimod_ini) != 0;
@@ -461,7 +461,7 @@ static void aim_install(const char *aimod_ini, const char *autotest_ini) {
     int ok3 = 0;
     g_fr_on = autotest_ini != NULL;
     if (g_spread || autotest_ini) {
-        ok3 += patch_vtable(GA(VT_MISSILE), 42, GA(FN_MISSILE_LAUNCH), hook_missile_launch);
+        ok3 += patch_vtable(GA(VT_MISSILE), GA(SLOT_MISSILE_LAUNCH), GA(FN_MISSILE_LAUNCH), hook_missile_launch);
         for (int i = 0; i < 4; i++) ok3 += patch_call(GL(FIRE_CALLS)[i], GA(FN_FIRE), hook_fire) ? 1 : 0;
     }
     if (g_log) fprintf(g_log, "# aim: lead_targets=%d (hook %s), lead_missiles=%d (hook %s), spread_missiles=%d (hooks %d/5)\n",

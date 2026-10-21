@@ -15,9 +15,6 @@
 // Type data: +0x4B4 family (2 = building, 29 = fortress), +0x4B8 type id, +0x420 range, +0x510 attack,
 //   +0x55C hit points.
 
-#define ASG_ROUTE_SLOT    94
-#define ASG_ROUTE_DONE_SLOT 97
-
 #define MAX_DEFENCES 256
 struct defence { int x, y, owner; float range, attack; int type; uint8_t *u; };
 static struct {
@@ -1499,12 +1496,12 @@ static void attack_install(const char *aimod_ini, const char *autotest_ini) {
     if (g_log) fprintf(g_log, "# engine guard: the range sort %s\n", sort_guard ? "ok" : "FAILED");
     int list_guard =patch_call(GA(CALL_NODE_DEL_1), GA(FN_OP_DELETE), unit_node_free_thunk) +
                      patch_call(GA(CALL_NODE_DEL_2), GA(FN_OP_DELETE), unit_node_free_thunk) +
-                     patch_vtable(GA(VT_COMPLEX_UNIT), 13, GA(FN_UNIT_RELEASE), hook_unit_release);
+                     patch_vtable(GA(VT_COMPLEX_UNIT), GA(SLOT_UNIT_RELEASE), GA(FN_UNIT_RELEASE), hook_unit_release);
     if (g_log) fprintf(g_log, "# engine guard: units freed while in the unit list or twice %d/3\n", list_guard);
     BOOL stat_guard = patch_call(GA(CALL_GROUP_STAT), GA(FN_GROUP_STAT), hook_group_stat);
-    int sg_guard = patch_vtable(GA(VT_ASG_LAND), 20, GA(FN_ASG_LAND_STATS), hook_asg_land_stats);
+    int sg_guard = patch_vtable(GA(VT_ASG_LAND), GA(SLOT_ASG_STATS), GA(FN_ASG_LAND_STATS), hook_asg_land_stats);
     for (unsigned k = 0; k < sizeof GL(ASG_VTABLES) / sizeof *GL(ASG_VTABLES); k++)
-        sg_guard += patch_vtable(GL(ASG_VTABLES)[k], 20, GA(FN_ASG_STATS), hook_asg_stats);
+        sg_guard += patch_vtable(GL(ASG_VTABLES)[k], GA(SLOT_ASG_STATS), GA(FN_ASG_STATS), hook_asg_stats);
     if (g_log) fprintf(g_log, "# engine guard: attack subgroup stats %d/7\n", sg_guard);
     if (g_log) fprintf(g_log, "# engine guard: attack subgroup members %s\n", stat_guard ? "ok" : "FAILED");
     BOOL add_guard = patch_call(GA(CALL_UNIT_TO_GROUP), GA(FN_UNIT_TO_GROUP), hook_unit_to_group);
@@ -1525,12 +1522,12 @@ static void attack_install(const char *aimod_ini, const char *autotest_ini) {
     g_breach = cfg_int(aimod_ini, autotest_ini, 1, "attack_breach", 1);
     g_siege = cfg_int(aimod_ini, autotest_ini, 1, "attack_siege", 1);
     g_ignore_air = cfg_int(aimod_ini, autotest_ini, 1, "attack_ignore_air", 1);
-    int a = patch_vtable(GA(VT_ROUTE_PLANNER), 1, GA(FN_ROUTE_COST), hook_route_cost);
-    int b = patch_vtable(GA(VT_ASG_LAND), ASG_ROUTE_SLOT, GA(FN_ASG_ROUTE), hook_asg_route);
-    int c = patch_vtable(GA(VT_ASG_LAND), ASG_ROUTE_DONE_SLOT, GA(FN_ASG_ROUTE_DONE), hook_asg_route_done);
+    int a = patch_vtable(GA(VT_ROUTE_PLANNER), GA(SLOT_ROUTE_COST), GA(FN_ROUTE_COST), hook_route_cost);
+    int b = patch_vtable(GA(VT_ASG_LAND), GA(SLOT_ASG_ROUTE), GA(FN_ASG_ROUTE), hook_asg_route);
+    int c = patch_vtable(GA(VT_ASG_LAND), GA(SLOT_ASG_ROUTE_DONE), GA(FN_ASG_ROUTE_DONE), hook_asg_route_done);
     int d = 1;
     for (unsigned k = 0; k < sizeof GL(ASGU_VTABLES) / sizeof *GL(ASGU_VTABLES); k++)   // land unit records: base, hero, priests and prophets
-        d &= patch_vtable(GL(ASGU_VTABLES)[k], 2, GA(FN_ASGU_SCORE), hook_asgu_score);
+        d &= patch_vtable(GL(ASGU_VTABLES)[k], GA(SLOT_ASGU_SCORE), GA(FN_ASGU_SCORE), hook_asgu_score);
     if (g_log) fprintf(g_log, "# attack routing: avoid_towers=%d weight=%d margin=%d weak_spots=%d radius=%d leash=%d breach=%d hooks %d/4\n",
                        g_avoid_towers, g_avoid_weight, g_avoid_margin, g_weak_spots, g_weak_radius, g_leash, g_breach, a + b + c + d);
 }

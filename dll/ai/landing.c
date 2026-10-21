@@ -2378,8 +2378,8 @@ static int __fastcall hook_idle_unload_shore(void *mgr, void *edx, uint8_t *tr) 
 static int asg_order_hooks(void) {
     static int done;
     if (!done)
-        done = patch_vtable(GA(VT_ASG_SEA_TRANSPORT), 57, GA(FN_ASG_GIVE_GOAL), hook_asg_give_goal) + patch_vtable(GA(VT_ASG_SEA), 57, GA(FN_ASG_GIVE_GOAL), hook_asg_give_goal) +
-               patch_vtable(GA(VT_ASG_LAND), 57, GA(FN_ASG_GIVE_GOAL), hook_asg_give_goal) + patch_vtable(GA(VT_ASG_AIR), 57, GA(FN_ASG_AIR_GIVE_GOAL), hook_asg_air_give_goal);
+        done = patch_vtable(GA(VT_ASG_SEA_TRANSPORT), GA(SLOT_ASG_GIVE_GOAL), GA(FN_ASG_GIVE_GOAL), hook_asg_give_goal) + patch_vtable(GA(VT_ASG_SEA), GA(SLOT_ASG_GIVE_GOAL), GA(FN_ASG_GIVE_GOAL), hook_asg_give_goal) +
+               patch_vtable(GA(VT_ASG_LAND), GA(SLOT_ASG_GIVE_GOAL), GA(FN_ASG_GIVE_GOAL), hook_asg_give_goal) + patch_vtable(GA(VT_ASG_AIR), GA(SLOT_ASG_GIVE_GOAL), GA(FN_ASG_AIR_GIVE_GOAL), hook_asg_air_give_goal);
     return done;
 }
 static void landing_install(const char *aimod_ini, const char *autotest_ini) {
@@ -2405,9 +2405,9 @@ static void landing_install(const char *aimod_ini, const char *autotest_ini) {
     if (g_landing)
         for (size_t k = 0; k < sizeof k_unload_sites / sizeof *k_unload_sites; k++) patch_call(k_unload_sites[k], GA(FN_GOAL_UNLOAD_CTOR), (void *)hook_unload_ctor);
     if (g_landing) patch_call(GA(CALL_UNLOAD_RETRY_GIVE), GA(FN_GIVE_GOAL), (void *)hook_unload_retry_give);
-    int h = patch_vtable(GA(VT_ASG_SEA_TRANSPORT), 90, GA(FN_ASG_SEA_TRANSPORT_UPDATE), hook_asg_sea_transport_update) &
-            patch_vtable(GA(VT_ASG_SEA), 90, GA(FN_ASG_SEA_UPDATE), hook_asg_sea_update) &
-            patch_vtable(GA(VT_ASG_AIR), 90, GA(FN_ASG_AIR_UPDATE), hook_asg_air_update);
+    int h = patch_vtable(GA(VT_ASG_SEA_TRANSPORT), GA(SLOT_ASG_UPDATE), GA(FN_ASG_SEA_TRANSPORT_UPDATE), hook_asg_sea_transport_update) &
+            patch_vtable(GA(VT_ASG_SEA), GA(SLOT_ASG_UPDATE), GA(FN_ASG_SEA_UPDATE), hook_asg_sea_update) &
+            patch_vtable(GA(VT_ASG_AIR), GA(SLOT_ASG_UPDATE), GA(FN_ASG_AIR_UPDATE), hook_asg_air_update);
     int gg = g_landing ? asg_order_hooks() : 0;   // the subgroups' own orders refused while the landing leads them
     if (g_log) fprintf(g_log, "# landing: %s, %d transports (transport subgroup hook %s, order hooks %d/4)\n", g_landing ? "on" : "off", g_land_ships, h ? "ok" : "FAILED", gg);
 }

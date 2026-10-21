@@ -1,21 +1,24 @@
-// Camera scrolling: the original Empire Earth behaviour or Art of Conquest's smooth scrolling, backported.
-// aimod.ini [camera] scroll = ee | aoc (default ee: nothing is changed).
+// Camera scrolling: Empire Earth's constant speed or Art of Conquest's acceleration, in either build.
+// aimod.ini [camera] scroll = game | ee | aoc (game, the default: the running build's own - EE's in Empire Earth,
+// AoC's in AoC).
 //
-// Scrolling (mouse at the screen edge / keys) is the action EEAScroll (vtable 0x825098, slot 1 Execute 0x4050FC),
-// queued by a timer every 25 ms (ctor 0x40509D: `push 0x19` at 0x4050C2). Fields: +0x40 elapsed timer ticks,
-// +0x44 left, +0x45 right, +0x46 down, +0x47 up. EE moves the camera at a constant speed:
-//   step = (speed 0x918DB0 + 0.5) * (scroll setting 0x9193A8 + 0.5) * ticks * 0.25
-// AoC (EE-AOC.exe 0x40478E) ticks every 10 ms and keeps a velocity per axis that starts at 10% and ramps up to
-// full speed (+1% of the maximum per elapsed tick); reversing an axis starts slow again and the velocity is reset
-// when scrolling stops. The top speed is the same as EE's: per second 100 x 0.1 vs 40 x 0.25.
+// Scrolling (mouse at the screen edge / keys) is the action EEAScroll (VT_SCROLL, slot 1 Execute FN_SCROLL_EXECUTE),
+// queued by a timer (its ctor: `push 0x19` - 25 ms - at SITE_SCROLL_TIMER; AoC's `push 0xA`, 10 ms). The fields are
+// the same in both: +0x40 elapsed timer ticks, +0x44 left, +0x45 right, +0x46 down, +0x47 up. EE moves the camera at a
+// constant speed:
+//   step = (speed G_SCROLL_SPEED + 0.5) * (scroll setting G_SCROLL_SETTING + 0.5) * ticks * 0.25
+// AoC (EE-AOC.exe 0x40478E) keeps a velocity per axis (globals 0x8E5BE4 x, 0x8E5BE0 y) that starts at 10% and ramps
+// up to full speed (+1% of the maximum per elapsed tick; with its +0x48 byte clear - the ctor sets it - at once);
+// reversing an axis starts slow again and the velocity is reset when scrolling stops. The top speed is the same as
+// EE's: per second 100 x 0.1 vs 40 x 0.25.
 
 
-static int g_scroll_aoc;
+static int g_scroll_aoc, g_scroll_native;   // the AoC ramp; the build's own way (its Execute when not smooth)
 static float g_vel_x, g_vel_y;
 static DWORD g_scroll_last;
 static volatile LONG g_scroll_calls;   // scroll steps run (for camtrace)
 
-// Fine scrolling ([camera] smooth, default 1): the scroll steps come from a timer (10 ms AoC, 25 ms EE) on the
+// Fine scrolling ([camera] smooth, default 1, both builds): the scroll steps come from a timer (10 ms AoC, 25 ms EE) on the
 // game's thread, and each moved the camera by a fixed distance, while the frames are drawn on another thread every
 // 4-13 ms: per frame 0 or 1 steps of the same size whatever the frame time (camtrace: about every fifth frame
 // without a step) - visible jitter. Now the timer runs every 1 ms (the game thread then makes one step per frame)
@@ -49,7 +52,7 @@ static void scroll_axis(float *vel, int neg, int pos, float minv, float maxv, fl
 static void __fastcall hook_scroll_execute(uint8_t *self, void *edx) {
     (void)edx;
     InterlockedIncrement(&g_scroll_calls);
-    if (!g_scroll_aoc && !g_cam_smooth) { GF(FN_SCROLL_EXECUTE)(self); return; }
+    if (g_scroll_native && !g_cam_smooth) { GF(FN_SCROLL_EXECUTE)(self); return; }
     // elapsed time: real time with fine scrolling, else the timer's ticks (10 ms AoC)
     float ms = (float)FIELD(self, 0x40, unsigned) * 10.0f;
     if (g_cam_smooth) {
@@ -82,18 +85,20 @@ static void __fastcall hook_scroll_execute(uint8_t *self, void *edx) {
 
 static void camera_install(const char *aimod_ini, const char *autotest_ini) {
     char mode[16], tmp[16];
-    GetPrivateProfileStringA("camera", "scroll", "ee", mode, sizeof mode, aimod_ini);
+    int build_aoc = !lstrcmpA(k_exe_builds[g_exe_build].name, "aoc");
+    GetPrivateProfileStringA("camera", "scroll", "game", mode, sizeof mode, aimod_ini);
     if (autotest_ini) {   // tests: [autotest] camera_scroll overrides
         lstrcpynA(tmp, mode, sizeof tmp);
         GetPrivateProfileStringA("autotest", "camera_scroll", tmp, mode, sizeof mode, autotest_ini);
     }
-    g_scroll_aoc = !lstrcmpiA(mode, "aoc");
+    g_scroll_aoc = !lstrcmpiA(mode, "game") ? build_aoc : !lstrcmpiA(mode, "aoc");
+    g_scroll_native = g_scroll_aoc == build_aoc;
     g_cam_smooth = ini_int("camera", "smooth", 1, aimod_ini);
     if (autotest_ini) g_cam_smooth = ini_int("autotest", "camera_smooth", g_cam_smooth, autotest_ini);
-    if (!g_scroll_aoc && !g_cam_smooth) return;   // ee without smoothing: leave the game untouched
-    int ok = patch_vtable(GA(VT_SCROLL), 1, GA(FN_SCROLL_EXECUTE), hook_scroll_execute);
+    if (g_scroll_native && !g_cam_smooth) return;   // the build's own way without smoothing: the game untouched
+    int ok = patch_vtable(GA(VT_SCROLL), GA(SLOT_SCROLL_EXECUTE), GA(FN_SCROLL_EXECUTE), hook_scroll_execute);
     uint8_t *p = (uint8_t *)GA(SITE_SCROLL_TIMER);
-    if (p[-1] == 0x6A && p[0] == 0x19) {   // push 0x19 -> 10 ms ticks like AoC, 1 ms with fine scrolling
+    if (p[-1] == 0x6A && p[0] == (build_aoc ? 0x0A : 0x19)) {   // push 25 (AoC 10) -> 10 ms ticks like AoC, 1 ms fine
         DWORD old;
         VirtualProtect(p, 1, PAGE_EXECUTE_READWRITE, &old);
         *p = g_cam_smooth ? 0x01 : 0x0A;
@@ -101,7 +106,8 @@ static void camera_install(const char *aimod_ini, const char *autotest_ini) {
         FlushInstructionCache(GetCurrentProcess(), p, 1);
         ok++;
     }
-    if (g_log) fprintf(g_log, "# camera: scroll=%s, fine steps %d, patches %d/2\n", g_scroll_aoc ? "aoc" : "ee", g_cam_smooth, ok);
+    if (g_log) fprintf(g_log, "# camera: scroll=%s (%s), fine steps %d, patches %d/2\n", g_scroll_aoc ? "aoc" : "ee",
+                       g_scroll_native ? "the game's own" : "the other build's", g_cam_smooth, ok);
 }
 
 // camtrace N (tests): for the next N presented frames the time since the previous frame, the camera's movement

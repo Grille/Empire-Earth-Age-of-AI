@@ -480,7 +480,7 @@ static void cmd_assault(char *out, const char *args) {
 static void assault_install(const char *aimod_ini, const char *autotest_ini) {
     g_assault = cfg_int(aimod_ini, autotest_ini, 1, "assault", 0);
     g_as_outmatched = cfg_int(aimod_ini, autotest_ini, 1, "assault_outmatched", 0);
-    int h = patch_vtable(GA(VT_ASG_LAND), 90, GA(FN_ASG_UPDATE), hook_asg_update);
+    int h = patch_vtable(GA(VT_ASG_LAND), GA(SLOT_ASG_UPDATE), GA(FN_ASG_UPDATE), hook_asg_update);
     if (g_log) fprintf(g_log, "# assault: %s (subgroup update hook %s)\n", g_assault ? "on" : "off", h ? "ok" : "FAILED");
 }
 
