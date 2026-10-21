@@ -762,6 +762,14 @@ the idle P1, Small Islands e5): a Hospital heals all own land units within ~4 ti
 repairs ships within ~3 tiles, 2 a second each. 0x628D6F (the broken unit list) came once in 240 games with ships
 ordered onto a dock's tile - reproducible with that seed (tiH, game_seed 5, vanilla P3 with the cheat); with the water
 tile by the dock none in the ~800 games with SEA on since.
+2026-10-22, `fall_back` 8 END (off): `# cover: ... - gives its attack up` / `- home, no cover near` / `its attack on
+P<t> ends`, the minute line's `gave home ended`; cover.py prints them and attack_retreat's call-offs (`retreats`, h2h
+`pulls`). isl_ablate.sh has the WW1 starts `co9` / `si9` / `li9` (start_epoch=9, Small map, 60 min). Runs: `MAPS="cont
+si5 co9 si9 siL tiH liH coL"`, both cheats, 20 seeds, variants `fe7` (shipped), `fe15`, `fe15b3`
+(`fall_back_breaks=3`), `fe7r` (`attack_retreat=1`), `cover.py -base fe7`; head-to-head `v_fall_back=15` and
+`v_army_mass=4` (attack_retreat for B alone) on Small Islands Large / Continental e0 / Continental e9 (map_size 1, 4
+AIs) / lowpop, 40 games each. END and attack_retreat: no gain, off (docs/economy.md "8 END"); every crash (5, 0x53110D)
+in those ~2900 games came right after an attack call-off. The build with 8 off played main's games (8 of 8 the same).
 
 ### Mass before striking, the mines (navy stage 5)
 

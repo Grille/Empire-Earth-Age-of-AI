@@ -14,6 +14,7 @@
 #   si5 / ti5 / li5  the old small maps (map_scale small), 1v1, 60 min, unit limit 500
 #   coL  Continental, Large map, 1v1, unit limit 1500, Middle Ages, 75 min (a land map at high population)
 #   cont Continental e0, Small (eco_ablate.sh's), 1v1, 60 min, unit limit 500
+#   co9 / si9 / li9  Continental / Small Islands / Large Islands, Small map, WW1 start (start_epoch=9), 1v1, 60 min
 # Unit limit: the game's, shared by every player incl. the idle human - 1500 = 500 a player in 1v1 (the AIs' cap 505),
 # 2500 in 2v2.
 cd "$(dirname "$0")/.."
@@ -35,6 +36,9 @@ while IFS='|' read -r name keys; do
                 li5) base="random_map=Large Islands,map_size=0,$e"; min=60;;
                 coL) base="random_map=Continental,map_scale=large,unit_limit=1500,$e";;
                 cont) base="random_map=Continental,map_size=0,seed=101,start_epoch=0,difficulty=hard"; min=60;;
+                co9) base="random_map=Continental,map_size=0,seed=101,start_epoch=9,difficulty=hard"; min=60;;
+                si9) base="random_map=Small Islands,map_size=0,seed=101,start_epoch=9,difficulty=hard"; min=60;;
+                li9) base="random_map=Large Islands,map_size=0,seed=101,start_epoch=9,difficulty=hard"; min=60;;
                 *) echo "unknown map $map"; continue;;
             esac
             v="vanilla_cheat=$ch"; [ -n "$keys" ] && v="$v,$keys"

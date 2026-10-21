@@ -27,7 +27,7 @@ paths = [p for a in args for p in (glob.glob(a) if any(c in a for c in '*?') els
 CVD = re.compile(r'^# cvd: P(\d+) at ([\d.]+) min: (\w)(\d+) val (\d+) hp (\d+) \| eng (-?\d+) ([\d.]+) \| loc (\d+) \| tower (\d) near (\d+) \| '
                  r'low ([\d.]+) quiet (\d) \| hosp (-?\d+) dock (-?\d+) \| held (\d) \| by P(\d+)$', re.M)
 COV = re.compile(r'^# cover: P(\d+) at (\d+) min: mil ([\d.]+) dmg ([\d.]+) quiet ([\d.]+) \| heal hosp (\d+) dock (\d+) other (\d+) \| '
-                 r'hospitals (\d+) docks (\d+) defences (\d+) \| fb heal (\d+) healed (\d+) broke (\d+) back (\d+) held (-?\d+) refused (\d+) judged (\d+)$', re.M)
+                 r'hospitals (\d+) docks (\d+) defences (\d+) \| fb heal (\d+) healed (\d+) broke (\d+) back (\d+) held (-?\d+) refused (\d+) judged (\d+)(?: gave (\d+) home (\d+) ended (\d+))?$', re.M)
 MIL = re.compile(r'^# mil: P(\d+) at (\d+) min: stock .*? \| sold (\d+) siege (\d+) ships (\d+) air (\d+) value ', re.M)
 
 def at(r, mi):
@@ -51,12 +51,14 @@ def load(path):
                             tower=int(x.group(10)), near=int(x.group(11)), low=float(x.group(12)), quiet=int(x.group(13)), held=int(x.group(16))))
     cov = defaultdict(lambda: defaultdict(float))
     for x in COV.finditer(txt):
-        p = int(x.group(1)); g = [float(v) for v in x.groups()[2:]]
+        p = int(x.group(1)); g = [float(v or 0) for v in x.groups()[2:]]
         c = cov[p]
         for k, v in zip(('hosp', 'dock', 'other'), g[3:6]): c[k] += v
         c['hospitals'] = g[6]; c['docks'] = g[7]
-        for k, v in zip(('fbheal', 'healed', 'broke', 'back', 'refused'), (g[9], g[10], g[11], g[12], g[14])): c[k] += v
+        for k, v in zip(('fbheal', 'healed', 'broke', 'back', 'refused', 'gave', 'home', 'ended'), (g[9], g[10], g[11], g[12], g[14], g[16], g[17], g[18])): c[k] += v
         c['dmg'] += g[1]; c['quietm'] += g[2]; c['n'] += 1
+    pulls = defaultdict(int)   # attack_retreat's call-offs
+    for x in re.finditer(r'^# attack: P(\d+) at [\d.]+ min pulls back', txt, re.M): pulls[int(x.group(1))] += 1
     battle = {}
     for b in re.finditer(r'^# battle: P(\d+) at \d+ min: (.*)$', txt, re.M): battle[int(b.group(1))] = [int(v) for v in b.group(2).split()]
     navy = {}
@@ -90,7 +92,8 @@ def load(path):
         g['vexp_alone_tower'] = sum(e['val'] for e in d if exp(e) and (e['near'] <= 0 or e['tower']))
         g['held_dead'] = sum(1 for e in d if e['held'])
         c = cov[p]
-        for k in ('hosp', 'dock', 'other', 'hospitals', 'docks', 'fbheal', 'healed', 'broke', 'back', 'refused'): g[k] = c.get(k, 0.0)
+        for k in ('hosp', 'dock', 'other', 'hospitals', 'docks', 'fbheal', 'healed', 'broke', 'back', 'refused', 'gave', 'home', 'ended'): g[k] = c.get(k, 0.0)
+        g['pulls'] = pulls.get(p, 0)
         g['dmg'] = c['dmg'] / c['n'] if c.get('n') else 0; g['quietm'] = c['quietm'] / c['n'] if c.get('n') else 0
         nv = navy.get(p, [0, 0, 0])
         g['war'] = nv[0]; g['shiplost'] = nv[1]; g['sunk'] = nv[2]
@@ -125,7 +128,7 @@ def ratio_d(games, bg, keys, sd='M'):
 if h2h:
     games = [g for g in (load(p) for p in paths) if g]
     parts = []
-    for k in KEYS + ('alive', 'broke', 'fbheal'):
+    for k in KEYS + ('alive', 'broke', 'fbheal', 'gave', 'home', 'ended', 'pulls'):
         d = [mean([s[k] for s in g['B']]) - mean([s[k] for s in g['A']]) for g in games]
         parts.append('%s %+.1f (%.1f)' % (k, mean(d), se(d)))
     import math
@@ -152,11 +155,11 @@ for c in sorted({c for _, c in data}):
             vl, vk = sum(g['vlost'] for g in gs), sum(g['vkilled'] for g in gs)
             print('  %-8s %s n=%d won %d | dead %.0f value %.0f (land %.0f sea %.0f) killed %.0f (k/l %.2f) | in lost fights %.0f units, value %.0f (%.0f%%; land %.0f sea %.0f) | '
                   'died damaged with time to heal %.1f (value %.0f) | expensive dead %.1f: alone %.1f under towers %.1f (value alone/towers %.0f) | '
-                  'healed hosp %.0f dock %.0f other %.0f, hospitals %.1f docks %.1f | dmg %.1f quiet %.1f | fb hosp %.1f healed %.1f broke %.1f back %.1f refused %.0f held-died %.1f' % (
+                  'healed hosp %.0f dock %.0f other %.0f, hospitals %.1f docks %.1f | dmg %.1f quiet %.1f | fb hosp %.1f healed %.1f broke %.1f back %.1f refused %.0f held-died %.1f | gave up %.1f home %.1f ended %.2f retreats %.2f' % (
                 v, sd, len(gs), wins, M('dead'), M('vlost'), M('vlost_land'), M('vlost_sea'), M('vkilled'), vk / max(vl, 1), M('n_bad'), M('vlost_bad'),
                 100 * sum(g['vlost_bad'] for g in gs) / max(vl, 1), M('vlost_bad_land'), M('vlost_bad_sea'), M('dmgdied'), M('vdmgdied'), M('exp_dead'), M('exp_alone'),
                 M('exp_tower'), M('vexp_alone_tower'), M('hosp'), M('dock'), M('other'), M('hospitals'), M('docks'), M('dmg'), M('quietm'),
-                M('fbheal'), M('healed'), M('broke'), M('back'), M('refused'), M('held_dead')))
+                M('fbheal'), M('healed'), M('broke'), M('back'), M('refused'), M('held_dead'), M('gave'), M('home'), M('ended'), M('pulls')))
     if base and (base, c) in data:
         bg = data[(base, c)]
         for (v, cc), games in sorted(data.items()):

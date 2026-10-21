@@ -915,3 +915,60 @@ games of the build before (Continental e0 and Small Islands Large, 25 min: every
 Left: Hospitals - the AIs have 0-1 on Continental (HEAL rarely acts there); a unit that breaks off away from cover on
 an enemy island fights on; the estimate counts a static tower out of reach of anything that outranges it (ships
 dying to towers show "won" fights).
+
+### 8 END - giving a hopeless attack up (2026-10-22, off)
+
+The gap BREAK left: the attack subgroup sends a unit back into the same lost fight 20 s after it reached the cover,
+again and again; a unit far from any own cover (deep in enemy land, on an enemy island) fights on. **8 END** (cover.c
+cv_groups / cv_tally / cv_end, bits with 1 2 4): a unit that broke off from the same attack group `fall_back_breaks`
+(2) times gives it up - held at the cover until that attack is over (the group gone or the unit no longer in it, 5
+minutes at most), fighting what comes in reach there; a land unit whose fight is clearly lost with no own cover within
+reach falls back toward the base (the farthest point up to 20 tiles on the line to it on its own land - on an enemy
+island the shore on the home side, 8+ tiles away; else it fights on); when 3+ units and `fall_back_end` (50%) of an
+attack group's units gave up and its fighters still out are not winning where they stand (the honest estimate at
+their centre below 1) - and no other group on the same target fights on stronger, no landing under way - the attack is
+called off (the game's call-off at the safe point, `g_cancel_why` "attack (fall back: given up)", as attack_retreat)
+and the next attack is due within 5 minutes. Logged: `# cover: ... breaks off ... - gives its attack up` / `- home, no
+cover near`, `# cover: ... its attack on P<t> ends - g of n units gave up ...`; the minute line counts `gave`, `home`,
+`ended` (scripts/cover.py).
+
+Measured (base AI at hard, both cheats, 20 seeds x both seats = 40 games a cell, paired by seed with the shipped 7 -
+`fe7`; `fe15` = 15, `fe15b3` = 15 with `fall_back_breaks=3`, `fe7r` = 7 with `attack_retreat=1`; the WW1 starts are
+isl_ablate.sh's new co9 / si9, Continental / Small Islands, Small map, start_epoch=9, 60 min). d kills - losses (se):
+
+| Map | cheat | 15 | 15, breaks 3 | attack_retreat=1 | 15: value lost in lost fights | 15: base AI wins |
+|---|---|---|---|---|---|---|
+| Continental e0 | no | -0.9 (2.2) | -0.8 (1.3) | -0.8 (2.4) | +13 (23) | 1 -> 1 |
+| Small Islands e5 | no | +13.3 (5.9) | +14.7 (5.7) | +0.1 (0.3) | +86 (162) | 1 -> 2 |
+| Continental e9 | no | +2.6 (5.1) | -0.5 (2.0) | +2.2 (3.4) | +147 (70) | 5 -> 1 (mod 18 -> 16) |
+| Small Islands e9 | no | +3.3 (2.0) | +2.0 (1.3) | -0.1 (0.9) | +25 (101) | 0 -> 1 |
+| Small Islands Large | no | +3.0 (11.6) | +10.9 (8.8) | -2.7 (2.0) | -143 (311) | 0 -> 0 |
+| Tournament Islands Huge | no | +26.8 (10.9) | +7.3 (7.8) | +6.6 (4.8) | -64 (539) | 0 -> 0 |
+| Large Islands Huge | no | -5.9 (6.9) | -4.0 (6.8) | +0.1 (3.8) | -14 (500) | 0 -> 0 |
+| Continental Large | no | -7.5 (10.0) | -22.0 (10.3) | -1.1 (3.2) | -168 (224) | 1 -> 2 |
+| Continental e0 | yes | -0.1 (4.3) | +2.0 (1.8) | -8.7 (3.6) | +82 (41) | 2 -> 3 |
+| Small Islands e5 | yes | -9.9 (4.0) | -3.7 (2.4) | -1.8 (1.5) | -23 (68) | 21 -> 15 |
+| Continental e9 | yes | +5.0 (3.5) | +1.3 (2.9) | -1.1 (1.6) | -5 (55) | 27 -> 24 |
+| Small Islands e9 | yes | +1.9 (3.0) | -2.0 (1.7) | +0.2 (0.2) | -63 (87) | 13 -> 14 |
+| Small Islands Large | yes | -6.5 (6.5) | +3.1 (7.0) | +0.6 (3.8) | -107 (185) | 21 -> 24 |
+| Tournament Islands Huge | yes | +3.1 (9.3) | +13.1 (8.5) | +3.4 (7.2) | -166 (285) | 4 -> 7 |
+| Large Islands Huge | yes | -11.3 (8.9) | -1.5 (7.8) | -8.9 (6.2) | +818 (341) | 6 -> 8 |
+| Continental Large | yes | +10.0 (6.6) | +7.0 (7.7) | +6.8 (6.2) | -147 (86) | 34 -> 34 |
+
+Soldiers alive at the end within +-2 (se 1-2) in most cells (Small Islands Large without the cheat -3.2 (3.4),
+Tournament Islands Huge +4.2 (3.4)); razed within +-1 (Continental Large without the cheat +2.8 (3.0)). With 15 a game
+saw 2-25 units give up, 0-9 fall back toward home, 0.03-0.6 attacks ended (the base AI defends most games at home:
+few attacks of the mod are hopeless out there). Head-to-head against the control AI (40 games each, B - A per game,
+cover.py -h2h / h2h.py): v_fall_back=15 - Small Islands Large (4 AIs, e5) kills - losses -11.7 (13.4), losses +10.6
+(7.9); Continental e0 (4 AIs) -1.6 (5.0); Continental e9 (4 AIs) -2.1 (4.5), soldiers +4.9 (1.5), losses +9.8 (5.1);
+lowpop (e9, unit limit 60) -6.5 (6.2). v_army_mass=4 (attack_retreat for B alone): -0.0 (12.8), -1.6 (4.7), +0.1
+(5.4), -0.5 (6.1).
+
+**END stays off** (`fall_back=7`): no clear gain - a few cells better (Small Islands e5 and Tournament Islands Huge
+without the cheat), as many worse (Small Islands e5 with the cheat, Large Islands Huge, the head-to-heads); breaks 3
+alike. **attack_retreat on top of fall_back adds nothing**: within the noise everywhere but Continental e0 with the
+cheat (-8.7 (3.6)), 0-0.65 call-offs a game. **The call-off itself is still not safe**: of ~2900 games, all 5 crashes
+(0x53110D, the unit list - docs/testing.md "Continental stalls") and 2 of the 3 stalls came within ~2 minutes after a
+call-off (4 of END or attack_retreat, 1 a citizen-attack call-off in an attack_retreat game; in 3 the engine guard had
+just caught a unit "released a second time"); the shipped 7 alone none in 640 games. 304 END call-offs, 224
+attack_retreat ones.

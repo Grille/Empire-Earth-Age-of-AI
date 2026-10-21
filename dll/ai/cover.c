@@ -37,10 +37,12 @@
 //   fighting while it had a target), sails to the water by the dock - one an own tower covers counts half the way -
 //   and stays until 80% (it sailed again at 35%). (Ordered to the dock's own tile, a land tile, the ships of one
 //   Tournament Islands Huge game drove the engine into its broken unit list - 0x628D6F, reproducible with that seed.)
+// 8 END (off): a unit that broke off from the same attack group fall_back_breaks (2) times gives it up (cv_end below),
+//   one with no own cover near falls back toward home; an attack most of whose units gave up is called off.
 // Measured (base AI at hard, 6 maps x both cheats, 40 games a cell; head-to-head): docs/economy.md "Fall back to
-// cover" - 7 on by default.
+// cover" - 7 on by default; 8 no clear gain (docs/economy.md "8 END"), off.
 static int g_fall_back = 7, g_v_fall_back = -1;
-static int g_fb_ratio = 50, g_fb_hp = 40, g_fb_value = 100, g_fb_dist = 60;
+static int g_fb_ratio = 50, g_fb_hp = 40, g_fb_value = 100, g_fb_dist = 60, g_fb_breaks = 2, g_fb_end = 50;
 #define FALL_BACK(idx) PV(idx, g_v_fall_back, g_fall_back)
 #define CV_N 8192
 #define CV_TOMB ((ee_unit *)1)
@@ -52,7 +54,10 @@ struct cv_rec { ee_unit *u; int id, hp; uint32_t seen, low_t, eng_t, att_t; int1
 static struct cv_rec g_cvr[CV_N], g_cvr_tmp[CV_N];
 static unsigned g_cvr_n;
 static uint32_t g_cvr_purge;
-struct cv_hold { ee_unit *u; int id, kind, tx, ty; uint32_t since, at; };
+// kind 1 at the Hospital, 2 broke off to cover, 3 gave its attack up (END), 4 broke off toward home, no cover near (END);
+// g its attack group then (END), home: no cover - the next step home when it arrived
+struct cv_hold { ee_unit *u; uint8_t *g; int id, kind, tx, ty, home; uint32_t since, at; };
+struct cv_brk { ee_unit *u; uint8_t *g; int id, n; uint32_t t; };   // END: how often a unit broke off from its attack group
 static struct cv_pl {
     uint32_t ts, tb, tscan; unsigned min; int started;
     unsigned samples, mil, dmg, dmgq;
@@ -61,6 +66,9 @@ static struct cv_pl {
     int hx[16], hy[16], dkx[16], dky[16], cvx[64], cvy[64];
     struct cv_hold hold[CV_HOLD]; int nh;
     unsigned heal_sent, heal_done, broke, back, refused, judged;   // since the last line
+    struct cv_brk brk[256];
+    uint32_t end_t;
+    unsigned gaveup, home, ended;   // since the last line (END)
 } g_cv[16];
 static uint8_t g_cv_foe[CV_CELLS][CV_CELLS], g_cv_seen[CV_CELLS][CV_CELLS];   // enemy fighters per 8-tile cell (all / seen)
 static struct st_side g_cvs_own, g_cvs_foe;
@@ -318,12 +326,129 @@ static int cv_cover(ee_player *pl, struct cv_pl *c, int x, int y, unsigned a, in
     if (c->base && area_id(c->bx, c->by, 2) == a && cv_d2(c->bx, c->by, x, y) <= g_fb_dist * g_fb_dist) { *tx = c->bx; *ty = c->by; return 1; }
     return 0;
 }
-static void cv_take(struct cv_pl *c, ee_unit *u, int kind, int tx, int ty, uint32_t now) {
+static void cv_take(struct cv_pl *c, ee_unit *u, int kind, int tx, int ty, uint32_t now, uint8_t *g, int home) {
     if (c->nh >= CV_HOLD) return;
     struct cv_hold *h = &c->hold[c->nh++];
-    h->u = u; h->id = FIELD(u, OF(UNIT, 0x60), int); h->kind = kind; h->tx = tx; h->ty = ty; h->since = now ? now : 1; h->at = 0;
+    h->u = u; h->g = g; h->id = FIELD(u, OF(UNIT, 0x60), int); h->kind = kind; h->tx = tx; h->ty = ty; h->home = home;
+    h->since = now ? now : 1; h->at = 0;
+}
+
+// ---- 8 END: an attack the units keep breaking off from ----
+// The gap BREAK left: an attack subgroup sends a unit back into the same lost fight 20 s after it reached the cover,
+// again and again; a unit far from any own cover (deep in enemy land, on an enemy island) fights on. A player gives a
+// hopeless attack up: those who broke off from it fall_back_breaks (2) times stay back, and when fall_back_end (50%)
+// of an attack's units have given up and its fighters still out are not winning where they stand, the attack is called
+// off (the game's call-off at the safe point, diplo.c - the engine guard of attack.c with it, as attack_retreat) and
+// the next one comes within 5 minutes, formed fresh. The attack groups: attack commander player +0xB8C +0x48, a deque
+// of groups at +4 (count +0x14), a group's target player +0x48, its subgroups +8..+0xC, members +0x54..+0x58, record
+// +0x44 = unit (defence.c attack_retreat).
+#define CV_GRP 8
+#define CV_GH 4096
+static struct cv_grp { uint8_t *g; ee_player *target; int n, gu, nf; float fx, fy, fpow; } g_cvg[CV_GRP];
+static int g_cvg_n;
+static struct { ee_unit *u; int k; } g_cvgh[CV_GH];
+static int cv_group_of(ee_unit *u) {   // the attack group (index into g_cvg) a unit is a member of, -1 none
+    unsigned h = cv_hash(u) & (CV_GH - 1);
+    for (int n = 0; n < CV_GH && g_cvgh[h].u; n++, h = (h + 1) & (CV_GH - 1)) if (g_cvgh[h].u == u) return g_cvgh[h].k;
+    return -1;
+}
+static void cv_groups(ee_player *pl) {
+    memset(g_cvgh, 0, sizeof g_cvgh); g_cvg_n = 0;
+    uint8_t *cbm = FIELD(pl, OF(PL, 0xB8C), uint8_t *), *cmd = cbm ? FIELD(cbm, OF(AM, 0x48), uint8_t *) : NULL;
+    if (!cmd) return;
+    uint8_t *dq = cmd + 4;
+    unsigned first = FIELD(dq, 0xC, unsigned), cnt = FIELD(dq, 0x10, unsigned), used = 0;
+    for (unsigned k = 0; k < cnt && g_cvg_n < CV_GRP; k++) {
+        uint8_t *g = deque_at(dq, first + k);
+        if (!g) continue;
+        struct cv_grp *q = &g_cvg[g_cvg_n];
+        memset(q, 0, sizeof *q); q->g = g; q->target = FIELD(g, OF(AG, 0x48), ee_player *);
+        for (uint8_t **sp = FIELD(g, OF(AG, 0x8), uint8_t **); sp && sp < FIELD(g, OF(AG, 0xC), uint8_t **); sp++) {
+            uint8_t **b = *sp ? FIELD(*sp, OF(ASG, 0x54), uint8_t **) : NULL, **e = *sp ? FIELD(*sp, OF(ASG, 0x58), uint8_t **) : NULL;
+            for (uint8_t **r = b; b && r < e && used < CV_GH / 2; r++) {
+                ee_unit *u = *r ? FIELD(*r, OF(ASGU, 0x44), ee_unit *) : NULL;
+                if (!u || !cv_alive(u) || cv_mil(FIELD(u, OF(UNIT, 0x2C), uint8_t *)) != 1) continue;
+                unsigned h = cv_hash(u) & (CV_GH - 1);
+                while (g_cvgh[h].u && g_cvgh[h].u != u) h = (h + 1) & (CV_GH - 1);
+                if (g_cvgh[h].u) continue;
+                g_cvgh[h].u = u; g_cvgh[h].k = g_cvg_n; used++;
+                q->n++;
+            }
+        }
+        g_cvg_n++;
+    }
+}
+// how often u broke off from its attack group g (this one counted); a record older than 10 minutes starts again
+static int cv_tally(struct cv_pl *c, ee_unit *u, uint8_t *g, uint32_t now) {
+    int id = FIELD(u, OF(UNIT, 0x60), int), old = 0;
+    for (int k = 0; k < 256; k++) {
+        struct cv_brk *b = &c->brk[k];
+        if (b->u == u && b->id == id) {
+            if (b->g != g || now - b->t > 600000) { b->g = g; b->n = 0; }
+            b->t = now ? now : 1;
+            return ++b->n;
+        }
+        if (!b->u) { if (c->brk[old].u) old = k; }   // a free record first, else the oldest
+        else if (c->brk[old].u && b->t < c->brk[old].t) old = k;
+    }
+    struct cv_brk *b = &c->brk[old];
+    b->u = u; b->g = g; b->id = id; b->n = 1; b->t = now ? now : 1;
+    return 1;
+}
+// no own cover within reach: toward the base - the farthest point up to 20 tiles on the line to it that is still the
+// unit's land (on an enemy island: the shore on the home side); 0 none 8+ tiles away
+static int cv_home_pt(struct cv_pl *c, int x, int y, unsigned a, int *tx, int *ty) {
+    if (!c->base) return 0;
+    float dx = (float)(c->bx - x), dy = (float)(c->by - y), l = sqrtf(dx * dx + dy * dy);
+    int best = 0;
+    for (int s = 2; s <= 20 && (float)s < l; s += 2) {
+        int px = x + (int)lroundf(dx * (float)s / l), py = y + (int)lroundf(dy * (float)s / l);
+        if (area_id(px, py, 2) != a) break;
+        *tx = px; *ty = py; best = s;
+    }
+    return best >= 8;
+}
+// the call-off: most of an attack's units gave up, and the rest is not winning where it stands
+static void cv_end(ee_player *pl, unsigned idx, struct cv_pl *c, uint32_t now) {
+    if (c->end_t && now - c->end_t < 60000) return;
+    for (int k = 0; k < c->nh; k++) {
+        struct cv_hold *h = &c->hold[k];
+        for (int j = 0; j < g_cvg_n; j++) if (h->kind == 3 && h->g == g_cvg[j].g) g_cvg[j].gu++;
+    }
+    for (int i = 0; i < g_cv_nu; i++) {   // the fighters still out: members not held
+        ee_unit *u = g_cv_units[i];
+        int j = cv_group_of(u);
+        if (j < 0 || cv_held(c, u)) continue;
+        struct cv_grp *q = &g_cvg[j];
+        float p = unit_power(u);
+        q->nf++; q->fpow += p; q->fx += (float)FIELD(u, OF(UNIT, 0x1C), int) * p; q->fy += (float)FIELD(u, OF(UNIT, 0x20), int) * p;
+    }
+    if (landing_busy(pl)) return;   // its soldiers in the groups, aboard (attack_retreat's reason)
+    for (int j = 0; j < g_cvg_n; j++) {
+        struct cv_grp *q = &g_cvg[j];
+        int all = q->n > q->gu ? q->n : q->gu;
+        if (!q->target || q->gu < 3 || q->gu * 100 < all * g_fb_end) continue;   // 3+ gave up: a real attack
+        float e = 0;
+        if (q->nf && q->fpow > 0) {   // never an attack winning where its fighters stand
+            e = cv_local(pl, (int)(q->fx / q->fpow), (int)(q->fy / q->fpow), 10, 1);
+            if (e >= 1.0f) continue;
+        }
+        int stronger = 0;   // the call-off ends all attacks on that player: not while another one on it fights on stronger
+        for (int i = 0; i < g_cvg_n; i++) stronger |= i != j && g_cvg[i].target == q->target && g_cvg[i].fpow > q->fpow && g_cvg[i].gu * 100 < g_cvg[i].n * g_fb_end;
+        if (stronger) continue;
+        int t = FIELD(q->target, PL_INDEX, int) & 15;
+        g_cancel_why[idx][t] = "attack (fall back: given up)";
+        cancel_citizen_attack((int)idx, t);
+        c->end_t = now ? now : 1; c->ended++;
+        uint32_t next = now + 300000;
+        if (FIELD(pl, OF(PL, 0xED8), uint32_t) > next) { FIELD(pl, OF(PL, 0xED8), uint32_t) = next; g_last_attack_time[idx] = next; }
+        if (g_log && g_autotest) fprintf(g_log, "# cover: P%u at %.1f min: its attack on P%d ends - %d of %d units gave up, %d still out (fight %.2f); next attack at %.1f min\n",
+                                         idx, now / 60000.0, t, q->gu, all, q->nf, q->nf ? e : 0.0f, FIELD(pl, OF(PL, 0xED8), uint32_t) / 60000.0);
+        return;
+    }
 }
 static void cv_behave(ee_player *pl, unsigned idx, struct cv_pl *c, uint32_t now, int plan) {
+    if (plan & 8) cv_groups(pl); else g_cvg_n = 0;
     // the held units: gone, healed, arrived and rested - let go
     for (int k = c->nh - 1; k >= 0; k--) {
         struct cv_hold *h = &c->hold[k];
@@ -337,10 +462,17 @@ static void cv_behave(ee_player *pl, unsigned idx, struct cv_pl *c, uint32_t now
                 int hp = FIELD(u, OF(UNIT, 0x3C), int), mx = cv_hpmax(u), nb = 0;
                 for (int j = 0; j < c->nhs; j++) nb |= cv_d2(c->hx[j], c->hy[j], h->tx, h->ty) <= 9;
                 if (hp * 10 >= mx * 9 || !nb || now - h->since > 240000) { go = 1; c->heal_done += hp * 10 >= mx * 9; }
+            } else if (h->kind == 3) {   // gave up: until its attack is over (the group gone, or it no longer in it), 5 minutes at most
+                int j = cv_group_of(u);
+                if (j < 0 || g_cvg[j].g != h->g || now - h->since > 300000) go = 1;
             } else if ((h->at && now - h->at >= 20000) || now - h->since > 90000) go = 1;
         }
-        if (go) { if (h->kind == 2) c->back++; c->hold[k] = c->hold[--c->nh]; continue; }
+        if (go) { if (h->kind == 2 || h->kind == 4) c->back++; c->hold[k] = c->hold[--c->nh]; continue; }
         int x = FIELD(u, OF(UNIT, 0x1C), int), y = FIELD(u, OF(UNIT, 0x20), int);
+        if (h->kind == 3 && h->home && h->at) {   // no cover: on toward home from where it got to
+            int tx, ty;
+            if (cv_home_pt(c, x, y, area_id(x, y, 2), &tx, &ty)) { h->tx = tx; h->ty = ty; h->at = 0; }
+        }
         if (cv_d2(x, y, h->tx, h->ty) <= (h->at ? 25 : 4) || as_goal_near(u, (float)h->tx + 0.5f, (float)h->ty + 0.5f, 2.5f)) continue;
         if (h->at && fl_attacking(u)) continue;   // at the cover: it fights what comes in reach
         unit_goal(u, goal_move((float)h->tx + 0.5f + (float)(k % 3) - 1.0f, (float)h->ty + 0.5f + (float)(k / 3 % 3) - 1.0f), 0, 0x1F40);
@@ -363,7 +495,7 @@ static void cv_behave(ee_player *pl, unsigned idx, struct cv_pl *c, uint32_t now
             if (best >= 0) {
                 float dx = (float)(x - c->hx[best]), dy = (float)(y - c->hy[best]), l = sqrtf(dx * dx + dy * dy);
                 int tx = c->hx[best] + (l >= 1 ? (int)lroundf(2.0f * dx / l) : 2), ty = c->hy[best] + (l >= 1 ? (int)lroundf(2.0f * dy / l) : 0);
-                cv_take(c, u, 1, tx, ty, now);
+                cv_take(c, u, 1, tx, ty, now, NULL, 0);
                 c->heal_sent++;
                 if (g_log && g_autotest) fprintf(g_log, "# cover: P%u at %.1f min: type %d at %d,%d (hp %d/%d) to the Hospital %d,%d\n", idx, now / 60000.0,
                                                  FIELD(td, OF(TD, 0x4B8), int), x, y, hp, mx, c->hx[best], c->hy[best]);
@@ -375,14 +507,22 @@ static void cv_behave(ee_player *pl, unsigned idx, struct cv_pl *c, uint32_t now
             while (k < nc && (cache[k].cx != x / 4 || cache[k].cy != y / 4)) k++;
             if (k == nc && nc < 256) { cache[nc].cx = x / 4; cache[nc].cy = y / 4; cache[nc].r = cv_local(pl, x, y, 10, 1); nc++; c->judged++; }
             float e = k < 256 ? cache[k].r : 1e6f;
-            int tx, ty;
-            if (e * 100.0f >= (float)g_fb_ratio || !cv_cover(pl, c, x, y, a, &tx, &ty) || cv_d2(x, y, tx, ty) <= 16) continue;
-            cv_take(c, u, 2, tx, ty, now);
-            c->broke++;
-            if (g_log && g_autotest) fprintf(g_log, "# cover: P%u at %.1f min: type %d at %d,%d breaks off (fight %.2f) to %d,%d\n", idx, now / 60000.0,
-                                             FIELD(td, OF(TD, 0x4B8), int), x, y, e, tx, ty);
+            int tx, ty, home = 0;
+            if (e * 100.0f >= (float)g_fb_ratio) continue;
+            if (!cv_cover(pl, c, x, y, a, &tx, &ty)) {   // END: no own cover near - toward home rather than fight on
+                if (!(plan & 8) || !cv_home_pt(c, x, y, a, &tx, &ty)) continue;
+                home = 1;
+            } else if (cv_d2(x, y, tx, ty) <= 16) continue;
+            int j = (plan & 8) ? cv_group_of(u) : -1, n = j >= 0 ? cv_tally(c, u, g_cvg[j].g, now) : 0;
+            int kind = j >= 0 && n >= g_fb_breaks ? 3 : home ? 4 : 2;
+            cv_take(c, u, kind, tx, ty, now, j >= 0 ? g_cvg[j].g : NULL, home);
+            c->broke++; c->gaveup += kind == 3; c->home += home;
+            if (g_log && g_autotest) fprintf(g_log, "# cover: P%u at %.1f min: type %d at %d,%d breaks off (fight %.2f) to %d,%d%s\n", idx, now / 60000.0,
+                                             FIELD(td, OF(TD, 0x4B8), int), x, y, e, tx, ty,
+                                             kind == 3 ? (home ? " - gives its attack up, home" : " - gives its attack up") : home ? " - home, no cover near" : "");
         }
     }
+    if (plan & 8) cv_end(pl, idx, c, now);
 }
 
 static void cover_tick(ee_player *pl, uint32_t now) {
@@ -390,7 +530,7 @@ static void cover_tick(ee_player *pl, uint32_t now) {
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     struct cv_pl *c = &g_cv[idx];
     if (now < c->ts || now < c->tb) { memset(c, 0, sizeof *c); }
-    int plan = is_vanilla(pl) ? 0 : FALL_BACK(idx) & 3, meas = g_autotest && g_log;
+    int plan = is_vanilla(pl) ? 0 : FALL_BACK(idx) & 11, meas = g_autotest && g_log;
     int act = plan && (!c->tb || now - c->tb >= 2000), smp = meas && (!c->ts || now - c->ts >= 5000);
     if (!act && !smp) return;
     cv_scan(pl, c);
@@ -404,11 +544,12 @@ static void cover_tick(ee_player *pl, uint32_t now) {
     float s = c->samples ? (float)c->samples : 1.0f;
     EnterCriticalSection(&g_lock);
     fprintf(g_log, "# cover: P%u at %u min: mil %.1f dmg %.1f quiet %.1f | heal hosp %.0f dock %.0f other %.0f | hospitals %d docks %d defences %d | "
-            "fb heal %u healed %u broke %u back %u held %d refused %u judged %u\n", idx, c->min, c->mil / s, c->dmg / s, c->dmgq / s,
-            c->heal_h, c->heal_d, c->heal_o, c->nhs, c->ndk, c->ncv, c->heal_sent, c->heal_done, c->broke, c->back, c->nh, c->refused, c->judged);
+            "fb heal %u healed %u broke %u back %u held %d refused %u judged %u gave %u home %u ended %u\n", idx, c->min, c->mil / s, c->dmg / s,
+            c->dmgq / s, c->heal_h, c->heal_d, c->heal_o, c->nhs, c->ndk, c->ncv, c->heal_sent, c->heal_done, c->broke, c->back, c->nh, c->refused,
+            c->judged, c->gaveup, c->home, c->ended);
     LeaveCriticalSection(&g_lock);
     c->samples = c->mil = c->dmg = c->dmgq = 0; c->heal_h = c->heal_d = c->heal_o = 0;
-    c->heal_sent = c->heal_done = c->broke = c->back = c->refused = c->judged = 0;
+    c->heal_sent = c->heal_done = c->broke = c->back = c->refused = c->judged = c->gaveup = c->home = c->ended = 0;
     c->min = now / 60000;
 }
 static void cover_install(const char *aimod_ini, const char *autotest_ini) {
@@ -417,7 +558,9 @@ static void cover_install(const char *aimod_ini, const char *autotest_ini) {
     g_fb_hp = cfg_pct(aimod_ini, autotest_ini, 1, "fall_back_hp", 40, 100);
     g_fb_value = cfg_int(aimod_ini, autotest_ini, 1, "fall_back_value", 100);
     g_fb_dist = cfg_int(aimod_ini, autotest_ini, 1, "fall_back_dist", 60);
+    g_fb_breaks = cfg_int(aimod_ini, autotest_ini, 1, "fall_back_breaks", 2);
+    g_fb_end = cfg_pct(aimod_ini, autotest_ini, 1, "fall_back_end", 50, 100);
     if (autotest_ini) g_v_fall_back = ini_int("autotest", "v_fall_back", -1, autotest_ini);
-    if (g_log) fprintf(g_log, "# fall back: %d (variant %d), ratio %d%%, hp %d%%, value %d, dist %d\n", g_fall_back, g_v_fall_back,
-                       g_fb_ratio, g_fb_hp, g_fb_value, g_fb_dist);
+    if (g_log) fprintf(g_log, "# fall back: %d (variant %d), ratio %d%%, hp %d%%, value %d, dist %d, breaks %d, end %d%%\n", g_fall_back, g_v_fall_back,
+                       g_fb_ratio, g_fb_hp, g_fb_value, g_fb_dist, g_fb_breaks, g_fb_end);
 }
