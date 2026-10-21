@@ -1,5 +1,6 @@
 // EMPIRE EARTH'S SETTINGS IN A FILE (optional, built as dinput.dll): the game keeps its settings in the registry,
-// HKCU\Software\SSSI\Empire Earth (60 values, subkey "Game Options"), and reads them all before the engine loads
+// HKCU\Software\SSSI\Empire Earth (60 values, subkey "Game Options"; Art of Conquest the same under
+// HKCU\Software\Mad Doc Software\EE-AOC), and reads them all before the engine loads
 // eeaimod.dll (docs/engine-notes.md, Exe builds - Settings). This DLL is loaded by Windows at the start instead: the
 // engine (Low-Level Engine.dll) imports DINPUT.dll, which isn't one of the system's KnownDLLs, so a dinput.dll in the
 // game folder comes first. It passes the engine's one DirectInput call through to the system's dinput.dll and points
@@ -52,7 +53,9 @@ HRESULT WINAPI DllUnregisterServer(void) { return E_NOTIMPL; }
 const char *WINAPI EEAimodSettings(void);
 
 // ---- the settings: keys with their values, in memory; the file is written when the game has changed them ----
-static const char *const k_roots[] = { "HKCU\\Software\\SSSI\\Empire Earth", "HKCU\\Software\\Neo\\Empire Earth" };
+// (Art of Conquest's: Mad Doc Software\EE-AOC, the same values)
+static const char *const k_roots[] = { "HKCU\\Software\\SSSI\\Empire Earth", "HKCU\\Software\\Neo\\Empire Earth",
+                                       "HKCU\\Software\\Mad Doc Software\\EE-AOC" };
 #define NKEYS 32
 #define NVALS 128
 struct sval { char name[80]; DWORD type, n; BYTE *data; };

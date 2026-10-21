@@ -32,14 +32,17 @@ static uint32_t exe_build_hash(const char *path) {   // 0: not a readable PE fil
     return h;
 }
 // 1: the game in a build the mod knows and is ready for (its addresses selected: addr.h); 0: not the game (another
-// program loading the folder's DLLs); -1: the game, another build (*hash its hash)
+// program loading the folder's DLLs) or a known build that isn't ready (the player's game runs without the mod); -1:
+// the game, another build (*hash its hash). A test run (run_test.ps1: EEAIMOD_UNREADY=1) plays a build that isn't
+// ready too - how it gets ready.
 static int game_build(uint32_t *hash) {
-    char path[MAX_PATH];
+    char path[MAX_PATH], unready[4];
     GetModuleFileNameA(NULL, path, MAX_PATH);
     const char *name = strrchr(path, '\\');
     *hash = exe_build_hash(path);
+    int test = GetEnvironmentVariableA("EEAIMOD_UNREADY", unready, sizeof unready) == 1 && unready[0] == '1';
     for (int i = 0; i < ADDR_BUILDS; i++)
-        if (*hash == k_exe_builds[i].hash && k_exe_builds[i].ready) {
+        if (*hash == k_exe_builds[i].hash && (k_exe_builds[i].ready || test)) {
             g_addr_missing = addr_select(i);
             g_of_missing = fields_select(i);
             return 1;

@@ -484,6 +484,7 @@ static void install(HMODULE self) {
                 st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond);
         log_header();
         ini_flush();   // a setting's mistakes found before the log was open
+        if (!k_exe_builds[g_exe_build].ready) fprintf(g_log, "# build: %s - not ready, a test run's\n", k_exe_builds[g_exe_build].name);
         addr_log(g_log);
         fields_log(g_log);
         fprintf(g_log, "# config: %s (personalities: %s%s%s)\n", g_aimod_ini, g_ai_dir, g_ai_dir_why[0] ? " - " : "", g_ai_dir_why);

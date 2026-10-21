@@ -11,6 +11,6 @@ def game_dir():
     if not g and os.path.exists(f):
         g = next((ln.strip() for ln in open(f, encoding='utf-8') if ln.strip()), None)
     g = os.path.abspath(g or os.path.dirname(REPO))
-    if not os.path.exists(os.path.join(g, 'Empire Earth.exe')):
-        raise SystemExit('no Empire Earth.exe in %s - name the game folder in EE_GAME_DIR or %s' % (g, f))
+    if not any(os.path.exists(os.path.join(g, x)) for x in ('Empire Earth.exe', 'EE-AOC.exe')):   # (or Art of Conquest's)
+        raise SystemExit('no Empire Earth.exe (or EE-AOC.exe) in %s - name the game folder in EE_GAME_DIR or %s' % (g, f))
     return g

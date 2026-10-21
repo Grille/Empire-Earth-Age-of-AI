@@ -14,15 +14,27 @@
 # start (docs/testing.md, Parallel runs). Slot 0 (default) is the game folder as before.
 # -Dll <path> (env DLL): this run plays with that eeaimod.dll build instead of the installed one - copied to
 # work\eeaimod_slot<n>.dll (the source can be rebuilt meanwhile), named in EEAIMOD_DLL; the installed DLL loads it.
+# Art of Conquest: EE_GAME_DIR=<its folder> (EE-AOC.exe is found there; -Exe names another). The mod plays there in
+# test runs only until that build is ready (EEAIMOD_UNREADY, game/exe.c); the game needs a save of its own to start
+# from (Saved Games\aitest.ees - a random_map start replaces what it holds).
 param([string]$Save = "aitest.ees", [int]$TimeoutSec = 900, [string]$Tag = "", [bool]$Mute = $true,
-      [string]$Scenario = "", [string[]]$IniExtra = @(), [string]$Exe = "Empire Earth.exe",
+      [string]$Scenario = "", [string[]]$IniExtra = @(), [string]$Exe = "",
       [string]$Config = $env:CONFIG, [string]$AiDir = $env:AI_DIR, [int]$Slot = [int]$env:SLOT,
       [string]$Settings = $env:SETTINGS, [string]$Dll = $env:DLL)
 $repo = (Resolve-Path "$PSScriptRoot\..").Path
 $g = $env:EE_GAME_DIR
 if (-not $g -and (Test-Path "$repo\game_dir.txt")) { $g = (Get-Content "$repo\game_dir.txt" | Where-Object { $_.Trim() } | Select-Object -First 1).Trim() }
 if (-not $g) { $g = Split-Path $repo -Parent }
+if (-not $Exe) { $Exe = if (Test-Path (Join-Path $g "EE-AOC.exe") -PathType Leaf) { "EE-AOC.exe" } else { "Empire Earth.exe" } }
 if (-not (Test-Path (Join-Path $g $Exe))) { "no $Exe in $g - name the game folder in EE_GAME_DIR or $repo\game_dir.txt"; exit 1 }
+# the build's own: its registry key, and the two patches of a suspended start - the loading splash's jne (addr.h
+# CODE_SPLASH_START_JNE) and the single-instance check's je after its CreateMutexA (both builds' 0x535CA7 / 0x540D73)
+$aoc = $Exe -eq "EE-AOC.exe"
+$build = if ($aoc) { @{ Key = 'HKCU:\Software\Mad Doc Software\EE-AOC'; Splash = 0x53F2FE; Multi = 0x540DA6;
+                        MultiBytes = [byte[]](0x0F, 0x84, 0xC8, 0x03, 0x00, 0x00) } }
+         else { @{ Key = 'HKCU:\Software\SSSI\Empire Earth'; Splash = 0x534400; Multi = 0x535CDA;
+                   MultiBytes = [byte[]](0x0F, 0x84, 0xBE, 0x02, 0x00, 0x00) } }
+$exeName = [System.IO.Path]::GetFileNameWithoutExtension($Exe)   # its process
 $g = (Resolve-Path $g).Path.TrimEnd('\')
 if ($Slot -lt 0 -or $Slot -gt 30) { "slot must be 0..30"; exit 1 }
 $sdir = if ($Slot) { "$repo\work\slot$Slot" } else { $g }   # this run's test ini, log and dumps
@@ -32,7 +44,7 @@ if ($Scenario) {
     if (-not (Test-Path $dst) -or (Get-FileHash $src).Hash -ne (Get-FileHash $dst).Hash) { Copy-Item $src $dst -Force }
     $Save = "$Scenario.ees"
 }
-$key = 'HKCU:\Software\SSSI\Empire Earth'
+$key = $build.Key
 $backup = "$repo\work\sound_settings_backup.json"
 $names = 'Sound Volume', 'Music Volume', 'Music Enabled'
 
@@ -107,7 +119,7 @@ $others = @(Other-Runs)
 $ours = @($others | ForEach-Object { $_ | Select-Object -Skip 1 })
 # a game another runner has just started, before its PID is in that runner's lock: its parent is that runner
 $runners = @($others | ForEach-Object { $_[0] })
-$foreign = @(Get-Process -Name "Empire Earth" -ErrorAction SilentlyContinue | Where-Object { $ours -notcontains $_.Id } | Where-Object {
+$foreign = @(Get-Process -Name $exeName -ErrorAction SilentlyContinue | Where-Object { $ours -notcontains $_.Id } | Where-Object {
     $pp = (Get-CimInstance Win32_Process -Filter "ProcessId=$($_.Id)" -ErrorAction SilentlyContinue).ParentProcessId
     -not ($pp -and $runners -contains [int]$pp) })
 if ($foreign -and (-not $Slot -or ($Mute -and -not $proxy))) {
@@ -169,6 +181,7 @@ Set-Content "$sdir\aimod_autotest.ini" (@($lines) + $extra)
 if ($Slot) { $env:EEAIMOD_SLOT = "$Slot"; $env:EEAIMOD_SLOT_DIR = $sdir }
 else { Remove-Item Env:EEAIMOD_SLOT, Env:EEAIMOD_SLOT_DIR -ErrorAction SilentlyContinue }
 $env:EEAIMOD_REPO = $repo   # the repository (texts corpus: its scripts\text_engine_cases.txt)
+$env:EEAIMOD_UNREADY = "1"   # a known build that isn't ready yet plays here (game/exe.c) - never in normal play
 # headless: the mod's dinput.dll keeps every window of the game from taking the focus or a taskbar button, from the
 # process start on (dll/base/headless_win.c; eeaimod.dll alone only from its load on)
 if ($extra -contains "headless=1") { $env:EEAIMOD_HEADLESS = "1" } else { Remove-Item Env:EEAIMOD_HEADLESS -ErrorAction SilentlyContinue }
@@ -185,7 +198,7 @@ try {
     # headless or beside other games: start suspended and patch before the game runs (else a plain start)
     if ($extra -contains "headless=1" -or $Slot -or $others) {
         # headless: start suspended and switch off the loading splash before the game runs - it comes up before
-        # the engine loads our DLL, centred on screen, and takes the focus (jne at 0x534400 -> jmp, see display.c)
+        # the engine loads our DLL, centred on screen, and takes the focus (its jne -> jmp, see display.c)
         Add-Type @"
 using System; using System.Runtime.InteropServices;
 public static class SuspendedStart {
@@ -205,16 +218,16 @@ public static class SuspendedStart {
     for (int i = 0; i < want.Length; i++) if (cur[i] != want[i]) return false;
     return VirtualProtectEx(hp, new IntPtr(at), put.Length, 0x40, out old) && WriteProcessMemory(hp, new IntPtr(at), put, put.Length, out n);
   }
-  // splash: the loading splash off (jne at 0x534400 -> jmp); multi: the single-instance check off (its je at 0x535CDA
-  // nopped - the mutex "StainlessSteelStudiosPresentsEmpireEarth" is created before the engine loads our DLL)
-  public static int Start(string exe, string args, string dir, bool splash, bool multi, out bool splashOk, out bool multiOk) {
+  // splash: the loading splash off (its jne -> jmp); multi: the single-instance check off (its je nopped - the mutex,
+  // "StainlessSteelStudiosPresentsEmpireEarth" in the 2017 update, is created before the engine loads our DLL)
+  public static int Start(string exe, string args, string dir, bool splash, int splashAt, bool multi, int multiAt,
+                          byte[] multiWant, out bool splashOk, out bool multiOk) {
     SI si = new SI(); si.cb = Marshal.SizeOf(si); PI pi;
     if (splash) si.flags = 0x80;   // headless: STARTF_FORCEOFFFEEDBACK - no busy cursor while it starts
     if (!CreateProcessW(exe, "\"" + exe + "\" " + args, IntPtr.Zero, IntPtr.Zero, false, 4, IntPtr.Zero, dir, ref si, out pi))
       throw new Exception("CreateProcess failed: " + Marshal.GetLastWin32Error());
-    splashOk = splash && Patch(pi.hp, 0x534400, new byte[] { 0x75, 0x2F }, new byte[] { 0xEB });
-    multiOk = multi && Patch(pi.hp, 0x535CDA, new byte[] { 0x0F, 0x84, 0xBE, 0x02, 0x00, 0x00 },
-                             new byte[] { 0x90, 0x90, 0x90, 0x90, 0x90, 0x90 });
+    splashOk = splash && Patch(pi.hp, splashAt, new byte[] { 0x75, 0x2F }, new byte[] { 0xEB });
+    multiOk = multi && Patch(pi.hp, multiAt, multiWant, new byte[] { 0x90, 0x90, 0x90, 0x90, 0x90, 0x90 });
     ResumeThread(pi.ht); CloseHandle(pi.ht); CloseHandle(pi.hp);
     return pi.pid;
   }
@@ -222,10 +235,11 @@ public static class SuspendedStart {
 "@
         $headless = $extra -contains "headless=1"; $multi = [bool]($Slot -or $others)
         $splashOk = $false; $multiOk = $false
-        $p = Get-Process -Id ([SuspendedStart]::Start("$g\$Exe", "-loadgame `"$Save`"", $g, $headless, $multi, [ref]$splashOk, [ref]$multiOk))
+        $p = Get-Process -Id ([SuspendedStart]::Start("$g\$Exe", "-loadgame `"$Save`"", $g, $headless, $build.Splash, $multi,
+                                                      $build.Multi, $build.MultiBytes, [ref]$splashOk, [ref]$multiOk))
         $null = $p.Handle   # keep a handle, else ExitCode is lost
-        if ($headless -and -not $splashOk) { "warning: loading splash not switched off (unexpected bytes at 0x534400)" }
-        if ($multi -and -not $multiOk) { "warning: single-instance check not switched off (unexpected bytes at 0x535CDA)" }
+        if ($headless -and -not $splashOk) { "warning: loading splash not switched off (unexpected bytes at $('{0:X}' -f $build.Splash))" }
+        if ($multi -and -not $multiOk) { "warning: single-instance check not switched off (unexpected bytes at $('{0:X}' -f $build.Multi))" }
     } else {
         $psi = New-Object System.Diagnostics.ProcessStartInfo
         $psi.FileName = "$g\$Exe";$psi.Arguments = "-loadgame `"$Save`""
