@@ -48,6 +48,10 @@ EXCEPTIONS = [
     ('voice/llm.c', 'test/control.c', 'queue_pause_toggle', 'the game paused while the language model answers'),
 ]
 
+# THE FILES MOVED OVER to the typed game functions (game/api.h): GF there fails the build. When every file outside
+# game/ is in it, the rule becomes "GF only in game/".
+TYPED = ['ai/econ.c']
+
 IDENT = re.compile(r'[A-Za-z_]\w*')
 KEYWORDS = set('''if for while switch return sizeof static const struct enum union typedef unsigned signed int char void
 float double long short volatile extern inline do else case default break continue goto __attribute__ __asm__ asm
@@ -231,6 +235,10 @@ def main():
     for f in glob.glob(os.path.join(DLL, 'dinput', '*.c')):
         for inc in re.findall(r'#include\s+"([^"]+)"', open(f, encoding='latin-1').read()):
             if inc != '../base/headless_win.c': bad.append('dinput/%s includes %s' % (os.path.basename(f), inc))
+    # the files moved over to game/api.h: the game's functions only through its typed wrappers
+    for f in TYPED:
+        for m in re.finditer(r'\bGF\s*\(\s*(\w+)', code[f]):
+            bad.append('%s calls %s through GF - moved over to game/api.h: add a wrapper there' % (f, m.group(1)))
     stale = [e for e in EXCEPTIONS if (e[0], e[1], e[2]) not in used]
     for b in bad: print('layers: ' + b)
     for e in stale: print('layers: exception no longer needed: %s -> %s (%s) - take it out of scripts/layers.py' % e[:3])

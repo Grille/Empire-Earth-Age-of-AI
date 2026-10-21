@@ -753,7 +753,7 @@ static int hurt_danger(void *pl, int x, int y, int res) {   // res: 2 food, 3 wo
     if (!g_cit_threats || !pl) return 0;
     return hurt_near((unsigned)FIELD(pl, PL_INDEX, int) & 15, x, y) >= (res >= 4 ? 3 : 1);
 }
-static int site_danger_res(void *pl, uint8_t *site, int food, int res) {   // from the nearest drop site
+static int site_danger_res(void *pl, void *site, int food, int res) {   // from the nearest drop site
     if (!g_avoid_citizens || !pl || !site) return 0;
     int x = FIELD(site, OF(UNIT, 0x1C), int), y = FIELD(site, OF(UNIT, 0x20), int), d[2];
     if (raiders_near(pl, x, y, 6)) return 1;   // the searches refuse a raided site too (else: sent back, sent again)
@@ -761,7 +761,7 @@ static int site_danger_res(void *pl, uint8_t *site, int food, int res) {   // fr
     if (!nearest_drop(pl, x, y, food, d)) d[0] = -10000;
     return route_danger(pl, d[0], d[1], x, y);
 }
-static int site_danger(void *pl, uint8_t *site, int food) { return site_danger_res(pl, site, food, food ? 2 : -1); }
+static int site_danger(void *pl, void *site, int food) { return site_danger_res(pl, site, food, food ? 2 : -1); }
 static void *goal_move(float x, float y);
 static int unit_goal(uint8_t *u, void *goal, int append, int prio);
 static int muster_rally(unsigned idx, float *x, float *y);   // defence.c: the rally point while the base is overrun
@@ -781,7 +781,7 @@ static void bk_flush(void *pl, unsigned pi, uint32_t now);
 static void bk_build(void *pl, unsigned pi, uint32_t now);
 static void bk_reserve_tick(void *pl, unsigned pi, uint32_t now);
 static int g_bk_res;
-static void citizens_safety(uint8_t *rm) {   // before the citizen assignment
+static void citizens_safety(ee_resource_mgr *rm) {   // before the citizen assignment
     void *pl = rm_player(rm);
     if (!g_avoid_citizens || !pl) return;
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
@@ -796,7 +796,7 @@ static void citizens_safety(uint8_t *rm) {   // before the citizen assignment
     int mus = muster_rally(idx, &rx, &ry), sheltered = 0;
     if (g_bunkers || g_bk_res) bk_refresh(pl, idx);
     for (int r = 0; r < 7; r++) {
-        uint8_t *list = rm + RM_LISTS + r * 0x14;
+        uint8_t *list = FIELD_AT(rm, RM_LISTS + r * 0x14);
         for (unsigned k = 0, first = FIELD(list, 0xC, unsigned), cnt = FIELD(list, 0x10, unsigned); k < cnt; k++) {
             uint8_t *u = deque_at(list, first + k), *goal = u ? FIELD(u, OF(UNIT, 0x1EC), uint8_t *) : NULL;
             if (!u || FIELD(u, OF(UNIT, 0x3C), int) <= 0) continue;

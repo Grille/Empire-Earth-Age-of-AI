@@ -28,4 +28,5 @@
 #define CM_FLAGS_LEN    9
 
 #define FIELD(p, off, T) (*(T *)((uint8_t *)(p) + (off)))
+#define FIELD_AT(p, off) ((uint8_t *)(p) + (off))   // the field's address: an array or structure inside the object
 #define G_UNIT_GRID_OFS OF(MAP, 0x181724)    // map +: unit grid (see attack.c)

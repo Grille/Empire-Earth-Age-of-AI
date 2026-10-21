@@ -433,6 +433,8 @@
     O(TD, 0x588, 0x588, 0x288) /* c: the type data's constructors */ \
     O(TD, 0x58C, 0x58C, 0x28C) /* c */ \
     O(TD, 0x621, 0x621, 0x31F) /* c: the type data's constructors */ \
+    O(TECH, 0x4, 0x4, 0x4) /* c: researched - EETechTreeNode::vf6 sets it (0x5BF335 / 0x5CFA53) */ \
+    O(TECH, 0x6, 0x6, 0x6) /* c: available - vf1 and vf6 test it */ \
     O(TECH, 0x8, 0x8, 0x8) /* v: the tech tree code's reads (unchanged) */ \
     O(TECH, 0x14, 0x14, 0x14) /* v: the tech tree code's reads (unchanged) */ \
     O(TECHCHILD, 0x8, 0x8, 0x8) /* v: the tech tree code's reads (unchanged) */ \

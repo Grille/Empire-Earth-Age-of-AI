@@ -959,7 +959,7 @@ static void ex_outpost(void *pl, unsigned idx, struct ex_st *x, uint32_t now) {
     // builders: 3 on the drop site (all while it is not finished), 2 on another; the rest gather once the drop site stands
     int want[EX_PROJ] = { 0 }, have[EX_PROJ] = { 0 }, nb = 0;
     for (int j = 0; j < x->nproj; j++) if (x->proj[j].state == 1) want[j] = x->proj[j].kind == XK_DROP ? (drop_ok ? 3 : 64) : 2;
-    uint8_t *rm = FIELD(FIELD(pl, OF(PL, 0xB90), uint8_t *), OF(CM, 0x38), uint8_t *);
+    ee_resource_mgr *rm = FIELD(FIELD(pl, OF(PL, 0xB90), uint8_t *), OF(CM, 0x38), ee_resource_mgr *);
     for (int k = 0; k < e.nc; k++) {
         uint8_t *u = e.c[k], *g = FIELD(u, OF(UNIT, 0x1EC), uint8_t *);
         const char *gn = g ? rtti_name(g) : "";

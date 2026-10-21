@@ -122,11 +122,11 @@ static int eco_drop_d2(void *pl, int x, int y) {   // squared tiles to the neare
     }
     return dd;
 }
-static void eco_food(void *pl, uint8_t *rm, struct eco_food *f) {
+static void eco_food(void *pl, ee_resource_mgr *rm, struct eco_food *f) {
     memset(f, 0, sizeof *f);
     if (!rm) return;
     drops_cached(pl);
-    uint8_t *list = rm + RM_LISTS + 2 * 0x14;
+    uint8_t *list = FIELD_AT(rm, RM_LISTS + 2 * 0x14);
     for (unsigned k = 0, first = FIELD(list, 0xC, unsigned), n = FIELD(list, 0x10, unsigned); k < n && k < 1024; k++) {
         uint8_t *u = deque_at(list, first + k), *td = u ? FIELD(u, OF(UNIT, 0x2C), uint8_t *) : NULL;
         if (!td || FIELD(u, OF(UNIT, 0x3C), int) <= 0) continue;
@@ -209,10 +209,10 @@ static void ecolog_tick(void *pl, uint32_t now) {
     if (now >= g_eco_t[idx] && now / 60000 == g_eco_t[idx] / 60000 && g_eco_t[idx]) return;
     g_eco_t[idx] = now ? now : 1;
     void *cm = FIELD(pl, OF(PL, 0xB90), void *), *ump = cm ? FIELD(cm, OF(CM, 0x44), void *) : NULL;
-    uint8_t *rm = cm ? FIELD(cm, OF(CM, 0x38), uint8_t *) : NULL;
+    ee_resource_mgr *rm = cm ? FIELD(cm, OF(CM, 0x38), ee_resource_mgr *) : NULL;
     int cit = 0, gat[7] = { 0 }, build = 0, walk = 0, att = 0, load = 0, other = 0, none = 0, idle0 = 0;
     for (int r = 0; rm && r < 7; r++) {   // the resource lists (deques): who gathers for which resource, list 0 idle
-        uint8_t *list = rm + RM_LISTS + r * 0x14;
+        uint8_t *list = FIELD_AT(rm, RM_LISTS + r * 0x14);
         for (unsigned k = 0, first = FIELD(list, 0xC, unsigned), n = FIELD(list, 0x10, unsigned); k < n && k < 1024; k++) {
             uint8_t *u = deque_at(list, first + k);
             if (!u || FIELD(u, OF(UNIT, 0x3C), int) <= 0) continue;

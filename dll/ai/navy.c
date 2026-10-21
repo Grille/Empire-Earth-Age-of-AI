@@ -409,7 +409,7 @@ static void navy_nodes(void *pl, unsigned idx, uint32_t now) {
 // - taken from wood first while it piles up (down to half its target, 4 at least), then food (down to 60% of it).
 static int g_navy_mines = 1, g_v_navy_mines = -1;
 static int workforce(void *pl);   // econ.c
-static void navy_mines(void *pl, unsigned idx, uint8_t *rm, uint32_t *target, const int *stock, const int *reserve, const int *demand) {
+static void navy_mines(void *pl, unsigned idx, ee_resource_mgr *rm, uint32_t *target, const int *stock, const int *reserve, const int *demand) {
     idx &= 15;
     struct nv_nodes *c = &g_nv_nodes[idx];
     struct nv_mine *m = &g_nv_mine[idx];

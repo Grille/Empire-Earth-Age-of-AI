@@ -115,7 +115,8 @@ static void cz_tick(void *pl, uint32_t now) {
     z->t = now ? now : 1;
     if (now / 60000 != z->min) {
         if (z->m.prod || z->calls) {
-            uint8_t *cm = FIELD(pl, OF(PL, 0xB90), uint8_t *), *rm = cm ? FIELD(cm, OF(CM, 0x38), uint8_t *) : NULL;
+            uint8_t *cm = FIELD(pl, OF(PL, 0xB90), uint8_t *);
+            ee_resource_mgr *rm = cm ? FIELD(cm, OF(CM, 0x38), ee_resource_mgr *) : NULL;
             int fw = rm ? rm_count(rm, 2) : 0, ft = rm ? FIELD(rm, RM_TARGET + 8, int) : 0;
             EnterCriticalSection(&g_lock);
             fprintf(g_log, "# cit: P%u at %u min: prod %u cit %u other %u idle %u | cap %u target %u pfood %u pbud %u batch %u att %u rest %u | "
@@ -201,7 +202,7 @@ static int cz_take(uint32_t *target, const int *floor_, int lo, int hi) {
     return from;
 }
 // after the worker targets (hook_compute_targets, after mine_fill): the goal, FEED and the mines' slots
-static void cz_targets(uint8_t *rm) {
+static void cz_targets(ee_resource_mgr *rm) {
     void *pl = rm_player(rm);
     if (!pl) return;
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
@@ -213,7 +214,7 @@ static void cz_targets(uint8_t *rm) {
     if (!(plan & 3) || current_epoch(pl) < FARM_EPOCH) return;
     uint8_t *cm = FIELD(pl, OF(PL, 0xB90), uint8_t *), *um = cm ? FIELD(cm, OF(CM, 0x44), uint8_t *) : NULL;
     if (!um) return;
-    uint32_t *target = (uint32_t *)(rm + RM_TARGET);
+    uint32_t *target = (uint32_t *)FIELD_AT(rm, RM_TARGET);
     int wf = workforce(pl), game = GF(FN_UM_CITIZENS_WANTED)(um);
     g_czp[idx].game = game;
     struct mf_st *m = &g_mf[idx];
@@ -341,7 +342,7 @@ static void wf_tick(void *pl, uint32_t now) {
     w->need = (int)((float)w->spent * 1.25f / pw + 0.99f) + 3;
 }
 // after the worker targets (hook_compute_targets, after cz_targets): CAP's goal, WOOD's targets
-static void wf_targets(uint8_t *rm) {
+static void wf_targets(ee_resource_mgr *rm) {
     void *pl = rm_player(rm);
     if (!pl) return;
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
@@ -352,7 +353,7 @@ static void wf_targets(uint8_t *rm) {
     uint8_t *cm = FIELD(pl, OF(PL, 0xB90), uint8_t *), *um = cm ? FIELD(cm, OF(CM, 0x44), uint8_t *) : NULL;
     if (!um) return;
     uint32_t now = game_time();
-    uint32_t *target = (uint32_t *)(rm + RM_TARGET);
+    uint32_t *target = (uint32_t *)FIELD_AT(rm, RM_TARGET);
     struct mf_st *m = &g_mf[idx];
     mf_scan(pl, idx, now);
     void *fq = type_list(um, UT(B_FARM));
@@ -402,7 +403,8 @@ static void wf_thrift_note(unsigned idx, int type, int n) { (void)type; g_wf[idx
 // gold + iron paid for the techs researched so far (their prices, all techs with the researched flag)
 static void wf_log(void *pl, unsigned idx, unsigned min) {
     struct wf_st *w = &g_wf[idx & 15];
-    uint8_t *cm = FIELD(pl, OF(PL, 0xB90), uint8_t *), *rm = cm ? FIELD(cm, OF(CM, 0x38), uint8_t *) : NULL, *tt = FIELD(pl, PL_TECHTREE, uint8_t *);
+    uint8_t *cm = FIELD(pl, OF(PL, 0xB90), uint8_t *), *tt = FIELD(pl, PL_TECHTREE, uint8_t *);
+    ee_resource_mgr *rm = cm ? FIELD(cm, OF(CM, 0x38), ee_resource_mgr *) : NULL;
     if (!rm) return;
     int rs = 0;
     for (int id = 1000; tt && id < 15000; id++) {

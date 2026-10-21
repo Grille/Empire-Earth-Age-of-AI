@@ -178,11 +178,11 @@ static void bk_flush(void *pl, unsigned pi, uint32_t now) {   // the queued citi
 // builders for fortress b: the n nearest gathering citizens that aren't building it already
 static int bk_builders(void *pl, uint8_t *b, int n) {
     void *cm = FIELD(pl, OF(PL, 0xB90), void *);
-    uint8_t *rm = cm ? FIELD(cm, OF(CM, 0x38), uint8_t *) : NULL;
+    ee_resource_mgr *rm = cm ? FIELD(cm, OF(CM, 0x38), ee_resource_mgr *) : NULL;
     int bx = FIELD(b, OF(UNIT, 0x1C), int), by = FIELD(b, OF(UNIT, 0x20), int), have = 0, sent = 0;
     if (!rm) return 0;
     for (int r = 0; r < 7; r++) {   // already on it
-        uint8_t *list = rm + RM_LISTS + r * 0x14;
+        uint8_t *list = FIELD_AT(rm, RM_LISTS + r * 0x14);
         for (unsigned k = 0, first = FIELD(list, 0xC, unsigned), cnt = FIELD(list, 0x10, unsigned); k < cnt; k++) {
             uint8_t *u = deque_at(list, first + k), *g = u ? FIELD(u, OF(UNIT, 0x1EC), uint8_t *) : NULL;
             if (g && !strcmp(rtti_name(g), "EEUGBuildRepair@@") && FIELD(g, OF(GOAL, 0x3C), uint8_t *) == b) have++;
@@ -192,7 +192,7 @@ static int bk_builders(void *pl, uint8_t *b, int n) {
         uint8_t *best = NULL;
         int bd = 0x7FFFFFFF;
         for (int r = 2; r < 7; r++) {
-            uint8_t *list = rm + RM_LISTS + r * 0x14;
+            uint8_t *list = FIELD_AT(rm, RM_LISTS + r * 0x14);
             for (unsigned k = 0, first = FIELD(list, 0xC, unsigned), cnt = FIELD(list, 0x10, unsigned); k < cnt; k++) {
                 uint8_t *u = deque_at(list, first + k);
                 if (!citizen_free(u, 0)) continue;

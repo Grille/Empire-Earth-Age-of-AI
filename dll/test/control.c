@@ -171,9 +171,9 @@ static void cmd_status(char *out) {
             REPLY(" workers=");
             for (int r = 2; r < 7; r++) REPLY("%d%s", FIELD(rm, RM_LISTS + r * 0x14 + 0x10, int), r < 6 ? "," : "");
             REPLY(" targets=");
-            for (int r = 2; r < 7; r++) REPLY("%u%s", ((uint32_t *)((uint8_t *)rm + RM_TARGET))[r], r < 6 ? "," : "");
+            for (int r = 2; r < 7; r++) REPLY("%u%s", ((uint32_t *)((uint8_t *)FIELD_AT(rm, RM_TARGET)))[r], r < 6 ? "," : "");
             REPLY(" demand=");
-            for (int r = 2; r < 7; r++) REPLY("%d%s", ((int *)((uint8_t *)rm + RM_DEMAND))[r], r < 6 ? "," : "");
+            for (int r = 2; r < 7; r++) REPLY("%d%s", ((int *)((uint8_t *)FIELD_AT(rm, RM_DEMAND)))[r], r < 6 ? "," : "");
         }
         REPLY("\n");
     }
@@ -295,11 +295,11 @@ static void cmd_units(char *out, const char *args) {
     int p = atoi(args);
     void *pl = (p >= 0 && p < 16) ? g_players[p] : NULL;
     void *cm = pl ? FIELD(pl, OF(PL, 0xB90), void *) : NULL;
-    uint8_t *rm = cm ? FIELD(cm, OF(CM, 0x38), uint8_t *) : NULL;
+    ee_resource_mgr *rm = cm ? FIELD(cm, OF(CM, 0x38), ee_resource_mgr *) : NULL;
     if (!rm) { REPLY("error: no AI player %d\n", p); return; }
     static const char *names[7] = { "list0", "list1", "food", "wood", "stone", "gold", "iron" };
     for (int i = 0; i < 7; i++) {
-        uint8_t *dq = rm + RM_LISTS + i * 0x14;
+        uint8_t *dq = FIELD_AT(rm, RM_LISTS + i * 0x14);
         unsigned first = FIELD(dq, 0xC, unsigned), n = FIELD(dq, 0x10, unsigned);
         if (!n) continue;
         REPLY("%s: %u units\n", names[i], n);

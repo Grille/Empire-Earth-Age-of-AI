@@ -26,6 +26,7 @@ struct ustring;
 #include "game/addr.h"     // the game's addresses by name, per exe build: GA(G_WORLD_CLOCK), GF(FN_CAN_BUILD)(pl, t, 0x20, 0)
 #include "game/fields.h"   // the game's objects' fields by kind, per exe build: OF(PL, 0x9D4)
 #include "game/layout.h"
+#include "game/api.h"       // the objects typed and the functions over them: explored_by(site, pl)
 #include "game/players.c"
 #include "game/tech.c"      // a tech node's children (kept differently by build)
 #include "game/random.c"
@@ -47,20 +48,20 @@ static void diplo_new_game(void);
 static void chat_new_game(void);
 static void llm_new_game(void);
 static void persist_load(const char *name);
-static void econ_targets(uint8_t *rm);
-static void econ_rebalance(uint8_t *rm);
-static void econ_fields(uint8_t *rm);
-static void food_hunt(uint8_t *rm);   // food.c
-static void food_pull(uint8_t *rm);
+static void econ_targets(ee_resource_mgr *rm);
+static void econ_rebalance(ee_resource_mgr *rm);
+static void econ_fields(ee_resource_mgr *rm);
+static void food_hunt(ee_resource_mgr *rm);   // food.c
+static void food_pull(ee_resource_mgr *rm);
 static void food_new_game(void);
-static void mine_fill(uint8_t *rm);   // mines.c
+static void mine_fill(ee_resource_mgr *rm);   // mines.c
 static void mines_new_game(void);
-static void cz_targets(uint8_t *rm);   // citizens.c
-static void wf_targets(uint8_t *rm);   // citizens.c: workforce_plan
+static void cz_targets(ee_resource_mgr *rm);   // citizens.c
+static void wf_targets(ee_resource_mgr *rm);   // citizens.c: workforce_plan
 static void wf_tick(void *pl, uint32_t now);
 static void wf_new_game(void);
-static void ap_targets(uint8_t *rm);   // army.c
-static void citizens_safety(uint8_t *rm);
+static void ap_targets(ee_resource_mgr *rm);   // army.c
+static void citizens_safety(ee_resource_mgr *rm);
 static void attack_tick(void *pl, uint32_t now);
 static void vanilla_tick(void *pl, uint32_t now);
 static void ecolog_tick(void *pl, uint32_t now);   // ecolog.c: the economy log (autotest)
@@ -111,28 +112,28 @@ static BOOL patch_srand(void);
 #include "ai/econ_rows.c"
 
 // __fastcall with a dummy edx parameter matches __thiscall for argument-less methods.
-static char __fastcall hook_compute_targets(void *rm, void *edx) {
+static char __fastcall hook_compute_targets(ee_resource_mgr *rm, void *edx) {
     (void)edx;
     log_state(rm, "pre_targets", game_time());
     char changed = ((RmFn)GA(FN_COMPUTE_TARGETS))(rm);
-    if (!is_vanilla(rm_player(rm))) { econ_targets((uint8_t *)rm); mine_fill((uint8_t *)rm); cz_targets((uint8_t *)rm); wf_targets((uint8_t *)rm); ap_targets((uint8_t *)rm); }   // mines.c: every mine slot; citizens.c
+    if (!is_vanilla(rm_player(rm))) { econ_targets(rm); mine_fill(rm); cz_targets(rm); wf_targets(rm); ap_targets(rm); }   // mines.c: every mine slot; citizens.c
     log_state(rm, "post_targets", game_time());
     return changed;
 }
 
-static char __fastcall hook_assign_citizens(void *rm, void *edx) {
+static char __fastcall hook_assign_citizens(ee_resource_mgr *rm, void *edx) {
     (void)edx;
     if (is_vanilla(rm_player(rm))) {
         char r = ((RmFn)GA(FN_ASSIGN_CITIZENS))(rm);
         log_state(rm, "post_assign", game_time());
         return r;
     }
-    econ_fields((uint8_t *)rm);   // farm fields (econ.c)
-    citizens_safety((uint8_t *)rm);   // away from known enemy towers (attack.c)
-    food_hunt((uint8_t *)rm);   // idle citizens to animals (food.c)
+    econ_fields(rm);   // farm fields (econ.c)
+    citizens_safety(rm);   // away from known enemy towers (attack.c)
+    food_hunt(rm);   // idle citizens to animals (food.c)
     char r = ((RmFn)GA(FN_ASSIGN_CITIZENS))(rm);
-    econ_rebalance((uint8_t *)rm);
-    food_pull((uint8_t *)rm);   // gatherers back to food (food.c)
+    econ_rebalance(rm);
+    food_pull(rm);   // gatherers back to food (food.c)
     log_state(rm, "post_assign", game_time());
     return r;
 }

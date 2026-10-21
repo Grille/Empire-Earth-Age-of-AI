@@ -246,7 +246,7 @@ static void army_plan_tick(void *pl, unsigned idx, uint32_t now) {
 // food target go to the most refused of them with room (wood always, a metal up to its mine slots near drop sites) -
 // food keeps two thirds of its target and citizen_plan's FEED; econ_rebalance then moves the gatherers
 static int g_army_mix_food = 500;
-static void ap_targets(uint8_t *rm) {
+static void ap_targets(ee_resource_mgr *rm) {
     void *pl = rm_player(rm);
     if (!pl) return;
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
@@ -255,7 +255,7 @@ static void ap_targets(uint8_t *rm) {
     int mn = a->fl[0][2];
     for (int k = 1; k < 12; k++) if (a->fl[k][2] < mn) mn = a->fl[k][2];
     if (mn < g_army_mix_food) return;
-    uint32_t *target = (uint32_t *)(rm + RM_TARGET);
+    uint32_t *target = (uint32_t *)FIELD_AT(rm, RM_TARGET);
     int floor_ = (int)target[2] * 2 / 3;
     if (g_czp[idx].feed > floor_) floor_ = g_czp[idx].feed;
     int moves = (int)target[2] - floor_;

@@ -80,7 +80,7 @@ static int mf_active(void *pl, uint32_t now) {
     return current_epoch(pl) >= FARM_EPOCH && now >= 3 * 60000 && workforce(pl) >= 30;   // before farms food comes first (Continental e0: fewer workers)
 }
 // FILL: after the worker targets (hook_compute_targets, after econ_targets)
-static void mine_fill(uint8_t *rm) {
+static void mine_fill(ee_resource_mgr *rm) {
     void *pl = rm_player(rm);
     if (!pl) return;
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
@@ -90,8 +90,8 @@ static void mine_fill(uint8_t *rm) {
     memset(m->add, 0, sizeof m->add);
     if (!(MINE_FILL(idx) & 1) || !mf_active(pl, now)) return;
     mf_scan(pl, idx, now);
-    uint32_t *target = (uint32_t *)(rm + RM_TARGET);
-    int *stock = (int *)((uint8_t *)pl + PL_STOCK), *demand = (int *)(rm + RM_DEMAND), reserve[7];
+    uint32_t *target = (uint32_t *)FIELD_AT(rm, RM_TARGET);
+    int *stock = (int *)((uint8_t *)pl + PL_STOCK), *demand = (int *)FIELD_AT(rm, RM_DEMAND), reserve[7];
     budget_reserve(pl, reserve);
     int low = FIELD(pl, OF(PL, 0xCCC), int) < 120, gap = 0, want[7] = { 0 };
     for (int r = 4; r < 7; r++) {

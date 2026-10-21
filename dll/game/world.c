@@ -9,7 +9,7 @@ static uint32_t game_time(void) {
     return clock ? FIELD(clock, OF(PHYS, 0xD0), uint32_t) : 0;
 }
 
-static void *rm_player(void *rm) {
+static ee_player *rm_player(ee_resource_mgr *rm) {
     void *owner = FIELD(rm, RM_OWNER, void *);
     return owner ? FIELD(owner, OF(PL, 0x4C), void *) : NULL;
 }
