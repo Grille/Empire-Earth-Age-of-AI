@@ -248,8 +248,17 @@ static void ex_log(void *pl, unsigned idx, uint32_t now) {
 //   own waters for 5 minutes and its warships at least the enemy's it knows of; the playtester: a forward base with open
 //   flanks lets the enemy sneak into the economic heart at home). Home's towers, guard and militia stay as they are;
 //   the soldiers the forward barracks trains are the game's army (only the outpost's own guard is held there).
+// 128 FOLLOW (docs/economy.md "More metal"; the playtester: the outpost follows sea control and the army, it doesn't
+//   lead them): a new outpost and every further trip only while it holds the sea (sea_held) and its land army is at
+//   least 1.5 x the enemy army it knows (not merely not weaker); its guard at least 4; a ring of four towers (not two);
+//   the idle citizens board first (they have no work at home: the large maps' 31-63 idle at minute 60).
+//   Measured as 185 (57 + 128) against the base AI (40 games a cell, Small / Tournament / Large Islands Large-Huge
+//   and Small Islands Small, both cheats): miners on other islands +1 to +4 at minute 30, enemy soldiers on the home
+//   island -2 to -5 without the cheat, but the other islands' miners at 60 back to even or below (-7 (3) on Small
+//   Islands Large) and kills - losses -13 .. +15, all within the noise; off.
 static int g_expand = 0, g_v_expand = -1, g_ex_cits = 8, g_ex_guard = 3, g_ex_min = 8, g_ex_trips = 4, g_ex_max = 3;
 #define EXPAND(idx) PV(idx, g_v_expand, g_expand)
+#define EX_GUARD(idx) (EXPAND(idx) & 128 && g_ex_guard < 4 ? 4 : g_ex_guard)   // FOLLOW: a guard of 4 at least
 enum { XK_TOWER, XK_DROP, XK_BARRACKS };
 static const char *const k_xk[3] = { "tower", "drop site", "barracks" };
 struct ex_proj { uint8_t *b; int id, kind, type, state, tries, x, y, waits; };   // state 0 to come, 1 going up, 2 standing, 3 dropped
@@ -425,7 +434,7 @@ static unsigned ex_pick(void *pl, unsigned idx, struct ex_st *x, unsigned hc, in
         int mx = c->msx / c->mn, my = c->msy / c->mn, n = 0;
         float hp = 0, att = 0;
         intel_soldiers(pl, mx, my, 20, &hp, &att, NULL, &n);
-        if (n > g_ex_guard) continue;
+        if (n > EX_GUARD(idx)) continue;
         int wx, wy;
         if ((int)ocean_near(mx, my, 25, &wx, &wy) == 0) continue;
         float d = sqrtf((float)((mx - bx) * (mx - bx) + (my - by) * (my - by)));
@@ -455,6 +464,7 @@ static void ex_pick_unit(uint8_t *u, void *ctx) {
         uint8_t *g = FIELD(u, OF(UNIT, 0x1EC), uint8_t *);
         const char *gn = g ? rtti_name(g) : "";
         if (!strcmp(gn, "EEUGBuildRepair@@")) d += 400;   // builders last
+        if (!g && (EXPAND((unsigned)FIELD(p->pl, PL_INDEX, int) & 15) & 128)) d -= 2600;   // FOLLOW: the idle first
         if (!strcmp(gn, "EEUGGather@@")) {   // miners stay (the citizens off wood and food come back through the plan's goal)
             uint8_t *st = FIELD(g, OF(GOAL, 0x38), uint8_t *);
             int r = st && FIELD(st, OF(UNIT, 0x2C), uint8_t *) ? FIELD(st, OF(UNIT, 0x38), int) : 0;
@@ -534,7 +544,7 @@ static void ex_ferry_ship(void *pl, unsigned idx, struct ex_st *x, uint32_t now)
     memset(&p, 0, sizeof p);
     p.pl = pl; p.cm = cm; p.x = x; p.hc = area_id(x->hx, x->hy, 2); p.cx = x->hx; p.cy = x->hy;
     grid_each(ex_pick_unit, &p);
-    int cap = ld_cap(FIELD(FIELD(best, OF(UNIT, 0x2C), uint8_t *), OF(TD, 0x4B8), int)), guard = x->guard_trip ? g_ex_guard - x->nsold : 0;
+    int cap = ld_cap(FIELD(FIELD(best, OF(UNIT, 0x2C), uint8_t *), OF(TD, 0x4B8), int)), guard = x->guard_trip ? EX_GUARD(idx) - x->nsold : 0;
     if (guard < 0) guard = 0;
     int cits = x->ever_ashore ? cap - guard : g_ex_cits;
     if (cits > cap - guard) cits = cap - guard;
@@ -1007,6 +1017,14 @@ static void ex_enemy_home(void *pl, unsigned idx, struct ex_st *x, uint32_t now)
     x->active = 0; x->given++; x->next_try = now + 60000;
     ex_say(idx, now, "an enemy town seen on the island %u - an enemy's home: outpost off, never again", x->cont);
 }
+// FOLLOW: why not now (NULL: the sea held, the army 1.5 x the enemy's it knows)
+static const char *ex_follow_no(void *pl, unsigned idx, float mine, float theirs) {
+    if (!(EXPAND(idx) & 128)) return NULL;
+    int a, b, c;
+    if (!sea_held(pl, idx, &a, &b, &c)) return "the sea not held (FOLLOW)";
+    if (mine < 1.5f * theirs) return "its army not 1.5 x the enemy's it knows (FOLLOW)";
+    return NULL;
+}
 // a new outpost (phase 0, every 30 s) or more citizens for it
 static void ex_plan(void *pl, unsigned idx, struct ex_st *x, uint32_t now) {
     static const char *last_why[16];
@@ -1020,8 +1038,8 @@ static void ex_plan(void *pl, unsigned idx, struct ex_st *x, uint32_t now) {
         int slots = 0;
         for (int j = 0; j < g_exs.n; j++) if (g_exs.c[j].id == x->cont) slots = g_exs.c[j].slots;
         float mine, theirs;
-        if (x->ncit + 3 > slots || ex_outmatched(pl, &mine, &theirs)) return;
-        x->guard_trip = x->nsold < g_ex_guard;
+        if (x->ncit + 3 > slots || ex_outmatched(pl, &mine, &theirs) || ex_follow_no(pl, idx, mine, theirs)) return;
+        x->guard_trip = x->nsold < EX_GUARD(idx);
         x->fphase = 1; x->fsince = now; x->ftrain_t = 0; x->trips++;
         ex_say(idx, now, "more citizens for the island %u (%d there, %d mine slots, %d soldiers)", x->cont, x->ncit, slots, x->nsold);
         return;
@@ -1051,7 +1069,8 @@ static void ex_plan(void *pl, unsigned idx, struct ex_st *x, uint32_t now) {
         int early = EXPAND(idx) & 8;
         if (!early && now < 900000 && miners * 2 < slots) why = "the home island's mines first";
         else if (workforce(pl) < (early ? 20 : 25)) why = early ? "fewer than 20 workers" : "fewer than 25 workers";
-        else { float mine, theirs; if (ex_outmatched(pl, &mine, &theirs)) why = "the enemy army it knows is stronger than its own"; }
+        else { float mine, theirs; if (ex_outmatched(pl, &mine, &theirs)) why = "the enemy army it knows is stronger than its own";
+               else if (ex_follow_no(pl, idx, mine, theirs)) why = ex_follow_no(pl, idx, mine, theirs); }
     }
     // its sea: its docks'
     int ocean = 0;
@@ -1092,9 +1111,10 @@ static void ex_plan(void *pl, unsigned idx, struct ex_st *x, uint32_t now) {
     x->ever_ashore = 0; x->trips = 1; x->drop_ok = 0; x->empty_t = 0; x->base_t = 0; x->plan_t = 0; x->ncit = x->nsold = 0;
     x->nguard = 0; x->forward = x->fwd_added = 0; x->sea_no = 0;
     memset(x->proj, 0, sizeof x->proj);
-    static const int plan[] = { XK_DROP, XK_TOWER, XK_TOWER, XK_BARRACKS };
-    x->nproj = EXPAND(idx) & 2 ? 4 : 3;
-    for (int j = 0; j < x->nproj; j++) x->proj[j].kind = plan[j];
+    static const int plan[] = { XK_DROP, XK_TOWER, XK_TOWER, XK_BARRACKS }, ring[] = { XK_DROP, XK_TOWER, XK_TOWER, XK_TOWER, XK_TOWER, XK_BARRACKS };
+    int fol = (EXPAND(idx) & 128) != 0;   // FOLLOW: a ring of four towers
+    x->nproj = (fol ? 5 : 3) + ((EXPAND(idx) & 2) != 0);
+    for (int j = 0; j < x->nproj; j++) x->proj[j].kind = fol ? ring[j] : plan[j];
     x->guard_trip = 1;
     x->fphase = 1; x->fsince = now; x->ftrain_t = 0; x->plans++; x->res_t = now ? now : 1;
     ex_say(idx, now, "plans an outpost on the island %u (%d mines explored, %d known enemy buildings, mines by %d,%d) - unload at %d,%d, board at %d,%d",

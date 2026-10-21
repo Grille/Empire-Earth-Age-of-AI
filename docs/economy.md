@@ -779,3 +779,48 @@ weaker. Head-to-head on Continental (normal: map_size 1, 4 AIs; lowpop; 8 games 
 the variant never acted (below `metal_cap`, no water: 0 picks, no outpost) - B - A only the seats' noise (kills - losses
 -22 (18) / +13 (8)). No clear gain without a loss elsewhere: **off**.
 The next lever is the metal itself: other islands (below) and the warships that sink.
+
+## More metal: outposts that follow the sea and the army (2026-10-21, dll/ai/expand.c FOLLOW)
+
+The playtester: take other islands early (a short break in the home work is fine) but concentrate - a forward island
+near the enemy with barracks and a ring of towers, home the economic hub - and only with enough sea control that nothing
+sneaks past to the home economy; the outposts must hold.
+
+`expand_islands` 128 FOLLOW (header of dll/ai/expand.c): a new outpost and every further trip only while the AI holds
+the sea (`sea_held`) and its land army is at least 1.5 x the enemy army it knows; a guard of at least 4; a ring of four
+towers instead of two; the idle citizens board first. Measured as 185 (1 + 8 EARLY + 16 EXTRA + 32 MORE + 128), 249
+(+ 64 FORWARD), the old 57 for reference, 185 with `workforce_plan=1` (CAP), and 185 with `metal_plan=24` (FLEET 150%,
+12 + CALM). Paired with `mtB0` (d = with - without, standard error; og = miners on other islands, `scripts/islands.py`;
+foe = the most enemy soldiers seen on the home island at a 5-minute sample):
+
+| Variant | Map | cheat | games | d kills - losses | d soldiers 60 | d G+I by 60 | d og30 / og60 | d foe | mod / base AI won |
+|---|---|---|---|---|---|---|---|---|---|
+| 185 | siL | no | 40 | -2.0 (11.4) | +1.3 (4.3) | +221 | +2.5 (0.9) / -7.2 (2.9) | -3.6 (2.1) | 0/2 -> 0/1 |
+| 185 | tiH | no | 40 | -12.7 (12.7) | +7.0 (4.1) | +779 | +3.3 (0.9) / +3.4 (3.2) | -4.0 (1.6) | 0/0 |
+| 185 | liH | no | 40 | +11.3 (11.8) | +3.2 (4.6) | +88 | +2.7 (0.7) / -4.1 (2.9) | -5.0 (2.6) | 0/0 |
+| 185 | si5 | no | 40 | +4.1 (7.2) | +2.8 (2.6) | +45 | +3.8 (1.3) / +4.5 (2.0) | -2.2 (1.1) | 0/2 -> 0/3 |
+| 185 | siL | yes | 40 | -1.6 (12.2) | +1.4 (1.3) | +381 | +1.0 (0.4) / -0.3 (0.4) | -1.1 (3.5) | 0/29 -> 0/27 |
+| 185 | tiH | yes | 40 | +13.4 (15.3) | +4.2 (2.5) | +947 | +1.6 (0.6) / +2.8 (2.1) | -0.4 (3.7) | 0/7 -> 0/6 |
+| 185 | liH | yes | 40 | +14.5 (10.5) | +4.2 (3.1) | +248 | +1.4 (0.5) / +0.9 (1.0) | -3.2 (3.2) | 0/12 -> 0/12 |
+| 185 | si5 | yes | 40 | +8.5 (6.1) | +3.6 (2.2) | +318 | +0.9 (0.5) / +1.0 (0.6) | +0.4 (1.5) | 0/19 -> 0/22 |
+| 57 | siL / tiH / liH / si5 | no | 20 | -4.5 / +5.0 / **+40.6 (22.1)** / -0.6 | | | | | |
+| 57 | siL / tiH / liH / si5 | yes | 20 | -16.7 (9.4) / +26.1 (12.4) / +13.1 / +6.8 | | | | | 15 -> 12, 3 -> 1, 5 -> 4, 11 -> 8 |
+| 249 | siL / tiH / liH / si5 | no | 20 | +14.9 / +9.9 / +26.9 (15.6) / -10.2 (11.1) | | | | | |
+| 249 | siL / tiH / liH / si5 | yes | 20 | -6.3 / +14.1 / +11.6 / +8.4 | | | | | 15 -> 12, 3 -> 2, 5 -> 6, 11 -> 11 |
+| 185 + CAP | siL / tiH / liH / si5 | no | 20 | +6.3 / +21.8 / +20.3 / -0.6 | citizens 75 -40 to -47 on the large maps | | | | |
+| 185 + CAP | siL / tiH / liH / si5 | yes | 20 | **-20.4 (14.6)** / +43.8 (17.4) / +24.6 / +7.5 | | | | | 15 -> 10, 3 -> 1, 5 -> 5, 11 -> 11 |
+| 185 + metal 24 | siL / tiH / liH / si5 | no | 20 | +5.2 / +6.6 / +6.5 / +1.6 | +12.4 / +20.2 / +11.4 / +1.0 | +1969 / +2976 / +2542 / -200 | | | 0/2 -> 0/0 (siL) |
+| 185 + metal 24 | siL / tiH / liH / si5 | yes | 20 | -8.4 / -10.1 / +13.3 / +7.1 | +3.9 / +1.1 / +1.6 / +5.3 | +504 / +798 / +463 / +846 | | | 15 -> 10, 3 -> 4, 5 -> 4, 11 -> 11 |
+
+On land maps (Continental e0 / Large) the games with 185 were the same as without (19 of 20). The first 20 games a cell of
+185 looked better than they held up at 40 (Tournament Islands Huge with the cheat +45.6 (18.2) at 20 games, +13.4 (15.3)
+at 40). What FOLLOW does: outposts at minute 30 hold 1-4 more miners on other islands and the enemy's soldiers on the
+home island fall by 2-5 without the cheat (the outposts meet the base AI's landings away from home) - but by minute 60
+the other islands' miners are back where they were or below (Small Islands Large -7 (3)): the base AI settles the
+same islands with a 2-3x army and takes them; with the cheat the AI rarely gets to plan (army not 1.5x, sea not held).
+The combination with FLEET gives the most metal (+2000-3000 gold + iron by minute 60 without the cheat) and soldiers,
+but the fights stay within the noise. Head-to-head against the control AI (Small Islands Large, 4 AIs, unit limit
+2500, 75 minutes, 24 games, `v_expand_islands=185`): B - A kills - losses -5.3 (23.2), soldiers at 75 +5.8 (5.8), razed
+-0.9 (2.1), stone income +316 (147). No variant is a clear gain without a loss elsewhere: **off** (`expand_islands=0`).
+What it would take: an outpost on an island the base AI does not contest, or an army there that beats its landing - the
+land army's size on islands is the metal again (the warships take two thirds of it, "Gold and iron").
