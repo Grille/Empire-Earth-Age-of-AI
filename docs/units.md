@@ -10,7 +10,8 @@ Kind is the game's family of the type (its armour and bonus class) - in the text
 counts every tower whatever its epoch, `unit.<identifier>` only that type (config/aimod_ai/README.md). The mod reads
 the types, their names and families from the data the game has loaded, so a data mod's types count too; this list
 is the retail game's (some of its types the game doesn't load: the `x ... ME` variants, a few mines and trees).
-Buildings come first in each epoch.
+The AI code names the types it needs by identifier as well (dll/unit_ids.h: `UT(B_FARM)`), looked up when the game
+starts - a type a data mod hasn't got is logged and left out. Buildings come first in each epoch.
 
 | kind | the game's name | types |
 |---|---|---|

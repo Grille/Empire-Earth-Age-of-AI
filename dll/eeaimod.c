@@ -600,6 +600,7 @@ static void log_rotate(void) {
     LeaveCriticalSection(&g_lock);
 }
 
+static int unit_types_load(void);   // unitnames.c
 static char __fastcall hook_game_start(void *state, void *edx, uint8_t *setup, void *p2) {
     (void)edx;
     char *name = *(char **)(setup + SETUP_NAME);
@@ -629,6 +630,7 @@ static char __fastcall hook_game_start(void *state, void *edx, uint8_t *setup, v
         *(int *)(setup + SETUP_MODE) = 1;
         log_line("# game start: switched to scenario mode, loading Scenarios\\%s%.0d\n", name, 0);
     }
+    unit_types_load();   // the game's types by name (UT(B_FARM) ...) before any AI code runs - the data is loaded by now
     // the last game's AI players are gone: a second game in one session (loading capittest after an autosave)
     // crashed in world_scan on a stale g_players entry for a slot the new game has no AI in
     memset(g_players, 0, sizeof g_players);

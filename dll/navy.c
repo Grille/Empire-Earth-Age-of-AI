@@ -20,7 +20,7 @@ static int navy_kind(uint8_t *td) {
     return NV_NONE;
 }
 
-// FOOD FROM FISH: the fish (type 0x13B, nature's; resource amount +0x40) as they stand every 15 s; what a fish lost
+// FOOD FROM FISH: the fish (res_fish, nature's; resource amount +0x40) as they stand every 15 s; what a fish lost
 // since the last look goes to the owner of the fishing boat gathering it (its goal +0x38 = the site, compared as a
 // pointer only), or to its last gatherer; a fish gone (eaten up) gives its last amount to its last gatherer.
 #define NV_FISH_MAX 1024
@@ -91,7 +91,7 @@ static void navy_fish(void) {
     memset(seen, 0, sizeof seen);
     int left = 0;
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
-        if (FIELD(it.td, 0x4B8, int) != 0x13B) continue;
+        if (FIELD(it.td, 0x4B8, int) != UT(RES_FISH)) continue;
         uint8_t *u = it.u;
         int id = FIELD(u, 0x60, int), amt = FIELD(u, 0x40, int), owner = -1, k;
         left += amt > 0 ? amt : 0;
@@ -145,8 +145,8 @@ static void navy_log_all(uint32_t now) {
         int pi = FIELD(o, PL_INDEX, int);
         if (pi <= 0 || pi >= 16) continue;
         struct nv_count *m = &c[pi];
-        if (t == 36) { m->docks++; continue; }
-        if (t == 65) { m->yards++; continue; }
+        if (t == UT(B_DOCK)) { m->docks++; continue; }
+        if (t == UT(B_NAVY_YARD)) { m->yards++; continue; }
         int k = navy_kind(it.td);
         if (k == NV_NONE) continue;
         m->n[k]++; m->hp[k] += FIELD(it.u, 0x3C, int);
@@ -482,7 +482,7 @@ static void navy_count(void) {
         if (!o || FIELD(it.u, 0x3C, int) <= 0) continue;
         int pi = FIELD(o, PL_INDEX, int);
         if (pi <= 0 || pi >= 16) continue;
-        if (FIELD(it.td, 0x4B8, int) == 36) {
+        if (FIELD(it.td, 0x4B8, int) == UT(B_DOCK)) {
             uint8_t *st = FIELD(it.u, 0x30, uint8_t *);
             g_nv_own[pi].docks++;
             g_nv_own[pi].docks_built += st && FIELD(st, 0x340, uint8_t);
@@ -578,9 +578,9 @@ static int nv_role(uint8_t *td) {
     if (g_nv_role[t]) return g_nv_role[t] - 1;
     int r = NR_NONE, fam = FIELD(td, 0x4B4, int), kind = FIELD(td, 0x4C8, int), cat = FIELD(td, 0x4C4, int);
     // ships only by their target category (the Naval Mine 386 is family 4, category 22, 1350 attack and 1 hit point);
-    // not the hero ships Golden Hind 611 and Agincourt 268 (data names x07/x09, tech 9035 - no dock trains them)
+    // not the hero ships Golden Hind and Agincourt (x07_golden_hind, x09_agincourt_battleship: tech 9035 - no dock trains them)
     int ship = cat == NV_C_SUB || cat == NV_C_FRIG || cat == NV_C_LINE || cat == NV_C_GALLEY;
-    if ((fam == 4 || fam == 10) && ship && t != 268 && t != 611 && FIELD(td, 0x510, int) > 0 && !is_transport(t) && !is_fishing_boat(t)) {
+    if ((fam == 4 || fam == 10) && ship && t != UT(X09_AGINCOURT_BATTLESHIP) && t != UT(X07_GOLDEN_HIND) && FIELD(td, 0x510, int) > 0 && !is_transport(t) && !is_fishing_boat(t)) {
         if (nv_f(kind, NV_C_FRIG) <= 0 && nv_f(kind, NV_C_LINE) <= 0 && nv_f(kind, NV_C_GALLEY) <= 0) r = nv_air_f(kind) > 0 ? NR_AA : NR_NONE;
         else if (fam == 10) r = NR_SUB;
         else if (nv_f(kind, NV_C_LINE) >= 3.0f) r = NR_ANTI;
@@ -783,9 +783,9 @@ static void navy_docks(void *pl, unsigned idx, uint32_t now) {
     }
     void *cm = FIELD(pl, 0xB90, void *);
     uint8_t *bm = cm ? FIELD(cm, 0x3C, uint8_t *) : NULL;
-    if (!bm || w->docks >= want || w->docks_built < w->docks || ((char (__thiscall *)(void *, int))0x00465640)(bm, 36)) return;
-    if (!((char (__thiscall *)(void *, int, int, int))0x00555710)(pl, 36, 0x20, 0)) return;
-    ((void (__thiscall *)(void *, int, int, int))0x0046802D)(bm, 36, 1, 0);
+    if (!bm || !ut_has(UT(B_DOCK)) || w->docks >= want || w->docks_built < w->docks || ((char (__thiscall *)(void *, int))0x00465640)(bm, UT(B_DOCK))) return;
+    if (!((char (__thiscall *)(void *, int, int, int))0x00555710)(pl, UT(B_DOCK), 0x20, 0)) return;
+    ((void (__thiscall *)(void *, int, int, int))0x0046802D)(bm, UT(B_DOCK), 1, 0);
     o->docks_asked++;
     if (g_log) fprintf(g_log, "# navy: P%u at %.1f min: docks %d of %d - one more requested\n", idx, now / 60000.0, w->docks, want);
 }
@@ -805,12 +805,13 @@ static int __fastcall hook_fish_type(void *o, void *edx) {
     int t = ((int (__thiscall *)(void *))FN_FISH_TYPE)(o);
     void *pl = o ? FIELD(o, 0x4C, void *) : NULL;
     if (!g_fish_boat || !pl || !FIELD(pl, PL_TECHTREE, void *) || is_vanilla(pl)) return t;
-    static const int boats[] = { 108, 109, 365, 211, 332 };
+    static const enum ut_name boats[] = { UT_FISHING_BOATS };
     int best = 0, bt = 0;
     for (size_t k = 0; k < sizeof boats / sizeof *boats; k++) {
-        uint8_t *td = type_data(boats[k]);
-        if (!td || FIELD(td, 0x4B8, int) != boats[k] || FIELD(td, 0x4B4, int) != 22 || !ld_type_avail(pl, boats[k])) continue;
-        if (FIELD(td, 0x4E0, int) > bt) { bt = FIELD(td, 0x4E0, int); best = boats[k]; }
+        int b = g_ut[boats[k]];
+        uint8_t *td = type_data(b);
+        if (!td || FIELD(td, 0x4B8, int) != b || FIELD(td, 0x4B4, int) != 22 || !ld_type_avail(pl, b)) continue;
+        if (FIELD(td, 0x4E0, int) > bt) { bt = FIELD(td, 0x4E0, int); best = b; }
     }
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     if (best && best != g_fish_last[idx] && g_log)

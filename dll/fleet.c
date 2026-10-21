@@ -147,7 +147,7 @@ static float fl_danger_r(uint8_t *u, uint8_t *td) {
     if (fam == 2 || fam == 29) {
         float r, a;
         if (u) return defence_stats(u, &r, &a) ? r : 0;
-        return t == 145 || t == 147 || FIELD(td, 0x420, float) <= 1.0f ? 0 : FIELD(td, 0x420, float) + 1.0f;
+        return t == UT(B_AA10_GUN_88MM) || t == UT(B_AA13_MISSILE_TOWER) || FIELD(td, 0x420, float) <= 1.0f ? 0 : FIELD(td, 0x420, float) + 1.0f;
     }
     float r = fl_range(u, td);
     return (nv_f(kind, NV_C_LINE) >= 3.0f || r >= 7.0f) && r >= 2.0f ? r : 0;
@@ -232,7 +232,7 @@ static void fl_scan(void *pl, unsigned idx) {
             if ((k == NV_WAR || k == NV_SUB) && f->n < FL_MAX && !landing_has_unit(pl, u)) f->u[f->n++] = u;
             else if (k == NV_FISH && s->nb < 96) s->boat[s->nb++] = u;
             else if (fam == 2 || fam == 29) {
-                if (FIELD(td, 0x4B8, int) == 36 && s->nd < 16) { s->dkx[s->nd] = x; s->dky[s->nd++] = y; }
+                if (FIELD(td, 0x4B8, int) == UT(B_DOCK) && s->nd < 16) { s->dkx[s->nd] = x; s->dky[s->nd++] = y; }
                 float tr, ta;
                 if (s->ntw < 32 && defence_stats(u, &tr, &ta)) { s->twx[s->ntw] = x; s->twy[s->ntw] = y; s->twr[s->ntw++] = tr; }
                 if (s->nbl < 256) { s->bx[s->nbl] = x; s->by[s->nbl++] = y; }
@@ -254,7 +254,7 @@ static void fl_scan(void *pl, unsigned idx) {
         if (fam == 2 || fam == 29) {
             int dx = x - hx, dy = y - hy;
             if (dx * dx + dy * dy < bd) { bd = dx * dx + dy * dy; s->ebx = x; s->eby = y; s->eb = 1; }
-            if (FIELD(td, 0x4B8, int) == 36 && s->ned < 16) { s->edx[s->ned] = x; s->edy[s->ned++] = y; }
+            if (FIELD(td, 0x4B8, int) == UT(B_DOCK) && s->ned < 16) { s->edx[s->ned] = x; s->edy[s->ned++] = y; }
         }
         fl_dz_add(s, x, y, fl_danger_r(u, td));
     }
@@ -271,7 +271,7 @@ static void fl_scan(void *pl, unsigned idx) {
         if (e->kind == 0) {
             int dx = e->x - hx, dy = e->y - hy;
             if (dx * dx + dy * dy < bd) { bd = dx * dx + dy * dy; s->ebx = e->x; s->eby = e->y; s->eb = 1; }
-            if (e->type == 36 && s->ned < 16) { s->edx[s->ned] = e->x; s->edy[s->ned++] = e->y; }
+            if (e->type == UT(B_DOCK) && s->ned < 16) { s->edx[s->ned] = e->x; s->edy[s->ned++] = e->y; }
             fl_dz_add(s, e->x, e->y, fl_danger_r(NULL, td));
         } else if (e->kind == 1 && age <= 300000) fl_dz_add(s, e->x, e->y, fl_danger_r(NULL, td));
         else if ((nk == NV_WAR || nk == NV_SUB) && age <= 300000 && s->ne < FL_ES) {
@@ -671,12 +671,8 @@ static void fl_rally_tower(void *pl, unsigned idx, struct fleet *m, uint32_t now
     void *cm = FIELD(pl, 0xB90, void *);
     uint8_t *bm = cm ? FIELD(cm, 0x3C, uint8_t *) : NULL;
     if (!bm) return;
-    int ttype = 0, queued = bq_has(bm, 47);
-    for (int t = 461; t <= 466 && !queued; t++) queued = bq_has(bm, t);
-    if (queued) return;
-    for (int t = 466; t >= 461 && !ttype; t--)
-        if (((char (__thiscall *)(void *, int, int, int))0x00555710)(pl, t, 0x20, 0)) ttype = t;
-    if (!ttype && ((char (__thiscall *)(void *, int, int, int))0x00555710)(pl, 47, 0x20, 0)) ttype = 47;
+    if (tower_queued(bm)) return;
+    int ttype = tower_newest(pl);
     int e = current_epoch(pl);
     if (!ttype || e < 0 || e >= 14) return;
     int bk = 0;
@@ -917,7 +913,7 @@ static int tf_target_prey(struct fleet *f, int cx, int cy, int *tx, int *ty, con
             const char *wy;
             if (!pass) { int k = navy_kind(e->td); w = k == NV_TRANSPORT ? 4.0f : 3.0f; wy = k == NV_TRANSPORT ? "transports" : "fishing boats"; }
             else if (is_citizen_type(t)) { w = 3.0f; wy = "citizens on the coast"; }
-            else if (t == 36) { w = 2.0f; wy = "docks"; }
+            else if (t == UT(B_DOCK)) { w = 2.0f; wy = "docks"; }
             else if (fam == 2 || fam == 29) { w = 1.0f; wy = "buildings on the coast"; }
             else { w = 0.5f; wy = "the coast"; }
             if (pass && (!e->seen || !g_fl_coast)) continue;

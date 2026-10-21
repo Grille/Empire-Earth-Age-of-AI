@@ -144,7 +144,7 @@ static uint8_t *as_enemy_near(void *pl, uint8_t *target, int x, int y, int r, in
 
 static int is_aa(uint8_t *u) {   // anti-air units (AA tank, Stinger, Skywatcher): they stay home
     int t = FIELD(FIELD(u, 0x2C, uint8_t *), 0x4B8, int);
-    return t == 146 || t == 19 || t == 626;
+    return t == UT(AA10_TANK) || t == UT(AA10_STINGER_SOLDIER) || t == UT(AA13_TANK_SKYWATCHER);
 }
 // what player pl has seen of its enemies within r tiles of (x, y): soldiers and siege (hit points x attack), with
 // defences != 0 also defences whose range reaches the point; the soldiers' centre and number

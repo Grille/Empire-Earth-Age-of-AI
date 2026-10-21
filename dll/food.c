@@ -36,7 +36,7 @@ static struct { unsigned pulled, hunt_sent, near_pick; } g_fd[16];
 
 static void food_new_game(void);
 
-static int food_fierce(int t) { return t == 295 || t == 370; }   // Res - Tiger, Res - Wolf
+static int food_fierce(int t) { return t == UT(RES_TIGER) || t == UT(RES_WOLF); }
 // a free animal to hunt for unit u (NULL: the best for any): within food_hunt_range tiles of a non-granary drop site, food left,
 // not fierce, under 3 hunters, explored, the unit's continent, no enemy near, no known towers on the way
 static uint8_t *food_animal(void *pl, uint8_t *rm, uint8_t *u) {
@@ -89,7 +89,7 @@ static uint8_t *food_bush(void *pl, uint8_t *rm, uint8_t *u, int max_d2) {
         void **sb = zone ? FIELD(zone, 8, void **) : NULL, **se = zone ? FIELD(zone, 0xC, void **) : NULL;
         for (int k = 0; sb && sb + k < se && k < 4096; k++) {
             uint8_t *s = sb[k], *td = s ? FIELD(s, 0x2C, uint8_t *) : NULL;
-            if (!td || FIELD(s, 0x38, int) != 2 || FIELD(td, 0x4B8, int) != 0x37 || FIELD(s, 0x40, int) <= 0) continue;
+            if (!td || FIELD(s, 0x38, int) != 2 || FIELD(td, 0x4B8, int) != UT(RES_FORAGE_BUSH) || FIELD(s, 0x40, int) <= 0) continue;
             if (FIELD(FIELD(s, 0x14, uint8_t *), 4, int) == 1) continue;
             int pos[2] = { FIELD(s, 0x1C, int), FIELD(s, 0x20, int) }, dx = pos[0] - base[0], dy = pos[1] - base[1];
             if (dx * dx + dy * dy >= max_d2) continue;
@@ -206,13 +206,13 @@ static void food_camp(void *pl, unsigned idx, uint32_t now) {
     g_camp[idx].t = now ? now : 1;
     uint8_t *cm = FIELD(pl, 0xB90, uint8_t *), *bm = cm ? FIELD(cm, 0x3C, uint8_t *) : NULL;
     void *um = cm ? FIELD(cm, 0x44, void *) : NULL;
-    if (!bm || !um || FIELD(bm, 0x12C, int) == -10000 || bq_has(bm, 43) || bq_has(bm, 395)) return;
-    uint8_t *q = ((uint8_t *(__thiscall *)(void *, int))0x0048F8AF)(um, 43);
+    if (!bm || !um || !ut_has(UT(B_SETTLEMENT)) || FIELD(bm, 0x12C, int) == -10000 || bq_has(bm, UT(B_SETTLEMENT)) || bq_has(bm, UT(X_SINGLE_PLAYER_SETTLEMENT))) return;
+    uint8_t *q = type_list(um, UT(B_SETTLEMENT));
     for (unsigned k = 0, f = q ? FIELD(q, 0xC, unsigned) : 0, n = q ? FIELD(q, 0x10, unsigned) : 0; k < n; k++) {
         uint8_t *b = deque_at(q, f + k), *st = b ? FIELD(b, 0x30, uint8_t *) : NULL;
         if (b && FIELD(b, 0x3C, int) > 0 && (!st || !FIELD(st, 0x340, uint8_t))) return;
     }
-    if (!((char (__thiscall *)(void *, int, int, int))0x00555710)(pl, 43, 0x20, 0)) return;
+    if (!((char (__thiscall *)(void *, int, int, int))0x00555710)(pl, UT(B_SETTLEMENT), 0x20, 0)) return;
     int bx = FIELD(bm, 0x12C, int), by = FIELD(bm, 0x130, int);
     static int fx[512], fy[512], ff[512];
     int n = 0;
@@ -226,7 +226,7 @@ static void food_camp(void *pl, unsigned idx, uint32_t now) {
         void **sb = zb[z] ? FIELD(zb[z], 8, void **) : NULL, **se = zb[z] ? FIELD(zb[z], 0xC, void **) : NULL;
         for (int k = 0; sb && sb + k < se && k < 4096 && n < 512; k++) {
             uint8_t *st = sb[k], *td = st ? FIELD(st, 0x2C, uint8_t *) : NULL;
-            if (!td || FIELD(st, 0x38, int) != 2 || FIELD(td, 0x4B8, int) != 0x37 || FIELD(st, 0x40, int) <= 0) continue;
+            if (!td || FIELD(st, 0x38, int) != 2 || FIELD(td, 0x4B8, int) != UT(RES_FORAGE_BUSH) || FIELD(st, 0x40, int) <= 0) continue;
             int x = FIELD(st, 0x1C, int), y = FIELD(st, 0x20, int);
             if ((x - bx) * (x - bx) + (y - by) * (y - by) > 900) continue;
             if (!((char (__thiscall *)(void *, void *))FN_EXPLORED)(FIELD(st, 0x14, void *), pl)) continue;
@@ -254,15 +254,15 @@ static void food_camp(void *pl, unsigned idx, uint32_t now) {
             for (int ay = -r; ay <= r; ay++) {
                 if (abs(ax) != r && abs(ay) != r) continue;
                 int x = fx[best] + ax, y = fy[best] + ay;
-                if (!can_place(pl, 43, x, y) || raiders_near(pl, x, y, 12)) continue;
-                int entry[3] = { 43, x, y };
+                if (!can_place(pl, UT(B_SETTLEMENT), x, y) || raiders_near(pl, x, y, 12)) continue;
+                int entry[3] = { UT(B_SETTLEMENT), x, y };
                 ((void (__thiscall *)(void *, int *))0x00468C37)(bm + 4 + e * 0x14, entry);
                 g_camp[idx].n++;
                 if (g_log) {
                     EnterCriticalSection(&g_lock);
                     fprintf(g_log, "# food: P%u at %.1f min: a Settlement queued at %d,%d by %d wild food (cost F%d W%d S%d G%d I%d)\n", idx,
-                            now / 60000.0, x, y, bf, unit_cost(pl, 43, 2), unit_cost(pl, 43, 3), unit_cost(pl, 43, 4), unit_cost(pl, 43, 5),
-                            unit_cost(pl, 43, 6));
+                            now / 60000.0, x, y, bf, unit_cost(pl, UT(B_SETTLEMENT), 2), unit_cost(pl, UT(B_SETTLEMENT), 3), unit_cost(pl, UT(B_SETTLEMENT), 4),
+                            unit_cost(pl, UT(B_SETTLEMENT), 5), unit_cost(pl, UT(B_SETTLEMENT), 6));
                     LeaveCriticalSection(&g_lock);
                 }
                 return;

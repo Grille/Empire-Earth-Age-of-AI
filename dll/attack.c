@@ -73,7 +73,7 @@ static int defence_stats(uint8_t *u, float *range, float *attack) {
     if (!td) return 0;
     int fam = FIELD(td, 0x4B4, int), type = FIELD(td, 0x4B8, int);
     if (fam != 2 && fam != 29) return 0;
-    if (type == 145 || type == 147) return 0;
+    if (type == UT(B_AA10_GUN_88MM) || type == UT(B_AA13_MISSILE_TOWER)) return 0;
     uint8_t *st = FIELD(u, 0x34, uint8_t *);
     float r = st ? FIELD(st, 0x9C, float) : FIELD(td, 0x420, float);
     float a = st ? FIELD(st, 0xD8, float) : (float)FIELD(td, 0x510, int);
@@ -148,8 +148,7 @@ static int g_weak_radius = 60;        // tiles around the original goal searched
 
 // Walls and gates are no weak spot (no economy behind them, only a detour).
 static int is_wall(int type) {
-    return (type >= 467 && type <= 473) || type == 294 || type == 442 || type == 443 || type == 444 ||
-           type == 454 || type == 40 || type == 48;
+    return UT_IN(type, UT_WALL_LINE, UT_GATE_LINE, UT_X_CASTLE_WALL_LEFT, UT_X_CASTLE_WALL_RIGHT);
 }
 
 // Only goals at an enemy building are retargeted: the subgroup also marches to other goals (enemy armies,
@@ -440,7 +439,7 @@ static int g_ignore_air = 1;          // aimod.ini [all] attack_ignore_air
 // a unit family of the army (soldiers, siege, ships, aircraft ... - not buildings, walls, towers, gates, resources):
 // the families as in the statistics code 0x5EB000/0x55DD66
 static int is_army_family(int fam) { return !(fam == 2 || fam == 6 || fam == 0x13 || fam == 0x16 || fam == 0x18 || fam == 0x19 || fam == 0x1D || fam == 0 || fam == 1); }
-static int is_ram(int type) { return type == 102 || type == 287 || type == 158; }
+static int is_ram(int type) { return UT_IN(type, UT_RAM_TYPES); }
 
 // Enemy soldiers (no citizens, no siege) of player pl's enemies within r tiles of (x, y)?
 static int guarded(void *pl, int x, int y, int r) {
@@ -452,7 +451,7 @@ static int guarded(void *pl, int x, int y, int r) {
         if (!td || FIELD(td, 0x4B4, int) != 5 || FIELD(u, 0x3C, int) <= 0 || !is_enemy(pl, FIELD(u, 0x18, void *)))
             continue;
         int t = FIELD(td, 0x4B8, int);
-        if (is_citizen_type(t) || is_ram(t) || (t >= 102 && t <= 107) || t == 141 || t == 142 || t == 602 || t == 603)
+        if (is_citizen_type(t) || is_ram(t) || t == UT(SIEGE04_TOWER) || UT_IN(t, UT_SIEGE_TYPES))
             continue;
         int dx = FIELD(u, 0x1C, int) - x, dy = FIELD(u, 0x20, int) - y;
         if (dx * dx + dy * dy <= r * r) return 1;
@@ -582,9 +581,7 @@ static struct {
     unsigned waves, lost, pauses, held, logged_min;
 } g_siege_st[16];
 
-static int is_siege(int type) {
-    return type == 104 || type == 105 || type == 106 || type == 107 || type == 141 || type == 142 || type == 602 || type == 603;
-}
+static int is_siege(int type) { return UT_IN(type, UT_SIEGE_TYPES); }
 
 static uint8_t *unit_at(int x, int y, int type) {
     if (x < 0 || y < 0) return NULL;
@@ -883,7 +880,7 @@ static void citizens_safety(uint8_t *rm) {   // before the citizen assignment
             int raided = raiders_near(pl, FIELD(site, 0x1C, int), FIELD(site, 0x20, int), build ? 8 : 6);
             // builders near known towers only: only of fields (walls and towers at the front: the wall manager sends
             // them again and again)
-            if (build && !raided && FIELD(FIELD(site, 0x2C, uint8_t *), 0x4B8, int) != 0x2A) continue;
+            if (build && !raided && FIELD(FIELD(site, 0x2C, uint8_t *), 0x4B8, int) != UT(B_FARM)) continue;
             if (!build && !raided && hurt_danger(pl, FIELD(site, 0x1C, int), FIELD(site, 0x20, int), r)) raided = 1;   // hurt there
             if (!raided && (build || !site_danger_res(pl, site, r == 2, r))) continue;
             if (g_bunkers && bk_shelter(pl, u)) { sheltered++; continue; }   // under fire: into a fortress
@@ -980,8 +977,9 @@ static int covered(unsigned pi, float x, float y, int ex, int ey) {
 // epoch - through the train hook, so the budget applies (unit manager: player +0xB90 -> +0x44; request
 // {type, count, building 0 = any, area 0}). Types newest first with their tech epoch; a type the civ can't
 // train simply trains 0.
-static const struct { int type, epoch; } k_siege_types[] = {
-    { 603, 13 }, { 602, 10 }, { 107, 9 }, { 141, 7 }, { 105, 6 }, { 104, 4 } };
+static const struct { enum ut_name type; int epoch; } k_siege_types[] = {
+    { UT_GUN_SIEGE13_PALADIN_CANNON, 13 }, { UT_GUN_SIEGE10_HOWITZER_CANNON, 10 }, { UT_GUN_SIEGE09_SERPENTINE_CANNON, 9 },
+    { UT_GUN_SIEGE07_BASILISK_CANNON, 7 }, { UT_GUN_SIEGE06_TREBUCHET, 6 }, { UT_GUN_SIEGE04_CATAPULT, 4 } };
 static struct { uint32_t last_try, factory_req; unsigned trained, failed, no_factory; } g_siege_train[16];
 
 // Entry i of the build manager's queue for epoch e (bm +4 + e*0x14: deque of {type, x, y}, 0x155 per block), NULL
@@ -1019,11 +1017,11 @@ static void siege_train(void *pl, unsigned pi, int have, uint32_t now) {
     // no siege weapon in this epoch yet (the catapult comes with the Bronze Age): no factory either - the build
     // manager can't place it before and would keep the request in its queue for good
     if (current_epoch(pl) + 1 < k_siege_types[sizeof k_siege_types / sizeof *k_siege_types - 1].epoch) return;
-    // a Siege Factory (type 63) of our own
+    // a Siege Factory of our own
     int factory = 0;
     for (struct grid_it it = grid_it_all(1); !factory && grid_it_next(&it); ) {
         uint8_t *u = it.u, *td = it.td;
-        if (td && FIELD(u, 0x18, void *) == pl && FIELD(td, 0x4B8, int) == 63) { factory = 1; break; }
+        if (td && FIELD(u, 0x18, void *) == pl && FIELD(td, 0x4B8, int) == UT(B_SIEGE_FACTORY)) { factory = 1; break; }
     }
     if (!factory) {
         // the build manager (cm +0x3C) works through per-epoch queues (+4 + epoch*0x14, 12-byte entries {type, x, y};
@@ -1032,10 +1030,10 @@ static void siege_train(void *pl, unsigned pi, int have, uint32_t now) {
         void *cm = FIELD(pl, 0xB90, void *);
         uint8_t *bm = cm ? FIELD(cm, 0x3C, uint8_t *) : NULL;
         int e = current_epoch(pl);
-        if (bm && e >= 0 && e < 14 && !bq_has(bm, 63) &&
+        if (bm && e >= 0 && e < 14 && ut_has(UT(B_SIEGE_FACTORY)) && !bq_has(bm, UT(B_SIEGE_FACTORY)) &&
             (!g_siege_train[pi].factory_req || now - g_siege_train[pi].factory_req >= 300000)) {
             g_siege_train[pi].factory_req = now ? now : 1;
-            int entry[3] = { 63, 0, 0 };
+            int entry[3] = { UT(B_SIEGE_FACTORY), 0, 0 };
             ((void (__thiscall *)(void *, int *))0x00468C37)(bm + 4 + e * 0x14, entry);
             if (g_log) fprintf(g_log, "# siege: P%u at %.1f min queues a Siege Factory (wants %d siege, has %d)\n", pi, now / 60000.0, want, have);
             ai_say(pl, CHAT_SIEGE, "[ai] need siege (%d of %d): queued a Siege Factory", have, want);
@@ -1046,8 +1044,8 @@ static void siege_train(void *pl, unsigned pi, int have, uint32_t now) {
     if (!um) return;
     int epoch = current_epoch(pl) + 1;   // tech tree epoch 0 = Prehistoric; tech ids count from 1
     for (size_t k = 0; k < sizeof k_siege_types / sizeof *k_siege_types; k++) {
-        if (k_siege_types[k].epoch > epoch) continue;
-        int req[4] = { k_siege_types[k].type, want - have, 0, 0 };
+        if (k_siege_types[k].epoch > epoch || !ut_has(g_ut[k_siege_types[k].type])) continue;
+        int req[4] = { g_ut[k_siege_types[k].type], want - have, 0, 0 };
         unsigned got = 0;
         g_priority_mil = 1;
         hook_train_units(um, NULL, req, (uintptr_t)&got);

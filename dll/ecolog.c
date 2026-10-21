@@ -101,14 +101,14 @@ static void eco_mines(void *pl, struct eco_mines *c) {
     }
 }
 
-// Food sources (in the # eco line): the food list's gatherers by what they gather - fo forage (berry bushes, type 0x37),
+// Food sources (in the # eco line): the food list's gatherers by what they gather - fo forage (berry bushes, res_forage_bush),
 // fh hunt (animals: food units of class +0x4C4 0x11 - Deer, Goat, Ostrich, Elephant ...; the carcass too), ff fields
-// (0x2A), fb fishing boats (family 22), fx anything else. The hunt list (rm +0x88: built once at the AI's start
+// (b_farm), fb fishing boats (family 22), fx anything else. The hunt list (rm +0x88: built once at the AI's start
 // (0x48D263 -> 0x48B778) from the world's food units of class 0x11, sorted by distance, pruned of the dead every 15 s;
 // fish, class 0x12, go to rm +0x98): hl its entries with food left, hlF their food, hl15 / hl30 those within 15 / 30
 // tiles of a drop site (not granaries). Animals on the map (grid, class 0x11, food left): an all, an30 within 30 tiles
 // of a drop site, anF30 their food, anNew30 those within 30 that are not in the hunt list (born or come later - the
-// game never adds them). Forage (the sites of every zone, 0x37, food left): fsN / fsF within 30 tiles, fsN20 / fsF20
+// game never adds them). Forage (the sites of every zone, res_forage_bush, food left): fsN / fsF within 30 tiles, fsN20 / fsF20
 // within site_max_distance of the base (what wild_food counts). Fish: fish / fishF in rm +0x98. Fields: fld all,
 // fldOK finished.
 static const char *eco_goal(uint8_t *u, int *res);
@@ -133,8 +133,8 @@ static void eco_food(void *pl, uint8_t *rm, struct eco_food *f) {
         int res;
         if (strcmp(eco_goal(u, &res), "gather")) continue;
         if (FIELD(td, 0x4B4, int) == 22) f->fb++;
-        else if (res == 0x37) f->fo++;
-        else if (res == 0x2A) f->ff++;
+        else if (res == UT(RES_FORAGE_BUSH)) f->fo++;
+        else if (res == UT(B_FARM)) f->ff++;
         else {
             uint8_t *g = FIELD(u, 0x1EC, uint8_t *), *s = FIELD(g, 0x38, uint8_t *), *st = s ? FIELD(s, 0x2C, uint8_t *) : NULL;
             if (st && FIELD(st, 0x4C4, int) == 0x11) f->fh++; else f->fx++;
@@ -170,14 +170,14 @@ static void eco_food(void *pl, uint8_t *rm, struct eco_food *f) {
         void **sb = zone ? FIELD(zone, 8, void **) : NULL, **se = zone ? FIELD(zone, 0xC, void **) : NULL;
         for (int k = 0; sb && sb + k < se && k < 4096; k++) {
             uint8_t *st = sb[k], *td = st ? FIELD(st, 0x2C, uint8_t *) : NULL;
-            if (!td || FIELD(st, 0x38, int) != 2 || FIELD(td, 0x4B8, int) != 0x37 || FIELD(st, 0x40, int) <= 0) continue;
+            if (!td || FIELD(st, 0x38, int) != 2 || FIELD(td, 0x4B8, int) != UT(RES_FORAGE_BUSH) || FIELD(st, 0x40, int) <= 0) continue;
             int x = FIELD(st, 0x1C, int), y = FIELD(st, 0x20, int), dx = x - bx, dy = y - by;
             if (eco_drop_d2(pl, x, y) <= 900) { f->fsN++; f->fsF += FIELD(st, 0x40, int); }
             if (bx != -10000 && dx * dx + dy * dy < g_site_max_dist * g_site_max_dist) { f->fsN20++; f->fsF20 += FIELD(st, 0x40, int); }
         }
     }
     void *um = cm ? FIELD(cm, 0x44, void *) : NULL;
-    uint8_t *fq = um ? ((uint8_t *(__thiscall *)(void *, int))0x0048F8AF)(um, 0x2A) : NULL;
+    uint8_t *fq = type_list(um, UT(B_FARM));
     for (unsigned k = 0, first = fq ? FIELD(fq, 0xC, unsigned) : 0, n = fq ? FIELD(fq, 0x10, unsigned) : 0; k < n && k < 512; k++) {
         uint8_t *fl = deque_at(fq, first + k), *b = fl ? FIELD(fl, 0x30, uint8_t *) : NULL;
         if (!fl) continue;

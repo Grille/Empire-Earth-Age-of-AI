@@ -38,7 +38,7 @@ static void cz_types(void *pl) {
     if (!tt) return;
     g_cz_np = 0;
     for (int k = 0; k < 2; k++) {
-        uint8_t *td = type_data(k ? 480 : 32);
+        uint8_t *td = type_data(k ? UT(FEMALE_CITIZEN) : UT(CITIZEN));
         g_cz_tech[k] = td ? FIELD(td, 0x4E0, int) : -1;
         uint8_t *t = td ? ((uint8_t *(__thiscall *)(void *, int))0x004019A1)(tt, g_cz_tech[k]) : NULL, *d = t ? FIELD(t, 8, uint8_t *) : NULL;
         int *b = d ? FIELD(d, 0x10, int *) : NULL, *e = d ? FIELD(d, 0x14, int *) : NULL;
@@ -48,7 +48,7 @@ static void cz_types(void *pl) {
             if (j == g_cz_np && g_cz_np < 8) g_cz_ptypes[g_cz_np++] = *p;
         }
     }
-    if (!g_cz_np) { g_cz_ptypes[0] = 35; g_cz_ptypes[1] = 41; g_cz_np = 2; }   // Town Center, Capitol
+    if (!g_cz_np) { g_cz_ptypes[0] = UT(B_TOWN_CENTER); g_cz_ptypes[1] = UT(B_CAPITOL); g_cz_np = 2; }
 }
 static int cz_is_cit_tech(int t) { return t >= 0 && (t == g_cz_tech[0] || t == g_cz_tech[1]); }
 
@@ -97,9 +97,9 @@ static void cz_sample(void *pl, unsigned idx) {
     unsigned *r;
     if (room <= 0) r = &z->m.cap;
     else if (wanted - have <= 0) r = &z->m.target;
-    else if (pend(um, 0x20) || pend(um, 0x1E0))   // the game asks vf32 (can pay one) before 0x49014F: food short, else the budget
-        r = FIELD(pl, PL_STOCK + 8, int) < unit_cost(pl, 32, 2) ? &z->m.pfood : &z->m.pbud;
-    else if (inprod(um, 0x20) || inprod(um, 0x1E0)) r = &z->m.batch;
+    else if ((ut_has(UT(CITIZEN)) && pend(um, UT(CITIZEN))) || (ut_has(UT(FEMALE_CITIZEN)) && pend(um, UT(FEMALE_CITIZEN))))   // the game asks vf32 (can pay one) before 0x49014F: food short, else the budget
+        r = FIELD(pl, PL_STOCK + 8, int) < unit_cost(pl, UT(CITIZEN), 2) ? &z->m.pfood : &z->m.pbud;
+    else if ((ut_has(UT(CITIZEN)) && inprod(um, UT(CITIZEN))) || (ut_has(UT(FEMALE_CITIZEN)) && inprod(um, UT(FEMALE_CITIZEN)))) r = &z->m.batch;
     else if (!um[0x140]) r = &z->m.att;
     else r = &z->m.rest;
     *r += (unsigned)idle;
@@ -186,7 +186,7 @@ static int cz_feed(void *pl, unsigned idx, int missing) {
     if (pw < 5.0f) pw = 5.0f;
     int np = cz_producers(pl), need = (missing + 9) / 10;
     if (np > need) np = need;
-    float per_min = (float)np * (float)unit_cost(pl, 32, 2) * 60000.0f / (float)g_cit_train_ms;
+    float per_min = (float)np * (float)unit_cost(pl, UT(CITIZEN), 2) * 60000.0f / (float)g_cit_train_ms;
     return (int)(per_min / pw + 0.99f);
 }
 // one worker from the largest of the targets in [lo, hi] that stays above its floor; -1: none
@@ -234,7 +234,7 @@ static void cz_targets(uint8_t *rm) {
     g_czp[idx].home = home; g_czp[idx].slots = slots;
     // floors: food keeps FEED's gatherers and its fields + 2 (farmers), wood its late target (late_targets bit 1),
     // a metal its gatherers (nobody is pulled off a mine for food)
-    void *fq = ((void *(__thiscall *)(void *, int))0x0048F8AF)(um, 0x2A);
+    void *fq = type_list(um, UT(B_FARM));
     int fields = fq ? FIELD(fq, 0x10, int) : 0;
     int feed = plan & 2 ? cz_feed(pl, idx, goal - wf) : 0;
     g_czp[idx].feed = feed;
@@ -265,7 +265,7 @@ static int cz_visible_food(void *pl, unsigned idx, const int *stock, int visible
     if (!(CIT_PLAN(idx) & 8) || current_epoch(pl) < 1) return visible;
     int goal = g_czp[idx].goal ? g_czp[idx].goal : g_czp[idx].game;
     if (goal && workforce(pl) >= goal) return visible;
-    float spend = (float)cz_producers(pl) * (float)unit_cost(pl, 32, 2) * 60000.0f / (float)g_cit_train_ms;
+    float spend = (float)cz_producers(pl) * (float)unit_cost(pl, UT(CITIZEN), 2) * 60000.0f / (float)g_cit_train_ms;
     if (g_rate[idx].rate[2] < 2.0f * spend) return visible;
     return stock[2] > visible ? stock[2] : visible;
 }

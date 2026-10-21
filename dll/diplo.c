@@ -251,7 +251,7 @@ static void ws_unit(uint8_t *u, void *ctx) {
     int fam = FIELD(td, 0x4B4, int), type = FIELD(td, 0x4B8, int);
     if ((unsigned)type < G_TYPES_N) g_ws_types[o][type]++;
     if (is_citizen_type(type)) { g_ws.citizens[o]++; return; }
-    if (type == 35 || type == 41) g_ws.centers[o]++;   // Town Center, Capitol: where citizens are trained
+    if (type == UT(B_TOWN_CENTER) || type == UT(B_CAPITOL)) g_ws.centers[o]++;   // where citizens are trained
     if (is_tower_type(type)) g_ws.towers[o]++;
     else if (is_wall(type)) g_ws.walls[o]++;
     if (fam == 2 || fam == 29) { g_ws.buildings[o]++; g_ws.power[o] += 30; return; }
@@ -1155,7 +1155,7 @@ static int citizen_trainable(void *pl, int ai) {   // a Town Center/Capitol and 
     int *stock = (int *)((uint8_t *)pl + PL_STOCK);
     if (g_ws.centers[ai] <= 0) return 0;
     for (int r = 2; r < 7; r++) {
-        int c = unit_cost(pl, 32, r);
+        int c = unit_cost(pl, UT(CITIZEN), r);
         if (c > 0 && stock[r] < c) return 0;
     }
     return 1;

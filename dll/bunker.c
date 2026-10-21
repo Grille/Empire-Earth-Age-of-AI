@@ -6,7 +6,7 @@
 // Center 15, Capitol 50, Settlement 5, Granary 8; the trigger attribute Garrison Level) - no shelter. Included by eeaimod.c
 // after landing.c (the load goal as the transports': EEUGLoadTransport 0x61487F on the holder, its part for each unit).
 
-#define FORTRESS_TYPE 672
+#define FORTRESS_TYPE UT(B_FORTRESS)
 static int bk_capacity(uint8_t *u) {   // what a building holds as a transport does, 0 = none
     uint8_t *td = u ? FIELD(u, 0x2C, uint8_t *) : NULL;
     return td && FIELD(td, 0x4B4, int) == 29 ? FIELD(td, 0x54C, int) : 0;

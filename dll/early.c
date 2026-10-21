@@ -36,11 +36,7 @@ static void early_new_game(void) {
     memset(g_early_mil_refused, 0, sizeof g_early_mil_refused);
 }
 
-static int early_tower_type(void *pl) {   // the best tower the game lets this player build now (as defence_tick)
-    for (int t = 466; t >= 461; t--)
-        if (((char (__thiscall *)(void *, int, int, int))0x00555710)(pl, t, 0x20, 0)) return t;
-    return ((char (__thiscall *)(void *, int, int, int))0x00555710)(pl, 47, 0x20, 0) ? 47 : 0;
-}
+static int early_tower_type(void *pl) { return tower_newest(pl); }   // the best tower it can build now (as defence_tick)
 static int early_base(void *pl, int *bx, int *by) {
     void *cm = FIELD(pl, 0xB90, void *);
     uint8_t *bm = cm ? FIELD(cm, 0x3C, uint8_t *) : NULL;
@@ -141,9 +137,7 @@ static void early_towers_tick(void *pl, unsigned idx, uint32_t now) {
     int fin, all, x, y;
     early_towers_at(pl, bx, by, EARLY_DIST + 3, &fin, &all);
     if (!bm) return;
-    int queued = 0;
-    for (int t = 461; t <= 466 && !queued; t++) queued = bq_has(bm, t);
-    if (!queued) queued = bq_has(bm, 47);
+    int queued = tower_queued(bm);
     if (bm && type && all < EARLY_CORE && !queued && stock[4] >= unit_cost(pl, type, 4) && e >= 0 && e < 14 &&
         early_core_spot(pl, type, &x, &y)) {
         int entry[3] = { type, x, y };
@@ -229,7 +223,7 @@ static void early_bait(void *pl, unsigned idx, uint32_t now) {
 // THE RANGE (early_army): the food-free soldiers of the second epoch (Slinger) come from the Archery Range (54), which the
 // game's build list brought late or not at all - the army asked for Rock Throwers and Clubmen (food) and got 0-3
 // soldiers in the Stone Age. From epoch 1 to 3, every 60 s: none standing or going up and none in the build manager's
-// lists (0x465640) -> one requested (0x46802D(bm, 54, 1, 0), as the building plan's entries do).
+// lists (0x465640) -> one requested (0x46802D(bm, Archery Range, 1, 0), as the building plan's entries do).
 static void early_range(void *pl, unsigned idx, uint32_t now) {
     struct early_st *st = &g_early[idx];
     int e = current_epoch(pl);
@@ -238,13 +232,13 @@ static void early_range(void *pl, unsigned idx, uint32_t now) {
     void *cm = FIELD(pl, 0xB90, void *), *um = cm ? FIELD(cm, 0x44, void *) : NULL;
     uint8_t *bm = cm ? FIELD(cm, 0x3C, uint8_t *) : NULL;
     if (!um || !bm) return;
-    uint8_t *q = ((uint8_t *(__thiscall *)(void *, int))0x0048F8AF)(um, 54);
+    uint8_t *q = type_list(um, UT(B_ARCHERY_RANGE));
     for (unsigned k = 0, f = q ? FIELD(q, 0xC, unsigned) : 0, n = q ? FIELD(q, 0x10, unsigned) : 0; k < n; k++) {
         uint8_t *b = deque_at(q, f + k);
         if (b && FIELD(b, 0x3C, int) > 0) return;
     }
-    if (((char (__thiscall *)(void *, int))0x00465640)(bm, 54)) return;
-    ((void (__thiscall *)(void *, int, int, int))0x0046802D)(bm, 54, 1, 0);
+    if (!ut_has(UT(B_ARCHERY_RANGE)) || ((char (__thiscall *)(void *, int))0x00465640)(bm, UT(B_ARCHERY_RANGE))) return;
+    ((void (__thiscall *)(void *, int, int, int))0x0046802D)(bm, UT(B_ARCHERY_RANGE), 1, 0);
     st->ranges++;
     if (g_log) fprintf(g_log, "# early: P%u at %.1f min: no Archery Range - one requested\n", idx, now / 60000.0);
 }

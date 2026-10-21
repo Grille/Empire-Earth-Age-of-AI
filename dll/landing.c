@@ -76,12 +76,14 @@ static struct landing {
     unsigned bombards, bomb_won;
 } g_ld[16];
 
-static const struct { int epoch, type; } k_transports[] = { { 13, 114 }, { 10, 113 }, { 8, 112 }, { 4, 111 }, { 3, 110 }, { 2, 313 } };
+static const struct { int epoch; enum ut_name ut; } k_transports[] = {   // newest first (g_ut[.ut]: the type)
+    { 13, UT_S13_GARGANTUA_TRANSPORT }, { 10, UT_S10_ATOMIC_AGE_TRANSPORT }, { 8, UT_S08_IMPERIAL_TRANSPORT },
+    { 4, UT_S04_BRONZE_TRANSPORT }, { 3, UT_S03_COPPER_TRANSPORT }, { 2, UT_S02_STONE_TRANSPORT } };
 static int is_transport(int t) {
-    for (size_t k = 0; k < sizeof k_transports / sizeof *k_transports; k++) if (k_transports[k].type == t) return 1;
+    for (size_t k = 0; k < sizeof k_transports / sizeof *k_transports; k++) if (g_ut[k_transports[k].ut] == t) return 1;
     return 0;
 }
-static int ld_cap(int t) {   // soldiers a transport holds: its type's +0x54C (313/110: 10, 111: 12, 112-114: 14; 110 held 10 in the board test)
+static int ld_cap(int t) {   // soldiers a transport holds: its type's +0x54C (raft, copper: 10, bronze: 12, imperial on: 14; copper held 10 in the board test)
     uint8_t *td = t > 0 ? type_data(t) : NULL;
     int c = td ? FIELD(td, 0x54C, int) : 0;
     return c >= 4 && c <= 30 ? c : 10;
@@ -98,7 +100,7 @@ static int ld_cits_for(int ships, int cap) {
 static int ld_transport_type(void *pl) {   // the newest transport of its epoch
     int epoch = current_epoch(pl) + 1;
     for (size_t k = 0; k < sizeof k_transports / sizeof *k_transports; k++)
-        if (k_transports[k].epoch <= epoch) return k_transports[k].type;
+        if (k_transports[k].epoch <= epoch && ut_has(g_ut[k_transports[k].ut])) return g_ut[k_transports[k].ut];
     return 0;
 }
 static int ld_affordable(void *pl, int t) {   // how many of type t its stock pays now
@@ -296,7 +298,7 @@ static unsigned ocean_near(int x, int y, int r, int *wx, int *wy) {   // an ocea
 }
 
 struct ld_scan { void *pl; uint8_t *target; int nb, bx[2000], by[2000]; int nd, dx[16], dy[16]; int nt; uint8_t *tr[32]; int nw; uint8_t *war[32]; int na; uint8_t *air[16]; };
-static int is_fishing_boat(int t) { return t == 108 || t == 109 || t == 211 || t == 332 || t == 365; }
+static int is_fishing_boat(int t) { return UT_IN(t, UT_FISHING_BOATS); }
 static void ld_unit(uint8_t *u, void *ctx) {
     struct ld_scan *s = ctx;
     uint8_t *td = FIELD(u, 0x2C, uint8_t *);
@@ -305,7 +307,7 @@ static void ld_unit(uint8_t *u, void *ctx) {
     int fam = FIELD(td, 0x4B4, int), t = FIELD(td, 0x4B8, int);
     if (o == s->target && (fam == 2 || fam == 29) && !is_wall(t) && (g_land_knows || seen_by(u, s->pl)) && s->nb < 2000) {
         s->bx[s->nb] = FIELD(u, 0x1C, int); s->by[s->nb++] = FIELD(u, 0x20, int);
-    } else if (o == s->pl && t == 36 && s->nd < 16) {
+    } else if (o == s->pl && t == UT(B_DOCK) && s->nd < 16) {
         s->dx[s->nd] = FIELD(u, 0x1C, int); s->dy[s->nd++] = FIELD(u, 0x20, int);
     } else if (o == s->pl && is_transport(t) && FIELD(u, 0x1C, int) >= 0 && !expand_ship(u) && s->nt < 32) s->tr[s->nt++] = u;   // not an outpost's ferry (expand.c)
     else if (o == s->pl && fam == 4 && !is_transport(t) && !is_fishing_boat(t) && FIELD(td, 0x510, int) > 0 && s->nw < 32)
@@ -818,18 +820,21 @@ static void ld_base_plan(struct landing *l) {
     for (int k = 0; k < n; k++) { l->proj[k].kind = pl[k]; l->proj[k].cits = cits[pl[k]]; }
     l->nproj = n; l->base_t = 0;
 }
-static int ld_can_build(void *pl, int t) { return ((char (__thiscall *)(void *, int, int, int))0x00555710)(pl, t, 0x20, 0) != 0; }
+static int ld_can_build(void *pl, int t) { return ut_has(t) && ((char (__thiscall *)(void *, int, int, int))0x00555710)(pl, t, 0x20, 0) != 0; }
 static int ld_kind_type(void *pl, int kind) {   // the type of a kind it can build and pay now (0: none)
-    static const int towers[] = { 466, 465, 464, 463, 462, 461, 47 }, centers[] = { 35, 43 }, factories[] = { 69, 68, 64, 54 };
-    const int *t = NULL; int n = 0;
+    static const enum ut_name towers[] = { UT_B_GUARD_TOWER_DIGITAL, UT_B_GUARD_TOWER_WW1, UT_B_GUARD_TOWER_IMPERIAL,
+        UT_B_GUARD_TOWER_MIDDLE, UT_B_GUARD_TOWER_BRONZE, UT_B_GUARD_TOWER_COPPER, UT_B_GUARD_TOWER_PALEO },
+        centers[] = { UT_B_TOWN_CENTER, UT_B_SETTLEMENT },
+        factories[] = { UT_B_CYBER_FACTORY, UT_B_TANK_FACTORY, UT_B_STABLE, UT_B_ARCHERY_RANGE };
+    const enum ut_name *t = NULL; int n = 0;
     switch (kind) {
     case LDB_TOWER: t = towers; n = 7; break;
     case LDB_CENTER: t = centers; n = 2; break;
     case LDB_FACTORY: t = factories; n = 4; break;
-    case LDB_BARRACKS: return ld_can_build(pl, 34) ? 34 : 0;
-    case LDB_HOSPITAL: return ld_can_build(pl, 62) ? 62 : 0;
+    case LDB_BARRACKS: return ld_can_build(pl, UT(B_BARRACKS)) ? UT(B_BARRACKS) : 0;
+    case LDB_HOSPITAL: return ld_can_build(pl, UT(B_HOSPITAL)) ? UT(B_HOSPITAL) : 0;
     }
-    for (int k = 0; k < n; k++) if (ld_can_build(pl, t[k])) return t[k];
+    for (int k = 0; k < n; k++) if (ld_can_build(pl, g_ut[t[k]])) return g_ut[t[k]];
     return 0;
 }
 static const char *ld_kind_name(int kind) {
@@ -1206,7 +1211,7 @@ static uint8_t *ld_tower_td(void *pl, uint8_t *target, int x, int y) {
         if (FIELD(it.u, 0x18, uint8_t *) != target || FIELD(it.u, 0x3C, int) <= 0 || !defence_stats(it.u, &r, &a) || !seen_by(it.u, pl)) continue;
         if (FIELD(it.td, 0x55C, int) > bh) { bh = FIELD(it.td, 0x55C, int); best = it.td; }
     }
-    return best ? best : type_data(465);
+    return best ? best : type_data(UT(B_GUARD_TOWER_WW1));
 }
 static float ld_war_value(void *pl, uint8_t *td, uint8_t *tw, uint8_t *target) {   // what a warship type does to the tower tw
     float f = ld_factor(td, FIELD(pl, PL_INDEX, int), tw, target ? FIELD(target, PL_INDEX, int) : 0);
@@ -1318,7 +1323,11 @@ static void ld_bombard_tick(void *pl, unsigned pi, struct landing *l, uint8_t *u
         if (nf < l->fleet_want && (!l->train_t || now - l->train_t >= 15000)) {
             l->train_t = now ? now : 1;
             if (g_land_trace && g_log) {   // the warship types: why not trainable now
-                static const int tl[] = { 251, 263, 255, 185, 254, 123, 257, 115 };
+                static const enum ut_name tln[] = { UT_S04_BRONZE_CATAPULT_SHIP, UT_S06_MIDDLE_AGE_CATAPULT_SHIP,
+                    UT_S06_MIDDLE_AGE_FRIGATE, UT_S06_MIDDLE_AGE_GALLEY, UT_S06_MIDDLE_AGES_BATTLESHIP_DECEREME,
+                    UT_S05_BYZANTINE_BATTLESHIP_SEPTRIREME, UT_S04_BRONZE_BATTLESHIP_PENTAKONTER, UT_S03_COPPER_BATTLESHIP_GALLEY };
+                int tl[sizeof tln / sizeof *tln];
+                for (size_t j = 0; j < sizeof tln / sizeof *tln; j++) tl[j] = g_ut[tln[j]];
                 uint8_t *tt = FIELD(pl, PL_TECHTREE, uint8_t *);
                 fprintf(g_log, "# ldbomb: P%u %.2f planned %d, epoch %d, room %d:", pi, now / 60000.0, l->war_type, current_epoch(pl), bk_room(pl));
                 for (size_t j = 0; j < sizeof tl / sizeof *tl; j++) {
@@ -1555,15 +1564,15 @@ static int ld_phase_ships(void *pl, unsigned pi, struct landing *l, uint8_t *um,
             l->trained_t = now;
             int epoch = current_epoch(pl) + 1;
             for (size_t k = 0; k < sizeof k_transports / sizeof *k_transports; k++) {
-                if (k_transports[k].epoch > epoch) continue;
-                int req[4] = { k_transports[k].type, want - s->nt, 0, 0 };
+                if (k_transports[k].epoch > epoch || !ut_has(g_ut[k_transports[k].ut])) continue;
+                int req[4] = { g_ut[k_transports[k].ut], want - s->nt, 0, 0 };
                 unsigned got = 0;
-                l->tr_type = k_transports[k].type;
+                l->tr_type = g_ut[k_transports[k].ut];
                 g_priority_mil = 1; g_landing_order = 1;
                 hook_train_units(um, NULL, req, (uintptr_t)&got);
                 g_priority_mil = 0; g_landing_order = 0;
                 l->tr_got = (int)got;
-                if (g_log) fprintf(g_log, "# landing: P%u at %.1f min: trains %u transports (type %d), has %d\n", pi, now / 60000.0, got, k_transports[k].type, s->nt);
+                if (g_log) fprintf(g_log, "# landing: P%u at %.1f min: trains %u transports (type %d), has %d\n", pi, now / 60000.0, got, g_ut[k_transports[k].ut], s->nt);
                 break;
             }
         }
@@ -1589,7 +1598,7 @@ static int ld_phase_ships(void *pl, unsigned pi, struct landing *l, uint8_t *um,
     // its aircraft too: they bomb the beach's defences and soldiers, else fly over it - a look at the beach
     // (honest_vision) before the transports commit
     // aircraft: those that hit a threat on the way or the beach's tower (a fighter that hits neither stays home)
-    uint8_t *tw = type_data(465);
+    uint8_t *tw = type_data(UT(B_GUARD_TOWER_WW1));
     for (int k = 0; k < s->na && l->nesc < 14; k++)
         if (ld_sea_useful(&e, s->air[k]) || ld_factor(FIELD(s->air[k], 0x2C, uint8_t *), ld_pidx(s->air[k]), tw, FIELD(l->target, 0x45C, int)) > 0.0f)
             l->esc[l->nesc++] = s->air[k];
@@ -2169,7 +2178,12 @@ static void cmd_board(char *out, const char *args) {
         return;
     }
     if (!strncmp(args, "stats", 5)) {   // a unit of P1 per type: its stats record (unit +0x34) floats +0x80..+0x13C
-        static const int tt[] = { 121, 204, 152, 143, 602, 91, 388, 465, 71, 379, 193, 163, 72 };
+        static const enum ut_name ttn[] = { UT_INF10_MACHINE_GUN, UT_INF10_DOUGHBOY, UT_INF10_TRENCH_MORTAR,
+            UT_GUN_ARTILLERY10_ARTILLERY, UT_GUN_SIEGE10_HOWITZER_CANNON, UT_GUN_AT10_57MM_AT_GUN, UT_TANK10_A7V,
+            UT_B_GUARD_TOWER_WW1, UT_A_STRAFE_FIGHTER10_FOKKER_DR_1, UT_A_BOMBER_10_GOTHA, UT_S10_GOOD_HOPE_FRIGATE,
+            UT_S10_CRUISER, UT_A_FIGHTER10_SOPWITH_CAMEL_F_1 };
+        int tt[sizeof ttn / sizeof *ttn];
+        for (size_t j = 0; j < sizeof ttn / sizeof *ttn; j++) tt[j] = g_ut[ttn[j]];
         struct ld_bd f = { 0 };
         for (size_t j = 0; j < sizeof tt / sizeof *tt; j++) {
             uint8_t *map = *(uint8_t **)G_MAP, *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL, *hit = NULL;
@@ -2184,6 +2198,7 @@ static void cmd_board(char *out, const char *args) {
         }
         for (size_t j = 0; j < sizeof tt / sizeof *tt; j++) {
             uint8_t *td = type_data(tt[j]);
+            if (!td) continue;
             REPLY("type data %d:", tt[j]);
             for (int off = 0x410; off < 0x440; off += 4) REPLY(" %X=%g", off, FIELD(td, off, float));
             REPLY(" | reload 50C=%d missile delay 588=%d | 510=%d 4C0=%d 4C4=%d 4C8=%d", FIELD(td, 0x50C, int), FIELD(td, 0x588, int), FIELD(td, 0x510, int), FIELD(td, 0x4C0, int), FIELD(td, 0x4C4, int), FIELD(td, 0x4C8, int));
@@ -2194,11 +2209,19 @@ static void cmd_board(char *out, const char *args) {
         return;
     }
     if (!strncmp(args, "hits", 4)) {   // the game's hit factor (0x4D5F2C): attackers (P2) by row, targets (P1) by column
-        static const int at[] = { 193, 163, 399, 250, 71, 72, 379, 305, 465, 145, 152, 146 }, tt[] = { 113, 250, 72, 399, 152, 465 };
+        static const enum ut_name atn[] = { UT_S10_GOOD_HOPE_FRIGATE, UT_S10_CRUISER, UT_S10_DREADNOUGHT_BATTLESHIP, UT_S10_U_BOAT,
+            UT_A_STRAFE_FIGHTER10_FOKKER_DR_1, UT_A_FIGHTER10_SOPWITH_CAMEL_F_1, UT_A_BOMBER_10_GOTHA, UT_A_HELICOPTERGUNSHIP12_GUN_SHIP,
+            UT_B_GUARD_TOWER_WW1, UT_B_AA10_GUN_88MM, UT_INF10_TRENCH_MORTAR, UT_AA10_TANK },
+            ttn[] = { UT_S10_ATOMIC_AGE_TRANSPORT, UT_S10_U_BOAT, UT_A_FIGHTER10_SOPWITH_CAMEL_F_1, UT_S10_DREADNOUGHT_BATTLESHIP,
+            UT_INF10_TRENCH_MORTAR, UT_B_GUARD_TOWER_WW1 };
+        int at[sizeof atn / sizeof *atn], tt[sizeof ttn / sizeof *ttn];
+        for (size_t j = 0; j < sizeof atn / sizeof *atn; j++) at[j] = g_ut[atn[j]];
+        for (size_t j = 0; j < sizeof ttn / sizeof *ttn; j++) tt[j] = g_ut[ttn[j]];
         REPLY("attacker:      " );
         for (size_t j = 0; j < sizeof tt / sizeof *tt; j++) REPLY(" %5d", tt[j]);
         REPLY("\n");
         for (size_t k = 0; k < sizeof at / sizeof *at; k++) {
+            if (!type_data(at[k])) continue;
             REPLY("  %3d (kind %2d):", at[k], FIELD(type_data(at[k]), 0x4C8, int));
             for (size_t j = 0; j < sizeof tt / sizeof *tt; j++) REPLY(" %5.2f", ld_factor(type_data(at[k]), 2, type_data(tt[j]), 1));
             REPLY("\n");
@@ -2206,7 +2229,10 @@ static void cmd_board(char *out, const char *args) {
         return;
     }
     if (!strncmp(args, "types", 5)) {   // the type fields (ints) small for every transport, 0 for a soldier (20): capacity?
-        static const int tt[] = { 313, 110, 111, 112, 113, 114, 20 };
+        static const enum ut_name ttn[] = { UT_S02_STONE_TRANSPORT, UT_S03_COPPER_TRANSPORT, UT_S04_BRONZE_TRANSPORT,
+            UT_S08_IMPERIAL_TRANSPORT, UT_S10_ATOMIC_AGE_TRANSPORT, UT_S13_GARGANTUA_TRANSPORT, UT_INF01_CLUBMAN };
+        int tt[7];
+        for (int j = 0; j < 7; j++) tt[j] = g_ut[ttn[j]];
         for (int off = 0; off < 0x800; off += 4) {
             int ok = 1, v[7];
             for (int k = 0; k < 7; k++) {

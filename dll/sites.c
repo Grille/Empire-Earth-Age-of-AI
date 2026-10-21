@@ -27,8 +27,8 @@ static int route_safe(void *bm, const int base[2], const int to[2]) {
     return 1;
 }
 
-// Drop sites of a player from the unit grid: Town Center 35, Capitol 41, Settlement 43/395 take everything,
-// Granary 52/698 only food. Up to `max` entries {x, y, food_only}.
+// Drop sites of a player from the unit grid: Town Center, Capitol, Settlement (also the single player one) take
+// everything, Granary (also the improved one) only food. Up to `max` entries {x, y, food_only}.
 static int drop_sites(void *pl, int (*out)[3], int max) {
     uint8_t *map = *(uint8_t **)G_MAP;
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
@@ -37,8 +37,8 @@ static int drop_sites(void *pl, int (*out)[3], int max) {
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
         uint8_t *u = it.u, *td = it.td;
         if (!td || FIELD(u, 0x18, void *) != pl || n >= max) continue;
-        int t = FIELD(td, 0x4B8, int), food = t == 52 || t == 698;
-        if (!food && t != 35 && t != 41 && t != 43 && t != 395) continue;
+        int t = FIELD(td, 0x4B8, int), food = t == UT(B_GRANARY) || t == UT(B_GRANARY_IMPROVED);
+        if (!food && !UT_IN(t, UT_TOWNS, UT_X_SINGLE_PLAYER_SETTLEMENT)) continue;
         out[n][0] = FIELD(u, 0x1C, int); out[n][1] = FIELD(u, 0x20, int); out[n][2] = food;
         n++;
     }
@@ -77,7 +77,7 @@ static uint8_t *select_site(uint8_t *rm, int type, int need_drop, int max_d2, ui
         if (!zone || (type != 2 && !zone[0x18])) continue;
         uint8_t *s = ((uint8_t *(__thiscall *)(void *, int))FN_ZONE_SITE)(zone, type);
         if (!s) continue;
-        if (type == 2 && FIELD(FIELD(s, 0x2C, uint8_t *), 0x4B8, int) != 0x37) continue;   // forage only
+        if (type == 2 && FIELD(FIELD(s, 0x2C, uint8_t *), 0x4B8, int) != UT(RES_FORAGE_BUSH)) continue;   // forage only
         if (FIELD(s, 0x40, int) <= 0 || FIELD(FIELD(s, 0x14, uint8_t *), 4, int) == 1) continue;
         if (need_drop && !FIELD(zone, 0x14, int)) continue;
         int pos[2] = { FIELD(s, 0x1C, int), FIELD(s, 0x20, int) };

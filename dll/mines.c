@@ -141,13 +141,13 @@ static void mine_drops(void *pl, unsigned idx, uint32_t now) {
     if (!m->far_r) return;
     uint8_t *cm = FIELD(pl, 0xB90, uint8_t *), *bm = cm ? FIELD(cm, 0x3C, uint8_t *) : NULL;
     void *um = cm ? FIELD(cm, 0x44, void *) : NULL;
-    if (!bm || !um || bq_has(bm, 43) || bq_has(bm, 395)) return;
-    uint8_t *q = ((uint8_t *(__thiscall *)(void *, int))0x0048F8AF)(um, 43);   // one being built: wait for it
+    if (!bm || !um || !ut_has(UT(B_SETTLEMENT)) || bq_has(bm, UT(B_SETTLEMENT)) || bq_has(bm, UT(X_SINGLE_PLAYER_SETTLEMENT))) return;
+    uint8_t *q = type_list(um, UT(B_SETTLEMENT));   // one being built: wait for it
     for (unsigned k = 0, f = q ? FIELD(q, 0xC, unsigned) : 0, n = q ? FIELD(q, 0x10, unsigned) : 0; k < n; k++) {
         uint8_t *b = deque_at(q, f + k), *st = b ? FIELD(b, 0x30, uint8_t *) : NULL;
         if (b && FIELD(b, 0x3C, int) > 0 && (!st || !FIELD(st, 0x340, uint8_t))) return;
     }
-    if (!((char (__thiscall *)(void *, int, int, int))0x00555710)(pl, 43, 0x20, 0)) return;   // can't build or pay now
+    if (!((char (__thiscall *)(void *, int, int, int))0x00555710)(pl, UT(B_SETTLEMENT), 0x20, 0)) return;   // can't build or pay now
     int e = current_epoch(pl);
     if (e < 0 || e >= 14) return;
     for (int r = 3; r <= 6; r++)
@@ -155,8 +155,8 @@ static void mine_drops(void *pl, unsigned idx, uint32_t now) {
             for (int ay = -r; ay <= r; ay++) {
                 if (abs(ax) != r && abs(ay) != r) continue;
                 int x = m->far_x + ax, y = m->far_y + ay;
-                if (!can_place(pl, 43, x, y) || raiders_near(pl, x, y, 12)) continue;
-                int entry[3] = { 43, x, y };
+                if (!can_place(pl, UT(B_SETTLEMENT), x, y) || raiders_near(pl, x, y, 12)) continue;
+                int entry[3] = { UT(B_SETTLEMENT), x, y };
                 ((void (__thiscall *)(void *, int *))0x00468C37)(bm + 4 + e * 0x14, entry);
                 m->drops_queued++;
                 if (g_log) {

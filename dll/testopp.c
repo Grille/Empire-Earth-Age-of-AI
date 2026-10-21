@@ -199,7 +199,7 @@ static int so_home_of(int p, int *x, int *y) {   // a player's Capitol, else Tow
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
         void *o = FIELD(it.u, 0x18, void *);
         if (!o || FIELD(o, PL_INDEX, int) != p || FIELD(it.u, 0x3C, int) <= 0 || so_family(it.td) != 2) continue;
-        int t = FIELD(it.td, 0x4B8, int), pr = t == 41 ? 3 : t == 35 ? 2 : 1;
+        int t = FIELD(it.td, 0x4B8, int), pr = t == UT(B_CAPITOL) ? 3 : t == UT(B_TOWN_CENTER) ? 2 : 1;
         if (pr > got) { got = pr; *x = FIELD(it.u, 0x1C, int); *y = FIELD(it.u, 0x20, int); }
     }
     return got;
@@ -212,7 +212,7 @@ static void so_types(void) {
     for (int r = 0; r < SR_N; r++) g_so.types[r] = 0;
     for (int t = 1; t < 724; t++) {
         uint8_t *td = type_data(t);
-        if (!td || FIELD(td, 0x4B8, int) != t || !so_warship(td) || t == 268 || t == 611) continue;
+        if (!td || FIELD(td, 0x4B8, int) != t || !so_warship(td) || t == UT(X09_AGINCOURT_BATTLESHIP) || t == UT(X07_GOLDEN_HIND)) continue;
         int r = so_role(td), tech = FIELD(td, 0x4E0, int);
         if (r < 0 || tech < 2000 || tech <= best[r]) continue;
         if (!(p1 && ld_type_avail(p1, t)) && !(ai && ld_type_avail(ai, t))) continue;
@@ -220,8 +220,8 @@ static void so_types(void) {
     }
     g_so.trtype = 0;
     for (size_t k = 0; k < sizeof k_transports / sizeof *k_transports && !g_so.trtype; k++) {
-        int t = k_transports[k].type;
-        if ((p1 && ld_type_avail(p1, t)) || (ai && ld_type_avail(ai, t))) g_so.trtype = t;
+        int t = g_ut[k_transports[k].ut];
+        if (ut_has(t) && ((p1 && ld_type_avail(p1, t)) || (ai && ld_type_avail(ai, t)))) g_so.trtype = t;
     }
     static int cnt[G_TYPES_N];
     memset(cnt, 0, sizeof cnt);
@@ -233,7 +233,7 @@ static void so_types(void) {
         int t = FIELD(it.td, 0x4B8, int), fam = so_family(it.td);
         float r, a;
         if (is_soldier(it.td) && fam != 4 && fam != 10 && fam != 18 && fam != 21 && fam != 22 && fam != 3 && fam != 7 && fam != 17 && t > 0 && t < G_TYPES_N) cnt[t]++;
-        else if (defence_stats(it.u, &r, &a) && t != 35 && t != 41 && t != 43 && t != 36 && t != 65 && t != 672 && r * a > tr) { tr = r * a; tower = t; }
+        else if (defence_stats(it.u, &r, &a) && !UT_IN(t, UT_TOWNS, UT_B_DOCK, UT_B_NAVY_YARD, UT_B_FORTRESS) && r * a > tr) { tr = r * a; tower = t; }
     }
     int s0 = 0, s1 = 0;
     for (int t = 1; t < G_TYPES_N; t++) {
@@ -267,16 +267,16 @@ static void so_scan(uint32_t now) {
             float r, a;
             e->u = u; e->td = td; e->x = x; e->y = y; e->seen = 0;
             e->cls = so_warship(td) ? SC_WAR : (fam == 18 || is_transport(t)) ? SC_TR : (fam == 22 || is_fishing_boat(t)) ? SC_BOAT :
-                     is_citizen_type(t) ? SC_CIT : (t == 36 || t == 65) ? SC_DOCK : defence_stats(u, &r, &a) ? SC_DEF :
+                     is_citizen_type(t) ? SC_CIT : (t == UT(B_DOCK) || t == UT(B_NAVY_YARD)) ? SC_DOCK : defence_stats(u, &r, &a) ? SC_DEF :
                      (fam == 2 || fam == 29) ? SC_BLD : is_siege(t) ? SC_SIEGE : is_soldier(td) ? SC_SOLD : SC_OTHER;
             if (e->cls == SC_WAR) g_sos.ai_war++;
             else if (e->cls == SC_TR) g_sos.ai_tr++;
             else if (e->cls == SC_BOAT) g_sos.ai_boats++;
             if (fam == 2 || fam == 29) {
                 unsigned c = cont_at(x, y);
-                if (c && c != g_so.econt && t != 36 && t != 65) {
+                if (c && c != g_so.econt && t != UT(B_DOCK) && t != UT(B_NAVY_YARD)) {
                     g_sos.ai_isl++;
-                    if (t == 35 || t == 41 || t == 43 || t == 395) g_sos.ai_towns++;
+                    if (UT_IN(t, UT_TOWNS, UT_X_SINGLE_PLAYER_SETTLEMENT)) g_sos.ai_towns++;
                 }
             }
             if (fam != 4 && fam != 10 && fam != 18 && fam != 21 && fam != 22 && cont_at(x, y) == g_so.hcont) g_sos.ai_on_opp++;
@@ -868,11 +868,11 @@ static void so_report(uint32_t now) {
     }
     int ai = g_so.ai, seen = 0, mem = 0;
     unsigned trl = 0;
-    for (size_t k = 0; k < sizeof k_transports / sizeof *k_transports; k++) trl += g_nv_lost_type[ai][k_transports[k].type];
+    for (size_t k = 0; k < sizeof k_transports / sizeof *k_transports; k++) if (ut_has(g_ut[k_transports[k].ut])) trl += g_nv_lost_type[ai][g_ut[k_transports[k].ut]];
     for (int i = 0; i < g_sos.nu; i++) seen += g_sos.u[i].seen && g_sos.u[i].cls == SC_WAR;
     for (int k = 0; k < g_so.nm; k++) mem += g_so.m[k].kind == 0;
     unsigned opp_trl = 0;
-    for (size_t k = 0; k < sizeof k_transports / sizeof *k_transports; k++) opp_trl += g_nv_lost_type[1][k_transports[k].type];
+    for (size_t k = 0; k < sizeof k_transports / sizeof *k_transports; k++) if (ut_has(g_ut[k_transports[k].ut])) opp_trl += g_nv_lost_type[1][g_ut[k_transports[k].ut]];
     so_log("# sea: P1 vs P%d at %u min (%s): opp_war=%d raid=%d main=%d patrol=%d F=%d L=%d A=%d S=%d opp_hp=%.0f spawned=%d "
            "opp_lost=%d opp_lost_by_ai=%u ai_war=%d ai_war_most=%d ai_war_lost=%u ai_tr=%d ai_tr_lost=%u ai_boats=%d "
            "ai_boats_lost=%u ai_fish=%d ai_cit_killed=%u ai_cit_by_ships=%d waves=%d sailed=%d ashore=%d stopped=%d "
@@ -987,7 +987,7 @@ static void cmd_seaop(char *out, const char *args) {
                 best = d; g_so.kx = x; g_so.ky = y; g_so.kwx = wx; g_so.kwy = wy;
             }
     }
-    for (int k = 0; k < g_so.nd; k++) so_spawn(36, g_so.dx[k], g_so.dy[k], 1);
+    for (int k = 0; k < g_so.nd && ut_has(UT(B_DOCK)); k++) so_spawn(UT(B_DOCK), g_so.dx[k], g_so.dy[k], 1);
     // the AI's coast: open water nearest its home; the lane between; a ring of 8 points off its coast
     if (!so_find_open(g_so.ex, g_so.ey, 40, g_so.ocean, 1, &g_so.awx, &g_so.awy)) { g_so.awx = g_so.dwx[0]; g_so.awy = g_so.dwy[0]; }
     static const float lf[3] = { 0.3f, 0.55f, 0.8f };

@@ -129,7 +129,7 @@ static int is_decoration(int type) {   // the editor's "x ..." objects (name at 
     return name && name[0] == 'x' && name[1] == ' ';
 }
 static void retry_note(unsigned idx, int type, uint32_t now) {
-    if (type == 395 || type == 0x2A || is_decoration(type)) return;
+    if (type == UT(X_SINGLE_PLAYER_SETTLEMENT) || type == UT(B_FARM) || is_decoration(type)) return;
     int f = -1;
     for (int k = 0; k < 16; k++) {
         if (g_retry[idx][k].type == type) return;
@@ -144,9 +144,9 @@ static char __fastcall hook_place(uint8_t *bm, void *edx, int type, int x, int y
     (void)edx;
     void *owner = FIELD(bm, 0x138, void *);
     // a field without foundation would crash (see there) - the guard alone for a vanilla player (nothing laid out)
-    if (type == 0x2A && !field_place_ok(bm, x, y, !is_vanilla(owner))) return 1;
+    if (type == UT(B_FARM) && !field_place_ok(bm, x, y, !is_vanilla(owner))) return 1;
     if (is_vanilla(owner)) return ((char (__thiscall *)(void *, int, int, int))FN_PLACE)(bm, type, x, y);
-    int place_as = g_build_fix && type == 395 ? 43 : type;
+    int place_as = g_build_fix && type == UT(X_SINGLE_PLAYER_SETTLEMENT) && ut_has(UT(B_SETTLEMENT)) ? UT(B_SETTLEMENT) : type;
     place_as = upgraded_type(FIELD(bm, 0x138, void *), place_as);   // queued before its upgrade: the new type
     if (!x && !y) defence_spot(FIELD(bm, 0x138, void *), type, &x, &y);   // towers: where the defence plan wants them
     char ok = ((char (__thiscall *)(void *, int, int, int))FN_PLACE)(bm, place_as, x, y);
@@ -162,7 +162,7 @@ static char __fastcall hook_place(uint8_t *bm, void *edx, int type, int x, int y
     if (g_build_fix && ++g_place[idx][k].streak >= 3) {
         g_place[idx][k].streak = 0;
         g_place[idx][k].dropped++;
-        if (type != 395) retry_note(idx, place_as, game_time());   // the 395 settlement arrives as 43: not retried
+        if (type != UT(X_SINGLE_PLAYER_SETTLEMENT)) retry_note(idx, place_as, game_time());   // the single player settlement arrives as a settlement: not retried
         return 1;
     }
     return ok;
@@ -203,7 +203,7 @@ static int is_gather_tech(uint8_t *tech) {
         if (ids[k] >= 2000) continue;
         uint8_t *ef = (uint8_t *)0x00919E70 + ids[k] * 0x44;
         int a = FIELD(ef, 0x2C, int), on = FIELD(ef, 0x14, int);
-        if (FIELD(ef, 0x20, int) == 2 && (on == 0x20 || on == 0x1E0 || on == -1) && a >= 0x1A && a <= 0x21 && a != 0x1E) return 1;
+        if (FIELD(ef, 0x20, int) == 2 && (on == UT(CITIZEN) || on == UT(FEMALE_CITIZEN) || on == -1) && a >= 0x1A && a <= 0x21 && a != 0x1E) return 1;
     }
     return 0;
 }
@@ -452,7 +452,7 @@ static void __fastcall hook_pop_cap(void *pl, void *edx) {
     if (!cfg_of(pl)->pop_follow && !is_vanilla(pl)) FIELD(pl, 0xCCC, int) = ((int (__thiscall *)(void *, int))FN_GAME_LIMIT)(pl, 0);
 }
 
-static int is_citizen_type(int type) { return type == 32 || type == 480; }   // Citizen, Female Citizen
+static int is_citizen_type(int type) { return type == UT(CITIZEN) || type == UT(FEMALE_CITIZEN); }
 
 // Citizens without useful work: unassigned ones plus those beyond their resource's target.
 static int idle_citizens(void *pl) {
@@ -745,7 +745,7 @@ static int wild_food(void *pl) {
     void **zb = FIELD(pl, 0xB50, void **), **ze = FIELD(pl, 0xB54, void **);
     for (int z = 0; zb && zb + z < ze; z++) {
         uint8_t *s = zb[z] ? ((uint8_t *(__thiscall *)(void *, int))FN_ZONE_SITE)(zb[z], 2) : NULL;
-        if (!s || FIELD(FIELD(s, 0x2C, uint8_t *), 0x4B8, int) != 0x37) continue;
+        if (!s || FIELD(FIELD(s, 0x2C, uint8_t *), 0x4B8, int) != UT(RES_FORAGE_BUSH)) continue;
         int dx = FIELD(s, 0x1C, int) - bx, dy = FIELD(s, 0x20, int) - by;
         if (dx * dx + dy * dy >= lim) continue;
         if (!((char (__thiscall *)(void *, void *))FN_EXPLORED)(FIELD(s, 0x14, void *), pl)) continue;
@@ -872,7 +872,7 @@ static void econ_targets(uint8_t *rm) {
             target[3]++;
         }
         void *um = cm ? FIELD(cm, 0x44, void *) : NULL;
-        uint8_t *fq = um ? ((uint8_t *(__thiscall *)(void *, int))0x0048F8AF)(um, 0x2A) : NULL;
+        uint8_t *fq = type_list(um, UT(B_FARM));
         int fields = fq ? FIELD(fq, 0x10, int) : 0;
         if (lt & 4) {   // the overflow to the metals (see LATE WOOD, bit 4)
             int cap = fields + 2;
@@ -1088,7 +1088,7 @@ static void fields_rebuild(void *pl, unsigned idx, void *um, uint8_t *dq, uint32
         if (j == g_field_n[idx] && j < 32) { g_field_at[idx][j].x = (int16_t)x; g_field_at[idx][j].y = (int16_t)y;
                                             g_field_at[idx][j].queued = 0; g_field_n[idx]++; }
     }
-    uint8_t *gq = ((uint8_t *(__thiscall *)(void *, int))0x0048F8AF)(um, 0x34);   // granaries
+    uint8_t *gq = type_list(um, UT(B_GRANARY));
     int queued = 0;
     if (!gq) return;
     for (int j = 0; j < g_field_n[idx]; j++) {
@@ -1105,8 +1105,8 @@ static void fields_rebuild(void *pl, unsigned idx, void *um, uint8_t *dq, uint32
         if (!granary) continue;
         if (raiders_near(pl, x, y, 8)) continue;   // raided: later (builders: 8 tiles, as citizens_safety)
         g_field_at[idx][j].queued = now;
-        if (!can_place(pl, 0x2A, x, y)) continue;
-        ((void *(__cdecl *)(void *, int, int, int))0x0062EF8A)(pl, 0x2A, x, y);
+        if (!ut_has(UT(B_FARM)) || !can_place(pl, UT(B_FARM), x, y)) continue;
+        ((void *(__cdecl *)(void *, int, int, int))0x0062EF8A)(pl, UT(B_FARM), x, y);
         queued++;
     }
     if (queued && g_log) fprintf(g_log, "# fields: P%u at %.1f min: %d lost fields laid out again\n", idx, now / 60000.0, queued);
@@ -1117,7 +1117,7 @@ static void fields_rebuild(void *pl, unsigned idx, void *um, uint8_t *dq, uint32
 // far away) and the citizens the assignment couldn't place went to gold (34 on gold, target 4; 4000+ gold unused,
 // food 0, no army). Once a minute: food target >= food workers + 6, every field finished and farmed, no granary
 // queued (0x465640) or unfinished, fewer than 1 + target/8 granaries (at most 8) -> the build manager is asked
-// for one (0x46802D(bm, 0x34, 1, 0), as that plan entry does); it comes with 8 fields, which the passes above build
+// for one (0x46802D(bm, Granary, 1, 0), as that plan entry does); it comes with 8 fields, which the passes above build
 // and farm.
 // The game's spot can be one its builders never manage to lay out: P2's main Town Center hemmed in by walls, towers,
 // a tank factory and both granaries' fields - every minute a request, "placed", the builders stood at 95,97 with no
@@ -1126,9 +1126,9 @@ static void fields_rebuild(void *pl, unsigned idx, void *um, uint8_t *dq, uint32
 // Center, Capitol or Settlement, 4-12 tiles out, placeable, no enemy soldiers within 12, room for 6+ of the 8 fields
 // around it (2 tiles apart, as the game lays them out).
 static int granary_spot(void *pl, void *um, int *ox, int *oy) {
-    static const int centers[] = { 35, 41, 43 };
+    static const enum ut_name centers[] = { UT_B_TOWN_CENTER, UT_B_CAPITOL, UT_B_SETTLEMENT };
     for (int c = 0; c < 3; c++) {
-        uint8_t *q = ((uint8_t *(__thiscall *)(void *, int))0x0048F8AF)(um, centers[c]);
+        uint8_t *q = type_list(um, g_ut[centers[c]]);
         for (unsigned k = 0, f = q ? FIELD(q, 0xC, unsigned) : 0, n = q ? FIELD(q, 0x10, unsigned) : 0; k < n; k++) {
             uint8_t *b = deque_at(q, f + k);
             if (!b || FIELD(b, 0x3C, int) <= 0) continue;
@@ -1138,10 +1138,10 @@ static int granary_spot(void *pl, void *um, int *ox, int *oy) {
                     for (int ay = -r; ay <= r; ay++) {
                         if (abs(ax) != r && abs(ay) != r) continue;
                         int x = cx + ax, y = cy + ay, room = 0;
-                        if (!can_place(pl, 0x34, x, y) || raiders_near(pl, x, y, 12)) continue;
+                        if (!can_place(pl, UT(B_GRANARY), x, y) || raiders_near(pl, x, y, 12)) continue;
                         for (int fx = -2; fx <= 2; fx += 2)
                             for (int fy = -2; fy <= 2; fy += 2)
-                                if ((fx || fy) && can_place(pl, 0x2A, x + fx, y + fy)) room++;
+                                if ((fx || fy) && can_place(pl, UT(B_FARM), x + fx, y + fy)) room++;
                         if (room < 6) continue;
                         *ox = x; *oy = y;
                         return 1;
@@ -1157,7 +1157,7 @@ static void more_granaries(void *pl, unsigned idx, uint8_t *rm, void *cm, void *
     if (now < next[idx] && next[idx] - now <= 60000) return;
     next[idx] = now + 60000;
     int want = (int)FIELD(rm, RM_TARGET + 2 * 4, uint32_t), have = rm_count(rm, 2);
-    uint8_t *bm = FIELD(cm, 0x3C, uint8_t *), *gq = ((uint8_t *(__thiscall *)(void *, int))0x0048F8AF)(um, 0x34);
+    uint8_t *bm = FIELD(cm, 0x3C, uint8_t *), *gq = type_list(um, UT(B_GRANARY));
     int granaries = 0;
     for (unsigned k = 0, f = gq ? FIELD(gq, 0xC, unsigned) : 0, c = gq ? FIELD(gq, 0x10, unsigned) : 0; k < c; k++) {
         uint8_t *g = deque_at(gq, f + k), *st = g ? FIELD(g, 0x30, uint8_t *) : NULL;
@@ -1170,12 +1170,12 @@ static void more_granaries(void *pl, unsigned idx, uint8_t *rm, void *cm, void *
     // water maps (+0xEFA) the game's build list and plan bring none (0x46CD18 counts the fields as wanted there)
     if (want < have + (granaries ? 6 : 2)) return;
     int cap = 1 + want / 8;
-    if (!bm || granaries >= (cap < 8 ? cap : 8) || ((char (__thiscall *)(void *, int))0x00465640)(bm, 0x34)) return;
+    if (!bm || !ut_has(UT(B_GRANARY)) || granaries >= (cap < 8 ? cap : 8) || ((char (__thiscall *)(void *, int))0x00465640)(bm, UT(B_GRANARY))) return;
     static struct { uint32_t t; int n; } req[16];
     int x, y;
     if (now < req[idx].t) req[idx].t = 0;   // a new game
     if (req[idx].t && granaries <= req[idx].n && now - req[idx].t >= 50000 && granary_spot(pl, um, &x, &y)) {
-        char ok = ((char (__thiscall *)(void *, int, int, int))FN_PLACE)(bm, 0x34, x, y);
+        char ok = ((char (__thiscall *)(void *, int, int, int))FN_PLACE)(bm, UT(B_GRANARY), x, y);
         if (g_log) fprintf(g_log, "# fields: P%u at %.1f min: the last granary request brought none - our spot %d,%d: %s\n",
                            idx, now / 60000.0, x, y, ok ? "placed" : "refused");
         req[idx].t = now ? now : 1;
@@ -1184,7 +1184,7 @@ static void more_granaries(void *pl, unsigned idx, uint8_t *rm, void *cm, void *
     }
     req[idx].t = now ? now : 1;
     req[idx].n = granaries;
-    ((void (__thiscall *)(void *, int, int, int))0x0046802D)(bm, 0x34, 1, 0);
+    ((void (__thiscall *)(void *, int, int, int))0x0046802D)(bm, UT(B_GRANARY), 1, 0);
     if (g_log) fprintf(g_log, "# fields: P%u at %.1f min: food target %d, %d on food, %d granaries - one more requested\n",
                        idx, now / 60000.0, want, have, granaries);
 }
@@ -1197,13 +1197,13 @@ static int field_place_ok(uint8_t *bm, int x, int y, int lay_out) {
     void *pl = FIELD(bm, 0x138, void *), *cm = FIELD(bm, 0x134, void *);
     void *um = cm ? FIELD(cm, 0x44, void *) : NULL;
     if (!pl || !um || (!x && !y)) return 0;
-    uint8_t *dq = ((uint8_t *(__thiscall *)(void *, int))0x0048F8AF)(um, 0x2A);
+    uint8_t *dq = type_list(um, UT(B_FARM));
     for (unsigned k = 0, first = dq ? FIELD(dq, 0xC, unsigned) : 0, cnt = dq ? FIELD(dq, 0x10, unsigned) : 0; k < cnt; k++) {
         uint8_t *f = deque_at(dq, first + k);
         if (f && FIELD(f, 0x3C, int) > 0 && FIELD(f, 0x1C, int) == x && FIELD(f, 0x20, int) == y) return 1;
     }
-    if (!lay_out || !can_place(pl, 0x2A, x, y)) return 0;
-    ((void *(__cdecl *)(void *, int, int, int))0x0062EF8A)(pl, 0x2A, x, y);
+    if (!lay_out || !ut_has(UT(B_FARM)) || !can_place(pl, UT(B_FARM), x, y)) return 0;
+    ((void *(__cdecl *)(void *, int, int, int))0x0062EF8A)(pl, UT(B_FARM), x, y);
     if (g_log) fprintf(g_log, "# fields: P%d: build list field at %d,%d - foundation laid out first\n", FIELD(pl, PL_INDEX, int), x, y);
     return 1;
 }
@@ -1218,9 +1218,9 @@ static void econ_fields(uint8_t *rm) {   // before the citizen assignment
     next[idx] = now + 5000;
     void *cm = FIELD(rm, RM_OWNER, void *);
     void *um = cm ? FIELD(cm, 0x44, void *) : NULL;   // unit manager: per-type lists (0x48F8AF)
-    uint8_t *dq = um ? ((uint8_t *(__thiscall *)(void *, int))0x0048F8AF)(um, 0x2A) : NULL;
+    uint8_t *dq = type_list(um, UT(B_FARM));
     if (um) fields_rebuild(pl, idx, um, dq, now);
-    if (!dq) {   // no field yet (no list for 0x2A): only the granary pass - it brings the first one (water maps)
+    if (!dq) {   // no field yet (no list of fields): only the granary pass - it brings the first one (water maps)
         g_fields_open[idx] = 0;
         if (um && cm) more_granaries(pl, idx, rm, cm, um, 0, now);
         return;
@@ -1487,9 +1487,8 @@ static int base_threatened(unsigned idx);   // diplo.c: enemy soldiers in its ba
 static struct { void *pl; uint32_t t; int n; int type[48]; } g_cand[16];
 static int land_soldier(int type) {
     uint8_t *td = type_data(type);
-    static const int no[] = { 104, 105, 106, 107, 141, 142, 602, 603, 102, 287, 158, 32, 480, 1, 216 };
     if (!td || FIELD(td, 0x4B8, int) != type || FIELD(td, 0x4B4, int) != 5) return 0;   // a real record of this type
-    for (size_t i = 0; i < sizeof no / sizeof *no; i++) if (type == no[i]) return 0;
+    if (UT_IN(type, UT_SIEGE_TYPES, UT_RAM_TYPES, UT_CITIZEN, UT_FEMALE_CITIZEN, UT_PRIEST, UT_PROPHET)) return 0;
     return 1;
 }
 // Requests that may be replaced: every military unit but ships (navies on water maps), siege and rams (the siege
@@ -1499,11 +1498,10 @@ static int land_soldier(int type) {
 // a land soldier, and so could a transport, a submarine or a carrier.
 static int substitutable(int type) {
     uint8_t *td = type_data(type);
-    static const int no[] = { 104, 105, 106, 107, 141, 142, 602, 603, 102, 287, 158, 32, 480 };
     if (!td || FIELD(td, 0x4B8, int) != type) return 0;
     int fam = FIELD(td, 0x4B4, int);
     if (fam == 4 || fam == 10 || fam == 18 || fam == 21 || fam == 22) return 0;
-    for (size_t i = 0; i < sizeof no / sizeof *no; i++) if (type == no[i]) return 0;
+    if (UT_IN(type, UT_SIEGE_TYPES, UT_RAM_TYPES, UT_CITIZEN, UT_FEMALE_CITIZEN)) return 0;
     return 1;
 }
 static int soldier_score(int type) {

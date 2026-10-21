@@ -12,7 +12,8 @@
 // 0x49014F: calls, units asked, trained, and the refused calls by why - budget (the stock pays one, the budget's
 // visible part doesn't), poor (the stock itself can't), room (no population room, or the fleet's / landing's room
 // held), game (the game refused it: no building, not researched, queue full), substituted.
-static const int k_am_bld[] = { 34, 54, 64, 63, 36, 65, 66, 68, 69, 672 };
+static const enum ut_name k_am_bld[] = { UT_B_BARRACKS, UT_B_ARCHERY_RANGE, UT_B_STABLE, UT_B_SIEGE_FACTORY, UT_B_DOCK,
+    UT_B_NAVY_YARD, UT_B_AIRPORT, UT_B_TANK_FACTORY, UT_B_CYBER_FACTORY, UT_B_FORTRESS };
 #define AM_NK ((int)(sizeof k_am_bld / sizeof *k_am_bld))
 struct am_min { unsigned calls, asked, trained, budget, poor, room, game, subs, short_[7]; };
 static struct am_st {
@@ -52,7 +53,7 @@ static void am_train_note(void *pl, unsigned idx, const int *req, int blocked, i
 }
 // the production buildings of kind k: finished ones, those training
 static void am_bld(void *um, int type, int *have, int *busy) {
-    uint8_t *q = ((uint8_t *(__thiscall *)(void *, int))0x0048F8AF)(um, type);
+    uint8_t *q = type_list(um, type);
     *have = *busy = 0;
     for (unsigned j = 0, f = q ? FIELD(q, 0xC, unsigned) : 0, c = q ? FIELD(q, 0x10, unsigned) : 0; j < c && j < 128; j++) {
         uint8_t *b = deque_at(q, f + j);
@@ -118,7 +119,7 @@ static void am_reserve(void *pl, unsigned idx, int reserve[7]) {
 static int g_army_plan = 0, g_v_army_plan = -1;
 static int g_army_keep[7] = { 0, 0, 300, 300, 100, 100, 100 };
 #define ARMY_PLAN(idx) PV(idx, g_v_army_plan, g_army_plan)
-static const int k_ap_land[] = { 34, 54, 64, 68, 69 };
+static const enum ut_name k_ap_land[] = { UT_B_BARRACKS, UT_B_ARCHERY_RANGE, UT_B_STABLE, UT_B_TANK_FACTORY, UT_B_CYBER_FACTORY };
 static struct ap_st {
     uint32_t t, tb, look;
     int fl[12][7], nf, kf;          // the last 12 samples of stock - reserve
@@ -159,7 +160,7 @@ static int ap_producer(void *pl, int type) {
     uint8_t *d = t ? FIELD(t, 8, uint8_t *) : NULL;
     int *b = d ? FIELD(d, 0x10, int *) : NULL, *e = d ? FIELD(d, 0x14, int *) : NULL;
     for (int *p = b; b && e > b && e - b < 16 && p < e; p++)
-        for (size_t k = 0; k < sizeof k_ap_land / sizeof *k_ap_land; k++) if (*p == k_ap_land[k]) return *p;
+        for (size_t k = 0; k < sizeof k_ap_land / sizeof *k_ap_land; k++) if (*p == g_ut[k_ap_land[k]]) return *p;
     return 0;
 }
 static void army_plan_tick(void *pl, unsigned idx, uint32_t now) {
@@ -216,7 +217,7 @@ static void army_plan_tick(void *pl, unsigned idx, uint32_t now) {
         int nb = 0;
         for (size_t k = 0; k < sizeof k_ap_land / sizeof *k_ap_land; k++) {
             int h, b;
-            am_bld(um, k_ap_land[k], &h, &b);
+            am_bld(um, g_ut[k_ap_land[k]], &h, &b);
             a->have += (unsigned)h; a->busy += (unsigned)b; nb += h;
         }
         if (now < a->look) a->look = 0;
@@ -396,7 +397,7 @@ static void am_tick(void *pl, uint32_t now) {
         a->ts = now ? now : 1;
         for (int k = 0; k < AM_NK; k++) {
             int h, b;
-            am_bld(um, k_am_bld[k], &h, &b);
+            am_bld(um, g_ut[k_am_bld[k]], &h, &b);
             a->have += (unsigned)h; a->busy += (unsigned)b;
         }
         a->samples++;
@@ -406,14 +407,14 @@ static void am_tick(void *pl, uint32_t now) {
     a->t = now ? now : 1;
     int nb[AM_NK], sold = 0, siege = 0, ships = 0, air = 0, towers = 0, walls = 0;
     long value = 0;
-    for (int k = 0; k < AM_NK; k++) { int b; am_bld(um, k_am_bld[k], &nb[k], &b); }
+    for (int k = 0; k < AM_NK; k++) { int b; am_bld(um, g_ut[k_am_bld[k]], &nb[k], &b); }
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
         uint8_t *u = it.u, *td = it.td;
         if (FIELD(u, 0x18, void *) != pl || FIELD(u, 0x3C, int) <= 0) continue;
         int t = FIELD(td, 0x4B8, int), fam = FIELD(td, 0x4B4, int);
         uint8_t *bs = FIELD(u, 0x30, uint8_t *);
-        if (t == 47 || (t >= 461 && t <= 466)) { towers += bs && bs[0x340]; continue; }
-        if (t >= 467 && t <= 472) { walls += bs && bs[0x340]; continue; }
+        if (UT_IN(t, UT_TOWER_LINE)) { towers += bs && bs[0x340]; continue; }
+        if (UT_IN(t, UT_WALL_LINE)) { walls += bs && bs[0x340]; continue; }
         if (!is_army_family(fam) || is_citizen_type(t) || fam == 18) continue;   // transports aside
         if (fam == 4 || fam == 10 || fam == 21) ships++;
         else if (fam == 3 || fam == 7 || fam == 17) air++;

@@ -7,6 +7,8 @@
 // The pipe and setup commands that take a type take its identifier as well (type_args, control.c execute); the
 // replies name the type next to its number.
 #include "unit_names.h"
+#include "unit_ids.h"   // the types the AI code names: UT(B_FARM)
+static int unit_type_named(const char *name, int n);
 
 static void x_error(const char *fmt, ...);   // expr.c
 static char g_unit_ident[G_TYPES_N][64];      // "" no such type
@@ -52,6 +54,16 @@ static int unit_types_load(void) {
     for (int t = 0; t < G_TYPES_N; t++) if (kind[t] != 255) g_kind_types[at[kind[t]]++] = (unsigned short)t;
     g_unit_types_n = n;
     if (g_log) fprintf(g_log, "# units: %d types from the game's data, %d of them in kinds\n", n, g_kind_first[UNIT_KINDS]);
+    static const char *const ut_ident[UT_N] = {
+#define UT_IDENT(n, s) s,
+        UT_TYPES(UT_IDENT)
+#undef UT_IDENT
+    };
+    for (int i = 0; i < UT_N; i++) {   // the types the AI code names (unit_ids.h)
+        int t = unit_type_named(ut_ident[i], (int)strlen(ut_ident[i]));
+        g_ut[i] = t >= 0 ? t : UT_NONE;
+        if (t < 0 && g_log) fprintf(g_log, "# units: %s, a type the AI knows by name, isn't in the game's data - left out\n", ut_ident[i]);
+    }
     unit_types_check_later();
     return 1;
 }

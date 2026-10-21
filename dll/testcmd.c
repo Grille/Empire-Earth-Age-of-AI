@@ -500,8 +500,8 @@ static void cmd_wave(char *out, const char *args) {
         units_of(a, 1, &sc);
         for (int i = 0; i < sc.n; i++) {
             int t = FIELD(FIELD(sc.u[i], 0x2C, uint8_t *), 0x4B8, int);
-            if (x < 0 || t == 35 || t == 41) x = FIELD(sc.u[i], 0x1C, int), y = FIELD(sc.u[i], 0x20, int);
-            if (t == 35) break;
+            if (x < 0 || t == UT(B_TOWN_CENTER) || t == UT(B_CAPITOL)) x = FIELD(sc.u[i], 0x1C, int), y = FIELD(sc.u[i], 0x20, int);
+            if (t == UT(B_TOWN_CENTER)) break;
         }
         if (x < 0) { REPLY("error: P%d has no buildings, give x y\n", a); return; }
     }

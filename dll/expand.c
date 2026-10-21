@@ -112,15 +112,15 @@ static void ex_scan(void *pl, uint32_t now, int new_log) {
                     LeaveCriticalSection(&g_lock);
                 }
             }
-            if (t == 35 || t == 41 || t == 43 || t == 395) c->drop[pi]++;
-            if (t == 35 || t == 41) c->town[pi]++;
+            if (UT_IN(t, UT_TOWNS, UT_X_SINGLE_PLAYER_SETTLEMENT)) c->drop[pi]++;
+            if (t == UT(B_TOWN_CENTER) || t == UT(B_CAPITOL)) c->town[pi]++;
             float rr, a;
             int def = defence_stats(u, &rr, &a);
             if (def) c->tower[pi]++;
             for (int v = 1; v < 16; v++)   // what each AI knows of its enemies there (honest_vision: seen, or remembered)
                 if (g_players[v] && v != pi && is_enemy(g_players[v], o) && seen_by(u, g_players[v])) {
                     c->eseen[v]++; c->etow[v] += def;
-                    if (t == 35 || t == 41) c->etown[v]++;
+                    if (t == UT(B_TOWN_CENTER) || t == UT(B_CAPITOL)) c->etown[v]++;
                 }
         } else if (is_citizen_type(t)) {
             c->cit[pi]++;
@@ -333,7 +333,7 @@ static void expand_reserve(void *pl, int reserve[7]) {
     }
     if (!x->res_t || game_time() - x->res_t > 180000) return;
     int tt = ld_kind_type(pl, LDB_TOWER);
-    for (int r = 2; r < 7; r++) reserve[r] += unit_cost(pl, 43, r) + (tt ? unit_cost(pl, tt, r) : unit_cost(pl, 463, r));
+    for (int r = 2; r < 7; r++) reserve[r] += unit_cost(pl, UT(B_SETTLEMENT), r) + (tt ? unit_cost(pl, tt, r) : unit_cost(pl, UT(B_GUARD_TOWER_MIDDLE), r));
 }
 static int expand_leads(uint8_t *sg) {   // a subgroup holding the ferry's transport: its update skipped
     void *pl = FIELD(sg, 0x190, void *);
@@ -738,8 +738,8 @@ static void ex_isle_unit(uint8_t *u, void *ctx) {
 }
 static int ex_kind_type(void *pl, int kind) {
     if (kind == XK_TOWER) return ld_kind_type(pl, LDB_TOWER);
-    if (kind == XK_BARRACKS) return ld_can_build(pl, 34) ? 34 : 0;
-    return ld_can_build(pl, 43) ? 43 : 0;   // a Settlement (a Town Center first took the stone of the towers)
+    if (kind == XK_BARRACKS) return ld_can_build(pl, UT(B_BARRACKS)) ? UT(B_BARRACKS) : 0;
+    return ld_can_build(pl, UT(B_SETTLEMENT)) ? UT(B_SETTLEMENT) : 0;   // a Settlement (a Town Center first took the stone of the towers)
 }
 static int ex_spot(void *pl, unsigned idx, struct ex_st *x, int type, int cx, int cy, int *ox, int *oy) {
     uint8_t *td = type_data(type);
@@ -1057,7 +1057,7 @@ static void ex_plan(void *pl, unsigned idx, struct ex_st *x, uint32_t now) {
     int ocean = 0;
     if (!why) {
         for (struct grid_it it = grid_it_all(1); grid_it_next(&it) && !ocean; )
-            if (FIELD(it.u, 0x18, void *) == pl && FIELD(it.td, 0x4B8, int) == 36 && FIELD(it.u, 0x3C, int) > 0)
+            if (FIELD(it.u, 0x18, void *) == pl && FIELD(it.td, 0x4B8, int) == UT(B_DOCK) && FIELD(it.u, 0x3C, int) > 0)
                 ocean = (int)ocean_near(FIELD(it.u, 0x1C, int), FIELD(it.u, 0x20, int), 4, NULL, NULL);
         if (!ocean) why = "no dock";
     }

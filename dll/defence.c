@@ -34,7 +34,18 @@ static struct def_plan {
 } g_plan[16];
 
 static unsigned area_id(int x, int y, int kind);   // assault.c: 1 the sea, 2 the land there (0 none)
-static int is_tower_type(int t) { return t == 47 || t == 328 || (t >= 461 && t <= 466); }
+static int is_tower_type(int t) { return UT_IN(t, UT_TOWER_LINE, UT_B_TANK_OBSTACLE); }
+static const enum ut_name k_tower_line[] = { UT_TOWER_LINE };   // oldest first
+static int tower_newest(void *pl) {   // the best tower the game lets this player build now (0: none)
+    for (int i = 6; i >= 0; i--)
+        if (ut_has(g_ut[k_tower_line[i]]) && ((char (__thiscall *)(void *, int, int, int))0x00555710)(pl, g_ut[k_tower_line[i]], 0x20, 0)) return g_ut[k_tower_line[i]];
+    return 0;
+}
+static int bq_has(uint8_t *bm, int type);   // attack.c
+static int tower_queued(uint8_t *bm) {   // a tower of the line in the build manager's queues
+    for (int i = 0; i < 7; i++) if (bq_has(bm, g_ut[k_tower_line[i]])) return 1;
+    return 0;
+}
 static int can_place(void *pl, int type, int x, int y) {
     uint8_t *td = type_data(type);
     uint8_t *map = *(uint8_t **)G_MAP;
@@ -189,13 +200,7 @@ static void defence_tick(void *pl, unsigned idx, uint32_t now) {
     // back), one tower per minute goes into the build queue with its position; nothing while one is still queued.
     static uint32_t last_tower[16];
     if (g_def_more && (!last_tower[idx] || now < last_tower[idx] || now - last_tower[idx] >= 60000)) {
-        int queued = 0;
-        for (int t = 461; t <= 466 && !queued; t++) queued = bq_has(bm, t);
-        if (!queued) queued = bq_has(bm, 47);
-        int ttype = 0;
-        for (int t = 466; t >= 461 && !ttype; t--)
-            if (((char (__thiscall *)(void *, int, int, int))0x00555710)(pl, t, 0x20, 0)) ttype = t;
-        if (!ttype && ((char (__thiscall *)(void *, int, int, int))0x00555710)(pl, 47, 0x20, 0)) ttype = 47;
+        int queued = tower_queued(bm), ttype = tower_newest(pl);
         int x, y, e = current_epoch(pl);
         if (!queued && ttype && stock[4] >= unit_cost(pl, ttype, 4) + 100 && e >= 0 && e < 14 &&
             defence_spot(pl, ttype, &x, &y)) {
@@ -213,9 +218,10 @@ static void defence_tick(void *pl, unsigned idx, uint32_t now) {
         for (int t = 0; t < s->towers; t++)
             ntow += abs(s->tx[t] - f->fx) <= 7 && abs(s->ty[t] - f->fy) <= 7;
         if (ntow < 2) continue;
+        static const enum ut_name wline[] = { UT_WALL_LINE };   // oldest first
         int wtype = 0;
-        for (int t = 472; t >= 467 && !wtype; t--)
-            if (((char (__thiscall *)(void *, int, int, int))0x00555710)(pl, t, 0x20, 0)) wtype = t;
+        for (int i = 5; i >= 0 && !wtype; i--)   // the newest it can build
+            if (ut_has(g_ut[wline[i]]) && ((char (__thiscall *)(void *, int, int, int))0x00555710)(pl, g_ut[wline[i]], 0x20, 0)) wtype = g_ut[wline[i]];
         if (!wtype) continue;
         int ok = 1;
         for (int r = 2; r < 7; r++) if (stock[r] < 11 * unit_cost(pl, wtype, r)) ok = 0;
@@ -1073,9 +1079,9 @@ static void basemap_unit(uint8_t *u, void *ctx) {
         int pi = FIELD(owner, PL_INDEX, int);
         if (pi <= 0) return;   // nature / gaia
         ch = (char)('0' + pi % 10);
-    } else if (is_wall(type)) ch = (type == 454 || type == 473 || type == 294 || type == 442 || type == 443 || type == 444) ? 'G' : 'W';
+    } else if (is_wall(type)) ch = UT_IN(type, UT_GATE_LINE) ? 'G' : 'W';
     else if (defence_stats(u, &r, &a)) ch = 'T';
-    else if (type == 35 || type == 41 || type == 43 || type == 395) ch = 'C';
+    else if (UT_IN(type, UT_TOWNS, UT_X_SINGLE_PLAYER_SETTLEMENT)) ch = 'C';
     else if (fam == 2 || fam == 29) ch = 'b';
     else if (is_citizen_type(type)) ch = 'c';
     else ch = 's';
@@ -1208,8 +1214,9 @@ static void defence_install(const char *aimod_ini, const char *autotest_ini) {
 // fast), and the most seen is kept 10 minutes instead of 5. scenarios/bombing.eeai (10 seeds, P3 reactive vs ahead): 25
 // aircraft and 4 bombers - workers 36 vs 52, buildings lost 4.3 vs 1.2, losses 25 vs 19; 12 aircraft (they did little
 // harm) - workers 65 vs 57: the guns cost a little where the air threat stays small.
-static const struct { int type, epoch; } k_aa_units[] = { { 626, 13 }, { 19, 12 }, { 146, 10 } };
-static const struct { int type, epoch; } k_aa_bldgs[] = { { 147, 13 }, { 145, 10 } };
+static const struct { enum ut_name type; int epoch; } k_aa_units[] = {
+    { UT_AA13_TANK_SKYWATCHER, 13 }, { UT_AA10_STINGER_SOLDIER, 12 }, { UT_AA10_TANK, 10 } };
+static const struct { enum ut_name type; int epoch; } k_aa_bldgs[] = { { UT_B_AA13_MISSILE_TOWER, 13 }, { UT_B_AA10_GUN_88MM, 10 } };
 struct aa_scan { void *pl; int nair, have_u, have_b, nall, nbx, bxy[16][2]; float axs, ays; };
 static void aa_scan_unit(uint8_t *u, void *ctx) {   // anti_air: own AA, enemy aircraft
     struct aa_scan *a = ctx;
@@ -1218,9 +1225,9 @@ static void aa_scan_unit(uint8_t *u, void *ctx) {   // anti_air: own AA, enemy a
     int fam = FIELD(td, 0x4B4, int), t = FIELD(td, 0x4B8, int);
     void *o = FIELD(u, 0x18, void *), *pl = a->pl;
     if (o == pl) {
-        for (size_t k = 0; k < sizeof k_aa_units / sizeof *k_aa_units; k++) a->have_u += t == k_aa_units[k].type;
+        for (size_t k = 0; k < sizeof k_aa_units / sizeof *k_aa_units; k++) a->have_u += t == g_ut[k_aa_units[k].type];
         for (size_t k = 0; k < sizeof k_aa_bldgs / sizeof *k_aa_bldgs; k++)
-            if (t == k_aa_bldgs[k].type) {
+            if (t == g_ut[k_aa_bldgs[k].type]) {
                 a->have_b++;
                 if (a->nbx < 16) { a->bxy[a->nbx][0] = FIELD(u, 0x1C, int); a->bxy[a->nbx++][1] = FIELD(u, 0x20, int); }
             }
@@ -1297,9 +1304,9 @@ static void anti_air(void *pl, unsigned idx, uint32_t now) {
     if (um && have_u < want_u && (!g_aa_st[idx].train_t || now - g_aa_st[idx].train_t >= 15000)) {
         g_aa_st[idx].train_t = now ? now : 1;
         for (size_t k = 0; k < sizeof k_aa_units / sizeof *k_aa_units; k++) {
-            if (k_aa_units[k].epoch > epoch) continue;
+            if (k_aa_units[k].epoch > epoch || !ut_has(g_ut[k_aa_units[k].type])) continue;
             int n = want_u - have_u > 3 ? 3 : want_u - have_u;
-            int req[4] = { k_aa_units[k].type, n, 0, 0 };
+            int req[4] = { g_ut[k_aa_units[k].type], n, 0, 0 };
             unsigned got = 0;
             g_priority_mil = 1;
             hook_train_units(um, NULL, req, (uintptr_t)&got);
@@ -1313,15 +1320,15 @@ static void anti_air(void *pl, unsigned idx, uint32_t now) {
     }
     // AA buildings: next to the drop site nearest to where the aircraft were
     int queued = 0;
-    for (size_t k = 0; bm && k < sizeof k_aa_bldgs / sizeof *k_aa_bldgs; k++) queued |= bq_has(bm, k_aa_bldgs[k].type);
+    for (size_t k = 0; bm && k < sizeof k_aa_bldgs / sizeof *k_aa_bldgs; k++) queued |= bq_has(bm, g_ut[k_aa_bldgs[k].type]);
     int e = current_epoch(pl), d[2];
     if (uncovered && !g_aa_st[idx].air) { d[0] = cover[0]; d[1] = cover[1]; }   // ahead: no aircraft over a drop site yet
     if (bm && !queued && have_b < want_b && e >= 0 && e < 14 && (!g_aa_st[idx].build_t || now - g_aa_st[idx].build_t >= 60000) &&
         ((uncovered && !g_aa_st[idx].air) || nearest_drop(pl, g_aa_st[idx].ax, g_aa_st[idx].ay, 0, d))) {
         int bt = 0;
         for (size_t k = 0; k < sizeof k_aa_bldgs / sizeof *k_aa_bldgs && !bt; k++)
-            if (k_aa_bldgs[k].epoch <= epoch && ((char (__thiscall *)(void *, int, int, int))0x00555710)(pl, k_aa_bldgs[k].type, 0x20, 0))
-                bt = k_aa_bldgs[k].type;
+            if (k_aa_bldgs[k].epoch <= epoch && ut_has(g_ut[k_aa_bldgs[k].type]) && ((char (__thiscall *)(void *, int, int, int))0x00555710)(pl, g_ut[k_aa_bldgs[k].type], 0x20, 0))
+                bt = g_ut[k_aa_bldgs[k].type];
         for (int r = 3; bt && r <= 7; r++)
             for (int ax = -r; ax <= r; ax++)
                 for (int ay = -r; ay <= r; ay++) {
@@ -1350,11 +1357,12 @@ placed:;
 // the newest type it can build (0x555710), and every finished object of an older type of that line that it can no
 // longer build is converted (still buildable = its upgrade not researched: the Copper tower comes with its own tech,
 // the conversion of the old ones is the paid upgrade - paid_upgrades).
-static const int16_t k_upg_lines[3][7] = {
-    { 47, 461, 462, 463, 464, 465, 466 },   // guard towers Paleo..Digital
-    { 467, 468, 469, 470, 471, 472, -1 },   // walls Copper..Digital
-    { 473, 454, 444, 443, 442, 294, -1 },   // gates Copper..Digital
+static const enum ut_name k_upg_names[3][7] = {
+    { UT_TOWER_LINE },        // guard towers Paleo..Digital
+    { UT_WALL_LINE, UT_N },   // walls Copper..Digital
+    { UT_GATE_LINE, UT_N },   // gates Copper..Digital
 };
+#define UPG(l, i) (k_upg_names[l][i] == UT_N ? -1 : g_ut[k_upg_names[l][i]])   // the type, -1 past the line's end
 static struct { void *pl; int best[3]; uint8_t avail[3][7]; uint8_t *u[64]; int to[64], n; } g_upg;
 static void upg_scan(uint8_t *u, void *ctx) {
     (void)ctx;
@@ -1364,10 +1372,10 @@ static void upg_scan(uint8_t *u, void *ctx) {
     if (FIELD(u, 8, int) && FIELD(st, 0x1CC, int)) return;  // the effect's own condition (0x5BA645)
     int t = FIELD(td, 0x4B8, int);
     for (int l = 0; l < 3; l++)
-        for (int i = 0; i < 7 && k_upg_lines[l][i] >= 0; i++)
-            if (k_upg_lines[l][i] == t && i < g_upg.best[l] && !g_upg.avail[l][i]) {
+        for (int i = 0; i < 7 && UPG(l, i) >= 0; i++)
+            if (UPG(l, i) == t && i < g_upg.best[l] && !g_upg.avail[l][i]) {
                 g_upg.u[g_upg.n] = u;
-                g_upg.to[g_upg.n++] = k_upg_lines[l][g_upg.best[l]];
+                g_upg.to[g_upg.n++] = UPG(l, g_upg.best[l]);
                 return;
             }
 }
@@ -1384,8 +1392,8 @@ static void upgrade_stragglers(void) {   // the safe point (control.c hook_sim_r
         for (int l = 0; l < 3; l++) {
             g_upg.best[l] = -1;
             for (int i = 0; i < 7; i++) {
-                g_upg.avail[l][i] = k_upg_lines[l][i] >= 0 &&
-                    ((char (__thiscall *)(void *, int, int, int))0x00555710)(pl, k_upg_lines[l][i], 0x20, 0);
+                g_upg.avail[l][i] = UPG(l, i) >= 0 &&
+                    ((char (__thiscall *)(void *, int, int, int))0x00555710)(pl, UPG(l, i), 0x20, 0);
                 if (g_upg.avail[l][i]) g_upg.best[l] = i;
             }
             any |= g_upg.best[l] > 0;
@@ -1414,15 +1422,15 @@ static void upgrade_stragglers(void) {   // the safe point (control.c hook_sim_r
 static int upgraded_type(void *pl, int type) {
     if (!pl) return type;
     for (int l = 0; l < 3; l++)
-        for (int i = 0; i < 7 && k_upg_lines[l][i] >= 0; i++) {
-            if (k_upg_lines[l][i] != type) continue;
+        for (int i = 0; i < 7 && UPG(l, i) >= 0; i++) {
+            if (UPG(l, i) != type) continue;
             char (__thiscall *can)(void *, int, int, int) = (char (__thiscall *)(void *, int, int, int))0x00555710;
             if (can(pl, type, 0x20, 0)) return type;
             for (int j = 6; j > i; j--)
-                if (k_upg_lines[l][j] >= 0 && can(pl, k_upg_lines[l][j], 0x20, 0)) {
+                if (UPG(l, j) >= 0 && can(pl, UPG(l, j), 0x20, 0)) {
                     if (g_log) fprintf(g_log, "# upgrades: P%d places %d instead of %d (upgraded since it was queued)\n",
-                                       FIELD(pl, PL_INDEX, int), k_upg_lines[l][j], type);
-                    return k_upg_lines[l][j];
+                                       FIELD(pl, PL_INDEX, int), UPG(l, j), type);
+                    return UPG(l, j);
                 }
             return type;
         }
