@@ -133,7 +133,7 @@ subgroup's PathPoints still linked with mIsValid 0 and releases units already ba
 world's deferred deletions 0x53066A) - the memory handed out twice, the list loops (endless 0x5310B3/0x62FE01) or
 breaks (crashes 0x628D6F, 0x53110D, 0x531131); guarded in attack.c (unit_node_free, hook_unit_release).
 
-### Ranged attacks and projectiles (dll/aim.c)
+### Ranged attacks and projectiles (dll/engine/aim.c)
 
 - Firing: 0x61E11C (attacker class, thiscall(unit)). Aim point from 0x633413 (cdecl: attacker, &target out,
   float aim[3], 0): the target's model hit offset (type vf21 +0x26C) or its tile centre and tile height. With a
@@ -162,7 +162,7 @@ breaks (crashes 0x628D6F, 0x53110D, 0x531131); guarded in attack.c (unit_node_fr
   shock, shock at arrow and arrow at pierce. The hit factor carries the type bonuses (reference save: artillery 143
   at a WW1 tower x3, the tower at artillery x0.12, a Mk V at machine gunners x2, machine gunner at machine gunner
   x2.1). Stats record (per player and type, 0x492969 on player +0x874): +0xD8 attack, +0xE0.. armour (floats),
-  +0x138 reload ms and +0x144 max hp (ints), +0x9C range, +0xA0 area. dll/stats.c computes it (`stats` command).
+  +0x138 reload ms and +0x144 max hp (ints), +0x9C range, +0xA0 area. dll/game/stats.c computes it (`stats` command).
   In fights a shot takes the reload plus about 2 s (duels, scripts/duels.sh: machine gunners with a 1 s reload
   fired every 3.3-5.1 s, Mk V tanks with 4 s every 4.6-7.1 s).
 - Area damage (0x61DAE6, stats +0xA0 = radius in tiles): every unit within the radius of the hit (the tiles around,
@@ -312,7 +312,7 @@ breaks (crashes 0x628D6F, 0x53110D, 0x531131); guarded in attack.c (unit_node_fr
     player's planes over their own town and the group stayed in combat; `attack_ignore_air` drops aircraft out of
     reach.
   - EECPASGLand slot 90 (0x4491DD) is its update(now) (state machine, +0x1A4 next update time); skipping it leaves
-    the members to whoever orders them (dll/assault.c).
+    the members to whoever orders them (dll/ai/assault.c).
 - **Continents:** EEAIContinentManager, a global object at 0x917BC8. 0x425F16 thiscall(mgr, int pt[2]) -> the
   area at a tile (vtable 0x825FB8); 0x425F9F thiscall(mgr, int pt[2], kind) -> its +0x84 (kind 1: ocean id) or +0x86
   (kind 2: land continent id), 16 bits. Some areas have neither (the player's camp on the reference save).
@@ -384,7 +384,7 @@ breaks (crashes 0x628D6F, 0x53110D, 0x531131); guarded in attack.c (unit_node_fr
     (combat manager) -> 0x4510F2 (commander): every group aimed at that player orders its units home, releases them
     to the pool and is deleted (0x454B90). Flag 0 (the only use in the game: the scenario stance trigger 0x5AD29B
     after 0x52D5D7) only freezes the units. Deletes subgroups - never call it from a subgroup/commander callback.
-    dll/diplo.c queues it for the safe point between simulation steps.
+    dll/ai/diplo.c queues it for the safe point between simulation steps.
 - **EEUGAttackUnit** (vtable 0x831968, ctor 0x60AD45(attacker, target, ?), 0x40 bytes): +0x2C attacker,
   +0x30 target unit, +0x34/+0x38 target tile.
 - Unit goal: unit+0x1EC (EEUGLocation = move, EEUGAttackUnit, EEUGExplore, ...; null = idle).
@@ -583,7 +583,7 @@ breaks (crashes 0x628D6F, 0x53110D, 0x531131); guarded in attack.c (unit_node_fr
 - The AI's own chat: EECPPlayerInteractionManager 0x484EB3 thiscall(pim, base string id, ms) shows string
   base + 0..9 (not the variant used last). Bases: 12000 wonder threatened, 12100/12200 help for an ally's wonder
   / none, 12300/12330/12360 land/air/naval help on a flare, 12400 no help, 12500 war declared on the AI
-  (0x46FFB7). Nothing else in the AI talks; dll/chat.c adds the mod's own lines.
+  (0x46FFB7). Nothing else in the AI talks; dll/voice/chat.c adds the mod's own lines.
 - AI diplomacy does not exist: EECPDiplomacyManager (ctor 0x47AB80, vtable 0x8279E0) has only its destructor -
   no update, no reaction. Stances are one-way (+0x9E4[i] = this player's stance towards i): a human declaring
   war on an AI (EEMSetDiplomaticStance::vf10 0x4BDDCC -> 0x52D5D7(from, to, stance) -> SetDiplomacy 0x55B8E1)
@@ -591,7 +591,7 @@ breaks (crashes 0x628D6F, 0x53110D, 0x531131); guarded in attack.c (unit_node_fr
   EEMAttackPlayers (0x4B3851 -> 0x5346E4) and only if the AI already counts the player as enemy.
   0x52D5D7 is thiscall(game state 0x918300 - players at +0x74, count +0xCC, teams +0x9B4); 0x46FFB7 is
   thiscall(combat manager = player +0xB8C, declaring player): target = his most attractive object (0x470FF5, none ->
-  nothing), attack on it (0x472427), taunt through the interaction manager (player +0xB9C). dll/diplo.c answers war.
+  nothing), attack on it (0x472427), taunt through the interaction manager (player +0xB9C). dll/ai/diplo.c answers war.
 - Locked teams: byte 0x918E9F (the diplomacy screen disables its stance boxes, its OK button sends no stance).
 - The native AI lines are called at 0x470040 (12500), 0x4715F8, 0x47166E, 0x47280E, 0x472B9D (rel32 calls).
 - Tribute: EEMPayTribute::vf10 0x4BA6BE (vtable 0x8289C0 slot 10): sender id +0xA (player by id 0x52E6EF on the
@@ -610,9 +610,9 @@ breaks (crashes 0x628D6F, 0x53110D, 0x531131); guarded in attack.c (unit_node_fr
 ## Exe builds
 
 The mod's addresses are those of the 1.04 exe with the 2017 "Difficulty Setting & Multiplayer Lobby" update (build
-timestamp 0x594D0000). eeaimod.c `game_build` checks the exe file before installing anything: an FNV-1a hash over every
+timestamp 0x594D0000). base/exe.c `game_build` checks the exe file before installing anything: an FNV-1a hash over every
 section but `.rsrc` (`k_exe_builds`); another build gets no hooks and one message (`build_unknown`). All addresses are
-in `dll/addr.h`, one row per name with a value per known build (the hash's index picks the column): supporting
+in `dll/game/addr.h`, one row per name with a value per known build (the hash's index picks the column): supporting
 another build means its hash and its column there - the generated editor layout (`editor_layout.h`) and the two
 Low-Level Engine.dll operands of display.c are that build's own as well. Compared on
 2026-10-19 (the community setups unpacked with innoextract, nothing run):
@@ -649,7 +649,7 @@ two Set). Traced 2026-10-19 by hooking those imports from our DLL: after the eng
 no value at all - every setting is read before - and at exit it writes all of them back (also `Game Options`). So a
 redirect of the settings (to an ini next to the game) needs code that runs before the engine reads: a proxy DLL the
 loader brings in (one of the engine's imports, e.g. DINPUT.dll) or the suspended start of a test run. Done that way:
-`dll/eesettings.c`, built as `dinput.dll` (README, Installing: optional) - DINPUT.dll is no KnownDLL, so the game
+`dll/dinput/eesettings.c`, built as `dinput.dll` (README, Installing: optional) - DINPUT.dll is no KnownDLL, so the game
 folder's comes first; it passes DirectInputCreateA (the engine's only DINPUT import) to the system's and points the 7
 imports at `eesettings.ini` (all 7 or none). The engine opens HKCU with no subkey first, then the game's key below
 that handle - the redirect follows handle paths. Two values were REG_SZ of 0 bytes (WonNet Password, Last Quick Save).
@@ -719,10 +719,10 @@ writes the header and the lump container and parses terrain. Strings are length-
 - The scenario editor is fixed at 800x600 in both entries: main menu 0x6601D9 (call 0x6601F1) and return
   from test play 0x65FD21 (call 0x65FD6D). AoC uses 1024x768 in both. The mod redirects both calls
   (aimod.ini [editor] resolution).
-- Camera scrolling: see dll/camera.c (EEAScroll, AoC smooth scrolling).
+- Camera scrolling: see dll/engine/camera.c (EEAScroll, AoC smooth scrolling).
   The scroll action runs on the game thread, the frames are presented on another thread; with a 1 ms
   timer the game thread makes exactly one scroll step per frame (camtrace).
-- Editor at 1024x768 (done, dll/editor_layout.h generated from the AoC diff): AoC also moved the whole editor layout (constructor 0x58D3E1 ->
+- Editor at 1024x768 (done, dll/game/editor_layout.h generated from the AoC diff): AoC also moved the whole editor layout (constructor 0x58D3E1 ->
   AoC 0x59D615: bounds 599/799 -> 767/1023, minimap 587-795 x 454-662 -> 854-1023 x 598-767, buttons
   625-644 x 580-599 -> 849-868 x 718-737; layout 0x58E400 -> 0x59E80F: map view bottom 438 -> 606) and the
   panel code (~0x58E000-0x5B1000, many hard-coded positions), and ships a 1024x768 background
@@ -731,7 +731,7 @@ writes the header and the lump container and parses terrain. Strings are length-
 - .sst textures = 15-byte header (00 01 01 00 | 00 00 00 01 | 00 00 00 01 | 00 00 00) + a plain 24-bit TGA.
   The base Low-Level Engine.dll only loads .sst; AoC's also loads .tga.
 
-### Windowed mode (dll/display.c)
+### Windowed mode (dll/engine/display.c)
 
 The engine keeps the windowed path SSSI used during development; the byte 0x91945A (1 = fullscreen)
 selects it. It is already 1 when the DLLs load and nothing writes it later. Windowed (0), the game:
@@ -780,7 +780,7 @@ client size - the back buffer follows the game resolution - so present scales it
 display DLLs' import tables runs in a per-monitor-aware thread context, so the window isn't bitmap-stretched
 by Windows; present and the mouse code switch their (unaware) threads to the window's context for geometry calls.
 
-Presenting (dll/present_d3d.c): by default the locked frame is uploaded to a Direct3D 11 texture and drawn
+Presenting (dll/engine/present_d3d.c): by default the locked frame is uploaded to a Direct3D 11 texture and drawn
 by a flip-model swap chain on the game window (GPU scaling, tearing allowed when vsync=0); `present=gdi`
 keeps the CPU path (StretchDIBits, or for `smooth=1` a multithreaded bilinear scaler - GDI's HALFTONE took
 ~35 ms per frame at 2560x1440). The GDI path into a visible window held 60 fps on a 120 Hz screen; headless

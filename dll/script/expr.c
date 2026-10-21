@@ -100,7 +100,7 @@ static int rnd_game(int n);   // persona.c: the game's (decisions)
 static float det_log2f(float x);   // diplo.c: log2 with the same bits on every PC
 static int x_player_n(int n, struct xval *v);   // diplo.c: player n as a value (0: none)
 static int g_x_logged;   // expression errors written to the log (at most 60)
-// a script's world (eeaimod.c script runner): the game's time in seconds, waiting until a game second (the script's
+// a script's world (test/scripts.c, the script runner): the game's time in seconds, waiting until a game second (the script's
 // fiber yields to the game), a pipe command run with its reply
 static struct { double (*now)(void); void (*wait)(double until); void (*command)(const char *cmd, char *reply, int cap); } g_x_hooks;
 
@@ -1065,7 +1065,7 @@ static struct xsv xsv_of(const struct xnode *n) {
     }
     return r;
 }
-#include "cmd_verbs.h"
+#include "test/cmd_verbs.h"
 static int x_command_verb(const char *name) {   // a pipe command (control.c execute) - a script calls it as a function
     for (size_t i = 0; i < sizeof k_cmd_verbs / sizeof *k_cmd_verbs; i++) if (!strcmp(k_cmd_verbs[i], name)) return 1;
     return 0;

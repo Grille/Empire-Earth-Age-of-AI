@@ -57,7 +57,7 @@ def statements(s):
 
 stmts = []
 src = {}
-for fn in sorted(glob.glob(os.path.join(dll, '*.c'))):
+for fn in sorted(glob.glob(os.path.join(dll, '**', '*.c'), recursive=True)):
     src[os.path.basename(fn)] = strip_comments(open(fn, 'rb').read().decode('latin-1'))
     stmts += statements(src[os.path.basename(fn)])
 

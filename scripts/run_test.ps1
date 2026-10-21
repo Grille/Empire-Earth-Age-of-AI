@@ -115,7 +115,7 @@ if ($foreign -and (-not $Slot -or ($Mute -and -not $proxy))) {
     "game already running - aborting$(if (-not $Slot) { ' (slot 0 shares its folder: -Slot n runs beside it)' } else { ' (no mod dinput.dll: the run would mute it)' })"; exit 1
 }
 if (-not $others) { Restore-Sound }   # leftover from an interrupted run (with other slots running: theirs)
-# The game's settings. With the mod's dinput.dll in the game folder (dll/eesettings.c) every run reads a copy of
+# The game's settings. With the mod's dinput.dll in the game folder (dll/dinput/eesettings.c) every run reads a copy of
 # -Settings (env SETTINGS; default config\test\eesettings.ini: fixed settings, sound off) - not the player's
 # eesettings.ini, not the registry - and nothing needs muting. -Mute:$false: the player's own settings.
 if (-not $Settings) { $Settings = "$repo\config\test\eesettings.ini" }
@@ -170,7 +170,7 @@ if ($Slot) { $env:EEAIMOD_SLOT = "$Slot"; $env:EEAIMOD_SLOT_DIR = $sdir }
 else { Remove-Item Env:EEAIMOD_SLOT, Env:EEAIMOD_SLOT_DIR -ErrorAction SilentlyContinue }
 $env:EEAIMOD_REPO = $repo   # the repository (texts corpus: its scripts\text_engine_cases.txt)
 # headless: the mod's dinput.dll keeps every window of the game from taking the focus or a taskbar button, from the
-# process start on (dll/headless_win.c; eeaimod.dll alone only from its load on)
+# process start on (dll/base/headless_win.c; eeaimod.dll alone only from its load on)
 if ($extra -contains "headless=1") { $env:EEAIMOD_HEADLESS = "1" } else { Remove-Item Env:EEAIMOD_HEADLESS -ErrorAction SilentlyContinue }
 try {
     # an existing log in the game folder is from normal play (tests archive theirs below): keep it, never delete it;

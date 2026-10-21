@@ -1,17 +1,18 @@
 """Writes vscode/eeaimod-texts/syntaxes/eeai.tmLanguage.json - the highlighting of the aimod_ai\\*.eeai files
-(personalities, mod/computer.eeai, mod/prompt.eeai, mod/system.eeai; the format: dll/expr.c THE TEXT FILES) and of the setup scripts
+(personalities, mod/computer.eeai, mod/prompt.eeai, mod/system.eeai; the format: dll/script/expr.c THE TEXT FILES) and of the setup scripts
 (scenarios/*.eeai, scripts/*.eeai: docs/scripts.md - statements, functions, the commands) - with the names the DLL knows,
 read from its sources: the game's values (diplo.c k_xmembers, k_xglobals), the epochs and functions (expr.c), the situations,
 traits and decisions (persona.c), the system and prompt keys (texts.c, texts_prompt.h), the style keys (settings.c). A key the DLL
 doesn't know in its record shows as an error. Run it after changing one of them, then scripts/pack_vscode.py:
 venv/Scripts/python.exe scripts/gen_vscode_grammar.py"""
 import json
+import glob
 import os
 import re
 
 root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 def src(name):
-    return open(os.path.join(root, 'dll', name), encoding='latin-1').read()
+    return open(glob.glob(os.path.join(root, 'dll', '**', name), recursive=True)[0], encoding='latin-1').read()   # dll/<folder>/<name>
 
 diplo, expr, persona, texts, tpl, settings = (src(n) for n in ('diplo.c', 'expr.c', 'persona.c', 'texts.c', 'texts_prompt.h', 'settings.c'))
 def xtable(name):   # diplo.c k_xmembers / k_xglobals: (name, kind)
@@ -30,8 +31,8 @@ colors = re.findall(r'\{ "(\w+)", "', re.search(r'k_color_names\[17\]\[3\] = \{(
 resources = re.findall(r'"(\w+)"', re.search(r'k_resource_const\[5\] = \{(.*?)\};', expr, re.S).group(1)) + ['all']
 funcs = sorted(set(re.findall(r'!lstrcmpiA\(name, "(\w+)"\)', expr)) - {'true', 'false', 'return', 'and', 'or', 'not'})
 script_funcs = re.findall(r'\{ "(\w+)", \d \}', re.search(r'x_script_fn\(const char \*name\) \{(.*?)\n\}', expr, re.S).group(1))
-commands = re.findall(r'"(\w+)"', open(os.path.join(root, 'dll', 'cmd_verbs.h'), encoding='utf-8').read())
-unit_names = open(os.path.join(root, 'dll', 'unit_names.h'), encoding='utf-8').read()
+commands = re.findall(r'"(\w+)"', open(os.path.join(root, 'dll', 'test', 'cmd_verbs.h'), encoding='utf-8').read())
+unit_names = open(os.path.join(root, 'dll', 'game', 'unit_names.h'), encoding='utf-8').read()
 unit_ids = re.findall(r'^\| \d+ \| `(\w+)` \|', open(os.path.join(root, 'docs', 'units.md'), encoding='utf-8').read(), re.M)   # the retail data's
 kind_ids = re.findall(r'"(\w+)"', re.search(r'k_kind_ident\[UNIT_KINDS\] = \{(.*?)\};', unit_names, re.S).group(1))
 situations = re.findall(r'\{ "(\w+)", \d+, \d+, A_\w+ \}', persona)

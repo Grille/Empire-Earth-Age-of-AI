@@ -1,4 +1,4 @@
-# Sea opponent (dll/testopp.c): the idle human P1 plays a human-like navy against the AI P2 on an island map - a
+# Sea opponent (dll/test/testopp.c): the idle human P1 plays a human-like navy against the AI P2 on an island map - a
 # build-up of warships in 3 groups (raiders on the fishing boats and the coast, the main fleet hunting the AI's
 # warships when stronger, a patrol on the sea lane against transports), landings with transports, a home guard.
 # Base e.g. "random_map=Small Islands,map_size=0,ai_count=1,seed=101,start_epoch=5" (also Large Islands, e9), 60 min;

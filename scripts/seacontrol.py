@@ -1,4 +1,4 @@
-"""Sea control against the sea opponent (dll/testopp.c, scenarios/seaop.eeai; docs/testing.md "Sea opponent"): per run
+"""Sea control against the sea opponent (dll/test/testopp.c, scenarios/seaop.eeai; docs/testing.md "Sea opponent"): per run
 the last "# sea:" line (cumulative counts) and the averages of the minute lines, the AI's own landings ("# landing:")
 and its battle line; per group of runs the mean and the standard error.
 Runs are named <variant><map> as in fleet_ab.py (scen.sh variant names, no underscores), e.g. f0Se5, f1Le9: the

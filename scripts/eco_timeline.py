@@ -2,7 +2,7 @@
 base-game AI"): per side (mod / vanilla) the mean over the games at every STEP minutes - workers (the AI's resource
 lists, tick rows), workers per list, stock, epoch, and from the mod's own lines: the population and cap (# popcheck),
 the budget (# B: reserve, military account, idle, blocked), the soldiers (# army), the game's statistics (# battle,
-every 10 min: gathered food/wood/stone/gold/iron, citizens, army, units lost) and, with the # eco line (dll/ecolog.c),
+every 10 min: gathered food/wood/stone/gold/iron, citizens, army, units lost) and, with the # eco line (dll/test/ecolog.c),
 citizens by goal, trained and lost, town centres training.
 usage: python scripts/eco_timeline.py [-step N] [-games] logs..."""
 import csv, re, sys

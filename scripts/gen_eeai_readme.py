@@ -2,13 +2,14 @@
 line_fallback; their descriptions: mod/prompt.eeai sit_<key>), the game's values (diplo.c k_xmembers, k_xglobals), the epochs (expr.c
 k_epoch_const), the style keys (settings.c k_style_keys) - between its <!-- name: ... --> and <!-- /name --> markers.
 Run it after changing one of them: venv/Scripts/python.exe scripts/gen_eeai_readme.py"""
+import glob
 import os
 import re
 from eeai_prompt import prompt_texts
 
 root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 def src(name):
-    return open(os.path.join(root, 'dll', name), encoding='latin-1').read()
+    return open(glob.glob(os.path.join(root, 'dll', '**', name), recursive=True)[0], encoding='latin-1').read()   # dll/<folder>/<name>
 def c_string(code):   # the text of the C string literals in code, escapes undone
     raw = ''.join(re.findall(r'"((?:[^"\\]|\\.)*)"', code))
     return re.sub(r'\\(.)', lambda m: '\n' if m.group(1) == 'n' else m.group(1), raw)

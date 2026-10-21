@@ -1,4 +1,4 @@
-"""Other islands against the base-game AI (dll/expand.c # isl / # isl new / # expand lines; logs of scripts/vanilla.sh
+"""Other islands against the base-game AI (dll/ai/expand.c # isl / # isl new / # expand lines; logs of scripts/vanilla.sh
 tagged ab-<name>-c<cheat>-<map>-r<seed>v<seat>, as scripts/eco_ablate.sh names them): per variant and condition the
 mean over the games for the mod (M) and the vanilla AI (V) at minutes 10/20/30/45/60 - the home island's mines and
 the player's miners there (stone + gold + iron sites, gatherers whose site lies there), other islands it holds (own:

@@ -1,4 +1,4 @@
-"""Food sources and mine slots against the base-game AI (scripts/eco_ablate.sh logs, dll/ecolog.c # eco lines): per
+"""Food sources and mine slots against the base-game AI (scripts/eco_ablate.sh logs, dll/test/ecolog.c # eco lines): per
 variant and condition (cheat, map) the mean over the games for the mod (M) and the vanilla AI (V) at the minutes of
 -mins: workers, food gatherers by source (fo forage, fh hunt, ff fields, fb fishing boats, fx other), idle (list 0),
 food / wood stock, epoch; hunt list and animals within 30 tiles (hl30, an30, anNew30), forage within 30 tiles (fsF),

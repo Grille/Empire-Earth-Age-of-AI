@@ -1,4 +1,4 @@
-"""The army as one (dll/mass.c, docs/economy.md "The army as one"): the '# mass:' lines once a game minute - land
+"""The army as one (dll/ai/mass.c, docs/economy.md "The army as one"): the '# mass:' lines once a game minute - land
 soldiers alone (2 or fewer own within 6 tiles), away from the base, in a fight; attack subgroups out and their
 stragglers; the land soldiers killed - alone, away, outnumbered; what army_mass did (held / released reinforcements,
 subgroup orders refused, attack waits).

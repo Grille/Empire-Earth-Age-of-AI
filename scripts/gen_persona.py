@@ -2,13 +2,14 @@
 the situations (persona.c k_lines: who hears them, how often, their fallbacks), their descriptions (mod/prompt.eeai
 sit_<key>). Run it after changing one of them:
 venv/Scripts/python.exe scripts/gen_persona.py"""
+import glob
 import os
 import re
 from eeai_prompt import prompt_texts
 
 root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 def src(name):
-    return open(os.path.join(root, 'dll', name), encoding='latin-1').read()
+    return open(glob.glob(os.path.join(root, 'dll', '**', name), recursive=True)[0], encoding='latin-1').read()   # dll/<folder>/<name>
 
 pers = src('persona.c')
 prompt = prompt_texts(root)

@@ -3,7 +3,7 @@
 A test run's `setup=<file>` (autotest, `run_test.ps1 -IniExtra "setup=scenarios/bombing.eeai"` - relative to the repository) is a script in
 the text language of the personalities ([config/aimod_ai/README.md](../config/aimod_ai/README.md)): the same
 expressions, plus statements, variables, functions and the pipe's commands. It runs from 2 s game time, top to
-bottom; waiting (`wait`, `wait_until`, `every`) lets the game go on until that game time. The runner: `dll/scripts.c`.
+bottom; waiting (`wait`, `wait_until`, `every`) lets the game go on until that game time. The runner: `dll/test/scripts.c`.
 
 ```
 # Bombing: an airport at minute 19.5, fighters and bombers at 20, every 20 s they attack P3's town
@@ -61,7 +61,7 @@ Everything the personalities' expressions have (numbers, `70%`, texts with `{pla
 | `cmd("texts eval 3 1 them.kills(me)")` | a command as written (for a text with spaces, quotes or braces) |
 | any pipe command | `spawn(2, unit.inf02_spearman, 70, 50, 10)`, `stats("engage", ...)`, `count(3)`, `save("zz_name")`: the command `spawn 2 24 70 50 10` - numbers as numbers, a type its number, a player its number, a text as it is. Its value is the reply's first line; a reply `error ...` is a mistake. Every command is logged `# setup: <command> -> <reply>` |
 
-The commands: [testing.md](testing.md) "Control pipe" (`dll/cmd_verbs.h`, generated from control.c, lists those a
+The commands: [testing.md](testing.md) "Control pipe" (`dll/test/cmd_verbs.h`, generated from control.c, lists those a
 script may call).
 
 ## Functions and their names

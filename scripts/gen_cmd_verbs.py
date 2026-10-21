@@ -1,4 +1,4 @@
-"""dll/cmd_verbs.h: the pipe's commands (the verbs control.c's execute() knows), for the scripts' command functions
+"""dll/test/cmd_verbs.h: the pipe's commands (the verbs control.c's execute() knows), for the scripts' command functions
 (expr.c x_command_verb: spawn(...), stats(...) ...). Run by dll/build.sh; the header is kept in git for a build
 without Python."""
 import os
@@ -9,7 +9,7 @@ DLL = os.path.join(os.path.dirname(HERE), 'dll')
 
 
 def main():
-    src = open(os.path.join(DLL, 'control.c'), encoding='utf-8', errors='replace').read()
+    src = open(os.path.join(DLL, 'test', 'control.c'), encoding='utf-8', errors='replace').read()
     a = src.index('static void execute(const char *cmd, char *out) {')
     b = src.index('\n}\n', a)
     verbs = sorted(set(re.findall(r'!strcmp\(verb, "([a-z_0-9]+)"\)', src[a:b])))
@@ -26,7 +26,7 @@ def main():
     out.append(line)
     out.append('};')
     text = '\n'.join(out) + '\n'
-    path = os.path.join(DLL, 'cmd_verbs.h')
+    path = os.path.join(DLL, 'test', 'cmd_verbs.h')
     old = open(path, encoding='utf-8').read() if os.path.exists(path) else None
     if old != text:
         open(path, 'w', encoding='utf-8', newline='\n').write(text)

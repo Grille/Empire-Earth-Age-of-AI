@@ -1,4 +1,4 @@
-"""Citizen production against the base-game AI (scripts/eco_ablate.sh logs; dll/citizens.c # cit lines, dll/ecolog.c
+"""Citizen production against the base-game AI (scripts/eco_ablate.sh logs; dll/ai/citizens.c # cit lines, dll/test/ecolog.c
 # eco lines): per variant and condition (cheat, map) the mean over the games for the mod (M) and the vanilla AI (V):
 the producers' (Town Center, Capitol) seconds training citizens / something else / nothing, by game phase (E 0-10,
 M 10-30, L 30-60 min), and the idle seconds' reasons (cap: no room; target: the citizens wanted there; pfood: the game's

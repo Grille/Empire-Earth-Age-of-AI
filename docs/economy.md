@@ -1,7 +1,7 @@
 # The early game against the base game's AI
 
 The benchmark (docs/testing.md "Against the base-game AI"): the base game's AI at hard with its Cheat (every price
-50%). The mod's AI won 0 of 158 games. The economy log (`# eco:`, `# death:`, dll/ecolog.c) and the ablations
+50%). The mod's AI won 0 of 158 games. The economy log (`# eco:`, `# death:`, dll/test/ecolog.c) and the ablations
 (scripts/eco_ablate.sh) gave the diagnosis on Continental (Prehistoric start):
 
 - no soldier until minute ~22, so 1-6 Clubmen and Rock Throwers killed 39-48 citizens a game at the town;
@@ -17,13 +17,13 @@ The playtester's own way, implemented first: "I don't train military in the firs
 citizens, but I go heavy on bowmen/rock slingers from the second epoch on. My first-age tactic is getting towers up
 and baiting enemy troops under the towers with my citizens."
 
-## The features (dll/early.c, econ.c, defence.c; `[all]` keys)
+## The features (dll/ai/early.c, econ.c, defence.c; `[all]` keys)
 
 | Key | What it does |
 |---|---|
 | `early_towers` (A) | In epochs 0-1 the town's first 2 towers stand by the Town Center, 4 tiles out: one towards the front, one on the side where the citizens work. The game's own tower requests take these spots first, and the mod queues the missing ones while stone allows. Every unfinished tower within 20 tiles of the base gets 2 builders (none when enemy soldiers are within 8). The worker plan asks for their stone. |
 | `tower_bait` (A) | Up to epoch 3: a citizen with an enemy soldier within 5 tiles (or one attacking it), and outside its towers' reach, walks to 1.5 tiles behind its nearest finished tower or other shooting building within 25 tiles. Raiders that follow come under fire. The citizen goes back to work through the normal assignment (raided sites are refused). |
-| `early_militia` (A) | Citizens fight soldiers only when own soldiers are within 12 tiles or an own tower reaches the spot, and only when the estimate (dll/stats.c) says they win before losing one citizen. |
+| `early_militia` (A) | Citizens fight soldiers only when own soldiers are within 12 tiles or an own tower reaches the spot, and only when the estimate (dll/game/stats.c) says they win before losing one citizen. |
 | `early_army` (B) | No army in epoch 0. Before farms the military account belongs to the army: it pays out whatever the epoch reserve is, and citizens never spend its food. The army gets 10% of food income (`early_army_food_share`, at most 300 held). From epoch 1, while the economy grows (before farms, or under `early_army_workers`=60 workers), a soldier with a food price is replaced by the best food-free one the account can pay for (score x2 for a ranged unit, x0.25 for one that costs food: Slinger, Simple Bowman, Javelin, Composite Bow, Long Bow ...). In epochs 1-3 an Archery Range is requested when there is none. |
 | `early_soldiers=N` (alternative to A) | With `early_army`: the home guard keeps N soldiers in epoch 0, from minute 2. |
 | `copper_plan=2` (C) | Only the next epoch's cost is held, not the cost of both epochs. Below `min_workforce` the citizens get the whole stock, as before. Above it they are no longer stopped: `epoch_share` (40%) of the income goes into an epoch account until it holds the cost, and the citizens spend the rest. When the map's wild food can no longer pay for the epoch, the epoch gets the food first. Before farms food gets at least half the workers, up to `food_floor` (18). |
@@ -99,7 +99,7 @@ re-measurement above.
 - **The alternative** (4 soldiers by minute 8 instead of A) is the worst variant. With the cheat the base AI wins 9
   of 20 and 30 citizens die. The playtester's tower-and-bait opening is the better one for this AI.
 
-## Food and mines (2026-10-20, dll/food.c, dll/mines.c)
+## Food and mines (2026-10-20, dll/ai/food.c, dll/ai/mines.c)
 
 The playtester: hunting is the first step and herds should be taken fast; farms only when wild food runs low (in
 late starts too: herds, forage, fish first); every mine the AI can get hold of filled, the home island's always.
@@ -159,7 +159,7 @@ there: wood is spent as it comes; mine gatherers +-0). 7 put 5-8 more on the min
 Small Islands without the cheat lost more (base AI wins 3 -> 7). **Off (0)**: filling the mines pays only with
 wood to spare - the next step is more woodcutters' income, not fewer.
 
-## Citizen production (2026-10-20, dll/citizens.c)
+## Citizen production (2026-10-20, dll/ai/citizens.c)
 
 The playtester: "Filling the mines is a task after ensuring enough food income that citizens can continuously be
 trained; not enough citizens should never be a real limit to filling a mine after the early game or in very low pop
@@ -217,9 +217,9 @@ workers +10.2 (0.3), soldiers -3.8 (0.7), kills +10.2 (3.0), losses -12.6 (3.1),
 
 The runs also found an engine crash that more citizens set off: 0x630466 sorts the enemies in a unit's range with
 std::sort, whose partition compares an 80-bit key with the pivot's float and runs off the array (0x62D5AC, 6 of 360
-games; dll/attack.c range sort guard, 29914e2).
+games; dll/ai/attack.c range sort guard, 29914e2).
 
-## Economy into army (2026-10-20, dll/army.c)
+## Economy into army (2026-10-20, dll/ai/army.c)
 
 The playtester: "later everything it can get hold of should be exploited and converted into better attack and
 defence capability". citizen_plan brought more workers and +700..+2000 stone/gold/iron an hour, but no bigger army.
@@ -274,7 +274,7 @@ home guard feed them in piecemeal: more soldiers, as many kills, more losses - a
 that counts. Off by default; the next lever is the economy's mix (wood, gold, iron income) and how the army fights, not
 its budget.
 
-## The army as one (2026-10-20, dll/mass.c)
+## The army as one (2026-10-20, dll/ai/mass.c)
 
 The playtester: against the base game's nonstop waves a proper AI gathers under cover (towers, Town Center,
 production), lets the waves break on the towers and the massed army, strikes only when the mass is strong enough
@@ -401,7 +401,7 @@ What the numbers point to instead: the deaths are in the pack's fights, so the l
 and when it breaks one off (the fight estimate, the retreat's thresholds against what the pack really faces), not
 how it walks.
 
-## Other islands (2026-10-20, dll/expand.c)
+## Other islands (2026-10-20, dll/ai/expand.c)
 
 The playtester: "work every resource node on the home island fast, then expand to other islands - early it must
 prioritise, later everything it can get hold of"; "a lone mining camp with a few citizens on an empty island won't
@@ -435,7 +435,7 @@ player's miners there:
 
 So on these maps only Small Islands has a free island, and it is the base AI's from minute 23-31.
 
-`expand_islands` ([all], bits, `v_expand_islands` for head-to-head; header of dll/expand.c): 1 SETTLE - from the Copper
+`expand_islands` ([all], bits, `v_expand_islands` for head-to-head; header of dll/ai/expand.c): 1 SETTLE - from the Copper
 Age, minute 8 (`expand_minute`), once the home island's mine slots are half worked (or from minute 15), with 25+ workers
 and a land army not weaker than the enemy army it knows: the island with the most mines it has explored, no ally's
 building, no enemy town (Town Center, Capitol), no known enemy defence, at most 3 known enemy buildings and no more
@@ -482,7 +482,7 @@ the plan), the citizens it ships must be additional (more citizens trained for t
 wood and food at home), and the maps tested here have one free island at most - a test map with several free islands
 (larger maps, more players) would show more. The idle human's island (`4`) is a test artifact, not measured.
 
-## Large island maps (2026-10-21, dll/expand.c, randmap.c)
+## Large island maps (2026-10-21, dll/ai/expand.c, randmap.c)
 
 The playtester: most players play Large or Huge maps, even 1v1, with a high population limit; there are several free
 islands, and taking islands towards the enemy is part of the game; overexpanding is dangerous ("a few towers on every
@@ -555,7 +555,7 @@ to its shore water (the sea checked first), and an enemy town, defence or 4+ kno
 an enemy town seen once the ferry is on its way or ashore ends the outpost (unloaded at home). Where islands and mines
 are comes from the game's resource zones, as for the base AI.
 
-**New bits** (`expand_islands`, header of dll/expand.c; all off): 8 EARLY (the plan from minute 8 without waiting for
+**New bits** (`expand_islands`, header of dll/ai/expand.c; all off): 8 EARLY (the plan from minute 8 without waiting for
 the home mines, from 20 workers; its transport before every reserve and retried every 2 s - the 250 wood are spent on
 buildings within seconds of coming in: transports waited 6 minutes at minute 12-20; 12 minutes before giving up),
 16 EXTRA (citizen_plan's goal + the outpost's citizens until its Settlement stands; wood cutters board first),
@@ -617,7 +617,7 @@ base AI 3-4 at minute 10), though fish is the cheapest food on islands. For land
 the home guard and flank checks without the sea test (expand.c's `sea_held` / `ex_forward` are island-only; the
 holding test, `ex_holds`, and the forward test against the enemy's known buildings are not).
 
-## Workforce into army (2026-10-21, dll/citizens.c workforce_plan)
+## Workforce into army (2026-10-21, dll/ai/citizens.c workforce_plan)
 
 The playtester: citizens are needed to fill every mine, a lack of them should not be the limit - nor should an
 oversized, wood-heavy workforce starve the army; workers on wood beyond what is spent are waste.

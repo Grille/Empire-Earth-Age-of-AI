@@ -1,5 +1,5 @@
 #!/bin/sh
-# Duels: the stats estimate (dll/stats.c) against real fights. One duel per run on Continental 101 (tiny, start epoch
+# Duels: the stats estimate (dll/game/stats.c) against real fights. One duel per run on Continental 101 (tiny, start epoch
 # 3, ~25 s each): P2's A x na at 56,31 against P3's B x nb at 64,31 (open ground, ~20 tiles from both bases);
 # `stats fight` every 3 s (the estimate and both sides' units and hp), `firerate` at the end.
 # usage: [EPOCH=n] sh scripts/duels.sh ["A na B nb [gap [C]]" ...]   (default: six World War I duels; gap: tiles between the

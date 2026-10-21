@@ -17,7 +17,7 @@ static int g_editor_w, g_editor_h, g_editor_game;   // 0 = leave
 // The editor layout for any resolution from 800x600 up: Art of Conquest's 1024x768 values (generated from a
 // comparison of both exes, scripts/layout_diff.py + gen_editor_layout.py), each moved with the screen size the way
 // AoC moved it from EE's 800x600: anchored right/bottom, stretched, or centred. Computed when the editor is entered.
-#include "editor_layout.h"
+#include "game/editor_layout.h"
 #define N_LAYOUT (sizeof k_editor_layout / sizeof *k_editor_layout)
 static uint32_t g_layout_consts[N_LAYOUT];
 static int8_t g_layout_state[N_LAYOUT];   // 0 unchecked, 1 patched, -1 didn't match (skipped)

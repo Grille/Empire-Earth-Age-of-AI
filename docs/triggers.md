@@ -2,7 +2,7 @@
 
 How the game runs the scenario editor's triggers, read statically from the exe (2026-10-17); the runtime parts the
 `trig` test command uses are checked in play (reloadtime.scn). "Guess" marks what is not proven.
-Test command: `trig` (dll/scen.c, docs/testing.md).
+Test command: `trig` (dll/test/scen.c, docs/testing.md).
 
 ## Runtime
 

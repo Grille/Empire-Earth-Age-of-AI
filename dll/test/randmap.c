@@ -14,7 +14,7 @@
 //   real map size), map_size (the old key: the +0x3E8 index, kept so old test commands play the same maps), ai_count (1..7), start_epoch, seed, teams=ffa|pairs,
 //   citizens, unit_limit (500), difficulty (easy|medium|hard or 0..2: the setup's +0x3F8 and 0x918C14, every AI's +0xBA4 - the
 //   menu's AI difficulty; default medium). AI toggles at their first update: ai_cheat (0/1), ai_ignore (Ignorieren 0/1).
-// VANILLA PLAYERS (eeaimod.c is_vanilla): vanilla_players=<digits>, and for them only vanilla_difficulty (as difficulty)
+// VANILLA PLAYERS (test/vanilla.c is_vanilla): vanilla_players=<digits>, and for them only vanilla_difficulty (as difficulty)
 //   and vanilla_cheat (0/1, on top of ai_cheat). The game's cheat (EEComputerPlayer vf27 0x430FBD, AdjustCost): with
 //   Cheat (+0xEFB) on, every price x pct / 100 - pct by difficulty, dbcpbehavior record 96 (easy +0xD48, hard +0xD4C) and
 //   record 67 (medium +0xBB4). The difficulty itself scales the epoch timer (+0xD60/+0xD64), the attack times

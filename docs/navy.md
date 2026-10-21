@@ -240,7 +240,7 @@ What the baseline shows:
 
 ### Stage 0 - the e9-e10 food hole (economy, before any navy) - DONE
 
-- **Fishing boat** ([all] `fishing_boat`, default 1; dll/navy.c `hook_fish_type`). Both callers of the game's pick
+- **Fishing boat** ([all] `fishing_boat`, default 1; dll/ai/navy.c `hook_fish_type`). Both callers of the game's pick
   0x46D209 (0x48F819 counts the boats, 0x48FB05 orders one) get the newest fishing boat (family 22, highest tech)
   the player has available by its tech record's test (landing.c `ld_type_avail`), every epoch: 108 (tech 2000),
   109 (4005), 365 (8090), 211 (11090), 332 (13098). None available: the game's pick. `# fishing:` log line when
@@ -275,7 +275,7 @@ unprotected in e9 too (9-10 per AI) - the playtester's point: farms first, the b
 
 ### Stage 1 - water-map detection and the navy account - DONE
 
-Built (dll/navy.c, econ.c; `[all] navy=1`, `navy_share=25%`):
+Built (dll/ai/navy.c, econ.c; `[all] navy=1`, `navy_share=25%`):
 
 - **Water map** (`navy_detect`, once per AI 10 s in): the home continent (area_id kind 2 at the build manager's
   base point) and every enemy's buildings - across the water when none stands on that continent. Strength = the
@@ -355,7 +355,7 @@ nothing changes. Against each other two navy AIs only trade ships until stages 2
 
 ### Stage 2 - composition by roles - BUILT, OFF (`navy_mix=0`)
 
-Built (dll/navy.c `navy_pick`, the hook in econ.c `hook_train_units`; `[all] navy_mix`, `[autotest] v_navy_mix`):
+Built (dll/ai/navy.c `navy_pick`, the hook in econ.c `hook_train_units`; `[all] navy_mix`, `[autotest] v_navy_mix`):
 
 - **Where:** a warship or submarine order the navy account pays (`navy_pays`) from one of the game's own training
   sites. The mod's own orders and a landing's orders are not touched. Carriers stay the game's choice. `req` points
@@ -435,7 +435,7 @@ Retested with stage 3 (below, `fm`): with the fleet led, the mix adds nothing ei
 
 ### Stage 3 - the mod leads the fleet - BUILT, OFF (`navy_fleet=0`)
 
-Built (dll/fleet.c; `[all] navy_fleet`, `[autotest] v_navy_fleet`; test keys `navy_fleet_boats`, `navy_fleet_coast`,
+Built (dll/ai/fleet.c; `[all] navy_fleet`, `[autotest] v_navy_fleet`; test keys `navy_fleet_boats`, `navy_fleet_coast`,
 `navy_fleet_raid`):
 
 - **Who:** every warship and submarine of an AI on a water map (navy_detect: enemies across the water) that is not a
@@ -555,7 +555,7 @@ is missing:
 ### Against a human-like navy (the sea opponent)
 
 Measuring an AI's navy against another AI's is weak evidence: both have 1-3 warships, and nobody holds any water. The
-playtester builds 20+ ships early on an island map and uses them. dll/testopp.c (test code, started by the setup line
+playtester builds 20+ ships early on an island map and uses them. dll/test/testopp.c (test code, started by the setup line
 in `scenarios/seaop.eeai`) plays that with the idle P1 against one AI: a scheduled build-up (medium: 3 ships at minute
 5, 16 by 20, at most 22, losses replaced), raiders on the fishing boats and the coast, a main fleet that hunts the
 AI's warships when it is 1.2 times stronger and retreats when weaker, a patrol on the sea lane against transports,
@@ -612,7 +612,7 @@ shell citizens to disturb the economy, hunt enemy warships to prevent the enemy 
 transports ... Any unit that just sits there is a huge opportunity cost"; "the fleet can't be scared off by a few subs -
 that's what the frigates are for".
 
-Built (dll/navy.c, dll/fleet.c, econ.c, diplo.c; `[all] navy_fleet=2`, `[autotest] v_navy_fleet=2`; keys
+Built (dll/ai/navy.c, dll/ai/fleet.c, econ.c, diplo.c; `[all] navy_fleet=2`, `[autotest] v_navy_fleet=2`; keys
 `navy_fleet_pop` 15, `navy_share_max` 50):
 
 - **Size.** The target is `navy_fleet_pop` % of the AI's population cap x the map strength: 26 warships at the tests'
@@ -715,7 +715,7 @@ The playtester: "massing a fleet under the protection of towers and land units i
 the sea opponent stage 4 lost because its ships came one at a time into a sea the opponent held (0.3-0.8 afloat on
 average, 8-20 sunk a game, most at the guard point).
 
-Built (dll/fleet.c `fl_rally`, `fl_rally_tower`, fl_decide `FLD_MASS`; dll/navy.c `navy_nodes`, `navy_mines`; econ.c
+Built (dll/ai/fleet.c `fl_rally`, `fl_rally_tower`, fl_decide `FLD_MASS`; dll/ai/navy.c `navy_nodes`, `navy_mines`; econ.c
 econ_targets calls navy_mines):
 
 - **Massing** (`navy_fleet_mass`, replaces the shelter). While the fleet is weaker than the enemy fleet known (ratio
@@ -815,7 +815,7 @@ when the opponent fleet is out of sight but stronger (the fleet waits at the ral
   show up as patrol problems at narrow waters.
 - **Honest vision:** react only to ships seen (intel), not to the floor of the human's units.
 
-### Outposts on other islands (2026-10-20, dll/expand.c, off)
+### Outposts on other islands (2026-10-20, dll/ai/expand.c, off)
 
 The expansion to free islands (docs/economy.md "Other islands", `expand_islands`, off) sails one transport with citizens and a guard; it checks the sea on the way as the landing does (ld_sea_threat / ld_sea_risk against all its warships) and unloads at home at once when it is held: a transport waiting loaded at the shore for the fleet was sunk with everyone aboard in 9 of 10 cases. The fleet does not escort it (fleet.c's escort follows only the landing).
 

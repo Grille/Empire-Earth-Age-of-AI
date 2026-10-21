@@ -1,4 +1,4 @@
-"""Navy: ship roles from the game's data, and the navy baseline from the `# navy:` log lines (dll/navy.c, docs/navy.md).
+"""Navy: ship roles from the game's data, and the navy baseline from the `# navy:` log lines (dll/ai/navy.c, docs/navy.md).
 
 usage:
   python scripts/navy.py types LOG        the ship types (a run with setup=scripts/navy_types.eeai): per naval

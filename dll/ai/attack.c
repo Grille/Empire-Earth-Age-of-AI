@@ -1284,7 +1284,7 @@ static void attack_tick(void *pl, uint32_t now) {
     siege_tick(pl, now);
     attack_log(pl, now);
 }
-// a vanilla player (eeaimod.c is_vanilla): the game's own AI - only the mod's log lines (army, battle statistics,
+// a vanilla player (test/vanilla.c is_vanilla): the game's own AI - only the mod's log lines (army, battle statistics,
 // spending, gathering, attack times), so the scorers see both sides
 static void vanilla_tick(void *pl, uint32_t now) {
     econ_vanilla_log(pl, now);

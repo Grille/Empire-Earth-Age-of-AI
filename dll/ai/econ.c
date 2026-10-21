@@ -29,7 +29,7 @@ static unsigned g_var_mask;
 static int g_v_late = -1, g_v_hoard_mineral = -1, g_v_sub_wait = -1;
 #define PV(idx, v, g) ((g_var_mask >> ((idx) & 15) & 1) && (v) >= 0 ? (v) : (g))
 static struct { uint32_t last_t; int init; float mil[7]; int income[7], mil_spent[7], cit_blocked, mil_limited; } g_bud[16];
-// EARLY GAME (dll/early.c, docs/economy.md - the playtester's opening): [all] early_towers, tower_bait, early_militia,
+// EARLY GAME (dll/ai/early.c, docs/economy.md - the playtester's opening): [all] early_towers, tower_bait, early_militia,
 // early_army, early_soldiers; copper_plan=2. Head-to-head: v_early_towers ... v_copper_plan for the variant players.
 static int g_early_towers = 1, g_tower_bait = 1, g_early_militia = 1, g_early_army = 0, g_early_soldiers = 0;
 static int g_v_early_towers = -1, g_v_tower_bait = -1, g_v_early_militia = -1, g_v_early_army = -1, g_v_early_soldiers = -1;
@@ -615,7 +615,7 @@ static void retry_dropped(void *pl, unsigned idx, uint32_t now) {
     }
 }
 static uint32_t g_last_attack_time[16];   // +0xED8 at the last look (defence.c attack_retreat moves it on, not a launch)
-// a vanilla player (eeaimod.c is_vanilla): econ_tick's log lines only - spending, gathering, the game's attack times
+// a vanilla player (test/vanilla.c is_vanilla): econ_tick's log lines only - spending, gathering, the game's attack times
 static void econ_vanilla_log(void *pl, uint32_t now) {
     unsigned ai = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     spend_log(ai, now);

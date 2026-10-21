@@ -171,7 +171,7 @@ static struct {
     uint32_t seen[16][16];  // [ai][h]: h's soldiers, citizens and buildings ai destroyed, counted so far
     uint8_t set[16][16];    // [h][ai]: started (as an AI starts: enemy -10, ally 20)
 } g_hum;
-// an AI the mod's diplomacy decides for: not a vanilla player (eeaimod.c is_vanilla - the game's own AI, which the
+// an AI the mod's diplomacy decides for: not a vanilla player (test/vanilla.c is_vanilla - the game's own AI, which the
 // diplomacy treats as it treats a human: it never answers, the mod never acts for it, and no AI of the mod's offers it
 // an alliance or capitulates to it - the game's AI does no diplomacy)
 static int mod_ai(int i) { return i > 0 && i < 16 && g_players[i] && !is_vanilla_idx(i); }

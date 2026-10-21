@@ -675,7 +675,7 @@ static DWORD WINAPI pipe_thread(LPVOID unused) {
     static char cmd[512], reply[sizeof g_req.out];
     for (;;) {
         char name[32] = "\\\\.\\pipe\\eeaimod";
-        if (g_slot) wsprintfA(name + lstrlenA(name), "%d", g_slot);   // a test slot's own (eeaimod.c, TEST SLOTS)
+        if (g_slot) wsprintfA(name + lstrlenA(name), "%d", g_slot);   // a test slot's own (base/exe.c, TEST SLOTS)
         HANDLE p = CreateNamedPipeA(name, PIPE_ACCESS_DUPLEX,
                                     PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT | PIPE_REJECT_REMOTE_CLIENTS,
                                     1, sizeof reply, sizeof cmd, 0, NULL);

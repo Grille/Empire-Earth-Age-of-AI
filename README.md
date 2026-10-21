@@ -284,7 +284,7 @@ sh dll/build.sh            # -> dll/eeaimod.dll
 sh scripts/install.sh      # the committed build into the game folder (reserves it: waits until no game runs)
 ```
 
-The DLL is a single translation unit: `dll/eeaimod.c` includes the other `.c` files.
+The DLL is a single translation unit: `dll/eeaimod.c` includes the other `.c` files, one folder per part (Project layout).
 
 ## Development setup
 
@@ -339,27 +339,32 @@ venv/Scripts/python scripts/eectl.py status | army 2 | diplo | persona | say 2 H
 ## Project layout
 
 ```
-dll/              the mod (C), one module per file:
-                    eeaimod.c core hooks + logging, settings.c aimod.ini, control.c control pipe
-                    grid.c the unit grid (iterator), testcmd.c control-pipe commands only tests use,
-                    testopp.c the sea opponent (tests: a human-like navy for P1)
-                    econ.c budget, epoch plan, build queue, workers, research; sites.c gathering sites
-                    attack.c attack routing, siege, unit choice; defence.c towers, walls, home guard
-                    diplo.c diplomacy; persona.c personalities; chat.c chat lines
-                    landing.c landings; navy.c the navy log (observation only)
-                    display.c / present_d3d.c windowed mode (display_text.c text DC and bitmap fonts, display_diag.c
-                    frame watch and diagnostics, playername.c the menu name fix), camera.c scrolling, editor_layout.h editor
-                    randmap.c test-game setup, watch.c watchpoints, trace.c call tracing, headless_win.c
-                    test windows without focus or taskbar button (also in dinput.dll)
-                    unitnames.c the type identifiers in commands (unit_names.h, generated)
-                    expr.c the text language (parsed once into a tree; statements, functions), scripts.c the
-                    setup scripts (fibers on the game's thread; cmd_verbs.h, generated: the commands they call)
+dll/              the mod (C), one translation unit: eeaimod.c includes every part - the game start, the AI's update
+                  hooks that call the parts, install, DllMain; persist.c the mod's state in saved games
+  base/             the DLL's own helpers: log, patching, aimod.ini (ini.c), the exe build (exe.c), watchpoints,
+                    headless_win.c test windows without focus or taskbar button (also in dinput.dll)
+  game/             what the mod knows of the game: addr.h its addresses per exe build, layout.h its objects' fields,
+                    world.c type data and game time, the unit types (unit_ids.h, unitnames.c, unit_names.h generated),
+                    grid.c the unit grid (iterator), stats.c the damage tables, editor_layout.h (generated)
+  engine/           fixes and features of the game itself: display.c / present_d3d.c windowed mode (display_text.c,
+                    display_diag.c), camera.c scrolling, aim.c leading targets, sound.c, select.c, drawlist.c,
+                    playername.c the menu name fix, scenario_ai.c the scenario AI fix
+  ai/               the computer players: econ.c budget, epoch plan, build queue, workers, research; sites.c gathering
+                    sites; attack.c attack routing, siege, unit choice; defence.c towers, walls, home guard; diplo.c
+                    diplomacy; landing.c landings; navy.c / fleet.c the navy; settings.c aimod.ini's AI settings ...
+  script/           expr.c the text language (parsed once into a tree; statements, functions)
+  voice/            what the AI says: persona.c personalities, texts.c the text files, chat.c chat lines, llm.c the
+                    language model
+  test/             control.c the control pipe, testcmd.c / testopp.c test commands and the sea opponent, randmap.c
+                    test-game setup, autotest.c, scripts.c the setup scripts (cmd_verbs.h, generated: the commands
+                    they call), trace.c call tracing, ecolog.c the economy log
+  dinput/           eesettings.c: dinput.dll, the game's settings in eesettings.ini instead of the registry
 config/           aimod.ini and the aimod_ai personalities, shipped to players
 scenarios/        setup scripts (docs/scripts.md) that turn a save into a test scenario (attacks, sieges, raids)
 scripts/          test runner, suite, log analysis, control client, MCP server, RE helpers
-                    gen_units.py + dat_read.py: docs/units.md and dll/unit_names.h from the game data
+                    gen_units.py + dat_read.py: docs/units.md and dll/game/unit_names.h from the game data
                     (the community DB editor's field layouts and English strings, downloaded into dats/);
-                    gen_cmd_verbs.py: dll/cmd_verbs.h; text_engine_cases.txt: the text engine comparison's cases
+                    gen_cmd_verbs.py: dll/test/cmd_verbs.h; text_engine_cases.txt: the text engine comparison's cases
 ghidra_scripts/   Ghidra headless script that names and decompiles the exe
 mod/              generator for a tuned dbcpbehavior.dat (AI settings table; superseded by aimod.ini)
 docs/             engine notes, AI analysis, testing guide, units.md (every type: id, identifier, stats),

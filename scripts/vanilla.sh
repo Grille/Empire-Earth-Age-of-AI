@@ -1,6 +1,6 @@
 #!/bin/sh
 # The mod's AI against the game's own AI (docs/testing.md "Against the base-game AI"): 1v1 random maps, one AI plays
-# the shipped config, the other is a vanilla player (eeaimod.c is_vanilla - nothing of the mod acts for it) with the
+# the shipped config, the other is a vanilla player (test/vanilla.c is_vanilla - nothing of the mod acts for it) with the
 # game's difficulty and Cheat. Every seed twice, the seats swapped (vanilla P3 / mod P2, then vanilla P2 / mod P3).
 # usage: sh scripts/vanilla.sh <minutes> "<base ini keys>" "<vanilla keys>"
 #   e.g. sh scripts/vanilla.sh 60 "random_map=Continental,map_size=0,seed=101,start_epoch=0,difficulty=hard" "vanilla_cheat=1"

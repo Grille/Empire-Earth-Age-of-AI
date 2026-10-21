@@ -315,7 +315,7 @@ static void cs_unit(uint8_t *u, void *ctx) {
 // are attacked by the AI's citizens within 10 tiles, at most 3 per enemy and against at most 6 - only when those
 // citizens' strength (hit points x attack) is 3 times that of the enemies within 6 tiles: Bronze Age soldiers (119 hp)
 // killed 10 citizens of a count-based militia while losing 49 hit points. Gathering or idle citizens only; afterwards the assignment puts them back to work.
-// [all] militia_estimate (default 0): 1 = the citizens decide with the stats estimate (dll/stats.c) instead, in every
+// [all] militia_estimate (default 0): 1 = the citizens decide with the stats estimate (dll/game/stats.c) instead, in every
 // epoch (the playtester: "a hard limit isn't right... tower builders without guards should always be engaged; troops
 // in later ages should be avoided, but many units are faster than citizens - caught alone and running, they get
 // chased down"): enemies without soldiers among them (builders, a foundation) when the citizens win (ratio >= 1);
@@ -332,7 +332,7 @@ static float unit_power(uint8_t *u) {   // hit points x attack (live stats), a r
     float a = st ? FIELD(st, 0xD8, float) : (float)FIELD(FIELD(u, 0x2C, uint8_t *), 0x510, int);
     return (float)FIELD(u, 0x3C, int) * (a > 0 ? a : 0);
 }
-static struct st_side g_mil_own, g_mil_foe;   // fight_estimate (dll/stats.c)
+static struct st_side g_mil_own, g_mil_foe;   // fight_estimate (dll/game/stats.c)
 static int militia_answer(struct cs_scan *s, uint8_t *t, int *nfree) {   // citizens -> t; returns the number ordered
     int x = FIELD(t, 0x1C, int), y = FIELD(t, 0x20, int), enemies = 0, ordered = 0;
     float epow = 0, cpow = 0, fast = 1e9f, cspeed = 0;
@@ -358,7 +358,7 @@ static int militia_answer(struct cs_scan *s, uint8_t *t, int *nfree) {   // citi
             if (est) st_side_add(&g_mil_own, s->civ[c]);
             if (st_speed(s->civ[c]) > cspeed) cspeed = st_speed(s->civ[c]);
         }
-    // EARLY MILITIA ([all] early_militia; dll/early.c): against soldiers the citizens fight only next to their own
+    // EARLY MILITIA ([all] early_militia; dll/ai/early.c): against soldiers the citizens fight only next to their own
     // soldiers or under their own towers, and only where the estimate has them win without a loss - in the first
     // epoch 1-6 Clubmen and Rock Throwers killed 39-48 citizens a game at the town, militia ordered 40-63 times a
     // game. Otherwise the citizens fall back under a tower (tower_bait) and the tower does the fighting.
@@ -586,7 +586,7 @@ static void home_guard(void *pl, unsigned idx, uint32_t now) {
                             idx, now / 60000.0, home, target, n, type);
 }
 
-// MUSTER ([all] muster, default 1; with fight_estimate the sides are compared with dll/stats.c's estimate): an enemy army in the base got the AI's defenders one by one - every soldier the
+// MUSTER ([all] muster, default 1; with fight_estimate the sides are compared with dll/game/stats.c's estimate): an enemy army in the base got the AI's defenders one by one - every soldier the
 // home guard trained walked into it alone, and the next one, and the next. A player would pull back what is left,
 // gather, and strike once there is a force that can win. Every 3 s per AI: enemy soldiers within 22 tiles of the
 // base (strength = hit points x attack) against its own soldiers within 35 and its towers within 22. Only when the
@@ -608,7 +608,7 @@ struct mus_scan {
     void *pl; int bx, by, en, no, ne;
     float epow, opow, tpow, ex, ey;
     uint8_t *own[256], *enemy[128];
-    struct st_side *os, *es;   // fight_estimate: own soldiers and towers, the enemies (dll/stats.c)
+    struct st_side *os, *es;   // fight_estimate: own soldiers and towers, the enemies (dll/game/stats.c)
 };
 static struct mus_scan g_ms;
 static struct st_side g_ms_own, g_ms_foe, g_ms_rally;

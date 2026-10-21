@@ -10,13 +10,13 @@ Several sessions may work in this tree at the same time - see Git below.
 ## Build and install
 
 - `sh dll/build.sh` builds `dll/eeaimod.dll` and `dll/dinput.dll` (llvm-mingw in `tools/`, 32-bit; it also
-  regenerates `dll/persist_layout.h` and `dll/cmd_verbs.h`). One translation unit: `dll/eeaimod.c` includes the rest.
+  regenerates `dll/persist_layout.h` and `dll/test/cmd_verbs.h`). One translation unit: `dll/eeaimod.c` includes the rest.
   A build must be free of warnings.
 - `sh scripts/install.sh` puts the committed build into the game: built from a clean `git archive HEAD` (never the
   working tree), copied under a reservation of the game folder (a loaded DLL can't be replaced). Commit first.
 - A task that needs the game folder to itself (an install, a slot-0 run): `sh scripts/reserve.sh "<what>" <command>`
   - test runs start no game meanwhile, the running ones (and the player's) are waited for; nobody has to pause.
-- Game addresses live only in `dll/addr.h`, by name with one value per exe build: `GA(G_WORLD_CLOCK)`,
+- Game addresses live only in `dll/game/addr.h`, by name with one value per exe build: `GA(G_WORLD_CLOCK)`,
   `GF(FN_CAN_BUILD)(pl, t, 0x20, 0)`, `GL(TRAIN_SITES)` - never a literal address in the code (another build, e.g.
   Art of Conquest, is one more column).
 - The engine loads every DLL in the game folder: never leave copies of DLLs there (a stray dinput copy crashed it).
@@ -47,7 +47,7 @@ Python: `venv/Scripts/python.exe`.
 
 ## The text language (.eeai)
 
-One language for personalities, system texts, prompts and test scripts (dll/expr.c, docs/scripts.md,
+One language for personalities, system texts, prompts and test scripts (dll/script/expr.c, docs/scripts.md,
 config/aimod_ai/README.md). Strict and explicit: a mistake is told with file and line, nothing is guessed, no
 compatibility shims before the release. English only until the release.
 

@@ -1,5 +1,5 @@
 // THE GAME'S ADDRESSES: every address the mod uses in Empire Earth.exe, by name, with its value in each exe build the
-// mod knows - one column per k_exe_builds entry, in that order (0: the build hasn't got it). game_build (eeaimod.c)
+// mod knows - one column per k_exe_builds entry, in that order (0: the build hasn't got it). game_build (base/exe.c)
 // picks the column when the DLL loads (addr_select): GA(NAME) is the address, GF(NAME) the function there, typed by
 // its row, GL(NAME) a list of addresses (its count: sizeof GL(NAME) / sizeof *GL(NAME)). Another build - Art of
 // Conquest, another release, a patched exe - is one more hash and one more value per row. The names: FN_ a function,

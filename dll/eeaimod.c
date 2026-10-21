@@ -1,8 +1,10 @@
 // eeaimod.dll - Empire Earth AI mod.
 // Loaded automatically: Low-Level Engine.dll LoadLibrary()s every *.dll in the game folder.
 //
-// This file: the computer player's resource manager hooks (economy rows in aimod_econ.csv), the game start and
-// autotest plumbing, patch helpers and DllMain; every other part is its own .c file, #included below (README.md).
+// This file: the whole DLL put together - every part is a .c file of its folder (base/ the DLL's own helpers, game/
+// the game's addresses, objects and types, engine/ fixes and features of the game, ai/ the computer players, script/
+// the text language, voice/ what the AI says, test/ the pipe and the tests), #included below in one translation unit
+// (README.md). Here: the game start, the AI's update hooks that call every part, install and DllMain.
 
 #include <windows.h>
 #include <stdio.h>
@@ -15,42 +17,14 @@
 #include <psapi.h>   // types only (K32GetProcessMemoryInfo by GetProcAddress)
 
 struct ustring;
-#include "addr.h"     // the game's addresses by name, per exe build: GA(G_WORLD_CLOCK), GF(FN_CAN_BUILD)(pl, t, 0x20, 0)
-
-// EECPResourceManager layout (from decompiled ctor/serializer 0x489F76 / 0x48C5B2)
-#define RM_OWNER        0x130  // -> object whose +0x4C is the EEComputerPlayer
-#define RM_LISTS        0x0A4  // 7 unit lists, stride 0x14, count at +0x10
-#define RM_DEMAND       0x134  // int[7] outstanding resource need
-#define RM_TARGET       0x150  // uint[7] desired gatherers
-#define RM_TIMERS       0x16C  // uint[5] next-run game times (ms)
-#define RM_INITIALIZED  0x187  // byte, timers are only reset while this is 0
-// EEPlayer / EEComputerPlayer
-#define PL_INDEX        0x45C
-#define PL_STOCK        0xAF0  // int[] resources, indexed by resource type
-#define PL_DIFFICULTY   0xBA4
-#define PL_CHEAT        0xEFB
-#define PL_TOGGLES      0xEF4  // AI toggle bytes 0xEF4..0xF05 (Aktiv, Cheat, Angreifen, ...)
-#define PL_TOGGLES_LEN  18
-#define PL_TECHTREE     0x9D4  // -> tech tree; +0x4E4 = current epoch index (0 = Prehistoric)
-#define TT_EPOCH        0x4E4
-// EECPCivilizationManager (= rm->owner; main AI update 0x46E2C7)
-#define CM_PROJECT      0x50   // current construction project; new projects only start when NULL
-#define CM_TIMERS       0x58   // uint[6]: next epoch, bldg-count check, mil bldgs (31s), build (0x46E51E), 0x46E817, 59s
-#define CM_TIMERS_N     6
-#define CM_FLAGS        0x74   // bytes 0x74..0x7C
-#define CM_SETUP_DONE   0x75   // one-time initial setup (0x46E2C7 top) runs while this is 0
-#define CM_BUILD_MGR    0x3C   // EECPBuildManager    (Update 0x468540)
-#define CM_RESEARCH_MGR 0x40   // EECPResearchManager (Update 0x486A74)
-#define BM_INITIALIZED  0x148  // build lists initialised by 0x465E4F while 0
-#define RS_INITIALIZED  0x118  // research schedule initialised while 0
-#define CM_FLAGS_LEN    9
-
+#include "game/addr.h"     // the game's addresses by name, per exe build: GA(G_WORLD_CLOCK), GF(FN_CAN_BUILD)(pl, t, 0x20, 0)
+#include "game/layout.h"
 
 typedef char (__thiscall *RmFn)(void *self);
 typedef void (__thiscall *RmUpdateFn)(void *self, uint32_t now);
 
-static FILE *g_log;
-static CRITICAL_SECTION g_lock;
+#include "base/log.c"
+#include "base/patch.c"
 
 static void autotest_tick(uint32_t now);
 static volatile int g_rm_seen;   // an AI resource manager has ticked (else the sim loop drives autotest_tick)
@@ -117,7 +91,6 @@ static void landing_install(const char *aimod_ini, const char *autotest_ini);
 static void navy_install(const char *aimod_ini, const char *autotest_ini);
 static void assault_install(const char *aimod_ini, const char *autotest_ini);
 static void log_line(const char *fmt, const char *a, int b);
-static BOOL patch_call(uintptr_t site, uintptr_t expected, void *hook);
 static void *g_players[16];   // EEComputerPlayer seen by the AI hooks, by player index (filled in control.c)
 static char g_ini[MAX_PATH], g_aimod_ini[MAX_PATH];   // aimod_autotest.ini, aimod.ini (paths set in DllMain)
 // <game>\ and <game>\aimod_ai\ (with the backslash). Under autotest the config and the personality folder come from
@@ -127,136 +100,11 @@ static char g_ini[MAX_PATH], g_aimod_ini[MAX_PATH];   // aimod_autotest.ini, aim
 static char g_game_dir[MAX_PATH], g_ai_dir[MAX_PATH];
 static int g_slot;   // a test slot (TEST SLOTS, at slot_dir), 0: none
 static BOOL patch_srand(void);
-#include "ini.c"
-
-// FIX (scenario bug): the scenario/campaign branch of the game start (0x52599B) sets gamestate+0x411,
-// which is copied to the settings byte 0x918819. Several AI routines skip their normal planning when it
-// is set (apparently scenario authors were expected to script the AI), so in scenarios played from the
-// menu the AI only gathers. Editor test-play and saved games don't set it, which is why they work.
-// We clear the byte only while a computer player updates (EEComputerPlayer::Update 0x43F91A, called
-// at 0x42F3CD for active AIs), so triggers, civ selection and the rest of the game still see a scenario.
-static int g_fix_scenario_ai = 1;    // aimod.ini [fixes] scenario_ai=0 turns it off
-static uint8_t g_is_scenario;        // the flag as the game set it (it reads 0 inside the AI update)
-typedef void (__thiscall *CpUpdateFn)(void *pl, uint32_t now);
-
-static int is_vanilla(const void *pl);   // below
-static void __fastcall hook_cp_update(void *pl, void *edx, uint32_t now) {
-    (void)edx;
-    uint8_t *flag = (uint8_t *)GA(G_SCENARIO_FLAG);
-    uint8_t saved = *flag;
-    g_is_scenario = saved;
-    if (g_fix_scenario_ai && !is_vanilla(pl)) *flag = 0;
-    ((CpUpdateFn)GA(FN_CP_UPDATE))(pl, now);
-    *flag = saved;
-}
-
-#define FIELD(p, off, T) (*(T *)((uint8_t *)(p) + (off)))
-
-// VANILLA PLAYERS (autotest only): [autotest] vanilla_players = the player numbers (e.g. 3, or 23) that play the
-// game's own AI, unmodified - the benchmark "the mod's AI against the base game's (cheating) AI in one game". Every
-// hook that acts for or on an AI player passes straight through to the game's original for them, every per-player
-// tick of the mod skips them (only its log lines stay: battle statistics, army, gather, spending, attack times), the
-// mod's diplomacy treats them as it treats a human (it never decides for them), and no setting, personality or cheat
-// of the mod's touches them; they get the game's own difficulty and Cheat toggle instead (vanilla_difficulty,
-// vanilla_cheat - randmap.c). What stays on for everyone: the engine guards (pure crash fixes: the unit list and
-// double release, subgroup members without their unit, damage points, goal sets after a dropped goal, the field
-// without foundation, no unit offered to groups during the mod's own call-off) and the test plumbing.
-static unsigned g_vanilla_mask;
-static int is_vanilla_idx(int idx) { return (g_vanilla_mask >> (idx & 15)) & 1; }
-static int is_vanilla(const void *pl) { return pl && g_vanilla_mask && is_vanilla_idx(FIELD(pl, PL_INDEX, int)); }
-
-// Unit type (object) data 0x9418A0[type]: 0x300 slots (the game's own loops end at 0x9424A0; type ids 0..723 are
-// used, the slots after them are empty), past the table other data. Every read goes through here: NULL outside
-// the table and for an empty slot.
-#define G_TYPES_N 0x300
-static inline uint8_t *type_data(int t) { return t >= 0 && t < G_TYPES_N ? ((uint8_t **)GA(G_TYPES))[t] : NULL; }
-
-// a log line from a thread other than the simulation's (render, window, sound): under g_lock, flushed - as the pipe
-// thread (ctl_log), the crash handler and the autotest/quit exits that close the log hold it
-static void log_locked(const char *fmt, ...) {
-    if (!g_log) return;
-    EnterCriticalSection(&g_lock);
-    if (g_log) {
-        va_list ap;
-        va_start(ap, fmt);
-        vfprintf(g_log, fmt, ap);
-        va_end(ap);
-        fflush(g_log);
-    }
-    LeaveCriticalSection(&g_lock);
-}
-
-// One 32-bit operand in the code, only while it still holds `expected` (another exe version is left alone).
-static int patch_code32(uintptr_t at, uint32_t expected, uint32_t val) {
-    uint32_t *p = (uint32_t *)at;
-    DWORD old;
-    if (*p != expected || !VirtualProtect(p, 4, PAGE_EXECUTE_READWRITE, &old)) return 0;
-    *p = val;
-    VirtualProtect(p, 4, old, &old);
-    FlushInstructionCache(GetCurrentProcess(), p, 4);
-    return 1;
-}
-// An import slot of the exe, only while it holds the import it is for (that module's export): the original in *orig.
-// 0 when it holds something else (another hook, another exe) - left alone, *orig untouched.
-static int iat_hook(uintptr_t slot, const char *dll, const char *name, void *fn, void **orig) {
-    HMODULE m = GetModuleHandleA(dll);
-    void *want = m ? (void *)GetProcAddress(m, name) : NULL;
-    DWORD old;
-    if (!want || *(void **)slot != want || !VirtualProtect((void *)slot, 4, PAGE_READWRITE, &old)) return 0;
-    *orig = want;
-    *(void **)slot = fn;
-    VirtualProtect((void *)slot, 4, old, &old);
-    return 1;
-}
-
-// `n` bytes at p readable, from the page table (IsBadReadPtr probes by raising access violations: each one went
-// through the crash log's first-chance handler)
-static int mem_readable(const void *p, size_t n) {
-    uintptr_t a = (uintptr_t)p, end = a + n;
-    if (!p || end < a) return 0;
-    while (a < end) {
-        MEMORY_BASIC_INFORMATION mbi;
-        if (!VirtualQuery((void *)a, &mbi, sizeof mbi) || mbi.State != MEM_COMMIT || (mbi.Protect & (PAGE_GUARD | PAGE_NOACCESS))
-            || !(mbi.Protect & (PAGE_READONLY | PAGE_READWRITE | PAGE_WRITECOPY | PAGE_EXECUTE_READ | PAGE_EXECUTE_READWRITE
-                                | PAGE_EXECUTE_WRITECOPY))) return 0;
-        a = (uintptr_t)mbi.BaseAddress + mbi.RegionSize;
-    }
-    return 1;
-}
-
-static uint32_t game_time(void) {
-    uint8_t *clock = *(uint8_t **)GA(G_WORLD_CLOCK);
-    return clock ? FIELD(clock, 0xD0, uint32_t) : 0;
-}
-
-static void *rm_player(void *rm) {
-    void *owner = FIELD(rm, RM_OWNER, void *);
-    return owner ? FIELD(owner, 0x4C, void *) : NULL;
-}
-
-static void log_state(void *rm, const char *phase, uint32_t now) {
-    void *pl = rm_player(rm);
-    if (!g_log || !pl) return;
-    EnterCriticalSection(&g_lock);
-    fprintf(g_log, "%u,%d,%s,%d,%d", now, FIELD(pl, PL_INDEX, int), phase,
-            FIELD(pl, PL_DIFFICULTY, int), FIELD(pl, PL_CHEAT, uint8_t));
-    for (int i = 0; i < 7; i++) fprintf(g_log, ",%d", FIELD(pl, PL_STOCK + i * 4, int));
-    for (int i = 0; i < 7; i++) fprintf(g_log, ",%d", FIELD(rm, RM_DEMAND + i * 4, int));
-    for (int i = 0; i < 7; i++) fprintf(g_log, ",%u", FIELD(rm, RM_TARGET + i * 4, uint32_t));
-    for (int i = 0; i < 7; i++) fprintf(g_log, ",%u", FIELD(rm, RM_LISTS + i * 0x14 + 0x10, uint32_t));
-    fprintf(g_log, ",%d", FIELD(rm, RM_INITIALIZED, uint8_t));
-    for (int i = 0; i < 5; i++) fprintf(g_log, ",%u", FIELD(rm, RM_TIMERS + i * 4, uint32_t));
-    void *cm = FIELD(rm, RM_OWNER, void *);
-    fprintf(g_log, ",%p", FIELD(cm, CM_PROJECT, void *));
-    for (int i = 0; i < CM_TIMERS_N; i++) fprintf(g_log, ",%u", FIELD(cm, CM_TIMERS + i * 4, uint32_t));
-    fputc(',', g_log);
-    for (int i = 0; i < CM_FLAGS_LEN; i++) fprintf(g_log, "%02x", FIELD(cm, CM_FLAGS + i, uint8_t));
-    fputc(',', g_log);
-    for (int i = 0; i < PL_TOGGLES_LEN; i++) fprintf(g_log, "%02x", FIELD(pl, PL_TOGGLES + i, uint8_t));
-    fprintf(g_log, ",%d\n", FIELD(FIELD(pl, PL_TECHTREE, void *), TT_EPOCH, int));
-    fflush(g_log);
-    LeaveCriticalSection(&g_lock);
-}
+#include "base/ini.c"
+#include "engine/scenario_ai.c"
+#include "test/vanilla.c"
+#include "game/world.c"
+#include "ai/econ_rows.c"
 
 // __fastcall with a dummy edx parameter matches __thiscall for argument-less methods.
 static char __fastcall hook_compute_targets(void *rm, void *edx) {
@@ -285,60 +133,8 @@ static char __fastcall hook_assign_citizens(void *rm, void *edx) {
     return r;
 }
 
-// ---- memory snapshots: raw dumps of a player's AI objects, for diffing working vs broken games ----
-// Autotest, or aimod.ini [general] memory_dumps=1: 2 files per AI and game, never deleted (17,000 files / 0.4 GB
-// in normal play before) - off for players.
-static char g_dump_dir[MAX_PATH];   // also the folder of the control pipe's shot / ddinfo dump pictures
-static int g_mem_dumps;
-static DWORD g_session;
+#include "test/memdump.c"
 
-// Copy `len` bytes of our own memory without risking an access violation on unmapped pages.
-static void dump_region(FILE *f, const char *tag, const void *p, uint32_t len) {
-    static uint8_t buf[0x2000];
-    SIZE_T got = 0;
-    if (len > sizeof buf) len = sizeof buf;
-    memset(buf, 0, len);   // the static buffer held the last region
-    if (p) ReadProcessMemory(GetCurrentProcess(), p, buf, len, &got);
-    uint32_t hdr[3] = { (uint32_t)(uintptr_t)p, len, (uint32_t)got };
-    char name[16] = {0};
-    lstrcpynA(name, tag, sizeof name);
-    fwrite(name, 1, sizeof name, f);
-    fwrite(hdr, sizeof hdr, 1, f);
-    fwrite(buf, 1, len, f);   // unreadable tail stays zero; `got` records how much was valid
-}
-
-static void dump_player(void *rm, uint32_t now) {
-    void *pl = rm_player(rm);
-    void *cm = FIELD(rm, RM_OWNER, void *);
-    if (!pl || !cm || !g_dump_dir[0] || !g_mem_dumps) return;
-    char path[MAX_PATH];
-    static unsigned run;   // distinguishes several games within one session (game times repeat)
-    static uint32_t last_now = 0xFFFFFFFF;
-    if (now < last_now) run++;
-    last_now = now;
-    wsprintfA(path, "%s\\s%08lx_r%u_P%d_t%06u.bin", g_dump_dir, g_session, run, FIELD(pl, PL_INDEX, int), now);
-    FILE *f = fopen(path, "wb");
-    if (!f) return;
-    dump_region(f, "player", pl, 0x1000);
-    dump_region(f, "civmgr", cm, 0x100);
-    // sub-managers referenced by the civilization manager (+0x38 = resource manager, ...)
-    for (int off = 0x30; off <= 0x50; off += 4) {
-        char tag[16];
-        wsprintfA(tag, "cm+%02x", off);
-        dump_region(f, tag, FIELD(cm, off, void *), 0x400);
-    }
-    dump_region(f, "pl+b8c", FIELD(pl, 0xB8C, void *), 0x400);
-    dump_region(f, "pl+b90", FIELD(pl, 0xB90, void *), 0x400);
-    dump_region(f, "pl+9d4", FIELD(pl, PL_TECHTREE, void *), 0x800);
-    // towns / resource centers (player +0xB50 vector of pointers)
-    void **tb = FIELD(pl, 0xB50, void **), **te = FIELD(pl, 0xB54, void **);
-    for (int i = 0; tb && tb + i < te && i < 32; i++) {
-        char tag[16];
-        wsprintfA(tag, "town%02d", i);
-        dump_region(f, tag, tb[i], 0x100);
-    }
-    fclose(f);
-}
 
 // the player each AI's personality and settings were applied to (reset by hook_game_start: the next game's player
 // can sit at the same address - its settings were skipped, a hard AI kept the game's cheat)
@@ -402,131 +198,7 @@ static void __fastcall hook_rm_update(void *rm, void *edx, uint32_t now) {
     autotest_tick(now);
 }
 
-// ---- autotest mode (aimod_autotest.ini next to the DLL) ----
-// The game itself accepts:  "Empire Earth.exe" -loadgame "name.ees"   (file in Data\Saved Games\,
-// name must not contain '-' or '/'). This mode adds: skip intro movies, quit after N game minutes.
-static struct { int enabled, skip_intro, scenario_mode, turbo, game_seed; double quit_minutes; float speed; } g_auto;
-
-#include "randmap.c"
-
-static void autotest_first_tick(void *pl) {
-    if (g_auto.enabled) randmap_ai_toggles(pl);
-}
-
-static void load_autotest(const char *ini) {
-    g_auto.enabled = GetFileAttributesA(ini) != INVALID_FILE_ATTRIBUTES;
-    if (!g_auto.enabled) return;
-    g_auto.skip_intro = ini_int("autotest", "skip_intro", 1, ini);
-    g_auto.quit_minutes = ini_num("autotest", "quit_minutes", 0, ini);   // 3.2: 3 minutes 12 seconds
-    g_auto.scenario_mode = ini_int("autotest", "scenario_mode", 0, ini);
-    g_auto.turbo = ini_int("autotest", "turbo", 0, ini);
-    g_auto.game_seed = ini_int("autotest", "game_seed", 0, ini);
-    GetPrivateProfileStringA("autotest", "setup", "", g_setup_path, sizeof g_setup_path, ini);
-    randmap_load(ini);
-    g_auto.speed = (float)ini_num("autotest", "speed", 0, ini);
-}
-
-static void apply_game_speed(float s) {
-    *(float *)GA(G_GAME_SPEED) = s;
-    void *obj = (void *)GA(G_GAME_STATE);
-    ((void (__thiscall *)(void *))(*(void ***)obj)[11])(obj);
-}
-
-// Replace `call AddMovie` (callee pops its one argument) with `add esp,4; nop; nop`.
-static BOOL skip_intro_movies(void) {
-    const uint32_t *sites = GL(INTRO_CALLS);
-    static const uint8_t stub[5] = { 0x83, 0xC4, 0x04, 0x90, 0x90 };
-    for (int i = 0; i < 3; i++) {
-        uint8_t *p = (uint8_t *)sites[i];
-        if (p[0] != 0xE8 || sites[i] + 5 + *(int32_t *)(p + 1) != GA(FN_ADD_MOVIE)) return FALSE;
-    }
-    for (int i = 0; i < 3; i++) {
-        DWORD old;
-        VirtualProtect((void *)sites[i], 5, PAGE_EXECUTE_READWRITE, &old);
-        memcpy((void *)sites[i], stub, 5);
-        VirtualProtect((void *)sites[i], 5, old, &old);
-    }
-    FlushInstructionCache(GetCurrentProcess(), NULL, 0);
-    return TRUE;
-}
-
-// Diagnostics for the game's own command-line handling (both __cdecl).
-typedef char (__cdecl *ParseFn)(const char *);
-typedef int (__cdecl *LoadFn)(void *);
-
-static void log_line(const char *fmt, const char *a, int b) {
-    if (!g_log) return;
-    EnterCriticalSection(&g_lock);
-    fprintf(g_log, fmt, a, b);
-    fflush(g_log);
-    LeaveCriticalSection(&g_lock);
-}
-
-// A test slot's own network ports: the engine's network server - a single-player game runs through it too - binds UDP
-// 33334 and TCP 33335 (push/mov immediates in TCP Protocol.dll). A second game can't, NEProtocol::Publish fails and
-// NESynchronousServer::ProcessLocalUserInput later reads its missing record object (+0x16C): a crash. Slot n: +2n.
-// At the command line, not in DllMain: the engine loads the module later (LoadLibrary under the loader lock is none of
-// ours); loaded here it stays, and the engine's own LoadLibrary gets this copy.
-static void slot_ports(void) {
-    static const uint32_t imm[] = { 0x17E2, 0x196F, 0x19EB, 0x1EB8, 0x1FBD, 0x2148, 0x279C, 0x2F2C };   // RVAs
-    static int done;
-    if (!g_slot || done) return;
-    done = 1;
-    char p[MAX_PATH];
-    wsprintfA(p, "%sTCP Protocol.dll", g_game_dir);
-    HMODULE m = GetModuleHandleA("TCP Protocol.dll");
-    if (!m) m = LoadLibraryA(p);
-    int n = 0;
-    for (size_t i = 0; m && i < sizeof imm / sizeof *imm; i++) {
-        uintptr_t at = (uintptr_t)m + imm[i];
-        uint32_t old = *(uint32_t *)at;
-        if (old == 33334 || old == 33335) n += patch_code32(at, old, old + 2 * g_slot);
-    }
-    char t[80];
-    wsprintfA(t, "%d/%d (%d of 8 patched)", 33334 + 2 * g_slot, 33335 + 2 * g_slot, n);
-    log_line("# slot: network ports %s%.0d\n", t, 0);
-}
-static char __cdecl hook_parse_cmdline(const char *cmd) {
-    slot_ports();
-    log_line("# cmdline parse: \"%s\"%.0d\n", cmd ? cmd : "(null)", 0);
-    char r = ((ParseFn)GA(FN_PARSE_CMDLINE))(cmd);
-    log_line("# cmdline parse returned %s%d (1 = continue to main menu)\n", "", r);
-    return r;
-}
-
-static int __cdecl hook_load_saved(void *name) {
-    log_line("# cmdline loadgame: calling loader%s%.0d\n", "", 0);
-    int r = ((LoadFn)GA(FN_LOAD_SAVED))(name);
-    log_line("# cmdline loadgame: loader returned %s%d\n", "", r);
-    return r;
-}
-
-// Autotest setup=<file>[;<file>...] (paths relative to the game folder): scripts run from 2 s game time (scripts.c)
-static void run_setup(uint32_t now);
-
-static void autotest_tick(uint32_t now) {
-    if (!g_auto.enabled) return;
-    if (g_setup_path[0] && now >= 2000) run_setup(now);
-    float cur = *(float *)GA(G_GAME_SPEED);
-    if (g_auto.speed > 0 && (cur < g_auto.speed - 0.01f || cur > g_auto.speed + 0.01f)) {
-        apply_game_speed(g_auto.speed);
-        if (g_log) {
-            EnterCriticalSection(&g_lock);
-            fprintf(g_log, "# autotest: game speed %.2f -> %.2f at t=%u\n", cur, g_auto.speed, now);
-            fflush(g_log);
-            LeaveCriticalSection(&g_lock);
-        }
-    }
-    if (g_auto.quit_minutes <= 0 || now < (uint32_t)(g_auto.quit_minutes * 60000.0 + 0.5)) return;
-    EnterCriticalSection(&g_lock);   // the pipe, the LLM worker and the render thread write the log too
-    if (g_log) {
-        fprintf(g_log, "# autotest: reached %g game minutes, exiting\n", g_auto.quit_minutes);
-        fclose(g_log);
-        g_log = NULL;
-    }
-    LeaveCriticalSection(&g_lock);
-    TerminateProcess(GetCurrentProcess(), 0);   // ExitProcess crashes in the game's other threads
-}
+#include "test/autotest.c"
 
 
 // Game start: EEGameState::Start(setup, ?) 0x52599B, thiscall on 0x917588, called once at 0x4CEC14.
@@ -649,159 +321,53 @@ static char __fastcall hook_game_start(void *state, void *edx, uint8_t *setup, v
     return r;
 }
 
-#include "unitnames.c"
-#include "control.c"
-#include "grid.c"
-#include "watch.c"
-#include "trace.c"
-#include "settings.c"
-#include "chat.c"
-#include "scen.c"
-#include "sites.c"
-#include "econ.c"
-#include "attack.c"
-#include "stats.c"
-#include "defence.c"
-#include "assault.c"
-#include "landing.c"
-#include "bunker.c"
-#include "early.c"
-#include "food.c"
-#include "mines.c"
-#include "citizens.c"
-#include "army.c"
-#include "intel.c"
-#include "expr.c"
-#include "persona.c"
-#include "texts.c"
-#include "diplo.c"
-#include "scripts.c"
-#include "navy.c"
-#include "fleet.c"
-#include "mass.c"
-#include "expand.c"
+#include "game/unitnames.c"
+#include "test/control.c"
+#include "game/grid.c"
+#include "base/watch.c"
+#include "test/trace.c"
+#include "ai/settings.c"
+#include "voice/chat.c"
+#include "test/scen.c"
+#include "ai/sites.c"
+#include "ai/econ.c"
+#include "ai/attack.c"
+#include "game/stats.c"
+#include "ai/defence.c"
+#include "ai/assault.c"
+#include "ai/landing.c"
+#include "ai/bunker.c"
+#include "ai/early.c"
+#include "ai/food.c"
+#include "ai/mines.c"
+#include "ai/citizens.c"
+#include "ai/army.c"
+#include "ai/intel.c"
+#include "script/expr.c"
+#include "voice/persona.c"
+#include "voice/texts.c"
+#include "ai/diplo.c"
+#include "test/scripts.c"
+#include "ai/navy.c"
+#include "ai/fleet.c"
+#include "ai/mass.c"
+#include "ai/expand.c"
 #include "persist.c"
-#include "aim.c"
-#include "camera.c"
-#include "headless_win.c"
-#include "display.c"
-#include "playername.c"
-#include "sound.c"
-#include "select.c"
-#include "drawlist.c"
-#include "llm.c"
-#include "testcmd.c"
-#include "testopp.c"
-#include "ecolog.c"
+#include "engine/aim.c"
+#include "engine/camera.c"
+#include "base/headless_win.c"
+#include "engine/display.c"
+#include "engine/playername.c"
+#include "engine/sound.c"
+#include "engine/select.c"
+#include "engine/drawlist.c"
+#include "voice/llm.c"
+#include "test/testcmd.c"
+#include "test/testopp.c"
+#include "test/ecolog.c"
 
-// Redirect an E8 rel32 call, verifying it currently targets `expected`.
-static BOOL patch_call(uintptr_t site, uintptr_t expected, void *hook) {
-    uint8_t *p = (uint8_t *)site;
-    if (p[0] != 0xE8 || site + 5 + *(int32_t *)(p + 1) != expected) return FALSE;
-    DWORD old;
-    if (!VirtualProtect(p, 5, PAGE_EXECUTE_READWRITE, &old)) return FALSE;
-    *(int32_t *)(p + 1) = (int32_t)((uintptr_t)hook - (site + 5));
-    VirtualProtect(p, 5, old, &old);
-    FlushInstructionCache(GetCurrentProcess(), p, 5);
-    return TRUE;
-}
+#include "base/exe.c"
 
-static void log_header(void) {
-    fputs("time_ms,player,phase,difficulty,cheat", g_log);
-    for (int i = 0; i < 7; i++) fprintf(g_log, ",stock%d", i);
-    for (int i = 0; i < 7; i++) fprintf(g_log, ",demand%d", i);
-    for (int i = 0; i < 7; i++) fprintf(g_log, ",target%d", i);
-    for (int i = 0; i < 7; i++) fprintf(g_log, ",list%d", i);
-    fputs(",rm_init,t_farm,t_20s,t_targets,t_assign,t_cleanup"
-          ",cm_project,cm_t_epoch,cm_t_bcount,cm_t_milbldg,cm_t_build,cm_t_e817,cm_t_59s,cm_flags74"
-          ",toggles_ef4,epoch\n", g_log);
-}
-
-// THE EXE BUILD. Every address in the mod is the 1.04 exe of the "Difficulty Setting & Multiplayer Lobby" update
-// (timestamp 0x594D0000): GOG, Steam (+ a signature and a DPI manifest) and the empireearth.eu "Vanilla" setup have the
-// same code - only the resources and the signature differ. Another build would half work or crash (patch_call and
-// patch_code32 check their bytes, much else doesn't, and the game's data is read at fixed addresses): the old retail
-// 1.04 with its copy protection, its no-CD cracks, NeoEE (the same code, but its imports elsewhere - docs/engine-notes.md
-// "Exe builds"). Known by a hash (FNV-1a) of every section but .rsrc, read from the file: in memory another DLL may have
-// patched the code already, and run_test.ps1 patches it before the game runs.
-// (the builds and their hashes: addr.h k_exe_builds)
-static uint32_t exe_build_hash(const char *path) {   // 0: not a readable PE file
-    HANDLE f = CreateFileA(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, 0, NULL);
-    if (f == INVALID_HANDLE_VALUE) return 0;
-    uint32_t h = 0, size = GetFileSize(f, NULL);
-    uint8_t *b = size != INVALID_FILE_SIZE && size > 0x400 && size < (64u << 20) ? malloc(size) : NULL;
-    DWORD got = 0;
-    if (b && ReadFile(f, b, size, &got, NULL) && got == size) {
-        uint32_t o = *(uint32_t *)(b + 0x3C);
-        if (o < size - 0xF8 && *(uint32_t *)(b + o) == 0x00004550) {
-            IMAGE_NT_HEADERS32 *nt = (IMAGE_NT_HEADERS32 *)(b + o);
-            IMAGE_SECTION_HEADER *s = (IMAGE_SECTION_HEADER *)((uint8_t *)&nt->OptionalHeader + nt->FileHeader.SizeOfOptionalHeader);
-            h = 2166136261u;
-            for (int i = 0; i < nt->FileHeader.NumberOfSections; i++, s++) {
-                if ((uint8_t *)(s + 1) > b + size) { h = 0; break; }
-                if (!memcmp(s->Name, ".rsrc", 6)) continue;
-                uint32_t n = s->Misc.VirtualSize && s->Misc.VirtualSize < s->SizeOfRawData ? s->Misc.VirtualSize : s->SizeOfRawData;
-                if (s->PointerToRawData > size || n > size - s->PointerToRawData) { h = 0; break; }
-                for (const uint8_t *p = b + s->PointerToRawData, *e = p + n; p < e; p++) h = (h ^ *p) * 16777619u;
-            }
-        }
-    }
-    free(b);
-    CloseHandle(f);
-    return h;
-}
-// 1: the game in a build the mod knows (its addresses selected: addr.h); 0: not the game (another program loading the
-// folder's DLLs); -1: the game, another build (*hash its hash)
-static int game_build(uint32_t *hash) {
-    char path[MAX_PATH];
-    GetModuleFileNameA(NULL, path, MAX_PATH);
-    const char *name = strrchr(path, '\\');
-    *hash = exe_build_hash(path);
-    for (int i = 0; i < ADDR_BUILDS; i++)
-        if (*hash == k_exe_builds[i]) {
-            g_addr_missing = addr_select(i);
-            return 1;
-        }
-    return name && !lstrcmpiA(name + 1, "Empire Earth.exe") ? -1 : 0;   // a renamed copy of a known build counts above
-}
-// TEST SLOTS: parallel test games (run_test.ps1 -Slot n; docs/testing.md, Parallel runs). The runner starts slot
-// n (1..30) with EEAIMOD_SLOT=n and EEAIMOD_SLOT_DIR=<its folder>: the test ini, the log and the dumps are there instead
-// of the game folder, the control pipe is \\.\pipe\eeaimod<n>, the engine's network ports are moved by 2n
-// (slot_ports) - and the runner patches the game's single-instance check (docs/engine-notes.md, Exe builds). 0: none.
-static void slot_dir(char *dir) {   // dir: the game folder (with its \) -> where this game's test files are
-    char v[MAX_PATH];
-    g_slot = GetEnvironmentVariableA("EEAIMOD_SLOT", v, sizeof v) ? atoi(v) : 0;
-    if (g_slot < 0 || g_slot > 30) g_slot = 0;
-    if (g_slot && GetEnvironmentVariableA("EEAIMOD_SLOT_DIR", v, sizeof v) && v[0]) {
-        size_t n = strlen(v);
-        snprintf(dir, MAX_PATH, "%s%s", v, v[n - 1] == '\\' || v[n - 1] == '/' ? "" : "\\");
-    }
-}
-// Another build: nothing installed - the player is told once a start (a test run, which has nobody to click: only
-// the log), and the game runs as it is
-static void build_unknown(uint32_t hash) {
-    char dir[MAX_PATH], path[MAX_PATH + 32];
-    // the engine loads the folder's DLLs several times (it frees those that are no render plugin): told once - the
-    // process's environment outlives the DLL
-    if (GetEnvironmentVariableA("EEAIMOD_BUILD_TOLD", dir, sizeof dir)) return;
-    SetEnvironmentVariableA("EEAIMOD_BUILD_TOLD", "1");
-    GetModuleFileNameA(NULL, dir, MAX_PATH);   // the game folder (the exe's)
-    char *slash = strrchr(dir, '\\');
-    if (slash) slash[1] = 0; else dir[0] = 0;
-    slot_dir(dir);
-    wsprintfA(path, "%saimod_econ.csv", dir);
-    FILE *f = fopen(path, "a");
-    if (f) { fprintf(f, "# eeaimod: Empire Earth.exe is another build (code %08X) - nothing installed\n", hash); fclose(f); }
-    wsprintfA(path, "%saimod_autotest.ini", dir);
-    if (GetFileAttributesA(path) != INVALID_FILE_ATTRIBUTES) return;
-    char msg[700];
-    wsprintfA(msg, "The Empire Earth AI mod (eeaimod.dll) doesn't know this version of Empire Earth.exe (code %08X), "
-                   "so it stays switched off - the game starts without it.\n\n"
-                   "The mod works with Empire Earth 1.04 with the 2017 update (\"Difficulty Setting & Multiplayer Lobby\"): "
-                   "the GOG and Steam versions and the Vanilla setup from empireearth.eu. Old CD versions, no-CD exes and "
-                   "NeoEE have their code in other places.\n\nDelete eeaimod.dll to stop this message.", hash);
-    MessageBoxA(NULL, msg, "Empire Earth AI mod: unknown game version", MB_OK | MB_ICONWARNING | MB_TOPMOST | MB_SETFOREGROUND);
-}
 
 // No aimod.ini next to the DLL: tell the player and stop, instead of running on built-in defaults nobody
 // tested as a whole (the defaults in the code are only for keys missing from an existing, older file).
@@ -975,21 +541,6 @@ static void install(HMODULE self) {
     AddVectoredExceptionHandler(1, crash_handler);   // logs the first exceptions (module+offset, backtrace) - also in normal play
 }
 
-// Autotest game_seed: starting a game from the menu (EEUIELEStart::vf1 0x5C9B91, 0x67E1D6) seeds the C library
-// with the clock, srand(TMGetTime()), and sends rand() along with the start message (0x5D, +0x14) - the game's
-// random seed, so random-map runs differ even with the same map seed. With game_seed every srand uses that seed,
-// and the start message carries it whichever start built it (hook_start_exec, trace.c: the load-game start a test
-// run uses puts TMGetTime() in it directly).
-typedef void (__cdecl *SrandFn)(unsigned);
-static SrandFn g_srand;
-static void __cdecl hook_srand(unsigned seed) {
-    (void)seed;
-    g_srand((unsigned)g_auto.game_seed);
-}
-
-static BOOL patch_srand(void) {   // the exe imports srand from msvcrt.dll
-    return iat_hook(GA(IAT_SRAND), "msvcrt.dll", "srand", (void *)hook_srand, (void **)&g_srand);
-}
 
 // A test run's own DLL (run_test.ps1 -Dll; docs/testing.md): EEAIMOD_DLL names a copy outside the game folder (the
 // engine loads every DLL in there, so it can't sit beside this one). The game folder's eeaimod.dll then loads that

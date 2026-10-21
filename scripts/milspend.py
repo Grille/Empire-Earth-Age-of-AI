@@ -1,4 +1,4 @@
-"""Where the money goes: the mod's AI (M) and the base game's AI (V) side by side (scripts/eco_ablate.sh logs; dll/army.c
+"""Where the money goes: the mod's AI (M) and the base game's AI (V) side by side (scripts/eco_ablate.sh logs; dll/ai/army.c
 # mil lines once a game minute). Per variant and condition (cheat, map) the means over the games at minutes 20 / 30 / 45 / 60:
 army (soldiers + siege + ships + aircraft) and its value (prices without the Cheat), the military production buildings
 (all; B barracks, A archery range, S stable, F siege factory, D dock + navy yard, P airport, T tank + cyber factory),
