@@ -52,7 +52,7 @@ lines = {
         them.betrayals(me) > 0 ? "Again, {them}? I should have known.",
         "You will regret this, {them}.",
     ]
-    peace_accept = [them.kills(me) > 100 ? "Fine. I will not forget my dead."] ?? "Peace it is, {friend}."
+    peace_accept = [them.kills(me, units) > 100 ? "Fine. I will not forget my dead."] ?? "Peace it is, {friend}."
 }
 ```
 
@@ -98,8 +98,8 @@ peace_offer = ("Peace, {them}? "
 
 report = (
     allied ? "We stand together." :
-    them.kills(me) > 10 ? (
-        "You have killed {them.kills(me)} of mine. "
+    them.kills(me, units) > 10 ? (
+        "You have killed {them.kills(me, units)} of mine. "
         "I have not forgotten."
     ) :
     "We are not friends - not yet."
@@ -289,8 +289,8 @@ is worked out once, when it is called: given a list, it keeps the list (`len(l)`
 **Functions:** a name with parameters is worked out with the values it is given:
 
 ```
-losses(minutes) = them.kills(me, minutes)
-fighting_report(minutes) = "you killed {me.kills(them, minutes, units.army)} of their soldiers and sank {me.kills(them, minutes, units.marine)} of their ships; they killed {them.kills(me, minutes, units.military)} of yours"
+losses(minutes) = them.kills(me, minutes, units)
+fighting_report(minutes) = "you killed {me.kills(them, minutes, army)} of their soldiers and sank {me.kills(them, minutes, marine)} of their ships; they killed {them.kills(me, minutes, military)} of yours"
 
 lines = {
     under_attack = losses(10) > many_dead / 3 ? "{losses(10)} dead in ten minutes. Enough!"
@@ -323,7 +323,8 @@ personality = {
 or several: `include("_knights.eeai", "_castles.eeai")`. The included files are its **layers**, in the order named,
 each one's own includes right after it (4 deep, no circles; a file name of this folder, no path), then
 `mod/computer.eeai` and `mod/prompt.eeai` - unless a file of the chain names them already, which puts them where it
-names them: `include("mod/computer.eeai", "_knights.eeai")` puts the knights after eeaimod's base.
+names them: `include("mod/computer.eeai", "_knights.eeai")` puts the knights after eeaimod's base. Both include
+`mod/units.eeai`, the groups the texts count with (`units`, `army`, `buildings` ... - "Unit types" below).
 
 - **Lines:** a situation's line comes from the personality's own chain first (the situation, then its fallbacks),
   then from each layer's chain in turn - the first that has something to say now. An included file's line is worked
@@ -400,7 +401,7 @@ Shortcuts: my own `epoch`, traits, `allies` and `enemies` without `me.` (`aggres
 | `X.lord` | its lord, the player it capitulated to - a player: them.lord.name, lord == them; nothing when it has none |
 | `X.count(filter)` | its units and buildings of a filter: unit.&lt;identifier&gt; (one type), kind.&lt;kind&gt; (the game's family, every epoch's: kind.towers, kind.citizen), or a list of them - any of them: them.count(kind.towers), me.count([kind.tank, kind.tank_strong]) (docs/units.md: the identifiers and kinds) |
 
-**Relations** of player A with player B - `me.opinion(them)`, `them.opinion(me)`, `enemy.at_war(them)`; without `A.` mine (`opinion(enemy)`). Those that count events - `tribute`, `refusals`, `betrayals`, `kills`, `razed` - take a time window as a second argument: `them.tribute(me, 15)` counts the last 15 minutes only (`16.5` too), without it (or with 0) the whole game. Older events are the whole game minus the window - `them.betrayals(me) - them.betrayals(me, 20)` counts those more than 20 minutes ago, `me.razed(them, 60) - me.razed(them, 20)` those 20 to 60 minutes ago; a negative window is a mistake:
+**Relations** of player A with player B - `me.opinion(them)`, `them.opinion(me)`, `enemy.at_war(them)`; without `A.` mine (`opinion(enemy)`). Those that count events - `tribute`, `refusals`, `betrayals`, `kills` - take a time window as a second argument: `them.tribute(me, 15)` counts the last 15 minutes only (`16.5` too), without it (or with 0) the whole game. Older events are the whole game minus the window - `them.betrayals(me) - them.betrayals(me, 20)` counts those more than 20 minutes ago, `me.kills(them, 60, buildings) - me.kills(them, 20, buildings)` those 20 to 60 minutes ago; a negative window is a mistake:
 
 | Relation | |
 |---|---|
@@ -417,8 +418,7 @@ Shortcuts: my own `epoch`, traits, `allies` and `enemies` without `me.` (`aggres
 | `A.near(B)` | A's soldiers within 20 tiles of B's base now, while B treats A as an enemy (an AI's base) |
 | `A.in_town(B)` | 1 when A's army is in B's town: its soldiers have stayed near B's base for a while (an AI's base) |
 | `A.attack_minutes(B)` | minutes since A's last attack wave set out against B - nothing if none (an AI's waves) |
-| `A.kills(B)` | B's units A has destroyed - (B, minutes): in the last minutes (whole minutes, the current one counts); a filter last picks which, as count's - unit.&lt;identifier&gt;, kind.&lt;kind&gt;, a list of them - or units.all (the default), units.army (on land: also priests, heroes, siege), units.airforce, units.marine, units.military (the three), units.civilian (citizens, fishing boats): them.kills(me, units.marine), me.kills(them, 10, kind.tank) |
-| `A.razed(B)` | B's buildings A has destroyed - (B, minutes) and a filter of types as kills: them.razed(me, 20, kind.towers) |
+| `A.kills(B)` | B's units and buildings A has destroyed - (B, minutes): in the last minutes (whole minutes, the current one counts); a filter last picks which, as count's: unit.&lt;identifier&gt;, kind.&lt;kind&gt;, a list of them - or one of mod/units.eeai's lists (units, army, airforce, marine, military, civilians, buildings): them.kills(me, units), me.kills(them, 10, kind.tank), them.kills(me, 20, buildings) |
 
 **The game:**
 
@@ -480,6 +480,8 @@ German game) and a number in a comparison. Compare it with `color.blue`, `color.
     greeting = them.color == color.red ? "Red banners, {them}? Mine are redder." : "Greetings, {them} of {them.civilization}."
 ```
 
+### Unit types
+
 Which units and buildings a player has - `X.count(filter)`, counted every 10 seconds: the game's names, the same in
 every language (the mod's sources, docs/units.md, list them all):
 
@@ -501,21 +503,26 @@ The types are the game's own, read from the data it has loaded - a data mod's ne
 once the game has loaded its data (at the start of a game); anything else as a filter (a number, a text) when the
 line is worked out.
 
-Which units `kills` and which buildings `razed` count - their last argument, after the minutes if any: the same
-filters, `them.kills(me, 10, kind.tank)`, `me.razed(them, kind.towers)` - counted by type for the whole game and
-any window, however long. For `kills` also these (not for `razed`: they are units):
+What `kills` counts - its last argument, after the minutes if any: the same filters, `them.kills(me, 10, kind.tank)`,
+`me.kills(them, kind.towers)` - counted by type for the whole game and any window, however long. Without one it
+counts everything destroyed, units and buildings alike. The groups the mod's own texts count with are lists of these
+in `mod/units.eeai`, a layer of every personality (a name of your own of the same name comes first):
 
 | Name | Counts |
 |---|---|
-| `units.all` | every unit (the default) |
-| `units.army` | on land - also priests, heroes, siege |
-| `units.airforce` | aircraft, helicopters, balloons |
-| `units.marine` | warships, submarines, transports, carriers |
-| `units.military` | army, airforce and marine |
-| `units.civilian` | citizens and fishing boats |
+| `units` | every unit: military and civilians |
+| `army` | on land - infantry, cavalry, siege, tanks, mechs, priests, heroes |
+| `airforce` | aircraft, helicopters, balloons, the flying mechs |
+| `marine` | warships, submarines, transports, carriers |
+| `military` | army, airforce and marine |
+| `civilians` | citizens and fishing boats |
+| `buildings` | every building - towers and walls too |
 
 ```
-sea_war = them.kills(me, 10, units.marine) > 3 ? "Leave my ships alone, {them}!"
+sea_war = them.kills(me, 10, marine) > 3 ? "Leave my ships alone, {them}!"
+lines = {
+    peace_accept = them.kills(me, this_war, buildings) > 5 ? "{them.kills(me, this_war, buildings)} of my buildings in ruins. Peace."
+}
 ```
 
 ## Placeholders

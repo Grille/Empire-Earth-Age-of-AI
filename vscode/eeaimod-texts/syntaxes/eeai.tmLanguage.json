@@ -515,14 +515,6 @@
           "match": "\\bcolor\\.[A-Za-z_][\\w.]*"
         },
         {
-          "name": "support.constant.units.eeaimod",
-          "match": "\\bunits\\.(?:all|army|airforce|marine|military|civilian)\\b(?!\\.)"
-        },
-        {
-          "name": "invalid.illegal.unknown-units.eeaimod",
-          "match": "\\bunits\\.[A-Za-z_][\\w.]*"
-        },
-        {
           "name": "support.constant.resource.eeaimod",
           "match": "\\bresource\\.(?:food|wood|stone|gold|iron|all)\\b(?!\\.)"
         },
@@ -579,7 +571,7 @@
           "match": "\\b(?:and|or|not)\\b"
         },
         {
-          "match": "(?:(\\b(?:me|them|enemy|lord)(?:\\.lord)*|\\b[A-Za-z_]\\w*)(\\.))?(\\b(?:alliance_minutes|attack_minutes|war_minutes|betrayals|refusals|opinion|hostile|ignored|tribute|in_town|at_war|allied|count|kills|razed|near)\\b)(?=\\s*\\()",
+          "match": "(?:(\\b(?:me|them|enemy|lord)(?:\\.lord)*|\\b[A-Za-z_]\\w*)(\\.))?(\\b(?:alliance_minutes|attack_minutes|war_minutes|betrayals|refusals|opinion|hostile|ignored|tribute|in_town|at_war|allied|count|kills|near)\\b)(?=\\s*\\()",
           "captures": {
             "1": {
               "name": "variable.language.game-value.eeaimod"
@@ -703,14 +695,6 @@
           "match": "\\bcolor\\.[A-Za-z_][\\w.]*"
         },
         {
-          "name": "support.constant.units.eeaimod",
-          "match": "\\bunits\\.(?:all|army|airforce|marine|military|civilian)\\b(?!\\.)"
-        },
-        {
-          "name": "invalid.illegal.unknown-units.eeaimod",
-          "match": "\\bunits\\.[A-Za-z_][\\w.]*"
-        },
-        {
           "name": "support.constant.resource.eeaimod",
           "match": "\\bresource\\.(?:food|wood|stone|gold|iron|all)\\b(?!\\.)"
         },
@@ -767,7 +751,7 @@
           "match": "\\b(?:and|or|not)\\b"
         },
         {
-          "match": "(?:(\\b(?:me|them|enemy|lord)(?:\\.lord)*|\\b[A-Za-z_]\\w*)(\\.))?(\\b(?:alliance_minutes|attack_minutes|war_minutes|betrayals|refusals|opinion|hostile|ignored|tribute|in_town|at_war|allied|count|kills|razed|near)\\b)(?=\\s*\\()",
+          "match": "(?:(\\b(?:me|them|enemy|lord)(?:\\.lord)*|\\b[A-Za-z_]\\w*)(\\.))?(\\b(?:alliance_minutes|attack_minutes|war_minutes|betrayals|refusals|opinion|hostile|ignored|tribute|in_town|at_war|allied|count|kills|near)\\b)(?=\\s*\\()",
           "captures": {
             "1": {
               "name": "variable.language.game-value.eeaimod"

@@ -35,8 +35,8 @@ many_towers = me.towers >= 10
 outmatched = me.strength * 2 < them.strength
 brittle = them.strength * 2 < me.strength
 # blood between us: more than a skirmish
-my_dead = them.kills(me) > many_dead
-their_dead = me.kills(them) > many_dead
+my_dead = them.kills(me, units) > many_dead
+their_dead = me.kills(them, units) > many_dead
 
 lines = {
     greeting = [
@@ -77,8 +77,8 @@ lines = {
             "Peace. But the walls facing you stay manned, {them}.",
             "Peace, {them}. I signed with you once before and rebuilt afterwards. This time I keep the mortar ready.",
         ],
-        them.razed(me, this_war) > 5 and chance(60%) ? "Peace. Now I have {them.razed(me, this_war)} buildings to rebuild, {them}. Kindly stay out of the way.",
-        them.kills(me, this_war) > many_dead and chance(50%) ? "Peace, {them}. I have buried enough of my people for this war.",
+        them.kills(me, this_war, buildings) > 5 and chance(60%) ? "Peace. Now I have {them.kills(me, this_war, buildings)} buildings to rebuild, {them}. Kindly stay out of the way.",
+        them.kills(me, this_war, units) > many_dead and chance(50%) ? "Peace, {them}. I have buried enough of my people for this war.",
     ] ?? [
         "Quiet at last, {them}. I have building to do.",
         "Peace. Good. The stones are waiting.",
@@ -163,15 +163,15 @@ lines = {
         "Half a stone, {them}. Still - every wall starts somewhere.",
     ]
     attack = [
-        them.razed(me, 20) > 0 and chance(60%) ? "They tore down what we built. Now we go and see what theirs is made of.",
-        them.kills(me, 20) > many_dead / 2 and them.kills(me, 20) > me.kills(them, 20) and chance(60%) ? "We have buried enough. Out, against {them} - walls alone will not end this.",
+        them.kills(me, 20, buildings) > 0 and chance(60%) ? "They tore down what we built. Now we go and see what theirs is made of.",
+        them.kills(me, 20, units) > many_dead / 2 and them.kills(me, 20, units) > me.kills(them, 20, units) and chance(60%) ? "We have buried enough. Out, against {them} - walls alone will not end this.",
     ] ?? [
         "We must go out. Against {them}.",
         "Our troops are marching against {them}.",
     ]
     attack_threat = [
-        them.razed(me) > 0 and chance(60%) ? "{them.razed(me)} of my buildings, {them}. I keep careful accounts - and today I collect.",
-        their_dead and chance(50%) ? "{me.kills(them)} of yours have fallen already, {them}. Your walls are next.",
+        them.kills(me, buildings) > 0 and chance(60%) ? "{them.kills(me, buildings)} of my buildings, {them}. I keep careful accounts - and today I collect.",
+        their_dead and chance(50%) ? "{me.kills(them, units)} of yours have fallen already, {them}. Your walls are next.",
     ] ?? [
         "{them}, your walls will not hold.",
         "We are coming, {them}. Check your walls.",
@@ -207,15 +207,15 @@ lines = {
     ]
     enemy_ahead = "{them} is further along. We build more thoroughly instead."
     winning = [
-        them.razed(me) < 1 and chance(60%) ? "Not one of my buildings has fallen to you, {them}. Not one.",
-        their_dead and chance(50%) ? "{me.kills(them)} of your people have broken on my walls, {them}.",
+        them.kills(me, buildings) < 1 and chance(60%) ? "Not one of my buildings has fallen to you, {them}. Not one.",
+        their_dead and chance(50%) ? "{me.kills(them, units)} of your people have broken on my walls, {them}.",
     ] ?? "Our walls hold. {them}'s armies do not."
     losing = [
         them.near(me) > 0 ? [
             "{them}'s soldiers are at our walls. Every hand to the masonry!",
             "{them}'s troops at our walls, and too few hands to mend them. Hold until they tire!",
         ],
-        them.razed(me) > 10 and chance(60%) ? "{them.razed(me)} buildings torn down by {them}. I remember every single one.",
+        them.kills(me, buildings) > 10 and chance(60%) ? "{them.kills(me, buildings)} buildings torn down by {them}. I remember every single one.",
     ] ?? [
         "We must strengthen the defences.",
         "The walls are crumbling ...",
@@ -231,7 +231,7 @@ lines = {
             "{them} has fallen. Whatever is built on broken promises does not last.",
             "{them} is gone. A traitor's house - I saw the cracks in it the day they broke faith with me.",
         ],
-        them.razed(me) > 0 and chance(60%) ? "{them} has fallen. Now I can rebuild in peace what they tore down.",
+        them.kills(me, buildings) > 0 and chance(60%) ? "{them} has fallen. Now I can rebuild in peace what they tore down.",
     ] ?? "{them} has fallen. I hope the land will be built on well."
     ally_defeated = "We have lost {them}. A hard blow."
     defeated = [
@@ -242,9 +242,9 @@ lines = {
         "Nothing left to build with. I give up.",
         "You win, {them}. Build something good here.",
     ]
-    capitulate = them.razed(me) > 5 ? [
-        "{them}, you have torn down {them.razed(me)} of my buildings. Enough. {tribute} if you leave the rest standing.",
-        "Enough, {them}. {them.razed(me)} of my buildings lie in ruins, and I mean to keep the rest. {tribute} for peace.",
+    capitulate = them.kills(me, buildings) > 5 ? [
+        "{them}, you have torn down {them.kills(me, buildings)} of my buildings. Enough. {tribute} if you leave the rest standing.",
+        "Enough, {them}. {them.kills(me, buildings)} of my buildings lie in ruins, and I mean to keep the rest. {tribute} for peace.",
     ] : [
         "{them}, stop. Everything you burn has to be rebuilt. {tribute} if you leave the rest standing.",
         "{them}, I would rather pay than rebuild. {tribute} - and my walls stay as they are.",

@@ -10,7 +10,10 @@
 # {tribute} what a capitulation pays or a tribute brought, by resource ("200 gold, 800 iron").
 # A pack of your own may bring a base of its own (another name): its personalities include it, this one comes after it.
 
-# the war now going on (in peace_accept: the one just ended) - a window for "this war": them.kills(me, this_war)
+# the groups of units and buildings to count with (units, army, civilians, buildings ...)
+include("mod/units.eeai")
+
+# the war now going on (in peace_accept: the one just ended) - a window for "this war": them.kills(me, this_war, units)
 this_war = me.war_minutes(them)
 # losses that count as many at this stage of the game: a third of the largest army (10 at least)
 many_dead = max(10, max_population / 3)
@@ -65,7 +68,7 @@ lines = {
             "We accept peace, {them}. Your betrayal is on record.",
             "Peace accepted, {them}. We will watch you: you have broken an alliance with us before.",
         ],
-        them.kills(me, this_war) > many_dead and them.kills(me, this_war) > me.kills(them, this_war) and chance(60%) ? "We accept peace, {them}. This war cost us {them.kills(me, this_war)} units.",
+        them.kills(me, this_war, units) > many_dead and them.kills(me, this_war, units) > me.kills(them, this_war, units) and chance(60%) ? "We accept peace, {them}. This war cost us {them.kills(me, this_war, units)} units.",
     ] ?? "We accept peace, {them}."
     peace_refuse = [
         them.betrayals(me) > 0 ? [

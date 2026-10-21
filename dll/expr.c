@@ -416,13 +416,6 @@ static const char *const k_epoch_const[15] = { "prehistoric", "stone", "copper",
 // resource.<name>: a resource's number 1..5 (food, wood, stone, gold, iron - the game's order), its text its name;
 // resource.all 0 (give: each of them)
 static const char *const k_resource_const[5] = { "food", "wood", "stone", "gold", "iron" };
-// units.<kind>: which units kills counts (diplo.c x_method) - a value of its own, its text its name
-static const char *const k_units_const[6] = { "all", "army", "airforce", "marine", "military", "civilian" };
-static int x_units_filter(const struct xval *v) {   // the kind a units.<kind> value stands for; -1: none
-    if (!v->has_s || v->has_n || _strnicmp(v->s, "units.", 6)) return -1;
-    for (int k = 0; k < 6; k++) if (!lstrcmpiA(v->s + 6, k_units_const[k])) return k;
-    return -1;
-}
 static int color_index(const char *s);   // persona.c: a colour's index 0..16 by its name
 static int x_const(const char *name, struct xval *v) {
     if (!_strnicmp(name, "color.", 6)) {   // color.red: a colour's number 1..17, as X.color has it
@@ -430,11 +423,6 @@ static int x_const(const char *name, struct xval *v) {
         if (k < 0) return 0;
         xnum(v, k + 1);
         return 1;
-    }
-    if (!_strnicmp(name, "units.", 6)) {
-        for (int k = 0; k < 6; k++)
-            if (!lstrcmpiA(name + 6, k_units_const[k])) { char t[24]; wsprintfA(t, "units.%s", k_units_const[k]); xstr(v, t); return 1; }
-        return 0;
     }
     if (!_strnicmp(name, "resource.", 9)) {   // resource.gold: 4 (and "gold"); resource.all: 0 - each of them
         if (!lstrcmpiA(name + 9, "all")) { xdual(v, 0, "all"); return 1; }
@@ -1198,13 +1186,21 @@ static int xcmp(const struct xval *a, const struct xval *b) {   // <0, 0, >0: pl
 static void x_nogame(struct xe *e, const char *name) {   // a game value or a player where there is no game yet
     x_fail(e, "%s: no game yet - only constants, chance(), rnd(), language and vars here", name);
 }
-// the body of a vars entry or function (its source) worked out in this context: compiled, deep enough to go on
-// (the levels together with where it is used), its value
+// NESTING: names, functions and placeholders worked out within each other, at most X_NEST deep - also the end of
+// names naming each other in a circle. 12: a prompt's piece, its names and functions, their {placeholders}, a group
+// of mod/units.eeai of groups (military: army ...) - 6 cut the prompt's fighting_recent short. Each of them counts
+// its parser levels (X_LEVELS) on its own, as a lambda's body does: added up through the nesting they ran out where
+// a group of mod/units.eeai sat at the end of a prompt's chain (a name's body, an expression in itself)
+#define X_NEST 12
+// the body of a vars entry or function (its source) worked out in this context: compiled, its value
 static int x_body(struct xe *e, const char *src, struct xval *v) {
     const struct xunit *u = x_compiled(src);
-    if (!u->ok || e->c->level + u->depth > X_LEVELS) { xnothing(v); return 0; }
+    if (!u->ok) { xnothing(v); return 0; }
     struct xe q = { e->c, 0, NULL, NULL, 0, NULL, NULL };
+    int level = e->c->level;
+    e->c->level = 0;
     xe(&q, u->root, v);
+    e->c->level = level;
     return !q.err;
 }
 static void xe_ident(struct xe *e, const char *name, struct xval *v) {
@@ -1217,7 +1213,7 @@ static void xe_ident(struct xe *e, const char *name, struct xval *v) {
     for (int k = 0; k < 3; k++) {
         const char *def = xvars_get(c->vars[k], name);
         if (!def) continue;
-        if (c->depth >= 6) { c->circle = 1; e->err = 1; return; }   // vars naming each other in a circle
+        if (c->depth >= X_NEST) { c->circle = 1; e->err = 1; return; }   // vars naming each other in a circle
         const char *const *fpn = c->fpn;   // a variable sees no parameters (only its own function's body does)
         const struct xval *fpv = c->fpv;
         int fnp = c->fnp;
@@ -1251,7 +1247,7 @@ static void x_call(struct xe *e, const char *def, const char *par, const struct 
         if (*par == ',') par++;
     }
     if (n != na) { e->err = 1; return; }
-    if (c->depth >= 6) { c->circle = 1; e->err = 1; return; }
+    if (c->depth >= X_NEST) { c->circle = 1; e->err = 1; return; }
     const char *const *fpn = c->fpn;
     const struct xval *fpv = c->fpv;
     int fnp = c->fnp;
@@ -1704,8 +1700,11 @@ static int x_eval(const char *src, struct xctx *c, struct xval *v) {   // its va
     const struct xunit *u = x_compiled(src);
     struct xe e = { c, 0, NULL, NULL, 0, NULL, NULL };
     xnothing(v);
-    if (!u->ok || c->level + u->depth > X_LEVELS) e.err = 1;
+    int level = c->level;   // its own levels (X_NEST)
+    c->level = 0;
+    if (!u->ok) e.err = 1;
     else xe(&e, u->root, v);
+    c->level = level;
     g_xr->busy--;
     int ok = !e.err && !c->circle;
     if (ok) { x_use(&e, v); ok = !e.err; }   // a player who isn't there, written in the text
@@ -1852,7 +1851,7 @@ static int x_fill(char *out, int cap, const char *tmpl, struct xctx *c) {
                 else x_fmt_num(x, dec, pct, val, sizeof val);
                 rep = val;
             }
-            if (!rep && c->depth < 6) {
+            if (!rep && c->depth < X_NEST) {
                 struct xval v;
                 int f0 = c->failed;
                 c->depth++;

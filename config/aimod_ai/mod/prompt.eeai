@@ -13,6 +13,9 @@
 # The names here (vars) serve the prompts (English, like them) - and the personalities' lines, after their
 # own: the pieces of game_state_other, tribute_room - change them, or add your own.
 
+# the groups of units and buildings to count with (army, civilians, buildings ...)
+include("mod/units.eeai")
+
 # game_state_other: the stances between you
 stance = (
     not me.hostile(them) and not them.hostile(me) ? "You are allied with each other." :
@@ -39,15 +42,15 @@ attacks = (
 )
 # what by destroyed of of's in the last minutes (0: the whole game) - aircraft and ships only when there are any
 destroyed(by, of, minutes) = (
-    "{by.kills(of, minutes, units.army)} land units, "
-    + (by.kills(of, minutes, units.airforce) ? "{by.kills(of, minutes, units.airforce)} aircraft, " : "")
-    + (by.kills(of, minutes, units.marine) ? "{by.kills(of, minutes, units.marine)} ships, " : "")
-    + "{by.kills(of, minutes, units.civilian)} civilians (citizens, fishing boats)"
-    + " and {by.razed(of, minutes)} buildings"
+    "{by.kills(of, minutes, army)} land units, "
+    + (by.kills(of, minutes, airforce) ? "{by.kills(of, minutes, airforce)} aircraft, " : "")
+    + (by.kills(of, minutes, marine) ? "{by.kills(of, minutes, marine)} ships, " : "")
+    + "{by.kills(of, minutes, civilians)} civilians (citizens, fishing boats)"
+    + " and {by.kills(of, minutes, buildings)} buildings"
 )
-# all that was destroyed between you
-fought(minutes) = me.kills(them, minutes) + them.kills(me, minutes) + me.razed(them, minutes) + them.razed(me, minutes)
-# how far back the fighting counts as recent (at most 60)
+# all that was destroyed between you, units and buildings
+fought(minutes) = me.kills(them, minutes) + them.kills(me, minutes)
+# how far back the fighting counts as recent
 recent_minutes = 20
 fighting = fought(0) ? (
     " The fighting between you so far."
@@ -81,7 +84,7 @@ tribute_room = (
     )
 )
 
-fighting_report(minutes) = "The fighting between you so far: you killed {me.kills(them, minutes, units.military)} of their soldiers and {me.kills(them, minutes, units.civilian)} of their citizens (workers) and destroyed {me.razed(them, minutes)} of their buildings; they killed {them.kills(me, minutes, units.military)} of your soldiers and {them.kills(me, minutes, units.civilian)} of your citizens and destroyed {them.razed(me, minutes)} of your buildings."
+fighting_report(minutes) = "The fighting between you so far: you killed {me.kills(them, minutes, military)} of their soldiers and {me.kills(them, minutes, civilians)} of their citizens (workers) and destroyed {me.kills(them, minutes, buildings)} of their buildings; they killed {them.kills(me, minutes, military)} of your soldiers and {them.kills(me, minutes, civilians)} of your citizens and destroyed {them.kills(me, minutes, buildings)} of your buildings."
 
 prompt = {
     # the system message: who the AI is

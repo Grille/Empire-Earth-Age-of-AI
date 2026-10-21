@@ -245,14 +245,15 @@ static void lang_detect(void) {
 // them (vars). A file that declares register_personality() is a personality (an AI may get it); any other is a
 // library, read when a file includes it (_template.eeai, the one to copy, too).
 // INCLUDES: include("pack_base.eeai", ...) - a plain file name of this folder, so a pack of files dropped into aimod_ai
-// brings its own without touching anyone else's - or one of the mod's own, "mod/computer.eeai", "mod/prompt.eeai". The
+// brings its own without touching anyone else's - or one of the mod's own, "mod/computer.eeai", "mod/prompt.eeai", "mod/units.eeai". The
 // files a file includes are its LAYERS, in order, each one's own includes right after it (4 deep, no circles): their
 // names, decide keys, personality and style keys count where the file has none of its own; their lines and prompt
 // texts come after the file's - a situation's line from the first layer whose chain (the situation, then its
 // fallbacks: line_fallback) has something to say now, worked out with that layer's names first (line_source).
 // THE MOD'S OWN (aimod_ai\mod\): computer.eeai and prompt.eeai are the last layers of every personality, unnamed -
 // unless it names them itself (or a layer does), which puts them where it names them; prompt.eeai is computer.eeai's
-// last layer too. computer.eeai: the neutral lines for what must not go unsaid (war, peace, offers, capitulation,
+// last layer too; units.eeai (the groups the texts count with: units, army, buildings ...) a layer of both.
+// computer.eeai: the neutral lines for what must not go unsaid (war, peace, offers, capitulation,
 // victory: k_must); an AI without a personality speaks with it alone (autotest personas=0). A personality without a
 // line for one of k_must (its own or a layer's, the situation's or a fallback's) is a mistake. prompt.eeai: what the
 // language model is told (texts.c). system.eeai (texts.c): the system lines, no layer of anyone. The mod has no texts
@@ -260,7 +261,7 @@ static void lang_detect(void) {
 static int line_fallback(int k);
 static struct persona g_computer, g_prompt;
 static int g_has_computer;
-static int g_texts_missing;   // the mod's files aren't there (mod/system.eeai, prompt.eeai, computer.eeai): it says nothing
+static int g_texts_missing;   // the mod's files aren't there (mod/system.eeai, prompt.eeai, computer.eeai, units.eeai): it says nothing
 static int g_personas_only_computer;   // autotest personas=0: only computer.eeai (AIs without a personality)
 static const enum line_kind k_must[] = {
     L_WAR_DECLARED, L_BETRAYED, L_PEACE_ACCEPT, L_PEACE_REFUSE, L_ALLIANCE_OFFER, L_OFFER_ACCEPTED, L_OFFER_WITHDRAWN,
@@ -271,10 +272,10 @@ struct inc_add { struct includes *inc; struct tlex *l; };
 static void include_add(const char *name, void *arg) {
     struct inc_add *a = arg;
     size_t n = strlen(name);
-    int mod = !lstrcmpiA(name, "mod/computer.eeai") || !lstrcmpiA(name, "mod/prompt.eeai");
+    int mod = !lstrcmpiA(name, "mod/computer.eeai") || !lstrcmpiA(name, "mod/prompt.eeai") || !lstrcmpiA(name, "mod/units.eeai");
     if (!mod && (n < 6 || n >= 64 || lstrcmpiA(name + n - 5, ".eeai") || strpbrk(name, "/\\:") || strstr(name, "..")))
         x_error("%s:%d: include \"%s\": a file name in this folder expected (\"pack_base.eeai\"), or \"mod/computer.eeai\", "
-                "\"mod/prompt.eeai\"", a->l->file, a->l->line, name);
+                "\"mod/prompt.eeai\", \"mod/units.eeai\"", a->l->file, a->l->line, name);
     else if (a->inc->n < INCLUDES_MAX) lstrcpynA(a->inc->name[a->inc->n++], name, 64);
     else x_error("%s:%d: include \"%s\": more than %d included files", a->l->file, a->l->line, name, INCLUDES_MAX);
 }
@@ -454,8 +455,10 @@ static void personas_load(void) {
     g_nlibs = 0;
     g_has_computer = 0;
     lstrcpyA(dir, g_ai_dir);
-    // the mod's own files first (prompt.eeai is computer.eeai's layer too): without them it says nothing (texts.c)
-    if (!lib_get(dir, "mod/prompt.eeai", "eeaimod", 0) || !lib_get(dir, "mod/computer.eeai", "eeaimod", 0)) {
+    // the mod's own files first (prompt.eeai is computer.eeai's layer too, units.eeai both's): without them it says
+    // nothing (texts.c)
+    if (!lib_get(dir, "mod/units.eeai", "eeaimod", 0) || !lib_get(dir, "mod/prompt.eeai", "eeaimod", 0) ||
+        !lib_get(dir, "mod/computer.eeai", "eeaimod", 0)) {
         g_texts_missing = 1;
         g_has_computer = 0;
         return;
@@ -991,7 +994,7 @@ static void cmd_persona(char *out, const char *args) {
 static DWORD WINAPI texts_missing_box(LPVOID arg) {
     (void)arg;
     char text[600];
-    wsprintfA(text, "eeaimod's text files are missing: %smod\\ needs computer.eeai, prompt.eeai and system.eeai.\n\n"
+    wsprintfA(text, "eeaimod's text files are missing: %smod\\ needs computer.eeai, prompt.eeai, units.eeai and system.eeai.\n\n"
               "The computer players play on, but without personalities, AI voice and diplomacy. Copy the mod's aimod_ai "
               "folder next to Empire Earth.exe again (or set ai_dir in aimod.ini).", g_ai_dir);
     MessageBoxA(NULL, text, "eeaimod", MB_OK | MB_ICONWARNING | MB_TOPMOST | MB_SETFOREGROUND);

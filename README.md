@@ -26,7 +26,7 @@ patches such as *Empire Earth Tweaks* or *dreXmod*, which patch different places
 | [config/aimod.ini](config/aimod.ini) | Every setting, explained |
 | [config/aimod_ai/README.md](config/aimod_ai/README.md) | The personalities and texts: format, expressions, values, situations |
 | [config/aimod_ai/_template.eeai](config/aimod_ai/_template.eeai) | An empty personality with every key explained, to copy |
-| [config/aimod_ai/mod/](config/aimod_ai/mod/) | The mod's own texts: `computer.eeai` (every personality's base), `prompt.eeai` (what the mod tells the language model - the AI voice), `system.eeai` (the system lines the mod shows, English and German) |
+| [config/aimod_ai/mod/](config/aimod_ai/mod/) | The mod's own texts: `computer.eeai` (every personality's base), `prompt.eeai` (what the mod tells the language model - the AI voice), `system.eeai` (the system lines the mod shows), `units.eeai` (the groups the texts count with: units, army, buildings ...) |
 
 ## Computer player
 

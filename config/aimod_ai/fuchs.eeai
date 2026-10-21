@@ -32,8 +32,8 @@ style = {
 pawn = them.strength * 2 < me.strength
 rival = me.strength * 2 < them.strength
 # blood between us: more than a skirmish
-my_dead = them.kills(me) > many_dead
-their_dead = me.kills(them) > many_dead
+my_dead = them.kills(me, units) > many_dead
+their_dead = me.kills(them, units) > many_dead
 
 lines = {
     greeting = [
@@ -73,7 +73,7 @@ lines = {
             "Peace, {them}. I forgive - I simply never forget.",
             "Peace, {them}. And this time I shall keep my back to the wall, if you don't mind.",
         ],
-        them.kills(me, this_war) > many_dead and them.kills(me, this_war) > me.kills(them, this_war) and chance(60%) ? "You have made your point, {them}. Rather emphatically. Peace.",
+        them.kills(me, this_war, units) > many_dead and them.kills(me, this_war, units) > me.kills(them, this_war, units) and chance(60%) ? "You have made your point, {them}. Rather emphatically. Peace.",
         them.tribute(me, 30) > 0 and chance(50%) ? "Your gifts did not go unnoticed, {them}. I am always kind to generous people.",
     ] ?? [
         "Peace, {them}? Gladly. For now.",
@@ -175,7 +175,7 @@ lines = {
         "How ... modest, {them}. I shall find a small drawer for it.",
     ]
     attack = [
-        them.razed(me, 20) > 0 and chance(60%) ? "{them} broke some of my lovely things. Let us return the courtesy.",
+        them.kills(me, 20, buildings) > 0 and chance(60%) ? "{them} broke some of my lovely things. Let us return the courtesy.",
         them.betrayals(me) > 0 and chance(60%) ? "{them} once broke faith with me. Today the bill arrives.",
         them.refusals(me) > 1 and chance(50%) ? "{them} has said no to me so often. Let us see if they can say no to this.",
     ] ?? [
@@ -185,7 +185,7 @@ lines = {
     attack_threat = [
         them.betrayals(me) > 0 and chance(60%) ? "Do you sleep well, {them}? Traitors usually don't.",
         them.refusals(me) > 0 and chance(50%) ? "You should have accepted my offer, {them}. Do you remember it? I do.",
-        their_dead and chance(50%) ? "{me.kills(them)} of your people already, {them}. I could stop counting - but I so enjoy it.",
+        their_dead and chance(50%) ? "{me.kills(them, units)} of your people already, {them}. I could stop counting - but I so enjoy it.",
     ] ?? [
         "Let us see how well you sleep, {them}.",
         "A little surprise is on its way to you, {them}.",
@@ -215,14 +215,14 @@ lines = {
     enemy_ahead = "{them} is in a hurry? Those who run fast stumble easily."
     winning = [
         them.betrayals(me) > 0 and chance(60%) ? "You betrayed me, {them}. Did you think I would let that go? How sweet.",
-        their_dead and chance(50%) ? "{me.kills(them)} of yours, {them}, and I have hardly creased my gown.",
+        their_dead and chance(50%) ? "{me.kills(them, units)} of yours, {them}, and I have hardly creased my gown.",
     ] ?? [
         "{them}, you should start begging for mercy.",
         "Everything is going to plan.",
     ]
     losing = [
         enemies > 1 and chance(50%) ? "Everyone against me at once? I suppose I should be flattered.",
-        my_dead and them.kills(me) > me.kills(them) and chance(50%) ? "{them.kills(me)} of my people, {them}. I shall remember every one of them - and so will you.",
+        my_dead and them.kills(me, units) > me.kills(them, units) and chance(50%) ? "{them.kills(me, units)} of my people, {them}. I shall remember every one of them - and so will you.",
     ] ?? [
         "Hm. That was not the plan.",
         "Perhaps we should talk, {them}?",

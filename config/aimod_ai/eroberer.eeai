@@ -35,8 +35,8 @@ style = {
 weakling = them.strength * 2 < me.strength
 worthy = me.strength * 2 < them.strength
 # blood between us: more than a skirmish
-my_dead = them.kills(me) > many_dead
-their_dead = me.kills(them) > many_dead
+my_dead = them.kills(me, units) > many_dead
+their_dead = me.kills(them, units) > many_dead
 
 lines = {
     greeting = [
@@ -70,8 +70,8 @@ lines = {
         "I turned my back on you, {them}. That was MY mistake. The next one is yours.",
     ]
     peace_accept = [
-        me.kills(them, this_war) > many_dead and me.kills(them, this_war) > them.kills(me, this_war) * 2 and chance(60%) ? "You have bled enough, {them}. The Khan is merciful - today.",
-        them.kills(me, this_war) > many_dead and them.kills(me, this_war) > me.kills(them, this_war) and chance(60%) ? "You fight like a steppe wolf, {them}. Peace - between wolves.",
+        me.kills(them, this_war, units) > many_dead and me.kills(them, this_war, units) > them.kills(me, this_war, units) * 2 and chance(60%) ? "You have bled enough, {them}. The Khan is merciful - today.",
+        them.kills(me, this_war, units) > many_dead and them.kills(me, this_war, units) > me.kills(them, this_war, units) and chance(60%) ? "You fight like a steppe wolf, {them}. Peace - between wolves.",
         them.betrayals(me) > 0 ? [
             "Peace. But this time I keep my eyes on your hands, {them}.",
             "Peace, {them}. My riders stay in the saddle - a traitor's peace is only a pause.",
@@ -86,7 +86,7 @@ lines = {
             "Your word, {them}? I have tested it already. It breaks like dry grass.",
         ],
         them.refusals(me, 30) > 0 and chance(70%) ? "You turned down my peace once, {them}. Now you know how it tastes.",
-        them.kills(me, 10) > many_dead / 3 and chance(50%) ? "My dead are not even cold, {them}. No.",
+        them.kills(me, 10, units) > many_dead / 3 and chance(50%) ? "My dead are not even cold, {them}. No.",
     ] ?? [
         "Peace? Not until your cities burn, {them}.",
         "All I hear is the whimpering of the beaten, {them}.",
@@ -152,14 +152,14 @@ lines = {
         "So little, {them}? Even a beggar on the steppe gives the Khan more.",
     ]
     attack = [
-        them.razed(me, 20) > 0 and chance(60%) ? "They burned our tents. Now we burn theirs!",
-        them.kills(me, 20) > many_dead / 2 and them.kills(me, 20) > me.kills(them, 20) and chance(60%) ? "Revenge for our dead! Ride against {them}!",
+        them.kills(me, 20, buildings) > 0 and chance(60%) ? "They burned our tents. Now we burn theirs!",
+        them.kills(me, 20, units) > many_dead / 2 and them.kills(me, 20, units) > me.kills(them, 20, units) and chance(60%) ? "Revenge for our dead! Ride against {them}!",
     ] ?? [
         "Riders, gather! We ride against {them}!",
         "Today {them}'s land burns.",
     ]
     attack_threat = [
-        their_dead and chance(50%) ? "{me.kills(them)} of your men already feed the crows, {them}. Count again.",
+        their_dead and chance(50%) ? "{me.kills(them, units)} of your men already feed the crows, {them}. Count again.",
     ] ?? [
         "{them}, do you hear the hooves?",
         "Count your men, {them}. Soon there will be fewer.",
@@ -186,7 +186,7 @@ lines = {
     ]
     enemy_ahead = "{them} is ahead of us? We catch up - and then we ride them down."
     winning = [
-        their_dead and chance(50%) ? "{me.kills(them)} of yours lie in the grass, {them}. More will follow.",
+        their_dead and chance(50%) ? "{me.kills(them, units)} of yours lie in the grass, {them}. More will follow.",
     ] ?? [
         "Do you see {them} waver? One more push!",
         "{them}, your end is near.",

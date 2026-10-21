@@ -180,7 +180,7 @@ epoch.nosuch
 color.red
 color.nosuch
 them.color == color.red
-units.army
+army
 units.nosuch
 opinion
 opinion > 30% ? "friend" : "stranger"
@@ -188,9 +188,9 @@ them.opinion(me)
 opinion(them)
 them.kills(me)
 them.kills(me, 10)
-them.kills(me, units.army)
-them.kills(me, 10, units.army)
-them.kills(me, units.army, 10)
+them.kills(me, army)
+them.kills(me, 10, army)
+them.kills(me, army, 10)
 them.tribute(me, 15)
 them.opinion(5)
 them.opinion("x")

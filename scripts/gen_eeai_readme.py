@@ -54,11 +54,11 @@ def table(rows, prefix, head, suffix=''):
 values = '\n\n'.join([
     '**Of each player** - `me.`, `them.`, `enemy.`, `lord.`:\n\n' + table(kinds['XM_PLAYER'] + kinds['XM_LINK'] + [(n + '(filter)', d) for n, d in kinds['XM_FILTER']], 'X.', 'Member'),
     '**Relations** of player A with player B - `me.opinion(them)`, `them.opinion(me)`, `enemy.at_war(them)`; '
-    'without `A.` mine (`opinion(enemy)`). Those that count events - `tribute`, `refusals`, `betrayals`, `kills`, '
-    '`razed` - take a time window as a second argument: `them.tribute(me, 15)` counts the last 15 minutes only '
+    'without `A.` mine (`opinion(enemy)`). Those that count events - `tribute`, `refusals`, `betrayals`, `kills` - '
+    'take a time window as a second argument: `them.tribute(me, 15)` counts the last 15 minutes only '
     '(`16.5` too), without it (or with 0) the whole game. Older events are the whole game minus the window - '
-    '`them.betrayals(me) - them.betrayals(me, 20)` counts those more than 20 minutes ago, `me.razed(them, 60) - '
-    'me.razed(them, 20)` those 20 to 60 minutes ago; a negative window is a mistake:\n\n' + table(kinds['XM_REL'], 'A.', 'Relation', '(B)'),
+    '`them.betrayals(me) - them.betrayals(me, 20)` counts those more than 20 minutes ago, `me.kills(them, 60, buildings) - '
+    'me.kills(them, 20, buildings)` those 20 to 60 minutes ago; a negative window is a mistake:\n\n' + table(kinds['XM_REL'], 'A.', 'Relation', '(B)'),
     '**The game:**\n\n' + table([(n, c_string(d)) for n, k, d in members('k_xglobals')], '', 'Name'),
 ])
 

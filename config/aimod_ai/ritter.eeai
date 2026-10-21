@@ -32,8 +32,8 @@ outmatched = them.strength * 2 < me.strength
 oathbreaker = them.betrayals(me) > 0
 my_shame = me.betrayals(them) > 0
 # blood between us: more than a skirmish
-my_fallen = them.kills(me) > many_dead
-their_fallen = me.kills(them) > many_dead
+my_fallen = them.kills(me, units) > many_dead
+their_fallen = me.kills(them, units) > many_dead
 # a long bond - only where we are allied (nothing otherwise)
 old_bond = me.alliance_minutes(them) > 30
 
@@ -77,8 +77,8 @@ lines = {
             "I accept, {them} - though you broke faith with me once. Give me no cause to regret it.",
             "Peace, {them}. I will keep my word as I always have - whether you keep yours this time is on your soul.",
         ],
-        me.kills(them, this_war) > many_dead and me.kills(them, this_war) > them.kills(me, this_war) * 2 and chance(60%) ? "You have lost enough brave men, {them}. There is no honour in striking the beaten. Peace.",
-        them.kills(me, this_war) > many_dead and them.kills(me, this_war) > me.kills(them, this_war) and chance(60%) ? "You fought well, {them}, and my knights paid for it. Peace - between equals.",
+        me.kills(them, this_war, units) > many_dead and me.kills(them, this_war, units) > them.kills(me, this_war, units) * 2 and chance(60%) ? "You have lost enough brave men, {them}. There is no honour in striking the beaten. Peace.",
+        them.kills(me, this_war, units) > many_dead and them.kills(me, this_war, units) > me.kills(them, this_war, units) and chance(60%) ? "You fought well, {them}, and my knights paid for it. Peace - between equals.",
     ] ?? [
         "I accept your peace, {them}. Keep your word - I will keep mine.",
         "Then let us shake hands, {them}. May it be a lasting peace.",
@@ -89,7 +89,7 @@ lines = {
             "An oathbreaker's peace is a trap with a seal on it, {them}. I will not set my name beneath it.",
         ],
         them.refusals(me, 30) > 0 and chance(70%) ? "I offered you my hand once, {them}, and you struck it away. Now it holds a sword.",
-        them.kills(me, 10) > many_dead / 3 and chance(50%) ? "My knights lie unburied, {them}. Their honour asks more of me than words.",
+        them.kills(me, 10, units) > many_dead / 3 and chance(50%) ? "My knights lie unburied, {them}. Their honour asks more of me than words.",
     ] ?? [
         "The insult is not yet avenged, {them}.",
         "Your word means nothing to me any more, {them}.",
@@ -175,8 +175,8 @@ lines = {
             "Against the oathbreaker {them}! Let steel answer for a broken word!",
             "Ride! {them} swore an oath and broke it - today we hold them to account.",
         ],
-        them.razed(me, 20) > 0 and chance(60%) ? "{them} burned our halls. We ride to answer it - with honour, not with torches.",
-        them.kills(me, 20) > many_dead / 2 and them.kills(me, 20) > me.kills(them, 20) and chance(60%) ? "For our fallen! Ride against {them}!",
+        them.kills(me, 20, buildings) > 0 and chance(60%) ? "{them} burned our halls. We ride to answer it - with honour, not with torches.",
+        them.kills(me, 20, units) > many_dead / 2 and them.kills(me, 20, units) > me.kills(them, 20, units) and chance(60%) ? "For our fallen! Ride against {them}!",
     ] ?? [
         "For honour and crown! Against {them}!",
         "To horse! {them} awaits us.",
@@ -184,7 +184,7 @@ lines = {
     ]
     attack_threat = [
         outmatched and chance(50%) ? "{them}, your ranks are thin. Yield now, and no more need die.",
-        their_fallen and chance(50%) ? "{me.kills(them)} of your people have fallen to my knights already, {them}. Yield, and spare the rest.",
+        their_fallen and chance(50%) ? "{me.kills(them, units)} of your people have fallen to my knights already, {them}. Yield, and spare the rest.",
     ] ?? [
         "{them}, defend yourself - I come openly and with honour.",
         "My knights ride against you, {them}. Prepare yourself.",
@@ -207,7 +207,7 @@ lines = {
     ]
     enemy_ahead = "{them} is further along than we are. Courage makes up for much."
     winning = [
-        their_fallen and chance(50%) ? "{me.kills(them)} of yours have fallen, {them}. Enough brave men have died - yield with honour.",
+        their_fallen and chance(50%) ? "{me.kills(them, units)} of yours have fallen, {them}. Enough brave men have died - yield with honour.",
     ] ?? [
         "Victory is near. Stand firm!",
         "{them}, surrender with honour.",

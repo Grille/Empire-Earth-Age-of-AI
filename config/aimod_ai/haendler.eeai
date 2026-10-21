@@ -34,8 +34,8 @@ good_customer = them.tribute(me) > 0
 i_paid = me.tribute(them) > 0
 big_spender = them.tribute(me) > big_tribute
 # losses are costs, their losses are returns - more than a skirmish
-my_costs = them.kills(me) > many_dead
-my_returns = me.kills(them) > many_dead
+my_costs = them.kills(me, units) > many_dead
+my_returns = me.kills(them, units) > many_dead
 # a full treasury - his own stock, the only one he can see
 full_coffers = me.gold > 1000
 
@@ -84,7 +84,7 @@ lines = {
             "Peace, {them}. But this time I want a deposit - I know your record.",
             "Peace, {them}. I sign - but after your last contract I read every line twice.",
         ],
-        them.kills(me, this_war) > many_dead and them.kills(me, this_war) > me.kills(them, this_war) and chance(60%) ? "Agreed, {them}. {them.kills(me, this_war)} of my people - this war has cost me far too much already.",
+        them.kills(me, this_war, units) > many_dead and them.kills(me, this_war, units) > me.kills(them, this_war, units) and chance(60%) ? "Agreed, {them}. {them.kills(me, this_war, units)} of my people - this war has cost me far too much already.",
         good_customer and chance(60%) ? "You have paid me {them.tribute(me)} so far, {them}. A good customer deserves peace.",
     ] ?? [
         "Peace! Sensible again at last, {them}. Let us trade.",
@@ -97,7 +97,7 @@ lines = {
             "You broke our last contract, {them}. Why would I sign another with the same customer?",
         ],
         them.refusals(me, 30) > 0 and chance(70%) ? "You turned down my offer once, {them}. Prices have gone up since.",
-        me.kills(them, this_war) > many_dead and me.kills(them, this_war) > them.kills(me, this_war) and chance(50%) ? "{me.kills(them, this_war)} of yours so far, {them}. This war is finally paying off - I do not sell a rising stock.",
+        me.kills(them, this_war, units) > many_dead and me.kills(them, this_war, units) > them.kills(me, this_war, units) and chance(50%) ? "{me.kills(them, this_war, units)} of yours so far, {them}. This war is finally paying off - I do not sell a rising stock.",
     ] ?? [
         "Peace has its price, {them}. And you have not paid it yet.",
         "You come to me empty-handed, {them}? No, thank you.",
@@ -178,15 +178,15 @@ lines = {
         "Small change, {them}. Still - every coin counts.",
     ]
     attack = [
-        them.razed(me, 20) > 0 and chance(60%) ? "{them} destroyed {them.razed(me, 20)} of my buildings. Time to deliver the invoice!",
-        them.kills(me, 20) > many_dead / 2 and them.kills(me, 20) > me.kills(them, 20) and chance(60%) ? "{them.kills(me, 20)} of my people, {them}. Now I collect - with interest!",
+        them.kills(me, 20, buildings) > 0 and chance(60%) ? "{them} destroyed {them.kills(me, 20, buildings)} of my buildings. Time to deliver the invoice!",
+        them.kills(me, 20, units) > many_dead / 2 and them.kills(me, 20, units) > me.kills(them, 20, units) and chance(60%) ? "{them.kills(me, 20, units)} of my people, {them}. Now I collect - with interest!",
     ] ?? [
         "My mercenaries are paid - time they earned it. Against {them}!",
         "An investment in {them}'s downfall.",
     ]
     attack_threat = [
         them.betrayals(me) > 0 and chance(70%) ? "{them}, the bill for your betrayal is due. Payment on delivery.",
-        my_returns and chance(50%) ? "My ledger shows {me.kills(them)} of your men so far, {them}. Shall I keep adding?",
+        my_returns and chance(50%) ? "My ledger shows {me.kills(them, units)} of your men so far, {them}. Shall I keep adding?",
     ] ?? [
         "{them}, my mercenaries send their regards.",
         "Consider this a hostile takeover, {them}.",
@@ -217,13 +217,13 @@ lines = {
     ]
     enemy_ahead = "{them} is ahead of us? I shall have to correct my books."
     winning = [
-        my_returns and me.kills(them) > them.kills(me) and chance(50%) ? "{me.kills(them)} on your side, {them.kills(me)} on mine, {them}. The balance is in my favour.",
+        my_returns and me.kills(them, units) > them.kills(me, units) and chance(50%) ? "{me.kills(them, units)} on your side, {them.kills(me, units)} on mine, {them}. The balance is in my favour.",
     ] ?? [
         "The balance sheet looks good. Very good indeed.",
         "{them}, you should consider a settlement.",
     ]
     losing = [
-        my_costs and them.kills(me) > me.kills(them) and chance(60%) ? "{them.kills(me)} of my people lost to {them}. This war is eating my capital.",
+        my_costs and them.kills(me, units) > me.kills(them, units) and chance(60%) ? "{them.kills(me, units)} of my people lost to {them}. This war is eating my capital.",
         full_coffers and chance(50%) ? "Still {round(me.gold)} gold in the vaults, {them}. Enough to hire a great many mercenaries.",
     ] ?? [
         "I do not like these numbers.",

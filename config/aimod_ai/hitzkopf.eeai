@@ -34,9 +34,9 @@ style = {
 pushover = them.strength * 2 < me.strength
 big_one = me.strength * 2 < them.strength
 # a proper brawl: blood on both sides
-good_fight = me.kills(them) > many_dead / 2 and them.kills(me) > many_dead / 2
+good_fight = me.kills(them, units) > many_dead / 2 and them.kills(me, units) > many_dead / 2
 # his tally - he counts every head he knocks
-my_tally = me.kills(them) > many_dead
+my_tally = me.kills(them, units) > many_dead
 # only where we are at war (nothing otherwise)
 long_war = me.war_minutes(them) > 30
 
@@ -53,7 +53,7 @@ lines = {
     war_declared = [
         pushover and chance(60%) ? "YOU, {them}? Hahaha! I'll fight you with one hand behind my back!",
         big_one and chance(60%) ? "Ooh, a big one! Good, {them} - the big ones fall the loudest!",
-        my_tally and chance(60%) ? "Back for more, {them}? Last time I flattened {me.kills(them)} of yours!",
+        my_tally and chance(60%) ? "Back for more, {them}? Last time I flattened {me.kills(them, units)} of yours!",
         them.tribute(me, 20) > 0 ? [
             "First presents, now punches, {them}? HA! I'll take both!",
             "{them.tribute(me, 20)} worth of presents, {them}, and I still want a fight! You can't buy off a brawler! HA!",
@@ -90,7 +90,7 @@ lines = {
         ],
         them.refusals(me, 15) > 0 and chance(60%) ? "You said no to MY peace, {them}! Now I say no! HA! ...What were we fighting about again?",
         long_war and chance(60%) ? "{me.war_minutes(them)} minutes of brawling and you want to stop NOW, {them}? It's only just getting good!",
-        me.kills(them, 20) > many_dead / 2 and chance(60%) ? "Stop? I'm on a roll, {them}! {me.kills(them, 20)} of yours just lately!",
+        me.kills(them, 20, units) > many_dead / 2 and chance(60%) ? "Stop? I'm on a roll, {them}! {me.kills(them, 20, units)} of yours just lately!",
     ] ?? [
         "Peace? I've only just warmed up, {them}!",
         "NO! Keep fighting!",
@@ -160,16 +160,16 @@ lines = {
         "That's not a present, {them}, that's a crumb! I'm no sparrow!",
     ]
     attack = [
-        them.razed(me, 20) > 0 and chance(60%) ? "They smashed my houses! Now we smash theirs! At {them}!",
-        them.kills(me, 20) > many_dead / 2 and them.kills(me, 20) > me.kills(them, 20) and chance(60%) ? "{them} has knocked down more of ours than we of theirs! Let's fix that, lads!",
-        me.kills(them, 20) > many_dead / 2 and chance(50%) ? "That was fun just now! Again! At {them}!",
+        them.kills(me, 20, buildings) > 0 and chance(60%) ? "They smashed my houses! Now we smash theirs! At {them}!",
+        them.kills(me, 20, units) > many_dead / 2 and them.kills(me, 20, units) > me.kills(them, 20, units) and chance(60%) ? "{them} has knocked down more of ours than we of theirs! Let's fix that, lads!",
+        me.kills(them, 20, units) > many_dead / 2 and chance(50%) ? "That was fun just now! Again! At {them}!",
     ] ?? [
         "ATTACK! At {them}!",
         "Come on, lads! {them} is waiting!",
         "Last one to reach {them} is a coward!",
     ]
     attack_threat = [
-        my_tally and chance(50%) ? "{me.kills(them)} of yours flattened so far, {them}! Let's make it a round number!",
+        my_tally and chance(50%) ? "{me.kills(them, units)} of yours flattened so far, {them}! Let's make it a round number!",
         big_one and chance(50%) ? "You're big, {them}, and I'm coming anyway! HAHA!",
     ] ?? [
         "HERE WE COME, {them}!",
@@ -198,14 +198,14 @@ lines = {
     ]
     enemy_ahead = "{them} has new toys? I'll take them!"
     winning = [
-        my_tally and chance(50%) ? "{me.kills(them)} flattened, {them}! I'm counting, you know! HAHA!",
+        my_tally and chance(50%) ? "{me.kills(them, units)} flattened, {them}! I'm counting, you know! HAHA!",
         good_fight and chance(50%) ? "Now THAT is a fight, {them}! Pity it's nearly over!",
     ] ?? [
         "Hahaha! Run, {them}, run!",
         "Is that all, {them}?",
     ]
     losing = [
-        them.kills(me) > many_dead and chance(50%) ? "{them} has knocked {them.kills(me)} of my lads flat! I like this one!",
+        them.kills(me, units) > many_dead and chance(50%) ? "{them} has knocked {them.kills(me, units)} of my lads flat! I like this one!",
         big_one and chance(50%) ? "{them} is a big one! Finally a proper fight!",
     ] ?? [
         "That was just the warm-up!",
@@ -220,7 +220,7 @@ lines = {
             "Bye, {them}! You stabbed me once, didn't you? Or was that someone else? Ah, never mind - GONE!",
             "That's for the knife, {them}! ...See? I DID remember! HAHA!",
         ],
-        my_tally and chance(60%) ? "{them} is flattened! {me.kills(them)} of those were mine! Who's next?",
+        my_tally and chance(60%) ? "{them} is flattened! {me.kills(them, units)} of those were mine! Who's next?",
         good_fight and chance(60%) ? "{them} put up a proper fight! I'll miss that! ...Who's next?",
     ] ?? [
         "{them} is flattened! Who's next?",
