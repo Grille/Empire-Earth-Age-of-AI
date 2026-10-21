@@ -212,7 +212,7 @@ static void trace_site(uint8_t *rm, const char *what, uintptr_t caller, void *un
     trace_emit(buf);
 }
 
-// OVERSEAS MINES ([all] overseas_mines, default 0 - Art of Conquest's fix): on a water map the citizen assignment
+// OVERSEAS MINES ([all] overseas_mines, default on - Art of Conquest's fix): on a water map the citizen assignment
 // (0x48A554) asks at its last call (MINE_SITES[5]) for any mine, no unit given, whenever a mine type is still short or
 // the overseas timer (0x43123A) is due - with nobody short too - and puts every idle citizen of the home island on the
 // transport manager's crossing to it (0x48A382). Any free mine does, the home island's too (60-75% of the searches;
@@ -220,8 +220,11 @@ static void trace_site(uint8_t *rm, const char *what, uintptr_t caller, void *un
 // the leftover pass after it (run only while idle ones are left) - idle until the next. Art of Conquest (0x48F3F5)
 // ships only citizens connected to home and not to the mine. Here that search gets only a mine on another continent
 // (region class 2, as the searches compare) than the base, none if there is none. Counted for every player (the
-// game's own AI too): "# overseas mines:" with the islands log.
-static int g_overseas_mines = 0;
+// game's own AI too): "# overseas mines:" with the islands log. Measured (scenarios/islands.eeai, 60 min, 36 seeds x 2
+// AIs, on - off): Small Islands e5 citizens +4.2 (se 2.5), home miners +3.1 (1.7), income +659 (1017); Large Islands e9
+// citizens +2.3 (1.1), home miners +1.7 (1.3), income +25 (536); kills, losses, epochs within noise - a small gain
+// within 2 standard errors, on since it costs nothing (2026-10-21, the user).
+static int g_overseas_mines = 1;
 static unsigned g_oversea[16][4];   // per player: searches, home mines found, overseas mines found, home ones replaced
 static void *find_mine_pick(uint8_t *rm, int type, uint8_t *unit, uintptr_t rev, uintptr_t caller);
 static void *__fastcall hook_find_mine(uint8_t *rm, void *edx, int type, uint8_t *unit, uintptr_t rev) {
@@ -319,7 +322,7 @@ static void *__fastcall hook_find_wood(uint8_t *rm, void *edx, uintptr_t flag, u
 static void sites_install(const char *aimod_ini, const char *autotest_ini) {
     g_site_max_dist = cfg_int(aimod_ini, autotest_ini, 1, "site_max_distance", 20);
     g_mine_choice = cfg_int(aimod_ini, autotest_ini, 1, "mine_choice", 1);
-    g_overseas_mines = cfg_int(aimod_ini, autotest_ini, 1, "overseas_mines", 0);
+    g_overseas_mines = cfg_int(aimod_ini, autotest_ini, 1, "overseas_mines", 1);
     int ok = 0, total = 0;
     // always: the searches refuse sites behind known enemy towers (avoid_towers_citizens, attack.c)
     for (size_t i = 0; i < sizeof GL(MINE_SITES) / sizeof *GL(MINE_SITES); i++, total++)
