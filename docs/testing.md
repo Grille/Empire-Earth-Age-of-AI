@@ -883,7 +883,10 @@ names (`eroberer vars stance` ...). The built-in texts gone (the files the only 
 the same game against that build - every row the same but the expected: the German system words now English (in a
 German game), and in the system/prompt rows and the hand-written cases' fills a value or a prompt name (`{me}`,
 `{opinion}`, `{stance}`) worked out, where the corpus had put `<me>` before (the lists of code placeholders came from
-the built-in texts and held them too).
+the built-in texts and held them too). The language without the game (2026-10-21: script/host.h, the constants to
+game_script/, a value's player now its `obj`): Continental 777 at 5/15/30, 6553 rows each the same; `texts bench`
+the same within the noise (me.count(kind.towers) 1.66 / 1.73 µs - the constants still kept in the tree); the 40-minute
+games Continental 777 and Small Islands 4242 the same row for row.
 
 ### Headless UI tests (menus, editor)
 

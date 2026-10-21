@@ -21,6 +21,8 @@ struct ustring;
 #include "base/patch.c"
 #include "base/reply.c"
 #include "base/paths.c"
+#include "base/mistakes.c"
+#include "base/math.c"
 #include "game/addr.h"     // the game's addresses by name, per exe build: GA(G_WORLD_CLOCK), GF(FN_CAN_BUILD)(pl, t, 0x20, 0)
 #include "game/layout.h"
 #include "game/players.c"
@@ -337,6 +339,7 @@ static char __fastcall hook_game_start(void *state, void *edx, uint8_t *setup, v
 #include "ai/army.c"
 #include "ai/intel.c"
 #include "script/expr.c"
+#include "game_script/constants.c"
 #include "voice/persona.c"
 #include "voice/texts.c"
 #include "ai/diplo.c"
@@ -412,7 +415,26 @@ static void config_paths(void) {
     lstrcpyA(g_ai_dir, dir);
 }
 
+// THE TEXT LANGUAGE'S HOST (script/host.h): what it asks the game - its values and relations (diplo.c), constants
+// (game_script/constants.c), the players as objects, the two generators and the function files (persona.c), the code's
+// placeholders (texts.c), the commands a script may call (scripts.c). Set before any text or setting is read.
+static void x_host_install(void) {
+    g_x_host.value = x_builtin;
+    g_x_host.is_value = x_is_value;
+    g_x_host.name_valid = x_name_valid;
+    g_x_host.method = x_method;
+    g_x_host.object = x_player_n;
+    g_x_host.constant = ee_constant;
+    g_x_host.rnd_show = rnd;
+    g_x_host.rnd_decide = rnd_game;
+    g_x_host.scan_functions = x_fn_scan_dir;
+    g_x_host.placeholders = x_code_placeholders;
+    g_x_host.command = x_command_verb;
+    g_ini_eval = x_const_eval;
+}
+
 static void install(HMODULE self) {
+    x_host_install();
     // The engine may FreeLibrary() DLLs that aren't render plugins; our hooks must outlive that.
     HMODULE pinned;
     GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_PIN,

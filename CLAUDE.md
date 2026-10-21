@@ -13,7 +13,8 @@ Several sessions may work in this tree at the same time - see Git below.
   regenerates `dll/persist_layout.h` and `dll/test/cmd_verbs.h`). One translation unit: `dll/eeaimod.c` includes the rest.
   A build must be free of warnings.
 - `dll/` has a folder per part, and which part may use which is a rule the build checks (`scripts/layers.py`):
-  base (nothing) <- game <- engine, ai; script (base only: the language knows no game); voice (base, game, ai, script);
+  base (nothing) <- game <- engine, ai; script (base only: the language knows no game - script/host.h asks the
+  program); game_script (the game in the language: base, game, ai, script); voice (all of those);
   test and the wiring (`eeaimod.c`, `persist.c`) everything. A new crossing fails the build - put the code where it
   belongs (a shared helper down into base/ or game/) instead of adding an exception. `--why <folder>` lists the uses.
 - A move that should change no code (files, functions between files): `scripts/code_same.py HEAD` must say "0 differ".

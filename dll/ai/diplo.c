@@ -479,14 +479,6 @@ static void opinion_add(int ai, int j, float d) {
 // log2 from arithmetic only (multiplayer: the C runtime's log2f comes with Windows and may differ between versions;
 // every PC must decide the same). Exponent from the bits, the mantissa m in [1,2) by the atanh series
 // ln m = 2 (t + t^3/3 + t^5/5 + t^7/7), t = (m-1)/(m+1) <= 1/3: error < 1e-5.
-static float det_log2f(float x) {
-    if (!(x > 0)) return -1000.0f;
-    union { float f; uint32_t u; } b = { x };
-    int e = (int)((b.u >> 23) & 0xFF) - 127;
-    b.u = (b.u & 0x007FFFFF) | 0x3F800000;
-    float t = (b.f - 1.0f) / (b.f + 1.0f), t2 = t * t;
-    return (float)e + 2.0f * t * (1.0f + t2 * (1.0f / 3 + t2 * (1.0f / 5 + t2 * (1.0f / 7)))) * 1.44269504f;
-}
 
 // would AI pl make peace / an alliance with player j now? (score > 0) - its decide peace_score (me = pl, them = j,
 // enemy = its strongest enemy: mod/computer.eeai has the base); the cooling-off after j's declaration is the rule's
@@ -2006,7 +1998,7 @@ static void *x_lord(void *p) { return p && g_lord[pidx(p)] ? player_at(g_lord[pi
 static void x_player(struct xval *v, void *p, const char *who) {   // a player as a value: its name, itself
     if (!p) { xnothing(v); lstrcpynA(v->miss, who, sizeof v->miss); return; }   // who isn't there: to be checked
     xstr(v, *player_name(p) && *player_name(p) != '?' ? player_name(p) : "the player");   // a test's idle human has no name
-    v->pl = pidx(p) + 1;
+    v->obj = pidx(p) + 1;
 }
 static int x_player_n(int n, struct xval *v) {   // expr.c: player(n) in a script - player n, 0: none there
     void *p = n >= 1 && n < nplayers() ? player_at(n) : NULL;
@@ -2016,7 +2008,7 @@ static int x_player_n(int n, struct xval *v) {   // expr.c: player(n) in a scrip
 }
 static void *x_player_of(const struct xval *v) {   // the player a value is - or names (a placeholder: {ally})
     if (!v->w) return NULL;
-    if (v->pl) return player_at(v->pl - 1);
+    if (v->obj) return player_at(v->obj - 1);
     return v->has_s ? x_player_named(v->s) : NULL;
 }
 // member m of player px

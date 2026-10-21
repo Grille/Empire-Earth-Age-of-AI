@@ -164,22 +164,6 @@ static char *read_text_acp(const char *path) {
     return a;
 }
 
-// Player colours: index into the game's colour table (0x8CFA74: pointers to {?, float r, g, b}); entries 0-16 are
-// player colours (17+ other engine colours). Names in English or German (cp1252 umlauts as \xFC).
-static const char *const k_color_names[17][3] = {
-    { "blue", "blau", "" }, { "red", "rot", "" }, { "yellow", "gelb", "" }, { "magenta", "lila", "" },
-    { "orange", "orange", "" }, { "green", "gruen", "gr\xFCn" }, { "cyan", "tuerkis", "t\xFCrkis" },
-    { "darkred", "dunkelrot", "" }, { "darkgrey", "dunkelgrau", "" }, { "purple", "violett", "" },
-    { "grey", "grau", "" }, { "silver", "silber", "" }, { "lightyellow", "hellgelb", "" },
-    { "lime", "hellgruen", "hellgr\xFCn" }, { "lightblue", "hellblau", "" }, { "pink", "rosa", "" },
-    { "darkgrey2", "dunkelgrau2", "" },
-};
-static int color_index(const char *s) {   // by its name; -1: none
-    for (int c = 0; c < 17; c++)
-        for (int k = 0; k < 3; k++)
-            if (k_color_names[c][k][0] && !lstrcmpiA(s, k_color_names[c][k])) return c;
-    return -1;
-}
 static const float *color_rgb(int c) {
     uint8_t **b = *(uint8_t ***)GA(G_COLORS_BEGIN), **e = *(uint8_t ***)GA(G_COLORS_END);
     return b && c >= 0 && c < e - b && b[c] ? (const float *)(b[c] + 4) : NULL;
@@ -584,7 +568,7 @@ static double persona_decide(void *pl, int k, void *them, void *enemy) {
             if (!c.failed) x_log_bad("a decision that is no expression", q->decide[k]);
             continue;
         }
-        if (!x.w || !x.has_n || x.pl) {   // nothing, a text, a player: no number to decide by
+        if (!x.w || !x.has_n || x.obj) {   // nothing, a text, a player: no number to decide by
             x_error("decide %s of %s: not a number - the next layer's instead", k_decide_keys[k], q->file);
             continue;
         }
@@ -804,7 +788,7 @@ static void persona_apply(void *pl, unsigned idx, int pick) {
             const char *why = "a number expected";
             if (sk < 0) continue;
             if (!x_eval(p->style_val[k], &xc, &v)) { if (!xc.failed) x_log_bad("a style value that is no expression", p->style_val[k]); continue; }
-            if (!v.w || !v.has_n || v.pl || !cfg_style_set(&c, sk, v.n, &why)) {
+            if (!v.w || !v.has_n || v.obj || !cfg_style_set(&c, sk, v.n, &why)) {
                 x_error("%s: style %s = %.60s: %s - the difficulty's value instead", p->file, p->style_key[k], p->style_val[k], why);
                 continue;
             }

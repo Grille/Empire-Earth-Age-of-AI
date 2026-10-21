@@ -151,7 +151,7 @@ static int tsubv_vars(char *out, int cap, const char *tmpl, void *pl, void *othe
     va_copy(ap, ap0);
     for (const char *n; np < 24 && (n = va_arg(ap, const char *)) != NULL; np++) {
         const char *v = va_arg(ap, const char *);
-        if (x_is_value(n)) x_error("{%s}: a placeholder with the name of a value (eeaimod)", n);
+        if (g_x_host.is_value(n)) x_error("{%s}: a placeholder with the name of a value (eeaimod)", n);
         pn[np] = n;
         pv[np] = v ? v : "";
     }
@@ -236,7 +236,7 @@ static void corpus_val(const char *tag, const struct xval *v, int ok, int failed
     fprintf(g_corpus, "%s | ok %d failed %d", tag, ok, failed);
     if (ok && v->w) {
         xto_text(v, t, sizeof t);
-        fprintf(g_corpus, " w %d n %d:%.9g s %d pl %d [", v->w, v->has_n, v->has_n ? v->n : 0, v->has_s, v->pl);
+        fprintf(g_corpus, " w %d n %d:%.9g s %d pl %d [", v->w, v->has_n, v->has_n ? v->n : 0, v->has_s, v->obj);
         corpus_esc(t);
         fputc(']', g_corpus);
         for (int i = 0; i < v->ln; i++) { xto_text(xl_at(v, i), t, sizeof t); fputs(i ? " | " : " items: ", g_corpus); corpus_esc(t); }

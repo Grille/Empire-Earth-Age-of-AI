@@ -10,7 +10,6 @@
 #include "unit_ids.h"   // the types the AI code names: UT(B_FARM)
 static int unit_type_named(const char *name, int n);
 
-static void x_error(const char *fmt, ...);   // expr.c
 static char g_unit_ident[G_TYPES_N][64];      // "" no such type
 static unsigned short g_kind_first[UNIT_KINDS + 1], g_kind_types[G_TYPES_N];   // a kind's types: g_kind_types[first[k]..first[k + 1])
 static int g_unit_types_n;                    // the types read; 0: the game hasn't loaded its data yet

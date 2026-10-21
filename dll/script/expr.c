@@ -16,13 +16,13 @@
 // personality's line is such a value: [allied ? "Welcome back.", opinion < -50 ? angry] ?? ["Greetings.", "Hello."]
 // A mistake is logged with the file and line (# texts:) and that key is skipped.
 // The expressions: numbers (70% is 0.7 - % only right after a number), "texts" (or 'texts', the same rules), lists,
-// names (a placeholder of the text, a vars entry, a game value - x_builtin in diplo.c), ( ), + - * /,
+// names (a placeholder of the text, a vars entry, a value of the host's - script/host.h), ( ), + - * /,
 // < <= > >= == !=, and or not (only the words: && || ! are a mistake), a ? b : c, a ? b, a ?? b, the functions
 // chance(p) (true with the probability p, 0..1: chance(70%)), rnd(n) (0 <= x < n, n 1 when left out), min, max, abs,
 // round, floor (down to a whole number), log2 (of a number above 0), the lists' len(l), first(l), item(l, i) (from 1), contains(l, x) and
 // map_range(x, [limits], [values]) (the value of the first limit x is below, the last past them all - a value no
 // list is a list of one), str(x) / number(x) (its text only / its number, a text's when it is one, else nothing), and
-// the players' relations: them.opinion(me) (x_method in diplo.c). A player (me, them, ...) is a value: its
+// the host's relations: them.opinion(me) (script/host.h method). A player (me, them, ...) is a value: its
 // name, equal only to itself.
 // A placeholder's number is written with up to 2 decimals, or by its format after the last ':' that belongs to no
 // '?' (x_fmt_at): {x:%} a share (0.5 -> 50%), {x:.1%}, {x:.2} - 50% in an expression is only 0.5, never a format.
@@ -61,11 +61,11 @@
 struct xvars { int n; char *key[XVARS_MAX], *val[XVARS_MAX]; };   // val: an expression's source
 struct xval;
 struct xctx {
-    void *pl, *other, *third;               // the speaker, them, enemy - them NULL: the local player
+    void *pl, *other, *third;               // the host's: the speaker, them, a third - them NULL: the local player
     const char *const *fpn;                 // a function's parameters while its body is worked out (x_call)
     const struct xval *fpv;
     int fnp;
-    int found;                              // pl/other/third looked up (x_builtin)
+    int found;                              // pl/other/third looked up (the host's value)
     const char *const *pn, *const *pv;      // the text's placeholders
     int np;
     const struct xvars *vars[3];            // searched in order: the personality's, the file's
@@ -80,26 +80,19 @@ struct xctx {
     const char *top;                        // the source being worked out (for the mistakes' messages)
 };
 // a number, a text or both - or nothing (w 0); w: how many items it was chosen from (a list's weight in a list);
-// pl: a player (its index + 1; its text is its name) - equal only to itself; miss: a player who isn't there (lord
+// obj: an object of the host's (a player: its index + 1; its text is its name) - equal only to itself; miss: one who
+// isn't there (lord
 // without one) - nothing, which may only be checked (lord ? .., lord ?? .., lord == them): used, it is a mistake
 // it, ln: a list's items (ln 0: no list) - its value meanwhile is one of them, at random; kind: a function (fn: its
 // definition and where it was made) or stop (a for / every body's "no more") - neither number nor text
 enum { XV_PLAIN, XV_FN, XV_STOP };
 struct xfn;
-struct xval { int has_n, has_s, w, pl, ln, kind; double n; const char *s; const struct xval *it; const struct xfn *fn; char miss[24]; };
+struct xval { int has_n, has_s, w, obj, ln, kind; double n; const char *s; const struct xval *it; const struct xfn *fn; char miss[24]; };
 static int xl_n(const struct xval *v) { return v->ln ? v->ln : v->w > 0; }   // its items (one value: 1, nothing: 0)
 static const struct xval *xl_at(const struct xval *v, int i) { return v->ln ? &v->it[i] : v; }
 static struct xvars g_vars_sys;   // mod/system.eeai vars (texts.c)
-static int x_builtin(struct xctx *c, const char *name, struct xval *v);   // diplo.c: the game's values
-static int x_is_value(const char *name);   // diplo.c: a name that is a value of its own (them, epoch, minutes ...)
-// diplo.c: a relation, them.opinion(me) - 0: name is none (v NULL: only that checked)
-static int x_method(struct xctx *c, const char *name, const struct xval *a, int na, struct xval *v);
 static int x_fill(char *out, int cap, const char *tmpl, struct xctx *c);
-static int rnd(int n);   // persona.c: the display generator
-static int rnd_game(int n);   // persona.c: the game's (decisions)
-static float det_log2f(float x);   // diplo.c: log2 with the same bits on every PC
-static int x_player_n(int n, struct xval *v);   // diplo.c: player n as a value (0: none)
-static int g_x_logged;   // expression errors written to the log (at most 60)
+#include "script/host.h"   // what the language asks the program it runs in (the game: eeaimod.c x_host_install)
 // a script's world (test/scripts.c, the script runner): the game's time in seconds, waiting until a game second (the script's
 // fiber yields to the game), a pipe command run with its reply
 static struct { double (*now)(void); void (*wait)(double until); void (*command)(const char *cmd, char *reply, int cap); } g_x_hooks;
@@ -158,43 +151,6 @@ static const char *x_strdup(const char *s, size_t n) {   // n bytes of s as a te
     return r;
 }
 
-// STRICT PARSING ([general] strict_parsing=1, for whoever writes the texts; default 0: a mistake is logged and skipped,
-// the game goes on): every mistake also comes up at once - those in the files at startup in a message box, those
-// found while the game runs (an unknown name, a text in arithmetic ...) as a system line in the game (x_errors_show,
-// from the AIs' updates).
-static int g_strict;
-static CRITICAL_SECTION g_x_lock;   // the queue: filled on the game's thread, read by the startup box's (x_errors_box)
-static char g_x_queue[8][240];
-static int g_x_queued, g_x_total, g_x_dropped;
-static char *g_x_capture;   // texts corpus: every mistake's message appended here too (each time, not once)
-static int g_x_capture_cap;
-static void x_error(const char *fmt, ...) {
-    char msg[240];
-    va_list ap;
-    va_start(ap, fmt);
-    vsnprintf(msg, sizeof msg, fmt, ap);
-    va_end(ap);
-    if (g_x_capture) {
-        size_t o = strlen(g_x_capture);
-        snprintf(g_x_capture + o, (size_t)g_x_capture_cap - o, "%s{%s}", o ? " " : "", msg);
-    }
-    static uint32_t told[64];   // the same mistake again (a line said again, a placeholder in every prompt): once
-    uint32_t h = 2166136261u;
-    for (const char *s = msg; *s; s++) h = (h ^ (uint8_t)*s) * 16777619u;
-    h |= 1;
-    if (told[h % 64] == h) return;
-    told[h % 64] = h;
-    if (g_log && g_x_logged < 60) { g_x_logged++; fprintf(g_log, "# texts: %s\n", msg); }
-    if (!g_strict) return;
-    EnterCriticalSection(&g_x_lock);
-    g_x_total++;
-    int seen = 0;   // the same mistake again (a line tried three times): once
-    for (int i = 0; i < g_x_queued; i++) seen |= !strcmp(g_x_queue[i], msg);
-    if (seen) g_x_total--;
-    else if (g_x_queued < 8) lstrcpynA(g_x_queue[g_x_queued++], msg, sizeof g_x_queue[0]);
-    else g_x_dropped++;
-    LeaveCriticalSection(&g_x_lock);
-}
 
 // vars keys: "name" or a function "name(a,b)" (its parameters, tfile_parse) - the same name is the same entry
 static int xkey_is(const char *key, const char *name) {
@@ -227,7 +183,6 @@ static const char *xvars_fn(const struct xvars *v, const char *name, const char 
 // function may come from a file read later (an include, mod/system.eeai) - scanned from every file first (x_fn_known)
 static struct { char name[40]; int n; } g_xfn[96];
 static int g_xfn_n, g_xfn_scanned;
-static void x_fn_scan_dir(void);   // persona.c: every .eeai of the folder through x_fn_scan
 // the parameters ("a,b)") of the function whose definition is being read: its body's syntax check takes them for
 // players where a path starts with one (by.kills(of)) - at run time the frame has them (c->fpn)
 static const char *g_x_check_par;
@@ -283,12 +238,12 @@ static void x_fn_scan(const char *text) {   // the lines "name(a, b) =" of a fil
     }
 }
 static int x_fn_known(const char *name) {   // its parameter count, -1: no function of that name
-    if (!g_xfn_scanned) { g_xfn_scanned = 1; x_fn_scan_dir(); }
+    if (!g_xfn_scanned) { g_xfn_scanned = 1; g_x_host.scan_functions(); }
     for (int i = 0; i < g_xfn_n; i++) if (!lstrcmpiA(g_xfn[i].name, name)) return g_xfn[i].n;
     return -1;
 }
 static int x_var_known(const char *name) {
-    if (!g_xfn_scanned) { g_xfn_scanned = 1; x_fn_scan_dir(); }
+    if (!g_xfn_scanned) { g_xfn_scanned = 1; g_x_host.scan_functions(); }
     for (int i = 0; i < g_xvn_n; i++) if (!lstrcmpiA(g_xvn[i], name)) return 1;
     return 0;
 }
@@ -297,15 +252,12 @@ static int x_var_known(const char *name) {
 // parsing: in the startup box); the key is kept, at run time the name fails what it is in (x_fail)
 static const char *g_x_check_file, *g_x_check_ph;   // the file being read; " a b " the code's placeholders for the key
 static int g_x_check_line;
-static int x_name_valid(const char *name);   // diplo.c: a name x_builtin takes (them, epoch, them.lord.soldiers ...)
-static const char *x_code_placeholders(const char *file, const char *sec, const char *key);   // texts.c
-static int x_const(const char *name, struct xval *v);
 static int x_name_known(const char *name) {   // a parameter, constant, vars entry, game value or the code's placeholder
     struct xval t;
     char w[48];
     if (strlen(name) > 40) return 1;
     wsprintfA(w, " %s ", name);
-    return x_check_par_has(name, (int)strlen(name)) || x_const(name, &t) || x_var_known(name) || x_name_valid(name) ||
+    return x_check_par_has(name, (int)strlen(name)) || g_x_host.constant(name, &t) || x_var_known(name) || g_x_host.name_valid(name) ||
            (g_x_check_ph && strstr(g_x_check_ph, w));
 }
 static void x_name_check(const char *name) {
@@ -319,15 +271,15 @@ static int xnumeric(const char *s, double *n) {   // the whole text a number ("1
     *n = strtod(s, &e);
     return e != s && !*e;
 }
-static void xnothing(struct xval *v) { v->has_n = v->has_s = v->w = v->pl = v->ln = v->kind = 0; v->n = 0; v->s = ""; v->it = NULL; v->fn = NULL; v->miss[0] = 0; }
-static void xnum(struct xval *v, double n) { v->has_n = 1; v->has_s = v->pl = v->ln = v->kind = 0; v->w = 1; v->n = n; v->s = ""; v->it = NULL; v->fn = NULL; v->miss[0] = 0; }
+static void xnothing(struct xval *v) { v->has_n = v->has_s = v->w = v->obj = v->ln = v->kind = 0; v->n = 0; v->s = ""; v->it = NULL; v->fn = NULL; v->miss[0] = 0; }
+static void xnum(struct xval *v, double n) { v->has_n = 1; v->has_s = v->obj = v->ln = v->kind = 0; v->w = 1; v->n = n; v->s = ""; v->it = NULL; v->fn = NULL; v->miss[0] = 0; }
 static void xstr(struct xval *v, const char *s) {   // a text, only that: "12" in a file is no number
     if (!s) s = "";
     v->s = x_strdup(s, strlen(s));
     v->has_s = 1;
     v->w = 1;
     v->has_n = 0;
-    v->pl = v->ln = v->kind = 0;
+    v->obj = v->ln = v->kind = 0;
     v->it = NULL;
     v->fn = NULL;
     v->miss[0] = 0;
@@ -338,11 +290,11 @@ static void xstr_or_num(struct xval *v, const char *s) { xstr(v, s); v->has_n = 
 static void xdual(struct xval *v, double n, const char *s) { xstr(v, s); v->has_n = 1; v->n = n; }
 static void xdual_kept(struct xval *v, double n, const char *s) {   // the same with a text that stays (not copied)
     v->s = s; v->has_s = v->has_n = 1; v->n = n; v->w = 1;
-    v->pl = v->ln = v->kind = 0; v->it = NULL; v->fn = NULL; v->miss[0] = 0;
+    v->obj = v->ln = v->kind = 0; v->it = NULL; v->fn = NULL; v->miss[0] = 0;
 }
 static int xis_num(const struct xval *v, double *n) { if (v->has_n) *n = v->n; return v->has_n; }
 static double xto_num(const struct xval *v) { return v->has_n ? v->n : 0; }
-static int xtrue(const struct xval *v) { return v->w && (v->ln || v->pl || v->kind || (v->has_n ? v->n != 0 : v->s[0] != 0)); }   // a list, a player, a function: true
+static int xtrue(const struct xval *v) { return v->w && (v->ln || v->obj || v->kind || (v->has_n ? v->n != 0 : v->s[0] != 0)); }   // a list, a player, a function: true
 // n to dec decimals, a half away from 0 (0.625 -> 0.63, 62.5 -> 63) - printf's own rounding takes a half to the even
 // digit (0.62, 62), which nobody writing a text expects
 static double x_round_dec(double n, int dec) {
@@ -417,9 +369,9 @@ static int x_string(const char *s, char *out, int cap, const char **end, const c
 }
 
 static int x_fills_ok(const char *text, const char **why);
-// a draw: the display generator - in a decision (c->game) the game's, which every PC draws alike (persona.c)
+// a draw: the host's display generator - in a decision (c->game) its other one, which every PC draws alike
 static void xdual(struct xval *v, double n, const char *s);
-static int x_rnd(const struct xctx *c, int n) { return c->game ? rnd_game(n) : rnd(n); }
+static int x_rnd(const struct xctx *c, int n) { return c->game ? g_x_host.rnd_decide(n) : g_x_host.rnd_show(n); }
 static double x_rnd01(const struct xctx *c) { return x_rnd(c, 1 << 30) / (double)(1 << 30); }   // 0 <= x < 1
 // a list's one item at random - for a consumer that wants one value (a line, a {placeholder}, pick(l)); a single value
 // stays itself, nothing stays nothing
@@ -432,50 +384,6 @@ static void x_missing(struct xctx *c, const char *who) {
     x_error("%s is used, but there is none here - check it first (%s ? ... / %s ?? ...): %.100s", who, who, who, c->top ? c->top : "");
     c->failed++;
     c->missed = 1;
-}
-// epoch.<name>: an epoch's number, in every language the same (the names the game's own are in another language)
-static const char *const k_epoch_const[15] = { "prehistoric", "stone", "copper", "bronze", "dark", "middle", "renaissance",
-    "imperial", "industrial", "atomic_wwi", "atomic_wwii", "atomic_modern", "digital", "nano", "space" };
-// resource.<name>: a resource's number 1..5 (food, wood, stone, gold, iron - the game's order), its text its name;
-// resource.all 0 (give: each of them)
-static const char *const k_resource_const[5] = { "food", "wood", "stone", "gold", "iron" };
-static int color_index(const char *s);   // persona.c: a colour's index 0..16 by its name
-static int x_const(const char *name, struct xval *v) {
-    if (!_strnicmp(name, "color.", 6)) {   // color.red: a colour's number 1..17, as X.color has it
-        int k = isalpha((unsigned char)name[6]) ? color_index(name + 6) : -1;
-        if (k < 0) return 0;
-        xnum(v, k + 1);
-        return 1;
-    }
-    if (!_strnicmp(name, "resource.", 9)) {   // resource.gold: 4 (and "gold"); resource.all: 0 - each of them
-        if (!lstrcmpiA(name + 9, "all")) { xdual(v, 0, "all"); return 1; }
-        for (int k = 0; k < 5; k++) if (!lstrcmpiA(name + 9, k_resource_const[k])) { xdual(v, k + 1, k_resource_const[k]); return 1; }
-        return 0;
-    }
-    if (!_strnicmp(name, "kind.", 5)) {   // kind.towers: one of the game's families (docs/units.md) - its number and "kind.towers"
-        for (int k = 0; k < UNIT_KINDS; k++)
-            if (k_kind_ident[k] && !lstrcmpiA(name + 5, k_kind_ident[k])) {
-                static char text[UNIT_KINDS][48];   // "kind.towers" as it stays (a constant's text in its node: xe)
-                if (!text[k][0]) wsprintfA(text[k], "kind.%s", k_kind_ident[k]);
-                xdual_kept(v, k, text[k]);
-                return 1;
-            }
-        return 0;
-    }
-    if (!_strnicmp(name, "unit.", 5)) {   // unit.b_guard_tower_bronze: a unit or building type - its number and identifier
-        int t = unit_type_named(name + 5, (int)strlen(name + 5));
-        if (t < 0 && !g_unit_types_n && g_x_check_file) {   // the game hasn't loaded its data yet: checked when it has
-            unit_name_later(name + 5, g_x_check_file, g_x_check_line);
-            xdual(v, -1, name + 5);
-            return 1;
-        }
-        if (t < 0) return 0;
-        xdual_kept(v, t, unit_ident(t));   // the game's text, as it stays
-        return 1;
-    }
-    if (_strnicmp(name, "epoch.", 6)) return 0;
-    for (int e = 0; e < 15; e++) if (!lstrcmpiA(name + 6, k_epoch_const[e])) { xnum(v, e + 1); return 1; }
-    return 0;
 }
 
 // ===== THE PARSER: the source into a tree =====
@@ -1065,11 +973,6 @@ static struct xsv xsv_of(const struct xnode *n) {
     }
     return r;
 }
-#include "test/cmd_verbs.h"
-static int x_command_verb(const char *name) {   // a pipe command (control.c execute) - a script calls it as a function
-    for (size_t i = 0; i < sizeof k_cmd_verbs / sizeof *k_cmd_verbs; i++) if (!strcmp(k_cmd_verbs[i], name)) return 1;
-    return 0;
-}
 static int x_script_fn(const char *name);   // the script functions (wait, wait_until, every, for, player, cmd): their arguments, -1 none
 static int x_name_known(const char *name);
 static int xc_fail(struct xcheck *k, const struct xnode *n, const char *why) { k->why = why; k->line = n->line; return 0; }
@@ -1135,14 +1038,14 @@ static int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc) {
                 if (sf != nk) { snprintf(k->whybuf, sizeof k->whybuf, "%s takes %d argument%s", name, sf, sf == 1 ? "" : "s"); return xc_fail(k, n, k->whybuf); }
                 return 1;
             }
-            if (k->script && x_command_verb(name)) return 1;
+            if (k->script && g_x_host.command(name)) return 1;
             int want = x_fn_known(name);
             if (want >= 0) {
                 if (want != nk) { snprintf(k->whybuf, sizeof k->whybuf, "%s takes %d argument%s", name, want, want == 1 ? "" : "s"); return xc_fail(k, n, k->whybuf); }
                 return 1;
             }
         }
-        if (!x_method(k->c, name, NULL, nk, NULL)) {
+        if (!g_x_host.method(k->c, name, NULL, nk, NULL)) {
             if (!k->script) return xc_fail(k, n, "an unknown function or relation (or the wrong number of arguments)");
             snprintf(k->whybuf, sizeof k->whybuf, "%s(...): no such function, relation or command (or the wrong number of arguments)", name);
             return xc_fail(k, n, k->whybuf);
@@ -1185,7 +1088,7 @@ struct xfn { const struct xnode *lam; struct xframe *env; };   // a function val
 // err: what is being worked out failed (its mistake told, or none: not an expression); why: what it was; f: the
 // frame of the function (or script) running; ret: a return given (its value in *retv); err_at: the statement it
 // failed in
-struct xe { struct xctx *c; int err; const char *why; struct xframe *f; int ret; struct xval *retv; const struct xnode *err_at; };
+struct xe { struct xctx *c; int err; const char *why; struct xframe *f; int ret; struct xval *retv; const struct xnode *err_at; int kept; };
 static void xe(struct xe *e, const struct xnode *n, struct xval *v);
 static void x_use(struct xe *e, const struct xval *v) {
     if (!v->miss[0]) return;
@@ -1216,7 +1119,7 @@ static int x_numeric_ok(struct xe *e, const struct xval *v) {   // v counts as a
 static int xmismatch(const struct xval *a, const struct xval *b) { return (!a->has_n && !b->has_s) || (!a->has_s && !b->has_n); }
 static int xcmp(const struct xval *a, const struct xval *b) {   // <0, 0, >0: players the same one or not, numbers, else texts
     double x, y;
-    if (a->pl && b->pl) return a->pl - b->pl;
+    if (a->obj && b->obj) return a->obj - b->obj;
     if (xmismatch(a, b)) return 2;   // unequal
     if (xis_num(a, &x) && xis_num(b, &y)) return x < y ? -1 : x > y;
     return lstrcmpiA(xtext_of(a), xtext_of(b));
@@ -1234,7 +1137,7 @@ static void x_nogame(struct xe *e, const char *name) {   // a game value or a pl
 static int x_body(struct xe *e, const char *src, struct xval *v) {
     const struct xunit *u = x_compiled(src);
     if (!u->ok) { xnothing(v); return 0; }
-    struct xe q = { e->c, 0, NULL, NULL, 0, NULL, NULL };
+    struct xe q = { e->c, 0, NULL, NULL, 0, NULL, NULL, 0 };
     int level = e->c->level;
     e->c->level = 0;
     xe(&q, u->root, v);
@@ -1264,9 +1167,10 @@ static void xe_ident(struct xe *e, const char *name, struct xval *v) {
     }
     if (c->script && !strcmp(name, "stop")) { xnothing(v); v->w = 1; v->kind = XV_STOP; return; }   // for / every: no more
     if (c->script && !strcmp(name, "time")) { xnum(v, g_x_hooks.now ? g_x_hooks.now() : 0); return; }   // game seconds
-    if (x_const(name, v)) return;
-    if (c->nogame && lstrcmpiA(name, "language") && (x_is_value(name) || strchr(name, '.'))) { x_nogame(e, name); return; }
-    if (x_builtin(c, name, v)) return;
+    int k = g_x_host.constant(name, v);
+    if (k) { e->kept = k == 2; return; }
+    if (c->nogame && lstrcmpiA(name, "language") && (g_x_host.is_value(name) || strchr(name, '.'))) { x_nogame(e, name); return; }
+    if (g_x_host.value(c, name, v)) return;
     x_fail(e, !strcmp(name, "name") ? "an unknown name: name - the other player is them (them.name)" : "an unknown name: %s", name);
 }
 // a function's body (def), its parameters (par "a,b)") bound to the arguments: they alone are its names besides the
@@ -1369,7 +1273,7 @@ static int x_script_fn(const char *name) {
 // its number (unit.x: both)
 static int x_cmd_arg(struct xe *e, const char *verb, const struct xval *v, char *out, int cap) {
     if (v->kind || !v->w || v->ln) { x_fail(e, "%s(...): %s as a command's argument", verb, v->ln ? "a list" : v->kind == XV_FN ? "a function" : v->kind ? "stop" : "nothing"); return 0; }
-    if (v->pl) snprintf(out, (size_t)cap, "%d", v->pl - 1);
+    if (v->obj) snprintf(out, (size_t)cap, "%d", v->obj - 1);
     else if (v->has_n) {
         double r = v->n < 0 ? -v->n : v->n;
         if (r - (double)(long long)r < 1e-9 && r < 1e15) snprintf(out, (size_t)cap, "%lld", (long long)v->n);
@@ -1390,7 +1294,7 @@ static void x_command(struct xe *e, const char *cmd, struct xval *v) {
     size_t n = nl ? (size_t)(nl - reply) : strlen(reply);
     if (!strncmp(reply, "error", 5)) { x_fail(e, "%.60s -> %.*s", cmd, (int)(n < 120 ? n : 120), reply); return; }
     v->s = x_strdup(reply, n);
-    v->has_s = 1; v->w = 1; v->has_n = 0; v->pl = v->ln = 0; v->it = NULL; v->miss[0] = 0; v->kind = 0;
+    v->has_s = 1; v->w = 1; v->has_n = 0; v->obj = v->ln = 0; v->it = NULL; v->miss[0] = 0; v->kind = 0;
 }
 static int x_wait_until(struct xe *e, double t) {   // the script waits until game second t (0: no script to wait in)
     if (!g_x_hooks.wait) { x_fail(e, "waiting only in a script"); return 0; }
@@ -1405,7 +1309,7 @@ static void xe_script(struct xe *e, const char *name, const struct xval *a, int 
     }
     if (!strcmp(name, "player")) {
         if (!x_numeric_ok(e, &a[0])) return;
-        if (!x_player_n((int)xto_num(&a[0]), v)) x_fail(e, "player(%g): no such player", xto_num(&a[0]));
+        if (!g_x_host.object((int)xto_num(&a[0]), v)) x_fail(e, "player(%g): no such player", xto_num(&a[0]));
         return;
     }
     int fi = !strcmp(name, "every") ? 3 : !strcmp(name, "for") ? 2 : -1;   // the function's place
@@ -1492,7 +1396,7 @@ static void xe_call(struct xe *e, const struct xnode *n, struct xval *v) {
                 xe_script(e, name, a, nall, v);
                 return;
             }
-            if (x_command_verb(name)) {
+            if (g_x_host.command(name)) {
                 char cmd[512], t[256];
                 int o = snprintf(cmd, sizeof cmd, "%s", name);
                 for (int i = 0; i < nall; i++) {
@@ -1507,7 +1411,7 @@ static void xe_call(struct xe *e, const struct xnode *n, struct xval *v) {
     }
     if (!f) {   // a relation: them.opinion(me)
         if (e->c->nogame) x_nogame(e, name);
-        else if (!x_method(e->c, name, a, na, v)) { e->err = 1; e->why = "an unknown function or relation (or the wrong number of arguments)"; }
+        else if (!g_x_host.method(e->c, name, a, na, v)) { e->err = 1; e->why = "an unknown function or relation (or the wrong number of arguments)"; }
         return;
     }
     if (f == 1) xnum(v, x_rnd01(e->c) < xto_num(&a[0]));   // a probability: chance(70%), chance(0.7)
@@ -1542,7 +1446,7 @@ static void xe_call(struct xe *e, const struct xnode *n, struct xval *v) {
         for (int i = 0; i < xl_n(&a[0]) && !hit; i++) hit = a[1].w && !xcmp(xl_at(&a[0], i), &a[1]);
         xnum(v, hit);
     }
-    else if (f == 14) xnum(v, det_log2f((float)xto_num(&a[0])));   // the same bits on every PC (diplo.c)
+    else if (f == 14) xnum(v, det_log2f((float)xto_num(&a[0])));   // the same bits on every PC (base/math.c)
     else xnum(v, x_rnd01(e->c) * (na ? xto_num(&a[0]) : 1));   // rnd(n): 0 <= x < n, rnd(): 0 <= x < 1
 }
 // a list: its items, a list in it its items in its place; a mistake in an item (told) leaves it out, so does
@@ -1626,17 +1530,20 @@ static void xe(struct xe *e, const struct xnode *n, struct xval *v) {
     switch (n->k) {
     case XN_NUM: xnum(v, n->n); break;
     case XN_STR: xe_str(e, n, v); break;
-    case XN_NAME:
-        if (n->cs) { xdual_kept(v, n->n, n->cs); break; }   // a kind. or unit. constant, looked up before
+    case XN_NAME: {
+        if (n->cs) { xdual_kept(v, n->n, n->cs); break; }   // a constant that stays, looked up before
+        int kept = e->kept;   // a name in a name (a vars entry's): its own
+        e->kept = 0;
         xe_ident(e, n->s, v);
-        // kind.tank, unit.citizen: no parameter, name of a file or placeholder has a dot - the same constant every
-        // time, kept in the node (filters must be quick: AI code); unit. only once the game's types are there
-        if (!e->err && v->has_s && v->has_n && v->n >= 0 && (!strncmp(n->s, "kind.", 5) || (!strncmp(n->s, "unit.", 5) && g_unit_types_n))) {
+        // a constant the host says stays the same (kind.tank, unit.citizen): kept in the node (filters must be quick)
+        if (!e->err && e->kept && v->has_s && v->has_n && v->n >= 0) {
             ((struct xnode *)n)->n = v->n;
             ((struct xnode *)n)->cs = v->s;
         }
+        e->kept = kept;
         if (c->missed) { c->missed = 0; e->err = 1; e->why = "a mistake while working it out"; }   // told (x_missing)
         break;
+    }
     case XN_CALL:
         xe_call(e, n, v);
         if (c->missed) { c->missed = 0; e->err = 1; e->why = "a mistake while working it out"; }
@@ -1696,7 +1603,7 @@ static void xe(struct xe *e, const struct xnode *n, struct xval *v) {
             break;
         }
         if (!v->w || !b.w) { xnum(v, 0); break; }   // nothing compares with nothing: false
-        if (!(v->pl && b.pl) && xmismatch(v, &b)) {
+        if (!(v->obj && b.obj) && xmismatch(v, &b)) {
             x_fail(e, "a text (\"%.40s\") compared with a number - a number has no quotes, number(t) makes one", xtext_of(v->has_s ? v : &b));
             break;
         }
@@ -1742,7 +1649,7 @@ static int x_eval(const char *src, struct xctx *c, struct xval *v) {   // its va
     if (top) c->top = src;
     if (!g_xr->busy++) x_region_reset(g_xr);   // the outermost: the last one's values are done with
     const struct xunit *u = x_compiled(src);
-    struct xe e = { c, 0, NULL, NULL, 0, NULL, NULL };
+    struct xe e = { c, 0, NULL, NULL, 0, NULL, NULL, 0 };
     xnothing(v);
     int level = c->level;   // its own levels (X_NEST)
     c->level = 0;
@@ -1766,7 +1673,7 @@ static int x_const_eval(const char *src, double *out, const char **why) {
     struct xval v;
     g_x_last_fail[0] = 0;
     if (!x_eval(src, &c, &v)) { *why = g_x_last_fail[0] ? g_x_last_fail : "not a number or an expression"; return 0; }
-    if (!v.w || !v.has_n || v.has_s || v.pl || v.kind) { *why = "a number expected"; return 0; }
+    if (!v.w || !v.has_n || v.has_s || v.obj || v.kind) { *why = "a number expected"; return 0; }
     *out = v.n;
     return 1;
 }
@@ -1903,7 +1810,7 @@ static int x_fill(char *out, int cap, const char *tmpl, struct xctx *c) {
                 c->depth--;
                 if (c->circle && !c->depth) { c->circle = 0; x_log_bad("vars naming each other in a circle", src); }
                 if (ok) x_pick(c, &v);   // a list said: one of its items
-                if (ok && fmt && !(v.w && v.has_n && !v.pl)) {   // {name:%}: a text, a player, nothing - a mistake
+                if (ok && fmt && !(v.w && v.has_n && !v.obj)) {   // {name:%}: a text, a player, nothing - a mistake
                     x_error("{%s:...}: a format for a number, this is none", src);
                     c->failed++;
                     val[0] = 0; rep = val;
@@ -2175,7 +2082,7 @@ static void tfile_parse(const char *file, const char *text, tfile_fn fn, void *a
                 g_x_check_par = strchr(key, '(') ? strchr(key, '(') + 1 : NULL;
                 g_x_check_file = file;
                 g_x_check_line = l.line;
-                g_x_check_ph = x_code_placeholders(file, record, key);
+                g_x_check_ph = g_x_host.placeholders(file, record, key);
                 tl_value(&l, &v);
                 g_x_check_par = NULL;
                 g_x_check_file = NULL;

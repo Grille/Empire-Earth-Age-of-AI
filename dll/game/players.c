@@ -31,3 +31,20 @@ static int is_enemy(void *pl, void *other) {
     unsigned oi = (unsigned)FIELD(other, PL_INDEX, int);
     return oi < 16 && FIELD(pl, 0x9E4 + oi * 4, int) != 0;
 }
+
+// Player colours: index into the game's colour table (0x8CFA74: pointers to {?, float r, g, b}); entries 0-16 are
+// player colours (17+ other engine colours). Names in English or German (cp1252 umlauts as \xFC).
+static const char *const k_color_names[17][3] = {
+    { "blue", "blau", "" }, { "red", "rot", "" }, { "yellow", "gelb", "" }, { "magenta", "lila", "" },
+    { "orange", "orange", "" }, { "green", "gruen", "gr\xFCn" }, { "cyan", "tuerkis", "t\xFCrkis" },
+    { "darkred", "dunkelrot", "" }, { "darkgrey", "dunkelgrau", "" }, { "purple", "violett", "" },
+    { "grey", "grau", "" }, { "silver", "silber", "" }, { "lightyellow", "hellgelb", "" },
+    { "lime", "hellgruen", "hellgr\xFCn" }, { "lightblue", "hellblau", "" }, { "pink", "rosa", "" },
+    { "darkgrey2", "dunkelgrau2", "" },
+};
+static int color_index(const char *s) {   // by its name; -1: none
+    for (int c = 0; c < 17; c++)
+        for (int k = 0; k < 3; k++)
+            if (k_color_names[c][k][0] && !lstrcmpiA(s, k_color_names[c][k])) return c;
+    return -1;
+}

@@ -11,6 +11,11 @@
 // "# setup: <command> -> <reply>". script dryrun <file> <out> (a pipe command) runs one without the game: the time
 // jumps to wherever it waits, every command is written to <out> with its game time (ms) instead of being run.
 // Included by eeaimod.c after expr.c and control.c.
+#include "test/cmd_verbs.h"
+static int x_command_verb(const char *name) {   // a pipe command (control.c execute) - a script calls it as a function
+    for (size_t i = 0; i < sizeof k_cmd_verbs / sizeof *k_cmd_verbs; i++) if (!strcmp(k_cmd_verbs[i], name)) return 1;
+    return 0;
+}
 #define SCRIPTS_MAX 4
 struct script {
     char path[MAX_PATH];
@@ -86,7 +91,7 @@ static int script_run(const char *path, const struct xunit *u) {
     struct xframe *top = calloc(1, sizeof *top);
     if (!top) return 0;
     struct xval rv;
-    struct xe e = { &c, 0, NULL, top, 0, &rv, NULL };
+    struct xe e = { &c, 0, NULL, top, 0, &rv, NULL, 0 };
     c.fpn = top->name; c.fpv = top->val; c.fnp = 0;
     g_x_last_fail[0] = 0;
     x_exec(&e, u->root);

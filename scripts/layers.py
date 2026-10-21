@@ -22,23 +22,15 @@ MAY_USE = {
     'game':   ['base'],                                    # what the mod knows of the game
     'engine': ['base', 'game'],                            # fixes and features of the game
     'ai':     ['base', 'game'],                            # the computer players
-    'script': ['base'],                                    # the language: knows no game
-    'voice':  ['base', 'game', 'ai', 'script'],            # what the AI says: reads the AI, speaks the language
-    'test':   ['base', 'game', 'engine', 'ai', 'script', 'voice', 'dll'],
-    'dll':    ['base', 'game', 'engine', 'ai', 'script', 'voice', 'test'],
+    'script': ['base'],                                    # the language: knows no game (script/host.h asks it)
+    'game_script': ['base', 'game', 'ai', 'script'],       # the game in the language: its constants, values, relations
+    'voice':  ['base', 'game', 'ai', 'script', 'game_script'],   # what the AI says: reads the AI, speaks the language
+    'test':   ['base', 'game', 'engine', 'ai', 'script', 'game_script', 'voice', 'dll'],
+    'dll':    ['base', 'game', 'engine', 'ai', 'script', 'game_script', 'voice', 'test'],
 }
 
 # THE EXCEPTIONS still in the code: (using file, used file, names, why). Each is a debt; the next steps remove them.
 EXCEPTIONS = [
-    # step 3: the language gets its host interface (script/host.h) - then it names no game, no AI, no voice
-    ('script/expr.c', 'game/unitnames.c', 'g_unit_types_n unit_ident unit_name_later unit_type_named', 'step 3: unit. constants'),
-    ('script/expr.c', 'game/unit_names.h', 'UNIT_KINDS k_kind_ident', 'step 3: kind. constants'),
-    ('script/expr.c', 'ai/diplo.c', 'det_log2f x_builtin x_is_value x_method x_name_valid x_player_n', 'step 3: the game\'s values'),
-    ('script/expr.c', 'voice/persona.c', 'color_index rnd rnd_game x_fn_scan_dir', 'step 3: colours, the draws, the function files'),
-    ('script/expr.c', 'voice/texts.c', 'x_code_placeholders', 'step 3'),
-    ('script/expr.c', 'test/cmd_verbs.h', 'k_cmd_verbs', 'step 3: the commands a script calls'),
-    ('base/ini.c', 'script/expr.c', 'x_const_eval', 'step 3: a setting is a small expression - the language below base'),
-    ('game/unitnames.c', 'script/expr.c', 'x_error', 'step 3: a mistake in a text file\'s unit. name'),
     # step 4: the AI speaks through voice/say.h only; diplomacy's text bindings move to the language's game side
     ('ai/*', 'voice/*', '*', 'step 4: the AI talks (ai_say, persona, texts, llm)'),
     ('ai/diplo.c', 'script/expr.c', '*', 'step 4: the relations\' text bindings (x_method ...)'),
@@ -201,7 +193,7 @@ def excepted(u, d, n):
 def main():
     files, code, edges = analyse()
     if '--map' in sys.argv:
-        order = ['dll', 'base', 'game', 'engine', 'ai', 'script', 'voice', 'test']
+        order = ['dll', 'base', 'game', 'engine', 'ai', 'script', 'game_script', 'voice', 'test']
         m = collections.defaultdict(collections.Counter)
         for u, ds in edges.items():
             for d, ns in ds.items():

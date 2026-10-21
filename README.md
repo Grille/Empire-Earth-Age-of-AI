@@ -341,7 +341,8 @@ venv/Scripts/python scripts/eectl.py status | army 2 | diplo | persona | say 2 H
 ```
 dll/              the mod (C), one translation unit: eeaimod.c includes every part - the game start, the AI's update
                   hooks that call the parts, install, DllMain; persist.c the mod's state in saved games
-  base/             the DLL's own helpers: log, patching, the pipe commands' REPLY, paths and the test slot, aimod.ini
+  base/             the DLL's own helpers: log, patching, the pipe commands' REPLY, paths and the test slot, mistakes.c
+                    the report of a mistake in the mod's files, math.c (the same bits on every PC), aimod.ini
                     (ini.c), watchpoints, headless_win.c test windows without focus or taskbar button (also in dinput.dll)
   game/             what the mod knows of the game: exe.c the exe build, addr.h its addresses per build, layout.h its
                     objects' fields, world.c type data, game time, RTTI names, players.c the players (and the vanilla
@@ -353,7 +354,9 @@ dll/              the mod (C), one translation unit: eeaimod.c includes every pa
   ai/               the computer players: econ.c budget, epoch plan, build queue, workers, research; sites.c gathering
                     sites; attack.c attack routing, siege, unit choice; stats.c fight estimates; defence.c towers, walls, home guard; diplo.c
                     diplomacy; landing.c landings; navy.c / fleet.c the navy; settings.c aimod.ini's AI settings ...
-  script/           expr.c the text language (parsed once into a tree; statements, functions)
+  script/           expr.c the text language (parsed once into a tree; statements, functions) - it knows no game:
+                    what it asks the program it runs in is script/host.h (eeaimod.c x_host_install sets the game's)
+  game_script/      the game in the language: constants.c (epoch., resource., color., kind., unit.)
   voice/            what the AI says: persona.c personalities, texts.c the text files, chat.c chat lines, llm.c the
                     language model
   test/             control.c the control pipe, testcmd.c / testopp.c test commands and the sea opponent, randmap.c

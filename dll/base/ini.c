@@ -6,7 +6,7 @@
 // number expected, out of range) is logged with file, section and key, and the key keeps its default - never read
 // half (GetPrivateProfileInt took the digits in front: 25% as 25, 0.35 as 0). Missing or empty: the default. An
 // inline comment (; to the line's end) is cut off. Included by eeaimod.c before everything that reads a setting.
-static int x_const_eval(const char *src, double *out, const char **why);   // expr.c
+static int (*g_ini_eval)(const char *src, double *out, const char **why);   // the text language's x_const_eval (eeaimod.c install)
 
 static char g_ini_pending[8][200];   // mistakes found before the log is open (load_autotest): written when it opens
 static int g_ini_npending;
@@ -38,7 +38,7 @@ static int ini_raw(const char *sec, const char *key, const char *file, char *out
 // v worked out; 0: a mistake (told)
 static int ini_eval(const char *file, const char *sec, const char *key, const char *v, double *out) {
     const char *why = NULL;
-    if (x_const_eval(v, out, &why)) return 1;
+    if (g_ini_eval(v, out, &why)) return 1;
     ini_error(file, sec, key, v, why ? why : "a number expected");
     return 0;
 }
