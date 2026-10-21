@@ -109,7 +109,7 @@ static DWORD g_route_thread;
 
 static int __fastcall hook_route_cost(uint8_t *self, void *edx, int *edge, uint8_t *node) {
     (void)edx;
-    int cost = ((RouteCostFn)GA(FN_ROUTE_COST))(self, edge, node);
+    int cost = route_cost(self, edge, node);
     unsigned pi = (unsigned)FIELD(self, OF(ROUTEPLANNER, 0x48), int) & 15;     // planner +0x48 = own player index
     ee_player *pl = is_vanilla_idx((int)pi) ? NULL : g_players[pi];   // a vanilla player: the game's cost
     if (!g_route_thread) {
@@ -405,7 +405,7 @@ static void __fastcall hook_asg_route(uint8_t *self, void *edx, int *start, int 
         ai_say(pl, CHAT_ROUTE, "[ai] marching on P%d at %d,%d (%.0f tiles), %d enemy defences known",
                target ? FIELD(target, PL_INDEX, int) : -1, dest[0], dest[1], sqrt((double)(dx * dx + dy * dy)), g_threat[pi].n);
     }
-    ((AsgRouteFn)GA(FN_ASG_ROUTE))(self, start, dest);
+    asg_route(self, start, dest);
 }
 
 // Leash: each unit of an attack subgroup picks its target itself (EECPAttackSubGroupUnit vf5 0x46286F -> vf4
@@ -445,7 +445,7 @@ static int mass_tether(uint8_t *sg, ee_unit *me, ee_unit *enemy);   // mass.c
 typedef float (__thiscall *AsguScoreFn)(void *self, uint8_t *info);
 static float __fastcall hook_asgu_score(uint8_t *self, void *edx, uint8_t *info) {
     (void)edx;
-    float s = ((AsguScoreFn)GA(FN_ASGU_SCORE))(self, info);
+    float s = asgu_score(self, info);
     uint8_t *sg = FIELD(self, OF(ASGU, 0x4C), uint8_t *);
     ee_unit *enemy = info ? FIELD(info, OF(ASGUINFO, 0x4), ee_unit *) : NULL;
     if (!sg || !enemy || *(uintptr_t *)sg != GA(VT_ASG_LAND) || is_vanilla(FIELD(sg, OF(ASG, 0x190), void *))) return s;
@@ -527,7 +527,7 @@ static void __fastcall hook_asg_route_done(uint8_t *self, void *edx) {
         fprintf(g_log, "# route done: P%u %u waypoints, %u in reach of known defences:%s\n", pi, n, hot, buf);
         fflush(g_log);
     }
-    ((AsgFn)GA(FN_ASG_ROUTE_DONE))(self);
+    asg_route_done(self);
 }
 
 // Soldiers (not buildings, walls, citizens) of a player, from the unit grid.
@@ -583,20 +583,19 @@ static int unit_goal(ee_unit *u, void *goal, int append, int prio) {
         ((void (__thiscall *)(void *, int))(*(void ***)goal)[0])(goal, 1);
         return 0;
     }
-    ((void (__thiscall *)(void *, void *, char, int))GA(FN_SET_GOAL))(u, goal, (char)append, 0);
-    GF(FN_UNIT_SAY)(u, prio);
+    unit_set_goal(u, goal, append, 0);
+    unit_say(u, prio);
     uint8_t *td = FIELD(u, OF(UNIT, 0x2C), uint8_t *);
-    ((void (__thiscall *)(void *, void *))(*(void ***)td)[GA(SLOT_TYPE_ASSIGN)])(td, u);
+    type_goal_assigned(td, u);
     return 1;
 }
 
 // Art of Conquest's constructor takes a fourth argument, a byte it keeps at the goal's new +0x40: 0 as the AI's own
 // calls pass it
 static void *goal_attack(ee_unit *u, ee_unit *target) {
-    void *g = GF(FN_NEW)(GA(SIZE_GOAL_ATTACK));
+    void *g = game_new(GA(SIZE_GOAL_ATTACK));
     if (!g) return NULL;
-    if (build_is("aoc")) return ((void *(__thiscall *)(void *, void *, void *, int, int))GA(FN_GOAL_ATTACK_CTOR))(g, u, target, 1, 0);
-    return ((void *(__thiscall *)(void *, void *, void *, int))GA(FN_GOAL_ATTACK_CTOR))(g, u, target, 1);
+    return goal_attack_init(g, u, target);
 }
 
 // a transport's (or a fortress's) load goal (EEUGLoadTransport, engine-notes.md: new(0x68), 0x61487F with the units'
@@ -604,21 +603,21 @@ static void *goal_attack(ee_unit *u, ee_unit *target) {
 // unit_goal: no parts from it). Each unit to walk in then gets goal_load_part(g) - its vf4 product.
 static void *goal_load(ee_unit *holder, ee_unit **units, int n) {
     uint8_t *vec[4] = { 0, (uint8_t *)units, (uint8_t *)(units + n), (uint8_t *)(units + n) };
-    void *g = GF(FN_NEW)(GA(SIZE_GOAL_LOAD));
-    if (g) g = GF(FN_GOAL_LOAD_CTOR)(g, holder, vec, 1);
+    void *g = game_new(GA(SIZE_GOAL_LOAD));
+    if (g) g = goal_load_init(g, holder, vec);
     return g && unit_goal(holder, g, 0, 0x1F40) ? g : NULL;
 }
-static void *goal_load_part(void *g) { return ((void *(__thiscall *)(void *))(*(void ***)g)[GA(SLOT_GOAL_PART)])(g); }
+static void *goal_load_part(void *g) { return goal_part(g); }
 // an unload goal at x, y (EEUGUnloadTransport: new(0x40), 0x615A1F; flag 1 as the AI passes it), not given yet
 static void *goal_unload(ee_unit *holder, int x, int y, int flag) {
-    void *g = GF(FN_NEW)(GA(SIZE_GOAL_UNLOAD));
-    return g ? GF(FN_GOAL_UNLOAD_CTOR)(g, holder, x, y, flag) : NULL;
+    void *g = game_new(GA(SIZE_GOAL_UNLOAD));
+    return g ? goal_unload_init(g, holder, x, y, flag) : NULL;
 }
 
 static void *goal_move(float x, float y) {
     float xy[2] = { x, y };
-    void *g = GF(FN_NEW)(GA(SIZE_GOAL_MOVE));
-    return g ? GF(FN_GOAL_MOVE_CTOR)(g, xy, 1, 1, 0, 0.0f, 0, 0) : NULL;
+    void *g = game_new(GA(SIZE_GOAL_MOVE));
+    return g ? goal_move_init(g, xy) : NULL;
 }
 
 // CITIZENS AND TOWERS (aimod.ini [all] avoid_towers_citizens, default 1). The game's site searches check for enemies
@@ -910,7 +909,7 @@ static void citizens_safety(ee_resource_mgr *rm) {   // before the citizen assig
             uint8_t *v0 = FIELD(pl, OF(PL, 0x18), uint8_t *), *v1 = FIELD(pl, OF(PL, 0x1C), uint8_t *);
             fprintf(g_log, "# popcheck: P%u at %.1f min: cap %d, population %d (with production %d, list +0x18 %d), +0xB10 %d, +0xB1C %d +0xB20 %d, limit %d, AI's in production %d; ordered with no room by call site 46cce6/490cac/490e12/490f1f/490fa9/mod: %u/%u/%u/%u/%u/%u\n",
                     idx, now / 60000.0, unit_limit(pl),
-                    GF(FN_POPULATION)(pl, 0, 0), GF(FN_POPULATION)(pl, 1, 0),
+                    population(pl, 0, 0), population(pl, 1, 0),
                     v0 && v1 ? (int)((v1 - v0) / 4) : -1, FIELD(pl, OF(PL, 0xB10), int), FIELD(pl, OF(PL, 0xB1C), int), FIELD(pl, OF(PL, 0xB20), int), *(int *)GA(G_POP_LIMIT),
                     ump ? FIELD(ump, OF(UM, 0x13C), int) : -1, g_noroom[idx][0], g_noroom[idx][1], g_noroom[idx][2], g_noroom[idx][3], g_noroom[idx][4], g_noroom[idx][5]);
         }
@@ -944,7 +943,7 @@ static void __fastcall hook_repair_goal(ee_unit *u, void *edx, uint8_t *goal, in
         ((void (__thiscall *)(void *, int))(*(void ***)goal)[0])(goal, 1);
         return;
     }
-    ((void (__thiscall *)(void *, void *, char, int))GA(FN_SET_GOAL))(u, goal, (char)append, prio);
+    unit_set_goal(u, goal, append, prio);
 }
 
 // Known defences covering tile (x, y) by their real range (+1), not counting the one at (ex, ey).
@@ -970,8 +969,8 @@ static struct { uint32_t last_try, factory_req; unsigned trained, failed, no_fac
 
 // Entry i of the build manager's queue for epoch e (bm +4 + e*0x14: deque of {type, x, y}, 0x155 per block), NULL
 // past the end. 14 queues (epochs 0..13); the placement area follows at +0x11C.
-static int *bq_entry(uint8_t *bm, int e, unsigned i) {
-    uint8_t *dq = bm + 4 + e * 0x14;
+static int *bq_entry(ee_build_mgr *bm, int e, unsigned i) {
+    uint8_t *dq = FIELD_AT(bm, OF(BM, 0x4) + e * 0x14);
     unsigned first = FIELD(dq, 0xC, unsigned), n = FIELD(dq, 0x10, unsigned), msz = FIELD(dq, 8, unsigned);
     uint8_t **map = FIELD(dq, 4, uint8_t **);
     if (e < 0 || e >= 14 || i >= n || !map || !msz || first >= msz * 0x155 || n > msz * 0x155) return NULL;
@@ -979,7 +978,7 @@ static int *bq_entry(uint8_t *bm, int e, unsigned i) {
     if (blk >= msz) blk -= msz;
     return map[blk] ? (int *)(map[blk] + (idx % 0x155) * 12) : NULL;
 }
-static int bq_has(uint8_t *bm, int type) {
+static int bq_has(ee_build_mgr *bm, int type) {
     for (int e = 0; e < 14; e++)
         for (unsigned i = 0; ; i++) {
             int *ent = bq_entry(bm, e, i);
@@ -1015,13 +1014,13 @@ static void siege_train(ee_player *pl, unsigned pi, int have, uint32_t now) {
         // 0,0 = it picks the place) every 3 s (0x468540); 0x468C37 appends an entry. Queue a Siege Factory.
         g_siege_train[pi].no_factory++;
         void *cm = FIELD(pl, OF(PL, 0xB90), void *);
-        uint8_t *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL;
+        ee_build_mgr *bm = cm ? FIELD(cm, OF(CM, 0x3C), ee_build_mgr *) : NULL;
         int e = current_epoch(pl);
         if (bm && e >= 0 && e < 14 && ut_has(UT(B_SIEGE_FACTORY)) && !bq_has(bm, UT(B_SIEGE_FACTORY)) &&
             (!g_siege_train[pi].factory_req || now - g_siege_train[pi].factory_req >= 300000)) {
             g_siege_train[pi].factory_req = now ? now : 1;
             int entry[3] = { UT(B_SIEGE_FACTORY), 0, 0 };
-            GF(FN_BQ_ADD)(bm + 4 + e * 0x14, entry);
+            bm_queue_add(bm, e, entry);
             if (g_log) fprintf(g_log, "# siege: P%u at %.1f min queues a Siege Factory (wants %d siege, has %d)\n", pi, now / 60000.0, want, have);
             ai_say(pl, CHAT_SIEGE, "[ai] need siege (%d of %d): queued a Siege Factory", have, want);
         }
@@ -1350,7 +1349,7 @@ static void attack_log(ee_player *pl, uint32_t now) {
 // 0x450554 (thiscall(stats, unit)) without a check. A record without its unit crashed there (read [0 + 0x34]) in a
 // long game, one AI step after two AIs surrendered and attacks on them were called off (0x43033E with 1: the
 // subgroups hand their units back, 0x455C90). Such a record is skipped and logged.
-static void __fastcall hook_group_stat(void *stats, void *edx, uint8_t *unit) {
+static void __fastcall hook_group_stat(void *stats, void *edx, ee_unit *unit) {
     (void)edx;
     if (!unit) {
         static int logged;
@@ -1361,7 +1360,7 @@ static void __fastcall hook_group_stat(void *stats, void *edx, uint8_t *unit) {
         }
         return;
     }
-    GF(FN_GROUP_STAT)(stats, unit);
+    group_stat(stats, unit);
 }
 
 // The same records read without a check by each subgroup class's vf20 (members' stats into +0x160: 0x45AD2F, land
@@ -1400,12 +1399,12 @@ static void asg_purge_all(ee_player *pl) {
 static void __fastcall hook_asg_stats(uint8_t *sg, void *edx) {
     (void)edx;
     asg_purge(sg);
-    GF(FN_ASG_STATS)(sg);
+    asg_stats(sg);
 }
 static void __fastcall hook_asg_land_stats(uint8_t *sg, void *edx) {
     (void)edx;
     asg_purge(sg);
-    GF(FN_ASG_LAND_STATS)(sg);
+    asg_land_stats(sg);
 }
 
 // The same family, now reproducible: the reference save, P2's attack called off at 86.6 min (attack_retreat, or the
@@ -1416,10 +1415,10 @@ static void __fastcall hook_asg_land_stats(uint8_t *sg, void *edx) {
 // taken" (the caller only notes it), the unit stays free and the game assigns it on its next pass.
 static int g_in_calloff;
 static unsigned g_calloff_skips;
-static char __fastcall hook_unit_to_group(void *cmd, void *edx, uint8_t *unit) {
+static char __fastcall hook_unit_to_group(void *cmd, void *edx, ee_unit *unit) {
     (void)edx;
     if (g_in_calloff) { g_calloff_skips++; return 0; }
-    return GF(FN_UNIT_TO_GROUP)(cmd, unit);
+    return unit_to_group(cmd, unit);
 }
 
 // UNIT LIST: every unit - also the PathPoint markers (type 223) of an attack's route - sits in one list sorted by tile
@@ -1434,9 +1433,9 @@ static char __fastcall hook_unit_to_group(void *cmd, void *edx, uint8_t *unit) {
 // destructor parts (0x628BE7 in 0x628BC6, 0x628B7F in 0x628B58) first takes a unit still linked out of the list with the
 // game's own unlink (0x628E29: the neighbours, or the head, get its links).
 static unsigned g_unlinked;
-__attribute__((used)) void __cdecl unit_node_free(uint8_t **node, uint8_t *u) {
+__attribute__((used)) void __cdecl unit_node_free(uint8_t **node, ee_unit *u) {
     if (!node || (!node[0] && !node[1]) || FIELD(u, OF(UNIT, 0x8), uint8_t **) != node) return;
-    GF(FN_UNIT_UNLINK)(u);
+    unit_unlink(u);
     if (g_log && g_unlinked++ < 5) {
         uint8_t *td = FIELD(u, OF(UNIT, 0x2C), uint8_t *);
         fprintf(g_log, "# engine guard: a unit (type %d) freed while still in the unit list - taken out at %.1f min\n",
@@ -1466,7 +1465,7 @@ __attribute__((naked, used)) void unit_node_free_thunk(void) {   // at the call 
 // 0 - before its last release; 0 such releases in normal play). Guard: a release of a unit that is back in the pool
 // (count 0, +0x2A set, no node - kept until the pool's reset on reuse) or still in the game is skipped.
 static unsigned g_release_again;
-static void __fastcall hook_unit_release(uint8_t *u, void *edx) {
+static void __fastcall hook_unit_release(ee_unit *u, void *edx) {
     (void)edx;
     int again = !FIELD(u, OF(UNIT, 0x4), int) && FIELD(u, OF(UNIT, 0x2A), uint8_t) == 1 && !FIELD(u, OF(UNIT, 0x8), void *), live = FIELD(u, OF(UNIT, 0x2B), uint8_t) != 0;
     if (again || live) {
@@ -1477,7 +1476,7 @@ static void __fastcall hook_unit_release(uint8_t *u, void *edx) {
         }
         return;
     }
-    GF(FN_UNIT_RELEASE)(u);
+    unit_release(u);
 }
 
 // RANGE SORT: 0x630466 (under EEUnitClass vf48 0x620122, a unit's look at the enemies around it) sorts the enemies in
@@ -1490,9 +1489,9 @@ static void __fastcall hook_unit_release(uint8_t *u, void *edx) {
 static void __cdecl hook_range_sort(void **b, void **e, void *unit) {
     int n = b && e > b ? (int)(e - b) : 0;
     if (n < 2) return;
-    if (n > 1024) { GF(FN_RANGE_SORT)(b, e, unit); return; }
+    if (n > 1024) { range_sort(b, e, unit); return; }
     static float key[1024];   // the simulation's thread only
-    for (int i = 0; i < n; i++) key[i] = GF(FN_UNIT_DISTANCE)(unit, b[i]);
+    for (int i = 0; i < n; i++) key[i] = unit_distance(unit, b[i]);
     for (int i = 1; i < n; i++) {
         float k = key[i];
         void *v = b[i];
@@ -1509,7 +1508,7 @@ static void __cdecl hook_range_sort(void **b, void **e, void *unit) {
 static unsigned g_goal_cast_null;
 static char __fastcall hook_goal_cast(void *goal, void *edx, void *unit) {
     (void)edx;
-    if (goal) return GF(FN_GOAL_FBA_CHECK)(goal, unit);
+    if (goal) return goal_fits(goal, unit);
     if (g_log && g_goal_cast_null++ < 5)
         fprintf(g_log, "# engine guard: a unit's goal 0xFBA without its goal object (type %d) at %.1f min - skipped\n",
                 unit && FIELD(unit, OF(UNIT, 0x2C), uint8_t *) ? FIELD(FIELD(unit, OF(UNIT, 0x2C), uint8_t *), OF(TD, 0x4B8), int) : -1, game_time() / 60000.0);

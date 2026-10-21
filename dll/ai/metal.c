@@ -51,8 +51,9 @@ static int mt_line(ee_player *pl, int t) {
     if (fam == 3 || fam == 7 || fam == 17) return MB_AIR;
     if (is_siege(t) || is_ram(t)) return MB_SIE;
     if (!is_army_family(fam)) return MB_UNK;
-    uint8_t *tt = FIELD(pl, PL_TECHTREE, uint8_t *);
-    uint8_t *tech = tt ? GF(FN_TECH_LOOKUP)(tt, FIELD(td, OF(TD, 0x4E0), int)) : NULL, *d = tech ? FIELD(tech, OF(TECH, 0x8), uint8_t *) : NULL;
+    ee_tech_tree *tt = FIELD(pl, PL_TECHTREE, ee_tech_tree *);
+    ee_tech *tech = tt ? tech_lookup(tt, FIELD(td, OF(TD, 0x4E0), int)) : NULL;
+    uint8_t *d = tech ? FIELD(tech, OF(TECH, 0x8), uint8_t *) : NULL;
     int *b = d ? FIELD(d, OF(TECHDATA, 0x10), int *) : NULL, *e = d ? FIELD(d, OF(TECHDATA, 0x14), int *) : NULL;
     for (int *p = b; b && e > b && e - b < 16 && p < e; p++) {
         if (*p == UT(B_BARRACKS)) return MB_INF;
@@ -145,14 +146,14 @@ static void mt_values(ee_player *pl, unsigned idx) {
     uint32_t now = game_time();
     if (v->pl == pl && now >= v->t && now - v->t < 30000) return;
     v->pl = pl; v->t = now ? now : 1; v->n = 0; v->foe = 0;
-    uint8_t *tt = FIELD(pl, PL_TECHTREE, uint8_t *);
+    ee_tech_tree *tt = FIELD(pl, PL_TECHTREE, ee_tech_tree *);
     if (!tt) return;
     for (int t = 0; t < 724 && v->n < MT_CAND; t++) {
         if (!land_soldier(t) || soldier_score(t) <= 0) continue;
-        uint8_t *tech = GF(FN_TECH_LOOKUP)(tt, FIELD(type_data(t), OF(TD, 0x4E0), int));
+        ee_tech *tech = tech_lookup(tt, FIELD(type_data(t), OF(TD, 0x4E0), int));
         int c = 0;
         for (int r = 2; r < 7; r++) c += unit_cost(pl, t, r);
-        if (!tech || !tech[4] || c < 20) continue;   // nothing for free: the Court Jester (0), heroes of scenarios
+        if (!tech || !FIELD(tech, OF(TECH, 0x4), uint8_t) || c < 20) continue;   // nothing for free: the Court Jester (0), heroes of scenarios
         v->type[v->n++] = t;
     }
     // the enemy's mix: (type, owner) -> count
@@ -240,7 +241,7 @@ static int mt_choose(ee_player *pl, unsigned idx, int asked, const int *vis, con
         }
         if (!paid || n <= 0) continue;
         float s = mt_value_of(pl, idx, t, stock, reserve);
-        if (s > bv && GF(FN_CAN_BUILD)(pl, t, 0x20, 0)) { bv = s; best = t; bn = n; }
+        if (s > bv && can_build(pl, t)) { bv = s; best = t; bn = n; }
     }
     if (!best || best == asked || (va > 0 && bv < 1.25f * va)) { if (va > 0) g_mt[idx].kept++; return 0; }
     g_mt[idx].picks++;

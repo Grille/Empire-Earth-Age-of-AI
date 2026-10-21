@@ -35,9 +35,11 @@ Several sessions may work in this tree at the same time - see Git below.
   its own builds: an RVA_ row, or better the export by name). Code that differs by more than an address:
   `build_is("aoc")` (AoC rewrote a few functions - docs/engine-notes.md).
 - `dll/game/api.h`: the objects typed (`ee_player *`, `ee_resource_mgr *`, ... one per fields.h kind) and the game's
-  functions as typed wrappers (`explored_by(site, pl)`, `rm_assign(rm, u, site)`). Being moved over file by file:
-  a file in scripts/layers.py TYPED may not call GF (add a wrapper); a function others not yet moved over call takes
-  `void *` for an object at that border. A move must keep the machine code (`scripts/code_same.py`).
+  functions as typed wrappers (`explored_by(site, pl)`, `rm_assign(rm, u, site)`). Being moved over folder by
+  folder: a folder in scripts/layers.py TYPED (ai/ so far) calls the game only through them - no GF, no cast of
+  GA(FN_..), no vtable slot GA(SLOT_..) (add a wrapper); a kind not typed yet is `void *` in a wrapper. A move must
+  keep the machine code (`scripts/code_same.py`) or, where a raw offset became a table read, play the same game
+  (the same game_seed, the logs compared).
 - The engine loads every DLL in the game folder: never leave copies of DLLs there (a stray dinput copy crashed it).
 - The game reads the personality files from `config/aimod_ai/` (`ai_dir` in the user's aimod.ini): a change to
   their format needs the matching installed DLL.

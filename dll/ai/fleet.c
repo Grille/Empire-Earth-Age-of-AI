@@ -108,7 +108,7 @@ static int fleet_refuses(uint8_t *sg, ee_unit *u) {
 static int __fastcall hook_nv_maint_delete(ee_player *pl, void *edx, void *req, int flag) {
     (void)edx;
     if (pl && !is_vanilla(pl) && fleet_on((unsigned)FIELD(pl, PL_INDEX, int))) { g_fl[(unsigned)FIELD(pl, PL_INDEX, int) & 15].maint_skipped++; return 0; }
-    return GF(FN_DELETE_FOR_ROOM)(pl, req, flag);
+    return delete_for_room(pl, req, flag);
 }
 
 // THE SCAN (every 2 s per AI with the fleet): own warships, fishing boats, docks and buildings; enemy ships; danger
@@ -708,7 +708,7 @@ static void fl_rally_tower(ee_player *pl, unsigned idx, struct fleet *m, uint32_
     if (m->rcover || m->rally_towers >= 3 || (m->tower_t && now >= m->tower_t && now - m->tower_t < 120000) || !g_fs.nd) return;
     m->tower_t = now ? now : 1;
     void *cm = FIELD(pl, OF(PL, 0xB90), void *);
-    uint8_t *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL;
+    ee_build_mgr *bm = cm ? FIELD(cm, OF(CM, 0x3C), ee_build_mgr *) : NULL;
     if (!bm) return;
     if (tower_queued(bm)) return;
     int ttype = tower_newest(pl);
@@ -727,7 +727,7 @@ static void fl_rally_tower(ee_player *pl, unsigned idx, struct fleet *m, uint32_
                 int x = dx0 + ax, y = dy0 + ay;
                 if ((abs(ax) != r && abs(ay) != r) || !fl_coast(x, y, m->ocean) || raiders_near(pl, x, y, 10) || !can_place(pl, ttype, x, y)) continue;
                 int entry[3] = { ttype, x, y };
-                GF(FN_BQ_ADD)(bm + 4 + e * 0x14, entry);
+                bm_queue_add(bm, e, entry);
                 m->rally_towers++;
                 if (g_log) fprintf(g_log, "# navy: P%u at %.1f min: no tower covers the fleet's sea - tower %d queued at %d,%d by the dock %d,%d\n",
                                    idx, now / 60000.0, ttype, x, y, dx0, dy0);

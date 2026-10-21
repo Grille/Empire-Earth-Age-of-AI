@@ -114,8 +114,9 @@ static int cv_mil(uint8_t *td) {
 static int cv_alive(ee_unit *u) { return FIELD(u, OF(UNIT, 0x3C), int) > 0 && FIELD(u, OF(UNIT, 0x1C), int) >= 0; }
 static int cv_built(ee_unit *u) { uint8_t *bs = FIELD(u, OF(UNIT, 0x30), uint8_t *); return bs && bs[OF(UNIT, 0x340)]; }
 static int cv_value(ee_player *pl, int type) {   // the base price, F+W+S+G+I (no cheat)
-    uint8_t *obj = type_data(type), *tt = pl ? FIELD(pl, PL_TECHTREE, uint8_t *) : NULL;
-    uint8_t *tech = obj && tt ? GF(FN_TECH_LOOKUP)(tt, FIELD(obj, OF(TD, 0x4E0), int)) : NULL;
+    uint8_t *obj = type_data(type);
+    ee_tech_tree *tt = pl ? FIELD(pl, PL_TECHTREE, ee_tech_tree *) : NULL;
+    ee_tech *tech = obj && tt ? tech_lookup(tt, FIELD(obj, OF(TD, 0x4E0), int)) : NULL;
     uint8_t *data = tech ? FIELD(tech, OF(TECH, 0x8), uint8_t *) : NULL;
     int v = 0;
     for (int r = 2; data && r < 7; r++) v += FIELD(data, OF(TECHDATA, 0x24) + (r - 2) * 4, int);

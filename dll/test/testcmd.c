@@ -294,7 +294,7 @@ static void cmd_bqueue(char *out, const char *args) {
     int p = atoi(args);
     ee_player *pl = (p >= 0 && p < 16) ? g_players[p] : NULL;
     void *cm = pl ? FIELD(pl, OF(PL, 0xB90), void *) : NULL;
-    uint8_t *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL;
+    ee_build_mgr *bm = cm ? FIELD(cm, OF(CM, 0x3C), ee_build_mgr *) : NULL;
     if (!bm) { REPLY("error: no AI player %d\n", p); return; }
     for (int e = 0; e < 14; e++) {
         int *ent = bq_entry(bm, e, 0);

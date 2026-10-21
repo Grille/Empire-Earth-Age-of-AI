@@ -846,7 +846,7 @@ static int wild_food(ee_player *pl) {
 // to half the fields. Not in the default (7): antiair save at 55 min 100 soldiers vs 70, but late-start A/B, 3
 // maps x 6 seeds, 50 min: alive 70% vs 75% (with the cut to 6 farmers also 70%) - idle fields cost income the AI
 // misses when citizens or the epoch need food. The fields pass sends no farmers beyond food's target.
-static int *bq_entry(uint8_t *bm, int e, unsigned i);   // attack.c: the build queue of epoch e
+static int *bq_entry(ee_build_mgr *bm, int e, unsigned i);   // attack.c: the build queue of epoch e
 static int rm_count(ee_resource_mgr *rm, int t);                 // below: citizens on resource t
 static int unit_cost(ee_player *pl, int type, int r);       // below
 static int g_late_targets = 7;
@@ -904,7 +904,7 @@ static void econ_targets(ee_resource_mgr *rm) {
         // can't pay for is no demand at all (the queue's "can build", 0x555710, tests the cost too) - the airport
         // (425 wood) and tank factory waited with 115 wood in stock and a demand of 55, so no AA tank either
         void *cm = FIELD(rm, RM_OWNER, void *);
-        uint8_t *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL;
+        ee_build_mgr *bm = cm ? FIELD(cm, OF(CM, 0x3C), ee_build_mgr *) : NULL;
         int queued = 0, nq = 0;
         for (int e = 0; bm && e <= current_epoch(pl) && e < 14 && nq < 3; e++)
             for (unsigned i = 0; nq < 3; i++) {
@@ -1324,7 +1324,7 @@ static void econ_fields(ee_resource_mgr *rm) {   // before the citizen assignmen
         void *goal = game_new(GA(SIZE_GOAL_BUILD));
         if (!goal) break;
         goal_build_init(goal, pl, todo[i], 1);
-        unit_set_goal(best, goal);
+        unit_set_goal(best, goal, 0, 0);
         unit_say(best, 0x1F51);
         uint8_t *td = FIELD(best, OF(UNIT, 0x2C), uint8_t *);
         (*(void (__thiscall **)(void *, void *))(FIELD(td, OF(TD, 0x0), uint8_t *) + 0x74))(td, best);

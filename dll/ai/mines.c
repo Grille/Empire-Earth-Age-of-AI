@@ -37,12 +37,13 @@ static void mf_scan(ee_player *pl, unsigned idx, uint32_t now) {
     m->t = now ? now : 1;
     memset(m->slots, 0, sizeof m->slots); memset(m->home_slots, 0, sizeof m->home_slots); memset(m->g, 0, sizeof m->g);
     m->far_r = 0;
-    uint8_t *cm = FIELD(pl, OF(PL, 0xB90), uint8_t *), *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL;
+    uint8_t *cm = FIELD(pl, OF(PL, 0xB90), uint8_t *);
+    ee_build_mgr *bm = cm ? FIELD(cm, OF(CM, 0x3C), ee_build_mgr *) : NULL;
     if (!bm || FIELD(bm, OF(BM, 0x12C), int) == -10000) return;
     int base[2] = { FIELD(bm, OF(BM, 0x12C), int), FIELD(bm, OF(BM, 0x130), int) };
     short (__thiscall *region)(void *, int *, int) = (void *)GA(FN_REGION);
     short hr = region((void *)GA(G_MAP_AREAS), base, 2);
-    unsigned cap = GF(FN_TABLE_VALUE)((void *)GA(G_TABLE_VALUES), 0x16);
+    unsigned cap = table_value(0x16);
     drops_cached(pl);
     static ee_unit *seen[1024];
     int ns = 0, bd = 0x7FFFFFFF;
@@ -66,12 +67,12 @@ static void mf_scan(ee_player *pl, unsigned idx, uint32_t now) {
             if (dd <= 144) {
                 m->slots[r] += (int)cap;
                 if (home) m->home_slots[r] += (int)cap;
-                m->g[r] += (int)GF(FN_SITE_GATHERERS)((void *)GA(G_GAME_STATE), s);
+                m->g[r] += (int)site_gatherers(s);
                 continue;
             }
             if (!home || dd >= bd || !zone[OF(ZONE, 0x18)]) continue;
-            if (!GF(FN_EXPLORED)(FIELD(s, OF(UNIT, 0x14), void *), pl)) continue;
-            if (((EnemyNearFn)GA(FN_ENEMY_NEAR))(bm, pos[0], pos[1]) || site_danger_res(pl, s, 0, r)) continue;
+            if (!explored_by(s, pl)) continue;
+            if (bm_enemy_near(bm, pos[0], pos[1]) || site_danger_res(pl, s, 0, r)) continue;
             bd = dd; m->far_x = pos[0]; m->far_y = pos[1]; m->far_r = r;
         }
     }
@@ -139,7 +140,8 @@ static void mine_drops(ee_player *pl, unsigned idx, uint32_t now) {
     m->drop_t = now ? now : 1;
     mf_scan(pl, idx, now);
     if (!m->far_r) return;
-    uint8_t *cm = FIELD(pl, OF(PL, 0xB90), uint8_t *), *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL;
+    uint8_t *cm = FIELD(pl, OF(PL, 0xB90), uint8_t *);
+    ee_build_mgr *bm = cm ? FIELD(cm, OF(CM, 0x3C), ee_build_mgr *) : NULL;
     void *um = cm ? FIELD(cm, OF(CM, 0x44), void *) : NULL;
     if (!bm || !um || !ut_has(UT(B_SETTLEMENT)) || bq_has(bm, UT(B_SETTLEMENT)) || bq_has(bm, UT(X_SINGLE_PLAYER_SETTLEMENT))) return;
     uint8_t *q = type_list(um, UT(B_SETTLEMENT));   // one being built: wait for it
@@ -147,7 +149,7 @@ static void mine_drops(ee_player *pl, unsigned idx, uint32_t now) {
         uint8_t *b = deque_at(q, f + k), *st = b ? FIELD(b, OF(UNIT, 0x30), uint8_t *) : NULL;
         if (b && FIELD(b, OF(UNIT, 0x3C), int) > 0 && (!st || !FIELD(st, OF(UNIT, 0x340), uint8_t))) return;
     }
-    if (!GF(FN_CAN_BUILD)(pl, UT(B_SETTLEMENT), 0x20, 0)) return;   // can't build or pay now
+    if (!can_build(pl, UT(B_SETTLEMENT))) return;   // can't build or pay now
     int e = current_epoch(pl);
     if (e < 0 || e >= 14) return;
     for (int r = 3; r <= 6; r++)
@@ -157,7 +159,7 @@ static void mine_drops(ee_player *pl, unsigned idx, uint32_t now) {
                 int x = m->far_x + ax, y = m->far_y + ay;
                 if (!can_place(pl, UT(B_SETTLEMENT), x, y) || raiders_near(pl, x, y, 12)) continue;
                 int entry[3] = { UT(B_SETTLEMENT), x, y };
-                GF(FN_BQ_ADD)(bm + 4 + e * 0x14, entry);
+                bm_queue_add(bm, e, entry);
                 m->drops_queued++;
                 if (g_log) {
                     EnterCriticalSection(&g_lock);

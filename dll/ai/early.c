@@ -133,7 +133,7 @@ static void early_towers_tick(ee_player *pl, unsigned idx, uint32_t now) {
     int bx, by;
     if (!early_base(pl, &bx, &by)) return;
     void *cm = FIELD(pl, OF(PL, 0xB90), void *);
-    uint8_t *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL;
+    ee_build_mgr *bm = cm ? FIELD(cm, OF(CM, 0x3C), ee_build_mgr *) : NULL;
     int *stock = (int *)((uint8_t *)pl + PL_STOCK), type = early_tower_type(pl), e = current_epoch(pl);
     if (type && !st->range) { uint8_t *td = type_data(type); st->range = td ? FIELD(td, OF(TD, 0x420), float) : 0; }
     int fin, all, x, y;
@@ -143,7 +143,7 @@ static void early_towers_tick(ee_player *pl, unsigned idx, uint32_t now) {
     if (bm && type && all < EARLY_CORE && !queued && stock[4] >= unit_cost(pl, type, 4) && e >= 0 && e < 14 &&
         early_core_spot(pl, type, &x, &y)) {
         int entry[3] = { type, x, y };
-        GF(FN_BQ_ADD)(bm + 4 + e * 0x14, entry);
+        bm_queue_add(bm, e, entry);
         st->queued++;
         if (g_log) fprintf(g_log, "# early: P%u queues tower %d at %d,%d (stone %d)\n", idx, type, x, y, stock[4]);
     }
@@ -235,15 +235,15 @@ static void early_range(ee_player *pl, unsigned idx, uint32_t now) {
     if (!EARLY(idx, early_army) || e < 1 || e > 3 || (st->range_t && now >= st->range_t && now - st->range_t < 60000)) return;
     st->range_t = now ? now : 1;
     void *cm = FIELD(pl, OF(PL, 0xB90), void *), *um = cm ? FIELD(cm, OF(CM, 0x44), void *) : NULL;
-    uint8_t *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL;
+    ee_build_mgr *bm = cm ? FIELD(cm, OF(CM, 0x3C), ee_build_mgr *) : NULL;
     if (!um || !bm) return;
     uint8_t *q = type_list(um, UT(B_ARCHERY_RANGE));
     for (unsigned k = 0, f = q ? FIELD(q, 0xC, unsigned) : 0, n = q ? FIELD(q, 0x10, unsigned) : 0; k < n; k++) {
         uint8_t *b = deque_at(q, f + k);
         if (b && FIELD(b, OF(UNIT, 0x3C), int) > 0) return;
     }
-    if (!ut_has(UT(B_ARCHERY_RANGE)) || GF(FN_BM_QUEUED)(bm, UT(B_ARCHERY_RANGE))) return;
-    GF(FN_BM_REQUEST)(bm, UT(B_ARCHERY_RANGE), 1, 0);
+    if (!ut_has(UT(B_ARCHERY_RANGE)) || bm_queued(bm, UT(B_ARCHERY_RANGE))) return;
+    bm_request(bm, UT(B_ARCHERY_RANGE));
     st->ranges++;
     if (g_log) fprintf(g_log, "# early: P%u at %.1f min: no Archery Range - one requested\n", idx, now / 60000.0);
 }

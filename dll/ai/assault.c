@@ -45,7 +45,7 @@ static struct assault {
 static unsigned area_id(int x, int y, int kind) {
     int pt[2] = { x, y };
     if (x < 0 || y < 0) return 0;
-    return ((unsigned short (__thiscall *)(void *, int *, int))GA(FN_REGION))((void *)GA(G_MAP_AREAS), pt, kind);
+    return map_area(pt, kind);
 }
 static unsigned cont_at(int x, int y) { return area_id(x, y, 2); }
 static int cont_ok(int x, int y, unsigned hc) {   // land of continent hc (or an area without ids that is no ocean)
@@ -90,7 +90,7 @@ static int landing_leads(uint8_t *sg);   // landing.c
 static void __fastcall hook_asg_update(uint8_t *sg, void *edx, int now) {
     (void)edx;
     if (!is_vanilla(FIELD(sg, OF(ASG, 0x190), void *)) && ((g_assault && assault_leads(sg)) || landing_leads(sg))) return;
-    GF(FN_ASG_UPDATE)(sg, now);
+    asg_update(sg, now);
 }
 
 struct as_obj { ee_player *pl; ee_player *target; unsigned pi, cont; int x, y; ee_unit *best; float score; };

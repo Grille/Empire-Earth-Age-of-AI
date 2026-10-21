@@ -361,7 +361,7 @@ static void navy_nodes(ee_player *pl, unsigned idx, uint32_t now) {
     static ee_unit *seen[512];
     int ns = 0, bd[7];
     for (int r = 0; r < 7; r++) bd[r] = 0x7FFFFFFF;
-    unsigned cap = GF(FN_TABLE_VALUE)((void *)GA(G_TABLE_VALUES), 0x16);
+    unsigned cap = table_value(0x16);
     drops_cached(pl);
     unsigned pi = idx & 15;
     void **tb = FIELD(pl, OF(PL, 0xB50), void **), **te = FIELD(pl, OF(PL, 0xB54), void **);
@@ -377,7 +377,7 @@ static void navy_nodes(ee_player *pl, unsigned idx, uint32_t now) {
             if (ns < 512) seen[ns++] = s;
             int x = FIELD(s, OF(UNIT, 0x1C), int), y = FIELD(s, OF(UNIT, 0x20), int);
             if (area_id(x, y, 2) != hc) { c->other[r]++; continue; }
-            unsigned g = GF(FN_SITE_GATHERERS)((void *)GA(G_GAME_STATE), s);
+            unsigned g = site_gatherers(s);
             int dd = 0x7FFFFFFF;
             for (int i = 0; i < g_drops[pi].n; i++) {
                 int *d = g_drops[pi].d[i], dx = d[0] - x, dy = d[1] - y;
@@ -388,7 +388,7 @@ static void navy_nodes(ee_player *pl, unsigned idx, uint32_t now) {
             else {
                 c->remote[r]++;
                 // the unworked far one nearest to a drop site: where a Settlement would claim it (navy_claim)
-                if (!g && dd < bd[r] && GF(FN_EXPLORED)(FIELD(s, OF(UNIT, 0x14), void *), pl)) { bd[r] = dd; c->free_far[r] = s; c->fx[r] = x; c->fy[r] = y; }
+                if (!g && dd < bd[r] && explored_by(s, pl)) { bd[r] = dd; c->free_far[r] = s; c->fx[r] = x; c->fy[r] = y; }
             }
         }
     }
@@ -783,10 +783,10 @@ static void navy_docks(ee_player *pl, unsigned idx, uint32_t now) {
         if (f > want) want = f;
     }
     void *cm = FIELD(pl, OF(PL, 0xB90), void *);
-    uint8_t *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL;
-    if (!bm || !ut_has(UT(B_DOCK)) || w->docks >= want || w->docks_built < w->docks || GF(FN_BM_QUEUED)(bm, UT(B_DOCK))) return;
-    if (!GF(FN_CAN_BUILD)(pl, UT(B_DOCK), 0x20, 0)) return;
-    GF(FN_BM_REQUEST)(bm, UT(B_DOCK), 1, 0);
+    ee_build_mgr *bm = cm ? FIELD(cm, OF(CM, 0x3C), ee_build_mgr *) : NULL;
+    if (!bm || !ut_has(UT(B_DOCK)) || w->docks >= want || w->docks_built < w->docks || bm_queued(bm, UT(B_DOCK))) return;
+    if (!can_build(pl, UT(B_DOCK))) return;
+    bm_request(bm, UT(B_DOCK));
     o->docks_asked++;
     if (g_log) fprintf(g_log, "# navy: P%u at %.1f min: docks %d of %d - one more requested\n", idx, now / 60000.0, w->docks, want);
 }
@@ -802,7 +802,7 @@ static void navy_docks(ee_player *pl, unsigned idx, uint32_t now) {
 static int g_fish_boat = 1;
 static int __fastcall hook_fish_type(void *o, void *edx) {
     (void)edx;
-    int t = GF(FN_FISH_TYPE)(o);
+    int t = fish_type(o);
     ee_player *pl = o ? FIELD(o, OF(PL, 0x4C), void *) : NULL;
     if (!g_fish_boat || !pl || !FIELD(pl, PL_TECHTREE, void *) || is_vanilla(pl)) return t;
     int best = 0, bt = 0;
@@ -882,7 +882,7 @@ static void cmd_navy(char *out, const char *args) {
                   FIELD(td, OF(TD, 0x424), float), FIELD(td, OF(TD, 0x50C), int), FIELD(td, OF(TD, 0x4E0), int));
             if (naval && pl) {
                 REPLY(" cost %d %d %d %d %d", unit_cost(pl, t, 2), unit_cost(pl, t, 3), unit_cost(pl, t, 4), unit_cost(pl, t, 5), unit_cost(pl, t, 6));
-                uint8_t **rec = GF(FN_TYPE_STATS)((uint8_t *)pl + OF(PL, 0x874), t);
+                uint8_t **rec = type_stats(pl, t);
                 uint8_t *r = rec ? *rec : NULL;
                 if (r) {
                     REPLY(" | hp %d att %.1f rng %.1f spd %.2f arm", FIELD(r, OF(USTAT, 0x144), int), FIELD(r, OF(USTAT, 0xD8), float), FIELD(r, OF(USTAT, 0x9C), float), FIELD(r, OF(USTAT, 0xAC), float));

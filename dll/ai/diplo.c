@@ -117,7 +117,7 @@ static int pidx(void *p) { return (int)((unsigned)FIELD(p, PL_INDEX, int) & 15);
 static int scenario_game(void) { return g_is_scenario != 0; }
 
 static void set_stance(int from, int to, int s) {
-    GF(FN_SET_STANCE)(GAME_STATE, from, to, s);
+    game_set_stance(from, to, s);
 }
 
 // HISTORY for the texts' values (x_member below): the pairs' stances over time, betrayals, refusals, tributes - every
@@ -456,7 +456,7 @@ __attribute__((used)) void __fastcall hook_kill_stat(uint8_t *stats, void *edx, 
         if (n == 3) cover_death(g_kill_unit, k);
         if (n == 3) eco_death(g_kill_unit, k, v);
     }
-    GF(FN_STAT_ADD)(stats, n, d);
+    stat_add(stats, n, d);
 }
 __attribute__((naked, used)) void kill_stat_thunk(void) {
     __asm__("movl %esi, _g_kill_unit\n\t"
@@ -1266,7 +1266,7 @@ static void diplo_safe_point(void) {
             asg_purge_all(p);   // members without their unit: the call-off reads them first (attack.c)
             leads_release(i);   // subgroups the landing or the assault leads: back to the game before the call-off
             g_in_calloff = 1;   // attack.c: no unit offered to the groups being freed
-            GF(FN_CALL_OFF_ATTACK)(p, pj, 1);
+            call_off_attacks(p, pj, 1);
             g_in_calloff = 0;
             if (g_log) fprintf(g_log, "# attack: P%d calls off its %s on P%d (attack groups %d -> %d)\n", i,
                                g_cancel_why[i][j] ? g_cancel_why[i][j] : "citizen attack", j, before, attack_groups(p));
@@ -1286,7 +1286,7 @@ static void diplo_safe_point(void) {
             asg_purge_all(p);   // members without their unit: the call-off reads them first (attack.c)
             leads_release(i);   // subgroups the landing or the assault leads: back to the game before the call-off
             g_in_calloff = 1;   // attack.c: no unit offered to the groups being freed
-            GF(FN_CALL_OFF_ATTACK)(p, pj, 1);
+            call_off_attacks(p, pj, 1);
             g_in_calloff = 0;
             if (g_log) { fprintf(g_log, "# diplomacy: P%d calls off its attacks on P%d (attack groups %d -> %d)\n", i, j, before,
                                  attack_groups(p)); fflush(g_log); }
@@ -1297,8 +1297,8 @@ static void diplo_safe_point(void) {
     for (int i = 1; i < 16; i++) {
         void *p = player_at(i);
         if (!(q & (1 << i)) || !p || is_out(p)) continue;
-        GF(FN_GAME_PLAYER_OUT)(GAME_STATE, 0, i);
-        GF(FN_PLAYER_RESIGN)(p, 2);
+        game_player_out(0, i);
+        player_resign(p, 2);
         if (g_log) { fprintf(g_log, "# surrender: P%d resigned (out %d)\n", i, FIELD(p, OF(PL, 0x467), uint8_t)); fflush(g_log); }
     }
 }
@@ -1405,7 +1405,7 @@ static void diplo_tick(ee_player *pl, unsigned ai, uint32_t now) {
             persona_say(pl, g_war_betrayal[ai][j] ? L_BETRAYED : L_WAR_DECLARED, pj, NULL);
             tell_event(0, 0, 0, 0);
             void *cbm = FIELD(pl, OF(PL, 0xB8C), void *);
-            if (cbm) GF(FN_REVENGE)(cbm, pj);
+            if (cbm) revenge(cbm, pj);
             g_diplo_answers[ai]++;
             if (g_log) fprintf(g_log, "# diplomacy: P%u at %.1f min answers war: now enemy of P%d (stance %d)\n",
                                ai, now / 60000.0, j, stance_of(pl, j));
@@ -1566,8 +1566,8 @@ static void __fastcall hook_tribute(uint8_t *msg, void *edx) {
     int total = FIELD(msg, OF(MSG_TRIBUTE, 0x10), int) + FIELD(msg, OF(MSG_TRIBUTE, 0x14), int) + FIELD(msg, OF(MSG_TRIBUTE, 0x18), int) + FIELD(msg, OF(MSG_TRIBUTE, 0x1C), int) + FIELD(msg, OF(MSG_TRIBUTE, 0x20), int);
     int amount[7] = { 0, 0, FIELD(msg, OF(MSG_TRIBUTE, 0x10), int), FIELD(msg, OF(MSG_TRIBUTE, 0x20), int), FIELD(msg, OF(MSG_TRIBUTE, 0x1C), int), FIELD(msg, OF(MSG_TRIBUTE, 0x14), int), FIELD(msg, OF(MSG_TRIBUTE, 0x18), int) };
     void *to = player_at(msg[OF(MSG_TRIBUTE, 0x24)]);
-    void *from = GF(FN_GAME_PLAYER)(GAME_STATE, (int)(int8_t)msg[OF(MSG_TRIBUTE, 0xA)]);
-    GF(FN_PAY_TRIBUTE)(msg);
+    void *from = game_player((int)(int8_t)msg[OF(MSG_TRIBUTE, 0xA)]);
+    msg_pay_tribute(msg);
     if (from && to) hist_tribute(pidx(from), pidx(to), total);
     diplo_tribute(to, from, amount);
 }
@@ -1689,17 +1689,17 @@ static void __fastcall hook_resign(uint8_t *msg, void *edx) {
             return;
         }
     }
-    GF(FN_RESIGN)(msg);
+    msg_resign(msg);
 }
 static void __cdecl hook_exit_confirm(void) {
     int me = (int)*(unsigned *)GA(G_LOCAL_PLAYER);
     void *pm = player_at(me);
     if (pm && !is_out(pm) && (g_victory_off ? can_claim(me) : vassals_of(me))) {
         if (g_log) { fprintf(g_log, "# victory: P%d leaves a won game - resigns instead (victory)\n", me); fflush(g_log); }
-        GF(FN_RESIGN_SEND)();
+        resign_send();
         return;
     }
-    GF(FN_EXIT_CONFIRM)();
+    exit_confirm();
 }
 
 static void __fastcall hook_ingame_chat(uint8_t *msg, void *edx) {
@@ -1716,7 +1716,7 @@ static void __fastcall hook_ingame_chat(uint8_t *msg, void *edx) {
     }
     if (from && text && victory_word(text))
         refused = !claim_victory(from, "the chat word");
-    GF(FN_INGAME_CHAT)(msg);
+    msg_ingame_chat(msg);
     if (local && text && !refused) llm_player_chat(text);
     if (!refused || from != me) return;
     // not yet: a system line under the player's own, naming who still holds out
@@ -1740,10 +1740,10 @@ static void chat_send(const char *text) {   // a chat line from the local player
     __attribute__((aligned(8))) uint8_t u[32];
     ((void (__thiscall *)(void *))*(void **)GA(IAT_WSTRING_CTOR))(u);
     ((void *(__thiscall *)(void *, const char *))*(void **)GA(IAT_WSTRING_ASSIGN))(u, text);
-    void *msg = GF(FN_NEW)(GA(SIZE_MSG_CHAT));
+    void *msg = game_new(GA(SIZE_MSG_CHAT));
     if (msg) {
-        GF(FN_CHAT_MSG_CTOR)(msg, u);
-        ((void (__thiscall *)(void *, void *, int))(*(void ***)net)[GA(SLOT_SERVER_SEND)])(net, msg, 0xFF);
+        msg_chat_init(msg, u);
+        server_send_all(net, msg);
     }
     ((void (__thiscall *)(void *))*(void **)GA(IAT_WSTRING_DTOR))(u);
 }
@@ -1753,7 +1753,7 @@ static void chat_send(const char *text) {   // a chat line from the local player
 static void cmd_diplo(char *out, const char *args) {
     int a = -1, b = -1, s = -1;
     if (!strcmp(args, "exit") || !strcmp(args, "resign")) {   // diplo exit / resign: the menu's confirmed action (tests)
-        if (args[0] == 'e') hook_exit_confirm(); else GF(FN_RESIGN_SEND)();
+        if (args[0] == 'e') hook_exit_confirm(); else resign_send();
         REPLY("done\n");
         return;
     }

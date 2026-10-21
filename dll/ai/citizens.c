@@ -34,13 +34,14 @@ static int cz_finished(ee_unit *b) { uint8_t *bs = FIELD(b, OF(UNIT, 0x30), uint
 // the producer types of citizens (once a game: the citizen tech's building list)
 static void cz_types(ee_player *pl) {
     if (g_cz_np >= 0) return;
-    uint8_t *tt = FIELD(pl, PL_TECHTREE, uint8_t *);
+    ee_tech_tree *tt = FIELD(pl, PL_TECHTREE, ee_tech_tree *);
     if (!tt) return;
     g_cz_np = 0;
     for (int k = 0; k < 2; k++) {
         uint8_t *td = type_data(k ? UT(FEMALE_CITIZEN) : UT(CITIZEN));
         g_cz_tech[k] = td ? FIELD(td, OF(TD, 0x4E0), int) : -1;
-        uint8_t *t = td ? GF(FN_TECH_LOOKUP)(tt, g_cz_tech[k]) : NULL, *d = t ? FIELD(t, OF(TECH, 0x8), uint8_t *) : NULL;
+        ee_tech *t = td ? tech_lookup(tt, g_cz_tech[k]) : NULL;
+        uint8_t *d = t ? FIELD(t, OF(TECH, 0x8), uint8_t *) : NULL;
         int *b = d ? FIELD(d, OF(TECHDATA, 0x10), int *) : NULL, *e = d ? FIELD(d, OF(TECHDATA, 0x14), int *) : NULL;
         for (int *p = b; b && e > b && e - b < 16 && p < e; p++) {
             int j;
@@ -70,12 +71,13 @@ static void cz_budget_note(ee_player *pl, unsigned idx, const int *req, const in
 // once a game second: every producer of the player
 static void cz_sample(ee_player *pl, unsigned idx) {
     struct cz_st *z = &g_cz[idx];
-    uint8_t *cm = FIELD(pl, OF(PL, 0xB90), uint8_t *), *um = cm ? FIELD(cm, OF(CM, 0x44), uint8_t *) : NULL;
+    uint8_t *cm = FIELD(pl, OF(PL, 0xB90), uint8_t *);
+    ee_unit_mgr *um = cm ? FIELD(cm, OF(CM, 0x44), ee_unit_mgr *) : NULL;
     if (!um) return;
     cz_types(pl);
     int idle = 0;
     for (int k = 0; k < g_cz_np; k++) {
-        uint8_t *q = GF(FN_UM_TYPE_LIST)(um, g_cz_ptypes[k]);
+        uint8_t *q = um_type_list(um, g_cz_ptypes[k]);
         for (unsigned j = 0, f = q ? FIELD(q, 0xC, unsigned) : 0, n = q ? FIELD(q, 0x10, unsigned) : 0; j < n && j < 64; j++) {
             ee_unit *b = deque_at(q, f + j);
             if (!b || FIELD(b, OF(UNIT, 0x3C), int) <= 0 || !cz_finished(b)) continue;
@@ -89,8 +91,8 @@ static void cz_sample(ee_player *pl, unsigned idx) {
         }
     }
     int cap = unit_limit(pl);
-    int room = cap - FIELD(um, OF(UM, 0x13C), int) - GF(FN_POPULATION)(pl, 1, 0);
-    int wanted = GF(FN_UM_CITIZENS_WANTED)(um), have = GF(FN_UM_CITIZENS)(um);
+    int room = cap - FIELD(um, OF(UM, 0x13C), int) - population(pl, 1, 0);
+    int wanted = um_citizens_wanted(um), have = um_citizens(um);
     z->wanted = wanted; z->have = have; z->room = room; z->cap = cap;
     if (!idle) return;
     char (__thiscall *pend)(void *, int) = (void *)GA(FN_UM_PENDING), (__thiscall *inprod)(void *, int) = (void *)GA(FN_UM_IN_PRODUCTION);
@@ -100,7 +102,7 @@ static void cz_sample(ee_player *pl, unsigned idx) {
     else if ((ut_has(UT(CITIZEN)) && pend(um, UT(CITIZEN))) || (ut_has(UT(FEMALE_CITIZEN)) && pend(um, UT(FEMALE_CITIZEN))))   // the game asks vf32 (can pay one) before 0x49014F: food short, else the budget
         r = FIELD(pl, PL_STOCK + 8, int) < unit_cost(pl, UT(CITIZEN), 2) ? &z->m.pfood : &z->m.pbud;
     else if ((ut_has(UT(CITIZEN)) && inprod(um, UT(CITIZEN))) || (ut_has(UT(FEMALE_CITIZEN)) && inprod(um, UT(FEMALE_CITIZEN)))) r = &z->m.batch;
-    else if (!um[OF(UM, 0x140)]) r = &z->m.att;
+    else if (!FIELD(um, OF(UM, 0x140), uint8_t)) r = &z->m.att;
     else r = &z->m.rest;
     *r += (unsigned)idle;
 }
@@ -169,12 +171,13 @@ static int wf_cap_wanted(unsigned idx, int n);         // below: workforce_plan 
 
 // finished producers of citizens (Town Center, Capitol)
 static int cz_producers(ee_player *pl) {
-    uint8_t *cm = FIELD(pl, OF(PL, 0xB90), uint8_t *), *um = cm ? FIELD(cm, OF(CM, 0x44), uint8_t *) : NULL;
+    uint8_t *cm = FIELD(pl, OF(PL, 0xB90), uint8_t *);
+    ee_unit_mgr *um = cm ? FIELD(cm, OF(CM, 0x44), ee_unit_mgr *) : NULL;
     int n = 0;
     if (!um) return 0;
     cz_types(pl);
     for (int k = 0; k < g_cz_np; k++) {
-        uint8_t *q = GF(FN_UM_TYPE_LIST)(um, g_cz_ptypes[k]);
+        uint8_t *q = um_type_list(um, g_cz_ptypes[k]);
         for (unsigned j = 0, f = q ? FIELD(q, 0xC, unsigned) : 0, c = q ? FIELD(q, 0x10, unsigned) : 0; j < c && j < 64; j++) {
             ee_unit *b = deque_at(q, f + j);
             if (b && FIELD(b, OF(UNIT, 0x3C), int) > 0 && cz_finished(b)) n++;
@@ -212,10 +215,11 @@ static void cz_targets(ee_resource_mgr *rm) {
     g_czp[idx].t = now ? now : 1;
     g_czp[idx].goal = g_czp[idx].feed = g_czp[idx].extra = 0;
     if (!(plan & 3) || current_epoch(pl) < FARM_EPOCH) return;
-    uint8_t *cm = FIELD(pl, OF(PL, 0xB90), uint8_t *), *um = cm ? FIELD(cm, OF(CM, 0x44), uint8_t *) : NULL;
+    uint8_t *cm = FIELD(pl, OF(PL, 0xB90), uint8_t *);
+    ee_unit_mgr *um = cm ? FIELD(cm, OF(CM, 0x44), ee_unit_mgr *) : NULL;
     if (!um) return;
     uint32_t *target = (uint32_t *)FIELD_AT(rm, RM_TARGET);
-    int wf = workforce(pl), game = GF(FN_UM_CITIZENS_WANTED)(um);
+    int wf = workforce(pl), game = um_citizens_wanted(um);
     g_czp[idx].game = game;
     struct mf_st *m = &g_mf[idx];
     mf_scan(pl, idx, now);
@@ -257,7 +261,7 @@ static void cz_targets(ee_resource_mgr *rm) {
 // the citizens wanted at the request (0x490BC2: call 0x48EDDB thiscall(um))
 static int __fastcall hook_cit_wanted(void *um, void *edx) {
     (void)edx;
-    int n = GF(FN_UM_CITIZENS_WANTED)(um);
+    int n = um_citizens_wanted(um);
     ee_player *pl = FIELD(um, OF(UM, 0x134), void *);
     if (!pl || is_vanilla(pl)) return n;
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
@@ -350,7 +354,8 @@ static void wf_targets(ee_resource_mgr *rm) {
     int plan = WF_PLAN(idx);
     w->cap = 0;
     if (!(plan & 3) || current_epoch(pl) < FARM_EPOCH || w->n < WF_N) return;
-    uint8_t *cm = FIELD(pl, OF(PL, 0xB90), uint8_t *), *um = cm ? FIELD(cm, OF(CM, 0x44), uint8_t *) : NULL;
+    uint8_t *cm = FIELD(pl, OF(PL, 0xB90), uint8_t *);
+    ee_unit_mgr *um = cm ? FIELD(cm, OF(CM, 0x44), ee_unit_mgr *) : NULL;
     if (!um) return;
     uint32_t now = game_time();
     uint32_t *target = (uint32_t *)FIELD_AT(rm, RM_TARGET);
@@ -403,13 +408,15 @@ static void wf_thrift_note(unsigned idx, int type, int n) { (void)type; g_wf[idx
 // gold + iron paid for the techs researched so far (their prices, all techs with the researched flag)
 static void wf_log(ee_player *pl, unsigned idx, unsigned min) {
     struct wf_st *w = &g_wf[idx & 15];
-    uint8_t *cm = FIELD(pl, OF(PL, 0xB90), uint8_t *), *tt = FIELD(pl, PL_TECHTREE, uint8_t *);
+    uint8_t *cm = FIELD(pl, OF(PL, 0xB90), uint8_t *);
+    ee_tech_tree *tt = FIELD(pl, PL_TECHTREE, ee_tech_tree *);
     ee_resource_mgr *rm = cm ? FIELD(cm, OF(CM, 0x38), ee_resource_mgr *) : NULL;
     if (!rm) return;
     int rs = 0;
     for (int id = 1000; tt && id < 15000; id++) {
-        uint8_t *t = GF(FN_TECH_LOOKUP)(tt, id), *d = t ? FIELD(t, OF(TECH, 0x8), uint8_t *) : NULL;
-        if (d && t[4]) rs += FIELD(d, OF(TECHDATA, 0x30), int) + FIELD(d, OF(TECHDATA, 0x34), int);
+        ee_tech *t = tech_lookup(tt, id);
+        uint8_t *d = t ? FIELD(t, OF(TECH, 0x8), uint8_t *) : NULL;
+        if (d && FIELD(t, OF(TECH, 0x4), uint8_t)) rs += FIELD(d, OF(TECHDATA, 0x30), int) + FIELD(d, OF(TECHDATA, 0x34), int);
     }
     if (!w->rs0) w->rs0 = rs ? rs : 1;
     rs -= w->rs0;

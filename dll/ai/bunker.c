@@ -11,7 +11,7 @@ static int bk_capacity(ee_unit *u) {   // what a building holds as a transport d
     uint8_t *td = u ? FIELD(u, OF(UNIT, 0x2C), uint8_t *) : NULL;
     return td && FIELD(td, OF(TD, 0x4B4), int) == 29 ? FIELD(td, OF(TD, 0x54C), int) : 0;
 }
-static int bk_held(ee_unit *u) { return GF(FN_UNITS_INSIDE)(u); }   // units inside
+static int bk_held(ee_unit *u) { return units_inside(u); }   // units inside
 
 struct bk_scan { ee_player *pl; int x, y, r, nf, nc; ee_unit *f[8], *c[128]; };
 static void bk_unit(ee_unit *u, void *ctx) {
@@ -48,7 +48,7 @@ static void cmd_bunker(char *out, const char *args) {
     }
     b.pl = st_player(p);
     grid_each(bk_unit, &b);
-    int pop1 = GF(FN_POPULATION)(b.pl, 0, 0), pop2 = GF(FN_POPULATION)(b.pl, 0, 1);
+    int pop1 = population(b.pl, 0, 0), pop2 = population(b.pl, 0, 1);
     REPLY("ok: P%d population %d (with fortresses' %d), %d fortresses, %d citizens within %d of %d,%d:", p, pop1, pop2, b.nf, b.nc, b.r, b.x, b.y);
     int used = 0;
     for (int k = 0; k < b.nf; k++) {
@@ -202,9 +202,9 @@ static int bk_builders(ee_player *pl, ee_unit *b, int n) {
             }
         }
         if (!best) break;
-        void *goal = GF(FN_NEW)(GA(SIZE_GOAL_BUILD));
+        void *goal = game_new(GA(SIZE_GOAL_BUILD));
         if (!goal) break;
-        GF(FN_BUILD_GOAL)(goal, pl, b, 1);
+        goal_build_init(goal, pl, b, 1);
         if (!unit_goal(best, goal, 0, 0x1F51)) break;   // with the unit type's vf29 (+0x74) as the game's assignment
         sent++;
     }
@@ -238,8 +238,9 @@ static void bk_build(ee_player *pl, unsigned pi, uint32_t now) {
     if (g_bk[pi].nall >= want) return;
     // 350 wood (0x555710 also wants a free builder at that moment: it passed in 2 of 10 games before minute 20, the
     // game's own builders take the foundation up anyway)
-    uint8_t *od = type_data(FORTRESS_TYPE), *tt = FIELD(pl, PL_TECHTREE, uint8_t *);
-    uint8_t *tech = od && tt ? GF(FN_TECH_LOOKUP)(tt, FIELD(od, OF(TD, 0x4E0), int)) : NULL;
+    uint8_t *od = type_data(FORTRESS_TYPE);
+    ee_tech_tree *tt = FIELD(pl, PL_TECHTREE, ee_tech_tree *);
+    ee_tech *tech = od && tt ? tech_lookup(tt, FIELD(od, OF(TD, 0x4E0), int)) : NULL;
     int cost = tech && FIELD(tech, OF(TECH, 0x8), uint8_t *) ? FIELD(FIELD(tech, OF(TECH, 0x8), uint8_t *), OF(TECHDATA, 0x28), int) : 350;   // the cost lives in its tech (wood)
     if (((int *)((uint8_t *)pl + PL_STOCK))[3] < cost) { g_bk[pi].need_wood = cost; return; }   // can't pay yet: saved for (bunker_reserve)
     // the drop site nearest the base point without a fortress within 10 tiles
@@ -258,7 +259,7 @@ static void bk_build(ee_player *pl, unsigned pi, uint32_t now) {
                 int x = d[0] + ax, y = d[1] + ay;
                 if ((abs(ax) != r && abs(ay) != r) || !can_place(pl, FORTRESS_TYPE, x, y) || !can_place(pl, FORTRESS_TYPE, x + 1, y + 1) ||
                     !can_place(pl, FORTRESS_TYPE, x - 1, y - 1) || raiders_near(pl, x, y, 8)) continue;
-                ee_unit *b = GF(FN_PLACE_BUILDING)(pl, FORTRESS_TYPE, x, y);
+                ee_unit *b = place_foundation(pl, FORTRESS_TYPE, x, y);
                 int sent = b ? bk_builders(pl, b, 3) : 0;
                 if (g_log) fprintf(g_log, "# bunker: P%u at %.1f min: fortress foundation at %d,%d %s, %d builders (%s, %d citizens, %d fortresses)\n", pi,
                                    now / 60000.0, x, y, b ? "laid" : "refused", sent, air ? "aircraft possible" : "citizens hurt", cit, g_bk[pi].nall);
@@ -288,7 +289,7 @@ static unsigned g_bk_res_in[16], g_bk_res_out[16];
 static uint32_t g_bk_res_load_t[16];
 static int bk_room(ee_player *pl) {   // cap - population on the map (the fortresses' units left out)
     int cap = unit_limit(pl);
-    return cap - GF(FN_POPULATION)(pl, 0, 0);
+    return cap - population(pl, 0, 0);
 }
 struct bk_free { ee_player *pl; uint8_t *cm; int bx, by, n; ee_unit *u[64]; };
 static void bk_free_unit(ee_unit *u, void *ctx) {
@@ -297,7 +298,7 @@ static void bk_free_unit(ee_unit *u, void *ctx) {
     if (unit_owner(u) != f->pl || FIELD(u, OF(UNIT, 0x3C), int) <= 0 || !td || f->n >= 64) return;
     int dx = FIELD(u, OF(UNIT, 0x1C), int) - f->bx, dy = FIELD(u, OF(UNIT, 0x20), int) - f->by;
     if (dx * dx + dy * dy > 25 * 25 || !is_soldier(td) || is_ship_or_air(td)) return;
-    if (GF(FN_CM_UNIT_FREE)(f->cm, FIELD(u, OF(UNIT, 0x30), void *))) f->u[f->n++] = u;
+    if (cm_unit_free(f->cm, FIELD(u, OF(UNIT, 0x30), void *))) f->u[f->n++] = u;
 }
 static void bk_reserve_tick(ee_player *pl, unsigned pi, uint32_t now) {
     static uint32_t last[16];

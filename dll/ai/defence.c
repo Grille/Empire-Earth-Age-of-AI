@@ -35,11 +35,11 @@ static unsigned area_id(int x, int y, int kind);   // assault.c: 1 the sea, 2 th
 static const enum ut_name k_tower_line[] = { UT_TOWER_LINE };   // oldest first
 static int tower_newest(ee_player *pl) {   // the best tower the game lets this player build now (0: none)
     for (int i = 6; i >= 0; i--)
-        if (ut_has(g_ut[k_tower_line[i]]) && GF(FN_CAN_BUILD)(pl, g_ut[k_tower_line[i]], 0x20, 0)) return g_ut[k_tower_line[i]];
+        if (ut_has(g_ut[k_tower_line[i]]) && can_build(pl, g_ut[k_tower_line[i]])) return g_ut[k_tower_line[i]];
     return 0;
 }
-static int bq_has(uint8_t *bm, int type);   // attack.c
-static int tower_queued(uint8_t *bm) {   // a tower of the line in the build manager's queues
+static int bq_has(ee_build_mgr *bm, int type);   // attack.c
+static int tower_queued(ee_build_mgr *bm) {   // a tower of the line in the build manager's queues
     for (int i = 0; i < 7; i++) if (bq_has(bm, g_ut[k_tower_line[i]])) return 1;
     return 0;
 }
@@ -49,7 +49,7 @@ static int can_place(ee_player *pl, int type, int x, int y) {
     int n = map ? (int)FIELD(map, OF(MAP, 0x1816FC), uint32_t) : 0, sz = td ? FIELD(td, OF(TD, 0x58C), int) : 0;
     if (!td || x < 2 || y < 2 || x >= n - 2 || y >= n - 2) return 0;
     if (sz < 1) sz = 1;
-    return GF(FN_CAN_PLACE)(pl, type, x, y, sz, sz, 0) != 0;
+    return can_place_area(pl, type, x, y, sz) != 0;
 }
 
 struct def_scan { ee_player *pl; int bx, by; int d2[16], x[16], y[16]; int towers, tx[64], ty[64]; int walls, wx[256], wy[256]; };
@@ -189,7 +189,7 @@ static void defence_tick(ee_player *pl, unsigned idx, uint32_t now) {
     struct def_scan *s = &g_scan;
     if (s->pl != pl) return;
     void *cm = FIELD(pl, OF(PL, 0xB90), void *), *wm = cm ? FIELD(cm, OF(CM, 0x48), void *) : NULL;
-    uint8_t *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL;
+    ee_build_mgr *bm = cm ? FIELD(cm, OF(CM, 0x3C), ee_build_mgr *) : NULL;
     if (!wm || !bm) return;
     int *stock = (int *)((uint8_t *)pl + PL_STOCK);
     // Towers of our own: the game's plan asks for few (P3: none in the first 15 minutes of a Bronze start, with 685
@@ -202,7 +202,7 @@ static void defence_tick(ee_player *pl, unsigned idx, uint32_t now) {
         if (!queued && ttype && stock[4] >= unit_cost(pl, ttype, 4) + 100 && e >= 0 && e < 14 &&
             defence_spot(pl, ttype, &x, &y)) {
             int entry[3] = { ttype, x, y };
-            GF(FN_BQ_ADD)(bm + 4 + e * 0x14, entry);
+            bm_queue_add(bm, e, entry);
             last_tower[idx] = now ? now : 1;
             if (g_log) fprintf(g_log, "# defence: P%u queues tower %d at %d,%d (stone %d)\n", idx, ttype, x, y, stock[4]);
             ai_say(pl, CHAT_TOWER, "[ai] extra tower (type %d) at %d,%d, stone %d", ttype, x, y, stock[4]);
@@ -218,7 +218,7 @@ static void defence_tick(ee_player *pl, unsigned idx, uint32_t now) {
         static const enum ut_name wline[] = { UT_WALL_LINE };   // oldest first
         int wtype = 0;
         for (int i = 5; i >= 0 && !wtype; i--)   // the newest it can build
-            if (ut_has(g_ut[wline[i]]) && GF(FN_CAN_BUILD)(pl, g_ut[wline[i]], 0x20, 0)) wtype = g_ut[wline[i]];
+            if (ut_has(g_ut[wline[i]]) && can_build(pl, g_ut[wline[i]])) wtype = g_ut[wline[i]];
         if (!wtype) continue;
         int ok = 1;
         for (int r = 2; r < 7; r++) if (stock[r] < 11 * unit_cost(pl, wtype, r)) ok = 0;
@@ -243,7 +243,7 @@ static void defence_tick(ee_player *pl, unsigned idx, uint32_t now) {
         int have = 0;   // wall pieces standing on the arc (then a new order only repairs)
         for (int w = 0; w < s->walls; w++) have += on_segment(s->wx[w], s->wy[w], a, b);
         if (have >= 8) continue;
-        GF(FN_BUILD_WALL)(wm, a, b, wtype, 0);
+        build_wall(wm, a, b, wtype);
         f->wall_tries++;
         f->wall_t = now ? now : 1;
         g_def_walls_built[idx]++;
@@ -1175,7 +1175,7 @@ __attribute__((used)) int __fastcall hook_damage_points(uint8_t *model, void *ed
         }
         return 0;
     }
-    return GF(FN_DAMAGE_POINTS)(model, index, state);
+    return damage_points(model, index, state);
 }
 __attribute__((naked, used)) void damage_points_thunk(void) {
     __asm__("movl %esi, _g_dmg_unit\n\t"
@@ -1304,7 +1304,7 @@ static void anti_air(ee_player *pl, unsigned idx, uint32_t now) {
     }
     int want_u = want - (have_b < want_b ? have_b : want_b);
     void *cm = FIELD(pl, OF(PL, 0xB90), void *), *um = cm ? FIELD(cm, OF(CM, 0x44), void *) : NULL;
-    uint8_t *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL;
+    ee_build_mgr *bm = cm ? FIELD(cm, OF(CM, 0x3C), ee_build_mgr *) : NULL;
     // AA units
     if (um && have_u < want_u && (!g_aa_st[idx].train_t || now - g_aa_st[idx].train_t >= 15000)) {
         g_aa_st[idx].train_t = now ? now : 1;
@@ -1332,7 +1332,7 @@ static void anti_air(ee_player *pl, unsigned idx, uint32_t now) {
         ((uncovered && !g_aa_st[idx].air) || nearest_drop(pl, g_aa_st[idx].ax, g_aa_st[idx].ay, 0, d))) {
         int bt = 0;
         for (size_t k = 0; k < sizeof k_aa_bldgs / sizeof *k_aa_bldgs && !bt; k++)
-            if (k_aa_bldgs[k].epoch <= epoch && ut_has(g_ut[k_aa_bldgs[k].type]) && GF(FN_CAN_BUILD)(pl, g_ut[k_aa_bldgs[k].type], 0x20, 0))
+            if (k_aa_bldgs[k].epoch <= epoch && ut_has(g_ut[k_aa_bldgs[k].type]) && can_build(pl, g_ut[k_aa_bldgs[k].type]))
                 bt = g_ut[k_aa_bldgs[k].type];
         for (int r = 3; bt && r <= 7; r++)
             for (int ax = -r; ax <= r; ax++)
@@ -1340,7 +1340,7 @@ static void anti_air(ee_player *pl, unsigned idx, uint32_t now) {
                     if ((abs(ax) != r && abs(ay) != r) || !can_place(pl, bt, d[0] + ax, d[1] + ay) ||
                         raiders_near(pl, d[0] + ax, d[1] + ay, 8)) continue;
                     int entry[3] = { bt, d[0] + ax, d[1] + ay };
-                    GF(FN_BQ_ADD)(bm + 4 + e * 0x14, entry);
+                    bm_queue_add(bm, e, entry);
                     g_aa_st[idx].build_t = now ? now : 1;
                     g_aa_st[idx].queued++;
                     if (g_log) fprintf(g_log, "# anti-air: P%u at %.1f min queues type %d at %d,%d (enemy aircraft %d near %d,%d, %d seen anywhere; AA buildings %d of %d%s)\n",
@@ -1398,7 +1398,7 @@ static void upgrade_stragglers(void) {   // the safe point (control.c hook_sim_r
             g_upg.best[l] = -1;
             for (int i = 0; i < 7; i++) {
                 g_upg.avail[l][i] = UPG(l, i) >= 0 &&
-                    GF(FN_CAN_BUILD)(pl, UPG(l, i), 0x20, 0);
+                    can_build(pl, UPG(l, i));
                 if (g_upg.avail[l][i]) g_upg.best[l] = i;
             }
             any |= g_upg.best[l] > 0;
@@ -1409,10 +1409,10 @@ static void upgrade_stragglers(void) {   // the safe point (control.c hook_sim_r
         grid_each(upg_scan, NULL);   // collected first: the conversion replaces the object
         int pi = FIELD(pl, PL_INDEX, int);
         for (int k = 0; k < g_upg.n; k++) {
-            uint32_t data = (uint32_t)type_data(g_upg.to[k]);
-            if (!data) continue;
+            uint8_t *ntd = type_data(g_upg.to[k]);
+            if (!ntd) continue;
             int from = FIELD(FIELD(g_upg.u[k], OF(UNIT, 0x2C), uint8_t *), OF(TD, 0x4B8), int), x = FIELD(g_upg.u[k], OF(UNIT, 0x1C), int), y = FIELD(g_upg.u[k], OF(UNIT, 0x20), int);
-            GF(FN_UNIT_CONVERT)(g_upg.u[k], pi, data);
+            unit_convert(g_upg.u[k], pi, ntd);
             g_upg_done[p & 15]++;
             if (g_log) fprintf(g_log, "# upgrades: P%d at %.1f min: %d at %d,%d left behind by its upgrade - now %d\n", p,
                                now / 60000.0, from, x, y, g_upg.to[k]);

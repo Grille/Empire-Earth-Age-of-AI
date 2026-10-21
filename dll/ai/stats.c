@@ -23,9 +23,8 @@ static int g_fight_est = 0;   // [all] fight_estimate
 
 static uint8_t *st_rec(ee_player *pl, int type) {   // the player's stats record of a type
     if (!pl || type < 0) return NULL;
-    uint8_t *vec = (uint8_t *)pl + OF(PL, 0x874);
-    if ((unsigned)type >= GF(FN_VECTOR_SIZE)(vec)) return NULL;
-    uint8_t **p = GF(FN_TYPE_STATS)(vec, type);
+    if ((unsigned)type >= type_stats_count(pl)) return NULL;
+    uint8_t **p = type_stats(pl, type);
     return p ? *p : NULL;
 }
 static void *st_player(int i) {   // any player (g_players has the AIs only)
@@ -33,7 +32,7 @@ static void *st_player(int i) {   // any player (g_players has the AIs only)
 }
 static float st_factor(uint8_t *atd, int api, uint8_t *ttd, int tpi) {   // the game's hit factor, 0 = cannot hit
     if (!atd || !ttd) return 0.0f;
-    return GF(FN_ATTACK_BONUS)((void *)GA(G_BONUS_TABLE), FIELD(atd, OF(TD, 0x4C8), int), ttd, api, tpi);
+    return attack_bonus(atd, ttd, api, tpi);
 }
 // damage of one shot of type atd (stats ast, player index api) at type ttd (stats tst, tpi); 0 = cannot hurt it
 static int st_shot_t(uint8_t *atd, uint8_t *ast, int api, uint8_t *ttd, uint8_t *tst, int tpi) {
