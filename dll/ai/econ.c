@@ -913,10 +913,10 @@ internal void econ_targets(ee_resource_mgr *rm) {
                 int c = unit_cost(pl, ent[0], 3);
                 if (c > 0) { queued += c; nq++; }
             }
-        int need = (demand[3] > queued ? demand[3] : queued) - stock[3];   // filled within about 2 minutes
-        need = need < 0 ? 0 : need > 2000 ? 2000 : need;
+        int wood_need = (demand[3] > queued ? demand[3] : queued) - stock[3];   // filled within about 2 minutes
+        wood_need = wood_need < 0 ? 0 : wood_need > 2000 ? 2000 : wood_need;
         float pw = g_rate[idx].per_worker[3];
-        int want = (int)((float)need / (2.0f * (pw > 2.0f ? pw : 2.0f)) + 0.99f), most = total * 2 / 5;
+        int want = (int)((float)wood_need / (2.0f * (pw > 2.0f ? pw : 2.0f)) + 0.99f), most = total * 2 / 5;
         want = want < 2 ? 2 : want > most ? most : want;
         if (abs(want - g_wood_want[idx]) < 2 && g_wood_want[idx]) want = g_wood_want[idx];   // steps of 2+
         g_wood_want[idx] = want;
@@ -980,8 +980,8 @@ internal void econ_targets(ee_resource_mgr *rm) {
                 if (d[2] > metal || spare < 200) g_pull[idx] -= 4;
                 else if (metal >= 5 && metal > 2 * d[2] && spare > 300 && !unplaced) g_pull[idx] += 2;
             }
-            int most = (int)target[2] * 3 / 5;
-            g_pull[idx] = g_pull[idx] < 0 ? 0 : g_pull[idx] > most ? most : g_pull[idx];
+            int pull_most = (int)target[2] * 3 / 5;
+            g_pull[idx] = g_pull[idx] < 0 ? 0 : g_pull[idx] > pull_most ? pull_most : g_pull[idx];
             if (g_pull[idx] > 0) {
                 to_metals(target, demand, stock, g_pull[idx]);
                 target[2] -= (uint32_t)g_pull[idx];

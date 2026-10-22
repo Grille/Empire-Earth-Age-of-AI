@@ -1148,9 +1148,9 @@ internal void siege_tick(ee_player *pl, uint32_t now) {
     for (int i = 0; i < ns; i++) {
         ee_unit *u = siege[i];
         uint8_t *g = FIELD(u, OF(UNIT, 0x1EC), uint8_t *);
-        float ux = (float)FIELD(u, OF(UNIT, 0x1C), int) + 0.5f - px, uy = (float)FIELD(u, OF(UNIT, 0x20), int) + 0.5f - py;
+        float ox = (float)FIELD(u, OF(UNIT, 0x1C), int) + 0.5f - px, oy = (float)FIELD(u, OF(UNIT, 0x20), int) + 0.5f - py;
         float hx = (float)FIELD(u, OF(UNIT, 0x1C), int) + 0.5f - gx, hy = (float)FIELD(u, OF(UNIT, 0x20), int) + 0.5f - gy;
-        int committed = (g && *(uintptr_t *)g == GA(VT_GOAL_ATTACK) && FIELD(g, OF(GOAL, 0x30), ee_unit *) == t) || ux * ux + uy * uy <= 9.0f ||
+        int committed = (g && *(uintptr_t *)g == GA(VT_GOAL_ATTACK) && FIELD(g, OF(GOAL, 0x30), ee_unit *) == t) || ox * ox + oy * oy <= 9.0f ||
                         (g && *(uintptr_t *)g == GA(VT_GOAL_LOCATION) && fabsf(FIELD(g, OF(GOAL, 0x20), float) - px) < 2 && fabsf(FIELD(g, OF(GOAL, 0x24), float) - py) < 2);
         if (committed && !changed) out[nout++] = u;
         else if (hx * hx + hy * hy <= 25.0f) home[nhome++] = u;
@@ -1164,8 +1164,8 @@ internal void siege_tick(ee_player *pl, uint32_t now) {
         ee_unit *u = out[i];
         uint8_t *g = FIELD(u, OF(UNIT, 0x1EC), uint8_t *);
         if (g && *(uintptr_t *)g == GA(VT_GOAL_ATTACK) && FIELD(g, OF(GOAL, 0x30), ee_unit *) == t) continue;
-        float ux = (float)FIELD(u, OF(UNIT, 0x1C), int) + 0.5f - px, uy = (float)FIELD(u, OF(UNIT, 0x20), int) + 0.5f - py;
-        if (ux * ux + uy * uy <= 4.0f) unit_goal(u, goal_attack(u, t), 0, 0x1F40);
+        float ox = (float)FIELD(u, OF(UNIT, 0x1C), int) + 0.5f - px, oy = (float)FIELD(u, OF(UNIT, 0x20), int) + 0.5f - py;
+        if (ox * ox + oy * oy <= 4.0f) unit_goal(u, goal_attack(u, t), 0, 0x1F40);
     }
     g_siege_st[pi].wave = nout > 0;
     // the rest to the gathering point (not those walking there)

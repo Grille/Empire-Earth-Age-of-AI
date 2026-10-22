@@ -252,10 +252,10 @@ internal void ecolog_tick(ee_player *pl, uint32_t now) {
             ee_unit *u = it.u;
             uint8_t *td = it.td;
             if (unit_owner(u) != pl || FIELD(u, OF(UNIT, 0x3C), int) <= 0) continue;
-            int t = FIELD(td, OF(TD, 0x4B8), int), fam = FIELD(td, OF(TD, 0x4B4), int), cit = is_citizen_type(t);
-            if (!cit && !is_army_family(fam)) continue;
+            int t = FIELD(td, OF(TD, 0x4B8), int), fam = FIELD(td, OF(TD, 0x4B4), int), is_cit = is_citizen_type(t);
+            if (!is_cit && !is_army_family(fam)) continue;
             if (!eco_new_id(idx, FIELD(u, OF(UNIT, 0x60), uint32_t)) || first) continue;
-            if (cit) { sp->tc++; sp->tcF += (unsigned)unit_cost(pl, t, 2); }
+            if (is_cit) { sp->tc++; sp->tcF += (unsigned)unit_cost(pl, t, 2); }
             else {
                 sp->ts++; sp->tsF += (unsigned)unit_cost(pl, t, 2);
                 for (int r = 3; r < 7; r++) sp->tsX += (unsigned)unit_cost(pl, t, r);

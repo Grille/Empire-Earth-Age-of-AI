@@ -37,8 +37,8 @@ internal void cmd_tech(char *out, const char *args) {
         REPLY(" | effects %d:", ei);
         if (ei >= 0 && ei <= 0x5DC) {   // effect list 0x93B1B8 + ei*0x10 (+4 ids, +8 count), effect 0x919E70 + id*0x44
             uint8_t *list = (uint8_t *)GA(G_EPOCH_TECHS) + ei * 0x10;
-            unsigned n = FIELD(list, OF(EPOCHTECHS, 0x8), unsigned), *ids = FIELD(list, OF(EPOCHTECHS, 0x4), unsigned *);
-            for (unsigned k = 0; ids && k < n && k < 16; k++) {
+            unsigned count = FIELD(list, OF(EPOCHTECHS, 0x8), unsigned), *ids = FIELD(list, OF(EPOCHTECHS, 0x4), unsigned *);
+            for (unsigned k = 0; ids && k < count && k < 16; k++) {
                 if (ids[k] >= 2000) { REPLY(" %u?", ids[k]); continue; }
                 uint8_t *ef = (uint8_t *)GA(G_EFFECTS) + ids[k] * 0x44;
                 REPLY(" %u(%x/%x/%x)", ids[k], FIELD(ef, OF(EFFECT, 0x14), int), FIELD(ef, OF(EFFECT, 0x20), int), FIELD(ef, OF(EFFECT, 0x2C), int));

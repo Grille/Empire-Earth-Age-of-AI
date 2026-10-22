@@ -1769,10 +1769,10 @@ internal void cmd_ddinfo(char *out, const char *args) {
         LARGE_INTEGER f;
         QueryPerformanceFrequency(&f);
         LONG n = InterlockedExchange(&g_t_count, 0);
-        double ms = 1000.0 / (double)f.QuadPart;
+        double tick_ms = 1000.0 / (double)f.QuadPart;
         LONG64 tl = InterlockedExchange64(&g_t_lock, 0), tb = InterlockedExchange64(&g_t_blit, 0), tf = InterlockedExchange64(&g_t_frame, 0);
         if (n) REPLY("present timing over %ld frames: frame %.2f ms, readback (Lock) %.2f ms, to the window %.2f ms, rest (game) %.2f ms\n",
-                     n, tf * ms / n, tl * ms / n, tb * ms / n, (tf - tl - tb) * ms / n);
+                     n, tf * tick_ms / n, tl * tick_ms / n, tb * tick_ms / n, (tf - tl - tb) * tick_ms / n);
     }
     REPLY("frame stats (FPS display): %.1f frames/s, %.1f / %.1f per s\n", FIELD(st, OF(E_SCRSTATE, 0x2D8), float), FIELD(st, OF(E_SCRSTATE, 0x2D4), float), FIELD(st, OF(E_SCRSTATE, 0x2E0), float));
     if (g_subclassed) {   // window frame state (DDrawCompat switches the modern frame off)
@@ -1799,7 +1799,6 @@ internal void cmd_ddinfo(char *out, const char *args) {
           : g_present_d3d && !g_d3d.failed ? "Direct3D 11" : "GDI", ddrawcompat_loaded() ? "loaded" : "not loaded",
           g_primary_frames, g_primary_fail, (unsigned long)g_primary_hr);
     if (g_subclassed) {
-        typedef UINT (WINAPI *GetDpiFn)(HWND);
         GetDpiFn get_dpi = (GetDpiFn)(void *)GetProcAddress(GetModuleHandleA("user32.dll"), "GetDpiForWindow");
         void *dpi = dpi_enter(g_subclassed);
         RECT wr, cr2;

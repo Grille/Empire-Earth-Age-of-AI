@@ -2145,14 +2145,14 @@ internal void cmd_board(char *out, const char *args) {
     struct ld_bd b = { 0 };
     int p = -1;
     if (!strncmp(args, "reload", 6)) {   // board reload P type: the first unit of P of type - every int and float that could hold reload times
-        int p = 0, t = 0;
-        sscanf(args + 6, "%d %d", &p, &t);
+        int rp = 0, t = 0;
+        sscanf(args + 6, "%d %d", &rp, &t);
         uint8_t *map = *(uint8_t **)GA(G_MAP), *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
         ee_unit *hit = NULL;
         if (!grid) return;
         for (struct grid_it it = grid_it_all(1); !hit && grid_it_next(&it); )
-            if (FIELD(it.td, OF(TD, 0x4B8), int) == t && unit_owner(it.u) && FIELD(unit_owner(it.u), PL_INDEX, int) == p) hit = it.u;
-        if (!hit) { REPLY("no unit of type %d for P%d\n", t, p); return; }
+            if (FIELD(it.td, OF(TD, 0x4B8), int) == t && unit_owner(it.u) && FIELD(unit_owner(it.u), PL_INDEX, int) == rp) hit = it.u;
+        if (!hit) { REPLY("no unit of type %d for P%d\n", t, rp); return; }
         uint8_t *td = FIELD(hit, OF(UNIT, 0x2C), uint8_t *), *st = FIELD(hit, OF(UNIT, 0x34), uint8_t *);
     ee_player *pl = unit_owner(hit);
         uint8_t **rec = type_stats(pl, t);
