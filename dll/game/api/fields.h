@@ -1,5 +1,5 @@
 // THE GAME'S OBJECTS' FIELDS: every offset the mod reads in the game's objects, by the kind of object and the offset
-// it has in the 2017 update, with its value in each exe build (k_exe_builds' columns, in that order; tables.h makes
+// it has in the 2017 update, with its value in each exe build (k_exe_builds' columns, in that order; tables.c makes
 // the table of these rows). OF(PL, 0x9D4) is the running build's offset of the field the 2017 update has at +0x9D4
 // in a player: FIELD(pl, OF(PL, 0x9D4), void *). A read of a field not in the table doesn't build. The kinds are below; the runtime library's layouts (std::deque,
 // vector, map nodes, UString) and the mod's own structures stay plain numbers.

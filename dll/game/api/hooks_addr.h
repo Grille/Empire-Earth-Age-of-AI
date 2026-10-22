@@ -1,4 +1,4 @@
-// THE ADDRESSES THE MOD PATCHES TO HOOK THE GAME (hooks.h's installers): the calls and vtable slots of the hooked
+// THE ADDRESSES THE MOD PATCHES TO HOOK THE GAME (hooks.c's installers): the calls and vtable slots of the hooked
 // functions, their vtables and lists of call sites - their rows of addr.h's tables, in the same columns (one value per
 // exe build, k_exe_builds' order). A hooked function the mod also calls is in functions_addr.h.
 

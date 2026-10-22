@@ -1,5 +1,5 @@
 // THE TABLES BEHIND GA, GF, GL AND OF - game/api/'s own: the rest of the code uses the wrappers, accessors and
-// installers of functions.h and hooks.h, and fields.h's names (scripts/layers.py). Every address the mod uses in
+// installers of functions.c and hooks.c, and fields.h's names (scripts/layers.py). Every address the mod uses in
 // Empire Earth.exe and every field offset it reads, by name, with its value in each exe build the mod knows - one
 // column per k_exe_builds entry (game/exe.c), in that order. game_build finds the running build, addr_select and
 // fields_select take its column when the DLL loads: GA(NAME) is the address, GF(NAME) the function there, typed by its
@@ -12,7 +12,7 @@
 // their own for one build: editor_layout.h (generated for the 2017 update: apply_editor_layout only there).
 
 // The address rows by who uses them (scripts/addr_sort.py keeps them there, the build checks it): functions_addr.h
-// what functions.h calls, hooks_addr.h what hooks.h patches, data_addr.h the game's data functions.h reads; one table
+// what functions.c calls, hooks_addr.h what hooks.c patches, data_addr.h the game's data functions.c reads; one table
 // of the three. F(name, return type, calling convention, (parameters), value per build): a function; D(name, value per
 // build): an address or a number; L(name, count, (values of build 1), (values of build 2) ...): a list.
 #include "game/api/functions_addr.h"   // the rows of the functions the mod calls

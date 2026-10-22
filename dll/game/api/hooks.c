@@ -1,9 +1,9 @@
 // THE GAME'S FUNCTIONS THE MOD HOOKS: for each, the type of its hook and the installer. A hook stands in for the game's
 // function at its calls (patch_call: the call instruction redirected, only while it still calls that function) or in
-// its class's vtable (patch_vtable: only while the slot still holds it); it calls the original through functions.h's
+// its class's vtable (patch_vtable: only while the slot still holds it); it calls the original through functions.c's
 // wrapper when it wants the game's own work done. The hook types are the game's real arguments - a hook declared with
 // other parameters doesn't build (a thiscall hook is __fastcall with the unused edx second). An installer returns how
-// many places it patched; of (may be NULL) gets the number there are. Kinds not typed yet are void *, as in functions.h.
+// many places it patched; of (may be NULL) gets the number there are. Kinds not typed yet are void *, as in functions.c.
 // Assembler stubs (they read registers) are void (*)(void).
 
 typedef void (*thunk_fn)(void);

@@ -1,7 +1,7 @@
-"""The address rows into the file their use calls for: what game/api/functions.h calls into functions_addr.h, what
-game/api/hooks.h patches into hooks_addr.h, the game's data (G_, read by functions.h's accessors) into data_addr.h.
+"""The address rows into the file their use calls for: what game/api/functions.c calls into functions_addr.h, what
+game/api/hooks.c patches into hooks_addr.h, the game's data (G_, read by functions.c's accessors) into data_addr.h.
 A function both called and hooked is a function; a row neither uses is reported (unused: take it out). Within a file
-the rows stay in the order of their address (the numbers and lists in their order). One table either way - tables.h
+the rows stay in the order of their address (the numbers and lists in their order). One table either way - tables.c
 composes the three - so a row's move changes no code (scripts/code_same.py compares the table by name).
 
 usage: python scripts/addr_sort.py           move the rows where they belong, print the moves
@@ -59,8 +59,8 @@ def first_value(r):
 def main():
     check = '--check' in sys.argv
     texts = {k: read(f) for k, f in FILES.items()}
-    fun = strip_comments(open(os.path.join(API, 'functions.h'), encoding='latin-1').read())
-    hk = strip_comments(open(os.path.join(API, 'hooks.h'), encoding='latin-1').read())
+    fun = strip_comments(open(os.path.join(API, 'functions.c'), encoding='latin-1').read())
+    hk = strip_comments(open(os.path.join(API, 'hooks.c'), encoding='latin-1').read())
     def used(t, n): return re.search(r'\b' + n + r'\b', t) is not None
     def where(n):
         if n.startswith('G_'): return 'DATA'
@@ -75,7 +75,7 @@ def main():
             for n, ls in rows(sp[3]) if sp else []:
                 allr.append((n, ls, k))
         for n, ls, k in allr:
-            if where(n) is None: unused.append('%s (%s): used by neither functions.h nor hooks.h' % (n, FILES[k]))
+            if where(n) is None: unused.append('%s (%s): used by neither functions.c nor hooks.c' % (n, FILES[k]))
             elif where(n) != k: moves.append('%s: %s -> %s' % (n, FILES[k], FILES[where(n)]))
             if where(n) not in (None, k) and not block_span(texts[where(n)][0], '%s_%s' % (blk, where(n))):
                 sys.exit('addr_sort: %s belongs into %s, which has no %s_%s' % (n, FILES[where(n)], blk, where(n)))

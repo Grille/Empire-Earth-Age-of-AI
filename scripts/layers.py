@@ -48,8 +48,8 @@ EXCEPTIONS = [
     ('voice/llm.c', 'test/control.c', 'queue_pause_toggle', 'the game paused while the language model answers'),
 ]
 
-# THE GAME'S FUNCTIONS ONLY IN game/api/: the calls through functions.h's typed wrappers, the hooks and patches through
-# hooks.h's installers, a goal's kind, an object's memory and the game's data through functions.h too - GA, GF or GL
+# THE GAME'S FUNCTIONS ONLY IN game/api/: the calls through functions.c's typed wrappers, the hooks and patches through
+# hooks.c's installers, a goal's kind, an object's memory and the game's data through functions.c too - GA, GF or GL
 # anywhere else fails the build.
 
 IDENT = re.compile(r'[A-Za-z_]\w*')
@@ -175,7 +175,7 @@ def analyse():
     owner = collections.defaultdict(set)
     for f in files:
         for n in definitions(code[f]): owner[n].add(f)
-    # the X-macro names of game/api/tables.h and unit_ids.h: A_x, x_fn, UT_x are made there
+    # the X-macro names of game/api/tables.c and unit_ids.h: A_x, x_fn, UT_x are made there
     edges = collections.defaultdict(lambda: collections.defaultdict(set))   # user -> used file -> names
     for f in files:
         for n in uses(code[f]):
@@ -240,7 +240,7 @@ def main():
     # the game's functions only in game/api/
     for f in (f for f in files if not f.startswith('game/api/')):
         for m in re.finditer(r'\bGF\s*\(\s*(\w+)|\bGA\s*\(\s*(\w+)|\bGL\s*\(\s*(\w+)', code[f]):
-            bad.append('%s uses %s - the game addresses only in game/api/: a wrapper or accessor in functions.h, an installer in hooks.h' % (f, m.group(1) or m.group(2) or m.group(3)))
+            bad.append('%s uses %s - the game addresses only in game/api/: a wrapper or accessor in functions.c, an installer in hooks.c' % (f, m.group(1) or m.group(2) or m.group(3)))
     stale = [e for e in EXCEPTIONS if (e[0], e[1], e[2]) not in used]
     for b in bad: print('layers: ' + b)
     for e in stale: print('layers: exception no longer needed: %s -> %s (%s) - take it out of scripts/layers.py' % e[:3])

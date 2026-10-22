@@ -25,7 +25,7 @@ Several sessions may work in this tree at the same time - see Git below.
   - test runs start no game meanwhile, the running ones (and the player's) are waited for; nobody has to pause.
 - What the mod knows of the game's code and objects lives in `dll/game/api/`. Game addresses: `functions_addr.h` (the
   functions the mod calls), `hooks_addr.h` (what it patches to hook), `data_addr.h` (the game's data), made a table
-  by `tables.h` (api/'s own, with fields.h's; the builds are `game/exe.c`'s) - by name with one value per exe build: `GA(G_WORLD_CLOCK)`,
+  by `tables.c` (api/'s own, with fields.h's; the builds are `game/exe.c`'s) - by name with one value per exe build: `GA(G_WORLD_CLOCK)`,
   `GF(FN_CAN_BUILD)(pl, t, 0x20, 0)`, `GL(TRAIN_SITES)`, a vtable slot `GA(SLOT_ASG_UPDATE)`, an object's size
   `GA(SIZE_GOAL_BUILD)` - never a literal address, slot or size in the code. The game objects' fields likewise live
   in `fields.h` there, by kind and the 2017 update's offset: `FIELD(pl, OF(PL, 0x9D4), void *)` (a field not in
@@ -36,10 +36,10 @@ Several sessions may work in this tree at the same time - see Git below.
   own code (and a called function's stack arguments: `rets`), `scripts/port_dll.py` for the engine DLLs (AoC ships
   its own builds: an RVA_ row, or better the export by name). Code that differs by more than an address:
   `build_is("aoc")` (AoC rewrote a few functions - docs/engine-notes.md).
-- `dll/game/api/functions.h`: the objects typed (`ee_player *`, `ee_resource_mgr *`, ... one per fields.h kind), the
+- `dll/game/api/functions.c`: the objects typed (`ee_player *`, `ee_resource_mgr *`, ... one per fields.h kind), the
   game's functions as typed wrappers (`explored_by(site, pl)`, `rm_assign(rm, u, site)`), its data as accessors
   (`game_map()`, `local_player_index()`), a goal's kind (`goal_is_attack(g)`) and an object's memory
-  (`goal_build_alloc()`); `dll/game/api/hooks.h`: per hooked function its hook's type and installer
+  (`goal_build_alloc()`); `dll/game/api/hooks.c`: per hooked function its hook's type and installer
   (`patch_place(hook_place)` - a hook with other parameters doesn't build), and the patches of the game's code. GA, GF
   and GL only in game/api/ (scripts/layers.py; elsewhere add a wrapper, an accessor or an installer); a kind not typed
   yet is `void *`. `scripts/addr_sort.py` moves the rows into the file their use calls for (the build checks it). A

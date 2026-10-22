@@ -6,7 +6,7 @@
 // (trees, decorations: 1536 records of 0x3C at 0x8FBD30) have their own array and are not changed.
 // The array is moved to a larger one: each record is built with the game's constructor (0x506442), and the
 // references (found by a disassembly scan of the exe, all in the render code) and the two 512 limits point there.
-// (DRAW_REC, DRAW_OLD_N and the operands: game/api/hooks.h patch_draw_list)
+// (DRAW_REC, DRAW_OLD_N and the operands: game/api/hooks.c patch_draw_list)
 internal int g_draw_limit = 4096;
 internal uint8_t *g_draw_recs;
 

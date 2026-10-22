@@ -55,7 +55,7 @@ def coff(path):
 def addr_names(d):
     """the address table's names in their order (g_addr's index): the rows can move between the address files
     (game/api/functions_addr.h, hooks_addr.h, data_addr.h) - the same name is the same address"""
-    h = next((p for p in ('game/api/tables.h', 'game/api/addr.h', 'game/addr.h') if os.path.exists(os.path.join(d, p))), None)
+    h = next((p for p in ('game/api/tables.c', 'game/api/tables.h', 'game/api/addr.h', 'game/addr.h') if os.path.exists(os.path.join(d, p))), None)
     if not h: return None
     src = '#include "%s"\nCODE_SAME_NAMES ADDRS(ADDR_NAME_F, ADDR_NAME_D) ADDR_NUMBERS(ADDR_NAME_D)\n' % h
     out = subprocess.run([CC, '-E', '-P', '-I', d, '-x', 'c', '-'], input=src, capture_output=True, text=True, cwd=d).stdout
