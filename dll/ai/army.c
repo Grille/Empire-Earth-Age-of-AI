@@ -106,6 +106,15 @@ internal void am_reserve(ee_player *pl, unsigned idx, int reserve[7]) {
 //   in 70%+ of the samples since the last look and the account holds 600+ -> one more of the kind that trains the
 //   soldier FILL picks, up to 2 + workers / 15 of them (the build manager's own queue and placement, 0x46802D).
 // 8 MIX, 16 UPGRADE: below. Only with an enemy on the AI's own continent (navy_detect: land or mixed maps).
+// 32 LATE: FLOAT, FILL and BUILD only from army_plan_epoch (5, the Middle Ages). Why (docs/economy.md "Mines and army on
+//   the small maps"): in a game from the Stone Age both sides hold their towns with towers and the Copper and Bronze Age
+//   armies have nothing that breaks a tower line - against the base AI 19 of the mod's 28 soldiers lost died under
+//   enemy towers (Continental Large 4 of 104, e9 2 of 24); 7 came in with the Copper Age (minute 22-37), added 2-5
+//   soldiers and 6 losses, 5 of them under towers (kills - losses -5.5 (1.8)); head-to-head there +18 lost per AI, 13
+//   under towers, -16.8 (4.4); the same with a population cap of 500 - not the map's size: Continental e9 gains.
+//   Stopping the top-up while half of the last 4+ soldiers lost died under towers changed nothing (-16.6 (4.9)): the
+//   trickle starts before the first attack shows the towers. With LATE Continental e0 plays as without, Continental
+//   Large and e9 as 7.
 // Measured first (# mil, the base AI at hard, 60 min, 3 maps x cheat x 20 seeds x both seats): the mod's stock is spent -
 // the military account holds 2000-11000 that the stock never has, the army's orders are refused by the budget 2600-5000
 // times from minute 20, short of wood, gold and iron (the stock above the reserve under one soldier's price; the reserves
@@ -116,9 +125,13 @@ internal void am_reserve(ee_player *pl, unsigned idx, int reserve[7]) {
 // version (FILL and BUILD everywhere) cost Small Islands e5 soldiers (-5 at 45 min) - now off there. Head-to-head
 // (Continental e0, 4 AIs, 24 games): soldiers +4.2 (2.1), kills +1.1 (4.6), losses +14.4 (5.8); lowpop (20 games):
 // kills +22.6 (11.1), losses -22.4 (10.2), razed +8.1 (3.0). MIX acted rarely (food seldom lies 500 above the reserve
-// for 2 minutes), UPGRADE changed nothing (the game researches the deferred upgrades anyway, up7 unchanged). Default 0.
-internal int g_army_plan = 0, g_v_army_plan = -1;
+// for 2 minutes), UPGRADE changed nothing (the game researches the deferred upgrades anyway, up7 unchanged).
+// With fall_back (2026-10-22, docs/experiments.md): Continental Large 80 games a cell kills - losses -8.0 (8.2) / +8.1
+// (7.2) but the mod's wins 35 -> 61 of 80 without the cheat, the base AI's 66 -> 60 with it; Continental e9 +3.6 (3.0) /
+// +6.2 (4.1), wins 55 -> 65, base AI 55 -> 43; head-to-head Continental Large +46.0 (17.5). Default 39 (7 + LATE).
+internal int g_army_plan = 39, g_v_army_plan = -1;
 internal int g_army_keep[7] = { 0, 0, 300, 300, 100, 100, 100 };
+internal int g_army_epoch = 5;   // LATE: army_plan_epoch
 #define ARMY_PLAN(idx) PV(idx, g_v_army_plan, g_army_plan)
 internal const enum ut_name k_ap_land[] = { UT_B_BARRACKS, UT_B_ARCHERY_RANGE, UT_B_STABLE, UT_B_TANK_FACTORY, UT_B_CYBER_FACTORY };
 internal struct ap_st {
@@ -175,6 +188,7 @@ internal void army_plan_tick(ee_player *pl, unsigned idx, uint32_t now) {
     // only with an enemy on its own continent (navy.c navy_detect, 10 s in): on the islands (every enemy across the water)
     // the money is the navy's and the landings' - the first plan there (all of it) cost soldiers on Small Islands
     if (current_epoch(pl) < FARM_EPOCH || !cfg_of(pl)->budget || (!navy_land(idx) && !wfa)) return;
+    if ((plan & 32) && current_epoch(pl) < g_army_epoch) return;   // LATE
     ee_civ_mgr *cm = player_get_civ_mgr(pl);
     ee_unit_mgr *um = cm ? cm_get_unit_mgr(cm) : NULL;
     ee_build_mgr *bm = cm ? cm_get_build_mgr(cm) : NULL;
@@ -356,10 +370,11 @@ internal void ap_upgrades(ee_player *pl, unsigned idx) {
     }
 }
 internal void ap_install(const char *aimod_ini, const char *autotest_ini) {
-    g_army_plan = cfg_int(aimod_ini, autotest_ini, 1, "army_plan", 0);
+    g_army_plan = cfg_int(aimod_ini, autotest_ini, 1, "army_plan", 39);
     g_army_keep[2] = g_army_keep[3] = cfg_int(aimod_ini, autotest_ini, 1, "army_float_keep", 300);
     g_army_keep[4] = g_army_keep[5] = g_army_keep[6] = cfg_int(aimod_ini, autotest_ini, 1, "army_float_keep_mineral", 100);
     g_army_mix_food = cfg_int(aimod_ini, autotest_ini, 1, "army_mix_food", 500);
+    g_army_epoch = cfg_int(aimod_ini, autotest_ini, 1, "army_plan_epoch", 5);
     if (autotest_ini) g_v_army_plan = ini_int("autotest", "v_army_plan", -1, autotest_ini);
     if (g_log) fprintf(g_log, "# army plan: %d (variant %d), keep %d/%d\n", g_army_plan, g_v_army_plan, g_army_keep[2], g_army_keep[4]);
 }

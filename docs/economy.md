@@ -157,7 +157,8 @@ before wood and food beyond a fifth / a third of the workers. 3 changed next to 
 there: wood is spent as it comes; mine gatherers +-0). 7 put 5-8 more on the mines and raised kills - losses by
 +8 / +10 (Large, no cheat / cheat) and +9 (Small with the cheat), but the workers fell by 4-12 (wood went short) and
 Small Islands without the cheat lost more (base AI wins 3 -> 7). **Off (0)**: filling the mines pays only with
-wood to spare - the next step is more woodcutters' income, not fewer.
+wood to spare - the next step is more woodcutters' income, not fewer. (With fall_back 7 gains on the large maps; why
+the small ones don't: "Mines and army on the small maps".)
 
 ## Citizen production (2026-10-20, dll/ai/citizens.c)
 
@@ -272,7 +273,7 @@ cap 30, 20 games): soldiers +1.9 (1.0), kills +22.6 (11.1), losses -22.4 (10.2),
 games with 7 are now the same as without (16 checked). The extra soldiers come in a trickle and the game's attacks and
 home guard feed them in piecemeal: more soldiers, as many kills, more losses - against the base AI they changed nothing
 that counts. Off by default; the next lever is the economy's mix (wood, gold, iron income) and how the army fights, not
-its budget.
+its budget. (2026-10-22, with fall_back: on, 39 - from the Middle Ages; "Mines and army on the small maps".)
 
 ## The army as one (2026-10-20, dll/ai/mass.c)
 
@@ -972,3 +973,93 @@ cheat (-8.7 (3.6)), 0-0.65 call-offs a game. **The call-off itself is still not 
 call-off (4 of END or attack_retreat, 1 a citizen-attack call-off in an attack_retreat game; in 3 the engine guard had
 just caught a unit "released a second time"); the shipped 7 alone none in 640 games. 304 END call-offs, 224
 attack_retreat ones.
+
+## Mines and army on the small maps (2026-10-22, dll/ai/mines.c, army.c)
+
+The re-measure with fall_back (docs/experiments.md "Re-measured with fall_back on") found `mine_fill=7` and
+`army_plan=7` strong on the large maps and a little worse on some small ones. The user's question: not a map-size gate -
+why? From the paired logs of that run (shipped build against the key, same seeds and seats, 40-80 games a cell; `# eco`,
+`# mil`, `# metal`, `# cit`, `# death`, `# cvd`) and runs made for it. Numbers: shipped value, then d (se) with the key.
+
+**mine_fill 7 builds a stock of gold.** FIRST moves 6-9 woodcutters to the mines at once (minute 15 on the e5/e9 maps,
+with the Copper Age on Continental e0): by minute 30 the wood income is 17-36% lower (Small Islands Large without the
+cheat -1530 of 5690, Large Islands Huge -1990 of 5520, Small Islands e5 with the cheat -880 of 4350) and the metal
+income higher (+900 / +1070 / +290). The metal is not spent at once - it lies as gold: +530 at minute 30 on Small
+Islands Large, +1010 on Large Islands Huge, +240 on Small Islands e5. What becomes of that stock decides the result:
+
+| Map | cheat | gold in stock 30 / 50 min | the fill's gold 30 / 50 | wood in stock 40 / 50 | 5th soldier lost (min) | d kills - losses |
+|---|---|---|---|---|---|---|
+| Small Islands Large | no | 180 / 136 | +531 / -6 | 1868 / 5626 | 38 | +42.9 (10.9) |
+| Tournament Islands Huge | no | 187 / 122 | +806 / +10 | 1782 / 7402 | 37 | +51.0 (9.0) |
+| Large Islands Huge | no | 135 / 130 | +1012 / +450 | 1392 / 4478 | 44 | +47.8 (8.5) |
+| Continental Large | no | 419 / 992 | +520 / +1104 | 354 / 295 | 26 | +12.6 (8.3) |
+| Continental e0 | yes | 612 / 663 | +70 / +539 | 366 / 353 | 40 | +7.6 (3.8) |
+| Continental e9 | no | 992 / 2407 | +72 / +824 | 237 / 111 | 24 | -2.2 (5.5) |
+| Small Islands e5 | yes | 224 / 677 | +237 / +300 | 121 / 238 | 25 | -7.2 (4.3) |
+| Small Islands e9 | yes | 550 / 1168 | +243 / +208 | 282 / 768 | 24 | -6.5 (3.7) |
+
+- On the large island maps the shipped AI spends every gold (130-190 in stock all game) and its wood piles from minute
+  35-40: the stock becomes soldiers before the war comes (+5 at minute 30, +14 to +16 at 40 on Small Islands Large and
+  Tournament Islands Huge), the losses fall by 36-48, 31-45 fewer citizens are killed by minute 70, 16-59 more workers
+  at the end. The war starts late there: the 5th soldier lost at minute 33-44 (median), 2-6 citizens killed by minute 30.
+- On the small maps gold and iron already lie unused in the shipped build (Continental 600-850, Continental e9
+  1000-2400, Small Islands e9 550-1170): metal is not what limits the army there, wood is (100-350 in stock all game).
+  The fill's gold piles further (Continental +540 at minute 50, e9 +820), its stone goes into towers and walls
+  (Continental +2.9 wall pieces, Small Islands +0.5-0.8 towers), and the wood is missing. With the cheat the war comes
+  first: the 5th soldier lost at minute 19-25, 8-19 citizens killed by minute 30 (Small Islands e5 15). Small Islands e9
+  with the cheat: 31.6 citizens killed in minutes 15-45 instead of 23.2, 10 workers fewer at the end.
+
+Not the population cap alone (the small test maps have the default cap 166-176 - citizens wanted 75-79 -, the large
+ones unit_limit 1500, cap 500-510 - 227 wanted): the maps played the other way round, 40 games a cell, mine_fill 7
+against the shipped build - the small maps at cap 500: Continental e0 +0.8 (3.3) / +17.1 (6.4), e9 +8.9 (6.7) / +11.1
+(8.0), Small Islands e5 -8.8 (9.2) / -5.0 (6.8), e9 +10.7 (6.2) / -0.3 (6.0); the large maps at cap 171 still gain,
+less: Small Islands Large +9.5 (9.6) / +13.4 (8.6), Large Islands Huge +11.7 (7.6) / +31.1 (7.5), Continental Large
++14.8 (9.1) / +12.8 (9.2). Head-to-head Continental e0 at unit_limit 1500: -8.6 (6.9) (at the default -11.9 (5.2)). So
+the cap adds to it (the large maps' economy grows to 130-200 workers and covers the wood later), but the map decides:
+the war's start and whether gold is short.
+
+**Three refinements, none took the small maps' deficit away without the large maps' gain** (on top of 7, 40 games a
+cell, 8 maps; against the shipped build, against 7 where it decides; the code not kept):
+- SPENT, a metal's slots only while under `mine_fill_pile` of it lies beyond the reserve: at 500 it hardly acted (the
+  epoch reserve held 400 gold) - against 7 +0.1 (2.0); at 150 the large maps lost what the stock pays: against 7 Large
+  Islands Huge -42.7 (7.7) / -59.0 (13.8), Small Islands Large -31.7 (14.8), all -10.3 (2.6); the small maps unchanged.
+- FED, FIRST and FILL keep the food the citizen producers need (7 cost the large maps 1-2 citizens a minute in minutes
+  30-40): acted rarely, against 7 +0.2 (1.7).
+- PEACE, FIRST paused while 3+ of the AI's units were killed within 3 minutes: the small maps no better (Small Islands
+  e9 with the cheat -11.8 (5.8), e5 -6.4 (6.4) against the shipped build), the large maps' gain smaller (against 7
+  Large Islands Huge with the cheat -31.2 (9.7), all -2.9 (2.2)); head-to-head Small Islands Large +27.2 (13.6) (7:
+  +67.4), Continental e0 -6.2 (4.6) (7: -11.9).
+
+The trade pays in a game where the war comes after the stock is an army and wood stops being the limit later; nothing
+the AI sees at minute 15 told those games apart. **`mine_fill` stays 0**: 7 gains +12 to +80 a game on the large maps
+(base AI wins 44 -> 25, 10 -> 1 of 80) and costs Small Islands with the cheat 6-7 and the Continental e0 head-to-head 12.
+
+**army_plan 7 on Continental e0: the towers.** In a game from the Stone Age both sides hold their towns with towers and
+the Copper and Bronze Age armies have nothing that breaks a tower line. Against the base AI 19 of the mod's 28 soldiers
+lost (shipped) died under an enemy tower (`# cvd` tower; Continental Large 4 of 104, e9 1.5 of 24). army_plan acts from
+the Copper Age (minute 22-37 there) and added 2-5 soldiers and 6 losses, 5 of them under towers, all after minute 40:
+kills - losses -5.5 (1.8), kills -1.0, losses +4.5 (1.6), the mod's wins 38 -> 41 of 80 (its army 28-33 against the
+base AI's 3-4 by then). Head-to-head (4 AIs, 40 games): +18.1 (4.6) units lost per AI, 12.7 (3.3) of them under towers,
+kills - losses -16.8 (4.4), soldiers +6.2 (1.6). Not the cap: at unit_limit 1500 the same (against the base AI +9.6
+lost, 9.5 under towers, -4.8 (2.8); head-to-head -11.9 (6.3)); not the map's size: Continental e9, small, gains.
+Two guards did not help: ENOUGH (no top-up while the own army is 3 times the enemy's known one) -4.5 (2.6) on
+Continental e0 and 15 fewer soldiers on Continental Large; TOWERS (no top-up while half of the last 4+ soldiers lost
+died under towers) head-to-head -16.6 (4.9), against 7 -0.3 (0.7) - the trickle starts before the first attack shows
+the towers.
+
+`army_plan` 32 LATE: FLOAT, FILL and BUILD only from `army_plan_epoch` (5, the Middle Ages). Continental e0 then plays
+as without (identical games), Continental Large and e9 as 7, the island maps are untouched (army_plan acts only with an
+enemy on the home continent; identical games). **Default 39** (7 + LATE), against the shipped build:
+
+| Map | cheat | games | d kills - losses | the mod's wins / the base AI's | soldiers |
+|---|---|---|---|---|---|
+| Continental Large | no | 80 | -8.0 (8.2) | 35/1 -> 61/2 | +45.8 |
+| Continental Large | yes | 80 | +8.1 (7.2) | 0/66 -> 2/60 | +5.2 |
+| Continental e9 | no | 80 | +3.6 (3.0) | 55/9 -> 65/5 | +11.0 |
+| Continental e9 | yes | 80 | +6.2 (4.1) | 0/55 -> 1/43 | +0.4 |
+| Continental Large, cap 171 | no / yes | 40 | -4.0 (8.0) / +21.3 (10.9) | 28/0 -> 34/1, 0/15 -> 6/13 | +13.3 / +11.7 |
+| Continental e9, cap 500 | no / yes | 40 | +6.1 (6.3) / +14.5 (5.9) | 20/3 -> 30/5, 0/25 -> 0/24 | +11.3 / +1.1 |
+| Continental e0, the islands | both | | identical games | | |
+
+Head-to-head Continental Large (4 AIs, 40 games, 75 min): kills - losses +46.0 (17.5), soldiers +38.1 (7.2).
+Continental Large without the cheat: kills - losses lower while it wins more - more games decided before the end (kills -32, losses -24).

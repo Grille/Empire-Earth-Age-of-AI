@@ -610,7 +610,9 @@ resources (`short`), the reserve a land soldier sees (`res`) and what army_plan 
 Continental soldiers +4.5 / +5.3 at 60 min, kills - losses -0.8 / +7.0, head-to-head (`h2h.sh 60 late
 "random_map=Continental,seed=101,map_size=1,ai_count=4,start_epoch=0" "v_army_plan=7"`, 24 games) losses +14.4 (5.8),
 kills +1.1; lowpop (`h2h.sh 60 lowpop "random_map=Continental,map_size=0,ai_count=2,seed=101,start_epoch=9,unit_limit=60"
-"v_army_plan=7"`, 20 games) kills - losses +45.
+"v_army_plan=7"`, 20 games) kills - losses +45. 2026-10-22, with fall_back: **on, 39** (7 + 32 LATE: from the Middle
+Ages) - docs/economy.md "Mines and army on the small maps" (paired by seed and seat; where the soldiers died: the
+`tower` field of `# cvd`).
 
 ### The army as one against the base AI (docs/economy.md "The army as one")
 

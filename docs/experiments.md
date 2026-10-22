@@ -7,7 +7,8 @@ the docs, and the "why" is the mechanism the logs showed. Where they don't show 
 The REMOVE and RETEST lists were measured again with fall_back on (2026-10-22): "Re-measured with fall_back on" at the
 end - it overrules several verdicts below (mine_fill gains on the large maps; hold_town, army_mass 2, fall_back 8,
 metal_plan 2, workforce_plan 8 within the noise; navy_mix a no-op). Removed after it (483141a, the code in git at 2bf0da2):
-assault + assault_outmatched, attack_retreat (= army_mass 4), the navy_mix switch, safe_sites.
+assault + assault_outmatched, attack_retreat (= army_mass 4), the navy_mix switch, safe_sites. The follow-up on the small
+maps switched army_plan on (39, from the Middle Ages) and explains why mine_fill does not gain there.
 
 Numbers: d = with - without, paired by seed and seat, standard error in brackets; kl = kills - losses per game; "cheat" =
 the base AI at hard with its 50% prices. Map names as in `scripts/isl_ablate.sh`: `cont` Continental e0 Small, `coL`
@@ -34,7 +35,7 @@ have since changed. Before reading an old "off" as "doesn't work", check which o
 | Key (bits) | Meant to | Best / worst measured | Why it failed | Verdict |
 |---|---|---|---|---|
 | `metal_plan` 8 FLEET (+16 CALM) | move the gold + iron the never-full fleet target swallowed (two thirds of it) to the land army | liH no cheat kl +23 to +37, 60-100 more soldiers trained; cheat siL -26.6 (13.6), tiH -48.6 (14.2); h2h ships lost +8.5 (2.7) | the bigger army fought lost fights and died; fewer warships while ships sank fast | **RETEST** with fall_back (1st) |
-| `army_plan` 1+2+4 | turn unspent stock into soldiers, more production buildings | cont soldiers +4.5 / +5.3 at 60; h2h losses +14.4 (5.8) | the extra soldiers came as a trickle and were fed in one by one; only measured on Small maps | **RETEST** on coL with fall_back (2nd) |
+| `army_plan` 1+2+4 | turn unspent stock into soldiers, more production buildings | cont soldiers +4.5 / +5.3 at 60; h2h losses +14.4 (5.8) | the extra soldiers came as a trickle and were fed in one by one; only measured on Small maps | **ON** as 39 (2026-10-22: + LATE, from the Middle Ages - below) |
 | `workforce_plan` 4 ARMY | army_plan's FILL + BUILD on every map at cap 250+ | coL/liH/tiH no cheat soldiers +10 to +19, kl within the noise | as army_plan; on the island maps the metal is the limit | **RETEST** with army_plan on coL (2nd) |
 | `army_mass` 1 GATHER, 65, 144 | reinforcements gather and join in groups; the pack stays together | GATHER no cheat kl +11.0 (3.4); cheat kills -17.0 (8.1) | hit with less at once; against twice the army the pack that waits trades less | **RETEST** with fall_back on cont + coL (3rd) |
 | `navy_mix` | warships by role (frigates, battleships, galleys/subs) and against the enemy fleet seen | h2h kl -8.6 (2.3) / -7.5 (2.9) | the fleets were 1-1.5 ships: no mix could form; battleships sent by the game's sea groups against coasts | **RETEST** with navy_fleet=2 + fall_back (4th) - re-measured: a no-op under navy_fleet 2, the switch **REMOVED** (483141a; the code in git at 2bf0da2) (the mix stays with the fleet) |
@@ -52,7 +53,7 @@ have since changed. Before reading an old "off" as "doesn't work", check which o
 | `army_mass` 2 WAIT, 8, 16/32 on units | wait for 1.3x before attacking; tether | WAIT hardly acted; 16 cheat kills -13.9 (5.6) | never triggered; holding back costs kills against the cheat | **REMOVE** (2, 8); 16/48 only with #3 |
 | `metal_plan` 1 VALUE, 2 NOWAIT, 4 SPARE | the soldier with the most per gold + iron | cont wins 11 -> 4 (in 27); coL screen kills -73 (20) | the game's own choice was better; cheap-per-metal units die | **REMOVE** |
 | `workforce_plan` 8 THRIFT | refused gold units replaced at once by the cheapest per metal | cont soldiers +3.5 to +4; siL kl -37 (16) | same idea as VALUE, same failure | **REMOVE** |
-| `mine_fill` | every mine slot near a drop site worked | 7: mines +5-8, kl +8 to +10; workers -4 to -12, si5 base AI wins 3 -> 7 | took the woodcutters; since then citizen_plan 1 and navy_mines do it with new citizens | **REMOVE** (superseded) |
+| `mine_fill` | every mine slot near a drop site worked | 7: mines +5-8, kl +8 to +10; workers -4 to -12, si5 base AI wins 3 -> 7 | took the woodcutters; since then citizen_plan 1 and navy_mines do it with new citizens | off: large maps +12 to +80, small maps not (2026-10-22, below) |
 | `safe_sites` | citizens only near the base, safe routes | never measured in the docs ("slows mining on open maps") | switching it on bypasses mine_choice, food NEAR and the tower/threat refusals; a 20-tile limit | **REMOVED** (483141a; the code in git at 2bf0da2) |
 | `early_soldiers` | 4 soldiers in epoch 0 instead of towers | the worst variant: base AI wins 9 of 20, 30 citizens die | the soldiers' food starves the economy | **REMOVE** |
 | `idle_citizen_slack` | no new citizens while many stand idle | stalled growth | the wrong lever; citizen_plan / CAP handle the goal | **REMOVE** |
@@ -455,12 +456,29 @@ or one side without workers at the end), shipped -> with the key; then the metri
 | 4 | `navy_mix=1` | a no-op under navy_fleet 2 (above) | the key removed (483141a) |
 | 5 | `early_army=1` | cont +4.6 (4.2) / -8.6 (7.4) (37 / 39 pairs: 4 runs left no log); head-to-head Continental e0 +1.6 (4.7), soldiers +3.4 (1.3) | off: noise |
 
-No default was switched on: no key gained everywhere it acts without a loss elsewhere. `mine_fill=7` comes closest
+No default was switched on in this run: no key gained everywhere it acts without a loss elsewhere. `mine_fill=7` comes closest
 (large maps +12 to +80, base AI wins halved on the island maps; small maps within the noise, but si9 c1 -6.5 (3.7), si5 c1 -7.2 (4.3) and
 the Continental e0 head-to-head -11.9 (5.2)) - the user's call; `army_plan=7` next.
+Why those two lose on the small maps, and `army_plan` switched on as 39: "Why mine_fill and army_plan lose on the small
+maps" below.
 
 Unmeasured: `assault` / `hold_town` / `attack_retreat` / `safe_sites` / `idle_citizen_slack` have no `v_` key, so no
 head-to-head; `metal_plan` 4 alone (it only acts with 1); the FIX FIRST keys and the low-priority retests
 (`militia_estimate`, `copper_plan=2`, `landing_bombard`, `expand_islands`) were not run; 2v2 maps (siL2) not run.
 Logs: work/autotest_*_vanrm00[1-7]_ab-<name>-c<cheat>-<map>-r<seed>v<seat>.csv (names `rb`, `rbchk`, `rm*`, `rt*`),
 head-to-heads work/autotest_*_h2h20261022_1[23]*_h<name>_late-r*.csv.
+
+### Why mine_fill and army_plan lose on the small maps (2026-10-22)
+
+The mechanisms, the refinements tried and their numbers: docs/economy.md "Mines and army on the small maps". In short:
+
+| Key | Why the small maps don't gain | Tried | Verdict |
+|---|---|---|---|
+| `mine_fill=7` | it builds a gold stock with the woodcutters (wood income -17 to -36% by minute 30); on the large maps the stock becomes soldiers before the war (5th soldier lost at minute 33-44) and the wood piles later; on the small ones gold already lies unused (600-2400), wood is the limit, the war comes at minute 19-25 with the cheat. The population cap adds to it but does not decide (small maps at cap 500: Continental gains, Small Islands not; large maps at cap 171 still gain) | SPENT (pile 500: no change, 150: large maps -43 / -59 against 7), FED (no change), PEACE (small maps no better, Small Islands Large head-to-head +27 instead of +67) | **off** (the user's call: +12 to +80 on the large maps against -6 to -7 on Small Islands with the cheat and -12 in the Continental e0 head-to-head); none of the three kept |
+| `army_plan=7` | Continental e0 is a tower game: 19 of the mod's 28 soldiers lost die under enemy towers (Continental Large 4 of 104); 7's Copper Age soldiers add 6 losses, 5 under towers; head-to-head +18 lost, 13 under towers, -16.8 (4.4); the same at cap 500 | ENOUGH (army 3x the enemy's), TOWERS (half the last losses under towers): no change | **on, 39** = 7 + 32 LATE (from the Middle Ages): Continental e0 and the islands identical to before, Continental Large wins 35 -> 61 of 80, e9 55 -> 65, base AI's wins with the cheat 66 -> 60 / 55 -> 43, head-to-head Continental Large +46.0 (17.5) |
+
+Logs: work/autotest_*_van{mf00[1-3],mg001,mh00[12]}_ab-<name>-...csv - `mb` the shipped build again (played the old `rb`
+games identically: 31 of 32 checked, one tiH cheat game parted late), `mm15` / `mm15p` / `mm31` / `mp15` the mine
+refinements, `ma39` / `mt39` / `ml39` the army ones, `cb` / `cm7` / `ca7` the maps at the other population cap (map
+names `si5u si9u contu co9u` with unit_limit 1500, `siLd liHd coLd` with the default); head-to-heads
+work/autotest_*_h2h20261022_{18,19,20}*_h{ap7e,mfpC,mf7u,ap7u,ap39e,ap39L,mp15C,mp15S}_late-r*.csv.
