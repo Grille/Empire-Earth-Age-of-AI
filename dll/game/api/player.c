@@ -13,7 +13,7 @@ internal inline uint8_t player_get_explore_all(const ee_player *pl) { return FIE
 internal inline void player_set_explore_all(ee_player *pl, uint8_t v) { FIELD(pl, PL_EXPLORE_ALL, uint8_t) = v; }
 internal inline uint8_t player_get_out(const ee_player *pl) { return FIELD(pl, PL_OUT, uint8_t); }    // +0x467 out of the game (resigned, defeated)
 internal inline void *player_civ_name_at(const ee_player *pl) { return (void *)FIELD_AT(pl, PL_CIV_NAME); }  // +0x488 its civilization's name (UWideString)
-internal inline uint8_t *player_stats_at(const ee_player *pl) { return (uint8_t *)FIELD_AT(pl, PL_STATS); } // +0x4A8 EEPlayerStatistics (PLSTATS)
+internal inline ee_player_stats *player_stats_at(const ee_player *pl) { return (ee_player_stats *)FIELD_AT(pl, PL_STATS); } // +0x4A8 EEPlayerStatistics (PLSTATS)
 internal inline int *player_get_selected_group(const ee_player *pl) { return FIELD(pl, PL_SELECTED_GROUP, int *); } // +0x9BC
 internal inline ee_tech_tree *player_get_tech_tree(const ee_player *pl) { return FIELD(pl, PL_TECH_TREE, ee_tech_tree *); } // +0x9D4
 // +0x9E0 whom its chat reaches: 0 everyone, 1 allies, 2 enemies, 3 the players marked at +0xB2C
@@ -36,7 +36,7 @@ internal inline ee_zone **player_get_zones_begin(const ee_player *pl) { return F
 internal inline ee_zone **player_get_zones_end(const ee_player *pl) { return FIELD(pl, PL_ZONES + 0x4, ee_zone **); }
 internal inline ee_combat_mgr *player_get_combat_mgr(const ee_player *pl) { return FIELD(pl, PL_COMBAT_MGR, ee_combat_mgr *); } // +0xB8C
 internal inline ee_civ_mgr *player_get_civ_mgr(const ee_player *pl) { return FIELD(pl, PL_CIV_MGR, ee_civ_mgr *); } // +0xB90 a computer player's
-internal inline uint8_t *player_get_b98(const ee_player *pl) { return FIELD(pl, PL_0xB98, uint8_t *); }    // +0xB98 (PLB98: not known)
+internal inline ee_player_b98 *player_get_b98(const ee_player *pl) { return FIELD(pl, PL_0xB98, ee_player_b98 *); }    // +0xB98 (PLB98: not known)
 internal inline int player_get_difficulty(const ee_player *pl) { return FIELD(pl, PL_DIFFICULTY, int); }      // +0xBA4 0 easy, 1 medium, 2 hard
 internal inline void player_set_difficulty(ee_player *pl, int v) { FIELD(pl, PL_DIFFICULTY, int) = v; }
 // the price percent with Cheat (AdjustCost 0x430FBD): easy +0xD48 (int), medium +0xBB4 (float), hard +0xD4C (int)
@@ -74,10 +74,10 @@ internal inline void player_set_cheat(ee_player *pl, uint8_t v) { FIELD(pl, PL_C
 internal inline uint8_t player_get_build(const ee_player *pl) { return FIELD(pl, PL_BUILD, uint8_t); }
 internal inline void player_set_ignore(ee_player *pl, uint8_t v) { FIELD(pl, PL_IGNORE, uint8_t) = v; }
 // a player's statistics (player_stats_at): series k {?, begin, end, ..} of 8-byte samples
-internal inline uint8_t *plstats_get_begin(const void *st, int k) { return FIELD(st, PLSTATS_LISTS + k * 0x18, uint8_t *); }
-internal inline uint8_t *plstats_get_end(const void *st, int k) { return FIELD(st, PLSTATS_LISTS + 0x4 + k * 0x18, uint8_t *); }
+internal inline uint8_t *plstats_get_begin(const ee_player_stats *st, int k) { return FIELD(st, PLSTATS_LISTS + k * 0x18, uint8_t *); }
+internal inline uint8_t *plstats_get_end(const ee_player_stats *st, int k) { return FIELD(st, PLSTATS_LISTS + 0x4 + k * 0x18, uint8_t *); }
 // the object at a player's +0xB98 (not known): its +0x2D the attention's activity 7
-internal inline uint8_t b98_get_att(const uint8_t *b98) { return b98[PLB98_ATT]; }
+internal inline uint8_t b98_get_att(const ee_player_b98 *b98) { return FIELD(b98, PLB98_ATT, uint8_t); }
 
 // FUNCTIONS
 // a statistics counter n of the stats object +d (the kill counter's original: diplo.c)

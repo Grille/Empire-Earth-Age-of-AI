@@ -3,7 +3,7 @@
 
 // FIELDS
 // A CIVILIZATION MANAGER (EECPCivilizationManager, a computer player's +0xB90; Update 0x46E2C7): the AI's managers
-internal inline uint8_t *cm_get_plan(const ee_civ_mgr *cm) { return FIELD(cm, CM_PLAN, uint8_t *); }     // +0x8 the build plan's list
+internal inline ee_plan_node *cm_get_plan(const ee_civ_mgr *cm) { return FIELD(cm, CM_PLAN, ee_plan_node *); }     // +0x8 the build plan's list
 internal inline ee_resource_mgr *cm_get_resource_mgr(const ee_civ_mgr *cm) { return FIELD(cm, CM_RESOURCE_MGR, ee_resource_mgr *); } // +0x38
 internal inline ee_build_mgr *cm_get_build_mgr(const ee_civ_mgr *cm) { return FIELD(cm, CM_BUILD_MGR, ee_build_mgr *); }          // +0x3C
 internal inline ee_research_mgr *cm_get_research_mgr(const ee_civ_mgr *cm) { return FIELD(cm, CM_RESEARCH_MGR, ee_research_mgr *); } // +0x40
@@ -71,9 +71,9 @@ internal inline int rs_get_current(const ee_research_mgr *rs) { return FIELD(rs,
 internal inline uint8_t *rs_initialized_at(const ee_research_mgr *rs) { return (uint8_t *)FIELD_AT(rs, RS_INITIALIZED); } // +0x118 the schedule set up (while 0)
 internal inline uint8_t rs_get_att_random(const ee_research_mgr *rs) { return FIELD(rs, RS_ATT_RANDOM, uint8_t); } // +0x11A the attention's activity 2 (random research)
 // the build plan's list nodes (cm_get_plan): +0 the next, +0xC / +0x10 the entry's values
-internal inline uint8_t *plan_node_get_next(const uint8_t *nd) { return FIELD(nd, CMLIST_NEXT, uint8_t *); }
-internal inline int plan_node_get_unknown_c(const uint8_t *nd) { return FIELD(nd, CMLIST_0xC, int); }
-internal inline int plan_node_get_unknown_10(const uint8_t *nd) { return FIELD(nd, CMLIST_0x10, int); }
+internal inline ee_plan_node *plan_node_get_next(const ee_plan_node *nd) { return FIELD(nd, CMLIST_NEXT, ee_plan_node *); }
+internal inline int plan_node_get_unknown_c(const ee_plan_node *nd) { return FIELD(nd, CMLIST_0xC, int); }
+internal inline int plan_node_get_unknown_10(const ee_plan_node *nd) { return FIELD(nd, CMLIST_0x10, int); }
 
 // FUNCTIONS
 // the next epoch attempt's time drawn (civilization manager +0x58: SetNextEpochAdvanceTime)

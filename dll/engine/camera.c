@@ -49,7 +49,7 @@ internal void scroll_axis(float *vel, int neg, int pos, float minv, float maxv, 
     }
 }
 
-internal void __fastcall hook_scroll_execute(uint8_t *self, void *edx) {
+internal void __fastcall hook_scroll_execute(ee_scroll *self, void *edx) {
     (void)edx;
     InterlockedIncrement(&g_scroll_calls);
     if (g_scroll_native && !g_cam_smooth) { scroll_execute(self); return; }
@@ -115,7 +115,7 @@ internal void camtrace_frame(void) {   // the render thread, every presented fra
     LARGE_INTEGER now, f;
     QueryPerformanceCounter(&now);
     QueryPerformanceFrequency(&f);
-    uint8_t *cam = game_camera();
+    ee_camera *cam = game_camera();
     float x = camera_get_x(cam), y = camera_get_y(cam);
     if (g_ct_n < CT_MAX && g_ct_last.QuadPart) {
         g_ct[g_ct_n].dt = (float)((double)(now.QuadPart - g_ct_last.QuadPart) * 1000.0 / (double)f.QuadPart);
@@ -146,12 +146,13 @@ internal void cmd_scrolltest(char *out, const char *args) {
     char dir[16] = "right";
     int n = 10;
     sscanf(args, "%15s %d", dir, &n);
-    uint8_t obj[0x50] = { 0 };
+    uint8_t mem[0x50] = { 0 };
+    ee_scroll *obj = (ee_scroll *)mem;
     scroll_action_init(obj);
     scroll_set_ticks(obj, 1);
     scroll_set_key(obj, 0, dir[0] == 'l'); scroll_set_key(obj, 1, dir[0] == 'r'); scroll_set_key(obj, 2, dir[0] == 'd');
     scroll_set_key(obj, 3, dir[0] == 'u');
-    uint8_t *cam = game_camera();
+    ee_camera *cam = game_camera();
     float x0 = camera_get_x(cam), y0 = camera_get_y(cam);
     REPLY("mode %s, start %.2f,%.2f\n", g_scroll_aoc ? "aoc" : "ee", x0, y0);
     for (int i = 0; i < n && i < 200; i++) {

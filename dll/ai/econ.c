@@ -202,11 +202,11 @@ internal int is_gather_tech(ee_tech *tech) {
     ee_tech_data *d = tech_get_data(tech);
     int ei = d ? techdata_get_effects(d) : -1;
     if (ei < 0 || ei > 0x5DC) return 0;
-    uint8_t *list = epoch_tech_list(ei);
+    ee_epoch_techs *list = epoch_tech_list(ei);
     unsigned n = effects_get_count(list), *ids = effects_get_ids(list);
     for (unsigned k = 0; ids && k < n && k < 64; k++) {
         if (ids[k] >= 2000) continue;
-        uint8_t *ef = tech_effect(ids[k]);
+        ee_effect *ef = tech_effect(ids[k]);
         int a = effect_get_attr(ef), on = effect_get_type(ef);
         if (effect_get_kind(ef) == 2 && (on == UT(CITIZEN) || on == UT(FEMALE_CITIZEN) || on == -1) && a >= 0x1A && a <= 0x21 && a != 0x1E) return 1;
     }
@@ -292,7 +292,7 @@ internal void epoch_upgrades(ee_tech *node, int cat, int only_new) {
 // 6 [b8c+0x4C]+0x48, 7 b98+0x2D, 8 b8c+0x62. Share of AI ticks each was on, logged as "# attention:" every 10 min.
 internal struct { unsigned ticks, on[9]; } g_att[16];
 internal void attention_note(ee_player *pl, unsigned idx, uint32_t now) {
-    ee_civ_mgr *cm = player_get_civ_mgr(pl); ee_combat_mgr *b8c = player_get_combat_mgr(pl); uint8_t *b98 = player_get_b98(pl);
+    ee_civ_mgr *cm = player_get_civ_mgr(pl); ee_combat_mgr *b8c = player_get_combat_mgr(pl); ee_player_b98 *b98 = player_get_b98(pl);
     if (!cm || !b8c || !b98) return;
     ee_resource_mgr *rm = cm_get_resource_mgr(cm);
     ee_research_mgr *rs = cm_get_research_mgr(cm); ee_unit_mgr *um = cm_get_unit_mgr(cm);
@@ -576,7 +576,7 @@ internal int requirements_missing(ee_player *pl) {
     if (!tt) return 0;
     int next = tt_get_epoch(tt) + 1;
     if (next > 13 || next > end_epoch()) return 0;
-    uint8_t *rec = tt_epoch_rec_at(tt, next);
+    ee_tt_epoch *rec = tt_epoch_rec_at(tt, next);
     return ttrec_get_needed(rec) - ttrec_get_done(rec);
 }
 // unit type whose first training counts for the next epoch (its tech: object data 0x9418A0[type] +0x4E0)
@@ -769,7 +769,7 @@ internal void econ_tick(ee_player *pl, uint32_t now) {
     if (g_log && (now < last_wait[pi] || now - last_wait[pi] >= 30000)) {
         last_wait[pi] = now;
         ee_tech_tree *tt = player_get_tech_tree(pl);
-        uint8_t *rec = tt_epoch_rec_at(tt, ep + 1);
+        ee_tt_epoch *rec = tt_epoch_rec_at(tt, ep + 1);
         fprintf(g_log, "# epoch wait: P%u at %.1f min, epoch %d: requirements %d/%d, pending %d, scheduled %d, attention %d;",
                 pi, now / 60000.0, ep + 1, ttrec_get_done(rec), ttrec_get_needed(rec), cm_get_request_out(cm), cm_get_unknown_78(cm), cm_get_att_epoch_techs(cm));
         // the research manager's list of this epoch: tech id (* researched) building +0x6C, cost food..iron
@@ -1095,11 +1095,11 @@ internal void cmd_plan(char *out, const char *args) {
         return;
     }
     ee_player *pl = (p >= 0 && p < 16) ? g_players[p] : NULL;
-    ee_civ_mgr *cm = pl ? player_get_civ_mgr(pl) : NULL; uint8_t *head = cm ? cm_get_plan(cm) : NULL;
+    ee_civ_mgr *cm = pl ? player_get_civ_mgr(pl) : NULL; ee_plan_node *head = cm ? cm_get_plan(cm) : NULL;
     if (!head) { REPLY("error: no AI player %d\n", p); return; }
     REPLY("P%d plan (build flag %d, attention %d):", p, player_get_build(pl), cm_get_att_build(cm));
     int n = 0;
-    for (uint8_t *nd = plan_node_get_next(head); nd && nd != head && n < 200; nd = plan_node_get_next(nd), n++)
+    for (ee_plan_node *nd = plan_node_get_next(head); nd && nd != head && n < 200; nd = plan_node_get_next(nd), n++)
         REPLY(" %d:%d", plan_node_get_unknown_c(nd), plan_node_get_unknown_10(nd));
     REPLY("\n");
 }

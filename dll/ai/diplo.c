@@ -634,7 +634,7 @@ internal void blocks_compute(int *blk) {
 internal int blocks_on(void) { return g_blocks && g_ai_diplomacy && !TEAMS_LOCKED && !scenario_game(); }
 internal void block_line(int to, const char *text) {   // a system line, only on that player's PC
     if (to != (int)local_player_index()) return;
-    uint8_t *opt = game_data();
+    ee_game_data *opt = game_data();
     system_line(text, opt ? gamedata_get_line_ms(opt) * 2 : 20000);
     if (g_log) fprintf(g_log, "# system line: %s\n", text);
 }
@@ -1616,7 +1616,7 @@ internal void victory_hint(ee_player *pl, int ai) {   // every 10 s per AI, afte
     if (g_victory_told || g_lord[ai] != me || !vassals_of(me)) return;
     g_victory_told = 1;
     persona_say(pl, L_ALL_SUBMITTED, player_at(me), NULL);   // in character; the how in a system line after it
-    uint8_t *opt = game_data();
+    ee_game_data *opt = game_data();
     system_line(sysf("victory_vassals", NULL, NULL, NULL, NULL), opt ? gamedata_get_line_ms(opt) * 3 : 30000);
     if (g_log) fprintf(g_log, "# victory: P%d at %.1f min: every other player is a vassal of P%d - \"sieg\" ends the game\n",
                        ai, game_time() / 60000.0, me);
@@ -1669,7 +1669,7 @@ internal void victory_off_pass(void) {   // auto_victory=0, every pass between s
     g_victory_told = 1;
     for (int j = 1; j < nplayers(); j++)   // a vassal says it in character, if there is one
         if (g_players[j] && g_lord[j] == me && !is_out(player_at(j))) { persona_say(player_at(j), L_ALL_SUBMITTED, player_at(me), NULL); break; }
-    uint8_t *opt = game_data();
+    ee_game_data *opt = game_data();
     system_line(sysf("victory_none", NULL, NULL, NULL, NULL), opt ? gamedata_get_line_ms(opt) * 3 : 30000);
     if (g_log) fprintf(g_log, "# victory: P%d at %.1f min: no opponent left - \"sieg\" ends the game\n", me, game_time() / 60000.0);
 }
@@ -1729,7 +1729,7 @@ internal void __fastcall hook_ingame_chat(void *msg, void *edx) {
     }
     lstrcpynA(line, sysf("victory_not_yet", NULL, NULL, NULL, "names", names, NULL), sizeof line);
 
-    uint8_t *opt = game_data();
+    ee_game_data *opt = game_data();
     system_line(line, opt ? gamedata_get_line_ms(opt) * 2 : 20000);
     if (g_log) fprintf(g_log, "# victory: refusal shown: %s\n", line);
 }

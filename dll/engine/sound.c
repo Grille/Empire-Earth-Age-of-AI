@@ -98,7 +98,7 @@ internal void sound_tick(uint32_t now) {
     static int hooked;
     static uint32_t last;
     if (!g_sound_log || !g_log) return;
-    uint8_t *sm = sound_manager();
+    ee_sound_mgr *sm = sound_manager();
     if (!sm) return;
     if (!hooked) {
         hooked = 1;
@@ -107,13 +107,13 @@ internal void sound_tick(uint32_t now) {
         int q = 0;
         for (int i = 0; lle && i < SM_QUERIES; i++) q += (g_sm_query[i] = (sm_query_fn)(void *)GetProcAddress(lle, k_sm_query[i])) != NULL;
         if (q != SM_QUERIES) memset(g_sm_query, 0, sizeof g_sm_query);
-        uint8_t **cv = sndmgr_get_cats_begin(sm), **ce = sndmgr_get_cats_end(sm);
+        ee_sound_cat **cv = sndmgr_get_cats_begin(sm), **ce = sndmgr_get_cats_end(sm);
         for (int i = 0; cv && cv + i < ce; i++)   // categories: share, max channels, in use, priority
             if (cv[i]) fprintf(g_log, "# sound: category %d: %.2f of the channels = %d, in use %d, priority %d\n", i,
                                sndcat_get_share(cv[i]), sndcat_get_max(cv[i]), sndcat_get_used(cv[i]), sndcat_get_priority(cv[i]));
         int b = patch_snd_playref(hook_snd_playref, &g_snd_playref);
         if (!a || !b) fprintf(g_log, "# sound: play hooks %d/2 - FAILED (exe differs)\n", a + b);
-        uint8_t *mx = sndmgr_get_mixer(sm);
+        ee_mixer *mx = sndmgr_get_mixer(sm);
         if (mx) {
             g_mix_set = (mix_set_fn)*mixer_fn_at(mx, MIXER_SET_CHANNEL_SAMPLE);
             g_mix_play = (mix_play_fn)*mixer_fn_at(mx, MIXER_PLAY_CHANNEL);
@@ -174,10 +174,10 @@ internal set_max_ch_fn g_set_max_ch;
 // game passes - percent x the old maximum - is worked out again from the slider (0x9193B8, 1.0 = 100%): 100% =
 // `channels`, 0% = 8, 200% is held to `channels` by clamp_channels.
 internal int g_sound_channels = 32;
-internal int __fastcall hook_set_max_channels(uint8_t *sm, void *edx, uint32_t n) {
+internal int __fastcall hook_set_max_channels(ee_sound_mgr *sm, void *edx, uint32_t n) {
     (void)edx;
     static int raised;
-    uint8_t *mx = sm ? sndmgr_get_mixer(sm) : NULL;
+    ee_mixer *mx = sm ? sndmgr_get_mixer(sm) : NULL;
     uint8_t *get_max = mx ? (uint8_t *)*mixer_fn_at(mx, MIXER_GET_MAX_CHANNELS) : NULL;   // SPIMGetMaximumChannelCount
     if (!raised && get_max && g_sound_channels >= 8 && g_sound_channels <= 63 && get_max[0] == 0xA1 && get_max[5] == 0xC3) {
         raised = 1;
@@ -219,7 +219,7 @@ internal void sound_install(const char *aimod_ini, const char *autotest_ini) {
 // channels, categories in use, the paused queue. sndchan N: SetMaxChannels(N) as the options screen does. Tests.
 internal void cmd_sndstate(char *out, const char *args) {
     (void)args;
-    uint8_t *sm = sound_manager();
+    ee_sound_mgr *sm = sound_manager();
     if (!sm) { REPLY("error: no sound manager\n"); return; }
     uint8_t *me = NULL, *mv = g_mss_mixer ? mix_channels(g_mss_mixer, &me) : NULL;
     REPLY("setting %.2f (0x9193B8), mixer maximum %d, ", sound_percent(),
@@ -229,20 +229,20 @@ internal void cmd_sndstate(char *out, const char *args) {
     REPLY("handles missing %d, ", nulls);
     REPLY("channels %u, mixer channels %d, paused %d:", sndmgr_get_channels(sm), mv ? (int)((me - mv) / 8) : -1,
           (int)((sndmgr_get_paused_end(sm) - sndmgr_get_paused_begin(sm)) / 4));
-    uint8_t **slots = sndmgr_get_slots(sm);
+    ee_sound_node **slots = sndmgr_get_slots(sm);
     for (uint32_t i = 0; slots && i < sndmgr_get_channels(sm); i++) {
-        uint8_t *n = slots[i], *smp = n ? sndnode_get_sample(n) : NULL;
+        ee_sound_node *n = slots[i]; ee_sample *smp = n ? sndnode_get_sample(n) : NULL;
         if (n) REPLY(" [%u: id %d node ch %d sample ch %d status %d]", i, sndnode_get_id(n), sndnode_get_channel(n),
                      smp ? sample_get_channel(smp) : -9, snd_status((int)i));
     }
-    uint8_t **cv = sndmgr_get_cats_begin(sm), **ce = sndmgr_get_cats_end(sm);
+    ee_sound_cat **cv = sndmgr_get_cats_begin(sm), **ce = sndmgr_get_cats_end(sm);
     for (int i = 0; cv && cv + i < ce; i++)
         if (cv[i] && sndcat_get_used(cv[i])) REPLY(" cat %d %d/%d", i, sndcat_get_used(cv[i]), sndcat_get_max(cv[i]));
     REPLY("\n");
 }
 internal void cmd_sndchan(char *out, const char *args) {
     int n = atoi(args);
-    uint8_t *sm = sound_manager();
+    ee_sound_mgr *sm = sound_manager();
     if (!sm || n < 1 || n > 64) { REPLY("error: usage sndchan N (1..64)\n"); return; }
     int r = snd_set_max_channels(sm, n);
     REPLY("ok: SetMaxChannels(%d) -> %d, now %u channels\n", n, r, sndmgr_get_channels(sm));

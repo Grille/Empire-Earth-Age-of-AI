@@ -1029,7 +1029,7 @@ internal uint8_t *rb_find(uint8_t *map, unsigned key) {   // MSVC map: +4 head; 
     }
     return (res == head || key < FIELD(res, 0xC, unsigned)) ? NULL : res;
 }
-__attribute__((used)) int __fastcall hook_damage_points(uint8_t *model, void *edx, int index, unsigned state) {
+__attribute__((used)) int __fastcall hook_damage_points(ee_dmg_model *model, void *edx, int index, unsigned state) {
     (void)edx;
     uint8_t *n = model ? rb_find(dmgmodel_map_at(model), state) : NULL, *sub = n ? FIELD(n, 0x10, uint8_t *) : NULL;
     if (n && (!sub || !FIELD(sub, 4, void *))) {

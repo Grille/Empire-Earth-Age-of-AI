@@ -62,7 +62,7 @@ internal void system_line(const char *text, int ms) {
 
 internal void chat_stance_line(ee_player *pl, int stance) {
     void *res = string_resources(), *ui = game_world();
-    uint8_t *opt = game_data();
+    ee_game_data *opt = game_data();
     if (!pl || !res || !ui || !opt) return;
     __attribute__((aligned(8))) uint8_t verb[32], word[32], line[32];
     wstring_init(verb);
@@ -155,7 +155,7 @@ internal void cmd_say(char *out, const char *args) {
 // cheat message (new 0x18, 0x5C29FB(code, arg)); then the chat line (new 0x24, 0x5C2A2F(UWideString *)); both through
 // [0x91984C] vtable +0x18 (message, 0xFF = all) - scenario triggers on chat messages and cheat codes see it as typed
 internal void cmd_chatme(char *out, const char *args) {
-    void **net = game_server();
+    ee_server *net = game_server();
     while (*args == ' ') args++;
     if (!net || !*args) { REPLY("error: chatme text (in a game)\n"); return; }
     __attribute__((aligned(8))) uint8_t s[32];

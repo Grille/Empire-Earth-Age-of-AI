@@ -1184,7 +1184,7 @@ internal int chat_reaches(void *pm, void *pj) {
 // a system line for the local player about his chat line (single player only: in multiplayer the humans read it)
 internal void llm_chat_hint(const char *text) {
     if (g_mp) return;
-    uint8_t *opt = game_data();
+    ee_game_data *opt = game_data();
     system_line(text, opt ? gamedata_get_line_ms(opt) : 15000);
     if (g_log) fprintf(g_log, "# llm: hint for the player: %s\n", text);
 }
@@ -1562,7 +1562,7 @@ internal void llm_wait_tick(void) {
         if (!queue_pause_toggle()) return;
         g_llm_paused = 1;
         g_llm_paused_t = now;
-        uint8_t *opt = game_data();
+        ee_game_data *opt = game_data();
         const char *l = sysf(g_llm_unreach ? "llm_wait_down" : "llm_wait", NULL, NULL, NULL, "url", g_llm_url, NULL);
         system_line(l, opt ? gamedata_get_line_ms(opt) * 2 : 20000);
         if (g_log) fprintf(g_log, "# llm: paused at %.1f min - waiting for the model (%s)\n", game_time() / 60000.0,

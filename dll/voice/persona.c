@@ -631,7 +631,7 @@ internal int persona_colors(struct persona *p, int *out, int cap) {
 // slot (+0x24) the personality's favoured colour - the first one no human and no other AI has - otherwise its own
 // colour if still free, otherwise any free one. Slots: 16 x 0x38 bytes, +0 type (1 human, 0 computer, 4 closed).
 // Scenarios and saved games keep their colours (a saved game finds its personalities again by name).
-internal void persona_new_game(uint8_t *setup) {
+internal void persona_new_game(ee_setup *setup) {
     for (int i = 0; i < 16; i++) { g_persona_of[i] = g_plan_persona[i] = g_plan_color[i] = -1; g_persona_assigned[i] = 0; }
     memset(g_persona_used, 0, sizeof g_persona_used);
     g_ai_color_n = g_ai_color_k = 0;
@@ -651,7 +651,7 @@ internal void persona_new_game(uint8_t *setup) {
     if (!g_npersonas || setup_get_mode(setup) != 0 || g_mp) return;
     int used[17] = { 0 }, player = 0;
     for (int s = 0; s < 16; s++) {
-        uint8_t *slot = setup_slot_at(setup, s);
+        ee_setup_slot *slot = setup_slot_at(setup, s);
         int type = slot_get_type(slot), c = slot_get_color(slot);
         if (type != 0 && type != 1) continue;
         player++;
@@ -683,7 +683,7 @@ internal void persona_new_game(uint8_t *setup) {
     for (int c = 0; c < 17; c++) g_color_human[c] = 0;
     g_ai_color_n = g_ai_color_k = 0;
     for (int s = 0; s < 16; s++) {
-        uint8_t *slot = setup_slot_at(setup, s);
+        ee_setup_slot *slot = setup_slot_at(setup, s);
         int type = slot_get_type(slot), c = slot_get_color(slot);
         if (type == 1 && c >= 0 && c < 17) g_color_human[c] = 1;
         if (type == 0) g_ai_colors[g_ai_color_n++] = g_plan_color[s];
@@ -903,7 +903,7 @@ internal void persona_attack(ee_player *pl, ee_player *target) {
 // called at 0x470040 (12500 war), 0x4715F8/0x47166E/0x47280E/0x472B9D (wonders, flares): the personality's line
 // where it has one. 12500: diplo.c says the war line itself (with the declaring player's name), so it is dropped
 // here when the personality has one.
-internal char __fastcall hook_native_chat(uint8_t *pim, void *edx, int base, int ms) {
+internal char __fastcall hook_native_chat(ee_native_chat *pim, void *edx, int base, int ms) {
     (void)edx;
     ee_player *pl = pim ? nativechat_get_player(pim) : NULL;
     int k = base == 12000 ? L_WONDER_THREAT : base == 12100 ? L_WONDER_HELP : base == 12200 ? L_WONDER_NOHELP :

@@ -182,7 +182,7 @@ internal unsigned g_sync_left;
 internal void __fastcall hook_start_exec(void *msg, void *edx) {
     (void)edx;
     if (g_auto.game_seed) start_msg_set_seed(msg, (unsigned)g_auto.game_seed);
-    uint8_t *phys = game_physics(), *world = game_world();
+    ee_physics *phys = game_physics(); ee_world *world = game_world();
     unsigned map_seed = world ? world_get_seed(world) : 0;
     start_exec(msg);
     EnterCriticalSection(&g_lock);
@@ -234,11 +234,11 @@ internal void __fastcall sync_srv_send(void *srv, void *edx, void *msg, int to) 
 }
 internal void sync_hook_server(void) {
     static int done;
-    void **srv = game_server();
+    ee_server *srv = game_server();
     if (done || !srv) return;
     done = 1;
     g_srv_send = patch_server_send(srv, sync_srv_send);
-    if (g_log) fprintf(g_log, "# sync trace: server messages hooked (vtable %p)\n", srv[0]);
+    if (g_log) fprintf(g_log, "# sync trace: server messages hooked (vtable %p)\n", *(void **)srv);
 }
 internal void sync_step(void *phys) {   // after each step (control.c hook_phys_step)
     g_sync_tid = GetCurrentThreadId();

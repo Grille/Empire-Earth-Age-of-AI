@@ -311,11 +311,11 @@ internal int ap_upg_line(ee_player *pl, unsigned idx, ee_tech_data *d, int *used
     int ei = techdata_get_effects(d), n = 0;
     *used = 0;
     if (ei < 0 || ei > 0x5DC) return 0;
-    uint8_t *list = epoch_tech_list(ei);
+    ee_epoch_techs *list = epoch_tech_list(ei);
     unsigned cnt = effects_get_count(list), *ids = effects_get_ids(list);
     for (unsigned k = 0; ids && k < cnt && k < 64; k++) {
         if (ids[k] >= 2000) continue;
-        uint8_t *ef = tech_effect(ids[k]);
+        ee_effect *ef = tech_effect(ids[k]);
         if (effect_get_kind(ef) != 0x13) continue;
         if (!n++) ap_owned(pl, idx);
         int a = effect_get_type(ef), b = effect_get_new_type(ef);
@@ -382,11 +382,11 @@ internal void am_pool_log(ee_player *pl, unsigned idx) {
         fprintf(g_log, " %d(%d%d c%d $%d", *q, tech_get_researched(t), tech_get_available(t), techdata_get_category(d), c);
         int ei = techdata_get_effects(d);
         if (ei >= 0 && ei <= 0x5DC) {
-            uint8_t *list = epoch_tech_list(ei);
+            ee_epoch_techs *list = epoch_tech_list(ei);
             unsigned n = effects_get_count(list), *ids = effects_get_ids(list);
             for (unsigned k = 0; ids && k < n && k < 3; k++) {
                 if (ids[k] >= 2000) continue;
-                uint8_t *ef = tech_effect(ids[k]);
+                ee_effect *ef = tech_effect(ids[k]);
                 fprintf(g_log, " %d/%d/%d", effect_get_kind(ef), effect_get_type(ef), effect_get_attr(ef));
             }
         }

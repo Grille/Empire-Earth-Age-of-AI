@@ -5,7 +5,7 @@
 internal inline ee_unit_type *type_data(int t) { return t >= 0 && t < G_TYPES_N ? type_table()[t] : NULL; }
 
 internal uint32_t game_time(void) {
-    uint8_t *clock = game_physics();
+    ee_physics *clock = game_physics();
     return clock ? phys_get_time(clock) : 0;
 }
 

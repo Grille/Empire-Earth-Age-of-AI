@@ -284,11 +284,11 @@ internal int ddrawcompat_loaded(void) {
 
 internal volatile LONG g_primary_frames, g_primary_fail;
 internal HRESULT g_primary_hr;
-internal int present_primary(uint8_t *ras, unsigned screen, uint8_t *scr, uint8_t *back, IDirectDrawSurface7 *b, HWND hwnd) {
+internal int present_primary(ee_rasterizer *ras, unsigned screen, ee_screen *scr, ee_surface *back, IDirectDrawSurface7 *b, HWND hwnd) {
     (void)ras; (void)screen;
     if (g_present_mode != 3 && !(g_present_mode == 0 && ddrawcompat_loaded())) return 0;
-    uint8_t *st = ras_get_screen_state(ras, screen);
-    uint8_t *front = scrstate_get_front(st);
+    ee_screen_state *st = ras_get_screen_state(ras, screen);
+    ee_surface *front = scrstate_get_front(st);
     IDirectDrawSurface7 *f = front ? surf_get_dds(front) : NULL;
     IDirectDraw7 *dd = screen_get_ddraw(scr);
     if (!f || !dd) return 0;
@@ -362,9 +362,9 @@ internal int present_primary(uint8_t *ras, unsigned screen, uint8_t *scr, uint8_
     return 1;
 }
 
-internal int present_to_window(uint8_t *ras, unsigned screen) {
-    uint8_t *st = ras_get_screen_state(ras, screen);
-    uint8_t *scr = scrstate_get_screen(st), *back = scrstate_get_back(st), *win = scrstate_get_window(st);
+internal int present_to_window(ee_rasterizer *ras, unsigned screen) {
+    ee_screen_state *st = ras_get_screen_state(ras, screen);
+    ee_screen *scr = scrstate_get_screen(st); ee_surface *back = scrstate_get_back(st); ee_window *win = scrstate_get_window(st);
     if (!scr || screen_get_fullscreen(scr) || !back || !win) return 0;
     IDirectDrawSurface7 *s = surf_get_dds(back);
     HWND hwnd = window_get_hwnd(win);
@@ -467,9 +467,9 @@ internal int present_to_window(uint8_t *ras, unsigned screen) {
 
 // diagnostics: share of non-black pixels in the back buffer (sampled) before the original ShowScene
 internal volatile LONG g_lit_samples, g_lit_frames, g_lock_fail;
-internal void sample_back(uint8_t *ras, unsigned screen) {
-    uint8_t *st = ras_get_screen_state(ras, screen);
-    uint8_t *back = scrstate_get_back(st);
+internal void sample_back(ee_rasterizer *ras, unsigned screen) {
+    ee_screen_state *st = ras_get_screen_state(ras, screen);
+    ee_surface *back = scrstate_get_back(st);
     IDirectDrawSurface7 *s = back ? surf_get_dds(back) : NULL;
     if (!s) return;
     DDSURFACEDESC2 d = { .dwSize = sizeof d };
@@ -491,8 +491,8 @@ internal void sample_back(uint8_t *ras, unsigned screen) {
 // TMGetTime (ms): +0x2CC, +0x2D4, +0x2D8 = frames per second, +0x2E0; then all counters restart.
 typedef DWORD (__cdecl *TMGetTimeFn)(void);
 internal TMGetTimeFn g_tm_get_time;
-internal void frame_stats(uint8_t *ras, unsigned screen) {
-    uint8_t *st = ras_get_screen_state(ras, screen);
+internal void frame_stats(ee_rasterizer *ras, unsigned screen) {
+    ee_screen_state *st = ras_get_screen_state(ras, screen);
     if (!st || ++SS_U(st, SS_FRAMES) != 12) return;
     if (!g_tm_get_time) g_tm_get_time = (TMGetTimeFn)(void *)GetProcAddress(GetModuleHandleA("Low-Level Engine.dll"), "?TMGetTime@@YAKXZ");
     if (!g_tm_get_time) return;
@@ -547,15 +547,15 @@ internal int __fastcall hook_set_mode(void *scr, void *edx, unsigned mode) {
 // GetCurrentMode / GetCurrentModeIndex: the index the constructor takes from the mode enumeration can be out of
 // range windowed (the game reads the current mode before its first SetMode - crash at 0x535958); clamp it.
 // Modes: vector of 0x14-byte GEVideoMode at +0x10 (begin) / +0x14 (end).
-internal unsigned screen_mode_index(uint8_t *scr) {
+internal unsigned screen_mode_index(ee_screen *scr) {
     unsigned n = (unsigned)(screen_get_modes_end(scr) - screen_get_modes_begin(scr)) / 0x14;
     if (!screen_get_fullscreen(scr) && screen_get_mode(scr) >= n) screen_set_mode(scr, 0);
     return screen_get_mode(scr);
 }
-internal void *__fastcall hook_get_current_mode(uint8_t *scr) {
+internal void *__fastcall hook_get_current_mode(ee_screen *scr) {
     return screen_get_modes_begin(scr) + screen_mode_index(scr) * 0x14;
 }
-internal unsigned __fastcall hook_get_current_mode_index(uint8_t *scr) {
+internal unsigned __fastcall hook_get_current_mode_index(ee_screen *scr) {
     return screen_mode_index(scr);
 }
 
@@ -760,7 +760,7 @@ internal RECT window_rect_for(HWND h) {
         GetMonitorInfoA(MonitorFromWindow(h, MONITOR_DEFAULTTONEAREST), &mi);
         return mi.rcMonitor;
     }
-    uint8_t *win = game_window();
+    ee_window *win = game_window();
     return normal_window_rect(h, win ? window_get_width(win) : 1024, win ? window_get_height(win) : 768);
 }
 
@@ -898,12 +898,12 @@ internal BOOL WINAPI hook_set_window_pos(HWND h, HWND after, int x, int y, int c
     return ok;
 }
 
-internal uint8_t *is_mouse(void) { return input_mouse(); }
+internal ee_input_mouse *is_mouse(void) { return input_mouse(); }
 
 // clicks outside the client area must not reach the game; Acquire again re-reads the button state
 internal void mouse_acquire(int want) {
     static int unacquired, up_frames;
-    uint8_t *ms = is_mouse();
+    ee_input_mouse *ms = is_mouse();
     if (!ms) return;
     void **dev = imouse_get_device(ms);
     if (!dev || imouse_get_suspended(ms)) { unacquired = 0; return; }   // +4: suspended by the game (window inactive)
@@ -927,7 +927,7 @@ internal void mouse_acquire(int want) {
 // made the window foreground yet - a click into the window then leaves mouse and keyboard dead until it's minimized
 // and restored. The intro sequence (0x538xxx) also ends with Suspend. In front, a suspended device is resumed.
 internal volatile LONG g_input_resumes;
-internal void resume_if_suspended(uint8_t *d, DWORD *last) {
+internal void resume_if_suspended(void *d, DWORD *last) {   // the mouse or the keyboard (an ISDevice: its +4 the same)
     if (!d || !imouse_get_suspended(d) || GetTickCount() - *last < 250) return;   // +4: suspended (ISDevice)
     *last = GetTickCount();
     ((ThisFn)(*(void ***)d)[4])(d);   // Resume (vtable +0x10)
@@ -945,7 +945,7 @@ internal void virtual_mouse(ee_mouse *m, int frozen) {
         mouse_set_y(m, (float)g_vm_y);
         mouse_clamp(m);
     }
-    uint8_t *ms = is_mouse();
+    ee_input_mouse *ms = is_mouse();
     LONG b = g_vm_button;
     if (!ms || b < 0 || b > 3) return;
     uint8_t *st = imouse_buttons_at(ms) + b;
@@ -961,9 +961,9 @@ internal void virtual_mouse(ee_mouse *m, int frozen) {
     }
 }
 
-internal void window_mouse_in(ee_mouse *m, int frozen, uint8_t *win, HWND hwnd);
+internal void window_mouse_in(ee_mouse *m, int frozen, ee_window *win, HWND hwnd);
 internal void window_mouse(ee_mouse *m, int frozen) {
-    uint8_t *win = game_window();
+    ee_window *win = game_window();
     HWND hwnd = win ? window_get_hwnd(win) : NULL;
     if (!hwnd) return;
     window_hook(hwnd);
@@ -973,7 +973,7 @@ internal void window_mouse(ee_mouse *m, int frozen) {
     dpi_leave(dpi);
 }
 
-internal void window_mouse_in(ee_mouse *m, int frozen, uint8_t *win, HWND hwnd) {
+internal void window_mouse_in(ee_mouse *m, int frozen, ee_window *win, HWND hwnd) {
     POINT pt, c;
     RECT rc;
     if (!GetCursorPos(&pt) || !GetClientRect(hwnd, &rc) || rc.right < 2 || rc.bottom < 2) return;
@@ -1432,7 +1432,7 @@ internal void cmd_headless(const char *verb, const char *args, char *out) {
     }
     if (!strncmp(args, "off", 3)) { g_vm_x = g_vm_y = -1; REPLY("ok: real mouse\n"); return; }
     if (!strcmp(verb, "wtype")) {   // wtype TEXT: the characters as WM_CHAR to the game window (edit boxes; tests)
-        uint8_t *win = game_window();
+        ee_window *win = game_window();
         HWND hwnd = win ? window_get_hwnd(win) : NULL;
         if (!hwnd) { REPLY("error: no window\n"); return; }
         int n = 0;
@@ -1447,7 +1447,7 @@ internal void cmd_headless(const char *verb, const char *args, char *out) {
     char which[16] = "";
     if (sscanf(args, "%d %d %15s", &x, &y, which) < 2 || x < 0 || y < 0) { REPLY("usage: %s x y%s\n", verb, *verb == 'v' && verb[1] == 'c' ? " [right|mid]" : ""); return; }
     if (!strcmp(verb, "wclick")) {   // window messages (WONAPI screens such as the civ builder read those, not the game cursor)
-        uint8_t *win = game_window();
+        ee_window *win = game_window();
         HWND hwnd = win ? window_get_hwnd(win) : NULL;
         if (!hwnd) { REPLY("error: no window\n"); return; }
         RECT cr;
@@ -1477,7 +1477,7 @@ internal void cmd_headless(const char *verb, const char *args, char *out) {
     REPLY("ok: cursor %d,%d\n", x, y);
 }
 
-internal void dd_surface(char *out, const char *name, uint8_t *ges) {
+internal void dd_surface(char *out, const char *name, ee_surface *ges) {
     IDirectDrawSurface7 *s = ges ? surf_get_dds(ges) : NULL;
     if (!s) { REPLY("%s: none\n", name); return; }
     DDSURFACEDESC2 d = { .dwSize = sizeof d };
@@ -1526,10 +1526,10 @@ internal void lock_unlock(char *out, const char *name, IDirectDrawSurface7 *s) {
     REPLY("%s lock/unlock hr=%08lx\n", name, hr);
 }
 internal void cmd_ddpoke(char *out, const char *args) {
-    uint8_t *ras = rasterizer();
-    uint8_t *st = ras ? ras_get_screen_state(ras, screen_index()) : NULL;
+    ee_rasterizer *ras = rasterizer();
+    ee_screen_state *st = ras ? ras_get_screen_state(ras, screen_index()) : NULL;
     if (!st) { REPLY("error: no rasterizer\n"); return; }
-    uint8_t *scr = scrstate_get_screen(st), *front = scrstate_get_front(st), *back = scrstate_get_back(st);
+    ee_screen *scr = scrstate_get_screen(st); ee_surface *front = scrstate_get_front(st), *back = scrstate_get_back(st);
     IDirectDrawSurface7 *b7 = back ? surf_get_dds(back) : NULL;
     if (!strcmp(args, "z") && b7) {
         DDSCAPS2 zc = { .dwCaps = DDSCAPS_ZBUFFER };
@@ -1542,7 +1542,7 @@ internal void cmd_ddpoke(char *out, const char *args) {
         DDSURFACEDESC2 m = { .dwSize = sizeof m };
         REPLY("GetDisplayMode hr=%08lx\n", dd->lpVtbl->GetDisplayMode(dd, &m));
     } else if (!strncmp(args, "cursor", 6)) {   // cursor <client x> <client y>: place the Windows cursor (game's coordinates)
-        uint8_t *win = game_window();
+        ee_window *win = game_window();
         POINT p = { 0, 0 }, q;
         RECT rc = { 0 };
         sscanf(args + 6, "%ld %ld", &p.x, &p.y);
@@ -1605,7 +1605,7 @@ internal void cmd_ddpoke(char *out, const char *args) {
 // 2 "FPS: n" (relabelled every update - each new text is drawn with GDI)
 internal void cmd_topbar(char *out, const char *args) {
     void *uim = ui_manager();
-    uint8_t *form = uim ? ui_current_form(uim) : NULL;
+    ee_ui_form *form = uim ? ui_current_form(uim) : NULL;
     const char *rn = form ? rtti_name(form) : "";
     if (!form || !strstr(rn, "EEUIFMainGame")) { REPLY("error: the current form is %s, not the game screen\n", form ? rn : "none"); return; }
     int v = -1;
@@ -1614,18 +1614,18 @@ internal void cmd_topbar(char *out, const char *args) {
 }
 
 internal void cmd_ddinfo(char *out, const char *args) {
-    uint8_t *ras = rasterizer();
+    ee_rasterizer *ras = rasterizer();
     int idx = screen_index();
-    uint8_t *st = ras ? ras_get_screen_state(ras, idx) : NULL;
+    ee_screen_state *st = ras ? ras_get_screen_state(ras, idx) : NULL;
     if (!st) { REPLY("error: no rasterizer\n"); return; }
-    uint8_t *scr = scrstate_get_screen(st), *win = scrstate_get_window(st);
+    ee_screen *scr = scrstate_get_screen(st); ee_window *win = scrstate_get_window(st);
     REPLY("screen %p fullscreen=%d desktop=%d flag=%d renderer %s\n", (void *)scr, screen_get_fullscreen(scr), screen_get_desktop(scr), g_fullscreen,
           g_show[DISPLAY_DLL(ras)].dll);
     {
         void **svt = *(void ***)scr;
         char d32 = ((char (__thiscall *)(void *))svt[3])(scr), t32 = ((char (__thiscall *)(void *))svt[4])(scr);
         REPLY("32-bit device support %d, 32-bit texture support %d; screen bytes 0x30..0x40:", d32, t32);
-        for (int k = 0x30; k < 0x40; k++) REPLY(" %02x", scr[k]);
+        for (int k = 0x30; k < 0x40; k++) REPLY(" %02x", ((uint8_t *)scr)[k]);
         REPLY("\n");
     }
     HWND hwnd = win ? window_get_hwnd(win) : NULL;
@@ -1635,7 +1635,7 @@ internal void cmd_ddinfo(char *out, const char *args) {
     REPLY("window %p hwnd %p origin %.0f,%.0f size %ux%u; real client %ldx%ld at %ld,%ld\n", (void *)win, (void *)hwnd,
           win ? window_get_4(win) : 0, win ? window_get_8(win) : 0, win ? (unsigned)window_get_width(win) : 0,
           win ? (unsigned)window_get_height(win) : 0, cr.right, cr.bottom, o.x, o.y);
-    uint8_t *front = scrstate_get_front(st), *back = scrstate_get_back(st);
+    ee_surface *front = scrstate_get_front(st), *back = scrstate_get_back(st);
     dd_surface(out, "front", front);
     dd_surface(out, "back ", back);
     GetErrFn ge = (GetErrFn)GetProcAddress(GetModuleHandleA("Low-Level Engine.dll"), "?ESGetNativeError@@YAKXZ");
@@ -1684,7 +1684,7 @@ internal void cmd_ddinfo(char *out, const char *args) {
     }
     REPLY("windowed present: %ld frames, %ld failed; back buffer before ShowScene: %ld samples, %ld lit of 1024 avg, lock failed %ld\n",
           g_present_frames, g_present_fail, g_lit_frames, g_lit_frames ? g_lit_samples / g_lit_frames : 0, g_lock_fail);
-    ee_mouse *gm = game_mouse(); uint8_t *ms = is_mouse();
+    ee_mouse *gm = game_mouse(); ee_input_mouse *ms = is_mouse();
     if (gm) REPLY("mouse: game cursor %.1f,%.1f of x %.0f..%.0f y %.0f..%.0f, updates %ld, unacquired %ld, reacquired %ld, "
                   "device %s, resumed by us %ld, subclassed %p\n", mouse_get_x(gm), mouse_get_y(gm), mouse_get_x_min(gm),
                   mouse_get_x_max(gm), mouse_get_y_min(gm), mouse_get_y_max(gm), g_mouse_updates, g_mouse_unacq,
@@ -1746,7 +1746,7 @@ internal void cmd_ddinfo(char *out, const char *args) {
         REPLY("no-texture mode %s\n", fn ? (args[5] != '0' ? "on" : "off") : "not found");
     }
     if (!strncmp(args, "dump", 4)) {   // surfaces to aimod_dumps/dd_<name>.bmp
-        uint8_t *ges[2] = { front, back };
+        ee_surface *ges[2] = { front, back };
         const char *names[2] = { "front", "back" };
         for (int i = 0; i < 2; i++) {
             IDirectDrawSurface7 *s = ges[i] ? surf_get_dds(ges[i]) : NULL;

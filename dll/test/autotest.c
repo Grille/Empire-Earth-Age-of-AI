@@ -80,7 +80,7 @@ internal void run_setup(uint32_t now);
 // keeps the tuning.
 #define TEST_STEPS_A_SECOND 44
 internal void pin_server_pace(void) {
-    uint8_t *srv = game_server();
+    ee_server *srv = game_server();
     const unsigned rate = TEST_STEPS_A_SECOND;
     if (!srv || (server_get_rate_max(srv) == rate && server_get_rate_min(srv) == rate)) return;
     if (g_log) fprintf(g_log, "# autotest: server pace held at %u steps a second (its range was %u-%u, now %u)\n", rate,

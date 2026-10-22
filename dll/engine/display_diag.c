@@ -148,7 +148,7 @@ internal void cnt_note(int k, int r) {
 // alpha left in copy destinations that have an alpha channel (sampled, first 400 such copies)
 internal volatile LONG g_alpha_copies, g_alpha_samples, g_alpha_zero, g_alpha_src_zero;
 internal char g_alpha_last[200];
-internal void sample_alpha(uint8_t *src, uint8_t *dst) {
+internal void sample_alpha(ee_surface *src, ee_surface *dst) {
     IDirectDrawSurface7 *d7 = dst ? surf_get_dds(dst) : NULL;
     IDirectDrawSurface7 *s7 = src ? surf_get_dds(src) : NULL;
     if (!d7 || g_alpha_copies >= 400) return;
@@ -193,9 +193,9 @@ internal int __fastcall hook_copy_to(void *s, void *edx, void *dst, void *r1, vo
     // (garbage/scanlines in the editor where the mouse moved) and the back buffer is never flipped, so it still
     // holds the last frame: copies from or to the front are skipped.
     if (!g_fullscreen) {
-        uint8_t *ras = rasterizer();
-        uint8_t *st = ras ? ras_get_screen_state(ras, screen_index()) : NULL;
-        uint8_t *front = st ? scrstate_get_front(st) : NULL;
+        ee_rasterizer *ras = rasterizer();
+        ee_screen_state *st = ras ? ras_get_screen_state(ras, screen_index()) : NULL;
+        ee_surface *front = st ? scrstate_get_front(st) : NULL;
         if (front && (s == front || dst == front)) { InterlockedIncrement(&g_front_copies_skipped); return 0; }
     }
     int r =((int (__thiscall *)(void *, void *, void *, void *, int))g_cnt[0].orig[DISPLAY_DLL(s)])(s, dst, r1, r2, f);
@@ -251,11 +251,11 @@ typedef void (__thiscall *SetRTFn)(void *ras, void *surf, unsigned screen);
 internal SetRTFn g_set_rt[2];
 internal volatile LONG g_rt_calls, g_rt_back;
 internal char g_rt_last[160];
-internal void __fastcall hook_set_rt(void *ras, void *edx, uint8_t *surf, unsigned screen) {
+internal void __fastcall hook_set_rt(void *ras, void *edx, ee_surface *surf, unsigned screen) {
     (void)edx;
     g_set_rt[DISPLAY_DLL(ras)](ras, surf, screen);
     InterlockedIncrement(&g_rt_calls);
-    uint8_t *st = ras_get_screen_state(ras, screen);
+    ee_screen_state *st = ras_get_screen_state(ras, screen);
     if (surf == scrstate_get_back(st)) { InterlockedIncrement(&g_rt_back); return; }
     IDirectDrawSurface7 *s = surf ? surf_get_dds(surf) : NULL;
     DDSURFACEDESC2 d = { .dwSize = sizeof d };

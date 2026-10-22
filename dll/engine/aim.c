@@ -226,7 +226,7 @@ internal int missile_damage(ee_unit *m, ee_unit *t);
 
 // A missile is gone when it hasn't been steered for 3 steps (last = the end of its climb until it steers).
 internal void missile_tick(uint32_t now) {
-    uint8_t *clock = game_physics();
+    ee_physics *clock = game_physics();
     int gone_ms = clock ? (int)(phys_get_step_s(clock) * 3000.0f) : 0;
     if (gone_ms < 100) gone_ms = 100;
     for (int i = 0; i < MSL_MAX; i++)

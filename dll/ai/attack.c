@@ -107,7 +107,7 @@ typedef int (__thiscall *RouteCostFn)(void *self, int *edge, uint8_t *node);
 internal struct { unsigned calls, penalised; } g_route_stats[16];
 internal DWORD g_route_thread;
 
-internal int __fastcall hook_route_cost(void *self, void *edx, int *edge, uint8_t *node) {
+internal int __fastcall hook_route_cost(ee_route_planner *self, void *edx, int *edge, ee_route_node *node) {
     (void)edx;
     int cost = route_cost(self, edge, node);
     unsigned pi = (unsigned)planner_get_player_index(self) & 15;     // planner +0x48 = own player index
@@ -443,7 +443,7 @@ internal int guarded(ee_player *pl, int x, int y, int r) {
 
 internal int mass_tether(ee_attack_subgroup *sg, ee_unit *me, ee_unit *enemy);   // mass.c
 typedef float (__thiscall *AsguScoreFn)(void *self, uint8_t *info);
-internal float __fastcall hook_asgu_score(ee_asg_unit *self, void *edx, uint8_t *info) {
+internal float __fastcall hook_asgu_score(ee_asg_unit *self, void *edx, ee_asgu_info *info) {
     (void)edx;
     float s = asgu_score(self, info);
     ee_attack_subgroup *sg = asgu_get_subgroup(self);
@@ -1332,7 +1332,7 @@ internal void attack_log(ee_player *pl, uint32_t now) {
         // EEPlayerStatistics (player+0x4A8): series i at +0x18 + i*0x18 {?, begin, end, ..} of 8-byte samples,
         // latest value = first dword of the last sample (0x55DCD3)
         fprintf(g_log, "# battle: P%u at %u min:", pi, now / 60000);
-        uint8_t *st = player_stats_at(pl);
+        ee_player_stats *st = player_stats_at(pl);
         for (int k = 0; k < 30; k++) {
             uint8_t *b = plstats_get_begin(st, k), *e = plstats_get_end(st, k);
             int ok = b && e > b && (e - b) % 8 == 0 && e - b < (1 << 20) && mem_readable(e - 8, 8);

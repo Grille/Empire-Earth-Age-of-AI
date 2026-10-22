@@ -38,7 +38,7 @@ internal char g_setup_path[MAX_PATH];
 internal void autotest_first_tick(ee_player *pl);
 internal void settings_apply(ee_player *pl);
 internal void econ_tick(ee_player *pl, uint32_t now);
-internal void persona_new_game(uint8_t *setup);
+internal void persona_new_game(ee_setup *setup);
 internal void persona_assign(ee_player *pl);
 internal void diplo_new_game(void);
 internal void chat_new_game(void);
@@ -252,7 +252,7 @@ internal void log_rotate(void) {
 }
 
 internal int unit_types_load(void);   // unitnames.c
-internal char __fastcall hook_game_start(void *state, void *edx, uint8_t *setup, void *p2) {
+internal char __fastcall hook_game_start(void *state, void *edx, ee_setup *setup, void *p2) {
     (void)edx;
     char *name = FIELD(setup_map_name_at(setup), 4, char *);   // the UString's characters
     int mode = setup_get_mode(setup);
@@ -263,7 +263,7 @@ internal char __fastcall hook_game_start(void *state, void *edx, uint8_t *setup,
         // raw setup struct (16 player slots of 0x38 bytes, then game settings up to ~0x410)
         for (int o = 0; o < 0x420; o += 32) {
             fprintf(g_log, "# setup +%03x:", o);
-            for (int k = 0; k < 32; k++) fprintf(g_log, "%s%02x", (k & 3) ? "" : " ", setup[o + k]);
+            for (int k = 0; k < 32; k++) fprintf(g_log, "%s%02x", (k & 3) ? "" : " ", ((uint8_t *)setup)[o + k]);
             fputc('\n', g_log);
         }
         for (int i = 0; i < 16; i++) {   // the slot's name: a UString (its characters at +4)

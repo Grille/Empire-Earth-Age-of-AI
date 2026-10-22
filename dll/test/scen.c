@@ -30,7 +30,7 @@ internal int sm_count(uint8_t *vec_begin) {
     uint8_t **b = FIELD(vec_begin, 0, uint8_t **), **e = FIELD(vec_begin, 4, uint8_t **);
     return b && e > b ? (int)(e - b) : 0;
 }
-internal uint8_t *sm_at(uint8_t *vec_begin, int i) {
+internal void *sm_at(uint8_t *vec_begin, int i) {   // an element of a vector of pointers
     return i >= 0 && i < sm_count(vec_begin) ? FIELD(vec_begin, 0, uint8_t **)[i] : NULL;
 }
 
@@ -44,31 +44,31 @@ internal const char *sm_text(uint8_t *ws, char *buf, int n) {
 }
 
 // a trigger by index or (case-insensitive) name
-internal uint8_t *sm_trigger(const char *arg, int *idx) {
-    uint8_t *m = SM_MGR;
+internal ee_trigger *sm_trigger(const char *arg, int *idx) {
+    ee_scen_mgr *m = SM_MGR;
     if (!m) return NULL;
     char *end, name[96];
     long i = strtol(arg, &end, 10);
     if (end != arg && (*end == 0 || *end == ' ')) { *idx = (int)i; return sm_at(scen_triggers_at(m), (int)i); }
     for (int k = 0; k < sm_count(scen_triggers_at(m)); k++) {
-        uint8_t *t = sm_at(scen_triggers_at(m), k);
+        ee_trigger *t = sm_at(scen_triggers_at(m), k);
         if (t && !_stricmp(sm_text(trigger_name_at(t), name, sizeof name), arg)) { *idx = k; return t; }
     }
     return NULL;
 }
 
-internal void sm_list(char *out, uint8_t *m, int detail) {
+internal void sm_list(char *out, ee_scen_mgr *m, int detail) {
     char name[96];
     int nt = sm_count(scen_triggers_at(m));
     REPLY("%d triggers, %d conditions, %d effects, %d objects, %d areas; scenario time %.1f s\n", nt,
           sm_count(scen_conds_at(m)), sm_count(scen_effects_at(m)), sm_count(scen_objects_at(m)), sm_count(scen_areas_at(m)), scen_get_time(m) / 1000.0f);
     for (int k = 0; k < nt; k++) {
-        uint8_t *t = sm_at(scen_triggers_at(m), k);
+        ee_trigger *t = sm_at(scen_triggers_at(m), k);
         if (!t) continue;
         REPLY("%3d \"%s\" %s%s%s true-for %ds:", k, sm_text(trigger_name_at(t), name, sizeof name), trigger_get_on(t) ? "on" : "off",
               trigger_get_fired(t) ? " fired" : "", trigger_get_loop(t) ? " loop" : "", trigger_get_true_for(t));
         for (int c = 0; c < sm_count(trigger_conds_at(t)); c++) {
-            uint8_t *w = sm_at(trigger_conds_at(t), c), *cd = w ? sm_at(scen_conds_at(m), trigger_cond_get_index(w)) : NULL;
+            ee_trig_cond *w = sm_at(trigger_conds_at(t), c); ee_scen_cond *cd = w ? sm_at(scen_conds_at(m), trigger_cond_get_index(w)) : NULL;
             if (!w) continue;
             int ty = cd ? scen_cond_get_type(cd) : -1, op = cd ? scen_cond_get_op(cd) : 0;
             REPLY(" %sc%d %s", trigger_cond_get_not(w) ? "not " : "", trigger_cond_get_index(w), ty >= 0 && ty < 8 ? k_sm_cond[ty] : "?");
@@ -82,7 +82,7 @@ internal void sm_list(char *out, uint8_t *m, int detail) {
         }
         REPLY(" ->");
         for (int e = 0; e < sm_count(trigger_effects_at(t)); e++) {
-            uint8_t *w = sm_at(trigger_effects_at(t), e), *ef = w ? sm_at(scen_effects_at(m), trigger_effect_get_index(w)) : NULL;
+            ee_trig_effect *w = sm_at(trigger_effects_at(t), e); ee_scen_effect *ef = w ? sm_at(scen_effects_at(m), trigger_effect_get_index(w)) : NULL;
             if (!w) continue;
             if (trigger_effect_get_kind(w) == 2) { REPLY(" |"); continue; }
             int cat = ef ? scen_effect_get_category(ef) : -1, sub = -1;
@@ -104,7 +104,7 @@ internal void sm_list(char *out, uint8_t *m, int detail) {
 
 // trig [list|desc] | trig on|off|reset T | trig fire T | trig effect N  (T = index or name)
 internal void cmd_trig(char *out, const char *args) {
-    uint8_t *m = SM_MGR;
+    ee_scen_mgr *m = SM_MGR;
     char verb[16] = "list";
     int n = 0, idx = -1;
     sscanf(args, "%15s %n", verb, &n);
@@ -113,13 +113,13 @@ internal void cmd_trig(char *out, const char *args) {
     if (!strcmp(verb, "list") || !strcmp(verb, "desc")) { sm_list(out, m, verb[0] == 'd'); return; }
     if (!strcmp(verb, "effect")) {
         int e = atoi(arg);
-        uint8_t *ef = sm_at(scen_effects_at(m), e);
+        ee_scen_effect *ef = sm_at(scen_effects_at(m), e);
         if (!ef) { REPLY("error: no effect %d\n", e); return; }
         sm_run_effect(ef, 0);
         REPLY("ok: effect %d (category %d) ran\n", e, scen_effect_get_category(ef));
         return;
     }
-    uint8_t *t = sm_trigger(arg, &idx);
+    ee_trigger *t = sm_trigger(arg, &idx);
     if (!t) { REPLY("error: no trigger \"%s\"\n", arg); return; }
     if (!strcmp(verb, "on")) trigger_set_on(t, 1);
     else if (!strcmp(verb, "off")) trigger_set_on(t, 0);
@@ -128,7 +128,7 @@ internal void cmd_trig(char *out, const char *args) {
         // every effect now, delays and random groups ignored
         int ran = 0;
         for (int e = 0; e < sm_count(trigger_effects_at(t)); e++) {
-            uint8_t *w = sm_at(trigger_effects_at(t), e), *ef = w && trigger_effect_get_kind(w) != 2 ? sm_at(scen_effects_at(m), trigger_effect_get_index(w)) : NULL;
+            ee_trig_effect *w = sm_at(trigger_effects_at(t), e); ee_scen_effect *ef = w && trigger_effect_get_kind(w) != 2 ? sm_at(scen_effects_at(m), trigger_effect_get_index(w)) : NULL;
             if (ef) { sm_run_effect(ef, 0); ran++; }
         }
         trigger_set_fired(t, 1);

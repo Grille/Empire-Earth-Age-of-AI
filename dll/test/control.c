@@ -110,7 +110,7 @@ internal void queue_action(void *act) {
 
 // Same as clicking the pause button (EEUIEMGPauseGame::Execute 0x649F9A); the action toggles the pause.
 internal int queue_pause_toggle(void) {
-    void **client = game_server();
+    ee_server *client = game_server();
     if (!client || !((uint32_t *)client)[4]) return 0;
     if (!((char (__thiscall *)(void *))(*(void ***)client)[4])(client)) return 0;
     uint8_t *act = pause_action_alloc();
@@ -259,7 +259,7 @@ internal void cmd_costs(char *out, const char *args) {
     ee_tech_tree *tt = player_get_tech_tree(pl);
     int ep = tt_get_epoch(tt);
     for (int e = ep + 1; e <= ep + 2 && e <= 13; e++) {
-        uint8_t *rec = tt_epoch_rec_at(tt, e);
+        ee_tt_epoch *rec = tt_epoch_rec_at(tt, e);
         char tag[48];
         wsprintfA(tag, "epoch %d tech (req %d)", e, ttrec_get_needed(rec));
         print_costs(out, tag, ttrec_get_tech_data(rec));
@@ -471,7 +471,7 @@ internal long __fastcall hook_sim_wait(void *ev, void *edx, unsigned long ms) {
     (void)edx;
     // only while steps are granted: otherwise a real (short) wait, so the client, server and pathfinding threads
     // the simulation waits for get the CPU instead of a spinning loop
-    uint8_t *phys = game_physics();
+    ee_physics *phys = game_physics();
     if (g_turbo && phys && phys_get_steps_granted(phys)) return 0;
     return ts_wait(ev, g_turbo ? 1 : ms);
 }
@@ -516,7 +516,7 @@ internal void __fastcall hook_phys_step(void *phys, void *edx) {
 }
 
 internal int sim_drained(void) {
-    uint8_t *srv = game_server(), *phys = game_physics();
+    ee_server *srv = game_server(); ee_physics *phys = game_physics();
     return srv && phys && server_get_sent(srv) == server_get_done(srv) && phys_get_steps_granted(phys) == 0 &&
            !g_in_step;
 }
@@ -544,7 +544,7 @@ internal DWORD WINAPI hook_send_wait(DWORD n, const HANDLE *h, BOOL all, DWORD m
     DWORD since = 0;   // when the simulation was drained but a message not in the list yet
     for (;;) {   // 1 ms waits, no spinning: the client thread must answer each tick before the next carries steps
         if (sim_drained()) {
-            uint8_t *srv = game_server();
+            ee_server *srv = game_server();
             LONG handed = g_handed, waiting = handed - g_handed_at_tick;
             if (!g_srv_send_next || waiting <= 0 || server_get_waiting(srv) >= waiting) {
                 g_handed_at_tick = handed;
@@ -669,8 +669,8 @@ internal DWORD WINAPI pipe_thread(LPVOID unused) {
                 // menus where no simulation runs - e.g. 413 opens the scenario editor from the main menu
                 unsigned msg = 0, p1 = 0;
                 sscanf(cmd + n, "%x %x", &msg, &p1);
-                uint8_t *ui = game_world();
-                void *thread = ui ? *(void **)(ui + 0x40) : NULL;
+                ee_world *ui = game_world();
+                void *thread = ui ? FIELD(ui, 0x40, void *) : NULL;
                 typedef long (__thiscall *PostFn)(void *, unsigned long, void *, void *, int);
                 PostFn post = (PostFn)GetProcAddress(GetModuleHandleA("Low-Level Engine.dll"), "?Post@TSThread@@QAEJKPAX0_N@Z");
                 if (thread && post && msg) wsprintfA(reply, "ok: posted %x (result %ld)\n", msg, post(thread, msg, (void *)(uintptr_t)p1, NULL, 1));

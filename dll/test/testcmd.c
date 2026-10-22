@@ -36,11 +36,11 @@ internal void cmd_tech(char *out, const char *args) {
         int ei = d ? techdata_get_effects(d) : -1;
         REPLY(" | effects %d:", ei);
         if (ei >= 0 && ei <= 0x5DC) {   // effect list 0x93B1B8 + ei*0x10 (+4 ids, +8 count), effect 0x919E70 + id*0x44
-            uint8_t *list = epoch_tech_list(ei);
+            ee_epoch_techs *list = epoch_tech_list(ei);
             unsigned count = effects_get_count(list), *ids = effects_get_ids(list);
             for (unsigned k = 0; ids && k < count && k < 16; k++) {
                 if (ids[k] >= 2000) { REPLY(" %u?", ids[k]); continue; }
-                uint8_t *ef = tech_effect(ids[k]);
+                ee_effect *ef = tech_effect(ids[k]);
                 REPLY(" %u(%x/%x/%x)", ids[k], effect_get_type(ef), effect_get_kind(ef), effect_get_attr(ef));
             }
         }
@@ -744,14 +744,15 @@ internal void cmd_aigroup(char *out, const char *args) {
     if (!s.best) { REPLY("error: no enemy building\n"); return; }
     ee_unit *t = s.best;
         ee_player *tpl = unit_get_owner(t);
-    __attribute__((aligned(8))) uint8_t task[0x40], loc[0x20], strat[0x50];
+    __attribute__((aligned(8))) uint8_t task_mem[0x40], loc[0x20], strat_mem[0x50];
+    ee_task *task = (ee_task *)task_mem; ee_strategy *strat = (ee_strategy *)strat_mem;
     task_init(task);
     location_init(loc);
     strategy_init(strat);
     task_set_target(task, t);
     int pt[2] = { unit_get_x(t), unit_get_y(t) };
     point_set(loc + 4, pt);
-    task_set_location(task + 4, loc);
+    task_set_location(task_mem + 4, loc);
     task_set_target_player(task, game_players()[player_get_index(tpl) & 15]);
     task_set_unknown_28(task, 7); task_set_unknown_2c(task, 2); task_set_unknown_30(task, 1);
     strategy_reset(strat);

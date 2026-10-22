@@ -46,21 +46,21 @@ internal inline void asgu_set_unit(ee_asg_unit *r, ee_unit *u) { FIELD(r, ASGU_U
 internal inline void *asgu_get_engaged(const ee_asg_unit *r) { return FIELD(r, ASGU_ENGAGED, void *); }       // +0x48 set while it fights
 internal inline ee_attack_subgroup *asgu_get_subgroup(const ee_asg_unit *r) { return FIELD(r, ASGU_SUBGROUP, ee_attack_subgroup *); } // +0x4C
 // what FN_ASGU_SCORE scores: +0x4 the enemy
-internal inline ee_unit *score_info_get_enemy(const void *info) { return FIELD(info, ASGUINFO_ENEMY, ee_unit *); }
+internal inline ee_unit *score_info_get_enemy(const ee_asgu_info *info) { return FIELD(info, ASGUINFO_ENEMY, ee_unit *); }
 
 // AN ATTACK TASK (EECPAGTask; test/testcmd.c aigroup makes one): +0x20 the player it attacks, +0x28 / +0x2C / +0x30
 // as the scenario effect "Create AI Military Group" sets them (7, 2, 1 - not known)
-internal inline void task_set_target_player(void *task, ee_player *pl) { FIELD(task, TASK_TARGET_PLAYER, ee_player *) = pl; }
-internal inline void task_set_unknown_28(void *task, int v) { FIELD(task, TASK_0x28, int) = v; }
-internal inline void task_set_unknown_2c(void *task, int v) { FIELD(task, TASK_0x2C, int) = v; }
-internal inline void task_set_unknown_30(void *task, uint8_t v) { FIELD(task, TASK_0x30, uint8_t) = v; }
+internal inline void task_set_target_player(ee_task *task, ee_player *pl) { FIELD(task, TASK_TARGET_PLAYER, ee_player *) = pl; }
+internal inline void task_set_unknown_28(ee_task *task, int v) { FIELD(task, TASK_0x28, int) = v; }
+internal inline void task_set_unknown_2c(ee_task *task, int v) { FIELD(task, TASK_0x2C, int) = v; }
+internal inline void task_set_unknown_30(ee_task *task, uint8_t v) { FIELD(task, TASK_0x30, uint8_t) = v; }
 // the route planner (its own player's index +0x48) and its nodes (tile +0x3C, +0x40)
-internal inline int planner_get_player_index(const void *rp) { return FIELD(rp, ROUTEPLANNER_PLAYER_INDEX, int); }
-internal inline int route_node_get_x(const void *n) { return FIELD(n, ROUTENODE_X, int); }
-internal inline int route_node_get_y(const void *n) { return FIELD(n, ROUTENODE_Y, int); }
+internal inline int planner_get_player_index(const ee_route_planner *rp) { return FIELD(rp, ROUTEPLANNER_PLAYER_INDEX, int); }
+internal inline int route_node_get_x(const ee_route_node *n) { return FIELD(n, ROUTENODE_X, int); }
+internal inline int route_node_get_y(const ee_route_node *n) { return FIELD(n, ROUTENODE_Y, int); }
 // an attack strategy (test/testcmd.c aigroup: as the scenario effect sets it, 4 and 0 - not known)
-internal inline void strategy_set_unknown_3c(void *s, int v) { FIELD(s, STRATEGY_0x3C, int) = v; }
-internal inline void strategy_set_unknown_40(void *s, uint8_t v) { FIELD(s, STRATEGY_0x40, uint8_t) = v; }
+internal inline void strategy_set_unknown_3c(ee_strategy *s, int v) { FIELD(s, STRATEGY_0x3C, int) = v; }
+internal inline void strategy_set_unknown_40(ee_strategy *s, uint8_t v) { FIELD(s, STRATEGY_0x40, uint8_t) = v; }
 
 // FUNCTIONS
 internal inline unsigned group_count(void *grp) { return ((unsigned (__thiscall *)(void *))(*(void ***)grp)[GA(SLOT_GROUP_COUNT)])(grp); }
@@ -102,10 +102,10 @@ internal inline char asg_air_give_goal(ee_attack_subgroup *sg, ee_unit *u, ee_go
 internal inline void asg_route(ee_attack_subgroup *sg, int *start, int *dest) { ((void (__thiscall *)(ee_attack_subgroup *, int *, int *))GA(FN_ASG_ROUTE))(sg, start, dest); }
 internal inline void asg_route_done(ee_attack_subgroup *sg) { ((void (__thiscall *)(ee_attack_subgroup *))GA(FN_ASG_ROUTE_DONE))(sg); }
 // a subgroup member's score for an enemy (info: what it scores)
-internal inline float asgu_score(ee_asg_unit *member, uint8_t *info) { return ((float (__thiscall *)(ee_asg_unit *, uint8_t *))GA(FN_ASGU_SCORE))(member, info); }
+internal inline float asgu_score(ee_asg_unit *member, ee_asgu_info *info) { return ((float (__thiscall *)(ee_asg_unit *, ee_asgu_info *))GA(FN_ASGU_SCORE))(member, info); }
 // the route planner's cost of an edge into node
-internal inline int route_cost(void *planner, int *edge, uint8_t *node) {
-    return ((int (__thiscall *)(void *, int *, uint8_t *))GA(FN_ROUTE_COST))(planner, edge, node);
+internal inline int route_cost(ee_route_planner *planner, int *edge, ee_route_node *node) {
+    return ((int (__thiscall *)(ee_route_planner *, int *, ee_route_node *))GA(FN_ROUTE_COST))(planner, edge, node);
 }
 
 // HOOKS
@@ -139,10 +139,10 @@ internal inline int patch_asg_give_goal(asg_give_goal_hook h, asg_give_goal_hook
 typedef void (__fastcall *asg_route_hook)(ee_attack_subgroup *sg, void *edx, int *start, int *dest);
 internal inline int patch_asg_route(asg_route_hook h) { return patch_vtable(GA(VT_ASG_LAND), GA(SLOT_ASG_ROUTE), GA(FN_ASG_ROUTE), (void *)h); }
 internal inline int patch_asg_route_done(asg_hook h) { return patch_vtable(GA(VT_ASG_LAND), GA(SLOT_ASG_ROUTE_DONE), GA(FN_ASG_ROUTE_DONE), (void *)h); }
-typedef int (__fastcall *route_cost_hook)(void *planner, void *edx, int *edge, uint8_t *node);
+typedef int (__fastcall *route_cost_hook)(ee_route_planner *planner, void *edx, int *edge, ee_route_node *node);
 internal inline int patch_route_cost(route_cost_hook h) { return patch_vtable(GA(VT_ROUTE_PLANNER), GA(SLOT_ROUTE_COST), GA(FN_ROUTE_COST), (void *)h); }
 // the land members' score of an enemy (base, hero, priests and prophets: ASGU_VTABLES)
-typedef float (__fastcall *asgu_score_hook)(ee_asg_unit *member, void *edx, uint8_t *info);
+typedef float (__fastcall *asgu_score_hook)(ee_asg_unit *member, void *edx, ee_asgu_info *info);
 internal inline int patch_asgu_score(asgu_score_hook h, int *of) {
     return patch_vtables(PATCH_LIST(ASGU_VTABLES), GA(SLOT_ASGU_SCORE), GA(FN_ASGU_SCORE), (void *)h, of);
 }

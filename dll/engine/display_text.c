@@ -67,8 +67,8 @@ internal void atlas_dump(int n);   // inside our GEFontBitmap constructor call (
 internal void *(__thiscall *g_fbm_ctor)(void *, void *, void *, unsigned);
 internal void *text_bitmap_for(void *ras, void *text, void *surf) {
     if (!g_text_bitmap || !g_fbm_ctor || !text) return NULL;
-    uint8_t **screens = ras_get_screen_states(ras);
-    uint8_t *st = screens ? screens[0] : NULL;
+    ee_screen_state **screens = ras_get_screen_states(ras);
+    ee_screen_state *st = screens ? screens[0] : NULL;
     if (!st || scrstate_get_back(st) != surf) return NULL;   // only text for the back buffer
     // Only the game's own image (wider than the menus' 1024x768: the menus gain nothing and are scaled up), and
     // only with bitmap fonts made for this back buffer: leaving a game switches the display mode, the character
@@ -86,7 +86,7 @@ internal void *text_bitmap_for(void *ras, void *text, void *surf) {
                            back_ok ? "text as textures" : "GDI text (menus)");
     }
     if (!back_ok) return NULL;
-    uint8_t *font = text_get_font(text);
+    ee_font *font = text_get_font(text);
     if (!font || font_get_bitmap(font)) return NULL;          // the game's own bitmap font
     void *hf_now = (void *)font_get_hfont(font);
     EnterCriticalSection(&g_fbm_cs);
@@ -136,7 +136,7 @@ internal long __fastcall hook_fc_text_rect(void *ras, void *edx, void *text, voi
     (void)edx; long r;
     void *bmp = text_bitmap_for(ras, text, surf);
     if (g_textlog > 0 && g_log && text) {
-        uint8_t *f = text_get_font(text);
+        ee_font *f = text_get_font(text);
         const char *str = text_get_string(text);
         uint32_t *c = (uint32_t *)((uint8_t *)text + 0x14);
         int ok = str && mem_readable(str, 1);
@@ -156,7 +156,7 @@ internal long __fastcall hook_fc_text_rect(void *ras, void *edx, void *text, voi
     // the character textures with the device's wrap addressing: filtering at a glyph's bottom edge picked up its
     // top row (a line under the "t" of "Vorzeit") - clamped while our bitmap text draws. Device: (ras +0x6C)[0]
     // +0x1C (IDirect3DDevice7; vtable 36 GetTextureStageState, 37 SetTextureStageState; 13/14 ADDRESSU/V, 3 clamp)
-    uint8_t **dstate = bmp ? ras_get_dstates(ras) : NULL;
+    ee_draw_state **dstate = bmp ? ras_get_dstates(ras) : NULL;
     void *dev = dstate && dstate[0] ? dstate_get_device(dstate[0]) : NULL;
     DWORD addr[2] = { 0, 0 };
     if (bmp) font_set_bitmap(text_get_font(text), bmp);
@@ -498,7 +498,7 @@ internal BOOL WINAPI hook_text_out_w(HDC dc, int x, int y, LPCWSTR str, int n) {
     }
     return g_text_out_w(dc, x, y, str, n);
 }
-internal long __fastcall hook_text_lock(uint8_t *surf, void *edx) {
+internal long __fastcall hook_text_lock(ee_surface *surf, void *edx) {
     (void)edx;
     if (surf_get_dc_out(surf) == 1) return 2;
     IDirectDrawSurface7 *dds = surf_get_dds(surf);
@@ -532,7 +532,7 @@ internal long __fastcall hook_text_lock(uint8_t *surf, void *edx) {
     surf_set_dc_out(surf, 1);
     return 0;
 }
-internal long __fastcall hook_text_unlock(uint8_t *surf, void *edx) {
+internal long __fastcall hook_text_unlock(ee_surface *surf, void *edx) {
     (void)edx;
     int a = -1;
     for (int i = 0; i < 8; i++) if (g_tdc_active[i].surf == surf) { a = i; break; }
