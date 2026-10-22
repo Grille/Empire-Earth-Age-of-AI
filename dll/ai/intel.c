@@ -17,7 +17,7 @@
 #define INTEL_CELL 6
 #define INTEL_NC (600 / INTEL_CELL + 1)   // the map up to 600 tiles (150 until 2026-10-20: on Large / Huge maps, up to ~330 tiles, everything beyond 150 counted as never looked at - landing.c assumed every beach there held)
 struct intel_rec { ee_unit *u; int owner, type, kind, x, y, hp; float att; uint32_t t; };   // kind 0 building, 1 soldier, 2 ship, 3 aircraft, 4 other
-static struct intel {
+internal struct intel {
     struct intel_rec r[INTEL_REC]; int n;
     ee_unit *known[4096];                // buildings remembered (open addressing by pointer)
     uint32_t looked[INTEL_NC][INTEL_NC];
@@ -25,10 +25,10 @@ static struct intel {
     unsigned seen_now, dropped, moved;
 } g_intel[16];
 
-static int g_intel_seed;   // a saved game without the AIs' memories: they start remembering the buildings of their enemies
+internal int g_intel_seed;   // a saved game without the AIs' memories: they start remembering the buildings of their enemies
 
-static void intel_new_game(int from_save) { memset(g_intel, 0, sizeof g_intel); g_intel_seed = from_save; }
-static void intel_loaded(void) {   // the memories came with the save: their unit pointers are of the old session
+internal void intel_new_game(int from_save) { memset(g_intel, 0, sizeof g_intel); g_intel_seed = from_save; }
+internal void intel_loaded(void) {   // the memories came with the save: their unit pointers are of the old session
     for (int p = 0; p < 16; p++) {
         struct intel *in = &g_intel[p];
         if (in->n) g_intel_seed = 0;
@@ -37,14 +37,14 @@ static void intel_loaded(void) {   // the memories came with the save: their uni
     }
 }
 
-static unsigned intel_hash(ee_unit *u) { return (unsigned)(((uintptr_t)u >> 4) * 2654435761u) & 4095; }
-static int intel_remembers(ee_player *pl, ee_unit *u) {
+internal unsigned intel_hash(ee_unit *u) { return (unsigned)(((uintptr_t)u >> 4) * 2654435761u) & 4095; }
+internal int intel_remembers(ee_player *pl, ee_unit *u) {
     struct intel *in = &g_intel[(unsigned)FIELD(pl, PL_INDEX, int) & 15];
     for (unsigned h = intel_hash(u), k = 0; k < 4096 && in->known[h]; h = (h + 1) & 4095, k++)
         if (in->known[h] == u) return 1;
     return 0;
 }
-static int intel_kind(uint8_t *td) {
+internal int intel_kind(uint8_t *td) {
     int fam = FIELD(td, OF(TD, 0x4B4), int);
     if (fam == 2 || fam == 29) return 0;
     if (is_soldier(td) || is_siege(FIELD(td, OF(TD, 0x4B8), int))) return 1;
@@ -53,7 +53,7 @@ static int intel_kind(uint8_t *td) {
     return 4;
 }
 // ms since a unit of pl or an ally was near (x, y); 0 with honest_vision off (the game's view: everything at once)
-static uint32_t intel_looked_ago(ee_player *pl, int x, int y) {
+internal uint32_t intel_looked_ago(ee_player *pl, int x, int y) {
     struct intel *in = &g_intel[(unsigned)FIELD(pl, PL_INDEX, int) & 15];
     if (!g_honest_vision) return 0;
     int cx = x / INTEL_CELL, cy = y / INTEL_CELL;
@@ -62,7 +62,7 @@ static uint32_t intel_looked_ago(ee_player *pl, int x, int y) {
 }
 // soldiers (and siege) remembered within r tiles of (x, y) and not seen now, seen within the last 5 minutes: hit
 // points and attack summed, how many. Nothing with honest_vision off (all of them are seen)
-static void intel_soldiers(ee_player *pl, int x, int y, int r, float *hp, float *att, float *pw, int *n) {
+internal void intel_soldiers(ee_player *pl, int x, int y, int r, float *hp, float *att, float *pw, int *n) {
     struct intel *in = &g_intel[(unsigned)FIELD(pl, PL_INDEX, int) & 15];
     if (!g_honest_vision) return;
     for (int k = 0; k < in->n; k++) {
@@ -75,7 +75,7 @@ static void intel_soldiers(ee_player *pl, int x, int y, int r, float *hp, float 
     }
 }
 // the enemy army it knows of: soldiers seen within 10 minutes (seen now included), summed
-static void intel_army(ee_player *pl, float *hp, float *att, float *pw, int *n) {
+internal void intel_army(ee_player *pl, float *hp, float *att, float *pw, int *n) {
     struct intel *in = &g_intel[(unsigned)FIELD(pl, PL_INDEX, int) & 15];
     for (int k = 0; k < in->n; k++)
         if (in->r[k].kind == 1 && in->now - in->r[k].t <= 600000) {
@@ -94,7 +94,7 @@ struct intel_scan {
     uint8_t floor[16]; int fseen[16];
     int ne, ex[3000], ey[3000];          // eyes: its and its allies' units
 };
-static void intel_unit(ee_unit *u, void *ctx) {
+internal void intel_unit(ee_unit *u, void *ctx) {
     struct intel_scan *s = ctx;
     ee_player *o = unit_owner(u);
     if (!o || FIELD(u, OF(UNIT, 0x3C), int) <= 0 || FIELD(u, OF(UNIT, 0x1C), int) < 0) return;
@@ -107,14 +107,14 @@ static void intel_unit(ee_unit *u, void *ctx) {
     unsigned c = vis ? vis[s->pi] & 0xFF : 0;
     if (!s->fseen[oi] || c < s->floor[oi]) { s->floor[oi] = (uint8_t)c; s->fseen[oi] = 1; }
 }
-static int intel_ptr_cmp(const void *a, const void *b) {
+internal int intel_ptr_cmp(const void *a, const void *b) {
     uintptr_t x = *(const uintptr_t *)a, y = *(const uintptr_t *)b;
     return x < y ? -1 : x > y;
 }
-static int intel_live(struct intel_scan *s, ee_unit *u) {
+internal int intel_live(struct intel_scan *s, ee_unit *u) {
     return bsearch(&u, s->by_addr, (size_t)s->nlive, sizeof *s->by_addr, intel_ptr_cmp) != NULL;
 }
-static void intel_tick(ee_player *pl, uint32_t now) {
+internal void intel_tick(ee_player *pl, uint32_t now) {
     unsigned pi = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     struct intel *in = &g_intel[pi];
     if (now < in->now) memset(in, 0, sizeof *in);   // a new game
@@ -224,7 +224,7 @@ static void intel_tick(ee_player *pl, uint32_t now) {
 
 // intel P (test): what AI P knows - mode, floors, what it sees now and remembers per owner and kind, looked cells,
 // the army it knows of
-static void cmd_intel(char *out, const char *args) {
+internal void cmd_intel(char *out, const char *args) {
     int p = atoi(args);
     if (p <= 0 || p >= 16 || !g_players[p]) { REPLY("error: intel P\n"); return; }
     struct intel *in = &g_intel[p];
@@ -265,26 +265,26 @@ struct vis_scan {
     int ne, ex[4000], ey[4000];          // P's own units and buildings
     int nu; ee_unit *u[4000];            // the enemies
 };
-static void vis_unit(ee_unit *u, void *ctx) {
+internal void vis_unit(ee_unit *u, void *ctx) {
     struct vis_scan *s = ctx;
     ee_player *o = unit_owner(u);
     if (FIELD(u, OF(UNIT, 0x3C), int) <= 0 || !o || FIELD(u, OF(UNIT, 0x1C), int) < 0) return;
     if (o == s->pl || (s->allies && FIELD(o, PL_INDEX, int) > 0 && !is_enemy(s->pl, o))) { if (s->ne < 4000) { s->ex[s->ne] = FIELD(u, OF(UNIT, 0x1C), int); s->ey[s->ne++] = FIELD(u, OF(UNIT, 0x20), int); } }
     else if ((s->target ? o == s->target : is_enemy(s->pl, o)) && FIELD(o, PL_INDEX, int) > 0 && s->nu < 4000) s->u[s->nu++] = u;
 }
-static void *g_vis_find[16];
-static void vis_owner(ee_unit *u, void *ctx) {   // player objects by index, also of humans (g_players holds the AIs)
+internal void *g_vis_find[16];
+internal void vis_owner(ee_unit *u, void *ctx) {   // player objects by index, also of humans (g_players holds the AIs)
     (void)ctx;
     ee_player *o = unit_owner(u);
     int i = o ? FIELD(o, PL_INDEX, int) : -1;
     if (i > 0 && i < 16) g_vis_find[i] = o;
 }
-static unsigned vis_raw(ee_unit *u, unsigned pi) {
+internal unsigned vis_raw(ee_unit *u, unsigned pi) {
     uint8_t *v = FIELD(u, OF(UNIT, 0x14), uint8_t *);
     uint16_t *vis = v ? FIELD(v, 0xC, uint16_t *) : NULL;
     return vis ? vis[pi] : 0xFFFFu;
 }
-static void cmd_vis(char *out, const char *args) {
+internal void cmd_vis(char *out, const char *args) {
     int p = 0, t = 0;
     sscanf(args, "%d %d", &p, &t);
     memset(g_vis_find, 0, sizeof g_vis_find);
@@ -352,8 +352,8 @@ static void cmd_vis(char *out, const char *args) {
 
 // vistrack P x y r (test): remember (add) the units within r tiles of x, y; vistrack P: those units now - tile, hit points,
 // their visibility value for P, the distance to the nearest unit of P or its allies
-static ee_unit *g_vt_u[32]; static int g_vt_n;
-static void cmd_vistrack(char *out, const char *args) {
+internal ee_unit *g_vt_u[32]; internal int g_vt_n;
+internal void cmd_vistrack(char *out, const char *args) {
     int p = 0, x = -1, y = -1, r = 0;
     int na = sscanf(args, "%d %d %d %d", &p, &x, &y, &r);
     memset(g_vis_find, 0, sizeof g_vis_find);
@@ -390,7 +390,7 @@ static void cmd_vistrack(char *out, const char *args) {
     }
 }
 
-static void intel_install(const char *aimod_ini, const char *autotest_ini) {
+internal void intel_install(const char *aimod_ini, const char *autotest_ini) {
     g_honest_vision = cfg_int(aimod_ini, autotest_ini, 1, "honest_vision", 1);
     if (g_log) fprintf(g_log, "# intel: honest_vision %d (%s)\n", g_honest_vision,
                        g_honest_vision ? "what it sees, remembers and assumes" : "the game's view - every unit of the human");

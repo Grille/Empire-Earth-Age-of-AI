@@ -1,15 +1,15 @@
 // ---- autotest mode (aimod_autotest.ini next to the DLL) ----
 // The game itself accepts:  "Empire Earth.exe" -loadgame "name.ees"   (file in Data\Saved Games\,
 // name must not contain '-' or '/'). This mode adds: skip intro movies, quit after N game minutes.
-static struct { int skip_intro, scenario_mode, turbo, game_seed; double quit_minutes; float speed; } g_auto;
+internal struct { int skip_intro, scenario_mode, turbo, game_seed; double quit_minutes; float speed; } g_auto;
 
 #include "test/randmap.c"
 
-static void autotest_first_tick(ee_player *pl) {
+internal void autotest_first_tick(ee_player *pl) {
     if (g_autotest) randmap_ai_toggles(pl);
 }
 
-static void load_autotest(const char *ini) {
+internal void load_autotest(const char *ini) {
     g_autotest = GetFileAttributesA(ini) != INVALID_FILE_ATTRIBUTES;
     if (!g_autotest) return;
     g_auto.skip_intro = ini_int("autotest", "skip_intro", 1, ini);
@@ -22,14 +22,14 @@ static void load_autotest(const char *ini) {
     g_auto.speed = (float)ini_num("autotest", "speed", 0, ini);
 }
 
-static void apply_game_speed(float s) {
+internal void apply_game_speed(float s) {
     *(float *)GA(G_GAME_SPEED) = s;
     void *obj = (void *)GA(G_GAME_STATE);
     ((void (__thiscall *)(void *))(*(void ***)obj)[11])(obj);
 }
 
 // Replace `call AddMovie` (callee pops its one argument) with `add esp,4; nop; nop`.
-static BOOL skip_intro_movies(void) {
+internal BOOL skip_intro_movies(void) {
     const uint32_t *sites = GL(INTRO_CALLS);
     static const uint8_t stub[5] = { 0x83, 0xC4, 0x04, 0x90, 0x90 };
     for (int i = 0; i < 3; i++) {
@@ -55,7 +55,7 @@ typedef int (__cdecl *LoadFn)(void *);
 // NESynchronousServer::ProcessLocalUserInput later reads its missing record object (+0x16C): a crash. Slot n: +2n.
 // At the command line, not in DllMain: the engine loads the module later (LoadLibrary under the loader lock is none of
 // ours); loaded here it stays, and the engine's own LoadLibrary gets this copy.
-static void slot_ports(void) {
+internal void slot_ports(void) {
     const uint32_t *imm = GL(RVA_TCP_PORTS);
     static int done;
     if (!g_slot || done) return;
@@ -74,7 +74,7 @@ static void slot_ports(void) {
     wsprintfA(t, "%d/%d (%d of 8 patched)", 33334 + 2 * g_slot, 33335 + 2 * g_slot, n);
     log_line("# slot: network ports %s\n", t);
 }
-static char __cdecl hook_parse_cmdline(const char *cmd) {
+internal char __cdecl hook_parse_cmdline(const char *cmd) {
     slot_ports();
     log_line("# cmdline parse: \"%s\"\n", cmd ? cmd : "(null)");
     char r = ((ParseFn)GA(FN_PARSE_CMDLINE))(cmd);
@@ -82,7 +82,7 @@ static char __cdecl hook_parse_cmdline(const char *cmd) {
     return r;
 }
 
-static int __cdecl hook_load_saved(void *name) {
+internal int __cdecl hook_load_saved(void *name) {
     log_line("# cmdline loadgame: calling loader\n");
     int r = ((LoadFn)GA(FN_LOAD_SAVED))(name);
     log_line("# cmdline loadgame: loader returned %d\n", r);
@@ -90,7 +90,7 @@ static int __cdecl hook_load_saved(void *name) {
 }
 
 // Autotest setup=<file>[;<file>...] (paths relative to the game folder): scripts run from 2 s game time (scripts.c)
-static void run_setup(uint32_t now);
+internal void run_setup(uint32_t now);
 
 // The lockstep server tunes its pace to the machine (NESynchronousServer::TuneForSlowCPU, Low-Level Engine rva 0x55099):
 // steps a second (+0x1FB) = 1000 / (the clients' measured time x +0x170), held within +0x1B8..+0x1B4, and the steps a
@@ -112,7 +112,7 @@ internal void pin_server_pace(void) {
     FIELD(srv, OF(SERVER, 0x1B8), unsigned) = rate;
 }
 
-static void autotest_tick(uint32_t now) {
+internal void autotest_tick(uint32_t now) {
     if (!g_autotest) return;
     pin_server_pace();
     if (g_setup_path[0] && now >= 2000) run_setup(now);
@@ -143,12 +143,12 @@ static void autotest_tick(uint32_t now) {
 // and the start message carries it whichever start built it (hook_start_exec, trace.c: the load-game start a test
 // run uses puts TMGetTime() in it directly).
 typedef void (__cdecl *SrandFn)(unsigned);
-static SrandFn g_srand;
-static void __cdecl hook_srand(unsigned seed) {
+internal SrandFn g_srand;
+internal void __cdecl hook_srand(unsigned seed) {
     (void)seed;
     g_srand((unsigned)g_auto.game_seed);
 }
 
-static BOOL patch_srand(void) {   // the exe imports srand from msvcrt.dll
+internal BOOL patch_srand(void) {   // the exe imports srand from msvcrt.dll
     return iat_hook(GA(IAT_SRAND), "msvcrt.dll", "srand", (void *)hook_srand, (void **)&g_srand);
 }

@@ -14,10 +14,8 @@ import glob, os, re, sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # a declaration's start: qualifiers, the type (struct x or a name), then the * glued to the type and a space
-STAR_ON_TYPE = re.compile(r'^(?:(?:static|const|volatile|unsigned|signed|extern)\s+)*(?:struct\s+)?\w+\*+\s+\w')
+STAR_ON_TYPE = re.compile(r'^(?:(?:static|internal|const|volatile|unsigned|signed|extern)\s+)*(?:struct\s+)?\w+\*+\s+\w')
 NOT_TYPES = {'return', 'case', 'goto', 'else', 'sizeof'}
-# files another session is still changing: switched to internal once they are committed (then drop them here)
-PENDING = {'ai/attack.c', 'ai/intel.c', 'game/fields.h', 'test/autotest.c'}
 
 
 def blank(src):
@@ -38,7 +36,7 @@ def top_comma(s):
 def check(path, rel):
     bad = []
     src = blank(open(path, encoding='latin-1').read())
-    words = not rel.startswith('dinput/') and rel not in PENDING and rel != 'base/lang.h'   # dinput/: its own DLL
+    words = not rel.startswith('dinput/') and rel != 'base/lang.h'   # dinput/: its own DLL
     depth, cont = 0, False
     for ln, line in enumerate(src.split('\n'), 1):
         pre, cont = cont or line.lstrip().startswith('#'), line.rstrip().endswith('\\')
@@ -66,7 +64,8 @@ def main(args):
     n = 0
     for f in files:
         name = os.path.relpath(f, ROOT) if f.startswith(ROOT) else f
-        for ln, msg in check(f, os.path.relpath(f, os.path.join(ROOT, 'dll')).replace(os.sep, '/')):
+        rel = os.path.relpath(f, os.path.join(ROOT, 'dll')).replace(os.sep, '/') if f.startswith(ROOT) else f
+        for ln, msg in check(f, rel):
             n += 1
             print('%s:%d: %s' % (name, ln, msg))
     return 1 if n else 0

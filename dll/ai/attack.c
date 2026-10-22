@@ -17,15 +17,15 @@
 
 #define MAX_DEFENCES 256
 struct defence { int x, y, owner; float range, attack; int type; ee_unit *u; };
-static struct {
+internal struct {
     struct defence d[MAX_DEFENCES];
     int n;
     uint32_t refreshed;
 } g_threat[16];
 
-static int g_avoid_towers = 1;        // aimod.ini [all] avoid_towers
-static int g_avoid_weight = 2000;     // route cost per tower covering a step (a step costs 10-14)
-static int g_avoid_margin = 6;        // tiles added to the tower's range
+internal int g_avoid_towers = 1;        // aimod.ini [all] avoid_towers
+internal int g_avoid_weight = 2000;     // route cost per tower covering a step (a step costs 10-14)
+internal int g_avoid_margin = 6;        // tiles added to the tower's range
 
 
 // What player pl knows of unit u. The count (u +0x14 -> +0xC, per player slot) is how many of pl's (and its allies')
@@ -33,13 +33,13 @@ static int g_avoid_margin = 6;        // tiles added to the tower's range
 // see all of the human's units; docs/engine-notes.md). [all] honest_vision (intel.c): seen = above that floor, or a
 // building pl has seen before (still where it was - a human remembers it on the map), the default; 0: the count as
 // the game keeps it - all-knowing about the human.
-static int g_honest_vision = 1;
-static uint8_t g_vis_floor[16][16];               // [viewer][owner]: the least count among the owner's units (intel.c)
-static int intel_remembers(ee_player *pl, ee_unit *u);   // intel.c: a building pl has seen
-static void intel_soldiers(ee_player *pl, int x, int y, int r, float *hp, float *att, float *pw, int *n);   // intel.c
-static void intel_army(ee_player *pl, float *hp, float *att, float *pw, int *n);
-static uint32_t intel_looked_ago(ee_player *pl, int x, int y);
-static int seen_by(ee_unit *u, ee_player *pl) {
+internal int g_honest_vision = 1;
+internal uint8_t g_vis_floor[16][16];               // [viewer][owner]: the least count among the owner's units (intel.c)
+internal int intel_remembers(ee_player *pl, ee_unit *u);   // intel.c: a building pl has seen
+internal void intel_soldiers(ee_player *pl, int x, int y, int r, float *hp, float *att, float *pw, int *n);   // intel.c
+internal void intel_army(ee_player *pl, float *hp, float *att, float *pw, int *n);
+internal uint32_t intel_looked_ago(ee_player *pl, int x, int y);
+internal int seen_by(ee_unit *u, ee_player *pl) {
     uint8_t *v = FIELD(u, OF(UNIT, 0x14), uint8_t *);
     unsigned pi = (unsigned)FIELD(pl, PL_INDEX, int);
     if (!v || pi >= 16) return 0;
@@ -55,7 +55,7 @@ static int seen_by(ee_unit *u, ee_player *pl) {
 }
 
 // Defence building with a ground attack (AA guns and missile towers only shoot at aircraft).
-static int defence_stats(ee_unit *u, float *range, float *attack) {
+internal int defence_stats(ee_unit *u, float *range, float *attack) {
     uint8_t *td = FIELD(u, OF(UNIT, 0x2C), uint8_t *);
     if (!td) return 0;
     int fam = FIELD(td, OF(TD, 0x4B4), int), type = FIELD(td, OF(TD, 0x4B8), int);
@@ -69,7 +69,7 @@ static int defence_stats(ee_unit *u, float *range, float *attack) {
     return 1;
 }
 
-static void threat_refresh(ee_player *pl, uint32_t now) {
+internal void threat_refresh(ee_player *pl, uint32_t now) {
     unsigned pi = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     if (g_threat[pi].refreshed && now >= g_threat[pi].refreshed && now - g_threat[pi].refreshed < 5000) return;
     g_threat[pi].refreshed = now ? now : 1;
@@ -92,7 +92,7 @@ static void threat_refresh(ee_player *pl, uint32_t now) {
 }
 
 // Sum of known defences covering tile (x, y), each weighted by its attack (a guard tower = 1).
-static float threat_at(unsigned pi, int x, int y) {
+internal float threat_at(unsigned pi, int x, int y) {
     float t = 0;
     for (int k = 0; k < g_threat[pi & 15].n; k++) {
         struct defence *d = &g_threat[pi & 15].d[k];
@@ -104,10 +104,10 @@ static float threat_at(unsigned pi, int x, int y) {
 }
 
 typedef int (__thiscall *RouteCostFn)(void *self, int *edge, uint8_t *node);
-static struct { unsigned calls, penalised; } g_route_stats[16];
-static DWORD g_route_thread;
+internal struct { unsigned calls, penalised; } g_route_stats[16];
+internal DWORD g_route_thread;
 
-static int __fastcall hook_route_cost(void *self, void *edx, int *edge, uint8_t *node) {
+internal int __fastcall hook_route_cost(void *self, void *edx, int *edge, uint8_t *node) {
     (void)edx;
     int cost = route_cost(self, edge, node);
     unsigned pi = (unsigned)FIELD(self, OF(ROUTEPLANNER, 0x48), int) & 15;     // planner +0x48 = own player index
@@ -130,13 +130,13 @@ static int __fastcall hook_route_cost(void *self, void *edx, int *edge, uint8_t 
 // it that no known defence covers (the economy behind the towers, the undefended flank) - the closest to
 // the group, not too far from the original goal. The subgroup's target (+0x100: +4/+8 tile, +0xC unit id
 // = unit+0x60, +0x10 kind 1 = unit, +0x14 player) is switched to that building, so it attacks it on arrival.
-static int g_weak_spots = 1;          // aimod.ini [all] attack_weak_spots
-static int g_weak_radius = 60;        // tiles around the original goal searched for a weak spot
+internal int g_weak_spots = 1;          // aimod.ini [all] attack_weak_spots
+internal int g_weak_radius = 60;        // tiles around the original goal searched for a weak spot
 
 
 // Only goals at an enemy building are retargeted: the subgroup also marches to other goals (enemy armies,
 // own territory to defend), which must not be diverted.
-static int building_at(ee_player *pl, const int *dest, int r) {
+internal int building_at(ee_player *pl, const int *dest, int r) {
     uint8_t *map = *(uint8_t **)GA(G_MAP);
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     if (!grid) return 0;
@@ -151,7 +151,7 @@ static int building_at(ee_player *pl, const int *dest, int r) {
     return 0;
 }
 
-static ee_unit *find_weak_spot(ee_player *pl, unsigned pi, const int *start, const int *dest) {
+internal ee_unit *find_weak_spot(ee_player *pl, unsigned pi, const int *start, const int *dest) {
     uint8_t *map = *(uint8_t **)GA(G_MAP);
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     if (!grid) return NULL;
@@ -181,11 +181,11 @@ static ee_unit *find_weak_spot(ee_player *pl, unsigned pi, const int *start, con
 // crosses a known enemy wall, the subgroup first attacks a wall segment outside known tower range, the one with
 // the shortest detour along that wall (find_breach); the scorer makes that segment the units' target (walls score
 // below zero otherwise). Walls are tough: without siege the breach takes long or fails.
-static int g_breach = 1;              // aimod.ini [all] attack_breach
+internal int g_breach = 1;              // aimod.ini [all] attack_breach
 // The owner is kept with the entry: a subgroup the game deleted (its attack over) is never read again.
-static struct { void *sg, *pl; int x, y; } g_breaches[64];   // subgroup (of player pl) -> wall tile it is to breach
+internal struct { void *sg, *pl; int x, y; } g_breaches[64];   // subgroup (of player pl) -> wall tile it is to breach
 
-static void breach_note(ee_player *pl, void *sg, int x, int y) {
+internal void breach_note(ee_player *pl, void *sg, int x, int y) {
     int free_k = -1;
     for (int k = 0; k < 64; k++) {
         if (g_breaches[k].sg == sg) { g_breaches[k].x = x; g_breaches[k].y = y; if (x < 0) g_breaches[k].sg = NULL; return; }
@@ -198,25 +198,25 @@ static void breach_note(ee_player *pl, void *sg, int x, int y) {
 }
 
 // before the game deletes subgroups of player pl (diplo.c: attacks called off): forget their breaches
-static void breach_forget(ee_player *pl) {
+internal void breach_forget(ee_player *pl) {
     for (int k = 0; k < 64; k++)
         if (g_breaches[k].sg && g_breaches[k].pl == pl) g_breaches[k].sg = NULL;
 }
 // every AI tick: breaches of subgroups no longer in pl's attack groups (the attack ended, the subgroup was deleted -
 // nothing told the table, and a phantom breach kept siege_want at 2 and the siege firing at that wall for good)
-static int asg_live(ee_player *pl, uint8_t *sg);   // assault.c
-static void breach_prune(ee_player *pl) {
+internal int asg_live(ee_player *pl, uint8_t *sg);   // assault.c
+internal void breach_prune(ee_player *pl) {
     for (int k = 0; k < 64; k++)
         if (g_breaches[k].sg && g_breaches[k].pl == pl && !asg_live(pl, g_breaches[k].sg)) g_breaches[k].sg = NULL;
 }
 
-static int breach_of(void *sg, int *x, int *y) {
+internal int breach_of(void *sg, int *x, int *y) {
     for (int k = 0; k < 64; k++)
         if (g_breaches[k].sg == sg) { *x = g_breaches[k].x; *y = g_breaches[k].y; return 1; }
     return 0;
 }
 
-static ee_unit *wall_at(ee_player *pl, int x, int y) {
+internal ee_unit *wall_at(ee_player *pl, int x, int y) {
     uint8_t *map = *(uint8_t **)GA(G_MAP);
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     if (!grid) return NULL;
@@ -235,7 +235,7 @@ static ee_unit *wall_at(ee_player *pl, int x, int y) {
 }
 
 // First known enemy wall tile on the straight line start -> dest (half-tile steps), or NULL.
-static ee_unit *wall_crossing(ee_player *pl, const int *start, const int *dest) {
+internal ee_unit *wall_crossing(ee_player *pl, const int *start, const int *dest) {
     int dx = dest[0] - start[0], dy = dest[1] - start[1];
     int n = 2 * (abs(dx) > abs(dy) ? abs(dx) : abs(dy));
     for (int i = 1; i < n; i++) {
@@ -248,7 +248,7 @@ static ee_unit *wall_crossing(ee_player *pl, const int *start, const int *dest) 
 
 // Follows the crossed wall (8-connected wall tiles) up to 60 tiles from the crossing and takes the segment outside
 // known tower range with the shortest detour start -> segment -> dest.
-static ee_unit *find_breach(ee_player *pl, unsigned pi, const int *start, const int *dest, const ee_unit *cross) {
+internal ee_unit *find_breach(ee_player *pl, unsigned pi, const int *start, const int *dest, const ee_unit *cross) {
     enum { MAXQ = 512 };
     static int qx[MAXQ], qy[MAXQ];
     int head = 0, tail = 0, cx = FIELD(cross, OF(UNIT, 0x1C), int), cy = FIELD(cross, OF(UNIT, 0x20), int);
@@ -275,7 +275,7 @@ static ee_unit *find_breach(ee_player *pl, unsigned pi, const int *start, const 
     return best;
 }
 
-static void diplo_cancel_attacks(int ai, int j);   // diplo.c
+internal void diplo_cancel_attacks(int ai, int j);   // diplo.c
 typedef void (__thiscall *AsgRouteFn)(void *self, int *start, int *dest);
 // CITIZEN ATTACKS ([all] citizen_attacks, default 0): an AI that trains no soldiers (short of wood: 1237 requests in
 // 5 minutes, none trained) still launched its attacks on time - and the groups took citizens: 34 of them walked
@@ -287,10 +287,10 @@ typedef void (__thiscall *AsgRouteFn)(void *self, int *start, int *dest);
 // player's Town Center, all 43 of Hedda's citizens) that no route computation sees. Attack commander = player
 // +0xB8C +0x48: its groups a deque at +4 (count +0x14), a group's target player +0x48, its subgroups a vector +8..+0xC
 // (0x4510F2 / 0x454B90, the call-off).
-static int g_citizen_attacks;
-static void cancel_citizen_attack(int ai, int target);   // diplo.c
-static const char *g_cancel_why[16][16];   // why the next call-off (NULL: citizens) - diplo_safe_point logs it
-static void subgroup_count(uint8_t *sg, int *n, int *cit) {   // members of an attack subgroup, citizens among them
+internal int g_citizen_attacks;
+internal void cancel_citizen_attack(int ai, int target);   // diplo.c
+internal const char *g_cancel_why[16][16];   // why the next call-off (NULL: citizens) - diplo_safe_point logs it
+internal void subgroup_count(uint8_t *sg, int *n, int *cit) {   // members of an attack subgroup, citizens among them
     uint8_t **b = FIELD(sg, OF(ASG, 0x54), uint8_t **), **e = FIELD(sg, OF(ASG, 0x58), uint8_t **);
     for (uint8_t **r = b; b && r < e && *n < 1000; r++) {
         ee_unit *u = *r ? FIELD(*r, OF(ASGU, 0x44), ee_unit *) : NULL;
@@ -300,7 +300,7 @@ static void subgroup_count(uint8_t *sg, int *n, int *cit) {   // members of an a
         *cit += is_citizen_type(FIELD(td, OF(TD, 0x4B8), int));
     }
 }
-static void citizen_attack_scan(ee_player *pl, uint32_t now) {
+internal void citizen_attack_scan(ee_player *pl, uint32_t now) {
     static uint32_t last[16];
     unsigned i = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     if (g_citizen_attacks || (now >= last[i] && now - last[i] < 5000)) return;
@@ -323,7 +323,7 @@ static void citizen_attack_scan(ee_player *pl, uint32_t now) {
         }
     }
 }
-static void __fastcall hook_asg_route(void *self, void *edx, int *start, int *dest) {
+internal void __fastcall hook_asg_route(void *self, void *edx, int *start, int *dest) {
     (void)edx;
     ee_player *pl = FIELD(self, OF(ASG, 0x190), void *);
     if (is_vanilla(pl)) pl = NULL;   // the game's own route: no weak spot, breach, call-off, nor its log
@@ -415,15 +415,15 @@ static void __fastcall hook_asg_route(void *self, void *edx, int *start, int *de
 // route. So for a land subgroup, an enemy inside known tower range scores 0 - not a target - unless the
 // subgroup's own goal (asg+0x100 +4/+8) lies in tower range too; then the attack is meant to go in anyway.
 // Unit record: +0x44 unit, +0x48 current target, +0x4C subgroup. Scorer argument: +4 the enemy unit.
-static int g_leash = 1;               // aimod.ini [all] attack_leash
-static struct { unsigned skipped, logged; } g_leash_stats[16];
+internal int g_leash = 1;               // aimod.ini [all] attack_leash
+internal struct { unsigned skipped, logged; } g_leash_stats[16];
 
-static int g_siege = 1;               // aimod.ini [all] attack_siege (siege controller below; also rams here)
-static unsigned g_ram_waits, g_air_skips;
-static int g_ignore_air = 1;          // aimod.ini [all] attack_ignore_air
+internal int g_siege = 1;               // aimod.ini [all] attack_siege (siege controller below; also rams here)
+internal unsigned g_ram_waits, g_air_skips;
+internal int g_ignore_air = 1;          // aimod.ini [all] attack_ignore_air
 
 // Enemy soldiers (no citizens, no siege) of player pl's enemies within r tiles of (x, y)?
-static int guarded(ee_player *pl, int x, int y, int r) {
+internal int guarded(ee_player *pl, int x, int y, int r) {
     uint8_t *map = *(uint8_t **)GA(G_MAP);
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     if (!pl || !grid) return 0;
@@ -441,9 +441,9 @@ static int guarded(ee_player *pl, int x, int y, int r) {
     return 0;
 }
 
-static int mass_tether(uint8_t *sg, ee_unit *me, ee_unit *enemy);   // mass.c
+internal int mass_tether(uint8_t *sg, ee_unit *me, ee_unit *enemy);   // mass.c
 typedef float (__thiscall *AsguScoreFn)(void *self, uint8_t *info);
-static float __fastcall hook_asgu_score(void *self, void *edx, uint8_t *info) {
+internal float __fastcall hook_asgu_score(void *self, void *edx, uint8_t *info) {
     (void)edx;
     float s = asgu_score(self, info);
     uint8_t *sg = FIELD(self, OF(ASGU, 0x4C), uint8_t *);
@@ -501,7 +501,7 @@ static float __fastcall hook_asgu_score(void *self, void *edx, uint8_t *info) {
 
 // Waypoint i of the route deque at asg+0x60 (std::deque of {x, y, ?}, 0x155 per block: +4 map, +8 map size,
 // +0xC first index, +0x10 count).
-static int *route_waypoint(uint8_t *asg, unsigned i) {
+internal int *route_waypoint(uint8_t *asg, unsigned i) {
     uint8_t *dq = asg + OF(ASG, 0x60);
     unsigned idx = FIELD(dq, 0xC, unsigned) + i, blk = idx / 0x155, msz = FIELD(dq, 8, unsigned);
     uint8_t **map = FIELD(dq, 4, uint8_t **);
@@ -511,7 +511,7 @@ static int *route_waypoint(uint8_t *asg, unsigned i) {
 }
 
 typedef void (__thiscall *AsgFn)(void *self);
-static void __fastcall hook_asg_route_done(void *self, void *edx) {
+internal void __fastcall hook_asg_route_done(void *self, void *edx) {
     (void)edx;
     ee_player *pl = FIELD(self, OF(ASG, 0x190), void *);
     if (g_log && pl) {
@@ -531,7 +531,7 @@ static void __fastcall hook_asg_route_done(void *self, void *edx) {
 }
 
 // Soldiers (not buildings, walls, citizens) of a player, from the unit grid.
-static int army_size(ee_player *pl) {
+internal int army_size(ee_player *pl) {
     uint8_t *map = *(uint8_t **)GA(G_MAP);
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     if (!grid) return -1;
@@ -554,7 +554,7 @@ static int army_size(ee_player *pl) {
 // Orders are given like the subgroup's (EECPAttackSubGroup::vf57 0x45CBEA): unit 0x5F05BD(goal, append, 0),
 // 0x5EFCF0(priority), typedata slot 29 (unit). Goals: EEUGAttackUnit (new 0x40, ctor 0x60AD45(attacker, target,
 // 1)), EEUGLocation (new 0x38, ctor 0x614CE6(float xy[2], 1, 1, 0, 0.0, 0, 0); +0x20/+0x24 = xy).
-static struct {
+internal struct {
     int tx, ty, ttype, px, py; uint32_t last; unsigned logged;
     int wave;                    // a wave is out: newcomers wait at the gathering point
     void *prev[24]; int nprev;   // the siege weapons at the last look (losses: those gone)
@@ -564,7 +564,7 @@ static struct {
 } g_siege_st[16];
 
 
-static ee_unit *unit_at(int x, int y, int type) {
+internal ee_unit *unit_at(int x, int y, int type) {
     if (x < 0 || y < 0) return NULL;
     for (struct grid_it it = grid_it_box(x, y, 0, 1); grid_it_next(&it); ) {   // the one cell of x, y
         ee_unit *u = it.u;
@@ -577,7 +577,7 @@ static ee_unit *unit_at(int x, int y, int type) {
 
 // 0 = refused (dead, off the map, or +0x33B): the goal is deleted then (its vf0, as the game's callers do) - the
 // caller must not touch it any more (a load goal: no parts from it)
-static int unit_goal(ee_unit *u, void *goal, int append, int prio) {
+internal int unit_goal(ee_unit *u, void *goal, int append, int prio) {
     if (!goal) return 0;
     if (FIELD(u, OF(UNIT, 0x3C), int) <= 0 || FIELD(u, OF(UNIT, 0x1C), int) == -10000 || FIELD(u, OF(UNIT, 0x33B), char)) {
         ((void (__thiscall *)(void *, int))(*(void ***)goal)[0])(goal, 1);
@@ -592,7 +592,7 @@ static int unit_goal(ee_unit *u, void *goal, int append, int prio) {
 
 // Art of Conquest's constructor takes a fourth argument, a byte it keeps at the goal's new +0x40: 0 as the AI's own
 // calls pass it
-static void *goal_attack(ee_unit *u, ee_unit *target) {
+internal void *goal_attack(ee_unit *u, ee_unit *target) {
     void *g = game_new(GA(SIZE_GOAL_ATTACK));
     if (!g) return NULL;
     return goal_attack_init(g, u, target);
@@ -601,20 +601,20 @@ static void *goal_attack(ee_unit *u, ee_unit *target) {
 // a transport's (or a fortress's) load goal (EEUGLoadTransport, engine-notes.md: new(0x68), 0x61487F with the units'
 // vector - sorted in place) given to holder; NULL when it could not be made or holder refused it (deleted by
 // unit_goal: no parts from it). Each unit to walk in then gets goal_load_part(g) - its vf4 product.
-static void *goal_load(ee_unit *holder, ee_unit **units, int n) {
+internal void *goal_load(ee_unit *holder, ee_unit **units, int n) {
     uint8_t *vec[4] = { 0, (uint8_t *)units, (uint8_t *)(units + n), (uint8_t *)(units + n) };
     void *g = game_new(GA(SIZE_GOAL_LOAD));
     if (g) g = goal_load_init(g, holder, vec);
     return g && unit_goal(holder, g, 0, 0x1F40) ? g : NULL;
 }
-static void *goal_load_part(void *g) { return goal_part(g); }
+internal void *goal_load_part(void *g) { return goal_part(g); }
 // an unload goal at x, y (EEUGUnloadTransport: new(0x40), 0x615A1F; flag 1 as the AI passes it), not given yet
-static void *goal_unload(ee_unit *holder, int x, int y, int flag) {
+internal void *goal_unload(ee_unit *holder, int x, int y, int flag) {
     void *g = game_new(GA(SIZE_GOAL_UNLOAD));
     return g ? goal_unload_init(g, holder, x, y, flag) : NULL;
 }
 
-static void *goal_move(float x, float y) {
+internal void *goal_move(float x, float y) {
     float xy[2] = { x, y };
     void *g = game_new(GA(SIZE_GOAL_MOVE));
     return g ? goal_move_init(g, xy) : NULL;
@@ -632,9 +632,9 @@ static void *goal_move(float x, float y) {
 // the base got the AI's citizens sent into it one by one to a Capitol it was rebuilding, a tower, walls (112 citizens
 // in 20 minutes). Builders of walls and towers near known enemy towers only (no soldiers there) are left alone: the
 // wall manager sends them again and again.
-static int g_avoid_citizens = 1;
-static int nearest_drop(ee_player *pl, int x, int y, int food, int out[2]);   // sites.c
-static int tower_covers(unsigned pi, float x, float y) {
+internal int g_avoid_citizens = 1;
+internal int nearest_drop(ee_player *pl, int x, int y, int food, int out[2]);   // sites.c
+internal int tower_covers(unsigned pi, float x, float y) {
     for (int k = 0; k < g_threat[pi].n; k++) {
         struct defence *d = &g_threat[pi].d[k];
         float dx = x - (float)d->x, dy = y - (float)d->y, r = d->range + 2.0f;
@@ -642,7 +642,7 @@ static int tower_covers(unsigned pi, float x, float y) {
     }
     return 0;
 }
-static int route_covered(ee_player *pl, int fx, int fy, int tx, int ty) {   // fx = -10000: the site only
+internal int route_covered(ee_player *pl, int fx, int fy, int tx, int ty) {   // fx = -10000: the site only
     if (!pl) return 0;
     unsigned pi = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     threat_refresh(pl, game_time());
@@ -655,7 +655,7 @@ static int route_covered(ee_player *pl, int fx, int fy, int tx, int ty) {   // f
         if (tower_covers(pi, (float)fx + dx * (float)t / (float)n, (float)fy + dy * (float)t / (float)n)) return 1;
     return 0;
 }
-static int route_danger(ee_player *pl, int fx, int fy, int tx, int ty) {
+internal int route_danger(ee_player *pl, int fx, int fy, int tx, int ty) {
     return g_avoid_citizens && route_covered(pl, fx, fy, tx, ty);
 }
 // Raiders: enemy soldiers (land units or ships with an attack, not citizens) this AI can see within r tiles of x, y -
@@ -666,8 +666,8 @@ static int route_danger(ee_player *pl, int fx, int fy, int tx, int ty) {
 #define RAID_MARGIN 3
 #define RAID_MAX    15
 #define RAID_FAR    27   // citizen_threats: artillery (12-14), mortars (10-11), ships (24) at their own reach
-static int g_cit_threats = 1;   // [all] citizen_threats (below, DAMAGE MEMORY)
-static int raiders_near(ee_player *pl, int x, int y, int r0) {
+internal int g_cit_threats = 1;   // [all] citizen_threats (below, DAMAGE MEMORY)
+internal int raiders_near(ee_player *pl, int x, int y, int r0) {
     int rmax = g_cit_threats ? RAID_FAR : RAID_MAX;
     int r = r0 > rmax ? r0 : rmax;   // the search box; each unit then by its own reach
     uint8_t *map = *(uint8_t **)GA(G_MAP);
@@ -691,7 +691,7 @@ static int raiders_near(ee_player *pl, int x, int y, int r0) {
     return 0;
 }
 // enemy soldiers on the way from x0,y0 to x1,y1 (every 4 tiles from the 5th, within 4) or within 6 of the end
-static int path_raided(ee_player *pl, int x0, int y0, int x1, int y1) {
+internal int path_raided(ee_player *pl, int x0, int y0, int x1, int y1) {
     float dx = (float)(x1 - x0), dy = (float)(y1 - y0), l = sqrtf(dx * dx + dy * dy);
     for (float t = 5; t < l; t += 4)
         if (raiders_near(pl, x0 + (int)(dx / l * t), y0 + (int)(dy / l * t), 4)) return 1;
@@ -699,7 +699,7 @@ static int path_raided(ee_player *pl, int x0, int y0, int x1, int y1) {
 }
 // where a citizen at x,y flees while the base is overrun: the rally point if the way is clear, else 12 tiles in the
 // clear direction (of 8) nearest the rally point; none clear: the rally point after all
-static void flee_point(ee_player *pl, int x, int y, float rx, float ry, float *fx, float *fy) {
+internal void flee_point(ee_player *pl, int x, int y, float rx, float ry, float *fx, float *fy) {
     *fx = rx; *fy = ry;
     if (!path_raided(pl, x, y, (int)rx, (int)ry)) return;
     float msz = (float)*(uint32_t *)(*(uint8_t **)GA(G_MAP) + OF(MAP, 0x1816FC)), best = 1e9f;
@@ -729,10 +729,10 @@ static void flee_point(ee_player *pl, int x, int y, float rx, float ry, float *f
 // alive 5 vs 7 of 10, workers 7.1 vs 17.6, losses 14.3 vs 10.8, buildings lost 6.1 vs 3.9; bombing workers 42.9 vs
 // 54.7, losses 25.5 vs 21.0. Idle citizens rose (bombing 2.9 vs 6.3 on average): no safe site of their resource left.
 #define HURT_N 64
-static struct { unsigned at; struct { int x, y; uint32_t t; } h[HURT_N]; } g_hurt[16];
-static struct { ee_unit *u; int hp; } g_cit_hp[16][512];
-static unsigned g_hurt_count[16];
-static void hurt_note(unsigned pi, ee_unit *u, uint32_t now, int mark) {   // remembers u's hit points; a loss marks its spot
+internal struct { unsigned at; struct { int x, y; uint32_t t; } h[HURT_N]; } g_hurt[16];
+internal struct { ee_unit *u; int hp; } g_cit_hp[16][512];
+internal unsigned g_hurt_count[16];
+internal void hurt_note(unsigned pi, ee_unit *u, uint32_t now, int mark) {   // remembers u's hit points; a loss marks its spot
     int hp = FIELD(u, OF(UNIT, 0x3C), int);
     unsigned h = (unsigned)((uintptr_t)u >> 4) & 511;
     for (int k = 0; k < 512; k++) {
@@ -750,7 +750,7 @@ static void hurt_note(unsigned pi, ee_unit *u, uint32_t now, int mark) {   // re
     }
     memset(g_cit_hp[pi], 0, sizeof g_cit_hp[pi]);   // full (dead citizens' entries): start over
 }
-static int hurt_near(unsigned pi, int x, int y) {   // citizens hurt within 6 tiles in the last 2 minutes
+internal int hurt_near(unsigned pi, int x, int y) {   // citizens hurt within 6 tiles in the last 2 minutes
     uint32_t now = game_time();
     int n = 0;
     for (int k = 0; k < HURT_N; k++) {
@@ -759,11 +759,11 @@ static int hurt_near(unsigned pi, int x, int y) {   // citizens hurt within 6 ti
     }
     return n;
 }
-static int hurt_danger(ee_player *pl, int x, int y, int res) {   // res: 2 food, 3 wood, 4 stone, 5 gold, 6 iron, -1 unknown
+internal int hurt_danger(ee_player *pl, int x, int y, int res) {   // res: 2 food, 3 wood, 4 stone, 5 gold, 6 iron, -1 unknown
     if (!g_cit_threats || !pl) return 0;
     return hurt_near((unsigned)FIELD(pl, PL_INDEX, int) & 15, x, y) >= (res >= 4 ? 3 : 1);
 }
-static int site_danger_res(ee_player *pl, ee_unit *site, int food, int res) {   // from the nearest drop site
+internal int site_danger_res(ee_player *pl, ee_unit *site, int food, int res) {   // from the nearest drop site
     if (!g_avoid_citizens || !pl || !site) return 0;
     int x = FIELD(site, OF(UNIT, 0x1C), int), y = FIELD(site, OF(UNIT, 0x20), int), d[2];
     if (raiders_near(pl, x, y, 6)) return 1;   // the searches refuse a raided site too (else: sent back, sent again)
@@ -771,27 +771,27 @@ static int site_danger_res(ee_player *pl, ee_unit *site, int food, int res) {   
     if (!nearest_drop(pl, x, y, food, d)) d[0] = -10000;
     return route_danger(pl, d[0], d[1], x, y);
 }
-static int site_danger(ee_player *pl, ee_unit *site, int food) { return site_danger_res(pl, site, food, food ? 2 : -1); }
-static void *goal_move(float x, float y);
-static int unit_goal(ee_unit *u, void *goal, int append, int prio);
-static int muster_rally(unsigned idx, float *x, float *y);   // defence.c: the rally point while the base is overrun
-static struct { unsigned sent; } g_cit_stats[16];
-static unsigned g_repair_refused[16];   // repair orders refused at buildings under attack (hook_repair_goal)
+internal int site_danger(ee_player *pl, ee_unit *site, int food) { return site_danger_res(pl, site, food, food ? 2 : -1); }
+internal void *goal_move(float x, float y);
+internal int unit_goal(ee_unit *u, void *goal, int append, int prio);
+internal int muster_rally(unsigned idx, float *x, float *y);   // defence.c: the rally point while the base is overrun
+internal struct { unsigned sent; } g_cit_stats[16];
+internal unsigned g_repair_refused[16];   // repair orders refused at buildings under attack (hook_repair_goal)
 // STRAY CITIZENS: an attack that ends hands its units back to the resource manager's list 0 (not assigned) with the
 // attack's last order still on them - march to the target's Town Center. The assignment only gives work to idle
 // citizens, so they marched on and died there: all 34 of Hedda's, first into the player's town, then into Livia's
 // (her economy dead at minute 46, the stock frozen). A citizen of list 0 walking to a point within 6 tiles of an
 // enemy building and over 15 tiles from its own drop sites is sent home (not to the muster's rally point).
-static int building_at(ee_player *pl, const int *dest, int r);
-static unsigned g_noroom[16][6];   // econ.c
-static int g_bunkers;   // bunker.c: citizens under fire into a fortress
-static void bk_refresh(ee_player *pl, unsigned pi);
-static int bk_shelter(ee_player *pl, ee_unit *u);
-static void bk_flush(ee_player *pl, unsigned pi, uint32_t now);
-static void bk_build(ee_player *pl, unsigned pi, uint32_t now);
-static void bk_reserve_tick(ee_player *pl, unsigned pi, uint32_t now);
-static int g_bk_res;
-static void citizens_safety(ee_resource_mgr *rm) {   // before the citizen assignment
+internal int building_at(ee_player *pl, const int *dest, int r);
+internal unsigned g_noroom[16][6];   // econ.c
+internal int g_bunkers;   // bunker.c: citizens under fire into a fortress
+internal void bk_refresh(ee_player *pl, unsigned pi);
+internal int bk_shelter(ee_player *pl, ee_unit *u);
+internal void bk_flush(ee_player *pl, unsigned pi, uint32_t now);
+internal void bk_build(ee_player *pl, unsigned pi, uint32_t now);
+internal void bk_reserve_tick(ee_player *pl, unsigned pi, uint32_t now);
+internal int g_bk_res;
+internal void citizens_safety(ee_resource_mgr *rm) {   // before the citizen assignment
     ee_player *pl = rm_player(rm);
     if (!g_avoid_citizens || !pl) return;
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
@@ -934,7 +934,7 @@ static void citizens_safety(ee_resource_mgr *rm) {   // before the citizen assig
 // army (P3: 17 in 15 minutes, sent back by citizens_safety only once it was on its way). Its order (EEUGBuildRepair,
 // 0x60BAD0) is refused at the handing-over (0x5F05BD at 0x46DA88) while enemy soldiers stand within 8 tiles (or their range + 3) of the
 // building (as citizens_safety): the goal deleted (its vf0, which lets go of the building), the citizen keeps its work.
-static void __fastcall hook_repair_goal(ee_unit *u, void *edx, void *goal, int append, int prio) {
+internal void __fastcall hook_repair_goal(ee_unit *u, void *edx, void *goal, int append, int prio) {
     (void)edx;
     ee_player *pl = u ? unit_owner(u) : NULL;
     ee_unit *b = goal && *(uintptr_t *)goal == GA(VT_GOAL_BUILD) ? FIELD(goal, OF(GOAL, 0x3C), ee_unit *) : NULL;
@@ -947,7 +947,7 @@ static void __fastcall hook_repair_goal(ee_unit *u, void *edx, void *goal, int a
 }
 
 // Known defences covering tile (x, y) by their real range (+1), not counting the one at (ex, ey).
-static int covered(unsigned pi, float x, float y, int ex, int ey) {
+internal int covered(unsigned pi, float x, float y, int ex, int ey) {
     for (int k = 0; k < g_threat[pi].n; k++) {
         struct defence *d = &g_threat[pi].d[k];
         if (d->x == ex && d->y == ey) continue;
@@ -962,14 +962,14 @@ static int covered(unsigned pi, float x, float y, int ex, int ey) {
 // epoch - through the train hook, so the budget applies (unit manager: player +0xB90 -> +0x44; request
 // {type, count, building 0 = any, area 0}). Types newest first with their tech epoch; a type the civ can't
 // train simply trains 0.
-static const struct { enum ut_name type; int epoch; } k_siege_types[] = {
+internal const struct { enum ut_name type; int epoch; } k_siege_types[] = {
     { UT_GUN_SIEGE13_PALADIN_CANNON, 13 }, { UT_GUN_SIEGE10_HOWITZER_CANNON, 10 }, { UT_GUN_SIEGE09_SERPENTINE_CANNON, 9 },
     { UT_GUN_SIEGE07_BASILISK_CANNON, 7 }, { UT_GUN_SIEGE06_TREBUCHET, 6 }, { UT_GUN_SIEGE04_CATAPULT, 4 } };
-static struct { uint32_t last_try, factory_req; unsigned trained, failed, no_factory; } g_siege_train[16];
+internal struct { uint32_t last_try, factory_req; unsigned trained, failed, no_factory; } g_siege_train[16];
 
 // Entry i of the build manager's queue for epoch e (bm +4 + e*0x14: deque of {type, x, y}, 0x155 per block), NULL
 // past the end. 14 queues (epochs 0..13); the placement area follows at +0x11C.
-static int *bq_entry(ee_build_mgr *bm, int e, unsigned i) {
+internal int *bq_entry(ee_build_mgr *bm, int e, unsigned i) {
     uint8_t *dq = FIELD_AT(bm, OF(BM, 0x4) + e * 0x14);
     unsigned first = FIELD(dq, 0xC, unsigned), n = FIELD(dq, 0x10, unsigned), msz = FIELD(dq, 8, unsigned);
     uint8_t **map = FIELD(dq, 4, uint8_t **);
@@ -978,7 +978,7 @@ static int *bq_entry(ee_build_mgr *bm, int e, unsigned i) {
     if (blk >= msz) blk -= msz;
     return map[blk] ? (int *)(map[blk] + (idx % 0x155) * 12) : NULL;
 }
-static int bq_has(ee_build_mgr *bm, int type) {
+internal int bq_has(ee_build_mgr *bm, int type) {
     for (int e = 0; e < 14; e++)
         for (unsigned i = 0; ; i++) {
             int *ent = bq_entry(bm, e, i);
@@ -988,13 +988,13 @@ static int bq_has(ee_build_mgr *bm, int type) {
     return 0;
 }
 
-static int siege_want(ee_player *pl, unsigned pi) {   // 2 + a quarter of the known enemy defences, at most 4; a breach: 2
+internal int siege_want(ee_player *pl, unsigned pi) {   // 2 + a quarter of the known enemy defences, at most 4; a breach: 2
     int want = g_threat[pi].n ? 2 + g_threat[pi].n / 4 : 0;
     for (int k = 0; k < 64 && !want; k++)
         if (g_breaches[k].sg && g_breaches[k].pl == pl) want = 2;
     return want > 4 ? 4 : want;
 }
-static void siege_train(ee_player *pl, unsigned pi, int have, uint32_t now) {
+internal void siege_train(ee_player *pl, unsigned pi, int have, uint32_t now) {
     int want = siege_want(pl, pi);
     if (have >= want || (now >= g_siege_train[pi].last_try && now - g_siege_train[pi].last_try < 30000)) return;
     if (now < g_siege_st[pi].pause_until && g_siege_st[pi].pause_until - now <= 600000) return;   // lost too many
@@ -1047,7 +1047,7 @@ static void siege_train(ee_player *pl, unsigned pi, int have, uint32_t now) {
     g_siege_train[pi].failed++;
 }
 
-static void siege_tick(ee_player *pl, uint32_t now) {
+internal void siege_tick(ee_player *pl, uint32_t now) {
     unsigned pi = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     if (!g_siege || (now >= g_siege_st[pi].last && now - g_siege_st[pi].last < 2000)) return;
     g_siege_st[pi].last = now;
@@ -1222,12 +1222,12 @@ static void siege_tick(ee_player *pl, uint32_t now) {
     }
 }
 
-static void charge_tick(uint32_t now);
+internal void charge_tick(uint32_t now);
 // asgtrace P [off] (test): log every state change (+0x1D0) of AI P's attack subgroups - class, state, mission, goal,
 // members alive and their centre, waypoints, engaged members, what the members do (march/fight/other/idle)
-static unsigned g_trace_mask;
-static struct { uint8_t *sg; int state, goal_x, goal_y; } g_trace[64];
-static void asg_trace_tick(ee_player *pl, uint32_t now) {
+internal unsigned g_trace_mask;
+internal struct { uint8_t *sg; int state, goal_x, goal_y; } g_trace[64];
+internal void asg_trace_tick(ee_player *pl, uint32_t now) {
     unsigned p = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     if (!(g_trace_mask & (1u << p)) || !g_log) return;
     uint8_t *cbm = FIELD(pl, OF(PL, 0xB8C), uint8_t *), *cmd = cbm ? FIELD(cbm, OF(AM, 0x48), uint8_t *) : NULL;
@@ -1277,15 +1277,15 @@ static void asg_trace_tick(ee_player *pl, uint32_t now) {
         }
     }
 }
-static void cmd_asgtrace(char *out, const char *args) {
+internal void cmd_asgtrace(char *out, const char *args) {
     int p = atoi(args);
     if (p <= 0 || p >= 16) { REPLY("error: asgtrace P [off]\n"); return; }
     if (strstr(args, "off")) g_trace_mask &= ~(1u << p); else g_trace_mask |= 1u << p;
     REPLY("attack subgroup trace: mask %x\n", g_trace_mask);
 }
 
-static void attack_log(ee_player *pl, uint32_t now);
-static void attack_tick(ee_player *pl, uint32_t now) {
+internal void attack_log(ee_player *pl, uint32_t now);
+internal void attack_tick(ee_player *pl, uint32_t now) {
     asg_trace_tick(pl, now);
     charge_tick(now);
     threat_refresh(pl, now);   // also with avoid_towers=0: the route log compares both
@@ -1296,12 +1296,12 @@ static void attack_tick(ee_player *pl, uint32_t now) {
 }
 // a vanilla player (game/players.c is_vanilla): the game's own AI - only the mod's log lines (army, battle statistics,
 // spending, gathering, attack times), so the scorers see both sides
-static void vanilla_tick(ee_player *pl, uint32_t now) {
+internal void vanilla_tick(ee_player *pl, uint32_t now) {
     econ_vanilla_log(pl, now);
     attack_log(pl, now);
 }
 // the army line every 5 minutes, the battle statistics every 10
-static void attack_log(ee_player *pl, uint32_t now) {
+internal void attack_log(ee_player *pl, uint32_t now) {
     {
         unsigned i = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
         if (g_log && now / 300000 != g_mil[i].last_log / 300000) {
@@ -1349,7 +1349,7 @@ static void attack_log(ee_player *pl, uint32_t now) {
 // 0x450554 (thiscall(stats, unit)) without a check. A record without its unit crashed there (read [0 + 0x34]) in a
 // long game, one AI step after two AIs surrendered and attacks on them were called off (0x43033E with 1: the
 // subgroups hand their units back, 0x455C90). Such a record is skipped and logged.
-static void __fastcall hook_group_stat(void *stats, void *edx, ee_unit *unit) {
+internal void __fastcall hook_group_stat(void *stats, void *edx, ee_unit *unit) {
     (void)edx;
     if (!unit) {
         static int logged;
@@ -1368,7 +1368,7 @@ static void __fastcall hook_group_stat(void *stats, void *edx, ee_unit *unit) {
 // skipped such a record (12 minutes after attacks were called off for an alliance), and five more readers of the
 // pattern. Before vf20 runs, records without a unit leave the member vector (+0x54..+0x58; the records themselves are
 // left alone, in case anything else still points at them).
-static void asg_purge(uint8_t *sg) {
+internal void asg_purge(uint8_t *sg) {
     uint8_t **b = FIELD(sg, OF(ASG, 0x54), uint8_t **), **e = FIELD(sg, OF(ASG, 0x58), uint8_t **), **w = b;
     if (!b || e < b || e - b > 4096) return;
     for (uint8_t **r = b; r < e; r++)
@@ -1385,7 +1385,7 @@ static void asg_purge(uint8_t *sg) {
 }
 // every attack subgroup of AI pl: before the mod calls its attacks off (0x43033E with 1, which reads the members first,
 // 0x454B90) - with a record without its unit it crashed there at once (test: nullmember P off)
-static void asg_purge_all(ee_player *pl) {
+internal void asg_purge_all(ee_player *pl) {
     uint8_t *cbm = pl ? FIELD(pl, OF(PL, 0xB8C), uint8_t *) : NULL, *cmd = cbm ? FIELD(cbm, OF(AM, 0x48), uint8_t *) : NULL;
     if (!cmd) return;
     uint8_t *dq = cmd + 4;
@@ -1396,12 +1396,12 @@ static void asg_purge_all(ee_player *pl) {
             if (*sp) asg_purge(*sp);
     }
 }
-static void __fastcall hook_asg_stats(void *sg, void *edx) {
+internal void __fastcall hook_asg_stats(void *sg, void *edx) {
     (void)edx;
     asg_purge(sg);
     asg_stats(sg);
 }
-static void __fastcall hook_asg_land_stats(void *sg, void *edx) {
+internal void __fastcall hook_asg_land_stats(void *sg, void *edx) {
     (void)edx;
     asg_purge(sg);
     asg_land_stats(sg);
@@ -1413,9 +1413,9 @@ static void __fastcall hook_asg_land_stats(void *sg, void *edx) {
 // (0x483ADE -> 0x4824BF -> 0x450E07 -> 0x453E10) - including groups the same call-off has just freed (their subgroup
 // vectors garbage, a jump to 0). While the mod calls attacks off (g_in_calloff, diplo.c) no unit is offered: "not
 // taken" (the caller only notes it), the unit stays free and the game assigns it on its next pass.
-static int g_in_calloff;
-static unsigned g_calloff_skips;
-static char __fastcall hook_unit_to_group(void *cmd, void *edx, ee_unit *unit) {
+internal int g_in_calloff;
+internal unsigned g_calloff_skips;
+internal char __fastcall hook_unit_to_group(void *cmd, void *edx, ee_unit *unit) {
     (void)edx;
     if (g_in_calloff) { g_calloff_skips++; return 0; }
     return unit_to_group(cmd, unit);
@@ -1432,7 +1432,7 @@ static char __fastcall hook_unit_to_group(void *cmd, void *edx, ee_unit *unit) {
 // mod's own call-offs at the safe point (attack_retreat, citizen attacks, diplomacy). Guard: the node delete of both
 // destructor parts (0x628BE7 in 0x628BC6, 0x628B7F in 0x628B58) first takes a unit still linked out of the list with the
 // game's own unlink (0x628E29: the neighbours, or the head, get its links).
-static unsigned g_unlinked;
+internal unsigned g_unlinked;
 __attribute__((used)) void __cdecl unit_node_free(uint8_t **node, ee_unit *u) {
     if (!node || (!node[0] && !node[1]) || FIELD(u, OF(UNIT, 0x8), uint8_t **) != node) return;
     unit_unlink(u);
@@ -1464,8 +1464,8 @@ __attribute__((naked, used)) void unit_node_free_thunk(void) {   // at the call 
 // such a stale release hits a live unit (mIsValid +0x2B still 1: a unit is taken out of the game - 0x628B8E, mIsValid
 // 0 - before its last release; 0 such releases in normal play). Guard: a release of a unit that is back in the pool
 // (count 0, +0x2A set, no node - kept until the pool's reset on reuse) or still in the game is skipped.
-static unsigned g_release_again;
-static void __fastcall hook_unit_release(ee_unit *u, void *edx) {
+internal unsigned g_release_again;
+internal void __fastcall hook_unit_release(ee_unit *u, void *edx) {
     (void)edx;
     int again = !FIELD(u, OF(UNIT, 0x4), int) && FIELD(u, OF(UNIT, 0x2A), uint8_t) == 1 && !FIELD(u, OF(UNIT, 0x8), void *), live = FIELD(u, OF(UNIT, 0x2B), uint8_t) != 0;
     if (again || live) {
@@ -1486,7 +1486,7 @@ static void __fastcall hook_unit_release(ee_unit *u, void *edx) {
 // 0x8C000F8D (6 of 360 games against the base AI with more citizens, deterministic: it takes 17+ enemies in range,
 // below that the game's insertion sort is guarded). Replaced by an insertion sort on keys computed once (floats), ties
 // kept in their order - the order of the game's insertion sort.
-static void __cdecl hook_range_sort(void **b, void **e, ee_unit *unit) {
+internal void __cdecl hook_range_sort(void **b, void **e, ee_unit *unit) {
     int n = b && e > b ? (int)(e - b) : 0;
     if (n < 2) return;
     if (n > 1024) { range_sort(b, e, unit); return; }
@@ -1505,8 +1505,8 @@ static void __cdecl hook_range_sort(void **b, void **e, ee_unit *unit) {
 // belongs to: 0x5ED24B dynamic_casts +0x1F0 (0x5ED9B4) and calls 0x60FE7E on the result unchecked - NULL, read at
 // +0x38 (0x60FED3). Seen with workforce_plan ARMY in one Tournament Islands Huge game (3 of 3 runs at minute 31). The
 // guard answers "no" for a NULL goal, as the cast's own failure would mean (the branch then changes nothing).
-static unsigned g_goal_cast_null;
-static char __fastcall hook_goal_cast(void *goal, void *edx, void *unit) {
+internal unsigned g_goal_cast_null;
+internal char __fastcall hook_goal_cast(void *goal, void *edx, void *unit) {
     (void)edx;
     if (goal) return goal_fits(goal, unit);
     if (g_log && g_goal_cast_null++ < 5)
@@ -1514,7 +1514,7 @@ static char __fastcall hook_goal_cast(void *goal, void *edx, void *unit) {
                 unit && FIELD(unit, OF(UNIT, 0x2C), uint8_t *) ? FIELD(FIELD(unit, OF(UNIT, 0x2C), uint8_t *), OF(TD, 0x4B8), int) : -1, game_time() / 60000.0);
     return 0;
 }
-static void attack_install(const char *aimod_ini, const char *autotest_ini) {
+internal void attack_install(const char *aimod_ini, const char *autotest_ini) {
     BOOL cast_guard = patch_goal_fits(hook_goal_cast);
     if (g_log) fprintf(g_log, "# engine guard: goal 0xFBA without its object %s\n", cast_guard ? "ok" : "FAILED");
     g_op_delete = game_op_delete();
@@ -1553,7 +1553,7 @@ static void attack_install(const char *aimod_ini, const char *autotest_ini) {
 }
 
 // threat <player>: the enemy defences this AI knows about
-static void cmd_threat(char *out, const char *args) {
+internal void cmd_threat(char *out, const char *args) {
     int p = atoi(args);
     ee_player *pl = (p >= 0 && p < 16) ? g_players[p] : NULL;
     if (!pl) { REPLY("error: no AI player %d\n", p); return; }
@@ -1568,7 +1568,7 @@ static void cmd_threat(char *out, const char *args) {
 
 // attacks P (test): AI P's attack groups - target, and per subgroup its class, members alive and their centre, and how
 // many of them march (EEUGLocation), fight (EEUGAttackUnit), sit in or wait for a transport, or do nothing
-static void cmd_attacks(char *out, const char *args) {
+internal void cmd_attacks(char *out, const char *args) {
     int p = atoi(args);
     ee_player *pl = (p > 0 && p < 16) ? g_players[p] : NULL;
     uint8_t *cbm = pl ? FIELD(pl, OF(PL, 0xB8C), uint8_t *) : NULL, *cmd = cbm ? FIELD(cbm, OF(AM, 0x48), uint8_t *) : NULL;
@@ -1631,14 +1631,14 @@ static void cmd_attacks(char *out, const char *args) {
     }
 }
 
-static int is_ship_or_air(uint8_t *td) {   // movement type +0x10C... unknown: by the ship/air families seen in tests
+internal int is_ship_or_air(uint8_t *td) {   // movement type +0x10C... unknown: by the ship/air families seen in tests
     int fam = FIELD(td, OF(TD, 0x4B4), int);
     return fam == 0x0B || fam == 0x0C || fam == 0x0D || fam == 0x0E || fam == 0x0F || fam == 0x10 || fam == 0x11;
 }
 
 // a new game (the game start hook): subgroups, units and times of the last game - a breach, a citizen's hit points
 // (hurt_note: a new citizen at a dead one's address seemed hurt), a traced subgroup, a pending call-off's reason
-static void attack_new_game(void) {
+internal void attack_new_game(void) {
     memset(g_threat, 0, sizeof g_threat);
     memset(g_breaches, 0, sizeof g_breaches);
     memset(g_route_stats, 0, sizeof g_route_stats);

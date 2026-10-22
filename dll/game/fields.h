@@ -527,18 +527,18 @@
 #define OF_ENUM(k, x, ...) OF_##k##_##x,
 enum field_name { FIELDS(OF_ENUM) OF_N };
 #define OF_ROW(k, x, ...) { __VA_ARGS__ },
-static const uint32_t k_of[OF_N][ADDR_BUILDS] = { FIELDS(OF_ROW) };
+internal const uint32_t k_of[OF_N][ADDR_BUILDS] = { FIELDS(OF_ROW) };
 #define OF_NAME(k, x, ...) #k " " #x,
-static const char *const k_of_name[OF_N] = { FIELDS(OF_NAME) };
-static uint32_t g_of[OF_N];
+internal const char *const k_of_name[OF_N] = { FIELDS(OF_NAME) };
+internal uint32_t g_of[OF_N];
 #define OF(k, x) (g_of[OF_##k##_##x])
-static int g_of_missing;   // fields the running build hasn't got (NA): logged at the start (fields_log)
-static int fields_select(int build) {   // the running exe's column into g_of (with addr_select)
+internal int g_of_missing;   // fields the running build hasn't got (NA): logged at the start (fields_log)
+internal int fields_select(int build) {   // the running exe's column into g_of (with addr_select)
     int missing = 0;
     for (int i = 0; i < OF_N; i++) missing += (g_of[i] = k_of[i][build]) == NA;
     return missing;
 }
-static void fields_log(FILE *log) {
+internal void fields_log(FILE *log) {
     if (!log || !g_of_missing) return;
     fprintf(log, "# fields: build %d hasn't got %d of %d:", g_exe_build, g_of_missing, OF_N);
     for (int i = 0; i < OF_N; i++) if (g_of[i] == NA) fprintf(log, " %s", k_of_name[i]);

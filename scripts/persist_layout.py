@@ -73,16 +73,16 @@ def outside_braces(t):
     return ''.join(o)
 
 def definition(var):
-    # a variable definition: starts with internal (static in a file scripts/style.py still lists PENDING), no function (no '(' before its first '{' / its name), names var
+    # a variable definition: starts with internal, no function (no '(' before its first '{' / its name), names var
     pat = re.compile(r'\b%s\b' % re.escape(var))
-    found = [t for t in stmts if t.startswith(('internal ', 'static ')) and t.endswith(';') and pat.search(outside_braces(t))
+    found = [t for t in stmts if t.startswith('internal ') and t.endswith(';') and pat.search(outside_braces(t))
              and '(' not in outside_braces(t).split(var)[0]]
     if len(found) != 1:
         raise SystemExit('persist_layout: %d definitions of %s' % (len(found), var))
     return found[0]
 
 def struct_def(name):
-    pat = re.compile(r'^((?:internal|static) )?struct %s \{' % re.escape(name))
+    pat = re.compile(r'^(internal )?struct %s \{' % re.escape(name))
     found = [t for t in stmts if pat.match(t)]
     return found[0] if found else ''
 
