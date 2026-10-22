@@ -213,7 +213,7 @@ internal void army_plan_tick(ee_player *pl, unsigned idx, uint32_t now) {
         if (ft) {
             int req[4] = { ft, free < 5 ? free : 5, 0, 0 };
             unsigned n = 0;
-            hook_train_units(um, NULL, req, (uintptr_t)&n);
+            hook_train_units(um, req, (uintptr_t)&n);
             a->fill += n;
         }
     }

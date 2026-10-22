@@ -52,9 +52,8 @@ internal void snd_count(void *sm, uint32_t id, float vol, int failed) {
     else if (cused >= cmax) { g_drop_cat++; g_cat_drop[cat & 63]++; }
     else g_drop_chan++;
 }
-internal uint32_t __fastcall hook_snd_play(void *sm, void *edx, uint32_t id, float vol, float pan, float pitch, int queue,
+internal uint32_t __thiscall hook_snd_play(void *sm, uint32_t id, float vol, float pan, float pitch, int queue,
                                          void *name) {
-    (void)edx;
     uint32_t r = g_snd_play(sm, id, vol, pan, pitch, queue, name);
     snd_count(sm, id, vol, r == 0xFFFFFFFFu);
     if (g_sound_log >= 2 && g_log)
@@ -62,9 +61,8 @@ internal uint32_t __fastcall hook_snd_play(void *sm, void *edx, uint32_t id, flo
                 pan, pitch, queue & 0xFF, (int)r);
     return r;
 }
-internal uint32_t __fastcall hook_snd_playref(void *sm, void *edx, uint32_t id, float vol, float pan, float pitch,
+internal uint32_t __thiscall hook_snd_playref(void *sm, uint32_t id, float vol, float pan, float pitch,
                                             int queue, void *name) {
-    (void)edx;
     uint32_t r = g_snd_playref(sm, id, vol, pan, pitch, queue, name);
     snd_count(sm, id, vol, r == 0);
     if (g_sound_log >= 2 && g_log)
@@ -174,8 +172,7 @@ internal set_max_ch_fn g_set_max_ch;
 // game passes - percent x the old maximum - is worked out again from the slider (0x9193B8, 1.0 = 100%): 100% =
 // `channels`, 0% = 8, 200% is held to `channels` by clamp_channels.
 internal int g_sound_channels = 32;
-internal int __fastcall hook_set_max_channels(ee_sound_mgr *sm, void *edx, uint32_t n) {
-    (void)edx;
+internal int __thiscall hook_set_max_channels(ee_sound_mgr *sm, uint32_t n) {
     static int raised;
     ee_mixer *mx = sm ? sndmgr_get_mixer(sm) : NULL;
     uint8_t *get_max = mx ? (uint8_t *)*mixer_fn_at(mx, MIXER_GET_MAX_CHANNELS) : NULL;   // SPIMGetMaximumChannelCount

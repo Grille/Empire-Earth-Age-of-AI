@@ -8,8 +8,7 @@ internal int g_fix_scenario_ai = 1;    // aimod.ini [fixes] scenario_ai=0 turns 
 internal uint8_t g_is_scenario;        // the flag as the game set it (it reads 0 inside the AI update)
 
 internal int is_vanilla(const ee_player *pl);   // below
-internal void __fastcall hook_cp_update(ee_player *pl, void *edx, uint32_t now) {
-    (void)edx;
+internal void __thiscall hook_cp_update(ee_player *pl, uint32_t now) {
     uint8_t *flag = scenario_flag_var();
     uint8_t saved = *flag;
     g_is_scenario = saved;

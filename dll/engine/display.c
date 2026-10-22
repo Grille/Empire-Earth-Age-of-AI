@@ -47,8 +47,7 @@ internal void __stdcall hook_other_resolution(int w, int h, int force, int flag)
 
 // The editor's main form (constructor 0x58D3E1) is built once, on first use (0x65B9F5) - before the resolution
 // switch - and keeps its layout; its sub-pages are built later. The layout is computed right before it.
-internal void *__fastcall hook_editor_form(void *form, void *edx, void *owner) {
-    (void)edx;
+internal void *__thiscall hook_editor_form(void *form, void *owner) {
     int w = 800, h = 600;
     editor_size(&w, &h);
     int lay = apply_editor_layout(w, h);
@@ -515,8 +514,7 @@ internal void frame_stats(ee_rasterizer *ras, unsigned screen) {
 
 #include "display_diag.c"
 
-internal int __fastcall hook_show_scene(void *ras, void *edx, unsigned screen) {
-    (void)edx;
+internal int __thiscall hook_show_scene(void *ras, unsigned screen) {
     g_render_thread = GetCurrentThreadId();
     frame_watch();
     camera_frame();
@@ -537,8 +535,7 @@ internal int __fastcall hook_show_scene(void *ras, void *edx, unsigned screen) {
     return present_to_window(ras, screen) ? 0 : 1;
 }
 
-internal int __fastcall hook_set_mode(void *scr, void *edx, unsigned mode) {
-    (void)edx;
+internal int __thiscall hook_set_mode(void *scr, unsigned mode) {
     if (screen_get_fullscreen(scr)) return g_show[DISPLAY_DLL(scr)].set_mode(scr, mode);
     screen_set_mode(scr, mode);
     return 0;
@@ -552,10 +549,10 @@ internal unsigned screen_mode_index(ee_screen *scr) {
     if (!screen_get_fullscreen(scr) && screen_get_mode(scr) >= n) screen_set_mode(scr, 0);
     return screen_get_mode(scr);
 }
-internal void *__fastcall hook_get_current_mode(ee_screen *scr) {
+internal void *__thiscall hook_get_current_mode(ee_screen *scr) {
     return screen_get_modes_begin(scr) + screen_mode_index(scr) * 0x14;
 }
-internal unsigned __fastcall hook_get_current_mode_index(ee_screen *scr) {
+internal unsigned __thiscall hook_get_current_mode_index(ee_screen *scr) {
     return screen_mode_index(scr);
 }
 
@@ -1009,8 +1006,7 @@ internal void window_mouse_in(ee_mouse *m, int frozen, ee_window *win, HWND hwnd
     InterlockedIncrement(&g_mouse_updates);
 }
 
-internal void __fastcall hook_mouse_update(ee_mouse *m, void *edx) {
-    (void)edx;
+internal void __thiscall hook_mouse_update(ee_mouse *m) {
     uint8_t frozen = mouse_get_frozen(m);
     mouse_set_frozen(m, 1);   // the original then only reads the wheel
     mouse_update(m);

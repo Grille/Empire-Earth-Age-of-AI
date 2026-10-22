@@ -234,7 +234,7 @@ internal void cmd_train(char *out, const char *args) {
     int req[4] = { type, count, 0, 0 };
     unsigned got = 0;
     g_priority_mil = 1;
-    hook_train_units(um, NULL, req, (uintptr_t)&got);
+    hook_train_units(um, req, (uintptr_t)&got);
     g_priority_mil = 0;
     REPLY("P%d: %u of %d x type %d ordered\n", p, got, count, type);
 }

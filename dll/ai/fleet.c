@@ -105,8 +105,7 @@ internal int fleet_refuses(ee_attack_subgroup *sg, ee_unit *u) {
 }
 // the naval maintenance (0x4779FA) short of its "Ships to Maintain": it deletes own units for the room (0x430D40,
 // thiscall(player, request, 0)) and opens a Defend group - the deletion is skipped while the fleet leads the ships
-internal int __fastcall hook_nv_maint_delete(ee_player *pl, void *edx, void *req, int flag) {
-    (void)edx;
+internal int __thiscall hook_nv_maint_delete(ee_player *pl, void *req, int flag) {
     if (pl && !is_vanilla(pl) && fleet_on((unsigned)player_get_index(pl))) { g_fl[(unsigned)player_get_index(pl) & 15].maint_skipped++; return 0; }
     return delete_for_room(pl, req, flag);
 }
@@ -1200,7 +1199,7 @@ internal void fl_build(ee_player *pl, unsigned idx, struct fleet *m, uint32_t no
     memcpy(before, stock, sizeof before);
     int req[4] = { type, 1, 0, 0 };
     unsigned got = 0;
-    hook_train_units(um, NULL, req, (uintptr_t)&got);
+    hook_train_units(um, req, (uintptr_t)&got);
     navy_pick_done(pl, idx, type, type, before, stock, !got);
     if (got) { m->built++; m->bring_t[m->bring_i] = now ? now : 1; m->bring_i = (m->bring_i + 1) & 7; }
     else m->build_refused++;

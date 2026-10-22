@@ -22,8 +22,7 @@ internal CRITICAL_SECTION g_fbm_cs;
 internal int g_fbm_n;   // (defined with g_fbm_logged below)
 internal int g_fbm_dropped;
 internal void *(__thiscall *g_font_delete)(void *, unsigned);
-internal void *__fastcall hook_font_delete(uint8_t *font, void *edx, unsigned flags) {
-    (void)edx;
+internal void *__thiscall hook_font_delete(uint8_t *font, unsigned flags) {
     EnterCriticalSection(&g_fbm_cs);
     for (int i = 0; i < g_fbm_n; i++)
         if (g_fbm[i].font == font) {
@@ -132,8 +131,8 @@ internal void *text_bitmap_for(void *ras, void *text, void *surf) {
     }
     return obj;
 }
-internal long __fastcall hook_fc_text_rect(void *ras, void *edx, void *text, void *rect, void *surf) {
-    (void)edx; long r;
+internal long __thiscall hook_fc_text_rect(void *ras, void *text, void *rect, void *surf) {
+    long r;
     void *bmp = text_bitmap_for(ras, text, surf);
     if (g_textlog > 0 && g_log && text) {
         ee_font *f = text_get_font(text);
@@ -209,8 +208,8 @@ internal int text_bitmap_install(void) {   // constructor and the two movsx -> m
     if (!patch_vtable((uintptr_t)font_vt, 0, (uintptr_t)font_vt[0], (void *)hook_font_delete)) return 0;
     return patch_font_movzx(lle) == 2;
 }
-#define FC_SURFACE_HOOK(fn, k) static long __fastcall fn(void *surf, void *edx) { \
-    (void)edx; long r; FC_TIMED(k, ((long (__thiscall *)(void *))g_fc[k].orig[DISPLAY_DLL(surf)])(surf)); return r; }
+#define FC_SURFACE_HOOK(fn, k) static long __thiscall fn(void *surf) { \
+    long r; FC_TIMED(k, ((long (__thiscall *)(void *))g_fc[k].orig[DISPLAY_DLL(surf)])(surf)); return r; }
 FC_SURFACE_HOOK(hook_fc_lock, FC_LOCK)
 FC_SURFACE_HOOK(hook_fc_text_lock, FC_TEXT_LOCK)
 FC_SURFACE_HOOK(hook_fc_text_unlock, FC_TEXT_UNLOCK)
@@ -498,8 +497,7 @@ internal BOOL WINAPI hook_text_out_w(HDC dc, int x, int y, LPCWSTR str, int n) {
     }
     return g_text_out_w(dc, x, y, str, n);
 }
-internal long __fastcall hook_text_lock(ee_surface *surf, void *edx) {
-    (void)edx;
+internal long __thiscall hook_text_lock(ee_surface *surf) {
     if (surf_get_dc_out(surf) == 1) return 2;
     IDirectDrawSurface7 *dds = surf_get_dds(surf);
     int a = -1;
@@ -532,8 +530,7 @@ internal long __fastcall hook_text_lock(ee_surface *surf, void *edx) {
     surf_set_dc_out(surf, 1);
     return 0;
 }
-internal long __fastcall hook_text_unlock(ee_surface *surf, void *edx) {
-    (void)edx;
+internal long __thiscall hook_text_unlock(ee_surface *surf) {
     int a = -1;
     for (int i = 0; i < 8; i++) if (g_tdc_active[i].surf == surf) { a = i; break; }
     if (a < 0) return text_dc_fallback(surf, 1);   // locked by the original (fallback) or not at all

@@ -258,8 +258,7 @@ internal void cz_targets(ee_resource_mgr *rm) {
     g_czp[idx].extra = moved;
 }
 // the citizens wanted at the request (0x490BC2: call 0x48EDDB thiscall(um))
-internal int __fastcall hook_cit_wanted(ee_unit_mgr *um, void *edx) {
-    (void)edx;
+internal int __thiscall hook_cit_wanted(ee_unit_mgr *um) {
     int n = um_citizens_wanted(um);
     ee_player *pl = ((void *)um_get_player(um));
     if (!pl || is_vanilla(pl)) return n;

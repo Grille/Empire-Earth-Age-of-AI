@@ -2,7 +2,7 @@
 
 Verified addresses and layouts that the mod relies on. RTTI class names and source paths are intact in
 the exe. Ghidra's function names (`Class::vfN`) come from the vtables. *thiscall* = `this` in ECX; the DLL
-hooks them as `__fastcall` with a dummy EDX.
+hooks them as `__thiscall` too (clang allows it on a C function).
 
 ## Loading, threads, globals
 

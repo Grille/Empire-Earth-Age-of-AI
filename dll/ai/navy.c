@@ -801,8 +801,7 @@ internal void navy_docks(ee_player *pl, unsigned idx, uint32_t now) {
 // highest tech) the player has available by its tech record's own test (landing.c ld_type_avail: an upgraded line's
 // old type is not available any more), every epoch; none available: the game's pick.
 internal int g_fish_boat = 1;
-internal int __fastcall hook_fish_type(ee_civ_mgr *o, void *edx) {
-    (void)edx;
+internal int __thiscall hook_fish_type(ee_civ_mgr *o) {
     int t = fish_type(o);
     ee_player *pl = o ? cm_get_player(o) : NULL;
     if (!g_fish_boat || !pl || !((void *)player_get_tech_tree(pl)) || is_vanilla(pl)) return t;

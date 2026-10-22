@@ -49,8 +49,7 @@ internal void scroll_axis(float *vel, int neg, int pos, float minv, float maxv, 
     }
 }
 
-internal void __fastcall hook_scroll_execute(ee_scroll *self, void *edx) {
-    (void)edx;
+internal void __thiscall hook_scroll_execute(ee_scroll *self) {
     InterlockedIncrement(&g_scroll_calls);
     if (g_scroll_native && !g_cam_smooth) { scroll_execute(self); return; }
     // elapsed time: real time with fine scrolling, else the timer's ticks (10 ms AoC)
@@ -157,7 +156,7 @@ internal void cmd_scrolltest(char *out, const char *args) {
     REPLY("mode %s, start %.2f,%.2f\n", g_scroll_aoc ? "aoc" : "ee", x0, y0);
     for (int i = 0; i < n && i < 200; i++) {
         float x = camera_get_x(cam), y = camera_get_y(cam);
-        hook_scroll_execute(obj, NULL);
+        hook_scroll_execute(obj);
         if (i < 12 || i == n - 1)
             REPLY("  call %2d: moved %.3f,%.3f (velocity %.3f,%.3f)\n", i, camera_get_x(cam) - x,
                   camera_get_y(cam) - y, g_vel_x, g_vel_y);

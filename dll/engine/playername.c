@@ -21,8 +21,8 @@ internal void keep_player_name(ee_ui_screen *screen) {
     settings_save();
     if (g_log) log_locked("# player name: \"%s\" kept (settings saved)\n", name);
 }
-#define SP_HOOK(i) static long __fastcall hook_sp_##i(void *h, void *edx, ee_ui_screen *screen, int a) { \
-    (void)edx; keep_player_name(screen); return ((long (__thiscall *)(void *, void *, int))g_sp_orig[i])(h, screen, a); }
+#define SP_HOOK(i) static long __thiscall hook_sp_##i(void *h, ee_ui_screen *screen, int a) { \
+    keep_player_name(screen); return ((long (__thiscall *)(void *, void *, int))g_sp_orig[i])(h, screen, a); }
 SP_HOOK(0) SP_HOOK(1) SP_HOOK(2) SP_HOOK(3) SP_HOOK(4) SP_HOOK(5)
 internal void player_name_install(void) {
     static void *const hooks[6] = { (void *)hook_sp_0, (void *)hook_sp_1, (void *)hook_sp_2, (void *)hook_sp_3,

@@ -2,7 +2,7 @@
 // (operands, jumps, single bytes) - each checked against what it expects there first.
 
 // THE GAME'S RUN (the wiring: eeaimod.c, persist.c; test/autotest.c's command line)
-typedef char (__fastcall *game_start_hook)(void *state, void *edx, ee_setup *setup, void *p2);
+typedef char (__thiscall *game_start_hook)(void *state, ee_setup *setup, void *p2);
 internal inline int patch_game_start(game_start_hook h) { return patch_call(GA(CALL_GAME_START), GA(FN_GAME_START), (void *)h); }
 typedef char (__cdecl *parse_cmdline_hook)(const char *cmd);
 internal inline int patch_parse_cmdline(parse_cmdline_hook h) { return patch_call(GA(CALL_PARSE_CMDLINE), GA(FN_PARSE_CMDLINE), (void *)h); }
@@ -34,8 +34,7 @@ internal inline int patch_scroll_timer(uint8_t old_ms, uint8_t ms) {
     return 1;
 }
 typedef int (__thiscall *set_max_ch_fn)(ee_sound_mgr *sm, uint32_t n);
-typedef int (__fastcall *set_max_ch_hook)(ee_sound_mgr *sm, void *edx, uint32_t n);
-internal inline int patch_snd_set_max_channels(set_max_ch_hook h, set_max_ch_fn *orig) {
+internal inline int patch_snd_set_max_channels(set_max_ch_fn h, set_max_ch_fn *orig) {
     return iat_hook(GA(IAT_SND_SETMAXCH), "Low-Level Engine.dll", "?SetMaxChannels@SESoundManager@@QAEJK@Z", (void *)h, (void **)orig);
 }
 // the single-player menu's six buttons (playername.c): their handlers (vtable slot 1) -> hooks[i], the originals into orig
@@ -62,7 +61,7 @@ internal inline int patch_editor_resolution(resolution_hook h) {
     return patch_call(GA(SITE_EDITOR_MENU), GA(FN_SET_RESOLUTION), (void *)h) + patch_call(GA(SITE_EDITOR_RES), GA(FN_SET_RESOLUTION), (void *)h);
 }
 internal inline int patch_other_resolution(resolution_hook h, int *of) { return patch_calls(PATCH_LIST(OTHER_RESOLUTION_SITES), GA(FN_SET_RESOLUTION), (void *)h, of); }
-typedef void *(__fastcall *editor_form_hook)(void *form, void *edx, void *owner);
+typedef void *(__thiscall *editor_form_hook)(void *form, void *owner);
 internal inline int patch_editor_form(editor_form_hook h) { return patch_call(GA(SITE_EDITOR_FORM), GA(FN_EDITOR_FORM), (void *)h); }
 internal inline int patch_input_coop(HMODULE lle) {
     uint8_t *b = (uint8_t *)lle;
@@ -142,9 +141,9 @@ internal inline int patch_draw_list(int limit, uint8_t **recs, int *ok_out, int 
 
 // THE SIMULATION AND THE TESTS (test/control.c, autotest.c, trace.c)
 // the simulation thread's receive (each pass of its loop: the pipe's safe point) and its timer wait (turbo)
-typedef long (__fastcall *sim_receive_hook)(void *thread, void *edx, void *a, void *b, void *c);
+typedef long (__thiscall *sim_receive_hook)(void *thread, void *a, void *b, void *c);
 internal inline int patch_sim_receive(sim_receive_hook h) { return patch_import_call(GA(SITE_SIM_RECEIVE), GA(IAT_TS_RECEIVE), (void *)h); }
-typedef long (__fastcall *sim_wait_hook)(void *ev, void *edx, unsigned long ms);
+typedef long (__thiscall *sim_wait_hook)(void *ev, unsigned long ms);
 internal inline int patch_sim_wait(sim_wait_hook h) { return patch_import_call(GA(SITE_SIM_WAIT), GA(IAT_TS_WAIT), (void *)h); }
 // the lockstep server's wait for its next tick (Low-Level Engine: NESynchronousServer::Send's WaitForMultipleObjects)
 typedef DWORD (WINAPI *send_wait_hook)(DWORD n, const HANDLE *h, BOOL all, DWORD ms);
@@ -153,13 +152,13 @@ internal inline int patch_send_wait(send_wait_hook h) {
     return base && patch_import_call(base + GA(RVA_LLE_SEND_WAIT), base + GA(RVA_LLE_IAT_WFMO), (void *)h);
 }
 // one simulation step (EEPhysics' vtable slot 8): the hook, and whether it is in place
-typedef void (__fastcall *phys_step_hook)(void *phys, void *edx);
+typedef void (__thiscall *phys_step_hook)(void *phys);
 internal inline int patch_phys_step(phys_step_hook h) { return patch_code32(GA(VTBL_PHYS_STEP), GA(FN_PHYS_STEP), (uint32_t)(uintptr_t)h); }
 internal inline int phys_step_hooked_by(phys_step_hook h) { return *(uint32_t *)GA(VTBL_PHYS_STEP) == (uint32_t)(uintptr_t)h; }
 // the game start message's execution (its vtable slot 10: it seeds the simulation's generator)
-typedef void (__fastcall *start_exec_hook)(void *msg, void *edx);
+typedef void (__thiscall *start_exec_hook)(void *msg);
 internal inline int patch_start_exec(start_exec_hook h) { return patch_code32(GA(START_VTBL_EXEC), GA(START_EXEC), (uint32_t)(uintptr_t)h); }
-internal inline server_send_fn patch_server_send(ee_server *net, server_send_hook h) {
+internal inline server_send_fn patch_server_send(ee_server *net, server_send_fn h) {
     void **slot = &((void **)*(void ***)net)[GA(SLOT_SERVER_SEND)];
     DWORD old;
     if (!VirtualProtect(slot, 4, PAGE_READWRITE, &old)) return NULL;
@@ -199,9 +198,9 @@ internal inline int patch_tcp_ports(HMODULE m, int add) {
     }
     return n;
 }
-typedef void *(__fastcall *unload_ctor_hook)(void *g, void *edx, ee_unit *transport, int x, int y, int flag);
+typedef void *(__thiscall *unload_ctor_hook)(void *g, ee_unit *transport, int x, int y, int flag);
 internal inline int patch_unload_ctor(unload_ctor_hook h, int *of) { return patch_calls(PATCH_LIST(UNLOAD_SITES), GA(FN_GOAL_UNLOAD_CTOR), (void *)h, of); }
-typedef int (__fastcall *shore_to_unload_hook)(void *mgr, void *edx, ee_unit *transport);
+typedef int (__thiscall *shore_to_unload_hook)(void *mgr, ee_unit *transport);
 internal inline int patch_shore_to_unload(shore_to_unload_hook h) { return patch_call(GA(CALL_SHORE_TO_UNLOAD), GA(FN_SHORE_TO_UNLOAD), (void *)h); }
 // the goal set's read of a unit's goal object (6 bytes: mov ecx, [esi+0x1E8]) -> call thunk; nop
 internal inline int patch_goalset_read(thunk_fn thunk) {

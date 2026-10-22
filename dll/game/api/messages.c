@@ -57,10 +57,9 @@ internal inline int patch_sel_pack(sel_pack_hook h) { return patch_call(GA(CALL_
 // the lockstep server's send (its vtable slot 6, on the live object: EEServer or EEClient) - the slot's previous
 // function, NULL when not patched; two hooks chain (the second calls the first)
 typedef void (__thiscall *server_send_fn)(void *net, void *msg, int to);
-typedef void (__fastcall *server_send_hook)(void *net, void *edx, void *msg, int to);
 
 // MESSAGES AND THE MENU (diplo.c)
-typedef void (__fastcall *msg_hook)(void *msg, void *edx);
+typedef void (__thiscall *msg_hook)(void *msg);
 internal inline int patch_msg_pay_tribute(msg_hook h) { return patch_vtable(GA(VT_PAY_TRIBUTE), GA(SLOT_MSG_EXECUTE), GA(FN_PAY_TRIBUTE), (void *)h); }
 internal inline int patch_msg_ingame_chat(msg_hook h) { return patch_vtable(GA(VT_INGAME_CHAT), GA(SLOT_MSG_EXECUTE), GA(FN_INGAME_CHAT), (void *)h); }
 internal inline int patch_msg_resign(msg_hook h) { return patch_vtable(GA(VT_RESIGN), GA(SLOT_MSG_EXECUTE), GA(FN_RESIGN), (void *)h); }

@@ -135,8 +135,7 @@ internal void retry_note(unsigned idx, int type, uint32_t now) {
     g_retry[idx][f].next = now + 120000;
     g_retry[idx][f].tries = 0;
 }
-internal char __fastcall hook_place(ee_build_mgr *bm, void *edx, int type, int x, int y) {
-    (void)edx;
+internal char __thiscall hook_place(ee_build_mgr *bm, int type, int x, int y) {
     ee_player *owner = bm_get_player(bm);
     // a field without foundation would crash (see there) - the guard alone for a vanilla player (nothing laid out)
     if (type == UT(B_FARM) && !field_place_ok(bm, x, y, !is_vanilla(owner))) return 1;
@@ -247,12 +246,10 @@ internal void gather_research(ee_player *pl, unsigned idx, uint32_t now) {
 internal int g_paid_upgrades = 1;
 internal int ap_upgrade_later(ee_player *pl, ee_tech_data *data);   // army.c
 internal void epoch_upgrades(ee_tech *node, int cat, int only_new);
-internal void __fastcall hook_epoch_upgrades(ee_tech *node, void *edx, int cat) {   // the 2017 update's
-    (void)edx;
+internal void __thiscall hook_epoch_upgrades(ee_tech *node, int cat) {   // the 2017 update's
     epoch_upgrades(node, cat, 0);
 }
-internal void __fastcall hook_epoch_upgrades_aoc(ee_tech *node, void *edx, int cat, int only_new) {
-    (void)edx;
+internal void __thiscall hook_epoch_upgrades_aoc(ee_tech *node, int cat, int only_new) {
     epoch_upgrades(node, cat, only_new & 0xFF);
 }
 internal void epoch_upgrades(ee_tech *node, int cat, int only_new) {
@@ -314,8 +311,7 @@ internal void attention_note(ee_player *pl, unsigned idx, uint32_t now) {
 
 // Free research (diagnostic, with tech_log): EETechTreeNode::vf6 0x5BF335 (vtable slot 0x830874) marks a tech
 // researched and applies it without any payment; logged with its caller.
-internal int __fastcall hook_tech_grant(ee_tech *node, void *edx) {
-    (void)edx;
+internal int __thiscall hook_tech_grant(ee_tech *node) {
     uint8_t before = tech_get_researched(node);
     int r = tech_grant(node);
     if (g_log && !before && tech_get_researched(node)) {
@@ -404,8 +400,7 @@ internal void gather_log(ee_player *pl, unsigned idx, uint32_t now) {
 
 internal void mt_paid(ee_player *pl, ee_tech *what, const int *before, const int *stock);   // metal.c: what the gold and iron buy
 internal void mt_income(ee_player *pl, int type, int amount);
-internal void __fastcall hook_pay(ee_player *pl, void *edx, void *what, int b, int c) {
-    (void)edx;
+internal void __thiscall hook_pay(ee_player *pl, void *what, int b, int c) {
     int *stock = player_stock_at(pl), before[7];
     memcpy(before, stock, sizeof before);
     cp_pay(pl, what, b, c);
@@ -428,8 +423,7 @@ internal void navy_pick_done(ee_player *pl, unsigned idx, int pick, int asked, c
 #define FARM_EPOCH 2   // farms and granaries come with epoch 2, the Copper Age
 internal int current_epoch(ee_player *pl);
 internal int epoch_cost(ee_player *pl, int e, int r);
-internal void __fastcall hook_add_resource(ee_player *pl, void *edx, int type, int amount) {
-    (void)edx;
+internal void __thiscall hook_add_resource(ee_player *pl, int type, int amount) {
     cp_add_resource(pl, type, amount);
     unsigned idx = (unsigned)player_get_index(pl) & 15;
     mt_income(pl, type, amount);   // metal.c (every player)
@@ -464,8 +458,7 @@ internal void __fastcall hook_add_resource(ee_player *pl, void *edx, int type, i
 // limit) / 3 (dbcpbehavior records 92/93), times the difficulty's factor (record 98: 70 / 90 / 140%) - so the AI grows
 // with the human and doesn't flood him with units; Ignorieren (+0xF02) or game setting 0x9187FC = 4 give it the game
 // limit. pop_follow_human=0: the game limit (EEPlayer vf31 0x556EBC, as for a player) for every AI.
-internal void __fastcall hook_pop_cap(ee_player *pl, void *edx) {
-    (void)edx;
+internal void __thiscall hook_pop_cap(ee_player *pl) {
     cp_update_pop_cap(pl);
     if (!cfg_of(pl)->pop_follow && !is_vanilla(pl)) player_set_pop_cap(pl, game_unit_limit(pl));
 }
@@ -524,8 +517,7 @@ internal int follow_held(ee_player *pl) {
 }
 // The game's catch-up (FN_EPOCH_CATCH_UP, settings.c): a human reaching an epoch redraws the attempt of every computer
 // player behind it to a few minutes from now. epoch_pacing=timer goes without it - the timer alone counts.
-internal void __fastcall hook_epoch_catch_up(ee_player *pl, void *edx, ee_player *human) {
-    (void)edx;
+internal void __thiscall hook_epoch_catch_up(ee_player *pl, ee_player *human) {
     if (!is_vanilla(pl) && cfg_of(pl)->pacing == PACE_TIMER) {
         if (g_log) fprintf(g_log, "# epoch plan: P%u at %.1f min: no catch-up (timer)\n",
                            (unsigned)player_get_index(pl) & 15, game_time() / 60000.0);
@@ -1376,8 +1368,8 @@ internal void econ_rebalance(ee_resource_mgr *rm) {
             if (d < 0) break;
             ee_unit *u = movable_gatherer(rm, d);
             if (!u) { dry |= 1 << d; continue; }
-            ee_unit *site = r == 3 ? hook_find_wood(rm, NULL, 1, u)
-                                : hook_find_mine(rm, NULL, r, u, 1);   // with mine_choice: nearest to a drop site
+            ee_unit *site = r == 3 ? hook_find_wood(rm, 1, u)
+                                : hook_find_mine(rm, r, u, 1);   // with mine_choice: nearest to a drop site
             if (!site) break;   // no free, safe mine of this resource
             int before = rm_count(rm, r);
             rm_assign(rm, u, site);
@@ -1829,8 +1821,7 @@ internal void train_account(ee_player *pl, unsigned idx, const struct ai_cfg *cf
     }
 }
 // noinline: it reads its own return address (the call site) - also when the mod calls it
-__attribute__((noinline)) internal uintptr_t __fastcall hook_train_units(ee_unit_mgr *um, void *edx, int *req, uintptr_t b) {
-    (void)edx;
+__attribute__((noinline)) internal uintptr_t __thiscall hook_train_units(ee_unit_mgr *um, int *req, uintptr_t b) {
     ee_player *pl = um_owner(um);
     if (g_vanilla_mask) {   // a vanilla player's unit manager (before its first update too: the game's player array)
         void *own = pl;

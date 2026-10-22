@@ -176,8 +176,7 @@ internal ee_unit *select_mine_near_drop(ee_resource_mgr *rm, int type, ee_unit *
 internal int g_overseas_mines = 1;
 internal unsigned g_oversea[16][4];   // per player: searches, home mines found, overseas mines found, home ones replaced
 internal void *find_mine_pick(ee_resource_mgr *rm, int type, ee_unit *unit, uintptr_t rev);
-internal void *__fastcall hook_find_mine(ee_resource_mgr *rm, void *edx, int type, ee_unit *unit, uintptr_t rev) {
-    (void)edx;
+internal void *__thiscall hook_find_mine(ee_resource_mgr *rm, int type, ee_unit *unit, uintptr_t rev) {
     uintptr_t caller = CALLER();
     ee_unit *r = find_mine_pick(rm, type, unit, rev);
     ee_player *pl = rm_player(rm);
@@ -203,8 +202,7 @@ internal void *find_mine_pick(ee_resource_mgr *rm, int type, ee_unit *unit, uint
     return r ? r : refuse_danger(rm, rm_find_mine(rm, (uintptr_t)type, unit, rev), type == 2, type);
 }
 
-internal void *__fastcall hook_find_food(ee_resource_mgr *rm, void *edx, uintptr_t need_drop, uintptr_t near_base, ee_unit *unit) {
-    (void)edx;
+internal void *__thiscall hook_find_food(ee_resource_mgr *rm, uintptr_t need_drop, uintptr_t near_base, ee_unit *unit) {
     if (is_vanilla(rm_player(rm))) return rm_find_food(rm, need_drop, near_base, unit);
     ee_unit *s = food_near_pick(rm, (int)(near_base & 0xFF), unit);   // food_plan NEAR: the bush nearest to a drop site
     return s ? s : refuse_danger(rm, rm_find_food(rm, need_drop, near_base, unit), 1, 2);
@@ -223,26 +221,22 @@ internal void list_filter(ee_resource_mgr *rm, uint8_t *v, int food) {
     }
     FIELD(v, 8, void **) = w;
 }
-internal void *__fastcall hook_farms(ee_resource_mgr *rm, void *edx, uintptr_t n, uintptr_t out) {
-    (void)edx;
+internal void *__thiscall hook_farms(ee_resource_mgr *rm, uintptr_t n, uintptr_t out) {
     void *r = rm_farms(rm, n, out);
     list_filter(rm, (uint8_t *)out, 1);
     return r;
 }
-internal void *__fastcall hook_unbuilt_farms(ee_resource_mgr *rm, void *edx, uintptr_t n, uintptr_t out) {
-    (void)edx;
+internal void *__thiscall hook_unbuilt_farms(ee_resource_mgr *rm, uintptr_t n, uintptr_t out) {
     void *r = rm_unbuilt_farms(rm, n, out);
     list_filter(rm, (uint8_t *)out, 1);
     return r;
 }
-internal void *__fastcall hook_hunt(ee_resource_mgr *rm, void *edx, uintptr_t n, uintptr_t f, uintptr_t out) {
-    (void)edx;
+internal void *__thiscall hook_hunt(ee_resource_mgr *rm, uintptr_t n, uintptr_t f, uintptr_t out) {
     void *r = rm_hunt(rm, n, f, out);
     list_filter(rm, (uint8_t *)out, 1);
     return r;
 }
-internal void *__fastcall hook_find_wood(ee_resource_mgr *rm, void *edx, uintptr_t flag, ee_unit *unit) {
-    (void)edx;
+internal void *__thiscall hook_find_wood(ee_resource_mgr *rm, uintptr_t flag, ee_unit *unit) {
     if (is_vanilla(rm_player(rm))) return rm_find_wood(rm, flag, unit);
     return refuse_danger(rm, rm_find_wood(rm, flag, unit), 0, 3);
 }

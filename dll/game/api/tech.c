@@ -67,11 +67,11 @@ internal inline void epoch_upgrades_grant(ee_tech *node, int cat, int only_new) 
 
 // HOOKS
 // the epoch's upgrades: the 2017 update's (node, category), Art of Conquest's (node, category, only new)
-typedef void (__fastcall *epoch_upgrades_hook)(ee_tech *node, void *edx, int cat);
-typedef void (__fastcall *epoch_upgrades_aoc_hook)(ee_tech *node, void *edx, int cat, int only_new);
+typedef void (__thiscall *epoch_upgrades_hook)(ee_tech *node, int cat);
+typedef void (__thiscall *epoch_upgrades_aoc_hook)(ee_tech *node, int cat, int only_new);
 internal inline int patch_epoch_upgrades(epoch_upgrades_hook h, epoch_upgrades_aoc_hook h_aoc) {
     return patch_call(GA(CALL_EPOCH_UPGRADES), GA(FN_EPOCH_UPGRADES), build_is("aoc") ? (void *)h_aoc : (void *)h);
 }
 // a tech researched for nothing (EETechTreeNode::vf6, its vtable slot VTS_TECH_RESEARCHED)
-typedef int (__fastcall *tech_grant_hook)(ee_tech *t, void *edx);
+typedef int (__thiscall *tech_grant_hook)(ee_tech *t);
 internal inline int patch_tech_grant(tech_grant_hook h) { return patch_vtable(GA(VTS_TECH_RESEARCHED), 0, GA(FN_TECH_GRANT), (void *)h); }

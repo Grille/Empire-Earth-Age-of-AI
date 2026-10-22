@@ -59,10 +59,10 @@ internal inline char goal_fits(ee_goal *goal, void *unit) { return GF(FN_GOAL_FB
 internal inline int goalset_ask(void *set, ee_unit *u, int *out) { return GF(FN_GOALSET_ASK)(set, u, out); }
 
 // HOOKS
-typedef int (__fastcall *goalset_ask_hook)(void *set, void *edx, ee_unit *unit, int *out);
+typedef int (__thiscall *goalset_ask_hook)(void *set, ee_unit *unit, int *out);
 internal inline int patch_goalset_ask(goalset_ask_hook h, int *of) {
     const uint32_t sites[2] = { GA(CALL_GOALSET_ASK), GA(CALL_GOALSET_AGAIN) };
     return patch_calls(sites, 2, GA(FN_GOALSET_ASK), (void *)h, of);
 }
-typedef char (__fastcall *goal_fits_hook)(ee_goal *goal, void *edx, void *unit);
+typedef char (__thiscall *goal_fits_hook)(ee_goal *goal, void *unit);
 internal inline int patch_goal_fits(goal_fits_hook h) { return patch_call(GA(CALL_GOAL_FBA_CHECK), GA(FN_GOAL_FBA_CHECK), (void *)h); }

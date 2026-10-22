@@ -107,8 +107,7 @@ typedef int (__thiscall *RouteCostFn)(void *self, int *edge, uint8_t *node);
 internal struct { unsigned calls, penalised; } g_route_stats[16];
 internal DWORD g_route_thread;
 
-internal int __fastcall hook_route_cost(ee_route_planner *self, void *edx, int *edge, ee_route_node *node) {
-    (void)edx;
+internal int __thiscall hook_route_cost(ee_route_planner *self, int *edge, ee_route_node *node) {
     int cost = route_cost(self, edge, node);
     unsigned pi = (unsigned)planner_get_player_index(self) & 15;     // planner +0x48 = own player index
     ee_player *pl = is_vanilla_idx((int)pi) ? NULL : g_players[pi];   // a vanilla player: the game's cost
@@ -323,8 +322,7 @@ internal void citizen_attack_scan(ee_player *pl, uint32_t now) {
         }
     }
 }
-internal void __fastcall hook_asg_route(ee_attack_subgroup *self, void *edx, int *start, int *dest) {
-    (void)edx;
+internal void __thiscall hook_asg_route(ee_attack_subgroup *self, int *start, int *dest) {
     ee_player *pl = asg_get_player(self);
     if (is_vanilla(pl)) pl = NULL;   // the game's own route: no weak spot, breach, call-off, nor its log
     void *target = asg_get_target(self);
@@ -443,8 +441,7 @@ internal int guarded(ee_player *pl, int x, int y, int r) {
 
 internal int mass_tether(ee_attack_subgroup *sg, ee_unit *me, ee_unit *enemy);   // mass.c
 typedef float (__thiscall *AsguScoreFn)(void *self, uint8_t *info);
-internal float __fastcall hook_asgu_score(ee_asg_unit *self, void *edx, ee_asgu_info *info) {
-    (void)edx;
+internal float __thiscall hook_asgu_score(ee_asg_unit *self, ee_asgu_info *info) {
     float s = asgu_score(self, info);
     ee_attack_subgroup *sg = asgu_get_subgroup(self);
     ee_unit *enemy = info ? score_info_get_enemy(info) : NULL;
@@ -511,8 +508,7 @@ internal int *route_waypoint(ee_attack_subgroup *asg, unsigned i) {
 }
 
 typedef void (__thiscall *AsgFn)(void *self);
-internal void __fastcall hook_asg_route_done(ee_attack_subgroup *self, void *edx) {
-    (void)edx;
+internal void __thiscall hook_asg_route_done(ee_attack_subgroup *self) {
     ee_player *pl = asg_get_player(self);
     if (g_log && pl) {
         unsigned pi = (unsigned)player_get_index(pl) & 15, n = asg_get_waypoints(self), hot = 0;
@@ -934,8 +930,7 @@ internal void citizens_safety(ee_resource_mgr *rm) {   // before the citizen ass
 // army (P3: 17 in 15 minutes, sent back by citizens_safety only once it was on its way). Its order (EEUGBuildRepair,
 // 0x60BAD0) is refused at the handing-over (0x5F05BD at 0x46DA88) while enemy soldiers stand within 8 tiles (or their range + 3) of the
 // building (as citizens_safety): the goal deleted (its vf0, which lets go of the building), the citizen keeps its work.
-internal void __fastcall hook_repair_goal(ee_unit *u, void *edx, ee_goal *goal, int append, int prio) {
-    (void)edx;
+internal void __thiscall hook_repair_goal(ee_unit *u, ee_goal *goal, int append, int prio) {
     ee_player *pl = u ? unit_get_owner(u) : NULL;
     ee_unit *b = goal && goal_is_build(goal) ? goal_get_building(goal) : NULL;
     if (g_avoid_citizens && pl && b && !is_vanilla(pl) && raiders_near(pl, unit_get_x(b), unit_get_y(b), 8)) {
@@ -1034,7 +1029,7 @@ internal void siege_train(ee_player *pl, unsigned pi, int have, uint32_t now) {
         int req[4] = { g_ut[k_siege_types[k].type], want - have, 0, 0 };
         unsigned got = 0;
         g_priority_mil = 1;
-        hook_train_units(um, NULL, req, (uintptr_t)&got);
+        hook_train_units(um, req, (uintptr_t)&got);
         g_priority_mil = 0;
         if (got) {
             g_siege_train[pi].trained += got;
@@ -1349,8 +1344,7 @@ internal void attack_log(ee_player *pl, uint32_t now) {
 // 0x450554 (thiscall(stats, unit)) without a check. A record without its unit crashed there (read [0 + 0x34]) in a
 // long game, one AI step after two AIs surrendered and attacks on them were called off (0x43033E with 1: the
 // subgroups hand their units back, 0x455C90). Such a record is skipped and logged.
-internal void __fastcall hook_group_stat(void *stats, void *edx, ee_unit *unit) {
-    (void)edx;
+internal void __thiscall hook_group_stat(void *stats, ee_unit *unit) {
     if (!unit) {
         static int logged;
         if (g_log && logged < 20) {
@@ -1396,13 +1390,11 @@ internal void asg_purge_all(ee_player *pl) {
             if (*sp) asg_purge(*sp);
     }
 }
-internal void __fastcall hook_asg_stats(ee_attack_subgroup *sg, void *edx) {
-    (void)edx;
+internal void __thiscall hook_asg_stats(ee_attack_subgroup *sg) {
     asg_purge(sg);
     asg_stats(sg);
 }
-internal void __fastcall hook_asg_land_stats(ee_attack_subgroup *sg, void *edx) {
-    (void)edx;
+internal void __thiscall hook_asg_land_stats(ee_attack_subgroup *sg) {
     asg_purge(sg);
     asg_land_stats(sg);
 }
@@ -1415,8 +1407,7 @@ internal void __fastcall hook_asg_land_stats(ee_attack_subgroup *sg, void *edx) 
 // taken" (the caller only notes it), the unit stays free and the game assigns it on its next pass.
 internal int g_in_calloff;
 internal unsigned g_calloff_skips;
-internal char __fastcall hook_unit_to_group(void *cmd, void *edx, ee_unit *unit) {
-    (void)edx;
+internal char __thiscall hook_unit_to_group(void *cmd, ee_unit *unit) {
     if (g_in_calloff) { g_calloff_skips++; return 0; }
     return unit_to_group(cmd, unit);
 }
@@ -1465,8 +1456,7 @@ __attribute__((naked, used)) void unit_node_free_thunk(void) {   // at the call 
 // 0 - before its last release; 0 such releases in normal play). Guard: a release of a unit that is back in the pool
 // (count 0, +0x2A set, no node - kept until the pool's reset on reuse) or still in the game is skipped.
 internal unsigned g_release_again;
-internal void __fastcall hook_unit_release(ee_unit *u, void *edx) {
-    (void)edx;
+internal void __thiscall hook_unit_release(ee_unit *u) {
     int again = !unit_get_refs(u) && unit_get_released(u) == 1 && !unit_get_list_node(u), live = unit_get_valid(u) != 0;
     if (again || live) {
         if (g_log && g_release_again++ < 10) {
@@ -1506,8 +1496,7 @@ internal void __cdecl hook_range_sort(void **b, void **e, ee_unit *unit) {
 // +0x38 (0x60FED3). Seen with workforce_plan ARMY in one Tournament Islands Huge game (3 of 3 runs at minute 31). The
 // guard answers "no" for a NULL goal, as the cast's own failure would mean (the branch then changes nothing).
 internal unsigned g_goal_cast_null;
-internal char __fastcall hook_goal_cast(ee_goal *goal, void *edx, void *unit) {
-    (void)edx;
+internal char __thiscall hook_goal_cast(ee_goal *goal, void *unit) {
     if (goal) return goal_fits(goal, unit);
     if (g_log && g_goal_cast_null++ < 5)
         fprintf(g_log, "# engine guard: a unit's goal 0xFBA without its goal object (type %d) at %.1f min - skipped\n",

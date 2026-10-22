@@ -42,11 +42,10 @@ internal inline int mix_max_channels(uintptr_t base) { return *(int *)(base + GA
 // HOOKS
 // the sound manager (sound.c, through the exe's imports of Low-Level Engine: the slots checked against the exports)
 typedef uint32_t (__thiscall *snd_play_fn)(void *sm, uint32_t id, float vol, float pan, float pitch, int queue, void *name);
-typedef uint32_t (__fastcall *snd_play_hook)(void *sm, void *edx, uint32_t id, float vol, float pan, float pitch, int queue, void *name);
-internal inline int patch_snd_play(snd_play_hook h, snd_play_fn *orig) {
+internal inline int patch_snd_play(snd_play_fn h, snd_play_fn *orig) {
     return iat_hook(GA(IAT_SND_PLAY), "Low-Level Engine.dll", "?Play@SESoundManager@@QAEKKMMM_NPAD@Z", (void *)h, (void **)orig);
 }
-internal inline int patch_snd_playref(snd_play_hook h, snd_play_fn *orig) {
+internal inline int patch_snd_playref(snd_play_fn h, snd_play_fn *orig) {
     return iat_hook(GA(IAT_SND_PLAYREF), "Low-Level Engine.dll", "?PlayAndReturnReferencedNode@SESoundManager@@QAEPAVSESMInstanceNode@@KMMM_NPAD@Z",
                     (void *)h, (void **)orig);
 }

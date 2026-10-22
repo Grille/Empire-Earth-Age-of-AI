@@ -162,23 +162,19 @@ internal int cover_refuses(ee_attack_subgroup *sg, ee_unit *u);  // cover.c: a u
 internal int expand_leads(ee_attack_subgroup *sg);               // expand.c: a subgroup holding the ferry's transport
 internal int expand_unload_ok(ee_unit *u, int gx, int gy);   // expand.c: the game's unload retry at the ferry's own point
 internal int expand_has(ee_player *pl, ee_unit *u);        // expand.c: a passenger of the ferry (the landing leaves it)
-internal void __fastcall hook_asg_sea_update(ee_attack_subgroup *sg, void *edx, int now) {
-    (void)edx;
+internal void __thiscall hook_asg_sea_update(ee_attack_subgroup *sg, int now) {
     if (!is_vanilla(asg_get_player(sg)) && (landing_leads(sg) || fleet_leads(sg) || expand_leads(sg))) return;
     asg_sea_update(sg, now);
 }
-internal void __fastcall hook_asg_land_update(ee_attack_subgroup *sg, void *edx, int now) {   // EECPASGLand slot 90
-    (void)edx;
+internal void __thiscall hook_asg_land_update(ee_attack_subgroup *sg, int now) {   // EECPASGLand slot 90
     if (!is_vanilla(asg_get_player(sg)) && landing_leads(sg)) return;
     asg_update(sg, now);
 }
-internal void __fastcall hook_asg_air_update(ee_attack_subgroup *sg, void *edx, int now) {
-    (void)edx;
+internal void __thiscall hook_asg_air_update(ee_attack_subgroup *sg, int now) {
     if (!is_vanilla(asg_get_player(sg)) && landing_leads(sg)) return;
     asg_air_update(sg, now);
 }
-internal void __fastcall hook_asg_sea_transport_update(ee_attack_subgroup *sg, void *edx, int now) {
-    (void)edx;
+internal void __thiscall hook_asg_sea_transport_update(ee_attack_subgroup *sg, int now) {
     if (!is_vanilla(asg_get_player(sg)) && (landing_leads(sg) || expand_leads(sg))) return;
     asg_sea_transport_update(sg, now);
 }
@@ -192,8 +188,7 @@ internal void __fastcall hook_asg_sea_transport_update(ee_attack_subgroup *sg, v
 // (0x5F104E), and the unit type's vf29 right after read [0 + 5] (0x5FC4ED). That answer, at both asks (0x5F0FFA too),
 // gives the default set and 0.
 internal unsigned g_goalset_null;
-internal int __fastcall hook_goalset_ask(void *set, void *edx, ee_unit *unit, int *out) {
-    (void)edx;
+internal int __thiscall hook_goalset_ask(void *set, ee_unit *unit, int *out) {
     if (!set) {
         if (g_log && g_goalset_null++ < 10) fprintf(g_log, "# engine guard: a unit's goal set gone after its goal was dropped - the default set\n");
         unit_say(unit, 5000);
@@ -240,8 +235,7 @@ __attribute__((naked, used)) void goalset_read_thunk(void) {
 // itself never refuses there; for that caller the goal is taken and not given (the goal's few bytes are lost).
 internal unsigned g_ld_refused, g_ld_kept_goal;
 internal void ld_fu_given(ee_goal *g, int ok);   // below (the game's unload orders to landing transports)
-internal char __fastcall hook_asg_give_goal(ee_attack_subgroup *sg, void *edx, ee_unit *u, ee_goal *goal, int a, int prio) {
-    (void)edx;
+internal char __thiscall hook_asg_give_goal(ee_attack_subgroup *sg, ee_unit *u, ee_goal *goal, int a, int prio) {
     if (!is_vanilla(asg_get_player(sg)) && (landing_leads(sg) || fleet_refuses(sg, u) || mass_refuses(sg, u, goal) || expand_refuses(sg, u) || cover_refuses(sg, u))) {   // the fleet (fleet.c): its ships in any subgroup; mass.c; expand.c; cover.c
         g_ld_refused++;
         if (from_land_handoff((uintptr_t)__builtin_return_address(0))) { g_ld_kept_goal++; return 1; }
@@ -252,8 +246,7 @@ internal char __fastcall hook_asg_give_goal(ee_attack_subgroup *sg, void *edx, e
     ld_fu_given(goal, r != 0);
     return r;
 }
-internal char __fastcall hook_asg_air_give_goal(ee_attack_subgroup *sg, void *edx, ee_unit *u, ee_goal *goal, int a, int prio) {
-    (void)edx;
+internal char __thiscall hook_asg_air_give_goal(ee_attack_subgroup *sg, ee_unit *u, ee_goal *goal, int a, int prio) {
     if (!is_vanilla(asg_get_player(sg)) && landing_leads(sg)) { g_ld_refused++; return 0; }
     return asg_air_give_goal(sg, u, goal, a, prio);
 }
@@ -1337,7 +1330,7 @@ internal void ld_bombard_tick(ee_player *pl, unsigned pi, struct landing *l, ee_
                 int req[4] = { wt, l->fleet_want - nf > 3 ? 3 : l->fleet_want - nf, 0, 0 };
                 unsigned got = 0;
                 g_priority_mil = 1;
-                hook_train_units(um, NULL, req, (uintptr_t)&got);
+                hook_train_units(um, req, (uintptr_t)&got);
                 g_priority_mil = 0;
                 if (g_log) fprintf(g_log, "# landing: P%u at %.1f min: %s %u warships (type %d) for the fleet - %d of %d\n", pi, now / 60000.0, got ? "trains" : "refused:", got ? got : req[1], wt, nf, l->fleet_want);
             } else if (g_log) fprintf(g_log, "# landing: P%u at %.1f min: no warship it can train and pay now (type %d, room %d) - %d of %d\n", pi, now / 60000.0,
@@ -1347,7 +1340,7 @@ internal void ld_bombard_tick(ee_player *pl, unsigned pi, struct landing *l, ee_
                 int req[4] = { tt, l->tr_want - s.nt > 2 ? 2 : l->tr_want - s.nt, 0, 0 };
                 unsigned got = 0;
                 g_landing_order = 1;
-                hook_train_units(um, NULL, req, (uintptr_t)&got);
+                hook_train_units(um, req, (uintptr_t)&got);
                 g_landing_order = 0;
                 if (got && g_log) fprintf(g_log, "# landing: P%u at %.1f min: trains %u transports (type %d) for after the shelling - %d of %d\n", pi, now / 60000.0, got, tt, s.nt, l->tr_want);
             }
@@ -1559,7 +1552,7 @@ internal int ld_phase_ships(ee_player *pl, unsigned pi, struct landing *l, ee_un
                 unsigned got = 0;
                 l->tr_type = tt;
                 g_priority_mil = 1; g_landing_order = 1;
-                hook_train_units(um, NULL, req, (uintptr_t)&got);
+                hook_train_units(um, req, (uintptr_t)&got);
                 g_priority_mil = 0; g_landing_order = 0;
                 l->tr_got = (int)got;
                 if (g_log) fprintf(g_log, "# landing: P%u at %.1f min: trains %u transports (type %d), has %d\n", pi, now / 60000.0, got, tt, s->nt);
@@ -2320,8 +2313,7 @@ internal void ld_fu_check(uint32_t now) {
         else if (f->state < 2 && now - f->t > 30000) ld_fu_log(f, "never its goal", n);
     }
 }
-internal void *__fastcall hook_unload_ctor(void *g, void *edx, ee_unit *tr, int x, int y, int flag) {
-    (void)edx;
+internal void *__thiscall hook_unload_ctor(void *g, ee_unit *tr, int x, int y, int flag) {
     uintptr_t ret = (uintptr_t)__builtin_return_address(0) - 5;
     if (unload_from_rm(ret) && tr && expand_ship(tr)) return NULL;   // an outpost's ferry (expand.c): not the transport manager's crossing
     for (int p = 0; p < 16 && tr && !is_vanilla(unit_get_owner(tr)); p++)   // a vanilla player's transport: never a landing's
@@ -2354,8 +2346,7 @@ internal void *__fastcall hook_unload_ctor(void *g, void *edx, ee_unit *tr, int 
 // it only while the landing unloads (phase 3, phase 4 with the first landing or a wave at sea) and at its own point;
 // otherwise the new goal is deleted, never given (the caller does not touch it after this call)
 internal unsigned g_ld_retry_refused;
-internal void __fastcall hook_unload_retry_give(ee_unit *u, void *edx, ee_goal *goal, int slot) {
-    (void)edx;
+internal void __thiscall hook_unload_retry_give(ee_unit *u, ee_goal *goal, int slot) {
     if (goal && expand_ship(u) && !expand_unload_ok(u, goal_get_unload_x(goal), goal_get_unload_y(goal))) {   // an outpost's ferry (expand.c)
         ld_fu_given(goal, 0);
         ((void (__thiscall *)(void *, int))(*(void ***)goal)[0])(goal, 1);
@@ -2383,8 +2374,7 @@ give:
 
 // the game's idle-transport code (0x483E10: cargo aboard, no order, at a shore - 0x42C49A at 0x483E24 says where to
 // land) unloads a transport of a landing waiting for its last passengers or for the warships: for those "nowhere"
-internal int __fastcall hook_idle_unload_shore(void *mgr, void *edx, ee_unit *tr) {
-    (void)edx;
+internal int __thiscall hook_idle_unload_shore(void *mgr, ee_unit *tr) {
     if (tr && expand_ship(tr)) return 0;   // an outpost's ferry (expand.c) unloads where it decides
     for (int p = 0; p < 16 && tr && !is_vanilla(unit_get_owner(tr)); p++)   // a vanilla player's transport: never a landing's
         for (int k = 0; k < g_ld[p].nships && g_ld[p].phase; k++)

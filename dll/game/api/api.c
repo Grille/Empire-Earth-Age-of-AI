@@ -20,7 +20,7 @@
 // its calls (patch_call: the call instruction redirected, only while it still calls that function) or in its class's
 // vtable (patch_vtable: only while the slot still holds it); it calls the original through the function's wrapper
 // when it wants the game's own work done. The hook types are the game's real arguments - a hook declared with other
-// parameters doesn't build (a thiscall hook is __fastcall with the unused edx second). An installer returns how many
+// parameters doesn't build (a hook of a method is __thiscall too: this in ECX, as the game calls it). An installer returns how many
 // places it patched; of (may be NULL) gets the number there are. Kinds not typed yet are void *. Assembler stubs (they
 // read registers) are void (*)(void).
 #include "game/api/types.h"        // the game's objects typed: ee_player *, ee_unit * ...

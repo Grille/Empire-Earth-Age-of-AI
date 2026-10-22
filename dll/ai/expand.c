@@ -517,7 +517,7 @@ internal void ex_ferry_ship(ee_player *pl, unsigned idx, struct ex_st *x, uint32
             int req[4] = { tt, 1, 0, 0 };
             unsigned got = 0;
             g_priority_mil = 1; g_landing_order = 1; g_expand_order = (EXPAND(idx) & 8) != 0;
-            hook_train_units(um, NULL, req, (uintptr_t)&got);
+            hook_train_units(um, req, (uintptr_t)&got);
             g_priority_mil = 0; g_landing_order = 0; g_expand_order = 0;
             if (got) { x->trained++; x->ftrain_t = now + 90000; x->ftrained_t = now ? now : 1; }
             // EARLY: tried again at every tick (2 s) while it can't pay - the wood for it (250) is spent by the buildings

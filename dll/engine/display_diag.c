@@ -111,12 +111,10 @@ typedef DWORD (*GetErrFn)(void);
 internal GetErrFn g_get_native_error;
 internal int g_diag_skip;   // autotest diag_skip: 1 = no terrain, 2 = no water (diagnostics)
 internal DrawTerrainFn g_draw_water[2];
-internal int __fastcall hook_draw_water(void *ras, void *edx, void *mesh, unsigned screen, int flag) {
-    (void)edx;
+internal int __thiscall hook_draw_water(void *ras, void *mesh, unsigned screen, int flag) {
     return g_diag_skip == 2 ? 0 : g_draw_water[DISPLAY_DLL(ras)](ras, mesh, screen, flag);
 }
-internal int __fastcall hook_draw_terrain(void *ras, void *edx, void *mesh, unsigned screen, int flag) {
-    (void)edx;
+internal int __thiscall hook_draw_terrain(void *ras, void *mesh, unsigned screen, int flag) {
     if (g_diag_skip == 1) return 0;
     static unsigned (__thiscall *rows_fn)(void *);
     if (!rows_fn) rows_fn = (unsigned (__thiscall *)(void *))GetProcAddress(GetModuleHandleA("Low-Level Engine.dll"),
@@ -186,8 +184,7 @@ internal void sample_alpha(ee_surface *src, ee_surface *dst) {
     d7->lpVtbl->Unlock(d7, NULL);
 }
 internal volatile LONG g_front_copies_skipped;
-internal int __fastcall hook_copy_to(void *s, void *edx, void *dst, void *r1, void *r2, int f) {
-    (void)edx;
+internal int __thiscall hook_copy_to(void *s, void *dst, void *r1, void *r2, int f) {
     // windowed: the UI's "copy dirty rectangles" restore regions from the front surface - after a page flip the
     // back buffer holds an older frame. Windowed the front is the emulated primary that never gets our frames
     // (garbage/scanlines in the editor where the mouse moved) and the back buffer is never flipped, so it still
@@ -203,8 +200,7 @@ internal int __fastcall hook_copy_to(void *s, void *edx, void *dst, void *r1, vo
     if (g_diag && !r) sample_alpha(s, dst);
     return r;
 }
-internal int __fastcall hook_copy_filter(void *s, void *edx, void *dst, void *r1, void *r2) {
-    (void)edx;
+internal int __thiscall hook_copy_filter(void *s, void *dst, void *r1, void *r2) {
     int r = ((int (__thiscall *)(void *, void *, void *, void *))g_cnt[1].orig[DISPLAY_DLL(s)])(s, dst, r1, r2);
     cnt_note(1, r);
     return r;
@@ -213,8 +209,7 @@ internal int __fastcall hook_copy_filter(void *s, void *edx, void *dst, void *r1
 // the format is the resolved one; also the DirectDraw pixel format of the last surface per bucket
 internal struct { unsigned type, fmt, count, w, h, bpp, amask, flags; } g_surf_kinds[24];
 internal uintptr_t g_surf16_stack[8];
-internal int __fastcall hook_create_surface(void *s, void *edx, void *desc, void **out) {
-    (void)edx;
+internal int __thiscall hook_create_surface(void *s, void *desc, void **out) {
     unsigned type = ((unsigned *)desc)[0], fmt_req = ((unsigned *)desc)[1];
     if (g_diag && (type == 5 || type == 6) && (fmt_req == 2 || fmt_req == 7) && !g_surf16_stack[0]) {   // who asks for 16-bit textures
         uintptr_t *fp = (uintptr_t *)__builtin_frame_address(0);
@@ -251,8 +246,7 @@ typedef void (__thiscall *SetRTFn)(void *ras, void *surf, unsigned screen);
 internal SetRTFn g_set_rt[2];
 internal volatile LONG g_rt_calls, g_rt_back;
 internal char g_rt_last[160];
-internal void __fastcall hook_set_rt(void *ras, void *edx, ee_surface *surf, unsigned screen) {
-    (void)edx;
+internal void __thiscall hook_set_rt(void *ras, ee_surface *surf, unsigned screen) {
     g_set_rt[DISPLAY_DLL(ras)](ras, surf, screen);
     InterlockedIncrement(&g_rt_calls);
     ee_screen_state *st = ras_get_screen_state(ras, screen);
@@ -271,16 +265,14 @@ internal ClearFn g_clear[2];
 internal ClearZFn g_clearz[2];
 internal volatile LONG g_clear_calls, g_clear_fail, g_clearz_calls, g_clearz_fail;
 internal float g_clear_rect[4], g_clearz_rect[4], g_clearz_depth;
-internal int __fastcall hook_clear(void *ras, void *edx, void *color, float *rect, unsigned screen) {
-    (void)edx;
+internal int __thiscall hook_clear(void *ras, void *color, float *rect, unsigned screen) {
     int r = g_clear[DISPLAY_DLL(ras)](ras, color, rect, screen);
     InterlockedIncrement(&g_clear_calls);
     if (r) InterlockedIncrement(&g_clear_fail);
     memcpy(g_clear_rect, rect, sizeof g_clear_rect);
     return r;
 }
-internal int __fastcall hook_clearz(void *ras, void *edx, float depth, float *rect, unsigned screen) {
-    (void)edx;
+internal int __thiscall hook_clearz(void *ras, float depth, float *rect, unsigned screen) {
     int r = g_clearz[DISPLAY_DLL(ras)](ras, depth, rect, screen);
     InterlockedIncrement(&g_clearz_calls);
     if (r) InterlockedIncrement(&g_clearz_fail);
@@ -296,19 +288,16 @@ internal SetFogFn g_set_fog[2], g_set_fog_type[2];
 internal SetFogRangeFn g_set_fog_range[2];
 internal volatile LONG g_fog_on = -1, g_fog_type = -1, g_fog_calls;
 internal float g_fog_start, g_fog_end;
-internal void __fastcall hook_set_fog(void *ras, void *edx, unsigned on, unsigned screen) {
-    (void)edx;
+internal void __thiscall hook_set_fog(void *ras, unsigned on, unsigned screen) {
     g_fog_on = (LONG)on;
     InterlockedIncrement(&g_fog_calls);
     g_set_fog[DISPLAY_DLL(ras)](ras, g_diag_skip == 3 ? 0 : on, screen);
 }
-internal void __fastcall hook_set_fog_type(void *ras, void *edx, unsigned t, unsigned screen) {
-    (void)edx;
+internal void __thiscall hook_set_fog_type(void *ras, unsigned t, unsigned screen) {
     g_fog_type = (LONG)t;
     g_set_fog_type[DISPLAY_DLL(ras)](ras, t, screen);
 }
-internal void __fastcall hook_set_fog_range(void *ras, void *edx, float a, float b, unsigned screen) {
-    (void)edx;
+internal void __thiscall hook_set_fog_range(void *ras, float a, float b, unsigned screen) {
     g_fog_start = a;
     g_fog_end = b;
     g_set_fog_range[DISPLAY_DLL(ras)](ras, a, b, screen);
@@ -344,8 +333,8 @@ internal void fc_note(int k, uintptr_t ret, LONGLONG t) {
 }
 #define FC_TIMED(k, expr) do { LARGE_INTEGER t0, t1; QueryPerformanceCounter(&t0); r = (expr); QueryPerformanceCounter(&t1); \
                                fc_note(k, (uintptr_t)__builtin_return_address(0), t1.QuadPart - t0.QuadPart); } while (0)
-internal long __fastcall hook_fc_text(void *ras, void *edx, void *text, void *surf) {
-    (void)edx; long r;
+internal long __thiscall hook_fc_text(void *ras, void *text, void *surf) {
+    long r;
     FC_TIMED(FC_TEXT, ((long (__thiscall *)(void *, void *, void *))g_fc[FC_TEXT].orig[DISPLAY_DLL(ras)])(ras, text, surf));
     return r;
 }
@@ -356,18 +345,15 @@ internal long __fastcall hook_fc_text(void *ras, void *edx, void *text, void *su
 // handles created / destroyed (DX7Rasterizer, virtual), with the process's private memory and handle count.
 internal volatile LONG g_surf_deleted, g_tex_created, g_tex_destroyed;
 internal void *g_surf_dtor[2], *g_tex_create[2], *g_tex_destroy[2];
-internal void *__fastcall hook_surf_dtor(void *surf, void *edx, unsigned flags) {
-    (void)edx;
+internal void *__thiscall hook_surf_dtor(void *surf, unsigned flags) {
     InterlockedIncrement(&g_surf_deleted);
     return ((void *(__thiscall *)(void *, unsigned))g_surf_dtor[DISPLAY_DLL(surf)])(surf, flags);
 }
-internal long __fastcall hook_tex_create(void *ras, void *edx, void *tex) {
-    (void)edx;
+internal long __thiscall hook_tex_create(void *ras, void *tex) {
     InterlockedIncrement(&g_tex_created);
     return ((long (__thiscall *)(void *, void *))g_tex_create[DISPLAY_DLL(ras)])(ras, tex);
 }
-internal void __fastcall hook_tex_destroy(void *ras, void *edx, void *tex) {
-    (void)edx;
+internal void __thiscall hook_tex_destroy(void *ras, void *tex) {
     InterlockedIncrement(&g_tex_destroyed);
     ((void (__thiscall *)(void *, void *))g_tex_destroy[DISPLAY_DLL(ras)])(ras, tex);
 }

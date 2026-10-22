@@ -903,8 +903,7 @@ internal void persona_attack(ee_player *pl, ee_player *target) {
 // called at 0x470040 (12500 war), 0x4715F8/0x47166E/0x47280E/0x472B9D (wonders, flares): the personality's line
 // where it has one. 12500: diplo.c says the war line itself (with the declaring player's name), so it is dropped
 // here when the personality has one.
-internal char __fastcall hook_native_chat(ee_native_chat *pim, void *edx, int base, int ms) {
-    (void)edx;
+internal char __thiscall hook_native_chat(ee_native_chat *pim, int base, int ms) {
     ee_player *pl = pim ? nativechat_get_player(pim) : NULL;
     int k = base == 12000 ? L_WONDER_THREAT : base == 12100 ? L_WONDER_HELP : base == 12200 ? L_WONDER_NOHELP :
             base == 12300 ? L_HELP_LAND : base == 12330 ? L_HELP_AIR : base == 12360 ? L_HELP_NAVAL :

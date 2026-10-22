@@ -58,9 +58,9 @@ internal inline void type_goal_assigned(ee_unit_type *td, ee_unit *u) { ((void (
 
 // HOOKS
 // shots (aim.c): a projectile down, a missile launched, a shot fired
-typedef char (__fastcall *proj_down_hook)(void *cls, void *edx, ee_unit *projectile);
+typedef char (__thiscall *proj_down_hook)(void *cls, ee_unit *projectile);
 internal inline int patch_proj_down(proj_down_hook h) { return patch_vtable(GA(VT_PROJECTILE), GA(SLOT_PROJ_DOWN), GA(FN_PROJ_DOWN), (void *)h); }
-typedef int (__fastcall *missile_launch_hook)(uint8_t *cls, void *edx, ee_unit *m, float *aim);
+typedef int (__thiscall *missile_launch_hook)(uint8_t *cls, ee_unit *m, float *aim);
 internal inline int patch_missile_launch(missile_launch_hook h) { return patch_vtable(GA(VT_MISSILE), GA(SLOT_MISSILE_LAUNCH), GA(FN_MISSILE_LAUNCH), (void *)h); }
-typedef void (__fastcall *fire_hook)(ee_unit_type *cls, void *edx, ee_unit *u);
+typedef void (__thiscall *fire_hook)(ee_unit_type *cls, ee_unit *u);
 internal inline int patch_fire(fire_hook h, int *of) { return patch_calls(PATCH_LIST(FIRE_CALLS), GA(FN_FIRE), (void *)h, of); }

@@ -443,8 +443,7 @@ internal void diplo_safe_point(void);   // diplo.c: queued surrenders
 internal void upgrade_stragglers(void); // defence.c: towers/walls/gates finished after their upgrade
 internal void sound_tick(uint32_t now);  // sound.c: sound_log
 internal void llm_tick(void);           // llm.c: the language model's answers
-internal long __fastcall hook_sim_receive(void *thread, void *edx, void *a, void *b, void *c) {
-    (void)edx;
+internal long __thiscall hook_sim_receive(void *thread, void *a, void *b, void *c) {
     diplo_safe_point();
     upgrade_stragglers();
     aim_tick();
@@ -467,8 +466,7 @@ internal BOOL patch_sim_loop(void) { return patch_sim_receive(hook_sim_receive);
 // timeout) - then runs up to 2 steps of 1000 * speed / 44 ms game time each. So the game speed only makes the
 // steps coarser; the sim thread itself idles most of the time. With turbo the wait returns at once and the
 // steps follow each other as fast as the CPU allows, same step size, same results.
-internal long __fastcall hook_sim_wait(void *ev, void *edx, unsigned long ms) {
-    (void)edx;
+internal long __thiscall hook_sim_wait(void *ev, unsigned long ms) {
     // only while steps are granted: otherwise a real (short) wait, so the client, server and pathfinding threads
     // the simulation waits for get the CPU instead of a spinning loop
     ee_physics *phys = game_physics();
@@ -495,8 +493,7 @@ internal long __fastcall hook_sim_wait(void *ev, void *edx, unsigned long ms) {
 // as before (logged).
 internal volatile LONG g_in_step, g_handed, g_handed_at_tick;
 internal server_send_fn g_srv_send_next;
-internal void __fastcall hook_srv_send(void *srv, void *edx, void *msg, int to) {
-    (void)edx;
+internal void __thiscall hook_srv_send(void *srv, void *msg, int to) {
     InterlockedIncrement(&g_handed);
     g_srv_send_next(srv, msg, to);
 }
@@ -506,8 +503,7 @@ internal void hook_server_send(void) {   // the server's send slot (with trace.c
     g_srv_send_next = patch_server_send(srv, hook_srv_send);
 }
 internal void (*g_step_after)(void *phys);   // trace.c: the sync trace's line after each step
-internal void __fastcall hook_phys_step(void *phys, void *edx) {
-    (void)edx;
+internal void __thiscall hook_phys_step(void *phys) {
     if (!g_srv_send_next) hook_server_send();
     InterlockedExchange(&g_in_step, 1);
     phys_step(phys);

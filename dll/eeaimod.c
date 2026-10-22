@@ -104,9 +104,7 @@ internal BOOL install_srand(void);
 #include "game/world.c"
 #include "ai/econ_rows.c"
 
-// __fastcall with a dummy edx parameter matches __thiscall for argument-less methods.
-internal char __fastcall hook_compute_targets(ee_resource_mgr *rm, void *edx) {
-    (void)edx;
+internal char __thiscall hook_compute_targets(ee_resource_mgr *rm) {
     log_state(rm, "pre_targets", game_time());
     char changed = rm_compute_targets(rm);
     if (!is_vanilla(rm_player(rm))) { econ_targets(rm); mine_fill(rm); cz_targets(rm); wf_targets(rm); ap_targets(rm); }   // mines.c: every mine slot; citizens.c
@@ -114,8 +112,7 @@ internal char __fastcall hook_compute_targets(ee_resource_mgr *rm, void *edx) {
     return changed;
 }
 
-internal char __fastcall hook_assign_citizens(ee_resource_mgr *rm, void *edx) {
-    (void)edx;
+internal char __thiscall hook_assign_citizens(ee_resource_mgr *rm) {
     if (is_vanilla(rm_player(rm))) {
         char r = rm_assign_citizens(rm);
         log_state(rm, "post_assign", game_time());
@@ -138,8 +135,7 @@ internal char __fastcall hook_assign_citizens(ee_resource_mgr *rm, void *edx) {
 // can sit at the same address - its settings were skipped, a hard AI kept the game's cheat)
 internal void *g_settings_done[16];
 // Called every AI tick; logs a heartbeat row per player every 10 s of game time.
-internal void __fastcall hook_rm_update(ee_resource_mgr *rm, void *edx, uint32_t now) {
-    (void)edx;
+internal void __thiscall hook_rm_update(ee_resource_mgr *rm, uint32_t now) {
     static uint32_t last[16];
     static uint8_t dumped[16];   // bit0: 10 s snapshot taken, bit1: 60 s snapshot taken
     ee_player *pl = rm_player(rm);
@@ -252,8 +248,7 @@ internal void log_rotate(void) {
 }
 
 internal int unit_types_load(void);   // unitnames.c
-internal char __fastcall hook_game_start(void *state, void *edx, ee_setup *setup, void *p2) {
-    (void)edx;
+internal char __thiscall hook_game_start(void *state, ee_setup *setup, void *p2) {
     char *name = FIELD(setup_map_name_at(setup), 4, char *);   // the UString's characters
     int mode = setup_get_mode(setup);
     log_rotate();

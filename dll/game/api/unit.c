@@ -85,10 +85,10 @@ typedef void (__cdecl *aim_hook)(ee_unit *u, ee_unit **target, float *aim, void 
 internal inline int patch_aim(aim_hook h) { return patch_call(GA(CALL_AIM), GA(FN_AIM), (void *)h); }
 internal inline int patch_missile_aim(aim_hook h) { return patch_call(GA(CALL_MISSILE_AIM), GA(FN_AIM), (void *)h); }
 
-typedef void (__fastcall *set_goal_hook)(ee_unit *u, void *edx, ee_goal *goal, int append, int prio);
+typedef void (__thiscall *set_goal_hook)(ee_unit *u, ee_goal *goal, int append, int prio);
 // the game's repair orders (the handing-over 0x46DA88: attack.c refuses them under attack)
 internal inline int patch_repair_goal(set_goal_hook h) { return patch_call(GA(CALL_REPAIR_GOAL), GA(FN_SET_GOAL), (void *)h); }
-typedef void (__fastcall *give_goal_hook)(ee_unit *u, void *edx, ee_goal *goal, int slot);
+typedef void (__thiscall *give_goal_hook)(ee_unit *u, ee_goal *goal, int slot);
 internal inline int patch_unload_retry_give(give_goal_hook h) { return patch_call(GA(CALL_UNLOAD_RETRY_GIVE), GA(FN_GIVE_GOAL), (void *)h); }
-typedef void (__fastcall *unit_release_hook)(ee_unit *u, void *edx);
+typedef void (__thiscall *unit_release_hook)(ee_unit *u);
 internal inline int patch_unit_release(unit_release_hook h) { return patch_vtable(GA(VT_COMPLEX_UNIT), GA(SLOT_UNIT_RELEASE), GA(FN_UNIT_RELEASE), (void *)h); }

@@ -574,7 +574,7 @@ internal void home_guard(ee_player *pl, unsigned idx, uint32_t now) {
     int req[4] = { type, target - home < 5 ? target - home : 5, 0, 0 };
     unsigned n = 0;
     g_hg_call = 1;
-    hook_train_units(um, NULL, req, (uintptr_t)&n);
+    hook_train_units(um, req, (uintptr_t)&n);
     g_hg_call = 0;
     g_home_trained[idx] += n;
     if (n) ai_say(pl, CHAT_GUARD, "[ai] home guard %d of %d, training %u more", home, target, n);
@@ -1029,8 +1029,7 @@ internal uint8_t *rb_find(uint8_t *map, unsigned key) {   // MSVC map: +4 head; 
     }
     return (res == head || key < FIELD(res, 0xC, unsigned)) ? NULL : res;
 }
-__attribute__((used)) int __fastcall hook_damage_points(ee_dmg_model *model, void *edx, int index, unsigned state) {
-    (void)edx;
+__attribute__((used)) int __thiscall hook_damage_points(ee_dmg_model *model, int index, unsigned state) {
     uint8_t *n = model ? rb_find(dmgmodel_map_at(model), state) : NULL, *sub = n ? FIELD(n, 0x10, uint8_t *) : NULL;
     if (n && (!sub || !FIELD(sub, 4, void *))) {
         static int logged;
@@ -1049,7 +1048,7 @@ __attribute__((used)) int __fastcall hook_damage_points(ee_dmg_model *model, voi
 }
 __attribute__((naked, used)) void damage_points_thunk(void) {
     __asm__("movl %esi, _g_dmg_unit\n\t"
-            "jmp @hook_damage_points@16");
+            "jmp _hook_damage_points");
 }
 
 internal void defence_install(const char *aimod_ini, const char *autotest_ini) {
@@ -1183,7 +1182,7 @@ internal void anti_air(ee_player *pl, unsigned idx, uint32_t now) {
             int req[4] = { g_ut[k_aa_units[k].type], n, 0, 0 };
             unsigned got = 0;
             g_priority_mil = 1;
-            hook_train_units(um, NULL, req, (uintptr_t)&got);
+            hook_train_units(um, req, (uintptr_t)&got);
             g_priority_mil = 0;
             if (!got) continue;
             g_aa_st[idx].trained += got;

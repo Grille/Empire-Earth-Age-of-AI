@@ -434,8 +434,7 @@ internal void fleet_kill(int k, ee_unit *dead, int n);   // fleet.c: which task 
 internal void fleet_lost(int v, ee_unit *dead);          // fleet.c: an own ship of a task force sunk
 internal void mass_death(ee_unit *dead);                 // mass.c: a land soldier killed - who stood by it
 internal void cover_death(ee_unit *dead, int k);         // cover.c: a military unit killed - its fight, its hit points
-__attribute__((used)) void __fastcall hook_kill_stat(uint8_t *stats, void *edx, int n, int d) {
-    (void)edx;
+__attribute__((used)) void __thiscall hook_kill_stat(uint8_t *stats, int n, int d) {
     ee_player *owner = g_kill_unit ? unit_get_owner(g_kill_unit) : NULL;
     if (stats && owner && (n == 2 || n == 3)) {
         int k = pidx(stats - 0x4A8), v = pidx(owner);
@@ -460,7 +459,7 @@ __attribute__((used)) void __fastcall hook_kill_stat(uint8_t *stats, void *edx, 
 }
 __attribute__((naked, used)) void kill_stat_thunk(void) {
     __asm__("movl %esi, _g_kill_unit\n\t"
-            "jmp @hook_kill_stat@16");
+            "jmp _hook_kill_stat");
 }
 // the strongest player the AI is at war with (or 0)
 internal int strongest_enemy(ee_player *pl, int ai) {
@@ -1560,8 +1559,7 @@ internal void diplo_tribute(void *to, void *from, const int *amount) {
     tell_event(0, 0, 0, 0);
     if (!stance_of(from, ai) && stance_of(to, j)) g_peace_due[ai][j] = game_time() + 3000;   // ask again now
 }
-internal void __fastcall hook_tribute(void *msg, void *edx) {
-    (void)edx;
+internal void __thiscall hook_tribute(void *msg) {
     int total = tribute_get_food(msg) + tribute_get_gold(msg) + tribute_get_iron(msg) + tribute_get_stone(msg) + tribute_get_wood(msg);
     int amount[7] = { 0, 0, tribute_get_food(msg), tribute_get_wood(msg), tribute_get_stone(msg), tribute_get_gold(msg), tribute_get_iron(msg) };
     void *to = player_at(tribute_get_to(msg));
@@ -1678,8 +1676,7 @@ internal void victory_off_pass(void) {   // auto_victory=0, every pass between s
 // every opponent has submitted gets the victory instead. Exit Game (EEUIEMGOEExitGame::vf1 0x5D0AFB, confirmed:
 // 0x5D0B4F, pushed at 0x5D0B2B) leaves without any result - in that situation it resigns instead, which ends the
 // game with the victory screen, the statistics and then the menu as usual.
-internal void __fastcall hook_resign(void *msg, void *edx) {
-    (void)edx;
+internal void __thiscall hook_resign(void *msg) {
     int8_t from = msg_get_from(msg);
     for (int i = 1; i < nplayers(); i++) {
         void *p = player_at(i);
@@ -1701,8 +1698,7 @@ internal void __cdecl hook_exit_confirm(void) {
     exit_confirm();
 }
 
-internal void __fastcall hook_ingame_chat(void *msg, void *edx) {
-    (void)edx;
+internal void __thiscall hook_ingame_chat(void *msg) {
     // chat runs on every PC: the claim goes by the sender (+0xA, as hook_resign), so every PC ends the game alike
     // (only the local player's own word claimed before - a multiplayer desync); the refusal line is the sender's only
     int me = (int)local_player_index(), from = 0;

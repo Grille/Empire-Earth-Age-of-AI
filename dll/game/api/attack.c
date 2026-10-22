@@ -110,17 +110,17 @@ internal inline int route_cost(ee_route_planner *planner, int *edge, ee_route_no
 
 // HOOKS
 // ATTACK GROUPS AND SUBGROUPS (attack.c, forces.c, landing.c)
-typedef char (__fastcall *unit_to_group_hook)(void *cmd, void *edx, ee_unit *u);
+typedef char (__thiscall *unit_to_group_hook)(void *cmd, ee_unit *u);
 internal inline int patch_unit_to_group(unit_to_group_hook h) { return patch_call(GA(CALL_UNIT_TO_GROUP), GA(FN_UNIT_TO_GROUP), (void *)h); }
-typedef void (__fastcall *group_stat_hook)(void *stats, void *edx, ee_unit *u);
+typedef void (__thiscall *group_stat_hook)(void *stats, ee_unit *u);
 internal inline int patch_group_stat(group_stat_hook h) { return patch_call(GA(CALL_GROUP_STAT), GA(FN_GROUP_STAT), (void *)h); }
 typedef void (__cdecl *range_sort_hook)(void **b, void **e, ee_unit *unit);
 internal inline int patch_range_sort(range_sort_hook h) { return patch_call(GA(CALL_RANGE_SORT), GA(FN_RANGE_SORT), (void *)h); }
-typedef void (__fastcall *asg_hook)(ee_attack_subgroup *sg, void *edx);
+typedef void (__thiscall *asg_hook)(ee_attack_subgroup *sg);
 // the subgroups' stats: the land subgroups' own, the others' (ASG_VTABLES)
 internal inline int patch_asg_land_stats(asg_hook h) { return patch_vtable(GA(VT_ASG_LAND), GA(SLOT_ASG_STATS), GA(FN_ASG_LAND_STATS), (void *)h); }
 internal inline int patch_asg_stats(asg_hook h, int *of) { return patch_vtables(PATCH_LIST(ASG_VTABLES), GA(SLOT_ASG_STATS), GA(FN_ASG_STATS), (void *)h, of); }
-typedef void (__fastcall *asg_update_hook)(ee_attack_subgroup *sg, void *edx, int now);
+typedef void (__thiscall *asg_update_hook)(ee_attack_subgroup *sg, int now);
 internal inline int patch_asg_update(asg_update_hook h) { return patch_vtable(GA(VT_ASG_LAND), GA(SLOT_ASG_UPDATE), GA(FN_ASG_UPDATE), (void *)h); }
 internal inline int patch_asg_sea_update(asg_update_hook h) { return patch_vtable(GA(VT_ASG_SEA), GA(SLOT_ASG_UPDATE), GA(FN_ASG_SEA_UPDATE), (void *)h); }
 internal inline int patch_asg_sea_transport_update(asg_update_hook h) {
@@ -128,7 +128,7 @@ internal inline int patch_asg_sea_transport_update(asg_update_hook h) {
 }
 internal inline int patch_asg_air_update(asg_update_hook h) { return patch_vtable(GA(VT_ASG_AIR), GA(SLOT_ASG_UPDATE), GA(FN_ASG_AIR_UPDATE), (void *)h); }
 // the subgroups' orders to a unit (vf57): sea transport, sea, land through h, air through h_air - of 4
-typedef char (__fastcall *asg_give_goal_hook)(ee_attack_subgroup *sg, void *edx, ee_unit *u, ee_goal *goal, int a, int prio);
+typedef char (__thiscall *asg_give_goal_hook)(ee_attack_subgroup *sg, ee_unit *u, ee_goal *goal, int a, int prio);
 internal inline int patch_asg_give_goal(asg_give_goal_hook h, asg_give_goal_hook h_air) {
     return patch_vtable(GA(VT_ASG_SEA_TRANSPORT), GA(SLOT_ASG_GIVE_GOAL), GA(FN_ASG_GIVE_GOAL), (void *)h) +
            patch_vtable(GA(VT_ASG_SEA), GA(SLOT_ASG_GIVE_GOAL), GA(FN_ASG_GIVE_GOAL), (void *)h) +
@@ -136,13 +136,13 @@ internal inline int patch_asg_give_goal(asg_give_goal_hook h, asg_give_goal_hook
            patch_vtable(GA(VT_ASG_AIR), GA(SLOT_ASG_GIVE_GOAL), GA(FN_ASG_AIR_GIVE_GOAL), (void *)h_air);
 }
 // a land subgroup's route and its arrival, the route planner's edge cost
-typedef void (__fastcall *asg_route_hook)(ee_attack_subgroup *sg, void *edx, int *start, int *dest);
+typedef void (__thiscall *asg_route_hook)(ee_attack_subgroup *sg, int *start, int *dest);
 internal inline int patch_asg_route(asg_route_hook h) { return patch_vtable(GA(VT_ASG_LAND), GA(SLOT_ASG_ROUTE), GA(FN_ASG_ROUTE), (void *)h); }
 internal inline int patch_asg_route_done(asg_hook h) { return patch_vtable(GA(VT_ASG_LAND), GA(SLOT_ASG_ROUTE_DONE), GA(FN_ASG_ROUTE_DONE), (void *)h); }
-typedef int (__fastcall *route_cost_hook)(ee_route_planner *planner, void *edx, int *edge, ee_route_node *node);
+typedef int (__thiscall *route_cost_hook)(ee_route_planner *planner, int *edge, ee_route_node *node);
 internal inline int patch_route_cost(route_cost_hook h) { return patch_vtable(GA(VT_ROUTE_PLANNER), GA(SLOT_ROUTE_COST), GA(FN_ROUTE_COST), (void *)h); }
 // the land members' score of an enemy (base, hero, priests and prophets: ASGU_VTABLES)
-typedef float (__fastcall *asgu_score_hook)(ee_asg_unit *member, void *edx, ee_asgu_info *info);
+typedef float (__thiscall *asgu_score_hook)(ee_asg_unit *member, ee_asgu_info *info);
 internal inline int patch_asgu_score(asgu_score_hook h, int *of) {
     return patch_vtables(PATCH_LIST(ASGU_VTABLES), GA(SLOT_ASGU_SCORE), GA(FN_ASGU_SCORE), (void *)h, of);
 }

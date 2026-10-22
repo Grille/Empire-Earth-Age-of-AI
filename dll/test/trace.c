@@ -28,8 +28,7 @@ internal void trace_emit(const char *line) {
 
 #define CALLER() ((uintptr_t)__builtin_return_address(0) - 5)
 
-internal void *__fastcall tr_find_food(ee_resource_mgr *rm, void *edx, uintptr_t a, uintptr_t b, ee_unit *u) {
-    (void)edx;
+internal void *__thiscall tr_find_food(ee_resource_mgr *rm, uintptr_t a, uintptr_t b, ee_unit *u) {
     void *r = rm_find_food(rm, a, b, u);
     if (tracing(rm)) {
         char buf[300];
@@ -43,8 +42,7 @@ internal void *__fastcall tr_find_food(ee_resource_mgr *rm, void *edx, uintptr_t
     return r;
 }
 
-internal void __fastcall tr_gather(ee_resource_mgr *rm, void *edx, ee_unit *u, ee_unit *t, int c) {
-    (void)edx;
+internal void __thiscall tr_gather(ee_resource_mgr *rm, ee_unit *u, ee_unit *t, int c) {
     if (tracing(rm)) {
         char buf[300];
         snprintf(buf, sizeof buf, "@%06x gather", (unsigned)CALLER());
@@ -55,8 +53,7 @@ internal void __fastcall tr_gather(ee_resource_mgr *rm, void *edx, ee_unit *u, e
     rm_assign_as(rm, u, t, c);
 }
 
-internal void *__fastcall tr_find_mine(ee_resource_mgr *rm, void *edx, int type, ee_unit *u, uintptr_t rev) {
-    (void)edx;
+internal void *__thiscall tr_find_mine(ee_resource_mgr *rm, int type, ee_unit *u, uintptr_t rev) {
     void *r = rm_find_mine(rm, (uintptr_t)type, u, rev);
     if (tracing(rm)) {
         char buf[300];
@@ -67,8 +64,7 @@ internal void *__fastcall tr_find_mine(ee_resource_mgr *rm, void *edx, int type,
     return r;
 }
 
-internal void *__fastcall tr_find_wood(ee_resource_mgr *rm, void *edx, uintptr_t f, ee_unit *u) {
-    (void)edx;
+internal void *__thiscall tr_find_wood(ee_resource_mgr *rm, uintptr_t f, ee_unit *u) {
     void *r = rm_find_wood(rm, f, u);
     if (tracing(rm)) {
         char buf[300];
@@ -79,8 +75,7 @@ internal void *__fastcall tr_find_wood(ee_resource_mgr *rm, void *edx, uintptr_t
     return r;
 }
 
-internal void *__fastcall tr_hunt(ee_resource_mgr *rm, void *edx, uintptr_t n, uintptr_t f, uintptr_t out) {
-    (void)edx;
+internal void *__thiscall tr_hunt(ee_resource_mgr *rm, uintptr_t n, uintptr_t f, uintptr_t out) {
     void *r = rm_hunt(rm, n, f, out);
     if (tracing(rm)) {
         char buf[200];
@@ -92,8 +87,7 @@ internal void *__fastcall tr_hunt(ee_resource_mgr *rm, void *edx, uintptr_t n, u
     return r;
 }
 
-internal void *__fastcall tr_farms(ee_resource_mgr *rm, void *edx, uintptr_t n, uintptr_t out) {
-    (void)edx;
+internal void *__thiscall tr_farms(ee_resource_mgr *rm, uintptr_t n, uintptr_t out) {
     void *r = rm_farms(rm, n, out);
     if (tracing(rm)) {
         char buf[200];
@@ -135,8 +129,7 @@ internal void trace_train(ee_player *pl, int *req, uintptr_t r, const int *befor
     trace_emit(buf);
 }
 
-internal uintptr_t __fastcall tr_train_citizens(ee_unit_mgr *um, void *edx, uintptr_t a) {
-    (void)edx;
+internal uintptr_t __thiscall tr_train_citizens(ee_unit_mgr *um, uintptr_t a) {
     ee_player *pl = um_player(um);
     int before[7];
     if (pl) memcpy(before, player_stock_at(pl), sizeof before);
@@ -179,8 +172,7 @@ internal unsigned g_sync_left;
 // sends rand() after srand(TMGetTime()) - hook_srand covers that - but the load-game and scenario starts (also a
 // test run's random map, which randmap.c makes from a -loadgame start) build it with TMGetTime() itself (0x522113,
 // 0x5D7A25, 0x5D8871, 0x65C955): there game_seed takes effect only here.
-internal void __fastcall hook_start_exec(void *msg, void *edx) {
-    (void)edx;
+internal void __thiscall hook_start_exec(void *msg) {
     if (g_auto.game_seed) start_msg_set_seed(msg, (unsigned)g_auto.game_seed);
     ee_physics *phys = game_physics(); ee_world *world = game_world();
     unsigned map_seed = world ? world_get_seed(world) : 0;
@@ -223,8 +215,7 @@ internal void sync_unit_dump(ee_unit *u, void *ctx) {
 // <S|thread>" - what goes into the next tick the server sends, and from where
 internal DWORD g_sync_tid;
 internal server_send_fn g_srv_send;
-internal void __fastcall sync_srv_send(void *srv, void *edx, void *msg, int to) {
-    (void)edx;
+internal void __thiscall sync_srv_send(void *srv, void *msg, int to) {
     uintptr_t ret = (uintptr_t)__builtin_return_address(0);
     DWORD tid = GetCurrentThreadId();
     EnterCriticalSection(&g_lock);

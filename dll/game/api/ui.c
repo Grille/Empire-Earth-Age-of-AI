@@ -59,12 +59,12 @@ internal inline const char *edit_text(void *edit) { return ((const char *(__this
 
 // HOOKS
 // the camera's scroll action (camera.c), and its timer's period: push 25 (AoC 10) ms -> value
-typedef void (__fastcall *scroll_hook)(ee_scroll *self, void *edx);
+typedef void (__thiscall *scroll_hook)(ee_scroll *self);
 internal inline int patch_scroll_execute(scroll_hook h) { return patch_vtable(GA(VT_SCROLL), GA(SLOT_SCROLL_EXECUTE), GA(FN_SCROLL_EXECUTE), (void *)h); }
 // the windowed mode's input (display.c): the mouse's update (its 4 calls), the cooperative level of Low-Level Engine's
 // input (push 5 -> push 6, exclusive -> non-exclusive: the mouse's Resume and the device setup), no minimize on focus
 // loss (je -> jmp)
-typedef void (__fastcall *mouse_update_hook)(ee_mouse *m, void *edx);
+typedef void (__thiscall *mouse_update_hook)(ee_mouse *m);
 internal inline int patch_mouse_update(mouse_update_hook h, int *of) { return patch_calls(PATCH_LIST(MOUSE_UPDATE_SITES), GA(FN_MOUSE_UPDATE), (void *)h, of); }
-typedef char (__fastcall *native_chat_hook)(ee_native_chat *pim, void *edx, int base, int ms);
+typedef char (__thiscall *native_chat_hook)(ee_native_chat *pim, int base, int ms);
 internal inline int patch_native_chat(native_chat_hook h, int *of) { return patch_calls(PATCH_LIST(NATIVE_CHAT_SITES), GA(FN_NATIVE_CHAT), (void *)h, of); }

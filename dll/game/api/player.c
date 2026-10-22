@@ -130,21 +130,21 @@ internal inline void cp_epoch_catch_up(ee_player *ai, ee_player *human) { GF(FN_
 // HOOKS
 // COMPUTER PLAYERS (econ.c)
 // the computer player's update (engine/scenario_ai.c: the scenario flag cleared meanwhile)
-typedef void (__fastcall *cp_update_hook)(ee_player *pl, void *edx, uint32_t now);
+typedef void (__thiscall *cp_update_hook)(ee_player *pl, uint32_t now);
 internal inline int patch_cp_update(cp_update_hook h) { return patch_call(GA(CALL_CP_UPDATE), GA(FN_CP_UPDATE), (void *)h); }
-typedef void (__fastcall *cp_pay_hook)(ee_player *pl, void *edx, void *what, int b, int c);
+typedef void (__thiscall *cp_pay_hook)(ee_player *pl, void *what, int b, int c);
 internal inline int patch_cp_pay(cp_pay_hook h) { return patch_vtable(GA(VT_COMPUTER_PLAYER), GA(SLOT_CP_PAY), GA(FN_CP_PAY), (void *)h); }
-typedef void (__fastcall *cp_add_resource_hook)(ee_player *pl, void *edx, int type, int amount);
+typedef void (__thiscall *cp_add_resource_hook)(ee_player *pl, int type, int amount);
 internal inline int patch_cp_add_resource(cp_add_resource_hook h) {
     return patch_vtable(GA(VT_COMPUTER_PLAYER), GA(SLOT_CP_ADD_RESOURCE), GA(FN_CP_ADD_RESOURCE), (void *)h);
 }
-typedef void (__fastcall *pop_cap_hook)(ee_player *pl, void *edx);
+typedef void (__thiscall *pop_cap_hook)(ee_player *pl);
 internal inline int patch_pop_cap(pop_cap_hook h, int *of) {
     const uint32_t sites[3] = { GA(CALL_POP_CAP_1), GA(CALL_POP_CAP_2), GA(CALL_POP_CAP_3) };
     return patch_calls(sites, 3, GA(FN_POP_CAP), (void *)h, of);
 }
-typedef void (__fastcall *epoch_catch_up_hook)(ee_player *ai, void *edx, ee_player *human);
+typedef void (__thiscall *epoch_catch_up_hook)(ee_player *ai, ee_player *human);
 internal inline int patch_epoch_catch_up(epoch_catch_up_hook h) { return patch_call(GA(CALL_EPOCH_CATCH_UP), GA(FN_EPOCH_CATCH_UP), (void *)h); }
 // the maintenance's deletion of units for room (the navy keeps its ships: fleet.c)
-typedef int (__fastcall *delete_for_room_hook)(ee_player *pl, void *edx, void *req, int flag);
+typedef int (__thiscall *delete_for_room_hook)(ee_player *pl, void *req, int flag);
 internal inline int patch_maint_delete(delete_for_room_hook h) { return patch_call(GA(CALL_NV_MAINT_DELETE), GA(FN_DELETE_FOR_ROOM), (void *)h); }

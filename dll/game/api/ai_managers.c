@@ -140,41 +140,41 @@ internal inline void *rm_hunt(ee_resource_mgr *rm, uintptr_t n, uintptr_t f, uin
 
 // HOOKS
 // the resource manager's turn (the wiring, eeaimod.c): its gatherer targets, its citizens' assignment, its update
-typedef char (__fastcall *rm_hook)(ee_resource_mgr *rm, void *edx);
+typedef char (__thiscall *rm_hook)(ee_resource_mgr *rm);
 internal inline int patch_rm_compute_targets(rm_hook h) { return patch_call(GA(CALL_COMPUTE_TARGETS), GA(FN_COMPUTE_TARGETS), (void *)h); }
 internal inline int patch_rm_assign_citizens(rm_hook h) { return patch_call(GA(CALL_ASSIGN_CITIZENS), GA(FN_ASSIGN_CITIZENS), (void *)h); }
-typedef void (__fastcall *rm_update_hook)(ee_resource_mgr *rm, void *edx, uint32_t now);
+typedef void (__thiscall *rm_update_hook)(ee_resource_mgr *rm, uint32_t now);
 internal inline int patch_rm_update(rm_update_hook h) { return patch_call(GA(CALL_RM_UPDATE), GA(FN_RM_UPDATE), (void *)h); }
-typedef char (__fastcall *place_hook)(ee_build_mgr *bm, void *edx, int type, int x, int y);
+typedef char (__thiscall *place_hook)(ee_build_mgr *bm, int type, int x, int y);
 internal inline int patch_place(place_hook h) { return patch_call(GA(CALL_PLACE), GA(FN_PLACE), (void *)h); }
-typedef uintptr_t (__fastcall *train_units_hook)(ee_unit_mgr *um, void *edx, int *req, uintptr_t b);
+typedef uintptr_t (__thiscall *train_units_hook)(ee_unit_mgr *um, int *req, uintptr_t b);
 internal inline int patch_train_units(train_units_hook h, int *of) { return patch_calls(PATCH_LIST(TRAIN_SITES), GA(FN_TRAIN_UNITS), (void *)h, of); }
-typedef int (__fastcall *citizens_wanted_hook)(ee_unit_mgr *um, void *edx);
+typedef int (__thiscall *citizens_wanted_hook)(ee_unit_mgr *um);
 internal inline int patch_citizens_wanted(citizens_wanted_hook h) { return patch_call(GA(CALL_CITIZENS_WANTED), GA(FN_UM_CITIZENS_WANTED), (void *)h); }
-typedef int (__fastcall *fish_type_hook)(ee_civ_mgr *cm, void *edx);
+typedef int (__thiscall *fish_type_hook)(ee_civ_mgr *cm);
 internal inline int patch_fish_type(fish_type_hook h, int *of) {
     const uint32_t sites[2] = { GA(CALL_FISH_TYPE_1), GA(CALL_FISH_TYPE_2) };
     return patch_calls(sites, 2, GA(FN_FISH_TYPE), (void *)h, of);
 }
 
 // THE RESOURCE MANAGER'S SEARCHES (sites.c)
-typedef void *(__fastcall *find_mine_hook)(ee_resource_mgr *rm, void *edx, int type, ee_unit *unit, uintptr_t rev);
+typedef void *(__thiscall *find_mine_hook)(ee_resource_mgr *rm, int type, ee_unit *unit, uintptr_t rev);
 internal inline int patch_find_mine(find_mine_hook h, int *of) { return patch_calls(PATCH_LIST(MINE_SITES), GA(FN_FIND_MINE), (void *)h, of); }
-typedef void *(__fastcall *find_food_hook)(ee_resource_mgr *rm, void *edx, uintptr_t need_drop, uintptr_t near_base, ee_unit *unit);
+typedef void *(__thiscall *find_food_hook)(ee_resource_mgr *rm, uintptr_t need_drop, uintptr_t near_base, ee_unit *unit);
 internal inline int patch_find_food(find_food_hook h, int *of) { return patch_calls(PATCH_LIST(FOOD_SITES), GA(FN_FIND_FOOD), (void *)h, of); }
-typedef void *(__fastcall *find_wood_hook)(ee_resource_mgr *rm, void *edx, uintptr_t flag, ee_unit *unit);
+typedef void *(__thiscall *find_wood_hook)(ee_resource_mgr *rm, uintptr_t flag, ee_unit *unit);
 internal inline int patch_find_wood(find_wood_hook h, int *of) { return patch_calls(PATCH_LIST(WOOD_SITES), GA(FN_FIND_WOOD), (void *)h, of); }
-typedef void *(__fastcall *farms_hook)(ee_resource_mgr *rm, void *edx, uintptr_t n, uintptr_t out);
+typedef void *(__thiscall *farms_hook)(ee_resource_mgr *rm, uintptr_t n, uintptr_t out);
 internal inline int patch_farms(farms_hook h, farms_hook unbuilt, int *of) {   // unbuilt NULL: the fields only
     if (of) *of += unbuilt ? 2 : 1;
     return patch_call(GA(CALL_FARMS), GA(FN_FARMS), (void *)h) + (unbuilt ? patch_call(GA(CALL_UNBUILT_FARMS), GA(FN_UNBUILT_FARMS), (void *)unbuilt) : 0);
 }
 // a citizen sent to work at a site (the calls of the assignment: GATHER_SITES), the citizens trained (trace.c)
-typedef void (__fastcall *gather_hook)(ee_resource_mgr *rm, void *edx, ee_unit *u, ee_unit *site, int c);
+typedef void (__thiscall *gather_hook)(ee_resource_mgr *rm, ee_unit *u, ee_unit *site, int c);
 internal inline int patch_gather(gather_hook h, int *of) { return patch_calls(PATCH_LIST(GATHER_SITES), GA(FN_ASSIGN_TO_SITE), (void *)h, of); }
-typedef uintptr_t (__fastcall *train_citizens_hook)(ee_unit_mgr *um, void *edx, uintptr_t a);
+typedef uintptr_t (__thiscall *train_citizens_hook)(ee_unit_mgr *um, uintptr_t a);
 internal inline int patch_train_citizens(train_citizens_hook h) { return patch_call(GA(CALL_TRAIN_CITIZENS), GA(FN_TRAIN_CITIZENS), (void *)h); }
-typedef void *(__fastcall *hunt_hook)(ee_resource_mgr *rm, void *edx, uintptr_t n, uintptr_t f, uintptr_t out);
+typedef void *(__thiscall *hunt_hook)(ee_resource_mgr *rm, uintptr_t n, uintptr_t f, uintptr_t out);
 internal inline int patch_hunt(hunt_hook h, int *of) {
     const uint32_t sites[2] = { GA(CALL_HUNT_1), GA(CALL_HUNT_2) };
     return patch_calls(sites, 2, GA(FN_HUNT), (void *)h, of);
