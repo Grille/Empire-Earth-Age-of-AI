@@ -49,9 +49,9 @@ EXCEPTIONS = [
 ]
 
 # THE FOLDERS AND FILES MOVED OVER to the typed game functions (game/api/functions.h: the calls, game/api/hooks.h: the hooks'
-# installers): GF, GA(FN_..), GA(CALL_..), GA(SLOT_..) or GL(..) there fails the build. When every folder outside
-# game/ is in it, the rule becomes "the game's functions only in game/".
-TYPED = ['ai/']
+# installers): GF, GA(FN_..), GA(CALL_..), GA(SLOT_..) or GL(..) there fails the build (game/api/ itself excepted).
+# When everything is in it, the rule becomes "the game's functions only in game/api/".
+TYPED = ['ai/', 'game/', 'eeaimod.c', 'persist.c']
 
 IDENT = re.compile(r'[A-Za-z_]\w*')
 # a declaration's attributes, written out or by base/'s macro (internal PRINTF_LIKE(1, 2) void f(...)): not its name
@@ -239,7 +239,7 @@ def main():
         for inc in re.findall(r'#include\s+"([^"]+)"', open(f, encoding='latin-1').read()):
             if inc not in ('../base/headless_win.c', '../base/lang.h'): bad.append('dinput/%s includes %s' % (os.path.basename(f), inc))
     # the files moved over to game/api/: the game's functions only through its typed wrappers
-    for f in (f for f in files if any(f == t or (t.endswith('/') and f.startswith(t)) for t in TYPED)):
+    for f in (f for f in files if not f.startswith('game/api/') and any(f == t or (t.endswith('/') and f.startswith(t)) for t in TYPED)):
         for m in re.finditer(r'\bGF\s*\(\s*(\w+)|\bGA\s*\(\s*((?:FN|CALL|SLOT)_\w+)|\bGL\s*\(\s*(\w+)', code[f]):
             bad.append('%s uses %s - moved over to game/api/functions.h and hooks.h: a wrapper or an installer there' % (f, m.group(1) or m.group(2) or m.group(3)))
     stale = [e for e in EXCEPTIONS if (e[0], e[1], e[2]) not in used]

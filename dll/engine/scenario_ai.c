@@ -6,7 +6,6 @@
 // at 0x42F3CD for active AIs), so triggers, civ selection and the rest of the game still see a scenario.
 internal int g_fix_scenario_ai = 1;    // aimod.ini [fixes] scenario_ai=0 turns it off
 internal uint8_t g_is_scenario;        // the flag as the game set it (it reads 0 inside the AI update)
-typedef void (__thiscall *CpUpdateFn)(ee_player *pl, uint32_t now);
 
 internal int is_vanilla(const ee_player *pl);   // below
 internal void __fastcall hook_cp_update(ee_player *pl, void *edx, uint32_t now) {
@@ -15,6 +14,6 @@ internal void __fastcall hook_cp_update(ee_player *pl, void *edx, uint32_t now) 
     uint8_t saved = *flag;
     g_is_scenario = saved;
     if (g_fix_scenario_ai && !is_vanilla(pl)) *flag = 0;
-    ((CpUpdateFn)GA(FN_CP_UPDATE))(pl, now);
+    cp_update(pl, now);
     *flag = saved;
 }

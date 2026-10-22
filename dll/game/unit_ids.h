@@ -61,7 +61,7 @@ internal int ut_has(int t) { return t >= 0; }   // a type to build or train: the
 // the unit manager's list of a type (0x48F8AF: its units and buildings of that type); NULL: no manager, or a type the
 // data hasn't got (UT_NONE never reaches the game)
 internal uint8_t *type_list(void *um, int type) {
-    return um && type >= 0 ? GF(FN_UM_TYPE_LIST)(um, type) : NULL;
+    return um && type >= 0 ? um_type_list(um, type) : NULL;
 }
 internal int ut_in(int t, const enum ut_name *set, int n) {   // t one of the named types (a set of UT_ names)
     for (int i = 0; i < n; i++) if (g_ut[set[i]] == t) return 1;

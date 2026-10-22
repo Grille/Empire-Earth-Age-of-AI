@@ -21,6 +21,9 @@ typedef struct ee_tech ee_tech;                 // TECH, TECHNODE, TECHCHILD: a 
 typedef struct ee_tech_data ee_tech_data;       // TECHDATA: a tech's data, TECH +0x8
 typedef struct ee_zone ee_zone;                 // ZONE: an AI town or resource zone
 
+// the game's UString (passed by value to some of its functions)
+struct ustring { uint8_t raw[16]; };
+
 // Kinds not typed yet (attack groups and subgroups, goals, messages, the game state's tables) are void * here.
 
 // THE GAME
@@ -57,6 +60,17 @@ internal inline void server_send_all(void *net, void *msg) {
 }
 // a statistics counter n of the stats object +d (the kill counter's original: diplo.c)
 internal inline void stat_add(void *stats, int n, int d) { GF(FN_STAT_ADD)(stats, n, d); }
+// the game's rand() (msvcrt's, through its import): the generator every PC of a game shares
+internal inline int game_rand(void) { return (*(int (__cdecl **)(void))GA(IAT_RAND))(); }
+
+// THE GAME'S RUN (the originals of the wiring's hooks: eeaimod.c, persist.c, test/autotest.c)
+// a game started from setup (EEGameState::Start, on the game state object)
+internal inline char game_start(void *state, void *setup, void *p2) { return ((char (__thiscall *)(void *, void *, void *))GA(FN_GAME_START))(state, setup, p2); }
+// the command line read (1: on to the main menu), a -loadgame save loaded
+internal inline char parse_cmdline(const char *cmd) { return ((char (__cdecl *)(const char *))GA(FN_PARSE_CMDLINE))(cmd); }
+internal inline int load_saved(void *name) { return ((int (__cdecl *)(void *))GA(FN_LOAD_SAVED))(name); }
+// the game saved as file in folder (0: saved; the folder is passed by value and destroyed)
+internal inline int save_game(void *file, int a, int b, struct ustring folder) { return GF(FN_SAVE_GAME)(file, a, b, folder); }
 
 // PLAYERS
 // the population: player +0xB10, with_list: and the units of its +0x18 list, with_aboard: and the units inside
@@ -85,10 +99,17 @@ internal inline void call_off_attacks(ee_player *pl, ee_player *target, int flag
 internal inline void revenge(void *combat_mgr, ee_player *target) { GF(FN_REVENGE)(combat_mgr, target); }
 // units of the player deleted to make room for req (the original of fleet.c's hook)
 internal inline int delete_for_room(ee_player *pl, void *req, int flag) { return GF(FN_DELETE_FOR_ROOM)(pl, req, flag); }
+// the game's unit limit for the player (EEPlayer::vf31(0) through the player's own vtable, as FN_GAME_LIMIT; it pops
+// its argument)
+internal inline int unit_limit(ee_player *pl) { return ((int (__thiscall *)(void *, int))(*(void ***)pl)[GA(SLOT_UNIT_LIMIT)])(pl, 0); }
+// does the game count the player as human (EEHumanPlayer's answers 1; FN_HUMAN_EPOCH's test)
+internal inline char player_is_human(ee_player *pl) { return ((char (__thiscall *)(void *))(*(void ***)pl)[GA(SLOT_PLAYER_HUMAN)])(pl); }
 
 // COMPUTER PLAYERS (the originals of econ.c's hooks)
 internal inline void cp_add_resource(ee_player *pl, int type, int amount) { GF(FN_CP_ADD_RESOURCE)(pl, type, amount); }
 internal inline void cp_pay(ee_player *pl, void *what, int b, int c) { GF(FN_CP_PAY)(pl, what, b, c); }
+// the computer player's update (EEComputerPlayer::Update - the original of engine/scenario_ai.c's hook)
+internal inline void cp_update(ee_player *pl, uint32_t now) { ((void (__thiscall *)(ee_player *, uint32_t))GA(FN_CP_UPDATE))(pl, now); }
 // the population cap that follows the humans, set every minute (player +0xCCC)
 internal inline void cp_update_pop_cap(ee_player *pl) { GF(FN_POP_CAP)(pl); }
 // the game's catch-up: ai's next epoch attempt redrawn soon when human is ahead
@@ -146,6 +167,11 @@ internal inline char bm_place(ee_build_mgr *bm, int type, int x, int y) { return
 internal inline char bm_queued(ee_build_mgr *bm, int type) { return GF(FN_BM_QUEUED)(bm, type); }
 // one building of type into the build manager's list (as the AI's own requests: (1, 0))
 internal inline void bm_request(ee_build_mgr *bm, int type) { GF(FN_BM_REQUEST)(bm, type, 1, 0); }
+// the resource manager's turn (the originals of the wiring's hooks, eeaimod.c): its gatherer targets computed (1: they
+// changed), its citizens assigned, its update
+internal inline char rm_compute_targets(ee_resource_mgr *rm) { return ((char (__thiscall *)(void *))GA(FN_COMPUTE_TARGETS))(rm); }
+internal inline char rm_assign_citizens(ee_resource_mgr *rm) { return ((char (__thiscall *)(void *))GA(FN_ASSIGN_CITIZENS))(rm); }
+internal inline void rm_update(ee_resource_mgr *rm, uint32_t now) { ((void (__thiscall *)(void *, uint32_t))GA(FN_RM_UPDATE))(rm, now); }
 // the citizen u to work at site (a resource, a field, a building)
 internal inline void rm_assign(ee_resource_mgr *rm, ee_unit *u, ee_unit *site) { GF(FN_ASSIGN_TO_SITE)(rm, u, site, 0); }
 // the unit manager's units of type: a std::deque of ee_unit *, NULL: none

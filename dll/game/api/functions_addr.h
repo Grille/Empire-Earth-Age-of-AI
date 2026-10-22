@@ -17,8 +17,10 @@
     /* thiscall(player, on player, 1): calls off its attack groups on that player */ \
     F(FN_CALL_OFF_ATTACK, void, __thiscall, (void *, void *, int), 0x0043033E, 0x0042DCA6) \
     F(FN_DELETE_FOR_ROOM, int, __thiscall, (void *, void *, int), 0x00430D40, 0x0042E851) \
+    F(FN_EPOCH_CATCH_UP, void, __thiscall, (void *, void *), 0x00431533, 0x0042F064) /* thiscall(computer player, human): the attempt redrawn soon when the human is ahead */ \
     /* EEComputerPlayer::vf45(cost object, ?, ?): pays a unit/building/tech */ \
     F(FN_CP_PAY, void, __thiscall, (void *, void *, int, int), 0x0043F53D, 0x0043ED98) \
+    D(FN_CP_UPDATE, 0x0043F91A, 0x0043F175) \
     F(FN_GIVE_GOAL, void, __thiscall, (void *, void *, int), 0x004412D4, 0x0043D416) /* thiscall(unit, goal, slot) */ \
     F(FN_ASG_AIR_GIVE_GOAL, char, __thiscall, (void *, void *, void *, int, int), 0x00442AD8, 0x00442220) \
     F(FN_ASG_AIR_UPDATE, void, __thiscall, (void *, int), 0x00442DBA, 0x0045019D) /* EECPASGAir slot 90: update(now) */ \
@@ -42,7 +44,6 @@
     F(FN_BQ_ADD, void, __thiscall, (void *, int *), 0x00468C37, 0x0046B798)   /* an entry into a build manager epoch queue */ \
     F(FN_FISH_TYPE, int, __thiscall, (void *), 0x0046D209, 0x0046FDD3) \
     F(FN_HUMAN_EPOCH, int, __cdecl, (void), 0x0046D436, 0x0047005A)           /* the highest epoch of the players SLOT_PLAYER_HUMAN says are human, 0 without */ \
-    F(FN_EPOCH_CATCH_UP, void, __thiscall, (void *, void *), 0x00431533, 0x0042F064) /* thiscall(computer player, human): the attempt redrawn soon when the human is ahead */ \
     F(FN_REVENGE, void, __thiscall, (void *, void *), 0x0046FFB7, 0x00472EC3) \
     F(FN_CM_UNIT_FREE, char, __thiscall, (void *, void *), 0x004707D8, 0x0047377E) /* thiscall(cm, unit state): in no group */ \
     F(FN_RS_SCHEDULE, void, __thiscall, (void *, int), 0x00485F57, 0x0048A79F) \
@@ -50,6 +51,7 @@
     F(FN_REQUEST_TECHS, void, __thiscall, (void *, int), 0x004860D6, 0x0048A91E) \
     /* thiscall(zone, type) -> first site of that type with amount > 0 */ \
     F(FN_ZONE_SITE, uint8_t *, __thiscall, (void *, int), 0x004886F2, 0x0048D065) \
+    D(FN_ASSIGN_CITIZENS, 0x0048A554, 0x0048EECF) \
     D(FN_HUNT, 0x0048BA3B, 0x00490458)                                        /* (count, flag, out list) */ \
     D(FN_FIND_FOOD, 0x0048BBA8, 0x00490602)                                   /* (char needDropsite, char nearBase, unit) -> site */ \
     D(FN_UNBUILT_FARMS, 0x0048BF4F, 0x004909D7) \
@@ -57,6 +59,8 @@
     D(FN_FIND_WOOD, 0x0048C060, 0x00490AF3)                                   /* (flag, unit) -> target */ \
     D(FN_FIND_MINE, 0x0048C204, 0x00490CB5)                                   /* (type, unit, reverse) -> site */ \
     F(FN_ASSIGN_TO_SITE, void, __thiscall, (void *, void *, void *, int), 0x0048C81C, 0x004912BE) /* (unit, target, 0) */ \
+    D(FN_COMPUTE_TARGETS, 0x0048D0A2, 0x00491B78) \
+    D(FN_RM_UPDATE, 0x0048D263, 0x00491D34) \
     F(FN_TABLE_VALUE, unsigned, __thiscall, (void *, int), 0x0048E817, 0x004CD4B3) \
     D(FN_UM_PENDING, 0x0048E9D8, 0x00493696)                                  /* thiscall(unit manager, type) */ \
     D(FN_UM_IN_PRODUCTION, 0x0048EA2E, 0x004936EC)                            /* thiscall(unit manager, type) */ \
@@ -77,11 +81,15 @@
     F(FN_DAMAGE_POINTS, int, __thiscall, (void *, int, unsigned), 0x004D291F, 0x004D84EC) \
     /* thiscall(G_BONUS_TABLE, weapon kind, target type data, attacker, target player) */ \
     F(FN_ATTACK_BONUS, float, __thiscall, (void *, int, void *, int, int), 0x004D5F2C, 0x004DBE44) \
+    D(FN_LOAD_SAVED, 0x00521F94, 0x0052CB90) \
+    D(FN_PARSE_CMDLINE, 0x00522A36, 0x0052D703) \
+    D(FN_GAME_START, 0x0052599B, 0x005306F2) \
     F(FN_SET_STANCE, void, __thiscall, (void *, int, int, int), 0x0052D5D7, 0x005384DD) \
     /* thiscall(G_GAME_STATE, char won, index) */ \
     F(FN_GAME_PLAYER_OUT, void, __thiscall, (void *, int, int), 0x0052E2B7, 0x005391F2) \
     F(FN_SITE_GATHERERS, unsigned, __thiscall, (void *, void *), 0x0052E5F7, 0x00539532) \
     F(FN_GAME_PLAYER, void *, __thiscall, (void *, int), 0x0052E6EF, 0x00539670) /* thiscall(G_GAME_STATE, index) */ \
+    F(FN_SAVE_GAME, int, __cdecl, (void *, int, int, struct ustring), 0x00540ACA, 0x0054D066) \
     /* thiscall(player, type, 0x20, 0): can train or build one now */ \
     F(FN_CAN_BUILD, char, __thiscall, (void *, int, int, int), 0x00555710, 0x005639E8) \
     F(FN_POPULATION, int, __thiscall, (void *, int, int), 0x00556E11, 0x005651E0) /* thiscall(player, 1, 0) */ \
@@ -120,6 +128,7 @@
     F(FN_UNIT_CONVERT, int, __cdecl, (void *, int, uint32_t), 0x0062F192, 0x00644E95) \
     F(FN_RANGE_SORT, void, __cdecl, (void **, void **, void *), 0x0063A355, 0x006509AF) \
     F(FN_NEW, void *, __cdecl, (size_t), 0x00683718, 0x0069D178)              /* the game's operator new */ \
+    D(IAT_RAND, 0x00824648, 0x0083863C)                                       /* the game's rand */ \
 
 
 #define ADDR_NUMBERS_FUNCTIONS(D) \
@@ -127,6 +136,8 @@
     D(SLOT_GOAL_PART, 4, 4)             /* EEUGLoadTransport: a unit's part of the load goal */ \
     D(SLOT_SERVER_SEND, 6, 6)           /* [G_SERVER] (EEServer, EEClient): thiscall(net, message, 0xFF) */ \
     D(SLOT_TYPE_ASSIGN, 29, 29)         /* EEUnitClass: thiscall(type data, unit), as the game's goal assignment */ \
+    D(SLOT_PLAYER_HUMAN, 29, 29)        /* EEPlayer: char thiscall(player) - human (EEHumanPlayer's returns 1; FN_HUMAN_EPOCH's test) */ \
+    D(SLOT_UNIT_LIMIT, 31, 31)          /* EEPlayer: int thiscall(player, 0), the unit limit (FN_GAME_LIMIT) */ \
 
 
 #define ADDR_LISTS_FUNCTIONS(L) \

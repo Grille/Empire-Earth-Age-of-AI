@@ -126,7 +126,7 @@ internal int __cdecl hook_save_game(void *file, int a, int b, struct ustring fol
     const char *fp = file ? FIELD(file, 4, const char *) : NULL, *dp = FIELD(folder.raw, 4, const char *);
     if (fp) lstrcpynA(fname, fp, MAX_PATH);
     if (dp) lstrcpynA(dname, dp, MAX_PATH);
-    int r = GF(FN_SAVE_GAME)(file, a, b, folder);
+    int r = save_game(file, a, b, folder);
     if (g_log) fprintf(g_log, "# persist: game saved as \"%s\" in \"%s\" (result %d)\n", fname, dname, r);
     if (!r && g_persist && fname[0]) persist_write(dname, fname);   // 0 = saved (else the error dialog 0x65C6A9)
     return r;
@@ -191,16 +191,6 @@ internal void persist_load(const char *name) {
 internal void persist_install(const char *ini, const char *test_ini) {
     g_persist = ini_int("general", "save_state", 1, ini);
     if (test_ini) g_persist = ini_int("autotest", "save_state", g_persist, test_ini);
-    uint8_t *base = (uint8_t *)GetModuleHandleA(NULL);
-    IMAGE_NT_HEADERS *nt = (IMAGE_NT_HEADERS *)(base + ((IMAGE_DOS_HEADER *)base)->e_lfanew);
-    IMAGE_SECTION_HEADER *sec = IMAGE_FIRST_SECTION(nt);
-    int sites = 0;
-    for (int s = 0; s < nt->FileHeader.NumberOfSections; s++, sec++) {
-        if (memcmp(sec->Name, ".text", 6)) continue;   // flagged as data like every section of this exe
-        uint8_t *p = base + sec->VirtualAddress, *e = p + sec->Misc.VirtualSize - 5;
-        for (; p < e; p++)
-            if (*p == 0xE8 && (uintptr_t)p + 5 + *(int32_t *)(p + 1) == GA(FN_SAVE_GAME))
-                sites += patch_call((uintptr_t)p, GA(FN_SAVE_GAME), (void *)hook_save_game);
-    }
+    int sites = patch_save_game(hook_save_game);
     if (g_log) fprintf(g_log, "# persist: save_state=%d, save hooks %d/4\n", g_persist, sites);
 }

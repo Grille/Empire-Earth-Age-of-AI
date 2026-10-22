@@ -9,7 +9,6 @@ internal uint32_t g_rnd_game = 0x2545F491u;
 internal int g_mp, g_mp_seeded;   // g_mp: more than one human in the setup (persona_new_game)
 internal uint32_t rnd_game32(void) {
     if (g_mp && !g_mp_seeded) {
-        int (__cdecl *game_rand)(void) = *(int (__cdecl **)(void))GA(IAT_RAND);
         int a = game_rand(), b = game_rand();
         g_rnd_game = ((uint32_t)a << 15 ^ (uint32_t)b) * 2654435761u ^ 0x2545F491u;
         if (!g_rnd_game) g_rnd_game = 1;

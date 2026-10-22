@@ -47,8 +47,6 @@ internal BOOL skip_intro_movies(void) {
 }
 
 // Diagnostics for the game's own command-line handling (both __cdecl).
-typedef char (__cdecl *ParseFn)(const char *);
-typedef int (__cdecl *LoadFn)(void *);
 
 // A test slot's own network ports: the engine's network server - a single-player game runs through it too - binds UDP
 // 33334 and TCP 33335 (push/mov immediates in TCP Protocol.dll). A second game can't, NEProtocol::Publish fails and
@@ -77,14 +75,14 @@ internal void slot_ports(void) {
 internal char __cdecl hook_parse_cmdline(const char *cmd) {
     slot_ports();
     log_line("# cmdline parse: \"%s\"\n", cmd ? cmd : "(null)");
-    char r = ((ParseFn)GA(FN_PARSE_CMDLINE))(cmd);
+    char r = parse_cmdline(cmd);
     log_line("# cmdline parse returned %d (1 = continue to main menu)\n", r);
     return r;
 }
 
 internal int __cdecl hook_load_saved(void *name) {
     log_line("# cmdline loadgame: calling loader\n");
-    int r = ((LoadFn)GA(FN_LOAD_SAVED))(name);
+    int r = load_saved(name);
     log_line("# cmdline loadgame: loader returned %d\n", r);
     return r;
 }

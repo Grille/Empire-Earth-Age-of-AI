@@ -34,8 +34,6 @@ struct ustring;
 #include "game/random.c"
 #include "voice/say.h"   // the AI's door to what it says (voice/)
 
-typedef char (__thiscall *RmFn)(void *self);
-typedef void (__thiscall *RmUpdateFn)(void *self, uint32_t now);
 
 internal void autotest_tick(uint32_t now);
 internal volatile int g_rm_seen;   // an AI resource manager has ticked (else the sim loop drives autotest_tick)
@@ -117,7 +115,7 @@ internal BOOL patch_srand(void);
 internal char __fastcall hook_compute_targets(ee_resource_mgr *rm, void *edx) {
     (void)edx;
     log_state(rm, "pre_targets", game_time());
-    char changed = ((RmFn)GA(FN_COMPUTE_TARGETS))(rm);
+    char changed = rm_compute_targets(rm);
     if (!is_vanilla(rm_player(rm))) { econ_targets(rm); mine_fill(rm); cz_targets(rm); wf_targets(rm); ap_targets(rm); }   // mines.c: every mine slot; citizens.c
     log_state(rm, "post_targets", game_time());
     return changed;
@@ -126,14 +124,14 @@ internal char __fastcall hook_compute_targets(ee_resource_mgr *rm, void *edx) {
 internal char __fastcall hook_assign_citizens(ee_resource_mgr *rm, void *edx) {
     (void)edx;
     if (is_vanilla(rm_player(rm))) {
-        char r = ((RmFn)GA(FN_ASSIGN_CITIZENS))(rm);
+        char r = rm_assign_citizens(rm);
         log_state(rm, "post_assign", game_time());
         return r;
     }
     econ_fields(rm);   // farm fields (econ.c)
     citizens_safety(rm);   // away from known enemy towers (attack.c)
     food_hunt(rm);   // idle citizens to animals (food.c)
-    char r = ((RmFn)GA(FN_ASSIGN_CITIZENS))(rm);
+    char r = rm_assign_citizens(rm);
     econ_rebalance(rm);
     food_pull(rm);   // gatherers back to food (food.c)
     log_state(rm, "post_assign", game_time());
@@ -147,7 +145,7 @@ internal char __fastcall hook_assign_citizens(ee_resource_mgr *rm, void *edx) {
 // can sit at the same address - its settings were skipped, a hard AI kept the game's cheat)
 internal void *g_settings_done[16];
 // Called every AI tick; logs a heartbeat row per player every 10 s of game time.
-internal void __fastcall hook_rm_update(void *rm, void *edx, uint32_t now) {
+internal void __fastcall hook_rm_update(ee_resource_mgr *rm, void *edx, uint32_t now) {
     (void)edx;
     static uint32_t last[16];
     static uint8_t dumped[16];   // bit0: 10 s snapshot taken, bit1: 60 s snapshot taken
@@ -192,7 +190,7 @@ internal void __fastcall hook_rm_update(void *rm, void *edx, uint32_t now) {
             log_state(rm, "tick", now);
         }
     }
-    ((RmUpdateFn)GA(FN_RM_UPDATE))(rm, now);
+    rm_update(rm, now);
     if (pl && is_vanilla(pl)) vanilla_tick(pl, now);   // the game's own AI: only the mod's log lines (attack.c)
     else if (pl) { intel_tick(pl, now); econ_tick(pl, now); attack_tick(pl, now); assault_tick(pl, now); landing_tick(pl, now); navy_tick(pl, now);
                 wf_tick(pl, now); army_plan_tick(pl, (unsigned)FIELD(pl, PL_INDEX, int) & 15, now); }
@@ -216,7 +214,6 @@ internal void __fastcall hook_rm_update(void *rm, void *edx, uint32_t now) {
 // is switched to the scenario path, loading Scenarios\<name>.scn - the path where editor scenarios break.
 #define SETUP_MODE      0x3D8
 #define SETUP_NAME      0x3AC
-typedef char (__thiscall *GameStartFn)(void *state, void *setup, void *p2);
 
 // aimod_econ.csv in normal play: over 20 MB at the start of a session or a game (a long game writes ~10 MB), it
 // becomes aimod_econ.old.csv (the older one deleted) and a new log starts - it was appended to forever. Autotest
@@ -327,7 +324,7 @@ internal char __fastcall hook_game_start(void *state, void *edx, uint8_t *setup,
     assault_new_game();
     sites_new_game();
     if (mode == 2) persist_load(name);   // a saved game: the mod's state from its .aimod file
-    char r = ((GameStartFn)GA(FN_GAME_START))(state, setup, p2);
+    char r = game_start(state, setup, p2);
     log_line("# game start returned %d\n", r);
     return r;
 }
@@ -516,17 +513,17 @@ internal void install(HMODULE self) {
         fprintf(g_log, "# game settings: %s\n", gs);
     }
 
-    BOOL a = patch_call(GA(CALL_COMPUTE_TARGETS), GA(FN_COMPUTE_TARGETS), hook_compute_targets);
-    BOOL b = patch_call(GA(CALL_ASSIGN_CITIZENS), GA(FN_ASSIGN_CITIZENS), hook_assign_citizens);
-    BOOL c = patch_call(GA(CALL_RM_UPDATE), GA(FN_RM_UPDATE), hook_rm_update);
-    BOOL f = patch_call(GA(CALL_CP_UPDATE), GA(FN_CP_UPDATE), hook_cp_update);
-    BOOL gs = patch_call(GA(CALL_GAME_START), GA(FN_GAME_START), hook_game_start);   // also personalities: always
+    BOOL a = patch_rm_compute_targets(hook_compute_targets);
+    BOOL b = patch_rm_assign_citizens(hook_assign_citizens);
+    BOOL c = patch_rm_update(hook_rm_update);
+    BOOL f = patch_cp_update(hook_cp_update);
+    BOOL gs = patch_game_start(hook_game_start);   // also personalities: always
     if (g_log) {
         fprintf(g_log, "# eeaimod loaded: hook targets=%s assign=%s update=%s\n",
                 a ? "ok" : "FAILED", b ? "ok" : "FAILED", c ? "ok" : "FAILED");
         fprintf(g_log, "# fix scenario_ai: %s (hook %s)\n", g_fix_scenario_ai ? "on" : "off", f ? "ok" : "FAILED");
-        BOOL d = patch_call(GA(CALL_PARSE_CMDLINE), GA(FN_PARSE_CMDLINE), hook_parse_cmdline);
-        BOOL e = patch_call(GA(CALL_LOAD_SAVED), GA(FN_LOAD_SAVED), hook_load_saved);
+        BOOL d = patch_parse_cmdline(hook_parse_cmdline);
+        BOOL e = patch_load_saved(hook_load_saved);
         fprintf(g_log, "# game start hook: %s\n", gs ? "ok" : "FAILED");
         fprintf(g_log, "# cmdline hooks: parse=%s load=%s\n", d ? "ok" : "FAILED", e ? "ok" : "FAILED");
         if (g_autotest)

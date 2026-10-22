@@ -22,6 +22,22 @@ internal inline int patch_vtables(const uint32_t *vts, size_t n, int slot, uintp
 }
 #define PATCH_LIST(L) GL(L), sizeof GL(L) / sizeof *GL(L)
 
+// every call of fn in the exe's code (E8 rel32 to it in .text): for a function called from many places
+internal inline int patch_all_calls(uintptr_t fn, void *hook) {
+    uint8_t *base = (uint8_t *)GetModuleHandleA(NULL);
+    IMAGE_NT_HEADERS *nt = (IMAGE_NT_HEADERS *)(base + ((IMAGE_DOS_HEADER *)base)->e_lfanew);
+    IMAGE_SECTION_HEADER *sec = IMAGE_FIRST_SECTION(nt);
+    int sites = 0;
+    for (int s = 0; s < nt->FileHeader.NumberOfSections; s++, sec++) {
+        if (memcmp(sec->Name, ".text", 6)) continue;   // flagged as data like every section of this exe
+        uint8_t *p = base + sec->VirtualAddress, *e = p + sec->Misc.VirtualSize - 5;
+        for (; p < e; p++)
+            if (*p == 0xE8 && (uintptr_t)p + 5 + *(int32_t *)(p + 1) == fn)
+                sites += patch_call((uintptr_t)p, fn, hook);
+    }
+    return sites;
+}
+
 // WHICH CALL A HOOK CAME FROM: at = its return address - 5 (the call instruction); the index in the list, -1: none
 internal inline int site_index(const uint32_t *sites, size_t n, uintptr_t at) {
     for (size_t i = 0; i < n; i++)
@@ -34,7 +50,21 @@ internal inline int unload_site(uintptr_t at) { return site_index(PATCH_LIST(UNL
 internal inline uintptr_t unload_site_at(int i) { return GL(UNLOAD_SITES)[i]; }
 internal inline int unload_from_rm(uintptr_t at) { return at == GA(CALL_UNLOAD_RM); }   // the resource manager's ferry
 
+// THE GAME'S RUN (the wiring: eeaimod.c, persist.c; test/autotest.c's command line)
+typedef char (__fastcall *game_start_hook)(void *state, void *edx, uint8_t *setup, void *p2);
+internal inline int patch_game_start(game_start_hook h) { return patch_call(GA(CALL_GAME_START), GA(FN_GAME_START), (void *)h); }
+typedef char (__cdecl *parse_cmdline_hook)(const char *cmd);
+internal inline int patch_parse_cmdline(parse_cmdline_hook h) { return patch_call(GA(CALL_PARSE_CMDLINE), GA(FN_PARSE_CMDLINE), (void *)h); }
+typedef int (__cdecl *load_saved_hook)(void *name);
+internal inline int patch_load_saved(load_saved_hook h) { return patch_call(GA(CALL_LOAD_SAVED), GA(FN_LOAD_SAVED), (void *)h); }
+// the game saved (every call of it: 4)
+typedef int (__cdecl *save_game_hook)(void *file, int a, int b, struct ustring folder);
+internal inline int patch_save_game(save_game_hook h) { return patch_all_calls(GA(FN_SAVE_GAME), (void *)h); }
+
 // COMPUTER PLAYERS (econ.c)
+// the computer player's update (engine/scenario_ai.c: the scenario flag cleared meanwhile)
+typedef void (__fastcall *cp_update_hook)(ee_player *pl, void *edx, uint32_t now);
+internal inline int patch_cp_update(cp_update_hook h) { return patch_call(GA(CALL_CP_UPDATE), GA(FN_CP_UPDATE), (void *)h); }
 typedef void (__fastcall *cp_pay_hook)(ee_player *pl, void *edx, void *what, int b, int c);
 internal inline int patch_cp_pay(cp_pay_hook h) { return patch_vtable(GA(VT_COMPUTER_PLAYER), GA(SLOT_CP_PAY), GA(FN_CP_PAY), (void *)h); }
 typedef void (__fastcall *cp_add_resource_hook)(ee_player *pl, void *edx, int type, int amount);
@@ -59,6 +89,12 @@ typedef int (__fastcall *tech_grant_hook)(ee_tech *t, void *edx);
 internal inline int patch_tech_grant(tech_grant_hook h) { return patch_vtable(GA(VTS_TECH_RESEARCHED), 0, GA(FN_TECH_GRANT), (void *)h); }
 
 // THE AI'S MANAGERS
+// the resource manager's turn (the wiring, eeaimod.c): its gatherer targets, its citizens' assignment, its update
+typedef char (__fastcall *rm_hook)(ee_resource_mgr *rm, void *edx);
+internal inline int patch_rm_compute_targets(rm_hook h) { return patch_call(GA(CALL_COMPUTE_TARGETS), GA(FN_COMPUTE_TARGETS), (void *)h); }
+internal inline int patch_rm_assign_citizens(rm_hook h) { return patch_call(GA(CALL_ASSIGN_CITIZENS), GA(FN_ASSIGN_CITIZENS), (void *)h); }
+typedef void (__fastcall *rm_update_hook)(ee_resource_mgr *rm, void *edx, uint32_t now);
+internal inline int patch_rm_update(rm_update_hook h) { return patch_call(GA(CALL_RM_UPDATE), GA(FN_RM_UPDATE), (void *)h); }
 typedef char (__fastcall *place_hook)(ee_build_mgr *bm, void *edx, int type, int x, int y);
 internal inline int patch_place(place_hook h) { return patch_call(GA(CALL_PLACE), GA(FN_PLACE), (void *)h); }
 typedef uintptr_t (__fastcall *train_units_hook)(ee_unit_mgr *um, void *edx, int *req, uintptr_t b);

@@ -32,13 +32,11 @@ internal const struct exe_build { uint32_t hash; const char *name; int ready; } 
     F(FN_POINT_SET, void, __thiscall, (void *, int *), 0x0040D29D, 0x0044D28B) \
     /* the area object at a tile (thiscall on the map areas G_MAP_AREAS) */ \
     F(FN_AREA_AT, uint8_t *, __thiscall, (void *, int *), 0x00425F16, 0x00422AD9) \
-    D(CALL_CP_UPDATE, 0x0042F3CD, 0x0042CDD1) \
     D(CALL_TRAIN_CITIZENS, 0x00430740, 0x0042E23C)                            /* a call of FN_TRAIN_CITIZENS */ \
     /* EEComputerPlayer::AdjustCost (vf27): a price with the cheat */ \
     F(FN_ADJUST_COST, int, __thiscall, (void *, int), 0x00430FBD, 0x0042EACE) \
     /* thiscall(player, now): the next attack time (+0xED8) */ \
     F(FN_SCHEDULE_ATTACK, void, __thiscall, (void *, uint32_t), 0x0043DD2F, 0x0043D4CD) \
-    D(FN_CP_UPDATE, 0x0043F91A, 0x0043F175) \
     D(FN_ADD_MOVIE, 0x00441432, 0x00440E57)                                   /* __thiscall, ret 4 */ \
     F(FN_TASK_CTOR, void, __thiscall, (void *), 0x00441FB3, 0x0044162F)       /* an attack task */ \
     F(FN_TASK_SET_TARGET, void, __thiscall, (void *, void *), 0x00442246, 0x00441912) \
@@ -49,7 +47,6 @@ internal const struct exe_build { uint32_t hash; const char *name; int ready; } 
     F(FN_ATTACK_GROUP_NEW, uint8_t *, __thiscall, (void *, void *, void *, void *), 0x0045106C, 0x00451D8E) \
     D(CALL_ASG_QUEUE_POP, 0x0045BDA2, 0x0045D974)                            /* the other subgroups' vf85 (0x45BD56): the waiting units' pop */ \
     F(FN_SET_EPOCH_TIME, void, __thiscall, (void *, uint32_t, char), 0x0046DE8C, 0x00470B04) /* SetNextEpochAdvanceTime */ \
-    D(CALL_RM_UPDATE, 0x0046E3C6, 0x00471051)                                 /* call EECPResourceManager::Update(now)              (0x48D263) */ \
     /* thiscall(cm, task, strategy, unit ids) */ \
     F(FN_ATTACK_PLAN_OK, char, __thiscall, (void *, void *, void *, void *), 0x0047067A, 0x0047360A) \
     F(FN_STRATEGY_CTOR, void, __thiscall, (void *), 0x00473BC4, 0x00477084) \
@@ -60,18 +57,12 @@ internal const struct exe_build { uint32_t hash; const char *name; int ready; } 
     D(FN_ASG_QUEUE_POP, 0x00482028, 0x0048655C)                              /* thiscall(queue): releases the front unit, removes it */ \
     F(FN_NATIVE_CHAT, char, __thiscall, (void *, int, int), 0x00484EB3, 0x0048966C) \
     D(LEFTOVER_SITE_END, 0x0048A2B9, 0x0048EC34)                              /* call sites below this are in the leftover pass 0x48A1AE */ \
-    D(FN_ASSIGN_CITIZENS, 0x0048A554, 0x0048EECF) \
-    D(FN_COMPUTE_TARGETS, 0x0048D0A2, 0x00491B78) \
-    D(FN_RM_UPDATE, 0x0048D263, 0x00491D34) \
-    D(CALL_COMPUTE_TARGETS, 0x0048D347, 0x00491E18)                           /* call EECPResourceManager::ComputeGathererTargets (0x48D0A2) */ \
-    D(CALL_ASSIGN_CITIZENS, 0x0048D36A, 0x00491E3B)                           /* call EECPResourceManager::AssignCitizens        (0x48A554) */ \
     F(FN_TRAIN_CITIZENS, uintptr_t, __thiscall, (void *, uintptr_t), 0x0048EE84, 0x00493B97) \
     /* EEMSelectUnits: thiscall(msg, rect, type, 0x4E) */ \
     F(FN_SELECT_MSG_INIT, void, __thiscall, (void *, void *, int, int), 0x004BD072, 0x004C5D7F) \
     D(CALL_SEL_PACK, 0x004BD133, 0x004C5E40) \
     F(FN_SEL_PACK, unsigned, __cdecl, (void *, uint32_t, uint8_t *), 0x004BD15A, 0x004C5E67) \
     D(START_EXEC, 0x004BEE57, 0x004C7CDC) \
-    D(CALL_GAME_START, 0x004CEC14, 0x004D4443) \
     F(FN_DRAW_REC_CTOR, void, __thiscall, (void *), 0x00506442, 0x005118E9)   /* a draw list record */ \
     D(FN_MOUSE_CLAMP, 0x00510DAD, 0x0051B31C) \
     D(FN_MOUSE_UPDATE, 0x00510E5D, 0x0051B3CC) \
@@ -80,17 +71,11 @@ internal const struct exe_build { uint32_t hash; const char *name; int ready; } 
     F(FN_CAMERA_MOVE, void, __thiscall, (void *, float, float), 0x0051E2E6, 0x00528EA5) \
     /* thiscall([G_CHEAT_PARSER], UWideString *, int *code, int *arg) */ \
     F(FN_CHEAT_PARSE, void, __thiscall, (void *, void *, int *, int *), 0x00520A17, 0x0052B5D6) \
-    D(FN_LOAD_SAVED, 0x00521F94, 0x0052CB90) \
-    D(FN_PARSE_CMDLINE, 0x00522A36, 0x0052D703) \
-    D(CALL_LOAD_SAVED, 0x00522BF8, 0x0052D8F9)                                /* call LoadSavedGameFromCmdline(UString *) 0x521F94 */ \
-    D(FN_GAME_START, 0x0052599B, 0x005306F2) \
     D(CALL_PLAYER_COLOR, 0x005262E4, 0x00531057) \
     F(FN_COLOR_RGB, void *, __cdecl, (unsigned), 0x00526B85, 0x005318BD) \
     F(FN_SETTINGS_SAVE, void, __thiscall, (void *), 0x0052AA81, 0x00535943)   /* every setting into the registry */ \
     D(CODE_SPLASH_START_JNE, 0x00534400, 0x0053F2FE)                          /* the loading splash's start (jne) */ \
     D(CODE_SPLASH_STOP_JNE, 0x0053443D, 0x0053F33B)                           /* the loading splash's stop (jne) */ \
-    D(CALL_PARSE_CMDLINE, 0x00535EF2, 0x005410C8)                             /* call ParseCommandLine(const char *) 0x522A36 */ \
-    F(FN_SAVE_GAME, int, __cdecl, (void *, int, int, struct ustring), 0x00540ACA, 0x0054D066) \
     F(FN_PHYS_STEP, void, __thiscall, (void *), 0x00546C63, 0x00553082) \
     D(CALL_MISSILE_AIM, 0x0054E850, 0x0055B1C3) \
     D(SITE_SIM_RECEIVE, 0x00553348, 0x00561459) \
@@ -143,7 +128,6 @@ internal const struct exe_build { uint32_t hash; const char *name; int ready; } 
     D(IAT_UIM_FORM, 0x00823D60, 0x00837B44)                                   /* the UI manager's current form */ \
     D(IAT_USTRING_DTOR, 0x008245BC, 0x008385B0)                               /* UString::~UString() */ \
     D(IAT_SRAND, 0x00824644, 0x00838638) \
-    D(IAT_RAND, 0x00824648, 0x0083863C)                                       /* the game's rand */ \
     D(VT_SCROLL, 0x00825098, 0x0083907C) \
     D(START_VTBL_EXEC, 0x008285D8, 0x0083D2A0) \
     D(VTBL_PHYS_STEP, 0x0082CB7C, 0x00842324)                                 /* EEPhysics vtable slot 8: one simulation step */ \
@@ -237,8 +221,6 @@ internal const struct exe_build { uint32_t hash; const char *name; int ready; } 
     D(SLOT_SCROLL_EXECUTE, 1, 1)        /* VT_SCROLL: Execute */ \
     D(SLOT_SP_BUTTON, 1, 1)             /* SP_VTABLES: a button's handler */ \
     D(SLOT_GROUP_COUNT, 6, 6)           /* the selected group (player +0x9BC): unsigned thiscall(group); AoC not checked */ \
-    D(SLOT_PLAYER_HUMAN, 29, 29)        /* EEPlayer: char thiscall(player) - human (EEHumanPlayer's returns 1; FN_HUMAN_EPOCH's test) */ \
-    D(SLOT_UNIT_LIMIT, 31, 31)          /* EEPlayer: int thiscall(player, 0), the unit limit (FN_GAME_LIMIT) */ \
     D(SLOT_MISSILE_LAUNCH, 42, 43)      /* VT_MISSILE */ \
     D(SLOT_PROJ_DOWN, 55, 56)           /* VT_PROJECTILE */ \
     D(SIZE_PAUSE_ACTION, 0xC, 0xC)      /* EEAUserPauseGame: vtable, refcount, byte */ \

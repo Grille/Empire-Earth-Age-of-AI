@@ -14,9 +14,6 @@ internal ee_player *rm_player(ee_resource_mgr *rm) {
     return owner ? FIELD(owner, OF(PL, 0x4C), void *) : NULL;
 }
 
-// the game's UString (passed by value to some of its functions)
-struct ustring { uint8_t raw[16]; };
-
 // RTTI class name of a polymorphic object (MSVC: vtable[-1] -> complete object locator, +0xC type
 // descriptor, name at +8 like ".?AVEEUGGather@@").
 internal const char *rtti_name(void *obj) {

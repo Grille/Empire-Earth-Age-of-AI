@@ -3,13 +3,14 @@
 // exe build, k_exe_builds' order). A hooked function the mod also calls is in functions_addr.h.
 
 #define ADDRS_HOOKS(F, D) \
+    D(CALL_CP_UPDATE, 0x0042F3CD, 0x0042CDD1) \
     D(CALL_POP_CAP_1, 0x004311E5, 0x0042ECF6)                                 /* the callers of FN_POP_CAP */ \
     D(CALL_EPOCH_UPGRADES, 0x0043D365, 0x0043C9FC)                            /* the call of FN_EPOCH_UPGRADES */ \
     D(CALL_POP_CAP_2, 0x0043FA9B, 0x0043F2F6) \
     D(CALL_GROUP_STAT, 0x00450546, 0x0045122B) \
     D(CALL_PLACE, 0x00468629, 0x0046B044) \
-    D(CALL_EPOCH_CATCH_UP, 0x0055A5B5, 0x00569633)                            /* its one call: EEPlayer::vf41, a human reached an epoch */ \
     D(CALL_REPAIR_GOAL, 0x0046DA88, 0x004706DF) \
+    D(CALL_RM_UPDATE, 0x0046E3C6, 0x00471051)                                 /* call EECPResourceManager::Update(now)              (0x48D263) */ \
     D(CALL_POP_CAP_3, 0x00474AF0, 0x004781C9) \
     D(CALL_NV_MAINT_DELETE, 0x00477B17, 0x0047B635) \
     D(CALL_UNIT_TO_GROUP, 0x004824BF, 0x004869F3) \
@@ -20,10 +21,16 @@
     D(CALL_UNBUILT_FARMS, 0x0048B0FD, 0x0048FAD4) \
     D(CALL_UNLOAD_RM, 0x0048CC5D, 0x00491733)                                 /* an unload call (the resource manager's ferry) */ \
     D(CALL_UNLOAD_RETRY_GIVE, 0x0048D03C, 0x00491B12) \
+    D(CALL_COMPUTE_TARGETS, 0x0048D347, 0x00491E18)                           /* call EECPResourceManager::ComputeGathererTargets (0x48D0A2) */ \
+    D(CALL_ASSIGN_CITIZENS, 0x0048D36A, 0x00491E3B)                           /* call EECPResourceManager::AssignCitizens        (0x48A554) */ \
     D(CALL_FISH_TYPE_1, 0x0048F823, 0x0049457C)                               /* the calls of FN_FISH_TYPE */ \
     D(CALL_FISH_TYPE_2, 0x0048FB16, 0x0049488C) \
     D(CALL_CITIZENS_WANTED, 0x00490BC2, 0x00495A15)                           /* a call of FN_UM_CITIZENS_WANTED */ \
+    D(CALL_GAME_START, 0x004CEC14, 0x004D4443) \
     D(CALL_DAMAGE_POINTS, 0x004F80A4, 0x0050232D) \
+    D(CALL_LOAD_SAVED, 0x00522BF8, 0x0052D8F9)                                /* call LoadSavedGameFromCmdline(UString *) 0x521F94 */ \
+    D(CALL_PARSE_CMDLINE, 0x00535EF2, 0x005410C8)                             /* call ParseCommandLine(const char *) 0x522A36 */ \
+    D(CALL_EPOCH_CATCH_UP, 0x0055A5B5, 0x00569633)                            /* its one call: EEPlayer::vf41, a human reached an epoch */ \
     D(EXIT_CONFIRM_AT, 0x005D0B2C, 0x005E1438) \
     D(CALL_GOAL_FBA_CHECK, 0x005ED9BF, 0x005FBA9C)                            /* in 0x5ED24B: FN_GOAL_FBA_CHECK on a dynamic_cast, unchecked */ \
     D(AT_GOAL_SET_READ, 0x005F0634, 0x005FE8DA) \
