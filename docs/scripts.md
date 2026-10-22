@@ -93,7 +93,7 @@ is its name (`"{p}"`), it equals only itself (`game.players[2] == player(2)`).
 
 | Kind | |
 |---|---|
-| `game` | the game: `game.time` (seconds), `game.minutes`, `game.players` (every player, in or out - `game.players[3]` is player 3), `game.player(3)` |
+| `game` | the game: `game.time` (seconds), `game.minutes`, `game.players` (every player, in or out - `game.players[3]` is player 3), `game.player(3)`, `game.timer(20s, f)` ("Timers" below) |
 | player | `player(3)`, `game.player(3)`, `game.players[3]`, `me`/`them` in the texts: every value of `them.` in the README (`p.towers`, `p.epoch`, `p.lord` - a player again), its relations as methods (`p.opinion(q)`, `p.kills(q, 10)`), `p.count(kind.towers)`; as a command's argument its number (`spawn(p, ...)`) |
 
 ```
@@ -175,6 +175,27 @@ after `t` sees `t.fired` in the same check. A mistake in a trigger's function tu
 the script's own names as they are when they run; the names of a function they were made in are a copy made with
 the trigger (that function has returned): as they were then, set in the copy - the trigger's own from then on. A dry run (`script dryrun`) has the triggers' turns on the way to where the script waits:
 end a trigger test with `wait_until(...)`.
+
+## Timers
+
+`game.timer(step, f)` runs `f()` every `step` of game time (0.5s or more) from now + `step` on, while the script goes
+on (it doesn't wait) - also after it has ended. `f` returning `stop` ends it; its value is a trigger's: `t.on`,
+`t.fired`, `disable(t)`, `enable(t)` (again a step from then). A timer runs at its time - at the next of the
+simulation's safe points, about every 0.5 s - in the order of their times together with the `after`'s, not on the
+triggers' 500 ms beat; one that fell behind runs once for every step it missed.
+
+```
+let counter = 0
+game.timer(20s, () => {
+    counter += 1
+    if counter >= 10 {
+        return stop                    # ten times, then no more
+    }
+    spawn(2, unit.inf02_spearman, 70, 50, counter)
+})
+```
+
+`every(step, from, until, f)` is the waiting form: the script itself goes from one run to the next.
 
 ## Several scripts side by side
 

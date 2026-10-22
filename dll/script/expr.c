@@ -1633,7 +1633,7 @@ internal int xcmp(const struct xval *a, const struct xval *b) {   // <0, 0, >0: 
 }
 // the triggers (TRIGGERS below): t.on, t.fired, t.name read here
 #define XT_MAX 128
-struct xtrig { struct xval when, run; int on, fired, loop; double hold, since; char name[48]; };
+struct xtrig { struct xval when, run; int on, fired, loop; double hold, since, period, next; char name[48]; };   // period: a timer's
 internal struct xtrig g_xt[XT_MAX];
 internal int g_xt_n;
 // o.name (call 0) or o.name(a ...) - a member of its kind: a value read, a method called; one it hasn't, a value
@@ -2089,9 +2089,30 @@ internal void xt_make(struct xe *e, const struct xval *r, struct xval *v) {   //
     t->loop = loop ? xtrue(loop) : 0;
     t->hold = hold ? hold->n : 0;
     t->since = -1;
+    t->period = t->next = 0;
     xt_name(t->name, name ? name->s : NULL, e->c);
     xnothing(v);
     v->w = 1; v->kind = XV_TRIG; v->n = g_xt_n++;
+}
+// A TIMER (the host's game.timer(step, f)): a trigger of no condition that runs f every step game seconds from now +
+// step, at its time (each tick, as the after's - not on the 500 ms beat); f returning stop ends it, disable(t) too.
+// 0 and *why: not made
+#define XT_MIN_PERIOD 0.5
+internal int x_timer_make(struct xctx *c, double step, const struct xval *f, struct xval *v, const char **why) {
+    if (!(step >= XT_MIN_PERIOD)) { *why = "game.timer(step, f): a step of 0.5s or more"; return 0; }
+    if (!xt_fn0(f)) { *why = "game.timer(step, f): f a function of no arguments - () => ..."; return 0; }
+    if (g_xt_n == XT_MAX) { *why = "too many triggers and timers"; return 0; }
+    struct xtrig *t = &g_xt[g_xt_n];
+    memset(t, 0, sizeof *t);
+    xt_keep(&t->run, f);
+    t->on = 1;
+    t->since = -1;
+    t->period = step;
+    t->next = (g_x_hooks.now ? g_x_hooks.now() : 0) + step;
+    xt_name(t->name, NULL, c);
+    xnothing(v);
+    v->w = 1; v->kind = XV_TRIG; v->n = g_xt_n++;
+    return 1;
 }
 internal struct xtrig *xt_of(struct xe *e, const char *fn, const struct xval *t) {   // the trigger a value is
     if (t->kind == XV_TRIG && t->w && t->n >= 0 && t->n < g_xt_n) return &g_xt[(int)t->n];
@@ -2118,9 +2139,19 @@ internal void x_triggers_tick(double now) {
     struct xregion *r0 = g_xr;
     g_xr = &g_xt_tmp;
     g_xt_in = 1;
-    for (;;) {
-        int k = -1;
+    for (;;) {   // the after's and timers due, earliest first (a timer behind: each step it missed)
+        int k = -1, kt = -1;
         for (int i = 0; i < g_xa_n; i++) if (g_xa[i].at <= now + 1e-9 && (k < 0 || g_xa[i].at < g_xa[k].at)) k = i;
+        for (int i = 0; i < g_xt_n; i++)
+            if (g_xt[i].period > 0 && g_xt[i].on && g_xt[i].next <= now + 1e-9 && (kt < 0 || g_xt[i].next < g_xt[kt].next)) kt = i;
+        if (kt >= 0 && (k < 0 || g_xt[kt].next < g_xa[k].at)) {
+            struct xtrig *t = &g_xt[kt];
+            struct xval v;
+            t->next += t->period;
+            t->fired = 1;
+            if (!xt_call(&t->run, &v, "timer", t->name) || v.kind == XV_STOP) t->on = 0;
+            continue;
+        }
         if (k < 0) break;
         struct xafter a = g_xa[k];
         memmove(&g_xa[k], &g_xa[k + 1], (size_t)(g_xa_n - k - 1) * sizeof *g_xa);
@@ -2133,7 +2164,7 @@ internal void x_triggers_tick(double now) {
         for (int i = 0; i < g_xt_n; i++) {
             struct xtrig *t = &g_xt[i];
             struct xval v;
-            if (!t->on) continue;
+            if (!t->on || t->period > 0) continue;   // (a timer: above)
             if (!xt_call(&t->when, &v, "when", t->name)) { t->on = 0; continue; }
             if (!xtrue(&v)) { t->since = -1; continue; }
             if (t->since < 0) t->since = now;
@@ -2155,6 +2186,7 @@ internal void xe_script(struct xe *e, const char *name, const struct xval *a, in
         if (!t) return;
         t->on = name[0] == 'e';
         t->since = -1;
+        if (t->on && t->period > 0) t->next = (g_x_hooks.now ? g_x_hooks.now() : 0) + t->period;   // a timer: a step from now
         return;
     }
     if (!strcmp(name, "after")) {   // after(5s, () => ...): later, by the triggers' turn

@@ -428,6 +428,7 @@ internal const struct x_kmember k_xk_game[] = {
     { "minutes", -1, -1, X_ANY },                    // in whole minutes
     { "players", -1, -1, X_LIST_OF + XK_PLAYER },    // every player, in or out: game.players[3] is player 3
     { "player", 1, 1, XK_PLAYER },                   // game.player(3)
+    { "timer", 2, 2, X_ANY },                        // game.timer(20s, () => ...): every 20 s from now on (expr.c TIMER)
 };
 internal struct x_kind g_xkinds[2] = {
     { "player", 1, g_xk_player, N_XMEMBERS },
@@ -458,6 +459,7 @@ internal PRINTF_LIKE(2, 3) void x_host_fail(struct xctx *c, const char *fmt, ...
     vsnprintf(t, sizeof t, fmt, ap);
     va_end(ap);
     x_error("%s: %.100s", t, c->top ? c->top : "");
+    lstrcpynA(g_x_last_fail, t, sizeof g_x_last_fail);   // (a script's "stopped - ..." line)
     c->failed++;
     c->missed = 1;
 }
@@ -480,6 +482,10 @@ internal int x_obj_member_of(struct xctx *c, const struct xval *o, const char *n
     else if (!strcmp(name, "player")) {
         double n = xto_num(&a[0]);
         if (!a[0].has_n || !x_player_n((int)n, v) || (double)(int)n != n) x_host_fail(c, "game.player(%.40s): no such player", xtext_of(&a[0]));
+    } else if (!strcmp(name, "timer")) {
+        const char *why = "game.timer(step, f): a time - 20s";
+        if (!c->script) x_host_fail(c, "game.timer: only in a script");
+        else if (!a[0].w || !a[0].has_n || a[0].ln || !x_timer_make(c, a[0].n, &a[1], v, &why)) x_host_fail(c, "%s", why);
     } else if (!strcmp(name, "players")) {
         int n = nplayers() - 1;
         struct xval *it = n > 0 ? x_alloc((size_t)n * sizeof *it) : NULL;
