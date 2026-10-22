@@ -82,11 +82,11 @@ internal void run_setup(uint32_t now);
 internal void pin_server_pace(void) {
     uint8_t *srv = game_server();
     const unsigned rate = TEST_STEPS_A_SECOND;
-    if (!srv || (FIELD(srv, OF(SERVER, 0x1B4), unsigned) == rate && FIELD(srv, OF(SERVER, 0x1B8), unsigned) == rate)) return;
+    if (!srv || (server_get_rate_max(srv) == rate && server_get_rate_min(srv) == rate)) return;
     if (g_log) fprintf(g_log, "# autotest: server pace held at %u steps a second (its range was %u-%u, now %u)\n", rate,
-                       FIELD(srv, OF(SERVER, 0x1B8), unsigned), FIELD(srv, OF(SERVER, 0x1B4), unsigned), FIELD(srv, OF(SERVER, 0x1FB), uint8_t));
-    FIELD(srv, OF(SERVER, 0x1B4), unsigned) = rate;
-    FIELD(srv, OF(SERVER, 0x1B8), unsigned) = rate;
+                       server_get_rate_min(srv), server_get_rate_max(srv), server_get_rate(srv));
+    server_set_rate_max(srv, rate);
+    server_set_rate_min(srv, rate);
 }
 
 internal void autotest_tick(uint32_t now) {
