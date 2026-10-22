@@ -8,6 +8,7 @@ internal inline ee_unit_vis *unit_get_vis(const ee_unit *u) { return FIELD(u, UN
 internal inline ee_player *unit_get_owner(const ee_unit *u) { return FIELD(u, UNIT_OWNER, ee_player *); } // +0x18
 internal inline int unit_get_x(const ee_unit *u) { return FIELD(u, UNIT_X, int); }                   // +0x1C tile x (-10000: off the map)
 internal inline int unit_get_y(const ee_unit *u) { return FIELD(u, UNIT_Y, int); }                   // +0x20 tile y
+internal inline ivec2 unit_get_tile(const ee_unit *u) { return iv2(unit_get_x(u), unit_get_y(u)); }
 // +0x24: not known - the test opponent keeps it beside the pointer, to tell a reused unit object from the one before
 internal inline int unit_get_serial(const ee_unit *u) { return FIELD(u, UNIT_SERIAL, int); }
 internal inline uint8_t unit_get_released(const ee_unit *u) { return FIELD(u, UNIT_RELEASED, uint8_t); }    // +0x2A back in the pool (vf12 sets it)
@@ -25,12 +26,13 @@ internal inline int unit_get_id(const ee_unit *u) { return FIELD(u, UNIT_ID, int
 internal inline int unit_get_busy(const ee_unit *u) { return FIELD(u, UNIT_BUSY, int); }
 // +0x130 its matrix (GETransformation): +0x134 / +0x144 / +0x154 the local y axis (facing), +0x13C / +0x14C / +0x15C
 // the position in tiles
-internal inline float unit_get_facing_x(const ee_unit *u) { return FIELD(u, UNIT_MATRIX + 0x4, float); }
-internal inline float unit_get_facing_y(const ee_unit *u) { return FIELD(u, UNIT_MATRIX + 0x14, float); }
-internal inline float unit_get_facing_z(const ee_unit *u) { return FIELD(u, UNIT_MATRIX + 0x24, float); }
-internal inline float unit_get_pos_x(const ee_unit *u) { return FIELD(u, UNIT_MATRIX + 0xC, float); }
-internal inline float unit_get_pos_y(const ee_unit *u) { return FIELD(u, UNIT_MATRIX + 0x1C, float); }
-internal inline float unit_get_pos_z(const ee_unit *u) { return FIELD(u, UNIT_MATRIX + 0x2C, float); }
+// (each a column of the matrix: its parts not side by side, gathered into one value)
+internal inline vec3 unit_get_facing(const ee_unit *u) {
+    return v3(FIELD(u, UNIT_MATRIX + 0x4, float), FIELD(u, UNIT_MATRIX + 0x14, float), FIELD(u, UNIT_MATRIX + 0x24, float));
+}
+internal inline vec3 unit_get_pos(const ee_unit *u) {
+    return v3(FIELD(u, UNIT_MATRIX + 0xC, float), FIELD(u, UNIT_MATRIX + 0x1C, float), FIELD(u, UNIT_MATRIX + 0x2C, float));
+}
 internal inline ee_unit_type *unit_get_attacker_type(const ee_unit *u) { return FIELD(u, UNIT_ATTACKER_TYPE, ee_unit_type *); } // +0x1C0 a projectile's: the attack's type data
 // +0x1CC: the next of a chain from +0x30 - its last is what a BuildRepair goal holds (0x60BAD0)
 internal inline ee_unit *unit_get_chain(const ee_unit *u) { return FIELD(u, UNIT_CHAIN, ee_unit *); }

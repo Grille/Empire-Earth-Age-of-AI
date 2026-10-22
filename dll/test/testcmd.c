@@ -796,11 +796,10 @@ internal void cmd_uinfo(char *out, const char *args) {
         int ux = unit_get_x(u), uy = unit_get_y(u);
         if (abs(ux - x) > r || abs(uy - y) > r || strlen(out) > 15000) continue;
         ee_player *owner = unit_get_owner(u);
+        vec3 pos = unit_get_pos(u), fwd = unit_get_facing(u);
         REPLY("%p type %d P%d hp %d pos %.3f,%.3f,%.2f spd %.3f/%.3f fwd %.2f,%.2f,%.2f goal %s\n",
-              u, type_get_id(td), owner ? player_get_index(owner) : -1, unit_get_hp(u),
-              unit_get_pos_x(u), unit_get_pos_y(u), unit_get_pos_z(u), unit_get_speed(u),
-              unit_get_speed_min(u), unit_get_facing_x(u), unit_get_facing_y(u), unit_get_facing_z(u),
-              rtti_name(unit_get_goal(u)));
+              u, type_get_id(td), owner ? player_get_index(owner) : -1, unit_get_hp(u), pos.x, pos.y, pos.z,
+              unit_get_speed(u), unit_get_speed_min(u), fwd.x, fwd.y, fwd.z, rtti_name(unit_get_goal(u)));
     }
 }
 
@@ -819,8 +818,9 @@ internal void cmd_move(char *out, const char *args) {
         if (abs(unit_get_x(u) - x) > r || abs(unit_get_y(u) - y) > r) continue;
         found[nf++] = u;
     }
-    for (int i = 0; i < nf; i++)
-        n += unit_goal(found[i], goal_move((float)tx + unit_get_pos_x(found[i]) - (float)x,
-                                           (float)ty + unit_get_pos_y(found[i]) - (float)y), 0, 0x1F40);
+    for (int i = 0; i < nf; i++) {
+        vec3 q = unit_get_pos(found[i]);
+        n += unit_goal(found[i], goal_move((float)tx + q.x - (float)x, (float)ty + q.y - (float)y), 0, 0x1F40);
+    }
     REPLY("ok: %d of %d units of P%d moving\n", n, nf, p);
 }

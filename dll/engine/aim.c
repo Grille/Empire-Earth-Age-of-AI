@@ -26,12 +26,12 @@ internal int g_lead_log;       // autotest aim_log: the first N shots logged
 internal int g_measure;        // tests: the measurement runs (autotest, or after "aim reset")
 internal unsigned g_lead_logged;
 
-internal int tile_height(int x, int y, float *h) {
+internal int tile_height(ivec2 p, float *h) {
     ee_map *map = game_map();
     if (!map) return 0;
     unsigned n = map_get_size(map);
-    if (x < 0 || y < 0 || (unsigned)x >= n || (unsigned)y >= n) return 0;
-    ee_tile *t = map_get_tiles(map)[(unsigned)y * n + (unsigned)x];
+    if (p.x < 0 || p.y < 0 || (unsigned)p.x >= n || (unsigned)p.y >= n) return 0;
+    ee_tile *t = map_get_tiles(map)[(unsigned)p.y * n + (unsigned)p.x];
     if (!t) return 0;
     *h = tile_get_height(t);
     return 1;
@@ -40,13 +40,13 @@ internal int tile_height(int x, int y, float *h) {
 // Seconds the projectile flies from `from` towards `to` with the arc the launch will pick, < 0 if unknown. Out of
 // the arc's reach the game launches at 45 degrees anyway and the projectile comes down short, after flying its
 // longest distance v^2 / g (*reach = 0).
-internal float flight_time(ee_unit *u, const float *from, const float *to, int *reach) {
+internal float flight_time(ee_unit *u, vec3 from, vec3 to, int *reach) {
     ee_unit_stats *type = unit_get_stats(u); ee_unit_type *cls = type ? stat_get_type_data(type) : NULL;
     ee_unit_type *pc = cls ? type_get_projectile(cls) : NULL;
     float v = type ? stat_get_shot_speed(type) : 0, g = pc ? type_get_accel(pc) : 0, pitch = 0, a[3], b[3];
     if (v <= 0.001f || g <= 0.001f) return -1;
-    memcpy(a, from, sizeof a); memcpy(b, to, sizeof b);
-    float dx = to[0] - from[0], dy = to[1] - from[1], d = sqrtf(dx * dx + dy * dy);
+    vec3_store(a, from); vec3_store(b, to);   // the solver's own copies (it may write them)
+    float d = vec2_len(vec2_sub(vec3_xy(to), vec3_xy(from)));
     *reach = ballistic(u, type, a, b, &pitch) != 0;
     float c;
     if (!*reach) {
@@ -57,42 +57,39 @@ internal float flight_time(ee_unit *u, const float *from, const float *to, int *
     return d / (v * c);
 }
 
-internal void launch_point(ee_unit *u, float *from) {   // about the launch point (0x62028B: the model's fire point)
-    from[0] = unit_get_pos_x(u);
-    from[1] = unit_get_pos_y(u);
-    from[2] = unit_get_pos_z(u) + 0.5f * stat_get_height(unit_get_stats(u));
+internal vec3 launch_point(ee_unit *u) {   // about the launch point (0x62028B: the model's fire point)
+    vec3 p = unit_get_pos(u);
+    p.z += 0.5f * stat_get_height(unit_get_stats(u));
+    return p;
 }
 
-internal int target_velocity(ee_unit *t, float *vx, float *vy) {
-    float s = unit_get_speed(t), fx = unit_get_facing_x(t), fy = unit_get_facing_y(t);
-    float l = sqrtf(fx * fx + fy * fy);
-    *vx = *vy = 0;
+internal int target_velocity(ee_unit *t, vec2 *v) {   // on the ground, tiles/s
+    float s = unit_get_speed(t);
+    vec2 f = vec3_xy(unit_get_facing(t));
+    float l = vec2_len(f);
+    *v = v2(0, 0);
     if (!(s > 0.01f && s < 50 && l > 0.01f)) return 0;
-    *vx = s * fx / l; *vy = s * fy / l;
+    *v = v2(s * f.x / l, s * f.y / l);
     return 1;
 }
 
 // The aim point for the target's velocity: the original aim moved to where the target is after the flight.
-internal float lead_aim(ee_unit *u, ee_unit *t, const float *aim, float T, float vx, float vy, float *out, int *reach) {
-    float from[3];
-    launch_point(u, from);
-    int tx = unit_get_x(t), ty = unit_get_y(t);
-    int centred = aim[0] == (float)tx + 0.5f && aim[1] == (float)ty + 0.5f;
+internal float lead_aim(ee_unit *u, ee_unit *t, vec3 aim, float T, vec2 v, vec3 *out, int *reach) {
+    vec3 from = launch_point(u);
+    ivec2 tile = unit_get_tile(t);
+    vec2 centre = ivec2_centre(tile);
+    int centred = aim.x == centre.x && aim.y == centre.y;
     float h0 = 0, h;
-    int has_h0 = tile_height(tx, ty, &h0);
-    memcpy(out, aim, 3 * sizeof(float));
+    int has_h0 = tile_height(tile, &h0);
+    *out = aim;
     for (int i = 0; i < 3; i++) {
         if (T > 6) T = 6;
-        float p[3], mx = vx * T, my = vy * T;
-        if (centred) {
-            p[0] = floorf(unit_get_pos_x(t) + mx) + 0.5f;
-            p[1] = floorf(unit_get_pos_y(t) + my) + 0.5f;
-        } else { p[0] = aim[0] + mx; p[1] = aim[1] + my; }
-        p[2] = aim[2];
-        if (has_h0 && tile_height((int)floorf(p[0]), (int)floorf(p[1]), &h)) p[2] += h - h0;
+        vec2 m = vec2_scale(v, T), q = centred ? vec2_add(vec3_xy(unit_get_pos(t)), m) : vec2_add(vec3_xy(aim), m);
+        vec3 p = centred ? v3(floorf(q.x) + 0.5f, floorf(q.y) + 0.5f, aim.z) : v3(q.x, q.y, aim.z);
+        if (has_h0 && tile_height(vec2_tile(vec3_xy(p)), &h)) p.z += h - h0;
         float T2 = flight_time(u, from, p, reach);
         if (T2 < 0) break;
-        memcpy(out, p, sizeof p);
+        *out = p;
         T = T2;
     }
     return T;
@@ -103,13 +100,13 @@ internal float lead_aim(ee_unit *u, ee_unit *t, const float *aim, float T, float
 // target stands on the aim's tile then - the condition for a hit (if the shot reaches). Split by targets that moved
 // (> 0.3 tiles during the flight) or stood, and shots in or out of the arc's reach.
 enum { AIM_PEND = 512 };
-internal struct { ee_unit *t; uint32_t due[2]; float ax[2], ay[2], x0, y0; uint8_t done, reach; } g_pend[AIM_PEND];
+internal struct { ee_unit *t; uint32_t due[2]; vec2 a[2], p0; uint8_t done, reach; } g_pend[AIM_PEND];   // aims, the target's start
 internal unsigned g_pend_n;
 internal struct { unsigned n, on_tile; double err; } g_ast[2][2][2];   // [moved][in reach][aim]
 internal unsigned g_shots, g_shots_unit, g_led, g_lost;
 
-internal ee_unit *find_unit_near(ee_unit *want, float x, float y, int r) {
-    for (struct grid_it it = grid_it_box((int)x, (int)y, r, 1); grid_it_next(&it); )
+internal ee_unit *find_unit_near(ee_unit *want, vec2 p, int r) {
+    for (struct grid_it it = grid_it_box((int)p.x, (int)p.y, r, 1); grid_it_next(&it); )
         if (it.u == want) return unit_get_hp(want) > 0 ? want : NULL;
     return NULL;
 }
@@ -125,31 +122,28 @@ internal void aim_tick(void) {   // the simulation thread, every pass
         for (int e = 0; e < 2; e++) {
             if ((g_pend[i].done >> e & 1) || now < g_pend[i].due[e]) continue;
             g_pend[i].done |= (uint8_t)(1 << e);
-            ee_unit *t = find_unit_near(g_pend[i].t, g_pend[i].x0, g_pend[i].y0, 12);
+            ee_unit *t = find_unit_near(g_pend[i].t, g_pend[i].p0, 12);
             if (!t) { if (e == 0) g_lost++; continue; }
-            float x = unit_get_pos_x(t), y = unit_get_pos_y(t);
-            float mx = x - g_pend[i].x0, my = y - g_pend[i].y0, dx = x - g_pend[i].ax[e], dy = y - g_pend[i].ay[e];
-            int moved = mx * mx + my * my > 0.09f, r = g_pend[i].reach;
+            vec2 p = vec3_xy(unit_get_pos(t));
+            int moved = vec2_dist2(p, g_pend[i].p0) > 0.09f, r = g_pend[i].reach;
             g_ast[moved][r][e].n++;
-            g_ast[moved][r][e].err += sqrtf(dx * dx + dy * dy);
-            if ((int)floorf(x) == (int)floorf(g_pend[i].ax[e]) && (int)floorf(y) == (int)floorf(g_pend[i].ay[e]))
-                g_ast[moved][r][e].on_tile++;
+            g_ast[moved][r][e].err += vec2_len(vec2_sub(p, g_pend[i].a[e]));
+            if (ivec2_eq(vec2_tile(p), vec2_tile(g_pend[i].a[e]))) g_ast[moved][r][e].on_tile++;
         }
         if (g_pend[i].done == 3) { g_pend[i].t = NULL; g_pend_n--; }
     }
 }
 
-internal void aim_measure(ee_unit *t, const float *aim, float T0, const float *led, float T1, int reach) {
+internal void aim_measure(ee_unit *t, vec3 aim, float T0, vec3 led, float T1, int reach) {
     if (T0 < 0 || g_pend_n >= AIM_PEND) return;
     for (unsigned i = 0; i < AIM_PEND; i++) {
         if (g_pend[i].t) continue;
         uint32_t now = game_time();
         g_pend[i].t = t; g_pend[i].done = 0; g_pend[i].reach = (uint8_t)reach;
-        g_pend[i].x0 = unit_get_pos_x(t); g_pend[i].y0 = unit_get_pos_y(t);
+        g_pend[i].p0 = vec3_xy(unit_get_pos(t));
         g_pend[i].due[0] = now + (uint32_t)(T0 * 1000.0f);
         g_pend[i].due[1] = now + (uint32_t)((T1 >= 0 ? T1 : T0) * 1000.0f);
-        g_pend[i].ax[0] = aim[0]; g_pend[i].ay[0] = aim[1];
-        g_pend[i].ax[1] = led[0]; g_pend[i].ay[1] = led[1];
+        g_pend[i].a[0] = vec3_xy(aim); g_pend[i].a[1] = vec3_xy(led);
         g_pend_n++;
         return;
     }
@@ -163,24 +157,23 @@ internal void __cdecl hook_aim(ee_unit *u, ee_unit **target, float *aim, void *z
     g_shots++;
     if (!t || t == u || !pc || !is_projectile_class(pc)) return;
     g_shots_unit++;
-    float from[3], led[3], vx, vy, T1 = -1;
+    vec3 a = vec3_load(aim), led = a;
+    vec2 v;
+    float T1 = -1;
     int reach0 = 0, reach1 = 0;
-    launch_point(u, from);
-    float T0 = flight_time(u, from, aim, &reach0);
-    memcpy(led, aim, sizeof led);
-    if (T0 >= 0 && target_velocity(t, &vx, &vy)) T1 = lead_aim(u, t, aim, T0, vx, vy, led, &reach1);
+    float T0 = flight_time(u, launch_point(u), a, &reach0);
+    if (T0 >= 0 && target_velocity(t, &v)) T1 = lead_aim(u, t, a, T0, v, &led, &reach1);
     else reach1 = reach0;
     if (g_lead_log && g_lead_logged < (unsigned)g_lead_log && g_log) {
         g_lead_logged++;
+        vec3 up = unit_get_pos(u), tp = unit_get_pos(t), tf = unit_get_facing(t);
         fprintf(g_log, "# aim: t %u shooter %p at %.2f,%.2f -> target %p at %.2f,%.2f spd %.2f fwd %.2f,%.2f | aim %.2f,%.2f,%.2f"
-                " T %.2f reach %d | led %.2f,%.2f,%.2f T %.2f reach %d\n", game_time(), u, unit_get_pos_x(u),
-                unit_get_pos_y(u), t, unit_get_pos_x(t), unit_get_pos_y(t), unit_get_speed(t),
-                unit_get_facing_x(t), unit_get_facing_y(t), aim[0], aim[1], aim[2], T0, reach0, led[0], led[1], led[2],
-                T1, reach1);
+                " T %.2f reach %d | led %.2f,%.2f,%.2f T %.2f reach %d\n", game_time(), u, up.x, up.y, t, tp.x, tp.y,
+                unit_get_speed(t), tf.x, tf.y, a.x, a.y, a.z, T0, reach0, led.x, led.y, led.z, T1, reach1);
     }
-    if (g_measure) aim_measure(t, aim, T0, led, T1, g_lead ? reach1 : reach0);
-    if (g_lead && T1 >= 0 && memcmp(led, aim, sizeof led) && !is_vanilla(unit_get_owner(u))) {   // a vanilla player's units: measured, not led
-        memcpy(aim, led, sizeof led);
+    if (g_measure) aim_measure(t, a, T0, led, T1, g_lead ? reach1 : reach0);
+    if (g_lead && T1 >= 0 && memcmp(&led, &a, sizeof led) && !is_vanilla(unit_get_owner(u))) {   // a vanilla player's units: measured, not led
+        vec3_store(aim, led);
         g_led++;
     }
 }
@@ -217,7 +210,8 @@ enum { MSL_MAX = 256 };
 internal struct {
     ee_unit *m, *t;
     uint32_t first, last;
-    float p[3], v[3], dist;   // target position at the last step, its velocity (tiles/s)
+    vec3 p, v;                // target position at the last step, its velocity (tiles/s)
+    float dist;
     int nv, moving, dmg;      // dmg: what it will do to its target (spread_missiles)
 } g_msl[MSL_MAX];
 internal struct { unsigned n, close, gone; double ms, speed; } g_mst[2];   // tests: [target moving at launch]
@@ -235,7 +229,7 @@ internal void missile_tick(uint32_t now) {
                 g_mst[mv].n++;
                 g_mst[mv].ms += g_msl[i].last - g_msl[i].first;
                 if (g_msl[i].dist <= 1.5f) g_mst[mv].close++;
-                else if (!find_unit_near(g_msl[i].t, g_msl[i].p[0], g_msl[i].p[1], 6)) g_mst[mv].gone++;
+                else if (!find_unit_near(g_msl[i].t, vec3_xy(g_msl[i].p), 6)) g_mst[mv].gone++;
             }
             g_msl[i].m = NULL;
         }
@@ -246,9 +240,8 @@ internal void __cdecl hook_missile_aim(ee_unit *m, ee_unit **target, float *aim,
     ee_unit *t = *target;
     if (!t || t == m) return;
     uint32_t now = game_time();
-    float tp[3] = { unit_get_pos_x(t), unit_get_pos_y(t), unit_get_pos_z(t) };
-    float r[3] = { aim[0] - unit_get_pos_x(m), aim[1] - unit_get_pos_y(m), aim[2] - unit_get_pos_z(m) };
-    float dist = sqrtf(r[0] * r[0] + r[1] * r[1] + r[2] * r[2]), s = stat_get_speed(unit_get_stats(m));
+    vec3 tp = unit_get_pos(t), r = vec3_sub(vec3_load(aim), unit_get_pos(m));
+    float dist = vec3_len(r), s = stat_get_speed(unit_get_stats(m));
     int k = -1, free_i = -1;
     for (int i = 0; i < MSL_MAX && k < 0; i++) {
         if (g_msl[i].m == m) k = i;
@@ -265,21 +258,21 @@ internal void __cdecl hook_missile_aim(ee_unit *m, ee_unit **target, float *aim,
     } else if (g_msl[k].t != t) { g_msl[k].nv = 0; g_msl[k].dmg = missile_damage(m, t); }   // a new target
     else if ((int32_t)(now - g_msl[k].last) > 200) g_msl[k].nv = 0;   // a gap (the climb): start over
     else if (now > g_msl[k].last) {
-        float dt = (float)(now - g_msl[k].last) * 0.001f, mv[3];
-        for (int i = 0; i < 3; i++) mv[i] = (tp[i] - g_msl[k].p[i]) / dt;
-        if (mv[0] * mv[0] + mv[1] * mv[1] + mv[2] * mv[2] < 400) {   // < 20 tiles/s, else a jump (teleport, new unit)
-            for (int i = 0; i < 3; i++) g_msl[k].v[i] = g_msl[k].nv ? 0.5f * (g_msl[k].v[i] + mv[i]) : mv[i];
+        float dt = (float)(now - g_msl[k].last) * 0.001f;
+        vec3 mv = vec3_div(vec3_sub(tp, g_msl[k].p), dt);
+        if (vec3_len2(mv) < 400) {   // < 20 tiles/s, else a jump (teleport, new unit)
+            g_msl[k].v = g_msl[k].nv ? vec3_scale(vec3_add(g_msl[k].v, mv), 0.5f) : mv;
             g_msl[k].nv++;
         } else g_msl[k].nv = 0;
     }
     g_msl[k].t = t; g_msl[k].last = now;
-    memcpy(g_msl[k].p, tp, sizeof tp);
+    g_msl[k].p = tp;
     if (dist < g_msl[k].dist) g_msl[k].dist = dist;
     if (!g_lead_missiles || !g_msl[k].nv || !(s > 0.01f) || is_vanilla(unit_get_owner(m))) return;   // tracked, not steered
-    float *v = g_msl[k].v;
-    float a = v[0] * v[0] + v[1] * v[1] + v[2] * v[2] - s * s, b = 2 * (r[0] * v[0] + r[1] * v[1] + r[2] * v[2]);
+    vec3 v = g_msl[k].v;
+    float a = vec3_len2(v) - s * s, b = 2 * vec3_dot(r, v);
     float c = dist * dist, T = -1;
-    if (v[0] * v[0] + v[1] * v[1] + v[2] * v[2] < 0.0025f) return;   // standing (< 0.05 tiles/s)
+    if (vec3_len2(v) < 0.0025f) return;   // standing (< 0.05 tiles/s)
     if (fabsf(a) < 1e-4f) { if (b < 0) T = -c / b; }
     else {
         float disc = b * b - 4 * a * c;
@@ -289,7 +282,7 @@ internal void __cdecl hook_missile_aim(ee_unit *m, ee_unit **target, float *aim,
     }
     if (!(T > 0)) return;
     if (T > 10) T = 10;
-    for (int i = 0; i < 3; i++) aim[i] += v[i] * T;
+    vec3_store(aim, vec3_add(vec3_load(aim), vec3_scale(v, T)));
 }
 
 // Spreading missiles ([general] spread_missiles, default 1). Every launcher picks its target on its own, so many AA
@@ -345,8 +338,7 @@ internal int __thiscall hook_missile_launch(uint8_t *cls, ee_unit *m, float *aim
             g_msl[i].last = now + (uint32_t)(unit_get_flight_ms(m) > 0 ? unit_get_flight_ms(m) : 0);
             g_msl[i].dist = 1e9f; g_msl[i].moving = unit_get_speed(t) > 0.01f;
             g_msl[i].dmg = missile_damage(m, t);
-            g_msl[i].p[0] = unit_get_pos_x(t);
-            g_msl[i].p[1] = unit_get_pos_y(t); g_msl[i].p[2] = unit_get_pos_z(t);
+            g_msl[i].p = unit_get_pos(t);
             if (g_measure) g_mst[g_msl[i].moving].speed += stat_get_speed(unit_get_stats(m));
             break;
         }
@@ -358,17 +350,18 @@ internal ee_unit *spread_target(ee_unit *u, ee_unit *t) {
     ee_player *pl = unit_get_owner(u);
     if (!pl) return NULL;
     int fam = type_get_family(unit_get_type_data(t));
-    float x = unit_get_pos_x(u), y = unit_get_pos_y(u), range = stat_get_range(unit_get_stats(u));
+    vec2 p = vec3_xy(unit_get_pos(u));
+    float range = stat_get_range(unit_get_stats(u));
     int r = (int)range + 1;
     ee_unit *best = NULL;
     float bd = range * range;
     if (!(range > 0)) return NULL;
-    for (struct grid_it it = grid_it_box((int)x, (int)y, r, 1); grid_it_next(&it); ) {
+    for (struct grid_it it = grid_it_box((int)p.x, (int)p.y, r, 1); grid_it_next(&it); ) {
         ee_unit *c = it.u;
         ee_unit_type *cc = it.td;
         if (c == t || unit_get_hp(c) <= 0 || type_get_family(cc) != fam) continue;
         if (!is_enemy(pl, unit_get_owner(c)) || !seen_by(c, pl) || doomed(c)) continue;
-        float dx = unit_get_pos_x(c) - x, dy = unit_get_pos_y(c) - y, d = dx * dx + dy * dy;
+        float d = vec2_dist2(vec3_xy(unit_get_pos(c)), p);
         if (d <= bd) { bd = d; best = c; }
     }
     return best;
