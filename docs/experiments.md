@@ -4,6 +4,9 @@ A review of every AI-behaviour switch that is off in `config/aimod.ini` (2026-10
 Sources: the commits that added and measured each one, docs/economy.md, docs/navy.md, docs/testing.md,
 docs/ai-analysis.md and the code in dll/ai/. Nothing was re-run for this review: every number is a number already in
 the docs, and the "why" is the mechanism the logs showed. Where they don't show it, it says so.
+The REMOVE and RETEST lists were measured again with fall_back on (2026-10-22): "Re-measured with fall_back on" at the
+end - it overrules several verdicts below (mine_fill gains on the large maps; hold_town, army_mass 2, fall_back 8,
+metal_plan 2, workforce_plan 8 within the noise; navy_mix a no-op).
 
 Numbers: d = with - without, paired by seed and seat, standard error in brackets; kl = kills - losses per game; "cheat" =
 the base AI at hard with its 50% prices. Map names as in `scripts/isl_ablate.sh`: `cont` Continental e0 Small, `coL`
@@ -374,3 +377,88 @@ variant; the base line is `fb7base|` (empty keys = shipped). New names each run.
 Run 1 and 2 first: they test the clearest claim of this review - that the "more soldiers, more losses" failures were
 the waste fall_back removed. If both still lose, the problem is elsewhere (how the army picks fights before they are
 lost, not after), and 3-5 drop in priority.
+
+## Re-measured with fall_back on (2026-10-22)
+
+Every REMOVE and RETEST key above, run again on the build of c69d4c3 (fall_back 7 shipped, the call-off crash fixed),
+each on top of the shipped defaults, paired by seed and seat against the shipped build (variant `rb`, no keys): the
+base AI at hard with and without its cheat, 20 seeds x both seats = 40 games a cell (80 where the first 40 were close:
+seeds 21-40 added), `game_seed` 1-40, 8 games at a time, the run's own DLL. Maps as in `scripts/isl_ablate.sh`
+(`cont` `co9` `coL` `si5` `si9` `siL` `tiH` `liH`); each key on the maps where it can act. 10,379 games against the base AI and 480 head-to-head, no stall.
+Scored with a paired scorer (per cell: d kills - losses (se), kills, losses, wins, soldiers, warships, workers at the
+end; "ALL" = the mean over every pair of the key, a rough summary across maps of different scales). Head-to-heads
+(`scripts/h2h.sh`, 4 AIs, 40 games, B - A per game): Small Islands Large (`map_scale=large,unit_limit=2500,start_epoch=5`,
+75 min), Continental Large (the same keys, 75 min), Continental e0 Small (`map_size=0,start_epoch=0`, 60 min).
+
+Noise check: the base rerun on 4 maps x both cheats x 4 seeds (64 games) played 62 games identically, 2 parted late
+(coL cheat d +0.8, tiH cheat +9.5 in one game) - the paired differences below are the keys', not the runs'.
+
+Columns: cell = map, c0 no cheat / c1 cheat; d kl (se); wins = the mod's wins / the base AI's wins (games decided
+or one side without workers at the end), shipped -> with the key; then the metric that tells what the key did.
+
+### Verdicts
+
+**Certain failures** (worse with se where they act, no cell that gains, or they never act):
+
+| Key | Deciding numbers |
+|---|---|
+| `assault` | ALL -20.5 (4.0); cont c0 -29.1 (5.9), c1 -39.6 (8.6), coL c0 -52.8 (14.5), co9 c0 -13.8 (7.3); the mod's wins cont 19 -> 0, coL 17 -> 0, co9 24 -> 3 of 40; one crash (co9, 0x307066C9, a freed object) |
+| `assault` + `assault_outmatched` | ALL -26.6 (5.8); cont -31.7 (6.9) / -39.0 (9.0), coL c0 -46.0 (15.9); wins cont 19 -> 0, coL 17 -> 0 |
+| `attack_retreat` | acts 0.2-0.7 times a game on land, never on the island maps (0.0-0.1); where it acts most, cont c1: -10.2 (3.7) (2be0b09 found -8.7 (3.6) on the same cell); ALL -0.7 (0.7) over 12 cells; no cell gains |
+| `navy_mix` | never acts: with `navy_fleet=2` navy.c `navy_pick` already runs the mix for every AI whose fleet builds (`fleet_builds`), so the key changes nothing - 400 games, d 0.0 on 8 cells, +0.1 to +1.9 on 2; head-to-head Small Islands Large (v_navy_mix) -44.1 (12.8) where the fleet was not yet on |
+
+**Failure on wins, kills - losses mixed** - the user decides:
+
+| Key | Numbers |
+|---|---|
+| `safe_sites` | kl ALL +11.6 (4.1) (siL c0 +49.6 (15.1), tiH +43.9 (13.6) / +56.2 (11.5)) only because the army is smaller and fights less (soldiers -20 to -80, liH workers -111 / -101); the wins fall wherever they move: cont c0 the mod 19 -> 8, coL c0 17 -> 12, tiH c1 the base AI 4 -> 10, liH c1 5 -> 11, siL c1 20 -> 24; cont c0 kl -20.1 (6.1) |
+
+**Not a certain failure - mixed** (a cell worse with se and a cell better with se):
+
+| Key | Numbers |
+|---|---|
+| `metal_plan=1` VALUE | ALL -4.1 (4.9): coL c0 -31.8 (14.6), siL c1 -25.6 (12.0), but tiH c1 +27.0 (14.6), liH c0 +14.2 (12.3) |
+| `metal_plan=5` VALUE + SPARE | ALL -3.6 (4.7): coL c0 -29.8 (12.1), but tiH c1 +32.1 (14.6), coL c1 +15.6 (9.4) |
+| `early_soldiers=4` (with early_army) | against shipped: cont c0 -11.6 (5.4), c1 +7.3 (9.1); against early_army=1 alone: -11.6 (4.6) / +16.4 (7.5) |
+| `idle_citizen_slack=5` | cont c0 -12.0 (5.2), cont c1 +22.5 (9.5) (wins 0/2 -> 3/3), si5 -1.2 (6.4) / +6.4 (5.0) |
+
+**Within the noise (no gain, no loss)**:
+
+| Key | Numbers |
+|---|---|
+| `hold_town` | 80 games a cell: ALL -1.7 (2.2); co9 +1.7 (4.2) / +6.2 (3.2), coL -11.4 (8.7) / 0.0 (6.4), cont -2.4 (2.5) / -4.3 (4.1); acts 6-20 times a game; coL c0 base AI wins 1 -> 6 of 80 |
+| `army_mass=2` WAIT | 80 games a cell: ALL +3.8 (2.3); coL c1 +17.7 (5.4) (losses -32.9), the rest within the noise; cont c1 base AI wins 4 -> 9 of 80; acts 1-2 times a game; head-to-head Continental Large -0.3 (15.9), soldiers -12.2 (6.9) |
+| `army_mass` 8 (as 9 = 1+8) | against shipped ALL -1.9 (4.1) (cont c1 -11.3 (6.0)); against army_mass=1 ALL +2.0 (4.9), every cell within the noise - 8 alone does nothing (it only narrows 1) |
+| `metal_plan=2` NOWAIT | ALL +4.0 (4.1); tiH c1 +30.9 (12.3), every other cell within one se |
+| `workforce_plan=8` THRIFT | ALL -0.7 (3.5), every cell within the noise (coL siL tiH liH) |
+| `food_plan=11` (8 HUNT) | never acts on si5 (identical games); cont -1.5 (5.4) / -13.2 (15.7) (soldiers -11.6, workers -12.8 with the cheat); head-to-head Continental e0 +4.3 (4.8), soldiers -6.5 (1.2); one crash in 160 games (0x60BB19, read 0x30, cont c0 minute 57) |
+| `fall_back=15` (8 END) | 8 maps, 640 games: ALL +0.1 (1.7), every cell within the noise (coL c1 +12.8 (8.3), liH c0 -11.8 (10.5)); no crash or stall with the call-off fix |
+
+**A clear gain - against the review's REMOVE**:
+
+| Key | Numbers |
+|---|---|
+| `mine_fill=7` | ALL +22.0 (2.2) over 1120 pairs. Large maps (80 games a cell): siL +42.9 (10.9) / +11.2 (9.5) (base AI wins 44 -> 25 of 80), tiH +51.0 (9.0) / +43.7 (11.6) (10 -> 5), liH +47.8 (8.5) / +80.0 (9.9) (10 -> 1), coL +12.6 (8.3) / +16.0 (9.7) (the mod 35 -> 46, the base AI 66 -> 55); workers +16 to +59 on the island maps. Small maps: cont -0.2 (2.2) / +7.6 (3.8), co9 -2.2 (5.5) / +5.7 (3.6), si5 +7.3 (5.4) / -7.2 (4.3), si9 (80) -3.3 (5.1) / -6.5 (3.7). Head-to-head: Small Islands Large +67.4 (13.6), soldiers +12.8 (3.3); Continental e0 -11.9 (5.2). mine_fill=1 alone: ALL +0.8 (4.1) (siL c0 +21.1 (9.8), the rest noise) - 2 alone +0.6 (4.4), 4 alone +2.2 (3.1) (siL tiH liH, 240 games each): only the three together gain |
+
+### The retests (review order)
+
+| # | Key | Numbers | Verdict |
+|---|---|---|---|
+| 1 | `metal_plan=24,metal_fleet_pct=250,metal_fleet_min=20` | 80 games a cell on siL tiH liH: siL +22.9 (10.8) / +3.5 (8.0), tiH +6.9 (9.5) / -12.8 (11.4), liH +10.4 (8.4) / +8.9 (8.9); ALL +5.0 (2.9); soldiers +6 to +19, warships -10 to -11.5 on tiH / liH without the cheat; never acts on si5 / si9 (cap below metal_cap 250: identical games); head-to-head Small Islands Large -4.5 (11.3), soldiers +5.4 (4.3), losses +16.3 (6.4) | off: no clear gain (the cheat cells that were -27 / -19 are now within the noise) |
+| 2 | `army_plan=7` | coL (80) -8.0 (8.2) / +8.1 (7.2), but the mod's wins 35 -> 61 of 80 without the cheat, the base AI's 66 -> 60 with it, soldiers +46 / +5; cont (80) -5.5 (1.8) / +4.9 (2.9); co9 +4.6 (4.5) / +7.8 (5.8) (wins 24 -> 33, base AI 26 -> 18); head-to-head Continental Large +46.0 (17.5), soldiers +38.1 (7.2) | off: the strongest candidate on land, but cont c0 -5.5 (1.8) is a loss - more seeds on cont / a land h2h e0 before switching on |
+| 2 | `workforce_plan=4` | never acts on cont (cap below 250); coL +0.2 (8.9) / +5.0 (7.3), liH -11.8 (13.1) / -17.1 (9.9), tiH +3.9 (16.8) / +43.3 (13.8) (base AI wins 4 -> 9); head-to-head Continental Large +7.1 (18.2) | off: noise |
+| 3 | `army_mass=1` | coL -18.5 (14.6) / +11.9 (7.1), the mod's wins coL c0 17 -> 9; cont +1.1 (3.8) / -10.2 (7.3); head-to-head Continental Large -27.9 (15.5), soldiers -14.0 (6.1) | off: worse |
+| 3 | `army_mass=65` | coL -19.2 (12.9) (wins 17 -> 5) / +13.6 (8.4); cont +1.2 (3.6) / -6.8 (9.2); head-to-head -56.0 (17.7), soldiers -20.7 (6.7) | off: worse |
+| 3 | `army_mass=144` | 80 games: ALL +0.1 (2.0), every cell within the noise; head-to-head +7.6 (20.4) | off: neutral (as before); no sign of GATHER and fall_back fighting over units - no crash, no stall in 1120 army_mass games |
+| 4 | `navy_mix=1` | a no-op under navy_fleet 2 (above) | off; the key could go |
+| 5 | `early_army=1` | cont +4.6 (4.2) / -8.6 (7.4) (37 / 39 pairs: 4 runs left no log); head-to-head Continental e0 +1.6 (4.7), soldiers +3.4 (1.3) | off: noise |
+
+No default was switched on: no key gained everywhere it acts without a loss elsewhere. `mine_fill=7` comes closest
+(large maps +12 to +80, base AI wins halved on the island maps; small maps within the noise, but si9 c1 -6.5 (3.7), si5 c1 -7.2 (4.3) and
+the Continental e0 head-to-head -11.9 (5.2)) - the user's call; `army_plan=7` next.
+
+Unmeasured: `assault` / `hold_town` / `attack_retreat` / `safe_sites` / `idle_citizen_slack` have no `v_` key, so no
+head-to-head; `metal_plan` 4 alone (it only acts with 1); the FIX FIRST keys and the low-priority retests
+(`militia_estimate`, `copper_plan=2`, `landing_bombard`, `expand_islands`) were not run; 2v2 maps (siL2) not run.
+Logs: work/autotest_*_vanrm00[1-7]_ab-<name>-c<cheat>-<map>-r<seed>v<seat>.csv (names `rb`, `rbchk`, `rm*`, `rt*`),
+head-to-heads work/autotest_*_h2h20261022_1[23]*_h<name>_late-r*.csv.
