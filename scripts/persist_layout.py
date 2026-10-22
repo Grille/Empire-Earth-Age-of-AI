@@ -110,7 +110,7 @@ def layout(var):
         names.add(m)
         todo += re.findall(r'\b[A-Z][A-Z0-9_]+\b', macro(m))
     parts += ['%s=%s' % (m, macro(m)) for m in sorted(names)]
-    # the game's objects typed (game/api/functions.c: ee_unit * ...) are the same pointers the blocks held as uint8_t * before -
+    # the game's objects typed (game/api/types.h: ee_unit * ...) are the same pointers the blocks held as uint8_t * before -
     # the same bytes, the same hash: a save of before the typing still loads them; likewise internal (base/lang.h) is
     # the static the definitions were written with before
     text = re.sub(r'^internal ', 'static ', '\n'.join(parts), flags=re.M)

@@ -1,5 +1,5 @@
 // THE GAME'S OBJECTS, TYPED: a pointer type of its own for each kind of object (raw/fields.h's kinds), for
-// functions.c's wrappers and hooks.c's hook types. The types are never defined, only pointed to: a unit passed where a
+// the module's accessors, wrappers and hook types (one place: the objects point at each other). The types are never defined, only pointed to: a unit passed where a
 // player is wanted, or the arguments swapped, doesn't build (a void * still passes - code not moved over yet). FIELD
 // reads them as before; dll/build.sh's -fno-strict-aliasing keeps the types out of the optimizer's aliasing.
 

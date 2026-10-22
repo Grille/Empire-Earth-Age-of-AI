@@ -3,7 +3,7 @@
 // its value in each exe build (k_exe_builds' columns, in that order, the 2017 update's first; tables.c makes the
 // table of these rows). The name is the running build's offset: FIELD(pl, PL_TECH_TREE, void *); a read of a field
 // not in the table doesn't build. A structure inside an object (a vector, a matrix, an array) is one row, its parts
-// plain numbers from there in objects.c (PL_ZONES + 4 its end): they move with it. A kind has one row per offset
+// plain numbers from there in the accessors (PL_ZONES + 4 its end): they move with it. A kind has one row per offset
 // (scripts/addr_sort.py --check). The kinds are below; the runtime library's layouts (std::deque, vector, map nodes,
 // UString) and the mod's own structures stay plain numbers.
 // Art of Conquest's column: scripts/port_fields.py (in the two exes' paired code, [this + X] read as [this + Y] in a

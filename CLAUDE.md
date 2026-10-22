@@ -33,7 +33,7 @@ Several sessions may work in this tree at the same time - see Git below.
   in `raw/fields.h`, one row each, named by kind and what it is (`O(UNIT_X, 0x1C, 0x1C)`, `UNIT_0x50` while not
   understood, a structure inside the object one row; the name is a variable holding the running build's offset:
   `FIELD(u, UNIT_X, int)`; a field not in the table doesn't build; the runtime library's layouts - deque, vector,
-  string - stay plain numbers), read by name through `objects.c`: `unit_get_x(u)`, `unit_set_behaviour(u, b)` (a setter only where the mod writes), typed by kind
+  string - stay plain numbers), read by name through the object's file: `unit_get_x(u)`, `unit_set_behaviour(u, b)` (a setter only where the mod writes), typed by kind
   (types.h); a field's name only in game/api/ (it is raw/'s: scripts/layers.py) - a new field: its row, then its
   accessor. FIELD with a plain number stays for the runtime library's layouts and raw dumps. Two columns:
   the 2017 update and Art of Conquest (not ready: tested in AoC only since 2026-10-21 - test runs play it,
@@ -42,11 +42,11 @@ Several sessions may work in this tree at the same time - see Git below.
   own code (and a called function's stack arguments: `rets`), `scripts/port_dll.py` for the engine DLLs (AoC ships
   its own builds: an RVA_ row, or better the export by name). Code that differs by more than an address:
   `build_is("aoc")` (AoC rewrote a few functions - docs/engine-notes.md).
-- `dll/game/api/types.h`: the objects typed (`ee_player *`, `ee_resource_mgr *`, ... one per raw/fields.h kind);
-  `functions.c`: the game's functions as typed wrappers (`explored_by(site, pl)`, `rm_assign(rm, u, site)`), its data as accessors
-  (`game_map()`, `local_player_index()`), a goal's kind (`goal_is_attack(g)`) and an object's memory
-  (`goal_build_alloc()`); `dll/game/api/hooks.c`: per hooked function its hook's type and installer
-  (`patch_place(hook_place)` - a hook with other parameters doesn't build), and the patches of the game's code. GA, GF
+- `dll/game/api/`: a file per object of the game (`unit.c`, `player.c`, `attack.c`, `tech.c` ... - by the first
+  argument, the C++ object of a thiscall): its fields, the game's functions on it as typed wrappers (`explored_by(site,
+  pl)`, `rm_assign(rm, u, site)`, `goal_is_attack(g)`, `goal_build_alloc()`), its hooks' types and installers
+  (`patch_place(hook_place)` - a hook with other parameters doesn't build); `game.c` the game's globals with no object
+  (`game_new(n)`, `end_epoch()`, the simulation), `hooks.c` the patches of the game's code, `types.h` the types' names. GA, GF
   and GL only in game/api/ (scripts/layers.py; elsewhere add a wrapper, an accessor or an installer); a kind not typed
   yet is `void *`. `scripts/addr_sort.py` moves the rows into the file their use calls for (the build checks it). A
   change there must keep the machine code (`scripts/code_same.py`, which compares the address and field tables by name) or, where it

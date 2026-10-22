@@ -1,5 +1,5 @@
-"""The address rows into the file their use calls for: what game/api/functions.c calls into raw/functions.h, what
-game/api/hooks.c patches into raw/hooks.h, the game's data (G_, read by functions.c's accessors) into raw/data.h.
+"""The address rows into the file their use calls for: what game/api/'s files call into raw/functions.h, what they
+patch (their HOOKS, hooks.c, patching.c) into raw/hooks.h, the game's data (G_, read by their accessors) into raw/data.h.
 A function both called and hooked is a function; a row neither uses is reported (unused: take it out). Within a file
 the rows stay in the order of their address (the numbers and lists in their order). One table either way - raw/tables.c
 composes the three - so a row's move changes no code (scripts/code_same.py compares the table by name).
@@ -73,13 +73,25 @@ def field_problems(code):
     return out
 
 
+def api_code():
+    """game/api/'s code (not raw/, api.c, exe.c): (what it calls and reads, what it hooks) - an object's file has its
+    hooks after its "// HOOKS" title, hooks.c and patching.c are hooks throughout"""
+    fun, hk = '', ''
+    for f in sorted(os.listdir(API)):
+        if not f.endswith('.c') or f in ('api.c', 'exe.c'): continue
+        t = open(os.path.join(API, f), encoding='latin-1').read()
+        if f in ('hooks.c', 'patching.c'): hk += t; continue
+        i = t.find('\n// HOOKS\n')
+        fun += t if i < 0 else t[:i]
+        hk += '' if i < 0 else t[i:]
+    return strip_comments(fun), strip_comments(hk)
+
+
 def main():
     check = '--check' in sys.argv
     texts = {k: read(f) for k, f in FILES.items()}
-    fun = strip_comments(open(os.path.join(API, 'functions.c'), encoding='latin-1').read())
-    hk = strip_comments(open(os.path.join(API, 'hooks.c'), encoding='latin-1').read())
-    obj = strip_comments(open(os.path.join(API, 'objects.c'), encoding='latin-1').read())
-    fields = field_problems(fun + hk + obj)
+    fun, hk = api_code()
+    fields = field_problems(fun + hk)
     for m in fields: print('addr_sort: ' + m)
     if fields: sys.exit(1)
     def used(t, n): return re.search(r'\b' + n + r'\b', t) is not None
@@ -96,7 +108,7 @@ def main():
             for n, ls in rows(sp[3]) if sp else []:
                 allr.append((n, ls, k))
         for n, ls, k in allr:
-            if where(n) is None: unused.append('%s (%s): used by neither functions.c nor hooks.c' % (n, FILES[k]))
+            if where(n) is None: unused.append('%s (%s): used by none of game/api/' % (n, FILES[k]))
             elif where(n) != k: moves.append('%s: %s -> %s' % (n, FILES[k], FILES[where(n)]))
             if where(n) not in (None, k) and not block_span(texts[where(n)][0], '%s_%s' % (blk, where(n))):
                 sys.exit('addr_sort: %s belongs into %s, which has no %s_%s' % (n, FILES[where(n)], blk, where(n)))

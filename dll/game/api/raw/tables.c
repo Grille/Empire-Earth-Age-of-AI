@@ -1,9 +1,9 @@
-// THE TABLES BEHIND GA, GF, GL AND THE FIELDS' NAMES - game/api/'s own: the rest of the code uses the wrappers, accessors and
-// installers of functions.c and hooks.c, and FIELD (layout.h; scripts/layers.py). Every address the mod uses in
+// THE TABLES BEHIND GA, GF, GL AND THE FIELDS' NAMES - game/api/'s own: the rest of the code uses the accessors, wrappers and
+// installers of the module's object files (unit.c, player.c ...), and FIELD (layout.h; scripts/layers.py). Every address the mod uses in
 // Empire Earth.exe and every field offset it reads, by name, with its value in each exe build the mod knows - one
 // column per k_exe_builds entry (builds.h), in that order. game_build (exe.c) finds the running build, addr_select and
 // fields_select take its column when the DLL loads: GA(NAME) is the address, GF(NAME) the function there, typed by its
-// row, GL(NAME) a list of addresses (its count: sizeof GL(NAME) / sizeof *GL(NAME)), a field's name (UNIT_0x13C) its
+// row, GL(NAME) a list of addresses (its count: sizeof GL(NAME) / sizeof *GL(NAME)), a field's name (UNIT_HP) its
 // offset. Another build - Art of Conquest, another release, a patched exe - is one more hash and one more value per
 // row (scripts/port_addrs.py, port_fields.py).
 // The address names: FN_ a function, CALL_ a call (patched), SITE_/CODE_ an instruction or operand, G_ data, VT_ a
@@ -12,7 +12,7 @@
 // their own for one build: editor_layout.h (generated for the 2017 update: hooks.c apply_editor_layout only there).
 
 // The address rows by who uses them (scripts/addr_sort.py keeps them there, the build checks it): functions.h what
-// functions.c calls, hooks.h what hooks.c patches, data.h the game's data functions.c reads; one table of the
+// the module calls, hooks.h what it patches (the files' HOOKS, hooks.c), data.h the game's data it reads; one table of the
 // three. F(name, return type, calling convention, (parameters), value per build): a function; D(name, value per
 // build): an address or a number; L(name, count, (values of build 1), (values of build 2) ...): a list.
 #include "game/api/raw/functions.h"   // the rows of the functions the mod calls
