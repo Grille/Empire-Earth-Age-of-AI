@@ -417,8 +417,9 @@ vf26 members and route released, vf12, the group's reference) frees nothing twic
 - `.scn`/`.ees` (one format: a save is a scenario further on; github.com EEScnEdit has the header's fields): u32 the
   size of the rest of the file, a header (names, players, settings) with the lump table - u32 count, then the lumps'
   types in file order (both the save and the scenario here: 1, 2, 4, 3, 6, 10, 12, 5, 7, 8, 11; 9 never) - then the
-  lumps back to back to the end: u64 version, u32 type, u32 size, size bytes (raw, or "PK01" + u32 size + u32 + a
-  DCL stream - `scripts/unpack_save.py`). 4 is the terrain, 5 the player data with the units (the big ones).
+  lumps back to back to the end: u32 major, u32 minor version, u32 type, u32 size, size bytes (raw, or "PK01" +
+  u32 size + u32 + a DCL stream - `scripts/unpack_save.py`; details and what each type is in "Scenario / save file
+  format" below). 4 is the terrain, 5 the player data with the units (the big ones).
   Room for the mod's own (2026-10-22, the reference save at 75.8 min, played to 77): a lump of type 100 appended
   after the last one and not listed in the table is never read - the game plays exactly as from the unchanged copy,
   with or without the leading size updated, likewise 777 bytes of garbage appended; the same lump listed in the
@@ -846,9 +847,11 @@ physics/movement models EEP 107/49, interface EEUI 819/31, scenario EES 611/12, 
 From the author's earlier C# project EEScnEdit (GitHub, `EEScnEdit/Headers`, `EEScnEdit/Data`), which reads and
 writes the header and the lump container and parses terrain. Strings are length-prefixed.
 
-- Header: u32 size, name, description, u64 **version** (candidate for telling EE and AoC files apart), player
-  names, date, u8, 16 x PlayerHeader, Settings, campaign name, scenario name, u32, u8, forced name, u32,
-  u32 n + n x u32 lump types, scenario texts, u32 system uptime.
+- Header: u32 size (of the rest of the file), name, description, u32 major + u32 minor **version** (0.231 in every
+  file here; candidate for telling EE and AoC files apart; the reader 0x53F496 refuses major 0 with minor < 0xC5,
+  0x5414D4 a file newer than the exe's own [0x82C90C]/[0x82C910]), player names, date, u8, 16 x PlayerHeader,
+  Settings, campaign name, scenario name, u32, u8, forced name, u32, u32 n + n x u32 lump types, scenario texts,
+  u32 system uptime.
 - PlayerHeader: u8, u8, bool shared line of sight, u32 flags, name, float, u32 id, u32 color, u32 team,
   u32 starting citizens - the same order as the in-memory game setup slots (+0x20 index, +0x24 color,
   +0x28 team, +0x2C citizens, +0x34 flags).
@@ -856,9 +859,41 @@ writes the header and the lump container and parses terrain. Strings are length-
   u32 resources, u32 unit limit, u32 wonders for victory, u32 AI difficulty, bools victory allowed, lock teams,
   lock speed, reveal map, cheats, u8, custom civs, u8 - matches setup +0x3D8.. (mode, epochs, map size, limit,
   difficulty).
-- Lumps: u64 version, u32 type (1 unknown, 2 seed, 3 camera, 4 terrain, 5 player data/entities, 6 triggers,
-  7 misc, 8 unknown, 10 gfx effects, 11 calamities, 12 unknown), u32 size, then a compression header (bool
-  compressed, u32 size, u32) and the (PKWARE DCL) data.
+- Lumps are LowLevelEngine.dll's FSChunk (decomp/dll/LowLevelEngine/10020000.c:1435 LoadChunkHeader /
+  SaveChunkHeader): u32 major, u32 minor version (the file's), i32 type - the FSPersistent class id, the object
+  made by FSPersistentList::CreateDefaultPersistent (an unknown one: error 3) - u32 size (< 0x80000000), then size
+  bytes. 0x54020B makes the save's objects, one per type in file order, 0x54075F writes them; the load 0x5414D4
+  wants exactly one each of 1-7, 10 and 11 in the table (else error 0x1BF4 / 0x1BF5) - 8 and 12 aren't checked.
+- Compression (UDataCompression, 10060000.c:1485 Compress, 1555 Decompress): "PK01", u32 the uncompressed size,
+  u32 0 (never read), then a PKWARE DCL implode stream - binary literals, 4096-byte dictionary - and the lump size
+  counts the 12 bytes. Data under 13 bytes, or that doesn't shrink below its length - 12, is stored raw. The
+  loader takes data as compressed when it starts with "PK01" and is longer than 12 bytes, and fails (error 9)
+  unless the explode gives exactly the stated size. No CRC anywhere.
+- Types (the class from its constructor's type id): 1 EEPChecksum, 2 seed
+  (world +0x54), 3 camera, 4 terrain ([0x9183BC]), 5 EEPPlayerHelper (player data, all 17 players), 6 triggers
+  ([0x918E24]), 7 EEPWorldHelper ("misc": its persist names list teams, teams locked, game speed, time of day,
+  water level, zoom, population limit, victory, unit improvements, cheat codes, town and herd id counters),
+  8 EEPMultiplayerHelper, 10 gfx effects ([0x918E1C]), 11 EEPCalamityHelper, 12 EEEnvironmentManager.
+- 1, EEPChecksum (14 bytes): u8 verbose mode, i32 count, per entry a name and a u32 - a checksum of the game state
+  (EEWorld::vf3 0x52E5AC adds the map seed under "EEWorld"); saves hold one entry with an empty name. Not checked
+  when a single-player game loads (2026-10-22: an autosave with the value changed played its 2 minutes exactly as
+  the original - logs the same but for pointers, the slot lines and the clock-seeded setup seed).
+- 8, EEPMultiplayerHelper (140 bytes, vf3 0x53EAD5 / vf1 0x53E982): EEPhysics [0x919774] - the simulation's clock and
+  random generator - saves itself first (RTSPhysics::vf2 0x553593, 31 bytes: u32 +0x18 the random state, different
+  in every save, u32 +0x28, u8 +0x2C, float +0x50, u32 +0x54 +0x58 +0x5C +0x64, u8 +0x68 +0x69; then EEPhysics::vf2
+  0x54744B, 77 bytes: u32 +0x80 steps since the start, floats +0x84, +0x88 steps a second, +0x8C seconds a step,
+  +0x90, +0x98 ms a step, i32 +0xA8 +0xAC the system clock in ms at the save, u32 +0xB4 (= +0x80), +0xB8 steps left
+  of the last grant, +0xBC +0xC0 +0xC4 +0xC8, float +0x94 the game time in ms (+0xD0 is computed from it on load),
+  u32 +0xD8 +0xDC, u8 +0xE0, float +0x9C (cycles 0..~1800), u8 +0xE3 +0xE4 +0xE5 +0xE6), then 8 u32 of the
+  network session [0x91984C] (EEServer / EEClient turn counters); the load restores only the 3rd (client +0xBC)
+  and the 8th (server +0x178, the step count).
+- 12, EEEnvironmentManager [0x918E28] (56 bytes, vf3 0x5243AD / vf1 0x524223; on/off by the Ambient-Weather effect,
+  0x5244A9 +0x58 - not saved): u32 n records of 0x74 bytes (0x523120's, layout open; 0 in every file here), i32
+  +0x30, floats +0x34 +0x38 +0x3C, u32 +0x48, i32 +0x54 (5000), two colours of 3 floats (1, 1, 1), u32 +0x50 - never
+  set by the constructor 0x523FFC, so whatever the heap held (constant within a session, different between them).
+- EEScnEdit (2026-10-22) decompresses every lump of the 37 saves and 10 scenarios here, recompresses them by these
+  rules (output 3-5% larger than the game's) and writes files that load: the autosave rewritten by it played its 2
+  minutes exactly as the original.
 - Player data lump (started): a list of "PlayerEnabler" records {u32 id, bool, u32, u32 per player x16, u32} -
   probably the per-player enable state of units/techs; the lever for locking AoC-only content in EE scenarios.
 - Triggers: name, description, bools active/looping/fired/active in cinematic, u32 conditions-true-for,
