@@ -76,7 +76,8 @@ internal int decide_key(const char *key) { int k = 0; while (k < D_N && lstrcmpi
 #define LAYERS_MAX 8
 struct includes { int n; char name[INCLUDES_MAX][64]; };
 struct persona {
-    char file[40], name[48], civ[48];   // civ: civilization= - the civilization's name the game shows for it
+    char file[40], civ[48];   // civ: civilization= - the civilization's name the game shows for it
+    char *name;   // name=: an expression - a string, or a list in order of preference (persona_name); NULL: none
     char character[300];   // character=: a few words about it for the language model (llm.c)
     int trait[T_N];
     char *color;   // color=: the favoured player colours, an expression - a list in order of preference (persona_colors)
@@ -256,6 +257,12 @@ internal void color_check(const char *name, void *arg) {   // a colour name as w
     struct color_read *r = arg;
     if (color_index(name) < 0) x_error("%s:%d: unknown colour \"%s\"", r->l->file, r->line, name);
 }
+struct name_read { struct tlex *l; int n; };
+internal void name_check(const char *name, void *arg) {   // a name as written: one the game can hold (the rest when given)
+    struct name_read *r = arg;
+    if (strlen(name) > 40) { char why[96]; snprintf(why, sizeof why, "a name of at most 40 characters: \"%.30s...\"", name); tl_error(r->l, why); }
+    if (!*name) tl_error(r->l, "an empty name");
+}
 internal void persona_key(void *arg, const char *sec, const char *key, struct tval *v, struct tlex *l) {
     struct persona *p = arg;
     if (!*sec && !lstrcmpiA(key, "include")) {   // include("a.eeai", ...) (tfile_parse: the list of its names)
@@ -271,11 +278,17 @@ internal void persona_key(void *arg, const char *sec, const char *key, struct tv
         return;
     }
     if (!lstrcmpiA(sec, "personality")) {
-        int civ = !lstrcmpiA(key, "civilization"), name = !lstrcmpiA(key, "name");
-        if (civ || name || !lstrcmpiA(key, "character")) {
+        int civ = !lstrcmpiA(key, "civilization");
+        if (!lstrcmpiA(key, "name")) {   // an expression like color =: a list in order of preference (persona_name)
+            struct name_read nr = { l, 0 };
+            x_plain_strings(v->src, name_check, &nr);
+            free(p->name);
+            p->name = _strdup(v->src);
+            return;
+        }
+        if (civ || !lstrcmpiA(key, "character")) {
             if (v->kind != TV_STRING) { tl_error(l, "a string expected (\"...\")"); return; }
             if (civ) lstrcpynA(p->civ, v->text, sizeof p->civ);
-            else if (name) lstrcpynA(p->name, v->text, sizeof p->name);
             else lstrcpynA(p->character, v->text, sizeof p->character);
             return;
         }
@@ -381,7 +394,7 @@ internal void persona_layers(struct persona *p, const char *dir, int depth) {
             }
         for (int k = 0; k < D_N; k++) if (!p->decide[k] && q->decide[k]) p->decide[k] = _strdup(q->decide[k]);
         for (int t = 0; t < T_N; t++) if (!(p->trait_set >> t & 1) && (q->trait_set >> t & 1)) { p->trait[t] = q->trait[t]; p->trait_set |= 1u << t; }
-        if (!p->name[0]) lstrcpyA(p->name, q->name);
+        if (!p->name && q->name) p->name = _strdup(q->name);
         if (!p->civ[0]) lstrcpyA(p->civ, q->civ);
         if (!p->character[0]) lstrcpyA(p->character, q->character);
         if (!p->color && q->color) p->color = _strdup(q->color);
@@ -746,6 +759,71 @@ internal void *__cdecl hook_player_color(unsigned idx) {
     return game_color_rgb(idx);
 }
 
+// THE PLAYER'S NAME from a personality's name =: worked out when the AI becomes it (persona_apply) - constants,
+// chance(), rnd(), pick(), language and vars, its draws from the game's generator (every PC alike, like the style
+// values); a list its order of preference: the first item no other player is called (case ignored). All taken: the
+// first with a number, "Khan Temur II", "III" ... - several AIs of one personality (more AIs than personalities)
+internal const char *const k_name_nums[] = { "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII", "XIII", "XIV", "XV", "XVI" };
+#define N_NAME_NUMS (int)(sizeof k_name_nums / sizeof *k_name_nums)
+internal int name_taken(const char *name, const ee_player *self) {   // another player of the game is called so
+    ee_player **pls = game_players();
+    unsigned n = game_player_count();
+    for (unsigned i = 0; pls && i < n && i < 16; i++)
+        if (pls[i] && pls[i] != self && !lstrcmpiA(player_name(pls[i]), name)) return 1;
+    return 0;
+}
+internal int persona_name(struct persona *p, const ee_player *pl, char *out, int cap) {   // 0: none (no name =, a mistake)
+    if (!p->name) return 0;
+    struct xctx c = { 0 };
+    c.found = 1;
+    c.nogame = 1;
+    c.game = 1;
+    c.vars[0] = &p->vars;
+    c.vars[1] = &g_vars_sys;
+    struct xval v;
+    if (!x_eval(p->name, &c, &v)) { if (!c.failed) x_log_bad("a name that is no expression", p->name); return 0; }
+    const char *first = NULL;
+    for (int i = 0; i < xl_n(&v); i++) {
+        const struct xval *it = xl_at(&v, i);
+        if (!it->has_s || it->has_n || !it->s[0]) {
+            char t[XVAL_CAP];
+            xto_text(it, t, sizeof t);
+            x_error("%s: a name is a text - not %s in name = %.100s", p->file, t, p->name);
+            continue;
+        }
+        if (!first) first = it->s;
+        if (!name_taken(it->s, pl)) { lstrcpynA(out, it->s, cap); return 1; }
+    }
+    if (!first) return 0;
+    for (int k = 0; k < N_NAME_NUMS; k++) {
+        snprintf(out, (size_t)cap, "%s %s", first, k_name_nums[k]);
+        if (!name_taken(out, pl)) return 1;
+    }
+    return 1;   // (16 players at most: never all taken)
+}
+// a loaded game finds an AI's personality by the player's name: one of the texts its name = holds anywhere (a list's,
+// a pick()'s, a choice's), or one of them with its number
+struct name_find { const char *name; int hit; };
+internal void name_find_one(const char *t, struct name_find *f) {
+    size_t n = strlen(t);
+    if (!lstrcmpiA(f->name, t)) f->hit = 1;
+    for (int k = 0; k < N_NAME_NUMS && !f->hit; k++)
+        if (!_strnicmp(f->name, t, n) && f->name[n] == ' ' && !lstrcmpiA(f->name + n + 1, k_name_nums[k])) f->hit = 1;
+}
+internal int persona_has_name(const struct persona *p, const char *name) {
+    struct name_find f = { name, 0 };
+    char t[XVAL_CAP];
+    for (const char *s = p->name; s && *s && !f.hit; ) {
+        const char *e, *why;
+        if (*s == '#') { while (*s && *s != '\n') s++; continue; }
+        if (*s != '"' && *s != '\'') { s++; continue; }
+        if (x_string(s, t, sizeof t, &e, &why) < 0) break;
+        name_find_one(t, &f);
+        s = e;
+    }
+    return f.hit;
+}
+
 // once per AI (its first update): pick and apply the personality - pinned by aimod.ini, planned at the game start
 // (found by the player's colour, +0x438 = the colour table's rgb), the one with the player's name (a loaded game),
 // or a random one
@@ -762,7 +840,7 @@ internal void persona_assign(ee_player *pl) {
         if (c && c[0] == rgb[0] && c[1] == rgb[1] && c[2] == rgb[2]) { pick = g_plan_persona[s]; g_plan_persona[s] = -1; }
     }
     for (int i = 0; i < g_npersonas && pick < 0; i++)
-        if (g_personas[i].name[0] && !lstrcmpA(g_personas[i].name, player_name(pl))) pick = i;
+        if (persona_has_name(&g_personas[i], player_name(pl))) pick = i;
     if (pick < 0) { pick = persona_random(); if (pick >= 0) g_persona_used[pick]++; }
     if (pick >= 0) persona_apply(pl, idx, pick);
 }
@@ -771,14 +849,15 @@ internal void persona_apply(ee_player *pl, unsigned idx, int pick) {
     g_persona_of[idx] = pick;
     g_cfg_pl_on[idx] = 0;   // the last one's style (cmd_persona)
     struct persona *p = &g_personas[pick];
-    if (g_ai_names && p->name[0])
-        wstring_set(player_name_at(pl), p->name);
+    char name[48];
+    if (g_ai_names && persona_name(p, pl, name, sizeof name))
+        wstring_set(player_name_at(pl), name);
     // its civilization's name as the game shows it: the UString at +0x488 (the text at +0x48C) - the database's own
     // name at +0x7AC stays (X.civilization_en)
     if (g_ai_names && p->civ[0] && player_civ(pl))
         wstring_set(player_civ_name_at(pl), p->civ);
     if (g_log) {
-        fprintf(g_log, "# persona: P%u is %s (%s):", idx, p->file, p->name[0] ? p->name : "-");
+        fprintf(g_log, "# persona: P%u is %s (%s):", idx, p->file, player_name(pl));
         for (int t = 0; t < T_N; t++) fprintf(g_log, " %s %d", k_trait_keys[t], p->trait[t]);
         fprintf(g_log, "\n");
     }
@@ -979,7 +1058,7 @@ internal void cmd_persona(char *out, const char *args) {
     for (int i = 0; i < 16; i++) {
         struct persona *q = g_persona_of[i] >= 0 ? &g_personas[g_persona_of[i]] : NULL;
         if (!q) continue;
-        REPLY("P%d %-12s %-24s", i, q->file, q->name);
+        REPLY("P%d %-12s %-24s", i, q->file, g_players[i] ? player_name(g_players[i]) : "-");
         for (int t = 0; t < T_N; t++) REPLY(" %c%d", k_trait_keys[t][0], q->trait[t]);
         REPLY("  lines %u%s\n", g_talk_lines[i], g_cfg_pl_on[i] ? "  (own style)" : "");
     }

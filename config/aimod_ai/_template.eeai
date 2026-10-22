@@ -21,7 +21,8 @@
 #register_personality()
 
 personality = {
-    # the name in the game (the player name in the scores and the chat)
+    # the name in the game (the player name in the scores and the chat) - a list: the first no other player has
+    # (all taken: the first with a number, "Khan Temur II"): ["Khan Temur", "Khan Batu"], pick([...]) a random one
     name = ""
     # its civilization's name as the game shows it, instead of the one it plays (empty: keep that)
     #civilization = ""
