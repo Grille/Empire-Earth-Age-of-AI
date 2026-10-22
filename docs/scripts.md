@@ -83,6 +83,38 @@ every(10s, 50s, 2min, (run) => {
 })
 ```
 
+## Triggers
+
+What the scenario editor's triggers do, in the language - checked every 500 ms of game time like the game's own,
+also while the script waits and after it has ended:
+
+```
+t = trigger({
+    name = "wood for the poor",          # for the messages (else the statement's start)
+    when = () => p2.wood < 100 and time > 10min,
+    for = 5s,                            # true that long without a break first (default 0)
+    loop = false,                        # fires once, then it is off (true: again whenever it holds)
+    run = () => {
+        give(2, 500, resource.wood)
+        after(10s, () => chat(2, "Don't waste it."))
+    },
+})
+other = trigger({ when = () => t.fired, run = () => disable(t) })
+```
+
+| | |
+|---|---|
+| `trigger({ ... })` | `when` and `run` are functions of no arguments; `loop`, `for`, `name` may be left out. Its value is the trigger: `t.on`, `t.fired`, `t.name` |
+| `enable(t)`, `disable(t)` | switch it on (its `for` starts again) or off |
+| `after(10s, f)` | `f()` that much later - a trigger's `run` can't `wait` (that would hold up every trigger), its delays are `after`'s |
+
+The triggers are checked in the order they were made, each `run` right after its `when` held, so a trigger made
+after `t` sees `t.fired` in the same check. A mistake in a trigger's function turns that trigger off (logged
+`# texts: trigger <name>: when stopped - ...`); the script and the other triggers go on. The functions read the
+script's own names as they are when they run; the names of a function they were made in as they were then (that
+function has returned). A dry run (`script dryrun`) has the triggers' turns on the way to where the script waits:
+end a trigger test with `wait_until(...)`.
+
 ## Several scripts side by side
 
 `setup=a.eeai;b.eeai` (`;` - `run_test.ps1` splits its ini arguments at commas): each runs on its own, in turn, always

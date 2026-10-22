@@ -56,7 +56,8 @@
 // files hold names, records and the declarations include(), register_personality() only - nothing runs from the
 // top: their values are worked out where the code needs them, for whoever speaks to whom - and nothing loops: a text
 // can't hang the game. Scripts (scripts.c,
-// docs/scripts.md) add the commands, wait, wait_until, every (bounded), for (bounded), player(n), time, stop and 20s / 19.5min.
+// docs/scripts.md) add the commands, wait, wait_until, every (bounded), for (bounded), player(n), time, stop and 20s / 19.5min,
+// and triggers: trigger({ when, run, loop, for, name }), after(t, f), enable(t), disable(t) (TRIGGERS below).
 // MISTAKES WHILE WORKING OUT (x_fail; the file was fine, the value isn't): an unknown name, a text in arithmetic
 // ("a" * 2), a text and a number added or compared ("12" + 1, "12" == 12), chance(70), a player who isn't there used
 // without a check (lord.soldiers without a lord - x_missing). Nothing is guessed: the
@@ -100,8 +101,9 @@ struct xctx {
 // without one) - nothing, which may only be checked (lord ? .., lord ?? .., lord == them): used, it is a mistake
 // it, ln: a list's items (ln 0: no list) - its value meanwhile is one of them, at random; kind: a function (fn: its
 // definition and where it was made), stop (a for / every body's "no more"), a vector (vc: its vn numbers, 2..4 -
-// .x .y .z .w; in the region like a text) or a record (rec: its members by name) - neither number nor text
-enum { XV_PLAIN, XV_FN, XV_STOP, XV_VEC, XV_REC };
+// .x .y .z .w; in the region like a text), a record (rec: its members by name) or a trigger (n: its index -
+// TRIGGERS below) - neither number nor text
+enum { XV_PLAIN, XV_FN, XV_STOP, XV_VEC, XV_REC, XV_TRIG };
 struct xfn;
 struct xrec;
 struct xval { int has_n, has_s, w, obj, ln, kind, vn; double n; const char *s; const struct xval *it; const struct xfn *fn; const double *vc; const struct xrec *rec; char miss[24]; };
@@ -406,6 +408,7 @@ internal void xto_text(const struct xval *v, char *out, int cap) {
         out[o] = 0;
         return;
     }
+    if (v->kind == XV_TRIG && v->w) { snprintf(out, (size_t)cap, "trigger %d", (int)v->n + 1); return; }
     if (v->kind && v->w) { lstrcpynA(out, v->kind == XV_FN ? "function" : "stop", cap); return; }
     if (v->has_s || !v->w) { lstrcpynA(out, v->w ? v->s : "", cap); return; }
     xnum_text(v->n, out, cap);
@@ -415,7 +418,7 @@ internal const struct xval *xrec_get(const struct xval *r, const char *key) {   
     return NULL;
 }
 internal const char *xtext_of(const struct xval *v) {   // its text, whole (in the region for a number, a list)
-    if (v->ln || ((v->kind == XV_VEC || v->kind == XV_REC) && v->w)) { char t[XVAL_CAP]; xto_text(v, t, sizeof t); return x_strdup(t, strlen(t)); }
+    if (v->ln || ((v->kind == XV_VEC || v->kind == XV_REC || v->kind == XV_TRIG) && v->w)) { char t[XVAL_CAP]; xto_text(v, t, sizeof t); return x_strdup(t, strlen(t)); }
     if (v->kind && v->w) return v->kind == XV_FN ? "function" : "stop";
     if (v->has_s || !v->w) return v->w ? v->s : "";
     char t[48];
@@ -1223,7 +1226,8 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
 // (copied in when it is called: read only). The context's c->fpn / fpv point at them while it runs, so the game's
 // values find a player in one (p.soldiers - diplo.c x_path).
 #define XF_MAX 48
-struct xframe { int n; const char *name[XF_MAX]; struct xval val[XF_MAX]; unsigned char own[XF_MAX]; };
+// keep: a frame that outlives its functions (a script's top, a trigger's copy - TRIGGERS) - taken as it is, not copied
+struct xframe { int n, keep; const char *name[XF_MAX]; struct xval val[XF_MAX]; unsigned char own[XF_MAX]; };
 struct xfn { const struct xnode *lam; struct xframe *env; };   // a function value: its definition and where it was made
 // err: what is being worked out failed (its mistake told, or none: not an expression); why: what it was; f: the
 // frame of the function (or script) running; ret: a return given (its value in *retv); err_at: the statement it
@@ -1253,6 +1257,7 @@ internal int x_numeric_ok(struct xe *e, const struct xval *v) {   // v counts as
     if (v->ln) { x_fail(e, "a list (%.40s) where one number belongs - %s", xtext_of(v), "pick(l) for one of its items"); return 0; }
     if (v->kind == XV_VEC && v->w) { x_fail(e, "a vector %.40s where one number belongs - .x, .y ... for one of its numbers", xtext_of(v)); return 0; }
     if (v->kind == XV_REC && v->w) { x_fail(e, "a record %.40s where one number belongs - r.name for one of its members", xtext_of(v)); return 0; }
+    if (v->kind == XV_TRIG && v->w) { x_fail(e, "a trigger where one number belongs - t.on, t.fired"); return 0; }
     if (!v->w || v->has_n) return 1;
     x_fail(e, "a text (\"%.40s\") where a number belongs - number(x) makes a number of a text", xtext_of(v));
     return 0;
@@ -1273,6 +1278,11 @@ internal int xcmp(const struct xval *a, const struct xval *b) {   // <0, 0, >0: 
     if (xis_num(a, &x) && xis_num(b, &y)) return x < y ? -1 : x > y;
     return lstrcmpiA(xtext_of(a), xtext_of(b));
 }
+// the triggers (TRIGGERS below): t.on, t.fired, t.name read here
+#define XT_MAX 128
+struct xtrig { struct xval when, run; int on, fired, loop; double hold, since; char name[48]; };
+internal struct xtrig g_xt[XT_MAX];
+internal int g_xt_n;
 // v's member name - a record's (a mistake when it has none: its members told), a vector's number (.x .y .z .w);
 // whole: the path as written, for the messages
 internal void x_member_of(struct xe *e, const char *name, struct xval *v, const char *whole) {
@@ -1292,6 +1302,14 @@ internal void x_member_of(struct xe *e, const char *name, struct xval *v, const 
         int m = xvec_member(name);
         if (m < 0 || m >= v->vn) { x_fail(e, "%s: %s has %d numbers - no .%s", whole, xtext_of(v), v->vn, name); return; }
         xnum(v, v->vc[m]);
+        return;
+    }
+    if (v->kind == XV_TRIG && v->w) {   // t.on, t.fired, t.name (TRIGGERS)
+        const struct xtrig *t = v->n >= 0 && v->n < g_xt_n ? &g_xt[(int)v->n] : NULL;
+        if (t && !strcmp(name, "on")) { xnum(v, t->on); return; }
+        if (t && !strcmp(name, "fired")) { xnum(v, t->fired); return; }
+        if (t && !strcmp(name, "name")) { xstr(v, t->name); return; }
+        x_fail(e, "%s: a trigger's members are on, fired, name", whole);
         return;
     }
     x_fail(e, "%s: %.40s is no record or vector - a member is a record's or a vector's", whole, xtext_of(v));
@@ -1491,6 +1509,7 @@ internal void x_call_value(struct xe *e, const struct xval *fv, const struct xva
     struct xframe *nf = malloc(sizeof *nf);
     if (!nf) { e->err = 1; return; }
     nf->n = 0;
+    nf->keep = 0;   // gone when it returns: what keeps its functions copies it (TRIGGERS)
     const struct xframe *env = fv->fn->env;
     for (int i = 0; env && i < env->n; i++) { nf->name[nf->n] = env->name[i]; nf->val[nf->n] = env->val[i]; nf->own[nf->n++] = 0; }
     for (int i = 0; i < na; i++) {   // the parameters (one with a name from around it: its own now)
@@ -1530,7 +1549,8 @@ internal void x_call_value(struct xe *e, const struct xval *fv, const struct xva
 }
 // the script functions: wait(seconds), wait_until(time), every(step, from, until, f), for(from, to, f), player(n), cmd(text)
 internal int x_script_fn(const char *name) {
-    static const struct { const char *n; int args; } k[] = { { "wait", 1 }, { "wait_until", 1 }, { "every", 4 }, { "for", 3 }, { "player", 1 }, { "cmd", 1 } };
+    static const struct { const char *n; int args; } k[] = { { "wait", 1 }, { "wait_until", 1 }, { "every", 4 }, { "for", 3 }, { "player", 1 }, { "cmd", 1 },
+                                                             { "trigger", 1 }, { "after", 2 }, { "enable", 1 }, { "disable", 1 } };
     for (size_t i = 0; i < sizeof k / sizeof *k; i++) if (!strcmp(k[i].n, name)) return k[i].args;
     return -1;
 }
@@ -1572,12 +1592,170 @@ internal void x_command(struct xe *e, const char *cmd, struct xval *v) {
     v->s = x_strdup(reply, n);
     v->has_s = 1; v->w = 1; v->has_n = 0; v->obj = v->ln = 0; v->it = NULL; v->miss[0] = 0; v->kind = 0;
 }
+internal int g_xt_in;   // a trigger's when / run or an after's function is being worked out (TRIGGERS)
 internal int x_wait_until(struct xe *e, double t) {   // the script waits until game second t (0: no script to wait in)
+    if (g_xt_in) { x_fail(e, "a trigger's run can't wait - after(5s, () => ...) does it later"); return 0; }
     if (!g_x_hooks.wait) { x_fail(e, "waiting only in a script"); return 0; }
     g_x_hooks.wait(t);
     return 1;
 }
+// ===== TRIGGERS (scripts): t = trigger({ when = () => a condition, run = () => { ... }, loop = true, for = 5s, name =
+// "..." }) - checked every 500 ms of game time, in the order made, by the script runner (x_triggers_tick), also while
+// the script waits or after it ended: when its when holds (for: that long without a break) its run is worked out, and
+// it is off then unless it loops. enable(t), disable(t); t.on, t.fired, t.name. after(5s, f): f worked out that much
+// later - a trigger's run can't wait, its delays are after's. A mistake in a trigger's function turns it off (told).
+// The functions keep the names around where they were made: a script's own (its top frame stays) as they are when
+// they run, a function's as they were when the trigger or the after was made (copied: that frame is gone by then)
+#define XA_MAX 256
+struct xafter { double at; struct xval fn; char name[48]; };
+internal struct xafter g_xa[XA_MAX];
+internal int g_xa_n;
+internal struct xregion g_xt_keep, g_xt_tmp;   // what they keep (their functions, frames); a turn's values
+internal double g_xt_next;   // the next check (game seconds)
+internal void x_triggers_reset(void) {   // a new game: none
+    g_xt_n = g_xa_n = 0;
+    g_xt_next = 0;
+    x_region_free(&g_xt_keep);
+    x_region_free(&g_xt_tmp);
+}
+// a function value kept for later (in g_xt_keep, which x_alloc uses meanwhile): the frame it was made in copied
+// unless it stays (keep), each frame once (memo: a function in it made there too)
+struct xt_memo { const struct xframe *from[16]; struct xframe *to[16]; int n; };
+internal void xt_keep_val(struct xval *dst, const struct xval *src, struct xt_memo *m);
+internal struct xframe *xt_keep_frame(struct xframe *f, struct xt_memo *m) {
+    if (!f || f->keep) return f;
+    for (int i = 0; i < m->n; i++) if (m->from[i] == f) return m->to[i];
+    struct xframe *c = x_alloc(sizeof *c);
+    if (!c) return NULL;
+    if (m->n < 16) { m->from[m->n] = f; m->to[m->n++] = c; }
+    c->n = f->n;
+    c->keep = 1;
+    for (int i = 0; i < f->n; i++) { c->name[i] = f->name[i]; c->own[i] = f->own[i]; xt_keep_val(&c->val[i], &f->val[i], m); }
+    return c;
+}
+internal void xt_keep_val(struct xval *dst, const struct xval *src, struct xt_memo *m) {
+    xv_copy(dst, src);
+    if (src->kind != XV_FN) return;
+    struct xfn *fn = x_alloc(sizeof *fn);
+    if (!fn) { xnothing(dst); return; }
+    fn->lam = src->fn->lam;
+    fn->env = xt_keep_frame(src->fn->env, m);
+    dst->fn = fn;
+}
+internal void xt_keep(struct xval *dst, const struct xval *src) {
+    struct xregion *r0 = g_xr;
+    struct xt_memo m = { { 0 }, { 0 }, 0 };
+    g_xr = &g_xt_keep;
+    xt_keep_val(dst, src, &m);
+    g_xr = r0;
+}
+internal void xt_name(char *out, const char *given, const struct xctx *c) {   // its name: given, else its statement's start
+    if (given) { lstrcpynA(out, given, 48); return; }
+    const char *s = c->top ? c->top : "";
+    int n = (int)strcspn(s, "\r\n");
+    lstrcpynA(out, s, (n < 47 ? n : 47) + 1);
+}
+internal int xt_fn0(const struct xval *f) { return f && f->kind == XV_FN && f->w && f->fn->lam->n_items == 0; }   // () => ...
+internal void xt_make(struct xe *e, const struct xval *r, struct xval *v) {   // trigger({ ... })
+    static const char *const keys[] = { "when", "run", "loop", "for", "name" };
+    if (r->kind != XV_REC || !r->w) { x_fail(e, "trigger(%.40s): a record - trigger({ when = () => ..., run = () => ... })", xtext_of(r)); return; }
+    for (int i = 0; i < r->rec->n; i++) {
+        int k = 0;
+        while (k < 5 && strcmp(keys[k], r->rec->key[i])) k++;
+        if (k == 5) { x_fail(e, "trigger({ %s = ... }): no such option - when, run, loop, for, name", r->rec->key[i]); return; }
+    }
+    const struct xval *when = xrec_get(r, "when"), *run = xrec_get(r, "run"), *loop = xrec_get(r, "loop"), *hold = xrec_get(r, "for"), *name = xrec_get(r, "name");
+    if (!xt_fn0(when)) { x_fail(e, "trigger: when = () => a condition"); return; }
+    if (!xt_fn0(run)) { x_fail(e, "trigger: run = () => what it does"); return; }
+    if (hold && (!x_numeric_ok(e, hold) || !(hold->n >= 0))) { if (!e->err) x_fail(e, "trigger: for = a time, 0 or more (5s)"); return; }
+    if (name && (!name->has_s || name->has_n)) { x_fail(e, "trigger: name = a text"); return; }
+    if (g_xt_n == XT_MAX) { x_fail(e, "more than %d triggers", XT_MAX); return; }
+    struct xtrig *t = &g_xt[g_xt_n];
+    xt_keep(&t->when, when);
+    xt_keep(&t->run, run);
+    t->on = 1;
+    t->fired = 0;
+    t->loop = loop ? xtrue(loop) : 0;
+    t->hold = hold ? hold->n : 0;
+    t->since = -1;
+    xt_name(t->name, name ? name->s : NULL, e->c);
+    xnothing(v);
+    v->w = 1; v->kind = XV_TRIG; v->n = g_xt_n++;
+}
+internal struct xtrig *xt_of(struct xe *e, const char *fn, const struct xval *t) {   // the trigger a value is
+    if (t->kind == XV_TRIG && t->w && t->n >= 0 && t->n < g_xt_n) return &g_xt[(int)t->n];
+    x_fail(e, "%s(%.40s): of a trigger (t = trigger({ ... }))", fn, xtext_of(t));
+    return NULL;
+}
+// a trigger's or an after's function worked out (the triggers' turn): 0 a mistake - told, what it belongs to stops
+internal int xt_call(const struct xval *fn, struct xval *out, const char *what, const char *who) {
+    struct xctx c = { 0 };
+    c.found = 1;
+    c.script = 1;
+    c.top = who;
+    struct xe e = { &c, 0, NULL, NULL, 0, NULL, NULL, 0 };
+    g_x_last_fail[0] = 0;
+    x_call_value(&e, fn, NULL, 0, out);
+    if (!e.err) return 1;
+    x_error("trigger %s: %s stopped - %s", who, what, g_x_last_fail[0] ? g_x_last_fail : e.why ? e.why : "not worked out");
+    return 0;
+}
+// the triggers' turn - every game tick (the script runner, after the scripts' own): the after's that are due, earliest
+// first; every 500 ms each trigger that is on, in the order made. Their values live in a region emptied after it
+internal void x_triggers_tick(double now) {
+    if (!g_xt_n && !g_xa_n) return;
+    struct xregion *r0 = g_xr;
+    g_xr = &g_xt_tmp;
+    g_xt_in = 1;
+    for (;;) {
+        int k = -1;
+        for (int i = 0; i < g_xa_n; i++) if (g_xa[i].at <= now + 1e-9 && (k < 0 || g_xa[i].at < g_xa[k].at)) k = i;
+        if (k < 0) break;
+        struct xafter a = g_xa[k];
+        memmove(&g_xa[k], &g_xa[k + 1], (size_t)(g_xa_n - k - 1) * sizeof *g_xa);
+        g_xa_n--;
+        struct xval v;
+        xt_call(&a.fn, &v, "after", a.name);
+    }
+    if (now + 1e-9 >= g_xt_next) {
+        g_xt_next = now + 0.5;
+        for (int i = 0; i < g_xt_n; i++) {
+            struct xtrig *t = &g_xt[i];
+            struct xval v;
+            if (!t->on) continue;
+            if (!xt_call(&t->when, &v, "when", t->name)) { t->on = 0; continue; }
+            if (!xtrue(&v)) { t->since = -1; continue; }
+            if (t->since < 0) t->since = now;
+            if (now - t->since + 1e-9 < t->hold) continue;
+            t->fired = 1;
+            t->since = -1;
+            if (!t->loop) t->on = 0;
+            if (!xt_call(&t->run, &v, "run", t->name)) t->on = 0;
+        }
+    }
+    g_xt_in = 0;
+    x_region_reset(&g_xt_tmp);
+    g_xr = r0;
+}
 internal void xe_script(struct xe *e, const char *name, const struct xval *a, int na, struct xval *v) {
+    if (!strcmp(name, "trigger")) { xt_make(e, &a[0], v); return; }
+    if (!strcmp(name, "enable") || !strcmp(name, "disable")) {
+        struct xtrig *t = xt_of(e, name, &a[0]);
+        if (!t) return;
+        t->on = name[0] == 'e';
+        t->since = -1;
+        return;
+    }
+    if (!strcmp(name, "after")) {   // after(5s, () => ...): later, by the triggers' turn
+        if (!x_numeric_ok(e, &a[0]) || !a[0].w || !(a[0].n >= 0)) { if (!e->err) x_fail(e, "after(time, f): a time, 0 or more"); return; }
+        if (!xt_fn0(&a[1])) { x_fail(e, "after(time, f): f a function of no arguments - () => ..."); return; }
+        if (g_xa_n == XA_MAX) { x_fail(e, "more than %d after's waiting", XA_MAX); return; }
+        struct xafter *q = &g_xa[g_xa_n++];
+        q->at = (g_x_hooks.now ? g_x_hooks.now() : 0) + a[0].n;
+        xt_keep(&q->fn, &a[1]);
+        xt_name(q->name, NULL, e->c);
+        return;
+    }
     if (!strcmp(name, "cmd")) {
         if (!a[0].has_s || a[0].has_n) { x_fail(e, "cmd(text): a command as a text"); return; }
         x_command(e, a[0].s, v);

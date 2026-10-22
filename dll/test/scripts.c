@@ -83,13 +83,15 @@ internal int script_load(const char *path, char **text, struct xunit *u, const c
     if (!ok) { lstrcpynA(msg, k.why ? k.why : "a mistake", sizeof msg); *why = msg; *line = k.line; return 0; }
     return 1;
 }
-// a script's statements, top to bottom (its top frame: the file's own names); a mistake ends it
+// a script's statements, top to bottom (its top frame: the file's own names); a mistake ends it. The top frame stays
+// (keep): its triggers' and after's functions read its names as they are when they run, also after it ended
 internal int script_run(const char *path, const struct xunit *u) {
     struct xctx c = { 0 };
     c.found = 1;
     c.script = 1;
     struct xframe *top = calloc(1, sizeof *top);
     if (!top) return 0;
+    top->keep = 1;
     struct xval rv;
     struct xe e = { &c, 0, NULL, top, 0, &rv, NULL, 0 };
     c.fpn = top->name; c.fpv = top->val; c.fnp = 0;
@@ -102,7 +104,6 @@ internal int script_run(const char *path, const struct xunit *u) {
         fflush(g_log);
         LeaveCriticalSection(&g_lock);
     }
-    free(top);
     return !e.err;
 }
 internal void WINAPI script_fiber(void *arg) {
@@ -116,6 +117,7 @@ internal void WINAPI script_fiber(void *arg) {
 internal void run_setup(uint32_t now) {
     if (g_nscripts < 0) {
         g_nscripts = 0;
+        x_triggers_reset();
         for (const char *p = g_setup_path; *p && g_nscripts < SCRIPTS_MAX; ) {   // setup=a.eeai;b.eeai (or ,): side by side
             int n = (int)strcspn(p, ",;");
             struct script *s = &g_scripts[g_nscripts];
@@ -150,13 +152,27 @@ internal void run_setup(uint32_t now) {
         g_xr = r0;
     }
 }
+// the triggers' turn: at every safe point between the simulation's steps (control.c hook_sim_receive, where the pipe's
+// commands run too) - several a game second, so their 500 ms checks hold; the scripts' own turns (an AI's update,
+// about one a game second) would make it one a second. No waiting there (a trigger's run has after's)
+internal void script_triggers(uint32_t now) {
+    if (g_nscripts <= 0 || now < 2000) return;
+    if (now > g_script_now) g_script_now = now;
+    g_x_hooks.now = script_now; g_x_hooks.command = script_command;
+    x_triggers_tick(g_script_now / 1000.0);
+    memset(&g_x_hooks, 0, sizeof g_x_hooks);
+}
 // THE DRY RUN (script dryrun <file> <out>): the script without the game - waiting moves the clock (from 2 s), the
 // commands are written to <out> ("<ms> <command>") and answered "ok" (tests: a converted scenario issues the same
-// commands at the same times as before)
+// commands at the same times as before). Its triggers have their turns on the way, every 500 ms up to where the
+// script waits last (a script that tests triggers ends with a wait); they and its after's go when it is done
 internal double g_dry_now;
 internal FILE *g_dry_out;
 internal double dry_now(void) { return g_dry_now; }
-internal void dry_wait(double until) { if (until > g_dry_now) g_dry_now = until; }
+internal void dry_wait(double until) {
+    for (double t = g_dry_now + 0.5; t <= until + 1e-9; t += 0.5) { g_dry_now = t; x_triggers_tick(t); }
+    if (until > g_dry_now) g_dry_now = until;
+}
 internal void dry_command(const char *cmd, char *reply, int cap) {
     fprintf(g_dry_out, "%u %s\n", (unsigned)(g_dry_now * 1000.0 + 0.5), cmd);
     lstrcpynA(reply, "ok", cap);
@@ -177,7 +193,18 @@ internal void cmd_script(char *out, const char *args) {
     g_dry_now = 2.0;
     __typeof__(g_x_hooks) h0 = g_x_hooks;   // (a script may run this: its own are back after)
     g_x_hooks.now = dry_now; g_x_hooks.wait = dry_wait; g_x_hooks.command = dry_command;
+    static struct xtrig keep_t[XT_MAX];   // a game's own triggers set aside meanwhile: the dry run has none but its own
+    static struct xafter keep_a[XA_MAX];
+    int nt = g_xt_n, na = g_xa_n;
+    double next = g_xt_next;
+    memcpy(keep_t, g_xt, sizeof g_xt);
+    memcpy(keep_a, g_xa, sizeof g_xa);
+    g_xt_n = g_xa_n = 0;
+    g_xt_next = 0;
     int ok = script_run(file, &u);
+    memcpy(g_xt, keep_t, sizeof g_xt);
+    memcpy(g_xa, keep_a, sizeof g_xa);
+    g_xt_n = nt; g_xa_n = na; g_xt_next = next;
     g_x_hooks = h0;
     g_xr = r0;
     x_region_free(&reg);

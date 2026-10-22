@@ -442,6 +442,7 @@ internal void diplo_safe_point(void);   // diplo.c: queued surrenders
 internal void upgrade_stragglers(void); // defence.c: towers/walls/gates finished after their upgrade
 internal void sound_tick(uint32_t now);  // sound.c: sound_log
 internal void llm_tick(void);           // llm.c: the language model's answers
+internal void script_triggers(uint32_t now);   // scripts.c: the setup scripts' triggers
 internal long __thiscall hook_sim_receive(void *thread, void *a, void *b, void *c) {
     diplo_safe_point();
     upgrade_stragglers();
@@ -449,6 +450,7 @@ internal long __thiscall hook_sim_receive(void *thread, void *a, void *b, void *
     sound_tick(game_time());
     llm_tick();
     if (!g_rm_seen && game_time() > 0) autotest_tick(game_time());   // games without AI (scenarios)
+    script_triggers(game_time());
     if (g_req.state == 1 && InterlockedCompareExchange(&g_req.state, 2, 1) == 1) {
         execute(g_req.cmd, g_req.out);
         g_req.state = 3;
