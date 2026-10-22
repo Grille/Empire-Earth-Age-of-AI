@@ -349,13 +349,14 @@ dll/              the mod (C), one translation unit: eeaimod.c includes every pa
   base/             the DLL's own helpers: log, patching, the pipe commands' REPLY, paths and the test slot, mistakes.c
                     the report of a mistake in the mod's files, math.c (the same bits on every PC), aimod.ini
                     (ini.c), watchpoints, headless_win.c test windows without focus or taskbar button (also in dinput.dll)
-  game/             what the mod knows of the game: exe.c the exe build; api/ the game's own code and objects - its
-                    addresses per build (raw/: functions.h, hooks.h, data.h, tables.c), the typed functions over them
-                    (functions.c, hooks.c), its objects' fields per build (raw/fields.h, layout.h names for some); world.c
+  game/             what the mod knows of the game: api/ the game's own code and objects, one module (api.c) - exe.c
+                    the exe build, its addresses per build (raw/: builds.h, functions.h, hooks.h, data.h, tables.c,
+                    editor_layout.h generated), the typed functions over them (functions.c, hooks.c), its objects'
+                    fields per build (raw/fields.h, layout.h names for some); world.c
                     type data, game time, RTTI names, players.c the players (and the vanilla
                     ones, the colours), random.c the decisions' generator (alike on every PC), the unit types
                     (unit_ids.h, unitnames.c, unit_names.h generated) and roles.c what a type is,
-                    grid.c the unit grid (iterator), editor_layout.h (generated)
+                    grid.c the unit grid (iterator)
   engine/           fixes and features of the game itself: display.c / present_d3d.c windowed mode (display_text.c,
                     display_diag.c), camera.c scrolling, aim.c leading targets, sound.c, select.c, drawlist.c,
                     playername.c the menu name fix, scenario_ai.c the scenario AI fix

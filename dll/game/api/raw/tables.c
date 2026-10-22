@@ -1,7 +1,7 @@
 // THE TABLES BEHIND GA, GF, GL AND OF - game/api/'s own: the rest of the code uses the wrappers, accessors and
 // installers of functions.c and hooks.c, and the fields' names (OF, layout.h; scripts/layers.py). Every address the mod uses in
 // Empire Earth.exe and every field offset it reads, by name, with its value in each exe build the mod knows - one
-// column per k_exe_builds entry (game/exe.c), in that order. game_build finds the running build, addr_select and
+// column per k_exe_builds entry (builds.h), in that order. game_build (exe.c) finds the running build, addr_select and
 // fields_select take its column when the DLL loads: GA(NAME) is the address, GF(NAME) the function there, typed by its
 // row, GL(NAME) a list of addresses (its count: sizeof GL(NAME) / sizeof *GL(NAME)), OF(KIND, offset) a field's
 // offset. Another build - Art of Conquest, another release, a patched exe - is one more hash and one more value per
@@ -9,7 +9,7 @@
 // The address names: FN_ a function, CALL_ a call (patched), SITE_/CODE_ an instruction or operand, G_ data, VT_ a
 // vtable, VTS_ a vtable slot's address, SLOT_ a vtable slot's index (a class may have gained a virtual function),
 // SIZE_ an object's size, IAT_ an import slot, RVA_ a place in an engine DLL (0: the build hasn't got it). Tables of
-// their own for one build: editor_layout.h (generated for the 2017 update: apply_editor_layout only there).
+// their own for one build: editor_layout.h (generated for the 2017 update: hooks.c apply_editor_layout only there).
 
 // The address rows by who uses them (scripts/addr_sort.py keeps them there, the build checks it): functions.h what
 // functions.c calls, hooks.h what hooks.c patches, data.h the game's data functions.c reads; one table of the

@@ -16,7 +16,7 @@
 # -Dll <path> (env DLL): this run plays with that eeaimod.dll build instead of the installed one - copied to
 # work\eeaimod_slot<n>.dll (the source can be rebuilt meanwhile), named in EEAIMOD_DLL; the installed DLL loads it.
 # Art of Conquest: EE_GAME_DIR=<its folder> (EE-AOC.exe is found there; -Exe names another). The mod plays there in
-# test runs only until that build is ready (EEAIMOD_UNREADY, game/exe.c); the game needs a save of its own to start
+# test runs only until that build is ready (EEAIMOD_UNREADY, game/api/exe.c); the game needs a save of its own to start
 # from (Saved Games\aitest.ees - a random_map start replaces what it holds).
 param([string]$Save = "aitest.ees", [int]$TimeoutSec = 900, [string]$Tag = "", [bool]$Mute = $true,
       [string]$Scenario = "", [string[]]$IniExtra = @(), [string]$Exe = "",
@@ -222,7 +222,7 @@ Set-Content "$sdir\aimod_autotest.ini" (@($lines) + $extra)
 if ($Slot) { $env:EEAIMOD_SLOT = "$Slot"; $env:EEAIMOD_SLOT_DIR = $sdir }
 else { Remove-Item Env:EEAIMOD_SLOT, Env:EEAIMOD_SLOT_DIR -ErrorAction SilentlyContinue }
 $env:EEAIMOD_REPO = $repo   # the repository (texts corpus: its scripts\text_engine_cases.txt)
-$env:EEAIMOD_UNREADY = "1"   # a known build that isn't ready yet plays here (game/exe.c) - never in normal play
+$env:EEAIMOD_UNREADY = "1"   # a known build that isn't ready yet plays here (game/api/exe.c) - never in normal play
 # headless: the mod's dinput.dll keeps every window of the game from taking the focus or a taskbar button, from the
 # process start on (dll/base/headless_win.c; eeaimod.dll alone only from its load on)
 if ($extra -contains "headless=1") { $env:EEAIMOD_HEADLESS = "1" } else { Remove-Item Env:EEAIMOD_HEADLESS -ErrorAction SilentlyContinue }

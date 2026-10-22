@@ -24,7 +24,6 @@ struct ustring;
 #include "base/paths.c"
 #include "base/mistakes.c"
 #include "base/math.c"
-#include "game/exe.c"             // which exe build runs: the column of game/api/'s tables
 #include "game/api/api.c"         // the game's code and objects: typed functions, data accessors, hooks (game/api/)
 #include "game/players.c"
 #include "game/tech.c"      // a tech node's children (kept differently by build)
@@ -608,11 +607,8 @@ BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, LPVOID reserved) {
         if (run_other_dll(inst)) return TRUE;
         uint32_t hash;
         int build = game_build(&hash);
-        if (build > 0) {
-            g_addr_missing = addr_select();
-            g_of_missing = fields_select();
-            install(inst);
-        } else if (build < 0) build_unknown(hash);
+        if (build > 0) install(inst);
+        else if (build < 0) build_unknown(hash);
     }
     return TRUE;
 }

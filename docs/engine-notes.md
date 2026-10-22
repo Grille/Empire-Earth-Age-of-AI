@@ -636,10 +636,10 @@ vf26 members and route released, vf12, the group's reference) frees nothing twic
 ## Exe builds
 
 The mod's addresses are those of the 1.04 exe with the 2017 "Difficulty Setting & Multiplayer Lobby" update (build
-timestamp 0x594D0000). game/exe.c `game_build` checks the exe file before installing anything: an FNV-1a hash over every
-section but `.rsrc` (`k_exe_builds`); another build gets no hooks and one message (`build_unknown`). All addresses are
+timestamp 0x594D0000). game/api/exe.c `game_build` checks the exe file before installing anything: an FNV-1a hash over every
+section but `.rsrc` (`k_exe_builds`, raw/builds.h); another build gets no hooks and one message (`build_unknown`). All addresses are
 in `dll/game/api/raw/` (the row files functions.h, hooks.h, data.h, made a table by tables.c), one row per name with a value per known build (the hash's index picks the column): supporting
-another build means its hash and its column there - the generated editor layout (`editor_layout.h`) and the two
+another build means its hash and its column there - the generated editor layout (`raw/editor_layout.h`) and the two
 Low-Level Engine.dll operands of display.c are that build's own as well. Compared on
 2026-10-19 (the community setups unpacked with innoextract, nothing run):
 
@@ -683,7 +683,7 @@ that handle - the redirect follows handle paths. Two values were REG_SZ of 0 byt
 ## Art of Conquest (EE-AOC.exe) - first overview
 
 Not supported yet; notes for the port. Steam and GOG `EE-AOC.exe` have identical code (build hash 0x0644BA54, in
-game/exe.c but not ready). AoC's `Low-Level Engine.dll` also loads every `*.dll` in its folder, so the mod gets in the
+game/api/raw/builds.h but not ready). AoC's `Low-Level Engine.dll` also loads every `*.dll` in its folder, so the mod gets in the
 same way; all its engine DLLs (Low-Level Engine, DX7HRDisplay, Default, Language ...) differ from the base's.
 
 - RTTI: 1741 classes (base 1717), 1696 shared. New: the Space Age (EECPASGSpace*, EEUCSpaceship..., carriers),
@@ -854,7 +854,7 @@ writes the header and the lump container and parses terrain. Strings are length-
 - Camera scrolling: see dll/engine/camera.c (EEAScroll, AoC smooth scrolling).
   The scroll action runs on the game thread, the frames are presented on another thread; with a 1 ms
   timer the game thread makes exactly one scroll step per frame (camtrace).
-- Editor at 1024x768 (done, dll/game/editor_layout.h generated from the AoC diff): AoC also moved the whole editor layout (constructor 0x58D3E1 ->
+- Editor at 1024x768 (done, dll/game/api/raw/editor_layout.h generated from the AoC diff): AoC also moved the whole editor layout (constructor 0x58D3E1 ->
   AoC 0x59D615: bounds 599/799 -> 767/1023, minimap 587-795 x 454-662 -> 854-1023 x 598-767, buttons
   625-644 x 580-599 -> 849-868 x 718-737; layout 0x58E400 -> 0x59E80F: map view bottom 438 -> 606) and the
   panel code (~0x58E000-0x5B1000, many hard-coded positions), and ships a 1024x768 background

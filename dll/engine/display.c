@@ -14,54 +14,6 @@
 
 internal int g_editor_w, g_editor_h, g_editor_game;   // 0 = leave
 
-// The editor layout for any resolution from 800x600 up: Art of Conquest's 1024x768 values (generated from a
-// comparison of both exes, scripts/layout_diff.py + gen_editor_layout.py), each moved with the screen size the way
-// AoC moved it from EE's 800x600: anchored right/bottom, stretched, or centred. Computed when the editor is entered.
-#include "game/editor_layout.h"
-#define N_LAYOUT (sizeof k_editor_layout / sizeof *k_editor_layout)
-internal uint32_t g_layout_consts[N_LAYOUT];
-internal int8_t g_layout_state[N_LAYOUT];   // 0 unchecked, 1 patched, -1 didn't match (skipped)
-internal int g_buttons_state;
-
-
-internal int apply_editor_layout(int w, int h) {
-    int ok = 0, bad = 0;
-    if (g_exe_build != 0) return 0;   // editor_layout.h is the 2017 update's (game/exe.c k_exe_builds[0])
-    for (size_t i = 0; i < N_LAYOUT; i++) {
-        uint32_t *p = (uint32_t *)k_editor_layout[i].addr;
-        if (!g_layout_state[i]) {   // first time: the original value must be there
-            uint32_t *c = k_editor_layout[i].kind ? (uint32_t *)*p : p;
-            int match = k_editor_layout[i].kind
-                ? (uintptr_t)c >= g_image_lo && (uintptr_t)c < g_image_hi && *c == k_editor_layout[i].old
-                : *p == k_editor_layout[i].old;
-            g_layout_state[i] = match ? 1 : -1;
-            if (match && k_editor_layout[i].kind) write_code32(p, (uint32_t)(uintptr_t)&g_layout_consts[i]);
-        }
-        if (g_layout_state[i] < 0) { bad++; continue; }
-        float v = k_editor_layout[i].aoc + k_editor_layout[i].fx * 0.5f * (float)(w - 1024)
-                + k_editor_layout[i].fy * 0.5f * (float)(h - 768);
-        uint32_t bits;
-        if (k_editor_layout[i].isf) memcpy(&bits, &v, 4);
-        else bits = (uint32_t)(int32_t)lroundf(v);
-        if (k_editor_layout[i].kind) g_layout_consts[i] = bits;
-        else if (*p != bits) write_code32(p, bits);
-        ok++;
-    }
-    // the file buttons (load, save, test, exit ...) come from a data table, not code: 0x8AE0A0, 6 entries of
-    // {id, x, y, texture u0, v0, u1, v1, tooltip}; AoC (0x8C47B0) has them at x 647.. (step 35), y 736 for 1024x768
-    int32_t *t = editor_file_buttons();
-    if (!g_buttons_state) g_buttons_state = t[1] == 415 && t[2] == 567 ? 1 : -1;
-    if (g_buttons_state > 0)
-        for (int i = 0; i < 6; i++, t += 8) {
-            t[1] = 647 + 35 * i + (w - 1024);
-            t[2] = 736 + (h - 768);
-            ok++;
-        }
-    else bad++;
-    if (g_log && bad) log_locked("# editor: %d layout patch sites did not match and were skipped\n", bad);
-    return ok;
-}
-
 internal void editor_size(int *w, int *h) {
     int nw = g_editor_game ? game_res_w() : g_editor_w;
     int nh = g_editor_game ? game_res_h() : g_editor_h;
