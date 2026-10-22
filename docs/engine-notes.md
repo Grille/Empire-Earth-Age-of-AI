@@ -894,8 +894,21 @@ writes the header and the lump container and parses terrain. Strings are length-
 - EEScnEdit (2026-10-22) decompresses every lump of the 37 saves and 10 scenarios here, recompresses them by these
   rules (output 3-5% larger than the game's) and writes files that load: the autosave rewritten by it played its 2
   minutes exactly as the original.
-- Player data lump (started): a list of "PlayerEnabler" records {u32 id, bool, u32, u32 per player x16, u32} -
-  probably the per-player enable state of units/techs; the lever for locking AoC-only content in EE scenarios.
+- 5, EEPPlayerHelper (vf3 0x53F1B4 / vf1 0x53EFC5): u32 n players (17 in scenarios and new games, the real
+  count in later saves), u32 +0x1C (the players in the game), u32 +0x18 (1 everywhere; probably the local player's
+  index), then per player i32 kind (0 EEHumanPlayer 0xB60 bytes - also the world, player 0 -, 1 EEComputerPlayer
+  0xF08; 3, both flags +0x9B4/+0x9B8 set, asserts) and the player's own vf9. No sizes anywhere: a reader has to
+  know every field down to the units. EEPlayer::vf9 0x55AAA8 starts: 10 u32 +0xA44; u32 count of the non-empty
+  entries of the vector +0x878, u32 16, per entry u32 index + 0x62769B's record (a string - empty in every file -,
+  64 bytes - sixteen u32 1s everywhere -, i32 +0x44): 574 entries, ids 1..723 in every file (the old "PlayerEnabler"
+  - one per object type, probably); then RTSPlayer::vf9 0x55FDC0: u8 +0x466, u8 +0x465, u32 +0x458, u32 +0x45C,
+  colour (3 floats), name ("World" for player 0), u32 +0x460 (+0x458 / +0x460 grow with the game: 0 on an empty
+  map, 17400 / 14969 in giga.ees), then the units: 0x55FE79, 128 buckets of the player +0x38 {head, count}, each
+  u32 count + its units through EEPlayer::vf15 0x55B25C: u32 type id (type data +0x4B8), u8 saved (0 for type
+  0xDF - then nothing more), u8 (+0x30 != 0), the unit's own persist (vtable +0x2C, by class); then u8 +0x467, and
+  EEPlayer's rest: tech tree (if +0x9D4), queued improvements, ...; EEComputerPlayer::vf9 0x43DED9 (844 lines) adds
+  the AI's state. Checked 2026-10-23: this framing reads all 37 saves and 10 scenarios up to the first unit (always
+  at 0xAD0E of the lump, player 0's name "World"), the first unit's type ids plausible (337, 301, 338).
 - Triggers: name, description, bools active/looping/fired/active in cinematic, u32 conditions-true-for,
   u32 seconds true, u32 id, then condition and effect bindings. Runtime, conditions and effects: docs/triggers.md.
 
