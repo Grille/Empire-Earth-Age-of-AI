@@ -493,7 +493,7 @@ internal long __thiscall hook_sim_wait(void *ev, unsigned long ms) {
 // as before (logged).
 internal volatile LONG g_in_step, g_handed, g_handed_at_tick;
 internal server_send_fn g_srv_send_next;
-internal void __thiscall hook_srv_send(void *srv, void *msg, int to) {
+internal void __thiscall hook_srv_send(ee_server *srv, ee_msg *msg, int to) {
     InterlockedIncrement(&g_handed);
     g_srv_send_next(srv, msg, to);
 }
@@ -503,7 +503,7 @@ internal void hook_server_send(void) {   // the server's send slot (with trace.c
     g_srv_send_next = patch_server_send(srv, hook_srv_send);
 }
 internal void (*g_step_after)(void *phys);   // trace.c: the sync trace's line after each step
-internal void __thiscall hook_phys_step(void *phys) {
+internal void __thiscall hook_phys_step(ee_physics *phys) {
     if (!g_srv_send_next) hook_server_send();
     InterlockedExchange(&g_in_step, 1);
     phys_step(phys);

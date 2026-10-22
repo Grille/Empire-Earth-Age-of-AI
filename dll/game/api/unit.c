@@ -92,3 +92,9 @@ typedef void (__thiscall *give_goal_hook)(ee_unit *u, ee_goal *goal, int slot);
 internal inline int patch_unload_retry_give(give_goal_hook h) { return patch_call(GA(CALL_UNLOAD_RETRY_GIVE), GA(FN_GIVE_GOAL), (void *)h); }
 typedef void (__thiscall *unit_release_hook)(ee_unit *u);
 internal inline int patch_unit_release(unit_release_hook h) { return patch_vtable(GA(VT_COMPLEX_UNIT), GA(SLOT_UNIT_RELEASE), GA(FN_UNIT_RELEASE), (void *)h); }
+// the unit list's node deletions (operator delete of a node, the unit in ESI): the thunk ends in game_op_delete
+internal inline int patch_unit_node_free(thunk_fn thunk, int *of) {
+    const uint32_t sites[2] = { GA(CALL_NODE_DEL_1), GA(CALL_NODE_DEL_2) };
+    return patch_calls(sites, 2, GA(FN_OP_DELETE), (void *)thunk, of);
+}
+internal inline uintptr_t game_op_delete(void) { return GA(FN_OP_DELETE); }

@@ -66,3 +66,17 @@ internal inline int patch_goalset_ask(goalset_ask_hook h, int *of) {
 }
 typedef char (__thiscall *goal_fits_hook)(ee_goal *goal, void *unit);
 internal inline int patch_goal_fits(goal_fits_hook h) { return patch_call(GA(CALL_GOAL_FBA_CHECK), GA(FN_GOAL_FBA_CHECK), (void *)h); }
+// the unload goal's construction (landing.c)
+typedef void *(__thiscall *unload_ctor_hook)(ee_goal *g, ee_unit *transport, int x, int y, int flag);
+internal inline int patch_unload_ctor(unload_ctor_hook h, int *of) { return patch_calls(PATCH_LIST(UNLOAD_SITES), GA(FN_GOAL_UNLOAD_CTOR), (void *)h, of); }
+// the goal set's read of a unit's goal object (6 bytes: mov ecx, [esi+0x1E8]) -> call thunk; nop
+internal inline int patch_goalset_read(thunk_fn thunk) {
+    static const uint8_t want[6] = { 0x8B, 0x8E, 0xE8, 0x01, 0x00, 0x00 };
+    uint8_t *p = (uint8_t *)GA(AT_GOAL_SET_READ);
+    DWORD old;
+    if (memcmp(p, want, 6) || !VirtualProtect(p, 6, PAGE_EXECUTE_READWRITE, &old)) return 0;
+    p[0] = 0xE8; *(int32_t *)(p + 1) = (int32_t)((uintptr_t)thunk - (GA(AT_GOAL_SET_READ) + 5)); p[5] = 0x90;
+    VirtualProtect(p, 6, old, &old);
+    FlushInstructionCache(GetCurrentProcess(), p, 6);
+    return 1;
+}

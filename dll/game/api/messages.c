@@ -34,9 +34,9 @@ internal inline void start_msg_set_seed(ee_msg *msg, unsigned v) { FIELD(msg, MS
 
 // FUNCTIONS
 // the network messages: executed (the originals of diplo.c's hooks), a chat line built in mem, one sent to everyone
-internal inline void msg_resign(void *msg) { GF(FN_RESIGN)(msg); }
-internal inline void msg_pay_tribute(void *msg) { GF(FN_PAY_TRIBUTE)(msg); }
-internal inline void msg_ingame_chat(void *msg) { GF(FN_INGAME_CHAT)(msg); }
+internal inline void msg_resign(ee_msg *msg) { GF(FN_RESIGN)(msg); }
+internal inline void msg_pay_tribute(ee_msg *msg) { GF(FN_PAY_TRIBUTE)(msg); }
+internal inline void msg_ingame_chat(ee_msg *msg) { GF(FN_INGAME_CHAT)(msg); }
 internal inline void *msg_chat_init(void *mem, void *wide_text) { return GF(FN_CHAT_MSG_CTOR)(mem, wide_text); }
 internal inline void server_send_all(ee_server *net, void *msg) {
     ((void (__thiscall *)(void *, void *, int))(*(void ***)net)[GA(SLOT_SERVER_SEND)])(net, msg, 0xFF);
@@ -56,10 +56,22 @@ typedef unsigned (__cdecl *sel_pack_hook)(uint8_t *list, uint32_t player_byte, u
 internal inline int patch_sel_pack(sel_pack_hook h) { return patch_call(GA(CALL_SEL_PACK), GA(FN_SEL_PACK), (void *)h); }
 // the lockstep server's send (its vtable slot 6, on the live object: EEServer or EEClient) - the slot's previous
 // function, NULL when not patched; two hooks chain (the second calls the first)
-typedef void (__thiscall *server_send_fn)(void *net, void *msg, int to);
+typedef void (__thiscall *server_send_fn)(ee_server *net, ee_msg *msg, int to);
+internal inline server_send_fn patch_server_send(ee_server *net, server_send_fn h) {
+    void **slot = &((void **)*(void ***)net)[GA(SLOT_SERVER_SEND)];
+    DWORD old;
+    if (!VirtualProtect(slot, 4, PAGE_READWRITE, &old)) return NULL;
+    server_send_fn prev = (server_send_fn)*slot;
+    *slot = (void *)h;
+    VirtualProtect(slot, 4, old, &old);
+    return prev;
+}
 
 // MESSAGES AND THE MENU (diplo.c)
-typedef void (__thiscall *msg_hook)(void *msg);
+typedef void (__thiscall *msg_hook)(ee_msg *msg);
 internal inline int patch_msg_pay_tribute(msg_hook h) { return patch_vtable(GA(VT_PAY_TRIBUTE), GA(SLOT_MSG_EXECUTE), GA(FN_PAY_TRIBUTE), (void *)h); }
 internal inline int patch_msg_ingame_chat(msg_hook h) { return patch_vtable(GA(VT_INGAME_CHAT), GA(SLOT_MSG_EXECUTE), GA(FN_INGAME_CHAT), (void *)h); }
 internal inline int patch_msg_resign(msg_hook h) { return patch_vtable(GA(VT_RESIGN), GA(SLOT_MSG_EXECUTE), GA(FN_RESIGN), (void *)h); }
+// the game start message's execution (its vtable slot 10: it seeds the simulation's generator)
+typedef void (__thiscall *start_exec_hook)(ee_msg *msg);
+internal inline int patch_start_exec(start_exec_hook h) { return patch_code32(GA(START_VTBL_EXEC), GA(START_EXEC), (uint32_t)(uintptr_t)h); }

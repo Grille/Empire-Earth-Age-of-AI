@@ -136,8 +136,8 @@ internal inline long ts_receive(void *thread, void *a, void *b, void *c) {
 }
 internal inline long ts_wait(void *ev, unsigned long ms) { return (*(long (__thiscall **)(void *, unsigned long))GA(IAT_TS_WAIT))(ev, ms); }
 // one simulation step (EEPhysics vf8), the game start message executed
-internal inline void phys_step(void *phys) { GF(FN_PHYS_STEP)(phys); }
-internal inline void start_exec(void *msg) { ((void (__thiscall *)(void *))GA(START_EXEC))(msg); }
+internal inline void phys_step(ee_physics *phys) { GF(FN_PHYS_STEP)(phys); }
+internal inline void start_exec(ee_msg *msg) { ((void (__thiscall *)(ee_msg *))GA(START_EXEC))(msg); }
 
 // THE ENGINE (engine/: the fixes' originals and what they ask)
 // the game's cos (UMCos, its own math DLL through its import: the same bits on every PC - the C runtime's may differ)
@@ -168,3 +168,11 @@ internal inline void build_wall(void *wall_mgr, int *a, int *b, int type) { GF(F
 internal inline int shore_to_unload(void *mgr, ee_unit *transport) { return GF(FN_SHORE_TO_UNLOAD)(mgr, transport); }
 // a vector the game made (its memory freed with the game's delete)
 internal inline void vector_free(void *v) { GF(FN_VECTOR_FREE)(v); }
+
+// HOOKS
+// one simulation step (EEPhysics' vtable slot 8): the hook, and whether it is in place
+typedef void (__thiscall *phys_step_hook)(ee_physics *phys);
+internal inline int patch_phys_step(phys_step_hook h) { return patch_code32(GA(VTBL_PHYS_STEP), GA(FN_PHYS_STEP), (uint32_t)(uintptr_t)h); }
+internal inline int phys_step_hooked_by(phys_step_hook h) { return *(uint32_t *)GA(VTBL_PHYS_STEP) == (uint32_t)(uintptr_t)h; }
+// a model's damage points (the guard: defence.c - a thunk)
+internal inline int patch_damage_points(thunk_fn thunk) { return patch_call(GA(CALL_DAMAGE_POINTS), GA(FN_DAMAGE_POINTS), (void *)thunk); }

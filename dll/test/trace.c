@@ -172,7 +172,7 @@ internal unsigned g_sync_left;
 // sends rand() after srand(TMGetTime()) - hook_srand covers that - but the load-game and scenario starts (also a
 // test run's random map, which randmap.c makes from a -loadgame start) build it with TMGetTime() itself (0x522113,
 // 0x5D7A25, 0x5D8871, 0x65C955): there game_seed takes effect only here.
-internal void __thiscall hook_start_exec(void *msg) {
+internal void __thiscall hook_start_exec(ee_msg *msg) {
     if (g_auto.game_seed) start_msg_set_seed(msg, (unsigned)g_auto.game_seed);
     ee_physics *phys = game_physics(); ee_world *world = game_world();
     unsigned map_seed = world ? world_get_seed(world) : 0;
@@ -215,7 +215,7 @@ internal void sync_unit_dump(ee_unit *u, void *ctx) {
 // <S|thread>" - what goes into the next tick the server sends, and from where
 internal DWORD g_sync_tid;
 internal server_send_fn g_srv_send;
-internal void __thiscall sync_srv_send(void *srv, void *msg, int to) {
+internal void __thiscall sync_srv_send(ee_server *srv, ee_msg *msg, int to) {
     uintptr_t ret = (uintptr_t)__builtin_return_address(0);
     DWORD tid = GetCurrentThreadId();
     EnterCriticalSection(&g_lock);

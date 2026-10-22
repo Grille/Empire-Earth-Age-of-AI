@@ -49,3 +49,8 @@ internal inline int patch_snd_playref(snd_play_fn h, snd_play_fn *orig) {
     return iat_hook(GA(IAT_SND_PLAYREF), "Low-Level Engine.dll", "?PlayAndReturnReferencedNode@SESoundManager@@QAEPAVSESMInstanceNode@@KMMM_NPAD@Z",
                     (void *)h, (void **)orig);
 }
+// the sound manager's channel limit (sound.c: the exe's import of SetMaxChannels) - the original into *orig
+typedef int (__thiscall *set_max_ch_fn)(ee_sound_mgr *sm, uint32_t n);
+internal inline int patch_snd_set_max_channels(set_max_ch_fn h, set_max_ch_fn *orig) {
+    return iat_hook(GA(IAT_SND_SETMAXCH), "Low-Level Engine.dll", "?SetMaxChannels@SESoundManager@@QAEJK@Z", (void *)h, (void **)orig);
+}

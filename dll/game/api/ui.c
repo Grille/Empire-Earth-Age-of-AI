@@ -68,3 +68,29 @@ typedef void (__thiscall *mouse_update_hook)(ee_mouse *m);
 internal inline int patch_mouse_update(mouse_update_hook h, int *of) { return patch_calls(PATCH_LIST(MOUSE_UPDATE_SITES), GA(FN_MOUSE_UPDATE), (void *)h, of); }
 typedef char (__thiscall *native_chat_hook)(ee_native_chat *pim, int base, int ms);
 internal inline int patch_native_chat(native_chat_hook h, int *of) { return patch_calls(PATCH_LIST(NATIVE_CHAT_SITES), GA(FN_NATIVE_CHAT), (void *)h, of); }
+// the scroll action's timer (camera.c): its push old_ms -> ms
+internal inline int patch_scroll_timer(uint8_t old_ms, uint8_t ms) {
+    uint8_t *p = (uint8_t *)GA(SITE_SCROLL_TIMER);
+    if (p[-1] != 0x6A || p[0] != old_ms) return 0;
+    DWORD old;
+    VirtualProtect(p, 1, PAGE_EXECUTE_READWRITE, &old);
+    *p = ms;
+    VirtualProtect(p, 1, old, &old);
+    FlushInstructionCache(GetCurrentProcess(), p, 1);
+    return 1;
+}
+// the single-player menu's six buttons (playername.c): their handlers (vtable slot 1) -> hooks[i], the originals into orig
+internal inline int patch_sp_buttons(void *const hooks[6], void *orig[6]) {
+    int ok = 0;
+    for (int i = 0; i < 6; i++) {
+        orig[i] = (void *)GL(SP_FNS)[i];
+        ok += patch_vtable(GL(SP_VTABLES)[i], GA(SLOT_SP_BUTTON), GL(SP_FNS)[i], hooks[i]);
+    }
+    return ok;
+}
+// the editor's main form built (display.c)
+typedef void *(__thiscall *editor_form_hook)(void *form, void *owner);
+internal inline int patch_editor_form(editor_form_hook h) { return patch_call(GA(SITE_EDITOR_FORM), GA(FN_EDITOR_FORM), (void *)h); }
+// the players' colours (voice/persona.c)
+typedef void *(__cdecl *player_color_hook)(unsigned idx);
+internal inline int patch_player_color(player_color_hook h) { return patch_call(GA(CALL_PLAYER_COLOR), GA(FN_COLOR_RGB), (void *)h); }

@@ -146,3 +146,9 @@ typedef float (__thiscall *asgu_score_hook)(ee_asg_unit *member, ee_asgu_info *i
 internal inline int patch_asgu_score(asgu_score_hook h, int *of) {
     return patch_vtables(PATCH_LIST(ASGU_VTABLES), GA(SLOT_ASGU_SCORE), GA(FN_ASGU_SCORE), (void *)h, of);
 }
+// the attack subgroups' pop of a waiting unit (asg_queue.c: a thunk, it calls game_asg_queue_pop) - the land and the air ones
+internal inline int patch_asg_queue_pop(thunk_fn thunk, int *of) {
+    const uint32_t sites[2] = { GA(CALL_ASG_QUEUE_POP), GA(CALL_ASG_AIR_QUEUE_POP) };
+    return patch_calls(sites, 2, GA(FN_ASG_QUEUE_POP), (void *)thunk, of);
+}
+internal inline uintptr_t game_asg_queue_pop(void) { return GA(FN_ASG_QUEUE_POP); }

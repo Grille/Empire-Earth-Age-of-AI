@@ -1559,7 +1559,7 @@ internal void diplo_tribute(void *to, void *from, const int *amount) {
     tell_event(0, 0, 0, 0);
     if (!stance_of(from, ai) && stance_of(to, j)) g_peace_due[ai][j] = game_time() + 3000;   // ask again now
 }
-internal void __thiscall hook_tribute(void *msg) {
+internal void __thiscall hook_tribute(ee_msg *msg) {
     int total = tribute_get_food(msg) + tribute_get_gold(msg) + tribute_get_iron(msg) + tribute_get_stone(msg) + tribute_get_wood(msg);
     int amount[7] = { 0, 0, tribute_get_food(msg), tribute_get_wood(msg), tribute_get_stone(msg), tribute_get_gold(msg), tribute_get_iron(msg) };
     void *to = player_at(tribute_get_to(msg));
@@ -1676,7 +1676,7 @@ internal void victory_off_pass(void) {   // auto_victory=0, every pass between s
 // every opponent has submitted gets the victory instead. Exit Game (EEUIEMGOEExitGame::vf1 0x5D0AFB, confirmed:
 // 0x5D0B4F, pushed at 0x5D0B2B) leaves without any result - in that situation it resigns instead, which ends the
 // game with the victory screen, the statistics and then the menu as usual.
-internal void __thiscall hook_resign(void *msg) {
+internal void __thiscall hook_resign(ee_msg *msg) {
     int8_t from = msg_get_from(msg);
     for (int i = 1; i < nplayers(); i++) {
         void *p = player_at(i);
@@ -1698,7 +1698,7 @@ internal void __cdecl hook_exit_confirm(void) {
     exit_confirm();
 }
 
-internal void __thiscall hook_ingame_chat(void *msg) {
+internal void __thiscall hook_ingame_chat(ee_msg *msg) {
     // chat runs on every PC: the claim goes by the sender (+0xA, as hook_resign), so every PC ends the game alike
     // (only the local player's own word claimed before - a multiplayer desync); the refusal line is the sender's only
     int me = (int)local_player_index(), from = 0;

@@ -148,3 +148,5 @@ internal inline int patch_epoch_catch_up(epoch_catch_up_hook h) { return patch_c
 // the maintenance's deletion of units for room (the navy keeps its ships: fleet.c)
 typedef int (__thiscall *delete_for_room_hook)(ee_player *pl, void *req, int flag);
 internal inline int patch_maint_delete(delete_for_room_hook h) { return patch_call(GA(CALL_NV_MAINT_DELETE), GA(FN_DELETE_FOR_ROOM), (void *)h); }
+// a kill counted in the statistics (diplo.c - a thunk)
+internal inline int patch_kill_stat(thunk_fn thunk) { return patch_call(GA(CALL_KILL_STAT), GA(FN_STAT_ADD), (void *)thunk); }

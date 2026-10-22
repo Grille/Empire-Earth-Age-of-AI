@@ -17,35 +17,6 @@ internal inline int patch_save_game(save_game_hook h) { return patch_all_calls(G
 // the "under attack" alert of a hit (a thunk: it ends in game_attack_alert)
 internal inline int patch_attack_alert(thunk_fn thunk) { return patch_call(GA(CALL_ATTACK_ALERT), GA(FN_ATTACK_ALERT), (void *)thunk); }
 internal inline uintptr_t game_attack_alert(void) { return GA(FN_ATTACK_ALERT); }
-// the attack subgroups' pop of a waiting unit (asg_queue.c: a thunk, it calls game_asg_queue_pop) - the land and the air ones
-internal inline int patch_asg_queue_pop(thunk_fn thunk, int *of) {
-    const uint32_t sites[2] = { GA(CALL_ASG_QUEUE_POP), GA(CALL_ASG_AIR_QUEUE_POP) };
-    return patch_calls(sites, 2, GA(FN_ASG_QUEUE_POP), (void *)thunk, of);
-}
-internal inline uintptr_t game_asg_queue_pop(void) { return GA(FN_ASG_QUEUE_POP); }
-internal inline int patch_scroll_timer(uint8_t old_ms, uint8_t ms) {
-    uint8_t *p = (uint8_t *)GA(SITE_SCROLL_TIMER);
-    if (p[-1] != 0x6A || p[0] != old_ms) return 0;
-    DWORD old;
-    VirtualProtect(p, 1, PAGE_EXECUTE_READWRITE, &old);
-    *p = ms;
-    VirtualProtect(p, 1, old, &old);
-    FlushInstructionCache(GetCurrentProcess(), p, 1);
-    return 1;
-}
-typedef int (__thiscall *set_max_ch_fn)(ee_sound_mgr *sm, uint32_t n);
-internal inline int patch_snd_set_max_channels(set_max_ch_fn h, set_max_ch_fn *orig) {
-    return iat_hook(GA(IAT_SND_SETMAXCH), "Low-Level Engine.dll", "?SetMaxChannels@SESoundManager@@QAEJK@Z", (void *)h, (void **)orig);
-}
-// the single-player menu's six buttons (playername.c): their handlers (vtable slot 1) -> hooks[i], the originals into orig
-internal inline int patch_sp_buttons(void *const hooks[6], void *orig[6]) {
-    int ok = 0;
-    for (int i = 0; i < 6; i++) {
-        orig[i] = (void *)GL(SP_FNS)[i];
-        ok += patch_vtable(GL(SP_VTABLES)[i], GA(SLOT_SP_BUTTON), GL(SP_FNS)[i], hooks[i]);
-    }
-    return ok;
-}
 // the minimap's scale (display.c): its 6 operands of 1/800 and 1/600 read *fx and *fy instead
 internal inline int patch_minimap_scale(float *fx, float *fy) {
     int n = 0;
@@ -55,14 +26,12 @@ internal inline int patch_minimap_scale(float *fx, float *fy) {
     }
     return n;
 }
-// the resolution switches: the editor's two (menu, its own), every other (7), the editor's main form built
+// the resolution switches: the editor's two (menu, its own), every other (7)
 typedef void (__stdcall *resolution_hook)(int w, int h, int force, int flag);
 internal inline int patch_editor_resolution(resolution_hook h) {
     return patch_call(GA(SITE_EDITOR_MENU), GA(FN_SET_RESOLUTION), (void *)h) + patch_call(GA(SITE_EDITOR_RES), GA(FN_SET_RESOLUTION), (void *)h);
 }
 internal inline int patch_other_resolution(resolution_hook h, int *of) { return patch_calls(PATCH_LIST(OTHER_RESOLUTION_SITES), GA(FN_SET_RESOLUTION), (void *)h, of); }
-typedef void *(__thiscall *editor_form_hook)(void *form, void *owner);
-internal inline int patch_editor_form(editor_form_hook h) { return patch_call(GA(SITE_EDITOR_FORM), GA(FN_EDITOR_FORM), (void *)h); }
 internal inline int patch_input_coop(HMODULE lle) {
     uint8_t *b = (uint8_t *)lle;
     int n = 0;
@@ -151,22 +120,6 @@ internal inline int patch_send_wait(send_wait_hook h) {
     uintptr_t base = (uintptr_t)GetModuleHandleA("low-level engine.dll");
     return base && patch_import_call(base + GA(RVA_LLE_SEND_WAIT), base + GA(RVA_LLE_IAT_WFMO), (void *)h);
 }
-// one simulation step (EEPhysics' vtable slot 8): the hook, and whether it is in place
-typedef void (__thiscall *phys_step_hook)(void *phys);
-internal inline int patch_phys_step(phys_step_hook h) { return patch_code32(GA(VTBL_PHYS_STEP), GA(FN_PHYS_STEP), (uint32_t)(uintptr_t)h); }
-internal inline int phys_step_hooked_by(phys_step_hook h) { return *(uint32_t *)GA(VTBL_PHYS_STEP) == (uint32_t)(uintptr_t)h; }
-// the game start message's execution (its vtable slot 10: it seeds the simulation's generator)
-typedef void (__thiscall *start_exec_hook)(void *msg);
-internal inline int patch_start_exec(start_exec_hook h) { return patch_code32(GA(START_VTBL_EXEC), GA(START_EXEC), (uint32_t)(uintptr_t)h); }
-internal inline server_send_fn patch_server_send(ee_server *net, server_send_fn h) {
-    void **slot = &((void **)*(void ***)net)[GA(SLOT_SERVER_SEND)];
-    DWORD old;
-    if (!VirtualProtect(slot, 4, PAGE_READWRITE, &old)) return NULL;
-    server_send_fn prev = (server_send_fn)*slot;
-    *slot = (void *)h;
-    VirtualProtect(slot, 4, old, &old);
-    return prev;
-}
 // the game's srand (its msvcrt import): the previous function into *orig
 typedef void (__cdecl *srand_hook)(unsigned seed);
 internal inline int patch_srand(srand_hook h, srand_hook *orig) { return iat_hook(GA(IAT_SRAND), "msvcrt.dll", "srand", (void *)h, (void **)orig); }
@@ -198,34 +151,10 @@ internal inline int patch_tcp_ports(HMODULE m, int add) {
     }
     return n;
 }
-typedef void *(__thiscall *unload_ctor_hook)(void *g, ee_unit *transport, int x, int y, int flag);
-internal inline int patch_unload_ctor(unload_ctor_hook h, int *of) { return patch_calls(PATCH_LIST(UNLOAD_SITES), GA(FN_GOAL_UNLOAD_CTOR), (void *)h, of); }
 typedef int (__thiscall *shore_to_unload_hook)(void *mgr, ee_unit *transport);
 internal inline int patch_shore_to_unload(shore_to_unload_hook h) { return patch_call(GA(CALL_SHORE_TO_UNLOAD), GA(FN_SHORE_TO_UNLOAD), (void *)h); }
-// the goal set's read of a unit's goal object (6 bytes: mov ecx, [esi+0x1E8]) -> call thunk; nop
-internal inline int patch_goalset_read(thunk_fn thunk) {
-    static const uint8_t want[6] = { 0x8B, 0x8E, 0xE8, 0x01, 0x00, 0x00 };
-    uint8_t *p = (uint8_t *)GA(AT_GOAL_SET_READ);
-    DWORD old;
-    if (memcmp(p, want, 6) || !VirtualProtect(p, 6, PAGE_EXECUTE_READWRITE, &old)) return 0;
-    p[0] = 0xE8; *(int32_t *)(p + 1) = (int32_t)((uintptr_t)thunk - (GA(AT_GOAL_SET_READ) + 5)); p[5] = 0x90;
-    VirtualProtect(p, 6, old, &old);
-    FlushInstructionCache(GetCurrentProcess(), p, 6);
-    return 1;
-}
-// the unit list's node deletions (operator delete of a node, the unit in ESI): the thunk ends in game_op_delete
-internal inline int patch_unit_node_free(thunk_fn thunk, int *of) {
-    const uint32_t sites[2] = { GA(CALL_NODE_DEL_1), GA(CALL_NODE_DEL_2) };
-    return patch_calls(sites, 2, GA(FN_OP_DELETE), (void *)thunk, of);
-}
-internal inline uintptr_t game_op_delete(void) { return GA(FN_OP_DELETE); }
-// a model's damage points (the guard: defence.c), a kill counted (diplo.c): thunks
-internal inline int patch_damage_points(thunk_fn thunk) { return patch_call(GA(CALL_DAMAGE_POINTS), GA(FN_DAMAGE_POINTS), (void *)thunk); }
-internal inline int patch_kill_stat(thunk_fn thunk) { return patch_call(GA(CALL_KILL_STAT), GA(FN_STAT_ADD), (void *)thunk); }
 
 // THE PLAYERS' COLOURS AND LINES (voice/persona.c)
-typedef void *(__cdecl *player_color_hook)(unsigned idx);
-internal inline int patch_player_color(player_color_hook h) { return patch_call(GA(CALL_PLAYER_COLOR), GA(FN_COLOR_RGB), (void *)h); }
 // the exit dialog's confirmation (a code pointer in the menu's table)
 internal inline int patch_exit_confirm(void (__cdecl *h)(void)) { return patch_code32(GA(EXIT_CONFIRM_AT), GA(FN_EXIT_CONFIRM), (uint32_t)(uintptr_t)h); }
 
