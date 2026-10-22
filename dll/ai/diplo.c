@@ -635,7 +635,7 @@ internal int blocks_on(void) { return g_blocks && g_ai_diplomacy && !TEAMS_LOCKE
 internal void block_line(int to, const char *text) {   // a system line, only on that player's PC
     if (to != (int)local_player_index()) return;
     uint8_t *opt = game_data();
-    system_line(text, opt ? FIELD(opt, OF(GAMEDATA, 0x2CC), int) * 2 : 20000);
+    system_line(text, opt ? gamedata_get_line_ms(opt) * 2 : 20000);
     if (g_log) fprintf(g_log, "# system line: %s\n", text);
 }
 
@@ -1563,10 +1563,10 @@ internal void diplo_tribute(void *to, void *from, const int *amount) {
 }
 internal void __fastcall hook_tribute(void *msg, void *edx) {
     (void)edx;
-    int total = FIELD(msg, OF(MSG_TRIBUTE, 0x10), int) + FIELD(msg, OF(MSG_TRIBUTE, 0x14), int) + FIELD(msg, OF(MSG_TRIBUTE, 0x18), int) + FIELD(msg, OF(MSG_TRIBUTE, 0x1C), int) + FIELD(msg, OF(MSG_TRIBUTE, 0x20), int);
-    int amount[7] = { 0, 0, FIELD(msg, OF(MSG_TRIBUTE, 0x10), int), FIELD(msg, OF(MSG_TRIBUTE, 0x20), int), FIELD(msg, OF(MSG_TRIBUTE, 0x1C), int), FIELD(msg, OF(MSG_TRIBUTE, 0x14), int), FIELD(msg, OF(MSG_TRIBUTE, 0x18), int) };
-    void *to = player_at(FIELD(msg, OF(MSG_TRIBUTE, 0x24), uint8_t));
-    void *from = game_player((int)(int8_t)FIELD(msg, OF(MSG_TRIBUTE, 0xA), uint8_t));
+    int total = tribute_get_food(msg) + tribute_get_gold(msg) + tribute_get_iron(msg) + tribute_get_stone(msg) + tribute_get_wood(msg);
+    int amount[7] = { 0, 0, tribute_get_food(msg), tribute_get_wood(msg), tribute_get_stone(msg), tribute_get_gold(msg), tribute_get_iron(msg) };
+    void *to = player_at(tribute_get_to(msg));
+    void *from = game_player((int)msg_get_from(msg));
     msg_pay_tribute(msg);
     if (from && to) hist_tribute(pidx(from), pidx(to), total);
     diplo_tribute(to, from, amount);
@@ -1618,7 +1618,7 @@ internal void victory_hint(ee_player *pl, int ai) {   // every 10 s per AI, afte
     g_victory_told = 1;
     persona_say(pl, L_ALL_SUBMITTED, player_at(me), NULL);   // in character; the how in a system line after it
     uint8_t *opt = game_data();
-    system_line(sysf("victory_vassals", NULL, NULL, NULL, NULL), opt ? FIELD(opt, OF(GAMEDATA, 0x2CC), int) * 3 : 30000);
+    system_line(sysf("victory_vassals", NULL, NULL, NULL, NULL), opt ? gamedata_get_line_ms(opt) * 3 : 30000);
     if (g_log) fprintf(g_log, "# victory: P%d at %.1f min: every other player is a vassal of P%d - \"sieg\" ends the game\n",
                        ai, game_time() / 60000.0, me);
 }
@@ -1671,7 +1671,7 @@ internal void victory_off_pass(void) {   // auto_victory=0, every pass between s
     for (int j = 1; j < nplayers(); j++)   // a vassal says it in character, if there is one
         if (g_players[j] && g_lord[j] == me && !is_out(player_at(j))) { persona_say(player_at(j), L_ALL_SUBMITTED, player_at(me), NULL); break; }
     uint8_t *opt = game_data();
-    system_line(sysf("victory_none", NULL, NULL, NULL, NULL), opt ? FIELD(opt, OF(GAMEDATA, 0x2CC), int) * 3 : 30000);
+    system_line(sysf("victory_none", NULL, NULL, NULL, NULL), opt ? gamedata_get_line_ms(opt) * 3 : 30000);
     if (g_log) fprintf(g_log, "# victory: P%d at %.1f min: no opponent left - \"sieg\" ends the game\n", me, game_time() / 60000.0);
 }
 // Leaving a won game counts too. The menu's Resign (EEUIEMGOEResign::vf1 0x5D0578, confirmed: 0x5D05CC) sends
@@ -1681,7 +1681,7 @@ internal void victory_off_pass(void) {   // auto_victory=0, every pass between s
 // game with the victory screen, the statistics and then the menu as usual.
 internal void __fastcall hook_resign(void *msg, void *edx) {
     (void)edx;
-    int8_t from = (int8_t)FIELD(msg, OF(MSG_CHAT, 0xA), uint8_t);
+    int8_t from = msg_get_from(msg);
     for (int i = 1; i < nplayers(); i++) {
         void *p = player_at(i);
         if (p && player_get_msg_id(p) == from && !g_players[i] && !is_out(p) && (g_victory_off ? can_claim(i) : vassals_of(i))) {
@@ -1708,11 +1708,11 @@ internal void __fastcall hook_ingame_chat(void *msg, void *edx) {
     // (only the local player's own word claimed before - a multiplayer desync); the refusal line is the sender's only
     int me = (int)local_player_index(), from = 0;
     void *pm = player_at(me);
-    const char *text = FIELD(msg + OF(MSG_CHAT, 0x10), 4, const char *);
-    int refused = 0, local = pm && player_get_msg_id(pm) == (int8_t)FIELD(msg, OF(MSG_CHAT, 0xA), uint8_t);
+    const char *text = chat_msg_get_text(msg);
+    int refused = 0, local = pm && player_get_msg_id(pm) == msg_get_from(msg);
     for (int i = 1; text && !from && i < nplayers(); i++) {
         void *p = player_at(i);
-        if (p && !g_players[i] && player_get_msg_id(p) == (int8_t)FIELD(msg, OF(MSG_CHAT, 0xA), uint8_t)) from = i;
+        if (p && !g_players[i] && player_get_msg_id(p) == msg_get_from(msg)) from = i;
     }
     if (from && text && victory_word(text))
         refused = !claim_victory(from, "the chat word");
@@ -1731,7 +1731,7 @@ internal void __fastcall hook_ingame_chat(void *msg, void *edx) {
     lstrcpynA(line, sysf("victory_not_yet", NULL, NULL, NULL, "names", names, NULL), sizeof line);
 
     uint8_t *opt = game_data();
-    system_line(line, opt ? FIELD(opt, OF(GAMEDATA, 0x2CC), int) * 2 : 20000);
+    system_line(line, opt ? gamedata_get_line_ms(opt) * 2 : 20000);
     if (g_log) fprintf(g_log, "# victory: refusal shown: %s\n", line);
 }
 internal void chat_send(const char *text) {   // a chat line from the local player, as the chat box sends it (tests)

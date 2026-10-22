@@ -235,7 +235,7 @@ internal void navy_detect(ee_player *pl, unsigned idx, uint32_t now) {
         enemies++; across += !home;
     }
     if (none && now < 180000) return;   // an enemy without buildings yet: wait for them
-    int nx = FIELD(grid, OF(GRID, 0x10), int) * FIELD(grid, OF(GRID, 0x8), int), ny = FIELD(grid, OF(GRID, 0x14), int) * FIELD(grid, OF(GRID, 0x8), int), sea = 0, all = 0;
+    int nx = grid_get_nx(grid) * grid_get_cell_size(grid), ny = grid_get_ny(grid) * grid_get_cell_size(grid), sea = 0, all = 0;
     for (int x = 1; x < nx; x += 4)
         for (int y = 1; y < ny; y += 4, all++) sea += area_id(x, y, 1) != 0;
     struct nv_map *m = &g_nv_map[idx];
@@ -247,7 +247,7 @@ internal void navy_detect(ee_player *pl, unsigned idx, uint32_t now) {
     if (g_log) fprintf(g_log, "# navy: P%u map at %.1f min: %s (strength %.2f) - %d of %d enemies across the water, water %.0f%% of the map, "
                        "home continent %u; the game's water flag %d, +0xEFA %d\n", idx, now / 60000.0,
                        m->kind == NV_ISLANDS ? "islands" : m->kind == NV_MIXED ? "mixed" : "land", m->strength, across, enemies,
-                       100.0f * m->water, hc, w ? (int)(FIELD(w, OF(MAP, 0x181730), uint32_t) & 1) : -1, (int)player_get_boats_for_food(pl));
+                       100.0f * m->water, hc, w ? (int)(map_get_flags(w) & 1) : -1, (int)player_get_boats_for_food(pl));
 }
 
 // NAVY ACCOUNT ([all] navy, navy_share; docs/navy.md stage 1). Every ship order went through the military budget,

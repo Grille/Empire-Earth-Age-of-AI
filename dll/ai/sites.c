@@ -75,7 +75,7 @@ internal ee_unit *select_site(ee_resource_mgr *rm, int type, int need_drop, int 
         ee_unit *s = zone_site(zone, type);
         if (!s) continue;
         if (type == 2 && type_get_id(unit_get_type_data(s)) != UT(RES_FORAGE_BUSH)) continue;   // forage only
-        if (unit_get_amount(s) <= 0 || FIELD(unit_get_vis(s), OF(SITEOWN, 0x4), int) == 1) continue;
+        if (unit_get_amount(s) <= 0 || siteown_get_flag(unit_get_vis(s)) == 1) continue;
         if (need_drop && !zone_get_drop(zone)) continue;
         int pos[2] = { unit_get_x(s), unit_get_y(s) };
         int dx = pos[0] - base[0], dy = pos[1] - base[1], d2 = dx * dx + dy * dy;
@@ -151,7 +151,7 @@ internal void cmd_minecheck(char *out, const char *args) {
         }
         unsigned g = site_gatherers(s);
         const char *why = !zone_get_active(zone) ? "zone inactive" : unit_get_amount(s) <= 0 ? "empty" :
-            FIELD(unit_get_vis(s), OF(SITEOWN, 0x4), int) == 1 ? "site flag" : k < 0 ? "no drop site" :
+            siteown_get_flag(unit_get_vis(s)) == 1 ? "site flag" : k < 0 ? "no drop site" :
             !explored_by(s, pl) ? "unexplored" :
             g >= cap ? "full" : bm_enemy_near(bm, pos[0], pos[1]) ? "enemy near" : NULL;
         if (!why) {
@@ -181,7 +181,7 @@ internal ee_unit *select_mine_near_drop(ee_resource_mgr *rm, int type, ee_unit *
         ee_zone *zone = zb[z];
         if (!zone || !zone_get_active(zone)) continue;
         ee_unit *s = zone_site(zone, type);
-        if (!s || unit_get_amount(s) <= 0 || FIELD(unit_get_vis(s), OF(SITEOWN, 0x4), int) == 1) continue;
+        if (!s || unit_get_amount(s) <= 0 || siteown_get_flag(unit_get_vis(s)) == 1) continue;
         int pos[2] = { unit_get_x(s), unit_get_y(s) };
         int k = -1, dd = 0x7FFFFFFF;   // nearest drop site for all resources (squared distance)
         for (int i = 0; i < nd; i++) {

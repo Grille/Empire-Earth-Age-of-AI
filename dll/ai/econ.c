@@ -208,8 +208,8 @@ internal int is_gather_tech(ee_tech *tech) {
     for (unsigned k = 0; ids && k < n && k < 64; k++) {
         if (ids[k] >= 2000) continue;
         uint8_t *ef = tech_effect(ids[k]);
-        int a = FIELD(ef, OF(EFFECT, 0x2C), int), on = FIELD(ef, OF(EFFECT, 0x14), int);
-        if (FIELD(ef, OF(EFFECT, 0x20), int) == 2 && (on == UT(CITIZEN) || on == UT(FEMALE_CITIZEN) || on == -1) && a >= 0x1A && a <= 0x21 && a != 0x1E) return 1;
+        int a = effect_get_attr(ef), on = effect_get_type(ef);
+        if (effect_get_kind(ef) == 2 && (on == UT(CITIZEN) || on == UT(FEMALE_CITIZEN) || on == -1) && a >= 0x1A && a <= 0x21 && a != 0x1E) return 1;
     }
     return 0;
 }
@@ -298,7 +298,7 @@ internal void attention_note(ee_player *pl, unsigned idx, uint32_t now) {
     ee_resource_mgr *rm = cm_get_resource_mgr(cm);
     ee_research_mgr *rs = cm_get_research_mgr(cm); ee_unit_mgr *um = cm_get_unit_mgr(cm);
     uint8_t f[9] = { cm_get_att_epoch_techs(cm), rm ? rm_get_att_188(rm) : 0, rs ? rs_get_att_random(rs) : 0, um ? um_get_att_140(um) : 0,
-                     cm_get_att_build(cm), cm_get_att_7c(cm), am_get_att_4c(b8c), b98[OF(PLB98, 0x2D)], am_get_att_62(b8c) };
+                     cm_get_att_build(cm), cm_get_att_7c(cm), am_get_att_4c(b8c), b98_get_att(b98), am_get_att_62(b8c) };
     g_att[idx].ticks++;
     for (int i = 0; i < 9; i++) g_att[idx].on[i] += f[i] != 0;
     static uint32_t last[16];
@@ -1101,8 +1101,8 @@ internal void cmd_plan(char *out, const char *args) {
     if (!head) { REPLY("error: no AI player %d\n", p); return; }
     REPLY("P%d plan (build flag %d, attention %d):", p, player_get_build(pl), cm_get_att_build(cm));
     int n = 0;
-    for (uint8_t *nd = FIELD(head, OF(CMLIST, 0x0), uint8_t *); nd && nd != head && n < 200; nd = FIELD(nd, OF(CMLIST, 0x0), uint8_t *), n++)
-        REPLY(" %d:%d", FIELD(nd, OF(CMLIST, 0xC), int), FIELD(nd, OF(CMLIST, 0x10), int));
+    for (uint8_t *nd = plan_node_get_next(head); nd && nd != head && n < 200; nd = plan_node_get_next(nd), n++)
+        REPLY(" %d:%d", plan_node_get_unknown_c(nd), plan_node_get_unknown_10(nd));
     REPLY("\n");
 }
 internal int field_worked(ee_resource_mgr *rm, ee_unit *f) {   // a citizen of this AI farms it or is on its way

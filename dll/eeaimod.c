@@ -208,8 +208,6 @@ internal void __fastcall hook_rm_update(ee_resource_mgr *rm, void *edx, uint32_t
 // setup+0x3D8 = mode (0 random map, 3 editor test-play, 2 saved game, 4 campaign, other = scenario from
 // Scenarios\), setup+0x3A8 = UString file name (char* at +0x3AC). With scenario_mode=1 a -loadgame start
 // is switched to the scenario path, loading Scenarios\<name>.scn - the path where editor scenarios break.
-#define SETUP_MODE      0x3D8
-#define SETUP_NAME      0x3AC
 
 // aimod_econ.csv in normal play: over 20 MB at the start of a session or a game (a long game writes ~10 MB), it
 // becomes aimod_econ.old.csv (the older one deleted) and a new log starts - it was appended to forever. Autotest
@@ -259,8 +257,8 @@ internal void log_rotate(void) {
 internal int unit_types_load(void);   // unitnames.c
 internal char __fastcall hook_game_start(void *state, void *edx, uint8_t *setup, void *p2) {
     (void)edx;
-    char *name = *(char **)(setup + SETUP_NAME);
-    int mode = *(int *)(setup + SETUP_MODE);
+    char *name = FIELD(setup_map_name_at(setup), 4, char *);   // the UString's characters
+    int mode = setup_get_mode(setup);
     log_rotate();
     if (g_log) {
         EnterCriticalSection(&g_lock);
@@ -271,11 +269,11 @@ internal char __fastcall hook_game_start(void *state, void *edx, uint8_t *setup,
             for (int k = 0; k < 32; k++) fprintf(g_log, "%s%02x", (k & 3) ? "" : " ", setup[o + k]);
             fputc('\n', g_log);
         }
-        for (int i = 0; i < 16; i++) {   // slot name = UString at slot+8 (char* at +0xC)
-            const char *pn = *(const char **)(setup + i * 0x38 + 0xC);
-            fprintf(g_log, "# setup slot %d type=%d name=\"%s\"\n", i, *(int *)(setup + i * 0x38), pn ? pn : "");
+        for (int i = 0; i < 16; i++) {   // the slot's name: a UString (its characters at +4)
+            const char *pn = FIELD(slot_name_at(setup_slot_at(setup, i)), 4, const char *);
+            fprintf(g_log, "# setup slot %d type=%d name=\"%s\"\n", i, slot_get_type(setup_slot_at(setup, i)), pn ? pn : "");
         }
-        fprintf(g_log, "# setup seed(world+0x54)=%u\n", game_world() ? *(unsigned *)(game_world() + OF(WORLD, 0x54)) : 0);
+        fprintf(g_log, "# setup seed(world+0x54)=%u\n", game_world() ? world_get_seed(game_world()) : 0);
         fflush(g_log);
         LeaveCriticalSection(&g_lock);
     }
@@ -283,7 +281,7 @@ internal char __fastcall hook_game_start(void *state, void *edx, uint8_t *setup,
     if (g_autotest && g_auto.scenario_mode && mode == 2 && name) {
         size_t n = strlen(name);
         if (n > 4 && !lstrcmpiA(name + n - 4, ".ees")) memcpy(name + n - 4, ".scn", 4);   // same length, in place
-        *(int *)(setup + SETUP_MODE) = 1;
+        setup_set_mode(setup, 1);
         log_line("# game start: switched to scenario mode, loading Scenarios\\%s\n", name);
     }
     unit_types_load();   // the game's types by name (UT(B_FARM) ...) before any AI code runs - the data is loaded by now

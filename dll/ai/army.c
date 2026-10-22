@@ -316,9 +316,9 @@ internal int ap_upg_line(ee_player *pl, unsigned idx, ee_tech_data *d, int *used
     for (unsigned k = 0; ids && k < cnt && k < 64; k++) {
         if (ids[k] >= 2000) continue;
         uint8_t *ef = tech_effect(ids[k]);
-        if (FIELD(ef, OF(EFFECT, 0x20), int) != 0x13) continue;
+        if (effect_get_kind(ef) != 0x13) continue;
         if (!n++) ap_owned(pl, idx);
-        int a = FIELD(ef, OF(EFFECT, 0x14), int), b = FIELD(ef, OF(EFFECT, 0x18), int);
+        int a = effect_get_type(ef), b = effect_get_new_type(ef);
         if ((a >= 0 && a < 768 && g_apo[idx][a]) || (b >= 0 && b < 768 && g_apo[idx][b])) *used = 1;
     }
     return n;
@@ -387,7 +387,7 @@ internal void am_pool_log(ee_player *pl, unsigned idx) {
             for (unsigned k = 0; ids && k < n && k < 3; k++) {
                 if (ids[k] >= 2000) continue;
                 uint8_t *ef = tech_effect(ids[k]);
-                fprintf(g_log, " %d/%d/%d", FIELD(ef, OF(EFFECT, 0x20), int), FIELD(ef, OF(EFFECT, 0x14), int), FIELD(ef, OF(EFFECT, 0x2C), int));
+                fprintf(g_log, " %d/%d/%d", effect_get_kind(ef), effect_get_type(ef), effect_get_attr(ef));
             }
         }
         fputc(')', g_log);

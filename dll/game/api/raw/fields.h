@@ -221,7 +221,6 @@
     O(GRID, 0x14, 0x14, 0x14) /* s */ \
     O(GRIDCELL, 0x4, 0x4, 0x4) /* s */ \
     O(GRIDCELL, 0x8, 0x8, 0x8) /* s */ \
-    O(MAP, 0x4, 0x4, 0x4) /* b */ \
     O(MAP, 0x1816D4, 0x1816D4, 0x1955F0) /* c */ \
     O(MAP, 0x1816FC, 0x1816FC, 0x195618) /* c */ \
     O(MAP, 0x181724, 0x181724, 0x195640) /* c */ \
@@ -240,7 +239,6 @@
     O(MSG_SELECT, 0x18, 0x18, 0x18) /* b */ \
     O(MSG_SELECT, 0x134, 0x134, 0x134) /* c */ \
     O(MSG_START, 0x14, 0x14, 0x14) /* c */ \
-    O(MSG_TRIBUTE, 0xA, 0xA, 0xA) /* b */ \
     O(MSG_TRIBUTE, 0x10, 0x10, 0x10) /* c */ \
     O(MSG_TRIBUTE, 0x14, 0x14, 0x14) /* c */ \
     O(MSG_TRIBUTE, 0x18, 0x18, 0x18) /* c */ \
@@ -395,7 +393,16 @@
     O(SETUP, 0x402, 0x402, 0x402) /* c: the setup copy 0x524B8F and FN_GAME_START */ \
     O(SETUP, 0x403, 0x403, 0x403) /* c: the setup copy 0x524B8F and FN_GAME_START */ \
     O(SETUPSLOT, 0x0, 0x0, 0x0) /* c: the setup code */ \
+    O(SETUPSLOT, 0x4, 0x4, 0x4) /* s: as the slot's others (engine-notes.md "Game start") */ \
+    O(SETUPSLOT, 0x8, 0x8, 0x8) /* s: the player's name, as the slot's others */ \
+    O(SETUPSLOT, 0x1C, 0x1C, 0x1C) /* s: as the slot's others (engine-notes.md "Game start") */ \
+    O(SETUPSLOT, 0x20, 0x20, 0x20) /* s: as the slot's others (engine-notes.md "Game start") */ \
     O(SETUPSLOT, 0x24, 0x24, 0x24) /* c: the setup code */ \
+    O(SETUPSLOT, 0x28, 0x28, 0x28) /* s: as the slot's others (engine-notes.md "Game start") */ \
+    O(SETUPSLOT, 0x2C, 0x2C, 0x2C) /* s: as the slot's others (engine-notes.md "Game start") */ \
+    O(SETUPSLOT, 0x30, 0x30, 0x30) /* s: as the slot's others (engine-notes.md "Game start") */ \
+    O(SETUPSLOT, 0x34, 0x34, 0x34) /* s: as the slot's others (engine-notes.md "Game start") */ \
+    O(SETUPSLOT, 0x38, 0x38, 0x38) /* s: a slot's size, the next slot */ \
     O(SITEOWN, 0x4, 0x4, 0x4) /* s */ \
     O(STRATEGY, 0x3C, 0x3C, 0x3C) /* s */ \
     O(STRATEGY, 0x40, 0x40, 0x40) /* s */ \

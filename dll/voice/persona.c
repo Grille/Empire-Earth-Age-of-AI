@@ -644,15 +644,15 @@ internal void persona_new_game(uint8_t *setup) {
     memset(g_say_tribute, 0, sizeof g_say_tribute);
     memset(g_cfg_pl_on, 0, sizeof g_cfg_pl_on);
     int humans = 0;
-    for (int s = 0; s < 16; s++) humans += FIELD(setup + s * 0x38, OF(SETUPSLOT, 0x0), int) == 1;
+    for (int s = 0; s < 16; s++) humans += slot_get_type(setup_slot_at(setup, s)) == 1;
     g_mp = humans > 1; g_mp_seeded = 0;
     // multiplayer: no planning here (each PC would pick on its own, and the colours are the lobby's) - the
     // personalities are picked at the AIs' first updates from the game generator, the same on every PC
-    if (!g_npersonas || *(int *)(setup + OF(SETUP, 0x3D8)) != 0 || g_mp) return;
+    if (!g_npersonas || setup_get_mode(setup) != 0 || g_mp) return;
     int used[17] = { 0 }, player = 0;
     for (int s = 0; s < 16; s++) {
-        uint8_t *slot = setup + s * 0x38;
-        int type = FIELD(slot, OF(SETUPSLOT, 0x0), int), c = FIELD(slot, OF(SETUPSLOT, 0x24), int);
+        uint8_t *slot = setup_slot_at(setup, s);
+        int type = slot_get_type(slot), c = slot_get_color(slot);
         if (type != 0 && type != 1) continue;
         player++;
         if (type == 1) { if (c >= 0 && c < 17) used[c] = 1; continue; }
@@ -669,7 +669,7 @@ internal void persona_new_game(uint8_t *setup) {
         for (int s = 0; s < 16; s++) {
             if (g_plan_persona[s] < 0 || g_plan_color[s] >= 0) continue;
             struct persona *p = &g_personas[g_plan_persona[s]];
-            int c = -1, own = FIELD(setup + s * 0x38, OF(SETUPSLOT, 0x24), int);
+            int c = -1, own = slot_get_color(setup_slot_at(setup, s));
             for (int k = 0; k < nfav[s] && c < 0; k++) if (!used[fav[s][k]]) c = fav[s][k];
             if (c < 0 && pass == 0) continue;
             if (c < 0 && own >= 0 && own < 17 && !used[own]) c = own;
@@ -677,14 +677,14 @@ internal void persona_new_game(uint8_t *setup) {
             if (c < 0) continue;
             used[c] = 1;
             g_plan_color[s] = c;
-            FIELD(setup + s * 0x38, OF(SETUPSLOT, 0x24), int) = c;
+            slot_set_color(setup_slot_at(setup, s), c);
             if (g_log) fprintf(g_log, "# persona: setup slot %d -> %s, colour %d (%s, was %d)\n", s, p->file, c, k_color_names[c][0], own);
         }
     for (int c = 0; c < 17; c++) g_color_human[c] = 0;
     g_ai_color_n = g_ai_color_k = 0;
     for (int s = 0; s < 16; s++) {
-        uint8_t *slot = setup + s * 0x38;
-        int type = FIELD(slot, OF(SETUPSLOT, 0x0), int), c = FIELD(slot, OF(SETUPSLOT, 0x24), int);
+        uint8_t *slot = setup_slot_at(setup, s);
+        int type = slot_get_type(slot), c = slot_get_color(slot);
         if (type == 1 && c >= 0 && c < 17) g_color_human[c] = 1;
         if (type == 0) g_ai_colors[g_ai_color_n++] = g_plan_color[s];
     }
@@ -905,7 +905,7 @@ internal void persona_attack(ee_player *pl, ee_player *target) {
 // here when the personality has one.
 internal char __fastcall hook_native_chat(uint8_t *pim, void *edx, int base, int ms) {
     (void)edx;
-    ee_player *pl = pim ? FIELD(pim, OF(NATIVECHAT, 0x20), void *) : NULL;
+    ee_player *pl = pim ? nativechat_get_player(pim) : NULL;
     int k = base == 12000 ? L_WONDER_THREAT : base == 12100 ? L_WONDER_HELP : base == 12200 ? L_WONDER_NOHELP :
             base == 12300 ? L_HELP_LAND : base == 12330 ? L_HELP_AIR : base == 12360 ? L_HELP_NAVAL :
             base == 12400 ? L_HELP_NONE : base == 12500 ? L_WAR_DECLARED : -1;

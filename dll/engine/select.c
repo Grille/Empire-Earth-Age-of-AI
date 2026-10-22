@@ -54,14 +54,14 @@ internal void cmd_seltest(char *out, const char *args) {
     memset(msg, 0, sizeof msg);
     g_sel_last_in = g_sel_last_out = 0;
     select_msg_init(msg, r, type, 0x4E);
-    uint32_t *b = FIELD(msg, OF(MSG_SELECT, 0x14), uint32_t *), *e = FIELD(msg, OF(MSG_SELECT, 0x18), uint32_t *);
+    uint32_t *b = select_msg_get_ids_begin(msg), *e = select_msg_get_ids_end(msg);
     REPLY("rect %.0f %.0f %.0f %.0f: found %u, packed %u in %u bytes, unpacked %d (big_selection %d)", r[0], r[1], r[2],
-          r[3], g_sel_last_in, g_sel_last_out, msg[OF(MSG_SELECT, 0x134)], b ? (int)(e - b) : 0, g_big_selection);
+          r[3], g_sel_last_in, g_sel_last_out, select_msg_get_flag(msg), b ? (int)(e - b) : 0, g_big_selection);
     // carried out as the message does (EEMSelectUnits::vf10 -> 0x55B3FB on the player): the selected group (+0x9BC)
     ee_player *pl = game_players()[local_player_index()];
     int *grp = pl ? player_get_selected_group(pl) : NULL;
     if (grp) {
-        player_select(pl, msg + OF(MSG_SELECT, 0x10));
+        player_select(pl, select_msg_selection_at(msg));
         REPLY(", selected %u", group_count(grp));
     }
     REPLY("\n");

@@ -1609,8 +1609,8 @@ internal void cmd_topbar(char *out, const char *args) {
     const char *rn = form ? rtti_name(form) : "";
     if (!form || !strstr(rn, "EEUIFMainGame")) { REPLY("error: the current form is %s, not the game screen\n", form ? rn : "none"); return; }
     int v = -1;
-    if (sscanf(args, "%d", &v) == 1 && v >= 0 && v <= 2) FIELD(form, OF(UIFORM, 0x5D8), int) = v;
-    REPLY("in-game form %p: top bar mode %d (0 age, 1 clock, 2 FPS)\n", (void *)form, FIELD(form, OF(UIFORM, 0x5D8), int));
+    if (sscanf(args, "%d", &v) == 1 && v >= 0 && v <= 2) uiform_set_top_bar(form, v);
+    REPLY("in-game form %p: top bar mode %d (0 age, 1 clock, 2 FPS)\n", (void *)form, uiform_get_top_bar(form));
 }
 
 internal void cmd_ddinfo(char *out, const char *args) {

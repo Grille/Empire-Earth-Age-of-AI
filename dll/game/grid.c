@@ -28,10 +28,10 @@ internal struct grid_it grid_it_area(int x0, int y0, int x1, int y1, int once) {
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     it.gx = 1; it.x1 = 0;   // nothing unless set below
     if (!grid) return it;
-    int nx = FIELD(grid, OF(GRID, 0x10), int);
-    it.cells = FIELD(grid, OF(GRID, 0x4), uint8_t *);
-    it.cs = FIELD(grid, OF(GRID, 0x8), int);
-    it.ny = FIELD(grid, OF(GRID, 0x14), int);
+    int nx = grid_get_nx(grid);
+    it.cells = grid_get_cells(grid);
+    it.cs = grid_get_cell_size(grid);
+    it.ny = grid_get_ny(grid);
     if (!it.cells || it.cs <= 0) return it;
     if (x0 < 0) x0 = 0;
     if (y0 < 0) y0 = 0;
@@ -46,14 +46,14 @@ internal struct grid_it grid_it_area(int x0, int y0, int x1, int y1, int once) {
 internal struct grid_it grid_it_box(int x, int y, int r, int once) {
     uint8_t *map = game_map();
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
-    int cs = grid ? FIELD(grid, OF(GRID, 0x8), int) : 0;
+    int cs = grid ? grid_get_cell_size(grid) : 0;
     if (cs <= 0) return grid_it_area(1, 1, 0, 0, once);
     return grid_it_area((x - r) / cs, (y - r) / cs, (x + r) / cs, (y + r) / cs, once);
 }
 internal struct grid_it grid_it_all(int once) { return grid_it_area(0, 0, 0x7FFFFFFF, 0x7FFFFFFF, once); }
 internal int grid_it_next(struct grid_it *it) {
     for (;;) {
-        while (it->b && it->b < FIELD(it->cell, OF(GRIDCELL, 0x8), ee_unit **)) {
+        while (it->b && it->b < cell_get_units_end(it->cell)) {
             ee_unit *u = *it->b++;
             ee_unit_type *td = u ? unit_get_type_data(u) : NULL;
             if (!td) continue;
@@ -69,7 +69,7 @@ internal int grid_it_next(struct grid_it *it) {
         if (it->gx > it->x1) return 0;
         it->cx = it->gx; it->cy = it->gy;
         it->cell = it->cells + (it->cx * it->ny + it->cy) * 16;
-        it->b = FIELD(it->cell, OF(GRIDCELL, 0x4), ee_unit **);
+        it->b = cell_get_units_begin(it->cell);
         if (++it->gy > it->y1) { it->gy = it->y0; it->gx++; }
     }
 }

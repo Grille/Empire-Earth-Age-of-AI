@@ -46,7 +46,7 @@ internal int tower_queued(ee_build_mgr *bm) {   // a tower of the line in the bu
 internal int can_place(ee_player *pl, int type, int x, int y) {
     ee_unit_type *td = type_data(type);
     uint8_t *map = game_map();
-    int n = map ? (int)FIELD(map, OF(MAP, 0x1816FC), uint32_t) : 0, sz = td ? type_get_size(td) : 0;
+    int n = map ? (int)map_get_size(map) : 0, sz = td ? type_get_size(td) : 0;
     if (!td || x < 2 || y < 2 || x >= n - 2 || y >= n - 2) return 0;
     if (sz < 1) sz = 1;
     return can_place_area(pl, type, x, y, sz) != 0;
@@ -96,7 +96,7 @@ internal void def_refresh(ee_player *pl, unsigned idx, uint32_t now) {
         if (best >= 0) { dx = (float)(s->x[best] - p->bx); dy = (float)(s->y[best] - p->by); }
         else if (k == 0) {   // nothing seen yet: towards the map centre
             uint8_t *map = game_map();
-            int n = map ? (int)FIELD(map, OF(MAP, 0x1816FC), uint32_t) : 0;
+            int n = map ? (int)map_get_size(map) : 0;
             dx = (float)(n / 2 - p->bx); dy = (float)(n / 2 - p->by);
         } else break;
         float len = sqrtf(dx * dx + dy * dy);
@@ -234,7 +234,7 @@ internal void defence_tick(ee_player *pl, unsigned idx, uint32_t now) {
         // the arc on the map and on land, ends and middle: on an island map an arc into the water (or off the map)
         // crashed the game's wall placement (0x497C3F -> 0x636E30, a null tile object), twice on Small Islands
         uint8_t *wmap = game_map();
-        int mn = wmap ? (int)FIELD(wmap, OF(MAP, 0x1816FC), uint32_t) : 0, land = mn > 0;
+        int mn = wmap ? (int)map_get_size(wmap) : 0, land = mn > 0;
         for (int q = 0; q <= 2 && land; q++) {
             int qx = q == 0 ? a[0] : q == 1 ? b[0] : cx, qy = q == 0 ? a[1] : q == 1 ? b[1] : cy;
             land = qx >= 3 && qy >= 3 && qx < mn - 3 && qy < mn - 3 && area_id(qx, qy, 2) && !area_id(qx, qy, 1);
@@ -642,7 +642,7 @@ internal void mus_rally(unsigned idx, struct mus_scan *s) {
     float cx = s->epow > 0 ? s->ex / s->epow : (float)s->bx + 1, cy = s->epow > 0 ? s->ey / s->epow : (float)s->by;
     float dx = (float)s->bx - cx, dy = (float)s->by - cy, l = sqrtf(dx * dx + dy * dy);
     if (l < 1.0f) { dx = 1.0f; dy = 0.0f; l = 1.0f; }
-    float msz = (float)*(uint32_t *)(game_map() + OF(MAP, 0x1816FC));
+    float msz = (float)map_get_size(game_map());
     float rx = (float)s->bx + dx / l * 18.0f, ry = (float)s->by + dy / l * 18.0f;
     if (msz > 8) {
         rx = rx < 3 ? 3 : rx > msz - 4 ? msz - 4 : rx;
@@ -1150,7 +1150,7 @@ internal void cmd_defence(char *out, const char *args) {
 // a check: such a model gets "no damage points" (the effect then shows one), logged once per type with the unit.
 __attribute__((used)) ee_unit *g_dmg_unit;   // the effect's unit: esi at the call site
 internal uint8_t *rb_find(uint8_t *map, unsigned key) {   // MSVC map: +4 head; node +0 left, +4 parent, +8 right, +0xC key, +0x15 nil
-    uint8_t *head = FIELD(map, OF(MAP, 0x4), uint8_t *), *res, *n;
+    uint8_t *head = FIELD(map, 4, uint8_t *), *res, *n;
     if (!head) return NULL;
     res = head; n = FIELD(head, 4, uint8_t *);
     while (n && !n[0x15]) {
@@ -1161,7 +1161,7 @@ internal uint8_t *rb_find(uint8_t *map, unsigned key) {   // MSVC map: +4 head; 
 }
 __attribute__((used)) int __fastcall hook_damage_points(uint8_t *model, void *edx, int index, unsigned state) {
     (void)edx;
-    uint8_t *n = model ? rb_find(model + OF(DMGMODEL, 0x14C), state) : NULL, *sub = n ? FIELD(n, 0x10, uint8_t *) : NULL;
+    uint8_t *n = model ? rb_find(dmgmodel_map_at(model), state) : NULL, *sub = n ? FIELD(n, 0x10, uint8_t *) : NULL;
     if (n && (!sub || !FIELD(sub, 4, void *))) {
         static int logged;
         ee_unit *u = g_dmg_unit;

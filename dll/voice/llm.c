@@ -1185,7 +1185,7 @@ internal int chat_reaches(void *pm, void *pj) {
 internal void llm_chat_hint(const char *text) {
     if (g_mp) return;
     uint8_t *opt = game_data();
-    system_line(text, opt ? FIELD(opt, OF(GAMEDATA, 0x2CC), int) : 15000);
+    system_line(text, opt ? gamedata_get_line_ms(opt) : 15000);
     if (g_log) fprintf(g_log, "# llm: hint for the player: %s\n", text);
 }
 // the local player wrote `text` in the chat: one AI that gets it (the chat filter) answers - the one it names first,
@@ -1564,7 +1564,7 @@ internal void llm_wait_tick(void) {
         g_llm_paused_t = now;
         uint8_t *opt = game_data();
         const char *l = sysf(g_llm_unreach ? "llm_wait_down" : "llm_wait", NULL, NULL, NULL, "url", g_llm_url, NULL);
-        system_line(l, opt ? FIELD(opt, OF(GAMEDATA, 0x2CC), int) * 2 : 20000);
+        system_line(l, opt ? gamedata_get_line_ms(opt) * 2 : 20000);
         if (g_log) fprintf(g_log, "# llm: paused at %.1f min - waiting for the model (%s)\n", game_time() / 60000.0,
                            g_llm_unreach ? g_llm_last_err : "slow");
     } else if (stalled && g_llm_paused == 1 && !paused && now - g_llm_paused_t > 3000) {   // the player resumed it

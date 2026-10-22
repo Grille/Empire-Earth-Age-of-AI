@@ -90,7 +90,7 @@ internal ee_unit *food_bush(ee_player *pl, ee_resource_mgr *rm, ee_unit *u, int 
             ee_unit *s = sb[k];
             ee_unit_type *td = s ? unit_get_type_data(s) : NULL;
             if (!td || unit_get_resource(s) != 2 || type_get_id(td) != UT(RES_FORAGE_BUSH) || unit_get_amount(s) <= 0) continue;
-            if (FIELD(unit_get_vis(s), OF(SITEOWN, 0x4), int) == 1) continue;
+            if (siteown_get_flag(unit_get_vis(s)) == 1) continue;
             int pos[2] = { unit_get_x(s), unit_get_y(s) }, dx = pos[0] - base[0], dy = pos[1] - base[1];
             if (dx * dx + dy * dy >= max_d2) continue;
             int dd = 0x7FFFFFFF;   // to the nearest drop site that takes food

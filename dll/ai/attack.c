@@ -110,7 +110,7 @@ internal DWORD g_route_thread;
 internal int __fastcall hook_route_cost(void *self, void *edx, int *edge, uint8_t *node) {
     (void)edx;
     int cost = route_cost(self, edge, node);
-    unsigned pi = (unsigned)FIELD(self, OF(ROUTEPLANNER, 0x48), int) & 15;     // planner +0x48 = own player index
+    unsigned pi = (unsigned)planner_get_player_index(self) & 15;     // planner +0x48 = own player index
     ee_player *pl = is_vanilla_idx((int)pi) ? NULL : g_players[pi];   // a vanilla player: the game's cost
     if (!g_route_thread) {
         g_route_thread = GetCurrentThreadId();
@@ -118,7 +118,7 @@ internal int __fastcall hook_route_cost(void *self, void *edx, int *edge, uint8_
     }
     if (!pl || !node) return cost;
     g_route_stats[pi].calls++;
-    float t = threat_at(pi, FIELD(node, OF(ROUTENODE, 0x3C), int), FIELD(node, OF(ROUTENODE, 0x40), int));
+    float t = threat_at(pi, route_node_get_x(node), route_node_get_y(node));
     if (t > 0) {
         g_route_stats[pi].penalised++;
         if (g_avoid_towers) cost += (int)(t * (float)g_avoid_weight);
@@ -220,11 +220,11 @@ internal ee_unit *wall_at(ee_player *pl, int x, int y) {
     uint8_t *map = game_map();
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     if (!grid) return NULL;
-    int cs = FIELD(grid, OF(GRID, 0x8), int), nx = FIELD(grid, OF(GRID, 0x10), int), ny = FIELD(grid, OF(GRID, 0x14), int);
-    uint8_t *cells = FIELD(grid, OF(GRID, 0x4), uint8_t *);
+    int cs = grid_get_cell_size(grid), nx = grid_get_nx(grid), ny = grid_get_ny(grid);
+    uint8_t *cells = grid_get_cells(grid);
     if (cs <= 0 || !cells || x < 0 || y < 0 || x / cs >= nx || y / cs >= ny) return NULL;
     uint8_t *cell = cells + ((x / cs) * ny + y / cs) * 16;
-    for (ee_unit **b = FIELD(cell, OF(GRIDCELL, 0x4), ee_unit **); b && b < FIELD(cell, OF(GRIDCELL, 0x8), ee_unit **); b++) {
+    for (ee_unit **b = cell_get_units_begin(cell); b && b < cell_get_units_end(cell); b++) {
         ee_unit *u = *b;
         ee_unit_type *td = u ? unit_get_type_data(u) : NULL;
         if (td && unit_get_x(u) == x && unit_get_y(u) == y && is_wall(type_get_id(td)) &&
@@ -702,7 +702,7 @@ internal int path_raided(ee_player *pl, int x0, int y0, int x1, int y1) {
 internal void flee_point(ee_player *pl, int x, int y, float rx, float ry, float *fx, float *fy) {
     *fx = rx; *fy = ry;
     if (!path_raided(pl, x, y, (int)rx, (int)ry)) return;
-    float msz = (float)*(uint32_t *)(game_map() + OF(MAP, 0x1816FC)), best = 1e9f;
+    float msz = (float)map_get_size(game_map()), best = 1e9f;
     static const float dir[8][2] = { { 1, 0 }, { .7071f, .7071f }, { 0, 1 }, { -.7071f, .7071f }, { -1, 0 },
                                      { -.7071f, -.7071f }, { 0, -1 }, { .7071f, -.7071f } };
     for (int k = 0; k < 8; k++) {
@@ -1334,7 +1334,7 @@ internal void attack_log(ee_player *pl, uint32_t now) {
         fprintf(g_log, "# battle: P%u at %u min:", pi, now / 60000);
         uint8_t *st = player_stats_at(pl);
         for (int k = 0; k < 30; k++) {
-            uint8_t *b = FIELD(st, OF(PLSTATS, 0x1C) + k * 0x18, uint8_t *), *e = FIELD(st, OF(PLSTATS, 0x20) + k * 0x18, uint8_t *);
+            uint8_t *b = plstats_get_begin(st, k), *e = plstats_get_end(st, k);
             int ok = b && e > b && (e - b) % 8 == 0 && e - b < (1 << 20) && mem_readable(e - 8, 8);
             fprintf(g_log, " %d", ok ? FIELD(e, -8, int) : 0);
         }

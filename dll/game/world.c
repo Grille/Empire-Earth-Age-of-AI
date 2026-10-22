@@ -6,7 +6,7 @@ internal inline ee_unit_type *type_data(int t) { return t >= 0 && t < G_TYPES_N 
 
 internal uint32_t game_time(void) {
     uint8_t *clock = game_physics();
-    return clock ? FIELD(clock, OF(PHYS, 0xD0), uint32_t) : 0;
+    return clock ? phys_get_time(clock) : 0;
 }
 
 internal ee_player *rm_player(ee_resource_mgr *rm) {

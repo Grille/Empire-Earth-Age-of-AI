@@ -181,13 +181,13 @@ internal unsigned g_sync_left;
 // 0x5D7A25, 0x5D8871, 0x65C955): there game_seed takes effect only here.
 internal void __fastcall hook_start_exec(void *msg, void *edx) {
     (void)edx;
-    if (g_auto.game_seed) FIELD(msg, OF(MSG_START, 0x14), unsigned) = (unsigned)g_auto.game_seed;
+    if (g_auto.game_seed) start_msg_set_seed(msg, (unsigned)g_auto.game_seed);
     uint8_t *phys = game_physics(), *world = game_world();
-    unsigned map_seed = world ? FIELD(world, OF(WORLD, 0x54), unsigned) : 0;
+    unsigned map_seed = world ? world_get_seed(world) : 0;
     start_exec(msg);
     EnterCriticalSection(&g_lock);
-    if (g_sync) fprintf(g_sync, "start message: seed %u (generator %u, world+0x54 was %u)\n", FIELD(msg, OF(MSG_START, 0x14), unsigned),
-                        phys ? FIELD(phys, OF(PHYS, 0x18), unsigned) : 0, map_seed);
+    if (g_sync) fprintf(g_sync, "start message: seed %u (generator %u, world+0x54 was %u)\n", start_msg_get_seed(msg),
+                        phys ? phys_get_seed(phys) : 0, map_seed);
     LeaveCriticalSection(&g_lock);
 }
 internal int start_hook(void) {
@@ -254,9 +254,9 @@ internal void sync_step(void *phys) {   // after each step (control.c hook_phys_
     struct sync_units su = { 0, 0 };
     grid_each(sync_unit, &su);
     EnterCriticalSection(&g_lock);
-    fprintf(g_sync, "%u %u %u %u %08x %u %08x\n", FIELD(phys, OF(PHYS, 0x80), unsigned), FIELD(phys, OF(PHYS, 0xD0), unsigned),
-            FIELD(phys, OF(PHYS, 0x18), unsigned), input_msgs_done(), h, su.n, su.h);
-    if (g_sync_dump0 && FIELD(phys, OF(PHYS, 0xD0), unsigned) >= g_sync_dump0 && FIELD(phys, OF(PHYS, 0xD0), unsigned) <= g_sync_dump1)
+    fprintf(g_sync, "%u %u %u %u %08x %u %08x\n", phys_get_step(phys), phys_get_time(phys),
+            phys_get_seed(phys), input_msgs_done(), h, su.n, su.h);
+    if (g_sync_dump0 && phys_get_time(phys) >= g_sync_dump0 && phys_get_time(phys) <= g_sync_dump1)
         grid_each(sync_unit_dump, NULL);
     if (!--g_sync_left) { fclose(g_sync); g_sync = NULL; }
     LeaveCriticalSection(&g_lock);

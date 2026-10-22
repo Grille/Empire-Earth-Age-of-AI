@@ -71,7 +71,7 @@ internal void chat_stance_line(ee_player *pl, int stance) {
     resource_string(res, 0x7B71, verb);
     resource_string(res, stance ? 0x734A : 0x7349, word);
     wstring_format(line, "%s %s %s", ((void *)player_get_name(pl)), FIELD(verb, 4, void *), FIELD(word, 4, void *));
-    ui_line(ui, player_color_at(pl), player_name_at(pl), line, FIELD(opt, OF(GAMEDATA, 0x2CC), int));
+    ui_line(ui, player_color_at(pl), player_name_at(pl), line, gamedata_get_line_ms(opt));
     wstring_free(line);
     wstring_free(word);
     wstring_free(verb);

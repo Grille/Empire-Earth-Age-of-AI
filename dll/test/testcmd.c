@@ -41,7 +41,7 @@ internal void cmd_tech(char *out, const char *args) {
             for (unsigned k = 0; ids && k < count && k < 16; k++) {
                 if (ids[k] >= 2000) { REPLY(" %u?", ids[k]); continue; }
                 uint8_t *ef = tech_effect(ids[k]);
-                REPLY(" %u(%x/%x/%x)", ids[k], FIELD(ef, OF(EFFECT, 0x14), int), FIELD(ef, OF(EFFECT, 0x20), int), FIELD(ef, OF(EFFECT, 0x2C), int));
+                REPLY(" %u(%x/%x/%x)", ids[k], effect_get_type(ef), effect_get_kind(ef), effect_get_attr(ef));
             }
         }
         REPLY("\n");
@@ -249,7 +249,7 @@ internal void cmd_spawn(char *out, const char *args) {
     if (!type_data(type) || !srv) { REPLY("error: no type %d or no game\n", type); return; }
     {   // off the map the game crashes (150,140 on a 128-tile map)
         uint8_t *map = game_map(), *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
-        int w = grid ? FIELD(grid, OF(GRID, 0x8), int) * FIELD(grid, OF(GRID, 0x10), int) : 0, h = grid ? FIELD(grid, OF(GRID, 0x8), int) * FIELD(grid, OF(GRID, 0x14), int) : 0;
+        int w = grid ? grid_get_cell_size(grid) * grid_get_nx(grid) : 0, h = grid ? grid_get_cell_size(grid) * grid_get_ny(grid) : 0;
         if (x < 1 || y < 1 || x >= w - 2 || y >= h - 2) { REPLY("error: %d,%d is off the map (%d x %d)\n", x, y, w, h); return; }
     }
     int side = 1;
@@ -755,7 +755,7 @@ internal void cmd_aigroup(char *out, const char *args) {
     task_set_target_player(task, game_players()[player_get_index(tpl) & 15]);
     task_set_unknown_28(task, 7); task_set_unknown_2c(task, 2); task_set_unknown_30(task, 1);
     strategy_reset(strat);
-    FIELD(strat, OF(STRATEGY, 0x3C), int) = 4; FIELD(strat, OF(STRATEGY, 0x40), uint8_t) = 0;
+    strategy_set_unknown_3c(strat, 4); strategy_set_unknown_40(strat, 0);
     // vector<int> {allocator, first, last, end} with the game's heap (its dtor 0x61ABEC frees with the game's delete)
     __attribute__((aligned(8))) uint8_t vec[16] = { 0 };
     int *ids = game_new((unsigned)s.n * 4);

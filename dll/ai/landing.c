@@ -2280,7 +2280,7 @@ internal int g_land_keep = 1;   // landing_keep_transports: the transport manage
 // transport's goal, or was its goal and ended - then a "# ldforeign:" line: the soldiers aboard before and after and
 // where the landing itself wanted that transport (state 0 made, 1 given, 2 the transport's goal)
 internal struct ld_fu { ee_unit *sh; ee_goal *g; int site, p, x, y, aboard, state, phase; uint32_t t; } g_fu[16];
-internal uint32_t ld_clock(void) { uint8_t *c = game_physics(); return c ? FIELD(c, OF(PHYS, 0xD0), uint32_t) : 0; }
+internal uint32_t ld_clock(void) { uint8_t *c = game_physics(); return c ? phys_get_time(c) : 0; }
 internal void ld_fu_log(struct ld_fu *f, const char *what, int now_aboard) {
     struct landing *l = &g_ld[f->p & 15];
     int k = 0, lx = -1, ly = -1;

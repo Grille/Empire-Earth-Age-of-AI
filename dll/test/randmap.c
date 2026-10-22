@@ -78,45 +78,45 @@ internal void randmap_load(const char *ini) {
 
 // Called from hook_game_start before the original runs.
 internal void randmap_rewrite(uint8_t *setup) {
-    ustring_set(setup + OF(SETUP, 0x3A8), g_rm.map);
-    *(int *)(setup + OF(SETUP, 0x3D8)) = 0;
+    ustring_set(setup_map_name_at(setup), g_rm.map);
+    setup_set_mode(setup, 0);
     for (int i = 0; i < 16; i++) {
-        uint8_t *slot = setup + i * 0x38;
+        uint8_t *slot = setup_slot_at(setup, i);
         int type = i == 0 ? 1 : i <= g_rm.ais ? 0 : 4;
-        *(int *)(slot + 0x00) = type;
-        *(int *)(slot + 0x04) = 3;
-        *(int *)(slot + 0x1C) = 0;
-        *(int *)(slot + 0x20) = i;
-        *(int *)(slot + 0x24) = i;
+        slot_set_type(slot, type);
+        slot_set_unknown_4(slot, 3);
+        slot_set_unknown_1c(slot, 0);
+        slot_set_index(slot, i);
+        slot_set_color(slot, i);
         // human alone on team 1; AIs free-for-all (team 0) or in pairs (2,2,3,3,...)
-        *(int *)(slot + 0x28) = type == 4 ? 0 : i == 0 ? 1 : g_rm.pairs ? 2 + (i - 1) / 2 : 0;
-        *(int *)(slot + 0x2C) = g_rm.citizens;
-        *(int *)(slot + 0x30) = 0;
-        *(uint32_t *)(slot + 0x34) = i == 0 ? 0x75010001u : 0x77010000u;
+        slot_set_team(slot, type == 4 ? 0 : i == 0 ? 1 : g_rm.pairs ? 2 + (i - 1) / 2 : 0);
+        slot_set_citizens(slot, g_rm.citizens);
+        slot_set_unknown_30(slot, 0);
+        slot_set_flags(slot, i == 0 ? 0x75010001u : 0x77010000u);
     }
-    *(int *)(setup + OF(SETUP, 0x3D4)) = 1;
-    *(int *)(setup + OF(SETUP, 0x3DC)) = g_rm.scale;   // the map size (1 Small: what every test map was before map_scale)
-    *(int *)(setup + OF(SETUP, 0x3E0)) = g_rm.start_epoch;
-    *(int *)(setup + OF(SETUP, 0x3E4)) = 13;
-    *(int *)(setup + OF(SETUP, 0x3E8)) = g_rm.size;
-    *(int *)(setup + OF(SETUP, 0x3EC)) = 3;
-    *(int *)(setup + OF(SETUP, 0x3F0)) = g_rm.unit_limit;
-    *(int *)(setup + OF(SETUP, 0x3F4)) = 3;
-    *(int *)(setup + OF(SETUP, 0x3F8)) = g_rm.difficulty;
+    setup_set_unknown_3d4(setup, 1);
+    setup_set_map_scale(setup, g_rm.scale);   // the map size (1 Small: what every test map was before map_scale)
+    setup_set_start_epoch(setup, g_rm.start_epoch);
+    setup_set_end_epoch(setup, 13);
+    setup_set_map_size(setup, g_rm.size);
+    setup_set_unknown_3ec(setup, 3);
+    setup_set_unit_limit(setup, g_rm.unit_limit);
+    setup_set_unknown_3f4(setup, 3);
+    setup_set_difficulty(setup, g_rm.difficulty);
     // the AIs' difficulty: their set-up (0x431697) copies the global 0x918C14 (set by the game options messages,
     // EEMFullGameOptions 0x4B642F, which a load-game start never sends - the setup's +0x3F8 alone left medium)
     *difficulty_var() = g_rm.difficulty;
-    *(int *)(setup + OF(SETUP, 0x3FC)) = 0;
-    setup[OF(SETUP, 0x400)] = 1; setup[OF(SETUP, 0x401)] = 0; setup[OF(SETUP, 0x402)] = 0; setup[OF(SETUP, 0x403)] = 1;
+    setup_set_unknown_3fc(setup, 0);
+    setup_set_flag(setup, 0, 1); setup_set_flag(setup, 1, 0); setup_set_flag(setup, 2, 0); setup_set_flag(setup, 3, 1);
     *game_type_var() = 0;   // game type: random map
     uint8_t *world = game_world();
-    if (world && g_rm.seed) *(int *)(world + OF(WORLD, 0x54)) = g_rm.seed;
+    if (world && g_rm.seed) world_set_seed(world, (unsigned)g_rm.seed);
     if (g_log) {
         uint8_t *lim = game_data();   // the game's unit limits: default +0x2E8, the most +0x2EC (more: the default)
         fprintf(g_log, "# random map: \"%s\" size %d, %d AIs (%s), start epoch %d, seed %d, difficulty %d%s%s, unit limit %d (game default %d, max %d)\n",
-                g_rm.map, g_rm.size, g_rm.ais, g_rm.pairs ? "pairs" : "ffa", g_rm.start_epoch, world ? *(int *)(world + OF(WORLD, 0x54)) : -1, g_rm.difficulty,
+                g_rm.map, g_rm.size, g_rm.ais, g_rm.pairs ? "pairs" : "ffa", g_rm.start_epoch, world ? (int)world_get_seed(world) : -1, g_rm.difficulty,
                 g_rm.scale != 1 ? ", map scale " : "", g_rm.scale != 1 ? k_rm_scale[g_rm.scale] : "", g_rm.unit_limit,
-                lim ? *(int *)(lim + OF(GAMEDATA, 0x2E8)) : -1, lim ? *(int *)(lim + OF(GAMEDATA, 0x2EC)) : -1);
+                lim ? gamedata_get_unit_limit(lim) : -1, lim ? gamedata_get_unit_limit_max(lim) : -1);
         fflush(g_log);
     }
 }

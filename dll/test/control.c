@@ -171,10 +171,10 @@ internal void cmd_status(char *out) {
 }
 
 internal void cmd_camera(char *out, const char *args) {
-    float *cam = (float *)(game_camera() + OF(CAMERA, 0x78));   // current look-at; +0x40 = previous (interpolated per frame)
+    float *cam = camera_look_at(game_camera());   // current look-at; +0x40 = previous (interpolated per frame)
     int x, y;
     if (sscanf(args, "%d %d", &x, &y) == 2) {
-        uint32_t size = *(uint32_t *)(game_map() + OF(MAP, 0x1816FC));
+        uint32_t size = map_get_size(game_map());
         if (x < 0 || y < 0 || (uint32_t)x >= size || (uint32_t)y >= size) { REPLY("error: tile outside map (size %u)\n", size); return; }
         void *act = camera_action_alloc();
         if (!act) { REPLY("error: alloc\n"); return; }
@@ -185,7 +185,7 @@ internal void cmd_camera(char *out, const char *args) {
         return;
     }
     REPLY("x=%.2f y=%.2f z=%.2f zoom=%.3f map_size=%u\n", cam[0], cam[1], cam[2],
-        *(float *)(game_camera() + OF(CAMERA, 0xE0)), *(uint32_t *)(game_map() + OF(MAP, 0x1816FC)));
+        camera_get_zoom(game_camera()), map_get_size(game_map()));
 }
 
 // sites <player>: resource sites the AI knows per town (EECP town 0x28 bytes at player+0xB50[i]: +0x18 active,
@@ -240,7 +240,7 @@ internal void cmd_foodcheck(char *out, const char *args) {
               (short)map_area(pos, 2),
               explored_by(s, pl),
               site_gatherers(s),
-              unit_get_amount(s), FIELD(unit_get_vis(s), OF(SITEOWN, 0x4), int), zone_get_drop(zone),
+              unit_get_amount(s), siteown_get_flag(unit_get_vis(s)), zone_get_drop(zone),
               bm_enemy_near(bm, pos[0], pos[1]), dx * dx + dy * dy);
     }
 }
@@ -474,7 +474,7 @@ internal long __fastcall hook_sim_wait(void *ev, void *edx, unsigned long ms) {
     // only while steps are granted: otherwise a real (short) wait, so the client, server and pathfinding threads
     // the simulation waits for get the CPU instead of a spinning loop
     uint8_t *phys = game_physics();
-    if (g_turbo && phys && FIELD(phys, OF(PHYS, 0xB8), unsigned)) return 0;
+    if (g_turbo && phys && phys_get_steps_granted(phys)) return 0;
     return ts_wait(ev, g_turbo ? 1 : ms);
 }
 
@@ -519,7 +519,7 @@ internal void __fastcall hook_phys_step(void *phys, void *edx) {
 
 internal int sim_drained(void) {
     uint8_t *srv = game_server(), *phys = game_physics();
-    return srv && phys && FIELD(srv, OF(SERVER, 0x10), unsigned) == FIELD(srv, OF(SERVER, 0x190), unsigned) && FIELD(phys, OF(PHYS, 0xB8), unsigned) == 0 &&
+    return srv && phys && server_get_sent(srv) == server_get_done(srv) && phys_get_steps_granted(phys) == 0 &&
            !g_in_step;
 }
 
@@ -548,7 +548,7 @@ internal DWORD WINAPI hook_send_wait(DWORD n, const HANDLE *h, BOOL all, DWORD m
         if (sim_drained()) {
             uint8_t *srv = game_server();
             LONG handed = g_handed, waiting = handed - g_handed_at_tick;
-            if (!g_srv_send_next || waiting <= 0 || FIELD(srv, OF(SERVER, 0x94), LONG) >= waiting) {
+            if (!g_srv_send_next || waiting <= 0 || server_get_waiting(srv) >= waiting) {
                 g_handed_at_tick = handed;
                 return WAIT_TIMEOUT;
             }
@@ -556,7 +556,7 @@ internal DWORD WINAPI hook_send_wait(DWORD n, const HANDLE *h, BOOL all, DWORD m
             else if (GetTickCount() - since > 200) {
                 EnterCriticalSection(&g_lock);   // the server's thread: the simulation writes the log too
                 if (g_log) fprintf(g_log, "# tick: at %u ms sent with %ld of %ld messages in the server's list\n", game_time(),
-                                   FIELD(srv, OF(SERVER, 0x94), LONG), waiting);
+                                   server_get_waiting(srv), waiting);
                 LeaveCriticalSection(&g_lock);
                 g_handed_at_tick = handed;
                 return WAIT_TIMEOUT;

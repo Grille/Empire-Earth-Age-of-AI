@@ -29,9 +29,9 @@ internal unsigned g_lead_logged;
 internal int tile_height(int x, int y, float *h) {
     uint8_t *map = game_map();
     if (!map) return 0;
-    unsigned n = FIELD(map, OF(MAP, 0x1816FC), unsigned);
+    unsigned n = map_get_size(map);
     if (x < 0 || y < 0 || (unsigned)x >= n || (unsigned)y >= n) return 0;
-    uint8_t *t = FIELD(map, OF(MAP, 0x1816D4), uint8_t **)[(unsigned)y * n + (unsigned)x];
+    uint8_t *t = map_get_tiles(map)[(unsigned)y * n + (unsigned)x];
     if (!t) return 0;
     *h = tile_get_height(t);
     return 1;
@@ -227,7 +227,7 @@ internal int missile_damage(ee_unit *m, ee_unit *t);
 // A missile is gone when it hasn't been steered for 3 steps (last = the end of its climb until it steers).
 internal void missile_tick(uint32_t now) {
     uint8_t *clock = game_physics();
-    int gone_ms = clock ? (int)(FIELD(clock, OF(PHYS, 0x8C), float) * 3000.0f) : 0;
+    int gone_ms = clock ? (int)(phys_get_step_s(clock) * 3000.0f) : 0;
     if (gone_ms < 100) gone_ms = 100;
     for (int i = 0; i < MSL_MAX; i++)
         if (g_msl[i].m && (int32_t)(now - g_msl[i].last) > gone_ms) {

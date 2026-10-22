@@ -409,6 +409,138 @@ internal inline int scen_effect_get_kind(const uint8_t *ef, int cat) {
 internal inline int scen_effect_get_object(const uint8_t *ef) { return FIELD(ef, OF(SCEN, 0x158), int); }     // object effects
 internal inline int scen_effect_get_trigger(const uint8_t *ef) { return FIELD(ef, OF(SCEN, 0x180), int); }    // trigger effects
 
+// THE MAP ([G_MAP], game_map(): EEMap)
+internal inline uint8_t **map_get_tiles(const void *map) { return FIELD(map, OF(MAP, 0x1816D4), uint8_t **); }   // [y * size + x]
+internal inline uint32_t map_get_size(const void *map) { return FIELD(map, OF(MAP, 0x1816FC), uint32_t); }     // tiles a side
+internal inline uint32_t map_get_flags(const void *map) { return FIELD(map, OF(MAP, 0x181730), uint32_t); }    // bit 0: water
+// the unit grid (map +0x181724, unit_grid()): cells of cs tiles, nx x ny of them; a cell's units begin .. end
+internal inline uint8_t *grid_get_cells(const void *grid) { return FIELD(grid, OF(GRID, 0x4), uint8_t *); }
+internal inline int grid_get_cell_size(const void *grid) { return FIELD(grid, OF(GRID, 0x8), int); }
+internal inline int grid_get_nx(const void *grid) { return FIELD(grid, OF(GRID, 0x10), int); }
+internal inline int grid_get_ny(const void *grid) { return FIELD(grid, OF(GRID, 0x14), int); }
+internal inline ee_unit **cell_get_units_begin(const void *cell) { return FIELD(cell, OF(GRIDCELL, 0x4), ee_unit **); }
+internal inline ee_unit **cell_get_units_end(const void *cell) { return FIELD(cell, OF(GRIDCELL, 0x8), ee_unit **); }
+// a resource site's ownership record (unit_get_vis(site)): +4 1 while the site is flagged (taken)
+internal inline int siteown_get_flag(const void *so) { return FIELD(so, OF(SITEOWN, 0x4), int); }
+
+// THE SIMULATION ([G_WORLD_CLOCK], game_physics(): EEPhysics), THE WORLD ([G_WORLD]), THE SERVER ([G_SERVER])
+internal inline unsigned phys_get_seed(const void *ph) { return FIELD(ph, OF(PHYS, 0x18), unsigned); }       // +0x18 the game generator
+internal inline unsigned phys_get_step(const void *ph) { return FIELD(ph, OF(PHYS, 0x80), unsigned); }       // +0x80 steps done
+internal inline float phys_get_step_s(const void *ph) { return FIELD(ph, OF(PHYS, 0x8C), float); }          // +0x8C a step's length (s)
+internal inline unsigned phys_get_steps_granted(const void *ph) { return FIELD(ph, OF(PHYS, 0xB8), unsigned); } // +0xB8 steps it may still run
+internal inline uint32_t phys_get_time(const void *ph) { return FIELD(ph, OF(PHYS, 0xD0), uint32_t); }      // +0xD0 game time (ms)
+internal inline unsigned world_get_seed(const void *w) { return FIELD(w, OF(WORLD, 0x54), unsigned); }        // +0x54 the map's seed
+internal inline void world_set_seed(void *w, unsigned v) { FIELD(w, OF(WORLD, 0x54), unsigned) = v; }
+internal inline unsigned server_get_sent(const void *srv) { return FIELD(srv, OF(SERVER, 0x10), unsigned); }  // +0x10 / +0x190 sent / done
+internal inline unsigned server_get_done(const void *srv) { return FIELD(srv, OF(SERVER, 0x190), unsigned); }
+internal inline LONG server_get_waiting(const void *srv) { return FIELD(srv, OF(SERVER, 0x94), LONG); }     // +0x94 messages waiting
+// +0x1B4 / +0x1B8 the steps a second at most / at least, +0x1FB its current pace
+internal inline unsigned server_get_rate_max(const void *srv) { return FIELD(srv, OF(SERVER, 0x1B4), unsigned); }
+internal inline void server_set_rate_max(void *srv, unsigned v) { FIELD(srv, OF(SERVER, 0x1B4), unsigned) = v; }
+internal inline unsigned server_get_rate_min(const void *srv) { return FIELD(srv, OF(SERVER, 0x1B8), unsigned); }
+internal inline void server_set_rate_min(void *srv, unsigned v) { FIELD(srv, OF(SERVER, 0x1B8), unsigned) = v; }
+internal inline uint8_t server_get_rate(const void *srv) { return FIELD(srv, OF(SERVER, 0x1FB), uint8_t); }
+
+// THE GAME DATA ([G_GAME_DATA], game_data()): a chat line's time on screen (ms), the unit limits (default, most)
+internal inline int gamedata_get_line_ms(const void *gd) { return FIELD(gd, OF(GAMEDATA, 0x2CC), int); }
+internal inline int gamedata_get_unit_limit(const void *gd) { return FIELD(gd, OF(GAMEDATA, 0x2E8), int); }
+internal inline int gamedata_get_unit_limit_max(const void *gd) { return FIELD(gd, OF(GAMEDATA, 0x2EC), int); }
+
+// THE GAME SETUP (game start 0x52599B(state, setup)): 16 player slots of 0x38, then the game's settings
+internal inline uint8_t *setup_slot_at(const void *setup, int i) { return (uint8_t *)FIELD_AT(setup, i * OF(SETUPSLOT, 0x38)); }
+internal inline uint8_t *setup_map_name_at(const void *setup) { return (uint8_t *)FIELD_AT(setup, OF(SETUP, 0x3A8)); } // a UString
+internal inline int setup_get_mode(const void *setup) { return FIELD(setup, OF(SETUP, 0x3D8), int); } // 0 random map, 1 scenario, 2 saved game, 3 editor test, 4 campaign
+internal inline void setup_set_mode(void *setup, int v) { FIELD(setup, OF(SETUP, 0x3D8), int) = v; }
+internal inline void setup_set_unknown_3d4(void *setup, int v) { FIELD(setup, OF(SETUP, 0x3D4), int) = v; }
+internal inline void setup_set_map_scale(void *setup, int v) { FIELD(setup, OF(SETUP, 0x3DC), int) = v; }   // 1 Small ..
+internal inline void setup_set_start_epoch(void *setup, int v) { FIELD(setup, OF(SETUP, 0x3E0), int) = v; }
+internal inline void setup_set_end_epoch(void *setup, int v) { FIELD(setup, OF(SETUP, 0x3E4), int) = v; }
+internal inline void setup_set_map_size(void *setup, int v) { FIELD(setup, OF(SETUP, 0x3E8), int) = v; }
+internal inline void setup_set_unknown_3ec(void *setup, int v) { FIELD(setup, OF(SETUP, 0x3EC), int) = v; }
+internal inline void setup_set_unit_limit(void *setup, int v) { FIELD(setup, OF(SETUP, 0x3F0), int) = v; }
+internal inline void setup_set_unknown_3f4(void *setup, int v) { FIELD(setup, OF(SETUP, 0x3F4), int) = v; }
+internal inline void setup_set_difficulty(void *setup, int v) { FIELD(setup, OF(SETUP, 0x3F8), int) = v; }
+internal inline void setup_set_unknown_3fc(void *setup, int v) { FIELD(setup, OF(SETUP, 0x3FC), int) = v; }
+// +0x400 .. +0x403 four flag bytes (the random map setup's 1, 0, 0, 1)
+internal inline void setup_set_flag(void *setup, int i, uint8_t v) { FIELD(setup, OF(SETUP, 0x400) + i, uint8_t) = v; }
+// a slot: +0 its type (1 human, 0 computer, 4 closed), +0x20 the player's index, +0x24 its colour, +0x28 team,
+// +0x2C citizens, +0x34 flags; +0x4 (3), +0x1C, +0x30 (0) not known
+internal inline int slot_get_type(const uint8_t *slot) { return FIELD(slot, OF(SETUPSLOT, 0x0), int); }
+internal inline void slot_set_type(uint8_t *slot, int v) { FIELD(slot, OF(SETUPSLOT, 0x0), int) = v; }
+internal inline void slot_set_unknown_4(uint8_t *slot, int v) { FIELD(slot, OF(SETUPSLOT, 0x4), int) = v; }
+internal inline uint8_t *slot_name_at(const uint8_t *slot) { return (uint8_t *)FIELD_AT(slot, OF(SETUPSLOT, 0x8)); } // +0x8 the player's name (a UString)
+internal inline void slot_set_unknown_1c(uint8_t *slot, int v) { FIELD(slot, OF(SETUPSLOT, 0x1C), int) = v; }
+internal inline void slot_set_index(uint8_t *slot, int v) { FIELD(slot, OF(SETUPSLOT, 0x20), int) = v; }
+internal inline int slot_get_color(const uint8_t *slot) { return FIELD(slot, OF(SETUPSLOT, 0x24), int); }
+internal inline void slot_set_color(uint8_t *slot, int v) { FIELD(slot, OF(SETUPSLOT, 0x24), int) = v; }
+internal inline void slot_set_team(uint8_t *slot, int v) { FIELD(slot, OF(SETUPSLOT, 0x28), int) = v; }
+internal inline void slot_set_citizens(uint8_t *slot, int v) { FIELD(slot, OF(SETUPSLOT, 0x2C), int) = v; }
+internal inline void slot_set_unknown_30(uint8_t *slot, int v) { FIELD(slot, OF(SETUPSLOT, 0x30), int) = v; }
+internal inline void slot_set_flags(uint8_t *slot, uint32_t v) { FIELD(slot, OF(SETUPSLOT, 0x34), uint32_t) = v; }
+
+// MESSAGES (the commands players send each other through the server): the sender's message id at +0xA (every
+// message's, the chat message's row)
+internal inline int8_t msg_get_from(const void *msg) { return (int8_t)FIELD(msg, OF(MSG_CHAT, 0xA), uint8_t); }
+// a tribute (EEMPayTribute): food +0x10, gold +0x14, iron +0x18, stone +0x1C, wood +0x20; to player +0x24
+internal inline int tribute_get_food(const void *msg) { return FIELD(msg, OF(MSG_TRIBUTE, 0x10), int); }
+internal inline int tribute_get_gold(const void *msg) { return FIELD(msg, OF(MSG_TRIBUTE, 0x14), int); }
+internal inline int tribute_get_iron(const void *msg) { return FIELD(msg, OF(MSG_TRIBUTE, 0x18), int); }
+internal inline int tribute_get_stone(const void *msg) { return FIELD(msg, OF(MSG_TRIBUTE, 0x1C), int); }
+internal inline int tribute_get_wood(const void *msg) { return FIELD(msg, OF(MSG_TRIBUTE, 0x20), int); }
+internal inline uint8_t tribute_get_to(const void *msg) { return FIELD(msg, OF(MSG_TRIBUTE, 0x24), uint8_t); }
+// a chat line (EEMInGameChat): its text, a UString at +0x10 (the characters at its +4)
+internal inline const char *chat_msg_get_text(const void *msg) { return FIELD(FIELD_AT(msg, OF(MSG_CHAT, 0x10)), 4, const char *); }
+// a selection (EEMSelectUnits): the selection +0x10 (player_select), its unit ids +0x14 .. +0x18, +0x134 a flag
+internal inline uint8_t *select_msg_selection_at(const void *msg) { return (uint8_t *)FIELD_AT(msg, OF(MSG_SELECT, 0x10)); }
+internal inline uint32_t *select_msg_get_ids_begin(const void *msg) { return FIELD(msg, OF(MSG_SELECT, 0x14), uint32_t *); }
+internal inline uint32_t *select_msg_get_ids_end(const void *msg) { return FIELD(msg, OF(MSG_SELECT, 0x18), uint32_t *); }
+internal inline uint8_t select_msg_get_flag(const void *msg) { return FIELD(msg, OF(MSG_SELECT, 0x134), uint8_t); }
+// the game start (EEMStartLoading): +0x14 the game's seed
+internal inline unsigned start_msg_get_seed(const void *msg) { return FIELD(msg, OF(MSG_START, 0x14), unsigned); }
+internal inline void start_msg_set_seed(void *msg, unsigned v) { FIELD(msg, OF(MSG_START, 0x14), unsigned) = v; }
+
+// THE CAMERA ([G_CAMERA], game_camera()) AND THE SCROLL ACTION (EEAScroll)
+internal inline float *camera_look_at(const void *cam) { return (float *)FIELD_AT(cam, OF(CAMERA, 0x78)); }   // +0x78 x, y, z
+internal inline float camera_get_x(const void *cam) { return FIELD(cam, OF(CAMERA, 0x78), float); }
+internal inline float camera_get_y(const void *cam) { return FIELD(cam, OF(CAMERA, 0x7C), float); }
+internal inline float camera_get_zoom(const void *cam) { return FIELD(cam, OF(CAMERA, 0xE0), float); }
+internal inline unsigned scroll_get_ticks(const void *s) { return FIELD(s, OF(SCROLL, 0x40), unsigned); }    // +0x40 elapsed (10 ms)
+internal inline void scroll_set_ticks(void *s, unsigned v) { FIELD(s, OF(SCROLL, 0x40), unsigned) = v; }
+// +0x44 .. +0x47 the keys held: left, right, down, up
+internal inline uint8_t scroll_get_key(const void *s, int k) { return FIELD(s, OF(SCROLL, 0x44) + k, uint8_t); }
+internal inline void scroll_set_key(void *s, int k, uint8_t v) { FIELD(s, OF(SCROLL, 0x44) + k, uint8_t) = v; }
+
+// AND THE REST
+// a tech effect (tech_effect(id)): +0x20 its kind (2 an attribute, 0x13 a line upgrade), +0x14 the unit type it is on
+// (-1 all; a line upgrade's old type), +0x18 a line upgrade's new type, +0x2C the attribute
+internal inline int effect_get_type(const void *ef) { return FIELD(ef, OF(EFFECT, 0x14), int); }
+internal inline int effect_get_new_type(const void *ef) { return FIELD(ef, OF(EFFECT, 0x18), int); }
+internal inline int effect_get_kind(const void *ef) { return FIELD(ef, OF(EFFECT, 0x20), int); }
+internal inline int effect_get_attr(const void *ef) { return FIELD(ef, OF(EFFECT, 0x2C), int); }
+// the build plan's list nodes (cm_get_plan): +0 the next, +0xC / +0x10 the entry's values
+internal inline uint8_t *plan_node_get_next(const uint8_t *nd) { return FIELD(nd, OF(CMLIST, 0x0), uint8_t *); }
+internal inline int plan_node_get_unknown_c(const uint8_t *nd) { return FIELD(nd, OF(CMLIST, 0xC), int); }
+internal inline int plan_node_get_unknown_10(const uint8_t *nd) { return FIELD(nd, OF(CMLIST, 0x10), int); }
+// a player's statistics (player_stats_at): series k {?, begin, end, ..} of 8-byte samples
+internal inline uint8_t *plstats_get_begin(const void *st, int k) { return FIELD(st, OF(PLSTATS, 0x1C) + k * 0x18, uint8_t *); }
+internal inline uint8_t *plstats_get_end(const void *st, int k) { return FIELD(st, OF(PLSTATS, 0x20) + k * 0x18, uint8_t *); }
+// the object at a player's +0xB98 (not known): its +0x2D the attention's activity 7
+internal inline uint8_t b98_get_att(const uint8_t *b98) { return b98[OF(PLB98, 0x2D)]; }
+// the route planner (its own player's index +0x48) and its nodes (tile +0x3C, +0x40)
+internal inline int planner_get_player_index(const void *rp) { return FIELD(rp, OF(ROUTEPLANNER, 0x48), int); }
+internal inline int route_node_get_x(const void *n) { return FIELD(n, OF(ROUTENODE, 0x3C), int); }
+internal inline int route_node_get_y(const void *n) { return FIELD(n, OF(ROUTENODE, 0x40), int); }
+// an attack strategy (test/testcmd.c aigroup: as the scenario effect sets it, 4 and 0 - not known)
+internal inline void strategy_set_unknown_3c(void *s, int v) { FIELD(s, OF(STRATEGY, 0x3C), int) = v; }
+internal inline void strategy_set_unknown_40(void *s, uint8_t v) { FIELD(s, OF(STRATEGY, 0x40), uint8_t) = v; }
+// a damage model's map by state (FN_DAMAGE_POINTS' object)
+internal inline uint8_t *dmgmodel_map_at(const void *model) { return (uint8_t *)FIELD_AT(model, OF(DMGMODEL, 0x14C)); }
+// the UI: the in-game form's top bar mode (0 age, 1 clock, 2 FPS), a single-player screen's controls, the native chat's player
+internal inline int uiform_get_top_bar(const void *form) { return FIELD(form, OF(UIFORM, 0x5D8), int); }
+internal inline void uiform_set_top_bar(void *form, int v) { FIELD(form, OF(UIFORM, 0x5D8), int) = v; }
+internal inline uint8_t **uiscreen_get_controls(const void *screen) { return FIELD(screen, OF(UISCREEN, 0xF8), uint8_t **); }
+internal inline ee_player *nativechat_get_player(const void *nc) { return FIELD(nc, OF(NATIVECHAT, 0x20), ee_player *); }
+
 // THE GAME'S MOUSE (game_mouse(): the cursor in the game's coordinates)
 internal inline float mouse_get_x(const ee_mouse *m) { return FIELD(m, OF(MOUSE, 0x4), float); }            // +0x4
 internal inline void mouse_set_x(ee_mouse *m, float v) { FIELD(m, OF(MOUSE, 0x4), float) = v; }
