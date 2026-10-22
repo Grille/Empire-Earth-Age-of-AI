@@ -1815,10 +1815,10 @@ internal void cmd_diplo(char *out, const char *args) {
         for (int k = 1; k < nplayers(); k++)
             for (int v = 0; v < nplayers(); v++)
                 if (K_MILITARY(g_kills[k][v]) || g_kills[k][v][K_CIVIL] || g_kills[k][v][K_BUILDINGS]) {
-                    uint32_t r[K_N], *a = g_kills[k][v];
+                    uint32_t r[K_N], *row = g_kills[k][v];
                     kills_recent(k, v, r);
                     REPLY("P%d killed of P%d: army %u, airforce %u, marine %u, civilian %u, buildings %u (last %d min: %u, "
-                          "%u, %u, %u, %u)\n", k, v, a[K_ARMY], a[K_AIR], a[K_NAVY], a[K_CIVIL], a[K_BUILDINGS],
+                          "%u, %u, %u, %u)\n", k, v, row[K_ARMY], row[K_AIR], row[K_NAVY], row[K_CIVIL], row[K_BUILDINGS],
                           KILLS_RECENT_MIN, r[K_ARMY], r[K_AIR], r[K_NAVY], r[K_CIVIL], r[K_BUILDINGS]);
                 }
         REPLY("done\n");
