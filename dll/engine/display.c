@@ -68,21 +68,13 @@ internal void editor_size(int *w, int *h) {
     if (nw >= 800 && nh >= 600) { *w = nw; *h = nh; }
 }
 
-typedef void (__stdcall *SetResolutionFn)(int w, int h, int force, int flag);
 // Minimap picture: EEUIMiniMap (0x65DF30..) sizes it as screen width * 1/800 and height * 1/600 (constants
 // 0x8358A8 / 0x82CBCC, also used to map clicks on it) - built for frames that scale with the screen like the
 // in-game one. The editor's frame has AoC's fixed size (1.28 x the 800x600 one), so at other resolutions the
 // picture overshot it (only its upper left part visible). The 6 operands read our factors instead: in the
 // editor 1.28 / width and 1.28 / height (= the originals at 1024x768), elsewhere the originals.
 internal float g_mm_fx = 1.0f / 800.0f, g_mm_fy = 1.0f / 600.0f;
-internal int redirect_minimap_scale(void) {
-    int n = 0;
-    for (int i = 0; i < 3; i++) {
-        n += patch_code32(GL(MINIMAP_FX_OPS)[i], GA(G_FLOAT_1_800), (uint32_t)(uintptr_t)&g_mm_fx);
-        n += patch_code32(GL(MINIMAP_FY_OPS)[i], GA(G_FLOAT_1_600), (uint32_t)(uintptr_t)&g_mm_fy);
-    }
-    return n;
-}
+internal int redirect_minimap_scale(void) { return patch_minimap_scale(&g_mm_fx, &g_mm_fy); }
 
 internal void __stdcall hook_editor_resolution(int w, int h, int force, int flag) {
     memset(g_players, 0, sizeof g_players);   // into the editor (also back from a test run): the game's players are gone
@@ -91,14 +83,14 @@ internal void __stdcall hook_editor_resolution(int w, int h, int force, int flag
     g_mm_fx = 1.28f / (float)w;
     g_mm_fy = 1.28f / (float)h;
     if (g_log) { log_locked("# editor: resolution %dx%d, layout patches %d/%d\n", w, h, lay, (int)N_LAYOUT + 6); }
-    ((SetResolutionFn)GA(FN_SET_RESOLUTION))(w, h, force, flag);
+    set_resolution(w, h, force, flag);
 }
 
 // every other resolution switch (game, menus, test play from the editor): the original minimap factors
 internal void __stdcall hook_other_resolution(int w, int h, int force, int flag) {
     g_mm_fx = 1.0f / 800.0f;
     g_mm_fy = 1.0f / 600.0f;
-    ((SetResolutionFn)GA(FN_SET_RESOLUTION))(w, h, force, flag);
+    set_resolution(w, h, force, flag);
 }
 
 // The editor's main form (constructor 0x58D3E1) is built once, on first use (0x65B9F5) - before the resolution
@@ -109,7 +101,7 @@ internal void *__fastcall hook_editor_form(void *form, void *edx, void *owner) {
     editor_size(&w, &h);
     int lay = apply_editor_layout(w, h);
     if (g_log) { log_locked("# editor: building the editor for %dx%d, layout patches %d/%d\n", w, h, lay, (int)N_LAYOUT + 6); }
-    return GF(FN_EDITOR_FORM)(form, owner);
+    return editor_form(form, owner);
 }
 
 // Windowed mode: the engine still has the windowed path SSSI used during development - with the flag byte
@@ -954,10 +946,7 @@ internal BOOL WINAPI hook_set_window_pos(HWND h, HWND after, int x, int y, int c
     return ok;
 }
 
-internal uint8_t *is_mouse(void) {
-    uint8_t **p = *(uint8_t ***)GA(IMP_IS_MOUSE);
-    return p ? *p : NULL;
-}
+internal uint8_t *is_mouse(void) { return input_mouse(); }
 
 // clicks outside the client area must not reach the game; Acquire again re-reads the button state
 internal void mouse_acquire(int want) {
@@ -986,8 +975,7 @@ internal void mouse_acquire(int want) {
 // made the window foreground yet - a click into the window then leaves mouse and keyboard dead until it's minimized
 // and restored. The intro sequence (0x538xxx) also ends with Suspend. In front, a suspended device is resumed.
 internal volatile LONG g_input_resumes;
-internal void resume_if_suspended(uintptr_t imp, DWORD *last) {
-    uint8_t **p = *(uint8_t ***)imp, *d = p ? *p : NULL;
+internal void resume_if_suspended(uint8_t *d, DWORD *last) {
     if (!d || !FIELD(d, OF(E_MOUSE, 0x4), uint8_t) || GetTickCount() - *last < 250) return;   // +4: suspended (ISDevice)
     *last = GetTickCount();
     ((ThisFn)(*(void ***)d)[4])(d);   // Resume (vtable +0x10)
@@ -1003,7 +991,7 @@ internal void virtual_mouse(uint8_t *m, int frozen) {
     if (g_vm_x >= 0 && !frozen) {
         FIELD(m, OF(MOUSE, 0x4), float) = (float)g_vm_x;
         FIELD(m, OF(MOUSE, 0x8), float) = (float)g_vm_y;
-        ((ThisFn)GA(FN_MOUSE_CLAMP))(m);
+        mouse_clamp(m);
     }
     uint8_t *ms = is_mouse();
     LONG b = g_vm_button;
@@ -1044,8 +1032,8 @@ internal void window_mouse_in(uint8_t *m, int frozen, uint8_t *win, HWND hwnd) {
     int held = ((GetAsyncKeyState(VK_LBUTTON) | GetAsyncKeyState(VK_RBUTTON) | GetAsyncKeyState(VK_MBUTTON)) & 0x8000) != 0;
     if (fg && !IsIconic(hwnd)) {
         static DWORD last_mouse, last_keyboard;
-        resume_if_suspended(GA(IMP_IS_MOUSE), &last_mouse);
-        resume_if_suspended(GA(IMP_IS_KEYBOARD), &last_keyboard);
+        resume_if_suspended(input_mouse(), &last_mouse);
+        resume_if_suspended(input_keyboard(), &last_keyboard);
     }
     mouse_acquire(inside || held);
     if (mouse_locked() && fg && inside) {
@@ -1065,7 +1053,7 @@ internal void window_mouse_in(uint8_t *m, int frozen, uint8_t *win, HWND hwnd) {
     if (v.right - v.left < 2 || v.bottom - v.top < 2) return;
     FIELD(m, OF(MOUSE, 0x4), float) = (float)(c.x - v.left) * (float)gw / (float)(v.right - v.left - 1);
     FIELD(m, OF(MOUSE, 0x8), float) = (float)(c.y - v.top) * (float)gh / (float)(v.bottom - v.top - 1);
-    ((ThisFn)GA(FN_MOUSE_CLAMP))(m);
+    mouse_clamp(m);
     InterlockedIncrement(&g_mouse_updates);
 }
 
@@ -1073,7 +1061,7 @@ internal void __fastcall hook_mouse_update(uint8_t *m, void *edx) {
     (void)edx;
     uint8_t frozen = FIELD(m, OF(MOUSE, 0xA4), uint8_t);
     FIELD(m, OF(MOUSE, 0xA4), uint8_t) = 1;   // the original then only reads the wheel
-    ((ThisFn)GA(FN_MOUSE_UPDATE))(m);
+    mouse_update(m);
     FIELD(m, OF(MOUSE, 0xA4), uint8_t) = frozen;
     window_mouse(m, frozen);
 }
@@ -1083,14 +1071,11 @@ internal int install_windowed_input(void) {
     int n = 0;
     HMODULE lle = GetModuleHandleA("Low-Level Engine.dll");
     if (lle) {
-        uint8_t *b = (uint8_t *)lle;
-        // push 5 -> push 6 before SetCooperativeLevel: ISMouse::Resume and the device setup in ISInitialize
-        if (b[GA(RVA_LLE_MOUSE_COOP) - 1] == 0x6A) n += patch_byte((uintptr_t)b + GA(RVA_LLE_MOUSE_COOP), 5, 6);
-        if (b[GA(RVA_LLE_INPUT_COOP) - 1] == 0x6A) n += patch_byte((uintptr_t)b + GA(RVA_LLE_INPUT_COOP), 5, 6);
+        n += patch_input_coop(lle);   // push 5 -> push 6 before SetCooperativeLevel
         g_recompute_buttons = (ThisFn)(void *)GetProcAddress(lle, "?RecomputeCurrentButtonState@ISMouse@@AAEXXZ");
     }
-    for (size_t i = 0; i < sizeof GL(MOUSE_UPDATE_SITES) / sizeof *GL(MOUSE_UPDATE_SITES); i++) n += patch_call(GL(MOUSE_UPDATE_SITES)[i], GA(FN_MOUSE_UPDATE), hook_mouse_update);
-    n += patch_byte(GA(SITE_CLOSE_WINDOW_JE), 0x74, 0xEB);   // no minimize on focus loss
+    n += patch_mouse_update(hook_mouse_update, NULL);
+    n += patch_no_minimize();
     return n;
 }
 
@@ -1166,16 +1151,7 @@ internal void display_install(const char *aimod_ini, const char *autotest_ini) {
         // would leave it on screen; stop it in windowed mode too (jne at 0x53443D -> nop). Headless test runs
         // (run_test.ps1) start the game suspended and patch the start to jmp, so there is no splash at all, and
         // then the stop must be skipped as well (it waits for the splash thread without a time limit).
-        uint8_t *jne = (uint8_t *)GA(CODE_SPLASH_STOP_JNE), *jstart = (uint8_t *)GA(CODE_SPLASH_START_JNE);
-        int splash = 0, nosplash = jstart[0] == 0xEB;
-        if (jne[0] == 0x75 && jne[1] == 0x19) {
-            DWORD old;
-            VirtualProtect(jne, 2, PAGE_EXECUTE_READWRITE, &old);
-            if (nosplash) jne[0] = 0xEB; else jne[0] = jne[1] = 0x90;
-            VirtualProtect(jne, 2, old, &old);
-            FlushInstructionCache(GetCurrentProcess(), jne, 2);
-            splash = 1;
-        }
+        int nosplash = 0, splash = patch_splash_stop(&nosplash);
         if (g_log && g_headless) fprintf(g_log, "# display: headless (off-screen window, virtual mouse, %s)\n", nosplash ? "no splash" : "splash NOT prevented - started before the DLL loads");
         if (g_log) fprintf(g_log, "# display: windowed %s (%s), present hooks %d, input patches %d/7, dpi hooks %d/2, window fit %s, splash stop %s\n",
                            was == 1 ? "on" : "NOT set (unexpected fullscreen flag)", g_borderless ? "borderless" : "window",
@@ -1197,12 +1173,8 @@ internal void display_install(const char *aimod_ini, const char *autotest_ini) {
         if (g_log) fprintf(g_log, "# editor: bad resolution '%s' in aimod.ini, left at 800x600\n", mode);
         return;
     }
-    int ok = patch_call(GA(SITE_EDITOR_MENU), GA(FN_SET_RESOLUTION), hook_editor_resolution)
-           + patch_call(GA(SITE_EDITOR_RES), GA(FN_SET_RESOLUTION), hook_editor_resolution)
-           + patch_call(GA(SITE_EDITOR_FORM), GA(FN_EDITOR_FORM), hook_editor_form);
-    int other = 0;
-    for (size_t i = 0; i < sizeof GL(OTHER_RESOLUTION_SITES) / sizeof *GL(OTHER_RESOLUTION_SITES); i++)
-        other += patch_call(GL(OTHER_RESOLUTION_SITES)[i], GA(FN_SET_RESOLUTION), hook_other_resolution);
+    int ok = patch_editor_resolution(hook_editor_resolution) + patch_editor_form(hook_editor_form);
+    int other = patch_other_resolution(hook_other_resolution, NULL);
     int mm = redirect_minimap_scale();
     if (g_log) fprintf(g_log, "# editor: minimap scale operands %d/6, other resolution switches %d/7\n", mm, other);
     if (g_log) fprintf(g_log, "# editor: resolution=%s hooks %d/3\n", mode, ok);
@@ -1681,7 +1653,7 @@ internal void cmd_ddpoke(char *out, const char *args) {
 // 2 "FPS: n" (relabelled every update - each new text is drawn with GDI)
 internal void cmd_topbar(char *out, const char *args) {
     void *uim = *(void **)GA(G_UI_MANAGER);
-    uint8_t *form = uim ? ((uint8_t *(__thiscall *)(void *))*(void **)GA(IAT_UIM_FORM))(uim) : NULL;
+    uint8_t *form = uim ? ui_current_form(uim) : NULL;
     const char *rn = form ? rtti_name(form) : "";
     if (!form || !strstr(rn, "EEUIFMainGame")) { REPLY("error: the current form is %s, not the game screen\n", form ? rn : "none"); return; }
     int v = -1;

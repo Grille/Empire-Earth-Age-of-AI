@@ -39,11 +39,11 @@ Several sessions may work in this tree at the same time - see Git below.
 - `dll/game/api/functions.h`: the objects typed (`ee_player *`, `ee_resource_mgr *`, ... one per fields.h kind) and the
   game's functions as typed wrappers (`explored_by(site, pl)`, `rm_assign(rm, u, site)`); `dll/game/api/hooks.h`: per hooked
   function its hook's type and installer (`patch_place(hook_place)` - a hook with other parameters doesn't build).
-  Being moved over folder by folder: a folder in scripts/layers.py TYPED (ai/, game/, eeaimod.c, persist.c so far)
-  uses no GF, GA(FN_/CALL_/SLOT_) or GL (add a wrapper or an installer); a kind not typed yet is `void *` there. Then
-  `scripts/addr_sort.py` moves the rows into the file their use calls for (the build checks it). A move must keep the
-  machine code (`scripts/code_same.py`, which compares the table by name) or, where it can't, play the same game (the
-  same game_seed, the logs compared).
+  GF, GA(FN_/CALL_/SLOT_) and GL only in game/api/ (scripts/layers.py; elsewhere add a wrapper or an installer); a
+  kind not typed yet is `void *`. `scripts/addr_sort.py` moves the rows into the file their use calls for (the build
+  checks it). Data (GA(G_..)), object sizes and vtables are still read directly. A change there must keep the machine
+  code (`scripts/code_same.py`, which compares the table by name) or, where it can't, play the same game (the same
+  game_seed, the logs compared).
 - The engine loads every DLL in the game folder: never leave copies of DLLs there (a stray dinput copy crashed it).
 - The game reads the personality files from `config/aimod_ai/` (`ai_dir` in the user's aimod.ini): a change to
   their format needs the matching installed DLL.

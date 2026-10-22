@@ -207,19 +207,7 @@ internal int text_bitmap_install(void) {   // constructor and the two movsx -> m
     if (!font_vt) return 0;   // without the hook the cache can't tell a new font from a dead one
     g_font_delete = (void *(__thiscall *)(void *, unsigned))font_vt[0];
     if (!patch_vtable((uintptr_t)font_vt, 0, (uintptr_t)font_vt[0], (void *)hook_font_delete)) return 0;
-    const uint32_t sites[2] = { GA(RVA_LLE_FONT_MOVSX_1), GA(RVA_LLE_FONT_MOVSX_2) };
-    int ok = 0;
-    for (int i = 0; i < 2; i++) {
-        uint8_t *p = (uint8_t *)lle + sites[i];
-        if (p[0] != 0x0F || (p[1] != 0xBE && p[1] != 0xB6)) continue;
-        DWORD old;
-        if (!VirtualProtect(p, 2, PAGE_EXECUTE_READWRITE, &old)) continue;
-        p[1] = 0xB6;
-        VirtualProtect(p, 2, old, &old);
-        ok++;
-    }
-    FlushInstructionCache(GetCurrentProcess(), NULL, 0);
-    return ok == 2;
+    return patch_font_movzx(lle) == 2;
 }
 #define FC_SURFACE_HOOK(fn, k) static long __fastcall fn(void *surf, void *edx) { \
     (void)edx; long r; FC_TIMED(k, ((long (__thiscall *)(void *))g_fc[k].orig[DISPLAY_DLL(surf)])(surf)); return r; }

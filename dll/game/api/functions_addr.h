@@ -9,6 +9,7 @@
     F(FN_CAMACT_SET, void, __thiscall, (void *, int, int), 0x00401F3E, 0x00401EE0) \
     F(FN_EXPLORED, char, __thiscall, (void *, void *), 0x00404A8A, 0x004042E2) /* thiscall(site+0x14 object, player) -> bool */ \
     F(FN_SAVE_ACTION_CTOR, void *, __thiscall, (void *, void *, int, struct ustring), 0x00404FA1, 0x00404613) \
+    F(FN_SCROLL_EXECUTE, void, __thiscall, (void *), 0x004050FC, 0x0040478E) \
     /* point from int x, y (the task location's point) */ \
     F(FN_POINT_SET, void, __thiscall, (void *, int *), 0x0040D29D, 0x0044D28B) \
     D(FN_ROUTE_COST, 0x004141E8, 0x00410074)                                  /* its slot 1: int thiscall(edge*, node*) */ \
@@ -104,15 +105,23 @@
     F(FN_INGAME_CHAT, void, __thiscall, (void *), 0x004B78C7, 0x004BFDD2) \
     F(FN_PAY_TRIBUTE, void, __thiscall, (void *), 0x004BA6BE, 0x004C315B) \
     F(FN_RESIGN, void, __thiscall, (void *), 0x004BB906, 0x004C44BB) \
+    /* EEMSelectUnits: thiscall(msg, rect, type, 0x4E) */ \
+    F(FN_SELECT_MSG_INIT, void, __thiscall, (void *, void *, int, int), 0x004BD072, 0x004C5D7F) \
+    F(FN_SEL_PACK, unsigned, __cdecl, (void *, uint32_t, uint8_t *), 0x004BD15A, 0x004C5E67) \
     F(FN_DAMAGE_POINTS, int, __thiscall, (void *, int, unsigned), 0x004D291F, 0x004D84EC) \
     /* thiscall(G_BONUS_TABLE, weapon kind, target type data, attacker, target player) */ \
     F(FN_ATTACK_BONUS, float, __thiscall, (void *, int, void *, int, int), 0x004D5F2C, 0x004DBE44) \
+    D(FN_MOUSE_CLAMP, 0x00510DAD, 0x0051B31C) \
+    D(FN_MOUSE_UPDATE, 0x00510E5D, 0x0051B3CC) \
+    /* thiscall on G_CAMERA (float dx, float dy) */ \
+    F(FN_CAMERA_MOVE, void, __thiscall, (void *, float, float), 0x0051E2E6, 0x00528EA5) \
     /* thiscall([G_CHEAT_PARSER], UWideString *, int *code, int *arg) */ \
     F(FN_CHEAT_PARSE, void, __thiscall, (void *, void *, int *, int *), 0x00520A17, 0x0052B5D6) \
     D(FN_LOAD_SAVED, 0x00521F94, 0x0052CB90) \
     D(FN_PARSE_CMDLINE, 0x00522A36, 0x0052D703) \
     D(FN_GAME_START, 0x0052599B, 0x005306F2) \
     F(FN_COLOR_RGB, void *, __cdecl, (unsigned), 0x00526B85, 0x005318BD) \
+    F(FN_SETTINGS_SAVE, void, __thiscall, (void *), 0x0052AA81, 0x00535943)   /* every setting into the registry */ \
     F(FN_SET_STANCE, void, __thiscall, (void *, int, int, int), 0x0052D5D7, 0x005384DD) \
     /* thiscall(G_GAME_STATE, char won, index) */ \
     F(FN_GAME_PLAYER_OUT, void, __thiscall, (void *, int, int), 0x0052E2B7, 0x005391F2) \
@@ -125,10 +134,12 @@
     F(FN_POPULATION, int, __thiscall, (void *, int, int), 0x00556E11, 0x005651E0) /* thiscall(player, 1, 0) */ \
     /* EEPlayer::vf31 thiscall(player, 0): the game's unit limit for this player */ \
     F(FN_GAME_LIMIT, int, __thiscall, (void *, int), 0x00556EBC, 0x0056528B) \
+    F(FN_SELECT_UNITS, void, __thiscall, (void *, void *), 0x0055B3FB, 0x0056A658) /* EEMSelectUnits carried out on the player */ \
     D(FN_SET_DIPLOMACY, 0x0055B8E1, 0x0056AB41) \
     F(FN_PLAYER_RESIGN, void, __thiscall, (void *, int), 0x0055BCEA, 0x0056AF5C) /* thiscall(player, 2) as EEMResign */ \
     F(FN_STAT_ADD, void, __thiscall, (void *, int, int), 0x0055DBCF, 0x0056D507) \
     F(FN_CAMACT_CTOR, void *, __thiscall, (void *), 0x00560179, 0x0056FAD4)   /* EEACenterCamera ctor (0x1C bytes) */ \
+    F(FN_EDITOR_FORM, void *, __thiscall, (void *, void *), 0x0058D3E1, 0x0059D615) \
     F(SM_RUN_EFFECT, void, __thiscall, (void *, int), 0x005AD29B, 0x005BD5EB) \
     F(FN_EPOCH_NEXT, void, __thiscall, (void *), 0x005BC15D, 0x005CCB34)    /* thiscall(tech tree): the next epoch (to the game's end epoch) - 0x5BC893 sets it, sends the epoch event */ \
     D(FN_EPOCH_UPGRADES, 0x005BDDBD, 0x005CE8C5)                              /* thiscall(node, category), AoC's (+ only new): econ.c */ \
@@ -141,6 +152,9 @@
     /* thiscall(unit, 0x1F51) - as the assignment does after the order */ \
     F(FN_UNIT_SAY, void, __thiscall, (void *, int), 0x005EFCF0, 0x005FDFA5) \
     D(FN_SET_GOAL, 0x005F05BD, 0x005FE863)                                    /* thiscall(unit, goal, 0, 0) */ \
+    /* EEUCMissile vf42, thiscall(class, missile, aim) - ret 8, the aim unused */ \
+    F(FN_MISSILE_LAUNCH, int, __thiscall, (void *, void *, float *), 0x00606109, 0x0061799B) \
+    F(FN_PROJ_DOWN, char, __thiscall, (void *, void *), 0x006078F9, 0x00619143) \
     D(FN_GOAL_ATTACK_CTOR, 0x0060AD45, 0x0061D337)                            /* EEUGAttack(unit, target, 1); AoC + a byte: attack.c */ \
     /* EEUGBuildRepair constructor: thiscall(goal, player, building, 1) */ \
     F(FN_BUILD_GOAL, void *, __thiscall, (void *, void *, void *, int), 0x0060BAD0, 0x0061E164) \
@@ -154,7 +168,9 @@
     F(FN_GOAL_UNLOAD_CTOR, void *, __thiscall, (void *, void *, int, int, int), 0x00615A1F, 0x006283FF) \
     F(FN_GOALSET_ASK, int, __thiscall, (void *, void *, int *), 0x00619FF5, 0x0062CD8B) \
     F(FN_VECTOR_FREE, void, __thiscall, (void *), 0x0061ABEC, 0x006002C7)     /* a vector's dtor (the game's delete) */ \
+    F(FN_FIRE, void, __thiscall, (void *, void *), 0x0061E11C, 0x00631312) /* thiscall(attacker class, attacker) */ \
     F(FN_UNIT_UNLINK, void, __thiscall, (void *), 0x00628E29, 0x0063DBDA) \
+    D(FN_BALLISTIC, 0x0062CBB3, 0x00641A6A) \
     F(FN_UNIT_DISTANCE, float, __cdecl, (void *, void *), 0x0062D5A4, 0x00642489) /* cdecl(unit, other) */ \
     /* cdecl char(player, type, x, y, w, h, 0) */ \
     F(FN_CAN_PLACE, char, __cdecl, (void *, int, int, int, int, int, int), 0x0062E940, 0x00643CE6) \
@@ -162,9 +178,11 @@
     F(FN_PLACE_BUILDING, void *, __cdecl, (void *, int, int, int), 0x0062EF8A, 0x00644C83) \
     /* cdecl(unit, player index, new type data) */ \
     F(FN_UNIT_CONVERT, int, __cdecl, (void *, int, uint32_t), 0x0062F192, 0x00644E95) \
+    D(FN_AIM, 0x00633413, 0x0064939D) \
     F(FN_RANGE_SORT, void, __cdecl, (void **, void **, void *), 0x0063A355, 0x006509AF) \
     /* EEMHackANewUnit: thiscall(int *type, float xy[2], char player) */ \
     F(FN_NEW_UNIT_MSG_CTOR, void, __thiscall, (void *, int *, float *, char), 0x00650B3C, 0x00662C24) \
+    D(FN_SET_RESOLUTION, 0x0065F314, 0x006768FE) \
     D(FN_QUEUE_ACTION, 0x0066192F, 0x00678F79) \
     /* thiscall(ui [G_UI], colour, name, line, ms, 0): a chat or system line */ \
     F(FN_UI_LINE, void, __thiscall, (void *, void *, void *, void *, int, int), 0x00661E91, 0x006794C6) \
@@ -177,8 +195,13 @@
     D(IAT_USTRING_ASSIGN, 0x00823228, 0x00837224)                             /* UString::operator=(const char *) */ \
     D(IAT_WSTRING_CTOR_C, 0x008232C4, 0x008372C0)                             /* UWideString::UWideString(const char *) */ \
     D(IAT_WSTRING_FORMAT, 0x008232C8, 0x008372C4)                             /* UWideString::Format(const char *, ...) */ \
+    D(IAT_COS, 0x00823304, 0x00837340)                                        /* cos (the game's) */ \
+    D(IAT_EDIT_GET_TEXT, 0x00823328, 0x00837EE0)                              /* UIEditBox::GetText */ \
+    D(IMP_IS_MOUSE, 0x008235CC, 0x00837570)                                   /* import: &ISMouse* in Low-Level Engine.dll */ \
     D(IAT_WSTRING_RESERVE, 0x008235D0, 0x00837574) \
     D(IAT_WSTRING_DTOR, 0x00823AEC, 0x00837194)                               /* UWideString::~UWideString() */ \
+    D(IMP_IS_KEYBOARD, 0x00823AF8, 0x00837AE8)                                /* import: &ISKeyboard* in Low-Level Engine.dll */ \
+    D(IAT_UIM_FORM, 0x00823D60, 0x00837B44)                                   /* the UI manager's current form */ \
     D(IAT_USTRING_DTOR, 0x008245BC, 0x008385B0)                               /* UString::~UString() */ \
     D(IAT_RAND, 0x00824648, 0x0083863C)                                       /* the game's rand */ \
     D(VT_PAUSE_ACTION, 0x00830E94, 0x00846790)                                /* EEAUserPauseGame vtable (0xC bytes: vtable, refcount, byte) */ \
@@ -192,6 +215,9 @@
     D(SLOT_TYPE_ASSIGN, 29, 29)         /* EEUnitClass: thiscall(type data, unit), as the game's goal assignment */ \
     D(SLOT_PLAYER_HUMAN, 29, 29)        /* EEPlayer: char thiscall(player) - human (EEHumanPlayer's returns 1; FN_HUMAN_EPOCH's test) */ \
     D(SLOT_UNIT_LIMIT, 31, 31)          /* EEPlayer: int thiscall(player, 0), the unit limit (FN_GAME_LIMIT) */ \
+    D(RVA_MIX_CHANNELS, 0x52AC, 0x52AC)       /* Miles Sound System Mixer.dll: its channels, a vector of 8 bytes each */ \
+    D(RVA_MIX_MAX_CHANNELS, 0x5320, 0x5320)   /* int: the most channels it gives */ \
+    D(SLOT_GROUP_COUNT, 6, 6)           /* the selected group (player +0x9BC): unsigned thiscall(group); AoC not checked */ \
 
 
 #define ADDR_LISTS_FUNCTIONS(L) \

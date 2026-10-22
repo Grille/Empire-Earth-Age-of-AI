@@ -52,7 +52,7 @@ internal void scroll_axis(float *vel, int neg, int pos, float minv, float maxv, 
 internal void __fastcall hook_scroll_execute(uint8_t *self, void *edx) {
     (void)edx;
     InterlockedIncrement(&g_scroll_calls);
-    if (g_scroll_native && !g_cam_smooth) { GF(FN_SCROLL_EXECUTE)(self); return; }
+    if (g_scroll_native && !g_cam_smooth) { scroll_execute(self); return; }
     // elapsed time: real time with fine scrolling, else the timer's ticks (10 ms AoC)
     float ms = (float)FIELD(self, OF(SCROLL, 0x40), unsigned) * 10.0f;
     if (g_cam_smooth) {
@@ -80,7 +80,7 @@ internal void __fastcall hook_scroll_execute(uint8_t *self, void *edx) {
         if (self[OF(SCROLL, 0x44)] || self[OF(SCROLL, 0x45)]) { scroll_axis(&g_vel_x, self[OF(SCROLL, 0x44)], self[OF(SCROLL, 0x45)], minv, maxv, ramp); dx = g_vel_x * scale; }
         if (self[OF(SCROLL, 0x47)] || self[OF(SCROLL, 0x46)]) { scroll_axis(&g_vel_y, self[OF(SCROLL, 0x47)], self[OF(SCROLL, 0x46)], minv, maxv, ramp); dy = g_vel_y * scale; }
     }
-    if (dx != 0 || dy != 0) GF(FN_CAMERA_MOVE)((void *)GA(G_CAMERA), dx, dy);
+    if (dx != 0 || dy != 0) camera_move(dx, dy);
 }
 
 internal void camera_install(const char *aimod_ini, const char *autotest_ini) {
@@ -96,16 +96,8 @@ internal void camera_install(const char *aimod_ini, const char *autotest_ini) {
     g_cam_smooth = ini_int("camera", "smooth", 1, aimod_ini);
     if (autotest_ini) g_cam_smooth = ini_int("autotest", "camera_smooth", g_cam_smooth, autotest_ini);
     if (g_scroll_native && !g_cam_smooth) return;   // the build's own way without smoothing: the game untouched
-    int ok = patch_vtable(GA(VT_SCROLL), GA(SLOT_SCROLL_EXECUTE), GA(FN_SCROLL_EXECUTE), hook_scroll_execute);
-    uint8_t *p = (uint8_t *)GA(SITE_SCROLL_TIMER);
-    if (p[-1] == 0x6A && p[0] == (build_aoc ? 0x0A : 0x19)) {   // push 25 (AoC 10) -> 10 ms ticks like AoC, 1 ms fine
-        DWORD old;
-        VirtualProtect(p, 1, PAGE_EXECUTE_READWRITE, &old);
-        *p = g_cam_smooth ? 0x01 : 0x0A;
-        VirtualProtect(p, 1, old, &old);
-        FlushInstructionCache(GetCurrentProcess(), p, 1);
-        ok++;
-    }
+    int ok = patch_scroll_execute(hook_scroll_execute);
+    ok += patch_scroll_timer(build_aoc ? 0x0A : 0x19, g_cam_smooth ? 0x01 : 0x0A);   // push 25 (AoC 10) -> 10 ms ticks like AoC, 1 ms fine
     if (g_log) fprintf(g_log, "# camera: scroll=%s (%s), fine steps %d, patches %d/2\n", g_scroll_aoc ? "aoc" : "ee",
                        g_scroll_native ? "the game's own" : "the other build's", g_cam_smooth, ok);
 }
@@ -155,7 +147,7 @@ internal void cmd_scrolltest(char *out, const char *args) {
     int n = 10;
     sscanf(args, "%15s %d", dir, &n);
     uint8_t obj[0x50] = { 0 };
-    *(uint32_t *)obj = GA(VT_SCROLL);
+    scroll_action_init(obj);
     *(unsigned *)(obj + OF(SCROLL, 0x40)) = 1;
     obj[OF(SCROLL, 0x44)] = dir[0] == 'l'; obj[OF(SCROLL, 0x45)] = dir[0] == 'r'; obj[OF(SCROLL, 0x46)] = dir[0] == 'd';
     obj[OF(SCROLL, 0x47)] = dir[0] == 'u';

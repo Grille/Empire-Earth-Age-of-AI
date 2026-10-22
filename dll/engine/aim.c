@@ -16,12 +16,10 @@
 // code 0x54A55B; 0 when it stands) along its facing (matrix +0x130, local y axis). Tile-centre aims stay tile
 // centres (the tile the target will be on), hit-offset aims move by the same distance; the height follows the
 // ground. (+0x118/+0x11C is not the previous position but a waypoint.)
-typedef void (__cdecl *AimFn)(ee_unit *u, ee_unit **target, float *aim, void *zero);
-typedef char (__cdecl *BallisticFn)(ee_unit *u, uint8_t *type, float *from, float *to, float *pitch);
 // Multiplayer: everything here changes the simulation, so every PC must compute the same bits (lockstep). Only
 // + - * / and sqrt (SSE, exact) and the game's own math DLL - the C runtime's cosf comes with Windows and may differ
 // between versions. UMCos (cdecl float(float)) through the game's import table.
-#define GAME_COS(a) ((*(float (__cdecl **)(float))GA(IAT_COS))(a))
+#define GAME_COS(a) game_cos(a)
 
 internal int g_lead = 1;
 internal int g_lead_log;       // autotest aim_log: the first N shots logged
@@ -49,7 +47,7 @@ internal float flight_time(ee_unit *u, const float *from, const float *to, int *
     if (v <= 0.001f || g <= 0.001f) return -1;
     memcpy(a, from, sizeof a); memcpy(b, to, sizeof b);
     float dx = to[0] - from[0], dy = to[1] - from[1], d = sqrtf(dx * dx + dy * dy);
-    *reach = ((BallisticFn)GA(FN_BALLISTIC))(u, type, a, b, &pitch) != 0;
+    *reach = ballistic(u, type, a, b, &pitch) != 0;
     float c;
     if (!*reach) {
         c = 0.70710678f;   // 45 degrees
@@ -159,11 +157,11 @@ internal void aim_measure(ee_unit *t, const float *aim, float T0, const float *l
 
 internal ee_unit *g_retarget;            // spread_missiles: set while 0x61E11C fires at another target
 internal void __cdecl hook_aim(ee_unit *u, ee_unit **target, float *aim, void *zero) {
-    ((AimFn)GA(FN_AIM))(u, target, aim, g_retarget ? (void *)g_retarget : zero);
+    unit_aim(u, target, aim, g_retarget ? (void *)g_retarget : zero);
     ee_unit *t = *target;
     uint8_t *cls = FIELD(u, OF(UNIT, 0x2C), uint8_t *), *pc = cls ? FIELD(cls, OF(TD, 0x3FC), uint8_t *) : NULL;
     g_shots++;
-    if (!t || t == u || !pc || *(uintptr_t *)pc != GA(VT_PROJECTILE)) return;
+    if (!t || t == u || !pc || !is_projectile_class(pc)) return;
     g_shots_unit++;
     float from[3], led[3], vx, vy, T1 = -1;
     int reach0 = 0, reach1 = 0;
@@ -194,7 +192,7 @@ internal char __fastcall hook_proj_down(void *cls, void *edx, uint8_t *pr) {
     (void)edx;
     uint8_t *goal = FIELD(pr, OF(UNIT, 0x1F0), uint8_t *);
     ee_unit *t = goal && goal[5] == 2 ? FIELD(goal, OF(GOAL, 0x30), ee_unit *) : NULL;
-    char r = GF(FN_PROJ_DOWN)(cls, pr);
+    char r = proj_down(cls, pr);
     if (r && t && g_measure) {
         g_down++;
         unsigned x = FIELD(pr, OF(UNIT, 0x1C), unsigned), y = FIELD(pr, OF(UNIT, 0x20), unsigned), tx = FIELD(t, OF(UNIT, 0x1C), unsigned),
@@ -245,7 +243,7 @@ internal void missile_tick(uint32_t now) {
 }
 
 internal void __cdecl hook_missile_aim(ee_unit *m, ee_unit **target, float *aim, void *zero) {
-    ((AimFn)GA(FN_AIM))(m, target, aim, zero);
+    unit_aim(m, target, aim, zero);
     ee_unit *t = *target;
     if (!t || t == m) return;
     uint32_t now = game_time();
@@ -315,11 +313,10 @@ internal int missile_damage(ee_unit *m, ee_unit *t) {
     if (!lc || !pl || !tc || !tpl || !ts) return 0;
     int ac = FIELD(lc, OF(TD, 0x4C0), int), dc = FIELD(tc, OF(TD, 0x4C0), int);
     if (ac < 0 || ac > 5 || dc < 0 || dc > 15) return 0;
-    uint8_t **rec = GF(FN_TYPE_STATS)(FIELD_AT(pl, OF(PL, 0x874)), FIELD(lc, OF(TD, 0x4B8), int));
+    uint8_t **rec = type_stats(pl, FIELD(lc, OF(TD, 0x4B8), int));
     float atk = rec && *rec ? FIELD(*rec, OF(USTAT, 0xD8), float) : 0;
     if (!(atk > 0)) return 0;
-    float bonus = GF(FN_ATTACK_BONUS)((void *)GA(G_BONUS_TABLE), FIELD(lc, OF(TD, 0x4C8), int),
-                  tc, FIELD(pl, OF(PL, 0x45C), int), FIELD(tpl, OF(PL, 0x45C), int));
+    float bonus = attack_bonus(lc, tc, FIELD(pl, OF(PL, 0x45C), int), FIELD(tpl, OF(PL, 0x45C), int));
     float mult = ((float *)GA(G_DAMAGE_TABLE))[ac + dc * 6] * bonus;
     if (!(mult > 0)) return 0;
     float d = mult * atk - FIELD(ts, OF(USTAT, 0xE0) + ac * 4, float);
@@ -337,7 +334,7 @@ internal int doomed(ee_unit *t) { return FIELD(t, OF(UNIT, 0x3C), int) > 0 && in
 
 internal int __fastcall hook_missile_launch(uint8_t *cls, void *edx, ee_unit *m, float *aim) {   // ret 8: (missile, aim)
     (void)edx;
-    int r = GF(FN_MISSILE_LAUNCH)(cls, m, aim);
+    int r = missile_launch(cls, m, aim);
     uint8_t *goal = FIELD(m, OF(UNIT, 0x1EC), uint8_t *);
     ee_unit *t = goal && goal[5] == 2 ? FIELD(goal, OF(GOAL, 0x30), ee_unit *) : NULL;
     g_launched++;
@@ -414,13 +411,13 @@ internal void __fastcall hook_fire(uint8_t *cls, void *edx, ee_unit *u) {
     fr_note(u);
     uint8_t *pc = FIELD(cls, OF(TD, 0x3FC), uint8_t *), *goal = FIELD(u, OF(UNIT, 0x1EC), uint8_t *);
     ee_unit *t = goal && goal[5] == 2 ? FIELD(goal, OF(GOAL, 0x30), ee_unit *) : NULL;
-    if (g_spread && t && pc && *(uintptr_t *)pc == GA(VT_MISSILE) && !is_vanilla(unit_owner(u)) && doomed(t)) {
+    if (g_spread && t && pc && is_missile_class(pc) && !is_vanilla(unit_owner(u)) && doomed(t)) {
         ee_unit *alt = spread_target(u, t);
         if (!alt) { g_spread_held++; return; }
         g_spread_switched++;
         g_retarget = alt;
     }
-    GF(FN_FIRE)(cls, u);
+    unit_fire(cls, u);
     g_retarget = NULL;
 }
 
@@ -429,7 +426,7 @@ internal void __fastcall hook_fire(uint8_t *cls, void *edx, ee_unit *u) {
 // his own arrow hit it (a bowman shooting a wolf beside his tower; leading the target lands more of the misses on
 // what stands behind it). The attacker's player is vf28's third argument ([ebp+0x10]); its own: no alert. The damage
 // stays.
-__attribute__((used)) uintptr_t g_alert_fn, g_local_player_at;   // GA(FN_ATTACK_ALERT), GA(G_LOCAL_PLAYER): aim_install
+__attribute__((used)) uintptr_t g_alert_fn, g_local_player_at;   // game_attack_alert(), GA(G_LOCAL_PLAYER): aim_install
 __attribute__((used)) volatile unsigned g_own_hits;
 __attribute__((naked, used)) void own_hit_alert_thunk(void) {
     __asm__("movl 0x10(%ebp), %eax\n\t"
@@ -445,12 +442,12 @@ __attribute__((naked, used)) void own_hit_alert_thunk(void) {
 }
 
 internal void aim_install(const char *aimod_ini, const char *autotest_ini) {
-    g_alert_fn = GA(FN_ATTACK_ALERT);
+    g_alert_fn = game_attack_alert();
     g_local_player_at = GA(G_LOCAL_PLAYER);
-    BOOL own_hit = patch_call(GA(CALL_ATTACK_ALERT), GA(FN_ATTACK_ALERT), own_hit_alert_thunk);
+    BOOL own_hit = patch_attack_alert(own_hit_alert_thunk);
     if (g_log) fprintf(g_log, "# aim: no attack alert for the player's own hits (hook %s)\n", own_hit ? "ok" : "FAILED");
     if (autotest_ini && ini_int("autotest", "aim_hits", 1, autotest_ini))
-        patch_vtable(GA(VT_PROJECTILE), GA(SLOT_PROJ_DOWN), GA(FN_PROJ_DOWN), hook_proj_down);
+        patch_proj_down(hook_proj_down);
     g_lead = ini_int("general", "lead_targets", 1, aimod_ini) != 0;
     g_lead_missiles = ini_int("general", "lead_missiles", 0, aimod_ini) != 0;
     g_spread = ini_int("general", "spread_missiles", 1, aimod_ini) != 0;
@@ -462,13 +459,13 @@ internal void aim_install(const char *aimod_ini, const char *autotest_ini) {
         g_measure = 1;
     }
     // hooked also when off in tests (the measurement); in play only when on
-    BOOL ok = (g_lead || g_spread || autotest_ini) ? patch_call(GA(CALL_AIM), GA(FN_AIM), hook_aim) : TRUE;
-    BOOL ok2 = (g_lead_missiles || g_spread || autotest_ini) ? patch_call(GA(CALL_MISSILE_AIM), GA(FN_AIM), hook_missile_aim) : TRUE;
+    BOOL ok = (g_lead || g_spread || autotest_ini) ? patch_aim(hook_aim) : TRUE;
+    BOOL ok2 = (g_lead_missiles || g_spread || autotest_ini) ? patch_missile_aim(hook_missile_aim) : TRUE;
     int ok3 = 0;
     g_fr_on = autotest_ini != NULL;
     if (g_spread || autotest_ini) {
-        ok3 += patch_vtable(GA(VT_MISSILE), GA(SLOT_MISSILE_LAUNCH), GA(FN_MISSILE_LAUNCH), hook_missile_launch);
-        for (int i = 0; i < 4; i++) ok3 += patch_call(GL(FIRE_CALLS)[i], GA(FN_FIRE), hook_fire) ? 1 : 0;
+        ok3 += patch_missile_launch(hook_missile_launch);
+        ok3 += patch_fire(hook_fire, NULL);
     }
     if (g_log) fprintf(g_log, "# aim: lead_targets=%d (hook %s), lead_missiles=%d (hook %s), spread_missiles=%d (hooks %d/5)\n",
                        g_lead, ok ? "ok" : "FAILED", g_lead_missiles, ok2 ? "ok" : "FAILED", g_spread, ok3);
@@ -508,7 +505,7 @@ internal void cmd_aim(char *out, const char *args) {
         REPLY("missile types:");
         for (int ty = 0; ty < 0x300; ty++) {
             uint8_t *td = type_data(ty), *pc = td ? FIELD(td, OF(TD, 0x3FC), uint8_t *) : NULL;
-            if (pc && *(uintptr_t *)pc == GA(VT_MISSILE)) REPLY(" %d", ty);
+            if (pc && is_missile_class(pc)) REPLY(" %d", ty);
         }
         REPLY("\n");
     }

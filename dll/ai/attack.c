@@ -1442,7 +1442,7 @@ __attribute__((used)) void __cdecl unit_node_free(uint8_t **node, ee_unit *u) {
                 td ? FIELD(td, OF(TD, 0x4B8), int) : -1, game_time() / 60000.0);
     }
 }
-__attribute__((used)) uintptr_t g_op_delete;   // GA(FN_OP_DELETE), set with the hooks
+__attribute__((used)) uintptr_t g_op_delete;   // game_op_delete(), set with the hooks
 __attribute__((naked, used)) void unit_node_free_thunk(void) {   // at the call of operator delete(node), ESI = the unit
     __asm__ volatile (
         "pushal\n\t"

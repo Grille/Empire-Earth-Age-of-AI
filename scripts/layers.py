@@ -48,10 +48,8 @@ EXCEPTIONS = [
     ('voice/llm.c', 'test/control.c', 'queue_pause_toggle', 'the game paused while the language model answers'),
 ]
 
-# THE FOLDERS AND FILES MOVED OVER to the typed game functions (game/api/functions.h: the calls, game/api/hooks.h: the hooks'
-# installers): GF, GA(FN_..), GA(CALL_..), GA(SLOT_..) or GL(..) there fails the build (game/api/ itself excepted).
-# When everything is in it, the rule becomes "the game's functions only in game/api/".
-TYPED = ['ai/', 'game/', 'voice/', 'test/', 'eeaimod.c', 'persist.c']
+# THE GAME'S FUNCTIONS ONLY IN game/api/: the calls through functions.h's typed wrappers, the hooks and patches through
+# hooks.h's installers - GF, GA(FN_..), GA(CALL_..), GA(SLOT_..) or GL(..) anywhere else fails the build.
 
 IDENT = re.compile(r'[A-Za-z_]\w*')
 # a declaration's attributes, written out or by base/'s macro (internal PRINTF_LIKE(1, 2) void f(...)): not its name
@@ -238,10 +236,10 @@ def main():
     for f in glob.glob(os.path.join(DLL, 'dinput', '*.c')):
         for inc in re.findall(r'#include\s+"([^"]+)"', open(f, encoding='latin-1').read()):
             if inc not in ('../base/headless_win.c', '../base/lang.h'): bad.append('dinput/%s includes %s' % (os.path.basename(f), inc))
-    # the files moved over to game/api/: the game's functions only through its typed wrappers
-    for f in (f for f in files if not f.startswith('game/api/') and any(f == t or (t.endswith('/') and f.startswith(t)) for t in TYPED)):
+    # the game's functions only in game/api/
+    for f in (f for f in files if not f.startswith('game/api/')):
         for m in re.finditer(r'\bGF\s*\(\s*(\w+)|\bGA\s*\(\s*((?:FN|CALL|SLOT)_\w+)|\bGL\s*\(\s*(\w+)', code[f]):
-            bad.append('%s uses %s - moved over to game/api/functions.h and hooks.h: a wrapper or an installer there' % (f, m.group(1) or m.group(2) or m.group(3)))
+            bad.append('%s uses %s - the game functions only in game/api/: a wrapper in functions.h or an installer in hooks.h' % (f, m.group(1) or m.group(2) or m.group(3)))
     stale = [e for e in EXCEPTIONS if (e[0], e[1], e[2]) not in used]
     for b in bad: print('layers: ' + b)
     for e in stale: print('layers: exception no longer needed: %s -> %s (%s) - take it out of scripts/layers.py' % e[:3])

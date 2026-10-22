@@ -119,6 +119,57 @@ internal inline long ts_wait(void *ev, unsigned long ms) { return (*(long (__thi
 internal inline void phys_step(void *phys) { GF(FN_PHYS_STEP)(phys); }
 internal inline void start_exec(void *msg) { ((void (__thiscall *)(void *))GA(START_EXEC))(msg); }
 
+// THE ENGINE (engine/: the fixes' originals and what they ask)
+// the game's cos (UMCos, its own math DLL through its import: the same bits on every PC - the C runtime's may differ)
+internal inline float game_cos(float a) { return (*(float (__cdecl **)(float))GA(IAT_COS))(a); }
+// a shot's ballistic path from -> to for unit u (type: its live stats): reachable (pitch out); the aim at target
+internal inline char ballistic(ee_unit *u, uint8_t *type, float *from, float *to, float *pitch) {
+    return ((char (__cdecl *)(ee_unit *, uint8_t *, float *, float *, float *))GA(FN_BALLISTIC))(u, type, from, to, pitch);
+}
+internal inline void unit_aim(ee_unit *u, ee_unit **target, float *aim, void *zero) {
+    ((void (__cdecl *)(ee_unit *, ee_unit **, float *, void *))GA(FN_AIM))(u, target, aim, zero);
+}
+// a projectile class's: the projectile down (1: on the ground or the target), a missile launched, a unit's shot fired
+internal inline char proj_down(void *cls, void *projectile) { return GF(FN_PROJ_DOWN)(cls, projectile); }
+internal inline int missile_launch(void *cls, ee_unit *m, float *aim) { return GF(FN_MISSILE_LAUNCH)(cls, m, aim); }
+internal inline void unit_fire(void *cls, ee_unit *u) { GF(FN_FIRE)(cls, u); }
+// a unit type's projectile class (type data +0x3FC) by its vtable: a plain projectile (arrows, shells), a missile
+internal inline int is_projectile_class(const void *pc) { return *(const uintptr_t *)pc == GA(VT_PROJECTILE); }
+internal inline int is_missile_class(const void *pc) { return *(const uintptr_t *)pc == GA(VT_MISSILE); }
+// the scroll action executed (the original of camera.c's hook), the camera moved by dx, dy; a scroll action object
+// made by hand (camera.c's test: vtable, then its fields)
+internal inline void scroll_execute(void *self) { GF(FN_SCROLL_EXECUTE)(self); }
+internal inline void camera_move(float dx, float dy) { GF(FN_CAMERA_MOVE)((void *)GA(G_CAMERA), dx, dy); }
+internal inline void scroll_action_init(uint8_t *obj) { *(uint32_t *)obj = GA(VT_SCROLL); }
+// the selection: its unit ids packed into a message (the original of select.c's hook), a double-click's message built,
+// carried out on the player, the selected group's count (the group's vtable)
+internal inline unsigned sel_pack(uint8_t *list, uint32_t player_byte, uint8_t *out) { return GF(FN_SEL_PACK)(list, player_byte, out); }
+internal inline void select_msg_init(void *msg, float *rect, int type, int flags) { GF(FN_SELECT_MSG_INIT)(msg, rect, type, flags); }
+internal inline void player_select(ee_player *pl, void *selection) { GF(FN_SELECT_UNITS)(pl, selection); }
+internal inline unsigned group_count(void *grp) { return ((unsigned (__thiscall *)(void *))(*(void ***)grp)[GA(SLOT_GROUP_COUNT)])(grp); }
+// the sound manager's channel count set (as the options screen does: the original of sound.c's hook through its import)
+internal inline int snd_set_max_channels(void *sm, int n) { return (*(int (__thiscall **)(void *, int))GA(IAT_SND_SETMAXCH))(sm, n); }
+// the Miles mixer plugin's channels (Miles Sound System Mixer.dll at base: a vector of 8-byte entries) and its maximum
+internal inline uint8_t *mix_channels(uintptr_t base, uint8_t **end) {
+    uint8_t *v = *(uint8_t **)(base + GA(RVA_MIX_CHANNELS));
+    if (end) *end = v ? *(uint8_t **)(base + GA(RVA_MIX_CHANNELS) + 4) : NULL;
+    return v;
+}
+internal inline int mix_max_channels(uintptr_t base) { return *(int *)(base + GA(RVA_MIX_MAX_CHANNELS)); }
+// the input devices (Low-Level Engine's ISMouse, ISKeyboard through the exe's imports), NULL before they exist
+internal inline uint8_t *input_mouse(void) { uint8_t **p = *(uint8_t ***)GA(IMP_IS_MOUSE); return p ? *p : NULL; }
+internal inline uint8_t *input_keyboard(void) { uint8_t **p = *(uint8_t ***)GA(IMP_IS_KEYBOARD); return p ? *p : NULL; }
+// the mouse's position kept in its range, its update (the original of display.c's hook)
+internal inline void mouse_clamp(void *m) { ((void (__thiscall *)(void *))GA(FN_MOUSE_CLAMP))(m); }
+internal inline void mouse_update(void *m) { ((void (__thiscall *)(void *))GA(FN_MOUSE_UPDATE))(m); }
+// a resolution switch (the original of display.c's editor hooks), the editor's main form built
+internal inline void set_resolution(int w, int h, int force, int flag) { ((void (__stdcall *)(int, int, int, int))GA(FN_SET_RESOLUTION))(w, h, force, flag); }
+internal inline void *editor_form(void *form, void *owner) { return GF(FN_EDITOR_FORM)(form, owner); }
+// the UI manager's current form, an edit box's text, the settings saved to the registry (as the options screens do)
+internal inline uint8_t *ui_current_form(void *uim) { return ((uint8_t *(__thiscall *)(void *))*(void **)GA(IAT_UIM_FORM))(uim); }
+internal inline const char *edit_text(void *edit) { return ((const char *(__thiscall *)(void *, unsigned long))*(void **)GA(IAT_EDIT_GET_TEXT))(edit, 0); }
+internal inline void settings_save(void) { GF(FN_SETTINGS_SAVE)((void *)GA(G_SETTINGS)); }
+
 // THE GAME'S RUN (the originals of the wiring's hooks: eeaimod.c, persist.c, test/autotest.c)
 // a game started from setup (EEGameState::Start, on the game state object)
 internal inline char game_start(void *state, void *setup, void *p2) { return ((char (__thiscall *)(void *, void *, void *))GA(FN_GAME_START))(state, setup, p2); }

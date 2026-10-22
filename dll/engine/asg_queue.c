@@ -15,7 +15,7 @@
 // pool hands it out, 0x628CDD) is not made a member - EDI 0 takes the game's own branch for an empty entry. A unit
 // still held elsewhere (dead or in a transport: mIsValid 0, its count above 1) joins as before.
 internal unsigned g_asg_queue_freed;
-__attribute__((used)) uintptr_t g_asg_queue_pop;   // GA(FN_ASG_QUEUE_POP)
+__attribute__((used)) uintptr_t g_asg_queue_pop;   // game_asg_queue_pop()
 __attribute__((used)) ee_unit *__cdecl asg_queue_unit(ee_unit *u) {
     if (!u || !FIELD(u, OF(UNIT, 0x2A), uint8_t)) return u;
     if (g_log && g_asg_queue_freed++ < 5) {
@@ -37,8 +37,7 @@ __attribute__((naked, used)) void asg_queue_pop_thunk(void) {   // at the call o
 }
 
 internal void asg_queue_install(void) {
-    g_asg_queue_pop = GA(FN_ASG_QUEUE_POP);
-    int ok = patch_call(GA(CALL_ASG_QUEUE_POP), GA(FN_ASG_QUEUE_POP), asg_queue_pop_thunk) +
-             patch_call(GA(CALL_ASG_AIR_QUEUE_POP), GA(FN_ASG_QUEUE_POP), asg_queue_pop_thunk);
+    g_asg_queue_pop = game_asg_queue_pop();
+    int ok = patch_asg_queue_pop(asg_queue_pop_thunk, NULL);
     if (g_log) fprintf(g_log, "# engine fix: units freed while waiting to join an attack subgroup %d/2\n", ok);
 }

@@ -75,6 +75,165 @@ internal inline int patch_load_saved(load_saved_hook h) { return patch_call(GA(C
 typedef int (__cdecl *save_game_hook)(void *file, int a, int b, struct ustring folder);
 internal inline int patch_save_game(save_game_hook h) { return patch_all_calls(GA(FN_SAVE_GAME), (void *)h); }
 
+// THE ENGINE'S FIXES (engine/): hooks, and the game's own code changed in place (operands, jumps, single bytes) - each
+// checked against what it expects there first
+// shots (aim.c): the aim of a unit's and a missile's shot, a projectile down, a missile launched, a shot fired
+typedef void (__cdecl *aim_hook)(ee_unit *u, ee_unit **target, float *aim, void *zero);
+internal inline int patch_aim(aim_hook h) { return patch_call(GA(CALL_AIM), GA(FN_AIM), (void *)h); }
+internal inline int patch_missile_aim(aim_hook h) { return patch_call(GA(CALL_MISSILE_AIM), GA(FN_AIM), (void *)h); }
+typedef char (__fastcall *proj_down_hook)(void *cls, void *edx, uint8_t *projectile);
+internal inline int patch_proj_down(proj_down_hook h) { return patch_vtable(GA(VT_PROJECTILE), GA(SLOT_PROJ_DOWN), GA(FN_PROJ_DOWN), (void *)h); }
+typedef int (__fastcall *missile_launch_hook)(uint8_t *cls, void *edx, ee_unit *m, float *aim);
+internal inline int patch_missile_launch(missile_launch_hook h) { return patch_vtable(GA(VT_MISSILE), GA(SLOT_MISSILE_LAUNCH), GA(FN_MISSILE_LAUNCH), (void *)h); }
+typedef void (__fastcall *fire_hook)(uint8_t *cls, void *edx, ee_unit *u);
+internal inline int patch_fire(fire_hook h, int *of) { return patch_calls(PATCH_LIST(FIRE_CALLS), GA(FN_FIRE), (void *)h, of); }
+// the "under attack" alert of a hit (a thunk: it ends in game_attack_alert)
+internal inline int patch_attack_alert(thunk_fn thunk) { return patch_call(GA(CALL_ATTACK_ALERT), GA(FN_ATTACK_ALERT), (void *)thunk); }
+internal inline uintptr_t game_attack_alert(void) { return GA(FN_ATTACK_ALERT); }
+// the attack subgroups' pop of a waiting unit (asg_queue.c: a thunk, it calls game_asg_queue_pop) - the land and the air ones
+internal inline int patch_asg_queue_pop(thunk_fn thunk, int *of) {
+    const uint32_t sites[2] = { GA(CALL_ASG_QUEUE_POP), GA(CALL_ASG_AIR_QUEUE_POP) };
+    return patch_calls(sites, 2, GA(FN_ASG_QUEUE_POP), (void *)thunk, of);
+}
+internal inline uintptr_t game_asg_queue_pop(void) { return GA(FN_ASG_QUEUE_POP); }
+// the camera's scroll action (camera.c), and its timer's period: push 25 (AoC 10) ms -> value
+typedef void (__fastcall *scroll_hook)(uint8_t *self, void *edx);
+internal inline int patch_scroll_execute(scroll_hook h) { return patch_vtable(GA(VT_SCROLL), GA(SLOT_SCROLL_EXECUTE), GA(FN_SCROLL_EXECUTE), (void *)h); }
+internal inline int patch_scroll_timer(uint8_t old_ms, uint8_t ms) {
+    uint8_t *p = (uint8_t *)GA(SITE_SCROLL_TIMER);
+    if (p[-1] != 0x6A || p[0] != old_ms) return 0;
+    DWORD old;
+    VirtualProtect(p, 1, PAGE_EXECUTE_READWRITE, &old);
+    *p = ms;
+    VirtualProtect(p, 1, old, &old);
+    FlushInstructionCache(GetCurrentProcess(), p, 1);
+    return 1;
+}
+// the selection's packing into a message (select.c)
+typedef unsigned (__cdecl *sel_pack_hook)(uint8_t *list, uint32_t player_byte, uint8_t *out);
+internal inline int patch_sel_pack(sel_pack_hook h) { return patch_call(GA(CALL_SEL_PACK), GA(FN_SEL_PACK), (void *)h); }
+// the sound manager (sound.c, through the exe's imports of Low-Level Engine: the slots checked against the exports)
+typedef uint32_t (__thiscall *snd_play_fn)(void *sm, uint32_t id, float vol, float pan, float pitch, int queue, void *name);
+typedef uint32_t (__fastcall *snd_play_hook)(void *sm, void *edx, uint32_t id, float vol, float pan, float pitch, int queue, void *name);
+internal inline int patch_snd_play(snd_play_hook h, snd_play_fn *orig) {
+    return iat_hook(GA(IAT_SND_PLAY), "Low-Level Engine.dll", "?Play@SESoundManager@@QAEKKMMM_NPAD@Z", (void *)h, (void **)orig);
+}
+internal inline int patch_snd_playref(snd_play_hook h, snd_play_fn *orig) {
+    return iat_hook(GA(IAT_SND_PLAYREF), "Low-Level Engine.dll", "?PlayAndReturnReferencedNode@SESoundManager@@QAEPAVSESMInstanceNode@@KMMM_NPAD@Z",
+                    (void *)h, (void **)orig);
+}
+typedef int (__thiscall *set_max_ch_fn)(void *sm, uint32_t n);
+typedef int (__fastcall *set_max_ch_hook)(uint8_t *sm, void *edx, uint32_t n);
+internal inline int patch_snd_set_max_channels(set_max_ch_hook h, set_max_ch_fn *orig) {
+    return iat_hook(GA(IAT_SND_SETMAXCH), "Low-Level Engine.dll", "?SetMaxChannels@SESoundManager@@QAEJK@Z", (void *)h, (void **)orig);
+}
+// the single-player menu's six buttons (playername.c): their handlers (vtable slot 1) -> hooks[i], the originals into orig
+internal inline int patch_sp_buttons(void *const hooks[6], void *orig[6]) {
+    int ok = 0;
+    for (int i = 0; i < 6; i++) {
+        orig[i] = (void *)GL(SP_FNS)[i];
+        ok += patch_vtable(GL(SP_VTABLES)[i], GA(SLOT_SP_BUTTON), GL(SP_FNS)[i], hooks[i]);
+    }
+    return ok;
+}
+// the minimap's scale (display.c): its 6 operands of 1/800 and 1/600 read *fx and *fy instead
+internal inline int patch_minimap_scale(float *fx, float *fy) {
+    int n = 0;
+    for (int i = 0; i < 3; i++) {
+        n += patch_code32(GL(MINIMAP_FX_OPS)[i], GA(G_FLOAT_1_800), (uint32_t)(uintptr_t)fx);
+        n += patch_code32(GL(MINIMAP_FY_OPS)[i], GA(G_FLOAT_1_600), (uint32_t)(uintptr_t)fy);
+    }
+    return n;
+}
+// the resolution switches: the editor's two (menu, its own), every other (7), the editor's main form built
+typedef void (__stdcall *resolution_hook)(int w, int h, int force, int flag);
+internal inline int patch_editor_resolution(resolution_hook h) {
+    return patch_call(GA(SITE_EDITOR_MENU), GA(FN_SET_RESOLUTION), (void *)h) + patch_call(GA(SITE_EDITOR_RES), GA(FN_SET_RESOLUTION), (void *)h);
+}
+internal inline int patch_other_resolution(resolution_hook h, int *of) { return patch_calls(PATCH_LIST(OTHER_RESOLUTION_SITES), GA(FN_SET_RESOLUTION), (void *)h, of); }
+typedef void *(__fastcall *editor_form_hook)(void *form, void *edx, void *owner);
+internal inline int patch_editor_form(editor_form_hook h) { return patch_call(GA(SITE_EDITOR_FORM), GA(FN_EDITOR_FORM), (void *)h); }
+// the windowed mode's input (display.c): the mouse's update (its 4 calls), the cooperative level of Low-Level Engine's
+// input (push 5 -> push 6, exclusive -> non-exclusive: the mouse's Resume and the device setup), no minimize on focus
+// loss (je -> jmp)
+typedef void (__fastcall *mouse_update_hook)(uint8_t *m, void *edx);
+internal inline int patch_mouse_update(mouse_update_hook h, int *of) { return patch_calls(PATCH_LIST(MOUSE_UPDATE_SITES), GA(FN_MOUSE_UPDATE), (void *)h, of); }
+internal inline int patch_input_coop(HMODULE lle) {
+    uint8_t *b = (uint8_t *)lle;
+    int n = 0;
+    if (b[GA(RVA_LLE_MOUSE_COOP) - 1] == 0x6A) n += patch_byte((uintptr_t)b + GA(RVA_LLE_MOUSE_COOP), 5, 6);
+    if (b[GA(RVA_LLE_INPUT_COOP) - 1] == 0x6A) n += patch_byte((uintptr_t)b + GA(RVA_LLE_INPUT_COOP), 5, 6);
+    return n;
+}
+internal inline int patch_no_minimize(void) { return patch_byte(GA(SITE_CLOSE_WINDOW_JE), 0x74, 0xEB); }
+// the loading splash's stop (display.c): jne -> nop nop, or jmp when the start is already a jmp (*nosplash: a test run
+// started without the splash - then the stop, which waits for the splash's thread, is skipped too)
+internal inline int patch_splash_stop(int *nosplash) {
+    uint8_t *jne = (uint8_t *)GA(CODE_SPLASH_STOP_JNE), *jstart = (uint8_t *)GA(CODE_SPLASH_START_JNE);
+    *nosplash = jstart[0] == 0xEB;
+    if (jne[0] != 0x75 || jne[1] != 0x19) return 0;
+    DWORD old;
+    VirtualProtect(jne, 2, PAGE_EXECUTE_READWRITE, &old);
+    if (*nosplash) jne[0] = 0xEB; else jne[0] = jne[1] = 0x90;
+    VirtualProtect(jne, 2, old, &old);
+    FlushInstructionCache(GetCurrentProcess(), jne, 2);
+    return 1;
+}
+// the bitmap fonts' characters read unsigned (display_text.c): GEFontBitmap::Draw's two movsx -> movzx in Low-Level Engine
+internal inline int patch_font_movzx(HMODULE lle) {
+    const uint32_t sites[2] = { GA(RVA_LLE_FONT_MOVSX_1), GA(RVA_LLE_FONT_MOVSX_2) };
+    int ok = 0;
+    for (int i = 0; i < 2; i++) {
+        uint8_t *p = (uint8_t *)lle + sites[i];
+        if (p[0] != 0x0F || (p[1] != 0xBE && p[1] != 0xB6)) continue;
+        DWORD old;
+        if (!VirtualProtect(p, 2, PAGE_EXECUTE_READWRITE, &old)) continue;
+        p[1] = 0xB6;
+        VirtualProtect(p, 2, old, &old);
+        ok++;
+    }
+    FlushInstructionCache(GetCurrentProcess(), NULL, 0);
+    return ok;
+}
+// THE DRAW LIST (drawlist.c): the objects on screen each frame - a fixed array of DRAW_OLD_N records of DRAW_REC bytes at
+// DRAW_OLD (EEROUnits::vf0 collects them, the render thread draws them) - moved to limit records: the operands (all
+// in the render code, found by a disassembly scan: two 512 limits, the array's references) checked first, all or
+// nothing. 1: moved (*recs the new records, each built with the game's constructor), 0: the exe differs (*ok of *n
+// operands as expected), -1: no memory.
+#define DRAW_REC 0x148
+#define DRAW_OLD_N 0x200
+internal inline int patch_draw_list(int limit, uint8_t **recs, int *ok_out, int *n_out) {
+    const uint32_t *at = GL(DRAW_SITES);   // in this order (addr.h)
+    const struct { uint32_t at, want; int kind; } k[] = {
+        { at[0], 0x200, 0 },                     // cmp [0x912538], 0x200 (0x5008B8: room for one more)
+        { at[1], 0x200, 0 },                     // push 0x200 (0x5035AD: its sub-objects)
+        { at[2], GA(DRAW_OLD) + OF(DRAWREC, 0x58), 1 },       // mov esi, records +0x58 (init loop at game start)
+        { at[3], GA(DRAW_OLD) + DRAW_OLD_N * DRAW_REC + OF(DRAWREC, 0x58), 2 },   // cmp esi, its end
+        { at[4], GA(DRAW_OLD), 1 },              // push records (0x500D10: frame start)
+        { at[5], GA(DRAW_OLD), 1 },              // mov edi, records (collection)
+        { at[6], GA(DRAW_OLD) + OF(DRAWREC, 0xFC), 1 },       // add eax, records +0xFC
+        { at[7], GA(DRAW_OLD), 1 },              // push records (frame end)
+        { at[8], GA(DRAW_OLD), 1 },              // push records (0x50BD9D: drawing)
+    };
+    int n = (int)(sizeof k / sizeof k[0]), ok = 0;
+    for (int i = 0; i < n; i++) ok += *(uint32_t *)(uintptr_t)k[i].at == k[i].want;
+    *ok_out = ok; *n_out = n;
+    if (ok != n) return 0;
+    uint8_t *r = VirtualAlloc(NULL, (SIZE_T)limit * DRAW_REC, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+    if (!r) return -1;
+    for (int i = 0; i < limit; i++)
+        GF(FN_DRAW_REC_CTOR)(r + (size_t)i * DRAW_REC);
+    uint32_t base = (uint32_t)(uintptr_t)r;
+    for (int i = 0; i < n; i++) {
+        uint32_t v = k[i].kind == 0 ? (uint32_t)limit
+                   : k[i].kind == 1 ? base + (k[i].want - GA(DRAW_OLD))
+                   : base + (uint32_t)limit * DRAW_REC + 0x58;
+        patch_code32(k[i].at, k[i].want, v);
+    }
+    *recs = r;
+    return 1;
+}
+
 // THE SIMULATION AND THE TESTS (test/control.c, autotest.c, trace.c)
 // the simulation thread's receive (each pass of its loop: the pipe's safe point) and its timer wait (turbo)
 typedef long (__fastcall *sim_receive_hook)(void *thread, void *edx, void *a, void *b, void *c);

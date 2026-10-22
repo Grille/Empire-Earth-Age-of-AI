@@ -14,7 +14,6 @@
 internal int g_sound_log;
 internal uint32_t g_snd_req[SND_IDS], g_snd_drop[SND_IDS], g_snd_req_total, g_snd_drop_total, g_snd_zero_vol;
 internal uint32_t g_mix_set_fail[16], g_mix_play_fail[16], g_mix_set_total;
-typedef uint32_t (__thiscall *snd_play_fn)(void *, uint32_t, float, float, float, int, void *);
 internal snd_play_fn g_snd_play, g_snd_playref;
 typedef int (__cdecl *mix_set_fn)(int, void *);
 typedef int (__cdecl *mix_play_fn)(int);
@@ -25,7 +24,7 @@ internal mix_vol_fn g_mix_vol;
 internal uintptr_t g_mss_mixer;                   // Miles Sound System Mixer.dll base: its channels at RVA_MIX_CHANNELS
 internal int (__stdcall *g_ail_status)(void *);   // AIL_sample_status: 4 = playing
 internal int snd_status(int ch) {
-    uint8_t *v = g_mss_mixer ? *(uint8_t **)(g_mss_mixer + GA(RVA_MIX_CHANNELS)) : NULL, *ve = v ? *(uint8_t **)(g_mss_mixer + GA(RVA_MIX_CHANNELS) + 4) : NULL;
+    uint8_t *ve = NULL, *v = g_mss_mixer ? mix_channels(g_mss_mixer, &ve) : NULL;
     if (!v || !g_ail_status || ch < 0 || v + ch * 8 >= ve) return -1;
     return g_ail_status(*(void **)(v + ch * 8));
 }
@@ -107,7 +106,7 @@ internal void sound_tick(uint32_t now) {
     if (!sm) return;
     if (!hooked) {
         hooked = 1;
-        int a = iat_hook(GA(IAT_SND_PLAY), LLE_DLL, "?Play@SESoundManager@@QAEKKMMM_NPAD@Z", (void *)hook_snd_play, (void **)&g_snd_play);
+        int a = patch_snd_play(hook_snd_play, &g_snd_play);
         HMODULE lle = GetModuleHandleA(LLE_DLL);
         int q = 0;
         for (int i = 0; lle && i < SM_QUERIES; i++) q += (g_sm_query[i] = (sm_query_fn)(void *)GetProcAddress(lle, k_sm_query[i])) != NULL;
@@ -116,8 +115,7 @@ internal void sound_tick(uint32_t now) {
         for (int i = 0; cv && cv + i < ce; i++)   // categories: share, max channels, in use, priority
             if (cv[i]) fprintf(g_log, "# sound: category %d: %.2f of the channels = %d, in use %d, priority %d\n", i,
                                FIELD(cv[i], OF(E_SNDCAT, 0x0), float), FIELD(cv[i], OF(E_SNDCAT, 0x4), int), FIELD(cv[i], OF(E_SNDCAT, 0x8), int), FIELD(cv[i], OF(E_SNDCAT, 0xC), int));
-        int b = iat_hook(GA(IAT_SND_PLAYREF), LLE_DLL, "?PlayAndReturnReferencedNode@SESoundManager@@QAEPAVSESMInstanceNode@@KMMM_NPAD@Z",
-                         (void *)hook_snd_playref, (void **)&g_snd_playref);
+        int b = patch_snd_playref(hook_snd_playref, &g_snd_playref);
         if (!a || !b) fprintf(g_log, "# sound: play hooks %d/2 - FAILED (exe differs)\n", a + b);
         uint8_t *mx = FIELD(sm, SM_MIXER, uint8_t *);
         if (mx) {
@@ -172,7 +170,6 @@ internal void sound_tick(uint32_t now) {
 // highest channel down, and a change in a running game pauses every looping sound, so there it shows at once.
 // SetMaxChannels (exe IAT 0x823AD4) is held to the mixer's maximum: 200% = 100% = 16 channels.
 internal int g_clamp_channels = 1;
-typedef int (__thiscall *set_max_ch_fn)(void *, uint32_t);
 internal set_max_ch_fn g_set_max_ch;
 // MORE CHANNELS (aimod.ini [sound] channels, default 32; 0 = the mixer's own maximum). The mixer's maximum is 16
 // only because Windows reports no hardware voices; Miles mixes in software and is opened for 64 samples
@@ -215,7 +212,7 @@ internal void sound_install(const char *aimod_ini, const char *autotest_ini) {
     g_sound_channels = ini_int("sound", "channels", 32, aimod_ini);
     if (autotest_ini) g_sound_channels = ini_int("autotest", "sound_channels", g_sound_channels, autotest_ini);
     if (autotest_ini) g_clamp_channels = ini_int("autotest", "clamp_channels", g_clamp_channels, autotest_ini);
-    int ok = iat_hook(GA(IAT_SND_SETMAXCH), LLE_DLL, "?SetMaxChannels@SESoundManager@@QAEJK@Z", (void *)hook_set_max_channels, (void **)&g_set_max_ch);
+    int ok = patch_snd_set_max_channels(hook_set_max_channels, &g_set_max_ch);
     if (g_log) fprintf(g_log, "# sound: clamp_channels=%d channels=%d (hook %s)\n", g_clamp_channels, g_sound_channels, ok ? "ok" : "FAILED");
     // aimod.ini [sound] log = 1 (counts once a minute) | 2 (every play) - diagnostics in normal play too
     g_sound_log = ini_int("sound", "log", 0, aimod_ini);
@@ -228,9 +225,9 @@ internal void cmd_sndstate(char *out, const char *args) {
     (void)args;
     uint8_t *sm = *(uint8_t **)GA(G_SOUND_MANAGER);
     if (!sm) { REPLY("error: no sound manager\n"); return; }
-    uint8_t *mv = g_mss_mixer ? *(uint8_t **)(g_mss_mixer + GA(RVA_MIX_CHANNELS)) : NULL, *me = mv ? *(uint8_t **)(g_mss_mixer + GA(RVA_MIX_CHANNELS) + 4) : NULL;
+    uint8_t *me = NULL, *mv = g_mss_mixer ? mix_channels(g_mss_mixer, &me) : NULL;
     REPLY("setting %.2f (0x9193B8), mixer maximum %d, ", *(float *)GA(G_SOUND_PERCENT),
-          g_mss_mixer ? *(int *)(g_mss_mixer + GA(RVA_MIX_MAX_CHANNELS)) : -1);
+          g_mss_mixer ? mix_max_channels(g_mss_mixer) : -1);
     int nulls = 0;
     for (uint8_t *h = mv; h && h < me; h += 8) nulls += !*(void **)h;
     REPLY("handles missing %d, ", nulls);
@@ -251,6 +248,6 @@ internal void cmd_sndchan(char *out, const char *args) {
     int n = atoi(args);
     uint8_t *sm = *(uint8_t **)GA(G_SOUND_MANAGER);
     if (!sm || n < 1 || n > 64) { REPLY("error: usage sndchan N (1..64)\n"); return; }
-    int r = (*(int (__thiscall **)(void *, int))GA(IAT_SND_SETMAXCH))(sm, n);
+    int r = snd_set_max_channels(sm, n);
     REPLY("ok: SetMaxChannels(%d) -> %d, now %u channels\n", n, r, FIELD(sm, SM_CHANNELS, uint32_t));
 }
