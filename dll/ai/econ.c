@@ -120,8 +120,8 @@ internal int field_place_ok(ee_build_mgr *bm, int x, int y, int lay_out);   // b
 internal int upgraded_type(ee_player *pl, int type);   // defence.c: the type an upgrade put in place of this one
 internal struct { int type; uint32_t next; uint8_t tries; } g_retry[16][16];   // dropped types, tried again
 internal int is_decoration(int type) {   // the editor's "x ..." objects (name at object data +0x1C)
-    uint8_t *od = type_data(type);
-    const char *name = od ? FIELD(od, OF(TD, 0x1C), const char *) : NULL;
+    ee_unit_type *od = type_data(type);
+    const char *name = od ? type_get_name(od) : NULL;
     return name && name[0] == 'x' && name[1] == ' ';
 }
 internal void retry_note(unsigned idx, int type, uint32_t now) {
@@ -584,9 +584,9 @@ internal int requirements_missing(ee_player *pl) {
 // unit type whose first training counts for the next epoch (its tech: object data 0x9418A0[type] +0x4E0)
 internal int requirement_unit(ee_player *pl, int type) {
     ee_tech_tree *tt = FIELD(pl, PL_TECHTREE, ee_tech_tree *);
-    uint8_t *od = type_data(type);
+    ee_unit_type *od = type_data(type);
     if (!g_early_requirements || !tt || !od || requirements_missing(pl) < 1) return 0;
-    ee_tech *t = tech_lookup(tt, FIELD(od, OF(TD, 0x4E0), int));
+    ee_tech *t = tech_lookup(tt, type_get_tech(od));
     uint8_t *d = t ? FIELD(t, OF(TECH, 0x8), uint8_t *) : NULL;
     return d && !FIELD(t, OF(TECH, 0x4), uint8_t) && d[OF(TECHDATA, 0x7D)];
 }
@@ -604,10 +604,10 @@ internal void decoration_fix(ee_player *pl, unsigned ai) {
     done[ai] = tt;
     int n = 0;
     for (int type = 0; type < 0x300; type++) {   // the table's size, as the game checks it (0x4B..: < 0x300)
-        uint8_t *od = type_data(type);
-        const char *name = od ? FIELD(od, OF(TD, 0x1C), const char *) : NULL;
+        ee_unit_type *od = type_data(type);
+        const char *name = od ? type_get_name(od) : NULL;
         if (!name || name[0] != 'x' || name[1] != ' ') continue;
-        ee_tech *t = tech_lookup(tt, FIELD(od, OF(TD, 0x4E0), int));
+        ee_tech *t = tech_lookup(tt, type_get_tech(od));
         uint8_t *d = t ? FIELD(t, OF(TECH, 0x8), uint8_t *) : NULL;
         if (d && d[OF(TECHDATA, 0x7D)]) { d[OF(TECHDATA, 0x7D)] = 0; n++; }
     }
@@ -802,7 +802,7 @@ internal int wild_food(ee_player *pl) {
     void **zb = FIELD(pl, OF(PL, 0xB50), void **), **ze = FIELD(pl, OF(PL, 0xB54), void **);
     for (int z = 0; zb && zb + z < ze; z++) {
         ee_unit *s = zb[z] ? zone_site(zb[z], 2) : NULL;
-        if (!s || FIELD(unit_get_type_data(s), OF(TD, 0x4B8), int) != UT(RES_FORAGE_BUSH)) continue;
+        if (!s || type_get_id(unit_get_type_data(s)) != UT(RES_FORAGE_BUSH)) continue;
         int dx = unit_get_x(s) - bx, dy = unit_get_y(s) - by;
         if (dx * dx + dy * dy >= lim) continue;
         if (!explored_by(s, pl)) continue;
@@ -1326,8 +1326,8 @@ internal void econ_fields(ee_resource_mgr *rm) {   // before the citizen assignm
         goal_build_init(goal, pl, todo[i], 1);
         unit_set_goal(best, goal, 0, 0);
         unit_say(best, 0x1F51);
-        uint8_t *td = unit_get_type_data(best);
-        (*(void (__thiscall **)(void *, void *))(FIELD(td, OF(TD, 0x0), uint8_t *) + 0x74))(td, best);
+        ee_unit_type *td = unit_get_type_data(best);
+        (*(void (__thiscall **)(void *, void *))(type_get_vtable(td) + 0x74))(td, best);
         ordered++;
         wood -= 50;
     }
@@ -1507,10 +1507,10 @@ internal void mil_note(ee_player *pl, unsigned idx, const int *req, const int *v
 // x the AdjustCost percentage (vtable slot 27 0x430FBD: only while the Cheat toggle is on; easy +0xD48 int,
 // medium +0xBB4 float, hard +0xD4C int).
 internal int unit_cost(ee_player *pl, int type, int r) {
-    uint8_t *obj = type_data(type);
+    ee_unit_type *obj = type_data(type);
     ee_tech_tree *tt = FIELD(pl, PL_TECHTREE, ee_tech_tree *);
     if (!obj || !tt || r < 2 || r > 6) return 0;
-    ee_tech *tech = tech_lookup(tt, FIELD(obj, OF(TD, 0x4E0), int));
+    ee_tech *tech = tech_lookup(tt, type_get_tech(obj));
     uint8_t *data = tech ? FIELD(tech, OF(TECH, 0x8), uint8_t *) : NULL;
     if (!data) return 0;
     float c = (float)FIELD(data, OF(TECHDATA, 0x24) + (r - 2) * 4, int);
@@ -1542,8 +1542,8 @@ internal uint32_t g_save_since[16];   // game time it started saving (a request 
 internal int base_threatened(unsigned idx);   // diplo.c: enemy soldiers in its base
 internal struct { ee_player *pl; uint32_t t; int n; int type[48]; } g_cand[16];
 internal int land_soldier(int type) {
-    uint8_t *td = type_data(type);
-    if (!td || FIELD(td, OF(TD, 0x4B8), int) != type || FIELD(td, OF(TD, 0x4B4), int) != 5) return 0;   // a real record of this type
+    ee_unit_type *td = type_data(type);
+    if (!td || type_get_id(td) != type || type_get_family(td) != 5) return 0;   // a real record of this type
     if (ut_role(type, UTR_SIEGE | UTR_RAM | UTR_CITIZEN) || type == UT(PRIEST) || type == UT(PROPHET)) return 0;
     return 1;
 }
@@ -1553,16 +1553,16 @@ internal int land_soldier(int type) {
 // the budget refused (wood short: 109 failed 72 times in the island baseline) was saved for 90 s and then trained as
 // a land soldier, and so could a transport, a submarine or a carrier.
 internal int substitutable(int type) {
-    uint8_t *td = type_data(type);
-    if (!td || FIELD(td, OF(TD, 0x4B8), int) != type) return 0;
-    int fam = FIELD(td, OF(TD, 0x4B4), int);
+    ee_unit_type *td = type_data(type);
+    if (!td || type_get_id(td) != type) return 0;
+    int fam = type_get_family(td);
     if (fam == 4 || fam == 10 || fam == 18 || fam == 21 || fam == 22) return 0;
     if (ut_role(type, UTR_SIEGE | UTR_RAM | UTR_CITIZEN)) return 0;
     return 1;
 }
 internal int soldier_score(int type) {
-    uint8_t *td = type_data(type);
-    return FIELD(td, OF(TD, 0x55C), int) * FIELD(td, OF(TD, 0x510), int);
+    ee_unit_type *td = type_data(type);
+    return type_get_hp(td) * type_get_attack(td);
 }
 internal int g_sub_spare_food;   // train_budget's early_army substitution (below)
 internal int g_sub_thrift;       // train_budget's workforce_plan THRIFT substitution: the most score per gold + iron
@@ -1581,7 +1581,7 @@ internal int substitute_soldier(ee_player *pl, unsigned idx, const int *vis, int
         g_cand[idx].pl = pl; g_cand[idx].t = now; g_cand[idx].n = 0;
         for (int t = 0; t < 724; t++) {   // type ids end at 723 (data/db/converteroutput.log); the table ends there
             if (!land_soldier(t) || soldier_score(t) <= 0) continue;   // no attack: never a soldier
-            ee_tech *tech = tech_lookup(tt, FIELD(type_data(t), OF(TD, 0x4E0), int));
+            ee_tech *tech = tech_lookup(tt, type_get_tech(type_data(t)));
             if (!tech || !FIELD(tech, OF(TECH, 0x4), uint8_t)) continue;
             int n = g_cand[idx].n, k = n < 48 ? n : 47;   // insert sorted by score, strongest first
             while (k > 0 && soldier_score(g_cand[idx].type[k - 1]) < soldier_score(t)) {
@@ -1609,7 +1609,7 @@ internal int substitute_soldier(ee_player *pl, unsigned idx, const int *vis, int
         if (!g_sub_spare_food) { *got = n; return t; }
         // early_army: the food-free ranged soldiers first (Slinger, Simple Bowman, Javelin, Composite Bow, Long Bow ...)
         // - score x2 with a range, a quarter with a food price: the citizens keep the food while the economy grows
-        float s = (float)soldier_score(t) * (FIELD(type_data(t), OF(TD, 0x420), float) > 2.0f ? 2.0f : 1.0f) *
+        float s = (float)soldier_score(t) * (type_get_range(type_data(t)) > 2.0f ? 2.0f : 1.0f) *
                   (unit_cost(pl, t, 2) > 0 ? 0.25f : 1.0f);
         if (s > bs) { bs = s; best = t; bn = n; }
     }

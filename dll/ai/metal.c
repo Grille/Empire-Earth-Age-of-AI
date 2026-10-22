@@ -36,9 +36,9 @@ internal void mt_new_game(void) { memset(g_mt, 0, sizeof g_mt); }
 // what a type is to the army: its line (MB_*) - land soldiers by their producer (the tech's building list, data
 // +0x10..+0x14), ships by family (docs/navy.md: 4 warships, 10 submarines, 21 carriers; 18 transports, 22 fishing boats)
 internal int mt_line(ee_player *pl, int t) {
-    uint8_t *td = type_data(t);
+    ee_unit_type *td = type_data(t);
     if (!td) return MB_UNK;
-    int fam = FIELD(td, OF(TD, 0x4B4), int);
+    int fam = type_get_family(td);
     if (is_citizen_type(t)) return MB_CIT;
     if (ut_role(t, UTR_TOWER)) return MB_TOWER;
     if (ut_role(t, UTR_WALL)) return MB_WALL;
@@ -52,7 +52,7 @@ internal int mt_line(ee_player *pl, int t) {
     if (is_siege(t) || is_ram(t)) return MB_SIE;
     if (!is_army_family(fam)) return MB_UNK;
     ee_tech_tree *tt = FIELD(pl, PL_TECHTREE, ee_tech_tree *);
-    ee_tech *tech = tt ? tech_lookup(tt, FIELD(td, OF(TD, 0x4E0), int)) : NULL;
+    ee_tech *tech = tt ? tech_lookup(tt, type_get_tech(td)) : NULL;
     uint8_t *d = tech ? FIELD(tech, OF(TECH, 0x8), uint8_t *) : NULL;
     int *b = d ? FIELD(d, OF(TECHDATA, 0x10), int *) : NULL, *e = d ? FIELD(d, OF(TECHDATA, 0x14), int *) : NULL;
     for (int *p = b; b && e > b && e - b < 16 && p < e; p++) {
@@ -134,11 +134,11 @@ internal struct mt_val {
 internal uint16_t g_mt_own[16][768];   // own land soldiers by type (VALUE's share), with the values
 internal int g_mt_army[16];
 
-internal float mt_dps(uint8_t *atd, uint8_t *ast, int api, uint8_t *ttd, uint8_t *tst, int tpi) {
+internal float mt_dps(ee_unit_type *atd, uint8_t *ast, int api, ee_unit_type *ttd, uint8_t *tst, int tpi) {
     int s = st_shot_t(atd, ast, api, ttd, tst, tpi);
     return s > 0 ? (float)s / (st_reload_t(atd, ast) + ST_SHOT_OVERHEAD) : 0.0f;
 }
-internal float mt_range_t(uint8_t *td, uint8_t *st) { return st ? FIELD(st, OF(USTAT, 0x9C), float) : FIELD(td, OF(TD, 0x420), float); }
+internal float mt_range_t(ee_unit_type *td, uint8_t *st) { return st ? FIELD(st, OF(USTAT, 0x9C), float) : type_get_range(td); }
 internal float mt_price(ee_player *pl, unsigned idx, int t, const int *stock, const int *reserve);
 // the values of the trainable land soldiers against the known enemy mix, every 30 s
 internal void mt_values(ee_player *pl, unsigned idx) {
@@ -150,7 +150,7 @@ internal void mt_values(ee_player *pl, unsigned idx) {
     if (!tt) return;
     for (int t = 0; t < 724 && v->n < MT_CAND; t++) {
         if (!land_soldier(t) || soldier_score(t) <= 0) continue;
-        ee_tech *tech = tech_lookup(tt, FIELD(type_data(t), OF(TD, 0x4E0), int));
+        ee_tech *tech = tech_lookup(tt, type_get_tech(type_data(t)));
         int c = 0;
         for (int r = 2; r < 7; r++) c += unit_cost(pl, t, r);
         if (!tech || !FIELD(tech, OF(TECH, 0x4), uint8_t) || c < 20) continue;   // nothing for free: the Court Jester (0), heroes of scenarios
@@ -176,11 +176,11 @@ internal void mt_values(ee_player *pl, unsigned idx) {
     int pi = (int)idx;
     for (int i = 0; i < v->n; i++) {
         int c = v->type[i];
-        uint8_t *ctd = type_data(c), *cst = st_rec(pl, c);
+        ee_unit_type *ctd = type_data(c); uint8_t *cst = st_rec(pl, c);
         float chp = (float)st_maxhp(ctd, cst), crange = mt_range_t(ctd, cst), kill = 0, inc = 0, w = 0;
         for (int j = 0; j < nm; j++) {
             void *opl = st_player(mix[j].owner);
-            uint8_t *etd = type_data(mix[j].type), *est = st_rec(opl, mix[j].type);
+            ee_unit_type *etd = type_data(mix[j].type); uint8_t *est = st_rec(opl, mix[j].type);
             float ehp = (float)st_maxhp(etd, est), erange = mt_range_t(etd, est), n = (float)mix[j].n;
             if (ehp <= 0) continue;
             kill += n * mt_dps(ctd, cst, pi, etd, est, mix[j].owner) / ehp;
@@ -281,7 +281,7 @@ internal int mt_fleet_target(ee_player *pl, unsigned idx, int t) {
     for (int k = 0; k < in->n; k++) {
         struct intel_rec *e = &in->r[k];
         if (e->kind != 2 || in->now - e->t > 600000) continue;
-        uint8_t *td = type_data(e->type);
+        ee_unit_type *td = type_data(e->type);
         int nk = td ? navy_kind(td) : NV_NONE;
         n += nk == NV_WAR || nk == NV_SUB;
     }
@@ -295,7 +295,7 @@ internal void mt_log(ee_player *pl, unsigned idx, unsigned min) {
     int army[MT_NB] = { 0 }, foe[MT_NB] = { 0 };
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
         if (unit_get_owner(it.u) != pl || unit_get_hp(it.u) <= 0) continue;
-        int t = FIELD(it.td, OF(TD, 0x4B8), int), b = mt_line(pl, t);
+        int t = type_get_id(it.td), b = mt_line(pl, t);
         if (b >= MB_INF && b <= MB_AIR) army[b]++;
     }
     if (!is_vanilla(pl)) {
@@ -345,7 +345,7 @@ internal void mt_tick(ee_player *pl, uint32_t now) {
                 g_mt_army[idx] = 0;
                 for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
                     if (unit_get_owner(it.u) != pl || unit_get_hp(it.u) <= 0) continue;
-                    int t = FIELD(it.td, OF(TD, 0x4B8), int);
+                    int t = type_get_id(it.td);
                     if (t >= 0 && t < 768 && land_soldier(t)) { g_mt_own[idx][t]++; g_mt_army[idx]++; }
                 }
             }

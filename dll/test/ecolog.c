@@ -130,18 +130,18 @@ internal void eco_food(ee_player *pl, ee_resource_mgr *rm, struct eco_food *f) {
     uint8_t *list = FIELD_AT(rm, RM_LISTS + 2 * 0x14);
     for (unsigned k = 0, first = FIELD(list, 0xC, unsigned), n = FIELD(list, 0x10, unsigned); k < n && k < 1024; k++) {
         ee_unit *u = deque_at(list, first + k);
-        uint8_t *td = u ? unit_get_type_data(u) : NULL;
+        ee_unit_type *td = u ? unit_get_type_data(u) : NULL;
         if (!td || unit_get_hp(u) <= 0) continue;
         int res;
         if (strcmp(eco_goal(u, &res), "gather")) continue;
-        if (FIELD(td, OF(TD, 0x4B4), int) == 22) f->fb++;
+        if (type_get_family(td) == 22) f->fb++;
         else if (res == UT(RES_FORAGE_BUSH)) f->fo++;
         else if (res == UT(B_FARM)) f->ff++;
         else {
             uint8_t *g = unit_get_goal(u);
             ee_unit *s = FIELD(g, OF(GOAL, 0x38), ee_unit *);
-            uint8_t *st = s ? unit_get_type_data(s) : NULL;
-            if (st && FIELD(st, OF(TD, 0x4C4), int) == 0x11) f->fh++; else f->fx++;
+            ee_unit_type *st = s ? unit_get_type_data(s) : NULL;
+            if (st && type_get_category(st) == 0x11) f->fh++; else f->fx++;
         }
     }
     void **hb = FIELD(rm, OF(RM, 0x88), void **), **he = FIELD(rm, OF(RM, 0x8C), void **);
@@ -158,8 +158,8 @@ internal void eco_food(ee_player *pl, ee_resource_mgr *rm, struct eco_food *f) {
         if (*h && unit_get_amount(*h) > 0) { f->fish++; f->fishF += unit_get_amount(*h); }
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
-        uint8_t *td = it.td;
-        if (!td || unit_get_resource(u) != 2 || unit_get_amount(u) <= 0 || FIELD(td, OF(TD, 0x4C4), int) != 0x11) continue;
+        ee_unit_type *td = it.td;
+        if (!td || unit_get_resource(u) != 2 || unit_get_amount(u) <= 0 || type_get_category(td) != 0x11) continue;
         f->an++;
         if (eco_drop_d2(pl, unit_get_x(u), unit_get_y(u)) > 900) continue;
         f->an30++; f->anF30 += unit_get_amount(u);
@@ -174,8 +174,8 @@ internal void eco_food(ee_player *pl, ee_resource_mgr *rm, struct eco_food *f) {
         uint8_t *zone = zb[z];
         void **sb = zone ? FIELD(zone, OF(ZONE, 0x8), void **) : NULL, **se = zone ? FIELD(zone, OF(ZONE, 0xC), void **) : NULL;
         for (int k = 0; sb && sb + k < se && k < 4096; k++) {
-            ee_unit *st = sb[k]; uint8_t *td = st ? unit_get_type_data(st) : NULL;
-            if (!td || unit_get_resource(st) != 2 || FIELD(td, OF(TD, 0x4B8), int) != UT(RES_FORAGE_BUSH) || unit_get_amount(st) <= 0) continue;
+            ee_unit *st = sb[k]; ee_unit_type *td = st ? unit_get_type_data(st) : NULL;
+            if (!td || unit_get_resource(st) != 2 || type_get_id(td) != UT(RES_FORAGE_BUSH) || unit_get_amount(st) <= 0) continue;
             int x = unit_get_x(st), y = unit_get_y(st), dx = x - bx, dy = y - by;
             if (eco_drop_d2(pl, x, y) <= 900) { f->fsN++; f->fsF += unit_get_amount(st); }
             if (bx != -10000 && dx * dx + dy * dy < g_site_max_dist * g_site_max_dist) { f->fsN20++; f->fsF20 += unit_get_amount(st); }
@@ -200,8 +200,8 @@ internal const char *eco_goal(ee_unit *u, int *res) {   // what a citizen does; 
     const char *n = rtti_name(g);
     if (!strcmp(n, "EEUGGather@@")) {
         ee_unit *s = FIELD(g, OF(GOAL, 0x38), ee_unit *);
-        uint8_t *td = s ? unit_get_type_data(s) : NULL;
-        if (td) *res = FIELD(td, OF(TD, 0x4B8), int);
+        ee_unit_type *td = s ? unit_get_type_data(s) : NULL;
+        if (td) *res = type_get_id(td);
         return "gather";
     }
     if (!strcmp(n, "EEUGBuildRepair@@")) return "build";
@@ -230,8 +230,8 @@ internal void ecolog_tick(ee_player *pl, uint32_t now) {
     }
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {   // every citizen on the map
         ee_unit *u = it.u;
-        uint8_t *td = it.td;
-        if (unit_get_owner(u) != pl || unit_get_hp(u) <= 0 || !is_citizen_type(FIELD(td, OF(TD, 0x4B8), int))) continue;
+        ee_unit_type *td = it.td;
+        if (unit_get_owner(u) != pl || unit_get_hp(u) <= 0 || !is_citizen_type(type_get_id(td))) continue;
         cit++;
         int res;
         const char *g = eco_goal(u, &res);
@@ -250,9 +250,9 @@ internal void ecolog_tick(ee_player *pl, uint32_t now) {
         struct eco_spend *sp = &g_eco_sp[idx];
         for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
             ee_unit *u = it.u;
-            uint8_t *td = it.td;
+            ee_unit_type *td = it.td;
             if (unit_get_owner(u) != pl || unit_get_hp(u) <= 0) continue;
-            int t = FIELD(td, OF(TD, 0x4B8), int), fam = FIELD(td, OF(TD, 0x4B4), int), is_cit = is_citizen_type(t);
+            int t = type_get_id(td), fam = type_get_family(td), is_cit = is_citizen_type(t);
             if (!is_cit && !is_army_family(fam)) continue;
             if (!eco_new_id(idx, ((uint32_t)unit_get_id(u))) || first) continue;
             if (is_cit) { sp->tc++; sp->tcF += (unsigned)unit_cost(pl, t, 2); }
@@ -288,9 +288,9 @@ internal void ecolog_tick(ee_player *pl, uint32_t now) {
 // a unit of v killed by k (diplo.c hook_kill_stat, n 3 = a unit): citizens only
 internal void eco_death(ee_unit *dead, int k, int v) {
     if (!g_autotest || !g_log || !dead) return;
-    uint8_t *td = unit_get_type_data(dead);
+    ee_unit_type *td = unit_get_type_data(dead);
     ee_player *pl = unit_get_owner(dead);
-    if (!td || !pl || !is_citizen_type(FIELD(td, OF(TD, 0x4B8), int))) return;
+    if (!td || !pl || !is_citizen_type(type_get_id(td))) return;
     int x = unit_get_x(dead), y = unit_get_y(dead), dd[2], dist = -1;
     if (nearest_drop(pl, x, y, 1, dd)) dist = (int)sqrtf((float)((dd[0] - x) * (dd[0] - x) + (dd[1] - y) * (dd[1] - y)));
     int res;
@@ -300,18 +300,18 @@ internal void eco_death(ee_unit *dead, int k, int v) {
     void *kp = player_at(k);
     for (struct grid_it it = grid_it_box(x, y, 12, 1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
-        uint8_t *t = it.td;
+        ee_unit_type *t = it.td;
         if (!t || unit_get_hp(u) <= 0) continue;
         ee_player *o = unit_get_owner(u);
         int ux = unit_get_x(u) - x, uy = unit_get_y(u) - y, d2 = ux * ux + uy * uy;
-        int fam = FIELD(t, OF(TD, 0x4B4), int);
+        int fam = type_get_family(t);
         int sc = d2 + (is_army_family(fam) ? 0 : fam == 0x1D ? 1000 : 2000);   // soldiers, ships, aircraft first, then towers
-        if (o == kp && sc < best && d2 <= 144 && fam != 6 && fam != 22 && fam != 0 && fam != 1 && !is_citizen_type(FIELD(t, OF(TD, 0x4B8), int))) { best = sc; att = u; }
+        if (o == kp && sc < best && d2 <= 144 && fam != 6 && fam != 22 && fam != 0 && fam != 1 && !is_citizen_type(type_get_id(t))) { best = sc; att = u; }
         if (!is_army_family(fam)) continue;
         if (o == pl && d2 <= 100) own++;
         else if (o == kp && d2 <= 64) foe++;
     }
-    int atype = att ? FIELD(unit_get_type_data(att), OF(TD, 0x4B8), int) : -1, acls = att ? FIELD(unit_get_type_data(att), OF(TD, 0x4B4), int) : -1;
+    int atype = att ? type_get_id(unit_get_type_data(att)) : -1, acls = att ? type_get_family(unit_get_type_data(att)) : -1;
     struct eco_dead *d = &g_eco_dead[v & 15];
     d->n++;
     if (dist >= 0 && dist <= 6) d->town++; else if (dist >= 0 && dist <= 15) d->near_++; else d->far_++;

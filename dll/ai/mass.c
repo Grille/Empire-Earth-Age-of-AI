@@ -75,8 +75,8 @@ internal struct mass {
 } g_mss[16];
 internal void mass_new_game(void) { memset(g_mss, 0, sizeof g_mss); }
 
-internal int ms_land_soldier(ee_unit *u, uint8_t *td) {
-    int fam = FIELD(td, OF(TD, 0x4B4), int);
+internal int ms_land_soldier(ee_unit *u, ee_unit_type *td) {
+    int fam = type_get_family(td);
     return unit_get_hp(u) > 0 && unit_get_x(u) >= 0 && is_soldier(td) && fam != 3 && fam != 4 && fam != 7 &&
            fam != 10 && fam != 17 && fam != 18 && fam != 21 && fam != 22;
 }
@@ -182,9 +182,9 @@ internal void mass_sample(ee_player *pl, struct mass *m, int bx, int by) {
 // a unit died (diplo.c hook_kill_stat, n 3; autotest): a land soldier - who stood by it
 internal void mass_death(ee_unit *dead) {
     if (!g_autotest || !dead) return;
-    uint8_t *td = unit_get_type_data(dead);
+    ee_unit_type *td = unit_get_type_data(dead);
     ee_player *pl = unit_get_owner(dead);
-    int bx, by, fam = td ? FIELD(td, OF(TD, 0x4B4), int) : 3;
+    int bx, by, fam = td ? type_get_family(td) : 3;
     if (!pl || !td || unit_get_x(dead) < 0 || !is_soldier(td) || fam == 3 || fam == 4 || fam == 7 || fam == 10 ||
         fam == 17 || fam == 18 || fam == 21 || fam == 22 || !ms_base(pl, &bx, &by)) return;
     struct mass *m = &g_mss[(unsigned)FIELD(pl, PL_INDEX, int) & 15];
@@ -362,15 +362,15 @@ internal int mass_tether(uint8_t *sg, ee_unit *me, ee_unit *enemy) {
     struct mass *m = &g_mss[idx];
     int plan = ARMY_MASS(idx);
     if (!m->ntc || !(plan & 16)) return 0;
-    uint8_t *etd = unit_get_type_data(enemy);   // 128: buildings only - enemy units are fought wherever they are
-    if ((plan & 128) && (!etd || (FIELD(etd, OF(TD, 0x4B4), int) != 2 && FIELD(etd, OF(TD, 0x4B4), int) != 29))) return 0;
+    ee_unit_type *etd = unit_get_type_data(enemy);   // 128: buildings only - enemy units are fought wherever they are
+    if ((plan & 128) && (!etd || (type_get_family(etd) != 2 && type_get_family(etd) != 29))) return 0;
     int k = 0;
     while (k < m->ntc && m->tc[k].sg != sg) k++;
     if (k == m->ntc) return 0;
     int ex = unit_get_x(enemy), ey = unit_get_y(enemy);
     if (ms_d2(ex, ey, m->tc[k].cx, m->tc[k].cy) <= g_mass_tether * g_mass_tether) return 0;
-    uint8_t *st = unit_get_stats(me), *td = unit_get_type_data(me);
-    float r = (st ? FIELD(st, OF(USTAT, 0x9C), float) : td ? FIELD(td, OF(TD, 0x420), float) : 1.0f) + 2.0f;
+    uint8_t *st = unit_get_stats(me); ee_unit_type *td = unit_get_type_data(me);
+    float r = (st ? FIELD(st, OF(USTAT, 0x9C), float) : td ? type_get_range(td) : 1.0f) + 2.0f;
     int dx = ex - unit_get_x(me), dy = ey - unit_get_y(me);
     if ((float)(dx * dx + dy * dy) <= r * r) return 0;
     m->tethered++;

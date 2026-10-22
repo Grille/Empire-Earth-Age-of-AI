@@ -54,9 +54,9 @@ internal ee_unit *food_animal(ee_player *pl, ee_resource_mgr *rm, ee_unit *u) {
         if (d[2]) continue;
         for (struct grid_it it = grid_it_box(d[0], d[1], g_hunt_range, 1); grid_it_next(&it); ) {
             ee_unit *a = it.u;
-            uint8_t *td = it.td;
-            if (!td || unit_get_resource(a) != 2 || unit_get_amount(a) <= 0 || FIELD(td, OF(TD, 0x4C4), int) != 0x11) continue;
-            if (food_fierce(FIELD(td, OF(TD, 0x4B8), int))) continue;
+            ee_unit_type *td = it.td;
+            if (!td || unit_get_resource(a) != 2 || unit_get_amount(a) <= 0 || type_get_category(td) != 0x11) continue;
+            if (food_fierce(type_get_id(td))) continue;
             int x = unit_get_x(a), y = unit_get_y(a), dx = x - d[0], dy = y - d[1], d2 = dx * dx + dy * dy;
             if (d2 >= bd) continue;
             if (site_gatherers(a) >= 3) continue;
@@ -88,8 +88,8 @@ internal ee_unit *food_bush(ee_player *pl, ee_resource_mgr *rm, ee_unit *u, int 
         void **sb = zone ? FIELD(zone, OF(ZONE, 0x8), void **) : NULL, **se = zone ? FIELD(zone, OF(ZONE, 0xC), void **) : NULL;
         for (int k = 0; sb && sb + k < se && k < 4096; k++) {
             ee_unit *s = sb[k];
-            uint8_t *td = s ? unit_get_type_data(s) : NULL;
-            if (!td || unit_get_resource(s) != 2 || FIELD(td, OF(TD, 0x4B8), int) != UT(RES_FORAGE_BUSH) || unit_get_amount(s) <= 0) continue;
+            ee_unit_type *td = s ? unit_get_type_data(s) : NULL;
+            if (!td || unit_get_resource(s) != 2 || type_get_id(td) != UT(RES_FORAGE_BUSH) || unit_get_amount(s) <= 0) continue;
             if (FIELD(unit_get_vis(s), OF(SITEOWN, 0x4), int) == 1) continue;
             int pos[2] = { unit_get_x(s), unit_get_y(s) }, dx = pos[0] - base[0], dy = pos[1] - base[1];
             if (dx * dx + dy * dy >= max_d2) continue;
@@ -131,8 +131,8 @@ internal void food_hunt(ee_resource_mgr *rm) {
     for (unsigned k = FIELD(dq, 0x10, unsigned), first = FIELD(dq, 0xC, unsigned); k-- > 0 && room > 0; ) {
         ee_unit *u = deque_at(dq, first + k);
         if (!u || unit_get_hp(u) <= 0 || unit_get_frozen(u) || unit_get_ai_held(u) || unit_get_busy(u)) continue;
-        uint8_t *td = unit_get_type_data(u);
-        if (!td || !is_citizen_type(FIELD(td, OF(TD, 0x4B8), int)) || unit_get_goal(u)) continue;
+        ee_unit_type *td = unit_get_type_data(u);
+        if (!td || !is_citizen_type(type_get_id(td)) || unit_get_goal(u)) continue;
         ee_unit *a = food_animal(pl, rm, u);
         if (!a) break;
         int before = rm_count(rm, 2);
@@ -219,8 +219,8 @@ internal void food_camp(ee_player *pl, unsigned idx, uint32_t now) {
     int n = 0;
     for (struct grid_it it = grid_it_box(bx, by, 30, 1); grid_it_next(&it) && n < 512; ) {   // animals
         ee_unit *a = it.u;
-        uint8_t *td = it.td;
-        if (!td || unit_get_resource(a) != 2 || unit_get_amount(a) <= 0 || FIELD(td, OF(TD, 0x4C4), int) != 0x11 || food_fierce(FIELD(td, OF(TD, 0x4B8), int))) continue;
+        ee_unit_type *td = it.td;
+        if (!td || unit_get_resource(a) != 2 || unit_get_amount(a) <= 0 || type_get_category(td) != 0x11 || food_fierce(type_get_id(td))) continue;
         fx[n] = unit_get_x(a); fy[n] = unit_get_y(a); ff[n++] = unit_get_amount(a);
     }
     void **zb = FIELD(pl, OF(PL, 0xB50), void **), **ze = FIELD(pl, OF(PL, 0xB54), void **);   // bushes
@@ -228,8 +228,8 @@ internal void food_camp(ee_player *pl, unsigned idx, uint32_t now) {
         void **sb = zb[z] ? FIELD(zb[z], OF(ZONE, 0x8), void **) : NULL, **se = zb[z] ? FIELD(zb[z], OF(ZONE, 0xC), void **) : NULL;
         for (int k = 0; sb && sb + k < se && k < 4096 && n < 512; k++) {
             ee_unit *st = sb[k];
-            uint8_t *td = st ? unit_get_type_data(st) : NULL;
-            if (!td || unit_get_resource(st) != 2 || FIELD(td, OF(TD, 0x4B8), int) != UT(RES_FORAGE_BUSH) || unit_get_amount(st) <= 0) continue;
+            ee_unit_type *td = st ? unit_get_type_data(st) : NULL;
+            if (!td || unit_get_resource(st) != 2 || type_get_id(td) != UT(RES_FORAGE_BUSH) || unit_get_amount(st) <= 0) continue;
             int x = unit_get_x(st), y = unit_get_y(st);
             if ((x - bx) * (x - bx) + (y - by) * (y - by) > 900) continue;
             if (!explored_by(st, pl)) continue;
@@ -309,8 +309,8 @@ internal int food_fields_wait(ee_player *pl, ee_resource_mgr *rm) {
     if (fish < 3000) return 0;
     uint8_t *list = FIELD_AT(rm, RM_LISTS + 2 * 0x14);
     for (unsigned k = 0, first = FIELD(list, 0xC, unsigned), n = FIELD(list, 0x10, unsigned); k < n && k < 1024; k++) {
-        ee_unit *u = deque_at(list, first + k); uint8_t *td = u ? unit_get_type_data(u) : NULL;
-        if (td && unit_get_hp(u) > 0 && FIELD(td, OF(TD, 0x4B4), int) == 22) boats++;
+        ee_unit *u = deque_at(list, first + k); ee_unit_type *td = u ? unit_get_type_data(u) : NULL;
+        if (td && unit_get_hp(u) > 0 && type_get_family(td) == 22) boats++;
     }
     int short_ = (int)FIELD(rm, RM_TARGET + 2 * 4, uint32_t) - rm_count(rm, 2);
     return !(boats >= 8 && short_ >= 4);

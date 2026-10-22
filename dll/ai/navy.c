@@ -10,13 +10,13 @@
 // The type families (+0x4B4, diplo.c kill_kind): 4 ships, 10 submarines, 18 transports, 21 carriers, 22 fishing boats.
 // Transports and fishing boats also by their type ids (landing.c), in case a family differs.
 enum { NV_NONE, NV_WAR, NV_SUB, NV_CARRIER, NV_TRANSPORT, NV_FISH };
-internal int navy_kind(uint8_t *td) {
-    int fam = FIELD(td, OF(TD, 0x4B4), int), t = FIELD(td, OF(TD, 0x4B8), int);
+internal int navy_kind(ee_unit_type *td) {
+    int fam = type_get_family(td), t = type_get_id(td);
     if (fam == 22 || is_fishing_boat(t)) return NV_FISH;
     if (fam == 18 || is_transport(t)) return NV_TRANSPORT;
     if (fam == 10) return NV_SUB;
     if (fam == 21) return NV_CARRIER;
-    if (fam == 4) return FIELD(td, OF(TD, 0x510), int) > 0 ? NV_WAR : NV_NONE;
+    if (fam == 4) return type_get_attack(td) > 0 ? NV_WAR : NV_NONE;
     return NV_NONE;
 }
 
@@ -44,7 +44,7 @@ internal void nv_mix_reset(void);   // the fleet mix (below)
 internal void fleet_new_game(void);   // fleet.c (stage 3)
 internal void fleet_install(const char *aimod_ini, const char *autotest_ini);
 internal void fleet_tick(ee_player *pl, uint32_t now);
-internal int nv_role(uint8_t *td);
+internal int nv_role(ee_unit_type *td);
 internal int fleet_sheltering(unsigned idx);   // fleet.c: the fleet shelters from a much stronger enemy fleet (no build-up then)
 internal int fleet_builds(unsigned idx);   // fleet.c: stage 4 (navy_fleet=2) for this AI - the fleet's size target below
 // THE FLEET'S SIZE (stage 4, navy_fleet=2; docs/navy.md): the playtester expects 20+ warships at a low population
@@ -92,7 +92,7 @@ internal void navy_fish(void) {
     memset(seen, 0, sizeof seen);
     int left = 0;
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
-        if (FIELD(it.td, OF(TD, 0x4B8), int) != UT(RES_FISH)) continue;
+        if (type_get_id(it.td) != UT(RES_FISH)) continue;
         ee_unit *u = it.u;
         int id = unit_get_id(u), amt = unit_get_amount(u), owner = -1, k;
         left += amt > 0 ? amt : 0;
@@ -122,7 +122,7 @@ internal void navy_fish(void) {
 internal int navy_waters(int x, int y) {
     int best = -1, bd = 401;
     for (struct grid_it it = grid_it_box(x, y, 20, 1); grid_it_next(&it); ) {
-        int fam = FIELD(it.td, OF(TD, 0x4B4), int);
+        int fam = type_get_family(it.td);
         ee_player *o = unit_get_owner(it.u);
         if ((fam != 2 && fam != 29) || !o || unit_get_hp(it.u) <= 0) continue;
         int pi = FIELD(o, PL_INDEX, int), dx = unit_get_x(it.u) - x, dy = unit_get_y(it.u) - y;
@@ -141,7 +141,7 @@ internal void navy_log_all(uint32_t now) {
     memset(c, 0, sizeof c);
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
         ee_player *o = unit_get_owner(it.u);
-        int x = unit_get_x(it.u), y = unit_get_y(it.u), t = FIELD(it.td, OF(TD, 0x4B8), int);
+        int x = unit_get_x(it.u), y = unit_get_y(it.u), t = type_get_id(it.td);
         if (!o || unit_get_hp(it.u) <= 0) continue;
         int pi = FIELD(o, PL_INDEX, int);
         if (pi <= 0 || pi >= 16) continue;
@@ -182,7 +182,7 @@ internal void navy_log_all(uint32_t now) {
         for (int j = 0; j < m->nt; j++) ro[nv_role(type_data(m->wt[j].type))] += m->wt[j].n;
         for (int t = 0; t < G_TYPES_N; t++) {
             if (!g_nv_lost_type[p][t] && !g_nv_sunk_type[p][t]) continue;
-            uint8_t *td = type_data(t);
+            ee_unit_type *td = type_data(t);
             int r = td && navy_kind(td) == NV_TRANSPORT ? 6 : nv_role(td);
             rl[r] += g_nv_lost_type[p][t]; rs[r] += g_nv_sunk_type[p][t];
         }
@@ -218,7 +218,7 @@ internal void navy_detect(ee_player *pl, unsigned idx, uint32_t now) {
     if (!hc || !grid) return;
     memset(b.n, 0, sizeof b.n);
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
-        int fam = FIELD(it.td, OF(TD, 0x4B4), int);
+        int fam = type_get_family(it.td);
         ee_player *o = unit_get_owner(it.u);
         if ((fam != 2 && fam != 29) || !o || unit_get_hp(it.u) <= 0) continue;
         int pi = FIELD(o, PL_INDEX, int);
@@ -288,7 +288,7 @@ internal void navy_income(unsigned idx, int type, int amount) {
     if (*a > NV_ACC_CAP) *a = NV_ACC_CAP;
 }
 internal int navy_type_kind(int type) {
-    uint8_t *td = type_data(type);
+    ee_unit_type *td = type_data(type);
     return td ? navy_kind(td) : NV_NONE;
 }
 // a warship order the navy account pays (econ.c hook_train_units)
@@ -483,7 +483,7 @@ internal void navy_count(void) {
         if (!o || unit_get_hp(it.u) <= 0) continue;
         int pi = FIELD(o, PL_INDEX, int);
         if (pi <= 0 || pi >= 16) continue;
-        if (FIELD(it.td, OF(TD, 0x4B8), int) == UT(B_DOCK)) {
+        if (type_get_id(it.td) == UT(B_DOCK)) {
             ee_unit *st = unit_get_physics(it.u);
             g_nv_own[pi].docks++;
             g_nv_own[pi].docks_built += st && unit_get_finished(st);
@@ -555,9 +555,9 @@ internal float nv_f(int kind, int cat) {   // the hit factor [cat][kind]; 0 outs
     uint8_t *tb = hit_table();
     if (!g_nv_nk) {
         for (int t = 0; t < G_TYPES_N; t++) {
-            uint8_t *td = type_data(t);
+            ee_unit_type *td = type_data(t);
             if (!td) continue;
-            int c = FIELD(td, OF(TD, 0x4C4), int), k = FIELD(td, OF(TD, 0x4C8), int), fam = FIELD(td, OF(TD, 0x4B4), int);
+            int c = type_get_category(td), k = type_get_weapon(td), fam = type_get_family(td);
             if (c >= 0 && c < 64 && c >= g_nv_nc) g_nv_nc = c + 1;
             if (k >= 0 && k < 64 && k >= g_nv_nk) g_nv_nk = k + 1;
             if ((fam == 3 || fam == 7 || fam == 17) && c >= 0 && c < 64) g_nv_aircat |= 1ull << c;
@@ -573,15 +573,15 @@ internal float nv_air_f(int kind) {   // the best factor against an aircraft cat
     for (int c = 0; c < 64; c++) if (g_nv_aircat >> c & 1) { float f = nv_f(kind, c); if (f > b) b = f; }
     return b;
 }
-internal int nv_role(uint8_t *td) {
-    int t = td ? FIELD(td, OF(TD, 0x4B8), int) : -1;
+internal int nv_role(ee_unit_type *td) {
+    int t = td ? type_get_id(td) : -1;
     if (t < 0 || t >= G_TYPES_N) return NR_NONE;
     if (g_nv_role[t]) return g_nv_role[t] - 1;
-    int r = NR_NONE, fam = FIELD(td, OF(TD, 0x4B4), int), kind = FIELD(td, OF(TD, 0x4C8), int), cat = FIELD(td, OF(TD, 0x4C4), int);
+    int r = NR_NONE, fam = type_get_family(td), kind = type_get_weapon(td), cat = type_get_category(td);
     // ships only by their target category (the Naval Mine 386 is family 4, category 22, 1350 attack and 1 hit point);
     // not the hero ships Golden Hind and Agincourt (x07_golden_hind, x09_agincourt_battleship: tech 9035 - no dock trains them)
     int ship = cat == NV_C_SUB || cat == NV_C_FRIG || cat == NV_C_LINE || cat == NV_C_GALLEY;
-    if ((fam == 4 || fam == 10) && ship && t != UT(X09_AGINCOURT_BATTLESHIP) && t != UT(X07_GOLDEN_HIND) && FIELD(td, OF(TD, 0x510), int) > 0 && !is_transport(t) && !is_fishing_boat(t)) {
+    if ((fam == 4 || fam == 10) && ship && t != UT(X09_AGINCOURT_BATTLESHIP) && t != UT(X07_GOLDEN_HIND) && type_get_attack(td) > 0 && !is_transport(t) && !is_fishing_boat(t)) {
         if (nv_f(kind, NV_C_FRIG) <= 0 && nv_f(kind, NV_C_LINE) <= 0 && nv_f(kind, NV_C_GALLEY) <= 0) r = nv_air_f(kind) > 0 ? NR_AA : NR_NONE;
         else if (fam == 10) r = NR_SUB;
         else if (nv_f(kind, NV_C_LINE) >= 3.0f) r = NR_ANTI;
@@ -592,13 +592,13 @@ internal int nv_role(uint8_t *td) {
     return r;
 }
 internal float nv_score(ee_player *pl, int t, int role) {   // in its role: factor x attack / (reload + 2 s) x hp / cost^2
-    uint8_t *td = type_data(t);
-    int kind = FIELD(td, OF(TD, 0x4C8), int), cost = 0;
+    ee_unit_type *td = type_data(t);
+    int kind = type_get_weapon(td), cost = 0;
     for (int r = 2; r < 7; r++) cost += unit_cost(pl, t, r);
     float f = role == NR_LINE ? nv_f(kind, NV_C_FRIG) : role == NR_AA ? nv_air_f(kind) : role != NR_FRIG ? nv_f(kind, NV_C_LINE) :
               nv_f(kind, NV_C_GALLEY) > nv_f(kind, NV_C_SUB) ? nv_f(kind, NV_C_GALLEY) : nv_f(kind, NV_C_SUB);
     if (cost <= 0 || f <= 0) return 0;
-    return f * (float)FIELD(td, OF(TD, 0x510), int) * 1000.0f / (float)(FIELD(td, OF(TD, 0x50C), int) + 2000) * (float)FIELD(td, OF(TD, 0x55C), int) / ((float)cost * (float)cost);
+    return f * (float)type_get_attack(td) * 1000.0f / (float)(type_get_reload(td) + 2000) * (float)type_get_hp(td) / ((float)cost * (float)cost);
 }
 struct nv_pick {
     ee_player *pl; uint32_t cand_t, seen_t, log_t;
@@ -615,8 +615,8 @@ internal void nv_cands(ee_player *pl, struct nv_pick *pk, uint32_t now) {
     if (pk->pl == pl && now >= pk->cand_t && now - pk->cand_t < 30000) return;
     pk->pl = pl; pk->cand_t = now ? now : 1; pk->nc = 0;
     for (int t = 1; t < G_TYPES_N && pk->nc < 24; t++) {
-        uint8_t *td = type_data(t);
-        if (!td || FIELD(td, OF(TD, 0x4B8), int) != t) continue;
+        ee_unit_type *td = type_data(t);
+        if (!td || type_get_id(td) != t) continue;
         int r = nv_role(td);
         if (r == NR_NONE || !ld_type_avail(pl, t)) continue;
         pk->ctype[pk->nc] = t; pk->crole[pk->nc++] = r;
@@ -627,15 +627,15 @@ internal int nv_near_sea(int x, int y) {
     for (int k = 0; k < 5; k++) if (area_id(x + d[k][0], y + d[k][1], 1)) return 1;
     return 0;
 }
-internal void nv_seen_one(struct nv_pick *pk, uint8_t *td, int x, int y) {
+internal void nv_seen_one(struct nv_pick *pk, ee_unit_type *td, int x, int y) {
     if (!td) return;
-    int fam = FIELD(td, OF(TD, 0x4B4), int);
+    int fam = type_get_family(td);
     if (fam == 3 || fam == 7 || fam == 17) { pk->air++; return; }
     if (fam == 21) { pk->carriers++; return; }
     int r = nv_role(td);
     if (r != NR_NONE) { pk->e[r]++; return; }
-    if (fam == 4 || fam == 10 || fam == 18 || fam == 22 || FIELD(td, OF(TD, 0x510), int) <= 0 || x < 0) return;
-    if (nv_f(FIELD(td, OF(TD, 0x4C8), int), NV_C_LINE) >= 3.0f && nv_near_sea(x, y)) pk->coast++;   // hits battleships x3+ from the coast
+    if (fam == 4 || fam == 10 || fam == 18 || fam == 22 || type_get_attack(td) <= 0 || x < 0) return;
+    if (nv_f(type_get_weapon(td), NV_C_LINE) >= 3.0f && nv_near_sea(x, y)) pk->coast++;   // hits battleships x3+ from the coast
 }
 // the enemy seen: intel's memory (10 minutes; buildings until looked at again) - or, with the game's view, every
 // enemy unit it sees now; then the wanted shares
@@ -808,7 +808,7 @@ internal int __fastcall hook_fish_type(void *o, void *edx) {
     int best = 0, bt = 0;
     for (int b = 0; b < G_TYPES_N; b++) {
         if (!is_fishing_boat(b) || !ld_type_avail(pl, b)) continue;
-        if (FIELD(type_data(b), OF(TD, 0x4E0), int) > bt) { bt = FIELD(type_data(b), OF(TD, 0x4E0), int); best = b; }
+        if (type_get_tech(type_data(b)) > bt) { bt = type_get_tech(type_data(b)); best = b; }
     }
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     if (best && best != g_fish_last[idx] && g_log)
@@ -872,14 +872,14 @@ internal void cmd_navy(char *out, const char *args) {
         if (a < 0) a = 0;
         if (b >= G_TYPES_N) b = G_TYPES_N - 1;
         for (int t = a; t <= b; t++) {
-            uint8_t *td = type_data(t);
+            ee_unit_type *td = type_data(t);
             if (!td) continue;
-            int naval = navy_kind(td) != NV_NONE || FIELD(td, OF(TD, 0x4B4), int) == 4;
+            int naval = navy_kind(td) != NV_NONE || type_get_family(td) == 4;
             if (!naval && !all) continue;
             REPLY("T %d fam %d cat %d kind %d cls %d hp %d att %d rng %.1f min %.1f area %.2f rel %d tech %d",
-                  t, FIELD(td, OF(TD, 0x4B4), int), FIELD(td, OF(TD, 0x4C4), int), FIELD(td, OF(TD, 0x4C8), int), FIELD(td, OF(TD, 0x4C0), int),
-                  FIELD(td, OF(TD, 0x55C), int), FIELD(td, OF(TD, 0x510), int), FIELD(td, OF(TD, 0x420), float), FIELD(td, OF(TD, 0x41C), float),
-                  FIELD(td, OF(TD, 0x424), float), FIELD(td, OF(TD, 0x50C), int), FIELD(td, OF(TD, 0x4E0), int));
+                  t, type_get_family(td), type_get_category(td), type_get_weapon(td), type_get_damage_class(td),
+                  type_get_hp(td), type_get_attack(td), type_get_range(td), type_get_min_range(td),
+                  type_get_area(td), type_get_reload(td), type_get_tech(td));
             if (naval && pl) {
                 REPLY(" cost %d %d %d %d %d", unit_cost(pl, t, 2), unit_cost(pl, t, 3), unit_cost(pl, t, 4), unit_cost(pl, t, 5), unit_cost(pl, t, 6));
                 uint8_t **rec = type_stats(pl, t);
@@ -896,9 +896,9 @@ internal void cmd_navy(char *out, const char *args) {
     if (!strncmp(args, "table", 5)) {   // the hit factor table 0x8D200C [target category][weapon kind] (and the 6x6 class table)
         int nc = 0, nk = 0;
         for (int t = 0; t < G_TYPES_N; t++) {
-            uint8_t *td = type_data(t);
+            ee_unit_type *td = type_data(t);
             if (!td) continue;
-            int c = FIELD(td, OF(TD, 0x4C4), int), k = FIELD(td, OF(TD, 0x4C8), int);
+            int c = type_get_category(td), k = type_get_weapon(td);
             if (c >= 0 && c < 64 && c >= nc) nc = c + 1;
             if (k >= 0 && k < 64 && k >= nk) nk = k + 1;
         }

@@ -112,7 +112,7 @@ internal int __fastcall hook_nv_maint_delete(ee_player *pl, void *edx, void *req
 }
 
 // THE SCAN (every 2 s per AI with the fleet): own warships, fishing boats, docks and buildings; enemy ships; danger
-struct fl_ship { ee_unit *u; uint8_t *td; int x, y, hp, pi, seen; float dps; };
+struct fl_ship { ee_unit *u; ee_unit_type *td; int x, y, hp, pi, seen; float dps; };
 internal struct fl_scan {
     ee_player *pl; unsigned idx;
     struct fl_ship es[FL_ES]; int ne;                 // enemy warships and submarines (seen now, then remembered)
@@ -125,27 +125,27 @@ internal struct fl_scan {
     int ebx, eby, eb; int edx[16], edy[16], ned;      // the nearest known enemy building (to the guard base), enemy docks
     int twx[32], twy[32], ntw; float twr[32];         // own towers and defence buildings (their range)
 } g_fs;
-internal float fl_dps(ee_unit *u, uint8_t *td) {
+internal float fl_dps(ee_unit *u, ee_unit_type *td) {
     uint8_t *st = u ? unit_get_stats(u) : NULL;
-    float a = st ? FIELD(st, OF(USTAT, 0xD8), float) : (float)FIELD(td, OF(TD, 0x510), int);
-    int rl = FIELD(td, OF(TD, 0x50C), int);
+    float a = st ? FIELD(st, OF(USTAT, 0xD8), float) : (float)type_get_attack(td);
+    int rl = type_get_reload(td);
     return a > 0 ? a * 1000.0f / (float)((rl > 0 ? rl : 2000) + 2000) : 0.0f;
 }
-internal float fl_range(ee_unit *u, uint8_t *td) {
+internal float fl_range(ee_unit *u, ee_unit_type *td) {
     uint8_t *st = u ? unit_get_stats(u) : NULL;
-    float r = st ? FIELD(st, OF(USTAT, 0x9C), float) : FIELD(td, OF(TD, 0x420), float) + 1.0f;   // remembered: the base range + an upgrade
+    float r = st ? FIELD(st, OF(USTAT, 0x9C), float) : type_get_range(td) + 1.0f;   // remembered: the base range + an upgrade
     return r > 0 && r < 40 ? r : 0;
 }
 // does a land unit or building of type td threaten ships: a defence with a ground attack (attack.c defence_stats), or
 // a unit whose weapon hits battleships x3+ (catapults, cannons, artillery ...) or reaches 7+ tiles, and hits ships
-internal float fl_danger_r(ee_unit *u, uint8_t *td) {
-    int fam = FIELD(td, OF(TD, 0x4B4), int), t = FIELD(td, OF(TD, 0x4B8), int), kind = FIELD(td, OF(TD, 0x4C8), int);
+internal float fl_danger_r(ee_unit *u, ee_unit_type *td) {
+    int fam = type_get_family(td), t = type_get_id(td), kind = type_get_weapon(td);
     if (fam == 4 || fam == 10 || fam == 18 || fam == 21 || fam == 22 || fam == 3 || fam == 7 || fam == 17) return 0;   // afloat, aircraft
-    if (FIELD(td, OF(TD, 0x510), int) <= 0 || (nv_f(kind, NV_C_FRIG) <= 0 && nv_f(kind, NV_C_LINE) <= 0)) return 0;
+    if (type_get_attack(td) <= 0 || (nv_f(kind, NV_C_FRIG) <= 0 && nv_f(kind, NV_C_LINE) <= 0)) return 0;
     if (fam == 2 || fam == 29) {
         float r, a;
         if (u) return defence_stats(u, &r, &a) ? r : 0;
-        return t == UT(B_AA10_GUN_88MM) || t == UT(B_AA13_MISSILE_TOWER) || FIELD(td, OF(TD, 0x420), float) <= 1.0f ? 0 : FIELD(td, OF(TD, 0x420), float) + 1.0f;
+        return t == UT(B_AA10_GUN_88MM) || t == UT(B_AA13_MISSILE_TOWER) || type_get_range(td) <= 1.0f ? 0 : type_get_range(td) + 1.0f;
     }
     float r = fl_range(u, td);
     return (nv_f(kind, NV_C_LINE) >= 3.0f || r >= 7.0f) && r >= 2.0f ? r : 0;
@@ -223,16 +223,16 @@ internal void fl_scan(ee_player *pl, unsigned idx) {
     int hx = bm ? FIELD(bm, OF(BM, 0x12C), int) : 0, hy = bm ? FIELD(bm, OF(BM, 0x130), int) : 0, bd = 0x7FFFFFFF;
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
-        uint8_t *td = it.td;
+        ee_unit_type *td = it.td;
         ee_player *o = unit_get_owner(u);
-        int x = unit_get_x(u), y = unit_get_y(u), fam = FIELD(td, OF(TD, 0x4B4), int);
+        int x = unit_get_x(u), y = unit_get_y(u), fam = type_get_family(td);
         if (!o || unit_get_hp(u) <= 0 || x < 0) continue;
         int k = navy_kind(td);
         if (o == pl) {
             if ((k == NV_WAR || k == NV_SUB) && f->n < FL_MAX && !landing_has_unit(pl, u)) f->u[f->n++] = u;
             else if (k == NV_FISH && s->nb < 96) s->boat[s->nb++] = u;
             else if (fam == 2 || fam == 29) {
-                if (FIELD(td, OF(TD, 0x4B8), int) == UT(B_DOCK) && s->nd < 16) { s->dkx[s->nd] = x; s->dky[s->nd++] = y; }
+                if (type_get_id(td) == UT(B_DOCK) && s->nd < 16) { s->dkx[s->nd] = x; s->dky[s->nd++] = y; }
                 float tr, ta;
                 if (s->ntw < 32 && defence_stats(u, &tr, &ta)) { s->twx[s->ntw] = x; s->twy[s->ntw] = y; s->twr[s->ntw++] = tr; }
                 if (s->nbl < 256) { s->bx[s->nbl] = x; s->by[s->nbl++] = y; }
@@ -248,13 +248,13 @@ internal void fl_scan(ee_player *pl, unsigned idx) {
             if (s->nev < 64) { struct fl_ship *e = &s->ev[s->nev++]; e->u = u; e->td = td; e->x = x; e->y = y; e->hp = unit_get_hp(u); e->pi = ld_pidx(u); e->seen = 1; e->dps = 0; }
             continue;
         }
-        if (f->ocean && s->nec < 96 && (fam == 2 || fam == 29 || is_soldier(td) || is_siege(FIELD(td, OF(TD, 0x4B8), int))) && !is_wall(FIELD(td, OF(TD, 0x4B8), int)) && fl_coast(x, y, f->ocean)) {
+        if (f->ocean && s->nec < 96 && (fam == 2 || fam == 29 || is_soldier(td) || is_siege(type_get_id(td))) && !is_wall(type_get_id(td)) && fl_coast(x, y, f->ocean)) {
             struct fl_ship *e = &s->ec[s->nec++]; e->u = u; e->td = td; e->x = x; e->y = y; e->hp = unit_get_hp(u); e->pi = ld_pidx(u); e->seen = 1; e->dps = 0;
         }
         if (fam == 2 || fam == 29) {
             int dx = x - hx, dy = y - hy;
             if (dx * dx + dy * dy < bd) { bd = dx * dx + dy * dy; s->ebx = x; s->eby = y; s->eb = 1; }
-            if (FIELD(td, OF(TD, 0x4B8), int) == UT(B_DOCK) && s->ned < 16) { s->edx[s->ned] = x; s->edy[s->ned++] = y; }
+            if (type_get_id(td) == UT(B_DOCK) && s->ned < 16) { s->edx[s->ned] = x; s->edy[s->ned++] = y; }
         }
         fl_dz_add(s, x, y, fl_danger_r(u, td));
     }
@@ -264,7 +264,7 @@ internal void fl_scan(ee_player *pl, unsigned idx) {
     for (int k = 0; k < in->n; k++) {
         struct intel_rec *e = &in->r[k];
         if (e->t == in->last || e->x < 0) continue;   // seen now: in the scan above
-        uint8_t *td = type_data(e->type);
+        ee_unit_type *td = type_data(e->type);
         if (!td) continue;
         uint32_t age = in->now - e->t;
         int nk = navy_kind(td);
@@ -298,14 +298,14 @@ internal float fl_ratio(struct fleet *f, int x, int y, int r, const unsigned cha
     if (!any || ho <= 0) return 0.0f;
     for (int i = 0; i < f->n; i++) {
         ee_unit *u = f->u[i];
-        uint8_t *td = unit_get_type_data(u);
+        ee_unit_type *td = unit_get_type_data(u);
         if (r > 0) { int dx = unit_get_x(u) - x, dy = unit_get_y(u) - y; if (dx * dx + dy * dy > r * r) continue; }
         float fh = 0, hpu = (float)unit_get_hp(u), dp = fl_dps(u, td);
         for (int j = 0; j < g_fs.ne; j++) {
             if (sel && !sel[j]) continue;
             struct fl_ship *e = &g_fs.es[j];
-            fh += (float)e->hp * nv_f(FIELD(td, OF(TD, 0x4C8), int), FIELD(e->td, OF(TD, 0x4C4), int));
-            de += e->dps * hpu * nv_f(FIELD(e->td, OF(TD, 0x4C8), int), FIELD(td, OF(TD, 0x4C4), int));
+            fh += (float)e->hp * nv_f(type_get_weapon(td), type_get_category(e->td));
+            de += e->dps * hpu * nv_f(type_get_weapon(e->td), type_get_category(td));
         }
         dofs += dp * fh / he;
     }
@@ -327,7 +327,7 @@ internal float fl_hp(struct fleet *f) {
 internal float fl_hp_max(ee_unit *u) {
     uint8_t *st = unit_get_stats(u);
     int m = st ? FIELD(st, OF(USTAT, 0x144), int) : 0;
-    return (float)(m > 0 ? m : FIELD(unit_get_type_data(u), OF(TD, 0x55C), int));
+    return (float)(m > 0 ? m : type_get_hp(unit_get_type_data(u)));
 }
 // the guard point: from the fishing boats' middle (the docks' with fewer than 2 boats) 5 tiles toward the nearest
 // known enemy building, on open water of the fleet's sea, out of danger (else nearer to the boats / docks)
@@ -415,7 +415,7 @@ internal ee_unit *fl_pick(ee_unit *u, const unsigned char *sel, int x, int y, in
         int dx = e->x - x, dy = e->y - y;
         if (dx * dx + dy * dy > r * r || (oc && (int)area_id(e->x, e->y, 1) != oc) || !ld_hits(u, e->u)) continue;
         float d = (float)((e->x - ux) * (e->x - ux) + (e->y - uy) * (e->y - uy));
-        if (g_fl_s4 && FIELD(e->td, OF(TD, 0x4B4), int) == 10 && nv_role(unit_get_type_data(u)) == NR_FRIG) d *= 0.25f;   // frigates: the submarines first
+        if (g_fl_s4 && type_get_family(e->td) == 10 && nv_role(unit_get_type_data(u)) == NR_FRIG) d *= 0.25f;   // frigates: the submarines first
         if (d < bd) { bd = d; best = e->u; }
     }
     return best;
@@ -488,7 +488,7 @@ internal void fl_orders(struct fleet *f, const unsigned char *sel, int x, int y,
                 struct fl_ship *e = &list[j];
                 if (!e->seen || fl_in_danger_m(e->x, e->y, 3.0f) || !ld_hits(u, e->u)) continue;
                 float d = (float)((e->x - x) * (e->x - x) + (e->y - y) * (e->y - y));
-                if (g_fl_s4 && pass) d *= is_citizen_type(FIELD(e->td, OF(TD, 0x4B8), int)) ? 0.25f : is_soldier(e->td) ? 2.0f : 1.0f;   // the economy first
+                if (g_fl_s4 && pass) d *= is_citizen_type(type_get_id(e->td)) ? 0.25f : is_soldier(e->td) ? 2.0f : 1.0f;   // the economy first
                 if (d <= (float)(r * r) && d < bd) { bd = d; t = e->u; }
             }
         }
@@ -616,7 +616,7 @@ internal void fl_ring(struct fleet *m, int sunk) {
 // building, other
 internal void fleet_kill(int k, ee_unit *dead, int n) {
     if (k <= 0 || k >= 16 || !dead || !g_fl[k].n || !fleet_on((unsigned)k)) return;
-    uint8_t *td = unit_get_type_data(dead);
+    ee_unit_type *td = unit_get_type_data(dead);
     int id = unit_get_id(dead), c = 5;
     if (n == 2) c = 4;
     else if (td) {
@@ -947,7 +947,7 @@ internal int tf_target_prey(struct fleet *f, int cx, int cy, int *tx, int *ty, c
         int n = pass ? g_fs.nec : g_fs.nev;
         for (int j = 0; j < n; j++) {
             struct fl_ship *e = &list[j];
-            int t = FIELD(e->td, OF(TD, 0x4B8), int), fam = FIELD(e->td, OF(TD, 0x4B4), int);
+            int t = type_get_id(e->td), fam = type_get_family(e->td);
             float w;
             const char *wy;
             if (!pass) { int k = navy_kind(e->td); w = k == NV_TRANSPORT ? 4.0f : 3.0f; wy = k == NV_TRANSPORT ? "transports" : "fishing boats"; }

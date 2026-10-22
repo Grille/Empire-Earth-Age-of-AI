@@ -50,8 +50,8 @@ internal void early_towers_at(ee_player *pl, int x, int y, int r, int *fin, int 
     *fin = *all = 0;
     for (struct grid_it it = grid_it_box(x, y, r, 1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
-        uint8_t *td = it.td;
-        if (!td || unit_get_owner(u) != pl || unit_get_hp(u) <= 0 || !is_tower_type(FIELD(td, OF(TD, 0x4B8), int))) continue;
+        ee_unit_type *td = it.td;
+        if (!td || unit_get_owner(u) != pl || unit_get_hp(u) <= 0 || !is_tower_type(type_get_id(td))) continue;
         if (abs(unit_get_x(u) - x) > r || abs(unit_get_y(u) - y) > r) continue;
         (*all)++;
         *fin += early_finished(u);
@@ -79,8 +79,8 @@ internal void early_slot(ee_player *pl, unsigned idx, int bx, int by, int k, int
         float sx = 0, sy = 0;
         for (struct grid_it it = grid_it_box(bx, by, 15, 1); grid_it_next(&it); ) {
             ee_unit *u = it.u;
-            uint8_t *td = it.td;
-            if (!td || unit_get_owner(u) != pl || unit_get_hp(u) <= 0 || !is_citizen_type(FIELD(td, OF(TD, 0x4B8), int))) continue;
+            ee_unit_type *td = it.td;
+            if (!td || unit_get_owner(u) != pl || unit_get_hp(u) <= 0 || !is_citizen_type(type_get_id(td))) continue;
             sx += (float)(unit_get_x(u) - bx); sy += (float)(unit_get_y(u) - by);
         }
         float px = -dy, py = dx;
@@ -135,7 +135,7 @@ internal void early_towers_tick(ee_player *pl, unsigned idx, uint32_t now) {
     void *cm = FIELD(pl, OF(PL, 0xB90), void *);
     ee_build_mgr *bm = cm ? FIELD(cm, OF(CM, 0x3C), ee_build_mgr *) : NULL;
     int *stock = (int *)((uint8_t *)pl + PL_STOCK), type = early_tower_type(pl), e = current_epoch(pl);
-    if (type && !st->range) { uint8_t *td = type_data(type); st->range = td ? FIELD(td, OF(TD, 0x420), float) : 0; }
+    if (type && !st->range) { ee_unit_type *td = type_data(type); st->range = td ? type_get_range(td) : 0; }
     int fin, all, x, y;
     early_towers_at(pl, bx, by, EARLY_DIST + 3, &fin, &all);
     if (!bm) return;
@@ -152,8 +152,8 @@ internal void early_towers_tick(ee_player *pl, unsigned idx, uint32_t now) {
     int nt = 0;
     for (struct grid_it it = grid_it_box(bx, by, 20, 1); grid_it_next(&it) && nt < 8; ) {
         ee_unit *u = it.u;
-        uint8_t *td = it.td;
-        if (!td || unit_get_owner(u) != pl || unit_get_hp(u) <= 0 || !is_tower_type(FIELD(td, OF(TD, 0x4B8), int)) ||
+        ee_unit_type *td = it.td;
+        if (!td || unit_get_owner(u) != pl || unit_get_hp(u) <= 0 || !is_tower_type(type_get_id(td)) ||
             early_finished(u)) continue;
         todo[nt++] = u;
     }
@@ -183,7 +183,7 @@ internal void early_bait(ee_player *pl, unsigned idx, uint32_t now) {
     int nc = 0, ne = 0;
     for (struct grid_it it = grid_it_box(bx, by, 36, 1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
-        uint8_t *td = it.td;
+        ee_unit_type *td = it.td;
         if (!td || unit_get_hp(u) <= 0) continue;
         ee_player *o = unit_get_owner(u);
         float r, a;
@@ -199,8 +199,8 @@ internal void early_bait(ee_player *pl, unsigned idx, uint32_t now) {
     int sent = 0;
     for (struct grid_it it = grid_it_box(bx, by, 32, 1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
-        uint8_t *td = it.td;
-        if (!td || unit_get_owner(u) != pl || unit_get_hp(u) <= 0 || !is_citizen_type(FIELD(td, OF(TD, 0x4B8), int)) ||
+        ee_unit_type *td = it.td;
+        if (!td || unit_get_owner(u) != pl || unit_get_hp(u) <= 0 || !is_citizen_type(type_get_id(td)) ||
             unit_get_frozen(u) || unit_get_x(u) == -10000) continue;
         int ux = unit_get_x(u), uy = unit_get_y(u), hit = -1;
         for (int k = 0; k < ne && hit < 0; k++)

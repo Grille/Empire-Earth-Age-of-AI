@@ -38,8 +38,8 @@ internal void cz_types(ee_player *pl) {
     if (!tt) return;
     g_cz_np = 0;
     for (int k = 0; k < 2; k++) {
-        uint8_t *td = type_data(k ? UT(FEMALE_CITIZEN) : UT(CITIZEN));
-        g_cz_tech[k] = td ? FIELD(td, OF(TD, 0x4E0), int) : -1;
+        ee_unit_type *td = type_data(k ? UT(FEMALE_CITIZEN) : UT(CITIZEN));
+        g_cz_tech[k] = td ? type_get_tech(td) : -1;
         ee_tech *t = td ? tech_lookup(tt, g_cz_tech[k]) : NULL;
         uint8_t *d = t ? FIELD(t, OF(TECH, 0x8), uint8_t *) : NULL;
         int *b = d ? FIELD(d, OF(TECHDATA, 0x10), int *) : NULL, *e = d ? FIELD(d, OF(TECHDATA, 0x14), int *) : NULL;

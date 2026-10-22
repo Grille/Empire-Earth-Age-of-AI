@@ -27,10 +27,10 @@ internal void am_new_game(void) { memset(g_am, 0, sizeof g_am); }
 
 // the price of a type without the Cheat (unit_cost's tech data, no AdjustCost)
 internal int am_raw_cost(ee_player *pl, int type) {
-    uint8_t *obj = type_data(type);
+    ee_unit_type *obj = type_data(type);
     ee_tech_tree *tt = FIELD(pl, PL_TECHTREE, ee_tech_tree *);
     if (!obj || !tt) return 0;
-    ee_tech *tech = tech_lookup(tt, FIELD(obj, OF(TD, 0x4E0), int));
+    ee_tech *tech = tech_lookup(tt, type_get_tech(obj));
     uint8_t *data = tech ? FIELD(tech, OF(TECH, 0x8), uint8_t *) : NULL;
     int c = 0;
     for (int r = 2; data && r < 7; r++) c += FIELD(data, OF(TECHDATA, 0x24) + (r - 2) * 4, int);
@@ -156,9 +156,9 @@ internal int ap_type(ee_player *pl, unsigned idx, ee_unit_mgr *um, const int *vi
 }
 // the production building of a unit type (its tech's building list, data +0x10..+0x14) among the land kinds
 internal int ap_producer(ee_player *pl, int type) {
-    uint8_t *td = type_data(type);
+    ee_unit_type *td = type_data(type);
     ee_tech_tree *tt = FIELD(pl, PL_TECHTREE, ee_tech_tree *);
-    ee_tech *t = td && tt ? tech_lookup(tt, FIELD(td, OF(TD, 0x4E0), int)) : NULL;
+    ee_tech *t = td && tt ? tech_lookup(tt, type_get_tech(td)) : NULL;
     uint8_t *d = t ? FIELD(t, OF(TECH, 0x8), uint8_t *) : NULL;
     int *b = d ? FIELD(d, OF(TECHDATA, 0x10), int *) : NULL, *e = d ? FIELD(d, OF(TECHDATA, 0x14), int *) : NULL;
     for (int *p = b; b && e > b && e - b < 16 && p < e; p++)
@@ -290,7 +290,7 @@ internal void ap_owned(ee_player *pl, unsigned idx) {
     g_apo_t[idx] = now ? now : 1;
     memset(g_apo[idx], 0, sizeof g_apo[idx]);
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
-        int t = FIELD(it.td, OF(TD, 0x4B8), int);
+        int t = type_get_id(it.td);
         if (unit_get_owner(it.u) == pl && unit_get_hp(it.u) > 0 && t >= 0 && t < 768) g_apo[idx][t] = 1;
     }
     uint8_t *cm = FIELD(pl, OF(PL, 0xB90), uint8_t *), *um = cm ? FIELD(cm, OF(CM, 0x44), uint8_t *) : NULL;
@@ -419,9 +419,9 @@ internal void am_tick(ee_player *pl, uint32_t now) {
     for (int k = 0; k < AM_NK; k++) { int b; am_bld(um, g_ut[k_am_bld[k]], &nb[k], &b); }
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
-        uint8_t *td = it.td;
+        ee_unit_type *td = it.td;
         if (unit_get_owner(u) != pl || unit_get_hp(u) <= 0) continue;
-        int t = FIELD(td, OF(TD, 0x4B8), int), fam = FIELD(td, OF(TD, 0x4B4), int);
+        int t = type_get_id(td), fam = type_get_family(td);
         ee_unit *bs = unit_get_physics(u);
         if (ut_role(t, UTR_TOWER)) { towers += bs && unit_get_finished(bs); continue; }
         if (ut_role(t, UTR_WALL) && !ut_role(t, UTR_GATE)) { walls += bs && unit_get_finished(bs); continue; }

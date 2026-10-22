@@ -33,9 +33,9 @@ internal int drop_sites(ee_player *pl, int (*out)[3], int max) {
     int n = 0;
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
-        uint8_t *td = it.td;
+        ee_unit_type *td = it.td;
         if (!td || unit_get_owner(u) != pl || n >= max) continue;
-        int t = FIELD(td, OF(TD, 0x4B8), int), food = t == UT(B_GRANARY) || t == UT(B_GRANARY_IMPROVED);
+        int t = type_get_id(td), food = t == UT(B_GRANARY) || t == UT(B_GRANARY_IMPROVED);
         if (!food && !UT_IN(t, UT_TOWNS, UT_X_SINGLE_PLAYER_SETTLEMENT)) continue;
         out[n][0] = unit_get_x(u); out[n][1] = unit_get_y(u); out[n][2] = food;
         n++;
@@ -74,7 +74,7 @@ internal ee_unit *select_site(ee_resource_mgr *rm, int type, int need_drop, int 
         if (!zone || (type != 2 && !FIELD(zone, OF(ZONE, 0x18), uint8_t))) continue;
         ee_unit *s = zone_site(zone, type);
         if (!s) continue;
-        if (type == 2 && FIELD(unit_get_type_data(s), OF(TD, 0x4B8), int) != UT(RES_FORAGE_BUSH)) continue;   // forage only
+        if (type == 2 && type_get_id(unit_get_type_data(s)) != UT(RES_FORAGE_BUSH)) continue;   // forage only
         if (unit_get_amount(s) <= 0 || FIELD(unit_get_vis(s), OF(SITEOWN, 0x4), int) == 1) continue;
         if (need_drop && !FIELD(zone, OF(ZONE, 0x14), int)) continue;
         int pos[2] = { unit_get_x(s), unit_get_y(s) };

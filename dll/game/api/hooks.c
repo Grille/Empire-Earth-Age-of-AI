@@ -89,7 +89,7 @@ typedef char (__fastcall *proj_down_hook)(void *cls, void *edx, ee_unit *project
 internal inline int patch_proj_down(proj_down_hook h) { return patch_vtable(GA(VT_PROJECTILE), GA(SLOT_PROJ_DOWN), GA(FN_PROJ_DOWN), (void *)h); }
 typedef int (__fastcall *missile_launch_hook)(uint8_t *cls, void *edx, ee_unit *m, float *aim);
 internal inline int patch_missile_launch(missile_launch_hook h) { return patch_vtable(GA(VT_MISSILE), GA(SLOT_MISSILE_LAUNCH), GA(FN_MISSILE_LAUNCH), (void *)h); }
-typedef void (__fastcall *fire_hook)(uint8_t *cls, void *edx, ee_unit *u);
+typedef void (__fastcall *fire_hook)(ee_unit_type *cls, void *edx, ee_unit *u);
 internal inline int patch_fire(fire_hook h, int *of) { return patch_calls(PATCH_LIST(FIRE_CALLS), GA(FN_FIRE), (void *)h, of); }
 // the "under attack" alert of a hit (a thunk: it ends in game_attack_alert)
 internal inline int patch_attack_alert(thunk_fn thunk) { return patch_call(GA(CALL_ATTACK_ALERT), GA(FN_ATTACK_ALERT), (void *)thunk); }

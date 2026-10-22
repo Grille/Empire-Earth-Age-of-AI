@@ -41,9 +41,9 @@ internal int tile_height(int x, int y, float *h) {
 // the arc's reach the game launches at 45 degrees anyway and the projectile comes down short, after flying its
 // longest distance v^2 / g (*reach = 0).
 internal float flight_time(ee_unit *u, const float *from, const float *to, int *reach) {
-    uint8_t *type = unit_get_stats(u), *cls = type ? FIELD(type, OF(USTAT, 0x60), uint8_t *) : NULL;
-    uint8_t *pc = cls ? FIELD(cls, OF(TD, 0x3FC), uint8_t *) : NULL;
-    float v = type ? FIELD(type, OF(USTAT, 0xC0), float) : 0, g = pc ? FIELD(pc, OF(PL, 0x438), float) : 0, pitch = 0, a[3], b[3];
+    uint8_t *type = unit_get_stats(u); ee_unit_type *cls = type ? FIELD(type, OF(USTAT, 0x60), ee_unit_type *) : NULL;
+    ee_unit_type *pc = cls ? type_get_projectile(cls) : NULL;
+    float v = type ? FIELD(type, OF(USTAT, 0xC0), float) : 0, g = pc ? type_get_accel(pc) : 0, pitch = 0, a[3], b[3];
     if (v <= 0.001f || g <= 0.001f) return -1;
     memcpy(a, from, sizeof a); memcpy(b, to, sizeof b);
     float dx = to[0] - from[0], dy = to[1] - from[1], d = sqrtf(dx * dx + dy * dy);
@@ -159,7 +159,7 @@ internal ee_unit *g_retarget;            // spread_missiles: set while 0x61E11C 
 internal void __cdecl hook_aim(ee_unit *u, ee_unit **target, float *aim, void *zero) {
     unit_aim(u, target, aim, g_retarget ? (void *)g_retarget : zero);
     ee_unit *t = *target;
-    uint8_t *cls = unit_get_type_data(u), *pc = cls ? FIELD(cls, OF(TD, 0x3FC), uint8_t *) : NULL;
+    ee_unit_type *cls = unit_get_type_data(u); ee_unit_type *pc = cls ? type_get_projectile(cls) : NULL;
     g_shots++;
     if (!t || t == u || !pc || !is_projectile_class(pc)) return;
     g_shots_unit++;
@@ -196,7 +196,7 @@ internal char __fastcall hook_proj_down(void *cls, void *edx, ee_unit *pr) {
     if (r && t && g_measure) {
         g_down++;
         unsigned x = ((unsigned)unit_get_x(pr)), y = ((unsigned)unit_get_y(pr)), tx = ((unsigned)unit_get_x(t)),
-                 ty = ((unsigned)unit_get_y(t)), n = FIELD(unit_get_type_data(t), OF(TD, 0x58C), unsigned);
+                 ty = ((unsigned)unit_get_y(t)), n = ((unsigned)type_get_size(unit_get_type_data(t)));
         if (x >= tx && x < tx + n && y >= ty && y < ty + n) g_hits++;
     }
     return r;
@@ -306,14 +306,14 @@ internal int g_spread = 1;
 internal unsigned g_spread_held, g_spread_switched, g_launched;
 
 internal int missile_damage(ee_unit *m, ee_unit *t) {
-    uint8_t *lc = unit_get_attacker_type(m), *tc = unit_get_type_data(t);
+    ee_unit_type *lc = unit_get_attacker_type(m); ee_unit_type *tc = unit_get_type_data(t);
     ee_player *pl = unit_get_owner(m);
     ee_player *tpl = unit_get_owner(t);
     uint8_t *ts = unit_get_stats(t);
     if (!lc || !pl || !tc || !tpl || !ts) return 0;
-    int ac = FIELD(lc, OF(TD, 0x4C0), int), dc = FIELD(tc, OF(TD, 0x4C0), int);
+    int ac = type_get_damage_class(lc), dc = type_get_damage_class(tc);
     if (ac < 0 || ac > 5 || dc < 0 || dc > 15) return 0;
-    uint8_t **rec = type_stats(pl, FIELD(lc, OF(TD, 0x4B8), int));
+    uint8_t **rec = type_stats(pl, type_get_id(lc));
     float atk = rec && *rec ? FIELD(*rec, OF(USTAT, 0xD8), float) : 0;
     if (!(atk > 0)) return 0;
     float bonus = attack_bonus(lc, tc, FIELD(pl, OF(PL, 0x45C), int), FIELD(tpl, OF(PL, 0x45C), int));
@@ -359,7 +359,7 @@ internal int __fastcall hook_missile_launch(uint8_t *cls, void *edx, ee_unit *m,
 internal ee_unit *spread_target(ee_unit *u, ee_unit *t) {
     ee_player *pl = unit_get_owner(u);
     if (!pl) return NULL;
-    int fam = FIELD(unit_get_type_data(t), OF(TD, 0x4B4), int);
+    int fam = type_get_family(unit_get_type_data(t));
     float x = unit_get_pos_x(u), y = unit_get_pos_y(u), range = FIELD(unit_get_stats(u), OF(USTAT, 0x9C), float);
     int r = (int)range + 1;
     ee_unit *best = NULL;
@@ -367,8 +367,8 @@ internal ee_unit *spread_target(ee_unit *u, ee_unit *t) {
     if (!(range > 0)) return NULL;
     for (struct grid_it it = grid_it_box((int)x, (int)y, r, 1); grid_it_next(&it); ) {
         ee_unit *c = it.u;
-        uint8_t *cc = it.td;
-        if (c == t || unit_get_hp(c) <= 0 || FIELD(cc, OF(TD, 0x4B4), int) != fam) continue;
+        ee_unit_type *cc = it.td;
+        if (c == t || unit_get_hp(c) <= 0 || type_get_family(cc) != fam) continue;
         if (!is_enemy(pl, unit_get_owner(c)) || !seen_by(c, pl) || doomed(c)) continue;
         float dx = unit_get_pos_x(c) - x, dy = unit_get_pos_y(c) - y, d = dx * dx + dy * dy;
         if (d <= bd) { bd = d; best = c; }
@@ -381,12 +381,12 @@ internal ee_unit *spread_target(ee_unit *u, ee_unit *t) {
 internal struct { ee_unit *u; int type, n; uint32_t t0, t1; } g_fr[512];
 internal int g_fr_n, g_fr_on;   // on in tests
 internal void fr_note(ee_unit *u) {
-    uint8_t *td = u ? unit_get_type_data(u) : NULL;
+    ee_unit_type *td = u ? unit_get_type_data(u) : NULL;
     if (!td || !g_fr_on) return;
     uint32_t now = game_time();
     for (int k = 0; k < g_fr_n; k++)
         if (g_fr[k].u == u) { g_fr[k].n++; g_fr[k].t1 = now; return; }
-    if (g_fr_n < 512) { g_fr[g_fr_n].u = u; g_fr[g_fr_n].type = FIELD(td, OF(TD, 0x4B8), int); g_fr[g_fr_n].n = 1; g_fr[g_fr_n].t0 = g_fr[g_fr_n].t1 = now; g_fr_n++; }
+    if (g_fr_n < 512) { g_fr[g_fr_n].u = u; g_fr[g_fr_n].type = type_get_id(td); g_fr[g_fr_n].n = 1; g_fr[g_fr_n].t0 = g_fr[g_fr_n].t1 = now; g_fr_n++; }
 }
 internal void cmd_firerate(char *out, const char *args) {
     if (strstr(args, "reset")) { g_fr_n = 0; REPLY("ok: reset\n"); return; }
@@ -400,16 +400,16 @@ internal void cmd_firerate(char *out, const char *args) {
         for (int q = k; q < g_fr_n && m < 64; q++)
             if (g_fr[q].type == t && g_fr[q].n >= 4) iv[m++] = (float)(g_fr[q].t1 - g_fr[q].t0) / 1000.0f / (float)(g_fr[q].n - 1);
         for (int a = 0; a < m; a++) for (int b = a + 1; b < m; b++) if (iv[b] < iv[a]) { float x = iv[a]; iv[a] = iv[b]; iv[b] = x; }
-        uint8_t *td = type_data(t);
+        ee_unit_type *td = type_data(t);
         REPLY("type %d: %d units with 4+ shots, median %.2f s between shots (min %.2f max %.2f); type +0x42C %.3g +0x430 %.3g +0x438 %.3g\n", t, m,
-              m ? iv[m / 2] : 0.0f, m ? iv[0] : 0.0f, m ? iv[m - 1] : 0.0f, td ? FIELD(td, OF(TD, 0x42C), float) : 0.0f, td ? FIELD(td, OF(TD, 0x430), float) : 0.0f,
-              td ? FIELD(td, OF(TD, 0x438), float) : 0.0f);
+              m ? iv[m / 2] : 0.0f, m ? iv[0] : 0.0f, m ? iv[m - 1] : 0.0f, td ? type_get_unknown_42c(td) : 0.0f, td ? type_get_unknown_430(td) : 0.0f,
+              td ? type_get_accel(td) : 0.0f);
     }
 }
-internal void __fastcall hook_fire(uint8_t *cls, void *edx, ee_unit *u) {
+internal void __fastcall hook_fire(ee_unit_type *cls, void *edx, ee_unit *u) {
     (void)edx;
     fr_note(u);
-    uint8_t *pc = FIELD(cls, OF(TD, 0x3FC), uint8_t *), *goal = unit_get_goal(u);
+    ee_unit_type *pc = type_get_projectile(cls); uint8_t *goal = unit_get_goal(u);
     ee_unit *t = goal && goal[5] == 2 ? FIELD(goal, OF(GOAL, 0x30), ee_unit *) : NULL;
     if (g_spread && t && pc && is_missile_class(pc) && !is_vanilla(unit_get_owner(u)) && doomed(t)) {
         ee_unit *alt = spread_target(u, t);
@@ -504,7 +504,7 @@ internal void cmd_aim(char *out, const char *args) {
     if (strstr(args, "types")) {   // unit types that fire missiles
         REPLY("missile types:");
         for (int ty = 0; ty < 0x300; ty++) {
-            uint8_t *td = type_data(ty), *pc = td ? FIELD(td, OF(TD, 0x3FC), uint8_t *) : NULL;
+            ee_unit_type *td = type_data(ty); ee_unit_type *pc = td ? type_get_projectile(td) : NULL;
             if (pc && is_missile_class(pc)) REPLY(" %d", ty);
         }
         REPLY("\n");

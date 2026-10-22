@@ -17,7 +17,7 @@ struct grid_it {
     uint8_t *cells, *cell;        // the grid's cells, the current cell
     ee_unit **b;                  // the next entry in it
     ee_unit *u;                   // the unit found
-    uint8_t *td;                  // and its type
+    ee_unit_type *td;             // and its type
     int cs, ny, once;
     int cx, cy;                   // the current cell
     int gx, gy, x0, x1, y0, y1;   // the next cell, the area's columns and rows
@@ -55,7 +55,7 @@ internal int grid_it_next(struct grid_it *it) {
     for (;;) {
         while (it->b && it->b < FIELD(it->cell, OF(GRIDCELL, 0x8), ee_unit **)) {
             ee_unit *u = *it->b++;
-            uint8_t *td = u ? unit_get_type_data(u) : NULL;
+            ee_unit_type *td = u ? unit_get_type_data(u) : NULL;
             if (!td) continue;
             if (it->once) {   // only in its own cell, or the area's cell nearest to it
                 int ox = unit_get_x(u) / it->cs, oy = unit_get_y(u) / it->cs;

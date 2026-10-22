@@ -238,8 +238,8 @@ internal void ws_unit(ee_unit *u, void *ctx) {
     if (!owner || unit_get_hp(u) <= 0) return;
     int o = pidx(owner);
     if (o == 0) return;   // nature (wild animals): hostile to everyone, not an attack
-    uint8_t *td = unit_get_type_data(u);
-    int fam = FIELD(td, OF(TD, 0x4B4), int), type = FIELD(td, OF(TD, 0x4B8), int);
+    ee_unit_type *td = unit_get_type_data(u);
+    int fam = type_get_family(td), type = type_get_id(td);
     if ((unsigned)type < G_TYPES_N) g_ws_types[o][type]++;
     if (is_citizen_type(type)) { g_ws.citizens[o]++; return; }
     if (type == UT(B_TOWN_CENTER) || type == UT(B_CAPITOL)) g_ws.centers[o]++;   // where citizens are trained
@@ -304,9 +304,9 @@ enum { K_ARMY, K_BUILDINGS, K_CIVIL, K_AIR, K_NAVY, K_N };
 #define K_MILITARY(k) ((k)[K_ARMY] + (k)[K_AIR] + (k)[K_NAVY])
 // the class +0x4B4: 6 citizens (and the engineer), 22 fishing boats; 3 aircraft, 7 helicopters and balloons, 17
 // transport helicopters; 4 ships, 10 submarines, 18 transports, 21 carriers; the rest on land - priests, heroes, siege
-internal int kill_kind(uint8_t *td) {
-    int c = td ? FIELD(td, OF(TD, 0x4B4), int) : 5;
-    if (c == 6 || c == 22 || (td && is_citizen_type(FIELD(td, OF(TD, 0x4B8), int)))) return K_CIVIL;
+internal int kill_kind(ee_unit_type *td) {
+    int c = td ? type_get_family(td) : 5;
+    if (c == 6 || c == 22 || (td && is_citizen_type(type_get_id(td)))) return K_CIVIL;
     if (c == 3 || c == 7 || c == 17) return K_AIR;
     if (c == 4 || c == 10 || c == 18 || c == 21) return K_NAVY;
     return K_ARMY;
@@ -441,15 +441,15 @@ __attribute__((used)) void __fastcall hook_kill_stat(uint8_t *stats, void *edx, 
         int k = pidx(stats - 0x4A8), v = pidx(owner);
         uint32_t m = game_time() / 60000u + 1, b = m % KILLS_RING;
         if (g_kills_min_t[b] != m) { memset(g_kills_min[b], 0, sizeof g_kills_min[b]); g_kills_min_t[b] = m; }
-        uint8_t *td = unit_get_type_data(g_kill_unit);
+        ee_unit_type *td = unit_get_type_data(g_kill_unit);
         int c = n == 2 ? K_BUILDINGS : kill_kind(td);
         g_kills[k][v][c] += (uint32_t)d;
-        if (n == 3 && td && FIELD(td, OF(TD, 0x4B4), int) == 22) g_nv_boat_kills[k][v] += (uint32_t)d;
-        if (n == 3 && c == K_NAVY && td && (unsigned)FIELD(td, OF(TD, 0x4B8), int) < G_TYPES_N) {
-            g_nv_lost_type[v & 15][FIELD(td, OF(TD, 0x4B8), int)] += (uint16_t)d; g_nv_sunk_type[k & 15][FIELD(td, OF(TD, 0x4B8), int)] += (uint16_t)d;
+        if (n == 3 && td && type_get_family(td) == 22) g_nv_boat_kills[k][v] += (uint32_t)d;
+        if (n == 3 && c == K_NAVY && td && (unsigned)type_get_id(td) < G_TYPES_N) {
+            g_nv_lost_type[v & 15][type_get_id(td)] += (uint16_t)d; g_nv_sunk_type[k & 15][type_get_id(td)] += (uint16_t)d;
         }
         g_kills_min[b][k][v][c] += (uint16_t)d;
-        if (td) kl_add(k, v, FIELD(td, OF(TD, 0x4B8), int), d);
+        if (td) kl_add(k, v, type_get_id(td), d);
         fleet_kill(k, g_kill_unit, n);
         if (n == 3) fleet_lost(v, g_kill_unit);
         if (n == 3) mass_death(g_kill_unit);

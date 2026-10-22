@@ -3,7 +3,8 @@
 written there first (internal inline T kind_get_x(const ee_kind *p) { return FIELD(p, OF(KIND, off), T); }), then this
 moves the code over. A use of another type than the accessor's keeps it with a cast ((unsigned)unit_get_x(u)): the
 machine code stays FIELD's (scripts/code_same.py). A use that is neither a read nor a plain write (&FIELD(...), +=,
-++) stops it, with the place - those are for a hand.
+++), or a read as float of an int field (or the other way: FIELD reinterprets the bits, a cast would convert them),
+stops it, with the place - those are for a hand.
 
     python scripts/field_names.py KIND [KIND ...]     rewrite the uses of these kinds' fields
     python scripts/field_names.py --left [KIND]       the FIELD(.., OF(KIND, ..)) uses outside game/api/ left, by field
@@ -87,12 +88,16 @@ def rewrite(kinds):
             if w:   # FIELD(...) = v;  ->  kind_set_x(obj, v);
                 e = rest.index(';')
                 val = rest[w.end():e].strip()
+                if norm(t) != typ and ('float' in (norm(t), typ) or 'double' in (norm(t), typ)):
+                    sys.exit('%s:%d: written as %s, the setter takes %s - by hand' % (f, s[:a].count('\n') + 1, t, typ))
                 if norm(t) != typ:
                     val = '(%s)(%s)' % (typ, val)
                 s = s[:a] + '%s(%s, %s)' % (name.replace('_get_', '_set_'), obj, val) + rest[e:]
                 continue
             if re.match(r'\s*([-+*/|&^]=|<<=|>>=|\+\+|--)', rest) or (pre.endswith('&') and not pre.endswith('&&')) or pre.endswith(('++', '--')):
                 sys.exit('%s:%d: neither a read nor a plain write - by hand: %s' % (f, s[:a].count('\n') + 1, s[a:b + 4]))
+            if norm(t) != typ and ('float' in (norm(t), typ) or 'double' in (norm(t), typ)):   # FIELD reinterprets, a cast converts
+                sys.exit('%s:%d: read as %s, the accessor gives %s - by hand: %s' % (f, s[:a].count('\n') + 1, t, typ, s[a:b]))
             call = '%s(%s)' % (name, obj)
             s = s[:a] + (call if norm(t) == typ else '((%s)%s)' % (t, call)) + s[b:]
         if s != raw:

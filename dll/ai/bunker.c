@@ -8,16 +8,16 @@
 
 #define FORTRESS_TYPE UT(B_FORTRESS)
 internal int bk_capacity(ee_unit *u) {   // what a building holds as a transport does, 0 = none
-    uint8_t *td = u ? unit_get_type_data(u) : NULL;
-    return td && FIELD(td, OF(TD, 0x4B4), int) == 29 ? FIELD(td, OF(TD, 0x54C), int) : 0;
+    ee_unit_type *td = u ? unit_get_type_data(u) : NULL;
+    return td && type_get_family(td) == 29 ? type_get_transport_capacity(td) : 0;
 }
 internal int bk_held(ee_unit *u) { return units_inside(u); }   // units inside
 
 struct bk_scan { ee_player *pl; int x, y, r, nf, nc; ee_unit *f[8], *c[128]; };
 internal void bk_unit(ee_unit *u, void *ctx) {
     struct bk_scan *b = ctx;
-    uint8_t *td = unit_get_type_data(u);
-    int dx = unit_get_x(u) - b->x, dy = unit_get_y(u) - b->y, t = FIELD(td, OF(TD, 0x4B8), int);
+    ee_unit_type *td = unit_get_type_data(u);
+    int dx = unit_get_x(u) - b->x, dy = unit_get_y(u) - b->y, t = type_get_id(td);
     if (unit_get_owner(u) != b->pl || unit_get_hp(u) <= 0 || dx * dx + dy * dy > b->r * b->r) return;
     if (bk_capacity(u) > 0 && b->nf < 8) b->f[b->nf++] = u;
     else if (is_citizen_type(t) && b->nc < 128) b->c[b->nc++] = u;
@@ -238,9 +238,9 @@ internal void bk_build(ee_player *pl, unsigned pi, uint32_t now) {
     if (g_bk[pi].nall >= want) return;
     // 350 wood (0x555710 also wants a free builder at that moment: it passed in 2 of 10 games before minute 20, the
     // game's own builders take the foundation up anyway)
-    uint8_t *od = type_data(FORTRESS_TYPE);
+    ee_unit_type *od = type_data(FORTRESS_TYPE);
     ee_tech_tree *tt = FIELD(pl, PL_TECHTREE, ee_tech_tree *);
-    ee_tech *tech = od && tt ? tech_lookup(tt, FIELD(od, OF(TD, 0x4E0), int)) : NULL;
+    ee_tech *tech = od && tt ? tech_lookup(tt, type_get_tech(od)) : NULL;
     int cost = tech && FIELD(tech, OF(TECH, 0x8), uint8_t *) ? FIELD(FIELD(tech, OF(TECH, 0x8), uint8_t *), OF(TECHDATA, 0x28), int) : 350;   // the cost lives in its tech (wood)
     if (((int *)((uint8_t *)pl + PL_STOCK))[3] < cost) { g_bk[pi].need_wood = cost; return; }   // can't pay yet: saved for (bunker_reserve)
     // the drop site nearest the base point without a fortress within 10 tiles
@@ -294,7 +294,7 @@ internal int bk_room(ee_player *pl) {   // cap - population on the map (the fort
 struct bk_free { ee_player *pl; uint8_t *cm; int bx, by, n; ee_unit *u[64]; };
 internal void bk_free_unit(ee_unit *u, void *ctx) {
     struct bk_free *f = ctx;
-    uint8_t *td = unit_get_type_data(u);
+    ee_unit_type *td = unit_get_type_data(u);
     if (unit_get_owner(u) != f->pl || unit_get_hp(u) <= 0 || !td || f->n >= 64) return;
     int dx = unit_get_x(u) - f->bx, dy = unit_get_y(u) - f->by;
     if (dx * dx + dy * dy > 25 * 25 || !is_soldier(td) || is_ship_or_air(td)) return;

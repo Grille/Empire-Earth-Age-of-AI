@@ -60,7 +60,7 @@ struct so_ship { ee_unit *u; int id, grp, role, type, x, y; };
 struct so_mem { int id, type, x, y, kind; float hp, dps, r; uint32_t t; };   // kind 0 warship, 1 defence, 2 dock, 3 other building
 struct so_grp { const char *why; uint32_t until; float hp0; int wp, n, cx, cy; float hp, hpmax; };
 struct so_wave { int st, ntr, tr_id[6], w0, w1, aboard, landed, bx, by, wx, wy, min, hot; ee_unit *tr[6]; uint32_t t, load_t; };   // w0..w1: its soldiers in wsol_id
-struct so_eu { ee_unit *u; uint8_t *td; int x, y, cls, seen; };   // the AI's units this tick; cls below
+struct so_eu { ee_unit *u; ee_unit_type *td; int x, y, cls, seen; };   // the AI's units this tick; cls below
 enum { SC_WAR, SC_TR, SC_BOAT, SC_CIT, SC_DOCK, SC_BLD, SC_DEF, SC_SOLD, SC_SIEGE, SC_OTHER };
 
 internal struct {
@@ -129,28 +129,28 @@ internal int so_in_danger(int x, int y, float margin) {
         if (so_d2(x, y, g_sos.zx[k], g_sos.zy[k]) < (g_sos.zr[k] + margin) * (g_sos.zr[k] + margin)) return 1;
     return 0;
 }
-internal int so_family(uint8_t *td) { return td ? FIELD(td, OF(TD, 0x4B4), int) : -1; }
-internal int so_warship(uint8_t *td) {   // warships and submarines with a weapon (no transports, fishing boats, carriers)
-    int fam = so_family(td), t = td ? FIELD(td, OF(TD, 0x4B8), int) : 0;
-    return (fam == 4 || fam == 10) && FIELD(td, OF(TD, 0x510), int) > 0 && !is_transport(t) && !is_fishing_boat(t);
+internal int so_family(ee_unit_type *td) { return td ? type_get_family(td) : -1; }
+internal int so_warship(ee_unit_type *td) {   // warships and submarines with a weapon (no transports, fishing boats, carriers)
+    int fam = so_family(td), t = td ? type_get_id(td) : 0;
+    return (fam == 4 || fam == 10) && type_get_attack(td) > 0 && !is_transport(t) && !is_fishing_boat(t);
 }
-internal int so_role(uint8_t *td) {
-    int k = FIELD(td, OF(TD, 0x4C8), int);
+internal int so_role(ee_unit_type *td) {
+    int k = type_get_weapon(td);
     return k == 1 ? SR_F : k == 34 ? SR_L : (k == 3 || k == 6) ? SR_A : k == 18 ? SR_S : -1;
 }
-internal float so_dps(ee_unit *u, uint8_t *td) {
+internal float so_dps(ee_unit *u, ee_unit_type *td) {
     uint8_t *st = u ? unit_get_stats(u) : NULL;
-    float a = st ? FIELD(st, OF(USTAT, 0xD8), float) : (float)FIELD(td, OF(TD, 0x510), int);
-    int rl = FIELD(td, OF(TD, 0x50C), int);
+    float a = st ? FIELD(st, OF(USTAT, 0xD8), float) : (float)type_get_attack(td);
+    int rl = type_get_reload(td);
     return a > 0 ? a * 1000.0f / (float)((rl > 0 ? rl : 2000) + 2000) : 0.0f;
 }
 internal float so_hpmax(ee_unit *u) {
     uint8_t *st = unit_get_stats(u);
     int m = st ? FIELD(st, OF(USTAT, 0x144), int) : 0;
-    return (float)(m > 0 ? m : FIELD(unit_get_type_data(u), OF(TD, 0x55C), int));
+    return (float)(m > 0 ? m : type_get_hp(unit_get_type_data(u)));
 }
 // the strength ratio of side a against side b (types, hit points, dps; player indices): sqrt(hpA dA / (hpB dB))
-struct so_side { int n; uint8_t *td[SO_MEM + SO_N]; float hp[SO_MEM + SO_N], dps[SO_MEM + SO_N]; int pi; };
+struct so_side { int n; ee_unit_type *td[SO_MEM + SO_N]; float hp[SO_MEM + SO_N], dps[SO_MEM + SO_N]; int pi; };
 internal float so_eff(struct so_side *a, struct so_side *b) {   // a's damage a second at b, by the hit table
     float hb = 0, d = 0;
     for (int j = 0; j < b->n; j++) hb += b->hp[j];
@@ -173,7 +173,7 @@ internal float so_ratio(struct so_side *a, struct so_side *b) {
     float r = sqrtf(ha * da / (hb * db));
     return r > 99.0f ? 99.0f : r;
 }
-internal void so_side_add(struct so_side *s, uint8_t *td, float hp, float dps) {
+internal void so_side_add(struct so_side *s, ee_unit_type *td, float hp, float dps) {
     if (s->n >= SO_MEM + SO_N || !td) return;
     s->td[s->n] = td; s->hp[s->n] = hp; s->dps[s->n] = dps; s->n++;
 }
@@ -199,7 +199,7 @@ internal int so_home_of(int p, int *x, int *y) {   // a player's Capitol, else T
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
         ee_player *o = unit_get_owner(it.u);
         if (!o || FIELD(o, PL_INDEX, int) != p || unit_get_hp(it.u) <= 0 || so_family(it.td) != 2) continue;
-        int t = FIELD(it.td, OF(TD, 0x4B8), int), pr = t == UT(B_CAPITOL) ? 3 : t == UT(B_TOWN_CENTER) ? 2 : 1;
+        int t = type_get_id(it.td), pr = t == UT(B_CAPITOL) ? 3 : t == UT(B_TOWN_CENTER) ? 2 : 1;
         if (pr > got) { got = pr; *x = unit_get_x(it.u); *y = unit_get_y(it.u); }
     }
     return got;
@@ -211,17 +211,17 @@ internal void so_types(void) {
     int best[SR_N] = { 0 };
     for (int r = 0; r < SR_N; r++) g_so.types[r] = 0;
     for (int t = 1; t < 724; t++) {
-        uint8_t *td = type_data(t);
-        if (!td || FIELD(td, OF(TD, 0x4B8), int) != t || !so_warship(td) || t == UT(X09_AGINCOURT_BATTLESHIP) || t == UT(X07_GOLDEN_HIND)) continue;
-        int r = so_role(td), tech = FIELD(td, OF(TD, 0x4E0), int);
+        ee_unit_type *td = type_data(t);
+        if (!td || type_get_id(td) != t || !so_warship(td) || t == UT(X09_AGINCOURT_BATTLESHIP) || t == UT(X07_GOLDEN_HIND)) continue;
+        int r = so_role(td), tech = type_get_tech(td);
         if (r < 0 || tech < 2000 || tech <= best[r]) continue;
         if (!(p1 && ld_type_avail(p1, t)) && !(ai && ld_type_avail(ai, t))) continue;
         best[r] = tech; g_so.types[r] = t;
     }
     g_so.trtype = 0;
     for (int t = 0, bt = 0; t < G_TYPES_N; t++)   // the newest transport (as ld_transport_type)
-        if (is_transport(t) && ((p1 && ld_type_avail(p1, t)) || (ai && ld_type_avail(ai, t))) && FIELD(type_data(t), OF(TD, 0x4E0), int) > bt) {
-            bt = FIELD(type_data(t), OF(TD, 0x4E0), int);
+        if (is_transport(t) && ((p1 && ld_type_avail(p1, t)) || (ai && ld_type_avail(ai, t))) && type_get_tech(type_data(t)) > bt) {
+            bt = type_get_tech(type_data(t));
             g_so.trtype = t;
         }
     static int cnt[G_TYPES_N];
@@ -231,7 +231,7 @@ internal void so_types(void) {
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
         ee_player *o = unit_get_owner(it.u);
         if (!o || FIELD(o, PL_INDEX, int) != g_so.ai || unit_get_hp(it.u) <= 0) continue;
-        int t = FIELD(it.td, OF(TD, 0x4B8), int), fam = so_family(it.td);
+        int t = type_get_id(it.td), fam = so_family(it.td);
         float r, a;
         if (is_soldier(it.td) && fam != 4 && fam != 10 && fam != 18 && fam != 21 && fam != 22 && fam != 3 && fam != 7 && fam != 17 && t > 0 && t < G_TYPES_N) cnt[t]++;
         else if (defence_stats(it.u, &r, &a) && !UT_IN(t, UT_TOWNS, UT_B_DOCK, UT_B_NAVY_YARD, UT_B_FORTRESS) && r * a > tr) { tr = r * a; tower = t; }
@@ -250,10 +250,10 @@ internal void so_scan(uint32_t now) {
     memset(&g_sos, 0, sizeof g_sos);
     for (it = grid_it_all(1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
-        uint8_t *td = it.td;
+        ee_unit_type *td = it.td;
         ee_player *o = unit_get_owner(u);
         if (!o || unit_get_hp(u) <= 0) continue;
-        int p = FIELD(o, PL_INDEX, int), x = unit_get_x(u), y = unit_get_y(u), fam = so_family(td), t = FIELD(td, OF(TD, 0x4B8), int);
+        int p = FIELD(o, PL_INDEX, int), x = unit_get_x(u), y = unit_get_y(u), fam = so_family(td), t = type_get_id(td);
         if (x < 0) continue;   // aboard
         if (p == 1) {
             if (g_sos.ne < 1024) { g_sos.ex[g_sos.ne] = x; g_sos.ey[g_sos.ne++] = y; }
@@ -312,7 +312,7 @@ internal void so_scan(uint32_t now) {
         struct so_mem *m = &g_so.m[k];
         float r = 0, a;
         if (kind == 1) defence_stats(e->u, &r, &a);
-        m->id = id; m->type = FIELD(e->td, OF(TD, 0x4B8), int); m->x = e->x; m->y = e->y; m->kind = kind; m->t = now;
+        m->id = id; m->type = type_get_id(e->td); m->x = e->x; m->y = e->y; m->kind = kind; m->t = now;
         m->hp = (float)unit_get_hp(e->u); m->dps = so_dps(e->u, e->td); m->r = r;
     }
     // fishing grounds: where the AI's boats were seen
@@ -333,7 +333,7 @@ internal void so_scan(uint32_t now) {
     // first version's raiders); one within 2 tiles of a zone at least as big is left out
     for (int k = 0; k < g_so.nm && g_sos.nz < SO_NZ; k++)
         if (g_so.m[k].kind == 1) { g_sos.zx[g_sos.nz] = g_so.m[k].x; g_sos.zy[g_sos.nz] = g_so.m[k].y; g_sos.zr[g_sos.nz++] = g_so.m[k].r + 2.0f; }
-    uint8_t *ftd = type_data(g_so.types[SR_F]);
+    ee_unit_type *ftd = type_data(g_so.types[SR_F]);
     for (int i = 0; i < g_sos.nu && g_sos.nz < SO_NZ; i++) {
         struct so_eu *e = &g_sos.u[i];
         if (!e->seen || (e->cls != SC_SIEGE && e->cls != SC_SOLD)) continue;
@@ -360,7 +360,7 @@ internal void so_ships(void) {
             for (int i = 0; i < g_sos.nu && n < 440; i++) {
                 struct so_eu *e = &g_sos.u[i];
                 if (so_d2(s->x, s->y, e->x, e->y) <= 144.0f && e->cls != SC_CIT && e->cls != SC_OTHER)
-                    n += sprintf(line + n, " T%d/c%d%s@%d,%d", FIELD(e->td, OF(TD, 0x4B8), int), e->cls, e->seen ? "" : "?", e->x, e->y);
+                    n += sprintf(line + n, " T%d/c%d%s@%d,%d", type_get_id(e->td), e->cls, e->seen ? "" : "?", e->x, e->y);
             }
             so_log("%s\n", line);
         }
@@ -385,7 +385,7 @@ internal void so_ships(void) {
             }
         }
         g_so.s[g_so.ns].u = g_sos.ps[i]; g_so.s[g_so.ns].id = g_sos.psid[i]; g_so.s[g_so.ns].grp = grp; g_so.s[g_so.ns].role = role;
-        g_so.s[g_so.ns].type = FIELD(unit_get_type_data(g_sos.ps[i]), OF(TD, 0x4B8), int); g_so.s[g_so.ns].x = unit_get_x(g_sos.ps[i]); g_so.s[g_so.ns].y = unit_get_y(g_sos.ps[i]);
+        g_so.s[g_so.ns].type = type_get_id(unit_get_type_data(g_sos.ps[i])); g_so.s[g_so.ns].x = unit_get_x(g_sos.ps[i]); g_so.s[g_so.ns].y = unit_get_y(g_sos.ps[i]);
         g_so.ns++;
     }
 }
@@ -509,7 +509,7 @@ internal void so_side_ships(struct so_side *s, int grp) {   // P1's ships of a g
     for (int k = 0; k < g_so.ns; k++)
         if (grp < 0 || g_so.s[k].grp == grp) {
             ee_unit *u = g_so.s[k].u;
-            uint8_t *td = unit_get_type_data(u);
+            ee_unit_type *td = unit_get_type_data(u);
             so_side_add(s, td, (float)unit_get_hp(u), so_dps(u, td));
         }
 }
@@ -922,13 +922,13 @@ internal void cmd_seaop(char *out, const char *args) {
             int x = unit_get_x(u), y = unit_get_y(u);
             so_cur_target(u, &cur);
             REPLY("  %s T%d at %d,%d hp %d/%.0f %s", g_so.s[k].grp == SO_RAID ? "raid" : g_so.s[k].grp == SO_MAIN ? "main" : "patrol",
-                  FIELD(unit_get_type_data(u), OF(TD, 0x4B8), int), x, y, unit_get_hp(u), so_hpmax(u), rtti_name(unit_get_goal(u)));
-            if (cur) REPLY(" -> T%d at %d,%d", FIELD(unit_get_type_data(cur), OF(TD, 0x4B8), int), unit_get_x(cur), unit_get_y(cur));
+                  type_get_id(unit_get_type_data(u)), x, y, unit_get_hp(u), so_hpmax(u), rtti_name(unit_get_goal(u)));
+            if (cur) REPLY(" -> T%d at %d,%d", type_get_id(unit_get_type_data(cur)), unit_get_x(cur), unit_get_y(cur));
             REPLY(" | near:");
             for (int i = 0; i < g_sos.nu; i++) {
                 struct so_eu *e = &g_sos.u[i];
                 if (so_d2(x, y, e->x, e->y) <= 100.0f && e->cls != SC_CIT && e->cls != SC_OTHER)
-                    REPLY(" T%d/c%d%s@%d,%d", FIELD(e->td, OF(TD, 0x4B8), int), e->cls, e->seen ? "" : "?", e->x, e->y);
+                    REPLY(" T%d/c%d%s@%d,%d", type_get_id(e->td), e->cls, e->seen ? "" : "?", e->x, e->y);
             }
             REPLY("%s\n", so_in_danger(x, y, 0.0f) ? " IN DANGER" : "");
         }

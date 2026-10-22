@@ -112,9 +112,9 @@ internal void cv_purge(uint32_t now) {   // once a minute: the records seen in t
 }
 
 // 1 a land fighter, 2 a warship / submarine, 0 else (citizens, aircraft, transports, priests, buildings)
-internal int cv_mil(uint8_t *td) {
-    int fam = FIELD(td, OF(TD, 0x4B4), int), t = FIELD(td, OF(TD, 0x4B8), int);
-    if (!is_army_family(fam) || is_citizen_type(t) || FIELD(td, OF(TD, 0x510), int) <= 0) return 0;
+internal int cv_mil(ee_unit_type *td) {
+    int fam = type_get_family(td), t = type_get_id(td);
+    if (!is_army_family(fam) || is_citizen_type(t) || type_get_attack(td) <= 0) return 0;
     if (fam == 3 || fam == 7 || fam == 17 || fam == 18 || fam == 21 || fam == 22) return 0;
     if (fam == 4 || fam == 10) return 2;
     return 1;
@@ -122,9 +122,9 @@ internal int cv_mil(uint8_t *td) {
 internal int cv_alive(ee_unit *u) { return unit_get_hp(u) > 0 && unit_get_x(u) >= 0; }
 internal int cv_built(ee_unit *u) { ee_unit *bs = unit_get_physics(u); return bs && unit_get_finished(bs); }
 internal int cv_value(ee_player *pl, int type) {   // the base price, F+W+S+G+I (no cheat)
-    uint8_t *obj = type_data(type);
+    ee_unit_type *obj = type_data(type);
     ee_tech_tree *tt = pl ? FIELD(pl, PL_TECHTREE, ee_tech_tree *) : NULL;
-    ee_tech *tech = obj && tt ? tech_lookup(tt, FIELD(obj, OF(TD, 0x4E0), int)) : NULL;
+    ee_tech *tech = obj && tt ? tech_lookup(tt, type_get_tech(obj)) : NULL;
     uint8_t *data = tech ? FIELD(tech, OF(TECH, 0x8), uint8_t *) : NULL;
     int v = 0;
     for (int r = 2; data && r < 7; r++) v += FIELD(data, OF(TECHDATA, 0x24) + (r - 2) * 4, int);
@@ -147,10 +147,10 @@ internal float cv_local(ee_player *pl, int x, int y, int r, int honest) {
     st_side_clear(&g_cvs_own); st_side_clear(&g_cvs_foe);
     for (struct grid_it it = grid_it_box(x, y, r + 10, 1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
-        uint8_t *td = it.td;
+        ee_unit_type *td = it.td;
         ee_player *o = unit_get_owner(u);
         if (!o || FIELD(o, PL_INDEX, int) <= 0 || !cv_alive(u)) continue;
-        int fam = FIELD(td, OF(TD, 0x4B4), int), d2 = cv_d2(unit_get_x(u), unit_get_y(u), x, y);
+        int fam = type_get_family(td), d2 = cv_d2(unit_get_x(u), unit_get_y(u), x, y);
         float rg, at;
         if (fam == 2 || fam == 29) {
             if (!defence_stats(u, &rg, &at) || at <= 0 || !cv_built(u) || (float)d2 > (rg + 1.0f) * (rg + 1.0f)) continue;
@@ -165,8 +165,8 @@ internal float cv_local(ee_player *pl, int x, int y, int r, int honest) {
 internal int cv_enemy_def(ee_player *pl, int x, int y) {
     for (struct grid_it it = grid_it_box(x, y, 12, 1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
-        uint8_t *td = it.td;
-        int fam = FIELD(td, OF(TD, 0x4B4), int);
+        ee_unit_type *td = it.td;
+        int fam = type_get_family(td);
         float rg, at;
         if ((fam != 2 && fam != 29) || !cv_alive(u) || !is_enemy(pl, unit_get_owner(u)) || !defence_stats(u, &rg, &at) || at <= 0 || !cv_built(u)) continue;
         if ((float)cv_d2(unit_get_x(u), unit_get_y(u), x, y) <= (rg + 1.0f) * (rg + 1.0f)) return 1;
@@ -192,10 +192,10 @@ internal void cv_scan(ee_player *pl, struct cv_pl *c) {
     c->base = ms_base(pl, &c->bx, &c->by);
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
-        uint8_t *td = it.td;
+        ee_unit_type *td = it.td;
         ee_player *o = unit_get_owner(u);
         if (!o || FIELD(o, PL_INDEX, int) <= 0 || !cv_alive(u)) continue;
-        int fam = FIELD(td, OF(TD, 0x4B4), int), t = FIELD(td, OF(TD, 0x4B8), int), x = unit_get_x(u), y = unit_get_y(u);
+        int fam = type_get_family(td), t = type_get_id(td), x = unit_get_x(u), y = unit_get_y(u);
         if (o == pl) {
             if (fam == 2 || fam == 29) {
                 float rg, at;
@@ -259,7 +259,7 @@ internal void cv_sample(ee_player *pl, struct cv_pl *c, uint32_t now) {
 // a military unit killed (diplo.c hook_kill_stat, n 3; k the killer's index; autotest)
 internal void cover_death(ee_unit *dead, int k) {
     if (!g_autotest || !g_log || !dead) return;
-    uint8_t *td = unit_get_type_data(dead);
+    ee_unit_type *td = unit_get_type_data(dead);
     ee_player *pl = unit_get_owner(dead);
     if (!td || !pl || unit_get_x(dead) < 0) return;
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
@@ -268,10 +268,10 @@ internal void cover_death(ee_unit *dead, int k) {
     struct cv_pl *c = &g_cv[idx];
     struct cv_rec *r = cv_find(dead, 0);
     uint32_t now = game_time();
-    int t = FIELD(td, OF(TD, 0x4B8), int), x = unit_get_x(dead), y = unit_get_y(dead), nb = 0;
+    int t = type_get_id(td), x = unit_get_x(dead), y = unit_get_y(dead), nb = 0;
     char line = 'o';
     if (kind == 2) line = 'w';
-    else if (FIELD(td, OF(TD, 0x4C4), int) == KIND_HERO) line = 'h';
+    else if (type_get_category(td) == KIND_HERO) line = 'h';
     else switch (mt_line(pl, t)) { case MB_INF: line = 'i'; break; case MB_RNG: line = 'r'; break; case MB_CAV: line = 'c'; break; case MB_SIE: line = 's'; break; default: break; }
     for (struct grid_it it = grid_it_box(x, y, 6, 1); grid_it_next(&it); ) {
         ee_player *o = unit_get_owner(it.u);
@@ -481,12 +481,12 @@ internal void cv_behave(ee_player *pl, unsigned idx, struct cv_pl *c, uint32_t n
     int nc = 0;
     for (int i = 0; i < g_cv_nu; i++) {
         ee_unit *u = g_cv_units[i];
-        uint8_t *td = unit_get_type_data(u);
+        ee_unit_type *td = unit_get_type_data(u);
         if (cv_mil(td) != 1 || cv_held(c, u) || landing_has_unit(pl, u)) continue;
         int x = unit_get_x(u), y = unit_get_y(u), hp = unit_get_hp(u), mx = cv_hpmax(u);
         unsigned a = area_id(x, y, 2);
         if (!a) continue;
-        if ((plan & 1) && c->nhs && mx > 0 && hp * 100 < mx * g_fb_hp && cv_value(pl, FIELD(td, OF(TD, 0x4B8), int)) >= g_fb_value) {
+        if ((plan & 1) && c->nhs && mx > 0 && hp * 100 < mx * g_fb_hp && cv_value(pl, type_get_id(td)) >= g_fb_value) {
             int best = -1, bd = g_fb_dist * g_fb_dist + 1;
             for (int k = 0; k < c->nhs; k++) {
                 int d = cv_d2(c->hx[k], c->hy[k], x, y);
@@ -498,7 +498,7 @@ internal void cv_behave(ee_player *pl, unsigned idx, struct cv_pl *c, uint32_t n
                 cv_take(c, u, 1, tx, ty, now, NULL, 0);
                 c->heal_sent++;
                 if (g_log && g_autotest) fprintf(g_log, "# cover: P%u at %.1f min: type %d at %d,%d (hp %d/%d) to the Hospital %d,%d\n", idx, now / 60000.0,
-                                                 FIELD(td, OF(TD, 0x4B8), int), x, y, hp, mx, c->hx[best], c->hy[best]);
+                                                 type_get_id(td), x, y, hp, mx, c->hx[best], c->hy[best]);
                 continue;
             }
         }
@@ -518,7 +518,7 @@ internal void cv_behave(ee_player *pl, unsigned idx, struct cv_pl *c, uint32_t n
             cv_take(c, u, kind, tx, ty, now, j >= 0 ? g_cvg[j].g : NULL, home);
             c->broke++; c->gaveup += kind == 3; c->home += home;
             if (g_log && g_autotest) fprintf(g_log, "# cover: P%u at %.1f min: type %d at %d,%d breaks off (fight %.2f) to %d,%d%s\n", idx, now / 60000.0,
-                                             FIELD(td, OF(TD, 0x4B8), int), x, y, e, tx, ty,
+                                             type_get_id(td), x, y, e, tx, ty,
                                              kind == 3 ? (home ? " - gives its attack up, home" : " - gives its attack up") : home ? " - home, no cover near" : "");
         }
     }

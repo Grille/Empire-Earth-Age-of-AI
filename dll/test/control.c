@@ -236,7 +236,7 @@ internal void cmd_foodcheck(char *out, const char *args) {
         int pos[2] = { unit_get_x(s), unit_get_y(s) };
         int dx = pos[0] - base[0], dy = pos[1] - base[1];
         REPLY(" zone %2d active=%d site %d,%d class=%#x region=%d explored=%d gatherers=%u amount=%d state=%d"
-              " zone+14=%d enemy=%d d2=%d\n", t, FIELD(zone, OF(ZONE, 0x18), uint8_t), pos[0], pos[1], FIELD(unit_get_type_data(s), OF(TD, 0x4B8), int),
+              " zone+14=%d enemy=%d d2=%d\n", t, FIELD(zone, OF(ZONE, 0x18), uint8_t), pos[0], pos[1], type_get_id(unit_get_type_data(s)),
               (short)map_area(pos, 2),
               explored_by(s, pl),
               site_gatherers(s),
@@ -270,8 +270,8 @@ internal void cmd_costs(char *out, const char *args) {
     while (sscanf(a, "%d%n", &type, &k) == 1) {
         char tag[32];
         wsprintfA(tag, "unit %d", type);
-        uint8_t *obj = type_data(type);
-        uint8_t *tech = obj ? (uint8_t *)tech_lookup((ee_tech_tree *)tt, FIELD(obj, OF(TD, 0x4E0), int)) : NULL;
+        ee_unit_type *obj = type_data(type);
+        uint8_t *tech = obj ? (uint8_t *)tech_lookup((ee_tech_tree *)tt, type_get_tech(obj)) : NULL;
         print_costs(out, tag, tech ? FIELD(tech, OF(TECH, 0x8), uint8_t *) : NULL);   // costs live in the unit's tech
         a += k;
     }

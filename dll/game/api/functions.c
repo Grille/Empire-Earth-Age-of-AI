@@ -14,7 +14,7 @@ internal inline ee_player **game_players(void) { return (ee_player **)GA(G_PLAYE
 internal inline unsigned game_player_count(void) { return *(unsigned *)GA(G_PLAYERS_N); }
 internal inline unsigned local_player_index(void) { return *(unsigned *)GA(G_LOCAL_PLAYER); }   // the player on this PC
 internal inline uintptr_t local_player_index_at(void) { return GA(G_LOCAL_PLAYER); }       // its address (aim.c's thunk)
-internal inline uint8_t **type_table(void) { return (uint8_t **)GA(G_TYPES); }              // [type] its data (world.c type_data)
+internal inline ee_unit_type **type_table(void) { return (ee_unit_type **)GA(G_TYPES); }              // [type] its data (world.c type_data)
 // the tech data's tables: an epoch's tech lists (0x10 each), the tech effects (0x44 each)
 internal inline uint8_t *epoch_tech_list(int e) { return (uint8_t *)GA(G_EPOCH_TECHS) + e * 0x10; }
 internal inline uint8_t *tech_effect(int id) { return (uint8_t *)GA(G_EFFECTS) + id * 0x44; }
@@ -84,7 +84,7 @@ internal inline unsigned short map_area(int *pt, int kind) {
     return ((unsigned short (__thiscall *)(void *, int *, int))GA(FN_REGION))((void *)GA(G_MAP_AREAS), pt, kind);
 }
 // the damage bonus of an attacker type (data atd) against a target type (data ttd), the players' indices
-internal inline float attack_bonus(uint8_t *atd, uint8_t *ttd, int api, int tpi) {
+internal inline float attack_bonus(ee_unit_type *atd, ee_unit_type *ttd, int api, int tpi) {
     return GF(FN_ATTACK_BONUS)((void *)GA(G_BONUS_TABLE), FIELD(atd, OF(TD, 0x4C8), int), ttd, api, tpi);
 }
 // the local player resigns (the menu's message sent), the exit dialog's confirmation (the originals of diplo.c's hooks)
@@ -293,12 +293,12 @@ internal inline int units_inside(ee_unit *u) { return GF(FN_UNITS_INSIDE)(u); }
 // the distance between two units (tiles)
 internal inline float unit_distance(ee_unit *a, ee_unit *b) { return GF(FN_UNIT_DISTANCE)(a, b); }
 // the unit changed in place into the type of new_td, owner player index pi (defence.c: a line upgrade)
-internal inline int unit_convert(ee_unit *u, int pi, uint8_t *new_td) { return GF(FN_UNIT_CONVERT)(u, pi, (uint32_t)new_td); }
+internal inline int unit_convert(ee_unit *u, int pi, ee_unit_type *new_td) { return GF(FN_UNIT_CONVERT)(u, pi, (uint32_t)new_td); }
 // the unit taken out of the map's unit list, given back to the game's pool (the originals of attack.c's guards)
 internal inline void unit_unlink(ee_unit *u) { GF(FN_UNIT_UNLINK)(u); }
 internal inline void unit_release(ee_unit *u) { GF(FN_UNIT_RELEASE)(u); }
 // the unit's type told that the unit got a goal (EEUnitClass's vtable, as the game's own goal assignment does)
-internal inline void type_goal_assigned(uint8_t *td, ee_unit *u) { ((void (__thiscall *)(void *, void *))(*(void ***)td)[GA(SLOT_TYPE_ASSIGN)])(td, u); }
+internal inline void type_goal_assigned(ee_unit_type *td, ee_unit *u) { ((void (__thiscall *)(void *, void *))(*(void ***)td)[GA(SLOT_TYPE_ASSIGN)])(td, u); }
 // a model's damage points (the original of defence.c's guard)
 internal inline int damage_points(void *model, int index, unsigned state) { return GF(FN_DAMAGE_POINTS)(model, index, state); }
 

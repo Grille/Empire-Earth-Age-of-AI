@@ -44,10 +44,10 @@ internal int intel_remembers(ee_player *pl, ee_unit *u) {
         if (in->known[h] == u) return 1;
     return 0;
 }
-internal int intel_kind(uint8_t *td) {
-    int fam = FIELD(td, OF(TD, 0x4B4), int);
+internal int intel_kind(ee_unit_type *td) {
+    int fam = type_get_family(td);
     if (fam == 2 || fam == 29) return 0;
-    if (is_soldier(td) || is_siege(FIELD(td, OF(TD, 0x4B8), int))) return 1;
+    if (is_soldier(td) || is_siege(type_get_id(td))) return 1;
     if (fam == 4) return 2;
     if (fam == 3 || fam == 7 || fam == 17) return 3;
     return 4;
@@ -141,10 +141,10 @@ internal void intel_tick(ee_player *pl, uint32_t now) {
     int seed = g_intel_seed && now > 60000 && !in->n;
     for (int k = 0; k < s.nlive; k++) {
         ee_unit *u = s.live[k];
-        uint8_t *td = unit_get_type_data(u);
+        ee_unit_type *td = unit_get_type_data(u);
         ee_player *o = unit_get_owner(u);
         if (!is_enemy(pl, o) || intel_kind(td) != 0) continue;
-        int x = unit_get_x(u), y = unit_get_y(u), t = FIELD(td, OF(TD, 0x4B8), int), oi = FIELD(o, PL_INDEX, int) & 15;
+        int x = unit_get_x(u), y = unit_get_y(u), t = type_get_id(td), oi = FIELD(o, PL_INDEX, int) & 15;
         if (seed && in->n < INTEL_REC) {
             struct intel_rec *e = &in->r[in->n++];
             float r, a = 0;
@@ -179,8 +179,8 @@ internal void intel_tick(ee_player *pl, uint32_t now) {
             } else in->n++;
         }
         struct intel_rec *e = &in->r[j];
-        uint8_t *td = unit_get_type_data(u);
-        e->u = u; e->owner = oi; e->type = FIELD(td, OF(TD, 0x4B8), int); e->kind = intel_kind(td);
+        ee_unit_type *td = unit_get_type_data(u);
+        e->u = u; e->owner = oi; e->type = type_get_id(td); e->kind = intel_kind(td);
         e->x = unit_get_x(u); e->y = unit_get_y(u); e->hp = unit_get_hp(u);
         float a = 0, r;
         if (e->kind == 0) defence_stats(u, &r, &a);
@@ -301,9 +301,9 @@ internal void cmd_vis(char *out, const char *args) {
     int h[5][4][2] = { 0 }, hi[5][4] = { 0 }, shown = 0;
     for (int k = 0; k < s.nu; k++) {
         ee_unit *u = s.u[k];
-        uint8_t *td = unit_get_type_data(u);
-        int x = unit_get_x(u), y = unit_get_y(u), fam = FIELD(td, OF(TD, 0x4B4), int);
-        int kind = fam == 2 || fam == 29 ? 0 : (is_soldier(td) || is_siege(FIELD(td, OF(TD, 0x4B8), int))) ? 1 : fam == 4 ? 2 : (fam == 3 || fam == 7 || fam == 17) ? 3 : 4;
+        ee_unit_type *td = unit_get_type_data(u);
+        int x = unit_get_x(u), y = unit_get_y(u), fam = type_get_family(td);
+        int kind = fam == 2 || fam == 29 ? 0 : (is_soldier(td) || is_siege(type_get_id(td))) ? 1 : fam == 4 ? 2 : (fam == 3 || fam == 7 || fam == 17) ? 3 : 4;
         float bd = 1e9f;
         for (int e = 0; e < s.ne; e++) {
             float dx = (float)(s.ex[e] - x), dy = (float)(s.ey[e] - y), d2 = dx * dx + dy * dy;
@@ -317,7 +317,7 @@ internal void cmd_vis(char *out, const char *args) {
         if (shown < 30 && kind != 0 && (strstr(args, "all") || ((v & 0xFF) != 0) != (d <= 12))) {
             shown++;
             REPLY("  P%d type %d (%s) at %d,%d: value %04X, nearest eye of P%d %.1f tiles\n", FIELD(unit_get_owner(u), PL_INDEX, int),
-                  FIELD(td, OF(TD, 0x4B8), int), kinds[kind], x, y, v, p, d);
+                  type_get_id(td), kinds[kind], x, y, v, p, d);
         }
     }
     if (strstr(args, "far")) {   // the land tiles farthest from every unit (P's side and its enemies): where nobody looks
@@ -382,7 +382,7 @@ internal void cmd_vistrack(char *out, const char *args) {
             float dx = (float)(s.ex[e] - ux), dy = (float)(s.ey[e] - uy), d2 = dx * dx + dy * dy;
             if (d2 < bd) bd = d2;
         }
-        REPLY("  #%d type %d at %d,%d hp %d: value %04X, nearest eye of P%d or allies %.1f\n", k, FIELD(unit_get_type_data(u), OF(TD, 0x4B8), int),
+        REPLY("  #%d type %d at %d,%d hp %d: value %04X, nearest eye of P%d or allies %.1f\n", k, type_get_id(unit_get_type_data(u)),
               ux, uy, unit_get_hp(u), vis_raw(u, (unsigned)p), p, sqrtf(bd));
         uint8_t *v = unit_get_vis(u);
         uint16_t *vv = v ? FIELD(v, 0xC, uint16_t *) : NULL;

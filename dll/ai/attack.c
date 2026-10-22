@@ -50,20 +50,20 @@ internal int seen_by(ee_unit *u, ee_player *pl) {
     ee_player *o = unit_get_owner(u);
     unsigned oi = o ? (unsigned)FIELD(o, PL_INDEX, int) & 15 : 0;
     if (c > g_vis_floor[pi][oi]) return 1;
-    int fam = FIELD(unit_get_type_data(u), OF(TD, 0x4B4), int);
+    int fam = type_get_family(unit_get_type_data(u));
     return (fam == 2 || fam == 29) && intel_remembers(pl, u);
 }
 
 // Defence building with a ground attack (AA guns and missile towers only shoot at aircraft).
 internal int defence_stats(ee_unit *u, float *range, float *attack) {
-    uint8_t *td = unit_get_type_data(u);
+    ee_unit_type *td = unit_get_type_data(u);
     if (!td) return 0;
-    int fam = FIELD(td, OF(TD, 0x4B4), int), type = FIELD(td, OF(TD, 0x4B8), int);
+    int fam = type_get_family(td), type = type_get_id(td);
     if (fam != 2 && fam != 29) return 0;
     if (type == UT(B_AA10_GUN_88MM) || type == UT(B_AA13_MISSILE_TOWER)) return 0;
     uint8_t *st = unit_get_stats(u);
-    float r = st ? FIELD(st, OF(USTAT, 0x9C), float) : FIELD(td, OF(TD, 0x420), float);
-    float a = st ? FIELD(st, OF(USTAT, 0xD8), float) : (float)FIELD(td, OF(TD, 0x510), int);
+    float r = st ? FIELD(st, OF(USTAT, 0x9C), float) : type_get_range(td);
+    float a = st ? FIELD(st, OF(USTAT, 0xD8), float) : (float)type_get_attack(td);
     if (!(a > 0.0f) || !(r > 1.0f) || r > 30.0f) return 0;
     *range = r; *attack = a;
     return 1;
@@ -85,7 +85,7 @@ internal void threat_refresh(ee_player *pl, uint32_t now) {
         struct defence *d = &g_threat[pi].d[n++];
         d->x = x; d->y = y; d->range = r; d->attack = a;
         d->owner = FIELD(unit_get_owner(u), PL_INDEX, int);
-        d->type = FIELD(unit_get_type_data(u), OF(TD, 0x4B8), int);
+        d->type = type_get_id(unit_get_type_data(u));
         d->u = u;
     }
     g_threat[pi].n = n;
@@ -142,8 +142,8 @@ internal int building_at(ee_player *pl, const int *dest, int r) {
     if (!grid) return 0;
     for (struct grid_it it = grid_it_box(dest[0], dest[1], r, 1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
-        uint8_t *td = it.td;
-        if (!td || FIELD(td, OF(TD, 0x4B4), int) != 2 || is_wall(FIELD(td, OF(TD, 0x4B8), int)) || !is_enemy(pl, unit_get_owner(u)))
+        ee_unit_type *td = it.td;
+        if (!td || type_get_family(td) != 2 || is_wall(type_get_id(td)) || !is_enemy(pl, unit_get_owner(u)))
             continue;
         int dx = unit_get_x(u) - dest[0], dy = unit_get_y(u) - dest[1];
         if (dx * dx + dy * dy <= r * r) return 1;
@@ -161,8 +161,8 @@ internal ee_unit *find_weak_spot(ee_player *pl, unsigned pi, const int *start, c
     int r = g_weak_radius;
     for (struct grid_it it = grid_it_box(dest[0], dest[1], r, 1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
-        uint8_t *td = it.td;
-        if (!td || FIELD(td, OF(TD, 0x4B4), int) != 2 || is_wall(FIELD(td, OF(TD, 0x4B8), int)) || !is_enemy(pl, unit_get_owner(u)) ||
+        ee_unit_type *td = it.td;
+        if (!td || type_get_family(td) != 2 || is_wall(type_get_id(td)) || !is_enemy(pl, unit_get_owner(u)) ||
             !seen_by(u, pl))
             continue;
         int pos[2] = { unit_get_x(u), unit_get_y(u) };
@@ -226,8 +226,8 @@ internal ee_unit *wall_at(ee_player *pl, int x, int y) {
     uint8_t *cell = cells + ((x / cs) * ny + y / cs) * 16;
     for (ee_unit **b = FIELD(cell, OF(GRIDCELL, 0x4), ee_unit **); b && b < FIELD(cell, OF(GRIDCELL, 0x8), ee_unit **); b++) {
         ee_unit *u = *b;
-        uint8_t *td = u ? unit_get_type_data(u) : NULL;
-        if (td && unit_get_x(u) == x && unit_get_y(u) == y && is_wall(FIELD(td, OF(TD, 0x4B8), int)) &&
+        ee_unit_type *td = u ? unit_get_type_data(u) : NULL;
+        if (td && unit_get_x(u) == x && unit_get_y(u) == y && is_wall(type_get_id(td)) &&
             is_enemy(pl, unit_get_owner(u)) && seen_by(u, pl))
             return u;
     }
@@ -294,10 +294,10 @@ internal void subgroup_count(uint8_t *sg, int *n, int *cit) {   // members of an
     uint8_t **b = FIELD(sg, OF(ASG, 0x54), uint8_t **), **e = FIELD(sg, OF(ASG, 0x58), uint8_t **);
     for (uint8_t **r = b; b && r < e && *n < 1000; r++) {
         ee_unit *u = *r ? FIELD(*r, OF(ASGU, 0x44), ee_unit *) : NULL;
-        uint8_t *td = u ? unit_get_type_data(u) : NULL;
+        ee_unit_type *td = u ? unit_get_type_data(u) : NULL;
         if (!td) continue;
         (*n)++;
-        *cit += is_citizen_type(FIELD(td, OF(TD, 0x4B8), int));
+        *cit += is_citizen_type(type_get_id(td));
     }
 }
 internal void citizen_attack_scan(ee_player *pl, uint32_t now) {
@@ -346,7 +346,7 @@ internal void __fastcall hook_asg_route(void *self, void *edx, int *start, int *
             if (g_log)
                 fprintf(g_log, "# weak spot: P%u goal %d,%d (threat %.1f, target kind %d id %d) -> type %d of P%d at %d,%d\n",
                         pi, dest[0], dest[1], t, FIELD(tg, 0x10, int), FIELD(tg, 0xC, int),
-                        FIELD(unit_get_type_data(u), OF(TD, 0x4B8), int), FIELD(unit_get_owner(u), PL_INDEX, int),
+                        type_get_id(unit_get_type_data(u)), FIELD(unit_get_owner(u), PL_INDEX, int),
                         unit_get_x(u), unit_get_y(u));
             dest[0] = unit_get_x(u); dest[1] = unit_get_y(u);
             FIELD(tg, 4, int) = dest[0]; FIELD(tg, 8, int) = dest[1];
@@ -429,10 +429,10 @@ internal int guarded(ee_player *pl, int x, int y, int r) {
     if (!pl || !grid) return 0;
     for (struct grid_it it = grid_it_box(x, y, r, 1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
-        uint8_t *td = it.td;
-        if (!td || FIELD(td, OF(TD, 0x4B4), int) != 5 || unit_get_hp(u) <= 0 || !is_enemy(pl, unit_get_owner(u)))
+        ee_unit_type *td = it.td;
+        if (!td || type_get_family(td) != 5 || unit_get_hp(u) <= 0 || !is_enemy(pl, unit_get_owner(u)))
             continue;
-        int t = FIELD(td, OF(TD, 0x4B8), int);
+        int t = type_get_id(td);
         if (ut_role(t, UTR_CITIZEN | UTR_RAM | UTR_SIEGE))
             continue;
         int dx = unit_get_x(u) - x, dy = unit_get_y(u) - y;
@@ -452,8 +452,8 @@ internal float __fastcall hook_asgu_score(void *self, void *edx, uint8_t *info) 
     // rams (melee, helpless against soldiers): no building while enemy soldiers guard it - they wait with the
     // army until the guards are dealt with
     ee_unit *me = FIELD(self, OF(ASGU, 0x44), ee_unit *);
-    uint8_t *mtd = me ? unit_get_type_data(me) : NULL;
-    if (g_siege && mtd && is_ram(FIELD(mtd, OF(TD, 0x4B8), int)) && s != 0.0f &&
+    ee_unit_type *mtd = me ? unit_get_type_data(me) : NULL;
+    if (g_siege && mtd && is_ram(type_get_id(mtd)) && s != 0.0f &&
         guarded(FIELD(sg, OF(ASG, 0x190), void *), unit_get_x(enemy), unit_get_y(enemy), 5)) {
         g_ram_waits++;
         return 0.0f;
@@ -462,11 +462,11 @@ internal float __fastcall hook_asgu_score(void *self, void *edx, uint8_t *info) 
     // circling over their own town and its march waits while any member is engaged (user's game: 25 of the player's
     // planes over P3's town kept its main force at its docks for 9+ minutes, AA tanks running after them). In reach
     // (its range + 3 tiles) they still shoot.
-    uint8_t *etd = unit_get_type_data(enemy);
-    int efam = etd ? FIELD(etd, OF(TD, 0x4B4), int) : 0;
+    ee_unit_type *etd = unit_get_type_data(enemy);
+    int efam = etd ? type_get_family(etd) : 0;
     if (g_ignore_air && s != 0.0f && me && (efam == 3 || efam == 7 || efam == 17)) {
         uint8_t *st = unit_get_stats(me);
-        float r = (st ? FIELD(st, OF(USTAT, 0x9C), float) : FIELD(mtd, OF(TD, 0x420), float)) + 3.0f;
+        float r = (st ? FIELD(st, OF(USTAT, 0x9C), float) : type_get_range(mtd)) + 3.0f;
         int dx = unit_get_x(enemy) - unit_get_x(me), dy = unit_get_y(enemy) - unit_get_y(me);
         if ((float)(dx * dx + dy * dy) > r * r) {
             g_air_skips++;
@@ -476,7 +476,7 @@ internal float __fastcall hook_asgu_score(void *self, void *edx, uint8_t *info) 
     // breach: the scorer rates walls below zero (never chosen while anything else is around); the subgroup's
     // breach segment and its neighbours become the best targets
     int bx, by;
-    if (etd && is_wall(FIELD(etd, OF(TD, 0x4B8), int)) && breach_of(sg, &bx, &by) &&
+    if (etd && is_wall(type_get_id(etd)) && breach_of(sg, &bx, &by) &&
         abs(unit_get_x(enemy) - bx) <= 1 && abs(unit_get_y(enemy) - by) <= 1)
         return unit_get_x(enemy) == bx && unit_get_y(enemy) == by ? 1000.0f : 500.0f;
     if (s != 0.0f && mass_tether(sg, me, enemy)) return 0.0f;   // mass.c army_mass 16: not far from the pack
@@ -538,10 +538,10 @@ internal int army_size(ee_player *pl) {
     int n = 0;
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
-        uint8_t *td = it.td;
+        ee_unit_type *td = it.td;
         if (!td || unit_get_owner(u) != pl) continue;
         // units only sit in the cell of their position
-        if (is_army_family(FIELD(td, OF(TD, 0x4B4), int))) n++;
+        if (is_army_family(type_get_family(td))) n++;
     }
     return n;
 }
@@ -568,8 +568,8 @@ internal ee_unit *unit_at(int x, int y, int type) {
     if (x < 0 || y < 0) return NULL;
     for (struct grid_it it = grid_it_box(x, y, 0, 1); grid_it_next(&it); ) {   // the one cell of x, y
         ee_unit *u = it.u;
-        uint8_t *td = it.td;
-        if (td && unit_get_x(u) == x && unit_get_y(u) == y && FIELD(td, OF(TD, 0x4B8), int) == type && unit_get_hp(u) > 0)
+        ee_unit_type *td = it.td;
+        if (td && unit_get_x(u) == x && unit_get_y(u) == y && type_get_id(td) == type && unit_get_hp(u) > 0)
             return u;
     }
     return NULL;
@@ -585,7 +585,7 @@ internal int unit_goal(ee_unit *u, void *goal, int append, int prio) {
     }
     unit_set_goal(u, goal, append, 0);
     unit_say(u, prio);
-    uint8_t *td = unit_get_type_data(u);
+    ee_unit_type *td = unit_get_type_data(u);
     type_goal_assigned(td, u);
     return 1;
 }
@@ -675,12 +675,12 @@ internal int raiders_near(ee_player *pl, int x, int y, int r0) {
     if (!grid || !pl) return 0;
     for (struct grid_it it = grid_it_box(x, y, r, 1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
-        uint8_t *td = it.td;
+        ee_unit_type *td = it.td;
         if (!td || unit_get_hp(u) <= 0 || abs(unit_get_x(u) - x) > r || abs(unit_get_y(u) - y) > r) continue;
-        int fam = FIELD(td, OF(TD, 0x4B4), int), t = FIELD(td, OF(TD, 0x4B8), int);
-        if ((fam != 5 && fam != 4 && !(g_cit_threats && fam == 10)) || is_citizen_type(t) || FIELD(td, OF(TD, 0x510), int) <= 0) continue;
+        int fam = type_get_family(td), t = type_get_id(td);
+        if ((fam != 5 && fam != 4 && !(g_cit_threats && fam == 10)) || is_citizen_type(t) || type_get_attack(td) <= 0) continue;
         uint8_t *st = unit_get_stats(u);
-        float rng = st ? FIELD(st, OF(USTAT, 0x9C), float) : FIELD(td, OF(TD, 0x420), float);
+        float rng = st ? FIELD(st, OF(USTAT, 0x9C), float) : type_get_range(td);
         int reach = rng > 0.0f && rng < 30.0f ? (int)(rng + 0.5f) + RAID_MARGIN : 0;
         if (reach > rmax) reach = rmax;
         if (reach < r0) reach = r0;
@@ -818,7 +818,7 @@ internal void citizens_safety(ee_resource_mgr *rm) {   // before the citizen ass
             }
             if (g_cit_threats) {   // not hunters: the animals hurt them (a farm is a building, family 2)
                 ee_unit *gs = goal && !strcmp(rtti_name(goal), "EEUGGather@@") ? FIELD(goal, OF(GOAL, 0x38), ee_unit *) : NULL;
-                hurt_note(idx, u, now, !(r == 2 && gs && FIELD(unit_get_type_data(gs), OF(TD, 0x4B4), int) != 2));
+                hurt_note(idx, u, now, !(r == 2 && gs && type_get_family(unit_get_type_data(gs)) != 2));
             }
             if (r == 0 && goal && goal_is_location(goal)) {   // a stray: an attack's leftover order
                 float gx = FIELD(goal, OF(GOAL, 0x20), float), gy = FIELD(goal, OF(GOAL, 0x24), float);
@@ -866,14 +866,14 @@ internal void citizens_safety(ee_resource_mgr *rm) {   // before the citizen ass
             int raided = raiders_near(pl, unit_get_x(site), unit_get_y(site), build ? 8 : 6);
             // builders near known towers only: only of fields (walls and towers at the front: the wall manager sends
             // them again and again)
-            if (build && !raided && FIELD(unit_get_type_data(site), OF(TD, 0x4B8), int) != UT(B_FARM)) continue;
+            if (build && !raided && type_get_id(unit_get_type_data(site)) != UT(B_FARM)) continue;
             if (!build && !raided && hurt_danger(pl, unit_get_x(site), unit_get_y(site), r)) raided = 1;   // hurt there
             if (!raided && (build || !site_danger_res(pl, site, r == 2, r))) continue;
             if (g_bunkers && bk_shelter(pl, u)) { sheltered++; continue; }   // under fire: into a fortress
             if (raided && abs(d[0] - unit_get_x(site)) <= 3 && abs(d[1] - unit_get_y(site)) <= 3) continue;   // at home already
             if (!unit_goal(u, goal_move((float)d[0] + 0.5f, (float)d[1] + 0.5f), 0, 0x1F40)) continue;
             sent++;
-            int st = FIELD(unit_get_type_data(site), OF(TD, 0x4B8), int), j = 0;
+            int st = type_get_id(unit_get_type_data(site)), j = 0;
             while (j < 4 && kinds[j][1] && kinds[j][0] != st) j++;
             if (j < 4) { kinds[j][0] = st; kinds[j][1]++; }
         }
@@ -895,8 +895,8 @@ internal void citizens_safety(ee_resource_mgr *rm) {   // before the citizen ass
         char other[64] = "";
         for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
             ee_unit *u = it.u;
-            uint8_t *td = it.td;
-            if (unit_get_owner(u) != pl || unit_get_hp(u) <= 0 || !is_citizen_type(FIELD(td, OF(TD, 0x4B8), int))) continue;
+            ee_unit_type *td = it.td;
+            if (unit_get_owner(u) != pl || unit_get_hp(u) <= 0 || !is_citizen_type(type_get_id(td))) continue;
             uint8_t *g = unit_get_goal(u);
             const char *gd = g ? rtti_name(g) : "";
             int k = !g ? 5 : !strcmp(gd, "EEUGGather@@") ? 0 : !strcmp(gd, "EEUGBuildRepair@@") ? 1 :
@@ -1006,8 +1006,8 @@ internal void siege_train(ee_player *pl, unsigned pi, int have, uint32_t now) {
     int factory = 0;
     for (struct grid_it it = grid_it_all(1); !factory && grid_it_next(&it); ) {
         ee_unit *u = it.u;
-        uint8_t *td = it.td;
-        if (td && unit_get_owner(u) == pl && FIELD(td, OF(TD, 0x4B8), int) == UT(B_SIEGE_FACTORY)) { factory = 1; break; }
+        ee_unit_type *td = it.td;
+        if (td && unit_get_owner(u) == pl && type_get_id(td) == UT(B_SIEGE_FACTORY)) { factory = 1; break; }
     }
     if (!factory) {
         // the build manager (cm +0x3C) works through per-epoch queues (+4 + epoch*0x14, 12-byte entries {type, x, y};
@@ -1059,10 +1059,10 @@ internal void siege_tick(ee_player *pl, uint32_t now) {
     ee_unit *siege[MAXS]; int ns = 0; float sx = 0, sy = 0, srange = 99;
     for (struct grid_it it = grid_it_all(1); ns < MAXS && grid_it_next(&it); ) {
         ee_unit *u = it.u;
-        uint8_t *td = it.td;
-        if (!td || unit_get_owner(u) != pl || !is_siege(FIELD(td, OF(TD, 0x4B8), int)) || unit_get_hp(u) <= 0) continue;
+        ee_unit_type *td = it.td;
+        if (!td || unit_get_owner(u) != pl || !is_siege(type_get_id(td)) || unit_get_hp(u) <= 0) continue;
         uint8_t *st = unit_get_stats(u);
-        float r = st ? FIELD(st, OF(USTAT, 0x9C), float) : FIELD(td, OF(TD, 0x420), float);
+        float r = st ? FIELD(st, OF(USTAT, 0x9C), float) : type_get_range(td);
         if (r < srange) srange = r;
         siege[ns++] = u; sx += (float)unit_get_x(u); sy += (float)unit_get_y(u);
     }
@@ -1129,7 +1129,7 @@ internal void siege_tick(ee_player *pl, uint32_t now) {
     }
     if (!found) return;
     int changed = tx != g_siege_st[pi].tx || ty != g_siege_st[pi].ty;
-    g_siege_st[pi].tx = tx; g_siege_st[pi].ty = ty; g_siege_st[pi].ttype = FIELD(unit_get_type_data(t), OF(TD, 0x4B8), int);
+    g_siege_st[pi].tx = tx; g_siege_st[pi].ty = ty; g_siege_st[pi].ttype = type_get_id(unit_get_type_data(t));
     g_siege_st[pi].px = (int)px; g_siege_st[pi].py = (int)py;
     // WAVES: every siege weapon used to be sent to the firing position the moment it existed - one by one, without
     // escorts, through the player's army camped outside the town (user's game: "1 ordered, 0 escorts" again and
@@ -1183,9 +1183,9 @@ internal void siege_tick(ee_player *pl, uint32_t now) {
     int want = nhome * 3 / 2 < 4 ? 4 : nhome * 3 / 2, escorts = 0, idle = 0;
     for (struct grid_it it = grid_it_all(1); idle < 2 && grid_it_next(&it); ) {
         ee_unit *u = it.u;
-        uint8_t *td = it.td;
+        ee_unit_type *td = it.td;
         if (!td || unit_get_owner(u) != pl || unit_get_goal(u) || unit_get_hp(u) <= 0) continue;
-        int fam = FIELD(td, OF(TD, 0x4B4), int);
+        int fam = type_get_family(td);
         idle += fam == 5 && is_soldier(td);   // land soldiers (is_soldier: no citizens, siege, rams - the ram 158 was missed)
     }
     if (!hold && idle < 2) hold = "no escorts";
@@ -1206,9 +1206,9 @@ internal void siege_tick(ee_player *pl, uint32_t now) {
     // the hand-written loop checked MAXE only per cell)
     for (struct grid_it it = grid_it_all(1); escorts < want && escorts < MAXE && grid_it_next(&it); ) {
         ee_unit *u = it.u;
-        uint8_t *td = it.td;
+        ee_unit_type *td = it.td;
         if (unit_get_owner(u) != pl || unit_get_goal(u) || unit_get_hp(u) <= 0) continue;
-        int fam = FIELD(td, OF(TD, 0x4B4), int);
+        int fam = type_get_family(td);
         if (fam != 5 || !is_soldier(td)) continue;   // land soldiers only (no citizens, siege, rams - 158 too)
         float ex = (float)unit_get_x(u) - px, ey = (float)unit_get_y(u) - py;
         if (ex * ex + ey * ey < 9.0f) { escorts++; continue; }   // already there
@@ -1266,8 +1266,8 @@ internal void asg_trace_tick(ee_player *pl, uint32_t now) {
                     FIELD(sg, OF(ASG, 0x70), unsigned), engaged, walk, fight, other, none);
             for (int w = 0; w < 2; w++) {   // the subgroup's target unit (+0x118) and the group's (+0x28 + 0x1C)
                 ee_unit *t = w ? FIELD(g, OF(AG, 0x44), ee_unit *) : FIELD(sg, OF(ASG, 0x118), ee_unit *);
-                uint8_t *ttd = t ? unit_get_type_data(t) : NULL;
-                if (ttd) fprintf(g_log, "; %s target type %d at %d,%d hp %d", w ? "group" : "its", FIELD(ttd, OF(TD, 0x4B8), int),
+                ee_unit_type *ttd = t ? unit_get_type_data(t) : NULL;
+                if (ttd) fprintf(g_log, "; %s target type %d at %d,%d hp %d", w ? "group" : "its", type_get_id(ttd),
                                  unit_get_x(t), unit_get_y(t), unit_get_hp(t));
             }
             fprintf(g_log, "; group %p +28:", (void *)g);
@@ -1437,9 +1437,9 @@ __attribute__((used)) void __cdecl unit_node_free(uint8_t **node, ee_unit *u) {
     if (!node || (!node[0] && !node[1]) || ((uint8_t **)unit_get_list_node(u)) != node) return;
     unit_unlink(u);
     if (g_log && g_unlinked++ < 5) {
-        uint8_t *td = unit_get_type_data(u);
+        ee_unit_type *td = unit_get_type_data(u);
         fprintf(g_log, "# engine guard: a unit (type %d) freed while still in the unit list - taken out at %.1f min\n",
-                td ? FIELD(td, OF(TD, 0x4B8), int) : -1, game_time() / 60000.0);
+                td ? type_get_id(td) : -1, game_time() / 60000.0);
     }
 }
 __attribute__((used)) uintptr_t g_op_delete;   // game_op_delete(), set with the hooks
@@ -1470,8 +1470,8 @@ internal void __fastcall hook_unit_release(ee_unit *u, void *edx) {
     int again = !unit_get_refs(u) && unit_get_released(u) == 1 && !unit_get_list_node(u), live = unit_get_valid(u) != 0;
     if (again || live) {
         if (g_log && g_release_again++ < 10) {
-            uint8_t *td = unit_get_type_data(u);
-            fprintf(g_log, "# engine guard: a unit (type %d) %s - not given back to the pool at %.1f min\n", td ? FIELD(td, OF(TD, 0x4B8), int) : -1,
+            ee_unit_type *td = unit_get_type_data(u);
+            fprintf(g_log, "# engine guard: a unit (type %d) %s - not given back to the pool at %.1f min\n", td ? type_get_id(td) : -1,
                     again ? "released a second time" : "released while still in the game", game_time() / 60000.0);
         }
         return;
@@ -1511,7 +1511,7 @@ internal char __fastcall hook_goal_cast(void *goal, void *edx, void *unit) {
     if (goal) return goal_fits(goal, unit);
     if (g_log && g_goal_cast_null++ < 5)
         fprintf(g_log, "# engine guard: a unit's goal 0xFBA without its goal object (type %d) at %.1f min - skipped\n",
-                unit && unit_get_type_data(unit) ? FIELD(unit_get_type_data(unit), OF(TD, 0x4B8), int) : -1, game_time() / 60000.0);
+                unit && unit_get_type_data(unit) ? type_get_id(unit_get_type_data(unit)) : -1, game_time() / 60000.0);
     return 0;
 }
 internal void attack_install(const char *aimod_ini, const char *autotest_ini) {
@@ -1614,10 +1614,10 @@ internal void cmd_attacks(char *out, const char *args) {
                     uint8_t *gl = unit_get_goal(u);
                     ee_unit *t = NULL;
                     if (gl && goal_is_attack(gl)) t = FIELD(gl, OF(GOAL, 0x30), ee_unit *);
-                    REPLY("       %d at %d,%d hp %d: %s", FIELD(unit_get_type_data(u), OF(TD, 0x4B8), int),
+                    REPLY("       %d at %d,%d hp %d: %s", type_get_id(unit_get_type_data(u)),
                           unit_get_x(u), unit_get_y(u), unit_get_hp(u), gl ? rtti_name(gl) : "-");
                     if (t) REPLY(" P%d's %d (family %d) at %d,%d", FIELD(unit_get_owner(t), PL_INDEX, int),
-                                 FIELD(unit_get_type_data(t), OF(TD, 0x4B8), int), FIELD(unit_get_type_data(t), OF(TD, 0x4B4), int),
+                                 type_get_id(unit_get_type_data(t)), type_get_family(unit_get_type_data(t)),
                                  unit_get_x(t), unit_get_y(t));
                     REPLY(" rec+48 %08x\n", FIELD(*r, OF(ASGU, 0x48), unsigned));
                 }
@@ -1631,8 +1631,8 @@ internal void cmd_attacks(char *out, const char *args) {
     }
 }
 
-internal int is_ship_or_air(uint8_t *td) {   // movement type +0x10C... unknown: by the ship/air families seen in tests
-    int fam = FIELD(td, OF(TD, 0x4B4), int);
+internal int is_ship_or_air(ee_unit_type *td) {   // movement type +0x10C... unknown: by the ship/air families seen in tests
+    int fam = type_get_family(td);
     return fam == 0x0B || fam == 0x0C || fam == 0x0D || fam == 0x0E || fam == 0x0F || fam == 0x10 || fam == 0x11;
 }
 

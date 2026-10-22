@@ -30,15 +30,15 @@ internal uint8_t *st_rec(ee_player *pl, int type) {   // the player's stats reco
 internal void *st_player(int i) {   // any player (g_players has the AIs only)
     return i >= 0 && i < 16 && (unsigned)i < game_player_count() ? game_players()[i] : NULL;
 }
-internal float st_factor(uint8_t *atd, int api, uint8_t *ttd, int tpi) {   // the game's hit factor, 0 = cannot hit
+internal float st_factor(ee_unit_type *atd, int api, ee_unit_type *ttd, int tpi) {   // the game's hit factor, 0 = cannot hit
     if (!atd || !ttd) return 0.0f;
     return attack_bonus(atd, ttd, api, tpi);
 }
 // damage of one shot of type atd (stats ast, player index api) at type ttd (stats tst, tpi); 0 = cannot hurt it
-internal int st_shot_t(uint8_t *atd, uint8_t *ast, int api, uint8_t *ttd, uint8_t *tst, int tpi) {
+internal int st_shot_t(ee_unit_type *atd, uint8_t *ast, int api, ee_unit_type *ttd, uint8_t *tst, int tpi) {
     if (!atd || !ttd) return 0;
-    float att = ast ? FIELD(ast, OF(USTAT, 0xD8), float) : (float)FIELD(atd, OF(TD, 0x510), int);
-    int ac = FIELD(atd, OF(TD, 0x4C0), int), tc = FIELD(ttd, OF(TD, 0x4C0), int);
+    float att = ast ? FIELD(ast, OF(USTAT, 0xD8), float) : (float)type_get_attack(atd);
+    int ac = type_get_damage_class(atd), tc = type_get_damage_class(ttd);
     if (att <= 0 || ac < 0 || ac > 5 || tc < 0 || tc > 5) return 0;
     float f = st_factor(atd, api, ttd, tpi) * ST_TABLE[ac + tc * 6];
     if (f <= 0) return 0;
@@ -51,9 +51,9 @@ internal int st_shot(ee_unit *a, ee_unit *t) {
     return st_shot_t(unit_get_type_data(a), unit_get_stats(a), st_pidx(a), unit_get_type_data(t),
                      unit_get_stats(t), st_pidx(t));
 }
-internal float st_reload_t(uint8_t *atd, uint8_t *ast) {   // seconds between shots (class value)
+internal float st_reload_t(ee_unit_type *atd, uint8_t *ast) {   // seconds between shots (class value)
     int ms = ast ? FIELD(ast, OF(USTAT, 0x138), int) : 0;
-    if (ms <= 0 && atd) ms = FIELD(atd, OF(TD, 0x50C), int);
+    if (ms <= 0 && atd) ms = type_get_reload(atd);
     return ms > 0 ? ms / 1000.0f : 1.0f;
 }
 internal float st_reload(ee_unit *a) {   // the unit's own (scenario triggers change it), else its class's
@@ -65,16 +65,16 @@ internal float st_reload(ee_unit *a) {   // the unit's own (scenario triggers ch
 // 4.6-7.1 s; about 2 s on every shot
 #define ST_SHOT_OVERHEAD 2.0f
 internal float st_dps(ee_unit *a, ee_unit *t) { return st_shot(a, t) / (st_reload(a) + ST_SHOT_OVERHEAD); }
-internal float st_range(ee_unit *u) { uint8_t *st = unit_get_stats(u); return st ? FIELD(st, OF(USTAT, 0x9C), float) : FIELD(unit_get_type_data(u), OF(TD, 0x420), float); }
+internal float st_range(ee_unit *u) { uint8_t *st = unit_get_stats(u); return st ? FIELD(st, OF(USTAT, 0x9C), float) : type_get_range(unit_get_type_data(u)); }
 internal float st_speed(ee_unit *u) { uint8_t *st = unit_get_stats(u); return st ? FIELD(st, OF(USTAT, 0xAC), float) : 0.0f; }   // tiles/s, 0 = cannot move
 // RANGE (the user: "it can even overpower all the other stats since a unit can be eliminated from range before ever
 // getting a chance to fire back"): a unit that cannot move never hits one that outranges it; a unit that is
 // outranged walks the difference under fire first (st_close)
 internal int st_reaches(ee_unit *a, ee_unit *t) { return st_speed(a) > 0 || st_range(a) + 0.5f >= st_range(t); }
-internal float st_minrange(ee_unit *u) { return FIELD(unit_get_type_data(u), OF(TD, 0x41C), float); }
+internal float st_minrange(ee_unit *u) { return type_get_min_range(unit_get_type_data(u)); }
 // once a mobile target has closed to its own range, an attacker whose minimum range is longer cannot hit it (artillery)
 internal int st_inside_min(ee_unit *a, ee_unit *t) { return st_speed(t) > 0 && st_minrange(a) > 0 && st_minrange(a) >= st_range(t); }
-internal int st_maxhp(uint8_t *td, uint8_t *st) { return st && FIELD(st, OF(USTAT, 0x144), int) > 0 ? FIELD(st, OF(USTAT, 0x144), int) : FIELD(td, OF(TD, 0x55C), int); }
+internal int st_maxhp(ee_unit_type *td, uint8_t *st) { return st && FIELD(st, OF(USTAT, 0x144), int) > 0 ? FIELD(st, OF(USTAT, 0x144), int) : type_get_hp(td); }
 
 // --- a fight between two sides ------------------------------------------------------------------------------------
 // By unit type: units of one type and player share their stats, so the work grows with types x types (a late army
@@ -101,8 +101,8 @@ struct st_side {
 };
 internal void st_side_clear(struct st_side *s) { free(s->cnt); memset(s, 0, sizeof *s); }
 internal int st_side_add(struct st_side *s, ee_unit *u) {   // 0 when full
-    uint8_t *td = unit_get_type_data(u);
-    int type = FIELD(td, OF(TD, 0x4B8), int), owner = st_pidx(u), k = 0;
+    ee_unit_type *td = unit_get_type_data(u);
+    int type = type_get_id(td), owner = st_pidx(u), k = 0;
     while (k < s->ng && (s->g[k].type != type || s->g[k].owner != owner)) k++;
     if (k == s->ng) {
         if (k == ST_GROUPS || s->n == ST_UNITS) return 0;
@@ -218,17 +218,17 @@ internal float st_ratio(struct st_side *own, struct st_side *foe) {
 // --- test command -------------------------------------------------------------------------------------------------
 
 struct st_scan { int x, y, r2, ta, tb; struct st_side *side[16]; };
-internal int st_counts(ee_unit *u, uint8_t *td) {   // soldiers, citizens and buildings that shoot
-    if (is_citizen_type(FIELD(td, OF(TD, 0x4B8), int))) return 1;
+internal int st_counts(ee_unit *u, ee_unit_type *td) {   // soldiers, citizens and buildings that shoot
+    if (is_citizen_type(type_get_id(td))) return 1;
     if (is_soldier(td)) return 1;
-    return (FIELD(td, OF(TD, 0x4B4), int) == 2 || FIELD(td, OF(TD, 0x4B4), int) == 29) && FIELD(td, OF(TD, 0x510), int) > 0 && u;
+    return (type_get_family(td) == 2 || type_get_family(td) == 29) && type_get_attack(td) > 0 && u;
 }
 internal void st_scan_unit(ee_unit *u, void *ctx) {
     struct st_scan *f = ctx;
-    uint8_t *td = unit_get_type_data(u);
+    ee_unit_type *td = unit_get_type_data(u);
     int p = st_pidx(u), dx = unit_get_x(u) - f->x, dy = unit_get_y(u) - f->y;
     if (unit_get_hp(u) <= 0 || !td || p <= 0 || p > 15 || !f->side[p] || dx * dx + dy * dy > f->r2) return;
-    if (f->ta >= 0 && FIELD(td, OF(TD, 0x4B8), int) != f->ta && FIELD(td, OF(TD, 0x4B8), int) != f->tb) return;   // only these types
+    if (f->ta >= 0 && type_get_id(td) != f->ta && type_get_id(td) != f->tb) return;   // only these types
     if (st_counts(u, td)) st_side_add(f->side[p], u);
 }
 internal double st_ms(LARGE_INTEGER a, LARGE_INTEGER b) {
@@ -253,11 +253,11 @@ internal void cmd_stats(char *out, const char *args) {
         ee_player *pl = st_player(p);
         if (!pl) { REPLY("error: stats types P [from to]\n"); return; }
         for (int t = lo; t < hi && t < 0x300; t++) {
-            uint8_t *td = type_data(t), *st = st_rec(pl, t);
+            ee_unit_type *td = type_data(t); uint8_t *st = st_rec(pl, t);
             if (!td || !st || FIELD(st, OF(USTAT, 0xD8), float) <= 0) continue;
             REPLY("%3d fam %2d class %d cat %2d weapon %2d: att %g hp %d reload %.2f s range %g (min %g) speed %g area %g armour", t,
-                  FIELD(td, OF(TD, 0x4B4), int), FIELD(td, OF(TD, 0x4C0), int), FIELD(td, OF(TD, 0x4C4), int), FIELD(td, OF(TD, 0x4C8), int),
-                  FIELD(st, OF(USTAT, 0xD8), float), st_maxhp(td, st), st_reload_t(td, st), FIELD(st, OF(USTAT, 0x9C), float), FIELD(td, OF(TD, 0x41C), float), FIELD(st, OF(USTAT, 0xAC), float), FIELD(st, OF(USTAT, 0xA0), float));
+                  type_get_family(td), type_get_damage_class(td), type_get_category(td), type_get_weapon(td),
+                  FIELD(st, OF(USTAT, 0xD8), float), st_maxhp(td, st), st_reload_t(td, st), FIELD(st, OF(USTAT, 0x9C), float), type_get_min_range(td), FIELD(st, OF(USTAT, 0xAC), float), FIELD(st, OF(USTAT, 0xA0), float));
             for (int c = 0; c < 6; c++) REPLY(" %g", FIELD(st, OF(USTAT, 0xE0) + c * 4, float));
             REPLY("\n");
         }
@@ -267,15 +267,15 @@ internal void cmd_stats(char *out, const char *args) {
         int p, t, q, u;
         if (sscanf(args + 2, "%d %d %d %d", &p, &t, &q, &u) != 4 || !st_player(p) || !st_player(q) ||
             t < 0 || t >= 0x300 || u < 0 || u >= 0x300) { REPLY("error: stats vs P T Q U\n"); return; }
-        uint8_t *atd = type_data(t), *btd = type_data(u), *ast = st_rec(st_player(p), t), *bst = st_rec(st_player(q), u);
+        ee_unit_type *atd = type_data(t); ee_unit_type *btd = type_data(u); uint8_t *ast = st_rec(st_player(p), t), *bst = st_rec(st_player(q), u);
         if (!atd || !btd) { REPLY("error: no type\n"); return; }
         for (int side = 0; side < 2; side++) {
-            uint8_t *xt = side ? btd : atd, *xs = side ? bst : ast, *yt = side ? atd : btd, *ys = side ? ast : bst;
+            ee_unit_type *xt = side ? btd : atd; uint8_t *xs = side ? bst : ast; ee_unit_type *yt = side ? atd : btd; uint8_t *ys = side ? ast : bst;
             int xp = side ? q : p, yp = side ? p : q, sh = st_shot_t(xt, xs, xp, yt, ys, yp), hp = st_maxhp(yt, ys);
             float rl = st_reload_t(xt, xs);
             int shots = sh ? (hp + sh - 1) / sh : 0;
             REPLY("%d of P%d -> %d of P%d: factor %.3g x table %.3g, %d a shot, every %.2f s: %.2f per s, kills (%d hp) in %d shots, %.1f s\n",
-                  side ? u : t, xp, side ? t : u, yp, st_factor(xt, xp, yt, yp), ST_TABLE[FIELD(xt, OF(TD, 0x4C0), int) + FIELD(yt, OF(TD, 0x4C0), int) * 6],
+                  side ? u : t, xp, side ? t : u, yp, st_factor(xt, xp, yt, yp), ST_TABLE[type_get_damage_class(xt) + type_get_damage_class(yt) * 6],
                   sh, rl, sh / rl, hp, shots, shots ? (shots - 1) * rl : -1.0f);
         }
         return;
@@ -346,12 +346,12 @@ internal void cmd_stats(char *out, const char *args) {
         if (!grid) { REPLY("error: no map\n"); return; }
         for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
             ee_unit *u = it.u;
-            uint8_t *td = it.td;
+            ee_unit_type *td = it.td;
             int q = st_pidx(u);
             if (unit_get_hp(u) <= 0 || q <= 0 || q > 15) continue;
             if (tt >= 0) {
                 int dx = unit_get_x(u) - x, dy = unit_get_y(u) - y, ex = unit_get_x(u) - tx, ey = unit_get_y(u) - ty;
-                if (q == p && FIELD(td, OF(TD, 0x4B8), int) == tt && dx * dx + dy * dy <= r * r && nm < ST_UNITS) mu[nm++] = u;
+                if (q == p && type_get_id(td) == tt && dx * dx + dy * dy <= r * r && nm < ST_UNITS) mu[nm++] = u;
                 else if (q != p && ex * ex + ey * ey <= 15 * 15 && is_enemy(st_player(p), st_player(q)) && nf < ST_UNITS) fu[nf++] = u;
                 continue;
             }
@@ -375,9 +375,9 @@ internal void cmd_stats(char *out, const char *args) {
     if (!strncmp(args, "typedump", 8)) {   // typedump T: type T's non-zero dwords from +0x400 (int / float)
         int t = 0, from = 0x400;
         sscanf(args + 8, "%d %x", &t, &from);
-        uint8_t *td = type_data(t);
+        ee_unit_type *td = type_data(t);
         if (!td || !mem_readable(td, 0x700)) { REPLY("error: no type %d\n", t); return; }
-        int o = snprintf(out, 4096, "ok: type %d family %d:", t, FIELD(td, OF(TD, 0x4B4), int));
+        int o = snprintf(out, 4096, "ok: type %d family %d:", t, type_get_family(td));
         for (int off = from & ~3; off < from + 0x300 && off < 0x700 && o < 3900; off += 4) {
             int v = FIELD(td, off, int);
             if (v) o += snprintf(out + o, 4096 - o, " %x=%d/%g", off, v, FIELD(td, off, float));
@@ -388,9 +388,9 @@ internal void cmd_stats(char *out, const char *args) {
     if (!strncmp(args, "garrison", 8)) {   // garrison: every type with a garrison capacity (type +0x550), its family
         int o = snprintf(out, 4096, "ok: types with a garrison capacity (type family capacity):");
         for (int t = 0; t < 724 && o < 3900; t++) {   // type ids end at 723
-            uint8_t *td = type_data(t);
-            if (!td || FIELD(td, OF(TD, 0x4B8), int) != t || FIELD(td, OF(TD, 0x550), int) <= 0) continue;
-            o += snprintf(out + o, 4096 - o, " %d/%d/%d", t, FIELD(td, OF(TD, 0x4B4), int), FIELD(td, OF(TD, 0x550), int));
+            ee_unit_type *td = type_data(t);
+            if (!td || type_get_id(td) != t || type_get_garrison_capacity(td) <= 0) continue;
+            o += snprintf(out + o, 4096 - o, " %d/%d/%d", t, type_get_family(td), type_get_garrison_capacity(td));
         }
         snprintf(out + o, 4096 - o, "\n");
         return;
@@ -405,11 +405,11 @@ internal void cmd_stats(char *out, const char *args) {
         if (!grid) { REPLY("error: no map\n"); return; }
         for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
             ee_unit *u = it.u;
-            uint8_t *td = it.td;
+            ee_unit_type *td = it.td;
             int q = st_pidx(u);
             if (unit_get_hp(u) <= 0 || q <= 0 || q > 15) continue;
-            if (q == p && is_citizen_type(FIELD(td, OF(TD, 0x4B8), int))) { if (nc < 4096) cit[nc++] = u; }
-            else if (q != p && is_enemy(st_player(p), st_player(q)) && FIELD(td, OF(TD, 0x510), int) > 0 && nf < 4096) foe[nf++] = u;
+            if (q == p && is_citizen_type(type_get_id(td))) { if (nc < 4096) cit[nc++] = u; }
+            else if (q != p && is_enemy(st_player(p), st_player(q)) && type_get_attack(td) > 0 && nf < 4096) foe[nf++] = u;
         }
         for (int i = 0; i < nc; i++) {
             ee_unit *c = cit[i], *best = NULL;
@@ -423,9 +423,9 @@ internal void cmd_stats(char *out, const char *args) {
             hit++;
             if (seen_by(best, st_player(p))) seen++;
             if (raiders_near(st_player(p), unit_get_x(c), unit_get_y(c), 6)) flagged++;
-            int t = FIELD(unit_get_type_data(best), OF(TD, 0x4B8), int), j = 0;
+            int t = type_get_id(unit_get_type_data(best)), j = 0;
             while (j < ntype && tt[j] != t) j++;
-            if (j == ntype && ntype < 32) { tt[ntype] = t; tr[ntype] = st_range(best); tf[ntype++] = FIELD(unit_get_type_data(best), OF(TD, 0x4B4), int); }
+            if (j == ntype && ntype < 32) { tt[ntype] = t; tr[ntype] = st_range(best); tf[ntype++] = type_get_family(unit_get_type_data(best)); }
             if (j < 32) tn[j]++;
         }
         int o = snprintf(out, 4096, "ok: P%d %d citizens, %d within an enemy's reach + 3 (%d of those enemies seen, %d flagged by raiders_near); nearest threat type(family) x n:",

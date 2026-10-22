@@ -96,10 +96,10 @@ internal void __fastcall hook_asg_update(void *sg, void *edx, int now) {
 struct as_obj { ee_player *pl; ee_player *target; unsigned pi, cont; int x, y; ee_unit *best; float score; };
 internal void as_obj_unit(ee_unit *u, void *ctx) {
     struct as_obj *s = ctx;
-    uint8_t *td = unit_get_type_data(u);
-    int fam = FIELD(td, OF(TD, 0x4B4), int);
+    ee_unit_type *td = unit_get_type_data(u);
+    int fam = type_get_family(td);
     if (unit_get_owner(u) != s->target || (fam != 2 && fam != 29) || unit_get_hp(u) <= 0 ||
-        is_wall(FIELD(td, OF(TD, 0x4B8), int)) || !seen_by(u, s->pl))
+        is_wall(type_get_id(td)) || !seen_by(u, s->pl))
         return;
     int x = unit_get_x(u), y = unit_get_y(u);
     float dx = (float)(x - s->x), dy = (float)(y - s->y), sc = sqrtf(dx * dx + dy * dy) + 3.0f * threat_at(s->pi, x, y);
@@ -124,13 +124,13 @@ internal ee_unit *as_enemy_near(ee_player *pl, ee_player *target, int x, int y, 
     if (soldiers) *soldiers = 0;
     for (struct grid_it it = grid_it_box(x, y, r, 1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
-        uint8_t *td = it.td;
+        ee_unit_type *td = it.td;
         if (!td || unit_get_hp(u) <= 0) continue;
         ee_player *o = unit_get_owner(u);
         if (!o || FIELD(o, PL_INDEX, int) <= 0 || !is_enemy(pl, o)) continue;
         float dx = (float)(unit_get_x(u) - x), dy = (float)(unit_get_y(u) - y), d2 = dx * dx + dy * dy;
         if (d2 > (float)(r * r)) continue;
-        int fam = FIELD(td, OF(TD, 0x4B4), int), type = FIELD(td, OF(TD, 0x4B8), int), k;
+        int fam = type_get_family(td), type = type_get_id(td), k;
         float rr, a;
         if (fam == 3 || fam == 7 || fam == 17 || fam == 4) continue;   // aircraft, ships: out of a land army's reach
         if (is_soldier(td) || is_siege(type)) { k = 0; if (soldiers) (*soldiers)++; }
@@ -143,7 +143,7 @@ internal ee_unit *as_enemy_near(ee_player *pl, ee_player *target, int x, int y, 
 }
 
 internal int is_aa(ee_unit *u) {   // anti-air units (AA tank, Stinger, Skywatcher): they stay home
-    int t = FIELD(unit_get_type_data(u), OF(TD, 0x4B8), int);
+    int t = type_get_id(unit_get_type_data(u));
     return t == UT(AA10_TANK) || t == UT(AA10_STINGER_SOLDIER) || t == UT(AA13_TANK_SKYWATCHER);
 }
 // what player pl has seen of its enemies within r tiles of (x, y): soldiers and siege (hit points x attack), with
@@ -157,13 +157,13 @@ internal float as_enemy_power(ee_player *pl, int x, int y, int r, float *cx, flo
     int rr = r + 12;
     for (struct grid_it it = grid_it_box(x, y, rr, 1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
-        uint8_t *td = it.td;
+        ee_unit_type *td = it.td;
         if (!td || unit_get_hp(u) <= 0) continue;
         ee_player *o = unit_get_owner(u);
         if (!o || FIELD(o, PL_INDEX, int) <= 0 || !is_enemy(pl, o) || !seen_by(u, pl)) continue;
         float dx = (float)(unit_get_x(u) - x), dy = (float)(unit_get_y(u) - y), d2 = dx * dx + dy * dy;
         float range, att;
-        if (is_soldier(td) || is_siege(FIELD(td, OF(TD, 0x4B8), int))) {
+        if (is_soldier(td) || is_siege(type_get_id(td))) {
             if (d2 > (float)(r * r)) continue;
             pow += unit_power(u); sx += (float)unit_get_x(u); sy += (float)unit_get_y(u); (*n)++;
         } else if (defences && defence_stats(u, &range, &att) && d2 <= (range + 2.0f) * (range + 2.0f))
@@ -220,13 +220,13 @@ internal void as_end(ee_player *pl, unsigned pi, uint32_t now, const char *why, 
 struct as_home { ee_player *pl; int nb, bx[512], by[512]; int ne, ex[512], ey[512]; };
 internal void as_home_unit(ee_unit *u, void *ctx) {
     struct as_home *h = ctx;
-    uint8_t *td = unit_get_type_data(u);
+    ee_unit_type *td = unit_get_type_data(u);
     ee_player *o = unit_get_owner(u);
     if (!o || unit_get_hp(u) <= 0) return;
-    int fam = FIELD(td, OF(TD, 0x4B4), int);
+    int fam = type_get_family(td);
     if (o == h->pl) {
-        if ((fam == 2 || fam == 29) && !is_wall(FIELD(td, OF(TD, 0x4B8), int)) && h->nb < 512) { h->bx[h->nb] = unit_get_x(u); h->by[h->nb++] = unit_get_y(u); }
-    } else if (FIELD(o, PL_INDEX, int) > 0 && is_enemy(h->pl, o) && (is_soldier(td) || is_siege(FIELD(td, OF(TD, 0x4B8), int))) &&
+        if ((fam == 2 || fam == 29) && !is_wall(type_get_id(td)) && h->nb < 512) { h->bx[h->nb] = unit_get_x(u); h->by[h->nb++] = unit_get_y(u); }
+    } else if (FIELD(o, PL_INDEX, int) > 0 && is_enemy(h->pl, o) && (is_soldier(td) || is_siege(type_get_id(td))) &&
                seen_by(u, h->pl) && h->ne < 512) { h->ex[h->ne] = unit_get_x(u); h->ey[h->ne++] = unit_get_y(u); }
 }
 // enemy soldiers and siege the AI sees within 20 tiles of any of its buildings: an army in its territory
@@ -308,11 +308,11 @@ internal void assault_tick(ee_player *pl, uint32_t now) {
             int aboard = 0, m0 = n;
             for (uint8_t **r = FIELD(sg, OF(ASG, 0x54), uint8_t **); r && r < FIELD(sg, OF(ASG, 0x58), uint8_t **); r++) {
                 ee_unit *u = *r ? FIELD(*r, OF(ASGU, 0x44), ee_unit *) : NULL;
-                uint8_t *td = u ? unit_get_type_data(u) : NULL;
+                ee_unit_type *td = u ? unit_get_type_data(u) : NULL;
                 if (!td || unit_get_hp(u) <= 0) continue;
                 if (unit_get_x(u) < 0) { aboard = 1; continue; }
                 if (!cont_ok(unit_get_x(u), unit_get_y(u), hc)) { aboard = 1; continue; }   // landed elsewhere
-                if (is_citizen_type(FIELD(td, OF(TD, 0x4B8), int))) continue;
+                if (is_citizen_type(type_get_id(td))) continue;
                 if (n < 512) mem[n++] = u;
             }
             if (aboard) { n = m0; continue; }
