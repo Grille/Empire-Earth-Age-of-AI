@@ -30,7 +30,7 @@ RANGES = {
 def rows(kind):
     src = open(os.path.join(ROOT, 'dll', 'game', 'api', 'raw', 'fields.h'), encoding='latin-1').read()
     return [(int(o, 16), None if v == 'NA' else int(v, 16), how) for o, v, how in
-            re.findall(r'O\(%s, 0x([0-9A-F]+), 0x[0-9A-F]+, (0x[0-9A-F]+|NA)\) /\* (.*?) \*/' % kind, src)]
+            re.findall(r'O\(%s_\w+, 0x([0-9A-F]+), (0x[0-9A-F]+|NA)\) /\* (.*?) \*/' % kind, src)]   # the 2017 offset: its column
 
 
 def show(kind, this, other):

@@ -3,7 +3,7 @@
 // Empire Earth.exe and every field offset it reads, by name, with its value in each exe build the mod knows - one
 // column per k_exe_builds entry (builds.h), in that order. game_build (exe.c) finds the running build, addr_select and
 // fields_select take its column when the DLL loads: GA(NAME) is the address, GF(NAME) the function there, typed by its
-// row, GL(NAME) a list of addresses (its count: sizeof GL(NAME) / sizeof *GL(NAME)), OF(KIND, offset) a field's
+// row, GL(NAME) a list of addresses (its count: sizeof GL(NAME) / sizeof *GL(NAME)), OF(NAME) a field's
 // offset. Another build - Art of Conquest, another release, a patched exe - is one more hash and one more value per
 // row (scripts/port_addrs.py, port_fields.py).
 // The address names: FN_ a function, CALL_ a call (patched), SITE_/CODE_ an instruction or operand, G_ data, VT_ a
@@ -70,14 +70,14 @@ internal void addr_log(FILE *log) {   // the names the running build hasn't got:
     fputc(10, log);
 }
 
-#define OF_ENUM(k, x, ...) OF_##k##_##x,
+#define OF_ENUM(n, ...) OF_##n,
 enum field_name { FIELDS(OF_ENUM) OF_N };
-#define OF_ROW(k, x, ...) { __VA_ARGS__ },
+#define OF_ROW(n, ...) { __VA_ARGS__ },
 internal const uint32_t k_of[OF_N][ADDR_BUILDS] = { FIELDS(OF_ROW) };
-#define OF_NAME(k, x, ...) #k " " #x,
+#define OF_NAME(n, ...) #n,
 internal const char *const k_of_name[OF_N] = { FIELDS(OF_NAME) };
 internal uint32_t g_of[OF_N];
-#define OF(k, x) (g_of[OF_##k##_##x])   // the running build's offset of the field the 2017 update has at x in a k
+#define OF(n) (g_of[OF_##n])   // the running build's offset of the field n (KIND_0xOFFSET: the 2017 update has it at +OFFSET in a KIND)
 internal int g_of_missing;   // fields the running build hasn't got (NA): logged at the start (fields_log)
 internal int fields_select(void) {   // the running exe's column (g_exe_build) into g_of (with addr_select)
     int missing = 0;

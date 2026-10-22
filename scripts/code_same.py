@@ -64,14 +64,17 @@ def addr_names(d):
 
 
 def field_names(d):
-    """the field table's rows in their order (g_of's index), 'KIND offset': a row added or taken out moves the others'
-    index - the same row is the same field"""
+    """the field table's rows in their order (g_of's index), by name (KIND_0xOFFSET; the rows before it were
+    O(KIND, 0xOFFSET, ...), named the same): a row added or taken out moves the others' index - the same row is the same field"""
     h = next((p for p in ('game/api/raw/fields.h', 'game/api/fields.h', 'game/fields.h') if os.path.exists(os.path.join(d, p))), None)
     if not h: return None
-    src = '#include "%s"\n#define CS_OF(k, x, ...) CSF k x ;\nCODE_SAME_FIELDS FIELDS(CS_OF)\n' % h
+    t = os.path.join(d, 'game/api/raw/tables.c')
+    named = os.path.exists(t) and '#define OF_ENUM(n, ...)' in open(t, encoding='latin-1').read()
+    cs = '#define CS_OF(n, ...) CSF n ;' if named else '#define CS_OF(k, x, ...) CSF k##_##x ;'
+    src = '#include "%s"\n%s\nCODE_SAME_FIELDS FIELDS(CS_OF)\n' % (h, cs)
     out = subprocess.run([CC, '-E', '-P', '-I', d, '-x', 'c', '-'], input=src, capture_output=True, text=True, cwd=d).stdout
     tail = out[out.rfind('CODE_SAME_FIELDS'):]
-    return ['%s %s' % m for m in re.findall(r'CSF (\w+) (\w+) ;', tail)] or None
+    return re.findall(r'CSF (\w+) ;', tail) or None
 
 
 def functions(obj, names=None, fields=None):

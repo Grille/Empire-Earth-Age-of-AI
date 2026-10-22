@@ -30,7 +30,7 @@ Several sessions may work in this tree at the same time - see Git below.
   `tables.c` (with `fields.h`'s; the builds `builds.h`'s) - `api.c` the module's one entry - by name with one value per exe build: `GA(G_WORLD_CLOCK)`,
   `GF(FN_CAN_BUILD)(pl, t, 0x20, 0)`, `GL(TRAIN_SITES)`, a vtable slot `GA(SLOT_ASG_UPDATE)`, an object's size
   `GA(SIZE_GOAL_BUILD)` - never a literal address, slot or size in the code. The game objects' fields likewise live
-  in `raw/fields.h`, by kind and the 2017 update's offset (`OF(UNIT, 0x1C)`; a field not in the table doesn't build;
+  in `raw/fields.h`, by kind and the 2017 update's offset (`OF(UNIT_0x1C)`; a field not in the table doesn't build;
   the runtime library's layouts - deque, vector, string - stay plain numbers), read by name through `objects.c`:
   `unit_get_x(u)`, `unit_set_behaviour(u, b)` (a setter only where the mod writes), typed by kind (types.h); OF only in
   game/api/ (it is raw/'s: scripts/layers.py) - a new field: its row, then its accessor. FIELD with a plain number
