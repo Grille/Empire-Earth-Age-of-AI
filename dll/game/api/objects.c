@@ -21,18 +21,18 @@ internal inline int unit_get_resource(const ee_unit *u) { return FIELD(u, UNIT_R
 internal inline int unit_get_hp(const ee_unit *u) { return FIELD(u, UNIT_HP, int); }                  // +0x3C hit points (> 0: alive)
 internal inline int unit_get_amount(const ee_unit *u) { return FIELD(u, UNIT_AMOUNT, int); }              // +0x40 a resource site's amount left
 internal inline int *unit_get_queue_begin(const ee_unit *u) { return FIELD(u, UNIT_QUEUE, int *); }      // +0x4C a building's queue
-internal inline int *unit_get_queue_end(const ee_unit *u) { return FIELD(u, UNIT_0x50, int *); }        // +0x50
+internal inline int *unit_get_queue_end(const ee_unit *u) { return FIELD(u, UNIT_QUEUE + 0x4, int *); }        // +0x50
 internal inline int unit_get_id(const ee_unit *u) { return FIELD(u, UNIT_ID, int); }                  // +0x60 (lookup 0x4111F6)
 // +0x68: not known - the AI's gatherer checks (econ.c, food.c) pass over a citizen where it is set
 internal inline int unit_get_busy(const ee_unit *u) { return FIELD(u, UNIT_BUSY, int); }
 // +0x130 its matrix (GETransformation): +0x134 / +0x144 / +0x154 the local y axis (facing), +0x13C / +0x14C / +0x15C
 // the position in tiles
-internal inline float unit_get_facing_x(const ee_unit *u) { return FIELD(u, UNIT_0x134, float); }
-internal inline float unit_get_facing_y(const ee_unit *u) { return FIELD(u, UNIT_0x144, float); }
-internal inline float unit_get_facing_z(const ee_unit *u) { return FIELD(u, UNIT_0x154, float); }
-internal inline float unit_get_pos_x(const ee_unit *u) { return FIELD(u, UNIT_0x13C, float); }
-internal inline float unit_get_pos_y(const ee_unit *u) { return FIELD(u, UNIT_0x14C, float); }
-internal inline float unit_get_pos_z(const ee_unit *u) { return FIELD(u, UNIT_0x15C, float); }
+internal inline float unit_get_facing_x(const ee_unit *u) { return FIELD(u, UNIT_MATRIX + 0x4, float); }
+internal inline float unit_get_facing_y(const ee_unit *u) { return FIELD(u, UNIT_MATRIX + 0x14, float); }
+internal inline float unit_get_facing_z(const ee_unit *u) { return FIELD(u, UNIT_MATRIX + 0x24, float); }
+internal inline float unit_get_pos_x(const ee_unit *u) { return FIELD(u, UNIT_MATRIX + 0xC, float); }
+internal inline float unit_get_pos_y(const ee_unit *u) { return FIELD(u, UNIT_MATRIX + 0x1C, float); }
+internal inline float unit_get_pos_z(const ee_unit *u) { return FIELD(u, UNIT_MATRIX + 0x2C, float); }
 internal inline ee_unit_type *unit_get_attacker_type(const ee_unit *u) { return FIELD(u, UNIT_ATTACKER_TYPE, ee_unit_type *); } // +0x1C0 a projectile's: the attack's type data
 // +0x1CC: the next of a chain from +0x30 - its last is what a BuildRepair goal holds (0x60BAD0)
 internal inline ee_unit *unit_get_chain(const ee_unit *u) { return FIELD(u, UNIT_CHAIN, ee_unit *); }
@@ -53,27 +53,28 @@ internal inline uint8_t unit_get_ai_held(const ee_unit *u) { return FIELD(u, UNI
 // A MAP TILE (the map's tile table, MAP +0x1816D4): its +0x10 is UNIT's
 internal inline float tile_get_height(const void *tile) { return FIELD(tile, TILE_HEIGHT, float); }
 
-// A UNIT'S GOAL (EEUnitGoal, a unit's +0x1EC; the kind by its vtable: goal_is_attack(g) ...): the fields of each kind
+// A UNIT'S GOAL (EEUnitGoal, a unit's +0x1EC; the kind by its vtable: goal_is_attack(g) ...): the fields of each kind,
+// from +0x20 on (GOAL_ARGS) its own
 internal inline uint8_t goal_get_state(const ee_goal *g) { return FIELD(g, GOAL_STATE, uint8_t); }        // +0x5 (aim.c: 2 while it attacks)
 // a move goal (goal_is_location): where to
 internal inline float goal_get_dest_x(const ee_goal *g) { return FIELD(g, GOAL_ARGS, float); }         // +0x20
-internal inline float goal_get_dest_y(const ee_goal *g) { return FIELD(g, GOAL_0x24, float); }         // +0x24
+internal inline float goal_get_dest_y(const ee_goal *g) { return FIELD(g, GOAL_ARGS + 0x4, float); }         // +0x24
 // an attack goal (goal_is_attack): the unit it attacks
-internal inline ee_unit *goal_get_target(const ee_goal *g) { return FIELD(g, GOAL_0x30, ee_unit *); }   // +0x30
+internal inline ee_unit *goal_get_target(const ee_goal *g) { return FIELD(g, GOAL_ARGS + 0x10, ee_unit *); }   // +0x30
 // a gather goal (EEUGGather): the resource site
-internal inline ee_unit *goal_get_site(const ee_goal *g) { return FIELD(g, GOAL_0x38, ee_unit *); }     // +0x38
+internal inline ee_unit *goal_get_site(const ee_goal *g) { return FIELD(g, GOAL_ARGS + 0x18, ee_unit *); }     // +0x38
 // a build or repair goal (EEUGBuildRepair, goal_is_build): the building
-internal inline ee_unit *goal_get_building(const ee_goal *g) { return FIELD(g, GOAL_0x3C, ee_unit *); } // +0x3C
+internal inline ee_unit *goal_get_building(const ee_goal *g) { return FIELD(g, GOAL_ARGS + 0x1C, ee_unit *); } // +0x3C
 // a load goal (goal_is_load): the transport or building to board
 internal inline ee_unit *goal_get_holder(const ee_goal *g) { return FIELD(g, GOAL_HOLDER, ee_unit *); }   // +0x50
 // an unload goal (goal_is_unload): the water tiles +0x24 / +0x2C, the point to unload at +0x34, the reach (squared)
-internal inline int goal_get_water_x(const ee_goal *g) { return FIELD(g, GOAL_0x24, int); }
-internal inline int goal_get_water_y(const ee_goal *g) { return FIELD(g, GOAL_0x28, int); }
-internal inline int goal_get_water2_x(const ee_goal *g) { return FIELD(g, GOAL_0x2C, int); }
-internal inline int goal_get_water2_y(const ee_goal *g) { return FIELD(g, GOAL_0x30, int); }
-internal inline int goal_get_unload_x(const ee_goal *g) { return FIELD(g, GOAL_0x34, int); }
-internal inline int goal_get_unload_y(const ee_goal *g) { return FIELD(g, GOAL_0x38, int); }
-internal inline float goal_get_reach_sq(const ee_goal *g) { return FIELD(g, GOAL_0x3C, float); }
+internal inline int goal_get_water_x(const ee_goal *g) { return FIELD(g, GOAL_ARGS + 0x4, int); }
+internal inline int goal_get_water_y(const ee_goal *g) { return FIELD(g, GOAL_ARGS + 0x8, int); }
+internal inline int goal_get_water2_x(const ee_goal *g) { return FIELD(g, GOAL_ARGS + 0xC, int); }
+internal inline int goal_get_water2_y(const ee_goal *g) { return FIELD(g, GOAL_ARGS + 0x10, int); }
+internal inline int goal_get_unload_x(const ee_goal *g) { return FIELD(g, GOAL_ARGS + 0x14, int); }
+internal inline int goal_get_unload_y(const ee_goal *g) { return FIELD(g, GOAL_ARGS + 0x18, int); }
+internal inline float goal_get_reach_sq(const ee_goal *g) { return FIELD(g, GOAL_ARGS + 0x1C, float); }
 
 // A UNIT TYPE'S DATA (EEUnitClass, type_data(t), a unit's +0x2C): the same for every unit of the type
 internal inline uint8_t *type_get_vtable(const ee_unit_type *td) { return FIELD(td, TD_VTABLE, uint8_t *); }
@@ -117,9 +118,9 @@ internal inline int stat_get_hp(const ee_unit_stats *st) { return FIELD(st, USTA
 // A PLAYER (EEPlayer, EEComputerPlayer; engine-notes.md "Players", the AI settings table's fields: ai/settings.c)
 // +0x18 / +0x1C: a list of 4-byte entries - not known; the population check's log counts it
 internal inline uint8_t *player_get_list_begin(const ee_player *pl) { return FIELD(pl, PL_LIST, uint8_t *); }
-internal inline uint8_t *player_get_list_end(const ee_player *pl) { return FIELD(pl, PL_0x1C, uint8_t *); }
+internal inline uint8_t *player_get_list_end(const ee_player *pl) { return FIELD(pl, PL_LIST + 0x4, uint8_t *); }
 internal inline void *player_name_at(const ee_player *pl) { return (void *)FIELD_AT(pl, PL_NAME); }        // +0x24 its name (UWideString)
-internal inline const char *player_get_name(const ee_player *pl) { return FIELD(pl, PL_0x28, const char *); } // +0x28 the name's text
+internal inline const char *player_get_name(const ee_player *pl) { return FIELD(pl, PL_NAME + 0x4, const char *); } // +0x28 the name's text
 internal inline const void *player_color_at(const ee_player *pl) { return FIELD_AT(pl, PL_COLOR); }      // +0x438 its colour (RGB)
 internal inline int player_get_index(const ee_player *pl) { return FIELD(pl, PL_INDEX, int); }          // +0x45C
 internal inline int8_t player_get_msg_id(const ee_player *pl) { return FIELD(pl, PL_MSG_ID, int8_t); }  // +0x464 its id in a chat message (msg +0xA)
@@ -147,7 +148,7 @@ internal inline uint8_t player_get_chat_to_player(const ee_player *pl, int i) { 
 internal inline void player_set_chat_to_player(ee_player *pl, int i, uint8_t v) { FIELD(pl, PL_CHAT_TO_PLAYER + i, uint8_t) = v; }
 internal inline void player_set_civ_chosen(ee_player *pl, uint8_t v) { FIELD(pl, PL_CIV_CHOSEN, uint8_t) = v; } // +0xB46 (0: the civ dialog opens)
 internal inline ee_zone **player_get_zones_begin(const ee_player *pl) { return FIELD(pl, PL_ZONES, ee_zone **); } // +0xB50 the resource zones (map-wide)
-internal inline ee_zone **player_get_zones_end(const ee_player *pl) { return FIELD(pl, PL_0xB54, ee_zone **); }
+internal inline ee_zone **player_get_zones_end(const ee_player *pl) { return FIELD(pl, PL_ZONES + 0x4, ee_zone **); }
 internal inline ee_combat_mgr *player_get_combat_mgr(const ee_player *pl) { return FIELD(pl, PL_COMBAT_MGR, ee_combat_mgr *); } // +0xB8C
 internal inline ee_civ_mgr *player_get_civ_mgr(const ee_player *pl) { return FIELD(pl, PL_CIV_MGR, ee_civ_mgr *); } // +0xB90 a computer player's
 internal inline uint8_t *player_get_b98(const ee_player *pl) { return FIELD(pl, PL_0xB98, uint8_t *); }    // +0xB98 (PLB98: not known)
@@ -207,12 +208,12 @@ internal inline ee_tech_tree *tech_get_tree(const ee_tech *t) { return FIELD(t, 
 internal inline int tech_get_epoch(const ee_tech *t) { return FIELD(t, TECH_EPOCH, int); }               // +0x14
 // an epoch node's children (game/tech.c): the 2017 update's vector +0x24 .. +0x28, Art of Conquest's map head +0x28
 internal inline uint8_t *tech_get_kids_begin(const ee_tech *t) { return FIELD(t, TECHNODE_KIDS, uint8_t *); }
-internal inline uint8_t *tech_get_kids_end(const ee_tech *t) { return FIELD(t, TECHNODE_0x28, uint8_t *); }
+internal inline uint8_t *tech_get_kids_end(const ee_tech *t) { return FIELD(t, TECHNODE_KIDS + 0x4, uint8_t *); }
 
 // A TECH'S DATA (tech_get_data(t): the same for every player)
 // +0x10 .. +0x14 the unit types that make it (its buildings)
 internal inline int *techdata_get_makers_begin(const ee_tech_data *d) { return FIELD(d, TECHDATA_MAKERS, int *); }
-internal inline int *techdata_get_makers_end(const ee_tech_data *d) { return FIELD(d, TECHDATA_0x14, int *); }
+internal inline int *techdata_get_makers_end(const ee_tech_data *d) { return FIELD(d, TECHDATA_MAKERS + 0x4, int *); }
 // +0x24 its cost by resource r (2 food .. 6 iron)
 internal inline int techdata_get_cost(const ee_tech_data *d, int r) { return FIELD(d, TECHDATA_COSTS + (r - 2) * 4, int); }
 internal inline int techdata_get_category(const ee_tech_data *d) { return FIELD(d, TECHDATA_CATEGORY, int); } // +0x48 (7: a line upgrade)
@@ -257,9 +258,9 @@ internal inline uint8_t cm_get_att_7c(const ee_civ_mgr *cm) { return FIELD(cm, C
 
 // A RESOURCE MANAGER (EECPResourceManager, CM +0x38; constructor/serializer 0x489F76 / 0x48C5B2)
 internal inline void **rm_get_hunt_begin(const ee_resource_mgr *rm) { return FIELD(rm, RM_HUNT, void **); } // +0x88 the animals to hunt
-internal inline void **rm_get_hunt_end(const ee_resource_mgr *rm) { return FIELD(rm, RM_0x8C, void **); }
+internal inline void **rm_get_hunt_end(const ee_resource_mgr *rm) { return FIELD(rm, RM_HUNT + 0x4, void **); }
 internal inline void **rm_get_fish_begin(const ee_resource_mgr *rm) { return FIELD(rm, RM_FISH, void **); } // +0x98 the fish
-internal inline void **rm_get_fish_end(const ee_resource_mgr *rm) { return FIELD(rm, RM_0x9C, void **); }
+internal inline void **rm_get_fish_end(const ee_resource_mgr *rm) { return FIELD(rm, RM_FISH + 0x4, void **); }
 // +0xA4 7 unit lists by resource (2 food .. 6 iron), deques 0x14 apart: their gatherers
 internal inline uint8_t *rm_list_at(const ee_resource_mgr *rm, int r) { return (uint8_t *)FIELD_AT(rm, RM_LISTS + r * 0x14); }
 internal inline ee_civ_mgr *rm_get_owner(const ee_resource_mgr *rm) { return FIELD(rm, RM_OWNER, ee_civ_mgr *); } // +0x130
@@ -289,11 +290,11 @@ internal inline uint8_t um_get_att_140(const ee_unit_mgr *um) { return FIELD(um,
 
 // A RESEARCH MANAGER (EECPResearchManager, CM +0x40)
 internal inline int *rs_get_pool_begin(const ee_research_mgr *rs) { return FIELD(rs, RS_POOL, int *); }  // +0x8 the techs it may research (ids)
-internal inline int *rs_get_pool_end(const ee_research_mgr *rs) { return FIELD(rs, RS_0xC, int *); }
-internal inline void rs_set_pool_end(ee_research_mgr *rs, int *e) { FIELD(rs, RS_0xC, int *) = e; }
+internal inline int *rs_get_pool_end(const ee_research_mgr *rs) { return FIELD(rs, RS_POOL + 0x4, int *); }
+internal inline void rs_set_pool_end(ee_research_mgr *rs, int *e) { FIELD(rs, RS_POOL + 0x4, int *) = e; }
 // +0x18 14 lists by epoch, 0x10 apart: {begin, end} of tech ids
 internal inline int *rs_get_epoch_begin(const ee_research_mgr *rs, int e) { return FIELD(rs, RS_EPOCH + e * 0x10, int *); }
-internal inline int *rs_get_epoch_end(const ee_research_mgr *rs, int e) { return FIELD(rs, RS_0x1C + e * 0x10, int *); }
+internal inline int *rs_get_epoch_end(const ee_research_mgr *rs, int e) { return FIELD(rs, RS_EPOCH + 0x4 + e * 0x10, int *); }
 internal inline int rs_get_current(const ee_research_mgr *rs) { return FIELD(rs, RS_CURRENT, int); }      // +0x114 what it researches now
 internal inline uint8_t *rs_initialized_at(const ee_research_mgr *rs) { return (uint8_t *)FIELD_AT(rs, RS_INITIALIZED); } // +0x118 the schedule set up (while 0)
 internal inline uint8_t rs_get_att_random(const ee_research_mgr *rs) { return FIELD(rs, RS_ATT_RANDOM, uint8_t); } // +0x11A the attention's activity 2 (random research)
@@ -309,18 +310,18 @@ internal inline uint8_t am_get_att_4c(const ee_combat_mgr *am) {
 internal inline uint8_t am_get_att_62(const ee_combat_mgr *am) { return FIELD(am, AM_0x62, uint8_t); }
 // +0x4 the groups, a deque of ee_attack_group * (deque_at); +0x14 its count
 internal inline uint8_t *ac_groups_at(const ee_attack_cmd *ac) { return (uint8_t *)FIELD_AT(ac, AMCMD_GROUPS); }
-internal inline int ac_get_group_count(const ee_attack_cmd *ac) { return FIELD(ac, AMCMD_0x14, int); }
+internal inline int ac_get_group_count(const ee_attack_cmd *ac) { return FIELD(ac, AMCMD_GROUPS + 0x10, int); }
 
 // AN ATTACK GROUP (EECPAttackGroup)
 internal inline ee_attack_subgroup **ag_get_subgroups_begin(const ee_attack_group *g) { return FIELD(g, AG_SUBGROUPS, ee_attack_subgroup **); } // +0x8
-internal inline ee_attack_subgroup **ag_get_subgroups_end(const ee_attack_group *g) { return FIELD(g, AG_0xC, ee_attack_subgroup **); }
+internal inline ee_attack_subgroup **ag_get_subgroups_end(const ee_attack_group *g) { return FIELD(g, AG_SUBGROUPS + 0x4, ee_attack_subgroup **); }
 internal inline ee_unit *ag_get_target_unit(const ee_attack_group *g) { return FIELD(g, AG_TARGET_UNIT, ee_unit *); } // +0x44 (its task +0x28's +0x1C)
 internal inline ee_player *ag_get_target(const ee_attack_group *g) { return FIELD(g, AG_TARGET, ee_player *); }  // +0x48 the player it attacks
 
 // AN ATTACK SUBGROUP (EECPAttackSubGroup; EECPASGLand, asg_is_land, has the fields from +0x60 on)
 internal inline ee_asg_unit **asg_get_units_begin(const ee_attack_subgroup *sg) { return FIELD(sg, ASG_UNITS, ee_asg_unit **); } // +0x54 its members
-internal inline ee_asg_unit **asg_get_units_end(const ee_attack_subgroup *sg) { return FIELD(sg, ASG_0x58, ee_asg_unit **); }
-internal inline void asg_set_units_end(ee_attack_subgroup *sg, ee_asg_unit **e) { FIELD(sg, ASG_0x58, ee_asg_unit **) = e; }
+internal inline ee_asg_unit **asg_get_units_end(const ee_attack_subgroup *sg) { return FIELD(sg, ASG_UNITS + 0x4, ee_asg_unit **); }
+internal inline void asg_set_units_end(ee_attack_subgroup *sg, ee_asg_unit **e) { FIELD(sg, ASG_UNITS + 0x4, ee_asg_unit **) = e; }
 // +0x60 the route, a deque of {x, y, ?} (attack.c route_waypoint); +0x70 its waypoints
 internal inline uint8_t *asg_route_at(const ee_attack_subgroup *sg) { return (uint8_t *)FIELD_AT(sg, ASG_ROUTE); }
 internal inline unsigned asg_get_waypoints(const ee_attack_subgroup *sg) { return FIELD(sg, ASG_WAYPOINTS, unsigned); }
@@ -353,7 +354,7 @@ internal inline void task_set_unknown_30(void *task, uint8_t v) { FIELD(task, TA
 
 // AN AI ZONE (a town or resource zone, player_get_zones_begin(pl)): its resource sites, whether it has a drop site, active
 internal inline void **zone_get_sites_begin(const ee_zone *z) { return FIELD(z, ZONE_SITES, void **); }   // +0x8 .. +0xC its sites (ee_unit *)
-internal inline void **zone_get_sites_end(const ee_zone *z) { return FIELD(z, ZONE_0xC, void **); }
+internal inline void **zone_get_sites_end(const ee_zone *z) { return FIELD(z, ZONE_SITES + 0x4, void **); }
 internal inline int zone_get_drop(const ee_zone *z) { return FIELD(z, ZONE_DROP, int); }                 // +0x14 a drop site serves it
 internal inline uint8_t zone_get_active(const ee_zone *z) { return FIELD(z, ZONE_ACTIVE, uint8_t); }       // +0x18
 
@@ -421,7 +422,7 @@ internal inline int grid_get_cell_size(const void *grid) { return FIELD(grid, GR
 internal inline int grid_get_nx(const void *grid) { return FIELD(grid, GRID_NX, int); }
 internal inline int grid_get_ny(const void *grid) { return FIELD(grid, GRID_NY, int); }
 internal inline ee_unit **cell_get_units_begin(const void *cell) { return FIELD(cell, GRIDCELL_UNITS, ee_unit **); }
-internal inline ee_unit **cell_get_units_end(const void *cell) { return FIELD(cell, GRIDCELL_0x8, ee_unit **); }
+internal inline ee_unit **cell_get_units_end(const void *cell) { return FIELD(cell, GRIDCELL_UNITS + 0x4, ee_unit **); }
 // a resource site's ownership record (unit_get_vis(site)): +4 1 while the site is flagged (taken)
 internal inline int siteown_get_flag(const void *so) { return FIELD(so, SITEOWN_FLAG, int); }
 
@@ -495,7 +496,7 @@ internal inline const char *chat_msg_get_text(const void *msg) { return FIELD(FI
 // a selection (EEMSelectUnits): the selection +0x10 (player_select), its unit ids +0x14 .. +0x18, +0x134 a flag
 internal inline uint8_t *select_msg_selection_at(const void *msg) { return (uint8_t *)FIELD_AT(msg, MSG_SELECT_SELECTION); }
 internal inline uint32_t *select_msg_get_ids_begin(const void *msg) { return FIELD(msg, MSG_SELECT_IDS, uint32_t *); }
-internal inline uint32_t *select_msg_get_ids_end(const void *msg) { return FIELD(msg, MSG_SELECT_0x18, uint32_t *); }
+internal inline uint32_t *select_msg_get_ids_end(const void *msg) { return FIELD(msg, MSG_SELECT_IDS + 0x4, uint32_t *); }
 internal inline uint8_t select_msg_get_flag(const void *msg) { return FIELD(msg, MSG_SELECT_FLAG, uint8_t); }
 // the game start (EEMStartLoading): +0x14 the game's seed
 internal inline unsigned start_msg_get_seed(const void *msg) { return FIELD(msg, MSG_START_SEED, unsigned); }
@@ -504,7 +505,7 @@ internal inline void start_msg_set_seed(void *msg, unsigned v) { FIELD(msg, MSG_
 // THE CAMERA ([G_CAMERA], game_camera()) AND THE SCROLL ACTION (EEAScroll)
 internal inline float *camera_look_at(const void *cam) { return (float *)FIELD_AT(cam, CAMERA_POS); }   // +0x78 x, y, z
 internal inline float camera_get_x(const void *cam) { return FIELD(cam, CAMERA_POS, float); }
-internal inline float camera_get_y(const void *cam) { return FIELD(cam, CAMERA_0x7C, float); }
+internal inline float camera_get_y(const void *cam) { return FIELD(cam, CAMERA_POS + 0x4, float); }
 internal inline float camera_get_zoom(const void *cam) { return FIELD(cam, CAMERA_ZOOM, float); }
 internal inline unsigned scroll_get_ticks(const void *s) { return FIELD(s, SCROLL_TICKS, unsigned); }    // +0x40 elapsed (10 ms)
 internal inline void scroll_set_ticks(void *s, unsigned v) { FIELD(s, SCROLL_TICKS, unsigned) = v; }
@@ -525,7 +526,7 @@ internal inline int plan_node_get_unknown_c(const uint8_t *nd) { return FIELD(nd
 internal inline int plan_node_get_unknown_10(const uint8_t *nd) { return FIELD(nd, CMLIST_0x10, int); }
 // a player's statistics (player_stats_at): series k {?, begin, end, ..} of 8-byte samples
 internal inline uint8_t *plstats_get_begin(const void *st, int k) { return FIELD(st, PLSTATS_LISTS + k * 0x18, uint8_t *); }
-internal inline uint8_t *plstats_get_end(const void *st, int k) { return FIELD(st, PLSTATS_0x20 + k * 0x18, uint8_t *); }
+internal inline uint8_t *plstats_get_end(const void *st, int k) { return FIELD(st, PLSTATS_LISTS + 0x4 + k * 0x18, uint8_t *); }
 // the object at a player's +0xB98 (not known): its +0x2D the attention's activity 7
 internal inline uint8_t b98_get_att(const uint8_t *b98) { return b98[PLB98_ATT]; }
 // the route planner (its own player's index +0x48) and its nodes (tile +0x3C, +0x40)
@@ -560,17 +561,15 @@ internal inline uint8_t *scrstate_get_window(const void *st) { return FIELD(st, 
 enum scrstate_stat { SS_SUM, SS_SUM_AVG, SS_SUM_RATE, SS_A_AVG, SS_A_RATE, SS_FPS, SS_B_AVG, SS_B_RATE, SS_C_AVG, SS_A,
                      SS_FRAMES, SS_B, SS_LAST, SS_C };
 internal inline void *scrstate_stat_at(void *st, enum scrstate_stat k) {
-    const uint32_t off[] = { E_SCRSTATE_STATS, E_SCRSTATE_0x2C8, E_SCRSTATE_0x2CC, E_SCRSTATE_0x2D0,
-        E_SCRSTATE_0x2D4, E_SCRSTATE_0x2D8, E_SCRSTATE_0x2DC, E_SCRSTATE_0x2E0, E_SCRSTATE_0x2E4,
-        E_SCRSTATE_0x328, E_SCRSTATE_0x32C, E_SCRSTATE_0x330, E_SCRSTATE_0x334, E_SCRSTATE_0x338 };
-    return FIELD_AT(st, off[k]);
+    const uint8_t off[] = { 0x0, 0x4, 0x8, 0xC, 0x10, 0x14, 0x18, 0x1C, 0x20, 0x64, 0x68, 0x6C, 0x70, 0x74 };   // from +0x2C4
+    return FIELD_AT(st, E_SCRSTATE_STATS + off[k]);
 }
 #define SS_F(st, k) (*(float *)scrstate_stat_at(st, k))      // the floats (sums, averages, rates)
 #define SS_U(st, k) (*(unsigned *)scrstate_stat_at(st, k))   // the counters, the last time (ms)
 // a screen (DX7Screen): its modes +0x10 .. +0x14 (0x14 each), the mode +0x38, the desktop's +0x3C, fullscreen +0x3D,
 // its DirectDraw +0x30
 internal inline uint8_t *screen_get_modes_begin(const void *scr) { return FIELD(scr, E_SCREEN_MODES, uint8_t *); }
-internal inline uint8_t *screen_get_modes_end(const void *scr) { return FIELD(scr, E_SCREEN_0x14, uint8_t *); }
+internal inline uint8_t *screen_get_modes_end(const void *scr) { return FIELD(scr, E_SCREEN_MODES + 0x4, uint8_t *); }
 internal inline void *screen_get_ddraw(const void *scr) { return FIELD(scr, E_SCREEN_DDRAW, void *); }   // IDirectDraw7 *
 internal inline unsigned screen_get_mode(const void *scr) { return FIELD(scr, E_SCREEN_MODE, unsigned); }
 internal inline void screen_set_mode(void *scr, unsigned v) { FIELD(scr, E_SCREEN_MODE, unsigned) = v; }
@@ -601,9 +600,9 @@ internal inline void font_set_bitmap(void *f, void *b) { FIELD(f, E_FONT_BITMAP,
 // .. +0x58, the mixer +0x70, the channel count +0x88
 internal inline uint8_t **sndmgr_get_slots(const void *sm) { return FIELD(sm, E_SOUNDMGR_SLOTS, uint8_t **); }
 internal inline uint8_t *sndmgr_get_paused_begin(const void *sm) { return FIELD(sm, E_SOUNDMGR_PAUSED, uint8_t *); }
-internal inline uint8_t *sndmgr_get_paused_end(const void *sm) { return FIELD(sm, E_SOUNDMGR_0x38, uint8_t *); }
+internal inline uint8_t *sndmgr_get_paused_end(const void *sm) { return FIELD(sm, E_SOUNDMGR_PAUSED + 0x4, uint8_t *); }
 internal inline uint8_t **sndmgr_get_cats_begin(const void *sm) { return FIELD(sm, E_SOUNDMGR_CATS, uint8_t **); }
-internal inline uint8_t **sndmgr_get_cats_end(const void *sm) { return FIELD(sm, E_SOUNDMGR_0x58, uint8_t **); }
+internal inline uint8_t **sndmgr_get_cats_end(const void *sm) { return FIELD(sm, E_SOUNDMGR_CATS + 0x4, uint8_t **); }
 internal inline uint8_t *sndmgr_get_mixer(const void *sm) { return FIELD(sm, E_SOUNDMGR_MIXER, uint8_t *); }
 internal inline uint32_t sndmgr_get_channels(const void *sm) { return FIELD(sm, E_SOUNDMGR_CHANNELS, uint32_t); }
 // a category: its share of the channels, its most channels, in use, priority
@@ -620,8 +619,8 @@ internal inline int sample_get_channel(const void *s) { return FIELD(s, E_SAMPLE
 enum mixer_fn { MIXER_GET_MAX_CHANNELS, MIXER_PLAY_CHANNEL, MIXER_SET_CHANNEL_SAMPLE, MIXER_SET_SAMPLE_VOLUME };
 // SPIMGetMaximumChannelCount, int (cdecl *)(int channel), int (cdecl *)(int channel, SESample *), SPIMSetSampleVolume
 internal inline void **mixer_fn_at(void *mx, enum mixer_fn k) {
-    const uint32_t off[] = { E_MIXER_SPIM, E_MIXER_0xD0, E_MIXER_0xD8, E_MIXER_0xF0 };
-    return (void **)FIELD_AT(mx, off[k]);
+    const uint8_t off[] = { 0x0, 0x20, 0x28, 0x40 };   // from +0xB0
+    return (void **)FIELD_AT(mx, E_MIXER_SPIM + off[k]);
 }
 
 // THE GAME'S MOUSE (game_mouse(): the cursor in the game's coordinates)

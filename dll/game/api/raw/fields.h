@@ -85,17 +85,14 @@
 // O(KIND_NAME, value per build)
 #define FIELDS(O) \
     O(AG_SUBGROUPS, 0x8, 0x8) /* c */ \
-    O(AG_0xC, 0xC, 0xC) /* c */ \
     O(AG_TARGET_UNIT, 0x44, 0x44) /* b */ \
     O(AG_TARGET, 0x48, 0x48) /* b */ \
     O(AM_COMMANDER, 0x48, 0x48) /* c */ \
     O(AM_0x4C, 0x4C, 0x4C) /* b */ \
     O(AM_0x62, 0x62, 0x62) /* v */ \
     O(AM4C_0x48, 0x48, 0x48) /* s */ \
-    O(AMCMD_GROUPS, 0x4, 0x4) /* s: the groups' deque, its count +0x10 the next row */ \
-    O(AMCMD_0x14, 0x14, 0x14) /* s */ \
+    O(AMCMD_GROUPS, 0x4, 0x4) /* s: the groups' deque (its count +0x10) */ \
     O(ASG_UNITS, 0x54, 0x54) /* c */ \
-    O(ASG_0x58, 0x58, 0x58) /* c */ \
     O(ASG_ROUTE, 0x60, 0x60) /* c */ \
     O(ASG_WAYPOINTS, 0x70, 0x70) /* c */ \
     O(ASG_TARGET_REC, 0x100, 0x100) /* c */ \
@@ -119,7 +116,6 @@
     O(BM_PLAYER, 0x138, 0x15C) /* c: its file's code (+0x24, 33 votes) */ \
     O(BM_INITIALIZED, 0x148, 0x16C) /* c: its file's code (+0x24) */ \
     O(CAMERA_POS, 0x78, 0x78) /* s */ \
-    O(CAMERA_0x7C, 0x7C, 0x7C) /* s */ \
     O(CAMERA_ZOOM, 0xE0, 0xE0) /* s */ \
     O(CM_PLAN, 0x8, 0x8) /* v */ \
     O(CM_RESOURCE_MGR, 0x38, 0x38) /* c */ \
@@ -153,9 +149,6 @@
     O(E_FONT_HFONT, 0x18, 0x18) /* c */ \
     O(E_FONT_BITMAP, 0x24, 0x24) /* c */ \
     O(E_MIXER_SPIM, 0xB0, 0xB0) /* c */ \
-    O(E_MIXER_0xD0, 0xD0, 0xD0) /* c */ \
-    O(E_MIXER_0xD8, 0xD8, 0xD8) /* c */ \
-    O(E_MIXER_0xF0, 0xF0, 0xF0) /* c */ \
     O(E_MOUSE_SUSPENDED, 0x4, 0x4) /* c */ \
     O(E_MOUSE_BUTTONS, 0x18, 0x18) /* c */ \
     O(E_MOUSE_DEVICE, 0x44, 0x44) /* c */ \
@@ -163,7 +156,6 @@
     O(E_RAS_DSTATES, 0x6C, 0x6C) /* c */ \
     O(E_SAMPLE_CHANNEL, 0x24, 0x24) /* c */ \
     O(E_SCREEN_MODES, 0x10, 0x10) /* c */ \
-    O(E_SCREEN_0x14, 0x14, 0x14) /* c */ \
     O(E_SCREEN_DDRAW, 0x30, 0x30) /* c */ \
     O(E_SCREEN_MODE, 0x38, 0x38) /* c */ \
     O(E_SCREEN_DESKTOP, 0x3C, 0x3C) /* c */ \
@@ -173,19 +165,6 @@
     O(E_SCRSTATE_BACK, 0x2B0, 0x2B0) /* c */ \
     O(E_SCRSTATE_WINDOW, 0x2BC, 0x2BC) /* c */ \
     O(E_SCRSTATE_STATS, 0x2C4, 0x2C4) /* c */ \
-    O(E_SCRSTATE_0x2C8, 0x2C8, 0x2C8) /* c */ \
-    O(E_SCRSTATE_0x2CC, 0x2CC, 0x2CC) /* c */ \
-    O(E_SCRSTATE_0x2D0, 0x2D0, 0x2D0) /* c */ \
-    O(E_SCRSTATE_0x2D4, 0x2D4, 0x2D4) /* c */ \
-    O(E_SCRSTATE_0x2D8, 0x2D8, 0x2D8) /* c */ \
-    O(E_SCRSTATE_0x2DC, 0x2DC, 0x2DC) /* c */ \
-    O(E_SCRSTATE_0x2E0, 0x2E0, 0x2E0) /* c */ \
-    O(E_SCRSTATE_0x2E4, 0x2E4, 0x2E4) /* c */ \
-    O(E_SCRSTATE_0x328, 0x328, 0x328) /* c */ \
-    O(E_SCRSTATE_0x32C, 0x32C, 0x32C) /* c */ \
-    O(E_SCRSTATE_0x330, 0x330, 0x330) /* c */ \
-    O(E_SCRSTATE_0x334, 0x334, 0x334) /* c */ \
-    O(E_SCRSTATE_0x338, 0x338, 0x338) /* c */ \
     O(E_SNDCAT_SHARE, 0x0, 0x0) /* c */ \
     O(E_SNDCAT_MAX, 0x4, 0x4) /* c */ \
     O(E_SNDCAT_USED, 0x8, 0x8) /* c */ \
@@ -195,9 +174,7 @@
     O(E_SNDNODE_SAMPLE, 0x20, 0x20) /* c */ \
     O(E_SOUNDMGR_SLOTS, 0x24, 0x24) /* c */ \
     O(E_SOUNDMGR_PAUSED, 0x34, 0x34) /* c */ \
-    O(E_SOUNDMGR_0x38, 0x38, 0x38) /* c */ \
     O(E_SOUNDMGR_CATS, 0x54, 0x54) /* c */ \
-    O(E_SOUNDMGR_0x58, 0x58, 0x58) /* c */ \
     O(E_SOUNDMGR_MIXER, 0x70, 0x70) /* c */ \
     O(E_SOUNDMGR_CHANNELS, 0x88, 0x88) /* c */ \
     O(E_SURF_DDS, 0x48, 0x48) /* c */ \
@@ -215,20 +192,12 @@
     O(GAMEDATA_UNIT_LIMIT_MAX, 0x2EC, 0x2EC) /* c: the code reading [G_GAME_DATA] (the setup copy 0x524B8F) */ \
     O(GOAL_STATE, 0x5, 0x5) /* b */ \
     O(GOAL_ARGS, 0x20, 0x20) /* c */ \
-    O(GOAL_0x24, 0x24, 0x24) /* c */ \
-    O(GOAL_0x28, 0x28, 0x28) /* c */ \
-    O(GOAL_0x2C, 0x2C, 0x2C) /* c */ \
-    O(GOAL_0x30, 0x30, 0x30) /* c */ \
-    O(GOAL_0x34, 0x34, 0x34) /* c */ \
-    O(GOAL_0x38, 0x38, 0x38) /* c */ \
-    O(GOAL_0x3C, 0x3C, 0x3C) /* c */ \
     O(GOAL_HOLDER, 0x50, 0x50) /* c */ \
     O(GRID_CELLS, 0x4, 0x4) /* s */ \
     O(GRID_CELL_SIZE, 0x8, 0x8) /* s */ \
     O(GRID_NX, 0x10, 0x10) /* s */ \
     O(GRID_NY, 0x14, 0x14) /* s */ \
     O(GRIDCELL_UNITS, 0x4, 0x4) /* s */ \
-    O(GRIDCELL_0x8, 0x8, 0x8) /* s */ \
     O(MAP_TILES, 0x1816D4, 0x1955F0) /* c */ \
     O(MAP_SIZE, 0x1816FC, 0x195618) /* c */ \
     O(MAP_GRID, 0x181724, 0x195640) /* c */ \
@@ -244,7 +213,6 @@
     O(MSG_CHAT_TEXT, 0x10, 0x10) /* c */ \
     O(MSG_SELECT_SELECTION, 0x10, 0x10) /* b */ \
     O(MSG_SELECT_IDS, 0x14, 0x14) /* b */ \
-    O(MSG_SELECT_0x18, 0x18, 0x18) /* b */ \
     O(MSG_SELECT_FLAG, 0x134, 0x134) /* c */ \
     O(MSG_START_SEED, 0x14, 0x14) /* c */ \
     O(MSG_TRIBUTE_FOOD, 0x10, 0x10) /* c */ \
@@ -260,9 +228,7 @@
     O(PHYS_STEPS_GRANTED, 0xB8, 0xB8) /* c */ \
     O(PHYS_TIME, 0xD0, 0xD0) /* c */ \
     O(PL_LIST, 0x18, 0x18) /* c */ \
-    O(PL_0x1C, 0x1C, 0x1C) /* c */ \
     O(PL_NAME, 0x24, 0x24) /* c */ \
-    O(PL_0x28, 0x28, 0x28) /* b */ \
     O(PL_COLOR, 0x438, 0x438) /* c */ \
     O(PL_INDEX, 0x45C, 0x45C) /* c */ \
     O(PL_MSG_ID, 0x464, 0x464) /* b */ \
@@ -285,7 +251,6 @@
     O(PL_CHAT_TO_PLAYER, 0xB2C, 0xB30) /* b */ \
     O(PL_CIV_CHOSEN, 0xB46, 0xB4A) /* v */ \
     O(PL_ZONES, 0xB50, 0xB84) /* c */ \
-    O(PL_0xB54, 0xB54, 0xB88) /* c */ \
     O(PL_COMBAT_MGR, 0xB8C, 0xBC0) /* c */ \
     O(PL_CIV_MGR, 0xB90, 0xBC4) /* c */ \
     O(PL_0xB98, 0xB98, 0xBCC) /* c */ \
@@ -315,11 +280,8 @@
     O(PL_IGNORE, 0xF02, 0xF52) /* c */ \
     O(PLB98_ATT, 0x2D, 0x2D) /* c: read through a player's +0xB98 */ \
     O(PLSTATS_LISTS, 0x1C, 0x1C) /* b */ \
-    O(PLSTATS_0x20, 0x20, 0x20) /* b */ \
     O(RM_HUNT, 0x88, 0x88) /* c: its file's code (the resource manager) */ \
-    O(RM_0x8C, 0x8C, 0x8C) /* c: its file's code (the resource manager) */ \
     O(RM_FISH, 0x98, 0x98) /* c: its file's code (the resource manager) */ \
-    O(RM_0x9C, 0x9C, 0x9C) /* c: its file's code (the resource manager) */ \
     O(RM_LISTS, 0xA4, 0xA4) /* c: its file's code (the resource manager) */ \
     O(RM_OWNER, 0x130, 0x130) /* c: its file's code (the resource manager) */ \
     O(RM_DEMAND, 0x134, 0x134) /* c: its file's code (the resource manager) */ \
@@ -331,9 +293,7 @@
     O(ROUTENODE_Y, 0x40, 0x40) /* s */ \
     O(ROUTEPLANNER_PLAYER_INDEX, 0x48, 0x48) /* c */ \
     O(RS_POOL, 0x8, 0x8) /* h: kept: the object's start, before its first known shift (0xF4 -> 0x104) */ \
-    O(RS_0xC, 0xC, 0xC) /* h: kept: the object's start, before its first known shift (0xF4 -> 0x104) */ \
     O(RS_EPOCH, 0x18, 0x18) /* h: kept: the object's start, before its first known shift (0xF4 -> 0x104) */ \
-    O(RS_0x1C, 0x1C, 0x1C) /* h: kept: the object's start, before its first known shift (0xF4 -> 0x104) */ \
     O(RS_CURRENT, 0x114, 0x124) /* v */ \
     O(RS_INITIALIZED, 0x118, 0x128) /* v */ \
     O(RS_ATT_RANDOM, 0x11A, 0x12A) /* v */ \
@@ -433,7 +393,6 @@
     O(TECH_DATA, 0x8, 0x8) /* v: the tech tree code's reads (unchanged) */ \
     O(TECH_EPOCH, 0x14, 0x14) /* v: the tech tree code's reads (unchanged) */ \
     O(TECHDATA_MAKERS, 0x10, 0x10) /* v: the tech tree code's reads (unchanged) */ \
-    O(TECHDATA_0x14, 0x14, 0x14) /* v: the tech tree code's reads (unchanged) */ \
     O(TECHDATA_COSTS, 0x24, 0x24) /* v: the tech tree code's reads (unchanged) */ \
     O(TECHDATA_CATEGORY, 0x48, 0x48) /* v: the tech tree code's reads (unchanged) */ \
     O(TECHDATA_ID, 0x4C, 0x4C) /* v: the tech tree code's reads (unchanged) */ \
@@ -443,7 +402,6 @@
     O(TECHDATA_AOC_NEW, 0x81, 0x81) /* h: AoC's epoch upgrades (standard only) grant only a tech with it set: dbtechtree byte 0xF7, clear on civ power and special unit upgrades (0 on all of the 2017 update's) - read in AoC only */ \
     O(TECHNODE_TREE, 0xC, 0xC) /* c */ \
     O(TECHNODE_KIDS, 0x24, 0x24) /* v */ \
-    O(TECHNODE_0x28, 0x28, 0x28) /* v */ \
     O(TILE_HEIGHT, 0x10, 0x10) /* c */ \
     O(TRIGCOND_INDEX, 0x4, 0x4) /* c: its file's code (the scenario manager) */ \
     O(TRIGCOND_JOIN, 0x8, 0x8) /* c: its file's code (the scenario manager) */ \
@@ -488,15 +446,9 @@
     O(UNIT_HP, 0x3C, 0x3C) /* c */ \
     O(UNIT_AMOUNT, 0x40, 0x40) /* c */ \
     O(UNIT_QUEUE, 0x4C, 0x4C) /* c */ \
-    O(UNIT_0x50, 0x50, 0x50) /* c */ \
     O(UNIT_ID, 0x60, 0x60) /* c */ \
     O(UNIT_BUSY, 0x68, 0x68) /* c */ \
-    O(UNIT_0x134, 0x134, 0x134) /* b */ \
-    O(UNIT_0x13C, 0x13C, 0x13C) /* b */ \
-    O(UNIT_0x144, 0x144, 0x144) /* b */ \
-    O(UNIT_0x14C, 0x14C, 0x14C) /* b */ \
-    O(UNIT_0x154, 0x154, 0x154) /* b */ \
-    O(UNIT_0x15C, 0x15C, 0x15C) /* b */ \
+    O(UNIT_MATRIX, 0x130, 0x130) /* b: the unit's matrix (GETransformation), its +0x4 .. +0x2C between fields of the same shift */ \
     O(UNIT_ATTACKER_TYPE, 0x1C0, 0x1C0) /* c */ \
     O(UNIT_CHAIN, 0x1CC, 0x1CC) /* c */ \
     O(UNIT_GOAL, 0x1EC, 0x1EC) /* c */ \
@@ -522,7 +474,6 @@
     O(USTAT_HP, 0x144, 0x144) /* c: read through a unit's +0x34 */ \
     O(WORLD_SEED, 0x54, 0x54) /* b */ \
     O(ZONE_SITES, 0x8, 0x8) /* s */ \
-    O(ZONE_0xC, 0xC, 0xC) /* s */ \
     O(ZONE_DROP, 0x14, 0x14) /* s */ \
     O(ZONE_ACTIVE, 0x18, 0x18) /* s */ \
 
