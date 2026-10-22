@@ -63,7 +63,7 @@ internal void ex_scan(ee_player *pl, uint32_t now, int new_log) {
             if (j < ns) continue;
             if (ns < 4096) seen[ns++] = s;
             int x = unit_get_x(s), y = unit_get_y(s);
-            struct ex_cont *c = ex_cont_of(area_id(x, y, 2), 1);
+            struct ex_cont *c = ex_cont_of(area_id(iv2(x, y), 2), 1);
             if (!c) continue;
             c->site[r]++;
             if (r >= 4) {
@@ -85,7 +85,7 @@ internal void ex_scan(ee_player *pl, uint32_t now, int new_log) {
         if (pi <= 0 || pi >= 16) continue;
         if (is_transport(t)) { g_exs.tr[pi]++; continue; }
         if (x < 0) { if (is_citizen_type(t)) g_exs.aboard[pi]++; continue; }
-        struct ex_cont *c = ex_cont_of(area_id(x, y, 2), 1);
+        struct ex_cont *c = ex_cont_of(area_id(iv2(x, y), 2), 1);
         if (!c) continue;
         if (fam == 2 || fam == 29) {
             if (is_wall(t)) continue;
@@ -130,7 +130,7 @@ internal void ex_scan(ee_player *pl, uint32_t now, int new_log) {
             ee_unit *s = g && !strcmp(rtti_name(g), "EEUGGather@@") ? goal_get_site(g) : NULL;
             int r = s && unit_get_type_data(s) ? unit_get_resource(s) : 0;
             if (r < 2 || r > 6) continue;
-            struct ex_cont *sc = ex_cont_of(area_id(unit_get_x(s), unit_get_y(s), 2), 1);
+            struct ex_cont *sc = ex_cont_of(area_id(unit_get_tile(s), 2), 1);
             if (sc) sc->gat[pi][r]++;
         } else if (is_soldier(td)) c->sold[pi]++;
     }
@@ -138,7 +138,7 @@ internal void ex_scan(ee_player *pl, uint32_t now, int new_log) {
 internal int ex_home(ee_player *pl) {
     ee_civ_mgr *cm = player_get_civ_mgr(pl); ee_build_mgr *bm = cm ? cm_get_build_mgr(cm) : NULL;
     if (!bm || bm_get_base_x(bm) == -10000) return 0;
-    return (int)area_id(bm_get_base_x(bm), bm_get_base_y(bm), 2);
+    return (int)area_id(bm_get_base(bm), 2);
 }
 // a continent's class for player pl (home: hc)
 internal int ex_class(ee_player *pl, const struct ex_cont *c, unsigned hc) {
@@ -326,7 +326,7 @@ internal int expand_refuses(ee_attack_subgroup *sg, ee_unit *u) {
         for (int k = 0; k < x->npass; k++) if (x->pass[k].u == u) return 1;
     }
     int ux = unit_get_x(u);
-    if (!x->active || ux < 0 || area_id(ux, unit_get_y(u), 2) != x->cont || !is_soldier(unit_get_type_data(u))) return 0;
+    if (!x->active || ux < 0 || area_id(iv2(ux, unit_get_y(u)), 2) != x->cont || !is_soldier(unit_get_type_data(u))) return 0;
     if (!(EXPAND(pi) & 64)) return 1;
     for (int k = 0; k < x->nguard; k++) if (x->guard[k].u == u) return 1;   // FORWARD: its guard only
     return 0;
@@ -372,7 +372,7 @@ internal int ex_shore(unsigned cont, int oc, int x, int y, int r, int *ox, int *
         for (int dx = -d; dx <= d; dx++)
             for (int dy = -d; dy <= d; dy += (abs(dx) == d || !d ? 1 : 2 * d)) {
                 int tx = x + dx, ty = y + dy, ax, ay;
-                if (area_id(tx, ty, 2) != cont || area_id(tx, ty, 1)) continue;
+                if (area_id(iv2(tx, ty), 2) != cont || area_id(iv2(tx, ty), 1)) continue;
                 if ((int)ocean_near(tx, ty, 2, &ax, &ay) != oc || !ld_tile_free(tx, ty)) continue;
                 *ox = tx; *oy = ty;
                 if (wx) { *wx = ax; *wy = ay; }
@@ -406,8 +406,8 @@ internal void ex_ferry_end(ee_player *pl, unsigned idx, struct ex_st *x, uint32_
     if (x->fphase >= 2 && ex_alive(&x->ship, pl) && ex_cargo(x->ship.u) > 0) {
         ee_unit *sh = x->ship.u;
         int x0 = unit_get_x(sh), y0 = unit_get_y(sh), tx, ty;
-        unsigned c = x->fphase == 3 ? x->cont : area_id(x->hx, x->hy, 2);
-        if (ex_shore(c, x->ocean, x0, y0, 30, &tx, &ty, NULL, NULL) || ex_shore(area_id(x->hx, x->hy, 2), x->ocean, x0, y0, 40, &tx, &ty, NULL, NULL))
+        unsigned c = x->fphase == 3 ? x->cont : area_id(iv2(x->hx, x->hy), 2);
+        if (ex_shore(c, x->ocean, x0, y0, 30, &tx, &ty, NULL, NULL) || ex_shore(area_id(iv2(x->hx, x->hy), 2), x->ocean, x0, y0, 40, &tx, &ty, NULL, NULL))
             x->orders += unit_goal(sh, ld_unload(sh, tx, ty), 0, 0x1F40);
     }
     if (why) ex_say(idx, now, "%s", why);
@@ -463,7 +463,7 @@ internal void ex_pick_unit(ee_unit *u, void *ctx) {
     ee_unit_type *td = unit_get_type_data(u);
     if (unit_get_owner(u) != p->pl || unit_get_hp(u) <= 0 || !td || unit_get_x(u) < 0 || unit_get_frozen(u)) return;
     int x = unit_get_x(u), y = unit_get_y(u), d = ivec2_dist2(iv2(x, y), iv2(p->cx, p->cy));
-    if (d > 35 * 35 || area_id(x, y, 2) != p->hc || landing_has_unit(p->pl, u)) return;
+    if (d > 35 * 35 || area_id(iv2(x, y), 2) != p->hc || landing_has_unit(p->pl, u)) return;
     int t = type_get_id(td);
     ee_goal *g0 = unit_get_goal(u);
     if (g0 && strstr(rtti_name(g0), "Load")) return;   // a part of a load goal (perhaps of a transport sunk since): never ordered
@@ -549,7 +549,7 @@ internal void ex_ferry_ship(ee_player *pl, unsigned idx, struct ex_st *x, uint32
     // the passengers
     static struct ex_pick_scan p;
     memset(&p, 0, sizeof p);
-    p.pl = pl; p.cm = cm; p.x = x; p.hc = area_id(x->hx, x->hy, 2); p.cx = x->hx; p.cy = x->hy;
+    p.pl = pl; p.cm = cm; p.x = x; p.hc = area_id(iv2(x->hx, x->hy), 2); p.cx = x->hx; p.cy = x->hy;
     grid_each(ex_pick_unit, &p);
     int cap = ld_cap(type_get_id(unit_get_type_data(best))), guard = x->guard_trip ? EX_GUARD(idx) - x->nsold : 0;
     if (guard < 0) guard = 0;
@@ -740,7 +740,7 @@ internal void ex_isle_unit(ee_unit *u, void *ctx) {
     if (!o || !td || unit_get_hp(u) <= 0 || unit_get_x(u) < 0) return;
     int x = unit_get_x(u), y = unit_get_y(u);
     if (o == e->pl) {
-        if (area_id(x, y, 2) != e->cont) return;
+        if (area_id(iv2(x, y), 2) != e->cont) return;
         int fam = type_get_family(td), t = type_get_id(td);
         if (fam == 2 || fam == 29) e->nb++;
         else if (is_citizen_type(t)) { if (e->nc < 64) e->c[e->nc++] = u; }
@@ -750,7 +750,7 @@ internal void ex_isle_unit(ee_unit *u, void *ctx) {
     if (player_get_index(o) <= 0 || !is_enemy(e->pl, o) || !seen_by(u, e->pl)) return;   // enemies seen near the outpost
     if (!is_soldier(td) && !is_citizen_type(type_get_id(td)) && !is_siege(type_get_id(td))) return;
     int d = ivec2_dist2(iv2(x, y), iv2(e->fx, e->fy));
-    if (d > 14 * 14 || area_id(x, y, 2) != e->cont) return;
+    if (d > 14 * 14 || area_id(iv2(x, y), 2) != e->cont) return;
     e->foe++;
     if (!e->fu || d < e->fd) { e->fu = u; e->fd = d; }
 }
@@ -767,7 +767,7 @@ internal int ex_spot(ee_player *pl, unsigned idx, struct ex_st *x, int type, int
     for (int d = 1; d <= 12; d++)
         for (int dx = -d; dx <= d; dx++)
             for (int dy = -d; dy <= d; dy += (abs(dx) == d ? 1 : 2 * d)) {
-                int px = cx + dx, py = cy + dy, ok = area_id(px, py, 2) == x->cont && !area_id(px, py, 1);
+                int px = cx + dx, py = cy + dy, ok = area_id(iv2(px, py), 2) == x->cont && !area_id(iv2(px, py), 1);
                 for (int k = 0; k < x->nproj && ok; k++)   // a way between its buildings
                     if (x->proj[k].state && x->proj[k].state != 3 && abs(x->proj[k].x - px) < sz + 3 && abs(x->proj[k].y - py) < sz + 3) ok = 0;
                 if (!ok || !can_place(pl, type, px, py)) continue;
@@ -795,7 +795,7 @@ internal ee_unit *ex_free_mine(ee_player *pl, struct ex_st *x, int px, int py) {
             int r = s ? unit_get_resource(s) : 0;
             if (r < 4 || r > 6 || unit_get_amount(s) <= 0) continue;
             int sx = unit_get_x(s), sy = unit_get_y(s), d = ivec2_dist2(iv2(sx, sy), iv2(px, py));
-            if (d >= bd || area_id(sx, sy, 2) != x->cont) continue;
+            if (d >= bd || area_id(iv2(sx, sy), 2) != x->cont) continue;
             if (site_gatherers(s) >= cap) continue;
             best = s; bd = d;
         }
@@ -1105,7 +1105,7 @@ internal void ex_plan(ee_player *pl, unsigned idx, struct ex_st *x, uint32_t now
             for (int ddx = -d; ddx <= d; ddx += 2)
                 for (int ddy = -d; ddy <= d; ddy += (abs(ddx) == d || !d ? 2 : 2 * d)) {
                     int tx = bx + ddx, ty = by + ddy, wx, wy;
-                    if (area_id(tx, ty, 2) != hc || area_id(tx, ty, 1) || (int)ocean_near(tx, ty, 2, &wx, &wy) != ocean || !ld_tile_free(tx, ty)) continue;
+                    if (area_id(iv2(tx, ty), 2) != hc || area_id(iv2(tx, ty), 1) || (int)ocean_near(tx, ty, 2, &wx, &wy) != ocean || !ld_tile_free(tx, ty)) continue;
                     int sc = (int)sqrtf((float)(ddx * ddx + ddy * ddy)) * 2 + (int)sqrtf((float)ivec2_dist2(iv2(tx, ty), iv2(x->ux, x->uy)));
                     if (sc < best) { best = sc; x->hx = tx; x->hy = ty; x->hwx = wx; x->hwy = wy; found = 1; }
                 }

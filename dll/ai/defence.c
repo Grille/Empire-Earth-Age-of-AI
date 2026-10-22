@@ -29,7 +29,7 @@ internal struct def_plan {
     struct { int x, y; uint32_t t; } pend[8];   // slots given out recently (the construction may not show yet)
 } g_plan[16];
 
-internal unsigned area_id(int x, int y, int kind);   // forces.c: 1 the sea, 2 the land there (0 none)
+internal unsigned area_id(ivec2 p, int kind);   // forces.c: 1 the sea, 2 the land there (0 none)
 internal const enum ut_name k_tower_line[] = { UT_TOWER_LINE };   // oldest first
 internal int tower_newest(ee_player *pl) {   // the best tower the game lets this player build now (0: none)
     for (int i = 6; i >= 0; i--)
@@ -234,7 +234,7 @@ internal void defence_tick(ee_player *pl, unsigned idx, uint32_t now) {
         int mn = wmap ? (int)map_get_size(wmap) : 0, land = mn > 0;
         for (int q = 0; q <= 2 && land; q++) {
             int qx = q == 0 ? a[0] : q == 1 ? b[0] : cx, qy = q == 0 ? a[1] : q == 1 ? b[1] : cy;
-            land = qx >= 3 && qy >= 3 && qx < mn - 3 && qy < mn - 3 && area_id(qx, qy, 2) && !area_id(qx, qy, 1);
+            land = qx >= 3 && qy >= 3 && qx < mn - 3 && qy < mn - 3 && area_id(iv2(qx, qy), 2) && !area_id(iv2(qx, qy), 1);
         }
         if (!land) { f->wall_tries++; f->wall_t = now ? now : 1; continue; }
         int have = 0;   // wall pieces standing on the arc (then a new order only repairs)

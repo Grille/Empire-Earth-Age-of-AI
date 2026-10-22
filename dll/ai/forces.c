@@ -8,14 +8,14 @@
 // area at the tile (0x425F16), its +0x84 (kind 1: the ocean) or +0x86 (kind 2: the land continent). Reference save:
 // both AIs' towns, the player's base and outposts on land continent 2, the water at P3's docks ocean 1; a few areas
 // (the player's camp at 108,75) have neither - taken as passable.
-internal unsigned area_id(int x, int y, int kind) {
-    if (x < 0 || y < 0) return 0;
-    return map_area(iv2(x, y), kind);
+internal unsigned area_id(ivec2 p, int kind) {
+    if (p.x < 0 || p.y < 0) return 0;
+    return map_area(p, kind);
 }
-internal unsigned cont_at(int x, int y) { return area_id(x, y, 2); }
+internal unsigned cont_at(ivec2 p) { return area_id(p, 2); }
 internal int cont_ok(int x, int y, unsigned hc) {   // land of continent hc (or an area without ids that is no ocean)
-    unsigned c = area_id(x, y, 2);
-    return c == hc || (c == 0 && area_id(x, y, 1) == 0 && x >= 0 && y >= 0);
+    unsigned c = area_id(iv2(x, y), 2);
+    return c == hc || (c == 0 && area_id(iv2(x, y), 1) == 0 && x >= 0 && y >= 0);
 }
 
 // still one of AI pl's attack subgroups? A stored subgroup pointer can be deleted by the game between two ticks (a

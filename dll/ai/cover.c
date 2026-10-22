@@ -313,7 +313,7 @@ internal int cv_cover(ee_player *pl, struct cv_pl *c, ivec2 p, unsigned a, ivec2
     for (int k = 0; k < c->ncv; k++) {
         ivec2 q = c->cv[k];
         int d = ivec2_dist2(q, p);
-        if (d < bd && area_id(q.x, q.y, 2) == a && !(threat_at(pi, q.x, q.y) > 0)) { bd = d; best = k; }
+        if (d < bd && area_id(q, 2) == a && !(threat_at(pi, q.x, q.y) > 0)) { bd = d; best = k; }
     }
     if (best >= 0) {
         ivec2 q = c->cv[best];
@@ -323,10 +323,10 @@ internal int cv_cover(ee_player *pl, struct cv_pl *c, ivec2 p, unsigned a, ivec2
     }
     for (int k = 0; k < c->nhs; k++) {
         int d = ivec2_dist2(c->h[k], p);
-        if (d < bd && area_id(c->h[k].x, c->h[k].y, 2) == a) { bd = d; *t = iv2(c->h[k].x, c->h[k].y + 2); best = k; }
+        if (d < bd && area_id(c->h[k], 2) == a) { bd = d; *t = iv2(c->h[k].x, c->h[k].y + 2); best = k; }
     }
     if (best >= 0) return 1;
-    if (c->base && area_id(c->b.x, c->b.y, 2) == a && ivec2_dist2(c->b, p) <= g_fb_dist * g_fb_dist) { *t = c->b; return 1; }
+    if (c->base && area_id(c->b, 2) == a && ivec2_dist2(c->b, p) <= g_fb_dist * g_fb_dist) { *t = c->b; return 1; }
     return 0;
 }
 internal void cv_take(struct cv_pl *c, ee_unit *u, int kind, ivec2 t, uint32_t now, ee_attack_group *g, int home) {
@@ -406,7 +406,7 @@ internal int cv_home_pt(struct cv_pl *c, ivec2 p, unsigned a, ivec2 *t) {
     int best = 0;
     for (int s = 2; s <= 20 && (float)s < l; s += 2) {
         ivec2 q = iv2(p.x + (int)lroundf(dx * (float)s / l), p.y + (int)lroundf(dy * (float)s / l));
-        if (area_id(q.x, q.y, 2) != a) break;
+        if (area_id(q, 2) != a) break;
         *t = q; best = s;
     }
     return best >= 8;
@@ -474,7 +474,7 @@ internal void cv_behave(ee_player *pl, unsigned idx, struct cv_pl *c, uint32_t n
         ivec2 p = unit_get_tile(u);
         if (h->kind == 3 && h->home && h->at) {   // no cover: on toward home from where it got to
             ivec2 t;
-            if (cv_home_pt(c, p, area_id(p.x, p.y, 2), &t)) { h->t = t; h->at = 0; }
+            if (cv_home_pt(c, p, area_id(p, 2), &t)) { h->t = t; h->at = 0; }
         }
         if (ivec2_dist2(p, h->t) <= (h->at ? 25 : 4) || goal_near(u, (float)h->t.x + 0.5f, (float)h->t.y + 0.5f, 2.5f)) continue;
         if (h->at && fl_attacking(u)) continue;   // at the cover: it fights what comes in reach
@@ -488,13 +488,13 @@ internal void cv_behave(ee_player *pl, unsigned idx, struct cv_pl *c, uint32_t n
         if (cv_mil(td) != 1 || cv_held(c, u) || landing_has_unit(pl, u)) continue;
         ivec2 p = unit_get_tile(u);
         int hp = unit_get_hp(u), mx = cv_hpmax(u);
-        unsigned a = area_id(p.x, p.y, 2);
+        unsigned a = area_id(p, 2);
         if (!a) continue;
         if ((plan & 1) && c->nhs && mx > 0 && hp * 100 < mx * g_fb_hp && cv_value(pl, type_get_id(td)) >= g_fb_value) {
             int best = -1, bd = g_fb_dist * g_fb_dist + 1;
             for (int k = 0; k < c->nhs; k++) {
                 int d = ivec2_dist2(c->h[k], p);
-                if (d < bd && area_id(c->h[k].x, c->h[k].y, 2) == a && !cv_foe_near(c->h[k], 1)) { bd = d; best = k; }
+                if (d < bd && area_id(c->h[k], 2) == a && !cv_foe_near(c->h[k], 1)) { bd = d; best = k; }
             }
             if (best >= 0) {
                 ivec2 hs = c->h[best];

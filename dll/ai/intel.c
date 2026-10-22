@@ -323,7 +323,7 @@ internal void cmd_vis(char *out, const char *args) {
         int bx[5] = { 0 }, by[5] = { 0 }; float bd[5] = { 0 };
         for (int x = 2; x < 148; x += 3)
             for (int y = 2; y < 148; y += 3) {
-                if (!area_id(x, y, 2) || area_id(x, y, 1)) continue;
+                if (!area_id(iv2(x, y), 2) || area_id(iv2(x, y), 1)) continue;
                 float m = 1e9f;
                 for (int e = 0; e < s.ne && m > 0; e++) { float d2 = (float)ivec2_dist2(s.eye[e], iv2(x, y)); if (d2 < m) m = d2; }
                 for (int k = 0; k < s.nu && m > 0; k++) {

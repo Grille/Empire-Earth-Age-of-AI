@@ -99,7 +99,7 @@ internal struct {
 } g_sos;
 
 internal int so_is_water(int x, int y, unsigned ocean) {
-    unsigned o = area_id(x, y, 1);
+    unsigned o = area_id(iv2(x, y), 1);
     return o && (!ocean || o == ocean);
 }
 internal int so_open(int x, int y, unsigned ocean, int rad) {   // water all around within rad tiles
@@ -111,7 +111,7 @@ internal int so_open(int x, int y, unsigned ocean, int rad) {   // water all aro
 internal int so_near_water(int x, int y, int r) {
     for (int ax = -r; ax <= r; ax++)
         for (int ay = -r; ay <= r; ay++)
-            if (area_id(x + ax, y + ay, 1)) return 1;
+            if (area_id(iv2(x + ax, y + ay), 1)) return 1;
     return 0;
 }
 internal int so_find_open(int x, int y, int maxd, unsigned ocean, int rad, int *ox, int *oy) {   // nearest such water
@@ -262,7 +262,7 @@ internal void so_scan(uint32_t now) {
             else if (fam == 2 || fam == 29) { if (g_sos.npb < 256) { g_sos.pbx[g_sos.npb] = x; g_sos.pby[g_sos.npb++] = y; } }
             else if (is_soldier(td) && fam != 3 && fam != 7 && fam != 17 && g_sos.npl < 400) {
                 g_sos.pl[g_sos.npl++] = u;
-                if (cont_at(x, y) != g_so.hcont) g_sos.opp_off_home++;
+                if (cont_at(iv2(x, y)) != g_so.hcont) g_sos.opp_off_home++;
             }
         } else if (p == g_so.ai && g_sos.nu < 2048) {
             struct so_eu *e = &g_sos.u[g_sos.nu++];
@@ -275,13 +275,13 @@ internal void so_scan(uint32_t now) {
             else if (e->cls == SC_TR) g_sos.ai_tr++;
             else if (e->cls == SC_BOAT) g_sos.ai_boats++;
             if (fam == 2 || fam == 29) {
-                unsigned c = cont_at(x, y);
+                unsigned c = cont_at(iv2(x, y));
                 if (c && c != g_so.econt && t != UT(B_DOCK) && t != UT(B_NAVY_YARD)) {
                     g_sos.ai_isl++;
                     if (UT_IN(t, UT_TOWNS, UT_X_SINGLE_PLAYER_SETTLEMENT)) g_sos.ai_towns++;
                 }
             }
-            if (fam != 4 && fam != 10 && fam != 18 && fam != 21 && fam != 22 && cont_at(x, y) == g_so.hcont) g_sos.ai_on_opp++;
+            if (fam != 4 && fam != 10 && fam != 18 && fam != 21 && fam != 22 && cont_at(iv2(x, y)) == g_so.hcont) g_sos.ai_on_opp++;
         }
     }
     // what P1 sees: within SO_SIGHT of any of its units or buildings
@@ -661,7 +661,7 @@ internal int so_beach(struct so_wave *w) {
         for (int x = g_so.ex - 40; x <= g_so.ex + 40; x++)
             for (int y = g_so.ey - 40; y <= g_so.ey + 40; y++) {
                 float de = so_d2(x, y, g_so.ex, g_so.ey);
-                if (de < 64.0f || de > 1600.0f || cont_at(x, y) != g_so.econt || area_id(x, y, 1)) continue;
+                if (de < 64.0f || de > 1600.0f || cont_at(iv2(x, y)) != g_so.econt || area_id(iv2(x, y), 1)) continue;
                 if (!so_near_water(x, y, 2) || (!pass && so_in_danger(x, y, 2.0f))) continue;
                 int wx, wy, nz = 0;
                 if (!so_find_open(x, y, 4, g_so.ocean, 1, &wx, &wy) || (!pass && so_in_danger(wx, wy, 1.0f))) continue;
@@ -697,7 +697,7 @@ internal void so_waves(uint32_t now) {
             for (int dx = -d; dx <= d && put < want; dx++)
                 for (int dy = -d; dy <= d && put < want; dy += (abs(dx) == d ? 1 : 2 * d)) {
                     int x = g_so.kx + dx, y = g_so.ky + dy;
-                    if (cont_at(x, y) != g_so.hcont || area_id(x, y, 1) || ((x + y) & 1)) continue;
+                    if (cont_at(iv2(x, y)) != g_so.hcont || area_id(iv2(x, y), 1) || ((x + y) & 1)) continue;
                     so_spawn(g_so.sold[put & 1], x, y, 1); put++;
                 }
         g_so.tr_spawned += w->ntr; g_so.sol_spawned += put;
@@ -737,7 +737,7 @@ internal void so_waves(uint32_t now) {
             static ee_unit *left[96];
             int nl = 0;
             for (int i = 0; i < g_sos.npl && nl < 96; i++)
-                if (so_is_wsol_in(g_sos.pl[i], w->w0, w->w1) && cont_at(unit_get_x(g_sos.pl[i]), unit_get_y(g_sos.pl[i])) == g_so.hcont)
+                if (so_is_wsol_in(g_sos.pl[i], w->w0, w->w1) && cont_at(unit_get_tile(g_sos.pl[i])) == g_so.hcont)
                     left[nl++] = g_sos.pl[i];
             if (!alive) { w->st = 5; continue; }
             if (nl && now - w->t < 150000) {
@@ -763,7 +763,7 @@ internal void so_waves(uint32_t now) {
         if (w->st == 2 || w->st == 3) {
             if (!alive || !aboard) {   // all sunk, or everyone ashore
                 int on = 0;
-                for (int i = 0; i < g_sos.npl; i++) on += so_is_wsol_in(g_sos.pl[i], w->w0, w->w1) && cont_at(unit_get_x(g_sos.pl[i]), unit_get_y(g_sos.pl[i])) == g_so.econt;
+                for (int i = 0; i < g_sos.npl; i++) on += so_is_wsol_in(g_sos.pl[i], w->w0, w->w1) && cont_at(unit_get_tile(g_sos.pl[i])) == g_so.econt;
                 w->landed = on;
                 if (on) { g_so.ashore++; g_so.landed += on; } else g_so.stopped++;
                 so_log("# sea: wave %d %s at %.1f min: %d of %d soldiers ashore, %d of %d transports afloat\n", k + 1, on ? "ashore" : "stopped",
@@ -800,7 +800,7 @@ internal void so_soldiers(uint32_t now) {
     for (int i = 0; i < g_sos.npl; i++) {
         ee_unit *u = g_sos.pl[i];
         ee_unit *cur;
-        int x = unit_get_x(u), y = unit_get_y(u), home = cont_at(x, y) == g_so.hcont;
+        int x = unit_get_x(u), y = unit_get_y(u), home = cont_at(iv2(x, y)) == g_so.hcont;
         if (home && !(g_so.boarding && so_is_wsol(u))) guard++;
         if (home && g_so.boarding && so_is_wsol(u)) continue;   // waiting to board
         if (so_cur_target(u, &cur) && unit_get_owner(cur) == game_players()[g_so.ai]) continue;
@@ -809,13 +809,13 @@ internal void so_soldiers(uint32_t now) {
         float bd = 1e12f;
         for (int k = 0; k < g_sos.nu; k++) {
             struct so_eu *e = &g_sos.u[k];
-            if (!e->seen || e->cls == SC_WAR || e->cls == SC_TR || e->cls == SC_BOAT || area_id(e->x, e->y, 1)) continue;
+            if (!e->seen || e->cls == SC_WAR || e->cls == SC_TR || e->cls == SC_BOAT || area_id(iv2(e->x, e->y), 1)) continue;
             float d = so_d2(x, y, e->x, e->y);
             if (home) {
-                if (cont_at(e->x, e->y) != g_so.hcont || so_d2(e->x, e->y, g_so.hx, g_so.hy) > 625.0f) continue;
+                if (cont_at(iv2(e->x, e->y)) != g_so.hcont || so_d2(e->x, e->y, g_so.hx, g_so.hy) > 625.0f) continue;
             } else {
                 d += e->cls == SC_SOLD || e->cls == SC_SIEGE ? (d <= 144.0f ? 0 : 1e6f) : e->cls == SC_CIT ? (d <= 225.0f ? 2e6f : 4e6f) : 5e6f;
-                if (cont_at(e->x, e->y) != cont_at(x, y)) continue;
+                if (cont_at(iv2(e->x, e->y)) != cont_at(iv2(x, y))) continue;
             }
             if (d < bd) { bd = d; best = e->u; }
         }
@@ -827,7 +827,7 @@ internal void so_soldiers(uint32_t now) {
     if (g_so.sold[0] && guard < guard_n[g_so.level] && now - g_so.guard_t >= 30000) {
         for (int k = 0; k < 2; k++) {
             int x = g_so.hx + 3 + k * 2, y = g_so.hy + 3;
-            if (cont_at(x, y) == g_so.hcont && !area_id(x, y, 1)) { so_spawn(g_so.sold[k], x, y, 1); g_so.guard_spawned++; }
+            if (cont_at(iv2(x, y)) == g_so.hcont && !area_id(iv2(x, y), 1)) { so_spawn(g_so.sold[k], x, y, 1); g_so.guard_spawned++; }
         }
         g_so.guard_t = now ? now : 1;
     }
@@ -835,7 +835,7 @@ internal void so_soldiers(uint32_t now) {
         static const int at[2][2] = { { 6, -2 }, { -2, 6 } };
         for (int k = 0; k < 2; k++) {
             int x = g_so.hx + at[k][0], y = g_so.hy + at[k][1];
-            if (cont_at(x, y) == g_so.hcont && !area_id(x, y, 1)) so_spawn(g_so.tower, x, y, 1);
+            if (cont_at(iv2(x, y)) == g_so.hcont && !area_id(iv2(x, y), 1)) so_spawn(g_so.tower, x, y, 1);
         }
         g_so.towers = 1;
     }
@@ -956,7 +956,7 @@ internal void cmd_seaop(char *out, const char *args) {
     static const int waves[4][3] = { { 0, 0, 0 }, { 35, 0, 0 }, { 25, 45, 0 }, { 20, 32, 44 } };
     for (int k = 0; k < 3; k++) g_so.wave_min[k] = waves[g_so.level][k];
     if (!so_home_of(1, &g_so.hx, &g_so.hy) || !so_home_of(ai, &g_so.ex, &g_so.ey)) { REPLY("error: P1 or P%d has no buildings\n", ai); return; }
-    g_so.hcont = cont_at(g_so.hx, g_so.hy); g_so.econt = cont_at(g_so.ex, g_so.ey);
+    g_so.hcont = cont_at(iv2(g_so.hx, g_so.hy)); g_so.econt = cont_at(iv2(g_so.ex, g_so.ey));
     // war, both ways (FN_SET_DIPLOMACY: 1 = enemy)
     if (player_get_stance(pls[1], ai) != 1) set_diplomacy(pls[1], pls[ai], 1, 0);
     if (player_get_stance(pls[ai], 1) != 1) set_diplomacy(pls[ai], pls[1], 1, 0);
@@ -966,7 +966,7 @@ internal void cmd_seaop(char *out, const char *args) {
         for (int x = g_so.hx - 20; x <= g_so.hx + 20; x++)
             for (int y = g_so.hy - 20; y <= g_so.hy + 20; y++) {
                 int wx, wy;
-                if (cont_at(x, y) != g_so.hcont || area_id(x, y, 1) || !so_near_water(x, y, 1)) continue;
+                if (cont_at(iv2(x, y)) != g_so.hcont || area_id(iv2(x, y), 1) || !so_near_water(x, y, 1)) continue;
                 if (k && so_d2(x, y, g_so.dx[0], g_so.dy[0]) < 100.0f) continue;
                 float d = so_d2(x, y, g_so.ex, g_so.ey);
                 if (d >= best || !so_find_open(x, y, 4, g_so.ocean, 1, &wx, &wy)) continue;
@@ -974,7 +974,7 @@ internal void cmd_seaop(char *out, const char *args) {
             }
         if (best >= 1e9f) break;
         g_so.nd++;
-        if (!k) g_so.ocean = area_id(g_so.dwx[0], g_so.dwy[0], 1);
+        if (!k) g_so.ocean = area_id(iv2(g_so.dwx[0], g_so.dwy[0]), 1);
     }
     if (!g_so.nd) { REPLY("error: no shore on P1's island\n"); return; }
     {   // the embarking beach: land at the sea with room (12+ land tiles within 3), 6+ tiles from the docks, nearest dock 0
@@ -984,11 +984,11 @@ internal void cmd_seaop(char *out, const char *args) {
             for (int y = g_so.hy - 20; y <= g_so.hy + 20; y++) {
                 int wx, wy, land = 0, clear = 1;
                 for (int k = 0; k < g_so.nd; k++) clear &= so_d2(x, y, g_so.dx[k], g_so.dy[k]) >= 36.0f;
-                if (!clear || cont_at(x, y) != g_so.hcont || area_id(x, y, 1) || !so_near_water(x, y, 1)) continue;
+                if (!clear || cont_at(iv2(x, y)) != g_so.hcont || area_id(iv2(x, y), 1) || !so_near_water(x, y, 1)) continue;
                 float d = so_d2(x, y, g_so.dx[0], g_so.dy[0]);
                 if (d >= best) continue;
                 for (int ax = -3; ax <= 3; ax++)
-                    for (int ay = -3; ay <= 3; ay++) land += cont_at(x + ax, y + ay) == g_so.hcont && !area_id(x + ax, y + ay, 1);
+                    for (int ay = -3; ay <= 3; ay++) land += cont_at(iv2(x + ax, y + ay)) == g_so.hcont && !area_id(iv2(x + ax, y + ay), 1);
                 if (land < 12 || !so_find_open(x, y, 3, g_so.ocean, 1, &wx, &wy)) continue;
                 best = d; g_so.kx = x; g_so.ky = y; g_so.kwx = wx; g_so.kwy = wy;
             }

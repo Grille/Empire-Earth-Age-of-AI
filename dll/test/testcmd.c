@@ -691,9 +691,9 @@ internal void cmd_continent(char *out, const char *args) {
                           &v[5], &v[6], &v[7], &v[8], &v[9], &v[10], &v[11], &v[12], &v[13], &v[14], &v[15]);
     for (int k = 0; k + 1 < n; k += 2) {
         int pt[2] = { v[k], v[k + 1] };
-        unsigned w = area_id(v[k], v[k + 1], 1);
+        unsigned w = area_id(iv2(v[k], v[k + 1]), 1);
         uint8_t *o = area_at(pt);
-        REPLY("%d,%d: land %u ocean %u, area %p (vt %06x)", v[k], v[k + 1], cont_at(v[k], v[k + 1]), w, (void *)o,
+        REPLY("%d,%d: land %u ocean %u, area %p (vt %06x)", v[k], v[k + 1], cont_at(iv2(v[k], v[k + 1])), w, (void *)o,
               o ? *(unsigned *)o : 0);
         if (o) for (int q = 0x40; q < 0x90; q += 4) REPLY(" %x", FIELD(o, q, unsigned));
         REPLY("\n");

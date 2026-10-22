@@ -266,7 +266,7 @@ internal unsigned ocean_near(int x, int y, int r, int *wx, int *wy) {   // an oc
     for (int d = 1; d <= r; d++)
         for (int dx = -d; dx <= d; dx++)
             for (int dy = -d; dy <= d; dy += (abs(dx) == d ? 1 : 2 * d)) {
-                unsigned o = area_id(x + dx, y + dy, 1);
+                unsigned o = area_id(iv2(x + dx, y + dy), 1);
                 if (o) { if (wx) { *wx = x + dx; *wy = y + dy; } return o; }
             }
     return 0;
@@ -353,13 +353,13 @@ internal int ld_site(ee_player *pl, unsigned pi, struct ld_scan *s, unsigned oce
     if (power < 1.0f) power = 1.0f;
     int step = s->nb > 60 ? s->nb / 60 : 1;
     for (int b = 0; b < s->nb; b += step) {
-        unsigned bc = area_id(s->b[b].x, s->b[b].y, 2);
+        unsigned bc = area_id(s->b[b], 2);
         for (int r = 6; r <= 30; r += 3)
             for (int a = 0; a < 16; a++) {
                 float ang = (float)a * 0.3927f;
                 int x = s->b[b].x + (int)(cosf(ang) * r), y = s->b[b].y + (int)(sinf(ang) * r);
                 g_ld_stat[pi].tried++;
-                if (!bc || area_id(x, y, 2) != bc || area_id(x, y, 1) || !ld_tile_free(x, y)) continue;   // open land of the building's continent (an island in the bay was taken: the troops stuck there)
+                if (!bc || area_id(iv2(x, y), 2) != bc || area_id(iv2(x, y), 1) || !ld_tile_free(x, y)) continue;   // open land of the building's continent (an island in the bay was taken: the troops stuck there)
                 g_ld_stat[pi].land++;
                 int wx, wy;
                 unsigned on = ocean_near(x, y, 2, &wx, &wy);
@@ -395,11 +395,11 @@ internal void ld_home_scan(ee_player *pl) {
     grid_each(home_threat_unit, &g_ld_home);
     void *cm = player_get_civ_mgr(pl);
     ee_build_mgr *bm = cm ? cm_get_build_mgr(cm) : NULL;
-    unsigned hc = bm ? area_id(bm_get_base_x(bm), bm_get_base_y(bm), 2) : 0;
+    unsigned hc = bm ? area_id(bm_get_base(bm), 2) : 0;
     if (!hc) return;
     int n = 0;
     for (int b = 0; b < g_ld_home.nb; b++)
-        if (area_id(g_ld_home.b[b].x, g_ld_home.b[b].y, 2) == hc) g_ld_home.b[n++] = g_ld_home.b[b];
+        if (area_id(g_ld_home.b[b], 2) == hc) g_ld_home.b[n++] = g_ld_home.b[b];
     g_ld_home.nb = n;
 }
 internal int ld_at_home(int x, int y) {
@@ -473,7 +473,7 @@ internal int ld_sea_foe(ee_player *pl, ee_unit *u, ee_unit_type *trtd, int tpi) 
     ee_player *o = unit_get_owner(u);
     int x = unit_get_x(u), y = unit_get_y(u);
     if (!o || player_get_index(o) <= 0 || unit_get_hp(u) <= 0 || x < 0 || !is_enemy(pl, o)) return 0;
-    if (!ld_is_air(u) && !area_id(x, y, 1)) return 0;   // on land: the beach's defence counts it
+    if (!ld_is_air(u) && !area_id(iv2(x, y), 1)) return 0;   // on land: the beach's defence counts it
     return ld_factor(unit_get_type_data(u), ld_pidx(u), trtd, tpi) > 0.0f && seen_by(u, pl);
 }
 // the threats on the way over: within 10 tiles of the line from (x0, y0) to the water in front of the beach, every
@@ -639,9 +639,9 @@ internal int ld_open_water(int x, int y, unsigned ocean, int *ox, int *oy) {
     for (int d = 1; d <= 10; d++)
         for (int dx = -d; dx <= d; dx++)
             for (int dy = -d; dy <= d; dy += (abs(dx) == d ? 1 : 2 * d)) {
-                int tx = x + dx, ty = y + dy, ok = area_id(tx, ty, 1) == ocean;
+                int tx = x + dx, ty = y + dy, ok = area_id(iv2(tx, ty), 1) == ocean;
                 for (int ax = -2; ax <= 2 && ok; ax++)
-                    for (int ay = -2; ay <= 2 && ok; ay++) ok = area_id(tx + ax, ty + ay, 1) == ocean;
+                    for (int ay = -2; ay <= 2 && ok; ay++) ok = area_id(iv2(tx + ax, ty + ay), 1) == ocean;
                 if (ok) { *ox = tx; *oy = ty; return 1; }
             }
     return 0;
@@ -663,7 +663,7 @@ internal void ld_unload_home(struct landing *l) {
         for (int d = 1; d <= 10 && ux < 0; d++)
             for (int dx = -d; dx <= d && ux < 0; dx++)
                 for (int dy = -d; dy <= d && ux < 0; dy += (abs(dx) == d ? 1 : 2 * d))
-                    if (area_id(x0 + dx, y0 + dy, 2) && !area_id(x0 + dx, y0 + dy, 1) && ld_tile_free(x0 + dx, y0 + dy)) { ux = x0 + dx; uy = y0 + dy; }
+                    if (area_id(iv2(x0 + dx, y0 + dy), 2) && !area_id(iv2(x0 + dx, y0 + dy), 1) && ld_tile_free(x0 + dx, y0 + dy)) { ux = x0 + dx; uy = y0 + dy; }
         if (ux < 0) continue;
         l->orders += unit_goal(sh, ld_unload(sh, ux, uy), 0, 0x1F40);
     }
@@ -695,14 +695,14 @@ internal void ld_refreeze(struct landing *l, uint8_t *dq, unsigned first, unsign
 // within 15 of the site; nearest to (x, y), at least `gap` tiles from the other transports' points and from
 // (ax, ay) - where the last unload failed
 internal int ld_shore_tile(struct landing *l, int k, int x, int y, int ax, int ay, int gap, int *ox, int *oy) {
-    unsigned cont = area_id(l->sx, l->sy, 2);
+    unsigned cont = area_id(iv2(l->sx, l->sy), 2);
     int rr = (15 + l->nships) * (15 + l->nships);   // 10 transports 4 tiles apart need more beach
     for (int d = 0; d <= 10 + l->nships; d++)
         for (int dx = -d; dx <= d; dx++)
             for (int dy = -d; dy <= d; dy += (abs(dx) == d || !d ? 1 : 2 * d)) {
                 int tx = x + dx, ty = y + dy, ok = 1;
                 if (ivec2_dist2(iv2(tx, ty), iv2(l->sx, l->sy)) > rr) continue;
-                if (area_id(tx, ty, 2) != cont || area_id(tx, ty, 1) || (int)ocean_near(tx, ty, 2, NULL, NULL) != l->ocean) continue;
+                if (area_id(iv2(tx, ty), 2) != cont || area_id(iv2(tx, ty), 1) || (int)ocean_near(tx, ty, 2, NULL, NULL) != l->ocean) continue;
                 if (ax >= 0 && abs(tx - ax) < 3 && abs(ty - ay) < 3) continue;
                 for (int j = 0; j < l->nships && ok; j++)
                     if (j != k && abs(tx - l->ux[j]) < gap && abs(ty - l->uy[j]) < gap) ok = 0;
@@ -814,7 +814,7 @@ internal const char *ld_kind_name(int kind) {
     return kind >= 0 && kind < 5 ? nm[kind] : "?";
 }
 internal int ld_base_spot(ee_player *pl, unsigned pi, struct landing *l, int type, int cx, int cy, int *ox, int *oy) {
-    unsigned cont = area_id(cx, cy, 2);
+    unsigned cont = area_id(iv2(cx, cy), 2);
     ee_unit_type *td = type_data(type);
     int sz = td ? type_get_size(td) : 1, found = 0;
     float best = 1e9f;
@@ -822,7 +822,7 @@ internal int ld_base_spot(ee_player *pl, unsigned pi, struct landing *l, int typ
     for (int d = 2; d <= 12; d++)
         for (int dx = -d; dx <= d; dx++)
             for (int dy = -d; dy <= d; dy += (abs(dx) == d ? 1 : 2 * d)) {
-                int x = cx + dx, y = cy + dy, ok = area_id(x, y, 2) == cont && !area_id(x, y, 1);
+                int x = cx + dx, y = cy + dy, ok = area_id(iv2(x, y), 2) == cont && !area_id(iv2(x, y), 1);
                 for (int k = 0; k < l->nproj && ok; k++)   // room between its buildings: a way through
                     if (l->proj[k].state && abs(l->proj[k].x - x) < sz + 3 && abs(l->proj[k].y - y) < sz + 3) ok = 0;
                 if (!ok || !can_place(pl, type, x, y)) continue;
@@ -1609,12 +1609,12 @@ internal int ld_phase_ships(ee_player *pl, unsigned pi, struct landing *l, ee_un
         float px = 0, py = 0; int pn = 0;
         for (int k = 0; k < l->npass; k++) { px += unit_get_x(l->pass[k]); py += unit_get_y(l->pass[k]); pn++; }
         int x0 = (int)(px / pn), y0 = (int)(py / pn), found = 0;
-        unsigned cont = area_id(unit_get_x(l->pass[0]), unit_get_y(l->pass[0]), 2);
+        unsigned cont = area_id(unit_get_tile(l->pass[0]), 2);
         for (int d = 0; d <= 40 && !found; d++)
             for (int dx = -d; dx <= d && !found; dx++)
                 for (int dy = -d; dy <= d && !found; dy += (abs(dx) == d || !d ? 1 : 2 * d)) {
                     int tx = x0 + dx, ty = y0 + dy, wx, wy;
-                    if (area_id(tx, ty, 2) != cont || area_id(tx, ty, 1) || !ld_tile_free(tx, ty)) continue;
+                    if (area_id(iv2(tx, ty), 2) != cont || area_id(iv2(tx, ty), 1) || !ld_tile_free(tx, ty)) continue;
                     if ((int)ocean_near(tx, ty, 2, &wx, &wy) != l->ocean) continue;
                     l->ex = tx; l->ey = ty; l->ewx = wx; l->ewy = wy; found = 1;
                 }
@@ -1890,7 +1890,7 @@ internal void ld_phase_land(ee_player *pl, unsigned pi, struct landing *l, ee_un
     cx /= ashore; cy /= ashore;
     ee_unit *foe = ld_raid_target(pl, l->target, (int)cx, (int)cy, 12);
     if (!l->obj || !ld_alive(l->obj) || unit_get_owner(l->obj) != l->target) {
-        unsigned cont = area_id(l->sx, l->sy, 2);   // the beach's land: the centre of a big landing spread along the coast lay in the water
+        unsigned cont = area_id(iv2(l->sx, l->sy), 2);   // the beach's land: the centre of a big landing spread along the coast lay in the water
         l->obj = ld_objective(pl, pi, l->target, cont, (int)cx, (int)cy);
         if (!l->obj) l->obj = enemy_objective(pl, pi, l->target, cont, (int)cx, (int)cy);   // only defences left
         if (l->obj) { l->ox = unit_get_x(l->obj); l->oy = unit_get_y(l->obj); }
@@ -2032,11 +2032,11 @@ internal void cmd_terrain(char *out, const char *args) {
     if (r < 2) r = 2;
     static char g[81 * 82];
     int w = 2 * r + 1;
-    unsigned c0 = area_id(x0, y0, 2);
+    unsigned c0 = area_id(iv2(x0, y0), 2);
     for (int y = 0; y < w; y++)
         for (int x = 0; x < w; x++) {
             int tx = x0 - r + x, ty = y0 - r + y;
-            unsigned o = area_id(tx, ty, 1), c = area_id(tx, ty, 2);
+            unsigned o = area_id(iv2(tx, ty), 1), c = area_id(iv2(tx, ty), 2);
             g[y * w + x] = o ? '~' : c == c0 && c ? '.' : c ? (char)('0' + c % 10) : '?';
         }
     ee_map *map = game_map();

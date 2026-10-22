@@ -214,7 +214,7 @@ internal void navy_detect(ee_player *pl, unsigned idx, uint32_t now) {
     void *cm = player_get_civ_mgr(pl);
     ee_build_mgr *bm = cm ? cm_get_build_mgr(cm) : NULL; ee_map *map = game_map();
     ee_grid *grid = map ? map_get_grid(map) : NULL;
-    unsigned hc = bm ? area_id(bm_get_base_x(bm), bm_get_base_y(bm), 2) : 0;
+    unsigned hc = bm ? area_id(bm_get_base(bm), 2) : 0;
     if (!hc || !grid) return;
     memset(b.n, 0, sizeof b.n);
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
@@ -231,13 +231,13 @@ internal void navy_detect(ee_player *pl, unsigned idx, uint32_t now) {
         if (!pp || is_out(pp) || !is_enemy(pl, pp)) continue;
         if (!b.n[p]) { none++; continue; }
         int home = 0;
-        for (int k = 0; k < b.n[p] && !home; k++) home = area_id(b.x[p][k], b.y[p][k], 2) == hc;
+        for (int k = 0; k < b.n[p] && !home; k++) home = area_id(iv2(b.x[p][k], b.y[p][k]), 2) == hc;
         enemies++; across += !home;
     }
     if (none && now < 180000) return;   // an enemy without buildings yet: wait for them
     int nx = grid_get_nx(grid) * grid_get_cell_size(grid), ny = grid_get_ny(grid) * grid_get_cell_size(grid), sea = 0, all = 0;
     for (int x = 1; x < nx; x += 4)
-        for (int y = 1; y < ny; y += 4, all++) sea += area_id(x, y, 1) != 0;
+        for (int y = 1; y < ny; y += 4, all++) sea += area_id(iv2(x, y), 1) != 0;
     struct nv_map *m = &g_nv_map[idx];
     m->done = 1; m->t = now; m->across = across; m->enemies = enemies; m->home = hc;
     m->strength = enemies ? (float)across / enemies : 0.0f;
@@ -376,7 +376,7 @@ internal void navy_nodes(ee_player *pl, unsigned idx, uint32_t now) {
             if (j < ns) continue;
             if (ns < 512) seen[ns++] = s;
             int x = unit_get_x(s), y = unit_get_y(s);
-            if (area_id(x, y, 2) != hc) { c->other[r]++; continue; }
+            if (area_id(iv2(x, y), 2) != hc) { c->other[r]++; continue; }
             unsigned g = site_gatherers(s);
             int dd = drop_nearest(pi, iv2(x, y), 0, NULL);
             c->n[r]++; c->g[r] += (int)g; c->slots[r] += (int)cap; c->worked[r] += g > 0;
@@ -620,7 +620,7 @@ internal void nv_cands(ee_player *pl, struct nv_pick *pk, uint32_t now) {
 }
 internal int nv_near_sea(int x, int y) {
     static const int d[5][2] = { { 0, 0 }, { 4, 0 }, { -4, 0 }, { 0, 4 }, { 0, -4 } };
-    for (int k = 0; k < 5; k++) if (area_id(x + d[k][0], y + d[k][1], 1)) return 1;
+    for (int k = 0; k < 5; k++) if (area_id(iv2(x + d[k][0], y + d[k][1]), 1)) return 1;
     return 0;
 }
 internal void nv_seen_one(struct nv_pick *pk, ee_unit_type *td, int x, int y) {
