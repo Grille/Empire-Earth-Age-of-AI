@@ -180,6 +180,8 @@ def analyse():
     owner = collections.defaultdict(set)
     for f in files:
         for n in definitions(code[f]): owner[n].add(f)
+    # a field's name (UNIT_0x13C) is a variable raw/tables.c makes of its row in raw/fields.h: the row's
+    for n in re.findall(r'^\s*O\((\w+),', code.get('game/api/raw/fields.h', ''), re.M): owner[n].add('game/api/raw/fields.h')
     # the X-macro names of game/api/raw/tables.c and unit_ids.h: A_x, x_fn, UT_x are made there
     edges = collections.defaultdict(lambda: collections.defaultdict(set))   # user -> used file -> names
     for f in files:

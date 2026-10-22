@@ -1,9 +1,9 @@
-// THE TABLES BEHIND GA, GF, GL AND OF - game/api/'s own: the rest of the code uses the wrappers, accessors and
-// installers of functions.c and hooks.c, and the fields' names (OF, layout.h; scripts/layers.py). Every address the mod uses in
+// THE TABLES BEHIND GA, GF, GL AND THE FIELDS' NAMES - game/api/'s own: the rest of the code uses the wrappers, accessors and
+// installers of functions.c and hooks.c, and FIELD (layout.h; scripts/layers.py). Every address the mod uses in
 // Empire Earth.exe and every field offset it reads, by name, with its value in each exe build the mod knows - one
 // column per k_exe_builds entry (builds.h), in that order. game_build (exe.c) finds the running build, addr_select and
 // fields_select take its column when the DLL loads: GA(NAME) is the address, GF(NAME) the function there, typed by its
-// row, GL(NAME) a list of addresses (its count: sizeof GL(NAME) / sizeof *GL(NAME)), OF(NAME) a field's
+// row, GL(NAME) a list of addresses (its count: sizeof GL(NAME) / sizeof *GL(NAME)), a field's name (UNIT_0x13C) its
 // offset. Another build - Art of Conquest, another release, a patched exe - is one more hash and one more value per
 // row (scripts/port_addrs.py, port_fields.py).
 // The address names: FN_ a function, CALL_ a call (patched), SITE_/CODE_ an instruction or operand, G_ data, VT_ a
@@ -70,23 +70,27 @@ internal void addr_log(FILE *log) {   // the names the running build hasn't got:
     fputc(10, log);
 }
 
+// A field's name is the running build's offset itself, a variable per row: FIELD(t, TECH_0x6, uint8_t),
+// FIELD(u, UNIT_0x130 + 0x0C, float) (KIND_0xOFFSET: the 2017 update has it at +OFFSET in a KIND).
+#define OF_VAR(n, ...) internal uint32_t n;
+FIELDS(OF_VAR)
 #define OF_ENUM(n, ...) OF_##n,
 enum field_name { FIELDS(OF_ENUM) OF_N };
 #define OF_ROW(n, ...) { __VA_ARGS__ },
 internal const uint32_t k_of[OF_N][ADDR_BUILDS] = { FIELDS(OF_ROW) };
 #define OF_NAME(n, ...) #n,
 internal const char *const k_of_name[OF_N] = { FIELDS(OF_NAME) };
-internal uint32_t g_of[OF_N];
-#define OF(n) (g_of[OF_##n])   // the running build's offset of the field n (KIND_0xOFFSET: the 2017 update has it at +OFFSET in a KIND)
+#define OF_PTR(n, ...) &n,
+internal uint32_t *const k_of_var[OF_N] = { FIELDS(OF_PTR) };
 internal int g_of_missing;   // fields the running build hasn't got (NA): logged at the start (fields_log)
-internal int fields_select(void) {   // the running exe's column (g_exe_build) into g_of (with addr_select)
+internal int fields_select(void) {   // the running exe's column (g_exe_build) into the fields (with addr_select)
     int missing = 0;
-    for (int i = 0; i < OF_N; i++) missing += (g_of[i] = k_of[i][g_exe_build]) == NA;
+    for (int i = 0; i < OF_N; i++) missing += (*k_of_var[i] = k_of[i][g_exe_build]) == NA;
     return missing;
 }
 internal void fields_log(FILE *log) {
     if (!log || !g_of_missing) return;
     fprintf(log, "# fields: build %d hasn't got %d of %d:", g_exe_build, g_of_missing, OF_N);
-    for (int i = 0; i < OF_N; i++) if (g_of[i] == NA) fprintf(log, " %s", k_of_name[i]);
+    for (int i = 0; i < OF_N; i++) if (*k_of_var[i] == NA) fprintf(log, " %s", k_of_name[i]);
     fputc(10, log);
 }

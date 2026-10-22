@@ -79,12 +79,14 @@ def field_names(d):
 
 def functions(obj, names=None, fields=None):
     secs, syms = coff(obj)
+    field_set = set(fields or ())
     def target(si, addend):   # what a reference points at, independent of the layout
         nm, secno, value, cls = syms[si]
         if names and nm == '_g_addr' and addend % 4 == 0 and 0 <= addend // 4 < len(names):
             return 'g_addr[%s]' % names[addend // 4]                     # an address by its name, wherever its row is
         if fields and nm == '_g_of' and addend % 4 == 0 and 0 <= addend // 4 < len(fields):
             return 'g_of[%s]' % fields[addend // 4]                      # a field's offset by its row
+        if fields and nm[1:] in field_set: return 'g_of[%s]' % nm[1:]    # since: a variable of its own, by its name
         if names and nm in ('_k_addr', '_k_addr_name'): return nm        # the tables themselves: in the rows' order
         if fields and nm in ('_k_of', '_k_of_name'): return nm
         if secno <= 0: return nm                                          # outside: an import, another symbol

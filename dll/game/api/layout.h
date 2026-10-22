@@ -1,5 +1,5 @@
-// THE GAME'S OBJECTS: FIELD, a read at an offset - objects.c's accessors with the running build's offset (OF,
-// raw/tables.c: only inside game/api/), elsewhere the runtime library's layouts (deque, vector, UString) and raw dumps.
+// THE GAME'S OBJECTS: FIELD, a read at an offset - objects.c's accessors with the running build's offset (a field's
+// name, raw/tables.c: only inside game/api/), elsewhere the runtime library's layouts (deque, vector, UString) and raw dumps.
 // counts of objects.c's indexed fields
 #define PL_TOGGLES_LEN  18             // the AI toggle bytes 0xEF4..0xF05 (player_get_toggle)
 #define CM_TIMERS_N     6              // cm_get_timer

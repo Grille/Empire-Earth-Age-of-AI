@@ -1,7 +1,7 @@
 // THE GAME'S OBJECTS' FIELDS: every offset the mod reads in the game's objects, by the kind of object and the offset
 // it has in the 2017 update, with its value in each exe build (k_exe_builds' columns, in that order; tables.c makes
-// the table of these rows). OF(PL_0x9D4) is the running build's offset of the field the 2017 update has at +0x9D4
-// in a player: FIELD(pl, OF(PL_0x9D4), void *). A read of a field not in the table doesn't build. The kinds are below; the runtime library's layouts (std::deque,
+// the table of these rows). PL_0x9D4 is the running build's offset of the field the 2017 update has at +0x9D4
+// in a player: FIELD(pl, PL_0x9D4, void *). A read of a field not in the table doesn't build. The kinds are below; the runtime library's layouts (std::deque,
 // vector, map nodes, UString) and the mod's own structures stay plain numbers.
 // Art of Conquest's column: scripts/port_fields.py (in the two exes' paired code, [this + X] read as [this + Y] in a
 // class's methods; and every read's offsets for objects without methods), for the engine DLLs' objects (E_: AoC ships
