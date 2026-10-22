@@ -403,7 +403,9 @@ internal int x_string(const char *s, char *out, int cap, const char **end, const
     }
 }
 
-internal int x_fills_ok(const char *text, const char **why);
+struct xcheck;
+struct xscope;
+internal int x_fills_ok(const char *text, const char **why, struct xcheck *k, struct xscope *sc);
 // a draw: the host's display generator - in a decision (c->game) its other one, which every PC draws alike
 internal void xdual(struct xval *v, double n, const char *s);
 internal int x_rnd(const struct xctx *c, int n) { return c->game ? g_x_host.rnd_decide(n) : g_x_host.rnd_show(n); }
@@ -1036,7 +1038,7 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
     case XN_STR: {
         const char *why;
         g_x_check_line = k->script ? n->line : g_x_check_line;
-        if (!x_fills_ok(n->s, &why)) return xc_fail(k, n, why);
+        if (!x_fills_ok(n->s, &why, k, sc)) return xc_fail(k, n, why);   // its placeholders see the names around it
         return 1;
     }
     case XN_NAME: {
@@ -1864,8 +1866,11 @@ internal void x_fmt_num(double n, int dec, int pct, char *out, int cap) {
 }
 internal const char *const k_fmt_why = "a placeholder's format is %, .1%, .2 ... ({share:%}, {x:.1})";
 internal const char *const k_fmt_choice = "a choice before a format goes in ( ): {(a ? 1 : 0):%}";
-// a text's {placeholders} that are expressions (not a plain name): their syntax - and a plain name's (x_name_check)
-internal int x_fills_ok(const char *text, const char **why) {
+// a text's {placeholders} that are expressions (not a plain name): their syntax - and a plain name's (x_name_check).
+// k, sc: the check of the code the string stands in (x_check) - a placeholder is checked with the names it sees there,
+// a script's variables and functions among them ("{row(3)}"), and in a script a plain name like any other; NULL: a
+// file's string value, on its own
+internal int x_fills_ok(const char *text, const char **why, struct xcheck *k, struct xscope *sc) {
     for (const char *s = strchr(text, '{'); s; s = strchr(s + 1, '{')) {
         const char *close = x_close(s);
         char src[400];
@@ -1880,9 +1885,15 @@ internal int x_fills_ok(const char *text, const char **why) {
             while (f > 0 && src[f - 1] == ' ') f--;
             src[n = f] = 0;
         }
-        if (strpbrk(src, " <>=?\"'(+[!&|")) { if (!x_syntax(src, why)) return 0; }
-        else if (n && strspn(src, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_.") == (size_t)n && !isdigit((unsigned char)*src))
-            x_name_check(src);
+        int expr = strpbrk(src, " <>=?\"'(+[!&|") != NULL;
+        int name = !expr && n && strspn(src, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_.") == (size_t)n && !isdigit((unsigned char)*src);
+        if ((expr || name) && k && (expr || k->script)) {
+            const struct xunit *u = x_compiled(src);
+            if (!u->ok) { *why = u->why ? u->why : "not an expression"; return 0; }
+            if (!x_check(k, u->root, sc)) { *why = k->why ? k->why : "not an expression"; return 0; }
+        }
+        else if (expr) { if (!x_syntax(src, why)) return 0; }
+        else if (name) x_name_check(src);
         s = close;
     }
     return 1;
@@ -2095,7 +2106,7 @@ internal void tl_value(struct tlex *l, struct tval *v) {
     }
     // the syntax now (an expression, a string's placeholders): a mistake comes up when the file is read, not when the
     // line is said
-    if (v->kind == TV_EXPR ? !x_syntax(r, &why) : v->kind == TV_STRING && !x_fills_ok(v->text, &why)) {
+    if (v->kind == TV_EXPR ? !x_syntax(r, &why) : v->kind == TV_STRING && !x_fills_ok(v->text, &why, NULL, NULL)) {
         int cur = l->line;
         l->line = v->line;
         tl_error(l, why);

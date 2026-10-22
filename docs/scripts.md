@@ -91,7 +91,8 @@ in the order given. A script waits only for itself: two things that repeat at di
 ## Mistakes
 
 A script is checked when it is read: its syntax, a name or a function nobody has, a function's number of arguments, a
-variable of the code around changed in a function. Then it doesn't run at all:
+variable of the code around changed in a function - in its texts' `{placeholders}` too, which see the same names as
+the code around them (`"{row(3)}"` calls the script's function `row`). Then it doesn't run at all:
 `# setup: <file>:<line>: <what> - not run`. A mistake while it runs (a command's error, `"a" * 2`, a player that isn't
 there) ends it: `# setup: <file>:<line>: stopped - <what>`. A script that ends logs `# setup: <file>: done`.
 
