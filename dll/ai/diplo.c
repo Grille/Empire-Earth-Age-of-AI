@@ -253,8 +253,7 @@ internal void ws_unit(ee_unit *u, void *ctx) {
     for (int a = 1; a < 16; a++) {
         void *pa = g_players[a];
         if (!pa || a == o || g_ws.bx[a] == -10000 || !stance_of(pa, o)) continue;
-        int dx = x - g_ws.bx[a], dy = y - g_ws.by[a];
-        if (dx * dx + dy * dy <= 400) { g_ws.close[a]++; g_ws.close_by[a][o]++; }
+        if (ivec2_dist2(iv2(x, y), iv2(g_ws.bx[a], g_ws.by[a])) <= 400) { g_ws.close[a]++; g_ws.close_by[a][o]++; }
     }
 }
 internal void world_scan(uint32_t now) {

@@ -402,14 +402,13 @@ internal void ld_home_scan(ee_player *pl) {
     if (!hc) return;
     int n = 0;
     for (int b = 0; b < g_ld_home.nb; b++)
-        if (area_id(g_ld_home.bx[b], g_ld_home.by[b], 2) == hc) { g_ld_home.bx[n] = g_ld_home.bx[b]; g_ld_home.by[n++] = g_ld_home.by[b]; }
+        if (area_id(g_ld_home.b[b].x, g_ld_home.b[b].y, 2) == hc) g_ld_home.b[n++] = g_ld_home.b[b];
     g_ld_home.nb = n;
 }
 internal int ld_at_home(int x, int y) {
     if (x < 0) return 0;
     for (int b = 0; b < g_ld_home.nb; b++) {
-        int dx = g_ld_home.bx[b] - x, dy = g_ld_home.by[b] - y;
-        if (dx * dx + dy * dy <= 400) return 1;
+        if (ivec2_dist2(g_ld_home.b[b], iv2(x, y)) <= 400) return 1;
     }
     return 0;
 }

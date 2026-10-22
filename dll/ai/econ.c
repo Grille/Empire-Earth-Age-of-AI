@@ -792,8 +792,7 @@ internal int wild_food(ee_player *pl) {
     for (int z = 0; zb && zb + z < ze; z++) {
         ee_unit *s = zb[z] ? zone_site(zb[z], 2) : NULL;
         if (!s || type_get_id(unit_get_type_data(s)) != UT(RES_FORAGE_BUSH)) continue;
-        int dx = unit_get_x(s) - bx, dy = unit_get_y(s) - by;
-        if (dx * dx + dy * dy >= lim) continue;
+        if (ivec2_dist2(unit_get_tile(s), iv2(bx, by)) >= lim) continue;
         if (!explored_by(s, pl)) continue;
         total += unit_get_amount(s);
     }
@@ -1305,7 +1304,7 @@ internal void econ_fields(ee_resource_mgr *rm) {   // before the citizen assignm
                 for (unsigned k = 0, first = FIELD(list, 0xC, unsigned), cnt = FIELD(list, 0x10, unsigned); k < cnt; k++) {
                     ee_unit *u = deque_at(list, first + k);
                     if (!citizen_free(u, pass == 0)) continue;
-                    int dx = unit_get_x(u) - fx, dy = unit_get_y(u) - fy, d = dx * dx + dy * dy;
+                    int d = ivec2_dist2(unit_get_tile(u), iv2(fx, fy));
                     if (d < bd) { bd = d; best = u; }
                 }
             }
@@ -1334,7 +1333,7 @@ internal void econ_fields(ee_resource_mgr *rm) {   // before the citizen assignm
                 for (unsigned k = 0, first = FIELD(list, 0xC, unsigned), cnt = FIELD(list, 0x10, unsigned); k < cnt; k++) {
                     ee_unit *u = deque_at(list, first + k);
                     if (!citizen_free(u, pass == 0)) continue;
-                    int dx = unit_get_x(u) - fx, dy = unit_get_y(u) - fy, d = dx * dx + dy * dy;
+                    int d = ivec2_dist2(unit_get_tile(u), iv2(fx, fy));
                     if (d < bd) { bd = d; best = u; }
                 }
             }

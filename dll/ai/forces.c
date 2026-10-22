@@ -66,7 +66,7 @@ internal int unit_fighting(ee_unit *u) {
     return t && unit_get_hp(t) > 0;
 }
 
-struct threat_scan { ee_player *pl; int nb, bx[512], by[512]; int ne, ex[512], ey[512]; };
+struct threat_scan { ee_player *pl; int nb; ivec2 b[512]; int ne; ivec2 e[512]; };   // own buildings, enemy soldiers
 internal void home_threat_unit(ee_unit *u, void *ctx) {
     struct threat_scan *h = ctx;
     ee_unit_type *td = unit_get_type_data(u);
@@ -74,9 +74,9 @@ internal void home_threat_unit(ee_unit *u, void *ctx) {
     if (!o || unit_get_hp(u) <= 0) return;
     int fam = type_get_family(td);
     if (o == h->pl) {
-        if ((fam == 2 || fam == 29) && !is_wall(type_get_id(td)) && h->nb < 512) { h->bx[h->nb] = unit_get_x(u); h->by[h->nb++] = unit_get_y(u); }
+        if ((fam == 2 || fam == 29) && !is_wall(type_get_id(td)) && h->nb < 512) h->b[h->nb++] = unit_get_tile(u);
     } else if (player_get_index(o) > 0 && is_enemy(h->pl, o) && (is_soldier(td) || is_siege(type_get_id(td))) &&
-               seen_by(u, h->pl) && h->ne < 512) { h->ex[h->ne] = unit_get_x(u); h->ey[h->ne++] = unit_get_y(u); }
+               seen_by(u, h->pl) && h->ne < 512) h->e[h->ne++] = unit_get_tile(u);
 }
 // enemy soldiers and siege the AI sees within 20 tiles of any of its buildings: an army in its territory
 internal int home_threat(ee_player *pl) {
@@ -86,8 +86,7 @@ internal int home_threat(ee_player *pl) {
     int n = 0;
     for (int e = 0; e < h.ne; e++)
         for (int b = 0; b < h.nb; b++) {
-            int dx = h.ex[e] - h.bx[b], dy = h.ey[e] - h.by[b];
-            if (dx * dx + dy * dy <= 400) { n++; break; }
+            if (ivec2_dist2(h.e[e], h.b[b]) <= 400) { n++; break; }
         }
     return n;
 }

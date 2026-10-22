@@ -226,8 +226,8 @@ internal int st_counts(ee_unit *u, ee_unit_type *td) {   // soldiers, citizens a
 internal void st_scan_unit(ee_unit *u, void *ctx) {
     struct st_scan *f = ctx;
     ee_unit_type *td = unit_get_type_data(u);
-    int p = st_pidx(u), dx = unit_get_x(u) - f->x, dy = unit_get_y(u) - f->y;
-    if (unit_get_hp(u) <= 0 || !td || p <= 0 || p > 15 || !f->side[p] || dx * dx + dy * dy > f->r2) return;
+    int p = st_pidx(u);
+    if (unit_get_hp(u) <= 0 || !td || p <= 0 || p > 15 || !f->side[p] || ivec2_dist2(unit_get_tile(u), iv2(f->x, f->y)) > f->r2) return;
     if (f->ta >= 0 && type_get_id(td) != f->ta && type_get_id(td) != f->tb) return;   // only these types
     if (st_counts(u, td)) st_side_add(f->side[p], u);
 }
@@ -349,14 +349,14 @@ internal void cmd_stats(char *out, const char *args) {
             ee_unit_type *td = it.td;
             int q = st_pidx(u);
             if (unit_get_hp(u) <= 0 || q <= 0 || q > 15) continue;
+            ivec2 up = unit_get_tile(u);
             if (tt >= 0) {
-                int dx = unit_get_x(u) - x, dy = unit_get_y(u) - y, ex = unit_get_x(u) - tx, ey = unit_get_y(u) - ty;
-                if (q == p && type_get_id(td) == tt && dx * dx + dy * dy <= r * r && nm < ST_UNITS) mu[nm++] = u;
-                else if (q != p && ex * ex + ey * ey <= 15 * 15 && is_enemy(st_player(p), st_player(q)) && nf < ST_UNITS) fu[nf++] = u;
+                if (q == p && type_get_id(td) == tt && ivec2_dist2(up, iv2(x, y)) <= r * r && nm < ST_UNITS) mu[nm++] = u;
+                else if (q != p && ivec2_dist2(up, iv2(tx, ty)) <= 15 * 15 && is_enemy(st_player(p), st_player(q)) && nf < ST_UNITS) fu[nf++] = u;
                 continue;
             }
             if (!st_counts(u, td)) continue;
-            int dx = unit_get_x(u) - x, dy = unit_get_y(u) - y, d2 = dx * dx + dy * dy;
+            int d2 = ivec2_dist2(up, iv2(x, y));
             if (q == p && d2 <= r * r && nm < ST_UNITS) mu[nm++] = u;
             else if (q != p && d2 <= 40 * 40 && is_enemy(st_player(p), st_player(q)) && nf < ST_UNITS) fu[nf++] = u;
         }
@@ -364,8 +364,8 @@ internal void cmd_stats(char *out, const char *args) {
             ee_unit *u = mu[i], *best = NULL;
             float bd = tt >= 0 ? 1e9f : 30.0f * 30.0f;
             for (int k = 0; k < nf; k++) {
-                float dx = (float)(unit_get_x(fu[k]) - unit_get_x(u)), dy = (float)(unit_get_y(fu[k]) - unit_get_y(u));
-                if (dx * dx + dy * dy < bd && st_shot(u, fu[k]) > 0) { bd = dx * dx + dy * dy; best = fu[k]; }
+                float d2 = (float)ivec2_dist2(unit_get_tile(fu[k]), unit_get_tile(u));
+                if (d2 < bd && st_shot(u, fu[k]) > 0) { bd = d2; best = fu[k]; }
             }
             if (best) n += unit_goal(u, goal_attack(u, best), 0, 0x1F40);
         }
@@ -415,8 +415,7 @@ internal void cmd_stats(char *out, const char *args) {
             ee_unit *c = cit[i], *best = NULL;
             float bd = 1e9f;
             for (int k = 0; k < nf; k++) {
-                float dx = (float)(unit_get_x(foe[k]) - unit_get_x(c)), dy = (float)(unit_get_y(foe[k]) - unit_get_y(c));
-                float r = st_range(foe[k]) + 3.0f, d2 = dx * dx + dy * dy;
+                float r = st_range(foe[k]) + 3.0f, d2 = (float)ivec2_dist2(unit_get_tile(foe[k]), unit_get_tile(c));
                 if (d2 <= r * r && d2 < bd && st_shot(foe[k], c) > 0) { bd = d2; best = foe[k]; }
             }
             if (!best) continue;

@@ -125,9 +125,9 @@ internal int navy_waters(int x, int y) {
         int fam = type_get_family(it.td);
         ee_player *o = unit_get_owner(it.u);
         if ((fam != 2 && fam != 29) || !o || unit_get_hp(it.u) <= 0) continue;
-        int pi = player_get_index(o), dx = unit_get_x(it.u) - x, dy = unit_get_y(it.u) - y;
-        if (pi <= 0 || pi >= 16 || dx * dx + dy * dy >= bd) continue;
-        bd = dx * dx + dy * dy; best = pi;
+        int pi = player_get_index(o), d = ivec2_dist2(unit_get_tile(it.u), iv2(x, y));
+        if (pi <= 0 || pi >= 16 || d >= bd) continue;
+        bd = d; best = pi;
     }
     return best;
 }
