@@ -5,8 +5,15 @@
 
 #define ADDRS_FUNCTIONS(F, D) \
     F(FN_TECH_LOOKUP, uint8_t *, __thiscall, (void *, int), 0x004019A1, 0x004018A4) \
+    /* thiscall (tile x, tile y): set target + queue (only if tile valid) */ \
+    F(FN_CAMACT_SET, void, __thiscall, (void *, int, int), 0x00401F3E, 0x00401EE0) \
     F(FN_EXPLORED, char, __thiscall, (void *, void *), 0x00404A8A, 0x004042E2) /* thiscall(site+0x14 object, player) -> bool */ \
+    F(FN_SAVE_ACTION_CTOR, void *, __thiscall, (void *, void *, int, struct ustring), 0x00404FA1, 0x00404613) \
+    /* point from int x, y (the task location's point) */ \
+    F(FN_POINT_SET, void, __thiscall, (void *, int *), 0x0040D29D, 0x0044D28B) \
     D(FN_ROUTE_COST, 0x004141E8, 0x00410074)                                  /* its slot 1: int thiscall(edge*, node*) */ \
+    /* the area object at a tile (thiscall on the map areas G_MAP_AREAS) */ \
+    F(FN_AREA_AT, uint8_t *, __thiscall, (void *, int *), 0x00425F16, 0x00422AD9) \
     D(FN_REGION, 0x00425F9F, 0x00422B86)                                      /* thiscall(0x917BC8, int pos[2], 2) -> short region id */ \
     /* where an idle transport lands (thiscall(transport manager, transport)) */ \
     F(FN_SHORE_TO_UNLOAD, int, __thiscall, (void *, void *), 0x0042C49A, 0x00422658) \
@@ -17,11 +24,18 @@
     /* thiscall(player, on player, 1): calls off its attack groups on that player */ \
     F(FN_CALL_OFF_ATTACK, void, __thiscall, (void *, void *, int), 0x0043033E, 0x0042DCA6) \
     F(FN_DELETE_FOR_ROOM, int, __thiscall, (void *, void *, int), 0x00430D40, 0x0042E851) \
+    /* EEComputerPlayer::AdjustCost (vf27): a price with the cheat */ \
+    F(FN_ADJUST_COST, int, __thiscall, (void *, int), 0x00430FBD, 0x0042EACE) \
     F(FN_EPOCH_CATCH_UP, void, __thiscall, (void *, void *), 0x00431533, 0x0042F064) /* thiscall(computer player, human): the attempt redrawn soon when the human is ahead */ \
+    /* thiscall(player, now): the next attack time (+0xED8) */ \
+    F(FN_SCHEDULE_ATTACK, void, __thiscall, (void *, uint32_t), 0x0043DD2F, 0x0043D4CD) \
     /* EEComputerPlayer::vf45(cost object, ?, ?): pays a unit/building/tech */ \
     F(FN_CP_PAY, void, __thiscall, (void *, void *, int, int), 0x0043F53D, 0x0043ED98) \
     D(FN_CP_UPDATE, 0x0043F91A, 0x0043F175) \
     F(FN_GIVE_GOAL, void, __thiscall, (void *, void *, int), 0x004412D4, 0x0043D416) /* thiscall(unit, goal, slot) */ \
+    F(FN_TASK_CTOR, void, __thiscall, (void *), 0x00441FB3, 0x0044162F)       /* an attack task */ \
+    F(FN_TASK_SET_TARGET, void, __thiscall, (void *, void *), 0x00442246, 0x00441912) \
+    F(FN_TASK_DTOR, void, __thiscall, (void *), 0x00442283, 0x004417F5) \
     F(FN_ASG_AIR_GIVE_GOAL, char, __thiscall, (void *, void *, void *, int, int), 0x00442AD8, 0x00442220) \
     F(FN_ASG_AIR_UPDATE, void, __thiscall, (void *, int), 0x00442DBA, 0x0045019D) /* EECPASGAir slot 90: update(now) */ \
     F(FN_ASG_LAND_STATS, void, __thiscall, (void *), 0x004472A9, 0x004466DD) \
@@ -33,6 +47,8 @@
     F(FN_ASG_SEA_TRANSPORT_UPDATE, void, __thiscall, (void *, int), 0x0044FB92, 0x0044E9BB) \
     F(FN_GROUP_STAT, void, __thiscall, (void *, void *), 0x00450554, 0x00451239) \
     F(FN_UNIT_TO_GROUP, char, __thiscall, (void *, void *), 0x00450E07, 0x00451A8A) \
+    /* thiscall(attack manager, task, strategy, unit ids) -> the attack group */ \
+    F(FN_ATTACK_GROUP_NEW, uint8_t *, __thiscall, (void *, void *, void *, void *), 0x0045106C, 0x00451D8E) \
     F(FN_ASG_STATS, void, __thiscall, (void *), 0x0045AD2F, 0x0045C925) \
     F(FN_ASG_GIVE_GOAL, char, __thiscall, (void *, void *, void *, int, int), 0x0045CBEA, 0x0045E7F9) \
     D(FN_ASGU_SCORE, 0x00461854, 0x00463494)                                  /* float thiscall(info *) */ \
@@ -44,8 +60,16 @@
     F(FN_BQ_ADD, void, __thiscall, (void *, int *), 0x00468C37, 0x0046B798)   /* an entry into a build manager epoch queue */ \
     F(FN_FISH_TYPE, int, __thiscall, (void *), 0x0046D209, 0x0046FDD3) \
     F(FN_HUMAN_EPOCH, int, __cdecl, (void), 0x0046D436, 0x0047005A)           /* the highest epoch of the players SLOT_PLAYER_HUMAN says are human, 0 without */ \
+    F(FN_SET_EPOCH_TIME, void, __thiscall, (void *, uint32_t, char), 0x0046DE8C, 0x00470B04) /* SetNextEpochAdvanceTime */ \
     F(FN_REVENGE, void, __thiscall, (void *, void *), 0x0046FFB7, 0x00472EC3) \
+    /* thiscall(cm, task, strategy, unit ids) */ \
+    F(FN_ATTACK_PLAN_OK, char, __thiscall, (void *, void *, void *, void *), 0x0047067A, 0x0047360A) \
     F(FN_CM_UNIT_FREE, char, __thiscall, (void *, void *), 0x004707D8, 0x0047377E) /* thiscall(cm, unit state): in no group */ \
+    F(FN_STRATEGY_CTOR, void, __thiscall, (void *), 0x00473BC4, 0x00477084) \
+    F(FN_STRATEGY_DTOR, void, __thiscall, (void *), 0x00473C99, 0x0047716D) \
+    F(FN_STRATEGY_INIT, void, __thiscall, (void *), 0x00473CA7, 0x0047717B) \
+    F(FN_LOCATION_CTOR, void, __thiscall, (void *), 0x0047C4E8, 0x00480873) \
+    F(FN_TASK_SET_LOCATION, void, __thiscall, (void *, void *), 0x0047C8B7, 0x00480C42) \
     F(FN_NATIVE_CHAT, char, __thiscall, (void *, int, int), 0x00484EB3, 0x0048966C) \
     F(FN_RS_SCHEDULE, void, __thiscall, (void *, int), 0x00485F57, 0x0048A79F) \
     /* thiscall(research manager cm+0x40, count): the AI's request for an epoch's required techs */ \
@@ -66,6 +90,7 @@
     D(FN_UM_PENDING, 0x0048E9D8, 0x00493696)                                  /* thiscall(unit manager, type) */ \
     D(FN_UM_IN_PRODUCTION, 0x0048EA2E, 0x004936EC)                            /* thiscall(unit manager, type) */ \
     F(FN_UM_CITIZENS_WANTED, int, __thiscall, (void *), 0x0048EDDB, 0x00493AEE) /* citizen share x population cap */ \
+    F(FN_TRAIN_CITIZENS, uintptr_t, __thiscall, (void *, uintptr_t), 0x0048EE84, 0x00493B97) \
     /* citizens of both sexes and the epoch's fishing boat type */ \
     F(FN_UM_CITIZENS, int, __thiscall, (void *), 0x0048F819, 0x00494572) \
     /* thiscall(unit manager, type): its units and buildings of that type */ \
@@ -94,13 +119,18 @@
     F(FN_SITE_GATHERERS, unsigned, __thiscall, (void *, void *), 0x0052E5F7, 0x00539532) \
     F(FN_GAME_PLAYER, void *, __thiscall, (void *, int), 0x0052E6EF, 0x00539670) /* thiscall(G_GAME_STATE, index) */ \
     F(FN_SAVE_GAME, int, __cdecl, (void *, int, int, struct ustring), 0x00540ACA, 0x0054D066) \
+    F(FN_PHYS_STEP, void, __thiscall, (void *), 0x00546C63, 0x00553082) \
     /* thiscall(player, type, 0x20, 0): can train or build one now */ \
     F(FN_CAN_BUILD, char, __thiscall, (void *, int, int, int), 0x00555710, 0x005639E8) \
     F(FN_POPULATION, int, __thiscall, (void *, int, int), 0x00556E11, 0x005651E0) /* thiscall(player, 1, 0) */ \
     /* EEPlayer::vf31 thiscall(player, 0): the game's unit limit for this player */ \
     F(FN_GAME_LIMIT, int, __thiscall, (void *, int), 0x00556EBC, 0x0056528B) \
+    D(FN_SET_DIPLOMACY, 0x0055B8E1, 0x0056AB41) \
     F(FN_PLAYER_RESIGN, void, __thiscall, (void *, int), 0x0055BCEA, 0x0056AF5C) /* thiscall(player, 2) as EEMResign */ \
     F(FN_STAT_ADD, void, __thiscall, (void *, int, int), 0x0055DBCF, 0x0056D507) \
+    F(FN_CAMACT_CTOR, void *, __thiscall, (void *), 0x00560179, 0x0056FAD4)   /* EEACenterCamera ctor (0x1C bytes) */ \
+    F(SM_RUN_EFFECT, void, __thiscall, (void *, int), 0x005AD29B, 0x005BD5EB) \
+    F(FN_EPOCH_NEXT, void, __thiscall, (void *), 0x005BC15D, 0x005CCB34)    /* thiscall(tech tree): the next epoch (to the game's end epoch) - 0x5BC893 sets it, sends the epoch event */ \
     D(FN_EPOCH_UPGRADES, 0x005BDDBD, 0x005CE8C5)                              /* thiscall(node, category), AoC's (+ only new): econ.c */ \
     F(FN_TECH_GRANT, int, __thiscall, (void *), 0x005BF335, 0x005CFA53)       /* AoC's takes an argument: called in the 2017 update only */ \
     F(FN_CHEAT_MSG_CTOR, void *, __thiscall, (void *, int, int), 0x005C29FB, 0x005D3162) /* new 0x18; (code, arg) */ \
@@ -123,6 +153,7 @@
     /* EEUGUnloadTransport: new 0x40 */ \
     F(FN_GOAL_UNLOAD_CTOR, void *, __thiscall, (void *, void *, int, int, int), 0x00615A1F, 0x006283FF) \
     F(FN_GOALSET_ASK, int, __thiscall, (void *, void *, int *), 0x00619FF5, 0x0062CD8B) \
+    F(FN_VECTOR_FREE, void, __thiscall, (void *), 0x0061ABEC, 0x006002C7)     /* a vector's dtor (the game's delete) */ \
     F(FN_UNIT_UNLINK, void, __thiscall, (void *), 0x00628E29, 0x0063DBDA) \
     F(FN_UNIT_DISTANCE, float, __cdecl, (void *, void *), 0x0062D5A4, 0x00642489) /* cdecl(unit, other) */ \
     /* cdecl char(player, type, x, y, w, h, 0) */ \
@@ -132,11 +163,15 @@
     /* cdecl(unit, player index, new type data) */ \
     F(FN_UNIT_CONVERT, int, __cdecl, (void *, int, uint32_t), 0x0062F192, 0x00644E95) \
     F(FN_RANGE_SORT, void, __cdecl, (void **, void **, void *), 0x0063A355, 0x006509AF) \
+    /* EEMHackANewUnit: thiscall(int *type, float xy[2], char player) */ \
+    F(FN_NEW_UNIT_MSG_CTOR, void, __thiscall, (void *, int *, float *, char), 0x00650B3C, 0x00662C24) \
+    D(FN_QUEUE_ACTION, 0x0066192F, 0x00678F79) \
     /* thiscall(ui [G_UI], colour, name, line, ms, 0): a chat or system line */ \
     F(FN_UI_LINE, void, __thiscall, (void *, void *, void *, void *, int, int), 0x00661E91, 0x006794C6) \
     F(FN_NEW, void *, __cdecl, (size_t), 0x00683718, 0x0069D178)              /* the game's operator new */ \
     D(IAT_RESOURCE_STRING, 0x0082319C, 0x00837198)                            /* the game's string resource (a language entry) */ \
     D(IAT_WSTRING_CTOR, 0x008231A4, 0x008371A0)                               /* UWideString::UWideString() */ \
+    D(IAT_RELEASE, 0x008231AC, 0x008371A8)                                    /* imported refcount release, thiscall on the action */ \
     D(IAT_USTRING_CTOR, 0x008231E4, 0x008371E0)                               /* UString::UString() */ \
     D(IAT_WSTRING_ASSIGN, 0x00823224, 0x00837220)                             /* UWideString::operator=(const char *) */ \
     D(IAT_USTRING_ASSIGN, 0x00823228, 0x00837224)                             /* UString::operator=(const char *) */ \
@@ -146,12 +181,14 @@
     D(IAT_WSTRING_DTOR, 0x00823AEC, 0x00837194)                               /* UWideString::~UWideString() */ \
     D(IAT_USTRING_DTOR, 0x008245BC, 0x008385B0)                               /* UString::~UString() */ \
     D(IAT_RAND, 0x00824648, 0x0083863C)                                       /* the game's rand */ \
+    D(VT_PAUSE_ACTION, 0x00830E94, 0x00846790)                                /* EEAUserPauseGame vtable (0xC bytes: vtable, refcount, byte) */ \
+    D(VT_GOAL_ATTACK, 0x00831968, 0x00847380) \
+    D(VT_GOAL_LOCATION, 0x00831E64, 0x008478A0) \
 
 
 #define ADDR_NUMBERS_FUNCTIONS(D) \
     D(SLOT_TECH_AVAILABLE, 1, 1)        /* EETechTreeNode: char thiscall(tech) */ \
     D(SLOT_GOAL_PART, 4, 4)             /* EEUGLoadTransport: a unit's part of the load goal */ \
-    D(SLOT_SERVER_SEND, 6, 6)           /* [G_SERVER] (EEServer, EEClient): thiscall(net, message, 0xFF) */ \
     D(SLOT_TYPE_ASSIGN, 29, 29)         /* EEUnitClass: thiscall(type data, unit), as the game's goal assignment */ \
     D(SLOT_PLAYER_HUMAN, 29, 29)        /* EEPlayer: char thiscall(player) - human (EEHumanPlayer's returns 1; FN_HUMAN_EPOCH's test) */ \
     D(SLOT_UNIT_LIMIT, 31, 31)          /* EEPlayer: int thiscall(player, 0), the unit limit (FN_GAME_LIMIT) */ \

@@ -118,7 +118,7 @@ internal void cmd_trig(char *out, const char *args) {
         int e = atoi(arg);
         uint8_t *ef = sm_at(m + OF(SCEN, 0x108), e);
         if (!ef) { REPLY("error: no effect %d\n", e); return; }
-        GF(SM_RUN_EFFECT)(ef, 0);
+        sm_run_effect(ef, 0);
         REPLY("ok: effect %d (category %d) ran\n", e, FIELD(ef, OF(SCEN, 0x100), int));
         return;
     }
@@ -132,7 +132,7 @@ internal void cmd_trig(char *out, const char *args) {
         int ran = 0;
         for (int e = 0; e < sm_count(t + 0x40); e++) {
             uint8_t *w = sm_at(t + 0x40, e), *ef = w && FIELD(w, OF(SCEN, 0x4), int) != 2 ? sm_at(m + 0x108, FIELD(w, OF(SCEN, 0xC), int)) : NULL;
-            if (ef) { GF(SM_RUN_EFFECT)(ef, 0); ran++; }
+            if (ef) { sm_run_effect(ef, 0); ran++; }
         }
         FIELD(t, OF(SCEN, 0x59), char) = 1;
         REPLY("ok: trigger %d fired, %d effects ran\n", idx, ran);

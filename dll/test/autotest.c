@@ -29,22 +29,7 @@ internal void apply_game_speed(float s) {
 }
 
 // Replace `call AddMovie` (callee pops its one argument) with `add esp,4; nop; nop`.
-internal BOOL skip_intro_movies(void) {
-    const uint32_t *sites = GL(INTRO_CALLS);
-    static const uint8_t stub[5] = { 0x83, 0xC4, 0x04, 0x90, 0x90 };
-    for (int i = 0; i < 3; i++) {
-        uint8_t *p = (uint8_t *)sites[i];
-        if (p[0] != 0xE8 || sites[i] + 5 + *(int32_t *)(p + 1) != GA(FN_ADD_MOVIE)) return FALSE;
-    }
-    for (int i = 0; i < 3; i++) {
-        DWORD old;
-        VirtualProtect((void *)sites[i], 5, PAGE_EXECUTE_READWRITE, &old);
-        memcpy((void *)sites[i], stub, 5);
-        VirtualProtect((void *)sites[i], 5, old, &old);
-    }
-    FlushInstructionCache(GetCurrentProcess(), NULL, 0);
-    return TRUE;
-}
+internal BOOL skip_intro_movies(void) { return patch_skip_intro(); }
 
 // Diagnostics for the game's own command-line handling (both __cdecl).
 
@@ -54,7 +39,6 @@ internal BOOL skip_intro_movies(void) {
 // At the command line, not in DllMain: the engine loads the module later (LoadLibrary under the loader lock is none of
 // ours); loaded here it stays, and the engine's own LoadLibrary gets this copy.
 internal void slot_ports(void) {
-    const uint32_t *imm = GL(RVA_TCP_PORTS);
     static int done;
     if (!g_slot || done) return;
     done = 1;
@@ -62,12 +46,7 @@ internal void slot_ports(void) {
     wsprintfA(p, "%sTCP Protocol.dll", g_game_dir);
     HMODULE m = GetModuleHandleA("TCP Protocol.dll");
     if (!m) m = LoadLibraryA(p);
-    int n = 0;
-    for (size_t i = 0; m && i < sizeof GL(RVA_TCP_PORTS) / sizeof *imm; i++) {
-        uintptr_t at = (uintptr_t)m + imm[i];
-        uint32_t old = *(uint32_t *)at;
-        if (old == 33334 || old == 33335) n += patch_code32(at, old, old + 2 * g_slot);
-    }
+    int n = patch_tcp_ports(m, 2 * g_slot);
     char t[80];
     wsprintfA(t, "%d/%d (%d of 8 patched)", 33334 + 2 * g_slot, 33335 + 2 * g_slot, n);
     log_line("# slot: network ports %s\n", t);
@@ -140,13 +119,12 @@ internal void autotest_tick(uint32_t now) {
 // random seed, so random-map runs differ even with the same map seed. With game_seed every srand uses that seed,
 // and the start message carries it whichever start built it (hook_start_exec, trace.c: the load-game start a test
 // run uses puts TMGetTime() in it directly).
-typedef void (__cdecl *SrandFn)(unsigned);
-internal SrandFn g_srand;
+internal srand_hook g_srand;
 internal void __cdecl hook_srand(unsigned seed) {
     (void)seed;
     g_srand((unsigned)g_auto.game_seed);
 }
 
-internal BOOL patch_srand(void) {   // the exe imports srand from msvcrt.dll
-    return iat_hook(GA(IAT_SRAND), "msvcrt.dll", "srand", (void *)hook_srand, (void **)&g_srand);
+internal BOOL install_srand(void) {   // the exe imports srand from msvcrt.dll
+    return patch_srand(hook_srand, &g_srand);
 }

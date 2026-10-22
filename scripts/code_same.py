@@ -97,7 +97,7 @@ def functions(obj, names=None):
                         t = target(rel[r], addend)
                         nm = syms[rel[r]][0]
                         # the instruction shows the field's value (the addend, or a pc-relative distance): masked
-                        ins = re.sub(r'(?<![\w+])-?0x[0-9a-f]+(?=[(,\s]|$)', 'X', ins, count=0) if nm.startswith('.') or t.startswith('g_addr[') else ins
+                        ins = re.sub(r'(?<![\w+])-?0x[0-9a-fA-F]+(?=[(,\s]|$)', 'X', ins, count=0) if nm.startswith('.') or t.startswith('g_addr[') else ins
                         ins += ' -> ' + t
                     out.append(ins)
                 fns[cur + ('#%d' % used[cur] if used[cur] > 1 else '')] = out

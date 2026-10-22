@@ -26,27 +26,24 @@ internal void trace_emit(const char *line) {
     LeaveCriticalSection(&g_lock);
 }
 
-typedef void *(__thiscall *Fn3)(void *, uintptr_t, uintptr_t, uintptr_t);
-typedef void *(__thiscall *Fn2)(void *, uintptr_t, uintptr_t);
-
 #define CALLER() ((uintptr_t)__builtin_return_address(0) - 5)
 
-internal void *__fastcall tr_find_food(void *rm, void *edx, uintptr_t a, uintptr_t b, uintptr_t u) {
+internal void *__fastcall tr_find_food(ee_resource_mgr *rm, void *edx, uintptr_t a, uintptr_t b, ee_unit *u) {
     (void)edx;
-    void *r = ((Fn3)GA(FN_FIND_FOOD))(rm, a, b, u);
+    void *r = rm_find_food(rm, a, b, u);
     if (tracing(rm)) {
         char buf[300];
         snprintf(buf, sizeof buf, "@%06x find_food(%u,%u)", (unsigned)CALLER(), (unsigned)(a & 0xFF), (unsigned)(b & 0xFF));
         trace_obj(buf, sizeof buf, "unit", (void *)u);
         trace_obj(buf, sizeof buf, "->", r);
         if (r) { size_t n = strlen(buf); snprintf(buf + n, sizeof buf - n, " gatherers=%u",
-                 GF(FN_SITE_GATHERERS)((void *)GA(G_GAME_STATE), r)); }
+                 site_gatherers(r)); }
         trace_emit(buf);
     }
     return r;
 }
 
-internal void *__fastcall tr_gather(void *rm, void *edx, uintptr_t u, uintptr_t t, uintptr_t c) {
+internal void __fastcall tr_gather(ee_resource_mgr *rm, void *edx, ee_unit *u, ee_unit *t, int c) {
     (void)edx;
     if (tracing(rm)) {
         char buf[300];
@@ -55,12 +52,12 @@ internal void *__fastcall tr_gather(void *rm, void *edx, uintptr_t u, uintptr_t 
         trace_obj(buf, sizeof buf, "target", (void *)t);
         trace_emit(buf);
     }
-    return ((Fn3)GA(FN_ASSIGN_TO_SITE))(rm, u, t, c);
+    rm_assign_as(rm, u, t, c);
 }
 
-internal void *__fastcall tr_find_mine(void *rm, void *edx, uintptr_t type, uintptr_t u, uintptr_t rev) {
+internal void *__fastcall tr_find_mine(ee_resource_mgr *rm, void *edx, int type, ee_unit *u, uintptr_t rev) {
     (void)edx;
-    void *r = ((Fn3)GA(FN_FIND_MINE))(rm, type, u, rev);
+    void *r = rm_find_mine(rm, (uintptr_t)type, u, rev);
     if (tracing(rm)) {
         char buf[300];
         snprintf(buf, sizeof buf, "@%06x find_mine(type %u)", (unsigned)CALLER(), (unsigned)type);
@@ -70,9 +67,9 @@ internal void *__fastcall tr_find_mine(void *rm, void *edx, uintptr_t type, uint
     return r;
 }
 
-internal void *__fastcall tr_find_wood(void *rm, void *edx, uintptr_t f, uintptr_t u) {
+internal void *__fastcall tr_find_wood(ee_resource_mgr *rm, void *edx, uintptr_t f, ee_unit *u) {
     (void)edx;
-    void *r = ((Fn2)GA(FN_FIND_WOOD))(rm, f, u);
+    void *r = rm_find_wood(rm, f, u);
     if (tracing(rm)) {
         char buf[300];
         snprintf(buf, sizeof buf, "@%06x find_wood(%u)", (unsigned)CALLER(), (unsigned)f);
@@ -82,9 +79,9 @@ internal void *__fastcall tr_find_wood(void *rm, void *edx, uintptr_t f, uintptr
     return r;
 }
 
-internal void *__fastcall tr_hunt(void *rm, void *edx, uintptr_t n, uintptr_t f, uintptr_t out) {
+internal void *__fastcall tr_hunt(ee_resource_mgr *rm, void *edx, uintptr_t n, uintptr_t f, uintptr_t out) {
     (void)edx;
-    void *r = ((Fn3)GA(FN_HUNT))(rm, n, f, out);
+    void *r = rm_hunt(rm, n, f, out);
     if (tracing(rm)) {
         char buf[200];
         uint8_t *v = (uint8_t *)out;   // std::vector: +4 begin, +8 end
@@ -95,9 +92,9 @@ internal void *__fastcall tr_hunt(void *rm, void *edx, uintptr_t n, uintptr_t f,
     return r;
 }
 
-internal void *__fastcall tr_farms(void *rm, void *edx, uintptr_t n, uintptr_t out) {
+internal void *__fastcall tr_farms(ee_resource_mgr *rm, void *edx, uintptr_t n, uintptr_t out) {
     (void)edx;
-    void *r = ((Fn2)GA(FN_FARMS))(rm, n, out);
+    void *r = rm_farms(rm, n, out);
     if (tracing(rm)) {
         char buf[200];
         uint8_t *v = (uint8_t *)out;
@@ -138,12 +135,12 @@ internal void trace_train(ee_player *pl, int *req, uintptr_t r, const int *befor
     trace_emit(buf);
 }
 
-internal uintptr_t __fastcall tr_train_citizens(void *um, void *edx, uintptr_t a) {
+internal uintptr_t __fastcall tr_train_citizens(ee_unit_mgr *um, void *edx, uintptr_t a) {
     (void)edx;
     ee_player *pl = um_player(um);
     int before[7];
     if (pl) memcpy(before, (uint8_t *)pl + PL_STOCK, sizeof before);
-    uintptr_t r = GF(FN_TRAIN_CITIZENS)(um, a);
+    uintptr_t r = um_train_citizens(um, a);
     if (trace_pl(pl) && memcmp(before, (uint8_t *)pl + PL_STOCK, sizeof before)) {
         char buf[300];
         snprintf(buf, sizeof buf, "@%06x train_citizens arg=%u -> %u", (unsigned)CALLER(), (unsigned)a, (unsigned)r);
@@ -157,17 +154,10 @@ internal void trace_start(const char *ini) {
     g_trace_player = ini_int("autotest", "trace_player", -1, ini);
     if (g_trace_player < 0) return;
     g_trace_until_ms = (uint32_t)ini_int("autotest", "trace_until_min", 0, ini) * 60000u;
-    const uint32_t *food = GL(FOOD_SITES), *gather = GL(GATHER_SITES), *wood = GL(WOOD_SITES), *mine = GL(MINE_SITES);
-    const uintptr_t hunt[] = { GA(CALL_HUNT_1), GA(CALL_HUNT_2) };
-    int ok = 0, total = 0;
-    for (size_t i = 0; i < sizeof GL(FOOD_SITES) / sizeof *food; i++, total++) ok += patch_call(food[i], GA(FN_FIND_FOOD), tr_find_food);
-    for (size_t i = 0; i < sizeof GL(GATHER_SITES) / sizeof *gather; i++, total++) ok += patch_call(gather[i], GA(FN_ASSIGN_TO_SITE), tr_gather);
-    for (size_t i = 0; i < sizeof GL(WOOD_SITES) / sizeof *wood; i++, total++) ok += patch_call(wood[i], GA(FN_FIND_WOOD), tr_find_wood);
-    for (size_t i = 0; i < sizeof hunt / sizeof *hunt; i++, total++) ok += patch_call(hunt[i], GA(FN_HUNT), tr_hunt);
-    total++; ok += patch_call(GA(CALL_FARMS), GA(FN_FARMS), tr_farms);
-    total++; ok += patch_call(GA(CALL_TRAIN_CITIZENS), GA(FN_TRAIN_CITIZENS), tr_train_citizens);
-    // find_mine call sites
-    for (size_t i = 0; i < sizeof GL(MINE_SITES) / sizeof *mine; i++) { total++; ok += patch_call(mine[i], GA(FN_FIND_MINE), tr_find_mine); }
+    int total = 1;   // the citizens trained
+    int ok = patch_find_food(tr_find_food, &total) + patch_gather(tr_gather, &total) + patch_find_wood(tr_find_wood, &total) +
+             patch_hunt(tr_hunt, &total) + patch_farms(tr_farms, NULL, &total) + patch_train_citizens(tr_train_citizens) +
+             patch_find_mine(tr_find_mine, &total);
     if (g_log) fprintf(g_log, "# trace: player %d, %d/%d call sites hooked\n", g_trace_player, ok, total);
 }
 
@@ -183,7 +173,6 @@ internal void trace_start(const char *ini) {
 // one game_seed diffed show the first step they part - and whether the generator, an input or the units went first.
 internal FILE *g_sync;
 internal unsigned g_sync_left;
-typedef void (__thiscall *StepFn)(void *);
 
 // The game start message (type 0x5D, vtable 0x8285B0, built by 0x522DFC(flag, seed)) sets the simulation's
 // random seed when it runs (slot 10, 0x4BEE57): EEPhysics +0x18 and world +0x54 = message +0x14. The menu's start
@@ -195,7 +184,7 @@ internal void __fastcall hook_start_exec(void *msg, void *edx) {
     if (g_auto.game_seed) FIELD(msg, OF(MSG_START, 0x14), unsigned) = (unsigned)g_auto.game_seed;
     uint8_t *phys = *(uint8_t **)GA(G_WORLD_CLOCK), *world = *(uint8_t **)GA(G_WORLD);
     unsigned map_seed = world ? FIELD(world, OF(WORLD, 0x54), unsigned) : 0;
-    ((StepFn)GA(START_EXEC))(msg);
+    start_exec(msg);
     EnterCriticalSection(&g_lock);
     if (g_sync) fprintf(g_sync, "start message: seed %u (generator %u, world+0x54 was %u)\n", FIELD(msg, OF(MSG_START, 0x14), unsigned),
                         phys ? FIELD(phys, OF(PHYS, 0x18), unsigned) : 0, map_seed);
@@ -203,7 +192,7 @@ internal void __fastcall hook_start_exec(void *msg, void *edx) {
 }
 internal int start_hook(void) {
     static int done;
-    return done || (done = patch_code32(GA(START_VTBL_EXEC), GA(START_EXEC), (uint32_t)(uintptr_t)hook_start_exec));
+    return done || (done = patch_start_exec(hook_start_exec));
 }
 
 // the units' part of a step's line: how many, and a sum of each one's hash (owner, type, tile, hit points) - the
@@ -233,13 +222,13 @@ internal void sync_unit_dump(ee_unit *u, void *ctx) {
 // the messages handed to the lockstep server (EEServer [0x91984C] vtable slot 6: (msg, 0xFF)): "  m <type> <caller>
 // <S|thread>" - what goes into the next tick the server sends, and from where
 internal DWORD g_sync_tid;
-internal void (__thiscall *g_srv_send)(void *, void *, int);
-internal void __fastcall sync_srv_send(void *srv, void *edx, uint8_t *msg, int to) {
+internal server_send_fn g_srv_send;
+internal void __fastcall sync_srv_send(void *srv, void *edx, void *msg, int to) {
     (void)edx;
     uintptr_t ret = (uintptr_t)__builtin_return_address(0);
     DWORD tid = GetCurrentThreadId();
     EnterCriticalSection(&g_lock);
-    if (g_sync) fprintf(g_sync, "  m type %u from %06x %s%lu\n", msg ? msg[8] : 0, (unsigned)ret, tid == g_sync_tid ? "S" : "thread ", tid == g_sync_tid ? 0 : tid);
+    if (g_sync) fprintf(g_sync, "  m type %u from %06x %s%lu\n", msg ? ((uint8_t *)msg)[8] : 0, (unsigned)ret, tid == g_sync_tid ? "S" : "thread ", tid == g_sync_tid ? 0 : tid);
     LeaveCriticalSection(&g_lock);
     g_srv_send(srv, msg, to);
 }
@@ -248,12 +237,7 @@ internal void sync_hook_server(void) {
     void **srv = *(void ***)GA(G_SERVER);
     if (done || !srv) return;
     done = 1;
-    void **slot = &((void **)srv[0])[6];
-    DWORD old;
-    if (!VirtualProtect(slot, 4, PAGE_READWRITE, &old)) return;
-    g_srv_send = (void (__thiscall *)(void *, void *, int))*slot;
-    *slot = (void *)sync_srv_send;
-    VirtualProtect(slot, 4, old, &old);
+    g_srv_send = patch_server_send(srv, sync_srv_send);
     if (g_log) fprintf(g_log, "# sync trace: server messages hooked (vtable %p)\n", srv[0]);
 }
 internal void sync_step(void *phys) {   // after each step (control.c hook_phys_step)
@@ -289,7 +273,7 @@ internal void sync_trace_start(const char *ini) {
     char dump[40];
     GetPrivateProfileStringA("autotest", "sync_dump", "", dump, sizeof dump, ini);
     if (dump[0]) { g_sync_dump0 = (uint32_t)strtoul(dump, NULL, 10); const char *m = strchr(dump, '-'); g_sync_dump1 = m ? (uint32_t)strtoul(m + 1, NULL, 10) : g_sync_dump0; }
-    int ok = g_sync && *(uint32_t *)GA(VTBL_PHYS_STEP) == (uint32_t)(uintptr_t)hook_phys_step;   // control.c's, autotest
+    int ok = g_sync && phys_step_hooked_by(hook_phys_step);   // control.c's, autotest
     if (ok) g_step_after = sync_step;
     if (g_log) fprintf(g_log, "# sync trace: %u steps into %s (%s)\n", g_sync_left, path,
                        ok && start_hook() ? "ok" : "FAILED");

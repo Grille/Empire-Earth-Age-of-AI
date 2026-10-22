@@ -105,7 +105,7 @@ internal void landing_install(const char *aimod_ini, const char *autotest_ini);
 internal void navy_install(const char *aimod_ini, const char *autotest_ini);
 internal void assault_install(const char *aimod_ini, const char *autotest_ini);
 internal PRINTF_LIKE(1, 2) void log_line(const char *fmt, ...);
-internal BOOL patch_srand(void);
+internal BOOL install_srand(void);
 #include "base/ini.c"
 #include "engine/scenario_ai.c"
 #include "game/world.c"
@@ -571,7 +571,7 @@ internal void install(HMODULE self) {
     llm_install(g_aimod_ini, g_autotest ? g_ini : NULL);
     ctl_start(g_autotest || ini_int("general", "control_pipe", 0, g_aimod_ini));
     if (g_autotest && g_auto.game_seed) {
-        BOOL ok = patch_srand(), start = start_hook();
+        BOOL ok = install_srand(), start = start_hook();
         if (g_log) fprintf(g_log, "# autotest: game_seed=%d (srand hook %s, start message hook %s)\n", g_auto.game_seed,
                            ok ? "ok" : "FAILED", start ? "ok" : "FAILED");
     }

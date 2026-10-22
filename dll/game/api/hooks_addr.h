@@ -4,9 +4,11 @@
 
 #define ADDRS_HOOKS(F, D) \
     D(CALL_CP_UPDATE, 0x0042F3CD, 0x0042CDD1) \
+    D(CALL_TRAIN_CITIZENS, 0x00430740, 0x0042E23C)                            /* a call of FN_TRAIN_CITIZENS */ \
     D(CALL_POP_CAP_1, 0x004311E5, 0x0042ECF6)                                 /* the callers of FN_POP_CAP */ \
     D(CALL_EPOCH_UPGRADES, 0x0043D365, 0x0043C9FC)                            /* the call of FN_EPOCH_UPGRADES */ \
     D(CALL_POP_CAP_2, 0x0043FA9B, 0x0043F2F6) \
+    D(FN_ADD_MOVIE, 0x00441432, 0x00440E57)                                   /* __thiscall, ret 4 */ \
     D(CALL_GROUP_STAT, 0x00450546, 0x0045122B) \
     D(CALL_PLACE, 0x00468629, 0x0046B044) \
     D(CALL_REPAIR_GOAL, 0x0046DA88, 0x004706DF) \
@@ -26,11 +28,14 @@
     D(CALL_FISH_TYPE_1, 0x0048F823, 0x0049457C)                               /* the calls of FN_FISH_TYPE */ \
     D(CALL_FISH_TYPE_2, 0x0048FB16, 0x0049488C) \
     D(CALL_CITIZENS_WANTED, 0x00490BC2, 0x00495A15)                           /* a call of FN_UM_CITIZENS_WANTED */ \
+    D(START_EXEC, 0x004BEE57, 0x004C7CDC) \
     D(CALL_GAME_START, 0x004CEC14, 0x004D4443) \
     D(CALL_DAMAGE_POINTS, 0x004F80A4, 0x0050232D) \
     D(CALL_LOAD_SAVED, 0x00522BF8, 0x0052D8F9)                                /* call LoadSavedGameFromCmdline(UString *) 0x521F94 */ \
     D(CALL_PLAYER_COLOR, 0x005262E4, 0x00531057) \
     D(CALL_PARSE_CMDLINE, 0x00535EF2, 0x005410C8)                             /* call ParseCommandLine(const char *) 0x522A36 */ \
+    D(SITE_SIM_RECEIVE, 0x00553348, 0x00561459) \
+    D(SITE_SIM_WAIT, 0x005533C5, 0x005614D6) \
     D(CALL_EPOCH_CATCH_UP, 0x0055A5B5, 0x00569633)                            /* its one call: EEPlayer::vf41, a human reached an epoch */ \
     D(EXIT_CONFIRM_AT, 0x005D0B2C, 0x005E1438) \
     D(CALL_GOAL_FBA_CHECK, 0x005ED9BF, 0x005FBA9C)                            /* in 0x5ED24B: FN_GOAL_FBA_CHECK on a dynamic_cast, unchecked */ \
@@ -42,20 +47,26 @@
     D(CALL_NODE_DEL_1, 0x00628BE7, 0x0063D998) \
     D(CALL_RANGE_SORT, 0x0063052E, 0x0064631B) \
     D(FN_OP_DELETE, 0x006836F0, 0x0069D150) \
+    D(IAT_TS_WAIT, 0x00823688, 0x00837634) \
+    D(IAT_TS_RECEIVE, 0x008236B0, 0x0083765C) \
+    D(IAT_SRAND, 0x00824644, 0x00838638) \
     D(VT_ROUTE_PLANNER, 0x00825CC4, 0x00839C70)                               /* EEAIGPGModifierLandAttackSubGroupRoutePlanner */ \
     D(VT_COMPUTER_PLAYER, 0x008264C0, 0x0083A57C) \
     D(VT_ASG_AIR, 0x00826610, 0x0083A6D8) \
     D(VT_ASG_LAND, 0x00826CA8, 0x0083AD7C)                                    /* EECPASGLand */ \
     D(VT_ASG_SEA, 0x00826F10, 0x0083AFEC) \
     D(VT_ASG_SEA_TRANSPORT, 0x008270F8, 0x0083B1D8) \
+    D(START_VTBL_EXEC, 0x008285D8, 0x0083D2A0) \
     D(VT_RESIGN, 0x00828820, 0x0083D4E8) \
     D(VT_PAY_TRIBUTE, 0x008289C0, 0x0083D688) \
     D(VT_INGAME_CHAT, 0x0082936C, 0x0083E0BC) \
+    D(VTBL_PHYS_STEP, 0x0082CB7C, 0x00842324)                                 /* EEPhysics vtable slot 8: one simulation step */ \
     D(VTS_TECH_RESEARCHED, 0x00830874, 0x00846168)                            /* EETechTreeNode::vf6's vtable slot */ \
     D(VT_COMPLEX_UNIT, 0x00831494, 0x00846DDC) \
 
 
 #define ADDR_NUMBERS_HOOKS(D) \
+    D(SLOT_SERVER_SEND, 6, 6)           /* [G_SERVER] (EEServer, EEClient): thiscall(net, message, 0xFF) */ \
     D(SLOT_ROUTE_COST, 1, 1)            /* VT_ROUTE_PLANNER: FN_ROUTE_COST */ \
     D(SLOT_ASGU_SCORE, 2, 2)            /* ASGU_VTABLES */ \
     D(SLOT_MSG_EXECUTE, 10, 10)         /* VT_PAY_TRIBUTE, VT_INGAME_CHAT, VT_RESIGN: the message's Execute */ \
@@ -67,6 +78,8 @@
     D(SLOT_ASG_UPDATE, 90, 90)          /* the attack subgroups: update(now) */ \
     D(SLOT_ASG_ROUTE, 94, 94)           /* VT_ASG_LAND */ \
     D(SLOT_ASG_ROUTE_DONE, 97, 97)      /* VT_ASG_LAND */ \
+    D(RVA_LLE_SEND_WAIT, 0x55DF5, 0x49DDA)    /* NESynchronousServer::Send: call [WaitForMultipleObjects] (turbo) */ \
+    D(RVA_LLE_IAT_WFMO, 0x940EC, 0x970EC)     /* its import slot */ \
 
 
 #define ADDR_LISTS_HOOKS(L) \
@@ -94,4 +107,14 @@
     /* the calls of FN_NATIVE_CHAT (the AI's own lines) */ \
     L(NATIVE_CHAT_SITES, 5, (0x00470040, 0x004715F8, 0x0047166E, 0x0047280E, 0x00472B9D), \
         (0x00472F4C, 0x00474682, 0x00474705, 0x004758D5, 0x00475C65)) \
+    /* TCP Protocol.dll, relative to its base: the network ports' immediates (UDP 33334, TCP 33335), moved for a test slot */ \
+    L(RVA_TCP_PORTS, 8, (0x17E2, 0x196F, 0x19EB, 0x1EB8, 0x1FBD, 0x2148, 0x279C, 0x2F2C), \
+        (0x1684, 0x185C, 0x18D8, 0x1DA5, 0x1EAA, 0x2035, 0x2689, 0x2E1C)) \
+    /* the calls of FN_ASSIGN_TO_SITE (trace.c) */ \
+    L(GATHER_SITES, 11, (0x0048A2A6, 0x0048A372, 0x0048A9B8, 0x0048AB53, 0x0048ABF3, 0x0048ACB7, 0x0048ADC6, 0x0048AE7A, \
+        0x0048AF60, 0x0048B0A6, 0x0048B261), \
+        (0x0048EC21, 0x0048ECED, 0x0048F32C, 0x0048F540, 0x0048F5E2, 0x0048F6A6, 0x0048F7B3, 0x0048F869, 0x0048F94F, 0x0048FA80, 0x0048FC37)) \
+    /* call AddMovie(path) in PlayIntro 0x538867 */ \
+    L(INTRO_CALLS, 3, (0x00538909, 0x0053892A, 0x00538945), \
+        (0x00543A57, 0x00543A78, 0x00543A93)) \
 

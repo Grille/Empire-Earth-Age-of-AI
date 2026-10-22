@@ -104,12 +104,9 @@ internal PRINTF_LIKE(1, 2) void ctl_log(const char *fmt, ...) {
 
 
 
-typedef void (__thiscall *QueueFn)(void *world, void *action);
-typedef void (__thiscall *ReleaseFn)(void *action);
-
 internal void queue_action(void *act) {
-    ((QueueFn)GA(FN_QUEUE_ACTION))(*(void **)GA(G_WORLD), act);
-    (*(ReleaseFn *)GA(IAT_RELEASE))(act);
+    world_queue_action(act);
+    action_release(act);
 }
 
 // Same as clicking the pause button (EEUIEMGPauseGame::Execute 0x649F9A); the action toggles the pause.
@@ -117,12 +114,9 @@ internal int queue_pause_toggle(void) {
     void **client = *(void ***)GA(G_SERVER);
     if (!client || !((uint32_t *)client)[4]) return 0;
     if (!((char (__thiscall *)(void *))(*(void ***)client)[4])(client)) return 0;
-    uint8_t *act = GF(FN_NEW)(GA(SIZE_PAUSE_ACTION));
+    uint8_t *act = game_new(GA(SIZE_PAUSE_ACTION));
     if (!act) return 0;
-    *(uint32_t *)act = GA(VT_PAUSE_ACTION);
-    *(uint32_t *)(act + 4) = 1;
-    act[8] = 0;
-    queue_action(act);
+    queue_action(pause_action_init(act));
     return 1;
 }
 
@@ -140,10 +134,10 @@ internal void cmd_save(char *out, const char *args) {
     struct ustring upath, udir;
     ustring_init(&upath); ustring_set(&upath, path);
     ustring_init(&udir); ustring_set(&udir, "data\\Saved Games\\");   // relative to the game folder
-    uint8_t *act = GF(FN_NEW)(GA(SIZE_SAVE_ACTION));
+    uint8_t *act = game_new(GA(SIZE_SAVE_ACTION));
     if (!act) { ustring_free(&upath); ustring_free(&udir); REPLY("error: out of memory\n"); return; }
     // the ctor takes the folder by value and destroys its copy: ownership passes with the bytes
-    GF(FN_SAVE_ACTION_CTOR)(act, &upath, 1, udir);
+    save_action_init(act, &upath, 1, udir);
     ustring_free(&upath);
     queue_action(act);
     REPLY("ok: saving %s\n", path);
@@ -182,11 +176,11 @@ internal void cmd_camera(char *out, const char *args) {
     if (sscanf(args, "%d %d", &x, &y) == 2) {
         uint32_t size = *(uint32_t *)(*(uint8_t **)GA(G_MAP) + OF(MAP, 0x1816FC));
         if (x < 0 || y < 0 || (uint32_t)x >= size || (uint32_t)y >= size) { REPLY("error: tile outside map (size %u)\n", size); return; }
-        void *act = GF(FN_NEW)(GA(SIZE_CAMERA_ACTION));
+        void *act = game_new(GA(SIZE_CAMERA_ACTION));
         if (!act) { REPLY("error: alloc\n"); return; }
-        act = GF(FN_CAMACT_CTOR)(act);
-        GF(FN_CAMACT_SET)(act, x, y);
-        (*(ReleaseFn *)GA(IAT_RELEASE))(act);
+        act = camera_action_init(act);
+        camera_action_set(act, x, y);
+        action_release(act);
         REPLY("ok: camera queued to tile %d %d\n", x, y);
         return;
     }
@@ -202,7 +196,7 @@ internal void cmd_sites(char *out, const char *args) {
     int p = atoi(args);
     ee_player *pl = (p >= 0 && p < 16) ? g_players[p] : NULL;
     if (!pl) { REPLY("error: no AI player %d (AI players are registered on their first update)\n", p); return; }
-    unsigned cap = GF(FN_TABLE_VALUE)((void *)GA(G_TABLE_VALUES), 0x16);
+    unsigned cap = table_value(0x16);
     REPLY("P%d cap(table 0x16)=%u\n", p, cap);
     void **tb = FIELD(pl, OF(PL, 0xB50), void **), **te = FIELD(pl, OF(PL, 0xB54), void **);
     for (int t = 0; tb && tb + t < te; t++) {
@@ -213,7 +207,7 @@ internal void cmd_sites(char *out, const char *args) {
         for (int s = 0; sb && sb + s < se; s++) {
             ee_unit *site = sb[s];
             if (!site) continue;
-            unsigned n = GF(FN_SITE_GATHERERS)((void *)GA(G_GAME_STATE), site);
+            unsigned n = site_gatherers(site);
             REPLY("  site %p type=%d amount=%d pos=%d,%d gatherers=%u\n", (void *)site, FIELD(site, OF(UNIT, 0x38), int),
                   FIELD(site, OF(UNIT, 0x40), int), FIELD(site, OF(UNIT, 0x1C), int), FIELD(site, OF(UNIT, 0x20), int), n);
         }
@@ -230,9 +224,8 @@ internal void cmd_foodcheck(char *out, const char *args) {
     void *bm = FIELD(cm, OF(CM, 0x3C), void *);
     int base[2] = { FIELD(bm, OF(BM, 0x12C), int), FIELD(bm, OF(BM, 0x130), int) };
     int r = FIELD(pl, OF(PL, 0xE10), int);
-    short (__thiscall *region)(void *, int *, int) = (void *)GA(FN_REGION);
-    short base_region = region((void *)GA(G_MAP_AREAS), base, 2);
-    unsigned cap = GF(FN_TABLE_VALUE)((void *)GA(G_TABLE_VALUES), 0x16);
+    short base_region = (short)map_area(base, 2);
+    unsigned cap = table_value(0x16);
     REPLY("P%d base=%d,%d region=%d radius=%d (pass1 d2<%d, pass3 d2<%d) cap=%u\n", p, base[0], base[1],
           base_region, r, r * r * 4, r * r * 36, cap);
     void **tb = FIELD(pl, OF(PL, 0xB50), void **), **te = FIELD(pl, OF(PL, 0xB54), void **);
@@ -244,11 +237,11 @@ internal void cmd_foodcheck(char *out, const char *args) {
         int dx = pos[0] - base[0], dy = pos[1] - base[1];
         REPLY(" zone %2d active=%d site %d,%d class=%#x region=%d explored=%d gatherers=%u amount=%d state=%d"
               " zone+14=%d enemy=%d d2=%d\n", t, FIELD(zone, OF(ZONE, 0x18), uint8_t), pos[0], pos[1], FIELD(FIELD(s, OF(UNIT, 0x2C), uint8_t *), OF(TD, 0x4B8), int),
-              region((void *)GA(G_MAP_AREAS), pos, 2),
-              GF(FN_EXPLORED)(FIELD(s, OF(UNIT, 0x14), void *), pl),
-              GF(FN_SITE_GATHERERS)((void *)GA(G_GAME_STATE), s),
+              (short)map_area(pos, 2),
+              explored_by(s, pl),
+              site_gatherers(s),
               FIELD(s, OF(UNIT, 0x40), int), FIELD(FIELD(s, OF(UNIT, 0x14), uint8_t *), OF(SITEOWN, 0x4), int), FIELD(zone, OF(ZONE, 0x14), int),
-              GF(FN_ENEMY_NEAR)(bm, pos[0], pos[1]), dx * dx + dy * dy);
+              bm_enemy_near(bm, pos[0], pos[1]), dx * dx + dy * dy);
     }
 }
 
@@ -278,7 +271,7 @@ internal void cmd_costs(char *out, const char *args) {
         char tag[32];
         wsprintfA(tag, "unit %d", type);
         uint8_t *obj = type_data(type);
-        uint8_t *tech = obj ? GF(FN_TECH_LOOKUP)(tt, FIELD(obj, OF(TD, 0x4E0), int)) : NULL;
+        uint8_t *tech = obj ? (uint8_t *)tech_lookup((ee_tech_tree *)tt, FIELD(obj, OF(TD, 0x4E0), int)) : NULL;
         print_costs(out, tag, tech ? FIELD(tech, OF(TECH, 0x8), uint8_t *) : NULL);   // costs live in the unit's tech
         a += k;
     }
@@ -447,7 +440,6 @@ internal void execute(const char *cmd, char *out) {
 // RTSPhysics::Main (0x5532FB) is the simulation thread's loop; each pass, running or paused, starts with
 // TSThread::Receive (imported, thiscall, 3 args) through `call [0x8236B0]` at 0x553348. Pending control
 // commands run right before it: between simulation steps, on the thread that owns the game state.
-typedef long (__thiscall *ReceiveFn)(void *thread, void *a, void *b, void *c);
 
 internal void diplo_safe_point(void);   // diplo.c: queued surrenders
 internal void upgrade_stragglers(void); // defence.c: towers/walls/gates finished after their upgrade
@@ -466,51 +458,26 @@ internal long __fastcall hook_sim_receive(void *thread, void *edx, void *a, void
         g_req.state = 3;
         SetEvent(g_req.done);
     }
-    return (*(ReceiveFn *)GA(IAT_TS_RECEIVE))(thread, a, b, c);
+    return ts_receive(thread, a, b, c);
 }
 
-// Replace the 6-byte `call [IAT_TS_RECEIVE]` with `call hook_sim_receive; nop`.
-internal BOOL patch_sim_loop(void) {
-    uint8_t *p = (uint8_t *)GA(SITE_SIM_RECEIVE);
-    if (p[0] != 0xFF || p[1] != 0x15 || *(uint32_t *)(p + 2) != GA(IAT_TS_RECEIVE)) return FALSE;
-    DWORD old;
-    if (!VirtualProtect(p, 6, PAGE_EXECUTE_READWRITE, &old)) return FALSE;
-    p[0] = 0xE8;
-    *(int32_t *)(p + 1) = (int32_t)((uintptr_t)hook_sim_receive - (GA(SITE_SIM_RECEIVE) + 5));
-    p[5] = 0x90;
-    VirtualProtect(p, 6, old, &old);
-    FlushInstructionCache(GetCurrentProcess(), p, 6);
-    return TRUE;
-}
+// the simulation loop's `call [TSThread::Receive]` -> hook_sim_receive
+internal BOOL patch_sim_loop(void) { return patch_sim_receive(hook_sim_receive); }
 
 // Turbo (autotest): each pass of the simulation loop first waits for a TMTimer (thread +0x48, period +0x54 =
 // 22 ms) to set an event - TSEvent::Wait(3000) through `call [0x823688]` at 0x5533C5 (0 = signalled, 0x11 =
 // timeout) - then runs up to 2 steps of 1000 * speed / 44 ms game time each. So the game speed only makes the
 // steps coarser; the sim thread itself idles most of the time. With turbo the wait returns at once and the
 // steps follow each other as fast as the CPU allows, same step size, same results.
-typedef long (__thiscall *EventWaitFn)(void *ev, unsigned long ms);
-
 internal long __fastcall hook_sim_wait(void *ev, void *edx, unsigned long ms) {
     (void)edx;
     // only while steps are granted: otherwise a real (short) wait, so the client, server and pathfinding threads
     // the simulation waits for get the CPU instead of a spinning loop
     uint8_t *phys = *(uint8_t **)GA(G_WORLD_CLOCK);
     if (g_turbo && phys && FIELD(phys, OF(PHYS, 0xB8), unsigned)) return 0;
-    return (*(EventWaitFn *)GA(IAT_TS_WAIT))(ev, g_turbo ? 1 : ms);
+    return ts_wait(ev, g_turbo ? 1 : ms);
 }
 
-internal BOOL patch_sim_wait(void) {
-    uint8_t *p = (uint8_t *)GA(SITE_SIM_WAIT);
-    if (p[0] != 0xFF || p[1] != 0x15 || *(uint32_t *)(p + 2) != GA(IAT_TS_WAIT)) return FALSE;
-    DWORD old;
-    if (!VirtualProtect(p, 6, PAGE_EXECUTE_READWRITE, &old)) return FALSE;
-    p[0] = 0xE8;
-    *(int32_t *)(p + 1) = (int32_t)((uintptr_t)hook_sim_wait - (GA(SITE_SIM_WAIT) + 5));
-    p[5] = 0x90;
-    VirtualProtect(p, 6, old, &old);
-    FlushInstructionCache(GetCurrentProcess(), p, 6);
-    return TRUE;
-}
 
 // Turbo, part 2: the steps themselves are granted by the lockstep server (EEServer [0x91984C], a
 // NESynchronousServer in low-level engine.dll): its Send thread sends a "communications tick" every
@@ -529,28 +496,23 @@ internal BOOL patch_sim_wait(void) {
 // list holds every message handed since the last one (g_handed, counted in hook_srv_send) - 200 ms at most, then it goes
 // as before (logged).
 internal volatile LONG g_in_step, g_handed, g_handed_at_tick;
-internal void (__thiscall *g_srv_send_next)(void *, void *, int);
+internal server_send_fn g_srv_send_next;
 internal void __fastcall hook_srv_send(void *srv, void *edx, void *msg, int to) {
     (void)edx;
     InterlockedIncrement(&g_handed);
     g_srv_send_next(srv, msg, to);
 }
 internal void hook_server_send(void) {   // the server's send slot (with trace.c's sync_srv_send: whichever comes second calls the first)
-    void **srv = *(void ***)GA(G_SERVER);
+    void *srv = *(void **)GA(G_SERVER);
     if (g_srv_send_next || !srv) return;
-    void **slot = &((void **)srv[0])[GA(SLOT_SERVER_SEND)];
-    DWORD old;
-    if (!VirtualProtect(slot, 4, PAGE_READWRITE, &old)) return;
-    g_srv_send_next = (void (__thiscall *)(void *, void *, int))*slot;
-    *slot = (void *)hook_srv_send;
-    VirtualProtect(slot, 4, old, &old);
+    g_srv_send_next = patch_server_send(srv, hook_srv_send);
 }
 internal void (*g_step_after)(void *phys);   // trace.c: the sync trace's line after each step
 internal void __fastcall hook_phys_step(void *phys, void *edx) {
     (void)edx;
     if (!g_srv_send_next) hook_server_send();
     InterlockedExchange(&g_in_step, 1);
-    GF(FN_PHYS_STEP)(phys);
+    phys_step(phys);
     InterlockedExchange(&g_in_step, 0);
     if (g_step_after) g_step_after(phys);
 }
@@ -605,20 +567,6 @@ internal DWORD WINAPI hook_send_wait(DWORD n, const HANDLE *h, BOOL all, DWORD m
     }
 }
 
-internal BOOL patch_send_wait(void) {
-    uint8_t *base = (uint8_t *)GetModuleHandleA("low-level engine.dll");
-    if (!base) return FALSE;
-    uint8_t *p = base + GA(RVA_LLE_SEND_WAIT);
-    if (p[0] != 0xFF || p[1] != 0x15 || *(uint8_t **)(p + 2) != base + GA(RVA_LLE_IAT_WFMO)) return FALSE;
-    DWORD old;
-    if (!VirtualProtect(p, 6, PAGE_EXECUTE_READWRITE, &old)) return FALSE;
-    p[0] = 0xE8;
-    *(int32_t *)(p + 1) = (int32_t)((uintptr_t)hook_send_wait - ((uintptr_t)p + 5));
-    p[5] = 0x90;
-    VirtualProtect(p, 6, old, &old);
-    FlushInstructionCache(GetCurrentProcess(), p, 6);
-    return TRUE;
-}
 
 internal void run_on_game_thread(const char *cmd, char *reply, size_t cap) {
     // one still running from an earlier request (timed out after 15 s) reads g_req.cmd and writes g_req.out until it
@@ -774,8 +722,8 @@ internal void ctl_start(int pipe) {
     if (g_autotest) CloseHandle(CreateThread(NULL, 0, gameover_watch, NULL, 0, NULL));
     if (g_autotest) {
         g_turbo = g_auto.turbo;
-        int a = patch_sim_wait(), b = patch_send_wait();
-        int c = patch_code32(GA(VTBL_PHYS_STEP), GA(FN_PHYS_STEP), (uint32_t)(uintptr_t)hook_phys_step);
+        int a = patch_sim_wait(hook_sim_wait), b = patch_send_wait(hook_send_wait);
+        int c = patch_phys_step(hook_phys_step);
         ctl_log("turbo hooks: sim wait %s, tick send %s, step %s; turbo %d", a ? "ok" : "FAILED", b ? "ok" : "FAILED",
                 c ? "ok" : "FAILED", g_turbo);
     }

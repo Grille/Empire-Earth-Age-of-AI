@@ -133,15 +133,15 @@ internal void randmap_ai_toggles(ee_player *pl) {
     if (vanilla && g_rm.v_cheat >= 0) FIELD(pl, PL_CHEAT, uint8_t) = (uint8_t)g_rm.v_cheat;
     if (vanilla && g_rm.v_difficulty >= 0 && g_rm.v_difficulty != FIELD(pl, PL_DIFFICULTY, int)) {
         FIELD(pl, PL_DIFFICULTY, int) = g_rm.v_difficulty;
-        uint8_t *cm = FIELD(pl, OF(PL, 0xB90), uint8_t *);
+        ee_civ_mgr *cm = FIELD(pl, OF(PL, 0xB90), ee_civ_mgr *);
         uint32_t now = game_time();
-        if (cm) GF(FN_SET_EPOCH_TIME)(cm, now, 0);   // the epoch attempt, drawn anew
-        if (!FIELD(pl, OF(PL, 0xEF5), uint8_t)) GF(FN_SCHEDULE_ATTACK)(pl, now);   // the first attack
+        if (cm) cm_set_epoch_time(cm, now, 0);   // the epoch attempt, drawn anew
+        if (!FIELD(pl, OF(PL, 0xEF5), uint8_t)) cp_schedule_attack(pl, now);   // the first attack
         if (g_log) fprintf(g_log, "# vanilla: P%d difficulty %d - first epoch attempt at %.1f min, first attack at %.1f min\n", idx,
                            g_rm.v_difficulty, cm ? FIELD(cm, OF(CM, 0x58), uint32_t) / 60000.0 : -1.0, FIELD(pl, OF(PL, 0xED8), uint32_t) / 60000.0);
     }
     if (g_log) {   // the cheat as the game will apply it: AdjustCost (vf27) on a price of 1000
-        int cost = GF(FN_ADJUST_COST)(pl, 1000);
+        int cost = cp_adjust_cost(pl, 1000);
         fprintf(g_log, "# cheat: P%d (%s) difficulty %d, cheat %d: a price of 1000 costs %d (pct easy %d, medium %.1f, hard %d)\n", idx,
                 vanilla ? "vanilla" : "mod", FIELD(pl, PL_DIFFICULTY, int), FIELD(pl, PL_CHEAT, uint8_t), cost, FIELD(pl, OF(PL, 0xD48), int),
                 FIELD(pl, OF(PL, 0xBB4), float), FIELD(pl, OF(PL, 0xD4C), int));
@@ -167,8 +167,7 @@ internal void randmap_ai_toggles(ee_player *pl) {
     // the human's defeat.
     FIELD(human, OF(PL, 0xB46), uint8_t) = 1;
     FIELD(human, OF(PL, 0x465), uint8_t) = 1;   // the watching human sees the whole map (AIs still have to explore)
-    void (__thiscall *set_dip)(void *, void *, int, int) = (void *)GA(FN_SET_DIPLOMACY);
-    set_dip(human, pl, 0, 0);
-    set_dip(pl, human, 0, 0);
+    set_diplomacy(human, pl, 0, 0);
+    set_diplomacy(pl, human, 0, 0);
     if (g_log) fprintf(g_log, "# random map: P%d allied with human P%d\n", FIELD(pl, PL_INDEX, int), FIELD(human, PL_INDEX, int));
 }

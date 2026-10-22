@@ -89,6 +89,36 @@ internal inline void *game_color_rgb(unsigned idx) { return GF(FN_COLOR_RGB)(idx
 // one of the game's own AI lines (base: its string block, ms shown; the original of persona.c's hook)
 internal inline char native_chat(uint8_t *pim, int base, int ms) { return GF(FN_NATIVE_CHAT)(pim, base, ms); }
 
+// ACTIONS AND MESSAGES (test/): what the UI queues or sends, built in game_new(GA(SIZE_..)) memory
+// an action into the world's queue (QueueAction on [G_WORLD]), an action's reference given back
+internal inline void world_queue_action(void *act) { ((void (__thiscall *)(void *, void *))GA(FN_QUEUE_ACTION))(*(void **)GA(G_WORLD), act); }
+internal inline void action_release(void *act) { (*(void (__thiscall **)(void *))GA(IAT_RELEASE))(act); }
+// the pause button's action (EEAUserPauseGame: vtable, refcount 1, a byte - it toggles the pause)
+internal inline uint8_t *pause_action_init(uint8_t *mem) {
+    *(uint32_t *)mem = GA(VT_PAUSE_ACTION);
+    *(uint32_t *)(mem + 4) = 1;
+    mem[8] = 0;
+    return mem;
+}
+// the save action: path a UString, the folder by value (the constructor destroys its copy)
+internal inline void save_action_init(void *mem, struct ustring *path, int flag, struct ustring dir) { GF(FN_SAVE_ACTION_CTOR)(mem, path, flag, dir); }
+// the camera's move to a tile (EEACenterCamera): made, then set (it queues itself)
+internal inline void *camera_action_init(void *mem) { return GF(FN_CAMACT_CTOR)(mem); }
+internal inline void camera_action_set(void *act, int x, int y) { GF(FN_CAMACT_SET)(act, x, y); }
+// a new unit of type for player at xy (EEMHackANewUnit, a network message)
+internal inline void new_unit_msg_init(void *mem, int *type, float *xy, char player) { GF(FN_NEW_UNIT_MSG_CTOR)(mem, type, xy, player); }
+// a scenario effect run now (its trigger's conditions and delay not asked)
+internal inline void sm_run_effect(void *effect, int flag) { GF(SM_RUN_EFFECT)(effect, flag); }
+
+// THE SIMULATION (test/control.c, trace.c): the originals of the simulation thread's patched calls
+internal inline long ts_receive(void *thread, void *a, void *b, void *c) {
+    return (*(long (__thiscall **)(void *, void *, void *, void *))GA(IAT_TS_RECEIVE))(thread, a, b, c);
+}
+internal inline long ts_wait(void *ev, unsigned long ms) { return (*(long (__thiscall **)(void *, unsigned long))GA(IAT_TS_WAIT))(ev, ms); }
+// one simulation step (EEPhysics vf8), the game start message executed
+internal inline void phys_step(void *phys) { GF(FN_PHYS_STEP)(phys); }
+internal inline void start_exec(void *msg) { ((void (__thiscall *)(void *))GA(START_EXEC))(msg); }
+
 // THE GAME'S RUN (the originals of the wiring's hooks: eeaimod.c, persist.c, test/autotest.c)
 // a game started from setup (EEGameState::Start, on the game state object)
 internal inline char game_start(void *state, void *setup, void *p2) { return ((char (__thiscall *)(void *, void *, void *))GA(FN_GAME_START))(state, setup, p2); }
@@ -119,6 +149,10 @@ internal inline unsigned type_stats_count(ee_player *pl) { return GF(FN_VECTOR_S
 internal inline uint8_t **type_stats(ee_player *pl, int type) { return GF(FN_TYPE_STATS)(FIELD_AT(pl, OF(PL, 0x874)), type); }
 // the player resigns (how: 2 as the resign message does)
 internal inline void player_resign(ee_player *pl, int how) { GF(FN_PLAYER_RESIGN)(pl, how); }
+// player a's stance towards b (1 enemy, 0 ally) set as the game does (EEPlayer's diplomacy, both its lists)
+internal inline void set_diplomacy(ee_player *a, ee_player *b, int stance, int flag) {
+    ((void (__thiscall *)(void *, void *, int, int))GA(FN_SET_DIPLOMACY))(a, b, stance, flag);
+}
 // the player's attacks on target called off (the units back to the pool)
 internal inline void call_off_attacks(ee_player *pl, ee_player *target, int flag) { GF(FN_CALL_OFF_ATTACK)(pl, target, flag); }
 // the combat manager (player +0xB8C) answers an attack by target (the game's revenge attack)
@@ -136,6 +170,11 @@ internal inline void cp_add_resource(ee_player *pl, int type, int amount) { GF(F
 internal inline void cp_pay(ee_player *pl, void *what, int b, int c) { GF(FN_CP_PAY)(pl, what, b, c); }
 // the computer player's update (EEComputerPlayer::Update - the original of engine/scenario_ai.c's hook)
 internal inline void cp_update(ee_player *pl, uint32_t now) { ((void (__thiscall *)(ee_player *, uint32_t))GA(FN_CP_UPDATE))(pl, now); }
+// the next attack's time drawn (player +0xED8), a price as the cheat makes it (AdjustCost, vf27)
+internal inline void cp_schedule_attack(ee_player *pl, uint32_t now) { GF(FN_SCHEDULE_ATTACK)(pl, now); }
+internal inline int cp_adjust_cost(ee_player *pl, int price) { return GF(FN_ADJUST_COST)(pl, price); }
+// the next epoch attempt's time drawn (civilization manager +0x58: SetNextEpochAdvanceTime)
+internal inline void cm_set_epoch_time(ee_civ_mgr *cm, uint32_t now, char flag) { GF(FN_SET_EPOCH_TIME)(cm, now, flag); }
 // the population cap that follows the humans, set every minute (player +0xCCC)
 internal inline void cp_update_pop_cap(ee_player *pl) { GF(FN_POP_CAP)(pl); }
 // the game's catch-up: ai's next epoch attempt redrawn soon when human is ahead
@@ -180,6 +219,9 @@ internal inline void *goal_load_init(void *mem, ee_unit *holder, void *vec) { re
 internal inline void *goal_unload_init(void *mem, ee_unit *holder, int x, int y, int flag) { return GF(FN_GOAL_UNLOAD_CTOR)(mem, holder, x, y, flag); }
 // a move to xy (float[2])
 internal inline void *goal_move_init(void *mem, float *xy) { return GF(FN_GOAL_MOVE_CTOR)(mem, xy, 1, 1, 0, 0.0f, 0, 0); }
+// a goal's kind, by its vtable: an attack (EEUGAttackUnit, its target +0x30), a move (EEUGLocation)
+internal inline int goal_is_attack(const void *g) { return *(const uintptr_t *)g == GA(VT_GOAL_ATTACK); }
+internal inline int goal_is_location(const void *g) { return *(const uintptr_t *)g == GA(VT_GOAL_LOCATION); }
 // a load goal's part the units walk into (the goal's vtable)
 internal inline void *goal_part(void *goal) { return ((void *(__thiscall *)(void *))(*(void ***)goal)[GA(SLOT_GOAL_PART)])(goal); }
 // may the goal be handed to the unit (the original of attack.c's hook_goal_cast)
@@ -198,8 +240,11 @@ internal inline void bm_request(ee_build_mgr *bm, int type) { GF(FN_BM_REQUEST)(
 internal inline char rm_compute_targets(ee_resource_mgr *rm) { return ((char (__thiscall *)(void *))GA(FN_COMPUTE_TARGETS))(rm); }
 internal inline char rm_assign_citizens(ee_resource_mgr *rm) { return ((char (__thiscall *)(void *))GA(FN_ASSIGN_CITIZENS))(rm); }
 internal inline void rm_update(ee_resource_mgr *rm, uint32_t now) { ((void (__thiscall *)(void *, uint32_t))GA(FN_RM_UPDATE))(rm, now); }
-// the citizen u to work at site (a resource, a field, a building)
+// the citizen u to work at site (a resource, a field, a building); rm_assign_as: with the game's third argument
 internal inline void rm_assign(ee_resource_mgr *rm, ee_unit *u, ee_unit *site) { GF(FN_ASSIGN_TO_SITE)(rm, u, site, 0); }
+internal inline void rm_assign_as(ee_resource_mgr *rm, ee_unit *u, ee_unit *site, int c) { GF(FN_ASSIGN_TO_SITE)(rm, u, site, c); }
+// the unit manager's citizens trained (the original of trace.c's hook)
+internal inline uintptr_t um_train_citizens(ee_unit_mgr *um, uintptr_t a) { return GF(FN_TRAIN_CITIZENS)(um, a); }
 // the unit manager's units of type: a std::deque of ee_unit *, NULL: none
 internal inline uint8_t *um_type_list(ee_unit_mgr *um, int type) { return GF(FN_UM_TYPE_LIST)(um, type); }
 // the unit orders (req: type, count ...) - the original of econ.c's hook_train_units
@@ -250,6 +295,25 @@ internal inline void *rm_hunt(ee_resource_mgr *rm, uintptr_t n, uintptr_t f, uin
     return ((void *(__thiscall *)(void *, uintptr_t, uintptr_t, uintptr_t))GA(FN_HUNT))(rm, n, f, out);
 }
 
+// AN ATTACK GROUP OF THE GAME'S OWN (test/testcmd.c aigroup: as the scenario effect "Create AI Military Group"):
+// a task (0x34) with its location (0x18, the point at +4) and target, a strategy (0x44), the unit ids (a vector<int>
+// in the game's heap) - the combat manager asked, then its command (cm +0x48) makes the group
+internal inline void task_init(void *task) { GF(FN_TASK_CTOR)(task); }
+internal inline void task_free(void *task) { GF(FN_TASK_DTOR)(task); }
+internal inline void task_set_target(void *task, ee_unit *t) { GF(FN_TASK_SET_TARGET)(task, t); }
+internal inline void task_set_location(void *task_loc, void *loc) { GF(FN_TASK_SET_LOCATION)(task_loc, loc); }
+internal inline void location_init(void *loc) { GF(FN_LOCATION_CTOR)(loc); }
+internal inline void point_set(void *point, int *pt) { GF(FN_POINT_SET)(point, pt); }
+internal inline void strategy_init(void *s) { GF(FN_STRATEGY_CTOR)(s); }
+internal inline void strategy_reset(void *s) { GF(FN_STRATEGY_INIT)(s); }
+internal inline void strategy_free(void *s) { GF(FN_STRATEGY_DTOR)(s); }
+internal inline char attack_plan_ok(void *cm, void *task, void *strategy, void *ids) { return GF(FN_ATTACK_PLAN_OK)(cm, task, strategy, ids); }
+internal inline uint8_t *attack_group_new(void *cmd, void *task, void *strategy, void *ids) { return GF(FN_ATTACK_GROUP_NEW)(cmd, task, strategy, ids); }
+// a vector the game made (its memory freed with the game's delete)
+internal inline void vector_free(void *v) { GF(FN_VECTOR_FREE)(v); }
+// the map's area object at a tile (regions, continents)
+internal inline uint8_t *area_at(int *pt) { return GF(FN_AREA_AT)((void *)GA(G_MAP_AREAS), pt); }
+
 // ATTACK GROUPS AND SUBGROUPS (the originals of attack.c's and landing.c's hooks)
 internal inline char unit_to_group(void *cmd, ee_unit *u) { return GF(FN_UNIT_TO_GROUP)(cmd, u); }
 internal inline void group_stat(void *stats, ee_unit *u) { GF(FN_GROUP_STAT)(stats, u); }
@@ -279,6 +343,8 @@ internal inline ee_tech *tech_lookup(ee_tech_tree *tt, int id) { return (ee_tech
 internal inline char tech_available(ee_tech *t) { return ((char (__thiscall *)(void *))(*(void ***)t)[GA(SLOT_TECH_AVAILABLE)])(t); }
 // researched for nothing (EETechTreeNode::vf6) - the 2017 update's, AoC's takes an argument
 internal inline int tech_grant(ee_tech *t) { return GF(FN_TECH_GRANT)(t); }
+// the tech tree's next epoch (to the game's end epoch: it sets it and sends the epoch event)
+internal inline void epoch_next(ee_tech_tree *tt) { GF(FN_EPOCH_NEXT)(tt); }
 // the epoch's line upgrades granted (node: the epoch's tech, cat 7); Art of Conquest: only_new - only the ones with
 // data +0x81 set (econ.c PAID UPGRADES)
 internal inline void epoch_upgrades_grant(ee_tech *node, int cat, int only_new) {

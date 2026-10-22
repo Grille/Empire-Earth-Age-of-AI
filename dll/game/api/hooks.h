@@ -38,6 +38,20 @@ internal inline int patch_all_calls(uintptr_t fn, void *hook) {
     return sites;
 }
 
+// a 6-byte `call [import]` at `at` (the import slot iat) -> `call hook; nop`, only while it still calls through iat
+internal inline int patch_import_call(uintptr_t at, uintptr_t iat, void *hook) {
+    uint8_t *p = (uint8_t *)at;
+    if (p[0] != 0xFF || p[1] != 0x15 || *(uint32_t *)(p + 2) != iat) return 0;
+    DWORD old;
+    if (!VirtualProtect(p, 6, PAGE_EXECUTE_READWRITE, &old)) return 0;
+    p[0] = 0xE8;
+    *(int32_t *)(p + 1) = (int32_t)((uintptr_t)hook - (at + 5));
+    p[5] = 0x90;
+    VirtualProtect(p, 6, old, &old);
+    FlushInstructionCache(GetCurrentProcess(), p, 6);
+    return 1;
+}
+
 // WHICH CALL A HOOK CAME FROM: at = its return address - 5 (the call instruction); the index in the list, -1: none
 internal inline int site_index(const uint32_t *sites, size_t n, uintptr_t at) {
     for (size_t i = 0; i < n; i++)
@@ -60,6 +74,70 @@ internal inline int patch_load_saved(load_saved_hook h) { return patch_call(GA(C
 // the game saved (every call of it: 4)
 typedef int (__cdecl *save_game_hook)(void *file, int a, int b, struct ustring folder);
 internal inline int patch_save_game(save_game_hook h) { return patch_all_calls(GA(FN_SAVE_GAME), (void *)h); }
+
+// THE SIMULATION AND THE TESTS (test/control.c, autotest.c, trace.c)
+// the simulation thread's receive (each pass of its loop: the pipe's safe point) and its timer wait (turbo)
+typedef long (__fastcall *sim_receive_hook)(void *thread, void *edx, void *a, void *b, void *c);
+internal inline int patch_sim_receive(sim_receive_hook h) { return patch_import_call(GA(SITE_SIM_RECEIVE), GA(IAT_TS_RECEIVE), (void *)h); }
+typedef long (__fastcall *sim_wait_hook)(void *ev, void *edx, unsigned long ms);
+internal inline int patch_sim_wait(sim_wait_hook h) { return patch_import_call(GA(SITE_SIM_WAIT), GA(IAT_TS_WAIT), (void *)h); }
+// the lockstep server's wait for its next tick (Low-Level Engine: NESynchronousServer::Send's WaitForMultipleObjects)
+typedef DWORD (WINAPI *send_wait_hook)(DWORD n, const HANDLE *h, BOOL all, DWORD ms);
+internal inline int patch_send_wait(send_wait_hook h) {
+    uintptr_t base = (uintptr_t)GetModuleHandleA("low-level engine.dll");
+    return base && patch_import_call(base + GA(RVA_LLE_SEND_WAIT), base + GA(RVA_LLE_IAT_WFMO), (void *)h);
+}
+// one simulation step (EEPhysics' vtable slot 8): the hook, and whether it is in place
+typedef void (__fastcall *phys_step_hook)(void *phys, void *edx);
+internal inline int patch_phys_step(phys_step_hook h) { return patch_code32(GA(VTBL_PHYS_STEP), GA(FN_PHYS_STEP), (uint32_t)(uintptr_t)h); }
+internal inline int phys_step_hooked_by(phys_step_hook h) { return *(uint32_t *)GA(VTBL_PHYS_STEP) == (uint32_t)(uintptr_t)h; }
+// the game start message's execution (its vtable slot 10: it seeds the simulation's generator)
+typedef void (__fastcall *start_exec_hook)(void *msg, void *edx);
+internal inline int patch_start_exec(start_exec_hook h) { return patch_code32(GA(START_VTBL_EXEC), GA(START_EXEC), (uint32_t)(uintptr_t)h); }
+// the lockstep server's send (its vtable slot 6, on the live object: EEServer or EEClient) - the slot's previous
+// function, NULL when not patched; two hooks chain (the second calls the first)
+typedef void (__thiscall *server_send_fn)(void *net, void *msg, int to);
+typedef void (__fastcall *server_send_hook)(void *net, void *edx, void *msg, int to);
+internal inline server_send_fn patch_server_send(void *net, server_send_hook h) {
+    void **slot = &((void **)*(void ***)net)[GA(SLOT_SERVER_SEND)];
+    DWORD old;
+    if (!VirtualProtect(slot, 4, PAGE_READWRITE, &old)) return NULL;
+    server_send_fn prev = (server_send_fn)*slot;
+    *slot = (void *)h;
+    VirtualProtect(slot, 4, old, &old);
+    return prev;
+}
+// the game's srand (its msvcrt import): the previous function into *orig
+typedef void (__cdecl *srand_hook)(unsigned seed);
+internal inline int patch_srand(srand_hook h, srand_hook *orig) { return iat_hook(GA(IAT_SRAND), "msvcrt.dll", "srand", (void *)h, (void **)orig); }
+// the intro movies skipped: each `call AddMovie` (the callee pops its argument) -> `add esp,4; nop; nop`
+internal inline int patch_skip_intro(void) {
+    const uint32_t *sites = GL(INTRO_CALLS);
+    static const uint8_t stub[5] = { 0x83, 0xC4, 0x04, 0x90, 0x90 };
+    for (int i = 0; i < 3; i++) {
+        uint8_t *p = (uint8_t *)sites[i];
+        if (p[0] != 0xE8 || sites[i] + 5 + *(int32_t *)(p + 1) != GA(FN_ADD_MOVIE)) return FALSE;
+    }
+    for (int i = 0; i < 3; i++) {
+        DWORD old;
+        VirtualProtect((void *)sites[i], 5, PAGE_EXECUTE_READWRITE, &old);
+        memcpy((void *)sites[i], stub, 5);
+        VirtualProtect((void *)sites[i], 5, old, &old);
+    }
+    FlushInstructionCache(GetCurrentProcess(), NULL, 0);
+    return TRUE;
+}
+// the network ports (UDP 33334, TCP 33335: TCP Protocol.dll's immediates, the module m) moved by add - how many of 8
+internal inline int patch_tcp_ports(HMODULE m, int add) {
+    const uint32_t *imm = GL(RVA_TCP_PORTS);
+    int n = 0;
+    for (size_t i = 0; m && i < sizeof GL(RVA_TCP_PORTS) / sizeof *imm; i++) {
+        uintptr_t at = (uintptr_t)m + imm[i];
+        uint32_t old = *(uint32_t *)at;
+        if (old == 33334 || old == 33335) n += patch_code32(at, old, old + (uint32_t)add);
+    }
+    return n;
+}
 
 // COMPUTER PLAYERS (econ.c)
 // the computer player's update (engine/scenario_ai.c: the scenario flag cleared meanwhile)
@@ -118,10 +196,15 @@ internal inline int patch_find_food(find_food_hook h, int *of) { return patch_ca
 typedef void *(__fastcall *find_wood_hook)(ee_resource_mgr *rm, void *edx, uintptr_t flag, ee_unit *unit);
 internal inline int patch_find_wood(find_wood_hook h, int *of) { return patch_calls(PATCH_LIST(WOOD_SITES), GA(FN_FIND_WOOD), (void *)h, of); }
 typedef void *(__fastcall *farms_hook)(ee_resource_mgr *rm, void *edx, uintptr_t n, uintptr_t out);
-internal inline int patch_farms(farms_hook h, farms_hook unbuilt, int *of) {
-    if (of) *of += 2;
-    return patch_call(GA(CALL_FARMS), GA(FN_FARMS), (void *)h) + patch_call(GA(CALL_UNBUILT_FARMS), GA(FN_UNBUILT_FARMS), (void *)unbuilt);
+internal inline int patch_farms(farms_hook h, farms_hook unbuilt, int *of) {   // unbuilt NULL: the fields only
+    if (of) *of += unbuilt ? 2 : 1;
+    return patch_call(GA(CALL_FARMS), GA(FN_FARMS), (void *)h) + (unbuilt ? patch_call(GA(CALL_UNBUILT_FARMS), GA(FN_UNBUILT_FARMS), (void *)unbuilt) : 0);
 }
+// a citizen sent to work at a site (the calls of the assignment: GATHER_SITES), the citizens trained (trace.c)
+typedef void (__fastcall *gather_hook)(ee_resource_mgr *rm, void *edx, ee_unit *u, ee_unit *site, int c);
+internal inline int patch_gather(gather_hook h, int *of) { return patch_calls(PATCH_LIST(GATHER_SITES), GA(FN_ASSIGN_TO_SITE), (void *)h, of); }
+typedef uintptr_t (__fastcall *train_citizens_hook)(ee_unit_mgr *um, void *edx, uintptr_t a);
+internal inline int patch_train_citizens(train_citizens_hook h) { return patch_call(GA(CALL_TRAIN_CITIZENS), GA(FN_TRAIN_CITIZENS), (void *)h); }
 typedef void *(__fastcall *hunt_hook)(ee_resource_mgr *rm, void *edx, uintptr_t n, uintptr_t f, uintptr_t out);
 internal inline int patch_hunt(hunt_hook h, int *of) {
     const uint32_t sites[2] = { GA(CALL_HUNT_1), GA(CALL_HUNT_2) };

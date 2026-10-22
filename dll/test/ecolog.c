@@ -68,13 +68,13 @@ internal void eco_mines(ee_player *pl, struct eco_mines *c) {
     memset(c, 0, sizeof *c);
     static ee_unit *seen[1024];
     int ns = 0;
-    unsigned cap = GF(FN_TABLE_VALUE)((void *)GA(G_TABLE_VALUES), 0x16);
+    unsigned cap = table_value(0x16);
     drops_cached(pl);
     unsigned pi = (unsigned)pidx(pl);
     int base_reg = -1;   // the base's continent
     {   uint8_t *cm = FIELD(pl, OF(PL, 0xB90), uint8_t *), *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL;
         int b[2] = { bm ? FIELD(bm, OF(BM, 0x12C), int) : -10000, bm ? FIELD(bm, OF(BM, 0x130), int) : -10000 };
-        if (b[0] != -10000 && b[1] != -10000) base_reg = ((short (__thiscall *)(void *, int *, int))GA(FN_REGION))((void *)GA(G_MAP_AREAS), b, 2); }
+        if (b[0] != -10000 && b[1] != -10000) base_reg = (short)map_area(b, 2); }
     void **tb = FIELD(pl, OF(PL, 0xB50), void **), **te = FIELD(pl, OF(PL, 0xB54), void **);
     for (int t = 0; tb && tb + t < te && t < 256; t++) {
         uint8_t *town = tb[t];
@@ -87,16 +87,16 @@ internal void eco_mines(ee_player *pl, struct eco_mines *c) {
             if (j < ns) continue;
             if (ns < 1024) seen[ns++] = st;
             int x = FIELD(st, OF(UNIT, 0x1C), int), y = FIELD(st, OF(UNIT, 0x20), int), dd = 0x7FFFFFFF;
-            unsigned g = GF(FN_SITE_GATHERERS)((void *)GA(G_GAME_STATE), st);
+            unsigned g = site_gatherers(st);
             for (int i = 0; i < g_drops[pi].n; i++) {
                 int *d = g_drops[pi].d[i], dx = d[0] - x, dy = d[1] - y;
                 if (!d[2] && dx * dx + dy * dy < dd) dd = dx * dx + dy * dy;
             }
             if (dd <= 144) { c->n[r]++; c->slots[r] += (int)cap; c->g[r] += (int)g; }
             else c->far_[r] += (int)g;
-            if (dd > 144 && FIELD(town, OF(ZONE, 0x18), uint8_t) && GF(FN_EXPLORED)(FIELD(st, OF(UNIT, 0x14), void *), pl)) {
+            if (dd > 144 && FIELD(town, OF(ZONE, 0x18), uint8_t) && explored_by(st, pl)) {
                 int pos[2] = { x, y };   // known, explored, no drop site within 12 tiles, on the base's continent
-                if (base_reg < 0 || ((short (__thiscall *)(void *, int *, int))GA(FN_REGION))((void *)GA(G_MAP_AREAS), pos, 2) == base_reg) c->nd[r]++;
+                if (base_reg < 0 || (short)map_area(pos, 2) == base_reg) c->nd[r]++;
             }
         }
     }
@@ -195,8 +195,8 @@ internal const char *eco_goal(ee_unit *u, int *res) {   // what a citizen does; 
     uint8_t *g = FIELD(u, OF(UNIT, 0x1EC), uint8_t *);
     *res = -1;
     if (!g) return "none";
-    if (*(uintptr_t *)g == GA(VT_GOAL_LOCATION)) return "walk";
-    if (*(uintptr_t *)g == GA(VT_GOAL_ATTACK)) return "attack";
+    if (goal_is_location(g)) return "walk";
+    if (goal_is_attack(g)) return "attack";
     const char *n = rtti_name(g);
     if (!strcmp(n, "EEUGGather@@")) {
         ee_unit *s = FIELD(g, OF(GOAL, 0x38), ee_unit *);
@@ -276,7 +276,7 @@ internal void ecolog_tick(ee_player *pl, uint32_t now) {
             "mGn=%d mGslots=%d mGg=%d mGfar=%d mIn=%d mIslots=%d mIg=%d mIfar=%d mSnd=%d mGnd=%d mInd=%d "
             "fo=%d fh=%d ff=%d fb=%d fx=%d hl=%d hlF=%d hl15=%d hl30=%d an=%d an30=%d anF30=%d anNew30=%d fsN=%d fsF=%d fsN20=%d fsF20=%d fish=%d fishF=%d fld=%d fldOK=%d\n",
             idx, now / 60000, cit, gat[2], gat[3], gat[4], gat[5], gat[6], gat[0], build, walk, att, load, other, none, idle0,
-            army_size(pl), GF(FN_POPULATION)(pl, 1, 0),
+            army_size(pl), population(pl, 1, 0),
             unit_limit(pl), ump ? FIELD(ump, OF(UM, 0x13C), int) : -1,
             d->n, d->town, d->near_, d->far_, d->army, d->bld, d->ship, d->air, d->unk, is_vanilla(pl) ? 0u : g_site_refused[idx],
             sp->tc, sp->tcF, sp->ts, sp->tsF, sp->tsX, mn.n[4], mn.slots[4], mn.g[4], mn.far_[4], mn.n[5], mn.slots[5], mn.g[5],
