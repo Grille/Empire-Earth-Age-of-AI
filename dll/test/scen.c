@@ -102,10 +102,12 @@ internal void sm_list(char *out, ee_scen_mgr *m, int detail) {
     }
 }
 
+// trig objects|effects FROM lists SM_PAGE of them from FROM (a campaign scenario has hundreds: more than one reply holds)
+#define SM_PAGE 100
 // trig objects: each object's filter and what the game's own evaluation picks now (it may lock the object)
-internal void sm_objects(char *out, ee_scen_mgr *m) {
+internal void sm_objects(char *out, ee_scen_mgr *m, int from) {
     char name[96];
-    for (int k = 0; k < sm_count(scen_objects_at(m)); k++) {
+    for (int k = from; k < sm_count(scen_objects_at(m)) && k < from + SM_PAGE; k++) {
         ee_scen_object *o = sm_object(m, k);
         if (!o) continue;
         REPLY("o%d \"%s\" players %d class %d type %d count %d..%d area %d(%d) rel o%d kind %d(%d) parent o%d attr %d %d..%d(%d%s) state %d(%d) seen %d(%d) sel(%d)%s%s",
@@ -136,9 +138,9 @@ internal void sm_areas(char *out, ee_scen_mgr *m) {
     }
 }
 // trig effects: each effect's category, kind and the values that category reads
-internal void sm_effects(char *out, ee_scen_mgr *m) {
+internal void sm_effects(char *out, ee_scen_mgr *m, int from) {
     char name[96];
-    for (int k = 0; k < sm_count(scen_effects_at(m)); k++) {
+    for (int k = from; k < sm_count(scen_effects_at(m)) && k < from + SM_PAGE; k++) {
         ee_scen_effect *ef = sm_effect(m, k);
         if (!ef) continue;
         int cat = scen_effect_get_category(ef), sub = scen_effect_get_kind(ef, cat);
@@ -201,7 +203,7 @@ internal void sm_check(char *out, ee_scen_mgr *m) {
           (int)(FIELD(scen_queue_at(m), 4, uint8_t *) - FIELD(scen_queue_at(m), 0, uint8_t *)), FIELD(scen_chat_at(m), 4, const char *) ? FIELD(scen_chat_at(m), 4, const char *) : "");
 }
 
-// trig [list|desc|objects|areas|effects|eval|check] | trig attr P A | trig on|off|reset T | trig fire T | trig effect N
+// trig [list|desc|areas|eval|check] | trig objects|effects [FROM] | trig attr P A | trig on|off|reset T | trig fire T | trig effect N
 // (T = index or name)
 internal void cmd_trig(char *out, const char *args) {
     ee_scen_mgr *m = SM_MGR;
@@ -211,9 +213,9 @@ internal void cmd_trig(char *out, const char *args) {
     const char *arg = args + n;
     if (!m) { REPLY("error: no scenario manager\n"); return; }
     if (!strcmp(verb, "list") || !strcmp(verb, "desc")) { sm_list(out, m, verb[0] == 'd'); return; }
-    if (!strcmp(verb, "objects")) { sm_objects(out, m); return; }
+    if (!strcmp(verb, "objects")) { REPLY("ok: objects from %d of %d\n", atoi(arg), sm_count(scen_objects_at(m))); sm_objects(out, m, atoi(arg)); return; }
     if (!strcmp(verb, "areas")) { sm_areas(out, m); return; }
-    if (!strcmp(verb, "effects")) { sm_effects(out, m); return; }
+    if (!strcmp(verb, "effects")) { REPLY("ok: effects from %d of %d\n", atoi(arg), sm_count(scen_effects_at(m))); sm_effects(out, m, atoi(arg)); return; }
     if (!strcmp(verb, "eval")) { sm_eval(out, m); return; }
     if (!strcmp(verb, "check")) { sm_check(out, m); return; }
     if (!strcmp(verb, "attr")) {   // a player's attribute as conditions read it (the first condition as `this`: only attribute 0 uses it)
@@ -248,7 +250,7 @@ internal void cmd_trig(char *out, const char *args) {
         REPLY("ok: trigger %d fired, %d effects ran\n", idx, ran);
         return;
     }
-    else { REPLY("error: trig [list|desc|objects|areas|effects|eval|check] | attr P A | on|off|reset|fire T | effect N\n"); return; }
+    else { REPLY("error: trig [list|desc|areas|eval|check] | objects|effects [FROM] | attr P A | on|off|reset|fire T | effect N\n"); return; }
     REPLY("ok: trigger %d %s\n", idx, verb);
 }
 

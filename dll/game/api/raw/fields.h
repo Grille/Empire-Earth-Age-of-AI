@@ -340,7 +340,7 @@
     O(SCENEFFECT_CLASS_NAME, 0x8C, 0x8C) /* c: its file's code (the scenario manager) */ \
     O(SCENEFFECT_SOUND, 0xA4, 0xA4) /* h: kept: the class's other fields all kept, no read of this one in its methods */ \
     O(SCENEFFECT_LINE, 0xB4, 0xB4) /* c: its file's code (the scenario manager) */ \
-    O(SCENEFFECT_ATTR_MODE, 0xC8, 0xC8) /* c: its file's code (the scenario manager) */ \
+    O(SCENEFFECT_PLAYER_ATTR, 0xC8, 0xC8) /* c: its file's code (the scenario manager) */ \
     O(SCENEFFECT_STANCE, 0xCC, 0xCC) /* c: its file's code (the scenario manager) */ \
     O(SCENEFFECT_MSG_PLAYERS, 0xD4, 0xD4) /* c: its file's code (the scenario manager) */ \
     O(SCENEFFECT_OWNER_PLAYERS, 0xD8, 0xD8) /* c: its file's code (the scenario manager) */ \
@@ -377,7 +377,7 @@
     O(SCENEFFECT_TASK_AREA, 0x164, 0x164) /* c: its file's code (the scenario manager) */ \
     O(SCENEFFECT_TASK_OBJECT, 0x168, 0x168) /* c: its file's code (the scenario manager) */ \
     O(SCENEFFECT_CIV_POINTS, 0x16C, 0x16C) /* c: its file's code (the scenario manager) */ \
-    O(SCENEFFECT_PLAYER_ATTR, 0x170, 0x170) /* c: its file's code (the scenario manager) */ \
+    O(SCENEFFECT_ATTR_MODE, 0x170, 0x170) /* c: its file's code (the scenario manager) */ \
     O(SCENEFFECT_AMOUNT, 0x174, 0x174) /* c: its file's code (the scenario manager) */ \
     O(SCENEFFECT_CAM_AREA, 0x178, 0x178) /* c: its file's code (the scenario manager) */ \
     O(SCENEFFECT_CAM_OBJECT, 0x17C, 0x17C) /* c: its file's code (the scenario manager) */ \
