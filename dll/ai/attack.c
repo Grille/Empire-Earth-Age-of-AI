@@ -192,7 +192,8 @@ static void breach_note(ee_player *pl, void *sg, int x, int y) {
         if (!g_breaches[k].sg && free_k < 0) free_k = k;
     }
     if (x < 0) return;
-    if (free_k < 0) free_k = (int)((uintptr_t)sg >> 4) & 63;   // full: overwrite one
+    static int next;
+    if (free_k < 0) free_k = next++ & 63;   // full: overwrite one in turn (not by the subgroup's address: the heap differs between runs)
     g_breaches[free_k].sg = sg; g_breaches[free_k].pl = pl; g_breaches[free_k].x = x; g_breaches[free_k].y = y;
 }
 

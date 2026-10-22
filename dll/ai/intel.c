@@ -86,7 +86,11 @@ static void intel_army(ee_player *pl, float *hp, float *att, float *pw, int *n) 
 
 struct intel_scan {
     ee_player *pl; unsigned pi;
-    int nlive; ee_unit *live[6000];      // every unit (identity only - a remembered pointer is read only when it is in here)
+    // every unit, in the grid's order (the simulation's: the same in every run of a game), and the same sorted by address
+    // for intel_live (identity only - a remembered pointer is read only when it is in there). The records are made in
+    // the grid's order: in the address order (until 2026-10-22) the memory's order, so the float sums over it and which
+    // record a full memory drops, followed the heap - which differs between two runs of the same game, more so under load
+    int nlive; ee_unit *live[6000], *by_addr[6000];
     uint8_t floor[16]; int fseen[16];
     int ne, ex[3000], ey[3000];          // eyes: its and its allies' units
 };
@@ -108,7 +112,7 @@ static int intel_ptr_cmp(const void *a, const void *b) {
     return x < y ? -1 : x > y;
 }
 static int intel_live(struct intel_scan *s, ee_unit *u) {
-    return bsearch(&u, s->live, (size_t)s->nlive, sizeof *s->live, intel_ptr_cmp) != NULL;
+    return bsearch(&u, s->by_addr, (size_t)s->nlive, sizeof *s->by_addr, intel_ptr_cmp) != NULL;
 }
 static void intel_tick(ee_player *pl, uint32_t now) {
     unsigned pi = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
@@ -120,7 +124,8 @@ static void intel_tick(ee_player *pl, uint32_t now) {
     memset(s.floor, 0, sizeof s.floor); memset(s.fseen, 0, sizeof s.fseen);
     grid_each(intel_unit, &s);
     for (int o = 0; o < 16; o++) g_vis_floor[pi][o] = s.fseen[o] ? s.floor[o] : 0;
-    qsort(s.live, (size_t)s.nlive, sizeof *s.live, intel_ptr_cmp);
+    memcpy(s.by_addr, s.live, (size_t)s.nlive * sizeof *s.live);
+    qsort(s.by_addr, (size_t)s.nlive, sizeof *s.by_addr, intel_ptr_cmp);
     in->last = in->now = now;
     // looked at now
     for (int e = 0; e < s.ne; e++)
