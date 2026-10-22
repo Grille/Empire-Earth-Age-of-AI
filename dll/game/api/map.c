@@ -23,7 +23,7 @@ internal inline int siteown_get_flag(const ee_unit_vis *so) { return FIELD(so, S
 // FUNCTIONS
 // the map's area id at pt (kind 1 water, 2 land): one id per connected region
 internal inline unsigned short map_area(int *pt, int kind) {
-    return ((unsigned short (__thiscall *)(void *, int *, int))GA(FN_REGION))((void *)GA(G_MAP_AREAS), pt, kind);
+    return GF(FN_REGION)((void *)GA(G_MAP_AREAS), pt, kind);
 }
 // the map's area object at a tile (regions, continents)
 internal inline uint8_t *area_at(int *pt) { return GF(FN_AREA_AT)((void *)GA(G_MAP_AREAS), pt); }

@@ -86,9 +86,9 @@ internal inline char bm_queued(ee_build_mgr *bm, int type) { return GF(FN_BM_QUE
 internal inline void bm_request(ee_build_mgr *bm, int type) { GF(FN_BM_REQUEST)(bm, type, 1, 0); }
 // the resource manager's turn (the originals of the wiring's hooks, eeaimod.c): its gatherer targets computed (1: they
 // changed), its citizens assigned, its update
-internal inline char rm_compute_targets(ee_resource_mgr *rm) { return ((char (__thiscall *)(void *))GA(FN_COMPUTE_TARGETS))(rm); }
-internal inline char rm_assign_citizens(ee_resource_mgr *rm) { return ((char (__thiscall *)(void *))GA(FN_ASSIGN_CITIZENS))(rm); }
-internal inline void rm_update(ee_resource_mgr *rm, uint32_t now) { ((void (__thiscall *)(void *, uint32_t))GA(FN_RM_UPDATE))(rm, now); }
+internal inline char rm_compute_targets(ee_resource_mgr *rm) { return GF(FN_COMPUTE_TARGETS)(rm); }
+internal inline char rm_assign_citizens(ee_resource_mgr *rm) { return GF(FN_ASSIGN_CITIZENS)(rm); }
+internal inline void rm_update(ee_resource_mgr *rm, uint32_t now) { GF(FN_RM_UPDATE)(rm, now); }
 // the citizen u to work at site (a resource, a field, a building); rm_assign_as: with the game's third argument
 internal inline void rm_assign(ee_resource_mgr *rm, ee_unit *u, ee_unit *site) { GF(FN_ASSIGN_TO_SITE)(rm, u, site, 0); }
 internal inline void rm_assign_as(ee_resource_mgr *rm, ee_unit *u, ee_unit *site, int c) { GF(FN_ASSIGN_TO_SITE)(rm, u, site, c); }
@@ -103,14 +103,14 @@ internal inline void rs_schedule(ee_research_mgr *rs, int id) { GF(FN_RS_SCHEDUL
 // count of the next epoch's missing requirements asked for (buildings, units, techs)
 internal inline void rs_request_requirements(ee_research_mgr *rs, int count) { GF(FN_REQUEST_TECHS)(rs, count); }
 // enemies near x, y as the build manager sees them (its threat test)
-internal inline char bm_enemy_near(ee_build_mgr *bm, int x, int y) { return ((char (__thiscall *)(void *, int, int))GA(FN_ENEMY_NEAR))(bm, x, y); }
+internal inline char bm_enemy_near(ee_build_mgr *bm, int x, int y) { return GF(FN_ENEMY_NEAR)(bm, x, y); }
 // entry (type, x, y) into the build manager's list of epoch e (the lists at +4, 0x14 each)
 internal inline void bm_queue_add(ee_build_mgr *bm, int e, int *entry) { GF(FN_BQ_ADD)(FIELD_AT(bm, BM_QUEUES + e * 0x14), entry); }
 // the unit (its state, unit +0x30) in none of the civilization manager's groups
 internal inline char cm_unit_free(void *cm, void *unit_state) { return GF(FN_CM_UNIT_FREE)(cm, unit_state); }
 // a unit of type ordered but not started yet, one in production (the unit manager's queues)
-internal inline char um_pending(ee_unit_mgr *um, int type) { return ((char (__thiscall *)(void *, int))GA(FN_UM_PENDING))(um, type); }
-internal inline char um_in_production(ee_unit_mgr *um, int type) { return ((char (__thiscall *)(void *, int))GA(FN_UM_IN_PRODUCTION))(um, type); }
+internal inline char um_pending(ee_unit_mgr *um, int type) { return GF(FN_UM_PENDING)(um, type); }
+internal inline char um_in_production(ee_unit_mgr *um, int type) { return GF(FN_UM_IN_PRODUCTION)(um, type); }
 // the unit manager's citizens, the citizens it wants (share x population cap: the original of citizens.c's hook)
 internal inline int um_citizens(ee_unit_mgr *um) { return GF(FN_UM_CITIZENS)(um); }
 internal inline int um_citizens_wanted(ee_unit_mgr *um) { return GF(FN_UM_CITIZENS_WANTED)(um); }
@@ -119,23 +119,23 @@ internal inline int fish_type(ee_civ_mgr *cm) { return GF(FN_FISH_TYPE)(cm); }
 
 // THE RESOURCE MANAGER'S SEARCHES (the originals of sites.c's hooks; arguments as the game passes them)
 internal inline ee_unit *rm_find_mine(ee_resource_mgr *rm, uintptr_t type, ee_unit *unit, uintptr_t rev) {
-    return ((void *(__thiscall *)(void *, uintptr_t, uintptr_t, uintptr_t))GA(FN_FIND_MINE))(rm, type, (uintptr_t)unit, rev);
+    return GF(FN_FIND_MINE)(rm, type, (uintptr_t)unit, rev);
 }
 internal inline ee_unit *rm_find_food(ee_resource_mgr *rm, uintptr_t need_drop, uintptr_t near_base, ee_unit *unit) {
-    return ((void *(__thiscall *)(void *, uintptr_t, uintptr_t, uintptr_t))GA(FN_FIND_FOOD))(rm, need_drop, near_base, (uintptr_t)unit);
+    return GF(FN_FIND_FOOD)(rm, need_drop, near_base, (uintptr_t)unit);
 }
 internal inline ee_unit *rm_find_wood(ee_resource_mgr *rm, uintptr_t flag, ee_unit *unit) {
-    return ((void *(__thiscall *)(void *, uintptr_t, uintptr_t))GA(FN_FIND_WOOD))(rm, flag, (uintptr_t)unit);
+    return GF(FN_FIND_WOOD)(rm, flag, (uintptr_t)unit);
 }
 // the lists of fields, unbuilt fields and animals to hunt (n wanted, into out)
 internal inline void *rm_farms(ee_resource_mgr *rm, uintptr_t n, uintptr_t out) {
-    return ((void *(__thiscall *)(void *, uintptr_t, uintptr_t))GA(FN_FARMS))(rm, n, out);
+    return GF(FN_FARMS)(rm, n, out);
 }
 internal inline void *rm_unbuilt_farms(ee_resource_mgr *rm, uintptr_t n, uintptr_t out) {
-    return ((void *(__thiscall *)(void *, uintptr_t, uintptr_t))GA(FN_UNBUILT_FARMS))(rm, n, out);
+    return GF(FN_UNBUILT_FARMS)(rm, n, out);
 }
 internal inline void *rm_hunt(ee_resource_mgr *rm, uintptr_t n, uintptr_t f, uintptr_t out) {
-    return ((void *(__thiscall *)(void *, uintptr_t, uintptr_t, uintptr_t))GA(FN_HUNT))(rm, n, f, out);
+    return GF(FN_HUNT)(rm, n, f, out);
 }
 
 // HOOKS

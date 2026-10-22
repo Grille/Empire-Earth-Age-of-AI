@@ -99,13 +99,13 @@ internal inline void asg_land_stats(ee_attack_subgroup *sg) { GF(FN_ASG_LAND_STA
 internal inline char asg_give_goal(ee_attack_subgroup *sg, ee_unit *u, ee_goal *goal, int a, int prio) { return GF(FN_ASG_GIVE_GOAL)(sg, u, goal, a, prio); }
 internal inline char asg_air_give_goal(ee_attack_subgroup *sg, ee_unit *u, ee_goal *goal, int a, int prio) { return GF(FN_ASG_AIR_GIVE_GOAL)(sg, u, goal, a, prio); }
 // a land subgroup's route from start to dest (int[2] each), its arrival (waypoints at +0x60)
-internal inline void asg_route(ee_attack_subgroup *sg, int *start, int *dest) { ((void (__thiscall *)(ee_attack_subgroup *, int *, int *))GA(FN_ASG_ROUTE))(sg, start, dest); }
-internal inline void asg_route_done(ee_attack_subgroup *sg) { ((void (__thiscall *)(ee_attack_subgroup *))GA(FN_ASG_ROUTE_DONE))(sg); }
+internal inline void asg_route(ee_attack_subgroup *sg, int *start, int *dest) { GF(FN_ASG_ROUTE)(sg, start, dest); }
+internal inline void asg_route_done(ee_attack_subgroup *sg) { GF(FN_ASG_ROUTE_DONE)(sg); }
 // a subgroup member's score for an enemy (info: what it scores)
-internal inline float asgu_score(ee_asg_unit *member, ee_asgu_info *info) { return ((float (__thiscall *)(ee_asg_unit *, ee_asgu_info *))GA(FN_ASGU_SCORE))(member, info); }
+internal inline float asgu_score(ee_asg_unit *member, ee_asgu_info *info) { return GF(FN_ASGU_SCORE)(member, info); }
 // the route planner's cost of an edge into node
 internal inline int route_cost(ee_route_planner *planner, int *edge, ee_route_node *node) {
-    return ((int (__thiscall *)(ee_route_planner *, int *, ee_route_node *))GA(FN_ROUTE_COST))(planner, edge, node);
+    return GF(FN_ROUTE_COST)(planner, edge, node);
 }
 
 // HOOKS

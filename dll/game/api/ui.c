@@ -51,8 +51,8 @@ internal inline void scroll_execute(void *self) { GF(FN_SCROLL_EXECUTE)(self); }
 internal inline void camera_move(float dx, float dy) { GF(FN_CAMERA_MOVE)((void *)GA(G_CAMERA), dx, dy); }
 internal inline void scroll_action_init(ee_scroll *obj) { *(uint32_t *)obj = GA(VT_SCROLL); }
 // the mouse's position kept in its range, its update (the original of display.c's hook)
-internal inline void mouse_clamp(void *m) { ((void (__thiscall *)(void *))GA(FN_MOUSE_CLAMP))(m); }
-internal inline void mouse_update(ee_mouse *m) { ((void (__thiscall *)(void *))GA(FN_MOUSE_UPDATE))(m); }
+internal inline void mouse_clamp(void *m) { GF(FN_MOUSE_CLAMP)(m); }
+internal inline void mouse_update(ee_mouse *m) { GF(FN_MOUSE_UPDATE)(m); }
 // the UI manager's current form, an edit box's text, the settings saved to the registry (as the options screens do)
 internal inline ee_ui_form *ui_current_form(void *uim) { return ((ee_ui_form *(__thiscall *)(void *))*(void **)GA(IAT_UIM_FORM))(uim); }
 internal inline const char *edit_text(void *edit) { return ((const char *(__thiscall *)(void *, unsigned long))*(void **)GA(IAT_EDIT_GET_TEXT))(edit, 0); }

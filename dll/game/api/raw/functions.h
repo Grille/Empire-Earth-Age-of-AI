@@ -12,10 +12,10 @@
     F(FN_SCROLL_EXECUTE, void, __thiscall, (void *), 0x004050FC, 0x0040478E) \
     /* point from int x, y (the task location's point) */ \
     F(FN_POINT_SET, void, __thiscall, (void *, int *), 0x0040D29D, 0x0044D28B) \
-    D(FN_ROUTE_COST, 0x004141E8, 0x00410074)                                  /* its slot 1: int thiscall(edge*, node*) */ \
+    F(FN_ROUTE_COST, int, __thiscall, (ee_route_planner *, int *, ee_route_node *), 0x004141E8, 0x00410074) /* its slot 1: int thiscall(edge*, node*) */ \
     /* the area object at a tile (thiscall on the map areas G_MAP_AREAS) */ \
     F(FN_AREA_AT, uint8_t *, __thiscall, (void *, int *), 0x00425F16, 0x00422AD9) \
-    D(FN_REGION, 0x00425F9F, 0x00422B86)                                      /* thiscall(0x917BC8, int pos[2], 2) -> short region id */ \
+    F(FN_REGION, unsigned short, __thiscall, (void *, int *, int), 0x00425F9F, 0x00422B86) /* thiscall(0x917BC8, int pos[2], 2) -> short region id */ \
     /* where an idle transport lands (thiscall(transport manager, transport)) */ \
     F(FN_SHORE_TO_UNLOAD, int, __thiscall, (void *, void *), 0x0042C49A, 0x00422658) \
     F(FN_UNITS_INSIDE, int, __thiscall, (void *), 0x0042E347, 0x0040D5C5)     /* units aboard a transport or inside a building */ \
@@ -32,7 +32,7 @@
     F(FN_SCHEDULE_ATTACK, void, __thiscall, (void *, uint32_t), 0x0043DD2F, 0x0043D4CD) \
     /* EEComputerPlayer::vf45(cost object, ?, ?): pays a unit/building/tech */ \
     F(FN_CP_PAY, void, __thiscall, (void *, void *, int, int), 0x0043F53D, 0x0043ED98) \
-    D(FN_CP_UPDATE, 0x0043F91A, 0x0043F175) \
+    F(FN_CP_UPDATE, void, __thiscall, (ee_player *, uint32_t), 0x0043F91A, 0x0043F175) \
     F(FN_GIVE_GOAL, void, __thiscall, (void *, void *, int), 0x004412D4, 0x0043D416) /* thiscall(unit, goal, slot) */ \
     F(FN_TASK_CTOR, void, __thiscall, (void *), 0x00441FB3, 0x0044162F)       /* an attack task */ \
     F(FN_TASK_SET_TARGET, void, __thiscall, (void *, void *), 0x00442246, 0x00441912) \
@@ -41,8 +41,8 @@
     F(FN_ASG_AIR_UPDATE, void, __thiscall, (void *, int), 0x00442DBA, 0x0045019D) /* EECPASGAir slot 90: update(now) */ \
     F(FN_ASG_LAND_STATS, void, __thiscall, (void *), 0x004472A9, 0x004466DD) \
     F(FN_ASG_UPDATE, void, __thiscall, (void *, int), 0x004491DD, 0x004488CE) /* EECPASGLand slot 90: update(now) */ \
-    D(FN_ASG_ROUTE, 0x0044BC57, 0x0044B3C7)                                   /* its slot 94: void thiscall(int start[2], int dest[2]) */ \
-    D(FN_ASG_ROUTE_DONE, 0x0044BDBF, 0x0044B53D)                              /* its slot 97: route arrived, waypoints in the deque at +0x60 */ \
+    F(FN_ASG_ROUTE, void, __thiscall, (ee_attack_subgroup *, int *, int *), 0x0044BC57, 0x0044B3C7) /* its slot 94: void thiscall(int start[2], int dest[2]) */ \
+    F(FN_ASG_ROUTE_DONE, void, __thiscall, (ee_attack_subgroup *), 0x0044BDBF, 0x0044B53D) /* its slot 97: route arrived, waypoints in the deque at +0x60 */ \
     F(FN_ASG_SEA_UPDATE, void, __thiscall, (void *, int), 0x0044ED11, 0x0044F70E) /* EECPASGSea slot 90: update(now) */ \
     /* EECPASGSeaTransport slot 90: update(now) */ \
     F(FN_ASG_SEA_TRANSPORT_UPDATE, void, __thiscall, (void *, int), 0x0044FB92, 0x0044E9BB) \
@@ -52,7 +52,7 @@
     F(FN_ATTACK_GROUP_NEW, uint8_t *, __thiscall, (void *, void *, void *, void *), 0x0045106C, 0x00451D8E) \
     F(FN_ASG_STATS, void, __thiscall, (void *), 0x0045AD2F, 0x0045C925) \
     F(FN_ASG_GIVE_GOAL, char, __thiscall, (void *, void *, void *, int, int), 0x0045CBEA, 0x0045E7F9) \
-    D(FN_ASGU_SCORE, 0x00461854, 0x00463494)                                  /* float thiscall(info *) */ \
+    F(FN_ASGU_SCORE, float, __thiscall, (ee_asg_unit *, ee_asgu_info *), 0x00461854, 0x00463494) /* float thiscall(info *) */ \
     F(FN_BM_QUEUED, char, __thiscall, (void *, int), 0x00465640, 0x004672FA)  /* thiscall(build manager, type): queued */ \
     F(FN_PLACE, char, __thiscall, (void *, int, int, int), 0x0046580A, 0x004674C4) \
     F(FN_ENEMY_NEAR, char, __thiscall, (void *, int, int), 0x004660B9, 0x00467E10) /* thiscall(build manager, x, y) -> bool */ \
@@ -77,19 +77,19 @@
     F(FN_REQUEST_TECHS, void, __thiscall, (void *, int), 0x004860D6, 0x0048A91E) \
     /* thiscall(zone, type) -> first site of that type with amount > 0 */ \
     F(FN_ZONE_SITE, uint8_t *, __thiscall, (void *, int), 0x004886F2, 0x0048D065) \
-    D(FN_ASSIGN_CITIZENS, 0x0048A554, 0x0048EECF) \
-    D(FN_HUNT, 0x0048BA3B, 0x00490458)                                        /* (count, flag, out list) */ \
-    D(FN_FIND_FOOD, 0x0048BBA8, 0x00490602)                                   /* (char needDropsite, char nearBase, unit) -> site */ \
-    D(FN_UNBUILT_FARMS, 0x0048BF4F, 0x004909D7) \
-    D(FN_FARMS, 0x0048BFD0, 0x00490A63)                                       /* (count, out list) */ \
-    D(FN_FIND_WOOD, 0x0048C060, 0x00490AF3)                                   /* (flag, unit) -> target */ \
-    D(FN_FIND_MINE, 0x0048C204, 0x00490CB5)                                   /* (type, unit, reverse) -> site */ \
+    F(FN_ASSIGN_CITIZENS, char, __thiscall, (void *), 0x0048A554, 0x0048EECF) \
+    F(FN_HUNT, void *, __thiscall, (void *, uintptr_t, uintptr_t, uintptr_t), 0x0048BA3B, 0x00490458) /* (count, flag, out list) */ \
+    F(FN_FIND_FOOD, void *, __thiscall, (void *, uintptr_t, uintptr_t, uintptr_t), 0x0048BBA8, 0x00490602) /* (char needDropsite, char nearBase, unit) -> site */ \
+    F(FN_UNBUILT_FARMS, void *, __thiscall, (void *, uintptr_t, uintptr_t), 0x0048BF4F, 0x004909D7) \
+    F(FN_FARMS, void *, __thiscall, (void *, uintptr_t, uintptr_t), 0x0048BFD0, 0x00490A63) /* (count, out list) */ \
+    F(FN_FIND_WOOD, void *, __thiscall, (void *, uintptr_t, uintptr_t), 0x0048C060, 0x00490AF3) /* (flag, unit) -> target */ \
+    F(FN_FIND_MINE, void *, __thiscall, (void *, uintptr_t, uintptr_t, uintptr_t), 0x0048C204, 0x00490CB5) /* (type, unit, reverse) -> site */ \
     F(FN_ASSIGN_TO_SITE, void, __thiscall, (void *, void *, void *, int), 0x0048C81C, 0x004912BE) /* (unit, target, 0) */ \
-    D(FN_COMPUTE_TARGETS, 0x0048D0A2, 0x00491B78) \
-    D(FN_RM_UPDATE, 0x0048D263, 0x00491D34) \
+    F(FN_COMPUTE_TARGETS, char, __thiscall, (void *), 0x0048D0A2, 0x00491B78) \
+    F(FN_RM_UPDATE, void, __thiscall, (void *, uint32_t), 0x0048D263, 0x00491D34) \
     F(FN_TABLE_VALUE, unsigned, __thiscall, (void *, int), 0x0048E817, 0x004CD4B3) \
-    D(FN_UM_PENDING, 0x0048E9D8, 0x00493696)                                  /* thiscall(unit manager, type) */ \
-    D(FN_UM_IN_PRODUCTION, 0x0048EA2E, 0x004936EC)                            /* thiscall(unit manager, type) */ \
+    F(FN_UM_PENDING, char, __thiscall, (void *, int), 0x0048E9D8, 0x00493696) /* thiscall(unit manager, type) */ \
+    F(FN_UM_IN_PRODUCTION, char, __thiscall, (void *, int), 0x0048EA2E, 0x004936EC) /* thiscall(unit manager, type) */ \
     F(FN_UM_CITIZENS_WANTED, int, __thiscall, (void *), 0x0048EDDB, 0x00493AEE) /* citizen share x population cap */ \
     F(FN_TRAIN_CITIZENS, uintptr_t, __thiscall, (void *, uintptr_t), 0x0048EE84, 0x00493B97) \
     /* citizens of both sexes and the epoch's fishing boat type */ \
@@ -111,15 +111,15 @@
     F(FN_DAMAGE_POINTS, int, __thiscall, (void *, int, unsigned), 0x004D291F, 0x004D84EC) \
     /* thiscall(G_BONUS_TABLE, weapon kind, target type data, attacker, target player) */ \
     F(FN_ATTACK_BONUS, float, __thiscall, (void *, int, void *, int, int), 0x004D5F2C, 0x004DBE44) \
-    D(FN_MOUSE_CLAMP, 0x00510DAD, 0x0051B31C) \
-    D(FN_MOUSE_UPDATE, 0x00510E5D, 0x0051B3CC) \
+    F(FN_MOUSE_CLAMP, void, __thiscall, (void *), 0x00510DAD, 0x0051B31C) \
+    F(FN_MOUSE_UPDATE, void, __thiscall, (void *), 0x00510E5D, 0x0051B3CC) \
     /* thiscall on G_CAMERA (float dx, float dy) */ \
     F(FN_CAMERA_MOVE, void, __thiscall, (void *, float, float), 0x0051E2E6, 0x00528EA5) \
     /* thiscall([G_CHEAT_PARSER], UWideString *, int *code, int *arg) */ \
     F(FN_CHEAT_PARSE, void, __thiscall, (void *, void *, int *, int *), 0x00520A17, 0x0052B5D6) \
-    D(FN_LOAD_SAVED, 0x00521F94, 0x0052CB90) \
-    D(FN_PARSE_CMDLINE, 0x00522A36, 0x0052D703) \
-    D(FN_GAME_START, 0x0052599B, 0x005306F2) \
+    F(FN_LOAD_SAVED, int, __cdecl, (void *), 0x00521F94, 0x0052CB90) \
+    F(FN_PARSE_CMDLINE, char, __cdecl, (const char *), 0x00522A36, 0x0052D703) \
+    F(FN_GAME_START, char, __thiscall, (void *, ee_setup *, void *), 0x0052599B, 0x005306F2) \
     F(FN_COLOR_RGB, void *, __cdecl, (unsigned), 0x00526B85, 0x005318BD) \
     F(FN_SETTINGS_SAVE, void, __thiscall, (void *), 0x0052AA81, 0x00535943)   /* every setting into the registry */ \
     F(FN_SET_STANCE, void, __thiscall, (void *, int, int, int), 0x0052D5D7, 0x005384DD) \
@@ -135,7 +135,7 @@
     /* EEPlayer::vf31 thiscall(player, 0): the game's unit limit for this player */ \
     F(FN_GAME_LIMIT, int, __thiscall, (void *, int), 0x00556EBC, 0x0056528B) \
     F(FN_SELECT_UNITS, void, __thiscall, (void *, void *), 0x0055B3FB, 0x0056A658) /* EEMSelectUnits carried out on the player */ \
-    D(FN_SET_DIPLOMACY, 0x0055B8E1, 0x0056AB41) \
+    F(FN_SET_DIPLOMACY, void, __thiscall, (void *, void *, int, int), 0x0055B8E1, 0x0056AB41) \
     F(FN_PLAYER_RESIGN, void, __thiscall, (void *, int), 0x0055BCEA, 0x0056AF5C) /* thiscall(player, 2) as EEMResign */ \
     F(FN_STAT_ADD, void, __thiscall, (void *, int, int), 0x0055DBCF, 0x0056D507) \
     F(FN_CAMACT_CTOR, void *, __thiscall, (void *), 0x00560179, 0x0056FAD4)   /* EEACenterCamera ctor (0x1C bytes) */ \
@@ -151,7 +151,7 @@
     F(FN_UNIT_RELEASE, void, __thiscall, (void *), 0x005ED71E, 0x005FB7FB) \
     /* thiscall(unit, 0x1F51) - as the assignment does after the order */ \
     F(FN_UNIT_SAY, void, __thiscall, (void *, int), 0x005EFCF0, 0x005FDFA5) \
-    D(FN_SET_GOAL, 0x005F05BD, 0x005FE863)                                    /* thiscall(unit, goal, 0, 0) */ \
+    F(FN_SET_GOAL, void, __thiscall, (void *, void *, char, int), 0x005F05BD, 0x005FE863) /* thiscall(unit, goal, 0, 0) */ \
     /* EEUCMissile vf42, thiscall(class, missile, aim) - ret 8, the aim unused */ \
     F(FN_MISSILE_LAUNCH, int, __thiscall, (void *, void *, float *), 0x00606109, 0x0061799B) \
     F(FN_PROJ_DOWN, char, __thiscall, (void *, void *), 0x006078F9, 0x00619143) \
@@ -170,7 +170,7 @@
     F(FN_VECTOR_FREE, void, __thiscall, (void *), 0x0061ABEC, 0x006002C7)     /* a vector's dtor (the game's delete) */ \
     F(FN_FIRE, void, __thiscall, (void *, void *), 0x0061E11C, 0x00631312) /* thiscall(attacker class, attacker) */ \
     F(FN_UNIT_UNLINK, void, __thiscall, (void *), 0x00628E29, 0x0063DBDA) \
-    D(FN_BALLISTIC, 0x0062CBB3, 0x00641A6A) \
+    F(FN_BALLISTIC, char, __cdecl, (ee_unit *, ee_unit_stats *, float *, float *, float *), 0x0062CBB3, 0x00641A6A) \
     F(FN_UNIT_DISTANCE, float, __cdecl, (void *, void *), 0x0062D5A4, 0x00642489) /* cdecl(unit, other) */ \
     /* cdecl char(player, type, x, y, w, h, 0) */ \
     F(FN_CAN_PLACE, char, __cdecl, (void *, int, int, int, int, int, int), 0x0062E940, 0x00643CE6) \
@@ -178,12 +178,12 @@
     F(FN_PLACE_BUILDING, void *, __cdecl, (void *, int, int, int), 0x0062EF8A, 0x00644C83) \
     /* cdecl(unit, player index, new type data) */ \
     F(FN_UNIT_CONVERT, int, __cdecl, (void *, int, uint32_t), 0x0062F192, 0x00644E95) \
-    D(FN_AIM, 0x00633413, 0x0064939D) \
+    F(FN_AIM, void, __cdecl, (ee_unit *, ee_unit **, float *, void *), 0x00633413, 0x0064939D) \
     F(FN_RANGE_SORT, void, __cdecl, (void **, void **, void *), 0x0063A355, 0x006509AF) \
     /* EEMHackANewUnit: thiscall(int *type, float xy[2], char player) */ \
     F(FN_NEW_UNIT_MSG_CTOR, void, __thiscall, (void *, int *, float *, char), 0x00650B3C, 0x00662C24) \
-    D(FN_SET_RESOLUTION, 0x0065F314, 0x006768FE) \
-    D(FN_QUEUE_ACTION, 0x0066192F, 0x00678F79) \
+    F(FN_SET_RESOLUTION, void, __stdcall, (int, int, int, int), 0x0065F314, 0x006768FE) \
+    F(FN_QUEUE_ACTION, void, __thiscall, (void *, void *), 0x0066192F, 0x00678F79) \
     /* thiscall(ui [G_UI], colour, name, line, ms, 0): a chat or system line */ \
     F(FN_UI_LINE, void, __thiscall, (void *, void *, void *, void *, int, int), 0x00661E91, 0x006794C6) \
     F(FN_NEW, void *, __cdecl, (size_t), 0x00683718, 0x0069D178)              /* the game's operator new */ \

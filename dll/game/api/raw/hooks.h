@@ -34,7 +34,7 @@
     D(CALL_FISH_TYPE_2, 0x0048FB16, 0x0049488C) \
     D(CALL_CITIZENS_WANTED, 0x00490BC2, 0x00495A15)                           /* a call of FN_UM_CITIZENS_WANTED */ \
     D(CALL_SEL_PACK, 0x004BD133, 0x004C5E40) \
-    D(START_EXEC, 0x004BEE57, 0x004C7CDC) \
+    F(START_EXEC, void, __thiscall, (ee_msg *), 0x004BEE57, 0x004C7CDC) \
     D(CALL_GAME_START, 0x004CEC14, 0x004D4443) \
     D(CALL_DAMAGE_POINTS, 0x004F80A4, 0x0050232D) \
     F(FN_DRAW_REC_CTOR, void, __thiscall, (void *), 0x00506442, 0x005118E9)   /* a draw list record */ \

@@ -102,7 +102,7 @@ internal inline ee_unit_stats **type_stats(ee_player *pl, int type) { return (ee
 internal inline void player_resign(ee_player *pl, int how) { GF(FN_PLAYER_RESIGN)(pl, how); }
 // player a's stance towards b (1 enemy, 0 ally) set as the game does (EEPlayer's diplomacy, both its lists)
 internal inline void set_diplomacy(ee_player *a, ee_player *b, int stance, int flag) {
-    ((void (__thiscall *)(void *, void *, int, int))GA(FN_SET_DIPLOMACY))(a, b, stance, flag);
+    GF(FN_SET_DIPLOMACY)(a, b, stance, flag);
 }
 // the player's attacks on target called off (the units back to the pool)
 internal inline void call_off_attacks(ee_player *pl, ee_player *target, int flag) { GF(FN_CALL_OFF_ATTACK)(pl, target, flag); }
@@ -118,7 +118,7 @@ internal inline char player_is_human(ee_player *pl) { return ((char (__thiscall 
 internal inline void cp_add_resource(ee_player *pl, int type, int amount) { GF(FN_CP_ADD_RESOURCE)(pl, type, amount); }
 internal inline void cp_pay(ee_player *pl, void *what, int b, int c) { GF(FN_CP_PAY)(pl, what, b, c); }
 // the computer player's update (EEComputerPlayer::Update - the original of engine/scenario_ai.c's hook)
-internal inline void cp_update(ee_player *pl, uint32_t now) { ((void (__thiscall *)(ee_player *, uint32_t))GA(FN_CP_UPDATE))(pl, now); }
+internal inline void cp_update(ee_player *pl, uint32_t now) { GF(FN_CP_UPDATE)(pl, now); }
 // the next attack's time drawn (player +0xED8), a price as the cheat makes it (AdjustCost, vf27)
 internal inline void cp_schedule_attack(ee_player *pl, uint32_t now) { GF(FN_SCHEDULE_ATTACK)(pl, now); }
 internal inline int cp_adjust_cost(ee_player *pl, int price) { return GF(FN_ADJUST_COST)(pl, price); }

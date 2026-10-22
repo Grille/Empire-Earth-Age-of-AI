@@ -116,7 +116,7 @@ internal inline void *pause_action_alloc(void) { return game_new(GA(SIZE_PAUSE_A
 internal inline void *save_action_alloc(void) { return game_new(GA(SIZE_SAVE_ACTION)); }
 internal inline void *new_unit_msg_alloc(void) { return game_new(GA(SIZE_NEW_UNIT_MSG)); }
 // an action into the world's queue (QueueAction on [G_WORLD]), an action's reference given back
-internal inline void world_queue_action(void *act) { ((void (__thiscall *)(void *, void *))GA(FN_QUEUE_ACTION))(*(void **)GA(G_WORLD), act); }
+internal inline void world_queue_action(void *act) { GF(FN_QUEUE_ACTION)(*(void **)GA(G_WORLD), act); }
 internal inline void action_release(void *act) { (*(void (__thiscall **)(void *))GA(IAT_RELEASE))(act); }
 // the pause button's action (EEAUserPauseGame: vtable, refcount 1, a byte - it toggles the pause)
 internal inline uint8_t *pause_action_init(uint8_t *mem) {
@@ -137,7 +137,7 @@ internal inline long ts_receive(void *thread, void *a, void *b, void *c) {
 internal inline long ts_wait(void *ev, unsigned long ms) { return (*(long (__thiscall **)(void *, unsigned long))GA(IAT_TS_WAIT))(ev, ms); }
 // one simulation step (EEPhysics vf8), the game start message executed
 internal inline void phys_step(ee_physics *phys) { GF(FN_PHYS_STEP)(phys); }
-internal inline void start_exec(ee_msg *msg) { ((void (__thiscall *)(ee_msg *))GA(START_EXEC))(msg); }
+internal inline void start_exec(ee_msg *msg) { GF(START_EXEC)(msg); }
 
 // THE ENGINE (engine/: the fixes' originals and what they ask)
 // the game's cos (UMCos, its own math DLL through its import: the same bits on every PC - the C runtime's may differ)
@@ -146,16 +146,16 @@ internal inline float game_cos(float a) { return (*(float (__cdecl **)(float))GA
 internal inline ee_input_mouse *input_mouse(void) { ee_input_mouse **p = *(ee_input_mouse ***)GA(IMP_IS_MOUSE); return p ? *p : NULL; }
 internal inline uint8_t *input_keyboard(void) { uint8_t **p = *(uint8_t ***)GA(IMP_IS_KEYBOARD); return p ? *p : NULL; }
 // a resolution switch (the original of display.c's editor hooks), the editor's main form built
-internal inline void set_resolution(int w, int h, int force, int flag) { ((void (__stdcall *)(int, int, int, int))GA(FN_SET_RESOLUTION))(w, h, force, flag); }
+internal inline void set_resolution(int w, int h, int force, int flag) { GF(FN_SET_RESOLUTION)(w, h, force, flag); }
 internal inline void *editor_form(void *form, void *owner) { return GF(FN_EDITOR_FORM)(form, owner); }
 internal inline void settings_save(void) { GF(FN_SETTINGS_SAVE)((void *)GA(G_SETTINGS)); }
 
 // THE GAME'S RUN (the originals of the wiring's hooks: eeaimod.c, persist.c, test/autotest.c)
 // a game started from setup (EEGameState::Start, on the game state object)
-internal inline char game_start(void *state, ee_setup *setup, void *p2) { return ((char (__thiscall *)(void *, ee_setup *, void *))GA(FN_GAME_START))(state, setup, p2); }
+internal inline char game_start(void *state, ee_setup *setup, void *p2) { return GF(FN_GAME_START)(state, setup, p2); }
 // the command line read (1: on to the main menu), a -loadgame save loaded
-internal inline char parse_cmdline(const char *cmd) { return ((char (__cdecl *)(const char *))GA(FN_PARSE_CMDLINE))(cmd); }
-internal inline int load_saved(void *name) { return ((int (__cdecl *)(void *))GA(FN_LOAD_SAVED))(name); }
+internal inline char parse_cmdline(const char *cmd) { return GF(FN_PARSE_CMDLINE)(cmd); }
+internal inline int load_saved(void *name) { return GF(FN_LOAD_SAVED)(name); }
 // the game saved as file in folder (0: saved; the folder is passed by value and destroyed)
 internal inline int save_game(void *file, int a, int b, struct ustring folder) { return GF(FN_SAVE_GAME)(file, a, b, folder); }
 // the highest epoch of the human players, 0 without

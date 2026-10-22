@@ -53,10 +53,10 @@ internal inline uint8_t unit_get_ai_held(const ee_unit *u) { return FIELD(u, UNI
 internal inline unsigned site_gatherers(ee_unit *site) { return GF(FN_SITE_GATHERERS)((void *)GA(G_GAME_STATE), site); }
 // a shot's ballistic path from -> to for unit u (type: its live stats): reachable (pitch out); the aim at target
 internal inline char ballistic(ee_unit *u, ee_unit_stats *type, float *from, float *to, float *pitch) {
-    return ((char (__cdecl *)(ee_unit *, ee_unit_stats *, float *, float *, float *))GA(FN_BALLISTIC))(u, type, from, to, pitch);
+    return GF(FN_BALLISTIC)(u, type, from, to, pitch);
 }
 internal inline void unit_aim(ee_unit *u, ee_unit **target, float *aim, void *zero) {
-    ((void (__cdecl *)(ee_unit *, ee_unit **, float *, void *))GA(FN_AIM))(u, target, aim, zero);
+    GF(FN_AIM)(u, target, aim, zero);
 }
 // is the map object explored by pl (a site's +0x14: its map object)
 internal inline char explored_by(ee_unit *site, ee_player *pl) { return GF(FN_EXPLORED)(FIELD(site, UNIT_VIS, void *), pl); }
@@ -65,7 +65,7 @@ internal inline char explored_by(ee_unit *site, ee_player *pl) { return GF(FN_EX
 internal inline void unit_say(ee_unit *u, int sound) { GF(FN_UNIT_SAY)(u, sound); }
 // the unit's goal set (the unit takes it over); append: after its current one, prio: the order's priority
 internal inline void unit_set_goal(ee_unit *u, ee_goal *goal, int append, int prio) {
-    ((void (__thiscall *)(void *, void *, char, int))GA(FN_SET_GOAL))(u, goal, (char)append, prio);
+    GF(FN_SET_GOAL)(u, goal, (char)append, prio);
 }
 // the goal given into one of the unit's goal slots (the original of landing.c's unload retry)
 internal inline void unit_give_goal(ee_unit *u, ee_goal *goal, int slot) { GF(FN_GIVE_GOAL)(u, goal, slot); }
