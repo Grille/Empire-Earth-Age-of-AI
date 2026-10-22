@@ -1,19 +1,14 @@
 // THE GAME'S ADDRESSES: every address the mod uses in Empire Earth.exe, by name, with its value in each exe build the
-// mod knows - one column per k_exe_builds entry, in that order (0: the build hasn't got it). game_build (game/exe.c)
-// picks the column when the DLL loads (addr_select): GA(NAME) is the address, GF(NAME) the function there, typed by
-// its row, GL(NAME) a list of addresses (its count: sizeof GL(NAME) / sizeof *GL(NAME)). Another build - Art of
-// Conquest, another release, a patched exe - is one more hash and one more value per row. The names: FN_ a function,
+// mod knows - one column per k_exe_builds entry (game/exe.c), in that order (0: the build hasn't got it). game_build
+// finds the running build, addr_select takes its column when the DLL loads: GA(NAME) is the address, GF(NAME) the
+// function there, typed by its row, GL(NAME) a list of addresses (its count: sizeof GL(NAME) / sizeof *GL(NAME)).
+// Another build - Art of Conquest, another release, a patched exe - is one more hash and one more value per row. The names: FN_ a function,
 // CALL_ a call (patched), SITE_/CODE_ an instruction or operand, G_ data, VT_ a vtable, VTS_ a vtable slot's address,
 // SLOT_ a vtable slot's index (a class may have gained a virtual function), SIZE_ an object's size, IAT_ an import
 // slot, RVA_ a place in an engine DLL. Tables of their own for one build: editor_layout.h (generated for the 2017
 // update: apply_editor_layout only there). The objects' fields: fields.h, the same columns.
 // Art of Conquest's column: scripts/port_addrs.py (the two exes' code paired; its HAND table the few found by hand,
-// each with its reason). Not ready: nothing ran there yet - the mod stays off there.
-#define ADDR_BUILDS 2
-internal const struct exe_build { uint32_t hash; const char *name; int ready; } k_exe_builds[ADDR_BUILDS] = {
-    { 0x4FB6A479, "ee", 1 },    // the 2017 update (GOG, Steam, empireearth.eu Vanilla)
-    { 0x0644BA54, "aoc", 0 },   // The Art of Conquest, EE-AOC.exe (GOG, Steam)
-};
+// each with its reason).
 
 // The rows by who uses them (scripts/addr_sort.py keeps them there, the build checks it): functions_addr.h what
 // functions.h calls, hooks_addr.h what hooks.h patches, data_addr.h the game's data functions.h reads. One table: the
@@ -53,20 +48,17 @@ internal const char *const k_addr_name[A_N] = { ADDRS(ADDR_NAME_F, ADDR_NAME_D) 
 #define ADDR_LIST_EACH(v1, v2) ADDR_LIST_COL(v1) ADDR_LIST_COL(v2)   // one per build
 ADDR_LISTS(ADDR_LIST)
 
-internal int g_exe_build = -1;           // the column of the running exe (-1: none known - the mod stays off)
-// the running build by its name ("ee", "aoc"): for code that differs by more than an address (AoC's rewrites)
-internal int build_is(const char *name) { return g_exe_build >= 0 && !lstrcmpA(k_exe_builds[g_exe_build].name, name); }
 internal uintptr_t g_addr[A_N];
 #define GA(n) (g_addr[A_##n])
 #define GF(n) ((n##_fn)g_addr[A_##n])
 #define GL(n) (k_addr_list_##n[g_exe_build])
 internal int g_addr_missing;               // names the running build hasn't got (logged at the start: addr_log)
 
-// the running exe's column into g_addr; the names it hasn't got (0) are counted - the caller logs them
-internal int addr_select(int build) {
+// the running exe's column (g_exe_build: game_build) into g_addr; the names it hasn't got (0) are counted - logged at
+// the start (addr_log)
+internal int addr_select(void) {
     int missing = 0;
-    g_exe_build = build;
-    for (int i = 0; i < A_N; i++) missing += !(g_addr[i] = k_addr[i][build]);
+    for (int i = 0; i < A_N; i++) missing += !(g_addr[i] = k_addr[i][g_exe_build]);
     image_ranges();
     return missing;
 }

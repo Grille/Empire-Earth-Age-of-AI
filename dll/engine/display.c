@@ -26,7 +26,7 @@ internal int g_buttons_state;
 
 internal int apply_editor_layout(int w, int h) {
     int ok = 0, bad = 0;
-    if (g_exe_build != 0) return 0;   // editor_layout.h is the 2017 update's (addr.h k_exe_builds[0])
+    if (g_exe_build != 0) return 0;   // editor_layout.h is the 2017 update's (game/exe.c k_exe_builds[0])
     for (size_t i = 0; i < N_LAYOUT; i++) {
         uint32_t *p = (uint32_t *)k_editor_layout[i].addr;
         if (!g_layout_state[i]) {   // first time: the original value must be there

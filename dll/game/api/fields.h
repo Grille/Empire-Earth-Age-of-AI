@@ -533,9 +533,9 @@ internal const char *const k_of_name[OF_N] = { FIELDS(OF_NAME) };
 internal uint32_t g_of[OF_N];
 #define OF(k, x) (g_of[OF_##k##_##x])
 internal int g_of_missing;   // fields the running build hasn't got (NA): logged at the start (fields_log)
-internal int fields_select(int build) {   // the running exe's column into g_of (with addr_select)
+internal int fields_select(void) {   // the running exe's column (g_exe_build) into g_of (with addr_select)
     int missing = 0;
-    for (int i = 0; i < OF_N; i++) missing += (g_of[i] = k_of[i][build]) == NA;
+    for (int i = 0; i < OF_N; i++) missing += (g_of[i] = k_of[i][g_exe_build]) == NA;
     return missing;
 }
 internal void fields_log(FILE *log) {

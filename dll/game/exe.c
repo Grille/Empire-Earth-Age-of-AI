@@ -5,7 +5,17 @@
 // 1.04 with its copy protection, its no-CD cracks, NeoEE (the same code, but its imports elsewhere - docs/engine-notes.md
 // "Exe builds"). Known by a hash (FNV-1a) of every section but .rsrc, read from the file: in memory another DLL may have
 // patched the code already, and run_test.ps1 patches it before the game runs.
-// (the builds and their hashes: addr.h k_exe_builds)
+// The builds the mod knows: their columns in game/api/'s tables (addr.h, fields.h), in this order. Art of Conquest's
+// column: scripts/port_addrs.py. Not ready: the player's game runs without the mod, a test run plays it (game_build).
+#define ADDR_BUILDS 2
+internal const struct exe_build { uint32_t hash; const char *name; int ready; } k_exe_builds[ADDR_BUILDS] = {
+    { 0x4FB6A479, "ee", 1 },    // the 2017 update (GOG, Steam, empireearth.eu Vanilla)
+    { 0x0644BA54, "aoc", 0 },   // The Art of Conquest, EE-AOC.exe (GOG, Steam)
+};
+internal int g_exe_build = -1;   // the running build's column (-1: none known - the mod stays off)
+// the running build by its name ("ee", "aoc"): for code that differs by more than an address (AoC's rewrites)
+internal int build_is(const char *name) { return g_exe_build >= 0 && !lstrcmpA(k_exe_builds[g_exe_build].name, name); }
+
 internal uint32_t exe_build_hash(const char *path) {   // 0: not a readable PE file
     HANDLE f = CreateFileA(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, 0, NULL);
     if (f == INVALID_HANDLE_VALUE) return 0;
@@ -31,7 +41,7 @@ internal uint32_t exe_build_hash(const char *path) {   // 0: not a readable PE f
     CloseHandle(f);
     return h;
 }
-// 1: the game in a build the mod knows and is ready for (its addresses selected: addr.h); 0: not the game (another
+// 1: the game in a build the mod knows and is ready for (g_exe_build: its column); 0: not the game (another
 // program loading the folder's DLLs) or a known build that isn't ready (the player's game runs without the mod); -1:
 // the game, another build (*hash its hash). A test run (run_test.ps1: EEAIMOD_UNREADY=1) plays a build that isn't
 // ready too - how it gets ready.
@@ -43,8 +53,7 @@ internal int game_build(uint32_t *hash) {
     int test = GetEnvironmentVariableA("EEAIMOD_UNREADY", unready, sizeof unready) == 1 && unready[0] == '1';
     for (int i = 0; i < ADDR_BUILDS; i++)
         if (*hash == k_exe_builds[i].hash && (k_exe_builds[i].ready || test)) {
-            g_addr_missing = addr_select(i);
-            g_of_missing = fields_select(i);
+            g_exe_build = i;
             return 1;
         }
     return name && !lstrcmpiA(name + 1, "Empire Earth.exe") ? -1 : 0;   // a renamed copy of a known build counts above

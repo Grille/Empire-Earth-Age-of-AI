@@ -24,6 +24,7 @@ struct ustring;
 #include "base/paths.c"
 #include "base/mistakes.c"
 #include "base/math.c"
+#include "game/exe.c"             // which exe build runs: the column of game/api/'s tables
 #include "game/api/addr.h"        // the game's addresses by name, per exe build: GA(G_WORLD_CLOCK), GF(FN_CAN_BUILD)(pl, t, 0x20, 0)
 #include "game/api/fields.h"      // the game's objects' fields by kind, per exe build: OF(PL, 0x9D4)
 #include "game/api/layout.h"
@@ -380,8 +381,6 @@ internal char __fastcall hook_game_start(void *state, void *edx, uint8_t *setup,
 #include "test/testopp.c"
 #include "test/ecolog.c"
 
-#include "game/exe.c"
-
 
 // No aimod.ini next to the DLL: tell the player and stop, instead of running on built-in defaults nobody
 // tested as a whole (the defaults in the code are only for keys missing from an existing, older file).
@@ -613,8 +612,11 @@ BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, LPVOID reserved) {
         if (run_other_dll(inst)) return TRUE;
         uint32_t hash;
         int build = game_build(&hash);
-        if (build > 0) install(inst);
-        else if (build < 0) build_unknown(hash);
+        if (build > 0) {
+            g_addr_missing = addr_select();
+            g_of_missing = fields_select();
+            install(inst);
+        } else if (build < 0) build_unknown(hash);
     }
     return TRUE;
 }

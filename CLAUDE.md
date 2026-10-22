@@ -25,7 +25,7 @@ Several sessions may work in this tree at the same time - see Git below.
   - test runs start no game meanwhile, the running ones (and the player's) are waited for; nobody has to pause.
 - What the mod knows of the game's code and objects lives in `dll/game/api/`. Game addresses: `functions_addr.h` (the
   functions the mod calls), `hooks_addr.h` (what it patches to hook), `data_addr.h` (the game's data), composed by
-  `addr.h` (the builds, the table) - by name with one value per exe build: `GA(G_WORLD_CLOCK)`,
+  `addr.h` (the table; the builds are `game/exe.c`'s) - by name with one value per exe build: `GA(G_WORLD_CLOCK)`,
   `GF(FN_CAN_BUILD)(pl, t, 0x20, 0)`, `GL(TRAIN_SITES)`, a vtable slot `GA(SLOT_ASG_UPDATE)`, an object's size
   `GA(SIZE_GOAL_BUILD)` - never a literal address, slot or size in the code. The game objects' fields likewise live
   in `fields.h` there, by kind and the 2017 update's offset: `FIELD(pl, OF(PL, 0x9D4), void *)` (a field not in
