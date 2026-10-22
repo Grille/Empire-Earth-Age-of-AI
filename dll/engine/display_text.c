@@ -67,9 +67,9 @@ internal void atlas_dump(int n);   // inside our GEFontBitmap constructor call (
 internal void *(__thiscall *g_fbm_ctor)(void *, void *, void *, unsigned);
 internal void *text_bitmap_for(void *ras, void *text, void *surf) {
     if (!g_text_bitmap || !g_fbm_ctor || !text) return NULL;
-    uint8_t **screens = FIELD(ras, OF(E_RAS, 0x20), uint8_t **);
+    uint8_t **screens = ras_get_screen_states(ras);
     uint8_t *st = screens ? screens[0] : NULL;
-    if (!st || FIELD(st, OF(E_SCRSTATE, 0x2B0), void *) != surf) return NULL;   // only text for the back buffer
+    if (!st || scrstate_get_back(st) != surf) return NULL;   // only text for the back buffer
     // Only the game's own image (wider than the menus' 1024x768: the menus gain nothing and are scaled up), and
     // only with bitmap fonts made for this back buffer: leaving a game switches the display mode, the character
     // textures are gone and the old bitmap fonts drew nothing (menus without text). A new back buffer starts a
@@ -79,16 +79,16 @@ internal void *text_bitmap_for(void *ras, void *text, void *surf) {
     if (surf != back) {
         back = surf;
         g_fbm_n = 0;
-        IDirectDrawSurface7 *dds = FIELD((uint8_t *)surf, OF(E_SURF, 0x48), IDirectDrawSurface7 *);
+        IDirectDrawSurface7 *dds = surf_get_dds(surf);
         DDSURFACEDESC2 d = { .dwSize = sizeof d };
         back_ok = dds && dds->lpVtbl->GetSurfaceDesc(dds, &d) == DD_OK && d.dwWidth > 1024;
         if (g_log) log_locked("# text bitmap: back buffer %p %lux%lu - %s\n", surf, d.dwWidth, d.dwHeight,
                            back_ok ? "text as textures" : "GDI text (menus)");
     }
     if (!back_ok) return NULL;
-    uint8_t *font = FIELD(text, OF(E_TEXT, 0x44), uint8_t *);
-    if (!font || FIELD(font, OF(E_FONT, 0x24), void *)) return NULL;          // the game's own bitmap font
-    void *hf_now = FIELD(font, OF(E_FONT, 0x18), void *);
+    uint8_t *font = text_get_font(text);
+    if (!font || font_get_bitmap(font)) return NULL;          // the game's own bitmap font
+    void *hf_now = (void *)font_get_hfont(font);
     EnterCriticalSection(&g_fbm_cs);
     for (int i = 0; i < g_fbm_n; i++)
         if (g_fbm[i].font == font) {
@@ -114,7 +114,7 @@ internal void *text_bitmap_for(void *ras, void *text, void *surf) {
     if (g_atlas_dump) atlas_dump(g_fbm_n);
     QueryPerformanceCounter(&t1);
     QueryPerformanceFrequency(&f);
-    FIELD(font, OF(E_FONT, 0x24), void *) = NULL;   // in case the constructor registers itself: only during our calls
+    font_set_bitmap(font, NULL);   // in case the constructor registers itself: only during our calls
     g_fbm[g_fbm_n].font = font;
     g_fbm[g_fbm_n].bmp = obj;
     g_fbm[g_fbm_n].hfont = hf_now;
@@ -122,7 +122,7 @@ internal void *text_bitmap_for(void *ras, void *text, void *surf) {
     int made = g_fbm_n, dropped = g_fbm_dropped;
     LeaveCriticalSection(&g_fbm_cs);
     if (g_log && g_fbm_logged++ < 200) {
-        HFONT hf = FIELD(font, OF(E_FONT, 0x18), HFONT);
+        HFONT hf = font_get_hfont(font);
         LOGFONTA lf = { 0 };
         if (hf) GetObjectA(hf, sizeof lf, &lf);
         EnterCriticalSection(&g_lock);
@@ -136,8 +136,8 @@ internal long __fastcall hook_fc_text_rect(void *ras, void *edx, void *text, voi
     (void)edx; long r;
     void *bmp = text_bitmap_for(ras, text, surf);
     if (g_textlog > 0 && g_log && text) {
-        uint8_t *f = FIELD(text, OF(E_TEXT, 0x44), uint8_t *);
-        const char *str = FIELD(text, OF(E_TEXT, 0x34), const char *);
+        uint8_t *f = text_get_font(text);
+        const char *str = text_get_string(text);
         uint32_t *c = (uint32_t *)((uint8_t *)text + 0x14);
         int ok = str && mem_readable(str, 1);
         uint32_t h = tl_hash(&f, sizeof f, 2166136261u);
@@ -148,7 +148,7 @@ internal long __fastcall hook_fc_text_rect(void *ras, void *edx, void *text, voi
         if (textlog_new(h)) {
         EnterCriticalSection(&g_lock);
         fprintf(g_log, "# textlog: surf %p font %p hfont %p own %p bmp %p +14: %08x %08x %08x %08x \"%.60s\"\n", surf, (void *)f,
-                f ? FIELD(f, OF(E_FONT, 0x18), void *) : NULL, f ? FIELD(f, OF(E_FONT, 0x24), void *) : NULL, bmp, c[0], c[1], c[2], c[3],
+                f ? (void *)font_get_hfont(f) : NULL, f ? font_get_bitmap(f) : NULL, bmp, c[0], c[1], c[2], c[3],
                 ok ? str : "?");
         LeaveCriticalSection(&g_lock);
         }
@@ -156,10 +156,10 @@ internal long __fastcall hook_fc_text_rect(void *ras, void *edx, void *text, voi
     // the character textures with the device's wrap addressing: filtering at a glyph's bottom edge picked up its
     // top row (a line under the "t" of "Vorzeit") - clamped while our bitmap text draws. Device: (ras +0x6C)[0]
     // +0x1C (IDirect3DDevice7; vtable 36 GetTextureStageState, 37 SetTextureStageState; 13/14 ADDRESSU/V, 3 clamp)
-    uint8_t **dstate = bmp ? FIELD(ras, OF(E_RAS, 0x6C), uint8_t **) : NULL;
-    void *dev = dstate && dstate[0] ? FIELD(dstate[0], OF(E_DSTATE, 0x1C), void *) : NULL;
+    uint8_t **dstate = bmp ? ras_get_dstates(ras) : NULL;
+    void *dev = dstate && dstate[0] ? dstate_get_device(dstate[0]) : NULL;
     DWORD addr[2] = { 0, 0 };
-    if (bmp) FIELD(FIELD(text, OF(E_TEXT, 0x44), uint8_t *), OF(E_FONT, 0x24), void *) = bmp;
+    if (bmp) font_set_bitmap(text_get_font(text), bmp);
     // render states (IDirect3DDevice7 vtable 20 SetRenderState, 21 GetRenderState): 27 ALPHABLENDENABLE, 19 SRCBLEND,
     // 20 DESTBLEND, 28 FOGENABLE, 15 ALPHATESTENABLE, 60 TEXTUREFACTOR; stage 0: 1 COLOROP, 2/3 COLORARG1/2, 4 ALPHAOP,
     // 5/6 ALPHAARG1/2
@@ -194,7 +194,7 @@ internal long __fastcall hook_fc_text_rect(void *ras, void *edx, void *text, voi
         for (int k = 0; st >= 1 && k < 4; k++) ((HRESULT (__stdcall *)(void *, DWORD, DWORD))vt[20])(dev, rs_id[k], rs_old[k]);
         for (int k = 0; st >= 2 && k < 6; k++) ((HRESULT (__stdcall *)(void *, DWORD, DWORD, DWORD))vt[37])(dev, 0, ts_id[k], ts_old[k]);
     }
-    if (bmp) FIELD(FIELD(text, OF(E_TEXT, 0x44), uint8_t *), OF(E_FONT, 0x24), void *) = NULL;
+    if (bmp) font_set_bitmap(text_get_font(text), NULL);
     return r;
 }
 internal int text_bitmap_install(void) {   // constructor and the two movsx -> movzx of the Low-Level Engine
@@ -293,13 +293,13 @@ internal int tdc_active_of(HDC dc) {   // the active text phase drawing on this 
 }
 // lock rectangle r of the phase's surface (DDLOCK_WAIT); lpSurface then points at r's top left
 internal int tdc_lock(int a, RECT *r, DDSURFACEDESC2 *d) {
-    IDirectDrawSurface7 *dds = FIELD((uint8_t *)g_tdc_active[a].surf, OF(E_SURF, 0x48), IDirectDrawSurface7 *);
+    IDirectDrawSurface7 *dds = surf_get_dds(g_tdc_active[a].surf);
     memset(d, 0, sizeof *d);
     d->dwSize = sizeof *d;
     return dds && dds->lpVtbl->Lock(dds, r, d, DDLOCK_WAIT, NULL) == DD_OK;
 }
 internal void tdc_unlock(int a, RECT *r) {
-    IDirectDrawSurface7 *dds = FIELD((uint8_t *)g_tdc_active[a].surf, OF(E_SURF, 0x48), IDirectDrawSurface7 *);
+    IDirectDrawSurface7 *dds = surf_get_dds(g_tdc_active[a].surf);
     if (dds) dds->lpVtbl->Unlock(dds, r);
 }
 // copy the tiles of `want` (1 = to load) between the DIB and the surface, through one lock of their bounding box
@@ -500,8 +500,8 @@ internal BOOL WINAPI hook_text_out_w(HDC dc, int x, int y, LPCWSTR str, int n) {
 }
 internal long __fastcall hook_text_lock(uint8_t *surf, void *edx) {
     (void)edx;
-    if (FIELD(surf, OF(E_SURF, 0x5D), uint8_t) == 1) return 2;
-    IDirectDrawSurface7 *dds = FIELD(surf, OF(E_SURF, 0x48), IDirectDrawSurface7 *);
+    if (surf_get_dc_out(surf) == 1) return 2;
+    IDirectDrawSurface7 *dds = surf_get_dds(surf);
     int a = -1;
     for (int i = 0; i < 8; i++) if (!g_tdc_active[i].surf) { a = i; break; }
     if (!dds || a < 0 || !g_ext_text_out) return text_dc_fallback(surf, 0);
@@ -528,8 +528,8 @@ internal long __fastcall hook_text_lock(uint8_t *surf, void *edx) {
     }
     g_tdc_active[a].surf = surf;
     g_tdc_active[a].slot = slot;
-    FIELD(surf, OF(E_SURF, 0x54), HDC) = g_tdc[slot].dc;
-    FIELD(surf, OF(E_SURF, 0x5D), uint8_t) = 1;
+    surf_set_dc(surf, g_tdc[slot].dc);
+    surf_set_dc_out(surf, 1);
     return 0;
 }
 internal long __fastcall hook_text_unlock(uint8_t *surf, void *edx) {
@@ -542,6 +542,6 @@ internal long __fastcall hook_text_unlock(uint8_t *surf, void *edx) {
     tdc_store(a);
     SelectObject(g_tdc[slot].dc, g_tdc_stock);
     g_tdc_active[a].surf = NULL;
-    FIELD(surf, OF(E_SURF, 0x5D), uint8_t) = 0;
+    surf_set_dc_out(surf, 0);
     return 0;
 }

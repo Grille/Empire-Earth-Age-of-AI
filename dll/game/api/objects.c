@@ -541,6 +541,87 @@ internal inline void uiform_set_top_bar(void *form, int v) { FIELD(form, OF(UIFO
 internal inline uint8_t **uiscreen_get_controls(const void *screen) { return FIELD(screen, OF(UISCREEN, 0xF8), uint8_t **); }
 internal inline ee_player *nativechat_get_player(const void *nc) { return FIELD(nc, OF(NATIVECHAT, 0x20), ee_player *); }
 
+// THE ENGINE DLLS' OBJECTS (engine/: AoC ships its own builds of them - scripts/port_dll.py)
+// the rasterizer (DX7Rasterizer): its per-screen states +0x20[screen], +0x6C[0] the device state (its +0x1C the device)
+internal inline uint8_t *ras_get_screen_state(const void *ras, unsigned screen) { return FIELD(ras, OF(E_RAS, 0x20), uint8_t **)[screen]; }
+internal inline uint8_t **ras_get_screen_states(const void *ras) { return FIELD(ras, OF(E_RAS, 0x20), uint8_t **); }
+internal inline uint8_t **ras_get_dstates(const void *ras) { return FIELD(ras, OF(E_RAS, 0x6C), uint8_t **); }
+internal inline void *dstate_get_device(const void *ds) { return FIELD(ds, OF(E_DSTATE, 0x1C), void *); }
+// a screen's state: its screen, front and back surfaces, window
+internal inline uint8_t *scrstate_get_screen(const void *st) { return FIELD(st, OF(E_SCRSTATE, 0x2A8), uint8_t *); }
+internal inline uint8_t *scrstate_get_front(const void *st) { return FIELD(st, OF(E_SCRSTATE, 0x2AC), uint8_t *); }
+internal inline uint8_t *scrstate_get_back(const void *st) { return FIELD(st, OF(E_SCRSTATE, 0x2B0), uint8_t *); }
+internal inline uint8_t *scrstate_get_window(const void *st) { return FIELD(st, OF(E_SCRSTATE, 0x2BC), uint8_t *); }
+// the frame statistics (display.c frame_stats): +0x2C4 a float sum, +0x328 / +0x330 / +0x338 counters, +0x32C frames,
+// +0x334 the last time (ms); the averages over 12 frames +0x2C8 +0x2D0 +0x2DC +0x2E4, the rates per second +0x2CC
+// +0x2D4 +0x2D8 (frames) +0x2E0
+enum scrstate_stat { SS_SUM, SS_SUM_AVG, SS_SUM_RATE, SS_A_AVG, SS_A_RATE, SS_FPS, SS_B_AVG, SS_B_RATE, SS_C_AVG, SS_A,
+                     SS_FRAMES, SS_B, SS_LAST, SS_C };
+internal inline void *scrstate_stat_at(void *st, enum scrstate_stat k) {
+    const uint32_t off[] = { OF(E_SCRSTATE, 0x2C4), OF(E_SCRSTATE, 0x2C8), OF(E_SCRSTATE, 0x2CC), OF(E_SCRSTATE, 0x2D0),
+        OF(E_SCRSTATE, 0x2D4), OF(E_SCRSTATE, 0x2D8), OF(E_SCRSTATE, 0x2DC), OF(E_SCRSTATE, 0x2E0), OF(E_SCRSTATE, 0x2E4),
+        OF(E_SCRSTATE, 0x328), OF(E_SCRSTATE, 0x32C), OF(E_SCRSTATE, 0x330), OF(E_SCRSTATE, 0x334), OF(E_SCRSTATE, 0x338) };
+    return FIELD_AT(st, off[k]);
+}
+#define SS_F(st, k) (*(float *)scrstate_stat_at(st, k))      // the floats (sums, averages, rates)
+#define SS_U(st, k) (*(unsigned *)scrstate_stat_at(st, k))   // the counters, the last time (ms)
+// a screen (DX7Screen): its modes +0x10 .. +0x14 (0x14 each), the mode +0x38, the desktop's +0x3C, fullscreen +0x3D,
+// its DirectDraw +0x30
+internal inline uint8_t *screen_get_modes_begin(const void *scr) { return FIELD(scr, OF(E_SCREEN, 0x10), uint8_t *); }
+internal inline uint8_t *screen_get_modes_end(const void *scr) { return FIELD(scr, OF(E_SCREEN, 0x14), uint8_t *); }
+internal inline void *screen_get_ddraw(const void *scr) { return FIELD(scr, OF(E_SCREEN, 0x30), void *); }   // IDirectDraw7 *
+internal inline unsigned screen_get_mode(const void *scr) { return FIELD(scr, OF(E_SCREEN, 0x38), unsigned); }
+internal inline void screen_set_mode(void *scr, unsigned v) { FIELD(scr, OF(E_SCREEN, 0x38), unsigned) = v; }
+internal inline uint8_t screen_get_desktop(const void *scr) { return FIELD(scr, OF(E_SCREEN, 0x3C), uint8_t); }
+internal inline uint8_t screen_get_fullscreen(const void *scr) { return FIELD(scr, OF(E_SCREEN, 0x3D), uint8_t); }
+// a surface (DX7Surface): its DirectDraw surface +0x48, the DC handed out +0x54, +0x5D 1 while that DC is out
+internal inline void *surf_get_dds(const void *s) { return FIELD(s, OF(E_SURF, 0x48), void *); }   // IDirectDrawSurface7 *
+internal inline void surf_set_dc(void *s, HDC dc) { FIELD(s, OF(E_SURF, 0x54), HDC) = dc; }
+internal inline uint8_t surf_get_dc_out(const void *s) { return FIELD(s, OF(E_SURF, 0x5D), uint8_t); }
+internal inline void surf_set_dc_out(void *s, uint8_t v) { FIELD(s, OF(E_SURF, 0x5D), uint8_t) = v; }
+// the game window (GEWindow): its HWND, +0x4 / +0x8 (floats), the game's width and height
+internal inline HWND window_get_hwnd(const void *w) { return FIELD(w, OF(E_WINDOW, 0x0), HWND); }
+internal inline float window_get_4(const void *w) { return FIELD(w, OF(E_WINDOW, 0x4), float); }
+internal inline float window_get_8(const void *w) { return FIELD(w, OF(E_WINDOW, 0x8), float); }
+internal inline int window_get_width(const void *w) { return FIELD(w, OF(E_WINDOW, 0xC), int); }
+internal inline int window_get_height(const void *w) { return FIELD(w, OF(E_WINDOW, 0x10), int); }
+// the DirectInput mouse (ISMouse): +0x4 suspended (window inactive), +0x18 the buttons' bytes, +0x44 the device
+internal inline uint8_t imouse_get_suspended(const void *ms) { return FIELD(ms, OF(E_MOUSE, 0x4), uint8_t); }
+internal inline uint8_t *imouse_buttons_at(void *ms) { return (uint8_t *)FIELD_AT(ms, OF(E_MOUSE, 0x18)); }
+internal inline void **imouse_get_device(const void *ms) { return FIELD(ms, OF(E_MOUSE, 0x44), void **); }
+// a text (GEText): its string +0x34, font +0x44; a font (GEFont): its HFONT +0x18, the bitmap font +0x24
+internal inline const char *text_get_string(const void *t) { return FIELD(t, OF(E_TEXT, 0x34), const char *); }
+internal inline uint8_t *text_get_font(const void *t) { return FIELD(t, OF(E_TEXT, 0x44), uint8_t *); }
+internal inline HFONT font_get_hfont(const void *f) { return FIELD(f, OF(E_FONT, 0x18), HFONT); }
+internal inline void *font_get_bitmap(const void *f) { return FIELD(f, OF(E_FONT, 0x24), void *); }
+internal inline void font_set_bitmap(void *f, void *b) { FIELD(f, OF(E_FONT, 0x24), void *) = b; }
+// the sound manager (SESoundManager): its channel slots +0x24 (nodes), the paused +0x34 .. +0x38, the categories +0x54
+// .. +0x58, the mixer +0x70, the channel count +0x88
+internal inline uint8_t **sndmgr_get_slots(const void *sm) { return FIELD(sm, OF(E_SOUNDMGR, 0x24), uint8_t **); }
+internal inline uint8_t *sndmgr_get_paused_begin(const void *sm) { return FIELD(sm, OF(E_SOUNDMGR, 0x34), uint8_t *); }
+internal inline uint8_t *sndmgr_get_paused_end(const void *sm) { return FIELD(sm, OF(E_SOUNDMGR, 0x38), uint8_t *); }
+internal inline uint8_t **sndmgr_get_cats_begin(const void *sm) { return FIELD(sm, OF(E_SOUNDMGR, 0x54), uint8_t **); }
+internal inline uint8_t **sndmgr_get_cats_end(const void *sm) { return FIELD(sm, OF(E_SOUNDMGR, 0x58), uint8_t **); }
+internal inline uint8_t *sndmgr_get_mixer(const void *sm) { return FIELD(sm, OF(E_SOUNDMGR, 0x70), uint8_t *); }
+internal inline uint32_t sndmgr_get_channels(const void *sm) { return FIELD(sm, OF(E_SOUNDMGR, 0x88), uint32_t); }
+// a category: its share of the channels, its most channels, in use, priority
+internal inline float sndcat_get_share(const void *c) { return FIELD(c, OF(E_SNDCAT, 0x0), float); }
+internal inline int sndcat_get_max(const void *c) { return FIELD(c, OF(E_SNDCAT, 0x4), int); }
+internal inline int sndcat_get_used(const void *c) { return FIELD(c, OF(E_SNDCAT, 0x8), int); }
+internal inline int sndcat_get_priority(const void *c) { return FIELD(c, OF(E_SNDCAT, 0xC), int); }
+// a playing sound (SESMInstanceNode): its id +0xC, channel +0x1C, sample +0x20; a sample (SESample): its channel +0x24
+internal inline int sndnode_get_id(const void *n) { return FIELD(n, OF(E_SNDNODE, 0xC), int); }
+internal inline int sndnode_get_channel(const void *n) { return FIELD(n, OF(E_SNDNODE, 0x1C), int); }
+internal inline uint8_t *sndnode_get_sample(const void *n) { return FIELD(n, OF(E_SNDNODE, 0x20), uint8_t *); }
+internal inline int sample_get_channel(const void *s) { return FIELD(s, OF(E_SAMPLE, 0x24), int); }
+// the mixer (SEMixer): the plugin's SPIM functions as its fields - the mod reads and replaces some
+enum mixer_fn { MIXER_GET_MAX_CHANNELS, MIXER_PLAY_CHANNEL, MIXER_SET_CHANNEL_SAMPLE, MIXER_SET_SAMPLE_VOLUME };
+// SPIMGetMaximumChannelCount, int (cdecl *)(int channel), int (cdecl *)(int channel, SESample *), SPIMSetSampleVolume
+internal inline void **mixer_fn_at(void *mx, enum mixer_fn k) {
+    const uint32_t off[] = { OF(E_MIXER, 0xB0), OF(E_MIXER, 0xD0), OF(E_MIXER, 0xD8), OF(E_MIXER, 0xF0) };
+    return (void **)FIELD_AT(mx, off[k]);
+}
+
 // THE GAME'S MOUSE (game_mouse(): the cursor in the game's coordinates)
 internal inline float mouse_get_x(const ee_mouse *m) { return FIELD(m, OF(MOUSE, 0x4), float); }            // +0x4
 internal inline void mouse_set_x(ee_mouse *m, float v) { FIELD(m, OF(MOUSE, 0x4), float) = v; }

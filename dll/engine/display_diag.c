@@ -149,8 +149,8 @@ internal void cnt_note(int k, int r) {
 internal volatile LONG g_alpha_copies, g_alpha_samples, g_alpha_zero, g_alpha_src_zero;
 internal char g_alpha_last[200];
 internal void sample_alpha(uint8_t *src, uint8_t *dst) {
-    IDirectDrawSurface7 *d7 = dst ? FIELD(dst, OF(E_SURF, 0x48), IDirectDrawSurface7 *) : NULL;
-    IDirectDrawSurface7 *s7 = src ? FIELD(src, OF(E_SURF, 0x48), IDirectDrawSurface7 *) : NULL;
+    IDirectDrawSurface7 *d7 = dst ? surf_get_dds(dst) : NULL;
+    IDirectDrawSurface7 *s7 = src ? surf_get_dds(src) : NULL;
     if (!d7 || g_alpha_copies >= 400) return;
     DDSURFACEDESC2 d = { .dwSize = sizeof d }, sd = { .dwSize = sizeof sd };
     if (d7->lpVtbl->Lock(d7, NULL, &d, DDLOCK_WAIT | DDLOCK_READONLY, NULL) != DD_OK) return;
@@ -194,8 +194,8 @@ internal int __fastcall hook_copy_to(void *s, void *edx, void *dst, void *r1, vo
     // holds the last frame: copies from or to the front are skipped.
     if (!g_fullscreen) {
         uint8_t *ras = rasterizer();
-        uint8_t *st = ras ? FIELD(ras, OF(E_RAS, 0x20), uint8_t **)[screen_index()] : NULL;
-        uint8_t *front = st ? FIELD(st, OF(E_SCRSTATE, 0x2AC), uint8_t *) : NULL;
+        uint8_t *st = ras ? ras_get_screen_state(ras, screen_index()) : NULL;
+        uint8_t *front = st ? scrstate_get_front(st) : NULL;
         if (front && (s == front || dst == front)) { InterlockedIncrement(&g_front_copies_skipped); return 0; }
     }
     int r =((int (__thiscall *)(void *, void *, void *, void *, int))g_cnt[0].orig[DISPLAY_DLL(s)])(s, dst, r1, r2, f);
@@ -227,7 +227,7 @@ internal int __fastcall hook_create_surface(void *s, void *edx, void *desc, void
     int r = ((int (__thiscall *)(void *, void *, void **))g_cnt[2].orig[DISPLAY_DLL(s)])(s, desc, out);
     cnt_note(2, r);
     if (g_diag && !r && out && *out) {
-        IDirectDrawSurface7 *dds = FIELD(*out, OF(E_SURF, 0x48), IDirectDrawSurface7 *);
+        IDirectDrawSurface7 *dds = surf_get_dds(*out);
         DDSURFACEDESC2 d = { .dwSize = sizeof d };
         if (dds) dds->lpVtbl->GetSurfaceDesc(dds, &d);
         for (int k = 0; k < 24; k++) {
@@ -255,9 +255,9 @@ internal void __fastcall hook_set_rt(void *ras, void *edx, uint8_t *surf, unsign
     (void)edx;
     g_set_rt[DISPLAY_DLL(ras)](ras, surf, screen);
     InterlockedIncrement(&g_rt_calls);
-    uint8_t *st = FIELD(ras, OF(E_RAS, 0x20), uint8_t **)[screen];
-    if (surf == FIELD(st, OF(E_SCRSTATE, 0x2B0), uint8_t *)) { InterlockedIncrement(&g_rt_back); return; }
-    IDirectDrawSurface7 *s = surf ? FIELD(surf, OF(E_SURF, 0x48), IDirectDrawSurface7 *) : NULL;
+    uint8_t *st = ras_get_screen_state(ras, screen);
+    if (surf == scrstate_get_back(st)) { InterlockedIncrement(&g_rt_back); return; }
+    IDirectDrawSurface7 *s = surf ? surf_get_dds(surf) : NULL;
     DDSURFACEDESC2 d = { .dwSize = sizeof d };
     if (s && s->lpVtbl->GetSurfaceDesc(s, &d) == DD_OK)
         snprintf(g_rt_last, sizeof g_rt_last, "%lux%lu caps=%08lx bpp=%lu", d.dwWidth, d.dwHeight, d.ddsCaps.dwCaps,
