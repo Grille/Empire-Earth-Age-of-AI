@@ -96,7 +96,8 @@ struct xctx {
     const char *top;                        // the source being worked out (for the mistakes' messages)
 };
 // a number, a text or both - or nothing (w 0); w: how many items it was chosen from (a list's weight in a list);
-// obj: an object of the host's (a player: its index + 1; its text is its name) - equal only to itself; miss: one who
+// obj: an object of the host's, okind its kind (host.h; a player: its index + 1; its text is its name) - equal only to
+// itself; miss: one who
 // isn't there (lord
 // without one) - nothing, which may only be checked (lord ? .., lord ?? .., lord == them): used, it is a mistake
 // it, ln: a list's items (ln 0: no list) - its value meanwhile is one of them, at random; kind: a function (fn: its
@@ -106,7 +107,7 @@ struct xctx {
 enum { XV_PLAIN, XV_FN, XV_STOP, XV_VEC, XV_REC, XV_TRIG };
 struct xfn;
 struct xrec;
-struct xval { int has_n, has_s, w, obj, ln, kind, vn; double n; const char *s; const struct xval *it; const struct xfn *fn; const double *vc; const struct xrec *rec; char miss[24]; };
+struct xval { int has_n, has_s, w, obj, okind, ln, kind, vn; double n; const char *s; const struct xval *it; const struct xfn *fn; const double *vc; const struct xrec *rec; char miss[24]; };
 struct xrec { int n; const char **key; struct xval *val; };   // a record's members in the order written (in the region)
 internal int xl_n(const struct xval *v) { return v->ln ? v->ln : v->w > 0; }   // its items (one value: 1, nothing: 0)
 internal const struct xval *xl_at(const struct xval *v, int i) { return v->ln ? &v->it[i] : v; }
@@ -315,8 +316,8 @@ internal int xnumeric(const char *s, double *n) {   // the whole text a number (
     *n = strtod(s, &e);
     return e != s && !*e;
 }
-internal void xnothing(struct xval *v) { v->has_n = v->has_s = v->w = v->obj = v->ln = v->kind = v->vn = 0; v->n = 0; v->s = ""; v->it = NULL; v->fn = NULL; v->vc = NULL; v->rec = NULL; v->miss[0] = 0; }
-internal void xnum(struct xval *v, double n) { v->has_n = 1; v->has_s = v->obj = v->ln = v->kind = v->vn = 0; v->w = 1; v->n = n; v->s = ""; v->it = NULL; v->fn = NULL; v->vc = NULL; v->rec = NULL; v->miss[0] = 0; }
+internal void xnothing(struct xval *v) { v->has_n = v->has_s = v->w = v->obj = v->okind = v->ln = v->kind = v->vn = 0; v->n = 0; v->s = ""; v->it = NULL; v->fn = NULL; v->vc = NULL; v->rec = NULL; v->miss[0] = 0; }
+internal void xnum(struct xval *v, double n) { v->has_n = 1; v->has_s = v->obj = v->okind = v->ln = v->kind = v->vn = 0; v->w = 1; v->n = n; v->s = ""; v->it = NULL; v->fn = NULL; v->vc = NULL; v->rec = NULL; v->miss[0] = 0; }
 internal void xvec(struct xval *v, const double *c, int n) {   // a vector of n numbers (2..4), copied into the region
     double *m = x_alloc((size_t)n * sizeof *m);
     xnothing(v);
@@ -330,7 +331,7 @@ internal void xstr(struct xval *v, const char *s) {   // a text, only that: "12"
     v->has_s = 1;
     v->w = 1;
     v->has_n = 0;
-    v->obj = v->ln = v->kind = v->vn = 0;
+    v->obj = v->okind = v->ln = v->kind = v->vn = 0;
     v->it = NULL;
     v->fn = NULL;
     v->vc = NULL;
@@ -343,7 +344,7 @@ internal void xstr_or_num(struct xval *v, const char *s) { xstr(v, s); v->has_n 
 internal void xdual(struct xval *v, double n, const char *s) { xstr(v, s); v->has_n = 1; v->n = n; }
 internal void xdual_kept(struct xval *v, double n, const char *s) {   // the same with a text that stays (not copied)
     v->s = s; v->has_s = v->has_n = 1; v->n = n; v->w = 1;
-    v->obj = v->ln = v->kind = v->vn = 0; v->it = NULL; v->fn = NULL; v->vc = NULL; v->rec = NULL; v->miss[0] = 0;
+    v->obj = v->okind = v->ln = v->kind = v->vn = 0; v->it = NULL; v->fn = NULL; v->vc = NULL; v->rec = NULL; v->miss[0] = 0;
 }
 internal int xis_num(const struct xval *v, double *n) { if (v->has_n) *n = v->n; return v->has_n; }
 internal double xto_num(const struct xval *v) { return v->has_n ? v->n : 0; }
@@ -478,7 +479,8 @@ internal void x_missing(struct xctx *c, const char *who) {
 // levels - an expression, a primary, a unary operator: at most 24 deep together within one expression); depth: its
 // deepest path, itself included (a function's body counts on its own). line, at: where it starts in the source.
 enum { XN_NUM, XN_STR, XN_NAME, XN_CALL, XN_LIST, XN_NEG, XN_NOT, XN_MUL, XN_ADD, XN_CMP, XN_AND, XN_OR, XN_COAL, XN_COND,
-       XN_LAMBDA, XN_BLOCK, XN_ASSIGN, XN_RETURN, XN_MEMBER, XN_REC, XN_LET, XN_IF, XN_WHILE, XN_FOR, XN_BREAK, XN_CONTINUE };
+       XN_LAMBDA, XN_BLOCK, XN_ASSIGN, XN_RETURN, XN_MEMBER, XN_REC, XN_LET, XN_IF, XN_WHILE, XN_FOR, XN_BREAK, XN_CONTINUE,
+       XN_INDEX, XN_MCALL };
 struct xnode {
     unsigned char k, op, lvl, depth;
     int n_items;                 // a list's items, a call's arguments (all; the first 8 are used), a function's
@@ -749,6 +751,7 @@ internal void xps_primary(struct xps *p, struct xnode **out) {
         } else {
             xps_space(p);
             if (*p->s != '(') {
+                p->s = s;   // (an item right after it: l[2])
                 o = xn_new(p, XN_NAME, s - n);
                 if (!o) return;
                 o->s = _strdup(name);
@@ -776,17 +779,53 @@ internal void xps_primary(struct xps *p, struct xnode **out) {
             }
         }
     } else { p->err = 1; return; }
-    // a value's member right after a call or ( ): step(home).x, (a + b).y - a name has its dots in it (home.x)
-    while (p->s[0] == '.' && isalpha((unsigned char)p->s[1]) && XPTR(p, o)->k != XN_NAME && XPTR(p, o)->k != XN_NUM) {
+    // right after it (no space): an item, l[2] - game.players[1]; a member or method after a call, ( ) or [ ]:
+    // step(home).x, (a + b).y, player(2).towers, game.players[1].opinion(p) - a name has its dots in it (home.x)
+    for (;;) {
+        int k = XPTR(p, o)->k;
+        if (p->s[0] == '[' && k != XN_NUM) {
+            const char *at = p->s++;
+            struct xnode *i;
+            int par = p->par;
+            p->par = 1;
+            xps_expr(p, &i);
+            p->par = par;
+            if (p->err) return;
+            if (!xps_op(p, "]")) { p->err = 1; p->why = "l[i]: an item's number, then ]"; return; }
+            struct xnode *x = xn_new(p, XN_INDEX, at);
+            if (!x) return;
+            x->a = o; x->b = i;
+            o = XOFF(p, x);
+            continue;
+        }
+        if (!(p->s[0] == '.' && isalpha((unsigned char)p->s[1]) && k != XN_NAME && k != XN_NUM)) break;
         const char *at = p->s++;
         char name[24];
         int n = 0;
         while ((isalnum((unsigned char)*p->s) || *p->s == '_') && n < 23) name[n++] = *p->s++;
         name[n] = 0;
-        struct xnode *m = xn_new(p, XN_MEMBER, at);
-        if (!m) return;
+        uintptr_t *it = NULL;
+        int na = 0, cap = 0;
+        if (*p->s == '(') {   // a method: its arguments
+            p->s++;
+            xps_space(p);
+            if (*p->s == ')') p->s++;
+            else for (;;) {
+                struct xnode *x;
+                xps_expr(p, &x);
+                if (p->err || !xps_items_add(p, &it, &na, &cap, x)) { free(it); return; }
+                if (xps_op(p, ",")) continue;
+                if (!xps_op(p, ")")) { p->err = 1; free(it); return; }
+                break;
+            }
+            k = XN_MCALL;
+        } else k = XN_MEMBER;
+        struct xnode *m = xn_new(p, k, at);
+        if (!m) { free(it); return; }
         m->s = _strdup(name);
         m->a = o;
+        m->n_items = na;
+        m->items = (struct xnode **)it;
         o = XOFF(p, m);
     }
     XPTR(p, o)->lvl++;   // the primary's level
@@ -1151,6 +1190,24 @@ internal int x_par_count(const char *par) {   // a vars function's parameters "a
     return want;
 }
 
+// THE HOST'S OBJECTS (host.h): a kind's member by name, NULL none; its members' names for a message
+internal const struct x_kmember *x_kind_member(int kind, const char *name) {
+    const struct x_kind *k = kind > 0 && kind < X_LIST_OF ? g_x_host.kind(kind) : NULL;
+    for (int i = 0; k && i < k->n; i++) if (!strcmp(k->m[i].name, name)) return &k->m[i];
+    return NULL;
+}
+internal const char *x_kind_name(int kind) { const struct x_kind *k = g_x_host.kind(kind & 0xFF); return k ? k->name : "object"; }
+internal void x_kind_list(int kind, char *t, int cap) {
+    const struct x_kind *k = g_x_host.kind(kind);
+    int o = 0;
+    t[0] = 0;
+    for (int i = 0; k && i < k->n; i++) {   // as many as fit, then ...
+        int len = (int)strlen(k->m[i].name) + 4;
+        if (o + len + 6 > cap) { snprintf(t + o, (size_t)(cap - o), ", ..."); break; }
+        o += snprintf(t + o, (size_t)(cap - o), "%s%s%s", i ? ", " : "", k->m[i].name, k->m[i].amin >= 0 ? "()" : "");
+    }
+}
+
 // ===== THE CHECK: what a file gets when it is read (after its syntax) =====
 // In source order: a name nobody knows (logged with the file and line - in a script a mistake), a function nobody has
 // or with the wrong number of arguments, chance(70), a text compared with a number written as such ("12" == 12), a
@@ -1160,7 +1217,8 @@ internal int x_par_count(const char *par) {   // a vars function's parameters "a
 // A scope: a function's (its parameters, its lets) or a block's inside it (blk: an if's, a loop's - the same function).
 // A let is known in its whole block from the start (a function made before it may call it later), but the code of
 // the same function reads it only after it (decl: passed).
-struct xscope { const struct xscope *up; const char *name[64]; int n; unsigned char decl[64]; int blk; };
+// kind: what a name's value is as far as the check knows (host.h: X_ANY, a kind of the host's objects - from its let)
+struct xscope { const struct xscope *up; const char *name[64]; int n; unsigned char decl[64]; int blk; short kind[64]; };
 // 1: there (*own: the running function's - this scope or a block it is in), 2: the same function's, its let not passed yet
 internal int xsc_find(const struct xscope *s, const char *name, size_t len, int *own) {
     for (int crossed = 0; s; s = s->up) {
@@ -1177,10 +1235,15 @@ internal void xsc_add(struct xscope *s, const char *name) {
     for (int i = 0; i < s->n; i++) if (!strcmp(s->name[i], name)) return;
     if (s->n < 64) { s->decl[s->n] = 1; s->name[s->n++] = name; }
 }
-internal void xsc_pass(struct xscope *s, const char *name) {   // its let reached
-    for (int i = 0; i < s->n; i++) if (!strcmp(s->name[i], name)) s->decl[i] = 1;
+internal void xsc_pass(struct xscope *s, const char *name, int kind) {   // its let reached: what it is
+    for (int i = 0; i < s->n; i++) if (!strcmp(s->name[i], name)) { s->decl[i] = 1; s->kind[i] = (short)kind; }
 }
-struct xcheck { struct xctx *c; int script; const char *why; int line; char whybuf[120]; int loops; };
+internal int xsc_kind(const struct xscope *s, const char *name, size_t len) {
+    for (; s; s = s->up)
+        for (int i = 0; i < s->n; i++) if (strlen(s->name[i]) == len && !strncmp(s->name[i], name, len)) return s->kind[i];
+    return X_ANY;
+}
+struct xcheck { struct xctx *c; int script; const char *why; int line; char whybuf[200]; int loops; };
 // a node's value as the old parser saw it while only reading: a number or a text written as such, nothing for the
 // rest - what "12" == 12 is caught with when a file is read
 struct xsv { int w, has_n, has_s; double n; };
@@ -1220,6 +1283,77 @@ internal int x_script_fn(const char *name);   // the script functions (wait, wai
 internal int x_name_known(const char *name);
 internal int xc_fail(struct xcheck *k, const struct xnode *n, const char *why) { k->why = why; k->line = n->line; return 0; }
 internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc);
+// WHAT A VALUE IS, as far as the check knows (a script's): a kind of the host's objects, X_LIST_OF one, or X_ANY. A
+// path a.b.c (up to upto): its head's - a variable's from its let, the host's own (game) - and each member's: one its
+// kind hasn't, or a method without ( ), a mistake (-1, told in k). *known: its head is a variable or the host's
+internal int x_path_kind(struct xcheck *k, const struct xnode *n, const char *s, size_t upto, const struct xscope *sc, int *known) {
+    size_t hn = strcspn(s, "."), at;
+    char m[40];
+    if (hn > upto) hn = upto;
+    if (hn >= sizeof m) { *known = 0; return X_ANY; }
+    lstrcpynA(m, s, (int)hn + 1);
+    int var = xsc_find(sc, s, hn, NULL) != 0, kind = var ? xsc_kind(sc, s, hn) : g_x_host.root_kind(m);
+    *known = var || kind;
+    for (at = hn; at < upto && kind != X_ANY; ) {
+        const char *seg = s + at + 1;
+        size_t sn = strcspn(seg, ".");
+        if (at + 1 + sn > upto) sn = upto - at - 1;
+        if (sn >= sizeof m) return X_ANY;
+        lstrcpynA(m, seg, (int)sn + 1);
+        if (kind & X_LIST_OF) {
+            snprintf(k->whybuf, sizeof k->whybuf, "%.*s: a list of %s - one of them: [1].%s", (int)(at + 1 + sn), s, x_kind_name(kind), m);
+            xc_fail(k, n, k->whybuf);
+            return -1;
+        }
+        const struct x_kmember *km = x_kind_member(kind, m);
+        if (!km || km->amin >= 0) {
+            char t[100];
+            x_kind_list(kind, t, sizeof t);
+            if (km) snprintf(k->whybuf, sizeof k->whybuf, "%.*s: %s is a method - %s(...)", (int)(at + 1 + sn), s, m, m);
+            else snprintf(k->whybuf, sizeof k->whybuf, "%.*s: a %s has no %s - its members: %s", (int)(at + 1 + sn), s, x_kind_name(kind), m, t);
+            xc_fail(k, n, k->whybuf);
+            return -1;
+        }
+        kind = km->result;
+        at += 1 + sn;
+    }
+    return at >= upto ? kind : X_ANY;
+}
+internal int x_skind(struct xcheck *k, const struct xnode *n, const struct xscope *sc) {
+    if (!n || !k->script) return X_ANY;
+    int known, r, a;
+    const struct x_kmember *m;
+    switch (n->k) {
+    case XN_NAME: r = x_path_kind(k, n, n->s, strlen(n->s), sc, &known); return r < 0 ? X_ANY : r;
+    case XN_CALL: {
+        const char *dot = strrchr(n->s, '.');
+        if (!dot) return x_script_fn(n->s) >= 0 ? g_x_host.fn_kind(n->s) : X_ANY;   // player(2)
+        r = x_path_kind(k, n, n->s, (size_t)(dot - n->s), sc, &known);
+        m = r > 0 ? x_kind_member(r, dot + 1) : NULL;
+        return m && m->amin >= 0 ? m->result : X_ANY;
+    }
+    case XN_MEMBER: case XN_MCALL:
+        m = x_kind_member(x_skind(k, n->a, sc), n->s);
+        return m && (m->amin >= 0) == (n->k == XN_MCALL) ? m->result : X_ANY;
+    case XN_INDEX: a = x_skind(k, n->a, sc); return a & X_LIST_OF ? a & 0xFF : X_ANY;
+    case XN_COND: case XN_COAL: a = x_skind(k, n->a, sc); return n->b && x_skind(k, n->b, sc) == a ? a : X_ANY;
+    default: return X_ANY;
+    }
+}
+// o.name(...) of a kind: a method of it, with as many arguments
+internal int x_check_method(struct xcheck *k, const struct xnode *n, int kind, const char *name, int na) {
+    const struct x_kmember *m = x_kind_member(kind, name);
+    char t[100];
+    if (!m) {
+        x_kind_list(kind, t, sizeof t);
+        snprintf(k->whybuf, sizeof k->whybuf, "%s(...): a %s has no %s - its members: %s", name, x_kind_name(kind), name, t);
+    } else if (m->amin < 0) snprintf(k->whybuf, sizeof k->whybuf, "%s(...): %s is no method - without ( )", name, name);
+    else if (na < m->amin || na > m->amax) {
+        if (m->amin == m->amax) snprintf(k->whybuf, sizeof k->whybuf, "%s takes %d argument%s", name, m->amin, m->amin == 1 ? "" : "s");
+        else snprintf(k->whybuf, sizeof k->whybuf, "%s takes %d to %d arguments", name, m->amin, m->amax);
+    } else return 1;
+    return xc_fail(k, n, k->whybuf);
+}
 // a new name (a let's, a for's): none it would hide - of this block, a block around it, the code around the function,
 // a value of the game's or the language's, a script function (in a script). A pipe command's may (wave, count): a
 // command is only called, and a variable of its name is what the code around means
@@ -1245,7 +1379,7 @@ internal int x_check_body(struct xcheck *k, const struct xnode *body, struct xsc
     return 1;
 }
 internal int x_check_block(struct xcheck *k, const struct xnode *blk, const struct xscope *sc) {   // an if's, a loop's
-    struct xscope b = { sc, { 0 }, 0, { 0 }, 1 };
+    struct xscope b = { sc, { 0 }, 0, { 0 }, 1, { 0 } };
     return x_check_body(k, blk, &b);
 }
 internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc) {
@@ -1262,6 +1396,11 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
         size_t len = strcspn(n->s, ".");
         int f = xsc_find(sc, n->s, len, NULL);
         if (f == 2) { snprintf(k->whybuf, sizeof k->whybuf, "%.*s is read before its let", (int)len, n->s); return xc_fail(k, n, k->whybuf); }
+        if (k->script && n->s[len]) {   // p.towers, game.players: the members its kind has (a kind known)
+            int known;
+            if (x_path_kind(k, n, n->s, strlen(n->s), sc, &known) < 0) return 0;
+            if (known) return 1;
+        }
         if (f) return 1;   // a parameter or a variable (its members: diplo.c)
         if (k->script && (!strcmp(n->s, "stop") || !strcmp(n->s, "time"))) return 1;
         if (k->script) {
@@ -1273,7 +1412,7 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
         return 1;
     }
     case XN_LAMBDA: {
-        struct xscope s = { sc, { 0 }, 0, { 0 }, 0 };
+        struct xscope s = { sc, { 0 }, 0, { 0 }, 0, { 0 } };
         for (int i = 0; i < n->n_items; i++) {   // its parameters: none hides a name around it either
             if (!x_check_new_name(k, n->items[i], n->items[i]->s, sc)) return 0;
             xsc_add(&s, n->items[i]->s);
@@ -1289,13 +1428,19 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
     }
     case XN_LET:
         if (!x_check(k, n->a, sc)) return 0;   // (its own name not yet: let n = n + 1 is a mistake)
-        xsc_pass(sc, n->s);
+        xsc_pass(sc, n->s, x_skind(k, n->a, sc));
         return 1;
     case XN_ASSIGN: {
         int f = xsc_find(sc, n->s, strlen(n->s), NULL);   // (the code around's too: set in its own frame)
         if (!f) snprintf(k->whybuf, sizeof k->whybuf, "%s = ...: no variable %s - let %s = ... makes one", n->s, n->s, n->s);
         else if (f == 2) snprintf(k->whybuf, sizeof k->whybuf, "%s is set before its let", n->s);
-        else return x_check(k, n->a, sc);
+        else {
+            if (!x_check(k, n->a, sc)) return 0;
+            int kv = xsc_kind(sc, n->s, strlen(n->s)), kr = x_skind(k, n->a, sc);
+            if (!kv || !kr || kv == kr) return 1;   // a kind it has from its let: another known one can't go in
+            snprintf(k->whybuf, sizeof k->whybuf, "%s is a %s%s (its let) - a %s%s can't go in", n->s,
+                     kv & X_LIST_OF ? "list of " : "", x_kind_name(kv), kr & X_LIST_OF ? "list of " : "", x_kind_name(kr));
+        }
         return xc_fail(k, n, k->whybuf);
     }
     case XN_IF:
@@ -1303,8 +1448,13 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
         return !n->b || (n->b->k == XN_IF ? x_check(k, n->b, sc) : x_check_block(k, n->b, sc));
     case XN_WHILE: case XN_FOR: {
         if (!x_check(k, n->k == XN_WHILE ? n->c : n->a, sc) || !x_check(k, n->b, sc)) return 0;
-        struct xscope b = { sc, { 0 }, 0, { 0 }, 1 };
-        if (n->k == XN_FOR) { if (!x_check_new_name(k, n, n->s, sc)) return 0; xsc_add(&b, n->s); }
+        struct xscope b = { sc, { 0 }, 0, { 0 }, 1, { 0 } };
+        if (n->k == XN_FOR) {   // its name: a list's items' kind (for p in game.players: a player)
+            if (!x_check_new_name(k, n, n->s, sc)) return 0;
+            xsc_add(&b, n->s);
+            int lk = n->b ? X_ANY : x_skind(k, n->a, sc);
+            b.kind[0] = (short)(lk & X_LIST_OF ? lk & 0xFF : X_ANY);
+        }
         k->loops++;
         int ok = x_check_body(k, n->k == XN_WHILE ? n->a : n->c, &b);
         k->loops--;
@@ -1313,7 +1463,29 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
     case XN_BREAK: case XN_CONTINUE:
         return k->loops ? 1 : xc_fail(k, n, n->k == XN_BREAK ? "break outside a loop" : "continue outside a loop");
     case XN_RETURN: return x_check(k, n->a, sc);
-    case XN_MEMBER: return x_check(k, n->a, sc);   // f(a).x: a record's member or a vector's number (worked out: there?)
+    case XN_MEMBER: case XN_MCALL: case XN_INDEX: {   // f(a).x, l[1].name(...): an object's - of a kind known - checked
+        if (!x_check(k, n->a, sc) || !x_check(k, n->b, sc)) return 0;
+        for (int i = 0; i < n->n_items; i++) if (!x_check(k, n->items[i], sc)) return 0;
+        int a = x_skind(k, n->a, sc);
+        if (!a) return 1;   // (a record, a vector, not known: worked out, there?)
+        if (n->k == XN_INDEX) {
+            if (a & X_LIST_OF) return 1;
+            snprintf(k->whybuf, sizeof k->whybuf, "[...]: a %s is no list", x_kind_name(a));
+            return xc_fail(k, n, k->whybuf);
+        }
+        if (a & X_LIST_OF) {
+            snprintf(k->whybuf, sizeof k->whybuf, ".%s: a list of %s - one of them: [1].%s", n->s, x_kind_name(a), n->s);
+            return xc_fail(k, n, k->whybuf);
+        }
+        if (n->k == XN_MCALL) return x_check_method(k, n, a, n->s, n->n_items);
+        const struct x_kmember *m = x_kind_member(a, n->s);
+        if (m && m->amin < 0) return 1;
+        char t[100];
+        x_kind_list(a, t, sizeof t);
+        if (m) snprintf(k->whybuf, sizeof k->whybuf, ".%s: a method - %s(...)", n->s, n->s);
+        else snprintf(k->whybuf, sizeof k->whybuf, ".%s: a %s has no %s - its members: %s", n->s, x_kind_name(a), n->s, t);
+        return xc_fail(k, n, k->whybuf);
+    }
     case XN_REC:
         for (int i = 0; i < n->n_items; i++) if (!x_check(k, n->items[i]->a, sc)) return 0;
         return 1;
@@ -1338,6 +1510,19 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
             if (want >= 0) {
                 if (want != nk) { snprintf(k->whybuf, sizeof k->whybuf, "%s takes %d argument%s", name, want, want == 1 ? "" : "s"); return xc_fail(k, n, k->whybuf); }
                 return 1;
+            }
+        }
+        const char *dot = strrchr(name, '.');
+        if (k->script && dot) {   // p.opinion(q), game.player(2): a method of its kind (a variable of no kind known: when it runs)
+            int known, r = x_path_kind(k, n, name, (size_t)(dot - name), sc, &known);
+            if (r < 0) return 0;
+            if (known) {
+                if (r == X_ANY) return 1;
+                if (r & X_LIST_OF) {
+                    snprintf(k->whybuf, sizeof k->whybuf, "%s(...): a list of %s - one of them: [1].%s(...)", name, x_kind_name(r), dot + 1);
+                    return xc_fail(k, n, k->whybuf);
+                }
+                return x_check_method(k, n, r, dot + 1, n->n_items);
             }
         }
         if (!g_x_host.method(k->c, name, NULL, nk, NULL)) {
@@ -1439,7 +1624,7 @@ internal int xvec_eq(const struct xval *a, const struct xval *b) {   // two vect
 }
 internal int xcmp(const struct xval *a, const struct xval *b) {   // <0, 0, >0: players the same one or not, numbers, else texts
     double x, y;
-    if (a->obj && b->obj) return a->obj - b->obj;
+    if (a->obj && b->obj) return a->okind != b->okind ? a->okind - b->okind : a->obj - b->obj;
     if (a->kind == XV_VEC || b->kind == XV_VEC) return a->kind == b->kind && xvec_eq(a, b) ? 0 : 2;   // equal or not
     if (a->kind == XV_REC || b->kind == XV_REC) return 2;   // (contains: a record is equal to nothing)
     if (xmismatch(a, b)) return 2;   // unequal
@@ -1451,11 +1636,36 @@ internal int xcmp(const struct xval *a, const struct xval *b) {   // <0, 0, >0: 
 struct xtrig { struct xval when, run; int on, fired, loop; double hold, since; char name[48]; };
 internal struct xtrig g_xt[XT_MAX];
 internal int g_xt_n;
-// v's member name - a record's (a mistake when it has none: its members told), a vector's number (.x .y .z .w);
-// whole: the path as written, for the messages
+// o.name (call 0) or o.name(a ...) - a member of its kind: a value read, a method called; one it hasn't, a value
+// called or a method not, the wrong number of arguments: a mistake. whole: as written, for the messages
+internal void x_obj_member(struct xe *e, const struct xval *o, const char *name, const struct xval *a, int na, int call,
+                           struct xval *v, const char *whole) {
+    const struct x_kmember *m = x_kind_member(o->okind, name);
+    char t[200];
+    if (!m) {
+        x_kind_list(o->okind, t, sizeof t);
+        x_fail(e, "%s: a %s has no %s - its members: %s", whole, x_kind_name(o->okind), name, t);
+        return;
+    }
+    if (!call && m->amin >= 0) { x_fail(e, "%s: %s is a method - %s(...)", whole, name, name); return; }
+    if (call && m->amin < 0) { x_fail(e, "%s(...): %s is no method - without ( )", whole, name); return; }
+    if (call && (na < m->amin || na > m->amax)) {
+        if (m->amin == m->amax) x_fail(e, "%s(...): takes %d argument%s", whole, m->amin, m->amin == 1 ? "" : "s");
+        else x_fail(e, "%s(...): takes %d to %d arguments", whole, m->amin, m->amax);
+        return;
+    }
+    struct xval oc = *o;   // (v may be o)
+    xnothing(v);
+    if (!g_x_host.member(e->c, &oc, name, a, na, v)) x_fail(e, "%s: not worked out", whole);
+    else if (e->c->missed) { e->c->missed = 0; e->err = 1; e->why = "a mistake while working it out"; }   // told (x_missing)
+}
+// v's member name - a record's (a mistake when it has none: its members told), a vector's number (.x .y .z .w), an
+// object's (its kind's); whole: the path as written, for the messages
 internal void x_member_of(struct xe *e, const char *name, struct xval *v, const char *whole) {
     char dn[44];
     if (!whole) { snprintf(dn, sizeof dn, ".%s", name); whole = dn; }   // after a call or ( ): .name
+    if (!v->w && v->miss[0]) { x_use(e, v); return; }   // lord.x without a lord: who isn't there, told
+    if (v->obj && v->w) { x_obj_member(e, v, name, NULL, 0, 0, v, whole); return; }
     if (v->kind == XV_REC && v->w) {
         const struct xval *m = xrec_get(v, name);
         if (m) { *v = *m; return; }
@@ -1480,7 +1690,7 @@ internal void x_member_of(struct xe *e, const char *name, struct xval *v, const 
         x_fail(e, "%s: a trigger's members are on, fired, name", whole);
         return;
     }
-    x_fail(e, "%s: %.40s is no record or vector - a member is a record's or a vector's", whole, xtext_of(v));
+    x_fail(e, "%s: %.40s is no record, vector or object - a member is one of theirs", whole, xtext_of(v));
 }
 internal void xe_ident(struct xe *e, const char *name, struct xval *v);
 // a file's record as a whole - colors of "colors = { dark = ..., light = ... }", whose members are the vars entries
@@ -1571,7 +1781,7 @@ internal void xe_ident(struct xe *e, const char *name, struct xval *v) {
             struct xval h;
             xe_ident(e, head, &h);
             if (e->err) return;
-            if (!(h.obj && h.w)) {   // (a player's: the host's values - p.soldiers)
+            if (!(h.obj && h.w && g_x_host.value(c, name, v))) {   // (a player's: the host's own way first - p.soldiers)
                 for (const char *seg = dot + 1; !e->err;) {
                     char m[40];
                     size_t k = strcspn(seg, ".");
@@ -1581,8 +1791,8 @@ internal void xe_ident(struct xe *e, const char *name, struct xval *v) {
                     seg += k + 1;
                 }
                 if (!e->err) *v = h;
-                return;
             }
+            return;
         }
     }
     for (int i = 0; i < c->fnp; i++)   // a parameter or variable of the function being worked out
@@ -1764,7 +1974,11 @@ internal int x_cmd_arg(struct xe *e, const char *verb, const struct xval *v, cha
         }
         return 1;
     }
-    if (v->obj) snprintf(out, (size_t)cap, "%d", v->obj - 1);
+    if (v->obj) {   // a player its number; an object without one (the game) a mistake
+        const struct x_kind *k = g_x_host.kind(v->okind);
+        if (!k || !k->numbered) { x_fail(e, "%s(...): %s as a command's argument", verb, k ? k->name : "an object"); return 0; }
+        snprintf(out, (size_t)cap, "%d", v->obj - 1);
+    }
     else if (v->has_n) {
         double r = v->n < 0 ? -v->n : v->n;
         if (r - (double)(long long)r < 1e-9 && r < 1e15) snprintf(out, (size_t)cap, "%lld", (long long)v->n);
@@ -1785,7 +1999,7 @@ internal void x_command(struct xe *e, const char *cmd, struct xval *v) {
     size_t n = nl ? (size_t)(nl - reply) : strlen(reply);
     if (!strncmp(reply, "error", 5)) { x_fail(e, "%.60s -> %.*s", cmd, (int)(n < 120 ? n : 120), reply); return; }
     v->s = x_strdup(reply, n);
-    v->has_s = 1; v->w = 1; v->has_n = 0; v->obj = v->ln = 0; v->it = NULL; v->miss[0] = 0; v->kind = 0;
+    v->has_s = 1; v->w = 1; v->has_n = 0; v->obj = v->okind = v->ln = 0; v->it = NULL; v->miss[0] = 0; v->kind = 0;
 }
 internal int g_xt_in;   // a trigger's when / run or an after's function is being worked out (TRIGGERS)
 internal int x_wait_until(struct xe *e, double t) {   // the script waits until game second t (0: no script to wait in)
@@ -2079,9 +2293,25 @@ internal void xe_call(struct xe *e, const struct xnode *n, struct xval *v) {
             }
         }
     }
-    if (!f) {   // a relation: them.opinion(me)
-        if (e->c->nogame) x_nogame(e, name);
-        else if (!g_x_host.method(e->c, name, a, na, v)) { e->err = 1; e->why = "an unknown function or relation (or the wrong number of arguments)"; }
+    if (!f) {   // a relation: them.opinion(me) - the host's own way; p.method(...) of a variable that is an object
+        if (e->c->nogame) { x_nogame(e, name); return; }
+        if (g_x_host.method(e->c, name, a, na, v)) return;
+        const char *dot = strrchr(name, '.');
+        size_t hn = strcspn(name, ".");
+        int own = 0;
+        for (int i = 0; dot && i < e->c->fnp && !own; i++) own = strlen(e->c->fpn[i]) == hn && !strncmp(e->c->fpn[i], name, hn);
+        if (own && dot - name < 120) {
+            char path[128];
+            struct xval o;
+            lstrcpynA(path, name, (int)(dot - name) + 1);
+            xe_ident(e, path, &o);
+            if (e->err) return;
+            if (o.obj && o.w) { x_obj_member(e, &o, dot + 1, a, nall, 1, v, name); return; }
+            if (!o.w && o.miss[0]) { x_use(e, &o); return; }
+            x_fail(e, "%s(...): %.40s is no object - a method is a player's, the game's ...", name, xtext_of(&o));
+            return;
+        }
+        e->err = 1; e->why = "an unknown function or relation (or the wrong number of arguments)";
         return;
     }
     if (f == 1) xnum(v, x_rnd01(e->c) < xto_num(&a[0]));   // a probability: chance(70%), chance(0.7)
@@ -2321,12 +2551,40 @@ internal void xe(struct xe *e, const struct xnode *n, struct xval *v) {
         if (c->missed) { c->missed = 0; e->err = 1; e->why = "a mistake while working it out"; }
         break;
     case XN_LIST: xe_list(e, n, v); break;
-    case XN_MEMBER:   // f(a).name, (a + b).x: a record's member, a vector's number
+    case XN_MEMBER:   // f(a).name, (a + b).x: a record's member, a vector's number, an object's
         xe(e, n->a, v);
         if (e->err) break;
         x_use(e, v);
         if (!e->err) x_member_of(e, n->s, v, NULL);
         break;
+    case XN_INDEX: {   // l[i]: its item i, from 1 - none there a mistake
+        struct xval l, i;
+        xe(e, n->a, &l);
+        if (!e->err) x_use(e, &l);
+        if (!e->err) xe(e, n->b, &i);
+        if (e->err) break;
+        if (l.w && !l.ln) { x_fail(e, "[...]: %.40s is no list", l.kind == XV_REC ? "a record" : l.kind == XV_VEC ? "a vector" : xtext_of(&l)); break; }
+        if (!x_numeric_ok(e, &i)) break;
+        int k = (int)i.n;
+        if (!i.w || (double)k != i.n || k < 1 || k > xl_n(&l)) { x_fail(e, "[%s]: no such item - the list has %d (the first is [1])", xtext_of(&i), xl_n(&l)); break; }
+        *v = *xl_at(&l, k - 1);
+        v->w = 1; v->ln = 0; v->it = NULL;
+        break;
+    }
+    case XN_MCALL: {   // f(a).name(...), l[1].name(...): an object's method
+        struct xval o, a[8];
+        char whole[48];
+        snprintf(whole, sizeof whole, ".%s", n->s);
+        xe(e, n->a, &o);
+        if (!e->err) x_use(e, &o);
+        if (e->err) break;
+        if (n->n_items > 8) { x_fail(e, "%s(...): more than 8 arguments", whole); break; }
+        for (int i = 0; i < n->n_items && !e->err; i++) xe(e, n->items[i], &a[i]);
+        if (e->err) break;
+        if (!o.obj || !o.w) { x_fail(e, "%s(...): %.40s is no object - a method is a player's, the game's ...", whole, xtext_of(&o)); break; }
+        x_obj_member(e, &o, n->s, a, n->n_items, 1, v, whole);
+        break;
+    }
     case XN_REC: {   // a record: each member worked out now, in order - a mistake in one fails it whole
         struct xrec *r = x_alloc(sizeof *r);
         const char **key = x_alloc((size_t)n->n_items * sizeof *key + 1);
@@ -2494,7 +2752,7 @@ internal int x_syntax(const char *src, const char **why) {
     const struct xunit *u = x_compiled(src);
     if (!u->ok) { *why = u->why ? u->why : "not an expression"; return 0; }
     struct xcheck k = { &c, 0, NULL, 0, "", 0 };
-    struct xscope sc = { NULL, { 0 }, 0, { 0 }, 0 };
+    struct xscope sc = { NULL, { 0 }, 0, { 0 }, 0, { 0 } };
     if (!x_check(&k, u->root, &sc)) { *why = k.why ? k.why : "not an expression"; return 0; }
     return 1;
 }

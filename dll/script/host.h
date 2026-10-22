@@ -2,6 +2,15 @@
 // that is one of them: obj), the relations between them (them.kills(me)), its two random generators, the files its
 // functions come from, the commands a script may call. The language knows none of them itself; the game's are set by
 // eeaimod.c x_host_install. Until then (and for a program without them) every answer is "none".
+//
+// Its objects are of kinds (a value's okind, 1..; obj its number + 1): a kind's members by name - a value (amin -1:
+// p.towers) or a method and its arguments (amin..amax: p.opinion(q)) - and what each gives: X_ANY (not known before it
+// is worked out), a kind, X_LIST_OF + a kind (game.players). The check reads them when a file is read (p.towerz a
+// mistake there), the working out asks member()
+#define X_ANY 0
+#define X_LIST_OF 0x100
+struct x_kmember { const char *name; signed char amin, amax; short result; };
+struct x_kind { const char *name; int numbered; const struct x_kmember *m; int n; };   // numbered: a command takes its number
 struct x_host {
     int (*value)(struct xctx *c, const char *name, struct xval *v);   // a name's value (them, epoch, them.soldiers): 0 none
     int (*is_value)(const char *name);         // a name that is a value of its own (them, epoch, minutes ...)
@@ -18,6 +27,11 @@ struct x_host {
     // a record of the files the program reads itself (lines, personality ...) - not a name of the file's: every
     // other record is one, its members name.key
     int (*code_record)(const char *name);
+    const struct x_kind *(*kind)(int k);   // kind k (1..), NULL: none
+    int (*root_kind)(const char *name);    // a name of its own that is an object (game, them ...): its kind, 0 none
+    int (*fn_kind)(const char *name);      // what a function of its own gives (player(n): a player), X_ANY: not known
+    // o.name, o.name(a ...) worked out - its kind's member (the language checked it is one, and the arguments' count)
+    int (*member)(struct xctx *c, const struct xval *o, const char *name, const struct xval *a, int na, struct xval *v);
 };
 internal int xh_value(struct xctx *c, const char *name, struct xval *v) { (void)c; (void)name; (void)v; return 0; }
 internal int xh_name(const char *name) { (void)name; return 0; }
@@ -29,5 +43,9 @@ internal int xh_constant(const char *name, struct xval *v) { (void)name; (void)v
 internal int xh_rnd(int n) { (void)n; return 0; }
 internal void xh_scan(void) {}
 internal const char *xh_placeholders(const char *file, const char *sec, const char *key) { (void)file; (void)sec; (void)key; return NULL; }
+internal const struct x_kind *xh_kind(int k) { (void)k; return NULL; }
+internal int xh_member(struct xctx *c, const struct xval *o, const char *name, const struct xval *a, int na, struct xval *v) {
+    (void)c; (void)o; (void)name; (void)a; (void)na; (void)v; return 0;
+}
 internal struct x_host g_x_host = { xh_value, xh_name, xh_name, xh_method, xh_object, xh_constant, xh_rnd, xh_rnd, xh_scan,
-                                  xh_placeholders, xh_name, xh_name };
+                                  xh_placeholders, xh_name, xh_name, xh_kind, xh_name, xh_name, xh_member };

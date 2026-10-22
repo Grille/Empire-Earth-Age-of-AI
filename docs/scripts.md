@@ -78,12 +78,37 @@ Everything the personalities' expressions have (numbers, `70%`, texts with `{pla
 | `kind.towers` | one of the game's families - every type of it, whatever the epoch ([units.md](units.md)): `p3.count(kind.towers)` |
 | `resource.gold`, `resource.all` | a resource: food, wood, stone, gold, iron (1..5), all (0) - `give(2, 500, resource.gold)` |
 | `(a, b) => value`, `(i) => { ... }`, `() => ...` | a function: one value after `=>`, or statements in `{ }` with `return` |
-| `player(3)` | player 3 - `let p3 = player(3)` then `p3.towers`, `p3.soldiers` ... (the values of `them.` in the README) |
+| `player(3)`, `game` | objects - "Objects" below |
+| `l[2]` | a list's item, from 1 (`l[0]`, one past its end: a mistake) |
 | `vec(70, 50)` | a vector (2 to 4 numbers - a place in tiles): `let home = vec(70, 50)` then `home.x`, `step(home).x`, `home + vec(5, 0)`, `home * 2`, `distance(home, there)` (the README's "Vectors"); as a command's argument its numbers one each: `spawn(2, unit.inf02_spearman, home, 10)` is `spawn 2 24 70 50 10` |
 | `{ x = 70, y = 50, units = 10 }` | a record (the README's "Records"): `let wave = { at = vec(70, 50), units = 10 }` then `wave.at`, `wave.units`, `has(wave, "units")`; a comma after each member |
 | `time` | the game time now, in seconds |
 | `stop` | what an `every` body returns to end it early |
 | `"text \{x\}"` | `\{` `\}`: braces that are text, not a placeholder (also `\"` `\\` `\n`) |
+
+## Objects
+
+The game's things are objects, each of a kind: a value (`p.towers`) or a method (`p.opinion(q)`) by name. Its text
+is its name (`"{p}"`), it equals only itself (`game.players[2] == player(2)`).
+
+| Kind | |
+|---|---|
+| `game` | the game: `game.time` (seconds), `game.minutes`, `game.players` (every player, in or out - `game.players[3]` is player 3), `game.player(3)` |
+| player | `player(3)`, `game.player(3)`, `game.players[3]`, `me`/`them` in the texts: every value of `them.` in the README (`p.towers`, `p.epoch`, `p.lord` - a player again), its relations as methods (`p.opinion(q)`, `p.kills(q, 10)`), `p.count(kind.towers)`; as a command's argument its number (`spawn(p, ...)`) |
+
+```
+let p2 = game.player(2)
+for p in game.players {
+    if p.alive and p != p2 and p2.at_war(p) {
+        ping("{p2} fights {p}: {p.soldiers} soldiers, {p2.kills(p, 10)} killed in 10 minutes")
+    }
+}
+```
+
+The check knows what a variable is from its `let` (`let p = player(2)`, a `for` over `game.players`, `game.players[1]`):
+a member its kind hasn't (`p.towerz`), a method without its `( )` or with the wrong number of arguments, a member of
+a list (`game.players.towers`), another kind put into it (`p = game`) - each a mistake when the file is read, with
+the members it has. A function's parameter is of no kind known: its members are checked when it runs.
 
 ## Functions
 
@@ -92,7 +117,7 @@ Everything the personalities' expressions have (numbers, `70%`, texts with `{pla
 | `wait(10s)` | the script waits that long (game time) |
 | `wait_until(t)` | the script waits until game time `t` (not at all if it is past) |
 | `every(step, from, until, f)` | `f(run)` at `from`, `from + step` ... up to `until` (inclusive) - `run` 1, 2, 3 ...; `return stop` ends it |
-| `player(n)` | player n as a value |
+| `player(n)` | player n as a value (as `game.player(n)`) |
 | `cmd("texts eval 3 1 them.kills(me)")` | a command as written (for a text with spaces, quotes or braces) |
 | any pipe command | `spawn(2, unit.inf02_spearman, 70, 50, 10)`, `stats("engage", ...)`, `count(3)`, `save("zz_name")`: the command `spawn 2 24 70 50 10` - numbers as numbers, a type its number, a player its number, a text as it is. Its value is the reply's first line; a reply `error ...` is a mistake. Every command is logged `# setup: <command> -> <reply>` |
 

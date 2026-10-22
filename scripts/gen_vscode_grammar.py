@@ -25,6 +25,7 @@ members = xtable('k_xmembers')
 globals_ = [n for n, k in xtable('k_xglobals')]
 member_names = [n for n, k in members if k not in ('XM_REL', 'XM_FILTER')]
 relations = [n for n, k in members if k in ('XM_REL', 'XM_FILTER')]   # called: A.kills(B), A.count(kind.towers)
+game_members = re.findall(r'\{ "(\w+)", ', re.search(r'k_xk_game\[\] = \{(.*?)\n\};', diplo, re.S).group(1))   # game.time ...
 # without a player: the globals (opinion, at_war, allied among them: mine with them), my epoch and traits (me.)
 bare = globals_ + ['epoch'] + \
        [n for n, k in members if k == 'XM_PLAYER' and n in ('aggression', 'loyalty', 'pride', 'greed', 'forgiveness', 'caution', 'talk', 'allies', 'enemies')]
@@ -78,6 +79,8 @@ expression = [
     {'match': r'(?:(' + player + r'|\b[A-Za-z_]\w*)(\.))?(' + words(relations) + r')(?=\s*\()',
      'captures': {'1': {'name': 'variable.language.game-value.eeaimod'}, '2': {'name': 'punctuation.accessor.eeaimod'},
                   '3': {'name': 'support.function.relation.eeaimod'}}},
+    {'name': 'variable.language.game-value.eeaimod', 'match': r'\bgame\.' + words(game_members) + r'|\bgame\b(?![.\w(])'},   # the game object
+    {'name': 'invalid.illegal.unknown-member.eeaimod', 'match': r'\bgame\.[A-Za-z_]\w*'},
     {'name': 'variable.language.game-value.eeaimod', 'match': player + r'\.' + words(member_names) + r'(?![.\w(])'},
     {'name': 'invalid.illegal.unknown-member.eeaimod', 'match': player + r'\.[A-Za-z_][\w.]*'},
     {'name': 'variable.language.game-value.eeaimod', 'match': words(values) + r'(?!\.)'},

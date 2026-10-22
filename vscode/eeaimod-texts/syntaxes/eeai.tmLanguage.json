@@ -589,6 +589,14 @@
         },
         {
           "name": "variable.language.game-value.eeaimod",
+          "match": "\\bgame\\.\\b(?:minutes|players|player|time)\\b|\\bgame\\b(?![.\\w(])"
+        },
+        {
+          "name": "invalid.illegal.unknown-member.eeaimod",
+          "match": "\\bgame\\.[A-Za-z_]\\w*"
+        },
+        {
+          "name": "variable.language.game-value.eeaimod",
           "match": "\\b(?:me|them|enemy|lord)(?:\\.lord)*\\.\\b(?:civilization_en|civilization|forgiveness|population|aggression|buildings|soldiers|citizens|strength|centers|vassals|enemies|loyalty|caution|towers|allies|walls|epoch|color|alive|human|pride|greed|stone|stock|name|rank|talk|lord|food|wood|gold|iron)\\b(?![.\\w(])"
         },
         {
@@ -766,6 +774,14 @@
               "name": "support.function.relation.eeaimod"
             }
           }
+        },
+        {
+          "name": "variable.language.game-value.eeaimod",
+          "match": "\\bgame\\.\\b(?:minutes|players|player|time)\\b|\\bgame\\b(?![.\\w(])"
+        },
+        {
+          "name": "invalid.illegal.unknown-member.eeaimod",
+          "match": "\\bgame\\.[A-Za-z_]\\w*"
         },
         {
           "name": "variable.language.game-value.eeaimod",

@@ -87,11 +87,16 @@ internal void x_players(struct xctx *c) {   // who is who: the context's players
 }
 internal int x_alive(int j) { return player_at(j) && !is_out(player_at(j)); }
 internal void *x_lord(void *p) { return p && g_lord[pidx(p)] ? player_at(g_lord[pidx(p)]) : NULL; }
+// THE KINDS OF OBJECTS (script/host.h): a player, the game
+enum { XK_PLAYER = 1, XK_GAME };
 internal void x_player(struct xval *v, void *p, const char *who) {   // a player as a value: its name, itself
     if (!p) { xnothing(v); lstrcpynA(v->miss, who, sizeof v->miss); return; }   // who isn't there: to be checked
     xstr(v, *player_name(p) && *player_name(p) != '?' ? player_name(p) : "the player");   // a test's idle human has no name
     v->obj = pidx(p) + 1;
+    v->okind = XK_PLAYER;
 }
+internal void x_game(struct xval *v) { xstr(v, "the game"); v->obj = 1; v->okind = XK_GAME; }
+internal int x_game_path(struct xctx *c, const char *name, const struct xval *a, int na, int call, struct xval *v);
 internal int x_player_n(int n, struct xval *v) {   // expr.c: player(n) in a script - player n, 0: none there
     void *p = n >= 1 && n < nplayers() ? player_at(n) : NULL;
     if (!p) return 0;
@@ -100,7 +105,7 @@ internal int x_player_n(int n, struct xval *v) {   // expr.c: player(n) in a scr
 }
 internal void *x_player_of(const struct xval *v) {   // the player a value is - or names (a placeholder: {ally})
     if (!v->w) return NULL;
-    if (v->obj) return player_at(v->obj - 1);
+    if (v->obj) return v->okind == XK_PLAYER ? player_at(v->obj - 1) : NULL;
     return v->has_s ? x_player_named(v->s) : NULL;
 }
 // member m of player px
@@ -240,6 +245,7 @@ internal int x_builtin(struct xctx *c, const char *name, struct xval *v) {
     const char *dot = strrchr(name, '.');
     int ok;
     char who[24];
+    if (name[0] == 'g' && x_game_path(c, name, NULL, 0, 0, v)) return 1;   // game, game.time ...
     if (dot) {   // <player>.<member>
         void *p = x_path(c, name, (int)(dot - name), &ok, who);
         const struct xmember *m = ok ? x_find_member(dot + 1, (int)strlen(dot + 1)) : NULL;
@@ -289,7 +295,7 @@ internal int x_is_value(const char *name) {
 // expr.c x_name_check: a name x_builtin takes - a player, a game value, one of mine, <player>[.lord ...].<member> -
 // when a file is read (no game needed)
 internal int x_name_valid(const char *name) {
-    if (x_is_value(name)) return 1;
+    if (x_is_value(name) || x_game_path(NULL, name, NULL, 0, 0, NULL)) return 1;
     const char *dot = strrchr(name, '.');
     if (!dot) return 0;
     int n = (int)strcspn(name, ".");
@@ -326,12 +332,17 @@ internal int x_type_filter(const char *name, const struct xval *f, unsigned char
     return 1;
 }
 // <player>.count(filter), or count(filter) - mine: its units and buildings of those types, at the last world scan
+internal int x_count_of(struct xctx *c, void *p, const char *who, const char *name, const struct xval *f, struct xval *v);
 internal int x_count(struct xctx *c, const char *name, const char *dot, const struct xval *f, struct xval *v) {
     int ok = 1;
     char who[24] = "me";
     void *p = dot ? x_path(c, name, (int)(dot - name), &ok, who) : (x_players(c), c->pl);
     if (!ok) return 0;
     if (!v) return 1;
+    return x_count_of(c, p, who, name, f, v);
+}
+// player p's count (who: as written, p NULL - none there)
+internal int x_count_of(struct xctx *c, void *p, const char *who, const char *name, const struct xval *f, struct xval *v) {
     if (!p) { x_missing(c, who); xnothing(v); return 1; }   // lord.count(...) without a lord
     static unsigned char sel[G_TYPES_N];
     memset(sel, 0, sizeof sel);
@@ -344,7 +355,10 @@ internal int x_count(struct xctx *c, const char *name, const char *dot, const st
 // a relation: <player>.<relation>(<player>[, minutes]), or <relation>(<player>) - the speaker's. v NULL: only whether
 // name is one
 internal int x_count(struct xctx *c, const char *name, const char *dot, const struct xval *f, struct xval *v);
+internal int x_method_of(struct xctx *c, void *pa, const char *who, const char *name, const struct xmember *m,
+                         const struct xval *a, int na, struct xval *v);
 internal int x_method(struct xctx *c, const char *name, const struct xval *a, int na, struct xval *v) {
+    if (!strncmp(name, "game.", 5)) return x_game_path(c, name, a, na, 1, v);   // game.player(3)
     const char *dot = strrchr(name, '.');
     const char *rel = dot ? dot + 1 : name;
     const struct xmember *m = x_find_member(rel, (int)strlen(rel));
@@ -357,6 +371,12 @@ internal int x_method(struct xctx *c, const char *name, const struct xval *a, in
     void *pa = dot ? x_path(c, name, (int)(dot - name), &ok, who) : (x_players(c), c->pl);
     if (!ok) return 0;
     if (!v) return 1;
+    return x_method_of(c, pa, who, name, m, a, na, v);
+}
+// relation m of player pa (who: as written, pa NULL - none there) with the arguments a - the count checked before
+internal int x_method_of(struct xctx *c, void *pa, const char *who, const char *name, const struct xmember *m,
+                         const struct xval *a, int na, struct xval *v) {
+    int kr = !strcmp(m->name, "kills");
     void *pb = x_player_of(&a[0]);
     if (!pa || a[0].miss[0]) {   // lord.opinion(them), opinion(lord) without a lord: a mistake (x_missing)
         x_missing(c, pa ? a[0].miss : who);
@@ -396,5 +416,101 @@ internal int x_method(struct xctx *c, const char *name, const struct xval *a, in
         if (!x_type_filter(name, &a[na - 1], sel)) { xnothing(v); return 1; }
     }
     x_relation(pa, pb, m, nw > 1 ? xto_num(&a[1]) : 0, fl ? sel : NULL, v);
+    return 1;
+}
+
+// THE KINDS' TABLES (script/host.h: the check reads them, x_kmember): a player's - its k_xmembers, a value, a player
+// (lord) or a method (a relation: its other player, (B, minutes), kills (B, minutes, filter); count(filter)); the
+// game's. The kind of what each gives where the check can know it (p.lord.towers, game.players[1].towers)
+internal struct x_kmember g_xk_player[N_XMEMBERS];
+internal const struct x_kmember k_xk_game[] = {
+    { "time", -1, -1, X_ANY },                       // the game time in seconds (a script's time)
+    { "minutes", -1, -1, X_ANY },                    // in whole minutes
+    { "players", -1, -1, X_LIST_OF + XK_PLAYER },    // every player, in or out: game.players[3] is player 3
+    { "player", 1, 1, XK_PLAYER },                   // game.player(3)
+};
+internal struct x_kind g_xkinds[2] = {
+    { "player", 1, g_xk_player, N_XMEMBERS },
+    { "game", 0, k_xk_game, (int)(sizeof k_xk_game / sizeof *k_xk_game) },
+};
+internal const struct x_kind *x_kind_of(int k) {
+    if (k == XK_PLAYER && !g_xk_player[0].name)
+        for (int i = 0; i < N_XMEMBERS; i++) {
+            const struct xmember *m = &k_xmembers[i];
+            int rel = m->kind == XM_REL, n = !strcmp(m->name, "kills") ? 3 : x_windowed(m->name) ? 2 : 1;
+            g_xk_player[i].name = m->name;
+            g_xk_player[i].amin = (signed char)(rel || m->kind == XM_FILTER ? 1 : -1);
+            g_xk_player[i].amax = (signed char)(rel ? n : m->kind == XM_FILTER ? 1 : -1);
+            g_xk_player[i].result = (short)(m->kind == XM_LINK ? XK_PLAYER : X_ANY);
+        }
+    return k >= XK_PLAYER && k <= XK_GAME ? &g_xkinds[k - 1] : NULL;
+}
+internal int x_root_kind(const char *name) {   // me, them, enemy, lord: players; game
+    if (!strcmp(name, "me") || !strcmp(name, "them") || !strcmp(name, "enemy") || !strcmp(name, "lord")) return XK_PLAYER;
+    return !strcmp(name, "game") ? XK_GAME : 0;
+}
+internal int x_fn_kind(const char *name) { return !strcmp(name, "player") ? XK_PLAYER : X_ANY; }
+// a mistake of the game's side, told: what is worked out fails (as one who isn't there does - expr.c x_obj_member)
+internal PRINTF_LIKE(2, 3) void x_host_fail(struct xctx *c, const char *fmt, ...) {
+    char t[200];
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(t, sizeof t, fmt, ap);
+    va_end(ap);
+    x_error("%s: %.100s", t, c->top ? c->top : "");
+    c->failed++;
+    c->missed = 1;
+}
+// o.name, o.name(a ...) (expr.c x_obj_member: a member of its kind, its arguments counted)
+internal int x_obj_member_of(struct xctx *c, const struct xval *o, const char *name, const struct xval *a, int na, struct xval *v) {
+    if (o->okind == XK_PLAYER) {
+        void *p = player_at(o->obj - 1);
+        const struct xmember *m = x_find_member(name, (int)strlen(name));
+        if (!m) return 0;
+        if (m->kind == XM_PLAYER) x_member(p, m, v);
+        else if (m->kind == XM_LINK) x_player(v, x_lord(p), "lord");
+        else if (m->kind == XM_FILTER) x_count_of(c, p, "player", name, &a[0], v);
+        else x_method_of(c, p, "player", name, m, a, na, v);
+        return 1;
+    }
+    if (o->okind != XK_GAME) return 0;
+    double now = g_x_hooks.now ? g_x_hooks.now() : game_time() / 1000.0;
+    if (!strcmp(name, "time")) xnum(v, now);
+    else if (!strcmp(name, "minutes")) xnum(v, (double)(long long)(now / 60));
+    else if (!strcmp(name, "player")) {
+        double n = xto_num(&a[0]);
+        if (!a[0].has_n || !x_player_n((int)n, v) || (double)(int)n != n) x_host_fail(c, "game.player(%.40s): no such player", xtext_of(&a[0]));
+    } else if (!strcmp(name, "players")) {
+        int n = nplayers() - 1;
+        struct xval *it = n > 0 ? x_alloc((size_t)n * sizeof *it) : NULL;
+        if (!it) return 1;
+        for (int j = 1; j <= n; j++) x_player(&it[j - 1], player_at(j), "player");
+        v->it = it; v->ln = v->w = n;
+    } else return 0;
+    return 1;
+}
+// game.<member>[.<member> ...] by name (x_builtin, x_method): the game's own, through its kind's members
+internal int x_game_path(struct xctx *c, const char *name, const struct xval *a, int na, int call, struct xval *v) {
+    if (strncmp(name, "game", 4) || (name[4] && name[4] != '.')) return 0;
+    struct xval o;
+    x_game(&o);
+    const char *s = name[4] ? name + 5 : NULL;
+    while (s) {
+        char m[40];
+        int n = (int)strcspn(s, ".");
+        if (n >= (int)sizeof m || !o.obj) return 0;
+        lstrcpynA(m, s, n + 1);
+        const struct x_kmember *km = x_kind_member(o.okind, m);
+        int last = !s[n];
+        if (!km || (km->amin >= 0) != (call && last)) return 0;
+        if (call && last && (na < km->amin || na > km->amax)) return 0;
+        if (!v) { if (last) return 1; if (!(km->result > 0 && km->result < X_LIST_OF)) return 0; o.okind = km->result; o.obj = 1; s += n + 1; continue; }
+        struct xval r;
+        xnothing(&r);
+        if (!x_obj_member_of(c, &o, m, last ? a : NULL, last ? na : 0, &r)) return 0;
+        o = r;
+        s = last ? NULL : s + n + 1;
+    }
+    if (v) *v = o;
     return 1;
 }

@@ -66,7 +66,7 @@ internal char *script_read(const char *path) {
 }
 // read and check a script: 0 and *why / *line - not run
 internal int script_load(const char *path, char **text, struct xunit *u, const char **why, int *line) {
-    static char msg[160];
+    static char msg[200];
     *text = script_read(path);
     if (!*text) { *why = "can't be read"; *line = 0; return 0; }
     *u = x_parse(*text, 1);
@@ -74,7 +74,7 @@ internal int script_load(const char *path, char **text, struct xunit *u, const c
     struct xctx c = { 0 };
     c.found = 1;
     struct xcheck k = { &c, 1, NULL, 0, "", 0 };
-    struct xscope sc = { NULL, { 0 }, 0, { 0 }, 0 };
+    struct xscope sc = { NULL, { 0 }, 0, { 0 }, 0, { 0 } };
     const char *f0 = g_x_check_file, *ph0 = g_x_check_ph, *par0 = g_x_check_par;
     const char *base = strrchr(path, '\\') ? strrchr(path, '\\') + 1 : strrchr(path, '/') ? strrchr(path, '/') + 1 : path;
     g_x_check_file = base; g_x_check_ph = NULL; g_x_check_par = NULL;
