@@ -167,9 +167,9 @@ internal void eco_food(ee_player *pl, ee_resource_mgr *rm, struct eco_food *f) {
         for (int k = 0; sb && sb + k < se && k < 4096; k++) {
             ee_unit *st = sb[k]; ee_unit_type *td = st ? unit_get_type_data(st) : NULL;
             if (!td || unit_get_resource(st) != 2 || type_get_id(td) != UT(RES_FORAGE_BUSH) || unit_get_amount(st) <= 0) continue;
-            int x = unit_get_x(st), y = unit_get_y(st), dx = x - bx, dy = y - by;
+            int x = unit_get_x(st), y = unit_get_y(st);
             if (eco_drop_d2(pl, x, y) <= 900) { f->fsN++; f->fsF += unit_get_amount(st); }
-            if (bx != -10000 && dx * dx + dy * dy < g_site_max_dist * g_site_max_dist) { f->fsN20++; f->fsF20 += unit_get_amount(st); }
+            if (bx != -10000 && ivec2_dist2(iv2(x, y), iv2(bx, by)) < g_site_max_dist * g_site_max_dist) { f->fsN20++; f->fsF20 += unit_get_amount(st); }
         }
     }
     void *um = cm ? cm_get_unit_mgr(cm) : NULL;

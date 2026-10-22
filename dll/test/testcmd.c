@@ -600,26 +600,26 @@ internal void charge_pass(char *out, int a, int d) {
         float ux = (float)unit_get_x(u), uy = (float)unit_get_y(u), best = 15.0f * 15.0f;
         ee_unit *tgt = NULL;
         for (int k = 0; k < foe.n; k++) {
-            float dx = (float)unit_get_x(foe.u[k]) - ux, dy = (float)unit_get_y(foe.u[k]) - uy;
-            if (dx * dx + dy * dy < best) { best = dx * dx + dy * dy; tgt = foe.u[k]; }
+            float d2 = vec2_dist2(v2((float)unit_get_x(foe.u[k]), (float)unit_get_y(foe.u[k])), v2(ux, uy));
+            if (d2 < best) { best = d2; tgt = foe.u[k]; }
         }
         if (!tgt) {
             best = 20.0f * 20.0f;
             for (int k = 0; k < civ.n; k++) {
-                float dx = (float)unit_get_x(civ.u[k]) - ux, dy = (float)unit_get_y(civ.u[k]) - uy;
-                if (dx * dx + dy * dy < best) { best = dx * dx + dy * dy; tgt = civ.u[k]; }
+                float d2 = vec2_dist2(v2((float)unit_get_x(civ.u[k]), (float)unit_get_y(civ.u[k])), v2(ux, uy));
+                if (d2 < best) { best = d2; tgt = civ.u[k]; }
             }
         }
         if (!tgt) {
             best = 1e12f;
             for (int k = 0; k < bld.n; k++) {
-                float dx = (float)unit_get_x(bld.u[k]) - ux, dy = (float)unit_get_y(bld.u[k]) - uy;
-                if (dx * dx + dy * dy < best) { best = dx * dx + dy * dy; tgt = bld.u[k]; }
+                float d2 = vec2_dist2(v2((float)unit_get_x(bld.u[k]), (float)unit_get_y(bld.u[k])), v2(ux, uy));
+                if (d2 < best) { best = d2; tgt = bld.u[k]; }
             }
         }
         if (!tgt) continue;
         float tx = (float)unit_get_x(tgt), ty = (float)unit_get_y(tgt);
-        if ((tx - ux) * (tx - ux) + (ty - uy) * (ty - uy) > 20.0f * 20.0f)   // far: walk there first
+        if (vec2_dist2(v2(tx, ty), v2(ux, uy)) > 20.0f * 20.0f)   // far: walk there first
             n += unit_goal(u, goal_move(tx + (ux - tx) * 0.1f, ty + (uy - ty) * 0.1f), 0, 0x1F40);
         else n += unit_goal(u, goal_attack(u, tgt), 0, 0x1F40);
     }
@@ -723,7 +723,7 @@ internal void ag_unit(ee_unit *u, void *ctx) {
     } else if (s->x >= 0 && is_enemy(s->pl, owner) && (fam == 2 || fam == 29)) {
         float r, a;
         if (s->nodef && defence_stats(u, &r, &a)) return;
-        long d = (long)(x - s->x) * (x - s->x) + (long)(y - s->y) * (y - s->y);
+        long d = ivec2_dist2(iv2(x, y), iv2(s->x, s->y));
         if (!s->best || d < s->bd) { s->best = u; s->bd = d; }
     }
 }

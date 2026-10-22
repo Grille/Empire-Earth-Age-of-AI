@@ -123,7 +123,7 @@ internal int so_find_open(int x, int y, int maxd, unsigned ocean, int rad, int *
             }
     return 0;
 }
-internal float so_d2(int x0, int y0, int x1, int y1) { return (float)((x1 - x0) * (x1 - x0) + (y1 - y0) * (y1 - y0)); }
+internal float so_d2(int x0, int y0, int x1, int y1) { return (float)ivec2_dist2(iv2(x1, y1), iv2(x0, y0)); }
 internal int so_in_danger(int x, int y, float margin) {
     for (int k = 0; k < g_sos.nz; k++)
         if (so_d2(x, y, g_sos.zx[k], g_sos.zy[k]) < (g_sos.zr[k] + margin) * (g_sos.zr[k] + margin)) return 1;
