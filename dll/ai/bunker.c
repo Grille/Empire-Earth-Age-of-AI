@@ -13,12 +13,12 @@ internal int bk_capacity(ee_unit *u) {   // what a building holds as a transport
 }
 internal int bk_held(ee_unit *u) { return units_inside(u); }   // units inside
 
-struct bk_scan { ee_player *pl; int x, y, r, nf, nc; ee_unit *f[8], *c[128]; };
+struct bk_scan { ee_player *pl; ivec2 p; int r, nf, nc; ee_unit *f[8], *c[128]; };
 internal void bk_unit(ee_unit *u, void *ctx) {
     struct bk_scan *b = ctx;
     ee_unit_type *td = unit_get_type_data(u);
-    int dx = unit_get_x(u) - b->x, dy = unit_get_y(u) - b->y, t = type_get_id(td);
-    if (unit_get_owner(u) != b->pl || unit_get_hp(u) <= 0 || dx * dx + dy * dy > b->r * b->r) return;
+    int t = type_get_id(td);
+    if (unit_get_owner(u) != b->pl || unit_get_hp(u) <= 0 || ivec2_dist2(unit_get_tile(u), b->p) > b->r * b->r) return;
     if (bk_capacity(u) > 0 && b->nf < 8) b->f[b->nf++] = u;
     else if (is_citizen_type(t) && b->nc < 128) b->c[b->nc++] = u;
 }
@@ -42,14 +42,14 @@ internal void cmd_bunker(char *out, const char *args) {
     int p = 0;
     char verb[16] = "";
     b.r = 10;
-    if (sscanf(args, "%d %d %d %d %15s", &p, &b.x, &b.y, &b.r, verb) < 3 || p <= 0 || p >= 16 || !st_player(p)) {
+    if (sscanf(args, "%d %d %d %d %15s", &p, &b.p.x, &b.p.y, &b.r, verb) < 3 || p <= 0 || p >= 16 || !st_player(p)) {
         REPLY("error: bunker P x y [r [load|unload]]\n");
         return;
     }
     b.pl = st_player(p);
     grid_each(bk_unit, &b);
     int pop1 = population(b.pl, 0, 0), pop2 = population(b.pl, 0, 1);
-    REPLY("ok: P%d population %d (with fortresses' %d), %d fortresses, %d citizens within %d of %d,%d:", p, pop1, pop2, b.nf, b.nc, b.r, b.x, b.y);
+    REPLY("ok: P%d population %d (with fortresses' %d), %d fortresses, %d citizens within %d of %d,%d:", p, pop1, pop2, b.nf, b.nc, b.r, b.p.x, b.p.y);
     int used = 0;
     for (int k = 0; k < b.nf; k++) {
         ee_unit *f = b.f[k];
@@ -142,8 +142,8 @@ internal int bk_shelter(ee_player *pl, ee_unit *u) {
     if (bk_hurt_recent(pi, ux, uy, 6, 30000) < 1 && !raiders_near(pl, ux, uy, 8)) return 0;   // not under fire right now
     for (int k = 0; k < g_bk[pi].nf; k++) {
         ee_unit *f = g_bk[pi].f[k];
-        int dx = unit_get_x(f) - ux, dy = unit_get_y(f) - uy;
-        if (dx * dx + dy * dy < bd && bk_held(f) + g_bk[pi].walk[k] + g_bk[pi].nq[k] < bk_capacity(f) && g_bk[pi].nq[k] < 40) { bd = dx * dx + dy * dy; best = k; }
+        int d = ivec2_dist2(unit_get_tile(f), iv2(ux, uy));
+        if (d < bd && bk_held(f) + g_bk[pi].walk[k] + g_bk[pi].nq[k] < bk_capacity(f) && g_bk[pi].nq[k] < 40) { bd = d; best = k; }
     }
     if (best < 0) return 0;
     g_bk[pi].q[best][g_bk[pi].nq[best]++] = u;
@@ -197,8 +197,8 @@ internal int bk_builders(ee_player *pl, ee_unit *b, int n) {
             for (unsigned k = 0, first = FIELD(list, 0xC, unsigned), cnt = FIELD(list, 0x10, unsigned); k < cnt; k++) {
                 ee_unit *u = deque_at(list, first + k);
                 if (!citizen_free(u, 0)) continue;
-                int dx = unit_get_x(u) - bx, dy = unit_get_y(u) - by;
-                if (dx * dx + dy * dy < bd) { bd = dx * dx + dy * dy; best = u; }
+                int d = ivec2_dist2(unit_get_tile(u), iv2(bx, by));
+                if (d < bd) { bd = d; best = u; }
             }
         }
         if (!best) break;
@@ -293,13 +293,12 @@ internal int bk_room(ee_player *pl) {   // cap - population on the map (the fort
     int cap = unit_limit(pl);
     return cap - population(pl, 0, 0);
 }
-struct bk_free { ee_player *pl; ee_combat_mgr *cm; int bx, by, n; ee_unit *u[64]; };
+struct bk_free { ee_player *pl; ee_combat_mgr *cm; ivec2 b; int n; ee_unit *u[64]; };
 internal void bk_free_unit(ee_unit *u, void *ctx) {
     struct bk_free *f = ctx;
     ee_unit_type *td = unit_get_type_data(u);
     if (unit_get_owner(u) != f->pl || unit_get_hp(u) <= 0 || !td || f->n >= 64) return;
-    int dx = unit_get_x(u) - f->bx, dy = unit_get_y(u) - f->by;
-    if (dx * dx + dy * dy > 25 * 25 || !is_soldier(td) || is_ship_or_air(td)) return;
+    if (ivec2_dist2(unit_get_tile(u), f->b) > 25 * 25 || !is_soldier(td) || is_ship_or_air(td)) return;
     if (cm_unit_free(f->cm, unit_get_physics(u))) f->u[f->n++] = u;
 }
 internal void bk_reserve_tick(ee_player *pl, unsigned pi, uint32_t now) {
@@ -315,7 +314,7 @@ internal void bk_reserve_tick(ee_player *pl, unsigned pi, uint32_t now) {
     if (room <= 1 && threat < 0) {
         void *cm2 = player_get_civ_mgr(pl);
         ee_build_mgr *bm = cm2 ? cm_get_build_mgr(cm2) : NULL;
-        struct bk_free f = { pl, player_get_combat_mgr(pl), bm ? bm_get_base_x(bm) : 0, bm ? bm_get_base_y(bm) : 0, 0, { 0 } };
+        struct bk_free f = { pl, player_get_combat_mgr(pl), bm ? bm_get_base(bm) : iv2(0, 0), 0, { 0 } };
         if (!f.cm || !bm) return;
         grid_each(bk_free_unit, &f);
         int best = -1, space = 0;

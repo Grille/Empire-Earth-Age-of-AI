@@ -167,8 +167,7 @@ internal int early_cover(ee_player *pl, int x, int y) {
         ee_unit *u = it.u;
         float r, a;
         if (unit_get_owner(u) != pl || unit_get_hp(u) <= 0 || !defence_stats(u, &r, &a) || !early_finished(u)) continue;
-        float dx = (float)(unit_get_x(u) - x), dy = (float)(unit_get_y(u) - y);
-        if (dx * dx + dy * dy <= (r - 0.5f) * (r - 0.5f)) return 1;
+        if ((float)ivec2_dist2(unit_get_tile(u), iv2(x, y)) <= (r - 0.5f) * (r - 0.5f)) return 1;
     }
     return 0;
 }
@@ -178,8 +177,8 @@ internal void early_bait(ee_player *pl, unsigned idx, uint32_t now) {
     st->bait_t = now ? now : 1;
     int bx, by;
     if (!early_base(pl, &bx, &by)) return;
-    static struct { int x, y; float r; } cov[24];
-    static struct { ee_unit *u, *t; int x, y; } en[64];
+    static struct { ivec2 p; float r; } cov[24];      // own towers: where, their reach
+    static struct { ee_unit *u, *t; ivec2 p; } en[64];   // enemy soldiers: where, whom they attack
     int nc = 0, ne = 0;
     for (struct grid_it it = grid_it_box(bx, by, 36, 1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
@@ -188,10 +187,10 @@ internal void early_bait(ee_player *pl, unsigned idx, uint32_t now) {
         ee_player *o = unit_get_owner(u);
         float r, a;
         if (o == pl) {
-            if (nc < 24 && defence_stats(u, &r, &a) && early_finished(u)) { cov[nc].x = unit_get_x(u); cov[nc].y = unit_get_y(u); cov[nc++].r = r; }
+            if (nc < 24 && defence_stats(u, &r, &a) && early_finished(u)) { cov[nc].p = unit_get_tile(u); cov[nc++].r = r; }
         } else if (ne < 64 && o && player_get_index(o) > 0 && is_soldier(td) && is_enemy(pl, o) && seen_by(u, pl)) {
             ee_goal *g = unit_get_goal(u);
-            en[ne].u = u; en[ne].x = unit_get_x(u); en[ne].y = unit_get_y(u);
+            en[ne].u = u; en[ne].p = unit_get_tile(u);
             en[ne++].t = g && goal_is_attack(g) ? goal_get_target(g) : NULL;
         }
     }
@@ -202,22 +201,24 @@ internal void early_bait(ee_player *pl, unsigned idx, uint32_t now) {
         ee_unit_type *td = it.td;
         if (!td || unit_get_owner(u) != pl || unit_get_hp(u) <= 0 || !is_citizen_type(type_get_id(td)) ||
             unit_get_frozen(u) || unit_get_x(u) == -10000) continue;
-        int ux = unit_get_x(u), uy = unit_get_y(u), hit = -1;
+        ivec2 up = unit_get_tile(u);
+        int hit = -1;
         for (int k = 0; k < ne && hit < 0; k++)
-            if (en[k].t == u || (abs(en[k].x - ux) <= 5 && abs(en[k].y - uy) <= 5)) hit = k;
+            if (en[k].t == u || (abs(en[k].p.x - up.x) <= 5 && abs(en[k].p.y - up.y) <= 5)) hit = k;
         if (hit < 0) continue;
         int best = -1;
         float bd = 25.0f * 25.0f;
         for (int c = 0; c < nc; c++) {
-            float dx = (float)(cov[c].x - ux), dy = (float)(cov[c].y - uy), d = dx * dx + dy * dy;
+            float d = (float)ivec2_dist2(cov[c].p, up);
             if (d <= (cov[c].r - 0.5f) * (cov[c].r - 0.5f)) { best = -2; break; }   // covered already: the tower fights
             if (d < bd) { bd = d; best = c; }
         }
         if (best < 0) continue;
         ee_goal *g = unit_get_goal(u);
         if (g && goal_is_attack(g)) continue;   // the militia's: a fight it wins
-        float ex = (float)(cov[best].x - en[hit].x), ey = (float)(cov[best].y - en[hit].y), l = sqrtf(ex * ex + ey * ey);
-        float sx = (float)cov[best].x + 0.5f + (l > 0.5f ? ex / l * 1.5f : 0), sy = (float)cov[best].y + 0.5f + (l > 0.5f ? ey / l * 1.5f : 0);
+        ivec2 cp = cov[best].p, e = ivec2_sub(cp, en[hit].p);   // the tower, from the enemy to it
+        float ex = (float)e.x, ey = (float)e.y, l = sqrtf(ex * ex + ey * ey);
+        float sx = (float)cp.x + 0.5f + (l > 0.5f ? ex / l * 1.5f : 0), sy = (float)cp.y + 0.5f + (l > 0.5f ? ey / l * 1.5f : 0);
         if (g && goal_is_location(g) && fabsf(goal_get_dest_x(g) - sx) < 2 && fabsf(goal_get_dest_y(g) - sy) < 2)
             continue;   // on its way there
         if (unit_goal(u, goal_move(sx, sy), 0, 0x1F40)) sent++;

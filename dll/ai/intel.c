@@ -68,8 +68,7 @@ internal void intel_soldiers(ee_player *pl, int x, int y, int r, float *hp, floa
     for (int k = 0; k < in->n; k++) {
         struct intel_rec *e = &in->r[k];
         if (e->kind != 1 || e->x < 0 || e->t == in->last || in->now - e->t > 300000) continue;
-        int dx = e->x - x, dy = e->y - y;
-        if (dx * dx + dy * dy > r * r) continue;
+        if (ivec2_dist2(iv2(e->x, e->y), iv2(x, y)) > r * r) continue;
         *hp += (float)e->hp; *att += e->att; (*n)++;
         if (pw) *pw += (float)e->hp * e->att;
     }
@@ -92,7 +91,7 @@ struct intel_scan {
     // record a full memory drops, followed the heap - which differs between two runs of the same game, more so under load
     int nlive; ee_unit *live[6000], *by_addr[6000];
     uint8_t floor[16]; int fseen[16];
-    int ne, ex[3000], ey[3000];          // eyes: its and its allies' units
+    int ne; ivec2 eye[3000];             // eyes: its and its allies' units
 };
 internal void intel_unit(ee_unit *u, void *ctx) {
     struct intel_scan *s = ctx;
@@ -101,7 +100,7 @@ internal void intel_unit(ee_unit *u, void *ctx) {
     int oi = player_get_index(o);
     if (oi <= 0 || oi >= 16) return;
     if (s->nlive < 6000) s->live[s->nlive++] = u;
-    if (!is_enemy(s->pl, o)) { if (s->ne < 3000) { s->ex[s->ne] = unit_get_x(u); s->ey[s->ne++] = unit_get_y(u); } return; }
+    if (!is_enemy(s->pl, o)) { if (s->ne < 3000) s->eye[s->ne++] = unit_get_tile(u); return; }
     ee_unit_vis *v = unit_get_vis(u);
     uint16_t *vis = v ? siteown_get_seen(v) : NULL;
     unsigned c = vis ? vis[s->pi] & 0xFF : 0;
@@ -129,11 +128,11 @@ internal void intel_tick(ee_player *pl, uint32_t now) {
     in->last = in->now = now;
     // looked at now
     for (int e = 0; e < s.ne; e++)
-        for (int cx = (s.ex[e] - 8) / INTEL_CELL; cx <= (s.ex[e] + 8) / INTEL_CELL; cx++)
-            for (int cy = (s.ey[e] - 8) / INTEL_CELL; cy <= (s.ey[e] + 8) / INTEL_CELL; cy++) {
+        for (int cx = (s.eye[e].x - 8) / INTEL_CELL; cx <= (s.eye[e].x + 8) / INTEL_CELL; cx++)
+            for (int cy = (s.eye[e].y - 8) / INTEL_CELL; cy <= (s.eye[e].y + 8) / INTEL_CELL; cy++) {
                 if (cx < 0 || cy < 0 || cx >= INTEL_NC || cy >= INTEL_NC) continue;
-                int dx = cx * INTEL_CELL + INTEL_CELL / 2 - s.ex[e], dy = cy * INTEL_CELL + INTEL_CELL / 2 - s.ey[e];
-                if (dx * dx + dy * dy <= 64) in->looked[cx][cy] = now;
+                ivec2 mid = iv2(cx * INTEL_CELL + INTEL_CELL / 2, cy * INTEL_CELL + INTEL_CELL / 2);   // the cell's
+                if (ivec2_dist2(mid, s.eye[e]) <= 64) in->looked[cx][cy] = now;
             }
     // a saved game without memories (made before honest_vision, or without the mod): the buildings of its enemies, as
     // a human loading the game sees them on the explored map. Records without a unit (restored from a save): buildings
@@ -196,7 +195,7 @@ internal void intel_tick(ee_player *pl, uint32_t now) {
         if (e->t != now) {
             int looked = 0, live = intel_live(&s, e->u);   // an eye within 6 tiles of where it was
             for (int q = 0; q < s.ne && e->x >= 0 && !looked; q++)
-                looked = (s.ex[q] - e->x) * (s.ex[q] - e->x) + (s.ey[q] - e->y) * (s.ey[q] - e->y) <= 36;
+                looked = ivec2_dist2(s.eye[q], iv2(e->x, e->y)) <= 36;
             if (e->kind == 0) {
                 keep = !(looked || (!live && now - e->t <= 6000));
                 // a remembered building no longer on the map (destroyed out of sight) keeps its spot but not its pointer:
@@ -262,14 +261,14 @@ internal void cmd_intel(char *out, const char *args) {
 struct vis_scan {
     ee_player *pl, *target;
     int allies;                          // its allies' units are eyes too (shared vision)
-    int ne, ex[4000], ey[4000];          // P's own units and buildings
+    int ne; ivec2 eye[4000];             // P's own units and buildings
     int nu; ee_unit *u[4000];            // the enemies
 };
 internal void vis_unit(ee_unit *u, void *ctx) {
     struct vis_scan *s = ctx;
     ee_player *o = unit_get_owner(u);
     if (unit_get_hp(u) <= 0 || !o || unit_get_x(u) < 0) return;
-    if (o == s->pl || (s->allies && player_get_index(o) > 0 && !is_enemy(s->pl, o))) { if (s->ne < 4000) { s->ex[s->ne] = unit_get_x(u); s->ey[s->ne++] = unit_get_y(u); } }
+    if (o == s->pl || (s->allies && player_get_index(o) > 0 && !is_enemy(s->pl, o))) { if (s->ne < 4000) s->eye[s->ne++] = unit_get_tile(u); }
     else if ((s->target ? o == s->target : is_enemy(s->pl, o)) && player_get_index(o) > 0 && s->nu < 4000) s->u[s->nu++] = u;
 }
 internal void *g_vis_find[16];
@@ -306,7 +305,7 @@ internal void cmd_vis(char *out, const char *args) {
         int kind = fam == 2 || fam == 29 ? 0 : (is_soldier(td) || is_siege(type_get_id(td))) ? 1 : fam == 4 ? 2 : (fam == 3 || fam == 7 || fam == 17) ? 3 : 4;
         float bd = 1e9f;
         for (int e = 0; e < s.ne; e++) {
-            float dx = (float)(s.ex[e] - x), dy = (float)(s.ey[e] - y), d2 = dx * dx + dy * dy;
+            float d2 = (float)ivec2_dist2(s.eye[e], iv2(x, y));
             if (d2 < bd) bd = d2;
         }
         float d = sqrtf(bd);
@@ -326,9 +325,9 @@ internal void cmd_vis(char *out, const char *args) {
             for (int y = 2; y < 148; y += 3) {
                 if (!area_id(x, y, 2) || area_id(x, y, 1)) continue;
                 float m = 1e9f;
-                for (int e = 0; e < s.ne && m > 0; e++) { float dx = (float)(s.ex[e] - x), dy = (float)(s.ey[e] - y), d2 = dx * dx + dy * dy; if (d2 < m) m = d2; }
+                for (int e = 0; e < s.ne && m > 0; e++) { float d2 = (float)ivec2_dist2(s.eye[e], iv2(x, y)); if (d2 < m) m = d2; }
                 for (int k = 0; k < s.nu && m > 0; k++) {
-                    float dx = (float)(unit_get_x(s.u[k]) - x), dy = (float)(unit_get_y(s.u[k]) - y), d2 = dx * dx + dy * dy;
+                    float d2 = (float)ivec2_dist2(unit_get_tile(s.u[k]), iv2(x, y));
                     if (d2 < m) m = d2;
                 }
                 for (int j = 0; j < 5; j++)
@@ -366,8 +365,7 @@ internal void cmd_vistrack(char *out, const char *args) {
     if (na == 4) {
         // appended: several groups can be tracked
         for (int k = 0; k < s.nu && g_vt_n < 32; k++) {
-            int dx = unit_get_x(s.u[k]) - x, dy = unit_get_y(s.u[k]) - y;
-            if (dx * dx + dy * dy <= r * r) g_vt_u[g_vt_n++] = s.u[k];
+            if (ivec2_dist2(unit_get_tile(s.u[k]), iv2(x, y)) <= r * r) g_vt_u[g_vt_n++] = s.u[k];
         }
         REPLY("tracking %d units\n", g_vt_n);
     }
@@ -379,7 +377,7 @@ internal void cmd_vistrack(char *out, const char *args) {
         int ux = unit_get_x(u), uy = unit_get_y(u);
         float bd = 1e9f;
         for (int e = 0; e < s.ne; e++) {
-            float dx = (float)(s.ex[e] - ux), dy = (float)(s.ey[e] - uy), d2 = dx * dx + dy * dy;
+            float d2 = (float)ivec2_dist2(s.eye[e], iv2(ux, uy));
             if (d2 < bd) bd = d2;
         }
         REPLY("  #%d type %d at %d,%d hp %d: value %04X, nearest eye of P%d or allies %.1f\n", k, type_get_id(unit_get_type_data(u)),
