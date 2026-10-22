@@ -102,7 +102,7 @@ internal void intel_unit(ee_unit *u, void *ctx) {
     if (oi <= 0 || oi >= 16) return;
     if (s->nlive < 6000) s->live[s->nlive++] = u;
     if (!is_enemy(s->pl, o)) { if (s->ne < 3000) { s->ex[s->ne] = unit_get_x(u); s->ey[s->ne++] = unit_get_y(u); } return; }
-    uint8_t *v = unit_get_vis(u);
+    ee_unit_vis *v = unit_get_vis(u);
     uint16_t *vis = v ? FIELD(v, 0xC, uint16_t *) : NULL;
     unsigned c = vis ? vis[s->pi] & 0xFF : 0;
     if (!s->fseen[oi] || c < s->floor[oi]) { s->floor[oi] = (uint8_t)c; s->fseen[oi] = 1; }
@@ -165,7 +165,7 @@ internal void intel_tick(ee_player *pl, uint32_t now) {
         ee_unit *u = s.live[k];
         ee_player *o = unit_get_owner(u);
         if (!is_enemy(pl, o)) continue;
-        uint8_t *v = unit_get_vis(u);
+        ee_unit_vis *v = unit_get_vis(u);
         uint16_t *vis = v ? FIELD(v, 0xC, uint16_t *) : NULL;
         int oi = player_get_index(o) & 15;
         if (!vis || (vis[pi] & 0xFF) <= g_vis_floor[pi][oi]) continue;
@@ -280,7 +280,7 @@ internal void vis_owner(ee_unit *u, void *ctx) {   // player objects by index, a
     if (i > 0 && i < 16) g_vis_find[i] = o;
 }
 internal unsigned vis_raw(ee_unit *u, unsigned pi) {
-    uint8_t *v = unit_get_vis(u);
+    ee_unit_vis *v = unit_get_vis(u);
     uint16_t *vis = v ? FIELD(v, 0xC, uint16_t *) : NULL;
     return vis ? vis[pi] : 0xFFFFu;
 }
@@ -384,7 +384,7 @@ internal void cmd_vistrack(char *out, const char *args) {
         }
         REPLY("  #%d type %d at %d,%d hp %d: value %04X, nearest eye of P%d or allies %.1f\n", k, type_get_id(unit_get_type_data(u)),
               ux, uy, unit_get_hp(u), vis_raw(u, (unsigned)p), p, sqrtf(bd));
-        uint8_t *v = unit_get_vis(u);
+        ee_unit_vis *v = unit_get_vis(u);
         uint16_t *vv = v ? FIELD(v, 0xC, uint16_t *) : NULL;
         if (vv) REPLY("      slots 0-7: %04X %04X %04X %04X %04X %04X %04X %04X\n", vv[0], vv[1], vv[2], vv[3], vv[4], vv[5], vv[6], vv[7]);
     }

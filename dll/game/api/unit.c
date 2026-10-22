@@ -4,7 +4,7 @@
 // FIELDS
 internal inline int unit_get_refs(const ee_unit *u) { return FIELD(u, UNIT_REFS, int); }                 // +0x4 references (release 0x4FCAD3)
 internal inline void *unit_get_list_node(const ee_unit *u) { return FIELD(u, UNIT_LIST_NODE, void *); }       // +0x8 its node in the unit list {next, prev}
-internal inline uint8_t *unit_get_vis(const ee_unit *u) { return FIELD(u, UNIT_VIS, uint8_t *); }      // +0x14 visibility: +0xC a uint16 per player, seen
+internal inline ee_unit_vis *unit_get_vis(const ee_unit *u) { return FIELD(u, UNIT_VIS, ee_unit_vis *); }      // +0x14 visibility: +0xC a uint16 per player, seen
 internal inline ee_player *unit_get_owner(const ee_unit *u) { return FIELD(u, UNIT_OWNER, ee_player *); } // +0x18
 internal inline int unit_get_x(const ee_unit *u) { return FIELD(u, UNIT_X, int); }                   // +0x1C tile x (-10000: off the map)
 internal inline int unit_get_y(const ee_unit *u) { return FIELD(u, UNIT_Y, int); }                   // +0x20 tile y

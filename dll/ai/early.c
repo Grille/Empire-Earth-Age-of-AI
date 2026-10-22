@@ -69,7 +69,7 @@ internal void early_slot(ee_player *pl, unsigned idx, int bx, int by, int k, int
     float dx, dy;
     if (p->nf) { dx = p->f[0].dx; dy = p->f[0].dy; }
     else {
-        uint8_t *map = game_map();
+        ee_map *map = game_map();
         int n = map ? (int)map_get_size(map) : 0;
         dx = (float)(n / 2 - bx); dy = (float)(n / 2 - by);
         float l = sqrtf(dx * dx + dy * dy);

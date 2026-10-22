@@ -43,7 +43,7 @@ internal int tower_queued(ee_build_mgr *bm) {   // a tower of the line in the bu
 }
 internal int can_place(ee_player *pl, int type, int x, int y) {
     ee_unit_type *td = type_data(type);
-    uint8_t *map = game_map();
+    ee_map *map = game_map();
     int n = map ? (int)map_get_size(map) : 0, sz = td ? type_get_size(td) : 0;
     if (!td || x < 2 || y < 2 || x >= n - 2 || y >= n - 2) return 0;
     if (sz < 1) sz = 1;
@@ -93,7 +93,7 @@ internal void def_refresh(ee_player *pl, unsigned idx, uint32_t now) {
         float dx, dy;
         if (best >= 0) { dx = (float)(s->x[best] - p->bx); dy = (float)(s->y[best] - p->by); }
         else if (k == 0) {   // nothing seen yet: towards the map centre
-            uint8_t *map = game_map();
+            ee_map *map = game_map();
             int n = map ? (int)map_get_size(map) : 0;
             dx = (float)(n / 2 - p->bx); dy = (float)(n / 2 - p->by);
         } else break;
@@ -231,7 +231,7 @@ internal void defence_tick(ee_player *pl, unsigned idx, uint32_t now) {
             continue;   // or into an enemy army standing there
         // the arc on the map and on land, ends and middle: on an island map an arc into the water (or off the map)
         // crashed the game's wall placement (0x497C3F -> 0x636E30, a null tile object), twice on Small Islands
-        uint8_t *wmap = game_map();
+        ee_map *wmap = game_map();
         int mn = wmap ? (int)map_get_size(wmap) : 0, land = mn > 0;
         for (int q = 0; q <= 2 && land; q++) {
             int qx = q == 0 ? a[0] : q == 1 ? b[0] : cx, qy = q == 0 ? a[1] : q == 1 ? b[1] : cy;

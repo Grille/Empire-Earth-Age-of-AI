@@ -27,11 +27,11 @@ internal int g_measure;        // tests: the measurement runs (autotest, or afte
 internal unsigned g_lead_logged;
 
 internal int tile_height(int x, int y, float *h) {
-    uint8_t *map = game_map();
+    ee_map *map = game_map();
     if (!map) return 0;
     unsigned n = map_get_size(map);
     if (x < 0 || y < 0 || (unsigned)x >= n || (unsigned)y >= n) return 0;
-    uint8_t *t = map_get_tiles(map)[(unsigned)y * n + (unsigned)x];
+    ee_tile *t = map_get_tiles(map)[(unsigned)y * n + (unsigned)x];
     if (!t) return 0;
     *h = tile_get_height(t);
     return 1;

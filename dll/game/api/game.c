@@ -18,7 +18,7 @@ internal inline int gamedata_get_unit_limit_max(const void *gd) { return FIELD(g
 internal inline uint8_t *dmgmodel_map_at(const void *model) { return (uint8_t *)FIELD_AT(model, DMGMODEL_MAP); }
 
 // THE GAME'S DATA (raw/data.h's G_ rows): its globals read through these, typed - NULL / 0 before they exist
-internal inline uint8_t *game_map(void) { return *(uint8_t **)GA(G_MAP); }                   // +0x1816FC its size in tiles
+internal inline ee_map *game_map(void) { return *(ee_map **)GA(G_MAP); }                   // +0x1816FC its size in tiles
 internal inline uint8_t *game_physics(void) { return *(uint8_t **)GA(G_WORLD_CLOCK); }       // EEPhysics: +0xD0 the game time
 internal inline void *game_world(void) { return *(void **)GA(G_WORLD); }                     // the action queue's owner, the UI's
 internal inline void *game_server(void) { return *(void **)GA(G_SERVER); }                   // the lockstep server (EEServer, EEClient)

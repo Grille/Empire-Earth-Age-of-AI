@@ -212,8 +212,8 @@ struct nv_bld { int x[16][64], y[16][64], n[16]; };
 internal void navy_detect(ee_player *pl, unsigned idx, uint32_t now) {
     static struct nv_bld b;
     void *cm = player_get_civ_mgr(pl);
-    ee_build_mgr *bm = cm ? cm_get_build_mgr(cm) : NULL; uint8_t *map = game_map();
-    uint8_t *grid = map ? map_get_grid(map) : NULL;
+    ee_build_mgr *bm = cm ? cm_get_build_mgr(cm) : NULL; ee_map *map = game_map();
+    ee_grid *grid = map ? map_get_grid(map) : NULL;
     unsigned hc = bm ? area_id(bm_get_base_x(bm), bm_get_base_y(bm), 2) : 0;
     if (!hc || !grid) return;
     memset(b.n, 0, sizeof b.n);
@@ -243,7 +243,7 @@ internal void navy_detect(ee_player *pl, unsigned idx, uint32_t now) {
     m->strength = enemies ? (float)across / enemies : 0.0f;
     m->water = all ? (float)sea / all : 0.0f;
     m->kind = !enemies || !across ? NV_LAND : across == enemies ? NV_ISLANDS : NV_MIXED;
-    uint8_t *w = game_map();
+    ee_map *w = game_map();
     if (g_log) fprintf(g_log, "# navy: P%u map at %.1f min: %s (strength %.2f) - %d of %d enemies across the water, water %.0f%% of the map, "
                        "home continent %u; the game's water flag %d, +0xEFA %d\n", idx, now / 60000.0,
                        m->kind == NV_ISLANDS ? "islands" : m->kind == NV_MIXED ? "mixed" : "land", m->strength, across, enemies,

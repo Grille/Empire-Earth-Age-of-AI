@@ -14,7 +14,7 @@
 // body work as in a plain loop:
 //     for (struct grid_it it = grid_it_box(x, y, r, 1); grid_it_next(&it); ) { ee_unit *u = it.u; uint8_t *td = it.td; ... }
 struct grid_it {
-    uint8_t *cells, *cell;        // the grid's cells, the current cell
+    ee_grid_cell *cells, *cell;   // the grid's cells, the current cell
     ee_unit **b;                  // the next entry in it
     ee_unit *u;                   // the unit found
     ee_unit_type *td;             // and its type
@@ -24,8 +24,8 @@ struct grid_it {
 };
 internal struct grid_it grid_it_area(int x0, int y0, int x1, int y1, int once) {   // cells x0..x1, y0..y1 (clamped)
     struct grid_it it = { 0 };
-    uint8_t *map = game_map();
-    uint8_t *grid = map ? map_get_grid(map) : NULL;
+    ee_map *map = game_map();
+    ee_grid *grid = map ? map_get_grid(map) : NULL;
     it.gx = 1; it.x1 = 0;   // nothing unless set below
     if (!grid) return it;
     int nx = grid_get_nx(grid);
@@ -44,8 +44,8 @@ internal struct grid_it grid_it_area(int x0, int y0, int x1, int y1, int once) {
 // the cells covering tiles x-r..x+r, y-r..y+r. C division truncates toward 0: (x - r) / cs is cell 0 for -1..-(cs-1)
 // as well, below that negative and left out by the clamp - as the hand-written loops' `cx < 0` test did
 internal struct grid_it grid_it_box(int x, int y, int r, int once) {
-    uint8_t *map = game_map();
-    uint8_t *grid = map ? map_get_grid(map) : NULL;
+    ee_map *map = game_map();
+    ee_grid *grid = map ? map_get_grid(map) : NULL;
     int cs = grid ? grid_get_cell_size(grid) : 0;
     if (cs <= 0) return grid_it_area(1, 1, 0, 0, once);
     return grid_it_area((x - r) / cs, (y - r) / cs, (x + r) / cs, (y + r) / cs, once);
@@ -68,7 +68,7 @@ internal int grid_it_next(struct grid_it *it) {
         }
         if (it->gx > it->x1) return 0;
         it->cx = it->gx; it->cy = it->gy;
-        it->cell = it->cells + (it->cx * it->ny + it->cy) * 16;
+        it->cell = grid_cell_at(it->cells, it->cx * it->ny + it->cy);
         it->b = cell_get_units_begin(it->cell);
         if (++it->gy > it->y1) { it->gy = it->y0; it->gx++; }
     }
