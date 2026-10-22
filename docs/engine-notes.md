@@ -132,6 +132,16 @@ above 1 down by one, else vf13). Around the attack call-off (0x43033E, at the mo
 subgroup's PathPoints still linked with mIsValid 0 and releases units already back in the pool (from 0x482028 and the
 world's deferred deletions 0x53066A) - the memory handed out twice, the list loops (endless 0x5310B3/0x62FE01) or
 breaks (crashes 0x628D6F, 0x53110D, 0x531131); guarded in attack.c (unit_node_free, hook_unit_release).
+The pool is a stack (the memory given back last is handed out next); +0x2A is set by vf12 and cleared on reuse, so it
+marks a unit back in the pool. Where the stale units came from (2026-10-22): an attack subgroup's waiting units (queue
+at subgroup +0x188, each entry holding a reference) are taken in by vf85 (0x45BD56; air 0x4426CC): front into EDI, pop
+0x482028 (releases the queue's reference), then a member record for EDI (0x455331 -> record ctor 0x461551: record
++0x44 the unit, count + 1; the record's destructor 0x461712 releases it). A unit that died while waiting was held by
+the queue alone: the pop freed it and the record was made for the pooled memory (count 1, +0x2A set). The call-off's
+vf26 (0x45B4FB: per member one more reference, the record's release, its own release) then gave it to the pool a
+second time - the guard above misses that (its count is 1, not 0). Fixed in dll/engine/asg_queue.c: a unit back in
+the pool after the pop is not made a member. The call-off itself (0x454B90 per subgroup: vf71 send home, 0x455C90,
+vf26 members and route released, vf12, the group's reference) frees nothing twice on its own.
 
 ### Ranged attacks and projectiles (dll/engine/aim.c)
 

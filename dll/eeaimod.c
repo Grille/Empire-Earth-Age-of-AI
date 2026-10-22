@@ -377,6 +377,7 @@ internal char __fastcall hook_game_start(void *state, void *edx, uint8_t *setup,
 #include "engine/sound.c"
 #include "engine/select.c"
 #include "engine/drawlist.c"
+#include "engine/asg_queue.c"
 #include "voice/llm.c"
 #include "test/testcmd.c"
 #include "test/testopp.c"
@@ -569,6 +570,7 @@ internal void install(HMODULE self) {
     sound_install(g_aimod_ini, g_autotest ? g_ini : NULL);
     select_install(g_aimod_ini, g_autotest ? g_ini : NULL);
     drawlist_install(g_aimod_ini, g_autotest ? g_ini : NULL);
+    asg_queue_install();
     llm_install(g_aimod_ini, g_autotest ? g_ini : NULL);
     ctl_start(g_autotest || ini_int("general", "control_pipe", 0, g_aimod_ini));
     if (g_autotest && g_auto.game_seed) {
