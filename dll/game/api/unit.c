@@ -79,6 +79,11 @@ internal inline int unit_convert(ee_unit *u, int pi, ee_unit_type *new_td) { ret
 internal inline void unit_unlink(ee_unit *u) { GF(FN_UNIT_UNLINK)(u); }
 internal inline void unit_release(ee_unit *u) { GF(FN_UNIT_RELEASE)(u); }
 
+// an attack's hit points taken (its vtable slot: the game's damage 0x61E0B2), the attacker's player index
+internal inline void unit_damage(ee_unit *u, ee_unit *attacker, int dmg, int player) {
+    ((void (__thiscall *)(ee_unit *, ee_unit *, int, int, int))(*(void ***)u)[GA(SLOT_UNIT_DAMAGE)])(u, attacker, dmg, player, 1);
+}
+
 // HOOKS
 // shots (aim.c): the aim of a unit's and a missile's shot
 typedef void (__cdecl *aim_hook)(ee_unit *u, ee_unit **target, float *aim, void *zero);

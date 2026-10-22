@@ -19,6 +19,8 @@ internal inline ee_unit **cell_get_units_begin(const ee_grid_cell *cell) { retur
 internal inline ee_unit **cell_get_units_end(const ee_grid_cell *cell) { return FIELD(cell, GRIDCELL_UNITS + 0x4, ee_unit **); }
 // a resource site's ownership record (unit_get_vis(site)): +4 1 while the site is flagged (taken)
 internal inline int siteown_get_flag(const ee_unit_vis *so) { return FIELD(so, SITEOWN_FLAG, int); }
+// a unit's visibility: a uint16 per vision slot (player +0x45C, the player's index), its low byte != 0 seen by it
+internal inline uint16_t *siteown_get_seen(const ee_unit_vis *v) { return FIELD(v, SITEOWN_SEEN, uint16_t *); }
 
 // FUNCTIONS
 // the map's area id at pt (kind 1 water, 2 land): one id per connected region

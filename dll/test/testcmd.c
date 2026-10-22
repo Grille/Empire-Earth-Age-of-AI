@@ -459,7 +459,7 @@ internal void cmd_watchtype(char *out, const char *args) {
 }
 
 // hurt P T x y r dmg: damage every object of type T of player P within r tiles of x, y the way an attack does
-// (0x61E0B2: target vf 0x70 thiscall(attacker, damage, attacker's player index, 1)); attacker = the object itself
+// (unit_damage, as the game's 0x61E0B2); attacker = the object itself
 // (tests: destroy farm fields, buildings)
 internal void cmd_hurt(char *out, const char *args) {
     int p, t, x, y, r, dmg, n = 0;
@@ -479,7 +479,7 @@ internal void cmd_hurt(char *out, const char *args) {
         if (!dup) hit[n++] = u;
     }
     for (int k = 0; k < n; k++)   // collected first: a dying object may leave its cell
-        (*(void (__thiscall **)(void *, void *, int, int, int))(FIELD(hit[k], 0, uint8_t *) + 0x70))(hit[k], hit[k], dmg, p, 1);
+        unit_damage(hit[k], hit[k], dmg, p);
     REPLY("ok: %d objects hit for %d\n", n, dmg);
 }
 

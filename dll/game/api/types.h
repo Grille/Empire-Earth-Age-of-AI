@@ -23,6 +23,7 @@ typedef struct ee_attack_cmd ee_attack_cmd;     // AMCMD: its attack commander, 
 typedef struct ee_attack_group ee_attack_group; // AG: an attack group
 typedef struct ee_attack_subgroup ee_attack_subgroup; // ASG: an attack subgroup
 typedef struct ee_asg_unit ee_asg_unit;         // ASGU: a subgroup's unit record
+typedef struct ee_asg_target ee_asg_target;     // ASG_TARGET_REC: a subgroup's target record, inside it
 typedef struct ee_map ee_map;                   // MAP: the map, [G_MAP] (EEMap)
 typedef struct ee_tile ee_tile;                 // TILE: a map tile
 typedef struct ee_grid ee_grid;                 // GRID: the map's unit grid, MAP +0x181724

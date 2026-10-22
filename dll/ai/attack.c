@@ -43,7 +43,7 @@ internal int seen_by(ee_unit *u, ee_player *pl) {
     ee_unit_vis *v = unit_get_vis(u);
     unsigned pi = (unsigned)player_get_index(pl);
     if (!v || pi >= 16) return 0;
-    uint16_t *vis = FIELD(v, 0xC, uint16_t *);
+    uint16_t *vis = siteown_get_seen(v);
     if (!vis) return 0;
     unsigned c = vis[pi] & 0xFF;
     if (!g_honest_vision) return c != 0;
@@ -340,16 +340,14 @@ internal void __thiscall hook_asg_route(ee_attack_subgroup *self, int *start, in
         float t = threat_at(pi, dest[0], dest[1]);
         ee_unit *u = t > 0 && building_at(pl, dest, 4) ? find_weak_spot(pl, pi, start, dest) : NULL;
         if (u) {
-            uint8_t *tg = asg_target_at(self);
+            ee_asg_target *tg = asg_target_at(self);
             if (g_log)
                 fprintf(g_log, "# weak spot: P%u goal %d,%d (threat %.1f, target kind %d id %d) -> type %d of P%d at %d,%d\n",
-                        pi, dest[0], dest[1], t, FIELD(tg, 0x10, int), FIELD(tg, 0xC, int),
+                        pi, dest[0], dest[1], t, asg_target_get_kind(tg), asg_target_get_id(tg),
                         type_get_id(unit_get_type_data(u)), player_get_index(unit_get_owner(u)),
                         unit_get_x(u), unit_get_y(u));
             dest[0] = unit_get_x(u); dest[1] = unit_get_y(u);
-            FIELD(tg, 4, int) = dest[0]; FIELD(tg, 8, int) = dest[1];
-            FIELD(tg, 0xC, int) = unit_get_id(u);
-            FIELD(tg, 0x10, int) = 1;
+            asg_target_set_unit(tg, dest[0], dest[1], unit_get_id(u));
         }
     }
     if (pl && start && dest && g_breach) {
@@ -358,15 +356,13 @@ internal void __thiscall hook_asg_route(ee_attack_subgroup *self, int *start, in
         ee_unit *w = cross ? find_breach(pl, pi, start, dest, cross) : NULL;
         breach_note(pl, self, w ? unit_get_x(w) : -1, w ? unit_get_y(w) : -1);
         if (w) {
-            uint8_t *tg = asg_target_at(self);
+            ee_asg_target *tg = asg_target_at(self);
             if (g_log)
                 fprintf(g_log, "# breach: P%u goal %d,%d: wall crossed at %d,%d (threat %.1f) -> attack wall at %d,%d\n",
                         pi, dest[0], dest[1], unit_get_x(cross), unit_get_y(cross),
                         threat_at(pi, unit_get_x(cross), unit_get_y(cross)), unit_get_x(w), unit_get_y(w));
             dest[0] = unit_get_x(w); dest[1] = unit_get_y(w);
-            FIELD(tg, 4, int) = dest[0]; FIELD(tg, 8, int) = dest[1];
-            FIELD(tg, 0xC, int) = unit_get_id(w);
-            FIELD(tg, 0x10, int) = 1;
+            asg_target_set_unit(tg, dest[0], dest[1], unit_get_id(w));
         }
     }
     if (g_log && pl && start && dest) {

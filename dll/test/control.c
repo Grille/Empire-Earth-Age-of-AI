@@ -666,7 +666,7 @@ internal DWORD WINAPI pipe_thread(LPVOID unused) {
                 unsigned msg = 0, p1 = 0;
                 sscanf(cmd + n, "%x %x", &msg, &p1);
                 ee_world *ui = game_world();
-                void *thread = ui ? FIELD(ui, 0x40, void *) : NULL;
+                void *thread = ui ? world_get_thread(ui) : NULL;
                 typedef long (__thiscall *PostFn)(void *, unsigned long, void *, void *, int);
                 PostFn post = (PostFn)GetProcAddress(GetModuleHandleA("Low-Level Engine.dll"), "?Post@TSThread@@QAEJKPAX0_N@Z");
                 if (thread && post && msg) wsprintfA(reply, "ok: posted %x (result %ld)\n", msg, post(thread, msg, (void *)(uintptr_t)p1, NULL, 1));

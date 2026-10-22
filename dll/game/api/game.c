@@ -9,6 +9,7 @@ internal inline unsigned phys_get_steps_granted(const ee_physics *ph) { return F
 internal inline uint32_t phys_get_time(const ee_physics *ph) { return FIELD(ph, PHYS_TIME, uint32_t); }      // +0xD0 game time (ms)
 internal inline unsigned world_get_seed(const ee_world *w) { return FIELD(w, WORLD_SEED, unsigned); }        // +0x54 the map's seed
 internal inline void world_set_seed(ee_world *w, unsigned v) { FIELD(w, WORLD_SEED, unsigned) = v; }
+internal inline void *world_get_thread(const ee_world *w) { return FIELD(w, WORLD_THREAD, void *); }   // its thread (TSThread::Post)
 
 // THE GAME DATA ([G_GAME_DATA], game_data()): a chat line's time on screen (ms), the unit limits (default, most)
 internal inline int gamedata_get_line_ms(const ee_game_data *gd) { return FIELD(gd, GAMEDATA_LINE_MS, int); }

@@ -43,7 +43,7 @@
 //   EPOCHTECHS   G_EPOCH_TECHS' records
 //   EFFECT       G_EFFECTS' records
 //   ZONE         an AI town or resource zone
-//   SITEOWN      a site's +0x14
+//   SITEOWN      a unit's visibility record, its +0x14 (a site's: its ownership flag too)
 //   CMLIST       the civilization manager's list nodes
 //   MAP          the map, [G_MAP] (EEMap)
 //   TILE         a map tile
@@ -359,6 +359,7 @@
     O(SETUPSLOT_FLAGS, 0x34, 0x34) /* s: as the slot's others (engine-notes.md "Game start") */ \
     O(SETUPSLOT_SIZE, 0x38, 0x38) /* s: a slot's size, the next slot */ \
     O(SITEOWN_FLAG, 0x4, 0x4) /* s */ \
+    O(SITEOWN_SEEN, 0xC, 0xC) /* c: FN_EXPLORED 0x404A8A, AoC's 0x4042E2 */ \
     O(STRATEGY_0x3C, 0x3C, 0x3C) /* s */ \
     O(STRATEGY_0x40, 0x40, 0x40) /* s */ \
     O(TASK_TARGET_PLAYER, 0x20, 0x20) /* c */ \
@@ -473,6 +474,7 @@
     O(USTAT_RELOAD, 0x138, 0x138) /* c: read through a unit's +0x34 */ \
     O(USTAT_HP, 0x144, 0x144) /* c: read through a unit's +0x34 */ \
     O(WORLD_SEED, 0x54, 0x54) /* b */ \
+    O(WORLD_THREAD, 0x40, 0x40) /* b: EEWorld's +0x1C and +0x5C the same in AoC */ \
     O(ZONE_SITES, 0x8, 0x8) /* s */ \
     O(ZONE_DROP, 0x14, 0x14) /* s */ \
     O(ZONE_ACTIVE, 0x18, 0x18) /* s */ \

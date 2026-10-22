@@ -29,7 +29,15 @@ internal inline void asg_set_units_end(ee_attack_subgroup *sg, ee_asg_unit **e) 
 internal inline uint8_t *asg_route_at(const ee_attack_subgroup *sg) { return (uint8_t *)FIELD_AT(sg, ASG_ROUTE); }
 internal inline unsigned asg_get_waypoints(const ee_attack_subgroup *sg) { return FIELD(sg, ASG_WAYPOINTS, unsigned); }
 // +0x100 the target: +4 x, +8 y, +0xC the unit's id, +0x10 its kind (1: a unit)
-internal inline uint8_t *asg_target_at(const ee_attack_subgroup *sg) { return (uint8_t *)FIELD_AT(sg, ASG_TARGET_REC); }
+internal inline ee_asg_target *asg_target_at(const ee_attack_subgroup *sg) { return (ee_asg_target *)FIELD_AT(sg, ASG_TARGET_REC); }
+// its target record: +4 / +8 the place, +0xC the unit's id, +0x10 the kind (1 a unit)
+internal inline int asg_target_get_id(const ee_asg_target *tg) { return FIELD(tg, 0xC, int); }
+internal inline int asg_target_get_kind(const ee_asg_target *tg) { return FIELD(tg, 0x10, int); }
+internal inline void asg_target_set_unit(ee_asg_target *tg, int x, int y, int id) {
+    FIELD(tg, 4, int) = x; FIELD(tg, 8, int) = y;
+    FIELD(tg, 0xC, int) = id;
+    FIELD(tg, 0x10, int) = 1;
+}
 internal inline int asg_get_goal_x(const ee_attack_subgroup *sg) { return FIELD(sg, ASG_GOAL_X, int); }
 internal inline int asg_get_goal_y(const ee_attack_subgroup *sg) { return FIELD(sg, ASG_GOAL_Y, int); }
 internal inline ee_unit *asg_get_target_unit(const ee_attack_subgroup *sg) { return FIELD(sg, ASG_TARGET_UNIT, ee_unit *); } // +0x118

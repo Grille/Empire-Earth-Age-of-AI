@@ -216,6 +216,7 @@
 #define ADDR_NUMBERS_FUNCTIONS(D) \
     D(SLOT_TECH_AVAILABLE, 1, 1)        /* EETechTreeNode: char thiscall(tech) */ \
     D(SLOT_GOAL_PART, 4, 4)             /* EEUGLoadTransport: a unit's part of the load goal */ \
+    D(SLOT_UNIT_DAMAGE, 28, 29)         /* EEUnit: thiscall(unit, attacker, damage, its player index, 1) - an attack's hit points (0x61E0B2); AoC put a stub (ret 4) at 28 */ \
     D(SLOT_TYPE_ASSIGN, 29, 29)         /* EEUnitClass: thiscall(type data, unit), as the game's goal assignment */ \
     D(SLOT_PLAYER_HUMAN, 29, 29)        /* EEPlayer: char thiscall(player) - human (EEHumanPlayer's returns 1; FN_HUMAN_EPOCH's test) */ \
     D(SLOT_UNIT_LIMIT, 31, 31)          /* EEPlayer: int thiscall(player, 0), the unit limit (FN_GAME_LIMIT) */ \
