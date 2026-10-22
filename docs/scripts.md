@@ -37,8 +37,9 @@ One a line; `#` starts a comment.
 
 A line may go on while a `(`, `[` or `{` is open; a block's `{` is on its statement's line. A condition is true as in
 an expression (a number not 0, a text not empty, a list, a player). A `let` in a block (an `if`'s, a loop's) is that
-block's own; a name is never made twice where it is seen - a `let` of a name of the code around, of the game (`epoch`)
-or of the script's functions (`wait`) is a mistake (a pipe command's name may be a variable: `let wave = {...}`).
+block's own; a name is never made twice where it is seen - a `let` or a function's parameter of a name of the code
+around, of the game (`epoch`) or of the script's functions (`wait`) is a mistake (a pipe command's name may be a
+variable: `let wave = {...}`).
 
 A loop that never waits holds the game: a script runs on the game's thread, and the game only goes on while it waits.
 A million rounds of its loops without a `wait` (counted, not timed - every PC stops at the same one) and the script
@@ -100,17 +101,19 @@ script may call).
 
 ## Functions and their names
 
-A function sees its parameters, its own `let`s, and the names of the code around where it was made - those it
-reads, but never changes (`n = 2` in a function where `n` belongs to the code around it is a mistake: give it back
-with `return` instead). Everything runs in order, one thing after another: a function called later still finds the
-names around it as they are then - also a `let` further down (a function made before it may call it). A function
-can be passed on (`every(10s, 0, 1min, row)`), not handed back out of the function it was made in.
+A function sees its parameters, its own `let`s, and the names of the code around where it was made - those it reads
+and sets (`n += 1` in a function changes the `n` around it: the code around sees the new value). Everything runs in
+order, one thing after another: a function called later still finds the names around it as they are then - also a
+`let` further down (a function made before it may call it). A function can be passed on (`every(10s, 0, 1min, row)`),
+not handed back out of the function it was made in (nor put into a variable of the code around).
 
 ```
 let row = (y) => spawn(3, unit.b_guard_tower_bronze, 51, y)
 for i in 1..3 { row(40 + i * 3) }         # towers at 51,43 51,46 51,49
+let checks = 0
 every(10s, 50s, 2min, (run) => {
     objs(3, unit.b_guard_tower_bronze)
+    checks += 1                            # the script's own: 3 after it
     return run == 3 ? stop                 # three times, then on
 })
 ```
@@ -143,9 +146,9 @@ let other = trigger({ when = () => t.fired, run = () => disable(t) })
 
 The triggers are checked in the order they were made, each `run` right after its `when` held, so a trigger made
 after `t` sees `t.fired` in the same check. A mistake in a trigger's function turns that trigger off (logged
-`# texts: trigger <name>: when stopped - ...`); the script and the other triggers go on. The functions read the
-script's own names as they are when they run; the names of a function they were made in as they were then (that
-function has returned). A dry run (`script dryrun`) has the triggers' turns on the way to where the script waits:
+`# texts: trigger <name>: when stopped - ...`); the script and the other triggers go on. The functions read and set
+the script's own names as they are when they run; the names of a function they were made in are a copy made with
+the trigger (that function has returned): as they were then, set in the copy - the trigger's own from then on. A dry run (`script dryrun`) has the triggers' turns on the way to where the script waits:
 end a trigger test with `wait_until(...)`.
 
 ## Several scripts side by side

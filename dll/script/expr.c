@@ -1154,8 +1154,9 @@ internal int x_par_count(const char *par) {   // a vars function's parameters "a
 // ===== THE CHECK: what a file gets when it is read (after its syntax) =====
 // In source order: a name nobody knows (logged with the file and line - in a script a mistake), a function nobody has
 // or with the wrong number of arguments, chance(70), a text compared with a number written as such ("12" == 12), a
-// variable of the code around a function changed in it. The names a function sees: its parameters, what its own
-// body and every body around it assign, the vars, the game's values.
+// variable without its let, read or set before it, made twice where it is seen (a let or parameter hiding another),
+// break outside a loop. The names a function sees: its parameters, its own lets and those of every block and body
+// around it, the vars, the game's values.
 // A scope: a function's (its parameters, its lets) or a block's inside it (blk: an if's, a loop's - the same function).
 // A let is known in its whole block from the start (a function made before it may call it later), but the code of
 // the same function reads it only after it (decl: passed).
@@ -1273,7 +1274,10 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
     }
     case XN_LAMBDA: {
         struct xscope s = { sc, { 0 }, 0, { 0 }, 0 };
-        for (int i = 0; i < n->n_items; i++) xsc_add(&s, n->items[i]->s);
+        for (int i = 0; i < n->n_items; i++) {   // its parameters: none hides a name around it either
+            if (!x_check_new_name(k, n->items[i], n->items[i]->s, sc)) return 0;
+            xsc_add(&s, n->items[i]->s);
+        }
         int loops = k->loops;   // (a break in it is none of a loop around it)
         k->loops = 0;
         int ok = x_check_body(k, n->a, &s);
@@ -1288,9 +1292,8 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
         xsc_pass(sc, n->s);
         return 1;
     case XN_ASSIGN: {
-        int own = 0, f = xsc_find(sc, n->s, strlen(n->s), &own);
+        int f = xsc_find(sc, n->s, strlen(n->s), NULL);   // (the code around's too: set in its own frame)
         if (!f) snprintf(k->whybuf, sizeof k->whybuf, "%s = ...: no variable %s - let %s = ... makes one", n->s, n->s, n->s);
-        else if (!own) snprintf(k->whybuf, sizeof k->whybuf, "%s belongs to the code around this function: read it here, don't change it", n->s);
         else if (f == 2) snprintf(k->whybuf, sizeof k->whybuf, "%s is set before its let", n->s);
         else return x_check(k, n->a, sc);
         return xc_fail(k, n, k->whybuf);
@@ -1371,12 +1374,24 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
 }
 
 // ===== WORKING IT OUT =====
-// A frame: the names a function sees - its parameters and what it assigns (own), and those of the code around it
-// (copied in when it is called: read only). The context's c->fpn / fpv point at them while it runs, so the game's
+// A frame: the names a function sees - its parameters and its lets (own), and those of the code around it (copied in
+// when it is called; read from and set in their own frame, up). The context's c->fpn / fpv point at them while it runs, so the game's
 // values find a player in one (p.soldiers - diplo.c x_path).
 #define XF_MAX 48
-// keep: a frame that outlives its functions (a script's top, a trigger's copy - TRIGGERS) - taken as it is, not copied
-struct xframe { int n, keep; const char *name[XF_MAX]; struct xval val[XF_MAX]; unsigned char own[XF_MAX]; };
+// keep: a frame that outlives its functions (a script's top, a trigger's copy - TRIGGERS) - taken as it is, not copied.
+// up: the frame its function was made in, where the names it copied (own 0) belong - read there when used, set there
+struct xframe { int n, keep; const char *name[XF_MAX]; struct xval val[XF_MAX]; unsigned char own[XF_MAX]; struct xframe *up; };
+internal struct xframe *x_frame_owner(struct xframe *f, const char *name, int *idx) {   // the frame name is its own in
+    for (; f; f = f->up)
+        for (int i = 0; i < f->n; i++) if (f->own[i] && !strcmp(f->name[i], name)) { *idx = i; return f; }
+    return NULL;
+}
+// the code around's variables a function set while it ran, in a frame that goes on (not kept): their values live in
+// what the function's own are freed with - moved below when it returns (x_call_value), up to their frame's own end.
+// base: the running call's first entry
+#define XDIRTY_MAX 256
+internal struct { struct xframe *f; int i; } g_xdirty[XDIRTY_MAX];
+internal int g_xdirty_n, g_xdirty_base;
 struct xfn { const struct xnode *lam; struct xframe *env; };   // a function value: its definition and where it was made
 // err: what is being worked out failed (its mistake told, or none: not an expression); why: what it was; f: the
 // frame of the function (or script) running; ret: a return given (its value in *retv); err_at: the statement it
@@ -1571,7 +1586,16 @@ internal void xe_ident(struct xe *e, const char *name, struct xval *v) {
         }
     }
     for (int i = 0; i < c->fnp; i++)   // a parameter or variable of the function being worked out
-        if (!strcmp(c->fpn[i], name)) { *v = c->fpv[i]; return; }
+        if (!strcmp(c->fpn[i], name)) {
+            struct xframe *f = e->f;
+            int j;
+            if (f && c->fpv == f->val && !f->own[i]) {   // the code around's: as it is now in its own frame (set since?)
+                struct xframe *o = x_frame_owner(f->up, name, &j);
+                if (o) f->val[i] = o->val[j];
+            }
+            *v = c->fpv[i];
+            return;
+        }
     for (int i = 0; i < c->np; i++)
         if (!strcmp(c->pn[i], name)) { xstr_or_num(v, c->pv[i]); return; }
     for (int k = 0; k < 3; k++) {
@@ -1652,8 +1676,9 @@ internal int xv_made_in(const struct xval *v, const struct xframe *f) {   // a f
     for (int i = 0; v->kind == XV_REC && i < v->rec->n; i++) if (xv_made_in(&v->rec->val[i], f)) return 1;
     return 0;
 }
-// call function value fv with its arguments: a frame of its own (the names around where it was made, read only, and
-// its parameters), its body worked out - a value, or a block's return - and its values freed but what it hands back
+// call function value fv with its arguments: a frame of its own (the names around where it was made - copies, read and
+// set in their own frame - and its parameters), its body worked out - a value, or a block's return - and its values
+// freed but what it hands back and what it set in the code around
 internal void x_call_value(struct xe *e, const struct xval *fv, const struct xval *a, int na, struct xval *v) {
     struct xctx *c = e->c;
     const struct xnode *lam = fv->fn->lam;
@@ -1663,6 +1688,7 @@ internal void x_call_value(struct xe *e, const struct xval *fv, const struct xva
     if (!nf) { e->err = 1; return; }
     nf->n = 0;
     nf->keep = 0;   // gone when it returns: what keeps its functions copies it (TRIGGERS)
+    nf->up = fv->fn->env;
     const struct xframe *env = fv->fn->env;
     for (int i = 0; env && i < env->n; i++) { nf->name[nf->n] = env->name[i]; nf->val[nf->n] = env->val[i]; nf->own[nf->n++] = 0; }
     for (int i = 0; i < na; i++) {   // the parameters (one with a name from around it: its own now)
@@ -1680,6 +1706,8 @@ internal void x_call_value(struct xe *e, const struct xval *fv, const struct xva
     struct xmark m = x_mark();
     struct xval rv;
     xnothing(&rv);
+    int dbase = g_xdirty_base;
+    g_xdirty_base = g_xdirty_n;
     c->fpn = nf->name; c->fpv = nf->val; c->fnp = nf->n;
     c->level = 0;
     c->calls++;
@@ -1690,14 +1718,28 @@ internal void x_call_value(struct xe *e, const struct xval *fv, const struct xva
     c->fpn = fpn; c->fpv = fpv; c->fnp = fnp; c->level = level;
     e->f = f0; e->retv = retv0; e->ret = ret;
     if (!e->err && xv_made_in(&rv, nf)) x_fail(e, "a function made inside a function can't be handed out of it");
+    // what it hands back and what it set in the code around: copied aside, its values freed, copied back below
+    int d = g_xdirty_base, kept = d;
+    for (int i = d; i < g_xdirty_n; i++) if (g_xdirty[i].f != nf) g_xdirty[kept++] = g_xdirty[i];   // (its own frame ends)
+    g_xdirty_n = kept;
     struct xregion tmp = { 0 }, *r0 = g_xr;
     g_xr = &tmp;
-    struct xval t;
+    struct xval t, *set = g_xdirty_n > d ? x_alloc((size_t)(g_xdirty_n - d) * sizeof *set) : NULL;
     if (!e->err) xv_copy(&t, &rv);
+    for (int i = d; set && i < g_xdirty_n; i++) xv_copy(&set[i - d], &g_xdirty[i].f->val[g_xdirty[i].i]);
     g_xr = r0;
     x_release(m);
     if (!e->err) xv_copy(v, &t);
+    for (int i = d; set && i < g_xdirty_n; i++) xv_copy(&g_xdirty[i].f->val[g_xdirty[i].i], &set[i - d]);
     x_region_free(&tmp);
+    kept = d;   // the caller's list: one it has already once (each moved above)
+    for (int i = d; i < g_xdirty_n; i++) {
+        int dup = 0;
+        for (int j = dbase; j < kept && !dup; j++) dup = g_xdirty[j].f == g_xdirty[i].f && g_xdirty[j].i == g_xdirty[i].i;
+        if (!dup) g_xdirty[kept++] = g_xdirty[i];
+    }
+    g_xdirty_n = kept;
+    g_xdirty_base = dbase;   // (the caller's: these are its now, also those it set itself before)
     free(nf);
 }
 // the script functions: wait(seconds), wait_until(time), every(step, from, until, f), player(n), cmd(text), the triggers'
@@ -1785,6 +1827,7 @@ internal struct xframe *xt_keep_frame(struct xframe *f, struct xt_memo *m) {
     c->n = f->n;
     c->keep = 1;
     for (int i = 0; i < f->n; i++) { c->name[i] = f->name[i]; c->own[i] = f->own[i]; xt_keep_val(&c->val[i], &f->val[i], m); }
+    c->up = xt_keep_frame(f->up, m);   // (where its copied names belong: kept too, or the script's top)
     return c;
 }
 internal void xt_keep_val(struct xval *dst, const struct xval *src, struct xt_memo *m) {
@@ -2120,13 +2163,33 @@ internal void xe_str(struct xe *e, const struct xnode *n, struct xval *v) {   //
     xstr(v, f);
     free(f);
 }
-// a variable of the running function set: its own (new, or again), never one of the code around it
+// a variable set: the running function's own (new, or again), or one of the code around it in the frame it is its
+// own in - kept there (a frame that stays: in g_xt_keep; one that goes on: moved below when this function returns)
 internal void x_assign(struct xe *e, const char *name, const struct xval *v) {
     struct xframe *f = e->f;
     if (!f) { x_fail(e, "%s = ...: a variable only in a script or a function", name); return; }
     int i = 0;
     while (i < f->n && strcmp(f->name[i], name)) i++;
-    if (i < f->n && !f->own[i]) { x_fail(e, "%s belongs to the code around this function: read it here, don't change it", name); return; }
+    if (i < f->n && !f->own[i]) {
+        int j;
+        struct xframe *o = x_frame_owner(f->up, name, &j);
+        if (!o) { x_fail(e, "%s = ...: its frame is gone", name); return; }
+        if (xv_made_in(v, f)) { x_fail(e, "%s = ...: a function made inside a function can't be handed out of it", name); return; }
+        if (o->keep) {
+            if (!v->has_s && !v->ln && !v->kind && !v->obj) { o->val[j] = *v; o->val[j].s = ""; }   // a number: nothing to keep
+            else xt_keep(&o->val[j], v);
+        } else {
+            int k = g_xdirty_base;
+            while (k < g_xdirty_n && !(g_xdirty[k].f == o && g_xdirty[k].i == j)) k++;
+            if (k == g_xdirty_n) {
+                if (k == XDIRTY_MAX) { x_fail(e, "more than %d variables of the code around set", XDIRTY_MAX); return; }
+                g_xdirty[k].f = o; g_xdirty[k].i = j; g_xdirty_n++;
+            }
+            o->val[j] = *v;
+        }
+        f->val[i] = o->val[j];
+        return;
+    }
     if (i == f->n) { if (f->n == XF_MAX) { x_fail(e, "more than %d names in a function", XF_MAX); return; } f->n++; }
     f->name[i] = name; f->val[i] = *v; f->own[i] = 1;
     e->c->fpn = f->name; e->c->fpv = f->val; e->c->fnp = f->n;
