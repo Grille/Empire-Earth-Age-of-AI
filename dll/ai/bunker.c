@@ -241,7 +241,7 @@ internal void bk_build(ee_player *pl, unsigned pi, uint32_t now) {
     ee_unit_type *od = type_data(FORTRESS_TYPE);
     ee_tech_tree *tt = player_get_tech_tree(pl);
     ee_tech *tech = od && tt ? tech_lookup(tt, type_get_tech(od)) : NULL;
-    int cost = tech && FIELD(tech, OF(TECH, 0x8), uint8_t *) ? FIELD(FIELD(tech, OF(TECH, 0x8), uint8_t *), OF(TECHDATA, 0x28), int) : 350;   // the cost lives in its tech (wood)
+    int cost = tech && tech_get_data(tech) ? techdata_get_cost(tech_get_data(tech), 3) : 350;   // the cost lives in its tech (wood)
     if ((player_stock_at(pl))[3] < cost) { g_bk[pi].need_wood = cost; return; }   // can't pay yet: saved for (bunker_reserve)
     // the drop site nearest the base point without a fortress within 10 tiles
     int bx = bm_get_base_x(bm), by = bm_get_base_y(bm), d[2] = { 0, 0 }, bd = 0x7FFFFFFF;

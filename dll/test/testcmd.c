@@ -11,33 +11,33 @@
 internal void cmd_epochup(char *out, const char *args) {
     int p = atoi(args);
     ee_player *pl = player_at(p);
-    uint8_t *tt = pl ? ((uint8_t *)player_get_tech_tree(pl)) : NULL;
+    ee_tech_tree *tt = pl ? player_get_tech_tree(pl) : NULL;
     if (!tt) { REPLY("error: no player %d\n", p); return; }
-    int e = FIELD(tt, TT_EPOCH, int);
-    epoch_next((ee_tech_tree *)tt);
-    REPLY("P%d epoch %d -> %d\n", p, e, FIELD(tt, TT_EPOCH, int));
+    int e = tt_get_epoch(tt);
+    epoch_next(tt);
+    REPLY("P%d epoch %d -> %d\n", p, e, tt_get_epoch(tt));
 }
 // tech P id...: the player's tech record (tech tree lookup 0x4019A1): first bytes and the data's cost
 internal void cmd_tech(char *out, const char *args) {
     int p = 0, n = 0, id;
     sscanf(args, "%d%n", &p, &n);
     ee_player *pl = (p >= 0 && p < 16) ? g_players[p] : NULL;
-    uint8_t *tt = pl ? ((uint8_t *)player_get_tech_tree(pl)) : NULL;
+    ee_tech_tree *tt = pl ? player_get_tech_tree(pl) : NULL;
     if (!tt) { REPLY("error: no player %d\n", p); return; }
     args += n;
     while (sscanf(args, "%d%n", &id, &n) == 1) {
         args += n;
-        uint8_t *t = (uint8_t *)tech_lookup((ee_tech_tree *)tt, id);
+        ee_tech *t = tech_lookup(tt, id);
         if (!t) { REPLY("%d: none\n", id); continue; }
         REPLY("%d:", id);
-        for (int i = 0; i < 0x20; i++) REPLY(" %02x", t[i]);
-        uint8_t *d = FIELD(t, OF(TECH, 0x8), uint8_t *);
-        if (d) REPLY(" | cost %d,%d,%d,%d,%d", FIELD(d, OF(TECHDATA, 0x24), int), FIELD(d, OF(TECHDATA, 0x28), int), FIELD(d, OF(TECHDATA, 0x2C), int), FIELD(d, OF(TECHDATA, 0x30), int), FIELD(d, OF(TECHDATA, 0x34), int));
-        int ei = d ? FIELD(d, OF(TECHDATA, 0x50), int) : -1;
+        for (int i = 0; i < 0x20; i++) REPLY(" %02x", ((const uint8_t *)t)[i]);
+        ee_tech_data *d = tech_get_data(t);
+        if (d) REPLY(" | cost %d,%d,%d,%d,%d", techdata_get_cost(d, 2), techdata_get_cost(d, 3), techdata_get_cost(d, 4), techdata_get_cost(d, 5), techdata_get_cost(d, 6));
+        int ei = d ? techdata_get_effects(d) : -1;
         REPLY(" | effects %d:", ei);
         if (ei >= 0 && ei <= 0x5DC) {   // effect list 0x93B1B8 + ei*0x10 (+4 ids, +8 count), effect 0x919E70 + id*0x44
             uint8_t *list = epoch_tech_list(ei);
-            unsigned count = FIELD(list, OF(EPOCHTECHS, 0x8), unsigned), *ids = FIELD(list, OF(EPOCHTECHS, 0x4), unsigned *);
+            unsigned count = effects_get_count(list), *ids = effects_get_ids(list);
             for (unsigned k = 0; ids && k < count && k < 16; k++) {
                 if (ids[k] >= 2000) { REPLY(" %u?", ids[k]); continue; }
                 uint8_t *ef = tech_effect(ids[k]);
@@ -54,17 +54,17 @@ internal void cmd_techs(char *out, const char *args) {
     static uint8_t seen[16][16384];
     int p = atoi(args), total = 0;
     ee_player *pl = (p >= 0 && p < 16) ? g_players[p] : NULL;
-    uint8_t *tt = pl ? ((uint8_t *)player_get_tech_tree(pl)) : NULL;
+    ee_tech_tree *tt = pl ? player_get_tech_tree(pl) : NULL;
     if (!tt) { REPLY("error: no player %d\n", p); return; }
-    REPLY("P%d epoch %d, new:", p, FIELD(tt, TT_EPOCH, int));
+    REPLY("P%d epoch %d, new:", p, tt_get_epoch(tt));
     for (int id = 0; id < 16384; id++) {
-        uint8_t *t = (uint8_t *)tech_lookup((ee_tech_tree *)tt, id);
-        int done = t && t[4];
+        ee_tech *t = tech_lookup(tt, id);
+        int done = t && tech_get_researched(t);
         total += done;
         if (done && !seen[p][id] && strlen(out) < 15000) {
-            uint8_t *d = FIELD(t, OF(TECH, 0x8), uint8_t *);
-            REPLY(" %d(e%d", id, FIELD(t, OF(TECH, 0x14), int));
-            if (d) REPLY(" %d/%d/%d/%d/%d", FIELD(d, OF(TECHDATA, 0x24), int), FIELD(d, OF(TECHDATA, 0x28), int), FIELD(d, OF(TECHDATA, 0x2C), int), FIELD(d, OF(TECHDATA, 0x30), int), FIELD(d, OF(TECHDATA, 0x34), int));
+            ee_tech_data *d = tech_get_data(t);
+            REPLY(" %d(e%d", id, tech_get_epoch(t));
+            if (d) REPLY(" %d/%d/%d/%d/%d", techdata_get_cost(d, 2), techdata_get_cost(d, 3), techdata_get_cost(d, 4), techdata_get_cost(d, 5), techdata_get_cost(d, 6));
             REPLY(")");
         }
         seen[p][id] = (uint8_t)done;
@@ -78,11 +78,11 @@ internal void cmd_watchtech(char *out, const char *args) {
     int p = 0, id = 0;
     sscanf(args, "%d %d", &p, &id);
     ee_player *pl = (p >= 0 && p < 16) ? g_players[p] : NULL;
-    uint8_t *tt = pl ? ((uint8_t *)player_get_tech_tree(pl)) : NULL;
-    uint8_t *t = tt ? (uint8_t *)tech_lookup((ee_tech_tree *)tt, id) : NULL;
+    ee_tech_tree *tt = pl ? player_get_tech_tree(pl) : NULL;
+    ee_tech *t = tt ? tech_lookup(tt, id) : NULL;
     if (!t) { REPLY("error: no tech %d for P%d\n", id, p); return; }
-    watch_set((uintptr_t)(t + 4), 1);
-    REPLY("ok: watching tech %d of P%d at %p (researched %d)\n", id, p, t + 4, t[4]);
+    watch_set((uintptr_t)tech_researched_at(t), 1);
+    REPLY("ok: watching tech %d of P%d at %p (researched %d)\n", id, p, (void *)tech_researched_at(t), tech_get_researched(t));
 }
 
 // rlist P: the research manager's per-epoch tech lists (cm+0x40: +0x18 + e*0x10 = vector begin/end of tech ids,
@@ -91,7 +91,7 @@ internal void cmd_rlist(char *out, const char *args) {
     int p = atoi(args);
     ee_player *pl = (p >= 0 && p < 16) ? g_players[p] : NULL;
     void *cm = pl ? player_get_civ_mgr(pl) : NULL;
-    ee_research_mgr *rs = cm ? cm_get_research_mgr(cm) : NULL; uint8_t *tt = pl ? ((uint8_t *)player_get_tech_tree(pl)) : NULL;
+    ee_research_mgr *rs = cm ? cm_get_research_mgr(cm) : NULL; ee_tech_tree *tt = pl ? player_get_tech_tree(pl) : NULL;
     if (!rs || !tt) { REPLY("error: no AI player %d\n", p); return; }
     int cur = rs_get_current(rs);
     REPLY("P%d research epoch %d\n", p, cur);
@@ -100,8 +100,8 @@ internal void cmd_rlist(char *out, const char *args) {
         if (!b || en <= b || en - b > 500) continue;
         REPLY("list %d:", e);
         for (int *q = b; q < en; q++) {
-            uint8_t *t = (uint8_t *)tech_lookup((ee_tech_tree *)tt, *q);
-            REPLY(" %d%s", *q, t && t[4] ? "*" : "");
+            ee_tech *t = tech_lookup(tt, *q);
+            REPLY(" %d%s", *q, t && tech_get_researched(t) ? "*" : "");
         }
         REPLY("\n");
     }

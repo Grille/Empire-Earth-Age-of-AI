@@ -1318,7 +1318,7 @@ internal void ld_bombard_tick(ee_player *pl, unsigned pi, struct landing *l, ee_
                 for (size_t j = 0; j < sizeof tl / sizeof *tl; j++) {
                     ee_unit_type *td = type_data(tl[j]);
                     ee_tech *tech = td && tt ? tech_lookup(tt, type_get_tech(td)) : NULL;
-                    fprintf(g_log, " %d: tech %d/%d avail %d can %d;", tl[j], tech ? FIELD(tech, OF(TECH, 0x4), uint8_t) : -1, tech ? FIELD(tech, OF(TECH, 0x6), uint8_t) : -1,
+                    fprintf(g_log, " %d: tech %d/%d avail %d can %d;", tl[j], tech ? tech_get_researched(tech) : -1, tech ? tech_get_available(tech) : -1,
                             tech ? tech_available(tech) : -1, can_build(pl, tl[j]));
                 }
                 fprintf(g_log, "\n");

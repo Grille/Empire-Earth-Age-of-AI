@@ -10,11 +10,11 @@ struct tech_kids { uint8_t *pos, *end; int tree; };
 internal struct tech_kids tech_kids(ee_tech *node) {
     struct tech_kids k = { NULL, NULL, build_is("aoc") };
     if (k.tree) {
-        k.end = FIELD(node, OF(TECHNODE, 0x28), uint8_t *);
+        k.end = tech_get_kids_end(node);
         k.pos = k.end ? FIELD(k.end, 0, uint8_t *) : NULL;   // the head's left: the first entry
     } else {
-        k.pos = FIELD(node, OF(TECHNODE, 0x24), uint8_t *);
-        k.end = FIELD(node, OF(TECHNODE, 0x28), uint8_t *);
+        k.pos = tech_get_kids_begin(node);
+        k.end = tech_get_kids_end(node);
     }
     return k;
 }

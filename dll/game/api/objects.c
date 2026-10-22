@@ -102,7 +102,6 @@ internal inline int type_get_size(const ee_unit_type *td) { return FIELD(td, OF(
 internal inline uint8_t type_get_behaviours(const ee_unit_type *td) { return FIELD(td, OF(TD, 0x621), uint8_t); } // +0x621 takes a behaviour (stances)
 
 // A PLAYER (EEPlayer, EEComputerPlayer; engine-notes.md "Players", the AI settings table's fields: ai/settings.c)
-internal inline int player_get_unknown_4(const ee_player *pl) { return FIELD(pl, OF(PL, 0x4), int); }        // +0x4 not known (a log prints it)
 // +0x18 / +0x1C: a list of 4-byte entries - not known; the population check's log counts it
 internal inline uint8_t *player_get_list_begin(const ee_player *pl) { return FIELD(pl, OF(PL, 0x18), uint8_t *); }
 internal inline uint8_t *player_get_list_end(const ee_player *pl) { return FIELD(pl, OF(PL, 0x1C), uint8_t *); }
@@ -175,6 +174,47 @@ internal inline uint8_t player_get_cheat(const ee_player *pl) { return FIELD(pl,
 internal inline void player_set_cheat(ee_player *pl, uint8_t v) { FIELD(pl, OF(PL, 0xEFB), uint8_t) = v; }
 internal inline uint8_t player_get_build(const ee_player *pl) { return FIELD(pl, OF(PL, 0xEFC), uint8_t); }
 internal inline void player_set_ignore(ee_player *pl, uint8_t v) { FIELD(pl, OF(PL, 0xF02), uint8_t) = v; }
+
+// A PLAYER'S TECH TREE (EETechTree, player_get_tech_tree(pl))
+internal inline int tt_get_player_index(const ee_tech_tree *tt) { return FIELD(tt, OF(TT, 0x4), int); }     // +0x4
+internal inline int tt_get_epoch(const ee_tech_tree *tt) { return FIELD(tt, OF(TT, 0x4E4), int); }          // +0x4E4 the current epoch (0 = Prehistoric)
+// +0x8 the epoch records, 0x54 apart (Art of Conquest's epoch field lies one record further: 0x538)
+internal inline uint8_t *tt_epoch_rec_at(const ee_tech_tree *tt, int e) { return (uint8_t *)FIELD_AT(tt, OF(TT, 0x8) + e * 0x54); }
+// an epoch record: +0x8 the epoch's tech's data, the new things the epoch needs +0x40 and has +0x48 (0x5BD681)
+internal inline ee_tech_data *ttrec_get_tech_data(const uint8_t *rec) { return FIELD(rec, OF(TTREC, 0x8), ee_tech_data *); }
+internal inline int ttrec_get_needed(const uint8_t *rec) { return FIELD(rec, OF(TTREC, 0x40), int); }
+internal inline int ttrec_get_done(const uint8_t *rec) { return FIELD(rec, OF(TTREC, 0x48), int); }
+
+// A TECH (EETechTreeNode, tech_lookup(tt, id); an epoch's node, its children: game/tech.c)
+internal inline uint8_t tech_get_researched(const ee_tech *t) { return FIELD(t, OF(TECH, 0x4), uint8_t); }   // +0x4 (vf6 sets it)
+internal inline uint8_t *tech_researched_at(const ee_tech *t) { return (uint8_t *)FIELD_AT(t, OF(TECH, 0x4)); }
+internal inline uint8_t tech_get_available(const ee_tech *t) { return FIELD(t, OF(TECH, 0x6), uint8_t); }    // +0x6 (vf1, vf6 test it)
+internal inline ee_tech_data *tech_get_data(const ee_tech *t) { return FIELD(t, OF(TECH, 0x8), ee_tech_data *); } // +0x8
+internal inline ee_tech_tree *tech_get_tree(const ee_tech *t) { return FIELD(t, OF(TECHNODE, 0xC), ee_tech_tree *); } // +0xC its tree
+internal inline int tech_get_epoch(const ee_tech *t) { return FIELD(t, OF(TECH, 0x14), int); }               // +0x14
+// an epoch node's children (game/tech.c): the 2017 update's vector +0x24 .. +0x28, Art of Conquest's map head +0x28
+internal inline uint8_t *tech_get_kids_begin(const ee_tech *t) { return FIELD(t, OF(TECHNODE, 0x24), uint8_t *); }
+internal inline uint8_t *tech_get_kids_end(const ee_tech *t) { return FIELD(t, OF(TECHNODE, 0x28), uint8_t *); }
+
+// A TECH'S DATA (tech_get_data(t): the same for every player)
+// +0x10 .. +0x14 the unit types that make it (its buildings)
+internal inline int *techdata_get_makers_begin(const ee_tech_data *d) { return FIELD(d, OF(TECHDATA, 0x10), int *); }
+internal inline int *techdata_get_makers_end(const ee_tech_data *d) { return FIELD(d, OF(TECHDATA, 0x14), int *); }
+// +0x24 its cost by resource r (2 food .. 6 iron)
+internal inline int techdata_get_cost(const ee_tech_data *d, int r) { return FIELD(d, OF(TECHDATA, 0x24) + (r - 2) * 4, int); }
+internal inline int techdata_get_category(const ee_tech_data *d) { return FIELD(d, OF(TECHDATA, 0x48), int); } // +0x48 (7: a line upgrade)
+internal inline int techdata_get_id(const ee_tech_data *d) { return FIELD(d, OF(TECHDATA, 0x4C), int); }      // +0x4C
+internal inline int techdata_get_effects(const ee_tech_data *d) { return FIELD(d, OF(TECHDATA, 0x50), int); } // +0x50 its effect list (effect_list(i))
+internal inline int techdata_get_unit_type(const ee_tech_data *d) { return FIELD(d, OF(TECHDATA, 0x6C), int); } // +0x6C the unit type it makes (< 0: a tech)
+// +0x7D it counts as one of an epoch's new things (EETechTree::vf4)
+internal inline uint8_t techdata_get_counts(const ee_tech_data *d) { return FIELD(d, OF(TECHDATA, 0x7D), uint8_t); }
+internal inline void techdata_set_counts(ee_tech_data *d, uint8_t v) { FIELD(d, OF(TECHDATA, 0x7D), uint8_t) = v; }
+// +0x81 Art of Conquest: granted by its epoch's line upgrades (only_new)
+internal inline uint8_t techdata_get_aoc_new(const ee_tech_data *d) { return FIELD(d, OF(TECHDATA, 0x81), uint8_t); }
+
+// AN EFFECT LIST (G_EPOCH_TECHS[i], a tech's techdata_get_effects): +0x4 the effect ids, +0x8 their count
+internal inline unsigned *effects_get_ids(const uint8_t *list) { return FIELD(list, OF(EPOCHTECHS, 0x4), unsigned *); }
+internal inline unsigned effects_get_count(const uint8_t *list) { return FIELD(list, OF(EPOCHTECHS, 0x8), unsigned); }
 
 // A CIVILIZATION MANAGER (EECPCivilizationManager, a computer player's +0xB90; Update 0x46E2C7): the AI's managers
 internal inline uint8_t *cm_get_plan(const ee_civ_mgr *cm) { return FIELD(cm, OF(CM, 0x8), uint8_t *); }     // +0x8 the build plan's list

@@ -125,9 +125,9 @@ internal int cv_value(ee_player *pl, int type) {   // the base price, F+W+S+G+I 
     ee_unit_type *obj = type_data(type);
     ee_tech_tree *tt = pl ? player_get_tech_tree(pl) : NULL;
     ee_tech *tech = obj && tt ? tech_lookup(tt, type_get_tech(obj)) : NULL;
-    uint8_t *data = tech ? FIELD(tech, OF(TECH, 0x8), uint8_t *) : NULL;
+    ee_tech_data *data = tech ? tech_get_data(tech) : NULL;
     int v = 0;
-    for (int r = 2; data && r < 7; r++) v += FIELD(data, OF(TECHDATA, 0x24) + (r - 2) * 4, int);
+    for (int r = 2; data && r < 7; r++) v += techdata_get_cost(data, r);
     return v;
 }
 internal int cv_hpmax(ee_unit *u) { return st_maxhp(unit_get_type_data(u), unit_get_stats(u)); }

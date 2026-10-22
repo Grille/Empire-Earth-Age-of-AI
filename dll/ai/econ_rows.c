@@ -18,7 +18,7 @@ internal void log_state(void *rm, const char *phase, uint32_t now) {
     for (int i = 0; i < CM_FLAGS_LEN; i++) fprintf(g_log, "%02x", cm_get_flag(cm, i));
     fputc(',', g_log);
     for (int i = 0; i < PL_TOGGLES_LEN; i++) fprintf(g_log, "%02x", player_get_toggle(pl, i));
-    fprintf(g_log, ",%d\n", FIELD(((void *)player_get_tech_tree(pl)), TT_EPOCH, int));
+    fprintf(g_log, ",%d\n", tt_get_epoch(player_get_tech_tree(pl)));
     fflush(g_log);
     LeaveCriticalSection(&g_lock);
 }

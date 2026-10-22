@@ -53,8 +53,8 @@ internal int mt_line(ee_player *pl, int t) {
     if (!is_army_family(fam)) return MB_UNK;
     ee_tech_tree *tt = player_get_tech_tree(pl);
     ee_tech *tech = tt ? tech_lookup(tt, type_get_tech(td)) : NULL;
-    uint8_t *d = tech ? FIELD(tech, OF(TECH, 0x8), uint8_t *) : NULL;
-    int *b = d ? FIELD(d, OF(TECHDATA, 0x10), int *) : NULL, *e = d ? FIELD(d, OF(TECHDATA, 0x14), int *) : NULL;
+    ee_tech_data *d = tech ? tech_get_data(tech) : NULL;
+    int *b = d ? techdata_get_makers_begin(d) : NULL, *e = d ? techdata_get_makers_end(d) : NULL;
     for (int *p = b; b && e > b && e - b < 16 && p < e; p++) {
         if (*p == UT(B_BARRACKS)) return MB_INF;
         if (*p == UT(B_ARCHERY_RANGE)) return MB_RNG;
@@ -67,14 +67,14 @@ internal void mt_income(ee_player *pl, int type, int amount) {
     if (amount > 0 && type >= 2 && type < 7) g_mt[(unsigned)player_get_index(pl) & 15].inc[type] += amount;
 }
 // a payment (econ.c hook_pay, every player): what = the tech paid
-internal void mt_paid(ee_player *pl, uint8_t *what, const int *before, const int *stock) {
+internal void mt_paid(ee_player *pl, ee_tech *what, const int *before, const int *stock) {
     struct mt_st *m = &g_mt[(unsigned)player_get_index(pl) & 15];
-    uint8_t *d = what ? FIELD(what, OF(TECH, 0x8), uint8_t *) : NULL;
+    ee_tech_data *d = what ? tech_get_data(what) : NULL;
     int b = MB_UNK;
     if (d) {
-        int t = FIELD(d, OF(TECHDATA, 0x6C), int);
+        int t = techdata_get_unit_type(d);
         if (t >= 0 && type_data(t)) b = mt_line(pl, t);
-        else if (FIELD(d, OF(TECHDATA, 0x48), int) == 7) b = MB_UP7;
+        else if (techdata_get_category(d) == 7) b = MB_UP7;
         else {
             b = MB_TECH;
             for (int e = 1; e <= 14; e++) if (d == epoch_tech(pl, e)) { b = MB_EP; break; }
@@ -153,7 +153,7 @@ internal void mt_values(ee_player *pl, unsigned idx) {
         ee_tech *tech = tech_lookup(tt, type_get_tech(type_data(t)));
         int c = 0;
         for (int r = 2; r < 7; r++) c += unit_cost(pl, t, r);
-        if (!tech || !FIELD(tech, OF(TECH, 0x4), uint8_t) || c < 20) continue;   // nothing for free: the Court Jester (0), heroes of scenarios
+        if (!tech || !tech_get_researched(tech) || c < 20) continue;   // nothing for free: the Court Jester (0), heroes of scenarios
         v->type[v->n++] = t;
     }
     // the enemy's mix: (type, owner) -> count

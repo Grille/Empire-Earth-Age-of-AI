@@ -36,7 +36,6 @@
 //   TECH         a tech, FN_TECH_LOOKUP
 //   TECHNODE     a tech tree node (EETechTreeNode)
 //   TECHDATA     a tech's data, TECH +8 (costs, its building ...)
-//   TECHCHILD    a tech node's children
 //   TTREC        the tech tree's epoch records, TT + 8 + epoch * 0x54
 //   EPOCHTECHS   G_EPOCH_TECHS' records
 //   EFFECT       G_EFFECTS' records
@@ -141,8 +140,6 @@
     O(EFFECT, 0x2C, 0x2C, 0x2C) /* v: the tech tree code's reads (unchanged) */ \
     O(EPOCHTECHS, 0x4, 0x4, 0x4) /* v: the tech tree code's reads (unchanged) */ \
     O(EPOCHTECHS, 0x8, 0x8, 0x8) /* v: the tech tree code's reads (unchanged) */ \
-    O(EPOCHTECHS, 0xC, 0xC, 0xC) /* v: the tech tree code's reads (unchanged) */ \
-    O(EPOCHTECHS, 0x10, 0x10, 0x10) /* v: the tech tree code's reads (unchanged) */ \
     O(E_DSTATE, 0x1C, 0x1C, 0x1C) /* c */ \
     O(E_FONT, 0x18, 0x18, 0x18) /* c */ \
     O(E_FONT, 0x24, 0x24, 0x24) /* c */ \
@@ -256,7 +253,6 @@
     O(PHYS, 0x8C, 0x8C, 0x8C) /* c */ \
     O(PHYS, 0xB8, 0xB8, 0xB8) /* c */ \
     O(PHYS, 0xD0, 0xD0, 0xD0) /* c */ \
-    O(PL, 0x4, 0x4, 0x4) /* c */ \
     O(PL, 0x18, 0x18, 0x18) /* c */ \
     O(PL, 0x1C, 0x1C, 0x1C) /* c */ \
     O(PL, 0x24, 0x24, 0x24) /* c */ \
@@ -433,7 +429,6 @@
     O(TECH, 0x6, 0x6, 0x6) /* c: available - vf1 and vf6 test it */ \
     O(TECH, 0x8, 0x8, 0x8) /* v: the tech tree code's reads (unchanged) */ \
     O(TECH, 0x14, 0x14, 0x14) /* v: the tech tree code's reads (unchanged) */ \
-    O(TECHCHILD, 0x8, 0x8, 0x8) /* v: the tech tree code's reads (unchanged) */ \
     O(TECHDATA, 0x10, 0x10, 0x10) /* v: the tech tree code's reads (unchanged) */ \
     O(TECHDATA, 0x14, 0x14, 0x14) /* v: the tech tree code's reads (unchanged) */ \
     O(TECHDATA, 0x24, 0x24, 0x24) /* v: the tech tree code's reads (unchanged) */ \
@@ -447,11 +442,11 @@
     O(TECHDATA, 0x6C, 0x6C, 0x6C) /* v: the tech tree code's reads (unchanged) */ \
     O(TECHDATA, 0x7D, 0x7D, 0x7D) /* v: the tech tree code's reads (unchanged) */ \
     O(TECHDATA, 0x81, 0x81, 0x81) /* h: AoC's epoch upgrades (standard only) grant only a tech with it set: dbtechtree byte 0xF7, clear on civ power and special unit upgrades (0 on all of the 2017 update's) - read in AoC only */ \
-    O(TECHNODE, 0x8, 0x8, 0x8) /* c */ \
     O(TECHNODE, 0xC, 0xC, 0xC) /* c */ \
     O(TECHNODE, 0x24, 0x24, 0x24) /* v */ \
     O(TECHNODE, 0x28, 0x28, 0x28) /* v */ \
     O(TT, 0x4, 0x4, 0x4) /* v */ \
+    O(TT, 0x8, 0x8, 0x8) /* s: the epoch records, 0x54 apart (AoC: one more, its 0x4E4 one record on) */ \
     O(TT, 0x4E4, 0x4E4, 0x538) /* v */ \
     O(TTREC, 0x8, 0x8, 0x8) /* v: the tech tree code's reads (unchanged) */ \
     O(TTREC, 0x40, 0x40, 0x40) /* v: the tech tree code's reads (unchanged) */ \

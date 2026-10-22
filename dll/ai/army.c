@@ -31,9 +31,9 @@ internal int am_raw_cost(ee_player *pl, int type) {
     ee_tech_tree *tt = player_get_tech_tree(pl);
     if (!obj || !tt) return 0;
     ee_tech *tech = tech_lookup(tt, type_get_tech(obj));
-    uint8_t *data = tech ? FIELD(tech, OF(TECH, 0x8), uint8_t *) : NULL;
+    ee_tech_data *data = tech ? tech_get_data(tech) : NULL;
     int c = 0;
-    for (int r = 2; data && r < 7; r++) c += FIELD(data, OF(TECHDATA, 0x24) + (r - 2) * 4, int);
+    for (int r = 2; data && r < 7; r++) c += techdata_get_cost(data, r);
     return c;
 }
 // a military training request through hook_train_units (econ.c), after the call: n trained
@@ -159,8 +159,8 @@ internal int ap_producer(ee_player *pl, int type) {
     ee_unit_type *td = type_data(type);
     ee_tech_tree *tt = player_get_tech_tree(pl);
     ee_tech *t = td && tt ? tech_lookup(tt, type_get_tech(td)) : NULL;
-    uint8_t *d = t ? FIELD(t, OF(TECH, 0x8), uint8_t *) : NULL;
-    int *b = d ? FIELD(d, OF(TECHDATA, 0x10), int *) : NULL, *e = d ? FIELD(d, OF(TECHDATA, 0x14), int *) : NULL;
+    ee_tech_data *d = t ? tech_get_data(t) : NULL;
+    int *b = d ? techdata_get_makers_begin(d) : NULL, *e = d ? techdata_get_makers_end(d) : NULL;
     for (int *p = b; b && e > b && e - b < 16 && p < e; p++)
         for (size_t k = 0; k < sizeof k_ap_land / sizeof *k_ap_land; k++) if (*p == g_ut[k_ap_land[k]]) return *p;
     return 0;
@@ -307,12 +307,12 @@ internal void ap_owned(ee_player *pl, unsigned idx) {
     }
 }
 // a line upgrade's types (effects of kind 0x13): 0 = none, else 1 when one of them is in use
-internal int ap_upg_line(ee_player *pl, unsigned idx, uint8_t *d, int *used) {
-    int ei = FIELD(d, OF(TECHDATA, 0x50), int), n = 0;
+internal int ap_upg_line(ee_player *pl, unsigned idx, ee_tech_data *d, int *used) {
+    int ei = techdata_get_effects(d), n = 0;
     *used = 0;
     if (ei < 0 || ei > 0x5DC) return 0;
     uint8_t *list = epoch_tech_list(ei);
-    unsigned cnt = FIELD(list, OF(EPOCHTECHS, 0x8), unsigned), *ids = FIELD(list, OF(EPOCHTECHS, 0x4), unsigned *);
+    unsigned cnt = effects_get_count(list), *ids = effects_get_ids(list);
     for (unsigned k = 0; ids && k < cnt && k < 64; k++) {
         if (ids[k] >= 2000) continue;
         uint8_t *ef = tech_effect(ids[k]);
@@ -323,11 +323,11 @@ internal int ap_upg_line(ee_player *pl, unsigned idx, uint8_t *d, int *used) {
     }
     return n;
 }
-internal int ap_upgrade_later(ee_player *pl, uint8_t *d) {
+internal int ap_upgrade_later(ee_player *pl, ee_tech_data *d) {
     unsigned idx = (unsigned)player_get_index(pl) & 15;
     int used;
     if (!(ARMY_PLAN(idx) & 16) || !ap_upg_line(pl, idx, d, &used)) return 0;
-    if (used && g_apu[idx].n < 48) g_apu[idx].id[g_apu[idx].n++] = FIELD(d, OF(TECHDATA, 0x4C), int);   // scheduled now (econ.c)
+    if (used && g_apu[idx].n < 48) g_apu[idx].id[g_apu[idx].n++] = techdata_get_id(d);   // scheduled now (econ.c)
     return !used;
 }
 internal int ap_rs_has(ee_research_mgr *rs, int id) {   // in one of the research manager's epoch lists (rs +0x18 + e*0x10)
@@ -344,8 +344,8 @@ internal void ap_upgrades(ee_player *pl, unsigned idx) {
     if (!rs || !tt) return;
     for (int id = 1000; id < 15000; id++) {
         ee_tech *t = tech_lookup(tt, id);
-        uint8_t *d = t ? FIELD(t, OF(TECH, 0x8), uint8_t *) : NULL;
-        if (!d || FIELD(t, OF(TECH, 0x4), uint8_t) || !FIELD(t, OF(TECH, 0x6), uint8_t) || FIELD(d, OF(TECHDATA, 0x48), int) != 7) continue;
+        ee_tech_data *d = t ? tech_get_data(t) : NULL;
+        if (!d || tech_get_researched(t) || !tech_get_available(t) || techdata_get_category(d) != 7) continue;
         int used, k;
         if (!ap_upg_line(pl, idx, d, &used) || !used) continue;
         for (k = 0; k < g_apu[idx].n && g_apu[idx].id[k] != id; k++) ;
@@ -375,15 +375,15 @@ internal void am_pool_log(ee_player *pl, unsigned idx) {
     fprintf(g_log, "# pool: P%u %d techs:", idx, b && e > b ? (int)(e - b) : 0);
     for (int *q = b; b && q < e && q - b < 300; q++) {
         ee_tech *t = tech_lookup(tt, *q);
-        uint8_t *d = t ? FIELD(t, OF(TECH, 0x8), uint8_t *) : NULL;
+        ee_tech_data *d = t ? tech_get_data(t) : NULL;
         if (!d) continue;
         int c = 0;
-        for (int r = 2; r < 7; r++) c += FIELD(d, OF(TECHDATA, 0x24) + (r - 2) * 4, int);
-        fprintf(g_log, " %d(%d%d c%d $%d", *q, FIELD(t, OF(TECH, 0x4), uint8_t), FIELD(t, OF(TECH, 0x6), uint8_t), FIELD(d, OF(TECHDATA, 0x48), int), c);
-        int ei = FIELD(d, OF(TECHDATA, 0x50), int);
+        for (int r = 2; r < 7; r++) c += techdata_get_cost(d, r);
+        fprintf(g_log, " %d(%d%d c%d $%d", *q, tech_get_researched(t), tech_get_available(t), techdata_get_category(d), c);
+        int ei = techdata_get_effects(d);
         if (ei >= 0 && ei <= 0x5DC) {
             uint8_t *list = epoch_tech_list(ei);
-            unsigned n = FIELD(list, OF(EPOCHTECHS, 0x8), unsigned), *ids = FIELD(list, OF(EPOCHTECHS, 0x4), unsigned *);
+            unsigned n = effects_get_count(list), *ids = effects_get_ids(list);
             for (unsigned k = 0; ids && k < n && k < 3; k++) {
                 if (ids[k] >= 2000) continue;
                 uint8_t *ef = tech_effect(ids[k]);
@@ -436,10 +436,10 @@ internal void am_tick(ee_player *pl, uint32_t now) {
     ee_tech_tree *tt = player_get_tech_tree(pl);
     for (int id = 1000; tt && id < 15000; id++) {
         ee_tech *t = tech_lookup(tt, id);
-        if (!t || !FIELD(t, OF(TECH, 0x4), uint8_t)) continue;
-        uint8_t *d = FIELD(t, OF(TECH, 0x8), uint8_t *);
+        if (!t || !tech_get_researched(t)) continue;
+        ee_tech_data *d = tech_get_data(t);
         tech++;
-        if (d && FIELD(d, OF(TECHDATA, 0x48), int) == 7) { up7++; for (int r = 2; r < 7; r++) up7c += FIELD(d, OF(TECHDATA, 0x24) + (r - 2) * 4, int); }
+        if (d && techdata_get_category(d) == 7) { up7++; for (int r = 2; r < 7; r++) up7c += techdata_get_cost(d, r); }
     }
     int *st = player_stock_at(pl);
     int cap = unit_limit(pl);

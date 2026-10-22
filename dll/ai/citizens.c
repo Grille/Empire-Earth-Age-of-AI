@@ -41,8 +41,8 @@ internal void cz_types(ee_player *pl) {
         ee_unit_type *td = type_data(k ? UT(FEMALE_CITIZEN) : UT(CITIZEN));
         g_cz_tech[k] = td ? type_get_tech(td) : -1;
         ee_tech *t = td ? tech_lookup(tt, g_cz_tech[k]) : NULL;
-        uint8_t *d = t ? FIELD(t, OF(TECH, 0x8), uint8_t *) : NULL;
-        int *b = d ? FIELD(d, OF(TECHDATA, 0x10), int *) : NULL, *e = d ? FIELD(d, OF(TECHDATA, 0x14), int *) : NULL;
+        ee_tech_data *d = t ? tech_get_data(t) : NULL;
+        int *b = d ? techdata_get_makers_begin(d) : NULL, *e = d ? techdata_get_makers_end(d) : NULL;
         for (int *p = b; b && e > b && e - b < 16 && p < e; p++) {
             int j;
             for (j = 0; j < g_cz_np && g_cz_ptypes[j] != *p; j++) ;
@@ -414,8 +414,8 @@ internal void wf_log(ee_player *pl, unsigned idx, unsigned min) {
     int rs = 0;
     for (int id = 1000; tt && id < 15000; id++) {
         ee_tech *t = tech_lookup(tt, id);
-        uint8_t *d = t ? FIELD(t, OF(TECH, 0x8), uint8_t *) : NULL;
-        if (d && FIELD(t, OF(TECH, 0x4), uint8_t)) rs += FIELD(d, OF(TECHDATA, 0x30), int) + FIELD(d, OF(TECHDATA, 0x34), int);
+        ee_tech_data *d = t ? tech_get_data(t) : NULL;
+        if (d && tech_get_researched(t)) rs += techdata_get_cost(d, 5) + techdata_get_cost(d, 6);
     }
     if (!w->rs0) w->rs0 = rs ? rs : 1;
     rs -= w->rs0;

@@ -200,11 +200,11 @@ internal int workforce(ee_player *pl);
 internal int g_gather_research = 1;
 internal unsigned g_researched[16];
 internal int is_gather_tech(ee_tech *tech) {
-    uint8_t *d = FIELD(tech, OF(TECH, 0x8), uint8_t *);
-    int ei = d ? FIELD(d, OF(TECHDATA, 0x50), int) : -1;
+    ee_tech_data *d = tech_get_data(tech);
+    int ei = d ? techdata_get_effects(d) : -1;
     if (ei < 0 || ei > 0x5DC) return 0;
     uint8_t *list = epoch_tech_list(ei);
-    unsigned n = FIELD(list, OF(EPOCHTECHS, 0x8), unsigned), *ids = FIELD(list, OF(EPOCHTECHS, 0x4), unsigned *);
+    unsigned n = effects_get_count(list), *ids = effects_get_ids(list);
     for (unsigned k = 0; ids && k < n && k < 64; k++) {
         if (ids[k] >= 2000) continue;
         uint8_t *ef = tech_effect(ids[k]);
@@ -224,7 +224,7 @@ internal void gather_research(ee_player *pl, unsigned idx, uint32_t now) {
     int *b = rs_get_pool_begin(rs), *e = rs_get_pool_end(rs);
     for (int *q = b; b && q < e && e - b < 500; q++) {
         ee_tech *t = tech_lookup(tt, *q);
-        if (!t || FIELD(t, OF(TECH, 0x4), uint8_t) || !FIELD(t, OF(TECH, 0x6), uint8_t) || !is_gather_tech(t)) continue;
+        if (!t || tech_get_researched(t) || !tech_get_available(t) || !is_gather_tech(t)) continue;
         int id = *q;
         memmove(q, q + 1, (size_t)(e - q - 1) * sizeof *q);   // out of the pool, as the planner does
         rs_set_pool_end(rs, e - 1);
@@ -246,7 +246,7 @@ internal void gather_research(ee_player *pl, unsigned idx, uint32_t now) {
 // only a tech with data +0x81 set is granted (the line upgrades; clear on the civ power and special unit upgrades) -
 // and its children in a map (game/tech.c); its vf6 takes an argument (0).
 internal int g_paid_upgrades = 1;
-internal int ap_upgrade_later(ee_player *pl, uint8_t *data);   // army.c
+internal int ap_upgrade_later(ee_player *pl, ee_tech_data *data);   // army.c
 internal void epoch_upgrades(ee_tech *node, int cat, int only_new);
 internal void __fastcall hook_epoch_upgrades(ee_tech *node, void *edx, int cat) {   // the 2017 update's
     (void)edx;
@@ -257,8 +257,8 @@ internal void __fastcall hook_epoch_upgrades_aoc(ee_tech *node, void *edx, int c
     epoch_upgrades(node, cat, only_new & 0xFF);
 }
 internal void epoch_upgrades(ee_tech *node, int cat, int only_new) {
-    ee_tech_tree *tt = FIELD(node, OF(TECHNODE, 0xC), ee_tech_tree *);
-    int pi = tt ? FIELD(tt, OF(TT, 0x4), int) : -1;
+    ee_tech_tree *tt = tech_get_tree(node);
+    int pi = tt ? tt_get_player_index(tt) : -1;
     // the game's own player array, not g_players: back in the scenario editor after a test run the editor sets the
     // computer players' epochs again (here) while g_players still held the test run's deleted players - the game
     // crashed reading one (eeaimod.dll+5e188)
@@ -275,9 +275,9 @@ internal void epoch_upgrades(ee_tech *node, int cat, int only_new) {
     int n = 0;
     ee_tech *c;
     for (struct tech_kids k = tech_kids(node); (c = tech_kid_next(&k)); ) {   // as the original walks them
-        uint8_t *d = FIELD(c, OF(TECHCHILD, 0x8), uint8_t *);
-        if (!d || FIELD(d, OF(TECHDATA, 0x48), int) != 7 || FIELD(c, OF(TECH, 0x4), uint8_t) || (only_new && !d[OF(TECHDATA, 0x81)])) continue;
-        int id = FIELD(d, OF(TECHDATA, 0x4C), int);
+        ee_tech_data *d = tech_get_data(c);
+        if (!d || techdata_get_category(d) != 7 || tech_get_researched(c) || (only_new && !techdata_get_aoc_new(d))) continue;
+        int id = techdata_get_id(d);
         if (ap_upgrade_later(pl, d)) continue;   // army.c army_plan UPGRADE: a line it doesn't use yet
         rs_schedule(rs, id);
         size_t l = strlen(ids);
@@ -317,13 +317,13 @@ internal void attention_note(ee_player *pl, unsigned idx, uint32_t now) {
 // researched and applies it without any payment; logged with its caller.
 internal int __fastcall hook_tech_grant(ee_tech *node, void *edx) {
     (void)edx;
-    uint8_t before = FIELD(node, OF(TECH, 0x4), uint8_t);
+    uint8_t before = tech_get_researched(node);
     int r = tech_grant(node);
-    if (g_log && !before && FIELD(node, OF(TECH, 0x4), uint8_t)) {
-        uint8_t *d = FIELD(node, OF(TECHNODE, 0x8), uint8_t *); ee_player *owner = FIELD(node, OF(TECHNODE, 0xC), ee_player *);
+    if (g_log && !before && tech_get_researched(node)) {
+        ee_tech_data *d = tech_get_data(node); ee_tech_tree *owner = tech_get_tree(node);
         uintptr_t *fp = (uintptr_t *)__builtin_frame_address(0);
         fprintf(g_log, "# techgrant: tech %d player %d at %.2f min, caller %08x, stack",
-                d ? FIELD(d, OF(TECHDATA, 0x4C), int) : -1, owner ? player_get_unknown_4(owner) : -1, game_time() / 60000.0,
+                d ? techdata_get_id(d) : -1, owner ? tt_get_player_index(owner) : -1, game_time() / 60000.0,
                 (unsigned)(uintptr_t)__builtin_return_address(0));
         for (int k = 0; k < 64; k++) {   // return addresses into the exe on the stack
             uintptr_t v = fp[k];
@@ -350,10 +350,10 @@ internal void tech_log_tick(ee_player *pl, unsigned idx, uint32_t now) {
     int o = 0, n = 0, cost[7] = { 0 };
     for (int id = 0; id < 16384; id++) {
         ee_tech *t = tech_lookup(tt, id);
-        int done = t && FIELD(t, OF(TECH, 0x4), uint8_t);
+        int done = t && tech_get_researched(t);
         if (done && !seen[idx][id]) {
-            uint8_t *d = FIELD(t, OF(TECH, 0x8), uint8_t *);
-            for (int r = 2; r < 7 && d; r++) cost[r] += FIELD(d, OF(TECHDATA, 0x24) + (r - 2) * 4, int);
+            ee_tech_data *d = tech_get_data(t);
+            for (int r = 2; r < 7 && d; r++) cost[r] += techdata_get_cost(d, r);
             if (o < 900) o += snprintf(buf + o, sizeof buf - o, " %d", id);
             n++;
         }
@@ -361,7 +361,7 @@ internal void tech_log_tick(ee_player *pl, unsigned idx, uint32_t now) {
     }
     if (n && now > 2000)
         fprintf(g_log, "# techlog: P%u at %.2f min epoch %d: %d new:%s | cost %d/%d/%d/%d/%d | stock %d/%d/%d/%d/%d -> %d/%d/%d/%d/%d\n",
-                idx, now / 60000.0, FIELD(tt, TT_EPOCH, int), n, buf, cost[2], cost[3], cost[4], cost[5], cost[6],
+                idx, now / 60000.0, tt_get_epoch(tt), n, buf, cost[2], cost[3], cost[4], cost[5], cost[6],
                 last_stock[idx][2], last_stock[idx][3], last_stock[idx][4], last_stock[idx][5], last_stock[idx][6],
                 stock[2], stock[3], stock[4], stock[5], stock[6]);
     memcpy(last_stock[idx], stock, sizeof last_stock[idx]);
@@ -403,7 +403,7 @@ internal void gather_log(ee_player *pl, unsigned idx, uint32_t now) {
     LeaveCriticalSection(&g_lock);
 }
 
-internal void mt_paid(ee_player *pl, uint8_t *what, const int *before, const int *stock);   // metal.c: what the gold and iron buy
+internal void mt_paid(ee_player *pl, ee_tech *what, const int *before, const int *stock);   // metal.c: what the gold and iron buy
 internal void mt_income(ee_player *pl, int type, int amount);
 internal void __fastcall hook_pay(ee_player *pl, void *edx, void *what, int b, int c) {
     (void)edx;
@@ -521,7 +521,7 @@ internal int copper_mode(ee_player *pl) {
 internal int follow_held(ee_player *pl) {
     ee_tech_tree *tt = player_get_tech_tree(pl);
     if (cfg_of(pl)->pacing != PACE_FOLLOW || !tt || !human_count()) return 0;
-    return highest_human_epoch() <= FIELD(tt, TT_EPOCH, int);
+    return highest_human_epoch() <= tt_get_epoch(tt);
 }
 // The game's catch-up (FN_EPOCH_CATCH_UP, settings.c): a human reaching an epoch redraws the attempt of every computer
 // player behind it to a few minutes from now. epoch_pacing=timer goes without it - the timer alone counts.
@@ -543,19 +543,19 @@ internal int workforce(ee_player *pl) {
     return n;
 }
 
-internal uint8_t *epoch_tech(ee_player *pl, int e) {
+internal ee_tech_data *epoch_tech(ee_player *pl, int e) {
     ee_tech_tree *tt = player_get_tech_tree(pl);
     if (!tt || e > 13 || e > end_epoch()) return NULL;
-    return FIELD(FIELD_AT(tt, 8 + e * 0x54), OF(TTREC, 0x8), uint8_t *);
+    return ttrec_get_tech_data(tt_epoch_rec_at(tt, e));
 }
 internal int epoch_cost(ee_player *pl, int e, int r) {
-    uint8_t *d = epoch_tech(pl, e);
-    int c = d ? FIELD(d, OF(TECHDATA, 0x24) + (r - 2) * 4, int) : 0;
+    ee_tech_data *d = epoch_tech(pl, e);
+    int c = d ? techdata_get_cost(d, r) : 0;
     return c > 0 ? c : 0;
 }
 internal int current_epoch(ee_player *pl) {
     ee_tech_tree *tt = player_get_tech_tree(pl);
-    return tt ? FIELD(tt, TT_EPOCH, int) : 0;
+    return tt ? tt_get_epoch(tt) : 0;
 }
 
 // EPOCH REQUIREMENTS: an epoch also needs a number of new things of the current epoch (epoch record tt+8+e*0x54:
@@ -575,10 +575,10 @@ internal int g_early_requirements = 1;
 internal int requirements_missing(ee_player *pl) {
     ee_tech_tree *tt = player_get_tech_tree(pl);
     if (!tt) return 0;
-    int next = FIELD(tt, TT_EPOCH, int) + 1;
+    int next = tt_get_epoch(tt) + 1;
     if (next > 13 || next > end_epoch()) return 0;
-    uint8_t *rec = FIELD_AT(tt, 8 + next * 0x54);
-    return FIELD(rec, OF(TTREC, 0x40), int) - FIELD(rec, OF(TTREC, 0x48), int);
+    uint8_t *rec = tt_epoch_rec_at(tt, next);
+    return ttrec_get_needed(rec) - ttrec_get_done(rec);
 }
 // unit type whose first training counts for the next epoch (its tech: object data 0x9418A0[type] +0x4E0)
 internal int requirement_unit(ee_player *pl, int type) {
@@ -586,8 +586,8 @@ internal int requirement_unit(ee_player *pl, int type) {
     ee_unit_type *od = type_data(type);
     if (!g_early_requirements || !tt || !od || requirements_missing(pl) < 1) return 0;
     ee_tech *t = tech_lookup(tt, type_get_tech(od));
-    uint8_t *d = t ? FIELD(t, OF(TECH, 0x8), uint8_t *) : NULL;
-    return d && !FIELD(t, OF(TECH, 0x4), uint8_t) && d[OF(TECHDATA, 0x7D)];
+    ee_tech_data *d = t ? tech_get_data(t) : NULL;
+    return d && !tech_get_researched(t) && techdata_get_counts(d);
 }
 // Decoration (the editor's "x ..." objects: statues, houses, flags, ruins - name at object data +0x1C) counts as
 // an epoch requirement too. When nothing else can be made right now (0x485C8F), the request falls back to every
@@ -607,8 +607,8 @@ internal void decoration_fix(ee_player *pl, unsigned ai) {
         const char *name = od ? type_get_name(od) : NULL;
         if (!name || name[0] != 'x' || name[1] != ' ') continue;
         ee_tech *t = tech_lookup(tt, type_get_tech(od));
-        uint8_t *d = t ? FIELD(t, OF(TECH, 0x8), uint8_t *) : NULL;
-        if (d && d[OF(TECHDATA, 0x7D)]) { d[OF(TECHDATA, 0x7D)] = 0; n++; }
+        ee_tech_data *d = t ? tech_get_data(t) : NULL;
+        if (d && techdata_get_counts(d)) { techdata_set_counts(d, 0); n++; }
     }
     if (g_log) fprintf(g_log, "# epoch plan: P%u: %d decoration objects no longer count as epoch requirements\n", ai, n);
 }
@@ -635,7 +635,7 @@ internal void early_requirements(ee_player *pl, unsigned ai, uint32_t now, int p
     asked[ai] = g_epoch_req_t[ai] = now ? now : 1;
     asked_missing[ai] = missing;
     if (g_log) fprintf(g_log, "# epoch plan: P%u at %.1f min asks for %d new things for epoch %d\n", ai, now / 60000.0,
-                       missing, FIELD(tt, TT_EPOCH, int) + 1);
+                       missing, tt_get_epoch(tt) + 1);
 }
 
 // Per AI tick (from hook_rm_update): pull the epoch attempt forward in the pre-farm epochs once affordable.
@@ -771,17 +771,17 @@ internal void econ_tick(ee_player *pl, uint32_t now) {
     if (g_log && (now < last_wait[pi] || now - last_wait[pi] >= 30000)) {
         last_wait[pi] = now;
         ee_tech_tree *tt = player_get_tech_tree(pl);
-        uint8_t *rec = FIELD_AT(tt, 8 + (ep + 1) * 0x54);
+        uint8_t *rec = tt_epoch_rec_at(tt, ep + 1);
         fprintf(g_log, "# epoch wait: P%u at %.1f min, epoch %d: requirements %d/%d, pending %d, scheduled %d, attention %d;",
-                pi, now / 60000.0, ep + 1, FIELD(rec, OF(TTREC, 0x48), int), FIELD(rec, OF(TTREC, 0x40), int), cm_get_request_out(cm), cm_get_unknown_78(cm), cm_get_att_epoch_techs(cm));
+                pi, now / 60000.0, ep + 1, ttrec_get_done(rec), ttrec_get_needed(rec), cm_get_request_out(cm), cm_get_unknown_78(cm), cm_get_att_epoch_techs(cm));
         // the research manager's list of this epoch: tech id (* researched) building +0x6C, cost food..iron
         ee_research_mgr *rs = cm_get_research_mgr(cm);
         int *b = rs ? rs_get_epoch_begin(rs, ep) : NULL, *en = rs ? rs_get_epoch_end(rs, ep) : NULL;
         for (int *q = b; b && en > b && en - b < 100 && q < en; q++) {
             ee_tech *t = tech_lookup(tt, *q);
-            uint8_t *d = t ? FIELD(t, OF(TECH, 0x8), uint8_t *) : NULL;
-            if (d) fprintf(g_log, " %d%s@%d(%d/%d/%d/%d/%d)", *q, FIELD(t, OF(TECH, 0x4), uint8_t) ? "*" : "", FIELD(d, OF(TECHDATA, 0x6C), int), FIELD(d, OF(TECHDATA, 0x24), int),
-                           FIELD(d, OF(TECHDATA, 0x28), int), FIELD(d, OF(TECHDATA, 0x2C), int), FIELD(d, OF(TECHDATA, 0x30), int), FIELD(d, OF(TECHDATA, 0x34), int));
+            ee_tech_data *d = t ? tech_get_data(t) : NULL;
+            if (d) fprintf(g_log, " %d%s@%d(%d/%d/%d/%d/%d)", *q, tech_get_researched(t) ? "*" : "", techdata_get_unit_type(d), techdata_get_cost(d, 2),
+                           techdata_get_cost(d, 3), techdata_get_cost(d, 4), techdata_get_cost(d, 5), techdata_get_cost(d, 6));
         }
         fputc('\n', g_log);
     }
@@ -1109,7 +1109,7 @@ internal int field_worked(ee_resource_mgr *rm, ee_unit *f) {   // a citizen of t
     // (0x52E5F7 counts only those at the field - one carrying food to the granary left it "free")
     for (int r = 0; r < 7; r++) {
         uint8_t *list = rm_list_at(rm, r);
-        for (unsigned k = 0, first = FIELD(list, OF(EPOCHTECHS, 0xC), unsigned), cnt = FIELD(list, OF(EPOCHTECHS, 0x10), unsigned); k < cnt; k++) {
+        for (unsigned k = 0, first = FIELD(list, 0xC, unsigned), cnt = FIELD(list, 0x10, unsigned); k < cnt; k++) {
             ee_unit *u = deque_at(list, first + k); ee_goal *goal = u ? unit_get_goal(u) : NULL;
             if (goal && goal_get_site(goal) == f && !strcmp(rtti_name(goal), "EEUGGather@@")) return 1;
         }
@@ -1302,7 +1302,7 @@ internal void econ_fields(ee_resource_mgr *rm) {   // before the citizen assignm
         int fx = unit_get_x(todo[i]), fy = unit_get_y(todo[i]), bd = 0x7FFFFFFF, busy = 0;
         for (int r = 0; r < 7 && !busy; r++) {   // a builder already on it?
             uint8_t *list = rm_list_at(rm, r);
-            for (unsigned k = 0, first = FIELD(list, OF(EPOCHTECHS, 0xC), unsigned), cnt = FIELD(list, OF(EPOCHTECHS, 0x10), unsigned); k < cnt; k++) {
+            for (unsigned k = 0, first = FIELD(list, 0xC, unsigned), cnt = FIELD(list, 0x10, unsigned); k < cnt; k++) {
                 ee_unit *u = deque_at(list, first + k); ee_goal *goal = u ? unit_get_goal(u) : NULL;
                 if (goal && goal_get_building(goal) == site && !strcmp(rtti_name(goal), "EEUGBuildRepair@@")) { busy = 1; break; }
             }
@@ -1312,7 +1312,7 @@ internal void econ_fields(ee_resource_mgr *rm) {   // before the citizen assignm
             for (int r = 0; r < 7; r++) {
                 if (pass == 1 ? r != 2 : pass == 2 ? r < 4 : 0) continue;
                 uint8_t *list = rm_list_at(rm, r);
-                for (unsigned k = 0, first = FIELD(list, OF(EPOCHTECHS, 0xC), unsigned), cnt = FIELD(list, OF(EPOCHTECHS, 0x10), unsigned); k < cnt; k++) {
+                for (unsigned k = 0, first = FIELD(list, 0xC, unsigned), cnt = FIELD(list, 0x10, unsigned); k < cnt; k++) {
                     ee_unit *u = deque_at(list, first + k);
                     if (!citizen_free(u, pass == 0)) continue;
                     int dx = unit_get_x(u) - fx, dy = unit_get_y(u) - fy, d = dx * dx + dy * dy;
@@ -1341,7 +1341,7 @@ internal void econ_fields(ee_resource_mgr *rm) {   // before the citizen assignm
             for (int r = pass ? 4 : 0; r < 7; r++) {
                 if (pass && rm_count(rm, r) <= (int)target[r]) continue;   // only a surplus
                 uint8_t *list = rm_list_at(rm, r);
-                for (unsigned k = 0, first = FIELD(list, OF(EPOCHTECHS, 0xC), unsigned), cnt = FIELD(list, OF(EPOCHTECHS, 0x10), unsigned); k < cnt; k++) {
+                for (unsigned k = 0, first = FIELD(list, 0xC, unsigned), cnt = FIELD(list, 0x10, unsigned); k < cnt; k++) {
                     ee_unit *u = deque_at(list, first + k);
                     if (!citizen_free(u, pass == 0)) continue;
                     int dx = unit_get_x(u) - fx, dy = unit_get_y(u) - fy, d = dx * dx + dy * dy;
@@ -1421,9 +1421,9 @@ internal void budget_reserve(ee_player *pl, int reserve[7]) {
     ee_tech_tree *tt = player_get_tech_tree(pl);
     ee_civ_mgr *cm = player_get_civ_mgr(pl);
     if (!tt || !cm) return;
-    int next = FIELD(tt, TT_EPOCH, int) + 1;
+    int next = tt_get_epoch(tt) + 1;
     if (next > 13 || next > end_epoch()) return;   // end epoch of this game
-    uint8_t *data = FIELD(FIELD_AT(tt, 8 + next * 0x54), OF(TTREC, 0x8), uint8_t *);
+    ee_tech_data *data = ttrec_get_tech_data(tt_epoch_rec_at(tt, next));
     if (!data) return;
     if (copper_mode(pl) && next <= FARM_EPOCH) {   // copper_plan=2: only the next epoch's
         for (int r = 2; r < 7; r++)
@@ -1434,7 +1434,7 @@ internal void budget_reserve(ee_player *pl, int reserve[7]) {
     float f = remaining <= 0 ? 1.0f : remaining >= g_reserve_window_ms ? 0.0f
             : 1.0f - (float)remaining / (float)g_reserve_window_ms;
     for (int r = 2; r < 7; r++) {
-        int c = FIELD(data, OF(TECHDATA, 0x24) + (r - 2) * 4, int);
+        int c = techdata_get_cost(data, r);
         reserve[r] = c > 0 ? (int)(c * f) : 0;
     }
 }
@@ -1455,7 +1455,7 @@ internal void spend_reserve(ee_player *pl, unsigned idx, int reserve[7], float *
     ee_tech_tree *tt = player_get_tech_tree(pl);
     ee_civ_mgr *cm = player_get_civ_mgr(pl);
     if (!tt || !cm) return;
-    int ep = FIELD(tt, TT_EPOCH, int), next = ep + 1;
+    int ep = tt_get_epoch(tt), next = ep + 1;
     if (next > 13 || next > end_epoch() || !epoch_tech(pl, next)) return;
     if (copper_mode(pl) && next <= FARM_EPOCH) { budget_reserve(pl, reserve); return; }
     int remaining = (int)(cm_get_timer(cm, 0) - game_time());
@@ -1510,9 +1510,9 @@ internal int unit_cost(ee_player *pl, int type, int r) {
     ee_tech_tree *tt = player_get_tech_tree(pl);
     if (!obj || !tt || r < 2 || r > 6) return 0;
     ee_tech *tech = tech_lookup(tt, type_get_tech(obj));
-    uint8_t *data = tech ? FIELD(tech, OF(TECH, 0x8), uint8_t *) : NULL;
+    ee_tech_data *data = tech ? tech_get_data(tech) : NULL;
     if (!data) return 0;
-    float c = (float)FIELD(data, OF(TECHDATA, 0x24) + (r - 2) * 4, int);
+    float c = (float)techdata_get_cost(data, r);
     if (player_get_cheat(pl)) {
         int d = player_get_difficulty(pl);
         float pct = d == 0 ? (float)player_get_cost_easy(pl) : d == 2 ? (float)player_get_cost_hard(pl) : player_get_cost_medium(pl);
@@ -1581,7 +1581,7 @@ internal int substitute_soldier(ee_player *pl, unsigned idx, const int *vis, int
         for (int t = 0; t < 724; t++) {   // type ids end at 723 (data/db/converteroutput.log); the table ends there
             if (!land_soldier(t) || soldier_score(t) <= 0) continue;   // no attack: never a soldier
             ee_tech *tech = tech_lookup(tt, type_get_tech(type_data(t)));
-            if (!tech || !FIELD(tech, OF(TECH, 0x4), uint8_t)) continue;
+            if (!tech || !tech_get_researched(tech)) continue;
             int n = g_cand[idx].n, k = n < 48 ? n : 47;   // insert sorted by score, strongest first
             while (k > 0 && soldier_score(g_cand[idx].type[k - 1]) < soldier_score(t)) {
                 if (k < 48) g_cand[idx].type[k] = g_cand[idx].type[k - 1];
