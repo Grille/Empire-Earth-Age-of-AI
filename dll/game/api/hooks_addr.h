@@ -11,6 +11,7 @@
     D(CALL_POP_CAP_2, 0x0043FA9B, 0x0043F2F6) \
     D(FN_ADD_MOVIE, 0x00441432, 0x00440E57)                                   /* __thiscall, ret 4 */ \
     D(CALL_ASG_AIR_QUEUE_POP, 0x00442718, 0x00441E02)                        /* EECPASGAir vf85: the waiting units' pop (asg_queue.c) */ \
+    D(RET_ASG_LAND_HANDOFF_GIVE, 0x0044AF88, 0x0044A6A3) \
     D(CALL_GROUP_STAT, 0x00450546, 0x0045122B) \
     D(CALL_ASG_QUEUE_POP, 0x0045BDA2, 0x0045D974)                            /* the other subgroups' vf85 (0x45BD56): the waiting units' pop */ \
     D(CALL_PLACE, 0x00468629, 0x0046B044) \
@@ -21,6 +22,7 @@
     D(FN_ASG_QUEUE_POP, 0x00482028, 0x0048655C)                              /* thiscall(queue): releases the front unit, removes it */ \
     D(CALL_UNIT_TO_GROUP, 0x004824BF, 0x004869F3) \
     D(CALL_SHORE_TO_UNLOAD, 0x00483E24, 0x00488490)                           /* the idle transports' call of FN_SHORE_TO_UNLOAD */ \
+    D(LEFTOVER_SITE_END, 0x0048A2B9, 0x0048EC34)                              /* call sites below this are in the leftover pass 0x48A1AE */ \
     D(CALL_FARMS, 0x0048AC54, 0x0048F643)                                     /* the call of FN_FARMS */ \
     D(CALL_HUNT_1, 0x0048ACE4, 0x0048F6D2)                                    /* the calls of FN_HUNT */ \
     D(CALL_HUNT_2, 0x0048AFC4, 0x0048F9B3) \

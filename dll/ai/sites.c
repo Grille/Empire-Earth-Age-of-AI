@@ -253,7 +253,7 @@ internal void *find_mine_pick(ee_resource_mgr *rm, int type, ee_unit *unit, uint
         ee_unit *r = g_mine_choice && type >= 4 && type < 7 ? select_mine_near_drop(rm, type, unit, -1) : NULL;
         return r ? r : refuse_danger(rm, rm_find_mine(rm, (uintptr_t)type, unit, rev), type == 2, type);
     }
-    if (caller < GA(LEFTOVER_SITE_END) && type >= 2 && type < 7) {
+    if (in_leftover_pass(caller) && type >= 2 && type < 7) {
         // leftover pass: only mines whose resource actually needs more workers
         int have = FIELD(rm, RM_LISTS + type * 0x14 + 0x10, int), want = ((int *)FIELD_AT(rm, RM_TARGET))[type];
         if (have >= want) { trace_site(rm, "find_mine(leftover, not needed)", caller, unit, NULL); return NULL; }

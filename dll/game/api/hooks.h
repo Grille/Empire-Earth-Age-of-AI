@@ -63,6 +63,10 @@ internal inline int mine_site(uintptr_t at) { return site_index(PATCH_LIST(MINE_
 internal inline int unload_site(uintptr_t at) { return site_index(PATCH_LIST(UNLOAD_SITES), at); }  // 7: the unload goal's copy
 internal inline uintptr_t unload_site_at(int i) { return GL(UNLOAD_SITES)[i]; }
 internal inline int unload_from_rm(uintptr_t at) { return at == GA(CALL_UNLOAD_RM); }   // the resource manager's ferry
+// a land subgroup's goal handed over with its unit (the return address of its give_goal call: landing.c)
+internal inline int from_land_handoff(uintptr_t ret) { return ret == GA(RET_ASG_LAND_HANDOFF_GIVE); }
+// a site search called from the citizen assignment's leftover pass (0x48A1AE: its calls lie below LEFTOVER_SITE_END)
+internal inline int in_leftover_pass(uintptr_t at) { return at < GA(LEFTOVER_SITE_END); }
 
 // THE GAME'S RUN (the wiring: eeaimod.c, persist.c; test/autotest.c's command line)
 typedef char (__fastcall *game_start_hook)(void *state, void *edx, uint8_t *setup, void *p2);

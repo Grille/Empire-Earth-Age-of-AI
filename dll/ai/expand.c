@@ -727,7 +727,7 @@ internal void ex_ferry_sail(ee_player *pl, unsigned idx, struct ex_st *x, uint32
         return;
     }
     if (now - x->fsince >= 360000) { ex_ferry_end(pl, idx, x, now, "no landing within 6 minutes - unloaded where it is"); x->next_try = now + 300000; if (!x->ever_ashore) x->active = 0; return; }
-    if (cur && *(uintptr_t *)cur == GA(VT_GOAL_UNLOAD)) return;
+    if (cur && goal_is_unload(cur)) return;
     int x0 = FIELD(sh, OF(UNIT, 0x1C), int), y0 = FIELD(sh, OF(UNIT, 0x20), int), tx = x->ux, ty = x->uy, dx = x0 - x->ux, dy = y0 - x->uy;
     if (dx * dx + dy * dy <= 144) ex_shore(x->cont, x->ocean, x0, y0, 12, &tx, &ty, NULL, NULL);   // off the island: the nearest shore tile with room
     x->orders += unit_goal(sh, ld_unload(sh, tx, ty), 0, 0x1F40);
@@ -980,13 +980,13 @@ internal void ex_outpost(ee_player *pl, unsigned idx, struct ex_st *x, uint32_t 
         for (int q = 0; q < x->nproj; q++) if (x->proj[q].state == 1 && have[q] < want[q] && (j < 0 || x->proj[q].kind == XK_DROP)) j = q;
         int gathering = !strcmp(gn, "EEUGGather@@");
         if (j >= 0 && (!gathering || !drop_ok)) {
-            void *bg = game_new(GA(SIZE_GOAL_BUILD));
+            void *bg = goal_build_alloc();
             if (bg) bg = goal_build_init(bg, pl, x->proj[j].b, 0);
             if (bg && unit_goal(u, bg, 0, 0x1F51)) { have[j]++; nb++; x->orders++; }
             continue;
         }
         if (gathering || !drop_ok || !rm) continue;
-        if (g && (*(uintptr_t *)g == GA(VT_GOAL_LOCATION) || *(uintptr_t *)g == GA(VT_GOAL_ATTACK) || !strcmp(gn, "EEUGBuildRepair@@"))) continue;   // once it stands still
+        if (g && (goal_is_location(g) || goal_is_attack(g) || !strcmp(gn, "EEUGBuildRepair@@"))) continue;   // once it stands still
         ee_unit *s = ex_free_mine(pl, x, dx0, dy0);
         if (!s) continue;
         rm_assign(rm, u, s);

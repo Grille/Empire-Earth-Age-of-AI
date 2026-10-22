@@ -380,7 +380,7 @@ internal int militia_answer(struct cs_scan *s, ee_unit *t, int *nfree) {   // ci
             struct st_result r;   // caught: running is no way out - fight if the citizens still do some good
             st_estimate(&g_mil_own, &g_mil_foe, &r);
             float share = r.time[0] < 1e9f ? r.time[1] / (r.time[0] > 0.1f ? r.time[0] : 0.1f) : 0;
-            int attacking = FIELD(t, OF(UNIT, 0x1EC), uint8_t *) && *(uintptr_t *)FIELD(t, OF(UNIT, 0x1EC), uint8_t *) == GA(VT_GOAL_ATTACK);
+            int attacking = FIELD(t, OF(UNIT, 0x1EC), uint8_t *) && goal_is_attack(FIELD(t, OF(UNIT, 0x1EC), uint8_t *));
             if (!attacking || fast <= cspeed * 1.1f || share < g_militia_share) return 0;
             g_militia_caught[(unsigned)FIELD(s->pl, PL_INDEX, int) & 15]++;
         }
@@ -392,7 +392,7 @@ internal int militia_answer(struct cs_scan *s, ee_unit *t, int *nfree) {   // ci
         ee_unit *u = s->civ[c];
         if (!u || abs(s->cx[c] - x) > 10 || abs(s->cy[c] - y) > 10) continue;
         uint8_t *g = FIELD(u, OF(UNIT, 0x1EC), uint8_t *);
-        if (g && *(uintptr_t *)g == GA(VT_GOAL_ATTACK)) { s->civ[c] = NULL; continue; }   // already fighting
+        if (g && goal_is_attack(g)) { s->civ[c] = NULL; continue; }   // already fighting
         if (g && strcmp(rtti_name(g), "EEUGGather@@")) continue;   // building, walking: leave it
         if (unit_goal(u, goal_attack(u, t), 0, 0x1F40)) ordered++;
         s->civ[c] = NULL;   // one target per citizen per tick
@@ -414,7 +414,7 @@ internal void militia(ee_player *pl, unsigned idx, struct cs_scan *s, uint32_t n
             uint8_t *bs = FIELD(t, OF(UNIT, 0x30), uint8_t *);
             float r, a;
             if (bs && !FIELD(bs, OF(UNIT, 0x340), uint8_t) && defence_stats(t, &r, &a)) why = 1;   // a tower going up
-        } else if (early && *(uintptr_t *)g == GA(VT_GOAL_ATTACK) && (t = FIELD(g, OF(GOAL, 0x30), ee_unit *)) && unit_owner(t) == pl)
+        } else if (early && goal_is_attack(g) && (t = FIELD(g, OF(GOAL, 0x30), ee_unit *)) && unit_owner(t) == pl)
             why = 2;   // attacking one of ours
         if (!why) continue;
         int close = 0;
@@ -474,7 +474,7 @@ internal void counter_siege(ee_player *pl, unsigned idx, uint32_t now) {
             uint8_t *g = FIELD(u, OF(UNIT, 0x1EC), uint8_t *);
             int dx = FIELD(u, OF(UNIT, 0x1C), int) - x, dy = FIELD(u, OF(UNIT, 0x20), int) - y, d2 = dx * dx + dy * dy;
             if (d2 > 400) continue;
-            if (g && *(uintptr_t *)g == GA(VT_GOAL_ATTACK)) {
+            if (g && goal_is_attack(g)) {
                 ee_unit *t = FIELD(g, OF(GOAL, 0x30), ee_unit *);
                 int mine = t == e;
                 for (int b = 0; b < nbl && !mine; b++) mine = t == bl[b];
@@ -768,7 +768,7 @@ internal void muster(ee_player *pl, unsigned idx, uint32_t now) {
         uint8_t *goal = FIELD(u, OF(UNIT, 0x1EC), uint8_t *);
         float dx = (float)FIELD(u, OF(UNIT, 0x1C), int) - g_mus[idx].rx, dy = (float)FIELD(u, OF(UNIT, 0x20), int) - g_mus[idx].ry;
         if (dx * dx + dy * dy <= 36) continue;
-        if (goal && *(uintptr_t *)goal == GA(VT_GOAL_LOCATION) && fabsf(FIELD(goal, OF(GOAL, 0x20), float) - g_mus[idx].rx) < 2 &&
+        if (goal && goal_is_location(goal) && fabsf(FIELD(goal, OF(GOAL, 0x20), float) - g_mus[idx].rx) < 2 &&
             fabsf(FIELD(goal, OF(GOAL, 0x24), float) - g_mus[idx].ry) < 2) continue;
         if (unit_goal(u, goal_move(g_mus[idx].rx, g_mus[idx].ry), 0, 0x1F40)) ordered++;
     }
@@ -873,7 +873,7 @@ internal void hold_town(ee_player *pl, unsigned idx, uint32_t now) {
         uint8_t *g = FIELD(u, OF(UNIT, 0x1EC), uint8_t *);
         if (assault_has_unit(pl, u)) { set_behaviour(u, 5); continue; }   // the assault leads them
         if (landing_has_unit(pl, u)) continue;   // so does the landing (it ordered loaded transports at their docks against raiders)
-        if (g && *(uintptr_t *)g == GA(VT_GOAL_LOCATION)) {
+        if (g && goal_is_location(g)) {
             float dx = FIELD(g, OF(GOAL, 0x20), float) - (float)s->bx, dy = FIELD(g, OF(GOAL, 0x24), float) - (float)s->by;
             if (dx * dx + dy * dy > 35.0f * 35.0f) { set_behaviour(u, 5); continue; }   // marching out
         }
@@ -928,7 +928,7 @@ internal void hold_town(ee_player *pl, unsigned idx, uint32_t now) {
             changed += set_behaviour(u, 2);
             float ux = (float)FIELD(u, OF(UNIT, 0x1C), int) - hx, uy = (float)FIELD(u, OF(UNIT, 0x20), int) - hy;
             if (ux * ux + uy * uy <= 16.0f) continue;
-            if (g && *(uintptr_t *)g == GA(VT_GOAL_LOCATION) && fabsf(FIELD(g, OF(GOAL, 0x20), float) - hx) < 2 && fabsf(FIELD(g, OF(GOAL, 0x24), float) - hy) < 2) continue;
+            if (g && goal_is_location(g) && fabsf(FIELD(g, OF(GOAL, 0x20), float) - hx) < 2 && fabsf(FIELD(g, OF(GOAL, 0x24), float) - hy) < 2) continue;
             unit_goal(u, goal_move(hx + (float)(k % 5) - 2.0f, hy + (float)(k / 5 % 5) - 2.0f), 0, 0x1F40);
         }
         g_hold_st[idx].set += (unsigned)changed;

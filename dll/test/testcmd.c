@@ -256,7 +256,7 @@ internal void cmd_spawn(char *out, const char *args) {
     while (side * side < n) side++;
     for (int i = 0; i < n; i++) {
         float xy[2] = { (float)(x + (i % side) * 2) + 0.5f, (float)(y + (i / side) * 2) + 0.5f };
-        void *msg = game_new(GA(SIZE_NEW_UNIT_MSG));
+        void *msg = new_unit_msg_alloc();
         if (!msg) { REPLY("error: out of memory\n"); return; }
         new_unit_msg_init(msg, &type, xy, (char)p);
         server_send_all(srv, msg);
@@ -279,7 +279,7 @@ internal void cmd_spawnline(char *out, const char *args) {
     for (int i = 0; i <= len; i += step) {
         float xy[2] = { (float)x0 + (len ? (float)(dx * i) / (float)len : 0) + 0.5f,
                         (float)y0 + (len ? (float)(dy * i) / (float)len : 0) + 0.5f };
-        void *msg = game_new(GA(SIZE_NEW_UNIT_MSG));
+        void *msg = new_unit_msg_alloc();
         if (!msg) break;
         new_unit_msg_init(msg, &type, xy, (char)p);
         server_send_all(srv, msg);
@@ -429,7 +429,7 @@ internal void cmd_build(char *out, const char *args) {
     }
     if (!bld) { REPLY("error: no building of P%d at %d,%d\n", p, bx, by); return; }
     for (int k = 0; k < nc; k++) {
-        void *g = game_new(GA(SIZE_GOAL_BUILD));
+        void *g = goal_build_alloc();
         if (g) g = goal_build_init(g, pl, bld, 1);
         n += unit_goal(civ[k], g, 0, 0x1F51);
     }

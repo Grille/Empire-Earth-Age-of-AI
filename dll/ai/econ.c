@@ -1321,7 +1321,7 @@ internal void econ_fields(ee_resource_mgr *rm) {   // before the citizen assignm
                 }
             }
         if (!best) break;
-        void *goal = game_new(GA(SIZE_GOAL_BUILD));
+        void *goal = goal_build_alloc();
         if (!goal) break;
         goal_build_init(goal, pl, todo[i], 1);
         unit_set_goal(best, goal, 0, 0);

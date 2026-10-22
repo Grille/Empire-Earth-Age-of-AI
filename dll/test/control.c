@@ -114,7 +114,7 @@ internal int queue_pause_toggle(void) {
     void **client = *(void ***)GA(G_SERVER);
     if (!client || !((uint32_t *)client)[4]) return 0;
     if (!((char (__thiscall *)(void *))(*(void ***)client)[4])(client)) return 0;
-    uint8_t *act = game_new(GA(SIZE_PAUSE_ACTION));
+    uint8_t *act = pause_action_alloc();
     if (!act) return 0;
     queue_action(pause_action_init(act));
     return 1;
@@ -134,7 +134,7 @@ internal void cmd_save(char *out, const char *args) {
     struct ustring upath, udir;
     ustring_init(&upath); ustring_set(&upath, path);
     ustring_init(&udir); ustring_set(&udir, "data\\Saved Games\\");   // relative to the game folder
-    uint8_t *act = game_new(GA(SIZE_SAVE_ACTION));
+    uint8_t *act = save_action_alloc();
     if (!act) { ustring_free(&upath); ustring_free(&udir); REPLY("error: out of memory\n"); return; }
     // the ctor takes the folder by value and destroys its copy: ownership passes with the bytes
     save_action_init(act, &upath, 1, udir);
@@ -176,7 +176,7 @@ internal void cmd_camera(char *out, const char *args) {
     if (sscanf(args, "%d %d", &x, &y) == 2) {
         uint32_t size = *(uint32_t *)(*(uint8_t **)GA(G_MAP) + OF(MAP, 0x1816FC));
         if (x < 0 || y < 0 || (uint32_t)x >= size || (uint32_t)y >= size) { REPLY("error: tile outside map (size %u)\n", size); return; }
-        void *act = game_new(GA(SIZE_CAMERA_ACTION));
+        void *act = camera_action_alloc();
         if (!act) { REPLY("error: alloc\n"); return; }
         act = camera_action_init(act);
         camera_action_set(act, x, y);

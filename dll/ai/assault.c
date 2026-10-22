@@ -197,10 +197,10 @@ internal int as_in_wave(struct assault *a, ee_unit *u) {
 }
 internal int as_goal_near(ee_unit *u, float x, float y, float r) {   // walking there already
     uint8_t *g = FIELD(u, OF(UNIT, 0x1EC), uint8_t *);
-    return g && *(uintptr_t *)g == GA(VT_GOAL_LOCATION) && fabsf(FIELD(g, OF(AG, 0x20), float) - x) < r && fabsf(FIELD(g, OF(AG, 0x24), float) - y) < r;
+    return g && goal_is_location(g) && fabsf(FIELD(g, OF(AG, 0x20), float) - x) < r && fabsf(FIELD(g, OF(AG, 0x24), float) - y) < r;
 }
 internal int as_fighting(ee_unit *u) {
-    uint8_t *g = FIELD(u, OF(UNIT, 0x1EC), uint8_t *), *t = g && *(uintptr_t *)g == GA(VT_GOAL_ATTACK) ? FIELD(g, OF(AG, 0x30), uint8_t *) : NULL;
+    uint8_t *g = FIELD(u, OF(UNIT, 0x1EC), uint8_t *), *t = g && goal_is_attack(g) ? FIELD(g, OF(AG, 0x30), uint8_t *) : NULL;
     return t && FIELD(t, OF(UNIT, 0x3C), int) > 0;
 }
 
@@ -269,7 +269,7 @@ internal void assault_tick(ee_player *pl, uint32_t now) {
         while (j < nt && tgt[j] != t) j++;
         if (j == nt) { if (nt == 16) continue; tgt[nt++] = t; }
         for (uint8_t **sp = FIELD(g, OF(AG, 0x8), uint8_t **); sp && sp < FIELD(g, OF(AG, 0xC), uint8_t **); sp++)
-            if (*sp && *(uintptr_t *)*sp == GA(VT_ASG_LAND)) tn[j] += (int)(FIELD(*sp, OF(ASG, 0x58), uint8_t **) - FIELD(*sp, OF(ASG, 0x54), uint8_t **));
+            if (*sp && asg_is_land(*sp)) tn[j] += (int)(FIELD(*sp, OF(ASG, 0x58), uint8_t **) - FIELD(*sp, OF(ASG, 0x54), uint8_t **));
     }
     ee_player *target = NULL;
     for (int j = 0, bestn = 0; j < nt; j++) if (tn[j] > bestn) { bestn = tn[j]; target = tgt[j]; }
@@ -304,7 +304,7 @@ internal void assault_tick(ee_player *pl, uint32_t now) {
         if (!g || FIELD(g, OF(AG, 0x48), ee_player *) != target) continue;
         for (uint8_t **sp = FIELD(g, OF(AG, 0x8), uint8_t **); sp && sp < FIELD(g, OF(AG, 0xC), uint8_t **); sp++) {
             uint8_t *sg = *sp;
-            if (!sg || *(uintptr_t *)sg != GA(VT_ASG_LAND) || ntaken == 64) continue;
+            if (!sg || !asg_is_land(sg) || ntaken == 64) continue;
             int aboard = 0, m0 = n;
             for (uint8_t **r = FIELD(sg, OF(ASG, 0x54), uint8_t **); r && r < FIELD(sg, OF(ASG, 0x58), uint8_t **); r++) {
                 ee_unit *u = *r ? FIELD(*r, OF(ASGU, 0x44), ee_unit *) : NULL;

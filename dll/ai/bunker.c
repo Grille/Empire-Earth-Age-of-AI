@@ -97,7 +97,7 @@ internal int bk_hurt_recent(unsigned pi, int x, int y, int r, uint32_t ms) {
 struct bk_own { ee_player *pl; int nf, nall; ee_unit *f[8], *all[8]; int nw; ee_unit *w[256]; };
 internal ee_unit *bk_walking_into(ee_unit *u) {   // the holder unit u walks into (its load goal's part), else NULL
     uint8_t *g = FIELD(u, OF(UNIT, 0x1EC), uint8_t *);
-    ee_unit *h = g && *(uintptr_t *)g == GA(VT_GOAL_LOAD) ? FIELD(g, OF(GOAL, 0x50), ee_unit *) : NULL;
+    ee_unit *h = g && goal_is_load(g) ? FIELD(g, OF(GOAL, 0x50), ee_unit *) : NULL;
     return h != u ? h : NULL;   // the holder's own goal names itself
 }
 internal void bk_own_unit(ee_unit *u, void *ctx) {   // finished ones (f) and foundations too (all); who walks in (w)
@@ -202,7 +202,7 @@ internal int bk_builders(ee_player *pl, ee_unit *b, int n) {
             }
         }
         if (!best) break;
-        void *goal = game_new(GA(SIZE_GOAL_BUILD));
+        void *goal = goal_build_alloc();
         if (!goal) break;
         goal_build_init(goal, pl, b, 1);
         if (!unit_goal(best, goal, 0, 0x1F51)) break;   // with the unit type's vf29 (+0x74) as the game's assignment

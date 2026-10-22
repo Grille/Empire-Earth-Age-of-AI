@@ -89,7 +89,14 @@ internal inline void *game_color_rgb(unsigned idx) { return GF(FN_COLOR_RGB)(idx
 // one of the game's own AI lines (base: its string block, ms shown; the original of persona.c's hook)
 internal inline char native_chat(uint8_t *pim, int base, int ms) { return GF(FN_NATIVE_CHAT)(pim, base, ms); }
 
-// ACTIONS AND MESSAGES (test/): what the UI queues or sends, built in game_new(GA(SIZE_..)) memory
+// ACTIONS AND MESSAGES (test/, voice/, diplo.c): what the UI queues or sends - its memory (game_new of its size), then
+// made with its _init
+internal inline void *pause_action_alloc(void) { return game_new(GA(SIZE_PAUSE_ACTION)); }
+internal inline void *save_action_alloc(void) { return game_new(GA(SIZE_SAVE_ACTION)); }
+internal inline void *camera_action_alloc(void) { return game_new(GA(SIZE_CAMERA_ACTION)); }
+internal inline void *new_unit_msg_alloc(void) { return game_new(GA(SIZE_NEW_UNIT_MSG)); }
+internal inline void *msg_chat_alloc(void) { return game_new(GA(SIZE_MSG_CHAT)); }
+internal inline void *msg_cheat_alloc(void) { return game_new(GA(SIZE_CHEAT_MSG)); }
 // an action into the world's queue (QueueAction on [G_WORLD]), an action's reference given back
 internal inline void world_queue_action(void *act) { ((void (__thiscall *)(void *, void *))GA(FN_QUEUE_ACTION))(*(void **)GA(G_WORLD), act); }
 internal inline void action_release(void *act) { (*(void (__thiscall **)(void *))GA(IAT_RELEASE))(act); }
@@ -270,9 +277,19 @@ internal inline void *goal_load_init(void *mem, ee_unit *holder, void *vec) { re
 internal inline void *goal_unload_init(void *mem, ee_unit *holder, int x, int y, int flag) { return GF(FN_GOAL_UNLOAD_CTOR)(mem, holder, x, y, flag); }
 // a move to xy (float[2])
 internal inline void *goal_move_init(void *mem, float *xy) { return GF(FN_GOAL_MOVE_CTOR)(mem, xy, 1, 1, 0, 0.0f, 0, 0); }
-// a goal's kind, by its vtable: an attack (EEUGAttackUnit, its target +0x30), a move (EEUGLocation)
+// a goal's kind, by its vtable: an attack (EEUGAttackUnit, its target +0x30), a move (EEUGLocation), build or repair
+// (EEUGBuildRepair, the building +0x3C), a load (EEUGLoadTransport, the holder +0x50), an unload (EEUGUnloadTransport)
 internal inline int goal_is_attack(const void *g) { return *(const uintptr_t *)g == GA(VT_GOAL_ATTACK); }
 internal inline int goal_is_location(const void *g) { return *(const uintptr_t *)g == GA(VT_GOAL_LOCATION); }
+internal inline int goal_is_build(const void *g) { return *(const uintptr_t *)g == GA(VT_GOAL_BUILD); }
+internal inline int goal_is_load(const void *g) { return *(const uintptr_t *)g == GA(VT_GOAL_LOAD); }
+internal inline int goal_is_unload(const void *g) { return *(const uintptr_t *)g == GA(VT_GOAL_UNLOAD); }
+// the memory of a goal the game may free (game_new of its size), then made with its _init
+internal inline void *goal_build_alloc(void) { return game_new(GA(SIZE_GOAL_BUILD)); }
+internal inline void *goal_attack_alloc(void) { return game_new(GA(SIZE_GOAL_ATTACK)); }
+internal inline void *goal_load_alloc(void) { return game_new(GA(SIZE_GOAL_LOAD)); }
+internal inline void *goal_unload_alloc(void) { return game_new(GA(SIZE_GOAL_UNLOAD)); }
+internal inline void *goal_move_alloc(void) { return game_new(GA(SIZE_GOAL_MOVE)); }
 // a load goal's part the units walk into (the goal's vtable)
 internal inline void *goal_part(void *goal) { return ((void *(__thiscall *)(void *))(*(void ***)goal)[GA(SLOT_GOAL_PART)])(goal); }
 // may the goal be handed to the unit (the original of attack.c's hook_goal_cast)
@@ -345,6 +362,9 @@ internal inline void *rm_unbuilt_farms(ee_resource_mgr *rm, uintptr_t n, uintptr
 internal inline void *rm_hunt(ee_resource_mgr *rm, uintptr_t n, uintptr_t f, uintptr_t out) {
     return ((void *(__thiscall *)(void *, uintptr_t, uintptr_t, uintptr_t))GA(FN_HUNT))(rm, n, f, out);
 }
+
+// a land attack subgroup (EECPASGLand, by its vtable: the subgroups of the other kinds have none of its fields)
+internal inline int asg_is_land(const void *sg) { return *(const uintptr_t *)sg == GA(VT_ASG_LAND); }
 
 // AN ATTACK GROUP OF THE GAME'S OWN (test/testcmd.c aigroup: as the scenario effect "Create AI Military Group"):
 // a task (0x34) with its location (0x18, the point at +4) and target, a strategy (0x44), the unit ids (a vector<int>

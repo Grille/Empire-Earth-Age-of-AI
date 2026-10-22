@@ -164,11 +164,11 @@ internal void cmd_chatme(char *out, const char *args) {
     if (cheats && *(void **)GA(G_CHEAT_PARSER)) {
         cheat_parse(*(void **)GA(G_CHEAT_PARSER), s, &code, &arg);
         if (code) {
-            void *m = game_new(GA(SIZE_CHEAT_MSG));
+            void *m = msg_cheat_alloc();
             if (m) server_send_all(net, msg_cheat_init(m, code, arg));
         }
     }
-    void *m = game_new(GA(SIZE_MSG_CHAT));
+    void *m = msg_chat_alloc();
     if (m) server_send_all(net, msg_chat_init(m, s));
     wstring_free(s);
     REPLY("ok: sent \"%s\" (cheats %s, cheat code %d)\n", args, cheats ? "on" : "off", code);

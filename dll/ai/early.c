@@ -192,7 +192,7 @@ internal void early_bait(ee_player *pl, unsigned idx, uint32_t now) {
         } else if (ne < 64 && o && FIELD(o, PL_INDEX, int) > 0 && is_soldier(td) && is_enemy(pl, o) && seen_by(u, pl)) {
             uint8_t *g = FIELD(u, OF(UNIT, 0x1EC), uint8_t *);
             en[ne].u = u; en[ne].x = FIELD(u, OF(UNIT, 0x1C), int); en[ne].y = FIELD(u, OF(UNIT, 0x20), int);
-            en[ne++].t = g && *(uintptr_t *)g == GA(VT_GOAL_ATTACK) ? FIELD(g, OF(GOAL, 0x30), ee_unit *) : NULL;
+            en[ne++].t = g && goal_is_attack(g) ? FIELD(g, OF(GOAL, 0x30), ee_unit *) : NULL;
         }
     }
     if (!nc || !ne) return;
@@ -215,10 +215,10 @@ internal void early_bait(ee_player *pl, unsigned idx, uint32_t now) {
         }
         if (best < 0) continue;
         uint8_t *g = FIELD(u, OF(UNIT, 0x1EC), uint8_t *);
-        if (g && *(uintptr_t *)g == GA(VT_GOAL_ATTACK)) continue;   // the militia's: a fight it wins
+        if (g && goal_is_attack(g)) continue;   // the militia's: a fight it wins
         float ex = (float)(cov[best].x - en[hit].x), ey = (float)(cov[best].y - en[hit].y), l = sqrtf(ex * ex + ey * ey);
         float sx = (float)cov[best].x + 0.5f + (l > 0.5f ? ex / l * 1.5f : 0), sy = (float)cov[best].y + 0.5f + (l > 0.5f ? ey / l * 1.5f : 0);
-        if (g && *(uintptr_t *)g == GA(VT_GOAL_LOCATION) && fabsf(FIELD(g, OF(GOAL, 0x20), float) - sx) < 2 && fabsf(FIELD(g, OF(GOAL, 0x24), float) - sy) < 2)
+        if (g && goal_is_location(g) && fabsf(FIELD(g, OF(GOAL, 0x20), float) - sx) < 2 && fabsf(FIELD(g, OF(GOAL, 0x24), float) - sy) < 2)
             continue;   // on its way there
         if (unit_goal(u, goal_move(sx, sy), 0, 0x1F40)) sent++;
     }

@@ -1740,7 +1740,7 @@ internal void chat_send(const char *text) {   // a chat line from the local play
     __attribute__((aligned(8))) uint8_t u[32];
     wstring_init(u);
     wstring_set(u, text);
-    void *msg = game_new(GA(SIZE_MSG_CHAT));
+    void *msg = msg_chat_alloc();
     if (msg) {
         msg_chat_init(msg, u);
         server_send_all(net, msg);

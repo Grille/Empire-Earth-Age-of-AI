@@ -352,12 +352,12 @@ internal void fl_guard_point(struct fleet *f) {
 internal int fl_ship_ocean(ee_unit *u) { return (int)area_id(FIELD(u, OF(UNIT, 0x1C), int), FIELD(u, OF(UNIT, 0x20), int), 1); }
 internal int fl_attacking(ee_unit *u) {   // its current attack target (alive), else NULL
     uint8_t *g = FIELD(u, OF(UNIT, 0x1EC), uint8_t *);
-    ee_unit *t = g && *(uintptr_t *)g == GA(VT_GOAL_ATTACK) ? FIELD(g, OF(GOAL, 0x30), ee_unit *) : NULL;
+    ee_unit *t = g && goal_is_attack(g) ? FIELD(g, OF(GOAL, 0x30), ee_unit *) : NULL;
     return t && FIELD(t, OF(UNIT, 0x3C), int) > 0 && FIELD(t, OF(UNIT, 0x1C), int) >= 0;
 }
 internal ee_unit *fl_target_of(ee_unit *u) {
     uint8_t *g = FIELD(u, OF(UNIT, 0x1EC), uint8_t *);
-    return g && *(uintptr_t *)g == GA(VT_GOAL_ATTACK) ? FIELD(g, OF(GOAL, 0x30), ee_unit *) : NULL;
+    return g && goal_is_attack(g) ? FIELD(g, OF(GOAL, 0x30), ee_unit *) : NULL;
 }
 // to (x, y) - round a danger zone on the way through a waypoint off the line (8 or 16 tiles to a side), else not at all
 internal void fl_move(struct fleet *f, ee_unit *u, int x, int y, int k) {
