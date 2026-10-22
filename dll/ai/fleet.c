@@ -377,7 +377,7 @@ internal void fl_move(struct fleet *f, ee_unit *u, int x, int y, int k) {
         }
         if (!ok) return;
     }
-    if (as_goal_near(u, (float)x + 0.5f, (float)y + 0.5f, 2.5f)) return;
+    if (goal_near(u, (float)x + 0.5f, (float)y + 0.5f, 2.5f)) return;
     f->orders += unit_goal(u, goal_move((float)x + 0.5f, (float)y + 0.5f), 0, 0x1F40);
 }
 // out of a danger zone: away from its centre to its edge + 3 tiles (or 45/90 degrees off that), else the guard point
@@ -396,11 +396,11 @@ internal int fl_flee(struct fleet *f, ee_unit *u) {
         float c = cosf(ang[j]), s = sinf(ang[j]), ex = dx * c - dy * s, ey = dx * s + dy * c;
         int tx = ux + (int)(ex * go), ty = uy + (int)(ey * go), wx, wy;
         if (!oc || !fl_water(tx, ty, (unsigned)oc, &wx, &wy) || fl_in_danger(wx, wy)) continue;
-        if (!as_goal_near(u, (float)wx + 0.5f, (float)wy + 0.5f, 2.5f)) f->orders += unit_goal(u, goal_move((float)wx + 0.5f, (float)wy + 0.5f), 0, 0x1F40);
+        if (!goal_near(u, (float)wx + 0.5f, (float)wy + 0.5f, 2.5f)) f->orders += unit_goal(u, goal_move((float)wx + 0.5f, (float)wy + 0.5f), 0, 0x1F40);
         f->flees++;
         return 1;
     }
-    if (!as_goal_near(u, (float)f->gx + 0.5f, (float)f->gy + 0.5f, 2.5f)) f->orders += unit_goal(u, goal_move((float)f->gx + 0.5f, (float)f->gy + 0.5f), 0, 0x1F40);
+    if (!goal_near(u, (float)f->gx + 0.5f, (float)f->gy + 0.5f, 2.5f)) f->orders += unit_goal(u, goal_move((float)f->gx + 0.5f, (float)f->gy + 0.5f), 0, 0x1F40);
     f->flees++;
     return 1;
 }
@@ -517,7 +517,7 @@ internal void fl_boats(struct fleet *f, int cx, int cy) {
         if (f->n && fd <= 400 && fl_ratio(f, 0, 0, 0, sel) >= 1.0f) continue;   // the fleet is there and wins
         int bd = 0x7FFFFFFF, bk = -1;
         for (int d = 0; d < g_fs.nd; d++) { int dx = g_fs.dkx[d] - x, dy = g_fs.dky[d] - y; if (dx * dx + dy * dy < bd) { bd = dx * dx + dy * dy; bk = d; } }
-        if (bk < 0 || bd <= 16 || as_goal_near(b, (float)g_fs.dkx[bk] + 0.5f, (float)g_fs.dky[bk] + 0.5f, 3.0f)) continue;
+        if (bk < 0 || bd <= 16 || goal_near(b, (float)g_fs.dkx[bk] + 0.5f, (float)g_fs.dky[bk] + 0.5f, 3.0f)) continue;
         if (unit_goal(b, goal_move((float)g_fs.dkx[bk] + 0.5f, (float)g_fs.dky[bk] + 0.5f), 0, 0x1F40)) f->pulls++;
     }
 }

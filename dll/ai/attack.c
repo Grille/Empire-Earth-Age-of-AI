@@ -204,7 +204,7 @@ internal void breach_forget(ee_player *pl) {
 }
 // every AI tick: breaches of subgroups no longer in pl's attack groups (the attack ended, the subgroup was deleted -
 // nothing told the table, and a phantom breach kept siege_want at 2 and the siege firing at that wall for good)
-internal int asg_live(ee_player *pl, ee_attack_subgroup *sg);   // assault.c
+internal int asg_live(ee_player *pl, ee_attack_subgroup *sg);   // forces.c
 internal void breach_prune(ee_player *pl) {
     for (int k = 0; k < 64; k++)
         if (g_breaches[k].sg && g_breaches[k].pl == pl && !asg_live(pl, g_breaches[k].sg)) g_breaches[k].sg = NULL;
@@ -1429,7 +1429,7 @@ internal char __fastcall hook_unit_to_group(void *cmd, void *edx, ee_unit *unit)
 // the neighbours keep pointing at the unit, the pool hands the memory out again (an arrow, a stone ball) and it is
 // linked in elsewhere - the list gets a loop (the stalls: 0x5310B3 / 0x62FE01 spin for good) or a NULL link (crashes
 // at 0x628D6F, 0x53110D, 0x531131). Older than the 2026-10-17 review (the DLL before it stalled too), set off by the
-// mod's own call-offs at the safe point (attack_retreat, citizen attacks, diplomacy). Guard: the node delete of both
+// mod's own call-offs at the safe point (attack_retreat then, citizen attacks, diplomacy). Guard: the node delete of both
 // destructor parts (0x628BE7 in 0x628BC6, 0x628B7F in 0x628B58) first takes a unit still linked out of the list with the
 // game's own unlink (0x628E29: the neighbours, or the head, get its links).
 internal unsigned g_unlinked;

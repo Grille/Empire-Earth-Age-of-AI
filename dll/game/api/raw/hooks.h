@@ -22,7 +22,6 @@
     D(FN_ASG_QUEUE_POP, 0x00482028, 0x0048655C)                              /* thiscall(queue): releases the front unit, removes it */ \
     D(CALL_UNIT_TO_GROUP, 0x004824BF, 0x004869F3) \
     D(CALL_SHORE_TO_UNLOAD, 0x00483E24, 0x00488490)                           /* the idle transports' call of FN_SHORE_TO_UNLOAD */ \
-    D(LEFTOVER_SITE_END, 0x0048A2B9, 0x0048EC34)                              /* call sites below this are in the leftover pass 0x48A1AE */ \
     D(CALL_FARMS, 0x0048AC54, 0x0048F643)                                     /* the call of FN_FARMS */ \
     D(CALL_HUNT_1, 0x0048ACE4, 0x0048F6D2)                                    /* the calls of FN_HUNT */ \
     D(CALL_HUNT_2, 0x0048AFC4, 0x0048F9B3) \

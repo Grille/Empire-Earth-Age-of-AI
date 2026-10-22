@@ -23,8 +23,7 @@
 // 2 WAIT: the attack time (player +0xED8) comes while the AI's land soldiers (hit points x attack) are below
 //   army_mass_ratio (130%) of the strongest enemy's army it knows (intel.c: soldiers and siege seen within 10
 //   minutes) - the launch moves on by 20 s, for army_mass_wait (10) minutes at most; meanwhile the army is at home.
-// 4 RETREAT: attack_retreat (defence.c) for this AI - an attack down to half its peak, or facing 1.5 x its strength
-//   twice, goes home and comes again within 5 minutes.
+// 4 (was RETREAT: attack_retreat for this AI - removed, docs/experiments.md; the bit does nothing now).
 // 8 (with 1): GATHER only while that subgroup fights (state 3000/3003).
 // 16 TETHER: a member of a land subgroup out picks no target more than army_mass_tether (12) tiles from the middle of
 //   its members away from the base unless it is within its own range + 2 (attack.c hook_asgu_score); 128 (with 16):
@@ -293,7 +292,7 @@ internal void ms_gather(ee_player *pl, unsigned idx, struct mass *m, uint32_t no
         ee_unit *u = m->hold[k].u;
         ee_unit *t = fl_target_of(u);
         int x = unit_get_x(u), y = unit_get_y(u);
-        if (ms_d2(x, y, m->rx, m->ry) <= 9 || as_goal_near(u, (float)m->rx + 0.5f, (float)m->ry + 0.5f, 2.5f)) continue;
+        if (ms_d2(x, y, m->rx, m->ry) <= 9 || goal_near(u, (float)m->rx + 0.5f, (float)m->ry + 0.5f, 2.5f)) continue;
         if (t && fl_attacking(u) && ms_d2(unit_get_x(t), unit_get_y(t), m->rx, m->ry) <= 15 * 15) continue;
         unit_goal(u, goal_move((float)m->rx + 0.5f + (float)(k % 3) - 1.0f, (float)m->ry + 0.5f + (float)(k / 3 % 3) - 1.0f), 0, 0x1F40);
     }
@@ -349,7 +348,7 @@ internal void ms_tether(ee_player *pl, struct mass *m, int plan, int bx, int by)
             if (!u || !ms_land_soldier(u, unit_get_type_data(u)) || fl_attacking(u)) continue;
             int x = unit_get_x(u), y = unit_get_y(u);
             if (ms_d2(x, y, bx, by) <= 25 * 25 || ms_d2(x, y, s->cx, s->cy) < t * t ||
-                as_goal_near(u, (float)s->cx + 0.5f, (float)s->cy + 0.5f, 4.0f)) continue;
+                goal_near(u, (float)s->cx + 0.5f, (float)s->cy + 0.5f, 4.0f)) continue;
             m->regrouped += unit_goal(u, goal_move((float)s->cx + 0.5f, (float)s->cy + 0.5f), 0, 0x1F40) != 0;
         }
     }
@@ -376,7 +375,6 @@ internal int mass_tether(ee_attack_subgroup *sg, ee_unit *me, ee_unit *enemy) {
     m->tethered++;
     return 1;
 }
-internal int mass_retreat(unsigned idx) { return (ARMY_MASS(idx) & 4) != 0; }   // defence.c attack_retreat
 internal void mass_tick(ee_player *pl, uint32_t now) {
     if (!pl) return;
     unsigned idx = (unsigned)player_get_index(pl) & 15;

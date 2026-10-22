@@ -512,7 +512,7 @@ internal int navy_room_reserve(ee_player *pl) {
     return (int)o->held_room;
 }
 
-// FLEET MIX ([all] navy_mix; [autotest] v_navy_mix for the variant players; docs/navy.md stage 2). The game's warship
+// FLEET MIX (docs/navy.md stage 2; with the fleet's stage 4, navy_fleet=2, fleet.c fleet_builds). The game's warship
 // choice is its RPS vote or a random trainable candidate: frigates, galleys and battleships as they come, nothing
 // against the fleet it meets. Where the navy account pays (navy_pays), a warship or submarine the game asks for at one
 // of its own training sites (econ.c hook_train_units; not the mod's orders, not a landing's) is trained as the type the
@@ -532,9 +532,10 @@ internal int navy_room_reserve(ee_player *pl) {
 // - The coast (the playtester: the x4-5 of catapults, cannons and artillery against battleships is real): seen enemy
 //   units and buildings within 4 tiles of the sea that hit battleships x3 or more scale the battleships by 4 / (4 + n).
 // - Each order: the role furthest below its share of the fleet (own warships + those paid in the last minute + 1) -
-//   when its type can't be paid now (stock and account), the next role below its share that can, else it waits for
-//   the first (waiting cost the mix AI a ship an hour; it did not mend the h2h: 8.6 -> 7.5 units net a game
-//   lost, 160/120 games - so navy_mix stays 0); in the role the type with the best factor x attack / (reload + 2 s) x hit points / cost^2 (Lanchester: a fleet
+//   when its type can't be paid now (stock and account), any other role it can pay, the most missing first (the mix
+//   alone, before the fleet, waited for a role below its share: a ship an hour lost, the h2h 8.6 -> 7.5 units net a
+//   game lost in 160/120 games - its switch navy_mix stayed off and is gone, docs/experiments.md); in the role the
+//   type with the best factor x attack / (reload + 2 s) x hit points / cost^2 (Lanchester: a fleet
 //   of N ships is worth N^2) against the role's target (F: galleys/subs, L: frigates, A/S: battleships, AA: aircraft).
 //   Only types available by their tech record's test (ld_type_avail). A type the budget refused for 2 minutes is
 //   skipped for one (the account saves for another role); one the game refused though it was paid for (no building)
@@ -547,7 +548,6 @@ internal const char *const k_nr[NR_N] = { "-", "F", "L", "A", "S", "AA" };
 #define NV_C_FRIG 9     // frigates, cruisers, transports, fishing boats
 #define NV_C_LINE 21    // battleships
 #define NV_C_GALLEY 47  // galleys, galleons, catapult ships
-internal int g_navy_mix = 0, g_v_navy_mix = -1;
 internal int8_t g_nv_role[G_TYPES_N];   // role + 1 per type (0: not worked out yet; the table and the type data are fixed)
 internal int g_nv_nc, g_nv_nk;          // the hit table's size: categories, weapon kinds (cmd_navy's count)
 internal uint64_t g_nv_aircat;          // the categories of aircraft (families 3, 7, 17)
@@ -682,7 +682,7 @@ internal void nv_roles(ee_player *pl, unsigned idx, struct nv_pick *pk, uint32_t
 }
 // the type to train for the game's warship order asked (0: the game's own)
 internal int navy_pick(ee_player *pl, unsigned idx, int asked) {
-    if ((!PV(idx, g_v_navy_mix, g_navy_mix) && !fleet_builds(idx)) || !navy_pays(idx, asked)) return 0;   // stage 4: the mix too
+    if (!fleet_builds(idx) || !navy_pays(idx, asked)) return 0;   // stage 4 only
     int k = navy_type_kind(asked);
     if (k != NV_WAR && k != NV_SUB) return 0;
     uint32_t now = game_time();
@@ -705,9 +705,10 @@ internal int navy_pick(ee_player *pl, unsigned idx, int asked) {
             float d = w[r] / wsum * (float)(all + 1) - (float)have[r];
             if (w[r] > 0 && !done[r] && (!r0 || d > d0)) { d0 = d; r0 = r; }
         }
-        // stage 4: any role it can pay, the most missing first - the iron the frigates need comes in slowly while the
-        // account's wood and gold lay unused (Small Islands e5: account W600 G574 I41, 488 frigate orders refused)
-        if (!r0 || (pass && d0 <= 0 && !fleet_builds(idx))) break;
+        // any role it can pay, the most missing first (also one at or above its share) - the iron the frigates need
+        // comes in slowly while the account's wood and gold lay unused (Small Islands e5: account W600 G574 I41, 488
+        // frigate orders refused)
+        if (!r0) break;
         done[r0] = 1;
         if (!pass) br = r0;
         int pay = 1, total = 0;
@@ -743,7 +744,7 @@ internal void navy_pick_done(ee_player *pl, unsigned idx, int pick, int asked, c
 }
 internal void navy_mix_log(ee_player *pl, unsigned idx, uint32_t now) {
     struct nv_pick *pk = &g_nv_pk[idx & 15];
-    if (!g_log || (!PV(idx, g_v_navy_mix, g_navy_mix) && !fleet_builds(idx)) || navy_share(idx) <= 0) return;
+    if (!g_log || !fleet_builds(idx) || navy_share(idx) <= 0) return;
     nv_cands(pl, pk, now);
     nv_seen(pl, idx, pk, now);
     int best[NR_N], have[NR_N];
@@ -825,16 +826,14 @@ internal void navy_install(const char *aimod_ini, const char *autotest_ini) {
     g_navy_share = cfg_pct(aimod_ini, autotest_ini, 1, "navy_share", 25, 100);
     if (g_navy_share < 0) g_navy_share = 0;
     if (g_navy_share > 80) g_navy_share = 80;
-    g_navy_mix = cfg_int(aimod_ini, autotest_ini, 1, "navy_mix", 0);
     g_navy_fleet_pop = cfg_pct(aimod_ini, autotest_ini, 1, "navy_fleet_pop", 15, 100);
     g_navy_share_max = cfg_pct(aimod_ini, autotest_ini, 1, "navy_share_max", 50, 100);
     if (g_navy_share_max > 80) g_navy_share_max = 80;
     if (autotest_ini) g_v_navy = ini_int("autotest", "v_navy", -1, autotest_ini);
-    if (autotest_ini) g_v_navy_mix = ini_int("autotest", "v_navy_mix", -1, autotest_ini);
     g_navy_mines = cfg_int(aimod_ini, autotest_ini, 1, "navy_mines", 1);
     if (autotest_ini) g_v_navy_mines = ini_int("autotest", "v_navy_mines", -1, autotest_ini);
-    if (g_log) fprintf(g_log, "# navy: account %s, share %d%% on islands, fleet mix %s (v_navy %d, v_navy_mix %d for the variant players)\n",
-                       g_navy ? "on" : "off", g_navy_share, g_navy_mix ? "on" : "off", g_v_navy, g_v_navy_mix);
+    if (g_log) fprintf(g_log, "# navy: account %s, share %d%% on islands (v_navy %d for the variant players)\n",
+                       g_navy ? "on" : "off", g_navy_share, g_v_navy);
     fleet_install(aimod_ini, autotest_ini);
 }
 

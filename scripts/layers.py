@@ -41,7 +41,7 @@ EXCEPTIONS = [
     ('ai/diplo.c', 'test/ecolog.c', 'eco_death', 'the economy log counts deaths (autotest)'),
     ('ai/diplo.c', 'test/randmap.c', 'g_rm', 'the test game\'s settings'),
     ('ai/econ.c', 'test/trace.c', 'trace_train', 'call tracing (autotest)'),
-    ('ai/sites.c', 'test/trace.c', 'CALLER Fn2 Fn3 trace_emit trace_obj tracing', 'call tracing (autotest)'),
+    ('ai/sites.c', 'test/trace.c', 'CALLER', 'the caller of a hooked site search'),
     ('engine/aim.c', 'ai/attack.c', 'seen_by', 'leading only targets the player sees'),
     ('engine/display.c', 'test/control.c', 'g_turbo', 'turbo test runs draw nothing'),
     ('engine/display_diag.c', 'test/control.c', 'g_req', 'the frame watch reports a pending pipe command'),

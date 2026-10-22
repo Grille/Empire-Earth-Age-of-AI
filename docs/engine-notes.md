@@ -329,7 +329,7 @@ vf26 members and route released, vf12, the group's reference) frees nothing twic
     player's planes over their own town and the group stayed in combat; `attack_ignore_air` drops aircraft out of
     reach.
   - EECPASGLand slot 90 (0x4491DD) is its update(now) (state machine, +0x1A4 next update time); skipping it leaves
-    the members to whoever orders them (dll/ai/assault.c).
+    the members to whoever orders them (dll/ai/landing.c hook_asg_land_update: the landing's subgroups).
 - **Continents:** EEAIContinentManager, a global object at 0x917BC8. 0x425F16 thiscall(mgr, int pt[2]) -> the
   area at a tile (vtable 0x825FB8); 0x425F9F thiscall(mgr, int pt[2], kind) -> its +0x84 (kind 1: ocean id) or +0x86
   (kind 2: land continent id), 16 bits. Some areas have neither (the player's camp on the reference save).

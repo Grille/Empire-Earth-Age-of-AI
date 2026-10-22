@@ -1,6 +1,6 @@
 // FALL BACK TO COVER (docs/economy.md "Fall back to cover", ships docs/navy.md). Included by eeaimod.c after metal.c
 // (mt_line), mass.c (ms_base), fleet.c (fl_attacking), landing.c (landing_has_unit), stats.c (the fight estimate),
-// attack.c (threat_at, defence_stats, unit_goal, goal_move, seen_by) and assault.c (area_id, as_goal_near).
+// attack.c (threat_at, defence_stats, unit_goal, goal_move, seen_by) and forces.c (area_id, goal_near).
 // The playtester: the AI loses expensive units in fights it cannot win, for nothing - a player pulls a lost fight back
 // under his towers, sends damaged units to the hospital and damaged ships to the docks, and comes back healed.
 // What the game does (measured 2026-10-21, scripts/rt_heal: Middle Ages, the idle P1's units hurt by the pipe): a
@@ -338,10 +338,10 @@ internal void cv_take(struct cv_pl *c, ee_unit *u, int kind, int tx, int ty, uin
 // again and again; a unit far from any own cover (deep in enemy land, on an enemy island) fights on. A player gives a
 // hopeless attack up: those who broke off from it fall_back_breaks (2) times stay back, and when fall_back_end (50%)
 // of an attack's units have given up and its fighters still out are not winning where they stand, the attack is called
-// off (the game's call-off at the safe point, diplo.c - the engine guard of attack.c with it, as attack_retreat) and
+// off (the game's call-off at the safe point, diplo.c - the engine guard of attack.c with it) and
 // the next one comes within 5 minutes, formed fresh. The attack groups: attack commander player +0xB8C +0x48, a deque
 // of groups at +4 (count +0x14), a group's target player +0x48, its subgroups +8..+0xC, members +0x54..+0x58, record
-// +0x44 = unit (defence.c attack_retreat).
+// +0x44 = unit (as defence.c asg_units reads them).
 #define CV_GRP 8
 #define CV_GH 4096
 internal struct cv_grp { ee_attack_group *g; ee_player *target; int n, gu, nf; float fx, fy, fpow; } g_cvg[CV_GRP];
@@ -423,7 +423,7 @@ internal void cv_end(ee_player *pl, unsigned idx, struct cv_pl *c, uint32_t now)
         float p = unit_power(u);
         q->nf++; q->fpow += p; q->fx += (float)unit_get_x(u) * p; q->fy += (float)unit_get_y(u) * p;
     }
-    if (landing_busy(pl)) return;   // its soldiers in the groups, aboard (attack_retreat's reason)
+    if (landing_busy(pl)) return;   // its soldiers in the groups, aboard: at tile -10000 they look lost
     for (int j = 0; j < g_cvg_n; j++) {
         struct cv_grp *q = &g_cvg[j];
         int all = q->n > q->gu ? q->n : q->gu;
@@ -473,7 +473,7 @@ internal void cv_behave(ee_player *pl, unsigned idx, struct cv_pl *c, uint32_t n
             int tx, ty;
             if (cv_home_pt(c, x, y, area_id(x, y, 2), &tx, &ty)) { h->tx = tx; h->ty = ty; h->at = 0; }
         }
-        if (cv_d2(x, y, h->tx, h->ty) <= (h->at ? 25 : 4) || as_goal_near(u, (float)h->tx + 0.5f, (float)h->ty + 0.5f, 2.5f)) continue;
+        if (cv_d2(x, y, h->tx, h->ty) <= (h->at ? 25 : 4) || goal_near(u, (float)h->tx + 0.5f, (float)h->ty + 0.5f, 2.5f)) continue;
         if (h->at && fl_attacking(u)) continue;   // at the cover: it fights what comes in reach
         unit_goal(u, goal_move((float)h->tx + 0.5f + (float)(k % 3) - 1.0f, (float)h->ty + 0.5f + (float)(k / 3 % 3) - 1.0f), 0, 0x1F40);
     }

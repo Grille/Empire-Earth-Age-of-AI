@@ -82,7 +82,6 @@ internal void mt_new_game(void);   // metal.c
 internal void army_plan_tick(ee_player *pl, unsigned idx, uint32_t now);
 internal void ap_install(const char *aimod_ini, const char *autotest_ini);
 internal void early_new_game(void);   // early.c
-internal void assault_tick(ee_player *pl, uint32_t now);
 internal void landing_tick(ee_player *pl, uint32_t now);
 internal void navy_tick(ee_player *pl, uint32_t now);
 internal void intel_tick(ee_player *pl, uint32_t now);
@@ -94,12 +93,10 @@ internal void landing_new_game(void);
 internal void navy_new_game(void);
 internal void bunker_new_game(void);
 internal void defence_new_game(void);
-internal void assault_new_game(void);
 internal void sites_new_game(void);
 internal void intel_install(const char *aimod_ini, const char *autotest_ini);
 internal void landing_install(const char *aimod_ini, const char *autotest_ini);
 internal void navy_install(const char *aimod_ini, const char *autotest_ini);
-internal void assault_install(const char *aimod_ini, const char *autotest_ini);
 internal PRINTF_LIKE(1, 2) void log_line(const char *fmt, ...);
 internal BOOL install_srand(void);
 #include "base/ini.c"
@@ -188,7 +185,7 @@ internal void __fastcall hook_rm_update(ee_resource_mgr *rm, void *edx, uint32_t
     }
     rm_update(rm, now);
     if (pl && is_vanilla(pl)) vanilla_tick(pl, now);   // the game's own AI: only the mod's log lines (attack.c)
-    else if (pl) { intel_tick(pl, now); econ_tick(pl, now); attack_tick(pl, now); assault_tick(pl, now); landing_tick(pl, now); navy_tick(pl, now);
+    else if (pl) { intel_tick(pl, now); econ_tick(pl, now); attack_tick(pl, now); landing_tick(pl, now); navy_tick(pl, now);
                 wf_tick(pl, now); army_plan_tick(pl, (unsigned)player_get_index(pl) & 15, now); }
     if (pl) ecolog_tick(pl, now);
     if (pl) cz_tick(pl, now);
@@ -315,7 +312,6 @@ internal char __fastcall hook_game_start(void *state, void *edx, uint8_t *setup,
     ap_new_game();
     mt_new_game();
     defence_new_game();
-    assault_new_game();
     sites_new_game();
     if (mode == 2) persist_load(name);   // a saved game: the mod's state from its .aimod file
     char r = game_start(state, setup, p2);
@@ -337,7 +333,7 @@ internal char __fastcall hook_game_start(void *state, void *edx, uint8_t *setup,
 #include "ai/attack.c"
 #include "ai/stats.c"
 #include "ai/defence.c"
-#include "ai/assault.c"
+#include "ai/forces.c"
 #include "ai/landing.c"
 #include "ai/bunker.c"
 #include "ai/early.c"
@@ -542,7 +538,6 @@ internal void install(HMODULE self) {
     cover_install(g_aimod_ini, g_autotest ? g_ini : NULL);
     expand_install(g_aimod_ini, g_autotest ? g_ini : NULL);
     attack_install(g_aimod_ini, g_autotest ? g_ini : NULL);
-    assault_install(g_aimod_ini, g_autotest ? g_ini : NULL);
     landing_install(g_aimod_ini, g_autotest ? g_ini : NULL);
     navy_install(g_aimod_ini, g_autotest ? g_ini : NULL);
     intel_install(g_aimod_ini, g_autotest ? g_ini : NULL);

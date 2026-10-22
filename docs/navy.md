@@ -353,9 +353,11 @@ figure).
 **Default on**: it helps the AI that has it against one that hasn't (a human without a fleet), and on land maps
 nothing changes. Against each other two navy AIs only trade ships until stages 2-3 give the fleet a job.
 
-### Stage 2 - composition by roles - BUILT, OFF (`navy_mix=0`)
+### Stage 2 - composition by roles - BUILT, runs with the fleet (`navy_fleet=2`)
 
-Built (dll/ai/navy.c `navy_pick`, the hook in econ.c `hook_train_units`; `[all] navy_mix`, `[autotest] v_navy_mix`):
+Built (dll/ai/navy.c `navy_pick`, the hook in econ.c `hook_train_units`; it acts for every AI whose fleet builds -
+stage 4, fleet.c `fleet_builds`. Its own switch `navy_mix` / `v_navy_mix`, below, is gone: off it changed nothing
+under `navy_fleet=2`, docs/experiments.md):
 
 - **Where:** a warship or submarine order the navy account pays (`navy_pays`) from one of the game's own training
   sites. The mod's own orders and a landing's orders are not touched. Carriers stay the game's choice. `req` points

@@ -1244,12 +1244,11 @@ internal int attack_groups(ee_player *pl) {   // the attack commander's deque co
 }
 
 internal void victory_off_pass(void);   // below, with the victory
-// The landing and the assault skip the updates of the subgroups they lead: before the game's call-off (0x43033E) winds
+// The landing skips the updates of the subgroups it leads: before the game's call-off (0x43033E) winds
 // them down, they are the game's again (the crash first blamed on this was the game's own - g_in_calloff, attack.c)
 internal void leads_release(int ai) {
     if (ai <= 0 || ai >= 16) return;
     if (g_ld[ai].phase) ld_release((unsigned)ai, "its attack is called off - back to the game", g_ld[ai].last);
-    g_as[ai].phase = 0; g_as[ai].ntaken = 0; g_as[ai].nwave = 0; g_as[ai].obj = NULL;
 }
 internal void diplo_safe_point(void) {
     victory_off_pass();
@@ -1264,7 +1263,7 @@ internal void diplo_safe_point(void) {
             int before = attack_groups(p);
             breach_forget(p);
             asg_purge_all(p);   // members without their unit: the call-off reads them first (attack.c)
-            leads_release(i);   // subgroups the landing or the assault leads: back to the game before the call-off
+            leads_release(i);   // subgroups the landing leads: back to the game before the call-off
             g_in_calloff = 1;   // attack.c: no unit offered to the groups being freed
             call_off_attacks(p, pj, 1);
             g_in_calloff = 0;
@@ -1284,7 +1283,7 @@ internal void diplo_safe_point(void) {
             int before = attack_groups(p);
             breach_forget(p);
             asg_purge_all(p);   // members without their unit: the call-off reads them first (attack.c)
-            leads_release(i);   // subgroups the landing or the assault leads: back to the game before the call-off
+            leads_release(i);   // subgroups the landing leads: back to the game before the call-off
             g_in_calloff = 1;   // attack.c: no unit offered to the groups being freed
             call_off_attacks(p, pj, 1);
             g_in_calloff = 0;

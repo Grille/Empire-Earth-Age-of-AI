@@ -78,8 +78,3 @@ internal int grid_it_next(struct grid_it *it) {
 internal void grid_each(void (*fn)(ee_unit *u, void *ctx), void *ctx) {
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) fn(it.u, ctx);
 }
-// the same within the cells covering tiles x-r..x+r, y-r..y+r: each unit once (a big building stands in several cells -
-// counted by hand, an AA building counted 2-4 times); fn checks the distance
-internal void grid_box(int x, int y, int r, void (*fn)(ee_unit *u, void *ctx), void *ctx) {
-    for (struct grid_it it = grid_it_box(x, y, r, 1); grid_it_next(&it); ) fn(it.u, ctx);
-}

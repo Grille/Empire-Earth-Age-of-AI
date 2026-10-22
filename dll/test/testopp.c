@@ -448,7 +448,7 @@ internal int so_seg_zone(int x0, int y0, int x1, int y1) {
     return -1;
 }
 internal void so_go(ee_unit *u, int tx, int ty) {
-    if (so_d2(unit_get_x(u), unit_get_y(u), tx, ty) <= 4.0f || as_goal_near(u, (float)tx + 0.5f, (float)ty + 0.5f, 2.5f)) return;
+    if (so_d2(unit_get_x(u), unit_get_y(u), tx, ty) <= 4.0f || goal_near(u, (float)tx + 0.5f, (float)ty + 0.5f, 2.5f)) return;
     g_so.orders += (unsigned)unit_goal(u, goal_move((float)tx + 0.5f, (float)ty + 0.5f), 0, 0x1F40);
 }
 // a ship inside a danger zone sails out, away from its centre (to r + 3 tiles, on water; else 45 degrees off)
@@ -820,7 +820,7 @@ internal void so_soldiers(uint32_t now) {
             if (d < bd) { bd = d; best = e->u; }
         }
         if (best) { g_so.orders += (unsigned)unit_goal(u, goal_attack(u, best), 0, 0x1F40); orders++; }
-        else if (home && so_d2(x, y, g_so.hx, g_so.hy) > 100.0f && !as_goal_near(u, (float)g_so.hx + 2.5f, (float)g_so.hy + 2.5f, 3.0f)) {
+        else if (home && so_d2(x, y, g_so.hx, g_so.hy) > 100.0f && !goal_near(u, (float)g_so.hx + 2.5f, (float)g_so.hy + 2.5f, 3.0f)) {
             g_so.orders += (unsigned)unit_goal(u, goal_move((float)g_so.hx + 2.5f, (float)g_so.hy + 2.5f), 0, 0x1F40); orders++;
         }
     }

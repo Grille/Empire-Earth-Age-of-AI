@@ -2,7 +2,7 @@
 // units modders add). Included by eeaimod.c before defence.c (its grid_each and is_soldier declared here).
 //
 // [all] fight_estimate (default 0): 1 = the AI's fight decisions compare sides with this estimate (st_ratio) instead
-// of summed hit points x attack: muster, hold the town, attack retreat, citizen militia (defence.c). The thresholds
+// of summed hit points x attack: muster, hold the town, citizen militia (defence.c). The thresholds
 // keep their meaning (the ratio is hit points x damage per second on each side). A/B 2026-10-17, overrun and assault
 // (Continental 101, 10 seeds each, the defender): overrun alive 4 vs 3 of 10 (old vs estimate), kills 49 vs 31;
 // assault alive 8 vs 9, workers 31.5 vs 22.8, losses 53 vs 62.5 - no gain: those are fights of numbers (90 against

@@ -1,6 +1,6 @@
 #!/bin/sh
 # Run the random-map test suite for one or more AI variants, then score them.
-# usage: sh scripts/suite.sh <minutes> <variant>... where variant = name:ini,keys  e.g. base:  safe:safe_sites=1
+# usage: sh scripts/suite.sh <minutes> <variant>... where variant = name:ini,keys  e.g. base:  mine:mine_fill=7
 # REPEAT=n runs every map n times with game_seed 1..n - the same games for every variant (paired A/B).
 # Every map runs with Cheat off and Ignorieren on for all AIs; same seeds for every variant -> fair A/B.
 # JOBS=n: n games at a time (scripts/jobs.sh).

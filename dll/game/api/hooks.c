@@ -65,8 +65,6 @@ internal inline uintptr_t unload_site_at(int i) { return GL(UNLOAD_SITES)[i]; }
 internal inline int unload_from_rm(uintptr_t at) { return at == GA(CALL_UNLOAD_RM); }   // the resource manager's ferry
 // a land subgroup's goal handed over with its unit (the return address of its give_goal call: landing.c)
 internal inline int from_land_handoff(uintptr_t ret) { return ret == GA(RET_ASG_LAND_HANDOFF_GIVE); }
-// a site search called from the citizen assignment's leftover pass (0x48A1AE: its calls lie below LEFTOVER_SITE_END)
-internal inline int in_leftover_pass(uintptr_t at) { return at < GA(LEFTOVER_SITE_END); }
 
 // THE GAME'S RUN (the wiring: eeaimod.c, persist.c; test/autotest.c's command line)
 typedef char (__fastcall *game_start_hook)(void *state, void *edx, uint8_t *setup, void *p2);
@@ -414,7 +412,7 @@ internal inline uintptr_t game_op_delete(void) { return GA(FN_OP_DELETE); }
 internal inline int patch_damage_points(thunk_fn thunk) { return patch_call(GA(CALL_DAMAGE_POINTS), GA(FN_DAMAGE_POINTS), (void *)thunk); }
 internal inline int patch_kill_stat(thunk_fn thunk) { return patch_call(GA(CALL_KILL_STAT), GA(FN_STAT_ADD), (void *)thunk); }
 
-// ATTACK GROUPS AND SUBGROUPS (attack.c, assault.c, landing.c)
+// ATTACK GROUPS AND SUBGROUPS (attack.c, forces.c, landing.c)
 typedef char (__fastcall *unit_to_group_hook)(void *cmd, void *edx, ee_unit *u);
 internal inline int patch_unit_to_group(unit_to_group_hook h) { return patch_call(GA(CALL_UNIT_TO_GROUP), GA(FN_UNIT_TO_GROUP), (void *)h); }
 typedef void (__fastcall *group_stat_hook)(void *stats, void *edx, ee_unit *u);

@@ -684,7 +684,7 @@ internal void cmd_army(char *out, const char *args) {
     }
 }
 
-// ---- from assault.c ----
+// ---- from forces.c ----
 // continent x y ... (test): per tile its land continent and ocean ids, the area object (0x425F16) and its fields +0x40..
 internal void cmd_continent(char *out, const char *args) {
     int v[16], n = sscanf(args, "%d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d", &v[0], &v[1], &v[2], &v[3], &v[4],
@@ -700,7 +700,7 @@ internal void cmd_continent(char *out, const char *args) {
     }
 }
 
-// ---- from assault.c ----
+// ---- from forces.c ----
 // aigroup P [x y] (test): AI P forms an attack group as the scenario effect "Create AI Military Group" does (0x5AB8BE,
 // docs/triggers.md) - a group of the game's own (EECPAttackGroup) with a target, where the AI's own attacks on a player
 // (mission 1) have none and walk legs. Target: the enemy building nearest x,y (default: the centre of P's soldiers),
@@ -773,7 +773,7 @@ internal void cmd_aigroup(char *out, const char *args) {
 }
 
 // ---- from intel.c ----
-// calloff P T (test): AI P calls off its attack on T (the game's call-off at the next safe point, as attack_retreat)
+// calloff P T (test): AI P calls off its attack on T (the game's call-off at the next safe point, as fall_back's END)
 internal void cmd_calloff(char *out, const char *args) {
     int p = 0, t = 0;
     if (sscanf(args, "%d %d", &p, &t) != 2 || p <= 0 || p >= 16 || t <= 0 || t >= 16) { REPLY("error: calloff P T\n"); return; }

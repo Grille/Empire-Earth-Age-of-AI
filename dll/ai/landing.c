@@ -1,5 +1,5 @@
 // LANDING ([all] landing, default 1 - the playtester: "landings must work, islands are quite popular"): a landing behind the enemy's lines. Included by eeaimod.c after
-// assault.c (uses its area ids, as_home_threat, as_enemy_power, as_enemy_near, as_objective).
+// forces.c (uses its area ids, home_threat, enemy_objective).
 //
 // The user (reference save): "my back is basically completely undefended - landing with ~3 full transports and a few
 // citizens for a defended bridgehead could cause a lot of trouble; going over land means going through the heavily
@@ -166,6 +166,11 @@ internal void __fastcall hook_asg_sea_update(ee_attack_subgroup *sg, void *edx, 
     (void)edx;
     if (!is_vanilla(asg_get_player(sg)) && (landing_leads(sg) || fleet_leads(sg) || expand_leads(sg))) return;
     asg_sea_update(sg, now);
+}
+internal void __fastcall hook_asg_land_update(ee_attack_subgroup *sg, void *edx, int now) {   // EECPASGLand slot 90
+    (void)edx;
+    if (!is_vanilla(asg_get_player(sg)) && landing_leads(sg)) return;
+    asg_update(sg, now);
 }
 internal void __fastcall hook_asg_air_update(ee_attack_subgroup *sg, void *edx, int now) {
     (void)edx;
@@ -392,12 +397,12 @@ internal int ld_site(ee_player *pl, unsigned pi, struct ld_scan *s, unsigned oce
     return 1;
 }
 
-internal struct as_home g_ld_home;
+internal struct threat_scan g_ld_home;
 // its buildings on the continent of its base point: a forward base across the sea is no home (the troops at the beach
 // were counted at home and boarded again)
 internal void ld_home_scan(ee_player *pl) {
     g_ld_home.pl = pl; g_ld_home.nb = g_ld_home.ne = 0;
-    grid_each(as_home_unit, &g_ld_home);
+    grid_each(home_threat_unit, &g_ld_home);
     void *cm = player_get_civ_mgr(pl);
     ee_build_mgr *bm = cm ? cm_get_build_mgr(cm) : NULL;
     unsigned hc = bm ? area_id(bm_get_base_x(bm), bm_get_base_y(bm), 2) : 0;
@@ -617,7 +622,7 @@ internal void ld_escorts(ee_player *pl, struct landing *l) {
             if (!ld_hits(u, e)) e = ld_naval_target(pl, l->sx, l->sy, 12, 1);
             if (!ld_hits(u, e)) e = NULL;   // a fighter: nothing on the ground - over the beach
             if (e) l->orders += unit_goal(u, goal_attack(u, e), 0, 0x1F40);
-            else if (!g || !as_goal_near(u, (float)l->sx + 0.5f, (float)l->sy + 0.5f, 3.0f))
+            else if (!g || !goal_near(u, (float)l->sx + 0.5f, (float)l->sy + 0.5f, 3.0f))
                 l->orders += unit_goal(u, goal_move((float)l->sx + 0.5f, (float)l->sy + 0.5f), 0, 0x1F40);
             continue;
         }
@@ -632,7 +637,7 @@ internal void ld_escorts(ee_player *pl, struct landing *l) {
         if (!ld_hits(u, e)) e = ld_naval_target(pl, l->sx, l->sy, 10, 1);
         if (!ld_hits(u, e)) e = NULL;
         if (e) l->orders += unit_goal(u, goal_attack(u, e), 0, 0x1F40);
-        else if (!as_goal_near(u, (float)l->wx + 0.5f, (float)l->wy + 0.5f, 3.0f))
+        else if (!goal_near(u, (float)l->wx + 0.5f, (float)l->wy + 0.5f, 3.0f))
             l->orders += unit_goal(u, goal_move((float)l->wx + 0.5f, (float)l->wy + 0.5f), 0, 0x1F40);
     }
 }
@@ -1002,14 +1007,14 @@ internal void ld_wave(ee_player *pl, unsigned pi, struct landing *l, uint8_t *dq
         for (unsigned k = 0; k < cnt && k < 64; k++) {
             ee_attack_group *g = deque_at(dq, first + k);
             for (ee_attack_subgroup **sp = g ? ag_get_subgroups_begin(g) : NULL; sp && sp < ag_get_subgroups_end(g); sp++) {
-                if (!*sp || !asg_is_land(*sp) || landing_leads(*sp) || (g_assault && assault_leads(*sp))) continue;
+                if (!*sp || !asg_is_land(*sp) || landing_leads(*sp)) continue;
                 for (ee_asg_unit **r = asg_get_units_begin(*sp); r && r < asg_get_units_end(*sp); r++) {
                     ee_unit *u = *r ? asgu_get_unit(*r) : NULL;
                     home += ld_alive(u) && is_soldier(unit_get_type_data(u)) && ld_at_home(unit_get_x(u), unit_get_y(u));
                 }
             }
         }
-        int want = home - as_home_threat(pl);
+        int want = home - home_threat(pl);
         if (want > l->nships * cap) want = l->nships * cap;
         if (want < 4) return;
         l->nw = 0;
@@ -1017,7 +1022,7 @@ internal void ld_wave(ee_player *pl, unsigned pi, struct landing *l, uint8_t *dq
             ee_attack_group *g = deque_at(dq, first + k);
             for (ee_attack_subgroup **sp = g ? ag_get_subgroups_begin(g) : NULL; sp && sp < ag_get_subgroups_end(g) && l->nw < want; sp++) {
                 ee_attack_subgroup *sg = *sp;
-                if (!sg || l->nfrozen >= 96 || !asg_is_land(sg) || landing_leads(sg) || (g_assault && assault_leads(sg))) continue;
+                if (!sg || l->nfrozen >= 96 || !asg_is_land(sg) || landing_leads(sg)) continue;
                 int n = 0, at = 0;
                 for (ee_asg_unit **r = asg_get_units_begin(sg); r && r < asg_get_units_end(sg); r++) {
                     ee_unit *u = *r ? asgu_get_unit(*r) : NULL;
@@ -1049,14 +1054,14 @@ internal void ld_wave(ee_player *pl, unsigned pi, struct landing *l, uint8_t *dq
             ee_unit *sh = l->ships[k];
             int dx = unit_get_x(sh) - l->ewx, dy = unit_get_y(sh) - l->ewy;
             if (dx * dx + dy * dy <= 49) { there++; continue; }
-            if (!as_goal_near(sh, (float)l->ewx + 0.5f, (float)l->ewy + 0.5f, 2.0f))
+            if (!goal_near(sh, (float)l->ewx + 0.5f, (float)l->ewy + 0.5f, 2.0f))
                 l->orders += unit_goal(sh, goal_move((float)l->ewx + 0.5f, (float)l->ewy + 0.5f), 0, 0x1F40);
         }
         for (int k = 0; k < l->nw; k++) {
             ee_unit *u = l->wpass[k];
             int dx = unit_get_x(u) - l->ex, dy = unit_get_y(u) - l->ey;
             if (dx * dx + dy * dy <= 64) { close++; continue; }
-            if (!as_goal_near(u, (float)l->ex + 0.5f, (float)l->ey + 0.5f, 3.0f))
+            if (!goal_near(u, (float)l->ex + 0.5f, (float)l->ey + 0.5f, 3.0f))
                 l->orders += unit_goal(u, goal_move((float)l->ex + 0.5f, (float)l->ey + 0.5f), 0, 0x1F40);
         }
         int need = (l->nw + cap - 1) / cap;
@@ -1438,7 +1443,7 @@ internal void ld_phase_plan(ee_player *pl, unsigned pi, struct landing *l, ee_un
     for (unsigned k = 0; k < cnt && k < 64; k++) {
         ee_attack_group *g = deque_at(dq, first + k);
         for (ee_attack_subgroup **sp = g ? ag_get_subgroups_begin(g) : NULL; sp && sp < ag_get_subgroups_end(g); sp++) {
-            if (!*sp || !asg_is_land(*sp) || (g_assault && assault_leads(*sp))) continue;
+            if (!*sp || !asg_is_land(*sp)) continue;
             for (ee_asg_unit **r = asg_get_units_begin(*sp); r && r < asg_get_units_end(*sp); r++) {
                 ee_unit *u = *r ? asgu_get_unit(*r) : NULL;
                 if (!ld_alive(u) || !is_soldier(unit_get_type_data(u))) continue;
@@ -1452,7 +1457,7 @@ internal void ld_phase_plan(ee_player *pl, unsigned pi, struct landing *l, ee_un
     // can pay (its stock now, and one to save for), up to landing_transports. Enough for what holds the beach and
     // the soldiers it knows within 40 tiles (they come running), 1.5 times: 9 sent against the beach's tower alone
     // (just enough) lost one boarding and were called off
-    int keep = as_home_threat(pl), avail = home - keep;
+    int keep = home_threat(pl), avail = home - keep;
     if (avail < 6) { ld_why(pi, now, keep ? "an enemy army at its door - no soldiers to spare" : "fewer than 6 soldiers at home"); return; }
     int ttype = ld_transport_type(pl), cap = ld_cap(ttype);
     if (!ttype) { ld_why(pi, now, "no transport in its epoch"); return; }
@@ -1600,7 +1605,7 @@ internal int ld_phase_ships(ee_player *pl, unsigned pi, struct landing *l, ee_un
                 n++; home += ld_at_home(unit_get_x(u), unit_get_y(u));
             }
             if (mine) { l->frozen[l->nfrozen++] = sg; continue; }
-            if (!asg_is_land(sg) || (g_assault && assault_leads(sg)) || !n || home * 2 < n ||
+            if (!asg_is_land(sg) || !n || home * 2 < n ||
                 l->npass >= l->want_n)
                 continue;
             l->frozen[l->nfrozen++] = sg;
@@ -1657,7 +1662,7 @@ internal void ld_phase_board(ee_player *pl, unsigned pi, struct landing *l, ee_u
             ee_unit *sh = l->ships[k];
             int dx = unit_get_x(sh) - l->ewx, dy = unit_get_y(sh) - l->ewy;
             if (dx * dx + dy * dy <= 49) { there++; continue; }
-            if (!as_goal_near(sh, (float)l->ewx + 0.5f, (float)l->ewy + 0.5f, 2.0f))
+            if (!goal_near(sh, (float)l->ewx + 0.5f, (float)l->ewy + 0.5f, 2.0f))
                 l->orders += unit_goal(sh, goal_move((float)l->ewx + 0.5f, (float)l->ewy + 0.5f), 0, 0x1F40);
         }
         int close = 0;
@@ -1666,12 +1671,12 @@ internal void ld_phase_board(ee_player *pl, unsigned pi, struct landing *l, ee_u
             if (ld_aboard(u)) { close++; continue; }
             int dx = unit_get_x(u) - l->ex, dy = unit_get_y(u) - l->ey;
             if (dx * dx + dy * dy <= 64) { close++; continue; }
-            if (!as_goal_near(u, (float)l->ex + 0.5f, (float)l->ey + 0.5f, 3.0f))
+            if (!goal_near(u, (float)l->ex + 0.5f, (float)l->ey + 0.5f, 3.0f))
                 l->orders += unit_goal(u, goal_move((float)l->ex + 0.5f, (float)l->ey + 0.5f), 0, 0x1F40);
         }
         for (int k = 0; k < l->ncit; k++) {
             ee_unit *u = l->cit[k];
-            if (!ld_alive(u) || ld_aboard(u) || as_goal_near(u, (float)l->ex + 0.5f, (float)l->ey + 0.5f, 3.0f)) continue;
+            if (!ld_alive(u) || ld_aboard(u) || goal_near(u, (float)l->ex + 0.5f, (float)l->ey + 0.5f, 3.0f)) continue;
             int dx = unit_get_x(u) - l->ex, dy = unit_get_y(u) - l->ey;
             if (dx * dx + dy * dy > 16) l->orders += unit_goal(u, goal_move((float)l->ex + 0.5f, (float)l->ey + 0.5f), 0, 0x1F40);
         }
@@ -1846,7 +1851,7 @@ internal void ld_phase_gather(struct landing *l, unsigned pi, uint32_t now) {
         ee_unit *sh = l->ships[k];
         int dx = unit_get_x(sh) - l->stx, dy = unit_get_y(sh) - l->sty;
         if (dx * dx + dy * dy <= 36) { there++; continue; }
-        if (!as_goal_near(sh, (float)l->stx + 0.5f, (float)l->sty + 0.5f, 2.0f))
+        if (!goal_near(sh, (float)l->stx + 0.5f, (float)l->sty + 0.5f, 2.0f))
             l->orders += unit_goal(sh, goal_move((float)l->stx + 0.5f, (float)l->sty + 0.5f), 0, 0x1F40);
     }
     if (there < l->nships && now - l->stage_t < 75000) return;
@@ -1906,19 +1911,19 @@ internal void ld_phase_land(ee_player *pl, unsigned pi, struct landing *l, ee_un
     if (!l->obj || !ld_alive(l->obj) || unit_get_owner(l->obj) != l->target) {
         unsigned cont = area_id(l->sx, l->sy, 2);   // the beach's land: the centre of a big landing spread along the coast lay in the water
         l->obj = ld_objective(pl, pi, l->target, cont, (int)cx, (int)cy);
-        if (!l->obj) l->obj = as_objective(pl, pi, l->target, cont, (int)cx, (int)cy);   // only defences left
+        if (!l->obj) l->obj = enemy_objective(pl, pi, l->target, cont, (int)cx, (int)cy);   // only defences left
         if (l->obj) { l->ox = unit_get_x(l->obj); l->oy = unit_get_y(l->obj); }
     }
     for (int k = 0; k < l->npass; k++) {
         ee_unit *u = l->pass[k];
-        if (ld_aboard(u) || as_fighting(u)) continue;
+        if (ld_aboard(u) || unit_fighting(u)) continue;
         if (foe) {
             ee_unit *e = ld_raid_target(pl, l->target, unit_get_x(u), unit_get_y(u), 14);
             l->orders += unit_goal(u, goal_attack(u, e ? e : foe), 0, 0x1F40);
         } else if (l->obj) {
             float dx = (float)(l->ox - unit_get_x(u)), dy = (float)(l->oy - unit_get_y(u));
             if (dx * dx + dy * dy <= 36.0f) l->orders += unit_goal(u, goal_attack(u, l->obj), 0, 0x1F40);
-            else if (!as_goal_near(u, (float)l->ox + 0.5f, (float)l->oy + 0.5f, 3.0f))
+            else if (!goal_near(u, (float)l->ox + 0.5f, (float)l->oy + 0.5f, 3.0f))
                 l->orders += unit_goal(u, goal_move((float)l->ox + 0.5f, (float)l->oy + 0.5f), 0, 0x1F40);
         }
     }
@@ -2418,10 +2423,10 @@ internal void landing_install(const char *aimod_ini, const char *autotest_ini) {
         patch_unload_ctor(hook_unload_ctor, NULL);
         patch_unload_retry_give(hook_unload_retry_give);
     }
-    int h = patch_asg_sea_transport_update(hook_asg_sea_transport_update) & patch_asg_sea_update(hook_asg_sea_update) &
-            patch_asg_air_update(hook_asg_air_update);
+    int h = patch_asg_update(hook_asg_land_update) & patch_asg_sea_transport_update(hook_asg_sea_transport_update) &
+            patch_asg_sea_update(hook_asg_sea_update) & patch_asg_air_update(hook_asg_air_update);
     int gg = g_landing ? asg_order_hooks() : 0;   // the subgroups' own orders refused while the landing leads them
-    if (g_log) fprintf(g_log, "# landing: %s, %d transports (transport subgroup hook %s, order hooks %d/4)\n", g_landing ? "on" : "off", g_land_ships, h ? "ok" : "FAILED", gg);
+    if (g_log) fprintf(g_log, "# landing: %s, %d transports (subgroup update hooks %s, order hooks %d/4)\n", g_landing ? "on" : "off", g_land_ships, h ? "ok" : "FAILED", gg);
 }
 
 // a new game (the game start hook): every landing's ships, passengers and subgroups are the last game's (the tick's

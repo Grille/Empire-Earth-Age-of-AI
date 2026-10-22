@@ -1,7 +1,7 @@
 # Call-off storm (docs/testing.md "Continental stalls"): every 150 s from minute 6 each AI (P2..P5) calls off its
-# attacks on every other at the next safe point (the game's call-off, as attack_retreat). Before the fix in
-# dll/engine/asg_queue.c about one game in ten stalled or crashed in the unit list (Continental, map_size=1, 4 AIs,
-# start_epoch=9, fall_back=15, attack_retreat=1, 60 min).
+# attacks on every other at the next safe point (the game's call-off, as the mod's fall_back END and citizen attacks).
+# Before the fix in dll/engine/asg_queue.c about one game in ten stalled or crashed in the unit list (Continental,
+# map_size=1, 4 AIs, start_epoch=9, fall_back=15, the since removed attack_retreat=1, 60 min).
 every(150s, 6min, 60min, (run) => {
     for(2, 5, (p) => for(2, 5, (t) => p == t ? 0 : calloff(p, t)))
 })

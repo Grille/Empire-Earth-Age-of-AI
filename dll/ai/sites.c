@@ -1,16 +1,14 @@
-// SAFE SITES: replacement for the resource manager's mine search (0x48C204) and food search (0x48BBA8).
-// The originals take the FIRST acceptable site in zone order, anywhere on the map, and only check for
-// enemies at the site itself - the game's pathfinding then walks citizens straight through enemy
-// defences (observed: red mining iron under yellow's towers 25 tiles away, losing its workforce).
-// The leftover pass (0x48A1AE) also dumps spare citizens on any free mine whether or not that resource
-// needs workers. Here we pick the NEAREST acceptable site to the AI's base, within a maximum distance,
-// and reject sites whose straight route from the base passes known enemies (the game's own threat check
-// 0x4660B9 sampled every 2 tiles). Leftover citizens only go to mines whose resource is below target;
-// otherwise the game falls back to wood. Included by eeaimod.c before econ.c.
+// SITES: the resource manager's site searches - mines (0x48C204), food (0x48BBA8), wood - and its field and hunt
+// lists, hooked. The originals take the FIRST acceptable site in zone order, anywhere on the map, and only check for
+// enemies at the site itself - the game's pathfinding then walks citizens straight through enemy defences
+// (observed: red mining iron under yellow's towers 25 tiles away, losing its workforce). Here a site behind known
+// enemy towers is refused (avoid_towers_citizens, attack.c site_danger), a mine is the free one nearest to a drop
+// site (mine_choice), a bush the one nearest to a drop site (food_plan, food.c), an overseas mine search gets only
+// a mine overseas (overseas_mines). (safe_sites - the nearest site to the base within site_max_distance, the
+// leftover pass only to mines short of workers - removed: docs/experiments.md.) Included by eeaimod.c before econ.c.
 
-internal int g_site_max_dist = 20;   // tiles from the base, aimod.ini [all] site_max_distance
+internal int g_site_max_dist = 20;   // tiles from the base, aimod.ini [all] site_max_distance (econ.c: the wild food counted)
 
-typedef char (__thiscall *EnemyNearFn)(void *, int, int);
 internal int site_danger(ee_player *pl, ee_unit *site, int food);   // attack.c: known enemy towers on the way
 internal int site_danger_res(ee_player *pl, ee_unit *site, int food, int res);   // attack.c: res 2 food .. 6 iron
 internal ee_unit *food_near_pick(ee_resource_mgr *rm, int near_base, ee_unit *unit);   // food.c (food_plan NEAR)
@@ -48,45 +46,6 @@ internal int drop_dist(int (*d)[3], int nd, int x, int y, int food) {
         if (d[i][2] && !food) continue;
         int dx = d[i][0] - x, dy = d[i][1] - y, r = (int)sqrtf((float)(dx * dx + dy * dy));
         if (r < best) best = r;
-    }
-    return best;
-}
-
-// type 2 = food (forage sites, zone activity ignored like the original), 4..6 = mines.
-internal ee_unit *select_site(ee_resource_mgr *rm, int type, int need_drop, int max_d2, ee_unit *unit) {
-    ee_player *pl = rm_player(rm);
-    ee_civ_mgr *cm = rm_get_owner(rm);
-    void *bm = cm ? cm_get_build_mgr(cm) : NULL;
-    if (!pl || !bm) return NULL;
-    int base[2] = { bm_get_base_x(bm), bm_get_base_y(bm) };
-    if (base[0] == -10000 || base[1] == -10000) return NULL;
-    int lim = g_site_max_dist * g_site_max_dist;
-    if (max_d2 <= 0 || max_d2 > lim) max_d2 = lim;
-    unsigned cap = table_value(0x16);
-    int ref_pos[2] = { base[0], base[1] };
-    if (unit) { ref_pos[0] = unit_get_x(unit); ref_pos[1] = unit_get_y(unit); }
-    short ref_region = (short)map_area(ref_pos, 2);
-    ee_unit *best = NULL;
-    int best_d2 = 0x7FFFFFFF;
-    ee_zone **zb = player_get_zones_begin(pl); ee_zone **ze = player_get_zones_end(pl);
-    for (int z = 0; zb && zb + z < ze; z++) {
-        ee_zone *zone = zb[z];
-        if (!zone || (type != 2 && !zone_get_active(zone))) continue;
-        ee_unit *s = zone_site(zone, type);
-        if (!s) continue;
-        if (type == 2 && type_get_id(unit_get_type_data(s)) != UT(RES_FORAGE_BUSH)) continue;   // forage only
-        if (unit_get_amount(s) <= 0 || siteown_get_flag(unit_get_vis(s)) == 1) continue;
-        if (need_drop && !zone_get_drop(zone)) continue;
-        int pos[2] = { unit_get_x(s), unit_get_y(s) };
-        int dx = pos[0] - base[0], dy = pos[1] - base[1], d2 = dx * dx + dy * dy;
-        if (d2 >= max_d2 || d2 >= best_d2) continue;
-        if (!explored_by(s, pl)) continue;
-        if (site_gatherers(s) >= cap) continue;
-        if ((short)map_area(pos, 2) != ref_region) continue;
-        if (bm_enemy_near(bm, pos[0], pos[1])) continue;
-        if (!route_safe(bm, base, pos) || site_danger_res(pl, s, type == 2, type)) continue;
-        best = s;
-        best_d2 = d2;
     }
     return best;
 }
@@ -202,15 +161,6 @@ internal ee_unit *select_mine_near_drop(ee_resource_mgr *rm, int type, ee_unit *
     return best;
 }
 
-internal void trace_site(ee_resource_mgr *rm, const char *what, uintptr_t caller, void *unit, void *r) {
-    if (!tracing(rm)) return;
-    char buf[300];
-    snprintf(buf, sizeof buf, "@%06x %s", (unsigned)caller, what);
-    trace_obj(buf, sizeof buf, "unit", unit);
-    trace_obj(buf, sizeof buf, "->", r);
-    trace_emit(buf);
-}
-
 // OVERSEAS MINES ([all] overseas_mines, default on - Art of Conquest's fix): on a water map the citizen assignment
 // (0x48A554) asks at its last call (MINE_SITES[5]) for any mine, no unit given, whenever a mine type is still short or
 // the overseas timer (0x43123A) is due - with nobody short too - and puts every idle citizen of the home island on the
@@ -225,11 +175,11 @@ internal void trace_site(ee_resource_mgr *rm, const char *what, uintptr_t caller
 // within 2 standard errors, on since it costs nothing (2026-10-21, the user).
 internal int g_overseas_mines = 1;
 internal unsigned g_oversea[16][4];   // per player: searches, home mines found, overseas mines found, home ones replaced
-internal void *find_mine_pick(ee_resource_mgr *rm, int type, ee_unit *unit, uintptr_t rev, uintptr_t caller);
+internal void *find_mine_pick(ee_resource_mgr *rm, int type, ee_unit *unit, uintptr_t rev);
 internal void *__fastcall hook_find_mine(ee_resource_mgr *rm, void *edx, int type, ee_unit *unit, uintptr_t rev) {
     (void)edx;
     uintptr_t caller = CALLER();
-    ee_unit *r = find_mine_pick(rm, type, unit, rev, caller);
+    ee_unit *r = find_mine_pick(rm, type, unit, rev);
     ee_player *pl = rm_player(rm);
     ee_civ_mgr *cm = rm_get_owner(rm); ee_build_mgr *bm = cm ? cm_get_build_mgr(cm) : NULL;
     if (mine_site(caller) != 5 || !pl || !bm) return r;
@@ -247,37 +197,17 @@ internal void *__fastcall hook_find_mine(ee_resource_mgr *rm, void *edx, int typ
     if (r) n[3]++;
     return r;
 }
-internal void *find_mine_pick(ee_resource_mgr *rm, int type, ee_unit *unit, uintptr_t rev, uintptr_t caller) {
+internal void *find_mine_pick(ee_resource_mgr *rm, int type, ee_unit *unit, uintptr_t rev) {
     if (is_vanilla(rm_player(rm))) return rm_find_mine(rm, (uintptr_t)type, unit, rev);   // the game's search
-    if (!cfg_of(rm_player(rm))->safe_sites) {
-        ee_unit *r = g_mine_choice && type >= 4 && type < 7 ? select_mine_near_drop(rm, type, unit, -1) : NULL;
-        return r ? r : refuse_danger(rm, rm_find_mine(rm, (uintptr_t)type, unit, rev), type == 2, type);
-    }
-    if (in_leftover_pass(caller) && type >= 2 && type < 7) {
-        // leftover pass: only mines whose resource actually needs more workers
-        int have = FIELD(rm_list_at(rm, type), 0x10, int), want = ((int *)rm_target_at(rm))[type];
-        if (have >= want) { trace_site(rm, "find_mine(leftover, not needed)", caller, unit, NULL); return NULL; }
-    }
-    ee_unit *r = select_site(rm, type, 0, 0, unit);
-    char what[48];
-    wsprintfA(what, "find_mine(type %d)", type);
-    trace_site(rm, what, caller, unit, r);
-    return r;
+    ee_unit *r = g_mine_choice && type >= 4 && type < 7 ? select_mine_near_drop(rm, type, unit, -1) : NULL;
+    return r ? r : refuse_danger(rm, rm_find_mine(rm, (uintptr_t)type, unit, rev), type == 2, type);
 }
 
 internal void *__fastcall hook_find_food(ee_resource_mgr *rm, void *edx, uintptr_t need_drop, uintptr_t near_base, ee_unit *unit) {
     (void)edx;
     if (is_vanilla(rm_player(rm))) return rm_find_food(rm, need_drop, near_base, unit);
-    if (!cfg_of(rm_player(rm))->safe_sites) {
-        ee_unit *s = food_near_pick(rm, (int)(near_base & 0xFF), unit);   // food_plan NEAR: the bush nearest to a drop site
-        return s ? s : refuse_danger(rm, rm_find_food(rm, need_drop, near_base, unit), 1, 2);
-    }
-    ee_player *pl = rm_player(rm);
-    int r6 = pl ? player_get_dropoff_distance(pl) : 6;
-    int max_d2 = (near_base & 0xFF) ? r6 * r6 * 4 : r6 * r6 * 36;   // same passes as the original
-    ee_unit *r = select_site(rm, 2, (int)(need_drop & 0xFF), max_d2, unit);
-    trace_site(rm, (near_base & 0xFF) ? "find_food(near)" : "find_food(far)", CALLER(), unit, r);
-    return r;
+    ee_unit *s = food_near_pick(rm, (int)(near_base & 0xFF), unit);   // food_plan NEAR: the bush nearest to a drop site
+    return s ? s : refuse_danger(rm, rm_find_food(rm, need_drop, near_base, unit), 1, 2);
 }
 
 // The assignment's lists (std::vector out: +4 begin, +8 end): finished fields without farmer (0x48BFD0, called at
@@ -325,7 +255,7 @@ internal void sites_install(const char *aimod_ini, const char *autotest_ini) {
     // always: the searches refuse sites behind known enemy towers (avoid_towers_citizens, attack.c)
     ok += patch_find_mine(hook_find_mine, &total) + patch_find_food(hook_find_food, &total) + patch_find_wood(hook_find_wood, &total) +
           patch_farms(hook_farms, hook_unbuilt_farms, &total) + patch_hunt(hook_hunt, &total);
-    if (g_log) fprintf(g_log, "# safe_sites hooks: %d/%d, max distance %d; mine_choice=%d, overseas_mines=%d\n", ok, total, g_site_max_dist, g_mine_choice, g_overseas_mines);
+    if (g_log) fprintf(g_log, "# site hooks: %d/%d, max distance %d; mine_choice=%d, overseas_mines=%d\n", ok, total, g_site_max_dist, g_mine_choice, g_overseas_mines);
 }
 
 // a new game (the game start hook)

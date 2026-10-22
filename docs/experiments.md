@@ -6,7 +6,8 @@ docs/ai-analysis.md and the code in dll/ai/. Nothing was re-run for this review:
 the docs, and the "why" is the mechanism the logs showed. Where they don't show it, it says so.
 The REMOVE and RETEST lists were measured again with fall_back on (2026-10-22): "Re-measured with fall_back on" at the
 end - it overrules several verdicts below (mine_fill gains on the large maps; hold_town, army_mass 2, fall_back 8,
-metal_plan 2, workforce_plan 8 within the noise; navy_mix a no-op).
+metal_plan 2, workforce_plan 8 within the noise; navy_mix a no-op). Removed after it (2026-10-22, the code in git at 2bf0da2):
+assault + assault_outmatched, attack_retreat (= army_mass 4), the navy_mix switch, safe_sites.
 
 Numbers: d = with - without, paired by seed and seat, standard error in brackets; kl = kills - losses per game; "cheat" =
 the base AI at hard with its 50% prices. Map names as in `scripts/isl_ablate.sh`: `cont` Continental e0 Small, `coL`
@@ -36,7 +37,7 @@ have since changed. Before reading an old "off" as "doesn't work", check which o
 | `army_plan` 1+2+4 | turn unspent stock into soldiers, more production buildings | cont soldiers +4.5 / +5.3 at 60; h2h losses +14.4 (5.8) | the extra soldiers came as a trickle and were fed in one by one; only measured on Small maps | **RETEST** on coL with fall_back (2nd) |
 | `workforce_plan` 4 ARMY | army_plan's FILL + BUILD on every map at cap 250+ | coL/liH/tiH no cheat soldiers +10 to +19, kl within the noise | as army_plan; on the island maps the metal is the limit | **RETEST** with army_plan on coL (2nd) |
 | `army_mass` 1 GATHER, 65, 144 | reinforcements gather and join in groups; the pack stays together | GATHER no cheat kl +11.0 (3.4); cheat kills -17.0 (8.1) | hit with less at once; against twice the army the pack that waits trades less | **RETEST** with fall_back on cont + coL (3rd) |
-| `navy_mix` | warships by role (frigates, battleships, galleys/subs) and against the enemy fleet seen | h2h kl -8.6 (2.3) / -7.5 (2.9) | the fleets were 1-1.5 ships: no mix could form; battleships sent by the game's sea groups against coasts | **RETEST** with navy_fleet=2 + fall_back (4th) |
+| `navy_mix` | warships by role (frigates, battleships, galleys/subs) and against the enemy fleet seen | h2h kl -8.6 (2.3) / -7.5 (2.9) | the fleets were 1-1.5 ships: no mix could form; battleships sent by the game's sea groups against coasts | **RETEST** with navy_fleet=2 + fall_back (4th) - re-measured: a no-op under navy_fleet 2, the switch **REMOVED** (2026-10-22; the code in git at 2bf0da2) (the mix stays with the fleet) |
 | `early_army`, `early_soldiers=0` | ranged, food-free soldiers from epoch 1 (B) | A+B cheat kl +39 (17.7); no cheat wins 3 of 20 vs 8 | measured before food_plan=3 and fall_back; not clearly better than A | **RETEST** on cont (5th) |
 | `militia_estimate` | citizens fight by the fight estimate in every age, as a fallback | 10 seeds, within the noise | too few games, too weak a raid, the user's ini | **RETEST** (low) |
 | `landing_bombard` | shell a strong beach before landing | ashore 2.30 vs 2.15, ships lost 40.7 vs 37.1, noise | tiny fleet economy, ships died at the beach | **RETEST** (low) |
@@ -45,14 +46,14 @@ have since changed. Before reading an old "off" as "doesn't work", check which o
 | `fight_estimate` | defence decisions by the real fight estimate | overrun alive 4 vs 3 of 10, kills 49 vs 31; muster fires 15/17 vs 7/6 | the estimate is an open-field fight; at home the defender has towers, buildings, reinforcements | **FIX FIRST** |
 | `workforce_plan` 1 CAP, 2 WOOD | citizens only as many as the economy uses; surplus woodcutters to the mines | CAP -30 to -43 citizens, soldiers unchanged; 3 siL cheat kl -11 (4) | room and food were not what limited the army; the mines' slots were full - nowhere to put the woodcutters | **FIX FIRST** (needs outposts' slots) |
 | `food_plan` 16 WILD | no fields while wild food (fish) is free | islands workers -7 to -10 at 30 min | the AI has no fishing boat before minute ~25 | **FIX FIRST** (early boats) |
-| `assault` (+ `assault_outmatched`) | the mod leads the land attack as one army | worse in every test (pathtest kills 20-33 vs 50) | straight lines into the defences (no route planner), left the town to the enemy camp | **REMOVE** |
+| `assault` (+ `assault_outmatched`) | the mod leads the land attack as one army | worse in every test (pathtest kills 20-33 vs 50) | straight lines into the defences (no route planner), left the town to the enemy camp | **REMOVED** (2026-10-22; the code in git at 2bf0da2) |
 | `hold_town` | home soldiers pull back and guard instead of being drawn out one by one | camp2: kept 4 vs 17 citizens, Town Center 2 vs 5 times | the soldiers pulled back *behind* the town and left citizens and buildings to the pushes | **REMOVE** (fall_back 2 does it right) |
-| `attack_retreat` = `army_mass` 4 | call a losing attack home | cheat kl -19.8 (8.3), kills -28.7 (9.4) | called back attacks that were trading well; whole group, not the units that lose | **REMOVE** (fall_back 2) |
+| `attack_retreat` = `army_mass` 4 | call a losing attack home | cheat kl -19.8 (8.3), kills -28.7 (9.4) | called back attacks that were trading well; whole group, not the units that lose | **REMOVED** (2026-10-22; the code in git at 2bf0da2) |
 | `army_mass` 2 WAIT, 8, 16/32 on units | wait for 1.3x before attacking; tether | WAIT hardly acted; 16 cheat kills -13.9 (5.6) | never triggered; holding back costs kills against the cheat | **REMOVE** (2, 8); 16/48 only with #3 |
 | `metal_plan` 1 VALUE, 2 NOWAIT, 4 SPARE | the soldier with the most per gold + iron | cont wins 11 -> 4 (in 27); coL screen kills -73 (20) | the game's own choice was better; cheap-per-metal units die | **REMOVE** |
 | `workforce_plan` 8 THRIFT | refused gold units replaced at once by the cheapest per metal | cont soldiers +3.5 to +4; siL kl -37 (16) | same idea as VALUE, same failure | **REMOVE** |
 | `mine_fill` | every mine slot near a drop site worked | 7: mines +5-8, kl +8 to +10; workers -4 to -12, si5 base AI wins 3 -> 7 | took the woodcutters; since then citizen_plan 1 and navy_mines do it with new citizens | **REMOVE** (superseded) |
-| `safe_sites` | citizens only near the base, safe routes | never measured in the docs ("slows mining on open maps") | switching it on bypasses mine_choice, food NEAR and the tower/threat refusals; a 20-tile limit | **REMOVE** (superseded) |
+| `safe_sites` | citizens only near the base, safe routes | never measured in the docs ("slows mining on open maps") | switching it on bypasses mine_choice, food NEAR and the tower/threat refusals; a 20-tile limit | **REMOVED** (2026-10-22; the code in git at 2bf0da2) |
 | `early_soldiers` | 4 soldiers in epoch 0 instead of towers | the worst variant: base AI wins 9 of 20, 30 citizens die | the soldiers' food starves the economy | **REMOVE** |
 | `idle_citizen_slack` | no new citizens while many stand idle | stalled growth | the wrong lever; citizen_plan / CAP handle the goal | **REMOVE** |
 | `food_plan` 8 HUNT | hunt every animal near a drop site | kl -6.5 / -12.6 | hunting is the longest walk; twice the hunters gathered 5% more | **REMOVE** |
@@ -199,6 +200,7 @@ Battleships' gold was missed elsewhere.
 (navy_fleet 2), ships that leave a lost fight (fall_back 4) - all there now.
 
 **Verdict:** **RETEST** (4th). Watch the gold: a battleship-heavy mix competes with metal_plan's land army.
+Re-measured: the switch never acted (navy_fleet 2 runs the mix already) - **REMOVED** (2026-10-22; the code in git at 2bf0da2); the mix itself runs with the fleet.
 
 ### early_army and early_soldiers (dll/ai/early.c; 63af991, 9aa8aac)
 
@@ -333,7 +335,7 @@ tower on the base's side and fights there with the tower, and muster handles a h
 Call an attack home at half its peak or facing 1.5x twice. As army_mass 4 against the base AI: cheat kl -19.8 (8.3),
 kills -28.7 (9.4); no cheat +2.7 (2.8). It turned back attacks that were trading well against the cheating AI, and
 it decides for the whole group. **REMOVE**: fall_back 2 breaks off only the units that are losing, and the attack goes
-on.
+on. **REMOVED** (2026-10-22; the code in git at 2bf0da2), with army_mass bit 4; the game's call-off it used stays (fall_back END, citizen attacks, `calloff`).
 
 ### assault (dll/ai/assault.c; c11aac0) + assault_outmatched
 
@@ -341,14 +343,14 @@ The mod leads the land attack: gather, go at 1.5x, march as one, fight together.
 killed 6-10 soldiers and 9-16 aircraft of the player instead of 28-34 and 32-34 - the army left the town to the camp;
 pathtest: straight into the lasers, kills 20-33 instead of 50. It drops the route planner's tower avoidance and the
 weak-spot search, and pulls the army away from home. Its good ideas were taken up separately (army_mass, attack
-routing, fall_back). **REMOVE.**
+routing, fall_back). **REMOVE.** **REMOVED** (2026-10-22; the code in git at 2bf0da2); its continent ids and subgroup checks live on in dll/ai/forces.c.
 
 ### safe_sites (dll/ai/sites.c; 3f81455)
 
 Citizens only within 20 tiles of the base, routes clear of known enemies. No measurement in the docs; the ini notes "slows
 mining (gold/iron) on open maps". Turned on, it bypasses mine_choice, food_plan NEAR and `refuse_danger` (the
 tower / threat refusals) - all of which do its job better now - and 20 tiles is far short of where the mines are on
-large maps. **REMOVE** (superseded).
+large maps. **REMOVE** (superseded). **REMOVED** (2026-10-22; the code in git at 2bf0da2); `site_max_distance` stays (the wild food counted for the food budget).
 
 ### idle_citizen_slack, citizen_attacks, ai_style
 
@@ -368,7 +370,7 @@ variant; the base line is `fb7base|` (empty keys = shipped). New names each run.
 | 1 | `fbm24|metal_plan=24,metal_fleet_pct=250,metal_fleet_min=20` | `siL tiH liH si5` | `scripts/metal.py -base fb7base`, `cover.py` | kl with the cheat (was -27 / -19 on siL / tiH), warships and ships lost; then h2h `h2h.sh 75 late "random_map=Small Islands,seed=101,map_scale=large,unit_limit=2500,ai_count=4,start_epoch=5,difficulty=hard" "v_metal_plan=24"` (was ships lost +8.5) |
 | 2 | `fbap7|army_plan=7`, `fbwf4|workforce_plan=4` | `coL cont` | `scripts/milspend.py`, `metal.py`, `h2h.py` | soldiers and losses together (army_plan h2h losses was +14.4); then h2h Continental `map_size=1` with `v_army_plan=7` |
 | 3 | `fbms1|army_mass=1`, `fbms65|army_mass=65`, `fbms144|army_mass=144` | `cont coL` | `scripts/mass.py`, `cover.py` | cheat kills (was -17); whether GATHER and fall_back hold the same units at cross purposes (`# cover` held / refused) |
-| 4 | `fbnm|navy_mix=1` | `siL tiH liH si5` | `scripts/navy_ab.py -mix`, `cover.py` | warships by role, sunk - lost, kl; then the `seaop` scenario |
+| 4 | `fbnm|navy_mix=1` (removed since) | `siL tiH liH si5` | `scripts/navy_ab.py -mix`, `cover.py` | warships by role, sunk - lost, kl; then the `seaop` scenario |
 | 5 | `fbea|early_army=1` | `cont` | `scripts/eco_food.py` / economy log | citizens killed, workers 20/30/60, wins without the cheat (was 3 vs 8) |
 | 6 | `fbme|militia_estimate=1`, `fbcp2|copper_plan=2,epoch_share=60%` | `cont coL` / `cont` | `cover.py`, economy log | citizens killed, kl |
 | 7 | after 1 and the sea_held fix: `fbx185|expand_islands=185,metal_plan=24,workforce_plan=3` | `siL tiH liH si5` | `scripts/islands.py`, `metal.py` | og60 (outposts still standing at 60), G+I, kl |
@@ -450,7 +452,7 @@ or one side without workers at the end), shipped -> with the key; then the metri
 | 3 | `army_mass=1` | coL -18.5 (14.6) / +11.9 (7.1), the mod's wins coL c0 17 -> 9; cont +1.1 (3.8) / -10.2 (7.3); head-to-head Continental Large -27.9 (15.5), soldiers -14.0 (6.1) | off: worse |
 | 3 | `army_mass=65` | coL -19.2 (12.9) (wins 17 -> 5) / +13.6 (8.4); cont +1.2 (3.6) / -6.8 (9.2); head-to-head -56.0 (17.7), soldiers -20.7 (6.7) | off: worse |
 | 3 | `army_mass=144` | 80 games: ALL +0.1 (2.0), every cell within the noise; head-to-head +7.6 (20.4) | off: neutral (as before); no sign of GATHER and fall_back fighting over units - no crash, no stall in 1120 army_mass games |
-| 4 | `navy_mix=1` | a no-op under navy_fleet 2 (above) | off; the key could go |
+| 4 | `navy_mix=1` | a no-op under navy_fleet 2 (above) | the key removed (2026-10-22) |
 | 5 | `early_army=1` | cont +4.6 (4.2) / -8.6 (7.4) (37 / 39 pairs: 4 runs left no log); head-to-head Continental e0 +1.6 (4.7), soldiers +3.4 (1.3) | off: noise |
 
 No default was switched on: no key gained everywhere it acts without a loss elsewhere. `mine_fill=7` comes closest

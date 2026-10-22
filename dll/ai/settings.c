@@ -25,7 +25,7 @@
 //   revenge +0xCE0.
 
 struct ai_cfg {
-    int copper_plan, budget, safe_sites;
+    int copper_plan, budget;
     float mil_start_share, mil_income_share, mil_income_share_farms;   // income share before / from the Copper Age (farms)
     int cost_percent;       // 0 = leave the game's Cheat setting alone
     int pacing;             // PACE_ (epoch_pacing)
@@ -56,7 +56,7 @@ internal const struct ai_cfg *cfg_of(ee_player *pl) {
 }
 
 // The settings a personality's style may change - the same keys as in aimod.ini. Not the structural ones
-// (copper_plan, budget, safe_sites, epoch_pacing) nor the ones that would cheat or bind to the human
+// (copper_plan, budget, epoch_pacing) nor the ones that would cheat or bind to the human
 // (cost_percent).
 // In a personality the values are expressions (persona.c, worked out at the game start), numbers in the language's
 // standard: a share or a chance is 0% to 100% (home_guard_share = 35%, attack_on_contact = 20%), a group's size a share
@@ -158,7 +158,6 @@ internal void settings_load(const char *ini, const char *test_ini) {
         struct ai_cfg *c = &g_cfg[d];
         c->copper_plan = cfg_int(ini, test_ini, d, "copper_plan", 1);
         c->budget = cfg_int(ini, test_ini, d, "budget", 1) || c->copper_plan;   // the plan works through the budget
-        c->safe_sites = cfg_int(ini, test_ini, d, "safe_sites", 0);
         c->mil_start_share = cfg_share(ini, test_ini, d, "military_start_share", 0.30, 0, 1);
         c->mil_income_share = cfg_share(ini, test_ini, d, "military_income_share", 0.40, 0, 1);
         c->mil_income_share_farms = cfg_share(ini, test_ini, d, "military_income_share_farms", 0.65, 0, 1);
@@ -181,10 +180,10 @@ internal void settings_load(const char *ini, const char *test_ini) {
         c->home_guard_share = cfg_share(ini, test_ini, d, "home_guard_share", -1, 0, 1);
         c->pop_follow = cfg_int(ini, test_ini, d, "pop_follow_human", d == 0);   // [easy] follows the human
         if (g_log)
-            fprintf(g_log, "# settings %-6s copper_plan=%d budget=%d (military %.2f/%.2f/%.2f) safe_sites=%d cost=%d%% "
+            fprintf(g_log, "# settings %-6s copper_plan=%d budget=%d (military %.2f/%.2f/%.2f) cost=%d%% "
                     "pacing=%s epoch=%d-%d attacks first %d-%d every %d-%d group %d%% "
                     "contact %d resources %d revenge %d citizens %.2f\n", k_diff_sections[d], c->copper_plan, c->budget,
-                    c->mil_start_share, c->mil_income_share, c->mil_income_share_farms, c->safe_sites, c->cost_percent,
+                    c->mil_start_share, c->mil_income_share, c->mil_income_share_farms, c->cost_percent,
                     k_pacing[c->pacing], c->epoch_min, c->epoch_max,
                     c->first_attack_min, c->first_attack_max, c->attack_min, c->attack_max, c->attack_group_percent,
                     c->attack_on_contact, c->attack_for_resources, c->attack_revenge, c->citizen_share);

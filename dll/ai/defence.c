@@ -19,8 +19,6 @@
 internal int g_def = 1, g_def_dist = 10, g_def_walls = 1, g_def_more = 1;
 internal int g_aa = 1, g_aa_ahead = 1, g_aa_ahead_b = 3;   // [all] anti_air, aa_ahead, aa_ahead_buildings (below)
 internal int g_hold = 0;   // [all] hold_town (below)
-internal int g_retreat = 0;   // [all] attack_retreat (below)
-internal int mass_retreat(unsigned idx);   // mass.c: army_mass 4 - attack_retreat for this AI
 internal uint8_t g_def_off[16];   // per player, pipe "defence P 0|1" (A/B scenarios)
 internal unsigned g_def_towers[16], g_def_walls_built[16];
 struct front { int fx, fy, enemy; float dx, dy; int wall_tries; uint32_t wall_t; };
@@ -31,7 +29,7 @@ internal struct def_plan {
     struct { int x, y; uint32_t t; } pend[8];   // slots given out recently (the construction may not show yet)
 } g_plan[16];
 
-internal unsigned area_id(int x, int y, int kind);   // assault.c: 1 the sea, 2 the land there (0 none)
+internal unsigned area_id(int x, int y, int kind);   // forces.c: 1 the sea, 2 the land there (0 none)
 internal const enum ut_name k_tower_line[] = { UT_TOWER_LINE };   // oldest first
 internal int tower_newest(ee_player *pl) {   // the best tower the game lets this player build now (0: none)
     for (int i = 6; i >= 0; i--)
@@ -794,9 +792,7 @@ internal void muster(ee_player *pl, unsigned idx, uint32_t now) {
 // 27 vs 36, lost 51 vs 59, kept 4 vs 17 citizens and its Town Center 2 vs 5 times, the camp grew to 53 vs 46 - pulled
 // back, they leave the town to the pushes. Off.
 internal struct { int holding; uint32_t sortie_t; unsigned holds, sorties, set; } g_hold_st[16];
-internal int assault_has_unit(ee_player *pl, ee_unit *u);   // assault.c
 internal int landing_has_unit(ee_player *pl, ee_unit *u);   // landing.c
-internal int landing_busy(ee_player *pl);
 internal ee_unit *g_asg_units[512];
 internal int g_asg_n;
 internal void asg_units(ee_player *pl) {   // the units of AI pl's attack subgroups (records +0x44)
@@ -871,8 +867,7 @@ internal void hold_town(ee_player *pl, unsigned idx, uint32_t now) {
     for (int k = 0; k < s->no; k++) {
         ee_unit *u = s->own[k];
         ee_goal *g = unit_get_goal(u);
-        if (assault_has_unit(pl, u)) { set_behaviour(u, 5); continue; }   // the assault leads them
-        if (landing_has_unit(pl, u)) continue;   // so does the landing (it ordered loaded transports at their docks against raiders)
+        if (landing_has_unit(pl, u)) continue;   // the landing leads them (it ordered loaded transports at their docks against raiders)
         if (g && goal_is_location(g)) {
             float dx = goal_get_dest_x(g) - (float)s->bx, dy = goal_get_dest_y(g) - (float)s->by;
             if (dx * dx + dy * dy > 35.0f * 35.0f) { set_behaviour(u, 5); continue; }   // marching out
@@ -938,131 +933,6 @@ internal void hold_town(ee_player *pl, unsigned idx, uint32_t now) {
                                "and towers (%.0f) - holding (Guard)\n", idx, now / 60000.0, en, epow, nh, hpow, s->tpow);
         }
         g_hold_st[idx].holding = 1;
-    }
-}
-
-// ATTACK RETREAT ([all] attack_retreat, default 0 until a test shows an assault turning back). An attack that got into the player's town did its damage and then
-// stayed, ground down by the towers and the small groups the player sent at its stragglers - a player would pull back
-// with what is left, regroup and come again. Every 5 s per AI and attack group (attack commander player +0xB8C +0x48;
-// a group's target player +0x48, subgroups +8..+0xC, members +0x54..+0x58, record +0x44 = unit): its strength (hit
-// points x attack of its units) and its peak while out (centre more than 25 tiles from the base); in contact (a
-// building of the target within 15 tiles of its centre), the strength it faces there - enemy soldiers within 12 tiles
-// and defences whose range reaches the centre. Down to half its peak, or facing 1.5 x its strength twice in a row:
-// the attack is called off (as for citizen attacks: units home, handed back, at the safe point) and the next attack
-// comes within 5 minutes - the survivors and what was trained meanwhile, instead of the next 20-25 minute wave.
-internal struct { ee_attack_group *g; float peak; int bad, peak_n; } g_rt[16][8];
-internal struct st_side g_rt_own, g_rt_foe;   // fight_estimate: a group and what it faces
-internal unsigned g_retreats[16];
-struct rt_face { ee_player *pl; ee_player *target; float cx, cy; int contact; float epow; };
-internal void rt_face_unit(ee_unit *u, void *ctx) {   // attack_retreat: an enemy unit near the group
-    struct rt_face *f = ctx;
-    ee_unit_type *td = unit_get_type_data(u);
-    if (unit_get_hp(u) <= 0) return;
-    ee_player *o = unit_get_owner(u);
-    if (!o || o == f->pl || player_get_index(o) <= 0 || !is_enemy(f->pl, o)) return;
-    float dx = (float)unit_get_x(u) - f->cx, dy = (float)unit_get_y(u) - f->cy, d2 = dx * dx + dy * dy;
-    int fam = type_get_family(td);
-    float r, a;
-    if (o == f->target && (fam == 2 || fam == 29) && d2 <= 225.0f) f->contact = 1;
-    if (defence_stats(u, &r, &a)) {
-        if (d2 <= (r + 1.0f) * (r + 1.0f)) { f->epow += (float)unit_get_hp(u) * a; if (g_fight_est) st_side_add(&g_rt_foe, u); }
-    } else if ((is_soldier(td) || is_siege(type_get_id(td))) && d2 <= 144.0f) {
-        f->epow += unit_power(u);
-        if (g_fight_est) st_side_add(&g_rt_foe, u);
-    }
-}
-internal void attack_retreat(ee_player *pl, unsigned idx, uint32_t now) {
-    static uint32_t last[16];
-    if (!(g_retreat || mass_retreat(idx)) || (now >= last[idx] && now - last[idx] < 5000)) return;
-    if (now < last[idx]) memset(g_rt[idx], 0, sizeof g_rt[idx]);   // a new game
-    last[idx] = now;
-    void *cm = player_get_civ_mgr(pl);
-    ee_build_mgr *bm = cm ? cm_get_build_mgr(cm) : NULL;
-    ee_combat_mgr *cbm = player_get_combat_mgr(pl); ee_attack_cmd *cmd = cbm ? am_get_commander(cbm) : NULL;
-    if (!cmd || !bm || bm_get_base_x(bm) == -10000) return;
-    // a landing under way (landing.c): its soldiers are in the attack groups - aboard (tile -10000) they look lost,
-    // and "half its peak gone" called off P3's attack with 26 soldiers at sea. No call-off then; the peaks start
-    // again after it
-    if (landing_busy(pl)) { memset(g_rt[idx], 0, sizeof g_rt[idx]); return; }
-    int bx = bm_get_base_x(bm), by = bm_get_base_y(bm);
-    uint8_t *dq = ac_groups_at(cmd); ee_attack_group *seen[8] = { 0 };
-    unsigned first = FIELD(dq, 0xC, unsigned), cnt = FIELD(dq, 0x10, unsigned);
-    float gpow[8] = { 0 };   // every group's strength first: no call-off while a stronger one has the same target
-    ee_player *gtarget[8] = { 0 };
-    for (unsigned k = 0; k < cnt && k < 8; k++) {
-        ee_attack_group *g = deque_at(dq, first + k);
-        gtarget[k] = g ? ag_get_target(g) : NULL;
-        for (ee_attack_subgroup **sp = g ? ag_get_subgroups_begin(g) : NULL; sp && sp < ag_get_subgroups_end(g); sp++) {
-            ee_asg_unit **b = *sp ? asg_get_units_begin(*sp) : NULL;
-            ee_asg_unit **e = *sp ? asg_get_units_end(*sp) : NULL;
-            for (ee_asg_unit **r = b; b && r < e; r++) {
-                ee_unit *u = *r ? asgu_get_unit(*r) : NULL;
-                if (u && unit_get_hp(u) > 0) gpow[k] += unit_power(u);
-            }
-        }
-    }
-    for (unsigned k = 0; k < cnt && k < 8; k++) {
-        ee_attack_group *g = deque_at(dq, first + k);
-        ee_player *target = g ? ag_get_target(g) : NULL;
-        if (!target) continue;
-        seen[k] = g;
-        float pow = 0, cx = 0, cy = 0;
-        int n = 0;
-        if (g_fight_est) { st_side_clear(&g_rt_own); st_side_clear(&g_rt_foe); }
-        for (ee_attack_subgroup **sp = ag_get_subgroups_begin(g); sp && sp < ag_get_subgroups_end(g); sp++) {
-            ee_asg_unit **b = *sp ? asg_get_units_begin(*sp) : NULL;
-            ee_asg_unit **e = *sp ? asg_get_units_end(*sp) : NULL;
-            for (ee_asg_unit **r = b; b && r < e && n < 1000; r++) {
-                ee_unit *u = *r ? asgu_get_unit(*r) : NULL;
-                if (!u || unit_get_hp(u) <= 0) continue;
-                if (g_fight_est) st_side_add(&g_rt_own, u);
-                float p = unit_power(u);
-                pow += p; cx += (float)unit_get_x(u) * p; cy += (float)unit_get_y(u) * p; n++;
-            }
-        }
-        int slot = -1;
-        for (int j = 0; j < 8 && slot < 0; j++) if (g_rt[idx][j].g == g) slot = j;
-        if (slot < 0) for (int j = 0; j < 8 && slot < 0; j++) if (!g_rt[idx][j].g) { slot = j; g_rt[idx][j].g = g; g_rt[idx][j].peak = 0; g_rt[idx][j].bad = 0; g_rt[idx][j].peak_n = 0; }
-        if (slot < 0 || !n || pow <= 0) continue;
-        cx /= pow; cy /= pow;
-        float hx = cx - (float)bx, hy = cy - (float)by;
-        if (hx * hx + hy * hy <= 25.0f * 25.0f) continue;   // still home: forming
-        if (pow > g_rt[idx][slot].peak) g_rt[idx][slot].peak = pow;
-        if (n > g_rt[idx][slot].peak_n) g_rt[idx][slot].peak_n = n;
-        // in contact: the target's buildings within 15 tiles; what it faces there
-        struct rt_face f = { pl, target, cx, cy, 0, 0.0f };
-        grid_box((int)cx, (int)cy, 15, rt_face_unit, &f);
-        int contact = f.contact;
-        float epow = f.epow;
-        if (!contact) { g_rt[idx][slot].bad = 0; continue; }
-        // outmatched: what it faces there is 1.5 x the group (half its peak gone stays hit points x attack: the group
-        // against itself)
-        float stand = g_fight_est ? st_ratio(&g_rt_own, &g_rt_foe) : (epow > 0 ? pow / epow : 1e6f);
-        g_rt[idx][slot].bad = stand < 1.0f / 1.5f ? g_rt[idx][slot].bad + 1 : 0;
-        int spent = pow < 0.5f * g_rt[idx][slot].peak;
-        if (!spent && g_rt[idx][slot].bad < 2) continue;
-        // a real assault only (5+ units at its peak, 3+ left when outmatched), and not while another group with the
-        // same target is stronger - the call-off ends all attacks on that player (a straggler cancelled 6 forming groups)
-        if (g_rt[idx][slot].peak_n < 5 || (!spent && n < 3)) continue;
-        int stronger = 0;
-        for (unsigned j = 0; j < cnt && j < 8; j++) stronger |= j != k && gtarget[j] == target && gpow[j] > pow;
-        if (stronger) continue;
-        int t = player_get_index(target) & 15;
-        g_cancel_why[idx][t] = "attack (retreat)";
-        cancel_citizen_attack((int)idx, t);
-        g_retreats[idx]++;
-        uint32_t next = now + 300000;
-        if (player_get_next_attack(pl) > next) { player_set_next_attack(pl, next); g_last_attack_time[idx] = next; }
-        if (g_log) fprintf(g_log, "# attack: P%u at %.1f min pulls back from P%d: %d units, strength %.0f of its peak %.0f, facing %.0f%s; next attack at %.1f min\n",
-                           idx, now / 60000.0, t, n, pow, g_rt[idx][slot].peak, epow, spent ? " (half its peak gone)" : " (outmatched)",
-                           player_get_next_attack(pl) / 60000.0);
-        ai_say(pl, CHAT_ATTACK, "[ai] pulling back from P%d: %d units left", t, n);
-        g_rt[idx][slot].g = NULL;
-    }
-    for (int j = 0; j < 8; j++) {   // groups gone
-        int alive = 0;
-        for (int k = 0; k < 8 && !alive; k++) alive = seen[k] && seen[k] == g_rt[idx][j].g;
-        if (!alive) g_rt[idx][j].g = NULL;
     }
 }
 
@@ -1199,10 +1069,9 @@ internal void defence_install(const char *aimod_ini, const char *autotest_ini) {
     g_aa_ahead = cfg_int(aimod_ini, autotest_ini, 1, "aa_ahead", 1);
     g_aa_ahead_b = cfg_int(aimod_ini, autotest_ini, 1, "aa_ahead_buildings", 3);
     g_hold = cfg_int(aimod_ini, autotest_ini, 1, "hold_town", 0);
-    g_retreat = cfg_int(aimod_ini, autotest_ini, 1, "attack_retreat", 0);
     BOOL guard = patch_damage_points(damage_points_thunk);
     if (g_log) fprintf(g_log, "# engine guard: damage points %s\n", guard ? "ok" : "FAILED");
-    if (g_log) fprintf(g_log, "# defence: layout=%d distance=%d walls=%d own towers=%d counter-siege=%d home guard=%d/epoch, %.2f of the military room, fight_estimate=%d hold_town=%d attack_retreat=%d\n", g_def, g_def_dist, g_def_walls, g_def_more, g_csiege, g_home_guard, g_home_share, g_fight_est, g_hold, g_retreat);
+    if (g_log) fprintf(g_log, "# defence: layout=%d distance=%d walls=%d own towers=%d counter-siege=%d home guard=%d/epoch, %.2f of the military room, fight_estimate=%d hold_town=%d\n", g_def, g_def_dist, g_def_walls, g_def_more, g_csiege, g_home_guard, g_home_share, g_fight_est, g_hold);
 }
 
 // ANTI-AIR ([all] anti_air, default 1). The game's unit choice hardly asks for anti-air: the user's planes overran
@@ -1441,7 +1310,7 @@ internal int upgraded_type(ee_player *pl, int type) {
     return type;
 }
 
-// a new game (the game start hook): plans, scans, musters and retreats of the last game (its players, groups and
+// a new game (the game start hook): plans, scans and musters of the last game (its players, groups and
 // times; a muster still on sent the citizens to the old rally point)
 internal void defence_new_game(void) {
     memset(g_plan, 0, sizeof g_plan);
@@ -1455,8 +1324,6 @@ internal void defence_new_game(void) {
     memset(g_home_trained, 0, sizeof g_home_trained);
     memset(g_mus, 0, sizeof g_mus);
     memset(g_hold_st, 0, sizeof g_hold_st);
-    memset(g_rt, 0, sizeof g_rt);
-    memset(g_retreats, 0, sizeof g_retreats);
     memset(g_aa_st, 0, sizeof g_aa_st);
     memset(g_upg_done, 0, sizeof g_upg_done);
 }

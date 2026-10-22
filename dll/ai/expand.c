@@ -479,7 +479,7 @@ internal void ex_pick_unit(ee_unit *u, void *ctx) {
             if (r == 3 && (EXPAND((unsigned)player_get_index(p->pl) & 15) & 16)) d -= 1300;   // EXTRA: wood first (it piles up on large maps)
         }
         if (p->nc < 48) { p->c[p->nc] = u; p->cd[p->nc++] = d; }
-    } else if (land_soldier(t) && is_soldier(td) && !is_ship_or_air(td) && !is_transport(t) && !is_siege(t) && !as_fighting(u) && p->ns < 48) {   // land soldiers only (a transport counted as one and got a part of its own load goal: _purecall)
+    } else if (land_soldier(t) && is_soldier(td) && !is_ship_or_air(td) && !is_transport(t) && !is_siege(t) && !unit_fighting(u) && p->ns < 48) {   // land soldiers only (a transport counted as one and got a part of its own load goal: _purecall)
         if (!cm_unit_free(p->cm, unit_get_physics(u))) d += 10000;   // in a group: after the free ones
         p->s[p->ns] = u; p->sd[p->ns++] = d;
     }
@@ -626,7 +626,7 @@ internal void ex_ferry_scout(ee_player *pl, unsigned idx, struct ex_st *x, uint3
         x->fphase = 0; x->npass = 0; x->ship.u = NULL; x->active = 0; x->next_try = now + 180000;
         return;
     }
-    if (!as_goal_near(sh, (float)x->uwx + 0.5f, (float)x->uwy + 0.5f, 3.0f))
+    if (!goal_near(sh, (float)x->uwx + 0.5f, (float)x->uwy + 0.5f, 3.0f))
         x->orders += unit_goal(sh, goal_move((float)x->uwx + 0.5f, (float)x->uwy + 0.5f), 0, 0x1F40);
 }
 // phase 2: to the home shore, aboard, then off
@@ -642,7 +642,7 @@ internal void ex_ferry_board(ee_player *pl, unsigned idx, struct ex_st *x, uint3
         aboard += ab; cits += ab && is_citizen_type(type_get_id(unit_get_type_data(u)));
     }
     int sdx = unit_get_x(sh) - x->hwx, sdy = unit_get_y(sh) - x->hwy, there = sdx * sdx + sdy * sdy <= 49;
-    if (!there && !as_goal_near(sh, (float)x->hwx + 0.5f, (float)x->hwy + 0.5f, 2.0f) && !x->load_t)
+    if (!there && !goal_near(sh, (float)x->hwx + 0.5f, (float)x->hwy + 0.5f, 2.0f) && !x->load_t)
         x->orders += unit_goal(sh, goal_move((float)x->hwx + 0.5f, (float)x->hwy + 0.5f), 0, 0x1F40);
     int all = aboard == x->npass && x->npass;
     if (all || (x->load_t && now - x->load_t >= 90000 && aboard * 10 >= x->npass * 7) || (now - x->fsince >= 240000 && cits >= 3)) {
@@ -687,7 +687,7 @@ internal void ex_ferry_board(ee_player *pl, unsigned idx, struct ex_st *x, uint3
         if (unit_get_x(u) < 0) { close++; continue; }
         int dx = unit_get_x(u) - x->hx, dy = unit_get_y(u) - x->hy;
         if (dx * dx + dy * dy <= 64) { close++; continue; }
-        if (!x->load_t && !as_goal_near(u, (float)x->hx + 0.5f, (float)x->hy + 0.5f, 3.0f))   // before the load goal
+        if (!x->load_t && !goal_near(u, (float)x->hx + 0.5f, (float)x->hy + 0.5f, 3.0f))   // before the load goal
             x->orders += unit_goal(u, goal_move((float)x->hx + 0.5f, (float)x->hy + 0.5f), 0, 0x1F40);
     }
     if (g_log && (now - x->fsince) % 30000 < 2000)
@@ -995,10 +995,10 @@ internal void ex_outpost(ee_player *pl, unsigned idx, struct ex_st *x, uint32_t 
     // the guard: by the drop site, attacking what it sees within 14 tiles
     for (int k = 0; k < e.ns; k++) {
         ee_unit *u = e.s[k];
-        if (as_fighting(u)) continue;
+        if (unit_fighting(u)) continue;
         if (e.fu) { x->orders += unit_goal(u, goal_attack(u, e.fu), 0, 0x1F40); continue; }
         int ddx = unit_get_x(u) - dx0, ddy = unit_get_y(u) - dy0;
-        if (ddx * ddx + ddy * ddy > 64 && !as_goal_near(u, (float)dx0 + 0.5f, (float)dy0 + 2.5f, 3.0f))
+        if (ddx * ddx + ddy * ddy > 64 && !goal_near(u, (float)dx0 + 0.5f, (float)dy0 + 2.5f, 3.0f))
             x->orders += unit_goal(u, goal_move((float)dx0 + 0.5f, (float)dy0 + 2.5f), 0, 0x1F40);
     }
     (void)nb;

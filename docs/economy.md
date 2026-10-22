@@ -304,7 +304,7 @@ toward the subgroup); the held members of a subgroup go together once 5 wait (`a
 (`army_mass_hold`), any after 4; a released one isn't held again for 3 minutes. 8 - GATHER only while that subgroup
 fights (state 3000/3003). 2 WAIT - the attack time (+0xED8) moves on by 20 s while the land soldiers' hit points x
 attack are under `army_mass_ratio` (130%) of the strongest enemy's army known (intel.c), `army_mass_wait` (10)
-minutes at most. 4 RETREAT - attack_retreat (defence.c) for this AI. **Default 0.**
+minutes at most. (4 was RETREAT - attack_retreat for this AI; removed with it, docs/experiments.md.) **Default 0.**
 
 Paired against the build without (d = with - without, standard error; Continental e0, base AI at hard, 20 seeds x
 both seats = 40 games a cell unless noted):

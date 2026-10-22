@@ -109,7 +109,6 @@ internal void defence_tick(ee_player *pl, unsigned idx, uint32_t now);
 internal void anti_air(ee_player *pl, unsigned idx, uint32_t now);   // defence.c
 internal void bunker_reserve(ee_player *pl, int *reserve);   // bunker.c
 internal void hold_town(ee_player *pl, unsigned idx, uint32_t now);   // defence.c
-internal void attack_retreat(ee_player *pl, unsigned idx, uint32_t now);   // defence.c
 internal void counter_siege(ee_player *pl, unsigned idx, uint32_t now);
 internal void home_guard(ee_player *pl, unsigned idx, uint32_t now);
 internal void muster(ee_player *pl, unsigned idx, uint32_t now);       // defence.c: gather, then strike
@@ -665,7 +664,7 @@ internal void retry_dropped(ee_player *pl, unsigned idx, uint32_t now) {
         else g_retry[idx][k].next = now + 120000;
     }
 }
-internal uint32_t g_last_attack_time[16];   // +0xED8 at the last look (defence.c attack_retreat moves it on, not a launch)
+internal uint32_t g_last_attack_time[16];   // +0xED8 at the last look (cover.c fall_back and mass.c move it on, not a launch)
 // a vanilla player (game/players.c is_vanilla): econ_tick's log lines only - spending, gathering, the game's attack times
 internal void econ_vanilla_log(ee_player *pl, uint32_t now) {
     unsigned ai = (unsigned)player_get_index(pl) & 15;
@@ -695,7 +694,6 @@ internal void econ_tick(ee_player *pl, uint32_t now) {
     home_guard(pl, ai, now);
     muster(pl, ai, now);
     hold_town(pl, ai, now);
-    attack_retreat(pl, ai, now);
     {   // the base the AI plans around (build manager +0x12C/+0x130): log when it moves (a lost base, a new one?)
         static int bx[16] = { -10000, -10000, -10000, -10000, -10000, -10000, -10000, -10000, -10000, -10000, -10000,
                               -10000, -10000, -10000, -10000, -10000 }, by[16];
@@ -1365,7 +1363,7 @@ internal void econ_rebalance(ee_resource_mgr *rm) {
     unsigned idx = (unsigned)player_get_index(pl) & 15;
     uint32_t *target = rm_target_at(rm);
     int moves = 0, dry = 0, most = (PV(idx, g_v_mine_fill, g_mine_fill) & 1) || (PV(idx, g_v_cit_plan, g_cit_plan) & 1) ? 4 : 2;   // dry: donor lists without a movable citizen; mine_fill, citizen_plan: 4
-    // wood too with late_targets (the game's own wood search, 0x48C060(1, unit), safe_sites' danger check): 38 on gold
+    // wood too with late_targets (the game's own wood search, 0x48C060(1, unit), sites.c's danger check): 38 on gold
     // above their target stayed there for good while wood had 3
     int first = (PV(idx, g_v_late, g_late_targets) & 2) && current_epoch(pl) >= FARM_EPOCH ? 3 : 4;
     for (int r = first; r < 7 && moves < most; r++) {

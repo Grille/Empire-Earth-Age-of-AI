@@ -14,7 +14,6 @@ internal void cmd_asgtrace(char *out, const char *args);
 internal void cmd_train(char *out, const char *args);
 internal void cmd_give(char *out, const char *args);
 internal void cmd_continent(char *out, const char *args);
-internal void cmd_assault(char *out, const char *args);
 internal void cmd_aigroup(char *out, const char *args);
 internal void cmd_landing(char *out, const char *args);
 internal void cmd_vis(char *out, const char *args);
@@ -344,7 +343,6 @@ internal void execute(const char *cmd, char *out) {
     else if (!strcmp(verb, "train")) cmd_train(out, args);
     else if (!strcmp(verb, "give")) cmd_give(out, args);
     else if (!strcmp(verb, "continent")) cmd_continent(out, args);
-    else if (!strcmp(verb, "assault")) cmd_assault(out, args);
     else if (!strcmp(verb, "aigroup")) cmd_aigroup(out, args);
     else if (!strcmp(verb, "landing")) cmd_landing(out, args);
     else if (!strcmp(verb, "vis")) cmd_vis(out, args);

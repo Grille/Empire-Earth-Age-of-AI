@@ -1,7 +1,7 @@
 """Navy A/B (docs/navy.md stage 1): per suite variant (file name _suite<id>_<variant>_), per AI averages from the
 `# navy:`, `# army:`, `# landing:` and `# battle:` lines, with std. errors. -split: the AIs with the navy account
 (a `# navy: P<n> budget` line) and those without apart (head-to-head runs, [autotest] v_navy); -mix: the AIs with the
-fleet mix (a `# navy: P<n> mix` line, stage 2, [autotest] v_navy_mix) and those without apart. The second table: the
+fleet mix (a `# navy: P<n> mix` line, stage 2: the fleet builds, navy_fleet=2 / [autotest] v_navy_fleet) and those without apart. The second table: the
 warships by role (F frigates, L battleships, A galleys/catapult ships, S attack subs, AA cruisers; average of the 2-min
 looks) and lost / sunk by role at the end (T transports).
 usage: python scripts/navy_ab.py [-split|-mix] "work/*_suite..._<variant>_*.csv" ..."""
