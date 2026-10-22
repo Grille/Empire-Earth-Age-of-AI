@@ -56,14 +56,14 @@ internal unsigned g_cvr_n;
 internal uint32_t g_cvr_purge;
 // kind 1 at the Hospital, 2 broke off to cover, 3 gave its attack up (END), 4 broke off toward home, no cover near (END);
 // g its attack group then (END), home: no cover - the next step home when it arrived
-struct cv_hold { ee_unit *u; ee_attack_group *g; int id, kind, tx, ty, home; uint32_t since, at; };
+struct cv_hold { ee_unit *u; ee_attack_group *g; int id, kind, home; ivec2 t; uint32_t since, at; };   // t: its cover
 struct cv_brk { ee_unit *u; ee_attack_group *g; int id, n; uint32_t t; };   // END: how often a unit broke off from its attack group
 internal struct cv_pl {
     uint32_t ts, tb, tscan; unsigned min; int started;
     unsigned samples, mil, dmg, dmgq;
     float heal_h, heal_d, heal_o;
-    int nhs, ndk, ncv, bx, by, base;
-    int hx[16], hy[16], dkx[16], dky[16], cvx[64], cvy[64];
+    int nhs, ndk, ncv, base;
+    ivec2 b, h[16], dk[16], cv[64];   // the base; own Hospitals, Docks, defences
     struct cv_hold hold[CV_HOLD]; int nh;
     unsigned heal_sent, heal_done, broke, back, refused, judged;   // since the last line
     struct cv_brk brk[256];
@@ -131,26 +131,25 @@ internal int cv_value(ee_player *pl, int type) {   // the base price, F+W+S+G+I 
     return v;
 }
 internal int cv_hpmax(ee_unit *u) { return st_maxhp(unit_get_type_data(u), unit_get_stats(u)); }
-internal int cv_d2(int x0, int y0, int x1, int y1) { return (x1 - x0) * (x1 - x0) + (y1 - y0) * (y1 - y0); }
-// an enemy fighter in (x, y)'s 8-tile cell or one around it (seen: only those pl sees)
-internal int cv_foe_near(int x, int y, int seen) {
-    int cx = x / CV_CELL, cy = y / CV_CELL;
+// an enemy fighter in p's 8-tile cell or one around it (seen: only those pl sees)
+internal int cv_foe_near(ivec2 p, int seen) {
+    int cx = p.x / CV_CELL, cy = p.y / CV_CELL;
     for (int a = cx - 1; a <= cx + 1; a++)
         for (int b = cy - 1; b <= cy + 1; b++)
             if (a >= 0 && b >= 0 && a < CV_CELLS && b < CV_CELLS && (seen ? g_cv_seen[a][b] : g_cv_foe[a][b])) return 1;
     return 0;
 }
-// THE LOCAL FIGHT at (x, y) for pl: own and allied fighters within r against the enemy's within r, defences on both
+// THE LOCAL FIGHT at p for pl: own and allied fighters within r against the enemy's within r, defences on both
 // sides whose reach (+1) covers the spot; honest: only the enemies pl sees. st_ratio: above 1 own stronger (the square
 // root of the time ratio), 1e6 nothing to fight
-internal float cv_local(ee_player *pl, int x, int y, int r, int honest) {
+internal float cv_local(ee_player *pl, ivec2 p, int r, int honest) {
     st_side_clear(&g_cvs_own); st_side_clear(&g_cvs_foe);
-    for (struct grid_it it = grid_it_box(x, y, r + 10, 1); grid_it_next(&it); ) {
+    for (struct grid_it it = grid_it_box(p.x, p.y, r + 10, 1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
         ee_unit_type *td = it.td;
         ee_player *o = unit_get_owner(u);
         if (!o || player_get_index(o) <= 0 || !cv_alive(u)) continue;
-        int fam = type_get_family(td), d2 = cv_d2(unit_get_x(u), unit_get_y(u), x, y);
+        int fam = type_get_family(td), d2 = ivec2_dist2(unit_get_tile(u), p);
         float rg, at;
         if (fam == 2 || fam == 29) {
             if (!defence_stats(u, &rg, &at) || at <= 0 || !cv_built(u) || (float)d2 > (rg + 1.0f) * (rg + 1.0f)) continue;
@@ -161,21 +160,21 @@ internal float cv_local(ee_player *pl, int x, int y, int r, int honest) {
     }
     return st_ratio(&g_cvs_own, &g_cvs_foe);
 }
-// an enemy defence covers (x, y) (its range + 1; all, not only the known ones)
-internal int cv_enemy_def(ee_player *pl, int x, int y) {
-    for (struct grid_it it = grid_it_box(x, y, 12, 1); grid_it_next(&it); ) {
+// an enemy defence covers p (its range + 1; all, not only the known ones)
+internal int cv_enemy_def(ee_player *pl, ivec2 p) {
+    for (struct grid_it it = grid_it_box(p.x, p.y, 12, 1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
         ee_unit_type *td = it.td;
         int fam = type_get_family(td);
         float rg, at;
         if ((fam != 2 && fam != 29) || !cv_alive(u) || !is_enemy(pl, unit_get_owner(u)) || !defence_stats(u, &rg, &at) || at <= 0 || !cv_built(u)) continue;
-        if ((float)cv_d2(unit_get_x(u), unit_get_y(u), x, y) <= (rg + 1.0f) * (rg + 1.0f)) return 1;
+        if ((float)ivec2_dist2(unit_get_tile(u), p) <= (rg + 1.0f) * (rg + 1.0f)) return 1;
     }
     return 0;
 }
-internal int cv_nearest(const int *xs, const int *ys, int n, int x, int y) {   // tiles to the nearest, -1 none
+internal int cv_nearest(const ivec2 *ps, int n, ivec2 p) {   // tiles to the nearest, -1 none
     int b = -1;
-    for (int k = 0; k < n; k++) { int d = cv_d2(xs[k], ys[k], x, y); if (b < 0 || d < b) b = d; }
+    for (int k = 0; k < n; k++) { int d = ivec2_dist2(ps[k], p); if (b < 0 || d < b) b = d; }
     return b < 0 ? -1 : (int)sqrtf((float)b);
 }
 internal int cv_held(struct cv_pl *c, ee_unit *u) {
@@ -189,27 +188,28 @@ internal int g_cv_nu;
 internal void cv_scan(ee_player *pl, struct cv_pl *c) {
     c->nhs = c->ndk = c->ncv = 0; g_cv_nu = 0;
     memset(g_cv_foe, 0, sizeof g_cv_foe); memset(g_cv_seen, 0, sizeof g_cv_seen);
-    c->base = ms_base(pl, &c->bx, &c->by);
+    c->base = ms_base(pl, &c->b);
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
         ee_unit_type *td = it.td;
         ee_player *o = unit_get_owner(u);
         if (!o || player_get_index(o) <= 0 || !cv_alive(u)) continue;
-        int fam = type_get_family(td), t = type_get_id(td), x = unit_get_x(u), y = unit_get_y(u);
+        int fam = type_get_family(td), t = type_get_id(td);
+        ivec2 p = unit_get_tile(u);
         if (o == pl) {
             if (fam == 2 || fam == 29) {
                 float rg, at;
                 if (!cv_built(u)) continue;
-                if (t == UT(B_HOSPITAL) && c->nhs < 16) { c->hx[c->nhs] = x; c->hy[c->nhs++] = y; }
-                else if (t == UT(B_DOCK) && c->ndk < 16) { c->dkx[c->ndk] = x; c->dky[c->ndk++] = y; }
-                else if (defence_stats(u, &rg, &at) && at > 0 && c->ncv < 64) { c->cvx[c->ncv] = x; c->cvy[c->ncv++] = y; }
+                if (t == UT(B_HOSPITAL) && c->nhs < 16) c->h[c->nhs++] = p;
+                else if (t == UT(B_DOCK) && c->ndk < 16) c->dk[c->ndk++] = p;
+                else if (defence_stats(u, &rg, &at) && at > 0 && c->ncv < 64) c->cv[c->ncv++] = p;
             } else if (cv_mil(td) && g_cv_nu < CV_MIL) g_cv_units[g_cv_nu++] = u;
             continue;
         }
         if (!is_enemy(pl, o)) continue;
         float rg, at;
         if (!cv_mil(td) && !((fam == 2 || fam == 29) && defence_stats(u, &rg, &at) && at > 0)) continue;
-        int cx = x / CV_CELL, cy = y / CV_CELL;
+        int cx = p.x / CV_CELL, cy = p.y / CV_CELL;
         if (cx < 0 || cy < 0 || cx >= CV_CELLS || cy >= CV_CELLS) continue;
         g_cv_foe[cx][cy] = 1;
         if (seen_by(u, pl)) g_cv_seen[cx][cy] = 1;
@@ -225,10 +225,11 @@ internal void cv_sample(ee_player *pl, struct cv_pl *c, uint32_t now) {
         ee_unit *u = g_cv_units[i];
         struct cv_rec *r = cv_find(u, 1);
         if (!r) continue;
-        int hp = unit_get_hp(u), mx = cv_hpmax(u), x = unit_get_x(u), y = unit_get_y(u);
+        int hp = unit_get_hp(u), mx = cv_hpmax(u);
+        ivec2 p = unit_get_tile(u);
         int land = cv_mil(unit_get_type_data(u)) == 1;
         if (r->seen && hp > r->hp) {   // regained: by an own Hospital / Dock within 5 tiles, else elsewhere
-            int dh = cv_nearest(c->hx, c->hy, c->nhs, x, y), dd = cv_nearest(c->dkx, c->dky, c->ndk, x, y);
+            int dh = cv_nearest(c->h, c->nhs, p), dd = cv_nearest(c->dk, c->ndk, p);
             if (land && dh >= 0 && dh <= 5) c->heal_h += (float)(hp - r->hp);
             else if (!land && dd >= 0 && dd <= 5) c->heal_d += (float)(hp - r->hp);
             else c->heal_o += (float)(hp - r->hp);
@@ -238,18 +239,18 @@ internal void cv_sample(ee_player *pl, struct cv_pl *c, uint32_t now) {
         if (mx > 0 && hp * 2 < mx) {
             if (!r->low_t) r->low_t = now ? now : 1;
             c->dmg++;
-            if (!cv_foe_near(x, y, 0)) { r->quiet = 1; c->dmgq++; }
+            if (!cv_foe_near(p, 0)) { r->quiet = 1; c->dmgq++; }
         } else { r->low_t = 0; r->quiet = 0; }
         if (fl_attacking(u)) {
             if (!r->att_t || now - r->att_t > 30000) {   // a new fight: its estimate (cached per 4-tile cell this sample)
                 int k = 0;
-                while (k < nc && (cache[k].cx != x / 4 || cache[k].cy != y / 4)) k++;
-                if (k == nc && nc < 256) { cache[nc].cx = x / 4; cache[nc].cy = y / 4; cache[nc].r = cv_local(pl, x, y, 10, 0); nc++; }
+                while (k < nc && (cache[k].cx != p.x / 4 || cache[k].cy != p.y / 4)) k++;
+                if (k == nc && nc < 256) { cache[nc].cx = p.x / 4; cache[nc].cy = p.y / 4; cache[nc].r = cv_local(pl, p, 10, 0); nc++; }
                 float e = k < 256 ? cache[k].r : 1.0f;
                 r->eng = (int16_t)(e > 99.0f ? 9900 : (int)(e * 100.0f + 0.5f));
                 r->eng_t = now ? now : 1;
                 ee_unit *t = fl_target_of(u);
-                r->etower = t ? (uint8_t)cv_enemy_def(pl, unit_get_x(t), unit_get_y(t)) : 0;
+                r->etower = t ? (uint8_t)cv_enemy_def(pl, unit_get_tile(t)) : 0;
             }
             r->att_t = now ? now : 1;
         }
@@ -268,25 +269,26 @@ internal void cover_death(ee_unit *dead, int k) {
     struct cv_pl *c = &g_cv[idx];
     struct cv_rec *r = cv_find(dead, 0);
     uint32_t now = game_time();
-    int t = type_get_id(td), x = unit_get_x(dead), y = unit_get_y(dead), nb = 0;
+    int t = type_get_id(td), nb = 0;
+    ivec2 p = unit_get_tile(dead);
     char line = 'o';
     if (kind == 2) line = 'w';
     else if (type_get_category(td) == KIND_HERO) line = 'h';
     else switch (mt_line(pl, t)) { case MB_INF: line = 'i'; break; case MB_RNG: line = 'r'; break; case MB_CAV: line = 'c'; break; case MB_SIE: line = 's'; break; default: break; }
-    for (struct grid_it it = grid_it_box(x, y, 6, 1); grid_it_next(&it); ) {
+    for (struct grid_it it = grid_it_box(p.x, p.y, 6, 1); grid_it_next(&it); ) {
         ee_player *o = unit_get_owner(it.u);
         if (it.u != dead && o && player_get_index(o) > 0 && !is_enemy(pl, o) && cv_alive(it.u) && cv_mil(it.td) &&
-            cv_d2(unit_get_x(it.u), unit_get_y(it.u), x, y) <= 36) nb++;
+            ivec2_dist2(unit_get_tile(it.u), p) <= 36) nb++;
     }
-    float loc = cv_local(pl, x, y, 10, 0);
+    float loc = cv_local(pl, p, 10, 0);
     int eng = r && r->eng_t && now >= r->eng_t && now - r->eng_t < 120000 ? r->eng : -1;
     int h = cv_held(c, dead);
     EnterCriticalSection(&g_lock);
     fprintf(g_log, "# cvd: P%u at %.1f min: %c%d val %d hp %d | eng %d %.0f | loc %d | tower %d near %d | low %.0f quiet %d | hosp %d dock %d | held %d | by P%d\n",
             idx, now / 60000.0, line, t, cv_value(pl, t), cv_hpmax(dead), eng, eng >= 0 ? (now - r->eng_t) / 1000.0 : 0.0,
-            loc > 99.0f ? 9900 : (int)(loc * 100.0f + 0.5f), cv_enemy_def(pl, x, y), nb,
+            loc > 99.0f ? 9900 : (int)(loc * 100.0f + 0.5f), cv_enemy_def(pl, p), nb,
             r && r->low_t && now >= r->low_t ? (now - r->low_t) / 1000.0 : 0.0, r ? r->quiet : 0,
-            cv_nearest(c->hx, c->hy, c->nhs, x, y), cv_nearest(c->dkx, c->dky, c->ndk, x, y), h ? c->hold[h - 1].kind : 0, k);
+            cv_nearest(c->h, c->nhs, p), cv_nearest(c->dk, c->ndk, p), h ? c->hold[h - 1].kind : 0, k);
     LeaveCriticalSection(&g_lock);
     if (r) r->u = CV_TOMB;
 }
@@ -302,34 +304,35 @@ internal int cover_refuses(ee_attack_subgroup *sg, ee_unit *u) {
     return 1;
 }
 internal int cover_sea(unsigned idx) { return (FALL_BACK(idx & 15) & 4) != 0; }   // fleet.c
-// the cover for a unit at (x, y) on land area a: the nearest own defence no known enemy defence covers (2 tiles on the
+// the cover *t for a unit at p on land area a: the nearest own defence no known enemy defence covers (2 tiles on the
 // base's side of it), else a Hospital, else the base; 0 none within reach
-internal int cv_cover(ee_player *pl, struct cv_pl *c, int x, int y, unsigned a, int *tx, int *ty) {
+internal int cv_cover(ee_player *pl, struct cv_pl *c, ivec2 p, unsigned a, ivec2 *t) {
     unsigned pi = (unsigned)player_get_index(pl) & 15;
     int best = -1, bd = g_fb_dist * g_fb_dist + 1;
     threat_refresh(pl, game_time());
     for (int k = 0; k < c->ncv; k++) {
-        int d = cv_d2(c->cvx[k], c->cvy[k], x, y);
-        if (d < bd && area_id(c->cvx[k], c->cvy[k], 2) == a && !(threat_at(pi, c->cvx[k], c->cvy[k]) > 0)) { bd = d; best = k; }
+        ivec2 q = c->cv[k];
+        int d = ivec2_dist2(q, p);
+        if (d < bd && area_id(q.x, q.y, 2) == a && !(threat_at(pi, q.x, q.y) > 0)) { bd = d; best = k; }
     }
     if (best >= 0) {
-        int cx = c->cvx[best], cy = c->cvy[best];
-        float dx = (float)(c->bx - cx), dy = (float)(c->by - cy), l = sqrtf(dx * dx + dy * dy);
-        *tx = cx + (c->base && l >= 1 ? (int)lroundf(2.0f * dx / l) : 0); *ty = cy + (c->base && l >= 1 ? (int)lroundf(2.0f * dy / l) : 0);
+        ivec2 q = c->cv[best];
+        float dx = (float)(c->b.x - q.x), dy = (float)(c->b.y - q.y), l = sqrtf(dx * dx + dy * dy);
+        *t = iv2(q.x + (c->base && l >= 1 ? (int)lroundf(2.0f * dx / l) : 0), q.y + (c->base && l >= 1 ? (int)lroundf(2.0f * dy / l) : 0));
         return 1;
     }
     for (int k = 0; k < c->nhs; k++) {
-        int d = cv_d2(c->hx[k], c->hy[k], x, y);
-        if (d < bd && area_id(c->hx[k], c->hy[k], 2) == a) { bd = d; *tx = c->hx[k]; *ty = c->hy[k] + 2; best = k; }
+        int d = ivec2_dist2(c->h[k], p);
+        if (d < bd && area_id(c->h[k].x, c->h[k].y, 2) == a) { bd = d; *t = iv2(c->h[k].x, c->h[k].y + 2); best = k; }
     }
     if (best >= 0) return 1;
-    if (c->base && area_id(c->bx, c->by, 2) == a && cv_d2(c->bx, c->by, x, y) <= g_fb_dist * g_fb_dist) { *tx = c->bx; *ty = c->by; return 1; }
+    if (c->base && area_id(c->b.x, c->b.y, 2) == a && ivec2_dist2(c->b, p) <= g_fb_dist * g_fb_dist) { *t = c->b; return 1; }
     return 0;
 }
-internal void cv_take(struct cv_pl *c, ee_unit *u, int kind, int tx, int ty, uint32_t now, ee_attack_group *g, int home) {
+internal void cv_take(struct cv_pl *c, ee_unit *u, int kind, ivec2 t, uint32_t now, ee_attack_group *g, int home) {
     if (c->nh >= CV_HOLD) return;
     struct cv_hold *h = &c->hold[c->nh++];
-    h->u = u; h->g = g; h->id = unit_get_id(u); h->kind = kind; h->tx = tx; h->ty = ty; h->home = home;
+    h->u = u; h->g = g; h->id = unit_get_id(u); h->kind = kind; h->t = t; h->home = home;
     h->since = now ? now : 1; h->at = 0;
 }
 
@@ -397,14 +400,14 @@ internal int cv_tally(struct cv_pl *c, ee_unit *u, ee_attack_group *g, uint32_t 
 }
 // no own cover within reach: toward the base - the farthest point up to 20 tiles on the line to it that is still the
 // unit's land (on an enemy island: the shore on the home side); 0 none 8+ tiles away
-internal int cv_home_pt(struct cv_pl *c, int x, int y, unsigned a, int *tx, int *ty) {
+internal int cv_home_pt(struct cv_pl *c, ivec2 p, unsigned a, ivec2 *t) {
     if (!c->base) return 0;
-    float dx = (float)(c->bx - x), dy = (float)(c->by - y), l = sqrtf(dx * dx + dy * dy);
+    float dx = (float)(c->b.x - p.x), dy = (float)(c->b.y - p.y), l = sqrtf(dx * dx + dy * dy);
     int best = 0;
     for (int s = 2; s <= 20 && (float)s < l; s += 2) {
-        int px = x + (int)lroundf(dx * (float)s / l), py = y + (int)lroundf(dy * (float)s / l);
-        if (area_id(px, py, 2) != a) break;
-        *tx = px; *ty = py; best = s;
+        ivec2 q = iv2(p.x + (int)lroundf(dx * (float)s / l), p.y + (int)lroundf(dy * (float)s / l));
+        if (area_id(q.x, q.y, 2) != a) break;
+        *t = q; best = s;
     }
     return best >= 8;
 }
@@ -430,7 +433,7 @@ internal void cv_end(ee_player *pl, unsigned idx, struct cv_pl *c, uint32_t now)
         if (!q->target || q->gu < 3 || q->gu * 100 < all * g_fb_end) continue;   // 3+ gave up: a real attack
         float e = 0;
         if (q->nf && q->fpow > 0) {   // never an attack winning where its fighters stand
-            e = cv_local(pl, (int)(q->fx / q->fpow), (int)(q->fy / q->fpow), 10, 1);
+            e = cv_local(pl, iv2((int)(q->fx / q->fpow), (int)(q->fy / q->fpow)), 10, 1);
             if (e >= 1.0f) continue;
         }
         int stronger = 0;   // the call-off ends all attacks on that player: not while another one on it fights on stronger
@@ -456,11 +459,11 @@ internal void cv_behave(ee_player *pl, unsigned idx, struct cv_pl *c, uint32_t n
         int go = 0;
         if (!cv_alive(u) || unit_get_id(u) != h->id || unit_get_owner(u) != pl) go = 1;
         else {
-            int d2 = cv_d2(unit_get_x(u), unit_get_y(u), h->tx, h->ty);
+            int d2 = ivec2_dist2(unit_get_tile(u), h->t);
             if (d2 <= 9 && !h->at) h->at = now ? now : 1;
             if (h->kind == 1) {
                 int hp = unit_get_hp(u), mx = cv_hpmax(u), nb = 0;
-                for (int j = 0; j < c->nhs; j++) nb |= cv_d2(c->hx[j], c->hy[j], h->tx, h->ty) <= 9;
+                for (int j = 0; j < c->nhs; j++) nb |= ivec2_dist2(c->h[j], h->t) <= 9;
                 if (hp * 10 >= mx * 9 || !nb || now - h->since > 240000) { go = 1; c->heal_done += hp * 10 >= mx * 9; }
             } else if (h->kind == 3) {   // gave up: until its attack is over (the group gone, or it no longer in it), 5 minutes at most
                 int j = cv_group_of(u);
@@ -468,14 +471,14 @@ internal void cv_behave(ee_player *pl, unsigned idx, struct cv_pl *c, uint32_t n
             } else if ((h->at && now - h->at >= 20000) || now - h->since > 90000) go = 1;
         }
         if (go) { if (h->kind == 2 || h->kind == 4) c->back++; c->hold[k] = c->hold[--c->nh]; continue; }
-        int x = unit_get_x(u), y = unit_get_y(u);
+        ivec2 p = unit_get_tile(u);
         if (h->kind == 3 && h->home && h->at) {   // no cover: on toward home from where it got to
-            int tx, ty;
-            if (cv_home_pt(c, x, y, area_id(x, y, 2), &tx, &ty)) { h->tx = tx; h->ty = ty; h->at = 0; }
+            ivec2 t;
+            if (cv_home_pt(c, p, area_id(p.x, p.y, 2), &t)) { h->t = t; h->at = 0; }
         }
-        if (cv_d2(x, y, h->tx, h->ty) <= (h->at ? 25 : 4) || goal_near(u, (float)h->tx + 0.5f, (float)h->ty + 0.5f, 2.5f)) continue;
+        if (ivec2_dist2(p, h->t) <= (h->at ? 25 : 4) || goal_near(u, (float)h->t.x + 0.5f, (float)h->t.y + 0.5f, 2.5f)) continue;
         if (h->at && fl_attacking(u)) continue;   // at the cover: it fights what comes in reach
-        unit_goal(u, goal_move((float)h->tx + 0.5f + (float)(k % 3) - 1.0f, (float)h->ty + 0.5f + (float)(k / 3 % 3) - 1.0f), 0, 0x1F40);
+        unit_goal(u, goal_move((float)h->t.x + 0.5f + (float)(k % 3) - 1.0f, (float)h->t.y + 0.5f + (float)(k / 3 % 3) - 1.0f), 0, 0x1F40);
     }
     static struct { int cx, cy; float r; } cache[256];
     int nc = 0;
@@ -483,42 +486,44 @@ internal void cv_behave(ee_player *pl, unsigned idx, struct cv_pl *c, uint32_t n
         ee_unit *u = g_cv_units[i];
         ee_unit_type *td = unit_get_type_data(u);
         if (cv_mil(td) != 1 || cv_held(c, u) || landing_has_unit(pl, u)) continue;
-        int x = unit_get_x(u), y = unit_get_y(u), hp = unit_get_hp(u), mx = cv_hpmax(u);
-        unsigned a = area_id(x, y, 2);
+        ivec2 p = unit_get_tile(u);
+        int hp = unit_get_hp(u), mx = cv_hpmax(u);
+        unsigned a = area_id(p.x, p.y, 2);
         if (!a) continue;
         if ((plan & 1) && c->nhs && mx > 0 && hp * 100 < mx * g_fb_hp && cv_value(pl, type_get_id(td)) >= g_fb_value) {
             int best = -1, bd = g_fb_dist * g_fb_dist + 1;
             for (int k = 0; k < c->nhs; k++) {
-                int d = cv_d2(c->hx[k], c->hy[k], x, y);
-                if (d < bd && area_id(c->hx[k], c->hy[k], 2) == a && !cv_foe_near(c->hx[k], c->hy[k], 1)) { bd = d; best = k; }
+                int d = ivec2_dist2(c->h[k], p);
+                if (d < bd && area_id(c->h[k].x, c->h[k].y, 2) == a && !cv_foe_near(c->h[k], 1)) { bd = d; best = k; }
             }
             if (best >= 0) {
-                float dx = (float)(x - c->hx[best]), dy = (float)(y - c->hy[best]), l = sqrtf(dx * dx + dy * dy);
-                int tx = c->hx[best] + (l >= 1 ? (int)lroundf(2.0f * dx / l) : 2), ty = c->hy[best] + (l >= 1 ? (int)lroundf(2.0f * dy / l) : 0);
-                cv_take(c, u, 1, tx, ty, now, NULL, 0);
+                ivec2 hs = c->h[best];
+                float dx = (float)(p.x - hs.x), dy = (float)(p.y - hs.y), l = sqrtf(dx * dx + dy * dy);
+                cv_take(c, u, 1, iv2(hs.x + (l >= 1 ? (int)lroundf(2.0f * dx / l) : 2), hs.y + (l >= 1 ? (int)lroundf(2.0f * dy / l) : 0)), now, NULL, 0);
                 c->heal_sent++;
                 if (g_log && g_autotest) fprintf(g_log, "# cover: P%u at %.1f min: type %d at %d,%d (hp %d/%d) to the Hospital %d,%d\n", idx, now / 60000.0,
-                                                 type_get_id(td), x, y, hp, mx, c->hx[best], c->hy[best]);
+                                                 type_get_id(td), p.x, p.y, hp, mx, hs.x, hs.y);
                 continue;
             }
         }
-        if ((plan & 2) && cv_foe_near(x, y, 1)) {
+        if ((plan & 2) && cv_foe_near(p, 1)) {
             int k = 0;
-            while (k < nc && (cache[k].cx != x / 4 || cache[k].cy != y / 4)) k++;
-            if (k == nc && nc < 256) { cache[nc].cx = x / 4; cache[nc].cy = y / 4; cache[nc].r = cv_local(pl, x, y, 10, 1); nc++; c->judged++; }
+            while (k < nc && (cache[k].cx != p.x / 4 || cache[k].cy != p.y / 4)) k++;
+            if (k == nc && nc < 256) { cache[nc].cx = p.x / 4; cache[nc].cy = p.y / 4; cache[nc].r = cv_local(pl, p, 10, 1); nc++; c->judged++; }
             float e = k < 256 ? cache[k].r : 1e6f;
-            int tx, ty, home = 0;
+            ivec2 t;
+            int home = 0;
             if (e * 100.0f >= (float)g_fb_ratio) continue;
-            if (!cv_cover(pl, c, x, y, a, &tx, &ty)) {   // END: no own cover near - toward home rather than fight on
-                if (!(plan & 8) || !cv_home_pt(c, x, y, a, &tx, &ty)) continue;
+            if (!cv_cover(pl, c, p, a, &t)) {   // END: no own cover near - toward home rather than fight on
+                if (!(plan & 8) || !cv_home_pt(c, p, a, &t)) continue;
                 home = 1;
-            } else if (cv_d2(x, y, tx, ty) <= 16) continue;
+            } else if (ivec2_dist2(p, t) <= 16) continue;
             int j = (plan & 8) ? cv_group_of(u) : -1, n = j >= 0 ? cv_tally(c, u, g_cvg[j].g, now) : 0;
             int kind = j >= 0 && n >= g_fb_breaks ? 3 : home ? 4 : 2;
-            cv_take(c, u, kind, tx, ty, now, j >= 0 ? g_cvg[j].g : NULL, home);
+            cv_take(c, u, kind, t, now, j >= 0 ? g_cvg[j].g : NULL, home);
             c->broke++; c->gaveup += kind == 3; c->home += home;
             if (g_log && g_autotest) fprintf(g_log, "# cover: P%u at %.1f min: type %d at %d,%d breaks off (fight %.2f) to %d,%d%s\n", idx, now / 60000.0,
-                                             type_get_id(td), x, y, e, tx, ty,
+                                             type_get_id(td), p.x, p.y, e, t.x, t.y,
                                              kind == 3 ? (home ? " - gives its attack up, home" : " - gives its attack up") : home ? " - home, no cover near" : "");
         }
     }

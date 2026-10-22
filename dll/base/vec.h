@@ -36,6 +36,7 @@ internal inline void vec3_store(float *p, vec3 a) { p[0] = a.x; p[1] = a.y; p[2]
 internal inline ivec2 ivec2_add(ivec2 a, ivec2 b) { return iv2(a.x + b.x, a.y + b.y); }
 internal inline ivec2 ivec2_sub(ivec2 a, ivec2 b) { return iv2(a.x - b.x, a.y - b.y); }
 internal inline int ivec2_eq(ivec2 a, ivec2 b) { return a.x == b.x && a.y == b.y; }
+internal inline int ivec2_dot(ivec2 a, ivec2 b) { return a.x * b.x + a.y * b.y; }
 internal inline int ivec2_len2(ivec2 a) { return a.x * a.x + a.y * a.y; }
 internal inline int ivec2_dist2(ivec2 a, ivec2 b) { int dx = a.x - b.x, dy = a.y - b.y; return dx * dx + dy * dy; }
 internal inline vec2 ivec2_centre(ivec2 t) { return v2((float)t.x + 0.5f, (float)t.y + 0.5f); }   // a tile's middle

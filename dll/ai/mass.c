@@ -61,7 +61,7 @@ internal struct mass {
     unsigned dsg[5];   // land soldiers killed: in an out subgroup's pack (within 12 tiles of its middle), ahead of it, behind it, behind at home, none
     struct { ee_unit *u; ee_attack_subgroup *sg; uint32_t since; } hold[MS_HOLD]; int nh;
     struct { ee_unit *u; uint32_t t; } gone[MS_HOLD]; int ng;   // released: not held again for 3 minutes
-    int rx, ry;
+    ivec2 r;                                       // GATHER: the rally
     uint32_t wait0, wait_until;                    // WAIT: the first postponement of this attack, the time it was due
     unsigned held, released, refused, waits, waited, goes;   // since the last line (refused: the subgroups' orders)
     // "# mass2:" (autotest): per subgroup state class (0 forming/other < 2000, 1 march 2000s, 2 fight 3000s, 3 other)
@@ -69,7 +69,7 @@ internal struct mass {
     // tiles apart), samples with 2+ out; the subgroups' orders (vf57) per class: moves, attacks
     unsigned dm[4], dsh[4], dsa[4], dsb[4], fronts, multi, omv[4], oat[4];
     // TETHER / REGROUP (16 / 32): the subgroups out and their members' middle (every 2 s); targets skipped, regroup orders
-    struct { ee_attack_subgroup *sg; int cx, cy; } tc[MS_SG]; int ntc;
+    struct { ee_attack_subgroup *sg; ivec2 c; } tc[MS_SG]; int ntc;
     unsigned tethered, regrouped, joined;
 } g_mss[16];
 internal void mass_new_game(void) { memset(g_mss, 0, sizeof g_mss); }
@@ -79,21 +79,20 @@ internal int ms_land_soldier(ee_unit *u, ee_unit_type *td) {
     return unit_get_hp(u) > 0 && unit_get_x(u) >= 0 && is_soldier(td) && fam != 3 && fam != 4 && fam != 7 &&
            fam != 10 && fam != 17 && fam != 18 && fam != 21 && fam != 22;
 }
-internal int ms_base(ee_player *pl, int *bx, int *by) {   // an AI's (a human player's +0xB90 is no computer manager: garbage)
+internal int ms_base(ee_player *pl, ivec2 *b) {   // an AI's (a human player's +0xB90 is no computer manager: garbage)
     int i = pl ? player_get_index(pl) & 15 : 0;
     if (!pl || !(g_players[i] || is_vanilla_idx(i))) return 0;
     ee_civ_mgr *cm = player_get_civ_mgr(pl); ee_build_mgr *bm = cm ? cm_get_build_mgr(cm) : NULL;
     if (!bm || bm_get_base_x(bm) == -10000) return 0;
-    *bx = bm_get_base_x(bm); *by = bm_get_base_y(bm);
+    *b = bm_get_base(bm);
     return 1;
 }
-internal int ms_d2(int x0, int y0, int x1, int y1) { return (x1 - x0) * (x1 - x0) + (y1 - y0) * (y1 - y0); }
-// own land soldiers (pl's) within r tiles of (x, y), not counting u; enemy soldiers of pl there (en)
-internal int ms_near(ee_player *pl, ee_unit *u, int x, int y, int r, int *en) {
+// own land soldiers (pl's) within r tiles of p, not counting u; enemy soldiers of pl there (en)
+internal int ms_near(ee_player *pl, ee_unit *u, ivec2 p, int r, int *en) {
     int n = 0;
     if (en) *en = 0;
-    for (struct grid_it it = grid_it_box(x, y, r, 1); grid_it_next(&it); ) {
-        if (it.u == u || !ms_land_soldier(it.u, it.td) || ms_d2(unit_get_x(it.u), unit_get_y(it.u), x, y) > r * r) continue;
+    for (struct grid_it it = grid_it_box(p.x, p.y, r, 1); grid_it_next(&it); ) {
+        if (it.u == u || !ms_land_soldier(it.u, it.td) || ivec2_dist2(unit_get_tile(it.u), p) > r * r) continue;
         ee_player *o = unit_get_owner(it.u);
         if (o == pl) n++;
         else if (en && o && player_get_index(o) > 0 && is_enemy(pl, o)) (*en)++;
@@ -101,8 +100,8 @@ internal int ms_near(ee_player *pl, ee_unit *u, int x, int y, int r, int *en) {
     return n;
 }
 // the land attack subgroups of pl (attack commander player +0xB8C +0x48, groups' subgroup vectors +8..+0xC)
-internal struct ms_sg { ee_attack_subgroup *sg; int n, na, cx, cy, state, out; } g_msg[MS_SG];
-internal int ms_subgroups(ee_player *pl, int bx, int by) {
+internal struct ms_sg { ee_attack_subgroup *sg; int n, na, state, out; ivec2 c; } g_msg[MS_SG];   // c: its members' middle
+internal int ms_subgroups(ee_player *pl, ivec2 b) {
     int ns = 0;
     ee_combat_mgr *cbm = player_get_combat_mgr(pl); ee_attack_cmd *cmd = cbm ? am_get_commander(cbm) : NULL;
     if (!cmd) return 0;
@@ -119,17 +118,17 @@ internal int ms_subgroups(ee_player *pl, int bx, int by) {
             for (ee_asg_unit **r = asg_get_units_begin(sg); r && r < asg_get_units_end(sg); r++) {
                 ee_unit *u = *r ? asgu_get_unit(*r) : NULL;
                 if (!u || unit_get_hp(u) <= 0 || unit_get_x(u) < 0) continue;
-                int ux = unit_get_x(u), uy = unit_get_y(u);
-                x += (float)ux; y += (float)uy; s->n++;
-                if (ms_d2(ux, uy, bx, by) > 25 * 25) { ax += (float)ux; ay += (float)uy; s->na++; }
+                ivec2 p = unit_get_tile(u);
+                x += (float)p.x; y += (float)p.y; s->n++;
+                if (ivec2_dist2(p, b) > 25 * 25) { ax += (float)p.x; ay += (float)p.y; s->na++; }
             }
-            s->cx = s->n ? (int)(x / (float)s->n) : bx; s->cy = s->n ? (int)(y / (float)s->n) : by;
+            s->c = s->n ? iv2((int)(x / (float)s->n), (int)(y / (float)s->n)) : b;
             // out: past forming (0 next goal, 1000 empty, 1001 starting, 1004 forming) with its members away 30+ tiles
             // from the base - or none away any more while it marches or fights (2000+, not a transport's 8000)
-            int ox = s->na ? (int)(ax / (float)s->na) : s->cx, oy = s->na ? (int)(ay / (float)s->na) : s->cy;
+            ivec2 o = s->na ? iv2((int)(ax / (float)s->na), (int)(ay / (float)s->na)) : s->c;
             s->out = s->state != 0 && s->state != 1000 && s->state != 1001 && s->state != 1004 && s->state != 8000 &&
-                     (s->na ? ms_d2(ox, oy, bx, by) > 30 * 30 : s->state >= 2000);
-            if (s->na) { s->cx = ox; s->cy = oy; }
+                     (s->na ? ivec2_dist2(o, b) > 30 * 30 : s->state >= 2000);
+            if (s->na) s->c = o;
         }
     }
     return ns;
@@ -137,43 +136,45 @@ internal int ms_subgroups(ee_player *pl, int bx, int by) {
 
 // ---- the measurement ----
 internal int ms_cls(int st) { return st >= 2000 && st < 3000 ? 1 : st >= 3000 && st < 4000 ? 2 : st >= 4000 ? 3 : 0; }
-internal void mass_sample(ee_player *pl, struct mass *m, int bx, int by) {
+internal void mass_sample(ee_player *pl, struct mass *m, ivec2 b) {
     m->samples++;
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
         if (unit_get_owner(u) != pl || !ms_land_soldier(u, it.td)) continue;
-        int x = unit_get_x(u), y = unit_get_y(u);
-        int iso = ms_near(pl, u, x, y, 6, NULL) <= 2, away = ms_d2(x, y, bx, by) > 25 * 25, eng = fl_attacking(u);
+        ivec2 p = unit_get_tile(u);
+        int iso = ms_near(pl, u, p, 6, NULL) <= 2, away = ivec2_dist2(p, b) > 25 * 25, eng = fl_attacking(u);
         m->sold++; m->iso += iso; m->away += away; m->isoaway += iso && away; m->eng += eng; m->engiso += eng && iso;
     }
-    int ns = ms_subgroups(pl, bx, by);
+    int ns = ms_subgroups(pl, b);
     for (int k = 0; k < ns; k++) {
         struct ms_sg *s = &g_msg[k];
         m->sg++; m->out += s->out; m->asg += (unsigned)s->n;
-        int cx = 0, cy = 0, n = 0;   // stragglers: from the middle of all its members
+        ivec2 c = iv2(0, 0);   // stragglers: from the middle of all its members
+        int n = 0;
         for (ee_asg_unit **r = asg_get_units_begin(s->sg); r && r < asg_get_units_end(s->sg); r++) {
             ee_unit *u = *r ? asgu_get_unit(*r) : NULL;
-            if (u && unit_get_hp(u) > 0 && unit_get_x(u) >= 0) { cx += unit_get_x(u); cy += unit_get_y(u); n++; }
+            if (u && unit_get_hp(u) > 0 && unit_get_x(u) >= 0) { c = ivec2_add(c, unit_get_tile(u)); n++; }
         }
         if (n < 2) continue;
-        cx /= n; cy /= n;
-        int c = ms_cls(s->state);
+        c.x /= n; c.y /= n;
+        int cl = ms_cls(s->state);
         for (ee_asg_unit **r = asg_get_units_begin(s->sg); r && r < asg_get_units_end(s->sg); r++) {
             ee_unit *u = *r ? asgu_get_unit(*r) : NULL;
             if (!u || unit_get_hp(u) <= 0 || unit_get_x(u) < 0) continue;
-            int ux = unit_get_x(u), uy = unit_get_y(u), st = ms_d2(ux, uy, cx, cy) > 12 * 12;
-            m->strag += st; m->dm[c]++;
+            ivec2 p = unit_get_tile(u);
+            int st = ivec2_dist2(p, c) > 12 * 12;
+            m->strag += st; m->dm[cl]++;
             if (!st) continue;
-            if (ms_d2(ux, uy, bx, by) <= 25 * 25) m->dsh[c]++;
-            else if ((ux - cx) * (cx - bx) + (uy - cy) * (cy - by) > 0) m->dsa[c]++;
-            else m->dsb[c]++;
+            if (ivec2_dist2(p, b) <= 25 * 25) m->dsh[cl]++;
+            else if (ivec2_dot(ivec2_sub(p, c), ivec2_sub(c, b)) > 0) m->dsa[cl]++;   // ahead of the middle
+            else m->dsb[cl]++;
         }
     }
     int no = 0, fr = 0;   // fronts: out subgroups, a new front when 20+ tiles from every earlier one
     for (int k = 0; k < ns; k++) {
         if (!g_msg[k].out) continue;
         int cl = 0;
-        for (int j = 0; j < k && !cl; j++) cl = g_msg[j].out && ms_d2(g_msg[j].cx, g_msg[j].cy, g_msg[k].cx, g_msg[k].cy) <= 20 * 20;
+        for (int j = 0; j < k && !cl; j++) cl = g_msg[j].out && ivec2_dist2(g_msg[j].c, g_msg[k].c) <= 20 * 20;
         no++; fr += !cl;
     }
     m->fronts += (unsigned)fr; m->multi += no >= 2;
@@ -183,43 +184,47 @@ internal void mass_death(ee_unit *dead) {
     if (!g_autotest || !dead) return;
     ee_unit_type *td = unit_get_type_data(dead);
     ee_player *pl = unit_get_owner(dead);
-    int bx, by, fam = td ? type_get_family(td) : 3;
+    ivec2 b;
+    int fam = td ? type_get_family(td) : 3;
     if (!pl || !td || unit_get_x(dead) < 0 || !is_soldier(td) || fam == 3 || fam == 4 || fam == 7 || fam == 10 ||
-        fam == 17 || fam == 18 || fam == 21 || fam == 22 || !ms_base(pl, &bx, &by)) return;
+        fam == 17 || fam == 18 || fam == 21 || fam == 22 || !ms_base(pl, &b)) return;
     struct mass *m = &g_mss[(unsigned)player_get_index(pl) & 15];
-    int x = unit_get_x(dead), y = unit_get_y(dead), en, own = ms_near(pl, dead, x, y, 6, NULL);
-    ms_near(pl, dead, x, y, 8, &en);
-    int iso = own <= 2, away = ms_d2(x, y, bx, by) > 25 * 25;
+    ivec2 p = unit_get_tile(dead);
+    int en, own = ms_near(pl, dead, p, 6, NULL);
+    ms_near(pl, dead, p, 8, &en);
+    int iso = own <= 2, away = ivec2_dist2(p, b) > 25 * 25;
     m->die++; m->die_iso += iso; m->die_away += away; m->die_isoaway += iso && away; m->die_outn += en >= 2 * (own + 1);
-    int ns = ms_subgroups(pl, bx, by), w = 4;
+    int ns = ms_subgroups(pl, b), w = 4;
     for (int k = 0; k < ns && w == 4; k++) {
         struct ms_sg *s = &g_msg[k];
         if (!s->out) continue;
         for (ee_asg_unit **r = asg_get_units_begin(s->sg); r && r < asg_get_units_end(s->sg) && w == 4; r++)
             if (*r && asgu_get_unit(*r) == dead)
-                w = ms_d2(x, y, s->cx, s->cy) <= 12 * 12 ? 0 : !away ? 3 : (x - s->cx) * (s->cx - bx) + (y - s->cy) * (s->cy - by) > 0 ? 1 : 2;
+                w = ivec2_dist2(p, s->c) <= 12 * 12 ? 0 : !away ? 3 : ivec2_dot(ivec2_sub(p, s->c), ivec2_sub(s->c, b)) > 0 ? 1 : 2;
     }
     m->dsg[w]++;
 }
 
 // ---- army_mass ----
 // GATHER: the rally (every 20 s): the own finished tower within 14 tiles of the base nearest the point 6 tiles out
-// toward (tx, ty), 2 tiles on the base's side of it; else that point
-internal void ms_rally(ee_player *pl, struct mass *m, int bx, int by, int tx, int ty) {
-    float dx = (float)(tx - bx), dy = (float)(ty - by), l = sqrtf(dx * dx + dy * dy);
+// toward t, 2 tiles on the base's side of it; else that point
+internal void ms_rally(ee_player *pl, struct mass *m, ivec2 b, ivec2 t) {
+    float dx = (float)(t.x - b.x), dy = (float)(t.y - b.y), l = sqrtf(dx * dx + dy * dy);
     if (l < 1) { dx = 1; dy = 0; l = 1; }
-    int px = bx + (int)(6.0f * dx / l), py = by + (int)(6.0f * dy / l), bd = 0x7FFFFFFF;
-    m->rx = px; m->ry = py;
-    for (struct grid_it it = grid_it_box(bx, by, 14, 1); grid_it_next(&it); ) {
+    ivec2 pt = iv2(b.x + (int)(6.0f * dx / l), b.y + (int)(6.0f * dy / l));
+    int bd = 0x7FFFFFFF;
+    m->r = pt;
+    for (struct grid_it it = grid_it_box(b.x, b.y, 14, 1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
         ee_unit *bs = unit_get_physics(u);
         float r, a;
-        int x = unit_get_x(u), y = unit_get_y(u), d = ms_d2(x, y, px, py);
+        ivec2 p = unit_get_tile(u);
+        int d = ivec2_dist2(p, pt);
         if (unit_get_owner(u) != pl || unit_get_hp(u) <= 0 || !bs || !unit_get_finished(bs) || !defence_stats(u, &r, &a) ||
-            ms_d2(x, y, bx, by) > 14 * 14 || d >= bd) continue;
-        float ex = (float)(bx - x), ey = (float)(by - y), el = sqrtf(ex * ex + ey * ey);
+            ivec2_dist2(p, b) > 14 * 14 || d >= bd) continue;
+        float ex = (float)(b.x - p.x), ey = (float)(b.y - p.y), el = sqrtf(ex * ex + ey * ey);
         bd = d;
-        m->rx = x + (el >= 1 ? (int)(2.0f * ex / el) : 0); m->ry = y + (el >= 1 ? (int)(2.0f * ey / el) : 0);
+        m->r = iv2(p.x + (el >= 1 ? (int)(2.0f * ex / el) : 0), p.y + (el >= 1 ? (int)(2.0f * ey / el) : 0));
     }
 }
 internal int ms_held(struct mass *m, ee_unit *u, ee_attack_subgroup *sg) {
@@ -239,18 +244,19 @@ internal int mass_refuses(ee_attack_subgroup *sg, ee_unit *u, ee_goal *goal) {
     m->refused++;
     return 1;
 }
-internal void ms_gather(ee_player *pl, unsigned idx, struct mass *m, uint32_t now, int bx, int by) {
-    int ns = ms_subgroups(pl, bx, by);
+internal void ms_gather(ee_player *pl, unsigned idx, struct mass *m, uint32_t now, ivec2 b) {
+    int ns = ms_subgroups(pl, b);
     static uint8_t keep[MS_HOLD];
     memset(keep, 0, sizeof keep);
-    int tx = bx, ty = by, best = -1;
+    ivec2 front = b;   // the out subgroup nearest the base
+    int best = -1;
     for (int k = 0; k < ns; k++) {
         struct ms_sg *s = &g_msg[k];
         if (!s->out || ((ARMY_MASS(idx) & 8) && s->state != 3000 && s->state != 3003)) continue;   // 8: only while it fights
-        if (best < 0 || ms_d2(s->cx, s->cy, bx, by) < ms_d2(tx, ty, bx, by)) { best = k; tx = s->cx; ty = s->cy; }
+        if (best < 0 || ivec2_dist2(s->c, b) < ivec2_dist2(front, b)) { best = k; front = s->c; }
         for (ee_asg_unit **r = asg_get_units_begin(s->sg); r && r < asg_get_units_end(s->sg); r++) {
             ee_unit *u = *r ? asgu_get_unit(*r) : NULL;
-            if (!u || !ms_land_soldier(u, unit_get_type_data(u)) || ms_d2(unit_get_x(u), unit_get_y(u), bx, by) > 25 * 25 ||
+            if (!u || !ms_land_soldier(u, unit_get_type_data(u)) || ivec2_dist2(unit_get_tile(u), b) > 25 * 25 ||
                 landing_has_unit(pl, u)) continue;
             int h = ms_held(m, u, s->sg);
             int g = 0;
@@ -265,7 +271,7 @@ internal void ms_gather(ee_player *pl, unsigned idx, struct mass *m, uint32_t no
     for (int k = m->nh - 1; k >= 0; k--)   // gone, out of the subgroup, the subgroup home or gone: let go
         if (!keep[k]) { m->hold[k] = m->hold[--m->nh]; keep[k] = keep[m->nh]; }
     if (!m->nh) return;
-    if (!m->tr || now < m->tr || now - m->tr >= 20000) { m->tr = now ? now : 1; ms_rally(pl, m, bx, by, tx, ty); }
+    if (!m->tr || now < m->tr || now - m->tr >= 20000) { m->tr = now ? now : 1; ms_rally(pl, m, b, front); }
     for (int k = 0; k < m->nh; k++) {   // release a subgroup's held members together
         ee_attack_subgroup *sg = m->hold[k].sg;
         int n = 0;
@@ -274,11 +280,11 @@ internal void ms_gather(ee_player *pl, unsigned idx, struct mass *m, uint32_t no
             if (m->hold[j].sg == sg) { n++; if (now - m->hold[j].since > oldest) oldest = now - m->hold[j].since; }
         if (n >= g_mass_group || (n >= 3 && oldest >= (uint32_t)g_mass_hold * 1000u) || oldest >= (uint32_t)g_mass_hold * 2000u) {
             if (g_log && g_autotest) fprintf(g_log, "# mass: P%u at %.1f min: %d reinforcements go together (held %.1f min)\n", idx, now / 60000.0, n, oldest / 60000.0);
-            int jx = -1, jy = -1;   // 64 JOIN: they walk to the subgroup's pack (its members away from the base)
+            ivec2 join = iv2(-1, -1);   // 64 JOIN: they walk to the subgroup's pack (its members away from the base)
             for (int i = 0; i < ns && (ARMY_MASS(idx) & 64); i++)
-                if (g_msg[i].sg == sg && g_msg[i].na >= 2) { jx = g_msg[i].cx; jy = g_msg[i].cy; }
+                if (g_msg[i].sg == sg && g_msg[i].na >= 2) join = g_msg[i].c;
             for (int j = m->nh - 1; j >= 0; j--) if (m->hold[j].sg == sg) {
-                if (jx >= 0) m->joined += unit_goal(m->hold[j].u, goal_move((float)jx + 0.5f + (float)(j % 3) - 1.0f, (float)jy + 0.5f + (float)(j / 3 % 3) - 1.0f), 0, 0x1F40) != 0;
+                if (join.x >= 0) m->joined += unit_goal(m->hold[j].u, goal_move((float)join.x + 0.5f + (float)(j % 3) - 1.0f, (float)join.y + 0.5f + (float)(j / 3 % 3) - 1.0f), 0, 0x1F40) != 0;
                 int o = 0;   // a free slot of the released list, else its oldest
                 if (m->ng < MS_HOLD) o = m->ng++;
                 else for (int i = 1; i < MS_HOLD; i++) if (m->gone[i].t < m->gone[o].t) o = i;
@@ -291,10 +297,9 @@ internal void ms_gather(ee_player *pl, unsigned idx, struct mass *m, uint32_t no
     for (int k = 0; k < m->nh; k++) {   // to the rally - a member fighting near it keeps fighting
         ee_unit *u = m->hold[k].u;
         ee_unit *t = fl_target_of(u);
-        int x = unit_get_x(u), y = unit_get_y(u);
-        if (ms_d2(x, y, m->rx, m->ry) <= 9 || goal_near(u, (float)m->rx + 0.5f, (float)m->ry + 0.5f, 2.5f)) continue;
-        if (t && fl_attacking(u) && ms_d2(unit_get_x(t), unit_get_y(t), m->rx, m->ry) <= 15 * 15) continue;
-        unit_goal(u, goal_move((float)m->rx + 0.5f + (float)(k % 3) - 1.0f, (float)m->ry + 0.5f + (float)(k / 3 % 3) - 1.0f), 0, 0x1F40);
+        if (ivec2_dist2(unit_get_tile(u), m->r) <= 9 || goal_near(u, (float)m->r.x + 0.5f, (float)m->r.y + 0.5f, 2.5f)) continue;
+        if (t && fl_attacking(u) && ivec2_dist2(unit_get_tile(t), m->r) <= 15 * 15) continue;
+        unit_goal(u, goal_move((float)m->r.x + 0.5f + (float)(k % 3) - 1.0f, (float)m->r.y + 0.5f + (float)(k / 3 % 3) - 1.0f), 0, 0x1F40);
     }
 }
 // WAIT: the land army against the strongest enemy army known; the attack time moved on while weaker
@@ -335,21 +340,21 @@ internal void ms_wait(ee_player *pl, unsigned idx, struct mass *m, uint32_t now)
 // them 12+ tiles ahead of the middle, chasing - the march waits while any member is engaged, so the pack itself only
 // moves on once nothing near it is left). REGROUP (32): a member out, in a fighting subgroup, tether + 4 tiles or more
 // from the middle and attacking nothing walks back to it.
-internal void ms_tether(ee_player *pl, struct mass *m, int plan, int bx, int by) {
-    int ns = ms_subgroups(pl, bx, by), t = g_mass_tether + 4;
+internal void ms_tether(ee_player *pl, struct mass *m, int plan, ivec2 b) {
+    int ns = ms_subgroups(pl, b), t = g_mass_tether + 4;
     m->ntc = 0;
     for (int k = 0; k < ns; k++) {
         struct ms_sg *s = &g_msg[k];
         if (!s->out || s->na < 2) continue;
-        m->tc[m->ntc].sg = s->sg; m->tc[m->ntc].cx = s->cx; m->tc[m->ntc].cy = s->cy; m->ntc++;
+        m->tc[m->ntc].sg = s->sg; m->tc[m->ntc].c = s->c; m->ntc++;
         if (!(plan & 32) || s->state < 3000 || s->state >= 4000) continue;
         for (ee_asg_unit **r = asg_get_units_begin(s->sg); r && r < asg_get_units_end(s->sg); r++) {
             ee_unit *u = *r ? asgu_get_unit(*r) : NULL;
             if (!u || !ms_land_soldier(u, unit_get_type_data(u)) || fl_attacking(u)) continue;
-            int x = unit_get_x(u), y = unit_get_y(u);
-            if (ms_d2(x, y, bx, by) <= 25 * 25 || ms_d2(x, y, s->cx, s->cy) < t * t ||
-                goal_near(u, (float)s->cx + 0.5f, (float)s->cy + 0.5f, 4.0f)) continue;
-            m->regrouped += unit_goal(u, goal_move((float)s->cx + 0.5f, (float)s->cy + 0.5f), 0, 0x1F40) != 0;
+            ivec2 p = unit_get_tile(u);
+            if (ivec2_dist2(p, b) <= 25 * 25 || ivec2_dist2(p, s->c) < t * t ||
+                goal_near(u, (float)s->c.x + 0.5f, (float)s->c.y + 0.5f, 4.0f)) continue;
+            m->regrouped += unit_goal(u, goal_move((float)s->c.x + 0.5f, (float)s->c.y + 0.5f), 0, 0x1F40) != 0;
         }
     }
 }
@@ -366,12 +371,11 @@ internal int mass_tether(ee_attack_subgroup *sg, ee_unit *me, ee_unit *enemy) {
     int k = 0;
     while (k < m->ntc && m->tc[k].sg != sg) k++;
     if (k == m->ntc) return 0;
-    int ex = unit_get_x(enemy), ey = unit_get_y(enemy);
-    if (ms_d2(ex, ey, m->tc[k].cx, m->tc[k].cy) <= g_mass_tether * g_mass_tether) return 0;
+    ivec2 e = unit_get_tile(enemy);
+    if (ivec2_dist2(e, m->tc[k].c) <= g_mass_tether * g_mass_tether) return 0;
     ee_unit_stats *st = unit_get_stats(me); ee_unit_type *td = unit_get_type_data(me);
     float r = (st ? stat_get_range(st) : td ? type_get_range(td) : 1.0f) + 2.0f;
-    int dx = ex - unit_get_x(me), dy = ey - unit_get_y(me);
-    if ((float)(dx * dx + dy * dy) <= r * r) return 0;
+    if ((float)ivec2_dist2(e, unit_get_tile(me)) <= r * r) return 0;
     m->tethered++;
     return 1;
 }
@@ -379,21 +383,21 @@ internal void mass_tick(ee_player *pl, uint32_t now) {
     if (!pl) return;
     unsigned idx = (unsigned)player_get_index(pl) & 15;
     struct mass *m = &g_mss[idx];
-    int bx, by;
+    ivec2 b;
     if (now < m->ts || now < m->tf) { memset(m, 0, sizeof *m); }
-    if (!ms_base(pl, &bx, &by)) return;
+    if (!ms_base(pl, &b)) return;
     int plan = is_vanilla(pl) ? 0 : ARMY_MASS(idx);
     if (plan && (!m->tf || now - m->tf >= 2000)) {
         m->tf = now ? now : 1;
         if (!navy_land(idx)) m->nh = m->ntc = 0;
         else {
-            if (plan & 1) ms_gather(pl, idx, m, now, bx, by); else m->nh = 0;
-            if (plan & 48) ms_tether(pl, m, plan, bx, by); else m->ntc = 0;
+            if (plan & 1) ms_gather(pl, idx, m, now, b); else m->nh = 0;
+            if (plan & 48) ms_tether(pl, m, plan, b); else m->ntc = 0;
             if ((plan & 2) && (!m->tw || now - m->tw >= 5000)) { m->tw = now ? now : 1; ms_wait(pl, idx, m, now); }
         }
     }
     if (!g_autotest || !g_log) return;
-    if (!m->ts || now - m->ts >= 5000) { m->ts = now ? now : 1; mass_sample(pl, m, bx, by); }
+    if (!m->ts || now - m->ts >= 5000) { m->ts = now ? now : 1; mass_sample(pl, m, b); }
     if (!m->started) { m->started = 1; m->min = now / 60000; return; }
     if (now / 60000 == m->min) return;
     float s = m->samples ? (float)m->samples : 1.0f;
