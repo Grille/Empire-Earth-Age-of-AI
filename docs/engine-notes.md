@@ -736,7 +736,7 @@ Each row is checked another way (the same instruction, the callers agreeing, the
 
 ### The objects' fields (scripts/port_fields.py, 2026-10-21)
 
-The mod reads ~3600 fields: 442 (kind, offset) pairs in dll/game/fields.h, with AoC's column. Found per class: in its
+The mod reads ~3600 fields: 442 (kind, offset) pairs in dll/game/api/fields.h, with AoC's column. Found per class: in its
 methods (vtable slots and what they call with `this` in ecx) aligned with every number masked, [this + X] in the base
 reads [this + Y] in AoC (the AI's save/load serializer, EEComputerPlayer::vf6, names most player fields); then the
 offsets of all paired code (any object) for structures without methods, accepted only where they agree with a

@@ -28,7 +28,7 @@ RANGES = {
 
 
 def rows(kind):
-    src = open(os.path.join(ROOT, 'dll', 'game', 'fields.h'), encoding='latin-1').read()
+    src = open(os.path.join(ROOT, 'dll', 'game', 'api', 'fields.h'), encoding='latin-1').read()
     return [(int(o, 16), None if v == 'NA' else int(v, 16), how) for o, v, how in
             re.findall(r'O\(%s, 0x([0-9A-F]+), 0x[0-9A-F]+, (0x[0-9A-F]+|NA)\) /\* (.*?) \*/' % kind, src)]
 
