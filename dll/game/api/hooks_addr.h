@@ -29,6 +29,7 @@
     D(CALL_GAME_START, 0x004CEC14, 0x004D4443) \
     D(CALL_DAMAGE_POINTS, 0x004F80A4, 0x0050232D) \
     D(CALL_LOAD_SAVED, 0x00522BF8, 0x0052D8F9)                                /* call LoadSavedGameFromCmdline(UString *) 0x521F94 */ \
+    D(CALL_PLAYER_COLOR, 0x005262E4, 0x00531057) \
     D(CALL_PARSE_CMDLINE, 0x00535EF2, 0x005410C8)                             /* call ParseCommandLine(const char *) 0x522A36 */ \
     D(CALL_EPOCH_CATCH_UP, 0x0055A5B5, 0x00569633)                            /* its one call: EEPlayer::vf41, a human reached an epoch */ \
     D(EXIT_CONFIRM_AT, 0x005D0B2C, 0x005E1438) \
@@ -90,4 +91,7 @@
     /* the attack subgroups' vtables */ \
     L(ASG_VTABLES, 6, (0x00827620, 0x00826610, 0x00826818, 0x00826F10, 0x008270F8, 0x00827318), \
         (0x0083BD20, 0x0083A6D8, 0x0083A8E0, 0x0083AFEC, 0x0083B1D8, 0x0083B9F0)) \
+    /* the calls of FN_NATIVE_CHAT (the AI's own lines) */ \
+    L(NATIVE_CHAT_SITES, 5, (0x00470040, 0x004715F8, 0x0047166E, 0x0047280E, 0x00472B9D), \
+        (0x00472F4C, 0x00474682, 0x00474705, 0x004758D5, 0x00475C65)) \
 

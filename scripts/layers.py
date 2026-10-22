@@ -51,7 +51,7 @@ EXCEPTIONS = [
 # THE FOLDERS AND FILES MOVED OVER to the typed game functions (game/api/functions.h: the calls, game/api/hooks.h: the hooks'
 # installers): GF, GA(FN_..), GA(CALL_..), GA(SLOT_..) or GL(..) there fails the build (game/api/ itself excepted).
 # When everything is in it, the rule becomes "the game's functions only in game/api/".
-TYPED = ['ai/', 'game/', 'eeaimod.c', 'persist.c']
+TYPED = ['ai/', 'game/', 'voice/', 'eeaimod.c', 'persist.c']
 
 IDENT = re.compile(r'[A-Za-z_]\w*')
 # a declaration's attributes, written out or by base/'s macro (internal PRINTF_LIKE(1, 2) void f(...)): not its name

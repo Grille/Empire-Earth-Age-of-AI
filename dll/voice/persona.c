@@ -699,7 +699,7 @@ internal void *__cdecl hook_player_color(unsigned idx) {
         int c = g_ai_colors[g_ai_color_k++];
         if (c >= 0) idx = (unsigned)c;
     }
-    return GF(FN_COLOR_RGB)(idx);
+    return game_color_rgb(idx);
 }
 
 // once per AI (its first update): pick and apply the personality - pinned by aimod.ini, planned at the game start
@@ -728,11 +728,11 @@ internal void persona_apply(ee_player *pl, unsigned idx, int pick) {
     g_cfg_pl_on[idx] = 0;   // the last one's style (cmd_persona)
     struct persona *p = &g_personas[pick];
     if (g_ai_names && p->name[0])
-        ((void *(__thiscall *)(void *, const char *))*(void **)GA(IAT_WSTRING_ASSIGN))((uint8_t *)pl + OF(PL, 0x24), p->name);
+        wstring_set((uint8_t *)pl + OF(PL, 0x24), p->name);
     // its civilization's name as the game shows it: the UString at +0x488 (the text at +0x48C) - the database's own
     // name at +0x7AC stays (X.civilization_en)
     if (g_ai_names && p->civ[0] && player_civ(pl))
-        ((void *(__thiscall *)(void *, const char *))*(void **)GA(IAT_WSTRING_ASSIGN))((uint8_t *)pl + OF(PL, 0x488), p->civ);
+        wstring_set((uint8_t *)pl + OF(PL, 0x488), p->civ);
     if (g_log) {
         fprintf(g_log, "# persona: P%u is %s (%s):", idx, p->file, p->name[0] ? p->name : "-");
         for (int t = 0; t < T_N; t++) fprintf(g_log, " %s %d", k_trait_keys[t], p->trait[t]);
@@ -803,10 +803,10 @@ internal void epoch_text_n(int e, char *out, int cap) {   // epoch e (0 Prehisto
     lstrcpynA(out, epoch_name(e), cap);
     if (!res || e < 0 || e > 14) return;
     __attribute__((aligned(8))) uint8_t s[32];
-    ((void (__thiscall *)(void *))*(void **)GA(IAT_WSTRING_CTOR))(s);
-    ((int (__thiscall *)(void *, int, void *))*(void **)GA(IAT_RESOURCE_STRING))(res, 30145 + e, s);
+    wstring_init(s);
+    resource_string(res, 30145 + e, s);
     if (FIELD(s, 4, const char *)) lstrcpynA(out, FIELD(s, 4, const char *), cap);
-    ((void (__thiscall *)(void *))*(void **)GA(IAT_WSTRING_DTOR))(s);
+    wstring_free(s);
 }
 internal void epoch_text(ee_player *pl, char *out, int cap) { epoch_text_n(current_epoch(pl), out, cap); }
 
@@ -913,7 +913,7 @@ internal char __fastcall hook_native_chat(uint8_t *pim, void *edx, int base, int
         if (k != L_WAR_DECLARED) persona_say(pl, (enum line_kind)k, NULL, NULL);
         return 1;
     }
-    return GF(FN_NATIVE_CHAT)(pim, base, ms);
+    return native_chat(pim, base, ms);
 }
 
 // cmd: persona [P name]: who is who; with arguments AI P gets personality <name> (file name) from now on
@@ -1018,7 +1018,6 @@ internal void persona_install(const char *ini, const char *test_ini) {
         HANDLE t = CreateThread(NULL, 0, x_errors_box, NULL, 0, NULL);
         if (t) CloseHandle(t);
     }
-    int okc = patch_call(GA(CALL_PLAYER_COLOR), GA(FN_COLOR_RGB), (void *)hook_player_color), ok = 0;
-    for (size_t i = 0; i < sizeof GL(NATIVE_CHAT_SITES) / sizeof *GL(NATIVE_CHAT_SITES); i++) ok += patch_call(GL(NATIVE_CHAT_SITES)[i], GA(FN_NATIVE_CHAT), (void *)hook_native_chat);
+    int okc = patch_player_color(hook_player_color), ok = patch_native_chat(hook_native_chat, NULL);
     if (g_log) fprintf(g_log, "# persona: %d personalities, mod/computer.eeai %d, language '%s', talk %d, names %d, native line hooks %d/5, colour hook %d\n", g_npersonas, g_has_computer, g_lang, g_ai_talk, g_ai_names, ok, okc);
 }

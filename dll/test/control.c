@@ -137,17 +137,14 @@ internal void cmd_save(char *out, const char *args) {
     (void)n;
     // bare file name; 0x540B4A joins <startup dir> + folder + file
     wsprintfA(path, "%s%s", name, strstr(name, ".ees") ? "" : ".ees");
-    void (__thiscall *uctor)(void *) = *(void **)GA(IAT_USTRING_CTOR);
-    void *(__thiscall *uset)(void *, const char *) = *(void **)GA(IAT_USTRING_ASSIGN);
-    void (__thiscall *udtor)(void *) = *(void **)GA(IAT_USTRING_DTOR);
     struct ustring upath, udir;
-    uctor(&upath); uset(&upath, path);
-    uctor(&udir); uset(&udir, "data\\Saved Games\\");   // relative to the game folder
+    ustring_init(&upath); ustring_set(&upath, path);
+    ustring_init(&udir); ustring_set(&udir, "data\\Saved Games\\");   // relative to the game folder
     uint8_t *act = GF(FN_NEW)(GA(SIZE_SAVE_ACTION));
-    if (!act) { udtor(&upath); udtor(&udir); REPLY("error: out of memory\n"); return; }
+    if (!act) { ustring_free(&upath); ustring_free(&udir); REPLY("error: out of memory\n"); return; }
     // the ctor takes the folder by value and destroys its copy: ownership passes with the bytes
     GF(FN_SAVE_ACTION_CTOR)(act, &upath, 1, udir);
-    udtor(&upath);
+    ustring_free(&upath);
     queue_action(act);
     REPLY("ok: saving %s\n", path);
     ctl_log("save queued: %s", path);

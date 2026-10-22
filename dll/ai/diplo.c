@@ -1738,14 +1738,14 @@ internal void chat_send(const char *text) {   // a chat line from the local play
     void *net = *(void **)GA(G_SERVER);
     if (!net) return;
     __attribute__((aligned(8))) uint8_t u[32];
-    ((void (__thiscall *)(void *))*(void **)GA(IAT_WSTRING_CTOR))(u);
-    ((void *(__thiscall *)(void *, const char *))*(void **)GA(IAT_WSTRING_ASSIGN))(u, text);
+    wstring_init(u);
+    wstring_set(u, text);
     void *msg = game_new(GA(SIZE_MSG_CHAT));
     if (msg) {
         msg_chat_init(msg, u);
         server_send_all(net, msg);
     }
-    ((void (__thiscall *)(void *))*(void **)GA(IAT_WSTRING_DTOR))(u);
+    wstring_free(u);
 }
 
 // diplo: the stance matrix; diplo A B S: player A takes stance S (0 allied, 1 enemy) towards B, as the stance

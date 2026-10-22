@@ -34,11 +34,10 @@ internal void chat_line(ee_player *pl, const char *text, int ms) {
     void *ui = *(void **)GA(G_WORLD);
     if (!pl || !ui || !*text) return;
     __attribute__((aligned(8))) uint8_t s[32];
-    ((void (__thiscall *)(void *))*(void **)GA(IAT_WSTRING_CTOR))(s);
-    ((void *(__thiscall *)(void *, const char *))*(void **)GA(IAT_WSTRING_ASSIGN))(s, text);
-    GF(FN_UI_LINE)(ui, (uint8_t *)pl + OF(PL, 0x438),
-                                                                              (uint8_t *)pl + OF(PL, 0x24), s, ms, 0);
-    ((void (__thiscall *)(void *))*(void **)GA(IAT_WSTRING_DTOR))(s);
+    wstring_init(s);
+    wstring_set(s, text);
+    ui_line(ui, (uint8_t *)pl + OF(PL, 0x438), (uint8_t *)pl + OF(PL, 0x24), s, ms);
+    wstring_free(s);
 }
 
 // the game's own line for a stance change, as EEMSetDiplomaticStance::vf10 (0x4BDDCC) writes it: sprintf "%s %s %s"
@@ -52,14 +51,13 @@ internal void system_line(const char *text, int ms) {
     if (!res || !ui || !*text) return;
     float white[3] = { 1.0f, 1.0f, 1.0f };
     __attribute__((aligned(8))) uint8_t name[32], line[32];
-    void (__thiscall *ctor)(void *) = *(void **)GA(IAT_WSTRING_CTOR), (__thiscall *dtor)(void *) = *(void **)GA(IAT_WSTRING_DTOR);
-    ctor(name);
-    ctor(line);
-    ((int (__thiscall *)(void *, int, void *))*(void **)GA(IAT_RESOURCE_STRING))(res, 0x7C45, name);
-    ((void *(__thiscall *)(void *, const char *))*(void **)GA(IAT_WSTRING_ASSIGN))(line, text);
-    GF(FN_UI_LINE)(ui, white, name, line, ms, 0);
-    dtor(line);
-    dtor(name);
+    wstring_init(name);
+    wstring_init(line);
+    resource_string(res, 0x7C45, name);
+    wstring_set(line, text);
+    ui_line(ui, white, name, line, ms);
+    wstring_free(line);
+    wstring_free(name);
 }
 
 internal void chat_stance_line(ee_player *pl, int stance) {
@@ -67,20 +65,16 @@ internal void chat_stance_line(ee_player *pl, int stance) {
     uint8_t *opt = *(uint8_t **)GA(G_GAME_DATA);
     if (!pl || !res || !ui || !opt) return;
     __attribute__((aligned(8))) uint8_t verb[32], word[32], line[32];
-    void (__thiscall *ctor)(void *) = *(void **)GA(IAT_WSTRING_CTOR), (__thiscall *dtor)(void *) = *(void **)GA(IAT_WSTRING_DTOR);
-    int (__thiscall *get)(void *, int, void *) = *(void **)GA(IAT_RESOURCE_STRING);
-    ctor(verb);
-    ctor(word);
-    ((void (__thiscall *)(void *, unsigned long))*(void **)GA(IAT_WSTRING_RESERVE))(line, 0x400);
-    get(res, 0x7B71, verb);
-    get(res, stance ? 0x734A : 0x7349, word);
-    ((int (__cdecl *)(void *, const char *, ...))*(void **)GA(IAT_WSTRING_FORMAT))(line, "%s %s %s", FIELD(pl, OF(PL, 0x28), void *),
-                                                                       FIELD(verb, 4, void *), FIELD(word, 4, void *));
-    GF(FN_UI_LINE)(ui, (uint8_t *)pl + OF(PL, 0x438),
-                                                                              (uint8_t *)pl + OF(PL, 0x24), line, FIELD(opt, OF(GAMEDATA, 0x2CC), int), 0);
-    dtor(line);
-    dtor(word);
-    dtor(verb);
+    wstring_init(verb);
+    wstring_init(word);
+    wstring_reserve(line, 0x400);
+    resource_string(res, 0x7B71, verb);
+    resource_string(res, stance ? 0x734A : 0x7349, word);
+    wstring_format(line, "%s %s %s", FIELD(pl, OF(PL, 0x28), void *), FIELD(verb, 4, void *), FIELD(word, 4, void *));
+    ui_line(ui, (uint8_t *)pl + OF(PL, 0x438), (uint8_t *)pl + OF(PL, 0x24), line, FIELD(opt, OF(GAMEDATA, 0x2CC), int));
+    wstring_free(line);
+    wstring_free(word);
+    wstring_free(verb);
 }
 
 // a line of kind `kind` if chat is on and the cooldowns allow it; returns 1 if it was shown
@@ -165,19 +159,18 @@ internal void cmd_chatme(char *out, const char *args) {
     while (*args == ' ') args++;
     if (!net || !*args) { REPLY("error: chatme text (in a game)\n"); return; }
     __attribute__((aligned(8))) uint8_t s[32];
-    ((void (__thiscall *)(void *, const char *))*(void **)GA(IAT_WSTRING_CTOR_C))(s, args);
-    void (__thiscall *send)(void *, void *, int) = (void (__thiscall *)(void *, void *, int))(*(void ***)net)[GA(SLOT_SERVER_SEND)];
+    wstring_init_text(s, args);
     int code = 0, arg = 0, cheats = *(char *)GA(G_CHEATS_ON) != 0;
     if (cheats && *(void **)GA(G_CHEAT_PARSER)) {
-        GF(FN_CHEAT_PARSE)(*(void **)GA(G_CHEAT_PARSER), s, &code, &arg);
+        cheat_parse(*(void **)GA(G_CHEAT_PARSER), s, &code, &arg);
         if (code) {
-            void *m = GF(FN_NEW)(GA(SIZE_CHEAT_MSG));
-            if (m) send(net, GF(FN_CHEAT_MSG_CTOR)(m, code, arg), 0xFF);
+            void *m = game_new(GA(SIZE_CHEAT_MSG));
+            if (m) server_send_all(net, msg_cheat_init(m, code, arg));
         }
     }
-    void *m = GF(FN_NEW)(GA(SIZE_MSG_CHAT));
-    if (m) send(net, GF(FN_CHAT_MSG_CTOR)(m, s), 0xFF);
-    ((void (__thiscall *)(void *))*(void **)GA(IAT_WSTRING_DTOR))(s);
+    void *m = game_new(GA(SIZE_MSG_CHAT));
+    if (m) server_send_all(net, msg_chat_init(m, s));
+    wstring_free(s);
     REPLY("ok: sent \"%s\" (cheats %s, cheat code %d)\n", args, cheats ? "on" : "off", code);
 }
 

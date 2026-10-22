@@ -55,7 +55,6 @@ internal const struct exe_build { uint32_t hash; const char *name; int ready; } 
     F(FN_LOCATION_CTOR, void, __thiscall, (void *), 0x0047C4E8, 0x00480873) \
     F(FN_TASK_SET_LOCATION, void, __thiscall, (void *, void *), 0x0047C8B7, 0x00480C42) \
     D(FN_ASG_QUEUE_POP, 0x00482028, 0x0048655C)                              /* thiscall(queue): releases the front unit, removes it */ \
-    F(FN_NATIVE_CHAT, char, __thiscall, (void *, int, int), 0x00484EB3, 0x0048966C) \
     D(LEFTOVER_SITE_END, 0x0048A2B9, 0x0048EC34)                              /* call sites below this are in the leftover pass 0x48A1AE */ \
     F(FN_TRAIN_CITIZENS, uintptr_t, __thiscall, (void *, uintptr_t), 0x0048EE84, 0x00493B97) \
     /* EEMSelectUnits: thiscall(msg, rect, type, 0x4E) */ \
@@ -69,10 +68,6 @@ internal const struct exe_build { uint32_t hash; const char *name; int ready; } 
     D(FN_ATTACK_ALERT, 0x00519BC1, 0x00524497) \
     /* thiscall on G_CAMERA (float dx, float dy) */ \
     F(FN_CAMERA_MOVE, void, __thiscall, (void *, float, float), 0x0051E2E6, 0x00528EA5) \
-    /* thiscall([G_CHEAT_PARSER], UWideString *, int *code, int *arg) */ \
-    F(FN_CHEAT_PARSE, void, __thiscall, (void *, void *, int *, int *), 0x00520A17, 0x0052B5D6) \
-    D(CALL_PLAYER_COLOR, 0x005262E4, 0x00531057) \
-    F(FN_COLOR_RGB, void *, __cdecl, (unsigned), 0x00526B85, 0x005318BD) \
     F(FN_SETTINGS_SAVE, void, __thiscall, (void *), 0x0052AA81, 0x00535943)   /* every setting into the registry */ \
     D(CODE_SPLASH_START_JNE, 0x00534400, 0x0053F2FE)                          /* the loading splash's start (jne) */ \
     D(CODE_SPLASH_STOP_JNE, 0x0053443D, 0x0053F33B)                           /* the loading splash's stop (jne) */ \
@@ -86,7 +81,6 @@ internal const struct exe_build { uint32_t hash; const char *name; int ready; } 
     F(FN_EDITOR_FORM, void *, __thiscall, (void *, void *), 0x0058D3E1, 0x0059D615) \
     F(SM_RUN_EFFECT, void, __thiscall, (void *, int), 0x005AD29B, 0x005BD5EB) \
     F(FN_EPOCH_NEXT, void, __thiscall, (void *), 0x005BC15D, 0x005CCB34)    /* thiscall(tech tree): the next epoch (to the game's end epoch) - 0x5BC893 sets it, sends the epoch event */ \
-    F(FN_CHEAT_MSG_CTOR, void *, __thiscall, (void *, int, int), 0x005C29FB, 0x005D3162) /* new 0x18; (code, arg) */ \
     /* EEUCMissile vf42, thiscall(class, missile, aim) - ret 8, the aim unused */ \
     F(FN_MISSILE_LAUNCH, int, __thiscall, (void *, void *, float *), 0x00606109, 0x0061799B) \
     F(FN_PROJ_DOWN, char, __thiscall, (void *, void *), 0x006078F9, 0x00619143) \
@@ -103,30 +97,18 @@ internal const struct exe_build { uint32_t hash; const char *name; int ready; } 
     D(SITE_EDITOR_RES, 0x0065FD6D, 0x00677361) \
     D(SITE_EDITOR_MENU, 0x006601F1, 0x006777E5) \
     D(FN_QUEUE_ACTION, 0x0066192F, 0x00678F79) \
-    /* thiscall(ui [G_UI], colour, name, line, ms, 0): a chat or system line */ \
-    F(FN_UI_LINE, void, __thiscall, (void *, void *, void *, void *, int, int), 0x00661E91, 0x006794C6) \
     D(SITE_CLOSE_WINDOW_JE, 0x00662666, 0x00679C57)                           /* je over the CloseWindow call on WM_ACTIVATEAPP(0) */ \
-    D(IAT_RESOURCE_STRING, 0x0082319C, 0x00837198)                            /* the game's string resource (a language entry) */ \
-    D(IAT_WSTRING_CTOR, 0x008231A4, 0x008371A0)                               /* UWideString::UWideString() */ \
     D(IAT_RELEASE, 0x008231AC, 0x008371A8)                                    /* imported refcount release, thiscall on the action */ \
-    D(IAT_USTRING_CTOR, 0x008231E4, 0x008371E0)                               /* UString::UString() */ \
-    D(IAT_WSTRING_ASSIGN, 0x00823224, 0x00837220)                             /* UWideString::operator=(const char *) */ \
-    D(IAT_USTRING_ASSIGN, 0x00823228, 0x00837224)                             /* UString::operator=(const char *) */ \
-    D(IAT_WSTRING_CTOR_C, 0x008232C4, 0x008372C0)                             /* UWideString::UWideString(const char *) */ \
-    D(IAT_WSTRING_FORMAT, 0x008232C8, 0x008372C4)                             /* UWideString::Format(const char *, ...) */ \
     D(IAT_SND_PLAY, 0x008232D0, 0x008372CC)                                   /* SESoundManager::Play(id, vol, pan, pitch, bool queue, char *) -> id or -1 */ \
     D(IAT_COS, 0x00823304, 0x00837340)                                        /* cos (the game's) */ \
     D(IAT_EDIT_GET_TEXT, 0x00823328, 0x00837EE0)                              /* UIEditBox::GetText */ \
     D(IAT_SND_PLAYREF, 0x008233EC, 0x00837380)                                /* SESoundManager::PlayAndReturnReferencedNode(same) -> node or NULL */ \
     D(IMP_IS_MOUSE, 0x008235CC, 0x00837570)                                   /* import: &ISMouse* in Low-Level Engine.dll */ \
-    D(IAT_WSTRING_RESERVE, 0x008235D0, 0x00837574) \
     D(IAT_TS_WAIT, 0x00823688, 0x00837634) \
     D(IAT_TS_RECEIVE, 0x008236B0, 0x0083765C) \
     D(IAT_SND_SETMAXCH, 0x00823AD4, 0x00837AC4) \
-    D(IAT_WSTRING_DTOR, 0x00823AEC, 0x00837194)                               /* UWideString::~UWideString() */ \
     D(IMP_IS_KEYBOARD, 0x00823AF8, 0x00837AE8)                                /* import: &ISKeyboard* in Low-Level Engine.dll */ \
     D(IAT_UIM_FORM, 0x00823D60, 0x00837B44)                                   /* the UI manager's current form */ \
-    D(IAT_USTRING_DTOR, 0x008245BC, 0x008385B0)                               /* UString::~UString() */ \
     D(IAT_SRAND, 0x00824644, 0x00838638) \
     D(VT_SCROLL, 0x00825098, 0x0083907C) \
     D(START_VTBL_EXEC, 0x008285D8, 0x0083D2A0) \
@@ -261,9 +243,6 @@ internal const struct exe_build { uint32_t hash; const char *name; int ready; } 
     /* the calls of FN_MOUSE_UPDATE */ \
     L(MOUSE_UPDATE_SITES, 4, (0x004B8ABB, 0x0050FEC8, 0x005111CF, 0x006618B8), \
         (0x004C11FE, 0x0051A487, 0x0051B73E, 0x00678F02)) \
-    /* the calls of FN_NATIVE_CHAT (the AI's own lines) */ \
-    L(NATIVE_CHAT_SITES, 5, (0x00470040, 0x004715F8, 0x0047166E, 0x0047280E, 0x00472B9D), \
-        (0x00472F4C, 0x00474682, 0x00474705, 0x004758D5, 0x00475C65)) \
     /* call AddMovie(path) in PlayIntro 0x538867 */ \
     L(INTRO_CALLS, 3, (0x00538909, 0x0053892A, 0x00538945), \
         (0x00543A57, 0x00543A78, 0x00543A93)) \

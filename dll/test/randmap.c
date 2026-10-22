@@ -45,7 +45,6 @@ internal int difficulty_key(const char *ini, const char *key, int def) {   // ea
     return d < 0 ? 0 : d > 2 ? 2 : d;
 }
 
-typedef void *(__thiscall *UStrAssignFn)(void *ustr, const char *s);
 
 internal void randmap_load(const char *ini) {
     GetPrivateProfileStringA("autotest", "random_map", "", g_rm.map, sizeof g_rm.map, ini);
@@ -79,7 +78,7 @@ internal void randmap_load(const char *ini) {
 
 // Called from hook_game_start before the original runs.
 internal void randmap_rewrite(uint8_t *setup) {
-    (*(UStrAssignFn *)GA(IAT_USTRING_ASSIGN))(setup + OF(SETUP, 0x3A8), g_rm.map);
+    ustring_set(setup + OF(SETUP, 0x3A8), g_rm.map);
     *(int *)(setup + OF(SETUP, 0x3D8)) = 0;
     for (int i = 0; i < 16; i++) {
         uint8_t *slot = setup + i * 0x38;

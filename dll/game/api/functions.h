@@ -63,6 +63,32 @@ internal inline void stat_add(void *stats, int n, int d) { GF(FN_STAT_ADD)(stats
 // the game's rand() (msvcrt's, through its import): the generator every PC of a game shares
 internal inline int game_rand(void) { return (*(int (__cdecl **)(void))GA(IAT_RAND))(); }
 
+// THE GAME'S STRINGS: its runtime's UWideString and UString (16 bytes, the text at +4; the code gives them 32 bytes,
+// aligned 8) through the game's imports - made, set, freed as the game does
+internal inline void wstring_init(void *s) { ((void (__thiscall *)(void *))*(void **)GA(IAT_WSTRING_CTOR))(s); }
+internal inline void wstring_init_text(void *s, const char *text) { ((void (__thiscall *)(void *, const char *))*(void **)GA(IAT_WSTRING_CTOR_C))(s, text); }
+internal inline void *wstring_set(void *s, const char *text) { return ((void *(__thiscall *)(void *, const char *))*(void **)GA(IAT_WSTRING_ASSIGN))(s, text); }
+internal inline void wstring_reserve(void *s, unsigned long n) { ((void (__thiscall *)(void *, unsigned long))*(void **)GA(IAT_WSTRING_RESERVE))(s, n); }
+#define wstring_format(s, ...) ((int (__cdecl *)(void *, const char *, ...))*(void **)GA(IAT_WSTRING_FORMAT))((s), __VA_ARGS__)
+internal inline void wstring_free(void *s) { ((void (__thiscall *)(void *))*(void **)GA(IAT_WSTRING_DTOR))(s); }
+internal inline void ustring_init(void *s) { ((void (__thiscall *)(void *))*(void **)GA(IAT_USTRING_CTOR))(s); }
+internal inline void *ustring_set(void *s, const char *text) { return ((void *(__thiscall *)(void *, const char *))*(void **)GA(IAT_USTRING_ASSIGN))(s, text); }
+internal inline void ustring_free(void *s) { ((void (__thiscall *)(void *))*(void **)GA(IAT_USTRING_DTOR))(s); }
+// the language file's string id into s (a UWideString), res: the game's string resources
+internal inline int resource_string(void *res, int id, void *s) { return ((int (__thiscall *)(void *, int, void *))*(void **)GA(IAT_RESOURCE_STRING))(res, id, s); }
+
+// THE UI AND THE PLAYERS' LINES (voice/)
+// a chat or system line on ui: the sender's colour (rgb floats), name and the line (UWideStrings), shown ms
+internal inline void ui_line(void *ui, const void *rgb, void *name, void *line, int ms) { GF(FN_UI_LINE)(ui, (void *)rgb, name, line, ms, 0); }
+// a typed line read as a cheat by the parser: its code and argument (0: no cheat)
+internal inline void cheat_parse(void *parser, void *wtext, int *code, int *arg) { GF(FN_CHEAT_PARSE)(parser, wtext, code, arg); }
+// a cheat message built in mem (game_new(GA(SIZE_CHEAT_MSG)))
+internal inline void *msg_cheat_init(void *mem, int code, int arg) { return GF(FN_CHEAT_MSG_CTOR)(mem, code, arg); }
+// the colour table's rgb of a colour index (the original of persona.c's hook)
+internal inline void *game_color_rgb(unsigned idx) { return GF(FN_COLOR_RGB)(idx); }
+// one of the game's own AI lines (base: its string block, ms shown; the original of persona.c's hook)
+internal inline char native_chat(uint8_t *pim, int base, int ms) { return GF(FN_NATIVE_CHAT)(pim, base, ms); }
+
 // THE GAME'S RUN (the originals of the wiring's hooks: eeaimod.c, persist.c, test/autotest.c)
 // a game started from setup (EEGameState::Start, on the game state object)
 internal inline char game_start(void *state, void *setup, void *p2) { return ((char (__thiscall *)(void *, void *, void *))GA(FN_GAME_START))(state, setup, p2); }

@@ -206,6 +206,12 @@ internal inline int patch_asgu_score(asgu_score_hook h, int *of) {
     return patch_vtables(PATCH_LIST(ASGU_VTABLES), GA(SLOT_ASGU_SCORE), GA(FN_ASGU_SCORE), (void *)h, of);
 }
 
+// THE PLAYERS' COLOURS AND LINES (voice/persona.c)
+typedef void *(__cdecl *player_color_hook)(unsigned idx);
+internal inline int patch_player_color(player_color_hook h) { return patch_call(GA(CALL_PLAYER_COLOR), GA(FN_COLOR_RGB), (void *)h); }
+typedef char (__fastcall *native_chat_hook)(uint8_t *pim, void *edx, int base, int ms);
+internal inline int patch_native_chat(native_chat_hook h, int *of) { return patch_calls(PATCH_LIST(NATIVE_CHAT_SITES), GA(FN_NATIVE_CHAT), (void *)h, of); }
+
 // MESSAGES AND THE MENU (diplo.c)
 typedef void (__fastcall *msg_hook)(void *msg, void *edx);
 internal inline int patch_msg_pay_tribute(msg_hook h) { return patch_vtable(GA(VT_PAY_TRIBUTE), GA(SLOT_MSG_EXECUTE), GA(FN_PAY_TRIBUTE), (void *)h); }

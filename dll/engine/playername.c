@@ -17,7 +17,7 @@ internal void keep_player_name(uint8_t *screen) {
     if (!t || !*t || (cur && !strcmp(cur, t))) return;
     char name[64];
     lstrcpynA(name, t, sizeof name);
-    ((void *(__thiscall *)(void *, const char *))*(void **)GA(IAT_WSTRING_ASSIGN))((void *)GA(G_PLAYER_NAME), name);   // UWideString =
+    wstring_set((void *)GA(G_PLAYER_NAME), name);   // UWideString =
     GF(FN_SETTINGS_SAVE)((void *)GA(G_SETTINGS));
     if (g_log) log_locked("# player name: \"%s\" kept (settings saved)\n", name);
 }
