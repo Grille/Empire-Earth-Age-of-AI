@@ -216,6 +216,13 @@ breaks (crashes 0x628D6F, 0x53110D, 0x531131); guarded in attack.c (unit_node_fr
   limit even in single player. +0x190 ticks sent, +0x10 ticks processed in physics.
 - Step length: EEPhysics vf3 0x5476C1: +0x98 = 1000 * speed / +0x58 (44) ms game time. The game speed only
   makes the steps longer.
+- The pace is tuned to the machine: NESynchronousServer::TuneForSlowCPU (Low-Level Engine rva 0x55099, AoC 0x4907E)
+  sets steps a second +0x1FB = 1000 / (the clients' measured time x +0x170), held within +0x1B8..+0x1B4 (15..125),
+  and from it the steps a tick +0x1F9 = +0x1FB x interval / 1000. Each turn message carries both (+0x10 steps, +0x11
+  ms a step); the physics takes the rate from it (0x547243 -> 0x553663: timer period +0x54, +0x58 steps a second) and
+  the step length follows - the game runs as fast in real time, in more, shorter steps. The constructor's 120 is tuned
+  to 44 before the first tick; in long test games (turbo, 8 at a time) it went to 124 at a moment of its own in each
+  run - a different simulation from there (dll/test/autotest.c holds it at 44 in test runs).
 
 ## Text on surfaces
 

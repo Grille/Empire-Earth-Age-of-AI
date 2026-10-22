@@ -92,8 +92,29 @@ static int __cdecl hook_load_saved(void *name) {
 // Autotest setup=<file>[;<file>...] (paths relative to the game folder): scripts run from 2 s game time (scripts.c)
 static void run_setup(uint32_t now);
 
+// The lockstep server tunes its pace to the machine (NESynchronousServer::TuneForSlowCPU, Low-Level Engine rva 0x55099):
+// steps a second (+0x1FB) = 1000 / (the clients' measured time x +0x170), held within +0x1B8..+0x1B4, and the steps a
+// tick (+0x1F9) follow; each turn message hands the physics its step rate, and the step's game time (1000 * speed /
+// rate) follows it. Its measure is real time: in a long test game (turbo, other games beside it) the server went from 43
+// to 124 steps a second at a moment of its own in each run (Small Islands Large, 8 at a time: minutes 31-40), the steps
+// from 170 to 60 ms - and two runs of the same game_seed parted there. Test runs hold the pace every game has from its
+// first steps on (44 a second: 15 steps a 350 ms tick; the range is 15-125) - a constant, the same on every machine (the
+// constructor's 120 is tuned down to 44 before the first tick: held at 120 the runs parted at once). A player's game
+// keeps the tuning.
+#define TEST_STEPS_A_SECOND 44
+internal void pin_server_pace(void) {
+    uint8_t *srv = *(uint8_t **)GA(G_SERVER);
+    const unsigned rate = TEST_STEPS_A_SECOND;
+    if (!srv || (FIELD(srv, OF(SERVER, 0x1B4), unsigned) == rate && FIELD(srv, OF(SERVER, 0x1B8), unsigned) == rate)) return;
+    if (g_log) fprintf(g_log, "# autotest: server pace held at %u steps a second (its range was %u-%u, now %u)\n", rate,
+                       FIELD(srv, OF(SERVER, 0x1B8), unsigned), FIELD(srv, OF(SERVER, 0x1B4), unsigned), FIELD(srv, OF(SERVER, 0x1FB), uint8_t));
+    FIELD(srv, OF(SERVER, 0x1B4), unsigned) = rate;
+    FIELD(srv, OF(SERVER, 0x1B8), unsigned) = rate;
+}
+
 static void autotest_tick(uint32_t now) {
     if (!g_autotest) return;
+    pin_server_pace();
     if (g_setup_path[0] && now >= 2000) run_setup(now);
     float cur = *(float *)GA(G_GAME_SPEED);
     if (g_auto.speed > 0 && (cur < g_auto.speed - 0.01f || cur > g_auto.speed + 0.01f)) {

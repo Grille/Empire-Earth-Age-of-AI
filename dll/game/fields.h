@@ -383,6 +383,9 @@
     O(SCROLL, 0x47, 0x47, 0x47) /* v */ \
     O(SERVER, 0x10, 0x10, 0x10) /* b */ \
     O(SERVER, 0x190, 0x190, 0x190) /* b */ \
+    O(SERVER, 0x1B4, 0x1B4, 0x1B4) /* c: NESynchronousServer::TuneForSlowCPU (port_dll.py) */ \
+    O(SERVER, 0x1B8, 0x1B8, 0x1B8) /* c: NESynchronousServer::TuneForSlowCPU (port_dll.py) */ \
+    O(SERVER, 0x1FB, 0x1FB, 0x1FB) /* c: NESynchronousServer::TuneForSlowCPU (port_dll.py) */ \
     O(SETUP, 0x3A8, 0x3A8, 0x3A8) /* c: the setup copy 0x524B8F and FN_GAME_START */ \
     O(SETUP, 0x3D4, 0x3D4, 0x3D4) /* c: the setup copy 0x524B8F and FN_GAME_START */ \
     O(SETUP, 0x3D8, 0x3D8, 0x3D8) /* c: the setup copy 0x524B8F and FN_GAME_START */ \

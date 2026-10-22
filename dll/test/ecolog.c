@@ -19,7 +19,8 @@
 // by all players, and 0x52E5F7 counts every player's gatherers: m<R>far is mostly the other side's miners at its own
 // mines, m<R>g at mines near one's own drop sites nearly all one's own.
 // Spending (in the # eco line): every unit of the player in the minute's scan that wasn't there at the last one (by
-// address: a dead unit's memory is reused, so the set is the last scan's, not every unit ever seen) - trained citizens (tc) and soldiers (ts, army families) and their prices (unit_cost, econ.c): citizens' food
+// the unit's id, +0x60 - by address until 2026-10-22, and a unit new in a dead one's memory went uncounted, as the heap
+// happened to reuse it: two runs of the same game differed by one now and then) - trained citizens (tc) and soldiers (ts, army families) and their prices (unit_cost, econ.c): citizens' food
 // (tcF), soldiers' food (tsF) and other resources (tsX). Units trained and killed within the same minute are missed.
 // "# soldier costs:" once a game: every land soldier type with an attack and its price F/W/S/G/I (the food-free ones
 // are what an early army could be made of without taking the citizens' food).
@@ -27,7 +28,7 @@ internal struct eco_dead { unsigned n, town, near_, far_, army, bld, ship, air, 
 internal uint32_t g_eco_t[16];
 
 #define ECO_IDS 8192
-internal uint32_t g_eco_ids[16][2][ECO_IDS];   // the units of the last scan and of this one (addresses, open addressing)
+internal uint32_t g_eco_ids[16][2][ECO_IDS];   // the units of the last scan and of this one (ids, open addressing)
 internal unsigned g_eco_nids[16], g_eco_cur[16];
 internal struct eco_spend { unsigned tc, ts, tcF, tsF, tsX; } g_eco_sp[16];
 internal int g_eco_costs_logged;
@@ -253,7 +254,7 @@ internal void ecolog_tick(ee_player *pl, uint32_t now) {
             if (unit_owner(u) != pl || FIELD(u, OF(UNIT, 0x3C), int) <= 0) continue;
             int t = FIELD(td, OF(TD, 0x4B8), int), fam = FIELD(td, OF(TD, 0x4B4), int), cit = is_citizen_type(t);
             if (!cit && !is_army_family(fam)) continue;
-            if (!eco_new_id(idx, (uint32_t)(uintptr_t)u) || first) continue;
+            if (!eco_new_id(idx, FIELD(u, OF(UNIT, 0x60), uint32_t)) || first) continue;
             if (cit) { sp->tc++; sp->tcF += (unsigned)unit_cost(pl, t, 2); }
             else {
                 sp->ts++; sp->tsF += (unsigned)unit_cost(pl, t, 2);
