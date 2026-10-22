@@ -3,6 +3,7 @@
 
 #define ADDRS_DATA(F, D) \
     D(G_FLOAT_1_600, 0x0082CBCC, 0x00842374)                                  /* the float 1/600 (the minimap's y scale operand) */ \
+    D(G_SM_STEP, 0x008306DC, 0x00845FCC)                                      /* float 500: the scenario manager checks its triggers every this many ms of game time */ \
     D(G_FLOAT_1_800, 0x008358A8, 0x0084B940)                                  /* the float 1/800 (the minimap's x scale operand) */ \
     /* the scenario editor's file buttons: 6 of {id, x, y, u0, v0, u1, v1, tooltip} */ \
     D(G_EDITOR_FILE_BUTTONS, 0x008AE0A0, 0x008C47B0) \

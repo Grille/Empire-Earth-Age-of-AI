@@ -139,8 +139,22 @@
     F(FN_PLAYER_RESIGN, void, __thiscall, (void *, int), 0x0055BCEA, 0x0056AF5C) /* thiscall(player, 2) as EEMResign */ \
     F(FN_STAT_ADD, void, __thiscall, (void *, int, int), 0x0055DBCF, 0x0056D507) \
     F(FN_CAMACT_CTOR, void *, __thiscall, (void *), 0x00560179, 0x0056FAD4)   /* EEACenterCamera ctor (0x1C bytes) */ \
+    F(SM_GET_COND, ee_scen_cond *, __thiscall, (ee_scen_mgr *, int), 0x0056D186, 0x0057CADF) /* a condition by its id (index), NULL out of range */ \
+    F(SM_GET_AREA, ee_scen_area *, __thiscall, (ee_scen_mgr *, int), 0x0056DFB7, 0x0057DA08) /* an area by its id */ \
+    F(SM_GET_EFFECT, ee_scen_effect *, __thiscall, (ee_scen_mgr *, int), 0x00573183, 0x00582D82) /* an effect by its id */ \
+    F(SM_GET_OBJECT, ee_scen_object *, __thiscall, (ee_scen_mgr *, int), 0x00579460, 0x00588EDD) /* an object by its id */ \
+    F(SM_GET_TRIGGER, ee_trigger *, __thiscall, (ee_scen_mgr *, int), 0x0057ED54, 0x0058EF8A) /* a trigger by its id */ \
     F(FN_EDITOR_FORM, void *, __thiscall, (void *, void *), 0x0058D3E1, 0x0059D615) \
-    F(SM_RUN_EFFECT, void, __thiscall, (void *, int), 0x005AD29B, 0x005BD5EB) \
+    F(SM_QUEUE_EFFECT, void, __thiscall, (ee_scen_mgr *, int, int, char), 0x0059FE52, 0x005B005B) /* thiscall(mgr, effect id, time ms, cinematic): run at that scenario time */ \
+    F(SM_PLAYERS, int, __thiscall, (ee_scen_mgr *, int, void *, char), 0x005A23F6, 0x005B260A) /* thiscall(mgr, player spec, vector<int> *out or NULL, pick one): the spec's players (docs/triggers.md) */ \
+    F(SM_AREA_CONTAINS, char, __thiscall, (ee_scen_area *, ee_unit *), 0x005A9E1D, 0x005BA0D1) \
+    F(SM_COND_EVAL, char, __thiscall, (ee_scen_cond *), 0x005AA80B, 0x005BAABF) /* the condition holds now (its own side effects: an object it tests may lock) */ \
+    F(SM_PLAYER_ATTR, int, __thiscall, (ee_scen_cond *, int, int), 0x005AACC4, 0x005BAF78) /* thiscall(cond, player index, attribute): what a condition compares */ \
+    F(SM_SET_PLAYER_ATTR, void, __thiscall, (ee_scen_effect *, int, int, int, int), 0x005AC7F5, 0x005BCB1F) /* thiscall(effect, player index, attribute, mode 0 set / 1 add / 2 subtract, value) */ \
+    F(SM_RUN_EFFECT, void, __thiscall, (ee_scen_effect *, int), 0x005AD29B, 0x005BD5EB) \
+    F(SM_CLASS_TEST, char, __thiscall, (ee_scen_object *, int), 0x005B58A3, 0x005C6051) /* thiscall(object, unit type): the type passes the object's class / type filter */ \
+    F(SM_OBJECT_EVAL, char, __thiscall, (ee_scen_object *, char), 0x005B5CAE, 0x005C6458) /* thiscall(object, dead too): collects / filters its units, true when any; locks a non-dynamic object on success */ \
+    F(SM_TRIGGER_UPDATE, void, __thiscall, (ee_trigger *, float), 0x005B93B0, 0x005C9AB5) /* thiscall(trigger, scenario time ms): its conditions, true-for, effects queued */ \
     F(FN_EPOCH_NEXT, void, __thiscall, (void *), 0x005BC15D, 0x005CCB34)    /* thiscall(tech tree): the next epoch (to the game's end epoch) - 0x5BC893 sets it, sends the epoch event */ \
     D(FN_EPOCH_UPGRADES, 0x005BDDBD, 0x005CE8C5)                              /* thiscall(node, category), AoC's (+ only new): econ.c */ \
     F(FN_TECH_GRANT, int, __thiscall, (void *), 0x005BF335, 0x005CFA53)       /* AoC's takes an argument: called in the 2017 update only */ \

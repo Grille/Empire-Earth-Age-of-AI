@@ -2,7 +2,9 @@
 
 How the game runs the scenario editor's triggers, read statically from the exe (2026-10-17); the runtime parts the
 `trig` test command uses are checked in play (reloadtime.scn). "Guess" marks what is not proven.
-Test command: `trig` (dll/test/scen.c, docs/testing.md).
+Test command: `trig` (dll/test/scen.c, docs/testing.md). In the mod: dll/game/api/scenario.c - the lists by id, the
+fields of triggers, conditions, effects, objects and areas (raw/fields.h, both builds), the game's own evaluation
+(conditions, objects, areas, player attributes and specs), a trigger's update, an effect queued or run.
 
 ## Runtime
 
@@ -13,9 +15,9 @@ Test command: `trig` (dll/test/scen.c, docs/testing.md).
   then the queued effects (+0x168, 12-byte entries {effect, time, cinematic, done}) whose time has come run.
   0x5A2659 runs the list at +0x138 (start effects, guess).
 - EESMTrigger (vtable 0x8307E4, save vf5 0x5B99AE): +4 name, +0x18 description (UWideString: 8-bit text pointer at
-  +4), +0x30 condition wrappers, +0x40 effect wrappers, +0x4C conditions true for (s), +0x50 since, +0x54 id,
-  +0x58 on, +0x59 fired, +0x5A looping, +0x5B active in cinematics. A trigger that fires and does not loop
-  switches itself off.
+  +4), +0x30 condition wrappers, +0x40 effect wrappers, +0x4C conditions true for (s), +0x50 since, +0x54 an int
+  it loads and saves (not its index: 1 for trigger 0), +0x58 on, +0x59 fired, +0x5A looping, +0x5B active in
+  cinematics. A trigger that fires and does not loop switches itself off.
 - Condition wrapper: +4 condition id, +8 how it joins the next (0 end, 1 and, 2 or), +0xC not. Evaluated in order
   (0x5B95AA); a failed "and" skips to the next "or" - "and" binds tighter.
 - Effect wrapper: +4 kind (2 = "or" between groups: the trigger runs one group at random, 0x5531C2), +8 delay (s),

@@ -55,6 +55,8 @@ typedef struct ee_trig_cond ee_trig_cond;       // TRIGCOND: a trigger's conditi
 typedef struct ee_trig_effect ee_trig_effect;   // TRIGEFFECT: a trigger's effect reference
 typedef struct ee_scen_cond ee_scen_cond;       // SCENCOND: a scenario condition
 typedef struct ee_scen_effect ee_scen_effect;   // SCENEFFECT: a scenario effect
+typedef struct ee_scen_object ee_scen_object;   // SCENOBJ: a scenario object (EESMObject)
+typedef struct ee_scen_area ee_scen_area;       // SCENAREA: a scenario area (EESMArea)
 typedef struct ee_draw_rec ee_draw_rec;         // DRAWREC: a draw list record
 typedef struct ee_camera ee_camera;             // CAMERA: the camera, G_CAMERA (EECameraControl)
 typedef struct ee_scroll ee_scroll;             // SCROLL: the scroll action (EEAScroll)

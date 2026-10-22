@@ -64,6 +64,8 @@
 //   TRIGEFFECT   a trigger's effect reference
 //   SCENCOND     a scenario condition
 //   SCENEFFECT   a scenario effect
+//   SCENOBJ      a scenario object (EESMObject): units picked by owner, class, area ...
+//   SCENAREA     a scenario area (EESMArea)
 //   DRAWREC      the draw list's records, DRAW_OLD (0x148 each)
 //   CAMERA       the camera, G_CAMERA (EECameraControl)
 //   SCROLL       the scroll action (EEAScroll)
@@ -297,35 +299,124 @@
     O(RS_CURRENT, 0x114, 0x124) /* v */ \
     O(RS_INITIALIZED, 0x118, 0x128) /* v */ \
     O(RS_ATT_RANDOM, 0x11A, 0x12A) /* v */ \
+    O(SCEN_CHAT, 0xC0, 0xC0) /* c: its file's code (the scenario manager) */ \
     O(SCEN_TRIGGERS, 0xE8, 0xE8) /* c: its file's code (the scenario manager) */ \
     O(SCEN_CONDS, 0xF8, 0xF8) /* c: its file's code (the scenario manager) */ \
     O(SCEN_EFFECTS, 0x108, 0x108) /* c: its file's code (the scenario manager) */ \
     O(SCEN_OBJECTS, 0x118, 0x118) /* c: its file's code (the scenario manager) */ \
     O(SCEN_AREAS, 0x128, 0x128) /* c: its file's code (the scenario manager) */ \
+    O(SCEN_QUEUE, 0x168, 0x168) /* c: its file's code (the scenario manager) */ \
     O(SCEN_TIME, 0x210, 0x210) /* c: its file's code (the scenario manager) */ \
+    O(SCENCOND_NAME, 0x4, 0x4) /* c: its file's code (the scenario manager) */ \
+    O(SCENAREA_NAME, 0x4, 0x4) /* c: its file's code (the scenario manager) */ \
+    O(SCENAREA_POINT, 0x2C, 0x2C) /* c: its file's code (the scenario manager) */ \
+    O(SCENAREA_RECT, 0x34, 0x34) /* c: its file's code (the scenario manager) */ \
+    O(SCENAREA_TYPE, 0x5C, 0x5C) /* c: its file's code (the scenario manager) */ \
+    O(SCENAREA_AI_AREA, 0x64, 0x64) /* h: kept: the class's other fields all kept, no read of this one in its methods */ \
     O(SCENCOND_TEXT, 0x2C, 0x2C) /* c: its file's code (the scenario manager) */ \
     O(SCENCOND_TYPE, 0x40, 0x40) /* c: its file's code (the scenario manager) */ \
     O(SCENCOND_OP, 0x44, 0x44) /* c: its file's code (the scenario manager) */ \
+    O(SCENCOND_DIFFICULTY, 0x48, 0x48) /* c: its file's code (the scenario manager) */ \
+    O(SCENCOND_STANCE, 0x4C, 0x4C) /* c: its file's code (the scenario manager) */ \
     O(SCENCOND_ATTR, 0x50, 0x50) /* c: its file's code (the scenario manager) */ \
+    O(SCENCOND_ATTR2, 0x54, 0x54) /* c: its file's code (the scenario manager) */ \
     O(SCENCOND_TECH, 0x58, 0x58) /* c: its file's code (the scenario manager) */ \
     O(SCENCOND_VALUE, 0x5C, 0x5C) /* c: its file's code (the scenario manager) */ \
     O(SCENCOND_OBJECT, 0x60, 0x60) /* c: its file's code (the scenario manager) */ \
     O(SCENCOND_PLAYER, 0x64, 0x64) /* c: its file's code (the scenario manager) */ \
+    O(SCENCOND_PLAYER2, 0x68, 0x68) /* c: its file's code (the scenario manager) */ \
     O(SCENCOND_TIME_FROM, 0x6C, 0x6C) /* c: its file's code (the scenario manager) */ \
     O(SCENCOND_TIME_TO, 0x70, 0x70) /* c: its file's code (the scenario manager) */ \
+    O(SCENCOND_HOUR, 0x74, 0x74) /* c: its file's code (the scenario manager) */ \
     O(SCENCOND_TRIGGER, 0x78, 0x78) /* c: its file's code (the scenario manager) */ \
     O(SCENCOND_TRIGGER_ON, 0x80, 0x80) /* c: its file's code (the scenario manager) */ \
     O(SCENCOND_TRIGGER_FIRED, 0x81, 0x81) /* c: its file's code (the scenario manager) */ \
+    O(SCENCOND_TEST_DIFFICULTY, 0x82, 0x82) /* c: its file's code (the scenario manager) */ \
     O(SCENCOND_TIMED, 0x83, 0x83) /* c: its file's code (the scenario manager) */ \
+    O(SCENEFFECT_GROUP, 0x8, 0x8) /* c: its file's code (the scenario manager) */ \
+    O(SCENEFFECT_TEXT, 0x50, 0x50) /* c: its file's code (the scenario manager) */ \
+    O(SCENCOND_TEST_HOUR, 0x84, 0x84) /* c: its file's code (the scenario manager) */ \
+    O(SCENCOND_VS_PLAYER, 0x85, 0x85) /* c: its file's code (the scenario manager) */ \
+    O(SCENEFFECT_CLASS_NAME, 0x8C, 0x8C) /* c: its file's code (the scenario manager) */ \
+    O(SCENEFFECT_SOUND, 0xA4, 0xA4) /* h: kept: the class's other fields all kept, no read of this one in its methods */ \
+    O(SCENEFFECT_LINE, 0xB4, 0xB4) /* c: its file's code (the scenario manager) */ \
+    O(SCENEFFECT_ATTR_MODE, 0xC8, 0xC8) /* c: its file's code (the scenario manager) */ \
+    O(SCENEFFECT_STANCE, 0xCC, 0xCC) /* c: its file's code (the scenario manager) */ \
+    O(SCENEFFECT_MSG_PLAYERS, 0xD4, 0xD4) /* c: its file's code (the scenario manager) */ \
+    O(SCENEFFECT_OWNER_PLAYERS, 0xD8, 0xD8) /* c: its file's code (the scenario manager) */ \
+    O(SCENEFFECT_PLAYERS, 0xDC, 0xDC) /* c: its file's code (the scenario manager) */ \
+    O(SCENEFFECT_TARGET_PLAYERS, 0xE0, 0xE0) /* c: its file's code (the scenario manager) */ \
     O(SCENEFFECT_AI_KIND, 0xE4, 0xE4) /* c: its file's code (the scenario manager) */ \
+    O(SCENEFFECT_AI_VAR, 0xE8, 0xE8) /* c: its file's code (the scenario manager) */ \
+    O(SCENEFFECT_AI_TOGGLE, 0xEC, 0xEC) /* c: its file's code (the scenario manager) */ \
     O(SCENEFFECT_MEDIA_KIND, 0xF0, 0xF0) /* c: its file's code (the scenario manager) */ \
     O(SCENEFFECT_PLAYER_KIND, 0xF8, 0xF8) /* c: its file's code (the scenario manager) */ \
     O(SCENEFFECT_TRIGGER_KIND, 0xFC, 0xFC) /* c: its file's code (the scenario manager) */ \
     O(SCENEFFECT_CATEGORY, 0x100, 0x100) /* c: its file's code (the scenario manager) */ \
     O(SCENEFFECT_OBJECT_KIND, 0x104, 0x104) /* c: its file's code (the scenario manager) */ \
+    O(SCENEFFECT_OP, 0x108, 0x108) /* c: its file's code (the scenario manager) */ \
+    O(SCENEFFECT_TECH, 0x10C, 0x10C) /* c: its file's code (the scenario manager) */ \
+    O(SCENEFFECT_FLOAT, 0x110, 0x110) /* c: its file's code (the scenario manager) */ \
+    O(SCENEFFECT_INT1, 0x114, 0x114) /* c: its file's code (the scenario manager) */ \
+    O(SCENEFFECT_INT2, 0x118, 0x118) /* c: its file's code (the scenario manager) */ \
+    O(SCENEFFECT_AREA, 0x120, 0x120) /* c: its file's code (the scenario manager) */ \
+    O(SCENEFFECT_TARGET, 0x124, 0x124) /* c: its file's code (the scenario manager) */ \
+    O(SCENEFFECT_CALAMITY, 0x128, 0x128) /* c: its file's code (the scenario manager) */ \
+    O(SCENEFFECT_CAL_AREA, 0x12C, 0x12C) /* c: its file's code (the scenario manager) */ \
+    O(SCENEFFECT_CAL_OBJECT, 0x130, 0x130) /* c: its file's code (the scenario manager) */ \
+    O(SCENEFFECT_HOUR, 0x134, 0x134) /* c: its file's code (the scenario manager) */ \
+    O(SCENEFFECT_DAY_CYCLE, 0x138, 0x138) /* c: its file's code (the scenario manager) */ \
     O(SCENEFFECT_GAME_KIND, 0x13C, 0x13C) /* c: its file's code (the scenario manager) */ \
+    O(SCENEFFECT_DURATION, 0x140, 0x140) /* c: its file's code (the scenario manager) */ \
+    O(SCENEFFECT_TEXT_KIND, 0x144, 0x144) /* c: its file's code (the scenario manager) */ \
+    O(SCENEFFECT_UNIT_ATTR, 0x148, 0x148) /* c: its file's code (the scenario manager) */ \
+    O(SCENEFFECT_VALUE, 0x14C, 0x14C) /* c: its file's code (the scenario manager) */ \
     O(SCENEFFECT_OBJECT, 0x158, 0x158) /* c: its file's code (the scenario manager) */ \
-    O(SCENEFFECT_TRIGGER, 0x180, 0x180) /* h: kept, unsure (98 uses keep it, 49 say +4; only the test command scen reads it) */ \
+    O(SCENEFFECT_OBJ_STANCE, 0x15C, 0x15C) /* c: its file's code (the scenario manager) */ \
+    O(SCENEFFECT_TASK, 0x160, 0x160) /* c: its file's code (the scenario manager) */ \
+    O(SCENEFFECT_TASK_AREA, 0x164, 0x164) /* c: its file's code (the scenario manager) */ \
+    O(SCENEFFECT_TASK_OBJECT, 0x168, 0x168) /* c: its file's code (the scenario manager) */ \
+    O(SCENEFFECT_CIV_POINTS, 0x16C, 0x16C) /* c: its file's code (the scenario manager) */ \
+    O(SCENEFFECT_PLAYER_ATTR, 0x170, 0x170) /* c: its file's code (the scenario manager) */ \
+    O(SCENEFFECT_AMOUNT, 0x174, 0x174) /* c: its file's code (the scenario manager) */ \
+    O(SCENEFFECT_CAM_AREA, 0x178, 0x178) /* c: its file's code (the scenario manager) */ \
+    O(SCENEFFECT_CAM_OBJECT, 0x17C, 0x17C) /* c: its file's code (the scenario manager) */ \
+    O(SCENEFFECT_TRIGGER, 0x180, 0x180) /* c: its file's code (the scenario manager) */ \
+    O(SCENOBJ_NAME, 0x4, 0x4) /* c: its file's code (the scenario manager) */ \
+    O(SCENOBJ_UNITS, 0x1C, 0x1C) /* c: its file's code (the scenario manager) */ \
+    O(SCENOBJ_PLAYERS, 0x28, 0x28) /* c: its file's code (the scenario manager) */ \
+    O(SCENOBJ_CLASS, 0x2C, 0x2C) /* c: its file's code (the scenario manager) */ \
+    O(SCENOBJ_TYPE, 0x30, 0x30) /* c: its file's code (the scenario manager) */ \
+    O(SCENOBJ_MIN, 0x34, 0x34) /* c: its file's code (the scenario manager) */ \
+    O(SCENOBJ_MAX, 0x38, 0x38) /* c: its file's code (the scenario manager) */ \
+    O(SCENOBJ_AREA, 0x3C, 0x3C) /* c: its file's code (the scenario manager) */ \
+    O(SCENOBJ_REL_KIND, 0x40, 0x40) /* c: its file's code (the scenario manager) */ \
+    O(SCENOBJ_REL_OBJECT, 0x44, 0x44) /* c: its file's code (the scenario manager) */ \
+    O(SCENOBJ_PARENT, 0x48, 0x48) /* c: its file's code (the scenario manager) */ \
+    O(SCENOBJ_ATTR, 0x4C, 0x4C) /* c: its file's code (the scenario manager) */ \
+    O(SCENOBJ_ATTR_MIN, 0x50, 0x50) /* c: its file's code (the scenario manager) */ \
+    O(SCENOBJ_ATTR_MAX, 0x54, 0x54) /* c: its file's code (the scenario manager) */ \
+    O(SCENOBJ_STATE, 0x5C, 0x5C) /* c: its file's code (the scenario manager) */ \
+    O(SCENOBJ_SEEN_PLAYERS, 0x60, 0x60) /* c: its file's code (the scenario manager) */ \
+    O(SCENOBJ_AREA_MODE, 0x68, 0x68) /* c: its file's code (the scenario manager) */ \
+    O(SCENOBJ_REL_MODE, 0x6C, 0x6C) /* c: its file's code (the scenario manager) */ \
+    O(SCENOBJ_ATTR_MODE, 0x70, 0x70) /* c: its file's code (the scenario manager) */ \
+    O(SCENOBJ_SEEN_MODE, 0x74, 0x74) /* c: its file's code (the scenario manager) */ \
+    O(SCENOBJ_STATE_MODE, 0x78, 0x78) /* c: its file's code (the scenario manager) */ \
+    O(SCENOBJ_SELECTED_MODE, 0x7C, 0x7C) /* c: its file's code (the scenario manager) */ \
+    O(SCENOBJ_LOCKED, 0x80, 0x80) /* c: its file's code (the scenario manager) */ \
+    O(SCENOBJ_DYNAMIC, 0x81, 0x81) /* c: its file's code (the scenario manager) */ \
+    O(SCENOBJ_ATTR_PERCENT, 0x82, 0x82) /* c: its file's code (the scenario manager) */ \
+    O(SCENEFFECT_ON, 0x188, 0x188) /* c: its file's code (the scenario manager) */ \
+    O(SCENEFFECT_USE_AREA, 0x189, 0x189) /* c: its file's code (the scenario manager) */ \
+    O(SCENEFFECT_ATTACK, 0x18A, 0x18A) /* c: its file's code (the scenario manager) */ \
+    O(SCENEFFECT_FAVORITES, 0x18B, 0x18B) /* h: kept: the class's other fields all kept, no read of this one in its methods */ \
+    O(SCENEFFECT_ADD, 0x18C, 0x18C) /* c: its file's code (the scenario manager) */ \
+    O(SCENEFFECT_CLEAR, 0x18E, 0x18E) /* c: its file's code (the scenario manager) */ \
+    O(SCENEFFECT_FLARE_AREA, 0x18F, 0x18F) /* c: its file's code (the scenario manager) */ \
+    O(SCENEFFECT_PERCENT, 0x190, 0x190) /* c: its file's code (the scenario manager) */ \
+    O(SCENEFFECT_TECH_ADD, 0x191, 0x191) /* c: its file's code (the scenario manager) */ \
+    O(SCENEFFECT_CAL_USE_AREA, 0x192, 0x192) /* c: its file's code (the scenario manager) */ \
     O(SCROLL_TICKS, 0x40, 0x40) /* v */ \
     O(SCROLL_KEYS, 0x44, 0x44) /* v */ \
     O(SERVER_SENT, 0x10, 0x10) /* b */ \
@@ -416,9 +507,11 @@
     O(TRIGGER_EFFECTS, 0x40, 0x40) /* c: its file's code (the scenario manager) */ \
     O(TRIGGER_TRUE_FOR, 0x4C, 0x4C) /* c: its file's code (the scenario manager) */ \
     O(TRIGGER_SINCE, 0x50, 0x50) /* c: its file's code (the scenario manager) */ \
+    O(TRIGGER_0x54, 0x54, 0x54) /* c: its file's code (the scenario manager); an int its load and save stream - not its index (1 for trigger 0) */ \
     O(TRIGGER_ON, 0x58, 0x58) /* c: its file's code (the scenario manager) */ \
     O(TRIGGER_FIRED, 0x59, 0x59) /* c: its file's code (the scenario manager) */ \
     O(TRIGGER_LOOP, 0x5A, 0x5A) /* c: its file's code (the scenario manager) */ \
+    O(TRIGGER_CINEMATIC, 0x5B, 0x5B) /* c: its file's code (the scenario manager) */ \
     O(TT_PLAYER_INDEX, 0x4, 0x4) /* v */ \
     O(TT_EPOCH_RECS, 0x8, 0x8) /* s: the epoch records, 0x54 apart (AoC: one more, its 0x4E4 one record on) */ \
     O(TT_EPOCH, 0x4E4, 0x538) /* v */ \
