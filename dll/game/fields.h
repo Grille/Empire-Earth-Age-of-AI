@@ -382,6 +382,7 @@
     O(SCROLL, 0x46, 0x46, 0x46) /* v */ \
     O(SCROLL, 0x47, 0x47, 0x47) /* v */ \
     O(SERVER, 0x10, 0x10, 0x10) /* b */ \
+    O(SERVER, 0x94, 0x94, 0x94) /* c: the next tick's messages, NESynchronousServer (port_dll.py) */ \
     O(SERVER, 0x190, 0x190, 0x190) /* b */ \
     O(SERVER, 0x1B4, 0x1B4, 0x1B4) /* c: NESynchronousServer::TuneForSlowCPU (port_dll.py) */ \
     O(SERVER, 0x1B8, 0x1B8, 0x1B8) /* c: NESynchronousServer::TuneForSlowCPU (port_dll.py) */ \

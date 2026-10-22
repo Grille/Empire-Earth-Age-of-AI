@@ -526,10 +526,32 @@ internal BOOL patch_sim_wait(void) {
 // of the last step too: +0xB8 is 0 already while the last step runs, and the AI hands its messages to the server
 // during a step (the last one's too) - sent before it ends, the next tick went out without them and they landed a
 // tick late, now and then (game_seed runs parted: docs/testing.md). g_in_step: hook_phys_step around each step.
-internal volatile LONG g_in_step;
+// And the messages travel: the server's send (slot 6) hands each to its communications layer, and another thread puts
+// it into the list the next tick takes (+0x84, its count +0x94, under the lock +0x15C; rva 0x54D3F) - a message handed
+// in a tick's 14th of 15 steps missed the next tick in 1 of 8 runs (2026-10-22). So the next tick also waits until the
+// list holds every message handed since the last one (g_handed, counted in hook_srv_send) - 200 ms at most, then it goes
+// as before (logged).
+internal volatile LONG g_in_step, g_handed, g_handed_at_tick;
+internal void (__thiscall *g_srv_send_next)(void *, void *, int);
+internal void __fastcall hook_srv_send(void *srv, void *edx, void *msg, int to) {
+    (void)edx;
+    InterlockedIncrement(&g_handed);
+    g_srv_send_next(srv, msg, to);
+}
+internal void hook_server_send(void) {   // the server's send slot (with trace.c's sync_srv_send: whichever comes second calls the first)
+    void **srv = *(void ***)GA(G_SERVER);
+    if (g_srv_send_next || !srv) return;
+    void **slot = &((void **)srv[0])[GA(SLOT_SERVER_SEND)];
+    DWORD old;
+    if (!VirtualProtect(slot, 4, PAGE_READWRITE, &old)) return;
+    g_srv_send_next = (void (__thiscall *)(void *, void *, int))*slot;
+    *slot = (void *)hook_srv_send;
+    VirtualProtect(slot, 4, old, &old);
+}
 internal void (*g_step_after)(void *phys);   // trace.c: the sync trace's line after each step
 internal void __fastcall hook_phys_step(void *phys, void *edx) {
     (void)edx;
+    if (!g_srv_send_next) hook_server_send();
     InterlockedExchange(&g_in_step, 1);
     GF(FN_PHYS_STEP)(phys);
     InterlockedExchange(&g_in_step, 0);
@@ -542,6 +564,11 @@ internal int sim_drained(void) {
            !g_in_step;
 }
 
+// At normal pace (turbo 0) the tick is due by the clock - and under load (8 large games at a time) the simulation falls
+// behind it now and then: the tick went out while the simulation was still in the last one's steps, and a message
+// handed in them missed it (1 of 8 Small Islands runs parted at minute 0.8, 2026-10-22). So a due tick waits the same
+// way: for the simulation to have used up every tick sent and for the messages handed since the last one. A test game
+// slower than real time then runs slower instead of moving its inputs.
 internal DWORD WINAPI hook_send_wait(DWORD n, const HANDLE *h, BOOL all, DWORD ms) {
     if (!g_turbo || !game_time()) {
         // turbo off (or switched off over the pipe): the real wait, in slices so "turbo 1" takes effect at once
@@ -549,14 +576,35 @@ internal DWORD WINAPI hook_send_wait(DWORD n, const HANDLE *h, BOOL all, DWORD m
         for (;;) {
             DWORD spent = GetTickCount() - t0, left = ms == INFINITE ? 50 : spent >= ms ? 0 : ms - spent;
             DWORD r = WaitForMultipleObjects(n, h, all, left < 50 ? left : 50);
-            if (r != WAIT_TIMEOUT || (ms != INFINITE && left <= 50)) return r;
+            if (r != WAIT_TIMEOUT) return r;
+            if (ms != INFINITE && left <= 50) {
+                if (!game_time()) return r;
+                break;   // the tick is due: as with turbo
+            }
             if (g_turbo && game_time()) break;
         }
     }
+    DWORD since = 0;   // when the simulation was drained but a message not in the list yet
     for (;;) {   // 1 ms waits, no spinning: the client thread must answer each tick before the next carries steps
-        if (sim_drained()) return WAIT_TIMEOUT;
+        if (sim_drained()) {
+            uint8_t *srv = *(uint8_t **)GA(G_SERVER);
+            LONG handed = g_handed, waiting = handed - g_handed_at_tick;
+            if (!g_srv_send_next || waiting <= 0 || FIELD(srv, OF(SERVER, 0x94), LONG) >= waiting) {
+                g_handed_at_tick = handed;
+                return WAIT_TIMEOUT;
+            }
+            if (!since) since = GetTickCount();
+            else if (GetTickCount() - since > 200) {
+                EnterCriticalSection(&g_lock);   // the server's thread: the simulation writes the log too
+                if (g_log) fprintf(g_log, "# tick: at %u ms sent with %ld of %ld messages in the server's list\n", game_time(),
+                                   FIELD(srv, OF(SERVER, 0x94), LONG), waiting);
+                LeaveCriticalSection(&g_lock);
+                g_handed_at_tick = handed;
+                return WAIT_TIMEOUT;
+            }
+        }
         DWORD r = WaitForMultipleObjects(n, h, all, 1);
-        if (r != WAIT_TIMEOUT || !g_turbo) return r;
+        if (r != WAIT_TIMEOUT) return r;
     }
 }
 
