@@ -306,14 +306,22 @@ public static class SuspendedStart {
     }
     if (-not $given) { "warning: the game didn't get its slot handles - a killed runner would free its slot" }
     # safety: the DLL logs "# autotest:" at load when it found the test ini; without it the game would run at
-    # normal speed with intros and (if the ini vanished) sound - kill it instead
-    $ok = $false
-    for ($i = 0; $i -lt 40 -and -not $p.HasExited; $i++) {
+    # normal speed with intros and (if the ini vanished) sound - kill it instead. The line comes with the log's first
+    # lines, so once the log is there it follows within moments; until then the start may take long - several games
+    # loading at once took more than 10 s (2026-10-22: one of 8 starting together killed at 10 s, its log not begun)
+    $ok = $false; $why = ""; $logAt = $null
+    while (-not $p.HasExited) {
         Start-Sleep -Milliseconds 250
-        if ((Test-Path "$sdir\aimod_econ.csv") -and (Select-String -Path "$sdir\aimod_econ.csv" -Pattern '^# autotest:' -Quiet)) { $ok = $true; break }
+        $waited = ((Get-Date) - $t0).TotalSeconds
+        if (Test-Path "$sdir\aimod_econ.csv") {
+            if (Select-String -Path "$sdir\aimod_econ.csv" -Pattern '^# autotest:' -Quiet) { $ok = $true; break }
+            if (-not $logAt) { $logAt = $waited }
+            if ($waited - $logAt -gt 5) { $why = "the DLL logs, but not in autotest mode (test ini missing?)"; break }
+        } elseif ($waited -gt 60) { $why = "the DLL did not log within 60 s"; break }
     }
-    if (-not $ok -and -not $p.HasExited) { $p.Kill(); $p.WaitForExit(); "ABORTED: the DLL did not start in autotest mode (test ini missing?)" }
-    elseif (-not $p.WaitForExit($TimeoutSec * 1000)) { $p.Kill(); $p.WaitForExit(); "TIMEOUT after $TimeoutSec s - killed" }
+    $started = [int]((Get-Date) - $t0).TotalSeconds
+    if (-not $ok -and -not $p.HasExited) { $p.Kill(); $p.WaitForExit(); $why = "ABORTED: $why"; $why }
+    elseif (-not $p.WaitForExit($TimeoutSec * 1000)) { $p.Kill(); $p.WaitForExit(); $why = "TIMEOUT after $TimeoutSec s - killed"; $why }
     $secs = [int]((Get-Date) - $t0).TotalSeconds
 } finally {
     # the slot is this run's until it ends: its test ini can go (the game read it at its start)
@@ -323,4 +331,5 @@ public static class SuspendedStart {
 $stamp = Get-Date -Format "yyyyMMdd_HHmmss"
 $dest = "$repo\work\autotest_${stamp}$(if ($Slot) { "_s$Slot" })${Tag}.csv"
 if (Test-Path "$sdir\aimod_econ.csv") { Move-Item "$sdir\aimod_econ.csv" $dest }
-"finished in $secs s real time, exit code $($p.ExitCode), log: $dest"
+# one line with all of it: the scripts that run many games show only this one (scripts/jobs.sh)
+"finished in $secs s real time (started in $started s), exit code $($p.ExitCode)$(if ($why) { " ($why)" }), log: $dest"
