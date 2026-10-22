@@ -357,6 +357,58 @@ internal inline void **zone_get_sites_end(const ee_zone *z) { return FIELD(z, OF
 internal inline int zone_get_drop(const ee_zone *z) { return FIELD(z, OF(ZONE, 0x14), int); }                 // +0x14 a drop site serves it
 internal inline uint8_t zone_get_active(const ee_zone *z) { return FIELD(z, OF(ZONE, 0x18), uint8_t); }       // +0x18
 
+// THE SCENARIO MANAGER AND ITS TRIGGERS (EEScenarioManager, scenario_manager(); test/scen.c, engine-notes.md
+// "Scenario triggers"): the lists are vectors (begin, end) - the address of each list's begin
+internal inline uint8_t *scen_triggers_at(const uint8_t *m) { return (uint8_t *)FIELD_AT(m, OF(SCEN, 0xE8)); }
+internal inline uint8_t *scen_conds_at(const uint8_t *m) { return (uint8_t *)FIELD_AT(m, OF(SCEN, 0xF8)); }
+internal inline uint8_t *scen_effects_at(const uint8_t *m) { return (uint8_t *)FIELD_AT(m, OF(SCEN, 0x108)); }
+internal inline uint8_t *scen_objects_at(const uint8_t *m) { return (uint8_t *)FIELD_AT(m, OF(SCEN, 0x118)); }
+internal inline uint8_t *scen_areas_at(const uint8_t *m) { return (uint8_t *)FIELD_AT(m, OF(SCEN, 0x128)); }
+internal inline float scen_get_time(const uint8_t *m) { return FIELD(m, OF(SCEN, 0x210), float); }            // +0x210 ms
+// a trigger (EESMTrigger): its name and description (UWideString), the lists of its condition and effect references
+internal inline uint8_t *trigger_name_at(const uint8_t *t) { return (uint8_t *)FIELD_AT(t, OF(SCEN, 0x4)); }
+internal inline uint8_t *trigger_desc_at(const uint8_t *t) { return (uint8_t *)FIELD_AT(t, OF(SCEN, 0x18)); }
+internal inline uint8_t *trigger_conds_at(const uint8_t *t) { return (uint8_t *)FIELD_AT(t, OF(SCEN, 0x30)); }
+internal inline uint8_t *trigger_effects_at(const uint8_t *t) { return (uint8_t *)FIELD_AT(t, OF(SCEN, 0x40)); }
+internal inline int trigger_get_true_for(const uint8_t *t) { return FIELD(t, OF(SCEN, 0x4C), int); }          // +0x4C s the conditions held
+internal inline void trigger_set_since(uint8_t *t, int v) { FIELD(t, OF(SCEN, 0x50), int) = v; }
+internal inline char trigger_get_on(const uint8_t *t) { return FIELD(t, OF(SCEN, 0x58), char); }
+internal inline void trigger_set_on(uint8_t *t, char v) { FIELD(t, OF(SCEN, 0x58), char) = v; }
+internal inline char trigger_get_fired(const uint8_t *t) { return FIELD(t, OF(SCEN, 0x59), char); }
+internal inline void trigger_set_fired(uint8_t *t, char v) { FIELD(t, OF(SCEN, 0x59), char) = v; }
+internal inline char trigger_get_loop(const uint8_t *t) { return FIELD(t, OF(SCEN, 0x5A), char); }
+// a trigger's condition reference: the condition's index, the join to the next (0 end, 1 and, 2 or), not
+internal inline int trigger_cond_get_index(const uint8_t *w) { return FIELD(w, OF(SCEN, 0x4), int); }
+internal inline int trigger_cond_get_join(const uint8_t *w) { return FIELD(w, OF(SCEN, 0x8), int); }
+internal inline char trigger_cond_get_not(const uint8_t *w) { return FIELD(w, OF(SCEN, 0xC), char); }
+// a trigger's effect reference: its kind (2: "or" between random groups), delay (s), the effect's index
+internal inline int trigger_effect_get_kind(const uint8_t *w) { return FIELD(w, OF(SCEN, 0x4), int); }
+internal inline int trigger_effect_get_delay(const uint8_t *w) { return FIELD(w, OF(SCEN, 0x8), int); }
+internal inline int trigger_effect_get_index(const uint8_t *w) { return FIELD(w, OF(SCEN, 0xC), int); }
+// a condition: its type (0 always .. 7 chat) and each type's values
+internal inline uint8_t *scen_cond_text_at(const uint8_t *c) { return (uint8_t *)FIELD_AT(c, OF(SCEN, 0x2C)); } // chat: the text
+internal inline int scen_cond_get_type(const uint8_t *c) { return FIELD(c, OF(SCEN, 0x40), int); }
+internal inline int scen_cond_get_op(const uint8_t *c) { return FIELD(c, OF(SCEN, 0x44), int); }
+internal inline int scen_cond_get_attr(const uint8_t *c) { return FIELD(c, OF(SCEN, 0x50), int); }
+internal inline int scen_cond_get_tech(const uint8_t *c) { return FIELD(c, OF(SCEN, 0x58), int); }
+internal inline int scen_cond_get_value(const uint8_t *c) { return FIELD(c, OF(SCEN, 0x5C), int); }
+internal inline int scen_cond_get_object(const uint8_t *c) { return FIELD(c, OF(SCEN, 0x60), int); }
+internal inline int scen_cond_get_player(const uint8_t *c) { return FIELD(c, OF(SCEN, 0x64), int); }
+internal inline int scen_cond_get_time_from(const uint8_t *c) { return FIELD(c, OF(SCEN, 0x6C), int); }
+internal inline int scen_cond_get_time_to(const uint8_t *c) { return FIELD(c, OF(SCEN, 0x70), int); }
+internal inline int scen_cond_get_trigger(const uint8_t *c) { return FIELD(c, OF(SCEN, 0x78), int); }
+internal inline char scen_cond_get_trigger_on(const uint8_t *c) { return FIELD(c, OF(SCEN, 0x80), char); }
+internal inline char scen_cond_get_trigger_fired(const uint8_t *c) { return FIELD(c, OF(SCEN, 0x81), char); }
+internal inline char scen_cond_get_timed(const uint8_t *c) { return FIELD(c, OF(SCEN, 0x83), char); }
+// an effect: its category (1 object, 2 player, 3 trigger, 4 media, 5 game, 6 AI) and its kind within the category
+internal inline int scen_effect_get_category(const uint8_t *ef) { return FIELD(ef, OF(SCEN, 0x100), int); }
+internal inline int scen_effect_get_kind(const uint8_t *ef, int cat) {
+    const uint32_t off[7] = { 0, OF(SCEN, 0x104), OF(SCEN, 0xF8), OF(SCEN, 0xFC), OF(SCEN, 0xF0), OF(SCEN, 0x13C), OF(SCEN, 0xE4) };
+    return cat >= 1 && cat <= 6 ? FIELD(ef, off[cat], int) : -1;
+}
+internal inline int scen_effect_get_object(const uint8_t *ef) { return FIELD(ef, OF(SCEN, 0x158), int); }     // object effects
+internal inline int scen_effect_get_trigger(const uint8_t *ef) { return FIELD(ef, OF(SCEN, 0x180), int); }    // trigger effects
+
 // THE GAME'S MOUSE (game_mouse(): the cursor in the game's coordinates)
 internal inline float mouse_get_x(const ee_mouse *m) { return FIELD(m, OF(MOUSE, 0x4), float); }            // +0x4
 internal inline void mouse_set_x(ee_mouse *m, float v) { FIELD(m, OF(MOUSE, 0x4), float) = v; }

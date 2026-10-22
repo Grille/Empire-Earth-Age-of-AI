@@ -336,6 +336,7 @@
     O(SCEN, 0xC, 0xC, 0xC) /* c: its file's code (the scenario manager) */ \
     O(SCEN, 0x18, 0x18, 0x18) /* c: its file's code (the scenario manager) */ \
     O(SCEN, 0x2C, 0x2C, 0x2C) /* c: its file's code (the scenario manager) */ \
+    O(SCEN, 0x30, 0x30, 0x30) /* s: a trigger's condition references, as its +0x40 */ \
     O(SCEN, 0x40, 0x40, 0x40) /* c: its file's code (the scenario manager) */ \
     O(SCEN, 0x44, 0x44, 0x44) /* c: its file's code (the scenario manager) */ \
     O(SCEN, 0x4C, 0x4C, 0x4C) /* c: its file's code (the scenario manager) */ \

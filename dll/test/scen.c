@@ -49,59 +49,56 @@ internal uint8_t *sm_trigger(const char *arg, int *idx) {
     if (!m) return NULL;
     char *end, name[96];
     long i = strtol(arg, &end, 10);
-    if (end != arg && (*end == 0 || *end == ' ')) { *idx = (int)i; return sm_at(m + OF(SCEN, 0xE8), (int)i); }
-    for (int k = 0; k < sm_count(m + OF(SCEN, 0xE8)); k++) {
-        uint8_t *t = sm_at(m + OF(SCEN, 0xE8), k);
-        if (t && !_stricmp(sm_text(t + 4, name, sizeof name), arg)) { *idx = k; return t; }
+    if (end != arg && (*end == 0 || *end == ' ')) { *idx = (int)i; return sm_at(scen_triggers_at(m), (int)i); }
+    for (int k = 0; k < sm_count(scen_triggers_at(m)); k++) {
+        uint8_t *t = sm_at(scen_triggers_at(m), k);
+        if (t && !_stricmp(sm_text(trigger_name_at(t), name, sizeof name), arg)) { *idx = k; return t; }
     }
     return NULL;
 }
 
 internal void sm_list(char *out, uint8_t *m, int detail) {
     char name[96];
-    int nt = sm_count(m + OF(SCEN, 0xE8));
+    int nt = sm_count(scen_triggers_at(m));
     REPLY("%d triggers, %d conditions, %d effects, %d objects, %d areas; scenario time %.1f s\n", nt,
-          sm_count(m + OF(SCEN, 0xF8)), sm_count(m + OF(SCEN, 0x108)), sm_count(m + OF(SCEN, 0x118)), sm_count(m + OF(SCEN, 0x128)), FIELD(m, OF(SCEN, 0x210), float) / 1000.0f);
+          sm_count(scen_conds_at(m)), sm_count(scen_effects_at(m)), sm_count(scen_objects_at(m)), sm_count(scen_areas_at(m)), scen_get_time(m) / 1000.0f);
     for (int k = 0; k < nt; k++) {
-        uint8_t *t = sm_at(m + OF(SCEN, 0xE8), k);
+        uint8_t *t = sm_at(scen_triggers_at(m), k);
         if (!t) continue;
-        REPLY("%3d \"%s\" %s%s%s true-for %ds:", k, sm_text(t + 4, name, sizeof name), FIELD(t, OF(SCEN, 0x58), char) ? "on" : "off",
-              FIELD(t, OF(SCEN, 0x59), char) ? " fired" : "", FIELD(t, OF(SCEN, 0x5A), char) ? " loop" : "", FIELD(t, OF(SCEN, 0x4C), int));
-        for (int c = 0; c < sm_count(t + 0x30); c++) {
-            uint8_t *w = sm_at(t + 0x30, c), *cd = w ? sm_at(m + 0xF8, FIELD(w, OF(SCEN, 0x4), int)) : NULL;
+        REPLY("%3d \"%s\" %s%s%s true-for %ds:", k, sm_text(trigger_name_at(t), name, sizeof name), trigger_get_on(t) ? "on" : "off",
+              trigger_get_fired(t) ? " fired" : "", trigger_get_loop(t) ? " loop" : "", trigger_get_true_for(t));
+        for (int c = 0; c < sm_count(trigger_conds_at(t)); c++) {
+            uint8_t *w = sm_at(trigger_conds_at(t), c), *cd = w ? sm_at(scen_conds_at(m), trigger_cond_get_index(w)) : NULL;
             if (!w) continue;
-            int ty = cd ? FIELD(cd, OF(SCEN, 0x40), int) : -1, op = cd ? FIELD(cd, OF(SCEN, 0x44), int) : 0;
-            REPLY(" %sc%d %s", FIELD(w, OF(SCEN, 0xC), char) ? "not " : "", FIELD(w, OF(SCEN, 0x4), int), ty >= 0 && ty < 8 ? k_sm_cond[ty] : "?");
-            if (ty == 7) REPLY(" \"%s\"", sm_text(cd + OF(SCEN, 0x2C), name, sizeof name));
-            else if (ty == 2) REPLY("(p%d attr %d %s %d)", FIELD(cd, OF(SCEN, 0x64), int), FIELD(cd, OF(SCEN, 0x50), int), op >= 0 && op < 5 ? k_sm_op[op] : "?", FIELD(cd, OF(SCEN, 0x5C), int));
-            else if (ty == 3) REPLY("(p%d tech %d)", FIELD(cd, OF(SCEN, 0x64), int), FIELD(cd, OF(SCEN, 0x58), int));
-            else if (ty == 4) REPLY("(t%d%s%s)", FIELD(cd, OF(SCEN, 0x78), int), FIELD(cd, OF(SCEN, 0x80), char) ? " on" : "", FIELD(cd, OF(SCEN, 0x81), char) ? " fired" : "");
-            else if (ty == 1) REPLY("(o%d)", FIELD(cd, OF(SCEN, 0x60), int));
-            else if (ty == 6 && FIELD(cd, OF(SCEN, 0x83), char)) REPLY("(time %d..%d s)", FIELD(cd, OF(SCEN, 0x6C), int), FIELD(cd, OF(SCEN, 0x70), int));
-            REPLY("%s", FIELD(w, OF(SCEN, 0x8), int) == 1 ? " and" : FIELD(w, OF(SCEN, 0x8), int) == 2 ? " or" : "");
+            int ty = cd ? scen_cond_get_type(cd) : -1, op = cd ? scen_cond_get_op(cd) : 0;
+            REPLY(" %sc%d %s", trigger_cond_get_not(w) ? "not " : "", trigger_cond_get_index(w), ty >= 0 && ty < 8 ? k_sm_cond[ty] : "?");
+            if (ty == 7) REPLY(" \"%s\"", sm_text(scen_cond_text_at(cd), name, sizeof name));
+            else if (ty == 2) REPLY("(p%d attr %d %s %d)", scen_cond_get_player(cd), scen_cond_get_attr(cd), op >= 0 && op < 5 ? k_sm_op[op] : "?", scen_cond_get_value(cd));
+            else if (ty == 3) REPLY("(p%d tech %d)", scen_cond_get_player(cd), scen_cond_get_tech(cd));
+            else if (ty == 4) REPLY("(t%d%s%s)", scen_cond_get_trigger(cd), scen_cond_get_trigger_on(cd) ? " on" : "", scen_cond_get_trigger_fired(cd) ? " fired" : "");
+            else if (ty == 1) REPLY("(o%d)", scen_cond_get_object(cd));
+            else if (ty == 6 && scen_cond_get_timed(cd)) REPLY("(time %d..%d s)", scen_cond_get_time_from(cd), scen_cond_get_time_to(cd));
+            REPLY("%s", trigger_cond_get_join(w) == 1 ? " and" : trigger_cond_get_join(w) == 2 ? " or" : "");
         }
         REPLY(" ->");
-        for (int e = 0; e < sm_count(t + 0x40); e++) {
-            uint8_t *w = sm_at(t + 0x40, e), *ef = w ? sm_at(m + 0x108, FIELD(w, OF(SCEN, 0xC), int)) : NULL;
+        for (int e = 0; e < sm_count(trigger_effects_at(t)); e++) {
+            uint8_t *w = sm_at(trigger_effects_at(t), e), *ef = w ? sm_at(scen_effects_at(m), trigger_effect_get_index(w)) : NULL;
             if (!w) continue;
-            if (FIELD(w, OF(SCEN, 0x4), int) == 2) { REPLY(" |"); continue; }
-            // category +0x100: 1 object (+0x104), 2 player (+0xF8), 3 trigger (+0xFC), 4 media (+0xF0), 5 game (+0x13C),
-            // 6 AI (+0xE4)
-            int cat = ef ? FIELD(ef, OF(SCEN, 0x100), int) : -1, sub = -1;
-            const uint32_t sub_off[7] = { 0, OF(SCEN, 0x104), OF(SCEN, 0xF8), OF(SCEN, 0xFC), OF(SCEN, 0xF0), OF(SCEN, 0x13C), OF(SCEN, 0xE4) };
+            if (trigger_effect_get_kind(w) == 2) { REPLY(" |"); continue; }
+            int cat = ef ? scen_effect_get_category(ef) : -1, sub = -1;
             static const char *const *const k_sub_names[7] = { NULL, k_sm_obj, k_sm_player, k_sm_trig, k_sm_media, k_sm_game, k_sm_ai };
             static const int k_sub_n[7] = { 0, 13, 12, 4, 4, 7, 7 };
-            if (cat >= 1 && cat <= 6) sub = FIELD(ef, sub_off[cat], int);
+            if (cat >= 1 && cat <= 6) sub = scen_effect_get_kind(ef, cat);
             if (cat >= 1 && cat <= 6 && sub >= 0 && sub < k_sub_n[cat]) {
-                REPLY(" e%d %s", FIELD(w, OF(SCEN, 0xC), int), k_sub_names[cat][sub]);
-                if (cat == 1) REPLY("(o%d)", FIELD(ef, OF(SCEN, 0x158), int));
-                else if (cat == 3) REPLY("(t%d)", FIELD(ef, OF(SCEN, 0x180), int));
+                REPLY(" e%d %s", trigger_effect_get_index(w), k_sub_names[cat][sub]);
+                if (cat == 1) REPLY("(o%d)", scen_effect_get_object(ef));
+                else if (cat == 3) REPLY("(t%d)", scen_effect_get_trigger(ef));
             }
-            else REPLY(" e%d(cat %d/%d)", FIELD(w, OF(SCEN, 0xC), int), cat, sub);
-            if (FIELD(w, OF(SCEN, 0x8), int)) REPLY("+%ds", FIELD(w, OF(SCEN, 0x8), int));
+            else REPLY(" e%d(cat %d/%d)", trigger_effect_get_index(w), cat, sub);
+            if (trigger_effect_get_delay(w)) REPLY("+%ds", trigger_effect_get_delay(w));
         }
         REPLY("\n");
-        if (detail && FIELD(t, OF(SCEN, 0x18) + 4, void *)) REPLY("     %s\n", sm_text(t + 0x18, name, sizeof name));
+        if (detail && FIELD(trigger_desc_at(t), 4, void *)) REPLY("     %s\n", sm_text(trigger_desc_at(t), name, sizeof name));
     }
 }
 
@@ -116,25 +113,25 @@ internal void cmd_trig(char *out, const char *args) {
     if (!strcmp(verb, "list") || !strcmp(verb, "desc")) { sm_list(out, m, verb[0] == 'd'); return; }
     if (!strcmp(verb, "effect")) {
         int e = atoi(arg);
-        uint8_t *ef = sm_at(m + OF(SCEN, 0x108), e);
+        uint8_t *ef = sm_at(scen_effects_at(m), e);
         if (!ef) { REPLY("error: no effect %d\n", e); return; }
         sm_run_effect(ef, 0);
-        REPLY("ok: effect %d (category %d) ran\n", e, FIELD(ef, OF(SCEN, 0x100), int));
+        REPLY("ok: effect %d (category %d) ran\n", e, scen_effect_get_category(ef));
         return;
     }
     uint8_t *t = sm_trigger(arg, &idx);
     if (!t) { REPLY("error: no trigger \"%s\"\n", arg); return; }
-    if (!strcmp(verb, "on")) FIELD(t, OF(SCEN, 0x58), char) = 1;
-    else if (!strcmp(verb, "off")) FIELD(t, OF(SCEN, 0x58), char) = 0;
-    else if (!strcmp(verb, "reset")) { FIELD(t, OF(SCEN, 0x58), char) = 1; FIELD(t, OF(SCEN, 0x59), char) = 0; FIELD(t, OF(SCEN, 0x50), int) = 0; }
+    if (!strcmp(verb, "on")) trigger_set_on(t, 1);
+    else if (!strcmp(verb, "off")) trigger_set_on(t, 0);
+    else if (!strcmp(verb, "reset")) { trigger_set_on(t, 1); trigger_set_fired(t, 0); trigger_set_since(t, 0); }
     else if (!strcmp(verb, "fire")) {
         // every effect now, delays and random groups ignored
         int ran = 0;
-        for (int e = 0; e < sm_count(t + 0x40); e++) {
-            uint8_t *w = sm_at(t + 0x40, e), *ef = w && FIELD(w, OF(SCEN, 0x4), int) != 2 ? sm_at(m + 0x108, FIELD(w, OF(SCEN, 0xC), int)) : NULL;
+        for (int e = 0; e < sm_count(trigger_effects_at(t)); e++) {
+            uint8_t *w = sm_at(trigger_effects_at(t), e), *ef = w && trigger_effect_get_kind(w) != 2 ? sm_at(scen_effects_at(m), trigger_effect_get_index(w)) : NULL;
             if (ef) { sm_run_effect(ef, 0); ran++; }
         }
-        FIELD(t, OF(SCEN, 0x59), char) = 1;
+        trigger_set_fired(t, 1);
         REPLY("ok: trigger %d fired, %d effects ran\n", idx, ran);
         return;
     }
