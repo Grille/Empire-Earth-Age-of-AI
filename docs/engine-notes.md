@@ -909,6 +909,22 @@ writes the header and the lump container and parses terrain. Strings are length-
   EEPlayer's rest: tech tree (if +0x9D4), queued improvements, ...; EEComputerPlayer::vf9 0x43DED9 (844 lines) adds
   the AI's state. Checked 2026-10-23: this framing reads all 37 saves and 10 scenarios up to the first unit (always
   at 0xAD0E of the lump, player 0's name "World"), the first unit's type ids plausible (337, 301, 338).
+- The player lump decoded to the end (2026-10-23; the field-by-field layout with every function's address is
+  EEScnEdit's `Data/Player/*.cs`): units come in two classes only - the u8 after the type id picks it on load
+  (EEPlayer::vf12 0x558CDD; the type data's vf14 0x61E7BA would build the class of type +0x4B0, a mismatch is read
+  into a thrown-away object): 0 EEUnit (EEUnit::vf11 0x616EBF: RTSUnit 0x628E8E's tile x, y, id +0x24, u8 +0x28, 0,
+  u8 +0x2B valid, then +0x38 resource type, hit points / the type's maximum, +0x40 amount, 0 - 31 bytes; families
+  0 ambient and 1 resource), 1 EEComplexUnit (0x5E6C29, load 0x5E5047: 530 fixed bytes - position +0x10C,
+  transformation +0x130, path +0x7C, unit references as ids, -1 none - plus count-prefixed lists and the goal queues
+  (0x5F5D0C): u32 n, per goal u8 tag + the goal (factory 0x62841C: 1 location, 2 attack unit, 3 attack ground, 4
+  build/repair, 6 gather, 7 load transport, 8 unload, 9 patrol, 10 explore, 11 cast calamity, 12 load garrison, 15
+  heal - only 15 lacks EEUnitGoal's 14-byte start); every other family). The AI's state: the combat manager
+  (personnel, attack groups with sub groups by kind 0-8 and waypoints, defense entries), the civilization manager
+  (resource, build, research, unit and wall managers; lists per epoch), the exploration manager, then ~170 4-byte
+  settings (+0xBA0..+0xF05); times saved as "- game time". Strings are UWideString / UString::Save: u32 length
+  with the NUL, then the bytes. Checked: all 37 saves and 10 scenarios read to the lump's last byte and write back
+  byte for byte - 447 players (351 computer), 63977 simple and 30093 complex units, every goal tag but 11, sub
+  group kinds 0-6.
 - Triggers: name, description, bools active/looping/fired/active in cinematic, u32 conditions-true-for,
   u32 seconds true, u32 id, then condition and effect bindings. Runtime, conditions and effects: docs/triggers.md.
 
