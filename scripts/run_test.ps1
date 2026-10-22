@@ -28,12 +28,15 @@ if (-not $g -and (Test-Path "$repo\game_dir.txt")) { $g = (Get-Content "$repo\ga
 if (-not $g) { $g = Split-Path $repo -Parent }
 if (-not $Exe) { $Exe = if (Test-Path (Join-Path $g "EE-AOC.exe") -PathType Leaf) { "EE-AOC.exe" } else { "Empire Earth.exe" } }
 if (-not (Test-Path (Join-Path $g $Exe))) { "no $Exe in $g - name the game folder in EE_GAME_DIR or $repo\game_dir.txt"; exit 1 }
-# the build's own: its registry key, and the two patches of a suspended start - the loading splash's jne (raw/hooks.h
-# CODE_SPLASH_START_JNE) and the single-instance check's je after its CreateMutexA (both builds' 0x535CA7 / 0x540D73)
+# the build's own: its registry key, and the three patches of a suspended start - the loading splash's jne (raw/hooks.h
+# CODE_SPLASH_START_JNE), the single-instance check's je after its CreateMutexA (both builds' 0x535CA7 / 0x540D73) and
+# the mutex's name (in .data, read only by that CreateMutexA: 0x538840 / 0x54398E)
 $aoc = $Exe -eq "EE-AOC.exe"
 $build = if ($aoc) { @{ Key = 'HKCU:\Software\Mad Doc Software\EE-AOC'; Splash = 0x53F2FE; Multi = 0x540DA6;
+                        Mutex = 0x8C10DC; MutexName = "MadDocSoftwarePresentsEmpireEarthExpansion";
                         MultiBytes = [byte[]](0x0F, 0x84, 0xC8, 0x03, 0x00, 0x00) } }
          else { @{ Key = 'HKCU:\Software\SSSI\Empire Earth'; Splash = 0x534400; Multi = 0x535CDA;
+                   Mutex = 0x8AA964; MutexName = "StainlessSteelStudiosPresentsEmpireEarth";
                    MultiBytes = [byte[]](0x0F, 0x84, 0xBE, 0x02, 0x00, 0x00) } }
 $exeName = [System.IO.Path]::GetFileNameWithoutExtension($Exe)   # its process
 $g = (Resolve-Path $g).Path.TrimEnd('\')
@@ -269,15 +272,19 @@ public static class SuspendedStart {
     return VirtualProtectEx(hp, new IntPtr(at), put.Length, 0x40, out old) && WriteProcessMemory(hp, new IntPtr(at), put, put.Length, out n);
   }
   // splash: the loading splash off (its jne -> jmp); multi: the single-instance check off (its je nopped - the mutex,
-  // "StainlessSteelStudiosPresentsEmpireEarth" in the 2017 update, is created before the engine loads our DLL)
+  // "StainlessSteelStudiosPresentsEmpireEarth" in the 2017 update, is created before the engine loads our DLL) and the
+  // mutex renamed (its first letter T): a test game no longer holds the player's mutex, so the player's game, started
+  // by hand while tests run, doesn't find it taken and quit without a word
   public static bool Start(string exe, string args, string dir, bool splash, int splashAt, bool multi, int multiAt,
-                          byte[] multiWant, WaitHandle slot, out bool splashOk, out bool multiOk, out int pid) {
+                          byte[] multiWant, int mutexAt, string mutexName, WaitHandle slot,
+                          out bool splashOk, out bool multiOk, out bool mutexOk, out int pid) {
     SI si = new SI(); si.cb = Marshal.SizeOf(si); PI pi;
     if (splash) si.flags = 0x80;   // headless: STARTF_FORCEOFFFEEDBACK - no busy cursor while it starts
     if (!CreateProcessW(exe, "\"" + exe + "\" " + args, IntPtr.Zero, IntPtr.Zero, false, 4, IntPtr.Zero, dir, ref si, out pi))
       throw new Exception("CreateProcess failed: " + Marshal.GetLastWin32Error());
     splashOk = splash && Patch(pi.hp, splashAt, new byte[] { 0x75, 0x2F }, new byte[] { 0xEB });
     multiOk = multi && Patch(pi.hp, multiAt, multiWant, new byte[] { 0x90, 0x90, 0x90, 0x90, 0x90, 0x90 });
+    mutexOk = multi && Patch(pi.hp, mutexAt, System.Text.Encoding.ASCII.GetBytes(mutexName + "\0"), new byte[] { (byte)'T' });
     bool given = Mark(pi.hp, pi.pid, slot);   // before it runs: no test game without its handles
     pid = pi.pid;
     ResumeThread(pi.ht); CloseHandle(pi.ht); CloseHandle(pi.hp);
@@ -290,13 +297,15 @@ public static class SuspendedStart {
         # headless: start suspended and switch off the loading splash before the game runs - it comes up before
         # the engine loads our DLL, centred on screen, and takes the focus (its jne -> jmp, see display.c)
         $headless = $extra -contains "headless=1"; $multi = [bool]($Slot -or $others)
-        $splashOk = $false; $multiOk = $false; $gamePid = 0
+        $splashOk = $false; $multiOk = $false; $mutexOk = $false; $gamePid = 0
         $given = [SuspendedStart]::Start("$g\$Exe", "-loadgame `"$Save`"", $g, $headless, $build.Splash, $multi,
-                                         $build.Multi, $build.MultiBytes, $slotHeld, [ref]$splashOk, [ref]$multiOk, [ref]$gamePid)
+                                         $build.Multi, $build.MultiBytes, $build.Mutex, $build.MutexName, $slotHeld,
+                                         [ref]$splashOk, [ref]$multiOk, [ref]$mutexOk, [ref]$gamePid)
         $p = Get-Process -Id $gamePid
         $null = $p.Handle   # keep a handle, else ExitCode is lost
         if ($headless -and -not $splashOk) { "warning: loading splash not switched off (unexpected bytes at $('{0:X}' -f $build.Splash))" }
         if ($multi -and -not $multiOk) { "warning: single-instance check not switched off (unexpected bytes at $('{0:X}' -f $build.Multi))" }
+        if ($multi -and -not $mutexOk) { "warning: mutex not renamed (unexpected bytes at $('{0:X}' -f $build.Mutex)) - the player's game won't start while this one runs" }
     } else {
         $psi = New-Object System.Diagnostics.ProcessStartInfo
         $psi.FileName = "$g\$Exe";$psi.Arguments = "-loadgame `"$Save`""
