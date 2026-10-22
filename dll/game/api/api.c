@@ -8,7 +8,7 @@
 // api_log tells the start's log what is missing.
 #include "game/api/types.h"        // the game's objects typed: ee_player *, ee_unit * ...
 #include "game/api/raw/builds.h"   // the exe builds the mod knows: the tables' columns
-#include "game/api/raw/tables.c"   // the game's addresses and objects' fields per exe build: GA(G_WORLD_CLOCK), PL_0x9D4
+#include "game/api/raw/tables.c"   // the game's addresses and objects' fields per exe build: GA(G_WORLD_CLOCK), PL_TECH_TREE
 #include "game/api/exe.c"          // which build runs: game_build
 #include "game/api/raw/editor_layout.h"   // the scenario editor's layout sites (generated, the 2017 update)
 #include "game/api/layout.h"       // FIELD: a read at a field's name or a plain number

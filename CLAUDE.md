@@ -30,10 +30,10 @@ Several sessions may work in this tree at the same time - see Git below.
   `tables.c` (with `fields.h`'s; the builds `builds.h`'s) - `api.c` the module's one entry - by name with one value per exe build: `GA(G_WORLD_CLOCK)`,
   `GF(FN_CAN_BUILD)(pl, t, 0x20, 0)`, `GL(TRAIN_SITES)`, a vtable slot `GA(SLOT_ASG_UPDATE)`, an object's size
   `GA(SIZE_GOAL_BUILD)` - never a literal address, slot or size in the code. The game objects' fields likewise live
-  in `raw/fields.h`, one row each, named by kind and the 2017 update's offset (`O(UNIT_0x1C, 0x1C, 0x1C)`; the name
-  is a variable holding the running build's offset: `FIELD(u, UNIT_0x1C, int)`; a field not in the table doesn't
-  build; the runtime library's layouts - deque, vector, string - stay plain numbers), read by name through
-  `objects.c`: `unit_get_x(u)`, `unit_set_behaviour(u, b)` (a setter only where the mod writes), typed by kind
+  in `raw/fields.h`, one row each, named by kind and what it is (`O(UNIT_X, 0x1C, 0x1C)`, `UNIT_0x50` while not
+  understood, a structure inside the object one row; the name is a variable holding the running build's offset:
+  `FIELD(u, UNIT_X, int)`; a field not in the table doesn't build; the runtime library's layouts - deque, vector,
+  string - stay plain numbers), read by name through `objects.c`: `unit_get_x(u)`, `unit_set_behaviour(u, b)` (a setter only where the mod writes), typed by kind
   (types.h); a field's name only in game/api/ (it is raw/'s: scripts/layers.py) - a new field: its row, then its
   accessor. FIELD with a plain number stays for the runtime library's layouts and raw dumps. Two columns:
   the 2017 update and Art of Conquest (not ready: tested in AoC only since 2026-10-21 - test runs play it,

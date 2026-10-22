@@ -70,8 +70,8 @@ internal void addr_log(FILE *log) {   // the names the running build hasn't got:
     fputc(10, log);
 }
 
-// A field's name is the running build's offset itself, a variable per row: FIELD(t, TECH_0x6, uint8_t),
-// FIELD(u, UNIT_0x130 + 0x0C, float) (KIND_0xOFFSET: the 2017 update has it at +OFFSET in a KIND).
+// A field's name is the running build's offset itself, a variable per row: FIELD(t, TECH_AVAILABLE, uint8_t),
+// FIELD(rm, RM_DEMAND + r * 4, int).
 #define OF_VAR(n, ...) internal uint32_t n;
 FIELDS(OF_VAR)
 #define OF_ENUM(n, ...) OF_##n,

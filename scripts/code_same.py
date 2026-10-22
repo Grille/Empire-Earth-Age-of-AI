@@ -64,29 +64,31 @@ def addr_names(d):
 
 
 def field_names(d):
-    """the field table's rows in their order (g_of's index), by name (KIND_0xOFFSET; the rows before it were
-    O(KIND, 0xOFFSET, ...), named the same): a row added or taken out moves the others' index - the same row is the same field"""
+    """the field table's rows in their order (g_of's index): (name, its values in every build). A field is compared by
+    its values, not its name - two fields with the same value in every build are the same to the code, so a renamed
+    or split row (the scenario manager's offsets into TRIGGER_NAME, TRIGCOND_INDEX ...) is the same field. The rows before the names were
+    O(KIND, 0xOFFSET, ...)"""
     h = next((p for p in ('game/api/raw/fields.h', 'game/api/fields.h', 'game/fields.h') if os.path.exists(os.path.join(d, p))), None)
     if not h: return None
     t = os.path.join(d, 'game/api/raw/tables.c')
     named = os.path.exists(t) and '#define OF_ENUM(n, ...)' in open(t, encoding='latin-1').read()
-    cs = '#define CS_OF(n, ...) CSF n ;' if named else '#define CS_OF(k, x, ...) CSF k##_##x ;'
+    cs = '#define CS_OF(n, ...) CSF n : __VA_ARGS__ ;' if named else '#define CS_OF(k, x, ...) CSF k##_##x : __VA_ARGS__ ;'
     src = '#include "%s"\n%s\nCODE_SAME_FIELDS FIELDS(CS_OF)\n' % (h, cs)
     out = subprocess.run([CC, '-E', '-P', '-I', d, '-x', 'c', '-'], input=src, capture_output=True, text=True, cwd=d).stdout
     tail = out[out.rfind('CODE_SAME_FIELDS'):]
-    return re.findall(r'CSF (\w+) ;', tail) or None
+    return [(n, re.sub(r'\s+', '', v)) for n, v in re.findall(r'CSF (\w+) : ([^;]*);', tail)] or None
 
 
 def functions(obj, names=None, fields=None):
     secs, syms = coff(obj)
-    field_set = set(fields or ())
+    field_value = dict(fields or ())
     def target(si, addend):   # what a reference points at, independent of the layout
         nm, secno, value, cls = syms[si]
         if names and nm == '_g_addr' and addend % 4 == 0 and 0 <= addend // 4 < len(names):
             return 'g_addr[%s]' % names[addend // 4]                     # an address by its name, wherever its row is
         if fields and nm == '_g_of' and addend % 4 == 0 and 0 <= addend // 4 < len(fields):
-            return 'g_of[%s]' % fields[addend // 4]                      # a field's offset by its row
-        if fields and nm[1:] in field_set: return 'g_of[%s]' % nm[1:]    # since: a variable of its own, by its name
+            return 'g_of[%s]' % fields[addend // 4][1]                   # a field's offset by its row: its values
+        if fields and nm[1:] in field_value: return 'g_of[%s]' % field_value[nm[1:]]   # since: a variable of its own
         if names and nm in ('_k_addr', '_k_addr_name'): return nm        # the tables themselves: in the rows' order
         if fields and nm in ('_k_of', '_k_of_name'): return nm
         if secno <= 0: return nm                                          # outside: an import, another symbol

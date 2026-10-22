@@ -3,6 +3,7 @@ game/api/hooks.c patches into raw/hooks.h, the game's data (G_, read by function
 A function both called and hooked is a function; a row neither uses is reported (unused: take it out). Within a file
 the rows stay in the order of their address (the numbers and lists in their order). One table either way - raw/tables.c
 composes the three - so a row's move changes no code (scripts/code_same.py compares the table by name).
+And the field rows of raw/fields.h: a kind's name at the start of each, one row per field, each used (field_problems).
 
 usage: python scripts/addr_sort.py           move the rows where they belong, print the moves
        python scripts/addr_sort.py --check   only print them (exit 1 when a row is in the wrong file)"""
@@ -56,11 +57,31 @@ def first_value(r):
     return int(v[0], 16) if v else 0
 
 
+def field_problems(code):
+    """raw/fields.h's rows: each name a kind of its header's list and something (PL_TECH_TREE), one row per kind and
+    2017 offset (the first column: a second name for a field would let the two drift apart), each row used"""
+    s = read('raw/fields.h')[0]
+    head = s[:s.index('#define FIELDS')]
+    kinds = set(re.findall(r'^//   ([A-Z][A-Z0-9_]*)\s', head, re.M)) | set(re.findall(r'\b(E_[A-Z0-9]+)\b', head))
+    out, seen = [], {}
+    for n, ee in re.findall(r'^\s*O\((\w+), (0x[0-9A-F]+|NA),', s, re.M):
+        k = max((k for k in kinds if n.startswith(k + '_') and len(n) > len(k) + 1), key=len, default=None)
+        if not k: out.append('%s (raw/fields.h): no kind of the list at its start' % n); continue
+        if (k, ee) in seen: out.append('%s (raw/fields.h): the same field as %s (%s +%s)' % (n, seen[k, ee], k, ee))
+        seen[k, ee] = n
+        if not re.search(r'\b' + n + r'\b', code): out.append('%s (raw/fields.h): used by none of game/api/' % n)
+    return out
+
+
 def main():
     check = '--check' in sys.argv
     texts = {k: read(f) for k, f in FILES.items()}
     fun = strip_comments(open(os.path.join(API, 'functions.c'), encoding='latin-1').read())
     hk = strip_comments(open(os.path.join(API, 'hooks.c'), encoding='latin-1').read())
+    obj = strip_comments(open(os.path.join(API, 'objects.c'), encoding='latin-1').read())
+    fields = field_problems(fun + hk + obj)
+    for m in fields: print('addr_sort: ' + m)
+    if fields: sys.exit(1)
     def used(t, n): return re.search(r'\b' + n + r'\b', t) is not None
     def where(n):
         if n.startswith('G_'): return 'DATA'

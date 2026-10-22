@@ -1,5 +1,5 @@
 // THE GAME'S FUNCTIONS, TYPED: the game's functions as plain C functions over types.h's objects - explored_by(site, pl)
-// instead of GF(FN_EXPLORED)(FIELD(site, UNIT_0x14, void *), pl) - and its data as accessors. raw/functions.h has
+// instead of GF(FN_EXPLORED)(FIELD(site, UNIT_VIS, void *), pl) - and its data as accessors. raw/functions.h has
 // these functions' addresses and raw signatures (raw/tables.c's tables); the code outside game/api/ calls these
 // instead. Each wrapper is the call itself: inlined, the machine code is the same as GF's (scripts/code_same.py).
 
@@ -85,7 +85,7 @@ internal inline unsigned short map_area(int *pt, int kind) {
 }
 // the damage bonus of an attacker type (data atd) against a target type (data ttd), the players' indices
 internal inline float attack_bonus(ee_unit_type *atd, ee_unit_type *ttd, int api, int tpi) {
-    return GF(FN_ATTACK_BONUS)((void *)GA(G_BONUS_TABLE), FIELD(atd, TD_0x4C8, int), ttd, api, tpi);
+    return GF(FN_ATTACK_BONUS)((void *)GA(G_BONUS_TABLE), FIELD(atd, TD_WEAPON, int), ttd, api, tpi);
 }
 // the local player resigns (the menu's message sent), the exit dialog's confirmation (the originals of diplo.c's hooks)
 internal inline void resign_send(void) { GF(FN_RESIGN_SEND)(); }
@@ -237,14 +237,14 @@ internal inline char can_build(ee_player *pl, int type) { return GF(FN_CAN_BUILD
 // a foundation of type laid out at x, y (the player pays): the new building, NULL: none
 internal inline ee_unit *place_foundation(ee_player *pl, int type, int x, int y) { return GF(FN_PLACE_BUILDING)(pl, type, x, y); }
 // is the map object explored by pl (a site's +0x14: its map object)
-internal inline char explored_by(ee_unit *site, ee_player *pl) { return GF(FN_EXPLORED)(FIELD(site, UNIT_0x14, void *), pl); }
+internal inline char explored_by(ee_unit *site, ee_player *pl) { return GF(FN_EXPLORED)(FIELD(site, UNIT_VIS, void *), pl); }
 // the highest epoch of the human players, 0 without
 internal inline int highest_human_epoch(void) { return GF(FN_HUMAN_EPOCH)(); }
 // can a building of type stand at x, y (size x size tiles: the game's placement test, every tile)
 internal inline char can_place_area(ee_player *pl, int type, int x, int y, int size) { return GF(FN_CAN_PLACE)(pl, type, x, y, size, size, 0); }
 // the player's per-type stats records (player +0x874, a vector): their count, the record of type
-internal inline unsigned type_stats_count(ee_player *pl) { return GF(FN_VECTOR_SIZE)(FIELD_AT(pl, PL_0x874)); }
-internal inline ee_unit_stats **type_stats(ee_player *pl, int type) { return (ee_unit_stats **)GF(FN_TYPE_STATS)(FIELD_AT(pl, PL_0x874), type); }
+internal inline unsigned type_stats_count(ee_player *pl) { return GF(FN_VECTOR_SIZE)(FIELD_AT(pl, PL_TYPE_STATS)); }
+internal inline ee_unit_stats **type_stats(ee_player *pl, int type) { return (ee_unit_stats **)GF(FN_TYPE_STATS)(FIELD_AT(pl, PL_TYPE_STATS), type); }
 // the player resigns (how: 2 as the resign message does)
 internal inline void player_resign(ee_player *pl, int how) { GF(FN_PLAYER_RESIGN)(pl, how); }
 // player a's stance towards b (1 enemy, 0 ally) set as the game does (EEPlayer's diplomacy, both its lists)
@@ -365,7 +365,7 @@ internal inline ee_unit *zone_site(ee_zone *z, int kind) { return (ee_unit *)GF(
 // enemies near x, y as the build manager sees them (its threat test)
 internal inline char bm_enemy_near(ee_build_mgr *bm, int x, int y) { return ((char (__thiscall *)(void *, int, int))GA(FN_ENEMY_NEAR))(bm, x, y); }
 // entry (type, x, y) into the build manager's list of epoch e (the lists at +4, 0x14 each)
-internal inline void bm_queue_add(ee_build_mgr *bm, int e, int *entry) { GF(FN_BQ_ADD)(FIELD_AT(bm, BM_0x4 + e * 0x14), entry); }
+internal inline void bm_queue_add(ee_build_mgr *bm, int e, int *entry) { GF(FN_BQ_ADD)(FIELD_AT(bm, BM_QUEUES + e * 0x14), entry); }
 // a wall of type from a to b (int[2] each) by the wall manager
 internal inline void build_wall(void *wall_mgr, int *a, int *b, int type) { GF(FN_BUILD_WALL)(wall_mgr, a, b, type, 0); }
 // the unit (its state, unit +0x30) in none of the civilization manager's groups
