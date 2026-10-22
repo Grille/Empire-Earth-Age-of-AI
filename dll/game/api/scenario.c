@@ -35,12 +35,13 @@ enum sm_player_spec {
 };
 #define SM_PLAYER(n) ((enum sm_player_spec)(SM_PLAYER_0 + (n) - 1))   // "Player n", 1-based as the editor counts
 // a player attribute (29670; the editor offers up to Difficulty Level, the rest work too): the variables, the
-// tribute sent / received by resource, then statistics series n as SM_PA_STATS + n
+// tribute sent / received by resource, then statistics series n as SM_PA_STATS + n (AoC: only 1..30, then its mining
+// restriction - 29681, player +0xAE4, read and set)
 enum sm_player_attr {
     SM_PA_ANY_RESOURCE, SM_PA_ALL_RESOURCES, SM_PA_STONE, SM_PA_GOLD, SM_PA_WOOD, SM_PA_FOOD, SM_PA_IRON, SM_PA_CURRENT_POP,
     SM_PA_POP_CAP, SM_PA_UNIT_COUNT, SM_PA_DIFFICULTY_LEVEL, SM_PA_VARIABLE0, SM_PA_FOOD_SENT = 21, SM_PA_FOOD_RECEIVED,
     SM_PA_WOOD_SENT, SM_PA_WOOD_RECEIVED, SM_PA_STONE_SENT, SM_PA_STONE_RECEIVED, SM_PA_GOLD_SENT, SM_PA_GOLD_RECEIVED,
-    SM_PA_IRON_SENT, SM_PA_IRON_RECEIVED, SM_PA_STATS = 30
+    SM_PA_IRON_SENT, SM_PA_IRON_RECEIVED, SM_PA_STATS = 30, SM_PA_MINING_RESTRICTION = 61
 };
 enum sm_attr_mode { SM_TO_EXACTLY, SM_TO_INCREASE_BY, SM_TO_DECREASE_BY };   // 29500: Set-Attribute Level
 // a unit attribute (29100; Unit-Attribute sets them), from SM_UA_SHOCK_ARMOR the class's (Class-Attribute), from
@@ -74,26 +75,33 @@ enum sm_stance {
 enum sm_diplomacy { SM_ALLIED, SM_ENEMY };                                  // 29510: Diplomacy, Player-Diplomacy
 enum sm_text_kind { SM_TEXT_HINTS, SM_TEXT_INSTRUCTIONS, SM_TEXT_HISTORY };  // 29550: Change Text
 // a calamity: the records of db\dbcalamity.dat - the editor offers the prophets' (29600, Any: one of them at random),
-// the powers after them work too (campaigns use Time Warp and Battlecry)
+// the powers after them work too (campaigns use Time Warp and Battlecry); AoC's file has 13 more, from Flaming Arrows
 enum sm_calamity {
     SM_CAL_ANY, SM_CAL_GLOBAL_WARMING, SM_CAL_ICE_AGE, SM_CAL_EARTHQUAKE, SM_CAL_HURRICANE, SM_CAL_SLAVE_REVOLT,
     SM_CAL_REBELLION, SM_CAL_PLAGUE, SM_CAL_MALARIA, SM_CAL_VOLCANO, SM_CAL_FIRE, SM_CAL_ASTEROID, SM_CAL_FLOOD,
     SM_CAL_SHIELD_BATTERY, SM_CAL_ION_PULSE_CANNON, SM_CAL_TIME_WARP, SM_CAL_TELEPORT, SM_CAL_RESONATOR,
-    SM_CAL_ANTI_MATTER_STORM, SM_CAL_MECH_VIRUS, SM_CAL_BATTLECRY_7, SM_CAL_BATTLECRY_8, SM_CAL_BATTLECRY_9
+    SM_CAL_ANTI_MATTER_STORM, SM_CAL_MECH_VIRUS, SM_CAL_BATTLECRY_7, SM_CAL_BATTLECRY_8, SM_CAL_BATTLECRY_9,
+    SM_CAL_FLAMING_ARROWS, SM_CAL_FA_FIRE, SM_CAL_PILUM_ATTACK, SM_CAL_MIND_CONTROL, SM_CAL_CONSCRIPTION, SM_CAL_LOGIC_BOMB,
+    SM_CAL_PLANTED_EXPLOSIVES, SM_CAL_CAPITAL_SHIP_SPECIAL, SM_CAL_CLOAKING, SM_CAL_METEOR_STORM, SM_CAL_LINE_OF_SIGHT,
+    SM_CAL_BATTLECRY_CENTURION, SM_CAL_SPECIAL_LOCATION
 };
 enum sm_ai_toggle {       // 29625: Set AI Toggle
     SM_AIT_ACTIVE, SM_AIT_CHEAT, SM_AIT_ATTACK, SM_AIT_DEFEND, SM_AIT_BUILD_REPAIR, SM_AIT_EXPLORE, SM_AIT_IGNORE, SM_AIT_GATHER
 };
 enum sm_difficulty { SM_EASY, SM_MEDIUM, SM_HARD };                         // 29665: Game-Attribute, Difficulty Level
-// an object's tests: each one's mode, the relation's kind (29001), the class filter's ranges (SM_CLASS_EPOCH + epoch
-// 1..14, SM_CLASS_FAMILY + family, SM_CLASS_RPS + RPS class, SM_CLASS_GROUP + unit group)
+// an object's tests: each one's mode, the relation's kind (29001); its class filter: any, an epoch (1..14, AoC 1..15),
+// then a family, an RPS class, a unit group - their ranges move with AoC's 15th epoch: sm_class_family(f) ...
 enum sm_test_mode { SM_IGNORE, SM_MUST, SM_MUST_NOT };
 enum sm_relation { SM_REL_LOS, SM_REL_RANGE, SM_REL_NEAR };
-enum sm_class { SM_CLASS_ANY, SM_CLASS_EPOCH = 0, SM_CLASS_FAMILY = 15, SM_CLASS_RPS = 72, SM_CLASS_GROUP = 113 };
+enum sm_class { SM_CLASS_ANY };
+internal inline enum sm_class sm_class_epoch(int epoch) { return (enum sm_class)epoch; }
+internal inline enum sm_class sm_class_family(int family) { return (enum sm_class)((int)GA(SM_CLASS_FAMILY) + family); }
+internal inline enum sm_class sm_class_rps(int rps) { return (enum sm_class)((int)GA(SM_CLASS_RPS) + rps); }
+internal inline enum sm_class sm_class_group(int group) { return (enum sm_class)((int)GA(SM_CLASS_GROUP) + group); }
 // an area's type: its rectangle, the land or sea its point is on, a player's shape round its point
 enum sm_area_type { SM_AREA_RECTANGLE, SM_AREA_REGION, SM_AREA_PLAYER_SHAPE };
 _Static_assert(SM_UA_CAMERA_FOCUS == 41 && SM_UA_TOTAL_PLACE_HOLDER3 == 74, "the unit attributes are strings 29100..29174");
-_Static_assert(SM_CAL_BATTLECRY_9 == 22, "dbcalamity.dat has 23 records");
+_Static_assert(SM_CAL_BATTLECRY_9 == 22 && SM_CAL_SPECIAL_LOCATION == 35, "dbcalamity.dat has 23 records, AoC's 36");
 
 // FIELDS (scenario_manager(); test/scen.c, engine-notes.md
 // "Scenario triggers"): the lists are vectors (begin, end) - the address of each list's begin

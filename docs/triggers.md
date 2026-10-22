@@ -12,6 +12,13 @@ and dumped with `trig`): 2008 triggers, 4091 conditions, 7457 effects, 3617 obje
 mismatches; every action of every category occurs, and every value the fields hold is in its list - but for the
 calamity, whose ids are dbcalamity.dat's records (the powers after the prophets' 12 occur too), the graphic effect
 (dbgfxeffects.dat) and the AI variable (a dbcpbehavior record).
+**Art of Conquest** (its exe compared with the 2017 update's, the language strings and dbcalamity.dat side by side): the
+same categories and actions (the run-effect switches have the same cases), the same unit, class and object attributes
+(0..19, 20..41, 0..74), stances, AI toggles, condition types and player attributes 0..30. It differs in: the class filter
+(0x5C6051) - 15 epochs, so families from 16 (2017: 15), RPS classes from 76 (72), unit groups from 117 (113), number rows
+SM_CLASS_FAMILY / SM_CLASS_RPS / SM_CLASS_GROUP (`sm_class_family(f)` ...); player attributes - statistics only 31..60,
+then 61 its mining restriction (string 29681, player +0xAE4, read by 0x5BAF78 and set by 0x5BCB1F); 36 calamities
+(Flaming Arrows .. Special Location after the 23). The Set AI Variable function was rewritten (not paired).
 
 ## Runtime
 

@@ -104,14 +104,25 @@ internal void sm_list(char *out, ee_scen_mgr *m, int detail) {
 
 // trig objects|effects FROM lists SM_PAGE of them from FROM (a campaign scenario has hundreds: more than one reply holds)
 #define SM_PAGE 100
+// an object's class filter as the editor's lists have it (the ranges by build): "epoch 3", "family 36" ...
+internal const char *sm_class_kind(enum sm_class c, int *n) {
+    if (c == SM_CLASS_ANY) { *n = 0; return "any "; }
+    if (c >= sm_class_group(0)) { *n = (int)(c - sm_class_group(0)); return "group "; }
+    if (c >= sm_class_rps(0)) { *n = (int)(c - sm_class_rps(0)); return "rps "; }
+    if (c >= sm_class_family(0)) { *n = (int)(c - sm_class_family(0)); return "family "; }
+    *n = (int)c;
+    return "epoch ";
+}
 // trig objects: each object's filter and what the game's own evaluation picks now (it may lock the object)
 internal void sm_objects(char *out, ee_scen_mgr *m, int from) {
     char name[96];
     for (int k = from; k < sm_count(scen_objects_at(m)) && k < from + SM_PAGE; k++) {
         ee_scen_object *o = sm_object(m, k);
         if (!o) continue;
-        REPLY("o%d \"%s\" players %d class %d type %d count %d..%d area %d(%d) rel o%d kind %d(%d) parent o%d attr %d %d..%d(%d%s) state %d(%d) seen %d(%d) sel(%d)%s%s",
-              k, sm_text(scen_obj_name_at(o), name, sizeof name), scen_obj_get_players(o), scen_obj_get_class(o), scen_obj_get_type(o),
+        int cn = 0;
+        const char *ck = sm_class_kind(scen_obj_get_class(o), &cn);
+        REPLY("o%d \"%s\" players %d class %s%d (%d) type %d count %d..%d area %d(%d) rel o%d kind %d(%d) parent o%d attr %d %d..%d(%d%s) state %d(%d) seen %d(%d) sel(%d)%s%s",
+              k, sm_text(scen_obj_name_at(o), name, sizeof name), scen_obj_get_players(o), ck, cn, scen_obj_get_class(o), scen_obj_get_type(o),
               scen_obj_get_min(o), scen_obj_get_max(o), scen_obj_get_area(o), scen_obj_get_area_mode(o), scen_obj_get_rel_object(o),
               scen_obj_get_rel_kind(o), scen_obj_get_rel_mode(o), scen_obj_get_parent(o), scen_obj_get_attr(o), scen_obj_get_attr_min(o),
               scen_obj_get_attr_max(o), scen_obj_get_attr_mode(o), scen_obj_get_attr_percent(o) ? " %" : "", scen_obj_get_state(o),

@@ -251,6 +251,9 @@
     D(SIZE_GOAL_UNLOAD, 0x40, 0x40)     /* FN_GOAL_UNLOAD_CTOR */ \
     D(SIZE_GOAL_BUILD, 0x5C, 0x5C)      /* FN_BUILD_GOAL */ \
     D(SIZE_GOAL_LOAD, 0x68, 0x68)       /* FN_GOAL_LOAD_CTOR */ \
+    D(SM_CLASS_FAMILY, 15, 16)          /* SM_CLASS_TEST: a scenario object's class from here is a family (AoC: 15 epochs before) */ \
+    D(SM_CLASS_RPS, 72, 76)             /* from here an RPS class */ \
+    D(SM_CLASS_GROUP, 113, 117)         /* from here a unit group */ \
 
 
 #define ADDR_LISTS_FUNCTIONS(L) \
