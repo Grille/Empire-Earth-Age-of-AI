@@ -89,4 +89,6 @@ compatibility shims before the release. English only until the release.
 
 - `dll/` mixes CRLF and LF files and some are latin-1: match a file's line endings; Edit handles both.
 - Backslashes get mangled in shell heredocs (`\n`, `\b`, `\a` ...): write edit scripts as files or use Edit/Write.
+- File-level functions and variables are `internal` (base/lang.h: C's static there), `static` only inside a
+  function (a local that keeps its value); `int *a, b` with the * on the name. scripts/style.py checks both.
 - Comments and docs: plain, dense sentences in the style of the surrounding code; say why, not only what.

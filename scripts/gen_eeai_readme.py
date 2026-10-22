@@ -23,7 +23,7 @@ prompt = prompt_texts(root)
 
 # situations
 lines = re.findall(r'\{ "([a-z_]+)", (\d+), (\d+), (A_ALL|A_ALLIES|A_NAME) \}', pers)
-fb = re.search(r'static int line_fallback\(int k\) \{(.*?)\n\}', pers, re.S).group(1)
+fb = re.search(r'internal int line_fallback\(int k\) \{(.*?)\n\}', pers, re.S).group(1)
 fallback = {a.lower(): b.lower() for a, b in re.findall(r'case L_(\w+): return L_(\w+);', fb)}
 aud = {'A_ALL': 'everyone', 'A_ALLIES': 'its allies', 'A_NAME': '{them}'}
 def sit(key):
@@ -37,7 +37,7 @@ situations = '\n'.join(t)
 
 # values
 def members(table):
-    body = re.search(r'static const struct xmember %s\[\] = \{(.*?)\n\};' % table, diplo, re.S).group(1)
+    body = re.search(r'internal const struct xmember %s\[\] = \{(.*?)\n\};' % table, diplo, re.S).group(1)
     return re.findall(r'\{ "(\w+)", (XM_\w+), ((?:"(?:[^"\\]|\\.)*"\s*)+)\}', body)
 kinds = {'XM_PLAYER': [], 'XM_LINK': [], 'XM_REL': [], 'XM_FILTER': []}
 for name, kind, doc in members('k_xmembers'):

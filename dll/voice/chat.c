@@ -16,21 +16,21 @@
 // say P text. Every line also goes to the log (# chat:). Per player at most one line per 4 s and per kind one per
 // kind's cooldown, the rest is dropped (not queued: a late line would be wrong).
 
-static const uint32_t k_chat_cooldown[CHAT_KINDS] = { 0, 0, 30000, 60000, 60000, 60000, 60000, 30000, 60000, 0 };
-static int g_chat;
-static int chat_level(void) { return g_chat; }   // aimod.ini [general] chat: 0 off, 1 debug lines, 2 the status too
-static int g_chat_ms = 15000;
-static uint32_t g_chat_last[16], g_chat_kind_last[16][CHAT_KINDS];
-static unsigned g_chat_lines[16], g_chat_dropped[16];
+internal const uint32_t k_chat_cooldown[CHAT_KINDS] = { 0, 0, 30000, 60000, 60000, 60000, 60000, 30000, 60000, 0 };
+internal int g_chat;
+internal int chat_level(void) { return g_chat; }   // aimod.ini [general] chat: 0 off, 1 debug lines, 2 the status too
+internal int g_chat_ms = 15000;
+internal uint32_t g_chat_last[16], g_chat_kind_last[16][CHAT_KINDS];
+internal unsigned g_chat_lines[16], g_chat_dropped[16];
 
-static const char *const k_epoch_names[15] = { "Prehistoric", "Stone", "Copper", "Bronze", "Dark", "Middle",
+internal const char *const k_epoch_names[15] = { "Prehistoric", "Stone", "Copper", "Bronze", "Dark", "Middle",
     "Renaissance", "Imperial", "Industrial", "Atomic - WWI", "Atomic - WWII", "Atomic - Modern", "Digital", "Nano",
     "Space" };
-static const char *epoch_name(int e) { return e >= 0 && e < 15 ? k_epoch_names[e] : "?"; }
+internal const char *epoch_name(int e) { return e >= 0 && e < 15 ? k_epoch_names[e] : "?"; }
 
 
 // one chat line from player pl (name and colour from the player), shown for ms milliseconds
-static void chat_line(ee_player *pl, const char *text, int ms) {
+internal void chat_line(ee_player *pl, const char *text, int ms) {
     void *ui = *(void **)GA(G_WORLD);
     if (!pl || !ui || !*text) return;
     __attribute__((aligned(8))) uint8_t s[32];
@@ -47,7 +47,7 @@ static void chat_line(ee_player *pl, const char *text, int ms) {
 // the chat time setting ([0x917BB8] +0x2CC). Shown whatever the chat level.
 // a line from nobody in particular, as the game shows "<name> wurde besiegt" (0x55BCEA): white, and as the
 // sender string 0x7C45 of the language file
-static void system_line(const char *text, int ms) {
+internal void system_line(const char *text, int ms) {
     void *res = *(void **)GA(G_RESOURCES), *ui = *(void **)GA(G_WORLD);
     if (!res || !ui || !*text) return;
     float white[3] = { 1.0f, 1.0f, 1.0f };
@@ -62,7 +62,7 @@ static void system_line(const char *text, int ms) {
     dtor(name);
 }
 
-static void chat_stance_line(ee_player *pl, int stance) {
+internal void chat_stance_line(ee_player *pl, int stance) {
     void *res = *(void **)GA(G_RESOURCES), *ui = *(void **)GA(G_WORLD);
     uint8_t *opt = *(uint8_t **)GA(G_GAME_DATA);
     if (!pl || !res || !ui || !opt) return;
@@ -84,7 +84,7 @@ static void chat_stance_line(ee_player *pl, int stance) {
 }
 
 // a line of kind `kind` if chat is on and the cooldowns allow it; returns 1 if it was shown
-static int ai_say(ee_player *pl, enum chat_kind kind, const char *fmt, ...) {
+internal int ai_say(ee_player *pl, enum chat_kind kind, const char *fmt, ...) {
     if (!pl || (!g_chat && kind != CHAT_SAY)) return 0;
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     uint32_t now = game_time();
@@ -110,17 +110,17 @@ static int ai_say(ee_player *pl, enum chat_kind kind, const char *fmt, ...) {
 }
 
 // every AI update (econ_tick): epoch changes, the 5-minute status line (chat=2)
-static int home_soldiers_now(ee_player *pl);
-static int current_epoch(ee_player *pl);
-static int g_chat_epoch[16] = { -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 };
-static uint32_t g_chat_status[16];
-static void chat_new_game(void) {
+internal int home_soldiers_now(ee_player *pl);
+internal int current_epoch(ee_player *pl);
+internal int g_chat_epoch[16] = { -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 };
+internal uint32_t g_chat_status[16];
+internal void chat_new_game(void) {
     for (int i = 0; i < 16; i++) { g_chat_epoch[i] = -1; g_chat_status[i] = g_chat_last[i] = 0; }
     memset(g_chat_kind_last, 0, sizeof g_chat_kind_last);
     memset(g_chat_lines, 0, sizeof g_chat_lines);
     memset(g_chat_dropped, 0, sizeof g_chat_dropped);
 }
-static void chat_tick(ee_player *pl, unsigned idx, uint32_t now) {
+internal void chat_tick(ee_player *pl, unsigned idx, uint32_t now) {
     int *last_epoch = g_chat_epoch;
     uint32_t *last_status = g_chat_status;
     if (!g_chat) return;
@@ -138,7 +138,7 @@ static void chat_tick(ee_player *pl, unsigned idx, uint32_t now) {
 }
 
 // chat [0|1|2]: show or set the level; say P text: player P writes text
-static void cmd_chat(char *out, const char *args) {
+internal void cmd_chat(char *out, const char *args) {
     int lv = -1;
     sscanf(args, "%d", &lv);
     if (lv >= 0) g_chat = lv;
@@ -147,7 +147,7 @@ static void cmd_chat(char *out, const char *args) {
         if (g_chat_lines[i] || g_chat_dropped[i]) REPLY(" P%d %u lines (%u dropped)", i, g_chat_lines[i], g_chat_dropped[i]);
     REPLY("\n");
 }
-static void cmd_say(char *out, const char *args) {
+internal void cmd_say(char *out, const char *args) {
     int p = -1, n = 0;
     sscanf(args, "%d %n", &p, &n);
     ee_player *pl = p >= 0 && p < 16 ? g_players[p] : NULL;
@@ -160,7 +160,7 @@ static void cmd_say(char *out, const char *args) {
 // cheats on (0x918E9A): the cheat parser 0x520A17 (thiscall on [0x919858], UWideString *, int *code, int *arg) and a
 // cheat message (new 0x18, 0x5C29FB(code, arg)); then the chat line (new 0x24, 0x5C2A2F(UWideString *)); both through
 // [0x91984C] vtable +0x18 (message, 0xFF = all) - scenario triggers on chat messages and cheat codes see it as typed
-static void cmd_chatme(char *out, const char *args) {
+internal void cmd_chatme(char *out, const char *args) {
     void **net = *(void ***)GA(G_SERVER);
     while (*args == ' ') args++;
     if (!net || !*args) { REPLY("error: chatme text (in a game)\n"); return; }
@@ -181,7 +181,7 @@ static void cmd_chatme(char *out, const char *args) {
     REPLY("ok: sent \"%s\" (cheats %s, cheat code %d)\n", args, cheats ? "on" : "off", code);
 }
 
-static void chat_install(const char *ini, const char *test_ini) {
+internal void chat_install(const char *ini, const char *test_ini) {
     g_chat = ini_int("general", "chat", 0, ini);
     g_chat_ms = ini_int("general", "chat_seconds", 15, ini) * 1000;
     if (test_ini) {

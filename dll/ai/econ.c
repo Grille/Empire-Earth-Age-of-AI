@@ -15,67 +15,67 @@
 //   those beyond their resource's target (e.g. 36 on wood with a target of 3) exceed a small slack.
 
 // per-difficulty switches and military shares: settings.c (cfg_of)
-static int g_citizen_slack = 9999;   // idle-citizen check: off by default (stalled growth in tests)
-static int g_hoard_cap = 3000;   // stock above reserve + this is free for military too, aimod.ini [budget] hoard_cap
+internal int g_citizen_slack = 9999;   // idle-citizen check: off by default (stalled growth in tests)
+internal int g_hoard_cap = 3000;   // stock above reserve + this is free for military too, aimod.ini [budget] hoard_cap
 // stone, gold, iron: hardly any civilian use besides the epoch cost (reserved anyway) and a few techs - with the
 // 3000 cap gold piled up (1000 in stock) while every soldier failed for gold; aimod.ini hoard_cap_mineral. 200 (was
 // 600): ~600 iron lay in stock for the whole late game while the army failed for iron hundreds of times every 5
 // minutes (antiair save: Brann's iron failures 816 -> 64; late-start A/B, 3 maps x 6 seeds: alive 78% vs 75%)
-static int g_hoard_cap_mineral = 200;
+internal int g_hoard_cap_mineral = 200;
 // HEAD-TO-HEAD TESTS (autotest only): [autotest] variant_players = the player numbers playing variant B (e.g. 24);
 // they use v_late_targets, v_hoard_cap_mineral, v_substitute_wait where set (the others the settings). AI-vs-AI
 // suites with one variant for all measure how decisive the wars are, not which variant is stronger.
-static unsigned g_var_mask;
-static int g_v_late = -1, g_v_hoard_mineral = -1, g_v_sub_wait = -1;
+internal unsigned g_var_mask;
+internal int g_v_late = -1, g_v_hoard_mineral = -1, g_v_sub_wait = -1;
 #define PV(idx, v, g) ((g_var_mask >> ((idx) & 15) & 1) && (v) >= 0 ? (v) : (g))
-static struct { uint32_t last_t; int init; float mil[7]; int income[7], mil_spent[7], cit_blocked, mil_limited; } g_bud[16];
+internal struct { uint32_t last_t; int init; float mil[7]; int income[7], mil_spent[7], cit_blocked, mil_limited; } g_bud[16];
 // EARLY GAME (dll/ai/early.c, docs/economy.md - the playtester's opening): [all] early_towers, tower_bait, early_militia,
 // early_army, early_soldiers; copper_plan=2. Head-to-head: v_early_towers ... v_copper_plan for the variant players.
-static int g_early_towers = 1, g_tower_bait = 1, g_early_militia = 1, g_early_army = 0, g_early_soldiers = 0;
-static int g_v_early_towers = -1, g_v_tower_bait = -1, g_v_early_militia = -1, g_v_early_army = -1, g_v_early_soldiers = -1;
-static int g_v_copper = -1;
-static float g_early_food_share = 0.10f;   // [all] early_army_food_share: of the food income for the army before farms
-static int g_min_workforce = 40;          // [all] min_workforce (COPPER PLAN below)
-static int g_food_floor = 18;             // [all] food_floor: copper_plan=2, food workers wanted before farms (half the workers up to this)
-static int g_cit_queue = 0;                // [all] citizen_queue: copper_plan=2, citizens paid ahead while saving (0 = any)
-static float g_epoch_share = 0.40f;        // [all] epoch_share: copper_plan=2, of the income into the epoch account
-static float g_epoch_acc[16][7];           // copper_plan=2: the next epoch's money, out of the citizens' reach
-static int g_epoch_acc_ep[16];             // the epoch it was saved in (+1; 0 = none yet)
-static int g_early_workers = 60;           // [all] early_army_workers: below, the army still spares food (substitution)
+internal int g_early_towers = 1, g_tower_bait = 1, g_early_militia = 1, g_early_army = 0, g_early_soldiers = 0;
+internal int g_v_early_towers = -1, g_v_tower_bait = -1, g_v_early_militia = -1, g_v_early_army = -1, g_v_early_soldiers = -1;
+internal int g_v_copper = -1;
+internal float g_early_food_share = 0.10f;   // [all] early_army_food_share: of the food income for the army before farms
+internal int g_min_workforce = 40;          // [all] min_workforce (COPPER PLAN below)
+internal int g_food_floor = 18;             // [all] food_floor: copper_plan=2, food workers wanted before farms (half the workers up to this)
+internal int g_cit_queue = 0;                // [all] citizen_queue: copper_plan=2, citizens paid ahead while saving (0 = any)
+internal float g_epoch_share = 0.40f;        // [all] epoch_share: copper_plan=2, of the income into the epoch account
+internal float g_epoch_acc[16][7];           // copper_plan=2: the next epoch's money, out of the citizens' reach
+internal int g_epoch_acc_ep[16];             // the epoch it was saved in (+1; 0 = none yet)
+internal int g_early_workers = 60;           // [all] early_army_workers: below, the army still spares food (substitution)
 #define EARLY(idx, which) PV(idx, g_v_##which, g_##which)
-static int copper_mode(ee_player *pl);          // below: copper_plan (per difficulty) or the variant's v_copper_plan
-static void early_tick(ee_player *pl, unsigned idx, uint32_t now);   // early.c
-static int early_tower_stone(ee_player *pl);
-static void food_plan_needs(ee_player *pl, ee_resource_mgr *rm, int *need, const int *stock, const int *reserve);   // food.c
-static void food_log(ee_player *pl, unsigned idx, uint32_t now);
-static int food_fields_wait(ee_player *pl, ee_resource_mgr *rm);
-static void mine_drops(ee_player *pl, unsigned idx, uint32_t now);   // mines.c
-static void mines_log(ee_player *pl, unsigned idx, uint32_t now);
-static int g_mine_fill, g_v_mine_fill;
-static int g_cit_plan, g_v_cit_plan;   // citizens.c: citizen_plan
-static int cz_visible_food(ee_player *pl, unsigned idx, const int *stock, int visible);
-static void cz_budget_note(ee_player *pl, unsigned idx, const int *req, const int *stock, const int *visibles, int blocked, int afford);   // citizens.c
-static int early_cover(ee_player *pl, int x, int y);
-static int early_core_spot(ee_player *pl, int type, int *ox, int *oy);
-static unsigned g_early_mil_refused[16];   // defence.c militia_answer: citizens kept out of a fight (early_militia)
+internal int copper_mode(ee_player *pl);          // below: copper_plan (per difficulty) or the variant's v_copper_plan
+internal void early_tick(ee_player *pl, unsigned idx, uint32_t now);   // early.c
+internal int early_tower_stone(ee_player *pl);
+internal void food_plan_needs(ee_player *pl, ee_resource_mgr *rm, int *need, const int *stock, const int *reserve);   // food.c
+internal void food_log(ee_player *pl, unsigned idx, uint32_t now);
+internal int food_fields_wait(ee_player *pl, ee_resource_mgr *rm);
+internal void mine_drops(ee_player *pl, unsigned idx, uint32_t now);   // mines.c
+internal void mines_log(ee_player *pl, unsigned idx, uint32_t now);
+internal int g_mine_fill, g_v_mine_fill;
+internal int g_cit_plan, g_v_cit_plan;   // citizens.c: citizen_plan
+internal int cz_visible_food(ee_player *pl, unsigned idx, const int *stock, int visible);
+internal void cz_budget_note(ee_player *pl, unsigned idx, const int *req, const int *stock, const int *visibles, int blocked, int afford);   // citizens.c
+internal int early_cover(ee_player *pl, int x, int y);
+internal int early_core_spot(ee_player *pl, int type, int *ox, int *oy);
+internal unsigned g_early_mil_refused[16];   // defence.c militia_answer: citizens kept out of a fight (early_militia)
 // income rates per AI (rates_update): per minute and per worker-minute
-static struct { uint32_t t; int last[7]; float rate[7], per_worker[7]; } g_rate[16];
-static const float k_default_pw[7] = { 0, 0, 10, 10, 5, 8, 6 };
-static void rates_update(ee_player *pl, unsigned idx, uint32_t now);
-static int g_reserve_plan = 1;   // aimod.ini [all] reserve_plan (see spend_reserve)
-static int g_mineral_margin = 300;   // aimod.ini [all] mineral_worker_margin (econ_targets; -1 = off)
+internal struct { uint32_t t; int last[7]; float rate[7], per_worker[7]; } g_rate[16];
+internal const float k_default_pw[7] = { 0, 0, 10, 10, 5, 8, 6 };
+internal void rates_update(ee_player *pl, unsigned idx, uint32_t now);
+internal int g_reserve_plan = 1;   // aimod.ini [all] reserve_plan (see spend_reserve)
+internal int g_mineral_margin = 300;   // aimod.ini [all] mineral_worker_margin (econ_targets; -1 = off)
 
 // Spending by caller (diagnostic): what EEComputerPlayer::vf45 (pay) took, summed per player, resource and return
 // address, with the income so far; logged as "# spend:" every 5 minutes.
-static struct { uintptr_t site; int type; unsigned sum, n; } g_spend[16][24];
-static void spend_note(unsigned idx, int type, int amount, uintptr_t site) {
+internal struct { uintptr_t site; int type; unsigned sum, n; } g_spend[16][24];
+internal void spend_note(unsigned idx, int type, int amount, uintptr_t site) {
     int k = 0;
     while (k < 24 && g_spend[idx][k].n && (g_spend[idx][k].site != site || g_spend[idx][k].type != type)) k++;
     if (k == 24) return;
     g_spend[idx][k].site = site; g_spend[idx][k].type = type;
     g_spend[idx][k].sum += (unsigned)amount; g_spend[idx][k].n++;
 }
-static void spend_log(unsigned idx, uint32_t now) {
+internal void spend_log(unsigned idx, uint32_t now) {
     static uint32_t last[16];
     if (!g_log || now / 300000 == last[idx] / 300000) return;
     last[idx] = now;
@@ -103,28 +103,28 @@ static void spend_log(unsigned idx, uint32_t now) {
 // and had none for the rest of the game, against a player with aircraft. A dropped type (not the 395 settlement, not
 // a decoration) is tried again every 2 minutes with the build manager's own placement (0x46580A, spot 0,0: the
 // game's search) while the AI has none of it and can pay for it; given up after 5 failed retries.
-static int defence_spot(ee_player *pl, int type, int *ox, int *oy);   // defence.c
-static int can_place(ee_player *pl, int type, int x, int y);   // defence.c: the game's placement test, every tile
-static void defence_tick(ee_player *pl, unsigned idx, uint32_t now);
-static void anti_air(ee_player *pl, unsigned idx, uint32_t now);   // defence.c
-static void bunker_reserve(ee_player *pl, int *reserve);   // bunker.c
-static void hold_town(ee_player *pl, unsigned idx, uint32_t now);   // defence.c
-static void attack_retreat(ee_player *pl, unsigned idx, uint32_t now);   // defence.c
-static void counter_siege(ee_player *pl, unsigned idx, uint32_t now);
-static void home_guard(ee_player *pl, unsigned idx, uint32_t now);
-static void muster(ee_player *pl, unsigned idx, uint32_t now);       // defence.c: gather, then strike
-static void diplo_tick(ee_player *pl, unsigned ai, uint32_t now);
-static int g_build_fix = 1;
-static struct { int type; unsigned tries, fails, dropped, streak; } g_place[16][64];   // every type the build lists hold
-static int field_place_ok(ee_build_mgr *bm, int x, int y, int lay_out);   // below, with the farm fields
-static int upgraded_type(ee_player *pl, int type);   // defence.c: the type an upgrade put in place of this one
-static struct { int type; uint32_t next; uint8_t tries; } g_retry[16][16];   // dropped types, tried again
-static int is_decoration(int type) {   // the editor's "x ..." objects (name at object data +0x1C)
+internal int defence_spot(ee_player *pl, int type, int *ox, int *oy);   // defence.c
+internal int can_place(ee_player *pl, int type, int x, int y);   // defence.c: the game's placement test, every tile
+internal void defence_tick(ee_player *pl, unsigned idx, uint32_t now);
+internal void anti_air(ee_player *pl, unsigned idx, uint32_t now);   // defence.c
+internal void bunker_reserve(ee_player *pl, int *reserve);   // bunker.c
+internal void hold_town(ee_player *pl, unsigned idx, uint32_t now);   // defence.c
+internal void attack_retreat(ee_player *pl, unsigned idx, uint32_t now);   // defence.c
+internal void counter_siege(ee_player *pl, unsigned idx, uint32_t now);
+internal void home_guard(ee_player *pl, unsigned idx, uint32_t now);
+internal void muster(ee_player *pl, unsigned idx, uint32_t now);       // defence.c: gather, then strike
+internal void diplo_tick(ee_player *pl, unsigned ai, uint32_t now);
+internal int g_build_fix = 1;
+internal struct { int type; unsigned tries, fails, dropped, streak; } g_place[16][64];   // every type the build lists hold
+internal int field_place_ok(ee_build_mgr *bm, int x, int y, int lay_out);   // below, with the farm fields
+internal int upgraded_type(ee_player *pl, int type);   // defence.c: the type an upgrade put in place of this one
+internal struct { int type; uint32_t next; uint8_t tries; } g_retry[16][16];   // dropped types, tried again
+internal int is_decoration(int type) {   // the editor's "x ..." objects (name at object data +0x1C)
     uint8_t *od = type_data(type);
     const char *name = od ? FIELD(od, OF(TD, 0x1C), const char *) : NULL;
     return name && name[0] == 'x' && name[1] == ' ';
 }
-static void retry_note(unsigned idx, int type, uint32_t now) {
+internal void retry_note(unsigned idx, int type, uint32_t now) {
     if (type == UT(X_SINGLE_PLAYER_SETTLEMENT) || type == UT(B_FARM) || is_decoration(type)) return;
     int f = -1;
     for (int k = 0; k < 16; k++) {
@@ -136,7 +136,7 @@ static void retry_note(unsigned idx, int type, uint32_t now) {
     g_retry[idx][f].next = now + 120000;
     g_retry[idx][f].tries = 0;
 }
-static char __fastcall hook_place(ee_build_mgr *bm, void *edx, int type, int x, int y) {
+internal char __fastcall hook_place(ee_build_mgr *bm, void *edx, int type, int x, int y) {
     (void)edx;
     ee_player *owner = FIELD(bm, OF(BM, 0x138), ee_player *);
     // a field without foundation would crash (see there) - the guard alone for a vanilla player (nothing laid out)
@@ -174,7 +174,7 @@ static char __fastcall hook_place(ee_build_mgr *bm, void *edx, int type, int x, 
     }
     return ok;
 }
-static void place_log(unsigned idx, uint32_t now) {
+internal void place_log(unsigned idx, uint32_t now) {
     static uint32_t last[16];
     if (!g_log || now / 300000 == last[idx] / 300000) return;
     last[idx] = now;
@@ -196,10 +196,10 @@ static void place_log(unsigned idx, uint32_t now) {
 // with the planner's 0x485F57 (requests the building if missing, adds the cost to the demand) and taken out of the
 // pool. Gathering effect: type 2 (+0x20), attribute +0x2C 0x1A..0x21 (wood, gold, stone, iron, ...), applied to
 // citizens (+0x14 = 32/480) or to all (-1) - the planner's own test misses the -1 ones, which most of these are.
-static int workforce(ee_player *pl);
-static int g_gather_research = 1;
-static unsigned g_researched[16];
-static int is_gather_tech(ee_tech *tech) {
+internal int workforce(ee_player *pl);
+internal int g_gather_research = 1;
+internal unsigned g_researched[16];
+internal int is_gather_tech(ee_tech *tech) {
     uint8_t *d = FIELD(tech, OF(TECH, 0x8), uint8_t *);
     int ei = d ? FIELD(d, OF(TECHDATA, 0x50), int) : -1;
     if (ei < 0 || ei > 0x5DC) return 0;
@@ -213,7 +213,7 @@ static int is_gather_tech(ee_tech *tech) {
     }
     return 0;
 }
-static void gather_research(ee_player *pl, unsigned idx, uint32_t now) {
+internal void gather_research(ee_player *pl, unsigned idx, uint32_t now) {
     static uint32_t last[16];
     if (!g_gather_research || (now >= last[idx] && now - last[idx] < 15000)) return;
     last[idx] = now;
@@ -245,18 +245,18 @@ static void gather_research(ee_player *pl, unsigned idx, uint32_t now) {
 // Art of Conquest rewrote 0x5BDDBD (0x5CE8C5): thiscall(node, category, standard only) - the computer player passes 1:
 // only a tech with data +0x81 set is granted (the line upgrades; clear on the civ power and special unit upgrades) -
 // and its children in a map (game/tech.c); its vf6 takes an argument (0).
-static int g_paid_upgrades = 1;
-static int ap_upgrade_later(ee_player *pl, uint8_t *data);   // army.c
-static void epoch_upgrades(ee_tech *node, int cat, int only_new);
-static void __fastcall hook_epoch_upgrades(ee_tech *node, void *edx, int cat) {   // the 2017 update's
+internal int g_paid_upgrades = 1;
+internal int ap_upgrade_later(ee_player *pl, uint8_t *data);   // army.c
+internal void epoch_upgrades(ee_tech *node, int cat, int only_new);
+internal void __fastcall hook_epoch_upgrades(ee_tech *node, void *edx, int cat) {   // the 2017 update's
     (void)edx;
     epoch_upgrades(node, cat, 0);
 }
-static void __fastcall hook_epoch_upgrades_aoc(ee_tech *node, void *edx, int cat, int only_new) {
+internal void __fastcall hook_epoch_upgrades_aoc(ee_tech *node, void *edx, int cat, int only_new) {
     (void)edx;
     epoch_upgrades(node, cat, only_new & 0xFF);
 }
-static void epoch_upgrades(ee_tech *node, int cat, int only_new) {
+internal void epoch_upgrades(ee_tech *node, int cat, int only_new) {
     ee_tech_tree *tt = FIELD(node, OF(TECHNODE, 0xC), ee_tech_tree *);
     int pi = tt ? FIELD(tt, OF(TT, 0x4), int) : -1;
     // the game's own player array, not g_players: back in the scenario editor after a test run the editor sets the
@@ -291,8 +291,8 @@ static void epoch_upgrades(ee_tech *node, int cat, int only_new) {
 // Attention (diagnostic): 0x42F912 switches on only player+0xE20 + 1 of these activities per period (strategy
 // +0xA28 orders them): 0 cm+0x7A, 1 rm+0x188, 2 rs+0x11A (random research), 3 um+0x140, 4 cm+0x7B, 5 cm+0x7C,
 // 6 [b8c+0x4C]+0x48, 7 b98+0x2D, 8 b8c+0x62. Share of AI ticks each was on, logged as "# attention:" every 10 min.
-static struct { unsigned ticks, on[9]; } g_att[16];
-static void attention_note(ee_player *pl, unsigned idx, uint32_t now) {
+internal struct { unsigned ticks, on[9]; } g_att[16];
+internal void attention_note(ee_player *pl, unsigned idx, uint32_t now) {
     uint8_t *cm = FIELD(pl, OF(PL, 0xB90), uint8_t *), *b8c = FIELD(pl, OF(PL, 0xB8C), uint8_t *), *b98 = FIELD(pl, OF(PL, 0xB98), uint8_t *);
     if (!cm || !b8c || !b98) return;
     ee_resource_mgr *rm = FIELD(cm, OF(CM, 0x38), ee_resource_mgr *);
@@ -316,7 +316,7 @@ static void attention_note(ee_player *pl, unsigned idx, uint32_t now) {
 
 // Free research (diagnostic, with tech_log): EETechTreeNode::vf6 0x5BF335 (vtable slot 0x830874) marks a tech
 // researched and applies it without any payment; logged with its caller.
-static int __fastcall hook_tech_grant(ee_tech *node, void *edx) {
+internal int __fastcall hook_tech_grant(ee_tech *node, void *edx) {
     (void)edx;
     uint8_t before = FIELD(node, OF(TECH, 0x4), uint8_t);
     int r = tech_grant(node);
@@ -337,8 +337,8 @@ static int __fastcall hook_tech_grant(ee_tech *node, void *edx) {
 
 // Tech log (autotest tech_log=1): once a second per AI, techs newly researched, with the stock before (last check)
 // and now - whether research is paid shows in the stock.
-static int g_tech_log;
-static void tech_log_tick(ee_player *pl, unsigned idx, uint32_t now) {
+internal int g_tech_log;
+internal void tech_log_tick(ee_player *pl, unsigned idx, uint32_t now) {
     static uint8_t seen[16][16384];
     static int last_stock[16][7];
     static uint32_t last[16];
@@ -370,8 +370,8 @@ static void tech_log_tick(ee_player *pl, unsigned idx, uint32_t now) {
 
 // Gathering (diagnostic), every 5 minutes: per resource the workers, the mean distance from their gather site to the
 // nearest drop site, and the income per worker-minute since the last line.
-static int g_gather_income[16][7];   // the income at the last line (econ_new_game: income counts start over)
-static void gather_log(ee_player *pl, unsigned idx, uint32_t now) {
+internal int g_gather_income[16][7];   // the income at the last line (econ_new_game: income counts start over)
+internal void gather_log(ee_player *pl, unsigned idx, uint32_t now) {
     static uint32_t last[16];
     int (*last_income)[7] = g_gather_income;
     if (!g_log || now / 300000 == last[idx] / 300000) return;
@@ -404,9 +404,9 @@ static void gather_log(ee_player *pl, unsigned idx, uint32_t now) {
     LeaveCriticalSection(&g_lock);
 }
 
-static void mt_paid(ee_player *pl, uint8_t *what, const int *before, const int *stock);   // metal.c: what the gold and iron buy
-static void mt_income(ee_player *pl, int type, int amount);
-static void __fastcall hook_pay(ee_player *pl, void *edx, void *what, int b, int c) {
+internal void mt_paid(ee_player *pl, uint8_t *what, const int *before, const int *stock);   // metal.c: what the gold and iron buy
+internal void mt_income(ee_player *pl, int type, int amount);
+internal void __fastcall hook_pay(ee_player *pl, void *edx, void *what, int b, int c) {
     (void)edx;
     int *stock = (int *)((uint8_t *)pl + PL_STOCK), before[7];
     memcpy(before, stock, sizeof before);
@@ -417,20 +417,20 @@ static void __fastcall hook_pay(ee_player *pl, void *edx, void *what, int b, int
     mt_paid(pl, what, before, stock);
 }
 // navy.c (docs/navy.md stage 1): the navy account on water maps
-static void navy_income(unsigned idx, int type, int amount);
-static int navy_pays(unsigned idx, int type);
-static int navy_economy(unsigned idx, int type, int landing_order);
-static void navy_hold(ee_player *pl, unsigned idx, int reserve[7]);
-static int navy_account(unsigned idx, int r);
-static int navy_earmarked(unsigned idx);   // navy.c (stage 4): a warship spends the account through the reserve
-static void navy_paid(unsigned idx, int type, const int *spent, int got);
-static int navy_room_reserve(ee_player *pl);
-static int navy_pick(ee_player *pl, unsigned idx, int asked);
-static void navy_pick_done(ee_player *pl, unsigned idx, int pick, int asked, const int *before, const int *stock, int blocked);
+internal void navy_income(unsigned idx, int type, int amount);
+internal int navy_pays(unsigned idx, int type);
+internal int navy_economy(unsigned idx, int type, int landing_order);
+internal void navy_hold(ee_player *pl, unsigned idx, int reserve[7]);
+internal int navy_account(unsigned idx, int r);
+internal int navy_earmarked(unsigned idx);   // navy.c (stage 4): a warship spends the account through the reserve
+internal void navy_paid(unsigned idx, int type, const int *spent, int got);
+internal int navy_room_reserve(ee_player *pl);
+internal int navy_pick(ee_player *pl, unsigned idx, int asked);
+internal void navy_pick_done(ee_player *pl, unsigned idx, int pick, int asked, const int *before, const int *stock, int blocked);
 #define FARM_EPOCH 2   // farms and granaries come with epoch 2, the Copper Age
-static int current_epoch(ee_player *pl);
-static int epoch_cost(ee_player *pl, int e, int r);
-static void __fastcall hook_add_resource(ee_player *pl, void *edx, int type, int amount) {
+internal int current_epoch(ee_player *pl);
+internal int epoch_cost(ee_player *pl, int e, int r);
+internal void __fastcall hook_add_resource(ee_player *pl, void *edx, int type, int amount) {
     (void)edx;
     cp_add_resource(pl, type, amount);
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
@@ -466,7 +466,7 @@ static void __fastcall hook_add_resource(ee_player *pl, void *edx, int type, int
 // limit) / 3 (dbcpbehavior records 92/93), times the difficulty's factor (record 98: 70 / 90 / 140%) - so the AI grows
 // with the human and doesn't flood him with units; Ignorieren (+0xF02) or game setting 0x9187FC = 4 give it the game
 // limit. pop_follow_human=0: the game limit (EEPlayer vf31 0x556EBC, as for a player) for every AI.
-static void __fastcall hook_pop_cap(ee_player *pl, void *edx) {
+internal void __fastcall hook_pop_cap(ee_player *pl, void *edx) {
     (void)edx;
     cp_update_pop_cap(pl);
     if (!cfg_of(pl)->pop_follow && !is_vanilla(pl)) FIELD(pl, OF(PL, 0xCCC), int) = game_unit_limit(pl);
@@ -474,7 +474,7 @@ static void __fastcall hook_pop_cap(ee_player *pl, void *edx) {
 
 
 // Citizens without useful work: unassigned ones plus those beyond their resource's target.
-static int idle_citizens(ee_player *pl) {
+internal int idle_citizens(ee_player *pl) {
     void *cm = FIELD(pl, OF(PL, 0xB90), void *);
     ee_resource_mgr *rm = cm ? FIELD(cm, OF(CM, 0x38), ee_resource_mgr *) : NULL;
     if (!rm) return 0;
@@ -486,7 +486,7 @@ static int idle_citizens(ee_player *pl) {
     return idle;
 }
 
-static void *um_owner(void *um) {
+internal void *um_owner(void *um) {
     for (int i = 0; i < 16; i++) {
         ee_player *pl = g_players[i];
         void *cm = pl ? FIELD(pl, OF(PL, 0xB90), void *) : NULL;
@@ -512,21 +512,21 @@ static void *um_owner(void *um) {
 // Stone Age never came: epoch 0 at minute 28), and before farms food gets at least half the workers (up to 18). The
 // epoch comes as soon as it is paid (the attempt moved up, the requirements asked early).
 // g_min_workforce (top): economy first - below it, citizens ignore the reserve and no early advance
-static int copper_mode(ee_player *pl) {
+internal int copper_mode(ee_player *pl) {
     return PV((unsigned)FIELD(pl, PL_INDEX, int) & 15, g_v_copper, cfg_of(pl)->copper_plan);
 }
 // EPOCH PACING follow (settings.c): the AI never gets ahead of the highest human epoch and advances as soon as it can
 // pay once a human is ahead; meanwhile it prepares (the next epoch's requirements are asked for) but holds no
 // resources back for the advance - a human may stay in an epoch for an hour. In every epoch, the copper plan's too.
 // Without a human in the game: the timer alone. 1 = the next epoch held now.
-static int follow_held(ee_player *pl) {
+internal int follow_held(ee_player *pl) {
     ee_tech_tree *tt = FIELD(pl, PL_TECHTREE, ee_tech_tree *);
     if (cfg_of(pl)->pacing != PACE_FOLLOW || !tt || !human_count()) return 0;
     return highest_human_epoch() <= FIELD(tt, TT_EPOCH, int);
 }
 // The game's catch-up (FN_EPOCH_CATCH_UP, settings.c): a human reaching an epoch redraws the attempt of every computer
 // player behind it to a few minutes from now. epoch_pacing=timer goes without it - the timer alone counts.
-static void __fastcall hook_epoch_catch_up(ee_player *pl, void *edx, ee_player *human) {
+internal void __fastcall hook_epoch_catch_up(ee_player *pl, void *edx, ee_player *human) {
     (void)edx;
     if (!is_vanilla(pl) && cfg_of(pl)->pacing == PACE_TIMER) {
         if (g_log) fprintf(g_log, "# epoch plan: P%u at %.1f min: no catch-up (timer)\n",
@@ -536,7 +536,7 @@ static void __fastcall hook_epoch_catch_up(ee_player *pl, void *edx, ee_player *
     cp_epoch_catch_up(pl, human);
 }
 
-static int workforce(ee_player *pl) {
+internal int workforce(ee_player *pl) {
     void *cm = FIELD(pl, OF(PL, 0xB90), void *);
     ee_resource_mgr *rm = cm ? FIELD(cm, OF(CM, 0x38), ee_resource_mgr *) : NULL;
     int n = 0;
@@ -544,17 +544,17 @@ static int workforce(ee_player *pl) {
     return n;
 }
 
-static uint8_t *epoch_tech(ee_player *pl, int e) {
+internal uint8_t *epoch_tech(ee_player *pl, int e) {
     ee_tech_tree *tt = FIELD(pl, PL_TECHTREE, ee_tech_tree *);
     if (!tt || e > 13 || e > *(int *)GA(G_END_EPOCH)) return NULL;
     return FIELD(FIELD_AT(tt, 8 + e * 0x54), OF(TTREC, 0x8), uint8_t *);
 }
-static int epoch_cost(ee_player *pl, int e, int r) {
+internal int epoch_cost(ee_player *pl, int e, int r) {
     uint8_t *d = epoch_tech(pl, e);
     int c = d ? FIELD(d, OF(TECHDATA, 0x24) + (r - 2) * 4, int) : 0;
     return c > 0 ? c : 0;
 }
-static int current_epoch(ee_player *pl) {
+internal int current_epoch(ee_player *pl) {
     ee_tech_tree *tt = FIELD(pl, PL_TECHTREE, ee_tech_tree *);
     return tt ? FIELD(tt, TT_EPOCH, int) : 0;
 }
@@ -572,8 +572,8 @@ static int current_epoch(ee_player *pl) {
 //   its Copper Age, some 10+ (0 of 2 for 7 minutes).
 // - like a player, the AI asks early: before farms as soon as the epoch is reached, later within 10 minutes of the
 //   planned attempt; again after 3 minutes without progress.
-static int g_early_requirements = 1;
-static int requirements_missing(ee_player *pl) {
+internal int g_early_requirements = 1;
+internal int requirements_missing(ee_player *pl) {
     ee_tech_tree *tt = FIELD(pl, PL_TECHTREE, ee_tech_tree *);
     if (!tt) return 0;
     int next = FIELD(tt, TT_EPOCH, int) + 1;
@@ -582,7 +582,7 @@ static int requirements_missing(ee_player *pl) {
     return FIELD(rec, OF(TTREC, 0x40), int) - FIELD(rec, OF(TTREC, 0x48), int);
 }
 // unit type whose first training counts for the next epoch (its tech: object data 0x9418A0[type] +0x4E0)
-static int requirement_unit(ee_player *pl, int type) {
+internal int requirement_unit(ee_player *pl, int type) {
     ee_tech_tree *tt = FIELD(pl, PL_TECHTREE, ee_tech_tree *);
     uint8_t *od = type_data(type);
     if (!g_early_requirements || !tt || !od || requirements_missing(pl) < 1) return 0;
@@ -596,8 +596,8 @@ static int requirement_unit(ee_player *pl, int type) {
 // after 3 failures, the request stays pending, and the epoch waits until something else happens to count. Their
 // techs lose the "counts" flag (data +0x7D) - with no candidate left the request credits the requirement itself
 // (0x4860D6's own fallback). Once per AI and game.
-static void *g_deco_done[16];   // the tech tree fixed (a new game's can reuse the address: econ_new_game)
-static void decoration_fix(ee_player *pl, unsigned ai) {
+internal void *g_deco_done[16];   // the tech tree fixed (a new game's can reuse the address: econ_new_game)
+internal void decoration_fix(ee_player *pl, unsigned ai) {
     void **done = g_deco_done;
     ee_tech_tree *tt = FIELD(pl, PL_TECHTREE, ee_tech_tree *);
     if (!g_early_requirements || !tt || done[ai] == tt) return;
@@ -616,8 +616,8 @@ static void decoration_fix(ee_player *pl, unsigned ai) {
 
 // the epoch-requirement request out (cm+0x76) since: renewed by early_requirements (3 minutes without progress) or
 // else re-armed by econ_tick after 5 minutes - one timer, so the two never renew the same request twice
-static uint32_t g_epoch_req_t[16];
-static void early_requirements(ee_player *pl, unsigned ai, uint32_t now, int prefarm) {
+internal uint32_t g_epoch_req_t[16];
+internal void early_requirements(ee_player *pl, unsigned ai, uint32_t now, int prefarm) {
     static uint32_t asked[16];
     decoration_fix(pl, ai);
     static int asked_missing[16];
@@ -640,8 +640,8 @@ static void early_requirements(ee_player *pl, unsigned ai, uint32_t now, int pre
 }
 
 // Per AI tick (from hook_rm_update): pull the epoch attempt forward in the pre-farm epochs once affordable.
-static int unit_cost(ee_player *pl, int type, int r);   // below
-static void retry_dropped(ee_player *pl, unsigned idx, uint32_t now) {
+internal int unit_cost(ee_player *pl, int type, int r);   // below
+internal void retry_dropped(ee_player *pl, unsigned idx, uint32_t now) {
     if (!g_build_fix) return;
     if (now < 30000) { memset(g_retry[idx], 0, sizeof g_retry[idx]); return; }   // new game
     void *cm = FIELD(pl, OF(PL, 0xB90), void *);
@@ -666,9 +666,9 @@ static void retry_dropped(ee_player *pl, unsigned idx, uint32_t now) {
         else g_retry[idx][k].next = now + 120000;
     }
 }
-static uint32_t g_last_attack_time[16];   // +0xED8 at the last look (defence.c attack_retreat moves it on, not a launch)
+internal uint32_t g_last_attack_time[16];   // +0xED8 at the last look (defence.c attack_retreat moves it on, not a launch)
 // a vanilla player (game/players.c is_vanilla): econ_tick's log lines only - spending, gathering, the game's attack times
-static void econ_vanilla_log(ee_player *pl, uint32_t now) {
+internal void econ_vanilla_log(ee_player *pl, uint32_t now) {
     unsigned ai = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     spend_log(ai, now);
     gather_log(pl, ai, now);
@@ -679,7 +679,7 @@ static void econ_vanilla_log(ee_player *pl, uint32_t now) {
         g_last_attack_time[ai] = t_attack;
     }
 }
-static void econ_tick(ee_player *pl, uint32_t now) {
+internal void econ_tick(ee_player *pl, uint32_t now) {
     const struct ai_cfg *c = cfg_of(pl);
     // attack log: the next-attack time (+0xED8) is redrawn whenever an attack starts
     unsigned ai = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
@@ -791,8 +791,8 @@ static void econ_tick(ee_player *pl, uint32_t now) {
 // The pre-farm food budget is what the map offers: wild food (forage sites) the AI has explored within safe
 // reach of its base (g_site_max_dist), like a player counting the berry patches around his town. Only part
 // of it will actually be gathered (competition, losses), hence g_wild_share.
-static float g_wild_share = 0.6f;   // aimod.ini [budget] wild_food_share
-static int wild_food(ee_player *pl) {
+internal float g_wild_share = 0.6f;   // aimod.ini [budget] wild_food_share
+internal int wild_food(ee_player *pl) {
     uint8_t *cm = FIELD(pl, OF(PL, 0xB90), uint8_t *);
     void *bm = cm ? FIELD(cm, OF(CM, 0x3C), void *) : NULL;
     if (!bm) return 0;
@@ -846,16 +846,16 @@ static int wild_food(ee_player *pl) {
 // to half the fields. Not in the default (7): antiair save at 55 min 100 soldiers vs 70, but late-start A/B, 3
 // maps x 6 seeds, 50 min: alive 70% vs 75% (with the cut to 6 farmers also 70%) - idle fields cost income the AI
 // misses when citizens or the epoch need food. The fields pass sends no farmers beyond food's target.
-static int *bq_entry(ee_build_mgr *bm, int e, unsigned i);   // attack.c: the build queue of epoch e
-static int rm_count(ee_resource_mgr *rm, int t);                 // below: citizens on resource t
-static int unit_cost(ee_player *pl, int type, int r);       // below
-static int g_late_targets = 7;
-static int g_wood_want[16];   // bit 1: the last wood target (steps of 2+)
-static int g_food_cap[16];          // bit 8: the food target's ceiling now (0 = not set)
-static uint32_t g_food_cap_t[16];   // its last step
+internal int *bq_entry(ee_build_mgr *bm, int e, unsigned i);   // attack.c: the build queue of epoch e
+internal int rm_count(ee_resource_mgr *rm, int t);                 // below: citizens on resource t
+internal int unit_cost(ee_player *pl, int type, int r);       // below
+internal int g_late_targets = 7;
+internal int g_wood_want[16];   // bit 1: the last wood target (steps of 2+)
+internal int g_food_cap[16];          // bit 8: the food target's ceiling now (0 = not set)
+internal uint32_t g_food_cap_t[16];   // its last step
 // n more workers for stone, gold and iron: by their demand beyond stock (up to 3000 each, +100 so each gets some), the
 // rounding rest to gold and iron
-static void to_metals(uint32_t *target, const int *demand, const int *stock, int n) {
+internal void to_metals(uint32_t *target, const int *demand, const int *stock, int n) {
     float lw[7] = { 0 }, ws = 0;
     int given = 0;
     if (n <= 0) return;
@@ -878,13 +878,13 @@ static void to_metals(uint32_t *target, const int *demand, const int *stock, int
 // stock is above its reserve, 2 more of the food target go to the metals (by their demand); when food fails more,
 // or the food stock falls under the reserve + 200, 4 come back. At most 60% of the food target, and not more while
 // the mines can't take those already sent (metal workers 6+ under their targets).
-static int g_pull[16];
-static uint32_t g_pull_t[16];
-static unsigned g_pull_seen[16][7];
-static unsigned mil_short(unsigned idx, int r);   // below: the army's orders refused for resource r (counter)
-static void budget_reserve(ee_player *pl, int reserve[7]);
-static void navy_mines(ee_player *pl, unsigned idx, ee_resource_mgr *rm, uint32_t *target, const int *stock, const int *reserve, const int *demand);
-static void econ_targets(ee_resource_mgr *rm) {
+internal int g_pull[16];
+internal uint32_t g_pull_t[16];
+internal unsigned g_pull_seen[16][7];
+internal unsigned mil_short(unsigned idx, int r);   // below: the army's orders refused for resource r (counter)
+internal void budget_reserve(ee_player *pl, int reserve[7]);
+internal void navy_mines(ee_player *pl, unsigned idx, ee_resource_mgr *rm, uint32_t *target, const int *stock, const int *reserve, const int *demand);
+internal void econ_targets(ee_resource_mgr *rm) {
     ee_player *pl = rm_player(rm);
     if (!pl || !copper_mode(pl)) return;
     int late = current_epoch(pl) >= FARM_EPOCH;
@@ -1039,10 +1039,10 @@ static void econ_targets(ee_resource_mgr *rm) {
 // the resource with the largest surplus to a stone/gold/iron mine that is short, with the game's own site search
 // (0x48C204: free slot, explored, no enemy near, the citizen's continent) and assignment (0x48C81C: new gather
 // target, moves the citizen between the resource lists). Hysteresis: the targets jump with demand every 5 s.
-static int g_rebalance = 1;   // aimod.ini [all] rebalance_workers
-static unsigned g_moved[16][7];
-static int rm_count(ee_resource_mgr *rm, int t) { return FIELD(rm, RM_LISTS + t * 0x14 + 0x10, int); }
-static ee_unit *movable_gatherer(ee_resource_mgr *rm, int t) {
+internal int g_rebalance = 1;   // aimod.ini [all] rebalance_workers
+internal unsigned g_moved[16][7];
+internal int rm_count(ee_resource_mgr *rm, int t) { return FIELD(rm, RM_LISTS + t * 0x14 + 0x10, int); }
+internal ee_unit *movable_gatherer(ee_resource_mgr *rm, int t) {
     uint8_t *dq = FIELD_AT(rm, RM_LISTS + t * 0x14);
     unsigned first = FIELD(dq, 0xC, unsigned), n = FIELD(dq, 0x10, unsigned);
     for (unsigned k = n; k-- > 0; ) {   // the newest first
@@ -1072,15 +1072,15 @@ static ee_unit *movable_gatherer(ee_resource_mgr *rm, int t) {
 // - lost fields are laid out again (fields_rebuild). Fishing goes on as before.
 // None of it with enemy soldiers within 6 tiles (raiders_near, attack.c): a few bowmen next to a raided field got
 // every citizen the passes sent to rebuild or farm it, one by one.
-static int g_build_fields = 1;
-static int g_fields_open[16];   // unfinished fields per player (econ_fields), for the wood reserve
-static int field_wood(unsigned idx) { return g_build_fields ? 50 * (g_fields_open[idx] < 2 ? g_fields_open[idx] : 2) : 0; }
-static ee_unit *field_site(ee_unit *f) {   // what a BuildRepair goal holds (+0x3C) for this field (0x60BAD0)
+internal int g_build_fields = 1;
+internal int g_fields_open[16];   // unfinished fields per player (econ_fields), for the wood reserve
+internal int field_wood(unsigned idx) { return g_build_fields ? 50 * (g_fields_open[idx] < 2 ? g_fields_open[idx] : 2) : 0; }
+internal ee_unit *field_site(ee_unit *f) {   // what a BuildRepair goal holds (+0x3C) for this field (0x60BAD0)
     ee_unit *p = FIELD(f, OF(UNIT, 0x30), ee_unit *), *last = f;
     while (p) { last = p; p = FIELD(p, OF(UNIT, 0x1CC), ee_unit *); }
     return last;
 }
-static int citizen_free(ee_unit *u, int idle) {   // idle, or (idle=0) gathering
+internal int citizen_free(ee_unit *u, int idle) {   // idle, or (idle=0) gathering
     if (!u || FIELD(u, OF(UNIT, 0x3C), int) <= 0 || FIELD(u, OF(UNIT, 0x33B), uint8_t) || FIELD(u, OF(UNIT, 0x341), uint8_t) || FIELD(u, OF(UNIT, 0x68), int) ||
         FIELD(u, OF(UNIT, 0x1C), int) == -10000)
         return 0;
@@ -1089,7 +1089,7 @@ static int citizen_free(ee_unit *u, int idle) {   // idle, or (idle=0) gathering
 }
 // plan P: the building plan's entries (cm+8: list head, node +0 next, +0xC type, +0x10 wanted count), as 0x46CD18
 // walks them (0x2F = the epoch's tower)
-static void cmd_plan(char *out, const char *args) {
+internal void cmd_plan(char *out, const char *args) {
     int p = atoi(args), t = 0;
     if (sscanf(args, "%d retry %d", &p, &t) == 2 && p > 0 && p < 16) {   // plan P retry T: T counts as dropped, tried now
         retry_note((unsigned)p, t, game_time());
@@ -1106,7 +1106,7 @@ static void cmd_plan(char *out, const char *args) {
         REPLY(" %d:%d", FIELD(nd, OF(CMLIST, 0xC), int), FIELD(nd, OF(CMLIST, 0x10), int));
     REPLY("\n");
 }
-static int field_worked(ee_resource_mgr *rm, ee_unit *f) {   // a citizen of this AI farms it or is on its way
+internal int field_worked(ee_resource_mgr *rm, ee_unit *f) {   // a citizen of this AI farms it or is on its way
     // (0x52E5F7 counts only those at the field - one carrying food to the granary left it "free")
     for (int r = 0; r < 7; r++) {
         uint8_t *list = FIELD_AT(rm, RM_LISTS + r * 0x14);
@@ -1125,11 +1125,11 @@ static int field_worked(ee_resource_mgr *rm, ee_unit *f) {   // a citizen of thi
 // passes above build and farm it. Again after 2 minutes if it is still missing. Not through the build queue: the
 // placement's field case (0x46580A) only orders builders to an existing foundation and crashes without one
 // (0x60BAD0 with a null building).
-static struct { int16_t x, y; uint32_t queued; } g_field_at[16][32];
-static int g_field_n[16];
-static int can_place(ee_player *pl, int type, int x, int y);   // defence.c
-static int raiders_near(ee_player *pl, int x, int y, int r);     // attack.c: enemy soldiers it can see
-static void fields_rebuild(ee_player *pl, unsigned idx, void *um, uint8_t *dq, uint32_t now) {
+internal struct { int16_t x, y; uint32_t queued; } g_field_at[16][32];
+internal int g_field_n[16];
+internal int can_place(ee_player *pl, int type, int x, int y);   // defence.c
+internal int raiders_near(ee_player *pl, int x, int y, int r);     // attack.c: enemy soldiers it can see
+internal void fields_rebuild(ee_player *pl, unsigned idx, void *um, uint8_t *dq, uint32_t now) {
     if (now < 60000) g_field_n[idx] = 0;   // new game
     unsigned first = dq ? FIELD(dq, 0xC, unsigned) : 0, cnt = dq ? FIELD(dq, 0x10, unsigned) : 0;
     for (unsigned k = 0; k < cnt; k++) {   // remember every field's tile
@@ -1177,7 +1177,7 @@ static void fields_rebuild(ee_player *pl, unsigned idx, void *um, uint8_t *dq, u
 // (88 on wood, food 10). A request without a new granary 50 s later: the next goes to our own spot - near a Town
 // Center, Capitol or Settlement, 4-12 tiles out, placeable, no enemy soldiers within 12, room for 6+ of the 8 fields
 // around it (2 tiles apart, as the game lays them out).
-static int granary_spot(ee_player *pl, void *um, int *ox, int *oy) {
+internal int granary_spot(ee_player *pl, void *um, int *ox, int *oy) {
     static const enum ut_name centers[] = { UT_B_TOWN_CENTER, UT_B_CAPITOL, UT_B_SETTLEMENT };
     for (int c = 0; c < 3; c++) {
         uint8_t *q = type_list(um, g_ut[centers[c]]);
@@ -1202,8 +1202,8 @@ static int granary_spot(ee_player *pl, void *um, int *ox, int *oy) {
     }
     return 0;
 }
-static int g_more_granaries = 1;
-static void more_granaries(ee_player *pl, unsigned idx, ee_resource_mgr *rm, void *cm, void *um, int open_fields, uint32_t now) {
+internal int g_more_granaries = 1;
+internal void more_granaries(ee_player *pl, unsigned idx, ee_resource_mgr *rm, void *cm, void *um, int open_fields, uint32_t now) {
     static uint32_t next[16];
     if (!g_more_granaries || open_fields || current_epoch(pl) < FARM_EPOCH) return;
     if (now < next[idx] && next[idx] - now <= 60000) return;
@@ -1246,7 +1246,7 @@ static void more_granaries(ee_player *pl, unsigned idx, ee_resource_mgr *rm, voi
 // EEUGBuildRepair for a null building and crashes (0x60BB19, seen once fields got built and then lost in battle).
 // hook_place lets a field through only with a foundation on its tile - laid out first if the tile is free - and
 // reports the others as placed (dropped).
-static int field_place_ok(ee_build_mgr *bm, int x, int y, int lay_out) {
+internal int field_place_ok(ee_build_mgr *bm, int x, int y, int lay_out) {
     ee_player *pl = FIELD(bm, OF(BM, 0x138), ee_player *);
     void *cm = FIELD(bm, OF(BM, 0x134), void *);
     void *um = cm ? FIELD(cm, OF(CM, 0x44), void *) : NULL;
@@ -1261,8 +1261,8 @@ static int field_place_ok(ee_build_mgr *bm, int x, int y, int lay_out) {
     if (g_log) fprintf(g_log, "# fields: P%d: build list field at %d,%d - foundation laid out first\n", FIELD(pl, PL_INDEX, int), x, y);
     return 1;
 }
-static int site_danger(ee_player *pl, ee_unit *site, int food);   // attack.c: known enemy towers on the way
-static void econ_fields(ee_resource_mgr *rm) {   // before the citizen assignment
+internal int site_danger(ee_player *pl, ee_unit *site, int food);   // attack.c: known enemy towers on the way
+internal void econ_fields(ee_resource_mgr *rm) {   // before the citizen assignment
     ee_player *pl = rm_player(rm);
     if (!g_build_fields || !pl) return;
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
@@ -1360,7 +1360,7 @@ static void econ_fields(ee_resource_mgr *rm) {   // before the citizen assignmen
         fprintf(g_log, "# fields: P%u at %.1f min: %d unfinished fields, %d builders sent\n", idx, now / 60000.0,
                 nt, ordered);
 }
-static void econ_rebalance(ee_resource_mgr *rm) {
+internal void econ_rebalance(ee_resource_mgr *rm) {
     ee_player *pl = rm_player(rm);
     if (!g_rebalance || !pl) return;
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
@@ -1393,7 +1393,7 @@ static void econ_rebalance(ee_resource_mgr *rm) {
 
 // INCOME RATES per AI and resource (every 30 s, smoothed over ~2 minutes): per minute in total and per worker-minute
 // (only with 2+ workers on it; defaults from the suites until then). For the reserve plan and the worker plan.
-static void rates_update(ee_player *pl, unsigned idx, uint32_t now) {
+internal void rates_update(ee_player *pl, unsigned idx, uint32_t now) {
     if (g_rate[idx].t && now >= g_rate[idx].t && now - g_rate[idx].t < 30000) return;
     if (!g_rate[idx].t || now < g_rate[idx].t) {   // first look / new game
         memset(&g_rate[idx], 0, sizeof g_rate[idx]);
@@ -1415,8 +1415,8 @@ static void rates_update(ee_player *pl, unsigned idx, uint32_t now) {
     g_rate[idx].t = now;
 }
 
-static int g_reserve_window_ms = 5 * 60000;   // aimod.ini [budget] reserve_window_min
-static void budget_reserve(ee_player *pl, int reserve[7]) {
+internal int g_reserve_window_ms = 5 * 60000;   // aimod.ini [budget] reserve_window_min
+internal void budget_reserve(ee_player *pl, int reserve[7]) {
     memset(reserve, 0, 7 * sizeof *reserve);
     if (follow_held(pl)) return;   // epoch_pacing=follow: nothing held while it may not advance
     ee_tech_tree *tt = FIELD(pl, PL_TECHTREE, ee_tech_tree *);
@@ -1448,7 +1448,7 @@ static void budget_reserve(ee_player *pl, int reserve[7]) {
 // N - 80% of what its income brings in within H: food spent on citizens while gold and iron are still missing
 // grows back by the time they are ready; the bottleneck stays reserved. Before farms the full copper-plan reserve
 // stays: wild food is finite (suites: releasing it there delayed the Copper Age by 1.5-3 minutes).
-static void spend_reserve(ee_player *pl, unsigned idx, int reserve[7], float *horizon) {
+internal void spend_reserve(ee_player *pl, unsigned idx, int reserve[7], float *horizon) {
     if (horizon) *horizon = -1;
     if (!g_reserve_plan) { budget_reserve(pl, reserve); return; }
     memset(reserve, 0, 7 * sizeof *reserve);
@@ -1481,15 +1481,15 @@ static void spend_reserve(ee_player *pl, unsigned idx, int reserve[7], float *ho
     }
 }
 
-static void trace_train(ee_player *pl, int *req, uintptr_t r, const int *before, const int *reserve);
+internal void trace_train(ee_player *pl, int *req, uintptr_t r, const int *before, const int *reserve);
 
-static int unit_cost(ee_player *pl, int type, int r);
+internal int unit_cost(ee_player *pl, int type, int r);
 
 // Military request statistics, logged every 5 minutes: how often the AI asks for soldiers, how many it gets
 // and which resource was short when a request failed (unit cost = object data 0x9418A0[type] +0x24..).
-static struct { unsigned req, trained, short_of[7], subs, saving; uint32_t last_log; int ftype[4]; unsigned fcount[4]; } g_mil[16];
-static unsigned mil_short(unsigned idx, int r) { return g_mil[idx & 15].short_of[r]; }
-static void mil_note(ee_player *pl, unsigned idx, const int *req, const int *visible, int spent, uintptr_t site) {
+internal struct { unsigned req, trained, short_of[7], subs, saving; uint32_t last_log; int ftype[4]; unsigned fcount[4]; } g_mil[16];
+internal unsigned mil_short(unsigned idx, int r) { return g_mil[idx & 15].short_of[r]; }
+internal void mil_note(ee_player *pl, unsigned idx, const int *req, const int *visible, int spent, uintptr_t site) {
     g_mil[idx].req++;
     if (spent) { g_mil[idx].trained += req[1] > 0 ? (unsigned)req[1] : 1; return; }
     int k = 0;   // most requested failing types (4 slots, the rarest one is replaced)
@@ -1506,7 +1506,7 @@ static void mil_note(ee_player *pl, unsigned idx, const int *req, const int *vis
 // 0x4019A1 on the player's tech tree +0x9D4; tech +8 = data, costs +0x24.. food..iron, like the epoch techs)
 // x the AdjustCost percentage (vtable slot 27 0x430FBD: only while the Cheat toggle is on; easy +0xD48 int,
 // medium +0xBB4 float, hard +0xD4C int).
-static int unit_cost(ee_player *pl, int type, int r) {
+internal int unit_cost(ee_player *pl, int type, int r) {
     uint8_t *obj = type_data(type);
     ee_tech_tree *tt = FIELD(pl, PL_TECHTREE, ee_tech_tree *);
     if (!obj || !tt || r < 2 || r > 6) return 0;
@@ -1537,11 +1537,11 @@ static int unit_cost(ee_player *pl, int type, int r) {
 // unit never came. Only once the AI has saved for that long without training a requested soldier (no iron coming
 // in at all), or with enemy soldiers in its base (it needs soldiers now), does it train the substitute. A unit the
 // game can't train (not researched, no building) is substituted at once - waiting doesn't bring it.
-static int g_unit_sub = 1, g_sub_wait = 90;
-static uint32_t g_save_since[16];   // game time it started saving (a request refused by the budget), 0 = not saving
-static int base_threatened(unsigned idx);   // diplo.c: enemy soldiers in its base
-static struct { ee_player *pl; uint32_t t; int n; int type[48]; } g_cand[16];
-static int land_soldier(int type) {
+internal int g_unit_sub = 1, g_sub_wait = 90;
+internal uint32_t g_save_since[16];   // game time it started saving (a request refused by the budget), 0 = not saving
+internal int base_threatened(unsigned idx);   // diplo.c: enemy soldiers in its base
+internal struct { ee_player *pl; uint32_t t; int n; int type[48]; } g_cand[16];
+internal int land_soldier(int type) {
     uint8_t *td = type_data(type);
     if (!td || FIELD(td, OF(TD, 0x4B8), int) != type || FIELD(td, OF(TD, 0x4B4), int) != 5) return 0;   // a real record of this type
     if (ut_role(type, UTR_SIEGE | UTR_RAM | UTR_CITIZEN) || type == UT(PRIEST) || type == UT(PROPHET)) return 0;
@@ -1552,7 +1552,7 @@ static int land_soldier(int type) {
 // 4 warships, 10 submarines, 18 transports, 21 carriers, 22 fishing boats. Only 4 was excluded before: a fishing boat
 // the budget refused (wood short: 109 failed 72 times in the island baseline) was saved for 90 s and then trained as
 // a land soldier, and so could a transport, a submarine or a carrier.
-static int substitutable(int type) {
+internal int substitutable(int type) {
     uint8_t *td = type_data(type);
     if (!td || FIELD(td, OF(TD, 0x4B8), int) != type) return 0;
     int fam = FIELD(td, OF(TD, 0x4B4), int);
@@ -1560,20 +1560,20 @@ static int substitutable(int type) {
     if (ut_role(type, UTR_SIEGE | UTR_RAM | UTR_CITIZEN)) return 0;
     return 1;
 }
-static int soldier_score(int type) {
+internal int soldier_score(int type) {
     uint8_t *td = type_data(type);
     return FIELD(td, OF(TD, 0x55C), int) * FIELD(td, OF(TD, 0x510), int);
 }
-static int g_sub_spare_food;   // train_budget's early_army substitution (below)
-static int g_sub_thrift;       // train_budget's workforce_plan THRIFT substitution: the most score per gold + iron
-static int wf_thrift(ee_player *pl, unsigned idx, int type, const int *vis);   // citizens.c
-static void wf_thrift_note(unsigned idx, int type, int n);
-static int mt_choose(ee_player *pl, unsigned idx, int asked, const int *vis, const int *stock, const int *reserve, int want,
+internal int g_sub_spare_food;   // train_budget's early_army substitution (below)
+internal int g_sub_thrift;       // train_budget's workforce_plan THRIFT substitution: the most score per gold + iron
+internal int wf_thrift(ee_player *pl, unsigned idx, int type, const int *vis);   // citizens.c
+internal void wf_thrift_note(unsigned idx, int type, int n);
+internal int mt_choose(ee_player *pl, unsigned idx, int asked, const int *vis, const int *stock, const int *reserve, int want,
                      int blocked, int trainable, int *got);   // metal.c metal_plan VALUE
-static int mt_nowait(ee_player *pl, unsigned idx, int type, const int *vis, int wait);   // NOWAIT
-static void mt_saving(unsigned idx);
-static int g_hg_call;          // set by the home guard (defence.c) around its order: early_soldiers in the first epoch
-static int substitute_soldier(ee_player *pl, unsigned idx, const int *vis, int want, int *got) {
+internal int mt_nowait(ee_player *pl, unsigned idx, int type, const int *vis, int wait);   // NOWAIT
+internal void mt_saving(unsigned idx);
+internal int g_hg_call;          // set by the home guard (defence.c) around its order: early_soldiers in the first epoch
+internal int substitute_soldier(ee_player *pl, unsigned idx, const int *vis, int want, int *got) {
     uint32_t now = game_time();
     ee_tech_tree *tt = FIELD(pl, PL_TECHTREE, ee_tech_tree *);
     if (!tt) return 0;
@@ -1621,12 +1621,12 @@ static int substitute_soldier(ee_player *pl, unsigned idx, const int *vis, int w
 // called. (Hiding stock during the call leaked: 0x49014F counts the unit as "in production" (unit manager
 // +0x13C) even when the building queue 0x5E8908 then refuses it for lack of resources, and that counter is
 // subtracted from the population cap - after a while the AI could train nothing at all.)
-static int g_priority_mil;   // set by the siege controller around its own requests
-static int g_landing_order;   // set by the landing around its transport order (its reserve is not held from it)
-static int g_expand_order;    // expand.c EARLY: the outpost's transport before every reserve (250 wood; the reserves held it 6 minutes)
-static void landing_reserve(ee_player *pl, int reserve[7]);   // landing.c
-static void expand_reserve(ee_player *pl, int reserve[7]);    // expand.c
-static int landing_room_reserve(ee_player *pl);   // landing.c: population room held for a bombardment's fleet
+internal int g_priority_mil;   // set by the siege controller around its own requests
+internal int g_landing_order;   // set by the landing around its transport order (its reserve is not held from it)
+internal int g_expand_order;    // expand.c EARLY: the outpost's transport before every reserve (250 wood; the reserves held it 6 minutes)
+internal void landing_reserve(ee_player *pl, int reserve[7]);   // landing.c
+internal void expand_reserve(ee_player *pl, int reserve[7]);    // expand.c
+internal int landing_room_reserve(ee_player *pl);   // landing.c: population room held for a bombardment's fleet
 // ROOM: the game's own callers ask the unit manager for room first (cap - in production - population, the start check
 // of the buildings 0x624DF8 the same); the mod's own orders (AA units, siege, home guard, transports) didn't. At the cap
 // they were queued and paid for and could never come out: lowpop (cap 30) - P3's "in production" ran to 56 after it
@@ -1634,13 +1634,13 @@ static int landing_room_reserve(ee_player *pl);   // landing.c: population room 
 // [all] train_room: a mask of players (default all; tests: 8 = P3 only). lowpop, 20 seeds, P3 without vs with (P2
 // without): P3 kills 23.4 vs 28.2, losses 32.2 vs 28.9 (P2's losses 22.3 vs 28.6). The AI's cap follows the human's
 // population: at the cap is common in normal games too.
-static int g_train_room = 0xFFFF;
-static int g_am_noroom;   // army.c: the last request was cut to no room
-static void am_train_note(ee_player *pl, unsigned idx, const int *req, int blocked, int sub_type, unsigned n, const int *stock, const int *vis);
-static unsigned g_noroom[16][6];   // units ordered with no room (cap - in production - population <= 0), by call site
+internal int g_train_room = 0xFFFF;
+internal int g_am_noroom;   // army.c: the last request was cut to no room
+internal void am_train_note(ee_player *pl, unsigned idx, const int *req, int blocked, int sub_type, unsigned n, const int *stock, const int *vis);
+internal unsigned g_noroom[16][6];   // units ordered with no room (cap - in production - population <= 0), by call site
 // the budget's part of a training request: what the AI may spend on it (visibles), how many it pays for (afford,
 // blocked when none), a substitute soldier (sub_type) - reserve gets the stock held back
-static void train_budget(ee_player *pl, unsigned idx, const struct ai_cfg *cfg, const int *req, int military, int req_unit, int ship,
+internal void train_budget(ee_player *pl, unsigned idx, const struct ai_cfg *cfg, const int *req, int military, int req_unit, int ship,
                          int *stock, int *reserve, int *visibles, int *blocked, int *afford, int *sub_type) {
     uint32_t now = game_time();
     if (now < g_bud[idx].last_t) g_bud[idx].init = 0;   // new game
@@ -1768,7 +1768,7 @@ static void train_budget(ee_player *pl, unsigned idx, const struct ai_cfg *cfg, 
 }
 // the request as the budget allows it (blocked: none) through the game's own training, cut to the room under the
 // population cap for the mod's own orders; ra = the call site (a game's or the mod's); the game's result
-static uintptr_t train_call(void *um, ee_player *pl, unsigned idx, int *req, uintptr_t b, int blocked, int afford, int sub_type,
+internal uintptr_t train_call(void *um, ee_player *pl, unsigned idx, int *req, uintptr_t b, int blocked, int afford, int sub_type,
                             uintptr_t ra, int military, int ship) {
     uintptr_t res = 0;
     g_am_noroom = 0;
@@ -1805,7 +1805,7 @@ static uintptr_t train_call(void *um, ee_player *pl, unsigned idx, int *req, uin
     return res;
 }
 // after the request: the military account pays what was spent, the notes and the budget line (once a minute)
-static void train_account(ee_player *pl, unsigned idx, const struct ai_cfg *cfg, int *req, uintptr_t res, int military, int ship,
+internal void train_account(ee_player *pl, unsigned idx, const struct ai_cfg *cfg, int *req, uintptr_t res, int military, int ship,
                           int sub_type, int *stock, int *before, int *reserve, int *visibles, uintptr_t ra) {
     if (stock) {
         int any = 0, spent[7] = { 0 };
@@ -1832,7 +1832,7 @@ static void train_account(ee_player *pl, unsigned idx, const struct ai_cfg *cfg,
     }
 }
 // noinline: it reads its own return address (the call site) - also when the mod calls it
-__attribute__((noinline)) static uintptr_t __fastcall hook_train_units(ee_unit_mgr *um, void *edx, int *req, uintptr_t b) {
+__attribute__((noinline)) internal uintptr_t __fastcall hook_train_units(ee_unit_mgr *um, void *edx, int *req, uintptr_t b) {
     (void)edx;
     ee_player *pl = um_owner(um);
     if (g_vanilla_mask) {   // a vanilla player's unit manager (before its first update too: the game's player array)
@@ -1882,7 +1882,7 @@ __attribute__((noinline)) static uintptr_t __fastcall hook_train_units(ee_unit_m
     return res;
 }
 
-static void econ_install(const char *aimod_ini, const char *autotest_ini) {
+internal void econ_install(const char *aimod_ini, const char *autotest_ini) {
     settings_load(aimod_ini, autotest_ini);
     sites_install(aimod_ini, autotest_ini);
     // finer tuning, same for all difficulties ([all] section; autotest may override)
@@ -1957,7 +1957,7 @@ static void econ_install(const char *aimod_ini, const char *autotest_ini) {
 // a new game (the game start hook, before persist_load restores g_bud): the last game's counts, times and slots go -
 // the build fix's type slots filled up over a session, g_last_attack_time made a fake "# attack:" (and the chat line)
 // at every game start, the income baselines of rates_update and gather_log came out negative
-static void econ_new_game(void) {
+internal void econ_new_game(void) {
     memset(g_bud, 0, sizeof g_bud);
     memset(g_epoch_acc, 0, sizeof g_epoch_acc);
     memset(g_epoch_acc_ep, 0, sizeof g_epoch_acc_ep);

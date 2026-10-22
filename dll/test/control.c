@@ -5,91 +5,91 @@
 // Included by eeaimod.c (shares FIELD, game_time, apply_game_speed, g_auto).
 
 
-static void watch_set(uintptr_t addr, int len);
-static void cmd_threat(char *out, const char *args);
-static void cmd_nullmember(char *out, const char *args);
-static void cmd_attacknow(char *out, const char *args);
-static void cmd_attacks(char *out, const char *args);
-static void cmd_asgtrace(char *out, const char *args);
-static void cmd_train(char *out, const char *args);
-static void cmd_give(char *out, const char *args);
-static void cmd_continent(char *out, const char *args);
-static void cmd_assault(char *out, const char *args);
-static void cmd_aigroup(char *out, const char *args);
-static void cmd_landing(char *out, const char *args);
-static void cmd_vis(char *out, const char *args);
-static void cmd_intel(char *out, const char *args);
-static void cmd_calloff(char *out, const char *args);
-static void cmd_vistrack(char *out, const char *args);
-static void cmd_terrain(char *out, const char *args);
-static void cmd_board(char *out, const char *args);
-static void cmd_bunker(char *out, const char *args);
-static void cmd_firerate(char *out, const char *args);
-static void cmd_targets(char *out, const char *args);
-static void cmd_army(char *out, const char *args);
-static void cmd_minecheck(char *out, const char *args);   // sites.c
-static void cmd_texts(char *out, const char *args);       // texts.c
-static void cmd_wave(char *out, const char *args);
-static void cmd_charge(char *out, const char *args);
-static void cmd_seaop(char *out, const char *args);   // testopp.c
-static void cmd_count(char *out, const char *args);
-static void cmd_gridcheck(char *out, const char *args);
-static void cmd_objs(char *out, const char *args);
-static void cmd_sndstate(char *out, const char *args);
-static void cmd_sndchan(char *out, const char *args);
-static void cmd_seltest(char *out, const char *args);
-static void cmd_drawcount(char *out, const char *args);
-static void cmd_textlog(char *out, const char *args);
-static void cmd_textstate(char *out, const char *args);
-static void cmd_llm(char *out, const char *args);
-static void cmd_watchtech(char *out, const char *args);
-static void cmd_watchtype(char *out, const char *args);
-static void cmd_techs(char *out, const char *args);
-static void cmd_build(char *out, const char *args);
-static void cmd_found(char *out, const char *args);
-static void cmd_plan(char *out, const char *args);
-static void cmd_hurt(char *out, const char *args);
-static void cmd_drops(char *out, const char *args);
-static void cmd_bqueue(char *out, const char *args);
-static void cmd_canbuild(char *out, const char *args);
-static void cmd_tech(char *out, const char *args);
-static void cmd_epochup(char *out, const char *args);
-static void cmd_rlist(char *out, const char *args);
-static void cmd_basemap(char *out, const char *args);
-static void cmd_defence(char *out, const char *args);
-static void cmd_tinfo(char *out, const char *args);
-static void cmd_navy(char *out, const char *args);
-static void cmd_chat(char *out, const char *args);
-static void cmd_say(char *out, const char *args);
-static void cmd_chatme(char *out, const char *args);
-static void cmd_trig(char *out, const char *args);
-static void cmd_stats(char *out, const char *args);
-static void cmd_diplo(char *out, const char *args);
-static void cmd_persona(char *out, const char *args);
-static void cmd_spawn(char *out, const char *args);
-static void cmd_spawnline(char *out, const char *args);
-static void cmd_script(char *out, const char *args);   // scripts.c: script dryrun <file> <out>
-static volatile int g_turbo;           // autotest turbo: the simulation loop skips its timer wait
-static void cmd_scrolltest(char *out, const char *args);
-static void cmd_camtrace(char *out, const char *args);
-static void cmd_aim(char *out, const char *args);     // aim.c
-static void cmd_uinfo(char *out, const char *args);
-static void cmd_move(char *out, const char *args);
-static void aim_tick(void);
-static void cmd_ddinfo(char *out, const char *args);
-static void cmd_topbar(char *out, const char *args);
-static void cmd_ddpoke(char *out, const char *args);
-static void cmd_headless(const char *verb, const char *args, char *out);
-static BOOL CALLBACK close_own_window(HWND w, LPARAM lp);
-static void cmd_profile(const char *args, char *out);
-static struct {
+internal void watch_set(uintptr_t addr, int len);
+internal void cmd_threat(char *out, const char *args);
+internal void cmd_nullmember(char *out, const char *args);
+internal void cmd_attacknow(char *out, const char *args);
+internal void cmd_attacks(char *out, const char *args);
+internal void cmd_asgtrace(char *out, const char *args);
+internal void cmd_train(char *out, const char *args);
+internal void cmd_give(char *out, const char *args);
+internal void cmd_continent(char *out, const char *args);
+internal void cmd_assault(char *out, const char *args);
+internal void cmd_aigroup(char *out, const char *args);
+internal void cmd_landing(char *out, const char *args);
+internal void cmd_vis(char *out, const char *args);
+internal void cmd_intel(char *out, const char *args);
+internal void cmd_calloff(char *out, const char *args);
+internal void cmd_vistrack(char *out, const char *args);
+internal void cmd_terrain(char *out, const char *args);
+internal void cmd_board(char *out, const char *args);
+internal void cmd_bunker(char *out, const char *args);
+internal void cmd_firerate(char *out, const char *args);
+internal void cmd_targets(char *out, const char *args);
+internal void cmd_army(char *out, const char *args);
+internal void cmd_minecheck(char *out, const char *args);   // sites.c
+internal void cmd_texts(char *out, const char *args);       // texts.c
+internal void cmd_wave(char *out, const char *args);
+internal void cmd_charge(char *out, const char *args);
+internal void cmd_seaop(char *out, const char *args);   // testopp.c
+internal void cmd_count(char *out, const char *args);
+internal void cmd_gridcheck(char *out, const char *args);
+internal void cmd_objs(char *out, const char *args);
+internal void cmd_sndstate(char *out, const char *args);
+internal void cmd_sndchan(char *out, const char *args);
+internal void cmd_seltest(char *out, const char *args);
+internal void cmd_drawcount(char *out, const char *args);
+internal void cmd_textlog(char *out, const char *args);
+internal void cmd_textstate(char *out, const char *args);
+internal void cmd_llm(char *out, const char *args);
+internal void cmd_watchtech(char *out, const char *args);
+internal void cmd_watchtype(char *out, const char *args);
+internal void cmd_techs(char *out, const char *args);
+internal void cmd_build(char *out, const char *args);
+internal void cmd_found(char *out, const char *args);
+internal void cmd_plan(char *out, const char *args);
+internal void cmd_hurt(char *out, const char *args);
+internal void cmd_drops(char *out, const char *args);
+internal void cmd_bqueue(char *out, const char *args);
+internal void cmd_canbuild(char *out, const char *args);
+internal void cmd_tech(char *out, const char *args);
+internal void cmd_epochup(char *out, const char *args);
+internal void cmd_rlist(char *out, const char *args);
+internal void cmd_basemap(char *out, const char *args);
+internal void cmd_defence(char *out, const char *args);
+internal void cmd_tinfo(char *out, const char *args);
+internal void cmd_navy(char *out, const char *args);
+internal void cmd_chat(char *out, const char *args);
+internal void cmd_say(char *out, const char *args);
+internal void cmd_chatme(char *out, const char *args);
+internal void cmd_trig(char *out, const char *args);
+internal void cmd_stats(char *out, const char *args);
+internal void cmd_diplo(char *out, const char *args);
+internal void cmd_persona(char *out, const char *args);
+internal void cmd_spawn(char *out, const char *args);
+internal void cmd_spawnline(char *out, const char *args);
+internal void cmd_script(char *out, const char *args);   // scripts.c: script dryrun <file> <out>
+internal volatile int g_turbo;           // autotest turbo: the simulation loop skips its timer wait
+internal void cmd_scrolltest(char *out, const char *args);
+internal void cmd_camtrace(char *out, const char *args);
+internal void cmd_aim(char *out, const char *args);     // aim.c
+internal void cmd_uinfo(char *out, const char *args);
+internal void cmd_move(char *out, const char *args);
+internal void aim_tick(void);
+internal void cmd_ddinfo(char *out, const char *args);
+internal void cmd_topbar(char *out, const char *args);
+internal void cmd_ddpoke(char *out, const char *args);
+internal void cmd_headless(const char *verb, const char *args, char *out);
+internal BOOL CALLBACK close_own_window(HWND w, LPARAM lp);
+internal void cmd_profile(const char *args, char *out);
+internal struct {
     char cmd[512];
     char out[REPLY_CAP];
     volatile LONG state;            // 0 idle, 1 pending, 2 running, 3 done, 4 cancelled
     HANDLE done;
 } g_req;
 
-static PRINTF_LIKE(1, 2) void ctl_log(const char *fmt, ...) {
+internal PRINTF_LIKE(1, 2) void ctl_log(const char *fmt, ...) {
     if (!g_log) return;
     EnterCriticalSection(&g_lock);
     fputs("# control: ", g_log);
@@ -107,13 +107,13 @@ static PRINTF_LIKE(1, 2) void ctl_log(const char *fmt, ...) {
 typedef void (__thiscall *QueueFn)(void *world, void *action);
 typedef void (__thiscall *ReleaseFn)(void *action);
 
-static void queue_action(void *act) {
+internal void queue_action(void *act) {
     ((QueueFn)GA(FN_QUEUE_ACTION))(*(void **)GA(G_WORLD), act);
     (*(ReleaseFn *)GA(IAT_RELEASE))(act);
 }
 
 // Same as clicking the pause button (EEUIEMGPauseGame::Execute 0x649F9A); the action toggles the pause.
-static int queue_pause_toggle(void) {
+internal int queue_pause_toggle(void) {
     void **client = *(void ***)GA(G_SERVER);
     if (!client || !((uint32_t *)client)[4]) return 0;
     if (!((char (__thiscall *)(void *))(*(void ***)client)[4])(client)) return 0;
@@ -129,7 +129,7 @@ static int queue_pause_toggle(void) {
 // save <name>: same as the save dialog (EEUIESLESaveFile::vf1 0x5D60CD) - queues an EEASaveGame
 // action (ctor 0x404FA1: thiscall(const UString &file, bool, UString folder by value), 0x30 bytes) for
 // <game>\data\Saved Games\<name>.ees; the file can then be started with run_test.ps1 -Save <name>.ees.
-static void cmd_save(char *out, const char *args) {
+internal void cmd_save(char *out, const char *args) {
     char name[96] = "", path[MAX_PATH];
     int n = 0;
     sscanf(args, "%95s %n", name, &n);
@@ -153,7 +153,7 @@ static void cmd_save(char *out, const char *args) {
     ctl_log("save queued: %s", path);
 }
 
-static void cmd_status(char *out) {
+internal void cmd_status(char *out) {
     REPLY("time_ms=%u speed=%.2f paused=%d game_type=%d\n", game_time(), *(float *)GA(G_GAME_SPEED),
         *(uint8_t *)GA(G_PAUSED), *(int *)GA(G_GAME_TYPE));
     for (int i = 0; i < 16; i++) {
@@ -179,7 +179,7 @@ static void cmd_status(char *out) {
     }
 }
 
-static void cmd_camera(char *out, const char *args) {
+internal void cmd_camera(char *out, const char *args) {
     float *cam = (float *)(GA(G_CAMERA) + OF(CAMERA, 0x78));   // current look-at; +0x40 = previous (interpolated per frame)
     int x, y;
     if (sscanf(args, "%d %d", &x, &y) == 2) {
@@ -201,7 +201,7 @@ static void cmd_camera(char *out, const char *args) {
 // +8/+0xC vector of sites; site: +0x38 resource type, +0x40 amount left, +0x1C/+0x20 position). The
 // gatherer count is the world's per-site map (0x52E5F7 on 0x918300) that the AI compares against the
 // cap from table 0x917BB0 entry 0x16 (0x48E817) when it picks a mine.
-static void cmd_sites(char *out, const char *args) {
+internal void cmd_sites(char *out, const char *args) {
     int p = atoi(args);
     ee_player *pl = (p >= 0 && p < 16) ? g_players[p] : NULL;
     if (!pl) { REPLY("error: no AI player %d (AI players are registered on their first update)\n", p); return; }
@@ -225,7 +225,7 @@ static void cmd_sites(char *out, const char *args) {
 
 // foodcheck <player>: evaluates FindFoodSite's (0x48BBA8) conditions for the first food site of every
 // zone (0x4886F2(2)), relative to the AI's base (build manager +0x12C/+0x130).
-static void cmd_foodcheck(char *out, const char *args) {
+internal void cmd_foodcheck(char *out, const char *args) {
     int p = atoi(args);
     ee_player *pl = (p >= 0 && p < 16) ? g_players[p] : NULL;
     void *cm = pl ? FIELD(pl, OF(PL, 0xB90), void *) : NULL;
@@ -257,12 +257,12 @@ static void cmd_foodcheck(char *out, const char *args) {
 
 // costs <player> [unit type ...]: next epoch tech cost (tech tree +8 + epoch*0x54 record, +8 -> data,
 // costs at +0x24.. food,wood,stone,gold,iron) and unit costs (object data 0x9418A0[type], same layout).
-static void print_costs(char *out, const char *tag, uint8_t *data) {
+internal void print_costs(char *out, const char *tag, uint8_t *data) {
     if (!data) { REPLY("%s: no data\n", tag); return; }
     REPLY("%s: data=%p cost(f,w,s,g,i)=%d,%d,%d,%d,%d\n", tag, (void *)data, FIELD(data, OF(TECHDATA, 0x24), int), FIELD(data, OF(TECHDATA, 0x28), int),
           FIELD(data, OF(TECHDATA, 0x2C), int), FIELD(data, OF(TECHDATA, 0x30), int), FIELD(data, OF(TECHDATA, 0x34), int));
 }
-static void cmd_costs(char *out, const char *args) {
+internal void cmd_costs(char *out, const char *args) {
     int p = 0, n = 0;
     sscanf(args, "%d %n", &p, &n);
     ee_player *pl = (p >= 0 && p < 16) ? g_players[p] : NULL;
@@ -291,7 +291,7 @@ static void cmd_costs(char *out, const char *args) {
 
 // units <player>: the AI's citizens per resource list (rm+0xA4 + i*0x14, deque: +0xC first offset,
 // +0x10 count), grouped by current goal (unit+0x1EC) and gather target (EEUGGather+0x38).
-static void cmd_units(char *out, const char *args) {
+internal void cmd_units(char *out, const char *args) {
     int p = atoi(args);
     ee_player *pl = (p >= 0 && p < 16) ? g_players[p] : NULL;
     void *cm = pl ? FIELD(pl, OF(PL, 0xB90), void *) : NULL;
@@ -327,7 +327,7 @@ static void cmd_units(char *out, const char *args) {
 }
 
 // Runs on the game thread.
-static void execute(const char *cmd, char *out) {
+internal void execute(const char *cmd, char *out) {
     char verb[32] = "";
     int n = 0;
     sscanf(cmd, "%31s %n", verb, &n);
@@ -452,11 +452,11 @@ static void execute(const char *cmd, char *out) {
 // commands run right before it: between simulation steps, on the thread that owns the game state.
 typedef long (__thiscall *ReceiveFn)(void *thread, void *a, void *b, void *c);
 
-static void diplo_safe_point(void);   // diplo.c: queued surrenders
-static void upgrade_stragglers(void); // defence.c: towers/walls/gates finished after their upgrade
-static void sound_tick(uint32_t now);  // sound.c: sound_log
-static void llm_tick(void);           // llm.c: the language model's answers
-static long __fastcall hook_sim_receive(void *thread, void *edx, void *a, void *b, void *c) {
+internal void diplo_safe_point(void);   // diplo.c: queued surrenders
+internal void upgrade_stragglers(void); // defence.c: towers/walls/gates finished after their upgrade
+internal void sound_tick(uint32_t now);  // sound.c: sound_log
+internal void llm_tick(void);           // llm.c: the language model's answers
+internal long __fastcall hook_sim_receive(void *thread, void *edx, void *a, void *b, void *c) {
     (void)edx;
     diplo_safe_point();
     upgrade_stragglers();
@@ -473,7 +473,7 @@ static long __fastcall hook_sim_receive(void *thread, void *edx, void *a, void *
 }
 
 // Replace the 6-byte `call [IAT_TS_RECEIVE]` with `call hook_sim_receive; nop`.
-static BOOL patch_sim_loop(void) {
+internal BOOL patch_sim_loop(void) {
     uint8_t *p = (uint8_t *)GA(SITE_SIM_RECEIVE);
     if (p[0] != 0xFF || p[1] != 0x15 || *(uint32_t *)(p + 2) != GA(IAT_TS_RECEIVE)) return FALSE;
     DWORD old;
@@ -493,7 +493,7 @@ static BOOL patch_sim_loop(void) {
 // steps follow each other as fast as the CPU allows, same step size, same results.
 typedef long (__thiscall *EventWaitFn)(void *ev, unsigned long ms);
 
-static long __fastcall hook_sim_wait(void *ev, void *edx, unsigned long ms) {
+internal long __fastcall hook_sim_wait(void *ev, void *edx, unsigned long ms) {
     (void)edx;
     // only while steps are granted: otherwise a real (short) wait, so the client, server and pathfinding threads
     // the simulation waits for get the CPU instead of a spinning loop
@@ -502,7 +502,7 @@ static long __fastcall hook_sim_wait(void *ev, void *edx, unsigned long ms) {
     return (*(EventWaitFn *)GA(IAT_TS_WAIT))(ev, g_turbo ? 1 : ms);
 }
 
-static BOOL patch_sim_wait(void) {
+internal BOOL patch_sim_wait(void) {
     uint8_t *p = (uint8_t *)GA(SITE_SIM_WAIT);
     if (p[0] != 0xFF || p[1] != 0x15 || *(uint32_t *)(p + 2) != GA(IAT_TS_WAIT)) return FALSE;
     DWORD old;
@@ -526,9 +526,9 @@ static BOOL patch_sim_wait(void) {
 // of the last step too: +0xB8 is 0 already while the last step runs, and the AI hands its messages to the server
 // during a step (the last one's too) - sent before it ends, the next tick went out without them and they landed a
 // tick late, now and then (game_seed runs parted: docs/testing.md). g_in_step: hook_phys_step around each step.
-static volatile LONG g_in_step;
-static void (*g_step_after)(void *phys);   // trace.c: the sync trace's line after each step
-static void __fastcall hook_phys_step(void *phys, void *edx) {
+internal volatile LONG g_in_step;
+internal void (*g_step_after)(void *phys);   // trace.c: the sync trace's line after each step
+internal void __fastcall hook_phys_step(void *phys, void *edx) {
     (void)edx;
     InterlockedExchange(&g_in_step, 1);
     GF(FN_PHYS_STEP)(phys);
@@ -536,13 +536,13 @@ static void __fastcall hook_phys_step(void *phys, void *edx) {
     if (g_step_after) g_step_after(phys);
 }
 
-static int sim_drained(void) {
+internal int sim_drained(void) {
     uint8_t *srv = *(uint8_t **)GA(G_SERVER), *phys = *(uint8_t **)GA(G_WORLD_CLOCK);
     return srv && phys && FIELD(srv, OF(SERVER, 0x10), unsigned) == FIELD(srv, OF(SERVER, 0x190), unsigned) && FIELD(phys, OF(PHYS, 0xB8), unsigned) == 0 &&
            !g_in_step;
 }
 
-static DWORD WINAPI hook_send_wait(DWORD n, const HANDLE *h, BOOL all, DWORD ms) {
+internal DWORD WINAPI hook_send_wait(DWORD n, const HANDLE *h, BOOL all, DWORD ms) {
     if (!g_turbo || !game_time()) {
         // turbo off (or switched off over the pipe): the real wait, in slices so "turbo 1" takes effect at once
         DWORD t0 = GetTickCount();
@@ -560,7 +560,7 @@ static DWORD WINAPI hook_send_wait(DWORD n, const HANDLE *h, BOOL all, DWORD ms)
     }
 }
 
-static BOOL patch_send_wait(void) {
+internal BOOL patch_send_wait(void) {
     uint8_t *base = (uint8_t *)GetModuleHandleA("low-level engine.dll");
     if (!base) return FALSE;
     uint8_t *p = base + GA(RVA_LLE_SEND_WAIT);
@@ -575,7 +575,7 @@ static BOOL patch_send_wait(void) {
     return TRUE;
 }
 
-static void run_on_game_thread(const char *cmd, char *reply, size_t cap) {
+internal void run_on_game_thread(const char *cmd, char *reply, size_t cap) {
     // one still running from an earlier request (timed out after 15 s) reads g_req.cmd and writes g_req.out until it
     // ends: the next one waits for it - written over, the old command ran on with the new text and replied to it
     if (g_req.state == 2 && WaitForSingleObject(g_req.done, 15000) != WAIT_OBJECT_0) {
@@ -603,7 +603,7 @@ static void run_on_game_thread(const char *cmd, char *reply, size_t cap) {
 
 // peek <hexaddr> <len>      -> hex dump (16 bytes per line)
 // poke <hexaddr> <hexbytes> -> writes bytes
-static void mem_command(const char *verb, const char *args, char *out) {
+internal void mem_command(const char *verb, const char *args, char *out) {
     unsigned addr = 0;
     int n = 0;
     if (sscanf(args, "%x %n", &addr, &n) < 1) { REPLY("error: usage %s <hexaddr> ...\n", verb); return; }
@@ -632,7 +632,7 @@ static void mem_command(const char *verb, const char *args, char *out) {
     }
 }
 
-static BOOL CALLBACK close_own_window(HWND w, LPARAM lp) {   // wmclose: the game's own top-level windows
+internal BOOL CALLBACK close_own_window(HWND w, LPARAM lp) {   // wmclose: the game's own top-level windows
     struct { DWORD pid; int n; } *c = (void *)lp;
     DWORD pid = 0;
     GetWindowThreadProcessId(w, &pid);
@@ -640,7 +640,7 @@ static BOOL CALLBACK close_own_window(HWND w, LPARAM lp) {   // wmclose: the gam
     return TRUE;
 }
 
-static DWORD WINAPI pipe_thread(LPVOID unused) {
+internal DWORD WINAPI pipe_thread(LPVOID unused) {
     (void)unused;
     static char cmd[512], reply[sizeof g_req.out];
     for (;;) {
@@ -699,7 +699,7 @@ static DWORD WINAPI pipe_thread(LPVOID unused) {
 
 // Autotest: when the game is decided (local player +0xA30 != 0, set when a game ends - 1 won, 2 lost; the end
 // screen then pauses the lockstep server, so the simulation never reaches quit_minutes), log it and exit.
-static DWORD WINAPI gameover_watch(LPVOID unused) {
+internal DWORD WINAPI gameover_watch(LPVOID unused) {
     (void)unused;
     for (;;) {
         Sleep(500);
@@ -724,7 +724,7 @@ static DWORD WINAPI gameover_watch(LPVOID unused) {
 
 // The pipe (peek/poke/spawn/give... - a command on one PC of a multiplayer game desyncs it) only under autotest or
 // with aimod.ini [general] control_pipe=1 (scripts/eectl.py, the MCP server scripts/ee_mcp.py on a normal game).
-static void ctl_start(int pipe) {
+internal void ctl_start(int pipe) {
     ctl_log("sim loop hook %s", patch_sim_loop() ? "ok" : "FAILED");
     if (g_autotest) CloseHandle(CreateThread(NULL, 0, gameover_watch, NULL, 0, NULL));
     if (g_autotest) {

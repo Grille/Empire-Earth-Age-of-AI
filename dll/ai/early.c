@@ -24,29 +24,29 @@
 // train_budget / substitute_soldier / econ_targets, defence.c home_guard / militia_answer.
 #define EARLY_CORE 2
 #define EARLY_DIST 4
-static struct early_st {
+internal struct early_st {
     uint32_t tower_t, bait_t, log_t, range_t;
     struct { int x, y; uint32_t t; } pend[EARLY_CORE];   // core spots handed out recently (the foundation may not show yet)
     unsigned queued, placed, builders, baits, ranges;
     float range;   // the first tower type's range (log)
 } g_early[16];
 
-static void early_new_game(void) {
+internal void early_new_game(void) {
     memset(g_early, 0, sizeof g_early);
     memset(g_early_mil_refused, 0, sizeof g_early_mil_refused);
 }
 
-static int early_tower_type(ee_player *pl) { return tower_newest(pl); }   // the best tower it can build now (as defence_tick)
-static int early_base(ee_player *pl, int *bx, int *by) {
+internal int early_tower_type(ee_player *pl) { return tower_newest(pl); }   // the best tower it can build now (as defence_tick)
+internal int early_base(ee_player *pl, int *bx, int *by) {
     void *cm = FIELD(pl, OF(PL, 0xB90), void *);
     uint8_t *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL;
     if (!bm || FIELD(bm, OF(BM, 0x12C), int) == -10000) return 0;
     *bx = FIELD(bm, OF(BM, 0x12C), int); *by = FIELD(bm, OF(BM, 0x130), int);
     return 1;
 }
-static int early_finished(ee_unit *u) { uint8_t *bs = FIELD(u, OF(UNIT, 0x30), uint8_t *); return bs && FIELD(bs, OF(UNIT, 0x340), uint8_t); }
+internal int early_finished(ee_unit *u) { uint8_t *bs = FIELD(u, OF(UNIT, 0x30), uint8_t *); return bs && FIELD(bs, OF(UNIT, 0x340), uint8_t); }
 // own towers within r of x, y: finished / all (foundations too)
-static void early_towers_at(ee_player *pl, int x, int y, int r, int *fin, int *all) {
+internal void early_towers_at(ee_player *pl, int x, int y, int r, int *fin, int *all) {
     *fin = *all = 0;
     for (struct grid_it it = grid_it_box(x, y, r, 1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
@@ -57,12 +57,12 @@ static void early_towers_at(ee_player *pl, int x, int y, int r, int *fin, int *a
         *fin += early_finished(u);
     }
 }
-static int early_core_on(ee_player *pl) {
+internal int early_core_on(ee_player *pl) {
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     return EARLY(idx, early_towers) && current_epoch(pl) <= 1 && !is_vanilla(pl);
 }
 // core slot k: towards the front (0), on the citizens' side across it (1)
-static void early_slot(ee_player *pl, unsigned idx, int bx, int by, int k, int *x, int *y) {
+internal void early_slot(ee_player *pl, unsigned idx, int bx, int by, int k, int *x, int *y) {
     uint32_t now = game_time();
     def_refresh(pl, idx, now);
     struct def_plan *p = &g_plan[idx];
@@ -91,7 +91,7 @@ static void early_slot(ee_player *pl, unsigned idx, int bx, int by, int k, int *
     *y = by + (int)lroundf(dy * EARLY_DIST);
 }
 // a spot for a tower of the town's core (defence_spot, the queueing below): 0 when the core stands or none fits
-static int early_core_spot(ee_player *pl, int type, int *ox, int *oy) {
+internal int early_core_spot(ee_player *pl, int type, int *ox, int *oy) {
     if (!pl || !early_core_on(pl)) return 0;
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     int bx, by;
@@ -119,14 +119,14 @@ static int early_core_spot(ee_player *pl, int type, int *ox, int *oy) {
     return 0;
 }
 // the stone the core's missing towers still need (econ_targets, before farms)
-static int early_tower_stone(ee_player *pl) {
+internal int early_tower_stone(ee_player *pl) {
     if (!pl || !early_core_on(pl)) return 0;
     int bx, by, fin, all, type = early_tower_type(pl);
     if (!type || !early_base(pl, &bx, &by)) return 0;
     early_towers_at(pl, bx, by, EARLY_DIST + 3, &fin, &all);
     return all >= EARLY_CORE ? 0 : (EARLY_CORE - all) * unit_cost(pl, type, 4);
 }
-static void early_towers_tick(ee_player *pl, unsigned idx, uint32_t now) {
+internal void early_towers_tick(ee_player *pl, unsigned idx, uint32_t now) {
     struct early_st *st = &g_early[idx];
     if (!early_core_on(pl) || (st->tower_t && now >= st->tower_t && now - st->tower_t < 10000)) return;
     st->tower_t = now ? now : 1;
@@ -162,7 +162,7 @@ static void early_towers_tick(ee_player *pl, unsigned idx, uint32_t now) {
 }
 
 // own buildings that shoot (finished) near x, y: 1 when one reaches x, y (its range - 0.5)
-static int early_cover(ee_player *pl, int x, int y) {
+internal int early_cover(ee_player *pl, int x, int y) {
     for (struct grid_it it = grid_it_box(x, y, 16, 1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
         float r, a;
@@ -172,7 +172,7 @@ static int early_cover(ee_player *pl, int x, int y) {
     }
     return 0;
 }
-static void early_bait(ee_player *pl, unsigned idx, uint32_t now) {
+internal void early_bait(ee_player *pl, unsigned idx, uint32_t now) {
     struct early_st *st = &g_early[idx];
     if (!EARLY(idx, tower_bait) || current_epoch(pl) > 3 || (st->bait_t && now >= st->bait_t && now - st->bait_t < 2000)) return;
     st->bait_t = now ? now : 1;
@@ -229,7 +229,7 @@ static void early_bait(ee_player *pl, unsigned idx, uint32_t now) {
 // game's build list brought late or not at all - the army asked for Rock Throwers and Clubmen (food) and got 0-3
 // soldiers in the Stone Age. From epoch 1 to 3, every 60 s: none standing or going up and none in the build manager's
 // lists (0x465640) -> one requested (0x46802D(bm, Archery Range, 1, 0), as the building plan's entries do).
-static void early_range(ee_player *pl, unsigned idx, uint32_t now) {
+internal void early_range(ee_player *pl, unsigned idx, uint32_t now) {
     struct early_st *st = &g_early[idx];
     int e = current_epoch(pl);
     if (!EARLY(idx, early_army) || e < 1 || e > 3 || (st->range_t && now >= st->range_t && now - st->range_t < 60000)) return;
@@ -248,7 +248,7 @@ static void early_range(ee_player *pl, unsigned idx, uint32_t now) {
     if (g_log) fprintf(g_log, "# early: P%u at %.1f min: no Archery Range - one requested\n", idx, now / 60000.0);
 }
 
-static void early_tick(ee_player *pl, unsigned idx, uint32_t now) {
+internal void early_tick(ee_player *pl, unsigned idx, uint32_t now) {
     if (is_vanilla(pl)) return;
     early_towers_tick(pl, idx, now);
     early_bait(pl, idx, now);

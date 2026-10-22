@@ -10,7 +10,7 @@
 // Art of Conquest's column: scripts/port_addrs.py (the two exes' code paired; its HAND table the few found by hand,
 // each with its reason). Not ready: nothing ran there yet - the mod stays off there.
 #define ADDR_BUILDS 2
-static const struct exe_build { uint32_t hash; const char *name; int ready; } k_exe_builds[ADDR_BUILDS] = {
+internal const struct exe_build { uint32_t hash; const char *name; int ready; } k_exe_builds[ADDR_BUILDS] = {
     { 0x4FB6A479, "ee", 1 },    // the 2017 update (GOG, Steam, empireearth.eu Vanilla)
     { 0x0644BA54, "aoc", 0 },   // The Art of Conquest, EE-AOC.exe (GOG, Steam)
 };
@@ -487,34 +487,34 @@ enum addr_name { ADDRS(ADDR_ENUM_F, ADDR_ENUM_D) ADDR_NUMBERS(ADDR_ENUM_D) A_N }
 ADDRS(ADDR_TYPE_F, ADDR_TYPE_D)
 #define ADDR_ROW_F(n, r, cc, a, ...) { __VA_ARGS__ },
 #define ADDR_ROW_D(n, ...) { __VA_ARGS__ },
-static const uint32_t k_addr[A_N][ADDR_BUILDS] = { ADDRS(ADDR_ROW_F, ADDR_ROW_D) ADDR_NUMBERS(ADDR_ROW_D) };
+internal const uint32_t k_addr[A_N][ADDR_BUILDS] = { ADDRS(ADDR_ROW_F, ADDR_ROW_D) ADDR_NUMBERS(ADDR_ROW_D) };
 #define ADDR_NAME_F(n, r, cc, a, ...) #n,
 #define ADDR_NAME_D(n, ...) #n,
-static const char *const k_addr_name[A_N] = { ADDRS(ADDR_NAME_F, ADDR_NAME_D) ADDR_NUMBERS(ADDR_NAME_D) };
+internal const char *const k_addr_name[A_N] = { ADDRS(ADDR_NAME_F, ADDR_NAME_D) ADDR_NUMBERS(ADDR_NAME_D) };
 #define ADDR_UNPAREN(...) { __VA_ARGS__ }
 #define ADDR_LIST_COL(v) ADDR_UNPAREN v,
 #define ADDR_LIST(n, k, ...) static const uint32_t k_addr_list_##n[ADDR_BUILDS][k] = { ADDR_LIST_EACH(__VA_ARGS__) };
 #define ADDR_LIST_EACH(v1, v2) ADDR_LIST_COL(v1) ADDR_LIST_COL(v2)   // one per build
 ADDR_LISTS(ADDR_LIST)
 
-static int g_exe_build = -1;           // the column of the running exe (-1: none known - the mod stays off)
+internal int g_exe_build = -1;           // the column of the running exe (-1: none known - the mod stays off)
 // the running build by its name ("ee", "aoc"): for code that differs by more than an address (AoC's rewrites)
-static int build_is(const char *name) { return g_exe_build >= 0 && !lstrcmpA(k_exe_builds[g_exe_build].name, name); }
-static uintptr_t g_addr[A_N];
+internal int build_is(const char *name) { return g_exe_build >= 0 && !lstrcmpA(k_exe_builds[g_exe_build].name, name); }
+internal uintptr_t g_addr[A_N];
 #define GA(n) (g_addr[A_##n])
 #define GF(n) ((n##_fn)g_addr[A_##n])
 #define GL(n) (k_addr_list_##n[g_exe_build])
-static int g_addr_missing;               // names the running build hasn't got (logged at the start: addr_log)
+internal int g_addr_missing;               // names the running build hasn't got (logged at the start: addr_log)
 
 // the running exe's column into g_addr; the names it hasn't got (0) are counted - the caller logs them
-static int addr_select(int build) {
+internal int addr_select(int build) {
     int missing = 0;
     g_exe_build = build;
     for (int i = 0; i < A_N; i++) missing += !(g_addr[i] = k_addr[i][build]);
     image_ranges();
     return missing;
 }
-static void addr_log(FILE *log) {   // the names the running build hasn't got: what uses them doesn't work there
+internal void addr_log(FILE *log) {   // the names the running build hasn't got: what uses them doesn't work there
     if (!log || !g_addr_missing) return;
     fprintf(log, "# addresses: build %d hasn't got %d of %d:", g_exe_build, g_addr_missing, A_N);
     for (int i = 0; i < A_N; i++) if (!g_addr[i]) fprintf(log, " %s", k_addr_name[i]);

@@ -1,11 +1,11 @@
 // ---- memory snapshots: raw dumps of a player's AI objects, for diffing working vs broken games ----
 // Autotest, or aimod.ini [general] memory_dumps=1: 2 files per AI and game, never deleted (17,000 files / 0.4 GB
 // in normal play before) - off for players.
-static int g_mem_dumps;
-static DWORD g_session;
+internal int g_mem_dumps;
+internal DWORD g_session;
 
 // Copy `len` bytes of our own memory without risking an access violation on unmapped pages.
-static void dump_region(FILE *f, const char *tag, const void *p, uint32_t len) {
+internal void dump_region(FILE *f, const char *tag, const void *p, uint32_t len) {
     static uint8_t buf[0x2000];
     SIZE_T got = 0;
     if (len > sizeof buf) len = sizeof buf;
@@ -19,7 +19,7 @@ static void dump_region(FILE *f, const char *tag, const void *p, uint32_t len) {
     fwrite(buf, 1, len, f);   // unreadable tail stays zero; `got` records how much was valid
 }
 
-static void dump_player(void *rm, uint32_t now) {
+internal void dump_player(void *rm, uint32_t now) {
     ee_player *pl = rm_player(rm);
     void *cm = FIELD(rm, RM_OWNER, void *);
     if (!pl || !cm || !g_dump_dir[0] || !g_mem_dumps) return;

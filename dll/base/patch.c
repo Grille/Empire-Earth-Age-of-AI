@@ -1,8 +1,8 @@
 // PATCHING the game's code: a call, a 32-bit operand, an import slot - each only while it holds what it is expected to
 
 // the exe's code section and its whole image, from its PE header (the same test for every build): "the game's code"
-static uintptr_t g_code_lo, g_code_hi, g_image_lo, g_image_hi;
-static void image_ranges(void) {
+internal uintptr_t g_code_lo, g_code_hi, g_image_lo, g_image_hi;
+internal void image_ranges(void) {
     uint8_t *b = (uint8_t *)GetModuleHandleA(NULL);
     IMAGE_NT_HEADERS32 *nt = (IMAGE_NT_HEADERS32 *)(b + *(uint32_t *)(b + 0x3C));
     g_image_lo = (uintptr_t)b;
@@ -16,7 +16,7 @@ static void image_ranges(void) {
         }
 }
 // One 32-bit operand in the code, only while it still holds `expected` (another exe version is left alone).
-static int patch_code32(uintptr_t at, uint32_t expected, uint32_t val) {
+internal int patch_code32(uintptr_t at, uint32_t expected, uint32_t val) {
     uint32_t *p = (uint32_t *)at;
     DWORD old;
     if (*p != expected || !VirtualProtect(p, 4, PAGE_EXECUTE_READWRITE, &old)) return 0;
@@ -27,7 +27,7 @@ static int patch_code32(uintptr_t at, uint32_t expected, uint32_t val) {
 }
 // An import slot of the exe, only while it holds the import it is for (that module's export): the original in *orig.
 // 0 when it holds something else (another hook, another exe) - left alone, *orig untouched.
-static int iat_hook(uintptr_t slot, const char *dll, const char *name, void *fn, void **orig) {
+internal int iat_hook(uintptr_t slot, const char *dll, const char *name, void *fn, void **orig) {
     HMODULE m = GetModuleHandleA(dll);
     void *want = m ? (void *)GetProcAddress(m, name) : NULL;
     DWORD old;
@@ -40,7 +40,7 @@ static int iat_hook(uintptr_t slot, const char *dll, const char *name, void *fn,
 
 // `n` bytes at p readable, from the page table (IsBadReadPtr probes by raising access violations: each one went
 // through the crash log's first-chance handler)
-static int mem_readable(const void *p, size_t n) {
+internal int mem_readable(const void *p, size_t n) {
     uintptr_t a = (uintptr_t)p, end = a + n;
     if (!p || end < a) return 0;
     while (a < end) {
@@ -54,7 +54,7 @@ static int mem_readable(const void *p, size_t n) {
 }
 
 // Redirect an E8 rel32 call, verifying it currently targets `expected`.
-static BOOL patch_call(uintptr_t site, uintptr_t expected, void *hook) {
+internal BOOL patch_call(uintptr_t site, uintptr_t expected, void *hook) {
     uint8_t *p = (uint8_t *)site;
     if (p[0] != 0xE8 || site + 5 + *(int32_t *)(p + 1) != expected) return FALSE;
     DWORD old;
@@ -66,7 +66,7 @@ static BOOL patch_call(uintptr_t site, uintptr_t expected, void *hook) {
 }
 
 // a vtable slot, only while it holds `expected`
-static int patch_vtable(uintptr_t vt, int slot, uintptr_t expected, void *hook) {
+internal int patch_vtable(uintptr_t vt, int slot, uintptr_t expected, void *hook) {
     void **p = (void **)(vt + slot * 4);
     if (*p != (void *)expected) return 0;
     DWORD old;
@@ -77,7 +77,7 @@ static int patch_vtable(uintptr_t vt, int slot, uintptr_t expected, void *hook) 
 }
 
 // one byte of the code, only while it holds `expected`
-static int patch_byte(uintptr_t at, uint8_t expected, uint8_t val) {
+internal int patch_byte(uintptr_t at, uint8_t expected, uint8_t val) {
     uint8_t *p = (uint8_t *)at;
     DWORD old;
     if (*p != expected || !VirtualProtect(p, 1, PAGE_EXECUTE_READWRITE, &old)) return 0;
@@ -88,7 +88,7 @@ static int patch_byte(uintptr_t at, uint8_t expected, uint8_t val) {
 }
 
 // an operand apply_editor_layout checked against the original the first time (or one it patched itself)
-static void write_code32(uint32_t *p, uint32_t v) {
+internal void write_code32(uint32_t *p, uint32_t v) {
     DWORD old;
     if (!VirtualProtect(p, 4, PAGE_EXECUTE_READWRITE, &old)) return;
     *p = v;

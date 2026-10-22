@@ -10,19 +10,19 @@
 // a bitmap font of ours is set on the font only while text goes to the back buffer (screen 0 +0x2B0) and taken off
 // again after the call. It reads characters as signed bytes (�/�/� negative, no glyph): both Draw functions'
 // movsx (RVA_LLE_FONT_MOVSX_1, _2) become movzx.
-static int g_text_bitmap = 1;
-static struct { void *font, *bmp, *hfont; } g_fbm[64];
+internal int g_text_bitmap = 1;
+internal struct { void *font, *bmp, *hfont; } g_fbm[64];
 // A font the game destroys (dialogs and screens make theirs anew each time) leaves its entry behind: the next font
 // often gets the same address and, since ~GEFont (0x1002721B) DeleteObject's its HFONT, the same handle - the
 // cache then gave it the dead font's characters and the text drew nothing (the save screen's labels and its
 // overwrite dialog the second time it opened - suspected, not seen headless). The deleting destructor (GEFont
 // vtable slot 0) is hooked: the entry goes. Its bitmap font is left alone (freeing engine objects whose textures may
 // have gone with a screen is not worth the risk; a few KB per destroyed font, and fonts are rarely destroyed).
-static CRITICAL_SECTION g_fbm_cs;
-static int g_fbm_n;   // (defined with g_fbm_logged below)
-static int g_fbm_dropped;
-static void *(__thiscall *g_font_delete)(void *, unsigned);
-static void *__fastcall hook_font_delete(uint8_t *font, void *edx, unsigned flags) {
+internal CRITICAL_SECTION g_fbm_cs;
+internal int g_fbm_n;   // (defined with g_fbm_logged below)
+internal int g_fbm_dropped;
+internal void *(__thiscall *g_font_delete)(void *, unsigned);
+internal void *__fastcall hook_font_delete(uint8_t *font, void *edx, unsigned flags) {
     (void)edx;
     EnterCriticalSection(&g_fbm_cs);
     for (int i = 0; i < g_fbm_n; i++)
@@ -39,33 +39,33 @@ static void *__fastcall hook_font_delete(uint8_t *font, void *edx, unsigned flag
 // buffer (font, HFONT, the bitmap font used, the colour GEText +0x14: floats r g b and the size, the string +0x34)
 // and GDI text (ExtTextOutA / TextOutW: on our text DC or another one, its surface, the colour) - for a screen
 // whose text is missing
-static volatile LONG g_textlog;
+internal volatile LONG g_textlog;
 // The device state around our bitmap text: the engine's sprite text uses whatever the 3D scene left. In a big late
 // game (the player's 70-minute save) the scene left fog on: every character came out in the fog colour - white text
 // looked as always, black text (save screen title and labels, the overwrite and resign dialogs) vanished on the
 // beige background, in 2 of 4 openings. So while it draws: fog off, alpha blending src alpha / inverse src alpha
 // (restored after). textstate N (pipe, tests): 0 leave the state as it is, 1 that (default), 2 also texture stage 0
 // = texture x diffuse (colour and alpha).
-static volatile LONG g_text_state = 1;
-static uint32_t g_tl_seen[1024];
-static volatile LONG g_tl_n;
-static uint32_t tl_hash(const void *p, size_t n, uint32_t h) {
+internal volatile LONG g_text_state = 1;
+internal uint32_t g_tl_seen[1024];
+internal volatile LONG g_tl_n;
+internal uint32_t tl_hash(const void *p, size_t n, uint32_t h) {
     for (size_t i = 0; i < n; i++) h = (h ^ ((const uint8_t *)p)[i]) * 16777619u;
     return h;
 }
-static int textlog_new(uint32_t h) {   // 1 the first time (and still lines to log)
+internal int textlog_new(uint32_t h) {   // 1 the first time (and still lines to log)
     if (g_textlog <= 0) return 0;
     for (LONG i = 0; i < g_tl_n && i < 1024; i++) if (g_tl_seen[i] == h) return 0;
     LONG k = InterlockedIncrement(&g_tl_n) - 1;
     if (k < 1024) g_tl_seen[k] = h;
     return InterlockedDecrement(&g_textlog) >= 0;
 }
-static int g_fbm_n, g_fbm_logged;
-static volatile int g_fbm_making;
-static int g_atlas_dump;   // autotest atlas_dump=1: each new bitmap font's last atlas -> aimod_dumps/atlas<n>.bmp
-static void atlas_dump(int n);   // inside our GEFontBitmap constructor call (the atlas is drawn)
-static void *(__thiscall *g_fbm_ctor)(void *, void *, void *, unsigned);
-static void *text_bitmap_for(void *ras, void *text, void *surf) {
+internal int g_fbm_n, g_fbm_logged;
+internal volatile int g_fbm_making;
+internal int g_atlas_dump;   // autotest atlas_dump=1: each new bitmap font's last atlas -> aimod_dumps/atlas<n>.bmp
+internal void atlas_dump(int n);   // inside our GEFontBitmap constructor call (the atlas is drawn)
+internal void *(__thiscall *g_fbm_ctor)(void *, void *, void *, unsigned);
+internal void *text_bitmap_for(void *ras, void *text, void *surf) {
     if (!g_text_bitmap || !g_fbm_ctor || !text) return NULL;
     uint8_t **screens = FIELD(ras, OF(E_RAS, 0x20), uint8_t **);
     uint8_t *st = screens ? screens[0] : NULL;
@@ -132,7 +132,7 @@ static void *text_bitmap_for(void *ras, void *text, void *surf) {
     }
     return obj;
 }
-static long __fastcall hook_fc_text_rect(void *ras, void *edx, void *text, void *rect, void *surf) {
+internal long __fastcall hook_fc_text_rect(void *ras, void *edx, void *text, void *rect, void *surf) {
     (void)edx; long r;
     void *bmp = text_bitmap_for(ras, text, surf);
     if (g_textlog > 0 && g_log && text) {
@@ -197,7 +197,7 @@ static long __fastcall hook_fc_text_rect(void *ras, void *edx, void *text, void 
     if (bmp) FIELD(FIELD(text, OF(E_TEXT, 0x44), uint8_t *), OF(E_FONT, 0x24), void *) = NULL;
     return r;
 }
-static int text_bitmap_install(void) {   // constructor and the two movsx -> movzx of the Low-Level Engine
+internal int text_bitmap_install(void) {   // constructor and the two movsx -> movzx of the Low-Level Engine
     HMODULE lle = GetModuleHandleA("Low-Level Engine.dll");
     g_fbm_ctor = lle ? (void *(__thiscall *)(void *, void *, void *, unsigned))(void *)GetProcAddress(lle,
                  "??0GEFontBitmap@@QAE@PAVGERasterizer@@PAVGEFont@@K@Z") : NULL;
@@ -238,27 +238,27 @@ FC_SURFACE_HOOK(hook_fc_text_unlock, FC_TEXT_UNLOCK)
 // rectangle of the 32x32 tiles its text box touches that aren't loaded yet and copies them into the DIB;
 // TextUnlock locks the rectangle of the loaded tiles, writes them back, and selects the stock font again (the
 // game's fonts must not stay selected in a DC it never sees again).
-static int g_text_dc = 1;
+internal int g_text_dc = 1;
 // Six DIBs (surface sizes / formats); a seventh size (window resized again and again) replaces the one used longest
 // ago - they were kept for the session, and from the seventh size on all text went the leaking way. Surfaces up to
 // 8192x8192 (the tile map's size only: 64 KB, its loops go as far as the surface; it was 2560x1600, and 4K or
 // ultrawide windows got the game's own GDI text and its leak).
-static struct { int w, h, bpp; DWORD masks[3]; HDC dc; HBITMAP bmp; void *bits; int pitch; unsigned used; } g_tdc[6];
-static struct { void *surf; int slot; DDSURFACEDESC2 d; } g_tdc_active[8];
+internal struct { int w, h, bpp; DWORD masks[3]; HDC dc; HBITMAP bmp; void *bits; int pitch; unsigned used; } g_tdc[6];
+internal struct { void *surf; int slot; DDSURFACEDESC2 d; } g_tdc_active[8];
 enum { TDC_TILE = 32, TDC_MAX = 8192, TDC_TW = TDC_MAX / TDC_TILE + 2, TDC_TH = TDC_MAX / TDC_TILE + 2 };
-static uint8_t g_tdc_tiles[TDC_TH][TDC_TW];   // loaded in this text phase (one phase at a time)
-static unsigned g_tdc_clock;
-static int g_tdc_any;
+internal uint8_t g_tdc_tiles[TDC_TH][TDC_TW];   // loaded in this text phase (one phase at a time)
+internal unsigned g_tdc_clock;
+internal int g_tdc_any;
 typedef BOOL (WINAPI *ExtTextOutAFn)(HDC, int, int, UINT, const RECT *, LPCSTR, UINT, const INT *);
 typedef BOOL (WINAPI *TextOutWFn)(HDC, int, int, LPCWSTR, int);
-static ExtTextOutAFn g_ext_text_out;
-static TextOutWFn g_text_out_w;
-static int g_tdc_logged;
-static HFONT g_tdc_stock;
-static long text_dc_fallback(void *surf, int unlock) {   // the original TextLock / TextUnlock
+internal ExtTextOutAFn g_ext_text_out;
+internal TextOutWFn g_text_out_w;
+internal int g_tdc_logged;
+internal HFONT g_tdc_stock;
+internal long text_dc_fallback(void *surf, int unlock) {   // the original TextLock / TextUnlock
     return ((long (__thiscall *)(void *))(unlock ? g_text_unlock_orig : g_text_lock_orig)[DISPLAY_DLL(surf)])(surf);
 }
-static int text_dc_slot(const DDSURFACEDESC2 *d) {
+internal int text_dc_slot(const DDSURFACEDESC2 *d) {
     int bpp = (int)d->ddpfPixelFormat.dwRGBBitCount, w = (int)d->dwWidth, h = (int)d->dwHeight, free_ = -1;
     if (bpp != 16 && bpp != 32) return -1;
     for (int i = 0; i < 6; i++) {
@@ -298,24 +298,24 @@ static int text_dc_slot(const DDSURFACEDESC2 *d) {
     g_tdc[free_].used = ++g_tdc_clock;
     return free_;
 }
-static int tdc_active_of(HDC dc) {   // the active text phase drawing on this DC, or -1
+internal int tdc_active_of(HDC dc) {   // the active text phase drawing on this DC, or -1
     for (int i = 0; i < 8; i++)
         if (g_tdc_active[i].surf && g_tdc[g_tdc_active[i].slot].dc == dc) return i;
     return -1;
 }
 // lock rectangle r of the phase's surface (DDLOCK_WAIT); lpSurface then points at r's top left
-static int tdc_lock(int a, RECT *r, DDSURFACEDESC2 *d) {
+internal int tdc_lock(int a, RECT *r, DDSURFACEDESC2 *d) {
     IDirectDrawSurface7 *dds = FIELD((uint8_t *)g_tdc_active[a].surf, OF(E_SURF, 0x48), IDirectDrawSurface7 *);
     memset(d, 0, sizeof *d);
     d->dwSize = sizeof *d;
     return dds && dds->lpVtbl->Lock(dds, r, d, DDLOCK_WAIT, NULL) == DD_OK;
 }
-static void tdc_unlock(int a, RECT *r) {
+internal void tdc_unlock(int a, RECT *r) {
     IDirectDrawSurface7 *dds = FIELD((uint8_t *)g_tdc_active[a].surf, OF(E_SURF, 0x48), IDirectDrawSurface7 *);
     if (dds) dds->lpVtbl->Unlock(dds, r);
 }
 // copy the tiles of `want` (1 = to load) between the DIB and the surface, through one lock of their bounding box
-static void tdc_copy_tiles(int a, int to_surface) {
+internal void tdc_copy_tiles(int a, int to_surface) {
     int slot = g_tdc_active[a].slot, w = g_tdc[slot].w, h = g_tdc[slot].h, bpp = g_tdc[slot].bpp / 8;
     int tx0 = TDC_TW, ty0 = TDC_TH, tx1 = -1, ty1 = -1, tw = (w + TDC_TILE - 1) / TDC_TILE, th = (h + TDC_TILE - 1) / TDC_TILE;
     uint8_t want = to_surface ? 1 : 2;   // 2 = to load now, 1 = loaded (written back at the end)
@@ -350,7 +350,7 @@ static void tdc_copy_tiles(int a, int to_surface) {
     tdc_unlock(a, &r);
 }
 // load the tiles of rectangle x0,y0-x1,y1 (exclusive) from the surface into the DIB, once a phase
-static void tdc_load(int a, int x0, int y0, int x1, int y1) {
+internal void tdc_load(int a, int x0, int y0, int x1, int y1) {
     int slot = g_tdc_active[a].slot, w = g_tdc[slot].w, h = g_tdc[slot].h, any = 0;
     if (x0 < 0) x0 = 0;
     if (y0 < 0) y0 = 0;
@@ -361,13 +361,13 @@ static void tdc_load(int a, int x0, int y0, int x1, int y1) {
             if (!g_tdc_tiles[ty][tx]) { g_tdc_tiles[ty][tx] = 2; any = 1; }
     if (any) { g_tdc_any = 1; tdc_copy_tiles(a, 0); }
 }
-static void tdc_store(int a) {   // the loaded tiles back into the surface
+internal void tdc_store(int a) {   // the loaded tiles back into the surface
     if (g_tdc_any) tdc_copy_tiles(a, 1);
     g_tdc_any = 0;
 }
 // the box a text output can touch: the text's extent placed by the DC's alignment, the clip/opaque rectangle,
 // and a margin for overhangs
-static void tdc_text_box(HDC dc, int x, int y, SIZE sz, UINT opts, const RECT *rc, RECT *box) {
+internal void tdc_text_box(HDC dc, int x, int y, SIZE sz, UINT opts, const RECT *rc, RECT *box) {
     UINT al = GetTextAlign(dc);
     TEXTMETRICA tm;
     if (!GetTextMetricsA(dc, &tm)) memset(&tm, 0, sizeof tm);
@@ -400,8 +400,8 @@ static void tdc_text_box(HDC dc, int x, int y, SIZE sz, UINT opts, const RECT *r
 // it). Instead the character comes from GetGlyphOutline (GGO_GRAY8_BITMAP: 65 coverage levels at every size -
 // Tahoma's own table forbids Windows' smoothing for small sizes) and is written into its cell only, the cell's
 // last column left empty.
-static uint8_t g_glyph_buf[256 * 256];
-static uint32_t pack_gray(int slot, int g) {   // gray level g (0-255) in the atlas DIB's format
+internal uint8_t g_glyph_buf[256 * 256];
+internal uint32_t pack_gray(int slot, int g) {   // gray level g (0-255) in the atlas DIB's format
     uint32_t v = 0;
     for (int c = 0; c < 3; c++) {
         DWORD m = g_tdc[slot].masks[c];
@@ -413,7 +413,7 @@ static uint32_t pack_gray(int slot, int g) {   // gray level g (0-255) in the at
     }
     return v;
 }
-static int atlas_glyph(int a, HDC dc, int x, int y, char ch, SIZE sz) {
+internal int atlas_glyph(int a, HDC dc, int x, int y, char ch, SIZE sz) {
     int slot = g_tdc_active[a].slot;
     if (sz.cx <= 1 || sz.cy <= 0 || g_tdc[slot].bpp != 16) return 0;
     static const MAT2 ident = { { 0, 1 }, { 0, 0 }, { 0, 0 }, { 0, 1 } };
@@ -447,7 +447,7 @@ static int atlas_glyph(int a, HDC dc, int x, int y, char ch, SIZE sz) {
     return 1;
 }
 
-static void atlas_dump(int n) {   // tests: the 256x256 DIB holds the last atlas a bitmap font drew
+internal void atlas_dump(int n) {   // tests: the 256x256 DIB holds the last atlas a bitmap font drew
     for (int i = 0; i < 6; i++) {
         if (!g_tdc[i].dc || g_tdc[i].w != 256 || g_tdc[i].h != 256) continue;
         DDSURFACEDESC2 dd = { .dwSize = sizeof dd };
@@ -464,7 +464,7 @@ static void atlas_dump(int n) {   // tests: the 256x256 DIB holds the last atlas
     }
 }
 
-static void textlog_gdi(HDC dc, int a, const char *str, int n) {
+internal void textlog_gdi(HDC dc, int a, const char *str, int n) {
     if (g_textlog <= 0 || g_fbm_making || !g_log) return;
     COLORREF col = GetTextColor(dc);
     int w = a >= 0 ? g_tdc[g_tdc_active[a].slot].w : 0, hh = a >= 0 ? g_tdc[g_tdc_active[a].slot].h : 0;
@@ -478,7 +478,7 @@ static void textlog_gdi(HDC dc, int a, const char *str, int n) {
             surf, w, hh, (unsigned long)col, GetBkMode(dc), n > 60 ? 60 : n, str);
     LeaveCriticalSection(&g_lock);
 }
-static BOOL WINAPI hook_ext_text_out(HDC dc, int x, int y, UINT opts, const RECT *rc, LPCSTR str, UINT n, const INT *dx) {
+internal BOOL WINAPI hook_ext_text_out(HDC dc, int x, int y, UINT opts, const RECT *rc, LPCSTR str, UINT n, const INT *dx) {
     int a = tdc_active_of(dc);
     if (str && n) textlog_gdi(dc, a, str, (int)n);
     if (a >= 0) {
@@ -494,7 +494,7 @@ static BOOL WINAPI hook_ext_text_out(HDC dc, int x, int y, UINT opts, const RECT
     }
     return g_ext_text_out(dc, x, y, opts, rc, str, n, dx);
 }
-static BOOL WINAPI hook_text_out_w(HDC dc, int x, int y, LPCWSTR str, int n) {
+internal BOOL WINAPI hook_text_out_w(HDC dc, int x, int y, LPCWSTR str, int n) {
     int a = tdc_active_of(dc);
     if (g_textlog > 0 && str && n > 0) {
         char t[128];
@@ -510,7 +510,7 @@ static BOOL WINAPI hook_text_out_w(HDC dc, int x, int y, LPCWSTR str, int n) {
     }
     return g_text_out_w(dc, x, y, str, n);
 }
-static long __fastcall hook_text_lock(uint8_t *surf, void *edx) {
+internal long __fastcall hook_text_lock(uint8_t *surf, void *edx) {
     (void)edx;
     if (FIELD(surf, OF(E_SURF, 0x5D), uint8_t) == 1) return 2;
     IDirectDrawSurface7 *dds = FIELD(surf, OF(E_SURF, 0x48), IDirectDrawSurface7 *);
@@ -544,7 +544,7 @@ static long __fastcall hook_text_lock(uint8_t *surf, void *edx) {
     FIELD(surf, OF(E_SURF, 0x5D), uint8_t) = 1;
     return 0;
 }
-static long __fastcall hook_text_unlock(uint8_t *surf, void *edx) {
+internal long __fastcall hook_text_unlock(uint8_t *surf, void *edx) {
     (void)edx;
     int a = -1;
     for (int i = 0; i < 8; i++) if (g_tdc_active[i].surf == surf) { a = i; break; }

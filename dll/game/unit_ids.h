@@ -56,14 +56,14 @@ enum ut_name { UT_TYPES(UT_ENUM) UT_N };
 #undef UT_ENUM
 #define UT_NONE (-0x10000)   // a type the loaded data hasn't got (and before it is loaded): equal to no type, no -1
 #define UT(n) (g_ut[UT_##n])
-static int g_ut[UT_N] = { [0 ... UT_N - 1] = UT_NONE };   // unit_types_load
-static int ut_has(int t) { return t >= 0; }   // a type to build or train: the data has it
+internal int g_ut[UT_N] = { [0 ... UT_N - 1] = UT_NONE };   // unit_types_load
+internal int ut_has(int t) { return t >= 0; }   // a type to build or train: the data has it
 // the unit manager's list of a type (0x48F8AF: its units and buildings of that type); NULL: no manager, or a type the
 // data hasn't got (UT_NONE never reaches the game)
-static uint8_t *type_list(void *um, int type) {
+internal uint8_t *type_list(void *um, int type) {
     return um && type >= 0 ? GF(FN_UM_TYPE_LIST)(um, type) : NULL;
 }
-static int ut_in(int t, const enum ut_name *set, int n) {   // t one of the named types (a set of UT_ names)
+internal int ut_in(int t, const enum ut_name *set, int n) {   // t one of the named types (a set of UT_ names)
     for (int i = 0; i < n; i++) if (g_ut[set[i]] == t) return 1;
     return 0;
 }
@@ -88,5 +88,5 @@ enum {
     UTR_TRANSPORT = 64,     // class transport ship
     UTR_FISHING_BOAT = 128, // class fishing boat
 };
-static unsigned char g_ut_role[G_TYPES_N];
-static int ut_role(int t, int r) { return t >= 0 && t < G_TYPES_N && (g_ut_role[t] & r); }
+internal unsigned char g_ut_role[G_TYPES_N];
+internal int ut_role(int t, int r) { return t >= 0 && t < G_TYPES_N && (g_ut_role[t] & r); }

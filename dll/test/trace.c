@@ -2,23 +2,23 @@
 // manager's site searches and gather orders for one AI player as "# T ..." lines. All hooked functions
 // are __thiscall on the EECPResourceManager. Call sites found with scripts/refs.py. Included by eeaimod.c.
 
-static int g_trace_player = -1;
-static uint32_t g_trace_until_ms;
+internal int g_trace_player = -1;
+internal uint32_t g_trace_until_ms;
 
-static int tracing(void *rm) {
+internal int tracing(void *rm) {
     if (g_trace_player < 0) return 0;
     ee_player *pl = rm_player(rm);
     if (!pl || (FIELD(pl, PL_INDEX, int) != g_trace_player)) return 0;
     return !g_trace_until_ms || game_time() < g_trace_until_ms;
 }
 
-static void trace_obj(char *buf, size_t cap, const char *tag, void *o) {
+internal void trace_obj(char *buf, size_t cap, const char *tag, void *o) {
     size_t n = strlen(buf);
     if (!o) { snprintf(buf + n, cap - n, " %s=0", tag); return; }
     snprintf(buf + n, cap - n, " %s=%p(%s %d,%d)", tag, o, rtti_name(o), FIELD(o, OF(UNIT, 0x1C), int), FIELD(o, OF(UNIT, 0x20), int));
 }
 
-static void trace_emit(const char *line) {
+internal void trace_emit(const char *line) {
     if (!g_log) return;
     EnterCriticalSection(&g_lock);
     fprintf(g_log, "# T %u %s\n", game_time(), line);
@@ -31,7 +31,7 @@ typedef void *(__thiscall *Fn2)(void *, uintptr_t, uintptr_t);
 
 #define CALLER() ((uintptr_t)__builtin_return_address(0) - 5)
 
-static void *__fastcall tr_find_food(void *rm, void *edx, uintptr_t a, uintptr_t b, uintptr_t u) {
+internal void *__fastcall tr_find_food(void *rm, void *edx, uintptr_t a, uintptr_t b, uintptr_t u) {
     (void)edx;
     void *r = ((Fn3)GA(FN_FIND_FOOD))(rm, a, b, u);
     if (tracing(rm)) {
@@ -46,7 +46,7 @@ static void *__fastcall tr_find_food(void *rm, void *edx, uintptr_t a, uintptr_t
     return r;
 }
 
-static void *__fastcall tr_gather(void *rm, void *edx, uintptr_t u, uintptr_t t, uintptr_t c) {
+internal void *__fastcall tr_gather(void *rm, void *edx, uintptr_t u, uintptr_t t, uintptr_t c) {
     (void)edx;
     if (tracing(rm)) {
         char buf[300];
@@ -58,7 +58,7 @@ static void *__fastcall tr_gather(void *rm, void *edx, uintptr_t u, uintptr_t t,
     return ((Fn3)GA(FN_ASSIGN_TO_SITE))(rm, u, t, c);
 }
 
-static void *__fastcall tr_find_mine(void *rm, void *edx, uintptr_t type, uintptr_t u, uintptr_t rev) {
+internal void *__fastcall tr_find_mine(void *rm, void *edx, uintptr_t type, uintptr_t u, uintptr_t rev) {
     (void)edx;
     void *r = ((Fn3)GA(FN_FIND_MINE))(rm, type, u, rev);
     if (tracing(rm)) {
@@ -70,7 +70,7 @@ static void *__fastcall tr_find_mine(void *rm, void *edx, uintptr_t type, uintpt
     return r;
 }
 
-static void *__fastcall tr_find_wood(void *rm, void *edx, uintptr_t f, uintptr_t u) {
+internal void *__fastcall tr_find_wood(void *rm, void *edx, uintptr_t f, uintptr_t u) {
     (void)edx;
     void *r = ((Fn2)GA(FN_FIND_WOOD))(rm, f, u);
     if (tracing(rm)) {
@@ -82,7 +82,7 @@ static void *__fastcall tr_find_wood(void *rm, void *edx, uintptr_t f, uintptr_t
     return r;
 }
 
-static void *__fastcall tr_hunt(void *rm, void *edx, uintptr_t n, uintptr_t f, uintptr_t out) {
+internal void *__fastcall tr_hunt(void *rm, void *edx, uintptr_t n, uintptr_t f, uintptr_t out) {
     (void)edx;
     void *r = ((Fn3)GA(FN_HUNT))(rm, n, f, out);
     if (tracing(rm)) {
@@ -95,7 +95,7 @@ static void *__fastcall tr_hunt(void *rm, void *edx, uintptr_t n, uintptr_t f, u
     return r;
 }
 
-static void *__fastcall tr_farms(void *rm, void *edx, uintptr_t n, uintptr_t out) {
+internal void *__fastcall tr_farms(void *rm, void *edx, uintptr_t n, uintptr_t out) {
     (void)edx;
     void *r = ((Fn2)GA(FN_FARMS))(rm, n, out);
     if (tracing(rm)) {
@@ -110,7 +110,7 @@ static void *__fastcall tr_farms(void *rm, void *edx, uintptr_t n, uintptr_t out
 
 // Purchases by the unit manager (cm+0x44): 0x49014F(request, ?) trains units (request: [0] unit type id,
 // [1] count, ...), 0x48EE84(?) is the citizen-training path. Logged with the player's stock deltas.
-static void *um_player(void *um) {
+internal void *um_player(void *um) {
     for (int i = 0; i < 16; i++) {
         ee_player *pl = g_players[i];
         void *cm = pl ? FIELD(pl, OF(PL, 0xB90), void *) : NULL;
@@ -118,18 +118,18 @@ static void *um_player(void *um) {
     }
     return NULL;
 }
-static void stock_delta(char *buf, size_t cap, ee_player *pl, const int *before) {
+internal void stock_delta(char *buf, size_t cap, ee_player *pl, const int *before) {
     size_t n = strlen(buf);
     snprintf(buf + n, cap - n, " spent(f,w,s,g,i)=%d,%d,%d,%d,%d", before[2] - FIELD(pl, PL_STOCK + 8, int),
              before[3] - FIELD(pl, PL_STOCK + 12, int), before[4] - FIELD(pl, PL_STOCK + 16, int),
              before[5] - FIELD(pl, PL_STOCK + 20, int), before[6] - FIELD(pl, PL_STOCK + 24, int));
 }
-static int trace_pl(ee_player *pl) {
+internal int trace_pl(ee_player *pl) {
     return pl && FIELD(pl, PL_INDEX, int) == g_trace_player && (!g_trace_until_ms || game_time() < g_trace_until_ms);
 }
 
 // Called by econ.c's hook_train_units after every unit-training call.
-static void trace_train(ee_player *pl, int *req, uintptr_t r, const int *before, const int *reserve) {
+internal void trace_train(ee_player *pl, int *req, uintptr_t r, const int *before, const int *reserve) {
     if (!trace_pl(pl)) return;
     if (!memcmp(before, (uint8_t *)pl + PL_STOCK, 7 * sizeof(int)) && r == 0) return;   // nothing happened
     char buf[300];
@@ -138,7 +138,7 @@ static void trace_train(ee_player *pl, int *req, uintptr_t r, const int *before,
     trace_emit(buf);
 }
 
-static uintptr_t __fastcall tr_train_citizens(void *um, void *edx, uintptr_t a) {
+internal uintptr_t __fastcall tr_train_citizens(void *um, void *edx, uintptr_t a) {
     (void)edx;
     ee_player *pl = um_player(um);
     int before[7];
@@ -153,7 +153,7 @@ static uintptr_t __fastcall tr_train_citizens(void *um, void *edx, uintptr_t a) 
     return r;
 }
 
-static void trace_start(const char *ini) {
+internal void trace_start(const char *ini) {
     g_trace_player = ini_int("autotest", "trace_player", -1, ini);
     if (g_trace_player < 0) return;
     g_trace_until_ms = (uint32_t)ini_int("autotest", "trace_until_min", 0, ini) * 60000u;
@@ -181,8 +181,8 @@ static void trace_start(const char *ini) {
 // step's line, each message the step handed to the lockstep server: "  m type <n> from <return address> S" (S: the
 // simulation thread). sync_dump=<from ms>-<to ms>: every unit of each step in that window ("  u ..."). Two runs of
 // one game_seed diffed show the first step they part - and whether the generator, an input or the units went first.
-static FILE *g_sync;
-static unsigned g_sync_left;
+internal FILE *g_sync;
+internal unsigned g_sync_left;
 typedef void (__thiscall *StepFn)(void *);
 
 // The game start message (type 0x5D, vtable 0x8285B0, built by 0x522DFC(flag, seed)) sets the simulation's
@@ -190,7 +190,7 @@ typedef void (__thiscall *StepFn)(void *);
 // sends rand() after srand(TMGetTime()) - hook_srand covers that - but the load-game and scenario starts (also a
 // test run's random map, which randmap.c makes from a -loadgame start) build it with TMGetTime() itself (0x522113,
 // 0x5D7A25, 0x5D8871, 0x65C955): there game_seed takes effect only here.
-static void __fastcall hook_start_exec(void *msg, void *edx) {
+internal void __fastcall hook_start_exec(void *msg, void *edx) {
     (void)edx;
     if (g_auto.game_seed) FIELD(msg, OF(MSG_START, 0x14), unsigned) = (unsigned)g_auto.game_seed;
     uint8_t *phys = *(uint8_t **)GA(G_WORLD_CLOCK), *world = *(uint8_t **)GA(G_WORLD);
@@ -201,7 +201,7 @@ static void __fastcall hook_start_exec(void *msg, void *edx) {
                         phys ? FIELD(phys, OF(PHYS, 0x18), unsigned) : 0, map_seed);
     LeaveCriticalSection(&g_lock);
 }
-static int start_hook(void) {
+internal int start_hook(void) {
     static int done;
     return done || (done = patch_code32(GA(START_VTBL_EXEC), GA(START_EXEC), (uint32_t)(uintptr_t)hook_start_exec));
 }
@@ -209,8 +209,8 @@ static int start_hook(void) {
 // the units' part of a step's line: how many, and a sum of each one's hash (owner, type, tile, hit points) - the
 // grid's order doesn't matter. sync_dump=<from ms>-<to ms>: every unit of each step in that window, "  u ..." lines
 struct sync_units { unsigned n; uint32_t h; };
-static uint32_t g_sync_dump0, g_sync_dump1;
-static uint32_t sync_unit_hash(ee_unit *u) {
+internal uint32_t g_sync_dump0, g_sync_dump1;
+internal uint32_t sync_unit_hash(ee_unit *u) {
     ee_player *owner = unit_owner(u);
     uint8_t *td = FIELD(u, OF(UNIT, 0x2C), uint8_t *);
     uint32_t v[5] = { owner ? (uint32_t)(FIELD(owner, PL_INDEX, int) & 15) : 99u, td ? (uint32_t)FIELD(td, OF(TD, 0x4B8), int) : 0u,
@@ -218,12 +218,12 @@ static uint32_t sync_unit_hash(ee_unit *u) {
     for (int i = 0; i < 5; i++) h = (h ^ v[i]) * 16777619u;
     return h;
 }
-static void sync_unit(ee_unit *u, void *ctx) {
+internal void sync_unit(ee_unit *u, void *ctx) {
     struct sync_units *s = ctx;
     s->n++;
     s->h += sync_unit_hash(u);
 }
-static void sync_unit_dump(ee_unit *u, void *ctx) {
+internal void sync_unit_dump(ee_unit *u, void *ctx) {
     (void)ctx;
     ee_player *owner = unit_owner(u);
     uint8_t *td = FIELD(u, OF(UNIT, 0x2C), uint8_t *);
@@ -232,9 +232,9 @@ static void sync_unit_dump(ee_unit *u, void *ctx) {
 }
 // the messages handed to the lockstep server (EEServer [0x91984C] vtable slot 6: (msg, 0xFF)): "  m <type> <caller>
 // <S|thread>" - what goes into the next tick the server sends, and from where
-static DWORD g_sync_tid;
-static void (__thiscall *g_srv_send)(void *, void *, int);
-static void __fastcall sync_srv_send(void *srv, void *edx, uint8_t *msg, int to) {
+internal DWORD g_sync_tid;
+internal void (__thiscall *g_srv_send)(void *, void *, int);
+internal void __fastcall sync_srv_send(void *srv, void *edx, uint8_t *msg, int to) {
     (void)edx;
     uintptr_t ret = (uintptr_t)__builtin_return_address(0);
     DWORD tid = GetCurrentThreadId();
@@ -243,7 +243,7 @@ static void __fastcall sync_srv_send(void *srv, void *edx, uint8_t *msg, int to)
     LeaveCriticalSection(&g_lock);
     g_srv_send(srv, msg, to);
 }
-static void sync_hook_server(void) {
+internal void sync_hook_server(void) {
     static int done;
     void **srv = *(void ***)GA(G_SERVER);
     if (done || !srv) return;
@@ -256,7 +256,7 @@ static void sync_hook_server(void) {
     VirtualProtect(slot, 4, old, &old);
     if (g_log) fprintf(g_log, "# sync trace: server messages hooked (vtable %p)\n", srv[0]);
 }
-static void sync_step(void *phys) {   // after each step (control.c hook_phys_step)
+internal void sync_step(void *phys) {   // after each step (control.c hook_phys_step)
     g_sync_tid = GetCurrentThreadId();
     sync_hook_server();
     if (!g_sync || !g_sync_left) return;
@@ -278,7 +278,7 @@ static void sync_step(void *phys) {   // after each step (control.c hook_phys_st
     LeaveCriticalSection(&g_lock);
 }
 
-static void sync_trace_start(const char *ini) {
+internal void sync_trace_start(const char *ini) {
     g_sync_left = (unsigned)ini_int("autotest", "sync_trace", 0, ini);
     if (!g_sync_left) return;
     char path[MAX_PATH];

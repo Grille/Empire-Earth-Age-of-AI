@@ -12,30 +12,30 @@
 
 #define SM_MGR (*(uint8_t **)GA(G_SM_MGR))
 
-static const char *const k_sm_cond[8] = { "always", "object", "player-attribute", "player-tech", "trigger",
+internal const char *const k_sm_cond[8] = { "always", "object", "player-attribute", "player-tech", "trigger",
     "diplomacy", "game", "chat" };
-static const char *const k_sm_obj[13] = { "create", "freeze", "unfreeze", "kill", "remove", "task-object",
+internal const char *const k_sm_obj[13] = { "create", "freeze", "unfreeze", "kill", "remove", "task-object",
     "task-area", "stance", "unit-attribute", "owner", "class-name", "face", "class-attribute" };
-static const char *const k_sm_player[12] = { "victory", "script-camera", "defeat", "diplomacy", "attribute",
+internal const char *const k_sm_player[12] = { "victory", "script-camera", "defeat", "diplomacy", "attribute",
     "tech-tree", "civ-points", "fade-in", "fade-out", "visibility-on", "visibility-off", "minimap-flare" };
-static const char *const k_sm_media[4] = { "sound", "change-text", "dialogue", "chat" };
-static const char *const k_sm_game[7] = { "daylight-hour", "day-night-cycle", "calamity", "graphic-effect",
+internal const char *const k_sm_media[4] = { "sound", "change-text", "dialogue", "chat" };
+internal const char *const k_sm_game[7] = { "daylight-hour", "day-night-cycle", "calamity", "graphic-effect",
     "start-cinematic", "end-cinematic", "weather" };
-static const char *const k_sm_ai[7] = { "ai-target", "ai-group", "ai-build", "ai-maintain", "ai-toggle",
+internal const char *const k_sm_ai[7] = { "ai-target", "ai-group", "ai-build", "ai-maintain", "ai-toggle",
     "ai-variable", "ai-favourites" };
-static const char *const k_sm_trig[4] = { "on", "off", "fired", "not-fired" };
-static const char *const k_sm_op[5] = { "<", "<=", "=", ">=", ">" };
+internal const char *const k_sm_trig[4] = { "on", "off", "fired", "not-fired" };
+internal const char *const k_sm_op[5] = { "<", "<=", "=", ">=", ">" };
 
-static int sm_count(uint8_t *vec_begin) {
+internal int sm_count(uint8_t *vec_begin) {
     uint8_t **b = FIELD(vec_begin, 0, uint8_t **), **e = FIELD(vec_begin, 4, uint8_t **);
     return b && e > b ? (int)(e - b) : 0;
 }
-static uint8_t *sm_at(uint8_t *vec_begin, int i) {
+internal uint8_t *sm_at(uint8_t *vec_begin, int i) {
     return i >= 0 && i < sm_count(vec_begin) ? FIELD(vec_begin, 0, uint8_t **)[i] : NULL;
 }
 
 // UWideString text (8-bit chars despite the name, pointer at +4)
-static const char *sm_text(uint8_t *ws, char *buf, int n) {
+internal const char *sm_text(uint8_t *ws, char *buf, int n) {
     const char *w = FIELD(ws, 4, const char *);
     int k = 0;
     for (; w && w[k] && k < n - 1; k++) buf[k] = w[k];
@@ -44,7 +44,7 @@ static const char *sm_text(uint8_t *ws, char *buf, int n) {
 }
 
 // a trigger by index or (case-insensitive) name
-static uint8_t *sm_trigger(const char *arg, int *idx) {
+internal uint8_t *sm_trigger(const char *arg, int *idx) {
     uint8_t *m = SM_MGR;
     if (!m) return NULL;
     char *end, name[96];
@@ -57,7 +57,7 @@ static uint8_t *sm_trigger(const char *arg, int *idx) {
     return NULL;
 }
 
-static void sm_list(char *out, uint8_t *m, int detail) {
+internal void sm_list(char *out, uint8_t *m, int detail) {
     char name[96];
     int nt = sm_count(m + OF(SCEN, 0xE8));
     REPLY("%d triggers, %d conditions, %d effects, %d objects, %d areas; scenario time %.1f s\n", nt,
@@ -106,7 +106,7 @@ static void sm_list(char *out, uint8_t *m, int detail) {
 }
 
 // trig [list|desc] | trig on|off|reset T | trig fire T | trig effect N  (T = index or name)
-static void cmd_trig(char *out, const char *args) {
+internal void cmd_trig(char *out, const char *args) {
     uint8_t *m = SM_MGR;
     char verb[16] = "list";
     int n = 0, idx = -1;

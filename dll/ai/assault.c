@@ -23,10 +23,10 @@
 // camp's pushes. pathtest (scripts/pathtest_as.eeai): P2's 84 went straight at P3's army among the lasers and
 // lost half in 1.5 minutes; P3 soldiers killed in 20 minutes 20-33 (game's attack, with the mod's tower-avoiding
 // routes: 50). What it lacks: the route planner's way around defences, and a reason to leave a town under attack.
-static int g_assault = 0;   // aimod.ini [all] assault
-static int g_as_outmatched = 0;   // [all] assault_outmatched: pull back when facing 1.5 x (pathtest: called off at 71 of 84)
+internal int g_assault = 0;   // aimod.ini [all] assault
+internal int g_as_outmatched = 0;   // [all] assault_outmatched: pull back when facing 1.5 x (pathtest: called off at 71 of 84)
 #define AS_WAVE 160
-static struct assault {
+internal struct assault {
     ee_player *target;                     // target player
     int phase;                           // 0 none, 1 gather, 2 march
     int cont, rx, ry;                    // home continent, rally point
@@ -42,18 +42,18 @@ static struct assault {
 // area at the tile (0x425F16), its +0x84 (kind 1: the ocean) or +0x86 (kind 2: the land continent). Reference save:
 // both AIs' towns, the player's base and outposts on land continent 2, the water at P3's docks ocean 1; a few areas
 // (the player's camp at 108,75) have neither - taken as passable.
-static unsigned area_id(int x, int y, int kind) {
+internal unsigned area_id(int x, int y, int kind) {
     int pt[2] = { x, y };
     if (x < 0 || y < 0) return 0;
     return map_area(pt, kind);
 }
-static unsigned cont_at(int x, int y) { return area_id(x, y, 2); }
-static int cont_ok(int x, int y, unsigned hc) {   // land of continent hc (or an area without ids that is no ocean)
+internal unsigned cont_at(int x, int y) { return area_id(x, y, 2); }
+internal int cont_ok(int x, int y, unsigned hc) {   // land of continent hc (or an area without ids that is no ocean)
     unsigned c = area_id(x, y, 2);
     return c == hc || (c == 0 && area_id(x, y, 1) == 0 && x >= 0 && y >= 0);
 }
 
-static int assault_leads(uint8_t *sg) {
+internal int assault_leads(uint8_t *sg) {
     ee_player *pl = FIELD(sg, OF(ASG, 0x190), void *);
     unsigned pi = pl ? (unsigned)FIELD(pl, PL_INDEX, int) & 15 : 0;
     if (!pl || !g_as[pi].phase) return 0;
@@ -62,7 +62,7 @@ static int assault_leads(uint8_t *sg) {
 }
 // still one of AI pl's attack subgroups? A stored subgroup pointer can be deleted by the game between two ticks (a
 // group finished, an attack called off) - reading its members then crashed (landing test: a freed record list)
-static int asg_live(ee_player *pl, uint8_t *sg) {
+internal int asg_live(ee_player *pl, uint8_t *sg) {
     uint8_t *cbm = FIELD(pl, OF(PL, 0xB8C), uint8_t *), *cmd = cbm ? FIELD(cbm, OF(AM, 0x48), uint8_t *) : NULL;
     if (!cmd || !sg) return 0;
     uint8_t *dq = cmd + 4;
@@ -74,7 +74,7 @@ static int asg_live(ee_player *pl, uint8_t *sg) {
     }
     return 0;
 }
-static int assault_has_unit(ee_player *pl, ee_unit *u) {   // a member of the wave or the army gathering (hold_town leaves them)
+internal int assault_has_unit(ee_player *pl, ee_unit *u) {   // a member of the wave or the army gathering (hold_town leaves them)
     unsigned pi = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     if (!g_assault || !g_as[pi].phase) return 0;
     for (int k = 0; k < g_as[pi].ntaken; k++) {
@@ -86,15 +86,15 @@ static int assault_has_unit(ee_player *pl, ee_unit *u) {   // a member of the wa
     return 0;
 }
 
-static int landing_leads(uint8_t *sg);   // landing.c
-static void __fastcall hook_asg_update(void *sg, void *edx, int now) {
+internal int landing_leads(uint8_t *sg);   // landing.c
+internal void __fastcall hook_asg_update(void *sg, void *edx, int now) {
     (void)edx;
     if (!is_vanilla(FIELD(sg, OF(ASG, 0x190), void *)) && ((g_assault && assault_leads(sg)) || landing_leads(sg))) return;
     asg_update(sg, now);
 }
 
 struct as_obj { ee_player *pl; ee_player *target; unsigned pi, cont; int x, y; ee_unit *best; float score; };
-static void as_obj_unit(ee_unit *u, void *ctx) {
+internal void as_obj_unit(ee_unit *u, void *ctx) {
     struct as_obj *s = ctx;
     uint8_t *td = FIELD(u, OF(UNIT, 0x2C), uint8_t *);
     int fam = FIELD(td, OF(TD, 0x4B4), int);
@@ -107,7 +107,7 @@ static void as_obj_unit(ee_unit *u, void *ctx) {
     if (!cont_ok(x, y, s->cont)) return;
     s->best = u; s->score = sc;
 }
-static ee_unit *as_objective(ee_player *pl, unsigned pi, ee_player *target, unsigned cont, int x, int y) {
+internal ee_unit *as_objective(ee_player *pl, unsigned pi, ee_player *target, unsigned cont, int x, int y) {
     struct as_obj s = { pl, target, pi, cont, x, y, NULL, 0 };
     grid_each(as_obj_unit, &s);
     return s.best;
@@ -115,7 +115,7 @@ static ee_unit *as_objective(ee_player *pl, unsigned pi, ee_player *target, unsi
 
 // the nearest enemy within r tiles of (x, y): soldiers and siege first (r), then defences, then (buildings != 0) any
 // building of the target within 8 tiles
-static ee_unit *as_enemy_near(ee_player *pl, ee_player *target, int x, int y, int r, int buildings, int *soldiers) {
+internal ee_unit *as_enemy_near(ee_player *pl, ee_player *target, int x, int y, int r, int buildings, int *soldiers) {
     uint8_t *map = *(uint8_t **)GA(G_MAP);
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     if (!grid) return NULL;
@@ -142,13 +142,13 @@ static ee_unit *as_enemy_near(ee_player *pl, ee_player *target, int x, int y, in
     return best[0] ? best[0] : best[1] ? best[1] : best[2];
 }
 
-static int is_aa(ee_unit *u) {   // anti-air units (AA tank, Stinger, Skywatcher): they stay home
+internal int is_aa(ee_unit *u) {   // anti-air units (AA tank, Stinger, Skywatcher): they stay home
     int t = FIELD(FIELD(u, OF(UNIT, 0x2C), uint8_t *), OF(TD, 0x4B8), int);
     return t == UT(AA10_TANK) || t == UT(AA10_STINGER_SOLDIER) || t == UT(AA13_TANK_SKYWATCHER);
 }
 // what player pl has seen of its enemies within r tiles of (x, y): soldiers and siege (hit points x attack), with
 // defences != 0 also defences whose range reaches the point; the soldiers' centre and number
-static float as_enemy_power(ee_player *pl, int x, int y, int r, float *cx, float *cy, int *n, int defences) {
+internal float as_enemy_power(ee_player *pl, int x, int y, int r, float *cx, float *cy, int *n, int defences) {
     uint8_t *map = *(uint8_t **)GA(G_MAP);
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     float pow = 0, sx = 0, sy = 0;
@@ -181,30 +181,30 @@ static float as_enemy_power(ee_player *pl, int x, int y, int r, float *cx, float
 // Stored unit pointers: a unit's memory is freed when it dies (and reused) - read only while it is still on the map
 // (the objective, a building at its spot) or still a member (the wave, against this tick's members)
 struct as_find { ee_unit *u; int found; };
-static void as_find_fn(ee_unit *u, void *ctx) { struct as_find *f = ctx; if (u == f->u) f->found = 1; }
-static int as_on_map(ee_unit *u, int x, int y) {
+internal void as_find_fn(ee_unit *u, void *ctx) { struct as_find *f = ctx; if (u == f->u) f->found = 1; }
+internal int as_on_map(ee_unit *u, int x, int y) {
     struct as_find f = { u, 0 };
     if (u) grid_box(x, y, 2, as_find_fn, &f);
     return f.found;
 }
-static int as_member(ee_unit **mem, int n, ee_unit *u) {
+internal int as_member(ee_unit **mem, int n, ee_unit *u) {
     for (int j = 0; j < n; j++) if (mem[j] == u) return 1;
     return 0;
 }
-static int as_in_wave(struct assault *a, ee_unit *u) {
+internal int as_in_wave(struct assault *a, ee_unit *u) {
     for (int k = 0; k < a->nwave; k++) if (a->wave[k] == u) return 1;
     return 0;
 }
-static int as_goal_near(ee_unit *u, float x, float y, float r) {   // walking there already
+internal int as_goal_near(ee_unit *u, float x, float y, float r) {   // walking there already
     uint8_t *g = FIELD(u, OF(UNIT, 0x1EC), uint8_t *);
     return g && *(uintptr_t *)g == GA(VT_GOAL_LOCATION) && fabsf(FIELD(g, OF(AG, 0x20), float) - x) < r && fabsf(FIELD(g, OF(AG, 0x24), float) - y) < r;
 }
-static int as_fighting(ee_unit *u) {
+internal int as_fighting(ee_unit *u) {
     uint8_t *g = FIELD(u, OF(UNIT, 0x1EC), uint8_t *), *t = g && *(uintptr_t *)g == GA(VT_GOAL_ATTACK) ? FIELD(g, OF(AG, 0x30), uint8_t *) : NULL;
     return t && FIELD(t, OF(UNIT, 0x3C), int) > 0;
 }
 
-static void as_end(ee_player *pl, unsigned pi, uint32_t now, const char *why, int n) {
+internal void as_end(ee_player *pl, unsigned pi, uint32_t now, const char *why, int n) {
     struct assault *a = &g_as[pi];
     int t = FIELD(a->target, PL_INDEX, int) & 15;
     g_cancel_why[pi][t] = why;
@@ -218,7 +218,7 @@ static void as_end(ee_player *pl, unsigned pi, uint32_t now, const char *why, in
 }
 
 struct as_home { ee_player *pl; int nb, bx[512], by[512]; int ne, ex[512], ey[512]; };
-static void as_home_unit(ee_unit *u, void *ctx) {
+internal void as_home_unit(ee_unit *u, void *ctx) {
     struct as_home *h = ctx;
     uint8_t *td = FIELD(u, OF(UNIT, 0x2C), uint8_t *);
     ee_player *o = unit_owner(u);
@@ -230,7 +230,7 @@ static void as_home_unit(ee_unit *u, void *ctx) {
                seen_by(u, h->pl) && h->ne < 512) { h->ex[h->ne] = FIELD(u, OF(UNIT, 0x1C), int); h->ey[h->ne++] = FIELD(u, OF(UNIT, 0x20), int); }
 }
 // enemy soldiers and siege the AI sees within 20 tiles of any of its buildings: an army in its territory
-static int as_home_threat(ee_player *pl) {
+internal int as_home_threat(ee_player *pl) {
     static struct as_home h;
     h.pl = pl; h.nb = h.ne = 0;
     grid_each(as_home_unit, &h);
@@ -243,7 +243,7 @@ static int as_home_threat(ee_player *pl) {
     return n;
 }
 
-static void assault_tick(ee_player *pl, uint32_t now) {
+internal void assault_tick(ee_player *pl, uint32_t now) {
     unsigned pi = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     struct assault *a = &g_as[pi];
     if (!g_assault) return;
@@ -472,7 +472,7 @@ static void assault_tick(ee_player *pl, uint32_t now) {
 }
 
 // assault P (test): the state of AI P's assault
-static void cmd_assault(char *out, const char *args) {
+internal void cmd_assault(char *out, const char *args) {
     int p = atoi(args);
     if (p <= 0 || p >= 16) { REPLY("error: assault P\n"); return; }
     struct assault *a = &g_as[p];
@@ -482,7 +482,7 @@ static void cmd_assault(char *out, const char *args) {
           a->ntaken, a->launches, a->spent, a->done, a->objectives, a->orders);
 }
 
-static void assault_install(const char *aimod_ini, const char *autotest_ini) {
+internal void assault_install(const char *aimod_ini, const char *autotest_ini) {
     g_assault = cfg_int(aimod_ini, autotest_ini, 1, "assault", 0);
     g_as_outmatched = cfg_int(aimod_ini, autotest_ini, 1, "assault_outmatched", 0);
     int h = patch_asg_update(hook_asg_update);
@@ -490,4 +490,4 @@ static void assault_install(const char *aimod_ini, const char *autotest_ini) {
 }
 
 // a new game (the game start hook): the waves and subgroups led are the last game's
-static void assault_new_game(void) { memset(g_as, 0, sizeof g_as); }
+internal void assault_new_game(void) { memset(g_as, 0, sizeof g_as); }

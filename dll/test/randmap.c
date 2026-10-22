@@ -24,7 +24,7 @@
 //   AI at its first update: "# cheat: P3 (vanilla) difficulty 2, cheat 1: a price of 1000 costs 10".
 // Included by eeaimod.c.
 
-static struct {
+internal struct {
     char map[64];
     int size, scale, ais, start_epoch, seed, pairs, citizens, unit_limit;
     int ai_cheat, ai_ignore;   // -1 = leave as the game sets them
@@ -32,9 +32,9 @@ static struct {
     int difficulty;            // the setup's (every AI), 0..2
     int v_difficulty, v_cheat; // the vanilla players' own (-1: as the others)
 } g_rm = { "", 0, 1, 3, 0, 0, 0, 5, 500, -1, -1, 0, 0, 1, -1, -1 };
-static const char *const k_rm_scale[6] = { "tiny", "small", "medium", "large", "huge", "gigantic" };
+internal const char *const k_rm_scale[6] = { "tiny", "small", "medium", "large", "huge", "gigantic" };
 
-static int difficulty_key(const char *ini, const char *key, int def) {   // easy|medium|hard or 0..2
+internal int difficulty_key(const char *ini, const char *key, int def) {   // easy|medium|hard or 0..2
     char v[16];
     GetPrivateProfileStringA("autotest", key, "", v, sizeof v, ini);
     if (!v[0]) return def;
@@ -47,7 +47,7 @@ static int difficulty_key(const char *ini, const char *key, int def) {   // easy
 
 typedef void *(__thiscall *UStrAssignFn)(void *ustr, const char *s);
 
-static void randmap_load(const char *ini) {
+internal void randmap_load(const char *ini) {
     GetPrivateProfileStringA("autotest", "random_map", "", g_rm.map, sizeof g_rm.map, ini);
     g_rm.size = ini_int("autotest", "map_size", 0, ini);
     char sc[16];
@@ -78,7 +78,7 @@ static void randmap_load(const char *ini) {
 }
 
 // Called from hook_game_start before the original runs.
-static void randmap_rewrite(uint8_t *setup) {
+internal void randmap_rewrite(uint8_t *setup) {
     (*(UStrAssignFn *)GA(IAT_USTRING_ASSIGN))(setup + OF(SETUP, 0x3A8), g_rm.map);
     *(int *)(setup + OF(SETUP, 0x3D8)) = 0;
     for (int i = 0; i < 16; i++) {
@@ -127,7 +127,7 @@ static void randmap_rewrite(uint8_t *setup) {
 // Diplomacy array: player+0x9E4[index].
 
 // Called once per AI player at its first update of a game.
-static void randmap_ai_toggles(ee_player *pl) {
+internal void randmap_ai_toggles(ee_player *pl) {
     if (g_rm.ai_cheat >= 0) FIELD(pl, PL_CHEAT, uint8_t) = (uint8_t)g_rm.ai_cheat;
     if (g_rm.ai_ignore >= 0) FIELD(pl, OF(PL, 0xF02), uint8_t) = (uint8_t)g_rm.ai_ignore;
     int vanilla = is_vanilla(pl), idx = FIELD(pl, PL_INDEX, int);

@@ -12,19 +12,19 @@
 #include <ddraw.h>
 
 
-static int g_editor_w, g_editor_h, g_editor_game;   // 0 = leave
+internal int g_editor_w, g_editor_h, g_editor_game;   // 0 = leave
 
 // The editor layout for any resolution from 800x600 up: Art of Conquest's 1024x768 values (generated from a
 // comparison of both exes, scripts/layout_diff.py + gen_editor_layout.py), each moved with the screen size the way
 // AoC moved it from EE's 800x600: anchored right/bottom, stretched, or centred. Computed when the editor is entered.
 #include "game/editor_layout.h"
 #define N_LAYOUT (sizeof k_editor_layout / sizeof *k_editor_layout)
-static uint32_t g_layout_consts[N_LAYOUT];
-static int8_t g_layout_state[N_LAYOUT];   // 0 unchecked, 1 patched, -1 didn't match (skipped)
-static int g_buttons_state;
+internal uint32_t g_layout_consts[N_LAYOUT];
+internal int8_t g_layout_state[N_LAYOUT];   // 0 unchecked, 1 patched, -1 didn't match (skipped)
+internal int g_buttons_state;
 
 
-static int apply_editor_layout(int w, int h) {
+internal int apply_editor_layout(int w, int h) {
     int ok = 0, bad = 0;
     if (g_exe_build != 0) return 0;   // editor_layout.h is the 2017 update's (addr.h k_exe_builds[0])
     for (size_t i = 0; i < N_LAYOUT; i++) {
@@ -62,7 +62,7 @@ static int apply_editor_layout(int w, int h) {
     return ok;
 }
 
-static void editor_size(int *w, int *h) {
+internal void editor_size(int *w, int *h) {
     int nw = g_editor_game ? *(int *)GA(G_GAME_RES_W) : g_editor_w;
     int nh = g_editor_game ? *(int *)GA(G_GAME_RES_H) : g_editor_h;
     if (nw >= 800 && nh >= 600) { *w = nw; *h = nh; }
@@ -74,8 +74,8 @@ typedef void (__stdcall *SetResolutionFn)(int w, int h, int force, int flag);
 // in-game one. The editor's frame has AoC's fixed size (1.28 x the 800x600 one), so at other resolutions the
 // picture overshot it (only its upper left part visible). The 6 operands read our factors instead: in the
 // editor 1.28 / width and 1.28 / height (= the originals at 1024x768), elsewhere the originals.
-static float g_mm_fx = 1.0f / 800.0f, g_mm_fy = 1.0f / 600.0f;
-static int redirect_minimap_scale(void) {
+internal float g_mm_fx = 1.0f / 800.0f, g_mm_fy = 1.0f / 600.0f;
+internal int redirect_minimap_scale(void) {
     int n = 0;
     for (int i = 0; i < 3; i++) {
         n += patch_code32(GL(MINIMAP_FX_OPS)[i], GA(G_FLOAT_1_800), (uint32_t)(uintptr_t)&g_mm_fx);
@@ -84,7 +84,7 @@ static int redirect_minimap_scale(void) {
     return n;
 }
 
-static void __stdcall hook_editor_resolution(int w, int h, int force, int flag) {
+internal void __stdcall hook_editor_resolution(int w, int h, int force, int flag) {
     memset(g_players, 0, sizeof g_players);   // into the editor (also back from a test run): the game's players are gone
     editor_size(&w, &h);
     int lay = apply_editor_layout(w, h);
@@ -95,7 +95,7 @@ static void __stdcall hook_editor_resolution(int w, int h, int force, int flag) 
 }
 
 // every other resolution switch (game, menus, test play from the editor): the original minimap factors
-static void __stdcall hook_other_resolution(int w, int h, int force, int flag) {
+internal void __stdcall hook_other_resolution(int w, int h, int force, int flag) {
     g_mm_fx = 1.0f / 800.0f;
     g_mm_fy = 1.0f / 600.0f;
     ((SetResolutionFn)GA(FN_SET_RESOLUTION))(w, h, force, flag);
@@ -103,7 +103,7 @@ static void __stdcall hook_other_resolution(int w, int h, int force, int flag) {
 
 // The editor's main form (constructor 0x58D3E1) is built once, on first use (0x65B9F5) - before the resolution
 // switch - and keeps its layout; its sub-pages are built later. The layout is computed right before it.
-static void *__fastcall hook_editor_form(void *form, void *edx, void *owner) {
+internal void *__fastcall hook_editor_form(void *form, void *edx, void *owner) {
     (void)edx;
     int w = 800, h = 600;
     editor_size(&w, &h);
@@ -119,10 +119,10 @@ static void *__fastcall hook_editor_form(void *form, void *edx, void *owner) {
 // minimizes/restores with ShowWindow. The byte is already 1 when the DLLs load and nothing writes it later, so
 // clearing it here switches every reader (including dreXmod's hook on the loading screen at 0x534433).
 // aimod.ini [display] windowed = 0 | 1
-static uint8_t g_fullscreen = 1;
-static int g_present_every;   // autotest present_every (diagnostics)
-static volatile DWORD g_render_thread;   // thread that calls ShowScene (profile render)
-static int g_diag;   // diagnostic sampling (aimod.ini [display] diag=1 or autotest diag_hooks=1)
+internal uint8_t g_fullscreen = 1;
+internal int g_present_every;   // autotest present_every (diagnostics)
+internal volatile DWORD g_render_thread;   // thread that calls ShowScene (profile render)
+internal int g_diag;   // diagnostic sampling (aimod.ini [display] diag=1 or autotest diag_hooks=1)
 
 // Windowed present: ShowScene (DX7Rasterizer vtable slot 66, in DX7HRDisplay.dll and DX7HRTnLDisplay.dll)
 // blits the back buffer to the primary surface at the window's screen position. On current Windows the primary a
@@ -138,11 +138,11 @@ static int g_diag;   // diagnostic sampling (aimod.ini [display] diag=1 or autot
 // description from a garbage pixel format index (intermittent crash in CreateSurface). Windowed, we only record it.
 typedef int (__thiscall *ShowSceneFn)(void *ras, unsigned screen);
 typedef int (__thiscall *SetModeFn)(void *scr, unsigned mode);
-static struct { const char *dll; uintptr_t lo, hi; ShowSceneFn show; SetModeFn set_mode; } g_show[2] = {
+internal struct { const char *dll; uintptr_t lo, hi; ShowSceneFn show; SetModeFn set_mode; } g_show[2] = {
     { "DX7HRDisplay.dll", 0, 0, NULL, NULL }, { "DX7HRTnLDisplay.dll", 0, 0, NULL, NULL },
 };
 #define DISPLAY_DLL(obj) (*(uintptr_t *)(obj) >= g_show[0].lo && *(uintptr_t *)(obj) < g_show[0].hi ? 0 : 1)
-static volatile LONG g_present_frames, g_present_fail;
+internal volatile LONG g_present_frames, g_present_fail;
 
 // Borderless fullscreen and DPI. aimod.ini [display] windowed = borderless: a frameless window over the whole
 // monitor; Alt+Enter switches between that and a normal window. The game keeps rendering at its resolution
@@ -152,25 +152,25 @@ static volatile LONG g_present_frames, g_present_fail;
 // Headless tests (autotest headless=1): the window is created off-screen, never activates and ignores focus
 // changes; the game cursor and clicks come from the control pipe (vmouse/vclick) and screenshots are taken from
 // the presented frame (shot) - nothing on the user's screen, mouse or keyboard is touched.
-static int g_headless;
-static volatile LONG g_shot_req, g_shot_done;
-static char g_shot_path[MAX_PATH];
-static int write_desc_bmp(const DDSURFACEDESC2 *d, const char *path);
-static int g_borderless;   // current mode: 1 borderless, 0 normal window
-static int g_smooth;       // [display] smooth = 1: filtered scaling (HALFTONE) instead of nearest pixel
-static int g_dpi_windows;
-static void window_hook(HWND hwnd);
+internal int g_headless;
+internal volatile LONG g_shot_req, g_shot_done;
+internal char g_shot_path[MAX_PATH];
+internal int write_desc_bmp(const DDSURFACEDESC2 *d, const char *path);
+internal int g_borderless;   // current mode: 1 borderless, 0 normal window
+internal int g_smooth;       // [display] smooth = 1: filtered scaling (HALFTONE) instead of nearest pixel
+internal int g_dpi_windows;
+internal void window_hook(HWND hwnd);
 typedef void *(WINAPI *SetThreadDpiFn)(void *);
 typedef void *(WINAPI *GetWindowDpiFn)(HWND);
-static SetThreadDpiFn g_set_thread_dpi;
-static GetWindowDpiFn g_get_window_dpi;
+internal SetThreadDpiFn g_set_thread_dpi;
+internal GetWindowDpiFn g_get_window_dpi;
 // window geometry from the game's (DPI-unaware) threads in the window's own DPI context, else a DPI-aware
 // window is reported scaled down
-static void *dpi_enter(HWND h) { return g_set_thread_dpi && g_get_window_dpi ? g_set_thread_dpi(g_get_window_dpi(h)) : NULL; }
-static void dpi_leave(void *prev) { if (prev) g_set_thread_dpi(prev); }
+internal void *dpi_enter(HWND h) { return g_set_thread_dpi && g_get_window_dpi ? g_set_thread_dpi(g_get_window_dpi(h)) : NULL; }
+internal void dpi_leave(void *prev) { if (prev) g_set_thread_dpi(prev); }
 
 typedef HWND (WINAPI *CreateWindowExAFn)(DWORD, LPCSTR, LPCSTR, DWORD, int, int, int, int, HWND, HMENU, HINSTANCE, LPVOID);
-static HWND WINAPI hook_create_window(DWORD ex, LPCSTR cls, LPCSTR name, DWORD style, int x, int y, int w, int h,
+internal HWND WINAPI hook_create_window(DWORD ex, LPCSTR cls, LPCSTR name, DWORD style, int x, int y, int w, int h,
                                       HWND parent, HMENU menu, HINSTANCE inst, LPVOID param) {
     // headless: every top-level window off-screen, never activated - the game window and the display DLL's
     // 16x16 "TestWindowClass" probe window, which otherwise takes the foreground for a moment
@@ -186,7 +186,7 @@ static HWND WINAPI hook_create_window(DWORD ex, LPCSTR cls, LPCSTR name, DWORD s
     return r;
 }
 
-static int patch_iat(HMODULE m, const char *dll, const char *fn, void *hook) {
+internal int patch_iat(HMODULE m, const char *dll, const char *fn, void *hook) {
     uint8_t *b = (uint8_t *)m;
     IMAGE_NT_HEADERS *nt = (IMAGE_NT_HEADERS *)(b + ((IMAGE_DOS_HEADER *)b)->e_lfanew);
     IMAGE_DATA_DIRECTORY dd = nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT];
@@ -208,7 +208,7 @@ static int patch_iat(HMODULE m, const char *dll, const char *fn, void *hook) {
 }
 
 // where the game image goes in the client area: scaled to fit, aspect kept
-static RECT view_rect(const RECT *cr, int w, int h) {
+internal RECT view_rect(const RECT *cr, int w, int h) {
     RECT r = *cr;
     if (w <= 0 || h <= 0) return r;
     if ((long long)cr->right * h > (long long)cr->bottom * w) {   // client wider: bars left and right
@@ -225,16 +225,16 @@ static RECT view_rect(const RECT *cr, int w, int h) {
 
 // smooth = 1: bilinear scaling of the 32-bit frame on the CPU, rows split over worker threads, then a 1:1 copy.
 // GDI's HALFTONE costs ~33 ms per frame at 2560x1440 -> 2405x1353 (measured with ddpoke bench), this a few ms.
-static struct {
+internal struct {
     const uint8_t *src; int sw, sh, spitch;
     uint32_t *dst; int dw, dh;
     int *xi; uint32_t *xw;   // per destination column: source column, weight 0..256
 } g_scale;
-static HANDLE g_scale_go[8], g_scale_done[8];
-static SRWLOCK g_scale_lock = SRWLOCK_INIT;   // held by the caller from scale_frame until its buffer is copied
-static int g_scale_threads;
+internal HANDLE g_scale_go[8], g_scale_done[8];
+internal SRWLOCK g_scale_lock = SRWLOCK_INIT;   // held by the caller from scale_frame until its buffer is copied
+internal int g_scale_threads;
 
-static void scale_rows(int y0, int y1) {
+internal void scale_rows(int y0, int y1) {
     const int sw = g_scale.sw, sh = g_scale.sh, dw = g_scale.dw;
     for (int y = y0; y < y1; y++) {
         int fy = (int)(((long long)y * (sh - 1) << 8) / (g_scale.dh > 1 ? g_scale.dh - 1 : 1));
@@ -257,7 +257,7 @@ static void scale_rows(int y0, int y1) {
     }
 }
 
-static DWORD WINAPI scale_worker(void *arg) {
+internal DWORD WINAPI scale_worker(void *arg) {
     int i = (int)(intptr_t)arg, n = g_scale_threads + 1;
     for (;;) {
         WaitForSingleObject(g_scale_go[i], INFINITE);
@@ -267,7 +267,7 @@ static DWORD WINAPI scale_worker(void *arg) {
 }
 
 // scales the locked frame (32 bpp) to dw x dh into our buffer; returns it, or NULL (then GDI scales)
-static uint32_t *scale_frame(const DDSURFACEDESC2 *d, int dw, int dh) {
+internal uint32_t *scale_frame(const DDSURFACEDESC2 *d, int dw, int dh) {
     static uint32_t *buf;
     static int bw, bh, bsw;
     if (d->ddpfPixelFormat.dwRGBBitCount != 32 || dw < 2 || dh < 2) return NULL;
@@ -306,9 +306,9 @@ static uint32_t *scale_frame(const DDSURFACEDESC2 *d, int dw, int dh) {
 }
 
 // timing of the windowed present (ddinfo): readback (Lock), copy to the window (GDI, Direct3D or primary Blt), frame interval
-static volatile LONG64 g_t_lock, g_t_blit, g_t_frame;
-static volatile LONG g_t_count;
-static LONGLONG qpc(void) { LARGE_INTEGER t; QueryPerformanceCounter(&t); return t.QuadPart; }
+internal volatile LONG64 g_t_lock, g_t_blit, g_t_frame;
+internal volatile LONG g_t_count;
+internal LONGLONG qpc(void) { LARGE_INTEGER t; QueryPerformanceCounter(&t); return t.QuadPart; }
 
 #include "present_d3d.c"
 
@@ -317,8 +317,8 @@ static LONGLONG qpc(void) { LARGE_INTEGER t; QueryPerformanceCounter(&t); return
 // window), and unlike dgVoodoo's pass-through its windowed primary is desktop sized, so the Blt is safe. A GPU
 // copy (back buffer -> primary at the window's client area, scaled, bars filled black, clipped to the window);
 // the back buffer is only locked for a "shot". Otherwise Direct3D 11 (present_d3d.c), or gdi when set.
-static int g_present_mode;   // 0 auto, 1 d3d, 2 gdi, 3 primary
-static int ddrawcompat_loaded(void) {
+internal int g_present_mode;   // 0 auto, 1 d3d, 2 gdi, 3 primary
+internal int ddrawcompat_loaded(void) {
     static int known = -1;
     if (known >= 0) return known;
     known = 0;
@@ -338,9 +338,9 @@ static int ddrawcompat_loaded(void) {
     return 0;
 }
 
-static volatile LONG g_primary_frames, g_primary_fail;
-static HRESULT g_primary_hr;
-static int present_primary(uint8_t *ras, unsigned screen, uint8_t *scr, uint8_t *back, IDirectDrawSurface7 *b, HWND hwnd) {
+internal volatile LONG g_primary_frames, g_primary_fail;
+internal HRESULT g_primary_hr;
+internal int present_primary(uint8_t *ras, unsigned screen, uint8_t *scr, uint8_t *back, IDirectDrawSurface7 *b, HWND hwnd) {
     (void)ras; (void)screen;
     if (g_present_mode != 3 && !(g_present_mode == 0 && ddrawcompat_loaded())) return 0;
     uint8_t *st = FIELD(ras, OF(E_RAS, 0x20), uint8_t **)[screen];
@@ -418,7 +418,7 @@ static int present_primary(uint8_t *ras, unsigned screen, uint8_t *scr, uint8_t 
     return 1;
 }
 
-static int present_to_window(uint8_t *ras, unsigned screen) {
+internal int present_to_window(uint8_t *ras, unsigned screen) {
     uint8_t *st = FIELD(ras, OF(E_RAS, 0x20), uint8_t **)[screen];
     uint8_t *scr = FIELD(st, OF(E_SCRSTATE, 0x2A8), uint8_t *), *back = FIELD(st, OF(E_SCRSTATE, 0x2B0), uint8_t *), *win = FIELD(st, OF(E_SCRSTATE, 0x2BC), uint8_t *);
     if (!scr || FIELD(scr, OF(E_SCREEN, 0x3D), uint8_t) || !back || !win) return 0;
@@ -522,8 +522,8 @@ static int present_to_window(uint8_t *ras, unsigned screen) {
 }
 
 // diagnostics: share of non-black pixels in the back buffer (sampled) before the original ShowScene
-static volatile LONG g_lit_samples, g_lit_frames, g_lock_fail;
-static void sample_back(uint8_t *ras, unsigned screen) {
+internal volatile LONG g_lit_samples, g_lit_frames, g_lock_fail;
+internal void sample_back(uint8_t *ras, unsigned screen) {
     uint8_t *st = FIELD(ras, OF(E_RAS, 0x20), uint8_t **)[screen];
     uint8_t *back = FIELD(st, OF(E_SCRSTATE, 0x2B0), uint8_t *);
     IDirectDrawSurface7 *s = back ? FIELD(back, OF(E_SURF, 0x48), IDirectDrawSurface7 *) : NULL;
@@ -546,8 +546,8 @@ static void sample_back(uint8_t *ras, unsigned screen) {
 // +0x2C4 float sum; every 12 frames the averages (+0x2C8 +0x2D0 +0x2DC +0x2E4) and the rates per second over
 // TMGetTime (ms): +0x2CC, +0x2D4, +0x2D8 = frames per second, +0x2E0; then all counters restart.
 typedef DWORD (__cdecl *TMGetTimeFn)(void);
-static TMGetTimeFn g_tm_get_time;
-static void frame_stats(uint8_t *ras, unsigned screen) {
+internal TMGetTimeFn g_tm_get_time;
+internal void frame_stats(uint8_t *ras, unsigned screen) {
     uint8_t *st = FIELD(ras, OF(E_RAS, 0x20), uint8_t **)[screen];
     if (!st || ++FIELD(st, OF(E_SCRSTATE, 0x32C), unsigned) != 12) return;
     if (!g_tm_get_time) g_tm_get_time = (TMGetTimeFn)(void *)GetProcAddress(GetModuleHandleA("Low-Level Engine.dll"), "?TMGetTime@@YAKXZ");
@@ -571,7 +571,7 @@ static void frame_stats(uint8_t *ras, unsigned screen) {
 
 #include "display_diag.c"
 
-static int __fastcall hook_show_scene(void *ras, void *edx, unsigned screen) {
+internal int __fastcall hook_show_scene(void *ras, void *edx, unsigned screen) {
     (void)edx;
     g_render_thread = GetCurrentThreadId();
     frame_watch();
@@ -593,7 +593,7 @@ static int __fastcall hook_show_scene(void *ras, void *edx, unsigned screen) {
     return present_to_window(ras, screen) ? 0 : 1;
 }
 
-static int __fastcall hook_set_mode(void *scr, void *edx, unsigned mode) {
+internal int __fastcall hook_set_mode(void *scr, void *edx, unsigned mode) {
     (void)edx;
     if (FIELD(scr, OF(E_SCREEN, 0x3D), uint8_t)) return g_show[DISPLAY_DLL(scr)].set_mode(scr, mode);
     FIELD(scr, OF(E_SCREEN, 0x38), unsigned) = mode;
@@ -603,19 +603,19 @@ static int __fastcall hook_set_mode(void *scr, void *edx, unsigned mode) {
 // GetCurrentMode / GetCurrentModeIndex: the index the constructor takes from the mode enumeration can be out of
 // range windowed (the game reads the current mode before its first SetMode - crash at 0x535958); clamp it.
 // Modes: vector of 0x14-byte GEVideoMode at +0x10 (begin) / +0x14 (end).
-static unsigned screen_mode_index(uint8_t *scr) {
+internal unsigned screen_mode_index(uint8_t *scr) {
     unsigned n = (FIELD(scr, OF(E_SCREEN, 0x14), uintptr_t) - FIELD(scr, OF(E_SCREEN, 0x10), uintptr_t)) / 0x14;
     if (!FIELD(scr, OF(E_SCREEN, 0x3D), uint8_t) && FIELD(scr, OF(E_SCREEN, 0x38), unsigned) >= n) FIELD(scr, OF(E_SCREEN, 0x38), unsigned) = 0;
     return FIELD(scr, OF(E_SCREEN, 0x38), unsigned);
 }
-static void *__fastcall hook_get_current_mode(uint8_t *scr) {
+internal void *__fastcall hook_get_current_mode(uint8_t *scr) {
     return FIELD(scr, OF(E_SCREEN, 0x10), uint8_t *) + screen_mode_index(scr) * 0x14;
 }
-static unsigned __fastcall hook_get_current_mode_index(uint8_t *scr) {
+internal unsigned __fastcall hook_get_current_mode_index(uint8_t *scr) {
     return screen_mode_index(scr);
 }
 
-static int replace_rdata_ptr(HMODULE m, void *fn, void *hook) {
+internal int replace_rdata_ptr(HMODULE m, void *fn, void *hook) {
     IMAGE_NT_HEADERS *nt = (IMAGE_NT_HEADERS *)((uint8_t *)m + ((IMAGE_DOS_HEADER *)m)->e_lfanew);
     IMAGE_SECTION_HEADER *sec = IMAGE_FIRST_SECTION(nt);
     int n = 0;
@@ -636,10 +636,10 @@ static int replace_rdata_ptr(HMODULE m, void *fn, void *hook) {
 
 #include "display_text.c"
 
-static void *const k_fc_hooks[FC_N] = { (void *)hook_fc_text, (void *)hook_fc_text_rect, (void *)hook_fc_lock,
+internal void *const k_fc_hooks[FC_N] = { (void *)hook_fc_text, (void *)hook_fc_text_rect, (void *)hook_fc_lock,
                                         (void *)hook_fc_text_lock, (void *)hook_fc_text_unlock };
 
-static int install_windowed_present(void) {
+internal int install_windowed_present(void) {
     int n = 0;
     for (int i = 0; i < 2; i++) {
         HMODULE m = GetModuleHandleA(g_show[i].dll);
@@ -746,14 +746,14 @@ static int install_windowed_present(void) {
 // only in borderless (a full-screen picture: edge scrolling must not slide onto another monitor), not in a window
 // (Alt+Enter switches both). Native fullscreen needs nothing: the exclusive DirectInput mouse never leaves.
 typedef void (__thiscall *ThisFn)(void *);
-static ThisFn g_recompute_buttons;   // ISMouse::RecomputeCurrentButtonState
-static int g_lock_mouse = 2;   // 0 never, 1 always, 2 auto (borderless only)
-static int mouse_locked(void) { return g_lock_mouse == 1 || (g_lock_mouse == 2 && g_borderless); }
-static WNDPROC g_game_wndproc;
-static HWND g_subclassed;
-static volatile LONG g_mouse_updates, g_mouse_unacq, g_mouse_reacq;
+internal ThisFn g_recompute_buttons;   // ISMouse::RecomputeCurrentButtonState
+internal int g_lock_mouse = 2;   // 0 never, 1 always, 2 auto (borderless only)
+internal int mouse_locked(void) { return g_lock_mouse == 1 || (g_lock_mouse == 2 && g_borderless); }
+internal WNDPROC g_game_wndproc;
+internal HWND g_subclassed;
+internal volatile LONG g_mouse_updates, g_mouse_unacq, g_mouse_reacq;
 
-static void os_cursor_visible(void) {   // display count back to 0 for this thread
+internal void os_cursor_visible(void) {   // display count back to 0 for this thread
     int c = ShowCursor(TRUE);
     while (c < 0) c = ShowCursor(TRUE);
     while (c > 0) c = ShowCursor(FALSE);
@@ -767,9 +767,9 @@ static void os_cursor_visible(void) {   // display count back to 0 for this thre
 #define WM_AIMOD_MODE (WM_APP + 0x2E45)
 typedef UINT (WINAPI *GetDpiFn)(HWND);
 typedef BOOL (WINAPI *AdjustForDpiFn)(RECT *, DWORD, BOOL, DWORD, UINT);
-static GetDpiFn g_get_dpi;
-static AdjustForDpiFn g_adjust_for_dpi;
-static RECT frame_for_dpi(UINT dpi) {   // WS_OVERLAPPEDWINDOW frame around an empty client
+internal GetDpiFn g_get_dpi;
+internal AdjustForDpiFn g_adjust_for_dpi;
+internal RECT frame_for_dpi(UINT dpi) {   // WS_OVERLAPPEDWINDOW frame around an empty client
     RECT f = { 0 };
     if (!g_get_dpi) {
         HMODULE u = GetModuleHandleA("user32.dll");
@@ -780,13 +780,13 @@ static RECT frame_for_dpi(UINT dpi) {   // WS_OVERLAPPEDWINDOW frame around an e
     else AdjustWindowRect(&f, WS_OVERLAPPEDWINDOW, FALSE);
     return f;
 }
-static UINT window_dpi(HWND h) { frame_for_dpi(96); return g_get_dpi ? g_get_dpi(h) : 96; }
+internal UINT window_dpi(HWND h) { frame_for_dpi(96); return g_get_dpi ? g_get_dpi(h) : 96; }
 
 // a normal window with client cw x ch (the game resolution), in the window's DPI context. It always fits the
 // monitor's work area: a resolution as big as the screen would make the window larger than the desktop, which
 // Windows cuts and dgVoodoo then crashes on (DDRAW.dll+2B133) - the client is scaled down (aspect kept), the
 // image is scaled into it. Position: kept (centered when coming from borderless), moved inside the work area.
-static RECT normal_window_rect(HWND h, int cw, int ch) {
+internal RECT normal_window_rect(HWND h, int cw, int ch) {
     MONITORINFO mi = { .cbSize = sizeof mi };
     GetMonitorInfoA(MonitorFromWindow(h, MONITOR_DEFAULTTONEAREST), &mi);
     RECT f = frame_for_dpi(window_dpi(h)), wr, wa = mi.rcWork;
@@ -810,7 +810,7 @@ static RECT normal_window_rect(HWND h, int cw, int ch) {
     return (RECT){ x, y, x + w, y + hh };
 }
 
-static RECT window_rect_for(HWND h) {
+internal RECT window_rect_for(HWND h) {
     if (g_borderless) {
         MONITORINFO mi = { .cbSize = sizeof mi };
         GetMonitorInfoA(MonitorFromWindow(h, MONITOR_DEFAULTTONEAREST), &mi);
@@ -820,7 +820,7 @@ static RECT window_rect_for(HWND h) {
     return normal_window_rect(h, win ? FIELD(win, OF(E_WINDOW, 0xC), int) : 1024, win ? FIELD(win, OF(E_WINDOW, 0x10), int) : 768);
 }
 
-static void apply_window_mode(HWND h) {
+internal void apply_window_mode(HWND h) {
     if (IsIconic(h)) ShowWindow(h, SW_RESTORE);
     if (IsZoomed(h)) ShowWindow(h, SW_RESTORE);
     RECT r = window_rect_for(h);   // before the style change (reads where it comes from)
@@ -833,9 +833,9 @@ static void apply_window_mode(HWND h) {
                          r.bottom - r.top, mouse_locked() ? "locked" : "free"); }
 }
 
-static void modern_frame(HWND h);
+internal void modern_frame(HWND h);
 #define WM_AIMOD_FRAME (WM_APP + 0x2E46)
-static LRESULT CALLBACK window_proc(HWND h, UINT msg, WPARAM w, LPARAM l) {
+internal LRESULT CALLBACK window_proc(HWND h, UINT msg, WPARAM w, LPARAM l) {
     if (g_headless) {   // the game never learns about focus: no suspend, no pause, no activation
         if (msg == WM_ACTIVATEAPP || msg == WM_ACTIVATE || msg == WM_SETCURSOR) return msg == WM_SETCURSOR;
         if (msg == WM_MOUSEACTIVATE) return MA_NOACTIVATE;
@@ -889,7 +889,7 @@ static LRESULT CALLBACK window_proc(HWND h, UINT msg, WPARAM w, LPARAM l) {
 
 // DDrawCompat switches the modern window frame off for the game (DWM non-client rendering and/or visual styles),
 // leaving the Windows 98 look; switched on again for the game window (posted to the window's thread).
-static void modern_frame(HWND h) {
+internal void modern_frame(HWND h) {
     typedef DWORD (WINAPI *GetThemeAppPropsFn)(void);
     typedef void (WINAPI *SetThemeAppPropsFn)(DWORD);
     typedef HRESULT (WINAPI *SetWindowThemeFn)(HWND, LPCWSTR, LPCWSTR);
@@ -924,7 +924,7 @@ static void modern_frame(HWND h) {
     }
 }
 
-static void window_hook(HWND hwnd) {   // subclass once per window (present and mouse threads both call this)
+internal void window_hook(HWND hwnd) {   // subclass once per window (present and mouse threads both call this)
     static volatile LONG busy;
     if (g_subclassed == hwnd || InterlockedExchange(&busy, 1)) return;
     if (g_subclassed != hwnd) {
@@ -940,7 +940,7 @@ static void window_hook(HWND hwnd) {   // subclass once per window (present and 
 // Low-Level Engine's SetWindowPos (only GEWindow::Resize): its size comes from AdjustWindowRect at 96 DPI on an
 // unaware thread; for the DPI-aware game window the client it means is rebuilt at the window's DPI and set in
 // the window's context, so Windows doesn't scale it
-static BOOL WINAPI hook_set_window_pos(HWND h, HWND after, int x, int y, int cx, int cy, UINT flags) {
+internal BOOL WINAPI hook_set_window_pos(HWND h, HWND after, int x, int y, int cx, int cy, UINT flags) {
     if ((flags & SWP_NOSIZE) || (GetWindowLongA(h, GWL_STYLE) & WS_POPUP) || IsIconic(h) || IsZoomed(h))
         return SetWindowPos(h, after, x, y, cx, cy, flags);
     RECT f96 = frame_for_dpi(96);   // the game's AdjustWindowRect ran on an unaware thread: 96 DPI frame
@@ -954,13 +954,13 @@ static BOOL WINAPI hook_set_window_pos(HWND h, HWND after, int x, int y, int cx,
     return ok;
 }
 
-static uint8_t *is_mouse(void) {
+internal uint8_t *is_mouse(void) {
     uint8_t **p = *(uint8_t ***)GA(IMP_IS_MOUSE);
     return p ? *p : NULL;
 }
 
 // clicks outside the client area must not reach the game; Acquire again re-reads the button state
-static void mouse_acquire(int want) {
+internal void mouse_acquire(int want) {
     static int unacquired, up_frames;
     uint8_t *ms = is_mouse();
     if (!ms) return;
@@ -985,8 +985,8 @@ static void mouse_acquire(int want) {
 // The devices are resumed on WM_ACTIVATEAPP/WM_ACTIVATE, but Acquire (DISCL_FOREGROUND) fails while Windows hasn't
 // made the window foreground yet - a click into the window then leaves mouse and keyboard dead until it's minimized
 // and restored. The intro sequence (0x538xxx) also ends with Suspend. In front, a suspended device is resumed.
-static volatile LONG g_input_resumes;
-static void resume_if_suspended(uintptr_t imp, DWORD *last) {
+internal volatile LONG g_input_resumes;
+internal void resume_if_suspended(uintptr_t imp, DWORD *last) {
     uint8_t **p = *(uint8_t ***)imp, *d = p ? *p : NULL;
     if (!d || !FIELD(d, OF(E_MOUSE, 0x4), uint8_t) || GetTickCount() - *last < 250) return;   // +4: suspended (ISDevice)
     *last = GetTickCount();
@@ -998,8 +998,8 @@ static void resume_if_suspended(uintptr_t imp, DWORD *last) {
 // transition counter (ISMouse +0x18 + button: odd = down; JustPressed compares it with last frame's copy +0x1C,
 // which Refresh takes just before this hook) - down now, up 3 updates later. The device is never acquired
 // (the window is never in front), so no real input interferes.
-static volatile LONG g_vm_x = -1, g_vm_y = -1, g_vm_button = -1, g_vm_step, g_vm_clicks;
-static void virtual_mouse(uint8_t *m, int frozen) {
+internal volatile LONG g_vm_x = -1, g_vm_y = -1, g_vm_button = -1, g_vm_step, g_vm_clicks;
+internal void virtual_mouse(uint8_t *m, int frozen) {
     if (g_vm_x >= 0 && !frozen) {
         FIELD(m, OF(MOUSE, 0x4), float) = (float)g_vm_x;
         FIELD(m, OF(MOUSE, 0x8), float) = (float)g_vm_y;
@@ -1021,8 +1021,8 @@ static void virtual_mouse(uint8_t *m, int frozen) {
     }
 }
 
-static void window_mouse_in(uint8_t *m, int frozen, uint8_t *win, HWND hwnd);
-static void window_mouse(uint8_t *m, int frozen) {
+internal void window_mouse_in(uint8_t *m, int frozen, uint8_t *win, HWND hwnd);
+internal void window_mouse(uint8_t *m, int frozen) {
     uint8_t *win = *(uint8_t **)GA(G_GAME_WINDOW);
     HWND hwnd = win ? FIELD(win, OF(E_WINDOW, 0x0), HWND) : NULL;
     if (!hwnd) return;
@@ -1033,7 +1033,7 @@ static void window_mouse(uint8_t *m, int frozen) {
     dpi_leave(dpi);
 }
 
-static void window_mouse_in(uint8_t *m, int frozen, uint8_t *win, HWND hwnd) {
+internal void window_mouse_in(uint8_t *m, int frozen, uint8_t *win, HWND hwnd) {
     POINT pt, c;
     RECT rc;
     if (!GetCursorPos(&pt) || !GetClientRect(hwnd, &rc) || rc.right < 2 || rc.bottom < 2) return;
@@ -1069,7 +1069,7 @@ static void window_mouse_in(uint8_t *m, int frozen, uint8_t *win, HWND hwnd) {
     InterlockedIncrement(&g_mouse_updates);
 }
 
-static void __fastcall hook_mouse_update(uint8_t *m, void *edx) {
+internal void __fastcall hook_mouse_update(uint8_t *m, void *edx) {
     (void)edx;
     uint8_t frozen = FIELD(m, OF(MOUSE, 0xA4), uint8_t);
     FIELD(m, OF(MOUSE, 0xA4), uint8_t) = 1;   // the original then only reads the wheel
@@ -1079,7 +1079,7 @@ static void __fastcall hook_mouse_update(uint8_t *m, void *edx) {
 }
 
 
-static int install_windowed_input(void) {
+internal int install_windowed_input(void) {
     int n = 0;
     HMODULE lle = GetModuleHandleA("Low-Level Engine.dll");
     if (lle) {
@@ -1094,8 +1094,8 @@ static int install_windowed_input(void) {
     return n;
 }
 
-static void player_name_install(void);
-static void display_install(const char *aimod_ini, const char *autotest_ini) {
+internal void player_name_install(void);
+internal void display_install(const char *aimod_ini, const char *autotest_ini) {
     player_name_install();   // (defined at the end of this file)
     char mode[32], tmp[32];
     // [display] mode = native | windowed | borderless (or 0 | 1 | 2); the older key windowed = 0 | 1 | borderless
@@ -1212,7 +1212,7 @@ static void display_install(const char *aimod_ini, const char *autotest_ini) {
 // per-screen state +0x20[screen [0x919428]]: +0x2A8 DX7Screen (+0x30 IDirectDraw7, +0x3C attached to desktop,
 // +0x3D fullscreen), +0x2AC front GESurface, +0x2B0 back GESurface (DX7Surface +0x48 IDirectDrawSurface7),
 // +0x2BC GEWindow (+0 HWND, +4/+8 client origin floats, +0xC/+0x10 size). "blit" repeats ShowScene's Blt.
-static int dump_surface(IDirectDrawSurface7 *s, const char *path) {
+internal int dump_surface(IDirectDrawSurface7 *s, const char *path) {
     DDSURFACEDESC2 d = { .dwSize = sizeof d };
     if (s->lpVtbl->Lock(s, NULL, &d, DDLOCK_WAIT | DDLOCK_READONLY, NULL) != DD_OK) return 0;
     int r = write_desc_bmp(&d, path);
@@ -1220,7 +1220,7 @@ static int dump_surface(IDirectDrawSurface7 *s, const char *path) {
     return r;
 }
 
-static int write_desc_bmp(const DDSURFACEDESC2 *dp, const char *path) {   // locked surface -> 24-bit BMP
+internal int write_desc_bmp(const DDSURFACEDESC2 *dp, const char *path) {   // locked surface -> 24-bit BMP
     const DDSURFACEDESC2 d = *dp;
     int w = (int)d.dwWidth, h = (int)d.dwHeight, stride = (w * 3 + 3) & ~3, sbpp = (int)d.ddpfPixelFormat.dwRGBBitCount;
     if (w <= 0 || h <= 0 || !d.lpSurface || (sbpp != 16 && sbpp != 24 && sbpp != 32)) return 0;
@@ -1258,7 +1258,7 @@ static int write_desc_bmp(const DDSURFACEDESC2 *dp, const char *path) {   // loc
 // profile <ms> render: only the thread that calls ShowScene, waits included; each sample is put on the innermost
 // return address on its stack that lies in the game's own code (exe, Low-Level Engine, DX7 display DLLs) - the game
 // function that waits or works - and the top frame's module is counted (where the time actually goes)
-static int is_game_code(uintptr_t a) {
+internal int is_game_code(uintptr_t a) {
     HMODULE m = NULL;
     if (a < 0x400000 || !GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, (LPCSTR)a, &m)) return 0;
     return m == GetModuleHandleA(NULL) || m == GetModuleHandleA("Low-Level Engine.dll") || m == GetModuleHandleA("DX7HRDisplay.dll")
@@ -1267,13 +1267,13 @@ static int is_game_code(uintptr_t a) {
 // a stack value that is a return address: the bytes before it are a CALL (E8 rel32, FF /2 with register, [reg],
 // [reg+disp8], [reg+disp32] or [disp32] operand, with or without SIB). Filters the data values on the stack
 // that only happen to point into a module.
-static int is_own_code(uintptr_t a) {   // this DLL (its present path)
+internal int is_own_code(uintptr_t a) {   // this DLL (its present path)
     HMODULE m = NULL, self = NULL;
     GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, (LPCSTR)&is_own_code, &self);
     return GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, (LPCSTR)a, &m) &&
            m == self;
 }
-static int is_return_address(uintptr_t a) {
+internal int is_return_address(uintptr_t a) {
     HMODULE m = NULL;
     if (a < 0x10000 || !GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, (LPCSTR)a, &m))
         return 0;
@@ -1292,7 +1292,7 @@ static int is_return_address(uintptr_t a) {
     }
     return 0;
 }
-static int is_system_module(HMODULE m) {
+internal int is_system_module(HMODULE m) {
     char path[MAX_PATH];
     if (!m || !GetModuleFileNameA(m, path, sizeof path)) return 1;
     const char *b = strrchr(path, 0x5C);
@@ -1303,7 +1303,7 @@ static int is_system_module(HMODULE m) {
     return 0;
 }
 
-static void cmd_profile_render(int dur, char *out) {
+internal void cmd_profile_render(int dur, char *out) {
     DWORD tid = g_render_thread;
     HANDLE h = tid ? OpenThread(THREAD_SUSPEND_RESUME | THREAD_GET_CONTEXT, FALSE, tid) : NULL;
     if (!h) { REPLY("error: render thread unknown (windowed mode only)\n"); return; }
@@ -1405,7 +1405,7 @@ static void cmd_profile_render(int dur, char *out) {
     }
 }
 
-static void cmd_profile(const char *args, char *out) {
+internal void cmd_profile(const char *args, char *out) {
     int dur = atoi(args);
     if (dur <= 0) dur = 2000;
     if (strstr(args, "render")) { cmd_profile_render(dur, out); return; }
@@ -1488,7 +1488,7 @@ static void cmd_profile(const char *args, char *out) {
 //   vmouse <x> <y>               game cursor to x, y (game coordinates; "vmouse off" = back to the real mouse)
 //   vclick <x> <y> [right|mid]   move there and click
 //   shot <name>                  next presented frame -> aimod_dumps/<name>.bmp
-static void cmd_headless(const char *verb, const char *args, char *out) {
+internal void cmd_headless(const char *verb, const char *args, char *out) {
     if (!strcmp(verb, "shot")) {
         char name[64] = "shot";
         sscanf(args, "%63s", name);
@@ -1553,7 +1553,7 @@ static void cmd_headless(const char *verb, const char *args, char *out) {
     REPLY("ok: cursor %d,%d\n", x, y);
 }
 
-static void dd_surface(char *out, const char *name, uint8_t *ges) {
+internal void dd_surface(char *out, const char *name, uint8_t *ges) {
     IDirectDrawSurface7 *s = ges ? FIELD(ges, OF(E_SURF, 0x48), IDirectDrawSurface7 *) : NULL;
     if (!s) { REPLY("%s: none\n", name); return; }
     DDSURFACEDESC2 d = { .dwSize = sizeof d };
@@ -1595,13 +1595,13 @@ static void dd_surface(char *out, const char *name, uint8_t *ges) {
 }
 
 // ddpoke z|back|front|mode: one of the side effects ddinfo has, alone (which one makes the windowed terrain appear?)
-static void lock_unlock(char *out, const char *name, IDirectDrawSurface7 *s) {
+internal void lock_unlock(char *out, const char *name, IDirectDrawSurface7 *s) {
     DDSURFACEDESC2 d = { .dwSize = sizeof d };
     HRESULT hr = s ? s->lpVtbl->Lock(s, NULL, &d, DDLOCK_WAIT | DDLOCK_READONLY, NULL) : E_POINTER;
     if (hr == DD_OK) s->lpVtbl->Unlock(s, NULL);
     REPLY("%s lock/unlock hr=%08lx\n", name, hr);
 }
-static void cmd_ddpoke(char *out, const char *args) {
+internal void cmd_ddpoke(char *out, const char *args) {
     uint8_t *ras = *(uint8_t **)GA(G_RASTERIZER);
     uint8_t *st = ras ? FIELD(ras, OF(E_RAS, 0x20), uint8_t **)[*(int *)GA(G_SCREEN)] : NULL;
     if (!st) { REPLY("error: no rasterizer\n"); return; }
@@ -1679,7 +1679,7 @@ static void cmd_ddpoke(char *out, const char *args) {
 // topbar [0|1|2]: the in-game top bar, drawn by FUN_0064FD4E of EEUIFMainGame (the current form of the UI manager
 // [0x9197A0] while playing, UIManager::GetCurrentForm import 0x823D60): +0x5D8 = 0 the age, 1 the game clock,
 // 2 "FPS: n" (relabelled every update - each new text is drawn with GDI)
-static void cmd_topbar(char *out, const char *args) {
+internal void cmd_topbar(char *out, const char *args) {
     void *uim = *(void **)GA(G_UI_MANAGER);
     uint8_t *form = uim ? ((uint8_t *(__thiscall *)(void *))*(void **)GA(IAT_UIM_FORM))(uim) : NULL;
     const char *rn = form ? rtti_name(form) : "";
@@ -1689,7 +1689,7 @@ static void cmd_topbar(char *out, const char *args) {
     REPLY("in-game form %p: top bar mode %d (0 age, 1 clock, 2 FPS)\n", (void *)form, FIELD(form, OF(UIFORM, 0x5D8), int));
 }
 
-static void cmd_ddinfo(char *out, const char *args) {
+internal void cmd_ddinfo(char *out, const char *args) {
     uint8_t *ras = *(uint8_t **)GA(G_RASTERIZER);
     int idx = *(int *)GA(G_SCREEN);
     uint8_t *st = ras ? FIELD(ras, OF(E_RAS, 0x20), uint8_t **)[idx] : NULL;
@@ -1858,11 +1858,11 @@ static void cmd_ddinfo(char *out, const char *args) {
     }
 }
 
-static void cmd_textstate(char *out, const char *args) {
+internal void cmd_textstate(char *out, const char *args) {
     InterlockedExchange(&g_text_state, atoi(args));
     REPLY("textstate %ld\n", g_text_state);
 }
-static void cmd_textlog(char *out, const char *args) {
+internal void cmd_textlog(char *out, const char *args) {
     if (args[0] == '?') {
         REPLY("textlog: %ld lines to go, %ld seen\n", g_textlog, g_tl_n);
         return;

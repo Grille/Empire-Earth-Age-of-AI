@@ -7,7 +7,7 @@
 
 struct tech_kids { uint8_t *pos, *end; int tree; };
 
-static struct tech_kids tech_kids(ee_tech *node) {
+internal struct tech_kids tech_kids(ee_tech *node) {
     struct tech_kids k = { NULL, NULL, build_is("aoc") };
     if (k.tree) {
         k.end = FIELD(node, OF(TECHNODE, 0x28), uint8_t *);
@@ -19,7 +19,7 @@ static struct tech_kids tech_kids(ee_tech *node) {
     return k;
 }
 
-static ee_tech *tech_kid_next(struct tech_kids *k) {   // the next child, NULL: none left
+internal ee_tech *tech_kid_next(struct tech_kids *k) {   // the next child, NULL: none left
     if (!k->pos || k->pos == k->end) return NULL;
     uint8_t *n = k->pos;
     if (!k->tree) { k->pos += 0x20; return (ee_tech *)n; }

@@ -7,8 +7,8 @@
 // campaign - the name typed was gone ("Unbekannt" again, also in the game: the AIs called the player so). The
 // buttons' handlers (vtable slot 1, thiscall(handler, screen, ?), ret 8) now first copy the field into the settings
 // and save them (0x52AA81 thiscall(settings): every setting into the registry, as the options screens do).
-static void *g_sp_orig[6];
-static void keep_player_name(uint8_t *screen) {
+internal void *g_sp_orig[6];
+internal void keep_player_name(uint8_t *screen) {
     uint8_t **ctl = screen ? FIELD(screen, OF(UISCREEN, 0xF8), uint8_t **) : NULL;
     void *edit = ctl ? ctl[8] : NULL;
     if (!edit) return;
@@ -24,7 +24,7 @@ static void keep_player_name(uint8_t *screen) {
 #define SP_HOOK(i) static long __fastcall hook_sp_##i(void *h, void *edx, uint8_t *screen, int a) { \
     (void)edx; keep_player_name(screen); return ((long (__thiscall *)(void *, void *, int))g_sp_orig[i])(h, screen, a); }
 SP_HOOK(0) SP_HOOK(1) SP_HOOK(2) SP_HOOK(3) SP_HOOK(4) SP_HOOK(5)
-static void player_name_install(void) {
+internal void player_name_install(void) {
     static void *const hooks[6] = { (void *)hook_sp_0, (void *)hook_sp_1, (void *)hook_sp_2, (void *)hook_sp_3,
                                     (void *)hook_sp_4, (void *)hook_sp_5 };
     int ok = 0;

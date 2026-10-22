@@ -74,7 +74,7 @@ def main():
         f.write('// the kinds: the engine\'s families (the armour and bonus class, "Family ID") as identifiers - kind.towers. The\n')
         f.write('// types and their families are read from the game\'s loaded data (unitnames.c)\n')
         f.write('#define UNIT_KINDS %d\n' % (max(kinds) + 1))
-        f.write('static const char *const k_kind_ident[UNIT_KINDS] = {\n')
+        f.write('internal const char *const k_kind_ident[UNIT_KINDS] = {\n')
         line = '   '
         for i in range(max(kinds) + 1):
             item = ' "%s",' % kinds[i] if i in kinds else ' NULL,'

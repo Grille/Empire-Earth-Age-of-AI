@@ -72,7 +72,7 @@ with open(sys.argv[-1], 'w') as out:
               '// how each follows the screen size: value = aoc + fx/2 * (W - 1024) + fy/2 * (H - 768).\n'
               '// kind 0: imm32 operand at addr (old = EE value, checked); kind 1: float constant read through the\n'
               '// absolute operand at addr - the operand is redirected to a float of our own. isf: float, else int.\n'
-              'static const struct { uint32_t addr; uint8_t kind, isf; uint32_t old; float aoc; int8_t fx, fy; } k_editor_layout[] = {\n')
+              'internal const struct { uint32_t addr; uint8_t kind, isf; uint32_t old; float aoc; int8_t fx, fy; } k_editor_layout[] = {\n')
     for kind, addr, vk, old, new, name, text in sorted(rows, key=lambda r: r[1]):
         isf = kind == 'const' or vk == 'f'
         o = u32f(old) if isf else int(old)   # the original value (checked before patching)

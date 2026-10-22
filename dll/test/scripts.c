@@ -12,7 +12,7 @@
 // jumps to wherever it waits, every command is written to <out> with its game time (ms) instead of being run.
 // Included by eeaimod.c after expr.c and control.c.
 #include "test/cmd_verbs.h"
-static int x_command_verb(const char *name) {   // a pipe command (control.c execute) - a script calls it as a function
+internal int x_command_verb(const char *name) {   // a pipe command (control.c execute) - a script calls it as a function
     for (size_t i = 0; i < sizeof k_cmd_verbs / sizeof *k_cmd_verbs; i++) if (!strcmp(k_cmd_verbs[i], name)) return 1;
     return 0;
 }
@@ -26,18 +26,18 @@ struct script {
     int done;
     struct xregion reg;     // its values
 };
-static struct script g_scripts[SCRIPTS_MAX];
-static int g_nscripts = -1;
-static LPVOID g_main_fiber;
-static struct script *g_cur_script;
-static uint32_t g_script_now;
-static double script_now(void) { return g_script_now / 1000.0; }
-static void script_wait(double until) {   // in the script's fiber: the game goes on until that game second
+internal struct script g_scripts[SCRIPTS_MAX];
+internal int g_nscripts = -1;
+internal LPVOID g_main_fiber;
+internal struct script *g_cur_script;
+internal uint32_t g_script_now;
+internal double script_now(void) { return g_script_now / 1000.0; }
+internal void script_wait(double until) {   // in the script's fiber: the game goes on until that game second
     struct script *s = g_cur_script;
     s->wake = (uint32_t)(until * 1000.0 + 0.5);
     SwitchToFiber(g_main_fiber);
 }
-static void script_command(const char *cmd, char *reply, int cap) {
+internal void script_command(const char *cmd, char *reply, int cap) {
     (void)cap;   // execute's replies are as long as the pipe's (16384)
     execute(cmd, reply);
     char *nl = strchr(reply, '\n'), *rest = nl ? nl + 1 : NULL;
@@ -52,7 +52,7 @@ static void script_command(const char *cmd, char *reply, int cap) {
     fflush(g_log);
     LeaveCriticalSection(&g_lock);
 }
-static char *script_read(const char *path) {
+internal char *script_read(const char *path) {
     FILE *f = fopen(path, "rb");
     if (!f) return NULL;
     fseek(f, 0, SEEK_END);
@@ -65,7 +65,7 @@ static char *script_read(const char *path) {
     return t;
 }
 // read and check a script: 0 and *why / *line - not run
-static int script_load(const char *path, char **text, struct xunit *u, const char **why, int *line) {
+internal int script_load(const char *path, char **text, struct xunit *u, const char **why, int *line) {
     static char msg[160];
     *text = script_read(path);
     if (!*text) { *why = "can't be read"; *line = 0; return 0; }
@@ -84,7 +84,7 @@ static int script_load(const char *path, char **text, struct xunit *u, const cha
     return 1;
 }
 // a script's statements, top to bottom (its top frame: the file's own names); a mistake ends it
-static int script_run(const char *path, const struct xunit *u) {
+internal int script_run(const char *path, const struct xunit *u) {
     struct xctx c = { 0 };
     c.found = 1;
     c.script = 1;
@@ -105,7 +105,7 @@ static int script_run(const char *path, const struct xunit *u) {
     free(top);
     return !e.err;
 }
-static void WINAPI script_fiber(void *arg) {
+internal void WINAPI script_fiber(void *arg) {
     struct script *s = arg;
     script_run(s->path, &s->u);
     log_line("# setup: %s: done\n", s->path);
@@ -113,7 +113,7 @@ static void WINAPI script_fiber(void *arg) {
     for (;;) SwitchToFiber(g_main_fiber);
 }
 // every game tick from 2 s on (autotest_tick): each script that waits no longer goes on until it waits again
-static void run_setup(uint32_t now) {
+internal void run_setup(uint32_t now) {
     if (g_nscripts < 0) {
         g_nscripts = 0;
         for (const char *p = g_setup_path; *p && g_nscripts < SCRIPTS_MAX; ) {   // setup=a.eeai;b.eeai (or ,): side by side
@@ -153,15 +153,15 @@ static void run_setup(uint32_t now) {
 // THE DRY RUN (script dryrun <file> <out>): the script without the game - waiting moves the clock (from 2 s), the
 // commands are written to <out> ("<ms> <command>") and answered "ok" (tests: a converted scenario issues the same
 // commands at the same times as before)
-static double g_dry_now;
-static FILE *g_dry_out;
-static double dry_now(void) { return g_dry_now; }
-static void dry_wait(double until) { if (until > g_dry_now) g_dry_now = until; }
-static void dry_command(const char *cmd, char *reply, int cap) {
+internal double g_dry_now;
+internal FILE *g_dry_out;
+internal double dry_now(void) { return g_dry_now; }
+internal void dry_wait(double until) { if (until > g_dry_now) g_dry_now = until; }
+internal void dry_command(const char *cmd, char *reply, int cap) {
     fprintf(g_dry_out, "%u %s\n", (unsigned)(g_dry_now * 1000.0 + 0.5), cmd);
     lstrcpynA(reply, "ok", cap);
 }
-static void cmd_script(char *out, const char *args) {
+internal void cmd_script(char *out, const char *args) {
     char file[MAX_PATH], dst[MAX_PATH];
     if (sscanf(args, "dryrun %259s %259s", file, dst) != 2) { REPLY("error: usage: script dryrun <file> <out>\n"); return; }
     char *text;

@@ -4,12 +4,12 @@
 // menu the AI only gathers. Editor test-play and saved games don't set it, which is why they work.
 // We clear the byte only while a computer player updates (EEComputerPlayer::Update 0x43F91A, called
 // at 0x42F3CD for active AIs), so triggers, civ selection and the rest of the game still see a scenario.
-static int g_fix_scenario_ai = 1;    // aimod.ini [fixes] scenario_ai=0 turns it off
-static uint8_t g_is_scenario;        // the flag as the game set it (it reads 0 inside the AI update)
+internal int g_fix_scenario_ai = 1;    // aimod.ini [fixes] scenario_ai=0 turns it off
+internal uint8_t g_is_scenario;        // the flag as the game set it (it reads 0 inside the AI update)
 typedef void (__thiscall *CpUpdateFn)(ee_player *pl, uint32_t now);
 
-static int is_vanilla(const ee_player *pl);   // below
-static void __fastcall hook_cp_update(ee_player *pl, void *edx, uint32_t now) {
+internal int is_vanilla(const ee_player *pl);   // below
+internal void __fastcall hook_cp_update(ee_player *pl, void *edx, uint32_t now) {
     (void)edx;
     uint8_t *flag = (uint8_t *)GA(G_SCENARIO_FLAG);
     uint8_t saved = *flag;

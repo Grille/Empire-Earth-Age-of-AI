@@ -54,9 +54,9 @@ EXCEPTIONS = [
 TYPED = ['ai/']
 
 IDENT = re.compile(r'[A-Za-z_]\w*')
-# a declaration's attributes, written out or by base/'s macro (static PRINTF_LIKE(1, 2) void f(...)): not its name
+# a declaration's attributes, written out or by base/'s macro (internal PRINTF_LIKE(1, 2) void f(...)): not its name
 ATTRIBUTES = re.compile(r'__attribute__\s*\(\((?:[^()]|\([^()]*\))*\)\)|\bPRINTF_LIKE\s*\([^()]*\)')
-KEYWORDS = set('''if for while switch return sizeof static const struct enum union typedef unsigned signed int char void
+KEYWORDS = set('''if for while switch return sizeof static internal const struct enum union typedef unsigned signed int char void
 float double long short volatile extern inline do else case default break continue goto __attribute__ __asm__ asm
 __thiscall __cdecl __stdcall __fastcall __declspec'''.split())
 
@@ -192,7 +192,7 @@ def analyse():
 def declared(code):
     """what a header declares: its definitions and its prototypes"""
     names = definitions(code)
-    for m in re.finditer(r'^static\s[^;{=]*?\b(\w+)\s*\([^;{]*\)\s*;', ATTRIBUTES.sub(' ', code), re.M):
+    for m in re.finditer(r'^(?:static|internal)\s[^;{=]*?\b(\w+)\s*\([^;{]*\)\s*;', ATTRIBUTES.sub(' ', code), re.M):
         names.add(m.group(1))
     return names
 
@@ -234,10 +234,10 @@ def main():
                 e = excepted(u, d, n)
                 if e: used.add(e)
                 else: bad.append('%s uses %s of %s (%s may use %s)' % (u, n, d, fu, ', '.join(MAY_USE[fu]) or 'nothing but itself'))
-    # dinput.dll: its own file and base/headless_win.c
+    # dinput.dll: its own file, base/headless_win.c and the words it is written with (base/lang.h)
     for f in glob.glob(os.path.join(DLL, 'dinput', '*.c')):
         for inc in re.findall(r'#include\s+"([^"]+)"', open(f, encoding='latin-1').read()):
-            if inc != '../base/headless_win.c': bad.append('dinput/%s includes %s' % (os.path.basename(f), inc))
+            if inc not in ('../base/headless_win.c', '../base/lang.h'): bad.append('dinput/%s includes %s' % (os.path.basename(f), inc))
     # the files moved over to game/api.h: the game's functions only through its typed wrappers
     for f in (f for f in files if any(f == t or (t.endswith('/') and f.startswith(t)) for t in TYPED)):
         for m in re.finditer(r'\bGF\s*\(\s*(\w+)|\bGA\s*\(\s*((?:FN|CALL|SLOT)_\w+)|\bGL\s*\(\s*(\w+)', code[f]):

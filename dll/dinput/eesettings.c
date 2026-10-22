@@ -13,6 +13,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include "../base/lang.h"   // the words base/ is written with (internal)
 #include "../base/headless_win.c"
 
 // ---- the system's dinput.dll: the engine's DirectInputCreateA (and the rest of its exports, for anyone else) ----

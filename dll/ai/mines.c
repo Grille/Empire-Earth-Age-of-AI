@@ -20,18 +20,18 @@
 // changed next to nothing (the givers are rarely there: wood is spent as fast as it comes, mine gatherers +-0); with
 // FIRST (7) the mines got 5-8 more gatherers, kills - losses rose by 7-13 on the islands, but the workers fell by 4-12
 // (the wood went short) and Small Islands without the cheat lost more (base AI wins 2 -> 7 of 40). Off (0).
-static int g_mine_fill = 0, g_v_mine_fill = -1;
+internal int g_mine_fill = 0, g_v_mine_fill = -1;
 #define MINE_FILL(idx) PV(idx, g_v_mine_fill, g_mine_fill)
-static struct mf_st {
+internal struct mf_st {
     uint32_t t, drop_t;
     int slots[7], home_slots[7], g[7], add[7], drops_queued, far_x, far_y, far_r;
 } g_mf[16];
 
-static void mines_new_game(void) { memset(g_mf, 0, sizeof g_mf); }
+internal void mines_new_game(void) { memset(g_mf, 0, sizeof g_mf); }
 
 // the slots of the mines near a drop site (all / the base's continent), and the free far mine of the home continent
 // nearest to a drop site (DROP), every 10 s
-static void mf_scan(ee_player *pl, unsigned idx, uint32_t now) {
+internal void mf_scan(ee_player *pl, unsigned idx, uint32_t now) {
     struct mf_st *m = &g_mf[idx];
     if (m->t && now >= m->t && now - m->t < 10000) return;
     m->t = now ? now : 1;
@@ -76,11 +76,11 @@ static void mf_scan(ee_player *pl, unsigned idx, uint32_t now) {
         }
     }
 }
-static int mf_active(ee_player *pl, uint32_t now) {
+internal int mf_active(ee_player *pl, uint32_t now) {
     return current_epoch(pl) >= FARM_EPOCH && now >= 3 * 60000 && workforce(pl) >= 30;   // before farms food comes first (Continental e0: fewer workers)
 }
 // FILL: after the worker targets (hook_compute_targets, after econ_targets)
-static void mine_fill(ee_resource_mgr *rm) {
+internal void mine_fill(ee_resource_mgr *rm) {
     ee_player *pl = rm_player(rm);
     if (!pl) return;
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
@@ -132,7 +132,7 @@ static void mine_fill(ee_resource_mgr *rm) {
     }
 }
 // DROP: every 2 minutes (econ_tick)
-static void mine_drops(ee_player *pl, unsigned idx, uint32_t now) {
+internal void mine_drops(ee_player *pl, unsigned idx, uint32_t now) {
     struct mf_st *m = &g_mf[idx];
     if (!((MINE_FILL(idx) & 2) || (PV(idx, g_v_cit_plan, g_cit_plan) & 4)) || !mf_active(pl, now) || m->drops_queued >= 6) return;   // citizen_plan DROP too
     if (m->drop_t && now >= m->drop_t && now - m->drop_t < 120000) return;
@@ -169,7 +169,7 @@ static void mine_drops(ee_player *pl, unsigned idx, uint32_t now) {
                 return;
             }
 }
-static void mines_log(ee_player *pl, unsigned idx, uint32_t now) {
+internal void mines_log(ee_player *pl, unsigned idx, uint32_t now) {
     static uint32_t last[16];
     if (!g_log || !g_autotest || (!g_mine_fill && g_v_mine_fill < 0)) return;
     if (now / 300000 == last[idx] / 300000 && last[idx]) return;
@@ -182,7 +182,7 @@ static void mines_log(ee_player *pl, unsigned idx, uint32_t now) {
             m->home_slots[5], m->home_slots[6], m->g[4], m->g[5], m->g[6], m->add[4], m->add[5], m->add[6], m->drops_queued);
     LeaveCriticalSection(&g_lock);
 }
-static void mines_install(const char *aimod_ini, const char *autotest_ini) {
+internal void mines_install(const char *aimod_ini, const char *autotest_ini) {
     g_mine_fill = cfg_int(aimod_ini, autotest_ini, 1, "mine_fill", 0);
     if (autotest_ini) g_v_mine_fill = ini_int("autotest", "v_mine_fill", -1, autotest_ini);
 }

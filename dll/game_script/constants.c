@@ -1,14 +1,14 @@
 // THE GAME'S CONSTANTS in the text language: epoch.copper, resource.gold, color.red, kind.towers, unit.citizen
 // (script/host.h constant) - the language itself has none.
 // epoch.<name>: an epoch's number, in every language the same (the names the game's own are in another language)
-static const char *const k_epoch_const[15] = { "prehistoric", "stone", "copper", "bronze", "dark", "middle", "renaissance",
+internal const char *const k_epoch_const[15] = { "prehistoric", "stone", "copper", "bronze", "dark", "middle", "renaissance",
     "imperial", "industrial", "atomic_wwi", "atomic_wwii", "atomic_modern", "digital", "nano", "space" };
 // resource.<name>: a resource's number 1..5 (food, wood, stone, gold, iron - the game's order), its text its name;
 // resource.all 0 (give: each of them)
-static const char *const k_resource_const[5] = { "food", "wood", "stone", "gold", "iron" };
+internal const char *const k_resource_const[5] = { "food", "wood", "stone", "gold", "iron" };
 // 0: no constant, 1: one, 2: one that stays the same - kept in the parsed tree (kind.towers, unit.citizen once the
 // game's types are there: filters must be quick, AI code)
-static int ee_constant(const char *name, struct xval *v) {
+internal int ee_constant(const char *name, struct xval *v) {
     if (!_strnicmp(name, "color.", 6)) {   // color.red: a colour's number 1..17, as X.color has it
         int k = isalpha((unsigned char)name[6]) ? color_index(name + 6) : -1;
         if (k < 0) return 0;

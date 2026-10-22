@@ -7,14 +7,14 @@
 // (bits 8..23), n <= 63, then n bytes of id bits 0..7; an empty list is 0xFF. This packer writes the same format
 // for as many units as fit into the 255 bytes the length byte allows (about 240), so the message stays readable for
 // an unmodded game (multiplayer) and the game's own unpacker.
-static int g_big_selection = 1;
-static unsigned g_sel_last_in, g_sel_last_out;   // tests: units found / packed by the last pack
+internal int g_big_selection = 1;
+internal unsigned g_sel_last_in, g_sel_last_out;   // tests: units found / packed by the last pack
 
-static int sel_cmp(const void *a, const void *b) {
+internal int sel_cmp(const void *a, const void *b) {
     uint32_t x = (*(const uint32_t *)a >> 8) & 0xFFFF, y = (*(const uint32_t *)b >> 8) & 0xFFFF;
     return x < y ? -1 : x > y;
 }
-static unsigned __cdecl hook_sel_pack(uint8_t *list, uint32_t player_byte, uint8_t *out) {
+internal unsigned __cdecl hook_sel_pack(uint8_t *list, uint32_t player_byte, uint8_t *out) {
     if (!g_big_selection)
         return GF(FN_SEL_PACK)(list, player_byte, out);
     uint32_t *v = FIELD(list, 4, uint32_t *), *ve = FIELD(list, 8, uint32_t *);
@@ -46,7 +46,7 @@ static unsigned __cdecl hook_sel_pack(uint8_t *list, uint32_t player_byte, uint8
 
 // seltest T [x0 y0 x1 y1]: builds the double-click message for unit type T (the screen rectangle 0x8D2778, or the
 // given one) for the local player without sending it: units found, packed, unpacked. Tests.
-static void cmd_seltest(char *out, const char *args) {
+internal void cmd_seltest(char *out, const char *args) {
     int type = 0;
     float r[4];
     if (sscanf(args, "%d %f %f %f %f", &type, &r[0], &r[1], &r[2], &r[3]) < 5) memcpy(r, (void *)GA(G_SELECT_RECT), sizeof r);
@@ -67,7 +67,7 @@ static void cmd_seltest(char *out, const char *args) {
     REPLY("\n");
 }
 
-static void select_install(const char *aimod_ini, const char *autotest_ini) {
+internal void select_install(const char *aimod_ini, const char *autotest_ini) {
     g_big_selection = ini_int("general", "big_selection", 1, aimod_ini);
     if (autotest_ini) g_big_selection = ini_int("autotest", "big_selection", g_big_selection, autotest_ini);
     BOOL ok = patch_call(GA(CALL_SEL_PACK), GA(FN_SEL_PACK), hook_sel_pack);

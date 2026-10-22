@@ -8,7 +8,7 @@
 // epochup P: player P - any, the tests' idle human too - gets its next epoch at once, unpaid (FN_EPOCH_NEXT: the tech
 // tree's epoch, its event and what becomes available; the epoch tech itself stays unresearched - FN_TECH_GRANT refuses
 // epoch techs, category 3). For epoch_pacing=follow's test: the human ahead at a set minute.
-static void cmd_epochup(char *out, const char *args) {
+internal void cmd_epochup(char *out, const char *args) {
     int p = atoi(args);
     ee_player *pl = player_at(p);
     uint8_t *tt = pl ? FIELD(pl, PL_TECHTREE, uint8_t *) : NULL;
@@ -18,7 +18,7 @@ static void cmd_epochup(char *out, const char *args) {
     REPLY("P%d epoch %d -> %d\n", p, e, FIELD(tt, TT_EPOCH, int));
 }
 // tech P id...: the player's tech record (tech tree lookup 0x4019A1): first bytes and the data's cost
-static void cmd_tech(char *out, const char *args) {
+internal void cmd_tech(char *out, const char *args) {
     int p = 0, n = 0, id;
     sscanf(args, "%d%n", &p, &n);
     ee_player *pl = (p >= 0 && p < 16) ? g_players[p] : NULL;
@@ -50,7 +50,7 @@ static void cmd_tech(char *out, const char *args) {
 
 // techs P: the techs player P has researched (tech record +4), and which are new since the last call - with their
 // tech epoch (record +0x14) and cost; tests: what an AI gets at an epoch advance
-static void cmd_techs(char *out, const char *args) {
+internal void cmd_techs(char *out, const char *args) {
     static uint8_t seen[16][16384];
     int p = atoi(args), total = 0;
     ee_player *pl = (p >= 0 && p < 16) ? g_players[p] : NULL;
@@ -73,8 +73,8 @@ static void cmd_techs(char *out, const char *args) {
 }
 
 // watchtech P id: hardware write-watch on player P's tech record +4 (researched): who researches it. Tests.
-static void watch_set(uintptr_t addr, int len);
-static void cmd_watchtech(char *out, const char *args) {
+internal void watch_set(uintptr_t addr, int len);
+internal void cmd_watchtech(char *out, const char *args) {
     int p = 0, id = 0;
     sscanf(args, "%d %d", &p, &id);
     ee_player *pl = (p >= 0 && p < 16) ? g_players[p] : NULL;
@@ -87,7 +87,7 @@ static void cmd_watchtech(char *out, const char *args) {
 
 // rlist P: the research manager's per-epoch tech lists (cm+0x40: +0x18 + e*0x10 = vector begin/end of tech ids,
 // +0x114 current epoch); * = researched (tech +4)
-static void cmd_rlist(char *out, const char *args) {
+internal void cmd_rlist(char *out, const char *args) {
     int p = atoi(args);
     ee_player *pl = (p >= 0 && p < 16) ? g_players[p] : NULL;
     void *cm = pl ? FIELD(pl, OF(PL, 0xB90), void *) : NULL;
@@ -109,7 +109,7 @@ static void cmd_rlist(char *out, const char *args) {
 
 // tinfo P type...: type data of unit types - family +0x4B4, hit points +0x55C, attack +0x510, range +0x420 - and
 // whether player P could train/build one now (0x555710: available, affordable, a building/builder)
-static void cmd_tinfo(char *out, const char *args) {
+internal void cmd_tinfo(char *out, const char *args) {
     int p = 0, n = 0, t;
     sscanf(args, "%d%n", &p, &n);
     ee_player *pl = (p >= 0 && p < 16) ? g_players[p] : NULL;
@@ -126,7 +126,7 @@ static void cmd_tinfo(char *out, const char *args) {
 }
 
 // drops P: the player's drop sites (x,y; g = granary, food only)
-static void cmd_drops(char *out, const char *args) {
+internal void cmd_drops(char *out, const char *args) {
     int p = atoi(args);
     ee_player *pl = (p >= 0 && p < 16) ? g_players[p] : NULL;
     if (!pl) { REPLY("error: no AI player %d\n", p); return; }
@@ -140,7 +140,7 @@ static void cmd_drops(char *out, const char *args) {
 // ---- from attack.c ----
 // attacknow P (test): AI P's next attack is due now (player +0xED8 = the game time) - the game launches it at its next
 // look, if it has a target
-static void cmd_attacknow(char *out, const char *args) {
+internal void cmd_attacknow(char *out, const char *args) {
     int p = atoi(args);
     ee_player *pl = (p > 0 && p < 16) ? g_players[p] : NULL;
     if (!pl) { REPLY("error: no AI player %d\n", p); return; }
@@ -151,7 +151,7 @@ static void cmd_attacknow(char *out, const char *args) {
 
 // nullmember P (test): the first member record (of an attack subgroup of AI P with 2+ members) loses its unit (+0x44
 // = 0) - the state the engine guards (hook_group_stat, asg_purge) are for
-static void cmd_nullmember(char *out, const char *args) {
+internal void cmd_nullmember(char *out, const char *args) {
     int p = atoi(args);
     ee_player *pl = (p > 0 && p < 16) ? g_players[p] : NULL;
     uint8_t *cbm = pl ? FIELD(pl, OF(PL, 0xB8C), uint8_t *) : NULL, *cmd = cbm ? FIELD(cbm, OF(AM, 0x48), uint8_t *) : NULL;
@@ -184,7 +184,7 @@ static void cmd_nullmember(char *out, const char *args) {
 }
 
 // Enemy buildings of AI player P (all, seen or not): owner, type, tile, seen by P, known threat on them.
-static void cmd_targets(char *out, const char *args) {
+internal void cmd_targets(char *out, const char *args) {
     int p = atoi(args);
     ee_player *pl = (p >= 0 && p < 16) ? g_players[p] : NULL;
     if (!pl) { REPLY("error: no AI player %d\n", p); return; }
@@ -214,7 +214,7 @@ static void cmd_targets(char *out, const char *args) {
 // map) - like any player command. Several units go on a grid of 2 tiles around x, y.
 // give P amount R (test): player P's stock of resource R grows by amount - R 1 food .. 5 iron, 0 each of them (a
 // script: resource.gold, resource.all)
-static void cmd_give(char *out, const char *args) {
+internal void cmd_give(char *out, const char *args) {
     int p = 0, amount = 0, r = -1;
     ee_player *pl = sscanf(args, "%d %d %d", &p, &amount, &r) == 3 && p >= 0 && p < 16 ? g_players[p] : NULL;
     if (!pl || r < 0 || r > 5) { REPLY("error: give P amount R (R: 0 all, 1 food .. 5 iron - resource.all, resource.gold ...)\n"); return; }
@@ -225,7 +225,7 @@ static void cmd_give(char *out, const char *args) {
 
 // train P type [count] (test): AI P orders count (default 1) units of a type through its own unit manager, as a
 // priority order (the stock above the epoch reserve) - unlike spawn, the units come from its factories and join its pool
-static void cmd_train(char *out, const char *args) {
+internal void cmd_train(char *out, const char *args) {
     int p = 0, type = 0, count = 1;
     sscanf(args, "%d %d %d", &p, &type, &count);
     ee_player *pl = (p > 0 && p < 16) ? g_players[p] : NULL;
@@ -239,7 +239,7 @@ static void cmd_train(char *out, const char *args) {
     REPLY("P%d: %u of %d x type %d ordered\n", p, got, count, type);
 }
 
-static void cmd_spawn(char *out, const char *args) {
+internal void cmd_spawn(char *out, const char *args) {
     int p, type, x, y, n = 1;
     if (sscanf(args, "%d %d %d %d %d", &p, &type, &x, &y, &n) < 4 || p < 0 || p > 15 || type < 0 || type >= 0x300 || n < 1 || n > 100) {
         REPLY("error: usage: spawn <player> <type> <x> <y> [count]\n");
@@ -266,7 +266,7 @@ static void cmd_spawn(char *out, const char *args) {
 
 // spawnline <player> <type> <x0> <y0> <x1> <y1> [step]: one unit every <step> tiles (default 1) along the line,
 // e.g. a wall. Same spawner as spawn.
-static void cmd_spawnline(char *out, const char *args) {
+internal void cmd_spawnline(char *out, const char *args) {
     int p, type, x0, y0, x1, y1, step = 1;
     if (sscanf(args, "%d %d %d %d %d %d %d", &p, &type, &x0, &y0, &x1, &y1, &step) < 6 || p < 0 || p > 15 || type < 0 ||
         type >= 0x300 || step < 1) {
@@ -290,7 +290,7 @@ static void cmd_spawnline(char *out, const char *args) {
 
 // bqueue P: the build manager's per-epoch queues (bq_entry); $ = can be built now (0x555710, the build manager's
 // check: available in this epoch, affordable, a builder)
-static void cmd_bqueue(char *out, const char *args) {
+internal void cmd_bqueue(char *out, const char *args) {
     int p = atoi(args);
     ee_player *pl = (p >= 0 && p < 16) ? g_players[p] : NULL;
     void *cm = pl ? FIELD(pl, OF(PL, 0xB90), void *) : NULL;
@@ -308,7 +308,7 @@ static void cmd_bqueue(char *out, const char *args) {
 
 // canbuild P: every type the game lets player P build or train now (0x555710: available in this epoch, affordable,
 // a builder) - which types of a family or class the data really offers (the Missile Base, campaign units)
-static void cmd_canbuild(char *out, const char *args) {
+internal void cmd_canbuild(char *out, const char *args) {
     int p = atoi(args);
     ee_player *pl = (p >= 0 && p < 16) ? g_players[p] : NULL;
     if (!pl) { REPLY("error: no player %d\n", p); return; }
@@ -320,7 +320,7 @@ static void cmd_canbuild(char *out, const char *args) {
 }
 
 // count P: all units and buildings of player P by type (type: count)
-static void cmd_count(char *out, const char *args) {
+internal void cmd_count(char *out, const char *args) {
     int p = atoi(args);
     static int n[0x300];
     memset(n, 0, sizeof n);
@@ -342,7 +342,7 @@ static void cmd_count(char *out, const char *args) {
 
 // gridcheck: how the unit grid holds the units - per family: units, those in more than one cell (and the most cells),
 // those not in the cell of their own position (a loop visiting each unit only there would miss them)
-static void cmd_gridcheck(char *out, const char *args) {
+internal void cmd_gridcheck(char *out, const char *args) {
     (void)args;
     enum { HN = 16384 };
     static struct { ee_unit *u; int cells, own, fam; } h[HN];
@@ -373,7 +373,7 @@ static void cmd_gridcheck(char *out, const char *args) {
 }
 
 // objs P T: every unit of type T of player P - tile, hit points / the type's, goal (tests: are buildings finished?)
-static void cmd_objs(char *out, const char *args) {
+internal void cmd_objs(char *out, const char *args) {
     int p = 0, t = -1;
     sscanf(args, "%d %d", &p, &t);
     uint8_t *map = *(uint8_t **)GA(G_MAP);
@@ -394,7 +394,7 @@ static void cmd_objs(char *out, const char *args) {
 
 // found P T x y: lay out a building of type T for player P at x, y, unfinished (1 hp) - as the build manager does
 // (0x62EF8A cdecl(player, type, x, y), which also pays its cost, except for fields). Tests: an enemy tower going up.
-static void cmd_found(char *out, const char *args) {
+internal void cmd_found(char *out, const char *args) {
     int p, t, x, y;
     if (sscanf(args, "%d %d %d %d", &p, &t, &x, &y) < 4) { REPLY("error: usage: found P T x y\n"); return; }
     ee_player *pl = player_at(p);   // diplo.c: any player, human or AI
@@ -405,7 +405,7 @@ static void cmd_found(char *out, const char *args) {
 
 // build P bx by x y r: player P's citizens within r tiles of x, y build (or repair) P's building at bx, by - the
 // game's order (EEUGBuildRepair: new 0x5C, 0x60BAD0(goal, player, building, 1)). Tests: enemy builders at a tower.
-static void cmd_build(char *out, const char *args) {
+internal void cmd_build(char *out, const char *args) {
     int p, bx, by, x, y, r, n = 0;
     if (sscanf(args, "%d %d %d %d %d %d", &p, &bx, &by, &x, &y, &r) < 6) { REPLY("error: usage: build P bx by x y r\n"); return; }
     ee_player *pl = player_at(p);
@@ -438,8 +438,8 @@ static void cmd_build(char *out, const char *args) {
 
 // watchtype P T [off]: hardware write-watch on the first unit of type T of player P, at offset off (default 0x2C,
 // the type data: who changes a unit's type). Tests.
-static void watch_set(uintptr_t addr, int len);
-static void cmd_watchtype(char *out, const char *args) {
+internal void watch_set(uintptr_t addr, int len);
+internal void cmd_watchtype(char *out, const char *args) {
     int p = 0, t = 0;
     unsigned off = 0x2C;
     sscanf(args, "%d %d %x", &p, &t, &off);
@@ -461,7 +461,7 @@ static void cmd_watchtype(char *out, const char *args) {
 // hurt P T x y r dmg: damage every object of type T of player P within r tiles of x, y the way an attack does
 // (0x61E0B2: target vf 0x70 thiscall(attacker, damage, attacker's player index, 1)); attacker = the object itself
 // (tests: destroy farm fields, buildings)
-static void cmd_hurt(char *out, const char *args) {
+internal void cmd_hurt(char *out, const char *args) {
     int p, t, x, y, r, dmg, n = 0;
     if (sscanf(args, "%d %d %d %d %d %d", &p, &t, &x, &y, &r, &dmg) < 6) { REPLY("error: usage: hurt P T x y r dmg\n"); return; }
     uint8_t *map = *(uint8_t **)GA(G_MAP);
@@ -494,7 +494,7 @@ static void cmd_hurt(char *out, const char *args) {
 // building only: 500 archers at the walls razed 16 buildings in 45 minutes. Setup lines, e.g. "@60 wave 1 2 50",
 // "@60.5 charge 1 2" ... - the minute D falls (game over) is the score.
 struct w_scan { int n; ee_unit *u[1024]; };
-static void units_of(int p, int want, struct w_scan *o) {   // want: 0 soldiers (cmd_army's filter), 1 the rest
+internal void units_of(int p, int want, struct w_scan *o) {   // want: 0 soldiers (cmd_army's filter), 1 the rest
                                                              // (buildings, walls, towers), 2 citizens
     uint8_t *map = *(uint8_t **)GA(G_MAP);
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
@@ -511,7 +511,7 @@ static void units_of(int p, int want, struct w_scan *o) {   // want: 0 soldiers 
         if (o->n < 1024) o->u[o->n++] = u;
     }
 }
-static void cmd_wave(char *out, const char *args) {
+internal void cmd_wave(char *out, const char *args) {
     int a, d, pct, x = -1, y = -1;
     if (sscanf(args, "%d %d %d %d %d", &a, &d, &pct, &x, &y) < 3 || a < 0 || a > 15 || d < 0 || d > 15 || pct < 1) {
         REPLY("error: usage: wave A D pct [x y]\n");
@@ -579,8 +579,8 @@ static void cmd_wave(char *out, const char *args) {
     }
     REPLY(" - %d units (%d ships/aircraft left out)\n", sent, left);
 }
-static struct { int a, d; uint32_t t, logged; unsigned rot; } g_charge = { -1, -1, 0, 0, 0 };
-static void charge_pass(char *out, int a, int d) {
+internal struct { int a, d; uint32_t t, logged; unsigned rot; } g_charge = { -1, -1, 0, 0, 0 };
+internal void charge_pass(char *out, int a, int d) {
     int n = 0, kept = 0, idle = 0, marching = 0;
     static struct w_scan mine, foe, bld, civ;
     units_of(a, 0, &mine);
@@ -629,15 +629,15 @@ static void charge_pass(char *out, int a, int d) {
                      "soldiers, %d citizens, %d buildings\n", a, mine.n, idle, n, marching, kept, d, foe.n, civ.n, bld.n);
 }
 // charge A D: from now on every 10 s (attack_tick), logged every minute; "charge off" stops it
-static void cmd_charge(char *out, const char *args) {
+internal void cmd_charge(char *out, const char *args) {
     int a, d;
     if (!strncmp(args, "off", 3)) { g_charge.a = g_charge.d = -1; REPLY("charge: off\n"); return; }
     if (sscanf(args, "%d %d", &a, &d) < 2 || a < 0 || a > 15 || d < 0 || d > 15) { REPLY("error: usage: charge A D | off\n"); return; }
     g_charge.a = a; g_charge.d = d; g_charge.t = g_charge.logged = game_time();
     charge_pass(out, a, d);
 }
-static void seaop_tick(uint32_t now);   // testopp.c
-static void charge_tick(uint32_t now) {
+internal void seaop_tick(uint32_t now);   // testopp.c
+internal void charge_tick(uint32_t now) {
     seaop_tick(now);
     if (g_charge.d < 0) return;
     if (now < g_charge.t) { g_charge.a = g_charge.d = -1; return; }   // a new game
@@ -654,7 +654,7 @@ static void charge_tick(uint32_t now) {
         LeaveCriticalSection(&g_lock);
     }
 }
-static void cmd_army(char *out, const char *args) {
+internal void cmd_army(char *out, const char *args) {
     int p = 0, only = -1;   // army P [type]: only that unit type
     sscanf(args, "%d %d", &p, &only);
     uint8_t *map = *(uint8_t **)GA(G_MAP);
@@ -687,7 +687,7 @@ static void cmd_army(char *out, const char *args) {
 
 // ---- from assault.c ----
 // continent x y ... (test): per tile its land continent and ocean ids, the area object (0x425F16) and its fields +0x40..
-static void cmd_continent(char *out, const char *args) {
+internal void cmd_continent(char *out, const char *args) {
     int v[16], n = sscanf(args, "%d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d", &v[0], &v[1], &v[2], &v[3], &v[4],
                           &v[5], &v[6], &v[7], &v[8], &v[9], &v[10], &v[11], &v[12], &v[13], &v[14], &v[15]);
     for (int k = 0; k + 1 < n; k += 2) {
@@ -710,7 +710,7 @@ static void cmd_continent(char *out, const char *args) {
 // 0x442246, +0x20 target player, +0x28 mission, +0x2C 2, +0x30 1. Strategy (0x44, ctor 0x473BC4, reset 0x473CA7):
 // +0x3C 4 attack / 5 defend. Then cm 0x47067A(task, strategy, vector<int> ids) and [cm+0x48] 0x45106C(same).
 struct ag_scan { ee_player *pl; uint8_t *cm; int n, ids[256]; long sx, sy; int x, y, nodef; ee_unit *best; long bd; };
-static void ag_unit(ee_unit *u, void *ctx) {
+internal void ag_unit(ee_unit *u, void *ctx) {
     struct ag_scan *s = ctx;
     uint8_t *td = FIELD(u, OF(UNIT, 0x2C), uint8_t *);
     ee_player *owner = unit_owner(u);
@@ -728,7 +728,7 @@ static void ag_unit(ee_unit *u, void *ctx) {
         if (!s->best || d < s->bd) { s->best = u; s->bd = d; }
     }
 }
-static void cmd_aigroup(char *out, const char *args) {
+internal void cmd_aigroup(char *out, const char *args) {
     int p = 0, x = -1, y = -1;
     if (sscanf(args, "%d %d %d", &p, &x, &y) < 3) x = y = -1;
     int nodef = strstr(args, "nodef") != NULL;   // aigroup P [x y] [nodef]: not a defence
@@ -775,7 +775,7 @@ static void cmd_aigroup(char *out, const char *args) {
 
 // ---- from intel.c ----
 // calloff P T (test): AI P calls off its attack on T (the game's call-off at the next safe point, as attack_retreat)
-static void cmd_calloff(char *out, const char *args) {
+internal void cmd_calloff(char *out, const char *args) {
     int p = 0, t = 0;
     if (sscanf(args, "%d %d", &p, &t) != 2 || p <= 0 || p >= 16 || t <= 0 || t >= 16) { REPLY("error: calloff P T\n"); return; }
     g_cancel_why[p][t] = "test";
@@ -785,7 +785,7 @@ static void cmd_calloff(char *out, const char *args) {
 
 // ---- from aim.c ----
 // uinfo x y [r]: units within r tiles: position, speed, facing, hit points, goal
-static void cmd_uinfo(char *out, const char *args) {
+internal void cmd_uinfo(char *out, const char *args) {
     int x = 0, y = 0, r = 3;
     sscanf(args, "%d %d %d", &x, &y, &r);
     if (!*(uint8_t **)GA(G_MAP)) { REPLY("error: no map\n"); return; }
@@ -805,7 +805,7 @@ static void cmd_uinfo(char *out, const char *args) {
 }
 
 // move P x y r tx ty: units of player P within r tiles of x, y walk to tx, ty keeping their spread (tests)
-static void cmd_move(char *out, const char *args) {
+internal void cmd_move(char *out, const char *args) {
     int p, x, y, r, tx, ty, n = 0;
     if (sscanf(args, "%d %d %d %d %d %d", &p, &x, &y, &r, &tx, &ty) < 6) { REPLY("error: usage: move P x y r tx ty\n"); return; }
     if (!*(uint8_t **)GA(G_MAP)) { REPLY("error: no map\n"); return; }

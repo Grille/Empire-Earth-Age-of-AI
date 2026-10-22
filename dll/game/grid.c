@@ -22,7 +22,7 @@ struct grid_it {
     int cx, cy;                   // the current cell
     int gx, gy, x0, x1, y0, y1;   // the next cell, the area's columns and rows
 };
-static struct grid_it grid_it_area(int x0, int y0, int x1, int y1, int once) {   // cells x0..x1, y0..y1 (clamped)
+internal struct grid_it grid_it_area(int x0, int y0, int x1, int y1, int once) {   // cells x0..x1, y0..y1 (clamped)
     struct grid_it it = { 0 };
     uint8_t *map = *(uint8_t **)GA(G_MAP);
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
@@ -43,15 +43,15 @@ static struct grid_it grid_it_area(int x0, int y0, int x1, int y1, int once) {  
 }
 // the cells covering tiles x-r..x+r, y-r..y+r. C division truncates toward 0: (x - r) / cs is cell 0 for -1..-(cs-1)
 // as well, below that negative and left out by the clamp - as the hand-written loops' `cx < 0` test did
-static struct grid_it grid_it_box(int x, int y, int r, int once) {
+internal struct grid_it grid_it_box(int x, int y, int r, int once) {
     uint8_t *map = *(uint8_t **)GA(G_MAP);
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     int cs = grid ? FIELD(grid, OF(GRID, 0x8), int) : 0;
     if (cs <= 0) return grid_it_area(1, 1, 0, 0, once);
     return grid_it_area((x - r) / cs, (y - r) / cs, (x + r) / cs, (y + r) / cs, once);
 }
-static struct grid_it grid_it_all(int once) { return grid_it_area(0, 0, 0x7FFFFFFF, 0x7FFFFFFF, once); }
-static int grid_it_next(struct grid_it *it) {
+internal struct grid_it grid_it_all(int once) { return grid_it_area(0, 0, 0x7FFFFFFF, 0x7FFFFFFF, once); }
+internal int grid_it_next(struct grid_it *it) {
     for (;;) {
         while (it->b && it->b < FIELD(it->cell, OF(GRIDCELL, 0x8), ee_unit **)) {
             ee_unit *u = *it->b++;
@@ -75,11 +75,11 @@ static int grid_it_next(struct grid_it *it) {
 }
 
 // Callback over every unit of the unit grid (each unit once: only in the cell of its own position).
-static void grid_each(void (*fn)(ee_unit *u, void *ctx), void *ctx) {
+internal void grid_each(void (*fn)(ee_unit *u, void *ctx), void *ctx) {
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) fn(it.u, ctx);
 }
 // the same within the cells covering tiles x-r..x+r, y-r..y+r: each unit once (a big building stands in several cells -
 // counted by hand, an AA building counted 2-4 times); fn checks the distance
-static void grid_box(int x, int y, int r, void (*fn)(ee_unit *u, void *ctx), void *ctx) {
+internal void grid_box(int x, int y, int r, void (*fn)(ee_unit *u, void *ctx), void *ctx) {
     for (struct grid_it it = grid_it_box(x, y, r, 1); grid_it_next(&it); ) fn(it.u, ctx);
 }

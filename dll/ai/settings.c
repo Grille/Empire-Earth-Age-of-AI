@@ -38,15 +38,15 @@ struct ai_cfg {
     int pop_follow;         // pop_follow_human: 1 = the game's cap that follows the humans, 0 = the game limit (econ.c)
 };
 enum { PACE_CLASSIC, PACE_TIMER, PACE_RUSH, PACE_FOLLOW, PACE_INDEPENDENT, PACE_N };
-static const char *const k_pacing[PACE_N] = { "classic", "timer", "rush", "follow", "independent" };
-static struct ai_cfg g_cfg[3];
-static const char *const k_diff_sections[3] = { "easy", "medium", "hard" };
+internal const char *const k_pacing[PACE_N] = { "classic", "timer", "rush", "follow", "independent" };
+internal struct ai_cfg g_cfg[3];
+internal const char *const k_diff_sections[3] = { "easy", "medium", "hard" };
 
 // Per player: the difficulty's settings with a personality's style on top (persona.c, only with ai_style=1).
-static struct ai_cfg g_cfg_pl[16];
-static uint8_t g_cfg_pl_on[16];
+internal struct ai_cfg g_cfg_pl[16];
+internal uint8_t g_cfg_pl_on[16];
 
-static const struct ai_cfg *cfg_of(ee_player *pl) {
+internal const struct ai_cfg *cfg_of(ee_player *pl) {
     if (pl) {
         unsigned i = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
         if (g_cfg_pl_on[i]) return &g_cfg_pl[i];
@@ -63,7 +63,7 @@ static const struct ai_cfg *cfg_of(ee_player *pl) {
 // of the normal one (attack_group_percent = 150%) - aimod.ini's whole percents (20, 150) are those times 100; minutes
 // and epochs are plain numbers. A value outside its range is a mistake (attack_on_contact = 20 would be 2000%).
 enum { SK_NUM, SK_SHARE, SK_CHANCE, SK_SIZE };
-static const struct { const char *key; size_t off; char kind; } k_style_keys[] = {
+internal const struct { const char *key; size_t off; char kind; } k_style_keys[] = {
     { "military_start_share", offsetof(struct ai_cfg, mil_start_share), SK_SHARE },
     { "military_income_share", offsetof(struct ai_cfg, mil_income_share), SK_SHARE },
     { "military_income_share_farms", offsetof(struct ai_cfg, mil_income_share_farms), SK_SHARE },
@@ -80,12 +80,12 @@ static const struct { const char *key; size_t off; char kind; } k_style_keys[] =
     { "citizen_share", offsetof(struct ai_cfg, citizen_share), SK_SHARE },
     { "home_guard_share", offsetof(struct ai_cfg, home_guard_share), SK_SHARE },
 };
-static int style_key(const char *key) {   // its index in k_style_keys, -1: no style key
+internal int style_key(const char *key) {   // its index in k_style_keys, -1: no style key
     for (size_t k = 0; k < sizeof k_style_keys / sizeof *k_style_keys; k++) if (!lstrcmpiA(key, k_style_keys[k].key)) return (int)k;
     return -1;
 }
 // style key k = v onto c; 0: v out of its range (*why)
-static int cfg_style_set(struct ai_cfg *c, int k, double v, const char **why) {
+internal int cfg_style_set(struct ai_cfg *c, int k, double v, const char **why) {
     void *at = (uint8_t *)c + k_style_keys[k].off;
     switch (k_style_keys[k].kind) {
     case SK_SHARE:
@@ -106,7 +106,7 @@ static int cfg_style_set(struct ai_cfg *c, int k, double v, const char **why) {
         return 1;
     }
 }
-static void cfg_style_fix(struct ai_cfg *c) {   // a max below its min follows the min
+internal void cfg_style_fix(struct ai_cfg *c) {   // a max below its min follows the min
     if (c->epoch_max < c->epoch_min) c->epoch_max = c->epoch_min;
     if (c->first_attack_max < c->first_attack_min) c->first_attack_max = c->first_attack_min;
     if (c->attack_max < c->attack_min) c->attack_max = c->attack_min;
@@ -114,13 +114,13 @@ static void cfg_style_fix(struct ai_cfg *c) {   // a max below its min follows t
 
 // the text that counts for key in difficulty d: [autotest] of the test ini, else [<difficulty>], else [all] (*file,
 // *sec: where); 0: none (the default)
-static int cfg_raw(const char *ini, const char *test_ini, int d, const char *key, char *out, int cap, const char **file, const char **sec) {
+internal int cfg_raw(const char *ini, const char *test_ini, int d, const char *key, char *out, int cap, const char **file, const char **sec) {
     if (test_ini && ini_raw("autotest", key, test_ini, out, cap)) { *file = test_ini; *sec = "autotest"; return 1; }
     if (ini_raw(k_diff_sections[d], key, ini, out, cap)) { *file = ini; *sec = k_diff_sections[d]; return 1; }
     if (ini_raw("all", key, ini, out, cap)) { *file = ini; *sec = "all"; return 1; }
     return 0;
 }
-static int cfg_int(const char *ini, const char *test_ini, int d, const char *key, int def) {
+internal int cfg_int(const char *ini, const char *test_ini, int d, const char *key, int def) {
     char v[128];
     const char *f, *s;
     double x;
@@ -129,19 +129,19 @@ static int cfg_int(const char *ini, const char *test_ini, int d, const char *key
     return r;
 }
 // a share kept as whole percents (attack_on_contact=20% -> 20), 0% .. max_pct%
-static int cfg_pct(const char *ini, const char *test_ini, int d, const char *key, int def, int max_pct) {
+internal int cfg_pct(const char *ini, const char *test_ini, int d, const char *key, int def, int max_pct) {
     char v[128];
     const char *f, *s;
     return cfg_raw(ini, test_ini, d, key, v, sizeof v, &f, &s) ? ini_pct_of(f, s, key, v, def, max_pct) : def;
 }
 // a share kept as it is (home_guard_share=35% -> 0.35), lo .. hi
-static float cfg_share(const char *ini, const char *test_ini, int d, const char *key, double def, double lo, double hi) {
+internal float cfg_share(const char *ini, const char *test_ini, int d, const char *key, double def, double lo, double hi) {
     char v[128];
     const char *f, *s;
     return (float)(cfg_raw(ini, test_ini, d, key, v, sizeof v, &f, &s) ? ini_share_of(f, s, key, v, def, lo, hi) : def);
 }
 
-static int cfg_pacing(const char *ini, const char *test_ini, int d, int def) {
+internal int cfg_pacing(const char *ini, const char *test_ini, int d, int def) {
     char v[32];
     const char *f, *s;
     if (!cfg_raw(ini, test_ini, d, "epoch_pacing", v, sizeof v, &f, &s)) return def;
@@ -153,7 +153,7 @@ static int cfg_pacing(const char *ini, const char *test_ini, int d, int def) {
     return def;
 }
 
-static void settings_load(const char *ini, const char *test_ini) {
+internal void settings_load(const char *ini, const char *test_ini) {
     for (int d = 0; d < 3; d++) {
         struct ai_cfg *c = &g_cfg[d];
         c->copper_plan = cfg_int(ini, test_ini, d, "copper_plan", 1);
@@ -192,7 +192,7 @@ static void settings_load(const char *ini, const char *test_ini) {
 }
 
 // Once per AI player per game (first AI update).
-static void settings_apply(ee_player *pl) {
+internal void settings_apply(ee_player *pl) {
     const struct ai_cfg *c = cfg_of(pl);
     int d = FIELD(pl, PL_DIFFICULTY, int);
     if (c->cost_percent > 0) {

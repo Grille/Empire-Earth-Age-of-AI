@@ -23,34 +23,34 @@
 // (tcF), soldiers' food (tsF) and other resources (tsX). Units trained and killed within the same minute are missed.
 // "# soldier costs:" once a game: every land soldier type with an attack and its price F/W/S/G/I (the food-free ones
 // are what an early army could be made of without taking the citizens' food).
-static struct eco_dead { unsigned n, town, near_, far_, army, bld, ship, air, unk; } g_eco_dead[16];
-static uint32_t g_eco_t[16];
+internal struct eco_dead { unsigned n, town, near_, far_, army, bld, ship, air, unk; } g_eco_dead[16];
+internal uint32_t g_eco_t[16];
 
 #define ECO_IDS 8192
-static uint32_t g_eco_ids[16][2][ECO_IDS];   // the units of the last scan and of this one (addresses, open addressing)
-static unsigned g_eco_nids[16], g_eco_cur[16];
-static struct eco_spend { unsigned tc, ts, tcF, tsF, tsX; } g_eco_sp[16];
-static int g_eco_costs_logged;
+internal uint32_t g_eco_ids[16][2][ECO_IDS];   // the units of the last scan and of this one (addresses, open addressing)
+internal unsigned g_eco_nids[16], g_eco_cur[16];
+internal struct eco_spend { unsigned tc, ts, tcF, tsF, tsX; } g_eco_sp[16];
+internal int g_eco_costs_logged;
 
-static void ecolog_new_game(void) {
+internal void ecolog_new_game(void) {
     memset(g_eco_dead, 0, sizeof g_eco_dead); memset(g_eco_t, 0, sizeof g_eco_t);
     memset(g_eco_ids, 0, sizeof g_eco_ids); memset(g_eco_nids, 0, sizeof g_eco_nids); memset(g_eco_sp, 0, sizeof g_eco_sp);
     g_eco_costs_logged = 0;
 }
-static int eco_in(uint32_t *t, uint32_t id, int add) {   // 1 when id is in t (add: put it there)
+internal int eco_in(uint32_t *t, uint32_t id, int add) {   // 1 when id is in t (add: put it there)
     for (unsigned k = 0, h = (id * 2654435761u) % ECO_IDS; k < ECO_IDS; k++, h = (h + 1) % ECO_IDS) {
         if (t[h] == id) return 1;
         if (!t[h]) { if (add) t[h] = id; return 0; }
     }
     return 0;
 }
-static int eco_new_id(unsigned pi, uint32_t id) {   // 1 when id wasn't in the last scan; this scan remembers it
+internal int eco_new_id(unsigned pi, uint32_t id) {   // 1 when id wasn't in the last scan; this scan remembers it
     uint32_t *cur = g_eco_ids[pi][g_eco_cur[pi]], *last = g_eco_ids[pi][g_eco_cur[pi] ^ 1];
     if (!id || g_eco_nids[pi] >= ECO_IDS * 3 / 4) return 0;
     if (!eco_in(cur, id, 1)) g_eco_nids[pi]++;
     return !eco_in(last, id, 0);
 }
-static void eco_soldier_costs(ee_player *pl) {   // once a game: the land soldiers' prices
+internal void eco_soldier_costs(ee_player *pl) {   // once a game: the land soldiers' prices
     if (g_eco_costs_logged) return;
     g_eco_costs_logged = 1;
     EnterCriticalSection(&g_lock);
@@ -63,7 +63,7 @@ static void eco_soldier_costs(ee_player *pl) {   // once a game: the land soldie
     LeaveCriticalSection(&g_lock);
 }
 struct eco_mines { int n[7], slots[7], g[7], far_[7], nd[7]; };
-static void eco_mines(ee_player *pl, struct eco_mines *c) {
+internal void eco_mines(ee_player *pl, struct eco_mines *c) {
     memset(c, 0, sizeof *c);
     static ee_unit *seen[1024];
     int ns = 0;
@@ -111,9 +111,9 @@ static void eco_mines(ee_player *pl, struct eco_mines *c) {
 // game never adds them). Forage (the sites of every zone, res_forage_bush, food left): fsN / fsF within 30 tiles, fsN20 / fsF20
 // within site_max_distance of the base (what wild_food counts). Fish: fish / fishF in rm +0x98. Fields: fld all,
 // fldOK finished.
-static const char *eco_goal(ee_unit *u, int *res);
+internal const char *eco_goal(ee_unit *u, int *res);
 struct eco_food { int fo, fh, ff, fb, fx, hl, hlF, hl15, hl30, an, an30, anF30, anNew30, fsN, fsF, fsN20, fsF20, fish, fishF, fld, fldOK; };
-static int eco_drop_d2(ee_player *pl, int x, int y) {   // squared tiles to the nearest drop site for everything
+internal int eco_drop_d2(ee_player *pl, int x, int y) {   // squared tiles to the nearest drop site for everything
     unsigned pi = (unsigned)pidx(pl);
     int dd = 0x7FFFFFFF;
     for (int i = 0; i < g_drops[pi].n; i++) {
@@ -122,7 +122,7 @@ static int eco_drop_d2(ee_player *pl, int x, int y) {   // squared tiles to the 
     }
     return dd;
 }
-static void eco_food(ee_player *pl, ee_resource_mgr *rm, struct eco_food *f) {
+internal void eco_food(ee_player *pl, ee_resource_mgr *rm, struct eco_food *f) {
     memset(f, 0, sizeof *f);
     if (!rm) return;
     drops_cached(pl);
@@ -190,7 +190,7 @@ static void eco_food(ee_player *pl, ee_resource_mgr *rm, struct eco_food *f) {
     }
 }
 
-static const char *eco_goal(ee_unit *u, int *res) {   // what a citizen does; res: the gather site's type id (or -1)
+internal const char *eco_goal(ee_unit *u, int *res) {   // what a citizen does; res: the gather site's type id (or -1)
     uint8_t *g = FIELD(u, OF(UNIT, 0x1EC), uint8_t *);
     *res = -1;
     if (!g) return "none";
@@ -208,7 +208,7 @@ static const char *eco_goal(ee_unit *u, int *res) {   // what a citizen does; re
     return "other";
 }
 
-static void ecolog_tick(ee_player *pl, uint32_t now) {
+internal void ecolog_tick(ee_player *pl, uint32_t now) {
     if (!g_autotest || !g_log || !pl) return;
     unsigned idx = (unsigned)pidx(pl);
     if (now >= g_eco_t[idx] && now / 60000 == g_eco_t[idx] / 60000 && g_eco_t[idx]) return;
@@ -285,7 +285,7 @@ static void ecolog_tick(ee_player *pl, uint32_t now) {
 }
 
 // a unit of v killed by k (diplo.c hook_kill_stat, n 3 = a unit): citizens only
-static void eco_death(ee_unit *dead, int k, int v) {
+internal void eco_death(ee_unit *dead, int k, int v) {
     if (!g_autotest || !g_log || !dead) return;
     uint8_t *td = FIELD(dead, OF(UNIT, 0x2C), uint8_t *);
     ee_player *pl = unit_owner(dead);

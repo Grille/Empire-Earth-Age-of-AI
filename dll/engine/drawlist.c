@@ -8,10 +8,10 @@
 // references (found by a disassembly scan of the exe, all in the render code) and the two 512 limits point there.
 #define DRAW_REC 0x148
 #define DRAW_OLD_N 0x200
-static int g_draw_limit = 4096;
-static uint8_t *g_draw_recs;
+internal int g_draw_limit = 4096;
+internal uint8_t *g_draw_recs;
 
-static void drawlist_install(const char *aimod_ini, const char *autotest_ini) {
+internal void drawlist_install(const char *aimod_ini, const char *autotest_ini) {
     g_draw_limit = ini_int("display", "draw_limit", 4096, aimod_ini);
     if (autotest_ini) g_draw_limit = ini_int("autotest", "draw_limit", g_draw_limit, autotest_ini);
     if (g_draw_limit <= DRAW_OLD_N) {
@@ -57,7 +57,7 @@ static void drawlist_install(const char *aimod_ini, const char *autotest_ini) {
 }
 
 // drawcount: objects collected for the last frame (units etc. / small objects). Tests.
-static void cmd_drawcount(char *out, const char *args) {
+internal void cmd_drawcount(char *out, const char *args) {
     (void)args;
     REPLY("objects %u of %d, small objects %u of 1536\n", *(uint32_t *)GA(G_DRAW_N),
           g_draw_recs ? g_draw_limit : DRAW_OLD_N, *(uint32_t *)GA(G_DRAW_SMALL_N));

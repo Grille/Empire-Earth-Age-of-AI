@@ -17,8 +17,8 @@
 // bytes became other values. Each block carries a hash of its variable's definition, the structs it names and the
 // macros of its sizes (scripts/persist_layout.py -> persist_layout.h, run by build.sh). Files of format 1 (no
 // layout word: the saves made before it) are read as they always were, blocks matched by tag and size only.
-static int g_persist = 1;   // aimod.ini [general] save_state
-static const struct { const char *tag; void *p; size_t n; } k_blocks[] = {
+internal int g_persist = 1;   // aimod.ini [general] save_state
+internal const struct { const char *tag; void *p; size_t n; } k_blocks[] = {
 #define B(x) { #x, &x, sizeof x }
     B(g_diplo_seen), B(g_diplo_prev), B(g_diplo_due), B(g_war_since), B(g_ally_since), B(g_peace_due),
     B(g_peace_refused), B(g_offer_t), B(g_offer_last), B(g_opinion), B(g_war_betrayal), B(g_diplo_answers),
@@ -29,10 +29,10 @@ static const struct { const char *tag; void *p; size_t n; } k_blocks[] = {
     B(g_intel),   // intel.c: what each AI remembers (honest_vision) - unit pointers dropped on load, buildings matched again
 #undef B
 };
-static uint8_t *llm_mem_save(uint32_t *size);              // llm.c: the language model's memories (variable size)
-static void llm_mem_load(const uint8_t *p, uint32_t size);
+internal uint8_t *llm_mem_save(uint32_t *size);              // llm.c: the language model's memories (variable size)
+internal void llm_mem_load(const uint8_t *p, uint32_t size);
 // the blocks of a variable size: their own format, checked as they are read (no layout hash)
-static const struct { const char *tag; uint8_t *(*save)(uint32_t *size); void (*load)(const uint8_t *p, uint32_t size); } k_var_blocks[] = {
+internal const struct { const char *tag; uint8_t *(*save)(uint32_t *size); void (*load)(const uint8_t *p, uint32_t size); } k_var_blocks[] = {
     { "llm_memory", llm_mem_save, llm_mem_load },
     { "kill_log", kill_log_save, kill_log_load },   // diplo.c
 };
@@ -40,12 +40,12 @@ struct persist_head { char magic[8]; uint32_t version, game_time; uint64_t ees_s
 #define PERSIST_FORMAT 2   // 1: blocks {tag[32], size, bytes}; 2: {tag[32], size, layout, bytes}
 #define PERSIST_MAX_BLOCK (64u << 20)   // more is a broken file (the largest block, g_intel, is ~0.9 MB)
 #include "persist_layout.h"
-static uint32_t block_layout(const char *tag) {   // 0: no hash (k_var_blocks: their own format, checked as they are read)
+internal uint32_t block_layout(const char *tag) {   // 0: no hash (k_var_blocks: their own format, checked as they are read)
     for (size_t i = 0; i < sizeof k_layout / sizeof *k_layout; i++) if (!strcmp(k_layout[i].tag, tag)) return k_layout[i].hash;
     return 0;
 }
 
-static int ees_stamp(const char *ees, uint64_t *size, FILETIME *t) {
+internal int ees_stamp(const char *ees, uint64_t *size, FILETIME *t) {
     WIN32_FILE_ATTRIBUTE_DATA a;
     if (!GetFileAttributesExA(ees, GetFileExInfoStandard, &a)) return 0;
     *size = ((uint64_t)a.nFileSizeHigh << 32) | a.nFileSizeLow;
@@ -53,7 +53,7 @@ static int ees_stamp(const char *ees, uint64_t *size, FILETIME *t) {
     return 1;
 }
 // <game dir>\<folder><file> with .ees, and the same with .aimod
-static void persist_paths(const char *folder, const char *file, char *ees, char *side) {
+internal void persist_paths(const char *folder, const char *file, char *ees, char *side) {
     char dir[MAX_PATH];
     lstrcpynA(dir, g_game_dir, MAX_PATH);   // not the config's folder: under autotest that can be _aimod\config
     wsprintfA(ees, "%s%s%s", dir, folder ? folder : "", file);
@@ -64,7 +64,7 @@ static void persist_paths(const char *folder, const char *file, char *ees, char 
     lstrcpyA(side + strlen(side) - 4, ".aimod");
 }
 
-static void persist_write(const char *folder, const char *file) {
+internal void persist_write(const char *folder, const char *file) {
     char ees[MAX_PATH * 2], side[MAX_PATH * 2];
     persist_paths(folder, file, ees, side);
     struct persist_head h = { "EEAIMOD", PERSIST_FORMAT, game_time(), 0, { 0, 0 } };
@@ -120,7 +120,7 @@ static void persist_write(const char *folder, const char *file) {
     if (fh != INVALID_HANDLE_VALUE) FindClose(fh);
 }
 
-static int __cdecl hook_save_game(void *file, int a, int b, struct ustring folder) {
+internal int __cdecl hook_save_game(void *file, int a, int b, struct ustring folder) {
     // the folder is passed by value and destroyed by the original: read both names first
     char fname[MAX_PATH] = "", dname[MAX_PATH] = "";
     const char *fp = file ? FIELD(file, 4, const char *) : NULL, *dp = FIELD(folder.raw, 4, const char *);
@@ -133,7 +133,7 @@ static int __cdecl hook_save_game(void *file, int a, int b, struct ustring folde
 }
 
 // a saved game starts (game start hook, after the new-game resets): its state file, if it belongs to it
-static void persist_load(const char *name) {
+internal void persist_load(const char *name) {
     if (!g_persist || !name || !name[0]) return;
     char ees[MAX_PATH * 2], side[MAX_PATH * 2];
     persist_paths("data\\Saved Games\\", name, ees, side);
@@ -188,7 +188,7 @@ static void persist_load(const char *name) {
 }
 
 // all call sites of the save function: E8 rel32 to it in .text
-static void persist_install(const char *ini, const char *test_ini) {
+internal void persist_install(const char *ini, const char *test_ini) {
     g_persist = ini_int("general", "save_state", 1, ini);
     if (test_ini) g_persist = ini_int("autotest", "save_state", g_persist, test_ini);
     uint8_t *base = (uint8_t *)GetModuleHandleA(NULL);

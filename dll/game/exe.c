@@ -6,7 +6,7 @@
 // "Exe builds"). Known by a hash (FNV-1a) of every section but .rsrc, read from the file: in memory another DLL may have
 // patched the code already, and run_test.ps1 patches it before the game runs.
 // (the builds and their hashes: addr.h k_exe_builds)
-static uint32_t exe_build_hash(const char *path) {   // 0: not a readable PE file
+internal uint32_t exe_build_hash(const char *path) {   // 0: not a readable PE file
     HANDLE f = CreateFileA(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, 0, NULL);
     if (f == INVALID_HANDLE_VALUE) return 0;
     uint32_t h = 0, size = GetFileSize(f, NULL);
@@ -35,7 +35,7 @@ static uint32_t exe_build_hash(const char *path) {   // 0: not a readable PE fil
 // program loading the folder's DLLs) or a known build that isn't ready (the player's game runs without the mod); -1:
 // the game, another build (*hash its hash). A test run (run_test.ps1: EEAIMOD_UNREADY=1) plays a build that isn't
 // ready too - how it gets ready.
-static int game_build(uint32_t *hash) {
+internal int game_build(uint32_t *hash) {
     char path[MAX_PATH], unready[4];
     GetModuleFileNameA(NULL, path, MAX_PATH);
     const char *name = strrchr(path, '\\');
@@ -51,7 +51,7 @@ static int game_build(uint32_t *hash) {
 }
 // Another build: nothing installed - the player is told once a start (a test run, which has nobody to click: only
 // the log), and the game runs as it is
-static void build_unknown(uint32_t hash) {
+internal void build_unknown(uint32_t hash) {
     char dir[MAX_PATH], path[MAX_PATH + 32];
     // the engine loads the folder's DLLs several times (it frees those that are no render plugin): told once - the
     // process's environment outlives the DLL

@@ -3,7 +3,7 @@
 // how each follows the screen size: value = aoc + fx/2 * (W - 1024) + fy/2 * (H - 768).
 // kind 0: imm32 operand at addr (old = EE value, checked); kind 1: float constant read through the
 // absolute operand at addr - the operand is redirected to a float of our own. isf: float, else int.
-static const struct { uint32_t addr; uint8_t kind, isf; uint32_t old; float aoc; int8_t fx, fy; } k_editor_layout[] = {
+internal const struct { uint32_t addr; uint8_t kind, isf; uint32_t old; float aoc; int8_t fx, fy; } k_editor_layout[] = {
     { 0x56127A, 0, 1, 0x43A28000, 437.00f, 1, 0 },   // EESEInstructions_00560ec7: mov dword ptr [ebp - 0xc], 0x43a28000  325 -> 437
     { 0x56135B, 0, 1, 0x441D8000, 854.00f, 2, 0 },   // EESEInstructions_00560ec7: mov dword ptr [ebp - 0xc], 0x441d8000  630 -> 854
     { 0x56145C, 1, 1, 0x443DC000, 983.00f, 2, 0 },   // EESEInstructions_00560ec7: fadd dword ptr [0x82d47c]  759 -> 983

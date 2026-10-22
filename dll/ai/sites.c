@@ -8,15 +8,15 @@
 // 0x4660B9 sampled every 2 tiles). Leftover citizens only go to mines whose resource is below target;
 // otherwise the game falls back to wood. Included by eeaimod.c before econ.c.
 
-static int g_site_max_dist = 20;   // tiles from the base, aimod.ini [all] site_max_distance
+internal int g_site_max_dist = 20;   // tiles from the base, aimod.ini [all] site_max_distance
 
 typedef char (__thiscall *EnemyNearFn)(void *, int, int);
-static int site_danger(ee_player *pl, ee_unit *site, int food);   // attack.c: known enemy towers on the way
-static int site_danger_res(ee_player *pl, ee_unit *site, int food, int res);   // attack.c: res 2 food .. 6 iron
-static ee_unit *food_near_pick(ee_resource_mgr *rm, int near_base, ee_unit *unit);   // food.c (food_plan NEAR)
-static unsigned g_site_refused[16];   // dangerous sites the searches refused (logged by attack.c)
+internal int site_danger(ee_player *pl, ee_unit *site, int food);   // attack.c: known enemy towers on the way
+internal int site_danger_res(ee_player *pl, ee_unit *site, int food, int res);   // attack.c: res 2 food .. 6 iron
+internal ee_unit *food_near_pick(ee_resource_mgr *rm, int near_base, ee_unit *unit);   // food.c (food_plan NEAR)
+internal unsigned g_site_refused[16];   // dangerous sites the searches refused (logged by attack.c)
 
-static int route_safe(void *bm, const int base[2], const int to[2]) {
+internal int route_safe(void *bm, const int base[2], const int to[2]) {
     int dx = to[0] - base[0], dy = to[1] - base[1];
     int len = (int)sqrtf((float)(dx * dx + dy * dy));
     for (int t = 3; t < len; t += 2)   // skip the first tiles: our own base
@@ -26,7 +26,7 @@ static int route_safe(void *bm, const int base[2], const int to[2]) {
 
 // Drop sites of a player from the unit grid: Town Center, Capitol, Settlement (also the single player one) take
 // everything, Granary (also the improved one) only food. Up to `max` entries {x, y, food_only}.
-static int drop_sites(ee_player *pl, int (*out)[3], int max) {
+internal int drop_sites(ee_player *pl, int (*out)[3], int max) {
     uint8_t *map = *(uint8_t **)GA(G_MAP);
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     if (!grid) return 0;
@@ -42,7 +42,7 @@ static int drop_sites(ee_player *pl, int (*out)[3], int max) {
     }
     return n;
 }
-static int drop_dist(int (*d)[3], int nd, int x, int y, int food) {
+internal int drop_dist(int (*d)[3], int nd, int x, int y, int food) {
     int best = 999;
     for (int i = 0; i < nd; i++) {
         if (d[i][2] && !food) continue;
@@ -53,7 +53,7 @@ static int drop_dist(int (*d)[3], int nd, int x, int y, int food) {
 }
 
 // type 2 = food (forage sites, zone activity ignored like the original), 4..6 = mines.
-static ee_unit *select_site(ee_resource_mgr *rm, int type, int need_drop, int max_d2, ee_unit *unit) {
+internal ee_unit *select_site(ee_resource_mgr *rm, int type, int need_drop, int max_d2, ee_unit *unit) {
     ee_player *pl = rm_player(rm);
     uint8_t *cm = FIELD(rm, RM_OWNER, uint8_t *);
     void *bm = cm ? FIELD(cm, OF(CM, 0x3C), void *) : NULL;
@@ -97,9 +97,9 @@ static ee_unit *select_site(ee_resource_mgr *rm, int type, int need_drop, int ma
 // walk decides the income: take the free mine nearest to one of the AI's drop sites (Town Center, Capitol,
 // Settlement) instead, with the original's checks (active zone, explored, gatherer cap, no enemy near, the unit's
 // continent) and no known enemy on the straight way from that drop site. Nothing found -> the original search.
-static int g_mine_choice = 1;
-static struct { ee_player *pl; uint32_t t; int n; int d[64][3]; } g_drops[16];
-static void drops_cached(ee_player *pl) {
+internal int g_mine_choice = 1;
+internal struct { ee_player *pl; uint32_t t; int n; int d[64][3]; } g_drops[16];
+internal void drops_cached(ee_player *pl) {
     unsigned pi = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     uint32_t now = game_time();
     if (g_drops[pi].pl != pl || now < g_drops[pi].t || now - g_drops[pi].t > 5000) {   // cached 5 s
@@ -107,7 +107,7 @@ static void drops_cached(ee_player *pl) {
         g_drops[pi].n = drop_sites(pl, g_drops[pi].d, 64);
     }
 }
-static int nearest_drop(ee_player *pl, int x, int y, int food, int out[2]) {   // food: granaries count too
+internal int nearest_drop(ee_player *pl, int x, int y, int food, int out[2]) {   // food: granaries count too
     drops_cached(pl);
     unsigned pi = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     int best = 0x7FFFFFFF;
@@ -118,7 +118,7 @@ static int nearest_drop(ee_player *pl, int x, int y, int food, int out[2]) {   /
     }
     return best != 0x7FFFFFFF;
 }
-static void *refuse_danger(ee_resource_mgr *rm, void *site, int food, int res) {
+internal void *refuse_danger(ee_resource_mgr *rm, void *site, int food, int res) {
     ee_player *pl = rm_player(rm);
     if (!site || !site_danger_res(pl, site, food, res)) return site;
     g_site_refused[(unsigned)FIELD(pl, PL_INDEX, int) & 15]++;
@@ -126,7 +126,7 @@ static void *refuse_danger(ee_resource_mgr *rm, void *site, int food, int res) {
 }
 // minecheck P type: every mine of that resource in P's zones and the first check of select_mine_near_drop that
 // refuses it (tests)
-static void cmd_minecheck(char *out, const char *args) {
+internal void cmd_minecheck(char *out, const char *args) {
     int p = 0, type = 5;
     sscanf(args, "%d %d", &p, &type);
     ee_player *pl = p > 0 && p < 16 ? g_players[p] : NULL;
@@ -163,7 +163,7 @@ static void cmd_minecheck(char *out, const char *args) {
     }
 }
 // not_region: a continent (region class 2) whose mines don't count, -1 none (overseas_mines)
-static ee_unit *select_mine_near_drop(ee_resource_mgr *rm, int type, ee_unit *unit, int not_region) {
+internal ee_unit *select_mine_near_drop(ee_resource_mgr *rm, int type, ee_unit *unit, int not_region) {
     ee_player *pl = rm_player(rm);
     uint8_t *cm = FIELD(rm, RM_OWNER, uint8_t *);
     void *bm = cm ? FIELD(cm, OF(CM, 0x3C), void *) : NULL;
@@ -202,7 +202,7 @@ static ee_unit *select_mine_near_drop(ee_resource_mgr *rm, int type, ee_unit *un
     return best;
 }
 
-static void trace_site(ee_resource_mgr *rm, const char *what, uintptr_t caller, void *unit, void *r) {
+internal void trace_site(ee_resource_mgr *rm, const char *what, uintptr_t caller, void *unit, void *r) {
     if (!tracing(rm)) return;
     char buf[300];
     snprintf(buf, sizeof buf, "@%06x %s", (unsigned)caller, what);
@@ -223,10 +223,10 @@ static void trace_site(ee_resource_mgr *rm, const char *what, uintptr_t caller, 
 // AIs, on - off): Small Islands e5 citizens +4.2 (se 2.5), home miners +3.1 (1.7), income +659 (1017); Large Islands e9
 // citizens +2.3 (1.1), home miners +1.7 (1.3), income +25 (536); kills, losses, epochs within noise - a small gain
 // within 2 standard errors, on since it costs nothing (2026-10-21, the user).
-static int g_overseas_mines = 1;
-static unsigned g_oversea[16][4];   // per player: searches, home mines found, overseas mines found, home ones replaced
-static void *find_mine_pick(ee_resource_mgr *rm, int type, ee_unit *unit, uintptr_t rev, uintptr_t caller);
-static void *__fastcall hook_find_mine(ee_resource_mgr *rm, void *edx, int type, ee_unit *unit, uintptr_t rev) {
+internal int g_overseas_mines = 1;
+internal unsigned g_oversea[16][4];   // per player: searches, home mines found, overseas mines found, home ones replaced
+internal void *find_mine_pick(ee_resource_mgr *rm, int type, ee_unit *unit, uintptr_t rev, uintptr_t caller);
+internal void *__fastcall hook_find_mine(ee_resource_mgr *rm, void *edx, int type, ee_unit *unit, uintptr_t rev) {
     (void)edx;
     uintptr_t caller = CALLER();
     ee_unit *r = find_mine_pick(rm, type, unit, rev, caller);
@@ -247,7 +247,7 @@ static void *__fastcall hook_find_mine(ee_resource_mgr *rm, void *edx, int type,
     if (r) n[3]++;
     return r;
 }
-static void *find_mine_pick(ee_resource_mgr *rm, int type, ee_unit *unit, uintptr_t rev, uintptr_t caller) {
+internal void *find_mine_pick(ee_resource_mgr *rm, int type, ee_unit *unit, uintptr_t rev, uintptr_t caller) {
     if (is_vanilla(rm_player(rm))) return rm_find_mine(rm, (uintptr_t)type, unit, rev);   // the game's search
     if (!cfg_of(rm_player(rm))->safe_sites) {
         ee_unit *r = g_mine_choice && type >= 4 && type < 7 ? select_mine_near_drop(rm, type, unit, -1) : NULL;
@@ -265,7 +265,7 @@ static void *find_mine_pick(ee_resource_mgr *rm, int type, ee_unit *unit, uintpt
     return r;
 }
 
-static void *__fastcall hook_find_food(ee_resource_mgr *rm, void *edx, uintptr_t need_drop, uintptr_t near_base, ee_unit *unit) {
+internal void *__fastcall hook_find_food(ee_resource_mgr *rm, void *edx, uintptr_t need_drop, uintptr_t near_base, ee_unit *unit) {
     (void)edx;
     if (is_vanilla(rm_player(rm))) return rm_find_food(rm, need_drop, near_base, unit);
     if (!cfg_of(rm_player(rm))->safe_sites) {
@@ -283,7 +283,7 @@ static void *__fastcall hook_find_food(ee_resource_mgr *rm, void *edx, uintptr_t
 // The assignment's lists (std::vector out: +4 begin, +8 end): finished fields without farmer (0x48BFD0, called at
 // 0x48AC54), unfinished fields (0x48BF4F at 0x48B0FD), game to hunt (0x48BA3B at 0x48ACE4, 0x48AFC4) - the
 // dangerous entries are taken out, as the searches refuse dangerous sites.
-static void list_filter(ee_resource_mgr *rm, uint8_t *v, int food) {
+internal void list_filter(ee_resource_mgr *rm, uint8_t *v, int food) {
     ee_player *pl = rm_player(rm);
     void **b = v ? FIELD(v, 4, void **) : NULL, **e = v ? FIELD(v, 8, void **) : NULL, **w = b;
     if (!pl || !b || is_vanilla(pl)) return;   // a vanilla player: the game's list
@@ -293,31 +293,31 @@ static void list_filter(ee_resource_mgr *rm, uint8_t *v, int food) {
     }
     FIELD(v, 8, void **) = w;
 }
-static void *__fastcall hook_farms(ee_resource_mgr *rm, void *edx, uintptr_t n, uintptr_t out) {
+internal void *__fastcall hook_farms(ee_resource_mgr *rm, void *edx, uintptr_t n, uintptr_t out) {
     (void)edx;
     void *r = rm_farms(rm, n, out);
     list_filter(rm, (uint8_t *)out, 1);
     return r;
 }
-static void *__fastcall hook_unbuilt_farms(ee_resource_mgr *rm, void *edx, uintptr_t n, uintptr_t out) {
+internal void *__fastcall hook_unbuilt_farms(ee_resource_mgr *rm, void *edx, uintptr_t n, uintptr_t out) {
     (void)edx;
     void *r = rm_unbuilt_farms(rm, n, out);
     list_filter(rm, (uint8_t *)out, 1);
     return r;
 }
-static void *__fastcall hook_hunt(ee_resource_mgr *rm, void *edx, uintptr_t n, uintptr_t f, uintptr_t out) {
+internal void *__fastcall hook_hunt(ee_resource_mgr *rm, void *edx, uintptr_t n, uintptr_t f, uintptr_t out) {
     (void)edx;
     void *r = rm_hunt(rm, n, f, out);
     list_filter(rm, (uint8_t *)out, 1);
     return r;
 }
-static void *__fastcall hook_find_wood(ee_resource_mgr *rm, void *edx, uintptr_t flag, ee_unit *unit) {
+internal void *__fastcall hook_find_wood(ee_resource_mgr *rm, void *edx, uintptr_t flag, ee_unit *unit) {
     (void)edx;
     if (is_vanilla(rm_player(rm))) return rm_find_wood(rm, flag, unit);
     return refuse_danger(rm, rm_find_wood(rm, flag, unit), 0, 3);
 }
 
-static void sites_install(const char *aimod_ini, const char *autotest_ini) {
+internal void sites_install(const char *aimod_ini, const char *autotest_ini) {
     g_site_max_dist = cfg_int(aimod_ini, autotest_ini, 1, "site_max_distance", 20);
     g_mine_choice = cfg_int(aimod_ini, autotest_ini, 1, "mine_choice", 1);
     g_overseas_mines = cfg_int(aimod_ini, autotest_ini, 1, "overseas_mines", 1);
@@ -329,7 +329,7 @@ static void sites_install(const char *aimod_ini, const char *autotest_ini) {
 }
 
 // a new game (the game start hook)
-static void sites_new_game(void) {
+internal void sites_new_game(void) {
     memset(g_drops, 0, sizeof g_drops);
     memset(g_site_refused, 0, sizeof g_site_refused);
     memset(g_oversea, 0, sizeof g_oversea);

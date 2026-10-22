@@ -19,7 +19,7 @@ diplo += src('relations.c')   # the players' values and relations in the texts
 expr += src('constants.c')   # the game's constants (epoch., resource. ...) in the texts
 persona += src('players.c')   # the player colours (game/players.c)
 def xtable(name):   # diplo.c k_xmembers / k_xglobals: (name, kind)
-    body = re.search(r'static const struct xmember %s\[\] = \{(.*?)\n\};' % name, diplo, re.S).group(1)
+    body = re.search(r'internal const struct xmember %s\[\] = \{(.*?)\n\};' % name, diplo, re.S).group(1)
     return re.findall(r'\{ "(\w+)", (XM_\w+),', body)
 members = xtable('k_xmembers')
 globals_ = [n for n, k in xtable('k_xglobals')]

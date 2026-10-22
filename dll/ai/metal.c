@@ -18,9 +18,9 @@
 #define MT_NB 18
 enum { MB_CIT, MB_INF, MB_RNG, MB_CAV, MB_SIE, MB_OTH, MB_WSH, MB_BOAT, MB_AIR, MB_EP, MB_UP7, MB_TECH, MB_TOWER, MB_WALL,
        MB_MBL, MB_BLD, MB_UNK, MB_NONE };
-static const char *const k_mb[MT_NB] = { "cit", "inf", "rng", "cav", "sie", "oth", "wsh", "boat", "air", "ep", "up7", "tech",
+internal const char *const k_mb[MT_NB] = { "cit", "inf", "rng", "cav", "sie", "oth", "wsh", "boat", "air", "ep", "up7", "tech",
                                          "tower", "wall", "mbl", "bld", "unk", "none" };
-static struct mt_st {
+internal struct mt_st {
     uint32_t t, ts;                 // last line, last sample
     unsigned min;
     int inc[7];                     // income since the start
@@ -31,11 +31,11 @@ static struct mt_st {
     int navy_freed;
     uint32_t calm_since;            // NAVY: the sea calm since
 } g_mt[16];
-static void mt_new_game(void) { memset(g_mt, 0, sizeof g_mt); }
+internal void mt_new_game(void) { memset(g_mt, 0, sizeof g_mt); }
 
 // what a type is to the army: its line (MB_*) - land soldiers by their producer (the tech's building list, data
 // +0x10..+0x14), ships by family (docs/navy.md: 4 warships, 10 submarines, 21 carriers; 18 transports, 22 fishing boats)
-static int mt_line(ee_player *pl, int t) {
+internal int mt_line(ee_player *pl, int t) {
     uint8_t *td = type_data(t);
     if (!td) return MB_UNK;
     int fam = FIELD(td, OF(TD, 0x4B4), int);
@@ -63,11 +63,11 @@ static int mt_line(ee_player *pl, int t) {
     return MB_OTH;
 }
 // income (econ.c hook_add_resource, every player)
-static void mt_income(ee_player *pl, int type, int amount) {
+internal void mt_income(ee_player *pl, int type, int amount) {
     if (amount > 0 && type >= 2 && type < 7) g_mt[(unsigned)FIELD(pl, PL_INDEX, int) & 15].inc[type] += amount;
 }
 // a payment (econ.c hook_pay, every player): what = the tech paid
-static void mt_paid(ee_player *pl, uint8_t *what, const int *before, const int *stock) {
+internal void mt_paid(ee_player *pl, uint8_t *what, const int *before, const int *stock) {
     struct mt_st *m = &g_mt[(unsigned)FIELD(pl, PL_INDEX, int) & 15];
     uint8_t *d = what ? FIELD(what, OF(TECH, 0x8), uint8_t *) : NULL;
     int b = MB_UNK;
@@ -85,7 +85,7 @@ static void mt_paid(ee_player *pl, uint8_t *what, const int *before, const int *
     if (any) m->np[b]++;
 }
 // econ.c train_budget: the budget saves for a refused unit
-static void mt_saving(unsigned idx) { struct mt_st *m = &g_mt[idx & 15]; m->save_refused++; m->save_last = game_time(); if (!m->save_last) m->save_last = 1; }
+internal void mt_saving(unsigned idx) { struct mt_st *m = &g_mt[idx & 15]; m->save_refused++; m->save_last = game_time(); if (!m->save_last) m->save_last = 1; }
 
 // ---- metal_plan ([all], bits; [autotest] v_metal_plan for the variant players) ----
 // 1 VALUE: a land soldier the game (or army_plan's FILL) asks for is trained as the one that does most against the
@@ -118,30 +118,30 @@ static void mt_saving(unsigned idx) { struct mt_st *m = &g_mt[idx & 15]; m->save
 // 7-18 more soldiers at 75 and fewer losses; with the cheat the base AI won fewer games on Small / Large Islands, but
 // kills - losses fell on Small Islands Large and Tournament Islands Huge. VALUE gave more soldiers and wins on Continental
 // Large without the cheat, fewer kills everywhere. Default 0.
-static int g_metal_plan = 0, g_v_metal_plan = -1, g_mt_fleet_pct = 250, g_mt_fleet_min = 20;
+internal int g_metal_plan = 0, g_v_metal_plan = -1, g_mt_fleet_pct = 250, g_mt_fleet_min = 20;
 #define METAL_PLAN(idx) PV(idx, g_v_metal_plan, g_metal_plan)
-static int g_mt_cap = 250;   // [all] metal_cap: the bits act from this population cap on (the metal limits the army there)
-static int mt_plan(ee_player *pl, unsigned idx) {
+internal int g_mt_cap = 250;   // [all] metal_cap: the bits act from this population cap on (the metal limits the army there)
+internal int mt_plan(ee_player *pl, unsigned idx) {
     if (!METAL_PLAN(idx) || !pl) return 0;
     return unit_limit(pl) >= g_mt_cap ? METAL_PLAN(idx) : 0;
 }
 #define MT_CAND 48
-static struct mt_val {
+internal struct mt_val {
     ee_player *pl; uint32_t t;
     int n, type[MT_CAND]; float val[MT_CAND];   // trainable land soldiers, their value (per one, before the price)
     int foe;                                    // enemy soldiers in the mix (0: the mirror)
 } g_mv[16];
-static uint16_t g_mt_own[16][768];   // own land soldiers by type (VALUE's share), with the values
-static int g_mt_army[16];
+internal uint16_t g_mt_own[16][768];   // own land soldiers by type (VALUE's share), with the values
+internal int g_mt_army[16];
 
-static float mt_dps(uint8_t *atd, uint8_t *ast, int api, uint8_t *ttd, uint8_t *tst, int tpi) {
+internal float mt_dps(uint8_t *atd, uint8_t *ast, int api, uint8_t *ttd, uint8_t *tst, int tpi) {
     int s = st_shot_t(atd, ast, api, ttd, tst, tpi);
     return s > 0 ? (float)s / (st_reload_t(atd, ast) + ST_SHOT_OVERHEAD) : 0.0f;
 }
-static float mt_range_t(uint8_t *td, uint8_t *st) { return st ? FIELD(st, OF(USTAT, 0x9C), float) : FIELD(td, OF(TD, 0x420), float); }
-static float mt_price(ee_player *pl, unsigned idx, int t, const int *stock, const int *reserve);
+internal float mt_range_t(uint8_t *td, uint8_t *st) { return st ? FIELD(st, OF(USTAT, 0x9C), float) : FIELD(td, OF(TD, 0x420), float); }
+internal float mt_price(ee_player *pl, unsigned idx, int t, const int *stock, const int *reserve);
 // the values of the trainable land soldiers against the known enemy mix, every 30 s
-static void mt_values(ee_player *pl, unsigned idx) {
+internal void mt_values(ee_player *pl, unsigned idx) {
     struct mt_val *v = &g_mv[idx];
     uint32_t now = game_time();
     if (v->pl == pl && now >= v->t && now - v->t < 30000) return;
@@ -201,7 +201,7 @@ static void mt_values(ee_player *pl, unsigned idx) {
     }
 }
 // VALUE's price (SPARE: food, wood and stone by what lies unused)
-static float mt_price(ee_player *pl, unsigned idx, int t, const int *stock, const int *reserve) {
+internal float mt_price(ee_player *pl, unsigned idx, int t, const int *stock, const int *reserve) {
     float p = 0;
     for (int r = 2; r < 7; r++) {
         int c = unit_cost(pl, t, r);
@@ -215,7 +215,7 @@ static float mt_price(ee_player *pl, unsigned idx, int t, const int *stock, cons
     }
     return p > 1 ? p : 1;
 }
-static float mt_value_of(ee_player *pl, unsigned idx, int t, const int *stock, const int *reserve) {
+internal float mt_value_of(ee_player *pl, unsigned idx, int t, const int *stock, const int *reserve) {
     struct mt_val *v = &g_mv[idx];
     for (int i = 0; i < v->n; i++)
         if (v->type[i] == t) {
@@ -226,7 +226,7 @@ static float mt_value_of(ee_player *pl, unsigned idx, int t, const int *stock, c
 }
 // VALUE (econ.c train_budget, a land soldier's request): the type to train instead of asked (0: as asked), *got of it
 // that vis pays; trainable / blocked: the asked one's state
-static int mt_choose(ee_player *pl, unsigned idx, int asked, const int *vis, const int *stock, const int *reserve, int want,
+internal int mt_choose(ee_player *pl, unsigned idx, int asked, const int *vis, const int *stock, const int *reserve, int want,
                      int blocked, int trainable, int *got) {
     if (!(mt_plan(pl, idx) & 1) || current_epoch(pl) < 1) return 0;
     mt_values(pl, idx);
@@ -249,7 +249,7 @@ static int mt_choose(ee_player *pl, unsigned idx, int asked, const int *vis, con
     return best;
 }
 // NOWAIT (econ.c train_budget): saving for type makes no sense - its missing gold or iron won't come within wait s
-static int mt_nowait(ee_player *pl, unsigned idx, int type, const int *vis, int wait) {
+internal int mt_nowait(ee_player *pl, unsigned idx, int type, const int *vis, int wait) {
     if (!(mt_plan(pl, idx) & 2)) return 0;
     const struct ai_cfg *c = cfg_of(pl);
     float sh = current_epoch(pl) >= FARM_EPOCH ? c->mil_income_share_farms : c->mil_income_share;
@@ -263,7 +263,7 @@ static int mt_nowait(ee_player *pl, unsigned idx, int type, const int *vis, int 
     return 0;
 }
 // CALM: the account's gold and iron while the sea is calm
-static void mt_navy(ee_player *pl, unsigned idx, uint32_t now) {
+internal void mt_navy(ee_player *pl, unsigned idx, uint32_t now) {
     struct mt_st *m = &g_mt[idx];
     if (!(mt_plan(pl, idx) & 16) || navy_share(idx) <= 0) { m->calm_since = 0; return; }
     int mine = 0, theirs = 0, inw = 0;
@@ -274,7 +274,7 @@ static void mt_navy(ee_player *pl, unsigned idx, uint32_t now) {
         if (g_nv_acc[idx][r] > 100.0f) { m->navy_freed += (int)(g_nv_acc[idx][r] - 100.0f); g_nv_acc[idx][r] = 100.0f; m->navy_cut++; }
 }
 // FLEET (navy.c navy_tick, the stage-4 target t): at most what the sea needs
-static int mt_fleet_target(ee_player *pl, unsigned idx, int t) {
+internal int mt_fleet_target(ee_player *pl, unsigned idx, int t) {
     if (!(mt_plan(pl, idx) & 8) || t <= 0) return t;
     struct intel *in = &g_intel[idx & 15];
     int n = 0;
@@ -290,7 +290,7 @@ static int mt_fleet_target(ee_player *pl, unsigned idx, int t) {
     return need < t ? need : t;
 }
 
-static void mt_log(ee_player *pl, unsigned idx, unsigned min) {
+internal void mt_log(ee_player *pl, unsigned idx, unsigned min) {
     struct mt_st *m = &g_mt[idx];
     int army[MT_NB] = { 0 }, foe[MT_NB] = { 0 };
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
@@ -327,7 +327,7 @@ static void mt_log(ee_player *pl, unsigned idx, unsigned min) {
     m->navy_freed = 0;
 }
 // every player's update (eeaimod.c hook_rm_update)
-static void mt_tick(ee_player *pl, uint32_t now) {
+internal void mt_tick(ee_player *pl, uint32_t now) {
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     struct mt_st *m = &g_mt[idx];
     if (now < m->ts) { memset(m, 0, sizeof *m); }
@@ -361,7 +361,7 @@ static void mt_tick(ee_player *pl, uint32_t now) {
     m->min = now / 300000;
     mt_log(pl, idx, m->min * 5);
 }
-static void mt_install(const char *aimod_ini, const char *autotest_ini) {
+internal void mt_install(const char *aimod_ini, const char *autotest_ini) {
     g_metal_plan = cfg_int(aimod_ini, autotest_ini, 1, "metal_plan", 0);
     g_mt_fleet_pct = cfg_int(aimod_ini, autotest_ini, 1, "metal_fleet_pct", 250);
     g_mt_fleet_min = cfg_int(aimod_ini, autotest_ini, 1, "metal_fleet_min", 20);

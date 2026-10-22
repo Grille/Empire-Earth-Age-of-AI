@@ -10,7 +10,7 @@
 // The type families (+0x4B4, diplo.c kill_kind): 4 ships, 10 submarines, 18 transports, 21 carriers, 22 fishing boats.
 // Transports and fishing boats also by their type ids (landing.c), in case a family differs.
 enum { NV_NONE, NV_WAR, NV_SUB, NV_CARRIER, NV_TRANSPORT, NV_FISH };
-static int navy_kind(uint8_t *td) {
+internal int navy_kind(uint8_t *td) {
     int fam = FIELD(td, OF(TD, 0x4B4), int), t = FIELD(td, OF(TD, 0x4B8), int);
     if (fam == 22 || is_fishing_boat(t)) return NV_FISH;
     if (fam == 18 || is_transport(t)) return NV_TRANSPORT;
@@ -24,41 +24,41 @@ static int navy_kind(uint8_t *td) {
 // since the last look goes to the owner of the fishing boat gathering it (its goal +0x38 = the site, compared as a
 // pointer only), or to its last gatherer; a fish gone (eaten up) gives its last amount to its last gatherer.
 #define NV_FISH_MAX 1024
-static struct { ee_unit *u; int id, amount, owner; } g_nv_fish[NV_FISH_MAX];
-static int g_nv_nfish, g_nv_fish_food[16], g_nv_fish_left;
-static uint32_t g_nv_fish_t, g_nv_log_t;
-static int g_fish_last[16];   // the fishing boat last picked per player (hook_fish_type, its log line)
+internal struct { ee_unit *u; int id, amount, owner; } g_nv_fish[NV_FISH_MAX];
+internal int g_nv_nfish, g_nv_fish_food[16], g_nv_fish_left;
+internal uint32_t g_nv_fish_t, g_nv_log_t;
+internal int g_fish_last[16];   // the fishing boat last picked per player (hook_fish_type, its log line)
 struct nv_map { uint32_t t; uint8_t done, kind; float strength, water; int across, enemies; unsigned home; };   // navy_detect (home: its continent)
-static struct nv_map g_nv_map[16];
+internal struct nv_map g_nv_map[16];
 // the navy account (navy_income) per AI and resource; saved with the game (persist.c)
-static float g_nv_acc[16][7];
+internal float g_nv_acc[16][7];
 // what the account paid and refused (the budget line): ship orders by type
 struct nv_orders { unsigned paid, refused, spent[7], held_room, docks_asked; int want, last, nt; uint32_t want_t, dock_t; struct { int type; unsigned paid, refused; } t[8]; };
-static struct nv_orders g_nv_ord[16];
+internal struct nv_orders g_nv_ord[16];
 // own ships and docks, counted for every player every 10 s (navy_count)
 struct nv_own { int war, docks, docks_built, fish, role[6]; };   // role: warships by the fleet mix's roles (NR_*)
-static struct nv_own g_nv_own[16];
-static uint32_t g_nv_count_t;
+internal struct nv_own g_nv_own[16];
+internal uint32_t g_nv_count_t;
 
-static void nv_mix_reset(void);   // the fleet mix (below)
-static void fleet_new_game(void);   // fleet.c (stage 3)
-static void fleet_install(const char *aimod_ini, const char *autotest_ini);
-static void fleet_tick(ee_player *pl, uint32_t now);
-static int nv_role(uint8_t *td);
-static int fleet_sheltering(unsigned idx);   // fleet.c: the fleet shelters from a much stronger enemy fleet (no build-up then)
-static int fleet_builds(unsigned idx);   // fleet.c: stage 4 (navy_fleet=2) for this AI - the fleet's size target below
+internal void nv_mix_reset(void);   // the fleet mix (below)
+internal void fleet_new_game(void);   // fleet.c (stage 3)
+internal void fleet_install(const char *aimod_ini, const char *autotest_ini);
+internal void fleet_tick(ee_player *pl, uint32_t now);
+internal int nv_role(uint8_t *td);
+internal int fleet_sheltering(unsigned idx);   // fleet.c: the fleet shelters from a much stronger enemy fleet (no build-up then)
+internal int fleet_builds(unsigned idx);   // fleet.c: stage 4 (navy_fleet=2) for this AI - the fleet's size target below
 // THE FLEET'S SIZE (stage 4, navy_fleet=2; docs/navy.md): the playtester expects 20+ warships at a low population
 // limit and more with higher ones - navy_fleet_pop % (15) of the AI's population cap x the map strength (cap 176 in
 // the 2-AI island tests: 26; cap 135: 20). Below it the account's share grows toward navy_share_max (50) with what is
 // missing, the room held for the fleet and the docks wanted follow it, and fleet.c trains the missing warships itself.
-static int g_nv_target[16], g_navy_fleet_pop = 15, g_navy_share_max = 50;
+internal int g_nv_target[16], g_navy_fleet_pop = 15, g_navy_share_max = 50;
 // the resource nodes the AI knows (navy_nodes, below)
 struct nv_nodes { int n[7], worked[7], g[7], slots[7], near_slots[7], remote[7], other[7]; int fx[7], fy[7]; ee_unit *free_far[7]; uint32_t t; };
-static struct nv_nodes g_nv_nodes[16];
+internal struct nv_nodes g_nv_nodes[16];
 struct nv_mine { int pull, want[7], given; uint32_t t; };   // navy_mines (below)
-static struct nv_mine g_nv_mine[16];
+internal struct nv_mine g_nv_mine[16];
 
-static void navy_new_game(void) {
+internal void navy_new_game(void) {
     memset(g_nv_fish, 0, sizeof g_nv_fish);
     memset(g_nv_fish_food, 0, sizeof g_nv_fish_food);
     memset(g_nv_boat_kills, 0, sizeof g_nv_boat_kills);
@@ -79,7 +79,7 @@ static void navy_new_game(void) {
     memset(g_nv_sunk_type, 0, sizeof g_nv_sunk_type);
 }
 
-static void navy_fish(void) {
+internal void navy_fish(void) {
     static struct { ee_unit *site; int owner; } gath[512];
     static int seen[NV_FISH_MAX];
     int ng = 0;
@@ -119,7 +119,7 @@ static void navy_fish(void) {
 }
 
 // WATERS: a ship is in the waters of the player whose building (families 2, 29) is nearest within 20 tiles
-static int navy_waters(int x, int y) {
+internal int navy_waters(int x, int y) {
     int best = -1, bd = 401;
     for (struct grid_it it = grid_it_box(x, y, 20, 1); grid_it_next(&it); ) {
         int fam = FIELD(it.td, OF(TD, 0x4B4), int);
@@ -136,7 +136,7 @@ struct nv_count {
     int docks, yards, n[6], hp[6], home, away, foe_home, foe_home_hp;
     int nt; struct { int type, n; } wt[24];   // warships, submarines and carriers by type
 };
-static void navy_log_all(uint32_t now) {
+internal void navy_log_all(uint32_t now) {
     static struct nv_count c[16];
     memset(c, 0, sizeof c);
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
@@ -209,7 +209,7 @@ static void navy_log_all(uint32_t now) {
 #define NV_MIXED 1
 #define NV_ISLANDS 2
 struct nv_bld { int x[16][64], y[16][64], n[16]; };
-static void navy_detect(ee_player *pl, unsigned idx, uint32_t now) {
+internal void navy_detect(ee_player *pl, unsigned idx, uint32_t now) {
     static struct nv_bld b;
     void *cm = FIELD(pl, OF(PL, 0xB90), void *);
     uint8_t *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL, *map = *(uint8_t **)GA(G_MAP);
@@ -265,9 +265,9 @@ static void navy_detect(ee_player *pl, unsigned idx, uint32_t now) {
 //   account, limited only by the reserve.
 // Which ships the game's AI asks for is its own (stage 2 changes that). `# navy: P<n> budget` every 5 minutes.
 #define NV_ACC_CAP 600
-static int g_navy = 1, g_navy_share = 25;
-static int g_v_navy = -1;   // head-to-head (autotest): [autotest] v_navy for the variant_players (econ.c PV)
-static float navy_share(unsigned idx) {
+internal int g_navy = 1, g_navy_share = 25;
+internal int g_v_navy = -1;   // head-to-head (autotest): [autotest] v_navy for the variant_players (econ.c PV)
+internal float navy_share(unsigned idx) {
     if (!PV(idx, g_v_navy, g_navy) || !g_nv_map[idx & 15].done) return 0.0f;
     float sh = (float)g_navy_share;
     int t = g_nv_target[idx & 15], miss = t - g_nv_own[idx & 15].war;
@@ -277,35 +277,35 @@ static float navy_share(unsigned idx) {
 // stage 4: the account is the navy's own money - a warship spends it even where the reserve (epochs, landing ...)
 // would hold the stock (econ.c train_budget); the others never saw it (navy_hold): Large Islands e9, 524 frigate
 // orders refused in an hour with the account full (W600 G600 I546) - the stock above the reserve was short of iron
-static int navy_earmarked(unsigned idx) { return fleet_builds(idx) && g_nv_target[idx & 15] > 0; }
+internal int navy_earmarked(unsigned idx) { return fleet_builds(idx) && g_nv_target[idx & 15] > 0; }
 // army.c: the map is known (navy_detect) and an enemy stands on this AI's continent (land or mixed)
-static int navy_land(unsigned idx) { return g_nv_map[idx & 15].done && g_nv_map[idx & 15].kind != NV_ISLANDS; }
-static void navy_income(unsigned idx, int type, int amount) {
+internal int navy_land(unsigned idx) { return g_nv_map[idx & 15].done && g_nv_map[idx & 15].kind != NV_ISLANDS; }
+internal void navy_income(unsigned idx, int type, int amount) {
     float sh = navy_share(idx);
     if (sh <= 0 || (type != 3 && type != 5 && type != 6)) return;
     float *a = &g_nv_acc[idx & 15][type];
     *a += (float)amount * sh;
     if (*a > NV_ACC_CAP) *a = NV_ACC_CAP;
 }
-static int navy_type_kind(int type) {
+internal int navy_type_kind(int type) {
     uint8_t *td = type_data(type);
     return td ? navy_kind(td) : NV_NONE;
 }
 // a warship order the navy account pays (econ.c hook_train_units)
-static int navy_pays(unsigned idx, int type) {
+internal int navy_pays(unsigned idx, int type) {
     int k = navy_type_kind(type);
     return navy_share(idx) > 0 && (k == NV_WAR || k == NV_SUB || k == NV_CARRIER);
 }
 // an order paid as economy: fishing boats, the landing's transports
-static int navy_economy(unsigned idx, int type, int landing_order) {
+internal int navy_economy(unsigned idx, int type, int landing_order) {
     int k = navy_type_kind(type);
     return PV(idx, g_v_navy, g_navy) && (k == NV_FISH || (landing_order && k == NV_TRANSPORT));
 }
 // every other order: the account is not there - and once the account pays the warship the game last asked for (within
 // 2 minutes), that ship's whole cost: the army took the iron down to the reserve + 200 again and again while the
 // account held 44 of it (Small Islands e9: 400-500 frigate orders refused in 25 minutes, the account at 800)
-static int navy_account(unsigned idx, int r);
-static void navy_hold(ee_player *pl, unsigned idx, int reserve[7]) {
+internal int navy_account(unsigned idx, int r);
+internal void navy_hold(ee_player *pl, unsigned idx, int reserve[7]) {
     struct nv_orders *o = &g_nv_ord[idx & 15];
     uint32_t now = game_time();
     int want = o->want && now >= o->want_t && now - o->want_t < 120000 ? o->want : 0, total = 0;
@@ -321,11 +321,11 @@ static void navy_hold(ee_player *pl, unsigned idx, int reserve[7]) {
 // minute 25, 430 orders refused, while the account's wood and gold lay unused) - a warship takes any of its
 // resources up to the whole account; what it took beyond that resource's part is charged to the account's others
 // (navy_paid), which the army gets instead
-static int navy_account(unsigned idx, int r) {
+internal int navy_account(unsigned idx, int r) {
     const float *a = g_nv_acc[idx & 15];
     return r == 3 || r == 5 || r == 6 ? (int)(a[3] + a[5] + a[6]) : 0;
 }
-static void navy_paid(unsigned idx, int type, const int *spent, int got) {   // after a warship order
+internal void navy_paid(unsigned idx, int type, const int *spent, int got) {   // after a warship order
     struct nv_orders *o = &g_nv_ord[idx & 15];
     for (int r = 2; r < 7; r++) {
         if (spent[r] <= 0) continue;
@@ -352,7 +352,7 @@ static void navy_paid(unsigned idx, int type, const int *spent, int got) {   // 
 // many it works (gatherers: the world's per-site map 0x52E5F7, the cap table 0x917BB0 entry 0x16 as the mine search),
 // how many lie far (13+ tiles) from a drop site (Town Center, Capitol, Settlement: the walk decides a mine's income).
 // The playtester: "exploit all resource nodes on its island quite quickly, then expand to other islands".
-static void navy_nodes(ee_player *pl, unsigned idx, uint32_t now) {
+internal void navy_nodes(ee_player *pl, unsigned idx, uint32_t now) {
     struct nv_nodes *c = &g_nv_nodes[idx & 15];
     unsigned hc = g_nv_map[idx & 15].home;
     memset(c, 0, sizeof *c);
@@ -408,9 +408,9 @@ static void navy_nodes(ee_player *pl, unsigned idx, uint32_t now) {
 //   beyond its reserve and the mines take those sent (metal workers no more than 6 under their targets); 4 back
 //   whenever the food stock is under its reserve + 100;
 // - taken from wood first while it piles up (down to half its target, 4 at least), then food (down to 60% of it).
-static int g_navy_mines = 1, g_v_navy_mines = -1;
-static int workforce(ee_player *pl);   // econ.c
-static void navy_mines(ee_player *pl, unsigned idx, ee_resource_mgr *rm, uint32_t *target, const int *stock, const int *reserve, const int *demand) {
+internal int g_navy_mines = 1, g_v_navy_mines = -1;
+internal int workforce(ee_player *pl);   // econ.c
+internal void navy_mines(ee_player *pl, unsigned idx, ee_resource_mgr *rm, uint32_t *target, const int *stock, const int *reserve, const int *demand) {
     idx &= 15;
     struct nv_nodes *c = &g_nv_nodes[idx];
     struct nv_mine *m = &g_nv_mine[idx];
@@ -447,7 +447,7 @@ static void navy_mines(ee_player *pl, unsigned idx, ee_resource_mgr *rm, uint32_
     target[5] += (uint32_t)g5; target[6] += (uint32_t)(taken - g5);
     m->given = taken;
 }
-static void navy_nodes_log(unsigned idx, uint32_t now) {
+internal void navy_nodes_log(unsigned idx, uint32_t now) {
     struct nv_nodes *c = &g_nv_nodes[idx & 15];
     struct nv_mine *m = &g_nv_mine[idx & 15];
     static const char rn[7] = { '-', '-', 'F', 'W', 'S', 'G', 'I' };
@@ -456,8 +456,8 @@ static void navy_nodes_log(unsigned idx, uint32_t now) {
     fprintf(g_log, " | elsewhere S%d G%d I%d | drop sites %d | mines pull %d (wanted G%d I%d)\n", c->other[4], c->other[5], c->other[6],
             g_drops[idx & 15].n, m->given, m->want[5], m->want[6]);
 }
-static void navy_mix_log(ee_player *pl, unsigned idx, uint32_t now);
-static void navy_budget_log(ee_player *pl, unsigned idx, uint32_t now) {
+internal void navy_mix_log(ee_player *pl, unsigned idx, uint32_t now);
+internal void navy_budget_log(ee_player *pl, unsigned idx, uint32_t now) {
     static uint32_t last[16];
     if (!g_log || navy_share(idx) <= 0 || (now >= last[idx] && now - last[idx] < 300000)) return;
     last[idx] = now;
@@ -476,7 +476,7 @@ static void navy_budget_log(ee_player *pl, unsigned idx, uint32_t now) {
     LeaveCriticalSection(&g_lock);
 }
 // own warships (with submarines and carriers), docks (36, also unfinished) and fishing boats of every player
-static void navy_count(void) {
+internal void navy_count(void) {
     memset(g_nv_own, 0, sizeof g_nv_own);
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
         ee_player *o = unit_owner(it.u);
@@ -499,7 +499,7 @@ static void navy_count(void) {
 // filled every free slot first (the bombardment fleet had the same: landing_room_reserve). On a water map with a
 // finished dock, the room for the fleet's missing warships is held from the army's orders (econ.c train_call): up to
 // 4 x the map strength warships, no more than the account pays for of the type the game last asked for.
-static int navy_room_reserve(ee_player *pl) {
+internal int navy_room_reserve(ee_player *pl) {
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     struct nv_orders *o = &g_nv_ord[idx];
     float sh = navy_share(idx);
@@ -542,16 +542,16 @@ static int navy_room_reserve(ee_player *pl) {
 // `# navy: P<n> mix at N min:` every 5 minutes: wanted shares, own fleet by role, the types, the enemy seen, what the
 // game asked for and what was trained.
 enum { NR_NONE, NR_FRIG, NR_LINE, NR_ANTI, NR_SUB, NR_AA, NR_N };
-static const char *const k_nr[NR_N] = { "-", "F", "L", "A", "S", "AA" };
+internal const char *const k_nr[NR_N] = { "-", "F", "L", "A", "S", "AA" };
 #define NV_C_SUB 7      // target categories (+0x4C4, the hit table's rows): submarines
 #define NV_C_FRIG 9     // frigates, cruisers, transports, fishing boats
 #define NV_C_LINE 21    // battleships
 #define NV_C_GALLEY 47  // galleys, galleons, catapult ships
-static int g_navy_mix = 0, g_v_navy_mix = -1;
-static int8_t g_nv_role[G_TYPES_N];   // role + 1 per type (0: not worked out yet; the table and the type data are fixed)
-static int g_nv_nc, g_nv_nk;          // the hit table's size: categories, weapon kinds (cmd_navy's count)
-static uint64_t g_nv_aircat;          // the categories of aircraft (families 3, 7, 17)
-static float nv_f(int kind, int cat) {   // the hit factor [cat][kind]; 0 outside the table
+internal int g_navy_mix = 0, g_v_navy_mix = -1;
+internal int8_t g_nv_role[G_TYPES_N];   // role + 1 per type (0: not worked out yet; the table and the type data are fixed)
+internal int g_nv_nc, g_nv_nk;          // the hit table's size: categories, weapon kinds (cmd_navy's count)
+internal uint64_t g_nv_aircat;          // the categories of aircraft (families 3, 7, 17)
+internal float nv_f(int kind, int cat) {   // the hit factor [cat][kind]; 0 outside the table
     uint8_t *tb = *(uint8_t **)GA(G_HIT_TABLE);
     if (!g_nv_nk) {
         for (int t = 0; t < G_TYPES_N; t++) {
@@ -567,13 +567,13 @@ static float nv_f(int kind, int cat) {   // the hit factor [cat][kind]; 0 outsid
     float *row = FIELD(tb, cat * 4, float *);
     return row ? row[kind] : 0;
 }
-static float nv_air_f(int kind) {   // the best factor against an aircraft category
+internal float nv_air_f(int kind) {   // the best factor against an aircraft category
     float b = 0;
     nv_f(0, 0);
     for (int c = 0; c < 64; c++) if (g_nv_aircat >> c & 1) { float f = nv_f(kind, c); if (f > b) b = f; }
     return b;
 }
-static int nv_role(uint8_t *td) {
+internal int nv_role(uint8_t *td) {
     int t = td ? FIELD(td, OF(TD, 0x4B8), int) : -1;
     if (t < 0 || t >= G_TYPES_N) return NR_NONE;
     if (g_nv_role[t]) return g_nv_role[t] - 1;
@@ -591,7 +591,7 @@ static int nv_role(uint8_t *td) {
     g_nv_role[t] = (int8_t)(r + 1);
     return r;
 }
-static float nv_score(ee_player *pl, int t, int role) {   // in its role: factor x attack / (reload + 2 s) x hp / cost^2
+internal float nv_score(ee_player *pl, int t, int role) {   // in its role: factor x attack / (reload + 2 s) x hp / cost^2
     uint8_t *td = type_data(t);
     int kind = FIELD(td, OF(TD, 0x4C8), int), cost = 0;
     for (int r = 2; r < 7; r++) cost += unit_cost(pl, t, r);
@@ -609,9 +609,9 @@ struct nv_pick {
     int wait_type, skip_type, bad_type[4]; uint32_t wait_since, skip_until, bad_until[4]; int bad_i;
     unsigned asked[NR_N], trained[NR_N], changed, skipped, bad, cheaper;
 };
-static struct nv_pick g_nv_pk[16];
-static void nv_mix_reset(void) { memset(g_nv_pk, 0, sizeof g_nv_pk); }
-static void nv_cands(ee_player *pl, struct nv_pick *pk, uint32_t now) {
+internal struct nv_pick g_nv_pk[16];
+internal void nv_mix_reset(void) { memset(g_nv_pk, 0, sizeof g_nv_pk); }
+internal void nv_cands(ee_player *pl, struct nv_pick *pk, uint32_t now) {
     if (pk->pl == pl && now >= pk->cand_t && now - pk->cand_t < 30000) return;
     pk->pl = pl; pk->cand_t = now ? now : 1; pk->nc = 0;
     for (int t = 1; t < G_TYPES_N && pk->nc < 24; t++) {
@@ -622,12 +622,12 @@ static void nv_cands(ee_player *pl, struct nv_pick *pk, uint32_t now) {
         pk->ctype[pk->nc] = t; pk->crole[pk->nc++] = r;
     }
 }
-static int nv_near_sea(int x, int y) {
+internal int nv_near_sea(int x, int y) {
     static const int d[5][2] = { { 0, 0 }, { 4, 0 }, { -4, 0 }, { 0, 4 }, { 0, -4 } };
     for (int k = 0; k < 5; k++) if (area_id(x + d[k][0], y + d[k][1], 1)) return 1;
     return 0;
 }
-static void nv_seen_one(struct nv_pick *pk, uint8_t *td, int x, int y) {
+internal void nv_seen_one(struct nv_pick *pk, uint8_t *td, int x, int y) {
     if (!td) return;
     int fam = FIELD(td, OF(TD, 0x4B4), int);
     if (fam == 3 || fam == 7 || fam == 17) { pk->air++; return; }
@@ -639,7 +639,7 @@ static void nv_seen_one(struct nv_pick *pk, uint8_t *td, int x, int y) {
 }
 // the enemy seen: intel's memory (10 minutes; buildings until looked at again) - or, with the game's view, every
 // enemy unit it sees now; then the wanted shares
-static void nv_seen(ee_player *pl, unsigned idx, struct nv_pick *pk, uint32_t now) {
+internal void nv_seen(ee_player *pl, unsigned idx, struct nv_pick *pk, uint32_t now) {
     pk->seen_t = now ? now : 1;
     memset(pk->e, 0, sizeof pk->e); pk->air = pk->carriers = pk->coast = 0;
     if (g_honest_vision) {
@@ -664,7 +664,7 @@ static void nv_seen(ee_player *pl, unsigned idx, struct nv_pick *pk, uint32_t no
     pk->w[NR_AA] = air > 0 ? (0.5f + air / 8.0f > 2.0f ? 2.0f : 0.5f + air / 8.0f) : 0.0f;
 }
 // what each role has (own afloat + paid in the last minute) and the best type per role it may train now
-static void nv_roles(ee_player *pl, unsigned idx, struct nv_pick *pk, uint32_t now, int best[NR_N], float w[NR_N], int have[NR_N]) {
+internal void nv_roles(ee_player *pl, unsigned idx, struct nv_pick *pk, uint32_t now, int best[NR_N], float w[NR_N], int have[NR_N]) {
     float bs[NR_N] = { 0 };
     memset(best, 0, NR_N * sizeof *best);
     for (int k = 0; k < pk->nc; k++) {
@@ -681,7 +681,7 @@ static void nv_roles(ee_player *pl, unsigned idx, struct nv_pick *pk, uint32_t n
     for (int q = 0; q < 8; q++) if (pk->ring_t[q] && now >= pk->ring_t[q] && now - pk->ring_t[q] < 60000) have[pk->ring_role[q]]++;
 }
 // the type to train for the game's warship order asked (0: the game's own)
-static int navy_pick(ee_player *pl, unsigned idx, int asked) {
+internal int navy_pick(ee_player *pl, unsigned idx, int asked) {
     if ((!PV(idx, g_v_navy_mix, g_navy_mix) && !fleet_builds(idx)) || !navy_pays(idx, asked)) return 0;   // stage 4: the mix too
     int k = navy_type_kind(asked);
     if (k != NV_WAR && k != NV_SUB) return 0;
@@ -717,14 +717,14 @@ static int navy_pick(ee_player *pl, unsigned idx, int asked) {
     return br ? best[br] : 0;
 }
 // stage 4 (fleet.c fl_build): the type of the mod's own warship order - the mix's choice, asked as its first ship type
-static int navy_fleet_type(ee_player *pl, unsigned idx) {
+internal int navy_fleet_type(ee_player *pl, unsigned idx) {
     struct nv_pick *pk = &g_nv_pk[idx & 15];
     nv_cands(pl, pk, game_time());
     for (int k = 0; k < pk->nc; k++) if (pk->crole[k] != NR_AA) return navy_pick(pl, idx, pk->ctype[k]);
     return 0;
 }
 // after the order: counts, the wait for a refused type, a type the game can't train
-static void navy_pick_done(ee_player *pl, unsigned idx, int pick, int asked, const int *before, const int *stock, int blocked) {
+internal void navy_pick_done(ee_player *pl, unsigned idx, int pick, int asked, const int *before, const int *stock, int blocked) {
     struct nv_pick *pk = &g_nv_pk[idx & 15];
     uint32_t now = game_time();
     int paid = 0, payable = 1, r = nv_role(type_data(pick));
@@ -741,7 +741,7 @@ static void navy_pick_done(ee_player *pl, unsigned idx, int pick, int asked, con
         if (g_log) fprintf(g_log, "# navy: P%u at %.1f min: mix type %d (for %d) not trained though payable - skipped 5 minutes\n", idx, now / 60000.0, pick, asked);
     }
 }
-static void navy_mix_log(ee_player *pl, unsigned idx, uint32_t now) {
+internal void navy_mix_log(ee_player *pl, unsigned idx, uint32_t now) {
     struct nv_pick *pk = &g_nv_pk[idx & 15];
     if (!g_log || (!PV(idx, g_v_navy_mix, g_navy_mix) && !fleet_builds(idx)) || navy_share(idx) <= 0) return;
     nv_cands(pl, pk, now);
@@ -771,7 +771,7 @@ static void navy_mix_log(ee_player *pl, unsigned idx, uint32_t now) {
 // buildable and payable now (0x555710) -> one more through the build manager's own queue and placement (0x46802D(bm,
 // 36, 1, 0), as more_granaries asks for a granary; the build manager finds the shore spot). On islands a third while
 // the account waits to pay a warship or 12+ fishing boats share the docks.
-static void navy_docks(ee_player *pl, unsigned idx, uint32_t now) {
+internal void navy_docks(ee_player *pl, unsigned idx, uint32_t now) {
     struct nv_orders *o = &g_nv_ord[idx];
     struct nv_own *w = &g_nv_own[idx];
     if (navy_share(idx) <= 0 || (now >= o->dock_t && now - o->dock_t < 60000)) return;
@@ -799,8 +799,8 @@ static void navy_docks(ee_player *pl, unsigned idx, uint32_t now) {
 // 0x48FB05 orders one when none of that type exists or is in production) get the newest fishing boat (family 22,
 // highest tech) the player has available by its tech record's own test (landing.c ld_type_avail: an upgraded line's
 // old type is not available any more), every epoch; none available: the game's pick.
-static int g_fish_boat = 1;
-static int __fastcall hook_fish_type(void *o, void *edx) {
+internal int g_fish_boat = 1;
+internal int __fastcall hook_fish_type(void *o, void *edx) {
     (void)edx;
     int t = fish_type(o);
     ee_player *pl = o ? FIELD(o, OF(PL, 0x4C), void *) : NULL;
@@ -817,7 +817,7 @@ static int __fastcall hook_fish_type(void *o, void *edx) {
     if (best) g_fish_last[idx] = best;
     return best ? best : t;
 }
-static void navy_install(const char *aimod_ini, const char *autotest_ini) {
+internal void navy_install(const char *aimod_ini, const char *autotest_ini) {
     g_fish_boat = cfg_int(aimod_ini, autotest_ini, 1, "fishing_boat", 1);
     int ok = g_fish_boat ? patch_fish_type(hook_fish_type, NULL) : 0;
     if (g_log) fprintf(g_log, "# fishing: boat choice %s (hooks %d/2)\n", g_fish_boat ? "newest available" : "the game's", ok);
@@ -838,8 +838,8 @@ static void navy_install(const char *aimod_ini, const char *autotest_ini) {
     fleet_install(aimod_ini, autotest_ini);
 }
 
-static int mt_fleet_target(ee_player *pl, unsigned idx, int t);   // metal.c metal_plan FLEET: at most what the sea needs
-static void navy_tick(ee_player *pl, uint32_t now) {
+internal int mt_fleet_target(ee_player *pl, unsigned idx, int t);   // metal.c metal_plan FLEET: at most what the sea needs
+internal void navy_tick(ee_player *pl, uint32_t now) {
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     struct nv_map *m = &g_nv_map[idx];
     if (now < m->t) memset(m, 0, sizeof *m);
@@ -863,7 +863,7 @@ static void navy_tick(ee_player *pl, uint32_t now) {
 // category +0x4C4, weapon kind +0x4C8, damage class +0x4C0, base hit points +0x55C, attack +0x510, range +0x420,
 // min range +0x41C, area +0x424, reload +0x50C ms, tech +0x4E0; for naval types also the cost (P2's prices) and P2's
 // stats record (0x492969: hp +0x144, attack +0xD8, range +0x9C, speed +0xAC, armour +0xE0 per class 0..5)
-static void cmd_navy(char *out, const char *args) {
+internal void cmd_navy(char *out, const char *args) {
     if (!strncmp(args, "types", 5)) {
         int a = 0, b = G_TYPES_N - 1;
         sscanf(args + 5, "%d %d", &a, &b);

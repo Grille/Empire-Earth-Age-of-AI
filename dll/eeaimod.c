@@ -16,6 +16,7 @@
 #include <io.h>      // _chsize (log_rotate)
 #include <psapi.h>   // types only (K32GetProcessMemoryInfo by GetProcAddress)
 
+#include "base/lang.h"   // the C the code is written in: internal, PRINTF_LIKE
 struct ustring;
 #include "base/log.c"
 #include "base/patch.c"
@@ -36,84 +37,84 @@ struct ustring;
 typedef char (__thiscall *RmFn)(void *self);
 typedef void (__thiscall *RmUpdateFn)(void *self, uint32_t now);
 
-static void autotest_tick(uint32_t now);
-static volatile int g_rm_seen;   // an AI resource manager has ticked (else the sim loop drives autotest_tick)
-static void execute(const char *cmd, char *out);
-static char g_setup_path[MAX_PATH];
-static void autotest_first_tick(ee_player *pl);
-static void settings_apply(ee_player *pl);
-static void econ_tick(ee_player *pl, uint32_t now);
-static void persona_new_game(uint8_t *setup);
-static void persona_assign(ee_player *pl);
-static void diplo_new_game(void);
-static void chat_new_game(void);
-static void llm_new_game(void);
-static void persist_load(const char *name);
-static void econ_targets(ee_resource_mgr *rm);
-static void econ_rebalance(ee_resource_mgr *rm);
-static void econ_fields(ee_resource_mgr *rm);
-static void food_hunt(ee_resource_mgr *rm);   // food.c
-static void food_pull(ee_resource_mgr *rm);
-static void food_new_game(void);
-static void mine_fill(ee_resource_mgr *rm);   // mines.c
-static void mines_new_game(void);
-static void cz_targets(ee_resource_mgr *rm);   // citizens.c
-static void wf_targets(ee_resource_mgr *rm);   // citizens.c: workforce_plan
-static void wf_tick(ee_player *pl, uint32_t now);
-static void wf_new_game(void);
-static void ap_targets(ee_resource_mgr *rm);   // army.c
-static void citizens_safety(ee_resource_mgr *rm);
-static void attack_tick(ee_player *pl, uint32_t now);
-static void vanilla_tick(ee_player *pl, uint32_t now);
-static void ecolog_tick(ee_player *pl, uint32_t now);   // ecolog.c: the economy log (autotest)
-static void ecolog_new_game(void);
-static void cz_tick(ee_player *pl, uint32_t now);   // citizens.c: citizen production
-static void cz_new_game(void);
-static void am_tick(ee_player *pl, uint32_t now);   // army.c: army spending
-static void mt_tick(ee_player *pl, uint32_t now);   // metal.c: gold and iron
-static void mt_install(const char *aimod_ini, const char *autotest_ini);
-static void am_new_game(void);
-static void mass_tick(ee_player *pl, uint32_t now);   // mass.c: the army as one
-static void mass_new_game(void);
-static void mass_install(const char *aimod_ini, const char *autotest_ini);
-static void cover_tick(ee_player *pl, uint32_t now);   // cover.c: fall back to cover
-static void cover_new_game(void);
-static void cover_install(const char *aimod_ini, const char *autotest_ini);
-static void expand_tick(ee_player *pl, uint32_t now);   // expand.c: other islands
-static void expand_new_game(void);
-static void expand_install(const char *aimod_ini, const char *autotest_ini);
-static void ap_new_game(void);
-static void mt_new_game(void);   // metal.c
-static void army_plan_tick(ee_player *pl, unsigned idx, uint32_t now);
-static void ap_install(const char *aimod_ini, const char *autotest_ini);
-static void early_new_game(void);   // early.c
-static void assault_tick(ee_player *pl, uint32_t now);
-static void landing_tick(ee_player *pl, uint32_t now);
-static void navy_tick(ee_player *pl, uint32_t now);
-static void intel_tick(ee_player *pl, uint32_t now);
-static void intel_new_game(int from_save);
-static void econ_new_game(void);
-static void attack_new_game(void);
-static void aim_new_game(void);
-static void landing_new_game(void);
-static void navy_new_game(void);
-static void bunker_new_game(void);
-static void defence_new_game(void);
-static void assault_new_game(void);
-static void sites_new_game(void);
-static void intel_install(const char *aimod_ini, const char *autotest_ini);
-static void landing_install(const char *aimod_ini, const char *autotest_ini);
-static void navy_install(const char *aimod_ini, const char *autotest_ini);
-static void assault_install(const char *aimod_ini, const char *autotest_ini);
-static PRINTF_LIKE(1, 2) void log_line(const char *fmt, ...);
-static BOOL patch_srand(void);
+internal void autotest_tick(uint32_t now);
+internal volatile int g_rm_seen;   // an AI resource manager has ticked (else the sim loop drives autotest_tick)
+internal void execute(const char *cmd, char *out);
+internal char g_setup_path[MAX_PATH];
+internal void autotest_first_tick(ee_player *pl);
+internal void settings_apply(ee_player *pl);
+internal void econ_tick(ee_player *pl, uint32_t now);
+internal void persona_new_game(uint8_t *setup);
+internal void persona_assign(ee_player *pl);
+internal void diplo_new_game(void);
+internal void chat_new_game(void);
+internal void llm_new_game(void);
+internal void persist_load(const char *name);
+internal void econ_targets(ee_resource_mgr *rm);
+internal void econ_rebalance(ee_resource_mgr *rm);
+internal void econ_fields(ee_resource_mgr *rm);
+internal void food_hunt(ee_resource_mgr *rm);   // food.c
+internal void food_pull(ee_resource_mgr *rm);
+internal void food_new_game(void);
+internal void mine_fill(ee_resource_mgr *rm);   // mines.c
+internal void mines_new_game(void);
+internal void cz_targets(ee_resource_mgr *rm);   // citizens.c
+internal void wf_targets(ee_resource_mgr *rm);   // citizens.c: workforce_plan
+internal void wf_tick(ee_player *pl, uint32_t now);
+internal void wf_new_game(void);
+internal void ap_targets(ee_resource_mgr *rm);   // army.c
+internal void citizens_safety(ee_resource_mgr *rm);
+internal void attack_tick(ee_player *pl, uint32_t now);
+internal void vanilla_tick(ee_player *pl, uint32_t now);
+internal void ecolog_tick(ee_player *pl, uint32_t now);   // ecolog.c: the economy log (autotest)
+internal void ecolog_new_game(void);
+internal void cz_tick(ee_player *pl, uint32_t now);   // citizens.c: citizen production
+internal void cz_new_game(void);
+internal void am_tick(ee_player *pl, uint32_t now);   // army.c: army spending
+internal void mt_tick(ee_player *pl, uint32_t now);   // metal.c: gold and iron
+internal void mt_install(const char *aimod_ini, const char *autotest_ini);
+internal void am_new_game(void);
+internal void mass_tick(ee_player *pl, uint32_t now);   // mass.c: the army as one
+internal void mass_new_game(void);
+internal void mass_install(const char *aimod_ini, const char *autotest_ini);
+internal void cover_tick(ee_player *pl, uint32_t now);   // cover.c: fall back to cover
+internal void cover_new_game(void);
+internal void cover_install(const char *aimod_ini, const char *autotest_ini);
+internal void expand_tick(ee_player *pl, uint32_t now);   // expand.c: other islands
+internal void expand_new_game(void);
+internal void expand_install(const char *aimod_ini, const char *autotest_ini);
+internal void ap_new_game(void);
+internal void mt_new_game(void);   // metal.c
+internal void army_plan_tick(ee_player *pl, unsigned idx, uint32_t now);
+internal void ap_install(const char *aimod_ini, const char *autotest_ini);
+internal void early_new_game(void);   // early.c
+internal void assault_tick(ee_player *pl, uint32_t now);
+internal void landing_tick(ee_player *pl, uint32_t now);
+internal void navy_tick(ee_player *pl, uint32_t now);
+internal void intel_tick(ee_player *pl, uint32_t now);
+internal void intel_new_game(int from_save);
+internal void econ_new_game(void);
+internal void attack_new_game(void);
+internal void aim_new_game(void);
+internal void landing_new_game(void);
+internal void navy_new_game(void);
+internal void bunker_new_game(void);
+internal void defence_new_game(void);
+internal void assault_new_game(void);
+internal void sites_new_game(void);
+internal void intel_install(const char *aimod_ini, const char *autotest_ini);
+internal void landing_install(const char *aimod_ini, const char *autotest_ini);
+internal void navy_install(const char *aimod_ini, const char *autotest_ini);
+internal void assault_install(const char *aimod_ini, const char *autotest_ini);
+internal PRINTF_LIKE(1, 2) void log_line(const char *fmt, ...);
+internal BOOL patch_srand(void);
 #include "base/ini.c"
 #include "engine/scenario_ai.c"
 #include "game/world.c"
 #include "ai/econ_rows.c"
 
 // __fastcall with a dummy edx parameter matches __thiscall for argument-less methods.
-static char __fastcall hook_compute_targets(ee_resource_mgr *rm, void *edx) {
+internal char __fastcall hook_compute_targets(ee_resource_mgr *rm, void *edx) {
     (void)edx;
     log_state(rm, "pre_targets", game_time());
     char changed = ((RmFn)GA(FN_COMPUTE_TARGETS))(rm);
@@ -122,7 +123,7 @@ static char __fastcall hook_compute_targets(ee_resource_mgr *rm, void *edx) {
     return changed;
 }
 
-static char __fastcall hook_assign_citizens(ee_resource_mgr *rm, void *edx) {
+internal char __fastcall hook_assign_citizens(ee_resource_mgr *rm, void *edx) {
     (void)edx;
     if (is_vanilla(rm_player(rm))) {
         char r = ((RmFn)GA(FN_ASSIGN_CITIZENS))(rm);
@@ -144,9 +145,9 @@ static char __fastcall hook_assign_citizens(ee_resource_mgr *rm, void *edx) {
 
 // the player each AI's personality and settings were applied to (reset by hook_game_start: the next game's player
 // can sit at the same address - its settings were skipped, a hard AI kept the game's cheat)
-static void *g_settings_done[16];
+internal void *g_settings_done[16];
 // Called every AI tick; logs a heartbeat row per player every 10 s of game time.
-static void __fastcall hook_rm_update(void *rm, void *edx, uint32_t now) {
+internal void __fastcall hook_rm_update(void *rm, void *edx, uint32_t now) {
     (void)edx;
     static uint32_t last[16];
     static uint8_t dumped[16];   // bit0: 10 s snapshot taken, bit1: 60 s snapshot taken
@@ -224,8 +225,8 @@ typedef char (__thiscall *GameStartFn)(void *state, void *setup, void *p2);
 // in place, the FILE stays the same (closed and reopened, a writer without the lock wrote into a freed FILE). The
 // CRT locks the stream for each call; _lock_file keeps the others out between the copy and the cut.
 #define LOG_ROTATE_BYTES (20u << 20)
-static char g_log_path[MAX_PATH];
-static BOOL log_copy(const char *from, const char *to) {   // CopyFile can't: the log is open for writing
+internal char g_log_path[MAX_PATH];
+internal BOOL log_copy(const char *from, const char *to) {   // CopyFile can't: the log is open for writing
     HANDLE a = CreateFileA(from, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
     if (a == INVALID_HANDLE_VALUE) return FALSE;
     HANDLE b = CreateFileA(to, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, 0, NULL);
@@ -237,7 +238,7 @@ static BOOL log_copy(const char *from, const char *to) {   // CopyFile can't: th
     CloseHandle(a);
     return ok;
 }
-static void log_rotate(void) {
+internal void log_rotate(void) {
     WIN32_FILE_ATTRIBUTE_DATA fa;
     if (g_autotest || !g_log_path[0] || !GetFileAttributesExA(g_log_path, GetFileExInfoStandard, &fa)
         || (!fa.nFileSizeHigh && fa.nFileSizeLow < LOG_ROTATE_BYTES)) return;
@@ -262,8 +263,8 @@ static void log_rotate(void) {
     LeaveCriticalSection(&g_lock);
 }
 
-static int unit_types_load(void);   // unitnames.c
-static char __fastcall hook_game_start(void *state, void *edx, uint8_t *setup, void *p2) {
+internal int unit_types_load(void);   // unitnames.c
+internal char __fastcall hook_game_start(void *state, void *edx, uint8_t *setup, void *p2) {
     (void)edx;
     char *name = *(char **)(setup + SETUP_NAME);
     int mode = *(int *)(setup + SETUP_MODE);
@@ -388,7 +389,7 @@ static char __fastcall hook_game_start(void *state, void *edx, uint8_t *setup, v
 // tested as a whole (the defaults in the code are only for keys missing from an existing, older file).
 // Runs inside DllMain: the engine loads its DLLs at runtime (user32 is up), and TerminateProcess skips the
 // other DLLs' detach handlers, which would run under the loader lock.
-static void config_missing(const char *ini) {
+internal void config_missing(const char *ini) {
     char msg[MAX_PATH + 512];
     wsprintfA(msg, "The Empire Earth AI mod (eeaimod.dll) needs its settings file:\n\n%s\n\n"
                    "Copy aimod.ini from the mod's config folder next to Empire Earth.exe, or delete eeaimod.dll "
@@ -404,13 +405,13 @@ static void config_missing(const char *ini) {
 // comes from the chosen one. The personality folder otherwise: aimod.ini [general] ai_dir (the same path rules), so a
 // developer's game reads the repository's files (ai_dir = _aimod\config\aimod_ai) instead of a copy. A folder that
 // isn't there: the one next to the game, told in the log (g_ai_dir_why).
-static char g_ai_dir_why[MAX_PATH + 64];
-static void game_path(const char *v, char *out, int cap) {   // absolute, or relative to the game folder; '/' as '\'
+internal char g_ai_dir_why[MAX_PATH + 64];
+internal void game_path(const char *v, char *out, int cap) {   // absolute, or relative to the game folder; '/' as '\'
     if (v[1] == ':' || (v[0] == '\\' && v[1] == '\\')) lstrcpynA(out, v, cap);
     else snprintf(out, cap, "%s%s", g_game_dir, v);
     for (char *c = out; *c; c++) if (*c == '/') *c = '\\';
 }
-static void config_paths(void) {
+internal void config_paths(void) {
     char v[MAX_PATH];
     if (g_autotest) {
         GetPrivateProfileStringA("autotest", "config", "", v, sizeof v, g_ini);
@@ -437,7 +438,7 @@ static void config_paths(void) {
 // THE TEXT LANGUAGE'S HOST (script/host.h): what it asks the game - its values and relations (diplo.c), constants
 // (game_script/constants.c), the players as objects, the two generators and the function files (persona.c), the code's
 // placeholders (texts.c), the commands a script may call (scripts.c). Set before any text or setting is read.
-static void x_host_install(void) {
+internal void x_host_install(void) {
     g_x_host.value = x_builtin;
     g_x_host.is_value = x_is_value;
     g_x_host.name_valid = x_name_valid;
@@ -452,7 +453,7 @@ static void x_host_install(void) {
     g_ini_eval = x_const_eval;
 }
 
-static void install(HMODULE self) {
+internal void install(HMODULE self) {
     x_host_install();
     // The engine may FreeLibrary() DLLs that aren't render plugins; our hooks must outlive that.
     HMODULE pinned;
@@ -585,7 +586,7 @@ static void install(HMODULE self) {
 // file and installs nothing itself; the copy pins itself in install() and takes the game folder from the exe. A copy
 // that doesn't load: nothing installed, one log line (the runner stops a game that doesn't report autotest mode) -
 // never this DLL in its place, which would test the wrong build. Normal play never sets the variable.
-static int run_other_dll(HINSTANCE self) {
+internal int run_other_dll(HINSTANCE self) {
     char want[MAX_PATH], full[MAX_PATH], me[MAX_PATH];
     if (!GetEnvironmentVariableA("EEAIMOD_DLL", want, sizeof want) || !want[0]) return 0;
     if (!GetFullPathNameA(want, sizeof full, full, NULL)) lstrcpyA(full, want);

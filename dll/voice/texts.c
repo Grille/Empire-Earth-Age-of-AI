@@ -14,7 +14,7 @@
 // the game's values - {me}, {offer_minutes} - and the files' names are no placeholders)
 struct text_key { const char *key, *ph; };
 // k_sys: the system lines the player reads (mod/system.eeai)
-static const struct text_key k_sys[] = {
+internal const struct text_key k_sys[] = {
     { "now_enemy", "" }, { "now_ally", "" }, { "vassal_ask_lord", "" }, { "block_peace", "ally" },
     { "block_unity", "" }, { "veto_own", "ally" }, { "veto_block", "ally" }, { "alliance_offer", "" },
     { "capitulation", "tribute" }, { "peace_offer", "" }, { "tribute_sent", "tribute" }, { "victory_vassals", "" },
@@ -28,19 +28,19 @@ static const struct text_key k_sys[] = {
 #define N_SYS (int)(sizeof k_sys / sizeof *k_sys)
 #include "texts_prompt.h"   // k_tpl: the language model's instructions
 #define N_TPL (int)(sizeof k_tpl / sizeof *k_tpl)
-static char *g_sys_base[N_SYS];
-static int g_texts_loaded;
+internal char *g_sys_base[N_SYS];
+internal int g_texts_loaded;
 
-static int text_index(const struct text_key *t, int n, const char *key) {
+internal int text_index(const struct text_key *t, int n, const char *key) {
     for (int i = 0; i < n; i++) if (!lstrcmpiA(t[i].key, key)) return i;
     return -1;
 }
-static void texts_dir(char *dir) {
+internal void texts_dir(char *dir) {
     wsprintfA(dir, "%smod\\", g_ai_dir);   // <game>\aimod_ai\mod\, [general] ai_dir or [autotest] ai_dir
 }
-static int g_texts_sys_n, g_texts_var_n;   // keys read (log)
+internal int g_texts_sys_n, g_texts_var_n;   // keys read (log)
 // mod/system.eeai: system = { strings }, names (vars) - the format: expr.c THE TEXT FILES
-static void texts_key(void *arg, const char *sec, const char *key, struct tval *v, struct tlex *l) {
+internal void texts_key(void *arg, const char *sec, const char *key, struct tval *v, struct tlex *l) {
     (void)arg;
     if (!*sec) {
         if (!lstrcmpiA(key, "include") || !lstrcmpiA(key, "register_personality")) { tl_error(l, "include() and register_personality() are for the personalities"); return; }
@@ -56,7 +56,7 @@ static void texts_key(void *arg, const char *sec, const char *key, struct tval *
     g_sys_base[i] = _strdup(v->text);
     g_texts_sys_n++;
 }
-static void texts_file(void) {
+internal void texts_file(void) {
     char path[MAX_PATH];
     texts_dir(path);
     lstrcatA(path, "system.eeai");
@@ -68,8 +68,8 @@ static void texts_file(void) {
 }
 // THE PROMPTS: mod/prompt.eeai is read as a layer (persona.c lib_get into g_prompt), its prompt = { ... } as any
 // personality's (persona_key): a text by key, kept in the file's persona
-static int tpl_key(const char *key) { return text_index(k_tpl, N_TPL, key); }
-static void persona_prompt_key(struct persona *p, const char *key, struct tval *v, struct tlex *l) {
+internal int tpl_key(const char *key) { return text_index(k_tpl, N_TPL, key); }
+internal void persona_prompt_key(struct persona *p, const char *key, struct tval *v, struct tlex *l) {
     int i = tpl_key(key);
     if (i < 0) { tl_error(l, "an unknown prompt key"); return; }
     if (v->kind != TV_STRING) { tl_error(l, "a string expected (\"...\")"); return; }
@@ -77,12 +77,12 @@ static void persona_prompt_key(struct persona *p, const char *key, struct tval *
     free(p->prompt[i]);
     p->prompt[i] = _strdup(v->text);
 }
-static void prompt_check(const struct persona *p) {   // mod/prompt.eeai: a text for every key
+internal void prompt_check(const struct persona *p) {   // mod/prompt.eeai: a text for every key
     for (int i = 0; i < N_TPL; i++) if (!p->prompt || !p->prompt[i]) x_error("mod/prompt.eeai: no text for %s", k_tpl[i].key);
 }
 // the text of prompt key for the model of AI pl: its personality's own, else the first of its layers' (mod/prompt.eeai
 // the last); *vars: the names it is filled with - those of the file it came from (with its layers')
-static const char *tpl_find(ee_player *pl, const char *key, const struct xvars **vars) {
+internal const char *tpl_find(ee_player *pl, const char *key, const struct xvars **vars) {
     const struct persona *p = persona_of(pl);
     if (!p) p = g_has_computer ? &g_computer : &g_prompt;   // an AI without a personality, a human player
     int i = tpl_key(key);
@@ -94,11 +94,11 @@ static const char *tpl_find(ee_player *pl, const char *key, const struct xvars *
     *vars = &g_prompt.vars;
     return key;   // no such key, or none in mod/prompt.eeai (told when it was read)
 }
-static const char *tpl_text(ee_player *pl, const char *key) { const struct xvars *v; return tpl_find(pl, key, &v); }
+internal const char *tpl_text(ee_player *pl, const char *key) { const struct xvars *v; return tpl_find(pl, key, &v); }
 // expr.c x_name_check: the placeholders the code fills for a key (k_sys, k_tpl; a situation's description, sit_ and
 // pair_, and a personality's line: {tribute}, {tribute_total} - line_ctx_init, llm_subst); for the names (vars: they
 // may serve any key) and the rest: all of them
-static const char *x_code_placeholders(const char *file, const char *sec, const char *key) {
+internal const char *x_code_placeholders(const char *file, const char *sec, const char *key) {
     static char one[400], all[2000];
     if (!all[0]) {
         lstrcpyA(all, " tribute tribute_total ");
@@ -126,14 +126,14 @@ static const char *x_code_placeholders(const char *file, const char *sec, const 
     if (!lstrcmpiA(sec, "lines")) return " tribute tribute_total ";   // a personality's line (line_ctx_init)
     return all;
 }
-static void texts_load(void) {
+internal void texts_load(void) {
     if (g_texts_loaded) return;
     g_texts_loaded = 1;
     texts_file();
     if (g_log) fprintf(g_log, "# texts: mod/system.eeai %d keys, %d names (vars)\n", g_texts_sys_n, g_texts_var_n);
 }
 // a system line's text: mod/system.eeai's (the key itself when it has none - told when it was read)
-static const char *sys_text(const char *key) {
+internal const char *sys_text(const char *key) {
     texts_load();
     int i = text_index(k_sys, N_SYS, key);
     return i >= 0 && g_sys_base[i] ? g_sys_base[i] : key;
@@ -142,8 +142,8 @@ static const char *sys_text(const char *key) {
 // other (NULL: the local player; in a system line the reader) with third as enemy, and the few texts only the code has
 // - {tribute}, {terms} ... - from the name/value pairs (NULL-terminated). None of those may have a value's name: it
 // would hide that value ({epoch} the other's here, mine in a line) - such a pair is a mistake. Returns the length.
-static void *g_xc_pl, *g_xc_other;   // tput: who llm_system's pieces are for
-static int tsubv_vars(char *out, int cap, const char *tmpl, ee_player *pl, ee_player *other, ee_player *third, va_list ap0,
+internal void *g_xc_pl, *g_xc_other;   // tput: who llm_system's pieces are for
+internal int tsubv_vars(char *out, int cap, const char *tmpl, ee_player *pl, ee_player *other, ee_player *third, va_list ap0,
                       const struct xvars *vars) {
     const char *pn[24], *pv[24];
     int np = 0;
@@ -165,7 +165,7 @@ static int tsubv_vars(char *out, int cap, const char *tmpl, ee_player *pl, ee_pl
     return x_fill(out, cap, tmpl, &c);
 }
 // a prompt piece (key) filled for pl speaking to other - pl's model is the one told it (tpl_find: its personality's)
-static int tsub(char *out, int cap, const char *key, ee_player *pl, ee_player *other, ...) {
+internal int tsub(char *out, int cap, const char *key, ee_player *pl, ee_player *other, ...) {
     const struct xvars *vars;
     const char *tmpl = tpl_find(pl, key, &vars);
     va_list ap;
@@ -175,7 +175,7 @@ static int tsub(char *out, int cap, const char *key, ee_player *pl, ee_player *o
     return n;
 }
 // a prompt piece for pl speaking to other, third the enemy
-static int tsub3(char *out, int cap, const char *key, ee_player *pl, ee_player *other, ee_player *third, ...) {
+internal int tsub3(char *out, int cap, const char *key, ee_player *pl, ee_player *other, ee_player *third, ...) {
     const struct xvars *vars;
     const char *tmpl = tpl_find(pl, key, &vars);
     va_list ap;
@@ -186,7 +186,7 @@ static int tsub3(char *out, int cap, const char *key, ee_player *pl, ee_player *
 }
 // a system line about AI pl (me) for the reader other (them; NULL: the local player), third the enemy, filled (4
 // rotating buffers: a few may be in use at once)
-static const char *sysf(const char *key, ee_player *pl, ee_player *other, ee_player *third, ...) {
+internal const char *sysf(const char *key, ee_player *pl, ee_player *other, ee_player *third, ...) {
     static char buf[4][512];
     static int k;
     char *out = buf[k++ & 3];
@@ -198,7 +198,7 @@ static const char *sysf(const char *key, ee_player *pl, ee_player *other, ee_pla
 }
 // append a prompt piece to t (cap bytes, *o used), filled for g_xc_pl towards g_xc_other - with a space between it and
 // what is there (the ini trims its values), not before a line break or punctuation
-static void tput(char *t, int *o, int cap, const char *key, ...) {
+internal void tput(char *t, int *o, int cap, const char *key, ...) {
     if (*o >= cap - 2) return;
     const struct xvars *vars;
     const char *p = tpl_find(g_xc_pl, key, &vars);
@@ -208,7 +208,7 @@ static void tput(char *t, int *o, int cap, const char *key, ...) {
     *o += tsubv_vars(t + *o, cap - *o, p, g_xc_pl, g_xc_other, NULL, ap, vars);
     va_end(ap);
 }
-static const char *tnum(char *buf, int n) { wsprintfA(buf, "%d", n); return buf; }
+internal const char *tnum(char *buf, int n) { wsprintfA(buf, "%d", n); return buf; }
 
 // TEXTS CORPUS (texts corpus): every expression of the text files worked out, for comparing two builds of the
 // engine (docs/testing.md "Text engine comparison") - the personalities' lines, vars, decide, colours and style,
@@ -216,22 +216,22 @@ static const char *tnum(char *buf, int n) { wsprintfA(buf, "%d", n); return buf;
 // the generators set to fixed values before each one and put back after (the game goes on as if nothing happened).
 // One line each: what was worked out, whether it worked, its value (text, number, weight, items) and the generators'
 // state after it (the draws it made).
-static FILE *g_corpus;
-static void corpus_esc(const char *s) {
+internal FILE *g_corpus;
+internal void corpus_esc(const char *s) {
     for (; *s; s++) {
         if (*s == '\n') fputs("\\n", g_corpus);
         else if (*s == '\\') fputs("\\\\", g_corpus);
         else fputc(*s, g_corpus);
     }
 }
-static char g_corpus_msgs[2048];   // the mistakes' messages of one evaluation (x_error, g_x_capture)
-static void corpus_begin(void) { g_corpus_msgs[0] = 0; g_x_capture = g_corpus_msgs; g_x_capture_cap = sizeof g_corpus_msgs; }
-static void corpus_end(void) {
+internal char g_corpus_msgs[2048];   // the mistakes' messages of one evaluation (x_error, g_x_capture)
+internal void corpus_begin(void) { g_corpus_msgs[0] = 0; g_x_capture = g_corpus_msgs; g_x_capture_cap = sizeof g_corpus_msgs; }
+internal void corpus_end(void) {
     g_x_capture = NULL;
     if (g_corpus_msgs[0]) { fputs(" msgs ", g_corpus); corpus_esc(g_corpus_msgs); }
     fputc('\n', g_corpus);
 }
-static void corpus_val(const char *tag, const struct xval *v, int ok, int failed) {
+internal void corpus_val(const char *tag, const struct xval *v, int ok, int failed) {
     char t[XVAL_CAP];
     fprintf(g_corpus, "%s | ok %d failed %d", tag, ok, failed);
     if (ok && v->w) {
@@ -243,7 +243,7 @@ static void corpus_val(const char *tag, const struct xval *v, int ok, int failed
     }
     fprintf(g_corpus, " rnd %08x %08x", g_rnd, g_rnd_game);
 }
-static void corpus_eval(const char *tag, const char *src, ee_player *pl, ee_player *other, ee_player *third, const struct xvars *own, int game, int nogame) {
+internal void corpus_eval(const char *tag, const char *src, ee_player *pl, ee_player *other, ee_player *third, const struct xvars *own, int game, int nogame) {
     if (!src) return;
     uint32_t r0 = g_rnd, g0 = g_rnd_game;
     g_rnd = 0x13579BDFu; g_rnd_game = 0x2468ACE0u;
@@ -260,7 +260,7 @@ static void corpus_eval(const char *tag, const char *src, ee_player *pl, ee_play
     corpus_end();
     g_rnd = r0; g_rnd_game = g0;
 }
-static void corpus_fill(const char *tag, const char *tmpl, ee_player *pl, ee_player *other, ee_player *third, const struct xvars *vars) {
+internal void corpus_fill(const char *tag, const char *tmpl, ee_player *pl, ee_player *other, ee_player *third, const struct xvars *vars) {
     static const char *pn[200], *pv[200];
     static char names[200][48];
     static int np = -1;
@@ -292,7 +292,7 @@ static void corpus_fill(const char *tag, const char *tmpl, ee_player *pl, ee_pla
     corpus_end();
     g_rnd = r0; g_rnd_game = g0;
 }
-static void texts_corpus(char *out, const char *path) {
+internal void texts_corpus(char *out, const char *path) {
     texts_load();
     g_corpus = fopen(path, "wb");
     if (!g_corpus) { REPLY("error: cannot write %s\n", path); return; }
@@ -424,7 +424,7 @@ static void texts_corpus(char *out, const char *path) {
 // texts eval [P [Q]] <expression>: its value, P speaking to Q (the local player when left out), with
 // mod/system.eeai's vars and P's personality's; texts line P <situation> [Q [R]]: the variant P would say now, filled
 // (R: the third player - {enemy})
-static void cmd_texts(char *out, const char *args) {
+internal void cmd_texts(char *out, const char *args) {
     char path[MAX_PATH];
     if (!strncmp(args, "corpus", 6)) {   // texts corpus [file]: default aimod_dumps\texts_corpus.txt
         const char *f = args + 6;

@@ -14,8 +14,8 @@ typedef HRESULT (WINAPI *D3D11CreateDeviceFn)(IDXGIAdapter *, D3D_DRIVER_TYPE, H
 typedef HRESULT (WINAPI *D3DCompileFn)(LPCVOID, SIZE_T, LPCSTR, const D3D_SHADER_MACRO *, ID3DInclude *, LPCSTR, LPCSTR,
                                        UINT, UINT, ID3DBlob **, ID3DBlob **);
 
-static int g_present_d3d = 1, g_vsync;
-static struct {
+internal int g_present_d3d = 1, g_vsync;
+internal struct {
     int failed, tearing, bw, bh, tw, th;
     DXGI_FORMAT tfmt;
     HWND hwnd;
@@ -33,7 +33,7 @@ static struct {
 
 #define D3D_RELEASE(p) do { if (p) { ((IUnknown *)(p))->lpVtbl->Release((IUnknown *)(p)); (p) = NULL; } } while (0)
 
-static void d3d_release(void) {
+internal void d3d_release(void) {
     if (g_d3d.ctx) ID3D11DeviceContext_ClearState(g_d3d.ctx);
     D3D_RELEASE(g_d3d.srv); D3D_RELEASE(g_d3d.tex); D3D_RELEASE(g_d3d.linear); D3D_RELEASE(g_d3d.point);
     D3D_RELEASE(g_d3d.vs); D3D_RELEASE(g_d3d.ps); D3D_RELEASE(g_d3d.rtv); D3D_RELEASE(g_d3d.sc);
@@ -42,7 +42,7 @@ static void d3d_release(void) {
     g_d3d.bw = g_d3d.bh = g_d3d.tw = g_d3d.th = 0;
 }
 
-static int d3d_fail(const char *what, HRESULT hr) {
+internal int d3d_fail(const char *what, HRESULT hr) {
     snprintf(g_d3d.err, sizeof g_d3d.err, "%s failed (hr %08lx)", what, (unsigned long)hr);
     if (g_log) { log_locked("# display: Direct3D present: %s - using GDI\n", g_d3d.err); }
     d3d_release();
@@ -50,14 +50,14 @@ static int d3d_fail(const char *what, HRESULT hr) {
     return 0;
 }
 
-static const char k_shader[] =
+internal const char k_shader[] =
     "Texture2D t : register(t0); SamplerState s : register(s0);\n"
     "struct V { float4 p : SV_Position; float2 uv : TEXCOORD0; };\n"
     "V vs(uint id : SV_VertexID) { V o; o.uv = float2((id << 1) & 2, id & 2);"
     " o.p = float4(o.uv * float2(2, -2) + float2(-1, 1), 0, 1); return o; }\n"
     "float4 ps(V i) : SV_Target { return float4(t.Sample(s, i.uv).rgb, 1); }\n";
 
-static int d3d_rtv(void) {
+internal int d3d_rtv(void) {
     ID3D11Texture2D *bb = NULL;
     HRESULT hr = IDXGISwapChain1_GetBuffer(g_d3d.sc, 0, &IID_ID3D11Texture2D, (void **)&bb);
     if (FAILED(hr)) return d3d_fail("GetBuffer", hr);
@@ -66,7 +66,7 @@ static int d3d_rtv(void) {
     return FAILED(hr) ? d3d_fail("CreateRenderTargetView", hr) : 1;
 }
 
-static int d3d_init(HWND hwnd, int w, int h) {
+internal int d3d_init(HWND hwnd, int w, int h) {
     char path[MAX_PATH];
     GetSystemDirectoryA(path, sizeof path);
     lstrcatA(path, "\\d3d11.dll");
@@ -136,7 +136,7 @@ static int d3d_init(HWND hwnd, int w, int h) {
 }
 
 // draws the locked frame into the window; 0 = not done (GDI draws it)
-static int present_d3d(const DDSURFACEDESC2 *d, HWND hwnd, const RECT *cr, const RECT *v) {
+internal int present_d3d(const DDSURFACEDESC2 *d, HWND hwnd, const RECT *cr, const RECT *v) {
     if (!g_present_d3d || g_d3d.failed || cr->right < 1 || cr->bottom < 1) return 0;
     if (g_d3d.hwnd != hwnd) {
         d3d_release();

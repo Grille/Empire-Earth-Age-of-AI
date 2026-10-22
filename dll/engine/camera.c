@@ -13,10 +13,10 @@
 // EE's: per second 100 x 0.1 vs 40 x 0.25.
 
 
-static int g_scroll_aoc, g_scroll_native;   // the AoC ramp; the build's own way (its Execute when not smooth)
-static float g_vel_x, g_vel_y;
-static DWORD g_scroll_last;
-static volatile LONG g_scroll_calls;   // scroll steps run (for camtrace)
+internal int g_scroll_aoc, g_scroll_native;   // the AoC ramp; the build's own way (its Execute when not smooth)
+internal float g_vel_x, g_vel_y;
+internal DWORD g_scroll_last;
+internal volatile LONG g_scroll_calls;   // scroll steps run (for camtrace)
 
 // Fine scrolling ([camera] smooth, default 1, both builds): the scroll steps come from a timer (10 ms AoC, 25 ms EE) on the
 // game's thread, and each moved the camera by a fixed distance, while the frames are drawn on another thread every
@@ -27,17 +27,17 @@ static volatile LONG g_scroll_calls;   // scroll steps run (for camtrace)
 // over all exactly as far as the time passed (the step's own time if no frames are counted). Same speeds as
 // before: EE (speed + 0.5) * (setting + 0.5) * 0.01 tiles per ms; AoC ramps its velocity from 10% to that by 1%
 // of the top speed per 10 ms.
-static int g_cam_smooth = 1;
-static LARGE_INTEGER g_cam_last, g_cam_freq, g_cam_frame;
-static volatile LONG64 g_cam_budget;   // QPC ticks of frames not yet used by a scroll step
-static void camera_frame(void) {       // the render thread, every presented frame
+internal int g_cam_smooth = 1;
+internal LARGE_INTEGER g_cam_last, g_cam_freq, g_cam_frame;
+internal volatile LONG64 g_cam_budget;   // QPC ticks of frames not yet used by a scroll step
+internal void camera_frame(void) {       // the render thread, every presented frame
     LARGE_INTEGER now;
     QueryPerformanceCounter(&now);
     if (g_cam_frame.QuadPart) InterlockedExchangeAdd64(&g_cam_budget, now.QuadPart - g_cam_frame.QuadPart);
     g_cam_frame = now;
 }
 
-static void scroll_axis(float *vel, int neg, int pos, float minv, float maxv, float step) {
+internal void scroll_axis(float *vel, int neg, int pos, float minv, float maxv, float step) {
     if (neg) {
         if (-minv < *vel) *vel = -minv;
         *vel -= step;
@@ -49,7 +49,7 @@ static void scroll_axis(float *vel, int neg, int pos, float minv, float maxv, fl
     }
 }
 
-static void __fastcall hook_scroll_execute(uint8_t *self, void *edx) {
+internal void __fastcall hook_scroll_execute(uint8_t *self, void *edx) {
     (void)edx;
     InterlockedIncrement(&g_scroll_calls);
     if (g_scroll_native && !g_cam_smooth) { GF(FN_SCROLL_EXECUTE)(self); return; }
@@ -83,7 +83,7 @@ static void __fastcall hook_scroll_execute(uint8_t *self, void *edx) {
     if (dx != 0 || dy != 0) GF(FN_CAMERA_MOVE)((void *)GA(G_CAMERA), dx, dy);
 }
 
-static void camera_install(const char *aimod_ini, const char *autotest_ini) {
+internal void camera_install(const char *aimod_ini, const char *autotest_ini) {
     char mode[16], tmp[16];
     int build_aoc = build_is("aoc");
     GetPrivateProfileStringA("camera", "scroll", "game", mode, sizeof mode, aimod_ini);
@@ -113,12 +113,12 @@ static void camera_install(const char *aimod_ini, const char *autotest_ini) {
 // camtrace N (tests): for the next N presented frames the time since the previous frame, the camera's movement
 // and the scroll steps run in between - then logged as "# camtrace:" lines
 enum { CT_MAX = 400 };
-static volatile LONG g_ct_left;
-static int g_ct_n;
-static struct { float dt, dx, dy; int steps; } g_ct[CT_MAX];
-static LARGE_INTEGER g_ct_last;
-static float g_ct_x, g_ct_y;
-static void camtrace_frame(void) {   // the render thread, every presented frame
+internal volatile LONG g_ct_left;
+internal int g_ct_n;
+internal struct { float dt, dx, dy; int steps; } g_ct[CT_MAX];
+internal LARGE_INTEGER g_ct_last;
+internal float g_ct_x, g_ct_y;
+internal void camtrace_frame(void) {   // the render thread, every presented frame
     if (!g_ct_left) return;
     LARGE_INTEGER now, f;
     QueryPerformanceCounter(&now);
@@ -141,7 +141,7 @@ static void camtrace_frame(void) {   // the render thread, every presented frame
         LeaveCriticalSection(&g_lock);
     }
 }
-static void cmd_camtrace(char *out, const char *args) {
+internal void cmd_camtrace(char *out, const char *args) {
     int n = atoi(args);
     if (n <= 0 || n > CT_MAX) n = 120;
     g_ct_n = 0; g_ct_last.QuadPart = 0;
@@ -150,7 +150,7 @@ static void cmd_camtrace(char *out, const char *args) {
 }
 
 // scrolltest <left|right|up|down> <calls>: run the scroll action on a fake object, report camera movement
-static void cmd_scrolltest(char *out, const char *args) {
+internal void cmd_scrolltest(char *out, const char *args) {
     char dir[16] = "right";
     int n = 10;
     sscanf(args, "%15s %d", dir, &n);

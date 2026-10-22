@@ -16,15 +16,15 @@ struct x_host {
     const char *(*placeholders)(const char *file, const char *sec, const char *key);   // the code's, " a b ", or NULL
     int (*command)(const char *name);          // a command a script may call as a function
 };
-static int xh_value(struct xctx *c, const char *name, struct xval *v) { (void)c; (void)name; (void)v; return 0; }
-static int xh_name(const char *name) { (void)name; return 0; }
-static int xh_method(struct xctx *c, const char *name, const struct xval *a, int na, struct xval *v) {
+internal int xh_value(struct xctx *c, const char *name, struct xval *v) { (void)c; (void)name; (void)v; return 0; }
+internal int xh_name(const char *name) { (void)name; return 0; }
+internal int xh_method(struct xctx *c, const char *name, const struct xval *a, int na, struct xval *v) {
     (void)c; (void)name; (void)a; (void)na; (void)v; return 0;
 }
-static int xh_object(int n, struct xval *v) { (void)n; (void)v; return 0; }
-static int xh_constant(const char *name, struct xval *v) { (void)name; (void)v; return 0; }
-static int xh_rnd(int n) { (void)n; return 0; }
-static void xh_scan(void) {}
-static const char *xh_placeholders(const char *file, const char *sec, const char *key) { (void)file; (void)sec; (void)key; return NULL; }
-static struct x_host g_x_host = { xh_value, xh_name, xh_name, xh_method, xh_object, xh_constant, xh_rnd, xh_rnd, xh_scan,
+internal int xh_object(int n, struct xval *v) { (void)n; (void)v; return 0; }
+internal int xh_constant(const char *name, struct xval *v) { (void)name; (void)v; return 0; }
+internal int xh_rnd(int n) { (void)n; return 0; }
+internal void xh_scan(void) {}
+internal const char *xh_placeholders(const char *file, const char *sec, const char *key) { (void)file; (void)sec; (void)key; return NULL; }
+internal struct x_host g_x_host = { xh_value, xh_name, xh_name, xh_method, xh_object, xh_constant, xh_rnd, xh_rnd, xh_scan,
                                   xh_placeholders, xh_name };

@@ -9,12 +9,12 @@
 // second and the process's GDI / USER object counts (a leak would grow them); when 10 seconds in a row stay under
 // the threshold, the render-thread profile (profile 3000 render) runs on its own thread and goes into the log -
 // at most 5 a session, 5 minutes apart.
-static void cmd_profile_render(int dur, char *out);
-static void frame_costs_log(unsigned frames);
-static int is_return_address(uintptr_t a);
-static int g_frame_watch;
-static int g_fw_test;   // autotest frame_watch given: also headless (tests)
-static struct {
+internal void cmd_profile_render(int dur, char *out);
+internal void frame_costs_log(unsigned frames);
+internal int is_return_address(uintptr_t a);
+internal int g_frame_watch;
+internal int g_fw_test;   // autotest frame_watch given: also headless (tests)
+internal struct {
     DWORD sec_start, min_ms, last_profile, last_frame;
     unsigned sec_frames, min_frames, slow_secs, min_slow, profiles;
     uint32_t last_gt;
@@ -23,9 +23,9 @@ static struct {
 // STALLS: a frame 2+ s after the last one - the per-second rate above can't see it (a 10-s freeze and then 900
 // frames is a fast second). Logged with whether the language model was answering then (it shares the GPU: a model
 // loaded into video memory on its first request froze the game for seconds).
-static int llm_busy(void);   // llm.c: requests queued or running
-static HANDLE g_fw_event;
-static DWORD WINAPI frame_profile_thread(LPVOID unused) {
+internal int llm_busy(void);   // llm.c: requests queued or running
+internal HANDLE g_fw_event;
+internal DWORD WINAPI frame_profile_thread(LPVOID unused) {
     (void)unused;
     static char out[sizeof g_req.out];
     for (;;) {
@@ -47,7 +47,7 @@ static DWORD WINAPI frame_profile_thread(LPVOID unused) {
     }
     return 0;
 }
-static void frame_watch(void) {
+internal void frame_watch(void) {
     if (!g_frame_watch || (g_headless && !g_fw_test)) return;
     DWORD now = GetTickCount();
     DWORD gap = g_fw.last_frame ? now - g_fw.last_frame : 0;
@@ -105,17 +105,17 @@ static void frame_watch(void) {
 
 // diagnostics: terrain draw results (DX7Rasterizer::Draw(GETerrainMesh&, screen, bool))
 typedef int (__thiscall *DrawTerrainFn)(void *ras, void *mesh, unsigned screen, int flag);
-static DrawTerrainFn g_draw_terrain[2];
-static volatile LONG g_terrain_calls, g_terrain_fail, g_terrain_last_err, g_terrain_rows;
+internal DrawTerrainFn g_draw_terrain[2];
+internal volatile LONG g_terrain_calls, g_terrain_fail, g_terrain_last_err, g_terrain_rows;
 typedef DWORD (*GetErrFn)(void);
-static GetErrFn g_get_native_error;
-static int g_diag_skip;   // autotest diag_skip: 1 = no terrain, 2 = no water (diagnostics)
-static DrawTerrainFn g_draw_water[2];
-static int __fastcall hook_draw_water(void *ras, void *edx, void *mesh, unsigned screen, int flag) {
+internal GetErrFn g_get_native_error;
+internal int g_diag_skip;   // autotest diag_skip: 1 = no terrain, 2 = no water (diagnostics)
+internal DrawTerrainFn g_draw_water[2];
+internal int __fastcall hook_draw_water(void *ras, void *edx, void *mesh, unsigned screen, int flag) {
     (void)edx;
     return g_diag_skip == 2 ? 0 : g_draw_water[DISPLAY_DLL(ras)](ras, mesh, screen, flag);
 }
-static int __fastcall hook_draw_terrain(void *ras, void *edx, void *mesh, unsigned screen, int flag) {
+internal int __fastcall hook_draw_terrain(void *ras, void *edx, void *mesh, unsigned screen, int flag) {
     (void)edx;
     if (g_diag_skip == 1) return 0;
     static unsigned (__thiscall *rows_fn)(void *);
@@ -132,12 +132,12 @@ static int __fastcall hook_draw_terrain(void *ras, void *edx, void *mesh, unsign
 }
 
 // diagnostics: surface copies / creation (DX7Surface::CopyTo, ::CopyWithFilter, DX7Screen::CreateSurface)
-static void *g_text_lock_orig[2], *g_text_unlock_orig[2];   // DX7Surface::TextLock / TextUnlock (own text DC)
-static struct { const char *name; volatile LONG calls, fail, last_err, last_ret; void *orig[2]; } g_cnt[3] = {
+internal void *g_text_lock_orig[2], *g_text_unlock_orig[2];   // DX7Surface::TextLock / TextUnlock (own text DC)
+internal struct { const char *name; volatile LONG calls, fail, last_err, last_ret; void *orig[2]; } g_cnt[3] = {
     { "CopyTo", 0, 0, 0, 0, { NULL, NULL } }, { "CopyWithFilter", 0, 0, 0, 0, { NULL, NULL } },
     { "CreateSurface", 0, 0, 0, 0, { NULL, NULL } },
 };
-static void cnt_note(int k, int r) {
+internal void cnt_note(int k, int r) {
     InterlockedIncrement(&g_cnt[k].calls);
     if (r) {
         InterlockedIncrement(&g_cnt[k].fail);
@@ -146,9 +146,9 @@ static void cnt_note(int k, int r) {
     }
 }
 // alpha left in copy destinations that have an alpha channel (sampled, first 400 such copies)
-static volatile LONG g_alpha_copies, g_alpha_samples, g_alpha_zero, g_alpha_src_zero;
-static char g_alpha_last[200];
-static void sample_alpha(uint8_t *src, uint8_t *dst) {
+internal volatile LONG g_alpha_copies, g_alpha_samples, g_alpha_zero, g_alpha_src_zero;
+internal char g_alpha_last[200];
+internal void sample_alpha(uint8_t *src, uint8_t *dst) {
     IDirectDrawSurface7 *d7 = dst ? FIELD(dst, OF(E_SURF, 0x48), IDirectDrawSurface7 *) : NULL;
     IDirectDrawSurface7 *s7 = src ? FIELD(src, OF(E_SURF, 0x48), IDirectDrawSurface7 *) : NULL;
     if (!d7 || g_alpha_copies >= 400) return;
@@ -185,8 +185,8 @@ static void sample_alpha(uint8_t *src, uint8_t *dst) {
     }
     d7->lpVtbl->Unlock(d7, NULL);
 }
-static volatile LONG g_front_copies_skipped;
-static int __fastcall hook_copy_to(void *s, void *edx, void *dst, void *r1, void *r2, int f) {
+internal volatile LONG g_front_copies_skipped;
+internal int __fastcall hook_copy_to(void *s, void *edx, void *dst, void *r1, void *r2, int f) {
     (void)edx;
     // windowed: the UI's "copy dirty rectangles" restore regions from the front surface - after a page flip the
     // back buffer holds an older frame. Windowed the front is the emulated primary that never gets our frames
@@ -203,7 +203,7 @@ static int __fastcall hook_copy_to(void *s, void *edx, void *dst, void *r1, void
     if (g_diag && !r) sample_alpha(s, dst);
     return r;
 }
-static int __fastcall hook_copy_filter(void *s, void *edx, void *dst, void *r1, void *r2) {
+internal int __fastcall hook_copy_filter(void *s, void *edx, void *dst, void *r1, void *r2) {
     (void)edx;
     int r = ((int (__thiscall *)(void *, void *, void *, void *))g_cnt[1].orig[DISPLAY_DLL(s)])(s, dst, r1, r2);
     cnt_note(1, r);
@@ -211,9 +211,9 @@ static int __fastcall hook_copy_filter(void *s, void *edx, void *dst, void *r1, 
 }
 // histogram of created surfaces by GESurfaceDescription type (+0) and pixel format index (+4) - after the call
 // the format is the resolved one; also the DirectDraw pixel format of the last surface per bucket
-static struct { unsigned type, fmt, count, w, h, bpp, amask, flags; } g_surf_kinds[24];
-static uintptr_t g_surf16_stack[8];
-static int __fastcall hook_create_surface(void *s, void *edx, void *desc, void **out) {
+internal struct { unsigned type, fmt, count, w, h, bpp, amask, flags; } g_surf_kinds[24];
+internal uintptr_t g_surf16_stack[8];
+internal int __fastcall hook_create_surface(void *s, void *edx, void *desc, void **out) {
     (void)edx;
     unsigned type = ((unsigned *)desc)[0], fmt_req = ((unsigned *)desc)[1];
     if (g_diag && (type == 5 || type == 6) && (fmt_req == 2 || fmt_req == 7) && !g_surf16_stack[0]) {   // who asks for 16-bit textures
@@ -248,10 +248,10 @@ static int __fastcall hook_create_surface(void *s, void *edx, void *desc, void *
 
 // diagnostics: render target switches (DX7Rasterizer::SetRenderTarget(GESurface*, screen), void)
 typedef void (__thiscall *SetRTFn)(void *ras, void *surf, unsigned screen);
-static SetRTFn g_set_rt[2];
-static volatile LONG g_rt_calls, g_rt_back;
-static char g_rt_last[160];
-static void __fastcall hook_set_rt(void *ras, void *edx, uint8_t *surf, unsigned screen) {
+internal SetRTFn g_set_rt[2];
+internal volatile LONG g_rt_calls, g_rt_back;
+internal char g_rt_last[160];
+internal void __fastcall hook_set_rt(void *ras, void *edx, uint8_t *surf, unsigned screen) {
     (void)edx;
     g_set_rt[DISPLAY_DLL(ras)](ras, surf, screen);
     InterlockedIncrement(&g_rt_calls);
@@ -267,11 +267,11 @@ static void __fastcall hook_set_rt(void *ras, void *edx, uint8_t *surf, unsigned
 // diagnostics: Clear(color, rect, screen) / ClearZBuffer(depth, rect, screen) results and the last rect
 typedef int (__thiscall *ClearFn)(void *ras, void *a, float *rect, unsigned screen);
 typedef int (__thiscall *ClearZFn)(void *ras, float depth, float *rect, unsigned screen);
-static ClearFn g_clear[2];
-static ClearZFn g_clearz[2];
-static volatile LONG g_clear_calls, g_clear_fail, g_clearz_calls, g_clearz_fail;
-static float g_clear_rect[4], g_clearz_rect[4], g_clearz_depth;
-static int __fastcall hook_clear(void *ras, void *edx, void *color, float *rect, unsigned screen) {
+internal ClearFn g_clear[2];
+internal ClearZFn g_clearz[2];
+internal volatile LONG g_clear_calls, g_clear_fail, g_clearz_calls, g_clearz_fail;
+internal float g_clear_rect[4], g_clearz_rect[4], g_clearz_depth;
+internal int __fastcall hook_clear(void *ras, void *edx, void *color, float *rect, unsigned screen) {
     (void)edx;
     int r = g_clear[DISPLAY_DLL(ras)](ras, color, rect, screen);
     InterlockedIncrement(&g_clear_calls);
@@ -279,7 +279,7 @@ static int __fastcall hook_clear(void *ras, void *edx, void *color, float *rect,
     memcpy(g_clear_rect, rect, sizeof g_clear_rect);
     return r;
 }
-static int __fastcall hook_clearz(void *ras, void *edx, float depth, float *rect, unsigned screen) {
+internal int __fastcall hook_clearz(void *ras, void *edx, float depth, float *rect, unsigned screen) {
     (void)edx;
     int r = g_clearz[DISPLAY_DLL(ras)](ras, depth, rect, screen);
     InterlockedIncrement(&g_clearz_calls);
@@ -292,22 +292,22 @@ static int __fastcall hook_clearz(void *ras, void *edx, float depth, float *rect
 // diagnostics: fog settings (SetFog(on, screen), SetFogRange(start, end, screen), SetFogType(type, screen))
 typedef void (__thiscall *SetFogFn)(void *ras, unsigned v, unsigned screen);
 typedef void (__thiscall *SetFogRangeFn)(void *ras, float a, float b, unsigned screen);
-static SetFogFn g_set_fog[2], g_set_fog_type[2];
-static SetFogRangeFn g_set_fog_range[2];
-static volatile LONG g_fog_on = -1, g_fog_type = -1, g_fog_calls;
-static float g_fog_start, g_fog_end;
-static void __fastcall hook_set_fog(void *ras, void *edx, unsigned on, unsigned screen) {
+internal SetFogFn g_set_fog[2], g_set_fog_type[2];
+internal SetFogRangeFn g_set_fog_range[2];
+internal volatile LONG g_fog_on = -1, g_fog_type = -1, g_fog_calls;
+internal float g_fog_start, g_fog_end;
+internal void __fastcall hook_set_fog(void *ras, void *edx, unsigned on, unsigned screen) {
     (void)edx;
     g_fog_on = (LONG)on;
     InterlockedIncrement(&g_fog_calls);
     g_set_fog[DISPLAY_DLL(ras)](ras, g_diag_skip == 3 ? 0 : on, screen);
 }
-static void __fastcall hook_set_fog_type(void *ras, void *edx, unsigned t, unsigned screen) {
+internal void __fastcall hook_set_fog_type(void *ras, void *edx, unsigned t, unsigned screen) {
     (void)edx;
     g_fog_type = (LONG)t;
     g_set_fog_type[DISPLAY_DLL(ras)](ras, t, screen);
 }
-static void __fastcall hook_set_fog_range(void *ras, void *edx, float a, float b, unsigned screen) {
+internal void __fastcall hook_set_fog_range(void *ras, void *edx, float a, float b, unsigned screen) {
     (void)edx;
     g_fog_start = a;
     g_fog_end = b;
@@ -319,7 +319,7 @@ static void __fastcall hook_set_fog_range(void *ras, void *edx, float a, float b
 // surfaces), DX7Surface::Lock and the exe's WONAPI code. These display DLL functions are timed (calls and time per
 // frame, and their 3 most frequent callers) and logged with the minute line of the frame watch.
 enum { FC_TEXT, FC_TEXT_RECT, FC_LOCK, FC_TEXT_LOCK, FC_TEXT_UNLOCK, FC_N };
-static struct {
+internal struct {
     const char *name, *export;
     void *orig[2];
     volatile LONG calls;
@@ -332,7 +332,7 @@ static struct {
     { "text lock", "?TextLock@DX7Surface@@UAEJXZ", { 0 }, 0, 0, { { 0, 0 } } },
     { "text unlock", "?TextUnlock@DX7Surface@@UAEJXZ", { 0 }, 0, 0, { { 0, 0 } } },
 };
-static void fc_note(int k, uintptr_t ret, LONGLONG t) {
+internal void fc_note(int k, uintptr_t ret, LONGLONG t) {
     InterlockedIncrement(&g_fc[k].calls);
     InterlockedExchangeAdd64(&g_fc[k].ticks, t);
     int j = 0, low = 0;
@@ -344,7 +344,7 @@ static void fc_note(int k, uintptr_t ret, LONGLONG t) {
 }
 #define FC_TIMED(k, expr) do { LARGE_INTEGER t0, t1; QueryPerformanceCounter(&t0); r = (expr); QueryPerformanceCounter(&t1); \
                                fc_note(k, (uintptr_t)__builtin_return_address(0), t1.QuadPart - t0.QuadPart); } while (0)
-static long __fastcall hook_fc_text(void *ras, void *edx, void *text, void *surf) {
+internal long __fastcall hook_fc_text(void *ras, void *edx, void *text, void *surf) {
     (void)edx; long r;
     FC_TIMED(FC_TEXT, ((long (__thiscall *)(void *, void *, void *))g_fc[FC_TEXT].orig[DISPLAY_DLL(ras)])(ras, text, surf));
     return r;
@@ -354,24 +354,24 @@ static long __fastcall hook_fc_text(void *ras, void *edx, void *text, void *surf
 // a restart and loading its own autosave (350 MB). Counted for the minute line, since the session started: surfaces
 // made by DX7Screen::CreateSurface and DX7Surface objects deleted (vtable slot 0, the deleting destructor), texture
 // handles created / destroyed (DX7Rasterizer, virtual), with the process's private memory and handle count.
-static volatile LONG g_surf_deleted, g_tex_created, g_tex_destroyed;
-static void *g_surf_dtor[2], *g_tex_create[2], *g_tex_destroy[2];
-static void *__fastcall hook_surf_dtor(void *surf, void *edx, unsigned flags) {
+internal volatile LONG g_surf_deleted, g_tex_created, g_tex_destroyed;
+internal void *g_surf_dtor[2], *g_tex_create[2], *g_tex_destroy[2];
+internal void *__fastcall hook_surf_dtor(void *surf, void *edx, unsigned flags) {
     (void)edx;
     InterlockedIncrement(&g_surf_deleted);
     return ((void *(__thiscall *)(void *, unsigned))g_surf_dtor[DISPLAY_DLL(surf)])(surf, flags);
 }
-static long __fastcall hook_tex_create(void *ras, void *edx, void *tex) {
+internal long __fastcall hook_tex_create(void *ras, void *edx, void *tex) {
     (void)edx;
     InterlockedIncrement(&g_tex_created);
     return ((long (__thiscall *)(void *, void *))g_tex_create[DISPLAY_DLL(ras)])(ras, tex);
 }
-static void __fastcall hook_tex_destroy(void *ras, void *edx, void *tex) {
+internal void __fastcall hook_tex_destroy(void *ras, void *edx, void *tex) {
     (void)edx;
     InterlockedIncrement(&g_tex_destroyed);
     ((void (__thiscall *)(void *, void *))g_tex_destroy[DISPLAY_DLL(ras)])(ras, tex);
 }
-static void session_counts_log(void) {
+internal void session_counts_log(void) {
     typedef BOOL (WINAPI *MemInfoFn)(HANDLE, PROCESS_MEMORY_COUNTERS *, DWORD);
     static MemInfoFn mem_info;
     if (!mem_info) mem_info = (MemInfoFn)(void *)GetProcAddress(GetModuleHandleA("kernel32.dll"), "K32GetProcessMemoryInfo");
@@ -386,7 +386,7 @@ static void session_counts_log(void) {
     LeaveCriticalSection(&g_lock);
 }
 
-static void frame_costs_log(unsigned frames) {
+internal void frame_costs_log(unsigned frames) {
     session_counts_log();
     LARGE_INTEGER f;
     QueryPerformanceFrequency(&f);

@@ -38,14 +38,14 @@
 // Strings: UWideString takes only char * (the game's ANSI code page), so UTF-8 files are converted on load.
 // Randomness: an own generator - the game's rand() is part of the simulation and must not be touched.
 
-static const char *const k_trait_keys[T_N] = { "aggression", "loyalty", "pride", "greed", "forgiveness", "caution", "talk" };
+internal const char *const k_trait_keys[T_N] = { "aggression", "loyalty", "pride", "greed", "forgiveness", "caution", "talk" };
 
 // situations: key, chance in % at talk=50 (100 = always, scaled by talk otherwise), cooldown s per AI, audience:
 // who is meant to hear it - everyone, the AI's allies (plans, worries, calls for help) or only {them}, the player
 // it is said to (taunts, diplomacy). The local player sees a line only when they are in its audience - an enemy AI
 // doesn't tell them that it attacks someone else. With [general] chat=1+ (debug) every line shows, marked.
 enum audience { A_ALL, A_ALLIES, A_NAME };
-static const struct { const char *key; int chance, cooldown; enum audience aud; } k_lines[L_N] = {
+internal const struct { const char *key; int chance, cooldown; enum audience aud; } k_lines[L_N] = {
     { "greeting", 60, 0, A_ALL },             { "war_declared", 100, 20, A_NAME },     { "betrayed", 100, 20, A_NAME },
     { "peace_accept", 100, 0, A_NAME },       { "peace_refuse", 100, 60, A_NAME },     { "alliance_offer", 100, 0, A_NAME },
     { "offer_accepted", 100, 0, A_NAME },     { "offer_withdrawn", 100, 0, A_NAME },   { "betray", 100, 0, A_NAME },
@@ -67,8 +67,8 @@ static const struct { const char *key; int chance, cooldown; enum audience aud; 
 // its layers that has the key (mod/computer.eeai the last); a mistake (or no number) passes it to the next layer, and
 // with none left the answer is no (told once). The rules around them (who may be asked, timers, the offers) stay
 // diplo.c's.
-static const char *const k_decide_keys[D_N] = { "peace_score", "seek_ally", "ally_score" };
-static int decide_key(const char *key) { int k = 0; while (k < D_N && lstrcmpiA(key, k_decide_keys[k])) k++; return k; }
+internal const char *const k_decide_keys[D_N] = { "peace_score", "seek_ally", "ally_score" };
+internal int decide_key(const char *key) { int k = 0; while (k < D_N && lstrcmpiA(key, k_decide_keys[k])) k++; return k; }
 
 #define MAX_PERSONAS 32
 #define MAX_VARIANTS 12
@@ -91,27 +91,27 @@ struct persona {
     int nlayer, registered, resolving;   // registered: register_personality() - a personality, else a library
     unsigned trait_set;   // the traits it sets itself (bit per trait): the others from its layers, else 50%
 };
-static struct persona g_personas[MAX_PERSONAS];
-static int g_npersonas;
-static int g_persona_of[16] = { -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 };
-static int g_persona_assigned[16];
-static int g_ai_talk = 1, g_ai_names = 1;
-static int g_ai_style;   // [general] ai_style: 1 = the personalities' style settings apply (default 0: off)
-static char g_persona_force[16][40];
-static uint32_t g_talk_last[16][L_N], g_talk_any[16];
-static uint32_t g_talk_said[16][L_N];   // the last line's hash (not the same twice when there is a choice)
-static unsigned g_talk_lines[16];
-static uint32_t g_attack_sent[16][16];   // [ai][target]: game time its last attack wave set out (the AI voice)
-static uint8_t g_attack_news[16];        // [ai]: an attack launched, not told yet (persona_attack)
-static uint32_t g_rnd = 0x9E3779B9u;
+internal struct persona g_personas[MAX_PERSONAS];
+internal int g_npersonas;
+internal int g_persona_of[16] = { -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 };
+internal int g_persona_assigned[16];
+internal int g_ai_talk = 1, g_ai_names = 1;
+internal int g_ai_style;   // [general] ai_style: 1 = the personalities' style settings apply (default 0: off)
+internal char g_persona_force[16][40];
+internal uint32_t g_talk_last[16][L_N], g_talk_any[16];
+internal uint32_t g_talk_said[16][L_N];   // the last line's hash (not the same twice when there is a choice)
+internal unsigned g_talk_lines[16];
+internal uint32_t g_attack_sent[16][16];   // [ai][target]: game time its last attack wave set out (the AI voice)
+internal uint8_t g_attack_news[16];        // [ai]: an attack launched, not told yet (persona_attack)
+internal uint32_t g_rnd = 0x9E3779B9u;
 
-static uint32_t rnd32(void) { g_rnd ^= g_rnd << 13; g_rnd ^= g_rnd >> 17; g_rnd ^= g_rnd << 5; return g_rnd; }
-static unsigned g_rnd_draws;   // how many draws so far (texts bench)
-static int rnd(int n) { g_rnd_draws++; return n > 0 ? (int)(rnd32() % (unsigned)n) : 0; }
+internal uint32_t rnd32(void) { g_rnd ^= g_rnd << 13; g_rnd ^= g_rnd >> 17; g_rnd ^= g_rnd << 5; return g_rnd; }
+internal unsigned g_rnd_draws;   // how many draws so far (texts bench)
+internal int rnd(int n) { g_rnd_draws++; return n > 0 ? (int)(rnd32() % (unsigned)n) : 0; }
 
 
 // whole file as text in the ANSI code page (UTF-8 converted), malloc'd, or NULL
-static char *read_text_acp(const char *path) {
+internal char *read_text_acp(const char *path) {
     HANDLE h = CreateFileA(path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
     if (h == INVALID_HANDLE_VALUE) return NULL;
     DWORD size = GetFileSize(h, NULL), got = 0;
@@ -134,7 +134,7 @@ static char *read_text_acp(const char *path) {
     return a;
 }
 
-static const float *color_rgb(int c) {
+internal const float *color_rgb(int c) {
     uint8_t **b = *(uint8_t ***)GA(G_COLORS_BEGIN), **e = *(uint8_t ***)GA(G_COLORS_END);
     return b && c >= 0 && c < e - b && b[c] ? (const float *)(b[c] + 4) : NULL;
 }
@@ -142,14 +142,14 @@ static const float *color_rgb(int c) {
 // The game's language, for the built-in German system lines (texts.c) and the colours' names: aimod.ini [general]
 // language (a code such as de, or a name such as german), else from the game's text - the first age's name (string
 // 30145 in Language.dll; its resources are all marked 0x409 whatever the language, so the language id says nothing).
-static char g_lang[16];
-static const char *const k_lang_alias[][4] = {
+internal char g_lang[16];
+internal const char *const k_lang_alias[][4] = {
     { "de", "german", "deutsch", "" }, { "en", "english", "", "" }, { "fr", "french", "francais", "" },
     { "es", "spanish", "espanol", "" }, { "it", "italian", "italiano", "" }, { "pl", "polish", "polski", "" },
     { "pt-br", "pt", "portuguese", "portugues" }, { "ru", "russian", "", "" }, { "ko", "korean", "", "" },
     { "zh-cn", "zh", "chinese", "" }, { "zh-tw", "", "", "" },
 };
-static int lang_matches(const char *tag) {
+internal int lang_matches(const char *tag) {
     if (!g_lang[0]) return 0;
     if (!lstrcmpiA(tag, g_lang)) return 1;
     for (size_t r = 0; r < sizeof k_lang_alias / sizeof *k_lang_alias; r++) {
@@ -163,7 +163,7 @@ static int lang_matches(const char *tag) {
 // Game/<lang>/EE/Language.rc; de and en also checked in the retail German and the Steam English Language.dll):
 // the first age's name identifies each language exactly; "Hostile" (29514) only as a fallback where no other
 // language shares it (en/fr "Hostile" and es/pt-BR "Hostil" do).
-static void lang_detect(void) {
+internal void lang_detect(void) {
     static const struct { const wchar_t *first_age, *hostile; const char *code; } k_known[] = {
         { L"Vorzeit", L"Feindselig", "de" },
         { L"Prehistoric Age", NULL, "en" },
@@ -213,17 +213,17 @@ static void lang_detect(void) {
 // line for one of k_must (its own or a layer's, the situation's or a fallback's) is a mistake. prompt.eeai: what the
 // language model is told (texts.c). system.eeai (texts.c): the system lines, no layer of anyone. The mod has no texts
 // of its own: without these files it says nothing (g_texts_missing).
-static int line_fallback(int k);
-static struct persona g_computer, g_prompt;
-static int g_has_computer;
-static int g_personas_only_computer;   // autotest personas=0: only computer.eeai (AIs without a personality)
-static const enum line_kind k_must[] = {
+internal int line_fallback(int k);
+internal struct persona g_computer, g_prompt;
+internal int g_has_computer;
+internal int g_personas_only_computer;   // autotest personas=0: only computer.eeai (AIs without a personality)
+internal const enum line_kind k_must[] = {
     L_WAR_DECLARED, L_BETRAYED, L_PEACE_ACCEPT, L_PEACE_REFUSE, L_ALLIANCE_OFFER, L_OFFER_ACCEPTED, L_OFFER_WITHDRAWN,
     L_BETRAY, L_CAPITULATE, L_CAPITULATE_ACCEPTED, L_CAPITULATE_REFUSED, L_BLOCK_REFUSE, L_BLOCK_REFUSE_OWN, L_ASK_LORD,
     L_ALL_SUBMITTED, L_OTHER_VICTORY, L_SURRENDER, L_DEFEATED,
 };
 struct inc_add { struct includes *inc; struct tlex *l; };
-static void include_add(const char *name, void *arg) {
+internal void include_add(const char *name, void *arg) {
     struct inc_add *a = arg;
     size_t n = strlen(name);
     int mod = !lstrcmpiA(name, "mod/computer.eeai") || !lstrcmpiA(name, "mod/prompt.eeai") || !lstrcmpiA(name, "mod/units.eeai");
@@ -234,15 +234,15 @@ static void include_add(const char *name, void *arg) {
     else x_error("%s:%d: include \"%s\": more than %d included files", a->l->file, a->l->line, name, INCLUDES_MAX);
 }
 // the mod's files every personality has as layers, after the ones it names (persona_layers leaves out one it has)
-static void include_unnamed(struct persona *p, const char *name) {
+internal void include_unnamed(struct persona *p, const char *name) {
     for (int i = 0; i < p->inc.n; i++) if (!lstrcmpiA(p->inc.name[i], name)) return;
     if (p->inc.n < INCLUDES_MAX) lstrcpynA(p->inc.name[p->inc.n++], name, 64);
     else x_error("%s.eeai: no room for %s after its %d includes", p->file, name, INCLUDES_MAX);
 }
-static int tpl_key(const char *key);   // texts.c: a prompt key's index, -1 none
-static void persona_prompt_key(struct persona *p, const char *key, struct tval *v, struct tlex *l);
+internal int tpl_key(const char *key);   // texts.c: a prompt key's index, -1 none
+internal void persona_prompt_key(struct persona *p, const char *key, struct tval *v, struct tlex *l);
 // the record a key of the files belongs in (a situation: lines, a trait: personality ...); NULL: none - a name
-static const char *record_of_key(const char *key) {
+internal const char *record_of_key(const char *key) {
     for (int k = 0; k < L_N; k++) if (!lstrcmpiA(key, k_lines[k].key)) return "lines";
     for (int t = 0; t < T_N; t++) if (!lstrcmpiA(key, k_trait_keys[t])) return "personality";
     if (!lstrcmpiA(key, "name") || !lstrcmpiA(key, "civilization") || !lstrcmpiA(key, "character") || !lstrcmpiA(key, "color")) return "personality";
@@ -252,11 +252,11 @@ static const char *record_of_key(const char *key) {
     return NULL;
 }
 struct color_read { struct tlex *l; int line; };
-static void color_check(const char *name, void *arg) {   // a colour name as written: known? (the rest at the game start)
+internal void color_check(const char *name, void *arg) {   // a colour name as written: known? (the rest at the game start)
     struct color_read *r = arg;
     if (color_index(name) < 0) x_error("%s:%d: unknown colour \"%s\"", r->l->file, r->line, name);
 }
-static void persona_key(void *arg, const char *sec, const char *key, struct tval *v, struct tlex *l) {
+internal void persona_key(void *arg, const char *sec, const char *key, struct tval *v, struct tlex *l) {
     struct persona *p = arg;
     if (!*sec && !lstrcmpiA(key, "include")) {   // include("a.eeai", ...) (tfile_parse: the list of its names)
         struct inc_add a = { &p->inc, l };
@@ -317,7 +317,7 @@ static void persona_key(void *arg, const char *sec, const char *key, struct tval
     else tl_error(l, "an unknown record (personality, style, decide, lines, prompt)");
 }
 // read file (in the folder dir) into p - its own keys only (persona_layers adds its includes'); 0: no such file
-static int persona_parse(const char *dir, const char *file, struct persona *p) {
+internal int persona_parse(const char *dir, const char *file, struct persona *p) {
     char path[MAX_PATH];
     snprintf(path, sizeof path, "%s%s", dir, file);
     char *text = read_text_acp(path);
@@ -333,11 +333,11 @@ static int persona_parse(const char *dir, const char *file, struct persona *p) {
 }
 // THE LIBRARIES: the included files, each read once (mod/computer.eeai into g_computer, mod/prompt.eeai into g_prompt)
 #define MAX_LIBS 16
-static struct persona *g_libs[MAX_LIBS];
-static int g_nlibs;
-static void persona_layers(struct persona *p, const char *dir, int depth);
-static void prompt_check(const struct persona *p);   // texts.c
-static struct persona *lib_get(const char *dir, const char *file, const char *by, int depth) {
+internal struct persona *g_libs[MAX_LIBS];
+internal int g_nlibs;
+internal void persona_layers(struct persona *p, const char *dir, int depth);
+internal void prompt_check(const struct persona *p);   // texts.c
+internal struct persona *lib_get(const char *dir, const char *file, const char *by, int depth) {
     for (int i = 0; i < g_nlibs; i++)
         if (!lstrcmpiA(g_libs[i]->file, file) || (!_strnicmp(g_libs[i]->file, file, strlen(g_libs[i]->file)) && !lstrcmpiA(file + strlen(g_libs[i]->file), ".eeai"))) {
             if (g_libs[i]->resolving) { x_error("%s: include \"%s\": a circle", by, file); return NULL; }
@@ -359,7 +359,7 @@ static struct persona *lib_get(const char *dir, const char *file, const char *by
     return p;
 }
 // p's layers - its includes, each one's own right after it - and what it takes from them where it has none of its own
-static void persona_layers(struct persona *p, const char *dir, int depth) {
+internal void persona_layers(struct persona *p, const char *dir, int depth) {
     p->resolving = 1;
     for (int i = 0; i < p->inc.n; i++) {
         struct persona *lib = lib_get(dir, p->inc.name[i], p->file, depth + 1);
@@ -392,18 +392,18 @@ static void persona_layers(struct persona *p, const char *dir, int depth) {
         }
     }
 }
-static int layer_has(const struct persona *p, int k) {   // a line for situation k (or a fallback) in p or its layers
+internal int layer_has(const struct persona *p, int k) {   // a line for situation k (or a fallback) in p or its layers
     for (int i = -1; p && i < p->nlayer; i++)
         for (int t = k; t >= 0; t = line_fallback(t)) if ((i < 0 ? p : p->layer[i])->line[t]) return 1;
     return 0;
 }
-static void persona_must_check(const struct persona *p) {   // every situation of k_must has a line somewhere
+internal void persona_must_check(const struct persona *p) {   // every situation of k_must has a line somewhere
     char miss[400] = "";
     for (size_t i = 0; i < sizeof k_must / sizeof *k_must; i++)
         if (!layer_has(p, k_must[i]) && strlen(miss) < sizeof miss - 30) { lstrcatA(miss, " "); lstrcatA(miss, k_lines[k_must[i]].key); }
     if (miss[0]) x_error("%s.eeai: no line for%s - a personality must have one (its own or a layer's: mod/computer.eeai)", p->file, miss);
 }
-static void personas_load(void) {
+internal void personas_load(void) {
     char dir[MAX_PATH], pat[MAX_PATH];
     g_xfn_scanned = 0;   // the files may have changed since: scanned again when a function is first met
     g_nlibs = 0;
@@ -438,7 +438,7 @@ static void personas_load(void) {
 
 // expr.c x_fn_known: the functions and names of every file in the folder and in mod\ (name(a, b) = ...), before any
 // file is checked
-static void x_fn_scan_folder(const char *dir) {
+internal void x_fn_scan_folder(const char *dir) {
     char pat[MAX_PATH], path[MAX_PATH];
     snprintf(pat, sizeof pat, "%s*.eeai", dir);
     WIN32_FIND_DATAA fd;
@@ -451,7 +451,7 @@ static void x_fn_scan_folder(const char *dir) {
     } while (FindNextFileA(h, &fd));
     FindClose(h);
 }
-static void x_fn_scan_dir(void) {
+internal void x_fn_scan_dir(void) {
     char dir[MAX_PATH];
     g_xfn_n = g_xvn_n = 0;
     x_fn_scan_folder(g_ai_dir);   // <game>\aimod_ai\, [general] ai_dir or [autotest] ai_dir
@@ -459,18 +459,18 @@ static void x_fn_scan_dir(void) {
     x_fn_scan_folder(dir);
 }
 
-static struct persona *persona_of(ee_player *pl) {
+internal struct persona *persona_of(ee_player *pl) {
     if (!pl) return NULL;
     int i = g_persona_of[(unsigned)FIELD(pl, PL_INDEX, int) & 15];
     return i >= 0 ? &g_personas[i] : NULL;
 }
-static int trait(ee_player *pl, enum trait t) { struct persona *p = persona_of(pl); return p ? p->trait[t] : 50; }
+internal int trait(ee_player *pl, enum trait t) { struct persona *p = persona_of(pl); return p ? p->trait[t] : 50; }
 // resources one point of pl's opinion is worth (tributes, peace terms): 20 for the greediest, 100 without greed
-static float tribute_worth(ee_player *pl) { return 20.0f + 0.8f * (float)(100 - trait(pl, T_GREED)); }
+internal float tribute_worth(ee_player *pl) { return 20.0f + 0.8f * (float)(100 - trait(pl, T_GREED)); }
 // the share of each resource pl offers in a capitulation, by its caution and greed
-static float capit_share(ee_player *pl) { return 0.2f + (float)trait(pl, T_CAUTION) / 400.0f + (float)(100 - trait(pl, T_GREED)) / 400.0f; }
+internal float capit_share(ee_player *pl) { return 0.2f + (float)trait(pl, T_CAUTION) / 400.0f + (float)(100 - trait(pl, T_GREED)) / 400.0f; }
 // A situation without a line falls back to a more general one; then the next layer (line_source).
-static int line_fallback(int k) {
+internal int line_fallback(int k) {
     switch (k) {
     case L_BETRAYED: return L_WAR_DECLARED;
     case L_ASK_LORD: return L_PEACE_REFUSE;
@@ -483,12 +483,12 @@ static int line_fallback(int k) {
 // A line's context for its {expressions} and conditions (expr.c): the speaker, them, enemy, the placeholder,
 // the vars of the line's personality, the speaker's own, mod/system.eeai's
 struct line_ctx { struct xctx c; const char *pn[2], *pv[2]; char trib[96], trib_total[16]; };   // {me} {them} {enemy} {epoch}: the game values (diplo.c x_builtin)
-static void epoch_text(ee_player *pl, char *out, int cap);
-static void epoch_text_n(int e, char *out, int cap);
-static const char *player_name(ee_player *pl);
-static void tribute_text(const int *amount, char *buf, int cap);
-static void texts_load(void);   // texts.c: mod/system.eeai's vars
-static void line_ctx_init(struct line_ctx *l, ee_player *pl, ee_player *other, ee_player *third) {
+internal void epoch_text(ee_player *pl, char *out, int cap);
+internal void epoch_text_n(int e, char *out, int cap);
+internal const char *player_name(ee_player *pl);
+internal void tribute_text(const int *amount, char *buf, int cap);
+internal void texts_load(void);   // texts.c: mod/system.eeai's vars
+internal void line_ctx_init(struct line_ctx *l, ee_player *pl, ee_player *other, ee_player *third) {
     memset(&l->c, 0, sizeof l->c);
     texts_load();
     if (!other) {   // a line to everyone (greeting, epoch_up ...): them is the player at this PC
@@ -512,7 +512,7 @@ static void line_ctx_init(struct line_ctx *l, ee_player *pl, ee_player *other, e
 // decision k of AI pl about them (enemy: its strongest enemy, or NULL): the number of its personality's decide
 // expression, worked out with that file's names - or, when it fails now (a mistake, told once; no number), of the
 // next layer's (one a layer took over from the file before it is that one again: skipped); none left: no
-static double persona_decide(ee_player *pl, int k, ee_player *them, ee_player *enemy) {
+internal double persona_decide(ee_player *pl, int k, ee_player *them, ee_player *enemy) {
     static const double no[D_N] = { -100, 0, -100 };   // peace refused, no ally sought, nobody asked
     const struct persona *p = persona_of(pl);
     if (!p && g_has_computer) p = &g_computer;
@@ -544,11 +544,11 @@ static double persona_decide(ee_player *pl, int k, ee_player *them, ee_player *e
     }
     return no[k];
 }
-static uint32_t text_hash(const char *s) { uint32_t h = 2166136261u; while (*s) h = (h ^ (uint8_t)*s++) * 16777619u; return h | 1; }
+internal uint32_t text_hash(const char *s) { uint32_t h = 2166136261u; while (*s) h = (h ^ (uint8_t)*s++) * 16777619u; return h | 1; }
 // p's line for situation k, worked out now (out, cap bytes): its value - one of a list's items, what holds of its
 // conditions; not the text said last time (`last`, a hash) when it can be another (up to 3 tries). Returns how many
 // it was chosen from, 0 when nothing is left (or the line is no expression: logged).
-static int line_pick(struct persona *p, int k, struct xctx *c, uint32_t last, char *out, int cap) {
+internal int line_pick(struct persona *p, int k, struct xctx *c, uint32_t last, char *out, int cap) {
     struct xval x;
     c->vars[0] = &p->vars;
     int f0 = c->failed;
@@ -568,7 +568,7 @@ static int line_pick(struct persona *p, int k, struct xctx *c, uint32_t last, ch
 // where situation k's line comes from for this AI: its personality (mod/computer.eeai without one), then its layers (its
 // includes) - the first whose chain (k, then its fallbacks) has something to say now (*kk the situation, *n how many
 // it was chosen from)
-static struct persona *line_source(ee_player *pl, int k, int *kk, struct xctx *c, uint32_t last, char *out, int cap, int *n) {
+internal struct persona *line_source(ee_player *pl, int k, int *kk, struct xctx *c, uint32_t last, char *out, int cap, int *n) {
     struct persona *p = persona_of(pl);
     if (!p && g_has_computer) p = &g_computer;
     for (int i = -1; p && i < p->nlayer; i++) {
@@ -578,24 +578,24 @@ static struct persona *line_source(ee_player *pl, int k, int *kk, struct xctx *c
     }
     return NULL;
 }
-static int persona_has(ee_player *pl, enum line_kind k) {   // a line for it somewhere (whether it has something to say now or not)
+internal int persona_has(ee_player *pl, enum line_kind k) {   // a line for it somewhere (whether it has something to say now or not)
     if (!pl || !g_ai_talk) return 0;
     struct persona *p = persona_of(pl);
     return layer_has(p ? p : g_has_computer ? &g_computer : NULL, k);
 }
 
 // Personalities in use this game (each once before any repeats)
-static int g_persona_used[MAX_PERSONAS];
-static const char *player_name(ee_player *pl);
-static const char *player_civ(ee_player *pl);   // its civilization as the game shows it
-static int g_plan_persona[16], g_plan_color[16];   // by setup slot, planned at the game start (-1 none)
-static int g_color_human[17], g_ai_colors[16], g_ai_color_n, g_ai_color_k;   // for hook_player_color
-static int persona_forced(int player) {
+internal int g_persona_used[MAX_PERSONAS];
+internal const char *player_name(ee_player *pl);
+internal const char *player_civ(ee_player *pl);   // its civilization as the game shows it
+internal int g_plan_persona[16], g_plan_color[16];   // by setup slot, planned at the game start (-1 none)
+internal int g_color_human[17], g_ai_colors[16], g_ai_color_n, g_ai_color_k;   // for hook_player_color
+internal int persona_forced(int player) {
     for (int i = 0; i < g_npersonas && player >= 0 && player < 16 && g_persona_force[player][0]; i++)
         if (!lstrcmpiA(g_personas[i].file, g_persona_force[player])) return i;
     return -1;
 }
-static int persona_random(void) {
+internal int persona_random(void) {
     int minuse = 1 << 30, n = 0, pick = -1;
     for (int i = 0; i < g_npersonas; i++) if (g_persona_used[i] < minuse) minuse = g_persona_used[i];
     for (int i = 0; i < g_npersonas; i++) n += g_persona_used[i] == minuse;
@@ -606,7 +606,7 @@ static int persona_random(void) {
 
 // p's favoured colours, in order (out, at most cap): its color= worked out now - before the game, so with no players
 // and no game values (xctx nogame) - each item a colour's name or number (color.red); returns how many
-static int persona_colors(struct persona *p, int *out, int cap) {
+internal int persona_colors(struct persona *p, int *out, int cap) {
     if (!p->color) return 0;
     struct xctx c = { 0 };
     c.found = 1;
@@ -631,7 +631,7 @@ static int persona_colors(struct persona *p, int *out, int cap) {
 // slot (+0x24) the personality's favoured colour - the first one no human and no other AI has - otherwise its own
 // colour if still free, otherwise any free one. Slots: 16 x 0x38 bytes, +0 type (1 human, 0 computer, 4 closed).
 // Scenarios and saved games keep their colours (a saved game finds its personalities again by name).
-static void persona_new_game(uint8_t *setup) {
+internal void persona_new_game(uint8_t *setup) {
     for (int i = 0; i < 16; i++) { g_persona_of[i] = g_plan_persona[i] = g_plan_color[i] = -1; g_persona_assigned[i] = 0; }
     memset(g_persona_used, 0, sizeof g_persona_used);
     g_ai_color_n = g_ai_color_k = 0;
@@ -694,7 +694,7 @@ static void persona_new_game(uint8_t *setup) {
 // slot's colour and every other player the next colour not taken by a human, in slot order (0x5262E4: the colour
 // table lookup 0x526B85(index) cdecl -> rgb, then 0x526B3A sets player +0x438). Here an AI's lookup returns its
 // planned colour instead. In the game everything shows the player's rgb (diplomacy screen, chat), not an index.
-static void *__cdecl hook_player_color(unsigned idx) {
+internal void *__cdecl hook_player_color(unsigned idx) {
     if (!(idx < 17 && g_color_human[idx]) && g_ai_color_k < g_ai_color_n) {
         int c = g_ai_colors[g_ai_color_k++];
         if (c >= 0) idx = (unsigned)c;
@@ -705,8 +705,8 @@ static void *__cdecl hook_player_color(unsigned idx) {
 // once per AI (its first update): pick and apply the personality - pinned by aimod.ini, planned at the game start
 // (found by the player's colour, +0x438 = the colour table's rgb), the one with the player's name (a loaded game),
 // or a random one
-static void persona_apply(ee_player *pl, unsigned idx, int pick);
-static void persona_assign(ee_player *pl) {
+internal void persona_apply(ee_player *pl, unsigned idx, int pick);
+internal void persona_assign(ee_player *pl) {
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     if (g_persona_assigned[idx]) return;
     g_persona_assigned[idx] = 1;
@@ -723,7 +723,7 @@ static void persona_assign(ee_player *pl) {
     if (pick >= 0) persona_apply(pl, idx, pick);
 }
 // AI pl (player idx) is personality pick from now on: its name, civilization, style (persona_assign, cmd_persona)
-static void persona_apply(ee_player *pl, unsigned idx, int pick) {
+internal void persona_apply(ee_player *pl, unsigned idx, int pick) {
     g_persona_of[idx] = pick;
     g_cfg_pl_on[idx] = 0;   // the last one's style (cmd_persona)
     struct persona *p = &g_personas[pick];
@@ -772,19 +772,19 @@ static void persona_apply(ee_player *pl, unsigned idx, int pick) {
     }
 }
 
-static const char *player_name(ee_player *pl) {
+internal const char *player_name(ee_player *pl) {
     const char *s = pl ? FIELD(pl, OF(PL, 0x28), const char *) : NULL;
     return s ? s : "?";
 }
 // the player's civilization as the game shows it, in its language (+0x48C: "Karthago" - or a personality's
 // civilization=); en: the database's name (+0x7B0: "Carthage") - NULL: none chosen
-static const char *player_civ_of(ee_player *pl, int en) {
+internal const char *player_civ_of(ee_player *pl, int en) {
     const char *s = pl ? FIELD(pl, en ? 0x7B0 : 0x48C, const char *) : NULL;
     return s && mem_readable(s, 1) && *s ? s : NULL;
 }
-static const char *player_civ(ee_player *pl) { return player_civ_of(pl, 0); }
+internal const char *player_civ(ee_player *pl) { return player_civ_of(pl, 0); }
 // the player's colour: its index 0..16 in the colour table (+0x438 holds the table entry's rgb) - -1: another one
-static int player_color(ee_player *pl) {
+internal int player_color(ee_player *pl) {
     const float *rgb = (const float *)((uint8_t *)pl + OF(PL, 0x438));
     for (int c = 0; c < 17; c++) {
         const float *t = color_rgb(c);
@@ -792,13 +792,13 @@ static int player_color(ee_player *pl) {
     }
     return -1;
 }
-static const char *color_name(int c) {   // in the game's language: the German names in a German game, else English
+internal const char *color_name(int c) {   // in the game's language: the German names in a German game, else English
     if (lang_matches("de")) return k_color_names[c][2][0] ? k_color_names[c][2] : k_color_names[c][1];
     return k_color_names[c][0];
 }
 
 // the speaker's age, localized (strings 30145 + epoch: Vorzeit, Steinzeit, ...)
-static void epoch_text_n(int e, char *out, int cap) {   // epoch e (0 Prehistoric) by name
+internal void epoch_text_n(int e, char *out, int cap) {   // epoch e (0 Prehistoric) by name
     void *res = *(void **)GA(G_RESOURCES);
     lstrcpynA(out, epoch_name(e), cap);
     if (!res || e < 0 || e > 14) return;
@@ -808,10 +808,10 @@ static void epoch_text_n(int e, char *out, int cap) {   // epoch e (0 Prehistori
     if (FIELD(s, 4, const char *)) lstrcpynA(out, FIELD(s, 4, const char *), cap);
     ((void (__thiscall *)(void *))*(void **)GA(IAT_WSTRING_DTOR))(s);
 }
-static void epoch_text(ee_player *pl, char *out, int cap) { epoch_text_n(current_epoch(pl), out, cap); }
+internal void epoch_text(ee_player *pl, char *out, int cap) { epoch_text_n(current_epoch(pl), out, cap); }
 
 // is the local player (0x918E84) in the audience of AI pl's line k said to `other`? Allies: both stances allied.
-static int line_heard(ee_player *pl, enum line_kind k, ee_player *other) {
+internal int line_heard(ee_player *pl, enum line_kind k, ee_player *other) {
     unsigned h = *(unsigned *)GA(G_LOCAL_PLAYER);
     ee_player *me = h < 16 ? ((ee_player **)GA(G_PLAYERS))[h] : NULL;
     if (!me || me == pl || k_lines[k].aud == A_ALL) return 1;
@@ -822,8 +822,8 @@ static int line_heard(ee_player *pl, enum line_kind k, ee_player *other) {
 // say a line of situation k (other = them, third = enemy); returns 1 if said (heard or not: the situation is
 // answered, callers don't fall back to another line)
 // {tribute}: the amounts by resource in the game's language, e.g. "200 Gold, 800 Eisen" (only what is paid)
-static const char *sys_text(const char *key);   // texts.c: a system text in the game's language
-static void tribute_text(const int *amount, char *buf, int cap) {
+internal const char *sys_text(const char *key);   // texts.c: a system text in the game's language
+internal void tribute_text(const int *amount, char *buf, int cap) {
     static const char *const key[7] = { "", "", "food", "wood", "stone", "gold", "iron" };
     int o = 0;
     buf[0] = 0;
@@ -833,13 +833,13 @@ static void tribute_text(const int *amount, char *buf, int cap) {
     }
     if (!o) lstrcpynA(buf, sys_text("nothing"), cap);
 }
-static int llm_line(ee_player *pl, enum line_kind k, ee_player *other, ee_player *third, const char *fixed);   // llm.c
-static void llm_heard(ee_player *pl, ee_player *other, const char *text);
-static void llm_talk_event(ee_player *pl, enum line_kind k, ee_player *other, ee_player *third, const char *fixed);   // llm.c: AI TALK
+internal int llm_line(ee_player *pl, enum line_kind k, ee_player *other, ee_player *third, const char *fixed);   // llm.c
+internal void llm_heard(ee_player *pl, ee_player *other, const char *text);
+internal void llm_talk_event(ee_player *pl, enum line_kind k, ee_player *other, ee_player *third, const char *fixed);   // llm.c: AI TALK
 // the language model's words for the next line, instead of one of the personality's (a move it decided, llm.c
 // llm_apply - its line is already written): said as it is, whatever the line's chance or cooldown
-static const char *g_say_instead;
-static int persona_say(ee_player *pl, enum line_kind k, ee_player *other, ee_player *third) {
+internal const char *g_say_instead;
+internal int persona_say(ee_player *pl, enum line_kind k, ee_player *other, ee_player *third) {
     struct persona *own = persona_of(pl);
     if (!pl || !g_ai_talk || (FIELD(pl, OF(PL, 0x467), uint8_t) && k != L_DEFEATED && k != L_SURRENDER)) return 0;
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
@@ -888,8 +888,8 @@ static int persona_say(ee_player *pl, enum line_kind k, ee_player *other, ee_pla
 // they are the target (attack_threat), otherwise news for the AI's allies (attack). Once per attack wave: the route
 // hook runs for every leg of every subgroup, so the line waits for a launch (the next-attack time +0xED8 redrawn,
 // econ_tick) and goes with the first route after it.
-static void persona_attack_launched(unsigned ai) { g_attack_news[ai & 15] = 1; }
-static void persona_attack(ee_player *pl, ee_player *target) {
+internal void persona_attack_launched(unsigned ai) { g_attack_news[ai & 15] = 1; }
+internal void persona_attack(ee_player *pl, ee_player *target) {
     unsigned ai = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     if (!g_attack_news[ai]) return;
     g_attack_news[ai] = 0;
@@ -903,7 +903,7 @@ static void persona_attack(ee_player *pl, ee_player *target) {
 // called at 0x470040 (12500 war), 0x4715F8/0x47166E/0x47280E/0x472B9D (wonders, flares): the personality's line
 // where it has one. 12500: diplo.c says the war line itself (with the declaring player's name), so it is dropped
 // here when the personality has one.
-static char __fastcall hook_native_chat(uint8_t *pim, void *edx, int base, int ms) {
+internal char __fastcall hook_native_chat(uint8_t *pim, void *edx, int base, int ms) {
     (void)edx;
     ee_player *pl = pim ? FIELD(pim, OF(NATIVECHAT, 0x20), void *) : NULL;
     int k = base == 12000 ? L_WONDER_THREAT : base == 12100 ? L_WONDER_HELP : base == 12200 ? L_WONDER_NOHELP :
@@ -917,7 +917,7 @@ static char __fastcall hook_native_chat(uint8_t *pim, void *edx, int base, int m
 }
 
 // cmd: persona [P name]: who is who; with arguments AI P gets personality <name> (file name) from now on
-static void cmd_persona(char *out, const char *args) {
+internal void cmd_persona(char *out, const char *args) {
     int p = -1;
     char name[40] = "";
     sscanf(args, "%d %39s", &p, name);
@@ -943,7 +943,7 @@ static void cmd_persona(char *out, const char *args) {
 }
 
 // the mod's files aren't there (g_texts_missing): told once, at startup - not only in the log nobody reads
-static DWORD WINAPI texts_missing_box(LPVOID arg) {
+internal DWORD WINAPI texts_missing_box(LPVOID arg) {
     (void)arg;
     char text[600];
     wsprintfA(text, "eeaimod's text files are missing: %smod\\ needs computer.eeai, prompt.eeai, units.eeai and system.eeai.\n\n"
@@ -953,7 +953,7 @@ static DWORD WINAPI texts_missing_box(LPVOID arg) {
     return 0;
 }
 // strict parsing: the mistakes in the files, at startup
-static DWORD WINAPI x_errors_box(LPVOID arg) {
+internal DWORD WINAPI x_errors_box(LPVOID arg) {
     (void)arg;
     char text[2400];
     int o = wsprintfA(text, "%d mistake%s in the aimod_ai files (strict_parsing=1 in aimod.ini) - the keys are skipped:\n\n",
@@ -967,7 +967,7 @@ static DWORD WINAPI x_errors_box(LPVOID arg) {
     return 0;
 }
 // strict parsing: the mistakes found while the game runs, as system lines (from the AIs' updates: the game's thread)
-static void x_errors_show(void) {
+internal void x_errors_show(void) {
     if (!g_strict || !g_x_queued) return;
     char line[300];
     EnterCriticalSection(&g_x_lock);
@@ -980,7 +980,7 @@ static void x_errors_show(void) {
     g_x_queued = g_x_dropped = 0;
     LeaveCriticalSection(&g_x_lock);
 }
-static void persona_install(const char *ini, const char *test_ini) {
+internal void persona_install(const char *ini, const char *test_ini) {
     g_ai_talk = ini_int("general", "ai_talk", 1, ini);
     g_ai_names = ini_int("general", "ai_names", 1, ini);
     g_ai_style = ini_int("general", "ai_style", 0, ini);

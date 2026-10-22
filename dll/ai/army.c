@@ -12,21 +12,21 @@
 // 0x49014F: calls, units asked, trained, and the refused calls by why - budget (the stock pays one, the budget's
 // visible part doesn't), poor (the stock itself can't), room (no population room, or the fleet's / landing's room
 // held), game (the game refused it: no building, not researched, queue full), substituted.
-static const enum ut_name k_am_bld[] = { UT_B_BARRACKS, UT_B_ARCHERY_RANGE, UT_B_STABLE, UT_B_SIEGE_FACTORY, UT_B_DOCK,
+internal const enum ut_name k_am_bld[] = { UT_B_BARRACKS, UT_B_ARCHERY_RANGE, UT_B_STABLE, UT_B_SIEGE_FACTORY, UT_B_DOCK,
     UT_B_NAVY_YARD, UT_B_AIRPORT, UT_B_TANK_FACTORY, UT_B_CYBER_FACTORY, UT_B_FORTRESS };
 #define AM_NK ((int)(sizeof k_am_bld / sizeof *k_am_bld))
 struct am_min { unsigned calls, asked, trained, budget, poor, room, game, subs, short_[7]; };
-static struct am_st {
+internal struct am_st {
     uint32_t t, ts;            // last minute line, last busy sample
     unsigned min;
     struct am_min m;
     unsigned samples, busy, have;   // busy samples: building-samples training / all
     unsigned last_short[7];         // the last minute's budget shortages by resource (MIX)
 } g_am[16];
-static void am_new_game(void) { memset(g_am, 0, sizeof g_am); }
+internal void am_new_game(void) { memset(g_am, 0, sizeof g_am); }
 
 // the price of a type without the Cheat (unit_cost's tech data, no AdjustCost)
-static int am_raw_cost(ee_player *pl, int type) {
+internal int am_raw_cost(ee_player *pl, int type) {
     uint8_t *obj = type_data(type);
     ee_tech_tree *tt = FIELD(pl, PL_TECHTREE, ee_tech_tree *);
     if (!obj || !tt) return 0;
@@ -37,7 +37,7 @@ static int am_raw_cost(ee_player *pl, int type) {
     return c;
 }
 // a military training request through hook_train_units (econ.c), after the call: n trained
-static void am_train_note(ee_player *pl, unsigned idx, const int *req, int blocked, int sub_type, unsigned n, const int *stock, const int *vis) {
+internal void am_train_note(ee_player *pl, unsigned idx, const int *req, int blocked, int sub_type, unsigned n, const int *stock, const int *vis) {
     struct am_min *m = &g_am[idx & 15].m;
     m->calls++;
     m->asked += (unsigned)(req[1] > 0 ? req[1] : 1);
@@ -53,7 +53,7 @@ static void am_train_note(ee_player *pl, unsigned idx, const int *req, int block
     else m->game++;
 }
 // the production buildings of kind k: finished ones, those training
-static void am_bld(void *um, int type, int *have, int *busy) {
+internal void am_bld(void *um, int type, int *have, int *busy) {
     uint8_t *q = type_list(um, type);
     *have = *busy = 0;
     for (unsigned j = 0, f = q ? FIELD(q, 0xC, unsigned) : 0, c = q ? FIELD(q, 0x10, unsigned) : 0; j < c && j < 128; j++) {
@@ -67,7 +67,7 @@ static void am_bld(void *um, int type, int *have, int *busy) {
 }
 // soldiers the game wants: the unit manager's 14 request lists (um +0xC + i*0x14 deques of 16-byte {type, count, ..},
 // 256 a block - 0x4910BD), every entry but citizens
-static int am_wishes(uint8_t *um) {
+internal int am_wishes(uint8_t *um) {
     int n = 0;
     for (int i = 0; i < 14; i++) {
         uint8_t *dq = FIELD_AT(um, OF(UM, 0xC) + i * 0x14);
@@ -84,7 +84,7 @@ static int am_wishes(uint8_t *um) {
 }
 // what a land soldier's request sees held back (econ.c train_budget): the epoch, the fields' wood, a landing's
 // transports, a fortress's wood, the navy account
-static void am_reserve(ee_player *pl, unsigned idx, int reserve[7]) {
+internal void am_reserve(ee_player *pl, unsigned idx, int reserve[7]) {
     spend_reserve(pl, idx, reserve, NULL);
     reserve[3] += field_wood(idx);
     landing_reserve(pl, reserve);
@@ -117,27 +117,27 @@ static void am_reserve(ee_player *pl, unsigned idx, int reserve[7]) {
 // (Continental e0, 4 AIs, 24 games): soldiers +4.2 (2.1), kills +1.1 (4.6), losses +14.4 (5.8); lowpop (20 games):
 // kills +22.6 (11.1), losses -22.4 (10.2), razed +8.1 (3.0). MIX acted rarely (food seldom lies 500 above the reserve
 // for 2 minutes), UPGRADE changed nothing (the game researches the deferred upgrades anyway, up7 unchanged). Default 0.
-static int g_army_plan = 0, g_v_army_plan = -1;
-static int g_army_keep[7] = { 0, 0, 300, 300, 100, 100, 100 };
+internal int g_army_plan = 0, g_v_army_plan = -1;
+internal int g_army_keep[7] = { 0, 0, 300, 300, 100, 100, 100 };
 #define ARMY_PLAN(idx) PV(idx, g_v_army_plan, g_army_plan)
-static const enum ut_name k_ap_land[] = { UT_B_BARRACKS, UT_B_ARCHERY_RANGE, UT_B_STABLE, UT_B_TANK_FACTORY, UT_B_CYBER_FACTORY };
-static struct ap_st {
+internal const enum ut_name k_ap_land[] = { UT_B_BARRACKS, UT_B_ARCHERY_RANGE, UT_B_STABLE, UT_B_TANK_FACTORY, UT_B_CYBER_FACTORY };
+internal struct ap_st {
     uint32_t t, tb, look;
     int fl[12][7], nf, kf;          // the last 12 samples of stock - reserve
     unsigned busy, have;            // land production samples since the last BUILD look
     unsigned added[7], fill, bld, mixed;   // since the last # mil line
     int last_type;
 } g_ap[16];
-static uint8_t g_apo[16][768];   // types owned or wished (ap_owned)
-static uint32_t g_apo_t[16];
-static struct { int id[48], n; } g_apu[16];   // line upgrades scheduled (UPGRADE)
-static void ap_new_game(void) { memset(g_ap, 0, sizeof g_ap); memset(g_apo_t, 0, sizeof g_apo_t); memset(g_apu, 0, sizeof g_apu); }
-static void ap_upgrades(ee_player *pl, unsigned idx);
-static int navy_land(unsigned idx);   // navy.c
+internal uint8_t g_apo[16][768];   // types owned or wished (ap_owned)
+internal uint32_t g_apo_t[16];
+internal struct { int id[48], n; } g_apu[16];   // line upgrades scheduled (UPGRADE)
+internal void ap_new_game(void) { memset(g_ap, 0, sizeof g_ap); memset(g_apo_t, 0, sizeof g_apo_t); memset(g_apu, 0, sizeof g_apu); }
+internal void ap_upgrades(ee_player *pl, unsigned idx);
+internal int navy_land(unsigned idx);   // navy.c
 
 // the land soldier type to train with what vis pays: the first the game asks for (its request lists) that it can train
 // now and vis pays, else the strongest trainable that vis pays (substitute_soldier)
-static int ap_type(ee_player *pl, unsigned idx, ee_unit_mgr *um, const int *vis) {
+internal int ap_type(ee_player *pl, unsigned idx, ee_unit_mgr *um, const int *vis) {
     for (int i = 0; i < 14; i++) {
         uint8_t *dq = FIELD_AT(um, OF(UM, 0xC) + i * 0x14);
         unsigned first = FIELD(dq, 0xC, unsigned), cnt = FIELD(dq, 0x10, unsigned), mapsz = FIELD(dq, 8, unsigned);
@@ -155,7 +155,7 @@ static int ap_type(ee_player *pl, unsigned idx, ee_unit_mgr *um, const int *vis)
     return substitute_soldier(pl, idx, vis, 1, &got);
 }
 // the production building of a unit type (its tech's building list, data +0x10..+0x14) among the land kinds
-static int ap_producer(ee_player *pl, int type) {
+internal int ap_producer(ee_player *pl, int type) {
     uint8_t *td = type_data(type);
     ee_tech_tree *tt = FIELD(pl, PL_TECHTREE, ee_tech_tree *);
     ee_tech *t = td && tt ? tech_lookup(tt, FIELD(td, OF(TD, 0x4E0), int)) : NULL;
@@ -165,7 +165,7 @@ static int ap_producer(ee_player *pl, int type) {
         for (size_t k = 0; k < sizeof k_ap_land / sizeof *k_ap_land; k++) if (*p == g_ut[k_ap_land[k]]) return *p;
     return 0;
 }
-static void army_plan_tick(ee_player *pl, unsigned idx, uint32_t now) {
+internal void army_plan_tick(ee_player *pl, unsigned idx, uint32_t now) {
     int wfa = wf_army(pl, idx), plan = ARMY_PLAN(idx) | wfa;   // citizens.c workforce_plan ARMY: FILL + BUILD at a high cap
     struct ap_st *a = &g_ap[idx];
     if (now < a->t) memset(a, 0, sizeof *a);
@@ -249,8 +249,8 @@ static void army_plan_tick(ee_player *pl, unsigned idx, uint32_t now) {
 // the army's orders were refused for wood, gold or iron (10+ times in the last minute or so), up to 8 workers of the
 // food target go to the most refused of them with room (wood always, a metal up to its mine slots near drop sites) -
 // food keeps two thirds of its target and citizen_plan's FEED; econ_rebalance then moves the gatherers
-static int g_army_mix_food = 500;
-static void ap_targets(ee_resource_mgr *rm) {
+internal int g_army_mix_food = 500;
+internal void ap_targets(ee_resource_mgr *rm) {
     ee_player *pl = rm_player(rm);
     if (!pl) return;
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
@@ -284,7 +284,7 @@ static void ap_targets(ee_resource_mgr *rm) {
 // a line upgrade (an effect of kind 0x13: type +0x14 -> +0x18, 0x5BA59D) waits until the AI has a unit or building of
 // the old or the new type, or the game asks for one of them (its request lists); every 30 s the waiting ones (available
 // +6, not researched +4) whose line is in use are scheduled (0x485F57), each once
-static void ap_owned(ee_player *pl, unsigned idx) {
+internal void ap_owned(ee_player *pl, unsigned idx) {
     uint32_t now = game_time();
     if (g_apo_t[idx] && now >= g_apo_t[idx] && now - g_apo_t[idx] < 5000) return;
     g_apo_t[idx] = now ? now : 1;
@@ -307,7 +307,7 @@ static void ap_owned(ee_player *pl, unsigned idx) {
     }
 }
 // a line upgrade's types (effects of kind 0x13): 0 = none, else 1 when one of them is in use
-static int ap_upg_line(ee_player *pl, unsigned idx, uint8_t *d, int *used) {
+internal int ap_upg_line(ee_player *pl, unsigned idx, uint8_t *d, int *used) {
     int ei = FIELD(d, OF(TECHDATA, 0x50), int), n = 0;
     *used = 0;
     if (ei < 0 || ei > 0x5DC) return 0;
@@ -323,21 +323,21 @@ static int ap_upg_line(ee_player *pl, unsigned idx, uint8_t *d, int *used) {
     }
     return n;
 }
-static int ap_upgrade_later(ee_player *pl, uint8_t *d) {
+internal int ap_upgrade_later(ee_player *pl, uint8_t *d) {
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     int used;
     if (!(ARMY_PLAN(idx) & 16) || !ap_upg_line(pl, idx, d, &used)) return 0;
     if (used && g_apu[idx].n < 48) g_apu[idx].id[g_apu[idx].n++] = FIELD(d, OF(TECHDATA, 0x4C), int);   // scheduled now (econ.c)
     return !used;
 }
-static int ap_rs_has(ee_research_mgr *rs, int id) {   // in one of the research manager's epoch lists (rs +0x18 + e*0x10)
+internal int ap_rs_has(ee_research_mgr *rs, int id) {   // in one of the research manager's epoch lists (rs +0x18 + e*0x10)
     for (int e = 0; e < 14; e++) {
         int *b = FIELD(rs, OF(RS, 0x18) + e * 0x10, int *), *x = FIELD(rs, OF(RS, 0x1C) + e * 0x10, int *);
         for (int *q = b; b && x > b && x - b < 512 && q < x; q++) if (*q == id) return 1;
     }
     return 0;
 }
-static void ap_upgrades(ee_player *pl, unsigned idx) {
+internal void ap_upgrades(ee_player *pl, unsigned idx) {
     uint8_t *cm = FIELD(pl, OF(PL, 0xB90), uint8_t *);
     ee_research_mgr *rs = cm ? FIELD(cm, OF(CM, 0x40), ee_research_mgr *) : NULL;
     ee_tech_tree *tt = FIELD(pl, PL_TECHTREE, ee_tech_tree *);
@@ -355,7 +355,7 @@ static void ap_upgrades(ee_player *pl, unsigned idx) {
         if (g_log) fprintf(g_log, "# upgrades: P%u at %.1f min: line upgrade %d scheduled - the line is in use now\n", idx, game_time() / 60000.0, id);
     }
 }
-static void ap_install(const char *aimod_ini, const char *autotest_ini) {
+internal void ap_install(const char *aimod_ini, const char *autotest_ini) {
     g_army_plan = cfg_int(aimod_ini, autotest_ini, 1, "army_plan", 0);
     g_army_keep[2] = g_army_keep[3] = cfg_int(aimod_ini, autotest_ini, 1, "army_float_keep", 300);
     g_army_keep[4] = g_army_keep[5] = g_army_keep[6] = cfg_int(aimod_ini, autotest_ini, 1, "army_float_keep_mineral", 100);
@@ -366,7 +366,7 @@ static void ap_install(const char *aimod_ini, const char *autotest_ini) {
 
 // "# pool:" (autotest, minutes 30 and 50): the research manager's candidate techs (rs +8 vector) - id, researched /
 // available, category (+0x48), price, and the first effects (kind +0x20 / unit type +0x14 / attribute +0x2C)
-static void am_pool_log(ee_player *pl, unsigned idx) {
+internal void am_pool_log(ee_player *pl, unsigned idx) {
     uint8_t *cm = FIELD(pl, OF(PL, 0xB90), uint8_t *), *rs = cm ? FIELD(cm, OF(CM, 0x40), uint8_t *) : NULL;
     ee_tech_tree *tt = FIELD(pl, PL_TECHTREE, ee_tech_tree *);
     if (!rs || !tt) return;
@@ -395,7 +395,7 @@ static void am_pool_log(ee_player *pl, unsigned idx) {
     fputc('\n', g_log);
     LeaveCriticalSection(&g_lock);
 }
-static void am_tick(ee_player *pl, uint32_t now) {
+internal void am_tick(ee_player *pl, uint32_t now) {
     if (!g_autotest || !g_log || !pl) return;
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     struct am_st *a = &g_am[idx];

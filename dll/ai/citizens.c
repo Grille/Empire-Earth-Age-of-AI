@@ -17,22 +17,22 @@
 // reserve) -, batch (another producer still trains the last batch), att (um +0x140 off), rest. Then the stock's food,
 // food gatherers / target, all workers and citizen_plan's goal.
 struct cz_min { unsigned prod, cit, other, idle, cap, target, pfood, pbud, batch, att, rest; };
-static struct cz_st {
+internal struct cz_st {
     uint32_t t, min;           // last sample, its minute
     struct cz_min m;           // this minute's producer-seconds
     unsigned calls, blocked, b_food, b_reserve, b_epoch, trained;   // citizen requests through the budget (this minute)
     int wanted, have, room, cap;
 } g_cz[16];
-static int g_cz_tech[2] = { -1, -1 }, g_cz_ptypes[8], g_cz_np = -1;
-static struct { uint32_t t; int goal, game, feed, home, slots, extra; } g_czp[16];   // citizen_plan's last pass (cz_targets)
+internal int g_cz_tech[2] = { -1, -1 }, g_cz_ptypes[8], g_cz_np = -1;
+internal struct { uint32_t t; int goal, game, feed, home, slots, extra; } g_czp[16];   // citizen_plan's last pass (cz_targets)
 
-static void cz_new_game(void) { memset(g_cz, 0, sizeof g_cz); memset(g_czp, 0, sizeof g_czp); g_cz_np = -1; }
+internal void cz_new_game(void) { memset(g_cz, 0, sizeof g_cz); memset(g_czp, 0, sizeof g_czp); g_cz_np = -1; }
 
 // a building is finished at [unit +0x30] +0x340 (unit +0x340 is something else)
-static int cz_finished(ee_unit *b) { uint8_t *bs = FIELD(b, OF(UNIT, 0x30), uint8_t *); return bs && bs[OF(UNIT, 0x340)]; }
+internal int cz_finished(ee_unit *b) { uint8_t *bs = FIELD(b, OF(UNIT, 0x30), uint8_t *); return bs && bs[OF(UNIT, 0x340)]; }
 
 // the producer types of citizens (once a game: the citizen tech's building list)
-static void cz_types(ee_player *pl) {
+internal void cz_types(ee_player *pl) {
     if (g_cz_np >= 0) return;
     ee_tech_tree *tt = FIELD(pl, PL_TECHTREE, ee_tech_tree *);
     if (!tt) return;
@@ -51,10 +51,10 @@ static void cz_types(ee_player *pl) {
     }
     if (!g_cz_np) { g_cz_ptypes[0] = UT(B_TOWN_CENTER); g_cz_ptypes[1] = UT(B_CAPITOL); g_cz_np = 2; }
 }
-static int cz_is_cit_tech(int t) { return t >= 0 && (t == g_cz_tech[0] || t == g_cz_tech[1]); }
+internal int cz_is_cit_tech(int t) { return t >= 0 && (t == g_cz_tech[0] || t == g_cz_tech[1]); }
 
 // a citizen request through the budget (econ.c hook_train_units): refused, and why
-static void cz_budget_note(ee_player *pl, unsigned idx, const int *req, const int *stock, const int *visibles, int blocked, int afford) {
+internal void cz_budget_note(ee_player *pl, unsigned idx, const int *req, const int *stock, const int *visibles, int blocked, int afford) {
     struct cz_st *z = &g_cz[idx & 15];
     z->calls++;
     if (!blocked) { z->trained += (unsigned)(afford > 0 ? afford : 0); return; }
@@ -69,7 +69,7 @@ static void cz_budget_note(ee_player *pl, unsigned idx, const int *req, const in
 }
 
 // once a game second: every producer of the player
-static void cz_sample(ee_player *pl, unsigned idx) {
+internal void cz_sample(ee_player *pl, unsigned idx) {
     struct cz_st *z = &g_cz[idx];
     uint8_t *cm = FIELD(pl, OF(PL, 0xB90), uint8_t *);
     ee_unit_mgr *um = cm ? FIELD(cm, OF(CM, 0x44), ee_unit_mgr *) : NULL;
@@ -106,8 +106,8 @@ static void cz_sample(ee_player *pl, unsigned idx) {
     *r += (unsigned)idle;
 }
 
-static void wf_log(ee_player *pl, unsigned idx, unsigned min);   // below: workforce_plan's # wf line
-static void cz_tick(ee_player *pl, uint32_t now) {
+internal void wf_log(ee_player *pl, unsigned idx, unsigned min);   // below: workforce_plan's # wf line
+internal void cz_tick(ee_player *pl, uint32_t now) {
     if (!g_autotest || !g_log || !pl) return;
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     struct cz_st *z = &g_cz[idx];
@@ -162,14 +162,14 @@ static void cz_tick(ee_player *pl, uint32_t now) {
 // with the cheat -100: its mines' 30 slots were full), the base AI's wins with the cheat 45 -> 31 of 120; soldiers
 // -8 on Continental without the cheat, kills - losses within the noise but Large Islands with the cheat -16 (7). 7 (+ DROP) 6-9 more on Continental's mines but 13 soldiers fewer; FIRST
 // changed nothing. Head-to-head: workers +24, razed +6; lowpop (cap 30) workers +10, kills - losses +23. Default 3.
-static int g_cit_plan = 3, g_v_cit_plan = -1, g_cit_train_ms = 28000;
-static float g_cit_army = 0.40f;   // [all] citizen_army_share
+internal int g_cit_plan = 3, g_v_cit_plan = -1, g_cit_train_ms = 28000;
+internal float g_cit_army = 0.40f;   // [all] citizen_army_share
 #define CIT_PLAN(idx) PV(idx, g_v_cit_plan, g_cit_plan)
-static int expand_cit_need(ee_player *pl, unsigned idx);   // expand.c: the citizens an outpost still needs (EXTRA)
-static int wf_cap_wanted(unsigned idx, int n);         // below: workforce_plan CAP
+internal int expand_cit_need(ee_player *pl, unsigned idx);   // expand.c: the citizens an outpost still needs (EXTRA)
+internal int wf_cap_wanted(unsigned idx, int n);         // below: workforce_plan CAP
 
 // finished producers of citizens (Town Center, Capitol)
-static int cz_producers(ee_player *pl) {
+internal int cz_producers(ee_player *pl) {
     uint8_t *cm = FIELD(pl, OF(PL, 0xB90), uint8_t *);
     ee_unit_mgr *um = cm ? FIELD(cm, OF(CM, 0x44), ee_unit_mgr *) : NULL;
     int n = 0;
@@ -186,7 +186,7 @@ static int cz_producers(ee_player *pl) {
 }
 // food gatherers that pay the producers the missing citizens need: one producer per 10 citizens still missing (a
 // producer makes ~10 in 5 minutes), all of them at most
-static int cz_feed(ee_player *pl, unsigned idx, int missing) {
+internal int cz_feed(ee_player *pl, unsigned idx, int missing) {
     if (missing <= 0) return 0;
     float pw = g_rate[idx].per_worker[2];
     if (pw < 5.0f) pw = 5.0f;
@@ -196,7 +196,7 @@ static int cz_feed(ee_player *pl, unsigned idx, int missing) {
     return (int)(per_min / pw + 0.99f);
 }
 // one worker from the largest of the targets in [lo, hi] that stays above its floor; -1: none
-static int cz_take(uint32_t *target, const int *floor_, int lo, int hi) {
+internal int cz_take(uint32_t *target, const int *floor_, int lo, int hi) {
     int from = -1;
     for (int r = lo; r <= hi; r++)
         if ((int)target[r] > floor_[r] && (from < 0 || (int)target[r] - floor_[r] > (int)target[from] - floor_[from])) from = r;
@@ -204,7 +204,7 @@ static int cz_take(uint32_t *target, const int *floor_, int lo, int hi) {
     return from;
 }
 // after the worker targets (hook_compute_targets, after mine_fill): the goal, FEED and the mines' slots
-static void cz_targets(ee_resource_mgr *rm) {
+internal void cz_targets(ee_resource_mgr *rm) {
     ee_player *pl = rm_player(rm);
     if (!pl) return;
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
@@ -258,7 +258,7 @@ static void cz_targets(ee_resource_mgr *rm) {
     g_czp[idx].extra = moved;
 }
 // the citizens wanted at the request (0x490BC2: call 0x48EDDB thiscall(um))
-static int __fastcall hook_cit_wanted(ee_unit_mgr *um, void *edx) {
+internal int __fastcall hook_cit_wanted(ee_unit_mgr *um, void *edx) {
     (void)edx;
     int n = um_citizens_wanted(um);
     ee_player *pl = FIELD(um, OF(UM, 0x134), void *);
@@ -269,7 +269,7 @@ static int __fastcall hook_cit_wanted(ee_unit_mgr *um, void *edx) {
     return wf_cap_wanted(idx, r);   // workforce_plan CAP: no more than the economy uses
 }
 // FIRST (train_budget, a citizen's food): the stock without the epoch reserve while the income pays both
-static int cz_visible_food(ee_player *pl, unsigned idx, const int *stock, int visible) {
+internal int cz_visible_food(ee_player *pl, unsigned idx, const int *stock, int visible) {
     if (!(CIT_PLAN(idx) & 8) || current_epoch(pl) < 1) return visible;
     int goal = g_czp[idx].goal ? g_czp[idx].goal : g_czp[idx].game;
     if (goal && workforce(pl) >= goal) return visible;
@@ -311,10 +311,10 @@ static int cz_visible_food(ee_player *pl, unsigned idx, const int *stock, int vi
 //   (no saving first, econ.c substitute_wait) by the soldier with the most score (hit points x attack) per gold +
 //   iron that the budget pays: Long Bows (30 gold, 40 wood) and Pikemen (30 iron, 30 food) for the Knights (60 gold)
 //   the game asks for - the metal is the army's limit, the food and wood are there.
-static int g_wf_plan = 0, g_v_wf_plan = -1, g_wf_army_cap = 250;
+internal int g_wf_plan = 0, g_v_wf_plan = -1, g_wf_army_cap = 250;
 #define WF_PLAN(idx) PV(idx, g_v_wf_plan, g_wf_plan)
 #define WF_N 31   // 10-s samples: 5 minutes
-static struct wf_st {
+internal struct wf_st {
     uint32_t t, tc;                   // last sample, CAP's last pass
     int inc[WF_N], stk[WF_N], k, n;   // wood income so far (g_bud) and the wood stock, oldest at k once full
     int spent, need;                  // wood spent a minute (5-minute mean), the wood workers it needs
@@ -323,10 +323,10 @@ static struct wf_st {
     int rs0;                          // # wf: the techs' gold + iron at the first line (the start epoch's)
     unsigned held, moved, thrift;     // this minute: wanted calls held back, wood targets moved, THRIFT's soldiers
 } g_wf[16];
-static void wf_new_game(void) { memset(g_wf, 0, sizeof g_wf); }
+internal void wf_new_game(void) { memset(g_wf, 0, sizeof g_wf); }
 
 // every 10 s (the mod's AIs): the wood spent over the last 5 minutes and the woodcutters it needs
-static void wf_tick(ee_player *pl, uint32_t now) {
+internal void wf_tick(ee_player *pl, uint32_t now) {
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     struct wf_st *w = &g_wf[idx];
     if (now < w->t) memset(w, 0, sizeof *w);
@@ -345,7 +345,7 @@ static void wf_tick(ee_player *pl, uint32_t now) {
     w->need = (int)((float)w->spent * 1.25f / pw + 0.99f) + 3;
 }
 // after the worker targets (hook_compute_targets, after cz_targets): CAP's goal, WOOD's targets
-static void wf_targets(ee_resource_mgr *rm) {
+internal void wf_targets(ee_resource_mgr *rm) {
     ee_player *pl = rm_player(rm);
     if (!pl) return;
     unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
@@ -380,7 +380,7 @@ static void wf_targets(ee_resource_mgr *rm) {
     }
 }
 // the citizens wanted at the request (hook_cit_wanted): CAP's goal at most
-static int wf_cap_wanted(unsigned idx, int n) {
+internal int wf_cap_wanted(unsigned idx, int n) {
     struct wf_st *w = &g_wf[idx & 15];
     uint32_t now = game_time();
     w->asked = n;
@@ -389,23 +389,23 @@ static int wf_cap_wanted(unsigned idx, int n) {
     return n;
 }
 // ARMY: army_plan's FILL + BUILD on every map at a high population cap (army.c army_plan_tick)
-static int wf_army(ee_player *pl, unsigned idx) {
+internal int wf_army(ee_player *pl, unsigned idx) {
     if (!(WF_PLAN(idx) & 4) || current_epoch(pl) < FARM_EPOCH) return 0;
     int cap = unit_limit(pl);
     return cap >= g_wf_army_cap ? 6 : 0;
 }
 // THRIFT (econ.c train_budget, a refused soldier): food or wood pile and the soldier lacks gold or iron
-static int wf_thrift(ee_player *pl, unsigned idx, int type, const int *vis) {
+internal int wf_thrift(ee_player *pl, unsigned idx, int type, const int *vis) {
     if (!(WF_PLAN(idx) & 8) || current_epoch(pl) < FARM_EPOCH) return 0;
     if (FIELD(pl, PL_STOCK + 8, int) < 800 && FIELD(pl, PL_STOCK + 12, int) < 800) return 0;
     for (int r = 5; r < 7; r++) if (vis[r] < unit_cost(pl, type, r)) return 1;
     return 0;
 }
-static void wf_thrift_note(unsigned idx, int type, int n) { (void)type; g_wf[idx & 15].thrift += (unsigned)(n > 0 ? n : 0); }
+internal void wf_thrift_note(unsigned idx, int type, int n) { (void)type; g_wf[idx & 15].thrift += (unsigned)(n > 0 ? n : 0); }
 // "# wf:" once a minute (autotest, both sides): the wood spent a minute and the woodcutters it needs, wood workers,
 // target, stock; CAP's goal and parts, the citizens wanted asked / given, calls held, wood targets moved; the idle; the
 // gold + iron paid for the techs researched so far (their prices, all techs with the researched flag)
-static void wf_log(ee_player *pl, unsigned idx, unsigned min) {
+internal void wf_log(ee_player *pl, unsigned idx, unsigned min) {
     struct wf_st *w = &g_wf[idx & 15];
     uint8_t *cm = FIELD(pl, OF(PL, 0xB90), uint8_t *);
     ee_tech_tree *tt = FIELD(pl, PL_TECHTREE, ee_tech_tree *);
@@ -427,7 +427,7 @@ static void wf_log(ee_player *pl, unsigned idx, unsigned min) {
     w->held = w->moved = w->thrift = 0;
 }
 
-static void cz_install(const char *aimod_ini, const char *autotest_ini) {
+internal void cz_install(const char *aimod_ini, const char *autotest_ini) {
     g_cit_plan = cfg_int(aimod_ini, autotest_ini, 1, "citizen_plan", 3);
     g_cit_army = cfg_share(aimod_ini, autotest_ini, 1, "citizen_army_share", 0.40, 0, 0.9);
     g_cit_train_ms = cfg_int(aimod_ini, autotest_ini, 1, "citizen_train_ms", 28000);

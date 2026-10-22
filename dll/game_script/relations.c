@@ -12,7 +12,7 @@
 // The tables also make the documentation: scripts/gen_eeai_readme.py writes them into aimod_ai\README.md.
 enum { XM_PLAYER, XM_LINK, XM_REL, XM_FILTER };   // a player's own, a player (them.lord), A.<relation>(B), A.count(filter)
 struct xmember { const char *name; int kind; const char *doc; };
-static const struct xmember k_xmembers[] = {
+internal const struct xmember k_xmembers[] = {
     { "name", XM_PLAYER, "its name - the same as the player itself in a text: {them} = {them.name}" },
     { "soldiers", XM_PLAYER, "its soldiers (all numbers of units are counted every 10 seconds)" },
     { "citizens", XM_PLAYER, "its citizens" },
@@ -56,7 +56,7 @@ static const struct xmember k_xmembers[] = {
     { "kills", XM_REL, "B's units and buildings A has destroyed - (B, minutes): in the last minutes (whole minutes, the current one counts); a filter last picks which, as count's: unit.<identifier>, kind.<kind>, a list of them - or one of mod/units.eeai's lists (units, army, airforce, marine, military, civilians, buildings): them.kills(me, units), me.kills(them, 10, kind.tank), them.kills(me, 20, buildings)" },
 };
 #define N_XMEMBERS (int)(sizeof k_xmembers / sizeof *k_xmembers)
-static const struct xmember k_xglobals[] = {
+internal const struct xmember k_xglobals[] = {
     { "me", XM_PLAYER, "the AI that speaks - its name in a text; me.soldiers ..." },
     { "them", XM_PLAYER, "the player it speaks to or about; in a system line you, the local player" },
     { "enemy", XM_PLAYER, "a third player: the enemy in an alliance offer, the ally or lord in some lines" },
@@ -73,38 +73,38 @@ static const struct xmember k_xglobals[] = {
     { "llm_equal", XM_PLAYER, "1 when the language model is told nothing of who plays the computer ([llm] equal)" },
     { "llm_constrained", XM_PLAYER, "1 when the language model decides within the rules' limits ([llm] constrained)" },
 };
-static int g_llm_equal, g_llm_constrained;   // llm.c: [llm] equal, constrained
+internal int g_llm_equal, g_llm_constrained;   // llm.c: [llm] equal, constrained
 #define N_XGLOBALS (int)(sizeof k_xglobals / sizeof *k_xglobals)
-static void *x_player_named(const char *n) {
+internal void *x_player_named(const char *n) {
     for (int j = 1; n && *n && j < nplayers(); j++) if (player_at(j) && !strcmp(player_name(player_at(j)), n)) return player_at(j);
     return NULL;
 }
-static void x_players(struct xctx *c) {   // who is who: the context's players - them, when not given, the local player
+internal void x_players(struct xctx *c) {   // who is who: the context's players - them, when not given, the local player
     if (c->found) return;
     c->found = 1;
     unsigned h = *(unsigned *)GA(G_LOCAL_PLAYER);
     if (!c->other && h < 16 && player_at((int)h) != c->pl) c->other = player_at((int)h);
 }
-static int x_alive(int j) { return player_at(j) && !is_out(player_at(j)); }
-static void *x_lord(void *p) { return p && g_lord[pidx(p)] ? player_at(g_lord[pidx(p)]) : NULL; }
-static void x_player(struct xval *v, void *p, const char *who) {   // a player as a value: its name, itself
+internal int x_alive(int j) { return player_at(j) && !is_out(player_at(j)); }
+internal void *x_lord(void *p) { return p && g_lord[pidx(p)] ? player_at(g_lord[pidx(p)]) : NULL; }
+internal void x_player(struct xval *v, void *p, const char *who) {   // a player as a value: its name, itself
     if (!p) { xnothing(v); lstrcpynA(v->miss, who, sizeof v->miss); return; }   // who isn't there: to be checked
     xstr(v, *player_name(p) && *player_name(p) != '?' ? player_name(p) : "the player");   // a test's idle human has no name
     v->obj = pidx(p) + 1;
 }
-static int x_player_n(int n, struct xval *v) {   // expr.c: player(n) in a script - player n, 0: none there
+internal int x_player_n(int n, struct xval *v) {   // expr.c: player(n) in a script - player n, 0: none there
     void *p = n >= 1 && n < nplayers() ? player_at(n) : NULL;
     if (!p) return 0;
     x_player(v, p, "");
     return 1;
 }
-static void *x_player_of(const struct xval *v) {   // the player a value is - or names (a placeholder: {ally})
+internal void *x_player_of(const struct xval *v) {   // the player a value is - or names (a placeholder: {ally})
     if (!v->w) return NULL;
     if (v->obj) return player_at(v->obj - 1);
     return v->has_s ? x_player_named(v->s) : NULL;
 }
 // member m of player px
-static void x_member(void *px, const struct xmember *m, struct xval *v) {
+internal void x_member(void *px, const struct xmember *m, struct xval *v) {
     xnothing(v);
     if (!px) return;
     int x = pidx(px);
@@ -139,12 +139,12 @@ static void x_member(void *px, const struct xmember *m, struct xval *v) {
     xnum(v, r);
 }
 // the relations that count events, with a time window in minutes as a second argument: them.tribute(me, 15)
-static int x_windowed(const char *n) {
+internal int x_windowed(const char *n) {
     return !strcmp(n, "tribute") || !strcmp(n, "refusals") || !strcmp(n, "betrayals") || !strcmp(n, "kills");
 }
 // relation m of player pa with player pb: pa.<m>(pb), in the last win minutes (0: the whole game) where it counts
 // events; kills of the types in sel (NULL: all)
-static void x_relation(void *pa, void *pb, const struct xmember *m, double win, const unsigned char *sel, struct xval *v) {
+internal void x_relation(void *pa, void *pb, const struct xmember *m, double win, const unsigned char *sel, struct xval *v) {
     xnothing(v);
     if (!pa || !pb || pa == pb) return;
     int a = pidx(pa), b = pidx(pb);
@@ -193,18 +193,18 @@ static void x_relation(void *pa, void *pb, const struct xmember *m, double win, 
 
     xnum(v, r);
 }
-static const struct xmember *x_find_member(const char *n, int len) {
+internal const struct xmember *x_find_member(const char *n, int len) {
     for (int i = 0; i < N_XMEMBERS; i++) if ((int)strlen(k_xmembers[i].name) == len && !strncmp(k_xmembers[i].name, n, len)) return &k_xmembers[i];
     return NULL;
 }
-static int x_mine(const char *name) {   // a member that alone is mine: epoch, allies, enemies, the traits
+internal int x_mine(const char *name) {   // a member that alone is mine: epoch, allies, enemies, the traits
     int mine = !strcmp(name, "epoch") || !strcmp(name, "allies") || !strcmp(name, "enemies");
     for (int t = 0; t < T_N; t++) mine |= !strcmp(name, k_trait_keys[t]);
     return mine;
 }
 // a path of players: me, them, enemy, lord, and .lord after them (them.lord.lord); *ok 0: not one. NULL: who (24
 // bytes) the part of it that isn't there
-static void *x_path(struct xctx *c, const char *s, int len, int *ok, char *who) {
+internal void *x_path(struct xctx *c, const char *s, int len, int *ok, char *who) {
     const char *s0 = s, *dot = memchr(s, '.', (size_t)len);
     int n = dot ? (int)(dot - s) : len;
     void *p;
@@ -236,7 +236,7 @@ static void *x_path(struct xctx *c, const char *s, int len, int *ok, char *who) 
     }
     return p;
 }
-static int x_builtin(struct xctx *c, const char *name, struct xval *v) {
+internal int x_builtin(struct xctx *c, const char *name, struct xval *v) {
     const char *dot = strrchr(name, '.');
     int ok;
     char who[24];
@@ -280,7 +280,7 @@ static int x_builtin(struct xctx *c, const char *name, struct xval *v) {
 }
 // a name that is a value of its own - a player, a game value, one of mine without "me." - and no placeholder may
 // have (texts.c tsubv_vars)
-static int x_is_value(const char *name) {
+internal int x_is_value(const char *name) {
     if (!strcmp(name, "me") || !strcmp(name, "them") || !strcmp(name, "enemy") || !strcmp(name, "lord") || x_mine(name)) return 1;
     for (int g = 0; g < N_XGLOBALS; g++) if (!strcmp(k_xglobals[g].name, name)) return 1;
     return 0;
@@ -288,7 +288,7 @@ static int x_is_value(const char *name) {
 
 // expr.c x_name_check: a name x_builtin takes - a player, a game value, one of mine, <player>[.lord ...].<member> -
 // when a file is read (no game needed)
-static int x_name_valid(const char *name) {
+internal int x_name_valid(const char *name) {
     if (x_is_value(name)) return 1;
     const char *dot = strrchr(name, '.');
     if (!dot) return 0;
@@ -307,7 +307,7 @@ static int x_name_valid(const char *name) {
 }
 // a filter of unit types: unit.<identifier>, kind.<kind> (each type of that family) or a list of them, nested too -
 // any of them: into sel (set, not cleared); 0: something else in it (a mistake, told)
-static int x_type_filter(const char *name, const struct xval *f, unsigned char sel[G_TYPES_N]) {
+internal int x_type_filter(const char *name, const struct xval *f, unsigned char sel[G_TYPES_N]) {
     if (!f->w && !f->ln) { x_error("%s(...): no filter - nothing", name); return 0; }
     for (int i = 0; i < (f->ln ? f->ln : 1); i++) {
         const struct xval *it = xl_at(f, i);
@@ -326,7 +326,7 @@ static int x_type_filter(const char *name, const struct xval *f, unsigned char s
     return 1;
 }
 // <player>.count(filter), or count(filter) - mine: its units and buildings of those types, at the last world scan
-static int x_count(struct xctx *c, const char *name, const char *dot, const struct xval *f, struct xval *v) {
+internal int x_count(struct xctx *c, const char *name, const char *dot, const struct xval *f, struct xval *v) {
     int ok = 1;
     char who[24] = "me";
     void *p = dot ? x_path(c, name, (int)(dot - name), &ok, who) : (x_players(c), c->pl);
@@ -343,8 +343,8 @@ static int x_count(struct xctx *c, const char *name, const char *dot, const stru
 }
 // a relation: <player>.<relation>(<player>[, minutes]), or <relation>(<player>) - the speaker's. v NULL: only whether
 // name is one
-static int x_count(struct xctx *c, const char *name, const char *dot, const struct xval *f, struct xval *v);
-static int x_method(struct xctx *c, const char *name, const struct xval *a, int na, struct xval *v) {
+internal int x_count(struct xctx *c, const char *name, const char *dot, const struct xval *f, struct xval *v);
+internal int x_method(struct xctx *c, const char *name, const struct xval *a, int na, struct xval *v) {
     const char *dot = strrchr(name, '.');
     const char *rel = dot ? dot + 1 : name;
     const struct xmember *m = x_find_member(rel, (int)strlen(rel));

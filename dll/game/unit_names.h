@@ -2,7 +2,7 @@
 // the kinds: the engine's families (the armour and bonus class, "Family ID") as identifiers - kind.towers. The
 // types and their families are read from the game's loaded data (unitnames.c)
 #define UNIT_KINDS 55
-static const char *const k_kind_ident[UNIT_KINDS] = {
+internal const char *const k_kind_ident[UNIT_KINDS] = {
     "no_family", "resource", "tank", "building", "anti_tank", "aircraft", "priest", "submarine", "hero", "ship",
     "spear_thrower", "machines", "human_musket", "human_sword", "mounted_archer", "lancer", "helicopter", "animal",
     "fish", "curiassier", "bomber", "battleship", "mines", "human", "aircraft_carrier_fighter", "mech_minotaur",

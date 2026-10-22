@@ -5,9 +5,9 @@
 // AI and must decide the same - so in a game with more than one human the game generator is seeded from the game's
 // own rand() (msvcrt, import 0x824648) the first time the simulation needs it: every PC calls it at the same step.
 // Single player: seeded like rnd() (the clock; tests a constant).
-static uint32_t g_rnd_game = 0x2545F491u;
-static int g_mp, g_mp_seeded;   // g_mp: more than one human in the setup (persona_new_game)
-static uint32_t rnd_game32(void) {
+internal uint32_t g_rnd_game = 0x2545F491u;
+internal int g_mp, g_mp_seeded;   // g_mp: more than one human in the setup (persona_new_game)
+internal uint32_t rnd_game32(void) {
     if (g_mp && !g_mp_seeded) {
         int (__cdecl *game_rand)(void) = *(int (__cdecl **)(void))GA(IAT_RAND);
         int a = game_rand(), b = game_rand();
@@ -19,4 +19,4 @@ static uint32_t rnd_game32(void) {
     g_rnd_game ^= g_rnd_game << 13; g_rnd_game ^= g_rnd_game >> 17; g_rnd_game ^= g_rnd_game << 5;
     return g_rnd_game;
 }
-static int rnd_game(int n) { return n > 0 ? (int)(rnd_game32() % (unsigned)n) : 0; }
+internal int rnd_game(int n) { return n > 0 ? (int)(rnd_game32() % (unsigned)n) : 0; }

@@ -88,14 +88,14 @@ struct xctx {
 enum { XV_PLAIN, XV_FN, XV_STOP };
 struct xfn;
 struct xval { int has_n, has_s, w, obj, ln, kind; double n; const char *s; const struct xval *it; const struct xfn *fn; char miss[24]; };
-static int xl_n(const struct xval *v) { return v->ln ? v->ln : v->w > 0; }   // its items (one value: 1, nothing: 0)
-static const struct xval *xl_at(const struct xval *v, int i) { return v->ln ? &v->it[i] : v; }
-static struct xvars g_vars_sys;   // mod/system.eeai vars (texts.c)
-static int x_fill(char *out, int cap, const char *tmpl, struct xctx *c);
+internal int xl_n(const struct xval *v) { return v->ln ? v->ln : v->w > 0; }   // its items (one value: 1, nothing: 0)
+internal const struct xval *xl_at(const struct xval *v, int i) { return v->ln ? &v->it[i] : v; }
+internal struct xvars g_vars_sys;   // mod/system.eeai vars (texts.c)
+internal int x_fill(char *out, int cap, const char *tmpl, struct xctx *c);
 #include "script/host.h"   // what the language asks the program it runs in (the game: eeaimod.c x_host_install)
 // a script's world (test/scripts.c, the script runner): the game's time in seconds, waiting until a game second (the script's
 // fiber yields to the game), a pipe command run with its reply
-static struct { double (*now)(void); void (*wait)(double until); void (*command)(const char *cmd, char *reply, int cap); } g_x_hooks;
+internal struct { double (*now)(void); void (*wait)(double until); void (*command)(const char *cmd, char *reply, int cap); } g_x_hooks;
 
 // THE VALUES' REGIONS: their texts and lists, in chunks. The shared one (the lines, prompts, settings) starts afresh
 // with the outermost evaluation (x_eval, x_fill from outside): what a caller reads of a value it got lives until the
@@ -103,8 +103,8 @@ static struct { double (*now)(void); void (*wait)(double until); void (*command)
 // what it made (x_mark / x_release) but what it hands back.
 struct xchunk { struct xchunk *next; size_t cap, used; char d[]; };
 struct xregion { struct xchunk *first, *cur; int busy; };
-static struct xregion g_xr_shared, *g_xr = &g_xr_shared;
-static void *x_alloc(size_t n) {
+internal struct xregion g_xr_shared, *g_xr = &g_xr_shared;
+internal void *x_alloc(size_t n) {
     struct xregion *r = g_xr;
     n = (n + 7) & ~(size_t)7;
     if (!r->cur || r->cur->used + n > r->cur->cap) {
@@ -119,31 +119,31 @@ static void *x_alloc(size_t n) {
     r->cur->used += n;
     return p;
 }
-static void x_region_reset(struct xregion *r) {   // empty again (its first chunk kept)
+internal void x_region_reset(struct xregion *r) {   // empty again (its first chunk kept)
     if (!r->first) return;
     for (struct xchunk *k = r->first->next, *nx; k; k = nx) { nx = k->next; free(k); }
     r->first->next = NULL;
     r->first->used = 0;
     r->cur = r->first;
 }
-static void x_region_free(struct xregion *r) {
+internal void x_region_free(struct xregion *r) {
     for (struct xchunk *k = r->first, *nx; k; k = nx) { nx = k->next; free(k); }
     r->first = r->cur = NULL;
 }
 struct xmark { struct xchunk *k; size_t used; };
-static struct xmark x_mark(void) {   // the region's top now
+internal struct xmark x_mark(void) {   // the region's top now
     if (!g_xr->cur) x_alloc(8);
     struct xmark m = { g_xr->cur, g_xr->cur ? g_xr->cur->used : 0 };
     return m;
 }
-static void x_release(struct xmark m) {   // everything made since the mark freed
+internal void x_release(struct xmark m) {   // everything made since the mark freed
     if (!m.k) return;
     for (struct xchunk *k = m.k->next, *nx; k; k = nx) { nx = k->next; free(k); }
     m.k->next = NULL;
     m.k->used = m.used;
     g_xr->cur = m.k;
 }
-static const char *x_strdup(const char *s, size_t n) {   // n bytes of s as a text in the region
+internal const char *x_strdup(const char *s, size_t n) {   // n bytes of s as a text in the region
     char *r = x_alloc(n + 1);
     if (!r) return "";
     memcpy(r, s, n);
@@ -153,15 +153,15 @@ static const char *x_strdup(const char *s, size_t n) {   // n bytes of s as a te
 
 
 // vars keys: "name" or a function "name(a,b)" (its parameters, tfile_parse) - the same name is the same entry
-static int xkey_is(const char *key, const char *name) {
+internal int xkey_is(const char *key, const char *name) {
     size_t n = strcspn(key, "(");
     return n == strcspn(name, "(") && !_strnicmp(key, name, n);
 }
-static int xvars_find(const struct xvars *v, const char *key) {
+internal int xvars_find(const struct xvars *v, const char *key) {
     for (int i = 0; v && i < v->n; i++) if (xkey_is(v->key[i], key)) return i;
     return -1;
 }
-static void xvars_set(struct xvars *v, const char *key, const char *val) {
+internal void xvars_set(struct xvars *v, const char *key, const char *val) {
     int i = xvars_find(v, key);
     if (i < 0 && v->n == XVARS_MAX) return;
     if (i >= 0) { free(v->val[i]); free(v->key[i]); }
@@ -169,11 +169,11 @@ static void xvars_set(struct xvars *v, const char *key, const char *val) {
     v->key[i] = _strdup(key);
     v->val[i] = _strdup(val);
 }
-static const char *xvars_get(const struct xvars *v, const char *key) {   // a variable (no function)
+internal const char *xvars_get(const struct xvars *v, const char *key) {   // a variable (no function)
     int i = xvars_find(v, key);
     return i >= 0 && !strchr(v->key[i], '(') ? v->val[i] : NULL;
 }
-static const char *xvars_fn(const struct xvars *v, const char *name, const char **par) {   // a function: its body, *par "a,b)"
+internal const char *xvars_fn(const struct xvars *v, const char *name, const char **par) {   // a function: its body, *par "a,b)"
     int i = xvars_find(v, name);
     if (i < 0 || !strchr(v->key[i], '(')) return NULL;
     *par = strchr(v->key[i], '(') + 1;
@@ -181,12 +181,12 @@ static const char *xvars_fn(const struct xvars *v, const char *name, const char 
 }
 // THE FUNCTIONS of all the files in the folder (name and how many parameters): the files are checked when read, a
 // function may come from a file read later (an include, mod/system.eeai) - scanned from every file first (x_fn_known)
-static struct { char name[40]; int n; } g_xfn[96];
-static int g_xfn_n, g_xfn_scanned;
+internal struct { char name[40]; int n; } g_xfn[96];
+internal int g_xfn_n, g_xfn_scanned;
 // the parameters ("a,b)") of the function whose definition is being read: its body's syntax check takes them for
 // players where a path starts with one (by.kills(of)) - at run time the frame has them (c->fpn)
-static const char *g_x_check_par;
-static int x_check_par_has(const char *s, int n) {
+internal const char *g_x_check_par;
+internal int x_check_par_has(const char *s, int n) {
     for (const char *p = g_x_check_par; p && *p && *p != ')'; ) {
         int k = (int)strcspn(p, ",)");
         if (k == n && !strncmp(p, s, (size_t)n)) return 1;
@@ -196,16 +196,16 @@ static int x_check_par_has(const char *s, int n) {
     return 0;
 }
 // THE NAMES (vars) of all the files too (x_name_check: an entry may come from another file, or later in this one)
-static char g_xvn[256][40];
-static int g_xvn_n;
-static void x_var_add(const char *b, size_t n) { if (n && n < 40 && g_xvn_n < 256) lstrcpynA(g_xvn[g_xvn_n++], b, (int)n + 1); }
-static int x_record_open(const char *e) {   // after "name =": "{" and nothing more on the line (a comment) - a record
+internal char g_xvn[256][40];
+internal int g_xvn_n;
+internal void x_var_add(const char *b, size_t n) { if (n && n < 40 && g_xvn_n < 256) lstrcpynA(g_xvn[g_xvn_n++], b, (int)n + 1); }
+internal int x_record_open(const char *e) {   // after "name =": "{" and nothing more on the line (a comment) - a record
     while (*e == ' ' || *e == '\t') e++;
     if (*e++ != '{') return 0;
     while (*e == ' ' || *e == '\t' || *e == '\r') e++;
     return !*e || *e == '\n' || *e == '#';
 }
-static void x_fn_scan(const char *text) {   // the lines "name(a, b) =" of a file, and "name =" outside its records
+internal void x_fn_scan(const char *text) {   // the lines "name(a, b) =" of a file, and "name =" outside its records
     int rec = 0;
     for (const char *s = text; *s; ) {
         while (*s == ' ' || *s == '\t') s++;
@@ -237,12 +237,12 @@ static void x_fn_scan(const char *text) {   // the lines "name(a, b) =" of a fil
         if (*s) s++;
     }
 }
-static int x_fn_known(const char *name) {   // its parameter count, -1: no function of that name
+internal int x_fn_known(const char *name) {   // its parameter count, -1: no function of that name
     if (!g_xfn_scanned) { g_xfn_scanned = 1; g_x_host.scan_functions(); }
     for (int i = 0; i < g_xfn_n; i++) if (!lstrcmpiA(g_xfn[i].name, name)) return g_xfn[i].n;
     return -1;
 }
-static int x_var_known(const char *name) {
+internal int x_var_known(const char *name) {
     if (!g_xfn_scanned) { g_xfn_scanned = 1; g_x_host.scan_functions(); }
     for (int i = 0; i < g_xvn_n; i++) if (!lstrcmpiA(g_xvn[i], name)) return 1;
     return 0;
@@ -250,9 +250,9 @@ static int x_var_known(const char *name) {
 // THE NAMES CHECK while a file is read (tfile_parse): a name that is nothing known - no parameter, constant, vars
 // entry of any file, game value or placeholder the code fills for this key - is told with its file and line (strict
 // parsing: in the startup box); the key is kept, at run time the name fails what it is in (x_fail)
-static const char *g_x_check_file, *g_x_check_ph;   // the file being read; " a b " the code's placeholders for the key
-static int g_x_check_line;
-static int x_name_known(const char *name) {   // a parameter, constant, vars entry, game value or the code's placeholder
+internal const char *g_x_check_file, *g_x_check_ph;   // the file being read; " a b " the code's placeholders for the key
+internal int g_x_check_line;
+internal int x_name_known(const char *name) {   // a parameter, constant, vars entry, game value or the code's placeholder
     struct xval t;
     char w[48];
     if (strlen(name) > 40) return 1;
@@ -260,20 +260,20 @@ static int x_name_known(const char *name) {   // a parameter, constant, vars ent
     return x_check_par_has(name, (int)strlen(name)) || g_x_host.constant(name, &t) || x_var_known(name) || g_x_host.name_valid(name) ||
            (g_x_check_ph && strstr(g_x_check_ph, w));
 }
-static void x_name_check(const char *name) {
+internal void x_name_check(const char *name) {
     if (!g_x_check_file || x_name_known(name)) return;
     x_error("%s:%d: an unknown name: %s", g_x_check_file, g_x_check_line, name);
 }
 
-static int xnumeric(const char *s, double *n) {   // the whole text a number ("12", not " 12" or "12 ")
+internal int xnumeric(const char *s, double *n) {   // the whole text a number ("12", not " 12" or "12 ")
     char *e;
     if (!((*s >= '0' && *s <= '9') || *s == '-' || *s == '.')) return 0;
     *n = strtod(s, &e);
     return e != s && !*e;
 }
-static void xnothing(struct xval *v) { v->has_n = v->has_s = v->w = v->obj = v->ln = v->kind = 0; v->n = 0; v->s = ""; v->it = NULL; v->fn = NULL; v->miss[0] = 0; }
-static void xnum(struct xval *v, double n) { v->has_n = 1; v->has_s = v->obj = v->ln = v->kind = 0; v->w = 1; v->n = n; v->s = ""; v->it = NULL; v->fn = NULL; v->miss[0] = 0; }
-static void xstr(struct xval *v, const char *s) {   // a text, only that: "12" in a file is no number
+internal void xnothing(struct xval *v) { v->has_n = v->has_s = v->w = v->obj = v->ln = v->kind = 0; v->n = 0; v->s = ""; v->it = NULL; v->fn = NULL; v->miss[0] = 0; }
+internal void xnum(struct xval *v, double n) { v->has_n = 1; v->has_s = v->obj = v->ln = v->kind = 0; v->w = 1; v->n = n; v->s = ""; v->it = NULL; v->fn = NULL; v->miss[0] = 0; }
+internal void xstr(struct xval *v, const char *s) {   // a text, only that: "12" in a file is no number
     if (!s) s = "";
     v->s = x_strdup(s, strlen(s));
     v->has_s = 1;
@@ -286,25 +286,25 @@ static void xstr(struct xval *v, const char *s) {   // a text, only that: "12" i
 }
 // a placeholder the code fills ({tribute}, {minutes}): a text - and its number when it is one, the code's numbers
 // coming as texts
-static void xstr_or_num(struct xval *v, const char *s) { xstr(v, s); v->has_n = xnumeric(v->s, &v->n); }
-static void xdual(struct xval *v, double n, const char *s) { xstr(v, s); v->has_n = 1; v->n = n; }
-static void xdual_kept(struct xval *v, double n, const char *s) {   // the same with a text that stays (not copied)
+internal void xstr_or_num(struct xval *v, const char *s) { xstr(v, s); v->has_n = xnumeric(v->s, &v->n); }
+internal void xdual(struct xval *v, double n, const char *s) { xstr(v, s); v->has_n = 1; v->n = n; }
+internal void xdual_kept(struct xval *v, double n, const char *s) {   // the same with a text that stays (not copied)
     v->s = s; v->has_s = v->has_n = 1; v->n = n; v->w = 1;
     v->obj = v->ln = v->kind = 0; v->it = NULL; v->fn = NULL; v->miss[0] = 0;
 }
-static int xis_num(const struct xval *v, double *n) { if (v->has_n) *n = v->n; return v->has_n; }
-static double xto_num(const struct xval *v) { return v->has_n ? v->n : 0; }
-static int xtrue(const struct xval *v) { return v->w && (v->ln || v->obj || v->kind || (v->has_n ? v->n != 0 : v->s[0] != 0)); }   // a list, a player, a function: true
+internal int xis_num(const struct xval *v, double *n) { if (v->has_n) *n = v->n; return v->has_n; }
+internal double xto_num(const struct xval *v) { return v->has_n ? v->n : 0; }
+internal int xtrue(const struct xval *v) { return v->w && (v->ln || v->obj || v->kind || (v->has_n ? v->n != 0 : v->s[0] != 0)); }   // a list, a player, a function: true
 // n to dec decimals, a half away from 0 (0.625 -> 0.63, 62.5 -> 63) - printf's own rounding takes a half to the even
 // digit (0.62, 62), which nobody writing a text expects
-static double x_round_dec(double n, int dec) {
+internal double x_round_dec(double n, int dec) {
     double m = 1, a = n < 0 ? -n : n;
     for (int i = 0; i < dec; i++) m *= 10;
     if (a * m >= 9e15) return n;
     a = (double)(long long)(a * m + 0.5) / m;
     return n < 0 ? -a : a;
 }
-static void xnum_text(double n, char *out, int cap) {   // a number as a text: whole, or up to 2 decimals
+internal void xnum_text(double n, char *out, int cap) {   // a number as a text: whole, or up to 2 decimals
     double r = n < 0 ? -n : n;
     if (r - (double)(long long)r < 1e-9 && r < 1e15) snprintf(out, (size_t)cap, "%lld", (long long)n);
     else {
@@ -314,7 +314,7 @@ static void xnum_text(double n, char *out, int cap) {   // a number as a text: w
         if (e > out && e[-1] == '.') e[-1] = 0;
     }
 }
-static void xto_text(const struct xval *v, char *out, int cap) {
+internal void xto_text(const struct xval *v, char *out, int cap) {
     if (v->ln) {   // a list: its items, as it would be written - no one of them (that is pick's, a line's, a {placeholder}'s)
         int o = 0;
         out[o++] = '[';
@@ -332,7 +332,7 @@ static void xto_text(const struct xval *v, char *out, int cap) {
     if (v->has_s || !v->w) { lstrcpynA(out, v->w ? v->s : "", cap); return; }
     xnum_text(v->n, out, cap);
 }
-static const char *xtext_of(const struct xval *v) {   // its text, whole (in the region for a number, a list)
+internal const char *xtext_of(const struct xval *v) {   // its text, whole (in the region for a number, a list)
     if (v->ln) { char t[XVAL_CAP]; xto_text(v, t, sizeof t); return x_strdup(t, strlen(t)); }
     if (v->kind && v->w) return v->kind == XV_FN ? "function" : "stop";
     if (v->has_s || !v->w) return v->w ? v->s : "";
@@ -346,7 +346,7 @@ static const char *xtext_of(const struct xval *v) {   // its text, whole (in the
 // out NULL, cap 0: only checked.
 #define X_LBRACE '\x01'   // \{ and \} in a string: braces that are text, not a placeholder (x_fill writes them)
 #define X_RBRACE '\x02'
-static int x_string(const char *s, char *out, int cap, const char **end, const char **why) {
+internal int x_string(const char *s, char *out, int cap, const char **end, const char **why) {
     char q0 = *s, q = 0;
     int o = 0, depth = 0;
     for (s++;; s++) {
@@ -368,19 +368,19 @@ static int x_string(const char *s, char *out, int cap, const char **end, const c
     }
 }
 
-static int x_fills_ok(const char *text, const char **why);
+internal int x_fills_ok(const char *text, const char **why);
 // a draw: the host's display generator - in a decision (c->game) its other one, which every PC draws alike
-static void xdual(struct xval *v, double n, const char *s);
-static int x_rnd(const struct xctx *c, int n) { return c->game ? g_x_host.rnd_decide(n) : g_x_host.rnd_show(n); }
-static double x_rnd01(const struct xctx *c) { return x_rnd(c, 1 << 30) / (double)(1 << 30); }   // 0 <= x < 1
+internal void xdual(struct xval *v, double n, const char *s);
+internal int x_rnd(const struct xctx *c, int n) { return c->game ? g_x_host.rnd_decide(n) : g_x_host.rnd_show(n); }
+internal double x_rnd01(const struct xctx *c) { return x_rnd(c, 1 << 30) / (double)(1 << 30); }   // 0 <= x < 1
 // a list's one item at random - for a consumer that wants one value (a line, a {placeholder}, pick(l)); a single value
 // stays itself, nothing stays nothing
-static void x_pick(const struct xctx *c, struct xval *v) {
+internal void x_pick(const struct xctx *c, struct xval *v) {
     if (v->ln) *v = v->it[v->ln > 1 ? x_rnd(c, v->ln) : 0];
 }
 // a player who isn't there (lord without one), used without a check (lord ? .. / lord ?? .. / lord == them): a
 // mistake like any other (x_fail) - a line built on a lord that isn't there makes no sense
-static void x_missing(struct xctx *c, const char *who) {
+internal void x_missing(struct xctx *c, const char *who) {
     x_error("%s is used, but there is none here - check it first (%s ? ... / %s ?? ...): %.100s", who, who, who, c->top ? c->top : "");
     c->failed++;
     c->missed = 1;
@@ -417,12 +417,12 @@ struct xps {
     char *mem;             // the nodes' memory (one block: copied out when done)
     size_t used, cap;
 };
-static int xps_line(struct xps *p, const char *at) {   // the line at a place in the source
+internal int xps_line(struct xps *p, const char *at) {   // the line at a place in the source
     if (at < p->lc) { p->lc = p->src0; p->line = 1; }
     for (; p->lc < at; p->lc++) if (*p->lc == '\n') p->line++;
     return p->line;
 }
-static struct xnode *xn_new(struct xps *p, int k, const char *at) {
+internal struct xnode *xn_new(struct xps *p, int k, const char *at) {
     if (p->used + sizeof(struct xnode) > p->cap) {
         size_t cap = p->cap ? p->cap * 2 : 4096;
         char *m = realloc(p->mem, cap);
@@ -442,7 +442,7 @@ static struct xnode *xn_new(struct xps *p, int k, const char *at) {
 #define XOFF(p, n) ((n) ? (struct xnode *)((char *)(n) - (p)->mem + 1) : NULL)
 #define XPTR(p, o) ((o) ? (struct xnode *)((p)->mem + (uintptr_t)(o) - 1) : NULL)
 // spaces, line breaks and comments (# to the line's end); nl: whether a line break was among them
-static void xps_space(struct xps *p) {
+internal void xps_space(struct xps *p) {
     const char *b = p->s;
     int nl = 0;
     for (;;) {
@@ -454,24 +454,24 @@ static void xps_space(struct xps *p) {
     }
     if (p->s != b) { p->nl = nl; p->nl_pos = p->s; }
 }
-static int xps_newline_before(struct xps *p) { return p->nl && p->nl_pos == p->s; }   // after xps_space
-static int xps_word(struct xps *p, const char *w) {   // a keyword (and, or, not, return), not the start of a longer name
+internal int xps_newline_before(struct xps *p) { return p->nl && p->nl_pos == p->s; }   // after xps_space
+internal int xps_word(struct xps *p, const char *w) {   // a keyword (and, or, not, return), not the start of a longer name
     xps_space(p);
     size_t n = strlen(w);
     if (_strnicmp(p->s, w, n) || isalnum((unsigned char)p->s[n]) || p->s[n] == '_') return 0;
     p->s += n;
     return 1;
 }
-static int xps_op(struct xps *p, const char *op) {
+internal int xps_op(struct xps *p, const char *op) {
     xps_space(p);
     size_t n = strlen(op);
     if (strncmp(p->s, op, n)) return 0;
     p->s += n;
     return 1;
 }
-static void xps_expr(struct xps *p, struct xnode **out);
-static void xps_block(struct xps *p, struct xnode **out);
-static int xps_items_add(struct xps *p, uintptr_t **it, int *n, int *cap, struct xnode *x) {
+internal void xps_expr(struct xps *p, struct xnode **out);
+internal void xps_block(struct xps *p, struct xnode **out);
+internal int xps_items_add(struct xps *p, uintptr_t **it, int *n, int *cap, struct xnode *x) {
     if (*n == *cap) {
         *cap = *cap ? *cap * 2 : 8;
         uintptr_t *m = realloc(*it, (size_t)*cap * sizeof **it);
@@ -482,7 +482,7 @@ static int xps_items_add(struct xps *p, uintptr_t **it, int *n, int *cap, struct
     return 1;
 }
 // "(a, b) =>" at s: a function's head - its parameters' names (at most 8) and where its body starts; NULL: none
-static const char *xps_lambda_head(const char *s, char names[8][24], int *n) {
+internal const char *xps_lambda_head(const char *s, char names[8][24], int *n) {
     *n = 0;
     s++;
     while (*s == ' ' || *s == '\t' || *s == '\n' || *s == '\r') s++;
@@ -501,7 +501,7 @@ static const char *xps_lambda_head(const char *s, char names[8][24], int *n) {
     while (*s == ' ' || *s == '\t') s++;
     return s[0] == '=' && s[1] == '>' ? s + 2 : NULL;
 }
-static void xps_primary(struct xps *p, struct xnode **out) {
+internal void xps_primary(struct xps *p, struct xnode **out) {
     xps_space(p);
     const char *s = p->s;
     struct xnode *o = NULL;
@@ -645,7 +645,7 @@ static void xps_primary(struct xps *p, struct xnode **out) {
     XPTR(p, o)->lvl++;   // the primary's level
     *out = o;
 }
-static void xps_unary(struct xps *p, struct xnode **out) {
+internal void xps_unary(struct xps *p, struct xnode **out) {
     *out = NULL;
     const char *at = (xps_space(p), p->s);
     int neg = xps_op(p, "-"), inv = !neg && xps_word(p, "not");
@@ -663,7 +663,7 @@ static void xps_unary(struct xps *p, struct xnode **out) {
     if (*p->s == '!' && p->s[1] != '=') { p->err = 1; p->why = "! - write not"; return; }
     xps_primary(p, out);
 }
-static struct xnode *xps_bin(struct xps *p, int k, int op, struct xnode *a, struct xnode *b) {
+internal struct xnode *xps_bin(struct xps *p, int k, int op, struct xnode *a, struct xnode *b) {
     struct xnode *o = xn_new(p, k, XPTR(p, a)->at);
     if (!o) return NULL;
     o->op = (unsigned char)op;
@@ -671,7 +671,7 @@ static struct xnode *xps_bin(struct xps *p, int k, int op, struct xnode *a, stru
     o->b = b;
     return XOFF(p, o);
 }
-static void xps_mul(struct xps *p, struct xnode **out) {
+internal void xps_mul(struct xps *p, struct xnode **out) {
     xps_unary(p, out);
     while (!p->err) {
         xps_space(p);
@@ -684,7 +684,7 @@ static void xps_mul(struct xps *p, struct xnode **out) {
         *out = xps_bin(p, XN_MUL, op, *out, b);
     }
 }
-static void xps_add(struct xps *p, struct xnode **out) {
+internal void xps_add(struct xps *p, struct xnode **out) {
     xps_mul(p, out);
     while (!p->err) {
         int op = xps_op(p, "+") ? '+' : xps_op(p, "-") ? '-' : 0;
@@ -695,7 +695,7 @@ static void xps_add(struct xps *p, struct xnode **out) {
         *out = xps_bin(p, XN_ADD, op, *out, b);
     }
 }
-static void xps_cmp(struct xps *p, struct xnode **out) {
+internal void xps_cmp(struct xps *p, struct xnode **out) {
     xps_add(p, out);
     if (p->err) return;
     int op = xps_op(p, "<=") ? 'l' : xps_op(p, ">=") ? 'g' : xps_op(p, "==") ? '=' : xps_op(p, "!=") ? '!' :
@@ -706,7 +706,7 @@ static void xps_cmp(struct xps *p, struct xnode **out) {
     if (p->err) return;
     *out = xps_bin(p, XN_CMP, op, *out, b);
 }
-static void xps_and(struct xps *p, struct xnode **out) {
+internal void xps_and(struct xps *p, struct xnode **out) {
     xps_cmp(p, out);
     if (!p->err && (xps_space(p), *p->s == '&')) { p->err = 1; p->why = "&& - write and"; }
     while (!p->err && xps_word(p, "and")) {
@@ -717,7 +717,7 @@ static void xps_and(struct xps *p, struct xnode **out) {
         if (!p->err && (xps_space(p), *p->s == '&')) { p->err = 1; p->why = "&& - write and"; }
     }
 }
-static void xps_or(struct xps *p, struct xnode **out) {
+internal void xps_or(struct xps *p, struct xnode **out) {
     xps_and(p, out);
     if (!p->err && (xps_space(p), *p->s == '|')) { p->err = 1; p->why = "|| - write or"; }
     while (!p->err && xps_word(p, "or")) {
@@ -728,7 +728,7 @@ static void xps_or(struct xps *p, struct xnode **out) {
         if (!p->err && (xps_space(p), *p->s == '|')) { p->err = 1; p->why = "|| - write or"; }
     }
 }
-static void xps_coalesce(struct xps *p, struct xnode **out) {   // a ?? b: a, unless it is nothing
+internal void xps_coalesce(struct xps *p, struct xnode **out) {   // a ?? b: a, unless it is nothing
     xps_or(p, out);
     while (!p->err && xps_op(p, "??")) {
         struct xnode *b;
@@ -737,7 +737,7 @@ static void xps_coalesce(struct xps *p, struct xnode **out) {   // a ?? b: a, un
         *out = xps_bin(p, XN_COAL, 0, *out, b);
     }
 }
-static void xps_expr(struct xps *p, struct xnode **out) {   // c ? a : b, c ? a (nothing when c doesn't hold)
+internal void xps_expr(struct xps *p, struct xnode **out) {   // c ? a : b, c ? a (nothing when c doesn't hold)
     *out = NULL;
     xps_coalesce(p, out);
     if (!p->err && xps_op(p, "?")) {
@@ -755,7 +755,7 @@ static void xps_expr(struct xps *p, struct xnode **out) {   // c ? a : b, c ? a 
     if (!p->err && *out) XPTR(p, *out)->lvl++;   // the expression's level
 }
 // a statement: name = value, return [value], or an expression (a call)
-static void xps_stmt(struct xps *p, struct xnode **out) {
+internal void xps_stmt(struct xps *p, struct xnode **out) {
     xps_space(p);
     const char *at = p->s, *q = at;
     *out = NULL;
@@ -794,7 +794,7 @@ static void xps_stmt(struct xps *p, struct xnode **out) {
     xps_expr(p, out);
 }
 // statements, one a line, up to the block's } (brace) or the source's end (a script)
-static void xps_stmts(struct xps *p, struct xnode **out, int brace, const char *at) {
+internal void xps_stmts(struct xps *p, struct xnode **out, int brace, const char *at) {
     uintptr_t *it = NULL;
     int n = 0, cap = 0;
     *out = NULL;
@@ -813,7 +813,7 @@ static void xps_stmts(struct xps *p, struct xnode **out, int brace, const char *
     o->items = (struct xnode **)it;
     *out = XOFF(p, o);
 }
-static void xps_block(struct xps *p, struct xnode **out) {   // at its {
+internal void xps_block(struct xps *p, struct xnode **out) {   // at its {
     const char *at = p->s;
     p->s++;
     xps_stmts(p, out, 1, at);
@@ -822,7 +822,7 @@ static void xps_block(struct xps *p, struct xnode **out) {   // at its {
 // A COMPILED SOURCE: its tree (pointers now), its deepest level, whether it is one at all (why not, where)
 struct xunit { struct xnode *root; int depth, ok, line; const char *why; };
 // each node's deepest path (its own levels included); a function's body is its own: too deep there, *bad
-static unsigned char x_depth_of(struct xnode *n, int *bad) {
+internal unsigned char x_depth_of(struct xnode *n, int *bad) {
     if (!n) return 0;
     int d = 0, k;
     if (n->k == XN_LAMBDA || n->k == XN_BLOCK) {   // statements and bodies: each on its own
@@ -840,7 +840,7 @@ static unsigned char x_depth_of(struct xnode *n, int *bad) {
     return n->depth;
 }
 // the tree out of the parser's block: offsets to pointers into a block of its own (kept: compiled sources stay)
-static struct xnode *x_relocate(struct xps *p, struct xnode *o, struct xnode *base) {
+internal struct xnode *x_relocate(struct xps *p, struct xnode *o, struct xnode *base) {
     if (!o) return NULL;
     struct xnode *n = (struct xnode *)((char *)base + ((uintptr_t)o - 1));
     n->a = x_relocate(p, n->a, base);
@@ -856,7 +856,7 @@ static struct xnode *x_relocate(struct xps *p, struct xnode *o, struct xnode *ba
     return n;
 }
 // src whole as an expression (prog: as statements, a script); the tree, or ok 0 and why (NULL: not an expression)
-static struct xunit x_parse(const char *src, int prog) {
+internal struct xunit x_parse(const char *src, int prog) {
     struct xps p;
     memset(&p, 0, sizeof p);
     p.s = p.src0 = p.lc = src;
@@ -887,9 +887,9 @@ static struct xunit x_parse(const char *src, int prog) {
 // the cache: an expression's text -> its tree (an expression is parsed once, however often it is worked out)
 #define XC_BUCKETS 4096
 struct xcentry { struct xcentry *next; uint32_t h; struct xunit u; char src[]; };
-static struct xcentry *g_xc[XC_BUCKETS];
-static int g_xc_n;
-static const struct xunit *x_compiled(const char *src) {
+internal struct xcentry *g_xc[XC_BUCKETS];
+internal int g_xc_n;
+internal const struct xunit *x_compiled(const char *src) {
     uint32_t h = 2166136261u;
     for (const char *s = src; *s; s++) h = (h ^ (uint8_t)*s) * 16777619u;
     for (struct xcentry *e = g_xc[h % XC_BUCKETS]; e; e = e->next) if (e->h == h && !strcmp(e->src, src)) return &e->u;
@@ -906,7 +906,7 @@ static const struct xunit *x_compiled(const char *src) {
 }
 
 // the builtin functions: their number by name and argument count (0: none - a vars function or a relation)
-static int x_fn_id(const char *name, int na) {
+internal int x_fn_id(const char *name, int na) {
     return !lstrcmpiA(name, "chance") && na == 1 ? 1 : (!lstrcmpiA(name, "min") || !lstrcmpiA(name, "max")) && na ? 2 :
            !lstrcmpiA(name, "abs") && na == 1 ? 3 : !lstrcmpiA(name, "round") && na == 1 ? 4 :
            !lstrcmpiA(name, "rnd") && na <= 1 ? 5 : !lstrcmpiA(name, "floor") && na == 1 ? 6 :
@@ -915,7 +915,7 @@ static int x_fn_id(const char *name, int na) {
            !lstrcmpiA(name, "map_range") && na == 3 ? 11 : !lstrcmpiA(name, "str") && na == 1 ? 12 :
            !lstrcmpiA(name, "number") && na == 1 ? 13 : !lstrcmpiA(name, "log2") && na == 1 ? 14 : !lstrcmpiA(name, "pick") && na == 1 ? 15 : 0;
 }
-static int x_par_count(const char *par) {   // a vars function's parameters "a,b)": how many
+internal int x_par_count(const char *par) {   // a vars function's parameters "a,b)": how many
     int want = *par == ')' ? 0 : 1;
     for (const char *q = par; *q && *q != ')'; q++) want += *q == ',';
     return want;
@@ -927,13 +927,13 @@ static int x_par_count(const char *par) {   // a vars function's parameters "a,b
 // variable of the code around a function changed in it. The names a function sees: its parameters, what its own
 // body and every body around it assign, the vars, the game's values.
 struct xscope { const struct xscope *up; const char *name[64]; int n; };
-static int xsc_find(const struct xscope *s, const char *name, size_t len, int *own) {   // 1: there (*own: this scope's)
+internal int xsc_find(const struct xscope *s, const char *name, size_t len, int *own) {   // 1: there (*own: this scope's)
     for (int level = 0; s; s = s->up, level++)
         for (int i = 0; i < s->n; i++)
             if (strlen(s->name[i]) == len && !strncmp(s->name[i], name, len)) { if (own) *own = !level; return 1; }
     return 0;
 }
-static void xsc_add(struct xscope *s, const char *name) {
+internal void xsc_add(struct xscope *s, const char *name) {
     for (int i = 0; i < s->n; i++) if (!strcmp(s->name[i], name)) return;
     if (s->n < 64) s->name[s->n++] = name;
 }
@@ -941,7 +941,7 @@ struct xcheck { struct xctx *c; int script; const char *why; int line; char whyb
 // a node's value as the old parser saw it while only reading: a number or a text written as such, nothing for the
 // rest - what "12" == 12 is caught with when a file is read
 struct xsv { int w, has_n, has_s; double n; };
-static struct xsv xsv_of(const struct xnode *n) {
+internal struct xsv xsv_of(const struct xnode *n) {
     struct xsv r = { 0, 0, 0, 0 };
     if (!n) return r;
     switch (n->k) {
@@ -973,11 +973,11 @@ static struct xsv xsv_of(const struct xnode *n) {
     }
     return r;
 }
-static int x_script_fn(const char *name);   // the script functions (wait, wait_until, every, for, player, cmd): their arguments, -1 none
-static int x_name_known(const char *name);
-static int xc_fail(struct xcheck *k, const struct xnode *n, const char *why) { k->why = why; k->line = n->line; return 0; }
-static int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc);
-static int x_check_body(struct xcheck *k, const struct xnode *body, struct xscope *sc) {   // a block: its names first
+internal int x_script_fn(const char *name);   // the script functions (wait, wait_until, every, for, player, cmd): their arguments, -1 none
+internal int x_name_known(const char *name);
+internal int xc_fail(struct xcheck *k, const struct xnode *n, const char *why) { k->why = why; k->line = n->line; return 0; }
+internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc);
+internal int x_check_body(struct xcheck *k, const struct xnode *body, struct xscope *sc) {   // a block: its names first
     if (!body || body->k != XN_BLOCK) return x_check(k, body, sc);
     for (int i = 0; i < body->n_items; i++) {   // what it assigns - also what is used before (a function called later)
         const struct xnode *s = body->items[i];
@@ -992,7 +992,7 @@ static int x_check_body(struct xcheck *k, const struct xnode *body, struct xscop
     for (int i = 0; i < body->n_items; i++) if (!x_check(k, body->items[i], sc)) return 0;
     return 1;
 }
-static int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc) {
+internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc) {
     if (!n) return 1;
     switch (n->k) {
     case XN_NUM: return 1;
@@ -1089,8 +1089,8 @@ struct xfn { const struct xnode *lam; struct xframe *env; };   // a function val
 // frame of the function (or script) running; ret: a return given (its value in *retv); err_at: the statement it
 // failed in
 struct xe { struct xctx *c; int err; const char *why; struct xframe *f; int ret; struct xval *retv; const struct xnode *err_at; int kept; };
-static void xe(struct xe *e, const struct xnode *n, struct xval *v);
-static void x_use(struct xe *e, const struct xval *v) {
+internal void xe(struct xe *e, const struct xnode *n, struct xval *v);
+internal void x_use(struct xe *e, const struct xval *v) {
     if (!v->miss[0]) return;
     x_missing(e->c, v->miss);
     e->c->missed = 0;
@@ -1098,8 +1098,8 @@ static void x_use(struct xe *e, const struct xval *v) {
     e->why = "a mistake while working it out";
 }
 // a mistake while working it out (MISTAKES WHILE WORKING OUT above): told once, and what it is in fails
-static char g_x_last_fail[160];   // the last one, for texts eval (the log has each once only)
-static PRINTF_LIKE(2, 3) void x_fail(struct xe *e, const char *fmt, ...) {
+internal char g_x_last_fail[160];   // the last one, for texts eval (the log has each once only)
+internal PRINTF_LIKE(2, 3) void x_fail(struct xe *e, const char *fmt, ...) {
     va_list ap;
     va_start(ap, fmt);
     vsnprintf(g_x_last_fail, sizeof g_x_last_fail, fmt, ap);
@@ -1109,22 +1109,22 @@ static PRINTF_LIKE(2, 3) void x_fail(struct xe *e, const char *fmt, ...) {
     e->err = 1;
     e->why = "a mistake while working it out";
 }
-static int x_numeric_ok(struct xe *e, const struct xval *v) {   // v counts as a number: one, or nothing (0) - a text is a mistake
+internal int x_numeric_ok(struct xe *e, const struct xval *v) {   // v counts as a number: one, or nothing (0) - a text is a mistake
     if (v->ln) { x_fail(e, "a list (%.40s) where one number belongs - %s", xtext_of(v), "pick(l) for one of its items"); return 0; }
     if (!v->w || v->has_n) return 1;
     x_fail(e, "a text (\"%.40s\") where a number belongs - number(x) makes a number of a text", xtext_of(v));
     return 0;
 }
 // a text against a number ("12" == 12, "9" < 10): no comparison - neither turns into the other
-static int xmismatch(const struct xval *a, const struct xval *b) { return (!a->has_n && !b->has_s) || (!a->has_s && !b->has_n); }
-static int xcmp(const struct xval *a, const struct xval *b) {   // <0, 0, >0: players the same one or not, numbers, else texts
+internal int xmismatch(const struct xval *a, const struct xval *b) { return (!a->has_n && !b->has_s) || (!a->has_s && !b->has_n); }
+internal int xcmp(const struct xval *a, const struct xval *b) {   // <0, 0, >0: players the same one or not, numbers, else texts
     double x, y;
     if (a->obj && b->obj) return a->obj - b->obj;
     if (xmismatch(a, b)) return 2;   // unequal
     if (xis_num(a, &x) && xis_num(b, &y)) return x < y ? -1 : x > y;
     return lstrcmpiA(xtext_of(a), xtext_of(b));
 }
-static void x_nogame(struct xe *e, const char *name) {   // a game value or a player where there is no game yet
+internal void x_nogame(struct xe *e, const char *name) {   // a game value or a player where there is no game yet
     x_fail(e, "%s: no game yet - only constants, chance(), rnd(), language and vars here", name);
 }
 // NESTING: names, functions and placeholders worked out within each other, at most X_NEST deep - also the end of
@@ -1134,7 +1134,7 @@ static void x_nogame(struct xe *e, const char *name) {   // a game value or a pl
 // a group of mod/units.eeai sat at the end of a prompt's chain (a name's body, an expression in itself)
 #define X_NEST 12
 // the body of a vars entry or function (its source) worked out in this context: compiled, its value
-static int x_body(struct xe *e, const char *src, struct xval *v) {
+internal int x_body(struct xe *e, const char *src, struct xval *v) {
     const struct xunit *u = x_compiled(src);
     if (!u->ok) { xnothing(v); return 0; }
     struct xe q = { e->c, 0, NULL, NULL, 0, NULL, NULL, 0 };
@@ -1144,7 +1144,7 @@ static int x_body(struct xe *e, const char *src, struct xval *v) {
     e->c->level = level;
     return !q.err;
 }
-static void xe_ident(struct xe *e, const char *name, struct xval *v) {
+internal void xe_ident(struct xe *e, const char *name, struct xval *v) {
     struct xctx *c = e->c;
     if (c->fixed) { x_fail(e, "%s: a name - a setting is a number (35%%, 2 * 60, min(...))", name); xnothing(v); return; }
     for (int i = 0; i < c->fnp; i++)   // a parameter or variable of the function being worked out
@@ -1175,7 +1175,7 @@ static void xe_ident(struct xe *e, const char *name, struct xval *v) {
 }
 // a function's body (def), its parameters (par "a,b)") bound to the arguments: they alone are its names besides the
 // game's values and the vars - a function calling itself ends at the nesting limit like vars in a circle
-static void x_call(struct xe *e, const char *def, const char *par, const struct xval *a, int na, struct xval *v) {
+internal void x_call(struct xe *e, const char *def, const char *par, const struct xval *a, int na, struct xval *v) {
     struct xctx *c = e->c;
     char names[8][24];
     const char *pn[8];
@@ -1199,9 +1199,9 @@ static void x_call(struct xe *e, const char *def, const char *par, const struct 
     c->depth--;
     c->fpn = fpn; c->fpv = fpv; c->fnp = fnp;
 }
-static void x_exec(struct xe *e, const struct xnode *blk);
+internal void x_exec(struct xe *e, const struct xnode *blk);
 // a value with its texts and lists copied into the region now (what a function hands back, copied past its frame)
-static void xv_copy(struct xval *dst, const struct xval *src) {
+internal void xv_copy(struct xval *dst, const struct xval *src) {
     *dst = *src;
     if (src->has_s || src->w) dst->s = x_strdup(src->s, strlen(src->s));
     if (src->ln) {
@@ -1211,14 +1211,14 @@ static void xv_copy(struct xval *dst, const struct xval *src) {
         dst->it = it;
     }
 }
-static int xv_made_in(const struct xval *v, const struct xframe *f) {   // a function made in frame f, in it or its items
+internal int xv_made_in(const struct xval *v, const struct xframe *f) {   // a function made in frame f, in it or its items
     if (v->kind == XV_FN && v->fn->env == f) return 1;
     for (int i = 0; i < v->ln; i++) if (xv_made_in(&v->it[i], f)) return 1;
     return 0;
 }
 // call function value fv with its arguments: a frame of its own (the names around where it was made, read only, and
 // its parameters), its body worked out - a value, or a block's return - and its values freed but what it hands back
-static void x_call_value(struct xe *e, const struct xval *fv, const struct xval *a, int na, struct xval *v) {
+internal void x_call_value(struct xe *e, const struct xval *fv, const struct xval *a, int na, struct xval *v) {
     struct xctx *c = e->c;
     const struct xnode *lam = fv->fn->lam;
     if (na != lam->n_items) { x_fail(e, "a function of %d argument%s called with %d", lam->n_items, lam->n_items == 1 ? "" : "s", na); return; }
@@ -1264,14 +1264,14 @@ static void x_call_value(struct xe *e, const struct xval *fv, const struct xval 
     free(nf);
 }
 // the script functions: wait(seconds), wait_until(time), every(step, from, until, f), for(from, to, f), player(n), cmd(text)
-static int x_script_fn(const char *name) {
+internal int x_script_fn(const char *name) {
     static const struct { const char *n; int args; } k[] = { { "wait", 1 }, { "wait_until", 1 }, { "every", 4 }, { "for", 3 }, { "player", 1 }, { "cmd", 1 } };
     for (size_t i = 0; i < sizeof k / sizeof *k; i++) if (!strcmp(k[i].n, name)) return k[i].args;
     return -1;
 }
 // a value as a command's argument: a number (whole without decimals), a text as it is, a player its number, a type
 // its number (unit.x: both)
-static int x_cmd_arg(struct xe *e, const char *verb, const struct xval *v, char *out, int cap) {
+internal int x_cmd_arg(struct xe *e, const char *verb, const struct xval *v, char *out, int cap) {
     if (v->kind || !v->w || v->ln) { x_fail(e, "%s(...): %s as a command's argument", verb, v->ln ? "a list" : v->kind == XV_FN ? "a function" : v->kind ? "stop" : "nothing"); return 0; }
     if (v->obj) snprintf(out, (size_t)cap, "%d", v->obj - 1);
     else if (v->has_n) {
@@ -1285,7 +1285,7 @@ static int x_cmd_arg(struct xe *e, const char *verb, const struct xval *v, char 
     return 1;
 }
 // a command run (the game's thread): its reply's first line is the value; a reply "error..." is a mistake
-static void x_command(struct xe *e, const char *cmd, struct xval *v) {
+internal void x_command(struct xe *e, const char *cmd, struct xval *v) {
     static char reply[16384];
     reply[0] = 0;
     if (!g_x_hooks.command) { x_fail(e, "%.40s: commands only in a script", cmd); return; }
@@ -1296,12 +1296,12 @@ static void x_command(struct xe *e, const char *cmd, struct xval *v) {
     v->s = x_strdup(reply, n);
     v->has_s = 1; v->w = 1; v->has_n = 0; v->obj = v->ln = 0; v->it = NULL; v->miss[0] = 0; v->kind = 0;
 }
-static int x_wait_until(struct xe *e, double t) {   // the script waits until game second t (0: no script to wait in)
+internal int x_wait_until(struct xe *e, double t) {   // the script waits until game second t (0: no script to wait in)
     if (!g_x_hooks.wait) { x_fail(e, "waiting only in a script"); return 0; }
     g_x_hooks.wait(t);
     return 1;
 }
-static void xe_script(struct xe *e, const char *name, const struct xval *a, int na, struct xval *v) {
+internal void xe_script(struct xe *e, const char *name, const struct xval *a, int na, struct xval *v) {
     if (!strcmp(name, "cmd")) {
         if (!a[0].has_s || a[0].has_n) { x_fail(e, "cmd(text): a command as a text"); return; }
         x_command(e, a[0].s, v);
@@ -1341,7 +1341,7 @@ static void xe_script(struct xe *e, const char *name, const struct xval *a, int 
         if (!e->err && r.kind == XV_STOP) break;
     }
 }
-static void xe_call(struct xe *e, const struct xnode *n, struct xval *v) {
+internal void xe_call(struct xe *e, const struct xnode *n, struct xval *v) {
     const char *name = n->s;
     struct xval a[32];   // the arguments in order: a command, a script's function all (up to 32); the others the first 8
     int nall = 0;
@@ -1453,7 +1453,7 @@ static void xe_call(struct xe *e, const struct xnode *n, struct xval *v) {
 // nothing ([a ? "x", "y"]); none left: nothing. It holds no one of them - one at random is what a consumer that
 // wants one value takes (x_pick: a line, a {placeholder}, pick(l)); used whole by len, first, item, contains,
 // map_range and the filters (count, kills)
-static void xe_list(struct xe *e, const struct xnode *n, struct xval *v) {
+internal void xe_list(struct xe *e, const struct xnode *n, struct xval *v) {
     if (e->c->fixed) { x_fail(e, "a list - a setting is one number"); return; }
     int cnt = 0, cap = 0;
     struct xval *items = NULL;
@@ -1483,7 +1483,7 @@ static void xe_list(struct xe *e, const struct xnode *n, struct xval *v) {
     }
     free(items);
 }
-static void xe_str(struct xe *e, const struct xnode *n, struct xval *v) {   // a string: its placeholders filled
+internal void xe_str(struct xe *e, const struct xnode *n, struct xval *v) {   // a string: its placeholders filled
     int f0 = e->c->failed;
     size_t cap = strlen(n->s) * 2 + 4096;
     char *f = malloc(cap);
@@ -1494,7 +1494,7 @@ static void xe_str(struct xe *e, const struct xnode *n, struct xval *v) {   // a
     free(f);
 }
 // a variable of the running function set: its own (new, or again), never one of the code around it
-static void x_assign(struct xe *e, const char *name, const struct xval *v) {
+internal void x_assign(struct xe *e, const char *name, const struct xval *v) {
     struct xframe *f = e->f;
     if (!f) { x_fail(e, "%s = ...: a variable only in a script or a function", name); return; }
     int i = 0;
@@ -1505,7 +1505,7 @@ static void x_assign(struct xe *e, const char *name, const struct xval *v) {
     e->c->fpn = f->name; e->c->fpv = f->val; e->c->fnp = f->n;
 }
 // a block's statements in order; a mistake ends it (err_at: the statement), a return too
-static void x_exec(struct xe *e, const struct xnode *blk) {
+internal void x_exec(struct xe *e, const struct xnode *blk) {
     struct xctx *c = e->c;
     const char *top = c->top;
     for (int i = 0; i < blk->n_items && !e->err && !e->ret; i++) {
@@ -1523,7 +1523,7 @@ static void x_exec(struct xe *e, const struct xnode *blk) {
     }
     c->top = top;
 }
-static void xe(struct xe *e, const struct xnode *n, struct xval *v) {
+internal void xe(struct xe *e, const struct xnode *n, struct xval *v) {
     struct xctx *c = e->c;
     xnothing(v);
     c->level += n->lvl;
@@ -1643,8 +1643,8 @@ static void xe(struct xe *e, const struct xnode *n, struct xval *v) {
     c->level -= n->lvl;
 }
 // evaluate the whole of src (an expression and nothing after it); 0: not an expression
-static void x_log_bad(const char *what, const char *src) { x_error("%s: %.120s", what, src); }
-static int x_eval(const char *src, struct xctx *c, struct xval *v) {   // its value ends up in a text: a line, a {placeholder}
+internal void x_log_bad(const char *what, const char *src) { x_error("%s: %.120s", what, src); }
+internal int x_eval(const char *src, struct xctx *c, struct xval *v) {   // its value ends up in a text: a line, a {placeholder}
     int top = !c->top;
     if (top) c->top = src;
     if (!g_xr->busy++) x_region_reset(g_xr);   // the outermost: the last one's values are done with
@@ -1666,7 +1666,7 @@ static int x_eval(const char *src, struct xctx *c, struct xval *v) {   // its va
 
 // an ini file's number (ini.c): a constant expression - numbers, %, + - * / ( ), min, max, abs, round, floor, log2;
 // 0: a mistake, *why (not logged here)
-static int x_const_eval(const char *src, double *out, const char **why) {
+internal int x_const_eval(const char *src, double *out, const char **why) {
     struct xctx c;
     memset(&c, 0, sizeof c);
     c.found = 1; c.nogame = 1; c.fixed = 1;
@@ -1679,7 +1679,7 @@ static int x_const_eval(const char *src, double *out, const char **why) {
 }
 // the syntax of an expression, and the checks a file gets when read (x_check); nothing worked out (no game needed);
 // 0: a mistake, *why what it is when known
-static int x_syntax(const char *src, const char **why) {
+internal int x_syntax(const char *src, const char **why) {
     struct xctx c = { 0 };
     c.found = 1;   // no players looked up
     const struct xunit *u = x_compiled(src);
@@ -1690,14 +1690,14 @@ static int x_syntax(const char *src, const char **why) {
     return 1;
 }
 
-static const char *x_close(const char *s);
+internal const char *x_close(const char *s);
 // A placeholder's FORMAT: {x:%} {x:.1%} {x:.2} - after a ':' that belongs to no '?' (outside strings and brackets: the
 // ternary's own colons pair with its ?s), how its number is written: % as a share (0.5 -> 50%), .N with N decimals
 // (0..6; both: .1% -> 62.5%). Without one a number is written as it is (up to 2 decimals). A number is never
 // written as a share by itself: 50% in an expression is only another way to write 0.5.
 // A choice in front of a format must be in ( ): {(a ? 1 : 0):%} - written {a ? 1 : 0:%} the format reads as the 0's
 // only (likewise {a ?? b:%}); *choice: a ? or ?? outside brackets before the format's ':'
-static int x_fmt_at(const char *s, int n, int *choice) {   // the format's ':' in s[0..n), -1: none
+internal int x_fmt_at(const char *s, int n, int *choice) {   // the format's ':' in s[0..n), -1: none
     int depth = 0, q = 0;
     *choice = 0;
     for (int i = 0; i < n; i++) {
@@ -1714,7 +1714,7 @@ static int x_fmt_at(const char *s, int n, int *choice) {   // the format's ':' i
     }
     return -1;
 }
-static int x_fmt_parse(const char *f, int *dec, int *pct) {   // "%", ".N", ".N%"; 0: no format
+internal int x_fmt_parse(const char *f, int *dec, int *pct) {   // "%", ".N", ".N%"; 0: no format
     while (*f == ' ') f++;
     *dec = -1; *pct = 0;
     if (*f == '.') { if (f[1] < '0' || f[1] > '6') return 0; *dec = f[1] - '0'; f += 2; }
@@ -1722,7 +1722,7 @@ static int x_fmt_parse(const char *f, int *dec, int *pct) {   // "%", ".N", ".N%
     while (*f == ' ') f++;
     return !*f && (*dec >= 0 || *pct);
 }
-static void x_fmt_num(double n, int dec, int pct, char *out, int cap) {
+internal void x_fmt_num(double n, int dec, int pct, char *out, int cap) {
     if (pct) n *= 100;
     if (dec < 0) dec = 0;
     snprintf(out, (size_t)cap, "%.*f%s", dec, x_round_dec(n, dec), pct ? "%" : "");
@@ -1730,10 +1730,10 @@ static void x_fmt_num(double n, int dec, int pct, char *out, int cap) {
     while (*d == '0' || *d == '.') d++;
     if (*out == '-' && (!*d || *d == '%')) memmove(out, out + 1, strlen(out));
 }
-static const char *const k_fmt_why = "a placeholder's format is %, .1%, .2 ... ({share:%}, {x:.1})";
-static const char *const k_fmt_choice = "a choice before a format goes in ( ): {(a ? 1 : 0):%}";
+internal const char *const k_fmt_why = "a placeholder's format is %, .1%, .2 ... ({share:%}, {x:.1})";
+internal const char *const k_fmt_choice = "a choice before a format goes in ( ): {(a ? 1 : 0):%}";
 // a text's {placeholders} that are expressions (not a plain name): their syntax - and a plain name's (x_name_check)
-static int x_fills_ok(const char *text, const char **why) {
+internal int x_fills_ok(const char *text, const char **why) {
     for (const char *s = strchr(text, '{'); s; s = strchr(s + 1, '{')) {
         const char *close = x_close(s);
         char src[400];
@@ -1756,7 +1756,7 @@ static int x_fills_ok(const char *text, const char **why) {
     return 1;
 }
 // the end of a {placeholder} that starts at s ('{'): quotes and nested braces skipped; NULL: none
-static const char *x_close(const char *s) {
+internal const char *x_close(const char *s) {
     int d = 0;
     for (; *s; s++) {
         if (*s == '"' || *s == '\'') {
@@ -1773,7 +1773,7 @@ static const char *x_close(const char *s) {
 // out = tmpl with its {placeholders} filled: the text's own (exact name), else the expression's value (nothing: no
 // text); a mistake in one (an unknown name: "Hi {foo}") writes nothing, c->failed up - a string in an expression
 // fails with it; braces that hold no expression stay as written. Returns the length.
-static int x_fill(char *out, int cap, const char *tmpl, struct xctx *c) {
+internal int x_fill(char *out, int cap, const char *tmpl, struct xctx *c) {
     int o = 0, top = !c->top;
     if (top) c->top = tmpl;
     for (const char *s = tmpl; *s && o < cap - 1;) {
@@ -1830,7 +1830,7 @@ static int x_fill(char *out, int cap, const char *tmpl, struct xctx *c) {
 }
 // the strings a value offers as they stand - a string, or the items of a list that are plain strings (no
 // condition, no expression around them): fn(text) for each (the colours)
-static int x_plain_strings(const char *src, void (*fn)(const char *text, void *arg), void *arg) {
+internal int x_plain_strings(const char *src, void (*fn)(const char *text, void *arg), void *arg) {
     char t[XVAL_CAP];
     const char *e, *why;
     int n = 0;
@@ -1867,11 +1867,11 @@ struct tval {
     double n;     // a number
 };
 struct tlex { const char *s, *file; int line, err; };
-static void tl_error(struct tlex *l, const char *what) {
+internal void tl_error(struct tlex *l, const char *what) {
     x_error("%s:%d: %s - skipped", l->file, l->line, what);
     l->err = 1;
 }
-static void tl_blank(struct tlex *l, int lines) {   // spaces; with lines: line breaks and comments too
+internal void tl_blank(struct tlex *l, int lines) {   // spaces; with lines: line breaks and comments too
     for (;;) {
         char c = *l->s;
         if (c == ' ' || c == '\t' || c == '\r') l->s++;
@@ -1880,8 +1880,8 @@ static void tl_blank(struct tlex *l, int lines) {   // spaces; with lines: line 
         else return;
     }
 }
-static void tval_free(struct tval *v) { free(v->text); free(v->src); memset(v, 0, sizeof *v); }
-static int tl_key_line(const char *t) {   // a line that starts a key ("name =", "name(a, b) =", not "a == b")
+internal void tval_free(struct tval *v) { free(v->text); free(v->src); memset(v, 0, sizeof *v); }
+internal int tl_key_line(const char *t) {   // a line that starts a key ("name =", "name(a, b) =", not "a == b")
     while (*t == ' ' || *t == '\t') t++;
     const char *k = t;
     while (*t && (isalnum((unsigned char)*t) || strchr("_:.-", *t))) t++;
@@ -1895,7 +1895,7 @@ static int tl_key_line(const char *t) {   // a line that starts a key ("name =",
 }
 // "a" or ("a" <line break> "b"): a value of strings only, side by side in ( ) - their text joined into t
 // (cap: the source's length + 1 is enough); 0: something else
-static int x_fold(const char *r, char *t, int cap) {
+internal int x_fold(const char *r, char *t, int cap) {
     const char *s = r, *e, *why;
     int par = *s == '(', o = 0, n = 0;
     if (par) s++;
@@ -1913,7 +1913,7 @@ static int x_fold(const char *r, char *t, int cap) {
 }
 // a value: to the line's end, over line breaks while a ( [ or { is open (a line that starts a key or a section ends
 // it: the bracket was never closed); comments left out
-static void tl_value(struct tlex *l, struct tval *v) {
+internal void tl_value(struct tlex *l, struct tval *v) {
     memset(v, 0, sizeof *v);
     v->line = l->line;
     tl_blank(l, 0);
@@ -1972,12 +1972,12 @@ static void tl_value(struct tlex *l, struct tval *v) {
     }
 }
 // a line where reading goes on after a mistake: one that starts a key, a record's end (}) - or an old [section] / ; comment
-static int tl_stop_line(const char *t) {
+internal int tl_stop_line(const char *t) {
     if (tl_key_line(t)) return 1;
     while (*t == ' ' || *t == '\t') t++;
     return *t == '}' || *t == '[' || *t == ';';
 }
-static int tl_line_end(struct tlex *l, const char *what) {   // nothing more on the line but a comment; 0: a mistake told
+internal int tl_line_end(struct tlex *l, const char *what) {   // nothing more on the line but a comment; 0: a mistake told
     tl_blank(l, 0);
     if (*l->s == '#') while (*l->s && *l->s != '\n') l->s++;
     if (*l->s && *l->s != '\n') { tl_error(l, what); return 0; }
@@ -1986,9 +1986,9 @@ static int tl_line_end(struct tlex *l, const char *what) {   // nothing more on 
 // read a text file: fn(arg, record, key, value) for every key - record "" for a name outside the records, and the
 // declarations include("a.eeai", ...) as the key "include" with the list ["a.eeai", ...], register_personality() as
 // the key "register_personality" ([]); mistakes logged with the file and line, their keys skipped
-static int tl_declaration(const char *key) { return !strcmp(key, "include") || !strcmp(key, "register_personality"); }
+internal int tl_declaration(const char *key) { return !strcmp(key, "include") || !strcmp(key, "register_personality"); }
 typedef void (*tfile_fn)(void *arg, const char *record, const char *key, struct tval *v, struct tlex *l);
-static void tfile_parse(const char *file, const char *text, tfile_fn fn, void *arg) {
+internal void tfile_parse(const char *file, const char *text, tfile_fn fn, void *arg) {
     struct tlex l = { text, file, 1, 0 };
     char record[48] = "";   // the record being read: name = { ... }
     int record_line = 0;

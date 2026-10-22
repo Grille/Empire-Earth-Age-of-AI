@@ -29,7 +29,7 @@ FORMAT_HELP = [   # the rest is in README.md
 ]
 
 aud = {'A_ALL': 'everyone', 'A_ALLIES': 'its allies', 'A_NAME': '{them} only'}
-fb = re.search(r'static int line_fallback\(int k\) \{(.*?)\n\}', pers, re.S).group(1)
+fb = re.search(r'internal int line_fallback\(int k\) \{(.*?)\n\}', pers, re.S).group(1)
 fallback = {a.lower(): b.lower() for a, b in re.findall(r'case L_(\w+): return L_(\w+);', fb)}
 
 out = []

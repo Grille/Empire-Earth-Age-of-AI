@@ -4,12 +4,12 @@
 // thread re-applies the debug registers to every thread of the process every 20 ms, which also catches
 // threads created later. Included by eeaimod.c.
 
-static uintptr_t g_watch_addr;
-static int g_watch_len = 1;
-static volatile LONG g_watch_hits;
+internal uintptr_t g_watch_addr;
+internal int g_watch_len = 1;
+internal volatile LONG g_watch_hits;
 #define WATCH_MAX_HITS 20000
 
-static LONG CALLBACK watch_handler(EXCEPTION_POINTERS *ep) {
+internal LONG CALLBACK watch_handler(EXCEPTION_POINTERS *ep) {
     if (ep->ExceptionRecord->ExceptionCode != EXCEPTION_SINGLE_STEP) return EXCEPTION_CONTINUE_SEARCH;
     CONTEXT *c = ep->ContextRecord;
     if (!(c->Dr6 & 1)) return EXCEPTION_CONTINUE_SEARCH;
@@ -37,7 +37,7 @@ static LONG CALLBACK watch_handler(EXCEPTION_POINTERS *ep) {
     return EXCEPTION_CONTINUE_EXECUTION;
 }
 
-static void watch_apply_all(DWORD self) {
+internal void watch_apply_all(DWORD self) {
     HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
     if (snap == INVALID_HANDLE_VALUE) return;
     THREADENTRY32 te = { .dwSize = sizeof te };
@@ -62,7 +62,7 @@ static void watch_apply_all(DWORD self) {
     CloseHandle(snap);
 }
 
-static DWORD WINAPI watch_thread(LPVOID unused) {
+internal DWORD WINAPI watch_thread(LPVOID unused) {
     (void)unused;
     DWORD self = GetCurrentThreadId();
     for (;;) {
@@ -72,7 +72,7 @@ static DWORD WINAPI watch_thread(LPVOID unused) {
 }
 
 // Start or move the watchpoint at runtime (control command "watch <hexaddr> [len]").
-static void watch_set(uintptr_t addr, int len) {
+internal void watch_set(uintptr_t addr, int len) {
     static int started;
     g_watch_len = (len == 2 || len == 4) ? len : 1;
     g_watch_addr = addr & ~(uintptr_t)(g_watch_len - 1);
@@ -87,7 +87,7 @@ static void watch_set(uintptr_t addr, int len) {
 
 // Experimental byte patches from the autotest ini: patch1..patch16 = <hexaddr>:<original hex>:<new hex>.
 // Applied only when the original bytes match, so a wrong address can't corrupt code.
-static void apply_ini_patches(const char *ini) {
+internal void apply_ini_patches(const char *ini) {
     for (int i = 1; i <= 16; i++) {
         char key[16], val[160];
         wsprintfA(key, "patch%d", i);
@@ -114,7 +114,7 @@ static void apply_ini_patches(const char *ini) {
     }
 }
 
-static void watch_start(const char *ini) {
+internal void watch_start(const char *ini) {
     apply_ini_patches(ini);
     char buf[32];
     GetPrivateProfileStringA("autotest", "watch", "", buf, sizeof buf, ini);
@@ -134,12 +134,12 @@ static void watch_start(const char *ini) {
 // the old cap of 8 lines before the real crash came). Everything under g_lock with static buffers: a stack overflow
 // (0xC00000FD) leaves the handler a few KB of stack - for it one short line without formatting functions.
 #define CRASH_SITES 8
-static uintptr_t g_crash_eip[CRASH_SITES];
-static int g_crash_n;
-static char g_crash_line[2400], g_crash_at[160], g_crash_path[MAX_PATH];
-static uintptr_t g_crash_words[256];
+internal uintptr_t g_crash_eip[CRASH_SITES];
+internal int g_crash_n;
+internal char g_crash_line[2400], g_crash_at[160], g_crash_path[MAX_PATH];
+internal uintptr_t g_crash_words[256];
 
-static void crash_addr(char *buf, size_t cap, uintptr_t a) {
+internal void crash_addr(char *buf, size_t cap, uintptr_t a) {
     HMODULE hm = NULL;
     if (GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
                            (LPCSTR)a, &hm) && GetModuleFileNameA(hm, g_crash_path, sizeof g_crash_path)) {
@@ -148,12 +148,12 @@ static void crash_addr(char *buf, size_t cap, uintptr_t a) {
     } else snprintf(buf, cap, "%08lx", (unsigned long)a);
 }
 
-static char *crash_hex(char *p, uint32_t v) {   // 8 hex digits, no library call (stack overflow path)
+internal char *crash_hex(char *p, uint32_t v) {   // 8 hex digits, no library call (stack overflow path)
     for (int s = 28; s >= 0; s -= 4) *p++ = "0123456789abcdef"[(v >> s) & 15];
     return p;
 }
 
-static LONG CALLBACK crash_handler(EXCEPTION_POINTERS *ep) {
+internal LONG CALLBACK crash_handler(EXCEPTION_POINTERS *ep) {
     DWORD code = ep->ExceptionRecord->ExceptionCode;
     if ((code & 0xF0000000) != 0xC0000000)   // errors only (an island run ended with 0xC0000002 and no log line)
         return EXCEPTION_CONTINUE_SEARCH;

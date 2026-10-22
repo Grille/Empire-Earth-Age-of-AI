@@ -6,11 +6,11 @@
 // number expected, out of range) is logged with file, section and key, and the key keeps its default - never read
 // half (GetPrivateProfileInt took the digits in front: 25% as 25, 0.35 as 0). Missing or empty: the default. An
 // inline comment (; to the line's end) is cut off. Included by eeaimod.c before everything that reads a setting.
-static int (*g_ini_eval)(const char *src, double *out, const char **why);   // the text language's x_const_eval (eeaimod.c install)
+internal int (*g_ini_eval)(const char *src, double *out, const char **why);   // the text language's x_const_eval (eeaimod.c install)
 
-static char g_ini_pending[8][200];   // mistakes found before the log is open (load_autotest): written when it opens
-static int g_ini_npending;
-static void ini_error(const char *file, const char *sec, const char *key, const char *val, const char *why) {
+internal char g_ini_pending[8][200];   // mistakes found before the log is open (load_autotest): written when it opens
+internal int g_ini_npending;
+internal void ini_error(const char *file, const char *sec, const char *key, const char *val, const char *why) {
     const char *name = strrchr(file, '\\');
     char line[200];
     snprintf(line, sizeof line, "%s [%s] %s=%.40s: %s - the default instead", name ? name + 1 : file, sec, key, val, why);
@@ -23,12 +23,12 @@ static void ini_error(const char *file, const char *sec, const char *key, const 
     if (g_log) { fprintf(g_log, "# ini: %s\n", line); fflush(g_log); }
     else if (g_ini_npending < 8) lstrcpynA(g_ini_pending[g_ini_npending++], line, sizeof g_ini_pending[0]);
 }
-static void ini_flush(void) {   // the log just opened
+internal void ini_flush(void) {   // the log just opened
     for (int i = 0; i < g_ini_npending && g_log; i++) fprintf(g_log, "# ini: %s\n", g_ini_pending[i]);
     g_ini_npending = 0;
 }
 // the raw text of a key (out, cap); 0: not there or empty
-static int ini_raw(const char *sec, const char *key, const char *file, char *out, int cap) {
+internal int ini_raw(const char *sec, const char *key, const char *file, char *out, int cap) {
     GetPrivateProfileStringA(sec, key, "\x01", out, (DWORD)cap, file);
     char *c = strchr(out, ';');   // an inline comment
     if (c) *c = 0;
@@ -36,13 +36,13 @@ static int ini_raw(const char *sec, const char *key, const char *file, char *out
     return out[0] && out[0] != '\x01';
 }
 // v worked out; 0: a mistake (told)
-static int ini_eval(const char *file, const char *sec, const char *key, const char *v, double *out) {
+internal int ini_eval(const char *file, const char *sec, const char *key, const char *v, double *out) {
     const char *why = NULL;
     if (g_ini_eval(v, out, &why)) return 1;
     ini_error(file, sec, key, v, why ? why : "a number expected");
     return 0;
 }
-static int ini_whole(const char *file, const char *sec, const char *key, const char *v, double x, int *out) {
+internal int ini_whole(const char *file, const char *sec, const char *key, const char *v, double x, int *out) {
     if (x != (double)(long long)x || x < -2147483647.0 || x > 2147483647.0) {
         ini_error(file, sec, key, v, "a whole number expected (a share of a whole number: round(...))");
         return 0;
@@ -51,7 +51,7 @@ static int ini_whole(const char *file, const char *sec, const char *key, const c
     return 1;
 }
 // a whole number - GetPrivateProfileInt's replacement
-static int ini_int(const char *sec, const char *key, int def, const char *file) {
+internal int ini_int(const char *sec, const char *key, int def, const char *file) {
     char v[128];
     double x;
     int r;
@@ -59,7 +59,7 @@ static int ini_int(const char *sec, const char *key, int def, const char *file) 
     return r;
 }
 // a share kept as whole percents (navy_share=25% -> 25), 0% .. max_pct%
-static int ini_pct_of(const char *file, const char *sec, const char *key, const char *v, int def, int max_pct) {
+internal int ini_pct_of(const char *file, const char *sec, const char *key, const char *v, int def, int max_pct) {
     double x;
     if (!ini_eval(file, sec, key, v, &x)) return def;
     if (!(x >= 0 && x * 100 <= max_pct + 1e-9)) {
@@ -70,12 +70,12 @@ static int ini_pct_of(const char *file, const char *sec, const char *key, const 
     }
     return (int)(x * 100 + 0.5);
 }
-static int ini_pct(const char *sec, const char *key, int def, int max_pct, const char *file) {
+internal int ini_pct(const char *sec, const char *key, int def, int max_pct, const char *file) {
     char v[128];
     return ini_raw(sec, key, file, v, sizeof v) ? ini_pct_of(file, sec, key, v, def, max_pct) : def;
 }
 // a share kept as it is (home_guard_share=35% -> 0.35), lo .. hi
-static double ini_share_of(const char *file, const char *sec, const char *key, const char *v, double def, double lo, double hi) {
+internal double ini_share_of(const char *file, const char *sec, const char *key, const char *v, double def, double lo, double hi) {
     double x;
     if (!ini_eval(file, sec, key, v, &x)) return def;
     if (!(x >= lo && x <= hi)) {
@@ -87,7 +87,7 @@ static double ini_share_of(const char *file, const char *sec, const char *key, c
     return x;
 }
 // any number (autotest speed=7.5)
-static double ini_num(const char *sec, const char *key, double def, const char *file) {
+internal double ini_num(const char *sec, const char *key, double def, const char *file) {
     char v[128];
     double x;
     return ini_raw(sec, key, file, v, sizeof v) && ini_eval(file, sec, key, v, &x) ? x : def;

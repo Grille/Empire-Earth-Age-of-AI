@@ -53,46 +53,46 @@
 
 #define LLM_JOBS 16
 #define LLM_MAXLEN 220
-static int g_llm_on, g_llm_lines = 1, g_llm_chat = 1, g_llm_timeout = 20, g_llm_max_tokens = 300, g_llm_log = 1;
-static int g_llm_temp = 80;   // temperature x100
+internal int g_llm_on, g_llm_lines = 1, g_llm_chat = 1, g_llm_timeout = 20, g_llm_max_tokens = 300, g_llm_log = 1;
+internal int g_llm_temp = 80;   // temperature x100
 // think=0 (default): "reasoning_effort":"none" - a reasoning model answers at once (LM Studio, Orion-26B-A4B: 4 s
 // instead of 15 s of thinking that ran into max_tokens with an empty answer); a server that refuses the field (HTTP
 // 400/422 naming it) gets the request again without it, and from then on none
-static int g_llm_think;
-static volatile LONG g_llm_effort_refused;
+internal int g_llm_think;
+internal volatile LONG g_llm_effort_refused;
 #define LLM_NO_THINK ",\"reasoning_effort\":\"none\""
-static char g_llm_url[256] = "http://localhost:1234/v1/chat/completions", g_llm_model[96], g_llm_key[128], g_llm_extra[256];
-static WCHAR g_llm_host[128], g_llm_path[256];
-static INTERNET_PORT g_llm_port;
-static int g_llm_https;
-static HANDLE g_llm_event, g_llm_thread;
-static volatile LONG g_llm_gen;                 // a new game: jobs of the last one are dropped
-static volatile DWORD g_llm_down_until;         // GetTickCount: the server failed, fixed lines until then
-static volatile LONG g_llm_fail_note;           // tell the player (llm_tick): 1 the worker can't connect, 2 one answer failed
-static int g_llm_told, g_llm_told_fail;         // told this game: that it can't connect, that an answer failed
-static int g_llm_off_told;                      // single player, AI voice off: told once per game that nobody reads
-static unsigned g_llm_seq;
-static unsigned g_llm_n_ok, g_llm_n_fail, g_llm_n_fixed, g_llm_n_late;
-static int g_llm_decide;                        // [llm] decide
+internal char g_llm_url[256] = "http://localhost:1234/v1/chat/completions", g_llm_model[96], g_llm_key[128], g_llm_extra[256];
+internal WCHAR g_llm_host[128], g_llm_path[256];
+internal INTERNET_PORT g_llm_port;
+internal int g_llm_https;
+internal HANDLE g_llm_event, g_llm_thread;
+internal volatile LONG g_llm_gen;                 // a new game: jobs of the last one are dropped
+internal volatile DWORD g_llm_down_until;         // GetTickCount: the server failed, fixed lines until then
+internal volatile LONG g_llm_fail_note;           // tell the player (llm_tick): 1 the worker can't connect, 2 one answer failed
+internal int g_llm_told, g_llm_told_fail;         // told this game: that it can't connect, that an answer failed
+internal int g_llm_off_told;                      // single player, AI voice off: told once per game that nobody reads
+internal unsigned g_llm_seq;
+internal unsigned g_llm_n_ok, g_llm_n_fail, g_llm_n_fixed, g_llm_n_late;
+internal int g_llm_decide;                        // [llm] decide
 // [llm] fallback=pause (single player): a model that can't be reached or doesn't answer in time gets no fixed line
 // or rules decision in its place - the game pauses (llm_wait_tick) while the worker tries again every 5 s, and runs
 // on when it answers. The player may resume it: then it plays on while the answers still come (no pause again until
 // they have). fallback=rules (default): the fixed lines and the rules.
-static int g_llm_wait;
-static volatile LONG g_llm_unreach;             // fallback=pause: the worker can't reach the server (trying again)
-static int g_llm_paused;                        // 1 the game paused for the model, 2 the player resumed it meanwhile
-static DWORD g_llm_paused_t;
+internal int g_llm_wait;
+internal volatile LONG g_llm_unreach;             // fallback=pause: the worker can't reach the server (trying again)
+internal int g_llm_paused;                        // 1 the game paused for the model, 2 the player resumed it meanwhile
+internal DWORD g_llm_paused_t;
 // [llm] constrained=0: the model's steps are limited only by the game - peace whenever at war (no pride, no ally's
 // veto), war on any ally at once (its lord too: a vassal rebels), a vassal's own diplomacy, tributes of everything it
 // has whenever it likes. Silly things may happen. 1 (default): the rules' limits (tool_peace_ok ...)
-static int g_llm_constrained = 1;
-static int llm_waits(void) { return g_llm_wait && !g_mp; }
-static int g_llm_rules;                         // the rules decide in the model's place (no answer): no new request
-static int g_llm_bypass;                        // a fixed line for a decision: shown as it is, not reworded
-static uint32_t g_llm_paid_t[16];               // the AI's last tribute by tool (game time)
-static unsigned g_llm_n_dec, g_llm_n_acts;
+internal int g_llm_constrained = 1;
+internal int llm_waits(void) { return g_llm_wait && !g_mp; }
+internal int g_llm_rules;                         // the rules decide in the model's place (no answer): no new request
+internal int g_llm_bypass;                        // a fixed line for a decision: shown as it is, not reworded
+internal uint32_t g_llm_paid_t[16];               // the AI's last tribute by tool (game time)
+internal unsigned g_llm_n_dec, g_llm_n_acts;
 enum { TOOL_PEACE = 1, TOOL_WAR = 2, TOOL_TRIBUTE = 4, TOOL_REFUSE = 8, TOOL_CAPIT = 16 };
-static char g_llm_last_err[160];
+internal char g_llm_last_err[160];
 
 enum { J_FREE, J_QUEUED, J_RUNNING, J_DONE, J_FAILED };
 struct llm_job {
@@ -118,21 +118,21 @@ struct llm_job {
     int confirm;         // AI DECIDE: asked again for its decision (it answered an offer without a tool): words not shown
 };
 #define SET_STATE(j, s) InterlockedExchange(&(j)->state, (s))
-static struct llm_job g_llm_jobs[LLM_JOBS];
+internal struct llm_job g_llm_jobs[LLM_JOBS];
 
 // AI TALK state: each pair's messages ([lo][hi], who = the speaker; who >= 16: the event that opened an exchange, in
 // the third person), the exchange running, openers waiting
-static int g_llm_ai_talk, g_llm_talk_show = 1, g_llm_talk_gap = 60, g_llm_talk_turns = 4, g_llm_ai_decide, g_llm_equal;
+internal int g_llm_ai_talk, g_llm_talk_show = 1, g_llm_talk_gap = 60, g_llm_talk_turns = 4, g_llm_ai_decide, g_llm_equal;
 
-static uint32_t g_pair_last[16][16];   // [lo][hi]: the pair's last request (game time) - events then open no other talk
-static unsigned g_talk_n_acts;
+internal uint32_t g_pair_last[16][16];   // [lo][hi]: the pair's last request (game time) - events then open no other talk
+internal unsigned g_talk_n_acts;
 // THE MEMORIES ([llm] memory, default 8; 0 none, no upper limit): the AI's exchange with the local player and each
 // pair's talks, the last <memory> entries in order - chat, lines and events together, as they happened. Grown as they
 // fill (a long memory costs only where it is used); kept in the saved game's state file (llm_mem_save / persist.c).
 #define MEM_LEN (LLM_MAXLEN + 32)
 struct mem { int n, cap; uint8_t *kind; char (*text)[MEM_LEN]; };
-static int g_llm_memory = 8;
-static void mem_add(struct mem *m, int kind, const char *text) {
+internal int g_llm_memory = 8;
+internal void mem_add(struct mem *m, int kind, const char *text) {
     if (g_llm_memory <= 0 || !*text) return;
     if (m->n >= g_llm_memory) {   // full: the oldest goes
         int drop = m->n - g_llm_memory + 1;
@@ -156,18 +156,18 @@ static void mem_add(struct mem *m, int kind, const char *text) {
 // [llm] memory_mode=player: one memory per AI instead - all its exchanges, with the local player and with every AI, and
 // its events, in the order they happened; kind = role << 4 | the other player (0 they wrote, 1 it said, 2 an event
 // between them, 3 the event that opened an AI talk, in the third person). The pair memories stay empty then.
-static int g_llm_mem_player;
-static struct mem g_self_hist[16];
-static void self_add(int ai, int role, int other, const char *text) {
+internal int g_llm_mem_player;
+internal struct mem g_self_hist[16];
+internal void self_add(int ai, int role, int other, const char *text) {
     if (ai < 1 || ai > 15 || other < 0 || other > 15 || !g_players[ai]) return;   // only the AIs remember
     mem_add(&g_self_hist[ai], role << 4 | other, text);
 }
-static struct mem g_pair_hist[16][16];   // [lo][hi]: kind = the speaker, 16+ the event that opened an exchange
-static struct { int a, b, turn; uint32_t t; } g_talk;   // a 0: none running
-static struct { int a, b; char sit[400], ev[400], fixed[256]; uint32_t t; } g_talk_wait[4];
-static uint32_t g_talk_started;   // game time the last exchange started
-static unsigned g_talk_n_ex, g_talk_n_msg, g_talk_n_fail, g_talk_n_drop;
-static void pair_add(int a, int b, int who, const char *text) {
+internal struct mem g_pair_hist[16][16];   // [lo][hi]: kind = the speaker, 16+ the event that opened an exchange
+internal struct { int a, b, turn; uint32_t t; } g_talk;   // a 0: none running
+internal struct { int a, b; char sit[400], ev[400], fixed[256]; uint32_t t; } g_talk_wait[4];
+internal uint32_t g_talk_started;   // game time the last exchange started
+internal unsigned g_talk_n_ex, g_talk_n_msg, g_talk_n_fail, g_talk_n_drop;
+internal void pair_add(int a, int b, int who, const char *text) {
     if (g_llm_mem_player) {   // in both memories, each from its side
         if (who >= 16) { self_add(a, 3, b, text); self_add(b, 3, a, text); }
         else { int o = who == a ? b : a; self_add(who, 1, o, text); self_add(o, 0, who, text); }
@@ -180,11 +180,11 @@ static void pair_add(int a, int b, int who, const char *text) {
 
 // the AI's exchange with the local player: his chat lines (role 0, user), its lines to him (1, assistant) and events
 // between them (2: tributes, declarations, its decisions - a user message in brackets)
-static struct mem g_llm_hist[16];   // kind = the role
-static int g_llm_last_ai;                       // the AI that last said something to the local player
-static uint32_t g_llm_last_t;
+internal struct mem g_llm_hist[16];   // kind = the role
+internal int g_llm_last_ai;                       // the AI that last said something to the local player
+internal uint32_t g_llm_last_t;
 
-static void llm_hist_add(int ai, int role, const char *text) {
+internal void llm_hist_add(int ai, int role, const char *text) {
     if (ai < 0 || ai > 15) return;
     if (g_llm_mem_player) { self_add(ai, role, (int)(*(unsigned *)GA(G_LOCAL_PLAYER) & 15), text); return; }
     mem_add(&g_llm_hist[ai], role, text);
@@ -192,10 +192,10 @@ static void llm_hist_add(int ai, int role, const char *text) {
 // the memories for the saved game: records {0 = with the local player / 1 = a pair / 2 = an AI's own (memory_mode=player),
 // a, b, count (4 bytes)} then each entry {kind, length, text} - malloc'd, *size its length (NULL: nothing to keep)
 #define MEM_RECS (16 * 17 + 16)
-static struct mem *mem_rec(int i) {   // record i: 0..15 with the local player, then the pairs, then the AIs' own
+internal struct mem *mem_rec(int i) {   // record i: 0..15 with the local player, then the pairs, then the AIs' own
     return i < 16 ? &g_llm_hist[i] : i < 16 * 17 ? &g_pair_hist[(i - 16) / 16][(i - 16) % 16] : &g_self_hist[i - 16 * 17];
 }
-static uint8_t *llm_mem_save(uint32_t *size) {
+internal uint8_t *llm_mem_save(uint32_t *size) {
     uint32_t cap = 0, o = 0;
     for (int i = 0; i < MEM_RECS; i++) {
         const struct mem *m = mem_rec(i);
@@ -224,7 +224,7 @@ static uint8_t *llm_mem_save(uint32_t *size) {
     *size = o;
     return p;
 }
-static void llm_mem_load(const uint8_t *p, uint32_t size) {   // (after llm_new_game emptied them)
+internal void llm_mem_load(const uint8_t *p, uint32_t size) {   // (after llm_new_game emptied them)
     uint32_t o = 0;
     int entries = 0;
     while (o + 7 <= size) {
@@ -248,7 +248,7 @@ static void llm_mem_load(const uint8_t *p, uint32_t size) {   // (after llm_new_
     if (g_log) fprintf(g_log, "# llm: memories restored, %d entries (memory %d)\n", entries, g_llm_memory);
 }
 
-static void llm_new_game(void) {
+internal void llm_new_game(void) {
     InterlockedIncrement(&g_llm_gen);
     for (int i = 0; i < 16; i++) g_llm_hist[i].n = 0;   // (their room stays for the next game)
     g_llm_last_ai = 0;
@@ -264,7 +264,7 @@ static void llm_new_game(void) {
     g_talk_started = 0;
 }
 // an event between AI ai and the local player, for the model's memory of the exchange
-static void llm_happened(int ai, const char *fmt, ...) {
+internal void llm_happened(int ai, const char *fmt, ...) {
     if (!g_llm_on || ai < 1 || ai > 15) return;
     char t[LLM_MAXLEN + 32];
     va_list ap;
@@ -276,7 +276,7 @@ static void llm_happened(int ai, const char *fmt, ...) {
 
 // ---- JSON out: a growing buffer; strings in the game's code page, written as ASCII (\u escapes) ----
 struct sbuf { char *p; size_t n, cap; };
-static void sb_put(struct sbuf *b, const char *s, size_t n) {
+internal void sb_put(struct sbuf *b, const char *s, size_t n) {
     if (b->n + n + 1 > b->cap) {
         size_t c = b->cap ? b->cap * 2 : 4096;
         while (c < b->n + n + 1) c *= 2;
@@ -289,8 +289,8 @@ static void sb_put(struct sbuf *b, const char *s, size_t n) {
     b->n += n;
     b->p[b->n] = 0;
 }
-static void sb_puts(struct sbuf *b, const char *s) { sb_put(b, s, strlen(s)); }
-static PRINTF_LIKE(2, 3) void sb_printf(struct sbuf *b, const char *fmt, ...) {
+internal void sb_puts(struct sbuf *b, const char *s) { sb_put(b, s, strlen(s)); }
+internal PRINTF_LIKE(2, 3) void sb_printf(struct sbuf *b, const char *fmt, ...) {
     char t[1024];
     va_list ap;
     va_start(ap, fmt);
@@ -298,7 +298,7 @@ static PRINTF_LIKE(2, 3) void sb_printf(struct sbuf *b, const char *fmt, ...) {
     va_end(ap);
     if (n > 0) sb_put(b, t, (size_t)n < sizeof t ? (size_t)n : sizeof t - 1);
 }
-static void sb_json(struct sbuf *b, const char *acp) {   // a JSON string literal
+internal void sb_json(struct sbuf *b, const char *acp) {   // a JSON string literal
     int n = MultiByteToWideChar(CP_ACP, 0, acp, -1, NULL, 0);
     WCHAR *w = n > 0 ? malloc((size_t)n * sizeof *w) : NULL;
     sb_puts(b, "\"");
@@ -313,14 +313,14 @@ static void sb_json(struct sbuf *b, const char *acp) {   // a JSON string litera
     free(w);
     sb_puts(b, "\"");
 }
-static void sb_msg(struct sbuf *b, const char *role, const char *text) {
+internal void sb_msg(struct sbuf *b, const char *role, const char *text) {
     sb_printf(b, "%s{\"role\":\"%s\",\"content\":", b->p && b->p[b->n - 1] == '}' ? "," : "", role);
     sb_json(b, text);
     sb_puts(b, "}");
 }
 
 // ---- JSON in: the first "content" string after "choices" (OpenAI chat answer), as UTF-16 ----
-static int hex4(const char *s) {   // -1: not 4 hex digits (an answer that ends inside one: not read past its end)
+internal int hex4(const char *s) {   // -1: not 4 hex digits (an answer that ends inside one: not read past its end)
     int v = 0;
     for (int i = 0; i < 4; i++) {
         char c = s[i];
@@ -331,7 +331,7 @@ static int hex4(const char *s) {   // -1: not 4 hex digits (an answer that ends 
     return v;
 }
 // the value of "key" in the answer (the first one), past the colon - NULL: not there
-static const char *json_value(const char *resp, const char *key) {
+internal const char *json_value(const char *resp, const char *key) {
     char k[48];
     snprintf(k, sizeof k, "\"%s\"", key);
     const char *s = strstr(resp, k);
@@ -342,7 +342,7 @@ static const char *json_value(const char *resp, const char *key) {
     while (*s == ' ' || *s == '\t' || *s == '\r' || *s == '\n') s++;
     return s;
 }
-static int json_content(const char *resp, WCHAR *out, int cap) {
+internal int json_content(const char *resp, WCHAR *out, int cap) {
     const char *s = strstr(resp, "\"choices\"");
     s = s ? strstr(s, "\"content\"") : NULL;
     if (!s) return 0;
@@ -384,8 +384,8 @@ static int json_content(const char *resp, WCHAR *out, int cap) {
 
 // ---- tool calls: in "tool_calls" (OpenAI), else written into the content ({"name": ..., "arguments": ...}, also
 // inside <tool_call> markup - some servers pass a model's call on as text). Names and argument numbers, escaped or not.
-static const char *const k_tool_name[5] = { "make_peace", "declare_war", "send_tribute", "refuse_offer", "capitulate" };
-static int json_num_key(const char *s, const char *end, const char *key) {   // "key": 123 (or \"key\": 123), else 0
+internal const char *const k_tool_name[5] = { "make_peace", "declare_war", "send_tribute", "refuse_offer", "capitulate" };
+internal int json_num_key(const char *s, const char *end, const char *key) {   // "key": 123 (or \"key\": 123), else 0
     size_t kl = strlen(key);
     for (const char *p = s; p && p < end; p++) {
         p = strstr(p, key);
@@ -400,7 +400,7 @@ static int json_num_key(const char *s, const char *end, const char *key) {   // 
     }
     return 0;
 }
-static void json_tools(const char *resp, struct llm_job *j) {
+internal void json_tools(const char *resp, struct llm_job *j) {
     const char *s = strstr(resp, "\"choices\""), *end;
     if (!s) return;
     const char *tc = strstr(s, "\"tool_calls\"");
@@ -441,7 +441,7 @@ static void json_tools(const char *resp, struct llm_job *j) {
 
 // the answer as a chat line: no reasoning, no *actions*, no quotes or name prefix, one line, at most LLM_MAXLEN
 // characters, in the game's code page
-static void llm_clean(const WCHAR *in, const char *speaker, char *out, int cap) {
+internal void llm_clean(const WCHAR *in, const char *speaker, char *out, int cap) {
     const WCHAR *think = wcsstr(in, L"</think>");
     if (think) in = think + 8;
     WCHAR w[1024];
@@ -486,19 +486,19 @@ static void llm_clean(const WCHAR *in, const char *speaker, char *out, int cap) 
 }
 
 // ---- the worker: one request at a time ----
-static void llm_fail(struct llm_job *j, const char *what, DWORD err, int down) {
+internal void llm_fail(struct llm_job *j, const char *what, DWORD err, int down) {
     snprintf(g_llm_last_err, sizeof g_llm_last_err, "%s (error %lu)", what, err);
     if (down) { g_llm_down_until = GetTickCount() + 60000; InterlockedExchange(&g_llm_fail_note, 1); }
     SET_STATE(j, J_FAILED);
 }
 // fallback=pause: a server that can't be reached or doesn't answer is tried again (llm_post) instead of failing
-static int llm_retry(struct llm_job *j, const char *what, DWORD err) {
+internal int llm_retry(struct llm_job *j, const char *what, DWORD err) {
     if (!llm_waits() || j->gen != g_llm_gen) return 0;
     snprintf(g_llm_last_err, sizeof g_llm_last_err, "%s (error %lu)", what, err);
     InterlockedExchange(&g_llm_unreach, 1);
     return 1;
 }
-static void llm_post(struct llm_job *j, DWORD wait_ms) {
+internal void llm_post(struct llm_job *j, DWORD wait_ms) {
     DWORD limit = (DWORD)g_llm_timeout * 1000u, t = GetTickCount();
     int retry = 0;
 again:
@@ -610,7 +610,7 @@ done:
         goto again;
     }
 }
-static DWORD WINAPI llm_worker(void *arg) {
+internal DWORD WINAPI llm_worker(void *arg) {
     (void)arg;
     for (;;) {
         WaitForSingleObject(g_llm_event, 1000);
@@ -631,7 +631,7 @@ static DWORD WINAPI llm_worker(void *arg) {
 }
 
 // ---- requests (game thread) ----
-static const char *llm_language(void) {
+internal const char *llm_language(void) {
     static const char *const k[][2] = { { "de", "German" }, { "fr", "French" }, { "es", "Spanish" }, { "it", "Italian" },
         { "pt", "Portuguese" }, { "pl", "Polish" }, { "ru", "Russian" }, { "cs", "Czech" }, { "zh", "Chinese" },
         { "ko", "Korean" }, { "ja", "Japanese" } };
@@ -641,20 +641,20 @@ static const char *llm_language(void) {
 // what situation k is, for pl's model (prompt sit_<line key>); in the third person for both sides of a talk between
 // AIs (pair_<line key>; in the speaker's words "has betrayed you" the other's model took the betrayal for its own) -
 // NULL where there is none; *vars: the names to fill it with (tpl_find)
-static const char *llm_situation(ee_player *pl, int k, const struct xvars **vars) {
+internal const char *llm_situation(ee_player *pl, int k, const struct xvars **vars) {
     char key[64];
     wsprintfA(key, "sit_%s", k_lines[k].key);
     if (tpl_key(key) >= 0) return tpl_find(pl, key, vars);
     *vars = &g_prompt.vars;
     return k_lines[k].key;
 }
-static const char *llm_event3(ee_player *pl, int k, const struct xvars **vars) {
+internal const char *llm_event3(ee_player *pl, int k, const struct xvars **vars) {
     char key[64];
     wsprintfA(key, "pair_%s", k_lines[k].key);
     return tpl_key(key) >= 0 ? tpl_find(pl, key, vars) : NULL;
 }
 // append to t (cap bytes, *o used): never past the end, however long the names and lines are
-static PRINTF_LIKE(4, 5) void tcat(char *t, int *o, int cap, const char *fmt, ...) {
+internal PRINTF_LIKE(4, 5) void tcat(char *t, int *o, int cap, const char *fmt, ...) {
     if (*o >= cap - 1) return;
     va_list ap;
     va_start(ap, fmt);
@@ -663,10 +663,10 @@ static PRINTF_LIKE(4, 5) void tcat(char *t, int *o, int cap, const char *fmt, ..
     if (n > 0) *o += n < cap - 1 - *o ? n : cap - 1 - *o;
 }
 // the system message: who the AI is, how it talks, the rules, and the game as it stands for the listener h
-static int llm_deciding(void);
-static int llm_ai_deciding(void);
+internal int llm_deciding(void);
+internal int llm_ai_deciding(void);
 // tools: -1 a line (no decision), else the TOOL_ bits offered with this request (decide mode)
-static void llm_system(struct sbuf *b, ee_player *pl, int ai, int h, int tools) {
+internal void llm_system(struct sbuf *b, ee_player *pl, int ai, int h, int tools) {
     int decide = tools >= 0 && (g_players[h & 15] ? llm_ai_deciding() : llm_deciding());
     struct persona *p = persona_of(pl);
     char t[4096];
@@ -728,7 +728,7 @@ static void llm_system(struct sbuf *b, ee_player *pl, int ai, int h, int tools) 
 }
 // memory_mode=player: AI ai's memory for a request to other - their exchange as in the other modes (its words the
 // assistant's, theirs and the events user messages), all else in between as notes (mem_heard, mem_said, mem_event)
-static void self_history(struct sbuf *b, int ai, int other) {
+internal void self_history(struct sbuf *b, int ai, int other) {
     void *pa = player_at(ai), *po = player_at(other);
     const struct mem *m = &g_self_hist[ai];
     for (int i = 0; i < m->n; i++) {
@@ -750,7 +750,7 @@ static void self_history(struct sbuf *b, int ai, int other) {
         sb_msg(b, "user", u);
     }
 }
-static void llm_history(struct sbuf *b, int ai) {   // his lines framed with his name (whose "my" it is)
+internal void llm_history(struct sbuf *b, int ai) {   // his lines framed with his name (whose "my" it is)
     ee_player *pl = player_at(ai), *ph = player_at((int)*(unsigned *)GA(G_LOCAL_PLAYER));
     if (g_llm_mem_player) { self_history(b, ai, (int)(*(unsigned *)GA(G_LOCAL_PLAYER) & 15)); return; }
     for (int i = 0; i < g_llm_hist[ai].n; i++) {
@@ -766,13 +766,13 @@ static void llm_history(struct sbuf *b, int ai) {   // his lines framed with his
     }
 }
 // the tools offered (TOOL_ bits), for player h
-static void sb_tool(struct sbuf *b, const char *name, const char *desc, const char *params) {
+internal void sb_tool(struct sbuf *b, const char *name, const char *desc, const char *params) {
     sb_printf(b, "%s{\"type\":\"function\",\"function\":{\"name\":\"%s\",\"description\":", b->p[b->n - 1] == '[' ? "" : ",", name);
     sb_json(b, desc);
     sb_printf(b, ",\"parameters\":%s}}", params);
 }
 // AI DECIDE: h's offer to AI ai stands and ai may take it - 0 an alliance, 1 a capitulation; -1 none
-static int pair_accept(int ai, int h) {
+internal int pair_accept(int ai, int h) {
     ee_player *pl = player_at(ai), *ph = player_at(h);
     if (!pl || !ph || is_out(pl) || is_out(ph) || !g_offer_t[h][ai] || g_offer_kind[h][ai] > 1 || (g_llm_constrained && is_vassal(ai))) return -1;
     g_veto_quiet = 1;
@@ -780,7 +780,7 @@ static int pair_accept(int ai, int h) {
     g_veto_quiet = 0;
     return veto ? -1 : g_offer_kind[h][ai];
 }
-static void sb_tools(struct sbuf *b, int tools, int ai, int h) {
+internal void sb_tools(struct sbuf *b, int tools, int ai, int h) {
     void *ph = player_at(h), *pl = player_at(ai);
     if (!tools || !ph || !pl) return;
     char d[600], what[120];
@@ -815,8 +815,8 @@ static void sb_tools(struct sbuf *b, int tools, int ai, int h) {
     }
     sb_puts(b, "],\"tool_choice\":\"auto\"");
 }
-static int g_llm_tok_once;   // max_tokens for the next request only (0: the setting)
-static char *llm_finish(struct sbuf *b, int tools, int ai, int h) {
+internal int g_llm_tok_once;   // max_tokens for the next request only (0: the setting)
+internal char *llm_finish(struct sbuf *b, int tools, int ai, int h) {
     sb_puts(b, "]");
     sb_tools(b, tools, ai, h);
     if (g_llm_model[0]) { sb_puts(b, ",\"model\":"); sb_json(b, g_llm_model); }
@@ -827,17 +827,17 @@ static char *llm_finish(struct sbuf *b, int tools, int ai, int h) {
     sb_puts(b, "}");
     return b->p;
 }
-static struct llm_job *llm_slot(void) {
+internal struct llm_job *llm_slot(void) {
     for (int i = 0; i < LLM_JOBS; i++) if (g_llm_jobs[i].state == J_FREE) return &g_llm_jobs[i];
     return NULL;
 }
-static int llm_ready(void) { return g_llm_on && g_llm_thread && (LONG)(g_llm_down_until - GetTickCount()) <= 0; }
-static int llm_busy(void) {   // requests queued or running (display.c: stalls)
+internal int llm_ready(void) { return g_llm_on && g_llm_thread && (LONG)(g_llm_down_until - GetTickCount()) <= 0; }
+internal int llm_busy(void) {   // requests queued or running (display.c: stalls)
     int n = 0;
     for (int i = 0; i < LLM_JOBS; i++) n += g_llm_jobs[i].state == J_QUEUED || g_llm_jobs[i].state == J_RUNNING;
     return n;
 }
-static void llm_queue(struct llm_job *j, char *body) {
+internal void llm_queue(struct llm_job *j, char *body) {
     j->body = body;
     lstrcpynA(j->speaker, g_players[j->ai & 15] ? player_name(g_players[j->ai & 15]) : "", sizeof j->speaker);
     j->gen = g_llm_gen;
@@ -848,7 +848,7 @@ static void llm_queue(struct llm_job *j, char *body) {
 }
 // a situation for the model: its expressions filled (x_fill, with vars: llm_situation's) - pl speaking to other (none:
 // to everyone), third the enemy - and {tribute}, {tribute_total} (as in the lines: line_ctx_init)
-static void llm_subst(char *out, int cap, const char *s, const struct xvars *vars, ee_player *pl, ee_player *other, ee_player *third) {
+internal void llm_subst(char *out, int cap, const char *s, const struct xvars *vars, ee_player *pl, ee_player *other, ee_player *third) {
     char trib[96], tot[16];
     int total = 0;
     tribute_text(g_say_tribute, trib, sizeof trib);
@@ -864,7 +864,7 @@ static void llm_subst(char *out, int cap, const char *s, const struct xvars *var
 }
 
 // persona_say: a line the local player hears - 1 if the model says it (later), 0: show the fixed line now
-static int llm_line(ee_player *pl, enum line_kind k, ee_player *other, ee_player *third, const char *fixed) {
+internal int llm_line(ee_player *pl, enum line_kind k, ee_player *other, ee_player *third, const char *fixed) {
     if (g_llm_bypass || !llm_ready() || !g_llm_lines || !pl) return 0;
     int ai = pidx(pl), h = (int)*(unsigned *)GA(G_LOCAL_PLAYER);
     int pending = 0;
@@ -905,10 +905,10 @@ static int llm_line(ee_player *pl, enum line_kind k, ee_player *other, ee_player
 }
 
 // ---- decisions (decide=1) ----
-static int llm_deciding(void) {
+internal int llm_deciding(void) {
     return llm_ready() && g_llm_decide && !g_mp && !scenario_game() && !TEAMS_LOCKED;
 }
-static int tool_peace_ok(int ai, int h, uint32_t now) {   // at war with h, and peace is possible
+internal int tool_peace_ok(int ai, int h, uint32_t now) {   // at war with h, and peace is possible
     ee_player *pl = player_at(ai), *ph = player_at(h);
     if (!pl || !ph || is_out(ph) || is_out(pl) || !stance_of(pl, h) || g_offer_t[ai][h]) return 0;
     if (!g_llm_constrained) return 1;
@@ -919,20 +919,20 @@ static int tool_peace_ok(int ai, int h, uint32_t now) {   // at war with h, and 
     g_veto_quiet = 0;
     return !veto;
 }
-static int tool_war_ok(int ai, int h, uint32_t now) {   // allied with h for 5+ minutes, h not its lord
+internal int tool_war_ok(int ai, int h, uint32_t now) {   // allied with h for 5+ minutes, h not its lord
     ee_player *pl = player_at(ai), *ph = player_at(h);
     if (!pl || !ph || is_out(ph) || is_out(pl) || stance_of(pl, h) || g_offer_t[ai][h]) return 0;
     if (!g_llm_constrained) return 1;
     if (is_vassal(ai) || g_lord[ai] == h) return 0;
     return !g_ally_since[ai][h] || now - g_ally_since[ai][h] >= 300000;
 }
-static int tool_tribute_ok(int ai, uint32_t now) {   // every 3 minutes
+internal int tool_tribute_ok(int ai, uint32_t now) {   // every 3 minutes
     return !g_llm_constrained || !g_llm_paid_t[ai] || now - g_llm_paid_t[ai] >= 180000;
 }
-static int tribute_cap(int have) { return have <= 0 ? 0 : g_llm_constrained ? have / 4 : have; }   // a quarter of each
+internal int tribute_cap(int have) { return have <= 0 ? 0 : g_llm_constrained ? have / 4 : have; }   // a quarter of each
 // a tribute the model chose (send_tribute): amt by resource (stock index 2..6), each capped by tribute_cap, moved from
 // pl's stock to ph's; the total paid (noted in the history, what = the amounts' text) or 0
-static int llm_pay(ee_player *pl, void *ph, int ai, int h, const int *amt, uint32_t now, char *what, int wcap, int *paid) {
+internal int llm_pay(ee_player *pl, void *ph, int ai, int h, const int *amt, uint32_t now, char *what, int wcap, int *paid) {
     int *from = (int *)((uint8_t *)pl + PL_STOCK), *to = (int *)((uint8_t *)ph + PL_STOCK), total = 0;
     memset(paid, 0, 7 * sizeof *paid);   // by resource (stock index 2..6)
     for (int r = 2; r < 7; r++) {
@@ -951,15 +951,15 @@ static int llm_pay(ee_player *pl, void *ph, int ai, int h, const int *amt, uint3
     return total;
 }
 // constrained=0 and the model decides towards the local player: a vassal answers peace offers itself (diplo.c)
-static int llm_unbound(void) { return !g_llm_constrained && llm_deciding() && !g_llm_rules; }
-static int llm_tools_for(int ai, int h, uint32_t now) {
+internal int llm_unbound(void) { return !g_llm_constrained && llm_deciding() && !g_llm_rules; }
+internal int llm_tools_for(int ai, int h, uint32_t now) {
     if (!llm_deciding()) return 0;
     return (tool_peace_ok(ai, h, now) ? TOOL_PEACE : 0) | (tool_war_ok(ai, h, now) ? TOOL_WAR : 0) |
            (tool_tribute_ok(ai, now) ? TOOL_TRIBUTE : 0);
 }
 // the local player j offers AI ai peace (diplo.c peace_offer): 1 = the model decides (now asked, or still asking),
 // 0 = the rules decide
-static int llm_peace_answer(ee_player *pl, int ai, int j, uint32_t now) {
+internal int llm_peace_answer(ee_player *pl, int ai, int j, uint32_t now) {
     int h = (int)*(unsigned *)GA(G_LOCAL_PLAYER);
     if (g_llm_rules || j != h || !llm_deciding() || !tool_peace_ok(ai, j, now)) return 0;
     g_peace_due[ai][j] = now + 120000;   // asked again in 2 minutes while the offer stands
@@ -986,8 +986,8 @@ static int llm_peace_answer(ee_player *pl, int ai, int j, uint32_t now) {
 }
 // a move of the rules towards the local player (diplo.c P_ALLY ...): the model decides - 1 (asked now, still asking,
 // or it declined that move in the last 10 minutes: not now), 0: the rules go ahead (no model deciding, or no room)
-static uint32_t g_prop_no[16][P_N];   // [ai][move]: when the model last declined it
-static int llm_propose(int ai, int h, int kind, int third, uint32_t now) {
+internal uint32_t g_prop_no[16][P_N];   // [ai][move]: when the model last declined it
+internal int llm_propose(int ai, int h, int kind, int third, uint32_t now) {
     ee_player *pl = player_at(ai), *ph = player_at(h);
     if (g_llm_rules || !pl || !ph || h != (int)*(unsigned *)GA(G_LOCAL_PLAYER) || !llm_deciding() || kind < 0 || kind >= P_N) return 0;
     if (g_prop_no[ai][kind] && now - g_prop_no[ai][kind] < 600000) return 1;
@@ -1022,12 +1022,12 @@ static int llm_propose(int ai, int h, int kind, int third, uint32_t now) {
 }
 // a decision's answer (game thread, seconds after the question): its tools re-checked and carried out, then its words
 // - or, without words, the fixed line for what it did
-static void llm_fixed(ee_player *pl, enum line_kind k, ee_player *other) {
+internal void llm_fixed(ee_player *pl, enum line_kind k, ee_player *other) {
     g_llm_bypass = 1;
     persona_say(pl, k, other, NULL);
     g_llm_bypass = 0;
 }
-static void llm_apply(struct llm_job *j, int ok) {
+internal void llm_apply(struct llm_job *j, int ok) {
     int ai = j->ai, h = j->to;
     ee_player *pl = player_at(ai), *ph = player_at(h);
     uint32_t now = game_time();
@@ -1131,7 +1131,7 @@ static void llm_apply(struct llm_job *j, int ok) {
 }
 
 // a and b (lower case, la / lb letters) differ by at most one letter (changed, added or left out)
-static int one_off(const char *a, int la, const char *b, int lb) {
+internal int one_off(const char *a, int la, const char *b, int lb) {
     if (la - lb > 1 || lb - la > 1) return 0;
     int i = 0, j = 0, d = 0;
     while (i < la && j < lb) {
@@ -1143,7 +1143,7 @@ static int one_off(const char *a, int la, const char *b, int lb) {
 }
 // where text names the player `name`, or -1: a word of the text that is a word of the name (4+ letters), or from 5
 // letters on its start ("Kaufher" for Kaufherr), the word with an ending ("Temurs") or one letter wrong ("Gunter")
-static int word_in(const char *text, const char *name) {
+internal int word_in(const char *text, const char *name) {
     char lt[300], ln[64];
     lstrcpynA(lt, text, sizeof lt);
     lstrcpynA(ln, name, sizeof ln);
@@ -1171,7 +1171,7 @@ static int word_in(const char *text, const char *name) {
 // does AI j get the local player's (pm) chat line? The game's own filter (EEMInGameChat::vf10 0x4B78C7): the
 // sender's chat mode player +0x9E0 - 0 everyone, 1 allies (his stance towards j allied), 2 enemies, 3 chosen
 // players (a byte per player index at +0xB2C)
-static int chat_reaches(void *pm, void *pj) {
+internal int chat_reaches(void *pm, void *pj) {
     int j = FIELD(pj, PL_INDEX, int) & 15;
     switch (FIELD(pm, OF(PL, 0x9E0), int)) {
     case 0: return 1;
@@ -1182,7 +1182,7 @@ static int chat_reaches(void *pm, void *pj) {
     }
 }
 // a system line for the local player about his chat line (single player only: in multiplayer the humans read it)
-static void llm_chat_hint(const char *text) {
+internal void llm_chat_hint(const char *text) {
     if (g_mp) return;
     uint8_t *opt = *(uint8_t **)GA(G_GAME_DATA);
     system_line(text, opt ? FIELD(opt, OF(GAMEDATA, 0x2CC), int) : 15000);
@@ -1191,7 +1191,7 @@ static void llm_chat_hint(const char *text) {
 // the local player wrote `text` in the chat: one AI that gets it (the chat filter) answers - the one it names first,
 // else the last one he heard within 5 minutes, else the only one that gets it. In single player a line nobody will
 // answer gets a system line saying why (with the AI voice off: once per game).
-static void llm_player_chat(const char *text) {
+internal void llm_player_chat(const char *text) {
     if (!text || !*text || victory_word(text) || g_texts_missing) return;   // no texts: no hints either
     if (!g_llm_on || !g_llm_chat) {
         if (!g_llm_off_told) {
@@ -1271,7 +1271,7 @@ static void llm_player_chat(const char *text) {
 }
 
 // ---- AI TALK ----
-static void pair_history(struct sbuf *b, int ai, int other) {   // from ai's side: its own messages are the assistant's
+internal void pair_history(struct sbuf *b, int ai, int other) {   // from ai's side: its own messages are the assistant's
     if (g_llm_mem_player) { self_history(b, ai, other); return; }
     int lo = ai < other ? ai : other, hi = ai < other ? other : ai;
     void *pa = player_at(ai), *po = player_at(other);
@@ -1290,11 +1290,11 @@ static void pair_history(struct sbuf *b, int ai, int other) {   // from ai's sid
         sb_msg(b, "user", u);
     }
 }
-static int llm_ai_deciding(void) {
+internal int llm_ai_deciding(void) {
     return llm_ready() && g_llm_ai_decide && g_ai_diplomacy && !g_mp && !scenario_game() && !TEAMS_LOCKED;
 }
 // the steps open to AI ai towards AI h in a message
-static int pair_tools(int ai, int h, uint32_t now) {
+internal int pair_tools(int ai, int h, uint32_t now) {
     ee_player *pl = player_at(ai), *ph = player_at(h);
     if (!llm_ai_deciding() || !pl || !ph || is_out(pl) || is_out(ph)) return 0;
     int t = 0;
@@ -1306,7 +1306,7 @@ static int pair_tools(int ai, int h, uint32_t now) {
 }
 // a message of speaker to listener: turn 1 opens the exchange on an event (sit, its usual line fixed - or none), later
 // turns answer the other's last message; dec: the exchange is about an offer (AI DECIDE)
-static int talk_request(int speaker, int listener, int turn, const char *sit, const char *fixed, int dec) {
+internal int talk_request(int speaker, int listener, int turn, const char *sit, const char *fixed, int dec) {
     ee_player *pl = player_at(speaker), *po = player_at(listener);
     if (!pl || !po || !g_players[speaker] || is_out(pl) || is_out(po) || !llm_ready()) return 0;
     struct llm_job *j = llm_slot();
@@ -1349,7 +1349,7 @@ static int talk_request(int speaker, int listener, int turn, const char *sit, co
 }
 // AI DECIDE: AI from offers AI to an alliance (kind 0, against third) or capitulates to it (1) - diplo.c sets the
 // offer up when this returns 1 (the exchange is queued)
-static int llm_ai_offer(int from, int to, int kind, int third) {
+internal int llm_ai_offer(int from, int to, int kind, int third) {
     if (!llm_ai_deciding() || !mod_ai(from) || !mod_ai(to)) return 0;
     if (g_offer_t[from][to] || g_offer_t[to][from]) return 0;   // one offer at a time between them: the rules
     void *pf = player_at(from), *pt = player_at(to), *p3 = third ? player_at(third) : NULL;
@@ -1368,7 +1368,7 @@ static int llm_ai_offer(int from, int to, int kind, int third) {
     return 1;
 }
 // AI DECIDE: the steps a message called, checked again and carried out; events for the pair's memory
-static int talk_apply(struct llm_job *j) {
+internal int talk_apply(struct llm_job *j) {
     int ai = j->ai, h = j->to, did = 0, act = j->act & j->tools;
     ee_player *pl = player_at(ai), *ph = player_at(h);
     uint32_t now = game_time();
@@ -1420,7 +1420,7 @@ static int talk_apply(struct llm_job *j) {
     return did;
 }
 // persona_say: AI pl's line k to AI other, which the local player doesn't hear - an exchange between them (waits)
-static void llm_talk_event(ee_player *pl, enum line_kind k, ee_player *other, ee_player *third, const char *fixed) {
+internal void llm_talk_event(ee_player *pl, enum line_kind k, ee_player *other, ee_player *third, const char *fixed) {
     if (!g_llm_on || !g_llm_ai_talk || g_mp || !pl || !other || k_lines[k].aud != A_NAME) return;
     int a = pidx(pl), b = pidx(other), h = (int)*(unsigned *)GA(G_LOCAL_PLAYER);
     if (a == b || b == h || a == h || !mod_ai(a) || !mod_ai(b)) return;
@@ -1445,7 +1445,7 @@ static void llm_talk_event(ee_player *pl, enum line_kind k, ee_player *other, ee
     lstrcpynA(g_talk_wait[w].fixed, fixed, sizeof g_talk_wait[w].fixed);
     g_talk_wait[w].t = game_time() ? game_time() : 1;
 }
-static void talk_tick(void) {
+internal void talk_tick(void) {
     uint32_t now = game_time();
     if (!g_llm_ai_talk) return;
     if (now < g_talk_started) { memset(&g_talk, 0, sizeof g_talk); memset(g_talk_wait, 0, sizeof g_talk_wait); g_talk_started = 0; }
@@ -1468,7 +1468,7 @@ static void talk_tick(void) {
     if (g_llm_log && g_log) fprintf(g_log, "# llm: talk P%d -> P%d opened: %s\n", g_talk.a, g_talk.b, g_talk_wait[w].sit);
 }
 // "[end]" in a message of a talk between AIs (any case): taken out, the spaces around it too - 1 if it was there
-static int talk_end_mark(char *s) {
+internal int talk_end_mark(char *s) {
     int found = 0;
     for (char *p = s; (p = strchr(p, '[')) != NULL;) {
         if (_strnicmp(p, "[end]", 5)) { p++; continue; }
@@ -1480,7 +1480,7 @@ static int talk_end_mark(char *s) {
     while (*s == ' ') memmove(s, s + 1, strlen(s));
     return found;
 }
-static void talk_done(struct llm_job *j, int ok) {
+internal void talk_done(struct llm_job *j, int ok) {
     if (j->gen != g_llm_gen) return;
     int a = j->ai, b = j->to;
     ee_player *pl = player_at(a), *po = player_at(b);
@@ -1548,7 +1548,7 @@ static void talk_done(struct llm_job *j, int ok) {
 
 // fallback=pause: a request older than the timeout pauses the game until no such request is left (then it runs on -
 // unless the player paused or resumed it meanwhile: theirs stands)
-static void llm_wait_tick(void) {
+internal void llm_wait_tick(void) {
     if (!llm_waits()) return;
     DWORD now = GetTickCount(), limit = (DWORD)g_llm_timeout * 1000u;
     int stalled = 0;
@@ -1578,7 +1578,7 @@ static void llm_wait_tick(void) {
     }
 }
 // every simulation step: show what is answered
-static void llm_tick(void) {
+internal void llm_tick(void) {
     if (!g_llm_on) return;
     llm_wait_tick();
 
@@ -1643,7 +1643,7 @@ static void llm_tick(void) {
 
 // a line the local player heard with its fixed text (no model): the AI that spoke last; part of the exchange if it
 // was said to him
-static void llm_heard(ee_player *pl, ee_player *other, const char *text) {
+internal void llm_heard(ee_player *pl, ee_player *other, const char *text) {
     if (!g_llm_on || !pl) return;
     if (other && other == player_at((int)*(unsigned *)GA(G_LOCAL_PLAYER))) llm_hist_add(pidx(pl), 1, text);
     g_llm_last_ai = pidx(pl);
@@ -1653,7 +1653,7 @@ static void llm_heard(ee_player *pl, ee_player *other, const char *text) {
 // cmd: llm - state; llm say P TEXT: the local player's chat line TEXT meant for AI P (without sending it); llm filter
 // M [P...]: the local player's chat mode M (0 everyone, 1 allies, 2 enemies, 3 the players listed) set directly, as the
 // chat dialog's choice would (tests)
-static void cmd_llm(char *out, const char *args) {
+internal void cmd_llm(char *out, const char *args) {
     int p = 0, n = 0;
     if (sscanf(args, "filter %d %n", &p, &n) == 1) {
         ee_player *pm = player_at((int)*(unsigned *)GA(G_LOCAL_PLAYER));
@@ -1709,7 +1709,7 @@ static void cmd_llm(char *out, const char *args) {
           g_llm_n_fixed, q, g_llm_think, g_llm_effort_refused ? " (refused by the server)" : "", g_llm_last_err[0] ? "; last error: " : "", g_llm_last_err);
 }
 
-static void llm_install(const char *ini, const char *test_ini) {
+internal void llm_install(const char *ini, const char *test_ini) {
     g_llm_on = ini_int("llm", "enabled", 0, ini);
     g_llm_lines = ini_int("llm", "lines", 1, ini);
     g_llm_chat = ini_int("llm", "chat", 1, ini);

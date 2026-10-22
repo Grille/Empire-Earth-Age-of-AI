@@ -1,6 +1,6 @@
 // log2 with the same bits on every PC (lockstep multiplayer: every PC must decide alike) - no library call, whose
 // result can differ by a bit between CPUs
-static float det_log2f(float x) {
+internal float det_log2f(float x) {
     if (!(x > 0)) return -1000.0f;
     union { float f; uint32_t u; } b = { x };
     int e = (int)((b.u >> 23) & 0xFF) - 127;

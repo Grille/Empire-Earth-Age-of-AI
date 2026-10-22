@@ -8,16 +8,16 @@
 // replies name the type next to its number.
 #include "unit_names.h"
 #include "unit_ids.h"   // the types the AI code names: UT(B_FARM)
-static int unit_type_named(const char *name, int n);
+internal int unit_type_named(const char *name, int n);
 
-static char g_unit_ident[G_TYPES_N][64];      // "" no such type
-static unsigned short g_kind_first[UNIT_KINDS + 1], g_kind_types[G_TYPES_N];   // a kind's types: g_kind_types[first[k]..first[k + 1])
-static int g_unit_types_n;                    // the types read; 0: the game hasn't loaded its data yet
-static struct { char name[48], file[48]; int line; } g_unit_later[32];   // unit.<identifier> in the files, before
-static int g_unit_nlater;                                                 // the data was loaded: checked then
-static void unit_types_check_later(void);
+internal char g_unit_ident[G_TYPES_N][64];      // "" no such type
+internal unsigned short g_kind_first[UNIT_KINDS + 1], g_kind_types[G_TYPES_N];   // a kind's types: g_kind_types[first[k]..first[k + 1])
+internal int g_unit_types_n;                    // the types read; 0: the game hasn't loaded its data yet
+internal struct { char name[48], file[48]; int line; } g_unit_later[32];   // unit.<identifier> in the files, before
+internal int g_unit_nlater;                                                 // the data was loaded: checked then
+internal void unit_types_check_later(void);
 // the type table into the identifiers and kinds - once the game has loaded its data (0 before: fewer than 100 types)
-static int unit_types_load(void) {
+internal int unit_types_load(void) {
     if (g_unit_types_n) return 1;
     int n = 0;
     for (int t = 0; t < G_TYPES_N; t++) n += type_data(t) != NULL;
@@ -84,24 +84,24 @@ static int unit_types_load(void) {
     unit_types_check_later();
     return 1;
 }
-static const char *unit_ident(int t) {   // "?" for no such type
+internal const char *unit_ident(int t) {   // "?" for no such type
     unit_types_load();
     return t >= 0 && t < G_TYPES_N && g_unit_ident[t][0] ? g_unit_ident[t] : "?";
 }
-static int unit_type_named(const char *name, int n) {   // the type of an identifier (n characters), -1: none
+internal int unit_type_named(const char *name, int n) {   // the type of an identifier (n characters), -1: none
     if (!unit_types_load()) return -1;
     for (int t = 0; t < G_TYPES_N; t++)
         if (g_unit_ident[t][0] && !strncmp(g_unit_ident[t], name, n) && !g_unit_ident[t][n]) return t;
     return -1;
 }
 // a unit.<identifier> in a file read before the game loaded its data: checked when it has (unit_types_load)
-static void unit_name_later(const char *name, const char *file, int line) {
+internal void unit_name_later(const char *name, const char *file, int line) {
     if (g_unit_nlater == (int)(sizeof g_unit_later / sizeof *g_unit_later)) return;
     lstrcpynA(g_unit_later[g_unit_nlater].name, name, 48);
     lstrcpynA(g_unit_later[g_unit_nlater].file, file, 48);
     g_unit_later[g_unit_nlater++].line = line;
 }
-static void unit_types_check_later(void) {
+internal void unit_types_check_later(void) {
     for (int i = 0; i < g_unit_nlater; i++)
         if (unit_type_named(g_unit_later[i].name, (int)strlen(g_unit_later[i].name)) < 0)
             x_error("%s:%d: an unknown name: unit.%s (no such type in the game's data - docs/units.md)", g_unit_later[i].file,
@@ -111,7 +111,7 @@ static void unit_types_check_later(void) {
 
 // The commands with a type among their arguments (sub: the first argument, for stats), and where: bit k = argument k
 // (counted from 0, sub included); ~1u: every one after the first.
-static const struct { const char *verb, *sub; uint32_t at; } k_type_args[] = {
+internal const struct { const char *verb, *sub; uint32_t at; } k_type_args[] = {
     { "spawn", NULL, 1 << 1 }, { "spawnline", NULL, 1 << 1 }, { "train", NULL, 1 << 1 }, { "objs", NULL, 1 << 1 },
     { "found", NULL, 1 << 1 }, { "hurt", NULL, 1 << 1 }, { "watchtype", NULL, 1 << 1 }, { "army", NULL, 1 << 1 },
     { "seltest", NULL, 1 << 0 }, { "plan", NULL, 1 << 2 }, { "tinfo", NULL, ~1u }, { "costs", NULL, ~1u },
@@ -119,7 +119,7 @@ static const struct { const char *verb, *sub; uint32_t at; } k_type_args[] = {
 };
 // args with every identifier in a type's place as its number (out); 0: not such a command (args as they are),
 // 1: out, -1: a word in a type's place that is no identifier (*bad, *bad_n)
-static int type_args(const char *verb, const char *args, char *out, int cap, const char **bad, int *bad_n) {
+internal int type_args(const char *verb, const char *args, char *out, int cap, const char **bad, int *bad_n) {
     uint32_t at = 0;
     for (size_t i = 0; i < sizeof k_type_args / sizeof *k_type_args; i++) {
         const char *sub = k_type_args[i].sub;

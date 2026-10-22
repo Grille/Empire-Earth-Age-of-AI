@@ -1,5 +1,5 @@
 // THE ECONOMY ROWS of the log: per AI every 10 s its stock, demand, gatherer targets and lists, the managers' timers
-static void log_state(void *rm, const char *phase, uint32_t now) {
+internal void log_state(void *rm, const char *phase, uint32_t now) {
     ee_player *pl = rm_player(rm);
     if (!g_log || !pl) return;
     EnterCriticalSection(&g_lock);
@@ -23,7 +23,7 @@ static void log_state(void *rm, const char *phase, uint32_t now) {
     LeaveCriticalSection(&g_lock);
 }
 
-static void log_header(void) {
+internal void log_header(void) {
     fputs("time_ms,player,phase,difficulty,cheat", g_log);
     for (int i = 0; i < 7; i++) fprintf(g_log, ",stock%d", i);
     for (int i = 0; i < 7; i++) fprintf(g_log, ",demand%d", i);

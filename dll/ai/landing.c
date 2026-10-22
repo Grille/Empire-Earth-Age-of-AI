@@ -31,13 +31,13 @@
 //   no defence. Citizens along build a forward base (ld_bridgehead: towers, barracks, town center, hospital, factory -
 //   by the size; soldiers trained there join, ld_capture). Waves: the transports bring the soldiers
 //   at home over while it holds (ld_wave, landing_waves 3). A quarter left: released to the game.
-static int g_land_bombard = 0;   // [all] landing_bombard (below: BOMBARD)
-static int g_landing = 1, g_land_ships = 8;   // aimod.ini [all] landing, landing_transports (the most; the size follows the beach)
-static int g_land_waves = 3;   // [all] landing_waves: how often the transports bring more soldiers over (0-10)
-static int g_land_cits = 10;   // [all] landing_citizens: the most citizens along to build the forward base (0-10)
-static int g_land_trace = 0;   // test: landing_trace=1 - each transport every tick while soldiers are aboard
-static int g_land_knows = 0;   // test: landing_knows_map=1 - every building of the target counts, seen or not
-static int g_land_flag = 0;   // the unload goal's last argument: the AI's code passes 1, the player's command 0 (test: landing_flag)
+internal int g_land_bombard = 0;   // [all] landing_bombard (below: BOMBARD)
+internal int g_landing = 1, g_land_ships = 8;   // aimod.ini [all] landing, landing_transports (the most; the size follows the beach)
+internal int g_land_waves = 3;   // [all] landing_waves: how often the transports bring more soldiers over (0-10)
+internal int g_land_cits = 10;   // [all] landing_citizens: the most citizens along to build the forward base (0-10)
+internal int g_land_trace = 0;   // test: landing_trace=1 - each transport every tick while soldiers are aboard
+internal int g_land_knows = 0;   // test: landing_knows_map=1 - every building of the target counts, seen or not
+internal int g_land_flag = 0;   // the unload goal's last argument: the AI's code passes 1, the player's command 0 (test: landing_flag)
 #define LD_PASS 128
 #define LD_SHIPS 10
 // a group's strength: sqrt(hit points x attack, each summed over the group) - N soldiers wear a tower down N times
@@ -47,7 +47,7 @@ struct ld_def { float soldiers, towers, water, all, behind; int n, assumed; };
 // the forward base: what the citizens along build, in this order (several at once while citizens are free)
 enum { LDB_TOWER, LDB_BARRACKS, LDB_CENTER, LDB_HOSPITAL, LDB_FACTORY };
 struct ld_proj { ee_unit *b; int kind, type, cits, state, tries, x, y; };   // state 0 to come, 1 going up, 2 standing, 3 dropped
-static struct landing {
+internal struct landing {
     int phase;                           // 0 idle, 1 ships, 2 board, 3 sail, 4 ashore, 5 bombard (the fleet first)
     ee_player *target;
     int sx, sy, ocean, wx, wy;           // landing site, the sea, the water in front of it
@@ -76,7 +76,7 @@ static struct landing {
     unsigned bombards, bomb_won;
 } g_ld[16];
 
-static int ld_cap(int t) {   // soldiers a transport holds: its type's +0x54C (raft, copper: 10, bronze: 12, imperial on: 14; copper held 10 in the board test)
+internal int ld_cap(int t) {   // soldiers a transport holds: its type's +0x54C (raft, copper: 10, bronze: 12, imperial on: 14; copper held 10 in the board test)
     uint8_t *td = t > 0 ? type_data(t) : NULL;
     int c = td ? FIELD(td, OF(TD, 0x54C), int) : 0;
     return c >= 4 && c <= 30 ? c : 10;
@@ -84,17 +84,17 @@ static int ld_cap(int t) {   // soldiers a transport holds: its type's +0x54C (r
 // citizens along by the landing's size (the user: "gone completely for one ship landings ... 10 for larger landings - so
 // five can build a town center, and the others barracks and factories beside the defences, a hospital"): one
 // transport none, two 3 (towers), three 6 (a barracks too), four and more 10 (a forward base); landing_citizens at most
-static int ld_cits_for(int ships, int cap) {
+internal int ld_cits_for(int ships, int cap) {
     int c = ships <= 1 ? 0 : ships == 2 ? 3 : ships == 3 ? 6 : 10;
     if (c > g_land_cits) c = g_land_cits;
     if (c > cap) c = cap;
     return c;
 }
-static int ld_type_avail(ee_player *pl, int t);
+internal int ld_type_avail(ee_player *pl, int t);
 // the newest transport it can train: of the transport ships its tech record allows (an upgraded line's old type no
 // longer), the one of the highest tech - one per epoch in the game's data (raft, copper, bronze, imperial, atomic,
 // gargantua), a data mod's own included; 0: none
-static int ld_transport_type(ee_player *pl) {
+internal int ld_transport_type(ee_player *pl) {
     int best = 0, bt = 0;
     for (int t = 0; t < G_TYPES_N; t++) {
         if (!is_transport(t) || !ld_type_avail(pl, t)) continue;
@@ -102,7 +102,7 @@ static int ld_transport_type(ee_player *pl) {
     }
     return best;
 }
-static int ld_affordable(ee_player *pl, int t) {   // how many of type t its stock pays now
+internal int ld_affordable(ee_player *pl, int t) {   // how many of type t its stock pays now
     int *st = (int *)((uint8_t *)pl + PL_STOCK), n = 20;
     for (int r = 2; r < 7; r++) {
         int c = unit_cost(pl, t, r);
@@ -111,7 +111,7 @@ static int ld_affordable(ee_player *pl, int t) {   // how many of type t its sto
     return n;
 }
 
-static int landing_leads(uint8_t *sg) {
+internal int landing_leads(uint8_t *sg) {
     ee_player *pl = FIELD(sg, OF(ASG, 0x190), void *);
     unsigned pi = pl ? (unsigned)FIELD(pl, PL_INDEX, int) & 15 : 0;
     if (!g_landing || !pl || !g_ld[pi].phase) return 0;
@@ -120,7 +120,7 @@ static int landing_leads(uint8_t *sg) {
 }
 // the transports still missing: their cost is kept from every other unit order (econ.c's reserve) while the landing
 // waits for them - P3's 3000 of each went on other units within 4 minutes, its transports never came
-static void landing_reserve(ee_player *pl, int reserve[7]) {
+internal void landing_reserve(ee_player *pl, int reserve[7]) {
     struct landing *l = &g_ld[(unsigned)FIELD(pl, PL_INDEX, int) & 15];
     if (g_landing && l->phase == 5 && !l->bomb_t && !g_landing_order && !g_priority_mil) {   // the fleet and its transports
         int tt = ld_transport_type(pl);
@@ -135,14 +135,14 @@ static void landing_reserve(ee_player *pl, int reserve[7]) {
 // population cap the fleet never came (Small Islands e5 with money: 67 of 89 tries to train the warship type at the
 // cap, 2 of 7 bombardments planned sailed) - the game's own soldier orders get only the room beyond it meanwhile
 // (econ.c train_call), as landing_reserve holds the money
-static int landing_room_reserve(ee_player *pl) {
+internal int landing_room_reserve(ee_player *pl) {
     struct landing *l = &g_ld[(unsigned)FIELD(pl, PL_INDEX, int) & 15];
     return g_landing && l->phase == 5 && !l->bomb_t ? l->war_missing + l->trb_missing : 0;
 }
-static int landing_busy(ee_player *pl) {   // boarding, at sea or ashore
+internal int landing_busy(ee_player *pl) {   // boarding, at sea or ashore
     return g_landing && g_ld[(unsigned)FIELD(pl, PL_INDEX, int) & 15].phase >= 2;
 }
-static int landing_has_unit(ee_player *pl, ee_unit *u) {   // a transport, warship or soldier of a landing under way
+internal int landing_has_unit(ee_player *pl, ee_unit *u) {   // a transport, warship or soldier of a landing under way
     unsigned pi = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     struct landing *l = &g_ld[pi];
     if (!g_landing || l->phase < 2) return 0;
@@ -153,26 +153,26 @@ static int landing_has_unit(ee_player *pl, ee_unit *u) {   // a transport, warsh
     for (int k = 0; k < l->nw; k++) if (l->wpass[k] == u) return 1;
     return 0;
 }
-static int fleet_leads(uint8_t *sg);                // fleet.c: a sea subgroup holding a ship the fleet leads
-static int fleet_refuses(uint8_t *sg, ee_unit *u);  // fleet.c: an order to one of them
-static int mass_refuses(uint8_t *sg, ee_unit *u, void *goal);   // mass.c: an order to a reinforcement held at the rally
-static int expand_ship(ee_unit *u);                 // expand.c: the transport of an outpost's ferry (its player), 0: none
-static int expand_refuses(uint8_t *sg, ee_unit *u); // expand.c: the ferry's transport and passengers, an outpost's guard
-static int cover_refuses(uint8_t *sg, ee_unit *u);  // cover.c: a unit falling back to cover or at the Hospital
-static int expand_leads(uint8_t *sg);               // expand.c: a subgroup holding the ferry's transport
-static int expand_unload_ok(ee_unit *u, int gx, int gy);   // expand.c: the game's unload retry at the ferry's own point
-static int expand_has(ee_player *pl, ee_unit *u);        // expand.c: a passenger of the ferry (the landing leaves it)
-static void __fastcall hook_asg_sea_update(void *sg, void *edx, int now) {
+internal int fleet_leads(uint8_t *sg);                // fleet.c: a sea subgroup holding a ship the fleet leads
+internal int fleet_refuses(uint8_t *sg, ee_unit *u);  // fleet.c: an order to one of them
+internal int mass_refuses(uint8_t *sg, ee_unit *u, void *goal);   // mass.c: an order to a reinforcement held at the rally
+internal int expand_ship(ee_unit *u);                 // expand.c: the transport of an outpost's ferry (its player), 0: none
+internal int expand_refuses(uint8_t *sg, ee_unit *u); // expand.c: the ferry's transport and passengers, an outpost's guard
+internal int cover_refuses(uint8_t *sg, ee_unit *u);  // cover.c: a unit falling back to cover or at the Hospital
+internal int expand_leads(uint8_t *sg);               // expand.c: a subgroup holding the ferry's transport
+internal int expand_unload_ok(ee_unit *u, int gx, int gy);   // expand.c: the game's unload retry at the ferry's own point
+internal int expand_has(ee_player *pl, ee_unit *u);        // expand.c: a passenger of the ferry (the landing leaves it)
+internal void __fastcall hook_asg_sea_update(void *sg, void *edx, int now) {
     (void)edx;
     if (!is_vanilla(FIELD(sg, OF(ASG, 0x190), void *)) && (landing_leads(sg) || fleet_leads(sg) || expand_leads(sg))) return;
     asg_sea_update(sg, now);
 }
-static void __fastcall hook_asg_air_update(void *sg, void *edx, int now) {
+internal void __fastcall hook_asg_air_update(void *sg, void *edx, int now) {
     (void)edx;
     if (!is_vanilla(FIELD(sg, OF(ASG, 0x190), void *)) && landing_leads(sg)) return;
     asg_air_update(sg, now);
 }
-static void __fastcall hook_asg_sea_transport_update(void *sg, void *edx, int now) {
+internal void __fastcall hook_asg_sea_transport_update(void *sg, void *edx, int now) {
     (void)edx;
     if (!is_vanilla(FIELD(sg, OF(ASG, 0x190), void *)) && (landing_leads(sg) || expand_leads(sg))) return;
     asg_sea_transport_update(sg, now);
@@ -186,8 +186,8 @@ static void __fastcall hook_asg_sea_transport_update(void *sg, void *edx, int no
 // Where the null sets come from: the set answers 1 (take the next) with no next set (out 0) - stored as the unit's set
 // (0x5F104E), and the unit type's vf29 right after read [0 + 5] (0x5FC4ED). That answer, at both asks (0x5F0FFA too),
 // gives the default set and 0.
-static unsigned g_goalset_null;
-static int __fastcall hook_goalset_ask(void *set, void *edx, ee_unit *unit, int *out) {
+internal unsigned g_goalset_null;
+internal int __fastcall hook_goalset_ask(void *set, void *edx, ee_unit *unit, int *out) {
     (void)edx;
     if (!set) {
         if (g_log && g_goalset_null++ < 10) fprintf(g_log, "# engine guard: a unit's goal set gone after its goal was dropped - the default set\n");
@@ -233,9 +233,9 @@ __attribute__((naked, used)) void goalset_read_thunk(void) {
 // the deleted goal's vtable is the abstract base's - msvcrt's _purecall, exception 0xC0000002, 1-6 of 12 Small Islands
 // games (more with the transport manager's unload refused, as more units come off transports while led). The game
 // itself never refuses there; for that caller the goal is taken and not given (the goal's few bytes are lost).
-static unsigned g_ld_refused, g_ld_kept_goal;
-static void ld_fu_given(void *g, int ok);   // below (the game's unload orders to landing transports)
-static char __fastcall hook_asg_give_goal(void *sg, void *edx, ee_unit *u, void *goal, int a, int prio) {
+internal unsigned g_ld_refused, g_ld_kept_goal;
+internal void ld_fu_given(void *g, int ok);   // below (the game's unload orders to landing transports)
+internal char __fastcall hook_asg_give_goal(void *sg, void *edx, ee_unit *u, void *goal, int a, int prio) {
     (void)edx;
     if (!is_vanilla(FIELD(sg, OF(ASG, 0x190), void *)) && (landing_leads(sg) || fleet_refuses(sg, u) || mass_refuses(sg, u, goal) || expand_refuses(sg, u) || cover_refuses(sg, u))) {   // the fleet (fleet.c): its ships in any subgroup; mass.c; expand.c; cover.c
         g_ld_refused++;
@@ -247,7 +247,7 @@ static char __fastcall hook_asg_give_goal(void *sg, void *edx, ee_unit *u, void 
     ld_fu_given(goal, r != 0);
     return r;
 }
-static char __fastcall hook_asg_air_give_goal(void *sg, void *edx, ee_unit *u, void *goal, int a, int prio) {
+internal char __fastcall hook_asg_air_give_goal(void *sg, void *edx, ee_unit *u, void *goal, int a, int prio) {
     (void)edx;
     if (!is_vanilla(FIELD(sg, OF(ASG, 0x190), void *)) && landing_leads(sg)) { g_ld_refused++; return 0; }
     return asg_air_give_goal(sg, u, goal, a, prio);
@@ -255,7 +255,7 @@ static char __fastcall hook_asg_air_give_goal(void *sg, void *edx, ee_unit *u, v
 
 // nothing (trees, buildings, units of any owner) on the 3x3 tiles around (x, y): room to unload - a landing site
 // on a wooded coast: every unload there ended at once, the transports circling with the soldiers aboard
-static int ld_tile_free(int x, int y) {
+internal int ld_tile_free(int x, int y) {
     uint8_t *map = *(uint8_t **)GA(G_MAP);
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     if (!grid || x < 1 || y < 1) return 0;
@@ -264,7 +264,7 @@ static int ld_tile_free(int x, int y) {
     return 1;
 }
 
-static unsigned ocean_near(int x, int y, int r, int *wx, int *wy) {   // an ocean id within r tiles (and that tile)
+internal unsigned ocean_near(int x, int y, int r, int *wx, int *wy) {   // an ocean id within r tiles (and that tile)
     for (int d = 1; d <= r; d++)
         for (int dx = -d; dx <= d; dx++)
             for (int dy = -d; dy <= d; dy += (abs(dx) == d ? 1 : 2 * d)) {
@@ -275,7 +275,7 @@ static unsigned ocean_near(int x, int y, int r, int *wx, int *wy) {   // an ocea
 }
 
 struct ld_scan { ee_player *pl; ee_player *target; int nb, bx[2000], by[2000]; int nd, dx[16], dy[16]; int nt; ee_unit *tr[32]; int nw; ee_unit *war[32]; int na; ee_unit *air[16]; };
-static void ld_unit(ee_unit *u, void *ctx) {
+internal void ld_unit(ee_unit *u, void *ctx) {
     struct ld_scan *s = ctx;
     uint8_t *td = FIELD(u, OF(UNIT, 0x2C), uint8_t *);
     ee_player *o = unit_owner(u);
@@ -292,11 +292,11 @@ static void ld_unit(ee_unit *u, void *ctx) {
         s->air[s->na++] = u;
 }
 
-static float ld_strength(float hp, float att) { return sqrtf(hp * att); }
-static float ld_attack(ee_unit *u) { return FIELD(u, OF(UNIT, 0x3C), int) > 0 ? unit_power(u) / (float)FIELD(u, OF(UNIT, 0x3C), int) : 0.0f; }
+internal float ld_strength(float hp, float att) { return sqrtf(hp * att); }
+internal float ld_attack(ee_unit *u) { return FIELD(u, OF(UNIT, 0x3C), int) > 0 ? unit_power(u) / (float)FIELD(u, OF(UNIT, 0x3C), int) : 0.0f; }
 // what defends a beach (seen): soldiers within 15 tiles, defences reaching it, defences reaching the water in front
 // (they shoot at the transports)
-static void ld_defence(ee_player *pl, int x, int y, int wx, int wy, struct ld_def *d) {
+internal void ld_defence(ee_player *pl, int x, int y, int wx, int wy, struct ld_def *d) {
     uint8_t *map = *(uint8_t **)GA(G_MAP);
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     float sh = 0, sa = 0, th = 0, ta = 0, wh = 0, wa = 0, bh = 0, ba = 0;
@@ -343,12 +343,12 @@ static void ld_defence(ee_player *pl, int x, int y, int wx, int wy, struct ld_de
 // the strength a landing needs against a beach: 1.4 times what holds it - the user: "it just has to choose the weakest
 // one and bring an army that actually has a chance". The defences over the water hit the transports, not the troops:
 // the warships take them on first
-static float ld_need(const struct ld_def *d) { return 1.4f * d->all; }
+internal float ld_need(const struct ld_def *d) { return 1.4f * d->all; }
 
 // a landing site: open land at the shore of ocean `ocean` next to the target's buildings - the weakest defended
 // (rarely an undefended one), against the strength `power` the landing can bring
-static struct { unsigned tried, land, shore, sea, safe, quiet, oc[8], ocn[8]; } g_ld_stat[16];   // why no site (landing P)
-static int ld_site(ee_player *pl, unsigned pi, struct ld_scan *s, unsigned ocean, float power, int *sx, int *sy, int *swx, int *swy, struct ld_def *bd) {
+internal struct { unsigned tried, land, shore, sea, safe, quiet, oc[8], ocn[8]; } g_ld_stat[16];   // why no site (landing P)
+internal int ld_site(ee_player *pl, unsigned pi, struct ld_scan *s, unsigned ocean, float power, int *sx, int *sy, int *swx, int *swy, struct ld_def *bd) {
     memset(&g_ld_stat[pi], 0, sizeof g_ld_stat[pi]);
     float best = -1e9f;
     int bx = 0, by = 0, bwx = 0, bwy = 0, found = 0;
@@ -392,10 +392,10 @@ static int ld_site(ee_player *pl, unsigned pi, struct ld_scan *s, unsigned ocean
     return 1;
 }
 
-static struct as_home g_ld_home;
+internal struct as_home g_ld_home;
 // its buildings on the continent of its base point: a forward base across the sea is no home (the troops at the beach
 // were counted at home and boarded again)
-static void ld_home_scan(ee_player *pl) {
+internal void ld_home_scan(ee_player *pl) {
     g_ld_home.pl = pl; g_ld_home.nb = g_ld_home.ne = 0;
     grid_each(as_home_unit, &g_ld_home);
     void *cm = FIELD(pl, OF(PL, 0xB90), void *);
@@ -407,7 +407,7 @@ static void ld_home_scan(ee_player *pl) {
         if (area_id(g_ld_home.bx[b], g_ld_home.by[b], 2) == hc) { g_ld_home.bx[n] = g_ld_home.bx[b]; g_ld_home.by[n++] = g_ld_home.by[b]; }
     g_ld_home.nb = n;
 }
-static int ld_at_home(int x, int y) {
+internal int ld_at_home(int x, int y) {
     if (x < 0) return 0;
     for (int b = 0; b < g_ld_home.nb; b++) {
         int dx = g_ld_home.bx[b] - x, dy = g_ld_home.by[b] - y;
@@ -416,18 +416,18 @@ static int ld_at_home(int x, int y) {
     return 0;
 }
 
-static void ld_release(unsigned pi, const char *why, uint32_t now) {
+internal void ld_release(unsigned pi, const char *why, uint32_t now) {
     struct landing *l = &g_ld[pi];
     if (g_log) fprintf(g_log, "# landing: P%u at %.1f min: %s\n", pi, now / 60000.0, why);
     l->phase = 0; l->nfrozen = 0; l->nships = 0; l->npass = 0; l->obj = NULL; l->ncit = 0; l->nproj = 0;
     l->wst = 0; l->nw = 0; l->waves = 0;
 }
 
-static int ld_aboard(ee_unit *u) { return FIELD(u, OF(UNIT, 0x1C), int) < 0; }
-static int ld_alive(ee_unit *u) { return u && FIELD(u, OF(UNIT, 0x3C), int) > 0 && FIELD(u, OF(UNIT, 0x2C), uint8_t *); }
+internal int ld_aboard(ee_unit *u) { return FIELD(u, OF(UNIT, 0x1C), int) < 0; }
+internal int ld_alive(ee_unit *u) { return u && FIELD(u, OF(UNIT, 0x3C), int) > 0 && FIELD(u, OF(UNIT, 0x2C), uint8_t *); }
 
 // the nearest enemy defence or warship (seen) within r tiles - what shoots at the transports
-static ee_unit *ld_naval_target(ee_player *pl, int x, int y, int r, int soldiers) {   // soldiers: enemy soldiers and siege as well
+internal ee_unit *ld_naval_target(ee_player *pl, int x, int y, int r, int soldiers) {   // soldiers: enemy soldiers and siege as well
     uint8_t *map = *(uint8_t **)GA(G_MAP);
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     if (!grid) return NULL;
@@ -454,7 +454,7 @@ static ee_unit *ld_naval_target(ee_player *pl, int x, int y, int r, int soldiers
 // warships along to draw the towers' attention away from the transports") - then shell the shore
 // From the plan on: they shell the beach free (its defences, the warships off it, then the soldiers on it) while
 // the transports are built and boarded.
-static int ld_is_air(ee_unit *u) {
+internal int ld_is_air(ee_unit *u) {
     int fam = FIELD(FIELD(u, OF(UNIT, 0x2C), uint8_t *), OF(TD, 0x4B4), int);
     return fam == 3 || fam == 7 || fam == 17;
 }
@@ -466,16 +466,16 @@ static int ld_is_air(ee_unit *u) {
 // whose weapon hits the transport type; an escort counts against the threats of a category when its weapon hits them.
 enum { LDS_SHIP, LDS_SUB, LDS_AIR };   // for the log only: afloat, submarines (family 10), aircraft
 struct ld_sea { float h[64], a[64]; uint8_t *rep[64]; int rpi[64], n[3]; };
-static float ld_factor(uint8_t *atd, int api, uint8_t *ttd, int tpi) {
+internal float ld_factor(uint8_t *atd, int api, uint8_t *ttd, int tpi) {
     if (!atd || !ttd || FIELD(atd, OF(TD, 0x510), int) <= 0) return 0.0f;
     return attack_bonus(atd, ttd, api, tpi);
 }
-static int ld_pidx(ee_unit *u) { ee_player *o = unit_owner(u); return o ? FIELD(o, OF(PL, 0x45C), int) : -1; }
-static int ld_hits(ee_unit *a, ee_unit *t) {   // can a hit t (the game's table)
+internal int ld_pidx(ee_unit *u) { ee_player *o = unit_owner(u); return o ? FIELD(o, OF(PL, 0x45C), int) : -1; }
+internal int ld_hits(ee_unit *a, ee_unit *t) {   // can a hit t (the game's table)
     return a && t && ld_factor(FIELD(a, OF(UNIT, 0x2C), uint8_t *), ld_pidx(a), FIELD(t, OF(UNIT, 0x2C), uint8_t *), ld_pidx(t)) > 0.0f;
 }
 // an enemy (seen) afloat or in the air that hits the transport type trtd (of player index tpi)
-static int ld_sea_foe(ee_player *pl, ee_unit *u, uint8_t *trtd, int tpi) {
+internal int ld_sea_foe(ee_player *pl, ee_unit *u, uint8_t *trtd, int tpi) {
     ee_player *o = unit_owner(u);
     int x = FIELD(u, OF(UNIT, 0x1C), int), y = FIELD(u, OF(UNIT, 0x20), int);
     if (!o || FIELD(o, PL_INDEX, int) <= 0 || FIELD(u, OF(UNIT, 0x3C), int) <= 0 || x < 0 || !is_enemy(pl, o)) return 0;
@@ -485,7 +485,7 @@ static int ld_sea_foe(ee_player *pl, ee_unit *u, uint8_t *trtd, int tpi) {
 // the threats on the way over: within 10 tiles of the line from (x0, y0) to the water in front of the beach, every
 // 5 tiles; aircraft within 25 of the beach too (a patrol)
 struct ld_sea_scan { ee_player *pl; uint8_t *trtd; int tpi, npt, px[48], py[48], sx, sy; struct ld_sea *t; };
-static void ld_sea_unit(ee_unit *u, void *ctx) {
+internal void ld_sea_unit(ee_unit *u, void *ctx) {
     struct ld_sea_scan *c = ctx;
     if (!ld_sea_foe(c->pl, u, c->trtd, c->tpi)) return;
     int x = FIELD(u, OF(UNIT, 0x1C), int), y = FIELD(u, OF(UNIT, 0x20), int), on = 0, air = ld_is_air(u);
@@ -498,7 +498,7 @@ static void ld_sea_unit(ee_unit *u, void *ctx) {
     if (!c->t->rep[k]) { c->t->rep[k] = td; c->t->rpi[k] = ld_pidx(u); }
     c->t->n[air ? LDS_AIR : FIELD(td, OF(TD, 0x4B4), int) == 10 ? LDS_SUB : LDS_SHIP]++;
 }
-static void ld_sea_threat(ee_player *pl, uint8_t *trtd, int x0, int y0, int wx, int wy, int sx, int sy, struct ld_sea *t) {
+internal void ld_sea_threat(ee_player *pl, uint8_t *trtd, int x0, int y0, int wx, int wy, int sx, int sy, struct ld_sea *t) {
     static struct ld_sea_scan c;
     memset(&c, 0, sizeof c); memset(t, 0, sizeof *t);
     c.pl = pl; c.trtd = trtd; c.tpi = FIELD(pl, OF(PL, 0x45C), int); c.sx = sx; c.sy = sy; c.t = t;
@@ -512,12 +512,12 @@ static void ld_sea_threat(ee_player *pl, uint8_t *trtd, int x0, int y0, int wx, 
     }
     grid_each(ld_sea_unit, &c);
 }
-static int ld_sea_useful(const struct ld_sea *e, ee_unit *u) {   // its weapon hits some threat on the way
+internal int ld_sea_useful(const struct ld_sea *e, ee_unit *u) {   // its weapon hits some threat on the way
     for (int k = 0; k < 64; k++)
         if (e->rep[k] && ld_factor(FIELD(u, OF(UNIT, 0x2C), uint8_t *), ld_pidx(u), e->rep[k], e->rpi[k]) > 0.0f) return 1;
     return 0;
 }
-static void ld_sea_add(struct ld_sea *o, const struct ld_sea *e, ee_unit *u) {   // u (own) against each category it hits
+internal void ld_sea_add(struct ld_sea *o, const struct ld_sea *e, ee_unit *u) {   // u (own) against each category it hits
     if (!ld_alive(u)) return;
     for (int k = 0; k < 64; k++)
         if (e->rep[k] && ld_factor(FIELD(u, OF(UNIT, 0x2C), uint8_t *), ld_pidx(u), e->rep[k], e->rpi[k]) > 0.0f) {
@@ -528,7 +528,7 @@ static void ld_sea_add(struct ld_sea *o, const struct ld_sea *e, ee_unit *u) {  
 // attack every 2 s), the escorts hitting it stopping at most half (strength against strength): with 2 cruisers
 // "matching" 5 strafing aircraft over the beach P2 sailed, the aircraft sank a transport with 14 aboard while the
 // cruisers chased them - the escorts must thin a patrol out before the transports go
-static float ld_sea_risk(const struct ld_sea *e, const struct ld_sea *o, float tr_hp) {
+internal float ld_sea_risk(const struct ld_sea *e, const struct ld_sea *o, float tr_hp) {
     float dmg = 0;
     for (int k = 0; k < 64; k++) {
         float es = ld_strength(e->h[k], e->a[k]), os = ld_strength(o->h[k], o->a[k]);
@@ -537,7 +537,7 @@ static float ld_sea_risk(const struct ld_sea *e, const struct ld_sea *o, float t
     return tr_hp > 0 ? dmg / tr_hp : 0.0f;
 }
 // the nearest threat to the transports (type trtd) within r tiles that esc can hit (esc NULL: any)
-static ee_unit *ld_hunt(ee_player *pl, int x, int y, int r, ee_unit *esc, uint8_t *trtd) {
+internal ee_unit *ld_hunt(ee_player *pl, int x, int y, int r, ee_unit *esc, uint8_t *trtd) {
     uint8_t *map = *(uint8_t **)GA(G_MAP);
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     if (!grid || !trtd) return NULL;
@@ -552,14 +552,14 @@ static ee_unit *ld_hunt(ee_player *pl, int x, int y, int r, ee_unit *esc, uint8_
     }
     return best;
 }
-static float ld_tr_hp(struct landing *l) {   // the transports' hit points
+internal float ld_tr_hp(struct landing *l) {   // the transports' hit points
     float h = 0;
     for (int k = 0; k < l->nships; k++) h += ld_alive(l->ships[k]) ? (float)FIELD(l->ships[k], OF(UNIT, 0x3C), int) : 0.0f;
     return h;
 }
-static uint8_t *ld_tr_td(struct landing *l) { return l->nships ? FIELD(l->ships[0], OF(UNIT, 0x2C), uint8_t *) : NULL; }
+internal uint8_t *ld_tr_td(struct landing *l) { return l->nships ? FIELD(l->ships[0], OF(UNIT, 0x2C), uint8_t *) : NULL; }
 // the sail check: the threats on the way from (x0, y0) against its escorts
-static float ld_sea_now(ee_player *pl, struct landing *l, int x0, int y0, struct ld_sea *e) {
+internal float ld_sea_now(ee_player *pl, struct landing *l, int x0, int y0, struct ld_sea *e) {
     static struct ld_sea o;
     memset(&o, 0, sizeof o);
     ld_sea_threat(pl, ld_tr_td(l), x0, y0, l->wx, l->wy, l->sx, l->sy, e);
@@ -572,7 +572,7 @@ static float ld_sea_now(ee_player *pl, struct landing *l, int x0, int y0, struct
 // the towers (263: 8 tiles, the tower 463: 5) stands off at its range from the first one, instead of sailing past
 // the outer towers to one behind them (P3 lost 3 of 5 that way, the tower it went for untouched). Before, each took
 // the nearest defence or warship to the water: towers shelled by one or two ships while the others chased warships
-static ee_unit *ld_beach_tower(ee_player *pl, struct landing *l, ee_unit *u) {
+internal ee_unit *ld_beach_tower(ee_player *pl, struct landing *l, ee_unit *u) {
     float fx = 0, fy = 0, bd = 1e9f;
     int n = 0;
     for (int k = 0; k < l->nesc; k++)
@@ -589,7 +589,7 @@ static ee_unit *ld_beach_tower(ee_player *pl, struct landing *l, ee_unit *u) {
     }
     return best;
 }
-static void ld_escorts(ee_player *pl, struct landing *l) {
+internal void ld_escorts(ee_player *pl, struct landing *l) {
     for (int k = 0; k < l->nesc; k++) {
         ee_unit *u = l->esc[k];
         uint8_t *g = FIELD(u, OF(UNIT, 0x1EC), uint8_t *);
@@ -640,7 +640,7 @@ static void ld_escorts(ee_player *pl, struct landing *l) {
 // water of the sea `ocean` with no land within 2 tiles, nearest to (x, y) within 10: a loaded transport waits there -
 // idle at the shore with soldiers aboard, the game's own unit code (0x483E10: cargo, no order, land next to it)
 // unloads it on the spot: P3 lost half of those aboard while its transports waited for the warships
-static int ld_open_water(int x, int y, unsigned ocean, int *ox, int *oy) {
+internal int ld_open_water(int x, int y, unsigned ocean, int *ox, int *oy) {
     for (int d = 1; d <= 10; d++)
         for (int dx = -d; dx <= d; dx++)
             for (int dy = -d; dy <= d; dy += (abs(dx) == d ? 1 : 2 * d)) {
@@ -652,15 +652,15 @@ static int ld_open_water(int x, int y, unsigned ocean, int *ox, int *oy) {
     return 0;
 }
 
-static void ld_fu_forget(void *g);   // below (the game's unload orders to landing transports)
-static void ld_fu_check(uint32_t now);
-static void *ld_unload(ee_unit *sh, int x, int y) {
+internal void ld_fu_forget(void *g);   // below (the game's unload orders to landing transports)
+internal void ld_fu_check(uint32_t now);
+internal void *ld_unload(ee_unit *sh, int x, int y) {
     void *g = goal_unload(sh, x, y, g_land_flag);
     if (g) ld_fu_forget(g);
     return g;
 }
 // called off with soldiers aboard: each transport unloads on the land nearest to it (at home)
-static void ld_unload_home(struct landing *l) {
+internal void ld_unload_home(struct landing *l) {
     for (int k = 0; k < l->nships; k++) {
         ee_unit *sh = l->ships[k];
         if (units_inside(sh) <= 0) continue;   // nothing aboard
@@ -676,7 +676,7 @@ static void ld_unload_home(struct landing *l) {
 
 // every subgroup holding a transport, warship or soldier of the landing is led by it - checked every tick: the game
 // moves units between subgroups, and a transport with soldiers aboard sailed off alone in its new subgroup
-static void ld_refreeze(struct landing *l, uint8_t *dq, unsigned first, unsigned cnt) {
+internal void ld_refreeze(struct landing *l, uint8_t *dq, unsigned first, unsigned cnt) {
     for (unsigned k = 0; k < cnt && k < 64; k++) {
         uint8_t *g = deque_at(dq, first + k);
         for (uint8_t **sp = g ? FIELD(g, OF(GOAL, 0x8), uint8_t **) : NULL; sp && sp < FIELD(g, OF(GOAL, 0xC), uint8_t **); sp++) {
@@ -699,7 +699,7 @@ static void ld_refreeze(struct landing *l, uint8_t *dq, unsigned first, unsigned
 // a shore tile to unload on: land of the site's continent, room on the 3x3 tiles, the landing's sea within 2 tiles,
 // within 15 of the site; nearest to (x, y), at least `gap` tiles from the other transports' points and from
 // (ax, ay) - where the last unload failed
-static int ld_shore_tile(struct landing *l, int k, int x, int y, int ax, int ay, int gap, int *ox, int *oy) {
+internal int ld_shore_tile(struct landing *l, int k, int x, int y, int ax, int ay, int gap, int *ox, int *oy) {
     unsigned cont = area_id(l->sx, l->sy, 2);
     int rr = (15 + l->nships) * (15 + l->nships);   // 10 transports 4 tiles apart need more beach
     for (int d = 0; d <= 10 + l->nships; d++)
@@ -720,7 +720,7 @@ static int ld_shore_tile(struct landing *l, int k, int x, int y, int ax, int ay,
 // the run in: each transport its own point on the beach, 4+ tiles apart (3 when the beach is short of room): with
 // one point for all, the first put its soldiers there and the unload of the next ended at once (no room), soldiers
 // aboard, the transport idle off the beach
-static void ld_run_in(struct landing *l, unsigned pi) {
+internal void ld_run_in(struct landing *l, unsigned pi) {
     for (int k = 0; k < l->nships; k++) { l->ux[k] = -100; l->uy[k] = -100; }
     for (int k = 0; k < l->nships; k++)
         if (units_inside(l->ships[k]) <= 0) continue;   // empty (a wave on fewer transports): stays off the beach
@@ -739,7 +739,7 @@ static void ld_run_in(struct landing *l, unsigned pi) {
 // transport k with soldiers aboard and no unload order: off the beach (within 10 tiles of its point) the unload ended
 // there - the nearest shore tile with room to where it is, away from where it failed; farther off (another order took
 // it): its point again
-static void ld_reunload(struct landing *l, unsigned pi, int k, uint32_t now) {
+internal void ld_reunload(struct landing *l, unsigned pi, int k, uint32_t now) {
     ee_unit *sh = l->ships[k];
     int x0 = FIELD(sh, OF(UNIT, 0x1C), int), y0 = FIELD(sh, OF(UNIT, 0x20), int), ux = l->ux[k], uy = l->uy[k], ddx = x0 - ux, ddy = y0 - uy;
     l->tries_at[k]++;
@@ -755,7 +755,7 @@ static void ld_reunload(struct landing *l, unsigned pi, int k, uint32_t now) {
 // first ashore fought alone and each transport arriving late was the towers' and warships' only target): open water
 // of the landing's sea 10-18 tiles off the water in front of the beach, towards where they come from, the least
 // known threat
-static int ld_stage(struct landing *l, unsigned pi, int *ox, int *oy) {
+internal int ld_stage(struct landing *l, unsigned pi, int *ox, int *oy) {
     float dx = (float)(l->ewx - l->wx), dy = (float)(l->ewy - l->wy), len = sqrtf(dx * dx + dy * dy), best = 1e9f;
     if (len < 20.0f) return 0;   // the meeting point is near: they come together anyway
     int found = 0;
@@ -772,7 +772,7 @@ static int ld_stage(struct landing *l, unsigned pi, int *ox, int *oy) {
 }
 
 struct ld_cits { ee_player *pl; int x, y, n; ee_unit *u[32]; int d[32]; };
-static void ld_cit_unit(ee_unit *u, void *ctx) {
+internal void ld_cit_unit(ee_unit *u, void *ctx) {
     struct ld_cits *c = ctx;
     int t = FIELD(FIELD(u, OF(UNIT, 0x2C), uint8_t *), OF(TD, 0x4B8), int);
     if (unit_owner(u) != c->pl || !is_citizen_type(t) || FIELD(u, OF(UNIT, 0x3C), int) <= 0 || FIELD(u, OF(UNIT, 0x1C), int) < 0 || c->n >= 32 || expand_has(c->pl, u)) return;
@@ -789,7 +789,7 @@ static void ld_cit_unit(ee_unit *u, void *ctx) {
 // EEUGBuildRepair (new 0x5C, 0x60BAD0(goal, player, building, 0)) as the game orders its builders. One started every
 // 10 s while citizens are free; a project it cannot pay for a minute is dropped. Free citizens help the others; all
 // done: the citizens go back to the game.
-static void ld_base_plan(struct landing *l) {
+internal void ld_base_plan(struct landing *l) {
     static const int plan3[] = { LDB_TOWER, LDB_TOWER }, plan6[] = { LDB_TOWER, LDB_BARRACKS, LDB_TOWER },
                      plan10[] = { LDB_TOWER, LDB_BARRACKS, LDB_CENTER, LDB_HOSPITAL, LDB_FACTORY, LDB_TOWER };
     const int *pl = l->ncit >= 8 ? plan10 : l->ncit >= 5 ? plan6 : plan3;
@@ -799,8 +799,8 @@ static void ld_base_plan(struct landing *l) {
     for (int k = 0; k < n; k++) { l->proj[k].kind = pl[k]; l->proj[k].cits = cits[pl[k]]; }
     l->nproj = n; l->base_t = 0;
 }
-static int ld_can_build(ee_player *pl, int t) { return ut_has(t) && can_build(pl, t) != 0; }
-static int ld_kind_type(ee_player *pl, int kind) {   // the type of a kind it can build and pay now (0: none)
+internal int ld_can_build(ee_player *pl, int t) { return ut_has(t) && can_build(pl, t) != 0; }
+internal int ld_kind_type(ee_player *pl, int kind) {   // the type of a kind it can build and pay now (0: none)
     static const enum ut_name centers[] = { UT_B_TOWN_CENTER, UT_B_SETTLEMENT },
         factories[] = { UT_B_CYBER_FACTORY, UT_B_TANK_FACTORY, UT_B_STABLE, UT_B_ARCHERY_RANGE };
     const enum ut_name *t = NULL; int n = 0;
@@ -814,11 +814,11 @@ static int ld_kind_type(ee_player *pl, int kind) {   // the type of a kind it ca
     for (int k = 0; k < n; k++) if (ld_can_build(pl, g_ut[t[k]])) return g_ut[t[k]];
     return 0;
 }
-static const char *ld_kind_name(int kind) {
+internal const char *ld_kind_name(int kind) {
     static const char *nm[] = { "tower", "barracks", "town center", "hospital", "factory" };
     return kind >= 0 && kind < 5 ? nm[kind] : "?";
 }
-static int ld_base_spot(ee_player *pl, unsigned pi, struct landing *l, int type, int cx, int cy, int *ox, int *oy) {
+internal int ld_base_spot(ee_player *pl, unsigned pi, struct landing *l, int type, int cx, int cy, int *ox, int *oy) {
     unsigned cont = area_id(cx, cy, 2);
     uint8_t *td = type_data(type);
     int sz = td ? FIELD(td, OF(TD, 0x58C), int) : 1, found = 0;
@@ -836,7 +836,7 @@ static int ld_base_spot(ee_player *pl, unsigned pi, struct landing *l, int type,
             }
     return found;
 }
-static void ld_bridgehead(ee_player *pl, unsigned pi, struct landing *l, uint32_t now) {
+internal void ld_bridgehead(ee_player *pl, unsigned pi, struct landing *l, uint32_t now) {
     int n = 0, cx = 0, cy = 0;
     for (int k = 0; k < l->ncit; k++)
         if (!ld_alive(l->cit[k])) { l->ncit--; l->cit[k] = l->cit[l->ncit]; l->cjob[k] = l->cjob[l->ncit]; k--; }
@@ -918,7 +918,7 @@ static void ld_bridgehead(ee_player *pl, unsigned pi, struct landing *l, uint32_
 // soldiers trained at the forward base (its barracks, town center or factory standing): within 8 tiles of it and not
 // the landing's - they join the troops ashore instead of the game's groups at home
 struct ld_cap_scan { ee_player *pl; struct landing *l; int got; };
-static void ld_capture_unit(ee_unit *u, void *ctx) {
+internal void ld_capture_unit(ee_unit *u, void *ctx) {
     struct ld_cap_scan *c = ctx;
     struct landing *l = c->l;
     if (unit_owner(u) != c->pl || !ld_alive(u) || ld_aboard(u) || !is_soldier(FIELD(u, OF(UNIT, 0x2C), uint8_t *)) || l->npass >= LD_PASS) return;
@@ -932,7 +932,7 @@ static void ld_capture_unit(ee_unit *u, void *ctx) {
     for (int k = 0; k < l->npass; k++) if (l->pass[k] == u) return;
     l->pass[l->npass++] = u; l->launch_n++; c->got++;
 }
-static void ld_capture(ee_player *pl, unsigned pi, struct landing *l, uint32_t now) {
+internal void ld_capture(ee_player *pl, unsigned pi, struct landing *l, uint32_t now) {
     int prod = 0;
     for (int j = 0; j < l->nproj; j++) prod |= l->proj[j].state == 2 && l->proj[j].kind != LDB_TOWER && l->proj[j].kind != LDB_HOSPITAL;
     if (!prod) return;
@@ -941,7 +941,7 @@ static void ld_capture(ee_player *pl, unsigned pi, struct landing *l, uint32_t n
     if (c.got && g_log) fprintf(g_log, "# landing: P%u at %.1f min: forward base - %d soldiers trained there join the troops\n", pi, now / 60000.0, c.got);
 }
 
-static void ld_why(unsigned pi, uint32_t now, const char *why) {   // why no landing is planned (once a minute)
+internal void ld_why(unsigned pi, uint32_t now, const char *why) {   // why no landing is planned (once a minute)
     static uint32_t t[16];
     if (!g_log || (t[pi] && now - t[pi] < 60000 && now >= t[pi])) return;
     t[pi] = now;
@@ -949,7 +949,7 @@ static void ld_why(unsigned pi, uint32_t now, const char *why) {   // why no lan
 }
 
 // subgroups not led by the landing any more: those without a transport, warship, passenger or wave soldier of it
-static void ld_prune_frozen(struct landing *l) {
+internal void ld_prune_frozen(struct landing *l) {
     int nf = 0;
     for (int f = 0; f < l->nfrozen; f++) {
         uint8_t *sg = l->frozen[f];
@@ -972,7 +972,7 @@ static void ld_prune_frozen(struct landing *l) {
 // few transports carry a big landing. 1: to the meeting point, 2: boarding, 3: at sea - ashore they join the others.
 // a wave at sea (wst 3): a transport with soldiers aboard and no unload order unloads again - every 0.5 s (landing_tick
 // runs it between its 2 s ticks; wre is free at sea)
-static void ld_wave_reunload(struct landing *l, unsigned pi, uint32_t now) {
+internal void ld_wave_reunload(struct landing *l, unsigned pi, uint32_t now) {
     l->wre = now;
     for (int k = 0; k < l->nships; k++) {
         ee_unit *sh = l->ships[k];
@@ -981,7 +981,7 @@ static void ld_wave_reunload(struct landing *l, unsigned pi, uint32_t now) {
         ld_reunload(l, pi, k, now);
     }
 }
-static void ld_wave(ee_player *pl, unsigned pi, struct landing *l, uint8_t *dq, unsigned first, unsigned cnt, uint32_t now) {
+internal void ld_wave(ee_player *pl, unsigned pi, struct landing *l, uint8_t *dq, unsigned first, unsigned cnt, uint32_t now) {
     for (int k = 0; k < l->nw; k++) if (!ld_alive(l->wpass[k])) { l->wpass[k--] = l->wpass[--l->nw]; }
     int cap = ld_cap(FIELD(FIELD(l->ships[0], OF(UNIT, 0x2C), uint8_t *), OF(TD, 0x4B8), int));
     if (l->wst == 0) {
@@ -1150,8 +1150,8 @@ static void ld_wave(ee_player *pl, unsigned pi, struct landing *l, uint8_t *dq, 
     }
 }
 
-static ee_unit *ld_raid_target(ee_player *pl, ee_player *target, int x, int y, int r);   // below
-static ee_unit *ld_objective(ee_player *pl, unsigned pi, ee_player *target, unsigned cont, int x, int y);
+internal ee_unit *ld_raid_target(ee_player *pl, ee_player *target, int x, int y, int r);   // below
+internal ee_unit *ld_objective(ee_player *pl, unsigned pi, ee_player *target, unsigned cont, int x, int y);
 // BOMBARD ([all] landing_bombard, default 0; the playtester: "the main island will have huge concentrated forces,
 // especially if the AI never dares to leave - bomb the way free with huge warship fleets, then land a large force with
 // a forward base, keep the ships near for support"): a beach too strong for the army it can send (power < 1.2 x the
@@ -1177,7 +1177,7 @@ static ee_unit *ld_objective(ee_player *pl, unsigned pi, ee_player *target, unsi
 // set for the old line's type an upgrade replaced (251, never trainable again - the fleets were planned on it and
 // built of whatever else it could train: 255 and 254, factor 0.4 against a tower, 185 with 11 attack) and not set for
 // the new one (263) that trained. Only a factor of 1 or more (the game's table) - the others hardly scratch a tower.
-static int ld_type_avail(ee_player *pl, int t) {
+internal int ld_type_avail(ee_player *pl, int t) {
     uint8_t *td = type_data(t);
     ee_tech_tree *tt = FIELD(pl, PL_TECHTREE, ee_tech_tree *);
     if (!td || !tt || FIELD(td, OF(TD, 0x4E0), int) < 2000) return 0;   // campaign heroes: tech 14xx (Golden Hind 611: 1446; ordering it crashed the game)
@@ -1186,7 +1186,7 @@ static int ld_type_avail(ee_player *pl, int t) {
 }
 // the strongest defence of the target seen within 16 tiles of the beach (the fleet is picked against it: 463, the
 // Middle Ages' tower, held the beaches of Small Islands e5); none seen: 465
-static uint8_t *ld_tower_td(ee_player *pl, ee_player *target, int x, int y) {
+internal uint8_t *ld_tower_td(ee_player *pl, ee_player *target, int x, int y) {
     uint8_t *best = NULL;
     int bh = 0;
     for (struct grid_it it = grid_it_box(x, y, 16, 1); grid_it_next(&it); ) {
@@ -1196,12 +1196,12 @@ static uint8_t *ld_tower_td(ee_player *pl, ee_player *target, int x, int y) {
     }
     return best ? best : type_data(UT(B_GUARD_TOWER_WW1));
 }
-static float ld_war_value(ee_player *pl, uint8_t *td, uint8_t *tw, ee_player *target) {   // what a warship type does to the tower tw
+internal float ld_war_value(ee_player *pl, uint8_t *td, uint8_t *tw, ee_player *target) {   // what a warship type does to the tower tw
     float f = ld_factor(td, FIELD(pl, PL_INDEX, int), tw, target ? FIELD(target, PL_INDEX, int) : 0);
     return f >= 1.0f ? f * (float)FIELD(td, OF(TD, 0x510), int) * sqrtf((float)FIELD(td, OF(TD, 0x55C), int)) : 0.0f;
 }
 // now_only: of those it can train and pay now (0x555710); *bv: the best value of all available types
-static int ld_war_type(ee_player *pl, ee_player *target, uint8_t *tw, int now_only, float *bvp) {
+internal int ld_war_type(ee_player *pl, ee_player *target, uint8_t *tw, int now_only, float *bvp) {
     int best = 0;
     float bv = 0;
     for (int t = 1; t < 724; t++) {
@@ -1220,7 +1220,7 @@ static int ld_war_type(ee_player *pl, ee_player *target, uint8_t *tw, int now_on
 }
 // the fleet: its warships that do at least half what the best available type does to the tower (the others stay
 // with the game)
-static int ld_fleet(ee_player *pl, struct landing *l, struct ld_scan *s, ee_unit **out) {
+internal int ld_fleet(ee_player *pl, struct landing *l, struct ld_scan *s, ee_unit **out) {
     uint8_t *tw = ld_tower_td(pl, l->target, l->sx, l->sy);
     float bv = 0;
     ld_war_type(pl, l->target, tw, 0, &bv);
@@ -1229,7 +1229,7 @@ static int ld_fleet(ee_player *pl, struct landing *l, struct ld_scan *s, ee_unit
         if (bv > 0 && ld_war_value(pl, FIELD(s->war[k], OF(UNIT, 0x2C), uint8_t *), tw, l->target) >= 0.5f * bv) out[n++] = s->war[k];
     return n;
 }
-static int ld_bombard_plan(ee_player *pl, unsigned pi, struct landing *l, ee_player *target, struct ld_scan *s, unsigned ocean, float power,
+internal int ld_bombard_plan(ee_player *pl, unsigned pi, struct landing *l, ee_player *target, struct ld_scan *s, unsigned ocean, float power,
                            int sx, int sy, int swx, int swy, struct ld_def *d, uint32_t now, int tr_want) {
     int wt = ld_war_type(pl, target, ld_tower_td(pl, target, sx, sy), 0, NULL);
     if (!wt) return 0;   // nothing that hurts a tower
@@ -1246,27 +1246,27 @@ static int ld_bombard_plan(ee_player *pl, unsigned pi, struct landing *l, ee_pla
     return 1;
 }
 struct ld_anti { ee_player *pl; ee_player *target; uint8_t *wtd; int x, y, n; };
-static void ld_anti_unit(ee_unit *u, void *ctx) {   // enemy land units near the beach that hit the warships hard
+internal void ld_anti_unit(ee_unit *u, void *ctx) {   // enemy land units near the beach that hit the warships hard
     struct ld_anti *a = ctx;
     uint8_t *td = FIELD(u, OF(UNIT, 0x2C), uint8_t *);
     if (unit_owner(u) != a->target || FIELD(u, OF(UNIT, 0x3C), int) <= 0 || !td || FIELD(td, OF(TD, 0x510), int) <= 0) return;
     if (abs(FIELD(u, OF(UNIT, 0x1C), int) - a->x) > 16 || abs(FIELD(u, OF(UNIT, 0x20), int) - a->y) > 16 || !seen_by(u, a->pl)) return;
     if (ld_factor(td, ld_pidx(u), a->wtd, FIELD(a->pl, PL_INDEX, int)) >= 1.5f) a->n++;
 }
-static int ld_anti_ship(ee_player *pl, struct landing *l) {
+internal int ld_anti_ship(ee_player *pl, struct landing *l) {
     struct ld_anti a = { pl, l->target, l->war_type ? type_data(l->war_type) : NULL, l->sx, l->sy, 0 };
     if (!a.wtd) return 0;
     grid_each(ld_anti_unit, &a);
     return a.n;
 }
-static int bk_room(ee_player *pl);   // bunker.c
-static float ld_range(ee_unit *u) {   // its range with upgrades (stats +0x9C), else its type's (+0x420)
+internal int bk_room(ee_player *pl);   // bunker.c
+internal float ld_range(ee_unit *u) {   // its range with upgrades (stats +0x9C), else its type's (+0x420)
     uint8_t *st = FIELD(u, OF(UNIT, 0x34), uint8_t *), *td = FIELD(u, OF(UNIT, 0x2C), uint8_t *);
     return st ? FIELD(st, OF(USTAT, 0x9C), float) : td ? FIELD(td, OF(TD, 0x420), float) : 0.0f;
 }
 // landing_trace (test): at each check of the shelling, the warships (type, hit points, target) and the defences
 // within 16 tiles of the beach (type, hit points, range, the nearest warship and whether each reaches the other)
-static void ld_bomb_trace(ee_player *pl, unsigned pi, struct landing *l, uint32_t now) {
+internal void ld_bomb_trace(ee_player *pl, unsigned pi, struct landing *l, uint32_t now) {
     for (int k = 0; k < l->nesc; k++) {
         ee_unit *u = l->esc[k];
         uint8_t *g = ld_alive(u) ? FIELD(u, OF(UNIT, 0x1EC), uint8_t *) : NULL;
@@ -1296,7 +1296,7 @@ static void ld_bomb_trace(ee_player *pl, unsigned pi, struct landing *l, uint32_
         fprintf(g_log, "\n");
     }
 }
-static void ld_bombard_tick(ee_player *pl, unsigned pi, struct landing *l, ee_unit_mgr *um, uint32_t now) {
+internal void ld_bombard_tick(ee_player *pl, unsigned pi, struct landing *l, ee_unit_mgr *um, uint32_t now) {
     static struct ld_scan s;
     memset(&s, 0, sizeof s); s.pl = pl; s.target = l->target;
     grid_each(ld_unit, &s);
@@ -1402,9 +1402,9 @@ static void ld_bombard_tick(ee_player *pl, unsigned pi, struct landing *l, ee_un
 }
 // the landing's phases (landing_tick): 0 plan, 1 transports and passengers, 2 meeting point and boarding, 3 at sea
 // (gathering, run in), 4 ashore and waves, 5 bombardment (ld_bombard_tick). Each returns 1 when the tick ends there.
-static struct ld_scan g_ld_scan;   // the phases' scan of the map (ld_unit) - filled where it is used
+internal struct ld_scan g_ld_scan;   // the phases' scan of the map (ld_unit) - filled where it is used
 // phase 0: a target (the attack with the most land members), a beach, the size - or why not (ld_why)
-static void ld_phase_plan(ee_player *pl, unsigned pi, struct landing *l, ee_unit_mgr *um, uint8_t *dq, unsigned first, unsigned cnt, uint32_t now) {
+internal void ld_phase_plan(ee_player *pl, unsigned pi, struct landing *l, ee_unit_mgr *um, uint8_t *dq, unsigned first, unsigned cnt, uint32_t now) {
     struct ld_scan *s = &g_ld_scan;
     (void)um;
     if (now < l->next_try) return;
@@ -1522,7 +1522,7 @@ static void ld_phase_plan(ee_player *pl, unsigned pi, struct landing *l, ee_unit
 }
 // phase 1: the transports (trained when missing), the warships and aircraft along, the passengers' subgroups;
 // 1 = waiting (or given up), 0 = boarding begins (phase 2)
-static int ld_phase_ships(ee_player *pl, unsigned pi, struct landing *l, ee_unit_mgr *um, uint8_t *dq, unsigned first, unsigned cnt, uint32_t now) {
+internal int ld_phase_ships(ee_player *pl, unsigned pi, struct landing *l, ee_unit_mgr *um, uint8_t *dq, unsigned first, unsigned cnt, uint32_t now) {
     struct ld_scan *s = &g_ld_scan;
     memset(s, 0, sizeof *s); s->pl = pl; s->target = l->target;
     grid_each(ld_unit, s);
@@ -1648,7 +1648,7 @@ static int ld_phase_ships(ee_player *pl, unsigned pi, struct landing *l, ee_unit
     return 0;
 }
 // phase 2: to the meeting point, then boarding - the last look at the beach and the sea before it sails (phase 3)
-static void ld_phase_board(ee_player *pl, unsigned pi, struct landing *l, ee_unit_mgr *um, uint8_t *dq, unsigned first, unsigned cnt, uint32_t now) {
+internal void ld_phase_board(ee_player *pl, unsigned pi, struct landing *l, ee_unit_mgr *um, uint8_t *dq, unsigned first, unsigned cnt, uint32_t now) {
     struct ld_scan *s = &g_ld_scan;
     (void)um; (void)dq; (void)first; (void)cnt;
     if (l->phase == 2 && !l->gathered) {   // to the meeting point first: the transports to the water in front, the soldiers to the shore
@@ -1825,7 +1825,7 @@ static void ld_phase_board(ee_player *pl, unsigned pi, struct landing *l, ee_uni
         return;
     }
 }
-static void ld_trace_ships(struct landing *l, unsigned pi, uint32_t now) {   // landing_trace (test)
+internal void ld_trace_ships(struct landing *l, unsigned pi, uint32_t now) {   // landing_trace (test)
     for (int k = 0; k < l->nships; k++) {
         ee_unit *sh = l->ships[k];
         uint8_t *g = FIELD(sh, OF(UNIT, 0x1EC), uint8_t *);
@@ -1840,7 +1840,7 @@ static void ld_trace_ships(struct landing *l, unsigned pi, uint32_t now) {   // 
     }
 }
 // phase 3, gathering at sea: all transports there (within 6 tiles) or 75 s - then the run in
-static void ld_phase_gather(struct landing *l, unsigned pi, uint32_t now) {
+internal void ld_phase_gather(struct landing *l, unsigned pi, uint32_t now) {
     int there = 0;
     for (int k = 0; k < l->nships; k++) {
         ee_unit *sh = l->ships[k];
@@ -1857,7 +1857,7 @@ static void ld_phase_gather(struct landing *l, unsigned pi, uint32_t now) {
     return;
 }
 // phases 3 and 4: sailing and unloading, ashore - the waves, the bridgehead, raiding
-static void ld_phase_land(ee_player *pl, unsigned pi, struct landing *l, ee_unit_mgr *um, uint8_t *dq, unsigned first, unsigned cnt, uint32_t now) {
+internal void ld_phase_land(ee_player *pl, unsigned pi, struct landing *l, ee_unit_mgr *um, uint8_t *dq, unsigned first, unsigned cnt, uint32_t now) {
     (void)um;
     // sail and unload (3), ashore (4) - while some are still aboard, the ones ashore already fight
     int aboard = 0, ashore = 0;
@@ -1924,7 +1924,7 @@ static void ld_phase_land(ee_player *pl, unsigned pi, struct landing *l, ee_unit
     }
     if (!foe && !l->obj) ld_release(pi, "nothing left to attack ashore", now);
 }
-static void landing_tick(ee_player *pl, uint32_t now) {
+internal void landing_tick(ee_player *pl, uint32_t now) {
     unsigned pi = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     struct landing *l = &g_ld[pi];
     if (!g_landing) return;
@@ -1989,7 +1989,7 @@ static void landing_tick(ee_player *pl, uint32_t now) {
 // sees within r tiles, by kind - soldiers and siege within 8 (they fight back), citizens, buildings of the target
 // within 8 that are no defence, defences only when they reach it; nearest first within a kind. (Before: soldiers,
 // then any defence within 12, then buildings - the troops walked into towers past the citizens.)
-static ee_unit *ld_raid_target(ee_player *pl, ee_player *target, int x, int y, int r) {
+internal ee_unit *ld_raid_target(ee_player *pl, ee_player *target, int x, int y, int r) {
     uint8_t *map = *(uint8_t **)GA(G_MAP);
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     if (!grid) return NULL;
@@ -2018,7 +2018,7 @@ static ee_unit *ld_raid_target(ee_player *pl, ee_player *target, int x, int y, i
 // the next objective ashore: the nearest building of the target it knows that is no defence (its distance plus 3 per
 // tower covering it, on the landed continent)
 struct ld_obj { ee_player *pl; ee_player *target; unsigned pi, cont; int x, y; ee_unit *best; float score; };
-static void ld_obj_unit(ee_unit *u, void *ctx) {
+internal void ld_obj_unit(ee_unit *u, void *ctx) {
     struct ld_obj *s = ctx;
     uint8_t *td = FIELD(u, OF(UNIT, 0x2C), uint8_t *);
     int fam = FIELD(td, OF(TD, 0x4B4), int);
@@ -2031,7 +2031,7 @@ static void ld_obj_unit(ee_unit *u, void *ctx) {
     if ((s->best && sc >= s->score) || !cont_ok(x, y, s->cont)) return;
     s->best = u; s->score = sc;
 }
-static ee_unit *ld_objective(ee_player *pl, unsigned pi, ee_player *target, unsigned cont, int x, int y) {
+internal ee_unit *ld_objective(ee_player *pl, unsigned pi, ee_player *target, unsigned cont, int x, int y) {
     struct ld_obj s = { pl, target, pi, cont, x, y, NULL, 0 };
     grid_each(ld_obj_unit, &s);
     return s.best;
@@ -2040,7 +2040,7 @@ static ee_unit *ld_objective(ee_player *pl, unsigned pi, ee_player *target, unsi
 // terrain x y [r] (test): the map around a tile, a character per tile: ~ ocean, . land (its continent; digit: another
 // continent), ? neither id, then on top: T tree or other gaia object, B building, s soldier, c citizen (player's
 // digit for buildings of others when P given: B for player P only... kept simple: B any building, u any unit)
-static void cmd_terrain(char *out, const char *args) {
+internal void cmd_terrain(char *out, const char *args) {
     int x0 = 0, y0 = 0, r = 20;
     sscanf(args, "%d %d %d", &x0, &y0, &r);
     if (r > 40) r = 40;
@@ -2079,7 +2079,7 @@ static void cmd_terrain(char *out, const char *args) {
 }
 
 // landing P [now] (test): the state of AI P's landing; now: plan at once
-static void cmd_landing(char *out, const char *args) {
+internal void cmd_landing(char *out, const char *args) {
     int p = atoi(args);
     if (p <= 0 || p >= 16) { REPLY("error: landing P [now]\n"); return; }
     struct landing *l = &g_ld[p];
@@ -2133,7 +2133,7 @@ static void cmd_landing(char *out, const char *args) {
 // board P x y [r] (test): each transport of P within r tiles (10) loads every soldier and siege unit of P within r
 // (the game's load goal with the whole list); again later: how many each holds - a transport's capacity
 struct ld_bd { ee_player *pl; int x, y, r, nt, ns; ee_unit *t[8], *s[64]; };
-static void ld_bd_unit(ee_unit *u, void *ctx) {
+internal void ld_bd_unit(ee_unit *u, void *ctx) {
     struct ld_bd *b = ctx;
     uint8_t *td = FIELD(u, OF(UNIT, 0x2C), uint8_t *);
     int dx = FIELD(u, OF(UNIT, 0x1C), int) - b->x, dy = FIELD(u, OF(UNIT, 0x20), int) - b->y, t = FIELD(td, OF(TD, 0x4B8), int);
@@ -2141,7 +2141,7 @@ static void ld_bd_unit(ee_unit *u, void *ctx) {
     if (is_transport(t) && b->nt < 8) b->t[b->nt++] = u;
     else if ((is_soldier(td) || is_siege(t)) && b->ns < 64) b->s[b->ns++] = u;
 }
-static void cmd_board(char *out, const char *args) {
+internal void cmd_board(char *out, const char *args) {
     struct ld_bd b = { 0 };
     int p = -1;
     if (!strncmp(args, "reload", 6)) {   // board reload P type: the first unit of P of type - every int and float that could hold reload times
@@ -2274,14 +2274,14 @@ static void cmd_board(char *out, const char *args) {
 // point (phase 3/4), two while boarding (phase 2) - an unload of the game's crossing the transport had before the
 // landing took it (resumed after the load goal, not made at any of these sites) carried 8 and 12 soldiers 40-70
 // tiles off and put them ashore there. 0x615AE6 is the unload goal's copy (vf4) - never seen.
-static unsigned g_foreign_unload[8], g_ld_mgr_refused;
-static int g_land_keep = 1;   // landing_keep_transports: the transport manager's unload refused
+internal unsigned g_foreign_unload[8], g_ld_mgr_refused;
+internal int g_land_keep = 1;   // landing_keep_transports: the transport manager's unload refused
 // the game's unload orders let through (diagnostic): each one followed until it is refused, never becomes the
 // transport's goal, or was its goal and ended - then a "# ldforeign:" line: the soldiers aboard before and after and
 // where the landing itself wanted that transport (state 0 made, 1 given, 2 the transport's goal)
-static struct ld_fu { ee_unit *sh; uint8_t *g; int site, p, x, y, aboard, state, phase; uint32_t t; } g_fu[16];
-static uint32_t ld_clock(void) { uint8_t *c = *(uint8_t **)GA(G_WORLD_CLOCK); return c ? FIELD(c, OF(PHYS, 0xD0), uint32_t) : 0; }
-static void ld_fu_log(struct ld_fu *f, const char *what, int now_aboard) {
+internal struct ld_fu { ee_unit *sh; uint8_t *g; int site, p, x, y, aboard, state, phase; uint32_t t; } g_fu[16];
+internal uint32_t ld_clock(void) { uint8_t *c = *(uint8_t **)GA(G_WORLD_CLOCK); return c ? FIELD(c, OF(PHYS, 0xD0), uint32_t) : 0; }
+internal void ld_fu_log(struct ld_fu *f, const char *what, int now_aboard) {
     struct landing *l = &g_ld[f->p & 15];
     int k = 0, lx = -1, ly = -1;
     while (k < l->nships && l->ships[k] != f->sh) k++;
@@ -2291,18 +2291,18 @@ static void ld_fu_log(struct ld_fu *f, const char *what, int now_aboard) {
                        ld_alive(f->sh) ? FIELD(f->sh, OF(UNIT, 0x1C), int) : -1, ld_alive(f->sh) ? FIELD(f->sh, OF(UNIT, 0x20), int) : -1, what, f->aboard, now_aboard);
     f->sh = NULL;
 }
-static void ld_fu_given(void *g, int ok) {   // a subgroup's vf57 or the game's own give: taken or refused
+internal void ld_fu_given(void *g, int ok) {   // a subgroup's vf57 or the game's own give: taken or refused
     for (int j = 0; j < 16; j++)
         if (g_fu[j].sh && g_fu[j].g == g && g_fu[j].state == 0) {
             if (ok) g_fu[j].state = 1;
             else ld_fu_log(&g_fu[j], "refused", g_fu[j].aboard);
         }
 }
-static void ld_fu_forget(void *g) {   // the landing's own unload goal at that address: the old one is gone
+internal void ld_fu_forget(void *g) {   // the landing's own unload goal at that address: the old one is gone
     for (int j = 0; j < 16; j++)
         if (g_fu[j].sh && g_fu[j].g == g) ld_fu_log(&g_fu[j], g_fu[j].state == 2 ? "replaced by the landing's" : "never its goal", g_fu[j].aboard);
 }
-static void ld_fu_check(uint32_t now) {
+internal void ld_fu_check(uint32_t now) {
     for (int j = 0; j < 16; j++) {
         struct ld_fu *f = &g_fu[j];
         if (!f->sh) continue;
@@ -2315,7 +2315,7 @@ static void ld_fu_check(uint32_t now) {
         else if (f->state < 2 && now - f->t > 30000) ld_fu_log(f, "never its goal", n);
     }
 }
-static void *__fastcall hook_unload_ctor(void *g, void *edx, ee_unit *tr, int x, int y, int flag) {
+internal void *__fastcall hook_unload_ctor(void *g, void *edx, ee_unit *tr, int x, int y, int flag) {
     (void)edx;
     uintptr_t ret = (uintptr_t)__builtin_return_address(0) - 5;
     if (unload_from_rm(ret) && tr && expand_ship(tr)) return NULL;   // an outpost's ferry (expand.c): not the transport manager's crossing
@@ -2348,8 +2348,8 @@ static void *__fastcall hook_unload_ctor(void *g, void *edx, ee_unit *tr, int x,
 // boarding (phase 2) the game's own crossing kept going with the landing's soldiers aboard. A landing transport gets
 // it only while the landing unloads (phase 3, phase 4 with the first landing or a wave at sea) and at its own point;
 // otherwise the new goal is deleted, never given (the caller does not touch it after this call)
-static unsigned g_ld_retry_refused;
-static void __fastcall hook_unload_retry_give(ee_unit *u, void *edx, void *goal, int slot) {
+internal unsigned g_ld_retry_refused;
+internal void __fastcall hook_unload_retry_give(ee_unit *u, void *edx, void *goal, int slot) {
     (void)edx;
     if (goal && expand_ship(u) && !expand_unload_ok(u, FIELD(goal, OF(GOAL, 0x34), int), FIELD(goal, OF(GOAL, 0x38), int))) {   // an outpost's ferry (expand.c)
         ld_fu_given(goal, 0);
@@ -2378,7 +2378,7 @@ give:
 
 // the game's idle-transport code (0x483E10: cargo aboard, no order, at a shore - 0x42C49A at 0x483E24 says where to
 // land) unloads a transport of a landing waiting for its last passengers or for the warships: for those "nowhere"
-static int __fastcall hook_idle_unload_shore(void *mgr, void *edx, ee_unit *tr) {
+internal int __fastcall hook_idle_unload_shore(void *mgr, void *edx, ee_unit *tr) {
     (void)edx;
     if (tr && expand_ship(tr)) return 0;   // an outpost's ferry (expand.c) unloads where it decides
     for (int p = 0; p < 16 && tr && !is_vanilla(unit_owner(tr)); p++)   // a vanilla player's transport: never a landing's
@@ -2389,13 +2389,13 @@ static int __fastcall hook_idle_unload_shore(void *mgr, void *edx, ee_unit *tr) 
 
 // the subgroups' orders (vf57: transport, sea, land, air) through hook_asg_give_goal - once, for the landing and the
 // fleet (fleet.c)
-static int asg_order_hooks(void) {
+internal int asg_order_hooks(void) {
     static int done;
     if (!done)
         done = patch_asg_give_goal(hook_asg_give_goal, hook_asg_air_give_goal);
     return done;
 }
-static void landing_install(const char *aimod_ini, const char *autotest_ini) {
+internal void landing_install(const char *aimod_ini, const char *autotest_ini) {
     BOOL gs = patch_goalset_ask(hook_goalset_ask, NULL) == 2 && patch_goalset_read(goalset_read_thunk);
     if (g_log) fprintf(g_log, "# engine guard: goal set after a dropped goal %s\n", gs ? "ok" : "FAILED");
     g_landing = cfg_int(aimod_ini, autotest_ini, 1, "landing", 1);
@@ -2427,7 +2427,7 @@ static void landing_install(const char *aimod_ini, const char *autotest_ini) {
 // a new game (the game start hook): every landing's ships, passengers and subgroups are the last game's (the tick's
 // own "time went backwards" reset missed a save loaded at a later time and slots without an AI now; landing_leads
 // and the unload hooks kept matching the freed pointers)
-static void landing_new_game(void) {
+internal void landing_new_game(void) {
     memset(g_ld, 0, sizeof g_ld);
     memset(g_ld_stat, 0, sizeof g_ld_stat);
     memset(g_fu, 0, sizeof g_fu);

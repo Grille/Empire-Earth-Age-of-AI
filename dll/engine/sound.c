@@ -11,20 +11,20 @@
 #define MX_PLAY_CHANNEL OF(E_MIXER, 0xD0)        // int (cdecl *)(int channel)
 #define SND_IDS 2048
 
-static int g_sound_log;
-static uint32_t g_snd_req[SND_IDS], g_snd_drop[SND_IDS], g_snd_req_total, g_snd_drop_total, g_snd_zero_vol;
-static uint32_t g_mix_set_fail[16], g_mix_play_fail[16], g_mix_set_total;
+internal int g_sound_log;
+internal uint32_t g_snd_req[SND_IDS], g_snd_drop[SND_IDS], g_snd_req_total, g_snd_drop_total, g_snd_zero_vol;
+internal uint32_t g_mix_set_fail[16], g_mix_play_fail[16], g_mix_set_total;
 typedef uint32_t (__thiscall *snd_play_fn)(void *, uint32_t, float, float, float, int, void *);
-static snd_play_fn g_snd_play, g_snd_playref;
+internal snd_play_fn g_snd_play, g_snd_playref;
 typedef int (__cdecl *mix_set_fn)(int, void *);
 typedef int (__cdecl *mix_play_fn)(int);
-static mix_set_fn g_mix_set;
-static mix_play_fn g_mix_play;
+internal mix_set_fn g_mix_set;
+internal mix_play_fn g_mix_play;
 typedef int (__cdecl *mix_vol_fn)(void *, float);
-static mix_vol_fn g_mix_vol;
-static uintptr_t g_mss_mixer;                   // Miles Sound System Mixer.dll base: its channels at RVA_MIX_CHANNELS
-static int (__stdcall *g_ail_status)(void *);   // AIL_sample_status: 4 = playing
-static int snd_status(int ch) {
+internal mix_vol_fn g_mix_vol;
+internal uintptr_t g_mss_mixer;                   // Miles Sound System Mixer.dll base: its channels at RVA_MIX_CHANNELS
+internal int (__stdcall *g_ail_status)(void *);   // AIL_sample_status: 4 = playing
+internal int snd_status(int ch) {
     uint8_t *v = g_mss_mixer ? *(uint8_t **)(g_mss_mixer + GA(RVA_MIX_CHANNELS)) : NULL, *ve = v ? *(uint8_t **)(g_mss_mixer + GA(RVA_MIX_CHANNELS) + 4) : NULL;
     if (!v || !g_ail_status || ch < 0 || v + ch * 8 >= ve) return -1;
     return g_ail_status(*(void **)(v + ch * 8));
@@ -34,15 +34,15 @@ static int snd_status(int ch) {
 // build has them elsewhere): the sound's copies in use and its copies, its category's channels in use and maximum,
 // the category.
 enum { SM_INSTANCES, SM_MAX_INSTANCES, SM_CAT_INSTANCES, SM_MAX_CAT_INSTANCES, SM_CATEGORY, SM_QUERIES };
-static const char *const k_sm_query[SM_QUERIES] = {
+internal const char *const k_sm_query[SM_QUERIES] = {
     "?GetNumberOfInstances@SESoundManager@@AAEKK@Z", "?GetMaxInstances@SESoundManager@@AAEKK@Z",
     "?GetNumberOfCategoryInstances@SESoundManager@@AAEKK@Z", "?GetMaxCategoryInstances@SESoundManager@@AAEKK@Z",
     "?GetCategory@SESoundManager@@AAEKK@Z",
 };
 typedef uint32_t (__thiscall *sm_query_fn)(void *, uint32_t);
-static sm_query_fn g_sm_query[SM_QUERIES];   // all or none
-static uint32_t g_drop_copies, g_drop_cat, g_drop_chan, g_cat_drop[64];
-static void snd_count(void *sm, uint32_t id, float vol, int failed) {
+internal sm_query_fn g_sm_query[SM_QUERIES];   // all or none
+internal uint32_t g_drop_copies, g_drop_cat, g_drop_chan, g_cat_drop[64];
+internal void snd_count(void *sm, uint32_t id, float vol, int failed) {
     g_snd_req_total++;
     if (vol == 0.0f) { g_snd_zero_vol++; if (failed) g_snd_drop_total++; return; }   // out of earshot: skipped
     if (id < SND_IDS) g_snd_req[id]++;
@@ -57,7 +57,7 @@ static void snd_count(void *sm, uint32_t id, float vol, int failed) {
     else if (cused >= cmax) { g_drop_cat++; g_cat_drop[cat & 63]++; }
     else g_drop_chan++;
 }
-static uint32_t __fastcall hook_snd_play(void *sm, void *edx, uint32_t id, float vol, float pan, float pitch, int queue,
+internal uint32_t __fastcall hook_snd_play(void *sm, void *edx, uint32_t id, float vol, float pan, float pitch, int queue,
                                          void *name) {
     (void)edx;
     uint32_t r = g_snd_play(sm, id, vol, pan, pitch, queue, name);
@@ -67,7 +67,7 @@ static uint32_t __fastcall hook_snd_play(void *sm, void *edx, uint32_t id, float
                 pan, pitch, queue & 0xFF, (int)r);
     return r;
 }
-static uint32_t __fastcall hook_snd_playref(void *sm, void *edx, uint32_t id, float vol, float pan, float pitch,
+internal uint32_t __fastcall hook_snd_playref(void *sm, void *edx, uint32_t id, float vol, float pan, float pitch,
                                             int queue, void *name) {
     (void)edx;
     uint32_t r = g_snd_playref(sm, id, vol, pan, pitch, queue, name);
@@ -78,20 +78,20 @@ static uint32_t __fastcall hook_snd_playref(void *sm, void *edx, uint32_t id, fl
                 (unsigned)(uintptr_t)__builtin_return_address(0));
     return r;
 }
-static int __cdecl hook_mix_set(int ch, void *sample) {
+internal int __cdecl hook_mix_set(int ch, void *sample) {
     int r = g_mix_set(ch, sample);
     g_mix_set_total++;
     if (g_sound_log >= 2 && g_log) log_locked("# snd:   mixer channel %d sample %p -> %d\n", ch, sample, r);
     if (r) g_mix_set_fail[r & 15]++;
     return r;
 }
-static int __cdecl hook_mix_play(int ch) {
+internal int __cdecl hook_mix_play(int ch) {
     int r = g_mix_play(ch);
     if (r) g_mix_play_fail[r & 15]++;
     if (g_sound_log >= 2 && g_log) log_locked("# snd:   mixer start channel %d -> %d, Miles status %d\n", ch, r, snd_status(ch));
     return r;
 }
-static int __cdecl hook_mix_vol(void *sample, float vol) {
+internal int __cdecl hook_mix_vol(void *sample, float vol) {
     int r = g_mix_vol(sample, vol);
     if (g_sound_log >= 2 && g_log && sample)
         log_locked("# snd:   volume %.3f on channel %d\n", vol, FIELD(sample, OF(E_SAMPLE, 0x24), int));
@@ -99,7 +99,7 @@ static int __cdecl hook_mix_vol(void *sample, float vol) {
 }
 
 // Called from the AI tick: hooks once the sound manager exists, then logs the counts once a game minute.
-static void sound_tick(uint32_t now) {
+internal void sound_tick(uint32_t now) {
     static int hooked;
     static uint32_t last;
     if (!g_sound_log || !g_log) return;
@@ -171,17 +171,17 @@ static void sound_tick(uint32_t now) {
 // movement, ambience) keeps its copy for good, so that sound never plays again. The paused queue resumes from the
 // highest channel down, and a change in a running game pauses every looping sound, so there it shows at once.
 // SetMaxChannels (exe IAT 0x823AD4) is held to the mixer's maximum: 200% = 100% = 16 channels.
-static int g_clamp_channels = 1;
+internal int g_clamp_channels = 1;
 typedef int (__thiscall *set_max_ch_fn)(void *, uint32_t);
-static set_max_ch_fn g_set_max_ch;
+internal set_max_ch_fn g_set_max_ch;
 // MORE CHANNELS (aimod.ini [sound] channels, default 32; 0 = the mixer's own maximum). The mixer's maximum is 16
 // only because Windows reports no hardware voices; Miles mixes in software and is opened for 64 samples
 // (DIG_MIXER_CHANNELS), one of which the plugin keeps. The maximum (the global SPIMGetMaximumChannelCount reads,
 // `mov eax, [addr]; ret`) is raised to `channels` (8..63) before the game's first SetMaxChannels, and the count the
 // game passes - percent x the old maximum - is worked out again from the slider (0x9193B8, 1.0 = 100%): 100% =
 // `channels`, 0% = 8, 200% is held to `channels` by clamp_channels.
-static int g_sound_channels = 32;
-static int __fastcall hook_set_max_channels(uint8_t *sm, void *edx, uint32_t n) {
+internal int g_sound_channels = 32;
+internal int __fastcall hook_set_max_channels(uint8_t *sm, void *edx, uint32_t n) {
     (void)edx;
     static int raised;
     uint8_t *mx = sm ? FIELD(sm, SM_MIXER, uint8_t *) : NULL;
@@ -210,7 +210,7 @@ static int __fastcall hook_set_max_channels(uint8_t *sm, void *edx, uint32_t n) 
     return g_set_max_ch(sm, n);
 }
 
-static void sound_install(const char *aimod_ini, const char *autotest_ini) {
+internal void sound_install(const char *aimod_ini, const char *autotest_ini) {
     g_clamp_channels = ini_int("sound", "clamp_channels", 1, aimod_ini);
     g_sound_channels = ini_int("sound", "channels", 32, aimod_ini);
     if (autotest_ini) g_sound_channels = ini_int("autotest", "sound_channels", g_sound_channels, autotest_ini);
@@ -224,7 +224,7 @@ static void sound_install(const char *aimod_ini, const char *autotest_ini) {
 
 // sndstate: the manager's channels (node, sound id, node channel, sample channel, Miles status), the mixer's
 // channels, categories in use, the paused queue. sndchan N: SetMaxChannels(N) as the options screen does. Tests.
-static void cmd_sndstate(char *out, const char *args) {
+internal void cmd_sndstate(char *out, const char *args) {
     (void)args;
     uint8_t *sm = *(uint8_t **)GA(G_SOUND_MANAGER);
     if (!sm) { REPLY("error: no sound manager\n"); return; }
@@ -247,7 +247,7 @@ static void cmd_sndstate(char *out, const char *args) {
         if (cv[i] && FIELD(cv[i], OF(E_SNDCAT, 0x8), int)) REPLY(" cat %d %d/%d", i, FIELD(cv[i], OF(E_SNDCAT, 0x8), int), FIELD(cv[i], OF(E_SNDCAT, 0x4), int));
     REPLY("\n");
 }
-static void cmd_sndchan(char *out, const char *args) {
+internal void cmd_sndchan(char *out, const char *args) {
     int n = atoi(args);
     uint8_t *sm = *(uint8_t **)GA(G_SOUND_MANAGER);
     if (!sm || n < 1 || n > 64) { REPLY("error: usage sndchan N (1..64)\n"); return; }

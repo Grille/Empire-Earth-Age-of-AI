@@ -7,8 +7,8 @@
 // every activation refused. Installed by dinput.dll (eesettings.c) at the process start when run_test.ps1 sets
 // EEAIMOD_HEADLESS=1 - before the display DLLs load - and by eeaimod.dll with headless=1 (display.c), for a game
 // without the mod's dinput.dll. Included by both.
-static HHOOK g_hl_cbt;
-static LRESULT CALLBACK hl_cbt(int code, WPARAM w, LPARAM l) {
+internal HHOOK g_hl_cbt;
+internal LRESULT CALLBACK hl_cbt(int code, WPARAM w, LPARAM l) {
     if (code == HCBT_CREATEWND) {
         CREATESTRUCTA *cs = ((CBT_CREATEWNDA *)l)->lpcs;
         if (!cs->hwndParent) {   // top-level (a child, an owned window or a message-only one has a parent here)
@@ -20,6 +20,6 @@ static LRESULT CALLBACK hl_cbt(int code, WPARAM w, LPARAM l) {
     } else if (code == HCBT_ACTIVATE) return 1;   // refused
     return CallNextHookEx(g_hl_cbt, code, w, l);
 }
-static void headless_windows(void) {   // this thread's windows (the engine's: it loads the DLLs and creates the windows)
+internal void headless_windows(void) {   // this thread's windows (the engine's: it loads the DLLs and creates the windows)
     if (!g_hl_cbt) g_hl_cbt = SetWindowsHookExA(WH_CBT, hl_cbt, NULL, GetCurrentThreadId());
 }
