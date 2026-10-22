@@ -342,7 +342,7 @@ internal void cmd_stats(char *out, const char *args) {
         if ((na != 4 && na != 7) || !st_player(p)) { REPLY("error: stats engage P x y r [T tx ty]\n"); return; }
         if (na == 4) tt = -1;
         static ee_unit *mu[ST_UNITS], *fu[ST_UNITS];
-        uint8_t *map = game_map(), *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
+        uint8_t *map = game_map(), *grid = map ? map_get_grid(map) : NULL;
         if (!grid) { REPLY("error: no map\n"); return; }
         for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
             ee_unit *u = it.u;
@@ -401,7 +401,7 @@ internal void cmd_stats(char *out, const char *args) {
         static ee_unit *cit[4096], *foe[4096];
         int nc = 0, nf = 0, hit = 0, seen = 0, flagged = 0, ntype = 0, tt[32] = { 0 }, tn[32] = { 0 }, tf[32] = { 0 };
         float tr[32] = { 0 };
-        uint8_t *map = game_map(), *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
+        uint8_t *map = game_map(), *grid = map ? map_get_grid(map) : NULL;
         if (!grid) { REPLY("error: no map\n"); return; }
         for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
             ee_unit *u = it.u;

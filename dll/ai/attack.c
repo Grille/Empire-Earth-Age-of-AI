@@ -138,7 +138,7 @@ internal int g_weak_radius = 60;        // tiles around the original goal search
 // own territory to defend), which must not be diverted.
 internal int building_at(ee_player *pl, const int *dest, int r) {
     uint8_t *map = game_map();
-    uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
+    uint8_t *grid = map ? map_get_grid(map) : NULL;
     if (!grid) return 0;
     for (struct grid_it it = grid_it_box(dest[0], dest[1], r, 1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
@@ -153,7 +153,7 @@ internal int building_at(ee_player *pl, const int *dest, int r) {
 
 internal ee_unit *find_weak_spot(ee_player *pl, unsigned pi, const int *start, const int *dest) {
     uint8_t *map = game_map();
-    uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
+    uint8_t *grid = map ? map_get_grid(map) : NULL;
     if (!grid) return NULL;
     short home = (short)map_area((int *)start, 2);
     ee_unit *best = NULL;
@@ -218,7 +218,7 @@ internal int breach_of(ee_attack_subgroup *sg, int *x, int *y) {
 
 internal ee_unit *wall_at(ee_player *pl, int x, int y) {
     uint8_t *map = game_map();
-    uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
+    uint8_t *grid = map ? map_get_grid(map) : NULL;
     if (!grid) return NULL;
     int cs = grid_get_cell_size(grid), nx = grid_get_nx(grid), ny = grid_get_ny(grid);
     uint8_t *cells = grid_get_cells(grid);
@@ -425,7 +425,7 @@ internal int g_ignore_air = 1;          // aimod.ini [all] attack_ignore_air
 // Enemy soldiers (no citizens, no siege) of player pl's enemies within r tiles of (x, y)?
 internal int guarded(ee_player *pl, int x, int y, int r) {
     uint8_t *map = game_map();
-    uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
+    uint8_t *grid = map ? map_get_grid(map) : NULL;
     if (!pl || !grid) return 0;
     for (struct grid_it it = grid_it_box(x, y, r, 1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
@@ -533,7 +533,7 @@ internal void __fastcall hook_asg_route_done(ee_attack_subgroup *self, void *edx
 // Soldiers (not buildings, walls, citizens) of a player, from the unit grid.
 internal int army_size(ee_player *pl) {
     uint8_t *map = game_map();
-    uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
+    uint8_t *grid = map ? map_get_grid(map) : NULL;
     if (!grid) return -1;
     int n = 0;
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
@@ -671,7 +671,7 @@ internal int raiders_near(ee_player *pl, int x, int y, int r0) {
     int rmax = g_cit_threats ? RAID_FAR : RAID_MAX;
     int r = r0 > rmax ? r0 : rmax;   // the search box; each unit then by its own reach
     uint8_t *map = game_map();
-    uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
+    uint8_t *grid = map ? map_get_grid(map) : NULL;
     if (!grid || !pl) return 0;
     for (struct grid_it it = grid_it_box(x, y, r, 1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
@@ -1052,7 +1052,7 @@ internal void siege_tick(ee_player *pl, uint32_t now) {
     if (!g_siege || (now >= g_siege_st[pi].last && now - g_siege_st[pi].last < 2000)) return;
     g_siege_st[pi].last = now;
     uint8_t *map = game_map();
-    uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
+    uint8_t *grid = map ? map_get_grid(map) : NULL;
     if (!grid) return;
     // own siege weapons
     enum { MAXS = 24, MAXE = 48 };

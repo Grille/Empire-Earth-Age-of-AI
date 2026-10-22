@@ -1,7 +1,7 @@
-// UNIT GRID: the map's unit grid (map +G_UNIT_GRID_OFS: +4 cells, 16 bytes each {?, first, last, end} - a vector
+// UNIT GRID: the map's unit grid (map_get_grid(map): +4 cells, 16 bytes each {?, first, last, end} - a vector
 // of unit pointers; +8 cell size in tiles, +0x10 columns, +0x14 rows; cell (gx, gy) at gx * rows + gy). A big building
 // stands in every cell it covers; a unit's own cell is the one of its position (+0x1C / +0x20 tiles).
-// Included by eeaimod.c after control.c (G_MAP, G_UNIT_GRID_OFS).
+// Included by eeaimod.c after control.c (G_MAP, map_get_grid).
 
 // Iterator over the cells covering tiles x-r..x+r, y-r..y+r (or the whole grid): the units with a type, cell by cell
 // (columns outer, rows inner), each cell's vector as it stands (its end read at every step). once = 1: each unit once -
@@ -25,7 +25,7 @@ struct grid_it {
 internal struct grid_it grid_it_area(int x0, int y0, int x1, int y1, int once) {   // cells x0..x1, y0..y1 (clamped)
     struct grid_it it = { 0 };
     uint8_t *map = game_map();
-    uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
+    uint8_t *grid = map ? map_get_grid(map) : NULL;
     it.gx = 1; it.x1 = 0;   // nothing unless set below
     if (!grid) return it;
     int nx = grid_get_nx(grid);
@@ -45,7 +45,7 @@ internal struct grid_it grid_it_area(int x0, int y0, int x1, int y1, int once) {
 // as well, below that negative and left out by the clamp - as the hand-written loops' `cx < 0` test did
 internal struct grid_it grid_it_box(int x, int y, int r, int once) {
     uint8_t *map = game_map();
-    uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
+    uint8_t *grid = map ? map_get_grid(map) : NULL;
     int cs = grid ? grid_get_cell_size(grid) : 0;
     if (cs <= 0) return grid_it_area(1, 1, 0, 0, once);
     return grid_it_area((x - r) / cs, (y - r) / cs, (x + r) / cs, (y + r) / cs, once);

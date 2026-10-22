@@ -77,6 +77,7 @@ internal const uint32_t k_of[OF_N][ADDR_BUILDS] = { FIELDS(OF_ROW) };
 #define OF_NAME(k, x, ...) #k " " #x,
 internal const char *const k_of_name[OF_N] = { FIELDS(OF_NAME) };
 internal uint32_t g_of[OF_N];
+#define OF(k, x) (g_of[OF_##k##_##x])   // the running build's offset of the field the 2017 update has at x in a k
 internal int g_of_missing;   // fields the running build hasn't got (NA): logged at the start (fields_log)
 internal int fields_select(void) {   // the running exe's column (g_exe_build) into g_of (with addr_select)
     int missing = 0;

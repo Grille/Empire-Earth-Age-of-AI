@@ -413,6 +413,7 @@ internal inline int scen_effect_get_trigger(const uint8_t *ef) { return FIELD(ef
 internal inline uint8_t **map_get_tiles(const void *map) { return FIELD(map, OF(MAP, 0x1816D4), uint8_t **); }   // [y * size + x]
 internal inline uint32_t map_get_size(const void *map) { return FIELD(map, OF(MAP, 0x1816FC), uint32_t); }     // tiles a side
 internal inline uint32_t map_get_flags(const void *map) { return FIELD(map, OF(MAP, 0x181730), uint32_t); }    // bit 0: water
+internal inline uint8_t *map_get_grid(const void *map) { return FIELD(map, OF(MAP, 0x181724), uint8_t *); }    // the unit grid (game/grid.c)
 // the unit grid (map +0x181724, unit_grid()): cells of cs tiles, nx x ny of them; a cell's units begin .. end
 internal inline uint8_t *grid_get_cells(const void *grid) { return FIELD(grid, OF(GRID, 0x4), uint8_t *); }
 internal inline int grid_get_cell_size(const void *grid) { return FIELD(grid, OF(GRID, 0x8), int); }

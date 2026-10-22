@@ -51,7 +51,8 @@ EXCEPTIONS = [
 
 # game/api/raw/ IS THE MODULE'S INSIDE: the addresses and offsets per build and their tables (GA, GF, GL, k_addr ...).
 # Nothing it defines is used outside game/api/ - the rest of the code calls functions.c's typed wrappers and
-# accessors, hooks.c's installers, exe.c's build_is and layout.h's OF / FIELD; anything else fails the build.
+# accessors (objects.c: OF, the field table, is raw/'s too), hooks.c's installers, exe.c's build_is and layout.h's
+# FIELD; anything else fails the build.
 
 IDENT = re.compile(r'[A-Za-z_]\w*')
 # a declaration's attributes, written out or by base/'s macro (internal PRINTF_LIKE(1, 2) void f(...)): not its name
@@ -247,7 +248,7 @@ def main():
         for d, ns in sorted(edges[u].items()):
             if d.startswith('game/api/raw/'):
                 bad.append('%s uses %s of %s - game/api/raw/ only inside game/api/: a wrapper or accessor in functions.c, '
-                           'an installer in hooks.c' % (u, ', '.join(sorted(ns)), d))
+                           'an accessor of a field in objects.c, an installer in hooks.c' % (u, ', '.join(sorted(ns)), d))
     stale = [e for e in EXCEPTIONS if (e[0], e[1], e[2]) not in used]
     for b in bad: print('layers: ' + b)
     for e in stale: print('layers: exception no longer needed: %s -> %s (%s) - take it out of scripts/layers.py' % e[:3])

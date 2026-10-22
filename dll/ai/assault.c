@@ -117,7 +117,7 @@ internal ee_unit *as_objective(ee_player *pl, unsigned pi, ee_player *target, un
 // building of the target within 8 tiles
 internal ee_unit *as_enemy_near(ee_player *pl, ee_player *target, int x, int y, int r, int buildings, int *soldiers) {
     uint8_t *map = game_map();
-    uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
+    uint8_t *grid = map ? map_get_grid(map) : NULL;
     if (!grid) return NULL;
     ee_unit *best[3] = { 0 };
     float bd[3] = { 1e9f, 1e9f, 1e9f };
@@ -150,7 +150,7 @@ internal int is_aa(ee_unit *u) {   // anti-air units (AA tank, Stinger, Skywatch
 // defences != 0 also defences whose range reaches the point; the soldiers' centre and number
 internal float as_enemy_power(ee_player *pl, int x, int y, int r, float *cx, float *cy, int *n, int defences) {
     uint8_t *map = game_map();
-    uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
+    uint8_t *grid = map ? map_get_grid(map) : NULL;
     float pow = 0, sx = 0, sy = 0;
     *n = 0; *cx = (float)x; *cy = (float)y;
     if (!grid) return 0;

@@ -213,7 +213,7 @@ internal void navy_detect(ee_player *pl, unsigned idx, uint32_t now) {
     static struct nv_bld b;
     void *cm = player_get_civ_mgr(pl);
     ee_build_mgr *bm = cm ? cm_get_build_mgr(cm) : NULL; uint8_t *map = game_map();
-    uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
+    uint8_t *grid = map ? map_get_grid(map) : NULL;
     unsigned hc = bm ? area_id(bm_get_base_x(bm), bm_get_base_y(bm), 2) : 0;
     if (!hc || !grid) return;
     memset(b.n, 0, sizeof b.n);
