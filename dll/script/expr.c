@@ -8,7 +8,8 @@
 //                                   expression's, not the string's end; a string stays on its line
 //   ("a "  <line break>  "b")       strings side by side in ( ): one string (a value of only these: a string, also
 //                                   where a key takes strings only - x_fold); in [ ] a missing comma stays a mistake
-//   ["a", "b", ...]                 a list: its items; as one value (in a text, + < ...) one of them, at random
+//   ["a", "b", ...]                 a list: a collection of values - what is done with it is its consumer's (a line,
+//                                   a {placeholder}, pick(l): one item at random; contains, first, item, len: it whole)
 //   allied ? "Welcome back."        without ":" - nothing when the condition doesn't hold
 //   85, opinion > 30 ? "a" : "b"    numbers, any expression
 // A list leaves out what is nothing and picks among the rest, a list in a list counting with each of its items (as
@@ -23,7 +24,11 @@
 // map_range(x, [limits], [values]) (the value of the first limit x is below, the last past them all - a value no
 // list is a list of one), str(x) / number(x) (its text only / its number, a text's when it is one, else nothing), and
 // the host's relations: them.opinion(me) (script/host.h method). A player (me, them, ...) is a value: its
-// name, equal only to itself.
+// name, equal only to itself. A vector, vec(x, y), vec(x, y, z), vec(x, y, z, w), is one value of 2 to 4 numbers (a
+// place, a colour - not a list: a list's items are values each): home.x .y .z .w its numbers (of a parameter,
+// variable or vars entry), + - two vectors of as many numbers, * a vector and a number, / a vector by a number, == !=
+// (no order), distance(a, b); rgb(r, g, b) a colour, 0 to 255 each, as the vector of those / 255 (vec(r, g, b) takes
+// the 0 to 1 itself); in a text (12, 40), a command's argument its numbers one each - anything else with one a mistake.
 // A placeholder's number is written with up to 2 decimals, or by its format after the last ':' that belongs to no
 // '?' (x_fmt_at): {x:%} a share (0.5 -> 50%), {x:.1%}, {x:.2} - 50% in an expression is only 0.5, never a format.
 // A choice before a format goes in ( ): {(a ? 1 : 0):%}.
@@ -84,10 +89,11 @@ struct xctx {
 // isn't there (lord
 // without one) - nothing, which may only be checked (lord ? .., lord ?? .., lord == them): used, it is a mistake
 // it, ln: a list's items (ln 0: no list) - its value meanwhile is one of them, at random; kind: a function (fn: its
-// definition and where it was made) or stop (a for / every body's "no more") - neither number nor text
-enum { XV_PLAIN, XV_FN, XV_STOP };
+// definition and where it was made), stop (a for / every body's "no more") or a vector (vc: its vn numbers, 2..4 -
+// .x .y .z .w; in the region like a text) - neither number nor text
+enum { XV_PLAIN, XV_FN, XV_STOP, XV_VEC };
 struct xfn;
-struct xval { int has_n, has_s, w, obj, ln, kind; double n; const char *s; const struct xval *it; const struct xfn *fn; char miss[24]; };
+struct xval { int has_n, has_s, w, obj, ln, kind, vn; double n; const char *s; const struct xval *it; const struct xfn *fn; const double *vc; char miss[24]; };
 internal int xl_n(const struct xval *v) { return v->ln ? v->ln : v->w > 0; }   // its items (one value: 1, nothing: 0)
 internal const struct xval *xl_at(const struct xval *v, int i) { return v->ln ? &v->it[i] : v; }
 internal struct xvars g_vars_sys;   // mod/system.eeai vars (texts.c)
@@ -252,10 +258,18 @@ internal int x_var_known(const char *name) {
 // parsing: in the startup box); the key is kept, at run time the name fails what it is in (x_fail)
 internal const char *g_x_check_file, *g_x_check_ph;   // the file being read; " a b " the code's placeholders for the key
 internal int g_x_check_line;
+internal int xvec_member(const char *m) {   // a vector's number by its name: .x .y .z .w - 0..3, -1 none
+    return !strcmp(m, "x") ? 0 : !strcmp(m, "y") ? 1 : !strcmp(m, "z") ? 2 : !strcmp(m, "w") ? 3 : -1;
+}
 internal int x_name_known(const char *name) {   // a parameter, constant, vars entry, game value or the code's placeholder
     struct xval t;
     char w[48];
     if (strlen(name) > 40) return 1;
+    const char *dot = strrchr(name, '.');
+    if (dot && xvec_member(dot + 1) >= 0) {   // home.x: a vector's number - its owner a parameter or vars entry
+        lstrcpynA(w, name, (int)(dot - name) + 1);
+        if (x_check_par_has(w, (int)strlen(w)) || x_var_known(w)) return 1;
+    }
     wsprintfA(w, " %s ", name);
     return x_check_par_has(name, (int)strlen(name)) || g_x_host.constant(name, &t) || x_var_known(name) || g_x_host.name_valid(name) ||
            (g_x_check_ph && strstr(g_x_check_ph, w));
@@ -271,17 +285,25 @@ internal int xnumeric(const char *s, double *n) {   // the whole text a number (
     *n = strtod(s, &e);
     return e != s && !*e;
 }
-internal void xnothing(struct xval *v) { v->has_n = v->has_s = v->w = v->obj = v->ln = v->kind = 0; v->n = 0; v->s = ""; v->it = NULL; v->fn = NULL; v->miss[0] = 0; }
-internal void xnum(struct xval *v, double n) { v->has_n = 1; v->has_s = v->obj = v->ln = v->kind = 0; v->w = 1; v->n = n; v->s = ""; v->it = NULL; v->fn = NULL; v->miss[0] = 0; }
+internal void xnothing(struct xval *v) { v->has_n = v->has_s = v->w = v->obj = v->ln = v->kind = v->vn = 0; v->n = 0; v->s = ""; v->it = NULL; v->fn = NULL; v->vc = NULL; v->miss[0] = 0; }
+internal void xnum(struct xval *v, double n) { v->has_n = 1; v->has_s = v->obj = v->ln = v->kind = v->vn = 0; v->w = 1; v->n = n; v->s = ""; v->it = NULL; v->fn = NULL; v->vc = NULL; v->miss[0] = 0; }
+internal void xvec(struct xval *v, const double *c, int n) {   // a vector of n numbers (2..4), copied into the region
+    double *m = x_alloc((size_t)n * sizeof *m);
+    xnothing(v);
+    if (!m) return;
+    memcpy(m, c, (size_t)n * sizeof *m);
+    v->w = 1; v->kind = XV_VEC; v->vn = n; v->vc = m;
+}
 internal void xstr(struct xval *v, const char *s) {   // a text, only that: "12" in a file is no number
     if (!s) s = "";
     v->s = x_strdup(s, strlen(s));
     v->has_s = 1;
     v->w = 1;
     v->has_n = 0;
-    v->obj = v->ln = v->kind = 0;
+    v->obj = v->ln = v->kind = v->vn = 0;
     v->it = NULL;
     v->fn = NULL;
+    v->vc = NULL;
     v->miss[0] = 0;
 }
 // a placeholder the code fills ({tribute}, {minutes}): a text - and its number when it is one, the code's numbers
@@ -290,7 +312,7 @@ internal void xstr_or_num(struct xval *v, const char *s) { xstr(v, s); v->has_n 
 internal void xdual(struct xval *v, double n, const char *s) { xstr(v, s); v->has_n = 1; v->n = n; }
 internal void xdual_kept(struct xval *v, double n, const char *s) {   // the same with a text that stays (not copied)
     v->s = s; v->has_s = v->has_n = 1; v->n = n; v->w = 1;
-    v->obj = v->ln = v->kind = 0; v->it = NULL; v->fn = NULL; v->miss[0] = 0;
+    v->obj = v->ln = v->kind = v->vn = 0; v->it = NULL; v->fn = NULL; v->vc = NULL; v->miss[0] = 0;
 }
 internal int xis_num(const struct xval *v, double *n) { if (v->has_n) *n = v->n; return v->has_n; }
 internal double xto_num(const struct xval *v) { return v->has_n ? v->n : 0; }
@@ -328,12 +350,25 @@ internal void xto_text(const struct xval *v, char *out, int cap) {
         out[o] = 0;
         return;
     }
+    if (v->kind == XV_VEC && v->w) {   // a vector: (12, 40) - its numbers as a number is written
+        int o = 0;
+        out[o++] = '(';
+        for (int i = 0; i < v->vn && o < cap - 6; i++) {
+            if (i) { out[o++] = ','; out[o++] = ' '; }
+            xnum_text(v->vc[i], out + o, cap - o - 2);
+            o += (int)strlen(out + o);
+        }
+        if (o > cap - 2) o = cap - 2;
+        out[o++] = ')';
+        out[o] = 0;
+        return;
+    }
     if (v->kind && v->w) { lstrcpynA(out, v->kind == XV_FN ? "function" : "stop", cap); return; }
     if (v->has_s || !v->w) { lstrcpynA(out, v->w ? v->s : "", cap); return; }
     xnum_text(v->n, out, cap);
 }
 internal const char *xtext_of(const struct xval *v) {   // its text, whole (in the region for a number, a list)
-    if (v->ln) { char t[XVAL_CAP]; xto_text(v, t, sizeof t); return x_strdup(t, strlen(t)); }
+    if (v->ln || (v->kind == XV_VEC && v->w)) { char t[XVAL_CAP]; xto_text(v, t, sizeof t); return x_strdup(t, strlen(t)); }
     if (v->kind && v->w) return v->kind == XV_FN ? "function" : "stop";
     if (v->has_s || !v->w) return v->w ? v->s : "";
     char t[48];
@@ -913,7 +948,9 @@ internal int x_fn_id(const char *name, int na) {
            !lstrcmpiA(name, "len") && na == 1 ? 7 : !lstrcmpiA(name, "first") && na == 1 ? 8 :
            !lstrcmpiA(name, "item") && na == 2 ? 9 : !lstrcmpiA(name, "contains") && na == 2 ? 10 :
            !lstrcmpiA(name, "map_range") && na == 3 ? 11 : !lstrcmpiA(name, "str") && na == 1 ? 12 :
-           !lstrcmpiA(name, "number") && na == 1 ? 13 : !lstrcmpiA(name, "log2") && na == 1 ? 14 : !lstrcmpiA(name, "pick") && na == 1 ? 15 : 0;
+           !lstrcmpiA(name, "number") && na == 1 ? 13 : !lstrcmpiA(name, "log2") && na == 1 ? 14 : !lstrcmpiA(name, "pick") && na == 1 ? 15 :
+           !lstrcmpiA(name, "vec") && na >= 2 && na <= 4 ? 16 : !lstrcmpiA(name, "rgb") && na == 3 ? 17 :
+           !lstrcmpiA(name, "distance") && na == 2 ? 18 : 0;
 }
 internal int x_par_count(const char *par) {   // a vars function's parameters "a,b)": how many
     int want = *par == ')' ? 0 : 1;
@@ -1111,15 +1148,22 @@ internal PRINTF_LIKE(2, 3) void x_fail(struct xe *e, const char *fmt, ...) {
 }
 internal int x_numeric_ok(struct xe *e, const struct xval *v) {   // v counts as a number: one, or nothing (0) - a text is a mistake
     if (v->ln) { x_fail(e, "a list (%.40s) where one number belongs - %s", xtext_of(v), "pick(l) for one of its items"); return 0; }
+    if (v->kind == XV_VEC && v->w) { x_fail(e, "a vector %.40s where one number belongs - .x, .y ... for one of its numbers", xtext_of(v)); return 0; }
     if (!v->w || v->has_n) return 1;
     x_fail(e, "a text (\"%.40s\") where a number belongs - number(x) makes a number of a text", xtext_of(v));
     return 0;
 }
 // a text against a number ("12" == 12, "9" < 10): no comparison - neither turns into the other
 internal int xmismatch(const struct xval *a, const struct xval *b) { return (!a->has_n && !b->has_s) || (!a->has_s && !b->has_n); }
+internal int xvec_eq(const struct xval *a, const struct xval *b) {   // two vectors, the same numbers
+    if (a->vn != b->vn) return 0;
+    for (int i = 0; i < a->vn; i++) if (a->vc[i] != b->vc[i]) return 0;
+    return 1;
+}
 internal int xcmp(const struct xval *a, const struct xval *b) {   // <0, 0, >0: players the same one or not, numbers, else texts
     double x, y;
     if (a->obj && b->obj) return a->obj - b->obj;
+    if (a->kind == XV_VEC || b->kind == XV_VEC) return a->kind == b->kind && xvec_eq(a, b) ? 0 : 2;   // equal or not
     if (xmismatch(a, b)) return 2;   // unequal
     if (xis_num(a, &x) && xis_num(b, &y)) return x < y ? -1 : x > y;
     return lstrcmpiA(xtext_of(a), xtext_of(b));
@@ -1147,6 +1191,24 @@ internal int x_body(struct xe *e, const char *src, struct xval *v) {
 internal void xe_ident(struct xe *e, const char *name, struct xval *v) {
     struct xctx *c = e->c;
     if (c->fixed) { x_fail(e, "%s: a name - a setting is a number (35%%, 2 * 60, min(...))", name); xnothing(v); return; }
+    const char *dot = strrchr(name, '.');
+    int m = dot ? xvec_member(dot + 1) : -1;
+    if (m >= 0) {   // p.x, home.y: a vector's number - its owner a parameter, variable or vars entry (the rest: the host's)
+        char head[40];
+        lstrcpynA(head, name, (int)(dot - name) + 1);
+        int own = 0;
+        for (int i = 0; i < c->fnp && !own; i++) own = !strcmp(c->fpn[i], head);
+        for (int k = 0; k < 3 && !own; k++) own = xvars_get(c->vars[k], head) != NULL;
+        if (own) {
+            struct xval h;
+            xe_ident(e, head, &h);
+            if (e->err) return;
+            if (h.kind != XV_VEC || !h.w) { x_fail(e, "%s: %s is no vector - .x .y .z .w are a vector's numbers", name, head); return; }
+            if (m >= h.vn) { x_fail(e, "%s: %s has %d numbers - no .%s", name, head, h.vn, dot + 1); return; }
+            xnum(v, h.vc[m]);
+            return;
+        }
+    }
     for (int i = 0; i < c->fnp; i++)   // a parameter or variable of the function being worked out
         if (!strcmp(c->fpn[i], name)) { *v = c->fpv[i]; return; }
     for (int i = 0; i < c->np; i++)
@@ -1204,6 +1266,7 @@ internal void x_exec(struct xe *e, const struct xnode *blk);
 internal void xv_copy(struct xval *dst, const struct xval *src) {
     *dst = *src;
     if (src->has_s || src->w) dst->s = x_strdup(src->s, strlen(src->s));
+    if (src->kind == XV_VEC) xvec(dst, src->vc, src->vn);
     if (src->ln) {
         struct xval *it = x_alloc((size_t)src->ln * sizeof *it);
         if (!it) { dst->ln = 0; dst->it = NULL; return; }
@@ -1270,9 +1333,20 @@ internal int x_script_fn(const char *name) {
     return -1;
 }
 // a value as a command's argument: a number (whole without decimals), a text as it is, a player its number, a type
-// its number (unit.x: both)
+// its number (unit.x: both), a vector its numbers one argument each (a place: x y)
 internal int x_cmd_arg(struct xe *e, const char *verb, const struct xval *v, char *out, int cap) {
-    if (v->kind || !v->w || v->ln) { x_fail(e, "%s(...): %s as a command's argument", verb, v->ln ? "a list" : v->kind == XV_FN ? "a function" : v->kind ? "stop" : "nothing"); return 0; }
+    if ((v->kind && v->kind != XV_VEC) || !v->w || v->ln) { x_fail(e, "%s(...): %s as a command's argument", verb, v->ln ? "a list" : v->kind == XV_FN ? "a function" : v->kind ? "stop" : "nothing"); return 0; }
+    if (v->kind == XV_VEC) {
+        int o = 0;
+        for (int i = 0; i < v->vn; i++) {
+            struct xval c;
+            xnum(&c, v->vc[i]);
+            if (i) o += snprintf(out + o, (size_t)(cap - o), " ");
+            if (!x_cmd_arg(e, verb, &c, out + o, cap - o)) return 0;
+            o += (int)strlen(out + o);
+        }
+        return 1;
+    }
     if (v->obj) snprintf(out, (size_t)cap, "%d", v->obj - 1);
     else if (v->has_n) {
         double r = v->n < 0 ? -v->n : v->n;
@@ -1378,6 +1452,28 @@ internal void xe_call(struct xe *e, const struct xnode *n, struct xval *v) {
     if (f == 14 && !(xto_num(&a[0]) > 0)) { x_fail(e, "log2(%g): only of a number above 0", xto_num(&a[0])); return; }
     if (f == 11)
         for (int i = 0; i < xl_n(&a[1]); i++) if (!x_numeric_ok(e, xl_at(&a[1], i))) return;
+    if (f == 16 || f == 17) {   // vec(x, y [, z [, w]]), rgb(r, g, b): numbers, each there
+        double c[4];
+        for (int i = 0; i < na; i++) {
+            if (!x_numeric_ok(e, &a[i])) return;
+            if (!a[i].w) { x_fail(e, "%s(...): a number where nothing is", name); return; }
+            c[i] = a[i].n;
+            if (f == 17 && !(c[i] >= 0 && c[i] <= 255)) { x_fail(e, "rgb(%g, %g, %g): each 0 to 255 - vec(r, g, b) takes 0 to 1", a[0].n, a[1].n, a[2].n); return; }
+            if (f == 17) c[i] /= 255;
+        }
+        xvec(v, c, na);
+        return;
+    }
+    if (f == 18) {   // distance(a, b): between two vectors of as many numbers
+        if (a[0].kind != XV_VEC || a[1].kind != XV_VEC || a[0].vn != a[1].vn) {
+            x_fail(e, "distance(%.30s, %.30s): of two vectors of as many numbers", xtext_of(&a[0]), xtext_of(&a[1]));
+            return;
+        }
+        double s = 0;
+        for (int i = 0; i < a[0].vn; i++) s += (a[0].vc[i] - a[1].vc[i]) * (a[0].vc[i] - a[1].vc[i]);
+        xnum(v, sqrt(s));
+        return;
+    }
     if (!f && !strchr(name, '.')) {   // a function of vars: name(a, b) = ...
         const char *par = NULL, *def = NULL;
         for (int k = 0; k < 3 && !def; k++) def = xvars_fn(e->c->vars[k], name, &par);
@@ -1523,6 +1619,31 @@ internal void x_exec(struct xe *e, const struct xnode *blk) {
     }
     c->top = top;
 }
+// a op b with a vector among them (into a): + - two vectors of as many numbers, number by number; * a vector and a
+// number (either side), / a vector by a number - anything else a mistake, nothing guessed
+internal void xe_vec_op(struct xe *e, int op, struct xval *a, const struct xval *b) {
+    const char *ops = op == '+' ? "+" : op == '-' ? "-" : op == '*' ? "*" : "/";
+    double c[4];
+    if (op == '+' || op == '-') {
+        if (a->kind != XV_VEC || b->kind != XV_VEC || a->vn != b->vn) {
+            x_fail(e, "%.40s %s %.40s: + and - take two vectors of as many numbers", xtext_of(a), ops, xtext_of(b));
+            return;
+        }
+        for (int i = 0; i < a->vn; i++) c[i] = op == '+' ? a->vc[i] + b->vc[i] : a->vc[i] - b->vc[i];
+        xvec(a, c, a->vn);
+        return;
+    }
+    const struct xval *vv = a->kind == XV_VEC ? a : b, *k = vv == a ? b : a;
+    if (k->kind == XV_VEC || (op == '/' && vv != a)) {
+        x_fail(e, "%.40s %s %.40s: * takes a vector and a number, / a vector by a number", xtext_of(a), ops, xtext_of(b));
+        return;
+    }
+    if (!x_numeric_ok(e, k)) return;
+    double y = xto_num(k);
+    if (op == '/' && y == 0) { x_fail(e, "a division by 0"); return; }
+    for (int i = 0; i < vv->vn; i++) c[i] = op == '*' ? vv->vc[i] * y : vv->vc[i] / y;
+    xvec(a, c, vv->vn);
+}
 internal void xe(struct xe *e, const struct xnode *n, struct xval *v) {
     struct xctx *c = e->c;
     xnothing(v);
@@ -1564,7 +1685,9 @@ internal void xe(struct xe *e, const struct xnode *n, struct xval *v) {
         if (e->err) break;
         if (n->k == XN_NEG) {
             x_use(e, v);
-            if (e->err || !x_numeric_ok(e, v)) break;
+            if (e->err) break;
+            if (v->kind == XV_VEC) { double neg[4]; for (int i = 0; i < v->vn; i++) neg[i] = -v->vc[i]; xvec(v, neg, v->vn); break; }
+            if (!x_numeric_ok(e, v)) break;
             xnum(v, -xto_num(v));
         } else xnum(v, !xtrue(v));
         break;
@@ -1577,6 +1700,7 @@ internal void xe(struct xe *e, const struct xnode *n, struct xval *v) {
         x_use(e, v);
         if (!e->err) x_use(e, &b);
         if (e->err) break;
+        if (v->kind == XV_VEC || b.kind == XV_VEC) { xe_vec_op(e, n->op, v, &b); break; }
         double x, y;
         if (n->k == XN_MUL || n->op == '-') {
             if (!x_numeric_ok(e, v) || !x_numeric_ok(e, &b)) break;
@@ -1603,6 +1727,14 @@ internal void xe(struct xe *e, const struct xnode *n, struct xval *v) {
             break;
         }
         if (!v->w || !b.w) { xnum(v, 0); break; }   // nothing compares with nothing: false
+        if (v->kind == XV_VEC || b.kind == XV_VEC) {   // vectors: equal or not - no order, nothing else alike
+            if (v->kind != b.kind || (n->op != '=' && n->op != '!')) {
+                x_fail(e, "%.40s %s %.40s: a vector is only == or != another vector", xtext_of(v), n->op == 'l' ? "<=" : n->op == 'g' ? ">=" : n->op == '=' ? "==" : n->op == '!' ? "!=" : n->op == '<' ? "<" : ">", xtext_of(&b));
+                break;
+            }
+            xnum(v, xvec_eq(v, &b) == (n->op == '='));
+            break;
+        }
         if (!(v->obj && b.obj) && xmismatch(v, &b)) {
             x_fail(e, "a text (\"%.40s\") compared with a number - a number has no quotes, number(t) makes one", xtext_of(v->has_s ? v : &b));
             break;

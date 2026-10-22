@@ -560,7 +560,7 @@
         },
         {
           "name": "support.function.eeaimod",
-          "match": "\\b(?:map_range|contains|chance|number|first|floor|round|item|log2|pick|abs|len|max|min|rnd|str)\\b(?=\\s*\\()"
+          "match": "\\b(?:map_range|contains|distance|chance|number|first|floor|round|item|log2|pick|abs|len|max|min|rgb|rnd|str|vec)\\b(?=\\s*\\()"
         },
         {
           "name": "constant.language.boolean.eeaimod",
@@ -740,7 +740,7 @@
         },
         {
           "name": "support.function.eeaimod",
-          "match": "\\b(?:map_range|contains|chance|number|first|floor|round|item|log2|pick|abs|len|max|min|rnd|str)\\b(?=\\s*\\()"
+          "match": "\\b(?:map_range|contains|distance|chance|number|first|floor|round|item|log2|pick|abs|len|max|min|rgb|rnd|str|vec)\\b(?=\\s*\\()"
         },
         {
           "name": "constant.language.boolean.eeaimod",

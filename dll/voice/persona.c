@@ -588,8 +588,14 @@ internal int persona_has(ee_player *pl, enum line_kind k) {   // a line for it s
 internal int g_persona_used[MAX_PERSONAS];
 internal const char *player_name(ee_player *pl);
 internal const char *player_civ(ee_player *pl);   // its civilization as the game shows it
-internal int g_plan_persona[16], g_plan_color[16];   // by setup slot, planned at the game start (-1 none)
-internal int g_color_human[17], g_ai_colors[16], g_ai_color_n, g_ai_color_k;   // for hook_player_color
+// a player colour: the table's (idx 0..16), one of a personality's own (idx -1: rgb, 0..1 - color = [rgb(128, 64, 0)])
+// or none (idx -2)
+struct pcolor { int idx; float rgb[3]; };
+internal const float *pc_rgb(const struct pcolor *c) { return c->idx >= 0 ? color_rgb(c->idx) : c->idx == -1 ? c->rgb : NULL; }
+internal int g_plan_persona[16];   // by setup slot, planned at the game start (-1 none)
+internal struct pcolor g_plan_color[16];
+internal int g_color_human[17], g_ai_color_n, g_ai_color_k;   // for hook_player_color
+internal struct pcolor g_ai_colors[16];
 internal int persona_forced(int player) {
     for (int i = 0; i < g_npersonas && player >= 0 && player < 16 && g_persona_force[player][0]; i++)
         if (!lstrcmpiA(g_personas[i].file, g_persona_force[player])) return i;
@@ -605,8 +611,9 @@ internal int persona_random(void) {
 }
 
 // p's favoured colours, in order (out, at most cap): its color= worked out now - before the game, so with no players
-// and no game values (xctx nogame) - each item a colour's name or number (color.red); returns how many
-internal int persona_colors(struct persona *p, int *out, int cap) {
+// and no game values (xctx nogame) - each item a colour's name or number (color.red) or a vector of 3 numbers 0..1
+// (rgb(128, 64, 0), vec(0.5, 0.25, 0): its own colour - the table's when it is one of them); returns how many
+internal int persona_colors(struct persona *p, struct pcolor *out, int cap) {
     if (!p->color) return 0;
     struct xctx c = { 0 };
     c.found = 1;
@@ -618,9 +625,29 @@ internal int persona_colors(struct persona *p, int *out, int cap) {
     int n = 0;
     for (int i = 0; i < xl_n(&v) && n < cap; i++) {
         const struct xval *it = xl_at(&v, i);
-        int k = it->has_s ? color_index(it->s) : -1;   // a name, or a number 1..17 (color.red, 2 - "2" is a name: none)
-        if (k < 0 && !it->has_s && it->has_n && it->n >= 1 && it->n <= 17 && it->n == (int)it->n) k = (int)it->n - 1;
-        if (k >= 0) out[n++] = k;
+        struct pcolor pc = { -2, { 0, 0, 0 } };
+        if (it->kind == XV_VEC) {
+            int ok = it->vn == 3;
+            for (int k = 0; k < it->vn && ok; k++) ok = it->vc[k] >= 0 && it->vc[k] <= 1;
+            if (ok) {
+                pc.idx = -1;
+                for (int k = 0; k < 3; k++) pc.rgb[k] = (float)it->vc[k];
+                for (int ti = 0; ti < 17 && pc.idx < 0; ti++) {   // one of the table's: that colour (taken like it)
+                    const float *t = color_rgb(ti);
+                    if (t && t[0] == pc.rgb[0] && t[1] == pc.rgb[1] && t[2] == pc.rgb[2]) pc.idx = ti;
+                }
+            } else {
+                char t[XVAL_CAP];
+                xto_text(it, t, sizeof t);
+                x_error("%s: a colour is 3 numbers 0 to 1 - rgb(128, 64, 0) or vec(0.5, 0.25, 0) - not %s in color = %.100s", p->file, t, p->color);
+                continue;
+            }
+        } else {
+            int k = it->has_s ? color_index(it->s) : -1;   // a name, or a number 1..17 (color.red, 2 - "2" is a name: none)
+            if (k < 0 && !it->has_s && it->has_n && it->n >= 1 && it->n <= 17 && it->n == (int)it->n) k = (int)it->n - 1;
+            pc.idx = k >= 0 ? k : -2;
+        }
+        if (pc.idx != -2) out[n++] = pc;
         else { char t[XVAL_CAP]; xto_text(it, t, sizeof t); x_error("%s: unknown colour \"%s\" in color = %.100s", p->file, t, p->color); }
     }
     return n;
@@ -631,8 +658,16 @@ internal int persona_colors(struct persona *p, int *out, int cap) {
 // slot (+0x24) the personality's favoured colour - the first one no human and no other AI has - otherwise its own
 // colour if still free, otherwise any free one. Slots: 16 x 0x38 bytes, +0 type (1 human, 0 computer, 4 closed).
 // Scenarios and saved games keep their colours (a saved game finds its personalities again by name).
+internal int pc_taken(const struct pcolor *c, const int *used) {   // a table colour in used, an own one planned already
+    if (c->idx >= 0) return used[c->idx];
+    for (int s = 0; s < 16; s++) {
+        const struct pcolor *o = &g_plan_color[s];
+        if (o->idx == -1 && o->rgb[0] == c->rgb[0] && o->rgb[1] == c->rgb[1] && o->rgb[2] == c->rgb[2]) return 1;
+    }
+    return 0;
+}
 internal void persona_new_game(ee_setup *setup) {
-    for (int i = 0; i < 16; i++) { g_persona_of[i] = g_plan_persona[i] = g_plan_color[i] = -1; g_persona_assigned[i] = 0; }
+    for (int i = 0; i < 16; i++) { g_persona_of[i] = g_plan_persona[i] = -1; g_plan_color[i].idx = -2; g_persona_assigned[i] = 0; }
     memset(g_persona_used, 0, sizeof g_persona_used);
     g_ai_color_n = g_ai_color_k = 0;
     memset(g_talk_last, 0, sizeof g_talk_last);
@@ -663,22 +698,28 @@ internal void persona_new_game(ee_setup *setup) {
         g_persona_used[pick]++;
         g_plan_persona[s] = pick;
     }
-    static int fav[16][17], nfav[16];   // each AI's favoured colours, worked out once (chance() in them: one draw)
+    static struct pcolor fav[16][17];   // each AI's favoured colours, worked out once (chance() in them: one draw)
+    static int nfav[16];
     for (int s = 0; s < 16; s++) nfav[s] = g_plan_persona[s] >= 0 ? persona_colors(&g_personas[g_plan_persona[s]], fav[s], 17) : 0;
     for (int pass = 0; pass < 2; pass++)   // favoured colours first, then the AIs without (or with taken ones)
         for (int s = 0; s < 16; s++) {
-            if (g_plan_persona[s] < 0 || g_plan_color[s] >= 0) continue;
+            if (g_plan_persona[s] < 0 || g_plan_color[s].idx != -2) continue;
             struct persona *p = &g_personas[g_plan_persona[s]];
-            int c = -1, own = slot_get_color(setup_slot_at(setup, s));
-            for (int k = 0; k < nfav[s] && c < 0; k++) if (!used[fav[s][k]]) c = fav[s][k];
-            if (c < 0 && pass == 0) continue;
-            if (c < 0 && own >= 0 && own < 17 && !used[own]) c = own;
-            for (int k = 0; k < 16 && c < 0; k++) if (!used[k]) c = k;
-            if (c < 0) continue;
-            used[c] = 1;
+            struct pcolor c = { -2, { 0, 0, 0 } };
+            int own = slot_get_color(setup_slot_at(setup, s));
+            for (int k = 0; k < nfav[s] && c.idx == -2; k++) if (!pc_taken(&fav[s][k], used)) c = fav[s][k];
+            if (c.idx == -2 && pass == 0) continue;
+            if (c.idx == -2 && own >= 0 && own < 17 && !used[own]) c.idx = own;
+            for (int k = 0; k < 16 && c.idx == -2; k++) if (!used[k]) c.idx = k;
+            if (c.idx == -2) continue;
             g_plan_color[s] = c;
-            slot_set_color(setup_slot_at(setup, s), c);
-            if (g_log) fprintf(g_log, "# persona: setup slot %d -> %s, colour %d (%s, was %d)\n", s, p->file, c, k_color_names[c][0], own);
+            if (c.idx >= 0) {
+                used[c.idx] = 1;
+                slot_set_color(setup_slot_at(setup, s), c.idx);
+                if (g_log) fprintf(g_log, "# persona: setup slot %d -> %s, colour %d (%s, was %d)\n", s, p->file, c.idx, k_color_names[c.idx][0], own);
+            } else if (g_log)   // its own: the slot keeps its index (the game start ignores a computer's), the hook gives the rgb
+                fprintf(g_log, "# persona: setup slot %d -> %s, colour rgb(%.0f, %.0f, %.0f) (was %d)\n", s, p->file,
+                        c.rgb[0] * 255, c.rgb[1] * 255, c.rgb[2] * 255, own);
         }
     for (int c = 0; c < 17; c++) g_color_human[c] = 0;
     g_ai_color_n = g_ai_color_k = 0;
@@ -693,11 +734,14 @@ internal void persona_new_game(ee_setup *setup) {
 // The game ignores a computer slot's colour: the game start (0x52599B, random map / test play) gives humans their
 // slot's colour and every other player the next colour not taken by a human, in slot order (0x5262E4: the colour
 // table lookup 0x526B85(index) cdecl -> rgb, then 0x526B3A sets player +0x438). Here an AI's lookup returns its
-// planned colour instead. In the game everything shows the player's rgb (diplomacy screen, chat), not an index.
+// planned colour instead - a personality's own the rgb it holds, which the game copies into the player (0x526B3A). In
+// the game everything shows the player's rgb (3D view, diplomacy screen, chat, minimap), no index is kept: an rgb of
+// no table entry plays and is saved like any other (checked 2026-10-22).
 internal void *__cdecl hook_player_color(unsigned idx) {
     if (!(idx < 17 && g_color_human[idx]) && g_ai_color_k < g_ai_color_n) {
-        int c = g_ai_colors[g_ai_color_k++];
-        if (c >= 0) idx = (unsigned)c;
+        struct pcolor *c = &g_ai_colors[g_ai_color_k++];
+        if (c->idx == -1) return c->rgb;
+        if (c->idx >= 0) idx = (unsigned)c->idx;
     }
     return game_color_rgb(idx);
 }
@@ -714,7 +758,7 @@ internal void persona_assign(ee_player *pl) {
     int pick = persona_forced((int)idx);
     const float *rgb = (const float *)player_color_at(pl);
     for (int s = 0; s < 16 && pick < 0; s++) {
-        const float *c = g_plan_persona[s] >= 0 ? color_rgb(g_plan_color[s]) : NULL;
+        const float *c = g_plan_persona[s] >= 0 ? pc_rgb(&g_plan_color[s]) : NULL;
         if (c && c[0] == rgb[0] && c[1] == rgb[1] && c[2] == rgb[2]) { pick = g_plan_persona[s]; g_plan_persona[s] = -1; }
     }
     for (int i = 0; i < g_npersonas && pick < 0; i++)

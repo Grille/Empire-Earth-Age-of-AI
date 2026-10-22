@@ -628,10 +628,22 @@ vf26 members and route released, vf12, the group's reference) frees nothing twic
 - Player colours: table at 0x8CFA74/0x8CFA78 (vector of pointers to {?, float r, g, b}); 0x526B85(index) cdecl ->
   rgb (fallback 0x8CFA60), 0x526B3A thiscall(player, rgb) sets +0x438 rgb and +0x444 a darker copy. Entries 0-16
   are player colours (0 blue, 1 red, 2 yellow, 3 magenta, 4 orange, 5 green, 6 cyan, 7 dark red, 8 dark grey,
-  9 purple, 10 grey, 11 silver, 12 light yellow, 13 lime, 14 light blue, 15 pink, 16 grey). The game start
-  (random map / test play) gives humans their slot's colour (+0x24) and every other player the next colour no
-  human has, in slot order - a computer slot's colour is ignored (call 0x5262E4, player in edi). In the game the
-  UI shows the player's rgb (diplomacy screen, chat), no index is kept.
+  9 purple, 10 grey, 11 silver, 12 light yellow, 13 lime, 14 light blue, 15 pink, 16 a mid grey .45 - players.c's
+  "darkgrey2"). The game start (random map / test play) gives humans their slot's colour (+0x24) and every other
+  player the next colour no human has, in slot order - a computer slot's colour is ignored (call 0x5262E4, player in
+  edi). In the game everything reads the player's rgb, no index is kept.
+  The table is data.ssa's db\dbcolortable.dat: 69 records of 168 bytes (a 100-byte name, two ids, two rgb triples -
+  the second brighter for yellow, magenta, green, cyan): 0-16 "Player 1 (Blue)" .. "Player 17" (entry 8 is named
+  "Lt. Brown" but is a dark grey), 17-31 "Player 18".."32" all white and unused, then the UI's (selected unit,
+  battle flash), the minimap's terrain, trees, light (daylight, moon, ambient), resources, "Nocolor". The lobby's
+  colour arrows (EEUIELEInc/DecChangeColor) cycle 0-15; the editor's player dialog (0x56AB3F) and a player added in
+  the game (0x52E329: the first of 0-16 no player's rgb matches) set the rgb from an index too.
+  An rgb of no table entry works (2026-10-22, poked into a running game and set by the colour hook at the start):
+  the 3D view reads the player's rgb every frame, a save keeps the rgb itself, chat and diplomacy show it. The
+  minimap stores each dot's 16-bit colour when the dot is added (0x513EEA / 0x514305, from +0x438 / +0x444):
+  a colour changed mid-game shows there only for new dots - 0x515404 rebuilds them all (its only caller the
+  editor's player dialog, 0x5665A4). 0x4D063F maps an rgb back to an index, 0 (blue) when none matches - only
+  0x52E7C8 uses it, refilling the setup slots after a load.
 
 ## Exe builds
 

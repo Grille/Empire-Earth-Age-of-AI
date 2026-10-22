@@ -937,7 +937,9 @@ German game), and in the system/prompt rows and the hand-written cases' fills a 
 the built-in texts and held them too). The language without the game (2026-10-21: script/host.h, the constants to
 game_script/, a value's player now its `obj`): Continental 777 at 5/15/30, 6553 rows each the same; `texts bench`
 the same within the noise (me.count(kind.towers) 1.66 / 1.73 µs - the constants still kept in the tree); the 40-minute
-games Continental 777 and Small Islands 4242 the same row for row.
+games Continental 777 and Small Islands 4242 the same row for row. Vectors (2026-10-22: `vec`, `rgb`, `distance`,
+`.x`): Continental 777 at 5/15/30, 6551 rows each the same; the 32 new cases (scripts/text_engine_cases.txt, the
+mistakes among them) as meant, the members and a vector as a command's argument in a `script dryrun`.
 
 ### Headless UI tests (menus, editor)
 

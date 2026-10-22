@@ -42,7 +42,8 @@ internal int is_enemy(ee_player *pl, ee_player *other) {
 }
 
 // Player colours: index into the game's colour table (0x8CFA74: pointers to {?, float r, g, b}); entries 0-16 are
-// player colours (17+ other engine colours). Names in English or German (cp1252 umlauts as \xFC).
+// player colours, 17-31 unused white slots, then the UI's, terrain and resource colours (docs/engine-notes.md).
+// Names: English, German, the German with its umlaut where it has one (cp1252 \xFC; written as such by color_name).
 internal const char *const k_color_names[17][3] = {
     { "blue", "blau", "" }, { "red", "rot", "" }, { "yellow", "gelb", "" }, { "magenta", "lila", "" },
     { "orange", "orange", "" }, { "green", "gruen", "gr\xFCn" }, { "cyan", "tuerkis", "t\xFCrkis" },

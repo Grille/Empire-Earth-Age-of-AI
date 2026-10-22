@@ -45,6 +45,7 @@ Everything the personalities' expressions have (numbers, `70%`, texts with `{pla
 | `resource.gold`, `resource.all` | a resource: food, wood, stone, gold, iron (1..5), all (0) - `give(2, 500, resource.gold)` |
 | `(a, b) => value`, `(i) => { ... }`, `() => ...` | a function: one value after `=>`, or statements in `{ }` with `return` |
 | `player(3)` | player 3 - `p3 = player(3)` then `p3.towers`, `p3.soldiers` ... (the values of `them.` in the README) |
+| `vec(70, 50)` | a vector (2 to 4 numbers - a place in tiles): `home = vec(70, 50)` then `home.x`, `home + vec(5, 0)`, `home * 2`, `distance(home, there)` (the README's "Vectors"); as a command's argument its numbers one each: `spawn(2, unit.inf02_spearman, home, 10)` is `spawn 2 24 70 50 10` |
 | `time` | the game time now, in seconds |
 | `stop` | what a `for` / `every` body returns to end it early |
 | `"text \{x\}"` | `\{` `\}`: braces that are text, not a placeholder (also `\"` `\\` `\n`) |

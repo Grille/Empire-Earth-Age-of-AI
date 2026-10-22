@@ -60,7 +60,7 @@ w('    # its civilization\'s name as the game shows it, instead of the one it pl
 w('    #civilization = ""')
 w('    # favoured player colours on random maps, the first free one wins: blue, red, yellow, magenta, orange, green,')
 w('    # cyan, darkred, darkgrey, purple, grey, silver, lightyellow, lime, lightblue, pink (or German names, or a number')
-w('    # 1..17: color.red or 2)')
+w('    # 1..17: color.red or 2), or one of its own: rgb(128, 64, 0) - 0 to 255 each')
 w('    #color = ["blue", "cyan"]')
 w('    # traits 0% to 100% (50% when left out). aggression: betrays, refuses peace; loyalty: keeps its alliances (a vassal')
 w('    # under 50% rebels against a clearly weaker lord, the sooner the prouder); pride: how long it holds a grudge and')
