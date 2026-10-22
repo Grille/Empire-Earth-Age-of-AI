@@ -638,7 +638,7 @@ vf26 members and route released, vf12, the group's reference) frees nothing twic
 The mod's addresses are those of the 1.04 exe with the 2017 "Difficulty Setting & Multiplayer Lobby" update (build
 timestamp 0x594D0000). game/exe.c `game_build` checks the exe file before installing anything: an FNV-1a hash over every
 section but `.rsrc` (`k_exe_builds`); another build gets no hooks and one message (`build_unknown`). All addresses are
-in `dll/game/addr.h`, one row per name with a value per known build (the hash's index picks the column): supporting
+in `dll/game/api/addr.h` (and its row files functions_addr.h, hooks_addr.h), one row per name with a value per known build (the hash's index picks the column): supporting
 another build means its hash and its column there - the generated editor layout (`editor_layout.h`) and the two
 Low-Level Engine.dll operands of display.c are that build's own as well. Compared on
 2026-10-19 (the community setups unpacked with innoextract, nothing run):

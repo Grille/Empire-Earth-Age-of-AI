@@ -24,11 +24,11 @@ struct ustring;
 #include "base/paths.c"
 #include "base/mistakes.c"
 #include "base/math.c"
-#include "game/addr.h"     // the game's addresses by name, per exe build: GA(G_WORLD_CLOCK), GF(FN_CAN_BUILD)(pl, t, 0x20, 0)
-#include "game/fields.h"   // the game's objects' fields by kind, per exe build: OF(PL, 0x9D4)
+#include "game/api/addr.h"        // the game's addresses by name, per exe build: GA(G_WORLD_CLOCK), GF(FN_CAN_BUILD)(pl, t, 0x20, 0)
+#include "game/fields.h"          // the game's objects' fields by kind, per exe build: OF(PL, 0x9D4)
 #include "game/layout.h"
-#include "game/api.h"       // the objects typed and the functions over them: explored_by(site, pl)
-#include "game/hooks.h"     // the game's functions the mod hooks: their hook types and installers
+#include "game/api/functions.h"   // the objects typed and the functions over them: explored_by(site, pl)
+#include "game/api/hooks.h"       // the game's functions the mod hooks: their hook types and installers
 #include "game/players.c"
 #include "game/tech.c"      // a tech node's children (kept differently by build)
 #include "game/random.c"

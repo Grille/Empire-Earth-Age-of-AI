@@ -104,7 +104,7 @@ if __name__ == '__main__':
         v = via_votes(rng(args[1].split(',')), int(args[2], 16), int(args[3], 16))
         show(args[0], v, collections.defaultdict(collections.Counter))
     elif what == 'rets':
-        src = open(os.path.join(ROOT, 'dll', 'game', 'addr.h'), encoding='latin-1').read()
+        src = P.addr_source()
         for name, rest in re.findall(r'^\s*[FD]\((\w+),(.*)$', src, re.M):
             v = re.findall(r'0x[0-9A-Fa-f]{8}', rest.split('/*')[0])
             if len(v) < 2: continue

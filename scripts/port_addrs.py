@@ -1,4 +1,4 @@
-# Find addr.h's addresses in another exe build (Art of Conquest): pairs the two exes' functions by their code with the
+# Find the addresses of dll/game/api/*addr.h in another exe build (Art of Conquest): pairs the two exes' functions by their code with the
 # addresses masked (Ghidra's function lists: decomp/functions.tsv), then follows the pairs - the calls of a paired
 # function pair their callees, its operands pair the data, an instruction inside a paired function is found by aligning
 # the two functions' code. Vtables are paired by their RTTI class (and so their slots' functions), imports by name;
@@ -326,10 +326,16 @@ def port(x):
     return 0, 'not found'
 
 
+def addr_source():
+    """the address tables' text: dll/game/api/addr.h and its two row files (the functions called, the hooks)"""
+    return ''.join(open(os.path.join(ROOT, 'dll', 'game', 'api', f), encoding='latin-1').read()
+                   for f in ('functions_addr.h', 'hooks_addr.h', 'addr.h'))
+
+
 if __name__ == '__main__':   # (imported: load() pairs - port_fields.py, port_dll.py)
     load()
     rows = []
-    src = open(os.path.join(ROOT, 'dll', 'game', 'addr.h'), encoding='latin-1').read()
+    src = addr_source()
     for m in re.finditer(r'^\s*([FD])\((\w+),(.*)$', src, re.M):
         v = re.findall(r'0x[0-9A-Fa-f]{8}', m.group(3).split('/*')[0])
         if v: rows.append((m.group(2), int(v[0], 16)))   # (the numbers - SLOT_, SIZE_, RVA_ - have no address)

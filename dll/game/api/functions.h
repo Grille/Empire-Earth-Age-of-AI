@@ -2,9 +2,9 @@
 // the game's functions as plain C functions over them - explored_by(site, pl) instead of
 // GF(FN_EXPLORED)(FIELD(site, OF(UNIT, 0x14), void *), pl). The types are never defined, only pointed to: a unit
 // passed where a player is wanted, or the arguments swapped, doesn't build (a void * still passes - code not moved
-// over yet). FIELD reads them as before. addr.h has the addresses and the raw signatures; the code outside game/
-// calls these instead (moved over so far: ai/econ.c's calls; typed in every file: the players, the resource
-// manager, the units). Each wrapper is the call itself: inlined, the machine code is the same as GF's
+// over yet). FIELD reads them as before. functions_addr.h has these functions' addresses and raw signatures (addr.h's
+// tables); the code outside game/ calls these instead (moved over so far: ai/; typed in every file: the players, the
+// resource manager, the units). Each wrapper is the call itself: inlined, the machine code is the same as GF's
 // (scripts/code_same.py; dll/build.sh's -fno-strict-aliasing keeps the types out of the optimizer's aliasing).
 
 typedef struct ee_player ee_player;             // PL: a player (EEPlayer, EEComputerPlayer)

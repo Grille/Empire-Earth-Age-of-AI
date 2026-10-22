@@ -23,7 +23,8 @@ Several sessions may work in this tree at the same time - see Git below.
   working tree), copied under a reservation of the game folder (a loaded DLL can't be replaced). Commit first.
 - A task that needs the game folder to itself (an install, a slot-0 run): `sh scripts/reserve.sh "<what>" <command>`
   - test runs start no game meanwhile, the running ones (and the player's) are waited for; nobody has to pause.
-- Game addresses live only in `dll/game/addr.h`, by name with one value per exe build: `GA(G_WORLD_CLOCK)`,
+- Game addresses live only in `dll/game/api/` (`addr.h`: the builds, data and the rest; `functions_addr.h`: the
+  functions the mod calls; `hooks_addr.h`: what it patches to hook), by name with one value per exe build: `GA(G_WORLD_CLOCK)`,
   `GF(FN_CAN_BUILD)(pl, t, 0x20, 0)`, `GL(TRAIN_SITES)`, a vtable slot `GA(SLOT_ASG_UPDATE)`, an object's size
   `GA(SIZE_GOAL_BUILD)` - never a literal address, slot or size in the code. The game objects' fields likewise live
   in `dll/game/fields.h`, by kind and the 2017 update's offset: `FIELD(pl, OF(PL, 0x9D4), void *)` (a field not in
@@ -34,8 +35,8 @@ Several sessions may work in this tree at the same time - see Git below.
   own code (and a called function's stack arguments: `rets`), `scripts/port_dll.py` for the engine DLLs (AoC ships
   its own builds: an RVA_ row, or better the export by name). Code that differs by more than an address:
   `build_is("aoc")` (AoC rewrote a few functions - docs/engine-notes.md).
-- `dll/game/api.h`: the objects typed (`ee_player *`, `ee_resource_mgr *`, ... one per fields.h kind) and the game's
-  functions as typed wrappers (`explored_by(site, pl)`, `rm_assign(rm, u, site)`); `dll/game/hooks.h`: per hooked
+- `dll/game/api/functions.h`: the objects typed (`ee_player *`, `ee_resource_mgr *`, ... one per fields.h kind) and the
+  game's functions as typed wrappers (`explored_by(site, pl)`, `rm_assign(rm, u, site)`); `dll/game/api/hooks.h`: per hooked
   function its hook's type and installer (`patch_place(hook_place)` - a hook with other parameters doesn't build).
   Being moved over folder by folder: a folder in scripts/layers.py TYPED (ai/ so far) uses no GF, GA(FN_/CALL_/SLOT_)
   or GL (add a wrapper or an installer); a kind not typed yet is `void *` there. A move must keep the machine code
