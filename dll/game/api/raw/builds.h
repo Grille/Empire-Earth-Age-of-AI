@@ -6,5 +6,3 @@ internal const struct exe_build { uint32_t hash; const char *name; int ready; } 
     { 0x0644BA54, "aoc", 0 },   // The Art of Conquest, EE-AOC.exe (GOG, Steam)
 };
 internal int g_exe_build = -1;   // the running build's column (-1: none known - the mod stays off)
-// the running build by its name ("ee", "aoc"): for code that differs by more than an address (AoC's rewrites)
-internal int build_is(const char *name) { return g_exe_build >= 0 && !lstrcmpA(k_exe_builds[g_exe_build].name, name); }

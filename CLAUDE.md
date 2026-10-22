@@ -15,7 +15,7 @@ Several sessions may work in this tree at the same time - see Git below.
   C/C++ through `.vscode/c_cpp_properties.json`): each part with the text eeaimod.c has before it, so the editor
   knows what the compiler knows there.
 - `dll/` has a folder per part, and which part may use which is a rule the build checks (`scripts/layers.py`):
-  base (nothing) <- game <- engine, ai (and voice/say.h: what the AI says goes through it); script (base only: the
+  base (nothing) <- game/api (the game's code and objects, one module: nothing of its raw/ outside it) <- game <- engine, ai (and voice/say.h: what the AI says goes through it); script (base only: the
   language knows no game - script/host.h asks the program); voice (base, game, ai, script); game_script (the game in
   the language: all of those);
   test and the wiring (`eeaimod.c`, `persist.c`) everything. A new crossing fails the build - put the code where it

@@ -1,4 +1,5 @@
 // THE GAME'S OBJECTS: names for some of their fields (their offsets per build: raw/fields.h) and FIELD, the read itself.
+#define OF(k, x) (g_of[OF_##k##_##x])   // the running build's offset of the field the 2017 update has at x in a k
 // EECPResourceManager layout (from decompiled ctor/serializer 0x489F76 / 0x48C5B2)
 #define RM_OWNER        OF(RM, 0x130)  // -> object whose +0x4C is the EEComputerPlayer
 #define RM_LISTS        OF(RM, 0xA4)  // 7 unit lists, stride 0x14, count at +0x10

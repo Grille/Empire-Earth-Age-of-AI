@@ -19,14 +19,15 @@ DLL = os.path.join(ROOT, 'dll')
 # and test/ may use everything; nothing may use test/ or the wiring.
 MAY_USE = {
     'base':   [],                                          # the DLL's own helpers: no game, no part
-    'game':   ['base'],                                    # what the mod knows of the game
-    'engine': ['base', 'game'],                            # fixes and features of the game
-    'ai':     ['base', 'game', 'voice/say.h'],             # the computer players - they speak through say.h only
+    'game/api': ['base'],                                  # the game's code and objects, one module (api.c)
+    'game':   ['base', 'game/api'],                        # what the mod knows of the game beyond its code
+    'engine': ['base', 'game/api', 'game'],                # fixes and features of the game
+    'ai':     ['base', 'game/api', 'game', 'voice/say.h'],   # the computer players - they speak through say.h only
     'script': ['base'],                                    # the language: knows no game (script/host.h asks it)
-    'game_script': ['base', 'game', 'ai', 'script', 'voice'],   # the game in the language: constants, values, relations
-    'voice':  ['base', 'game', 'ai', 'script'],            # what the AI says: reads the AI, speaks the language
-    'test':   ['base', 'game', 'engine', 'ai', 'script', 'game_script', 'voice', 'dll'],
-    'dll':    ['base', 'game', 'engine', 'ai', 'script', 'game_script', 'voice', 'test'],
+    'game_script': ['base', 'game/api', 'game', 'ai', 'script', 'voice'],   # the game in the language: constants, values, relations
+    'voice':  ['base', 'game/api', 'game', 'ai', 'script'],   # what the AI says: reads the AI, speaks the language
+    'test':   ['base', 'game/api', 'game', 'engine', 'ai', 'script', 'game_script', 'voice', 'dll'],
+    'dll':    ['base', 'game/api', 'game', 'engine', 'ai', 'script', 'game_script', 'voice', 'test'],
 }
 
 # A FILE OF A FOLDER as the rule names it (voice/say.h): only what that file declares - its prototypes, types and
@@ -48,9 +49,9 @@ EXCEPTIONS = [
     ('voice/llm.c', 'test/control.c', 'queue_pause_toggle', 'the game paused while the language model answers'),
 ]
 
-# THE GAME'S FUNCTIONS ONLY IN game/api/: the calls through functions.c's typed wrappers, the hooks and patches through
-# hooks.c's installers, a goal's kind, an object's memory and the game's data through functions.c too - GA, GF or GL
-# anywhere else fails the build.
+# game/api/raw/ IS THE MODULE'S INSIDE: the addresses and offsets per build and their tables (GA, GF, GL, k_addr ...).
+# Nothing it defines is used outside game/api/ - the rest of the code calls functions.c's typed wrappers and
+# accessors, hooks.c's installers, exe.c's build_is and layout.h's OF / FIELD; anything else fails the build.
 
 IDENT = re.compile(r'[A-Za-z_]\w*')
 # a declaration's attributes, written out or by base/'s macro (internal PRINTF_LIKE(1, 2) void f(...)): not its name
@@ -102,7 +103,9 @@ def definitions(code):
     body, pre = [], False   # the preprocessor lines (with their continuations) apart
     for ln in lines:
         pre = pre or bool(re.match(r'\s*#', ln))
-        body.append('' if pre else ln)
+        # an X-macro's expansion on a line of its own (ADDRS(ADDR_TYPE_F, ADDR_TYPE_D), no ;) would run into the next
+        # statement and hide its name (raw/tables.c's k_addr): apart too
+        body.append('' if pre or re.match(r'\s*[A-Z][A-Z0-9_]*\s*\([^;{}]*\)\s*$', ln) else ln)
         pre = pre and ln.rstrip().endswith('\\')
     body = '\n'.join(body)
     # enum constants of enums at top level
@@ -164,6 +167,7 @@ def uses(code):
 
 
 def folder(f):
+    if f.startswith('game/api/'): return 'game/api'   # a module of its own inside game/
     return f.split('/')[0] if '/' in f else 'dll'
 
 
@@ -207,13 +211,13 @@ def excepted(u, d, n):
 def main():
     files, code, edges = analyse()
     if '--map' in sys.argv:
-        order = ['dll', 'base', 'game', 'engine', 'ai', 'script', 'game_script', 'voice', 'test']
+        order = ['dll', 'base', 'game/api', 'game', 'engine', 'ai', 'script', 'game_script', 'voice', 'test']
         m = collections.defaultdict(collections.Counter)
         for u, ds in edges.items():
             for d, ns in ds.items():
                 if folder(u) != folder(d): m[folder(u)][folder(d)] += len(ns)
-        print('%-8s' % 'uses ->' + ''.join('%8s' % g for g in order))
-        for g in order: print('%-8s' % g + ''.join('%8s' % (m[g][h] or '.') for h in order))
+        print('%-9s' % 'uses ->' + ''.join('%12s' % g for g in order))
+        for g in order: print('%-9s' % g + ''.join('%12s' % (m[g][h] or '.') for h in order))
         return 0
     if '--why' in sys.argv:
         x = sys.argv[sys.argv.index('--why') + 1]
@@ -221,7 +225,7 @@ def main():
             for d, ns in sorted(edges[u].items()):
                 if (d == x or folder(d) == x) and folder(u) != folder(d): print('%s -> %s: %s' % (u, d, ', '.join(sorted(ns))))
         return 0
-    iface = {f: declared(code[f]) for f in {x for v in MAY_USE.values() for x in v if '/' in x}}
+    iface = {f: declared(code[f]) for f in {x for v in MAY_USE.values() for x in v if x not in MAY_USE}}   # the doors: files
     bad, used = [], set()
     for u in sorted(edges):
         for d, ns in sorted(edges[u].items()):
@@ -237,10 +241,13 @@ def main():
     for f in glob.glob(os.path.join(DLL, 'dinput', '*.c')):
         for inc in re.findall(r'#include\s+"([^"]+)"', open(f, encoding='latin-1').read()):
             if inc not in ('../base/headless_win.c', '../base/lang.h'): bad.append('dinput/%s includes %s' % (os.path.basename(f), inc))
-    # the game's functions only in game/api/
-    for f in (f for f in files if not f.startswith('game/api/')):
-        for m in re.finditer(r'\bGF\s*\(\s*(\w+)|\bGA\s*\(\s*(\w+)|\bGL\s*\(\s*(\w+)', code[f]):
-            bad.append('%s uses %s - the game addresses only in game/api/: a wrapper or accessor in functions.c, an installer in hooks.c' % (f, m.group(1) or m.group(2) or m.group(3)))
+    # game/api/raw/ only inside game/api/
+    for u in sorted(edges):
+        if u.startswith('game/api/'): continue
+        for d, ns in sorted(edges[u].items()):
+            if d.startswith('game/api/raw/'):
+                bad.append('%s uses %s of %s - game/api/raw/ only inside game/api/: a wrapper or accessor in functions.c, '
+                           'an installer in hooks.c' % (u, ', '.join(sorted(ns)), d))
     stale = [e for e in EXCEPTIONS if (e[0], e[1], e[2]) not in used]
     for b in bad: print('layers: ' + b)
     for e in stale: print('layers: exception no longer needed: %s -> %s (%s) - take it out of scripts/layers.py' % e[:3])

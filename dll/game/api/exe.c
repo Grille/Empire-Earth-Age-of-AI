@@ -6,6 +6,8 @@
 // "Exe builds"). Known by a hash (FNV-1a) of every section but .rsrc, read from the file: in memory another DLL may have
 // patched the code already, and run_test.ps1 patches it before the game runs.
 // (the builds and their hashes: raw/builds.h)
+// the running build by its name ("ee", "aoc"): for code that differs by more than an address (AoC's rewrites)
+internal int build_is(const char *name) { return g_exe_build >= 0 && !lstrcmpA(k_exe_builds[g_exe_build].name, name); }
 internal uint32_t exe_build_hash(const char *path) {   // 0: not a readable PE file
     HANDLE f = CreateFileA(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, 0, NULL);
     if (f == INVALID_HANDLE_VALUE) return 0;
@@ -49,6 +51,13 @@ internal int game_build(uint32_t *hash) {
             return 1;
         }
     return name && !lstrcmpiA(name + 1, "Empire Earth.exe") ? -1 : 0;   // a renamed copy of a known build counts above
+}
+// the start's log: the build when it isn't ready, the addresses and fields it hasn't got (what uses them doesn't work)
+internal void api_log(FILE *log) {
+    if (!log) return;
+    if (!k_exe_builds[g_exe_build].ready) fprintf(log, "# build: %s - not ready, a test run's\n", k_exe_builds[g_exe_build].name);
+    addr_log(log);
+    fields_log(log);
 }
 // Another build: nothing installed - the player is told once a start (a test run, which has nobody to click: only
 // the log), and the game runs as it is
