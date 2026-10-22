@@ -208,8 +208,8 @@ internal void cmd_sites(char *out, const char *args) {
             ee_unit *site = sb[s];
             if (!site) continue;
             unsigned n = site_gatherers(site);
-            REPLY("  site %p type=%d amount=%d pos=%d,%d gatherers=%u\n", (void *)site, FIELD(site, OF(UNIT, 0x38), int),
-                  FIELD(site, OF(UNIT, 0x40), int), FIELD(site, OF(UNIT, 0x1C), int), FIELD(site, OF(UNIT, 0x20), int), n);
+            REPLY("  site %p type=%d amount=%d pos=%d,%d gatherers=%u\n", (void *)site, unit_get_resource(site),
+                  unit_get_amount(site), unit_get_x(site), unit_get_y(site), n);
         }
     }
 }
@@ -233,14 +233,14 @@ internal void cmd_foodcheck(char *out, const char *args) {
         ee_zone *zone = tb[t];
         ee_unit *s = zone ? zone_site(zone, 2) : NULL;
         if (!s) continue;
-        int pos[2] = { FIELD(s, OF(UNIT, 0x1C), int), FIELD(s, OF(UNIT, 0x20), int) };
+        int pos[2] = { unit_get_x(s), unit_get_y(s) };
         int dx = pos[0] - base[0], dy = pos[1] - base[1];
         REPLY(" zone %2d active=%d site %d,%d class=%#x region=%d explored=%d gatherers=%u amount=%d state=%d"
-              " zone+14=%d enemy=%d d2=%d\n", t, FIELD(zone, OF(ZONE, 0x18), uint8_t), pos[0], pos[1], FIELD(FIELD(s, OF(UNIT, 0x2C), uint8_t *), OF(TD, 0x4B8), int),
+              " zone+14=%d enemy=%d d2=%d\n", t, FIELD(zone, OF(ZONE, 0x18), uint8_t), pos[0], pos[1], FIELD(unit_get_type_data(s), OF(TD, 0x4B8), int),
               (short)map_area(pos, 2),
               explored_by(s, pl),
               site_gatherers(s),
-              FIELD(s, OF(UNIT, 0x40), int), FIELD(FIELD(s, OF(UNIT, 0x14), uint8_t *), OF(SITEOWN, 0x4), int), FIELD(zone, OF(ZONE, 0x14), int),
+              unit_get_amount(s), FIELD(unit_get_vis(s), OF(SITEOWN, 0x4), int), FIELD(zone, OF(ZONE, 0x14), int),
               bm_enemy_near(bm, pos[0], pos[1]), dx * dx + dy * dy);
     }
 }
@@ -296,9 +296,9 @@ internal void cmd_units(char *out, const char *args) {
         struct { const char *goal; void *target; int count, x, y; } g[48];
         int ng = 0;
         for (unsigned k = 0; k < n; k++) {
-            uint8_t *u = deque_at(dq, first + k);
+            ee_unit *u = deque_at(dq, first + k);
             if (!u) continue;
-            void *goal = FIELD(u, OF(UNIT, 0x1EC), void *);
+            void *goal = unit_get_goal(u);
             const char *gn = rtti_name(goal);
             void *tgt = (goal && !strcmp(gn, "EEUGGather@@")) ? FIELD(goal, OF(GOAL, 0x38), void *) : NULL;
             int j = 0;
@@ -306,7 +306,7 @@ internal void cmd_units(char *out, const char *args) {
             if (j == ng) {
                 if (ng == 48) continue;
                 g[ng].goal = gn; g[ng].target = tgt; g[ng].count = 0;
-                g[ng].x = FIELD(u, OF(UNIT, 0x1C), int); g[ng].y = FIELD(u, OF(UNIT, 0x20), int);
+                g[ng].x = unit_get_x(u); g[ng].y = unit_get_y(u);
                 ng++;
             }
             g[j].count++;

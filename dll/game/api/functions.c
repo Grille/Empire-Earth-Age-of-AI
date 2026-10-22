@@ -280,7 +280,6 @@ internal inline void cp_epoch_catch_up(ee_player *ai, ee_player *human) { GF(FN_
 
 // UNITS
 // the player a unit belongs to (player 0: nature - wild animals, resources)
-internal inline ee_player *unit_owner(const ee_unit *u) { return FIELD(u, OF(UNIT, 0x18), ee_player *); }
 // the unit says sound (an answer to an order: 0x1F51 "building")
 internal inline void unit_say(ee_unit *u, int sound) { GF(FN_UNIT_SAY)(u, sound); }
 // the unit's goal set (the unit takes it over); append: after its current one, prio: the order's priority

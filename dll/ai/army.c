@@ -57,11 +57,11 @@ internal void am_bld(void *um, int type, int *have, int *busy) {
     uint8_t *q = type_list(um, type);
     *have = *busy = 0;
     for (unsigned j = 0, f = q ? FIELD(q, 0xC, unsigned) : 0, c = q ? FIELD(q, 0x10, unsigned) : 0; j < c && j < 128; j++) {
-        uint8_t *b = deque_at(q, f + j);
-        uint8_t *bs = b ? FIELD(b, OF(UNIT, 0x30), uint8_t *) : NULL;   // [unit +0x30] +0x340: finished
-        if (!b || FIELD(b, OF(UNIT, 0x3C), int) <= 0 || !bs || !bs[OF(UNIT, 0x340)]) continue;
+        ee_unit *b = deque_at(q, f + j);
+        ee_unit *bs = b ? unit_get_physics(b) : NULL;
+        if (!b || unit_get_hp(b) <= 0 || !bs || !unit_get_finished(bs)) continue;
         (*have)++;
-        int cur = FIELD(b, OF(UNIT, 0x25C), int), *qb = FIELD(b, OF(UNIT, 0x4C), int *), *qe = FIELD(b, OF(UNIT, 0x50), int *);
+        int cur = unit_get_producing(b), *qb = unit_get_queue_begin(b), *qe = unit_get_queue_end(b);
         if ((cur > 0 && cur != 100000) || (qb && qe > qb)) (*busy)++;
     }
 }
@@ -291,7 +291,7 @@ internal void ap_owned(ee_player *pl, unsigned idx) {
     memset(g_apo[idx], 0, sizeof g_apo[idx]);
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
         int t = FIELD(it.td, OF(TD, 0x4B8), int);
-        if (unit_owner(it.u) == pl && FIELD(it.u, OF(UNIT, 0x3C), int) > 0 && t >= 0 && t < 768) g_apo[idx][t] = 1;
+        if (unit_get_owner(it.u) == pl && unit_get_hp(it.u) > 0 && t >= 0 && t < 768) g_apo[idx][t] = 1;
     }
     uint8_t *cm = FIELD(pl, OF(PL, 0xB90), uint8_t *), *um = cm ? FIELD(cm, OF(CM, 0x44), uint8_t *) : NULL;
     for (int i = 0; um && i < 14; i++) {
@@ -420,11 +420,11 @@ internal void am_tick(ee_player *pl, uint32_t now) {
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
         uint8_t *td = it.td;
-        if (unit_owner(u) != pl || FIELD(u, OF(UNIT, 0x3C), int) <= 0) continue;
+        if (unit_get_owner(u) != pl || unit_get_hp(u) <= 0) continue;
         int t = FIELD(td, OF(TD, 0x4B8), int), fam = FIELD(td, OF(TD, 0x4B4), int);
-        uint8_t *bs = FIELD(u, OF(UNIT, 0x30), uint8_t *);
-        if (ut_role(t, UTR_TOWER)) { towers += bs && bs[OF(UNIT, 0x340)]; continue; }
-        if (ut_role(t, UTR_WALL) && !ut_role(t, UTR_GATE)) { walls += bs && bs[OF(UNIT, 0x340)]; continue; }
+        ee_unit *bs = unit_get_physics(u);
+        if (ut_role(t, UTR_TOWER)) { towers += bs && unit_get_finished(bs); continue; }
+        if (ut_role(t, UTR_WALL) && !ut_role(t, UTR_GATE)) { walls += bs && unit_get_finished(bs); continue; }
         if (!is_army_family(fam) || is_citizen_type(t) || fam == 18) continue;   // transports aside
         if (fam == 4 || fam == 10 || fam == 21) ships++;
         else if (fam == 3 || fam == 7 || fam == 17) air++;

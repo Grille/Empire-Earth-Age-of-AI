@@ -17,9 +17,9 @@
 internal unsigned g_asg_queue_freed;
 __attribute__((used)) uintptr_t g_asg_queue_pop;   // game_asg_queue_pop()
 __attribute__((used)) ee_unit *__cdecl asg_queue_unit(ee_unit *u) {
-    if (!u || !FIELD(u, OF(UNIT, 0x2A), uint8_t)) return u;
+    if (!u || !unit_get_released(u)) return u;
     if (g_log && g_asg_queue_freed++ < 5) {
-        uint8_t *td = FIELD(u, OF(UNIT, 0x2C), uint8_t *);
+        uint8_t *td = unit_get_type_data(u);
         fprintf(g_log, "# engine fix: a unit (type %d) freed while it waited to join an attack subgroup - not made a member at %.1f min\n",
                 td ? FIELD(td, OF(TD, 0x4B8), int) : -1, game_time() / 60000.0);
     }

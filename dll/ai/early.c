@@ -44,15 +44,15 @@ internal int early_base(ee_player *pl, int *bx, int *by) {
     *bx = FIELD(bm, OF(BM, 0x12C), int); *by = FIELD(bm, OF(BM, 0x130), int);
     return 1;
 }
-internal int early_finished(ee_unit *u) { uint8_t *bs = FIELD(u, OF(UNIT, 0x30), uint8_t *); return bs && FIELD(bs, OF(UNIT, 0x340), uint8_t); }
+internal int early_finished(ee_unit *u) { ee_unit *bs = unit_get_physics(u); return bs && unit_get_finished(bs); }
 // own towers within r of x, y: finished / all (foundations too)
 internal void early_towers_at(ee_player *pl, int x, int y, int r, int *fin, int *all) {
     *fin = *all = 0;
     for (struct grid_it it = grid_it_box(x, y, r, 1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
         uint8_t *td = it.td;
-        if (!td || unit_owner(u) != pl || FIELD(u, OF(UNIT, 0x3C), int) <= 0 || !is_tower_type(FIELD(td, OF(TD, 0x4B8), int))) continue;
-        if (abs(FIELD(u, OF(UNIT, 0x1C), int) - x) > r || abs(FIELD(u, OF(UNIT, 0x20), int) - y) > r) continue;
+        if (!td || unit_get_owner(u) != pl || unit_get_hp(u) <= 0 || !is_tower_type(FIELD(td, OF(TD, 0x4B8), int))) continue;
+        if (abs(unit_get_x(u) - x) > r || abs(unit_get_y(u) - y) > r) continue;
         (*all)++;
         *fin += early_finished(u);
     }
@@ -80,8 +80,8 @@ internal void early_slot(ee_player *pl, unsigned idx, int bx, int by, int k, int
         for (struct grid_it it = grid_it_box(bx, by, 15, 1); grid_it_next(&it); ) {
             ee_unit *u = it.u;
             uint8_t *td = it.td;
-            if (!td || unit_owner(u) != pl || FIELD(u, OF(UNIT, 0x3C), int) <= 0 || !is_citizen_type(FIELD(td, OF(TD, 0x4B8), int))) continue;
-            sx += (float)(FIELD(u, OF(UNIT, 0x1C), int) - bx); sy += (float)(FIELD(u, OF(UNIT, 0x20), int) - by);
+            if (!td || unit_get_owner(u) != pl || unit_get_hp(u) <= 0 || !is_citizen_type(FIELD(td, OF(TD, 0x4B8), int))) continue;
+            sx += (float)(unit_get_x(u) - bx); sy += (float)(unit_get_y(u) - by);
         }
         float px = -dy, py = dx;
         if (px * sx + py * sy < 0) { px = -px; py = -py; }
@@ -153,12 +153,12 @@ internal void early_towers_tick(ee_player *pl, unsigned idx, uint32_t now) {
     for (struct grid_it it = grid_it_box(bx, by, 20, 1); grid_it_next(&it) && nt < 8; ) {
         ee_unit *u = it.u;
         uint8_t *td = it.td;
-        if (!td || unit_owner(u) != pl || FIELD(u, OF(UNIT, 0x3C), int) <= 0 || !is_tower_type(FIELD(td, OF(TD, 0x4B8), int)) ||
+        if (!td || unit_get_owner(u) != pl || unit_get_hp(u) <= 0 || !is_tower_type(FIELD(td, OF(TD, 0x4B8), int)) ||
             early_finished(u)) continue;
         todo[nt++] = u;
     }
     for (int i = 0; i < nt; i++)
-        if (!raiders_near(pl, FIELD(todo[i], OF(UNIT, 0x1C), int), FIELD(todo[i], OF(UNIT, 0x20), int), 8)) st->builders += (unsigned)bk_builders(pl, todo[i], 2);
+        if (!raiders_near(pl, unit_get_x(todo[i]), unit_get_y(todo[i]), 8)) st->builders += (unsigned)bk_builders(pl, todo[i], 2);
 }
 
 // own buildings that shoot (finished) near x, y: 1 when one reaches x, y (its range - 0.5)
@@ -166,8 +166,8 @@ internal int early_cover(ee_player *pl, int x, int y) {
     for (struct grid_it it = grid_it_box(x, y, 16, 1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
         float r, a;
-        if (unit_owner(u) != pl || FIELD(u, OF(UNIT, 0x3C), int) <= 0 || !defence_stats(u, &r, &a) || !early_finished(u)) continue;
-        float dx = (float)(FIELD(u, OF(UNIT, 0x1C), int) - x), dy = (float)(FIELD(u, OF(UNIT, 0x20), int) - y);
+        if (unit_get_owner(u) != pl || unit_get_hp(u) <= 0 || !defence_stats(u, &r, &a) || !early_finished(u)) continue;
+        float dx = (float)(unit_get_x(u) - x), dy = (float)(unit_get_y(u) - y);
         if (dx * dx + dy * dy <= (r - 0.5f) * (r - 0.5f)) return 1;
     }
     return 0;
@@ -184,14 +184,14 @@ internal void early_bait(ee_player *pl, unsigned idx, uint32_t now) {
     for (struct grid_it it = grid_it_box(bx, by, 36, 1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
         uint8_t *td = it.td;
-        if (!td || FIELD(u, OF(UNIT, 0x3C), int) <= 0) continue;
-        ee_player *o = unit_owner(u);
+        if (!td || unit_get_hp(u) <= 0) continue;
+        ee_player *o = unit_get_owner(u);
         float r, a;
         if (o == pl) {
-            if (nc < 24 && defence_stats(u, &r, &a) && early_finished(u)) { cov[nc].x = FIELD(u, OF(UNIT, 0x1C), int); cov[nc].y = FIELD(u, OF(UNIT, 0x20), int); cov[nc++].r = r; }
+            if (nc < 24 && defence_stats(u, &r, &a) && early_finished(u)) { cov[nc].x = unit_get_x(u); cov[nc].y = unit_get_y(u); cov[nc++].r = r; }
         } else if (ne < 64 && o && FIELD(o, PL_INDEX, int) > 0 && is_soldier(td) && is_enemy(pl, o) && seen_by(u, pl)) {
-            uint8_t *g = FIELD(u, OF(UNIT, 0x1EC), uint8_t *);
-            en[ne].u = u; en[ne].x = FIELD(u, OF(UNIT, 0x1C), int); en[ne].y = FIELD(u, OF(UNIT, 0x20), int);
+            uint8_t *g = unit_get_goal(u);
+            en[ne].u = u; en[ne].x = unit_get_x(u); en[ne].y = unit_get_y(u);
             en[ne++].t = g && goal_is_attack(g) ? FIELD(g, OF(GOAL, 0x30), ee_unit *) : NULL;
         }
     }
@@ -200,9 +200,9 @@ internal void early_bait(ee_player *pl, unsigned idx, uint32_t now) {
     for (struct grid_it it = grid_it_box(bx, by, 32, 1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
         uint8_t *td = it.td;
-        if (!td || unit_owner(u) != pl || FIELD(u, OF(UNIT, 0x3C), int) <= 0 || !is_citizen_type(FIELD(td, OF(TD, 0x4B8), int)) ||
-            FIELD(u, OF(UNIT, 0x33B), uint8_t) || FIELD(u, OF(UNIT, 0x1C), int) == -10000) continue;
-        int ux = FIELD(u, OF(UNIT, 0x1C), int), uy = FIELD(u, OF(UNIT, 0x20), int), hit = -1;
+        if (!td || unit_get_owner(u) != pl || unit_get_hp(u) <= 0 || !is_citizen_type(FIELD(td, OF(TD, 0x4B8), int)) ||
+            unit_get_frozen(u) || unit_get_x(u) == -10000) continue;
+        int ux = unit_get_x(u), uy = unit_get_y(u), hit = -1;
         for (int k = 0; k < ne && hit < 0; k++)
             if (en[k].t == u || (abs(en[k].x - ux) <= 5 && abs(en[k].y - uy) <= 5)) hit = k;
         if (hit < 0) continue;
@@ -214,7 +214,7 @@ internal void early_bait(ee_player *pl, unsigned idx, uint32_t now) {
             if (d < bd) { bd = d; best = c; }
         }
         if (best < 0) continue;
-        uint8_t *g = FIELD(u, OF(UNIT, 0x1EC), uint8_t *);
+        uint8_t *g = unit_get_goal(u);
         if (g && goal_is_attack(g)) continue;   // the militia's: a fight it wins
         float ex = (float)(cov[best].x - en[hit].x), ey = (float)(cov[best].y - en[hit].y), l = sqrtf(ex * ex + ey * ey);
         float sx = (float)cov[best].x + 0.5f + (l > 0.5f ? ex / l * 1.5f : 0), sy = (float)cov[best].y + 0.5f + (l > 0.5f ? ey / l * 1.5f : 0);
@@ -239,8 +239,8 @@ internal void early_range(ee_player *pl, unsigned idx, uint32_t now) {
     if (!um || !bm) return;
     uint8_t *q = type_list(um, UT(B_ARCHERY_RANGE));
     for (unsigned k = 0, f = q ? FIELD(q, 0xC, unsigned) : 0, n = q ? FIELD(q, 0x10, unsigned) : 0; k < n; k++) {
-        uint8_t *b = deque_at(q, f + k);
-        if (b && FIELD(b, OF(UNIT, 0x3C), int) > 0) return;
+        ee_unit *b = deque_at(q, f + k);
+        if (b && unit_get_hp(b) > 0) return;
     }
     if (!ut_has(UT(B_ARCHERY_RANGE)) || bm_queued(bm, UT(B_ARCHERY_RANGE))) return;
     bm_request(bm, UT(B_ARCHERY_RANGE));

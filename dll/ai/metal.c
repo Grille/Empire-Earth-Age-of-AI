@@ -294,7 +294,7 @@ internal void mt_log(ee_player *pl, unsigned idx, unsigned min) {
     struct mt_st *m = &g_mt[idx];
     int army[MT_NB] = { 0 }, foe[MT_NB] = { 0 };
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
-        if (unit_owner(it.u) != pl || FIELD(it.u, OF(UNIT, 0x3C), int) <= 0) continue;
+        if (unit_get_owner(it.u) != pl || unit_get_hp(it.u) <= 0) continue;
         int t = FIELD(it.td, OF(TD, 0x4B8), int), b = mt_line(pl, t);
         if (b >= MB_INF && b <= MB_AIR) army[b]++;
     }
@@ -344,7 +344,7 @@ internal void mt_tick(ee_player *pl, uint32_t now) {
                 memset(g_mt_own[idx], 0, sizeof g_mt_own[idx]);
                 g_mt_army[idx] = 0;
                 for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
-                    if (unit_owner(it.u) != pl || FIELD(it.u, OF(UNIT, 0x3C), int) <= 0) continue;
+                    if (unit_get_owner(it.u) != pl || unit_get_hp(it.u) <= 0) continue;
                     int t = FIELD(it.td, OF(TD, 0x4B8), int);
                     if (t >= 0 && t < 768 && land_soldier(t)) { g_mt_own[idx][t]++; g_mt_army[idx]++; }
                 }

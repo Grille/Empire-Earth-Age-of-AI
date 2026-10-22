@@ -139,15 +139,15 @@ internal int so_role(uint8_t *td) {
     return k == 1 ? SR_F : k == 34 ? SR_L : (k == 3 || k == 6) ? SR_A : k == 18 ? SR_S : -1;
 }
 internal float so_dps(ee_unit *u, uint8_t *td) {
-    uint8_t *st = u ? FIELD(u, OF(UNIT, 0x34), uint8_t *) : NULL;
+    uint8_t *st = u ? unit_get_stats(u) : NULL;
     float a = st ? FIELD(st, OF(USTAT, 0xD8), float) : (float)FIELD(td, OF(TD, 0x510), int);
     int rl = FIELD(td, OF(TD, 0x50C), int);
     return a > 0 ? a * 1000.0f / (float)((rl > 0 ? rl : 2000) + 2000) : 0.0f;
 }
 internal float so_hpmax(ee_unit *u) {
-    uint8_t *st = FIELD(u, OF(UNIT, 0x34), uint8_t *);
+    uint8_t *st = unit_get_stats(u);
     int m = st ? FIELD(st, OF(USTAT, 0x144), int) : 0;
-    return (float)(m > 0 ? m : FIELD(FIELD(u, OF(UNIT, 0x2C), uint8_t *), OF(TD, 0x55C), int));
+    return (float)(m > 0 ? m : FIELD(unit_get_type_data(u), OF(TD, 0x55C), int));
 }
 // the strength ratio of side a against side b (types, hit points, dps; player indices): sqrt(hpA dA / (hpB dB))
 struct so_side { int n; uint8_t *td[SO_MEM + SO_N]; float hp[SO_MEM + SO_N], dps[SO_MEM + SO_N]; int pi; };
@@ -197,10 +197,10 @@ internal void so_spawn(int type, int x, int y, int n) {
 internal int so_home_of(int p, int *x, int *y) {   // a player's Capitol, else Town Center, else any building
     int got = 0;
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
-        ee_player *o = unit_owner(it.u);
-        if (!o || FIELD(o, PL_INDEX, int) != p || FIELD(it.u, OF(UNIT, 0x3C), int) <= 0 || so_family(it.td) != 2) continue;
+        ee_player *o = unit_get_owner(it.u);
+        if (!o || FIELD(o, PL_INDEX, int) != p || unit_get_hp(it.u) <= 0 || so_family(it.td) != 2) continue;
         int t = FIELD(it.td, OF(TD, 0x4B8), int), pr = t == UT(B_CAPITOL) ? 3 : t == UT(B_TOWN_CENTER) ? 2 : 1;
-        if (pr > got) { got = pr; *x = FIELD(it.u, OF(UNIT, 0x1C), int); *y = FIELD(it.u, OF(UNIT, 0x20), int); }
+        if (pr > got) { got = pr; *x = unit_get_x(it.u); *y = unit_get_y(it.u); }
     }
     return got;
 }
@@ -229,8 +229,8 @@ internal void so_types(void) {
     int tower = 0;
     float tr = 0;
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
-        ee_player *o = unit_owner(it.u);
-        if (!o || FIELD(o, PL_INDEX, int) != g_so.ai || FIELD(it.u, OF(UNIT, 0x3C), int) <= 0) continue;
+        ee_player *o = unit_get_owner(it.u);
+        if (!o || FIELD(o, PL_INDEX, int) != g_so.ai || unit_get_hp(it.u) <= 0) continue;
         int t = FIELD(it.td, OF(TD, 0x4B8), int), fam = so_family(it.td);
         float r, a;
         if (is_soldier(it.td) && fam != 4 && fam != 10 && fam != 18 && fam != 21 && fam != 22 && fam != 3 && fam != 7 && fam != 17 && t > 0 && t < G_TYPES_N) cnt[t]++;
@@ -251,13 +251,13 @@ internal void so_scan(uint32_t now) {
     for (it = grid_it_all(1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
         uint8_t *td = it.td;
-        ee_player *o = unit_owner(u);
-        if (!o || FIELD(u, OF(UNIT, 0x3C), int) <= 0) continue;
-        int p = FIELD(o, PL_INDEX, int), x = FIELD(u, OF(UNIT, 0x1C), int), y = FIELD(u, OF(UNIT, 0x20), int), fam = so_family(td), t = FIELD(td, OF(TD, 0x4B8), int);
+        ee_player *o = unit_get_owner(u);
+        if (!o || unit_get_hp(u) <= 0) continue;
+        int p = FIELD(o, PL_INDEX, int), x = unit_get_x(u), y = unit_get_y(u), fam = so_family(td), t = FIELD(td, OF(TD, 0x4B8), int);
         if (x < 0) continue;   // aboard
         if (p == 1) {
             if (g_sos.ne < 1024) { g_sos.ex[g_sos.ne] = x; g_sos.ey[g_sos.ne++] = y; }
-            if (so_warship(td)) { if (g_sos.nps < SO_N) { g_sos.psid[g_sos.nps] = FIELD(u, OF(UNIT, 0x24), int); g_sos.ps[g_sos.nps++] = u; } }
+            if (so_warship(td)) { if (g_sos.nps < SO_N) { g_sos.psid[g_sos.nps] = unit_get_serial(u); g_sos.ps[g_sos.nps++] = u; } }
             else if (fam == 18 || is_transport(t)) { if (g_sos.npt < 32) g_sos.pt[g_sos.npt++] = u; }
             else if (fam == 2 || fam == 29) { if (g_sos.npb < 256) { g_sos.pbx[g_sos.npb] = x; g_sos.pby[g_sos.npb++] = y; } }
             else if (is_soldier(td) && fam != 3 && fam != 7 && fam != 17 && g_sos.npl < 400) {
@@ -296,7 +296,7 @@ internal void so_scan(uint32_t now) {
         struct so_mem *m = &g_so.m[k];
         int alive = 0, looked = 0;
         for (int i = 0; i < g_sos.nu && !alive; i++)
-            if (g_sos.u[i].seen && FIELD(g_sos.u[i].u, OF(UNIT, 0x24), int) == m->id) alive = 1;
+            if (g_sos.u[i].seen && unit_get_serial(g_sos.u[i].u) == m->id) alive = 1;
         if (!alive)
             for (int e = 0; e < g_sos.ne && !looked; e++) looked = so_d2(m->x, m->y, g_sos.ex[e], g_sos.ey[e]) <= (SO_SIGHT - 2) * (SO_SIGHT - 2);
         if (!alive && (looked || (m->kind == 0 && now - m->t > 180000))) { g_so.m[k--] = g_so.m[--g_so.nm]; }
@@ -306,14 +306,14 @@ internal void so_scan(uint32_t now) {
         if (!e->seen) continue;
         int kind = e->cls == SC_WAR ? 0 : e->cls == SC_DEF ? 1 : e->cls == SC_DOCK ? 2 : -1;
         if (kind < 0) continue;
-        int id = FIELD(e->u, OF(UNIT, 0x24), int), k = 0;
+        int id = unit_get_serial(e->u), k = 0;
         while (k < g_so.nm && g_so.m[k].id != id) k++;
         if (k == g_so.nm) { if (g_so.nm >= SO_MEM) continue; g_so.nm++; }
         struct so_mem *m = &g_so.m[k];
         float r = 0, a;
         if (kind == 1) defence_stats(e->u, &r, &a);
         m->id = id; m->type = FIELD(e->td, OF(TD, 0x4B8), int); m->x = e->x; m->y = e->y; m->kind = kind; m->t = now;
-        m->hp = (float)FIELD(e->u, OF(UNIT, 0x3C), int); m->dps = so_dps(e->u, e->td); m->r = r;
+        m->hp = (float)unit_get_hp(e->u); m->dps = so_dps(e->u, e->td); m->r = r;
     }
     // fishing grounds: where the AI's boats were seen
     for (int i = 0; i < g_sos.nu; i++) {
@@ -352,7 +352,7 @@ internal void so_ships(void) {
         int alive = 0;
         struct so_ship *s = &g_so.s[k];
         for (int i = 0; i < g_sos.nps && !alive; i++) alive = g_sos.ps[i] == s->u && g_sos.psid[i] == s->id;
-        if (alive) { s->x = FIELD(s->u, OF(UNIT, 0x1C), int); s->y = FIELD(s->u, OF(UNIT, 0x20), int); continue; }
+        if (alive) { s->x = unit_get_x(s->u); s->y = unit_get_y(s->u); continue; }
         if (g_so.trace) {   // where it sank and what of the AI's was seen near
             char line[512];
             int n = sprintf(line, "# sea: lost T%d (%s) at %d,%d at %.2f min%s, near:", s->type, s->grp == SO_RAID ? "raid" : s->grp == SO_MAIN ? "main" : "patrol",
@@ -370,7 +370,7 @@ internal void so_ships(void) {
         int k = 0;
         while (k < g_so.ns && !(g_so.s[k].u == g_sos.ps[i] && g_so.s[k].id == g_sos.psid[i])) k++;
         if (k < g_so.ns || g_so.ns >= SO_N) continue;
-        int role = so_role(FIELD(g_sos.ps[i], OF(UNIT, 0x2C), uint8_t *)), n[SO_G] = { 0 }, grp;
+        int role = so_role(unit_get_type_data(g_sos.ps[i])), n[SO_G] = { 0 }, grp;
         if (role < 0) role = SR_F;
         for (int j = 0; j < g_so.ns; j++) n[g_so.s[j].grp]++;
         static const float share[SO_G] = { 0.35f, 0.40f, 0.25f };
@@ -385,7 +385,7 @@ internal void so_ships(void) {
             }
         }
         g_so.s[g_so.ns].u = g_sos.ps[i]; g_so.s[g_so.ns].id = g_sos.psid[i]; g_so.s[g_so.ns].grp = grp; g_so.s[g_so.ns].role = role;
-        g_so.s[g_so.ns].type = FIELD(FIELD(g_sos.ps[i], OF(UNIT, 0x2C), uint8_t *), OF(TD, 0x4B8), int); g_so.s[g_so.ns].x = FIELD(g_sos.ps[i], OF(UNIT, 0x1C), int); g_so.s[g_so.ns].y = FIELD(g_sos.ps[i], OF(UNIT, 0x20), int);
+        g_so.s[g_so.ns].type = FIELD(unit_get_type_data(g_sos.ps[i]), OF(TD, 0x4B8), int); g_so.s[g_so.ns].x = unit_get_x(g_sos.ps[i]); g_so.s[g_so.ns].y = unit_get_y(g_sos.ps[i]);
         g_so.ns++;
     }
 }
@@ -425,7 +425,7 @@ internal void so_spawn_tick(uint32_t now) {
 }
 
 internal int so_cur_target(ee_unit *u, ee_unit **t) {   // its attack goal's target (alive)
-    uint8_t *g = FIELD(u, OF(UNIT, 0x1EC), uint8_t *);
+    uint8_t *g = unit_get_goal(u);
     *t = g && goal_is_attack(g) ? FIELD(g, OF(GOAL, 0x30), ee_unit *) : NULL;
     return *t && FIELD(*t, OF(GOAL, 0x3C), int) > 0;
 }
@@ -448,12 +448,12 @@ internal int so_seg_zone(int x0, int y0, int x1, int y1) {
     return -1;
 }
 internal void so_go(ee_unit *u, int tx, int ty) {
-    if (so_d2(FIELD(u, OF(UNIT, 0x1C), int), FIELD(u, OF(UNIT, 0x20), int), tx, ty) <= 4.0f || as_goal_near(u, (float)tx + 0.5f, (float)ty + 0.5f, 2.5f)) return;
+    if (so_d2(unit_get_x(u), unit_get_y(u), tx, ty) <= 4.0f || as_goal_near(u, (float)tx + 0.5f, (float)ty + 0.5f, 2.5f)) return;
     g_so.orders += (unsigned)unit_goal(u, goal_move((float)tx + 0.5f, (float)ty + 0.5f), 0, 0x1F40);
 }
 // a ship inside a danger zone sails out, away from its centre (to r + 3 tiles, on water; else 45 degrees off)
 internal int so_flee(ee_unit *u) {
-    int x = FIELD(u, OF(UNIT, 0x1C), int), y = FIELD(u, OF(UNIT, 0x20), int);
+    int x = unit_get_x(u), y = unit_get_y(u);
     for (int k = 0; k < g_sos.nz; k++) {
         float r = g_sos.zr[k], dx = (float)(x - g_sos.zx[k]), dy = (float)(y - g_sos.zy[k]), d = sqrtf(dx * dx + dy * dy);
         if (d >= r + 0.5f) continue;
@@ -470,7 +470,7 @@ internal int so_flee(ee_unit *u) {
 }
 internal void so_move(ee_unit *u, int x, int y, int i) {   // spread around x, y on water, round the danger zones
     static const int off[9][2] = { { 0, 0 }, { 2, 0 }, { 0, 2 }, { -2, 0 }, { 0, -2 }, { 2, 2 }, { -2, 2 }, { -2, -2 }, { 2, -2 } };
-    int tx = x + off[i % 9][0], ty = y + off[i % 9][1], ux = FIELD(u, OF(UNIT, 0x1C), int), uy = FIELD(u, OF(UNIT, 0x20), int);
+    int tx = x + off[i % 9][0], ty = y + off[i % 9][1], ux = unit_get_x(u), uy = unit_get_y(u);
     if (!so_is_water(tx, ty, 0)) tx = x, ty = y;
     if (so_in_danger(tx, ty, 0.0f)) return;
     int k = so_seg_zone(ux, uy, tx, ty);
@@ -492,7 +492,7 @@ internal void so_move(ee_unit *u, int x, int y, int i) {   // spread around x, y
 internal ee_unit *so_pick(ee_unit *u, unsigned mask, const int *w, int cx, int cy, int r) {
     ee_unit *best = NULL;
     float bs = 1e9f;
-    int x = FIELD(u, OF(UNIT, 0x1C), int), y = FIELD(u, OF(UNIT, 0x20), int);
+    int x = unit_get_x(u), y = unit_get_y(u);
     for (int i = 0; i < g_sos.nu; i++) {
         struct so_eu *e = &g_sos.u[i];
         if (!e->seen || !(mask & (1u << e->cls)) || so_d2(e->x, e->y, cx, cy) > (float)(r * r)) continue;
@@ -509,8 +509,8 @@ internal void so_side_ships(struct so_side *s, int grp) {   // P1's ships of a g
     for (int k = 0; k < g_so.ns; k++)
         if (grp < 0 || g_so.s[k].grp == grp) {
             ee_unit *u = g_so.s[k].u;
-            uint8_t *td = FIELD(u, OF(UNIT, 0x2C), uint8_t *);
-            so_side_add(s, td, (float)FIELD(u, OF(UNIT, 0x3C), int), so_dps(u, td));
+            uint8_t *td = unit_get_type_data(u);
+            so_side_add(s, td, (float)unit_get_hp(u), so_dps(u, td));
         }
 }
 internal void so_side_seen(struct so_side *s, int cx, int cy, int r) {   // the AI's warships seen within r (r < 0: all known)
@@ -520,7 +520,7 @@ internal void so_side_seen(struct so_side *s, int cx, int cy, int r) {   // the 
         for (int i = 0; i < g_sos.nu; i++) {
             struct so_eu *e = &g_sos.u[i];
             if (e->seen && e->cls == SC_WAR && so_d2(e->x, e->y, cx, cy) <= (float)(r * r))
-                so_side_add(s, e->td, (float)FIELD(e->u, OF(UNIT, 0x3C), int), so_dps(e->u, e->td));
+                so_side_add(s, e->td, (float)unit_get_hp(e->u), so_dps(e->u, e->td));
         }
         return;
     }
@@ -539,8 +539,8 @@ internal void so_group(int gi, uint32_t now) {
     for (int k = 0; k < g_so.ns; k++) {
         if (g_so.s[k].grp != gi) continue;
         ee_unit *u = g_so.s[k].u;
-        mem[n++] = u; sx += FIELD(u, OF(UNIT, 0x1C), int); sy += FIELD(u, OF(UNIT, 0x20), int);
-        g->hp += (float)FIELD(u, OF(UNIT, 0x3C), int); g->hpmax += so_hpmax(u);
+        mem[n++] = u; sx += unit_get_x(u); sy += unit_get_y(u);
+        g->hp += (float)unit_get_hp(u); g->hpmax += so_hpmax(u);
     }
     g->n = n;
     if (!n) { g->why = "empty"; return; }
@@ -594,7 +594,7 @@ internal void so_group(int gi, uint32_t now) {
             int close = 0;
             for (int b = 0; b < g_sos.npb && !close; b++) close = so_d2(e->x, e->y, g_sos.pbx[b], g_sos.pby[b]) <= 225.0f;
             for (int q = 0; q < SO_G && !close; q++) close = q != SO_MAIN && g_so.g[q].n && so_d2(e->x, e->y, g_so.g[q].cx, g_so.g[q].cy) <= 100.0f;
-            if (close) { so_side_add(&nearby, e->td, (float)FIELD(e->u, OF(UNIT, 0x3C), int), so_dps(e->u, e->td)); nx = e->x; ny = e->y; }
+            if (close) { so_side_add(&nearby, e->td, (float)unit_get_hp(e->u), so_dps(e->u, e->td)); nx = e->x; ny = e->y; }
         }
         so_side_seen(&foe, 0, 0, -1);
         float all = so_ratio(&own, &foe);
@@ -633,17 +633,17 @@ internal void so_group(int gi, uint32_t now) {
         ee_unit *t = NULL;
         ee_unit *cur;
         if (so_flee(u)) continue;
-        if ((float)FIELD(u, OF(UNIT, 0x3C), int) < 0.35f * so_hpmax(u)) { so_move(u, home_x, home_y, i); continue; }   // hurt: out of the fight
+        if ((float)unit_get_hp(u) < 0.35f * so_hpmax(u)) { so_move(u, home_x, home_y, i); continue; }   // hurt: out of the fight
         if (gi == SO_PATROL) {
             static const int wp[SC_OTHER + 1] = { 4, 0, 6, 99, 99, 99, 99, 99, 99, 99 };
-            t = so_pick(u, 1u << SC_TR, NULL, FIELD(u, OF(UNIT, 0x1C), int), FIELD(u, OF(UNIT, 0x20), int), 25);
-            if (!t) t = so_pick(u, 1u << SC_BOAT | (foe.n ? 1u << SC_WAR : 0), wp, FIELD(u, OF(UNIT, 0x1C), int), FIELD(u, OF(UNIT, 0x20), int), 12);
+            t = so_pick(u, 1u << SC_TR, NULL, unit_get_x(u), unit_get_y(u), 25);
+            if (!t) t = so_pick(u, 1u << SC_BOAT | (foe.n ? 1u << SC_WAR : 0), wp, unit_get_x(u), unit_get_y(u), 12);
             if (t) g->why = "intercept";
         } else t = so_pick(u, m, w, cx, cy, r);
         if (t) { so_attack(u, t); continue; }
-        if (so_cur_target(u, &cur) && unit_owner(cur) == game_players()[g_so.ai]) {
-            int x = FIELD(cur, OF(UNIT, 0x1C), int), y = FIELD(cur, OF(UNIT, 0x20), int);
-            if (x >= 0 && !so_in_danger(x, y, SO_MARGIN) && so_seg_zone(FIELD(u, OF(UNIT, 0x1C), int), FIELD(u, OF(UNIT, 0x20), int), x, y) < 0) continue;   // its own choice
+        if (so_cur_target(u, &cur) && unit_get_owner(cur) == game_players()[g_so.ai]) {
+            int x = unit_get_x(cur), y = unit_get_y(cur);
+            if (x >= 0 && !so_in_danger(x, y, SO_MARGIN) && so_seg_zone(unit_get_x(u), unit_get_y(u), x, y) < 0) continue;   // its own choice
             if (tx >= 0) { g_so.orders += (unsigned)unit_goal(u, goal_move((float)tx + 0.5f, (float)ty + 0.5f), 0, 0x1F40); continue; }   // not that one
         }
         if (tx >= 0) so_move(u, tx, ty, i);
@@ -672,13 +672,13 @@ internal int so_beach(struct so_wave *w) {
     return found;
 }
 internal int so_is_wsol_in(ee_unit *u, int a, int b) {
-    int id = FIELD(u, OF(UNIT, 0x24), int);
+    int id = unit_get_serial(u);
     for (int k = a; k < b; k++) if (g_so.wsol_id[k] == id) return 1;
     return 0;
 }
 internal int so_is_wsol(ee_unit *u) { return so_is_wsol_in(u, 0, g_so.nwsol); }
 internal int so_tr_alive(ee_unit *u, int id) {
-    for (int i = 0; i < g_sos.npt; i++) if (g_sos.pt[i] == u && FIELD(u, OF(UNIT, 0x24), int) == id) return 1;
+    for (int i = 0; i < g_sos.npt; i++) if (g_sos.pt[i] == u && unit_get_serial(u) == id) return 1;
     return 0;
 }
 internal void so_waves(uint32_t now) {
@@ -716,8 +716,8 @@ internal void so_waves(uint32_t now) {
             for (int i = 0; i < g_sos.npt && nt < w->ntr; i++) {
                 int used = 0;
                 for (int q = 0; q < g_so.nw; q++) for (int j = 0; j < g_so.w[q].ntr; j++) used |= g_so.w[q].tr[j] == g_sos.pt[i];
-                if (!used && so_d2(FIELD(g_sos.pt[i], OF(UNIT, 0x1C), int), FIELD(g_sos.pt[i], OF(UNIT, 0x20), int), g_so.kwx, g_so.kwy) < 100.0f) {
-                    w->tr[nt] = g_sos.pt[i]; w->tr_id[nt++] = FIELD(g_sos.pt[i], OF(UNIT, 0x24), int);
+                if (!used && so_d2(unit_get_x(g_sos.pt[i]), unit_get_y(g_sos.pt[i]), g_so.kwx, g_so.kwy) < 100.0f) {
+                    w->tr[nt] = g_sos.pt[i]; w->tr_id[nt++] = unit_get_serial(g_sos.pt[i]);
                 }
             }
             w->ntr = nt;
@@ -725,8 +725,8 @@ internal void so_waves(uint32_t now) {
             w->w0 = g_so.nwsol;
             for (int i = 0; i < g_sos.npl && g_so.nwsol < 256; i++) {
                 ee_unit *u = g_sos.pl[i];
-                if (!so_is_wsol(u) && so_d2(FIELD(u, OF(UNIT, 0x1C), int), FIELD(u, OF(UNIT, 0x20), int), g_so.kx, g_so.ky) <= 256.0f) {
-                    g_so.wsol_id[g_so.nwsol++] = FIELD(u, OF(UNIT, 0x24), int); ns++;
+                if (!so_is_wsol(u) && so_d2(unit_get_x(u), unit_get_y(u), g_so.kx, g_so.ky) <= 256.0f) {
+                    g_so.wsol_id[g_so.nwsol++] = unit_get_serial(u); ns++;
                 }
             }
             w->w1 = g_so.nwsol; w->st = 1; w->t = now; w->load_t = 0;
@@ -737,7 +737,7 @@ internal void so_waves(uint32_t now) {
             static ee_unit *left[96];
             int nl = 0;
             for (int i = 0; i < g_sos.npl && nl < 96; i++)
-                if (so_is_wsol_in(g_sos.pl[i], w->w0, w->w1) && cont_at(FIELD(g_sos.pl[i], OF(UNIT, 0x1C), int), FIELD(g_sos.pl[i], OF(UNIT, 0x20), int)) == g_so.hcont)
+                if (so_is_wsol_in(g_sos.pl[i], w->w0, w->w1) && cont_at(unit_get_x(g_sos.pl[i]), unit_get_y(g_sos.pl[i])) == g_so.hcont)
                     left[nl++] = g_sos.pl[i];
             if (!alive) { w->st = 5; continue; }
             if (nl && now - w->t < 150000) {
@@ -763,7 +763,7 @@ internal void so_waves(uint32_t now) {
         if (w->st == 2 || w->st == 3) {
             if (!alive || !aboard) {   // all sunk, or everyone ashore
                 int on = 0;
-                for (int i = 0; i < g_sos.npl; i++) on += so_is_wsol_in(g_sos.pl[i], w->w0, w->w1) && cont_at(FIELD(g_sos.pl[i], OF(UNIT, 0x1C), int), FIELD(g_sos.pl[i], OF(UNIT, 0x20), int)) == g_so.econt;
+                for (int i = 0; i < g_sos.npl; i++) on += so_is_wsol_in(g_sos.pl[i], w->w0, w->w1) && cont_at(unit_get_x(g_sos.pl[i]), unit_get_y(g_sos.pl[i])) == g_so.econt;
                 w->landed = on;
                 if (on) { g_so.ashore++; g_so.landed += on; } else g_so.stopped++;
                 so_log("# sea: wave %d %s at %.1f min: %d of %d soldiers ashore, %d of %d transports afloat\n", k + 1, on ? "ashore" : "stopped",
@@ -779,7 +779,7 @@ internal void so_waves(uint32_t now) {
             for (int j = 0; j < w->ntr; j++) {
                 ee_unit *sh = w->tr[j];
                 if (!sh || units_inside(sh) <= 0) continue;
-                float d = so_d2(FIELD(sh, OF(UNIT, 0x1C), int), FIELD(sh, OF(UNIT, 0x20), int), w->wx, w->wy);
+                float d = so_d2(unit_get_x(sh), unit_get_y(sh), w->wx, w->wy);
                 if (d <= 16.0f || w->st == 3) {
                     if (w->st == 2) { w->st = 3; w->t = now; again = 1; }
                     if (again) { g_so.orders += (unsigned)unit_goal(sh, goal_unload(sh, w->bx, w->by, 1), 0, 0x1F40); w->load_t = now; }
@@ -800,10 +800,10 @@ internal void so_soldiers(uint32_t now) {
     for (int i = 0; i < g_sos.npl; i++) {
         ee_unit *u = g_sos.pl[i];
         ee_unit *cur;
-        int x = FIELD(u, OF(UNIT, 0x1C), int), y = FIELD(u, OF(UNIT, 0x20), int), home = cont_at(x, y) == g_so.hcont;
+        int x = unit_get_x(u), y = unit_get_y(u), home = cont_at(x, y) == g_so.hcont;
         if (home && !(g_so.boarding && so_is_wsol(u))) guard++;
         if (home && g_so.boarding && so_is_wsol(u)) continue;   // waiting to board
-        if (so_cur_target(u, &cur) && unit_owner(cur) == game_players()[g_so.ai]) continue;
+        if (so_cur_target(u, &cur) && unit_get_owner(cur) == game_players()[g_so.ai]) continue;
         if (orders >= 40) continue;
         ee_unit *best = NULL;
         float bd = 1e12f;
@@ -848,7 +848,7 @@ internal void so_held(uint32_t now) {
     if (dt > 10000) dt = 10000;
     int ai_cont = 0, opp_cont = 0;
     for (int k = 0; k < g_so.ns && !ai_cont; k++) {
-        int x = FIELD(g_so.s[k].u, OF(UNIT, 0x1C), int), y = FIELD(g_so.s[k].u, OF(UNIT, 0x20), int);
+        int x = unit_get_x(g_so.s[k].u), y = unit_get_y(g_so.s[k].u);
         for (int i = 0; i < g_sos.nu && !ai_cont; i++)
             ai_cont = (g_sos.u[i].cls == SC_BLD || g_sos.u[i].cls == SC_DOCK || g_sos.u[i].cls == SC_DEF) && so_d2(x, y, g_sos.u[i].x, g_sos.u[i].y) <= 144.0f;
     }
@@ -870,7 +870,7 @@ internal void so_report(uint32_t now) {
     float hp = 0, hpm = 0;
     for (int k = 0; k < g_so.ns; k++) {
         nr[g_so.s[k].role]++; ng[g_so.s[k].grp]++;
-        hp += (float)FIELD(g_so.s[k].u, OF(UNIT, 0x3C), int); hpm += so_hpmax(g_so.s[k].u);
+        hp += (float)unit_get_hp(g_so.s[k].u); hpm += so_hpmax(g_so.s[k].u);
     }
     int ai = g_so.ai, seen = 0, mem = 0;
     unsigned trl = 0;
@@ -919,11 +919,11 @@ internal void cmd_seaop(char *out, const char *args) {
         for (int k = 0; k < g_so.ns; k++) {
             ee_unit *u = g_so.s[k].u;
             ee_unit *cur = NULL;
-            int x = FIELD(u, OF(UNIT, 0x1C), int), y = FIELD(u, OF(UNIT, 0x20), int);
+            int x = unit_get_x(u), y = unit_get_y(u);
             so_cur_target(u, &cur);
             REPLY("  %s T%d at %d,%d hp %d/%.0f %s", g_so.s[k].grp == SO_RAID ? "raid" : g_so.s[k].grp == SO_MAIN ? "main" : "patrol",
-                  FIELD(FIELD(u, OF(UNIT, 0x2C), uint8_t *), OF(TD, 0x4B8), int), x, y, FIELD(u, OF(UNIT, 0x3C), int), so_hpmax(u), rtti_name(FIELD(u, OF(UNIT, 0x1EC), void *)));
-            if (cur) REPLY(" -> T%d at %d,%d", FIELD(FIELD(cur, OF(UNIT, 0x2C), uint8_t *), OF(TD, 0x4B8), int), FIELD(cur, OF(UNIT, 0x1C), int), FIELD(cur, OF(UNIT, 0x20), int));
+                  FIELD(unit_get_type_data(u), OF(TD, 0x4B8), int), x, y, unit_get_hp(u), so_hpmax(u), rtti_name(unit_get_goal(u)));
+            if (cur) REPLY(" -> T%d at %d,%d", FIELD(unit_get_type_data(cur), OF(TD, 0x4B8), int), unit_get_x(cur), unit_get_y(cur));
             REPLY(" | near:");
             for (int i = 0; i < g_sos.nu; i++) {
                 struct so_eu *e = &g_sos.u[i];

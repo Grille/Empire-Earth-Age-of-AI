@@ -96,12 +96,12 @@ internal void __fastcall hook_asg_update(void *sg, void *edx, int now) {
 struct as_obj { ee_player *pl; ee_player *target; unsigned pi, cont; int x, y; ee_unit *best; float score; };
 internal void as_obj_unit(ee_unit *u, void *ctx) {
     struct as_obj *s = ctx;
-    uint8_t *td = FIELD(u, OF(UNIT, 0x2C), uint8_t *);
+    uint8_t *td = unit_get_type_data(u);
     int fam = FIELD(td, OF(TD, 0x4B4), int);
-    if (unit_owner(u) != s->target || (fam != 2 && fam != 29) || FIELD(u, OF(UNIT, 0x3C), int) <= 0 ||
+    if (unit_get_owner(u) != s->target || (fam != 2 && fam != 29) || unit_get_hp(u) <= 0 ||
         is_wall(FIELD(td, OF(TD, 0x4B8), int)) || !seen_by(u, s->pl))
         return;
-    int x = FIELD(u, OF(UNIT, 0x1C), int), y = FIELD(u, OF(UNIT, 0x20), int);
+    int x = unit_get_x(u), y = unit_get_y(u);
     float dx = (float)(x - s->x), dy = (float)(y - s->y), sc = sqrtf(dx * dx + dy * dy) + 3.0f * threat_at(s->pi, x, y);
     if (s->best && sc >= s->score) return;
     if (!cont_ok(x, y, s->cont)) return;
@@ -125,10 +125,10 @@ internal ee_unit *as_enemy_near(ee_player *pl, ee_player *target, int x, int y, 
     for (struct grid_it it = grid_it_box(x, y, r, 1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
         uint8_t *td = it.td;
-        if (!td || FIELD(u, OF(UNIT, 0x3C), int) <= 0) continue;
-        ee_player *o = unit_owner(u);
+        if (!td || unit_get_hp(u) <= 0) continue;
+        ee_player *o = unit_get_owner(u);
         if (!o || FIELD(o, PL_INDEX, int) <= 0 || !is_enemy(pl, o)) continue;
-        float dx = (float)(FIELD(u, OF(UNIT, 0x1C), int) - x), dy = (float)(FIELD(u, OF(UNIT, 0x20), int) - y), d2 = dx * dx + dy * dy;
+        float dx = (float)(unit_get_x(u) - x), dy = (float)(unit_get_y(u) - y), d2 = dx * dx + dy * dy;
         if (d2 > (float)(r * r)) continue;
         int fam = FIELD(td, OF(TD, 0x4B4), int), type = FIELD(td, OF(TD, 0x4B8), int), k;
         float rr, a;
@@ -143,7 +143,7 @@ internal ee_unit *as_enemy_near(ee_player *pl, ee_player *target, int x, int y, 
 }
 
 internal int is_aa(ee_unit *u) {   // anti-air units (AA tank, Stinger, Skywatcher): they stay home
-    int t = FIELD(FIELD(u, OF(UNIT, 0x2C), uint8_t *), OF(TD, 0x4B8), int);
+    int t = FIELD(unit_get_type_data(u), OF(TD, 0x4B8), int);
     return t == UT(AA10_TANK) || t == UT(AA10_STINGER_SOLDIER) || t == UT(AA13_TANK_SKYWATCHER);
 }
 // what player pl has seen of its enemies within r tiles of (x, y): soldiers and siege (hit points x attack), with
@@ -158,16 +158,16 @@ internal float as_enemy_power(ee_player *pl, int x, int y, int r, float *cx, flo
     for (struct grid_it it = grid_it_box(x, y, rr, 1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
         uint8_t *td = it.td;
-        if (!td || FIELD(u, OF(UNIT, 0x3C), int) <= 0) continue;
-        ee_player *o = unit_owner(u);
+        if (!td || unit_get_hp(u) <= 0) continue;
+        ee_player *o = unit_get_owner(u);
         if (!o || FIELD(o, PL_INDEX, int) <= 0 || !is_enemy(pl, o) || !seen_by(u, pl)) continue;
-        float dx = (float)(FIELD(u, OF(UNIT, 0x1C), int) - x), dy = (float)(FIELD(u, OF(UNIT, 0x20), int) - y), d2 = dx * dx + dy * dy;
+        float dx = (float)(unit_get_x(u) - x), dy = (float)(unit_get_y(u) - y), d2 = dx * dx + dy * dy;
         float range, att;
         if (is_soldier(td) || is_siege(FIELD(td, OF(TD, 0x4B8), int))) {
             if (d2 > (float)(r * r)) continue;
-            pow += unit_power(u); sx += (float)FIELD(u, OF(UNIT, 0x1C), int); sy += (float)FIELD(u, OF(UNIT, 0x20), int); (*n)++;
+            pow += unit_power(u); sx += (float)unit_get_x(u); sy += (float)unit_get_y(u); (*n)++;
         } else if (defences && defence_stats(u, &range, &att) && d2 <= (range + 2.0f) * (range + 2.0f))
-            pow += (float)FIELD(u, OF(UNIT, 0x3C), int) * att;
+            pow += (float)unit_get_hp(u) * att;
     }
     if (*n) { *cx = sx / *n; *cy = sy / *n; }
     if (g_honest_vision) {   // soldiers seen there lately, out of sight now (intel.c; nothing with the game's view)
@@ -196,12 +196,12 @@ internal int as_in_wave(struct assault *a, ee_unit *u) {
     return 0;
 }
 internal int as_goal_near(ee_unit *u, float x, float y, float r) {   // walking there already
-    uint8_t *g = FIELD(u, OF(UNIT, 0x1EC), uint8_t *);
+    uint8_t *g = unit_get_goal(u);
     return g && goal_is_location(g) && fabsf(FIELD(g, OF(AG, 0x20), float) - x) < r && fabsf(FIELD(g, OF(AG, 0x24), float) - y) < r;
 }
 internal int as_fighting(ee_unit *u) {
-    uint8_t *g = FIELD(u, OF(UNIT, 0x1EC), uint8_t *), *t = g && goal_is_attack(g) ? FIELD(g, OF(AG, 0x30), uint8_t *) : NULL;
-    return t && FIELD(t, OF(UNIT, 0x3C), int) > 0;
+    uint8_t *g = unit_get_goal(u); ee_unit *t = g && goal_is_attack(g) ? FIELD(g, OF(AG, 0x30), ee_unit *) : NULL;
+    return t && unit_get_hp(t) > 0;
 }
 
 internal void as_end(ee_player *pl, unsigned pi, uint32_t now, const char *why, int n) {
@@ -220,14 +220,14 @@ internal void as_end(ee_player *pl, unsigned pi, uint32_t now, const char *why, 
 struct as_home { ee_player *pl; int nb, bx[512], by[512]; int ne, ex[512], ey[512]; };
 internal void as_home_unit(ee_unit *u, void *ctx) {
     struct as_home *h = ctx;
-    uint8_t *td = FIELD(u, OF(UNIT, 0x2C), uint8_t *);
-    ee_player *o = unit_owner(u);
-    if (!o || FIELD(u, OF(UNIT, 0x3C), int) <= 0) return;
+    uint8_t *td = unit_get_type_data(u);
+    ee_player *o = unit_get_owner(u);
+    if (!o || unit_get_hp(u) <= 0) return;
     int fam = FIELD(td, OF(TD, 0x4B4), int);
     if (o == h->pl) {
-        if ((fam == 2 || fam == 29) && !is_wall(FIELD(td, OF(TD, 0x4B8), int)) && h->nb < 512) { h->bx[h->nb] = FIELD(u, OF(UNIT, 0x1C), int); h->by[h->nb++] = FIELD(u, OF(UNIT, 0x20), int); }
+        if ((fam == 2 || fam == 29) && !is_wall(FIELD(td, OF(TD, 0x4B8), int)) && h->nb < 512) { h->bx[h->nb] = unit_get_x(u); h->by[h->nb++] = unit_get_y(u); }
     } else if (FIELD(o, PL_INDEX, int) > 0 && is_enemy(h->pl, o) && (is_soldier(td) || is_siege(FIELD(td, OF(TD, 0x4B8), int))) &&
-               seen_by(u, h->pl) && h->ne < 512) { h->ex[h->ne] = FIELD(u, OF(UNIT, 0x1C), int); h->ey[h->ne++] = FIELD(u, OF(UNIT, 0x20), int); }
+               seen_by(u, h->pl) && h->ne < 512) { h->ex[h->ne] = unit_get_x(u); h->ey[h->ne++] = unit_get_y(u); }
 }
 // enemy soldiers and siege the AI sees within 20 tiles of any of its buildings: an army in its territory
 internal int as_home_threat(ee_player *pl) {
@@ -308,10 +308,10 @@ internal void assault_tick(ee_player *pl, uint32_t now) {
             int aboard = 0, m0 = n;
             for (uint8_t **r = FIELD(sg, OF(ASG, 0x54), uint8_t **); r && r < FIELD(sg, OF(ASG, 0x58), uint8_t **); r++) {
                 ee_unit *u = *r ? FIELD(*r, OF(ASGU, 0x44), ee_unit *) : NULL;
-                uint8_t *td = u ? FIELD(u, OF(UNIT, 0x2C), uint8_t *) : NULL;
-                if (!td || FIELD(u, OF(UNIT, 0x3C), int) <= 0) continue;
-                if (FIELD(u, OF(UNIT, 0x1C), int) < 0) { aboard = 1; continue; }
-                if (!cont_ok(FIELD(u, OF(UNIT, 0x1C), int), FIELD(u, OF(UNIT, 0x20), int), hc)) { aboard = 1; continue; }   // landed elsewhere
+                uint8_t *td = u ? unit_get_type_data(u) : NULL;
+                if (!td || unit_get_hp(u) <= 0) continue;
+                if (unit_get_x(u) < 0) { aboard = 1; continue; }
+                if (!cont_ok(unit_get_x(u), unit_get_y(u), hc)) { aboard = 1; continue; }   // landed elsewhere
                 if (is_citizen_type(FIELD(td, OF(TD, 0x4B8), int))) continue;
                 if (n < 512) mem[n++] = u;
             }
@@ -327,17 +327,17 @@ internal void assault_tick(ee_player *pl, uint32_t now) {
     float hpow = as_enemy_power(pl, bx, by, 40, &hx, &hy, &hn, 0);
     int doorstep = hn >= 3;
     if (doorstep) { a->obj = NULL; a->ox = (int)hx; a->oy = (int)hy; }
-    else if (!a->obj || a->doorstep || !as_on_map(a->obj, a->ox, a->oy) || FIELD(a->obj, OF(UNIT, 0x3C), int) <= 0 || unit_owner(a->obj) != target) {
+    else if (!a->obj || a->doorstep || !as_on_map(a->obj, a->ox, a->oy) || unit_get_hp(a->obj) <= 0 || unit_get_owner(a->obj) != target) {
         int fx = bx, fy = by;
         if (a->phase == 2 && a->nwave) {   // from the wave's centre
             float sx = 0, sy = 0; int m = 0;
-            for (int k = 0; k < a->nwave; k++) if (as_member(mem, n, a->wave[k])) { sx += FIELD(a->wave[k], OF(UNIT, 0x1C), int); sy += FIELD(a->wave[k], OF(UNIT, 0x20), int); m++; }
+            for (int k = 0; k < a->nwave; k++) if (as_member(mem, n, a->wave[k])) { sx += unit_get_x(a->wave[k]); sy += unit_get_y(a->wave[k]); m++; }
             if (m) { fx = (int)(sx / m); fy = (int)(sy / m); }
         }
         ee_unit *o = as_objective(pl, pi, target, hc, fx, fy);
         if ((a->obj || a->doorstep) && o) a->objectives++;
         a->obj = o;
-        if (o) { a->ox = FIELD(o, OF(UNIT, 0x1C), int); a->oy = FIELD(o, OF(UNIT, 0x20), int); }
+        if (o) { a->ox = unit_get_x(o); a->oy = unit_get_y(o); }
     }
     a->doorstep = doorstep;
     if (!a->obj && !doorstep) {
@@ -363,7 +363,7 @@ internal void assault_tick(ee_player *pl, uint32_t now) {
         ee_unit *u = mem[k];
         if (a->phase == 2 && as_in_wave(a, u)) continue;
         reserve++;
-        float dx = (float)FIELD(u, OF(UNIT, 0x1C), int) + 0.5f - rx, dy = (float)FIELD(u, OF(UNIT, 0x20), int) + 0.5f - ry;
+        float dx = (float)unit_get_x(u) + 0.5f - rx, dy = (float)unit_get_y(u) + 0.5f - ry;
         if (dx * dx + dy * dy <= 100.0f) { at_rally++; if (!is_aa(u)) wave_pow += unit_power(u); continue; }
         if (as_fighting(u) && dx * dx + dy * dy <= 900.0f) continue;   // defending near home
         if (!as_goal_near(u, rx, ry, 3.0f)) a->orders += unit_goal(u, goal_move(rx, ry), 0, 0x1F40);
@@ -390,7 +390,7 @@ internal void assault_tick(ee_player *pl, uint32_t now) {
         if (!go) return;
         a->nwave = 0;
         for (int k = 0; k < n && a->nwave < AS_WAVE; k++) {   // anti-air stays home
-            float dx = (float)FIELD(mem[k], OF(UNIT, 0x1C), int) + 0.5f - rx, dy = (float)FIELD(mem[k], OF(UNIT, 0x20), int) + 0.5f - ry;
+            float dx = (float)unit_get_x(mem[k]) + 0.5f - rx, dy = (float)unit_get_y(mem[k]) + 0.5f - ry;
             if (dx * dx + dy * dy <= 100.0f && !is_aa(mem[k])) a->wave[a->nwave++] = mem[k];
         }
         a->launch_n = a->nwave; a->phase = 2; a->wx = a->rx; a->wy = a->ry; a->wset = 0; a->launches++; a->logged = now;
@@ -408,7 +408,7 @@ internal void assault_tick(ee_player *pl, uint32_t now) {
         int still = 0;
         for (int j = 0; j < n && !still; j++) still = mem[j] == u;   // still a member (not dead, not handed back)
         if (!still) { a->wave[k--] = a->wave[--a->nwave]; continue; }
-        alive++; cx += (float)FIELD(u, OF(UNIT, 0x1C), int); cy += (float)FIELD(u, OF(UNIT, 0x20), int); pow += unit_power(u);
+        alive++; cx += (float)unit_get_x(u); cy += (float)unit_get_y(u); pow += unit_power(u);
     }
     if (alive * 2 < a->launch_n || !alive) { a->spent++; as_end(pl, pi, now, "assault (spent)", alive); return; }
     cx /= alive; cy /= alive;
@@ -429,7 +429,7 @@ internal void assault_tick(ee_player *pl, uint32_t now) {
     }
     for (int k = 0; k < a->nwave; k++) {
         ee_unit *u = a->wave[k];
-        float ux = (float)FIELD(u, OF(UNIT, 0x1C), int), uy = (float)FIELD(u, OF(UNIT, 0x20), int);
+        float ux = (float)unit_get_x(u), uy = (float)unit_get_y(u);
         float dx = ux - cx, dy = uy - cy;
         if (foe) {   // fight together: the nearest enemy to each one without a fight
             if (as_fighting(u)) continue;
@@ -464,7 +464,7 @@ internal void assault_tick(ee_player *pl, uint32_t now) {
     }
     for (int k = 0; k < a->nwave; k++) {
         ee_unit *u = a->wave[k];
-        float dx = (float)FIELD(u, OF(UNIT, 0x1C), int) - cx, dy = (float)FIELD(u, OF(UNIT, 0x20), int) - cy;
+        float dx = (float)unit_get_x(u) - cx, dy = (float)unit_get_y(u) - cy;
         if (dx * dx + dy * dy >= 144.0f || as_fighting(u)) continue;
         if (!as_goal_near(u, (float)a->wx + 0.5f, (float)a->wy + 0.5f, 2.0f))
             a->orders += unit_goal(u, goal_move((float)a->wx + 0.5f, (float)a->wy + 0.5f), 0, 0x1F40);

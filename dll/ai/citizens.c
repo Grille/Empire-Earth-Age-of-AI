@@ -29,7 +29,7 @@ internal struct { uint32_t t; int goal, game, feed, home, slots, extra; } g_czp[
 internal void cz_new_game(void) { memset(g_cz, 0, sizeof g_cz); memset(g_czp, 0, sizeof g_czp); g_cz_np = -1; }
 
 // a building is finished at [unit +0x30] +0x340 (unit +0x340 is something else)
-internal int cz_finished(ee_unit *b) { uint8_t *bs = FIELD(b, OF(UNIT, 0x30), uint8_t *); return bs && bs[OF(UNIT, 0x340)]; }
+internal int cz_finished(ee_unit *b) { ee_unit *bs = unit_get_physics(b); return bs && unit_get_finished(bs); }
 
 // the producer types of citizens (once a game: the citizen tech's building list)
 internal void cz_types(ee_player *pl) {
@@ -80,9 +80,9 @@ internal void cz_sample(ee_player *pl, unsigned idx) {
         uint8_t *q = um_type_list(um, g_cz_ptypes[k]);
         for (unsigned j = 0, f = q ? FIELD(q, 0xC, unsigned) : 0, n = q ? FIELD(q, 0x10, unsigned) : 0; j < n && j < 64; j++) {
             ee_unit *b = deque_at(q, f + j);
-            if (!b || FIELD(b, OF(UNIT, 0x3C), int) <= 0 || !cz_finished(b)) continue;
+            if (!b || unit_get_hp(b) <= 0 || !cz_finished(b)) continue;
             z->m.prod++;
-            int cur = FIELD(b, OF(UNIT, 0x25C), int), *qb = FIELD(b, OF(UNIT, 0x4C), int *), *qe = FIELD(b, OF(UNIT, 0x50), int *), cit = cz_is_cit_tech(cur);
+            int cur = unit_get_producing(b), *qb = unit_get_queue_begin(b), *qe = unit_get_queue_end(b), cit = cz_is_cit_tech(cur);
             int busy = cur > 0 && cur != 100000;
             for (int *p = qb; qb && qe > qb && qe - qb < 64 && p < qe; p++) { busy = 1; if (cz_is_cit_tech(*p)) cit = 1; }
             if (cit) z->m.cit++;
@@ -179,7 +179,7 @@ internal int cz_producers(ee_player *pl) {
         uint8_t *q = um_type_list(um, g_cz_ptypes[k]);
         for (unsigned j = 0, f = q ? FIELD(q, 0xC, unsigned) : 0, c = q ? FIELD(q, 0x10, unsigned) : 0; j < c && j < 64; j++) {
             ee_unit *b = deque_at(q, f + j);
-            if (b && FIELD(b, OF(UNIT, 0x3C), int) > 0 && cz_finished(b)) n++;
+            if (b && unit_get_hp(b) > 0 && cz_finished(b)) n++;
         }
     }
     return n;

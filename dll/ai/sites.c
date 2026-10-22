@@ -34,10 +34,10 @@ internal int drop_sites(ee_player *pl, int (*out)[3], int max) {
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
         uint8_t *td = it.td;
-        if (!td || unit_owner(u) != pl || n >= max) continue;
+        if (!td || unit_get_owner(u) != pl || n >= max) continue;
         int t = FIELD(td, OF(TD, 0x4B8), int), food = t == UT(B_GRANARY) || t == UT(B_GRANARY_IMPROVED);
         if (!food && !UT_IN(t, UT_TOWNS, UT_X_SINGLE_PLAYER_SETTLEMENT)) continue;
-        out[n][0] = FIELD(u, OF(UNIT, 0x1C), int); out[n][1] = FIELD(u, OF(UNIT, 0x20), int); out[n][2] = food;
+        out[n][0] = unit_get_x(u); out[n][1] = unit_get_y(u); out[n][2] = food;
         n++;
     }
     return n;
@@ -64,7 +64,7 @@ internal ee_unit *select_site(ee_resource_mgr *rm, int type, int need_drop, int 
     if (max_d2 <= 0 || max_d2 > lim) max_d2 = lim;
     unsigned cap = table_value(0x16);
     int ref_pos[2] = { base[0], base[1] };
-    if (unit) { ref_pos[0] = FIELD(unit, OF(UNIT, 0x1C), int); ref_pos[1] = FIELD(unit, OF(UNIT, 0x20), int); }
+    if (unit) { ref_pos[0] = unit_get_x(unit); ref_pos[1] = unit_get_y(unit); }
     short ref_region = (short)map_area(ref_pos, 2);
     ee_unit *best = NULL;
     int best_d2 = 0x7FFFFFFF;
@@ -74,10 +74,10 @@ internal ee_unit *select_site(ee_resource_mgr *rm, int type, int need_drop, int 
         if (!zone || (type != 2 && !FIELD(zone, OF(ZONE, 0x18), uint8_t))) continue;
         ee_unit *s = zone_site(zone, type);
         if (!s) continue;
-        if (type == 2 && FIELD(FIELD(s, OF(UNIT, 0x2C), uint8_t *), OF(TD, 0x4B8), int) != UT(RES_FORAGE_BUSH)) continue;   // forage only
-        if (FIELD(s, OF(UNIT, 0x40), int) <= 0 || FIELD(FIELD(s, OF(UNIT, 0x14), uint8_t *), OF(SITEOWN, 0x4), int) == 1) continue;
+        if (type == 2 && FIELD(unit_get_type_data(s), OF(TD, 0x4B8), int) != UT(RES_FORAGE_BUSH)) continue;   // forage only
+        if (unit_get_amount(s) <= 0 || FIELD(unit_get_vis(s), OF(SITEOWN, 0x4), int) == 1) continue;
         if (need_drop && !FIELD(zone, OF(ZONE, 0x14), int)) continue;
-        int pos[2] = { FIELD(s, OF(UNIT, 0x1C), int), FIELD(s, OF(UNIT, 0x20), int) };
+        int pos[2] = { unit_get_x(s), unit_get_y(s) };
         int dx = pos[0] - base[0], dy = pos[1] - base[1], d2 = dx * dx + dy * dy;
         if (d2 >= max_d2 || d2 >= best_d2) continue;
         if (!explored_by(s, pl)) continue;
@@ -144,14 +144,14 @@ internal void cmd_minecheck(char *out, const char *args) {
         ee_zone *zone = zb[z];
         ee_unit *s = zone ? zone_site(zone, type) : NULL;
         if (!s) continue;
-        int pos[2] = { FIELD(s, OF(UNIT, 0x1C), int), FIELD(s, OF(UNIT, 0x20), int) }, k = -1, dd = 0x7FFFFFFF;
+        int pos[2] = { unit_get_x(s), unit_get_y(s) }, k = -1, dd = 0x7FFFFFFF;
         for (int i = 0; i < nd; i++) {
             int dx = d[i][0] - pos[0], dy = d[i][1] - pos[1];
             if (!d[i][2] && dx * dx + dy * dy < dd) { dd = dx * dx + dy * dy; k = i; }
         }
         unsigned g = site_gatherers(s);
-        const char *why = !FIELD(zone, OF(ZONE, 0x18), uint8_t) ? "zone inactive" : FIELD(s, OF(UNIT, 0x40), int) <= 0 ? "empty" :
-            FIELD(FIELD(s, OF(UNIT, 0x14), uint8_t *), OF(SITEOWN, 0x4), int) == 1 ? "site flag" : k < 0 ? "no drop site" :
+        const char *why = !FIELD(zone, OF(ZONE, 0x18), uint8_t) ? "zone inactive" : unit_get_amount(s) <= 0 ? "empty" :
+            FIELD(unit_get_vis(s), OF(SITEOWN, 0x4), int) == 1 ? "site flag" : k < 0 ? "no drop site" :
             !explored_by(s, pl) ? "unexplored" :
             g >= cap ? "full" : bm_enemy_near(bm, pos[0], pos[1]) ? "enemy near" : NULL;
         if (!why) {
@@ -173,7 +173,7 @@ internal ee_unit *select_mine_near_drop(ee_resource_mgr *rm, int type, ee_unit *
     int nd = g_drops[pi].n, (*d)[3] = g_drops[pi].d;
     unsigned cap = table_value(0x16);
     short ref_region = 0;
-    if (unit) { int up[2] = { FIELD(unit, OF(UNIT, 0x1C), int), FIELD(unit, OF(UNIT, 0x20), int) }; ref_region = (short)map_area(up, 2); }
+    if (unit) { int up[2] = { unit_get_x(unit), unit_get_y(unit) }; ref_region = (short)map_area(up, 2); }
     ee_unit *best = NULL;
     int best_d = 0x7FFFFFFF;
     void **zb = FIELD(pl, OF(PL, 0xB50), void **), **ze = FIELD(pl, OF(PL, 0xB54), void **);
@@ -181,8 +181,8 @@ internal ee_unit *select_mine_near_drop(ee_resource_mgr *rm, int type, ee_unit *
         ee_zone *zone = zb[z];
         if (!zone || !FIELD(zone, OF(ZONE, 0x18), uint8_t)) continue;
         ee_unit *s = zone_site(zone, type);
-        if (!s || FIELD(s, OF(UNIT, 0x40), int) <= 0 || FIELD(FIELD(s, OF(UNIT, 0x14), uint8_t *), OF(SITEOWN, 0x4), int) == 1) continue;
-        int pos[2] = { FIELD(s, OF(UNIT, 0x1C), int), FIELD(s, OF(UNIT, 0x20), int) };
+        if (!s || unit_get_amount(s) <= 0 || FIELD(unit_get_vis(s), OF(SITEOWN, 0x4), int) == 1) continue;
+        int pos[2] = { unit_get_x(s), unit_get_y(s) };
         int k = -1, dd = 0x7FFFFFFF;   // nearest drop site for all resources (squared distance)
         for (int i = 0; i < nd; i++) {
             int dx = d[i][0] - pos[0], dy = d[i][1] - pos[1];
@@ -239,7 +239,7 @@ internal void *__fastcall hook_find_mine(ee_resource_mgr *rm, void *edx, int typ
     unsigned *n = g_oversea[(unsigned)FIELD(pl, PL_INDEX, int) & 15];
     n[0]++;
     if (!r) return r;
-    int pos[2] = { FIELD(r, OF(UNIT, 0x1C), int), FIELD(r, OF(UNIT, 0x20), int) };
+    int pos[2] = { unit_get_x(r), unit_get_y(r) };
     if ((short)map_area(pos, 2) != home) { n[2]++; return r; }
     n[1]++;
     if (!g_overseas_mines || is_vanilla(pl)) return r;

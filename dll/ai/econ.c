@@ -389,10 +389,10 @@ internal void gather_log(ee_player *pl, unsigned idx, uint32_t now) {
         unsigned first = FIELD(dq, 0xC, unsigned), n = FIELD(dq, 0x10, unsigned), m = 0;
         int sum = 0;
         for (unsigned k = 0; k < n; k++) {
-            uint8_t *u = deque_at(dq, first + k), *goal = u ? FIELD(u, OF(UNIT, 0x1EC), uint8_t *) : NULL;
+            ee_unit *u = deque_at(dq, first + k); uint8_t *goal = u ? unit_get_goal(u) : NULL;
             ee_unit *site = goal && !strcmp(rtti_name(goal), "EEUGGather@@") ? FIELD(goal, OF(GOAL, 0x38), ee_unit *) : NULL;
             if (!site) continue;
-            sum += drop_dist(d, nd, FIELD(site, OF(UNIT, 0x1C), int), FIELD(site, OF(UNIT, 0x20), int), r == 2);
+            sum += drop_dist(d, nd, unit_get_x(site), unit_get_y(site), r == 2);
             m++;
         }
         int inc = g_bud[idx].income[r] - last_income[idx][r];
@@ -802,11 +802,11 @@ internal int wild_food(ee_player *pl) {
     void **zb = FIELD(pl, OF(PL, 0xB50), void **), **ze = FIELD(pl, OF(PL, 0xB54), void **);
     for (int z = 0; zb && zb + z < ze; z++) {
         ee_unit *s = zb[z] ? zone_site(zb[z], 2) : NULL;
-        if (!s || FIELD(FIELD(s, OF(UNIT, 0x2C), uint8_t *), OF(TD, 0x4B8), int) != UT(RES_FORAGE_BUSH)) continue;
-        int dx = FIELD(s, OF(UNIT, 0x1C), int) - bx, dy = FIELD(s, OF(UNIT, 0x20), int) - by;
+        if (!s || FIELD(unit_get_type_data(s), OF(TD, 0x4B8), int) != UT(RES_FORAGE_BUSH)) continue;
+        int dx = unit_get_x(s) - bx, dy = unit_get_y(s) - by;
         if (dx * dx + dy * dy >= lim) continue;
         if (!explored_by(s, pl)) continue;
-        total += FIELD(s, OF(UNIT, 0x40), int);
+        total += unit_get_amount(s);
     }
     return total;
 }
@@ -1047,9 +1047,9 @@ internal ee_unit *movable_gatherer(ee_resource_mgr *rm, int t) {
     unsigned first = FIELD(dq, 0xC, unsigned), n = FIELD(dq, 0x10, unsigned);
     for (unsigned k = n; k-- > 0; ) {   // the newest first
         ee_unit *u = deque_at(dq, first + k);
-        if (!u || FIELD(u, OF(UNIT, 0x3C), int) <= 0 || FIELD(u, OF(UNIT, 0x33B), uint8_t) || FIELD(u, OF(UNIT, 0x341), uint8_t) || FIELD(u, OF(UNIT, 0x68), int))
+        if (!u || unit_get_hp(u) <= 0 || unit_get_frozen(u) || unit_get_ai_held(u) || unit_get_busy(u))
             continue;
-        void *goal = FIELD(u, OF(UNIT, 0x1EC), void *);
+        void *goal = unit_get_goal(u);
         if (goal && !strcmp(rtti_name(goal), "EEUGGather@@")) return u;
     }
     return NULL;
@@ -1076,15 +1076,15 @@ internal int g_build_fields = 1;
 internal int g_fields_open[16];   // unfinished fields per player (econ_fields), for the wood reserve
 internal int field_wood(unsigned idx) { return g_build_fields ? 50 * (g_fields_open[idx] < 2 ? g_fields_open[idx] : 2) : 0; }
 internal ee_unit *field_site(ee_unit *f) {   // what a BuildRepair goal holds (+0x3C) for this field (0x60BAD0)
-    ee_unit *p = FIELD(f, OF(UNIT, 0x30), ee_unit *), *last = f;
-    while (p) { last = p; p = FIELD(p, OF(UNIT, 0x1CC), ee_unit *); }
+    ee_unit *p = unit_get_physics(f), *last = f;
+    while (p) { last = p; p = unit_get_chain(p); }
     return last;
 }
 internal int citizen_free(ee_unit *u, int idle) {   // idle, or (idle=0) gathering
-    if (!u || FIELD(u, OF(UNIT, 0x3C), int) <= 0 || FIELD(u, OF(UNIT, 0x33B), uint8_t) || FIELD(u, OF(UNIT, 0x341), uint8_t) || FIELD(u, OF(UNIT, 0x68), int) ||
-        FIELD(u, OF(UNIT, 0x1C), int) == -10000)
+    if (!u || unit_get_hp(u) <= 0 || unit_get_frozen(u) || unit_get_ai_held(u) || unit_get_busy(u) ||
+        unit_get_x(u) == -10000)
         return 0;
-    void *goal = FIELD(u, OF(UNIT, 0x1EC), void *);
+    void *goal = unit_get_goal(u);
     return idle ? !goal : goal && !strcmp(rtti_name(goal), "EEUGGather@@");
 }
 // plan P: the building plan's entries (cm+8: list head, node +0 next, +0xC type, +0x10 wanted count), as 0x46CD18
@@ -1111,7 +1111,7 @@ internal int field_worked(ee_resource_mgr *rm, ee_unit *f) {   // a citizen of t
     for (int r = 0; r < 7; r++) {
         uint8_t *list = FIELD_AT(rm, RM_LISTS + r * 0x14);
         for (unsigned k = 0, first = FIELD(list, OF(EPOCHTECHS, 0xC), unsigned), cnt = FIELD(list, OF(EPOCHTECHS, 0x10), unsigned); k < cnt; k++) {
-            uint8_t *u = deque_at(list, first + k), *goal = u ? FIELD(u, OF(UNIT, 0x1EC), uint8_t *) : NULL;
+            ee_unit *u = deque_at(list, first + k); uint8_t *goal = u ? unit_get_goal(u) : NULL;
             if (goal && FIELD(goal, OF(GOAL, 0x38), ee_unit *) == f && !strcmp(rtti_name(goal), "EEUGGather@@")) return 1;
         }
     }
@@ -1133,9 +1133,9 @@ internal void fields_rebuild(ee_player *pl, unsigned idx, void *um, uint8_t *dq,
     if (now < 60000) g_field_n[idx] = 0;   // new game
     unsigned first = dq ? FIELD(dq, 0xC, unsigned) : 0, cnt = dq ? FIELD(dq, 0x10, unsigned) : 0;
     for (unsigned k = 0; k < cnt; k++) {   // remember every field's tile
-        uint8_t *f = deque_at(dq, first + k);
-        if (!f || FIELD(f, OF(UNIT, 0x3C), int) <= 0) continue;
-        int x = FIELD(f, OF(UNIT, 0x1C), int), y = FIELD(f, OF(UNIT, 0x20), int), j = 0;
+        ee_unit *f = deque_at(dq, first + k);
+        if (!f || unit_get_hp(f) <= 0) continue;
+        int x = unit_get_x(f), y = unit_get_y(f), j = 0;
         while (j < g_field_n[idx] && (g_field_at[idx][j].x != x || g_field_at[idx][j].y != y)) j++;
         if (j == g_field_n[idx] && j < 32) { g_field_at[idx][j].x = (int16_t)x; g_field_at[idx][j].y = (int16_t)y;
                                             g_field_at[idx][j].queued = 0; g_field_n[idx]++; }
@@ -1146,13 +1146,13 @@ internal void fields_rebuild(ee_player *pl, unsigned idx, void *um, uint8_t *dq,
     for (int j = 0; j < g_field_n[idx]; j++) {
         int x = g_field_at[idx][j].x, y = g_field_at[idx][j].y, there = 0, granary = 0;
         for (unsigned k = 0; k < cnt && !there; k++) {
-            uint8_t *f = deque_at(dq, first + k);
-            there = f && FIELD(f, OF(UNIT, 0x3C), int) > 0 && FIELD(f, OF(UNIT, 0x1C), int) == x && FIELD(f, OF(UNIT, 0x20), int) == y;
+            ee_unit *f = deque_at(dq, first + k);
+            there = f && unit_get_hp(f) > 0 && unit_get_x(f) == x && unit_get_y(f) == y;
         }
         if (there || (g_field_at[idx][j].queued && now - g_field_at[idx][j].queued < 120000)) continue;
         for (unsigned k = 0, gf = FIELD(gq, 0xC, unsigned), gc = FIELD(gq, 0x10, unsigned); k < gc && !granary; k++) {
-            uint8_t *g = deque_at(gq, gf + k);
-            granary = g && FIELD(g, OF(UNIT, 0x3C), int) > 0 && abs(FIELD(g, OF(UNIT, 0x1C), int) - x) <= 4 && abs(FIELD(g, OF(UNIT, 0x20), int) - y) <= 4;
+            ee_unit *g = deque_at(gq, gf + k);
+            granary = g && unit_get_hp(g) > 0 && abs(unit_get_x(g) - x) <= 4 && abs(unit_get_y(g) - y) <= 4;
         }
         if (!granary) continue;
         if (raiders_near(pl, x, y, 8)) continue;   // raided: later (builders: 8 tiles, as citizens_safety)
@@ -1182,9 +1182,9 @@ internal int granary_spot(ee_player *pl, void *um, int *ox, int *oy) {
     for (int c = 0; c < 3; c++) {
         uint8_t *q = type_list(um, g_ut[centers[c]]);
         for (unsigned k = 0, f = q ? FIELD(q, 0xC, unsigned) : 0, n = q ? FIELD(q, 0x10, unsigned) : 0; k < n; k++) {
-            uint8_t *b = deque_at(q, f + k);
-            if (!b || FIELD(b, OF(UNIT, 0x3C), int) <= 0) continue;
-            int cx = FIELD(b, OF(UNIT, 0x1C), int), cy = FIELD(b, OF(UNIT, 0x20), int);
+            ee_unit *b = deque_at(q, f + k);
+            if (!b || unit_get_hp(b) <= 0) continue;
+            int cx = unit_get_x(b), cy = unit_get_y(b);
             for (int r = 4; r <= 12; r++)
                 for (int ax = -r; ax <= r; ax++)
                     for (int ay = -r; ay <= r; ay++) {
@@ -1213,9 +1213,9 @@ internal void more_granaries(ee_player *pl, unsigned idx, ee_resource_mgr *rm, v
     uint8_t *gq = type_list(um, UT(B_GRANARY));
     int granaries = 0;
     for (unsigned k = 0, f = gq ? FIELD(gq, 0xC, unsigned) : 0, c = gq ? FIELD(gq, 0x10, unsigned) : 0; k < c; k++) {
-        uint8_t *g = deque_at(gq, f + k), *st = g ? FIELD(g, OF(UNIT, 0x30), uint8_t *) : NULL;
-        if (!g || FIELD(g, OF(UNIT, 0x3C), int) <= 0) continue;
-        if (!st || !FIELD(st, OF(UNIT, 0x340), uint8_t)) return;   // one is being built
+        ee_unit *g = deque_at(gq, f + k), *st = g ? unit_get_physics(g) : NULL;
+        if (!g || unit_get_hp(g) <= 0) continue;
+        if (!st || !unit_get_finished(st)) return;   // one is being built
         granaries++;
     }
     // the first granary as soon as food lacks 2 citizens (farms are the food base, fish only a bonus - the
@@ -1253,8 +1253,8 @@ internal int field_place_ok(ee_build_mgr *bm, int x, int y, int lay_out) {
     if (!pl || !um || (!x && !y)) return 0;
     uint8_t *dq = type_list(um, UT(B_FARM));
     for (unsigned k = 0, first = dq ? FIELD(dq, 0xC, unsigned) : 0, cnt = dq ? FIELD(dq, 0x10, unsigned) : 0; k < cnt; k++) {
-        uint8_t *f = deque_at(dq, first + k);
-        if (f && FIELD(f, OF(UNIT, 0x3C), int) > 0 && FIELD(f, OF(UNIT, 0x1C), int) == x && FIELD(f, OF(UNIT, 0x20), int) == y) return 1;
+        ee_unit *f = deque_at(dq, first + k);
+        if (f && unit_get_hp(f) > 0 && unit_get_x(f) == x && unit_get_y(f) == y) return 1;
     }
     if (!lay_out || !ut_has(UT(B_FARM)) || !can_place(pl, UT(B_FARM), x, y)) return 0;
     place_foundation(pl, UT(B_FARM), x, y);
@@ -1282,16 +1282,16 @@ internal void econ_fields(ee_resource_mgr *rm) {   // before the citizen assignm
     ee_unit *todo[16], *done[16];
     int nt = 0, nd = 0, ordered = 0, farmers = 0;
     for (unsigned k = 0, first = FIELD(dq, 0xC, unsigned), cnt = FIELD(dq, 0x10, unsigned); k < cnt && nt < 16; k++) {
-        ee_unit *f = deque_at(dq, first + k), *st = f ? FIELD(f, OF(UNIT, 0x30), ee_unit *) : NULL;
-        if (!st || FIELD(f, OF(UNIT, 0x3C), int) <= 0) continue;
+        ee_unit *f = deque_at(dq, first + k), *st = f ? unit_get_physics(f) : NULL;
+        if (!st || unit_get_hp(f) <= 0) continue;
         if (site_danger(pl, f, 1)) continue;   // under known enemy towers: no builders, no farmers (attack.c)
         // raided: a player doesn't send his citizens one by one into the raiders - the same distances as
         // citizens_safety (attack.c: 8 for builders, 6 for farmers): with 6 here a builder went every 10 s to a
         // field with bowmen 7 tiles away, was sent back 4 s later, and the next one went (the player's army shot
         // them on the way)
-        if (raiders_near(pl, FIELD(f, OF(UNIT, 0x1C), int), FIELD(f, OF(UNIT, 0x20), int), FIELD(st, OF(UNIT, 0x340), uint8_t) ? 6 : 8))
+        if (raiders_near(pl, unit_get_x(f), unit_get_y(f), unit_get_finished(st) ? 6 : 8))
             continue;
-        if (!FIELD(st, OF(UNIT, 0x340), uint8_t)) todo[nt++] = f;
+        if (!unit_get_finished(st)) todo[nt++] = f;
         else if (nd < 16 && !field_worked(rm, f)) done[nd++] = f;
     }
     g_fields_open[idx] = nt;
@@ -1300,11 +1300,11 @@ internal void econ_fields(ee_resource_mgr *rm) {   // before the citizen assignm
     int wild = nt && food_fields_wait(pl, rm);   // food.c (food_plan WILD): wild food first
     for (int i = 0; i < nt && wood >= 50 && !wild; i++) {
         ee_unit *site = field_site(todo[i]), *best = NULL;
-        int fx = FIELD(todo[i], OF(UNIT, 0x1C), int), fy = FIELD(todo[i], OF(UNIT, 0x20), int), bd = 0x7FFFFFFF, busy = 0;
+        int fx = unit_get_x(todo[i]), fy = unit_get_y(todo[i]), bd = 0x7FFFFFFF, busy = 0;
         for (int r = 0; r < 7 && !busy; r++) {   // a builder already on it?
             uint8_t *list = FIELD_AT(rm, RM_LISTS + r * 0x14);
             for (unsigned k = 0, first = FIELD(list, OF(EPOCHTECHS, 0xC), unsigned), cnt = FIELD(list, OF(EPOCHTECHS, 0x10), unsigned); k < cnt; k++) {
-                uint8_t *u = deque_at(list, first + k), *goal = u ? FIELD(u, OF(UNIT, 0x1EC), uint8_t *) : NULL;
+                ee_unit *u = deque_at(list, first + k); uint8_t *goal = u ? unit_get_goal(u) : NULL;
                 if (goal && FIELD(goal, OF(GOAL, 0x3C), ee_unit *) == site && !strcmp(rtti_name(goal), "EEUGBuildRepair@@")) { busy = 1; break; }
             }
         }
@@ -1316,7 +1316,7 @@ internal void econ_fields(ee_resource_mgr *rm) {   // before the citizen assignm
                 for (unsigned k = 0, first = FIELD(list, OF(EPOCHTECHS, 0xC), unsigned), cnt = FIELD(list, OF(EPOCHTECHS, 0x10), unsigned); k < cnt; k++) {
                     ee_unit *u = deque_at(list, first + k);
                     if (!citizen_free(u, pass == 0)) continue;
-                    int dx = FIELD(u, OF(UNIT, 0x1C), int) - fx, dy = FIELD(u, OF(UNIT, 0x20), int) - fy, d = dx * dx + dy * dy;
+                    int dx = unit_get_x(u) - fx, dy = unit_get_y(u) - fy, d = dx * dx + dy * dy;
                     if (d < bd) { bd = d; best = u; }
                 }
             }
@@ -1326,7 +1326,7 @@ internal void econ_fields(ee_resource_mgr *rm) {   // before the citizen assignm
         goal_build_init(goal, pl, todo[i], 1);
         unit_set_goal(best, goal, 0, 0);
         unit_say(best, 0x1F51);
-        uint8_t *td = FIELD(best, OF(UNIT, 0x2C), uint8_t *);
+        uint8_t *td = unit_get_type_data(best);
         (*(void (__thiscall **)(void *, void *))(FIELD(td, OF(TD, 0x0), uint8_t *) + 0x74))(td, best);
         ordered++;
         wood -= 50;
@@ -1337,7 +1337,7 @@ internal void econ_fields(ee_resource_mgr *rm) {   // before the citizen assignm
     int room = (int)target[2] - rm_count(rm, 2);
     for (int i = 0; i < nd && farmers < room; i++) {   // farmers for finished fields
         ee_unit *best = NULL;
-        int fx = FIELD(done[i], OF(UNIT, 0x1C), int), fy = FIELD(done[i], OF(UNIT, 0x20), int), bd = 0x7FFFFFFF;
+        int fx = unit_get_x(done[i]), fy = unit_get_y(done[i]), bd = 0x7FFFFFFF;
         for (int pass = 0; pass < 2 && !best; pass++)
             for (int r = pass ? 4 : 0; r < 7; r++) {
                 if (pass && rm_count(rm, r) <= (int)target[r]) continue;   // only a surplus
@@ -1345,7 +1345,7 @@ internal void econ_fields(ee_resource_mgr *rm) {   // before the citizen assignm
                 for (unsigned k = 0, first = FIELD(list, OF(EPOCHTECHS, 0xC), unsigned), cnt = FIELD(list, OF(EPOCHTECHS, 0x10), unsigned); k < cnt; k++) {
                     ee_unit *u = deque_at(list, first + k);
                     if (!citizen_free(u, pass == 0)) continue;
-                    int dx = FIELD(u, OF(UNIT, 0x1C), int) - fx, dy = FIELD(u, OF(UNIT, 0x20), int) - fy, d = dx * dx + dy * dy;
+                    int dx = unit_get_x(u) - fx, dy = unit_get_y(u) - fy, d = dx * dx + dy * dy;
                     if (d < bd) { bd = d; best = u; }
                 }
             }

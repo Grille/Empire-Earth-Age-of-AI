@@ -15,7 +15,7 @@ internal int tracing(void *rm) {
 internal void trace_obj(char *buf, size_t cap, const char *tag, void *o) {
     size_t n = strlen(buf);
     if (!o) { snprintf(buf + n, cap - n, " %s=0", tag); return; }
-    snprintf(buf + n, cap - n, " %s=%p(%s %d,%d)", tag, o, rtti_name(o), FIELD(o, OF(UNIT, 0x1C), int), FIELD(o, OF(UNIT, 0x20), int));
+    snprintf(buf + n, cap - n, " %s=%p(%s %d,%d)", tag, o, rtti_name(o), unit_get_x(o), unit_get_y(o));
 }
 
 internal void trace_emit(const char *line) {
@@ -200,10 +200,10 @@ internal int start_hook(void) {
 struct sync_units { unsigned n; uint32_t h; };
 internal uint32_t g_sync_dump0, g_sync_dump1;
 internal uint32_t sync_unit_hash(ee_unit *u) {
-    ee_player *owner = unit_owner(u);
-    uint8_t *td = FIELD(u, OF(UNIT, 0x2C), uint8_t *);
+    ee_player *owner = unit_get_owner(u);
+    uint8_t *td = unit_get_type_data(u);
     uint32_t v[5] = { owner ? (uint32_t)(FIELD(owner, PL_INDEX, int) & 15) : 99u, td ? (uint32_t)FIELD(td, OF(TD, 0x4B8), int) : 0u,
-                      (uint32_t)FIELD(u, OF(UNIT, 0x1C), int), (uint32_t)FIELD(u, OF(UNIT, 0x20), int), (uint32_t)FIELD(u, OF(UNIT, 0x3C), int) }, h = 2166136261u;
+                      (uint32_t)unit_get_x(u), (uint32_t)unit_get_y(u), (uint32_t)unit_get_hp(u) }, h = 2166136261u;
     for (int i = 0; i < 5; i++) h = (h ^ v[i]) * 16777619u;
     return h;
 }
@@ -214,10 +214,10 @@ internal void sync_unit(ee_unit *u, void *ctx) {
 }
 internal void sync_unit_dump(ee_unit *u, void *ctx) {
     (void)ctx;
-    ee_player *owner = unit_owner(u);
-    uint8_t *td = FIELD(u, OF(UNIT, 0x2C), uint8_t *);
+    ee_player *owner = unit_get_owner(u);
+    uint8_t *td = unit_get_type_data(u);
     fprintf(g_sync, "  u P%d type %d at %d,%d hp %d\n", owner ? FIELD(owner, PL_INDEX, int) & 15 : -1, td ? FIELD(td, OF(TD, 0x4B8), int) : -1,
-            FIELD(u, OF(UNIT, 0x1C), int), FIELD(u, OF(UNIT, 0x20), int), FIELD(u, OF(UNIT, 0x3C), int));
+            unit_get_x(u), unit_get_y(u), unit_get_hp(u));
 }
 // the messages handed to the lockstep server (EEServer [0x91984C] vtable slot 6: (msg, 0xFF)): "  m <type> <caller>
 // <S|thread>" - what goes into the next tick the server sends, and from where

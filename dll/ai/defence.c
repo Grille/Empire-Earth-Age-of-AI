@@ -55,9 +55,9 @@ internal int can_place(ee_player *pl, int type, int x, int y) {
 struct def_scan { ee_player *pl; int bx, by; int d2[16], x[16], y[16]; int towers, tx[64], ty[64]; int walls, wx[256], wy[256]; };
 internal void def_scan_unit(ee_unit *u, void *ctx) {
     struct def_scan *s = ctx;
-    uint8_t *td = FIELD(u, OF(UNIT, 0x2C), uint8_t *);
-    ee_player *owner = unit_owner(u);
-    int fam = FIELD(td, OF(TD, 0x4B4), int), x = FIELD(u, OF(UNIT, 0x1C), int), y = FIELD(u, OF(UNIT, 0x20), int);
+    uint8_t *td = unit_get_type_data(u);
+    ee_player *owner = unit_get_owner(u);
+    int fam = FIELD(td, OF(TD, 0x4B4), int), x = unit_get_x(u), y = unit_get_y(u);
     if (fam != 2 && fam != 29) return;
     if (owner == s->pl) {
         if (is_tower_type(FIELD(td, OF(TD, 0x4B8), int)) && s->towers < 64) { s->tx[s->towers] = x; s->ty[s->towers++] = y; }
@@ -281,20 +281,20 @@ struct cs_scan {
 };
 internal void cs_unit(ee_unit *u, void *ctx) {
     struct cs_scan *s = ctx;
-    uint8_t *td = FIELD(u, OF(UNIT, 0x2C), uint8_t *);
-    ee_player *owner = unit_owner(u);
-    if (FIELD(u, OF(UNIT, 0x3C), int) <= 0 || !owner) return;
-    int fam = FIELD(td, OF(TD, 0x4B4), int), type = FIELD(td, OF(TD, 0x4B8), int), x = FIELD(u, OF(UNIT, 0x1C), int), y = FIELD(u, OF(UNIT, 0x20), int);
+    uint8_t *td = unit_get_type_data(u);
+    ee_player *owner = unit_get_owner(u);
+    if (unit_get_hp(u) <= 0 || !owner) return;
+    int fam = FIELD(td, OF(TD, 0x4B4), int), type = FIELD(td, OF(TD, 0x4B8), int), x = unit_get_x(u), y = unit_get_y(u);
     if (owner == s->pl) {
         if ((fam == 2 || fam == 29) && s->nb < 256) { s->bx[s->nb] = x; s->by[s->nb++] = y; }
         else if (is_soldier(td) && s->ns < 128) s->sold[s->ns++] = u;
         else if (is_citizen_type(type) && s->nc < 128) { s->civ[s->nc] = u; s->cx[s->nc] = x; s->cy[s->nc++] = y; }
     } else if (is_enemy(s->pl, owner)) {
-        uint8_t *bs = FIELD(u, OF(UNIT, 0x30), uint8_t *);
+        ee_unit *bs = unit_get_physics(u);
         float r, a;
         if ((is_soldier(td) || is_citizen_type(type)) && s->nu < 128 && seen_by(u, s->pl)) s->eu[s->nu++] = u;
         if ((is_siege(type) || is_ram(type)) && s->ne < 16 && seen_by(u, s->pl)) s->esiege[s->ne++] = u;
-        else if ((fam == 2 || fam == 29) && bs && !FIELD(bs, OF(UNIT, 0x340), uint8_t) && s->nt < 16 && defence_stats(u, &r, &a) &&
+        else if ((fam == 2 || fam == 29) && bs && !unit_get_finished(bs) && s->nt < 16 && defence_stats(u, &r, &a) &&
                  seen_by(u, s->pl)) s->etow[s->nt++] = u;
         else if (is_soldier(td) && s->nx < 256) { s->ex[s->nx] = x; s->ey[s->nx++] = y; }
     }
@@ -322,24 +322,24 @@ internal float g_militia_share = 1.0f;   // [all] militia_caught_share: the shar
 internal unsigned g_militia_caught[16];
 internal unsigned g_militia_orders[16];
 internal float unit_power(ee_unit *u) {   // hit points x attack (live stats), a rough fighting strength
-    uint8_t *st = FIELD(u, OF(UNIT, 0x34), uint8_t *);
-    float a = st ? FIELD(st, OF(USTAT, 0xD8), float) : (float)FIELD(FIELD(u, OF(UNIT, 0x2C), uint8_t *), OF(TD, 0x510), int);
-    return (float)FIELD(u, OF(UNIT, 0x3C), int) * (a > 0 ? a : 0);
+    uint8_t *st = unit_get_stats(u);
+    float a = st ? FIELD(st, OF(USTAT, 0xD8), float) : (float)FIELD(unit_get_type_data(u), OF(TD, 0x510), int);
+    return (float)unit_get_hp(u) * (a > 0 ? a : 0);
 }
 internal struct st_side g_mil_own, g_mil_foe;   // fight_estimate (dll/ai/stats.c)
 internal int militia_answer(struct cs_scan *s, ee_unit *t, int *nfree) {   // citizens -> t; returns the number ordered
-    int x = FIELD(t, OF(UNIT, 0x1C), int), y = FIELD(t, OF(UNIT, 0x20), int), enemies = 0, ordered = 0;
+    int x = unit_get_x(t), y = unit_get_y(t), enemies = 0, ordered = 0;
     float epow = 0, cpow = 0, fast = 1e9f, cspeed = 0;
     unsigned pi = (unsigned)FIELD(s->pl, PL_INDEX, int) & 15;
     int est = g_fight_est || g_militia_est || EARLY(pi, early_militia), soldiers = 0;
     if (est) { st_side_clear(&g_mil_own); st_side_clear(&g_mil_foe); }
     for (int k = 0; k < s->nu; k++) {
         ee_unit *e = s->eu[k];
-        if (FIELD(e, OF(UNIT, 0x3C), int) <= 0 || abs(FIELD(e, OF(UNIT, 0x1C), int) - x) > 6 || abs(FIELD(e, OF(UNIT, 0x20), int) - y) > 6) continue;
+        if (unit_get_hp(e) <= 0 || abs(unit_get_x(e) - x) > 6 || abs(unit_get_y(e) - y) > 6) continue;
         enemies++;
         epow += unit_power(e);
         if (est) st_side_add(&g_mil_foe, e);
-        if (is_soldier(FIELD(e, OF(UNIT, 0x2C), uint8_t *))) { soldiers++; if (st_speed(e) < fast) fast = st_speed(e); }
+        if (is_soldier(unit_get_type_data(e))) { soldiers++; if (st_speed(e) < fast) fast = st_speed(e); }
     }
     if (enemies < 1) {   // a foundation: no fight, only its hit points
         enemies = 1; epow = unit_power(t);
@@ -359,7 +359,7 @@ internal int militia_answer(struct cs_scan *s, ee_unit *t, int *nfree) {   // ci
     if (EARLY(pi, early_militia) && soldiers) {
         int cover = early_cover(s->pl, x, y);
         for (int k = 0; k < s->ns && !cover; k++)
-            cover = s->sold[k] && abs(FIELD(s->sold[k], OF(UNIT, 0x1C), int) - x) <= 12 && abs(FIELD(s->sold[k], OF(UNIT, 0x20), int) - y) <= 12;
+            cover = s->sold[k] && abs(unit_get_x(s->sold[k]) - x) <= 12 && abs(unit_get_y(s->sold[k]) - y) <= 12;
         struct st_result r;
         if (cover && g_mil_own.n) st_estimate(&g_mil_own, &g_mil_foe, &r);
         // their damage while ours destroys them, in citizens: under one
@@ -372,7 +372,7 @@ internal int militia_answer(struct cs_scan *s, ee_unit *t, int *nfree) {   // ci
         static struct st_side mil_sold;
         st_side_clear(&mil_sold);
         for (int k = 0; k < s->ns; k++)
-            if (s->sold[k] && abs(FIELD(s->sold[k], OF(UNIT, 0x1C), int) - x) <= 12 && abs(FIELD(s->sold[k], OF(UNIT, 0x20), int) - y) <= 12) st_side_add(&mil_sold, s->sold[k]);
+            if (s->sold[k] && abs(unit_get_x(s->sold[k]) - x) <= 12 && abs(unit_get_y(s->sold[k]) - y) <= 12) st_side_add(&mil_sold, s->sold[k]);
         if (mil_sold.n && st_ratio(&mil_sold, &g_mil_foe) >= 1.0f) return 0;
         float stand = st_ratio(&g_mil_own, &g_mil_foe);
         if (!soldiers) { if (stand < 1.0f) return 0; }   // builders, a foundation
@@ -380,7 +380,7 @@ internal int militia_answer(struct cs_scan *s, ee_unit *t, int *nfree) {   // ci
             struct st_result r;   // caught: running is no way out - fight if the citizens still do some good
             st_estimate(&g_mil_own, &g_mil_foe, &r);
             float share = r.time[0] < 1e9f ? r.time[1] / (r.time[0] > 0.1f ? r.time[0] : 0.1f) : 0;
-            int attacking = FIELD(t, OF(UNIT, 0x1EC), uint8_t *) && goal_is_attack(FIELD(t, OF(UNIT, 0x1EC), uint8_t *));
+            int attacking = unit_get_goal(t) && goal_is_attack(unit_get_goal(t));
             if (!attacking || fast <= cspeed * 1.1f || share < g_militia_share) return 0;
             g_militia_caught[(unsigned)FIELD(s->pl, PL_INDEX, int) & 15]++;
         }
@@ -391,7 +391,7 @@ internal int militia_answer(struct cs_scan *s, ee_unit *t, int *nfree) {   // ci
     for (int c = 0; c < s->nc && ordered < 3 * enemies; c++) {
         ee_unit *u = s->civ[c];
         if (!u || abs(s->cx[c] - x) > 10 || abs(s->cy[c] - y) > 10) continue;
-        uint8_t *g = FIELD(u, OF(UNIT, 0x1EC), uint8_t *);
+        uint8_t *g = unit_get_goal(u);
         if (g && goal_is_attack(g)) { s->civ[c] = NULL; continue; }   // already fighting
         if (g && strcmp(rtti_name(g), "EEUGGather@@")) continue;   // building, walking: leave it
         if (unit_goal(u, goal_attack(u, t), 0, 0x1F40)) ordered++;
@@ -406,15 +406,15 @@ internal void militia(ee_player *pl, unsigned idx, struct cs_scan *s, uint32_t n
     char what[160] = "";
     for (int k = 0; k < s->nu && nfree > 2; k++) {
         ee_unit *e = s->eu[k];
-        uint8_t *g = FIELD(e, OF(UNIT, 0x1EC), uint8_t *);
+        uint8_t *g = unit_get_goal(e);
         ee_unit *t;
-        if (!g || FIELD(e, OF(UNIT, 0x3C), int) <= 0) continue;
-        int x = FIELD(e, OF(UNIT, 0x1C), int), y = FIELD(e, OF(UNIT, 0x20), int), why = 0;
-        if (!strcmp(rtti_name(g), "EEUGBuildRepair@@") && (t = FIELD(g, OF(GOAL, 0x3C), ee_unit *)) && unit_owner(t) != pl) {
-            uint8_t *bs = FIELD(t, OF(UNIT, 0x30), uint8_t *);
+        if (!g || unit_get_hp(e) <= 0) continue;
+        int x = unit_get_x(e), y = unit_get_y(e), why = 0;
+        if (!strcmp(rtti_name(g), "EEUGBuildRepair@@") && (t = FIELD(g, OF(GOAL, 0x3C), ee_unit *)) && unit_get_owner(t) != pl) {
+            ee_unit *bs = unit_get_physics(t);
             float r, a;
-            if (bs && !FIELD(bs, OF(UNIT, 0x340), uint8_t) && defence_stats(t, &r, &a)) why = 1;   // a tower going up
-        } else if (early && goal_is_attack(g) && (t = FIELD(g, OF(GOAL, 0x30), ee_unit *)) && unit_owner(t) == pl)
+            if (bs && !unit_get_finished(bs) && defence_stats(t, &r, &a)) why = 1;   // a tower going up
+        } else if (early && goal_is_attack(g) && (t = FIELD(g, OF(GOAL, 0x30), ee_unit *)) && unit_get_owner(t) == pl)
             why = 2;   // attacking one of ours
         if (!why) continue;
         int close = 0;
@@ -427,7 +427,7 @@ internal void militia(ee_player *pl, unsigned idx, struct cs_scan *s, uint32_t n
             size_t l = strlen(what);
             if (l < sizeof what - 32)
                 snprintf(what + l, sizeof what - l, " %s P%d type %d at %d,%d", why == 1 ? "builder" : "attacker",
-                         FIELD(unit_owner(e), PL_INDEX, int), FIELD(FIELD(e, OF(UNIT, 0x2C), uint8_t *), OF(TD, 0x4B8), int), x, y);
+                         FIELD(unit_get_owner(e), PL_INDEX, int), FIELD(unit_get_type_data(e), OF(TD, 0x4B8), int), x, y);
         }
     }
     if (!total) return;
@@ -446,8 +446,8 @@ internal void counter_siege(ee_player *pl, unsigned idx, uint32_t now) {
     for (int i = 0; i < s.ne + s.nt; i++) {
         int tower = i >= s.ne;   // an enemy defence going up near our buildings or citizens (counter-tower)
         ee_unit *e = tower ? s.etow[i - s.ne] : s.esiege[i];
-        uint8_t *etd = FIELD(e, OF(UNIT, 0x2C), uint8_t *), *st = FIELD(e, OF(UNIT, 0x34), uint8_t *);
-        int x = FIELD(e, OF(UNIT, 0x1C), int), y = FIELD(e, OF(UNIT, 0x20), int);
+        uint8_t *etd = unit_get_type_data(e), *st = unit_get_stats(e);
+        int x = unit_get_x(e), y = unit_get_y(e);
         float r = tower ? 12.0f : (st ? FIELD(st, OF(USTAT, 0x9C), float) : FIELD(etd, OF(TD, 0x420), float)) + 4.0f;
         int threat = 0;
         for (int b = 0; b < s.nb && !threat; b++)
@@ -460,8 +460,8 @@ internal void counter_siege(ee_player *pl, unsigned idx, uint32_t now) {
         ee_unit *site = tower ? field_site(e) : NULL;   // what their EEUGBuildRepair holds (+0x3C)
         int nbl = 0;
         for (int k = 0; tower && k < s.nu && nbl < 8; k++) {
-            uint8_t *g = FIELD(s.eu[k], OF(UNIT, 0x1EC), uint8_t *);
-            if (g && FIELD(s.eu[k], OF(UNIT, 0x3C), int) > 0 && (FIELD(g, OF(GOAL, 0x3C), ee_unit *) == site || FIELD(g, OF(GOAL, 0x3C), ee_unit *) == e) &&
+            uint8_t *g = unit_get_goal(s.eu[k]);
+            if (g && unit_get_hp(s.eu[k]) > 0 && (FIELD(g, OF(GOAL, 0x3C), ee_unit *) == site || FIELD(g, OF(GOAL, 0x3C), ee_unit *) == e) &&
                 !strcmp(rtti_name(g), "EEUGBuildRepair@@")) bl[nbl++] = s.eu[k];
         }
         int guards = 0;
@@ -471,15 +471,15 @@ internal void counter_siege(ee_player *pl, unsigned idx, uint32_t now) {
         for (int k = 0; k < s.ns; k++) {
             ee_unit *u = s.sold[k];
             if (!u) continue;   // already ordered this tick
-            uint8_t *g = FIELD(u, OF(UNIT, 0x1EC), uint8_t *);
-            int dx = FIELD(u, OF(UNIT, 0x1C), int) - x, dy = FIELD(u, OF(UNIT, 0x20), int) - y, d2 = dx * dx + dy * dy;
+            uint8_t *g = unit_get_goal(u);
+            int dx = unit_get_x(u) - x, dy = unit_get_y(u) - y, d2 = dx * dx + dy * dy;
             if (d2 > 400) continue;
             if (g && goal_is_attack(g)) {
                 ee_unit *t = FIELD(g, OF(GOAL, 0x30), ee_unit *);
                 int mine = t == e;
                 for (int b = 0; b < nbl && !mine; b++) mine = t == bl[b];
                 if (mine) { already++; s.sold[k] = NULL; continue; }
-                if (t && abs(FIELD(t, OF(UNIT, 0x1C), int) - FIELD(u, OF(UNIT, 0x1C), int)) <= 4 && abs(FIELD(t, OF(UNIT, 0x20), int) - FIELD(u, OF(UNIT, 0x20), int)) <= 4)
+                if (t && abs(unit_get_x(t) - unit_get_x(u)) <= 4 && abs(unit_get_y(t) - unit_get_y(u)) <= 4)
                     continue;   // busy fighting close by
             }
             avail++;
@@ -488,7 +488,7 @@ internal void counter_siege(ee_player *pl, unsigned idx, uint32_t now) {
                 int worst = 0, fd = -1;
                 for (int j = 0; j < 5; j++) {
                     ee_unit *v = s.sold[pick[j]];
-                    int vx = FIELD(v, OF(UNIT, 0x1C), int) - x, vy = FIELD(v, OF(UNIT, 0x20), int) - y;
+                    int vx = unit_get_x(v) - x, vy = unit_get_y(v) - y;
                     if (vx * vx + vy * vy > fd) { fd = vx * vx + vy * vy; worst = j; }
                 }
                 if (d2 < fd) pick[worst] = k;
@@ -534,8 +534,8 @@ internal unsigned g_home_trained[16];
 struct home_scan { ee_player *pl; int bx, by, n; };
 internal void home_unit(ee_unit *u, void *ctx) {
     struct home_scan *h = ctx;
-    if (unit_owner(u) != h->pl || FIELD(u, OF(UNIT, 0x3C), int) <= 0 || !is_soldier(FIELD(u, OF(UNIT, 0x2C), uint8_t *))) return;
-    int dx = FIELD(u, OF(UNIT, 0x1C), int) - h->bx, dy = FIELD(u, OF(UNIT, 0x20), int) - h->by;
+    if (unit_get_owner(u) != h->pl || unit_get_hp(u) <= 0 || !is_soldier(unit_get_type_data(u))) return;
+    int dx = unit_get_x(u) - h->bx, dy = unit_get_y(u) - h->by;
     h->n += dx * dx + dy * dy <= 625;
 }
 internal int home_soldiers(ee_player *pl, int bx, int by) {
@@ -612,13 +612,13 @@ internal struct mus_scan g_ms;
 internal struct st_side g_ms_own, g_ms_foe, g_ms_rally;
 internal void mus_unit(ee_unit *u, void *ctx) {
     struct mus_scan *m = ctx;
-    uint8_t *td = FIELD(u, OF(UNIT, 0x2C), uint8_t *);
-    if (FIELD(u, OF(UNIT, 0x3C), int) <= 0 || !td) return;
-    ee_player *o = unit_owner(u);
-    int x = FIELD(u, OF(UNIT, 0x1C), int), y = FIELD(u, OF(UNIT, 0x20), int), dx = x - m->bx, dy = y - m->by, d2 = dx * dx + dy * dy;
+    uint8_t *td = unit_get_type_data(u);
+    if (unit_get_hp(u) <= 0 || !td) return;
+    ee_player *o = unit_get_owner(u);
+    int x = unit_get_x(u), y = unit_get_y(u), dx = x - m->bx, dy = y - m->by, d2 = dx * dx + dy * dy;
     float tr, ta;
     if (o == m->pl && d2 <= 22 * 22 && defence_stats(u, &tr, &ta)) {
-        m->tpow += (float)FIELD(u, OF(UNIT, 0x3C), int) * ta;
+        m->tpow += (float)unit_get_hp(u) * ta;
         if (m->os) st_side_add(m->os, u);
         return;
     }
@@ -659,11 +659,11 @@ internal int muster_rally(unsigned idx, float *x, float *y) {   // citizens_safe
 }
 internal ee_unit *mus_nearest_enemy(struct mus_scan *s, ee_unit *u) {
     ee_unit *best = NULL;
-    int bd = 0x7FFFFFFF, x = FIELD(u, OF(UNIT, 0x1C), int), y = FIELD(u, OF(UNIT, 0x20), int);
+    int bd = 0x7FFFFFFF, x = unit_get_x(u), y = unit_get_y(u);
     for (int k = 0; k < s->ne; k++) {
         ee_unit *e = s->enemy[k];
-        if (FIELD(e, OF(UNIT, 0x3C), int) <= 0) continue;
-        int dx = FIELD(e, OF(UNIT, 0x1C), int) - x, dy = FIELD(e, OF(UNIT, 0x20), int) - y, d = dx * dx + dy * dy;
+        if (unit_get_hp(e) <= 0) continue;
+        int dx = unit_get_x(e) - x, dy = unit_get_y(e) - y, d = dx * dx + dy * dy;
         if (d < bd) { bd = d; best = e; }
     }
     return best;
@@ -714,7 +714,7 @@ internal void muster(ee_player *pl, unsigned idx, uint32_t now) {
         if (g_fight_est) st_side_clear(&g_ms_rally);
         for (int k = 0; k < s->no; k++) {
             ee_unit *u = s->own[k];
-            float dx = (float)FIELD(u, OF(UNIT, 0x1C), int) - g_mus[idx].rx, dy = (float)FIELD(u, OF(UNIT, 0x20), int) - g_mus[idx].ry;
+            float dx = (float)unit_get_x(u) - g_mus[idx].rx, dy = (float)unit_get_y(u) - g_mus[idx].ry;
             if (dx * dx + dy * dy <= 100) {
                 rpow += unit_power(u); rn++;
                 if (g_fight_est) st_side_add(&g_ms_rally, u);
@@ -739,7 +739,7 @@ internal void muster(ee_player *pl, unsigned idx, uint32_t now) {
             return;
         }
         for (int k = 0; k < s->ne && !near_rally; k++) {
-            float dx = (float)FIELD(s->enemy[k], OF(UNIT, 0x1C), int) - g_mus[idx].rx, dy = (float)FIELD(s->enemy[k], OF(UNIT, 0x20), int) - g_mus[idx].ry;
+            float dx = (float)unit_get_x(s->enemy[k]) - g_mus[idx].rx, dy = (float)unit_get_y(s->enemy[k]) - g_mus[idx].ry;
             near_rally = dx * dx + dy * dy <= 100;
         }
         if (near_rally && ++g_mus[idx].moves >= 3) {   // it follows: no getting away - fight where it is
@@ -765,8 +765,8 @@ internal void muster(ee_player *pl, unsigned idx, uint32_t now) {
     int ordered = 0;   // everyone who isn't there or on the way
     for (int k = 0; k < s->no; k++) {
         ee_unit *u = s->own[k];
-        uint8_t *goal = FIELD(u, OF(UNIT, 0x1EC), uint8_t *);
-        float dx = (float)FIELD(u, OF(UNIT, 0x1C), int) - g_mus[idx].rx, dy = (float)FIELD(u, OF(UNIT, 0x20), int) - g_mus[idx].ry;
+        uint8_t *goal = unit_get_goal(u);
+        float dx = (float)unit_get_x(u) - g_mus[idx].rx, dy = (float)unit_get_y(u) - g_mus[idx].ry;
         if (dx * dx + dy * dy <= 36) continue;
         if (goal && goal_is_location(goal) && fabsf(FIELD(goal, OF(GOAL, 0x20), float) - g_mus[idx].rx) < 2 &&
             fabsf(FIELD(goal, OF(GOAL, 0x24), float) - g_mus[idx].ry) < 2) continue;
@@ -816,9 +816,9 @@ internal void asg_units(ee_player *pl) {   // the units of AI pl's attack subgro
 }
 internal int set_behaviour(ee_unit *u, int b) {   // 1 when changed
     void **tab = behaviour_table();
-    uint8_t *td = FIELD(u, OF(UNIT, 0x2C), uint8_t *);
-    if (!tab || !tab[b] || !td || !FIELD(td, OF(TD, 0x621), uint8_t) || FIELD(u, OF(UNIT, 0x208), void *) == tab[b]) return 0;
-    FIELD(u, OF(UNIT, 0x208), void *) = tab[b];
+    uint8_t *td = unit_get_type_data(u);
+    if (!tab || !tab[b] || !td || !FIELD(td, OF(TD, 0x621), uint8_t) || unit_get_behaviour(u) == tab[b]) return 0;
+    unit_set_behaviour(u, tab[b]);
     return 1;
 }
 internal void hold_town(ee_player *pl, unsigned idx, uint32_t now) {
@@ -845,9 +845,9 @@ internal void hold_town(ee_player *pl, unsigned idx, uint32_t now) {
         for (struct grid_it it = grid_it_box(s->bx, s->by, 35, 1); grid_it_next(&it); ) {
             ee_unit *u = it.u;
             uint8_t *td = it.td;
-            if (FIELD(u, OF(UNIT, 0x3C), int) <= 0) continue;
-            int dx = FIELD(u, OF(UNIT, 0x1C), int) - s->bx, dy = FIELD(u, OF(UNIT, 0x20), int) - s->by, type = FIELD(td, OF(TD, 0x4B8), int);
-            ee_player *o = unit_owner(u);
+            if (unit_get_hp(u) <= 0) continue;
+            int dx = unit_get_x(u) - s->bx, dy = unit_get_y(u) - s->by, type = FIELD(td, OF(TD, 0x4B8), int);
+            ee_player *o = unit_get_owner(u);
             if (dx * dx + dy * dy > 35 * 35 || !o || o == pl || FIELD(o, PL_INDEX, int) <= 0 || !is_enemy(pl, o)) continue;
             if ((!is_soldier(td) && !is_siege(type)) || !seen_by(u, pl)) continue;
             epow += unit_power(u);
@@ -865,12 +865,12 @@ internal void hold_town(ee_player *pl, unsigned idx, uint32_t now) {
     // point beyond 35 tiles); attack groups' members beyond 35 tiles: as the game has them (Aggressive)
     for (int j = 0; j < g_asg_n; j++) {
         ee_unit *u = g_asg_units[j];
-        int dx = FIELD(u, OF(UNIT, 0x1C), int) - s->bx, dy = FIELD(u, OF(UNIT, 0x20), int) - s->by;
+        int dx = unit_get_x(u) - s->bx, dy = unit_get_y(u) - s->by;
         if (dx * dx + dy * dy > 35 * 35) set_behaviour(u, 5);
     }
     for (int k = 0; k < s->no; k++) {
         ee_unit *u = s->own[k];
-        uint8_t *g = FIELD(u, OF(UNIT, 0x1EC), uint8_t *);
+        uint8_t *g = unit_get_goal(u);
         if (assault_has_unit(pl, u)) { set_behaviour(u, 5); continue; }   // the assault leads them
         if (landing_has_unit(pl, u)) continue;   // so does the landing (it ordered loaded transports at their docks against raiders)
         if (g && goal_is_location(g)) {
@@ -895,10 +895,10 @@ internal void hold_town(ee_player *pl, unsigned idx, uint32_t now) {
             ee_unit *u = home[k];
             ee_unit *best = NULL;
             set_behaviour(u, 5);
-            int bd = 0x7FFFFFFF, x = FIELD(u, OF(UNIT, 0x1C), int), y = FIELD(u, OF(UNIT, 0x20), int);
+            int bd = 0x7FFFFFFF, x = unit_get_x(u), y = unit_get_y(u);
             for (int j = 0; j < en && j < 128; j++) {
-                if (FIELD(enemy[j], OF(UNIT, 0x3C), int) <= 0) continue;
-                int dx = FIELD(enemy[j], OF(UNIT, 0x1C), int) - x, dy = FIELD(enemy[j], OF(UNIT, 0x20), int) - y, d = dx * dx + dy * dy;
+                if (unit_get_hp(enemy[j]) <= 0) continue;
+                int dx = unit_get_x(enemy[j]) - x, dy = unit_get_y(enemy[j]) - y, d = dx * dx + dy * dy;
                 if (d < bd) { bd = d; best = enemy[j]; }
             }
             if (best && unit_goal(u, goal_attack(u, best), 0, 0x1F40)) ordered++;
@@ -916,7 +916,7 @@ internal void hold_town(ee_player *pl, unsigned idx, uint32_t now) {
         float cx = 0, cy = 0, w = 0;
         for (int j = 0; j < en && j < 128; j++) {
             float p = unit_power(enemy[j]);
-            cx += (float)FIELD(enemy[j], OF(UNIT, 0x1C), int) * p; cy += (float)FIELD(enemy[j], OF(UNIT, 0x20), int) * p; w += p;
+            cx += (float)unit_get_x(enemy[j]) * p; cy += (float)unit_get_y(enemy[j]) * p; w += p;
         }
         float dx = w > 0 ? (float)s->bx - cx / w : 1.0f, dy = w > 0 ? (float)s->by - cy / w : 0.0f, l = sqrtf(dx * dx + dy * dy);
         if (l < 1.0f) { dx = 1.0f; dy = 0.0f; l = 1.0f; }
@@ -924,9 +924,9 @@ internal void hold_town(ee_player *pl, unsigned idx, uint32_t now) {
         int changed = 0;
         for (int k = 0; k < nh; k++) {
             ee_unit *u = home[k];
-            uint8_t *g = FIELD(u, OF(UNIT, 0x1EC), uint8_t *);
+            uint8_t *g = unit_get_goal(u);
             changed += set_behaviour(u, 2);
-            float ux = (float)FIELD(u, OF(UNIT, 0x1C), int) - hx, uy = (float)FIELD(u, OF(UNIT, 0x20), int) - hy;
+            float ux = (float)unit_get_x(u) - hx, uy = (float)unit_get_y(u) - hy;
             if (ux * ux + uy * uy <= 16.0f) continue;
             if (g && goal_is_location(g) && fabsf(FIELD(g, OF(GOAL, 0x20), float) - hx) < 2 && fabsf(FIELD(g, OF(GOAL, 0x24), float) - hy) < 2) continue;
             unit_goal(u, goal_move(hx + (float)(k % 5) - 2.0f, hy + (float)(k / 5 % 5) - 2.0f), 0, 0x1F40);
@@ -956,16 +956,16 @@ internal unsigned g_retreats[16];
 struct rt_face { ee_player *pl; ee_player *target; float cx, cy; int contact; float epow; };
 internal void rt_face_unit(ee_unit *u, void *ctx) {   // attack_retreat: an enemy unit near the group
     struct rt_face *f = ctx;
-    uint8_t *td = FIELD(u, OF(UNIT, 0x2C), uint8_t *);
-    if (FIELD(u, OF(UNIT, 0x3C), int) <= 0) return;
-    ee_player *o = unit_owner(u);
+    uint8_t *td = unit_get_type_data(u);
+    if (unit_get_hp(u) <= 0) return;
+    ee_player *o = unit_get_owner(u);
     if (!o || o == f->pl || FIELD(o, PL_INDEX, int) <= 0 || !is_enemy(f->pl, o)) return;
-    float dx = (float)FIELD(u, OF(UNIT, 0x1C), int) - f->cx, dy = (float)FIELD(u, OF(UNIT, 0x20), int) - f->cy, d2 = dx * dx + dy * dy;
+    float dx = (float)unit_get_x(u) - f->cx, dy = (float)unit_get_y(u) - f->cy, d2 = dx * dx + dy * dy;
     int fam = FIELD(td, OF(TD, 0x4B4), int);
     float r, a;
     if (o == f->target && (fam == 2 || fam == 29) && d2 <= 225.0f) f->contact = 1;
     if (defence_stats(u, &r, &a)) {
-        if (d2 <= (r + 1.0f) * (r + 1.0f)) { f->epow += (float)FIELD(u, OF(UNIT, 0x3C), int) * a; if (g_fight_est) st_side_add(&g_rt_foe, u); }
+        if (d2 <= (r + 1.0f) * (r + 1.0f)) { f->epow += (float)unit_get_hp(u) * a; if (g_fight_est) st_side_add(&g_rt_foe, u); }
     } else if ((is_soldier(td) || is_siege(FIELD(td, OF(TD, 0x4B8), int))) && d2 <= 144.0f) {
         f->epow += unit_power(u);
         if (g_fight_est) st_side_add(&g_rt_foe, u);
@@ -997,7 +997,7 @@ internal void attack_retreat(ee_player *pl, unsigned idx, uint32_t now) {
             uint8_t **e = *sp ? FIELD(*sp, OF(ASG, 0x58), uint8_t **) : NULL;
             for (uint8_t **r = b; b && r < e; r++) {
                 ee_unit *u = *r ? FIELD(*r, OF(ASGU, 0x44), ee_unit *) : NULL;
-                if (u && FIELD(u, OF(UNIT, 0x3C), int) > 0) gpow[k] += unit_power(u);
+                if (u && unit_get_hp(u) > 0) gpow[k] += unit_power(u);
             }
         }
     }
@@ -1014,10 +1014,10 @@ internal void attack_retreat(ee_player *pl, unsigned idx, uint32_t now) {
             uint8_t **e = *sp ? FIELD(*sp, OF(ASG, 0x58), uint8_t **) : NULL;
             for (uint8_t **r = b; b && r < e && n < 1000; r++) {
                 ee_unit *u = *r ? FIELD(*r, OF(ASGU, 0x44), ee_unit *) : NULL;
-                if (!u || FIELD(u, OF(UNIT, 0x3C), int) <= 0) continue;
+                if (!u || unit_get_hp(u) <= 0) continue;
                 if (g_fight_est) st_side_add(&g_rt_own, u);
                 float p = unit_power(u);
-                pow += p; cx += (float)FIELD(u, OF(UNIT, 0x1C), int) * p; cy += (float)FIELD(u, OF(UNIT, 0x20), int) * p; n++;
+                pow += p; cx += (float)unit_get_x(u) * p; cy += (float)unit_get_y(u) * p; n++;
             }
         }
         int slot = -1;
@@ -1073,10 +1073,10 @@ internal void attack_retreat(ee_player *pl, unsigned idx, uint32_t now) {
 struct basemap { ee_player *pl; int x0, y0, r; char *g; };
 internal void basemap_unit(ee_unit *u, void *ctx) {
     struct basemap *m = ctx;
-    int x = FIELD(u, OF(UNIT, 0x1C), int) - m->x0 + m->r, y = FIELD(u, OF(UNIT, 0x20), int) - m->y0 + m->r, w = 2 * m->r + 1;
+    int x = unit_get_x(u) - m->x0 + m->r, y = unit_get_y(u) - m->y0 + m->r, w = 2 * m->r + 1;
     if (x < 0 || y < 0 || x >= w || y >= w) return;
-    uint8_t *td = FIELD(u, OF(UNIT, 0x2C), uint8_t *);
-    ee_player *owner = unit_owner(u);
+    uint8_t *td = unit_get_type_data(u);
+    ee_player *owner = unit_get_owner(u);
     int type = FIELD(td, OF(TD, 0x4B8), int), fam = FIELD(td, OF(TD, 0x4B4), int);
     char ch, *cell = &m->g[y * w + x];
     float r, a;
@@ -1112,7 +1112,7 @@ internal void cmd_basemap(char *out, const char *args) {
         for (int t = 4; zb[z] && t < 7; t++) {
             ee_unit *s = zone_site(zb[z], t);
             if (!s) continue;
-            int x = FIELD(s, OF(UNIT, 0x1C), int) - m.x0 + r, y = FIELD(s, OF(UNIT, 0x20), int) - m.y0 + r;
+            int x = unit_get_x(s) - m.x0 + r, y = unit_get_y(s) - m.y0 + r;
             if (x >= 0 && y >= 0 && x < w && y < w) g[y * w + x] = 'm';
         }
     grid_each(basemap_unit, &m);
@@ -1165,12 +1165,12 @@ __attribute__((used)) int __fastcall hook_damage_points(uint8_t *model, void *ed
     if (n && (!sub || !FIELD(sub, 4, void *))) {
         static int logged;
         ee_unit *u = g_dmg_unit;
-        uint8_t *td = u ? FIELD(u, OF(UNIT, 0x2C), uint8_t *) : NULL;
+        uint8_t *td = u ? unit_get_type_data(u) : NULL;
         if (g_log && logged < 20) {
             logged++;
             fprintf(g_log, "# engine guard: damage points of a model without them - unit type %d owner P%d at %d,%d, state %u index %d\n",
-                    td ? FIELD(td, OF(TD, 0x4B8), int) : -1, u && unit_owner(u) ? FIELD(unit_owner(u), PL_INDEX, int) : -1,
-                    u ? FIELD(u, OF(UNIT, 0x1C), int) : -1, u ? FIELD(u, OF(UNIT, 0x20), int) : -1, state, index);
+                    td ? FIELD(td, OF(TD, 0x4B8), int) : -1, u && unit_get_owner(u) ? FIELD(unit_get_owner(u), PL_INDEX, int) : -1,
+                    u ? unit_get_x(u) : -1, u ? unit_get_y(u) : -1, state, index);
             fflush(g_log);
         }
         return 0;
@@ -1225,22 +1225,22 @@ internal const struct { enum ut_name type; int epoch; } k_aa_bldgs[] = { { UT_B_
 struct aa_scan { ee_player *pl; int nair, have_u, have_b, nall, nbx, bxy[16][2]; float axs, ays; };
 internal void aa_scan_unit(ee_unit *u, void *ctx) {   // anti_air: own AA, enemy aircraft
     struct aa_scan *a = ctx;
-    uint8_t *td = FIELD(u, OF(UNIT, 0x2C), uint8_t *);
-    if (FIELD(u, OF(UNIT, 0x3C), int) <= 0) return;
+    uint8_t *td = unit_get_type_data(u);
+    if (unit_get_hp(u) <= 0) return;
     int fam = FIELD(td, OF(TD, 0x4B4), int), t = FIELD(td, OF(TD, 0x4B8), int);
-    ee_player *o = unit_owner(u), *pl = a->pl;
+    ee_player *o = unit_get_owner(u), *pl = a->pl;
     if (o == pl) {
         for (size_t k = 0; k < sizeof k_aa_units / sizeof *k_aa_units; k++) a->have_u += t == g_ut[k_aa_units[k].type];
         for (size_t k = 0; k < sizeof k_aa_bldgs / sizeof *k_aa_bldgs; k++)
             if (t == g_ut[k_aa_bldgs[k].type]) {
                 a->have_b++;
-                if (a->nbx < 16) { a->bxy[a->nbx][0] = FIELD(u, OF(UNIT, 0x1C), int); a->bxy[a->nbx++][1] = FIELD(u, OF(UNIT, 0x20), int); }
+                if (a->nbx < 16) { a->bxy[a->nbx][0] = unit_get_x(u); a->bxy[a->nbx++][1] = unit_get_y(u); }
             }
         return;
     }
     if ((fam != 3 && fam != 7 && fam != 17) || !o || FIELD(o, PL_INDEX, int) <= 0 || !is_enemy(pl, o) || !seen_by(u, pl)) return;
     a->nall++;
-    int x = FIELD(u, OF(UNIT, 0x1C), int), y = FIELD(u, OF(UNIT, 0x20), int), d[2];
+    int x = unit_get_x(u), y = unit_get_y(u), d[2];
     if (!nearest_drop(pl, x, y, 0, d) || (d[0] - x) * (d[0] - x) + (d[1] - y) * (d[1] - y) > 625) return;
     a->nair++; a->axs += (float)x; a->ays += (float)y;
 }
@@ -1371,10 +1371,10 @@ internal const enum ut_name k_upg_names[3][7] = {
 internal struct { ee_player *pl; int best[3]; uint8_t avail[3][7]; ee_unit *u[64]; int to[64], n; } g_upg;
 internal void upg_scan(ee_unit *u, void *ctx) {
     (void)ctx;
-    if (g_upg.n >= 64 || unit_owner(u) != g_upg.pl || FIELD(u, OF(UNIT, 0x3C), int) <= 0) return;
-    uint8_t *td = FIELD(u, OF(UNIT, 0x2C), uint8_t *), *st = FIELD(u, OF(UNIT, 0x30), uint8_t *);
-    if (!td || !st || !FIELD(st, OF(UNIT, 0x340), uint8_t)) return;   // finished only
-    if (FIELD(u, OF(UNIT, 0x8), int) && FIELD(st, OF(UNIT, 0x1CC), int)) return;  // the effect's own condition (0x5BA645)
+    if (g_upg.n >= 64 || unit_get_owner(u) != g_upg.pl || unit_get_hp(u) <= 0) return;
+    uint8_t *td = unit_get_type_data(u); ee_unit *st = unit_get_physics(u);
+    if (!td || !st || !unit_get_finished(st)) return;   // finished only
+    if (((int)unit_get_list_node(u)) && ((int)unit_get_chain(st))) return;  // the effect's own condition (0x5BA645)
     int t = FIELD(td, OF(TD, 0x4B8), int);
     for (int l = 0; l < 3; l++)
         for (int i = 0; i < 7 && UPG(l, i) >= 0; i++)
@@ -1411,7 +1411,7 @@ internal void upgrade_stragglers(void) {   // the safe point (control.c hook_sim
         for (int k = 0; k < g_upg.n; k++) {
             uint8_t *ntd = type_data(g_upg.to[k]);
             if (!ntd) continue;
-            int from = FIELD(FIELD(g_upg.u[k], OF(UNIT, 0x2C), uint8_t *), OF(TD, 0x4B8), int), x = FIELD(g_upg.u[k], OF(UNIT, 0x1C), int), y = FIELD(g_upg.u[k], OF(UNIT, 0x20), int);
+            int from = FIELD(unit_get_type_data(g_upg.u[k]), OF(TD, 0x4B8), int), x = unit_get_x(g_upg.u[k]), y = unit_get_y(g_upg.u[k]);
             unit_convert(g_upg.u[k], pi, ntd);
             g_upg_done[p & 15]++;
             if (g_log) fprintf(g_log, "# upgrades: P%d at %.1f min: %d at %d,%d left behind by its upgrade - now %d\n", p,

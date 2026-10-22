@@ -33,7 +33,7 @@ internal int tile_height(int x, int y, float *h) {
     if (x < 0 || y < 0 || (unsigned)x >= n || (unsigned)y >= n) return 0;
     uint8_t *t = FIELD(map, OF(MAP, 0x1816D4), uint8_t **)[(unsigned)y * n + (unsigned)x];
     if (!t) return 0;
-    *h = FIELD(t, OF(UNIT, 0x10), float);
+    *h = tile_get_height(t);
     return 1;
 }
 
@@ -41,7 +41,7 @@ internal int tile_height(int x, int y, float *h) {
 // the arc's reach the game launches at 45 degrees anyway and the projectile comes down short, after flying its
 // longest distance v^2 / g (*reach = 0).
 internal float flight_time(ee_unit *u, const float *from, const float *to, int *reach) {
-    uint8_t *type = FIELD(u, OF(UNIT, 0x34), uint8_t *), *cls = type ? FIELD(type, OF(USTAT, 0x60), uint8_t *) : NULL;
+    uint8_t *type = unit_get_stats(u), *cls = type ? FIELD(type, OF(USTAT, 0x60), uint8_t *) : NULL;
     uint8_t *pc = cls ? FIELD(cls, OF(TD, 0x3FC), uint8_t *) : NULL;
     float v = type ? FIELD(type, OF(USTAT, 0xC0), float) : 0, g = pc ? FIELD(pc, OF(PL, 0x438), float) : 0, pitch = 0, a[3], b[3];
     if (v <= 0.001f || g <= 0.001f) return -1;
@@ -58,13 +58,13 @@ internal float flight_time(ee_unit *u, const float *from, const float *to, int *
 }
 
 internal void launch_point(ee_unit *u, float *from) {   // about the launch point (0x62028B: the model's fire point)
-    from[0] = FIELD(u, OF(UNIT, 0x13C), float);
-    from[1] = FIELD(u, OF(UNIT, 0x14C), float);
-    from[2] = FIELD(u, OF(UNIT, 0x15C), float) + 0.5f * FIELD(FIELD(u, OF(UNIT, 0x34), uint8_t *), OF(USTAT, 0x98), float);
+    from[0] = unit_get_pos_x(u);
+    from[1] = unit_get_pos_y(u);
+    from[2] = unit_get_pos_z(u) + 0.5f * FIELD(unit_get_stats(u), OF(USTAT, 0x98), float);
 }
 
 internal int target_velocity(ee_unit *t, float *vx, float *vy) {
-    float s = FIELD(t, OF(UNIT, 0x238), float), fx = FIELD(t, OF(UNIT, 0x134), float), fy = FIELD(t, OF(UNIT, 0x144), float);
+    float s = unit_get_speed(t), fx = unit_get_facing_x(t), fy = unit_get_facing_y(t);
     float l = sqrtf(fx * fx + fy * fy);
     *vx = *vy = 0;
     if (!(s > 0.01f && s < 50 && l > 0.01f)) return 0;
@@ -76,7 +76,7 @@ internal int target_velocity(ee_unit *t, float *vx, float *vy) {
 internal float lead_aim(ee_unit *u, ee_unit *t, const float *aim, float T, float vx, float vy, float *out, int *reach) {
     float from[3];
     launch_point(u, from);
-    int tx = FIELD(t, OF(UNIT, 0x1C), int), ty = FIELD(t, OF(UNIT, 0x20), int);
+    int tx = unit_get_x(t), ty = unit_get_y(t);
     int centred = aim[0] == (float)tx + 0.5f && aim[1] == (float)ty + 0.5f;
     float h0 = 0, h;
     int has_h0 = tile_height(tx, ty, &h0);
@@ -85,8 +85,8 @@ internal float lead_aim(ee_unit *u, ee_unit *t, const float *aim, float T, float
         if (T > 6) T = 6;
         float p[3], mx = vx * T, my = vy * T;
         if (centred) {
-            p[0] = floorf(FIELD(t, OF(UNIT, 0x13C), float) + mx) + 0.5f;
-            p[1] = floorf(FIELD(t, OF(UNIT, 0x14C), float) + my) + 0.5f;
+            p[0] = floorf(unit_get_pos_x(t) + mx) + 0.5f;
+            p[1] = floorf(unit_get_pos_y(t) + my) + 0.5f;
         } else { p[0] = aim[0] + mx; p[1] = aim[1] + my; }
         p[2] = aim[2];
         if (has_h0 && tile_height((int)floorf(p[0]), (int)floorf(p[1]), &h)) p[2] += h - h0;
@@ -110,7 +110,7 @@ internal unsigned g_shots, g_shots_unit, g_led, g_lost;
 
 internal ee_unit *find_unit_near(ee_unit *want, float x, float y, int r) {
     for (struct grid_it it = grid_it_box((int)x, (int)y, r, 1); grid_it_next(&it); )
-        if (it.u == want) return FIELD(want, OF(UNIT, 0x3C), int) > 0 ? want : NULL;
+        if (it.u == want) return unit_get_hp(want) > 0 ? want : NULL;
     return NULL;
 }
 
@@ -127,7 +127,7 @@ internal void aim_tick(void) {   // the simulation thread, every pass
             g_pend[i].done |= (uint8_t)(1 << e);
             ee_unit *t = find_unit_near(g_pend[i].t, g_pend[i].x0, g_pend[i].y0, 12);
             if (!t) { if (e == 0) g_lost++; continue; }
-            float x = FIELD(t, OF(UNIT, 0x13C), float), y = FIELD(t, OF(UNIT, 0x14C), float);
+            float x = unit_get_pos_x(t), y = unit_get_pos_y(t);
             float mx = x - g_pend[i].x0, my = y - g_pend[i].y0, dx = x - g_pend[i].ax[e], dy = y - g_pend[i].ay[e];
             int moved = mx * mx + my * my > 0.09f, r = g_pend[i].reach;
             g_ast[moved][r][e].n++;
@@ -145,7 +145,7 @@ internal void aim_measure(ee_unit *t, const float *aim, float T0, const float *l
         if (g_pend[i].t) continue;
         uint32_t now = game_time();
         g_pend[i].t = t; g_pend[i].done = 0; g_pend[i].reach = (uint8_t)reach;
-        g_pend[i].x0 = FIELD(t, OF(UNIT, 0x13C), float); g_pend[i].y0 = FIELD(t, OF(UNIT, 0x14C), float);
+        g_pend[i].x0 = unit_get_pos_x(t); g_pend[i].y0 = unit_get_pos_y(t);
         g_pend[i].due[0] = now + (uint32_t)(T0 * 1000.0f);
         g_pend[i].due[1] = now + (uint32_t)((T1 >= 0 ? T1 : T0) * 1000.0f);
         g_pend[i].ax[0] = aim[0]; g_pend[i].ay[0] = aim[1];
@@ -159,7 +159,7 @@ internal ee_unit *g_retarget;            // spread_missiles: set while 0x61E11C 
 internal void __cdecl hook_aim(ee_unit *u, ee_unit **target, float *aim, void *zero) {
     unit_aim(u, target, aim, g_retarget ? (void *)g_retarget : zero);
     ee_unit *t = *target;
-    uint8_t *cls = FIELD(u, OF(UNIT, 0x2C), uint8_t *), *pc = cls ? FIELD(cls, OF(TD, 0x3FC), uint8_t *) : NULL;
+    uint8_t *cls = unit_get_type_data(u), *pc = cls ? FIELD(cls, OF(TD, 0x3FC), uint8_t *) : NULL;
     g_shots++;
     if (!t || t == u || !pc || !is_projectile_class(pc)) return;
     g_shots_unit++;
@@ -173,13 +173,13 @@ internal void __cdecl hook_aim(ee_unit *u, ee_unit **target, float *aim, void *z
     if (g_lead_log && g_lead_logged < (unsigned)g_lead_log && g_log) {
         g_lead_logged++;
         fprintf(g_log, "# aim: t %u shooter %p at %.2f,%.2f -> target %p at %.2f,%.2f spd %.2f fwd %.2f,%.2f | aim %.2f,%.2f,%.2f"
-                " T %.2f reach %d | led %.2f,%.2f,%.2f T %.2f reach %d\n", game_time(), u, FIELD(u, OF(UNIT, 0x13C), float),
-                FIELD(u, OF(UNIT, 0x14C), float), t, FIELD(t, OF(UNIT, 0x13C), float), FIELD(t, OF(UNIT, 0x14C), float), FIELD(t, OF(UNIT, 0x238), float),
-                FIELD(t, OF(UNIT, 0x134), float), FIELD(t, OF(UNIT, 0x144), float), aim[0], aim[1], aim[2], T0, reach0, led[0], led[1], led[2],
+                " T %.2f reach %d | led %.2f,%.2f,%.2f T %.2f reach %d\n", game_time(), u, unit_get_pos_x(u),
+                unit_get_pos_y(u), t, unit_get_pos_x(t), unit_get_pos_y(t), unit_get_speed(t),
+                unit_get_facing_x(t), unit_get_facing_y(t), aim[0], aim[1], aim[2], T0, reach0, led[0], led[1], led[2],
                 T1, reach1);
     }
     if (g_measure) aim_measure(t, aim, T0, led, T1, g_lead ? reach1 : reach0);
-    if (g_lead && T1 >= 0 && memcmp(led, aim, sizeof led) && !is_vanilla(unit_owner(u))) {   // a vanilla player's units: measured, not led
+    if (g_lead && T1 >= 0 && memcmp(led, aim, sizeof led) && !is_vanilla(unit_get_owner(u))) {   // a vanilla player's units: measured, not led
         memcpy(aim, led, sizeof led);
         g_led++;
     }
@@ -188,15 +188,15 @@ internal void __cdecl hook_aim(ee_unit *u, ee_unit **target, float *aim, void *z
 // Tests: real hits. EEUCProjectile vf55 (0x6078F9, thiscall(class, projectile)) returns 1 when the projectile is down:
 // on the target's footprint (a hit) or not (it hits the ground there).
 internal unsigned g_down, g_hits;
-internal char __fastcall hook_proj_down(void *cls, void *edx, uint8_t *pr) {
+internal char __fastcall hook_proj_down(void *cls, void *edx, ee_unit *pr) {
     (void)edx;
-    uint8_t *goal = FIELD(pr, OF(UNIT, 0x1F0), uint8_t *);
+    uint8_t *goal = unit_get_goal_object(pr);
     ee_unit *t = goal && goal[5] == 2 ? FIELD(goal, OF(GOAL, 0x30), ee_unit *) : NULL;
     char r = proj_down(cls, pr);
     if (r && t && g_measure) {
         g_down++;
-        unsigned x = FIELD(pr, OF(UNIT, 0x1C), unsigned), y = FIELD(pr, OF(UNIT, 0x20), unsigned), tx = FIELD(t, OF(UNIT, 0x1C), unsigned),
-                 ty = FIELD(t, OF(UNIT, 0x20), unsigned), n = FIELD(FIELD(t, OF(UNIT, 0x2C), uint8_t *), OF(TD, 0x58C), unsigned);
+        unsigned x = ((unsigned)unit_get_x(pr)), y = ((unsigned)unit_get_y(pr)), tx = ((unsigned)unit_get_x(t)),
+                 ty = ((unsigned)unit_get_y(t)), n = FIELD(unit_get_type_data(t), OF(TD, 0x58C), unsigned);
         if (x >= tx && x < tx + n && y >= ty && y < ty + n) g_hits++;
     }
     return r;
@@ -247,9 +247,9 @@ internal void __cdecl hook_missile_aim(ee_unit *m, ee_unit **target, float *aim,
     ee_unit *t = *target;
     if (!t || t == m) return;
     uint32_t now = game_time();
-    float tp[3] = { FIELD(t, OF(UNIT, 0x13C), float), FIELD(t, OF(UNIT, 0x14C), float), FIELD(t, OF(UNIT, 0x15C), float) };
-    float r[3] = { aim[0] - FIELD(m, OF(UNIT, 0x13C), float), aim[1] - FIELD(m, OF(UNIT, 0x14C), float), aim[2] - FIELD(m, OF(UNIT, 0x15C), float) };
-    float dist = sqrtf(r[0] * r[0] + r[1] * r[1] + r[2] * r[2]), s = FIELD(FIELD(m, OF(UNIT, 0x34), uint8_t *), OF(USTAT, 0xAC), float);
+    float tp[3] = { unit_get_pos_x(t), unit_get_pos_y(t), unit_get_pos_z(t) };
+    float r[3] = { aim[0] - unit_get_pos_x(m), aim[1] - unit_get_pos_y(m), aim[2] - unit_get_pos_z(m) };
+    float dist = sqrtf(r[0] * r[0] + r[1] * r[1] + r[2] * r[2]), s = FIELD(unit_get_stats(m), OF(USTAT, 0xAC), float);
     int k = -1, free_i = -1;
     for (int i = 0; i < MSL_MAX && k < 0; i++) {
         if (g_msl[i].m == m) k = i;
@@ -260,7 +260,7 @@ internal void __cdecl hook_missile_aim(ee_unit *m, ee_unit **target, float *aim,
         k = free_i;
         memset(&g_msl[k], 0, sizeof g_msl[k]);
         g_msl[k].m = m; g_msl[k].first = now; g_msl[k].dist = dist;
-        g_msl[k].moving = FIELD(t, OF(UNIT, 0x238), float) > 0.01f;
+        g_msl[k].moving = unit_get_speed(t) > 0.01f;
         g_msl[k].dmg = missile_damage(m, t);
         if (g_measure) g_mst[g_msl[k].moving].speed += s;
     } else if (g_msl[k].t != t) { g_msl[k].nv = 0; g_msl[k].dmg = missile_damage(m, t); }   // a new target
@@ -276,7 +276,7 @@ internal void __cdecl hook_missile_aim(ee_unit *m, ee_unit **target, float *aim,
     g_msl[k].t = t; g_msl[k].last = now;
     memcpy(g_msl[k].p, tp, sizeof tp);
     if (dist < g_msl[k].dist) g_msl[k].dist = dist;
-    if (!g_lead_missiles || !g_msl[k].nv || !(s > 0.01f) || is_vanilla(unit_owner(m))) return;   // tracked, not steered
+    if (!g_lead_missiles || !g_msl[k].nv || !(s > 0.01f) || is_vanilla(unit_get_owner(m))) return;   // tracked, not steered
     float *v = g_msl[k].v;
     float a = v[0] * v[0] + v[1] * v[1] + v[2] * v[2] - s * s, b = 2 * (r[0] * v[0] + r[1] * v[1] + r[2] * v[2]);
     float c = dist * dist, T = -1;
@@ -306,10 +306,10 @@ internal int g_spread = 1;
 internal unsigned g_spread_held, g_spread_switched, g_launched;
 
 internal int missile_damage(ee_unit *m, ee_unit *t) {
-    uint8_t *lc = FIELD(m, OF(UNIT, 0x1C0), uint8_t *), *tc = FIELD(t, OF(UNIT, 0x2C), uint8_t *);
-    ee_player *pl = unit_owner(m);
-    ee_player *tpl = unit_owner(t);
-    uint8_t *ts = FIELD(t, OF(UNIT, 0x34), uint8_t *);
+    uint8_t *lc = unit_get_attacker_type(m), *tc = unit_get_type_data(t);
+    ee_player *pl = unit_get_owner(m);
+    ee_player *tpl = unit_get_owner(t);
+    uint8_t *ts = unit_get_stats(t);
     if (!lc || !pl || !tc || !tpl || !ts) return 0;
     int ac = FIELD(lc, OF(TD, 0x4C0), int), dc = FIELD(tc, OF(TD, 0x4C0), int);
     if (ac < 0 || ac > 5 || dc < 0 || dc > 15) return 0;
@@ -330,12 +330,12 @@ internal int incoming(ee_unit *t) {
         if (g_msl[i].m && g_msl[i].t == t) sum += g_msl[i].dmg;
     return sum;
 }
-internal int doomed(ee_unit *t) { return FIELD(t, OF(UNIT, 0x3C), int) > 0 && incoming(t) >= FIELD(t, OF(UNIT, 0x3C), int); }
+internal int doomed(ee_unit *t) { return unit_get_hp(t) > 0 && incoming(t) >= unit_get_hp(t); }
 
 internal int __fastcall hook_missile_launch(uint8_t *cls, void *edx, ee_unit *m, float *aim) {   // ret 8: (missile, aim)
     (void)edx;
     int r = missile_launch(cls, m, aim);
-    uint8_t *goal = FIELD(m, OF(UNIT, 0x1EC), uint8_t *);
+    uint8_t *goal = unit_get_goal(m);
     ee_unit *t = goal && goal[5] == 2 ? FIELD(goal, OF(GOAL, 0x30), ee_unit *) : NULL;
     g_launched++;
     if (!t) return r;
@@ -344,12 +344,12 @@ internal int __fastcall hook_missile_launch(uint8_t *cls, void *edx, ee_unit *m,
         if (!g_msl[i].m) {
             memset(&g_msl[i], 0, sizeof g_msl[i]);
             g_msl[i].m = m; g_msl[i].t = t; g_msl[i].first = now;
-            g_msl[i].last = now + (uint32_t)(FIELD(m, OF(UNIT, 0x28C), int) > 0 ? FIELD(m, OF(UNIT, 0x28C), int) : 0);
-            g_msl[i].dist = 1e9f; g_msl[i].moving = FIELD(t, OF(UNIT, 0x238), float) > 0.01f;
+            g_msl[i].last = now + (uint32_t)(unit_get_flight_ms(m) > 0 ? unit_get_flight_ms(m) : 0);
+            g_msl[i].dist = 1e9f; g_msl[i].moving = unit_get_speed(t) > 0.01f;
             g_msl[i].dmg = missile_damage(m, t);
-            g_msl[i].p[0] = FIELD(t, OF(UNIT, 0x13C), float);
-            g_msl[i].p[1] = FIELD(t, OF(UNIT, 0x14C), float); g_msl[i].p[2] = FIELD(t, OF(UNIT, 0x15C), float);
-            if (g_measure) g_mst[g_msl[i].moving].speed += FIELD(FIELD(m, OF(UNIT, 0x34), uint8_t *), OF(USTAT, 0xAC), float);
+            g_msl[i].p[0] = unit_get_pos_x(t);
+            g_msl[i].p[1] = unit_get_pos_y(t); g_msl[i].p[2] = unit_get_pos_z(t);
+            if (g_measure) g_mst[g_msl[i].moving].speed += FIELD(unit_get_stats(m), OF(USTAT, 0xAC), float);
             break;
         }
     return r;
@@ -357,10 +357,10 @@ internal int __fastcall hook_missile_launch(uint8_t *cls, void *edx, ee_unit *m,
 
 // The nearest enemy of the same kind as t within u's range, seen by u's owner and not covered yet.
 internal ee_unit *spread_target(ee_unit *u, ee_unit *t) {
-    ee_player *pl = unit_owner(u);
+    ee_player *pl = unit_get_owner(u);
     if (!pl) return NULL;
-    int fam = FIELD(FIELD(t, OF(UNIT, 0x2C), uint8_t *), OF(TD, 0x4B4), int);
-    float x = FIELD(u, OF(UNIT, 0x13C), float), y = FIELD(u, OF(UNIT, 0x14C), float), range = FIELD(FIELD(u, OF(UNIT, 0x34), uint8_t *), OF(USTAT, 0x9C), float);
+    int fam = FIELD(unit_get_type_data(t), OF(TD, 0x4B4), int);
+    float x = unit_get_pos_x(u), y = unit_get_pos_y(u), range = FIELD(unit_get_stats(u), OF(USTAT, 0x9C), float);
     int r = (int)range + 1;
     ee_unit *best = NULL;
     float bd = range * range;
@@ -368,9 +368,9 @@ internal ee_unit *spread_target(ee_unit *u, ee_unit *t) {
     for (struct grid_it it = grid_it_box((int)x, (int)y, r, 1); grid_it_next(&it); ) {
         ee_unit *c = it.u;
         uint8_t *cc = it.td;
-        if (c == t || FIELD(c, OF(UNIT, 0x3C), int) <= 0 || FIELD(cc, OF(TD, 0x4B4), int) != fam) continue;
-        if (!is_enemy(pl, unit_owner(c)) || !seen_by(c, pl) || doomed(c)) continue;
-        float dx = FIELD(c, OF(UNIT, 0x13C), float) - x, dy = FIELD(c, OF(UNIT, 0x14C), float) - y, d = dx * dx + dy * dy;
+        if (c == t || unit_get_hp(c) <= 0 || FIELD(cc, OF(TD, 0x4B4), int) != fam) continue;
+        if (!is_enemy(pl, unit_get_owner(c)) || !seen_by(c, pl) || doomed(c)) continue;
+        float dx = unit_get_pos_x(c) - x, dy = unit_get_pos_y(c) - y, d = dx * dx + dy * dy;
         if (d <= bd) { bd = d; best = c; }
     }
     return best;
@@ -381,7 +381,7 @@ internal ee_unit *spread_target(ee_unit *u, ee_unit *t) {
 internal struct { ee_unit *u; int type, n; uint32_t t0, t1; } g_fr[512];
 internal int g_fr_n, g_fr_on;   // on in tests
 internal void fr_note(ee_unit *u) {
-    uint8_t *td = u ? FIELD(u, OF(UNIT, 0x2C), uint8_t *) : NULL;
+    uint8_t *td = u ? unit_get_type_data(u) : NULL;
     if (!td || !g_fr_on) return;
     uint32_t now = game_time();
     for (int k = 0; k < g_fr_n; k++)
@@ -409,9 +409,9 @@ internal void cmd_firerate(char *out, const char *args) {
 internal void __fastcall hook_fire(uint8_t *cls, void *edx, ee_unit *u) {
     (void)edx;
     fr_note(u);
-    uint8_t *pc = FIELD(cls, OF(TD, 0x3FC), uint8_t *), *goal = FIELD(u, OF(UNIT, 0x1EC), uint8_t *);
+    uint8_t *pc = FIELD(cls, OF(TD, 0x3FC), uint8_t *), *goal = unit_get_goal(u);
     ee_unit *t = goal && goal[5] == 2 ? FIELD(goal, OF(GOAL, 0x30), ee_unit *) : NULL;
-    if (g_spread && t && pc && is_missile_class(pc) && !is_vanilla(unit_owner(u)) && doomed(t)) {
+    if (g_spread && t && pc && is_missile_class(pc) && !is_vanilla(unit_get_owner(u)) && doomed(t)) {
         ee_unit *alt = spread_target(u, t);
         if (!alt) { g_spread_held++; return; }
         g_spread_switched++;

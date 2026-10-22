@@ -85,7 +85,7 @@ internal inline int patch_save_game(save_game_hook h) { return patch_all_calls(G
 typedef void (__cdecl *aim_hook)(ee_unit *u, ee_unit **target, float *aim, void *zero);
 internal inline int patch_aim(aim_hook h) { return patch_call(GA(CALL_AIM), GA(FN_AIM), (void *)h); }
 internal inline int patch_missile_aim(aim_hook h) { return patch_call(GA(CALL_MISSILE_AIM), GA(FN_AIM), (void *)h); }
-typedef char (__fastcall *proj_down_hook)(void *cls, void *edx, uint8_t *projectile);
+typedef char (__fastcall *proj_down_hook)(void *cls, void *edx, ee_unit *projectile);
 internal inline int patch_proj_down(proj_down_hook h) { return patch_vtable(GA(VT_PROJECTILE), GA(SLOT_PROJ_DOWN), GA(FN_PROJ_DOWN), (void *)h); }
 typedef int (__fastcall *missile_launch_hook)(uint8_t *cls, void *edx, ee_unit *m, float *aim);
 internal inline int patch_missile_launch(missile_launch_hook h) { return patch_vtable(GA(VT_MISSILE), GA(SLOT_MISSILE_LAUNCH), GA(FN_MISSILE_LAUNCH), (void *)h); }

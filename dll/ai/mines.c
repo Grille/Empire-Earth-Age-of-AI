@@ -52,12 +52,12 @@ internal void mf_scan(ee_player *pl, unsigned idx, uint32_t now) {
         void **sb = zone ? FIELD(zone, OF(ZONE, 0x8), void **) : NULL, **se = zone ? FIELD(zone, OF(ZONE, 0xC), void **) : NULL;
         for (int k = 0; sb && sb + k < se && k < 4096; k++) {
             ee_unit *s = sb[k];
-            int r = s ? FIELD(s, OF(UNIT, 0x38), int) : 0, j;
-            if (r < 4 || r > 6 || FIELD(s, OF(UNIT, 0x40), int) <= 0) continue;
+            int r = s ? unit_get_resource(s) : 0, j;
+            if (r < 4 || r > 6 || unit_get_amount(s) <= 0) continue;
             for (j = 0; j < ns && seen[j] != s; j++) ;
             if (j < ns) continue;
             if (ns < 1024) seen[ns++] = s;
-            int pos[2] = { FIELD(s, OF(UNIT, 0x1C), int), FIELD(s, OF(UNIT, 0x20), int) }, dd = 0x7FFFFFFF;
+            int pos[2] = { unit_get_x(s), unit_get_y(s) }, dd = 0x7FFFFFFF;
             for (int i = 0; i < g_drops[idx].n; i++) {
                 int *d = g_drops[idx].d[i], dx = d[0] - pos[0], dy = d[1] - pos[1];
                 if (!d[2] && dx * dx + dy * dy < dd) dd = dx * dx + dy * dy;
@@ -145,8 +145,8 @@ internal void mine_drops(ee_player *pl, unsigned idx, uint32_t now) {
     if (!bm || !um || !ut_has(UT(B_SETTLEMENT)) || bq_has(bm, UT(B_SETTLEMENT)) || bq_has(bm, UT(X_SINGLE_PLAYER_SETTLEMENT))) return;
     uint8_t *q = type_list(um, UT(B_SETTLEMENT));   // one being built: wait for it
     for (unsigned k = 0, f = q ? FIELD(q, 0xC, unsigned) : 0, n = q ? FIELD(q, 0x10, unsigned) : 0; k < n; k++) {
-        uint8_t *b = deque_at(q, f + k), *st = b ? FIELD(b, OF(UNIT, 0x30), uint8_t *) : NULL;
-        if (b && FIELD(b, OF(UNIT, 0x3C), int) > 0 && (!st || !FIELD(st, OF(UNIT, 0x340), uint8_t))) return;
+        ee_unit *b = deque_at(q, f + k), *st = b ? unit_get_physics(b) : NULL;
+        if (b && unit_get_hp(b) > 0 && (!st || !unit_get_finished(st))) return;
     }
     if (!can_build(pl, UT(B_SETTLEMENT))) return;   // can't build or pay now
     int e = current_epoch(pl);

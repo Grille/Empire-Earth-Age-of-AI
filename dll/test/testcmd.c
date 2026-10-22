@@ -196,12 +196,12 @@ internal void cmd_targets(char *out, const char *args) {
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
         uint8_t *td = it.td;
-        if (!td || (FIELD(td, OF(TD, 0x4B4), int) != 2 && FIELD(td, OF(TD, 0x4B4), int) != 29) || !is_enemy(pl, unit_owner(u)))
+        if (!td || (FIELD(td, OF(TD, 0x4B4), int) != 2 && FIELD(td, OF(TD, 0x4B4), int) != 29) || !is_enemy(pl, unit_get_owner(u)))
             continue;
-        int x = FIELD(u, OF(UNIT, 0x1C), int), y = FIELD(u, OF(UNIT, 0x20), int);
+        int x = unit_get_x(u), y = unit_get_y(u);
         if (strlen(out) > 15000) { REPLY("...\n"); return; }
         REPLY("  type %3d of P%d at %d,%d %s threat %.1f\n", FIELD(td, OF(TD, 0x4B8), int),
-              FIELD(unit_owner(u), PL_INDEX, int), x, y, seen_by(u, pl) ? "seen  " : "unseen", threat_at(p, x, y));
+              FIELD(unit_get_owner(u), PL_INDEX, int), x, y, seen_by(u, pl) ? "seen  " : "unseen", threat_at(p, x, y));
         n++;
     }
     REPLY("P%d: %u enemy buildings\n", p, n);
@@ -330,7 +330,7 @@ internal void cmd_count(char *out, const char *args) {
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
         uint8_t *td = it.td;
-        ee_player *owner = unit_owner(u);
+        ee_player *owner = unit_get_owner(u);
         if (!td || !owner || FIELD(owner, PL_INDEX, int) != p) continue;
         int t = FIELD(td, OF(TD, 0x4B8), int);
         if (t >= 0 && t < 0x300) n[t]++;
@@ -355,7 +355,7 @@ internal void cmd_gridcheck(char *out, const char *args) {
         if (n >= HN) { full = 1; break; }
         if (!h[k].u) { h[k].u = it.u; h[k].fam = FIELD(it.td, OF(TD, 0x4B4), int); }
         h[k].cells++;
-        if (FIELD(it.u, OF(UNIT, 0x1C), int) / it.cs == it.cx && FIELD(it.u, OF(UNIT, 0x20), int) / it.cs == it.cy) h[k].own = 1;
+        if (unit_get_x(it.u) / it.cs == it.cx && unit_get_y(it.u) / it.cs == it.cy) h[k].own = 1;
     }
     static int nu[64], nm[64], mx[64], no[64];
     memset(nu, 0, sizeof nu); memset(nm, 0, sizeof nm); memset(mx, 0, sizeof mx); memset(no, 0, sizeof no);
@@ -383,11 +383,11 @@ internal void cmd_objs(char *out, const char *args) {
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
         uint8_t *td = it.td;
-        ee_player *owner = unit_owner(u);
+        ee_player *owner = unit_get_owner(u);
         if (!td || !owner || FIELD(owner, PL_INDEX, int) != p || (t >= 0 && FIELD(td, OF(TD, 0x4B8), int) != t) || strlen(out) > 15000) continue;
         if (t < 0) REPLY(" T%d", FIELD(td, OF(TD, 0x4B8), int));   // all types: each with its type
-        REPLY(" [%d,%d hp %d/%g %s]", FIELD(u, OF(UNIT, 0x1C), int), FIELD(u, OF(UNIT, 0x20), int), FIELD(u, OF(UNIT, 0x3C), int),
-              FIELD(td, OF(TD, 0x55C), float), rtti_name(FIELD(u, OF(UNIT, 0x1EC), void *)));
+        REPLY(" [%d,%d hp %d/%g %s]", unit_get_x(u), unit_get_y(u), unit_get_hp(u),
+              FIELD(td, OF(TD, 0x55C), float), rtti_name(unit_get_goal(u)));
     }
     REPLY("\n");
 }
@@ -418,8 +418,8 @@ internal void cmd_build(char *out, const char *args) {
     for (struct grid_it it = grid_it_box(x, y, r + 4, 1); grid_it_next(&it); ) {   // wide enough for the building too
         ee_unit *u = it.u;
         uint8_t *td = it.td;
-        if (unit_owner(u) != pl || FIELD(u, OF(UNIT, 0x3C), int) <= 0) continue;
-        int t = FIELD(td, OF(TD, 0x4B8), int), ux = FIELD(u, OF(UNIT, 0x1C), int), uy = FIELD(u, OF(UNIT, 0x20), int);
+        if (unit_get_owner(u) != pl || unit_get_hp(u) <= 0) continue;
+        int t = FIELD(td, OF(TD, 0x4B8), int), ux = unit_get_x(u), uy = unit_get_y(u);
         if (ux == bx && uy == by && (FIELD(td, OF(TD, 0x4B4), int) == 2 || FIELD(td, OF(TD, 0x4B4), int) == 29)) bld = u;
         else if (is_citizen_type(t) && abs(ux - x) <= r && abs(uy - y) <= r && nc < 32) {
             int dup = 0;
@@ -449,10 +449,10 @@ internal void cmd_watchtype(char *out, const char *args) {
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
         uint8_t *td = it.td;
-        ee_player *owner = unit_owner(u);
+        ee_player *owner = unit_get_owner(u);
         if (!td || !owner || FIELD(owner, PL_INDEX, int) != p || FIELD(td, OF(TD, 0x4B8), int) != t) continue;
         watch_set((unsigned)(uintptr_t)FIELD_AT(u, off), 4);
-        REPLY("ok: watching unit %p +%x (type %d of P%d at %d,%d)\n", u, off, t, p, FIELD(u, OF(UNIT, 0x1C), int), FIELD(u, OF(UNIT, 0x20), int));
+        REPLY("ok: watching unit %p +%x (type %d of P%d at %d,%d)\n", u, off, t, p, unit_get_x(u), unit_get_y(u));
         return;
     }
     REPLY("error: no unit of type %d for P%d\n", t, p);
@@ -471,9 +471,9 @@ internal void cmd_hurt(char *out, const char *args) {
     for (struct grid_it it = grid_it_box(x, y, r, 1); n < 64 && grid_it_next(&it); ) {
         ee_unit *u = it.u;
         uint8_t *td = it.td;
-        ee_player *owner = u ? unit_owner(u) : NULL;
-        if (!td || !owner || FIELD(owner, PL_INDEX, int) != p || FIELD(td, OF(TD, 0x4B8), int) != t || FIELD(u, OF(UNIT, 0x3C), int) <= 0) continue;
-        if (abs(FIELD(u, OF(UNIT, 0x1C), int) - x) > r || abs(FIELD(u, OF(UNIT, 0x20), int) - y) > r) continue;
+        ee_player *owner = u ? unit_get_owner(u) : NULL;
+        if (!td || !owner || FIELD(owner, PL_INDEX, int) != p || FIELD(td, OF(TD, 0x4B8), int) != t || unit_get_hp(u) <= 0) continue;
+        if (abs(unit_get_x(u) - x) > r || abs(unit_get_y(u) - y) > r) continue;
         int dup = 0;
         for (int k = 0; k < n; k++) dup |= hit[k] == u;
         if (!dup) hit[n++] = u;
@@ -503,8 +503,8 @@ internal void units_of(int p, int want, struct w_scan *o) {   // want: 0 soldier
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
         uint8_t *td = it.td;
-        ee_player *owner = unit_owner(u);
-        if (!td || !owner || FIELD(owner, PL_INDEX, int) != p || FIELD(u, OF(UNIT, 0x3C), int) <= 0) continue;
+        ee_player *owner = unit_get_owner(u);
+        if (!td || !owner || FIELD(owner, PL_INDEX, int) != p || unit_get_hp(u) <= 0) continue;
         int fam = FIELD(td, OF(TD, 0x4B4), int), ty = FIELD(td, OF(TD, 0x4B8), int);
         int civ = is_citizen_type(ty), sold = !civ && is_army_family(fam);
         if (want == 2 ? !civ : want == 1 ? civ || sold : !sold) continue;   // 1: the rest - buildings, walls, towers
@@ -530,8 +530,8 @@ internal void cmd_wave(char *out, const char *args) {
     if (x < 0) {
         units_of(a, 1, &sc);
         for (int i = 0; i < sc.n; i++) {
-            int t = FIELD(FIELD(sc.u[i], OF(UNIT, 0x2C), uint8_t *), OF(TD, 0x4B8), int);
-            if (x < 0 || t == UT(B_TOWN_CENTER) || t == UT(B_CAPITOL)) x = FIELD(sc.u[i], OF(UNIT, 0x1C), int), y = FIELD(sc.u[i], OF(UNIT, 0x20), int);
+            int t = FIELD(unit_get_type_data(sc.u[i]), OF(TD, 0x4B8), int);
+            if (x < 0 || t == UT(B_TOWN_CENTER) || t == UT(B_CAPITOL)) x = unit_get_x(sc.u[i]), y = unit_get_y(sc.u[i]);
             if (t == UT(B_TOWN_CENTER)) break;
         }
         if (x < 0) { REPLY("error: P%d has no buildings, give x y\n", a); return; }
@@ -545,7 +545,7 @@ internal void cmd_wave(char *out, const char *args) {
     mix[d].t = now;
     int ct[64] = { 0 }, total = 0, sent = 0, left = 0;
     for (int i = 0; i < sc.n; i++) {
-        uint8_t *td = FIELD(sc.u[i], OF(UNIT, 0x2C), uint8_t *);
+        uint8_t *td = unit_get_type_data(sc.u[i]);
         int t = FIELD(td, OF(TD, 0x4B8), int), j = 0;
         if (is_ship_or_air(td)) { left++; continue; }
         while (j < mix[d].nt && mix[d].type[j] != t) j++;
@@ -589,36 +589,36 @@ internal void charge_pass(char *out, int a, int d) {
     for (int i0 = 0; i0 < mine.n; i0++) {
         int i = (int)((i0 + g_charge.rot) % (unsigned)mine.n);
         ee_unit *u = mine.u[i];
-        uint8_t *goal = FIELD(u, OF(UNIT, 0x1EC), uint8_t *);
+        uint8_t *goal = unit_get_goal(u);
         if (goal && !strcmp(rtti_name(goal), "EEUGAttackUnit@@")) {
             ee_unit *t = FIELD(goal, OF(GOAL, 0x30), ee_unit *);
-            void *to = t ? unit_owner(t) : NULL;
-            if (to && FIELD(to, PL_INDEX, int) == d && FIELD(t, OF(UNIT, 0x3C), int) > 0) { kept++; continue; }
+            void *to = t ? unit_get_owner(t) : NULL;
+            if (to && FIELD(to, PL_INDEX, int) == d && unit_get_hp(t) > 0) { kept++; continue; }
         }
         if (goal && !strcmp(rtti_name(goal), "EEUGLocation@@")) { marching++; continue; }
         if (++idle > 80) continue;   // 80 orders a pass: 500 at once lost their goal within 10 s (the path search)
-        float ux = (float)FIELD(u, OF(UNIT, 0x1C), int), uy = (float)FIELD(u, OF(UNIT, 0x20), int), best = 15.0f * 15.0f;
+        float ux = (float)unit_get_x(u), uy = (float)unit_get_y(u), best = 15.0f * 15.0f;
         ee_unit *tgt = NULL;
         for (int k = 0; k < foe.n; k++) {
-            float dx = (float)FIELD(foe.u[k], OF(UNIT, 0x1C), int) - ux, dy = (float)FIELD(foe.u[k], OF(UNIT, 0x20), int) - uy;
+            float dx = (float)unit_get_x(foe.u[k]) - ux, dy = (float)unit_get_y(foe.u[k]) - uy;
             if (dx * dx + dy * dy < best) { best = dx * dx + dy * dy; tgt = foe.u[k]; }
         }
         if (!tgt) {
             best = 20.0f * 20.0f;
             for (int k = 0; k < civ.n; k++) {
-                float dx = (float)FIELD(civ.u[k], OF(UNIT, 0x1C), int) - ux, dy = (float)FIELD(civ.u[k], OF(UNIT, 0x20), int) - uy;
+                float dx = (float)unit_get_x(civ.u[k]) - ux, dy = (float)unit_get_y(civ.u[k]) - uy;
                 if (dx * dx + dy * dy < best) { best = dx * dx + dy * dy; tgt = civ.u[k]; }
             }
         }
         if (!tgt) {
             best = 1e12f;
             for (int k = 0; k < bld.n; k++) {
-                float dx = (float)FIELD(bld.u[k], OF(UNIT, 0x1C), int) - ux, dy = (float)FIELD(bld.u[k], OF(UNIT, 0x20), int) - uy;
+                float dx = (float)unit_get_x(bld.u[k]) - ux, dy = (float)unit_get_y(bld.u[k]) - uy;
                 if (dx * dx + dy * dy < best) { best = dx * dx + dy * dy; tgt = bld.u[k]; }
             }
         }
         if (!tgt) continue;
-        float tx = (float)FIELD(tgt, OF(UNIT, 0x1C), int), ty = (float)FIELD(tgt, OF(UNIT, 0x20), int);
+        float tx = (float)unit_get_x(tgt), ty = (float)unit_get_y(tgt);
         if ((tx - ux) * (tx - ux) + (ty - uy) * (ty - uy) > 20.0f * 20.0f)   // far: walk there first
             n += unit_goal(u, goal_move(tx + (ux - tx) * 0.1f, ty + (uy - ty) * 0.1f), 0, 0x1F40);
         else n += unit_goal(u, goal_attack(u, tgt), 0, 0x1F40);
@@ -664,21 +664,21 @@ internal void cmd_army(char *out, const char *args) {
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
         uint8_t *td = it.td;
-        ee_player *owner = unit_owner(u);
+        ee_player *owner = unit_get_owner(u);
         if (!td || !owner || FIELD(owner, PL_INDEX, int) != p) continue;
         if (!is_army_family(FIELD(td, OF(TD, 0x4B4), int))) continue;
         if (only >= 0 && FIELD(td, OF(TD, 0x4B8), int) != only) continue;
-        const char *gn = rtti_name(FIELD(u, OF(UNIT, 0x1EC), void *));
+        const char *gn = rtti_name(unit_get_goal(u));
         int j = 0;
         while (j < ng && g[j].goal != gn) j++;
         if (j == ng) { if (ng == 32) continue; g[ng].goal = gn; g[ng].n = 0; g[ng].sx = g[ng].sy = 0; g[ng].first = u; ng++; }
-        g[j].n++; g[j].sx += FIELD(u, OF(UNIT, 0x1C), int); g[j].sy += FIELD(u, OF(UNIT, 0x20), int);
+        g[j].n++; g[j].sx += unit_get_x(u); g[j].sy += unit_get_y(u);
         total++;
     }
     REPLY("P%d: %d soldiers\n", p, total);
     for (int j = 0; j < ng; j++) {
         REPLY("  %3d x %-28s centre %ld,%ld", g[j].n, g[j].goal, g[j].sx / g[j].n, g[j].sy / g[j].n);
-        uint32_t *gd = FIELD(g[j].first, OF(UNIT, 0x1EC), uint32_t *);
+        uint32_t *gd = ((uint32_t *)unit_get_goal(g[j].first));
         if (gd) for (int k = 0; k < 24; k++) REPLY(" %08x", gd[k]);
         REPLY("\n");
     }
@@ -711,14 +711,14 @@ internal void cmd_continent(char *out, const char *args) {
 struct ag_scan { ee_player *pl; uint8_t *cm; int n, ids[256]; long sx, sy; int x, y, nodef; ee_unit *best; long bd; };
 internal void ag_unit(ee_unit *u, void *ctx) {
     struct ag_scan *s = ctx;
-    uint8_t *td = FIELD(u, OF(UNIT, 0x2C), uint8_t *);
-    ee_player *owner = unit_owner(u);
-    if (FIELD(u, OF(UNIT, 0x3C), int) <= 0 || !owner || !td) return;
-    int fam = FIELD(td, OF(TD, 0x4B4), int), x = FIELD(u, OF(UNIT, 0x1C), int), y = FIELD(u, OF(UNIT, 0x20), int);
+    uint8_t *td = unit_get_type_data(u);
+    ee_player *owner = unit_get_owner(u);
+    if (unit_get_hp(u) <= 0 || !owner || !td) return;
+    int fam = FIELD(td, OF(TD, 0x4B4), int), x = unit_get_x(u), y = unit_get_y(u);
     if (owner == s->pl && s->x < 0) {
         if (is_soldier(td) && !is_ship_or_air(td) && s->n < 256 &&
-            cm_unit_free(s->cm, FIELD(u, OF(UNIT, 0x30), void *))) {
-            s->ids[s->n++] = FIELD(u, OF(UNIT, 0x24), int); s->sx += x; s->sy += y;
+            cm_unit_free(s->cm, unit_get_physics(u))) {
+            s->ids[s->n++] = unit_get_serial(u); s->sx += x; s->sy += y;
         }
     } else if (s->x >= 0 && is_enemy(s->pl, owner) && (fam == 2 || fam == 29)) {
         float r, a;
@@ -743,13 +743,13 @@ internal void cmd_aigroup(char *out, const char *args) {
     grid_each(ag_unit, &s);
     if (!s.best) { REPLY("error: no enemy building\n"); return; }
     ee_unit *t = s.best;
-        ee_player *tpl = unit_owner(t);
+        ee_player *tpl = unit_get_owner(t);
     __attribute__((aligned(8))) uint8_t task[0x40], loc[0x20], strat[0x50];
     task_init(task);
     location_init(loc);
     strategy_init(strat);
     task_set_target(task, t);
-    int pt[2] = { FIELD(t, OF(UNIT, 0x1C), int), FIELD(t, OF(UNIT, 0x20), int) };
+    int pt[2] = { unit_get_x(t), unit_get_y(t) };
     point_set(loc + 4, pt);
     task_set_location(task + 4, loc);
     FIELD(task, OF(TASK, 0x20), void *) = game_players()[FIELD(tpl, PL_INDEX, int) & 15];
@@ -768,7 +768,7 @@ internal void cmd_aigroup(char *out, const char *args) {
     strategy_free(strat);
     int nsg = g && FIELD(g, OF(AG, 0x8), void *) ? (int)((FIELD(g, OF(AG, 0xC), uint8_t *) - FIELD(g, OF(AG, 0x8), uint8_t *)) / 4) : 0;
     REPLY("P%d: %d free land soldiers (centre %ld,%ld) -> target type %d of P%d at %d,%d: %s, group %p with %d subgroups\n",
-          p, s.n, s.sx / s.n, s.sy / s.n, FIELD(FIELD(t, OF(UNIT, 0x2C), uint8_t *), OF(TD, 0x4B8), int), FIELD(tpl, PL_INDEX, int), pt[0], pt[1],
+          p, s.n, s.sx / s.n, s.sy / s.n, FIELD(unit_get_type_data(t), OF(TD, 0x4B8), int), FIELD(tpl, PL_INDEX, int), pt[0], pt[1],
           ok ? "accepted" : "refused (0x47067A)", g, nsg);
 }
 
@@ -792,14 +792,14 @@ internal void cmd_uinfo(char *out, const char *args) {
     for (struct grid_it it = grid_it_box(x, y, r, 1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
         uint8_t *td = it.td;
-        int ux = FIELD(u, OF(UNIT, 0x1C), int), uy = FIELD(u, OF(UNIT, 0x20), int);
+        int ux = unit_get_x(u), uy = unit_get_y(u);
         if (abs(ux - x) > r || abs(uy - y) > r || strlen(out) > 15000) continue;
-        ee_player *owner = unit_owner(u);
+        ee_player *owner = unit_get_owner(u);
         REPLY("%p type %d P%d hp %d pos %.3f,%.3f,%.2f spd %.3f/%.3f fwd %.2f,%.2f,%.2f goal %s\n",
-              u, FIELD(td, OF(TD, 0x4B8), int), owner ? FIELD(owner, PL_INDEX, int) : -1, FIELD(u, OF(UNIT, 0x3C), int),
-              FIELD(u, OF(UNIT, 0x13C), float), FIELD(u, OF(UNIT, 0x14C), float), FIELD(u, OF(UNIT, 0x15C), float), FIELD(u, OF(UNIT, 0x238), float),
-              FIELD(u, OF(UNIT, 0x21C), float), FIELD(u, OF(UNIT, 0x134), float), FIELD(u, OF(UNIT, 0x144), float), FIELD(u, OF(UNIT, 0x154), float),
-              rtti_name(FIELD(u, OF(UNIT, 0x1EC), void *)));
+              u, FIELD(td, OF(TD, 0x4B8), int), owner ? FIELD(owner, PL_INDEX, int) : -1, unit_get_hp(u),
+              unit_get_pos_x(u), unit_get_pos_y(u), unit_get_pos_z(u), unit_get_speed(u),
+              unit_get_speed_min(u), unit_get_facing_x(u), unit_get_facing_y(u), unit_get_facing_z(u),
+              rtti_name(unit_get_goal(u)));
     }
 }
 
@@ -813,13 +813,13 @@ internal void cmd_move(char *out, const char *args) {
     for (struct grid_it it = grid_it_box(x, y, r, 1); nf < 200 && grid_it_next(&it); ) {
         ee_unit *u = it.u;
         uint8_t *td = it.td;
-        ee_player *owner = unit_owner(u);
+        ee_player *owner = unit_get_owner(u);
         if (!owner || FIELD(owner, PL_INDEX, int) != p || FIELD(td, OF(TD, 0x4B4), int) == 2) continue;
-        if (abs(FIELD(u, OF(UNIT, 0x1C), int) - x) > r || abs(FIELD(u, OF(UNIT, 0x20), int) - y) > r) continue;
+        if (abs(unit_get_x(u) - x) > r || abs(unit_get_y(u) - y) > r) continue;
         found[nf++] = u;
     }
     for (int i = 0; i < nf; i++)
-        n += unit_goal(found[i], goal_move((float)tx + FIELD(found[i], OF(UNIT, 0x13C), float) - (float)x,
-                                           (float)ty + FIELD(found[i], OF(UNIT, 0x14C), float) - (float)y), 0, 0x1F40);
+        n += unit_goal(found[i], goal_move((float)tx + unit_get_pos_x(found[i]) - (float)x,
+                                           (float)ty + unit_get_pos_y(found[i]) - (float)y), 0, 0x1F40);
     REPLY("ok: %d of %d units of P%d moving\n", n, nf, p);
 }

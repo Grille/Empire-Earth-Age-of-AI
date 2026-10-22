@@ -46,10 +46,10 @@ internal int st_shot_t(uint8_t *atd, uint8_t *ast, int api, uint8_t *ttd, uint8_
     int r = (int)(d + 0.5f);
     return r < 1 ? 1 : r;
 }
-internal int st_pidx(ee_unit *u) { ee_player *o = unit_owner(u); return o ? FIELD(o, PL_INDEX, int) : 0; }
+internal int st_pidx(ee_unit *u) { ee_player *o = unit_get_owner(u); return o ? FIELD(o, PL_INDEX, int) : 0; }
 internal int st_shot(ee_unit *a, ee_unit *t) {
-    return st_shot_t(FIELD(a, OF(UNIT, 0x2C), uint8_t *), FIELD(a, OF(UNIT, 0x34), uint8_t *), st_pidx(a), FIELD(t, OF(UNIT, 0x2C), uint8_t *),
-                     FIELD(t, OF(UNIT, 0x34), uint8_t *), st_pidx(t));
+    return st_shot_t(unit_get_type_data(a), unit_get_stats(a), st_pidx(a), unit_get_type_data(t),
+                     unit_get_stats(t), st_pidx(t));
 }
 internal float st_reload_t(uint8_t *atd, uint8_t *ast) {   // seconds between shots (class value)
     int ms = ast ? FIELD(ast, OF(USTAT, 0x138), int) : 0;
@@ -57,21 +57,21 @@ internal float st_reload_t(uint8_t *atd, uint8_t *ast) {   // seconds between sh
     return ms > 0 ? ms / 1000.0f : 1.0f;
 }
 internal float st_reload(ee_unit *a) {   // the unit's own (scenario triggers change it), else its class's
-    int own = FIELD(a, OF(UNIT, 0x2A0), int);
-    return own > 0 ? own / 1000.0f : st_reload_t(FIELD(a, OF(UNIT, 0x2C), uint8_t *), FIELD(a, OF(UNIT, 0x34), uint8_t *));
+    int own = unit_get_reload(a);
+    return own > 0 ? own / 1000.0f : st_reload_t(unit_get_type_data(a), unit_get_stats(a));
 }
 // in a fight a shot takes longer than the reload: picking the next target, turning, stepping into range - duels of
 // 2026-10-17 (scripts/zz_duel.sh): machine gunners (reload 1 s) fired every 3.3-5.1 s, Mk V tanks (4 s) every
 // 4.6-7.1 s; about 2 s on every shot
 #define ST_SHOT_OVERHEAD 2.0f
 internal float st_dps(ee_unit *a, ee_unit *t) { return st_shot(a, t) / (st_reload(a) + ST_SHOT_OVERHEAD); }
-internal float st_range(ee_unit *u) { uint8_t *st = FIELD(u, OF(UNIT, 0x34), uint8_t *); return st ? FIELD(st, OF(USTAT, 0x9C), float) : FIELD(FIELD(u, OF(UNIT, 0x2C), uint8_t *), OF(TD, 0x420), float); }
-internal float st_speed(ee_unit *u) { uint8_t *st = FIELD(u, OF(UNIT, 0x34), uint8_t *); return st ? FIELD(st, OF(USTAT, 0xAC), float) : 0.0f; }   // tiles/s, 0 = cannot move
+internal float st_range(ee_unit *u) { uint8_t *st = unit_get_stats(u); return st ? FIELD(st, OF(USTAT, 0x9C), float) : FIELD(unit_get_type_data(u), OF(TD, 0x420), float); }
+internal float st_speed(ee_unit *u) { uint8_t *st = unit_get_stats(u); return st ? FIELD(st, OF(USTAT, 0xAC), float) : 0.0f; }   // tiles/s, 0 = cannot move
 // RANGE (the user: "it can even overpower all the other stats since a unit can be eliminated from range before ever
 // getting a chance to fire back"): a unit that cannot move never hits one that outranges it; a unit that is
 // outranged walks the difference under fire first (st_close)
 internal int st_reaches(ee_unit *a, ee_unit *t) { return st_speed(a) > 0 || st_range(a) + 0.5f >= st_range(t); }
-internal float st_minrange(ee_unit *u) { return FIELD(FIELD(u, OF(UNIT, 0x2C), uint8_t *), OF(TD, 0x41C), float); }
+internal float st_minrange(ee_unit *u) { return FIELD(unit_get_type_data(u), OF(TD, 0x41C), float); }
 // once a mobile target has closed to its own range, an attacker whose minimum range is longer cannot hit it (artillery)
 internal int st_inside_min(ee_unit *a, ee_unit *t) { return st_speed(t) > 0 && st_minrange(a) > 0 && st_minrange(a) >= st_range(t); }
 internal int st_maxhp(uint8_t *td, uint8_t *st) { return st && FIELD(st, OF(USTAT, 0x144), int) > 0 ? FIELD(st, OF(USTAT, 0x144), int) : FIELD(td, OF(TD, 0x55C), int); }
@@ -101,7 +101,7 @@ struct st_side {
 };
 internal void st_side_clear(struct st_side *s) { free(s->cnt); memset(s, 0, sizeof *s); }
 internal int st_side_add(struct st_side *s, ee_unit *u) {   // 0 when full
-    uint8_t *td = FIELD(u, OF(UNIT, 0x2C), uint8_t *);
+    uint8_t *td = unit_get_type_data(u);
     int type = FIELD(td, OF(TD, 0x4B8), int), owner = st_pidx(u), k = 0;
     while (k < s->ng && (s->g[k].type != type || s->g[k].owner != owner)) k++;
     if (k == s->ng) {
@@ -111,9 +111,9 @@ internal int st_side_add(struct st_side *s, ee_unit *u) {   // 0 when full
     }
     if (s->n == ST_UNITS) return 0;
     s->g[k].count++;
-    s->g[k].hp += FIELD(u, OF(UNIT, 0x3C), int);
-    s->hp += FIELD(u, OF(UNIT, 0x3C), int);
-    s->ux[s->n] = (int16_t)FIELD(u, OF(UNIT, 0x1C), int); s->uy[s->n] = (int16_t)FIELD(u, OF(UNIT, 0x20), int); s->ug[s->n] = (uint8_t)k;
+    s->g[k].hp += unit_get_hp(u);
+    s->hp += unit_get_hp(u);
+    s->ux[s->n] = (int16_t)unit_get_x(u); s->uy[s->n] = (int16_t)unit_get_y(u); s->ug[s->n] = (uint8_t)k;
     s->n++;
     s->nr = 0;
     return 1;
@@ -156,7 +156,7 @@ internal float st_side_dps(struct st_side *a, struct st_side *b, int contact) {
     float s = 0;
     for (int i = 0; i < a->ng; i++) {
         ee_unit *u = a->g[i].rep;
-        uint8_t *ast = FIELD(u, OF(UNIT, 0x34), uint8_t *);
+        uint8_t *ast = unit_get_stats(u);
         float area = ast ? FIELD(ast, OF(USTAT, 0xA0), float) : 0, num = 0, den = 0;
         for (int j = 0; j < b->ng; j++) {
             ee_unit *t = b->g[j].rep;
@@ -225,9 +225,9 @@ internal int st_counts(ee_unit *u, uint8_t *td) {   // soldiers, citizens and bu
 }
 internal void st_scan_unit(ee_unit *u, void *ctx) {
     struct st_scan *f = ctx;
-    uint8_t *td = FIELD(u, OF(UNIT, 0x2C), uint8_t *);
-    int p = st_pidx(u), dx = FIELD(u, OF(UNIT, 0x1C), int) - f->x, dy = FIELD(u, OF(UNIT, 0x20), int) - f->y;
-    if (FIELD(u, OF(UNIT, 0x3C), int) <= 0 || !td || p <= 0 || p > 15 || !f->side[p] || dx * dx + dy * dy > f->r2) return;
+    uint8_t *td = unit_get_type_data(u);
+    int p = st_pidx(u), dx = unit_get_x(u) - f->x, dy = unit_get_y(u) - f->y;
+    if (unit_get_hp(u) <= 0 || !td || p <= 0 || p > 15 || !f->side[p] || dx * dx + dy * dy > f->r2) return;
     if (f->ta >= 0 && FIELD(td, OF(TD, 0x4B8), int) != f->ta && FIELD(td, OF(TD, 0x4B8), int) != f->tb) return;   // only these types
     if (st_counts(u, td)) st_side_add(f->side[p], u);
 }
@@ -348,15 +348,15 @@ internal void cmd_stats(char *out, const char *args) {
             ee_unit *u = it.u;
             uint8_t *td = it.td;
             int q = st_pidx(u);
-            if (FIELD(u, OF(UNIT, 0x3C), int) <= 0 || q <= 0 || q > 15) continue;
+            if (unit_get_hp(u) <= 0 || q <= 0 || q > 15) continue;
             if (tt >= 0) {
-                int dx = FIELD(u, OF(UNIT, 0x1C), int) - x, dy = FIELD(u, OF(UNIT, 0x20), int) - y, ex = FIELD(u, OF(UNIT, 0x1C), int) - tx, ey = FIELD(u, OF(UNIT, 0x20), int) - ty;
+                int dx = unit_get_x(u) - x, dy = unit_get_y(u) - y, ex = unit_get_x(u) - tx, ey = unit_get_y(u) - ty;
                 if (q == p && FIELD(td, OF(TD, 0x4B8), int) == tt && dx * dx + dy * dy <= r * r && nm < ST_UNITS) mu[nm++] = u;
                 else if (q != p && ex * ex + ey * ey <= 15 * 15 && is_enemy(st_player(p), st_player(q)) && nf < ST_UNITS) fu[nf++] = u;
                 continue;
             }
             if (!st_counts(u, td)) continue;
-            int dx = FIELD(u, OF(UNIT, 0x1C), int) - x, dy = FIELD(u, OF(UNIT, 0x20), int) - y, d2 = dx * dx + dy * dy;
+            int dx = unit_get_x(u) - x, dy = unit_get_y(u) - y, d2 = dx * dx + dy * dy;
             if (q == p && d2 <= r * r && nm < ST_UNITS) mu[nm++] = u;
             else if (q != p && d2 <= 40 * 40 && is_enemy(st_player(p), st_player(q)) && nf < ST_UNITS) fu[nf++] = u;
         }
@@ -364,7 +364,7 @@ internal void cmd_stats(char *out, const char *args) {
             ee_unit *u = mu[i], *best = NULL;
             float bd = tt >= 0 ? 1e9f : 30.0f * 30.0f;
             for (int k = 0; k < nf; k++) {
-                float dx = (float)(FIELD(fu[k], OF(UNIT, 0x1C), int) - FIELD(u, OF(UNIT, 0x1C), int)), dy = (float)(FIELD(fu[k], OF(UNIT, 0x20), int) - FIELD(u, OF(UNIT, 0x20), int));
+                float dx = (float)(unit_get_x(fu[k]) - unit_get_x(u)), dy = (float)(unit_get_y(fu[k]) - unit_get_y(u));
                 if (dx * dx + dy * dy < bd && st_shot(u, fu[k]) > 0) { bd = dx * dx + dy * dy; best = fu[k]; }
             }
             if (best) n += unit_goal(u, goal_attack(u, best), 0, 0x1F40);
@@ -407,7 +407,7 @@ internal void cmd_stats(char *out, const char *args) {
             ee_unit *u = it.u;
             uint8_t *td = it.td;
             int q = st_pidx(u);
-            if (FIELD(u, OF(UNIT, 0x3C), int) <= 0 || q <= 0 || q > 15) continue;
+            if (unit_get_hp(u) <= 0 || q <= 0 || q > 15) continue;
             if (q == p && is_citizen_type(FIELD(td, OF(TD, 0x4B8), int))) { if (nc < 4096) cit[nc++] = u; }
             else if (q != p && is_enemy(st_player(p), st_player(q)) && FIELD(td, OF(TD, 0x510), int) > 0 && nf < 4096) foe[nf++] = u;
         }
@@ -415,17 +415,17 @@ internal void cmd_stats(char *out, const char *args) {
             ee_unit *c = cit[i], *best = NULL;
             float bd = 1e9f;
             for (int k = 0; k < nf; k++) {
-                float dx = (float)(FIELD(foe[k], OF(UNIT, 0x1C), int) - FIELD(c, OF(UNIT, 0x1C), int)), dy = (float)(FIELD(foe[k], OF(UNIT, 0x20), int) - FIELD(c, OF(UNIT, 0x20), int));
+                float dx = (float)(unit_get_x(foe[k]) - unit_get_x(c)), dy = (float)(unit_get_y(foe[k]) - unit_get_y(c));
                 float r = st_range(foe[k]) + 3.0f, d2 = dx * dx + dy * dy;
                 if (d2 <= r * r && d2 < bd && st_shot(foe[k], c) > 0) { bd = d2; best = foe[k]; }
             }
             if (!best) continue;
             hit++;
             if (seen_by(best, st_player(p))) seen++;
-            if (raiders_near(st_player(p), FIELD(c, OF(UNIT, 0x1C), int), FIELD(c, OF(UNIT, 0x20), int), 6)) flagged++;
-            int t = FIELD(FIELD(best, OF(UNIT, 0x2C), uint8_t *), OF(TD, 0x4B8), int), j = 0;
+            if (raiders_near(st_player(p), unit_get_x(c), unit_get_y(c), 6)) flagged++;
+            int t = FIELD(unit_get_type_data(best), OF(TD, 0x4B8), int), j = 0;
             while (j < ntype && tt[j] != t) j++;
-            if (j == ntype && ntype < 32) { tt[ntype] = t; tr[ntype] = st_range(best); tf[ntype++] = FIELD(FIELD(best, OF(UNIT, 0x2C), uint8_t *), OF(TD, 0x4B4), int); }
+            if (j == ntype && ntype < 32) { tt[ntype] = t; tr[ntype] = st_range(best); tf[ntype++] = FIELD(unit_get_type_data(best), OF(TD, 0x4B4), int); }
             if (j < 32) tn[j]++;
         }
         int o = snprintf(out, 4096, "ok: P%d %d citizens, %d within an enemy's reach + 3 (%d of those enemies seen, %d flagged by raiders_near); nearest threat type(family) x n:",

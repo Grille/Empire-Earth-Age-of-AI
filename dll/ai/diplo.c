@@ -234,11 +234,11 @@ internal void hist_scan(uint32_t now) {
 }
 internal void ws_unit(ee_unit *u, void *ctx) {
     (void)ctx;
-    ee_player *owner = unit_owner(u);
-    if (!owner || FIELD(u, OF(UNIT, 0x3C), int) <= 0) return;
+    ee_player *owner = unit_get_owner(u);
+    if (!owner || unit_get_hp(u) <= 0) return;
     int o = pidx(owner);
     if (o == 0) return;   // nature (wild animals): hostile to everyone, not an attack
-    uint8_t *td = FIELD(u, OF(UNIT, 0x2C), uint8_t *);
+    uint8_t *td = unit_get_type_data(u);
     int fam = FIELD(td, OF(TD, 0x4B4), int), type = FIELD(td, OF(TD, 0x4B8), int);
     if ((unsigned)type < G_TYPES_N) g_ws_types[o][type]++;
     if (is_citizen_type(type)) { g_ws.citizens[o]++; return; }
@@ -248,8 +248,8 @@ internal void ws_unit(ee_unit *u, void *ctx) {
     if (fam == 2 || fam == 29) { g_ws.buildings[o]++; g_ws.power[o] += 30; return; }
     if (!is_soldier(td)) return;
     g_ws.soldiers[o]++;
-    g_ws.power[o] += (float)FIELD(u, OF(UNIT, 0x3C), int);
-    int x = FIELD(u, OF(UNIT, 0x1C), int), y = FIELD(u, OF(UNIT, 0x20), int);
+    g_ws.power[o] += (float)unit_get_hp(u);
+    int x = unit_get_x(u), y = unit_get_y(u);
     for (int a = 1; a < 16; a++) {
         void *pa = g_players[a];
         if (!pa || a == o || g_ws.bx[a] == -10000 || !stance_of(pa, o)) continue;
@@ -436,12 +436,12 @@ internal void mass_death(ee_unit *dead);                 // mass.c: a land soldi
 internal void cover_death(ee_unit *dead, int k);         // cover.c: a military unit killed - its fight, its hit points
 __attribute__((used)) void __fastcall hook_kill_stat(uint8_t *stats, void *edx, int n, int d) {
     (void)edx;
-    ee_player *owner = g_kill_unit ? unit_owner(g_kill_unit) : NULL;
+    ee_player *owner = g_kill_unit ? unit_get_owner(g_kill_unit) : NULL;
     if (stats && owner && (n == 2 || n == 3)) {
         int k = pidx(stats - 0x4A8), v = pidx(owner);
         uint32_t m = game_time() / 60000u + 1, b = m % KILLS_RING;
         if (g_kills_min_t[b] != m) { memset(g_kills_min[b], 0, sizeof g_kills_min[b]); g_kills_min_t[b] = m; }
-        uint8_t *td = FIELD(g_kill_unit, OF(UNIT, 0x2C), uint8_t *);
+        uint8_t *td = unit_get_type_data(g_kill_unit);
         int c = n == 2 ? K_BUILDINGS : kill_kind(td);
         g_kills[k][v][c] += (uint32_t)d;
         if (n == 3 && td && FIELD(td, OF(TD, 0x4B4), int) == 22) g_nv_boat_kills[k][v] += (uint32_t)d;

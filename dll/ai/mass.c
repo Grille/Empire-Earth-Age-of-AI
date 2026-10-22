@@ -77,7 +77,7 @@ internal void mass_new_game(void) { memset(g_mss, 0, sizeof g_mss); }
 
 internal int ms_land_soldier(ee_unit *u, uint8_t *td) {
     int fam = FIELD(td, OF(TD, 0x4B4), int);
-    return FIELD(u, OF(UNIT, 0x3C), int) > 0 && FIELD(u, OF(UNIT, 0x1C), int) >= 0 && is_soldier(td) && fam != 3 && fam != 4 && fam != 7 &&
+    return unit_get_hp(u) > 0 && unit_get_x(u) >= 0 && is_soldier(td) && fam != 3 && fam != 4 && fam != 7 &&
            fam != 10 && fam != 17 && fam != 18 && fam != 21 && fam != 22;
 }
 internal int ms_base(ee_player *pl, int *bx, int *by) {   // an AI's (a human player's +0xB90 is no computer manager: garbage)
@@ -94,8 +94,8 @@ internal int ms_near(ee_player *pl, ee_unit *u, int x, int y, int r, int *en) {
     int n = 0;
     if (en) *en = 0;
     for (struct grid_it it = grid_it_box(x, y, r, 1); grid_it_next(&it); ) {
-        if (it.u == u || !ms_land_soldier(it.u, it.td) || ms_d2(FIELD(it.u, OF(UNIT, 0x1C), int), FIELD(it.u, OF(UNIT, 0x20), int), x, y) > r * r) continue;
-        ee_player *o = unit_owner(it.u);
+        if (it.u == u || !ms_land_soldier(it.u, it.td) || ms_d2(unit_get_x(it.u), unit_get_y(it.u), x, y) > r * r) continue;
+        ee_player *o = unit_get_owner(it.u);
         if (o == pl) n++;
         else if (en && o && FIELD(o, PL_INDEX, int) > 0 && is_enemy(pl, o)) (*en)++;
     }
@@ -119,8 +119,8 @@ internal int ms_subgroups(ee_player *pl, int bx, int by) {
             s->sg = sg; s->n = s->na = 0; s->state = FIELD(sg, OF(ASG, 0x1D0), int);
             for (uint8_t **r = FIELD(sg, OF(ASG, 0x54), uint8_t **); r && r < FIELD(sg, OF(ASG, 0x58), uint8_t **); r++) {
                 ee_unit *u = *r ? FIELD(*r, OF(ASGU, 0x44), ee_unit *) : NULL;
-                if (!u || FIELD(u, OF(UNIT, 0x3C), int) <= 0 || FIELD(u, OF(UNIT, 0x1C), int) < 0) continue;
-                int ux = FIELD(u, OF(UNIT, 0x1C), int), uy = FIELD(u, OF(UNIT, 0x20), int);
+                if (!u || unit_get_hp(u) <= 0 || unit_get_x(u) < 0) continue;
+                int ux = unit_get_x(u), uy = unit_get_y(u);
                 x += (float)ux; y += (float)uy; s->n++;
                 if (ms_d2(ux, uy, bx, by) > 25 * 25) { ax += (float)ux; ay += (float)uy; s->na++; }
             }
@@ -142,8 +142,8 @@ internal void mass_sample(ee_player *pl, struct mass *m, int bx, int by) {
     m->samples++;
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
-        if (unit_owner(u) != pl || !ms_land_soldier(u, it.td)) continue;
-        int x = FIELD(u, OF(UNIT, 0x1C), int), y = FIELD(u, OF(UNIT, 0x20), int);
+        if (unit_get_owner(u) != pl || !ms_land_soldier(u, it.td)) continue;
+        int x = unit_get_x(u), y = unit_get_y(u);
         int iso = ms_near(pl, u, x, y, 6, NULL) <= 2, away = ms_d2(x, y, bx, by) > 25 * 25, eng = fl_attacking(u);
         m->sold++; m->iso += iso; m->away += away; m->isoaway += iso && away; m->eng += eng; m->engiso += eng && iso;
     }
@@ -154,15 +154,15 @@ internal void mass_sample(ee_player *pl, struct mass *m, int bx, int by) {
         int cx = 0, cy = 0, n = 0;   // stragglers: from the middle of all its members
         for (uint8_t **r = FIELD(s->sg, OF(ASG, 0x54), uint8_t **); r && r < FIELD(s->sg, OF(ASG, 0x58), uint8_t **); r++) {
             ee_unit *u = *r ? FIELD(*r, OF(ASGU, 0x44), ee_unit *) : NULL;
-            if (u && FIELD(u, OF(UNIT, 0x3C), int) > 0 && FIELD(u, OF(UNIT, 0x1C), int) >= 0) { cx += FIELD(u, OF(UNIT, 0x1C), int); cy += FIELD(u, OF(UNIT, 0x20), int); n++; }
+            if (u && unit_get_hp(u) > 0 && unit_get_x(u) >= 0) { cx += unit_get_x(u); cy += unit_get_y(u); n++; }
         }
         if (n < 2) continue;
         cx /= n; cy /= n;
         int c = ms_cls(s->state);
         for (uint8_t **r = FIELD(s->sg, OF(ASG, 0x54), uint8_t **); r && r < FIELD(s->sg, OF(ASG, 0x58), uint8_t **); r++) {
             ee_unit *u = *r ? FIELD(*r, OF(ASGU, 0x44), ee_unit *) : NULL;
-            if (!u || FIELD(u, OF(UNIT, 0x3C), int) <= 0 || FIELD(u, OF(UNIT, 0x1C), int) < 0) continue;
-            int ux = FIELD(u, OF(UNIT, 0x1C), int), uy = FIELD(u, OF(UNIT, 0x20), int), st = ms_d2(ux, uy, cx, cy) > 12 * 12;
+            if (!u || unit_get_hp(u) <= 0 || unit_get_x(u) < 0) continue;
+            int ux = unit_get_x(u), uy = unit_get_y(u), st = ms_d2(ux, uy, cx, cy) > 12 * 12;
             m->strag += st; m->dm[c]++;
             if (!st) continue;
             if (ms_d2(ux, uy, bx, by) <= 25 * 25) m->dsh[c]++;
@@ -182,13 +182,13 @@ internal void mass_sample(ee_player *pl, struct mass *m, int bx, int by) {
 // a unit died (diplo.c hook_kill_stat, n 3; autotest): a land soldier - who stood by it
 internal void mass_death(ee_unit *dead) {
     if (!g_autotest || !dead) return;
-    uint8_t *td = FIELD(dead, OF(UNIT, 0x2C), uint8_t *);
-    ee_player *pl = unit_owner(dead);
+    uint8_t *td = unit_get_type_data(dead);
+    ee_player *pl = unit_get_owner(dead);
     int bx, by, fam = td ? FIELD(td, OF(TD, 0x4B4), int) : 3;
-    if (!pl || !td || FIELD(dead, OF(UNIT, 0x1C), int) < 0 || !is_soldier(td) || fam == 3 || fam == 4 || fam == 7 || fam == 10 ||
+    if (!pl || !td || unit_get_x(dead) < 0 || !is_soldier(td) || fam == 3 || fam == 4 || fam == 7 || fam == 10 ||
         fam == 17 || fam == 18 || fam == 21 || fam == 22 || !ms_base(pl, &bx, &by)) return;
     struct mass *m = &g_mss[(unsigned)FIELD(pl, PL_INDEX, int) & 15];
-    int x = FIELD(dead, OF(UNIT, 0x1C), int), y = FIELD(dead, OF(UNIT, 0x20), int), en, own = ms_near(pl, dead, x, y, 6, NULL);
+    int x = unit_get_x(dead), y = unit_get_y(dead), en, own = ms_near(pl, dead, x, y, 6, NULL);
     ms_near(pl, dead, x, y, 8, &en);
     int iso = own <= 2, away = ms_d2(x, y, bx, by) > 25 * 25;
     m->die++; m->die_iso += iso; m->die_away += away; m->die_isoaway += iso && away; m->die_outn += en >= 2 * (own + 1);
@@ -213,10 +213,10 @@ internal void ms_rally(ee_player *pl, struct mass *m, int bx, int by, int tx, in
     m->rx = px; m->ry = py;
     for (struct grid_it it = grid_it_box(bx, by, 14, 1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
-        uint8_t *bs = FIELD(u, OF(UNIT, 0x30), uint8_t *);
+        ee_unit *bs = unit_get_physics(u);
         float r, a;
-        int x = FIELD(u, OF(UNIT, 0x1C), int), y = FIELD(u, OF(UNIT, 0x20), int), d = ms_d2(x, y, px, py);
-        if (unit_owner(u) != pl || FIELD(u, OF(UNIT, 0x3C), int) <= 0 || !bs || !bs[OF(UNIT, 0x340)] || !defence_stats(u, &r, &a) ||
+        int x = unit_get_x(u), y = unit_get_y(u), d = ms_d2(x, y, px, py);
+        if (unit_get_owner(u) != pl || unit_get_hp(u) <= 0 || !bs || !unit_get_finished(bs) || !defence_stats(u, &r, &a) ||
             ms_d2(x, y, bx, by) > 14 * 14 || d >= bd) continue;
         float ex = (float)(bx - x), ey = (float)(by - y), el = sqrtf(ex * ex + ey * ey);
         bd = d;
@@ -251,7 +251,7 @@ internal void ms_gather(ee_player *pl, unsigned idx, struct mass *m, uint32_t no
         if (best < 0 || ms_d2(s->cx, s->cy, bx, by) < ms_d2(tx, ty, bx, by)) { best = k; tx = s->cx; ty = s->cy; }
         for (uint8_t **r = FIELD(s->sg, OF(ASG, 0x54), uint8_t **); r && r < FIELD(s->sg, OF(ASG, 0x58), uint8_t **); r++) {
             ee_unit *u = *r ? FIELD(*r, OF(ASGU, 0x44), ee_unit *) : NULL;
-            if (!u || !ms_land_soldier(u, FIELD(u, OF(UNIT, 0x2C), uint8_t *)) || ms_d2(FIELD(u, OF(UNIT, 0x1C), int), FIELD(u, OF(UNIT, 0x20), int), bx, by) > 25 * 25 ||
+            if (!u || !ms_land_soldier(u, unit_get_type_data(u)) || ms_d2(unit_get_x(u), unit_get_y(u), bx, by) > 25 * 25 ||
                 landing_has_unit(pl, u)) continue;
             int h = ms_held(m, u, s->sg);
             int g = 0;
@@ -292,9 +292,9 @@ internal void ms_gather(ee_player *pl, unsigned idx, struct mass *m, uint32_t no
     for (int k = 0; k < m->nh; k++) {   // to the rally - a member fighting near it keeps fighting
         ee_unit *u = m->hold[k].u;
         ee_unit *t = fl_target_of(u);
-        int x = FIELD(u, OF(UNIT, 0x1C), int), y = FIELD(u, OF(UNIT, 0x20), int);
+        int x = unit_get_x(u), y = unit_get_y(u);
         if (ms_d2(x, y, m->rx, m->ry) <= 9 || as_goal_near(u, (float)m->rx + 0.5f, (float)m->ry + 0.5f, 2.5f)) continue;
-        if (t && fl_attacking(u) && ms_d2(FIELD(t, OF(UNIT, 0x1C), int), FIELD(t, OF(UNIT, 0x20), int), m->rx, m->ry) <= 15 * 15) continue;
+        if (t && fl_attacking(u) && ms_d2(unit_get_x(t), unit_get_y(t), m->rx, m->ry) <= 15 * 15) continue;
         unit_goal(u, goal_move((float)m->rx + 0.5f + (float)(k % 3) - 1.0f, (float)m->ry + 0.5f + (float)(k / 3 % 3) - 1.0f), 0, 0x1F40);
     }
 }
@@ -306,7 +306,7 @@ internal void ms_wait(ee_player *pl, unsigned idx, struct mass *m, uint32_t now)
     if (m->wait0 && due > now + 15000) return;
     float own = 0, foe[16] = { 0 }, top = 0;
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); )
-        if (unit_owner(it.u) == pl && ms_land_soldier(it.u, it.td)) own += unit_power(it.u);
+        if (unit_get_owner(it.u) == pl && ms_land_soldier(it.u, it.td)) own += unit_power(it.u);
     struct intel *in = &g_intel[idx];
     for (int k = 0; k < in->n; k++)
         if (in->r[k].kind == 1 && in->now - in->r[k].t <= 600000 && in->r[k].owner > 0 && in->r[k].owner < 16)
@@ -346,8 +346,8 @@ internal void ms_tether(ee_player *pl, struct mass *m, int plan, int bx, int by)
         if (!(plan & 32) || s->state < 3000 || s->state >= 4000) continue;
         for (uint8_t **r = FIELD(s->sg, OF(ASG, 0x54), uint8_t **); r && r < FIELD(s->sg, OF(ASG, 0x58), uint8_t **); r++) {
             ee_unit *u = *r ? FIELD(*r, OF(ASGU, 0x44), ee_unit *) : NULL;
-            if (!u || !ms_land_soldier(u, FIELD(u, OF(UNIT, 0x2C), uint8_t *)) || fl_attacking(u)) continue;
-            int x = FIELD(u, OF(UNIT, 0x1C), int), y = FIELD(u, OF(UNIT, 0x20), int);
+            if (!u || !ms_land_soldier(u, unit_get_type_data(u)) || fl_attacking(u)) continue;
+            int x = unit_get_x(u), y = unit_get_y(u);
             if (ms_d2(x, y, bx, by) <= 25 * 25 || ms_d2(x, y, s->cx, s->cy) < t * t ||
                 as_goal_near(u, (float)s->cx + 0.5f, (float)s->cy + 0.5f, 4.0f)) continue;
             m->regrouped += unit_goal(u, goal_move((float)s->cx + 0.5f, (float)s->cy + 0.5f), 0, 0x1F40) != 0;
@@ -362,16 +362,16 @@ internal int mass_tether(uint8_t *sg, ee_unit *me, ee_unit *enemy) {
     struct mass *m = &g_mss[idx];
     int plan = ARMY_MASS(idx);
     if (!m->ntc || !(plan & 16)) return 0;
-    uint8_t *etd = FIELD(enemy, OF(UNIT, 0x2C), uint8_t *);   // 128: buildings only - enemy units are fought wherever they are
+    uint8_t *etd = unit_get_type_data(enemy);   // 128: buildings only - enemy units are fought wherever they are
     if ((plan & 128) && (!etd || (FIELD(etd, OF(TD, 0x4B4), int) != 2 && FIELD(etd, OF(TD, 0x4B4), int) != 29))) return 0;
     int k = 0;
     while (k < m->ntc && m->tc[k].sg != sg) k++;
     if (k == m->ntc) return 0;
-    int ex = FIELD(enemy, OF(UNIT, 0x1C), int), ey = FIELD(enemy, OF(UNIT, 0x20), int);
+    int ex = unit_get_x(enemy), ey = unit_get_y(enemy);
     if (ms_d2(ex, ey, m->tc[k].cx, m->tc[k].cy) <= g_mass_tether * g_mass_tether) return 0;
-    uint8_t *st = FIELD(me, OF(UNIT, 0x34), uint8_t *), *td = FIELD(me, OF(UNIT, 0x2C), uint8_t *);
+    uint8_t *st = unit_get_stats(me), *td = unit_get_type_data(me);
     float r = (st ? FIELD(st, OF(USTAT, 0x9C), float) : td ? FIELD(td, OF(TD, 0x420), float) : 1.0f) + 2.0f;
-    int dx = ex - FIELD(me, OF(UNIT, 0x1C), int), dy = ey - FIELD(me, OF(UNIT, 0x20), int);
+    int dx = ex - unit_get_x(me), dy = ey - unit_get_y(me);
     if ((float)(dx * dx + dy * dy) <= r * r) return 0;
     m->tethered++;
     return 1;

@@ -96,13 +96,13 @@ struct intel_scan {
 };
 internal void intel_unit(ee_unit *u, void *ctx) {
     struct intel_scan *s = ctx;
-    ee_player *o = unit_owner(u);
-    if (!o || FIELD(u, OF(UNIT, 0x3C), int) <= 0 || FIELD(u, OF(UNIT, 0x1C), int) < 0) return;
+    ee_player *o = unit_get_owner(u);
+    if (!o || unit_get_hp(u) <= 0 || unit_get_x(u) < 0) return;
     int oi = FIELD(o, PL_INDEX, int);
     if (oi <= 0 || oi >= 16) return;
     if (s->nlive < 6000) s->live[s->nlive++] = u;
-    if (!is_enemy(s->pl, o)) { if (s->ne < 3000) { s->ex[s->ne] = FIELD(u, OF(UNIT, 0x1C), int); s->ey[s->ne++] = FIELD(u, OF(UNIT, 0x20), int); } return; }
-    uint8_t *v = FIELD(u, OF(UNIT, 0x14), uint8_t *);
+    if (!is_enemy(s->pl, o)) { if (s->ne < 3000) { s->ex[s->ne] = unit_get_x(u); s->ey[s->ne++] = unit_get_y(u); } return; }
+    uint8_t *v = unit_get_vis(u);
     uint16_t *vis = v ? FIELD(v, 0xC, uint16_t *) : NULL;
     unsigned c = vis ? vis[s->pi] & 0xFF : 0;
     if (!s->fseen[oi] || c < s->floor[oi]) { s->floor[oi] = (uint8_t)c; s->fseen[oi] = 1; }
@@ -141,15 +141,15 @@ internal void intel_tick(ee_player *pl, uint32_t now) {
     int seed = g_intel_seed && now > 60000 && !in->n;
     for (int k = 0; k < s.nlive; k++) {
         ee_unit *u = s.live[k];
-        uint8_t *td = FIELD(u, OF(UNIT, 0x2C), uint8_t *);
-        ee_player *o = unit_owner(u);
+        uint8_t *td = unit_get_type_data(u);
+        ee_player *o = unit_get_owner(u);
         if (!is_enemy(pl, o) || intel_kind(td) != 0) continue;
-        int x = FIELD(u, OF(UNIT, 0x1C), int), y = FIELD(u, OF(UNIT, 0x20), int), t = FIELD(td, OF(TD, 0x4B8), int), oi = FIELD(o, PL_INDEX, int) & 15;
+        int x = unit_get_x(u), y = unit_get_y(u), t = FIELD(td, OF(TD, 0x4B8), int), oi = FIELD(o, PL_INDEX, int) & 15;
         if (seed && in->n < INTEL_REC) {
             struct intel_rec *e = &in->r[in->n++];
             float r, a = 0;
             defence_stats(u, &r, &a);
-            e->u = u; e->owner = oi; e->type = t; e->kind = 0; e->x = x; e->y = y; e->hp = FIELD(u, OF(UNIT, 0x3C), int); e->att = a; e->t = now;
+            e->u = u; e->owner = oi; e->type = t; e->kind = 0; e->x = x; e->y = y; e->hp = unit_get_hp(u); e->att = a; e->t = now;
             continue;
         }
         for (int j = 0; j < in->n; j++)
@@ -163,9 +163,9 @@ internal void intel_tick(ee_player *pl, uint32_t now) {
     in->seen_now = 0;
     for (int k = 0; k < s.nlive; k++) {
         ee_unit *u = s.live[k];
-        ee_player *o = unit_owner(u);
+        ee_player *o = unit_get_owner(u);
         if (!is_enemy(pl, o)) continue;
-        uint8_t *v = FIELD(u, OF(UNIT, 0x14), uint8_t *);
+        uint8_t *v = unit_get_vis(u);
         uint16_t *vis = v ? FIELD(v, 0xC, uint16_t *) : NULL;
         int oi = FIELD(o, PL_INDEX, int) & 15;
         if (!vis || (vis[pi] & 0xFF) <= g_vis_floor[pi][oi]) continue;
@@ -179,9 +179,9 @@ internal void intel_tick(ee_player *pl, uint32_t now) {
             } else in->n++;
         }
         struct intel_rec *e = &in->r[j];
-        uint8_t *td = FIELD(u, OF(UNIT, 0x2C), uint8_t *);
+        uint8_t *td = unit_get_type_data(u);
         e->u = u; e->owner = oi; e->type = FIELD(td, OF(TD, 0x4B8), int); e->kind = intel_kind(td);
-        e->x = FIELD(u, OF(UNIT, 0x1C), int); e->y = FIELD(u, OF(UNIT, 0x20), int); e->hp = FIELD(u, OF(UNIT, 0x3C), int);
+        e->x = unit_get_x(u); e->y = unit_get_y(u); e->hp = unit_get_hp(u);
         float a = 0, r;
         if (e->kind == 0) defence_stats(u, &r, &a);
         else a = e->hp > 0 ? unit_power(u) / (float)e->hp : 0;
@@ -267,20 +267,20 @@ struct vis_scan {
 };
 internal void vis_unit(ee_unit *u, void *ctx) {
     struct vis_scan *s = ctx;
-    ee_player *o = unit_owner(u);
-    if (FIELD(u, OF(UNIT, 0x3C), int) <= 0 || !o || FIELD(u, OF(UNIT, 0x1C), int) < 0) return;
-    if (o == s->pl || (s->allies && FIELD(o, PL_INDEX, int) > 0 && !is_enemy(s->pl, o))) { if (s->ne < 4000) { s->ex[s->ne] = FIELD(u, OF(UNIT, 0x1C), int); s->ey[s->ne++] = FIELD(u, OF(UNIT, 0x20), int); } }
+    ee_player *o = unit_get_owner(u);
+    if (unit_get_hp(u) <= 0 || !o || unit_get_x(u) < 0) return;
+    if (o == s->pl || (s->allies && FIELD(o, PL_INDEX, int) > 0 && !is_enemy(s->pl, o))) { if (s->ne < 4000) { s->ex[s->ne] = unit_get_x(u); s->ey[s->ne++] = unit_get_y(u); } }
     else if ((s->target ? o == s->target : is_enemy(s->pl, o)) && FIELD(o, PL_INDEX, int) > 0 && s->nu < 4000) s->u[s->nu++] = u;
 }
 internal void *g_vis_find[16];
 internal void vis_owner(ee_unit *u, void *ctx) {   // player objects by index, also of humans (g_players holds the AIs)
     (void)ctx;
-    ee_player *o = unit_owner(u);
+    ee_player *o = unit_get_owner(u);
     int i = o ? FIELD(o, PL_INDEX, int) : -1;
     if (i > 0 && i < 16) g_vis_find[i] = o;
 }
 internal unsigned vis_raw(ee_unit *u, unsigned pi) {
-    uint8_t *v = FIELD(u, OF(UNIT, 0x14), uint8_t *);
+    uint8_t *v = unit_get_vis(u);
     uint16_t *vis = v ? FIELD(v, 0xC, uint16_t *) : NULL;
     return vis ? vis[pi] : 0xFFFFu;
 }
@@ -301,8 +301,8 @@ internal void cmd_vis(char *out, const char *args) {
     int h[5][4][2] = { 0 }, hi[5][4] = { 0 }, shown = 0;
     for (int k = 0; k < s.nu; k++) {
         ee_unit *u = s.u[k];
-        uint8_t *td = FIELD(u, OF(UNIT, 0x2C), uint8_t *);
-        int x = FIELD(u, OF(UNIT, 0x1C), int), y = FIELD(u, OF(UNIT, 0x20), int), fam = FIELD(td, OF(TD, 0x4B4), int);
+        uint8_t *td = unit_get_type_data(u);
+        int x = unit_get_x(u), y = unit_get_y(u), fam = FIELD(td, OF(TD, 0x4B4), int);
         int kind = fam == 2 || fam == 29 ? 0 : (is_soldier(td) || is_siege(FIELD(td, OF(TD, 0x4B8), int))) ? 1 : fam == 4 ? 2 : (fam == 3 || fam == 7 || fam == 17) ? 3 : 4;
         float bd = 1e9f;
         for (int e = 0; e < s.ne; e++) {
@@ -316,7 +316,7 @@ internal void cmd_vis(char *out, const char *args) {
         hi[kind][bin] += (v >> 8) != 0;
         if (shown < 30 && kind != 0 && (strstr(args, "all") || ((v & 0xFF) != 0) != (d <= 12))) {
             shown++;
-            REPLY("  P%d type %d (%s) at %d,%d: value %04X, nearest eye of P%d %.1f tiles\n", FIELD(unit_owner(u), PL_INDEX, int),
+            REPLY("  P%d type %d (%s) at %d,%d: value %04X, nearest eye of P%d %.1f tiles\n", FIELD(unit_get_owner(u), PL_INDEX, int),
                   FIELD(td, OF(TD, 0x4B8), int), kinds[kind], x, y, v, p, d);
         }
     }
@@ -328,7 +328,7 @@ internal void cmd_vis(char *out, const char *args) {
                 float m = 1e9f;
                 for (int e = 0; e < s.ne && m > 0; e++) { float dx = (float)(s.ex[e] - x), dy = (float)(s.ey[e] - y), d2 = dx * dx + dy * dy; if (d2 < m) m = d2; }
                 for (int k = 0; k < s.nu && m > 0; k++) {
-                    float dx = (float)(FIELD(s.u[k], OF(UNIT, 0x1C), int) - x), dy = (float)(FIELD(s.u[k], OF(UNIT, 0x20), int) - y), d2 = dx * dx + dy * dy;
+                    float dx = (float)(unit_get_x(s.u[k]) - x), dy = (float)(unit_get_y(s.u[k]) - y), d2 = dx * dx + dy * dy;
                     if (d2 < m) m = d2;
                 }
                 for (int j = 0; j < 5; j++)
@@ -366,7 +366,7 @@ internal void cmd_vistrack(char *out, const char *args) {
     if (na == 4) {
         // appended: several groups can be tracked
         for (int k = 0; k < s.nu && g_vt_n < 32; k++) {
-            int dx = FIELD(s.u[k], OF(UNIT, 0x1C), int) - x, dy = FIELD(s.u[k], OF(UNIT, 0x20), int) - y;
+            int dx = unit_get_x(s.u[k]) - x, dy = unit_get_y(s.u[k]) - y;
             if (dx * dx + dy * dy <= r * r) g_vt_u[g_vt_n++] = s.u[k];
         }
         REPLY("tracking %d units\n", g_vt_n);
@@ -376,15 +376,15 @@ internal void cmd_vistrack(char *out, const char *args) {
         int alive = 0;
         for (int j = 0; j < s.nu && !alive; j++) alive = s.u[j] == u;
         if (!alive) { REPLY("  #%d gone\n", k); continue; }
-        int ux = FIELD(u, OF(UNIT, 0x1C), int), uy = FIELD(u, OF(UNIT, 0x20), int);
+        int ux = unit_get_x(u), uy = unit_get_y(u);
         float bd = 1e9f;
         for (int e = 0; e < s.ne; e++) {
             float dx = (float)(s.ex[e] - ux), dy = (float)(s.ey[e] - uy), d2 = dx * dx + dy * dy;
             if (d2 < bd) bd = d2;
         }
-        REPLY("  #%d type %d at %d,%d hp %d: value %04X, nearest eye of P%d or allies %.1f\n", k, FIELD(FIELD(u, OF(UNIT, 0x2C), uint8_t *), OF(TD, 0x4B8), int),
-              ux, uy, FIELD(u, OF(UNIT, 0x3C), int), vis_raw(u, (unsigned)p), p, sqrtf(bd));
-        uint8_t *v = FIELD(u, OF(UNIT, 0x14), uint8_t *);
+        REPLY("  #%d type %d at %d,%d hp %d: value %04X, nearest eye of P%d or allies %.1f\n", k, FIELD(unit_get_type_data(u), OF(TD, 0x4B8), int),
+              ux, uy, unit_get_hp(u), vis_raw(u, (unsigned)p), p, sqrtf(bd));
+        uint8_t *v = unit_get_vis(u);
         uint16_t *vv = v ? FIELD(v, 0xC, uint16_t *) : NULL;
         if (vv) REPLY("      slots 0-7: %04X %04X %04X %04X %04X %04X %04X %04X\n", vv[0], vv[1], vv[2], vv[3], vv[4], vv[5], vv[6], vv[7]);
     }

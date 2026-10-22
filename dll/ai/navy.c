@@ -84,9 +84,9 @@ internal void navy_fish(void) {
     static int seen[NV_FISH_MAX];
     int ng = 0;
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {   // the boats at work: their sites
-        ee_player *o = unit_owner(it.u);
-        uint8_t *goal = FIELD(it.u, OF(UNIT, 0x1EC), uint8_t *);
-        if (!o || !goal || FIELD(it.u, OF(UNIT, 0x3C), int) <= 0 || navy_kind(it.td) != NV_FISH || ng >= 512) continue;
+        ee_player *o = unit_get_owner(it.u);
+        uint8_t *goal = unit_get_goal(it.u);
+        if (!o || !goal || unit_get_hp(it.u) <= 0 || navy_kind(it.td) != NV_FISH || ng >= 512) continue;
         gath[ng].site = FIELD(goal, OF(GOAL, 0x38), ee_unit *); gath[ng++].owner = FIELD(o, PL_INDEX, int) & 15;
     }
     memset(seen, 0, sizeof seen);
@@ -94,7 +94,7 @@ internal void navy_fish(void) {
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
         if (FIELD(it.td, OF(TD, 0x4B8), int) != UT(RES_FISH)) continue;
         ee_unit *u = it.u;
-        int id = FIELD(u, OF(UNIT, 0x60), int), amt = FIELD(u, OF(UNIT, 0x40), int), owner = -1, k;
+        int id = unit_get_id(u), amt = unit_get_amount(u), owner = -1, k;
         left += amt > 0 ? amt : 0;
         for (int g = 0; g < ng; g++) if (gath[g].site == u) { owner = gath[g].owner; break; }
         for (k = 0; k < g_nv_nfish; k++) if (g_nv_fish[k].u == u && g_nv_fish[k].id == id) break;
@@ -123,9 +123,9 @@ internal int navy_waters(int x, int y) {
     int best = -1, bd = 401;
     for (struct grid_it it = grid_it_box(x, y, 20, 1); grid_it_next(&it); ) {
         int fam = FIELD(it.td, OF(TD, 0x4B4), int);
-        ee_player *o = unit_owner(it.u);
-        if ((fam != 2 && fam != 29) || !o || FIELD(it.u, OF(UNIT, 0x3C), int) <= 0) continue;
-        int pi = FIELD(o, PL_INDEX, int), dx = FIELD(it.u, OF(UNIT, 0x1C), int) - x, dy = FIELD(it.u, OF(UNIT, 0x20), int) - y;
+        ee_player *o = unit_get_owner(it.u);
+        if ((fam != 2 && fam != 29) || !o || unit_get_hp(it.u) <= 0) continue;
+        int pi = FIELD(o, PL_INDEX, int), dx = unit_get_x(it.u) - x, dy = unit_get_y(it.u) - y;
         if (pi <= 0 || pi >= 16 || dx * dx + dy * dy >= bd) continue;
         bd = dx * dx + dy * dy; best = pi;
     }
@@ -140,9 +140,9 @@ internal void navy_log_all(uint32_t now) {
     static struct nv_count c[16];
     memset(c, 0, sizeof c);
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
-        ee_player *o = unit_owner(it.u);
-        int x = FIELD(it.u, OF(UNIT, 0x1C), int), y = FIELD(it.u, OF(UNIT, 0x20), int), t = FIELD(it.td, OF(TD, 0x4B8), int);
-        if (!o || FIELD(it.u, OF(UNIT, 0x3C), int) <= 0) continue;
+        ee_player *o = unit_get_owner(it.u);
+        int x = unit_get_x(it.u), y = unit_get_y(it.u), t = FIELD(it.td, OF(TD, 0x4B8), int);
+        if (!o || unit_get_hp(it.u) <= 0) continue;
         int pi = FIELD(o, PL_INDEX, int);
         if (pi <= 0 || pi >= 16) continue;
         struct nv_count *m = &c[pi];
@@ -150,7 +150,7 @@ internal void navy_log_all(uint32_t now) {
         if (t == UT(B_NAVY_YARD)) { m->yards++; continue; }
         int k = navy_kind(it.td);
         if (k == NV_NONE) continue;
-        m->n[k]++; m->hp[k] += FIELD(it.u, OF(UNIT, 0x3C), int);
+        m->n[k]++; m->hp[k] += unit_get_hp(it.u);
         if (k != NV_WAR && k != NV_SUB && k != NV_CARRIER) continue;
         int j;
         for (j = 0; j < m->nt && m->wt[j].type != t; j++) ;
@@ -161,7 +161,7 @@ internal void navy_log_all(uint32_t now) {
         if (w == pi) m->home++;
         else if (pw && is_enemy(o, pw)) {
             m->away++;
-            c[w].foe_home++; c[w].foe_home_hp += FIELD(it.u, OF(UNIT, 0x3C), int);
+            c[w].foe_home++; c[w].foe_home_hp += unit_get_hp(it.u);
         }
     }
     EnterCriticalSection(&g_lock);
@@ -219,11 +219,11 @@ internal void navy_detect(ee_player *pl, unsigned idx, uint32_t now) {
     memset(b.n, 0, sizeof b.n);
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
         int fam = FIELD(it.td, OF(TD, 0x4B4), int);
-        ee_player *o = unit_owner(it.u);
-        if ((fam != 2 && fam != 29) || !o || FIELD(it.u, OF(UNIT, 0x3C), int) <= 0) continue;
+        ee_player *o = unit_get_owner(it.u);
+        if ((fam != 2 && fam != 29) || !o || unit_get_hp(it.u) <= 0) continue;
         int pi = FIELD(o, PL_INDEX, int);
         if (pi <= 0 || pi >= 16 || b.n[pi] >= 64) continue;
-        b.x[pi][b.n[pi]] = FIELD(it.u, OF(UNIT, 0x1C), int); b.y[pi][b.n[pi]++] = FIELD(it.u, OF(UNIT, 0x20), int);
+        b.x[pi][b.n[pi]] = unit_get_x(it.u); b.y[pi][b.n[pi]++] = unit_get_y(it.u);
     }
     int enemies = 0, across = 0, none = 0;
     for (int p = 1; p < nplayers(); p++) {
@@ -370,12 +370,12 @@ internal void navy_nodes(ee_player *pl, unsigned idx, uint32_t now) {
         void **sb = town ? FIELD(town, OF(ZONE, 0x8), void **) : NULL, **se = town ? FIELD(town, OF(ZONE, 0xC), void **) : NULL;
         for (int k = 0; sb && sb + k < se && k < 4096; k++) {
             ee_unit *s = sb[k];
-            int r = s ? FIELD(s, OF(UNIT, 0x38), int) : 0, j;
-            if (r < 4 || r > 6 || FIELD(s, OF(UNIT, 0x40), int) <= 0) continue;   // stone, gold, iron
+            int r = s ? unit_get_resource(s) : 0, j;
+            if (r < 4 || r > 6 || unit_get_amount(s) <= 0) continue;   // stone, gold, iron
             for (j = 0; j < ns && seen[j] != s; j++) ;
             if (j < ns) continue;
             if (ns < 512) seen[ns++] = s;
-            int x = FIELD(s, OF(UNIT, 0x1C), int), y = FIELD(s, OF(UNIT, 0x20), int);
+            int x = unit_get_x(s), y = unit_get_y(s);
             if (area_id(x, y, 2) != hc) { c->other[r]++; continue; }
             unsigned g = site_gatherers(s);
             int dd = 0x7FFFFFFF;
@@ -479,14 +479,14 @@ internal void navy_budget_log(ee_player *pl, unsigned idx, uint32_t now) {
 internal void navy_count(void) {
     memset(g_nv_own, 0, sizeof g_nv_own);
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
-        ee_player *o = unit_owner(it.u);
-        if (!o || FIELD(it.u, OF(UNIT, 0x3C), int) <= 0) continue;
+        ee_player *o = unit_get_owner(it.u);
+        if (!o || unit_get_hp(it.u) <= 0) continue;
         int pi = FIELD(o, PL_INDEX, int);
         if (pi <= 0 || pi >= 16) continue;
         if (FIELD(it.td, OF(TD, 0x4B8), int) == UT(B_DOCK)) {
-            uint8_t *st = FIELD(it.u, OF(UNIT, 0x30), uint8_t *);
+            ee_unit *st = unit_get_physics(it.u);
             g_nv_own[pi].docks++;
-            g_nv_own[pi].docks_built += st && FIELD(st, OF(UNIT, 0x340), uint8_t);
+            g_nv_own[pi].docks_built += st && unit_get_finished(st);
             continue;
         }
         int k = navy_kind(it.td);
@@ -651,9 +651,9 @@ internal void nv_seen(ee_player *pl, unsigned idx, struct nv_pick *pk, uint32_t 
         }
     } else
         for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
-            ee_player *o = unit_owner(it.u);
-            if (!o || FIELD(it.u, OF(UNIT, 0x3C), int) <= 0 || !is_enemy(pl, o) || !seen_by(it.u, pl)) continue;
-            nv_seen_one(pk, it.td, FIELD(it.u, OF(UNIT, 0x1C), int), FIELD(it.u, OF(UNIT, 0x20), int));
+            ee_player *o = unit_get_owner(it.u);
+            if (!o || unit_get_hp(it.u) <= 0 || !is_enemy(pl, o) || !seen_by(it.u, pl)) continue;
+            nv_seen_one(pk, it.td, unit_get_x(it.u), unit_get_y(it.u));
         }
     int afloat = pk->e[NR_FRIG] + pk->e[NR_LINE] + pk->e[NR_ANTI] + pk->e[NR_AA];
     float air = (float)(pk->air + 3 * pk->carriers);

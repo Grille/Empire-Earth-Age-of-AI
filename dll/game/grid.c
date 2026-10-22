@@ -55,10 +55,10 @@ internal int grid_it_next(struct grid_it *it) {
     for (;;) {
         while (it->b && it->b < FIELD(it->cell, OF(GRIDCELL, 0x8), ee_unit **)) {
             ee_unit *u = *it->b++;
-            uint8_t *td = u ? FIELD(u, OF(UNIT, 0x2C), uint8_t *) : NULL;
+            uint8_t *td = u ? unit_get_type_data(u) : NULL;
             if (!td) continue;
             if (it->once) {   // only in its own cell, or the area's cell nearest to it
-                int ox = FIELD(u, OF(UNIT, 0x1C), int) / it->cs, oy = FIELD(u, OF(UNIT, 0x20), int) / it->cs;
+                int ox = unit_get_x(u) / it->cs, oy = unit_get_y(u) / it->cs;
                 ox = ox < it->x0 ? it->x0 : ox > it->x1 ? it->x1 : ox;
                 oy = oy < it->y0 ? it->y0 : oy > it->y1 ? it->y1 : oy;
                 if (ox != it->cx || oy != it->cy) continue;
