@@ -64,7 +64,7 @@ internal void def_scan_unit(ee_unit *u, void *ctx) {
     }
     if (!owner || !is_enemy(s->pl, owner) || !seen_by(u, s->pl)) return;
     unsigned pi = (unsigned)player_get_index(owner) & 15;
-    int d2 = (x - s->bx) * (x - s->bx) + (y - s->by) * (y - s->by);
+    int d2 = ivec2_dist2(iv2(x, y), iv2(s->bx, s->by));
     if (d2 < s->d2[pi]) { s->d2[pi] = d2; s->x[pi] = x; s->y[pi] = y; }
 }
 
@@ -448,9 +448,9 @@ internal void counter_siege(ee_player *pl, unsigned idx, uint32_t now) {
         float r = tower ? 12.0f : (st ? stat_get_range(st) : type_get_range(etd)) + 4.0f;
         int threat = 0;
         for (int b = 0; b < s.nb && !threat; b++)
-            threat = (float)((s.bx[b] - x) * (s.bx[b] - x) + (s.by[b] - y) * (s.by[b] - y)) <= r * r;
+            threat = (float)ivec2_dist2(iv2(s.bx[b], s.by[b]), iv2(x, y)) <= r * r;
         for (int c = 0; tower && c < s.nc && !threat; c++)
-            threat = (float)((s.cx[c] - x) * (s.cx[c] - x) + (s.cy[c] - y) * (s.cy[c] - y)) <= r * r;
+            threat = (float)ivec2_dist2(iv2(s.cx[c], s.cy[c]), iv2(x, y)) <= r * r;
         if (!threat) continue;
         // a tower going up: its builders first (a player kills the citizens, the foundation is harmless without them)
         ee_unit *bl[8];
@@ -469,7 +469,7 @@ internal void counter_siege(ee_player *pl, unsigned idx, uint32_t now) {
             ee_unit *u = s.sold[k];
             if (!u) continue;   // already ordered this tick
             ee_goal *g = unit_get_goal(u);
-            int dx = unit_get_x(u) - x, dy = unit_get_y(u) - y, d2 = dx * dx + dy * dy;
+            int d2 = ivec2_dist2(unit_get_tile(u), iv2(x, y));
             if (d2 > 400) continue;
             if (g && goal_is_attack(g)) {
                 ee_unit *t = goal_get_target(g);
@@ -532,8 +532,7 @@ struct home_scan { ee_player *pl; int bx, by, n; };
 internal void home_unit(ee_unit *u, void *ctx) {
     struct home_scan *h = ctx;
     if (unit_get_owner(u) != h->pl || unit_get_hp(u) <= 0 || !is_soldier(unit_get_type_data(u))) return;
-    int dx = unit_get_x(u) - h->bx, dy = unit_get_y(u) - h->by;
-    h->n += dx * dx + dy * dy <= 625;
+    h->n += ivec2_dist2(unit_get_tile(u), iv2(h->bx, h->by)) <= 625;
 }
 internal int home_soldiers(ee_player *pl, int bx, int by) {
     struct home_scan h = { pl, bx, by, 0 };
@@ -612,7 +611,7 @@ internal void mus_unit(ee_unit *u, void *ctx) {
     ee_unit_type *td = unit_get_type_data(u);
     if (unit_get_hp(u) <= 0 || !td) return;
     ee_player *o = unit_get_owner(u);
-    int x = unit_get_x(u), y = unit_get_y(u), dx = x - m->bx, dy = y - m->by, d2 = dx * dx + dy * dy;
+    int x = unit_get_x(u), y = unit_get_y(u), d2 = ivec2_dist2(iv2(x, y), iv2(m->bx, m->by));
     float tr, ta;
     if (o == m->pl && d2 <= 22 * 22 && defence_stats(u, &tr, &ta)) {
         m->tpow += (float)unit_get_hp(u) * ta;
@@ -660,7 +659,7 @@ internal ee_unit *mus_nearest_enemy(struct mus_scan *s, ee_unit *u) {
     for (int k = 0; k < s->ne; k++) {
         ee_unit *e = s->enemy[k];
         if (unit_get_hp(e) <= 0) continue;
-        int dx = unit_get_x(e) - x, dy = unit_get_y(e) - y, d = dx * dx + dy * dy;
+        int d = ivec2_dist2(unit_get_tile(e), iv2(x, y));
         if (d < bd) { bd = d; best = e; }
     }
     return best;
@@ -711,8 +710,7 @@ internal void muster(ee_player *pl, unsigned idx, uint32_t now) {
         if (g_fight_est) st_side_clear(&g_ms_rally);
         for (int k = 0; k < s->no; k++) {
             ee_unit *u = s->own[k];
-            float dx = (float)unit_get_x(u) - g_mus[idx].rx, dy = (float)unit_get_y(u) - g_mus[idx].ry;
-            if (dx * dx + dy * dy <= 100) {
+            if (vec2_dist2(v2((float)unit_get_x(u), (float)unit_get_y(u)), v2(g_mus[idx].rx, g_mus[idx].ry)) <= 100) {
                 rpow += unit_power(u); rn++;
                 if (g_fight_est) st_side_add(&g_ms_rally, u);
             }
@@ -736,8 +734,7 @@ internal void muster(ee_player *pl, unsigned idx, uint32_t now) {
             return;
         }
         for (int k = 0; k < s->ne && !near_rally; k++) {
-            float dx = (float)unit_get_x(s->enemy[k]) - g_mus[idx].rx, dy = (float)unit_get_y(s->enemy[k]) - g_mus[idx].ry;
-            near_rally = dx * dx + dy * dy <= 100;
+            near_rally = vec2_dist2(v2((float)unit_get_x(s->enemy[k]), (float)unit_get_y(s->enemy[k])), v2(g_mus[idx].rx, g_mus[idx].ry)) <= 100;
         }
         if (near_rally && ++g_mus[idx].moves >= 3) {   // it follows: no getting away - fight where it is
             g_mus[idx].on = 0;
@@ -763,8 +760,7 @@ internal void muster(ee_player *pl, unsigned idx, uint32_t now) {
     for (int k = 0; k < s->no; k++) {
         ee_unit *u = s->own[k];
         ee_goal *goal = unit_get_goal(u);
-        float dx = (float)unit_get_x(u) - g_mus[idx].rx, dy = (float)unit_get_y(u) - g_mus[idx].ry;
-        if (dx * dx + dy * dy <= 36) continue;
+        if (vec2_dist2(v2((float)unit_get_x(u), (float)unit_get_y(u)), v2(g_mus[idx].rx, g_mus[idx].ry)) <= 36) continue;
         if (goal && goal_is_location(goal) && fabsf(goal_get_dest_x(goal) - g_mus[idx].rx) < 2 &&
             fabsf(goal_get_dest_y(goal) - g_mus[idx].ry) < 2) continue;
         if (unit_goal(u, goal_move(g_mus[idx].rx, g_mus[idx].ry), 0, 0x1F40)) ordered++;
@@ -841,9 +837,9 @@ internal void hold_town(ee_player *pl, unsigned idx, uint32_t now) {
             ee_unit *u = it.u;
             ee_unit_type *td = it.td;
             if (unit_get_hp(u) <= 0) continue;
-            int dx = unit_get_x(u) - s->bx, dy = unit_get_y(u) - s->by, type = type_get_id(td);
+            int type = type_get_id(td);
             ee_player *o = unit_get_owner(u);
-            if (dx * dx + dy * dy > 35 * 35 || !o || o == pl || player_get_index(o) <= 0 || !is_enemy(pl, o)) continue;
+            if (ivec2_dist2(unit_get_tile(u), iv2(s->bx, s->by)) > 35 * 35 || !o || o == pl || player_get_index(o) <= 0 || !is_enemy(pl, o)) continue;
             if ((!is_soldier(td) && !is_siege(type)) || !seen_by(u, pl)) continue;
             epow += unit_power(u);
             if (g_fight_est) st_side_add(&g_ms_foe, u);
@@ -860,16 +856,14 @@ internal void hold_town(ee_player *pl, unsigned idx, uint32_t now) {
     // point beyond 35 tiles); attack groups' members beyond 35 tiles: as the game has them (Aggressive)
     for (int j = 0; j < g_asg_n; j++) {
         ee_unit *u = g_asg_units[j];
-        int dx = unit_get_x(u) - s->bx, dy = unit_get_y(u) - s->by;
-        if (dx * dx + dy * dy > 35 * 35) set_behaviour(u, 5);
+        if (ivec2_dist2(unit_get_tile(u), iv2(s->bx, s->by)) > 35 * 35) set_behaviour(u, 5);
     }
     for (int k = 0; k < s->no; k++) {
         ee_unit *u = s->own[k];
         ee_goal *g = unit_get_goal(u);
         if (landing_has_unit(pl, u)) continue;   // the landing leads them (it ordered loaded transports at their docks against raiders)
         if (g && goal_is_location(g)) {
-            float dx = goal_get_dest_x(g) - (float)s->bx, dy = goal_get_dest_y(g) - (float)s->by;
-            if (dx * dx + dy * dy > 35.0f * 35.0f) { set_behaviour(u, 5); continue; }   // marching out
+            if (vec2_dist2(v2(goal_get_dest_x(g), goal_get_dest_y(g)), v2((float)s->bx, (float)s->by)) > 35.0f * 35.0f) { set_behaviour(u, 5); continue; }   // marching out
         }
         home[nh++] = u;
         hpow += unit_power(u);
@@ -892,7 +886,7 @@ internal void hold_town(ee_player *pl, unsigned idx, uint32_t now) {
             int bd = 0x7FFFFFFF, x = unit_get_x(u), y = unit_get_y(u);
             for (int j = 0; j < en && j < 128; j++) {
                 if (unit_get_hp(enemy[j]) <= 0) continue;
-                int dx = unit_get_x(enemy[j]) - x, dy = unit_get_y(enemy[j]) - y, d = dx * dx + dy * dy;
+                int d = ivec2_dist2(unit_get_tile(enemy[j]), iv2(x, y));
                 if (d < bd) { bd = d; best = enemy[j]; }
             }
             if (best && unit_goal(u, goal_attack(u, best), 0, 0x1F40)) ordered++;

@@ -97,8 +97,7 @@ internal float threat_at(unsigned pi, int x, int y) {
     for (int k = 0; k < g_threat[pi & 15].n; k++) {
         struct defence *d = &g_threat[pi & 15].d[k];
         float r = d->range + (float)g_avoid_margin;
-        int dx = x - d->x, dy = y - d->y;
-        if ((float)(dx * dx + dy * dy) <= r * r) t += d->attack / 50.0f;
+        if ((float)ivec2_dist2(iv2(x, y), iv2(d->x, d->y)) <= r * r) t += d->attack / 50.0f;
     }
     return t;
 }
@@ -144,8 +143,7 @@ internal int building_at(ee_player *pl, const int *dest, int r) {
         ee_unit_type *td = it.td;
         if (!td || type_get_family(td) != 2 || is_wall(type_get_id(td)) || !is_enemy(pl, unit_get_owner(u)))
             continue;
-        int dx = unit_get_x(u) - dest[0], dy = unit_get_y(u) - dest[1];
-        if (dx * dx + dy * dy <= r * r) return 1;
+        if (ivec2_dist2(unit_get_tile(u), iv2(dest[0], dest[1])) <= r * r) return 1;
     }
     return 0;
 }
@@ -164,12 +162,11 @@ internal ee_unit *find_weak_spot(ee_player *pl, unsigned pi, const int *start, c
         if (!td || type_get_family(td) != 2 || is_wall(type_get_id(td)) || !is_enemy(pl, unit_get_owner(u)) ||
             !seen_by(u, pl))
             continue;
-        int pos[2] = { unit_get_x(u), unit_get_y(u) };
-        float dx = (float)(pos[0] - dest[0]), dy = (float)(pos[1] - dest[1]);
-        if (dx * dx + dy * dy > (float)(r * r) || threat_at(pi, pos[0], pos[1]) > 0) continue;
-        if ((short)map_area(iv2(pos[0], pos[1]), 2) != home) continue;
-        float sx = (float)(pos[0] - start[0]), sy = (float)(pos[1] - start[1]);
-        float score = sqrtf(sx * sx + sy * sy) + 0.5f * sqrtf(dx * dx + dy * dy);
+        ivec2 pos = unit_get_tile(u);
+        float d2 = (float)ivec2_dist2(pos, iv2(dest[0], dest[1]));
+        if (d2 > (float)(r * r) || threat_at(pi, pos.x, pos.y) > 0) continue;
+        if ((short)map_area(pos, 2) != home) continue;
+        float score = sqrtf((float)ivec2_dist2(pos, iv2(start[0], start[1]))) + 0.5f * sqrtf(d2);
         if (score < best_score) { best_score = score; best = u; }
     }
     return best;
@@ -266,7 +263,7 @@ internal ee_unit *find_breach(ee_player *pl, unsigned pi, const int *start, cons
         for (int ddx = -1; ddx <= 1; ddx++)
             for (int ddy = -1; ddy <= 1; ddy++) {
                 int nx = x + ddx, ny = y + ddy, seen = 0;
-                if ((nx - cx) * (nx - cx) + (ny - cy) * (ny - cy) > 60 * 60 || tail >= MAXQ) continue;
+                if (ivec2_dist2(iv2(nx, ny), iv2(cx, cy)) > 60 * 60 || tail >= MAXQ) continue;
                 for (int k = 0; k < tail && !seen; k++) seen = qx[k] == nx && qy[k] == ny;
                 if (!seen && wall_at(pl, nx, ny)) { qx[tail] = nx; qy[tail++] = ny; }
             }
@@ -395,9 +392,8 @@ internal void __thiscall hook_asg_route(ee_attack_subgroup *self, int *start, in
     if (pl && hostile) persona_attack(pl, target);
     if (chat_level() && pl && start && dest) {
         unsigned pi = (unsigned)player_get_index(pl) & 15;
-        int dx = dest[0] - start[0], dy = dest[1] - start[1];
         ai_say(pl, CHAT_ROUTE, "[ai] marching on P%d at %d,%d (%.0f tiles), %d enemy defences known",
-               target ? player_get_index(target) : -1, dest[0], dest[1], sqrt((double)(dx * dx + dy * dy)), g_threat[pi].n);
+               target ? player_get_index(target) : -1, dest[0], dest[1], sqrt((double)ivec2_dist2(iv2(dest[0], dest[1]), iv2(start[0], start[1]))), g_threat[pi].n);
     }
     asg_route(self, start, dest);
 }
@@ -429,8 +425,7 @@ internal int guarded(ee_player *pl, int x, int y, int r) {
         int t = type_get_id(td);
         if (ut_role(t, UTR_CITIZEN | UTR_RAM | UTR_SIEGE))
             continue;
-        int dx = unit_get_x(u) - x, dy = unit_get_y(u) - y;
-        if (dx * dx + dy * dy <= r * r) return 1;
+        if (ivec2_dist2(unit_get_tile(u), iv2(x, y)) <= r * r) return 1;
     }
     return 0;
 }
@@ -460,8 +455,7 @@ internal float __thiscall hook_asgu_score(ee_asg_unit *self, ee_asgu_info *info)
     if (g_ignore_air && s != 0.0f && me && (efam == 3 || efam == 7 || efam == 17)) {
         ee_unit_stats *st = unit_get_stats(me);
         float r = (st ? stat_get_range(st) : type_get_range(mtd)) + 3.0f;
-        int dx = unit_get_x(enemy) - unit_get_x(me), dy = unit_get_y(enemy) - unit_get_y(me);
-        if ((float)(dx * dx + dy * dy) > r * r) {
+        if ((float)ivec2_dist2(unit_get_tile(enemy), unit_get_tile(me)) > r * r) {
             g_air_skips++;
             return 0.0f;
         }
@@ -629,8 +623,8 @@ internal int nearest_drop(ee_player *pl, ivec2 p, int food, ivec2 *out);   // si
 internal int tower_covers(unsigned pi, float x, float y) {
     for (int k = 0; k < g_threat[pi].n; k++) {
         struct defence *d = &g_threat[pi].d[k];
-        float dx = x - (float)d->x, dy = y - (float)d->y, r = d->range + 2.0f;
-        if (dx * dx + dy * dy <= r * r) return 1;
+        float r = d->range + 2.0f;
+        if (vec2_dist2(v2(x, y), v2((float)d->x, (float)d->y)) <= r * r) return 1;
     }
     return 0;
 }
@@ -703,7 +697,7 @@ internal void flee_point(ee_player *pl, int x, int y, float rx, float ry, float 
             px = px < 3 ? 3 : px > msz - 4 ? msz - 4 : px;
             py = py < 3 ? 3 : py > msz - 4 ? msz - 4 : py;
         }
-        float d = (px - rx) * (px - rx) + (py - ry) * (py - ry);
+        float d = vec2_dist2(v2(px, py), v2(rx, ry));
         if (d >= best || path_raided(pl, x, y, (int)px, (int)py)) continue;
         best = d; *fx = px; *fy = py;
     }
@@ -828,8 +822,7 @@ internal void citizens_safety(ee_resource_mgr *rm) {   // before the citizen ass
             }
             if (mus) {   // the base is overrun: citizens near the enemy (or working near it) flee to the rally point
                 int ux = unit_get_x(u), uy = unit_get_y(u);
-                float dx = (float)ux - rx, dy = (float)uy - ry;
-                if (dx * dx + dy * dy <= 36) continue;   // there already
+                if (vec2_dist2(v2((float)ux, (float)uy), v2(rx, ry)) <= 36) continue;   // there already
                 const char *gn0 = goal ? rtti_name(goal) : "";
                 ee_unit *st = !goal ? NULL : !strcmp(gn0, "EEUGBuildRepair@@") ? goal_get_building(goal) :
                               !strcmp(gn0, "EEUGGather@@") ? goal_get_site(goal) : NULL;
@@ -944,8 +937,8 @@ internal int covered(unsigned pi, float x, float y, int ex, int ey) {
     for (int k = 0; k < g_threat[pi].n; k++) {
         struct defence *d = &g_threat[pi].d[k];
         if (d->x == ex && d->y == ey) continue;
-        float dx = x - (float)d->x, dy = y - (float)d->y, r = d->range + 1.5f;
-        if (dx * dx + dy * dy <= r * r) return 1;
+        float r = d->range + 1.5f;
+        if (vec2_dist2(v2(x, y), v2((float)d->x, (float)d->y)) <= r * r) return 1;
     }
     return 0;
 }
@@ -1092,16 +1085,16 @@ internal void siege_tick(ee_player *pl, uint32_t now) {
     for (int k = 0; k < 64; k++) {
         if (!g_breaches[k].sg || g_breaches[k].pl != pl) continue;
         ee_unit *w = wall_at(pl, g_breaches[k].x, g_breaches[k].y);
-        float dx = (float)g_breaches[k].x - sx, dy = (float)g_breaches[k].y - sy;
-        if (w && dx * dx + dy * dy < best) { best = dx * dx + dy * dy; t = w; }
+        float d = vec2_dist2(v2((float)g_breaches[k].x, (float)g_breaches[k].y), v2(sx, sy));
+        if (w && d < best) { best = d; t = w; }
     }
     if (!t) {
         threat_refresh(pl, now);
         for (int k = 0; k < g_threat[pi].n; k++) {
             struct defence *d = &g_threat[pi].d[k];
             if (d->range + 0.5f >= srange) continue;
-            float dx = (float)d->x - sx, dy = (float)d->y - sy;
-            if (dx * dx + dy * dy < best) { best = dx * dx + dy * dy; t = unit_at(d->x, d->y, d->type); }
+            float dd = vec2_dist2(v2((float)d->x, (float)d->y), v2(sx, sy));
+            if (dd < best) { best = dd; t = unit_at(d->x, d->y, d->type); }
         }
     }
     if (!t) return;

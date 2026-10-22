@@ -175,7 +175,7 @@ internal void ex_log(ee_player *pl, unsigned idx, uint32_t now) {
         for (int p = 1; p < 16; p++) if (p != pi) k[cl].oth += c->gat[p][4] + c->gat[p][5] + c->gat[p][6];
         k[cl].drop += c->drop[pi]; k[cl].bld += c->bld[pi]; k[cl].cit += c->cit[pi]; k[cl].sold += c->sold[pi]; k[cl].tower += c->tower[pi];
         if (cl == EXC_EMPTY && mines && c->x >= 0) {
-            int d = (int)sqrtf((float)((c->x - bx) * (c->x - bx) + (c->y - by) * (c->y - by)));
+            int d = (int)sqrtf((float)ivec2_dist2(iv2(c->x, c->y), iv2(bx, by)));
             if (near_d < 0 || d < near_d) { near_d = d; near_m = mines; }
         }
     }
@@ -444,9 +444,9 @@ internal unsigned ex_pick(ee_player *pl, unsigned idx, struct ex_st *x, unsigned
         if (n > EX_GUARD(idx)) continue;
         int wx, wy;
         if ((int)ocean_near(mx, my, 25, &wx, &wy) == 0) continue;
-        float d = sqrtf((float)((mx - bx) * (mx - bx) + (my - by) * (my - by)));
+        float d = sqrtf((float)ivec2_dist2(iv2(mx, my), iv2(bx, by)));
         for (int k = 0; (EXPAND(idx) & 32) && k < x->nheld; k++) {   // MORE: concentrated - the nearest of what it holds
-            float dh = sqrtf((float)((mx - x->held[k].x) * (mx - x->held[k].x) + (my - x->held[k].y) * (my - x->held[k].y)));
+            float dh = sqrtf((float)ivec2_dist2(iv2(mx, my), iv2(x->held[k].x, x->held[k].y)));
             if (dh < d) d = dh;
         }
         float sc = 10.0f * (float)c->mn - 0.25f * d - 15.0f * (float)c->eseen[idx];
@@ -462,7 +462,7 @@ internal void ex_pick_unit(ee_unit *u, void *ctx) {
     struct ex_pick_scan *p = ctx;
     ee_unit_type *td = unit_get_type_data(u);
     if (unit_get_owner(u) != p->pl || unit_get_hp(u) <= 0 || !td || unit_get_x(u) < 0 || unit_get_frozen(u)) return;
-    int x = unit_get_x(u), y = unit_get_y(u), d = (x - p->cx) * (x - p->cx) + (y - p->cy) * (y - p->cy);
+    int x = unit_get_x(u), y = unit_get_y(u), d = ivec2_dist2(iv2(x, y), iv2(p->cx, p->cy));
     if (d > 35 * 35 || area_id(x, y, 2) != p->hc || landing_has_unit(p->pl, u)) return;
     int t = type_get_id(td);
     ee_goal *g0 = unit_get_goal(u);
@@ -503,7 +503,7 @@ internal void ex_ferry_ship(ee_player *pl, unsigned idx, struct ex_st *x, uint32
         if (landing_has_unit(pl, u)) { nl++; continue; }
         if (ex_cargo(u) > 0) { nld++; continue; }
         if ((int)ocean_near(unit_get_x(u), unit_get_y(u), 2, NULL, NULL) != x->ocean) { no++; continue; }
-        int dx = unit_get_x(u) - x->hwx, dy = unit_get_y(u) - x->hwy, d = dx * dx + dy * dy;
+        int d = ivec2_dist2(unit_get_tile(u), iv2(x->hwx, x->hwy));
         if (u == x->last.u && unit_get_id(u) == x->last.id) d = -1;   // the last trip's
         if (d < bd) { bd = d; best = u; }
     }
@@ -602,8 +602,7 @@ internal void ex_ferry_scout(ee_player *pl, unsigned idx, struct ex_st *x, uint3
     struct ex_cont *c = ex_cont_of(x->cont, 0);
     // looked at: half its mines (intel.c), or the transport 10 s at the island's shore water (it sees the shore and
     // what stands by it - the mines often lie beyond its sight)
-    int dx = unit_get_x(sh) - x->uwx, dy = unit_get_y(sh) - x->uwy;
-    if (dx * dx + dy * dy <= 36) { if (!x->scout_at) x->scout_at = now ? now : 1; } else x->scout_at = 0;
+    if (ivec2_dist2(unit_get_tile(sh), iv2(x->uwx, x->uwy)) <= 36) { if (!x->scout_at) x->scout_at = now ? now : 1; } else x->scout_at = 0;
     int seen = (c && c->mexp[idx] * 2 >= c->mn) || (x->scout_at && now - x->scout_at >= 10000);
     if (c && (c->etown[idx] || c->etow[idx] || c->eseen[idx] > 3)) {
         while (ex_mark_lost(x, x->cont, now) < 3 && x->ngone < 8) ;
@@ -685,8 +684,7 @@ internal void ex_ferry_board(ee_player *pl, unsigned idx, struct ex_st *x, uint3
     for (int k = 0; k < x->npass; k++) {
         ee_unit *u = x->pass[k].u;
         if (unit_get_x(u) < 0) { close++; continue; }
-        int dx = unit_get_x(u) - x->hx, dy = unit_get_y(u) - x->hy;
-        if (dx * dx + dy * dy <= 64) { close++; continue; }
+        if (ivec2_dist2(unit_get_tile(u), iv2(x->hx, x->hy)) <= 64) { close++; continue; }
         if (!x->load_t && !goal_near(u, (float)x->hx + 0.5f, (float)x->hy + 0.5f, 3.0f))   // before the load goal
             x->orders += unit_goal(u, goal_move((float)x->hx + 0.5f, (float)x->hy + 0.5f), 0, 0x1F40);
     }
@@ -728,8 +726,8 @@ internal void ex_ferry_sail(ee_player *pl, unsigned idx, struct ex_st *x, uint32
     }
     if (now - x->fsince >= 360000) { ex_ferry_end(pl, idx, x, now, "no landing within 6 minutes - unloaded where it is"); x->next_try = now + 300000; if (!x->ever_ashore) x->active = 0; return; }
     if (cur && goal_is_unload(cur)) return;
-    int x0 = unit_get_x(sh), y0 = unit_get_y(sh), tx = x->ux, ty = x->uy, dx = x0 - x->ux, dy = y0 - x->uy;
-    if (dx * dx + dy * dy <= 144) ex_shore(x->cont, x->ocean, x0, y0, 12, &tx, &ty, NULL, NULL);   // off the island: the nearest shore tile with room
+    int x0 = unit_get_x(sh), y0 = unit_get_y(sh), tx = x->ux, ty = x->uy;
+    if (ivec2_dist2(iv2(x0, y0), iv2(x->ux, x->uy)) <= 144) ex_shore(x->cont, x->ocean, x0, y0, 12, &tx, &ty, NULL, NULL);   // off the island: the nearest shore tile with room
     x->orders += unit_goal(sh, ld_unload(sh, tx, ty), 0, 0x1F40);
 }
 
@@ -751,7 +749,7 @@ internal void ex_isle_unit(ee_unit *u, void *ctx) {
     }
     if (player_get_index(o) <= 0 || !is_enemy(e->pl, o) || !seen_by(u, e->pl)) return;   // enemies seen near the outpost
     if (!is_soldier(td) && !is_citizen_type(type_get_id(td)) && !is_siege(type_get_id(td))) return;
-    int d = (x - e->fx) * (x - e->fx) + (y - e->fy) * (y - e->fy);
+    int d = ivec2_dist2(iv2(x, y), iv2(e->fx, e->fy));
     if (d > 14 * 14 || area_id(x, y, 2) != e->cont) return;
     e->foe++;
     if (!e->fu || d < e->fd) { e->fu = u; e->fd = d; }
@@ -796,7 +794,7 @@ internal ee_unit *ex_free_mine(ee_player *pl, struct ex_st *x, int px, int py) {
             ee_unit *s = sb[k];
             int r = s ? unit_get_resource(s) : 0;
             if (r < 4 || r > 6 || unit_get_amount(s) <= 0) continue;
-            int sx = unit_get_x(s), sy = unit_get_y(s), d = (sx - px) * (sx - px) + (sy - py) * (sy - py);
+            int sx = unit_get_x(s), sy = unit_get_y(s), d = ivec2_dist2(iv2(sx, sy), iv2(px, py));
             if (d >= bd || area_id(sx, sy, 2) != x->cont) continue;
             if (site_gatherers(s) >= cap) continue;
             best = s; bd = d;
@@ -842,7 +840,7 @@ internal void ex_forward(ee_player *pl, unsigned idx, struct ex_st *x, uint32_t 
         for (int k = 0; k < in->n; k++) {
             struct intel_rec *e = &in->r[k];
             if (e->kind != 0 || e->x < 0) continue;
-            float a = (float)((e->x - bx) * (e->x - bx) + (e->y - by) * (e->y - by)), b = (float)((e->x - x->mx) * (e->x - x->mx) + (e->y - x->my) * (e->y - x->my));
+            float a = (float)ivec2_dist2(iv2(e->x, e->y), iv2(bx, by)), b = (float)ivec2_dist2(iv2(e->x, e->y), iv2(x->mx, x->my));
             if (a < dh) dh = a;
             if (b < dp) dp = b;
         }
@@ -1108,7 +1106,7 @@ internal void ex_plan(ee_player *pl, unsigned idx, struct ex_st *x, uint32_t now
                 for (int ddy = -d; ddy <= d; ddy += (abs(ddx) == d || !d ? 2 : 2 * d)) {
                     int tx = bx + ddx, ty = by + ddy, wx, wy;
                     if (area_id(tx, ty, 2) != hc || area_id(tx, ty, 1) || (int)ocean_near(tx, ty, 2, &wx, &wy) != ocean || !ld_tile_free(tx, ty)) continue;
-                    int sc = (int)sqrtf((float)(ddx * ddx + ddy * ddy)) * 2 + (int)sqrtf((float)((tx - x->ux) * (tx - x->ux) + (ty - x->uy) * (ty - x->uy)));
+                    int sc = (int)sqrtf((float)(ddx * ddx + ddy * ddy)) * 2 + (int)sqrtf((float)ivec2_dist2(iv2(tx, ty), iv2(x->ux, x->uy)));
                     if (sc < best) { best = sc; x->hx = tx; x->hy = ty; x->hwx = wx; x->hwy = wy; found = 1; }
                 }
         if (!found) why = "no shore of its sea at home";
