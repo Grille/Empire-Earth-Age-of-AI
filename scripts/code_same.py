@@ -52,10 +52,24 @@ def coff(path):
     return secs, syms
 
 
-def functions(obj):
+def addr_names(d):
+    """the address table's names in their order (g_addr's index): the rows can move between the address files
+    (game/api/addr.h, functions_addr.h, hooks_addr.h) - the same name is the same address"""
+    h = next((p for p in ('game/api/addr.h', 'game/addr.h') if os.path.exists(os.path.join(d, p))), None)
+    if not h: return None
+    src = '#include "%s"\nCODE_SAME_NAMES ADDRS(ADDR_NAME_F, ADDR_NAME_D) ADDR_NUMBERS(ADDR_NAME_D)\n' % h
+    out = subprocess.run([CC, '-E', '-P', '-I', d, '-x', 'c', '-'], input=src, capture_output=True, text=True, cwd=d).stdout
+    tail = out[out.rfind('CODE_SAME_NAMES'):]
+    return re.findall(r'"(\w+)"', tail) or None
+
+
+def functions(obj, names=None):
     secs, syms = coff(obj)
     def target(si, addend):   # what a reference points at, independent of the layout
         nm, secno, value, cls = syms[si]
+        if names and nm == '_g_addr' and addend % 4 == 0 and 0 <= addend // 4 < len(names):
+            return 'g_addr[%s]' % names[addend // 4]                     # an address by its name, wherever its row is
+        if names and nm in ('_k_addr', '_k_addr_name'): return nm        # the tables themselves: in the rows' order
         if secno <= 0: return nm                                          # outside: an import, another symbol
         sname, data, _ = secs[secno - 1]
         if sname.startswith('.rdata'):   # a constant (a string _.str.27 - numbered in the order they come): its bytes
@@ -83,7 +97,7 @@ def functions(obj):
                         t = target(rel[r], addend)
                         nm = syms[rel[r]][0]
                         # the instruction shows the field's value (the addend, or a pc-relative distance): masked
-                        ins = re.sub(r'(?<![\w+])-?0x[0-9a-f]+(?=[(,\s]|$)', 'X', ins, count=0) if nm.startswith('.') else ins
+                        ins = re.sub(r'(?<![\w+])-?0x[0-9a-f]+(?=[(,\s]|$)', 'X', ins, count=0) if nm.startswith('.') or t.startswith('g_addr[') else ins
                         ins += ' -> ' + t
                     out.append(ins)
                 fns[cur + ('#%d' % used[cur] if used[cur] > 1 else '')] = out
@@ -108,7 +122,9 @@ def main():
         old = os.path.join(tree, 'dll')
     compile_dir(old, os.path.join(WORK, 'old.o'))
     compile_dir(new, os.path.join(WORK, 'new.o'))
-    a, b = functions(os.path.join(WORK, 'old.o')), functions(os.path.join(WORK, 'new.o'))
+    na, nb = addr_names(old), addr_names(new)
+    if not na or not nb: na = nb = None   # an old tree without the names: by index, as before
+    a, b = functions(os.path.join(WORK, 'old.o'), na), functions(os.path.join(WORK, 'new.o'), nb)
     back = {v: k for k, v in same.items()}
     for k in b:   # a new name as the old one: both count as the same variable
         b[k] = [re.sub(r'-> (\S+)$', lambda m: '-> ' + back.get(m.group(1), m.group(1)), ln) for ln in b[k]]
