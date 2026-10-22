@@ -759,7 +759,7 @@ internal int ld_stage(struct landing *l, unsigned pi, int *ox, int *oy) {
         if (!ld_open_water(l->wx + (int)(dx * (float)r / len), l->wy + (int)(dy * (float)r / len), (unsigned)l->ocean, &x, &y)) continue;
         int bx = x - l->wx, by = y - l->wy;
         if (bx * bx + by * by < 64) continue;
-        float t = threat_at(pi, x, y) + 0.01f * (float)r;
+        float t = threat_at(pi, iv2(x, y)) + 0.01f * (float)r;
         if (ld_hunt(g_players[pi], x, y, 10, NULL, ld_tr_td(l)) || ld_naval_target(g_players[pi], x, y, 10, 0)) t += 5.0f;   // threats or defences near
         if (t < best) { best = t; *ox = x; *oy = y; found = 1; }
     }
@@ -825,8 +825,8 @@ internal int ld_base_spot(ee_player *pl, unsigned pi, struct landing *l, int typ
                 int x = cx + dx, y = cy + dy, ok = area_id(iv2(x, y), 2) == cont && !area_id(iv2(x, y), 1);
                 for (int k = 0; k < l->nproj && ok; k++)   // room between its buildings: a way through
                     if (l->proj[k].state && abs(l->proj[k].x - x) < sz + 3 && abs(l->proj[k].y - y) < sz + 3) ok = 0;
-                if (!ok || !can_place(pl, type, x, y)) continue;
-                float sc = (float)d + 10.0f * threat_at(pi, x, y);
+                if (!ok || !can_place(pl, type, iv2(x, y))) continue;
+                float sc = (float)d + 10.0f * threat_at(pi, iv2(x, y));
                 if (sc < best) { best = sc; *ox = x; *oy = y; found = 1; }
             }
     return found;
@@ -2012,8 +2012,8 @@ internal void ld_obj_unit(ee_unit *u, void *ctx) {
         is_wall(type_get_id(td)) || defence_stats(u, &rr, &a) || !seen_by(u, s->pl))
         return;
     int x = unit_get_x(u), y = unit_get_y(u);
-    float sc = sqrtf((float)ivec2_dist2(iv2(x, y), iv2(s->x, s->y))) + 3.0f * threat_at(s->pi, x, y);
-    if ((s->best && sc >= s->score) || !cont_ok(x, y, s->cont)) return;
+    float sc = sqrtf((float)ivec2_dist2(iv2(x, y), iv2(s->x, s->y))) + 3.0f * threat_at(s->pi, iv2(x, y));
+    if ((s->best && sc >= s->score) || !cont_ok(iv2(x, y), s->cont)) return;
     s->best = u; s->score = sc;
 }
 internal ee_unit *ld_objective(ee_player *pl, unsigned pi, ee_player *target, unsigned cont, int x, int y) {

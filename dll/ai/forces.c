@@ -13,9 +13,9 @@ internal unsigned area_id(ivec2 p, int kind) {
     return map_area(p, kind);
 }
 internal unsigned cont_at(ivec2 p) { return area_id(p, 2); }
-internal int cont_ok(int x, int y, unsigned hc) {   // land of continent hc (or an area without ids that is no ocean)
-    unsigned c = area_id(iv2(x, y), 2);
-    return c == hc || (c == 0 && area_id(iv2(x, y), 1) == 0 && x >= 0 && y >= 0);
+internal int cont_ok(ivec2 p, unsigned hc) {   // land of continent hc (or an area without ids that is no ocean)
+    unsigned c = area_id(p, 2);
+    return c == hc || (c == 0 && area_id(p, 1) == 0 && p.x >= 0 && p.y >= 0);
 }
 
 // still one of AI pl's attack subgroups? A stored subgroup pointer can be deleted by the game between two ticks (a
@@ -42,9 +42,9 @@ internal void objective_unit(ee_unit *u, void *ctx) {
         is_wall(type_get_id(td)) || !seen_by(u, s->pl))
         return;
     int x = unit_get_x(u), y = unit_get_y(u);
-    float dx = (float)(x - s->x), dy = (float)(y - s->y), sc = sqrtf(dx * dx + dy * dy) + 3.0f * threat_at(s->pi, x, y);
+    float dx = (float)(x - s->x), dy = (float)(y - s->y), sc = sqrtf(dx * dx + dy * dy) + 3.0f * threat_at(s->pi, iv2(x, y));
     if (s->best && sc >= s->score) return;
-    if (!cont_ok(x, y, s->cont)) return;
+    if (!cont_ok(iv2(x, y), s->cont)) return;
     s->best = u; s->score = sc;
 }
 internal ee_unit *enemy_objective(ee_player *pl, unsigned pi, ee_player *target, unsigned cont, int x, int y) {

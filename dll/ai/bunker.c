@@ -139,7 +139,7 @@ internal int bk_shelter(ee_player *pl, ee_unit *u) {
     int ux = unit_get_x(u), uy = unit_get_y(u), best = -1, bd = 15 * 15 + 1;
     ee_unit *h = bk_walking_into(u);   // on its way into one of them already (the 4 s passes queued it again and again:
     for (int k = 0; h && k < g_bk[pi].nf; k++) if (g_bk[pi].f[k] == h) return 1;   // the fortress re-ordered, over-filled)
-    if (bk_hurt_recent(pi, ux, uy, 6, 30000) < 1 && !raiders_near(pl, ux, uy, 8)) return 0;   // not under fire right now
+    if (bk_hurt_recent(pi, ux, uy, 6, 30000) < 1 && !raiders_near(pl, iv2(ux, uy), 8)) return 0;   // not under fire right now
     for (int k = 0; k < g_bk[pi].nf; k++) {
         ee_unit *f = g_bk[pi].f[k];
         int d = ivec2_dist2(unit_get_tile(f), iv2(ux, uy));
@@ -166,7 +166,7 @@ internal void bk_flush(ee_player *pl, unsigned pi, uint32_t now) {   // the queu
             continue;
         }
         if (!g_bk[pi].shelter[k]) continue;   // the reserve's soldiers only: bk_reserve_tick
-        if (bk_hurt_recent(pi, fx, fy, 10, 45000) || raiders_near(pl, fx, fy, 10)) { g_bk[pi].quiet_t[k] = 0; continue; }
+        if (bk_hurt_recent(pi, fx, fy, 10, 45000) || raiders_near(pl, iv2(fx, fy), 10)) { g_bk[pi].quiet_t[k] = 0; continue; }
         if (!g_bk[pi].quiet_t[k]) { g_bk[pi].quiet_t[k] = now ? now : 1; continue; }
         if (now - g_bk[pi].quiet_t[k] < 8000) continue;   // two quiet looks
         if (bk_unload(f, fx, fy + 3)) {
@@ -259,8 +259,8 @@ internal void bk_build(ee_player *pl, unsigned pi, uint32_t now) {
         for (int ax = -r; ax <= r; ax++)
             for (int ay = -r; ay <= r; ay++) {
                 int x = d.x + ax, y = d.y + ay;
-                if ((abs(ax) != r && abs(ay) != r) || !can_place(pl, FORTRESS_TYPE, x, y) || !can_place(pl, FORTRESS_TYPE, x + 1, y + 1) ||
-                    !can_place(pl, FORTRESS_TYPE, x - 1, y - 1) || raiders_near(pl, x, y, 8)) continue;
+                if ((abs(ax) != r && abs(ay) != r) || !can_place(pl, FORTRESS_TYPE, iv2(x, y)) || !can_place(pl, FORTRESS_TYPE, iv2(x + 1, y + 1)) ||
+                    !can_place(pl, FORTRESS_TYPE, iv2(x - 1, y - 1)) || raiders_near(pl, iv2(x, y), 8)) continue;
                 ee_unit *b = place_foundation(pl, FORTRESS_TYPE, x, y);
                 int sent = b ? bk_builders(pl, b, 3) : 0;
                 if (g_log) fprintf(g_log, "# bunker: P%u at %.1f min: fortress foundation at %d,%d %s, %d builders (%s, %d citizens, %d fortresses)\n", pi,
@@ -309,7 +309,7 @@ internal void bk_reserve_tick(ee_player *pl, unsigned pi, uint32_t now) {
     int room = bk_room(pl), threat = -1;
     for (int k = 0; k < g_bk[pi].nf && threat < 0; k++) {
         ee_unit *fo = g_bk[pi].f[k];
-        if (!g_bk[pi].shelter[k] && bk_held(fo) > 0 && raiders_near(pl, unit_get_x(fo), unit_get_y(fo), 20)) threat = k;
+        if (!g_bk[pi].shelter[k] && bk_held(fo) > 0 && raiders_near(pl, unit_get_tile(fo), 20)) threat = k;
     }
     if (room <= 1 && threat < 0) {
         void *cm2 = player_get_civ_mgr(pl);

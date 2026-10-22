@@ -721,7 +721,7 @@ internal void fl_rally_tower(ee_player *pl, unsigned idx, struct fleet *m, uint3
         for (int ax = -r; ax <= r; ax++)
             for (int ay = -r; ay <= r; ay++) {
                 int x = dx0 + ax, y = dy0 + ay;
-                if ((abs(ax) != r && abs(ay) != r) || !fl_coast(x, y, m->ocean) || raiders_near(pl, x, y, 10) || !can_place(pl, ttype, x, y)) continue;
+                if ((abs(ax) != r && abs(ay) != r) || !fl_coast(x, y, m->ocean) || raiders_near(pl, iv2(x, y), 10) || !can_place(pl, ttype, iv2(x, y))) continue;
                 int entry[3] = { ttype, x, y };
                 bm_queue_add(bm, e, entry);
                 m->rally_towers++;

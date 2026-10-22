@@ -421,7 +421,7 @@ internal void cmd_stats(char *out, const char *args) {
             if (!best) continue;
             hit++;
             if (seen_by(best, st_player(p))) seen++;
-            if (raiders_near(st_player(p), unit_get_x(c), unit_get_y(c), 6)) flagged++;
+            if (raiders_near(st_player(p), unit_get_tile(c), 6)) flagged++;
             int t = type_get_id(unit_get_type_data(best)), j = 0;
             while (j < ntype && tt[j] != t) j++;
             if (j == ntype && ntype < 32) { tt[ntype] = t; tr[ntype] = st_range(best); tf[ntype++] = type_get_family(unit_get_type_data(best)); }

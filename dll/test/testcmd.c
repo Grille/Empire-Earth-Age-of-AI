@@ -201,7 +201,7 @@ internal void cmd_targets(char *out, const char *args) {
         int x = unit_get_x(u), y = unit_get_y(u);
         if (strlen(out) > 15000) { REPLY("...\n"); return; }
         REPLY("  type %3d of P%d at %d,%d %s threat %.1f\n", type_get_id(td),
-              player_get_index(unit_get_owner(u)), x, y, seen_by(u, pl) ? "seen  " : "unseen", threat_at(p, x, y));
+              player_get_index(unit_get_owner(u)), x, y, seen_by(u, pl) ? "seen  " : "unseen", threat_at(p, iv2(x, y)));
         n++;
     }
     REPLY("P%d: %u enemy buildings\n", p, n);

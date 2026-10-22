@@ -107,7 +107,7 @@ internal int early_core_spot(ee_player *pl, int type, int *ox, int *oy) {
         for (int r = 0; r <= 2; r++)
             for (int ax = -r; ax <= r; ax++)
                 for (int ay = -r; ay <= r; ay++) {
-                    if ((abs(ax) != r && abs(ay) != r) || raiders_near(pl, x + ax, y + ay, 10) || !can_place(pl, type, x + ax, y + ay))
+                    if ((abs(ax) != r && abs(ay) != r) || raiders_near(pl, iv2(x + ax, y + ay), 10) || !can_place(pl, type, iv2(x + ax, y + ay)))
                         continue;
                     *ox = x + ax; *oy = y + ay;
                     st->pend[k].x = *ox; st->pend[k].y = *oy; st->pend[k].t = now ? now : 1;
@@ -158,7 +158,7 @@ internal void early_towers_tick(ee_player *pl, unsigned idx, uint32_t now) {
         todo[nt++] = u;
     }
     for (int i = 0; i < nt; i++)
-        if (!raiders_near(pl, unit_get_x(todo[i]), unit_get_y(todo[i]), 8)) st->builders += (unsigned)bk_builders(pl, todo[i], 2);
+        if (!raiders_near(pl, unit_get_tile(todo[i]), 8)) st->builders += (unsigned)bk_builders(pl, todo[i], 2);
 }
 
 // own buildings that shoot (finished) near x, y: 1 when one reaches x, y (its range - 0.5)

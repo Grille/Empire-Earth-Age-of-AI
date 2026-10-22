@@ -151,7 +151,7 @@ internal void mine_drops(ee_player *pl, unsigned idx, uint32_t now) {
             for (int ay = -r; ay <= r; ay++) {
                 if (abs(ax) != r && abs(ay) != r) continue;
                 int x = m->far_x + ax, y = m->far_y + ay;
-                if (!can_place(pl, UT(B_SETTLEMENT), x, y) || raiders_near(pl, x, y, 12)) continue;
+                if (!can_place(pl, UT(B_SETTLEMENT), iv2(x, y)) || raiders_near(pl, iv2(x, y), 12)) continue;
                 int entry[3] = { UT(B_SETTLEMENT), x, y };
                 bm_queue_add(bm, e, entry);
                 m->drops_queued++;

@@ -41,13 +41,13 @@ internal int tower_queued(ee_build_mgr *bm) {   // a tower of the line in the bu
     for (int i = 0; i < 7; i++) if (bq_has(bm, g_ut[k_tower_line[i]])) return 1;
     return 0;
 }
-internal int can_place(ee_player *pl, int type, int x, int y) {
+internal int can_place(ee_player *pl, int type, ivec2 p) {
     ee_unit_type *td = type_data(type);
     ee_map *map = game_map();
     int n = map ? (int)map_get_size(map) : 0, sz = td ? type_get_size(td) : 0;
-    if (!td || x < 2 || y < 2 || x >= n - 2 || y >= n - 2) return 0;
+    if (!td || p.x < 2 || p.y < 2 || p.x >= n - 2 || p.y >= n - 2) return 0;
     if (sz < 1) sz = 1;
-    return can_place_area(pl, type, x, y, sz) != 0;
+    return can_place_area(pl, type, p.x, p.y, sz) != 0;
 }
 
 struct def_scan { ee_player *pl; int bx, by; int d2[16], x[16], y[16]; int towers, tx[64], ty[64]; int walls, wx[256], wy[256]; };
@@ -154,8 +154,8 @@ internal int defence_spot(ee_player *pl, int type, int *ox, int *oy) {
             for (int ax = -r; ax <= r; ax++)
                 for (int ay = -r; ay <= r; ay++) {
                     if ((abs(ax) != r && abs(ay) != r) || route_covered(pl, p->bx, p->by, x + ax, y + ay) ||
-                        raiders_near(pl, x + ax, y + ay, 10) ||   // an enemy army there: its builders would walk into it
-                        !can_place(pl, type, x + ax, y + ay)) continue;   // the builders' way too
+                        raiders_near(pl, iv2(x + ax, y + ay), 10) ||   // an enemy army there: its builders would walk into it
+                        !can_place(pl, type, iv2(x + ax, y + ay))) continue;   // the builders' way too
                     *ox = x + ax; *oy = y + ay;
                     int o = 0;
                     for (int t = 1; t < 8; t++) if (p->pend[t].t < p->pend[o].t) o = t;
@@ -226,7 +226,7 @@ internal void defence_tick(ee_player *pl, unsigned idx, uint32_t now) {
         threat_refresh(pl, now);
         if (route_covered(pl, p->bx, p->by, a[0], a[1]) || route_covered(pl, p->bx, p->by, b[0], b[1]) ||
             route_covered(pl, p->bx, p->by, cx, cy)) continue;   // the builders would walk into enemy fire
-        if (raiders_near(pl, a[0], a[1], 10) || raiders_near(pl, b[0], b[1], 10) || raiders_near(pl, cx, cy, 10))
+        if (raiders_near(pl, iv2(a[0], a[1]), 10) || raiders_near(pl, iv2(b[0], b[1]), 10) || raiders_near(pl, iv2(cx, cy), 10))
             continue;   // or into an enemy army standing there
         // the arc on the map and on land, ends and middle: on an island map an arc into the water (or off the map)
         // crashed the game's wall placement (0x497C3F -> 0x636E30, a null tile object), twice on Small Islands
@@ -1204,8 +1204,8 @@ internal void anti_air(ee_player *pl, unsigned idx, uint32_t now) {
         for (int r = 3; bt && r <= 7; r++)
             for (int ax = -r; ax <= r; ax++)
                 for (int ay = -r; ay <= r; ay++) {
-                    if ((abs(ax) != r && abs(ay) != r) || !can_place(pl, bt, d.x + ax, d.y + ay) ||
-                        raiders_near(pl, d.x + ax, d.y + ay, 8)) continue;
+                    if ((abs(ax) != r && abs(ay) != r) || !can_place(pl, bt, iv2(d.x + ax, d.y + ay)) ||
+                        raiders_near(pl, iv2(d.x + ax, d.y + ay), 8)) continue;
                     int entry[3] = { bt, d.x + ax, d.y + ay };
                     bm_queue_add(bm, e, entry);
                     g_aa_st[idx].build_t = now ? now : 1;

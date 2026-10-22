@@ -770,8 +770,8 @@ internal int ex_spot(ee_player *pl, unsigned idx, struct ex_st *x, int type, int
                 int px = cx + dx, py = cy + dy, ok = area_id(iv2(px, py), 2) == x->cont && !area_id(iv2(px, py), 1);
                 for (int k = 0; k < x->nproj && ok; k++)   // a way between its buildings
                     if (x->proj[k].state && x->proj[k].state != 3 && abs(x->proj[k].x - px) < sz + 3 && abs(x->proj[k].y - py) < sz + 3) ok = 0;
-                if (!ok || !can_place(pl, type, px, py)) continue;
-                float sc = (float)d + 10.0f * threat_at(idx, px, py);
+                if (!ok || !can_place(pl, type, iv2(px, py))) continue;
+                float sc = (float)d + 10.0f * threat_at(idx, iv2(px, py));
                 if (sc < best) { best = sc; *ox = px; *oy = py; found = 1; }
             }
     return found;

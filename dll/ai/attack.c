@@ -92,12 +92,12 @@ internal void threat_refresh(ee_player *pl, uint32_t now) {
 }
 
 // Sum of known defences covering tile (x, y), each weighted by its attack (a guard tower = 1).
-internal float threat_at(unsigned pi, int x, int y) {
+internal float threat_at(unsigned pi, ivec2 p) {
     float t = 0;
     for (int k = 0; k < g_threat[pi & 15].n; k++) {
         struct defence *d = &g_threat[pi & 15].d[k];
         float r = d->range + (float)g_avoid_margin;
-        if ((float)ivec2_dist2(iv2(x, y), iv2(d->x, d->y)) <= r * r) t += d->attack / 50.0f;
+        if ((float)ivec2_dist2(p, iv2(d->x, d->y)) <= r * r) t += d->attack / 50.0f;
     }
     return t;
 }
@@ -116,7 +116,7 @@ internal int __thiscall hook_route_cost(ee_route_planner *self, int *edge, ee_ro
     }
     if (!pl || !node) return cost;
     g_route_stats[pi].calls++;
-    float t = threat_at(pi, route_node_get_x(node), route_node_get_y(node));
+    float t = threat_at(pi, iv2(route_node_get_x(node), route_node_get_y(node)));
     if (t > 0) {
         g_route_stats[pi].penalised++;
         if (g_avoid_towers) cost += (int)(t * (float)g_avoid_weight);
@@ -164,7 +164,7 @@ internal ee_unit *find_weak_spot(ee_player *pl, unsigned pi, const int *start, c
             continue;
         ivec2 pos = unit_get_tile(u);
         float d2 = (float)ivec2_dist2(pos, iv2(dest[0], dest[1]));
-        if (d2 > (float)(r * r) || threat_at(pi, pos.x, pos.y) > 0) continue;
+        if (d2 > (float)(r * r) || threat_at(pi, pos) > 0) continue;
         if ((short)map_area(pos, 2) != home) continue;
         float score = sqrtf((float)ivec2_dist2(pos, iv2(start[0], start[1]))) + 0.5f * sqrtf(d2);
         if (score < best_score) { best_score = score; best = u; }
@@ -255,7 +255,7 @@ internal ee_unit *find_breach(ee_player *pl, unsigned pi, const int *start, cons
         int x = qx[head], y = qy[head++];
         ee_unit *u = wall_at(pl, x, y);
         if (!u) continue;
-        if (!(threat_at(pi, x, y) > 0)) {
+        if (!(threat_at(pi, iv2(x, y)) > 0)) {
             float ax = (float)(x - start[0]), ay = (float)(y - start[1]), bx = (float)(dest[0] - x), by = (float)(dest[1] - y);
             float score = sqrtf(ax * ax + ay * ay) + sqrtf(bx * bx + by * by);
             if (score < best_score) { best_score = score; best = u; }
@@ -334,7 +334,7 @@ internal void __thiscall hook_asg_route(ee_attack_subgroup *self, int *start, in
     }
     if (pl && start && dest && g_weak_spots) {
         unsigned pi = (unsigned)player_get_index(pl) & 15;
-        float t = threat_at(pi, dest[0], dest[1]);
+        float t = threat_at(pi, iv2(dest[0], dest[1]));
         ee_unit *u = t > 0 && building_at(pl, dest, 4) ? find_weak_spot(pl, pi, start, dest) : NULL;
         if (u) {
             ee_asg_target *tg = asg_target_at(self);
@@ -357,7 +357,7 @@ internal void __thiscall hook_asg_route(ee_attack_subgroup *self, int *start, in
             if (g_log)
                 fprintf(g_log, "# breach: P%u goal %d,%d: wall crossed at %d,%d (threat %.1f) -> attack wall at %d,%d\n",
                         pi, dest[0], dest[1], unit_get_x(cross), unit_get_y(cross),
-                        threat_at(pi, unit_get_x(cross), unit_get_y(cross)), unit_get_x(w), unit_get_y(w));
+                        threat_at(pi, unit_get_tile(cross)), unit_get_x(w), unit_get_y(w));
             dest[0] = unit_get_x(w); dest[1] = unit_get_y(w);
             asg_target_set_unit(tg, dest[0], dest[1], unit_get_id(w));
         }
@@ -379,7 +379,7 @@ internal void __thiscall hook_asg_route(ee_attack_subgroup *self, int *start, in
                 "on the straight line %d, at the goal %.1f; steps costed %u, penalised %u\n",
                 pi, target ? player_get_index(target) : -1, game_time() / 60000.0, start[0], start[1],
                 dest[0], dest[1], sqrt((double)(dx * dx + dy * dy)), g_threat[pi].n, on_line,
-                threat_at(pi, dest[0], dest[1]), g_route_stats[pi].calls, g_route_stats[pi].penalised);
+                threat_at(pi, iv2(dest[0], dest[1])), g_route_stats[pi].calls, g_route_stats[pi].penalised);
         fflush(g_log);
     }
     // the target player is chosen once, at the launch (0x46F4FF): after peace or an alliance the march goes on -
@@ -472,8 +472,8 @@ internal float __thiscall hook_asgu_score(ee_asg_unit *self, ee_asgu_info *info)
     if (!pl) return s;
     unsigned pi = (unsigned)player_get_index(pl) & 15;
     int ex = unit_get_x(enemy), ey = unit_get_y(enemy);
-    float t = threat_at(pi, ex, ey);
-    if (!(t > 0) || threat_at(pi, asg_get_goal_x(sg), asg_get_goal_y(sg)) > 0) return s;
+    float t = threat_at(pi, iv2(ex, ey));
+    if (!(t > 0) || threat_at(pi, iv2(asg_get_goal_x(sg), asg_get_goal_y(sg))) > 0) return s;
     g_leash_stats[pi].skipped++;
     if (g_log && g_leash_stats[pi].logged < 10) {
         g_leash_stats[pi].logged++;
@@ -506,7 +506,7 @@ internal void __thiscall hook_asg_route_done(ee_attack_subgroup *self) {
         for (unsigned i = 0; i < n && i < 400; i++) {
             int *w = route_waypoint(self, i);
             if (!w) break;
-            int h = threat_at(pi, w[0], w[1]) > 0;
+            int h = threat_at(pi, iv2(w[0], w[1])) > 0;
             hot += h;
             if (len < (int)sizeof buf - 24) len += sprintf(buf + len, " %d,%d%s", w[0], w[1], h ? "!" : "");
         }
@@ -653,16 +653,16 @@ internal int route_danger(ee_player *pl, int fx, int fy, int tx, int ty) {
 #define RAID_MAX    15
 #define RAID_FAR    27   // citizen_threats: artillery (12-14), mortars (10-11), ships (24) at their own reach
 internal int g_cit_threats = 1;   // [all] citizen_threats (below, DAMAGE MEMORY)
-internal int raiders_near(ee_player *pl, int x, int y, int r0) {
+internal int raiders_near(ee_player *pl, ivec2 p, int r0) {
     int rmax = g_cit_threats ? RAID_FAR : RAID_MAX;
     int r = r0 > rmax ? r0 : rmax;   // the search box; each unit then by its own reach
     ee_map *map = game_map();
     ee_grid *grid = map ? map_get_grid(map) : NULL;
     if (!grid || !pl) return 0;
-    for (struct grid_it it = grid_it_box(x, y, r, 1); grid_it_next(&it); ) {
+    for (struct grid_it it = grid_it_box(p.x, p.y, r, 1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
         ee_unit_type *td = it.td;
-        if (!td || unit_get_hp(u) <= 0 || abs(unit_get_x(u) - x) > r || abs(unit_get_y(u) - y) > r) continue;
+        if (!td || unit_get_hp(u) <= 0 || abs(unit_get_x(u) - p.x) > r || abs(unit_get_y(u) - p.y) > r) continue;
         int fam = type_get_family(td), t = type_get_id(td);
         if ((fam != 5 && fam != 4 && !(g_cit_threats && fam == 10)) || is_citizen_type(t) || type_get_attack(td) <= 0) continue;
         ee_unit_stats *st = unit_get_stats(u);
@@ -670,7 +670,7 @@ internal int raiders_near(ee_player *pl, int x, int y, int r0) {
         int reach = rng > 0.0f && rng < 30.0f ? (int)(rng + 0.5f) + RAID_MARGIN : 0;
         if (reach > rmax) reach = rmax;
         if (reach < r0) reach = r0;
-        if (abs(unit_get_x(u) - x) > reach || abs(unit_get_y(u) - y) > reach) continue;
+        if (abs(unit_get_x(u) - p.x) > reach || abs(unit_get_y(u) - p.y) > reach) continue;
         ee_player *o = unit_get_owner(u);   // not nature (player 0: wild animals)
         if (o && player_get_index(o) > 0 && is_enemy(pl, o) && seen_by(u, pl)) return 1;
     }
@@ -680,8 +680,8 @@ internal int raiders_near(ee_player *pl, int x, int y, int r0) {
 internal int path_raided(ee_player *pl, int x0, int y0, int x1, int y1) {
     float dx = (float)(x1 - x0), dy = (float)(y1 - y0), l = sqrtf(dx * dx + dy * dy);
     for (float t = 5; t < l; t += 4)
-        if (raiders_near(pl, x0 + (int)(dx / l * t), y0 + (int)(dy / l * t), 4)) return 1;
-    return raiders_near(pl, x1, y1, 6);
+        if (raiders_near(pl, iv2(x0 + (int)(dx / l * t), y0 + (int)(dy / l * t)), 4)) return 1;
+    return raiders_near(pl, iv2(x1, y1), 6);
 }
 // where a citizen at x,y flees while the base is overrun: the rally point if the way is clear, else 12 tiles in the
 // clear direction (of 8) nearest the rally point; none clear: the rally point after all
@@ -752,7 +752,7 @@ internal int hurt_danger(ee_player *pl, int x, int y, int res) {   // res: 2 foo
 internal int site_danger_res(ee_player *pl, ee_unit *site, int food, int res) {   // from the nearest drop site
     if (!g_avoid_citizens || !pl || !site) return 0;
     int x = unit_get_x(site), y = unit_get_y(site);
-    if (raiders_near(pl, x, y, 6)) return 1;   // the searches refuse a raided site too (else: sent back, sent again)
+    if (raiders_near(pl, iv2(x, y), 6)) return 1;   // the searches refuse a raided site too (else: sent back, sent again)
     if (hurt_danger(pl, x, y, res)) return 1;
     ivec2 d = iv2(-10000, 0);
     nearest_drop(pl, iv2(x, y), food, &d);
@@ -830,7 +830,7 @@ internal void citizens_safety(ee_resource_mgr *rm) {   // before the citizen ass
                 if (walk)   // on its way somewhere: only if enemy soldiers stand on the way or at the end
                     danger = path_raided(pl, ux, uy, (int)goal_get_dest_x(goal), (int)goal_get_dest_y(goal));
                 else
-                    danger = raiders_near(pl, ux, uy, 8) || (st && raiders_near(pl, unit_get_x(st), unit_get_y(st), 8));
+                    danger = raiders_near(pl, iv2(ux, uy), 8) || (st && raiders_near(pl, unit_get_tile(st), 8));
                 if (danger && g_bunkers && bk_shelter(pl, u)) { sheltered++; continue; }
                 if (danger) {
                     float fx, fy;
@@ -850,7 +850,7 @@ internal void citizens_safety(ee_resource_mgr *rm) {   // before the citizen ass
             ee_unit *site = build ? goal_get_building(goal) : goal_get_site(goal);
             ivec2 d;
             if (!site || !nearest_drop(pl, unit_get_tile(u), r == 2, &d)) continue;
-            int raided = raiders_near(pl, unit_get_x(site), unit_get_y(site), build ? 8 : 6);
+            int raided = raiders_near(pl, unit_get_tile(site), build ? 8 : 6);
             // builders near known towers only: only of fields (walls and towers at the front: the wall manager sends
             // them again and again)
             if (build && !raided && type_get_id(unit_get_type_data(site)) != UT(B_FARM)) continue;
@@ -924,7 +924,7 @@ internal void citizens_safety(ee_resource_mgr *rm) {   // before the citizen ass
 internal void __thiscall hook_repair_goal(ee_unit *u, ee_goal *goal, int append, int prio) {
     ee_player *pl = u ? unit_get_owner(u) : NULL;
     ee_unit *b = goal && goal_is_build(goal) ? goal_get_building(goal) : NULL;
-    if (g_avoid_citizens && pl && b && !is_vanilla(pl) && raiders_near(pl, unit_get_x(b), unit_get_y(b), 8)) {
+    if (g_avoid_citizens && pl && b && !is_vanilla(pl) && raiders_near(pl, unit_get_tile(b), 8)) {
         g_repair_refused[(unsigned)player_get_index(pl) & 15]++;
         ((void (__thiscall *)(void *, int))(*(void ***)goal)[0])(goal, 1);
         return;
@@ -1164,7 +1164,7 @@ internal void siege_tick(ee_player *pl, uint32_t now) {
     const char *hold = NULL;
     if (g_siege_st[pi].wave) hold = "a wave is out";
     else if (nhome < need) hold = "gathering";
-    else if (raiders_near(pl, (int)px, (int)py, 8) || path_raided(pl, (int)gx, (int)gy, (int)px, (int)py)) hold = "enemy soldiers on the way";
+    else if (raiders_near(pl, iv2((int)px, (int)py), 8) || path_raided(pl, (int)gx, (int)gy, (int)px, (int)py)) hold = "enemy soldiers on the way";
     // escorts: idle soldiers (no goal) along with a wave
     int want = nhome * 3 / 2 < 4 ? 4 : nhome * 3 / 2, escorts = 0, idle = 0;
     for (struct grid_it it = grid_it_all(1); idle < 2 && grid_it_next(&it); ) {

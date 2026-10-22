@@ -313,7 +313,7 @@ internal int cv_cover(ee_player *pl, struct cv_pl *c, ivec2 p, unsigned a, ivec2
     for (int k = 0; k < c->ncv; k++) {
         ivec2 q = c->cv[k];
         int d = ivec2_dist2(q, p);
-        if (d < bd && area_id(q, 2) == a && !(threat_at(pi, q.x, q.y) > 0)) { bd = d; best = k; }
+        if (d < bd && area_id(q, 2) == a && !(threat_at(pi, q) > 0)) { bd = d; best = k; }
     }
     if (best >= 0) {
         ivec2 q = c->cv[best];

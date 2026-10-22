@@ -104,7 +104,7 @@ internal void spend_log(unsigned idx, uint32_t now) {
 // a decoration) is tried again every 2 minutes with the build manager's own placement (0x46580A, spot 0,0: the
 // game's search) while the AI has none of it and can pay for it; given up after 5 failed retries.
 internal int defence_spot(ee_player *pl, int type, int *ox, int *oy);   // defence.c
-internal int can_place(ee_player *pl, int type, int x, int y);   // defence.c: the game's placement test, every tile
+internal int can_place(ee_player *pl, int type, ivec2 p);   // defence.c: the game's placement test, every tile
 internal void defence_tick(ee_player *pl, unsigned idx, uint32_t now);
 internal void anti_air(ee_player *pl, unsigned idx, uint32_t now);   // defence.c
 internal void bunker_reserve(ee_player *pl, int *reserve);   // bunker.c
@@ -148,7 +148,7 @@ internal char __thiscall hook_place(ee_build_mgr *bm, int type, int x, int y) {
     // another unit in its footprint (0x60CDCF), deletes the foundation, refunds it and queues it again at the same
     // spot (0x468BA7): in a Small Islands Large game 127 times in 13 minutes, 175 stone each. Such a spot is given up:
     // the defence plan's next slot (defence_spot, below), else the game's own search.
-    if ((x || y) && is_tower_type(type) && !can_place(owner, place_as, x, y)) {
+    if ((x || y) && is_tower_type(type) && !can_place(owner, place_as, iv2(x, y))) {
         if (g_log) fprintf(g_log, "# place: P%d at %.1f min: tower %d at %d,%d no longer fits - another spot\n",
                            player_get_index(owner) & 15, game_time() / 60000.0, place_as, x, y);
         x = y = 0;
@@ -1115,8 +1115,8 @@ internal int field_worked(ee_resource_mgr *rm, ee_unit *f) {   // a citizen of t
 // (0x60BAD0 with a null building).
 internal struct { int16_t x, y; uint32_t queued; } g_field_at[16][32];
 internal int g_field_n[16];
-internal int can_place(ee_player *pl, int type, int x, int y);   // defence.c
-internal int raiders_near(ee_player *pl, int x, int y, int r);     // attack.c: enemy soldiers it can see
+internal int can_place(ee_player *pl, int type, ivec2 p);   // defence.c
+internal int raiders_near(ee_player *pl, ivec2 p, int r);     // attack.c: enemy soldiers it can see
 internal void fields_rebuild(ee_player *pl, unsigned idx, void *um, uint8_t *dq, uint32_t now) {
     if (now < 60000) g_field_n[idx] = 0;   // new game
     unsigned first = dq ? FIELD(dq, 0xC, unsigned) : 0, cnt = dq ? FIELD(dq, 0x10, unsigned) : 0;
@@ -1143,9 +1143,9 @@ internal void fields_rebuild(ee_player *pl, unsigned idx, void *um, uint8_t *dq,
             granary = g && unit_get_hp(g) > 0 && abs(unit_get_x(g) - x) <= 4 && abs(unit_get_y(g) - y) <= 4;
         }
         if (!granary) continue;
-        if (raiders_near(pl, x, y, 8)) continue;   // raided: later (builders: 8 tiles, as citizens_safety)
+        if (raiders_near(pl, iv2(x, y), 8)) continue;   // raided: later (builders: 8 tiles, as citizens_safety)
         g_field_at[idx][j].queued = now;
-        if (!ut_has(UT(B_FARM)) || !can_place(pl, UT(B_FARM), x, y)) continue;
+        if (!ut_has(UT(B_FARM)) || !can_place(pl, UT(B_FARM), iv2(x, y))) continue;
         place_foundation(pl, UT(B_FARM), x, y);
         queued++;
     }
@@ -1178,10 +1178,10 @@ internal int granary_spot(ee_player *pl, void *um, int *ox, int *oy) {
                     for (int ay = -r; ay <= r; ay++) {
                         if (abs(ax) != r && abs(ay) != r) continue;
                         int x = cx + ax, y = cy + ay, room = 0;
-                        if (!can_place(pl, UT(B_GRANARY), x, y) || raiders_near(pl, x, y, 12)) continue;
+                        if (!can_place(pl, UT(B_GRANARY), iv2(x, y)) || raiders_near(pl, iv2(x, y), 12)) continue;
                         for (int fx = -2; fx <= 2; fx += 2)
                             for (int fy = -2; fy <= 2; fy += 2)
-                                if ((fx || fy) && can_place(pl, UT(B_FARM), x + fx, y + fy)) room++;
+                                if ((fx || fy) && can_place(pl, UT(B_FARM), iv2(x + fx, y + fy))) room++;
                         if (room < 6) continue;
                         *ox = x; *oy = y;
                         return 1;
@@ -1244,7 +1244,7 @@ internal int field_place_ok(ee_build_mgr *bm, int x, int y, int lay_out) {
         ee_unit *f = deque_at(dq, first + k);
         if (f && unit_get_hp(f) > 0 && unit_get_x(f) == x && unit_get_y(f) == y) return 1;
     }
-    if (!lay_out || !ut_has(UT(B_FARM)) || !can_place(pl, UT(B_FARM), x, y)) return 0;
+    if (!lay_out || !ut_has(UT(B_FARM)) || !can_place(pl, UT(B_FARM), iv2(x, y))) return 0;
     place_foundation(pl, UT(B_FARM), x, y);
     if (g_log) fprintf(g_log, "# fields: P%d: build list field at %d,%d - foundation laid out first\n", player_get_index(pl), x, y);
     return 1;
@@ -1277,7 +1277,7 @@ internal void econ_fields(ee_resource_mgr *rm) {   // before the citizen assignm
         // citizens_safety (attack.c: 8 for builders, 6 for farmers): with 6 here a builder went every 10 s to a
         // field with bowmen 7 tiles away, was sent back 4 s later, and the next one went (the player's army shot
         // them on the way)
-        if (raiders_near(pl, unit_get_x(f), unit_get_y(f), unit_get_finished(st) ? 6 : 8))
+        if (raiders_near(pl, unit_get_tile(f), unit_get_finished(st) ? 6 : 8))
             continue;
         if (!unit_get_finished(st)) todo[nt++] = f;
         else if (nd < 16 && !field_worked(rm, f)) done[nd++] = f;
