@@ -25,12 +25,12 @@ Several sessions may work in this tree at the same time - see Git below.
   working tree), copied under a reservation of the game folder (a loaded DLL can't be replaced). Commit first.
 - A task that needs the game folder to itself (an install, a slot-0 run): `sh scripts/reserve.sh "<what>" <command>`
   - test runs start no game meanwhile, the running ones (and the player's) are waited for; nobody has to pause.
-- What the mod knows of the game's code and objects lives in `dll/game/api/`. Game addresses: `functions_addr.h` (the
-  functions the mod calls), `hooks_addr.h` (what it patches to hook), `data_addr.h` (the game's data), made a table
-  by `tables.c` (api/'s own, with fields.h's; the builds are `game/exe.c`'s) - by name with one value per exe build: `GA(G_WORLD_CLOCK)`,
+- What the mod knows of the game's code and objects lives in `dll/game/api/`. The raw rows, api/'s own, in `raw/`: `functions.h`
+  (the functions the mod calls), `hooks.h` (what it patches to hook), `data.h` (the game's data), made a table by
+  `tables.c` (with `fields.h`'s; the builds are `game/exe.c`'s) - by name with one value per exe build: `GA(G_WORLD_CLOCK)`,
   `GF(FN_CAN_BUILD)(pl, t, 0x20, 0)`, `GL(TRAIN_SITES)`, a vtable slot `GA(SLOT_ASG_UPDATE)`, an object's size
   `GA(SIZE_GOAL_BUILD)` - never a literal address, slot or size in the code. The game objects' fields likewise live
-  in `fields.h` there, by kind and the 2017 update's offset: `FIELD(pl, OF(PL, 0x9D4), void *)` (a field not in
+  in `raw/fields.h`, by kind and the 2017 update's offset: `FIELD(pl, OF(PL, 0x9D4), void *)` (a field not in
   the table doesn't build; the runtime library's layouts - deque, vector, string - stay plain numbers). Two columns:
   the 2017 update and Art of Conquest (not ready: tested in AoC only since 2026-10-21 - test runs play it,
   `EE_GAME_DIR=<its folder>`, docs/testing.md). A new row needs both: `scripts/port_addrs.py` /
@@ -38,7 +38,7 @@ Several sessions may work in this tree at the same time - see Git below.
   own code (and a called function's stack arguments: `rets`), `scripts/port_dll.py` for the engine DLLs (AoC ships
   its own builds: an RVA_ row, or better the export by name). Code that differs by more than an address:
   `build_is("aoc")` (AoC rewrote a few functions - docs/engine-notes.md).
-- `dll/game/api/functions.c`: the objects typed (`ee_player *`, `ee_resource_mgr *`, ... one per fields.h kind), the
+- `dll/game/api/functions.c`: the objects typed (`ee_player *`, `ee_resource_mgr *`, ... one per raw/fields.h kind), the
   game's functions as typed wrappers (`explored_by(site, pl)`, `rm_assign(rm, u, site)`), its data as accessors
   (`game_map()`, `local_player_index()`), a goal's kind (`goal_is_attack(g)`) and an object's memory
   (`goal_build_alloc()`); `dll/game/api/hooks.c`: per hooked function its hook's type and installer

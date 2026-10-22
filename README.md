@@ -350,8 +350,8 @@ dll/              the mod (C), one translation unit: eeaimod.c includes every pa
                     the report of a mistake in the mod's files, math.c (the same bits on every PC), aimod.ini
                     (ini.c), watchpoints, headless_win.c test windows without focus or taskbar button (also in dinput.dll)
   game/             what the mod knows of the game: exe.c the exe build; api/ the game's own code and objects - its
-                    addresses per build (functions_addr.h, hooks_addr.h, data_addr.h, addr.h), the typed functions over them
-                    (functions.c, hooks.c), its objects' fields per build (fields.h, layout.h names for some); world.c
+                    addresses per build (raw/: functions.h, hooks.h, data.h, tables.c), the typed functions over them
+                    (functions.c, hooks.c), its objects' fields per build (raw/fields.h, layout.h names for some); world.c
                     type data, game time, RTTI names, players.c the players (and the vanilla
                     ones, the colours), random.c the decisions' generator (alike on every PC), the unit types
                     (unit_ids.h, unitnames.c, unit_names.h generated) and roles.c what a type is,

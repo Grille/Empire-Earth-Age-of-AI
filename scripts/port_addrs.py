@@ -1,4 +1,4 @@
-# Find the addresses of dll/game/api/*addr.h in another exe build (Art of Conquest): pairs the two exes' functions by their code with the
+# Find the addresses of dll/game/api/raw/'s row files in another exe build (Art of Conquest): pairs the two exes' functions by their code with the
 # addresses masked (Ghidra's function lists: decomp/functions.tsv), then follows the pairs - the calls of a paired
 # function pair their callees, its operands pair the data, an instruction inside a paired function is found by aligning
 # the two functions' code. Vtables are paired by their RTTI class (and so their slots' functions), imports by name;
@@ -327,9 +327,9 @@ def port(x):
 
 
 def addr_source():
-    """the address tables' text: dll/game/api/'s row files (the functions called, the hooks, the data)"""
-    return ''.join(open(os.path.join(ROOT, 'dll', 'game', 'api', f), encoding='latin-1').read()
-                   for f in ('functions_addr.h', 'hooks_addr.h', 'data_addr.h'))
+    """the address tables' text: dll/game/api/raw/'s row files (the functions called, the hooks, the data)"""
+    return ''.join(open(os.path.join(ROOT, 'dll', 'game', 'api', 'raw', f), encoding='latin-1').read()
+                   for f in ('functions.h', 'hooks.h', 'data.h'))
 
 
 if __name__ == '__main__':   # (imported: load() pairs - port_fields.py, port_dll.py)

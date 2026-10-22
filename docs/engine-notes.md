@@ -638,7 +638,7 @@ vf26 members and route released, vf12, the group's reference) frees nothing twic
 The mod's addresses are those of the 1.04 exe with the 2017 "Difficulty Setting & Multiplayer Lobby" update (build
 timestamp 0x594D0000). game/exe.c `game_build` checks the exe file before installing anything: an FNV-1a hash over every
 section but `.rsrc` (`k_exe_builds`); another build gets no hooks and one message (`build_unknown`). All addresses are
-in `dll/game/api/addr.h` (and its row files functions_addr.h, hooks_addr.h, data_addr.h), one row per name with a value per known build (the hash's index picks the column): supporting
+in `dll/game/api/raw/` (the row files functions.h, hooks.h, data.h, made a table by tables.c), one row per name with a value per known build (the hash's index picks the column): supporting
 another build means its hash and its column there - the generated editor layout (`editor_layout.h`) and the two
 Low-Level Engine.dll operands of display.c are that build's own as well. Compared on
 2026-10-19 (the community setups unpacked with innoextract, nothing run):
@@ -736,7 +736,7 @@ Each row is checked another way (the same instruction, the callers agreeing, the
 
 ### The objects' fields (scripts/port_fields.py, 2026-10-21)
 
-The mod reads ~3600 fields: 442 (kind, offset) pairs in dll/game/api/fields.h, with AoC's column. Found per class: in its
+The mod reads ~3600 fields: 442 (kind, offset) pairs in dll/game/api/raw/fields.h, with AoC's column. Found per class: in its
 methods (vtable slots and what they call with `this` in ecx) aligned with every number masked, [this + X] in the base
 reads [this + Y] in AoC (the AI's save/load serializer, EEComputerPlayer::vf6, names most player fields); then the
 offsets of all paired code (any object) for structures without methods, accepted only where they agree with a

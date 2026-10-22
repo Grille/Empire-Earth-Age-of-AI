@@ -1,8 +1,8 @@
-// THE GAME'S OBJECTS AND FUNCTIONS, TYPED: a pointer type of its own for each kind of object (fields.h's kinds) and
+// THE GAME'S OBJECTS AND FUNCTIONS, TYPED: a pointer type of its own for each kind of object (raw/fields.h's kinds) and
 // the game's functions as plain C functions over them - explored_by(site, pl) instead of
 // GF(FN_EXPLORED)(FIELD(site, OF(UNIT, 0x14), void *), pl). The types are never defined, only pointed to: a unit
 // passed where a player is wanted, or the arguments swapped, doesn't build (a void * still passes - code not moved
-// over yet). FIELD reads them as before. functions_addr.h has these functions' addresses and raw signatures (addr.h's
+// over yet). FIELD reads them as before. raw/functions.h has these functions' addresses and raw signatures (raw/tables.c's
 // tables); the code outside game/ calls these instead (moved over so far: ai/; typed in every file: the players, the
 // resource manager, the units). Each wrapper is the call itself: inlined, the machine code is the same as GF's
 // (scripts/code_same.py; dll/build.sh's -fno-strict-aliasing keeps the types out of the optimizer's aliasing).
@@ -26,7 +26,7 @@ struct ustring { uint8_t raw[16]; };
 
 // Kinds not typed yet (attack groups and subgroups, goals, messages, the game state's tables) are void * here.
 
-// THE GAME'S DATA (data_addr.h's G_ rows): its globals read through these, typed - NULL / 0 before they exist
+// THE GAME'S DATA (raw/data.h's G_ rows): its globals read through these, typed - NULL / 0 before they exist
 internal inline uint8_t *game_map(void) { return *(uint8_t **)GA(G_MAP); }                   // +0x1816FC its size in tiles
 internal inline uint8_t *game_physics(void) { return *(uint8_t **)GA(G_WORLD_CLOCK); }       // EEPhysics: +0xD0 the game time
 internal inline void *game_world(void) { return *(void **)GA(G_WORLD); }                     // the action queue's owner, the UI's

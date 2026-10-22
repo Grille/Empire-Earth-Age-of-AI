@@ -1,4 +1,4 @@
-# Checks of fields.h's and the address rows' Art of Conquest column against the code, beyond port_fields.py's class methods (which
+# Checks of raw/fields.h's and the address rows' Art of Conquest column against the code, beyond port_fields.py's class methods (which
 # miss objects with few virtual functions - the AI's build, unit and civilization managers moved and were taken as
 # kept): a kind's rows voted in its source file's code (the files' bounds: the static initializers Ghidra names
 # "<Class>_persist_", decomp/functions.tsv), through the pointer that reaches it, and every function's stack arguments.
@@ -28,7 +28,7 @@ RANGES = {
 
 
 def rows(kind):
-    src = open(os.path.join(ROOT, 'dll', 'game', 'api', 'fields.h'), encoding='latin-1').read()
+    src = open(os.path.join(ROOT, 'dll', 'game', 'api', 'raw', 'fields.h'), encoding='latin-1').read()
     return [(int(o, 16), None if v == 'NA' else int(v, 16), how) for o, v, how in
             re.findall(r'O\(%s, 0x([0-9A-F]+), 0x[0-9A-F]+, (0x[0-9A-F]+|NA)\) /\* (.*?) \*/' % kind, src)]
 

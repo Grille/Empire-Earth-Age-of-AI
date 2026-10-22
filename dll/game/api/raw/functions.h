@@ -1,7 +1,7 @@
-// THE ADDRESSES OF THE GAME'S FUNCTIONS THE MOD CALLS (functions.c wraps them): their rows of addr.h's tables, in
+// THE ADDRESSES OF THE GAME'S FUNCTIONS THE MOD CALLS (functions.c wraps them): their rows of tables.c's tables, in
 // the same columns (one value per exe build, k_exe_builds' order). F(name, return type, calling convention, (parameters),
 // value per build) a function, typed by its row; D(name, value per build) an address or number. A function the mod also
-// hooks is here too; where it is hooked (its call sites, vtables, slots) is in hooks_addr.h.
+// hooks is here too; where it is hooked (its call sites, vtables, slots) is in hooks.h.
 
 #define ADDRS_FUNCTIONS(F, D) \
     F(FN_TECH_LOOKUP, uint8_t *, __thiscall, (void *, int), 0x004019A1, 0x004018A4) \

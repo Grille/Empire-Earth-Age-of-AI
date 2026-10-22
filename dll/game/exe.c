@@ -5,7 +5,7 @@
 // 1.04 with its copy protection, its no-CD cracks, NeoEE (the same code, but its imports elsewhere - docs/engine-notes.md
 // "Exe builds"). Known by a hash (FNV-1a) of every section but .rsrc, read from the file: in memory another DLL may have
 // patched the code already, and run_test.ps1 patches it before the game runs.
-// The builds the mod knows: their columns in game/api/'s tables (tables.c), in this order. Art of Conquest's
+// The builds the mod knows: their columns in game/api/'s tables (raw/tables.c), in this order. Art of Conquest's
 // column: scripts/port_addrs.py. Not ready: the player's game runs without the mod, a test run plays it (game_build).
 #define ADDR_BUILDS 2
 internal const struct exe_build { uint32_t hash; const char *name; int ready; } k_exe_builds[ADDR_BUILDS] = {

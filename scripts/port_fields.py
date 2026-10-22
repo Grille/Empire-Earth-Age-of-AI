@@ -5,7 +5,7 @@
 # usage: python port_fields.py Class[,Class...] [offset ...]    (offsets hex; without: every offset seen)
 #        python port_fields.py --all <file.json>      every class's votes (a few minutes)
 #        python port_fields.py --global <file.json>   every offset's, whatever the object (for structures without methods)
-# The table it feeds: dll/game/api/fields.h (its header says how each value was found).
+# The table it feeds: dll/game/api/raw/fields.h (its header says how each value was found).
 import collections, difflib, os, re, sys
 sys.path.insert(0, os.path.dirname(__file__))
 import port_addrs as P

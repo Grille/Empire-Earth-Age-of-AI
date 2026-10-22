@@ -1,7 +1,7 @@
-"""The address rows into the file their use calls for: what game/api/functions.c calls into functions_addr.h, what
-game/api/hooks.c patches into hooks_addr.h, the game's data (G_, read by functions.c's accessors) into data_addr.h.
+"""The address rows into the file their use calls for: what game/api/functions.c calls into raw/functions.h, what
+game/api/hooks.c patches into raw/hooks.h, the game's data (G_, read by functions.c's accessors) into raw/data.h.
 A function both called and hooked is a function; a row neither uses is reported (unused: take it out). Within a file
-the rows stay in the order of their address (the numbers and lists in their order). One table either way - tables.c
+the rows stay in the order of their address (the numbers and lists in their order). One table either way - raw/tables.c
 composes the three - so a row's move changes no code (scripts/code_same.py compares the table by name).
 
 usage: python scripts/addr_sort.py           move the rows where they belong, print the moves
@@ -10,7 +10,7 @@ import os, re, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 API = os.path.join(ROOT, 'dll', 'game', 'api')
-FILES = {'FUNCTIONS': 'functions_addr.h', 'HOOKS': 'hooks_addr.h', 'DATA': 'data_addr.h'}
+FILES = {'FUNCTIONS': 'raw/functions.h', 'HOOKS': 'raw/hooks.h', 'DATA': 'raw/data.h'}
 BLOCKS = ('ADDRS', 'ADDR_NUMBERS', 'ADDR_LISTS')
 
 

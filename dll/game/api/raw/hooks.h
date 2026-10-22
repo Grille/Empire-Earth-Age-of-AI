@@ -1,6 +1,6 @@
 // THE ADDRESSES THE MOD PATCHES TO HOOK THE GAME (hooks.c's installers): the calls and vtable slots of the hooked
-// functions, their vtables and lists of call sites - their rows of addr.h's tables, in the same columns (one value per
-// exe build, k_exe_builds' order). A hooked function the mod also calls is in functions_addr.h.
+// functions, their vtables and lists of call sites - their rows of tables.c's tables, in the same columns (one value per
+// exe build, k_exe_builds' order). A hooked function the mod also calls is in functions.h.
 
 #define ADDRS_HOOKS(F, D) \
     D(SITE_SCROLL_TIMER, 0x004050C2, 0x00404734)                              /* operand of push 0x19 (timer period in ms) */ \

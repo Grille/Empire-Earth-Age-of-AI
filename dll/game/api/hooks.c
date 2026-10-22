@@ -207,7 +207,7 @@ internal inline int patch_font_movzx(HMODULE lle) {
 #define DRAW_REC 0x148
 #define DRAW_OLD_N 0x200
 internal inline int patch_draw_list(int limit, uint8_t **recs, int *ok_out, int *n_out) {
-    const uint32_t *at = GL(DRAW_SITES);   // in this order (hooks_addr.h)
+    const uint32_t *at = GL(DRAW_SITES);   // in this order (raw/hooks.h)
     const struct { uint32_t at, want; int kind; } k[] = {
         { at[0], 0x200, 0 },                     // cmp [0x912538], 0x200 (0x5008B8: room for one more)
         { at[1], 0x200, 0 },                     // push 0x200 (0x5035AD: its sub-objects)

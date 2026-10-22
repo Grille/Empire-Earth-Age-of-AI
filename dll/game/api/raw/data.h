@@ -1,4 +1,4 @@
-// THE ADDRESSES OF THE GAME'S DATA (functions.c reads them: game_map(), game_players() ...): their rows of addr.h's
+// THE ADDRESSES OF THE GAME'S DATA (functions.c reads them: game_map(), game_players() ...): their rows of tables.c's
 // tables, in the same columns (one value per exe build, k_exe_builds' order).
 
 #define ADDRS_DATA(F, D) \

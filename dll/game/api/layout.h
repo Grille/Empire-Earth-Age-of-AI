@@ -1,4 +1,4 @@
-// THE GAME'S OBJECTS: names for some of their fields (their offsets per build: fields.h) and FIELD, the read itself.
+// THE GAME'S OBJECTS: names for some of their fields (their offsets per build: raw/fields.h) and FIELD, the read itself.
 // EECPResourceManager layout (from decompiled ctor/serializer 0x489F76 / 0x48C5B2)
 #define RM_OWNER        OF(RM, 0x130)  // -> object whose +0x4C is the EEComputerPlayer
 #define RM_LISTS        OF(RM, 0xA4)  // 7 unit lists, stride 0x14, count at +0x10
