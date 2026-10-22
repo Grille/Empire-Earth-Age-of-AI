@@ -414,7 +414,15 @@ vf26 members and route released, vf12, the group's reference) frees nothing twic
 
 - `Data\data.ssa`: "rass" archive. Each file is "PK01" + u32 size + 4 bytes, then a PKWARE DCL stream (decoder:
   `scripts/blast.py`, extractor: `scripts/extract_all.py`). Loose files under `Data\` override the archive.
-- `.scn`/`.ees`: PK01 (DCL) blocks (`scripts/unpack_save.py`).
+- `.scn`/`.ees` (one format: a save is a scenario further on; github.com EEScnEdit has the header's fields): u32 the
+  size of the rest of the file, a header (names, players, settings) with the lump table - u32 count, then the lumps'
+  types in file order (both the save and the scenario here: 1, 2, 4, 3, 6, 10, 12, 5, 7, 8, 11; 9 never) - then the
+  lumps back to back to the end: u64 version, u32 type, u32 size, size bytes (raw, or "PK01" + u32 size + u32 + a
+  DCL stream - `scripts/unpack_save.py`). 4 is the terrain, 5 the player data with the units (the big ones).
+  Room for the mod's own (2026-10-22, the reference save at 75.8 min, played to 77): a lump of type 100 appended
+  after the last one and not listed in the table is never read - the game plays exactly as from the unchanged copy,
+  with or without the leading size updated, likewise 777 bytes of garbage appended; the same lump listed in the
+  table crashes the load (read 0x0200001A at 0x4FCAD3): the loader walks the table and knows only its types.
 - `dbcpbehavior.dat` (AI settings): u32 count + 56-byte records [name string id, index, min1, max1, val1, min2,
   max2, val2, ?, minF, maxF, scaleF, fval, flag] -> global 0x8CFA80 + index*0x38, copied into player fields by
   0x431697. Record names = Language.dll string 28000 + name id. Cheat percentage: record 96 val1 (easy) / val2
