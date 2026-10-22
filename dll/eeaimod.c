@@ -432,6 +432,7 @@ internal void x_host_install(void) {
     g_x_host.scan_functions = x_fn_scan_dir;
     g_x_host.placeholders = x_code_placeholders;
     g_x_host.command = x_command_verb;
+    g_x_host.code_record = x_code_record;
     g_ini_eval = x_const_eval;
 }
 

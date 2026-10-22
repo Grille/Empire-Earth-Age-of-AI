@@ -939,7 +939,11 @@ game_script/, a value's player now its `obj`): Continental 777 at 5/15/30, 6553 
 the same within the noise (me.count(kind.towers) 1.66 / 1.73 µs - the constants still kept in the tree); the 40-minute
 games Continental 777 and Small Islands 4242 the same row for row. Vectors (2026-10-22: `vec`, `rgb`, `distance`,
 `.x`): Continental 777 at 5/15/30, 6551 rows each the same; the 32 new cases (scripts/text_engine_cases.txt, the
-mistakes among them) as meant, the members and a vector as a command's argument in a `script dryrun`.
+mistakes among them) as meant, the members and a vector as a command's argument in a `script dryrun`. Records as
+values and the files' records with commas (2026-10-22, scripts/eeai_commas.py converted every file): the old build
+with the old files against the new one with the converted files, Continental 777 at 5/15/30, 6679 rows each the
+same; `texts bench` them.soldiers 1.58 -> 0.32 us (the vars by hash, xvars_find); the 53 setup scripts run dry the
+same. A format change like this one: copy the old files aside (AI_DIR=<copy> for the old build's run) first.
 
 ### Headless UI tests (menus, editor)
 

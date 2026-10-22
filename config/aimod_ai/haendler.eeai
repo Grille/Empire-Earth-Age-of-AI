@@ -2,18 +2,18 @@
 register_personality()
 
 personality = {
-    name = "Merchant Benedict"
-    civilization = "Merchant Republic"
-    color = ["yellow", "lightyellow"]
-    aggression = 25%
-    loyalty = 60%
-    pride = 30%
-    greed = 90%
-    forgiveness = 70%
-    caution = 60%
-    talk = 70%
+    name = "Merchant Benedict",
+    civilization = "Merchant Republic",
+    color = ["yellow", "lightyellow"],
+    aggression = 25%,
+    loyalty = 60%,
+    pride = 30%,
+    greed = 90%,
+    forgiveness = 70%,
+    caution = 60%,
+    talk = 70%,
     # for the AI voice ([llm] in aimod.ini): who this is, in a few words
-    character = "A merchant prince who sees everything as a deal: friendly, chatty, always counting, talks of profit, prices and interest."
+    character = "A merchant prince who sees everything as a deal: friendly, chatty, always counting, talks of profit, prices and interest.",
 }
 
 style = {
@@ -21,12 +21,12 @@ style = {
     # The same keys as in aimod.ini; they replace the difficulty's values for this AI. Game defaults for
     # comparison (medium difficulty): first attack 20-40 min, then every 20-25 min; instant attacks on
     # contact 0%, for resources 0%, as revenge 10%; home_guard_share 35%, military_income_share 40%.
-    first_attack_min = 30
-    first_attack_max = 45
-    attack_interval_min = 25
-    attack_interval_max = 30
-    attack_for_resources = 25%
-    military_income_share = 35%
+    first_attack_min = 30,
+    first_attack_max = 45,
+    attack_interval_min = 25,
+    attack_interval_max = 30,
+    attack_for_resources = 25%,
+    military_income_share = 35%,
 }
 
 # Benedict keeps books on everyone: who paid whom, and what the war has cost
@@ -47,7 +47,7 @@ lines = {
         "Welcome, welcome! I am sure we will do fine business together.",
         "A lovely day for trading, don't you think?",
         "Gold rules the world. And I intend to own a great deal of it.",
-    ]
+    ],
     war_declared = [
         them.tribute(me, 20) > 0 ? [
             "First you pay me {them.tribute(me, 20)}, now you declare war, {them}? I am keeping the money, of course.",
@@ -63,7 +63,7 @@ lines = {
         "War, {them}? That is bad for business. For YOURS.",
         "You will regret this, {them}. With interest.",
         "A declaration of war? How ... unprofitable of you, {them}.",
-    ]
+    ],
     betrayed = me.betrayals(them) > 0 ? [
         "I cancelled our contract once, {them}. Now you cancel mine. The books balance - how dull.",
         "You learned from me, {them}. I broke our deal first - I can hardly complain about the price now.",
@@ -78,7 +78,7 @@ lines = {
     ] ?? [
         "We had a deal, {them}! I should have put it in writing.",
         "Betrayal, {them}? That will cost you more than you think.",
-    ])
+    ]),
     peace_accept = [
         them.betrayals(me) > 0 ? [
             "Peace, {them}. But this time I want a deposit - I know your record.",
@@ -89,7 +89,7 @@ lines = {
     ] ?? [
         "Peace! Sensible again at last, {them}. Let us trade.",
         "Agreed, {them}. War is far too expensive anyway.",
-    ]
+    ],
     peace_refuse = [
         them.gold > max(1000, me.gold) and chance(50%) ? "My informants count {them.gold} gold in your treasury, {them}. Peace has a price - and you can clearly afford it.",
         them.betrayals(me) > 0 ? [
@@ -102,7 +102,7 @@ lines = {
         "Peace has its price, {them}. And you have not paid it yet.",
         "You come to me empty-handed, {them}? No, thank you.",
         "An offer with nothing in return? Not with me, {them}.",
-    ]
+    ],
     block_refuse = [
         enemy.betrayals(me) > 0 ? [
             "{enemy} cheated me once, {them}. I do no business with their partners.",
@@ -111,16 +111,16 @@ lines = {
     ] ?? [
         "No deal while {enemy} sits in your alliance, {them}.",
         "{enemy} would spoil every bargain, {them}. Not with them.",
-    ]
+    ],
     block_refuse_own = [
         "My partner {enemy} would end our business, {them}. Too expensive.",
         "{enemy} would not like this deal, {them}. And {enemy} pays well.",
-    ]
-    vassal_grumble = "Peace with {enemy} costs me dearly, {them}. But a contract is a contract."
+    ],
+    vassal_grumble = "Peace with {enemy} costs me dearly, {them}. But a contract is a contract.",
     ask_lord = [
         "My contracts are signed by {enemy} now, {them}. Kindly take it up with them.",
         "Not my department any more, {them}. Talk to {enemy}.",
-    ]
+    ],
     alliance_offer = [
         them.gold > max(1000, me.gold) and chance(50%) ? "{them.gold} gold in your treasury, {them} - my informants are thorough. Invest it with me: against {enemy}, it pays twice.",
         enemy.strength > me.strength + them.strength and chance(60%) ? "{enemy}'s firm is bigger than both of ours, {them}. A merger is our only chance.",
@@ -128,7 +128,7 @@ lines = {
     ] ?? [
         "{them}, {enemy} is ruining us both. A partnership would be ... most lucrative.",
         "A business proposal, {them}: we share the costs - and {enemy}'s treasures.",
-    ]
+    ],
     offer_accepted = [
         them.betrayals(me) > 0 ? [
             "Partners again, {them}. This time I keep the receipts.",
@@ -138,14 +138,14 @@ lines = {
     ] ?? [
         "An excellent deal, {them}!",
         "Partners! To good returns.",
-    ]
+    ],
     offer_withdrawn = them.ignored(me) > 0 ? [
         "No answer again, {them}? Then I shall stop sending you my catalogue.",
         "Another offer unanswered, {them}. I do not waste good paper on a customer who never writes back.",
     ] : [
         "A pity, {them}. The offer has expired.",
         "You are letting a good deal slip away, {them}.",
-    ]
+    ],
     betray = [
         me.strength > them.strength * 2 and chance(60%) ? "You have become a bad investment, {them}. I am selling.",
         them.tribute(me, 30) > 0 and chance(50%) ? "Thank you for the {them.tribute(me, 30)}, {them}. The partnership is hereby dissolved.",
@@ -153,7 +153,7 @@ lines = {
     ] ?? [
         "Nothing personal, {them}. Just business.",
         "Our partnership no longer pays, {them}. I am cancelling it.",
-    ]
+    ],
     tribute_thanks = [
         at_war ? [
             "A payment in the middle of a war, {them}? Now we can talk terms.",
@@ -165,7 +165,7 @@ lines = {
         "Oh, how generous, {them}! Now we can talk.",
         "I knew you had taste, {them}.",
         "Most pleasing, {them}. Most pleasing indeed.",
-    ]
+    ],
     tribute_small = [
         them.stock > me.stock * 2 and chance(60%) ? "{them.stock} in your storehouses, {them}, and this is what you send me? My spies are embarrassed for you.",
         at_war ? [
@@ -176,14 +176,14 @@ lines = {
     ] ?? [
         "A tip, {them}? Well, it's something.",
         "Small change, {them}. Still - every coin counts.",
-    ]
+    ],
     attack = [
         them.kills(me, 20, buildings) > 0 and chance(60%) ? "{them} destroyed {them.kills(me, 20, buildings)} of my buildings. Time to deliver the invoice!",
         them.kills(me, 20, units) > many_dead / 2 and them.kills(me, 20, units) > me.kills(them, 20, units) and chance(60%) ? "{them.kills(me, 20, units)} of my people, {them}. Now I collect - with interest!",
     ] ?? [
         "My mercenaries are paid - time they earned it. Against {them}!",
         "An investment in {them}'s downfall.",
-    ]
+    ],
     attack_threat = [
         them.betrayals(me) > 0 and chance(70%) ? "{them}, the bill for your betrayal is due. Payment on delivery.",
         my_returns and chance(50%) ? "My ledger shows {me.kills(them, units)} of your men so far, {them}. Shall I keep adding?",
@@ -191,7 +191,7 @@ lines = {
         "{them}, my mercenaries send their regards.",
         "Consider this a hostile takeover, {them}.",
         "{them}, your debts are due. I am coming to collect.",
-    ]
+    ],
     under_attack = [
         me.soldiers < 10 ? [
             "Hardly a guard left! Hire anyone who can hold a spear - whatever it costs!",
@@ -201,72 +201,72 @@ lines = {
     ] ?? [
         "Guards! They are plundering my warehouses!",
         "Double pay to whoever drives off these bandits!",
-    ]
+    ],
     building_lost = [
         me.wood + me.stone < 200 and chance(60%) ? "And not even the wood and stone to rebuild it. Who will sell me some?",
     ] ?? [
         "That was a trading post! Do you know what that cost?",
         "Losses, nothing but losses ...",
-    ]
+    ],
     epoch_up = [
         epoch >= epoch.industrial and chance(50%) ? "{epoch}! Factories, railways - mass production at last.",
         full_coffers and chance(50%) ? "{epoch} - and {round(me.gold)} gold in the treasury. Business is booming.",
     ] ?? [
         "{epoch}! New markets, new opportunities.",
         "Progress is good for business: {epoch}.",
-    ]
-    enemy_ahead = "{them} is ahead of us? I shall have to correct my books."
+    ],
+    enemy_ahead = "{them} is ahead of us? I shall have to correct my books.",
     winning = [
         my_returns and me.kills(them, units) > them.kills(me, units) and chance(50%) ? "{me.kills(them, units)} on your side, {them.kills(me, units)} on mine, {them}. The balance is in my favour.",
     ] ?? [
         "The balance sheet looks good. Very good indeed.",
         "{them}, you should consider a settlement.",
-    ]
+    ],
     losing = [
         my_costs and them.kills(me, units) > me.kills(them, units) and chance(60%) ? "{them.kills(me, units)} of my people lost to {them}. This war is eating my capital.",
         full_coffers and chance(50%) ? "Still {round(me.gold)} gold in the vaults, {them}. Enough to hire a great many mercenaries.",
     ] ?? [
         "I do not like these numbers.",
         "Perhaps now would be a good moment to negotiate, {them}?",
-    ]
+    ],
     desperate = [
         me.gold > 500 and chance(60%) ? "{round(me.gold)} gold left - take it all, only hold the walls!",
     ] ?? [
         "I will pay any price! Any!",
         "Save the treasury!",
-    ]
+    ],
     enemy_defeated = [
         them.betrayals(me) > 0 ? [
             "{them} is bankrupt. Cheating never pays in the long run.",
             "{them} broke our contract - and now has nothing left to break. The books are closed.",
         ],
         good_customer and chance(60%) ? "{them} is gone. A pity about such a reliable customer: {them.tribute(me)} in tribute.",
-    ] ?? "{them} is bankrupt. How unfortunate. For {them}."
-    ally_defeated = "We have lost a partner. {them} will be missed."
+    ] ?? "{them} is bankrupt. How unfortunate. For {them}.",
+    ally_defeated = "We have lost a partner. {them} will be missed.",
     defeated = [
         "All ... lost ... and no buyer in sight.",
         "I declare bankruptcy.",
-    ]
+    ],
     surrender = [
         "This venture no longer pays. I withdraw.",
         "I close my books. Congratulations, {them}.",
-    ]
-    capitulate = "{them}, let us be sensible. War is bad for business. {tribute} for peace - do we have a deal?"
-    capitulate_accepted = "A pleasure doing business. {tribute}, as agreed."
-    capitulate_refused = "No deal? A pity. For both of us."
-    all_submitted = "The market is yours, {them} - every competitor pays you tribute."
+    ],
+    capitulate = "{them}, let us be sensible. War is bad for business. {tribute} for peace - do we have a deal?",
+    capitulate_accepted = "A pleasure doing business. {tribute}, as agreed.",
+    capitulate_refused = "No deal? A pity. For both of us.",
+    all_submitted = "The market is yours, {them} - every competitor pays you tribute.",
     other_victory = lord == them ? [
         "A hostile takeover, well executed. Congratulations, {them}.",
         "The books are closed. Your profit, {them}.",
     ] : [
         "A profitable partnership, {them}. The dividends are ours.",
         "We closed the deal together, {them}. Splendid.",
-    ]
-    wonder_help = "A wonder! That draws traders from all over the world. I am sending guards."
-    wonder_nohelp = "A splendid wonder! Sadly my troops are ... otherwise engaged at the moment."
+    ],
+    wonder_help = "A wonder! That draws traders from all over the world. I am sending guards.",
+    wonder_nohelp = "A splendid wonder! Sadly my troops are ... otherwise engaged at the moment.",
     help_land = [
         "My mercenaries are on their way. The bill comes later.",
         "Help is coming - at a friendly price.",
-    ]
-    help_none = "Sorry, all my mercenaries are fully booked."
+    ],
+    help_none = "Sorry, all my mercenaries are fully booked.",
 }

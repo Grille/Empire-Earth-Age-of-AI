@@ -295,3 +295,26 @@ vec(1, 2).z
 vec(1, 2).q
 str(5).x
 (1 + 2).x
+# records: { name = value, ... } - a comma after each member - 2026-10-22
+{ a = 1, b = "x" }
+{ a = 1, b = 2, }
+{}
+{ a = 1, b = { c = vec(1, 2) } }
+{ a = 1, b = 2 }.b
+{ a = 1, b = { c = vec(1, 2) } }.b.c
+({ a = 1, b = { c = vec(1, 2) } }.b).c.y
+{ a = 1 }.missing
+{ a = 1 a = 2 }
+{ a = 1, a = 2 }
+{ 1 = 2 }
+{ a == 1 }
+has({ a = 1 }, "a")
+has({ a = 1 }, "b")
+has(5, "a")
+has({ a = 1 }, a)
+{ a = 1 } == { a = 1 }
+{ a = 1 } + 1
+"r: {{ a = 1, b = [2, 3] }}"
+pick([{ a = 1 }, { a = 1 }]).a
+{ a = chance(50%) ? 1 }
+5.a

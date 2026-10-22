@@ -10,7 +10,8 @@
 #
 # key = value, a value is an expression: "a string" ({placeholders} and {expressions} in it), ["a list", "of
 # strings"] (one at random), allied ? "a condition", a ?? b, numbers ... The keys the mod reads stand in records
-# (lines = { ... }); a name outside them is the file's own, for its values. The format, the expressions and every
+# (lines = { ... }, a comma after each entry); a name outside them is the file's own, for its values - a record of
+# your own too (colors = { dark = ..., light = ... }: colors.dark). The format, the expressions and every
 # value of the game (opinion, them.soldiers, epoch.middle, ...): README.md in this folder.
 
 # eeaimod's base, mod/computer.eeai, and the language model's texts, mod/prompt.eeai, are layers of every
@@ -23,27 +24,27 @@
 personality = {
     # the name in the game (the player name in the scores and the chat) - a list: the first no other player has
     # (all taken: the first with a number, "Khan Temur II"): ["Khan Temur", "Khan Batu"], pick([...]) a random one
-    name = ""
+    name = "",
     # its civilization's name as the game shows it, instead of the one it plays (empty: keep that)
-    #civilization = ""
+    #civilization = "",
     # favoured player colours on random maps, the first free one wins: blue, red, yellow, magenta, orange, green,
     # cyan, darkred, darkgrey, purple, grey, silver, lightyellow, lime, lightblue, pink (or German names, or a number
     # 1..17: color.red or 2), or one of its own: rgb(128, 64, 0) - 0 to 255 each
-    #color = ["blue", "cyan"]
+    #color = ["blue", "cyan"],
     # traits 0% to 100% (50% when left out). aggression: betrays, refuses peace; loyalty: keeps its alliances (a vassal
     # under 50% rebels against a clearly weaker lord, the sooner the prouder); pride: how long it holds a grudge and
     # refuses peace after a declaration of war (pride x 5 minutes), how long it fights on before it capitulates, how
     # weak a lord it serves; greed: what a tribute is worth to it; forgiveness: how fast a grudge fades;
     # caution: capitulates earlier, pays more; talk: how often it says the lines that are not always said
-    aggression = 50%
-    loyalty = 50%
-    pride = 50%
-    greed = 50%
-    forgiveness = 50%
-    caution = 50%
-    talk = 50%
+    aggression = 50%,
+    loyalty = 50%,
+    pride = 50%,
+    greed = 50%,
+    forgiveness = 50%,
+    caution = 50%,
+    talk = 50%,
     # for the AI voice: who this is, in a few words (the model plays it)
-    character = ""
+    character = "",
 }
 
 style = {
@@ -51,21 +52,21 @@ style = {
     # keys as in aimod.ini; they replace the difficulty's values for this AI. Uncomment what it should change. Each
     # an expression worked out at the game start (like color =): shares and chances with % (home_guard_share = 35%,
     # attack_on_contact = 20%, attack_group_percent = 150%), minutes as numbers - chance(50%) ? 15 : 25 works too.
-    #military_start_share = 
-    #military_income_share = 
-    #military_income_share_farms = 
-    #epoch_min = 
-    #epoch_max = 
-    #first_attack_min = 
-    #first_attack_max = 
-    #attack_interval_min = 
-    #attack_interval_max = 
-    #attack_group_percent = 
-    #attack_on_contact = 
-    #attack_for_resources = 
-    #attack_revenge = 
-    #citizen_share = 
-    #home_guard_share = 
+    #military_start_share = ,
+    #military_income_share = ,
+    #military_income_share_farms = ,
+    #epoch_min = ,
+    #epoch_max = ,
+    #first_attack_min = ,
+    #first_attack_max = ,
+    #attack_interval_min = ,
+    #attack_interval_max = ,
+    #attack_group_percent = ,
+    #attack_on_contact = ,
+    #attack_for_resources = ,
+    #attack_revenge = ,
+    #citizen_share = ,
+    #home_guard_share = ,
 }
 
 # names of your own (vars) for its lines, before those of mod/system.eeai - anywhere outside the records. For example:
@@ -74,89 +75,89 @@ style = {
 lines = {
     # [] or a list with nothing left: no line (a more general situation or mod/computer.eeai speaks, or nobody)
     # the game begins - a first word to everyone - heard by everyone (60% of the time at talk=50)
-    greeting = []
+    greeting = [],
     # {them} has just declared war on you - heard by {them} only (at most every 20 s)
-    war_declared = []
+    war_declared = [],
     # {them}, your ally until now, has betrayed you and declared war - heard by {them} only (at most every 20 s, without a line: war_declared)
-    betrayed = []
+    betrayed = [],
     # you accept {them}'s offer of peace (you are allied now) - heard by {them} only
-    peace_accept = []
+    peace_accept = [],
     # you refuse {them}'s offer of peace - heard by {them} only (at most every 60 s)
-    peace_refuse = []
+    peace_refuse = [],
     # you offer {them} an alliance against {enemy}, your common enemy - heard by {them} only
-    alliance_offer = []
+    alliance_offer = [],
     # {them} has accepted your alliance offer - heard by {them} only
-    offer_accepted = []
+    offer_accepted = [],
     # your alliance offer to {them} has expired unanswered - heard by {them} only
-    offer_withdrawn = []
+    offer_withdrawn = [],
     # you betray {them}, your ally, and declare war on them - heard by {them} only
-    betray = []
+    betray = [],
     # {them} sent you a generous tribute: {tribute} - heard by {them} only (at most every 20 s)
-    tribute_thanks = []
+    tribute_thanks = [],
     # {them} sent you a tribute - a small one: {tribute} - heard by {them} only (at most every 60 s)
-    tribute_small = []
+    tribute_small = [],
     # your army sets out to attack {them} - heard by its allies (40% of the time at talk=50, at most every 300 s)
-    attack = []
+    attack = [],
     # your town is under attack - heard by its allies (60% of the time at talk=50, at most every 240 s)
-    under_attack = []
+    under_attack = [],
     # you lost a building - heard by its allies (25% of the time at talk=50, at most every 180 s)
-    building_lost = []
+    building_lost = [],
     # you have just reached the {epoch} age - heard by everyone (50% of the time at talk=50, at most every 60 s)
-    epoch_up = []
+    epoch_up = [],
     # an enemy is a whole age ahead of you - heard by its allies (40% of the time at talk=50, at most every 600 s)
-    enemy_ahead = []
+    enemy_ahead = [],
     # you are winning against {them} - heard by {them} only (40% of the time at talk=50, at most every 600 s)
-    winning = []
+    winning = [],
     # you are losing the war - heard by its allies (50% of the time at talk=50, at most every 600 s)
-    losing = []
+    losing = [],
     # you are close to defeat - heard by its allies
-    desperate = []
+    desperate = [],
     # {them} has been defeated - heard by everyone (80% of the time at talk=50, at most every 30 s)
-    enemy_defeated = []
+    enemy_defeated = [],
     # your ally {them} has been defeated - heard by its allies (80% of the time at talk=50, at most every 30 s)
-    ally_defeated = []
+    ally_defeated = [],
     # you have been defeated - heard by everyone
-    defeated = []
+    defeated = [],
     # a wonder is threatened - heard by everyone (at most every 60 s)
-    wonder_threat = []
+    wonder_threat = [],
     # you send help for an ally's wonder - heard by its allies (at most every 60 s)
-    wonder_help = []
+    wonder_help = [],
     # you have no help to give for an ally's wonder - heard by its allies (at most every 60 s)
-    wonder_nohelp = []
+    wonder_nohelp = [],
     # you send land troops to help an ally - heard by its allies (at most every 30 s)
-    help_land = []
+    help_land = [],
     # you send aircraft to help an ally - heard by its allies (at most every 30 s)
-    help_air = []
+    help_air = [],
     # you send ships to help an ally - heard by its allies (at most every 30 s)
-    help_naval = []
+    help_naval = [],
     # you have no troops to send an ally who asked for help - heard by its allies (at most every 30 s)
-    help_none = []
+    help_none = [],
     # you give up the game - heard by everyone (without a line: defeated)
-    surrender = []
+    surrender = [],
     # you capitulate: {them} is beating you, and you offer to PAY them a tribute ({tribute}) for peace - you give, they receive - heard by {them} only
-    capitulate = []
+    capitulate = [],
     # {them} accepted your capitulation: you PAY them the tribute ({tribute}) and serve them from now on - heard by {them} only
-    capitulate_accepted = []
+    capitulate_accepted = [],
     # {them} did not accept your capitulation: the war goes on - heard by {them} only
-    capitulate_refused = []
+    capitulate_refused = [],
     # your army is about to attack {them} - heard by {them} only (60% of the time at talk=50, at most every 300 s)
-    attack_threat = []
+    attack_threat = [],
     # every other player has submitted to {them}, your lord - heard by {them} only
-    all_submitted = []
+    all_submitted = [],
     # {them} has won the game - heard by everyone
-    other_victory = []
+    other_victory = [],
     # you refuse {them}'s peace offer because {enemy} in their alliance cannot be at peace with your side - heard by {them} only (at most every 60 s, without a line: peace_refuse)
-    block_refuse = []
+    block_refuse = [],
     # you refuse {them}'s peace offer because your own ally {enemy} won't make peace with them - heard by {them} only (at most every 60 s, without a line: block_refuse)
-    block_refuse_own = []
+    block_refuse_own = [],
     # your lord {them} forces you to make peace with {enemy}, whom you hate - heard by {them} only (at most every 60 s)
-    vassal_grumble = []
+    vassal_grumble = [],
     # {them} offers you peace, but you are the vassal of {enemy} and have no diplomacy of your own - they must talk to {enemy} - heard by {them} only (at most every 60 s, without a line: peace_refuse)
-    ask_lord = []
+    ask_lord = [],
 }
 
 # what the language model is told for this AI (aimod.ini [llm]), instead of mod/prompt.eeai's text - every key and
 # its placeholders are there. For example:
 #prompt = {
-#    nature = "You speak in short, proud sentences."
+#    nature = "You speak in short, proud sentences.",
 #}

@@ -1,6 +1,7 @@
 // THE TEXT FILES (<game>\aimod_ai\*.eeai: the personalities; mod\*.eeai: computer, prompt, system) and the EXPRESSIONS in them.
 // A file: "name = value" lines - a name the file's lines use (or, for a few names, what the file is about), records
-// "lines = {" ... "}" (the keys the code reads, one "key = value" a line), include("pack_base.eeai"),
+// "lines = { key = value, ... }" (a comma after each entry; the keys the code reads - another record is the file's
+// own name, its entries name.key), include("pack_base.eeai"),
 // register_personality() - and comments from # to the line's end (outside a string). A value is an expression - over
 // several lines while a ( [ or { is open:
 //   "text"                          a string; \" \\ \n escapes. {expressions} in it - {them} -
@@ -29,6 +30,11 @@
 // variable or vars entry; after a call or ( ) too: step(home).x, (a + b).y), + - two vectors of as many numbers, * a vector and a number, / a vector by a number, == !=
 // (no order), distance(a, b); rgb(r, g, b) a colour, 0 to 255 each, as the vector of those / 255 (vec(r, g, b) takes
 // the 0 to 1 itself); in a text (12, 40), a command's argument its numbers one each - anything else with one a mistake.
+// A record, { a = 1, b = "x", c = { ... } }, is one value of named members (a comma after each, the last's may be left
+// out; each worked out when the record is): r.a, r.c.d, f().a its members - one it doesn't have a mistake, has(r,
+// "a") checks; in a text {a = 1, b = x}; no comparison (its members are compared), no arithmetic. A file's own record
+// (colors = { dark = ... }) is its names colors.dark ... (each worked out where it is used, like any name of the
+// file's), colors the whole record.
 // A placeholder's number is written with up to 2 decimals, or by its format after the last ':' that belongs to no
 // '?' (x_fmt_at): {x:%} a share (0.5 -> 50%), {x:.1%}, {x:.2} - 50% in an expression is only 0.5, never a format.
 // A choice before a format goes in ( ): {(a ? 1 : 0):%}.
@@ -63,7 +69,11 @@
 // afresh. Included by eeaimod.c before persona.c.
 #define XVARS_MAX 48
 #define XVAL_CAP 512   // the callers' text buffers (xto_text cuts there); a value's own text has no limit
-struct xvars { int n; char *key[XVARS_MAX], *val[XVARS_MAX]; };   // val: an expression's source
+// val: an expression's source; dotted: a file record's member among the keys (colors.dark) - else no name is
+// looked up as one (x_vars_group, a member path's head: what every dotted name would pay for)
+// first, next: the keys by their name's hash (an index + 1, 0 none) - every name worked out looks itself up here
+#define XVARS_HASH 64
+struct xvars { int n, dotted; char *key[XVARS_MAX], *val[XVARS_MAX]; unsigned char first[XVARS_HASH], next[XVARS_MAX]; };
 struct xval;
 struct xctx {
     void *pl, *other, *third;               // the host's: the speaker, them, a third - them NULL: the local player
@@ -89,11 +99,13 @@ struct xctx {
 // isn't there (lord
 // without one) - nothing, which may only be checked (lord ? .., lord ?? .., lord == them): used, it is a mistake
 // it, ln: a list's items (ln 0: no list) - its value meanwhile is one of them, at random; kind: a function (fn: its
-// definition and where it was made), stop (a for / every body's "no more") or a vector (vc: its vn numbers, 2..4 -
-// .x .y .z .w; in the region like a text) - neither number nor text
-enum { XV_PLAIN, XV_FN, XV_STOP, XV_VEC };
+// definition and where it was made), stop (a for / every body's "no more"), a vector (vc: its vn numbers, 2..4 -
+// .x .y .z .w; in the region like a text) or a record (rec: its members by name) - neither number nor text
+enum { XV_PLAIN, XV_FN, XV_STOP, XV_VEC, XV_REC };
 struct xfn;
-struct xval { int has_n, has_s, w, obj, ln, kind, vn; double n; const char *s; const struct xval *it; const struct xfn *fn; const double *vc; char miss[24]; };
+struct xrec;
+struct xval { int has_n, has_s, w, obj, ln, kind, vn; double n; const char *s; const struct xval *it; const struct xfn *fn; const double *vc; const struct xrec *rec; char miss[24]; };
+struct xrec { int n; const char **key; struct xval *val; };   // a record's members in the order written (in the region)
 internal int xl_n(const struct xval *v) { return v->ln ? v->ln : v->w > 0; }   // its items (one value: 1, nothing: 0)
 internal const struct xval *xl_at(const struct xval *v, int i) { return v->ln ? &v->it[i] : v; }
 internal struct xvars g_vars_sys;   // mod/system.eeai vars (texts.c)
@@ -163,17 +175,29 @@ internal int xkey_is(const char *key, const char *name) {
     size_t n = strcspn(key, "(");
     return n == strcspn(name, "(") && !_strnicmp(key, name, n);
 }
+internal unsigned xvars_hash(const char *key) {   // its name's (up to a function's "("), case ignored as xkey_is does
+    unsigned h = 2166136261u;
+    for (; *key && *key != '('; key++) h = (h ^ (unsigned char)tolower((unsigned char)*key)) * 16777619u;
+    return h % XVARS_HASH;
+}
 internal int xvars_find(const struct xvars *v, const char *key) {
-    for (int i = 0; v && i < v->n; i++) if (xkey_is(v->key[i], key)) return i;
+    if (!v || !v->n) return -1;
+    for (int i = v->first[xvars_hash(key)]; i; i = v->next[i - 1]) if (xkey_is(v->key[i - 1], key)) return i - 1;
     return -1;
 }
 internal void xvars_set(struct xvars *v, const char *key, const char *val) {
     int i = xvars_find(v, key);
     if (i < 0 && v->n == XVARS_MAX) return;
     if (i >= 0) { free(v->val[i]); free(v->key[i]); }
-    else i = v->n++;
+    else {
+        unsigned h = xvars_hash(key);
+        i = v->n++;
+        v->next[i] = v->first[h];
+        v->first[h] = (unsigned char)(i + 1);
+    }
     v->key[i] = _strdup(key);
     v->val[i] = _strdup(val);
+    if (strchr(key, '.')) v->dotted = 1;
 }
 internal const char *xvars_get(const struct xvars *v, const char *key) {   // a variable (no function)
     int i = xvars_find(v, key);
@@ -205,27 +229,31 @@ internal int x_check_par_has(const char *s, int n) {
 internal char g_xvn[256][40];
 internal int g_xvn_n;
 internal void x_var_add(const char *b, size_t n) { if (n && n < 40 && g_xvn_n < 256) lstrcpynA(g_xvn[g_xvn_n++], b, (int)n + 1); }
-internal int x_record_open(const char *e) {   // after "name =": "{" and nothing more on the line (a comment) - a record
-    while (*e == ' ' || *e == '\t') e++;
-    if (*e++ != '{') return 0;
-    while (*e == ' ' || *e == '\t' || *e == '\r') e++;
-    return !*e || *e == '\n' || *e == '#';
-}
-internal void x_fn_scan(const char *text) {   // the lines "name(a, b) =" of a file, and "name =" outside its records
-    int rec = 0;
+// the lines "name(a, b) =" of a file, and "name =" outside its records - a record too (its members: name.key) unless
+// the program reads it itself (lines, personality ...: g_x_host.code_record)
+internal void x_fn_scan(const char *text) {
+    int depth = 0;   // records (and braces) open at the line's start
     for (const char *s = text; *s; ) {
         while (*s == ' ' || *s == '\t') s++;
-        if (*s == '}') rec = 0;   // a record's end
         const char *b = s;
         while (isalnum((unsigned char)*s) || *s == '_') s++;
         size_t n = (size_t)(s - b);
-        if (!rec && n && *s != '(') {
+        if (!depth && n && *s != '(') {
             const char *e = s;
             while (*e == ' ' || *e == '\t') e++;
             if (*e == '=' && e[1] != '=') {
-                if (x_record_open(e + 1)) rec = 1;
-                else x_var_add(b, n);
+                char nm[40];
+                lstrcpynA(nm, b, (int)(n < 39 ? n : 39) + 1);
+                if (e[1 + strspn(e + 1, " \t")] != '{' || !g_x_host.code_record(nm)) x_var_add(b, n);
             }
+        }
+        for (const char *q = s; *q && *q != '\n' && *q != '#'; q++) {   // the line's braces, strings left out
+            if (*q == '"' || *q == '\'') {
+                char c = *q;
+                for (q++; *q && *q != c && *q != '\n'; q++) if (*q == '\\' && q[1]) q++;
+                if (*q != c) break;
+            } else if (*q == '{') depth++;
+            else if (*q == '}' && depth) depth--;
         }
         if (n && n < 40 && *s == '(') {
             int k = 1, empty = 1;
@@ -265,8 +293,8 @@ internal int x_name_known(const char *name) {   // a parameter, constant, vars e
     struct xval t;
     char w[48];
     if (strlen(name) > 40) return 1;
-    const char *dot = strrchr(name, '.');
-    if (dot && xvec_member(dot + 1) >= 0) {   // home.x: a vector's number - its owner a parameter or vars entry
+    const char *dot = strchr(name, '.');
+    if (dot && dot - name < 40) {   // r.a, home.x: a member path - its head a parameter or vars entry (a file's record)
         lstrcpynA(w, name, (int)(dot - name) + 1);
         if (x_check_par_has(w, (int)strlen(w)) || x_var_known(w)) return 1;
     }
@@ -285,8 +313,8 @@ internal int xnumeric(const char *s, double *n) {   // the whole text a number (
     *n = strtod(s, &e);
     return e != s && !*e;
 }
-internal void xnothing(struct xval *v) { v->has_n = v->has_s = v->w = v->obj = v->ln = v->kind = v->vn = 0; v->n = 0; v->s = ""; v->it = NULL; v->fn = NULL; v->vc = NULL; v->miss[0] = 0; }
-internal void xnum(struct xval *v, double n) { v->has_n = 1; v->has_s = v->obj = v->ln = v->kind = v->vn = 0; v->w = 1; v->n = n; v->s = ""; v->it = NULL; v->fn = NULL; v->vc = NULL; v->miss[0] = 0; }
+internal void xnothing(struct xval *v) { v->has_n = v->has_s = v->w = v->obj = v->ln = v->kind = v->vn = 0; v->n = 0; v->s = ""; v->it = NULL; v->fn = NULL; v->vc = NULL; v->rec = NULL; v->miss[0] = 0; }
+internal void xnum(struct xval *v, double n) { v->has_n = 1; v->has_s = v->obj = v->ln = v->kind = v->vn = 0; v->w = 1; v->n = n; v->s = ""; v->it = NULL; v->fn = NULL; v->vc = NULL; v->rec = NULL; v->miss[0] = 0; }
 internal void xvec(struct xval *v, const double *c, int n) {   // a vector of n numbers (2..4), copied into the region
     double *m = x_alloc((size_t)n * sizeof *m);
     xnothing(v);
@@ -304,6 +332,7 @@ internal void xstr(struct xval *v, const char *s) {   // a text, only that: "12"
     v->it = NULL;
     v->fn = NULL;
     v->vc = NULL;
+    v->rec = NULL;
     v->miss[0] = 0;
 }
 // a placeholder the code fills ({tribute}, {minutes}): a text - and its number when it is one, the code's numbers
@@ -312,7 +341,7 @@ internal void xstr_or_num(struct xval *v, const char *s) { xstr(v, s); v->has_n 
 internal void xdual(struct xval *v, double n, const char *s) { xstr(v, s); v->has_n = 1; v->n = n; }
 internal void xdual_kept(struct xval *v, double n, const char *s) {   // the same with a text that stays (not copied)
     v->s = s; v->has_s = v->has_n = 1; v->n = n; v->w = 1;
-    v->obj = v->ln = v->kind = v->vn = 0; v->it = NULL; v->fn = NULL; v->vc = NULL; v->miss[0] = 0;
+    v->obj = v->ln = v->kind = v->vn = 0; v->it = NULL; v->fn = NULL; v->vc = NULL; v->rec = NULL; v->miss[0] = 0;
 }
 internal int xis_num(const struct xval *v, double *n) { if (v->has_n) *n = v->n; return v->has_n; }
 internal double xto_num(const struct xval *v) { return v->has_n ? v->n : 0; }
@@ -363,12 +392,30 @@ internal void xto_text(const struct xval *v, char *out, int cap) {
         out[o] = 0;
         return;
     }
+    if (v->kind == XV_REC && v->w) {   // a record: {a = 1, b = text} - its members as written
+        int o = 0;
+        out[o++] = '{';
+        for (int i = 0; i < v->rec->n && o < cap - 8; i++) {
+            o += snprintf(out + o, (size_t)(cap - o), "%s%s = ", i ? ", " : "", v->rec->key[i]);
+            if (o >= cap - 4) { o = cap - 4; break; }
+            xto_text(&v->rec->val[i], out + o, cap - o - 2);
+            o += (int)strlen(out + o);
+        }
+        if (o > cap - 2) o = cap - 2;
+        out[o++] = '}';
+        out[o] = 0;
+        return;
+    }
     if (v->kind && v->w) { lstrcpynA(out, v->kind == XV_FN ? "function" : "stop", cap); return; }
     if (v->has_s || !v->w) { lstrcpynA(out, v->w ? v->s : "", cap); return; }
     xnum_text(v->n, out, cap);
 }
+internal const struct xval *xrec_get(const struct xval *r, const char *key) {   // a record's member by name; NULL: none
+    for (int i = 0; r->kind == XV_REC && i < r->rec->n; i++) if (!strcmp(r->rec->key[i], key)) return &r->rec->val[i];
+    return NULL;
+}
 internal const char *xtext_of(const struct xval *v) {   // its text, whole (in the region for a number, a list)
-    if (v->ln || (v->kind == XV_VEC && v->w)) { char t[XVAL_CAP]; xto_text(v, t, sizeof t); return x_strdup(t, strlen(t)); }
+    if (v->ln || ((v->kind == XV_VEC || v->kind == XV_REC) && v->w)) { char t[XVAL_CAP]; xto_text(v, t, sizeof t); return x_strdup(t, strlen(t)); }
     if (v->kind && v->w) return v->kind == XV_FN ? "function" : "stop";
     if (v->has_s || !v->w) return v->w ? v->s : "";
     char t[48];
@@ -428,7 +475,7 @@ internal void x_missing(struct xctx *c, const char *who) {
 // levels - an expression, a primary, a unary operator: at most 24 deep together within one expression); depth: its
 // deepest path, itself included (a function's body counts on its own). line, at: where it starts in the source.
 enum { XN_NUM, XN_STR, XN_NAME, XN_CALL, XN_LIST, XN_NEG, XN_NOT, XN_MUL, XN_ADD, XN_CMP, XN_AND, XN_OR, XN_COAL, XN_COND,
-       XN_LAMBDA, XN_BLOCK, XN_ASSIGN, XN_RETURN, XN_MEMBER };
+       XN_LAMBDA, XN_BLOCK, XN_ASSIGN, XN_RETURN, XN_MEMBER, XN_REC };
 struct xnode {
     unsigned char k, op, lvl, depth;
     int n_items;                 // a list's items, a call's arguments (all; the first 8 are used), a function's
@@ -626,6 +673,43 @@ internal void xps_primary(struct xps *p, struct xnode **out) {
         if (!o) { free(it); return; }
         o->n_items = n;
         o->items = (struct xnode **)it;   // offsets until copied out
+        o = XOFF(p, o);
+    } else if (*s == '{') {   // a record: { name = value, ... } - a comma after each member (the last's may be left out)
+        int par = p->par, n = 0, cap = 0;
+        uintptr_t *it = NULL;
+        p->s++;
+        p->par = 0;
+        for (;;) {
+            if (xps_op(p, "}")) break;
+            const char *ks = p->s;
+            char key[40];
+            int k = 0;
+            if (!isalpha((unsigned char)*ks) && *ks != '_') { p->err = 1; p->why = "a record's member: name = value"; break; }
+            while ((isalnum((unsigned char)*p->s) || *p->s == '_') && k < 39) key[k++] = *p->s++;
+            key[k] = 0;
+            if (isalnum((unsigned char)*p->s) || *p->s == '_') { p->err = 1; p->why = "a name over 39 characters"; break; }
+            for (int i = 0; i < n && !p->err; i++)
+                if (!strcmp(XPTR(p, (struct xnode *)it[i])->s, key)) { p->err = 1; p->why = "a record's member twice"; }
+            if (p->err) break;
+            if (!xps_op(p, "=") || *p->s == '=') { p->err = 1; p->why = "a record's member: name = value"; break; }
+            struct xnode *x;
+            xps_expr(p, &x);
+            if (p->err) break;
+            struct xnode *m = xn_new(p, XN_ASSIGN, ks);
+            if (!m) break;
+            m->s = _strdup(key);
+            m->a = x;
+            if (!xps_items_add(p, &it, &n, &cap, XOFF(p, m))) break;
+            if (xps_op(p, ",")) continue;
+            if (!xps_op(p, "}")) { p->err = 1; p->why = "a comma after each of a record's members"; }
+            break;
+        }
+        p->par = par;
+        if (p->err) { free(it); return; }
+        o = xn_new(p, XN_REC, s);
+        if (!o) { free(it); return; }
+        o->n_items = n;
+        o->items = (struct xnode **)it;
         o = XOFF(p, o);
     } else if ((*s >= '0' && *s <= '9') || (*s == '.' && s[1] >= '0' && s[1] <= '9')) {
         char *e;
@@ -965,7 +1049,7 @@ internal int x_fn_id(const char *name, int na) {
            !lstrcmpiA(name, "map_range") && na == 3 ? 11 : !lstrcmpiA(name, "str") && na == 1 ? 12 :
            !lstrcmpiA(name, "number") && na == 1 ? 13 : !lstrcmpiA(name, "log2") && na == 1 ? 14 : !lstrcmpiA(name, "pick") && na == 1 ? 15 :
            !lstrcmpiA(name, "vec") && na >= 2 && na <= 4 ? 16 : !lstrcmpiA(name, "rgb") && na == 3 ? 17 :
-           !lstrcmpiA(name, "distance") && na == 2 ? 18 : 0;
+           !lstrcmpiA(name, "distance") && na == 2 ? 18 : !lstrcmpiA(name, "has") && na == 2 ? 19 : 0;
 }
 internal int x_par_count(const char *par) {   // a vars function's parameters "a,b)": how many
     int want = *par == ')' ? 0 : 1;
@@ -1076,12 +1160,10 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
     }
     case XN_ASSIGN: return x_check(k, n->a, sc);
     case XN_RETURN: return x_check(k, n->a, sc);
-    case XN_MEMBER:   // f(a).x: only a vector's numbers
-        if (xvec_member(n->s) < 0) {
-            snprintf(k->whybuf, sizeof k->whybuf, ".%s: a value's members are a vector's numbers .x .y .z .w", n->s);
-            return xc_fail(k, n, k->whybuf);
-        }
-        return x_check(k, n->a, sc);
+    case XN_MEMBER: return x_check(k, n->a, sc);   // f(a).x: a record's member or a vector's number (worked out: there?)
+    case XN_REC:
+        for (int i = 0; i < n->n_items; i++) if (!x_check(k, n->items[i]->a, sc)) return 0;
+        return 1;
     case XN_CALL: {
         for (int i = 0; i < n->n_items; i++) if (!x_check(k, n->items[i], sc)) return 0;   // the arguments first
         const char *name = n->s;
@@ -1170,6 +1252,7 @@ internal PRINTF_LIKE(2, 3) void x_fail(struct xe *e, const char *fmt, ...) {
 internal int x_numeric_ok(struct xe *e, const struct xval *v) {   // v counts as a number: one, or nothing (0) - a text is a mistake
     if (v->ln) { x_fail(e, "a list (%.40s) where one number belongs - %s", xtext_of(v), "pick(l) for one of its items"); return 0; }
     if (v->kind == XV_VEC && v->w) { x_fail(e, "a vector %.40s where one number belongs - .x, .y ... for one of its numbers", xtext_of(v)); return 0; }
+    if (v->kind == XV_REC && v->w) { x_fail(e, "a record %.40s where one number belongs - r.name for one of its members", xtext_of(v)); return 0; }
     if (!v->w || v->has_n) return 1;
     x_fail(e, "a text (\"%.40s\") where a number belongs - number(x) makes a number of a text", xtext_of(v));
     return 0;
@@ -1185,9 +1268,87 @@ internal int xcmp(const struct xval *a, const struct xval *b) {   // <0, 0, >0: 
     double x, y;
     if (a->obj && b->obj) return a->obj - b->obj;
     if (a->kind == XV_VEC || b->kind == XV_VEC) return a->kind == b->kind && xvec_eq(a, b) ? 0 : 2;   // equal or not
+    if (a->kind == XV_REC || b->kind == XV_REC) return 2;   // (contains: a record is equal to nothing)
     if (xmismatch(a, b)) return 2;   // unequal
     if (xis_num(a, &x) && xis_num(b, &y)) return x < y ? -1 : x > y;
     return lstrcmpiA(xtext_of(a), xtext_of(b));
+}
+// v's member name - a record's (a mistake when it has none: its members told), a vector's number (.x .y .z .w);
+// whole: the path as written, for the messages
+internal void x_member_of(struct xe *e, const char *name, struct xval *v, const char *whole) {
+    char dn[44];
+    if (!whole) { snprintf(dn, sizeof dn, ".%s", name); whole = dn; }   // after a call or ( ): .name
+    if (v->kind == XV_REC && v->w) {
+        const struct xval *m = xrec_get(v, name);
+        if (m) { *v = *m; return; }
+        char t[160];
+        int o = 0;
+        t[0] = 0;
+        for (int i = 0; i < v->rec->n && o < (int)sizeof t - 44; i++) o += snprintf(t + o, sizeof t - (size_t)o, "%s%s", i ? ", " : "", v->rec->key[i]);
+        x_fail(e, "%s: no member %s - its members: %s (has(r, \"%s\") checks)", whole, name, v->rec->n ? t : "none", name);
+        return;
+    }
+    if (v->kind == XV_VEC && v->w) {
+        int m = xvec_member(name);
+        if (m < 0 || m >= v->vn) { x_fail(e, "%s: %s has %d numbers - no .%s", whole, xtext_of(v), v->vn, name); return; }
+        xnum(v, v->vc[m]);
+        return;
+    }
+    x_fail(e, "%s: %.40s is no record or vector - a member is a record's or a vector's", whole, xtext_of(v));
+}
+internal void xe_ident(struct xe *e, const char *name, struct xval *v);
+// a file's record as a whole - colors of "colors = { dark = ..., light = ... }", whose members are the vars entries
+// colors.dark, colors.light: each member worked out now (a record in it a record again); 0: vs has none of that name
+internal int x_vars_members(const struct xvars *vs, const char *name, char child[XVARS_MAX][40]) {   // its members' names
+    if (!vs || !vs->dotted) return 0;
+    size_t n = strlen(name);
+    int nc = 0;
+    for (int i = 0; i < vs->n; i++) {   // in the order written, each once
+        const char *k = vs->key[i];
+        if (strncmp(k, name, n) || k[n] != '.' || strchr(k, '(')) continue;
+        size_t m = strcspn(k + n + 1, ".");
+        int dup = m >= 40;
+        for (int j = 0; j < nc && !dup; j++) dup = strlen(child[j]) == m && !strncmp(child[j], k + n + 1, m);
+        if (!dup) { memcpy(child[nc], k + n + 1, m); child[nc++][m] = 0; }
+    }
+    return nc;
+}
+// a.b.missing of a file's record a.b: no such member - told with those it has (none: 0, an unknown name)
+internal int x_vars_no_member(struct xe *e, const char *name) {
+    const char *last = strrchr(name, '.');
+    if (!last || last - name >= 120) return 0;
+    char parent[128], child[XVARS_MAX][40];
+    lstrcpynA(parent, name, (int)(last - name) + 1);
+    for (int k = 0; k < 3; k++) {
+        int nc = x_vars_members(e->c->vars[k], parent, child);
+        if (!nc) continue;
+        char t[160];
+        int o = 0;
+        for (int i = 0; i < nc && o < (int)sizeof t - 44; i++) o += snprintf(t + o, sizeof t - (size_t)o, "%s%s", i ? ", " : "", child[i]);
+        x_fail(e, "%s: no member %s - its members: %s (has(r, \"%s\") checks)", name, last + 1, t, last + 1);
+        return 1;
+    }
+    return 0;
+}
+internal int x_vars_group(struct xe *e, const struct xvars *vs, const char *name, struct xval *v) {
+    char child[XVARS_MAX][40];
+    int nc = x_vars_members(vs, name, child);
+    if (!nc) return 0;
+    struct xrec *r = x_alloc(sizeof *r);
+    const char **key = x_alloc((size_t)nc * sizeof *key);
+    struct xval *val = x_alloc((size_t)nc * sizeof *val);
+    if (!r || !key || !val) { e->err = 1; return 1; }
+    r->n = nc; r->key = key; r->val = val;
+    for (int i = 0; i < nc && !e->err; i++) {
+        char full[128];
+        snprintf(full, sizeof full, "%s.%s", name, child[i]);
+        key[i] = x_strdup(child[i], strlen(child[i]));
+        xe_ident(e, full, &val[i]);
+    }
+    if (e->err) return 1;
+    xnothing(v);
+    v->w = 1; v->kind = XV_REC; v->rec = r;
+    return 1;
 }
 internal void x_nogame(struct xe *e, const char *name) {   // a game value or a player where there is no game yet
     x_fail(e, "%s: no game yet - only constants, chance(), rnd(), language and vars here", name);
@@ -1212,22 +1373,30 @@ internal int x_body(struct xe *e, const char *src, struct xval *v) {
 internal void xe_ident(struct xe *e, const char *name, struct xval *v) {
     struct xctx *c = e->c;
     if (c->fixed) { x_fail(e, "%s: a name - a setting is a number (35%%, 2 * 60, min(...))", name); xnothing(v); return; }
-    const char *dot = strrchr(name, '.');
-    int m = dot ? xvec_member(dot + 1) : -1;
-    if (m >= 0) {   // p.x, home.y: a vector's number - its owner a parameter, variable or vars entry (the rest: the host's)
+    const char *dot = strchr(name, '.');
+    if (dot && dot - name < 40) {   // r.a.b, home.x: a member path - its head a parameter, variable or vars entry
         char head[40];
         lstrcpynA(head, name, (int)(dot - name) + 1);
-        int own = 0;
+        int own = 0, exact = 0;
         for (int i = 0; i < c->fnp && !own; i++) own = !strcmp(c->fpn[i], head);
-        for (int k = 0; k < 3 && !own; k++) own = xvars_get(c->vars[k], head) != NULL;
+        for (int k = 0; k < 3 && !own; k++) exact |= c->vars[k] && c->vars[k]->dotted && xvars_get(c->vars[k], name);   // a file record's member itself
+        for (int k = 0; k < 3 && !own && !exact; k++) own = xvars_get(c->vars[k], head) != NULL;
         if (own) {
             struct xval h;
             xe_ident(e, head, &h);
             if (e->err) return;
-            if (h.kind != XV_VEC || !h.w) { x_fail(e, "%s: %s is no vector - .x .y .z .w are a vector's numbers", name, head); return; }
-            if (m >= h.vn) { x_fail(e, "%s: %s has %d numbers - no .%s", name, head, h.vn, dot + 1); return; }
-            xnum(v, h.vc[m]);
-            return;
+            if (!(h.obj && h.w)) {   // (a player's: the host's values - p.soldiers)
+                for (const char *seg = dot + 1; !e->err;) {
+                    char m[40];
+                    size_t k = strcspn(seg, ".");
+                    lstrcpynA(m, seg, (int)(k < 39 ? k : 39) + 1);
+                    x_member_of(e, m, &h, name);
+                    if (!seg[k]) break;
+                    seg += k + 1;
+                }
+                if (!e->err) *v = h;
+                return;
+            }
         }
     }
     for (int i = 0; i < c->fnp; i++)   // a parameter or variable of the function being worked out
@@ -1248,12 +1417,14 @@ internal void xe_ident(struct xe *e, const char *name, struct xval *v) {
         c->fpn = fpn; c->fpv = fpv; c->fnp = fnp;
         return;
     }
+    for (int k = 0; k < 3; k++) if (x_vars_group(e, c->vars[k], name, v)) return;   // a file's record whole
     if (c->script && !strcmp(name, "stop")) { xnothing(v); v->w = 1; v->kind = XV_STOP; return; }   // for / every: no more
     if (c->script && !strcmp(name, "time")) { xnum(v, g_x_hooks.now ? g_x_hooks.now() : 0); return; }   // game seconds
     int k = g_x_host.constant(name, v);
     if (k) { e->kept = k == 2; return; }
     if (c->nogame && lstrcmpiA(name, "language") && (g_x_host.is_value(name) || strchr(name, '.'))) { x_nogame(e, name); return; }
     if (g_x_host.value(c, name, v)) return;
+    if (x_vars_no_member(e, name)) return;   // colors.missing
     x_fail(e, !strcmp(name, "name") ? "an unknown name: name - the other player is them (them.name)" : "an unknown name: %s", name);
 }
 // a function's body (def), its parameters (par "a,b)") bound to the arguments: they alone are its names besides the
@@ -1288,6 +1459,15 @@ internal void xv_copy(struct xval *dst, const struct xval *src) {
     *dst = *src;
     if (src->has_s || src->w) dst->s = x_strdup(src->s, strlen(src->s));
     if (src->kind == XV_VEC) xvec(dst, src->vc, src->vn);
+    if (src->kind == XV_REC) {   // its members, each copied
+        struct xrec *r = x_alloc(sizeof *r);
+        const char **key = x_alloc((size_t)src->rec->n * sizeof *key + 1);
+        struct xval *val = x_alloc((size_t)src->rec->n * sizeof *val + 1);
+        if (!r || !key || !val) { xnothing(dst); return; }
+        r->n = src->rec->n; r->key = key; r->val = val;
+        for (int i = 0; i < r->n; i++) { key[i] = x_strdup(src->rec->key[i], strlen(src->rec->key[i])); xv_copy(&val[i], &src->rec->val[i]); }
+        dst->rec = r;
+    }
     if (src->ln) {
         struct xval *it = x_alloc((size_t)src->ln * sizeof *it);
         if (!it) { dst->ln = 0; dst->it = NULL; return; }
@@ -1298,6 +1478,7 @@ internal void xv_copy(struct xval *dst, const struct xval *src) {
 internal int xv_made_in(const struct xval *v, const struct xframe *f) {   // a function made in frame f, in it or its items
     if (v->kind == XV_FN && v->fn->env == f) return 1;
     for (int i = 0; i < v->ln; i++) if (xv_made_in(&v->it[i], f)) return 1;
+    for (int i = 0; v->kind == XV_REC && i < v->rec->n; i++) if (xv_made_in(&v->rec->val[i], f)) return 1;
     return 0;
 }
 // call function value fv with its arguments: a frame of its own (the names around where it was made, read only, and
@@ -1356,7 +1537,7 @@ internal int x_script_fn(const char *name) {
 // a value as a command's argument: a number (whole without decimals), a text as it is, a player its number, a type
 // its number (unit.x: both), a vector its numbers one argument each (a place: x y)
 internal int x_cmd_arg(struct xe *e, const char *verb, const struct xval *v, char *out, int cap) {
-    if ((v->kind && v->kind != XV_VEC) || !v->w || v->ln) { x_fail(e, "%s(...): %s as a command's argument", verb, v->ln ? "a list" : v->kind == XV_FN ? "a function" : v->kind ? "stop" : "nothing"); return 0; }
+    if ((v->kind && v->kind != XV_VEC) || !v->w || v->ln) { x_fail(e, "%s(...): %s as a command's argument", verb, v->ln ? "a list" : v->kind == XV_FN ? "a function" : v->kind == XV_REC ? "a record" : v->kind ? "stop" : "nothing"); return 0; }
     if (v->kind == XV_VEC) {
         int o = 0;
         for (int i = 0; i < v->vn; i++) {
@@ -1483,6 +1664,12 @@ internal void xe_call(struct xe *e, const struct xnode *n, struct xval *v) {
             if (f == 17) c[i] /= 255;
         }
         xvec(v, c, na);
+        return;
+    }
+    if (f == 19) {   // has(r, "name"): a record with that member (r.name would be a mistake without it)
+        if (a[0].kind != XV_REC || !a[0].w) { x_fail(e, "has(%.40s, ...): of a record", xtext_of(&a[0])); return; }
+        if (!a[1].has_s || a[1].has_n) { x_fail(e, "has(r, %.40s): a member's name as a text - has(r, \"name\")", xtext_of(&a[1])); return; }
+        xnum(v, xrec_get(&a[0], a[1].s) != NULL);
         return;
     }
     if (f == 18) {   // distance(a, b): between two vectors of as many numbers
@@ -1691,15 +1878,26 @@ internal void xe(struct xe *e, const struct xnode *n, struct xval *v) {
         if (c->missed) { c->missed = 0; e->err = 1; e->why = "a mistake while working it out"; }
         break;
     case XN_LIST: xe_list(e, n, v); break;
-    case XN_MEMBER: {   // step(home).x: the vector's number
+    case XN_MEMBER:   // f(a).name, (a + b).x: a record's member, a vector's number
         xe(e, n->a, v);
         if (e->err) break;
         x_use(e, v);
+        if (!e->err) x_member_of(e, n->s, v, NULL);
+        break;
+    case XN_REC: {   // a record: each member worked out now, in order - a mistake in one fails it whole
+        struct xrec *r = x_alloc(sizeof *r);
+        const char **key = x_alloc((size_t)n->n_items * sizeof *key + 1);
+        struct xval *val = x_alloc((size_t)n->n_items * sizeof *val + 1);
+        if (!r || !key || !val) { e->err = 1; break; }
+        r->n = n->n_items; r->key = key; r->val = val;
+        for (int i = 0; i < n->n_items && !e->err; i++) {
+            key[i] = n->items[i]->s;   // (the tree's: it stays)
+            xe(e, n->items[i]->a, &val[i]);
+            if (!e->err) x_use(e, &val[i]);
+        }
         if (e->err) break;
-        int m = xvec_member(n->s);
-        if (v->kind != XV_VEC || !v->w) { x_fail(e, "%.40s.%s: no vector - .x .y .z .w are a vector's numbers", xtext_of(v), n->s); break; }
-        if (m < 0 || m >= v->vn) { x_fail(e, "%.40s has %d numbers - no .%s", xtext_of(v), v->vn, n->s); break; }
-        xnum(v, v->vc[m]);
+        xnothing(v);
+        v->w = 1; v->kind = XV_REC; v->rec = r;
         break;
     }
     case XN_LAMBDA: {   // a function: a value (with where it was made: the names it reads)
@@ -1756,6 +1954,10 @@ internal void xe(struct xe *e, const struct xnode *n, struct xval *v) {
         if (e->err) break;
         if (v->ln || b.ln) {   // [1, 2] == 1: no one of them - contains(l, x)
             x_fail(e, "a list (%.40s) compared - contains(l, x) for one of its items", xtext_of(v->ln ? v : &b));
+            break;
+        }
+        if ((v->kind == XV_REC && v->w) || (b.kind == XV_REC && b.w)) {   // no order, no whole equality: its members
+            x_fail(e, "a record (%.40s) compared - compare its members (r.name == ...)", xtext_of(v->kind == XV_REC ? v : &b));
             break;
         }
         if (!v->w || !b.w) { xnum(v, 0); break; }   // nothing compares with nothing: false
@@ -2085,8 +2287,9 @@ internal int x_fold(const char *r, char *t, int cap) {
     return n && !*s && (par || n == 1);   // more than one: in ( ) only
 }
 // a value: to the line's end, over line breaks while a ( [ or { is open (a line that starts a key or a section ends
-// it: the bracket was never closed); comments left out
-internal void tl_value(struct tlex *l, struct tval *v) {
+// it: the bracket was never closed); comments left out. In a record (rec) also to a comma or the record's } outside
+// brackets - neither taken (tfile_parse: the comma after each entry)
+internal void tl_value(struct tlex *l, struct tval *v, int rec) {
     memset(v, 0, sizeof *v);
     v->line = l->line;
     tl_blank(l, 0);
@@ -2095,7 +2298,7 @@ internal void tl_value(struct tlex *l, struct tval *v) {
     int depth = 0;
     for (;;) {
         char c = *l->s;
-        if (!c || (c == '\n' && !depth)) break;
+        if (!c || (c == '\n' && !depth) || (rec && !depth && (c == ',' || c == '}'))) break;
         if (c == '\n' && tl_key_line(l->s + 1)) { l->line++; l->s++; break; }   // the next key: depth tells
         if (c == '\n' || c == '\r' || c == '\t') { if (c == '\n') l->line++; l->s++; c = ' '; }
         else if (c == '#') { while (*l->s && *l->s != '\n') l->s++; continue; }
@@ -2156,26 +2359,48 @@ internal int tl_line_end(struct tlex *l, const char *what) {   // nothing more o
     if (*l->s && *l->s != '\n') { tl_error(l, what); return 0; }
     return 1;
 }
-// read a text file: fn(arg, record, key, value) for every key - record "" for a name outside the records, and the
-// declarations include("a.eeai", ...) as the key "include" with the list ["a.eeai", ...], register_personality() as
-// the key "register_personality" ([]); mistakes logged with the file and line, their keys skipped
+// after an entry of a record: its comma (taken) or the record's } (left for the reader); else a mistake, told at the
+// entry's line
+internal void tl_rec_sep(struct tlex *l) {
+    int line = l->line;
+    tl_blank(l, 1);
+    if (*l->s == ',') { l->s++; return; }
+    if (*l->s == '}') return;
+    int cur = l->line;
+    l->line = line;
+    tl_error(l, "a comma after each of a record's entries: key = value,");
+    l->line = cur;
+}
+// read a text file: fn(arg, record, key, value) for every key - record "" for a name outside the records, a record
+// in a record after a dot (prompt.tools), and the declarations include("a.eeai", ...) as the key "include" with the
+// list ["a.eeai", ...], register_personality() as the key "register_personality" ([]); mistakes logged with the file
+// and line, their keys skipped. A record: name = { key = value, ... } - a comma after each entry (the last's may be
+// left out), on one line or many, records in it
 internal int tl_declaration(const char *key) { return !strcmp(key, "include") || !strcmp(key, "register_personality"); }
 typedef void (*tfile_fn)(void *arg, const char *record, const char *key, struct tval *v, struct tlex *l);
+#define TL_DEPTH 8
 internal void tfile_parse(const char *file, const char *text, tfile_fn fn, void *arg) {
     struct tlex l = { text, file, 1, 0 };
-    char record[48] = "";   // the record being read: name = { ... }
-    int record_line = 0;
+    char record[160] = "";   // the record being read (lines; a record in it: prompt.tools)
+    int record_line[TL_DEPTH], depth = 0;   // where each open record starts; how many are open
     for (;;) {
         tl_blank(&l, 1);
         if (!*l.s) {
-            if (*record) { l.line = record_line; tl_error(&l, "a record without its }"); }
+            if (depth) { l.line = record_line[depth - 1]; tl_error(&l, "a record without its }"); }
             return;
         }
         l.err = 0;
         const char *start = l.s;
         if (*l.s == '}') {
-            if (!*record) { l.s++; tl_error(&l, "a } too many"); }
-            else { record[0] = 0; l.s++; tl_line_end(&l, "something after the record's }"); }
+            l.s++;
+            if (!depth) tl_error(&l, "a } too many");
+            else {
+                char *dot = strrchr(record, '.');
+                if (dot) *dot = 0;
+                else record[0] = 0;
+                if (--depth) tl_rec_sep(&l);   // a record in a record: an entry of it, its comma after it
+                else tl_line_end(&l, "something after the record's }");
+            }
         } else if (*l.s == '[') {
             tl_error(&l, "a [section]: the files have records now - lines = { greeting = ... }");
         } else if (*l.s == ';') {
@@ -2185,7 +2410,7 @@ internal void tfile_parse(const char *file, const char *text, tfile_fn fn, void 
             int n = 0;
             while (*l.s && (isalnum((unsigned char)*l.s) || *l.s == '_') && n < 47) key[n++] = *l.s++;
             key[n] = 0;
-            if (n && *l.s == '(' && !*record && tl_declaration(key)) {   // include("a.eeai", ...): ["a.eeai", ...]
+            if (n && *l.s == '(' && !depth && tl_declaration(key)) {   // include("a.eeai", ...): ["a.eeai", ...]
                 struct tval v;
                 memset(&v, 0, sizeof v);
                 v.line = l.line;
@@ -2236,19 +2461,18 @@ internal void tfile_parse(const char *file, const char *text, tfile_fn fn, void 
             if (n >= 0) tl_blank(&l, 0);
             if (n < 0) ;   // (its mistake told)
             else if (!n || *l.s != '=') tl_error(&l, "no name = value");
-            else if (x_record_open(l.s + 1)) {   // name = { - a record, its keys on the lines up to its }
-                if (*record) tl_error(&l, "a record in a record");
-                else if (strchr(key, '(')) tl_error(&l, "a record has no parameters");
+            else if (l.s[1 + strspn(l.s + 1, " \t")] == '{') {   // name = { - a record: its entries up to its }
+                if (strchr(key, '(')) tl_error(&l, "a record has no parameters");
+                else if (depth == TL_DEPTH) tl_error(&l, "records in records more than 8 deep");
+                else if (strlen(record) + strlen(key) + 2 > sizeof record) tl_error(&l, "a record's path too long");
                 else {
-                    lstrcpyA(record, key);
-                    record_line = l.line;
+                    if (depth) lstrcatA(record, ".");
+                    lstrcatA(record, key);
+                    record_line[depth++] = l.line;
                     l.s = strchr(l.s, '{') + 1;
-                    tl_line_end(&l, "");
                 }
-            } else if (!*record && tl_declaration(key)) {
+            } else if (!depth && tl_declaration(key)) {
                 tl_error(&l, key[0] == 'i' ? "include(\"pack_base.eeai\") - a call, not a name" : "register_personality() - a call, not a name");
-            } else if (l.s[1 + strspn(l.s + 1, " \t")] == '{') {
-                tl_error(&l, "a record: name = { at the end of its line, a key = value a line below it, } on a line of its own");
             } else {
                 l.s++;
                 struct tval v;
@@ -2256,11 +2480,15 @@ internal void tfile_parse(const char *file, const char *text, tfile_fn fn, void 
                 g_x_check_file = file;
                 g_x_check_line = l.line;
                 g_x_check_ph = g_x_host.placeholders(file, record, key);
-                tl_value(&l, &v);
+                tl_value(&l, &v, depth > 0);
                 g_x_check_par = NULL;
                 g_x_check_file = NULL;
-                if (!l.err) fn(arg, record, key, &v, &l);
+                if (!l.err) {
+                    fn(arg, record, key, &v, &l);
+                    l.err = 0;   // a mistake the reader's user told (an unknown key): the value is read whole - on after it
+                }
                 tval_free(&v);
+                if (!l.err && depth) tl_rec_sep(&l);
             }
         }
     next:

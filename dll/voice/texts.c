@@ -48,7 +48,14 @@ internal void texts_key(void *arg, const char *sec, const char *key, struct tval
         g_texts_var_n++;
         return;
     }
-    if (lstrcmpiA(sec, "system")) { tl_error(l, "an unknown record (system)"); return; }
+    if (lstrcmpiA(sec, "system") && !x_code_record(sec)) {   // a record of the file's own: its members names (colors.dark)
+        char k[200];
+        snprintf(k, sizeof k, "%s.%s", sec, key);
+        xvars_set(&g_vars_sys, k, v->src);
+        g_texts_var_n++;
+        return;
+    }
+    if (lstrcmpiA(sec, "system")) { tl_error(l, "a record this file can't have (system takes its texts)"); return; }
     int i = text_index(k_sys, N_SYS, key);
     if (i < 0) { tl_error(l, "an unknown key"); return; }
     if (v->kind != TV_STRING) { tl_error(l, "a string expected (\"...\")"); return; }
@@ -487,6 +494,7 @@ internal void cmd_texts(char *out, const char *args) {
             char num[48] = "";
             if (v.has_n && v.has_s) { struct xval nv; xnum(&nv, v.n); xto_text(&nv, num, sizeof num); }
             REPLY("%s%s%s%s%s  (%s%s", v.has_s ? "\"" : "", t, v.has_s ? "\"" : "", num[0] ? " = " : "", num,
+                  v.kind == XV_REC ? "record" : v.kind == XV_VEC ? "vector" : v.kind == XV_FN ? "function" : v.ln ? "list" :
                   v.has_n && v.has_s ? "number and text" : v.has_s ? "text" : "number", l.c.failed ? "; a mistake left something out - see the log" : "");
             if (v.ln) REPLY("; a list of %d", v.ln);
             for (int i = 0; i < v.ln; i++) { xto_text(xl_at(&v, i), t, sizeof t); REPLY("%s%s", i ? " | " : ": ", t); }

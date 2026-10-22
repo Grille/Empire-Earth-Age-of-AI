@@ -242,6 +242,14 @@ internal void include_unnamed(struct persona *p, const char *name) {
 }
 internal int tpl_key(const char *key);   // texts.c: a prompt key's index, -1 none
 internal void persona_prompt_key(struct persona *p, const char *key, struct tval *v, struct tlex *l);
+// the records the code reads (the host's code_record): sec's first part one of them - every other record is the
+// file's own, its members names (colors.dark)
+internal int x_code_record(const char *sec) {
+    static const char *const k[] = { "personality", "style", "decide", "lines", "prompt", "system" };
+    size_t n = strcspn(sec, ".");
+    for (size_t i = 0; i < sizeof k / sizeof *k; i++) if (strlen(k[i]) == n && !_strnicmp(sec, k[i], n)) return 1;
+    return 0;
+}
 // the record a key of the files belongs in (a situation: lines, a trait: personality ...); NULL: none - a name
 internal const char *record_of_key(const char *key) {
     for (int k = 0; k < L_N; k++) if (!lstrcmpiA(key, k_lines[k].key)) return "lines";
@@ -261,7 +269,6 @@ struct name_read { struct tlex *l; int n; };
 internal void name_check(const char *name, void *arg) {   // a name as written: one the game can hold (the rest when given)
     struct name_read *r = arg;
     if (strlen(name) > 40) { char why[96]; snprintf(why, sizeof why, "a name of at most 40 characters: \"%.30s...\"", name); tl_error(r->l, why); }
-    if (!*name) tl_error(r->l, "an empty name");
 }
 internal void persona_key(void *arg, const char *sec, const char *key, struct tval *v, struct tlex *l) {
     struct persona *p = arg;
@@ -327,7 +334,11 @@ internal void persona_key(void *arg, const char *sec, const char *key, struct tv
         free(p->line[k]);
         p->line[k] = _strdup(v->src);
     } else if (!lstrcmpiA(sec, "prompt")) persona_prompt_key(p, key, v, l);
-    else tl_error(l, "an unknown record (personality, style, decide, lines, prompt)");
+    else if (!x_code_record(sec)) {   // a record of the file's own (colors = { ... }): its members are names, colors.dark
+        char k[200];
+        snprintf(k, sizeof k, "%s.%s", sec, key);
+        xvars_set(&p->vars, k, v->src);
+    } else tl_error(l, "a record in a record the code reads (personality, style, decide, lines, prompt take values only)");
 }
 // read file (in the folder dir) into p - its own keys only (persona_layers adds its includes'); 0: no such file
 internal int persona_parse(const char *dir, const char *file, struct persona *p) {
@@ -785,7 +796,8 @@ internal int persona_name(struct persona *p, const ee_player *pl, char *out, int
     const char *first = NULL;
     for (int i = 0; i < xl_n(&v); i++) {
         const struct xval *it = xl_at(&v, i);
-        if (!it->has_s || it->has_n || !it->s[0]) {
+        if (it->has_s && !it->has_n && !it->s[0]) continue;   // "": the game's own name (the template's name = "")
+        if (!it->has_s || it->has_n) {
             char t[XVAL_CAP];
             xto_text(it, t, sizeof t);
             x_error("%s: a name is a text - not %s in name = %.100s", p->file, t, p->name);

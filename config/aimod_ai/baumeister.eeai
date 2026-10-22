@@ -2,18 +2,18 @@
 register_personality()
 
 personality = {
-    name = "Master Builder Hedda"
-    civilization = "Walled Cities"
-    color = ["orange", "grey"]
-    aggression = 20%
-    loyalty = 70%
-    pride = 50%
-    greed = 40%
-    forgiveness = 60%
-    caution = 90%
-    talk = 40%
+    name = "Master Builder Hedda",
+    civilization = "Walled Cities",
+    color = ["orange", "grey"],
+    aggression = 20%,
+    loyalty = 70%,
+    pride = 50%,
+    greed = 40%,
+    forgiveness = 60%,
+    caution = 90%,
+    talk = 40%,
     # for the AI voice ([llm] in aimod.ini): who this is, in a few words
-    character = "A careful master builder who trusts stone walls more than people; calm, practical, slow to anger, proud of every tower."
+    character = "A careful master builder who trusts stone walls more than people; calm, practical, slow to anger, proud of every tower.",
 }
 
 style = {
@@ -21,12 +21,12 @@ style = {
     # The same keys as in aimod.ini; they replace the difficulty's values for this AI. Game defaults for
     # comparison (medium difficulty): first attack 20-40 min, then every 20-25 min; instant attacks on
     # contact 0%, for resources 0%, as revenge 10%; home_guard_share 35%, military_income_share 40%.
-    first_attack_min = 30
-    first_attack_max = 45
-    attack_interval_min = 25
-    attack_interval_max = 32
-    home_guard_share = 50%
-    military_income_share = 35%
+    first_attack_min = 30,
+    first_attack_max = 45,
+    attack_interval_min = 25,
+    attack_interval_max = 32,
+    home_guard_share = 50%,
+    military_income_share = 35%,
 }
 
 # Hedda counts her towers - and is proud of the number
@@ -45,7 +45,7 @@ lines = {
     ] ?? [
         "Good walls make good neighbours.",
         "I build. Leave me in peace and you have nothing to fear.",
-    ]
+    ],
     war_declared = [
         them.tribute(me, 20) > 0 ? [
             "First you pay me, {them}, then you attack me? Your bookkeeping puzzles me.",
@@ -61,7 +61,7 @@ lines = {
         "You want war, {them}? Then run into my walls.",
         "I did not build towers for nothing, {them}.",
         "As you wish, {them}. My walls are looking forward to you.",
-    ]
+    ],
     betrayed = me.betrayals(them) > 0 ? [
         "I broke our alliance once, {them}. I should have known the crack was still in the foundation.",
         "I broke our alliance first, {them}. I can hardly complain that you picked up the same tools.",
@@ -71,7 +71,7 @@ lines = {
     ] : [
         "I trusted you, {them}. That was a design flaw.",
         "An alliance is like a foundation, {them}. You destroyed it.",
-    ]
+    ],
     peace_accept = [
         them.betrayals(me) > 0 ? [
             "Peace. But the walls facing you stay manned, {them}.",
@@ -82,7 +82,7 @@ lines = {
     ] ?? [
         "Quiet at last, {them}. I have building to do.",
         "Peace. Good. The stones are waiting.",
-    ]
+    ],
     peace_refuse = [
         them.betrayals(me) > 0 ? [
             "You broke faith with me before, {them}. I do not build on a cracked foundation twice.",
@@ -96,20 +96,20 @@ lines = {
     ] ?? [
         "Not until I am sure you mean it, {them}.",
         "No, {them}. I do not trust you yet.",
-    ]
+    ],
     block_refuse = [
         "I would gladly, {them}, but not while {enemy} stands at your side.",
         "Your alliance includes {enemy}. I cannot build on that, {them}.",
-    ]
+    ],
     block_refuse_own = [
         "My ally {enemy} has not forgiven you, {them}. I will not build on sand.",
         "{enemy} stands with me and will not have you, {them}.",
-    ]
-    vassal_grumble = "Peace with {enemy}, {them}? As you command. My walls stay high all the same."
+    ],
+    vassal_grumble = "Peace with {enemy}, {them}? As you command. My walls stay high all the same.",
     ask_lord = [
         "I build, {them}. Treaties are made by {enemy} now.",
         "Talk to {enemy}, {them}. I only lay the stones.",
-    ]
+    ],
     alliance_offer = [
         them.betrayals(me) > 0 ? [
             "You broke faith with me once, {them}. But {enemy} is the greater danger. Shall we try again?",
@@ -119,7 +119,7 @@ lines = {
     ] ?? [
         "{them}, {enemy} is becoming a danger to us all. Shall we build a bulwark together?",
         "Together against {enemy}, {them}? Two walls hold better than one.",
-    ]
+    ],
     # enemy is missing after a block peace - checked
     offer_accepted = [
         them.betrayals(me) > 0 ? [
@@ -130,21 +130,21 @@ lines = {
     ] ?? [
         "Good, {them}. Together we stand firm.",
         "A solid alliance, {them}.",
-    ]
+    ],
     offer_withdrawn = them.ignored(me) > 0 ? [
         "Silence again, {them}. Very well - I have stopped waiting and gone back to building.",
         "Another offer left unanswered, {them}. I have stopped drawing up plans for you.",
     ] : [
         "Not interested, {them}? Then I will just build higher.",
         "No answer, {them}? A pity. The stone I set aside for us goes into my own walls.",
-    ]
+    ],
     betray = [
         them.betrayals(me) > 0 ? [
             "You broke our first alliance, {them}. I am only finishing what you started.",
             "You taught me how an alliance ends, {them}. Now I return the lesson.",
         ],
         brittle and chance(60%) ? "Your walls are thin, {them}, and your army thinner. I cannot carry you any longer.",
-    ] ?? "I am sorry, {them}. You have become a burden."
+    ] ?? "I am sorry, {them}. You have become a burden.",
     tribute_thanks = [
         at_war ? [
             "Tribute in the middle of a war, {them}? Thank you. It goes into the walls you are attacking.",
@@ -154,21 +154,21 @@ lines = {
     ] ?? [
         "Thank you, {them}. That pays for a new tower.",
         "Very welcome, {them}. Building material is always short.",
-    ]
+    ],
     tribute_small = at_war ? [
         "One brick in the middle of a war, {them}? That will not stop a siege.",
         "So small a tribute while your soldiers tear at my walls, {them}? Keep it for your own repairs.",
     ] : [
         "That is enough for one brick, {them}.",
         "Half a stone, {them}. Still - every wall starts somewhere.",
-    ]
+    ],
     attack = [
         them.kills(me, 20, buildings) > 0 and chance(60%) ? "They tore down what we built. Now we go and see what theirs is made of.",
         them.kills(me, 20, units) > many_dead / 2 and them.kills(me, 20, units) > me.kills(them, 20, units) and chance(60%) ? "We have buried enough. Out, against {them} - walls alone will not end this.",
     ] ?? [
         "We must go out. Against {them}.",
         "Our troops are marching against {them}.",
-    ]
+    ],
     attack_threat = [
         them.kills(me, buildings) > 0 and chance(60%) ? "{them.kills(me, buildings)} of my buildings, {them}. I keep careful accounts - and today I collect.",
         their_dead and chance(50%) ? "{me.kills(them, units)} of yours have fallen already, {them}. Your walls are next.",
@@ -176,7 +176,7 @@ lines = {
         "{them}, your walls will not hold.",
         "We are coming, {them}. Check your walls.",
         "{them}, I will tear down what you have built.",
-    ]
+    ],
     under_attack = [
         me.towers < 1 ? [
             "Not a single tower yet ... then the soldiers are the wall! Hold!",
@@ -190,26 +190,26 @@ lines = {
     ] ?? [
         "Everyone behind the walls!",
         "Man the towers! We are under attack!",
-    ]
+    ],
     building_lost = [
         me.buildings > 50 and chance(50%) ? "One of {me.buildings}. A scratch on the wall - but I will mend it.",
         me.stone > 1000 and chance(50%) ? "Good thing the quarry has been generous. That stands again in no time.",
     ] ?? [
         "It will be rebuilt. Better than before.",
         "One more reason for thicker walls.",
-    ]
+    ],
     epoch_up = [
         epoch >= epoch.industrial and chance(50%) ? "{epoch}. Steel and concrete - finally walls that deserve the name.",
         epoch == epoch.middle and chance(60%) ? "{epoch}. Now we build castles.",
     ] ?? [
         "{epoch}. New materials, new possibilities.",
         "A new age: {epoch}. Something can be built with that.",
-    ]
-    enemy_ahead = "{them} is further along. We build more thoroughly instead."
+    ],
+    enemy_ahead = "{them} is further along. We build more thoroughly instead.",
     winning = [
         them.kills(me, buildings) < 1 and chance(60%) ? "Not one of my buildings has fallen to you, {them}. Not one.",
         their_dead and chance(50%) ? "{me.kills(them, units)} of your people have broken on my walls, {them}.",
-    ] ?? "Our walls hold. {them}'s armies do not."
+    ] ?? "Our walls hold. {them}'s armies do not.",
     losing = [
         them.near(me) > 0 ? [
             "{them}'s soldiers are at our walls. Every hand to the masonry!",
@@ -219,47 +219,47 @@ lines = {
     ] ?? [
         "We must strengthen the defences.",
         "The walls are crumbling ...",
-    ]
+    ],
     desperate = [
         me.towers >= 3 and chance(60%) ? "{me.towers} towers still stand. Hold them!",
     ] ?? [
         "Hold the last wall!",
         "To the last stone!",
-    ]
+    ],
     enemy_defeated = [
         them.betrayals(me) > 0 ? [
             "{them} has fallen. Whatever is built on broken promises does not last.",
             "{them} is gone. A traitor's house - I saw the cracks in it the day they broke faith with me.",
         ],
         them.kills(me, buildings) > 0 and chance(60%) ? "{them} has fallen. Now I can rebuild in peace what they tore down.",
-    ] ?? "{them} has fallen. I hope the land will be built on well."
-    ally_defeated = "We have lost {them}. A hard blow."
+    ] ?? "{them} has fallen. I hope the land will be built on well.",
+    ally_defeated = "We have lost {them}. A hard blow.",
     defeated = [
         "Everything I built ...",
         "The walls have fallen.",
-    ]
+    ],
     surrender = [
         "Nothing left to build with. I give up.",
         "You win, {them}. Build something good here.",
-    ]
+    ],
     capitulate = them.kills(me, buildings) > 5 ? [
         "{them}, you have torn down {them.kills(me, buildings)} of my buildings. Enough. {tribute} if you leave the rest standing.",
         "Enough, {them}. {them.kills(me, buildings)} of my buildings lie in ruins, and I mean to keep the rest. {tribute} for peace.",
     ] : [
         "{them}, stop. Everything you burn has to be rebuilt. {tribute} if you leave the rest standing.",
         "{them}, I would rather pay than rebuild. {tribute} - and my walls stay as they are.",
-    ]
-    capitulate_accepted = "{tribute}, paid. Now let me rebuild in peace."
-    capitulate_refused = "Then I build until the last stone falls."
-    all_submitted = "Every wall in this land now stands for you, {them}."
+    ],
+    capitulate_accepted = "{tribute}, paid. Now let me rebuild in peace.",
+    capitulate_refused = "Then I build until the last stone falls.",
+    all_submitted = "Every wall in this land now stands for you, {them}.",
     other_victory = lord == them ? [
         "It was well built, {them}. Congratulations.",
         "The last stone is laid. The land is yours, {them}.",
     ] : [
         "We built this victory together, {them}.",
         "Solid work, {them} - side by side, stone by stone.",
-    ]
-    wonder_help = "A wonder! Masterful work. I will help protect it."
-    wonder_threat = "A wonder? Impressive. Sadly also a worthwhile target."
-    help_none = "I cannot leave my walls unmanned."
+    ],
+    wonder_help = "A wonder! Masterful work. I will help protect it.",
+    wonder_threat = "A wonder? Impressive. Sadly also a worthwhile target.",
+    help_none = "I cannot leave my walls unmanned.",
 }
