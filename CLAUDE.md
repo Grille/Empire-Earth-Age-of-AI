@@ -11,7 +11,9 @@ Several sessions may work in this tree at the same time - see Git below.
 
 - `sh dll/build.sh` builds `dll/eeaimod.dll` and `dll/dinput.dll` (llvm-mingw in `tools/`, 32-bit; it also
   regenerates `dll/persist_layout.h` and `dll/test/cmd_verbs.h`). One translation unit: `dll/eeaimod.c` includes the rest.
-  A build must be free of warnings.
+  A build must be free of warnings. It also writes `.editor/compile_commands.json` (git-ignored, read by VS Code's
+  C/C++ through `.vscode/c_cpp_properties.json`): each part with the text eeaimod.c has before it, so the editor
+  knows what the compiler knows there.
 - `dll/` has a folder per part, and which part may use which is a rule the build checks (`scripts/layers.py`):
   base (nothing) <- game <- engine, ai (and voice/say.h: what the AI says goes through it); script (base only: the
   language knows no game - script/host.h asks the program); voice (base, game, ai, script); game_script (the game in
