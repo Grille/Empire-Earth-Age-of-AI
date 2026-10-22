@@ -228,7 +228,7 @@ internal int ms_held(struct mass *m, ee_unit *u, ee_attack_subgroup *sg) {
     return 0;
 }
 // landing.c hook_asg_give_goal: a land subgroup's order to a member held at the rally
-internal int mass_refuses(ee_attack_subgroup *sg, ee_unit *u, void *goal) {
+internal int mass_refuses(ee_attack_subgroup *sg, ee_unit *u, ee_goal *goal) {
     ee_player *pl = asg_get_player(sg);
     if (!pl || !asg_is_land(sg)) return 0;
     struct mass *m = &g_mss[(unsigned)player_get_index(pl) & 15];

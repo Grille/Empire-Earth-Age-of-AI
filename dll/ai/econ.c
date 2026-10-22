@@ -388,8 +388,8 @@ internal void gather_log(ee_player *pl, unsigned idx, uint32_t now) {
         unsigned first = FIELD(dq, 0xC, unsigned), n = FIELD(dq, 0x10, unsigned), m = 0;
         int sum = 0;
         for (unsigned k = 0; k < n; k++) {
-            ee_unit *u = deque_at(dq, first + k); uint8_t *goal = u ? unit_get_goal(u) : NULL;
-            ee_unit *site = goal && !strcmp(rtti_name(goal), "EEUGGather@@") ? FIELD(goal, OF(GOAL, 0x38), ee_unit *) : NULL;
+            ee_unit *u = deque_at(dq, first + k); ee_goal *goal = u ? unit_get_goal(u) : NULL;
+            ee_unit *site = goal && !strcmp(rtti_name(goal), "EEUGGather@@") ? goal_get_site(goal) : NULL;
             if (!site) continue;
             sum += drop_dist(d, nd, unit_get_x(site), unit_get_y(site), r == 2);
             m++;
@@ -1048,7 +1048,7 @@ internal ee_unit *movable_gatherer(ee_resource_mgr *rm, int t) {
         ee_unit *u = deque_at(dq, first + k);
         if (!u || unit_get_hp(u) <= 0 || unit_get_frozen(u) || unit_get_ai_held(u) || unit_get_busy(u))
             continue;
-        void *goal = unit_get_goal(u);
+        ee_goal *goal = unit_get_goal(u);
         if (goal && !strcmp(rtti_name(goal), "EEUGGather@@")) return u;
     }
     return NULL;
@@ -1083,7 +1083,7 @@ internal int citizen_free(ee_unit *u, int idle) {   // idle, or (idle=0) gatheri
     if (!u || unit_get_hp(u) <= 0 || unit_get_frozen(u) || unit_get_ai_held(u) || unit_get_busy(u) ||
         unit_get_x(u) == -10000)
         return 0;
-    void *goal = unit_get_goal(u);
+    ee_goal *goal = unit_get_goal(u);
     return idle ? !goal : goal && !strcmp(rtti_name(goal), "EEUGGather@@");
 }
 // plan P: the building plan's entries (cm+8: list head, node +0 next, +0xC type, +0x10 wanted count), as 0x46CD18
@@ -1110,8 +1110,8 @@ internal int field_worked(ee_resource_mgr *rm, ee_unit *f) {   // a citizen of t
     for (int r = 0; r < 7; r++) {
         uint8_t *list = rm_list_at(rm, r);
         for (unsigned k = 0, first = FIELD(list, OF(EPOCHTECHS, 0xC), unsigned), cnt = FIELD(list, OF(EPOCHTECHS, 0x10), unsigned); k < cnt; k++) {
-            ee_unit *u = deque_at(list, first + k); uint8_t *goal = u ? unit_get_goal(u) : NULL;
-            if (goal && FIELD(goal, OF(GOAL, 0x38), ee_unit *) == f && !strcmp(rtti_name(goal), "EEUGGather@@")) return 1;
+            ee_unit *u = deque_at(list, first + k); ee_goal *goal = u ? unit_get_goal(u) : NULL;
+            if (goal && goal_get_site(goal) == f && !strcmp(rtti_name(goal), "EEUGGather@@")) return 1;
         }
     }
     return 0;
@@ -1303,8 +1303,8 @@ internal void econ_fields(ee_resource_mgr *rm) {   // before the citizen assignm
         for (int r = 0; r < 7 && !busy; r++) {   // a builder already on it?
             uint8_t *list = rm_list_at(rm, r);
             for (unsigned k = 0, first = FIELD(list, OF(EPOCHTECHS, 0xC), unsigned), cnt = FIELD(list, OF(EPOCHTECHS, 0x10), unsigned); k < cnt; k++) {
-                ee_unit *u = deque_at(list, first + k); uint8_t *goal = u ? unit_get_goal(u) : NULL;
-                if (goal && FIELD(goal, OF(GOAL, 0x3C), ee_unit *) == site && !strcmp(rtti_name(goal), "EEUGBuildRepair@@")) { busy = 1; break; }
+                ee_unit *u = deque_at(list, first + k); ee_goal *goal = u ? unit_get_goal(u) : NULL;
+                if (goal && goal_get_building(goal) == site && !strcmp(rtti_name(goal), "EEUGBuildRepair@@")) { busy = 1; break; }
             }
         }
         if (busy) continue;
@@ -1320,9 +1320,9 @@ internal void econ_fields(ee_resource_mgr *rm) {   // before the citizen assignm
                 }
             }
         if (!best) break;
-        void *goal = goal_build_alloc();
-        if (!goal) break;
-        goal_build_init(goal, pl, todo[i], 1);
+        void *mem = goal_build_alloc();
+        if (!mem) break;
+        ee_goal *goal = goal_build_init(mem, pl, todo[i], 1);
         unit_set_goal(best, goal, 0, 0);
         unit_say(best, 0x1F51);
         ee_unit_type *td = unit_get_type_data(best);

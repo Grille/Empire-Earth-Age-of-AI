@@ -577,7 +577,7 @@ internal ee_unit *unit_at(int x, int y, int type) {
 
 // 0 = refused (dead, off the map, or +0x33B): the goal is deleted then (its vf0, as the game's callers do) - the
 // caller must not touch it any more (a load goal: no parts from it)
-internal int unit_goal(ee_unit *u, void *goal, int append, int prio) {
+internal int unit_goal(ee_unit *u, ee_goal *goal, int append, int prio) {
     if (!goal) return 0;
     if (unit_get_hp(u) <= 0 || unit_get_x(u) == -10000 || ((char)unit_get_frozen(u))) {
         ((void (__thiscall *)(void *, int))(*(void ***)goal)[0])(goal, 1);
@@ -592,32 +592,32 @@ internal int unit_goal(ee_unit *u, void *goal, int append, int prio) {
 
 // Art of Conquest's constructor takes a fourth argument, a byte it keeps at the goal's new +0x40: 0 as the AI's own
 // calls pass it
-internal void *goal_attack(ee_unit *u, ee_unit *target) {
-    void *g = goal_attack_alloc();
-    if (!g) return NULL;
-    return goal_attack_init(g, u, target);
+internal ee_goal *goal_attack(ee_unit *u, ee_unit *target) {
+    void *mem = goal_attack_alloc();
+    if (!mem) return NULL;
+    return goal_attack_init(mem, u, target);
 }
 
 // a transport's (or a fortress's) load goal (EEUGLoadTransport, engine-notes.md: new(0x68), 0x61487F with the units'
 // vector - sorted in place) given to holder; NULL when it could not be made or holder refused it (deleted by
 // unit_goal: no parts from it). Each unit to walk in then gets goal_load_part(g) - its vf4 product.
-internal void *goal_load(ee_unit *holder, ee_unit **units, int n) {
+internal ee_goal *goal_load(ee_unit *holder, ee_unit **units, int n) {
     uint8_t *vec[4] = { 0, (uint8_t *)units, (uint8_t *)(units + n), (uint8_t *)(units + n) };
-    void *g = goal_load_alloc();
-    if (g) g = goal_load_init(g, holder, vec);
+    void *mem = goal_load_alloc();
+    ee_goal *g = mem ? goal_load_init(mem, holder, vec) : NULL;
     return g && unit_goal(holder, g, 0, 0x1F40) ? g : NULL;
 }
-internal void *goal_load_part(void *g) { return goal_part(g); }
+internal ee_goal *goal_load_part(ee_goal *g) { return goal_part(g); }
 // an unload goal at x, y (EEUGUnloadTransport: new(0x40), 0x615A1F; flag 1 as the AI passes it), not given yet
-internal void *goal_unload(ee_unit *holder, int x, int y, int flag) {
-    void *g = goal_unload_alloc();
-    return g ? goal_unload_init(g, holder, x, y, flag) : NULL;
+internal ee_goal *goal_unload(ee_unit *holder, int x, int y, int flag) {
+    void *mem = goal_unload_alloc();
+    return mem ? goal_unload_init(mem, holder, x, y, flag) : NULL;
 }
 
-internal void *goal_move(float x, float y) {
+internal ee_goal *goal_move(float x, float y) {
     float xy[2] = { x, y };
-    void *g = goal_move_alloc();
-    return g ? goal_move_init(g, xy) : NULL;
+    void *mem = goal_move_alloc();
+    return mem ? goal_move_init(mem, xy) : NULL;
 }
 
 // CITIZENS AND TOWERS (aimod.ini [all] avoid_towers_citizens, default 1). The game's site searches check for enemies
@@ -772,8 +772,8 @@ internal int site_danger_res(ee_player *pl, ee_unit *site, int food, int res) { 
     return route_danger(pl, d[0], d[1], x, y);
 }
 internal int site_danger(ee_player *pl, ee_unit *site, int food) { return site_danger_res(pl, site, food, food ? 2 : -1); }
-internal void *goal_move(float x, float y);
-internal int unit_goal(ee_unit *u, void *goal, int append, int prio);
+internal ee_goal *goal_move(float x, float y);
+internal int unit_goal(ee_unit *u, ee_goal *goal, int append, int prio);
 internal int muster_rally(unsigned idx, float *x, float *y);   // defence.c: the rally point while the base is overrun
 internal struct { unsigned sent; } g_cit_stats[16];
 internal unsigned g_repair_refused[16];   // repair orders refused at buildings under attack (hook_repair_goal)
@@ -809,7 +809,7 @@ internal void citizens_safety(ee_resource_mgr *rm) {   // before the citizen ass
         uint8_t *list = rm_list_at(rm, r);
         for (unsigned k = 0, first = FIELD(list, 0xC, unsigned), cnt = FIELD(list, 0x10, unsigned); k < cnt; k++) {
             ee_unit *u = deque_at(list, first + k);
-            uint8_t *goal = u ? unit_get_goal(u) : NULL;
+            ee_goal *goal = u ? unit_get_goal(u) : NULL;
             if (!u || unit_get_hp(u) <= 0) continue;
             {
                 const char *gd = goal ? rtti_name(goal) : "";
@@ -817,11 +817,11 @@ internal void citizens_safety(ee_resource_mgr *rm) {   // before the citizen ass
                          goal_is_location(goal) ? 2 : 3]++;
             }
             if (g_cit_threats) {   // not hunters: the animals hurt them (a farm is a building, family 2)
-                ee_unit *gs = goal && !strcmp(rtti_name(goal), "EEUGGather@@") ? FIELD(goal, OF(GOAL, 0x38), ee_unit *) : NULL;
+                ee_unit *gs = goal && !strcmp(rtti_name(goal), "EEUGGather@@") ? goal_get_site(goal) : NULL;
                 hurt_note(idx, u, now, !(r == 2 && gs && type_get_family(unit_get_type_data(gs)) != 2));
             }
             if (r == 0 && goal && goal_is_location(goal)) {   // a stray: an attack's leftover order
-                float gx = FIELD(goal, OF(GOAL, 0x20), float), gy = FIELD(goal, OF(GOAL, 0x24), float);
+                float gx = goal_get_dest_x(goal), gy = goal_get_dest_y(goal);
                 int dest[2] = { (int)gx, (int)gy }, d[2];
                 int rally = mus && fabsf(gx - rx) < 2 && fabsf(gy - ry) < 2;
                 if (!rally && building_at(pl, dest, 6) &&
@@ -837,18 +837,18 @@ internal void citizens_safety(ee_resource_mgr *rm) {   // before the citizen ass
                 float dx = (float)ux - rx, dy = (float)uy - ry;
                 if (dx * dx + dy * dy <= 36) continue;   // there already
                 const char *gn0 = goal ? rtti_name(goal) : "";
-                ee_unit *st = !goal ? NULL : !strcmp(gn0, "EEUGBuildRepair@@") ? FIELD(goal, OF(GOAL, 0x3C), ee_unit *) :
-                              !strcmp(gn0, "EEUGGather@@") ? FIELD(goal, OF(GOAL, 0x38), ee_unit *) : NULL;
+                ee_unit *st = !goal ? NULL : !strcmp(gn0, "EEUGBuildRepair@@") ? goal_get_building(goal) :
+                              !strcmp(gn0, "EEUGGather@@") ? goal_get_site(goal) : NULL;
                 int walk = goal && goal_is_location(goal), danger;
                 if (walk)   // on its way somewhere: only if enemy soldiers stand on the way or at the end
-                    danger = path_raided(pl, ux, uy, (int)FIELD(goal, OF(GOAL, 0x20), float), (int)FIELD(goal, OF(GOAL, 0x24), float));
+                    danger = path_raided(pl, ux, uy, (int)goal_get_dest_x(goal), (int)goal_get_dest_y(goal));
                 else
                     danger = raiders_near(pl, ux, uy, 8) || (st && raiders_near(pl, unit_get_x(st), unit_get_y(st), 8));
                 if (danger && g_bunkers && bk_shelter(pl, u)) { sheltered++; continue; }
                 if (danger) {
                     float fx, fy;
                     flee_point(pl, ux, uy, rx, ry, &fx, &fy);
-                    if (walk && fabsf(FIELD(goal, OF(GOAL, 0x20), float) - fx) < 2 && fabsf(FIELD(goal, OF(GOAL, 0x24), float) - fy) < 2) continue;
+                    if (walk && fabsf(goal_get_dest_x(goal) - fx) < 2 && fabsf(goal_get_dest_y(goal) - fy) < 2) continue;
                     if (unit_goal(u, goal_move(fx, fy), 0, 0x1F40)) {
                         fled++;
                         if (fx != rx || fy != ry) aside++;
@@ -860,7 +860,7 @@ internal void citizens_safety(ee_resource_mgr *rm) {   // before the citizen ass
             const char *gn = rtti_name(goal);
             int build = !strcmp(gn, "EEUGBuildRepair@@");
             if (!build && strcmp(gn, "EEUGGather@@")) continue;
-            ee_unit *site = FIELD(goal, build ? OF(GOAL, 0x3C) : OF(GOAL, 0x38), ee_unit *);
+            ee_unit *site = build ? goal_get_building(goal) : goal_get_site(goal);
             int d[2];
             if (!site || !nearest_drop(pl, unit_get_x(u), unit_get_y(u), r == 2, d)) continue;
             int raided = raiders_near(pl, unit_get_x(site), unit_get_y(site), build ? 8 : 6);
@@ -897,7 +897,7 @@ internal void citizens_safety(ee_resource_mgr *rm) {   // before the citizen ass
             ee_unit *u = it.u;
             ee_unit_type *td = it.td;
             if (unit_get_owner(u) != pl || unit_get_hp(u) <= 0 || !is_citizen_type(type_get_id(td))) continue;
-            uint8_t *g = unit_get_goal(u);
+            ee_goal *g = unit_get_goal(u);
             const char *gd = g ? rtti_name(g) : "";
             int k = !g ? 5 : !strcmp(gd, "EEUGGather@@") ? 0 : !strcmp(gd, "EEUGBuildRepair@@") ? 1 :
                     goal_is_location(g) ? 2 : goal_is_attack(g) ? 3 : 4;
@@ -934,10 +934,10 @@ internal void citizens_safety(ee_resource_mgr *rm) {   // before the citizen ass
 // army (P3: 17 in 15 minutes, sent back by citizens_safety only once it was on its way). Its order (EEUGBuildRepair,
 // 0x60BAD0) is refused at the handing-over (0x5F05BD at 0x46DA88) while enemy soldiers stand within 8 tiles (or their range + 3) of the
 // building (as citizens_safety): the goal deleted (its vf0, which lets go of the building), the citizen keeps its work.
-internal void __fastcall hook_repair_goal(ee_unit *u, void *edx, void *goal, int append, int prio) {
+internal void __fastcall hook_repair_goal(ee_unit *u, void *edx, ee_goal *goal, int append, int prio) {
     (void)edx;
     ee_player *pl = u ? unit_get_owner(u) : NULL;
-    ee_unit *b = goal && goal_is_build(goal) ? FIELD(goal, OF(GOAL, 0x3C), ee_unit *) : NULL;
+    ee_unit *b = goal && goal_is_build(goal) ? goal_get_building(goal) : NULL;
     if (g_avoid_citizens && pl && b && !is_vanilla(pl) && raiders_near(pl, unit_get_x(b), unit_get_y(b), 8)) {
         g_repair_refused[(unsigned)player_get_index(pl) & 15]++;
         ((void (__thiscall *)(void *, int))(*(void ***)goal)[0])(goal, 1);
@@ -1147,11 +1147,11 @@ internal void siege_tick(ee_player *pl, uint32_t now) {
     ee_unit *away[MAXS]; int nout = 0, nhome = 0, naway = 0;
     for (int i = 0; i < ns; i++) {
         ee_unit *u = siege[i];
-        uint8_t *g = unit_get_goal(u);
+        ee_goal *g = unit_get_goal(u);
         float ox = (float)unit_get_x(u) + 0.5f - px, oy = (float)unit_get_y(u) + 0.5f - py;
         float hx = (float)unit_get_x(u) + 0.5f - gx, hy = (float)unit_get_y(u) + 0.5f - gy;
-        int committed = (g && goal_is_attack(g) && FIELD(g, OF(GOAL, 0x30), ee_unit *) == t) || ox * ox + oy * oy <= 9.0f ||
-                        (g && goal_is_location(g) && fabsf(FIELD(g, OF(GOAL, 0x20), float) - px) < 2 && fabsf(FIELD(g, OF(GOAL, 0x24), float) - py) < 2);
+        int committed = (g && goal_is_attack(g) && goal_get_target(g) == t) || ox * ox + oy * oy <= 9.0f ||
+                        (g && goal_is_location(g) && fabsf(goal_get_dest_x(g) - px) < 2 && fabsf(goal_get_dest_y(g) - py) < 2);
         if (committed && !changed) out[nout++] = u;
         else if (hx * hx + hy * hy <= 25.0f) home[nhome++] = u;
         else away[naway++] = u;
@@ -1162,8 +1162,8 @@ internal void siege_tick(ee_player *pl, uint32_t now) {
     // the wave out: keep it at it (attack once there)
     for (int i = 0; i < nout; i++) {
         ee_unit *u = out[i];
-        uint8_t *g = unit_get_goal(u);
-        if (g && goal_is_attack(g) && FIELD(g, OF(GOAL, 0x30), ee_unit *) == t) continue;
+        ee_goal *g = unit_get_goal(u);
+        if (g && goal_is_attack(g) && goal_get_target(g) == t) continue;
         float ox = (float)unit_get_x(u) + 0.5f - px, oy = (float)unit_get_y(u) + 0.5f - py;
         if (ox * ox + oy * oy <= 4.0f) unit_goal(u, goal_attack(u, t), 0, 0x1F40);
     }
@@ -1171,8 +1171,8 @@ internal void siege_tick(ee_player *pl, uint32_t now) {
     // the rest to the gathering point (not those walking there)
     for (int i = 0; i < naway; i++) {
         ee_unit *u = away[i];
-        uint8_t *g = unit_get_goal(u);
-        if (g && goal_is_location(g) && fabsf(FIELD(g, OF(GOAL, 0x20), float) - gx) < 2 && fabsf(FIELD(g, OF(GOAL, 0x24), float) - gy) < 2) continue;
+        ee_goal *g = unit_get_goal(u);
+        if (g && goal_is_location(g) && fabsf(goal_get_dest_x(g) - gx) < 2 && fabsf(goal_get_dest_y(g) - gy) < 2) continue;
         unit_goal(u, goal_move(gx, gy), 0, 0x1F40);
     }
     const char *hold = NULL;
@@ -1250,7 +1250,7 @@ internal void asg_trace_tick(ee_player *pl, uint32_t now) {
             float cx = 0, cy = 0;
             for (ee_asg_unit **r = asg_get_units_begin(sg); r && r < asg_get_units_end(sg) && n < 1000; r++) {
                 ee_unit *u = *r ? asgu_get_unit(*r) : NULL;
-                uint8_t *gl;
+                ee_goal *gl;
                 if (!u || unit_get_hp(u) <= 0) continue;
                 if (asgu_get_engaged(*r)) engaged++;
                 n++; cx += (float)unit_get_x(u); cy += (float)unit_get_y(u);
@@ -1506,7 +1506,7 @@ internal void __cdecl hook_range_sort(void **b, void **e, ee_unit *unit) {
 // +0x38 (0x60FED3). Seen with workforce_plan ARMY in one Tournament Islands Huge game (3 of 3 runs at minute 31). The
 // guard answers "no" for a NULL goal, as the cast's own failure would mean (the branch then changes nothing).
 internal unsigned g_goal_cast_null;
-internal char __fastcall hook_goal_cast(void *goal, void *edx, void *unit) {
+internal char __fastcall hook_goal_cast(ee_goal *goal, void *edx, void *unit) {
     (void)edx;
     if (goal) return goal_fits(goal, unit);
     if (g_log && g_goal_cast_null++ < 5)
@@ -1590,7 +1590,7 @@ internal void cmd_attacks(char *out, const char *args) {
             ee_asg_unit **b = asg_get_units_begin(*sp); ee_asg_unit **e = asg_get_units_end(*sp);
             for (ee_asg_unit **r = b; b && r < e && n < 1000; r++) {
                 ee_unit *u = *r ? asgu_get_unit(*r) : NULL;
-                uint8_t *gl;
+                ee_goal *gl;
                 if (!u || unit_get_hp(u) <= 0) continue;
                 if (asgu_get_engaged(*r)) engaged++;
                 n++; cx += (float)unit_get_x(u); cy += (float)unit_get_y(u);
@@ -1611,9 +1611,9 @@ internal void cmd_attacks(char *out, const char *args) {
                 for (ee_asg_unit **r = b; b && r < e; r++) {   // each member: type, tile, goal (and its target)
                     ee_unit *u = *r ? asgu_get_unit(*r) : NULL;
                     if (!u || unit_get_hp(u) <= 0) continue;
-                    uint8_t *gl = unit_get_goal(u);
+                    ee_goal *gl = unit_get_goal(u);
                     ee_unit *t = NULL;
-                    if (gl && goal_is_attack(gl)) t = FIELD(gl, OF(GOAL, 0x30), ee_unit *);
+                    if (gl && goal_is_attack(gl)) t = goal_get_target(gl);
                     REPLY("       %d at %d,%d hp %d: %s", type_get_id(unit_get_type_data(u)),
                           unit_get_x(u), unit_get_y(u), unit_get_hp(u), gl ? rtti_name(gl) : "-");
                     if (t) REPLY(" P%d's %d (family %d) at %d,%d", player_get_index(unit_get_owner(t)),

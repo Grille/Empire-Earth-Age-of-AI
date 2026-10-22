@@ -190,8 +190,8 @@ internal void __cdecl hook_aim(ee_unit *u, ee_unit **target, float *aim, void *z
 internal unsigned g_down, g_hits;
 internal char __fastcall hook_proj_down(void *cls, void *edx, ee_unit *pr) {
     (void)edx;
-    uint8_t *goal = unit_get_goal_object(pr);
-    ee_unit *t = goal && goal[5] == 2 ? FIELD(goal, OF(GOAL, 0x30), ee_unit *) : NULL;
+    ee_goal *goal = unit_get_goal_object(pr);
+    ee_unit *t = goal && goal_get_state(goal) == 2 ? goal_get_target(goal) : NULL;
     char r = proj_down(cls, pr);
     if (r && t && g_measure) {
         g_down++;
@@ -335,8 +335,8 @@ internal int doomed(ee_unit *t) { return unit_get_hp(t) > 0 && incoming(t) >= un
 internal int __fastcall hook_missile_launch(uint8_t *cls, void *edx, ee_unit *m, float *aim) {   // ret 8: (missile, aim)
     (void)edx;
     int r = missile_launch(cls, m, aim);
-    uint8_t *goal = unit_get_goal(m);
-    ee_unit *t = goal && goal[5] == 2 ? FIELD(goal, OF(GOAL, 0x30), ee_unit *) : NULL;
+    ee_goal *goal = unit_get_goal(m);
+    ee_unit *t = goal && goal_get_state(goal) == 2 ? goal_get_target(goal) : NULL;
     g_launched++;
     if (!t) return r;
     uint32_t now = game_time();
@@ -409,8 +409,8 @@ internal void cmd_firerate(char *out, const char *args) {
 internal void __fastcall hook_fire(ee_unit_type *cls, void *edx, ee_unit *u) {
     (void)edx;
     fr_note(u);
-    ee_unit_type *pc = type_get_projectile(cls); uint8_t *goal = unit_get_goal(u);
-    ee_unit *t = goal && goal[5] == 2 ? FIELD(goal, OF(GOAL, 0x30), ee_unit *) : NULL;
+    ee_unit_type *pc = type_get_projectile(cls); ee_goal *goal = unit_get_goal(u);
+    ee_unit *t = goal && goal_get_state(goal) == 2 ? goal_get_target(goal) : NULL;
     if (g_spread && t && pc && is_missile_class(pc) && !is_vanilla(unit_get_owner(u)) && doomed(t)) {
         ee_unit *alt = spread_target(u, t);
         if (!alt) { g_spread_held++; return; }

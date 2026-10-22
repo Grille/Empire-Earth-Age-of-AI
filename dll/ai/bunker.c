@@ -25,13 +25,13 @@ internal void bk_unit(ee_unit *u, void *ctx) {
 // the holder loads these units (each walks in): 1 if ordered
 internal int bk_load(ee_unit *f, ee_unit **units, int n) {
     if (!n) return 0;
-    void *g = goal_load(f, units, n);
+    ee_goal *g = goal_load(f, units, n);
     if (!g) return 0;   // refused: deleted by unit_goal, no parts from it
     for (int j = 0; j < n; j++) unit_goal(units[j], goal_load_part(g), 0, 0x1F40);
     return 1;
 }
 internal int bk_unload(ee_unit *f, int x, int y) {
-    void *g = goal_unload(f, x, y, 1);
+    ee_goal *g = goal_unload(f, x, y, 1);
     return g ? unit_goal(f, g, 0, 0x1F40) : 0;
 }
 
@@ -96,8 +96,8 @@ internal int bk_hurt_recent(unsigned pi, int x, int y, int r, uint32_t ms) {
 }
 struct bk_own { ee_player *pl; int nf, nall; ee_unit *f[8], *all[8]; int nw; ee_unit *w[256]; };
 internal ee_unit *bk_walking_into(ee_unit *u) {   // the holder unit u walks into (its load goal's part), else NULL
-    uint8_t *g = unit_get_goal(u);
-    ee_unit *h = g && goal_is_load(g) ? FIELD(g, OF(GOAL, 0x50), ee_unit *) : NULL;
+    ee_goal *g = unit_get_goal(u);
+    ee_unit *h = g && goal_is_load(g) ? goal_get_holder(g) : NULL;
     return h != u ? h : NULL;   // the holder's own goal names itself
 }
 internal void bk_own_unit(ee_unit *u, void *ctx) {   // finished ones (f) and foundations too (all); who walks in (w)
@@ -185,8 +185,8 @@ internal int bk_builders(ee_player *pl, ee_unit *b, int n) {
     for (int r = 0; r < 7; r++) {   // already on it
         uint8_t *list = rm_list_at(rm, r);
         for (unsigned k = 0, first = FIELD(list, 0xC, unsigned), cnt = FIELD(list, 0x10, unsigned); k < cnt; k++) {
-            ee_unit *u = deque_at(list, first + k); uint8_t *g = u ? unit_get_goal(u) : NULL;
-            if (g && !strcmp(rtti_name(g), "EEUGBuildRepair@@") && FIELD(g, OF(GOAL, 0x3C), ee_unit *) == b) have++;
+            ee_unit *u = deque_at(list, first + k); ee_goal *g = u ? unit_get_goal(u) : NULL;
+            if (g && !strcmp(rtti_name(g), "EEUGBuildRepair@@") && goal_get_building(g) == b) have++;
         }
     }
     while (have + sent < n) {
@@ -202,9 +202,9 @@ internal int bk_builders(ee_player *pl, ee_unit *b, int n) {
             }
         }
         if (!best) break;
-        void *goal = goal_build_alloc();
-        if (!goal) break;
-        goal_build_init(goal, pl, b, 1);
+        void *mem = goal_build_alloc();
+        if (!mem) break;
+        ee_goal *goal = goal_build_init(mem, pl, b, 1);
         if (!unit_goal(best, goal, 0, 0x1F51)) break;   // with the unit type's vf29 (+0x74) as the game's assignment
         sent++;
     }

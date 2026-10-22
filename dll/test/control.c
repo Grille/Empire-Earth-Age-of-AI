@@ -298,9 +298,9 @@ internal void cmd_units(char *out, const char *args) {
         for (unsigned k = 0; k < n; k++) {
             ee_unit *u = deque_at(dq, first + k);
             if (!u) continue;
-            void *goal = unit_get_goal(u);
+            ee_goal *goal = unit_get_goal(u);
             const char *gn = rtti_name(goal);
-            void *tgt = (goal && !strcmp(gn, "EEUGGather@@")) ? FIELD(goal, OF(GOAL, 0x38), void *) : NULL;
+            void *tgt = (goal && !strcmp(gn, "EEUGGather@@")) ? goal_get_site(goal) : NULL;
             int j = 0;
             while (j < ng && !(g[j].goal == gn && g[j].target == tgt)) j++;
             if (j == ng) {

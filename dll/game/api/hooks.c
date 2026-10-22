@@ -375,10 +375,10 @@ internal inline int patch_hunt(hunt_hook h, int *of) {
 }
 
 // UNITS AND GOALS
-typedef void (__fastcall *set_goal_hook)(ee_unit *u, void *edx, void *goal, int append, int prio);
+typedef void (__fastcall *set_goal_hook)(ee_unit *u, void *edx, ee_goal *goal, int append, int prio);
 // the game's repair orders (the handing-over 0x46DA88: attack.c refuses them under attack)
 internal inline int patch_repair_goal(set_goal_hook h) { return patch_call(GA(CALL_REPAIR_GOAL), GA(FN_SET_GOAL), (void *)h); }
-typedef void (__fastcall *give_goal_hook)(ee_unit *u, void *edx, void *goal, int slot);
+typedef void (__fastcall *give_goal_hook)(ee_unit *u, void *edx, ee_goal *goal, int slot);
 internal inline int patch_unload_retry_give(give_goal_hook h) { return patch_call(GA(CALL_UNLOAD_RETRY_GIVE), GA(FN_GIVE_GOAL), (void *)h); }
 typedef void *(__fastcall *unload_ctor_hook)(void *g, void *edx, ee_unit *transport, int x, int y, int flag);
 internal inline int patch_unload_ctor(unload_ctor_hook h, int *of) { return patch_calls(PATCH_LIST(UNLOAD_SITES), GA(FN_GOAL_UNLOAD_CTOR), (void *)h, of); }
@@ -400,7 +400,7 @@ internal inline int patch_goalset_read(thunk_fn thunk) {
     FlushInstructionCache(GetCurrentProcess(), p, 6);
     return 1;
 }
-typedef char (__fastcall *goal_fits_hook)(void *goal, void *edx, void *unit);
+typedef char (__fastcall *goal_fits_hook)(ee_goal *goal, void *edx, void *unit);
 internal inline int patch_goal_fits(goal_fits_hook h) { return patch_call(GA(CALL_GOAL_FBA_CHECK), GA(FN_GOAL_FBA_CHECK), (void *)h); }
 typedef void (__fastcall *unit_release_hook)(ee_unit *u, void *edx);
 internal inline int patch_unit_release(unit_release_hook h) { return patch_vtable(GA(VT_COMPLEX_UNIT), GA(SLOT_UNIT_RELEASE), GA(FN_UNIT_RELEASE), (void *)h); }
@@ -433,7 +433,7 @@ internal inline int patch_asg_sea_transport_update(asg_update_hook h) {
 }
 internal inline int patch_asg_air_update(asg_update_hook h) { return patch_vtable(GA(VT_ASG_AIR), GA(SLOT_ASG_UPDATE), GA(FN_ASG_AIR_UPDATE), (void *)h); }
 // the subgroups' orders to a unit (vf57): sea transport, sea, land through h, air through h_air - of 4
-typedef char (__fastcall *asg_give_goal_hook)(ee_attack_subgroup *sg, void *edx, ee_unit *u, void *goal, int a, int prio);
+typedef char (__fastcall *asg_give_goal_hook)(ee_attack_subgroup *sg, void *edx, ee_unit *u, ee_goal *goal, int a, int prio);
 internal inline int patch_asg_give_goal(asg_give_goal_hook h, asg_give_goal_hook h_air) {
     return patch_vtable(GA(VT_ASG_SEA_TRANSPORT), GA(SLOT_ASG_GIVE_GOAL), GA(FN_ASG_GIVE_GOAL), (void *)h) +
            patch_vtable(GA(VT_ASG_SEA), GA(SLOT_ASG_GIVE_GOAL), GA(FN_ASG_GIVE_GOAL), (void *)h) +

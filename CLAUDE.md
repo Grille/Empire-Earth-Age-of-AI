@@ -32,7 +32,7 @@ Several sessions may work in this tree at the same time - see Git below.
   `GA(SIZE_GOAL_BUILD)` - never a literal address, slot or size in the code. The game objects' fields likewise live
   in `raw/fields.h`, by kind and the 2017 update's offset (`OF(UNIT, 0x1C)`; a field not in the table doesn't build;
   the runtime library's layouts - deque, vector, string - stay plain numbers), read by name through `objects.c`:
-  `unit_get_x(u)`, `unit_set_behaviour(u, b)` (a setter only where the mod writes) - moved over: UNIT, TD (type_get_id(td)), PL (player_get_index(pl), player_get_stock(pl, r)), the AI managers CM, RM, BM, UM, RS (rm_list_at(rm, r)), MOUSE, the attack groups AM, AG, ASG, ASGU (ag_get_subgroups_begin(g), asgu_get_unit(r)); the other kinds
+  `unit_get_x(u)`, `unit_set_behaviour(u, b)` (a setter only where the mod writes) - moved over: UNIT, TD (type_get_id(td)), PL (player_get_index(pl), player_get_stock(pl, r)), the AI managers CM, RM, BM, UM, RS (rm_list_at(rm, r)), MOUSE, the attack groups AM, AG, ASG, ASGU (ag_get_subgroups_begin(g), asgu_get_unit(r)), GOAL (goal_get_target(g)); the other kinds
   still `FIELD(pl, OF(PL, 0x9D4), void *)`, until each has its accessors (then OF / FIELD only in game/api/). Two columns:
   the 2017 update and Art of Conquest (not ready: tested in AoC only since 2026-10-21 - test runs play it,
   `EE_GAME_DIR=<its folder>`, docs/testing.md). A new row needs both: `scripts/port_addrs.py` /

@@ -85,9 +85,9 @@ internal void navy_fish(void) {
     int ng = 0;
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {   // the boats at work: their sites
         ee_player *o = unit_get_owner(it.u);
-        uint8_t *goal = unit_get_goal(it.u);
+        ee_goal *goal = unit_get_goal(it.u);
         if (!o || !goal || unit_get_hp(it.u) <= 0 || navy_kind(it.td) != NV_FISH || ng >= 512) continue;
-        gath[ng].site = FIELD(goal, OF(GOAL, 0x38), ee_unit *); gath[ng++].owner = player_get_index(o) & 15;
+        gath[ng].site = goal_get_site(goal); gath[ng++].owner = player_get_index(o) & 15;
     }
     memset(seen, 0, sizeof seen);
     int left = 0;

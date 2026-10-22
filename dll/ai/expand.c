@@ -126,8 +126,8 @@ internal void ex_scan(ee_player *pl, uint32_t now, int new_log) {
                 }
         } else if (is_citizen_type(t)) {
             c->cit[pi]++;
-            uint8_t *g = unit_get_goal(u);
-            ee_unit *s = g && !strcmp(rtti_name(g), "EEUGGather@@") ? FIELD(g, OF(GOAL, 0x38), ee_unit *) : NULL;
+            ee_goal *g = unit_get_goal(u);
+            ee_unit *s = g && !strcmp(rtti_name(g), "EEUGGather@@") ? goal_get_site(g) : NULL;
             int r = s && unit_get_type_data(s) ? unit_get_resource(s) : 0;
             if (r < 2 || r > 6) continue;
             struct ex_cont *sc = ex_cont_of(area_id(unit_get_x(s), unit_get_y(s), 2), 1);
@@ -465,15 +465,15 @@ internal void ex_pick_unit(ee_unit *u, void *ctx) {
     int x = unit_get_x(u), y = unit_get_y(u), d = (x - p->cx) * (x - p->cx) + (y - p->cy) * (y - p->cy);
     if (d > 35 * 35 || area_id(x, y, 2) != p->hc || landing_has_unit(p->pl, u)) return;
     int t = type_get_id(td);
-    uint8_t *g0 = unit_get_goal(u);
+    ee_goal *g0 = unit_get_goal(u);
     if (g0 && strstr(rtti_name(g0), "Load")) return;   // a part of a load goal (perhaps of a transport sunk since): never ordered
     if (is_citizen_type(t)) {
-        uint8_t *g = unit_get_goal(u);
+        ee_goal *g = unit_get_goal(u);
         const char *gn = g ? rtti_name(g) : "";
         if (!strcmp(gn, "EEUGBuildRepair@@")) d += 400;   // builders last
         if (!g && (EXPAND((unsigned)player_get_index(p->pl) & 15) & 128)) d -= 2600;   // FOLLOW: the idle first
         if (!strcmp(gn, "EEUGGather@@")) {   // miners stay (the citizens off wood and food come back through the plan's goal)
-            ee_unit *st = FIELD(g, OF(GOAL, 0x38), ee_unit *);
+            ee_unit *st = goal_get_site(g);
             int r = st && unit_get_type_data(st) ? unit_get_resource(st) : 0;
             if (r >= 4 && r <= 6) return;
             if (r == 3 && (EXPAND((unsigned)player_get_index(p->pl) & 15) & 16)) d -= 1300;   // EXTRA: wood first (it piles up on large maps)
@@ -658,7 +658,7 @@ internal void ex_ferry_board(ee_player *pl, unsigned idx, struct ex_st *x, uint3
         n = 0;   // those left at home are free again
         for (int k = 0; k < x->npass; k++) if (unit_get_x(x->pass[k].u) < 0) x->pass[n++] = x->pass[k];
         x->npass = n;
-        void *g = ld_unload(sh, x->ux, x->uy);
+        ee_goal *g = ld_unload(sh, x->ux, x->uy);
         x->orders += unit_goal(sh, g, 0, 0x1F40);
         x->fphase = 3; x->fsince = now; x->sails++;
         ex_say(idx, now, "sails with %d aboard (%d citizens) to %d,%d", aboard, cits, x->ux, x->uy);
@@ -669,7 +669,7 @@ internal void ex_ferry_board(ee_player *pl, unsigned idx, struct ex_st *x, uint3
             char gs[160] = "";
             for (int k = 0; k < x->npass && k < 6; k++) {
                 ee_unit *u = x->pass[k].u;
-                uint8_t *g = unit_get_goal(u);
+                ee_goal *g = unit_get_goal(u);
                 size_t l0 = strlen(gs);
                 snprintf(gs + l0, sizeof gs - l0, " %d,%d:%.14s", unit_get_x(u), unit_get_y(u), g ? rtti_name(g) : "none");
             }
@@ -702,7 +702,7 @@ internal void ex_ferry_board(ee_player *pl, unsigned idx, struct ex_st *x, uint3
     int m = 0;
     for (int k = 0; k < x->npass; k++) if (unit_get_x(x->pass[k].u) >= 0) list[m++] = x->pass[k].u;
     if (!m) return;
-    void *g = goal_load(sh, list, m);
+    ee_goal *g = goal_load(sh, list, m);
     // the transport's goal now, or it is gone: a load goal given to a transport busy with the game's own (an unload,
     // the transport manager's) ended at once and was deleted - its parts then called the deleted goal (_purecall,
     // 2 of 80 island games)
@@ -713,7 +713,7 @@ internal void ex_ferry_board(ee_player *pl, unsigned idx, struct ex_st *x, uint3
 // phase 3: at sea - unloaded again where it stopped with someone aboard; all ashore: the transport back, the ferry ends
 internal void ex_ferry_sail(ee_player *pl, unsigned idx, struct ex_st *x, uint32_t now) {
     ee_unit *sh = x->ship.u;
-    uint8_t *cur = unit_get_goal(sh);
+    ee_goal *cur = unit_get_goal(sh);
     int n = ex_cargo(sh);
     if (n <= 0) {
         int ashore = 0;
@@ -970,11 +970,11 @@ internal void ex_outpost(ee_player *pl, unsigned idx, struct ex_st *x, uint32_t 
     ee_resource_mgr *rm = cm_get_resource_mgr(player_get_civ_mgr(pl));
     for (int k = 0; k < e.nc; k++) {
         ee_unit *u = e.c[k];
-        uint8_t *g = unit_get_goal(u);
+        ee_goal *g = unit_get_goal(u);
         const char *gn = g ? rtti_name(g) : "";
         int on = -1;
         if (!strcmp(gn, "EEUGBuildRepair@@"))
-            for (int j = 0; j < x->nproj; j++) if (x->proj[j].state == 1 && FIELD(g, OF(GOAL, 0x3C), ee_unit *) == x->proj[j].b) on = j;
+            for (int j = 0; j < x->nproj; j++) if (x->proj[j].state == 1 && goal_get_building(g) == x->proj[j].b) on = j;
         if (on >= 0 && have[on] < want[on]) { have[on]++; continue; }
         int j = -1;
         for (int q = 0; q < x->nproj; q++) if (x->proj[q].state == 1 && have[q] < want[q] && (j < 0 || x->proj[q].kind == XK_DROP)) j = q;

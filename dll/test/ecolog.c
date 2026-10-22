@@ -138,8 +138,8 @@ internal void eco_food(ee_player *pl, ee_resource_mgr *rm, struct eco_food *f) {
         else if (res == UT(RES_FORAGE_BUSH)) f->fo++;
         else if (res == UT(B_FARM)) f->ff++;
         else {
-            uint8_t *g = unit_get_goal(u);
-            ee_unit *s = FIELD(g, OF(GOAL, 0x38), ee_unit *);
+            ee_goal *g = unit_get_goal(u);
+            ee_unit *s = goal_get_site(g);
             ee_unit_type *st = s ? unit_get_type_data(s) : NULL;
             if (st && type_get_category(st) == 0x11) f->fh++; else f->fx++;
         }
@@ -192,14 +192,14 @@ internal void eco_food(ee_player *pl, ee_resource_mgr *rm, struct eco_food *f) {
 }
 
 internal const char *eco_goal(ee_unit *u, int *res) {   // what a citizen does; res: the gather site's type id (or -1)
-    uint8_t *g = unit_get_goal(u);
+    ee_goal *g = unit_get_goal(u);
     *res = -1;
     if (!g) return "none";
     if (goal_is_location(g)) return "walk";
     if (goal_is_attack(g)) return "attack";
     const char *n = rtti_name(g);
     if (!strcmp(n, "EEUGGather@@")) {
-        ee_unit *s = FIELD(g, OF(GOAL, 0x38), ee_unit *);
+        ee_unit *s = goal_get_site(g);
         ee_unit_type *td = s ? unit_get_type_data(s) : NULL;
         if (td) *res = type_get_id(td);
         return "gather";

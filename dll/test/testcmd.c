@@ -429,8 +429,8 @@ internal void cmd_build(char *out, const char *args) {
     }
     if (!bld) { REPLY("error: no building of P%d at %d,%d\n", p, bx, by); return; }
     for (int k = 0; k < nc; k++) {
-        void *g = goal_build_alloc();
-        if (g) g = goal_build_init(g, pl, bld, 1);
+        void *mem = goal_build_alloc();
+        ee_goal *g = mem ? goal_build_init(mem, pl, bld, 1) : NULL;
         n += unit_goal(civ[k], g, 0, 0x1F51);
     }
     REPLY("ok: %d citizens of P%d build at %d,%d\n", n, p, bx, by);
@@ -589,9 +589,9 @@ internal void charge_pass(char *out, int a, int d) {
     for (int i0 = 0; i0 < mine.n; i0++) {
         int i = (int)((i0 + g_charge.rot) % (unsigned)mine.n);
         ee_unit *u = mine.u[i];
-        uint8_t *goal = unit_get_goal(u);
+        ee_goal *goal = unit_get_goal(u);
         if (goal && !strcmp(rtti_name(goal), "EEUGAttackUnit@@")) {
-            ee_unit *t = FIELD(goal, OF(GOAL, 0x30), ee_unit *);
+            ee_unit *t = goal_get_target(goal);
             void *to = t ? unit_get_owner(t) : NULL;
             if (to && player_get_index(to) == d && unit_get_hp(t) > 0) { kept++; continue; }
         }

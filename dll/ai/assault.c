@@ -196,11 +196,11 @@ internal int as_in_wave(struct assault *a, ee_unit *u) {
     return 0;
 }
 internal int as_goal_near(ee_unit *u, float x, float y, float r) {   // walking there already
-    uint8_t *g = unit_get_goal(u);
-    return g && goal_is_location(g) && fabsf(FIELD(g, OF(GOAL, 0x20), float) - x) < r && fabsf(FIELD(g, OF(GOAL, 0x24), float) - y) < r;
+    ee_goal *g = unit_get_goal(u);
+    return g && goal_is_location(g) && fabsf(goal_get_dest_x(g) - x) < r && fabsf(goal_get_dest_y(g) - y) < r;
 }
 internal int as_fighting(ee_unit *u) {
-    uint8_t *g = unit_get_goal(u); ee_unit *t = g && goal_is_attack(g) ? FIELD(g, OF(GOAL, 0x30), ee_unit *) : NULL;
+    ee_goal *g = unit_get_goal(u); ee_unit *t = g && goal_is_attack(g) ? goal_get_target(g) : NULL;
     return t && unit_get_hp(t) > 0;
 }
 

@@ -425,9 +425,9 @@ internal void so_spawn_tick(uint32_t now) {
 }
 
 internal int so_cur_target(ee_unit *u, ee_unit **t) {   // its attack goal's target (alive)
-    uint8_t *g = unit_get_goal(u);
-    *t = g && goal_is_attack(g) ? FIELD(g, OF(GOAL, 0x30), ee_unit *) : NULL;
-    return *t && FIELD(*t, OF(GOAL, 0x3C), int) > 0;
+    ee_goal *g = unit_get_goal(u);
+    *t = g && goal_is_attack(g) ? goal_get_target(g) : NULL;
+    return *t && unit_get_hp(*t) > 0;
 }
 internal void so_attack(ee_unit *u, ee_unit *t) {
     ee_unit *cur;
@@ -748,7 +748,7 @@ internal void so_waves(uint32_t now) {
                     if (!w->tr[j]) continue;
                     int room = cap - units_inside(w->tr[j]), b = a + room > nl ? nl : a + room;
                     if (b <= a) continue;
-                    void *g = goal_load(w->tr[j], left + a, b - a);
+                    ee_goal *g = goal_load(w->tr[j], left + a, b - a);
                     for (int q = a; q < b && g; q++) g_so.orders += (unsigned)unit_goal(left[q], goal_load_part(g), 0, 0x1F40);
                     a = b;
                 }

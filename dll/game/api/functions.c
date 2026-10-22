@@ -283,11 +283,11 @@ internal inline void cp_epoch_catch_up(ee_player *ai, ee_player *human) { GF(FN_
 // the unit says sound (an answer to an order: 0x1F51 "building")
 internal inline void unit_say(ee_unit *u, int sound) { GF(FN_UNIT_SAY)(u, sound); }
 // the unit's goal set (the unit takes it over); append: after its current one, prio: the order's priority
-internal inline void unit_set_goal(ee_unit *u, void *goal, int append, int prio) {
+internal inline void unit_set_goal(ee_unit *u, ee_goal *goal, int append, int prio) {
     ((void (__thiscall *)(void *, void *, char, int))GA(FN_SET_GOAL))(u, goal, (char)append, prio);
 }
 // the goal given into one of the unit's goal slots (the original of landing.c's unload retry)
-internal inline void unit_give_goal(ee_unit *u, void *goal, int slot) { GF(FN_GIVE_GOAL)(u, goal, slot); }
+internal inline void unit_give_goal(ee_unit *u, ee_goal *goal, int slot) { GF(FN_GIVE_GOAL)(u, goal, slot); }
 // the units aboard a transport or inside a building
 internal inline int units_inside(ee_unit *u) { return GF(FN_UNITS_INSIDE)(u); }
 // the distance between two units (tiles)
@@ -304,25 +304,25 @@ internal inline int damage_points(void *model, int index, unsigned state) { retu
 
 // GOALS: built in game_new(GA(SIZE_GOAL_..)) memory, then given with unit_set_goal
 // build or repair: pl's builder at building
-internal inline void *goal_build_init(void *mem, ee_player *pl, ee_unit *building, int flag) { return GF(FN_BUILD_GOAL)(mem, pl, building, flag); }
+internal inline ee_goal *goal_build_init(void *mem, ee_player *pl, ee_unit *building, int flag) { return (ee_goal *)GF(FN_BUILD_GOAL)(mem, pl, building, flag); }
 // attack target (Art of Conquest's constructor takes a byte more: 0)
-internal inline void *goal_attack_init(void *mem, ee_unit *u, ee_unit *target) {
-    if (build_is("aoc")) return ((void *(__thiscall *)(void *, void *, void *, int, int))GA(FN_GOAL_ATTACK_CTOR))(mem, u, target, 1, 0);
-    return ((void *(__thiscall *)(void *, void *, void *, int))GA(FN_GOAL_ATTACK_CTOR))(mem, u, target, 1);
+internal inline ee_goal *goal_attack_init(void *mem, ee_unit *u, ee_unit *target) {
+    if (build_is("aoc")) return ((ee_goal *(__thiscall *)(void *, void *, void *, int, int))GA(FN_GOAL_ATTACK_CTOR))(mem, u, target, 1, 0);
+    return ((ee_goal *(__thiscall *)(void *, void *, void *, int))GA(FN_GOAL_ATTACK_CTOR))(mem, u, target, 1);
 }
 // the units of vec (a std::vector) into holder (a transport or a building)
-internal inline void *goal_load_init(void *mem, ee_unit *holder, void *vec) { return GF(FN_GOAL_LOAD_CTOR)(mem, holder, vec, 1); }
+internal inline ee_goal *goal_load_init(void *mem, ee_unit *holder, void *vec) { return (ee_goal *)GF(FN_GOAL_LOAD_CTOR)(mem, holder, vec, 1); }
 // the holder's units out at x, y
-internal inline void *goal_unload_init(void *mem, ee_unit *holder, int x, int y, int flag) { return GF(FN_GOAL_UNLOAD_CTOR)(mem, holder, x, y, flag); }
+internal inline ee_goal *goal_unload_init(void *mem, ee_unit *holder, int x, int y, int flag) { return (ee_goal *)GF(FN_GOAL_UNLOAD_CTOR)(mem, holder, x, y, flag); }
 // a move to xy (float[2])
-internal inline void *goal_move_init(void *mem, float *xy) { return GF(FN_GOAL_MOVE_CTOR)(mem, xy, 1, 1, 0, 0.0f, 0, 0); }
+internal inline ee_goal *goal_move_init(void *mem, float *xy) { return (ee_goal *)GF(FN_GOAL_MOVE_CTOR)(mem, xy, 1, 1, 0, 0.0f, 0, 0); }
 // a goal's kind, by its vtable: an attack (EEUGAttackUnit, its target +0x30), a move (EEUGLocation), build or repair
 // (EEUGBuildRepair, the building +0x3C), a load (EEUGLoadTransport, the holder +0x50), an unload (EEUGUnloadTransport)
-internal inline int goal_is_attack(const void *g) { return *(const uintptr_t *)g == GA(VT_GOAL_ATTACK); }
-internal inline int goal_is_location(const void *g) { return *(const uintptr_t *)g == GA(VT_GOAL_LOCATION); }
-internal inline int goal_is_build(const void *g) { return *(const uintptr_t *)g == GA(VT_GOAL_BUILD); }
-internal inline int goal_is_load(const void *g) { return *(const uintptr_t *)g == GA(VT_GOAL_LOAD); }
-internal inline int goal_is_unload(const void *g) { return *(const uintptr_t *)g == GA(VT_GOAL_UNLOAD); }
+internal inline int goal_is_attack(const ee_goal *g) { return *(const uintptr_t *)g == GA(VT_GOAL_ATTACK); }
+internal inline int goal_is_location(const ee_goal *g) { return *(const uintptr_t *)g == GA(VT_GOAL_LOCATION); }
+internal inline int goal_is_build(const ee_goal *g) { return *(const uintptr_t *)g == GA(VT_GOAL_BUILD); }
+internal inline int goal_is_load(const ee_goal *g) { return *(const uintptr_t *)g == GA(VT_GOAL_LOAD); }
+internal inline int goal_is_unload(const ee_goal *g) { return *(const uintptr_t *)g == GA(VT_GOAL_UNLOAD); }
 // the memory of a goal the game may free (game_new of its size), then made with its _init
 internal inline void *goal_build_alloc(void) { return game_new(GA(SIZE_GOAL_BUILD)); }
 internal inline void *goal_attack_alloc(void) { return game_new(GA(SIZE_GOAL_ATTACK)); }
@@ -330,9 +330,9 @@ internal inline void *goal_load_alloc(void) { return game_new(GA(SIZE_GOAL_LOAD)
 internal inline void *goal_unload_alloc(void) { return game_new(GA(SIZE_GOAL_UNLOAD)); }
 internal inline void *goal_move_alloc(void) { return game_new(GA(SIZE_GOAL_MOVE)); }
 // a load goal's part the units walk into (the goal's vtable)
-internal inline void *goal_part(void *goal) { return ((void *(__thiscall *)(void *))(*(void ***)goal)[GA(SLOT_GOAL_PART)])(goal); }
+internal inline ee_goal *goal_part(ee_goal *goal) { return ((ee_goal *(__thiscall *)(void *))(*(void ***)goal)[GA(SLOT_GOAL_PART)])(goal); }
 // may the goal be handed to the unit (the original of attack.c's hook_goal_cast)
-internal inline char goal_fits(void *goal, void *unit) { return GF(FN_GOAL_FBA_CHECK)(goal, unit); }
+internal inline char goal_fits(ee_goal *goal, void *unit) { return GF(FN_GOAL_FBA_CHECK)(goal, unit); }
 // a goal set's answer for the unit (the original of landing.c's hook)
 internal inline int goalset_ask(void *set, ee_unit *u, int *out) { return GF(FN_GOALSET_ASK)(set, u, out); }
 
@@ -435,8 +435,8 @@ internal inline void asg_sea_transport_update(ee_attack_subgroup *sg, int now) {
 internal inline void asg_air_update(ee_attack_subgroup *sg, int now) { GF(FN_ASG_AIR_UPDATE)(sg, now); }
 internal inline void asg_stats(ee_attack_subgroup *sg) { GF(FN_ASG_STATS)(sg); }
 internal inline void asg_land_stats(ee_attack_subgroup *sg) { GF(FN_ASG_LAND_STATS)(sg); }
-internal inline char asg_give_goal(ee_attack_subgroup *sg, ee_unit *u, void *goal, int a, int prio) { return GF(FN_ASG_GIVE_GOAL)(sg, u, goal, a, prio); }
-internal inline char asg_air_give_goal(ee_attack_subgroup *sg, ee_unit *u, void *goal, int a, int prio) { return GF(FN_ASG_AIR_GIVE_GOAL)(sg, u, goal, a, prio); }
+internal inline char asg_give_goal(ee_attack_subgroup *sg, ee_unit *u, ee_goal *goal, int a, int prio) { return GF(FN_ASG_GIVE_GOAL)(sg, u, goal, a, prio); }
+internal inline char asg_air_give_goal(ee_attack_subgroup *sg, ee_unit *u, ee_goal *goal, int a, int prio) { return GF(FN_ASG_AIR_GIVE_GOAL)(sg, u, goal, a, prio); }
 // a land subgroup's route from start to dest (int[2] each), its arrival (waypoints at +0x60)
 internal inline void asg_route(ee_attack_subgroup *sg, int *start, int *dest) { ((void (__thiscall *)(ee_attack_subgroup *, int *, int *))GA(FN_ASG_ROUTE))(sg, start, dest); }
 internal inline void asg_route_done(ee_attack_subgroup *sg) { ((void (__thiscall *)(ee_attack_subgroup *))GA(FN_ASG_ROUTE_DONE))(sg); }

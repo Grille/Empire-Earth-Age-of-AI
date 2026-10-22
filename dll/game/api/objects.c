@@ -36,8 +36,8 @@ internal inline float unit_get_pos_z(const ee_unit *u) { return FIELD(u, OF(UNIT
 internal inline ee_unit_type *unit_get_attacker_type(const ee_unit *u) { return FIELD(u, OF(UNIT, 0x1C0), ee_unit_type *); } // +0x1C0 a projectile's: the attack's type data
 // +0x1CC: the next of a chain from +0x30 - its last is what a BuildRepair goal holds (0x60BAD0)
 internal inline ee_unit *unit_get_chain(const ee_unit *u) { return FIELD(u, OF(UNIT, 0x1CC), ee_unit *); }
-internal inline uint8_t *unit_get_goal(const ee_unit *u) { return FIELD(u, OF(UNIT, 0x1EC), uint8_t *); }   // +0x1EC its goal (GOAL)
-internal inline uint8_t *unit_get_goal_object(const ee_unit *u) { return FIELD(u, OF(UNIT, 0x1F0), uint8_t *); } // +0x1F0 the goal object (0x5ED24B casts it)
+internal inline ee_goal *unit_get_goal(const ee_unit *u) { return FIELD(u, OF(UNIT, 0x1EC), ee_goal *); }   // +0x1EC its goal (GOAL)
+internal inline ee_goal *unit_get_goal_object(const ee_unit *u) { return FIELD(u, OF(UNIT, 0x1F0), ee_goal *); } // +0x1F0 the goal object (0x5ED24B casts it)
 internal inline void *unit_get_behaviour(const ee_unit *u) { return FIELD(u, OF(UNIT, 0x208), void *); }    // +0x208 its behaviour (behaviour_table())
 internal inline void unit_set_behaviour(ee_unit *u, void *b) { FIELD(u, OF(UNIT, 0x208), void *) = b; }
 internal inline float unit_get_speed_min(const ee_unit *u) { return FIELD(u, OF(UNIT, 0x21C), float); }      // +0x21C the speed, at least the type's minimum
@@ -52,6 +52,28 @@ internal inline uint8_t unit_get_ai_held(const ee_unit *u) { return FIELD(u, OF(
 
 // A MAP TILE (the map's tile table, MAP +0x1816D4): its +0x10 is UNIT's
 internal inline float tile_get_height(const void *tile) { return FIELD(tile, OF(UNIT, 0x10), float); }
+
+// A UNIT'S GOAL (EEUnitGoal, a unit's +0x1EC; the kind by its vtable: goal_is_attack(g) ...): the fields of each kind
+internal inline uint8_t goal_get_state(const ee_goal *g) { return FIELD(g, OF(GOAL, 0x5), uint8_t); }        // +0x5 (aim.c: 2 while it attacks)
+// a move goal (goal_is_location): where to
+internal inline float goal_get_dest_x(const ee_goal *g) { return FIELD(g, OF(GOAL, 0x20), float); }         // +0x20
+internal inline float goal_get_dest_y(const ee_goal *g) { return FIELD(g, OF(GOAL, 0x24), float); }         // +0x24
+// an attack goal (goal_is_attack): the unit it attacks
+internal inline ee_unit *goal_get_target(const ee_goal *g) { return FIELD(g, OF(GOAL, 0x30), ee_unit *); }   // +0x30
+// a gather goal (EEUGGather): the resource site
+internal inline ee_unit *goal_get_site(const ee_goal *g) { return FIELD(g, OF(GOAL, 0x38), ee_unit *); }     // +0x38
+// a build or repair goal (EEUGBuildRepair, goal_is_build): the building
+internal inline ee_unit *goal_get_building(const ee_goal *g) { return FIELD(g, OF(GOAL, 0x3C), ee_unit *); } // +0x3C
+// a load goal (goal_is_load): the transport or building to board
+internal inline ee_unit *goal_get_holder(const ee_goal *g) { return FIELD(g, OF(GOAL, 0x50), ee_unit *); }   // +0x50
+// an unload goal (goal_is_unload): the water tiles +0x24 / +0x2C, the point to unload at +0x34, the reach (squared)
+internal inline int goal_get_water_x(const ee_goal *g) { return FIELD(g, OF(GOAL, 0x24), int); }
+internal inline int goal_get_water_y(const ee_goal *g) { return FIELD(g, OF(GOAL, 0x28), int); }
+internal inline int goal_get_water2_x(const ee_goal *g) { return FIELD(g, OF(GOAL, 0x2C), int); }
+internal inline int goal_get_water2_y(const ee_goal *g) { return FIELD(g, OF(GOAL, 0x30), int); }
+internal inline int goal_get_unload_x(const ee_goal *g) { return FIELD(g, OF(GOAL, 0x34), int); }
+internal inline int goal_get_unload_y(const ee_goal *g) { return FIELD(g, OF(GOAL, 0x38), int); }
+internal inline float goal_get_reach_sq(const ee_goal *g) { return FIELD(g, OF(GOAL, 0x3C), float); }
 
 // A UNIT TYPE'S DATA (EEUnitClass, type_data(t), a unit's +0x2C): the same for every unit of the type
 internal inline uint8_t *type_get_vtable(const ee_unit_type *td) { return FIELD(td, OF(TD, 0x0), uint8_t *); }

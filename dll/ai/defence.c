@@ -391,7 +391,7 @@ internal int militia_answer(struct cs_scan *s, ee_unit *t, int *nfree) {   // ci
     for (int c = 0; c < s->nc && ordered < 3 * enemies; c++) {
         ee_unit *u = s->civ[c];
         if (!u || abs(s->cx[c] - x) > 10 || abs(s->cy[c] - y) > 10) continue;
-        uint8_t *g = unit_get_goal(u);
+        ee_goal *g = unit_get_goal(u);
         if (g && goal_is_attack(g)) { s->civ[c] = NULL; continue; }   // already fighting
         if (g && strcmp(rtti_name(g), "EEUGGather@@")) continue;   // building, walking: leave it
         if (unit_goal(u, goal_attack(u, t), 0, 0x1F40)) ordered++;
@@ -406,15 +406,15 @@ internal void militia(ee_player *pl, unsigned idx, struct cs_scan *s, uint32_t n
     char what[160] = "";
     for (int k = 0; k < s->nu && nfree > 2; k++) {
         ee_unit *e = s->eu[k];
-        uint8_t *g = unit_get_goal(e);
+        ee_goal *g = unit_get_goal(e);
         ee_unit *t;
         if (!g || unit_get_hp(e) <= 0) continue;
         int x = unit_get_x(e), y = unit_get_y(e), why = 0;
-        if (!strcmp(rtti_name(g), "EEUGBuildRepair@@") && (t = FIELD(g, OF(GOAL, 0x3C), ee_unit *)) && unit_get_owner(t) != pl) {
+        if (!strcmp(rtti_name(g), "EEUGBuildRepair@@") && (t = goal_get_building(g)) && unit_get_owner(t) != pl) {
             ee_unit *bs = unit_get_physics(t);
             float r, a;
             if (bs && !unit_get_finished(bs) && defence_stats(t, &r, &a)) why = 1;   // a tower going up
-        } else if (early && goal_is_attack(g) && (t = FIELD(g, OF(GOAL, 0x30), ee_unit *)) && unit_get_owner(t) == pl)
+        } else if (early && goal_is_attack(g) && (t = goal_get_target(g)) && unit_get_owner(t) == pl)
             why = 2;   // attacking one of ours
         if (!why) continue;
         int close = 0;
@@ -460,8 +460,8 @@ internal void counter_siege(ee_player *pl, unsigned idx, uint32_t now) {
         ee_unit *site = tower ? field_site(e) : NULL;   // what their EEUGBuildRepair holds (+0x3C)
         int nbl = 0;
         for (int k = 0; tower && k < s.nu && nbl < 8; k++) {
-            uint8_t *g = unit_get_goal(s.eu[k]);
-            if (g && unit_get_hp(s.eu[k]) > 0 && (FIELD(g, OF(GOAL, 0x3C), ee_unit *) == site || FIELD(g, OF(GOAL, 0x3C), ee_unit *) == e) &&
+            ee_goal *g = unit_get_goal(s.eu[k]);
+            if (g && unit_get_hp(s.eu[k]) > 0 && (goal_get_building(g) == site || goal_get_building(g) == e) &&
                 !strcmp(rtti_name(g), "EEUGBuildRepair@@")) bl[nbl++] = s.eu[k];
         }
         int guards = 0;
@@ -471,11 +471,11 @@ internal void counter_siege(ee_player *pl, unsigned idx, uint32_t now) {
         for (int k = 0; k < s.ns; k++) {
             ee_unit *u = s.sold[k];
             if (!u) continue;   // already ordered this tick
-            uint8_t *g = unit_get_goal(u);
+            ee_goal *g = unit_get_goal(u);
             int dx = unit_get_x(u) - x, dy = unit_get_y(u) - y, d2 = dx * dx + dy * dy;
             if (d2 > 400) continue;
             if (g && goal_is_attack(g)) {
-                ee_unit *t = FIELD(g, OF(GOAL, 0x30), ee_unit *);
+                ee_unit *t = goal_get_target(g);
                 int mine = t == e;
                 for (int b = 0; b < nbl && !mine; b++) mine = t == bl[b];
                 if (mine) { already++; s.sold[k] = NULL; continue; }
@@ -765,11 +765,11 @@ internal void muster(ee_player *pl, unsigned idx, uint32_t now) {
     int ordered = 0;   // everyone who isn't there or on the way
     for (int k = 0; k < s->no; k++) {
         ee_unit *u = s->own[k];
-        uint8_t *goal = unit_get_goal(u);
+        ee_goal *goal = unit_get_goal(u);
         float dx = (float)unit_get_x(u) - g_mus[idx].rx, dy = (float)unit_get_y(u) - g_mus[idx].ry;
         if (dx * dx + dy * dy <= 36) continue;
-        if (goal && goal_is_location(goal) && fabsf(FIELD(goal, OF(GOAL, 0x20), float) - g_mus[idx].rx) < 2 &&
-            fabsf(FIELD(goal, OF(GOAL, 0x24), float) - g_mus[idx].ry) < 2) continue;
+        if (goal && goal_is_location(goal) && fabsf(goal_get_dest_x(goal) - g_mus[idx].rx) < 2 &&
+            fabsf(goal_get_dest_y(goal) - g_mus[idx].ry) < 2) continue;
         if (unit_goal(u, goal_move(g_mus[idx].rx, g_mus[idx].ry), 0, 0x1F40)) ordered++;
     }
     g_mus[idx].orders += ordered;
@@ -870,11 +870,11 @@ internal void hold_town(ee_player *pl, unsigned idx, uint32_t now) {
     }
     for (int k = 0; k < s->no; k++) {
         ee_unit *u = s->own[k];
-        uint8_t *g = unit_get_goal(u);
+        ee_goal *g = unit_get_goal(u);
         if (assault_has_unit(pl, u)) { set_behaviour(u, 5); continue; }   // the assault leads them
         if (landing_has_unit(pl, u)) continue;   // so does the landing (it ordered loaded transports at their docks against raiders)
         if (g && goal_is_location(g)) {
-            float dx = FIELD(g, OF(GOAL, 0x20), float) - (float)s->bx, dy = FIELD(g, OF(GOAL, 0x24), float) - (float)s->by;
+            float dx = goal_get_dest_x(g) - (float)s->bx, dy = goal_get_dest_y(g) - (float)s->by;
             if (dx * dx + dy * dy > 35.0f * 35.0f) { set_behaviour(u, 5); continue; }   // marching out
         }
         home[nh++] = u;
@@ -924,11 +924,11 @@ internal void hold_town(ee_player *pl, unsigned idx, uint32_t now) {
         int changed = 0;
         for (int k = 0; k < nh; k++) {
             ee_unit *u = home[k];
-            uint8_t *g = unit_get_goal(u);
+            ee_goal *g = unit_get_goal(u);
             changed += set_behaviour(u, 2);
             float ux = (float)unit_get_x(u) - hx, uy = (float)unit_get_y(u) - hy;
             if (ux * ux + uy * uy <= 16.0f) continue;
-            if (g && goal_is_location(g) && fabsf(FIELD(g, OF(GOAL, 0x20), float) - hx) < 2 && fabsf(FIELD(g, OF(GOAL, 0x24), float) - hy) < 2) continue;
+            if (g && goal_is_location(g) && fabsf(goal_get_dest_x(g) - hx) < 2 && fabsf(goal_get_dest_y(g) - hy) < 2) continue;
             unit_goal(u, goal_move(hx + (float)(k % 5) - 2.0f, hy + (float)(k / 5 % 5) - 2.0f), 0, 0x1F40);
         }
         g_hold_st[idx].set += (unsigned)changed;
