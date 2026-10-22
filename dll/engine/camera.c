@@ -66,7 +66,7 @@ internal void __fastcall hook_scroll_execute(uint8_t *self, void *edx) {
         if (since > 30.0) d = 1.0;   // the first step after a pause: one timer period (the budget is old frames)
         ms = d > 50.0 ? 50.0f : (float)d;
     }
-    float speed = *(float *)GA(G_SCROLL_SPEED) + 0.5f, maxv = *(float *)GA(G_SCROLL_SETTING) + 0.5f;
+    float speed = scroll_speed() + 0.5f, maxv = scroll_setting() + 0.5f;
     float dx = 0, dy = 0;
     if (!g_scroll_aoc) {   // EE: constant speed, as 0x4050FC
         float step = speed * maxv * ms * 0.01f;
@@ -115,7 +115,7 @@ internal void camtrace_frame(void) {   // the render thread, every presented fra
     LARGE_INTEGER now, f;
     QueryPerformanceCounter(&now);
     QueryPerformanceFrequency(&f);
-    uint8_t *cam = (uint8_t *)GA(G_CAMERA);
+    uint8_t *cam = game_camera();
     float x = FIELD(cam, OF(CAMERA, 0x78), float), y = FIELD(cam, OF(CAMERA, 0x7C), float);
     if (g_ct_n < CT_MAX && g_ct_last.QuadPart) {
         g_ct[g_ct_n].dt = (float)((double)(now.QuadPart - g_ct_last.QuadPart) * 1000.0 / (double)f.QuadPart);
@@ -151,7 +151,7 @@ internal void cmd_scrolltest(char *out, const char *args) {
     *(unsigned *)(obj + OF(SCROLL, 0x40)) = 1;
     obj[OF(SCROLL, 0x44)] = dir[0] == 'l'; obj[OF(SCROLL, 0x45)] = dir[0] == 'r'; obj[OF(SCROLL, 0x46)] = dir[0] == 'd';
     obj[OF(SCROLL, 0x47)] = dir[0] == 'u';
-    uint8_t *cam = (uint8_t *)GA(G_CAMERA);
+    uint8_t *cam = game_camera();
     float x0 = FIELD(cam, OF(CAMERA, 0x78), float), y0 = FIELD(cam, OF(CAMERA, 0x7C), float);
     REPLY("mode %s, start %.2f,%.2f\n", g_scroll_aoc ? "aoc" : "ee", x0, y0);
     for (int i = 0; i < n && i < 200; i++) {

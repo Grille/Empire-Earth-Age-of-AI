@@ -49,8 +49,8 @@ EXCEPTIONS = [
 ]
 
 # THE GAME'S FUNCTIONS ONLY IN game/api/: the calls through functions.h's typed wrappers, the hooks and patches through
-# hooks.h's installers, a goal's kind or an object's memory through functions.h too - GF, GL(..) or GA(..) of anything
-# but data (G_) anywhere else fails the build.
+# hooks.h's installers, a goal's kind, an object's memory and the game's data through functions.h too - GA, GF or GL
+# anywhere else fails the build.
 
 IDENT = re.compile(r'[A-Za-z_]\w*')
 # a declaration's attributes, written out or by base/'s macro (internal PRINTF_LIKE(1, 2) void f(...)): not its name
@@ -239,8 +239,8 @@ def main():
             if inc not in ('../base/headless_win.c', '../base/lang.h'): bad.append('dinput/%s includes %s' % (os.path.basename(f), inc))
     # the game's functions only in game/api/
     for f in (f for f in files if not f.startswith('game/api/')):
-        for m in re.finditer(r'\bGF\s*\(\s*(\w+)|\bGA\s*\(\s*((?!G_)\w+)|\bGL\s*\(\s*(\w+)', code[f]):
-            bad.append('%s uses %s - the game functions only in game/api/: a wrapper in functions.h or an installer in hooks.h' % (f, m.group(1) or m.group(2) or m.group(3)))
+        for m in re.finditer(r'\bGF\s*\(\s*(\w+)|\bGA\s*\(\s*(\w+)|\bGL\s*\(\s*(\w+)', code[f]):
+            bad.append('%s uses %s - the game addresses only in game/api/: a wrapper or accessor in functions.h, an installer in hooks.h' % (f, m.group(1) or m.group(2) or m.group(3)))
     stale = [e for e in EXCEPTIONS if (e[0], e[1], e[2]) not in used]
     for b in bad: print('layers: ' + b)
     for e in stale: print('layers: exception no longer needed: %s -> %s (%s) - take it out of scripts/layers.py' % e[:3])

@@ -212,7 +212,7 @@ struct nv_bld { int x[16][64], y[16][64], n[16]; };
 internal void navy_detect(ee_player *pl, unsigned idx, uint32_t now) {
     static struct nv_bld b;
     void *cm = FIELD(pl, OF(PL, 0xB90), void *);
-    uint8_t *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL, *map = *(uint8_t **)GA(G_MAP);
+    uint8_t *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL, *map = game_map();
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     unsigned hc = bm ? area_id(FIELD(bm, OF(BM, 0x12C), int), FIELD(bm, OF(BM, 0x130), int), 2) : 0;
     if (!hc || !grid) return;
@@ -243,7 +243,7 @@ internal void navy_detect(ee_player *pl, unsigned idx, uint32_t now) {
     m->strength = enemies ? (float)across / enemies : 0.0f;
     m->water = all ? (float)sea / all : 0.0f;
     m->kind = !enemies || !across ? NV_LAND : across == enemies ? NV_ISLANDS : NV_MIXED;
-    uint8_t *w = *(uint8_t **)GA(G_MAP);
+    uint8_t *w = game_map();
     if (g_log) fprintf(g_log, "# navy: P%u map at %.1f min: %s (strength %.2f) - %d of %d enemies across the water, water %.0f%% of the map, "
                        "home continent %u; the game's water flag %d, +0xEFA %d\n", idx, now / 60000.0,
                        m->kind == NV_ISLANDS ? "islands" : m->kind == NV_MIXED ? "mixed" : "land", m->strength, across, enemies,
@@ -552,7 +552,7 @@ internal int8_t g_nv_role[G_TYPES_N];   // role + 1 per type (0: not worked out 
 internal int g_nv_nc, g_nv_nk;          // the hit table's size: categories, weapon kinds (cmd_navy's count)
 internal uint64_t g_nv_aircat;          // the categories of aircraft (families 3, 7, 17)
 internal float nv_f(int kind, int cat) {   // the hit factor [cat][kind]; 0 outside the table
-    uint8_t *tb = *(uint8_t **)GA(G_HIT_TABLE);
+    uint8_t *tb = hit_table();
     if (!g_nv_nk) {
         for (int t = 0; t < G_TYPES_N; t++) {
             uint8_t *td = type_data(t);
@@ -902,9 +902,9 @@ internal void cmd_navy(char *out, const char *args) {
             if (c >= 0 && c < 64 && c >= nc) nc = c + 1;
             if (k >= 0 && k < 64 && k >= nk) nk = k + 1;
         }
-        REPLY("categories %d kinds %d; tables 8D200C %p 8D2008 %p 8D2010 %p mode %d\n", nc, nk, *(void **)GA(G_HIT_TABLE),
-              *(void **)GA(G_HIT_TABLE_A), *(void **)GA(G_HIT_TABLE_B), *(int *)GA(G_GAME_MODE));
-        uint8_t *tb = *(uint8_t **)GA(G_HIT_TABLE);
+        REPLY("categories %d kinds %d; tables 8D200C %p 8D2008 %p 8D2010 %p mode %d\n", nc, nk, hit_table(),
+              hit_table_a(), hit_table_b(), game_mode());
+        uint8_t *tb = hit_table();
         for (int c = 0; tb && c < nc; c++) {
             float *row = FIELD(tb, c * 4, float *);
             REPLY("c%d:", c);
@@ -912,7 +912,7 @@ internal void cmd_navy(char *out, const char *args) {
             REPLY("\n");
         }
         REPLY("class table 8D2050 [attacker + target x 6]:");
-        for (int k = 0; k < 36; k++) REPLY(" %g", ((float *)GA(G_DAMAGE_TABLE))[k]);
+        for (int k = 0; k < 36; k++) REPLY(" %g", damage_table()[k]);
         REPLY("\n");
         return;
     }

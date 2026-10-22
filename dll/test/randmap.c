@@ -105,14 +105,14 @@ internal void randmap_rewrite(uint8_t *setup) {
     *(int *)(setup + OF(SETUP, 0x3F8)) = g_rm.difficulty;
     // the AIs' difficulty: their set-up (0x431697) copies the global 0x918C14 (set by the game options messages,
     // EEMFullGameOptions 0x4B642F, which a load-game start never sends - the setup's +0x3F8 alone left medium)
-    *(int *)GA(G_DIFFICULTY) = g_rm.difficulty;
+    *difficulty_var() = g_rm.difficulty;
     *(int *)(setup + OF(SETUP, 0x3FC)) = 0;
     setup[OF(SETUP, 0x400)] = 1; setup[OF(SETUP, 0x401)] = 0; setup[OF(SETUP, 0x402)] = 0; setup[OF(SETUP, 0x403)] = 1;
-    *(int *)GA(G_GAME_TYPE) = 0;   // game type: random map
-    uint8_t *world = *(uint8_t **)GA(G_WORLD);
+    *game_type_var() = 0;   // game type: random map
+    uint8_t *world = game_world();
     if (world && g_rm.seed) *(int *)(world + OF(WORLD, 0x54)) = g_rm.seed;
     if (g_log) {
-        uint8_t *lim = *(uint8_t **)GA(G_GAME_DATA);   // the game's unit limits: default +0x2E8, the most +0x2EC (more: the default)
+        uint8_t *lim = game_data();   // the game's unit limits: default +0x2E8, the most +0x2EC (more: the default)
         fprintf(g_log, "# random map: \"%s\" size %d, %d AIs (%s), start epoch %d, seed %d, difficulty %d%s%s, unit limit %d (game default %d, max %d)\n",
                 g_rm.map, g_rm.size, g_rm.ais, g_rm.pairs ? "pairs" : "ffa", g_rm.start_epoch, world ? *(int *)(world + OF(WORLD, 0x54)) : -1, g_rm.difficulty,
                 g_rm.scale != 1 ? ", map scale " : "", g_rm.scale != 1 ? k_rm_scale[g_rm.scale] : "", g_rm.unit_limit,
@@ -160,7 +160,7 @@ internal void randmap_ai_toggles(ee_player *pl) {
                            g_rm.epoch_min, g_rm.epoch_max, (game_time() + delay) / 60000.0);
     }
     if (!g_rm.map[0]) return;
-    ee_player *human = ((ee_player **)GA(G_PLAYERS))[*(int *)GA(G_LOCAL_PLAYER)];
+    ee_player *human = game_players()[(int)local_player_index()];
     if (!human || human == pl) return;
     // The idle human slot: civilization counts as chosen (else the civ-selection timer opens a dialog that
     // freezes the game), and allied with every AI so the AIs fight each other and the game can't end in

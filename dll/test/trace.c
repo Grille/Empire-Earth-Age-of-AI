@@ -182,7 +182,7 @@ internal unsigned g_sync_left;
 internal void __fastcall hook_start_exec(void *msg, void *edx) {
     (void)edx;
     if (g_auto.game_seed) FIELD(msg, OF(MSG_START, 0x14), unsigned) = (unsigned)g_auto.game_seed;
-    uint8_t *phys = *(uint8_t **)GA(G_WORLD_CLOCK), *world = *(uint8_t **)GA(G_WORLD);
+    uint8_t *phys = game_physics(), *world = game_world();
     unsigned map_seed = world ? FIELD(world, OF(WORLD, 0x54), unsigned) : 0;
     start_exec(msg);
     EnterCriticalSection(&g_lock);
@@ -234,7 +234,7 @@ internal void __fastcall sync_srv_send(void *srv, void *edx, void *msg, int to) 
 }
 internal void sync_hook_server(void) {
     static int done;
-    void **srv = *(void ***)GA(G_SERVER);
+    void **srv = game_server();
     if (done || !srv) return;
     done = 1;
     g_srv_send = patch_server_send(srv, sync_srv_send);
@@ -245,9 +245,9 @@ internal void sync_step(void *phys) {   // after each step (control.c hook_phys_
     sync_hook_server();
     if (!g_sync || !g_sync_left) return;
     uint32_t h = 2166136261u;
-    unsigned n = *(unsigned *)GA(G_PLAYERS_N);
+    unsigned n = game_player_count();
     for (unsigned i = 1; i < n && i < 16; i++) {
-        ee_player *pl = ((ee_player **)GA(G_PLAYERS))[i];
+        ee_player *pl = game_players()[i];
         if (!pl) continue;
         for (int k = 0; k < 7 * 4; k++) h = (h ^ FIELD(pl, PL_STOCK + k, uint8_t)) * 16777619u;
     }
@@ -255,7 +255,7 @@ internal void sync_step(void *phys) {   // after each step (control.c hook_phys_
     grid_each(sync_unit, &su);
     EnterCriticalSection(&g_lock);
     fprintf(g_sync, "%u %u %u %u %08x %u %08x\n", FIELD(phys, OF(PHYS, 0x80), unsigned), FIELD(phys, OF(PHYS, 0xD0), unsigned),
-            FIELD(phys, OF(PHYS, 0x18), unsigned), *(unsigned *)GA(G_INPUT_MSGS_DONE), h, su.n, su.h);
+            FIELD(phys, OF(PHYS, 0x18), unsigned), input_msgs_done(), h, su.n, su.h);
     if (g_sync_dump0 && FIELD(phys, OF(PHYS, 0xD0), unsigned) >= g_sync_dump0 && FIELD(phys, OF(PHYS, 0xD0), unsigned) <= g_sync_dump1)
         grid_each(sync_unit_dump, NULL);
     if (!--g_sync_left) { fclose(g_sync); g_sync = NULL; }

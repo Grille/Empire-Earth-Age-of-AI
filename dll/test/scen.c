@@ -10,7 +10,7 @@
 // Effect wrapper: +4 kind (2 = "or" between random groups), +8 delay (s), +0xC effect.
 // An effect runs with 0x5AD29B thiscall(effect, bool cinematic) - on the game thread.
 
-#define SM_MGR (*(uint8_t **)GA(G_SM_MGR))
+#define SM_MGR (scenario_manager())
 
 internal const char *const k_sm_cond[8] = { "always", "object", "player-attribute", "player-tech", "trigger",
     "diplomacy", "game", "chat" };

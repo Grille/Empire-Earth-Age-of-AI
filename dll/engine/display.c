@@ -49,7 +49,7 @@ internal int apply_editor_layout(int w, int h) {
     }
     // the file buttons (load, save, test, exit ...) come from a data table, not code: 0x8AE0A0, 6 entries of
     // {id, x, y, texture u0, v0, u1, v1, tooltip}; AoC (0x8C47B0) has them at x 647.. (step 35), y 736 for 1024x768
-    int32_t *t = (int32_t *)GA(G_EDITOR_FILE_BUTTONS);
+    int32_t *t = editor_file_buttons();
     if (!g_buttons_state) g_buttons_state = t[1] == 415 && t[2] == 567 ? 1 : -1;
     if (g_buttons_state > 0)
         for (int i = 0; i < 6; i++, t += 8) {
@@ -63,8 +63,8 @@ internal int apply_editor_layout(int w, int h) {
 }
 
 internal void editor_size(int *w, int *h) {
-    int nw = g_editor_game ? *(int *)GA(G_GAME_RES_W) : g_editor_w;
-    int nh = g_editor_game ? *(int *)GA(G_GAME_RES_H) : g_editor_h;
+    int nw = g_editor_game ? game_res_w() : g_editor_w;
+    int nh = g_editor_game ? game_res_h() : g_editor_h;
     if (nw >= 800 && nh >= 600) { *w = nw; *h = nh; }
 }
 
@@ -808,7 +808,7 @@ internal RECT window_rect_for(HWND h) {
         GetMonitorInfoA(MonitorFromWindow(h, MONITOR_DEFAULTTONEAREST), &mi);
         return mi.rcMonitor;
     }
-    uint8_t *win = *(uint8_t **)GA(G_GAME_WINDOW);
+    uint8_t *win = game_window();
     return normal_window_rect(h, win ? FIELD(win, OF(E_WINDOW, 0xC), int) : 1024, win ? FIELD(win, OF(E_WINDOW, 0x10), int) : 768);
 }
 
@@ -1011,7 +1011,7 @@ internal void virtual_mouse(uint8_t *m, int frozen) {
 
 internal void window_mouse_in(uint8_t *m, int frozen, uint8_t *win, HWND hwnd);
 internal void window_mouse(uint8_t *m, int frozen) {
-    uint8_t *win = *(uint8_t **)GA(G_GAME_WINDOW);
+    uint8_t *win = game_window();
     HWND hwnd = win ? FIELD(win, OF(E_WINDOW, 0x0), HWND) : NULL;
     if (!hwnd) return;
     window_hook(hwnd);
@@ -1109,8 +1109,8 @@ internal void display_install(const char *aimod_ini, const char *autotest_ini) {
     g_diag = (autotest_ini && ini_int("autotest", "diag_hooks", 0, autotest_ini))
              || ini_int("display", "diag", 0, aimod_ini);
     if (windowed) {
-        uint8_t was = *(uint8_t *)GA(G_FULLSCREEN);
-        if (was == 1) *(uint8_t *)GA(G_FULLSCREEN) = g_fullscreen = 0;
+        uint8_t was = *fullscreen_var();
+        if (was == 1) *fullscreen_var() = g_fullscreen = 0;
         g_text_dc = ini_int("display", "text_dc", 1, aimod_ini);
         if (autotest_ini) g_text_dc = ini_int("autotest", "text_dc", g_text_dc, autotest_ini);
         g_text_bitmap = ini_int("display", "text_bitmap", 1, aimod_ini);
@@ -1480,7 +1480,7 @@ internal void cmd_headless(const char *verb, const char *args, char *out) {
     }
     if (!strncmp(args, "off", 3)) { g_vm_x = g_vm_y = -1; REPLY("ok: real mouse\n"); return; }
     if (!strcmp(verb, "wtype")) {   // wtype TEXT: the characters as WM_CHAR to the game window (edit boxes; tests)
-        uint8_t *win = *(uint8_t **)GA(G_GAME_WINDOW);
+        uint8_t *win = game_window();
         HWND hwnd = win ? FIELD(win, OF(E_WINDOW, 0x0), HWND) : NULL;
         if (!hwnd) { REPLY("error: no window\n"); return; }
         int n = 0;
@@ -1495,7 +1495,7 @@ internal void cmd_headless(const char *verb, const char *args, char *out) {
     char which[16] = "";
     if (sscanf(args, "%d %d %15s", &x, &y, which) < 2 || x < 0 || y < 0) { REPLY("usage: %s x y%s\n", verb, *verb == 'v' && verb[1] == 'c' ? " [right|mid]" : ""); return; }
     if (!strcmp(verb, "wclick")) {   // window messages (WONAPI screens such as the civ builder read those, not the game cursor)
-        uint8_t *win = *(uint8_t **)GA(G_GAME_WINDOW);
+        uint8_t *win = game_window();
         HWND hwnd = win ? FIELD(win, OF(E_WINDOW, 0x0), HWND) : NULL;
         if (!hwnd) { REPLY("error: no window\n"); return; }
         RECT cr;
@@ -1574,8 +1574,8 @@ internal void lock_unlock(char *out, const char *name, IDirectDrawSurface7 *s) {
     REPLY("%s lock/unlock hr=%08lx\n", name, hr);
 }
 internal void cmd_ddpoke(char *out, const char *args) {
-    uint8_t *ras = *(uint8_t **)GA(G_RASTERIZER);
-    uint8_t *st = ras ? FIELD(ras, OF(E_RAS, 0x20), uint8_t **)[*(int *)GA(G_SCREEN)] : NULL;
+    uint8_t *ras = rasterizer();
+    uint8_t *st = ras ? FIELD(ras, OF(E_RAS, 0x20), uint8_t **)[screen_index()] : NULL;
     if (!st) { REPLY("error: no rasterizer\n"); return; }
     uint8_t *scr = FIELD(st, OF(E_SCRSTATE, 0x2A8), uint8_t *), *front = FIELD(st, OF(E_SCRSTATE, 0x2AC), uint8_t *), *back = FIELD(st, OF(E_SCRSTATE, 0x2B0), uint8_t *);
     IDirectDrawSurface7 *b7 = back ? FIELD(back, OF(E_SURF, 0x48), IDirectDrawSurface7 *) : NULL;
@@ -1590,7 +1590,7 @@ internal void cmd_ddpoke(char *out, const char *args) {
         DDSURFACEDESC2 m = { .dwSize = sizeof m };
         REPLY("GetDisplayMode hr=%08lx\n", dd->lpVtbl->GetDisplayMode(dd, &m));
     } else if (!strncmp(args, "cursor", 6)) {   // cursor <client x> <client y>: place the Windows cursor (game's coordinates)
-        uint8_t *win = *(uint8_t **)GA(G_GAME_WINDOW);
+        uint8_t *win = game_window();
         POINT p = { 0, 0 }, q;
         RECT rc = { 0 };
         sscanf(args + 6, "%ld %ld", &p.x, &p.y);
@@ -1652,7 +1652,7 @@ internal void cmd_ddpoke(char *out, const char *args) {
 // [0x9197A0] while playing, UIManager::GetCurrentForm import 0x823D60): +0x5D8 = 0 the age, 1 the game clock,
 // 2 "FPS: n" (relabelled every update - each new text is drawn with GDI)
 internal void cmd_topbar(char *out, const char *args) {
-    void *uim = *(void **)GA(G_UI_MANAGER);
+    void *uim = ui_manager();
     uint8_t *form = uim ? ui_current_form(uim) : NULL;
     const char *rn = form ? rtti_name(form) : "";
     if (!form || !strstr(rn, "EEUIFMainGame")) { REPLY("error: the current form is %s, not the game screen\n", form ? rn : "none"); return; }
@@ -1662,8 +1662,8 @@ internal void cmd_topbar(char *out, const char *args) {
 }
 
 internal void cmd_ddinfo(char *out, const char *args) {
-    uint8_t *ras = *(uint8_t **)GA(G_RASTERIZER);
-    int idx = *(int *)GA(G_SCREEN);
+    uint8_t *ras = rasterizer();
+    int idx = screen_index();
     uint8_t *st = ras ? FIELD(ras, OF(E_RAS, 0x20), uint8_t **)[idx] : NULL;
     if (!st) { REPLY("error: no rasterizer\n"); return; }
     uint8_t *scr = FIELD(st, OF(E_SCRSTATE, 0x2A8), uint8_t *), *win = FIELD(st, OF(E_SCRSTATE, 0x2BC), uint8_t *);
@@ -1732,7 +1732,7 @@ internal void cmd_ddinfo(char *out, const char *args) {
     }
     REPLY("windowed present: %ld frames, %ld failed; back buffer before ShowScene: %ld samples, %ld lit of 1024 avg, lock failed %ld\n",
           g_present_frames, g_present_fail, g_lit_frames, g_lit_frames ? g_lit_samples / g_lit_frames : 0, g_lock_fail);
-    uint8_t *rm = *(uint8_t **)GA(G_MOUSE), *ms = is_mouse();
+    uint8_t *rm = game_mouse(), *ms = is_mouse();
     if (rm) REPLY("mouse: game cursor %.1f,%.1f of x %.0f..%.0f y %.0f..%.0f, updates %ld, unacquired %ld, reacquired %ld, "
                   "device %s, resumed by us %ld, subclassed %p\n", FIELD(rm, OF(RM, 0x4), float), FIELD(rm, OF(RM, 0x8), float), FIELD(rm, OF(RM, 0x18), float),
                   FIELD(rm, OF(RM, 0x1C), float), FIELD(rm, OF(RM, 0x20), float), FIELD(rm, OF(RM, 0x14), float), g_mouse_updates, g_mouse_unacq,

@@ -10,7 +10,7 @@ internal uint8_t g_is_scenario;        // the flag as the game set it (it reads 
 internal int is_vanilla(const ee_player *pl);   // below
 internal void __fastcall hook_cp_update(ee_player *pl, void *edx, uint32_t now) {
     (void)edx;
-    uint8_t *flag = (uint8_t *)GA(G_SCENARIO_FLAG);
+    uint8_t *flag = scenario_flag_var();
     uint8_t saved = *flag;
     g_is_scenario = saved;
     if (g_fix_scenario_ai && !is_vanilla(pl)) *flag = 0;

@@ -18,7 +18,7 @@
 // from it, 0x61E176); type +0x50C is the base. Stats record of a type for a player: player +0x874 vector,
 // 0x4A670A size, 0x492969 at. Max hit points stats +0x144, range +0x9C.
 
-#define ST_TABLE ((float *)GA(G_DAMAGE_TABLE))
+#define ST_TABLE damage_table()
 internal int g_fight_est = 0;   // [all] fight_estimate
 
 internal uint8_t *st_rec(ee_player *pl, int type) {   // the player's stats record of a type
@@ -28,7 +28,7 @@ internal uint8_t *st_rec(ee_player *pl, int type) {   // the player's stats reco
     return p ? *p : NULL;
 }
 internal void *st_player(int i) {   // any player (g_players has the AIs only)
-    return i >= 0 && i < 16 && (unsigned)i < *(unsigned *)GA(G_PLAYERS_N) ? ((void **)GA(G_PLAYERS))[i] : NULL;
+    return i >= 0 && i < 16 && (unsigned)i < game_player_count() ? game_players()[i] : NULL;
 }
 internal float st_factor(uint8_t *atd, int api, uint8_t *ttd, int tpi) {   // the game's hit factor, 0 = cannot hit
     if (!atd || !ttd) return 0.0f;
@@ -342,7 +342,7 @@ internal void cmd_stats(char *out, const char *args) {
         if ((na != 4 && na != 7) || !st_player(p)) { REPLY("error: stats engage P x y r [T tx ty]\n"); return; }
         if (na == 4) tt = -1;
         static ee_unit *mu[ST_UNITS], *fu[ST_UNITS];
-        uint8_t *map = *(uint8_t **)GA(G_MAP), *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
+        uint8_t *map = game_map(), *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
         if (!grid) { REPLY("error: no map\n"); return; }
         for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
             ee_unit *u = it.u;
@@ -401,7 +401,7 @@ internal void cmd_stats(char *out, const char *args) {
         static ee_unit *cit[4096], *foe[4096];
         int nc = 0, nf = 0, hit = 0, seen = 0, flagged = 0, ntype = 0, tt[32] = { 0 }, tn[32] = { 0 }, tf[32] = { 0 };
         float tr[32] = { 0 };
-        uint8_t *map = *(uint8_t **)GA(G_MAP), *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
+        uint8_t *map = game_map(), *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
         if (!grid) { REPLY("error: no map\n"); return; }
         for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
             ee_unit *u = it.u;

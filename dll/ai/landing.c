@@ -256,7 +256,7 @@ internal char __fastcall hook_asg_air_give_goal(void *sg, void *edx, ee_unit *u,
 // nothing (trees, buildings, units of any owner) on the 3x3 tiles around (x, y): room to unload - a landing site
 // on a wooded coast: every unload there ended at once, the transports circling with the soldiers aboard
 internal int ld_tile_free(int x, int y) {
-    uint8_t *map = *(uint8_t **)GA(G_MAP);
+    uint8_t *map = game_map();
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     if (!grid || x < 1 || y < 1) return 0;
     for (struct grid_it it = grid_it_box(x, y, 3, 1); grid_it_next(&it); )
@@ -297,7 +297,7 @@ internal float ld_attack(ee_unit *u) { return FIELD(u, OF(UNIT, 0x3C), int) > 0 
 // what defends a beach (seen): soldiers within 15 tiles, defences reaching it, defences reaching the water in front
 // (they shoot at the transports)
 internal void ld_defence(ee_player *pl, int x, int y, int wx, int wy, struct ld_def *d) {
-    uint8_t *map = *(uint8_t **)GA(G_MAP);
+    uint8_t *map = game_map();
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     float sh = 0, sa = 0, th = 0, ta = 0, wh = 0, wa = 0, bh = 0, ba = 0;
     d->n = 0;
@@ -428,7 +428,7 @@ internal int ld_alive(ee_unit *u) { return u && FIELD(u, OF(UNIT, 0x3C), int) > 
 
 // the nearest enemy defence or warship (seen) within r tiles - what shoots at the transports
 internal ee_unit *ld_naval_target(ee_player *pl, int x, int y, int r, int soldiers) {   // soldiers: enemy soldiers and siege as well
-    uint8_t *map = *(uint8_t **)GA(G_MAP);
+    uint8_t *map = game_map();
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     if (!grid) return NULL;
     ee_unit *best = NULL;
@@ -538,7 +538,7 @@ internal float ld_sea_risk(const struct ld_sea *e, const struct ld_sea *o, float
 }
 // the nearest threat to the transports (type trtd) within r tiles that esc can hit (esc NULL: any)
 internal ee_unit *ld_hunt(ee_player *pl, int x, int y, int r, ee_unit *esc, uint8_t *trtd) {
-    uint8_t *map = *(uint8_t **)GA(G_MAP);
+    uint8_t *map = game_map();
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     if (!grid || !trtd) return NULL;
     int tpi = FIELD(pl, OF(PL, 0x45C), int);
@@ -1990,7 +1990,7 @@ internal void landing_tick(ee_player *pl, uint32_t now) {
 // within 8 that are no defence, defences only when they reach it; nearest first within a kind. (Before: soldiers,
 // then any defence within 12, then buildings - the troops walked into towers past the citizens.)
 internal ee_unit *ld_raid_target(ee_player *pl, ee_player *target, int x, int y, int r) {
-    uint8_t *map = *(uint8_t **)GA(G_MAP);
+    uint8_t *map = game_map();
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     if (!grid) return NULL;
     ee_unit *best[4] = { 0 };
@@ -2054,7 +2054,7 @@ internal void cmd_terrain(char *out, const char *args) {
             unsigned o = area_id(tx, ty, 1), c = area_id(tx, ty, 2);
             g[y * w + x] = o ? '~' : c == c0 && c ? '.' : c ? (char)('0' + c % 10) : '?';
         }
-    uint8_t *map = *(uint8_t **)GA(G_MAP);
+    uint8_t *map = game_map();
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     if (grid) {
         for (struct grid_it it = grid_it_box(x0, y0, r, 1); grid_it_next(&it); ) {
@@ -2147,7 +2147,7 @@ internal void cmd_board(char *out, const char *args) {
     if (!strncmp(args, "reload", 6)) {   // board reload P type: the first unit of P of type - every int and float that could hold reload times
         int rp = 0, t = 0;
         sscanf(args + 6, "%d %d", &rp, &t);
-        uint8_t *map = *(uint8_t **)GA(G_MAP), *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
+        uint8_t *map = game_map(), *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
         ee_unit *hit = NULL;
         if (!grid) return;
         for (struct grid_it it = grid_it_all(1); !hit && grid_it_next(&it); )
@@ -2181,7 +2181,7 @@ internal void cmd_board(char *out, const char *args) {
         for (size_t j = 0; j < sizeof ttn / sizeof *ttn; j++) tt[j] = g_ut[ttn[j]];
         struct ld_bd f = { 0 };
         for (size_t j = 0; j < sizeof tt / sizeof *tt; j++) {
-            uint8_t *map = *(uint8_t **)GA(G_MAP), *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
+            uint8_t *map = game_map(), *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
             ee_unit *hit = NULL;
             if (!grid) break;
             for (struct grid_it it = grid_it_all(1); !hit && grid_it_next(&it); )
@@ -2280,7 +2280,7 @@ internal int g_land_keep = 1;   // landing_keep_transports: the transport manage
 // transport's goal, or was its goal and ended - then a "# ldforeign:" line: the soldiers aboard before and after and
 // where the landing itself wanted that transport (state 0 made, 1 given, 2 the transport's goal)
 internal struct ld_fu { ee_unit *sh; uint8_t *g; int site, p, x, y, aboard, state, phase; uint32_t t; } g_fu[16];
-internal uint32_t ld_clock(void) { uint8_t *c = *(uint8_t **)GA(G_WORLD_CLOCK); return c ? FIELD(c, OF(PHYS, 0xD0), uint32_t) : 0; }
+internal uint32_t ld_clock(void) { uint8_t *c = game_physics(); return c ? FIELD(c, OF(PHYS, 0xD0), uint32_t) : 0; }
 internal void ld_fu_log(struct ld_fu *f, const char *what, int now_aboard) {
     struct landing *l = &g_ld[f->p & 15];
     int k = 0, lx = -1, ly = -1;

@@ -207,7 +207,7 @@ internal int so_home_of(int p, int *x, int *y) {   // a player's Capitol, else T
 // the newest type of each role P1 or the AI could build now; the transport; the AI's two most common land soldiers
 // and its tower (seen anywhere - P1 builds the same epoch's)
 internal void so_types(void) {
-    void *p1 = ((void **)GA(G_PLAYERS))[1], *ai = ((void **)GA(G_PLAYERS))[g_so.ai];
+    void *p1 = game_players()[1], *ai = game_players()[g_so.ai];
     int best[SR_N] = { 0 };
     for (int r = 0; r < SR_N; r++) g_so.types[r] = 0;
     for (int t = 1; t < 724; t++) {
@@ -641,7 +641,7 @@ internal void so_group(int gi, uint32_t now) {
             if (t) g->why = "intercept";
         } else t = so_pick(u, m, w, cx, cy, r);
         if (t) { so_attack(u, t); continue; }
-        if (so_cur_target(u, &cur) && unit_owner(cur) == ((void **)GA(G_PLAYERS))[g_so.ai]) {
+        if (so_cur_target(u, &cur) && unit_owner(cur) == game_players()[g_so.ai]) {
             int x = FIELD(cur, OF(UNIT, 0x1C), int), y = FIELD(cur, OF(UNIT, 0x20), int);
             if (x >= 0 && !so_in_danger(x, y, SO_MARGIN) && so_seg_zone(FIELD(u, OF(UNIT, 0x1C), int), FIELD(u, OF(UNIT, 0x20), int), x, y) < 0) continue;   // its own choice
             if (tx >= 0) { g_so.orders += (unsigned)unit_goal(u, goal_move((float)tx + 0.5f, (float)ty + 0.5f), 0, 0x1F40); continue; }   // not that one
@@ -803,7 +803,7 @@ internal void so_soldiers(uint32_t now) {
         int x = FIELD(u, OF(UNIT, 0x1C), int), y = FIELD(u, OF(UNIT, 0x20), int), home = cont_at(x, y) == g_so.hcont;
         if (home && !(g_so.boarding && so_is_wsol(u))) guard++;
         if (home && g_so.boarding && so_is_wsol(u)) continue;   // waiting to board
-        if (so_cur_target(u, &cur) && unit_owner(cur) == ((void **)GA(G_PLAYERS))[g_so.ai]) continue;
+        if (so_cur_target(u, &cur) && unit_owner(cur) == game_players()[g_so.ai]) continue;
         if (orders >= 40) continue;
         ee_unit *best = NULL;
         float bd = 1e12f;
@@ -898,7 +898,7 @@ internal void seaop_tick(uint32_t now) {
     if (now < g_so.last) { memset(&g_so, 0, sizeof g_so); return; }   // a new game
     if (now - g_so.last < 2000) return;
     g_so.last = now;
-    if (!((void **)GA(G_PLAYERS))[1] || !((void **)GA(G_PLAYERS))[g_so.ai] || !*(uint8_t **)GA(G_MAP)) return;
+    if (!game_players()[1] || !game_players()[g_so.ai] || !game_map()) return;
     if (!g_so.types_t || now - g_so.types_t >= 300000) { so_types(); g_so.types_t = now ? now : 1; }
     so_scan(now);
     so_ships();
@@ -943,8 +943,8 @@ internal void cmd_seaop(char *out, const char *args) {
         return;
     }
     sscanf(args + 5, "%d %d", &ai, &level);
-    ee_player **pls = (ee_player **)GA(G_PLAYERS);
-    if (ai < 2 || ai > 15 || !pls[1] || !pls[ai] || !*(uint8_t **)GA(G_MAP)) { REPLY("error: seaop start <ai> [level] - no player %d or no game\n", ai); return; }
+    ee_player **pls = game_players();
+    if (ai < 2 || ai > 15 || !pls[1] || !pls[ai] || !game_map()) { REPLY("error: seaop start <ai> [level] - no player %d or no game\n", ai); return; }
     memset(&g_so, 0, sizeof g_so);
     g_so.ai = ai;
     g_so.level = level >= 1 && level <= 3 ? level : ini_int("autotest", "seaop_level", 2, g_ini);

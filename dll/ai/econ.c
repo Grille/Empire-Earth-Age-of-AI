@@ -203,11 +203,11 @@ internal int is_gather_tech(ee_tech *tech) {
     uint8_t *d = FIELD(tech, OF(TECH, 0x8), uint8_t *);
     int ei = d ? FIELD(d, OF(TECHDATA, 0x50), int) : -1;
     if (ei < 0 || ei > 0x5DC) return 0;
-    uint8_t *list = (uint8_t *)GA(G_EPOCH_TECHS) + ei * 0x10;
+    uint8_t *list = epoch_tech_list(ei);
     unsigned n = FIELD(list, OF(EPOCHTECHS, 0x8), unsigned), *ids = FIELD(list, OF(EPOCHTECHS, 0x4), unsigned *);
     for (unsigned k = 0; ids && k < n && k < 64; k++) {
         if (ids[k] >= 2000) continue;
-        uint8_t *ef = (uint8_t *)GA(G_EFFECTS) + ids[k] * 0x44;
+        uint8_t *ef = tech_effect(ids[k]);
         int a = FIELD(ef, OF(EFFECT, 0x2C), int), on = FIELD(ef, OF(EFFECT, 0x14), int);
         if (FIELD(ef, OF(EFFECT, 0x20), int) == 2 && (on == UT(CITIZEN) || on == UT(FEMALE_CITIZEN) || on == -1) && a >= 0x1A && a <= 0x21 && a != 0x1E) return 1;
     }
@@ -262,8 +262,8 @@ internal void epoch_upgrades(ee_tech *node, int cat, int only_new) {
     // the game's own player array, not g_players: back in the scenario editor after a test run the editor sets the
     // computer players' epochs again (here) while g_players still held the test run's deleted players - the game
     // crashed reading one (eeaimod.dll+5e188)
-    unsigned np = *(unsigned *)GA(G_PLAYERS_N);
-    ee_player *pl = pi > 0 && pi < 16 && (unsigned)pi < np ? ((ee_player **)GA(G_PLAYERS))[pi] : NULL;
+    unsigned np = game_player_count();
+    ee_player *pl = pi > 0 && pi < 16 && (unsigned)pi < np ? game_players()[pi] : NULL;
     if (pl && (FIELD(pl, PL_INDEX, int) & 15) != pi) pl = NULL;
     void *cm = pl ? FIELD(pl, OF(PL, 0xB90), void *) : NULL;
     ee_research_mgr *rs = cm ? FIELD(cm, OF(CM, 0x40), ee_research_mgr *) : NULL;
@@ -546,7 +546,7 @@ internal int workforce(ee_player *pl) {
 
 internal uint8_t *epoch_tech(ee_player *pl, int e) {
     ee_tech_tree *tt = FIELD(pl, PL_TECHTREE, ee_tech_tree *);
-    if (!tt || e > 13 || e > *(int *)GA(G_END_EPOCH)) return NULL;
+    if (!tt || e > 13 || e > end_epoch()) return NULL;
     return FIELD(FIELD_AT(tt, 8 + e * 0x54), OF(TTREC, 0x8), uint8_t *);
 }
 internal int epoch_cost(ee_player *pl, int e, int r) {
@@ -577,7 +577,7 @@ internal int requirements_missing(ee_player *pl) {
     ee_tech_tree *tt = FIELD(pl, PL_TECHTREE, ee_tech_tree *);
     if (!tt) return 0;
     int next = FIELD(tt, TT_EPOCH, int) + 1;
-    if (next > 13 || next > *(int *)GA(G_END_EPOCH)) return 0;
+    if (next > 13 || next > end_epoch()) return 0;
     uint8_t *rec = FIELD_AT(tt, 8 + next * 0x54);
     return FIELD(rec, OF(TTREC, 0x40), int) - FIELD(rec, OF(TTREC, 0x48), int);
 }
@@ -1423,7 +1423,7 @@ internal void budget_reserve(ee_player *pl, int reserve[7]) {
     uint8_t *cm = FIELD(pl, OF(PL, 0xB90), uint8_t *);
     if (!tt || !cm) return;
     int next = FIELD(tt, TT_EPOCH, int) + 1;
-    if (next > 13 || next > *(int *)GA(G_END_EPOCH)) return;   // end epoch of this game
+    if (next > 13 || next > end_epoch()) return;   // end epoch of this game
     uint8_t *data = FIELD(FIELD_AT(tt, 8 + next * 0x54), OF(TTREC, 0x8), uint8_t *);
     if (!data) return;
     if (copper_mode(pl) && next <= FARM_EPOCH) {   // copper_plan=2: only the next epoch's
@@ -1457,7 +1457,7 @@ internal void spend_reserve(ee_player *pl, unsigned idx, int reserve[7], float *
     uint8_t *cm = FIELD(pl, OF(PL, 0xB90), uint8_t *);
     if (!tt || !cm) return;
     int ep = FIELD(tt, TT_EPOCH, int), next = ep + 1;
-    if (next > 13 || next > *(int *)GA(G_END_EPOCH) || !epoch_tech(pl, next)) return;
+    if (next > 13 || next > end_epoch() || !epoch_tech(pl, next)) return;
     if (copper_mode(pl) && next <= FARM_EPOCH) { budget_reserve(pl, reserve); return; }
     int remaining = (int)(FIELD(cm, OF(CM, 0x58), uint32_t) - game_time());
     if (remaining > 10 * 60000) return;
@@ -1837,8 +1837,8 @@ __attribute__((noinline)) internal uintptr_t __fastcall hook_train_units(ee_unit
     ee_player *pl = um_owner(um);
     if (g_vanilla_mask) {   // a vanilla player's unit manager (before its first update too: the game's player array)
         void *own = pl;
-        for (unsigned i = 1, n = *(unsigned *)GA(G_PLAYERS_N); !own && i < n && i < 16; i++) {
-            void *p = is_vanilla_idx((int)i) ? ((void **)GA(G_PLAYERS))[i] : NULL, *cm = p ? FIELD(p, OF(PL, 0xB90), void *) : NULL;
+        for (unsigned i = 1, n = game_player_count(); !own && i < n && i < 16; i++) {
+            void *p = is_vanilla_idx((int)i) ? game_players()[i] : NULL, *cm = p ? FIELD(p, OF(PL, 0xB90), void *) : NULL;
             if (cm && FIELD(cm, OF(CM, 0x44), void *) == um) own = p;
         }
         if (is_vanilla(own)) {

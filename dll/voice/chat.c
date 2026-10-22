@@ -31,7 +31,7 @@ internal const char *epoch_name(int e) { return e >= 0 && e < 15 ? k_epoch_names
 
 // one chat line from player pl (name and colour from the player), shown for ms milliseconds
 internal void chat_line(ee_player *pl, const char *text, int ms) {
-    void *ui = *(void **)GA(G_WORLD);
+    void *ui = game_world();
     if (!pl || !ui || !*text) return;
     __attribute__((aligned(8))) uint8_t s[32];
     wstring_init(s);
@@ -47,7 +47,7 @@ internal void chat_line(ee_player *pl, const char *text, int ms) {
 // a line from nobody in particular, as the game shows "<name> wurde besiegt" (0x55BCEA): white, and as the
 // sender string 0x7C45 of the language file
 internal void system_line(const char *text, int ms) {
-    void *res = *(void **)GA(G_RESOURCES), *ui = *(void **)GA(G_WORLD);
+    void *res = string_resources(), *ui = game_world();
     if (!res || !ui || !*text) return;
     float white[3] = { 1.0f, 1.0f, 1.0f };
     __attribute__((aligned(8))) uint8_t name[32], line[32];
@@ -61,8 +61,8 @@ internal void system_line(const char *text, int ms) {
 }
 
 internal void chat_stance_line(ee_player *pl, int stance) {
-    void *res = *(void **)GA(G_RESOURCES), *ui = *(void **)GA(G_WORLD);
-    uint8_t *opt = *(uint8_t **)GA(G_GAME_DATA);
+    void *res = string_resources(), *ui = game_world();
+    uint8_t *opt = game_data();
     if (!pl || !res || !ui || !opt) return;
     __attribute__((aligned(8))) uint8_t verb[32], word[32], line[32];
     wstring_init(verb);
@@ -155,14 +155,14 @@ internal void cmd_say(char *out, const char *args) {
 // cheat message (new 0x18, 0x5C29FB(code, arg)); then the chat line (new 0x24, 0x5C2A2F(UWideString *)); both through
 // [0x91984C] vtable +0x18 (message, 0xFF = all) - scenario triggers on chat messages and cheat codes see it as typed
 internal void cmd_chatme(char *out, const char *args) {
-    void **net = *(void ***)GA(G_SERVER);
+    void **net = game_server();
     while (*args == ' ') args++;
     if (!net || !*args) { REPLY("error: chatme text (in a game)\n"); return; }
     __attribute__((aligned(8))) uint8_t s[32];
     wstring_init_text(s, args);
-    int code = 0, arg = 0, cheats = *(char *)GA(G_CHEATS_ON) != 0;
-    if (cheats && *(void **)GA(G_CHEAT_PARSER)) {
-        cheat_parse(*(void **)GA(G_CHEAT_PARSER), s, &code, &arg);
+    int code = 0, arg = 0, cheats = cheats_on() != 0;
+    if (cheats && cheat_parser()) {
+        cheat_parse(cheat_parser(), s, &code, &arg);
         if (code) {
             void *m = msg_cheat_alloc();
             if (m) server_send_all(net, msg_cheat_init(m, code, arg));

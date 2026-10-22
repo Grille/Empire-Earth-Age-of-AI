@@ -193,8 +193,8 @@ internal int __fastcall hook_copy_to(void *s, void *edx, void *dst, void *r1, vo
     // (garbage/scanlines in the editor where the mouse moved) and the back buffer is never flipped, so it still
     // holds the last frame: copies from or to the front are skipped.
     if (!g_fullscreen) {
-        uint8_t *ras = *(uint8_t **)GA(G_RASTERIZER);
-        uint8_t *st = ras ? FIELD(ras, OF(E_RAS, 0x20), uint8_t **)[*(int *)GA(G_SCREEN)] : NULL;
+        uint8_t *ras = rasterizer();
+        uint8_t *st = ras ? FIELD(ras, OF(E_RAS, 0x20), uint8_t **)[screen_index()] : NULL;
         uint8_t *front = st ? FIELD(st, OF(E_SCRSTATE, 0x2AC), uint8_t *) : NULL;
         if (front && (s == front || dst == front)) { InterlockedIncrement(&g_front_copies_skipped); return 0; }
     }

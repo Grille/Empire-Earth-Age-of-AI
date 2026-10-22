@@ -68,8 +68,8 @@
 // thiscall(player, 2) - lost, "<name> wurde besiegt" for the others. Removing units inside the AI's own update
 // would pull them from under its caller, so the resign waits for the next safe point between simulation steps
 // (control.c hook_sim_receive).
-#define GAME_STATE    ((void *)GA(G_GAME_STATE))
-#define TEAMS_LOCKED  (*(uint8_t *)GA(G_TEAMS_LOCKED))
+#define GAME_STATE    (game_state())
+#define TEAMS_LOCKED  (*teams_locked_var())
 internal int g_answer_war = 1, g_ai_diplomacy = 1;
 internal int g_offer_min = 2;   // [all] offer_minutes: how long an offer stands (alliance, peace, capitulation, block peace)
 internal int g_diplo_seen[16];
@@ -610,7 +610,7 @@ internal uint32_t g_block_last;
 internal int block_member(int i) {
     void *p = player_at(i);
     if (!p || is_out(p)) return 0;
-    return !(g_rm.map[0] && !g_block_observer && i == *(int *)GA(G_LOCAL_PLAYER));
+    return !(g_rm.map[0] && !g_block_observer && i == (int)local_player_index());
 }
 internal int allied_with(int a, int b) {   // allied both ways (stance 0 each way)
     void *pa = player_at(a), *pb = player_at(b);
@@ -633,8 +633,8 @@ internal void blocks_compute(int *blk) {
 }
 internal int blocks_on(void) { return g_blocks && g_ai_diplomacy && !TEAMS_LOCKED && !scenario_game(); }
 internal void block_line(int to, const char *text) {   // a system line, only on that player's PC
-    if (to != (int)*(unsigned *)GA(G_LOCAL_PLAYER)) return;
-    uint8_t *opt = *(uint8_t **)GA(G_GAME_DATA);
+    if (to != (int)local_player_index()) return;
+    uint8_t *opt = game_data();
     system_line(text, opt ? FIELD(opt, OF(GAMEDATA, 0x2CC), int) * 2 : 20000);
     if (g_log) fprintf(g_log, "# system line: %s\n", text);
 }
@@ -1382,10 +1382,10 @@ internal void diplo_tick(ee_player *pl, unsigned ai, uint32_t now) {
             }
             if (g_log) fprintf(g_log, "# diplomacy: P%u at %.1f min: P%d declared war on it%s\n", ai, now / 60000.0, j,
                                betrayal ? " (betrayal)" : "");
-            if (j == (int)*(unsigned *)GA(G_LOCAL_PLAYER)) { char e[300]; tsub(e, sizeof e, "ev_war_on_you", player_at((int)ai), pj, NULL); llm_happened((int)ai, "%s", e); }
+            if (j == (int)local_player_index()) { char e[300]; tsub(e, sizeof e, "ev_war_on_you", player_at((int)ai), pj, NULL); llm_happened((int)ai, "%s", e); }
         }
         if (g_diplo_seen[ai] && !s && g_diplo_prev[ai][j] && mine) {   // j offers peace
-            if (j == (int)*(unsigned *)GA(G_LOCAL_PLAYER))
+            if (j == (int)local_player_index())
                 { char e[300]; tsub(e, sizeof e, g_offer_t[ai][j] ? "ev_accepted_offer" : "ev_offers_peace", player_at((int)ai), pj, NULL); llm_happened((int)ai, "%s", e); }
             g_peace_due[ai][j] = now + 4000 + (uint32_t)((ai * 5 + (unsigned)j) % 5) * 1000;
             g_peace_refused[ai][j] = 0;
@@ -1551,7 +1551,7 @@ internal void diplo_tribute(void *to, void *from, const int *amount) {
     float gain = (float)total / tribute_worth(to);
     opinion_add(ai, j, gain);
     if (g_log) fprintf(g_log, "# diplomacy: P%d receives %d tribute from P%d: opinion +%.0f -> %.0f\n", ai, total, j, gain, g_opinion[ai][j]);
-    if (j == (int)*(unsigned *)GA(G_LOCAL_PLAYER)) { char n[16], e[300]; tsub(e, sizeof e, "ev_tribute_in", to, from, "total", tnum(n, total), NULL); llm_happened(ai, "%s", e); }
+    if (j == (int)local_player_index()) { char n[16], e[300]; tsub(e, sizeof e, "ev_tribute_in", to, from, "total", tnum(n, total), NULL); llm_happened(ai, "%s", e); }
     tell_event(HE_TRIBUTE, j, ai, game_time() ? game_time() : 1);   // this tribute not in its line (counted before or after)
     int keep[7];   // {tribute}: this one (a capitulation's terms may be in g_say_tribute)
     memcpy(keep, g_say_tribute, sizeof keep);
@@ -1613,11 +1613,11 @@ internal int vassals_of(int me) {   // how many vassals, if every other player s
     return n;
 }
 internal void victory_hint(ee_player *pl, int ai) {   // every 10 s per AI, after the scan
-    int me = (int)*(unsigned *)GA(G_LOCAL_PLAYER);
+    int me = (int)local_player_index();
     if (g_victory_told || g_lord[ai] != me || !vassals_of(me)) return;
     g_victory_told = 1;
     persona_say(pl, L_ALL_SUBMITTED, player_at(me), NULL);   // in character; the how in a system line after it
-    uint8_t *opt = *(uint8_t **)GA(G_GAME_DATA);
+    uint8_t *opt = game_data();
     system_line(sysf("victory_vassals", NULL, NULL, NULL, NULL), opt ? FIELD(opt, OF(GAMEDATA, 0x2CC), int) * 3 : 30000);
     if (g_log) fprintf(g_log, "# victory: P%d at %.1f min: every other player is a vassal of P%d - \"sieg\" ends the game\n",
                        ai, game_time() / 60000.0, me);
@@ -1651,7 +1651,7 @@ internal int claim_victory(int me, const char *how) {
     return ok;
 }
 internal void victory_off_pass(void) {   // auto_victory=0, every pass between simulation steps
-    if (g_auto_victory || g_victory_claimed || !*(void **)GA(G_WORLD_CLOCK)) return;
+    if (g_auto_victory || g_victory_claimed || !game_physics()) return;
     if (*STATE_STD_VICTORY) {
         *STATE_STD_VICTORY = 0;
         if (!g_victory_off && g_log) fprintf(g_log, "# victory: automatic end off - the game goes on until the player ends it\n");
@@ -1665,12 +1665,12 @@ internal void victory_off_pass(void) {   // auto_victory=0, every pass between s
             InterlockedOr(&g_resign_queue, 1 << i);
         }
     }
-    int me = (int)*(unsigned *)GA(G_LOCAL_PLAYER);
+    int me = (int)local_player_index();
     if (g_victory_told || !can_claim(me)) return;
     g_victory_told = 1;
     for (int j = 1; j < nplayers(); j++)   // a vassal says it in character, if there is one
         if (g_players[j] && g_lord[j] == me && !is_out(player_at(j))) { persona_say(player_at(j), L_ALL_SUBMITTED, player_at(me), NULL); break; }
-    uint8_t *opt = *(uint8_t **)GA(G_GAME_DATA);
+    uint8_t *opt = game_data();
     system_line(sysf("victory_none", NULL, NULL, NULL, NULL), opt ? FIELD(opt, OF(GAMEDATA, 0x2CC), int) * 3 : 30000);
     if (g_log) fprintf(g_log, "# victory: P%d at %.1f min: no opponent left - \"sieg\" ends the game\n", me, game_time() / 60000.0);
 }
@@ -1692,7 +1692,7 @@ internal void __fastcall hook_resign(void *msg, void *edx) {
     msg_resign(msg);
 }
 internal void __cdecl hook_exit_confirm(void) {
-    int me = (int)*(unsigned *)GA(G_LOCAL_PLAYER);
+    int me = (int)local_player_index();
     void *pm = player_at(me);
     if (pm && !is_out(pm) && (g_victory_off ? can_claim(me) : vassals_of(me))) {
         if (g_log) { fprintf(g_log, "# victory: P%d leaves a won game - resigns instead (victory)\n", me); fflush(g_log); }
@@ -1706,7 +1706,7 @@ internal void __fastcall hook_ingame_chat(void *msg, void *edx) {
     (void)edx;
     // chat runs on every PC: the claim goes by the sender (+0xA, as hook_resign), so every PC ends the game alike
     // (only the local player's own word claimed before - a multiplayer desync); the refusal line is the sender's only
-    int me = (int)*(unsigned *)GA(G_LOCAL_PLAYER), from = 0;
+    int me = (int)local_player_index(), from = 0;
     void *pm = player_at(me);
     const char *text = FIELD(msg + OF(MSG_CHAT, 0x10), 4, const char *);
     int refused = 0, local = pm && FIELD(pm, OF(PL, 0x464), int8_t) == (int8_t)FIELD(msg, OF(MSG_CHAT, 0xA), uint8_t);
@@ -1730,12 +1730,12 @@ internal void __fastcall hook_ingame_chat(void *msg, void *edx) {
     }
     lstrcpynA(line, sysf("victory_not_yet", NULL, NULL, NULL, "names", names, NULL), sizeof line);
 
-    uint8_t *opt = *(uint8_t **)GA(G_GAME_DATA);
+    uint8_t *opt = game_data();
     system_line(line, opt ? FIELD(opt, OF(GAMEDATA, 0x2CC), int) * 2 : 20000);
     if (g_log) fprintf(g_log, "# victory: refusal shown: %s\n", line);
 }
 internal void chat_send(const char *text) {   // a chat line from the local player, as the chat box sends it (tests)
-    void *net = *(void **)GA(G_SERVER);
+    void *net = game_server();
     if (!net) return;
     __attribute__((aligned(8))) uint8_t u[32];
     wstring_init(u);
@@ -1792,7 +1792,7 @@ internal void cmd_diplo(char *out, const char *args) {
         int kind = 0;
         while (kind < P_N && strcmp(mv, k[kind])) kind++;
         if (kind == P_N || !g_players[a & 15]) { REPLY("error: diplo propose A alliance|betray|capitulate|rebel [C]\n"); return; }
-        int h = (int)*(unsigned *)GA(G_LOCAL_PLAYER);
+        int h = (int)local_player_index();
         REPLY("P%d: %s to P%d %s\n", a, k[kind], h, llm_propose(a, h, kind, b > 0 ? b : 0, game_time()) ? "put to the model" :
               "not asked (no decide mode, or a job is open)");
         return;

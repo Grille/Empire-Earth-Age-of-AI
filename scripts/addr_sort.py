@@ -1,8 +1,8 @@
 """The address rows into the file their use calls for: what game/api/functions.h calls into functions_addr.h, what
-game/api/hooks.h patches into hooks_addr.h, the rest (data, imports, the code not moved over to those two yet) in
-addr.h. A function both called and hooked is a function; data (G_) stays in addr.h. Within a file the rows stay in the
-order of their address (the numbers and lists in their order). One table either way - addr.h composes the three -
-so a row's move changes no code (scripts/code_same.py compares the table by name).
+game/api/hooks.h patches into hooks_addr.h, the game's data (G_, read by functions.h's accessors) into data_addr.h.
+A function both called and hooked is a function; a row neither uses is reported (unused: take it out). Within a file
+the rows stay in the order of their address (the numbers and lists in their order). One table either way - addr.h
+composes the three - so a row's move changes no code (scripts/code_same.py compares the table by name).
 
 usage: python scripts/addr_sort.py           move the rows where they belong, print the moves
        python scripts/addr_sort.py --check   only print them (exit 1 when a row is in the wrong file)"""
@@ -10,7 +10,7 @@ import os, re, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 API = os.path.join(ROOT, 'dll', 'game', 'api')
-FILES = {'FUNCTIONS': 'functions_addr.h', 'HOOKS': 'hooks_addr.h', 'OTHER': 'addr.h'}
+FILES = {'FUNCTIONS': 'functions_addr.h', 'HOOKS': 'hooks_addr.h', 'DATA': 'data_addr.h'}
 BLOCKS = ('ADDRS', 'ADDR_NUMBERS', 'ADDR_LISTS')
 
 
@@ -63,11 +63,11 @@ def main():
     hk = strip_comments(open(os.path.join(API, 'hooks.h'), encoding='latin-1').read())
     def used(t, n): return re.search(r'\b' + n + r'\b', t) is not None
     def where(n):
-        if n.startswith('G_'): return 'OTHER'
+        if n.startswith('G_'): return 'DATA'
         a, h = used(fun, n), used(hk, n)
         if a and (not h or n.startswith(('FN_', 'SIZE_'))): return 'FUNCTIONS'
-        return 'HOOKS' if h else 'OTHER'
-    moves, new_rows = [], {}
+        return 'HOOKS' if h else None   # unused
+    moves, unused, new_rows = [], [], {}
     for blk in BLOCKS:
         allr = []
         for k in FILES:
@@ -75,15 +75,18 @@ def main():
             for n, ls in rows(sp[3]) if sp else []:
                 allr.append((n, ls, k))
         for n, ls, k in allr:
-            if where(n) != k: moves.append('%s: %s -> %s' % (n, FILES[k], FILES[where(n)]))
+            if where(n) is None: unused.append('%s (%s): used by neither functions.h nor hooks.h' % (n, FILES[k]))
+            elif where(n) != k: moves.append('%s: %s -> %s' % (n, FILES[k], FILES[where(n)]))
+            if where(n) not in (None, k) and not block_span(texts[where(n)][0], '%s_%s' % (blk, where(n))):
+                sys.exit('addr_sort: %s belongs into %s, which has no %s_%s' % (n, FILES[where(n)], blk, where(n)))
         for k in FILES:
-            mine = [(n, ls) for n, ls, _ in allr if where(n) == k]
+            mine = [(n, ls) for n, ls, c in allr if (where(n) or c) == k]
             if blk == 'ADDRS': mine.sort(key=first_value)
             new_rows[blk, k] = mine
-    for m in moves: print(('addr_sort: ' if check else '') + m)
+    for m in moves + unused: print(('addr_sort: ' if check else '') + m)
     if check:
-        if moves: print('addr_sort: the rows above are in the wrong file - python scripts/addr_sort.py moves them')
-        sys.exit(1 if moves else 0)
+        if moves: print('addr_sort: rows in the wrong file - python scripts/addr_sort.py moves them')
+        sys.exit(1 if moves or unused else 0)
     if not moves: return
     for k, f in FILES.items():
         s, crlf = texts[k]

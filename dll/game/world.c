@@ -2,10 +2,10 @@
 // used, the slots after them are empty), past the table other data. Every read goes through here: NULL outside
 // the table and for an empty slot.
 #define G_TYPES_N 0x300
-internal inline uint8_t *type_data(int t) { return t >= 0 && t < G_TYPES_N ? ((uint8_t **)GA(G_TYPES))[t] : NULL; }
+internal inline uint8_t *type_data(int t) { return t >= 0 && t < G_TYPES_N ? type_table()[t] : NULL; }
 
 internal uint32_t game_time(void) {
-    uint8_t *clock = *(uint8_t **)GA(G_WORLD_CLOCK);
+    uint8_t *clock = game_physics();
     return clock ? FIELD(clock, OF(PHYS, 0xD0), uint32_t) : 0;
 }
 

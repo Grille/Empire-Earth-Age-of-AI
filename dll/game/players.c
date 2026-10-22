@@ -19,10 +19,10 @@ internal int is_vanilla_idx(int idx) { return (g_vanilla_mask >> (idx & 15)) & 1
 internal int is_vanilla(const ee_player *pl) { return pl && g_vanilla_mask && is_vanilla_idx(FIELD(pl, PL_INDEX, int)); }
 
 internal ee_player *player_at(int i) {
-    unsigned n = *(unsigned *)GA(G_PLAYERS_N);
-    return i > 0 && (unsigned)i < n && i < 16 ? ((ee_player **)GA(G_PLAYERS))[i] : NULL;
+    unsigned n = game_player_count();
+    return i > 0 && (unsigned)i < n && i < 16 ? game_players()[i] : NULL;
 }
-internal int nplayers(void) { unsigned n = *(unsigned *)GA(G_PLAYERS_N); return n > 16 ? 16 : (int)n; }
+internal int nplayers(void) { unsigned n = game_player_count(); return n > 16 ? 16 : (int)n; }
 // the players the game counts as human (SLOT_PLAYER_HUMAN), as FN_HUMAN_EPOCH walks them: from index 1
 internal int human_count(void) {
     int n = 0;

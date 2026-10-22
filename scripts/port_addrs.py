@@ -327,9 +327,9 @@ def port(x):
 
 
 def addr_source():
-    """the address tables' text: dll/game/api/addr.h and its two row files (the functions called, the hooks)"""
+    """the address tables' text: dll/game/api/'s row files (the functions called, the hooks, the data)"""
     return ''.join(open(os.path.join(ROOT, 'dll', 'game', 'api', f), encoding='latin-1').read()
-                   for f in ('functions_addr.h', 'hooks_addr.h', 'addr.h'))
+                   for f in ('functions_addr.h', 'hooks_addr.h', 'data_addr.h'))
 
 
 if __name__ == '__main__':   # (imported: load() pairs - port_fields.py, port_dll.py)

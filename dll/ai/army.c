@@ -311,11 +311,11 @@ internal int ap_upg_line(ee_player *pl, unsigned idx, uint8_t *d, int *used) {
     int ei = FIELD(d, OF(TECHDATA, 0x50), int), n = 0;
     *used = 0;
     if (ei < 0 || ei > 0x5DC) return 0;
-    uint8_t *list = (uint8_t *)GA(G_EPOCH_TECHS) + ei * 0x10;
+    uint8_t *list = epoch_tech_list(ei);
     unsigned cnt = FIELD(list, OF(EPOCHTECHS, 0x8), unsigned), *ids = FIELD(list, OF(EPOCHTECHS, 0x4), unsigned *);
     for (unsigned k = 0; ids && k < cnt && k < 64; k++) {
         if (ids[k] >= 2000) continue;
-        uint8_t *ef = (uint8_t *)GA(G_EFFECTS) + ids[k] * 0x44;
+        uint8_t *ef = tech_effect(ids[k]);
         if (FIELD(ef, OF(EFFECT, 0x20), int) != 0x13) continue;
         if (!n++) ap_owned(pl, idx);
         int a = FIELD(ef, OF(EFFECT, 0x14), int), b = FIELD(ef, OF(EFFECT, 0x18), int);
@@ -382,11 +382,11 @@ internal void am_pool_log(ee_player *pl, unsigned idx) {
         fprintf(g_log, " %d(%d%d c%d $%d", *q, FIELD(t, OF(TECH, 0x4), uint8_t), FIELD(t, OF(TECH, 0x6), uint8_t), FIELD(d, OF(TECHDATA, 0x48), int), c);
         int ei = FIELD(d, OF(TECHDATA, 0x50), int);
         if (ei >= 0 && ei <= 0x5DC) {
-            uint8_t *list = (uint8_t *)GA(G_EPOCH_TECHS) + ei * 0x10;
+            uint8_t *list = epoch_tech_list(ei);
             unsigned n = FIELD(list, OF(EPOCHTECHS, 0x8), unsigned), *ids = FIELD(list, OF(EPOCHTECHS, 0x4), unsigned *);
             for (unsigned k = 0; ids && k < n && k < 3; k++) {
                 if (ids[k] >= 2000) continue;
-                uint8_t *ef = (uint8_t *)GA(G_EFFECTS) + ids[k] * 0x44;
+                uint8_t *ef = tech_effect(ids[k]);
                 fprintf(g_log, " %d/%d/%d", FIELD(ef, OF(EFFECT, 0x20), int), FIELD(ef, OF(EFFECT, 0x14), int), FIELD(ef, OF(EFFECT, 0x2C), int));
             }
         }

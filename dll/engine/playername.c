@@ -13,11 +13,11 @@ internal void keep_player_name(uint8_t *screen) {
     void *edit = ctl ? ctl[8] : NULL;
     if (!edit) return;
     const char *t = edit_text(edit);   // UIEditBox::GetText
-    const char *cur = *(const char **)(GA(G_PLAYER_NAME) + 4);
+    const char *cur = *(const char **)((uint8_t *)player_name_wstring() + 4);
     if (!t || !*t || (cur && !strcmp(cur, t))) return;
     char name[64];
     lstrcpynA(name, t, sizeof name);
-    wstring_set((void *)GA(G_PLAYER_NAME), name);   // UWideString =
+    wstring_set(player_name_wstring(), name);   // UWideString =
     settings_save();
     if (g_log) log_locked("# player name: \"%s\" kept (settings saved)\n", name);
 }

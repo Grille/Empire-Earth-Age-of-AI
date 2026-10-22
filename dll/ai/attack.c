@@ -137,7 +137,7 @@ internal int g_weak_radius = 60;        // tiles around the original goal search
 // Only goals at an enemy building are retargeted: the subgroup also marches to other goals (enemy armies,
 // own territory to defend), which must not be diverted.
 internal int building_at(ee_player *pl, const int *dest, int r) {
-    uint8_t *map = *(uint8_t **)GA(G_MAP);
+    uint8_t *map = game_map();
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     if (!grid) return 0;
     for (struct grid_it it = grid_it_box(dest[0], dest[1], r, 1); grid_it_next(&it); ) {
@@ -152,7 +152,7 @@ internal int building_at(ee_player *pl, const int *dest, int r) {
 }
 
 internal ee_unit *find_weak_spot(ee_player *pl, unsigned pi, const int *start, const int *dest) {
-    uint8_t *map = *(uint8_t **)GA(G_MAP);
+    uint8_t *map = game_map();
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     if (!grid) return NULL;
     short home = (short)map_area((int *)start, 2);
@@ -217,7 +217,7 @@ internal int breach_of(void *sg, int *x, int *y) {
 }
 
 internal ee_unit *wall_at(ee_player *pl, int x, int y) {
-    uint8_t *map = *(uint8_t **)GA(G_MAP);
+    uint8_t *map = game_map();
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     if (!grid) return NULL;
     int cs = FIELD(grid, OF(GRID, 0x8), int), nx = FIELD(grid, OF(GRID, 0x10), int), ny = FIELD(grid, OF(GRID, 0x14), int);
@@ -424,7 +424,7 @@ internal int g_ignore_air = 1;          // aimod.ini [all] attack_ignore_air
 
 // Enemy soldiers (no citizens, no siege) of player pl's enemies within r tiles of (x, y)?
 internal int guarded(ee_player *pl, int x, int y, int r) {
-    uint8_t *map = *(uint8_t **)GA(G_MAP);
+    uint8_t *map = game_map();
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     if (!pl || !grid) return 0;
     for (struct grid_it it = grid_it_box(x, y, r, 1); grid_it_next(&it); ) {
@@ -532,7 +532,7 @@ internal void __fastcall hook_asg_route_done(void *self, void *edx) {
 
 // Soldiers (not buildings, walls, citizens) of a player, from the unit grid.
 internal int army_size(ee_player *pl) {
-    uint8_t *map = *(uint8_t **)GA(G_MAP);
+    uint8_t *map = game_map();
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     if (!grid) return -1;
     int n = 0;
@@ -670,7 +670,7 @@ internal int g_cit_threats = 1;   // [all] citizen_threats (below, DAMAGE MEMORY
 internal int raiders_near(ee_player *pl, int x, int y, int r0) {
     int rmax = g_cit_threats ? RAID_FAR : RAID_MAX;
     int r = r0 > rmax ? r0 : rmax;   // the search box; each unit then by its own reach
-    uint8_t *map = *(uint8_t **)GA(G_MAP);
+    uint8_t *map = game_map();
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     if (!grid || !pl) return 0;
     for (struct grid_it it = grid_it_box(x, y, r, 1); grid_it_next(&it); ) {
@@ -702,7 +702,7 @@ internal int path_raided(ee_player *pl, int x0, int y0, int x1, int y1) {
 internal void flee_point(ee_player *pl, int x, int y, float rx, float ry, float *fx, float *fy) {
     *fx = rx; *fy = ry;
     if (!path_raided(pl, x, y, (int)rx, (int)ry)) return;
-    float msz = (float)*(uint32_t *)(*(uint8_t **)GA(G_MAP) + OF(MAP, 0x1816FC)), best = 1e9f;
+    float msz = (float)*(uint32_t *)(game_map() + OF(MAP, 0x1816FC)), best = 1e9f;
     static const float dir[8][2] = { { 1, 0 }, { .7071f, .7071f }, { 0, 1 }, { -.7071f, .7071f }, { -1, 0 },
                                      { -.7071f, -.7071f }, { 0, -1 }, { .7071f, -.7071f } };
     for (int k = 0; k < 8; k++) {
@@ -910,7 +910,7 @@ internal void citizens_safety(ee_resource_mgr *rm) {   // before the citizen ass
             fprintf(g_log, "# popcheck: P%u at %.1f min: cap %d, population %d (with production %d, list +0x18 %d), +0xB10 %d, +0xB1C %d +0xB20 %d, limit %d, AI's in production %d; ordered with no room by call site 46cce6/490cac/490e12/490f1f/490fa9/mod: %u/%u/%u/%u/%u/%u\n",
                     idx, now / 60000.0, unit_limit(pl),
                     population(pl, 0, 0), population(pl, 1, 0),
-                    v0 && v1 ? (int)((v1 - v0) / 4) : -1, FIELD(pl, OF(PL, 0xB10), int), FIELD(pl, OF(PL, 0xB1C), int), FIELD(pl, OF(PL, 0xB20), int), *(int *)GA(G_POP_LIMIT),
+                    v0 && v1 ? (int)((v1 - v0) / 4) : -1, FIELD(pl, OF(PL, 0xB10), int), FIELD(pl, OF(PL, 0xB1C), int), FIELD(pl, OF(PL, 0xB20), int), pop_limit_setting(),
                     ump ? FIELD(ump, OF(UM, 0x13C), int) : -1, g_noroom[idx][0], g_noroom[idx][1], g_noroom[idx][2], g_noroom[idx][3], g_noroom[idx][4], g_noroom[idx][5]);
         }
         fprintf(g_log, "# doing: P%u at %.1f min (list: gather/build/walk/nothing):%s; all citizens: gather %d build %d walk %d attack %d other %d (%s) none %d\n",
@@ -1051,7 +1051,7 @@ internal void siege_tick(ee_player *pl, uint32_t now) {
     unsigned pi = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
     if (!g_siege || (now >= g_siege_st[pi].last && now - g_siege_st[pi].last < 2000)) return;
     g_siege_st[pi].last = now;
-    uint8_t *map = *(uint8_t **)GA(G_MAP);
+    uint8_t *map = game_map();
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     if (!grid) return;
     // own siege weapons

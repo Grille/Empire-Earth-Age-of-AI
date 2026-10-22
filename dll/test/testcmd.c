@@ -36,11 +36,11 @@ internal void cmd_tech(char *out, const char *args) {
         int ei = d ? FIELD(d, OF(TECHDATA, 0x50), int) : -1;
         REPLY(" | effects %d:", ei);
         if (ei >= 0 && ei <= 0x5DC) {   // effect list 0x93B1B8 + ei*0x10 (+4 ids, +8 count), effect 0x919E70 + id*0x44
-            uint8_t *list = (uint8_t *)GA(G_EPOCH_TECHS) + ei * 0x10;
+            uint8_t *list = epoch_tech_list(ei);
             unsigned count = FIELD(list, OF(EPOCHTECHS, 0x8), unsigned), *ids = FIELD(list, OF(EPOCHTECHS, 0x4), unsigned *);
             for (unsigned k = 0; ids && k < count && k < 16; k++) {
                 if (ids[k] >= 2000) { REPLY(" %u?", ids[k]); continue; }
-                uint8_t *ef = (uint8_t *)GA(G_EFFECTS) + ids[k] * 0x44;
+                uint8_t *ef = tech_effect(ids[k]);
                 REPLY(" %u(%x/%x/%x)", ids[k], FIELD(ef, OF(EFFECT, 0x14), int), FIELD(ef, OF(EFFECT, 0x20), int), FIELD(ef, OF(EFFECT, 0x2C), int));
             }
         }
@@ -189,7 +189,7 @@ internal void cmd_targets(char *out, const char *args) {
     ee_player *pl = (p >= 0 && p < 16) ? g_players[p] : NULL;
     if (!pl) { REPLY("error: no AI player %d\n", p); return; }
     threat_refresh(pl, 0);
-    uint8_t *map = *(uint8_t **)GA(G_MAP);
+    uint8_t *map = game_map();
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     if (!grid) { REPLY("error: no map\n"); return; }
     unsigned n = 0;
@@ -245,10 +245,10 @@ internal void cmd_spawn(char *out, const char *args) {
         REPLY("error: usage: spawn <player> <type> <x> <y> [count]\n");
         return;
     }
-    void *srv = *(void **)GA(G_SERVER);
+    void *srv = game_server();
     if (!type_data(type) || !srv) { REPLY("error: no type %d or no game\n", type); return; }
     {   // off the map the game crashes (150,140 on a 128-tile map)
-        uint8_t *map = *(uint8_t **)GA(G_MAP), *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
+        uint8_t *map = game_map(), *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
         int w = grid ? FIELD(grid, OF(GRID, 0x8), int) * FIELD(grid, OF(GRID, 0x10), int) : 0, h = grid ? FIELD(grid, OF(GRID, 0x8), int) * FIELD(grid, OF(GRID, 0x14), int) : 0;
         if (x < 1 || y < 1 || x >= w - 2 || y >= h - 2) { REPLY("error: %d,%d is off the map (%d x %d)\n", x, y, w, h); return; }
     }
@@ -273,7 +273,7 @@ internal void cmd_spawnline(char *out, const char *args) {
         REPLY("error: usage: spawnline <player> <type> <x0> <y0> <x1> <y1> [step]\n");
         return;
     }
-    void *srv = *(void **)GA(G_SERVER);
+    void *srv = game_server();
     if (!type_data(type) || !srv) { REPLY("error: no type %d or no game\n", type); return; }
     int dx = x1 - x0, dy = y1 - y0, len = abs(dx) > abs(dy) ? abs(dx) : abs(dy), n = 0;
     for (int i = 0; i <= len; i += step) {
@@ -324,7 +324,7 @@ internal void cmd_count(char *out, const char *args) {
     int p = atoi(args);
     static int n[0x300];
     memset(n, 0, sizeof n);
-    uint8_t *map = *(uint8_t **)GA(G_MAP);
+    uint8_t *map = game_map();
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     if (!grid) { REPLY("error: no map\n"); return; }
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
@@ -347,7 +347,7 @@ internal void cmd_gridcheck(char *out, const char *args) {
     enum { HN = 16384 };
     static struct { ee_unit *u; int cells, own, fam; } h[HN];
     memset(h, 0, sizeof h);
-    if (!*(uint8_t **)GA(G_MAP)) { REPLY("error: no map\n"); return; }
+    if (!game_map()) { REPLY("error: no map\n"); return; }
     int full = 0;
     for (struct grid_it it = grid_it_all(0); grid_it_next(&it); ) {
         unsigned k = ((uintptr_t)it.u >> 4) % HN, n = 0;
@@ -376,7 +376,7 @@ internal void cmd_gridcheck(char *out, const char *args) {
 internal void cmd_objs(char *out, const char *args) {
     int p = 0, t = -1;
     sscanf(args, "%d %d", &p, &t);
-    uint8_t *map = *(uint8_t **)GA(G_MAP);
+    uint8_t *map = game_map();
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     if (!grid) { REPLY("error: no map\n"); return; }
     REPLY("P%d type %d:", p, t);
@@ -409,7 +409,7 @@ internal void cmd_build(char *out, const char *args) {
     int p, bx, by, x, y, r, n = 0;
     if (sscanf(args, "%d %d %d %d %d %d", &p, &bx, &by, &x, &y, &r) < 6) { REPLY("error: usage: build P bx by x y r\n"); return; }
     ee_player *pl = player_at(p);
-    uint8_t *map = *(uint8_t **)GA(G_MAP);
+    uint8_t *map = game_map();
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     if (!pl || !grid) { REPLY("error: no player %d or map\n", p); return; }
     ee_unit *bld = NULL;
@@ -443,7 +443,7 @@ internal void cmd_watchtype(char *out, const char *args) {
     int p = 0, t = 0;
     unsigned off = 0x2C;
     sscanf(args, "%d %d %x", &p, &t, &off);
-    uint8_t *map = *(uint8_t **)GA(G_MAP);
+    uint8_t *map = game_map();
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     if (!grid) { REPLY("error: no map\n"); return; }
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
@@ -464,7 +464,7 @@ internal void cmd_watchtype(char *out, const char *args) {
 internal void cmd_hurt(char *out, const char *args) {
     int p, t, x, y, r, dmg, n = 0;
     if (sscanf(args, "%d %d %d %d %d %d", &p, &t, &x, &y, &r, &dmg) < 6) { REPLY("error: usage: hurt P T x y r dmg\n"); return; }
-    uint8_t *map = *(uint8_t **)GA(G_MAP);
+    uint8_t *map = game_map();
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     if (!grid) { REPLY("error: no map\n"); return; }
     ee_unit *hit[64];
@@ -496,7 +496,7 @@ internal void cmd_hurt(char *out, const char *args) {
 struct w_scan { int n; ee_unit *u[1024]; };
 internal void units_of(int p, int want, struct w_scan *o) {   // want: 0 soldiers (cmd_army's filter), 1 the rest
                                                              // (buildings, walls, towers), 2 citizens
-    uint8_t *map = *(uint8_t **)GA(G_MAP);
+    uint8_t *map = game_map();
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     o->n = 0;
     if (!grid) return;
@@ -518,7 +518,7 @@ internal void cmd_wave(char *out, const char *args) {
         return;
     }
     static struct w_scan sc;
-    ee_player **pls = (ee_player **)GA(G_PLAYERS);
+    ee_player **pls = game_players();
     if (!pls[a] || !pls[d]) { REPLY("error: no player %d or %d\n", a, d); return; }
     if (FIELD(pls[a], OF(PL, 0x9E4) + d * 4, int) != 1) set_diplomacy(pls[a], pls[d], 1, 0);   // 1 = enemy
     if (FIELD(pls[d], OF(PL, 0x9E4) + a * 4, int) != 1) set_diplomacy(pls[d], pls[a], 1, 0);
@@ -656,7 +656,7 @@ internal void charge_tick(uint32_t now) {
 internal void cmd_army(char *out, const char *args) {
     int p = 0, only = -1;   // army P [type]: only that unit type
     sscanf(args, "%d %d", &p, &only);
-    uint8_t *map = *(uint8_t **)GA(G_MAP);
+    uint8_t *map = game_map();
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     if (!grid) { REPLY("error: no map\n"); return; }
     struct { const char *goal; int n; long sx, sy; ee_unit *first; } g[32];
@@ -752,7 +752,7 @@ internal void cmd_aigroup(char *out, const char *args) {
     int pt[2] = { FIELD(t, OF(UNIT, 0x1C), int), FIELD(t, OF(UNIT, 0x20), int) };
     point_set(loc + 4, pt);
     task_set_location(task + 4, loc);
-    FIELD(task, OF(TASK, 0x20), void *) = ((void **)GA(G_PLAYERS))[FIELD(tpl, PL_INDEX, int) & 15];
+    FIELD(task, OF(TASK, 0x20), void *) = game_players()[FIELD(tpl, PL_INDEX, int) & 15];
     FIELD(task, OF(TASK, 0x28), int) = 7; FIELD(task, OF(TASK, 0x2C), int) = 2; FIELD(task, OF(TASK, 0x30), uint8_t) = 1;
     strategy_reset(strat);
     FIELD(strat, OF(STRATEGY, 0x3C), int) = 4; FIELD(strat, OF(STRATEGY, 0x40), uint8_t) = 0;
@@ -787,7 +787,7 @@ internal void cmd_calloff(char *out, const char *args) {
 internal void cmd_uinfo(char *out, const char *args) {
     int x = 0, y = 0, r = 3;
     sscanf(args, "%d %d %d", &x, &y, &r);
-    if (!*(uint8_t **)GA(G_MAP)) { REPLY("error: no map\n"); return; }
+    if (!game_map()) { REPLY("error: no map\n"); return; }
     REPLY("t %u\n", game_time());
     for (struct grid_it it = grid_it_box(x, y, r, 1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
@@ -807,7 +807,7 @@ internal void cmd_uinfo(char *out, const char *args) {
 internal void cmd_move(char *out, const char *args) {
     int p, x, y, r, tx, ty, n = 0;
     if (sscanf(args, "%d %d %d %d %d %d", &p, &x, &y, &r, &tx, &ty) < 6) { REPLY("error: usage: move P x y r tx ty\n"); return; }
-    if (!*(uint8_t **)GA(G_MAP)) { REPLY("error: no map\n"); return; }
+    if (!game_map()) { REPLY("error: no map\n"); return; }
     ee_unit *found[200];
     int nf = 0;
     for (struct grid_it it = grid_it_box(x, y, r, 1); nf < 200 && grid_it_next(&it); ) {

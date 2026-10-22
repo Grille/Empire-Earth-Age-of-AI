@@ -186,7 +186,7 @@ internal uint32_t g_llm_last_t;
 
 internal void llm_hist_add(int ai, int role, const char *text) {
     if (ai < 0 || ai > 15) return;
-    if (g_llm_mem_player) { self_add(ai, role, (int)(*(unsigned *)GA(G_LOCAL_PLAYER) & 15), text); return; }
+    if (g_llm_mem_player) { self_add(ai, role, (int)(local_player_index() & 15), text); return; }
     mem_add(&g_llm_hist[ai], role, text);
 }
 // the memories for the saved game: records {0 = with the local player / 1 = a pair / 2 = an AI's own (memory_mode=player),
@@ -751,8 +751,8 @@ internal void self_history(struct sbuf *b, int ai, int other) {
     }
 }
 internal void llm_history(struct sbuf *b, int ai) {   // his lines framed with his name (whose "my" it is)
-    ee_player *pl = player_at(ai), *ph = player_at((int)*(unsigned *)GA(G_LOCAL_PLAYER));
-    if (g_llm_mem_player) { self_history(b, ai, (int)(*(unsigned *)GA(G_LOCAL_PLAYER) & 15)); return; }
+    ee_player *pl = player_at(ai), *ph = player_at((int)local_player_index());
+    if (g_llm_mem_player) { self_history(b, ai, (int)(local_player_index() & 15)); return; }
     for (int i = 0; i < g_llm_hist[ai].n; i++) {
         char u[LLM_MAXLEN + 120];
         if (g_llm_hist[ai].kind[i] == 1) { sb_msg(b, "assistant", g_llm_hist[ai].text[i]); continue; }
@@ -866,7 +866,7 @@ internal void llm_subst(char *out, int cap, const char *s, const struct xvars *v
 // persona_say: a line the local player hears - 1 if the model says it (later), 0: show the fixed line now
 internal int llm_line(ee_player *pl, enum line_kind k, ee_player *other, ee_player *third, const char *fixed) {
     if (g_llm_bypass || !llm_ready() || !g_llm_lines || !pl) return 0;
-    int ai = pidx(pl), h = (int)*(unsigned *)GA(G_LOCAL_PLAYER);
+    int ai = pidx(pl), h = (int)local_player_index();
     int pending = 0;
     for (int i = 0; i < LLM_JOBS; i++) pending += g_llm_jobs[i].state != J_FREE && g_llm_jobs[i].ai == ai;
     if (pending >= 3) return 0;   // the model can't keep up with this AI: its fixed line
@@ -960,7 +960,7 @@ internal int llm_tools_for(int ai, int h, uint32_t now) {
 // the local player j offers AI ai peace (diplo.c peace_offer): 1 = the model decides (now asked, or still asking),
 // 0 = the rules decide
 internal int llm_peace_answer(ee_player *pl, int ai, int j, uint32_t now) {
-    int h = (int)*(unsigned *)GA(G_LOCAL_PLAYER);
+    int h = (int)local_player_index();
     if (g_llm_rules || j != h || !llm_deciding() || !tool_peace_ok(ai, j, now)) return 0;
     g_peace_due[ai][j] = now + 120000;   // asked again in 2 minutes while the offer stands
     for (int i = 0; i < LLM_JOBS; i++)
@@ -989,7 +989,7 @@ internal int llm_peace_answer(ee_player *pl, int ai, int j, uint32_t now) {
 internal uint32_t g_prop_no[16][P_N];   // [ai][move]: when the model last declined it
 internal int llm_propose(int ai, int h, int kind, int third, uint32_t now) {
     ee_player *pl = player_at(ai), *ph = player_at(h);
-    if (g_llm_rules || !pl || !ph || h != (int)*(unsigned *)GA(G_LOCAL_PLAYER) || !llm_deciding() || kind < 0 || kind >= P_N) return 0;
+    if (g_llm_rules || !pl || !ph || h != (int)local_player_index() || !llm_deciding() || kind < 0 || kind >= P_N) return 0;
     if (g_prop_no[ai][kind] && now - g_prop_no[ai][kind] < 600000) return 1;
     for (int i = 0; i < LLM_JOBS; i++)
         if (g_llm_jobs[i].state != J_FREE && g_llm_jobs[i].ai == ai && g_llm_jobs[i].decide == 3) return 1;
@@ -1184,7 +1184,7 @@ internal int chat_reaches(void *pm, void *pj) {
 // a system line for the local player about his chat line (single player only: in multiplayer the humans read it)
 internal void llm_chat_hint(const char *text) {
     if (g_mp) return;
-    uint8_t *opt = *(uint8_t **)GA(G_GAME_DATA);
+    uint8_t *opt = game_data();
     system_line(text, opt ? FIELD(opt, OF(GAMEDATA, 0x2CC), int) : 15000);
     if (g_log) fprintf(g_log, "# llm: hint for the player: %s\n", text);
 }
@@ -1200,7 +1200,7 @@ internal void llm_player_chat(const char *text) {
         }
         return;
     }
-    int h = (int)*(unsigned *)GA(G_LOCAL_PLAYER), to = 0, got = 0, only = 0, at = 1 << 30;
+    int h = (int)local_player_index(), to = 0, got = 0, only = 0, at = 1 << 30;
     void *pm = player_at(h);
     uint32_t now = game_time();
     char who[80] = "";
@@ -1422,7 +1422,7 @@ internal int talk_apply(struct llm_job *j) {
 // persona_say: AI pl's line k to AI other, which the local player doesn't hear - an exchange between them (waits)
 internal void llm_talk_event(ee_player *pl, enum line_kind k, ee_player *other, ee_player *third, const char *fixed) {
     if (!g_llm_on || !g_llm_ai_talk || g_mp || !pl || !other || k_lines[k].aud != A_NAME) return;
-    int a = pidx(pl), b = pidx(other), h = (int)*(unsigned *)GA(G_LOCAL_PLAYER);
+    int a = pidx(pl), b = pidx(other), h = (int)local_player_index();
     if (a == b || b == h || a == h || !mod_ai(a) || !mod_ai(b)) return;
     uint32_t pt = g_pair_last[a < b ? a : b][a < b ? b : a];
     if (pt && game_time() - pt < 60000) return;   // they are talking (an answer, an offer): its own words are in it
@@ -1557,12 +1557,12 @@ internal void llm_wait_tick(void) {
         LONG st = InterlockedCompareExchange(&j->state, J_FREE, J_FREE);
         stalled |= (st == J_QUEUED || st == J_RUNNING) && j->gen == g_llm_gen && now - j->t0 > limit;
     }
-    int paused = *(uint8_t *)GA(G_PAUSED) != 0;
+    int paused = game_paused() != 0;
     if (stalled && !g_llm_paused && !paused) {
         if (!queue_pause_toggle()) return;
         g_llm_paused = 1;
         g_llm_paused_t = now;
-        uint8_t *opt = *(uint8_t **)GA(G_GAME_DATA);
+        uint8_t *opt = game_data();
         const char *l = sysf(g_llm_unreach ? "llm_wait_down" : "llm_wait", NULL, NULL, NULL, "url", g_llm_url, NULL);
         system_line(l, opt ? FIELD(opt, OF(GAMEDATA, 0x2CC), int) * 2 : 20000);
         if (g_log) fprintf(g_log, "# llm: paused at %.1f min - waiting for the model (%s)\n", game_time() / 60000.0,
@@ -1588,7 +1588,7 @@ internal void llm_tick(void) {
     int *told = note == 1 ? &g_llm_told : &g_llm_told_fail;
     if (note && !*told) {
         *told = 1;
-        block_line((int)*(unsigned *)GA(G_LOCAL_PLAYER),   // shown and logged
+        block_line((int)local_player_index(),   // shown and logged
                    sysf(note == 1 ? "llm_down" : "llm_failed", NULL, NULL, NULL, "url", g_llm_url, "error", g_llm_last_err, NULL));
     }
     talk_tick();
@@ -1625,7 +1625,7 @@ internal void llm_tick(void) {
             if (!ok && !j->chat) g_llm_n_fixed++;
             if (say) {   // every line shown here is one the local player hears
                 chat_line(pl, say, g_chat_ms);
-                if (j->to == (int)*(unsigned *)GA(G_LOCAL_PLAYER) || j->chat) llm_hist_add(j->ai, 1, say);
+                if (j->to == (int)local_player_index() || j->chat) llm_hist_add(j->ai, 1, say);
                 g_llm_last_ai = j->ai;
                 g_llm_last_t = game_time();
             }
@@ -1645,7 +1645,7 @@ internal void llm_tick(void) {
 // was said to him
 internal void llm_heard(ee_player *pl, ee_player *other, const char *text) {
     if (!g_llm_on || !pl) return;
-    if (other && other == player_at((int)*(unsigned *)GA(G_LOCAL_PLAYER))) llm_hist_add(pidx(pl), 1, text);
+    if (other && other == player_at((int)local_player_index())) llm_hist_add(pidx(pl), 1, text);
     g_llm_last_ai = pidx(pl);
     g_llm_last_t = game_time();
 }
@@ -1656,7 +1656,7 @@ internal void llm_heard(ee_player *pl, ee_player *other, const char *text) {
 internal void cmd_llm(char *out, const char *args) {
     int p = 0, n = 0;
     if (sscanf(args, "filter %d %n", &p, &n) == 1) {
-        ee_player *pm = player_at((int)*(unsigned *)GA(G_LOCAL_PLAYER));
+        ee_player *pm = player_at((int)local_player_index());
         if (!pm || p < 0 || p > 3) { REPLY("error: no local player or bad mode\n"); return; }
         FIELD(pm, OF(PL, 0x9E0), int) = p;
         for (int i = 0; i < 16; i++) FIELD(pm, OF(PL, 0xB2C) + i, uint8_t) = 0;

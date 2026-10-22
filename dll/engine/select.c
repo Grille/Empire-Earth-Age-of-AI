@@ -49,7 +49,7 @@ internal unsigned __cdecl hook_sel_pack(uint8_t *list, uint32_t player_byte, uin
 internal void cmd_seltest(char *out, const char *args) {
     int type = 0;
     float r[4];
-    if (sscanf(args, "%d %f %f %f %f", &type, &r[0], &r[1], &r[2], &r[3]) < 5) memcpy(r, (void *)GA(G_SELECT_RECT), sizeof r);
+    if (sscanf(args, "%d %f %f %f %f", &type, &r[0], &r[1], &r[2], &r[3]) < 5) memcpy(r, select_rect(), sizeof r);
     static __attribute__((aligned(8))) uint8_t msg[0x140];
     memset(msg, 0, sizeof msg);
     g_sel_last_in = g_sel_last_out = 0;
@@ -58,7 +58,7 @@ internal void cmd_seltest(char *out, const char *args) {
     REPLY("rect %.0f %.0f %.0f %.0f: found %u, packed %u in %u bytes, unpacked %d (big_selection %d)", r[0], r[1], r[2],
           r[3], g_sel_last_in, g_sel_last_out, msg[OF(MSG_SELECT, 0x134)], b ? (int)(e - b) : 0, g_big_selection);
     // carried out as the message does (EEMSelectUnits::vf10 -> 0x55B3FB on the player): the selected group (+0x9BC)
-    ee_player *pl = ((void **)GA(G_PLAYERS))[*(unsigned *)GA(G_LOCAL_PLAYER)];
+    ee_player *pl = game_players()[local_player_index()];
     int *grp = pl ? FIELD(pl, OF(PL, 0x9BC), int *) : NULL;
     if (grp) {
         player_select(pl, msg + OF(MSG_SELECT, 0x10));

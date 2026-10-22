@@ -27,7 +27,7 @@ internal int g_measure;        // tests: the measurement runs (autotest, or afte
 internal unsigned g_lead_logged;
 
 internal int tile_height(int x, int y, float *h) {
-    uint8_t *map = *(uint8_t **)GA(G_MAP);
+    uint8_t *map = game_map();
     if (!map) return 0;
     unsigned n = FIELD(map, OF(MAP, 0x1816FC), unsigned);
     if (x < 0 || y < 0 || (unsigned)x >= n || (unsigned)y >= n) return 0;
@@ -226,7 +226,7 @@ internal int missile_damage(ee_unit *m, ee_unit *t);
 
 // A missile is gone when it hasn't been steered for 3 steps (last = the end of its climb until it steers).
 internal void missile_tick(uint32_t now) {
-    uint8_t *clock = *(uint8_t **)GA(G_WORLD_CLOCK);
+    uint8_t *clock = game_physics();
     int gone_ms = clock ? (int)(FIELD(clock, OF(PHYS, 0x8C), float) * 3000.0f) : 0;
     if (gone_ms < 100) gone_ms = 100;
     for (int i = 0; i < MSL_MAX; i++)
@@ -317,7 +317,7 @@ internal int missile_damage(ee_unit *m, ee_unit *t) {
     float atk = rec && *rec ? FIELD(*rec, OF(USTAT, 0xD8), float) : 0;
     if (!(atk > 0)) return 0;
     float bonus = attack_bonus(lc, tc, FIELD(pl, OF(PL, 0x45C), int), FIELD(tpl, OF(PL, 0x45C), int));
-    float mult = ((float *)GA(G_DAMAGE_TABLE))[ac + dc * 6] * bonus;
+    float mult = damage_table()[ac + dc * 6] * bonus;
     if (!(mult > 0)) return 0;
     float d = mult * atk - FIELD(ts, OF(USTAT, 0xE0) + ac * 4, float);
     int n = (int)floorf(d + 0.5f);
@@ -426,7 +426,7 @@ internal void __fastcall hook_fire(uint8_t *cls, void *edx, ee_unit *u) {
 // his own arrow hit it (a bowman shooting a wolf beside his tower; leading the target lands more of the misses on
 // what stands behind it). The attacker's player is vf28's third argument ([ebp+0x10]); its own: no alert. The damage
 // stays.
-__attribute__((used)) uintptr_t g_alert_fn, g_local_player_at;   // game_attack_alert(), GA(G_LOCAL_PLAYER): aim_install
+__attribute__((used)) uintptr_t g_alert_fn, g_local_player_at;   // game_attack_alert(), local_player_index_at(): aim_install
 __attribute__((used)) volatile unsigned g_own_hits;
 __attribute__((naked, used)) void own_hit_alert_thunk(void) {
     __asm__("movl 0x10(%ebp), %eax\n\t"
@@ -443,7 +443,7 @@ __attribute__((naked, used)) void own_hit_alert_thunk(void) {
 
 internal void aim_install(const char *aimod_ini, const char *autotest_ini) {
     g_alert_fn = game_attack_alert();
-    g_local_player_at = GA(G_LOCAL_PLAYER);
+    g_local_player_at = local_player_index_at();
     BOOL own_hit = patch_attack_alert(own_hit_alert_thunk);
     if (g_log) fprintf(g_log, "# aim: no attack alert for the player's own hits (hook %s)\n", own_hit ? "ok" : "FAILED");
     if (autotest_ini && ini_int("autotest", "aim_hits", 1, autotest_ini))

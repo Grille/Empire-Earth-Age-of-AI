@@ -135,7 +135,7 @@ internal char *read_text_acp(const char *path) {
 }
 
 internal const float *color_rgb(int c) {
-    uint8_t **b = *(uint8_t ***)GA(G_COLORS_BEGIN), **e = *(uint8_t ***)GA(G_COLORS_END);
+    uint8_t **e, **b = color_table(&e);
     return b && c >= 0 && c < e - b && b[c] ? (const float *)(b[c] + 4) : NULL;
 }
 
@@ -492,8 +492,8 @@ internal void line_ctx_init(struct line_ctx *l, ee_player *pl, ee_player *other,
     memset(&l->c, 0, sizeof l->c);
     texts_load();
     if (!other) {   // a line to everyone (greeting, epoch_up ...): them is the player at this PC
-        unsigned h = *(unsigned *)GA(G_LOCAL_PLAYER);
-        void *hp = h < 16 ? ((void **)GA(G_PLAYERS))[h] : NULL;
+        unsigned h = local_player_index();
+        void *hp = h < 16 ? game_players()[h] : NULL;
         if (hp != pl) other = hp;
     }
     l->c.pl = pl; l->c.other = other; l->c.third = third; l->c.found = 1;
@@ -799,7 +799,7 @@ internal const char *color_name(int c) {   // in the game's language: the German
 
 // the speaker's age, localized (strings 30145 + epoch: Vorzeit, Steinzeit, ...)
 internal void epoch_text_n(int e, char *out, int cap) {   // epoch e (0 Prehistoric) by name
-    void *res = *(void **)GA(G_RESOURCES);
+    void *res = string_resources();
     lstrcpynA(out, epoch_name(e), cap);
     if (!res || e < 0 || e > 14) return;
     __attribute__((aligned(8))) uint8_t s[32];
@@ -812,8 +812,8 @@ internal void epoch_text(ee_player *pl, char *out, int cap) { epoch_text_n(curre
 
 // is the local player (0x918E84) in the audience of AI pl's line k said to `other`? Allies: both stances allied.
 internal int line_heard(ee_player *pl, enum line_kind k, ee_player *other) {
-    unsigned h = *(unsigned *)GA(G_LOCAL_PLAYER);
-    ee_player *me = h < 16 ? ((ee_player **)GA(G_PLAYERS))[h] : NULL;
+    unsigned h = local_player_index();
+    ee_player *me = h < 16 ? game_players()[h] : NULL;
     if (!me || me == pl || k_lines[k].aud == A_ALL) return 1;
     if (k_lines[k].aud == A_NAME) return other == me;
     return !FIELD(pl, OF(PL, 0x9E4) + h * 4, int) && !FIELD(me, OF(PL, 0x9E4) + (FIELD(pl, PL_INDEX, int) & 15) * 4, int);
@@ -894,8 +894,8 @@ internal void persona_attack(ee_player *pl, ee_player *target) {
     if (!g_attack_news[ai]) return;
     g_attack_news[ai] = 0;
     if (target) g_attack_sent[ai][FIELD(target, PL_INDEX, int) & 15] = game_time() ? game_time() : 1;
-    unsigned h = *(unsigned *)GA(G_LOCAL_PLAYER);
-    ee_player *me = h < 16 ? ((ee_player **)GA(G_PLAYERS))[h] : NULL;
+    unsigned h = local_player_index();
+    ee_player *me = h < 16 ? game_players()[h] : NULL;
     persona_say(pl, target && target == me ? L_ATTACK_THREAT : L_ATTACK, target, NULL);
 }
 

@@ -111,7 +111,7 @@ internal void queue_action(void *act) {
 
 // Same as clicking the pause button (EEUIEMGPauseGame::Execute 0x649F9A); the action toggles the pause.
 internal int queue_pause_toggle(void) {
-    void **client = *(void ***)GA(G_SERVER);
+    void **client = game_server();
     if (!client || !((uint32_t *)client)[4]) return 0;
     if (!((char (__thiscall *)(void *))(*(void ***)client)[4])(client)) return 0;
     uint8_t *act = pause_action_alloc();
@@ -145,15 +145,15 @@ internal void cmd_save(char *out, const char *args) {
 }
 
 internal void cmd_status(char *out) {
-    REPLY("time_ms=%u speed=%.2f paused=%d game_type=%d\n", game_time(), *(float *)GA(G_GAME_SPEED),
-        *(uint8_t *)GA(G_PAUSED), *(int *)GA(G_GAME_TYPE));
+    REPLY("time_ms=%u speed=%.2f paused=%d game_type=%d\n", game_time(), *game_speed_var(),
+        game_paused(), *game_type_var());
     for (int i = 0; i < 16; i++) {
         ee_player *pl = g_players[i];
         if (!pl) continue;
         void *tt = FIELD(pl, PL_TECHTREE, void *);
         REPLY("P%d @%p epoch=%d difficulty=%d cheat=%d popcap=%d (own %d, game %d) citizen_share=%.2f stock(food,wood,stone,gold,iron)=", i, pl,
             tt ? FIELD(tt, TT_EPOCH, int) : -1, FIELD(pl, PL_DIFFICULTY, int), FIELD(pl, PL_CHEAT, uint8_t),
-            unit_limit(pl), FIELD(pl, OF(PL, 0xCCC), int), *(int *)GA(G_POP_LIMIT),
+            unit_limit(pl), FIELD(pl, OF(PL, 0xCCC), int), pop_limit_setting(),
             FIELD(pl, OF(PL, 0xBDC), float));
         for (int r = 2; r < 7; r++) REPLY("%d%s", ((int *)((uint8_t *)pl + PL_STOCK))[r], r < 6 ? "," : "");
         void *cm = FIELD(pl, OF(PL, 0xB90), void *);
@@ -171,10 +171,10 @@ internal void cmd_status(char *out) {
 }
 
 internal void cmd_camera(char *out, const char *args) {
-    float *cam = (float *)(GA(G_CAMERA) + OF(CAMERA, 0x78));   // current look-at; +0x40 = previous (interpolated per frame)
+    float *cam = (float *)(game_camera() + OF(CAMERA, 0x78));   // current look-at; +0x40 = previous (interpolated per frame)
     int x, y;
     if (sscanf(args, "%d %d", &x, &y) == 2) {
-        uint32_t size = *(uint32_t *)(*(uint8_t **)GA(G_MAP) + OF(MAP, 0x1816FC));
+        uint32_t size = *(uint32_t *)(game_map() + OF(MAP, 0x1816FC));
         if (x < 0 || y < 0 || (uint32_t)x >= size || (uint32_t)y >= size) { REPLY("error: tile outside map (size %u)\n", size); return; }
         void *act = camera_action_alloc();
         if (!act) { REPLY("error: alloc\n"); return; }
@@ -185,7 +185,7 @@ internal void cmd_camera(char *out, const char *args) {
         return;
     }
     REPLY("x=%.2f y=%.2f z=%.2f zoom=%.3f map_size=%u\n", cam[0], cam[1], cam[2],
-        *(float *)(GA(G_CAMERA) + OF(CAMERA, 0xE0)), *(uint32_t *)(*(uint8_t **)GA(G_MAP) + OF(MAP, 0x1816FC)));
+        *(float *)(game_camera() + OF(CAMERA, 0xE0)), *(uint32_t *)(game_map() + OF(MAP, 0x1816FC)));
 }
 
 // sites <player>: resource sites the AI knows per town (EECP town 0x28 bytes at player+0xB50[i]: +0x18 active,
@@ -410,7 +410,7 @@ internal void execute(const char *cmd, char *out) {
     else if (!strcmp(verb, "speed")) {
         float s = (float)atof(args);
         if (s > 0) { g_auto.speed = s; apply_game_speed(s); }   // also keeps autotest from reverting it
-        REPLY("speed=%.2f\n", *(float *)GA(G_GAME_SPEED));
+        REPLY("speed=%.2f\n", *game_speed_var());
     }
     else if (!strcmp(verb, "turbo")) {
         if (*args) g_turbo = atoi(args);
@@ -418,7 +418,7 @@ internal void execute(const char *cmd, char *out) {
     }
     else if (!strcmp(verb, "pause") || !strcmp(verb, "resume")) {
         int want = verb[0] == 'p';
-        if (*(uint8_t *)GA(G_PAUSED) == want) REPLY("ok: already %s\n", want ? "paused" : "running");
+        if (game_paused() == want) REPLY("ok: already %s\n", want ? "paused" : "running");
         else REPLY(queue_pause_toggle() ? "ok: %s queued\n" : "error: game refused %s\n", verb);
     }
     else if (!strcmp(verb, "wmclose")) {
@@ -473,7 +473,7 @@ internal long __fastcall hook_sim_wait(void *ev, void *edx, unsigned long ms) {
     (void)edx;
     // only while steps are granted: otherwise a real (short) wait, so the client, server and pathfinding threads
     // the simulation waits for get the CPU instead of a spinning loop
-    uint8_t *phys = *(uint8_t **)GA(G_WORLD_CLOCK);
+    uint8_t *phys = game_physics();
     if (g_turbo && phys && FIELD(phys, OF(PHYS, 0xB8), unsigned)) return 0;
     return ts_wait(ev, g_turbo ? 1 : ms);
 }
@@ -503,7 +503,7 @@ internal void __fastcall hook_srv_send(void *srv, void *edx, void *msg, int to) 
     g_srv_send_next(srv, msg, to);
 }
 internal void hook_server_send(void) {   // the server's send slot (with trace.c's sync_srv_send: whichever comes second calls the first)
-    void *srv = *(void **)GA(G_SERVER);
+    void *srv = game_server();
     if (g_srv_send_next || !srv) return;
     g_srv_send_next = patch_server_send(srv, hook_srv_send);
 }
@@ -518,7 +518,7 @@ internal void __fastcall hook_phys_step(void *phys, void *edx) {
 }
 
 internal int sim_drained(void) {
-    uint8_t *srv = *(uint8_t **)GA(G_SERVER), *phys = *(uint8_t **)GA(G_WORLD_CLOCK);
+    uint8_t *srv = game_server(), *phys = game_physics();
     return srv && phys && FIELD(srv, OF(SERVER, 0x10), unsigned) == FIELD(srv, OF(SERVER, 0x190), unsigned) && FIELD(phys, OF(PHYS, 0xB8), unsigned) == 0 &&
            !g_in_step;
 }
@@ -546,7 +546,7 @@ internal DWORD WINAPI hook_send_wait(DWORD n, const HANDLE *h, BOOL all, DWORD m
     DWORD since = 0;   // when the simulation was drained but a message not in the list yet
     for (;;) {   // 1 ms waits, no spinning: the client thread must answer each tick before the next carries steps
         if (sim_drained()) {
-            uint8_t *srv = *(uint8_t **)GA(G_SERVER);
+            uint8_t *srv = game_server();
             LONG handed = g_handed, waiting = handed - g_handed_at_tick;
             if (!g_srv_send_next || waiting <= 0 || FIELD(srv, OF(SERVER, 0x94), LONG) >= waiting) {
                 g_handed_at_tick = handed;
@@ -671,7 +671,7 @@ internal DWORD WINAPI pipe_thread(LPVOID unused) {
                 // menus where no simulation runs - e.g. 413 opens the scenario editor from the main menu
                 unsigned msg = 0, p1 = 0;
                 sscanf(cmd + n, "%x %x", &msg, &p1);
-                uint8_t *ui = *(uint8_t **)GA(G_WORLD);
+                uint8_t *ui = game_world();
                 void *thread = ui ? *(void **)(ui + 0x40) : NULL;
                 typedef long (__thiscall *PostFn)(void *, unsigned long, void *, void *, int);
                 PostFn post = (PostFn)GetProcAddress(GetModuleHandleA("Low-Level Engine.dll"), "?Post@TSThread@@QAEJKPAX0_N@Z");
@@ -696,14 +696,14 @@ internal DWORD WINAPI gameover_watch(LPVOID unused) {
     (void)unused;
     for (;;) {
         Sleep(500);
-        unsigned me = *(unsigned *)GA(G_LOCAL_PLAYER);
-        ee_player *pl = me < 16 ? ((ee_player **)GA(G_PLAYERS))[me] : NULL;
+        unsigned me = local_player_index();
+        ee_player *pl = me < 16 ? game_players()[me] : NULL;
         if (!pl || !game_time() || !FIELD(pl, OF(PL, 0xA30), int)) continue;
         if (g_log) {
             EnterCriticalSection(&g_lock);
             fprintf(g_log, "# autotest: game over at %.1f min:", game_time() / 60000.0);
             for (int i = 1; i < 16; i++) {
-                uint8_t *p = ((uint8_t **)GA(G_PLAYERS))[i];
+                uint8_t *p = (uint8_t *)game_players()[i];
                 if (p) fprintf(g_log, " P%d=%d", i, FIELD(p, OF(PL, 0xA30), int));
             }
             fputc(10, g_log);

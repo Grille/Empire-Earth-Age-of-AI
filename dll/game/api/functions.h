@@ -26,6 +26,69 @@ struct ustring { uint8_t raw[16]; };
 
 // Kinds not typed yet (attack groups and subgroups, goals, messages, the game state's tables) are void * here.
 
+// THE GAME'S DATA (addr.h's G_ rows): its globals read through these, typed - NULL / 0 before they exist
+internal inline uint8_t *game_map(void) { return *(uint8_t **)GA(G_MAP); }                   // +0x1816FC its size in tiles
+internal inline uint8_t *game_physics(void) { return *(uint8_t **)GA(G_WORLD_CLOCK); }       // EEPhysics: +0xD0 the game time
+internal inline void *game_world(void) { return *(void **)GA(G_WORLD); }                     // the action queue's owner, the UI's
+internal inline void *game_server(void) { return *(void **)GA(G_SERVER); }                   // the lockstep server (EEServer, EEClient)
+internal inline uint8_t *game_data(void) { return *(uint8_t **)GA(G_GAME_DATA); }            // the game data loaded (GAMEDATA)
+internal inline void *game_state(void) { return (void *)GA(G_GAME_STATE); }                 // the game state object itself
+internal inline ee_player **game_players(void) { return (ee_player **)GA(G_PLAYERS); }      // [index], game_player_count() of them
+internal inline unsigned game_player_count(void) { return *(unsigned *)GA(G_PLAYERS_N); }
+internal inline unsigned local_player_index(void) { return *(unsigned *)GA(G_LOCAL_PLAYER); }   // the player on this PC
+internal inline uintptr_t local_player_index_at(void) { return GA(G_LOCAL_PLAYER); }       // its address (aim.c's thunk)
+internal inline uint8_t **type_table(void) { return (uint8_t **)GA(G_TYPES); }              // [type] its data (world.c type_data)
+// the tech data's tables: an epoch's tech lists (0x10 each), the tech effects (0x44 each)
+internal inline uint8_t *epoch_tech_list(int e) { return (uint8_t *)GA(G_EPOCH_TECHS) + e * 0x10; }
+internal inline uint8_t *tech_effect(int id) { return (uint8_t *)GA(G_EFFECTS) + id * 0x44; }
+// the combat tables: the hit table (by game mode: the table and its two variants), [attacker class + target class x 6]
+// the damage factors, the unit behaviours (stances)
+internal inline uint8_t *hit_table(void) { return *(uint8_t **)GA(G_HIT_TABLE); }
+internal inline void *hit_table_a(void) { return *(void **)GA(G_HIT_TABLE_A); }
+internal inline void *hit_table_b(void) { return *(void **)GA(G_HIT_TABLE_B); }
+internal inline float *damage_table(void) { return (float *)GA(G_DAMAGE_TABLE); }
+internal inline void **behaviour_table(void) { return *(void ***)GA(G_BEHAVIOUR_TABLE); }
+// the game's settings and state
+internal inline int game_mode(void) { return *(int *)GA(G_GAME_MODE); }
+internal inline int end_epoch(void) { return *(int *)GA(G_END_EPOCH); }                     // the game's last epoch
+internal inline int pop_limit_setting(void) { return *(int *)GA(G_POP_LIMIT); }             // the population limit setting
+internal inline int *game_type_var(void) { return (int *)GA(G_GAME_TYPE); }               // 0 random map, 1 scenario, 2 saved ...
+internal inline int *difficulty_var(void) { return (int *)GA(G_DIFFICULTY); }             // the AIs' difficulty (the setup's)
+internal inline float *game_speed_var(void) { return (float *)GA(G_GAME_SPEED); }
+internal inline uint8_t game_paused(void) { return *(uint8_t *)GA(G_PAUSED); }
+internal inline uint8_t *teams_locked_var(void) { return (uint8_t *)GA(G_TEAMS_LOCKED); }
+internal inline uint8_t *scenario_flag_var(void) { return (uint8_t *)GA(G_SCENARIO_FLAG); }   // a scenario or campaign
+internal inline char cheats_on(void) { return *(char *)GA(G_CHEATS_ON); }
+internal inline unsigned input_msgs_done(void) { return *(unsigned *)GA(G_INPUT_MSGS_DONE); }   // user inputs processed so far
+// the game's objects: the scenario manager, the string resources, the cheat parser, the sound manager, the colour
+// table (its rgb records, begin and end)
+internal inline uint8_t *scenario_manager(void) { return *(uint8_t **)GA(G_SM_MGR); }
+internal inline void *string_resources(void) { return *(void **)GA(G_RESOURCES); }
+internal inline void *cheat_parser(void) { return *(void **)GA(G_CHEAT_PARSER); }
+internal inline uint8_t *sound_manager(void) { return *(uint8_t **)GA(G_SOUND_MANAGER); }
+internal inline uint8_t **color_table(uint8_t ***end) { *end = *(uint8_t ***)GA(G_COLORS_END); return *(uint8_t ***)GA(G_COLORS_BEGIN); }
+// the display and the input (engine/): the camera (EECameraControl: +0x78 look-at, +0xE0 zoom), the scroll speed and
+// its setting, the window (GEWindow), the rasterizer and the current screen's index, the UI manager, the mouse
+// (RTSMouse), the resolution and fullscreen settings, the sound setting, the draw list's counts, the selection's default
+// rectangle, the editor's file buttons, the player name (a UWideString)
+internal inline uint8_t *game_camera(void) { return (uint8_t *)GA(G_CAMERA); }
+internal inline float scroll_speed(void) { return *(float *)GA(G_SCROLL_SPEED); }
+internal inline float scroll_setting(void) { return *(float *)GA(G_SCROLL_SETTING); }
+internal inline uint8_t *game_window(void) { return *(uint8_t **)GA(G_GAME_WINDOW); }
+internal inline uint8_t *rasterizer(void) { return *(uint8_t **)GA(G_RASTERIZER); }
+internal inline int screen_index(void) { return *(int *)GA(G_SCREEN); }
+internal inline void *ui_manager(void) { return *(void **)GA(G_UI_MANAGER); }
+internal inline uint8_t *game_mouse(void) { return *(uint8_t **)GA(G_MOUSE); }
+internal inline int game_res_w(void) { return *(int *)GA(G_GAME_RES_W); }
+internal inline int game_res_h(void) { return *(int *)GA(G_GAME_RES_H); }
+internal inline uint8_t *fullscreen_var(void) { return (uint8_t *)GA(G_FULLSCREEN); }
+internal inline float sound_percent(void) { return *(float *)GA(G_SOUND_PERCENT); }
+internal inline uint32_t draw_count(void) { return *(uint32_t *)GA(G_DRAW_N); }
+internal inline uint32_t draw_small_count(void) { return *(uint32_t *)GA(G_DRAW_SMALL_N); }
+internal inline const float *select_rect(void) { return (const float *)GA(G_SELECT_RECT); }
+internal inline int32_t *editor_file_buttons(void) { return (int32_t *)GA(G_EDITOR_FILE_BUTTONS); }
+internal inline void *player_name_wstring(void) { return (void *)GA(G_PLAYER_NAME); }
+
 // THE GAME
 // the game's operator new: memory the game may free
 internal inline void *game_new(size_t n) { return GF(FN_NEW)(n); }

@@ -102,7 +102,7 @@ internal void sound_tick(uint32_t now) {
     static int hooked;
     static uint32_t last;
     if (!g_sound_log || !g_log) return;
-    uint8_t *sm = *(uint8_t **)GA(G_SOUND_MANAGER);
+    uint8_t *sm = sound_manager();
     if (!sm) return;
     if (!hooked) {
         hooked = 1;
@@ -195,7 +195,7 @@ internal int __fastcall hook_set_max_channels(uint8_t *sm, void *edx, uint32_t n
         }
     }
     if (raised) {   // the game's count used the old maximum: percent x the new one, at least 8 as the game does
-        float pct = *(float *)GA(G_SOUND_PERCENT);
+        float pct = sound_percent();
         int want = (int)(pct * (float)g_sound_channels + 0.5f);
         n = (uint32_t)(want < 8 ? 8 : want);
     }
@@ -223,10 +223,10 @@ internal void sound_install(const char *aimod_ini, const char *autotest_ini) {
 // channels, categories in use, the paused queue. sndchan N: SetMaxChannels(N) as the options screen does. Tests.
 internal void cmd_sndstate(char *out, const char *args) {
     (void)args;
-    uint8_t *sm = *(uint8_t **)GA(G_SOUND_MANAGER);
+    uint8_t *sm = sound_manager();
     if (!sm) { REPLY("error: no sound manager\n"); return; }
     uint8_t *me = NULL, *mv = g_mss_mixer ? mix_channels(g_mss_mixer, &me) : NULL;
-    REPLY("setting %.2f (0x9193B8), mixer maximum %d, ", *(float *)GA(G_SOUND_PERCENT),
+    REPLY("setting %.2f (0x9193B8), mixer maximum %d, ", sound_percent(),
           g_mss_mixer ? mix_max_channels(g_mss_mixer) : -1);
     int nulls = 0;
     for (uint8_t *h = mv; h && h < me; h += 8) nulls += !*(void **)h;
@@ -246,7 +246,7 @@ internal void cmd_sndstate(char *out, const char *args) {
 }
 internal void cmd_sndchan(char *out, const char *args) {
     int n = atoi(args);
-    uint8_t *sm = *(uint8_t **)GA(G_SOUND_MANAGER);
+    uint8_t *sm = sound_manager();
     if (!sm || n < 1 || n > 64) { REPLY("error: usage sndchan N (1..64)\n"); return; }
     int r = snd_set_max_channels(sm, n);
     REPLY("ok: SetMaxChannels(%d) -> %d, now %u channels\n", n, r, FIELD(sm, SM_CHANNELS, uint32_t));

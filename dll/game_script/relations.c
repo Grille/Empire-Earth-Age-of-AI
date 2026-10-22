@@ -82,7 +82,7 @@ internal void *x_player_named(const char *n) {
 internal void x_players(struct xctx *c) {   // who is who: the context's players - them, when not given, the local player
     if (c->found) return;
     c->found = 1;
-    unsigned h = *(unsigned *)GA(G_LOCAL_PLAYER);
+    unsigned h = local_player_index();
     if (!c->other && h < 16 && player_at((int)h) != c->pl) c->other = player_at((int)h);
 }
 internal int x_alive(int j) { return player_at(j) && !is_out(player_at(j)); }
@@ -130,7 +130,7 @@ internal void x_member(void *px, const struct xmember *m, struct xval *v) {
     else if (!strcmp(n, "strength")) r = (double)(long)g_ws.power[x];
     else if (!strcmp(n, "rank")) { r = 1; for (int j = 1; j < nplayers(); j++) r += j != x && x_alive(j) && g_ws.power[j] > g_ws.power[x]; }
     else if (!strcmp(n, "alive")) r = !is_out(px);
-    else if (!strcmp(n, "human")) r = (unsigned)x == *(unsigned *)GA(G_LOCAL_PLAYER);
+    else if (!strcmp(n, "human")) r = (unsigned)x == local_player_index();
     else if (!strcmp(n, "vassals")) for (int j = 1; j < nplayers(); j++) r += j != x && x_alive(j) && g_lord[j] == x;
     else if (!strcmp(n, "allies") || !strcmp(n, "enemies"))
         for (int j = 1; j < nplayers(); j++) r += j != x && x_alive(j) && (n[0] == 'a' ? allied_with(x, j) : stance_of(px, j) != 0);
@@ -265,7 +265,7 @@ internal int x_builtin(struct xctx *c, const char *name, struct xval *v) {
         else if (!strcmp(name, "offer_minutes")) r = g_offer_min;
         else if (!strcmp(name, "llm_equal")) r = g_llm_equal;
         else if (!strcmp(name, "llm_constrained")) r = g_llm_constrained;
-        else if (!strcmp(name, "population_limit")) r = *(int *)GA(G_POP_LIMIT);   // the game setting (econ.c)
+        else if (!strcmp(name, "population_limit")) r = pop_limit_setting();   // the game setting (econ.c)
         else if (!strcmp(name, "max_population")) {
             for (int j = 1; j < nplayers(); j++) if (x_alive(j) && g_ws.soldiers[j] + g_ws.citizens[j] > r) r = g_ws.soldiers[j] + g_ws.citizens[j];
         }

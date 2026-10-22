@@ -45,7 +45,7 @@ internal int tower_queued(ee_build_mgr *bm) {   // a tower of the line in the bu
 }
 internal int can_place(ee_player *pl, int type, int x, int y) {
     uint8_t *td = type_data(type);
-    uint8_t *map = *(uint8_t **)GA(G_MAP);
+    uint8_t *map = game_map();
     int n = map ? (int)FIELD(map, OF(MAP, 0x1816FC), uint32_t) : 0, sz = td ? FIELD(td, OF(TD, 0x58C), int) : 0;
     if (!td || x < 2 || y < 2 || x >= n - 2 || y >= n - 2) return 0;
     if (sz < 1) sz = 1;
@@ -95,7 +95,7 @@ internal void def_refresh(ee_player *pl, unsigned idx, uint32_t now) {
         float dx, dy;
         if (best >= 0) { dx = (float)(s->x[best] - p->bx); dy = (float)(s->y[best] - p->by); }
         else if (k == 0) {   // nothing seen yet: towards the map centre
-            uint8_t *map = *(uint8_t **)GA(G_MAP);
+            uint8_t *map = game_map();
             int n = map ? (int)FIELD(map, OF(MAP, 0x1816FC), uint32_t) : 0;
             dx = (float)(n / 2 - p->bx); dy = (float)(n / 2 - p->by);
         } else break;
@@ -233,7 +233,7 @@ internal void defence_tick(ee_player *pl, unsigned idx, uint32_t now) {
             continue;   // or into an enemy army standing there
         // the arc on the map and on land, ends and middle: on an island map an arc into the water (or off the map)
         // crashed the game's wall placement (0x497C3F -> 0x636E30, a null tile object), twice on Small Islands
-        uint8_t *wmap = *(uint8_t **)GA(G_MAP);
+        uint8_t *wmap = game_map();
         int mn = wmap ? (int)FIELD(wmap, OF(MAP, 0x1816FC), uint32_t) : 0, land = mn > 0;
         for (int q = 0; q <= 2 && land; q++) {
             int qx = q == 0 ? a[0] : q == 1 ? b[0] : cx, qy = q == 0 ? a[1] : q == 1 ? b[1] : cy;
@@ -642,7 +642,7 @@ internal void mus_rally(unsigned idx, struct mus_scan *s) {
     float cx = s->epow > 0 ? s->ex / s->epow : (float)s->bx + 1, cy = s->epow > 0 ? s->ey / s->epow : (float)s->by;
     float dx = (float)s->bx - cx, dy = (float)s->by - cy, l = sqrtf(dx * dx + dy * dy);
     if (l < 1.0f) { dx = 1.0f; dy = 0.0f; l = 1.0f; }
-    float msz = (float)*(uint32_t *)(*(uint8_t **)GA(G_MAP) + OF(MAP, 0x1816FC));
+    float msz = (float)*(uint32_t *)(game_map() + OF(MAP, 0x1816FC));
     float rx = (float)s->bx + dx / l * 18.0f, ry = (float)s->by + dy / l * 18.0f;
     if (msz > 8) {
         rx = rx < 3 ? 3 : rx > msz - 4 ? msz - 4 : rx;
@@ -815,7 +815,7 @@ internal void asg_units(ee_player *pl) {   // the units of AI pl's attack subgro
     }
 }
 internal int set_behaviour(ee_unit *u, int b) {   // 1 when changed
-    void **tab = *(void ***)GA(G_BEHAVIOUR_TABLE);
+    void **tab = behaviour_table();
     uint8_t *td = FIELD(u, OF(UNIT, 0x2C), uint8_t *);
     if (!tab || !tab[b] || !td || !FIELD(td, OF(TD, 0x621), uint8_t) || FIELD(u, OF(UNIT, 0x208), void *) == tab[b]) return 0;
     FIELD(u, OF(UNIT, 0x208), void *) = tab[b];
@@ -829,7 +829,7 @@ internal void hold_town(ee_player *pl, unsigned idx, uint32_t now) {
     if (g_mus[idx].on) return;   // the muster has them
     void *cm = FIELD(pl, OF(PL, 0xB90), void *);
     uint8_t *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL;
-    void **tab = *(void ***)GA(G_BEHAVIOUR_TABLE);
+    void **tab = behaviour_table();
     if (!bm || FIELD(bm, OF(BM, 0x12C), int) == -10000 || !tab) return;
     struct mus_scan *s = &g_ms;
     memset(s, 0, sizeof *s);

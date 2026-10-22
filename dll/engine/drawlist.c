@@ -34,6 +34,6 @@ internal void drawlist_install(const char *aimod_ini, const char *autotest_ini) 
 // drawcount: objects collected for the last frame (units etc. / small objects). Tests.
 internal void cmd_drawcount(char *out, const char *args) {
     (void)args;
-    REPLY("objects %u of %d, small objects %u of 1536\n", *(uint32_t *)GA(G_DRAW_N),
-          g_draw_recs ? g_draw_limit : DRAW_OLD_N, *(uint32_t *)GA(G_DRAW_SMALL_N));
+    REPLY("objects %u of %d, small objects %u of 1536\n", draw_count(),
+          g_draw_recs ? g_draw_limit : DRAW_OLD_N, draw_small_count());
 }

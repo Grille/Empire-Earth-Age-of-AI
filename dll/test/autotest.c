@@ -23,8 +23,8 @@ internal void load_autotest(const char *ini) {
 }
 
 internal void apply_game_speed(float s) {
-    *(float *)GA(G_GAME_SPEED) = s;
-    void *obj = (void *)GA(G_GAME_STATE);
+    *game_speed_var() = s;
+    void *obj = game_state();
     ((void (__thiscall *)(void *))(*(void ***)obj)[11])(obj);
 }
 
@@ -80,7 +80,7 @@ internal void run_setup(uint32_t now);
 // keeps the tuning.
 #define TEST_STEPS_A_SECOND 44
 internal void pin_server_pace(void) {
-    uint8_t *srv = *(uint8_t **)GA(G_SERVER);
+    uint8_t *srv = game_server();
     const unsigned rate = TEST_STEPS_A_SECOND;
     if (!srv || (FIELD(srv, OF(SERVER, 0x1B4), unsigned) == rate && FIELD(srv, OF(SERVER, 0x1B8), unsigned) == rate)) return;
     if (g_log) fprintf(g_log, "# autotest: server pace held at %u steps a second (its range was %u-%u, now %u)\n", rate,
@@ -93,7 +93,7 @@ internal void autotest_tick(uint32_t now) {
     if (!g_autotest) return;
     pin_server_pace();
     if (g_setup_path[0] && now >= 2000) run_setup(now);
-    float cur = *(float *)GA(G_GAME_SPEED);
+    float cur = *game_speed_var();
     if (g_auto.speed > 0 && (cur < g_auto.speed - 0.01f || cur > g_auto.speed + 0.01f)) {
         apply_game_speed(g_auto.speed);
         if (g_log) {

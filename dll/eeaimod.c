@@ -268,7 +268,7 @@ internal char __fastcall hook_game_start(void *state, void *edx, uint8_t *setup,
     log_rotate();
     if (g_log) {
         EnterCriticalSection(&g_lock);
-        fprintf(g_log, "# game start: mode=%d name=\"%s\" game_type=%d\n", mode, name ? name : "(null)", *(int *)GA(G_GAME_TYPE));
+        fprintf(g_log, "# game start: mode=%d name=\"%s\" game_type=%d\n", mode, name ? name : "(null)", *game_type_var());
         // raw setup struct (16 player slots of 0x38 bytes, then game settings up to ~0x410)
         for (int o = 0; o < 0x420; o += 32) {
             fprintf(g_log, "# setup +%03x:", o);
@@ -279,7 +279,7 @@ internal char __fastcall hook_game_start(void *state, void *edx, uint8_t *setup,
             const char *pn = *(const char **)(setup + i * 0x38 + 0xC);
             fprintf(g_log, "# setup slot %d type=%d name=\"%s\"\n", i, *(int *)(setup + i * 0x38), pn ? pn : "");
         }
-        fprintf(g_log, "# setup seed(world+0x54)=%u\n", *(void **)GA(G_WORLD) ? *(unsigned *)(*(uint8_t **)GA(G_WORLD) + OF(WORLD, 0x54)) : 0);
+        fprintf(g_log, "# setup seed(world+0x54)=%u\n", game_world() ? *(unsigned *)(game_world() + OF(WORLD, 0x54)) : 0);
         fflush(g_log);
         LeaveCriticalSection(&g_lock);
     }

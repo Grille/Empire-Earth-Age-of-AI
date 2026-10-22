@@ -27,7 +27,7 @@ internal int route_safe(void *bm, const int base[2], const int to[2]) {
 // Drop sites of a player from the unit grid: Town Center, Capitol, Settlement (also the single player one) take
 // everything, Granary (also the improved one) only food. Up to `max` entries {x, y, food_only}.
 internal int drop_sites(ee_player *pl, int (*out)[3], int max) {
-    uint8_t *map = *(uint8_t **)GA(G_MAP);
+    uint8_t *map = game_map();
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
     if (!grid) return 0;
     int n = 0;
