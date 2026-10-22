@@ -284,3 +284,14 @@ contains([vec(1, 2), vec(3, 4)], vec(3, 4))
 len(vec(1, 2))
 abs(vec(1, 2))
 vec(1, 2) ? "yes" : "no"
+# a member after a call or ( ): only a vector's numbers - 2026-10-22
+vec(1, 2).x
+vec(1, 2, 3).z
+(vec(1, 2) + vec(3, 4)).y
+rgb(255, 0, 0).x + 1
+pick([vec(1, 2)]).y
+"{vec(5, 6).y}"
+vec(1, 2).z
+vec(1, 2).q
+str(5).x
+(1 + 2).x

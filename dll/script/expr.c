@@ -26,7 +26,7 @@
 // the host's relations: them.opinion(me) (script/host.h method). A player (me, them, ...) is a value: its
 // name, equal only to itself. A vector, vec(x, y), vec(x, y, z), vec(x, y, z, w), is one value of 2 to 4 numbers (a
 // place, a colour - not a list: a list's items are values each): home.x .y .z .w its numbers (of a parameter,
-// variable or vars entry), + - two vectors of as many numbers, * a vector and a number, / a vector by a number, == !=
+// variable or vars entry; after a call or ( ) too: step(home).x, (a + b).y), + - two vectors of as many numbers, * a vector and a number, / a vector by a number, == !=
 // (no order), distance(a, b); rgb(r, g, b) a colour, 0 to 255 each, as the vector of those / 255 (vec(r, g, b) takes
 // the 0 to 1 itself); in a text (12, 40), a command's argument its numbers one each - anything else with one a mistake.
 // A placeholder's number is written with up to 2 decimals, or by its format after the last ':' that belongs to no
@@ -428,7 +428,7 @@ internal void x_missing(struct xctx *c, const char *who) {
 // levels - an expression, a primary, a unary operator: at most 24 deep together within one expression); depth: its
 // deepest path, itself included (a function's body counts on its own). line, at: where it starts in the source.
 enum { XN_NUM, XN_STR, XN_NAME, XN_CALL, XN_LIST, XN_NEG, XN_NOT, XN_MUL, XN_ADD, XN_CMP, XN_AND, XN_OR, XN_COAL, XN_COND,
-       XN_LAMBDA, XN_BLOCK, XN_ASSIGN, XN_RETURN };
+       XN_LAMBDA, XN_BLOCK, XN_ASSIGN, XN_RETURN, XN_MEMBER };
 struct xnode {
     unsigned char k, op, lvl, depth;
     int n_items;                 // a list's items, a call's arguments (all; the first 8 are used), a function's
@@ -679,6 +679,19 @@ internal void xps_primary(struct xps *p, struct xnode **out) {
             }
         }
     } else { p->err = 1; return; }
+    // a value's member right after a call or ( ): step(home).x, (a + b).y - a name has its dots in it (home.x)
+    while (p->s[0] == '.' && isalpha((unsigned char)p->s[1]) && XPTR(p, o)->k != XN_NAME && XPTR(p, o)->k != XN_NUM) {
+        const char *at = p->s++;
+        char name[24];
+        int n = 0;
+        while ((isalnum((unsigned char)*p->s) || *p->s == '_') && n < 23) name[n++] = *p->s++;
+        name[n] = 0;
+        struct xnode *m = xn_new(p, XN_MEMBER, at);
+        if (!m) return;
+        m->s = _strdup(name);
+        m->a = o;
+        o = XOFF(p, m);
+    }
     XPTR(p, o)->lvl++;   // the primary's level
     *out = o;
 }
@@ -1063,6 +1076,12 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
     }
     case XN_ASSIGN: return x_check(k, n->a, sc);
     case XN_RETURN: return x_check(k, n->a, sc);
+    case XN_MEMBER:   // f(a).x: only a vector's numbers
+        if (xvec_member(n->s) < 0) {
+            snprintf(k->whybuf, sizeof k->whybuf, ".%s: a value's members are a vector's numbers .x .y .z .w", n->s);
+            return xc_fail(k, n, k->whybuf);
+        }
+        return x_check(k, n->a, sc);
     case XN_CALL: {
         for (int i = 0; i < n->n_items; i++) if (!x_check(k, n->items[i], sc)) return 0;   // the arguments first
         const char *name = n->s;
@@ -1672,6 +1691,17 @@ internal void xe(struct xe *e, const struct xnode *n, struct xval *v) {
         if (c->missed) { c->missed = 0; e->err = 1; e->why = "a mistake while working it out"; }
         break;
     case XN_LIST: xe_list(e, n, v); break;
+    case XN_MEMBER: {   // step(home).x: the vector's number
+        xe(e, n->a, v);
+        if (e->err) break;
+        x_use(e, v);
+        if (e->err) break;
+        int m = xvec_member(n->s);
+        if (v->kind != XV_VEC || !v->w) { x_fail(e, "%.40s.%s: no vector - .x .y .z .w are a vector's numbers", xtext_of(v), n->s); break; }
+        if (m < 0 || m >= v->vn) { x_fail(e, "%.40s has %d numbers - no .%s", xtext_of(v), v->vn, n->s); break; }
+        xnum(v, v->vc[m]);
+        break;
+    }
     case XN_LAMBDA: {   // a function: a value (with where it was made: the names it reads)
         struct xfn *fn = x_alloc(sizeof *fn);
         if (!fn) { e->err = 1; break; }
