@@ -364,10 +364,10 @@ internal void navy_nodes(ee_player *pl, unsigned idx, uint32_t now) {
     unsigned cap = table_value(0x16);
     drops_cached(pl);
     unsigned pi = idx & 15;
-    void **tb = player_get_zones_begin(pl), **te = player_get_zones_end(pl);
+    ee_zone **tb = player_get_zones_begin(pl); ee_zone **te = player_get_zones_end(pl);
     for (int t = 0; tb && tb + t < te && t < 256; t++) {
-        uint8_t *town = tb[t];
-        void **sb = town ? FIELD(town, OF(ZONE, 0x8), void **) : NULL, **se = town ? FIELD(town, OF(ZONE, 0xC), void **) : NULL;
+        ee_zone *town = tb[t];
+        void **sb = town ? zone_get_sites_begin(town) : NULL, **se = town ? zone_get_sites_end(town) : NULL;
         for (int k = 0; sb && sb + k < se && k < 4096; k++) {
             ee_unit *s = sb[k];
             int r = s ? unit_get_resource(s) : 0, j;
@@ -882,11 +882,11 @@ internal void cmd_navy(char *out, const char *args) {
                   type_get_area(td), type_get_reload(td), type_get_tech(td));
             if (naval && pl) {
                 REPLY(" cost %d %d %d %d %d", unit_cost(pl, t, 2), unit_cost(pl, t, 3), unit_cost(pl, t, 4), unit_cost(pl, t, 5), unit_cost(pl, t, 6));
-                uint8_t **rec = type_stats(pl, t);
-                uint8_t *r = rec ? *rec : NULL;
+                ee_unit_stats **rec = type_stats(pl, t);
+                ee_unit_stats *r = rec ? *rec : NULL;
                 if (r) {
-                    REPLY(" | hp %d att %.1f rng %.1f spd %.2f arm", FIELD(r, OF(USTAT, 0x144), int), FIELD(r, OF(USTAT, 0xD8), float), FIELD(r, OF(USTAT, 0x9C), float), FIELD(r, OF(USTAT, 0xAC), float));
-                    for (int k = 0; k < 6; k++) REPLY(" %g", FIELD(r, OF(USTAT, 0xE0) + k * 4, float));
+                    REPLY(" | hp %d att %.1f rng %.1f spd %.2f arm", stat_get_hp(r), stat_get_attack(r), stat_get_range(r), stat_get_speed(r));
+                    for (int k = 0; k < 6; k++) REPLY(" %g", stat_get_armor(r, k));
                 }
             }
             REPLY("\n");

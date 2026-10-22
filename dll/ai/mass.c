@@ -369,8 +369,8 @@ internal int mass_tether(ee_attack_subgroup *sg, ee_unit *me, ee_unit *enemy) {
     if (k == m->ntc) return 0;
     int ex = unit_get_x(enemy), ey = unit_get_y(enemy);
     if (ms_d2(ex, ey, m->tc[k].cx, m->tc[k].cy) <= g_mass_tether * g_mass_tether) return 0;
-    uint8_t *st = unit_get_stats(me); ee_unit_type *td = unit_get_type_data(me);
-    float r = (st ? FIELD(st, OF(USTAT, 0x9C), float) : td ? type_get_range(td) : 1.0f) + 2.0f;
+    ee_unit_stats *st = unit_get_stats(me); ee_unit_type *td = unit_get_type_data(me);
+    float r = (st ? stat_get_range(st) : td ? type_get_range(td) : 1.0f) + 2.0f;
     int dx = ex - unit_get_x(me), dy = ey - unit_get_y(me);
     if ((float)(dx * dx + dy * dy) <= r * r) return 0;
     m->tethered++;

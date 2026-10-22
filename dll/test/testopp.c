@@ -139,14 +139,14 @@ internal int so_role(ee_unit_type *td) {
     return k == 1 ? SR_F : k == 34 ? SR_L : (k == 3 || k == 6) ? SR_A : k == 18 ? SR_S : -1;
 }
 internal float so_dps(ee_unit *u, ee_unit_type *td) {
-    uint8_t *st = u ? unit_get_stats(u) : NULL;
-    float a = st ? FIELD(st, OF(USTAT, 0xD8), float) : (float)type_get_attack(td);
+    ee_unit_stats *st = u ? unit_get_stats(u) : NULL;
+    float a = st ? stat_get_attack(st) : (float)type_get_attack(td);
     int rl = type_get_reload(td);
     return a > 0 ? a * 1000.0f / (float)((rl > 0 ? rl : 2000) + 2000) : 0.0f;
 }
 internal float so_hpmax(ee_unit *u) {
-    uint8_t *st = unit_get_stats(u);
-    int m = st ? FIELD(st, OF(USTAT, 0x144), int) : 0;
+    ee_unit_stats *st = unit_get_stats(u);
+    int m = st ? stat_get_hp(st) : 0;
     return (float)(m > 0 ? m : type_get_hp(unit_get_type_data(u)));
 }
 // the strength ratio of side a against side b (types, hit points, dps; player indices): sqrt(hpA dA / (hpB dB))

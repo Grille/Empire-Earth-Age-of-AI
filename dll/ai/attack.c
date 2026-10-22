@@ -61,9 +61,9 @@ internal int defence_stats(ee_unit *u, float *range, float *attack) {
     int fam = type_get_family(td), type = type_get_id(td);
     if (fam != 2 && fam != 29) return 0;
     if (type == UT(B_AA10_GUN_88MM) || type == UT(B_AA13_MISSILE_TOWER)) return 0;
-    uint8_t *st = unit_get_stats(u);
-    float r = st ? FIELD(st, OF(USTAT, 0x9C), float) : type_get_range(td);
-    float a = st ? FIELD(st, OF(USTAT, 0xD8), float) : (float)type_get_attack(td);
+    ee_unit_stats *st = unit_get_stats(u);
+    float r = st ? stat_get_range(st) : type_get_range(td);
+    float a = st ? stat_get_attack(st) : (float)type_get_attack(td);
     if (!(a > 0.0f) || !(r > 1.0f) || r > 30.0f) return 0;
     *range = r; *attack = a;
     return 1;
@@ -465,8 +465,8 @@ internal float __fastcall hook_asgu_score(ee_asg_unit *self, void *edx, uint8_t 
     ee_unit_type *etd = unit_get_type_data(enemy);
     int efam = etd ? type_get_family(etd) : 0;
     if (g_ignore_air && s != 0.0f && me && (efam == 3 || efam == 7 || efam == 17)) {
-        uint8_t *st = unit_get_stats(me);
-        float r = (st ? FIELD(st, OF(USTAT, 0x9C), float) : type_get_range(mtd)) + 3.0f;
+        ee_unit_stats *st = unit_get_stats(me);
+        float r = (st ? stat_get_range(st) : type_get_range(mtd)) + 3.0f;
         int dx = unit_get_x(enemy) - unit_get_x(me), dy = unit_get_y(enemy) - unit_get_y(me);
         if ((float)(dx * dx + dy * dy) > r * r) {
             g_air_skips++;
@@ -679,8 +679,8 @@ internal int raiders_near(ee_player *pl, int x, int y, int r0) {
         if (!td || unit_get_hp(u) <= 0 || abs(unit_get_x(u) - x) > r || abs(unit_get_y(u) - y) > r) continue;
         int fam = type_get_family(td), t = type_get_id(td);
         if ((fam != 5 && fam != 4 && !(g_cit_threats && fam == 10)) || is_citizen_type(t) || type_get_attack(td) <= 0) continue;
-        uint8_t *st = unit_get_stats(u);
-        float rng = st ? FIELD(st, OF(USTAT, 0x9C), float) : type_get_range(td);
+        ee_unit_stats *st = unit_get_stats(u);
+        float rng = st ? stat_get_range(st) : type_get_range(td);
         int reach = rng > 0.0f && rng < 30.0f ? (int)(rng + 0.5f) + RAID_MARGIN : 0;
         if (reach > rmax) reach = rmax;
         if (reach < r0) reach = r0;
@@ -1061,8 +1061,8 @@ internal void siege_tick(ee_player *pl, uint32_t now) {
         ee_unit *u = it.u;
         ee_unit_type *td = it.td;
         if (!td || unit_get_owner(u) != pl || !is_siege(type_get_id(td)) || unit_get_hp(u) <= 0) continue;
-        uint8_t *st = unit_get_stats(u);
-        float r = st ? FIELD(st, OF(USTAT, 0x9C), float) : type_get_range(td);
+        ee_unit_stats *st = unit_get_stats(u);
+        float r = st ? stat_get_range(st) : type_get_range(td);
         if (r < srange) srange = r;
         siege[ns++] = u; sx += (float)unit_get_x(u); sy += (float)unit_get_y(u);
     }

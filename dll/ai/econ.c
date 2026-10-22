@@ -798,7 +798,7 @@ internal int wild_food(ee_player *pl) {
     int bx = bm_get_base_x(bm), by = bm_get_base_y(bm);
     if (bx == -10000) return 0;
     int lim = g_site_max_dist * g_site_max_dist, total = 0;
-    void **zb = player_get_zones_begin(pl), **ze = player_get_zones_end(pl);
+    ee_zone **zb = player_get_zones_begin(pl); ee_zone **ze = player_get_zones_end(pl);
     for (int z = 0; zb && zb + z < ze; z++) {
         ee_unit *s = zb[z] ? zone_site(zb[z], 2) : NULL;
         if (!s || type_get_id(unit_get_type_data(s)) != UT(RES_FORAGE_BUSH)) continue;

@@ -41,9 +41,9 @@ internal int tile_height(int x, int y, float *h) {
 // the arc's reach the game launches at 45 degrees anyway and the projectile comes down short, after flying its
 // longest distance v^2 / g (*reach = 0).
 internal float flight_time(ee_unit *u, const float *from, const float *to, int *reach) {
-    uint8_t *type = unit_get_stats(u); ee_unit_type *cls = type ? FIELD(type, OF(USTAT, 0x60), ee_unit_type *) : NULL;
+    ee_unit_stats *type = unit_get_stats(u); ee_unit_type *cls = type ? stat_get_type_data(type) : NULL;
     ee_unit_type *pc = cls ? type_get_projectile(cls) : NULL;
-    float v = type ? FIELD(type, OF(USTAT, 0xC0), float) : 0, g = pc ? type_get_accel(pc) : 0, pitch = 0, a[3], b[3];
+    float v = type ? stat_get_shot_speed(type) : 0, g = pc ? type_get_accel(pc) : 0, pitch = 0, a[3], b[3];
     if (v <= 0.001f || g <= 0.001f) return -1;
     memcpy(a, from, sizeof a); memcpy(b, to, sizeof b);
     float dx = to[0] - from[0], dy = to[1] - from[1], d = sqrtf(dx * dx + dy * dy);
@@ -60,7 +60,7 @@ internal float flight_time(ee_unit *u, const float *from, const float *to, int *
 internal void launch_point(ee_unit *u, float *from) {   // about the launch point (0x62028B: the model's fire point)
     from[0] = unit_get_pos_x(u);
     from[1] = unit_get_pos_y(u);
-    from[2] = unit_get_pos_z(u) + 0.5f * FIELD(unit_get_stats(u), OF(USTAT, 0x98), float);
+    from[2] = unit_get_pos_z(u) + 0.5f * stat_get_height(unit_get_stats(u));
 }
 
 internal int target_velocity(ee_unit *t, float *vx, float *vy) {
@@ -249,7 +249,7 @@ internal void __cdecl hook_missile_aim(ee_unit *m, ee_unit **target, float *aim,
     uint32_t now = game_time();
     float tp[3] = { unit_get_pos_x(t), unit_get_pos_y(t), unit_get_pos_z(t) };
     float r[3] = { aim[0] - unit_get_pos_x(m), aim[1] - unit_get_pos_y(m), aim[2] - unit_get_pos_z(m) };
-    float dist = sqrtf(r[0] * r[0] + r[1] * r[1] + r[2] * r[2]), s = FIELD(unit_get_stats(m), OF(USTAT, 0xAC), float);
+    float dist = sqrtf(r[0] * r[0] + r[1] * r[1] + r[2] * r[2]), s = stat_get_speed(unit_get_stats(m));
     int k = -1, free_i = -1;
     for (int i = 0; i < MSL_MAX && k < 0; i++) {
         if (g_msl[i].m == m) k = i;
@@ -309,17 +309,17 @@ internal int missile_damage(ee_unit *m, ee_unit *t) {
     ee_unit_type *lc = unit_get_attacker_type(m); ee_unit_type *tc = unit_get_type_data(t);
     ee_player *pl = unit_get_owner(m);
     ee_player *tpl = unit_get_owner(t);
-    uint8_t *ts = unit_get_stats(t);
+    ee_unit_stats *ts = unit_get_stats(t);
     if (!lc || !pl || !tc || !tpl || !ts) return 0;
     int ac = type_get_damage_class(lc), dc = type_get_damage_class(tc);
     if (ac < 0 || ac > 5 || dc < 0 || dc > 15) return 0;
-    uint8_t **rec = type_stats(pl, type_get_id(lc));
-    float atk = rec && *rec ? FIELD(*rec, OF(USTAT, 0xD8), float) : 0;
+    ee_unit_stats **rec = type_stats(pl, type_get_id(lc));
+    float atk = rec && *rec ? stat_get_attack(*rec) : 0;
     if (!(atk > 0)) return 0;
     float bonus = attack_bonus(lc, tc, player_get_index(pl), player_get_index(tpl));
     float mult = damage_table()[ac + dc * 6] * bonus;
     if (!(mult > 0)) return 0;
-    float d = mult * atk - FIELD(ts, OF(USTAT, 0xE0) + ac * 4, float);
+    float d = mult * atk - stat_get_armor(ts, ac);
     int n = (int)floorf(d + 0.5f);
     return n < 1 ? 1 : n;
 }
@@ -349,7 +349,7 @@ internal int __fastcall hook_missile_launch(uint8_t *cls, void *edx, ee_unit *m,
             g_msl[i].dmg = missile_damage(m, t);
             g_msl[i].p[0] = unit_get_pos_x(t);
             g_msl[i].p[1] = unit_get_pos_y(t); g_msl[i].p[2] = unit_get_pos_z(t);
-            if (g_measure) g_mst[g_msl[i].moving].speed += FIELD(unit_get_stats(m), OF(USTAT, 0xAC), float);
+            if (g_measure) g_mst[g_msl[i].moving].speed += stat_get_speed(unit_get_stats(m));
             break;
         }
     return r;
@@ -360,7 +360,7 @@ internal ee_unit *spread_target(ee_unit *u, ee_unit *t) {
     ee_player *pl = unit_get_owner(u);
     if (!pl) return NULL;
     int fam = type_get_family(unit_get_type_data(t));
-    float x = unit_get_pos_x(u), y = unit_get_pos_y(u), range = FIELD(unit_get_stats(u), OF(USTAT, 0x9C), float);
+    float x = unit_get_pos_x(u), y = unit_get_pos_y(u), range = stat_get_range(unit_get_stats(u));
     int r = (int)range + 1;
     ee_unit *best = NULL;
     float bd = range * range;

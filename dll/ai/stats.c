@@ -21,10 +21,10 @@
 #define ST_TABLE damage_table()
 internal int g_fight_est = 0;   // [all] fight_estimate
 
-internal uint8_t *st_rec(ee_player *pl, int type) {   // the player's stats record of a type
+internal ee_unit_stats *st_rec(ee_player *pl, int type) {   // the player's stats record of a type
     if (!pl || type < 0) return NULL;
     if ((unsigned)type >= type_stats_count(pl)) return NULL;
-    uint8_t **p = type_stats(pl, type);
+    ee_unit_stats **p = type_stats(pl, type);
     return p ? *p : NULL;
 }
 internal void *st_player(int i) {   // any player (g_players has the AIs only)
@@ -35,14 +35,14 @@ internal float st_factor(ee_unit_type *atd, int api, ee_unit_type *ttd, int tpi)
     return attack_bonus(atd, ttd, api, tpi);
 }
 // damage of one shot of type atd (stats ast, player index api) at type ttd (stats tst, tpi); 0 = cannot hurt it
-internal int st_shot_t(ee_unit_type *atd, uint8_t *ast, int api, ee_unit_type *ttd, uint8_t *tst, int tpi) {
+internal int st_shot_t(ee_unit_type *atd, ee_unit_stats *ast, int api, ee_unit_type *ttd, ee_unit_stats *tst, int tpi) {
     if (!atd || !ttd) return 0;
-    float att = ast ? FIELD(ast, OF(USTAT, 0xD8), float) : (float)type_get_attack(atd);
+    float att = ast ? stat_get_attack(ast) : (float)type_get_attack(atd);
     int ac = type_get_damage_class(atd), tc = type_get_damage_class(ttd);
     if (att <= 0 || ac < 0 || ac > 5 || tc < 0 || tc > 5) return 0;
     float f = st_factor(atd, api, ttd, tpi) * ST_TABLE[ac + tc * 6];
     if (f <= 0) return 0;
-    float d = f * att - (tst ? FIELD(tst, OF(USTAT, 0xE0) + ac * 4, float) : 0.0f);
+    float d = f * att - (tst ? stat_get_armor(tst, ac) : 0.0f);
     int r = (int)(d + 0.5f);
     return r < 1 ? 1 : r;
 }
@@ -51,8 +51,8 @@ internal int st_shot(ee_unit *a, ee_unit *t) {
     return st_shot_t(unit_get_type_data(a), unit_get_stats(a), st_pidx(a), unit_get_type_data(t),
                      unit_get_stats(t), st_pidx(t));
 }
-internal float st_reload_t(ee_unit_type *atd, uint8_t *ast) {   // seconds between shots (class value)
-    int ms = ast ? FIELD(ast, OF(USTAT, 0x138), int) : 0;
+internal float st_reload_t(ee_unit_type *atd, ee_unit_stats *ast) {   // seconds between shots (class value)
+    int ms = ast ? stat_get_reload(ast) : 0;
     if (ms <= 0 && atd) ms = type_get_reload(atd);
     return ms > 0 ? ms / 1000.0f : 1.0f;
 }
@@ -65,8 +65,8 @@ internal float st_reload(ee_unit *a) {   // the unit's own (scenario triggers ch
 // 4.6-7.1 s; about 2 s on every shot
 #define ST_SHOT_OVERHEAD 2.0f
 internal float st_dps(ee_unit *a, ee_unit *t) { return st_shot(a, t) / (st_reload(a) + ST_SHOT_OVERHEAD); }
-internal float st_range(ee_unit *u) { uint8_t *st = unit_get_stats(u); return st ? FIELD(st, OF(USTAT, 0x9C), float) : type_get_range(unit_get_type_data(u)); }
-internal float st_speed(ee_unit *u) { uint8_t *st = unit_get_stats(u); return st ? FIELD(st, OF(USTAT, 0xAC), float) : 0.0f; }   // tiles/s, 0 = cannot move
+internal float st_range(ee_unit *u) { ee_unit_stats *st = unit_get_stats(u); return st ? stat_get_range(st) : type_get_range(unit_get_type_data(u)); }
+internal float st_speed(ee_unit *u) { ee_unit_stats *st = unit_get_stats(u); return st ? stat_get_speed(st) : 0.0f; }   // tiles/s, 0 = cannot move
 // RANGE (the user: "it can even overpower all the other stats since a unit can be eliminated from range before ever
 // getting a chance to fire back"): a unit that cannot move never hits one that outranges it; a unit that is
 // outranged walks the difference under fire first (st_close)
@@ -74,7 +74,7 @@ internal int st_reaches(ee_unit *a, ee_unit *t) { return st_speed(a) > 0 || st_r
 internal float st_minrange(ee_unit *u) { return type_get_min_range(unit_get_type_data(u)); }
 // once a mobile target has closed to its own range, an attacker whose minimum range is longer cannot hit it (artillery)
 internal int st_inside_min(ee_unit *a, ee_unit *t) { return st_speed(t) > 0 && st_minrange(a) > 0 && st_minrange(a) >= st_range(t); }
-internal int st_maxhp(ee_unit_type *td, uint8_t *st) { return st && FIELD(st, OF(USTAT, 0x144), int) > 0 ? FIELD(st, OF(USTAT, 0x144), int) : type_get_hp(td); }
+internal int st_maxhp(ee_unit_type *td, ee_unit_stats *st) { return st && stat_get_hp(st) > 0 ? stat_get_hp(st) : type_get_hp(td); }
 
 // --- a fight between two sides ------------------------------------------------------------------------------------
 // By unit type: units of one type and player share their stats, so the work grows with types x types (a late army
@@ -156,8 +156,8 @@ internal float st_side_dps(struct st_side *a, struct st_side *b, int contact) {
     float s = 0;
     for (int i = 0; i < a->ng; i++) {
         ee_unit *u = a->g[i].rep;
-        uint8_t *ast = unit_get_stats(u);
-        float area = ast ? FIELD(ast, OF(USTAT, 0xA0), float) : 0, num = 0, den = 0;
+        ee_unit_stats *ast = unit_get_stats(u);
+        float area = ast ? stat_get_area(ast) : 0, num = 0, den = 0;
         for (int j = 0; j < b->ng; j++) {
             ee_unit *t = b->g[j].rep;
             float d = st_reaches(u, t) && !(contact && st_inside_min(u, t)) ? st_dps(u, t) : 0;
@@ -253,12 +253,12 @@ internal void cmd_stats(char *out, const char *args) {
         ee_player *pl = st_player(p);
         if (!pl) { REPLY("error: stats types P [from to]\n"); return; }
         for (int t = lo; t < hi && t < 0x300; t++) {
-            ee_unit_type *td = type_data(t); uint8_t *st = st_rec(pl, t);
-            if (!td || !st || FIELD(st, OF(USTAT, 0xD8), float) <= 0) continue;
+            ee_unit_type *td = type_data(t); ee_unit_stats *st = st_rec(pl, t);
+            if (!td || !st || stat_get_attack(st) <= 0) continue;
             REPLY("%3d fam %2d class %d cat %2d weapon %2d: att %g hp %d reload %.2f s range %g (min %g) speed %g area %g armour", t,
                   type_get_family(td), type_get_damage_class(td), type_get_category(td), type_get_weapon(td),
-                  FIELD(st, OF(USTAT, 0xD8), float), st_maxhp(td, st), st_reload_t(td, st), FIELD(st, OF(USTAT, 0x9C), float), type_get_min_range(td), FIELD(st, OF(USTAT, 0xAC), float), FIELD(st, OF(USTAT, 0xA0), float));
-            for (int c = 0; c < 6; c++) REPLY(" %g", FIELD(st, OF(USTAT, 0xE0) + c * 4, float));
+                  stat_get_attack(st), st_maxhp(td, st), st_reload_t(td, st), stat_get_range(st), type_get_min_range(td), stat_get_speed(st), stat_get_area(st));
+            for (int c = 0; c < 6; c++) REPLY(" %g", stat_get_armor(st, c));
             REPLY("\n");
         }
         return;
@@ -267,10 +267,10 @@ internal void cmd_stats(char *out, const char *args) {
         int p, t, q, u;
         if (sscanf(args + 2, "%d %d %d %d", &p, &t, &q, &u) != 4 || !st_player(p) || !st_player(q) ||
             t < 0 || t >= 0x300 || u < 0 || u >= 0x300) { REPLY("error: stats vs P T Q U\n"); return; }
-        ee_unit_type *atd = type_data(t); ee_unit_type *btd = type_data(u); uint8_t *ast = st_rec(st_player(p), t), *bst = st_rec(st_player(q), u);
+        ee_unit_type *atd = type_data(t); ee_unit_type *btd = type_data(u); ee_unit_stats *ast = st_rec(st_player(p), t), *bst = st_rec(st_player(q), u);
         if (!atd || !btd) { REPLY("error: no type\n"); return; }
         for (int side = 0; side < 2; side++) {
-            ee_unit_type *xt = side ? btd : atd; uint8_t *xs = side ? bst : ast; ee_unit_type *yt = side ? atd : btd; uint8_t *ys = side ? ast : bst;
+            ee_unit_type *xt = side ? btd : atd; ee_unit_stats *xs = side ? bst : ast; ee_unit_type *yt = side ? atd : btd; ee_unit_stats *ys = side ? ast : bst;
             int xp = side ? q : p, yp = side ? p : q, sh = st_shot_t(xt, xs, xp, yt, ys, yp), hp = st_maxhp(yt, ys);
             float rl = st_reload_t(xt, xs);
             int shots = sh ? (hp + sh - 1) / sh : 0;

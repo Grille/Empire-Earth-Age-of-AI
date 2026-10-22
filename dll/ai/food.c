@@ -82,10 +82,10 @@ internal ee_unit *food_bush(ee_player *pl, ee_resource_mgr *rm, ee_unit *u, int 
     if (u) { int up[2] = { unit_get_x(u), unit_get_y(u) }; ur = (short)map_area(up, 2); }
     ee_unit *best = NULL;
     int bd = 0x7FFFFFFF;
-    void **zb = player_get_zones_begin(pl), **ze = player_get_zones_end(pl);
+    ee_zone **zb = player_get_zones_begin(pl); ee_zone **ze = player_get_zones_end(pl);
     for (int z = 0; zb && zb + z < ze && z < 256; z++) {
-        uint8_t *zone = zb[z];
-        void **sb = zone ? FIELD(zone, OF(ZONE, 0x8), void **) : NULL, **se = zone ? FIELD(zone, OF(ZONE, 0xC), void **) : NULL;
+        ee_zone *zone = zb[z];
+        void **sb = zone ? zone_get_sites_begin(zone) : NULL, **se = zone ? zone_get_sites_end(zone) : NULL;
         for (int k = 0; sb && sb + k < se && k < 4096; k++) {
             ee_unit *s = sb[k];
             ee_unit_type *td = s ? unit_get_type_data(s) : NULL;
@@ -223,9 +223,9 @@ internal void food_camp(ee_player *pl, unsigned idx, uint32_t now) {
         if (!td || unit_get_resource(a) != 2 || unit_get_amount(a) <= 0 || type_get_category(td) != 0x11 || food_fierce(type_get_id(td))) continue;
         fx[n] = unit_get_x(a); fy[n] = unit_get_y(a); ff[n++] = unit_get_amount(a);
     }
-    void **zb = player_get_zones_begin(pl), **ze = player_get_zones_end(pl);   // bushes
+    ee_zone **zb = player_get_zones_begin(pl); ee_zone **ze = player_get_zones_end(pl);   // bushes
     for (int z = 0; zb && zb + z < ze && z < 256; z++) {
-        void **sb = zb[z] ? FIELD(zb[z], OF(ZONE, 0x8), void **) : NULL, **se = zb[z] ? FIELD(zb[z], OF(ZONE, 0xC), void **) : NULL;
+        void **sb = zb[z] ? zone_get_sites_begin(zb[z]) : NULL, **se = zb[z] ? zone_get_sites_end(zb[z]) : NULL;
         for (int k = 0; sb && sb + k < se && k < 4096 && n < 512; k++) {
             ee_unit *st = sb[k];
             ee_unit_type *td = st ? unit_get_type_data(st) : NULL;

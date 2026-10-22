@@ -134,11 +134,11 @@ internal struct mt_val {
 internal uint16_t g_mt_own[16][768];   // own land soldiers by type (VALUE's share), with the values
 internal int g_mt_army[16];
 
-internal float mt_dps(ee_unit_type *atd, uint8_t *ast, int api, ee_unit_type *ttd, uint8_t *tst, int tpi) {
+internal float mt_dps(ee_unit_type *atd, ee_unit_stats *ast, int api, ee_unit_type *ttd, ee_unit_stats *tst, int tpi) {
     int s = st_shot_t(atd, ast, api, ttd, tst, tpi);
     return s > 0 ? (float)s / (st_reload_t(atd, ast) + ST_SHOT_OVERHEAD) : 0.0f;
 }
-internal float mt_range_t(ee_unit_type *td, uint8_t *st) { return st ? FIELD(st, OF(USTAT, 0x9C), float) : type_get_range(td); }
+internal float mt_range_t(ee_unit_type *td, ee_unit_stats *st) { return st ? stat_get_range(st) : type_get_range(td); }
 internal float mt_price(ee_player *pl, unsigned idx, int t, const int *stock, const int *reserve);
 // the values of the trainable land soldiers against the known enemy mix, every 30 s
 internal void mt_values(ee_player *pl, unsigned idx) {
@@ -176,11 +176,11 @@ internal void mt_values(ee_player *pl, unsigned idx) {
     int pi = (int)idx;
     for (int i = 0; i < v->n; i++) {
         int c = v->type[i];
-        ee_unit_type *ctd = type_data(c); uint8_t *cst = st_rec(pl, c);
+        ee_unit_type *ctd = type_data(c); ee_unit_stats *cst = st_rec(pl, c);
         float chp = (float)st_maxhp(ctd, cst), crange = mt_range_t(ctd, cst), kill = 0, inc = 0, w = 0;
         for (int j = 0; j < nm; j++) {
             void *opl = st_player(mix[j].owner);
-            ee_unit_type *etd = type_data(mix[j].type); uint8_t *est = st_rec(opl, mix[j].type);
+            ee_unit_type *etd = type_data(mix[j].type); ee_unit_stats *est = st_rec(opl, mix[j].type);
             float ehp = (float)st_maxhp(etd, est), erange = mt_range_t(etd, est), n = (float)mix[j].n;
             if (ehp <= 0) continue;
             kill += n * mt_dps(ctd, cst, pi, etd, est, mix[j].owner) / ehp;

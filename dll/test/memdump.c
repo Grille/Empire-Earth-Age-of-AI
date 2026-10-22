@@ -43,7 +43,7 @@ internal void dump_player(void *rm, uint32_t now) {
     dump_region(f, "pl+b90", player_get_civ_mgr(pl), 0x400);
     dump_region(f, "pl+9d4", ((void *)player_get_tech_tree(pl)), 0x800);
     // towns / resource centers (player +0xB50 vector of pointers)
-    void **tb = player_get_zones_begin(pl), **te = player_get_zones_end(pl);
+    ee_zone **tb = player_get_zones_begin(pl); ee_zone **te = player_get_zones_end(pl);
     for (int i = 0; tb && tb + i < te && i < 32; i++) {
         char tag[16];
         wsprintfA(tag, "town%02d", i);

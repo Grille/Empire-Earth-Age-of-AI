@@ -46,10 +46,10 @@ internal void mf_scan(ee_player *pl, unsigned idx, uint32_t now) {
     drops_cached(pl);
     static ee_unit *seen[1024];
     int ns = 0, bd = 0x7FFFFFFF;
-    void **tb = player_get_zones_begin(pl), **te = player_get_zones_end(pl);
+    ee_zone **tb = player_get_zones_begin(pl); ee_zone **te = player_get_zones_end(pl);
     for (int t = 0; tb && tb + t < te && t < 256; t++) {
-        uint8_t *zone = tb[t];
-        void **sb = zone ? FIELD(zone, OF(ZONE, 0x8), void **) : NULL, **se = zone ? FIELD(zone, OF(ZONE, 0xC), void **) : NULL;
+        ee_zone *zone = tb[t];
+        void **sb = zone ? zone_get_sites_begin(zone) : NULL, **se = zone ? zone_get_sites_end(zone) : NULL;
         for (int k = 0; sb && sb + k < se && k < 4096; k++) {
             ee_unit *s = sb[k];
             int r = s ? unit_get_resource(s) : 0, j;
@@ -69,7 +69,7 @@ internal void mf_scan(ee_player *pl, unsigned idx, uint32_t now) {
                 m->g[r] += (int)site_gatherers(s);
                 continue;
             }
-            if (!home || dd >= bd || !zone[OF(ZONE, 0x18)]) continue;
+            if (!home || dd >= bd || !zone_get_active(zone)) continue;
             if (!explored_by(s, pl)) continue;
             if (bm_enemy_near(bm, pos[0], pos[1]) || site_danger_res(pl, s, 0, r)) continue;
             bd = dd; m->far_x = pos[0]; m->far_y = pos[1]; m->far_r = r;

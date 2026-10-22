@@ -1261,8 +1261,8 @@ internal int ld_anti_ship(ee_player *pl, struct landing *l) {
 }
 internal int bk_room(ee_player *pl);   // bunker.c
 internal float ld_range(ee_unit *u) {   // its range with upgrades (stats +0x9C), else its type's (+0x420)
-    uint8_t *st = unit_get_stats(u); ee_unit_type *td = unit_get_type_data(u);
-    return st ? FIELD(st, OF(USTAT, 0x9C), float) : td ? type_get_range(td) : 0.0f;
+    ee_unit_stats *st = unit_get_stats(u); ee_unit_type *td = unit_get_type_data(u);
+    return st ? stat_get_range(st) : td ? type_get_range(td) : 0.0f;
 }
 // landing_trace (test): at each check of the shelling, the warships (type, hit points, target) and the defences
 // within 16 tiles of the beach (type, hit points, range, the nearest warship and whether each reaches the other)
@@ -2153,13 +2153,13 @@ internal void cmd_board(char *out, const char *args) {
         for (struct grid_it it = grid_it_all(1); !hit && grid_it_next(&it); )
             if (type_get_id(it.td) == t && unit_get_owner(it.u) && player_get_index(unit_get_owner(it.u)) == rp) hit = it.u;
         if (!hit) { REPLY("no unit of type %d for P%d\n", t, rp); return; }
-        ee_unit_type *td = unit_get_type_data(hit); uint8_t *st = unit_get_stats(hit);
+        ee_unit_type *td = unit_get_type_data(hit); ee_unit_stats *st = unit_get_stats(hit);
     ee_player *pl = unit_get_owner(hit);
-        uint8_t **rec = type_stats(pl, t);
-        uint8_t *r = rec ? *rec : NULL;
+        ee_unit_stats **rec = type_stats(pl, t);
+        ee_unit_stats *r = rec ? *rec : NULL;
         REPLY("unit %p type %d: type +50C %d, stats %p, player record %p%s\n", (void *)hit, t, type_get_reload(td), (void *)st, (void *)r, r == st ? " (= stats)" : "");
         for (int pass = 0; pass < 3; pass++) {
-            uint8_t *o = pass == 0 ? st : pass == 1 ? (uint8_t *)unit_get_physics(hit) : (uint8_t *)hit;
+            uint8_t *o = pass == 0 ? (uint8_t *)st : pass == 1 ? (uint8_t *)unit_get_physics(hit) : (uint8_t *)hit;
             int lo = 0, hi = pass == 2 ? 0x1000 : pass == 1 ? 0x400 : 0x140;
             if (!o) continue;
             REPLY("  %s:", pass == 0 ? "stats" : pass == 1 ? "physics" : "unit");
@@ -2186,7 +2186,7 @@ internal void cmd_board(char *out, const char *args) {
             if (!grid) break;
             for (struct grid_it it = grid_it_all(1); !hit && grid_it_next(&it); )
                 if (type_get_id(it.td) == tt[j] && unit_get_owner(it.u) && player_get_index(unit_get_owner(it.u)) == 1 && unit_get_hp(it.u) > 0) hit = it.u;
-            uint8_t *st = hit ? unit_get_stats(hit) : NULL;
+            ee_unit_stats *st = hit ? unit_get_stats(hit) : NULL;
             if (!st) { REPLY("type %d: none\n", tt[j]); continue; }
             REPLY("type %d:", tt[j]);
             for (int off = 0x80; off < 0x140; off += 4) REPLY(" %X=%g", off, FIELD(st, off, float));

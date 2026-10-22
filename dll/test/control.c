@@ -198,12 +198,12 @@ internal void cmd_sites(char *out, const char *args) {
     if (!pl) { REPLY("error: no AI player %d (AI players are registered on their first update)\n", p); return; }
     unsigned cap = table_value(0x16);
     REPLY("P%d cap(table 0x16)=%u\n", p, cap);
-    void **tb = player_get_zones_begin(pl), **te = player_get_zones_end(pl);
+    ee_zone **tb = player_get_zones_begin(pl); ee_zone **te = player_get_zones_end(pl);
     for (int t = 0; tb && tb + t < te; t++) {
-        uint8_t *town = tb[t];
+        ee_zone *town = tb[t];
         if (!town) continue;
-        REPLY(" town %d active=%d\n", t, town[OF(ZONE, 0x18)]);
-        void **sb = FIELD(town, OF(ZONE, 0x8), void **), **se = FIELD(town, OF(ZONE, 0xC), void **);
+        REPLY(" town %d active=%d\n", t, zone_get_active(town));
+        void **sb = zone_get_sites_begin(town), **se = zone_get_sites_end(town);
         for (int s = 0; sb && sb + s < se; s++) {
             ee_unit *site = sb[s];
             if (!site) continue;
@@ -228,7 +228,7 @@ internal void cmd_foodcheck(char *out, const char *args) {
     unsigned cap = table_value(0x16);
     REPLY("P%d base=%d,%d region=%d radius=%d (pass1 d2<%d, pass3 d2<%d) cap=%u\n", p, base[0], base[1],
           base_region, r, r * r * 4, r * r * 36, cap);
-    void **tb = player_get_zones_begin(pl), **te = player_get_zones_end(pl);
+    ee_zone **tb = player_get_zones_begin(pl); ee_zone **te = player_get_zones_end(pl);
     for (int t = 0; tb && tb + t < te; t++) {
         ee_zone *zone = tb[t];
         ee_unit *s = zone ? zone_site(zone, 2) : NULL;
@@ -236,11 +236,11 @@ internal void cmd_foodcheck(char *out, const char *args) {
         int pos[2] = { unit_get_x(s), unit_get_y(s) };
         int dx = pos[0] - base[0], dy = pos[1] - base[1];
         REPLY(" zone %2d active=%d site %d,%d class=%#x region=%d explored=%d gatherers=%u amount=%d state=%d"
-              " zone+14=%d enemy=%d d2=%d\n", t, FIELD(zone, OF(ZONE, 0x18), uint8_t), pos[0], pos[1], type_get_id(unit_get_type_data(s)),
+              " zone+14=%d enemy=%d d2=%d\n", t, zone_get_active(zone), pos[0], pos[1], type_get_id(unit_get_type_data(s)),
               (short)map_area(pos, 2),
               explored_by(s, pl),
               site_gatherers(s),
-              unit_get_amount(s), FIELD(unit_get_vis(s), OF(SITEOWN, 0x4), int), FIELD(zone, OF(ZONE, 0x14), int),
+              unit_get_amount(s), FIELD(unit_get_vis(s), OF(SITEOWN, 0x4), int), zone_get_drop(zone),
               bm_enemy_near(bm, pos[0], pos[1]), dx * dx + dy * dy);
     }
 }

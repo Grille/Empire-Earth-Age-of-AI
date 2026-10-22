@@ -51,10 +51,10 @@ internal void ex_scan(ee_player *pl, uint32_t now, int new_log) {
     unsigned cap = table_value(0x16);
     static ee_unit *seen[4096];
     int ns = 0;
-    void **zb = player_get_zones_begin(pl), **ze = player_get_zones_end(pl);
+    ee_zone **zb = player_get_zones_begin(pl); ee_zone **ze = player_get_zones_end(pl);
     for (int z = 0; zb && zb + z < ze && z < 256; z++) {
-        uint8_t *zone = zb[z];
-        void **sb = zone ? FIELD(zone, OF(ZONE, 0x8), void **) : NULL, **se = zone ? FIELD(zone, OF(ZONE, 0xC), void **) : NULL;
+        ee_zone *zone = zb[z];
+        void **sb = zone ? zone_get_sites_begin(zone) : NULL, **se = zone ? zone_get_sites_end(zone) : NULL;
         for (int k = 0; sb && sb + k < se && k < 4096; k++) {
             ee_unit *s = sb[k];
             int r = s ? unit_get_resource(s) : 0, j;
@@ -788,10 +788,10 @@ internal ee_unit *ex_free_mine(ee_player *pl, struct ex_st *x, int px, int py) {
     unsigned cap = table_value(0x16);
     ee_unit *best = NULL;
     int bd = 0x7FFFFFFF;
-    void **zb = player_get_zones_begin(pl), **ze = player_get_zones_end(pl);
+    ee_zone **zb = player_get_zones_begin(pl); ee_zone **ze = player_get_zones_end(pl);
     for (int z = 0; zb && zb + z < ze && z < 256; z++) {
-        uint8_t *zone = zb[z];
-        void **sb = zone ? FIELD(zone, OF(ZONE, 0x8), void **) : NULL, **se = zone ? FIELD(zone, OF(ZONE, 0xC), void **) : NULL;
+        ee_zone *zone = zb[z];
+        void **sb = zone ? zone_get_sites_begin(zone) : NULL, **se = zone ? zone_get_sites_end(zone) : NULL;
         for (int k = 0; sb && sb + k < se && k < 4096; k++) {
             ee_unit *s = sb[k];
             int r = s ? unit_get_resource(s) : 0;

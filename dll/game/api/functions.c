@@ -170,8 +170,8 @@ internal inline void start_exec(void *msg) { ((void (__thiscall *)(void *))GA(ST
 // the game's cos (UMCos, its own math DLL through its import: the same bits on every PC - the C runtime's may differ)
 internal inline float game_cos(float a) { return (*(float (__cdecl **)(float))GA(IAT_COS))(a); }
 // a shot's ballistic path from -> to for unit u (type: its live stats): reachable (pitch out); the aim at target
-internal inline char ballistic(ee_unit *u, uint8_t *type, float *from, float *to, float *pitch) {
-    return ((char (__cdecl *)(ee_unit *, uint8_t *, float *, float *, float *))GA(FN_BALLISTIC))(u, type, from, to, pitch);
+internal inline char ballistic(ee_unit *u, ee_unit_stats *type, float *from, float *to, float *pitch) {
+    return ((char (__cdecl *)(ee_unit *, ee_unit_stats *, float *, float *, float *))GA(FN_BALLISTIC))(u, type, from, to, pitch);
 }
 internal inline void unit_aim(ee_unit *u, ee_unit **target, float *aim, void *zero) {
     ((void (__cdecl *)(ee_unit *, ee_unit **, float *, void *))GA(FN_AIM))(u, target, aim, zero);
@@ -244,7 +244,7 @@ internal inline int highest_human_epoch(void) { return GF(FN_HUMAN_EPOCH)(); }
 internal inline char can_place_area(ee_player *pl, int type, int x, int y, int size) { return GF(FN_CAN_PLACE)(pl, type, x, y, size, size, 0); }
 // the player's per-type stats records (player +0x874, a vector): their count, the record of type
 internal inline unsigned type_stats_count(ee_player *pl) { return GF(FN_VECTOR_SIZE)(FIELD_AT(pl, OF(PL, 0x874))); }
-internal inline uint8_t **type_stats(ee_player *pl, int type) { return GF(FN_TYPE_STATS)(FIELD_AT(pl, OF(PL, 0x874)), type); }
+internal inline ee_unit_stats **type_stats(ee_player *pl, int type) { return (ee_unit_stats **)GF(FN_TYPE_STATS)(FIELD_AT(pl, OF(PL, 0x874)), type); }
 // the player resigns (how: 2 as the resign message does)
 internal inline void player_resign(ee_player *pl, int how) { GF(FN_PLAYER_RESIGN)(pl, how); }
 // player a's stance towards b (1 enemy, 0 ally) set as the game does (EEPlayer's diplomacy, both its lists)

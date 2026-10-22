@@ -126,14 +126,14 @@ internal struct fl_scan {
     int twx[32], twy[32], ntw; float twr[32];         // own towers and defence buildings (their range)
 } g_fs;
 internal float fl_dps(ee_unit *u, ee_unit_type *td) {
-    uint8_t *st = u ? unit_get_stats(u) : NULL;
-    float a = st ? FIELD(st, OF(USTAT, 0xD8), float) : (float)type_get_attack(td);
+    ee_unit_stats *st = u ? unit_get_stats(u) : NULL;
+    float a = st ? stat_get_attack(st) : (float)type_get_attack(td);
     int rl = type_get_reload(td);
     return a > 0 ? a * 1000.0f / (float)((rl > 0 ? rl : 2000) + 2000) : 0.0f;
 }
 internal float fl_range(ee_unit *u, ee_unit_type *td) {
-    uint8_t *st = u ? unit_get_stats(u) : NULL;
-    float r = st ? FIELD(st, OF(USTAT, 0x9C), float) : type_get_range(td) + 1.0f;   // remembered: the base range + an upgrade
+    ee_unit_stats *st = u ? unit_get_stats(u) : NULL;
+    float r = st ? stat_get_range(st) : type_get_range(td) + 1.0f;   // remembered: the base range + an upgrade
     return r > 0 && r < 40 ? r : 0;
 }
 // does a land unit or building of type td threaten ships: a defence with a ground attack (attack.c defence_stats), or
@@ -325,8 +325,8 @@ internal float fl_hp(struct fleet *f) {
     return h;
 }
 internal float fl_hp_max(ee_unit *u) {
-    uint8_t *st = unit_get_stats(u);
-    int m = st ? FIELD(st, OF(USTAT, 0x144), int) : 0;
+    ee_unit_stats *st = unit_get_stats(u);
+    int m = st ? stat_get_hp(st) : 0;
     return (float)(m > 0 ? m : type_get_hp(unit_get_type_data(u)));
 }
 // the guard point: from the fishing boats' middle (the docks' with fewer than 2 boats) 5 tiles toward the nearest

@@ -75,10 +75,10 @@ internal void eco_mines(ee_player *pl, struct eco_mines *c) {
     {   ee_civ_mgr *cm = player_get_civ_mgr(pl); ee_build_mgr *bm = cm ? cm_get_build_mgr(cm) : NULL;
         int b[2] = { bm ? bm_get_base_x(bm) : -10000, bm ? bm_get_base_y(bm) : -10000 };
         if (b[0] != -10000 && b[1] != -10000) base_reg = (short)map_area(b, 2); }
-    void **tb = player_get_zones_begin(pl), **te = player_get_zones_end(pl);
+    ee_zone **tb = player_get_zones_begin(pl); ee_zone **te = player_get_zones_end(pl);
     for (int t = 0; tb && tb + t < te && t < 256; t++) {
-        uint8_t *town = tb[t];
-        void **sb = town ? FIELD(town, OF(ZONE, 0x8), void **) : NULL, **se = town ? FIELD(town, OF(ZONE, 0xC), void **) : NULL;
+        ee_zone *town = tb[t];
+        void **sb = town ? zone_get_sites_begin(town) : NULL, **se = town ? zone_get_sites_end(town) : NULL;
         for (int k = 0; sb && sb + k < se && k < 4096; k++) {
             ee_unit *st = sb[k];
             int r = st ? unit_get_resource(st) : 0, j;
@@ -94,7 +94,7 @@ internal void eco_mines(ee_player *pl, struct eco_mines *c) {
             }
             if (dd <= 144) { c->n[r]++; c->slots[r] += (int)cap; c->g[r] += (int)g; }
             else c->far_[r] += (int)g;
-            if (dd > 144 && FIELD(town, OF(ZONE, 0x18), uint8_t) && explored_by(st, pl)) {
+            if (dd > 144 && zone_get_active(town) && explored_by(st, pl)) {
                 int pos[2] = { x, y };   // known, explored, no drop site within 12 tiles, on the base's continent
                 if (base_reg < 0 || (short)map_area(pos, 2) == base_reg) c->nd[r]++;
             }
@@ -169,10 +169,10 @@ internal void eco_food(ee_player *pl, ee_resource_mgr *rm, struct eco_food *f) {
     }
     ee_civ_mgr *cm = player_get_civ_mgr(pl); ee_build_mgr *bm = cm ? cm_get_build_mgr(cm) : NULL;
     int bx = bm ? bm_get_base_x(bm) : -10000, by = bm ? bm_get_base_y(bm) : -10000;
-    void **zb = player_get_zones_begin(pl), **ze = player_get_zones_end(pl);
+    ee_zone **zb = player_get_zones_begin(pl); ee_zone **ze = player_get_zones_end(pl);
     for (int z = 0; zb && zb + z < ze && z < 256; z++) {
-        uint8_t *zone = zb[z];
-        void **sb = zone ? FIELD(zone, OF(ZONE, 0x8), void **) : NULL, **se = zone ? FIELD(zone, OF(ZONE, 0xC), void **) : NULL;
+        ee_zone *zone = zb[z];
+        void **sb = zone ? zone_get_sites_begin(zone) : NULL, **se = zone ? zone_get_sites_end(zone) : NULL;
         for (int k = 0; sb && sb + k < se && k < 4096; k++) {
             ee_unit *st = sb[k]; ee_unit_type *td = st ? unit_get_type_data(st) : NULL;
             if (!td || unit_get_resource(st) != 2 || type_get_id(td) != UT(RES_FORAGE_BUSH) || unit_get_amount(st) <= 0) continue;

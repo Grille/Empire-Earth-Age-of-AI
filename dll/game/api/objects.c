@@ -16,7 +16,7 @@ internal inline uint8_t unit_get_released(const ee_unit *u) { return FIELD(u, OF
 internal inline uint8_t unit_get_valid(const ee_unit *u) { return FIELD(u, OF(UNIT, 0x2B), uint8_t); }       // +0x2B mIsValid
 internal inline ee_unit_type *unit_get_type_data(const ee_unit *u) { return FIELD(u, OF(UNIT, 0x2C), ee_unit_type *); } // +0x2C its type's data (TD)
 internal inline ee_unit *unit_get_physics(const ee_unit *u) { return FIELD(u, OF(UNIT, 0x30), ee_unit *); }  // +0x30 (the game's dump: physics) - a unit too
-internal inline uint8_t *unit_get_stats(const ee_unit *u) { return FIELD(u, OF(UNIT, 0x34), uint8_t *); }    // +0x34 its player's stats of the type (USTAT)
+internal inline ee_unit_stats *unit_get_stats(const ee_unit *u) { return FIELD(u, OF(UNIT, 0x34), ee_unit_stats *); }    // +0x34 its player's stats of the type (USTAT)
 internal inline int unit_get_resource(const ee_unit *u) { return FIELD(u, OF(UNIT, 0x38), int); }            // +0x38 a resource site's resource
 internal inline int unit_get_hp(const ee_unit *u) { return FIELD(u, OF(UNIT, 0x3C), int); }                  // +0x3C hit points (> 0: alive)
 internal inline int unit_get_amount(const ee_unit *u) { return FIELD(u, OF(UNIT, 0x40), int); }              // +0x40 a resource site's amount left
@@ -101,6 +101,19 @@ internal inline int type_get_missile_delay(const ee_unit_type *td) { return FIEL
 internal inline int type_get_size(const ee_unit_type *td) { return FIELD(td, OF(TD, 0x58C), int); }          // +0x58C its footprint (tiles a side)
 internal inline uint8_t type_get_behaviours(const ee_unit_type *td) { return FIELD(td, OF(TD, 0x621), uint8_t); } // +0x621 takes a behaviour (stances)
 
+// A UNIT TYPE'S VALUES FOR ONE PLAYER (a unit's +0x34, type_stats(pl, t)): the type's data with the player's upgrades
+internal inline ee_unit_type *stat_get_type_data(const ee_unit_stats *st) { return FIELD(st, OF(USTAT, 0x60), ee_unit_type *); } // +0x60
+internal inline float stat_get_height(const ee_unit_stats *st) { return FIELD(st, OF(USTAT, 0x98), float); }     // +0x98
+internal inline float stat_get_range(const ee_unit_stats *st) { return FIELD(st, OF(USTAT, 0x9C), float); }      // +0x9C tiles
+internal inline float stat_get_area(const ee_unit_stats *st) { return FIELD(st, OF(USTAT, 0xA0), float); }       // +0xA0 the area its shots hit
+internal inline float stat_get_speed(const ee_unit_stats *st) { return FIELD(st, OF(USTAT, 0xAC), float); }      // +0xAC tiles/s (0: cannot move)
+internal inline float stat_get_shot_speed(const ee_unit_stats *st) { return FIELD(st, OF(USTAT, 0xC0), float); } // +0xC0 its projectile's launch speed
+internal inline float stat_get_attack(const ee_unit_stats *st) { return FIELD(st, OF(USTAT, 0xD8), float); }     // +0xD8
+// +0xE0 float[6] the armour against each damage class
+internal inline float stat_get_armor(const ee_unit_stats *st, int c) { return FIELD(st, OF(USTAT, 0xE0) + c * 4, float); }
+internal inline int stat_get_reload(const ee_unit_stats *st) { return FIELD(st, OF(USTAT, 0x138), int); }        // +0x138 ms between shots
+internal inline int stat_get_hp(const ee_unit_stats *st) { return FIELD(st, OF(USTAT, 0x144), int); }            // +0x144 its full hit points
+
 // A PLAYER (EEPlayer, EEComputerPlayer; engine-notes.md "Players", the AI settings table's fields: ai/settings.c)
 // +0x18 / +0x1C: a list of 4-byte entries - not known; the population check's log counts it
 internal inline uint8_t *player_get_list_begin(const ee_player *pl) { return FIELD(pl, OF(PL, 0x18), uint8_t *); }
@@ -133,8 +146,8 @@ internal inline int player_get_pop_b20(const ee_player *pl) { return FIELD(pl, O
 internal inline uint8_t player_get_chat_to_player(const ee_player *pl, int i) { return FIELD(pl, OF(PL, 0xB2C) + i, uint8_t); } // +0xB2C [16]
 internal inline void player_set_chat_to_player(ee_player *pl, int i, uint8_t v) { FIELD(pl, OF(PL, 0xB2C) + i, uint8_t) = v; }
 internal inline void player_set_civ_chosen(ee_player *pl, uint8_t v) { FIELD(pl, OF(PL, 0xB46), uint8_t) = v; } // +0xB46 (0: the civ dialog opens)
-internal inline void **player_get_zones_begin(const ee_player *pl) { return FIELD(pl, OF(PL, 0xB50), void **); } // +0xB50 the resource zones (map-wide)
-internal inline void **player_get_zones_end(const ee_player *pl) { return FIELD(pl, OF(PL, 0xB54), void **); }
+internal inline ee_zone **player_get_zones_begin(const ee_player *pl) { return FIELD(pl, OF(PL, 0xB50), ee_zone **); } // +0xB50 the resource zones (map-wide)
+internal inline ee_zone **player_get_zones_end(const ee_player *pl) { return FIELD(pl, OF(PL, 0xB54), ee_zone **); }
 internal inline ee_combat_mgr *player_get_combat_mgr(const ee_player *pl) { return FIELD(pl, OF(PL, 0xB8C), ee_combat_mgr *); } // +0xB8C
 internal inline ee_civ_mgr *player_get_civ_mgr(const ee_player *pl) { return FIELD(pl, OF(PL, 0xB90), ee_civ_mgr *); } // +0xB90 a computer player's
 internal inline uint8_t *player_get_b98(const ee_player *pl) { return FIELD(pl, OF(PL, 0xB98), uint8_t *); }    // +0xB98 (PLB98: not known)
@@ -337,6 +350,12 @@ internal inline void task_set_target_player(void *task, ee_player *pl) { FIELD(t
 internal inline void task_set_unknown_28(void *task, int v) { FIELD(task, OF(TASK, 0x28), int) = v; }
 internal inline void task_set_unknown_2c(void *task, int v) { FIELD(task, OF(TASK, 0x2C), int) = v; }
 internal inline void task_set_unknown_30(void *task, uint8_t v) { FIELD(task, OF(TASK, 0x30), uint8_t) = v; }
+
+// AN AI ZONE (a town or resource zone, player_get_zones_begin(pl)): its resource sites, whether it has a drop site, active
+internal inline void **zone_get_sites_begin(const ee_zone *z) { return FIELD(z, OF(ZONE, 0x8), void **); }   // +0x8 .. +0xC its sites (ee_unit *)
+internal inline void **zone_get_sites_end(const ee_zone *z) { return FIELD(z, OF(ZONE, 0xC), void **); }
+internal inline int zone_get_drop(const ee_zone *z) { return FIELD(z, OF(ZONE, 0x14), int); }                 // +0x14 a drop site serves it
+internal inline uint8_t zone_get_active(const ee_zone *z) { return FIELD(z, OF(ZONE, 0x18), uint8_t); }       // +0x18
 
 // THE GAME'S MOUSE (game_mouse(): the cursor in the game's coordinates)
 internal inline float mouse_get_x(const ee_mouse *m) { return FIELD(m, OF(MOUSE, 0x4), float); }            // +0x4

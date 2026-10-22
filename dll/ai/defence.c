@@ -322,8 +322,8 @@ internal float g_militia_share = 1.0f;   // [all] militia_caught_share: the shar
 internal unsigned g_militia_caught[16];
 internal unsigned g_militia_orders[16];
 internal float unit_power(ee_unit *u) {   // hit points x attack (live stats), a rough fighting strength
-    uint8_t *st = unit_get_stats(u);
-    float a = st ? FIELD(st, OF(USTAT, 0xD8), float) : (float)type_get_attack(unit_get_type_data(u));
+    ee_unit_stats *st = unit_get_stats(u);
+    float a = st ? stat_get_attack(st) : (float)type_get_attack(unit_get_type_data(u));
     return (float)unit_get_hp(u) * (a > 0 ? a : 0);
 }
 internal struct st_side g_mil_own, g_mil_foe;   // fight_estimate (dll/ai/stats.c)
@@ -446,9 +446,9 @@ internal void counter_siege(ee_player *pl, unsigned idx, uint32_t now) {
     for (int i = 0; i < s.ne + s.nt; i++) {
         int tower = i >= s.ne;   // an enemy defence going up near our buildings or citizens (counter-tower)
         ee_unit *e = tower ? s.etow[i - s.ne] : s.esiege[i];
-        ee_unit_type *etd = unit_get_type_data(e); uint8_t *st = unit_get_stats(e);
+        ee_unit_type *etd = unit_get_type_data(e); ee_unit_stats *st = unit_get_stats(e);
         int x = unit_get_x(e), y = unit_get_y(e);
-        float r = tower ? 12.0f : (st ? FIELD(st, OF(USTAT, 0x9C), float) : type_get_range(etd)) + 4.0f;
+        float r = tower ? 12.0f : (st ? stat_get_range(st) : type_get_range(etd)) + 4.0f;
         int threat = 0;
         for (int b = 0; b < s.nb && !threat; b++)
             threat = (float)((s.bx[b] - x) * (s.bx[b] - x) + (s.by[b] - y) * (s.by[b] - y)) <= r * r;
@@ -1107,7 +1107,7 @@ internal void cmd_basemap(char *out, const char *args) {
     int w = 2 * r + 1;
     memset(g, '.', (size_t)(w * w));
     struct basemap m = { pl, bm_get_base_x(bm), bm_get_base_y(bm), r, g };
-    void **zb = player_get_zones_begin(pl), **ze = player_get_zones_end(pl);   // mines
+    ee_zone **zb = player_get_zones_begin(pl); ee_zone **ze = player_get_zones_end(pl);   // mines
     for (int z = 0; zb && zb + z < ze; z++)
         for (int t = 4; zb[z] && t < 7; t++) {
             ee_unit *s = zone_site(zb[z], t);
