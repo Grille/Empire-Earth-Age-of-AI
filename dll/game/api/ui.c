@@ -50,6 +50,23 @@ internal inline void camera_action_set(void *act, int x, int y) { GF(FN_CAMACT_S
 internal inline void scroll_execute(void *self) { GF(FN_SCROLL_EXECUTE)(self); }
 internal inline void camera_move(float dx, float dy) { GF(FN_CAMERA_MOVE)((void *)GA(G_CAMERA), dx, dy); }
 internal inline void scroll_action_init(ee_scroll *obj) { *(uint32_t *)obj = GA(VT_SCROLL); }
+// the arrow keys' scrolling (display.c gives it to the editor, which has none): an EEUIEKeyboardScroll event (vtable,
+// refcount 1, 0, the direction: 0 up, 1 down, 2 left, 3 right - its Execute moves the camera) made in the game's
+// memory, and a form's hotkey for a DIK key code given as the game's own form does (0x64D0AB): any modifiers
+// (0x7FFF), the event the second of the four, the last flag set
+internal inline void *key_scroll_new(int dir) {
+    uint32_t *ev = game_new(GA(SIZE_KEY_SCROLL));
+    if (!ev) return NULL;
+    ev[0] = GA(VT_KEY_SCROLL);
+    ev[1] = 1;
+    ev[2] = 0;
+    ev[3] = (uint32_t)dir;
+    return ev;
+}
+internal inline void uiform_add_hotkey(void *form, unsigned long key, void *ev) {
+    typedef void (__thiscall *AddHotKeyFn)(void *, unsigned long, unsigned long, unsigned long, unsigned long, void *, void *, void *, void *, unsigned long, char);
+    (*(AddHotKeyFn *)GA(IAT_UIFORM_ADD_HOTKEY))(form, key, 0x7FFF, 0x7FFF, 0x7FFF, NULL, ev, NULL, NULL, 0, 1);
+}
 // the mouse's position kept in its range, its update (the original of display.c's hook)
 internal inline void mouse_clamp(void *m) { GF(FN_MOUSE_CLAMP)(m); }
 internal inline void mouse_update(ee_mouse *m) { GF(FN_MOUSE_UPDATE)(m); }

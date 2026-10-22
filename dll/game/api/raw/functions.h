@@ -216,6 +216,7 @@
     D(IAT_WSTRING_DTOR, 0x00823AEC, 0x00837194)                               /* UWideString::~UWideString() */ \
     D(IMP_IS_KEYBOARD, 0x00823AF8, 0x00837AE8)                                /* import: &ISKeyboard* in Low-Level Engine.dll */ \
     D(IAT_UIM_FORM, 0x00823D60, 0x00837B44)                                   /* the UI manager's current form */ \
+    D(IAT_UIFORM_ADD_HOTKEY, 0x00824048, 0x00837BE0)                          /* UIForm::AddHotKey(key, 3 masks, 4 events, K, bool) */ \
     D(IAT_USTRING_DTOR, 0x008245BC, 0x008385B0)                               /* UString::~UString() */ \
     D(IAT_RAND, 0x00824648, 0x0083863C)                                       /* the game's rand */ \
     D(VT_PAUSE_ACTION, 0x00830E94, 0x00846790)                                /* EEAUserPauseGame vtable (0xC bytes: vtable, refcount, byte) */ \
@@ -225,6 +226,7 @@
     D(VT_GOAL_LOAD, 0x00831DC0, 0x008477F8) \
     D(VT_GOAL_LOCATION, 0x00831E64, 0x008478A0) \
     D(VT_GOAL_UNLOAD, 0x00831F5C, 0x008479A0)                                 /* EEUGUnloadTransport (new 0x40, ctor 0x615A1F(transport, x, y, flag)) */ \
+    D(VT_KEY_SCROLL, 0x008348FC, 0x0084A998)                                  /* EEUIEKeyboardScroll (0x10 bytes: vtable, refcount, 0, direction); Execute 0x5C9070 moves G_CAMERA */ \
 
 
 #define ADDR_NUMBERS_FUNCTIONS(D) \
@@ -238,6 +240,7 @@
     D(RVA_MIX_MAX_CHANNELS, 0x5320, 0x5320)   /* int: the most channels it gives */ \
     D(SLOT_GROUP_COUNT, 6, 6)           /* the selected group (player +0x9BC): unsigned thiscall(group); AoC not checked */ \
     D(SIZE_PAUSE_ACTION, 0xC, 0xC)      /* EEAUserPauseGame: vtable, refcount, byte */ \
+    D(SIZE_KEY_SCROLL, 0x10, 0x10)      /* EEUIEKeyboardScroll: vtable, refcount, 0, direction */ \
     D(SIZE_CHEAT_MSG, 0x18, 0x18)       /* FN_CHEAT_MSG_CTOR */ \
     D(SIZE_CAMERA_ACTION, 0x1C, 0x1C)   /* FN_CAMACT_CTOR */ \
     D(SIZE_NEW_UNIT_MSG, 0x20, 0x20)    /* FN_NEW_UNIT_MSG_CTOR */ \

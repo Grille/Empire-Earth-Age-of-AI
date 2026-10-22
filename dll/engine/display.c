@@ -13,6 +13,7 @@
 
 
 internal int g_editor_w, g_editor_h, g_editor_game;   // 0 = leave
+internal int g_editor_layout;                         // a resolution set: the form's layout moved before it is built
 
 internal void editor_size(int *w, int *h) {
     int nw = g_editor_game ? game_res_w() : g_editor_w;
@@ -47,12 +48,24 @@ internal void __stdcall hook_other_resolution(int w, int h, int force, int flag)
 
 // The editor's main form (constructor 0x58D3E1) is built once, on first use (0x65B9F5) - before the resolution
 // switch - and keeps its layout; its sub-pages are built later. The layout is computed right before it.
+// The arrow keys: the game's form registers them (four EEUIEKeyboardScroll hotkeys, 0x64D0AB), the editor's
+// never did (in neither build: it scrolls only at the screen edge and by dragging) - given to it the same way.
 internal void *__thiscall hook_editor_form(void *form, void *owner) {
-    int w = 800, h = 600;
-    editor_size(&w, &h);
-    int lay = apply_editor_layout(w, h);
-    if (g_log) { log_locked("# editor: building the editor for %dx%d, layout patches %d/%d\n", w, h, lay, (int)N_LAYOUT + 6); }
-    return editor_form(form, owner);
+    if (g_editor_layout) {
+        int w = 800, h = 600;
+        editor_size(&w, &h);
+        int lay = apply_editor_layout(w, h);
+        if (g_log) { log_locked("# editor: building the editor for %dx%d, layout patches %d/%d\n", w, h, lay, (int)N_LAYOUT + 6); }
+    }
+    void *r = editor_form(form, owner);
+    static const unsigned long keys[4] = { 0xC8, 0xD0, 0xCB, 0xCD };   // DIK_UP, DOWN, LEFT, RIGHT: directions 0..3
+    int n = 0;
+    for (int i = 0; i < 4; i++) {
+        void *ev = key_scroll_new(i);
+        if (ev) { uiform_add_hotkey(form, keys[i], ev); n++; }
+    }
+    if (g_log) { log_locked("# editor: arrow keys scroll %d/4\n", n); }
+    return r;
 }
 
 // Windowed mode: the engine still has the windowed path SSSI used during development - with the flag byte
@@ -1109,6 +1122,8 @@ internal void display_install(const char *aimod_ini, const char *autotest_ini) {
         if (g_log) fprintf(g_log, "# display: fullscreen, diagnostic hooks %d\n", hooks);
     }
 
+    int form = patch_editor_form(hook_editor_form);   // the arrow keys, whatever the resolution
+    if (g_log) fprintf(g_log, "# editor: form hook %d/1\n", form);
     GetPrivateProfileStringA("editor", "resolution", "ee", mode, sizeof mode, aimod_ini);
     if (autotest_ini) {
         lstrcpynA(tmp, mode, sizeof tmp);
@@ -1121,11 +1136,12 @@ internal void display_install(const char *aimod_ini, const char *autotest_ini) {
         if (g_log) fprintf(g_log, "# editor: bad resolution '%s' in aimod.ini, left at 800x600\n", mode);
         return;
     }
-    int ok = patch_editor_resolution(hook_editor_resolution) + patch_editor_form(hook_editor_form);
+    g_editor_layout = 1;
+    int ok = patch_editor_resolution(hook_editor_resolution);
     int other = patch_other_resolution(hook_other_resolution, NULL);
     int mm = redirect_minimap_scale();
     if (g_log) fprintf(g_log, "# editor: minimap scale operands %d/6, other resolution switches %d/7\n", mm, other);
-    if (g_log) fprintf(g_log, "# editor: resolution=%s hooks %d/3\n", mode, ok);
+    if (g_log) fprintf(g_log, "# editor: resolution=%s hooks %d/2\n", mode, ok);
 }
 
 // ddinfo [blit]: state of the DirectDraw presentation (for the windowed mode work). Rasterizer [0x919794],
