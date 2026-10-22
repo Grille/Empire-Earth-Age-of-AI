@@ -316,8 +316,8 @@ internal int expand_ship(ee_unit *u) {
     for (int p = 1; p < 16; p++) if (g_xs[p].fphase && g_xs[p].ship.u == u) return p;
     return 0;
 }
-internal int expand_refuses(uint8_t *sg, ee_unit *u) {
-    ee_player *pl = FIELD(sg, OF(ASG, 0x190), void *);
+internal int expand_refuses(ee_attack_subgroup *sg, ee_unit *u) {
+    ee_player *pl = asg_get_player(sg);
     unsigned pi = pl ? (unsigned)player_get_index(pl) & 15 : 0;
     struct ex_st *x = &g_xs[pi];
     if (!u || (!x->fphase && !x->active)) return 0;
@@ -351,13 +351,13 @@ internal void expand_reserve(ee_player *pl, int reserve[7]) {
     int tt = ld_kind_type(pl, LDB_TOWER);
     for (int r = 2; r < 7; r++) reserve[r] += unit_cost(pl, UT(B_SETTLEMENT), r) + (tt ? unit_cost(pl, tt, r) : unit_cost(pl, UT(B_GUARD_TOWER_MIDDLE), r));
 }
-internal int expand_leads(uint8_t *sg) {   // a subgroup holding the ferry's transport: its update skipped
-    ee_player *pl = FIELD(sg, OF(ASG, 0x190), void *);
+internal int expand_leads(ee_attack_subgroup *sg) {   // a subgroup holding the ferry's transport: its update skipped
+    ee_player *pl = asg_get_player(sg);
     unsigned pi = pl ? (unsigned)player_get_index(pl) & 15 : 0;
     struct ex_st *x = &g_xs[pi];
     if (!x->fphase || !x->ship.u) return 0;
-    for (uint8_t **r = FIELD(sg, OF(ASG, 0x54), uint8_t **); r && r < FIELD(sg, OF(ASG, 0x58), uint8_t **); r++)
-        if (*r && FIELD(*r, OF(ASGU, 0x44), ee_unit *) == x->ship.u) return 1;
+    for (ee_asg_unit **r = asg_get_units_begin(sg); r && r < asg_get_units_end(sg); r++)
+        if (*r && asgu_get_unit(*r) == x->ship.u) return 1;
     return 0;
 }
 // the unload a ferry may take from the game (its own retry at its own point while it unloads)

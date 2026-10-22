@@ -1239,8 +1239,8 @@ internal void diplo_cancel_attacks(int ai, int j) {
     if (ai > 0 && ai < 16 && j > 0 && j < 16 && mod_ai(ai)) InterlockedOr(&g_cancel_queue[ai], 1 << j);
 }
 internal int attack_groups(ee_player *pl) {   // the attack commander's deque count
-    uint8_t *cbm = player_get_combat_mgr(pl), *cmd = cbm ? FIELD(cbm, OF(AM, 0x48), uint8_t *) : NULL;
-    return cmd ? FIELD(cmd, OF(AMCMD, 0x14), int) : -1;
+    ee_combat_mgr *cbm = player_get_combat_mgr(pl); ee_attack_cmd *cmd = cbm ? am_get_commander(cbm) : NULL;
+    return cmd ? ac_get_group_count(cmd) : -1;
 }
 
 internal void victory_off_pass(void);   // below, with the victory
@@ -1404,7 +1404,7 @@ internal void diplo_tick(ee_player *pl, unsigned ai, uint32_t now) {
                 tell_event(HE_BETRAYAL, j, (int)ai, g_betrayal_t[j][ai]);
             persona_say(pl, g_war_betrayal[ai][j] ? L_BETRAYED : L_WAR_DECLARED, pj, NULL);
             tell_event(0, 0, 0, 0);
-            void *cbm = ((void *)player_get_combat_mgr(pl));
+            ee_combat_mgr *cbm = player_get_combat_mgr(pl);
             if (cbm) revenge(cbm, pj);
             g_diplo_answers[ai]++;
             if (g_log) fprintf(g_log, "# diplomacy: P%u at %.1f min answers war: now enemy of P%d (stance %d)\n",

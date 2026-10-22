@@ -293,13 +293,12 @@ internal void epoch_upgrades(ee_tech *node, int cat, int only_new) {
 // 6 [b8c+0x4C]+0x48, 7 b98+0x2D, 8 b8c+0x62. Share of AI ticks each was on, logged as "# attention:" every 10 min.
 internal struct { unsigned ticks, on[9]; } g_att[16];
 internal void attention_note(ee_player *pl, unsigned idx, uint32_t now) {
-    ee_civ_mgr *cm = player_get_civ_mgr(pl); uint8_t *b8c = player_get_combat_mgr(pl), *b98 = player_get_b98(pl);
+    ee_civ_mgr *cm = player_get_civ_mgr(pl); ee_combat_mgr *b8c = player_get_combat_mgr(pl); uint8_t *b98 = player_get_b98(pl);
     if (!cm || !b8c || !b98) return;
     ee_resource_mgr *rm = cm_get_resource_mgr(cm);
     ee_research_mgr *rs = cm_get_research_mgr(cm); ee_unit_mgr *um = cm_get_unit_mgr(cm);
-    uint8_t *b8c4c = FIELD(b8c, OF(AM, 0x4C), uint8_t *);
     uint8_t f[9] = { cm_get_att_epoch_techs(cm), rm ? rm_get_att_188(rm) : 0, rs ? rs_get_att_random(rs) : 0, um ? um_get_att_140(um) : 0,
-                     cm_get_att_build(cm), cm_get_att_7c(cm), b8c4c ? b8c4c[OF(AM4C, 0x48)] : 0, b98[OF(PLB98, 0x2D)], b8c[OF(AM, 0x62)] };
+                     cm_get_att_build(cm), cm_get_att_7c(cm), am_get_att_4c(b8c), b98[OF(PLB98, 0x2D)], am_get_att_62(b8c) };
     g_att[idx].ticks++;
     for (int i = 0; i < 9; i++) g_att[idx].on[i] += f[i] != 0;
     static uint32_t last[16];

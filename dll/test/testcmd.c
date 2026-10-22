@@ -154,23 +154,23 @@ internal void cmd_attacknow(char *out, const char *args) {
 internal void cmd_nullmember(char *out, const char *args) {
     int p = atoi(args);
     ee_player *pl = (p > 0 && p < 16) ? g_players[p] : NULL;
-    uint8_t *cbm = pl ? player_get_combat_mgr(pl) : NULL, *cmd = cbm ? FIELD(cbm, OF(AM, 0x48), uint8_t *) : NULL;
+    ee_combat_mgr *cbm = pl ? player_get_combat_mgr(pl) : NULL; ee_attack_cmd *cmd = cbm ? am_get_commander(cbm) : NULL;
     if (!cmd) { REPLY("error: no AI player %d with an attack commander\n", p); return; }
-    uint8_t *dq = cmd + 4;
+    uint8_t *dq = ac_groups_at(cmd);
     unsigned first = FIELD(dq, 0xC, unsigned), cnt = FIELD(dq, 0x10, unsigned);
     for (unsigned k = 0; k < cnt && k < 64; k++) {
-        uint8_t *g = deque_at(dq, first + k);
-        for (uint8_t **sp = g ? FIELD(g, OF(AG, 0x8), uint8_t **) : NULL; sp && sp < FIELD(g, OF(AG, 0xC), uint8_t **); sp++) {
+        ee_attack_group *g = deque_at(dq, first + k);
+        for (ee_attack_subgroup **sp = g ? ag_get_subgroups_begin(g) : NULL; sp && sp < ag_get_subgroups_end(g); sp++) {
             int n = 0, cit = 0;
             if (!*sp) continue;
             subgroup_count(*sp, &n, &cit);
-            uint8_t **b = FIELD(*sp, OF(ASG, 0x54), uint8_t **);
+            ee_asg_unit **b = asg_get_units_begin(*sp);
             if (n < 2 || !b || !*b) continue;
-            ee_unit *u = FIELD(*b, OF(ASGU, 0x44), ee_unit *);
-            FIELD(*b, OF(ASGU, 0x44), ee_unit *) = NULL;
+            ee_unit *u = asgu_get_unit(*b);
+            asgu_set_unit(*b, NULL);
             REPLY("P%d subgroup %p (vt %06x, %d members): record %p lost its unit %p\n", p, (void *)*sp,
                   *(unsigned *)*sp, n, (void *)*b, (void *)u);
-            ee_player *target = FIELD(g, OF(AG, 0x48), ee_player *);
+            ee_player *target = ag_get_target(g);
             if (strstr(args, "off") && target) {   // and the attack called off at once, as diplo_safe_point does
                 breach_forget(pl);
                 asg_purge_all(pl);
@@ -708,7 +708,7 @@ internal void cmd_continent(char *out, const char *args) {
 // Task (0x34, ctor 0x441FB3): +4 location (0x47C8B7 = location 0x18, ctor 0x47C4E8, point at +4), target unit via
 // 0x442246, +0x20 target player, +0x28 mission, +0x2C 2, +0x30 1. Strategy (0x44, ctor 0x473BC4, reset 0x473CA7):
 // +0x3C 4 attack / 5 defend. Then cm 0x47067A(task, strategy, vector<int> ids) and [cm+0x48] 0x45106C(same).
-struct ag_scan { ee_player *pl; uint8_t *cm; int n, ids[256]; long sx, sy; int x, y, nodef; ee_unit *best; long bd; };
+struct ag_scan { ee_player *pl; ee_combat_mgr *cm; int n, ids[256]; long sx, sy; int x, y, nodef; ee_unit *best; long bd; };
 internal void ag_unit(ee_unit *u, void *ctx) {
     struct ag_scan *s = ctx;
     ee_unit_type *td = unit_get_type_data(u);
@@ -732,7 +732,7 @@ internal void cmd_aigroup(char *out, const char *args) {
     if (sscanf(args, "%d %d %d", &p, &x, &y) < 3) x = y = -1;
     int nodef = strstr(args, "nodef") != NULL;   // aigroup P [x y] [nodef]: not a defence
     ee_player *pl = p > 0 && p < 16 ? g_players[p] : NULL;
-    uint8_t *cm = pl ? player_get_combat_mgr(pl) : NULL, *cmd = cm ? FIELD(cm, OF(AM, 0x48), uint8_t *) : NULL;
+    ee_combat_mgr *cm = pl ? player_get_combat_mgr(pl) : NULL; ee_attack_cmd *cmd = cm ? am_get_commander(cm) : NULL;
     if (!cmd) { REPLY("error: aigroup P [x y] - no AI player %d\n", p); return; }
     static struct ag_scan s;
     memset(&s, 0, sizeof s);
@@ -752,8 +752,8 @@ internal void cmd_aigroup(char *out, const char *args) {
     int pt[2] = { unit_get_x(t), unit_get_y(t) };
     point_set(loc + 4, pt);
     task_set_location(task + 4, loc);
-    FIELD(task, OF(TASK, 0x20), void *) = game_players()[player_get_index(tpl) & 15];
-    FIELD(task, OF(TASK, 0x28), int) = 7; FIELD(task, OF(TASK, 0x2C), int) = 2; FIELD(task, OF(TASK, 0x30), uint8_t) = 1;
+    task_set_target_player(task, game_players()[player_get_index(tpl) & 15]);
+    task_set_unknown_28(task, 7); task_set_unknown_2c(task, 2); task_set_unknown_30(task, 1);
     strategy_reset(strat);
     FIELD(strat, OF(STRATEGY, 0x3C), int) = 4; FIELD(strat, OF(STRATEGY, 0x40), uint8_t) = 0;
     // vector<int> {allocator, first, last, end} with the game's heap (its dtor 0x61ABEC frees with the game's delete)
@@ -762,11 +762,11 @@ internal void cmd_aigroup(char *out, const char *args) {
     memcpy(ids, s.ids, (size_t)s.n * 4);
     FIELD(vec, 4, int *) = ids; FIELD(vec, 8, int *) = ids + s.n; FIELD(vec, 0xC, int *) = ids + s.n;
     char ok = attack_plan_ok(cm, task, strat, vec);
-    uint8_t *g = ok ? attack_group_new(cmd, task, strat, vec) : NULL;
+    ee_attack_group *g = ok ? attack_group_new(cmd, task, strat, vec) : NULL;
     vector_free(vec);
     task_free(task);
     strategy_free(strat);
-    int nsg = g && FIELD(g, OF(AG, 0x8), void *) ? (int)((FIELD(g, OF(AG, 0xC), uint8_t *) - FIELD(g, OF(AG, 0x8), uint8_t *)) / 4) : 0;
+    int nsg = g && ag_get_subgroups_begin(g) ? (int)(ag_get_subgroups_end(g) - ag_get_subgroups_begin(g)) : 0;
     REPLY("P%d: %d free land soldiers (centre %ld,%ld) -> target type %d of P%d at %d,%d: %s, group %p with %d subgroups\n",
           p, s.n, s.sx / s.n, s.sy / s.n, type_get_id(unit_get_type_data(t)), player_get_index(tpl), pt[0], pt[1],
           ok ? "accepted" : "refused (0x47067A)", g, nsg);

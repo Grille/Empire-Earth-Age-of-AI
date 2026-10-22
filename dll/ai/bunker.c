@@ -291,7 +291,7 @@ internal int bk_room(ee_player *pl) {   // cap - population on the map (the fort
     int cap = unit_limit(pl);
     return cap - population(pl, 0, 0);
 }
-struct bk_free { ee_player *pl; uint8_t *cm; int bx, by, n; ee_unit *u[64]; };
+struct bk_free { ee_player *pl; ee_combat_mgr *cm; int bx, by, n; ee_unit *u[64]; };
 internal void bk_free_unit(ee_unit *u, void *ctx) {
     struct bk_free *f = ctx;
     ee_unit_type *td = unit_get_type_data(u);

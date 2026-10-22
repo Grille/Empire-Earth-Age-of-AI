@@ -17,8 +17,13 @@ typedef struct ee_tech ee_tech;                 // TECH, TECHNODE, TECHCHILD: a 
 typedef struct ee_tech_data ee_tech_data;       // TECHDATA: a tech's data, TECH +0x8
 typedef struct ee_zone ee_zone;                 // ZONE: an AI town or resource zone
 typedef struct ee_mouse ee_mouse;               // MOUSE: the game cursor, [G_MOUSE] (RTSMouse)
+typedef struct ee_combat_mgr ee_combat_mgr;     // AM: the AI's combat manager, player +0xB8C
+typedef struct ee_attack_cmd ee_attack_cmd;     // AMCMD: its attack commander, AM +0x48
+typedef struct ee_attack_group ee_attack_group; // AG: an attack group
+typedef struct ee_attack_subgroup ee_attack_subgroup; // ASG: an attack subgroup
+typedef struct ee_asg_unit ee_asg_unit;         // ASGU: a subgroup's unit record
 
 // the game's UString (passed by value to some of its functions)
 struct ustring { uint8_t raw[16]; };
 
-// Kinds not typed yet (attack groups and subgroups, goals, messages, the game state's tables) are void *.
+// Kinds not typed yet (goals, messages, the game state's tables) are void *.

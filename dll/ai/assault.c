@@ -34,7 +34,7 @@ internal struct assault {
     int wx, wy; uint32_t wset;           // waypoint and when it was set
     uint32_t since, last, logged;
     int nwave, launch_n, bad, doorstep, threat; ee_unit *wave[AS_WAVE];
-    uint8_t *taken[64]; int ntaken;      // subgroups led (their updates skipped)
+    ee_attack_subgroup *taken[64]; int ntaken;      // subgroups led (their updates skipped)
     unsigned launches, spent, done, orders, objectives;
 } g_as[16];
 
@@ -53,8 +53,8 @@ internal int cont_ok(int x, int y, unsigned hc) {   // land of continent hc (or 
     return c == hc || (c == 0 && area_id(x, y, 1) == 0 && x >= 0 && y >= 0);
 }
 
-internal int assault_leads(uint8_t *sg) {
-    ee_player *pl = FIELD(sg, OF(ASG, 0x190), void *);
+internal int assault_leads(ee_attack_subgroup *sg) {
+    ee_player *pl = asg_get_player(sg);
     unsigned pi = pl ? (unsigned)player_get_index(pl) & 15 : 0;
     if (!pl || !g_as[pi].phase) return 0;
     for (int k = 0; k < g_as[pi].ntaken; k++) if (g_as[pi].taken[k] == sg) return 1;
@@ -62,14 +62,14 @@ internal int assault_leads(uint8_t *sg) {
 }
 // still one of AI pl's attack subgroups? A stored subgroup pointer can be deleted by the game between two ticks (a
 // group finished, an attack called off) - reading its members then crashed (landing test: a freed record list)
-internal int asg_live(ee_player *pl, uint8_t *sg) {
-    uint8_t *cbm = player_get_combat_mgr(pl), *cmd = cbm ? FIELD(cbm, OF(AM, 0x48), uint8_t *) : NULL;
+internal int asg_live(ee_player *pl, ee_attack_subgroup *sg) {
+    ee_combat_mgr *cbm = player_get_combat_mgr(pl); ee_attack_cmd *cmd = cbm ? am_get_commander(cbm) : NULL;
     if (!cmd || !sg) return 0;
-    uint8_t *dq = cmd + 4;
+    uint8_t *dq = ac_groups_at(cmd);
     unsigned first = FIELD(dq, 0xC, unsigned), cnt = FIELD(dq, 0x10, unsigned);
     for (unsigned k = 0; k < cnt && k < 64; k++) {
-        uint8_t *g = deque_at(dq, first + k);
-        for (uint8_t **sp = g ? FIELD(g, OF(AG, 0x8), uint8_t **) : NULL; sp && sp < FIELD(g, OF(AG, 0xC), uint8_t **); sp++)
+        ee_attack_group *g = deque_at(dq, first + k);
+        for (ee_attack_subgroup **sp = g ? ag_get_subgroups_begin(g) : NULL; sp && sp < ag_get_subgroups_end(g); sp++)
             if (*sp == sg) return 1;
     }
     return 0;
@@ -78,18 +78,18 @@ internal int assault_has_unit(ee_player *pl, ee_unit *u) {   // a member of the 
     unsigned pi = (unsigned)player_get_index(pl) & 15;
     if (!g_assault || !g_as[pi].phase) return 0;
     for (int k = 0; k < g_as[pi].ntaken; k++) {
-        uint8_t *sg = g_as[pi].taken[k];
+        ee_attack_subgroup *sg = g_as[pi].taken[k];
         if (!asg_live(pl, sg)) continue;
-        for (uint8_t **r = FIELD(sg, OF(ASG, 0x54), uint8_t **); r && r < FIELD(sg, OF(ASG, 0x58), uint8_t **); r++)
-            if (*r && FIELD(*r, OF(ASGU, 0x44), ee_unit *) == u) return 1;
+        for (ee_asg_unit **r = asg_get_units_begin(sg); r && r < asg_get_units_end(sg); r++)
+            if (*r && asgu_get_unit(*r) == u) return 1;
     }
     return 0;
 }
 
-internal int landing_leads(uint8_t *sg);   // landing.c
-internal void __fastcall hook_asg_update(void *sg, void *edx, int now) {
+internal int landing_leads(ee_attack_subgroup *sg);   // landing.c
+internal void __fastcall hook_asg_update(ee_attack_subgroup *sg, void *edx, int now) {
     (void)edx;
-    if (!is_vanilla(FIELD(sg, OF(ASG, 0x190), void *)) && ((g_assault && assault_leads(sg)) || landing_leads(sg))) return;
+    if (!is_vanilla(asg_get_player(sg)) && ((g_assault && assault_leads(sg)) || landing_leads(sg))) return;
     asg_update(sg, now);
 }
 
@@ -197,10 +197,10 @@ internal int as_in_wave(struct assault *a, ee_unit *u) {
 }
 internal int as_goal_near(ee_unit *u, float x, float y, float r) {   // walking there already
     uint8_t *g = unit_get_goal(u);
-    return g && goal_is_location(g) && fabsf(FIELD(g, OF(AG, 0x20), float) - x) < r && fabsf(FIELD(g, OF(AG, 0x24), float) - y) < r;
+    return g && goal_is_location(g) && fabsf(FIELD(g, OF(GOAL, 0x20), float) - x) < r && fabsf(FIELD(g, OF(GOAL, 0x24), float) - y) < r;
 }
 internal int as_fighting(ee_unit *u) {
-    uint8_t *g = unit_get_goal(u); ee_unit *t = g && goal_is_attack(g) ? FIELD(g, OF(AG, 0x30), ee_unit *) : NULL;
+    uint8_t *g = unit_get_goal(u); ee_unit *t = g && goal_is_attack(g) ? FIELD(g, OF(GOAL, 0x30), ee_unit *) : NULL;
     return t && unit_get_hp(t) > 0;
 }
 
@@ -252,24 +252,24 @@ internal void assault_tick(ee_player *pl, uint32_t now) {
     a->last = now;
     void *cm = player_get_civ_mgr(pl);
     ee_build_mgr *bm = cm ? cm_get_build_mgr(cm) : NULL;
-    uint8_t *cbm = player_get_combat_mgr(pl), *cmd = cbm ? FIELD(cbm, OF(AM, 0x48), uint8_t *) : NULL;
+    ee_combat_mgr *cbm = player_get_combat_mgr(pl); ee_attack_cmd *cmd = cbm ? am_get_commander(cbm) : NULL;
     if (!cmd || !bm || bm_get_base_x(bm) == -10000) { a->phase = 0; a->ntaken = 0; return; }
     int bx = bm_get_base_x(bm), by = bm_get_base_y(bm);
     unsigned hc = cont_at(bx, by);
     // the army: land subgroups of the groups on one target (the one with the most members)
-    uint8_t *dq = cmd + 4;
+    uint8_t *dq = ac_groups_at(cmd);
     ee_player *tgt[16] = { 0 };
     int tn[16] = { 0 }, nt = 0;
     unsigned first = FIELD(dq, 0xC, unsigned), cnt = FIELD(dq, 0x10, unsigned);
     for (unsigned k = 0; k < cnt && k < 64; k++) {
-        uint8_t *g = deque_at(dq, first + k);
-        ee_player *t = g ? FIELD(g, OF(AG, 0x48), ee_player *) : NULL;
+        ee_attack_group *g = deque_at(dq, first + k);
+        ee_player *t = g ? ag_get_target(g) : NULL;
         if (!t || !is_enemy(pl, t)) continue;
         int j = 0;
         while (j < nt && tgt[j] != t) j++;
         if (j == nt) { if (nt == 16) continue; tgt[nt++] = t; }
-        for (uint8_t **sp = FIELD(g, OF(AG, 0x8), uint8_t **); sp && sp < FIELD(g, OF(AG, 0xC), uint8_t **); sp++)
-            if (*sp && asg_is_land(*sp)) tn[j] += (int)(FIELD(*sp, OF(ASG, 0x58), uint8_t **) - FIELD(*sp, OF(ASG, 0x54), uint8_t **));
+        for (ee_attack_subgroup **sp = ag_get_subgroups_begin(g); sp && sp < ag_get_subgroups_end(g); sp++)
+            if (*sp && asg_is_land(*sp)) tn[j] += (int)(asg_get_units_end(*sp) - asg_get_units_begin(*sp));
     }
     ee_player *target = NULL;
     for (int j = 0, bestn = 0; j < nt; j++) if (tn[j] > bestn) { bestn = tn[j]; target = tgt[j]; }
@@ -297,17 +297,17 @@ internal void assault_tick(ee_player *pl, uint32_t now) {
     // members: on land, not aboard; subgroups with members aboard a transport stay with the game
     static ee_unit *mem[512];
     int n = 0;
-    uint8_t *taken[64];
+    ee_attack_subgroup *taken[64];
     int ntaken = 0;
     for (unsigned k = 0; k < cnt && k < 64; k++) {
-        uint8_t *g = deque_at(dq, first + k);
-        if (!g || FIELD(g, OF(AG, 0x48), ee_player *) != target) continue;
-        for (uint8_t **sp = FIELD(g, OF(AG, 0x8), uint8_t **); sp && sp < FIELD(g, OF(AG, 0xC), uint8_t **); sp++) {
-            uint8_t *sg = *sp;
+        ee_attack_group *g = deque_at(dq, first + k);
+        if (!g || ag_get_target(g) != target) continue;
+        for (ee_attack_subgroup **sp = ag_get_subgroups_begin(g); sp && sp < ag_get_subgroups_end(g); sp++) {
+            ee_attack_subgroup *sg = *sp;
             if (!sg || !asg_is_land(sg) || ntaken == 64) continue;
             int aboard = 0, m0 = n;
-            for (uint8_t **r = FIELD(sg, OF(ASG, 0x54), uint8_t **); r && r < FIELD(sg, OF(ASG, 0x58), uint8_t **); r++) {
-                ee_unit *u = *r ? FIELD(*r, OF(ASGU, 0x44), ee_unit *) : NULL;
+            for (ee_asg_unit **r = asg_get_units_begin(sg); r && r < asg_get_units_end(sg); r++) {
+                ee_unit *u = *r ? asgu_get_unit(*r) : NULL;
                 ee_unit_type *td = u ? unit_get_type_data(u) : NULL;
                 if (!td || unit_get_hp(u) <= 0) continue;
                 if (unit_get_x(u) < 0) { aboard = 1; continue; }

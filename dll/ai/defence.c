@@ -801,16 +801,16 @@ internal ee_unit *g_asg_units[512];
 internal int g_asg_n;
 internal void asg_units(ee_player *pl) {   // the units of AI pl's attack subgroups (records +0x44)
     g_asg_n = 0;
-    uint8_t *cbm = player_get_combat_mgr(pl), *cmd = cbm ? FIELD(cbm, OF(AM, 0x48), uint8_t *) : NULL;
+    ee_combat_mgr *cbm = player_get_combat_mgr(pl); ee_attack_cmd *cmd = cbm ? am_get_commander(cbm) : NULL;
     if (!cmd) return;
-    uint8_t *dq = cmd + 4;
+    uint8_t *dq = ac_groups_at(cmd);
     unsigned first = FIELD(dq, 0xC, unsigned), cnt = FIELD(dq, 0x10, unsigned);
     for (unsigned k = 0; k < cnt && k < 64; k++) {
-        uint8_t *g = deque_at(dq, first + k);
-        for (uint8_t **sp = g ? FIELD(g, OF(AG, 0x8), uint8_t **) : NULL; sp && sp < FIELD(g, OF(AG, 0xC), uint8_t **); sp++) {
-            uint8_t **b = *sp ? FIELD(*sp, OF(ASG, 0x54), uint8_t **) : NULL, **e = *sp ? FIELD(*sp, OF(ASG, 0x58), uint8_t **) : NULL;
-            for (uint8_t **r = b; b && r < e && g_asg_n < 512; r++)
-                if (*r && FIELD(*r, OF(ASGU, 0x44), ee_unit *)) g_asg_units[g_asg_n++] = FIELD(*r, OF(ASGU, 0x44), ee_unit *);
+        ee_attack_group *g = deque_at(dq, first + k);
+        for (ee_attack_subgroup **sp = g ? ag_get_subgroups_begin(g) : NULL; sp && sp < ag_get_subgroups_end(g); sp++) {
+            ee_asg_unit **b = *sp ? asg_get_units_begin(*sp) : NULL; ee_asg_unit **e = *sp ? asg_get_units_end(*sp) : NULL;
+            for (ee_asg_unit **r = b; b && r < e && g_asg_n < 512; r++)
+                if (*r && asgu_get_unit(*r)) g_asg_units[g_asg_n++] = asgu_get_unit(*r);
         }
     }
 }
@@ -950,7 +950,7 @@ internal void hold_town(ee_player *pl, unsigned idx, uint32_t now) {
 // and defences whose range reaches the centre. Down to half its peak, or facing 1.5 x its strength twice in a row:
 // the attack is called off (as for citizen attacks: units home, handed back, at the safe point) and the next attack
 // comes within 5 minutes - the survivors and what was trained meanwhile, instead of the next 20-25 minute wave.
-internal struct { uint8_t *g; float peak; int bad, peak_n; } g_rt[16][8];
+internal struct { ee_attack_group *g; float peak; int bad, peak_n; } g_rt[16][8];
 internal struct st_side g_rt_own, g_rt_foe;   // fight_estimate: a group and what it faces
 internal unsigned g_retreats[16];
 struct rt_face { ee_player *pl; ee_player *target; float cx, cy; int contact; float epow; };
@@ -978,42 +978,42 @@ internal void attack_retreat(ee_player *pl, unsigned idx, uint32_t now) {
     last[idx] = now;
     void *cm = player_get_civ_mgr(pl);
     ee_build_mgr *bm = cm ? cm_get_build_mgr(cm) : NULL;
-    uint8_t *cbm = player_get_combat_mgr(pl), *cmd = cbm ? FIELD(cbm, OF(AM, 0x48), uint8_t *) : NULL;
+    ee_combat_mgr *cbm = player_get_combat_mgr(pl); ee_attack_cmd *cmd = cbm ? am_get_commander(cbm) : NULL;
     if (!cmd || !bm || bm_get_base_x(bm) == -10000) return;
     // a landing under way (landing.c): its soldiers are in the attack groups - aboard (tile -10000) they look lost,
     // and "half its peak gone" called off P3's attack with 26 soldiers at sea. No call-off then; the peaks start
     // again after it
     if (landing_busy(pl)) { memset(g_rt[idx], 0, sizeof g_rt[idx]); return; }
     int bx = bm_get_base_x(bm), by = bm_get_base_y(bm);
-    uint8_t *dq = cmd + 4, *seen[8] = { 0 };
+    uint8_t *dq = ac_groups_at(cmd); ee_attack_group *seen[8] = { 0 };
     unsigned first = FIELD(dq, 0xC, unsigned), cnt = FIELD(dq, 0x10, unsigned);
     float gpow[8] = { 0 };   // every group's strength first: no call-off while a stronger one has the same target
     ee_player *gtarget[8] = { 0 };
     for (unsigned k = 0; k < cnt && k < 8; k++) {
-        uint8_t *g = deque_at(dq, first + k);
-        gtarget[k] = g ? FIELD(g, OF(AG, 0x48), ee_player *) : NULL;
-        for (uint8_t **sp = g ? FIELD(g, OF(AG, 0x8), uint8_t **) : NULL; sp && sp < FIELD(g, OF(AG, 0xC), uint8_t **); sp++) {
-            uint8_t **b = *sp ? FIELD(*sp, OF(ASG, 0x54), uint8_t **) : NULL;
-            uint8_t **e = *sp ? FIELD(*sp, OF(ASG, 0x58), uint8_t **) : NULL;
-            for (uint8_t **r = b; b && r < e; r++) {
-                ee_unit *u = *r ? FIELD(*r, OF(ASGU, 0x44), ee_unit *) : NULL;
+        ee_attack_group *g = deque_at(dq, first + k);
+        gtarget[k] = g ? ag_get_target(g) : NULL;
+        for (ee_attack_subgroup **sp = g ? ag_get_subgroups_begin(g) : NULL; sp && sp < ag_get_subgroups_end(g); sp++) {
+            ee_asg_unit **b = *sp ? asg_get_units_begin(*sp) : NULL;
+            ee_asg_unit **e = *sp ? asg_get_units_end(*sp) : NULL;
+            for (ee_asg_unit **r = b; b && r < e; r++) {
+                ee_unit *u = *r ? asgu_get_unit(*r) : NULL;
                 if (u && unit_get_hp(u) > 0) gpow[k] += unit_power(u);
             }
         }
     }
     for (unsigned k = 0; k < cnt && k < 8; k++) {
-        uint8_t *g = deque_at(dq, first + k);
-        ee_player *target = g ? FIELD(g, OF(AG, 0x48), ee_player *) : NULL;
+        ee_attack_group *g = deque_at(dq, first + k);
+        ee_player *target = g ? ag_get_target(g) : NULL;
         if (!target) continue;
         seen[k] = g;
         float pow = 0, cx = 0, cy = 0;
         int n = 0;
         if (g_fight_est) { st_side_clear(&g_rt_own); st_side_clear(&g_rt_foe); }
-        for (uint8_t **sp = FIELD(g, OF(AG, 0x8), uint8_t **); sp && sp < FIELD(g, OF(AG, 0xC), uint8_t **); sp++) {
-            uint8_t **b = *sp ? FIELD(*sp, OF(ASG, 0x54), uint8_t **) : NULL;
-            uint8_t **e = *sp ? FIELD(*sp, OF(ASG, 0x58), uint8_t **) : NULL;
-            for (uint8_t **r = b; b && r < e && n < 1000; r++) {
-                ee_unit *u = *r ? FIELD(*r, OF(ASGU, 0x44), ee_unit *) : NULL;
+        for (ee_attack_subgroup **sp = ag_get_subgroups_begin(g); sp && sp < ag_get_subgroups_end(g); sp++) {
+            ee_asg_unit **b = *sp ? asg_get_units_begin(*sp) : NULL;
+            ee_asg_unit **e = *sp ? asg_get_units_end(*sp) : NULL;
+            for (ee_asg_unit **r = b; b && r < e && n < 1000; r++) {
+                ee_unit *u = *r ? asgu_get_unit(*r) : NULL;
                 if (!u || unit_get_hp(u) <= 0) continue;
                 if (g_fight_est) st_side_add(&g_rt_own, u);
                 float p = unit_power(u);

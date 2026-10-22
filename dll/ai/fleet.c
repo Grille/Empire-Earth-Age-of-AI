@@ -89,16 +89,16 @@ internal int fleet_has(ee_player *pl, ee_unit *u) {
     return 0;
 }
 // a sea subgroup holding one of the fleet's ships: its update skipped (landing.c hook_asg_sea_update)
-internal int fleet_leads(uint8_t *sg) {
-    ee_player *pl = FIELD(sg, OF(ASG, 0x190), void *);
+internal int fleet_leads(ee_attack_subgroup *sg) {
+    ee_player *pl = asg_get_player(sg);
     if (!pl || !g_fl[(unsigned)player_get_index(pl) & 15].n) return 0;
-    for (uint8_t **r = FIELD(sg, OF(ASG, 0x54), uint8_t **); r && r < FIELD(sg, OF(ASG, 0x58), uint8_t **); r++)
-        if (*r && fleet_has(pl, FIELD(*r, OF(ASGU, 0x44), ee_unit *))) { g_fl[(unsigned)player_get_index(pl) & 15].sg_skipped++; return 1; }
+    for (ee_asg_unit **r = asg_get_units_begin(sg); r && r < asg_get_units_end(sg); r++)
+        if (*r && fleet_has(pl, asgu_get_unit(*r))) { g_fl[(unsigned)player_get_index(pl) & 15].sg_skipped++; return 1; }
     return 0;
 }
 // a subgroup's order (vf57) to one of the fleet's ships (landing.c hook_asg_give_goal refuses it)
-internal int fleet_refuses(uint8_t *sg, ee_unit *u) {
-    ee_player *pl = FIELD(sg, OF(ASG, 0x190), void *);
+internal int fleet_refuses(ee_attack_subgroup *sg, ee_unit *u) {
+    ee_player *pl = asg_get_player(sg);
     if (!fleet_has(pl, u)) return 0;
     g_fl_refused++; g_fl[(unsigned)player_get_index(pl) & 15].refused++;
     return 1;
@@ -556,8 +556,8 @@ internal void fl_log(ee_player *pl, unsigned idx, struct fleet *f, uint32_t now,
     float hp = fl_hp(f), hm = 0;
     for (int i = 0; i < f->n; i++) hm += fl_hp_max(f->u[i]);
     uint32_t blost = 0, bsunk = 0;
-    uint8_t *cbm = player_get_combat_mgr(pl), *cmd = cbm ? FIELD(cbm, OF(AM, 0x48), uint8_t *) : NULL;
-    unsigned ngroups = cmd ? FIELD(cmd + 4, 0x10, unsigned) : 0;   // the attack commander's groups (frozen ones pile up?)
+    ee_combat_mgr *cbm = player_get_combat_mgr(pl); ee_attack_cmd *cmd = cbm ? am_get_commander(cbm) : NULL;
+    unsigned ngroups = cmd ? (unsigned)ac_get_group_count(cmd) : 0;   // the attack commander's groups (frozen ones pile up?)
     for (int j = 0; j < 16; j++) { blost += g_nv_boat_kills[j][idx]; bsunk += g_nv_boat_kills[idx][j]; }
     struct fleet s = *f;   // stage 4: the counters of the task forces added
     int s4 = fleet_builds(idx);

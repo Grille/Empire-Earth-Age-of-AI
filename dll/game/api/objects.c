@@ -114,7 +114,7 @@ internal inline void player_set_chat_to_player(ee_player *pl, int i, uint8_t v) 
 internal inline void player_set_civ_chosen(ee_player *pl, uint8_t v) { FIELD(pl, OF(PL, 0xB46), uint8_t) = v; } // +0xB46 (0: the civ dialog opens)
 internal inline void **player_get_zones_begin(const ee_player *pl) { return FIELD(pl, OF(PL, 0xB50), void **); } // +0xB50 the resource zones (map-wide)
 internal inline void **player_get_zones_end(const ee_player *pl) { return FIELD(pl, OF(PL, 0xB54), void **); }
-internal inline uint8_t *player_get_combat_mgr(const ee_player *pl) { return FIELD(pl, OF(PL, 0xB8C), uint8_t *); } // +0xB8C EECPCombatManager (AM)
+internal inline ee_combat_mgr *player_get_combat_mgr(const ee_player *pl) { return FIELD(pl, OF(PL, 0xB8C), ee_combat_mgr *); } // +0xB8C
 internal inline ee_civ_mgr *player_get_civ_mgr(const ee_player *pl) { return FIELD(pl, OF(PL, 0xB90), ee_civ_mgr *); } // +0xB90 a computer player's
 internal inline uint8_t *player_get_b98(const ee_player *pl) { return FIELD(pl, OF(PL, 0xB98), uint8_t *); }    // +0xB98 (PLB98: not known)
 internal inline int player_get_difficulty(const ee_player *pl) { return FIELD(pl, OF(PL, 0xBA4), int); }      // +0xBA4 0 easy, 1 medium, 2 hard
@@ -222,6 +222,59 @@ internal inline int *rs_get_epoch_end(const ee_research_mgr *rs, int e) { return
 internal inline int rs_get_current(const ee_research_mgr *rs) { return FIELD(rs, OF(RS, 0x114), int); }      // +0x114 what it researches now
 internal inline uint8_t *rs_initialized_at(const ee_research_mgr *rs) { return (uint8_t *)FIELD_AT(rs, OF(RS, 0x118)); } // +0x118 the schedule set up (while 0)
 internal inline uint8_t rs_get_att_random(const ee_research_mgr *rs) { return FIELD(rs, OF(RS, 0x11A), uint8_t); } // +0x11A the attention's activity 2 (random research)
+
+// THE COMBAT MANAGER (EECPCombatManager, a computer player's +0xB8C) and its attack commander, which keeps the attack
+// groups: a group has its subgroups (one per kind: land, sea, sea transport, air), a subgroup its unit records
+internal inline ee_attack_cmd *am_get_commander(const ee_combat_mgr *am) { return FIELD(am, OF(AM, 0x48), ee_attack_cmd *); } // +0x48
+// the attention's activities 6 ([+0x4C] +0x48; the object at +0x4C not known) and 8 (+0x62)
+internal inline uint8_t am_get_att_4c(const ee_combat_mgr *am) {
+    uint8_t *o = FIELD(am, OF(AM, 0x4C), uint8_t *);
+    return o ? o[OF(AM4C, 0x48)] : 0;
+}
+internal inline uint8_t am_get_att_62(const ee_combat_mgr *am) { return FIELD(am, OF(AM, 0x62), uint8_t); }
+// +0x4 the groups, a deque of ee_attack_group * (deque_at); +0x14 its count
+internal inline uint8_t *ac_groups_at(const ee_attack_cmd *ac) { return (uint8_t *)FIELD_AT(ac, OF(AMCMD, 0x4)); }
+internal inline int ac_get_group_count(const ee_attack_cmd *ac) { return FIELD(ac, OF(AMCMD, 0x14), int); }
+
+// AN ATTACK GROUP (EECPAttackGroup)
+internal inline ee_attack_subgroup **ag_get_subgroups_begin(const ee_attack_group *g) { return FIELD(g, OF(AG, 0x8), ee_attack_subgroup **); } // +0x8
+internal inline ee_attack_subgroup **ag_get_subgroups_end(const ee_attack_group *g) { return FIELD(g, OF(AG, 0xC), ee_attack_subgroup **); }
+internal inline ee_unit *ag_get_target_unit(const ee_attack_group *g) { return FIELD(g, OF(AG, 0x44), ee_unit *); } // +0x44 (its task +0x28's +0x1C)
+internal inline ee_player *ag_get_target(const ee_attack_group *g) { return FIELD(g, OF(AG, 0x48), ee_player *); }  // +0x48 the player it attacks
+
+// AN ATTACK SUBGROUP (EECPAttackSubGroup; EECPASGLand, asg_is_land, has the fields from +0x60 on)
+internal inline ee_asg_unit **asg_get_units_begin(const ee_attack_subgroup *sg) { return FIELD(sg, OF(ASG, 0x54), ee_asg_unit **); } // +0x54 its members
+internal inline ee_asg_unit **asg_get_units_end(const ee_attack_subgroup *sg) { return FIELD(sg, OF(ASG, 0x58), ee_asg_unit **); }
+internal inline void asg_set_units_end(ee_attack_subgroup *sg, ee_asg_unit **e) { FIELD(sg, OF(ASG, 0x58), ee_asg_unit **) = e; }
+// +0x60 the route, a deque of {x, y, ?} (attack.c route_waypoint); +0x70 its waypoints
+internal inline uint8_t *asg_route_at(const ee_attack_subgroup *sg) { return (uint8_t *)FIELD_AT(sg, OF(ASG, 0x60)); }
+internal inline unsigned asg_get_waypoints(const ee_attack_subgroup *sg) { return FIELD(sg, OF(ASG, 0x70), unsigned); }
+// +0x100 the target: +4 x, +8 y, +0xC the unit's id, +0x10 its kind (1: a unit)
+internal inline uint8_t *asg_target_at(const ee_attack_subgroup *sg) { return (uint8_t *)FIELD_AT(sg, OF(ASG, 0x100)); }
+internal inline int asg_get_goal_x(const ee_attack_subgroup *sg) { return FIELD(sg, OF(ASG, 0x104), int); }
+internal inline int asg_get_goal_y(const ee_attack_subgroup *sg) { return FIELD(sg, OF(ASG, 0x108), int); }
+internal inline ee_unit *asg_get_target_unit(const ee_attack_subgroup *sg) { return FIELD(sg, OF(ASG, 0x118), ee_unit *); } // +0x118
+internal inline ee_player *asg_get_target(const ee_attack_subgroup *sg) { return FIELD(sg, OF(ASG, 0x11C), ee_player *); } // +0x11C the player it attacks
+internal inline int asg_get_mission(const ee_attack_subgroup *sg) { return FIELD(sg, OF(ASG, 0x124), int); }      // +0x124
+internal inline ee_player *asg_get_player(const ee_attack_subgroup *sg) { return FIELD(sg, OF(ASG, 0x190), ee_player *); } // +0x190 its own
+internal inline int asg_get_state(const ee_attack_subgroup *sg) { return FIELD(sg, OF(ASG, 0x1D0), int); }        // +0x1D0
+internal inline int asg_get_x(const ee_attack_subgroup *sg) { return FIELD(sg, OF(ASG, 0x234), int); }            // +0x234 where it is
+internal inline int asg_get_y(const ee_attack_subgroup *sg) { return FIELD(sg, OF(ASG, 0x238), int); }
+
+// A SUBGROUP'S UNIT RECORD (EECPAttackSubGroupUnit)
+internal inline ee_unit *asgu_get_unit(const ee_asg_unit *r) { return FIELD(r, OF(ASGU, 0x44), ee_unit *); }     // +0x44
+internal inline void asgu_set_unit(ee_asg_unit *r, ee_unit *u) { FIELD(r, OF(ASGU, 0x44), ee_unit *) = u; }
+internal inline void *asgu_get_engaged(const ee_asg_unit *r) { return FIELD(r, OF(ASGU, 0x48), void *); }       // +0x48 set while it fights
+internal inline ee_attack_subgroup *asgu_get_subgroup(const ee_asg_unit *r) { return FIELD(r, OF(ASGU, 0x4C), ee_attack_subgroup *); } // +0x4C
+// what FN_ASGU_SCORE scores: +0x4 the enemy
+internal inline ee_unit *score_info_get_enemy(const void *info) { return FIELD(info, OF(ASGUINFO, 0x4), ee_unit *); }
+
+// AN ATTACK TASK (EECPAGTask; test/testcmd.c aigroup makes one): +0x20 the player it attacks, +0x28 / +0x2C / +0x30
+// as the scenario effect "Create AI Military Group" sets them (7, 2, 1 - not known)
+internal inline void task_set_target_player(void *task, ee_player *pl) { FIELD(task, OF(TASK, 0x20), ee_player *) = pl; }
+internal inline void task_set_unknown_28(void *task, int v) { FIELD(task, OF(TASK, 0x28), int) = v; }
+internal inline void task_set_unknown_2c(void *task, int v) { FIELD(task, OF(TASK, 0x2C), int) = v; }
+internal inline void task_set_unknown_30(void *task, uint8_t v) { FIELD(task, OF(TASK, 0x30), uint8_t) = v; }
 
 // THE GAME'S MOUSE (game_mouse(): the cursor in the game's coordinates)
 internal inline float mouse_get_x(const ee_mouse *m) { return FIELD(m, OF(MOUSE, 0x4), float); }            // +0x4

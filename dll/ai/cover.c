@@ -56,8 +56,8 @@ internal unsigned g_cvr_n;
 internal uint32_t g_cvr_purge;
 // kind 1 at the Hospital, 2 broke off to cover, 3 gave its attack up (END), 4 broke off toward home, no cover near (END);
 // g its attack group then (END), home: no cover - the next step home when it arrived
-struct cv_hold { ee_unit *u; uint8_t *g; int id, kind, tx, ty, home; uint32_t since, at; };
-struct cv_brk { ee_unit *u; uint8_t *g; int id, n; uint32_t t; };   // END: how often a unit broke off from its attack group
+struct cv_hold { ee_unit *u; ee_attack_group *g; int id, kind, tx, ty, home; uint32_t since, at; };
+struct cv_brk { ee_unit *u; ee_attack_group *g; int id, n; uint32_t t; };   // END: how often a unit broke off from its attack group
 internal struct cv_pl {
     uint32_t ts, tb, tscan; unsigned min; int started;
     unsigned samples, mil, dmg, dmgq;
@@ -293,8 +293,8 @@ internal void cover_death(ee_unit *dead, int k) {
 
 // ---- fall_back ----
 // landing.c hook_asg_give_goal: an attack subgroup's order to a unit held here
-internal int cover_refuses(uint8_t *sg, ee_unit *u) {
-    ee_player *pl = FIELD(sg, OF(ASG, 0x190), void *);
+internal int cover_refuses(ee_attack_subgroup *sg, ee_unit *u) {
+    ee_player *pl = asg_get_player(sg);
     if (!pl) return 0;
     struct cv_pl *c = &g_cv[(unsigned)player_get_index(pl) & 15];
     if (!c->nh || !cv_held(c, u)) return 0;
@@ -326,7 +326,7 @@ internal int cv_cover(ee_player *pl, struct cv_pl *c, int x, int y, unsigned a, 
     if (c->base && area_id(c->bx, c->by, 2) == a && cv_d2(c->bx, c->by, x, y) <= g_fb_dist * g_fb_dist) { *tx = c->bx; *ty = c->by; return 1; }
     return 0;
 }
-internal void cv_take(struct cv_pl *c, ee_unit *u, int kind, int tx, int ty, uint32_t now, uint8_t *g, int home) {
+internal void cv_take(struct cv_pl *c, ee_unit *u, int kind, int tx, int ty, uint32_t now, ee_attack_group *g, int home) {
     if (c->nh >= CV_HOLD) return;
     struct cv_hold *h = &c->hold[c->nh++];
     h->u = u; h->g = g; h->id = unit_get_id(u); h->kind = kind; h->tx = tx; h->ty = ty; h->home = home;
@@ -344,7 +344,7 @@ internal void cv_take(struct cv_pl *c, ee_unit *u, int kind, int tx, int ty, uin
 // +0x44 = unit (defence.c attack_retreat).
 #define CV_GRP 8
 #define CV_GH 4096
-internal struct cv_grp { uint8_t *g; ee_player *target; int n, gu, nf; float fx, fy, fpow; } g_cvg[CV_GRP];
+internal struct cv_grp { ee_attack_group *g; ee_player *target; int n, gu, nf; float fx, fy, fpow; } g_cvg[CV_GRP];
 internal int g_cvg_n;
 internal struct { ee_unit *u; int k; } g_cvgh[CV_GH];
 internal int cv_group_of(ee_unit *u) {   // the attack group (index into g_cvg) a unit is a member of, -1 none
@@ -354,19 +354,19 @@ internal int cv_group_of(ee_unit *u) {   // the attack group (index into g_cvg) 
 }
 internal void cv_groups(ee_player *pl) {
     memset(g_cvgh, 0, sizeof g_cvgh); g_cvg_n = 0;
-    uint8_t *cbm = player_get_combat_mgr(pl), *cmd = cbm ? FIELD(cbm, OF(AM, 0x48), uint8_t *) : NULL;
+    ee_combat_mgr *cbm = player_get_combat_mgr(pl); ee_attack_cmd *cmd = cbm ? am_get_commander(cbm) : NULL;
     if (!cmd) return;
-    uint8_t *dq = cmd + 4;
+    uint8_t *dq = ac_groups_at(cmd);
     unsigned first = FIELD(dq, 0xC, unsigned), cnt = FIELD(dq, 0x10, unsigned), used = 0;
     for (unsigned k = 0; k < cnt && g_cvg_n < CV_GRP; k++) {
-        uint8_t *g = deque_at(dq, first + k);
+        ee_attack_group *g = deque_at(dq, first + k);
         if (!g) continue;
         struct cv_grp *q = &g_cvg[g_cvg_n];
-        memset(q, 0, sizeof *q); q->g = g; q->target = FIELD(g, OF(AG, 0x48), ee_player *);
-        for (uint8_t **sp = FIELD(g, OF(AG, 0x8), uint8_t **); sp && sp < FIELD(g, OF(AG, 0xC), uint8_t **); sp++) {
-            uint8_t **b = *sp ? FIELD(*sp, OF(ASG, 0x54), uint8_t **) : NULL, **e = *sp ? FIELD(*sp, OF(ASG, 0x58), uint8_t **) : NULL;
-            for (uint8_t **r = b; b && r < e && used < CV_GH / 2; r++) {
-                ee_unit *u = *r ? FIELD(*r, OF(ASGU, 0x44), ee_unit *) : NULL;
+        memset(q, 0, sizeof *q); q->g = g; q->target = ag_get_target(g);
+        for (ee_attack_subgroup **sp = ag_get_subgroups_begin(g); sp && sp < ag_get_subgroups_end(g); sp++) {
+            ee_asg_unit **b = *sp ? asg_get_units_begin(*sp) : NULL; ee_asg_unit **e = *sp ? asg_get_units_end(*sp) : NULL;
+            for (ee_asg_unit **r = b; b && r < e && used < CV_GH / 2; r++) {
+                ee_unit *u = *r ? asgu_get_unit(*r) : NULL;
                 if (!u || !cv_alive(u) || cv_mil(unit_get_type_data(u)) != 1) continue;
                 unsigned h = cv_hash(u) & (CV_GH - 1);
                 while (g_cvgh[h].u && g_cvgh[h].u != u) h = (h + 1) & (CV_GH - 1);
@@ -379,7 +379,7 @@ internal void cv_groups(ee_player *pl) {
     }
 }
 // how often u broke off from its attack group g (this one counted); a record older than 10 minutes starts again
-internal int cv_tally(struct cv_pl *c, ee_unit *u, uint8_t *g, uint32_t now) {
+internal int cv_tally(struct cv_pl *c, ee_unit *u, ee_attack_group *g, uint32_t now) {
     int id = unit_get_id(u), old = 0;
     for (int k = 0; k < 256; k++) {
         struct cv_brk *b = &c->brk[k];

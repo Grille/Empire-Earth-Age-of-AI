@@ -254,7 +254,7 @@ internal inline void set_diplomacy(ee_player *a, ee_player *b, int stance, int f
 // the player's attacks on target called off (the units back to the pool)
 internal inline void call_off_attacks(ee_player *pl, ee_player *target, int flag) { GF(FN_CALL_OFF_ATTACK)(pl, target, flag); }
 // the combat manager (player +0xB8C) answers an attack by target (the game's revenge attack)
-internal inline void revenge(void *combat_mgr, ee_player *target) { GF(FN_REVENGE)(combat_mgr, target); }
+internal inline void revenge(ee_combat_mgr *combat_mgr, ee_player *target) { GF(FN_REVENGE)(combat_mgr, target); }
 // units of the player deleted to make room for req (the original of fleet.c's hook)
 internal inline int delete_for_room(ee_player *pl, void *req, int flag) { return GF(FN_DELETE_FOR_ROOM)(pl, req, flag); }
 // the game's unit limit for the player (EEPlayer::vf31(0) through the player's own vtable, as FN_GAME_LIMIT; it pops
@@ -403,7 +403,7 @@ internal inline void *rm_hunt(ee_resource_mgr *rm, uintptr_t n, uintptr_t f, uin
 }
 
 // a land attack subgroup (EECPASGLand, by its vtable: the subgroups of the other kinds have none of its fields)
-internal inline int asg_is_land(const void *sg) { return *(const uintptr_t *)sg == GA(VT_ASG_LAND); }
+internal inline int asg_is_land(const ee_attack_subgroup *sg) { return *(const uintptr_t *)sg == GA(VT_ASG_LAND); }
 
 // AN ATTACK GROUP OF THE GAME'S OWN (test/testcmd.c aigroup: as the scenario effect "Create AI Military Group"):
 // a task (0x34) with its location (0x18, the point at +4) and target, a strategy (0x44), the unit ids (a vector<int>
@@ -417,8 +417,8 @@ internal inline void point_set(void *point, int *pt) { GF(FN_POINT_SET)(point, p
 internal inline void strategy_init(void *s) { GF(FN_STRATEGY_CTOR)(s); }
 internal inline void strategy_reset(void *s) { GF(FN_STRATEGY_INIT)(s); }
 internal inline void strategy_free(void *s) { GF(FN_STRATEGY_DTOR)(s); }
-internal inline char attack_plan_ok(void *cm, void *task, void *strategy, void *ids) { return GF(FN_ATTACK_PLAN_OK)(cm, task, strategy, ids); }
-internal inline uint8_t *attack_group_new(void *cmd, void *task, void *strategy, void *ids) { return GF(FN_ATTACK_GROUP_NEW)(cmd, task, strategy, ids); }
+internal inline char attack_plan_ok(ee_combat_mgr *cm, void *task, void *strategy, void *ids) { return GF(FN_ATTACK_PLAN_OK)(cm, task, strategy, ids); }
+internal inline ee_attack_group *attack_group_new(ee_attack_cmd *cmd, void *task, void *strategy, void *ids) { return (ee_attack_group *)GF(FN_ATTACK_GROUP_NEW)(cmd, task, strategy, ids); }
 // a vector the game made (its memory freed with the game's delete)
 internal inline void vector_free(void *v) { GF(FN_VECTOR_FREE)(v); }
 // the map's area object at a tile (regions, continents)
@@ -429,19 +429,19 @@ internal inline char unit_to_group(void *cmd, ee_unit *u) { return GF(FN_UNIT_TO
 internal inline void group_stat(void *stats, ee_unit *u) { GF(FN_GROUP_STAT)(stats, u); }
 // the units b..e sorted by distance to unit (the targets' range sort)
 internal inline void range_sort(void **b, void **e, ee_unit *unit) { GF(FN_RANGE_SORT)(b, e, unit); }
-internal inline void asg_update(void *sg, int now) { GF(FN_ASG_UPDATE)(sg, now); }
-internal inline void asg_sea_update(void *sg, int now) { GF(FN_ASG_SEA_UPDATE)(sg, now); }
-internal inline void asg_sea_transport_update(void *sg, int now) { GF(FN_ASG_SEA_TRANSPORT_UPDATE)(sg, now); }
-internal inline void asg_air_update(void *sg, int now) { GF(FN_ASG_AIR_UPDATE)(sg, now); }
-internal inline void asg_stats(void *sg) { GF(FN_ASG_STATS)(sg); }
-internal inline void asg_land_stats(void *sg) { GF(FN_ASG_LAND_STATS)(sg); }
-internal inline char asg_give_goal(void *sg, ee_unit *u, void *goal, int a, int prio) { return GF(FN_ASG_GIVE_GOAL)(sg, u, goal, a, prio); }
-internal inline char asg_air_give_goal(void *sg, ee_unit *u, void *goal, int a, int prio) { return GF(FN_ASG_AIR_GIVE_GOAL)(sg, u, goal, a, prio); }
+internal inline void asg_update(ee_attack_subgroup *sg, int now) { GF(FN_ASG_UPDATE)(sg, now); }
+internal inline void asg_sea_update(ee_attack_subgroup *sg, int now) { GF(FN_ASG_SEA_UPDATE)(sg, now); }
+internal inline void asg_sea_transport_update(ee_attack_subgroup *sg, int now) { GF(FN_ASG_SEA_TRANSPORT_UPDATE)(sg, now); }
+internal inline void asg_air_update(ee_attack_subgroup *sg, int now) { GF(FN_ASG_AIR_UPDATE)(sg, now); }
+internal inline void asg_stats(ee_attack_subgroup *sg) { GF(FN_ASG_STATS)(sg); }
+internal inline void asg_land_stats(ee_attack_subgroup *sg) { GF(FN_ASG_LAND_STATS)(sg); }
+internal inline char asg_give_goal(ee_attack_subgroup *sg, ee_unit *u, void *goal, int a, int prio) { return GF(FN_ASG_GIVE_GOAL)(sg, u, goal, a, prio); }
+internal inline char asg_air_give_goal(ee_attack_subgroup *sg, ee_unit *u, void *goal, int a, int prio) { return GF(FN_ASG_AIR_GIVE_GOAL)(sg, u, goal, a, prio); }
 // a land subgroup's route from start to dest (int[2] each), its arrival (waypoints at +0x60)
-internal inline void asg_route(void *sg, int *start, int *dest) { ((void (__thiscall *)(void *, int *, int *))GA(FN_ASG_ROUTE))(sg, start, dest); }
-internal inline void asg_route_done(void *sg) { ((void (__thiscall *)(void *))GA(FN_ASG_ROUTE_DONE))(sg); }
+internal inline void asg_route(ee_attack_subgroup *sg, int *start, int *dest) { ((void (__thiscall *)(ee_attack_subgroup *, int *, int *))GA(FN_ASG_ROUTE))(sg, start, dest); }
+internal inline void asg_route_done(ee_attack_subgroup *sg) { ((void (__thiscall *)(ee_attack_subgroup *))GA(FN_ASG_ROUTE_DONE))(sg); }
 // a subgroup member's score for an enemy (info: what it scores)
-internal inline float asgu_score(void *member, uint8_t *info) { return ((float (__thiscall *)(void *, uint8_t *))GA(FN_ASGU_SCORE))(member, info); }
+internal inline float asgu_score(ee_asg_unit *member, uint8_t *info) { return ((float (__thiscall *)(ee_asg_unit *, uint8_t *))GA(FN_ASGU_SCORE))(member, info); }
 // the route planner's cost of an edge into node
 internal inline int route_cost(void *planner, int *edge, uint8_t *node) {
     return ((int (__thiscall *)(void *, int *, uint8_t *))GA(FN_ROUTE_COST))(planner, edge, node);

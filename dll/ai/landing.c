@@ -55,7 +55,7 @@ internal struct landing {
     int want_ships, want_n; float unit_pw, need;   // the size planned: transports, soldiers; a soldier's strength, what the beach needs
     ee_unit *esc[14]; int nesc;          // warships (up to 6) and aircraft (up to 8) along
     ee_unit *pass[LD_PASS]; int npass, launch_n;
-    uint8_t *frozen[96]; int nfrozen;    // subgroups led by the landing
+    ee_attack_subgroup *frozen[96]; int nfrozen;    // subgroups led by the landing
     ee_unit *obj; int ox, oy;
     uint32_t since, last, next_try, reissue, trained_t, boarded_t;
     int switched;                        // the beach changed once at the sail check
@@ -111,8 +111,8 @@ internal int ld_affordable(ee_player *pl, int t) {   // how many of type t its s
     return n;
 }
 
-internal int landing_leads(uint8_t *sg) {
-    ee_player *pl = FIELD(sg, OF(ASG, 0x190), void *);
+internal int landing_leads(ee_attack_subgroup *sg) {
+    ee_player *pl = asg_get_player(sg);
     unsigned pi = pl ? (unsigned)player_get_index(pl) & 15 : 0;
     if (!g_landing || !pl || !g_ld[pi].phase) return 0;
     for (int k = 0; k < g_ld[pi].nfrozen; k++) if (g_ld[pi].frozen[k] == sg) return 1;
@@ -153,28 +153,28 @@ internal int landing_has_unit(ee_player *pl, ee_unit *u) {   // a transport, war
     for (int k = 0; k < l->nw; k++) if (l->wpass[k] == u) return 1;
     return 0;
 }
-internal int fleet_leads(uint8_t *sg);                // fleet.c: a sea subgroup holding a ship the fleet leads
-internal int fleet_refuses(uint8_t *sg, ee_unit *u);  // fleet.c: an order to one of them
-internal int mass_refuses(uint8_t *sg, ee_unit *u, void *goal);   // mass.c: an order to a reinforcement held at the rally
+internal int fleet_leads(ee_attack_subgroup *sg);                // fleet.c: a sea subgroup holding a ship the fleet leads
+internal int fleet_refuses(ee_attack_subgroup *sg, ee_unit *u);  // fleet.c: an order to one of them
+internal int mass_refuses(ee_attack_subgroup *sg, ee_unit *u, void *goal);   // mass.c: an order to a reinforcement held at the rally
 internal int expand_ship(ee_unit *u);                 // expand.c: the transport of an outpost's ferry (its player), 0: none
-internal int expand_refuses(uint8_t *sg, ee_unit *u); // expand.c: the ferry's transport and passengers, an outpost's guard
-internal int cover_refuses(uint8_t *sg, ee_unit *u);  // cover.c: a unit falling back to cover or at the Hospital
-internal int expand_leads(uint8_t *sg);               // expand.c: a subgroup holding the ferry's transport
+internal int expand_refuses(ee_attack_subgroup *sg, ee_unit *u); // expand.c: the ferry's transport and passengers, an outpost's guard
+internal int cover_refuses(ee_attack_subgroup *sg, ee_unit *u);  // cover.c: a unit falling back to cover or at the Hospital
+internal int expand_leads(ee_attack_subgroup *sg);               // expand.c: a subgroup holding the ferry's transport
 internal int expand_unload_ok(ee_unit *u, int gx, int gy);   // expand.c: the game's unload retry at the ferry's own point
 internal int expand_has(ee_player *pl, ee_unit *u);        // expand.c: a passenger of the ferry (the landing leaves it)
-internal void __fastcall hook_asg_sea_update(void *sg, void *edx, int now) {
+internal void __fastcall hook_asg_sea_update(ee_attack_subgroup *sg, void *edx, int now) {
     (void)edx;
-    if (!is_vanilla(FIELD(sg, OF(ASG, 0x190), void *)) && (landing_leads(sg) || fleet_leads(sg) || expand_leads(sg))) return;
+    if (!is_vanilla(asg_get_player(sg)) && (landing_leads(sg) || fleet_leads(sg) || expand_leads(sg))) return;
     asg_sea_update(sg, now);
 }
-internal void __fastcall hook_asg_air_update(void *sg, void *edx, int now) {
+internal void __fastcall hook_asg_air_update(ee_attack_subgroup *sg, void *edx, int now) {
     (void)edx;
-    if (!is_vanilla(FIELD(sg, OF(ASG, 0x190), void *)) && landing_leads(sg)) return;
+    if (!is_vanilla(asg_get_player(sg)) && landing_leads(sg)) return;
     asg_air_update(sg, now);
 }
-internal void __fastcall hook_asg_sea_transport_update(void *sg, void *edx, int now) {
+internal void __fastcall hook_asg_sea_transport_update(ee_attack_subgroup *sg, void *edx, int now) {
     (void)edx;
-    if (!is_vanilla(FIELD(sg, OF(ASG, 0x190), void *)) && (landing_leads(sg) || expand_leads(sg))) return;
+    if (!is_vanilla(asg_get_player(sg)) && (landing_leads(sg) || expand_leads(sg))) return;
     asg_sea_transport_update(sg, now);
 }
 
@@ -235,9 +235,9 @@ __attribute__((naked, used)) void goalset_read_thunk(void) {
 // itself never refuses there; for that caller the goal is taken and not given (the goal's few bytes are lost).
 internal unsigned g_ld_refused, g_ld_kept_goal;
 internal void ld_fu_given(void *g, int ok);   // below (the game's unload orders to landing transports)
-internal char __fastcall hook_asg_give_goal(void *sg, void *edx, ee_unit *u, void *goal, int a, int prio) {
+internal char __fastcall hook_asg_give_goal(ee_attack_subgroup *sg, void *edx, ee_unit *u, void *goal, int a, int prio) {
     (void)edx;
-    if (!is_vanilla(FIELD(sg, OF(ASG, 0x190), void *)) && (landing_leads(sg) || fleet_refuses(sg, u) || mass_refuses(sg, u, goal) || expand_refuses(sg, u) || cover_refuses(sg, u))) {   // the fleet (fleet.c): its ships in any subgroup; mass.c; expand.c; cover.c
+    if (!is_vanilla(asg_get_player(sg)) && (landing_leads(sg) || fleet_refuses(sg, u) || mass_refuses(sg, u, goal) || expand_refuses(sg, u) || cover_refuses(sg, u))) {   // the fleet (fleet.c): its ships in any subgroup; mass.c; expand.c; cover.c
         g_ld_refused++;
         if (from_land_handoff((uintptr_t)__builtin_return_address(0))) { g_ld_kept_goal++; return 1; }
         ld_fu_given(goal, 0);
@@ -247,9 +247,9 @@ internal char __fastcall hook_asg_give_goal(void *sg, void *edx, ee_unit *u, voi
     ld_fu_given(goal, r != 0);
     return r;
 }
-internal char __fastcall hook_asg_air_give_goal(void *sg, void *edx, ee_unit *u, void *goal, int a, int prio) {
+internal char __fastcall hook_asg_air_give_goal(ee_attack_subgroup *sg, void *edx, ee_unit *u, void *goal, int a, int prio) {
     (void)edx;
-    if (!is_vanilla(FIELD(sg, OF(ASG, 0x190), void *)) && landing_leads(sg)) { g_ld_refused++; return 0; }
+    if (!is_vanilla(asg_get_player(sg)) && landing_leads(sg)) { g_ld_refused++; return 0; }
     return asg_air_give_goal(sg, u, goal, a, prio);
 }
 
@@ -678,14 +678,14 @@ internal void ld_unload_home(struct landing *l) {
 // moves units between subgroups, and a transport with soldiers aboard sailed off alone in its new subgroup
 internal void ld_refreeze(struct landing *l, uint8_t *dq, unsigned first, unsigned cnt) {
     for (unsigned k = 0; k < cnt && k < 64; k++) {
-        uint8_t *g = deque_at(dq, first + k);
-        for (uint8_t **sp = g ? FIELD(g, OF(GOAL, 0x8), uint8_t **) : NULL; sp && sp < FIELD(g, OF(GOAL, 0xC), uint8_t **); sp++) {
-            uint8_t *sg = *sp;
+        ee_attack_group *g = deque_at(dq, first + k);
+        for (ee_attack_subgroup **sp = g ? ag_get_subgroups_begin(g) : NULL; sp && sp < ag_get_subgroups_end(g); sp++) {
+            ee_attack_subgroup *sg = *sp;
             int mine = 0, have = 0;
             for (int f = 0; f < l->nfrozen; f++) have |= l->frozen[f] == sg;
             if (!sg || have || l->nfrozen >= 96) continue;
-            for (uint8_t **r = FIELD(sg, OF(ASG, 0x54), uint8_t **); r && r < FIELD(sg, OF(ASG, 0x58), uint8_t **) && !mine; r++) {
-                ee_unit *u = *r ? FIELD(*r, OF(ASGU, 0x44), ee_unit *) : NULL;
+            for (ee_asg_unit **r = asg_get_units_begin(sg); r && r < asg_get_units_end(sg) && !mine; r++) {
+                ee_unit *u = *r ? asgu_get_unit(*r) : NULL;
                 for (int j = 0; j < l->nships && !mine; j++) mine = u == l->ships[j];
                 for (int j = 0; j < l->nesc && !mine; j++) mine = u == l->esc[j];
                 for (int j = 0; j < l->npass && !mine; j++) mine = u == l->pass[j];
@@ -952,10 +952,10 @@ internal void ld_why(unsigned pi, uint32_t now, const char *why) {   // why no l
 internal void ld_prune_frozen(struct landing *l) {
     int nf = 0;
     for (int f = 0; f < l->nfrozen; f++) {
-        uint8_t *sg = l->frozen[f];
+        ee_attack_subgroup *sg = l->frozen[f];
         int keep = 0;
-        for (uint8_t **r = FIELD(sg, OF(ASG, 0x54), uint8_t **); r && r < FIELD(sg, OF(ASG, 0x58), uint8_t **) && !keep; r++) {
-            ee_unit *u = *r ? FIELD(*r, OF(ASGU, 0x44), ee_unit *) : NULL;
+        for (ee_asg_unit **r = asg_get_units_begin(sg); r && r < asg_get_units_end(sg) && !keep; r++) {
+            ee_unit *u = *r ? asgu_get_unit(*r) : NULL;
             for (int j = 0; j < l->npass && !keep; j++) keep = u == l->pass[j];
             for (int j = 0; j < l->nw && !keep; j++) keep = u == l->wpass[j];
             for (int j = 0; j < l->nships && !keep; j++) keep = u == l->ships[j];
@@ -1000,11 +1000,11 @@ internal void ld_wave(ee_player *pl, unsigned pi, struct landing *l, uint8_t *dq
         ld_home_scan(pl);
         int home = 0;
         for (unsigned k = 0; k < cnt && k < 64; k++) {
-            uint8_t *g = deque_at(dq, first + k);
-            for (uint8_t **sp = g ? FIELD(g, OF(GOAL, 0x8), uint8_t **) : NULL; sp && sp < FIELD(g, OF(GOAL, 0xC), uint8_t **); sp++) {
+            ee_attack_group *g = deque_at(dq, first + k);
+            for (ee_attack_subgroup **sp = g ? ag_get_subgroups_begin(g) : NULL; sp && sp < ag_get_subgroups_end(g); sp++) {
                 if (!*sp || !asg_is_land(*sp) || landing_leads(*sp) || (g_assault && assault_leads(*sp))) continue;
-                for (uint8_t **r = FIELD(*sp, OF(ASG, 0x54), uint8_t **); r && r < FIELD(*sp, OF(ASG, 0x58), uint8_t **); r++) {
-                    ee_unit *u = *r ? FIELD(*r, OF(ASGU, 0x44), ee_unit *) : NULL;
+                for (ee_asg_unit **r = asg_get_units_begin(*sp); r && r < asg_get_units_end(*sp); r++) {
+                    ee_unit *u = *r ? asgu_get_unit(*r) : NULL;
                     home += ld_alive(u) && is_soldier(unit_get_type_data(u)) && ld_at_home(unit_get_x(u), unit_get_y(u));
                 }
             }
@@ -1014,20 +1014,20 @@ internal void ld_wave(ee_player *pl, unsigned pi, struct landing *l, uint8_t *dq
         if (want < 4) return;
         l->nw = 0;
         for (unsigned k = 0; k < cnt && k < 64 && l->nw < want; k++) {
-            uint8_t *g = deque_at(dq, first + k);
-            for (uint8_t **sp = g ? FIELD(g, OF(GOAL, 0x8), uint8_t **) : NULL; sp && sp < FIELD(g, OF(GOAL, 0xC), uint8_t **) && l->nw < want; sp++) {
-                uint8_t *sg = *sp;
+            ee_attack_group *g = deque_at(dq, first + k);
+            for (ee_attack_subgroup **sp = g ? ag_get_subgroups_begin(g) : NULL; sp && sp < ag_get_subgroups_end(g) && l->nw < want; sp++) {
+                ee_attack_subgroup *sg = *sp;
                 if (!sg || l->nfrozen >= 96 || !asg_is_land(sg) || landing_leads(sg) || (g_assault && assault_leads(sg))) continue;
                 int n = 0, at = 0;
-                for (uint8_t **r = FIELD(sg, OF(ASG, 0x54), uint8_t **); r && r < FIELD(sg, OF(ASG, 0x58), uint8_t **); r++) {
-                    ee_unit *u = *r ? FIELD(*r, OF(ASGU, 0x44), ee_unit *) : NULL;
+                for (ee_asg_unit **r = asg_get_units_begin(sg); r && r < asg_get_units_end(sg); r++) {
+                    ee_unit *u = *r ? asgu_get_unit(*r) : NULL;
                     if (!ld_alive(u)) continue;
                     n++; at += ld_at_home(unit_get_x(u), unit_get_y(u));
                 }
                 if (!n || at * 2 < n) continue;
                 l->frozen[l->nfrozen++] = sg;
-                for (uint8_t **r = FIELD(sg, OF(ASG, 0x54), uint8_t **); r && r < FIELD(sg, OF(ASG, 0x58), uint8_t **); r++) {
-                    ee_unit *u = *r ? FIELD(*r, OF(ASGU, 0x44), ee_unit *) : NULL;
+                for (ee_asg_unit **r = asg_get_units_begin(sg); r && r < asg_get_units_end(sg); r++) {
+                    ee_unit *u = *r ? asgu_get_unit(*r) : NULL;
                     if (ld_alive(u) && !ld_aboard(u) && is_soldier(unit_get_type_data(u)) && !expand_has(pl, u) && l->nw < want && l->nw < LD_PASS) l->wpass[l->nw++] = u;
                 }
             }
@@ -1412,14 +1412,14 @@ internal void ld_phase_plan(ee_player *pl, unsigned pi, struct landing *l, ee_un
     // the attack's target: the group with the most land members
     ee_player *tgt[16] = { 0 }; int tn[16] = { 0 }, nt = 0;
     for (unsigned k = 0; k < cnt && k < 64; k++) {
-        uint8_t *g = deque_at(dq, first + k);
-        ee_player *t = g ? FIELD(g, OF(AG, 0x48), ee_player *) : NULL;
+        ee_attack_group *g = deque_at(dq, first + k);
+        ee_player *t = g ? ag_get_target(g) : NULL;
         if (!t || !is_enemy(pl, t)) continue;
         int j = 0;
         while (j < nt && tgt[j] != t) j++;
         if (j == nt) { if (nt == 16) continue; tgt[nt++] = t; }
-        for (uint8_t **sp = FIELD(g, OF(AG, 0x8), uint8_t **); sp && sp < FIELD(g, OF(AG, 0xC), uint8_t **); sp++)
-            if (*sp && asg_is_land(*sp)) tn[j] += (int)(FIELD(*sp, OF(ASG, 0x58), uint8_t **) - FIELD(*sp, OF(ASG, 0x54), uint8_t **));
+        for (ee_attack_subgroup **sp = ag_get_subgroups_begin(g); sp && sp < ag_get_subgroups_end(g); sp++)
+            if (*sp && asg_is_land(*sp)) tn[j] += (int)(asg_get_units_end(*sp) - asg_get_units_begin(*sp));
     }
     ee_player *target = NULL;
     for (int j = 0, bn = 0; j < nt; j++) if (tn[j] > bn) { bn = tn[j]; target = tgt[j]; }
@@ -1436,11 +1436,11 @@ internal void ld_phase_plan(ee_player *pl, unsigned pi, struct landing *l, ee_un
     int home = 0;
     float ahp = 0, aatt = 0;
     for (unsigned k = 0; k < cnt && k < 64; k++) {
-        uint8_t *g = deque_at(dq, first + k);
-        for (uint8_t **sp = g ? FIELD(g, OF(GOAL, 0x8), uint8_t **) : NULL; sp && sp < FIELD(g, OF(GOAL, 0xC), uint8_t **); sp++) {
+        ee_attack_group *g = deque_at(dq, first + k);
+        for (ee_attack_subgroup **sp = g ? ag_get_subgroups_begin(g) : NULL; sp && sp < ag_get_subgroups_end(g); sp++) {
             if (!*sp || !asg_is_land(*sp) || (g_assault && assault_leads(*sp))) continue;
-            for (uint8_t **r = FIELD(*sp, OF(ASG, 0x54), uint8_t **); r && r < FIELD(*sp, OF(ASG, 0x58), uint8_t **); r++) {
-                ee_unit *u = *r ? FIELD(*r, OF(ASGU, 0x44), ee_unit *) : NULL;
+            for (ee_asg_unit **r = asg_get_units_begin(*sp); r && r < asg_get_units_end(*sp); r++) {
+                ee_unit *u = *r ? asgu_get_unit(*r) : NULL;
                 if (!ld_alive(u) || !is_soldier(unit_get_type_data(u))) continue;
                 if (ld_at_home(unit_get_x(u), unit_get_y(u))) { home++; ahp += (float)unit_get_hp(u); aatt += ld_attack(u); }
             }
@@ -1587,13 +1587,13 @@ internal int ld_phase_ships(ee_player *pl, unsigned pi, struct landing *l, ee_un
         if (ld_sea_useful(&e, s->air[k]) || ld_factor(unit_get_type_data(s->air[k]), ld_pidx(s->air[k]), tw, player_get_index(l->target)) > 0.0f)
             l->esc[l->nesc++] = s->air[k];
     for (unsigned k = 0; k < cnt && k < 64; k++) {
-        uint8_t *g = deque_at(dq, first + k);
-        for (uint8_t **sp = g ? FIELD(g, OF(GOAL, 0x8), uint8_t **) : NULL; sp && sp < FIELD(g, OF(GOAL, 0xC), uint8_t **); sp++) {
-            uint8_t *sg = *sp;
+        ee_attack_group *g = deque_at(dq, first + k);
+        for (ee_attack_subgroup **sp = g ? ag_get_subgroups_begin(g) : NULL; sp && sp < ag_get_subgroups_end(g); sp++) {
+            ee_attack_subgroup *sg = *sp;
             if (!sg || l->nfrozen >= 96) continue;
             int mine = 0, home = 0, n = 0;
-            for (uint8_t **r = FIELD(sg, OF(ASG, 0x54), uint8_t **); r && r < FIELD(sg, OF(ASG, 0x58), uint8_t **); r++) {
-                ee_unit *u = *r ? FIELD(*r, OF(ASGU, 0x44), ee_unit *) : NULL;
+            for (ee_asg_unit **r = asg_get_units_begin(sg); r && r < asg_get_units_end(sg); r++) {
+                ee_unit *u = *r ? asgu_get_unit(*r) : NULL;
                 if (!ld_alive(u)) continue;
                 for (int j = 0; j < l->nships; j++) mine |= u == l->ships[j];
                 for (int j = 0; j < l->nesc; j++) mine |= u == l->esc[j];
@@ -1604,8 +1604,8 @@ internal int ld_phase_ships(ee_player *pl, unsigned pi, struct landing *l, ee_un
                 l->npass >= l->want_n)
                 continue;
             l->frozen[l->nfrozen++] = sg;
-            for (uint8_t **r = FIELD(sg, OF(ASG, 0x54), uint8_t **); r && r < FIELD(sg, OF(ASG, 0x58), uint8_t **); r++) {
-                ee_unit *u = *r ? FIELD(*r, OF(ASGU, 0x44), ee_unit *) : NULL;
+            for (ee_asg_unit **r = asg_get_units_begin(sg); r && r < asg_get_units_end(sg); r++) {
+                ee_unit *u = *r ? asgu_get_unit(*r) : NULL;
                 if (ld_alive(u) && unit_get_x(u) >= 0 && is_soldier(unit_get_type_data(u)) && !expand_has(pl, u) && l->npass < l->want_n && l->npass < LD_PASS)
                     l->pass[l->npass++] = u;
             }
@@ -1777,10 +1777,10 @@ internal void ld_phase_board(ee_player *pl, unsigned pi, struct landing *l, ee_u
             l->ncit = nc;
             int nf = 0;
             for (int f = 0; f < l->nfrozen; f++) {
-                uint8_t *sg = l->frozen[f];
+                ee_attack_subgroup *sg = l->frozen[f];
                 int keep = 0;
-                for (uint8_t **r = FIELD(sg, OF(ASG, 0x54), uint8_t **); r && r < FIELD(sg, OF(ASG, 0x58), uint8_t **) && !keep; r++) {
-                    ee_unit *u = *r ? FIELD(*r, OF(ASGU, 0x44), ee_unit *) : NULL;
+                for (ee_asg_unit **r = asg_get_units_begin(sg); r && r < asg_get_units_end(sg) && !keep; r++) {
+                    ee_unit *u = *r ? asgu_get_unit(*r) : NULL;
                     for (int j = 0; j < l->npass && !keep; j++) keep = u == l->pass[j];
                     for (int j = 0; j < l->nships && !keep; j++) keep = u == l->ships[j];
                     for (int j = 0; j < l->nesc && !keep; j++) keep = u == l->esc[j];
@@ -1938,9 +1938,9 @@ internal void landing_tick(ee_player *pl, uint32_t now) {
     void *cm = player_get_civ_mgr(pl);
     ee_build_mgr *bm = cm ? cm_get_build_mgr(cm) : NULL;
     ee_unit_mgr *um = cm ? cm_get_unit_mgr(cm) : NULL;
-    uint8_t *cbm = player_get_combat_mgr(pl), *cmd = cbm ? FIELD(cbm, OF(AM, 0x48), uint8_t *) : NULL;
+    ee_combat_mgr *cbm = player_get_combat_mgr(pl); ee_attack_cmd *cmd = cbm ? am_get_commander(cbm) : NULL;
     if (!cmd || !bm || !um || bm_get_base_x(bm) == -10000) { if (l->phase) ld_release(pi, "no base", now); return; }
-    uint8_t *dq = cmd + 4;
+    uint8_t *dq = ac_groups_at(cmd);
     unsigned first = FIELD(dq, 0xC, unsigned), cnt = FIELD(dq, 0x10, unsigned);
     {   // subgroups the game deleted meanwhile (never read a stored one without this)
         int nf = 0;

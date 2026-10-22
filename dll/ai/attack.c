@@ -183,9 +183,9 @@ internal ee_unit *find_weak_spot(ee_player *pl, unsigned pi, const int *start, c
 // below zero otherwise). Walls are tough: without siege the breach takes long or fails.
 internal int g_breach = 1;              // aimod.ini [all] attack_breach
 // The owner is kept with the entry: a subgroup the game deleted (its attack over) is never read again.
-internal struct { void *sg, *pl; int x, y; } g_breaches[64];   // subgroup (of player pl) -> wall tile it is to breach
+internal struct { ee_attack_subgroup *sg; ee_player *pl; int x, y; } g_breaches[64];   // subgroup (of player pl) -> wall tile it is to breach
 
-internal void breach_note(ee_player *pl, void *sg, int x, int y) {
+internal void breach_note(ee_player *pl, ee_attack_subgroup *sg, int x, int y) {
     int free_k = -1;
     for (int k = 0; k < 64; k++) {
         if (g_breaches[k].sg == sg) { g_breaches[k].x = x; g_breaches[k].y = y; if (x < 0) g_breaches[k].sg = NULL; return; }
@@ -204,13 +204,13 @@ internal void breach_forget(ee_player *pl) {
 }
 // every AI tick: breaches of subgroups no longer in pl's attack groups (the attack ended, the subgroup was deleted -
 // nothing told the table, and a phantom breach kept siege_want at 2 and the siege firing at that wall for good)
-internal int asg_live(ee_player *pl, uint8_t *sg);   // assault.c
+internal int asg_live(ee_player *pl, ee_attack_subgroup *sg);   // assault.c
 internal void breach_prune(ee_player *pl) {
     for (int k = 0; k < 64; k++)
         if (g_breaches[k].sg && g_breaches[k].pl == pl && !asg_live(pl, g_breaches[k].sg)) g_breaches[k].sg = NULL;
 }
 
-internal int breach_of(void *sg, int *x, int *y) {
+internal int breach_of(ee_attack_subgroup *sg, int *x, int *y) {
     for (int k = 0; k < 64; k++)
         if (g_breaches[k].sg == sg) { *x = g_breaches[k].x; *y = g_breaches[k].y; return 1; }
     return 0;
@@ -290,10 +290,10 @@ typedef void (__thiscall *AsgRouteFn)(void *self, int *start, int *dest);
 internal int g_citizen_attacks;
 internal void cancel_citizen_attack(int ai, int target);   // diplo.c
 internal const char *g_cancel_why[16][16];   // why the next call-off (NULL: citizens) - diplo_safe_point logs it
-internal void subgroup_count(uint8_t *sg, int *n, int *cit) {   // members of an attack subgroup, citizens among them
-    uint8_t **b = FIELD(sg, OF(ASG, 0x54), uint8_t **), **e = FIELD(sg, OF(ASG, 0x58), uint8_t **);
-    for (uint8_t **r = b; b && r < e && *n < 1000; r++) {
-        ee_unit *u = *r ? FIELD(*r, OF(ASGU, 0x44), ee_unit *) : NULL;
+internal void subgroup_count(ee_attack_subgroup *sg, int *n, int *cit) {   // members of an attack subgroup, citizens among them
+    ee_asg_unit **b = asg_get_units_begin(sg); ee_asg_unit **e = asg_get_units_end(sg);
+    for (ee_asg_unit **r = b; b && r < e && *n < 1000; r++) {
+        ee_unit *u = *r ? asgu_get_unit(*r) : NULL;
         ee_unit_type *td = u ? unit_get_type_data(u) : NULL;
         if (!td) continue;
         (*n)++;
@@ -305,16 +305,16 @@ internal void citizen_attack_scan(ee_player *pl, uint32_t now) {
     unsigned i = (unsigned)player_get_index(pl) & 15;
     if (g_citizen_attacks || (now >= last[i] && now - last[i] < 5000)) return;
     last[i] = now;
-    uint8_t *cbm = player_get_combat_mgr(pl), *cmd = cbm ? FIELD(cbm, OF(AM, 0x48), uint8_t *) : NULL;
+    ee_combat_mgr *cbm = player_get_combat_mgr(pl); ee_attack_cmd *cmd = cbm ? am_get_commander(cbm) : NULL;
     if (!cmd) return;
-    uint8_t *dq = cmd + 4;
+    uint8_t *dq = ac_groups_at(cmd);
     unsigned first = FIELD(dq, 0xC, unsigned), cnt = FIELD(dq, 0x10, unsigned);
     for (unsigned k = 0; k < cnt && k < 64; k++) {
-        uint8_t *g = deque_at(dq, first + k);
-        ee_player *target = g ? FIELD(g, OF(AG, 0x48), ee_player *) : NULL;
+        ee_attack_group *g = deque_at(dq, first + k);
+        ee_player *target = g ? ag_get_target(g) : NULL;
         if (!target) continue;
         int n = 0, cit = 0;
-        for (uint8_t **s = FIELD(g, OF(AG, 0x8), uint8_t **); s && s < FIELD(g, OF(AG, 0xC), uint8_t **); s++)
+        for (ee_attack_subgroup **s = ag_get_subgroups_begin(g); s && s < ag_get_subgroups_end(g); s++)
             if (*s) subgroup_count(*s, &n, &cit);
         if (n && cit * 2 >= n) {
             cancel_citizen_attack((int)i, player_get_index(target) & 15);
@@ -323,11 +323,11 @@ internal void citizen_attack_scan(ee_player *pl, uint32_t now) {
         }
     }
 }
-internal void __fastcall hook_asg_route(void *self, void *edx, int *start, int *dest) {
+internal void __fastcall hook_asg_route(ee_attack_subgroup *self, void *edx, int *start, int *dest) {
     (void)edx;
-    ee_player *pl = FIELD(self, OF(ASG, 0x190), void *);
+    ee_player *pl = asg_get_player(self);
     if (is_vanilla(pl)) pl = NULL;   // the game's own route: no weak spot, breach, call-off, nor its log
-    void *target = FIELD(self, OF(ASG, 0x11C), void *);
+    void *target = asg_get_target(self);
     if (pl && target && !g_citizen_attacks) {
         int n = 0, cit = 0;
         subgroup_count(self, &n, &cit);
@@ -342,7 +342,7 @@ internal void __fastcall hook_asg_route(void *self, void *edx, int *start, int *
         float t = threat_at(pi, dest[0], dest[1]);
         ee_unit *u = t > 0 && building_at(pl, dest, 4) ? find_weak_spot(pl, pi, start, dest) : NULL;
         if (u) {
-            uint8_t *tg = self + OF(ASG, 0x100);
+            uint8_t *tg = asg_target_at(self);
             if (g_log)
                 fprintf(g_log, "# weak spot: P%u goal %d,%d (threat %.1f, target kind %d id %d) -> type %d of P%d at %d,%d\n",
                         pi, dest[0], dest[1], t, FIELD(tg, 0x10, int), FIELD(tg, 0xC, int),
@@ -360,7 +360,7 @@ internal void __fastcall hook_asg_route(void *self, void *edx, int *start, int *
         ee_unit *w = cross ? find_breach(pl, pi, start, dest, cross) : NULL;
         breach_note(pl, self, w ? unit_get_x(w) : -1, w ? unit_get_y(w) : -1);
         if (w) {
-            uint8_t *tg = self + OF(ASG, 0x100);
+            uint8_t *tg = asg_target_at(self);
             if (g_log)
                 fprintf(g_log, "# breach: P%u goal %d,%d: wall crossed at %d,%d (threat %.1f) -> attack wall at %d,%d\n",
                         pi, dest[0], dest[1], unit_get_x(cross), unit_get_y(cross),
@@ -441,20 +441,20 @@ internal int guarded(ee_player *pl, int x, int y, int r) {
     return 0;
 }
 
-internal int mass_tether(uint8_t *sg, ee_unit *me, ee_unit *enemy);   // mass.c
+internal int mass_tether(ee_attack_subgroup *sg, ee_unit *me, ee_unit *enemy);   // mass.c
 typedef float (__thiscall *AsguScoreFn)(void *self, uint8_t *info);
-internal float __fastcall hook_asgu_score(void *self, void *edx, uint8_t *info) {
+internal float __fastcall hook_asgu_score(ee_asg_unit *self, void *edx, uint8_t *info) {
     (void)edx;
     float s = asgu_score(self, info);
-    uint8_t *sg = FIELD(self, OF(ASGU, 0x4C), uint8_t *);
-    ee_unit *enemy = info ? FIELD(info, OF(ASGUINFO, 0x4), ee_unit *) : NULL;
-    if (!sg || !enemy || !asg_is_land(sg) || is_vanilla(FIELD(sg, OF(ASG, 0x190), void *))) return s;
+    ee_attack_subgroup *sg = asgu_get_subgroup(self);
+    ee_unit *enemy = info ? score_info_get_enemy(info) : NULL;
+    if (!sg || !enemy || !asg_is_land(sg) || is_vanilla(asg_get_player(sg))) return s;
     // rams (melee, helpless against soldiers): no building while enemy soldiers guard it - they wait with the
     // army until the guards are dealt with
-    ee_unit *me = FIELD(self, OF(ASGU, 0x44), ee_unit *);
+    ee_unit *me = asgu_get_unit(self);
     ee_unit_type *mtd = me ? unit_get_type_data(me) : NULL;
     if (g_siege && mtd && is_ram(type_get_id(mtd)) && s != 0.0f &&
-        guarded(FIELD(sg, OF(ASG, 0x190), void *), unit_get_x(enemy), unit_get_y(enemy), 5)) {
+        guarded(asg_get_player(sg), unit_get_x(enemy), unit_get_y(enemy), 5)) {
         g_ram_waits++;
         return 0.0f;
     }
@@ -481,19 +481,19 @@ internal float __fastcall hook_asgu_score(void *self, void *edx, uint8_t *info) 
         return unit_get_x(enemy) == bx && unit_get_y(enemy) == by ? 1000.0f : 500.0f;
     if (s != 0.0f && mass_tether(sg, me, enemy)) return 0.0f;   // mass.c army_mass 16: not far from the pack
     if (!g_leash || s == 0.0f) return s;
-    ee_player *pl = FIELD(sg, OF(ASG, 0x190), void *);
+    ee_player *pl = asg_get_player(sg);
     if (!pl) return s;
     unsigned pi = (unsigned)player_get_index(pl) & 15;
     int ex = unit_get_x(enemy), ey = unit_get_y(enemy);
     float t = threat_at(pi, ex, ey);
-    if (!(t > 0) || threat_at(pi, FIELD(sg, OF(ASG, 0x104), int), FIELD(sg, OF(ASG, 0x108), int)) > 0) return s;
+    if (!(t > 0) || threat_at(pi, asg_get_goal_x(sg), asg_get_goal_y(sg)) > 0) return s;
     g_leash_stats[pi].skipped++;
     if (g_log && g_leash_stats[pi].logged < 10) {
         g_leash_stats[pi].logged++;
-        ee_unit *u = FIELD(self, OF(ASGU, 0x44), ee_unit *);
+        ee_unit *u = asgu_get_unit(self);
         fprintf(g_log, "# leash: P%u at %.1f min: unit at %d,%d skips enemy at %d,%d (threat %.1f), goal %d,%d\n",
                 pi, game_time() / 60000.0, u ? unit_get_x(u) : -1, u ? unit_get_y(u) : -1,
-                ex, ey, t, FIELD(sg, OF(ASG, 0x104), int), FIELD(sg, OF(ASG, 0x108), int));
+                ex, ey, t, asg_get_goal_x(sg), asg_get_goal_y(sg));
         fflush(g_log);
     }
     return 0.0f;
@@ -501,8 +501,8 @@ internal float __fastcall hook_asgu_score(void *self, void *edx, uint8_t *info) 
 
 // Waypoint i of the route deque at asg+0x60 (std::deque of {x, y, ?}, 0x155 per block: +4 map, +8 map size,
 // +0xC first index, +0x10 count).
-internal int *route_waypoint(uint8_t *asg, unsigned i) {
-    uint8_t *dq = asg + OF(ASG, 0x60);
+internal int *route_waypoint(ee_attack_subgroup *asg, unsigned i) {
+    uint8_t *dq = asg_route_at(asg);
     unsigned idx = FIELD(dq, 0xC, unsigned) + i, blk = idx / 0x155, msz = FIELD(dq, 8, unsigned);
     uint8_t **map = FIELD(dq, 4, uint8_t **);
     if (!map || !msz) return NULL;
@@ -511,11 +511,11 @@ internal int *route_waypoint(uint8_t *asg, unsigned i) {
 }
 
 typedef void (__thiscall *AsgFn)(void *self);
-internal void __fastcall hook_asg_route_done(void *self, void *edx) {
+internal void __fastcall hook_asg_route_done(ee_attack_subgroup *self, void *edx) {
     (void)edx;
-    ee_player *pl = FIELD(self, OF(ASG, 0x190), void *);
+    ee_player *pl = asg_get_player(self);
     if (g_log && pl) {
-        unsigned pi = (unsigned)player_get_index(pl) & 15, n = FIELD(self, OF(ASG, 0x70), unsigned), hot = 0;
+        unsigned pi = (unsigned)player_get_index(pl) & 15, n = asg_get_waypoints(self), hot = 0;
         char buf[600]; int len = 0;
         for (unsigned i = 0; i < n && i < 400; i++) {
             int *w = route_waypoint(self, i);
@@ -1226,20 +1226,20 @@ internal void charge_tick(uint32_t now);
 // asgtrace P [off] (test): log every state change (+0x1D0) of AI P's attack subgroups - class, state, mission, goal,
 // members alive and their centre, waypoints, engaged members, what the members do (march/fight/other/idle)
 internal unsigned g_trace_mask;
-internal struct { uint8_t *sg; int state, goal_x, goal_y; } g_trace[64];
+internal struct { ee_attack_subgroup *sg; int state, goal_x, goal_y; } g_trace[64];
 internal void asg_trace_tick(ee_player *pl, uint32_t now) {
     unsigned p = (unsigned)player_get_index(pl) & 15;
     if (!(g_trace_mask & (1u << p)) || !g_log) return;
-    uint8_t *cbm = player_get_combat_mgr(pl), *cmd = cbm ? FIELD(cbm, OF(AM, 0x48), uint8_t *) : NULL;
+    ee_combat_mgr *cbm = player_get_combat_mgr(pl); ee_attack_cmd *cmd = cbm ? am_get_commander(cbm) : NULL;
     if (!cmd) return;
-    uint8_t *dq = cmd + 4;
+    uint8_t *dq = ac_groups_at(cmd);
     unsigned first = FIELD(dq, 0xC, unsigned), cnt = FIELD(dq, 0x10, unsigned);
     for (unsigned k = 0; k < cnt && k < 32; k++) {
-        uint8_t *g = deque_at(dq, first + k);
-        for (uint8_t **sp = g ? FIELD(g, OF(AG, 0x8), uint8_t **) : NULL; sp && sp < FIELD(g, OF(AG, 0xC), uint8_t **); sp++) {
-            uint8_t *sg = *sp;
+        ee_attack_group *g = deque_at(dq, first + k);
+        for (ee_attack_subgroup **sp = g ? ag_get_subgroups_begin(g) : NULL; sp && sp < ag_get_subgroups_end(g); sp++) {
+            ee_attack_subgroup *sg = *sp;
             if (!sg) continue;
-            int st = FIELD(sg, OF(ASG, 0x1D0), int), gx = FIELD(sg, OF(ASG, 0x104), int), gy = FIELD(sg, OF(ASG, 0x108), int), slot = -1, fre = -1;
+            int st = asg_get_state(sg), gx = asg_get_goal_x(sg), gy = asg_get_goal_y(sg), slot = -1, fre = -1;
             for (int q = 0; q < 64; q++) {
                 if (g_trace[q].sg == sg) { slot = q; break; }
                 if (!g_trace[q].sg && fre < 0) fre = q;
@@ -1248,11 +1248,11 @@ internal void asg_trace_tick(ee_player *pl, uint32_t now) {
             if (slot < 0) { if (fre < 0) continue; slot = fre; g_trace[slot].sg = sg; g_trace[slot].state = -1; }
             int n = 0, walk = 0, fight = 0, other = 0, none = 0, engaged = 0;
             float cx = 0, cy = 0;
-            for (uint8_t **r = FIELD(sg, OF(ASG, 0x54), uint8_t **); r && r < FIELD(sg, OF(ASG, 0x58), uint8_t **) && n < 1000; r++) {
-                ee_unit *u = *r ? FIELD(*r, OF(ASGU, 0x44), ee_unit *) : NULL;
+            for (ee_asg_unit **r = asg_get_units_begin(sg); r && r < asg_get_units_end(sg) && n < 1000; r++) {
+                ee_unit *u = *r ? asgu_get_unit(*r) : NULL;
                 uint8_t *gl;
                 if (!u || unit_get_hp(u) <= 0) continue;
-                if (FIELD(*r, OF(ASGU, 0x48), void *)) engaged++;
+                if (asgu_get_engaged(*r)) engaged++;
                 n++; cx += (float)unit_get_x(u); cy += (float)unit_get_y(u);
                 gl = unit_get_goal(u);
                 if (!gl) none++;
@@ -1262,10 +1262,10 @@ internal void asg_trace_tick(ee_player *pl, uint32_t now) {
             }
             fprintf(g_log, "# asgtrace: P%u at %.2f min: group %u %s %p: state %d -> %d mission %d goal %d,%d; %d alive at %.0f,%.0f, "
                     "%u waypoints, %d engaged; %d march %d fight %d other %d idle", p, now / 60000.0, k, rtti_name(sg),
-                    (void *)sg, g_trace[slot].state, st, FIELD(sg, OF(ASG, 0x124), int), gx, gy, n, n ? cx / n : 0.0f, n ? cy / n : 0.0f,
-                    FIELD(sg, OF(ASG, 0x70), unsigned), engaged, walk, fight, other, none);
+                    (void *)sg, g_trace[slot].state, st, asg_get_mission(sg), gx, gy, n, n ? cx / n : 0.0f, n ? cy / n : 0.0f,
+                    asg_get_waypoints(sg), engaged, walk, fight, other, none);
             for (int w = 0; w < 2; w++) {   // the subgroup's target unit (+0x118) and the group's (+0x28 + 0x1C)
-                ee_unit *t = w ? FIELD(g, OF(AG, 0x44), ee_unit *) : FIELD(sg, OF(ASG, 0x118), ee_unit *);
+                ee_unit *t = w ? ag_get_target_unit(g) : asg_get_target_unit(sg);
                 ee_unit_type *ttd = t ? unit_get_type_data(t) : NULL;
                 if (ttd) fprintf(g_log, "; %s target type %d at %d,%d hp %d", w ? "group" : "its", type_get_id(ttd),
                                  unit_get_x(t), unit_get_y(t), unit_get_hp(t));
@@ -1368,13 +1368,13 @@ internal void __fastcall hook_group_stat(void *stats, void *edx, ee_unit *unit) 
 // skipped such a record (12 minutes after attacks were called off for an alliance), and five more readers of the
 // pattern. Before vf20 runs, records without a unit leave the member vector (+0x54..+0x58; the records themselves are
 // left alone, in case anything else still points at them).
-internal void asg_purge(uint8_t *sg) {
-    uint8_t **b = FIELD(sg, OF(ASG, 0x54), uint8_t **), **e = FIELD(sg, OF(ASG, 0x58), uint8_t **), **w = b;
+internal void asg_purge(ee_attack_subgroup *sg) {
+    ee_asg_unit **b = asg_get_units_begin(sg); ee_asg_unit **e = asg_get_units_end(sg); ee_asg_unit **w = b;
     if (!b || e < b || e - b > 4096) return;
-    for (uint8_t **r = b; r < e; r++)
-        if (*r && FIELD(*r, OF(ASGU, 0x44), ee_unit *)) *w++ = *r;
+    for (ee_asg_unit **r = b; r < e; r++)
+        if (*r && asgu_get_unit(*r)) *w++ = *r;
     if (w == e) return;
-    FIELD(sg, OF(ASG, 0x58), uint8_t **) = w;
+    asg_set_units_end(sg, w);
     static int logged;
     if (g_log && logged < 20) {
         logged++;
@@ -1386,22 +1386,22 @@ internal void asg_purge(uint8_t *sg) {
 // every attack subgroup of AI pl: before the mod calls its attacks off (0x43033E with 1, which reads the members first,
 // 0x454B90) - with a record without its unit it crashed there at once (test: nullmember P off)
 internal void asg_purge_all(ee_player *pl) {
-    uint8_t *cbm = pl ? player_get_combat_mgr(pl) : NULL, *cmd = cbm ? FIELD(cbm, OF(AM, 0x48), uint8_t *) : NULL;
+    ee_combat_mgr *cbm = pl ? player_get_combat_mgr(pl) : NULL; ee_attack_cmd *cmd = cbm ? am_get_commander(cbm) : NULL;
     if (!cmd) return;
-    uint8_t *dq = cmd + 4;
+    uint8_t *dq = ac_groups_at(cmd);
     unsigned first = FIELD(dq, 0xC, unsigned), cnt = FIELD(dq, 0x10, unsigned);
     for (unsigned k = 0; k < cnt && k < 64; k++) {
-        uint8_t *g = deque_at(dq, first + k);
-        for (uint8_t **sp = g ? FIELD(g, OF(AG, 0x8), uint8_t **) : NULL; sp && sp < FIELD(g, OF(AG, 0xC), uint8_t **); sp++)
+        ee_attack_group *g = deque_at(dq, first + k);
+        for (ee_attack_subgroup **sp = g ? ag_get_subgroups_begin(g) : NULL; sp && sp < ag_get_subgroups_end(g); sp++)
             if (*sp) asg_purge(*sp);
     }
 }
-internal void __fastcall hook_asg_stats(void *sg, void *edx) {
+internal void __fastcall hook_asg_stats(ee_attack_subgroup *sg, void *edx) {
     (void)edx;
     asg_purge(sg);
     asg_stats(sg);
 }
-internal void __fastcall hook_asg_land_stats(void *sg, void *edx) {
+internal void __fastcall hook_asg_land_stats(ee_attack_subgroup *sg, void *edx) {
     (void)edx;
     asg_purge(sg);
     asg_land_stats(sg);
@@ -1571,28 +1571,28 @@ internal void cmd_threat(char *out, const char *args) {
 internal void cmd_attacks(char *out, const char *args) {
     int p = atoi(args);
     ee_player *pl = (p > 0 && p < 16) ? g_players[p] : NULL;
-    uint8_t *cbm = pl ? player_get_combat_mgr(pl) : NULL, *cmd = cbm ? FIELD(cbm, OF(AM, 0x48), uint8_t *) : NULL;
+    ee_combat_mgr *cbm = pl ? player_get_combat_mgr(pl) : NULL; ee_attack_cmd *cmd = cbm ? am_get_commander(cbm) : NULL;
     if (!cmd) { REPLY("error: no AI player %d with an attack commander\n", p); return; }
-    uint8_t *dq = cmd + 4;
+    uint8_t *dq = ac_groups_at(cmd);
     unsigned first = FIELD(dq, 0xC, unsigned), cnt = FIELD(dq, 0x10, unsigned);
     REPLY("P%d: %u attack groups, next attack at %.1f min\n", p, cnt, player_get_next_attack(pl) / 60000.0);
     for (unsigned k = 0; k < cnt && k < 16; k++) {
-        uint8_t *g = deque_at(dq, first + k);
-        ee_player *target = g ? FIELD(g, OF(AG, 0x48), ee_player *) : NULL;
+        ee_attack_group *g = deque_at(dq, first + k);
+        ee_player *target = g ? ag_get_target(g) : NULL;
         if (!g) continue;
         int ns = 0;
-        for (uint8_t **sp = FIELD(g, OF(AG, 0x8), uint8_t **); sp && sp < FIELD(g, OF(AG, 0xC), uint8_t **); sp++) ns++;
+        for (ee_attack_subgroup **sp = ag_get_subgroups_begin(g); sp && sp < ag_get_subgroups_end(g); sp++) ns++;
         REPLY(" group %u: target P%d, %d subgroups\n", k, target ? player_get_index(target) : -1, ns);
-        for (uint8_t **sp = FIELD(g, OF(AG, 0x8), uint8_t **); sp && sp < FIELD(g, OF(AG, 0xC), uint8_t **); sp++) {
+        for (ee_attack_subgroup **sp = ag_get_subgroups_begin(g); sp && sp < ag_get_subgroups_end(g); sp++) {
             if (!*sp) continue;
             int n = 0, walk = 0, fight = 0, other = 0, none = 0, engaged = 0;
             float cx = 0, cy = 0;
-            uint8_t **b = FIELD(*sp, OF(ASG, 0x54), uint8_t **), **e = FIELD(*sp, OF(ASG, 0x58), uint8_t **);
-            for (uint8_t **r = b; b && r < e && n < 1000; r++) {
-                ee_unit *u = *r ? FIELD(*r, OF(ASGU, 0x44), ee_unit *) : NULL;
+            ee_asg_unit **b = asg_get_units_begin(*sp); ee_asg_unit **e = asg_get_units_end(*sp);
+            for (ee_asg_unit **r = b; b && r < e && n < 1000; r++) {
+                ee_unit *u = *r ? asgu_get_unit(*r) : NULL;
                 uint8_t *gl;
                 if (!u || unit_get_hp(u) <= 0) continue;
-                if (FIELD(*r, OF(ASGU, 0x48), void *)) engaged++;
+                if (asgu_get_engaged(*r)) engaged++;
                 n++; cx += (float)unit_get_x(u); cy += (float)unit_get_y(u);
                 gl = unit_get_goal(u);
                 if (!gl) none++;
@@ -1603,13 +1603,13 @@ internal void cmd_attacks(char *out, const char *args) {
             const char *cls = rtti_name(*sp);
             REPLY("   %-28s %3d alive at %.0f,%.0f: %d march, %d fight, %d other, %d idle\n", cls, n,
                   n ? cx / n : 0.0f, n ? cy / n : 0.0f, walk, fight, other, none);
-            uint8_t *sg = *sp;
+            ee_attack_subgroup *sg = *sp;
             REPLY("     state %d mission %d, goal %d,%d, %u waypoints, at %d,%d, %d engaged\n",
-                  FIELD(sg, OF(ASG, 0x1D0), int), FIELD(sg, OF(ASG, 0x124), int), FIELD(sg, OF(ASG, 0x104), int), FIELD(sg, OF(ASG, 0x108), int),
-                  FIELD(sg, OF(ASG, 0x70), unsigned), FIELD(sg, OF(ASG, 0x234), int), FIELD(sg, OF(ASG, 0x238), int), engaged);
+                  asg_get_state(sg), asg_get_mission(sg), asg_get_goal_x(sg), asg_get_goal_y(sg),
+                  asg_get_waypoints(sg), asg_get_x(sg), asg_get_y(sg), engaged);
             if (n && strstr(args, "raw")) {   // the subgroup's fields as dwords, to compare over time
-                for (uint8_t **r = b; b && r < e; r++) {   // each member: type, tile, goal (and its target)
-                    ee_unit *u = *r ? FIELD(*r, OF(ASGU, 0x44), ee_unit *) : NULL;
+                for (ee_asg_unit **r = b; b && r < e; r++) {   // each member: type, tile, goal (and its target)
+                    ee_unit *u = *r ? asgu_get_unit(*r) : NULL;
                     if (!u || unit_get_hp(u) <= 0) continue;
                     uint8_t *gl = unit_get_goal(u);
                     ee_unit *t = NULL;
@@ -1619,7 +1619,7 @@ internal void cmd_attacks(char *out, const char *args) {
                     if (t) REPLY(" P%d's %d (family %d) at %d,%d", player_get_index(unit_get_owner(t)),
                                  type_get_id(unit_get_type_data(t)), type_get_family(unit_get_type_data(t)),
                                  unit_get_x(t), unit_get_y(t));
-                    REPLY(" rec+48 %08x\n", FIELD(*r, OF(ASGU, 0x48), unsigned));
+                    REPLY(" rec+48 %08x\n", (unsigned)(uintptr_t)asgu_get_engaged(*r));
                 }
                 for (int o = 0x100; o < 0x260; o += 0x20) {
                     REPLY("     %03x:", o);
