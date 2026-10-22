@@ -1,30 +1,7 @@
-// THE GAME'S OBJECTS AND FUNCTIONS, TYPED: a pointer type of its own for each kind of object (raw/fields.h's kinds) and
-// the game's functions as plain C functions over them - explored_by(site, pl) instead of
-// GF(FN_EXPLORED)(FIELD(site, OF(UNIT, 0x14), void *), pl). The types are never defined, only pointed to: a unit
-// passed where a player is wanted, or the arguments swapped, doesn't build (a void * still passes - code not moved
-// over yet). FIELD reads them as before. raw/functions.h has these functions' addresses and raw signatures (raw/tables.c's
-// tables); the code outside game/ calls these instead (moved over so far: ai/; typed in every file: the players, the
-// resource manager, the units). Each wrapper is the call itself: inlined, the machine code is the same as GF's
-// (scripts/code_same.py; dll/build.sh's -fno-strict-aliasing keeps the types out of the optimizer's aliasing).
-
-typedef struct ee_player ee_player;             // PL: a player (EEPlayer, EEComputerPlayer)
-typedef struct ee_unit ee_unit;                 // UNIT: a unit, building or resource on the map
-typedef struct ee_unit_type ee_unit_type;       // TD: a unit type's data (EEUnitClass)
-typedef struct ee_goal ee_goal;                 // GOAL: a unit's goal (EEUnitGoal)
-typedef struct ee_civ_mgr ee_civ_mgr;           // CM: the AI's civilization manager, player +0xB90
-typedef struct ee_resource_mgr ee_resource_mgr; // RM: the AI's resource manager, CM +0x38
-typedef struct ee_build_mgr ee_build_mgr;       // BM: the AI's build manager, CM +0x3C
-typedef struct ee_research_mgr ee_research_mgr; // RS: the AI's research manager, CM +0x40
-typedef struct ee_unit_mgr ee_unit_mgr;         // UM: the AI's unit manager, CM +0x44
-typedef struct ee_tech_tree ee_tech_tree;       // TT: a player's tech tree, PL_TECHTREE
-typedef struct ee_tech ee_tech;                 // TECH, TECHNODE, TECHCHILD: a tech tree node (EETechTreeNode)
-typedef struct ee_tech_data ee_tech_data;       // TECHDATA: a tech's data, TECH +0x8
-typedef struct ee_zone ee_zone;                 // ZONE: an AI town or resource zone
-
-// the game's UString (passed by value to some of its functions)
-struct ustring { uint8_t raw[16]; };
-
-// Kinds not typed yet (attack groups and subgroups, goals, messages, the game state's tables) are void * here.
+// THE GAME'S FUNCTIONS, TYPED: the game's functions as plain C functions over types.h's objects - explored_by(site, pl)
+// instead of GF(FN_EXPLORED)(FIELD(site, OF(UNIT, 0x14), void *), pl) - and its data as accessors. raw/functions.h has
+// these functions' addresses and raw signatures (raw/tables.c's tables); the code outside game/api/ calls these
+// instead. Each wrapper is the call itself: inlined, the machine code is the same as GF's (scripts/code_same.py).
 
 // THE GAME'S DATA (raw/data.h's G_ rows): its globals read through these, typed - NULL / 0 before they exist
 internal inline uint8_t *game_map(void) { return *(uint8_t **)GA(G_MAP); }                   // +0x1816FC its size in tiles
