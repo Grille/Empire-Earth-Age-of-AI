@@ -26,7 +26,7 @@ struct ustring { uint8_t raw[16]; };
 
 // Kinds not typed yet (attack groups and subgroups, goals, messages, the game state's tables) are void * here.
 
-// THE GAME'S DATA (addr.h's G_ rows): its globals read through these, typed - NULL / 0 before they exist
+// THE GAME'S DATA (data_addr.h's G_ rows): its globals read through these, typed - NULL / 0 before they exist
 internal inline uint8_t *game_map(void) { return *(uint8_t **)GA(G_MAP); }                   // +0x1816FC its size in tiles
 internal inline uint8_t *game_physics(void) { return *(uint8_t **)GA(G_WORLD_CLOCK); }       // EEPhysics: +0xD0 the game time
 internal inline void *game_world(void) { return *(void **)GA(G_WORLD); }                     // the action queue's owner, the UI's

@@ -1,7 +1,7 @@
 // THE GAME'S OBJECTS' FIELDS: every offset the mod reads in the game's objects, by the kind of object and the offset
-// it has in the 2017 update, with its value in each exe build (addr.h's columns, in that order). OF(PL, 0x9D4) is the
-// running build's offset of the field the 2017 update has at +0x9D4 in a player: FIELD(pl, OF(PL, 0x9D4), void *). A
-// read of a field not in the table doesn't build. The kinds are below; the runtime library's layouts (std::deque,
+// it has in the 2017 update, with its value in each exe build (k_exe_builds' columns, in that order; tables.h makes
+// the table of these rows). OF(PL, 0x9D4) is the running build's offset of the field the 2017 update has at +0x9D4
+// in a player: FIELD(pl, OF(PL, 0x9D4), void *). A read of a field not in the table doesn't build. The kinds are below; the runtime library's layouts (std::deque,
 // vector, map nodes, UString) and the mod's own structures stay plain numbers.
 // Art of Conquest's column: scripts/port_fields.py (in the two exes' paired code, [this + X] read as [this + Y] in a
 // class's methods; and every read's offsets for objects without methods), for the engine DLLs' objects (E_: AoC ships
@@ -523,24 +523,3 @@
     O(ZONE, 0x14, 0x14, 0x14) /* s */ \
     O(ZONE, 0x18, 0x18, 0x18) /* s */ \
 
-
-#define OF_ENUM(k, x, ...) OF_##k##_##x,
-enum field_name { FIELDS(OF_ENUM) OF_N };
-#define OF_ROW(k, x, ...) { __VA_ARGS__ },
-internal const uint32_t k_of[OF_N][ADDR_BUILDS] = { FIELDS(OF_ROW) };
-#define OF_NAME(k, x, ...) #k " " #x,
-internal const char *const k_of_name[OF_N] = { FIELDS(OF_NAME) };
-internal uint32_t g_of[OF_N];
-#define OF(k, x) (g_of[OF_##k##_##x])
-internal int g_of_missing;   // fields the running build hasn't got (NA): logged at the start (fields_log)
-internal int fields_select(void) {   // the running exe's column (g_exe_build) into g_of (with addr_select)
-    int missing = 0;
-    for (int i = 0; i < OF_N; i++) missing += (g_of[i] = k_of[i][g_exe_build]) == NA;
-    return missing;
-}
-internal void fields_log(FILE *log) {
-    if (!log || !g_of_missing) return;
-    fprintf(log, "# fields: build %d hasn't got %d of %d:", g_exe_build, g_of_missing, OF_N);
-    for (int i = 0; i < OF_N; i++) if (g_of[i] == NA) fprintf(log, " %s", k_of_name[i]);
-    fputc(10, log);
-}

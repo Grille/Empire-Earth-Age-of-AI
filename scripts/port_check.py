@@ -1,10 +1,10 @@
-# Checks of fields.h and addr.h's Art of Conquest column against the code, beyond port_fields.py's class methods (which
+# Checks of fields.h's and the address rows' Art of Conquest column against the code, beyond port_fields.py's class methods (which
 # miss objects with few virtual functions - the AI's build, unit and civilization managers moved and were taken as
 # kept): a kind's rows voted in its source file's code (the files' bounds: the static initializers Ghidra names
 # "<Class>_persist_", decomp/functions.tsv), through the pointer that reaches it, and every function's stack arguments.
 # usage: python port_check.py kinds [KIND ...]        each row of the kinds in RANGES: the votes, DIFF where they disagree
 #        python port_check.py via KIND lo-hi[,..] kA kB  the kind's rows read through [this + kA] (AoC: kB) in those ranges
-#        python port_check.py rets                      addr.h's functions whose stack arguments (ret N) differ by build
+#        python port_check.py rets                      the FN_ rows whose stack arguments (ret N) differ by build
 import collections, os, re, sys
 sys.path.insert(0, os.path.dirname(__file__))
 import port_addrs as P

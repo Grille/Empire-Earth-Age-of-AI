@@ -25,8 +25,7 @@ struct ustring;
 #include "base/mistakes.c"
 #include "base/math.c"
 #include "game/exe.c"             // which exe build runs: the column of game/api/'s tables
-#include "game/api/addr.h"        // the game's addresses by name, per exe build: GA(G_WORLD_CLOCK), GF(FN_CAN_BUILD)(pl, t, 0x20, 0)
-#include "game/api/fields.h"      // the game's objects' fields by kind, per exe build: OF(PL, 0x9D4)
+#include "game/api/tables.h"      // the game's addresses and objects' fields per exe build: GA(G_WORLD_CLOCK), OF(PL, 0x9D4)
 #include "game/api/layout.h"
 #include "game/api/functions.h"   // the objects typed and the functions over them: explored_by(site, pl)
 #include "game/api/hooks.h"       // the game's functions the mod hooks: their hook types and installers

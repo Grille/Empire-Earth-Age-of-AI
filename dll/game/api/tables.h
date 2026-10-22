@@ -1,22 +1,24 @@
-// THE GAME'S ADDRESSES: every address the mod uses in Empire Earth.exe, by name, with its value in each exe build the
-// mod knows - one column per k_exe_builds entry (game/exe.c), in that order (0: the build hasn't got it). game_build
-// finds the running build, addr_select takes its column when the DLL loads: GA(NAME) is the address, GF(NAME) the
-// function there, typed by its row, GL(NAME) a list of addresses (its count: sizeof GL(NAME) / sizeof *GL(NAME)).
-// Another build - Art of Conquest, another release, a patched exe - is one more hash and one more value per row. The names: FN_ a function,
-// CALL_ a call (patched), SITE_/CODE_ an instruction or operand, G_ data, VT_ a vtable, VTS_ a vtable slot's address,
-// SLOT_ a vtable slot's index (a class may have gained a virtual function), SIZE_ an object's size, IAT_ an import
-// slot, RVA_ a place in an engine DLL. Tables of their own for one build: editor_layout.h (generated for the 2017
-// update: apply_editor_layout only there). The objects' fields: fields.h, the same columns.
-// Art of Conquest's column: scripts/port_addrs.py (the two exes' code paired; its HAND table the few found by hand,
-// each with its reason).
+// THE TABLES BEHIND GA, GF, GL AND OF - game/api/'s own: the rest of the code uses the wrappers, accessors and
+// installers of functions.h and hooks.h, and fields.h's names (scripts/layers.py). Every address the mod uses in
+// Empire Earth.exe and every field offset it reads, by name, with its value in each exe build the mod knows - one
+// column per k_exe_builds entry (game/exe.c), in that order. game_build finds the running build, addr_select and
+// fields_select take its column when the DLL loads: GA(NAME) is the address, GF(NAME) the function there, typed by its
+// row, GL(NAME) a list of addresses (its count: sizeof GL(NAME) / sizeof *GL(NAME)), OF(KIND, offset) a field's
+// offset. Another build - Art of Conquest, another release, a patched exe - is one more hash and one more value per
+// row (scripts/port_addrs.py, port_fields.py).
+// The address names: FN_ a function, CALL_ a call (patched), SITE_/CODE_ an instruction or operand, G_ data, VT_ a
+// vtable, VTS_ a vtable slot's address, SLOT_ a vtable slot's index (a class may have gained a virtual function),
+// SIZE_ an object's size, IAT_ an import slot, RVA_ a place in an engine DLL (0: the build hasn't got it). Tables of
+// their own for one build: editor_layout.h (generated for the 2017 update: apply_editor_layout only there).
 
-// The rows by who uses them (scripts/addr_sort.py keeps them there, the build checks it): functions_addr.h what
-// functions.h calls, hooks_addr.h what hooks.h patches, data_addr.h the game's data functions.h reads. One table: the
-// three composed here. F(name, return type, calling convention, (parameters), value per build): a function;
-// D(name, value per build). Only game/api/ uses GA, GF and GL (scripts/layers.py).
+// The address rows by who uses them (scripts/addr_sort.py keeps them there, the build checks it): functions_addr.h
+// what functions.h calls, hooks_addr.h what hooks.h patches, data_addr.h the game's data functions.h reads; one table
+// of the three. F(name, return type, calling convention, (parameters), value per build): a function; D(name, value per
+// build): an address or a number; L(name, count, (values of build 1), (values of build 2) ...): a list.
 #include "game/api/functions_addr.h"   // the rows of the functions the mod calls
 #include "game/api/hooks_addr.h"       // the rows of what it patches to hook the game
 #include "game/api/data_addr.h"        // the rows of the game's data
+#include "game/api/fields.h"           // the rows of the objects' fields
 
 #define ADDRS(F, D) ADDRS_FUNCTIONS(F, D) ADDRS_HOOKS(F, D) ADDRS_DATA(F, D)
 
@@ -27,7 +29,6 @@
 // bytes first: a DLL from elsewhere is left alone.
 #define ADDR_NUMBERS(D) ADDR_NUMBERS_FUNCTIONS(D) ADDR_NUMBERS_HOOKS(D)
 
-// lists: L(name, count, (values of build 1), (values of build 2) ...)
 #define ADDR_LISTS(L) ADDR_LISTS_FUNCTIONS(L) ADDR_LISTS_HOOKS(L)
 
 #define ADDR_ENUM_F(n, r, cc, a, ...) A_##n,
@@ -66,5 +67,26 @@ internal void addr_log(FILE *log) {   // the names the running build hasn't got:
     if (!log || !g_addr_missing) return;
     fprintf(log, "# addresses: build %d hasn't got %d of %d:", g_exe_build, g_addr_missing, A_N);
     for (int i = 0; i < A_N; i++) if (!g_addr[i]) fprintf(log, " %s", k_addr_name[i]);
+    fputc(10, log);
+}
+
+#define OF_ENUM(k, x, ...) OF_##k##_##x,
+enum field_name { FIELDS(OF_ENUM) OF_N };
+#define OF_ROW(k, x, ...) { __VA_ARGS__ },
+internal const uint32_t k_of[OF_N][ADDR_BUILDS] = { FIELDS(OF_ROW) };
+#define OF_NAME(k, x, ...) #k " " #x,
+internal const char *const k_of_name[OF_N] = { FIELDS(OF_NAME) };
+internal uint32_t g_of[OF_N];
+#define OF(k, x) (g_of[OF_##k##_##x])
+internal int g_of_missing;   // fields the running build hasn't got (NA): logged at the start (fields_log)
+internal int fields_select(void) {   // the running exe's column (g_exe_build) into g_of (with addr_select)
+    int missing = 0;
+    for (int i = 0; i < OF_N; i++) missing += (g_of[i] = k_of[i][g_exe_build]) == NA;
+    return missing;
+}
+internal void fields_log(FILE *log) {
+    if (!log || !g_of_missing) return;
+    fprintf(log, "# fields: build %d hasn't got %d of %d:", g_exe_build, g_of_missing, OF_N);
+    for (int i = 0; i < OF_N; i++) if (g_of[i] == NA) fprintf(log, " %s", k_of_name[i]);
     fputc(10, log);
 }

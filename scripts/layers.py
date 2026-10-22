@@ -175,7 +175,7 @@ def analyse():
     owner = collections.defaultdict(set)
     for f in files:
         for n in definitions(code[f]): owner[n].add(f)
-    # the X-macro names of addr.h and unit_ids.h: A_x, x_fn, UT_x are made there
+    # the X-macro names of game/api/tables.h and unit_ids.h: A_x, x_fn, UT_x are made there
     edges = collections.defaultdict(lambda: collections.defaultdict(set))   # user -> used file -> names
     for f in files:
         for n in uses(code[f]):

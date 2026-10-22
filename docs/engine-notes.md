@@ -683,7 +683,7 @@ that handle - the redirect follows handle paths. Two values were REG_SZ of 0 byt
 ## Art of Conquest (EE-AOC.exe) - first overview
 
 Not supported yet; notes for the port. Steam and GOG `EE-AOC.exe` have identical code (build hash 0x0644BA54, in
-addr.h but not ready). AoC's `Low-Level Engine.dll` also loads every `*.dll` in its folder, so the mod gets in the
+game/exe.c but not ready). AoC's `Low-Level Engine.dll` also loads every `*.dll` in its folder, so the mod gets in the
 same way; all its engine DLLs (Low-Level Engine, DX7HRDisplay, Default, Language ...) differ from the base's.
 
 - RTTI: 1741 classes (base 1717), 1696 shared. New: the Space Age (EECPASGSpace*, EEUCSpaceship..., carriers),
@@ -698,7 +698,7 @@ same way; all its engine DLLs (Low-Level Engine, DX7HRDisplay, Default, Language
 
 ### The addresses (scripts/port_addrs.py, 2026-10-21)
 
-All of addr.h's 403 addresses (rows and list entries) have an AoC value - its second column. The script pairs the
+All of the address table's 403 addresses (rows and list entries) have an AoC value - its second column. The script pairs the
 exes' functions: 11222 by the same code with the addresses masked, then their callees (most callers agreeing), the
 vtables' slots by RTTI class, the code with every number masked (moved struct offsets), the place between paired
 neighbours; an address inside a function by the aligned instruction - a call in a changed function by the order of
@@ -708,7 +708,7 @@ Each row is checked another way (the same instruction, the callers agreeing, the
   AoC's 0x441912 - a pairing has to allow several base functions on one.
 - Virtual functions inserted: EEUCMissile and EEUCProjectile have 58 slots (base 57), the missile's launch is slot 43
   (base 42), the projectile's coming down slot 56 (base 55); EECPASGLand's extra slot lies behind 97. Vtable slots
-  are per build in addr.h (SLOT_ rows).
+  are per build in the address table (SLOT_ rows).
 - Rewritten - compared with the 2017 update's in meaning (most of the difference is offsets and the Space Age):
   - ComputeTargets 0x491B78: both bugs above kept; gatherers per site from player +0xAE4 (game data, a tech effect
     can raise it) instead of the table's 6; no food target from the Space Age on.
@@ -773,7 +773,7 @@ games crashed at once, then after 4 minutes; what AoC had changed beyond address
   +0x10) instead of a vector of 0x20-byte nodes (game/tech.c walks either). EETechTreeNode::vf6 takes an argument.
 - The attack goal's constructor (0x61D337) takes a fourth argument, a byte at the goal's new +0x40 - the AI's calls
   pass 0; called with three, every attack order the mod gave left 4 bytes on the stack. `port_check.py rets` compares
-  the stack arguments (ret N) of every addr.h function: these three differ, the rest match.
+  the stack arguments (ret N) of every FN_ row: these three differ, the rest match.
 - AoC checks for the 2017 update's install ("needs the original game") through the HKCU\Software\SSSI\Empire Earth
   values "Installed From Volume" / "Directory" - read through Low-Level Engine's registry imports, so through the
   settings dinput.dll's file; a test slot's copy gets them from the registry.
@@ -801,7 +801,7 @@ decomp/dll/, aoc/decomp/dll/), then like the exes. Found:
   byte-identical code (only placed elsewhere); DX7Rasterizer (+0x20 per-screen state, +0x6C), DX7Screen, DX7Surface
   and the per-screen state (+0x2A8 .. +0x338) read the same offsets in every paired function of both display DLLs.
 - The code moved: Low-Level Engine's functions are 0xAE00 .. 0x11E00 lower (ISMouse::Resume 0x4C82F -> 0x3B9FC,
-  SESoundManager::Play 0x5B50B -> 0x506DF). The mod's patch sites there are RVA_ rows in addr.h; the sound
+  SESoundManager::Play 0x5B50B -> 0x506DF). The mod's patch sites there are RVA_ rows of the address table; the sound
   manager's queries it called by address are exports, now taken by name. The mixer's functions moved 3 bytes, its
   data (channels +0x52AC, maximum +0x5320) not.
 - What the mod had filed as the input device's (E_MOUSE +4/+8/+0xA4) is partly the exe's game cursor (RTSMouse,

@@ -1,7 +1,7 @@
 """The address rows into the file their use calls for: what game/api/functions.h calls into functions_addr.h, what
 game/api/hooks.h patches into hooks_addr.h, the game's data (G_, read by functions.h's accessors) into data_addr.h.
 A function both called and hooked is a function; a row neither uses is reported (unused: take it out). Within a file
-the rows stay in the order of their address (the numbers and lists in their order). One table either way - addr.h
+the rows stay in the order of their address (the numbers and lists in their order). One table either way - tables.h
 composes the three - so a row's move changes no code (scripts/code_same.py compares the table by name).
 
 usage: python scripts/addr_sort.py           move the rows where they belong, print the moves
