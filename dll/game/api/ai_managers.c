@@ -49,6 +49,7 @@ internal inline uint8_t rm_get_att_188(const ee_resource_mgr *rm) { return FIELD
 internal inline uint8_t *bm_queue_at(const ee_build_mgr *bm, int e) { return (uint8_t *)FIELD_AT(bm, BM_QUEUES + e * 0x14); }
 internal inline int bm_get_base_x(const ee_build_mgr *bm) { return FIELD(bm, BM_BASE_X, int); }         // +0x12C its base (-10000: none yet)
 internal inline int bm_get_base_y(const ee_build_mgr *bm) { return FIELD(bm, BM_BASE_Y, int); }         // +0x130
+internal inline ivec2 bm_get_base(const ee_build_mgr *bm) { return iv2(bm_get_base_x(bm), bm_get_base_y(bm)); }   // -10000: none
 internal inline ee_civ_mgr *bm_get_owner(const ee_build_mgr *bm) { return FIELD(bm, BM_OWNER, ee_civ_mgr *); } // +0x134
 internal inline ee_player *bm_get_player(const ee_build_mgr *bm) { return FIELD(bm, BM_PLAYER, ee_player *); }  // +0x138
 internal inline uint8_t *bm_initialized_at(const ee_build_mgr *bm) { return (uint8_t *)FIELD_AT(bm, BM_INITIALIZED); } // +0x148 the build lists set up (0x465E4F while 0)

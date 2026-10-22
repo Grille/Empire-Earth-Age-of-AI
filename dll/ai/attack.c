@@ -154,7 +154,7 @@ internal ee_unit *find_weak_spot(ee_player *pl, unsigned pi, const int *start, c
     ee_map *map = game_map();
     ee_grid *grid = map ? map_get_grid(map) : NULL;
     if (!grid) return NULL;
-    short home = (short)map_area((int *)start, 2);
+    short home = (short)map_area(iv2(start[0], start[1]), 2);
     ee_unit *best = NULL;
     float best_score = 1e30f;
     int r = g_weak_radius;
@@ -167,7 +167,7 @@ internal ee_unit *find_weak_spot(ee_player *pl, unsigned pi, const int *start, c
         int pos[2] = { unit_get_x(u), unit_get_y(u) };
         float dx = (float)(pos[0] - dest[0]), dy = (float)(pos[1] - dest[1]);
         if (dx * dx + dy * dy > (float)(r * r) || threat_at(pi, pos[0], pos[1]) > 0) continue;
-        if ((short)map_area(pos, 2) != home) continue;
+        if ((short)map_area(iv2(pos[0], pos[1]), 2) != home) continue;
         float sx = (float)(pos[0] - start[0]), sy = (float)(pos[1] - start[1]);
         float score = sqrtf(sx * sx + sy * sy) + 0.5f * sqrtf(dx * dx + dy * dy);
         if (score < best_score) { best_score = score; best = u; }
@@ -625,7 +625,7 @@ internal ee_goal *goal_move(float x, float y) {
 // in 20 minutes). Builders of walls and towers near known enemy towers only (no soldiers there) are left alone: the
 // wall manager sends them again and again.
 internal int g_avoid_citizens = 1;
-internal int nearest_drop(ee_player *pl, int x, int y, int food, int out[2]);   // sites.c
+internal int nearest_drop(ee_player *pl, ivec2 p, int food, ivec2 *out);   // sites.c
 internal int tower_covers(unsigned pi, float x, float y) {
     for (int k = 0; k < g_threat[pi].n; k++) {
         struct defence *d = &g_threat[pi].d[k];
@@ -757,11 +757,12 @@ internal int hurt_danger(ee_player *pl, int x, int y, int res) {   // res: 2 foo
 }
 internal int site_danger_res(ee_player *pl, ee_unit *site, int food, int res) {   // from the nearest drop site
     if (!g_avoid_citizens || !pl || !site) return 0;
-    int x = unit_get_x(site), y = unit_get_y(site), d[2];
+    int x = unit_get_x(site), y = unit_get_y(site);
     if (raiders_near(pl, x, y, 6)) return 1;   // the searches refuse a raided site too (else: sent back, sent again)
     if (hurt_danger(pl, x, y, res)) return 1;
-    if (!nearest_drop(pl, x, y, food, d)) d[0] = -10000;
-    return route_danger(pl, d[0], d[1], x, y);
+    ivec2 d = iv2(-10000, 0);
+    nearest_drop(pl, iv2(x, y), food, &d);
+    return route_danger(pl, d.x, d.y, x, y);
 }
 internal int site_danger(ee_player *pl, ee_unit *site, int food) { return site_danger_res(pl, site, food, food ? 2 : -1); }
 internal ee_goal *goal_move(float x, float y);
@@ -814,12 +815,13 @@ internal void citizens_safety(ee_resource_mgr *rm) {   // before the citizen ass
             }
             if (r == 0 && goal && goal_is_location(goal)) {   // a stray: an attack's leftover order
                 float gx = goal_get_dest_x(goal), gy = goal_get_dest_y(goal);
-                int dest[2] = { (int)gx, (int)gy }, d[2];
+                int dest[2] = { (int)gx, (int)gy };
+                ivec2 d;
                 int rally = mus && fabsf(gx - rx) < 2 && fabsf(gy - ry) < 2;
                 if (!rally && building_at(pl, dest, 6) &&
-                    (!nearest_drop(pl, dest[0], dest[1], 0, d) || (d[0] - dest[0]) * (d[0] - dest[0]) + (d[1] - dest[1]) * (d[1] - dest[1]) > 225) &&
-                    nearest_drop(pl, unit_get_x(u), unit_get_y(u), 0, d) &&
-                    unit_goal(u, goal_move((float)d[0] + 0.5f, (float)d[1] + 0.5f), 0, 0x1F40)) {
+                    (!nearest_drop(pl, iv2(dest[0], dest[1]), 0, &d) || ivec2_dist2(d, iv2(dest[0], dest[1])) > 225) &&
+                    nearest_drop(pl, unit_get_tile(u), 0, &d) &&
+                    unit_goal(u, goal_move((float)d.x + 0.5f, (float)d.y + 0.5f), 0, 0x1F40)) {
                     stray++;
                     continue;
                 }
@@ -853,8 +855,8 @@ internal void citizens_safety(ee_resource_mgr *rm) {   // before the citizen ass
             int build = !strcmp(gn, "EEUGBuildRepair@@");
             if (!build && strcmp(gn, "EEUGGather@@")) continue;
             ee_unit *site = build ? goal_get_building(goal) : goal_get_site(goal);
-            int d[2];
-            if (!site || !nearest_drop(pl, unit_get_x(u), unit_get_y(u), r == 2, d)) continue;
+            ivec2 d;
+            if (!site || !nearest_drop(pl, unit_get_tile(u), r == 2, &d)) continue;
             int raided = raiders_near(pl, unit_get_x(site), unit_get_y(site), build ? 8 : 6);
             // builders near known towers only: only of fields (walls and towers at the front: the wall manager sends
             // them again and again)
@@ -862,8 +864,8 @@ internal void citizens_safety(ee_resource_mgr *rm) {   // before the citizen ass
             if (!build && !raided && hurt_danger(pl, unit_get_x(site), unit_get_y(site), r)) raided = 1;   // hurt there
             if (!raided && (build || !site_danger_res(pl, site, r == 2, r))) continue;
             if (g_bunkers && bk_shelter(pl, u)) { sheltered++; continue; }   // under fire: into a fortress
-            if (raided && abs(d[0] - unit_get_x(site)) <= 3 && abs(d[1] - unit_get_y(site)) <= 3) continue;   // at home already
-            if (!unit_goal(u, goal_move((float)d[0] + 0.5f, (float)d[1] + 0.5f), 0, 0x1F40)) continue;
+            if (raided && abs(d.x - unit_get_x(site)) <= 3 && abs(d.y - unit_get_y(site)) <= 3) continue;   // at home already
+            if (!unit_goal(u, goal_move((float)d.x + 0.5f, (float)d.y + 0.5f), 0, 0x1F40)) continue;
             sent++;
             int st = type_get_id(unit_get_type_data(site)), j = 0;
             while (j < 4 && kinds[j][1] && kinds[j][0] != st) j++;
@@ -1128,11 +1130,11 @@ internal void siege_tick(ee_player *pl, uint32_t now) {
     // and go together: at least 3 (or all it wants, if fewer), at least 2 idle soldiers along, and no enemy soldiers
     // at the firing position or on the way there. While a wave is out (siege attacking the target or on the way),
     // newcomers wait for the next one.
-    int d[2];
-    if (!nearest_drop(pl, tx, ty, 0, d)) return;
-    float gx = (float)d[0] - (float)tx, gy = (float)d[1] - (float)ty, gl = sqrtf(gx * gx + gy * gy);
-    if (gl > 0) { gx = (float)d[0] + 0.5f + gx / gl * 3.0f; gy = (float)d[1] + 0.5f + gy / gl * 3.0f; }
-    else { gx = (float)d[0] + 0.5f; gy = (float)d[1] + 0.5f; }
+    ivec2 d;
+    if (!nearest_drop(pl, iv2(tx, ty), 0, &d)) return;
+    float gx = (float)d.x - (float)tx, gy = (float)d.y - (float)ty, gl = sqrtf(gx * gx + gy * gy);
+    if (gl > 0) { gx = (float)d.x + 0.5f + gx / gl * 3.0f; gy = (float)d.y + 0.5f + gy / gl * 3.0f; }
+    else { gx = (float)d.x + 0.5f; gy = (float)d.y + 0.5f; }
     ee_unit *out[MAXS];
     ee_unit *home[MAXS];
     ee_unit *away[MAXS]; int nout = 0, nhome = 0, naway = 0;

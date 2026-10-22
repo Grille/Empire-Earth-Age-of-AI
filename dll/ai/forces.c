@@ -9,9 +9,8 @@
 // both AIs' towns, the player's base and outposts on land continent 2, the water at P3's docks ocean 1; a few areas
 // (the player's camp at 108,75) have neither - taken as passable.
 internal unsigned area_id(int x, int y, int kind) {
-    int pt[2] = { x, y };
     if (x < 0 || y < 0) return 0;
-    return map_area(pt, kind);
+    return map_area(iv2(x, y), kind);
 }
 internal unsigned cont_at(int x, int y) { return area_id(x, y, 2); }
 internal int cont_ok(int x, int y, unsigned hc) {   // land of continent hc (or an area without ids that is no ocean)

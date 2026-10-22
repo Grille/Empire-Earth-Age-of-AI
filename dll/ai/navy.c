@@ -378,11 +378,7 @@ internal void navy_nodes(ee_player *pl, unsigned idx, uint32_t now) {
             int x = unit_get_x(s), y = unit_get_y(s);
             if (area_id(x, y, 2) != hc) { c->other[r]++; continue; }
             unsigned g = site_gatherers(s);
-            int dd = 0x7FFFFFFF;
-            for (int i = 0; i < g_drops[pi].n; i++) {
-                int *d = g_drops[pi].d[i], dx = d[0] - x, dy = d[1] - y;
-                if (!d[2] && dx * dx + dy * dy < dd) dd = dx * dx + dy * dy;
-            }
+            int dd = drop_nearest(pi, iv2(x, y), 0, NULL);
             c->n[r]++; c->g[r] += (int)g; c->slots[r] += (int)cap; c->worked[r] += g > 0;
             if (dd <= 144) c->near_slots[r] += (int)cap;
             else {

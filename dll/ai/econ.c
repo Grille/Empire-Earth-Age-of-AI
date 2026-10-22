@@ -373,9 +373,9 @@ internal void gather_log(ee_player *pl, unsigned idx, uint32_t now) {
     void *cm = player_get_civ_mgr(pl);
     ee_resource_mgr *rm = cm ? cm_get_resource_mgr(cm) : NULL;
     if (!rm) return;
-    static int d[64][3];
+    static struct drop d[64];
     int nd = drop_sites(pl, d, 64), ndrop = 0;
-    for (int i = 0; i < nd; i++) ndrop += !d[i][2];
+    for (int i = 0; i < nd; i++) ndrop += !d[i].food;
     EnterCriticalSection(&g_lock);
     fprintf(g_log, "# gather: P%u at %u min, drop sites %d (+%d granaries):", idx, now / 60000, ndrop, nd - ndrop);
     for (int r = 2; r < 7; r++) {
@@ -386,7 +386,7 @@ internal void gather_log(ee_player *pl, unsigned idx, uint32_t now) {
             ee_unit *u = deque_at(dq, first + k); ee_goal *goal = u ? unit_get_goal(u) : NULL;
             ee_unit *site = goal && !strcmp(rtti_name(goal), "EEUGGather@@") ? goal_get_site(goal) : NULL;
             if (!site) continue;
-            sum += drop_dist(d, nd, unit_get_x(site), unit_get_y(site), r == 2);
+            sum += drop_dist(d, nd, unit_get_tile(site), r == 2);
             m++;
         }
         int inc = g_bud[idx].income[r] - last_income[idx][r];

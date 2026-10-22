@@ -130,10 +130,10 @@ internal void cmd_drops(char *out, const char *args) {
     int p = atoi(args);
     ee_player *pl = (p >= 0 && p < 16) ? g_players[p] : NULL;
     if (!pl) { REPLY("error: no AI player %d\n", p); return; }
-    static int d[64][3];
+    static struct drop d[64];
     int nd = drop_sites(pl, d, 64);
     REPLY("P%d drop sites:", p);
-    for (int i = 0; i < nd; i++) REPLY(" %d,%d%s", d[i][0], d[i][1], d[i][2] ? "g" : "");
+    for (int i = 0; i < nd; i++) REPLY(" %d,%d%s", d[i].p.x, d[i].p.y, d[i].food ? "g" : "");
     REPLY("\n");
 }
 

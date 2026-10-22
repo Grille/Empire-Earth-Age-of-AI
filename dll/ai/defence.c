@@ -109,13 +109,12 @@ internal void def_refresh(ee_player *pl, unsigned idx, uint32_t now) {
             if (abs(old[j].fx - f->fx) <= 2 && abs(old[j].fy - f->fy) <= 2) { f->wall_tries = old[j].wall_tries; f->wall_t = old[j].wall_t; }
         p->nf++;
     }
-    static int d[64][3];
+    static struct drop d[64];
     int nd = drop_sites(pl, d, 64);
     for (int i = 0; i < nd && p->nout < 8; i++) {
-        int dx = d[i][0] - p->bx, dy = d[i][1] - p->by;
-        if (d[i][2] || dx * dx + dy * dy < 144 || !p->nf) continue;
-        p->out[p->nout][0] = d[i][0] + (int)lroundf(p->f[0].dx * 3.0f);
-        p->out[p->nout][1] = d[i][1] + (int)lroundf(p->f[0].dy * 3.0f);
+        if (d[i].food || ivec2_dist2(d[i].p, iv2(p->bx, p->by)) < 144 || !p->nf) continue;
+        p->out[p->nout][0] = d[i].p.x + (int)lroundf(p->f[0].dx * 3.0f);
+        p->out[p->nout][1] = d[i].p.y + (int)lroundf(p->f[0].dy * 3.0f);
         p->nout++;
     }
 }
@@ -1108,8 +1107,9 @@ internal void aa_scan_unit(ee_unit *u, void *ctx) {   // anti_air: own AA, enemy
     }
     if ((fam != 3 && fam != 7 && fam != 17) || !o || player_get_index(o) <= 0 || !is_enemy(pl, o) || !seen_by(u, pl)) return;
     a->nall++;
-    int x = unit_get_x(u), y = unit_get_y(u), d[2];
-    if (!nearest_drop(pl, x, y, 0, d) || (d[0] - x) * (d[0] - x) + (d[1] - y) * (d[1] - y) > 625) return;
+    int x = unit_get_x(u), y = unit_get_y(u);
+    ivec2 d;
+    if (!nearest_drop(pl, iv2(x, y), 0, &d) || ivec2_dist2(d, iv2(x, y)) > 625) return;
     a->nair++; a->axs += (float)x; a->ays += (float)y;
 }
 internal struct { uint32_t last, seen_t, train_t, build_t, all_t; int air, ax, ay, all; unsigned trained, queued; } g_aa_st[16];
@@ -1147,24 +1147,28 @@ internal void anti_air(ee_player *pl, unsigned idx, uint32_t now) {
     if (want_b > 4) want_b = 4;
     // ahead: the drop sites nearest the base point without an AA building within 7 tiles - the first of them gets the
     // next one, as many as aa_ahead_buildings
-    int cover[2] = { 0, 0 }, uncovered = 0;
+    ivec2 cover = iv2(0, 0);
+    int uncovered = 0;
     if (ahead) {
         unsigned pi = (unsigned)player_get_index(pl) & 15;
         void *cm0 = player_get_civ_mgr(pl);
         ee_build_mgr *bm0 = cm0 ? cm_get_build_mgr(cm0) : NULL;
-        int bx0 = bm0 ? bm_get_base_x(bm0) : 0, by0 = bm0 ? bm_get_base_y(bm0) : 0, used[64] = { 0 };
+        ivec2 base = bm0 ? bm_get_base(bm0) : iv2(0, 0);
+        int used[64] = { 0 };
         drops_cached(pl);
         for (int pick = 0; pick < g_aa_ahead_b && pick < g_drops[pi].n; pick++) {
             int bi = -1, bd = 0x7FFFFFFF;
             for (int i = 0; i < g_drops[pi].n && i < 64; i++) {
-                int *d = g_drops[pi].d[i], dd = (d[0] - bx0) * (d[0] - bx0) + (d[1] - by0) * (d[1] - by0);
-                if (!used[i] && !d[2] && dd < bd) { bd = dd; bi = i; }
+                const struct drop *d = &g_drops[pi].d[i];
+                int dd = ivec2_dist2(d->p, base);
+                if (!used[i] && !d->food && dd < bd) { bd = dd; bi = i; }
             }
             if (bi < 0) break;
             used[bi] = 1;
-            int *d = g_drops[pi].d[bi], covered = 0;
-            for (int k = 0; k < nbx && !covered; k++) covered = abs(bxy[k][0] - d[0]) <= 7 && abs(bxy[k][1] - d[1]) <= 7;
-            if (!covered && !uncovered++) { cover[0] = d[0]; cover[1] = d[1]; }
+            ivec2 d = g_drops[pi].d[bi].p;
+            int covered = 0;
+            for (int k = 0; k < nbx && !covered; k++) covered = abs(bxy[k][0] - d.x) <= 7 && abs(bxy[k][1] - d.y) <= 7;
+            if (!covered && !uncovered++) cover = d;
         }
         if (have_b + uncovered > want_b) want_b = have_b + uncovered;
         if (want_b > 4 + g_aa_ahead_b) want_b = 4 + g_aa_ahead_b;
@@ -1194,10 +1198,11 @@ internal void anti_air(ee_player *pl, unsigned idx, uint32_t now) {
     // AA buildings: next to the drop site nearest to where the aircraft were
     int queued = 0;
     for (size_t k = 0; bm && k < sizeof k_aa_bldgs / sizeof *k_aa_bldgs; k++) queued |= bq_has(bm, g_ut[k_aa_bldgs[k].type]);
-    int e = current_epoch(pl), d[2];
-    if (uncovered && !g_aa_st[idx].air) { d[0] = cover[0]; d[1] = cover[1]; }   // ahead: no aircraft over a drop site yet
+    int e = current_epoch(pl);
+    ivec2 d;
+    if (uncovered && !g_aa_st[idx].air) d = cover;   // ahead: no aircraft over a drop site yet
     if (bm && !queued && have_b < want_b && e >= 0 && e < 14 && (!g_aa_st[idx].build_t || now - g_aa_st[idx].build_t >= 60000) &&
-        ((uncovered && !g_aa_st[idx].air) || nearest_drop(pl, g_aa_st[idx].ax, g_aa_st[idx].ay, 0, d))) {
+        ((uncovered && !g_aa_st[idx].air) || nearest_drop(pl, iv2(g_aa_st[idx].ax, g_aa_st[idx].ay), 0, &d))) {
         int bt = 0;
         for (size_t k = 0; k < sizeof k_aa_bldgs / sizeof *k_aa_bldgs && !bt; k++)
             if (k_aa_bldgs[k].epoch <= epoch && ut_has(g_ut[k_aa_bldgs[k].type]) && can_build(pl, g_ut[k_aa_bldgs[k].type]))
@@ -1205,14 +1210,14 @@ internal void anti_air(ee_player *pl, unsigned idx, uint32_t now) {
         for (int r = 3; bt && r <= 7; r++)
             for (int ax = -r; ax <= r; ax++)
                 for (int ay = -r; ay <= r; ay++) {
-                    if ((abs(ax) != r && abs(ay) != r) || !can_place(pl, bt, d[0] + ax, d[1] + ay) ||
-                        raiders_near(pl, d[0] + ax, d[1] + ay, 8)) continue;
-                    int entry[3] = { bt, d[0] + ax, d[1] + ay };
+                    if ((abs(ax) != r && abs(ay) != r) || !can_place(pl, bt, d.x + ax, d.y + ay) ||
+                        raiders_near(pl, d.x + ax, d.y + ay, 8)) continue;
+                    int entry[3] = { bt, d.x + ax, d.y + ay };
                     bm_queue_add(bm, e, entry);
                     g_aa_st[idx].build_t = now ? now : 1;
                     g_aa_st[idx].queued++;
                     if (g_log) fprintf(g_log, "# anti-air: P%u at %.1f min queues type %d at %d,%d (enemy aircraft %d near %d,%d, %d seen anywhere; AA buildings %d of %d%s)\n",
-                                       idx, now / 60000.0, bt, d[0] + ax, d[1] + ay, g_aa_st[idx].air, g_aa_st[idx].ax, g_aa_st[idx].ay, g_aa_st[idx].all,
+                                       idx, now / 60000.0, bt, d.x + ax, d.y + ay, g_aa_st[idx].air, g_aa_st[idx].ax, g_aa_st[idx].ay, g_aa_st[idx].all,
                                        have_b, want_b, uncovered && !g_aa_st[idx].air ? ", ahead" : "");
                     goto placed;
                 }

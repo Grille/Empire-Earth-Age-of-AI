@@ -73,8 +73,8 @@ internal void eco_mines(ee_player *pl, struct eco_mines *c) {
     unsigned pi = (unsigned)pidx(pl);
     int base_reg = -1;   // the base's continent
     {   ee_civ_mgr *cm = player_get_civ_mgr(pl); ee_build_mgr *bm = cm ? cm_get_build_mgr(cm) : NULL;
-        int b[2] = { bm ? bm_get_base_x(bm) : -10000, bm ? bm_get_base_y(bm) : -10000 };
-        if (b[0] != -10000 && b[1] != -10000) base_reg = (short)map_area(b, 2); }
+        ivec2 b = bm ? bm_get_base(bm) : iv2(-10000, -10000);
+        if (b.x != -10000 && b.y != -10000) base_reg = (short)map_area(b, 2); }
     ee_zone **tb = player_get_zones_begin(pl); ee_zone **te = player_get_zones_end(pl);
     for (int t = 0; tb && tb + t < te && t < 256; t++) {
         ee_zone *town = tb[t];
@@ -86,16 +86,13 @@ internal void eco_mines(ee_player *pl, struct eco_mines *c) {
             for (j = 0; j < ns && seen[j] != st; j++) ;
             if (j < ns) continue;
             if (ns < 1024) seen[ns++] = st;
-            int x = unit_get_x(st), y = unit_get_y(st), dd = 0x7FFFFFFF;
+            ivec2 pos = unit_get_tile(st);
             unsigned g = site_gatherers(st);
-            for (int i = 0; i < g_drops[pi].n; i++) {
-                int *d = g_drops[pi].d[i], dx = d[0] - x, dy = d[1] - y;
-                if (!d[2] && dx * dx + dy * dy < dd) dd = dx * dx + dy * dy;
-            }
+            int dd = drop_nearest(pi, pos, 0, NULL);
             if (dd <= 144) { c->n[r]++; c->slots[r] += (int)cap; c->g[r] += (int)g; }
             else c->far_[r] += (int)g;
             if (dd > 144 && zone_get_active(town) && explored_by(st, pl)) {
-                int pos[2] = { x, y };   // known, explored, no drop site within 12 tiles, on the base's continent
+                // known, explored, no drop site within 12 tiles, on the base's continent
                 if (base_reg < 0 || (short)map_area(pos, 2) == base_reg) c->nd[r]++;
             }
         }
@@ -115,13 +112,7 @@ internal void eco_mines(ee_player *pl, struct eco_mines *c) {
 internal const char *eco_goal(ee_unit *u, int *res);
 struct eco_food { int fo, fh, ff, fb, fx, hl, hlF, hl15, hl30, an, an30, anF30, anNew30, fsN, fsF, fsN20, fsF20, fish, fishF, fld, fldOK; };
 internal int eco_drop_d2(ee_player *pl, int x, int y) {   // squared tiles to the nearest drop site for everything
-    unsigned pi = (unsigned)pidx(pl);
-    int dd = 0x7FFFFFFF;
-    for (int i = 0; i < g_drops[pi].n; i++) {
-        int *d = g_drops[pi].d[i], dx = d[0] - x, dy = d[1] - y;
-        if (!d[2] && dx * dx + dy * dy < dd) dd = dx * dx + dy * dy;
-    }
-    return dd;
+    return drop_nearest((unsigned)pidx(pl), iv2(x, y), 0, NULL);
 }
 internal void eco_food(ee_player *pl, ee_resource_mgr *rm, struct eco_food *f) {
     memset(f, 0, sizeof *f);
@@ -291,8 +282,9 @@ internal void eco_death(ee_unit *dead, int k, int v) {
     ee_unit_type *td = unit_get_type_data(dead);
     ee_player *pl = unit_get_owner(dead);
     if (!td || !pl || !is_citizen_type(type_get_id(td))) return;
-    int x = unit_get_x(dead), y = unit_get_y(dead), dd[2], dist = -1;
-    if (nearest_drop(pl, x, y, 1, dd)) dist = (int)sqrtf((float)((dd[0] - x) * (dd[0] - x) + (dd[1] - y) * (dd[1] - y)));
+    int x = unit_get_x(dead), y = unit_get_y(dead), dist = -1;
+    ivec2 dd;
+    if (nearest_drop(pl, iv2(x, y), 1, &dd)) dist = (int)sqrtf((float)ivec2_dist2(dd, iv2(x, y)));
     int res;
     const char *goal = eco_goal(dead, &res);
     int own = 0, foe = 0, best = 0x7FFFFFFF;

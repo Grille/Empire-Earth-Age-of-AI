@@ -14,17 +14,18 @@ internal int site_danger_res(ee_player *pl, ee_unit *site, int food, int res);  
 internal ee_unit *food_near_pick(ee_resource_mgr *rm, int near_base, ee_unit *unit);   // food.c (food_plan NEAR)
 internal unsigned g_site_refused[16];   // dangerous sites the searches refused (logged by attack.c)
 
-internal int route_safe(void *bm, const int base[2], const int to[2]) {
-    int dx = to[0] - base[0], dy = to[1] - base[1];
-    int len = (int)sqrtf((float)(dx * dx + dy * dy));
+internal int route_safe(void *bm, ivec2 base, ivec2 to) {
+    ivec2 d = ivec2_sub(to, base);
+    int len = (int)sqrtf((float)ivec2_len2(d));
     for (int t = 3; t < len; t += 2)   // skip the first tiles: our own base
-        if (bm_enemy_near(bm, base[0] + dx * t / len, base[1] + dy * t / len)) return 0;
+        if (bm_enemy_near(bm, base.x + d.x * t / len, base.y + d.y * t / len)) return 0;
     return 1;
 }
 
 // Drop sites of a player from the unit grid: Town Center, Capitol, Settlement (also the single player one) take
-// everything, Granary (also the improved one) only food. Up to `max` entries {x, y, food_only}.
-internal int drop_sites(ee_player *pl, int (*out)[3], int max) {
+// everything, Granary (also the improved one) only food. Up to `max` entries.
+struct drop { ivec2 p; int food; };   // a drop site: its tile, a granary (food only)
+internal int drop_sites(ee_player *pl, struct drop *out, int max) {
     ee_map *map = game_map();
     ee_grid *grid = map ? map_get_grid(map) : NULL;
     if (!grid) return 0;
@@ -35,16 +36,16 @@ internal int drop_sites(ee_player *pl, int (*out)[3], int max) {
         if (!td || unit_get_owner(u) != pl || n >= max) continue;
         int t = type_get_id(td), food = t == UT(B_GRANARY) || t == UT(B_GRANARY_IMPROVED);
         if (!food && !UT_IN(t, UT_TOWNS, UT_X_SINGLE_PLAYER_SETTLEMENT)) continue;
-        out[n][0] = unit_get_x(u); out[n][1] = unit_get_y(u); out[n][2] = food;
+        out[n].p = unit_get_tile(u); out[n].food = food;
         n++;
     }
     return n;
 }
-internal int drop_dist(int (*d)[3], int nd, int x, int y, int food) {
+internal int drop_dist(const struct drop *d, int nd, ivec2 p, int food) {   // whole tiles to the nearest
     int best = 999;
     for (int i = 0; i < nd; i++) {
-        if (d[i][2] && !food) continue;
-        int dx = d[i][0] - x, dy = d[i][1] - y, r = (int)sqrtf((float)(dx * dx + dy * dy));
+        if (d[i].food && !food) continue;
+        int r = (int)sqrtf((float)ivec2_dist2(d[i].p, p));
         if (r < best) best = r;
     }
     return best;
@@ -57,7 +58,7 @@ internal int drop_dist(int (*d)[3], int nd, int x, int y, int food) {
 // Settlement) instead, with the original's checks (active zone, explored, gatherer cap, no enemy near, the unit's
 // continent) and no known enemy on the straight way from that drop site. Nothing found -> the original search.
 internal int g_mine_choice = 1;
-internal struct { ee_player *pl; uint32_t t; int n; int d[64][3]; } g_drops[16];
+internal struct { ee_player *pl; uint32_t t; int n; struct drop d[64]; } g_drops[16];
 internal void drops_cached(ee_player *pl) {
     unsigned pi = (unsigned)player_get_index(pl) & 15;
     uint32_t now = game_time();
@@ -66,16 +67,26 @@ internal void drops_cached(ee_player *pl) {
         g_drops[pi].n = drop_sites(pl, g_drops[pi].d, 64);
     }
 }
-internal int nearest_drop(ee_player *pl, int x, int y, int food, int out[2]) {   // food: granaries count too
-    drops_cached(pl);
-    unsigned pi = (unsigned)player_get_index(pl) & 15;
+// the nearest of player pi's cached drop sites to p (food: granaries count too): its squared distance, 0x7FFFFFFF
+// none; *k its index (k may be NULL) - the first of equally near ones
+internal int drop_nearest(unsigned pi, ivec2 p, int food, int *k) {
     int best = 0x7FFFFFFF;
     for (int i = 0; i < g_drops[pi].n; i++) {
-        int *d = g_drops[pi].d[i], dx = d[0] - x, dy = d[1] - y;
-        if ((d[2] && !food) || dx * dx + dy * dy >= best) continue;
-        best = dx * dx + dy * dy; out[0] = d[0]; out[1] = d[1];
+        const struct drop *d = &g_drops[pi].d[i];
+        int d2 = ivec2_dist2(d->p, p);
+        if ((d->food && !food) || d2 >= best) continue;
+        best = d2;
+        if (k) *k = i;
     }
-    return best != 0x7FFFFFFF;
+    return best;
+}
+internal int nearest_drop(ee_player *pl, ivec2 p, int food, ivec2 *out) {   // its tile into *out; 0: none
+    drops_cached(pl);
+    unsigned pi = (unsigned)player_get_index(pl) & 15;
+    int k = -1;
+    if (drop_nearest(pi, p, food, &k) == 0x7FFFFFFF) return 0;
+    *out = g_drops[pi].d[k].p;
+    return 1;
 }
 internal void *refuse_danger(ee_resource_mgr *rm, void *site, int food, int res) {
     ee_player *pl = rm_player(rm);
@@ -93,32 +104,27 @@ internal void cmd_minecheck(char *out, const char *args) {
     void *bm = cm ? cm_get_build_mgr(cm) : NULL;
     if (!bm) { REPLY("error: no AI P%d\n", p); return; }
     drops_cached(pl);
-    int nd = g_drops[p].n, (*d)[3] = g_drops[p].d;
+    int nd = g_drops[p].n;
+    const struct drop *d = g_drops[p].d;
     unsigned cap = table_value(0x16);
     ee_zone **zb = player_get_zones_begin(pl); ee_zone **ze = player_get_zones_end(pl);
     REPLY("P%d type %d, %d drop sites:", p, type, nd);
-    for (int i = 0; i < nd; i++) REPLY(" %d,%d%s", d[i][0], d[i][1], d[i][2] ? "g" : "");
+    for (int i = 0; i < nd; i++) REPLY(" %d,%d%s", d[i].p.x, d[i].p.y, d[i].food ? "g" : "");
     REPLY("\n");
     for (int z = 0; zb && zb + z < ze; z++) {
         ee_zone *zone = zb[z];
         ee_unit *s = zone ? zone_site(zone, type) : NULL;
         if (!s) continue;
-        int pos[2] = { unit_get_x(s), unit_get_y(s) }, k = -1, dd = 0x7FFFFFFF;
-        for (int i = 0; i < nd; i++) {
-            int dx = d[i][0] - pos[0], dy = d[i][1] - pos[1];
-            if (!d[i][2] && dx * dx + dy * dy < dd) { dd = dx * dx + dy * dy; k = i; }
-        }
+        ivec2 pos = unit_get_tile(s);
+        int k = -1, dd = drop_nearest((unsigned)p, pos, 0, &k);
         unsigned g = site_gatherers(s);
         const char *why = !zone_get_active(zone) ? "zone inactive" : unit_get_amount(s) <= 0 ? "empty" :
             siteown_get_flag(unit_get_vis(s)) == 1 ? "site flag" : k < 0 ? "no drop site" :
             !explored_by(s, pl) ? "unexplored" :
-            g >= cap ? "full" : bm_enemy_near(bm, pos[0], pos[1]) ? "enemy near" : NULL;
-        if (!why) {
-            int from[2] = { d[k][0], d[k][1] };
-            why = !route_safe(bm, from, pos) ? "route not safe" : site_danger(pl, s, 0) ? "site danger" : "ok";
-        }
-        REPLY("  %d,%d zone %d: %u gatherers, drop %d,%d at %.0f tiles - %s\n", pos[0], pos[1], z, g, k >= 0 ? d[k][0] : 0,
-              k >= 0 ? d[k][1] : 0, k >= 0 ? sqrtf((float)dd) : 0.0f, why);
+            g >= cap ? "full" : bm_enemy_near(bm, pos.x, pos.y) ? "enemy near" : NULL;
+        if (!why) why = !route_safe(bm, d[k].p, pos) ? "route not safe" : site_danger(pl, s, 0) ? "site danger" : "ok";
+        REPLY("  %d,%d zone %d: %u gatherers, drop %d,%d at %.0f tiles - %s\n", pos.x, pos.y, z, g, k >= 0 ? d[k].p.x : 0,
+              k >= 0 ? d[k].p.y : 0, k >= 0 ? sqrtf((float)dd) : 0.0f, why);
     }
 }
 // not_region: a continent (region class 2) whose mines don't count, -1 none (overseas_mines)
@@ -129,10 +135,9 @@ internal ee_unit *select_mine_near_drop(ee_resource_mgr *rm, int type, ee_unit *
     if (!pl || !bm) return NULL;
     unsigned pi = (unsigned)player_get_index(pl) & 15;
     drops_cached(pl);
-    int nd = g_drops[pi].n, (*d)[3] = g_drops[pi].d;
+    const struct drop *d = g_drops[pi].d;
     unsigned cap = table_value(0x16);
-    short ref_region = 0;
-    if (unit) { int up[2] = { unit_get_x(unit), unit_get_y(unit) }; ref_region = (short)map_area(up, 2); }
+    short ref_region = unit ? (short)map_area(unit_get_tile(unit), 2) : 0;
     ee_unit *best = NULL;
     int best_d = 0x7FFFFFFF;
     ee_zone **zb = player_get_zones_begin(pl); ee_zone **ze = player_get_zones_end(pl);
@@ -141,20 +146,15 @@ internal ee_unit *select_mine_near_drop(ee_resource_mgr *rm, int type, ee_unit *
         if (!zone || !zone_get_active(zone)) continue;
         ee_unit *s = zone_site(zone, type);
         if (!s || unit_get_amount(s) <= 0 || siteown_get_flag(unit_get_vis(s)) == 1) continue;
-        int pos[2] = { unit_get_x(s), unit_get_y(s) };
-        int k = -1, dd = 0x7FFFFFFF;   // nearest drop site for all resources (squared distance)
-        for (int i = 0; i < nd; i++) {
-            int dx = d[i][0] - pos[0], dy = d[i][1] - pos[1];
-            if (!d[i][2] && dx * dx + dy * dy < dd) { dd = dx * dx + dy * dy; k = i; }
-        }
+        ivec2 pos = unit_get_tile(s);
+        int k = -1, dd = drop_nearest(pi, pos, 0, &k);   // nearest drop site for all resources (squared distance)
         if (k < 0 || dd >= best_d) continue;
         if (!explored_by(s, pl)) continue;
         if (site_gatherers(s) >= cap) continue;
         if (unit && (short)map_area(pos, 2) != ref_region) continue;
         if (not_region >= 0 && (short)map_area(pos, 2) == not_region) continue;
-        if (bm_enemy_near(bm, pos[0], pos[1])) continue;
-        int from[2] = { d[k][0], d[k][1] };
-        if (!route_safe(bm, from, pos) || site_danger_res(pl, s, 0, type)) continue;
+        if (bm_enemy_near(bm, pos.x, pos.y)) continue;
+        if (!route_safe(bm, d[k].p, pos) || site_danger_res(pl, s, 0, type)) continue;
         best = s;
         best_d = dd;
     }
@@ -182,14 +182,13 @@ internal void *__thiscall hook_find_mine(ee_resource_mgr *rm, int type, ee_unit 
     ee_player *pl = rm_player(rm);
     ee_civ_mgr *cm = rm_get_owner(rm); ee_build_mgr *bm = cm ? cm_get_build_mgr(cm) : NULL;
     if (mine_site(caller) != 5 || !pl || !bm) return r;
-    int base[2] = { bm_get_base_x(bm), bm_get_base_y(bm) };
-    if (base[0] == -10000) return r;   // no base point: the game ships everyone
+    ivec2 base = bm_get_base(bm);
+    if (base.x == -10000) return r;   // no base point: the game ships everyone
     int home = (short)map_area(base, 2);
     unsigned *n = g_oversea[(unsigned)player_get_index(pl) & 15];
     n[0]++;
     if (!r) return r;
-    int pos[2] = { unit_get_x(r), unit_get_y(r) };
-    if ((short)map_area(pos, 2) != home) { n[2]++; return r; }
+    if ((short)map_area(unit_get_tile(r), 2) != home) { n[2]++; return r; }
     n[1]++;
     if (!g_overseas_mines || is_vanilla(pl)) return r;
     r = g_mine_choice && type >= 4 && type < 7 ? select_mine_near_drop(rm, type, NULL, home) : NULL;

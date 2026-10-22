@@ -221,26 +221,25 @@ internal void cmd_foodcheck(char *out, const char *args) {
     void *cm = pl ? player_get_civ_mgr(pl) : NULL;
     if (!cm) { REPLY("error: no AI player %d\n", p); return; }
     void *bm = cm_get_build_mgr(cm);
-    int base[2] = { bm_get_base_x(bm), bm_get_base_y(bm) };
+    ivec2 base = bm_get_base(bm);
     int r = player_get_dropoff_distance(pl);
     short base_region = (short)map_area(base, 2);
     unsigned cap = table_value(0x16);
-    REPLY("P%d base=%d,%d region=%d radius=%d (pass1 d2<%d, pass3 d2<%d) cap=%u\n", p, base[0], base[1],
+    REPLY("P%d base=%d,%d region=%d radius=%d (pass1 d2<%d, pass3 d2<%d) cap=%u\n", p, base.x, base.y,
           base_region, r, r * r * 4, r * r * 36, cap);
     ee_zone **tb = player_get_zones_begin(pl); ee_zone **te = player_get_zones_end(pl);
     for (int t = 0; tb && tb + t < te; t++) {
         ee_zone *zone = tb[t];
         ee_unit *s = zone ? zone_site(zone, 2) : NULL;
         if (!s) continue;
-        int pos[2] = { unit_get_x(s), unit_get_y(s) };
-        int dx = pos[0] - base[0], dy = pos[1] - base[1];
+        ivec2 pos = unit_get_tile(s);
         REPLY(" zone %2d active=%d site %d,%d class=%#x region=%d explored=%d gatherers=%u amount=%d state=%d"
-              " zone+14=%d enemy=%d d2=%d\n", t, zone_get_active(zone), pos[0], pos[1], type_get_id(unit_get_type_data(s)),
+              " zone+14=%d enemy=%d d2=%d\n", t, zone_get_active(zone), pos.x, pos.y, type_get_id(unit_get_type_data(s)),
               (short)map_area(pos, 2),
               explored_by(s, pl),
               site_gatherers(s),
               unit_get_amount(s), siteown_get_flag(unit_get_vis(s)), zone_get_drop(zone),
-              bm_enemy_near(bm, pos[0], pos[1]), dx * dx + dy * dy);
+              bm_enemy_near(bm, pos.x, pos.y), ivec2_dist2(pos, base));
     }
 }
 

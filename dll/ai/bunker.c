@@ -244,19 +244,21 @@ internal void bk_build(ee_player *pl, unsigned pi, uint32_t now) {
     int cost = tech && tech_get_data(tech) ? techdata_get_cost(tech_get_data(tech), 3) : 350;   // the cost lives in its tech (wood)
     if ((player_stock_at(pl))[3] < cost) { g_bk[pi].need_wood = cost; return; }   // can't pay yet: saved for (bunker_reserve)
     // the drop site nearest the base point without a fortress within 10 tiles
-    int bx = bm_get_base_x(bm), by = bm_get_base_y(bm), d[2] = { 0, 0 }, bd = 0x7FFFFFFF;
+    ivec2 base = bm_get_base(bm), d = iv2(0, 0);
+    int bd = 0x7FFFFFFF;
     drops_cached(pl);
     for (int i = 0; i < g_drops[pi].n; i++) {
-        int *p = g_drops[pi].d[i], dd = (p[0] - bx) * (p[0] - bx) + (p[1] - by) * (p[1] - by), held_near = 0;
+        const struct drop *p = &g_drops[pi].d[i];
+        int dd = ivec2_dist2(p->p, base), held_near = 0;
         for (int k = 0; k < g_bk[pi].nall && !held_near; k++)
-            held_near = abs(unit_get_x(g_bk[pi].all[k]) - p[0]) <= 10 && abs(unit_get_y(g_bk[pi].all[k]) - p[1]) <= 10;
-        if (!p[2] && !held_near && dd < bd) { bd = dd; d[0] = p[0]; d[1] = p[1]; }
+            held_near = abs(unit_get_x(g_bk[pi].all[k]) - p->p.x) <= 10 && abs(unit_get_y(g_bk[pi].all[k]) - p->p.y) <= 10;
+        if (!p->food && !held_near && dd < bd) { bd = dd; d = p->p; }
     }
     if (bd == 0x7FFFFFFF) return;
     for (int r = 4; r <= 9; r++)
         for (int ax = -r; ax <= r; ax++)
             for (int ay = -r; ay <= r; ay++) {
-                int x = d[0] + ax, y = d[1] + ay;
+                int x = d.x + ax, y = d.y + ay;
                 if ((abs(ax) != r && abs(ay) != r) || !can_place(pl, FORTRESS_TYPE, x, y) || !can_place(pl, FORTRESS_TYPE, x + 1, y + 1) ||
                     !can_place(pl, FORTRESS_TYPE, x - 1, y - 1) || raiders_near(pl, x, y, 8)) continue;
                 ee_unit *b = place_foundation(pl, FORTRESS_TYPE, x, y);

@@ -40,8 +40,7 @@ internal void mf_scan(ee_player *pl, unsigned idx, uint32_t now) {
     ee_civ_mgr *cm = player_get_civ_mgr(pl);
     ee_build_mgr *bm = cm ? cm_get_build_mgr(cm) : NULL;
     if (!bm || bm_get_base_x(bm) == -10000) return;
-    int base[2] = { bm_get_base_x(bm), bm_get_base_y(bm) };
-    short hr = (short)map_area(base, 2);
+    short hr = (short)map_area(bm_get_base(bm), 2);
     unsigned cap = table_value(0x16);
     drops_cached(pl);
     static ee_unit *seen[1024];
@@ -57,12 +56,8 @@ internal void mf_scan(ee_player *pl, unsigned idx, uint32_t now) {
             for (j = 0; j < ns && seen[j] != s; j++) ;
             if (j < ns) continue;
             if (ns < 1024) seen[ns++] = s;
-            int pos[2] = { unit_get_x(s), unit_get_y(s) }, dd = 0x7FFFFFFF;
-            for (int i = 0; i < g_drops[idx].n; i++) {
-                int *d = g_drops[idx].d[i], dx = d[0] - pos[0], dy = d[1] - pos[1];
-                if (!d[2] && dx * dx + dy * dy < dd) dd = dx * dx + dy * dy;
-            }
-            int home = (short)map_area(pos, 2) == hr;
+            ivec2 pos = unit_get_tile(s);
+            int dd = drop_nearest(idx, pos, 0, NULL), home = (short)map_area(pos, 2) == hr;
             if (dd <= 144) {
                 m->slots[r] += (int)cap;
                 if (home) m->home_slots[r] += (int)cap;
@@ -71,8 +66,8 @@ internal void mf_scan(ee_player *pl, unsigned idx, uint32_t now) {
             }
             if (!home || dd >= bd || !zone_get_active(zone)) continue;
             if (!explored_by(s, pl)) continue;
-            if (bm_enemy_near(bm, pos[0], pos[1]) || site_danger_res(pl, s, 0, r)) continue;
-            bd = dd; m->far_x = pos[0]; m->far_y = pos[1]; m->far_r = r;
+            if (bm_enemy_near(bm, pos.x, pos.y) || site_danger_res(pl, s, 0, r)) continue;
+            bd = dd; m->far_x = pos.x; m->far_y = pos.y; m->far_r = r;
         }
     }
 }
