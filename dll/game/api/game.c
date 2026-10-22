@@ -1,5 +1,5 @@
-// THE GAME: its globals with no object of their own (settings, tables, the game state), its memory, strings, actions,
-// the simulation and the game's run.
+// THE GAME: its global state and what reads it (game_map(), game_players(), game_mouse() - the objects then have their
+// files), settings and tables, its memory, strings, actions, the simulation and the game's run.
 
 // THE SIMULATION ([G_WORLD_CLOCK], game_physics(): EEPhysics), THE WORLD ([G_WORLD])
 internal inline unsigned phys_get_seed(const void *ph) { return FIELD(ph, PHYS_SEED, unsigned); }       // +0x18 the game generator
@@ -18,10 +18,20 @@ internal inline int gamedata_get_unit_limit_max(const void *gd) { return FIELD(g
 internal inline uint8_t *dmgmodel_map_at(const void *model) { return (uint8_t *)FIELD_AT(model, DMGMODEL_MAP); }
 
 // THE GAME'S DATA (raw/data.h's G_ rows): its globals read through these, typed - NULL / 0 before they exist
+internal inline uint8_t *game_map(void) { return *(uint8_t **)GA(G_MAP); }                   // +0x1816FC its size in tiles
 internal inline uint8_t *game_physics(void) { return *(uint8_t **)GA(G_WORLD_CLOCK); }       // EEPhysics: +0xD0 the game time
 internal inline void *game_world(void) { return *(void **)GA(G_WORLD); }                     // the action queue's owner, the UI's
+internal inline void *game_server(void) { return *(void **)GA(G_SERVER); }                   // the lockstep server (EEServer, EEClient)
 internal inline uint8_t *game_data(void) { return *(uint8_t **)GA(G_GAME_DATA); }            // the game data loaded (GAMEDATA)
 internal inline void *game_state(void) { return (void *)GA(G_GAME_STATE); }                 // the game state object itself
+internal inline ee_player **game_players(void) { return (ee_player **)GA(G_PLAYERS); }      // [index], game_player_count() of them
+internal inline unsigned game_player_count(void) { return *(unsigned *)GA(G_PLAYERS_N); }
+internal inline unsigned local_player_index(void) { return *(unsigned *)GA(G_LOCAL_PLAYER); }   // the player on this PC
+internal inline uintptr_t local_player_index_at(void) { return GA(G_LOCAL_PLAYER); }       // its address (aim.c's thunk)
+internal inline ee_unit_type **type_table(void) { return (ee_unit_type **)GA(G_TYPES); }              // [type] its data (world.c type_data)
+// the tech data's tables: an epoch's tech lists (0x10 each), the tech effects (0x44 each)
+internal inline uint8_t *epoch_tech_list(int e) { return (uint8_t *)GA(G_EPOCH_TECHS) + e * 0x10; }
+internal inline uint8_t *tech_effect(int id) { return (uint8_t *)GA(G_EFFECTS) + id * 0x44; }
 // the combat tables: the hit table (by game mode: the table and its two variants), [attacker class + target class x 6]
 // the damage factors, the unit behaviours (stances)
 internal inline uint8_t *hit_table(void) { return *(uint8_t **)GA(G_HIT_TABLE); }
@@ -41,20 +51,41 @@ internal inline uint8_t *teams_locked_var(void) { return (uint8_t *)GA(G_TEAMS_L
 internal inline uint8_t *scenario_flag_var(void) { return (uint8_t *)GA(G_SCENARIO_FLAG); }   // a scenario or campaign
 internal inline char cheats_on(void) { return *(char *)GA(G_CHEATS_ON); }
 internal inline unsigned input_msgs_done(void) { return *(unsigned *)GA(G_INPUT_MSGS_DONE); }   // user inputs processed so far
+// the game's objects: the scenario manager, the string resources, the cheat parser, the sound manager, the colour
+// table (its rgb records, begin and end)
+internal inline uint8_t *scenario_manager(void) { return *(uint8_t **)GA(G_SM_MGR); }
 internal inline void *string_resources(void) { return *(void **)GA(G_RESOURCES); }
+internal inline void *cheat_parser(void) { return *(void **)GA(G_CHEAT_PARSER); }
+internal inline uint8_t *sound_manager(void) { return *(uint8_t **)GA(G_SOUND_MANAGER); }
 internal inline uint8_t **color_table(uint8_t ***end) { *end = *(uint8_t ***)GA(G_COLORS_END); return *(uint8_t ***)GA(G_COLORS_BEGIN); }
+// the display and the input (engine/): the camera (EECameraControl: +0x78 look-at, +0xE0 zoom), the scroll speed and
+// its setting, the window (GEWindow), the rasterizer and the current screen's index, the UI manager, the mouse
+// (RTSMouse), the resolution and fullscreen settings, the sound setting, the draw list's counts, the selection's default
+// rectangle, the editor's file buttons, the player name (a UWideString)
+internal inline uint8_t *game_camera(void) { return (uint8_t *)GA(G_CAMERA); }
+internal inline float scroll_speed(void) { return *(float *)GA(G_SCROLL_SPEED); }
+internal inline float scroll_setting(void) { return *(float *)GA(G_SCROLL_SETTING); }
+internal inline uint8_t *game_window(void) { return *(uint8_t **)GA(G_GAME_WINDOW); }
+internal inline uint8_t *rasterizer(void) { return *(uint8_t **)GA(G_RASTERIZER); }
+internal inline int screen_index(void) { return *(int *)GA(G_SCREEN); }
+internal inline void *ui_manager(void) { return *(void **)GA(G_UI_MANAGER); }
+internal inline ee_mouse *game_mouse(void) { return *(ee_mouse **)GA(G_MOUSE); }
 internal inline int game_res_w(void) { return *(int *)GA(G_GAME_RES_W); }
 internal inline int game_res_h(void) { return *(int *)GA(G_GAME_RES_H); }
 internal inline uint8_t *fullscreen_var(void) { return (uint8_t *)GA(G_FULLSCREEN); }
+internal inline float sound_percent(void) { return *(float *)GA(G_SOUND_PERCENT); }
 internal inline uint32_t draw_count(void) { return *(uint32_t *)GA(G_DRAW_N); }
 internal inline uint32_t draw_small_count(void) { return *(uint32_t *)GA(G_DRAW_SMALL_N); }
 internal inline const float *select_rect(void) { return (const float *)GA(G_SELECT_RECT); }
 internal inline int32_t *editor_file_buttons(void) { return (int32_t *)GA(G_EDITOR_FILE_BUTTONS); }
+internal inline void *player_name_wstring(void) { return (void *)GA(G_PLAYER_NAME); }
 
 // the game's operator new: memory the game may free
 internal inline void *game_new(size_t n) { return GF(FN_NEW)(n); }
 // a value of the game's table of settings (0x16: the gatherers a site takes)
 internal inline unsigned table_value(int key) { return GF(FN_TABLE_VALUE)((void *)GA(G_TABLE_VALUES), key); }
+// the player object of a player index (the game state's, humans too)
+internal inline ee_player *game_player(int index) { return GF(FN_GAME_PLAYER)((void *)GA(G_GAME_STATE), index); }
 // the stance of player index from towards to (the game's own change, with its message)
 internal inline void game_set_stance(int from, int to, int stance) { GF(FN_SET_STANCE)((void *)GA(G_GAME_STATE), from, to, stance); }
 // player index out of the game (the resign's first step)
@@ -111,6 +142,9 @@ internal inline void start_exec(void *msg) { ((void (__thiscall *)(void *))GA(ST
 // THE ENGINE (engine/: the fixes' originals and what they ask)
 // the game's cos (UMCos, its own math DLL through its import: the same bits on every PC - the C runtime's may differ)
 internal inline float game_cos(float a) { return (*(float (__cdecl **)(float))GA(IAT_COS))(a); }
+// the input devices (Low-Level Engine's ISMouse, ISKeyboard through the exe's imports), NULL before they exist
+internal inline uint8_t *input_mouse(void) { uint8_t **p = *(uint8_t ***)GA(IMP_IS_MOUSE); return p ? *p : NULL; }
+internal inline uint8_t *input_keyboard(void) { uint8_t **p = *(uint8_t ***)GA(IMP_IS_KEYBOARD); return p ? *p : NULL; }
 // a resolution switch (the original of display.c's editor hooks), the editor's main form built
 internal inline void set_resolution(int w, int h, int force, int flag) { ((void (__stdcall *)(int, int, int, int))GA(FN_SET_RESOLUTION))(w, h, force, flag); }
 internal inline void *editor_form(void *form, void *owner) { return GF(FN_EDITOR_FORM)(form, owner); }

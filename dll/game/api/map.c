@@ -20,8 +20,6 @@ internal inline ee_unit **cell_get_units_end(const void *cell) { return FIELD(ce
 internal inline int siteown_get_flag(const void *so) { return FIELD(so, SITEOWN_FLAG, int); }
 
 // FUNCTIONS
-// the map ([G_MAP]), NULL before it exists
-internal inline uint8_t *game_map(void) { return *(uint8_t **)GA(G_MAP); }                   // +0x1816FC its size in tiles
 // the map's area id at pt (kind 1 water, 2 land): one id per connected region
 internal inline unsigned short map_area(int *pt, int kind) {
     return ((unsigned short (__thiscall *)(void *, int *, int))GA(FN_REGION))((void *)GA(G_MAP_AREAS), pt, kind);

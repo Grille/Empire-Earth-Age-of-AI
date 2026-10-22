@@ -32,17 +32,6 @@ internal inline uint8_t mouse_get_frozen(const ee_mouse *m) { return FIELD(m, MO
 internal inline void mouse_set_frozen(ee_mouse *m, uint8_t v) { FIELD(m, MOUSE_FROZEN, uint8_t) = v; }
 
 // FUNCTIONS
-internal inline void *cheat_parser(void) { return *(void **)GA(G_CHEAT_PARSER); }
-// the display and the input (engine/): the camera (EECameraControl: +0x78 look-at, +0xE0 zoom), the scroll speed and
-// its setting, the window (GEWindow), the rasterizer and the current screen's index, the UI manager, the mouse
-// (RTSMouse), the resolution and fullscreen settings, the sound setting, the draw list's counts, the selection's default
-// rectangle, the editor's file buttons, the player name (a UWideString)
-internal inline uint8_t *game_camera(void) { return (uint8_t *)GA(G_CAMERA); }
-internal inline float scroll_speed(void) { return *(float *)GA(G_SCROLL_SPEED); }
-internal inline float scroll_setting(void) { return *(float *)GA(G_SCROLL_SETTING); }
-internal inline void *ui_manager(void) { return *(void **)GA(G_UI_MANAGER); }
-internal inline ee_mouse *game_mouse(void) { return *(ee_mouse **)GA(G_MOUSE); }
-
 // THE UI AND THE PLAYERS' LINES (voice/)
 // a chat or system line on ui: the sender's colour (rgb floats), name and the line (UWideStrings), shown ms
 internal inline void ui_line(void *ui, const void *rgb, void *name, void *line, int ms) { GF(FN_UI_LINE)(ui, (void *)rgb, name, line, ms, 0); }

@@ -80,13 +80,6 @@ internal inline uint8_t *plstats_get_end(const void *st, int k) { return FIELD(s
 internal inline uint8_t b98_get_att(const uint8_t *b98) { return b98[PLB98_ATT]; }
 
 // FUNCTIONS
-internal inline ee_player **game_players(void) { return (ee_player **)GA(G_PLAYERS); }      // [index], game_player_count() of them
-internal inline unsigned game_player_count(void) { return *(unsigned *)GA(G_PLAYERS_N); }
-internal inline unsigned local_player_index(void) { return *(unsigned *)GA(G_LOCAL_PLAYER); }   // the player on this PC
-internal inline uintptr_t local_player_index_at(void) { return GA(G_LOCAL_PLAYER); }       // its address (aim.c's thunk)
-internal inline void *player_name_wstring(void) { return (void *)GA(G_PLAYER_NAME); }
-// the player object of a player index (the game state's, humans too)
-internal inline ee_player *game_player(int index) { return GF(FN_GAME_PLAYER)((void *)GA(G_GAME_STATE), index); }
 // a statistics counter n of the stats object +d (the kill counter's original: diplo.c)
 internal inline void stat_add(void *stats, int n, int d) { GF(FN_STAT_ADD)(stats, n, d); }
 internal inline void player_select(ee_player *pl, void *selection) { GF(FN_SELECT_UNITS)(pl, selection); }

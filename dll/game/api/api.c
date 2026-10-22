@@ -1,12 +1,12 @@
 // THE GAME'S API: everything the mod knows of Empire Earth's code and objects, one module - eeaimod.c includes this
 // file only, the order inside is the module's own. One file per object of the game (unit.c, player.c, attack.c ...):
 // what the rest of the code uses of it - its fields, the game's functions on it (by their first argument, the C++
-// object of a thiscall), its hooks; game.c the game's globals with no object of their own, hooks.c the patches of the
-// game's code that are about none. types.h names the objects' types (one place: they point at each other). raw/ is the
-// module's inside: the addresses and offsets per exe build (builds.h, functions.h, hooks.h, data.h, fields.h,
-// editor_layout.h) and tables.c, which makes them tables and GA, GF, GL, OF - nothing raw/ defines is used outside
-// game/api/, and game/api/ uses only base/ (scripts/layers.py). exe.c finds the running build (game_build, build_is)
-// and takes its column; api_log tells the start's log what is missing.
+// object of a thiscall), its hooks; game.c the game's global state and its getters (game_map(), game_players() ...),
+// hooks.c the patches of the game's code that are about no object. types.h names the objects' types (one place: they
+// point at each other). raw/ is the module's inside: the addresses and offsets per exe build (builds.h, functions.h,
+// hooks.h, data.h, fields.h, editor_layout.h) and tables.c, which makes them tables, GA, GF, GL and the fields' names -
+// nothing raw/ defines is used outside game/api/, and game/api/ uses only base/ (scripts/layers.py). exe.c finds the
+// running build (game_build, build_is) and takes its column; api_log tells the start's log what is missing.
 //
 // FIELDS: kind_get_x(obj) reads a field, kind_set_x(obj, v) writes one (only those the mod writes), kind_x_at(obj) its
 // address - the offsets per build from raw/fields.h, rows named for what they are (the 2017 update's offset beside
@@ -25,7 +25,7 @@
 // read registers) are void (*)(void).
 #include "game/api/types.h"        // the game's objects typed: ee_player *, ee_unit * ...
 #include "game/api/raw/builds.h"   // the exe builds the mod knows: the tables' columns
-#include "game/api/raw/tables.c"   // the game's addresses and objects' fields per exe build: GA(G_WORLD_CLOCK), OF(UNIT_HP)
+#include "game/api/raw/tables.c"   // the game's addresses and objects' fields per exe build: GA(G_WORLD_CLOCK), UNIT_HP
 #include "game/api/exe.c"          // which build runs: game_build
 #include "game/api/raw/editor_layout.h"   // the scenario editor's layout sites (generated, the 2017 update)
 #include "game/api/layout.h"       // FIELD: a read at a field's offset or a plain number

@@ -51,10 +51,6 @@ internal inline int effect_get_kind(const void *ef) { return FIELD(ef, EFFECT_KI
 internal inline int effect_get_attr(const void *ef) { return FIELD(ef, EFFECT_ATTR, int); }
 
 // FUNCTIONS
-// the tech data's tables: an epoch's tech lists (0x10 each), the tech effects (0x44 each)
-internal inline uint8_t *epoch_tech_list(int e) { return (uint8_t *)GA(G_EPOCH_TECHS) + e * 0x10; }
-internal inline uint8_t *tech_effect(int id) { return (uint8_t *)GA(G_EFFECTS) + id * 0x44; }
-
 internal inline ee_tech *tech_lookup(ee_tech_tree *tt, int id) { return (ee_tech *)GF(FN_TECH_LOOKUP)(tt, id); }
 // can it be researched now (EETechTreeNode's vtable)
 internal inline char tech_available(ee_tech *t) { return ((char (__thiscall *)(void *))(*(void ***)t)[GA(SLOT_TECH_AVAILABLE)])(t); }

@@ -42,7 +42,6 @@ internal inline int stat_get_reload(const ee_unit_stats *st) { return FIELD(st, 
 internal inline int stat_get_hp(const ee_unit_stats *st) { return FIELD(st, USTAT_HP, int); }            // +0x144 its full hit points
 
 // FUNCTIONS
-internal inline ee_unit_type **type_table(void) { return (ee_unit_type **)GA(G_TYPES); }              // [type] its data (world.c type_data)
 // the damage bonus of an attacker type (data atd) against a target type (data ttd), the players' indices
 internal inline float attack_bonus(ee_unit_type *atd, ee_unit_type *ttd, int api, int tpi) {
     return GF(FN_ATTACK_BONUS)((void *)GA(G_BONUS_TABLE), FIELD(atd, TD_WEAPON, int), ttd, api, tpi);

@@ -53,11 +53,3 @@ internal inline uint8_t *text_get_font(const void *t) { return FIELD(t, E_TEXT_F
 internal inline HFONT font_get_hfont(const void *f) { return FIELD(f, E_FONT_HFONT, HFONT); }
 internal inline void *font_get_bitmap(const void *f) { return FIELD(f, E_FONT_BITMAP, void *); }
 internal inline void font_set_bitmap(void *f, void *b) { FIELD(f, E_FONT_BITMAP, void *) = b; }
-
-// FUNCTIONS
-internal inline uint8_t *game_window(void) { return *(uint8_t **)GA(G_GAME_WINDOW); }
-internal inline uint8_t *rasterizer(void) { return *(uint8_t **)GA(G_RASTERIZER); }
-internal inline int screen_index(void) { return *(int *)GA(G_SCREEN); }
-// the input devices (Low-Level Engine's ISMouse, ISKeyboard through the exe's imports), NULL before they exist
-internal inline uint8_t *input_mouse(void) { uint8_t **p = *(uint8_t ***)GA(IMP_IS_MOUSE); return p ? *p : NULL; }
-internal inline uint8_t *input_keyboard(void) { uint8_t **p = *(uint8_t ***)GA(IMP_IS_KEYBOARD); return p ? *p : NULL; }

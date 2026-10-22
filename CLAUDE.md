@@ -45,8 +45,8 @@ Several sessions may work in this tree at the same time - see Git below.
 - `dll/game/api/`: a file per object of the game (`unit.c`, `player.c`, `attack.c`, `tech.c` ... - by the first
   argument, the C++ object of a thiscall): its fields, the game's functions on it as typed wrappers (`explored_by(site,
   pl)`, `rm_assign(rm, u, site)`, `goal_is_attack(g)`, `goal_build_alloc()`), its hooks' types and installers
-  (`patch_place(hook_place)` - a hook with other parameters doesn't build); `game.c` the game's globals with no object
-  (`game_new(n)`, `end_epoch()`, the simulation), `hooks.c` the patches of the game's code, `types.h` the types' names. GA, GF
+  (`patch_place(hook_place)` - a hook with other parameters doesn't build); `game.c` the game's global state and its getters
+  (`game_map()`, `game_players()`, `end_epoch()`, `game_new(n)`), `hooks.c` the patches of the game's code, `types.h` the types' names. GA, GF
   and GL only in game/api/ (scripts/layers.py; elsewhere add a wrapper, an accessor or an installer); a kind not typed
   yet is `void *`. `scripts/addr_sort.py` moves the rows into the file their use calls for (the build checks it). A
   change there must keep the machine code (`scripts/code_same.py`, which compares the address and field tables by name) or, where it

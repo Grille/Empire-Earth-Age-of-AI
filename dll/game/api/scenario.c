@@ -54,8 +54,5 @@ internal inline int scen_effect_get_object(const uint8_t *ef) { return FIELD(ef,
 internal inline int scen_effect_get_trigger(const uint8_t *ef) { return FIELD(ef, SCENEFFECT_TRIGGER, int); }    // trigger effects
 
 // FUNCTIONS
-// the game's objects: the scenario manager, the string resources, the cheat parser, the sound manager, the colour
-// table (its rgb records, begin and end)
-internal inline uint8_t *scenario_manager(void) { return *(uint8_t **)GA(G_SM_MGR); }
 // a scenario effect run now (its trigger's conditions and delay not asked)
 internal inline void sm_run_effect(void *effect, int flag) { GF(SM_RUN_EFFECT)(effect, flag); }

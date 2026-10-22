@@ -29,8 +29,6 @@ internal inline void **mixer_fn_at(void *mx, enum mixer_fn k) {
 }
 
 // FUNCTIONS
-internal inline uint8_t *sound_manager(void) { return *(uint8_t **)GA(G_SOUND_MANAGER); }
-internal inline float sound_percent(void) { return *(float *)GA(G_SOUND_PERCENT); }
 // the sound manager's channel count set (as the options screen does: the original of sound.c's hook through its import)
 internal inline int snd_set_max_channels(void *sm, int n) { return (*(int (__thiscall **)(void *, int))GA(IAT_SND_SETMAXCH))(sm, n); }
 // the Miles mixer plugin's channels (Miles Sound System Mixer.dll at base: a vector of 8-byte entries) and its maximum

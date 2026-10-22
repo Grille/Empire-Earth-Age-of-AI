@@ -33,7 +33,6 @@ internal inline unsigned start_msg_get_seed(const void *msg) { return FIELD(msg,
 internal inline void start_msg_set_seed(void *msg, unsigned v) { FIELD(msg, MSG_START_SEED, unsigned) = v; }
 
 // FUNCTIONS
-internal inline void *game_server(void) { return *(void **)GA(G_SERVER); }                   // the lockstep server (EEServer, EEClient)
 // the network messages: executed (the originals of diplo.c's hooks), a chat line built in mem, one sent to everyone
 internal inline void msg_resign(void *msg) { GF(FN_RESIGN)(msg); }
 internal inline void msg_pay_tribute(void *msg) { GF(FN_PAY_TRIBUTE)(msg); }
