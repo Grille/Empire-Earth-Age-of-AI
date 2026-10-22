@@ -371,11 +371,12 @@ internal int ex_shore(unsigned cont, int oc, int x, int y, int r, int *ox, int *
     for (int d = 0; d <= r; d++)
         for (int dx = -d; dx <= d; dx++)
             for (int dy = -d; dy <= d; dy += (abs(dx) == d || !d ? 1 : 2 * d)) {
-                int tx = x + dx, ty = y + dy, ax, ay;
+                int tx = x + dx, ty = y + dy;
+                ivec2 a;
                 if (area_id(iv2(tx, ty), 2) != cont || area_id(iv2(tx, ty), 1)) continue;
-                if ((int)ocean_near(tx, ty, 2, &ax, &ay) != oc || !ld_tile_free(tx, ty)) continue;
+                if ((int)ocean_near(iv2(tx, ty), 2, &a) != oc || !ld_tile_free(iv2(tx, ty))) continue;
                 *ox = tx; *oy = ty;
-                if (wx) { *wx = ax; *wy = ay; }
+                if (wx) { *wx = a.x; *wy = a.y; }
                 return 1;
             }
     return 0;
@@ -408,7 +409,7 @@ internal void ex_ferry_end(ee_player *pl, unsigned idx, struct ex_st *x, uint32_
         int x0 = unit_get_x(sh), y0 = unit_get_y(sh), tx, ty;
         unsigned c = x->fphase == 3 ? x->cont : area_id(iv2(x->hx, x->hy), 2);
         if (ex_shore(c, x->ocean, x0, y0, 30, &tx, &ty, NULL, NULL) || ex_shore(area_id(iv2(x->hx, x->hy), 2), x->ocean, x0, y0, 40, &tx, &ty, NULL, NULL))
-            x->orders += unit_goal(sh, ld_unload(sh, tx, ty), 0, 0x1F40);
+            x->orders += unit_goal(sh, ld_unload(sh, iv2(tx, ty)), 0, 0x1F40);
     }
     if (why) ex_say(idx, now, "%s", why);
     x->fphase = 0; x->npass = 0; x->ship.u = NULL;
@@ -442,8 +443,7 @@ internal unsigned ex_pick(ee_player *pl, unsigned idx, struct ex_st *x, unsigned
         float hp = 0, att = 0;
         intel_soldiers(pl, mx, my, 20, &hp, &att, NULL, &n);
         if (n > EX_GUARD(idx)) continue;
-        int wx, wy;
-        if ((int)ocean_near(mx, my, 25, &wx, &wy) == 0) continue;
+        if ((int)ocean_near(iv2(mx, my), 25, NULL) == 0) continue;
         float d = sqrtf((float)ivec2_dist2(iv2(mx, my), iv2(bx, by)));
         for (int k = 0; (EXPAND(idx) & 32) && k < x->nheld; k++) {   // MORE: concentrated - the nearest of what it holds
             float dh = sqrtf((float)ivec2_dist2(iv2(mx, my), iv2(x->held[k].x, x->held[k].y)));
@@ -502,7 +502,7 @@ internal void ex_ferry_ship(ee_player *pl, unsigned idx, struct ex_st *x, uint32
         all++;
         if (landing_has_unit(pl, u)) { nl++; continue; }
         if (ex_cargo(u) > 0) { nld++; continue; }
-        if ((int)ocean_near(unit_get_x(u), unit_get_y(u), 2, NULL, NULL) != x->ocean) { no++; continue; }
+        if ((int)ocean_near(unit_get_tile(u), 2, NULL) != x->ocean) { no++; continue; }
         int d = ivec2_dist2(unit_get_tile(u), iv2(x->hwx, x->hwy));
         if (u == x->last.u && unit_get_id(u) == x->last.id) d = -1;   // the last trip's
         if (d < bd) { bd = d; best = u; }
@@ -585,7 +585,7 @@ internal void ex_ferry_ship(ee_player *pl, unsigned idx, struct ex_st *x, uint32
 internal float ex_sea_risk(ee_player *pl, struct ex_st *x, ee_unit_type *trtd, float hp) {
     static struct ld_sea e, o;
     memset(&o, 0, sizeof o);
-    ld_sea_threat(pl, trtd, x->hwx, x->hwy, x->uwx, x->uwy, x->ux, x->uy, &e);
+    ld_sea_threat(pl, trtd, iv2(x->hwx, x->hwy), iv2(x->uwx, x->uwy), iv2(x->ux, x->uy), &e);
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
         if (unit_get_owner(u) != pl || unit_get_hp(u) <= 0 || unit_get_x(u) < 0) continue;
@@ -657,7 +657,7 @@ internal void ex_ferry_board(ee_player *pl, unsigned idx, struct ex_st *x, uint3
         n = 0;   // those left at home are free again
         for (int k = 0; k < x->npass; k++) if (unit_get_x(x->pass[k].u) < 0) x->pass[n++] = x->pass[k];
         x->npass = n;
-        ee_goal *g = ld_unload(sh, x->ux, x->uy);
+        ee_goal *g = ld_unload(sh, iv2(x->ux, x->uy));
         x->orders += unit_goal(sh, g, 0, 0x1F40);
         x->fphase = 3; x->fsince = now; x->sails++;
         ex_say(idx, now, "sails with %d aboard (%d citizens) to %d,%d", aboard, cits, x->ux, x->uy);
@@ -728,7 +728,7 @@ internal void ex_ferry_sail(ee_player *pl, unsigned idx, struct ex_st *x, uint32
     if (cur && goal_is_unload(cur)) return;
     int x0 = unit_get_x(sh), y0 = unit_get_y(sh), tx = x->ux, ty = x->uy;
     if (ivec2_dist2(iv2(x0, y0), iv2(x->ux, x->uy)) <= 144) ex_shore(x->cont, x->ocean, x0, y0, 12, &tx, &ty, NULL, NULL);   // off the island: the nearest shore tile with room
-    x->orders += unit_goal(sh, ld_unload(sh, tx, ty), 0, 0x1F40);
+    x->orders += unit_goal(sh, ld_unload(sh, iv2(tx, ty)), 0, 0x1F40);
 }
 
 // THE OUTPOST'S WORK (every 2 s): the projects, builders, miners and the guard
@@ -1087,7 +1087,7 @@ internal void ex_plan(ee_player *pl, unsigned idx, struct ex_st *x, uint32_t now
     if (!why) {
         for (struct grid_it it = grid_it_all(1); grid_it_next(&it) && !ocean; )
             if (unit_get_owner(it.u) == pl && type_get_id(it.td) == UT(B_DOCK) && unit_get_hp(it.u) > 0)
-                ocean = (int)ocean_near(unit_get_x(it.u), unit_get_y(it.u), 4, NULL, NULL);
+                ocean = (int)ocean_near(unit_get_tile(it.u), 4, NULL);
         if (!ocean) why = "no dock";
     }
     unsigned cont = 0;
@@ -1104,10 +1104,11 @@ internal void ex_plan(ee_player *pl, unsigned idx, struct ex_st *x, uint32_t now
         for (int d = 0; d <= 40; d += 2)
             for (int ddx = -d; ddx <= d; ddx += 2)
                 for (int ddy = -d; ddy <= d; ddy += (abs(ddx) == d || !d ? 2 : 2 * d)) {
-                    int tx = bx + ddx, ty = by + ddy, wx, wy;
-                    if (area_id(iv2(tx, ty), 2) != hc || area_id(iv2(tx, ty), 1) || (int)ocean_near(tx, ty, 2, &wx, &wy) != ocean || !ld_tile_free(tx, ty)) continue;
+                    int tx = bx + ddx, ty = by + ddy;
+                    ivec2 w;
+                    if (area_id(iv2(tx, ty), 2) != hc || area_id(iv2(tx, ty), 1) || (int)ocean_near(iv2(tx, ty), 2, &w) != ocean || !ld_tile_free(iv2(tx, ty))) continue;
                     int sc = (int)sqrtf((float)(ddx * ddx + ddy * ddy)) * 2 + (int)sqrtf((float)ivec2_dist2(iv2(tx, ty), iv2(x->ux, x->uy)));
-                    if (sc < best) { best = sc; x->hx = tx; x->hy = ty; x->hwx = wx; x->hwy = wy; found = 1; }
+                    if (sc < best) { best = sc; x->hx = tx; x->hy = ty; x->hwx = w.x; x->hwy = w.y; found = 1; }
                 }
         if (!found) why = "no shore of its sea at home";
     }

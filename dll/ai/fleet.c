@@ -180,7 +180,7 @@ internal int fl_way_safe(ivec2 a, ivec2 b) {   // the straight way, every 2 tile
     return 1;
 }
 internal int fl_water(ivec2 p, unsigned oc, ivec2 *o) {   // open water of the sea oc near p, else any of it
-    if (ld_open_water(p.x, p.y, oc, &o->x, &o->y)) return 1;
+    if (ld_open_water(p, oc, o)) return 1;
     for (int d = 0; d <= 8; d++)
         for (int dx = -d; dx <= d; dx++)
             for (int dy = -d; dy <= d; dy += (abs(dx) == d || !d ? 1 : 2 * d))
@@ -337,7 +337,7 @@ internal void fl_guard_point(struct fleet *f) {
     }
     if (n < 2) {
         bx = by = 0; n = 0;
-        for (int k = 0; k < g_fs.nd; k++) { unsigned oc = ocean_near(g_fs.dk[k].x, g_fs.dk[k].y, 4, NULL, NULL); if ((int)oc == f->ocean) { bx += g_fs.dk[k].x; by += g_fs.dk[k].y; n++; } }
+        for (int k = 0; k < g_fs.nd; k++) { unsigned oc = ocean_near(g_fs.dk[k], 4, NULL); if ((int)oc == f->ocean) { bx += g_fs.dk[k].x; by += g_fs.dk[k].y; n++; } }
     }
     if (!n) return;
     ivec2 m = iv2((int)(bx / n), (int)(by / n)), t = m;
@@ -464,7 +464,7 @@ internal void fl_orders(struct fleet *f, const unsigned char *sel, ivec2 p, int 
                 if (j == m->ndocked && j < FL_MAX) { m->docked[j] = u; m->docked_hp[j] = hp; m->ndocked++; }
                 ivec2 w;
                 // to the water by the dock (the dock's own tile is land), once within 4 tiles of it no more orders
-                if (ivec2_dist2(g_fs.dk[dock], unit_get_tile(u)) > 16 && ocean_near(g_fs.dk[dock].x, g_fs.dk[dock].y, 4, &w.x, &w.y)) fl_move(f, u, w, 0);
+                if (ivec2_dist2(g_fs.dk[dock], unit_get_tile(u)) > 16 && ocean_near(g_fs.dk[dock], 4, &w)) fl_move(f, u, w, 0);
                 continue;
             }
         }
@@ -656,7 +656,7 @@ internal void fl_haven(struct fleet *m) {
         int n = pass ? g_fs.nd : g_fs.ntw;
         for (int k = 0; k < n; k++) {
             ivec2 b = pass ? g_fs.dk[k] : g_fs.tw[k], w, o;
-            if ((int)ocean_near(b.x, b.y, pass ? 4 : 6, &w.x, &w.y) != m->ocean || !fl_water(w, (unsigned)m->ocean, &o) || fl_in_danger(o)) continue;
+            if ((int)ocean_near(b, pass ? 4 : 6, &w) != m->ocean || !fl_water(w, (unsigned)m->ocean, &o) || fl_in_danger(o)) continue;
             float d = g_fs.eb_known ? (float)ivec2_dist2(b, g_fs.eb) : 0.0f;
             if (d > bd) { bd = d; m->hv = o; }
         }
@@ -808,7 +808,7 @@ internal int fl_decide(unsigned idx, struct fleet *f, uint32_t now, int flags) {
     if (!f->n) { task = FT_GUARD; why = "no warships"; }
     else if (!(flags & FLD_HOME) && g_landing && l->phase >= 2 && l->phase != 5 && l->ocean == f->ocean) {   // the landing's escorts are its own: the rest off its beach
         task = FT_SUPPORT; why = "landing under way";
-        fl_safe_toward(c, iv2(l->wx, l->wy), (unsigned)f->ocean, &t);
+        fl_safe_toward(c, l->water, (unsigned)f->ocean, &t);
         r = 12;
     } else if (nh && fl_ratio(f, iv2(0, 0), 0, g_home) >= 0.8f) {
         task = FT_DEFEND; why = "enemy ships at home"; use = g_home; t = iv2(g_hsum.x / nh, g_hsum.y / nh); r = 20;
@@ -820,7 +820,7 @@ internal int fl_decide(unsigned idx, struct fleet *f, uint32_t now, int flags) {
     if ((flags & FLD_SHELTER) && task == FT_GUARD) { t = f->hv; r = 8; if (!nh) why = "sheltering - the enemy fleet much stronger"; }
     else if (!(flags & FLD_HOME) && g_landing && l->phase == 1 && l->ocean == f->ocean) {   // a landing getting its transports: its sea route cleared
         static unsigned char route[FL_ES];
-        ivec2 lw = iv2(l->wx, l->wy), mid = iv2((f->g.x + lw.x) / 2, (f->g.y + lw.y) / 2);   // the landing's water, half way there
+        ivec2 lw = l->water, mid = iv2((f->g.x + lw.x) / 2, (f->g.y + lw.y) / 2);   // the landing's water, half way there
         int nr = 0;
         memset(route, 0, sizeof route);
         for (int j = 0; j < g_fs.ne; j++) {
@@ -1059,10 +1059,10 @@ internal int tf_decide(unsigned idx, int kind, struct fleet *f, struct fleet *ho
     if (kind == TF_ESCORT) {
         if (g_landing && l->phase >= 2 && l->phase != 5 && l->ocean == f->ocean) {   // the landing's own escorts sail with it: this force off its beach
             task = FT_SUPPORT; why = "landing under way";
-            fl_safe_toward(c, iv2(l->wx, l->wy), (unsigned)f->ocean, &t);
+            fl_safe_toward(c, l->water, (unsigned)f->ocean, &t);
         } else if (g_landing && l->phase == 1 && l->ocean == f->ocean) {   // getting its transports: the route cleared, else covered
             static unsigned char route[FL_ES];
-            ivec2 lw = iv2(l->wx, l->wy), mid = iv2((f->g.x + lw.x) / 2, (f->g.y + lw.y) / 2);   // the landing's water, half way there
+            ivec2 lw = l->water, mid = iv2((f->g.x + lw.x) / 2, (f->g.y + lw.y) / 2);   // the landing's water, half way there
             int nr = 0;
             memset(route, 0, sizeof route);
             for (int j = 0; j < g_fs.ne; j++) {
@@ -1252,7 +1252,7 @@ internal void fleet_tick(ee_player *pl, uint32_t now) {
     fl_scan(pl, idx);
     // its sea: the docks' (the first one with a sea next to it), else the first ship's
     if (!f->ocean)
-        for (int k = 0; k < g_fs.nd && !f->ocean; k++) f->ocean = (int)ocean_near(g_fs.dk[k].x, g_fs.dk[k].y, 4, NULL, NULL);
+        for (int k = 0; k < g_fs.nd && !f->ocean; k++) f->ocean = (int)ocean_near(g_fs.dk[k], 4, NULL);
     if (!f->ocean && f->n) f->ocean = fl_ship_ocean(f->u[0]);
     if (!f->ocean) return;
     fl_guard_point(f);
