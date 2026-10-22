@@ -81,9 +81,9 @@ internal int ms_land_soldier(ee_unit *u, ee_unit_type *td) {
            fam != 10 && fam != 17 && fam != 18 && fam != 21 && fam != 22;
 }
 internal int ms_base(ee_player *pl, int *bx, int *by) {   // an AI's (a human player's +0xB90 is no computer manager: garbage)
-    int i = pl ? FIELD(pl, PL_INDEX, int) & 15 : 0;
+    int i = pl ? player_get_index(pl) & 15 : 0;
     if (!pl || !(g_players[i] || is_vanilla_idx(i))) return 0;
-    uint8_t *cm = FIELD(pl, OF(PL, 0xB90), uint8_t *), *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL;
+    ee_civ_mgr *cm = player_get_civ_mgr(pl); uint8_t *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL;
     if (!bm || FIELD(bm, OF(BM, 0x12C), int) == -10000) return 0;
     *bx = FIELD(bm, OF(BM, 0x12C), int); *by = FIELD(bm, OF(BM, 0x130), int);
     return 1;
@@ -97,7 +97,7 @@ internal int ms_near(ee_player *pl, ee_unit *u, int x, int y, int r, int *en) {
         if (it.u == u || !ms_land_soldier(it.u, it.td) || ms_d2(unit_get_x(it.u), unit_get_y(it.u), x, y) > r * r) continue;
         ee_player *o = unit_get_owner(it.u);
         if (o == pl) n++;
-        else if (en && o && FIELD(o, PL_INDEX, int) > 0 && is_enemy(pl, o)) (*en)++;
+        else if (en && o && player_get_index(o) > 0 && is_enemy(pl, o)) (*en)++;
     }
     return n;
 }
@@ -105,7 +105,7 @@ internal int ms_near(ee_player *pl, ee_unit *u, int x, int y, int r, int *en) {
 internal struct ms_sg { uint8_t *sg; int n, na, cx, cy, state, out; } g_msg[MS_SG];
 internal int ms_subgroups(ee_player *pl, int bx, int by) {
     int ns = 0;
-    uint8_t *cbm = FIELD(pl, OF(PL, 0xB8C), uint8_t *), *cmd = cbm ? FIELD(cbm, OF(AM, 0x48), uint8_t *) : NULL;
+    uint8_t *cbm = player_get_combat_mgr(pl), *cmd = cbm ? FIELD(cbm, OF(AM, 0x48), uint8_t *) : NULL;
     if (!cmd) return 0;
     uint8_t *dq = cmd + 4;
     unsigned first = FIELD(dq, 0xC, unsigned), cnt = FIELD(dq, 0x10, unsigned);
@@ -187,7 +187,7 @@ internal void mass_death(ee_unit *dead) {
     int bx, by, fam = td ? type_get_family(td) : 3;
     if (!pl || !td || unit_get_x(dead) < 0 || !is_soldier(td) || fam == 3 || fam == 4 || fam == 7 || fam == 10 ||
         fam == 17 || fam == 18 || fam == 21 || fam == 22 || !ms_base(pl, &bx, &by)) return;
-    struct mass *m = &g_mss[(unsigned)FIELD(pl, PL_INDEX, int) & 15];
+    struct mass *m = &g_mss[(unsigned)player_get_index(pl) & 15];
     int x = unit_get_x(dead), y = unit_get_y(dead), en, own = ms_near(pl, dead, x, y, 6, NULL);
     ms_near(pl, dead, x, y, 8, &en);
     int iso = own <= 2, away = ms_d2(x, y, bx, by) > 25 * 25;
@@ -231,7 +231,7 @@ internal int ms_held(struct mass *m, ee_unit *u, uint8_t *sg) {
 internal int mass_refuses(uint8_t *sg, ee_unit *u, void *goal) {
     ee_player *pl = FIELD(sg, OF(ASG, 0x190), void *);
     if (!pl || !asg_is_land(sg)) return 0;
-    struct mass *m = &g_mss[(unsigned)FIELD(pl, PL_INDEX, int) & 15];
+    struct mass *m = &g_mss[(unsigned)player_get_index(pl) & 15];
     if (g_autotest) {
         int c = ms_cls(FIELD(sg, OF(ASG, 0x1D0), int));
         if (goal && goal_is_attack(goal)) m->oat[c]++; else m->omv[c]++;
@@ -300,7 +300,7 @@ internal void ms_gather(ee_player *pl, unsigned idx, struct mass *m, uint32_t no
 }
 // WAIT: the land army against the strongest enemy army known; the attack time moved on while weaker
 internal void ms_wait(ee_player *pl, unsigned idx, struct mass *m, uint32_t now) {
-    uint32_t due = FIELD(pl, OF(PL, 0xED8), uint32_t);
+    uint32_t due = player_get_next_attack(pl);
     if (m->wait0 && due != m->wait_until) m->wait0 = 0;   // launched or rescheduled by the game: a new attack
     if (due > now + 15000 && !m->wait0) return;
     if (m->wait0 && due > now + 15000) return;
@@ -327,7 +327,7 @@ internal void ms_wait(ee_player *pl, unsigned idx, struct mass *m, uint32_t now)
     }
     if (now - m->wait0 < 1000) m->waits++;
     m->waited += 5;
-    FIELD(pl, OF(PL, 0xED8), uint32_t) = m->wait_until = now + 20000;
+    player_set_next_attack(pl, m->wait_until = now + 20000);
     g_last_attack_time[idx] = m->wait_until;   // no launch (econ.c's attack line)
 }
 // TETHER (16): the subgroups out (as GATHER's) and the middle of their members away from the base - the pack; a member
@@ -358,7 +358,7 @@ internal void ms_tether(ee_player *pl, struct mass *m, int plan, int bx, int by)
 internal int mass_tether(uint8_t *sg, ee_unit *me, ee_unit *enemy) {
     ee_player *pl = FIELD(sg, OF(ASG, 0x190), void *);
     if (!pl || !me || !enemy) return 0;
-    unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
+    unsigned idx = (unsigned)player_get_index(pl) & 15;
     struct mass *m = &g_mss[idx];
     int plan = ARMY_MASS(idx);
     if (!m->ntc || !(plan & 16)) return 0;
@@ -379,7 +379,7 @@ internal int mass_tether(uint8_t *sg, ee_unit *me, ee_unit *enemy) {
 internal int mass_retreat(unsigned idx) { return (ARMY_MASS(idx) & 4) != 0; }   // defence.c attack_retreat
 internal void mass_tick(ee_player *pl, uint32_t now) {
     if (!pl) return;
-    unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
+    unsigned idx = (unsigned)player_get_index(pl) & 15;
     struct mass *m = &g_mss[idx];
     int bx, by;
     if (now < m->ts || now < m->tf) { memset(m, 0, sizeof *m); }

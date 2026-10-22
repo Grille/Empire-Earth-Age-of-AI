@@ -198,7 +198,7 @@ internal int so_home_of(int p, int *x, int *y) {   // a player's Capitol, else T
     int got = 0;
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
         ee_player *o = unit_get_owner(it.u);
-        if (!o || FIELD(o, PL_INDEX, int) != p || unit_get_hp(it.u) <= 0 || so_family(it.td) != 2) continue;
+        if (!o || player_get_index(o) != p || unit_get_hp(it.u) <= 0 || so_family(it.td) != 2) continue;
         int t = type_get_id(it.td), pr = t == UT(B_CAPITOL) ? 3 : t == UT(B_TOWN_CENTER) ? 2 : 1;
         if (pr > got) { got = pr; *x = unit_get_x(it.u); *y = unit_get_y(it.u); }
     }
@@ -230,7 +230,7 @@ internal void so_types(void) {
     float tr = 0;
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
         ee_player *o = unit_get_owner(it.u);
-        if (!o || FIELD(o, PL_INDEX, int) != g_so.ai || unit_get_hp(it.u) <= 0) continue;
+        if (!o || player_get_index(o) != g_so.ai || unit_get_hp(it.u) <= 0) continue;
         int t = type_get_id(it.td), fam = so_family(it.td);
         float r, a;
         if (is_soldier(it.td) && fam != 4 && fam != 10 && fam != 18 && fam != 21 && fam != 22 && fam != 3 && fam != 7 && fam != 17 && t > 0 && t < G_TYPES_N) cnt[t]++;
@@ -253,7 +253,7 @@ internal void so_scan(uint32_t now) {
         ee_unit_type *td = it.td;
         ee_player *o = unit_get_owner(u);
         if (!o || unit_get_hp(u) <= 0) continue;
-        int p = FIELD(o, PL_INDEX, int), x = unit_get_x(u), y = unit_get_y(u), fam = so_family(td), t = type_get_id(td);
+        int p = player_get_index(o), x = unit_get_x(u), y = unit_get_y(u), fam = so_family(td), t = type_get_id(td);
         if (x < 0) continue;   // aboard
         if (p == 1) {
             if (g_sos.ne < 1024) { g_sos.ex[g_sos.ne] = x; g_sos.ey[g_sos.ne++] = y; }
@@ -958,8 +958,8 @@ internal void cmd_seaop(char *out, const char *args) {
     if (!so_home_of(1, &g_so.hx, &g_so.hy) || !so_home_of(ai, &g_so.ex, &g_so.ey)) { REPLY("error: P1 or P%d has no buildings\n", ai); return; }
     g_so.hcont = cont_at(g_so.hx, g_so.hy); g_so.econt = cont_at(g_so.ex, g_so.ey);
     // war, both ways (FN_SET_DIPLOMACY: 1 = enemy)
-    if (FIELD(pls[1], OF(PL, 0x9E4) + ai * 4, int) != 1) set_diplomacy(pls[1], pls[ai], 1, 0);
-    if (FIELD(pls[ai], OF(PL, 0x9E4) + 4, int) != 1) set_diplomacy(pls[ai], pls[1], 1, 0);
+    if (player_get_stance(pls[1], ai) != 1) set_diplomacy(pls[1], pls[ai], 1, 0);
+    if (player_get_stance(pls[ai], 1) != 1) set_diplomacy(pls[ai], pls[1], 1, 0);
     // P1's docks: land of its island at the sea (open water within 4), toward the AI first, the second 10+ tiles away
     for (int k = 0; k < 2; k++) {
         float best = 1e9f;

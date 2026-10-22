@@ -127,34 +127,34 @@ internal void randmap_rewrite(uint8_t *setup) {
 
 // Called once per AI player at its first update of a game.
 internal void randmap_ai_toggles(ee_player *pl) {
-    if (g_rm.ai_cheat >= 0) FIELD(pl, PL_CHEAT, uint8_t) = (uint8_t)g_rm.ai_cheat;
-    if (g_rm.ai_ignore >= 0) FIELD(pl, OF(PL, 0xF02), uint8_t) = (uint8_t)g_rm.ai_ignore;
-    int vanilla = is_vanilla(pl), idx = FIELD(pl, PL_INDEX, int);
-    if (vanilla && g_rm.v_cheat >= 0) FIELD(pl, PL_CHEAT, uint8_t) = (uint8_t)g_rm.v_cheat;
-    if (vanilla && g_rm.v_difficulty >= 0 && g_rm.v_difficulty != FIELD(pl, PL_DIFFICULTY, int)) {
-        FIELD(pl, PL_DIFFICULTY, int) = g_rm.v_difficulty;
-        ee_civ_mgr *cm = FIELD(pl, OF(PL, 0xB90), ee_civ_mgr *);
+    if (g_rm.ai_cheat >= 0) player_set_cheat(pl, (uint8_t)g_rm.ai_cheat);
+    if (g_rm.ai_ignore >= 0) player_set_ignore(pl, (uint8_t)g_rm.ai_ignore);
+    int vanilla = is_vanilla(pl), idx = player_get_index(pl);
+    if (vanilla && g_rm.v_cheat >= 0) player_set_cheat(pl, (uint8_t)g_rm.v_cheat);
+    if (vanilla && g_rm.v_difficulty >= 0 && g_rm.v_difficulty != player_get_difficulty(pl)) {
+        player_set_difficulty(pl, g_rm.v_difficulty);
+        ee_civ_mgr *cm = player_get_civ_mgr(pl);
         uint32_t now = game_time();
         if (cm) cm_set_epoch_time(cm, now, 0);   // the epoch attempt, drawn anew
-        if (!FIELD(pl, OF(PL, 0xEF5), uint8_t)) cp_schedule_attack(pl, now);   // the first attack
+        if (!player_get_first_attack_done(pl)) cp_schedule_attack(pl, now);   // the first attack
         if (g_log) fprintf(g_log, "# vanilla: P%d difficulty %d - first epoch attempt at %.1f min, first attack at %.1f min\n", idx,
-                           g_rm.v_difficulty, cm ? FIELD(cm, OF(CM, 0x58), uint32_t) / 60000.0 : -1.0, FIELD(pl, OF(PL, 0xED8), uint32_t) / 60000.0);
+                           g_rm.v_difficulty, cm ? FIELD(cm, OF(CM, 0x58), uint32_t) / 60000.0 : -1.0, player_get_next_attack(pl) / 60000.0);
     }
     if (g_log) {   // the cheat as the game will apply it: AdjustCost (vf27) on a price of 1000
         int cost = cp_adjust_cost(pl, 1000);
         fprintf(g_log, "# cheat: P%d (%s) difficulty %d, cheat %d: a price of 1000 costs %d (pct easy %d, medium %.1f, hard %d)\n", idx,
-                vanilla ? "vanilla" : "mod", FIELD(pl, PL_DIFFICULTY, int), FIELD(pl, PL_CHEAT, uint8_t), cost, FIELD(pl, OF(PL, 0xD48), int),
-                FIELD(pl, OF(PL, 0xBB4), float), FIELD(pl, OF(PL, 0xD4C), int));
+                vanilla ? "vanilla" : "mod", player_get_difficulty(pl), player_get_cheat(pl), cost, player_get_cost_easy(pl),
+                player_get_cost_medium(pl), player_get_cost_hard(pl));
     }
     if (g_rm.epoch_min > 0 && !vanilla) {   // the vanilla players keep the game's timer
         // Test-only: shorter epoch timer. SetNextEpochAdvanceTime (0x46DE8C) draws the delay between
         // player+0xD58 and +0xD5C minutes (x difficulty factor) into civ manager +0x58; the first one is
         // drawn before this hook runs, so reschedule it here (deterministic per player index).
-        FIELD(pl, OF(PL, 0xD58), int) = g_rm.epoch_min;
-        FIELD(pl, OF(PL, 0xD5C), int) = g_rm.epoch_max;
+        player_set_epoch_min(pl, g_rm.epoch_min);
+        player_set_epoch_max(pl, g_rm.epoch_max);
         int span = g_rm.epoch_max - g_rm.epoch_min + 1;
         uint32_t delay = (uint32_t)(g_rm.epoch_min + (idx * 7) % (span > 0 ? span : 1)) * 60000u;
-        uint8_t *cm = FIELD(pl, OF(PL, 0xB90), uint8_t *);
+        ee_civ_mgr *cm = player_get_civ_mgr(pl);
         if (cm) FIELD(cm, OF(CM, 0x58), uint32_t) = game_time() + delay;
         if (g_log) fprintf(g_log, "# test epoch timer: P%d %d-%d min, first attempt at %.1f min\n", idx,
                            g_rm.epoch_min, g_rm.epoch_max, (game_time() + delay) / 60000.0);
@@ -165,9 +165,9 @@ internal void randmap_ai_toggles(ee_player *pl) {
     // The idle human slot: civilization counts as chosen (else the civ-selection timer opens a dialog that
     // freezes the game), and allied with every AI so the AIs fight each other and the game can't end in
     // the human's defeat.
-    FIELD(human, OF(PL, 0xB46), uint8_t) = 1;
-    FIELD(human, OF(PL, 0x465), uint8_t) = 1;   // the watching human sees the whole map (AIs still have to explore)
+    player_set_civ_chosen(human, 1);
+    player_set_explore_all(human, 1);   // the watching human sees the whole map (AIs still have to explore)
     set_diplomacy(human, pl, 0, 0);
     set_diplomacy(pl, human, 0, 0);
-    if (g_log) fprintf(g_log, "# random map: P%d allied with human P%d\n", FIELD(pl, PL_INDEX, int), FIELD(human, PL_INDEX, int));
+    if (g_log) fprintf(g_log, "# random map: P%d allied with human P%d\n", player_get_index(pl), player_get_index(human));
 }

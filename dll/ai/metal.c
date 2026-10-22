@@ -51,7 +51,7 @@ internal int mt_line(ee_player *pl, int t) {
     if (fam == 3 || fam == 7 || fam == 17) return MB_AIR;
     if (is_siege(t) || is_ram(t)) return MB_SIE;
     if (!is_army_family(fam)) return MB_UNK;
-    ee_tech_tree *tt = FIELD(pl, PL_TECHTREE, ee_tech_tree *);
+    ee_tech_tree *tt = player_get_tech_tree(pl);
     ee_tech *tech = tt ? tech_lookup(tt, type_get_tech(td)) : NULL;
     uint8_t *d = tech ? FIELD(tech, OF(TECH, 0x8), uint8_t *) : NULL;
     int *b = d ? FIELD(d, OF(TECHDATA, 0x10), int *) : NULL, *e = d ? FIELD(d, OF(TECHDATA, 0x14), int *) : NULL;
@@ -64,11 +64,11 @@ internal int mt_line(ee_player *pl, int t) {
 }
 // income (econ.c hook_add_resource, every player)
 internal void mt_income(ee_player *pl, int type, int amount) {
-    if (amount > 0 && type >= 2 && type < 7) g_mt[(unsigned)FIELD(pl, PL_INDEX, int) & 15].inc[type] += amount;
+    if (amount > 0 && type >= 2 && type < 7) g_mt[(unsigned)player_get_index(pl) & 15].inc[type] += amount;
 }
 // a payment (econ.c hook_pay, every player): what = the tech paid
 internal void mt_paid(ee_player *pl, uint8_t *what, const int *before, const int *stock) {
-    struct mt_st *m = &g_mt[(unsigned)FIELD(pl, PL_INDEX, int) & 15];
+    struct mt_st *m = &g_mt[(unsigned)player_get_index(pl) & 15];
     uint8_t *d = what ? FIELD(what, OF(TECH, 0x8), uint8_t *) : NULL;
     int b = MB_UNK;
     if (d) {
@@ -146,7 +146,7 @@ internal void mt_values(ee_player *pl, unsigned idx) {
     uint32_t now = game_time();
     if (v->pl == pl && now >= v->t && now - v->t < 30000) return;
     v->pl = pl; v->t = now ? now : 1; v->n = 0; v->foe = 0;
-    ee_tech_tree *tt = FIELD(pl, PL_TECHTREE, ee_tech_tree *);
+    ee_tech_tree *tt = player_get_tech_tree(pl);
     if (!tt) return;
     for (int t = 0; t < 724 && v->n < MT_CAND; t++) {
         if (!land_soldier(t) || soldier_score(t) <= 0) continue;
@@ -307,7 +307,7 @@ internal void mt_log(ee_player *pl, unsigned idx, unsigned min) {
                 if (b >= MB_INF && b <= MB_OTH) foe[b]++;
             }
     }
-    int *st = (int *)((uint8_t *)pl + PL_STOCK);
+    int *st = player_stock_at(pl);
     float sm = m->samples ? (float)m->samples : 1.0f;
     EnterCriticalSection(&g_lock);
     fprintf(g_log, "# metal: P%u at %u min: inc %d %d %d %d %d | stock %d %d %d %d %d |", idx, min, m->inc[2], m->inc[3], m->inc[4],
@@ -328,12 +328,12 @@ internal void mt_log(ee_player *pl, unsigned idx, unsigned min) {
 }
 // every player's update (eeaimod.c hook_rm_update)
 internal void mt_tick(ee_player *pl, uint32_t now) {
-    unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
+    unsigned idx = (unsigned)player_get_index(pl) & 15;
     struct mt_st *m = &g_mt[idx];
     if (now < m->ts) { memset(m, 0, sizeof *m); }
     if (m->ts && now - m->ts < 5000) return;
     m->ts = now ? now : 1;
-    int *st = (int *)((uint8_t *)pl + PL_STOCK);
+    int *st = player_stock_at(pl);
     int van = is_vanilla(pl);
     if (!van && METAL_PLAN(idx)) {
         mt_navy(pl, idx, now);

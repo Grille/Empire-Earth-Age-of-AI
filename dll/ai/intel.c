@@ -39,7 +39,7 @@ internal void intel_loaded(void) {   // the memories came with the save: their u
 
 internal unsigned intel_hash(ee_unit *u) { return (unsigned)(((uintptr_t)u >> 4) * 2654435761u) & 4095; }
 internal int intel_remembers(ee_player *pl, ee_unit *u) {
-    struct intel *in = &g_intel[(unsigned)FIELD(pl, PL_INDEX, int) & 15];
+    struct intel *in = &g_intel[(unsigned)player_get_index(pl) & 15];
     for (unsigned h = intel_hash(u), k = 0; k < 4096 && in->known[h]; h = (h + 1) & 4095, k++)
         if (in->known[h] == u) return 1;
     return 0;
@@ -54,7 +54,7 @@ internal int intel_kind(ee_unit_type *td) {
 }
 // ms since a unit of pl or an ally was near (x, y); 0 with honest_vision off (the game's view: everything at once)
 internal uint32_t intel_looked_ago(ee_player *pl, int x, int y) {
-    struct intel *in = &g_intel[(unsigned)FIELD(pl, PL_INDEX, int) & 15];
+    struct intel *in = &g_intel[(unsigned)player_get_index(pl) & 15];
     if (!g_honest_vision) return 0;
     int cx = x / INTEL_CELL, cy = y / INTEL_CELL;
     if (cx < 0 || cy < 0 || cx >= INTEL_NC || cy >= INTEL_NC) return 0xFFFFFFFFu;
@@ -63,7 +63,7 @@ internal uint32_t intel_looked_ago(ee_player *pl, int x, int y) {
 // soldiers (and siege) remembered within r tiles of (x, y) and not seen now, seen within the last 5 minutes: hit
 // points and attack summed, how many. Nothing with honest_vision off (all of them are seen)
 internal void intel_soldiers(ee_player *pl, int x, int y, int r, float *hp, float *att, float *pw, int *n) {
-    struct intel *in = &g_intel[(unsigned)FIELD(pl, PL_INDEX, int) & 15];
+    struct intel *in = &g_intel[(unsigned)player_get_index(pl) & 15];
     if (!g_honest_vision) return;
     for (int k = 0; k < in->n; k++) {
         struct intel_rec *e = &in->r[k];
@@ -76,7 +76,7 @@ internal void intel_soldiers(ee_player *pl, int x, int y, int r, float *hp, floa
 }
 // the enemy army it knows of: soldiers seen within 10 minutes (seen now included), summed
 internal void intel_army(ee_player *pl, float *hp, float *att, float *pw, int *n) {
-    struct intel *in = &g_intel[(unsigned)FIELD(pl, PL_INDEX, int) & 15];
+    struct intel *in = &g_intel[(unsigned)player_get_index(pl) & 15];
     for (int k = 0; k < in->n; k++)
         if (in->r[k].kind == 1 && in->now - in->r[k].t <= 600000) {
             *hp += (float)in->r[k].hp; *att += in->r[k].att; (*n)++;
@@ -98,7 +98,7 @@ internal void intel_unit(ee_unit *u, void *ctx) {
     struct intel_scan *s = ctx;
     ee_player *o = unit_get_owner(u);
     if (!o || unit_get_hp(u) <= 0 || unit_get_x(u) < 0) return;
-    int oi = FIELD(o, PL_INDEX, int);
+    int oi = player_get_index(o);
     if (oi <= 0 || oi >= 16) return;
     if (s->nlive < 6000) s->live[s->nlive++] = u;
     if (!is_enemy(s->pl, o)) { if (s->ne < 3000) { s->ex[s->ne] = unit_get_x(u); s->ey[s->ne++] = unit_get_y(u); } return; }
@@ -115,7 +115,7 @@ internal int intel_live(struct intel_scan *s, ee_unit *u) {
     return bsearch(&u, s->by_addr, (size_t)s->nlive, sizeof *s->by_addr, intel_ptr_cmp) != NULL;
 }
 internal void intel_tick(ee_player *pl, uint32_t now) {
-    unsigned pi = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
+    unsigned pi = (unsigned)player_get_index(pl) & 15;
     struct intel *in = &g_intel[pi];
     if (now < in->now) memset(in, 0, sizeof *in);   // a new game
     if (!g_honest_vision || (in->now && now - in->now < 3000)) return;
@@ -144,7 +144,7 @@ internal void intel_tick(ee_player *pl, uint32_t now) {
         ee_unit_type *td = unit_get_type_data(u);
         ee_player *o = unit_get_owner(u);
         if (!is_enemy(pl, o) || intel_kind(td) != 0) continue;
-        int x = unit_get_x(u), y = unit_get_y(u), t = type_get_id(td), oi = FIELD(o, PL_INDEX, int) & 15;
+        int x = unit_get_x(u), y = unit_get_y(u), t = type_get_id(td), oi = player_get_index(o) & 15;
         if (seed && in->n < INTEL_REC) {
             struct intel_rec *e = &in->r[in->n++];
             float r, a = 0;
@@ -167,7 +167,7 @@ internal void intel_tick(ee_player *pl, uint32_t now) {
         if (!is_enemy(pl, o)) continue;
         uint8_t *v = unit_get_vis(u);
         uint16_t *vis = v ? FIELD(v, 0xC, uint16_t *) : NULL;
-        int oi = FIELD(o, PL_INDEX, int) & 15;
+        int oi = player_get_index(o) & 15;
         if (!vis || (vis[pi] & 0xFF) <= g_vis_floor[pi][oi]) continue;
         in->seen_now++;
         int j = 0;
@@ -269,14 +269,14 @@ internal void vis_unit(ee_unit *u, void *ctx) {
     struct vis_scan *s = ctx;
     ee_player *o = unit_get_owner(u);
     if (unit_get_hp(u) <= 0 || !o || unit_get_x(u) < 0) return;
-    if (o == s->pl || (s->allies && FIELD(o, PL_INDEX, int) > 0 && !is_enemy(s->pl, o))) { if (s->ne < 4000) { s->ex[s->ne] = unit_get_x(u); s->ey[s->ne++] = unit_get_y(u); } }
-    else if ((s->target ? o == s->target : is_enemy(s->pl, o)) && FIELD(o, PL_INDEX, int) > 0 && s->nu < 4000) s->u[s->nu++] = u;
+    if (o == s->pl || (s->allies && player_get_index(o) > 0 && !is_enemy(s->pl, o))) { if (s->ne < 4000) { s->ex[s->ne] = unit_get_x(u); s->ey[s->ne++] = unit_get_y(u); } }
+    else if ((s->target ? o == s->target : is_enemy(s->pl, o)) && player_get_index(o) > 0 && s->nu < 4000) s->u[s->nu++] = u;
 }
 internal void *g_vis_find[16];
 internal void vis_owner(ee_unit *u, void *ctx) {   // player objects by index, also of humans (g_players holds the AIs)
     (void)ctx;
     ee_player *o = unit_get_owner(u);
-    int i = o ? FIELD(o, PL_INDEX, int) : -1;
+    int i = o ? player_get_index(o) : -1;
     if (i > 0 && i < 16) g_vis_find[i] = o;
 }
 internal unsigned vis_raw(ee_unit *u, unsigned pi) {
@@ -316,7 +316,7 @@ internal void cmd_vis(char *out, const char *args) {
         hi[kind][bin] += (v >> 8) != 0;
         if (shown < 30 && kind != 0 && (strstr(args, "all") || ((v & 0xFF) != 0) != (d <= 12))) {
             shown++;
-            REPLY("  P%d type %d (%s) at %d,%d: value %04X, nearest eye of P%d %.1f tiles\n", FIELD(unit_get_owner(u), PL_INDEX, int),
+            REPLY("  P%d type %d (%s) at %d,%d: value %04X, nearest eye of P%d %.1f tiles\n", player_get_index(unit_get_owner(u)),
                   type_get_id(td), kinds[kind], x, y, v, p, d);
         }
     }
@@ -339,7 +339,7 @@ internal void cmd_vis(char *out, const char *args) {
         REPLY("\n");
     }
     REPLY("explore all (player +0x465):");
-    for (int q = 1; q < 16; q++) if (g_vis_find[q]) REPLY(" P%d %d (vision slot +0x45C: %d)", q, FIELD(g_vis_find[q], OF(PL, 0x465), uint8_t), FIELD(g_vis_find[q], OF(PL, 0x45C), int));
+    for (int q = 1; q < 16; q++) if (g_vis_find[q]) REPLY(" P%d %d (vision slot +0x45C: %d)", q, player_get_explore_all(g_vis_find[q]), player_get_index(g_vis_find[q]));
     REPLY("\n");
     REPLY("P%d: %d own units/buildings, %d enemy units; per kind and distance to the nearest eye (<=8, <=15, <=25, >25): seen (low byte) / all, high byte set\n",
           p, s.ne, s.nu);

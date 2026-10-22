@@ -11,7 +11,7 @@
 internal void cmd_epochup(char *out, const char *args) {
     int p = atoi(args);
     ee_player *pl = player_at(p);
-    uint8_t *tt = pl ? FIELD(pl, PL_TECHTREE, uint8_t *) : NULL;
+    uint8_t *tt = pl ? ((uint8_t *)player_get_tech_tree(pl)) : NULL;
     if (!tt) { REPLY("error: no player %d\n", p); return; }
     int e = FIELD(tt, TT_EPOCH, int);
     epoch_next((ee_tech_tree *)tt);
@@ -22,7 +22,7 @@ internal void cmd_tech(char *out, const char *args) {
     int p = 0, n = 0, id;
     sscanf(args, "%d%n", &p, &n);
     ee_player *pl = (p >= 0 && p < 16) ? g_players[p] : NULL;
-    uint8_t *tt = pl ? FIELD(pl, PL_TECHTREE, uint8_t *) : NULL;
+    uint8_t *tt = pl ? ((uint8_t *)player_get_tech_tree(pl)) : NULL;
     if (!tt) { REPLY("error: no player %d\n", p); return; }
     args += n;
     while (sscanf(args, "%d%n", &id, &n) == 1) {
@@ -54,7 +54,7 @@ internal void cmd_techs(char *out, const char *args) {
     static uint8_t seen[16][16384];
     int p = atoi(args), total = 0;
     ee_player *pl = (p >= 0 && p < 16) ? g_players[p] : NULL;
-    uint8_t *tt = pl ? FIELD(pl, PL_TECHTREE, uint8_t *) : NULL;
+    uint8_t *tt = pl ? ((uint8_t *)player_get_tech_tree(pl)) : NULL;
     if (!tt) { REPLY("error: no player %d\n", p); return; }
     REPLY("P%d epoch %d, new:", p, FIELD(tt, TT_EPOCH, int));
     for (int id = 0; id < 16384; id++) {
@@ -78,7 +78,7 @@ internal void cmd_watchtech(char *out, const char *args) {
     int p = 0, id = 0;
     sscanf(args, "%d %d", &p, &id);
     ee_player *pl = (p >= 0 && p < 16) ? g_players[p] : NULL;
-    uint8_t *tt = pl ? FIELD(pl, PL_TECHTREE, uint8_t *) : NULL;
+    uint8_t *tt = pl ? ((uint8_t *)player_get_tech_tree(pl)) : NULL;
     uint8_t *t = tt ? (uint8_t *)tech_lookup((ee_tech_tree *)tt, id) : NULL;
     if (!t) { REPLY("error: no tech %d for P%d\n", id, p); return; }
     watch_set((uintptr_t)(t + 4), 1);
@@ -90,8 +90,8 @@ internal void cmd_watchtech(char *out, const char *args) {
 internal void cmd_rlist(char *out, const char *args) {
     int p = atoi(args);
     ee_player *pl = (p >= 0 && p < 16) ? g_players[p] : NULL;
-    void *cm = pl ? FIELD(pl, OF(PL, 0xB90), void *) : NULL;
-    uint8_t *rs = cm ? FIELD(cm, OF(CM, 0x40), uint8_t *) : NULL, *tt = pl ? FIELD(pl, PL_TECHTREE, uint8_t *) : NULL;
+    void *cm = pl ? player_get_civ_mgr(pl) : NULL;
+    uint8_t *rs = cm ? FIELD(cm, OF(CM, 0x40), uint8_t *) : NULL, *tt = pl ? ((uint8_t *)player_get_tech_tree(pl)) : NULL;
     if (!rs || !tt) { REPLY("error: no AI player %d\n", p); return; }
     int cur = FIELD(rs, OF(RS, 0x114), int);
     REPLY("P%d research epoch %d\n", p, cur);
@@ -144,8 +144,8 @@ internal void cmd_attacknow(char *out, const char *args) {
     int p = atoi(args);
     ee_player *pl = (p > 0 && p < 16) ? g_players[p] : NULL;
     if (!pl) { REPLY("error: no AI player %d\n", p); return; }
-    uint32_t was = FIELD(pl, OF(PL, 0xED8), uint32_t);
-    FIELD(pl, OF(PL, 0xED8), uint32_t) = game_time();
+    uint32_t was = player_get_next_attack(pl);
+    player_set_next_attack(pl, game_time());
     REPLY("P%d: next attack %.1f -> %.1f min\n", p, was / 60000.0, game_time() / 60000.0);
 }
 
@@ -154,7 +154,7 @@ internal void cmd_attacknow(char *out, const char *args) {
 internal void cmd_nullmember(char *out, const char *args) {
     int p = atoi(args);
     ee_player *pl = (p > 0 && p < 16) ? g_players[p] : NULL;
-    uint8_t *cbm = pl ? FIELD(pl, OF(PL, 0xB8C), uint8_t *) : NULL, *cmd = cbm ? FIELD(cbm, OF(AM, 0x48), uint8_t *) : NULL;
+    uint8_t *cbm = pl ? player_get_combat_mgr(pl) : NULL, *cmd = cbm ? FIELD(cbm, OF(AM, 0x48), uint8_t *) : NULL;
     if (!cmd) { REPLY("error: no AI player %d with an attack commander\n", p); return; }
     uint8_t *dq = cmd + 4;
     unsigned first = FIELD(dq, 0xC, unsigned), cnt = FIELD(dq, 0x10, unsigned);
@@ -175,7 +175,7 @@ internal void cmd_nullmember(char *out, const char *args) {
                 breach_forget(pl);
                 asg_purge_all(pl);
                 call_off_attacks(pl, target, 1);
-                REPLY("P%d's attack on P%d called off\n", p, FIELD(target, PL_INDEX, int));
+                REPLY("P%d's attack on P%d called off\n", p, player_get_index(target));
             }
             return;
         }
@@ -201,7 +201,7 @@ internal void cmd_targets(char *out, const char *args) {
         int x = unit_get_x(u), y = unit_get_y(u);
         if (strlen(out) > 15000) { REPLY("...\n"); return; }
         REPLY("  type %3d of P%d at %d,%d %s threat %.1f\n", type_get_id(td),
-              FIELD(unit_get_owner(u), PL_INDEX, int), x, y, seen_by(u, pl) ? "seen  " : "unseen", threat_at(p, x, y));
+              player_get_index(unit_get_owner(u)), x, y, seen_by(u, pl) ? "seen  " : "unseen", threat_at(p, x, y));
         n++;
     }
     REPLY("P%d: %u enemy buildings\n", p, n);
@@ -218,7 +218,7 @@ internal void cmd_give(char *out, const char *args) {
     int p = 0, amount = 0, r = -1;
     ee_player *pl = sscanf(args, "%d %d %d", &p, &amount, &r) == 3 && p >= 0 && p < 16 ? g_players[p] : NULL;
     if (!pl || r < 0 || r > 5) { REPLY("error: give P amount R (R: 0 all, 1 food .. 5 iron - resource.all, resource.gold ...)\n"); return; }
-    int *stock = (int *)((uint8_t *)pl + PL_STOCK);
+    int *stock = player_stock_at(pl);
     for (int k = 2; k < 7; k++) if (!r || k == r + 1) stock[k] += amount;
     REPLY("P%d: stock %d/%d/%d/%d/%d\n", p, stock[2], stock[3], stock[4], stock[5], stock[6]);
 }
@@ -229,7 +229,7 @@ internal void cmd_train(char *out, const char *args) {
     int p = 0, type = 0, count = 1;
     sscanf(args, "%d %d %d", &p, &type, &count);
     ee_player *pl = (p > 0 && p < 16) ? g_players[p] : NULL;
-    void *cm = pl ? FIELD(pl, OF(PL, 0xB90), void *) : NULL, *um = cm ? FIELD(cm, OF(CM, 0x44), void *) : NULL;
+    void *cm = pl ? player_get_civ_mgr(pl) : NULL, *um = cm ? FIELD(cm, OF(CM, 0x44), void *) : NULL;
     if (!um || type <= 0) { REPLY("error: train P type [count] (AI player)\n"); return; }
     int req[4] = { type, count, 0, 0 };
     unsigned got = 0;
@@ -293,7 +293,7 @@ internal void cmd_spawnline(char *out, const char *args) {
 internal void cmd_bqueue(char *out, const char *args) {
     int p = atoi(args);
     ee_player *pl = (p >= 0 && p < 16) ? g_players[p] : NULL;
-    void *cm = pl ? FIELD(pl, OF(PL, 0xB90), void *) : NULL;
+    void *cm = pl ? player_get_civ_mgr(pl) : NULL;
     ee_build_mgr *bm = cm ? FIELD(cm, OF(CM, 0x3C), ee_build_mgr *) : NULL;
     if (!bm) { REPLY("error: no AI player %d\n", p); return; }
     for (int e = 0; e < 14; e++) {
@@ -331,7 +331,7 @@ internal void cmd_count(char *out, const char *args) {
         ee_unit *u = it.u;
         ee_unit_type *td = it.td;
         ee_player *owner = unit_get_owner(u);
-        if (!td || !owner || FIELD(owner, PL_INDEX, int) != p) continue;
+        if (!td || !owner || player_get_index(owner) != p) continue;
         int t = type_get_id(td);
         if (t >= 0 && t < 0x300) n[t]++;
     }
@@ -384,7 +384,7 @@ internal void cmd_objs(char *out, const char *args) {
         ee_unit *u = it.u;
         ee_unit_type *td = it.td;
         ee_player *owner = unit_get_owner(u);
-        if (!td || !owner || FIELD(owner, PL_INDEX, int) != p || (t >= 0 && type_get_id(td) != t) || strlen(out) > 15000) continue;
+        if (!td || !owner || player_get_index(owner) != p || (t >= 0 && type_get_id(td) != t) || strlen(out) > 15000) continue;
         if (t < 0) REPLY(" T%d", type_get_id(td));   // all types: each with its type
         REPLY(" [%d,%d hp %d/%d %s]", unit_get_x(u), unit_get_y(u), unit_get_hp(u),
               type_get_hp(td), rtti_name(unit_get_goal(u)));
@@ -450,7 +450,7 @@ internal void cmd_watchtype(char *out, const char *args) {
         ee_unit *u = it.u;
         ee_unit_type *td = it.td;
         ee_player *owner = unit_get_owner(u);
-        if (!td || !owner || FIELD(owner, PL_INDEX, int) != p || type_get_id(td) != t) continue;
+        if (!td || !owner || player_get_index(owner) != p || type_get_id(td) != t) continue;
         watch_set((unsigned)(uintptr_t)FIELD_AT(u, off), 4);
         REPLY("ok: watching unit %p +%x (type %d of P%d at %d,%d)\n", u, off, t, p, unit_get_x(u), unit_get_y(u));
         return;
@@ -472,7 +472,7 @@ internal void cmd_hurt(char *out, const char *args) {
         ee_unit *u = it.u;
         ee_unit_type *td = it.td;
         ee_player *owner = u ? unit_get_owner(u) : NULL;
-        if (!td || !owner || FIELD(owner, PL_INDEX, int) != p || type_get_id(td) != t || unit_get_hp(u) <= 0) continue;
+        if (!td || !owner || player_get_index(owner) != p || type_get_id(td) != t || unit_get_hp(u) <= 0) continue;
         if (abs(unit_get_x(u) - x) > r || abs(unit_get_y(u) - y) > r) continue;
         int dup = 0;
         for (int k = 0; k < n; k++) dup |= hit[k] == u;
@@ -504,7 +504,7 @@ internal void units_of(int p, int want, struct w_scan *o) {   // want: 0 soldier
         ee_unit *u = it.u;
         ee_unit_type *td = it.td;
         ee_player *owner = unit_get_owner(u);
-        if (!td || !owner || FIELD(owner, PL_INDEX, int) != p || unit_get_hp(u) <= 0) continue;
+        if (!td || !owner || player_get_index(owner) != p || unit_get_hp(u) <= 0) continue;
         int fam = type_get_family(td), ty = type_get_id(td);
         int civ = is_citizen_type(ty), sold = !civ && is_army_family(fam);
         if (want == 2 ? !civ : want == 1 ? civ || sold : !sold) continue;   // 1: the rest - buildings, walls, towers
@@ -520,8 +520,8 @@ internal void cmd_wave(char *out, const char *args) {
     static struct w_scan sc;
     ee_player **pls = game_players();
     if (!pls[a] || !pls[d]) { REPLY("error: no player %d or %d\n", a, d); return; }
-    if (FIELD(pls[a], OF(PL, 0x9E4) + d * 4, int) != 1) set_diplomacy(pls[a], pls[d], 1, 0);   // 1 = enemy
-    if (FIELD(pls[d], OF(PL, 0x9E4) + a * 4, int) != 1) set_diplomacy(pls[d], pls[a], 1, 0);
+    if (player_get_stance(pls[a], d) != 1) set_diplomacy(pls[a], pls[d], 1, 0);   // 1 = enemy
+    if (player_get_stance(pls[d], a) != 1) set_diplomacy(pls[d], pls[a], 1, 0);
     // the spot: A's Town Center (or Capitol, or any building) at the first wave, kept for the later ones (D razes A's
     // base once they are at war). Beside A's buildings on a 2-tile grid, part of each wave stood in a pocket for good.
     static struct { uint32_t t; int x, y; } spot[16];
@@ -593,7 +593,7 @@ internal void charge_pass(char *out, int a, int d) {
         if (goal && !strcmp(rtti_name(goal), "EEUGAttackUnit@@")) {
             ee_unit *t = FIELD(goal, OF(GOAL, 0x30), ee_unit *);
             void *to = t ? unit_get_owner(t) : NULL;
-            if (to && FIELD(to, PL_INDEX, int) == d && unit_get_hp(t) > 0) { kept++; continue; }
+            if (to && player_get_index(to) == d && unit_get_hp(t) > 0) { kept++; continue; }
         }
         if (goal && !strcmp(rtti_name(goal), "EEUGLocation@@")) { marching++; continue; }
         if (++idle > 80) continue;   // 80 orders a pass: 500 at once lost their goal within 10 s (the path search)
@@ -665,7 +665,7 @@ internal void cmd_army(char *out, const char *args) {
         ee_unit *u = it.u;
         ee_unit_type *td = it.td;
         ee_player *owner = unit_get_owner(u);
-        if (!td || !owner || FIELD(owner, PL_INDEX, int) != p) continue;
+        if (!td || !owner || player_get_index(owner) != p) continue;
         if (!is_army_family(type_get_family(td))) continue;
         if (only >= 0 && type_get_id(td) != only) continue;
         const char *gn = rtti_name(unit_get_goal(u));
@@ -732,7 +732,7 @@ internal void cmd_aigroup(char *out, const char *args) {
     if (sscanf(args, "%d %d %d", &p, &x, &y) < 3) x = y = -1;
     int nodef = strstr(args, "nodef") != NULL;   // aigroup P [x y] [nodef]: not a defence
     ee_player *pl = p > 0 && p < 16 ? g_players[p] : NULL;
-    uint8_t *cm = pl ? FIELD(pl, OF(PL, 0xB8C), uint8_t *) : NULL, *cmd = cm ? FIELD(cm, OF(CM, 0x48), uint8_t *) : NULL;
+    uint8_t *cm = pl ? player_get_combat_mgr(pl) : NULL, *cmd = cm ? FIELD(cm, OF(CM, 0x48), uint8_t *) : NULL;
     if (!cmd) { REPLY("error: aigroup P [x y] - no AI player %d\n", p); return; }
     static struct ag_scan s;
     memset(&s, 0, sizeof s);
@@ -752,7 +752,7 @@ internal void cmd_aigroup(char *out, const char *args) {
     int pt[2] = { unit_get_x(t), unit_get_y(t) };
     point_set(loc + 4, pt);
     task_set_location(task + 4, loc);
-    FIELD(task, OF(TASK, 0x20), void *) = game_players()[FIELD(tpl, PL_INDEX, int) & 15];
+    FIELD(task, OF(TASK, 0x20), void *) = game_players()[player_get_index(tpl) & 15];
     FIELD(task, OF(TASK, 0x28), int) = 7; FIELD(task, OF(TASK, 0x2C), int) = 2; FIELD(task, OF(TASK, 0x30), uint8_t) = 1;
     strategy_reset(strat);
     FIELD(strat, OF(STRATEGY, 0x3C), int) = 4; FIELD(strat, OF(STRATEGY, 0x40), uint8_t) = 0;
@@ -768,7 +768,7 @@ internal void cmd_aigroup(char *out, const char *args) {
     strategy_free(strat);
     int nsg = g && FIELD(g, OF(AG, 0x8), void *) ? (int)((FIELD(g, OF(AG, 0xC), uint8_t *) - FIELD(g, OF(AG, 0x8), uint8_t *)) / 4) : 0;
     REPLY("P%d: %d free land soldiers (centre %ld,%ld) -> target type %d of P%d at %d,%d: %s, group %p with %d subgroups\n",
-          p, s.n, s.sx / s.n, s.sy / s.n, type_get_id(unit_get_type_data(t)), FIELD(tpl, PL_INDEX, int), pt[0], pt[1],
+          p, s.n, s.sx / s.n, s.sy / s.n, type_get_id(unit_get_type_data(t)), player_get_index(tpl), pt[0], pt[1],
           ok ? "accepted" : "refused (0x47067A)", g, nsg);
 }
 
@@ -796,7 +796,7 @@ internal void cmd_uinfo(char *out, const char *args) {
         if (abs(ux - x) > r || abs(uy - y) > r || strlen(out) > 15000) continue;
         ee_player *owner = unit_get_owner(u);
         REPLY("%p type %d P%d hp %d pos %.3f,%.3f,%.2f spd %.3f/%.3f fwd %.2f,%.2f,%.2f goal %s\n",
-              u, type_get_id(td), owner ? FIELD(owner, PL_INDEX, int) : -1, unit_get_hp(u),
+              u, type_get_id(td), owner ? player_get_index(owner) : -1, unit_get_hp(u),
               unit_get_pos_x(u), unit_get_pos_y(u), unit_get_pos_z(u), unit_get_speed(u),
               unit_get_speed_min(u), unit_get_facing_x(u), unit_get_facing_y(u), unit_get_facing_z(u),
               rtti_name(unit_get_goal(u)));
@@ -814,7 +814,7 @@ internal void cmd_move(char *out, const char *args) {
         ee_unit *u = it.u;
         ee_unit_type *td = it.td;
         ee_player *owner = unit_get_owner(u);
-        if (!owner || FIELD(owner, PL_INDEX, int) != p || type_get_family(td) == 2) continue;
+        if (!owner || player_get_index(owner) != p || type_get_family(td) == 2) continue;
         if (abs(unit_get_x(u) - x) > r || abs(unit_get_y(u) - y) > r) continue;
         found[nf++] = u;
     }

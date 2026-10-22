@@ -2,7 +2,7 @@
 // game (vanilla, tests), and what the game says about each one: index, stance, out of the game.
 internal ee_player *g_players[16];   // EEComputerPlayer seen by the AI hooks, by player index (ctl_note_player)
 internal void ctl_note_player(ee_player *pl) {
-    g_players[(unsigned)FIELD(pl, PL_INDEX, int) & 15] = pl;
+    g_players[(unsigned)player_get_index(pl) & 15] = pl;
 }
 
 // VANILLA PLAYERS (autotest only): [autotest] vanilla_players = the player numbers (e.g. 3, or 23) that play the
@@ -16,7 +16,7 @@ internal void ctl_note_player(ee_player *pl) {
 // without foundation, no unit offered to groups during the mod's own call-off) and the test plumbing.
 internal unsigned g_vanilla_mask;
 internal int is_vanilla_idx(int idx) { return (g_vanilla_mask >> (idx & 15)) & 1; }
-internal int is_vanilla(const ee_player *pl) { return pl && g_vanilla_mask && is_vanilla_idx(FIELD(pl, PL_INDEX, int)); }
+internal int is_vanilla(const ee_player *pl) { return pl && g_vanilla_mask && is_vanilla_idx(player_get_index(pl)); }
 
 internal ee_player *player_at(int i) {
     unsigned n = game_player_count();
@@ -32,13 +32,13 @@ internal int human_count(void) {
     }
     return n;
 }
-internal int stance_of(ee_player *a, int b) { return FIELD(a, OF(PL, 0x9E4) + b * 4, int); }
-internal int is_out(ee_player *p) { return !p || FIELD(p, OF(PL, 0x467), uint8_t); }
+internal int stance_of(ee_player *a, int b) { return player_get_stance(a, b); }
+internal int is_out(ee_player *p) { return !p || player_get_out(p); }
 
 internal int is_enemy(ee_player *pl, ee_player *other) {
     if (!other || other == pl) return 0;
-    unsigned oi = (unsigned)FIELD(other, PL_INDEX, int);
-    return oi < 16 && FIELD(pl, OF(PL, 0x9E4) + oi * 4, int) != 0;
+    unsigned oi = (unsigned)player_get_index(other);
+    return oi < 16 && player_get_stance(pl, oi) != 0;
 }
 
 // Player colours: index into the game's colour table (0x8CFA74: pointers to {?, float r, g, b}); entries 0-16 are

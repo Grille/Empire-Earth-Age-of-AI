@@ -48,10 +48,10 @@ internal uint8_t g_cfg_pl_on[16];
 
 internal const struct ai_cfg *cfg_of(ee_player *pl) {
     if (pl) {
-        unsigned i = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
+        unsigned i = (unsigned)player_get_index(pl) & 15;
         if (g_cfg_pl_on[i]) return &g_cfg_pl[i];
     }
-    int d = pl ? FIELD(pl, PL_DIFFICULTY, int) : 1;
+    int d = pl ? player_get_difficulty(pl) : 1;
     return &g_cfg[d < 0 ? 0 : d > 2 ? 2 : d];
 }
 
@@ -194,42 +194,42 @@ internal void settings_load(const char *ini, const char *test_ini) {
 // Once per AI player per game (first AI update).
 internal void settings_apply(ee_player *pl) {
     const struct ai_cfg *c = cfg_of(pl);
-    int d = FIELD(pl, PL_DIFFICULTY, int);
+    int d = player_get_difficulty(pl);
     if (c->cost_percent > 0) {
-        FIELD(pl, PL_CHEAT, uint8_t) = c->cost_percent != 100;
-        if (d == 0) FIELD(pl, OF(PL, 0xD48), int) = c->cost_percent;
-        else if (d == 2) FIELD(pl, OF(PL, 0xD4C), int) = c->cost_percent;
-        else FIELD(pl, OF(PL, 0xBB4), float) = (float)c->cost_percent;
+        player_set_cheat(pl, c->cost_percent != 100);
+        if (d == 0) player_set_cost_easy(pl, c->cost_percent);
+        else if (d == 2) player_set_cost_hard(pl, c->cost_percent);
+        else player_set_cost_medium(pl, (float)c->cost_percent);
     }
-    FIELD(pl, OF(PL, 0xF02), uint8_t) = c->pacing != PACE_CLASSIC;
+    player_set_ignore(pl, c->pacing != PACE_CLASSIC);
     if (c->epoch_min > 0) {
-        FIELD(pl, OF(PL, 0xD58), int) = c->epoch_min;
-        FIELD(pl, OF(PL, 0xD5C), int) = c->epoch_max;
+        player_set_epoch_min(pl, c->epoch_min);
+        player_set_epoch_max(pl, c->epoch_max);
         // the first attempt was drawn before this runs: redraw it if it lies outside the new range
-        uint8_t *cm = FIELD(pl, OF(PL, 0xB90), uint8_t *);
+        ee_civ_mgr *cm = player_get_civ_mgr(pl);
         uint32_t now = game_time();
         if (cm) {
             uint32_t t = FIELD(cm, OF(CM, 0x58), uint32_t);
             uint32_t lo = now + (uint32_t)c->epoch_min * 60000u, hi = now + (uint32_t)c->epoch_max * 60000u;
             if (t < lo || t > hi) {
-                int span = c->epoch_max - c->epoch_min + 1, idx = FIELD(pl, PL_INDEX, int);
+                int span = c->epoch_max - c->epoch_min + 1, idx = player_get_index(pl);
                 FIELD(cm, OF(CM, 0x58), uint32_t) = lo + (uint32_t)((idx * 7) % span) * 60000u;
             }
         }
     }
     if (c->first_attack_min > 0) {
-        FIELD(pl, OF(PL, 0xD2C), int) = c->first_attack_min;
-        FIELD(pl, OF(PL, 0xD28), int) = c->first_attack_max;
-        if (!FIELD(pl, OF(PL, 0xEF5), uint8_t)) {   // first attack still pending: redraw it with the new range
-            int span = c->first_attack_max - c->first_attack_min + 1, idx = FIELD(pl, PL_INDEX, int);
-            FIELD(pl, OF(PL, 0xED8), uint32_t) = game_time() + (uint32_t)(c->first_attack_min + (idx * 5) % span) * 60000u;
+        player_set_first_attack_min(pl, c->first_attack_min);
+        player_set_first_attack_max(pl, c->first_attack_max);
+        if (!player_get_first_attack_done(pl)) {   // first attack still pending: redraw it with the new range
+            int span = c->first_attack_max - c->first_attack_min + 1, idx = player_get_index(pl);
+            player_set_next_attack(pl, game_time() + (uint32_t)(c->first_attack_min + (idx * 5) % span) * 60000u);
         }
     }
-    if (c->attack_min > 0) { FIELD(pl, OF(PL, 0xD00), int) = c->attack_min; FIELD(pl, OF(PL, 0xCFC), int) = c->attack_max; }
+    if (c->attack_min > 0) { player_set_attack_min(pl, c->attack_min); player_set_attack_max(pl, c->attack_max); }
     if (c->attack_group_percent > 0) FIELD(pl, d == 0 ? 0xD30 : d == 2 ? 0xD38 : 0xD34, int) = c->attack_group_percent;
-    if (c->attack_on_contact >= 0) FIELD(pl, OF(PL, 0xCD8), int) = c->attack_on_contact;
-    if (c->attack_for_resources >= 0) FIELD(pl, OF(PL, 0xCDC), int) = c->attack_for_resources;
-    if (c->attack_revenge >= 0) FIELD(pl, OF(PL, 0xCE0), int) = c->attack_revenge;
-    if (c->citizen_share > 0.0f && c->citizen_share < 1.0f) FIELD(pl, OF(PL, 0xBDC), float) = c->citizen_share;
-    if (g_log) fprintf(g_log, "# settings applied: P%d difficulty %d\n", FIELD(pl, PL_INDEX, int), d);
+    if (c->attack_on_contact >= 0) player_set_attack_on_contact(pl, c->attack_on_contact);
+    if (c->attack_for_resources >= 0) player_set_attack_for_resources(pl, c->attack_for_resources);
+    if (c->attack_revenge >= 0) player_set_attack_revenge(pl, c->attack_revenge);
+    if (c->citizen_share > 0.0f && c->citizen_share < 1.0f) player_set_citizen_share(pl, c->citizen_share);
+    if (g_log) fprintf(g_log, "# settings applied: P%d difficulty %d\n", player_get_index(pl), d);
 }

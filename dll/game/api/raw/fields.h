@@ -32,7 +32,7 @@
 //   TASK         an attack task (EECPAGTask)
 //   ROUTEPLANNER the land attack route planner (EEAIGPGModifierLandAttackSubGroupRoutePlanner)
 //   ROUTENODE    a route planner's node
-//   TT           a player's tech tree, player +PL_TECHTREE (EETechTree)
+//   TT           a player's tech tree, player +0x9D4 (EETechTree)
 //   TECH         a tech, FN_TECH_LOOKUP
 //   TECHNODE     a tech tree node (EETechTreeNode)
 //   TECHDATA     a tech's data, TECH +8 (costs, its building ...)

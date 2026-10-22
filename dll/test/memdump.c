@@ -28,7 +28,7 @@ internal void dump_player(void *rm, uint32_t now) {
     static uint32_t last_now = 0xFFFFFFFF;
     if (now < last_now) run++;
     last_now = now;
-    wsprintfA(path, "%s\\s%08lx_r%u_P%d_t%06u.bin", g_dump_dir, g_session, run, FIELD(pl, PL_INDEX, int), now);
+    wsprintfA(path, "%s\\s%08lx_r%u_P%d_t%06u.bin", g_dump_dir, g_session, run, player_get_index(pl), now);
     FILE *f = fopen(path, "wb");
     if (!f) return;
     dump_region(f, "player", pl, 0x1000);
@@ -39,11 +39,11 @@ internal void dump_player(void *rm, uint32_t now) {
         wsprintfA(tag, "cm+%02x", off);
         dump_region(f, tag, FIELD(cm, off, void *), 0x400);
     }
-    dump_region(f, "pl+b8c", FIELD(pl, OF(PL, 0xB8C), void *), 0x400);
-    dump_region(f, "pl+b90", FIELD(pl, OF(PL, 0xB90), void *), 0x400);
-    dump_region(f, "pl+9d4", FIELD(pl, PL_TECHTREE, void *), 0x800);
+    dump_region(f, "pl+b8c", ((void *)player_get_combat_mgr(pl)), 0x400);
+    dump_region(f, "pl+b90", player_get_civ_mgr(pl), 0x400);
+    dump_region(f, "pl+9d4", ((void *)player_get_tech_tree(pl)), 0x800);
     // towns / resource centers (player +0xB50 vector of pointers)
-    void **tb = FIELD(pl, OF(PL, 0xB50), void **), **te = FIELD(pl, OF(PL, 0xB54), void **);
+    void **tb = player_get_zones_begin(pl), **te = player_get_zones_end(pl);
     for (int i = 0; tb && tb + i < te && i < 32; i++) {
         char tag[16];
         wsprintfA(tag, "town%02d", i);

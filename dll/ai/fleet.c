@@ -82,7 +82,7 @@ internal int g_fl_mass = 1;   // navy_fleet_mass: stage 4 masses at the rally wh
 internal int g_fl_s4;   // set while a stage-4 fleet is led (fl_orders' preferences, fl_safe_toward's margin)
 internal int fleet_has(ee_player *pl, ee_unit *u) {
     if (!pl || !u) return 0;
-    unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
+    unsigned idx = (unsigned)player_get_index(pl) & 15;
     if (!fleet_on(idx)) return 0;
     struct fleet *f = &g_fl[idx];
     for (int k = 0; k < f->n; k++) if (f->u[k] == u) return 1;
@@ -91,23 +91,23 @@ internal int fleet_has(ee_player *pl, ee_unit *u) {
 // a sea subgroup holding one of the fleet's ships: its update skipped (landing.c hook_asg_sea_update)
 internal int fleet_leads(uint8_t *sg) {
     ee_player *pl = FIELD(sg, OF(ASG, 0x190), void *);
-    if (!pl || !g_fl[(unsigned)FIELD(pl, PL_INDEX, int) & 15].n) return 0;
+    if (!pl || !g_fl[(unsigned)player_get_index(pl) & 15].n) return 0;
     for (uint8_t **r = FIELD(sg, OF(ASG, 0x54), uint8_t **); r && r < FIELD(sg, OF(ASG, 0x58), uint8_t **); r++)
-        if (*r && fleet_has(pl, FIELD(*r, OF(ASGU, 0x44), ee_unit *))) { g_fl[(unsigned)FIELD(pl, PL_INDEX, int) & 15].sg_skipped++; return 1; }
+        if (*r && fleet_has(pl, FIELD(*r, OF(ASGU, 0x44), ee_unit *))) { g_fl[(unsigned)player_get_index(pl) & 15].sg_skipped++; return 1; }
     return 0;
 }
 // a subgroup's order (vf57) to one of the fleet's ships (landing.c hook_asg_give_goal refuses it)
 internal int fleet_refuses(uint8_t *sg, ee_unit *u) {
     ee_player *pl = FIELD(sg, OF(ASG, 0x190), void *);
     if (!fleet_has(pl, u)) return 0;
-    g_fl_refused++; g_fl[(unsigned)FIELD(pl, PL_INDEX, int) & 15].refused++;
+    g_fl_refused++; g_fl[(unsigned)player_get_index(pl) & 15].refused++;
     return 1;
 }
 // the naval maintenance (0x4779FA) short of its "Ships to Maintain": it deletes own units for the room (0x430D40,
 // thiscall(player, request, 0)) and opens a Defend group - the deletion is skipped while the fleet leads the ships
 internal int __fastcall hook_nv_maint_delete(ee_player *pl, void *edx, void *req, int flag) {
     (void)edx;
-    if (pl && !is_vanilla(pl) && fleet_on((unsigned)FIELD(pl, PL_INDEX, int))) { g_fl[(unsigned)FIELD(pl, PL_INDEX, int) & 15].maint_skipped++; return 0; }
+    if (pl && !is_vanilla(pl) && fleet_on((unsigned)player_get_index(pl))) { g_fl[(unsigned)player_get_index(pl) & 15].maint_skipped++; return 0; }
     return delete_for_room(pl, req, flag);
 }
 
@@ -218,7 +218,7 @@ internal void fl_scan(ee_player *pl, unsigned idx) {
     s->pl = pl; s->idx = idx;
     s->ne = s->nev = s->nec = s->nb = s->nbl = s->nd = s->ned = s->ntw = 0; s->eb = 0;
     f->n = 0; f->ndz = 0;
-    void *cm = FIELD(pl, OF(PL, 0xB90), void *);
+    void *cm = player_get_civ_mgr(pl);
     uint8_t *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL;
     int hx = bm ? FIELD(bm, OF(BM, 0x12C), int) : 0, hy = bm ? FIELD(bm, OF(BM, 0x130), int) : 0, bd = 0x7FFFFFFF;
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
@@ -239,7 +239,7 @@ internal void fl_scan(ee_player *pl, unsigned idx) {
             }
             continue;
         }
-        if (FIELD(o, PL_INDEX, int) <= 0 || !is_enemy(pl, o) || !seen_by(u, pl)) continue;
+        if (player_get_index(o) <= 0 || !is_enemy(pl, o) || !seen_by(u, pl)) continue;
         if (k == NV_WAR || k == NV_SUB) {
             if (s->ne < FL_ES) { struct fl_ship *e = &s->es[s->ne++]; e->u = u; e->td = td; e->x = x; e->y = y; e->hp = unit_get_hp(u); e->pi = ld_pidx(u); e->seen = 1; e->dps = fl_dps(u, td); }
             continue;
@@ -556,7 +556,7 @@ internal void fl_log(ee_player *pl, unsigned idx, struct fleet *f, uint32_t now,
     float hp = fl_hp(f), hm = 0;
     for (int i = 0; i < f->n; i++) hm += fl_hp_max(f->u[i]);
     uint32_t blost = 0, bsunk = 0;
-    uint8_t *cbm = FIELD(pl, OF(PL, 0xB8C), uint8_t *), *cmd = cbm ? FIELD(cbm, OF(AM, 0x48), uint8_t *) : NULL;
+    uint8_t *cbm = player_get_combat_mgr(pl), *cmd = cbm ? FIELD(cbm, OF(AM, 0x48), uint8_t *) : NULL;
     unsigned ngroups = cmd ? FIELD(cmd + 4, 0x10, unsigned) : 0;   // the attack commander's groups (frozen ones pile up?)
     for (int j = 0; j < 16; j++) { blost += g_nv_boat_kills[j][idx]; bsunk += g_nv_boat_kills[idx][j]; }
     struct fleet s = *f;   // stage 4: the counters of the task forces added
@@ -707,7 +707,7 @@ internal void fl_rally(struct fleet *m, uint32_t now) {
 internal void fl_rally_tower(ee_player *pl, unsigned idx, struct fleet *m, uint32_t now) {
     if (m->rcover || m->rally_towers >= 3 || (m->tower_t && now >= m->tower_t && now - m->tower_t < 120000) || !g_fs.nd) return;
     m->tower_t = now ? now : 1;
-    void *cm = FIELD(pl, OF(PL, 0xB90), void *);
+    void *cm = player_get_civ_mgr(pl);
     ee_build_mgr *bm = cm ? FIELD(cm, OF(CM, 0x3C), ee_build_mgr *) : NULL;
     if (!bm) return;
     if (tower_queued(bm)) return;
@@ -1192,11 +1192,11 @@ internal void fl_build(ee_player *pl, unsigned idx, struct fleet *m, uint32_t no
     int t = g_nv_target[idx], recent = 0;
     for (int q = 0; q < 8; q++) recent += m->bring_t[q] && now >= m->bring_t[q] && now - m->bring_t[q] < 90000;
     if (t <= 0 || m->shelter || g_nv_own[idx].war + recent >= t || !g_nv_own[idx].docks_built || bk_room(pl) <= 0) return;
-    void *cm = FIELD(pl, OF(PL, 0xB90), void *);
+    void *cm = player_get_civ_mgr(pl);
     ee_unit_mgr *um = cm ? FIELD(cm, OF(CM, 0x44), ee_unit_mgr *) : NULL;
     int type = um ? navy_fleet_type(pl, idx) : 0;
     if (!type) return;
-    int *stock = (int *)((uint8_t *)pl + PL_STOCK), before[7];
+    int *stock = player_stock_at(pl), before[7];
     memcpy(before, stock, sizeof before);
     int req[4] = { type, 1, 0, 0 };
     unsigned got = 0;
@@ -1240,7 +1240,7 @@ internal void tf_tick(ee_player *pl, unsigned idx, struct fleet *m, uint32_t now
 }
 
 internal void fleet_tick(ee_player *pl, uint32_t now) {
-    unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
+    unsigned idx = (unsigned)player_get_index(pl) & 15;
     struct fleet *f = &g_fl[idx];
     if (now < f->last) { memset(f, 0, sizeof *f); memset(g_tf[idx], 0, sizeof g_tf[idx]); g_ntfm[idx] = 0; }   // a new game (also fleet_new_game)
     if (!fleet_on(idx)) { f->n = 0; return; }

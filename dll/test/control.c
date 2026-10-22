@@ -150,13 +150,13 @@ internal void cmd_status(char *out) {
     for (int i = 0; i < 16; i++) {
         ee_player *pl = g_players[i];
         if (!pl) continue;
-        void *tt = FIELD(pl, PL_TECHTREE, void *);
+        void *tt = ((void *)player_get_tech_tree(pl));
         REPLY("P%d @%p epoch=%d difficulty=%d cheat=%d popcap=%d (own %d, game %d) citizen_share=%.2f stock(food,wood,stone,gold,iron)=", i, pl,
-            tt ? FIELD(tt, TT_EPOCH, int) : -1, FIELD(pl, PL_DIFFICULTY, int), FIELD(pl, PL_CHEAT, uint8_t),
-            unit_limit(pl), FIELD(pl, OF(PL, 0xCCC), int), pop_limit_setting(),
-            FIELD(pl, OF(PL, 0xBDC), float));
-        for (int r = 2; r < 7; r++) REPLY("%d%s", ((int *)((uint8_t *)pl + PL_STOCK))[r], r < 6 ? "," : "");
-        void *cm = FIELD(pl, OF(PL, 0xB90), void *);
+            tt ? FIELD(tt, TT_EPOCH, int) : -1, player_get_difficulty(pl), player_get_cheat(pl),
+            unit_limit(pl), player_get_pop_cap(pl), pop_limit_setting(),
+            player_get_citizen_share(pl));
+        for (int r = 2; r < 7; r++) REPLY("%d%s", (player_stock_at(pl))[r], r < 6 ? "," : "");
+        void *cm = player_get_civ_mgr(pl);
         void *rm = cm ? FIELD(cm, OF(CM, 0x38), void *) : NULL;
         if (rm) {
             REPLY(" workers=");
@@ -198,7 +198,7 @@ internal void cmd_sites(char *out, const char *args) {
     if (!pl) { REPLY("error: no AI player %d (AI players are registered on their first update)\n", p); return; }
     unsigned cap = table_value(0x16);
     REPLY("P%d cap(table 0x16)=%u\n", p, cap);
-    void **tb = FIELD(pl, OF(PL, 0xB50), void **), **te = FIELD(pl, OF(PL, 0xB54), void **);
+    void **tb = player_get_zones_begin(pl), **te = player_get_zones_end(pl);
     for (int t = 0; tb && tb + t < te; t++) {
         uint8_t *town = tb[t];
         if (!town) continue;
@@ -219,16 +219,16 @@ internal void cmd_sites(char *out, const char *args) {
 internal void cmd_foodcheck(char *out, const char *args) {
     int p = atoi(args);
     ee_player *pl = (p >= 0 && p < 16) ? g_players[p] : NULL;
-    void *cm = pl ? FIELD(pl, OF(PL, 0xB90), void *) : NULL;
+    void *cm = pl ? player_get_civ_mgr(pl) : NULL;
     if (!cm) { REPLY("error: no AI player %d\n", p); return; }
     void *bm = FIELD(cm, OF(CM, 0x3C), void *);
     int base[2] = { FIELD(bm, OF(BM, 0x12C), int), FIELD(bm, OF(BM, 0x130), int) };
-    int r = FIELD(pl, OF(PL, 0xE10), int);
+    int r = player_get_dropoff_distance(pl);
     short base_region = (short)map_area(base, 2);
     unsigned cap = table_value(0x16);
     REPLY("P%d base=%d,%d region=%d radius=%d (pass1 d2<%d, pass3 d2<%d) cap=%u\n", p, base[0], base[1],
           base_region, r, r * r * 4, r * r * 36, cap);
-    void **tb = FIELD(pl, OF(PL, 0xB50), void **), **te = FIELD(pl, OF(PL, 0xB54), void **);
+    void **tb = player_get_zones_begin(pl), **te = player_get_zones_end(pl);
     for (int t = 0; tb && tb + t < te; t++) {
         ee_zone *zone = tb[t];
         ee_unit *s = zone ? zone_site(zone, 2) : NULL;
@@ -257,7 +257,7 @@ internal void cmd_costs(char *out, const char *args) {
     sscanf(args, "%d %n", &p, &n);
     ee_player *pl = (p >= 0 && p < 16) ? g_players[p] : NULL;
     if (!pl) { REPLY("error: no AI player %d\n", p); return; }
-    uint8_t *tt = FIELD(pl, PL_TECHTREE, uint8_t *);
+    uint8_t *tt = ((uint8_t *)player_get_tech_tree(pl));
     int ep = FIELD(tt, TT_EPOCH, int);
     for (int e = ep + 1; e <= ep + 2 && e <= 13; e++) {
         uint8_t *rec = tt + 8 + e * 0x54;
@@ -284,7 +284,7 @@ internal void cmd_costs(char *out, const char *args) {
 internal void cmd_units(char *out, const char *args) {
     int p = atoi(args);
     ee_player *pl = (p >= 0 && p < 16) ? g_players[p] : NULL;
-    void *cm = pl ? FIELD(pl, OF(PL, 0xB90), void *) : NULL;
+    void *cm = pl ? player_get_civ_mgr(pl) : NULL;
     ee_resource_mgr *rm = cm ? FIELD(cm, OF(CM, 0x38), ee_resource_mgr *) : NULL;
     if (!rm) { REPLY("error: no AI player %d\n", p); return; }
     static const char *names[7] = { "list0", "list1", "food", "wood", "stone", "gold", "iron" };
@@ -698,13 +698,13 @@ internal DWORD WINAPI gameover_watch(LPVOID unused) {
         Sleep(500);
         unsigned me = local_player_index();
         ee_player *pl = me < 16 ? game_players()[me] : NULL;
-        if (!pl || !game_time() || !FIELD(pl, OF(PL, 0xA30), int)) continue;
+        if (!pl || !game_time() || !player_get_result(pl)) continue;
         if (g_log) {
             EnterCriticalSection(&g_lock);
             fprintf(g_log, "# autotest: game over at %.1f min:", game_time() / 60000.0);
             for (int i = 1; i < 16; i++) {
-                uint8_t *p = (uint8_t *)game_players()[i];
-                if (p) fprintf(g_log, " P%d=%d", i, FIELD(p, OF(PL, 0xA30), int));
+                ee_player *p = game_players()[i];
+                if (p) fprintf(g_log, " P%d=%d", i, player_get_result(p));
             }
             fputc(10, g_log);
             fclose(g_log);

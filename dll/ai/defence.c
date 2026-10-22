@@ -65,7 +65,7 @@ internal void def_scan_unit(ee_unit *u, void *ctx) {
         return;
     }
     if (!owner || !is_enemy(s->pl, owner) || !seen_by(u, s->pl)) return;
-    unsigned pi = (unsigned)FIELD(owner, PL_INDEX, int) & 15;
+    unsigned pi = (unsigned)player_get_index(owner) & 15;
     int d2 = (x - s->bx) * (x - s->bx) + (y - s->by) * (y - s->by);
     if (d2 < s->d2[pi]) { s->d2[pi] = d2; s->x[pi] = x; s->y[pi] = y; }
 }
@@ -76,7 +76,7 @@ internal void def_refresh(ee_player *pl, unsigned idx, uint32_t now) {
     if (p->pl == pl && now >= p->t && now - p->t < 30000) return;
     if (p->pl != pl) memset(p, 0, sizeof *p);
     p->pl = pl; p->t = now;
-    void *cm = FIELD(pl, OF(PL, 0xB90), void *);
+    void *cm = player_get_civ_mgr(pl);
     uint8_t *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL;
     p->nf = p->nout = 0;
     if (!bm || FIELD(bm, OF(BM, 0x12C), int) == -10000) return;
@@ -137,7 +137,7 @@ internal int def_slot(struct def_plan *p, int i, int *x, int *y) {
 // From the build manager's placement (econ.c hook_place): a position for a tower request without one.
 internal int defence_spot(ee_player *pl, int type, int *ox, int *oy) {
     if (!g_def || !pl || !is_tower_type(type)) return 0;
-    unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
+    unsigned idx = (unsigned)player_get_index(pl) & 15;
     if (g_def_off[idx]) return 0;
     if (early_core_spot(pl, type, ox, oy)) return 1;   // early.c: the town's first towers by the Town Center
     uint32_t now = game_time();
@@ -188,10 +188,10 @@ internal void defence_tick(ee_player *pl, unsigned idx, uint32_t now) {
     struct def_plan *p = &g_plan[idx];
     struct def_scan *s = &g_scan;
     if (s->pl != pl) return;
-    void *cm = FIELD(pl, OF(PL, 0xB90), void *), *wm = cm ? FIELD(cm, OF(CM, 0x48), void *) : NULL;
+    void *cm = player_get_civ_mgr(pl), *wm = cm ? FIELD(cm, OF(CM, 0x48), void *) : NULL;
     ee_build_mgr *bm = cm ? FIELD(cm, OF(CM, 0x3C), ee_build_mgr *) : NULL;
     if (!wm || !bm) return;
-    int *stock = (int *)((uint8_t *)pl + PL_STOCK);
+    int *stock = player_stock_at(pl);
     // Towers of our own: the game's plan asks for few (P3: none in the first 15 minutes of a Bronze start, with 685
     // stone in stock - stone has hardly another use). While a slot of the plan is free and the stone allows (100 kept
     // back), one tower per minute goes into the build queue with its position; nothing while one is still queued.
@@ -330,7 +330,7 @@ internal struct st_side g_mil_own, g_mil_foe;   // fight_estimate (dll/ai/stats.
 internal int militia_answer(struct cs_scan *s, ee_unit *t, int *nfree) {   // citizens -> t; returns the number ordered
     int x = unit_get_x(t), y = unit_get_y(t), enemies = 0, ordered = 0;
     float epow = 0, cpow = 0, fast = 1e9f, cspeed = 0;
-    unsigned pi = (unsigned)FIELD(s->pl, PL_INDEX, int) & 15;
+    unsigned pi = (unsigned)player_get_index(s->pl) & 15;
     int est = g_fight_est || g_militia_est || EARLY(pi, early_militia), soldiers = 0;
     if (est) { st_side_clear(&g_mil_own); st_side_clear(&g_mil_foe); }
     for (int k = 0; k < s->nu; k++) {
@@ -382,7 +382,7 @@ internal int militia_answer(struct cs_scan *s, ee_unit *t, int *nfree) {   // ci
             float share = r.time[0] < 1e9f ? r.time[1] / (r.time[0] > 0.1f ? r.time[0] : 0.1f) : 0;
             int attacking = unit_get_goal(t) && goal_is_attack(unit_get_goal(t));
             if (!attacking || fast <= cspeed * 1.1f || share < g_militia_share) return 0;
-            g_militia_caught[(unsigned)FIELD(s->pl, PL_INDEX, int) & 15]++;
+            g_militia_caught[(unsigned)player_get_index(s->pl) & 15]++;
         }
     } else {
         float stand = g_fight_est ? st_ratio(&g_mil_own, &g_mil_foe) : (epow > 0 ? cpow / epow : 1e6f);
@@ -427,7 +427,7 @@ internal void militia(ee_player *pl, unsigned idx, struct cs_scan *s, uint32_t n
             size_t l = strlen(what);
             if (l < sizeof what - 32)
                 snprintf(what + l, sizeof what - l, " %s P%d type %d at %d,%d", why == 1 ? "builder" : "attacker",
-                         FIELD(unit_get_owner(e), PL_INDEX, int), type_get_id(unit_get_type_data(e)), x, y);
+                         player_get_index(unit_get_owner(e)), type_get_id(unit_get_type_data(e)), x, y);
         }
     }
     if (!total) return;
@@ -544,7 +544,7 @@ internal int home_soldiers(ee_player *pl, int bx, int by) {
     return h.n;
 }
 internal int home_soldiers_now(ee_player *pl) {
-    void *cm = FIELD(pl, OF(PL, 0xB90), void *);
+    void *cm = player_get_civ_mgr(pl);
     uint8_t *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL;
     return bm && FIELD(bm, OF(BM, 0x12C), int) != -10000 ? home_soldiers(pl, FIELD(bm, OF(BM, 0x12C), int), FIELD(bm, OF(BM, 0x130), int)) : -1;
 }
@@ -552,7 +552,7 @@ internal void home_guard(ee_player *pl, unsigned idx, uint32_t now) {
     static uint32_t last[16];
     if (!g_home_guard || g_def_off[idx] || (now >= last[idx] && now - last[idx] < 10000)) return;
     last[idx] = now;
-    void *cm = FIELD(pl, OF(PL, 0xB90), void *), *um = cm ? FIELD(cm, OF(CM, 0x44), void *) : NULL;
+    void *cm = player_get_civ_mgr(pl), *um = cm ? FIELD(cm, OF(CM, 0x44), void *) : NULL;
     uint8_t *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL;
     if (!um || !bm || FIELD(bm, OF(BM, 0x12C), int) == -10000) return;
     int e = current_epoch(pl), target = 6 + g_home_guard * e;
@@ -560,7 +560,7 @@ internal void home_guard(ee_player *pl, unsigned idx, uint32_t now) {
     // (1 - citizen share +0xBDC)
     int cap = unit_limit(pl);
     float share = cfg_of(pl)->home_guard_share;   // a difficulty's or personality's own, else [all]
-    int room = (int)((float)cap * (1.0f - FIELD(pl, OF(PL, 0xBDC), float)) * (share >= 0 ? share : g_home_share));
+    int room = (int)((float)cap * (1.0f - player_get_citizen_share(pl)) * (share >= 0 ? share : g_home_share));
     if (room > target) target = room;
     // early_army (econ.c train_budget): no soldiers in the first epoch - towers and citizens; early_soldiers=N (the
     // alternative to the towers): N soldiers there from minute 2
@@ -628,7 +628,7 @@ internal void mus_unit(ee_unit *u, void *ctx) {
         if (m->no < 256) m->own[m->no++] = u;
         m->opow += unit_power(u);
         if (m->os) st_side_add(m->os, u);
-    } else if (o && FIELD(o, PL_INDEX, int) > 0 && is_enemy(m->pl, o) && d2 <= 22 * 22) {
+    } else if (o && player_get_index(o) > 0 && is_enemy(m->pl, o) && d2 <= 22 * 22) {
         float p = unit_power(u);
         if (m->es) st_side_add(m->es, u);
         m->epow += p;
@@ -672,7 +672,7 @@ internal void muster(ee_player *pl, unsigned idx, uint32_t now) {
     static uint32_t last[16];
     if (!g_muster || g_def_off[idx] || (now >= last[idx] && now - last[idx] < 3000)) return;
     last[idx] = now;
-    void *cm = FIELD(pl, OF(PL, 0xB90), void *);
+    void *cm = player_get_civ_mgr(pl);
     uint8_t *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL;
     if (!bm || FIELD(bm, OF(BM, 0x12C), int) == -10000) { g_mus[idx].on = 0; return; }
     struct mus_scan *s = &g_ms;
@@ -801,7 +801,7 @@ internal ee_unit *g_asg_units[512];
 internal int g_asg_n;
 internal void asg_units(ee_player *pl) {   // the units of AI pl's attack subgroups (records +0x44)
     g_asg_n = 0;
-    uint8_t *cbm = FIELD(pl, OF(PL, 0xB8C), uint8_t *), *cmd = cbm ? FIELD(cbm, OF(AM, 0x48), uint8_t *) : NULL;
+    uint8_t *cbm = player_get_combat_mgr(pl), *cmd = cbm ? FIELD(cbm, OF(AM, 0x48), uint8_t *) : NULL;
     if (!cmd) return;
     uint8_t *dq = cmd + 4;
     unsigned first = FIELD(dq, 0xC, unsigned), cnt = FIELD(dq, 0x10, unsigned);
@@ -827,7 +827,7 @@ internal void hold_town(ee_player *pl, unsigned idx, uint32_t now) {
     if (now < last[idx]) memset(&g_hold_st[idx], 0, sizeof g_hold_st[idx]);   // a new game
     last[idx] = now;
     if (g_mus[idx].on) return;   // the muster has them
-    void *cm = FIELD(pl, OF(PL, 0xB90), void *);
+    void *cm = player_get_civ_mgr(pl);
     uint8_t *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL;
     void **tab = behaviour_table();
     if (!bm || FIELD(bm, OF(BM, 0x12C), int) == -10000 || !tab) return;
@@ -848,7 +848,7 @@ internal void hold_town(ee_player *pl, unsigned idx, uint32_t now) {
             if (unit_get_hp(u) <= 0) continue;
             int dx = unit_get_x(u) - s->bx, dy = unit_get_y(u) - s->by, type = type_get_id(td);
             ee_player *o = unit_get_owner(u);
-            if (dx * dx + dy * dy > 35 * 35 || !o || o == pl || FIELD(o, PL_INDEX, int) <= 0 || !is_enemy(pl, o)) continue;
+            if (dx * dx + dy * dy > 35 * 35 || !o || o == pl || player_get_index(o) <= 0 || !is_enemy(pl, o)) continue;
             if ((!is_soldier(td) && !is_siege(type)) || !seen_by(u, pl)) continue;
             epow += unit_power(u);
             if (g_fight_est) st_side_add(&g_ms_foe, u);
@@ -959,7 +959,7 @@ internal void rt_face_unit(ee_unit *u, void *ctx) {   // attack_retreat: an enem
     ee_unit_type *td = unit_get_type_data(u);
     if (unit_get_hp(u) <= 0) return;
     ee_player *o = unit_get_owner(u);
-    if (!o || o == f->pl || FIELD(o, PL_INDEX, int) <= 0 || !is_enemy(f->pl, o)) return;
+    if (!o || o == f->pl || player_get_index(o) <= 0 || !is_enemy(f->pl, o)) return;
     float dx = (float)unit_get_x(u) - f->cx, dy = (float)unit_get_y(u) - f->cy, d2 = dx * dx + dy * dy;
     int fam = type_get_family(td);
     float r, a;
@@ -976,9 +976,9 @@ internal void attack_retreat(ee_player *pl, unsigned idx, uint32_t now) {
     if (!(g_retreat || mass_retreat(idx)) || (now >= last[idx] && now - last[idx] < 5000)) return;
     if (now < last[idx]) memset(g_rt[idx], 0, sizeof g_rt[idx]);   // a new game
     last[idx] = now;
-    void *cm = FIELD(pl, OF(PL, 0xB90), void *);
+    void *cm = player_get_civ_mgr(pl);
     uint8_t *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL;
-    uint8_t *cbm = FIELD(pl, OF(PL, 0xB8C), uint8_t *), *cmd = cbm ? FIELD(cbm, OF(AM, 0x48), uint8_t *) : NULL;
+    uint8_t *cbm = player_get_combat_mgr(pl), *cmd = cbm ? FIELD(cbm, OF(AM, 0x48), uint8_t *) : NULL;
     if (!cmd || !bm || FIELD(bm, OF(BM, 0x12C), int) == -10000) return;
     // a landing under way (landing.c): its soldiers are in the attack groups - aboard (tile -10000) they look lost,
     // and "half its peak gone" called off P3's attack with 26 soldiers at sea. No call-off then; the peaks start
@@ -1047,15 +1047,15 @@ internal void attack_retreat(ee_player *pl, unsigned idx, uint32_t now) {
         int stronger = 0;
         for (unsigned j = 0; j < cnt && j < 8; j++) stronger |= j != k && gtarget[j] == target && gpow[j] > pow;
         if (stronger) continue;
-        int t = FIELD(target, PL_INDEX, int) & 15;
+        int t = player_get_index(target) & 15;
         g_cancel_why[idx][t] = "attack (retreat)";
         cancel_citizen_attack((int)idx, t);
         g_retreats[idx]++;
         uint32_t next = now + 300000;
-        if (FIELD(pl, OF(PL, 0xED8), uint32_t) > next) { FIELD(pl, OF(PL, 0xED8), uint32_t) = next; g_last_attack_time[idx] = next; }
+        if (player_get_next_attack(pl) > next) { player_set_next_attack(pl, next); g_last_attack_time[idx] = next; }
         if (g_log) fprintf(g_log, "# attack: P%u at %.1f min pulls back from P%d: %d units, strength %.0f of its peak %.0f, facing %.0f%s; next attack at %.1f min\n",
                            idx, now / 60000.0, t, n, pow, g_rt[idx][slot].peak, epow, spent ? " (half its peak gone)" : " (outmatched)",
-                           FIELD(pl, OF(PL, 0xED8), uint32_t) / 60000.0);
+                           player_get_next_attack(pl) / 60000.0);
         ai_say(pl, CHAT_ATTACK, "[ai] pulling back from P%d: %d units left", t, n);
         g_rt[idx][slot].g = NULL;
     }
@@ -1082,7 +1082,7 @@ internal void basemap_unit(ee_unit *u, void *ctx) {
     float r, a;
     if (owner != m->pl) {
         if (!owner) return;
-        int pi = FIELD(owner, PL_INDEX, int);
+        int pi = player_get_index(owner);
         if (pi <= 0) return;   // nature / gaia
         ch = (char)('0' + pi % 10);
     } else if (is_wall(type)) ch = ut_role(type, UTR_GATE) ? 'G' : 'W';
@@ -1100,14 +1100,14 @@ internal void cmd_basemap(char *out, const char *args) {
     if (r < 5) r = 5;
     if (r > 40) r = 40;
     ee_player *pl = (p >= 0 && p < 16) ? g_players[p] : NULL;
-    void *cm = pl ? FIELD(pl, OF(PL, 0xB90), void *) : NULL;
+    void *cm = pl ? player_get_civ_mgr(pl) : NULL;
     uint8_t *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL;
     if (!bm) { REPLY("error: no AI player %d\n", p); return; }
     static char g[81 * 81];
     int w = 2 * r + 1;
     memset(g, '.', (size_t)(w * w));
     struct basemap m = { pl, FIELD(bm, OF(BM, 0x12C), int), FIELD(bm, OF(BM, 0x130), int), r, g };
-    void **zb = FIELD(pl, OF(PL, 0xB50), void **), **ze = FIELD(pl, OF(PL, 0xB54), void **);   // mines
+    void **zb = player_get_zones_begin(pl), **ze = player_get_zones_end(pl);   // mines
     for (int z = 0; zb && zb + z < ze; z++)
         for (int t = 4; zb[z] && t < 7; t++) {
             ee_unit *s = zone_site(zb[z], t);
@@ -1169,7 +1169,7 @@ __attribute__((used)) int __fastcall hook_damage_points(uint8_t *model, void *ed
         if (g_log && logged < 20) {
             logged++;
             fprintf(g_log, "# engine guard: damage points of a model without them - unit type %d owner P%d at %d,%d, state %u index %d\n",
-                    td ? type_get_id(td) : -1, u && unit_get_owner(u) ? FIELD(unit_get_owner(u), PL_INDEX, int) : -1,
+                    td ? type_get_id(td) : -1, u && unit_get_owner(u) ? player_get_index(unit_get_owner(u)) : -1,
                     u ? unit_get_x(u) : -1, u ? unit_get_y(u) : -1, state, index);
             fflush(g_log);
         }
@@ -1238,7 +1238,7 @@ internal void aa_scan_unit(ee_unit *u, void *ctx) {   // anti_air: own AA, enemy
             }
         return;
     }
-    if ((fam != 3 && fam != 7 && fam != 17) || !o || FIELD(o, PL_INDEX, int) <= 0 || !is_enemy(pl, o) || !seen_by(u, pl)) return;
+    if ((fam != 3 && fam != 7 && fam != 17) || !o || player_get_index(o) <= 0 || !is_enemy(pl, o) || !seen_by(u, pl)) return;
     a->nall++;
     int x = unit_get_x(u), y = unit_get_y(u), d[2];
     if (!nearest_drop(pl, x, y, 0, d) || (d[0] - x) * (d[0] - x) + (d[1] - y) * (d[1] - y) > 625) return;
@@ -1281,8 +1281,8 @@ internal void anti_air(ee_player *pl, unsigned idx, uint32_t now) {
     // next one, as many as aa_ahead_buildings
     int cover[2] = { 0, 0 }, uncovered = 0;
     if (ahead) {
-        unsigned pi = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
-        void *cm0 = FIELD(pl, OF(PL, 0xB90), void *);
+        unsigned pi = (unsigned)player_get_index(pl) & 15;
+        void *cm0 = player_get_civ_mgr(pl);
         uint8_t *bm0 = cm0 ? FIELD(cm0, OF(CM, 0x3C), uint8_t *) : NULL;
         int bx0 = bm0 ? FIELD(bm0, OF(BM, 0x12C), int) : 0, by0 = bm0 ? FIELD(bm0, OF(BM, 0x130), int) : 0, used[64] = { 0 };
         drops_cached(pl);
@@ -1303,7 +1303,7 @@ internal void anti_air(ee_player *pl, unsigned idx, uint32_t now) {
         if (want < 2 + want_b) want = 2 + want_b;
     }
     int want_u = want - (have_b < want_b ? have_b : want_b);
-    void *cm = FIELD(pl, OF(PL, 0xB90), void *), *um = cm ? FIELD(cm, OF(CM, 0x44), void *) : NULL;
+    void *cm = player_get_civ_mgr(pl), *um = cm ? FIELD(cm, OF(CM, 0x44), void *) : NULL;
     ee_build_mgr *bm = cm ? FIELD(cm, OF(CM, 0x3C), ee_build_mgr *) : NULL;
     // AA units
     if (um && have_u < want_u && (!g_aa_st[idx].train_t || now - g_aa_st[idx].train_t >= 15000)) {
@@ -1392,7 +1392,7 @@ internal void upgrade_stragglers(void) {   // the safe point (control.c hook_sim
     last = now;
     for (int p = 1; p < 16; p++) {
         ee_player *pl = g_players[p];
-        if (!pl || FIELD(pl, OF(PL, 0x467), uint8_t) || is_vanilla(pl)) continue;
+        if (!pl || player_get_out(pl) || is_vanilla(pl)) continue;
         int any = 0;
         for (int l = 0; l < 3; l++) {
             g_upg.best[l] = -1;
@@ -1407,7 +1407,7 @@ internal void upgrade_stragglers(void) {   // the safe point (control.c hook_sim
         g_upg.pl = pl;
         g_upg.n = 0;
         grid_each(upg_scan, NULL);   // collected first: the conversion replaces the object
-        int pi = FIELD(pl, PL_INDEX, int);
+        int pi = player_get_index(pl);
         for (int k = 0; k < g_upg.n; k++) {
             ee_unit_type *ntd = type_data(g_upg.to[k]);
             if (!ntd) continue;
@@ -1433,7 +1433,7 @@ internal int upgraded_type(ee_player *pl, int type) {
             for (int j = 6; j > i; j--)
                 if (UPG(l, j) >= 0 && can_build(pl, UPG(l, j))) {
                     if (g_log) fprintf(g_log, "# upgrades: P%d places %d instead of %d (upgraded since it was queued)\n",
-                                       FIELD(pl, PL_INDEX, int), UPG(l, j), type);
+                                       player_get_index(pl), UPG(l, j), type);
                     return UPG(l, j);
                 }
             return type;

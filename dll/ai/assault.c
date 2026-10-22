@@ -55,7 +55,7 @@ internal int cont_ok(int x, int y, unsigned hc) {   // land of continent hc (or 
 
 internal int assault_leads(uint8_t *sg) {
     ee_player *pl = FIELD(sg, OF(ASG, 0x190), void *);
-    unsigned pi = pl ? (unsigned)FIELD(pl, PL_INDEX, int) & 15 : 0;
+    unsigned pi = pl ? (unsigned)player_get_index(pl) & 15 : 0;
     if (!pl || !g_as[pi].phase) return 0;
     for (int k = 0; k < g_as[pi].ntaken; k++) if (g_as[pi].taken[k] == sg) return 1;
     return 0;
@@ -63,7 +63,7 @@ internal int assault_leads(uint8_t *sg) {
 // still one of AI pl's attack subgroups? A stored subgroup pointer can be deleted by the game between two ticks (a
 // group finished, an attack called off) - reading its members then crashed (landing test: a freed record list)
 internal int asg_live(ee_player *pl, uint8_t *sg) {
-    uint8_t *cbm = FIELD(pl, OF(PL, 0xB8C), uint8_t *), *cmd = cbm ? FIELD(cbm, OF(AM, 0x48), uint8_t *) : NULL;
+    uint8_t *cbm = player_get_combat_mgr(pl), *cmd = cbm ? FIELD(cbm, OF(AM, 0x48), uint8_t *) : NULL;
     if (!cmd || !sg) return 0;
     uint8_t *dq = cmd + 4;
     unsigned first = FIELD(dq, 0xC, unsigned), cnt = FIELD(dq, 0x10, unsigned);
@@ -75,7 +75,7 @@ internal int asg_live(ee_player *pl, uint8_t *sg) {
     return 0;
 }
 internal int assault_has_unit(ee_player *pl, ee_unit *u) {   // a member of the wave or the army gathering (hold_town leaves them)
-    unsigned pi = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
+    unsigned pi = (unsigned)player_get_index(pl) & 15;
     if (!g_assault || !g_as[pi].phase) return 0;
     for (int k = 0; k < g_as[pi].ntaken; k++) {
         uint8_t *sg = g_as[pi].taken[k];
@@ -127,7 +127,7 @@ internal ee_unit *as_enemy_near(ee_player *pl, ee_player *target, int x, int y, 
         ee_unit_type *td = it.td;
         if (!td || unit_get_hp(u) <= 0) continue;
         ee_player *o = unit_get_owner(u);
-        if (!o || FIELD(o, PL_INDEX, int) <= 0 || !is_enemy(pl, o)) continue;
+        if (!o || player_get_index(o) <= 0 || !is_enemy(pl, o)) continue;
         float dx = (float)(unit_get_x(u) - x), dy = (float)(unit_get_y(u) - y), d2 = dx * dx + dy * dy;
         if (d2 > (float)(r * r)) continue;
         int fam = type_get_family(td), type = type_get_id(td), k;
@@ -160,7 +160,7 @@ internal float as_enemy_power(ee_player *pl, int x, int y, int r, float *cx, flo
         ee_unit_type *td = it.td;
         if (!td || unit_get_hp(u) <= 0) continue;
         ee_player *o = unit_get_owner(u);
-        if (!o || FIELD(o, PL_INDEX, int) <= 0 || !is_enemy(pl, o) || !seen_by(u, pl)) continue;
+        if (!o || player_get_index(o) <= 0 || !is_enemy(pl, o) || !seen_by(u, pl)) continue;
         float dx = (float)(unit_get_x(u) - x), dy = (float)(unit_get_y(u) - y), d2 = dx * dx + dy * dy;
         float range, att;
         if (is_soldier(td) || is_siege(type_get_id(td))) {
@@ -206,13 +206,13 @@ internal int as_fighting(ee_unit *u) {
 
 internal void as_end(ee_player *pl, unsigned pi, uint32_t now, const char *why, int n) {
     struct assault *a = &g_as[pi];
-    int t = FIELD(a->target, PL_INDEX, int) & 15;
+    int t = player_get_index(a->target) & 15;
     g_cancel_why[pi][t] = why;
     cancel_citizen_attack((int)pi, t);
     uint32_t next = now + 300000;
-    if (FIELD(pl, OF(PL, 0xED8), uint32_t) > next) { FIELD(pl, OF(PL, 0xED8), uint32_t) = next; g_last_attack_time[pi] = next; }
+    if (player_get_next_attack(pl) > next) { player_set_next_attack(pl, next); g_last_attack_time[pi] = next; }
     if (g_log) fprintf(g_log, "# assault: P%u at %.1f min: %s on P%d - %d of %d units left; next attack at %.1f min\n",
-                       pi, now / 60000.0, why, t, n, a->launch_n, FIELD(pl, OF(PL, 0xED8), uint32_t) / 60000.0);
+                       pi, now / 60000.0, why, t, n, a->launch_n, player_get_next_attack(pl) / 60000.0);
     ai_say(pl, CHAT_ATTACK, "[ai] %s: %d units left", why, n);
     a->phase = 0; a->ntaken = 0; a->nwave = 0; a->obj = NULL;
 }
@@ -226,7 +226,7 @@ internal void as_home_unit(ee_unit *u, void *ctx) {
     int fam = type_get_family(td);
     if (o == h->pl) {
         if ((fam == 2 || fam == 29) && !is_wall(type_get_id(td)) && h->nb < 512) { h->bx[h->nb] = unit_get_x(u); h->by[h->nb++] = unit_get_y(u); }
-    } else if (FIELD(o, PL_INDEX, int) > 0 && is_enemy(h->pl, o) && (is_soldier(td) || is_siege(type_get_id(td))) &&
+    } else if (player_get_index(o) > 0 && is_enemy(h->pl, o) && (is_soldier(td) || is_siege(type_get_id(td))) &&
                seen_by(u, h->pl) && h->ne < 512) { h->ex[h->ne] = unit_get_x(u); h->ey[h->ne++] = unit_get_y(u); }
 }
 // enemy soldiers and siege the AI sees within 20 tiles of any of its buildings: an army in its territory
@@ -244,15 +244,15 @@ internal int as_home_threat(ee_player *pl) {
 }
 
 internal void assault_tick(ee_player *pl, uint32_t now) {
-    unsigned pi = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
+    unsigned pi = (unsigned)player_get_index(pl) & 15;
     struct assault *a = &g_as[pi];
     if (!g_assault) return;
     if (now < a->last) memset(a, 0, sizeof *a);   // a new game
     if (now - a->last < 2000) return;
     a->last = now;
-    void *cm = FIELD(pl, OF(PL, 0xB90), void *);
+    void *cm = player_get_civ_mgr(pl);
     uint8_t *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL;
-    uint8_t *cbm = FIELD(pl, OF(PL, 0xB8C), uint8_t *), *cmd = cbm ? FIELD(cbm, OF(AM, 0x48), uint8_t *) : NULL;
+    uint8_t *cbm = player_get_combat_mgr(pl), *cmd = cbm ? FIELD(cbm, OF(AM, 0x48), uint8_t *) : NULL;
     if (!cmd || !bm || FIELD(bm, OF(BM, 0x12C), int) == -10000) { a->phase = 0; a->ntaken = 0; return; }
     int bx = FIELD(bm, OF(BM, 0x12C), int), by = FIELD(bm, OF(BM, 0x130), int);
     unsigned hc = cont_at(bx, by);
@@ -343,7 +343,7 @@ internal void assault_tick(ee_player *pl, uint32_t now) {
     if (!a->obj && !doorstep) {
         if (a->phase == 2) { a->done++; as_end(pl, pi, now, "assault (nothing left to attack)", n); return; }
         if (a->phase && g_log) fprintf(g_log, "# assault: P%u at %.1f min: no objective of P%d on its continent - the game leads\n",
-                                       pi, now / 60000.0, FIELD(target, PL_INDEX, int));
+                                       pi, now / 60000.0, player_get_index(target));
         a->phase = 0; a->ntaken = 0;
         return;
     }
@@ -353,7 +353,7 @@ internal void assault_tick(ee_player *pl, uint32_t now) {
         a->rx = bx; a->ry = by;
         a->phase = 1; a->since = now; a->nwave = 0; a->cont = (int)hc; a->logged = 0; a->bad = 0;
         if (g_log) fprintf(g_log, "# assault: P%u at %.1f min: attack on P%d, %d units - gathering at %d,%d; objective %s at %d,%d\n",
-                           pi, now / 60000.0, FIELD(target, PL_INDEX, int), n, a->rx, a->ry,
+                           pi, now / 60000.0, player_get_index(target), n, a->rx, a->ry,
                            doorstep ? "the enemy army at the doorstep" : "a building", a->ox, a->oy);
     }
     float rx = (float)a->rx + 0.5f, ry = (float)a->ry + 0.5f;
@@ -397,7 +397,7 @@ internal void assault_tick(ee_player *pl, uint32_t now) {
         float dx = (float)(a->ox - a->rx), dy = (float)(a->oy - a->ry);
         if (g_log) fprintf(g_log, "# assault: P%u at %.1f min: goes with %d units (strength %.0f against %.0f) from %d,%d -> %s of P%d at %d,%d (%.0f tiles)\n",
                            pi, now / 60000.0, a->nwave, wave_pow, epow, a->rx, a->ry, doorstep ? "the army" : "a building",
-                           FIELD(target, PL_INDEX, int), a->ox, a->oy, sqrtf(dx * dx + dy * dy));
+                           player_get_index(target), a->ox, a->oy, sqrtf(dx * dx + dy * dy));
         ai_say(pl, CHAT_ATTACK, "[ai] assault with %d units", a->nwave);
     }
     // the wave: alive members, its centre and strength
@@ -478,7 +478,7 @@ internal void cmd_assault(char *out, const char *args) {
     struct assault *a = &g_as[p];
     REPLY("P%d assault %s: phase %d, target P%d, rally %d,%d, objective %d,%d, waypoint %d,%d, wave %d of %d, subgroups %d; "
           "launches %u, spent %u, done %u, objectives %u, orders %u\n", p, g_assault ? "on" : "off", a->phase,
-          a->target ? FIELD(a->target, PL_INDEX, int) : -1, a->rx, a->ry, a->ox, a->oy, a->wx, a->wy, a->nwave, a->launch_n,
+          a->target ? player_get_index(a->target) : -1, a->rx, a->ry, a->ox, a->oy, a->wx, a->wy, a->nwave, a->launch_n,
           a->ntaken, a->launches, a->spent, a->done, a->objectives, a->orders);
 }
 

@@ -28,7 +28,7 @@ internal void am_new_game(void) { memset(g_am, 0, sizeof g_am); }
 // the price of a type without the Cheat (unit_cost's tech data, no AdjustCost)
 internal int am_raw_cost(ee_player *pl, int type) {
     ee_unit_type *obj = type_data(type);
-    ee_tech_tree *tt = FIELD(pl, PL_TECHTREE, ee_tech_tree *);
+    ee_tech_tree *tt = player_get_tech_tree(pl);
     if (!obj || !tt) return 0;
     ee_tech *tech = tech_lookup(tt, type_get_tech(obj));
     uint8_t *data = tech ? FIELD(tech, OF(TECH, 0x8), uint8_t *) : NULL;
@@ -157,7 +157,7 @@ internal int ap_type(ee_player *pl, unsigned idx, ee_unit_mgr *um, const int *vi
 // the production building of a unit type (its tech's building list, data +0x10..+0x14) among the land kinds
 internal int ap_producer(ee_player *pl, int type) {
     ee_unit_type *td = type_data(type);
-    ee_tech_tree *tt = FIELD(pl, PL_TECHTREE, ee_tech_tree *);
+    ee_tech_tree *tt = player_get_tech_tree(pl);
     ee_tech *t = td && tt ? tech_lookup(tt, type_get_tech(td)) : NULL;
     uint8_t *d = t ? FIELD(t, OF(TECH, 0x8), uint8_t *) : NULL;
     int *b = d ? FIELD(d, OF(TECHDATA, 0x10), int *) : NULL, *e = d ? FIELD(d, OF(TECHDATA, 0x14), int *) : NULL;
@@ -175,11 +175,11 @@ internal void army_plan_tick(ee_player *pl, unsigned idx, uint32_t now) {
     // only with an enemy on its own continent (navy.c navy_detect, 10 s in): on the islands (every enemy across the water)
     // the money is the navy's and the landings' - the first plan there (all of it) cost soldiers on Small Islands
     if (current_epoch(pl) < FARM_EPOCH || !cfg_of(pl)->budget || (!navy_land(idx) && !wfa)) return;
-    uint8_t *cm = FIELD(pl, OF(PL, 0xB90), uint8_t *);
+    ee_civ_mgr *cm = player_get_civ_mgr(pl);
     ee_unit_mgr *um = cm ? FIELD(cm, OF(CM, 0x44), ee_unit_mgr *) : NULL;
     ee_build_mgr *bm = cm ? FIELD(cm, OF(CM, 0x3C), ee_build_mgr *) : NULL;
     if (!um || !bm) return;
-    int *stock = (int *)((uint8_t *)pl + PL_STOCK);
+    int *stock = player_stock_at(pl);
     if (plan & 9) {   // FLOAT (the 2-minute watch MIX reads too)
         int res[7] = { 0 };
         am_reserve(pl, idx, res);
@@ -253,7 +253,7 @@ internal int g_army_mix_food = 500;
 internal void ap_targets(ee_resource_mgr *rm) {
     ee_player *pl = rm_player(rm);
     if (!pl) return;
-    unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
+    unsigned idx = (unsigned)player_get_index(pl) & 15;
     struct ap_st *a = &g_ap[idx];
     if (!(ARMY_PLAN(idx) & 8) || current_epoch(pl) < FARM_EPOCH || a->nf < 12) return;
     int mn = a->fl[0][2];
@@ -293,7 +293,7 @@ internal void ap_owned(ee_player *pl, unsigned idx) {
         int t = type_get_id(it.td);
         if (unit_get_owner(it.u) == pl && unit_get_hp(it.u) > 0 && t >= 0 && t < 768) g_apo[idx][t] = 1;
     }
-    uint8_t *cm = FIELD(pl, OF(PL, 0xB90), uint8_t *), *um = cm ? FIELD(cm, OF(CM, 0x44), uint8_t *) : NULL;
+    ee_civ_mgr *cm = player_get_civ_mgr(pl); uint8_t *um = cm ? FIELD(cm, OF(CM, 0x44), uint8_t *) : NULL;
     for (int i = 0; um && i < 14; i++) {
         uint8_t *dq = FIELD_AT(um, OF(UM, 0xC) + i * 0x14);
         unsigned first = FIELD(dq, 0xC, unsigned), cnt = FIELD(dq, 0x10, unsigned), mapsz = FIELD(dq, 8, unsigned);
@@ -324,7 +324,7 @@ internal int ap_upg_line(ee_player *pl, unsigned idx, uint8_t *d, int *used) {
     return n;
 }
 internal int ap_upgrade_later(ee_player *pl, uint8_t *d) {
-    unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
+    unsigned idx = (unsigned)player_get_index(pl) & 15;
     int used;
     if (!(ARMY_PLAN(idx) & 16) || !ap_upg_line(pl, idx, d, &used)) return 0;
     if (used && g_apu[idx].n < 48) g_apu[idx].id[g_apu[idx].n++] = FIELD(d, OF(TECHDATA, 0x4C), int);   // scheduled now (econ.c)
@@ -338,9 +338,9 @@ internal int ap_rs_has(ee_research_mgr *rs, int id) {   // in one of the researc
     return 0;
 }
 internal void ap_upgrades(ee_player *pl, unsigned idx) {
-    uint8_t *cm = FIELD(pl, OF(PL, 0xB90), uint8_t *);
+    ee_civ_mgr *cm = player_get_civ_mgr(pl);
     ee_research_mgr *rs = cm ? FIELD(cm, OF(CM, 0x40), ee_research_mgr *) : NULL;
-    ee_tech_tree *tt = FIELD(pl, PL_TECHTREE, ee_tech_tree *);
+    ee_tech_tree *tt = player_get_tech_tree(pl);
     if (!rs || !tt) return;
     for (int id = 1000; id < 15000; id++) {
         ee_tech *t = tech_lookup(tt, id);
@@ -367,8 +367,8 @@ internal void ap_install(const char *aimod_ini, const char *autotest_ini) {
 // "# pool:" (autotest, minutes 30 and 50): the research manager's candidate techs (rs +8 vector) - id, researched /
 // available, category (+0x48), price, and the first effects (kind +0x20 / unit type +0x14 / attribute +0x2C)
 internal void am_pool_log(ee_player *pl, unsigned idx) {
-    uint8_t *cm = FIELD(pl, OF(PL, 0xB90), uint8_t *), *rs = cm ? FIELD(cm, OF(CM, 0x40), uint8_t *) : NULL;
-    ee_tech_tree *tt = FIELD(pl, PL_TECHTREE, ee_tech_tree *);
+    ee_civ_mgr *cm = player_get_civ_mgr(pl); uint8_t *rs = cm ? FIELD(cm, OF(CM, 0x40), uint8_t *) : NULL;
+    ee_tech_tree *tt = player_get_tech_tree(pl);
     if (!rs || !tt) return;
     int *b = FIELD(rs, OF(RS, 0x8), int *), *e = FIELD(rs, OF(RS, 0xC), int *);
     EnterCriticalSection(&g_lock);
@@ -397,10 +397,10 @@ internal void am_pool_log(ee_player *pl, unsigned idx) {
 }
 internal void am_tick(ee_player *pl, uint32_t now) {
     if (!g_autotest || !g_log || !pl) return;
-    unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
+    unsigned idx = (unsigned)player_get_index(pl) & 15;
     struct am_st *a = &g_am[idx];
     if (now < a->ts) memset(a, 0, sizeof *a);
-    uint8_t *cm = FIELD(pl, OF(PL, 0xB90), uint8_t *), *um = cm ? FIELD(cm, OF(CM, 0x44), uint8_t *) : NULL;
+    ee_civ_mgr *cm = player_get_civ_mgr(pl); uint8_t *um = cm ? FIELD(cm, OF(CM, 0x44), uint8_t *) : NULL;
     if (!um) return;
     if (!a->ts || now - a->ts >= 5000) {   // the busy share: a sample every 5 s
         a->ts = now ? now : 1;
@@ -433,7 +433,7 @@ internal void am_tick(ee_player *pl, uint32_t now) {
         value += am_raw_cost(pl, t);
     }
     int tech = 0, up7 = 0, up7c = 0;
-    ee_tech_tree *tt = FIELD(pl, PL_TECHTREE, ee_tech_tree *);
+    ee_tech_tree *tt = player_get_tech_tree(pl);
     for (int id = 1000; tt && id < 15000; id++) {
         ee_tech *t = tech_lookup(tt, id);
         if (!t || !FIELD(t, OF(TECH, 0x4), uint8_t)) continue;
@@ -441,7 +441,7 @@ internal void am_tick(ee_player *pl, uint32_t now) {
         tech++;
         if (d && FIELD(d, OF(TECHDATA, 0x48), int) == 7) { up7++; for (int r = 2; r < 7; r++) up7c += FIELD(d, OF(TECHDATA, 0x24) + (r - 2) * 4, int); }
     }
-    int *st = (int *)((uint8_t *)pl + PL_STOCK);
+    int *st = player_stock_at(pl);
     int cap = unit_limit(pl);
     int pop = population(pl, 1, 0), inprod = FIELD(um, OF(UM, 0x13C), int);
     struct am_min *m = &a->m;

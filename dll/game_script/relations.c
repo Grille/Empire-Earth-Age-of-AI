@@ -112,8 +112,8 @@ internal void x_member(void *px, const struct xmember *m, struct xval *v) {
     double r = 0;
     static const char *const res[5] = { "food", "wood", "stone", "gold", "iron" };
     for (int k = 0; k < 5; k++) {
-        if (!strcmp(n, "stock")) r += FIELD(px, PL_STOCK + (k + 2) * 4, int);
-        else if (!strcmp(n, res[k])) { xnum(v, FIELD(px, PL_STOCK + (k + 2) * 4, int)); return; }
+        if (!strcmp(n, "stock")) r += player_get_stock(px, k + 2);
+        else if (!strcmp(n, res[k])) { xnum(v, player_get_stock(px, k + 2)); return; }
     }
     if (!strcmp(n, "stock")) { xnum(v, r); return; }
     if (!strcmp(n, "name")) { xstr(v, player_name(px)); return; }

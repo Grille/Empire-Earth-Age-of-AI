@@ -123,7 +123,7 @@ internal int cv_alive(ee_unit *u) { return unit_get_hp(u) > 0 && unit_get_x(u) >
 internal int cv_built(ee_unit *u) { ee_unit *bs = unit_get_physics(u); return bs && unit_get_finished(bs); }
 internal int cv_value(ee_player *pl, int type) {   // the base price, F+W+S+G+I (no cheat)
     ee_unit_type *obj = type_data(type);
-    ee_tech_tree *tt = pl ? FIELD(pl, PL_TECHTREE, ee_tech_tree *) : NULL;
+    ee_tech_tree *tt = pl ? player_get_tech_tree(pl) : NULL;
     ee_tech *tech = obj && tt ? tech_lookup(tt, type_get_tech(obj)) : NULL;
     uint8_t *data = tech ? FIELD(tech, OF(TECH, 0x8), uint8_t *) : NULL;
     int v = 0;
@@ -149,7 +149,7 @@ internal float cv_local(ee_player *pl, int x, int y, int r, int honest) {
         ee_unit *u = it.u;
         ee_unit_type *td = it.td;
         ee_player *o = unit_get_owner(u);
-        if (!o || FIELD(o, PL_INDEX, int) <= 0 || !cv_alive(u)) continue;
+        if (!o || player_get_index(o) <= 0 || !cv_alive(u)) continue;
         int fam = type_get_family(td), d2 = cv_d2(unit_get_x(u), unit_get_y(u), x, y);
         float rg, at;
         if (fam == 2 || fam == 29) {
@@ -194,7 +194,7 @@ internal void cv_scan(ee_player *pl, struct cv_pl *c) {
         ee_unit *u = it.u;
         ee_unit_type *td = it.td;
         ee_player *o = unit_get_owner(u);
-        if (!o || FIELD(o, PL_INDEX, int) <= 0 || !cv_alive(u)) continue;
+        if (!o || player_get_index(o) <= 0 || !cv_alive(u)) continue;
         int fam = type_get_family(td), t = type_get_id(td), x = unit_get_x(u), y = unit_get_y(u);
         if (o == pl) {
             if (fam == 2 || fam == 29) {
@@ -262,7 +262,7 @@ internal void cover_death(ee_unit *dead, int k) {
     ee_unit_type *td = unit_get_type_data(dead);
     ee_player *pl = unit_get_owner(dead);
     if (!td || !pl || unit_get_x(dead) < 0) return;
-    unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
+    unsigned idx = (unsigned)player_get_index(pl) & 15;
     int kind = cv_mil(td);
     if (!kind || !(g_players[idx] || is_vanilla_idx((int)idx))) return;
     struct cv_pl *c = &g_cv[idx];
@@ -275,7 +275,7 @@ internal void cover_death(ee_unit *dead, int k) {
     else switch (mt_line(pl, t)) { case MB_INF: line = 'i'; break; case MB_RNG: line = 'r'; break; case MB_CAV: line = 'c'; break; case MB_SIE: line = 's'; break; default: break; }
     for (struct grid_it it = grid_it_box(x, y, 6, 1); grid_it_next(&it); ) {
         ee_player *o = unit_get_owner(it.u);
-        if (it.u != dead && o && FIELD(o, PL_INDEX, int) > 0 && !is_enemy(pl, o) && cv_alive(it.u) && cv_mil(it.td) &&
+        if (it.u != dead && o && player_get_index(o) > 0 && !is_enemy(pl, o) && cv_alive(it.u) && cv_mil(it.td) &&
             cv_d2(unit_get_x(it.u), unit_get_y(it.u), x, y) <= 36) nb++;
     }
     float loc = cv_local(pl, x, y, 10, 0);
@@ -296,7 +296,7 @@ internal void cover_death(ee_unit *dead, int k) {
 internal int cover_refuses(uint8_t *sg, ee_unit *u) {
     ee_player *pl = FIELD(sg, OF(ASG, 0x190), void *);
     if (!pl) return 0;
-    struct cv_pl *c = &g_cv[(unsigned)FIELD(pl, PL_INDEX, int) & 15];
+    struct cv_pl *c = &g_cv[(unsigned)player_get_index(pl) & 15];
     if (!c->nh || !cv_held(c, u)) return 0;
     c->refused++;
     return 1;
@@ -305,7 +305,7 @@ internal int cover_sea(unsigned idx) { return (FALL_BACK(idx & 15) & 4) != 0; } 
 // the cover for a unit at (x, y) on land area a: the nearest own defence no known enemy defence covers (2 tiles on the
 // base's side of it), else a Hospital, else the base; 0 none within reach
 internal int cv_cover(ee_player *pl, struct cv_pl *c, int x, int y, unsigned a, int *tx, int *ty) {
-    unsigned pi = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
+    unsigned pi = (unsigned)player_get_index(pl) & 15;
     int best = -1, bd = g_fb_dist * g_fb_dist + 1;
     threat_refresh(pl, game_time());
     for (int k = 0; k < c->ncv; k++) {
@@ -354,7 +354,7 @@ internal int cv_group_of(ee_unit *u) {   // the attack group (index into g_cvg) 
 }
 internal void cv_groups(ee_player *pl) {
     memset(g_cvgh, 0, sizeof g_cvgh); g_cvg_n = 0;
-    uint8_t *cbm = FIELD(pl, OF(PL, 0xB8C), uint8_t *), *cmd = cbm ? FIELD(cbm, OF(AM, 0x48), uint8_t *) : NULL;
+    uint8_t *cbm = player_get_combat_mgr(pl), *cmd = cbm ? FIELD(cbm, OF(AM, 0x48), uint8_t *) : NULL;
     if (!cmd) return;
     uint8_t *dq = cmd + 4;
     unsigned first = FIELD(dq, 0xC, unsigned), cnt = FIELD(dq, 0x10, unsigned), used = 0;
@@ -436,14 +436,14 @@ internal void cv_end(ee_player *pl, unsigned idx, struct cv_pl *c, uint32_t now)
         int stronger = 0;   // the call-off ends all attacks on that player: not while another one on it fights on stronger
         for (int i = 0; i < g_cvg_n; i++) stronger |= i != j && g_cvg[i].target == q->target && g_cvg[i].fpow > q->fpow && g_cvg[i].gu * 100 < g_cvg[i].n * g_fb_end;
         if (stronger) continue;
-        int t = FIELD(q->target, PL_INDEX, int) & 15;
+        int t = player_get_index(q->target) & 15;
         g_cancel_why[idx][t] = "attack (fall back: given up)";
         cancel_citizen_attack((int)idx, t);
         c->end_t = now ? now : 1; c->ended++;
         uint32_t next = now + 300000;
-        if (FIELD(pl, OF(PL, 0xED8), uint32_t) > next) { FIELD(pl, OF(PL, 0xED8), uint32_t) = next; g_last_attack_time[idx] = next; }
+        if (player_get_next_attack(pl) > next) { player_set_next_attack(pl, next); g_last_attack_time[idx] = next; }
         if (g_log && g_autotest) fprintf(g_log, "# cover: P%u at %.1f min: its attack on P%d ends - %d of %d units gave up, %d still out (fight %.2f); next attack at %.1f min\n",
-                                         idx, now / 60000.0, t, q->gu, all, q->nf, q->nf ? e : 0.0f, FIELD(pl, OF(PL, 0xED8), uint32_t) / 60000.0);
+                                         idx, now / 60000.0, t, q->gu, all, q->nf, q->nf ? e : 0.0f, player_get_next_attack(pl) / 60000.0);
         return;
     }
 }
@@ -527,7 +527,7 @@ internal void cv_behave(ee_player *pl, unsigned idx, struct cv_pl *c, uint32_t n
 
 internal void cover_tick(ee_player *pl, uint32_t now) {
     if (!pl) return;
-    unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
+    unsigned idx = (unsigned)player_get_index(pl) & 15;
     struct cv_pl *c = &g_cv[idx];
     if (now < c->ts || now < c->tb) { memset(c, 0, sizeof *c); }
     int plan = is_vanilla(pl) ? 0 : FALL_BACK(idx) & 11, meas = g_autotest && g_log;

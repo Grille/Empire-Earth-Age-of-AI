@@ -933,7 +933,7 @@ internal int tribute_cap(int have) { return have <= 0 ? 0 : g_llm_constrained ? 
 // a tribute the model chose (send_tribute): amt by resource (stock index 2..6), each capped by tribute_cap, moved from
 // pl's stock to ph's; the total paid (noted in the history, what = the amounts' text) or 0
 internal int llm_pay(ee_player *pl, void *ph, int ai, int h, const int *amt, uint32_t now, char *what, int wcap, int *paid) {
-    int *from = (int *)((uint8_t *)pl + PL_STOCK), *to = (int *)((uint8_t *)ph + PL_STOCK), total = 0;
+    int *from = player_stock_at(pl), *to = player_stock_at(ph), total = 0;
     memset(paid, 0, 7 * sizeof *paid);   // by resource (stock index 2..6)
     for (int r = 2; r < 7; r++) {
         int n = amt[r], cap = tribute_cap(from[r]);
@@ -1172,12 +1172,12 @@ internal int word_in(const char *text, const char *name) {
 // sender's chat mode player +0x9E0 - 0 everyone, 1 allies (his stance towards j allied), 2 enemies, 3 chosen
 // players (a byte per player index at +0xB2C)
 internal int chat_reaches(void *pm, void *pj) {
-    int j = FIELD(pj, PL_INDEX, int) & 15;
-    switch (FIELD(pm, OF(PL, 0x9E0), int)) {
+    int j = player_get_index(pj) & 15;
+    switch (player_get_chat_to(pm)) {
     case 0: return 1;
     case 1: return !stance_of(pm, j);
     case 2: return stance_of(pm, j) != 0;
-    case 3: return FIELD(pm, OF(PL, 0xB2C) + j, uint8_t) != 0;
+    case 3: return player_get_chat_to_player(pm, j) != 0;
     default: return 1;
     }
 }
@@ -1229,7 +1229,7 @@ internal void llm_player_chat(const char *text) {
     if (!to && got == 1) to = only;
     if (!to) {
         if (g_llm_log && g_log) fprintf(g_log, "# llm: chat line (mode %d, gets it:%s) meant for no AI - name one: %s\n",
-                                        FIELD(pm, OF(PL, 0x9E0), int), got ? who : " none", text);
+                                        player_get_chat_to(pm), got ? who : " none", text);
         if (!got) llm_chat_hint(sysf("chat_nobody", NULL, NULL, NULL, NULL));
         else {
             char names[200] = "";
@@ -1267,7 +1267,7 @@ internal void llm_player_chat(const char *text) {
     if (!b.p) return;
     llm_queue(j, llm_finish(&b, j->tools, to, h));
     if (g_llm_log && g_log) fprintf(g_log, "# llm: chat line for P%d (mode %d, gets it:%s) asked: %s\n", to,
-                                    FIELD(pm, OF(PL, 0x9E0), int), who, text);
+                                    player_get_chat_to(pm), who, text);
 }
 
 // ---- AI TALK ----
@@ -1658,17 +1658,17 @@ internal void cmd_llm(char *out, const char *args) {
     if (sscanf(args, "filter %d %n", &p, &n) == 1) {
         ee_player *pm = player_at((int)local_player_index());
         if (!pm || p < 0 || p > 3) { REPLY("error: no local player or bad mode\n"); return; }
-        FIELD(pm, OF(PL, 0x9E0), int) = p;
-        for (int i = 0; i < 16; i++) FIELD(pm, OF(PL, 0xB2C) + i, uint8_t) = 0;
+        player_set_chat_to(pm, p);
+        for (int i = 0; i < 16; i++) player_set_chat_to_player(pm, i, 0);
         for (const char *s = args + n; p == 3 && *s;) {
             char *e;
             long v = strtol(s, &e, 10);
             if (e == s) break;
-            if (v >= 0 && v < 16) FIELD(pm, OF(PL, 0xB2C) + v, uint8_t) = 1;
+            if (v >= 0 && v < 16) player_set_chat_to_player(pm, v, 1);
             s = e;
         }
         REPLY("chat mode %d, chosen:", p);
-        for (int i = 0; i < 16; i++) if (FIELD(pm, OF(PL, 0xB2C) + i, uint8_t)) REPLY(" P%d", i);
+        for (int i = 0; i < 16; i++) if (player_get_chat_to_player(pm, i)) REPLY(" P%d", i);
         REPLY("\n");
         return;
     }

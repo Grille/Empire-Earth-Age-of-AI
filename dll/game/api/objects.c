@@ -78,3 +78,78 @@ internal inline int type_get_hp(const ee_unit_type *td) { return FIELD(td, OF(TD
 internal inline int type_get_missile_delay(const ee_unit_type *td) { return FIELD(td, OF(TD, 0x588), int); }  // +0x588 missile delay time
 internal inline int type_get_size(const ee_unit_type *td) { return FIELD(td, OF(TD, 0x58C), int); }          // +0x58C its footprint (tiles a side)
 internal inline uint8_t type_get_behaviours(const ee_unit_type *td) { return FIELD(td, OF(TD, 0x621), uint8_t); } // +0x621 takes a behaviour (stances)
+
+// A PLAYER (EEPlayer, EEComputerPlayer; engine-notes.md "Players", the AI settings table's fields: ai/settings.c)
+internal inline int player_get_unknown_4(const ee_player *pl) { return FIELD(pl, OF(PL, 0x4), int); }        // +0x4 not known (a log prints it)
+// +0x18 / +0x1C: a list of 4-byte entries - not known; the population check's log counts it
+internal inline uint8_t *player_get_list_begin(const ee_player *pl) { return FIELD(pl, OF(PL, 0x18), uint8_t *); }
+internal inline uint8_t *player_get_list_end(const ee_player *pl) { return FIELD(pl, OF(PL, 0x1C), uint8_t *); }
+internal inline void *player_name_at(const ee_player *pl) { return (void *)FIELD_AT(pl, OF(PL, 0x24)); }        // +0x24 its name (UWideString)
+internal inline const char *player_get_name(const ee_player *pl) { return FIELD(pl, OF(PL, 0x28), const char *); } // +0x28 the name's text
+internal inline const void *player_color_at(const ee_player *pl) { return FIELD_AT(pl, OF(PL, 0x438)); }      // +0x438 its colour (RGB)
+internal inline int player_get_index(const ee_player *pl) { return FIELD(pl, OF(PL, 0x45C), int); }          // +0x45C
+internal inline int8_t player_get_msg_id(const ee_player *pl) { return FIELD(pl, OF(PL, 0x464), int8_t); }  // +0x464 its id in a chat message (msg +0xA)
+internal inline uint8_t player_get_explore_all(const ee_player *pl) { return FIELD(pl, OF(PL, 0x465), uint8_t); } // +0x465 no fog
+internal inline void player_set_explore_all(ee_player *pl, uint8_t v) { FIELD(pl, OF(PL, 0x465), uint8_t) = v; }
+internal inline uint8_t player_get_out(const ee_player *pl) { return FIELD(pl, OF(PL, 0x467), uint8_t); }    // +0x467 out of the game (resigned, defeated)
+internal inline void *player_civ_name_at(const ee_player *pl) { return (void *)FIELD_AT(pl, OF(PL, 0x488)); }  // +0x488 its civilization's name (UWideString)
+internal inline uint8_t *player_stats_at(const ee_player *pl) { return (uint8_t *)FIELD_AT(pl, OF(PL, 0x4A8)); } // +0x4A8 EEPlayerStatistics (PLSTATS)
+internal inline int *player_get_selected_group(const ee_player *pl) { return FIELD(pl, OF(PL, 0x9BC), int *); } // +0x9BC
+internal inline ee_tech_tree *player_get_tech_tree(const ee_player *pl) { return FIELD(pl, OF(PL, 0x9D4), ee_tech_tree *); } // +0x9D4
+// +0x9E0 whom its chat reaches: 0 everyone, 1 allies, 2 enemies, 3 the players marked at +0xB2C
+internal inline int player_get_chat_to(const ee_player *pl) { return FIELD(pl, OF(PL, 0x9E0), int); }
+internal inline void player_set_chat_to(ee_player *pl, int v) { FIELD(pl, OF(PL, 0x9E0), int) = v; }
+internal inline int player_get_stance(const ee_player *pl, int i) { return FIELD(pl, OF(PL, 0x9E4) + i * 4, int); } // +0x9E4 [16] towards player i: 0 allied, 1 enemy
+internal inline int player_get_strategy(const ee_player *pl) { return FIELD(pl, OF(PL, 0xA28), int); }        // +0xA28 orders the attention's activities
+internal inline int player_get_result(const ee_player *pl) { return FIELD(pl, OF(PL, 0xA30), int); }         // +0xA30 1 won, 2 lost
+internal inline int *player_stock_at(const ee_player *pl) { return (int *)FIELD_AT(pl, OF(PL, 0xAF0)); }     // +0xAF0 int[7]: 2 food, 3 wood, 4 stone, 5 gold, 6 iron
+internal inline int player_get_stock(const ee_player *pl, int r) { return FIELD(pl, OF(PL, 0xAF0) + r * 4, int); }
+// +0xB10 / +0xB1C / +0xB20: population counts - +0xB1C and +0xB20 in production (0x556E11), +0xB10 not known
+internal inline int player_get_pop_b10(const ee_player *pl) { return FIELD(pl, OF(PL, 0xB10), int); }
+internal inline int player_get_objects(const ee_player *pl) { return FIELD(pl, OF(PL, 0xB14), int); }        // +0xB14 its objects (< 1: out)
+internal inline int player_get_pop_b1c(const ee_player *pl) { return FIELD(pl, OF(PL, 0xB1C), int); }
+internal inline int player_get_pop_b20(const ee_player *pl) { return FIELD(pl, OF(PL, 0xB20), int); }
+internal inline uint8_t player_get_chat_to_player(const ee_player *pl, int i) { return FIELD(pl, OF(PL, 0xB2C) + i, uint8_t); } // +0xB2C [16]
+internal inline void player_set_chat_to_player(ee_player *pl, int i, uint8_t v) { FIELD(pl, OF(PL, 0xB2C) + i, uint8_t) = v; }
+internal inline void player_set_civ_chosen(ee_player *pl, uint8_t v) { FIELD(pl, OF(PL, 0xB46), uint8_t) = v; } // +0xB46 (0: the civ dialog opens)
+internal inline void **player_get_zones_begin(const ee_player *pl) { return FIELD(pl, OF(PL, 0xB50), void **); } // +0xB50 the resource zones (map-wide)
+internal inline void **player_get_zones_end(const ee_player *pl) { return FIELD(pl, OF(PL, 0xB54), void **); }
+internal inline uint8_t *player_get_combat_mgr(const ee_player *pl) { return FIELD(pl, OF(PL, 0xB8C), uint8_t *); } // +0xB8C EECPCombatManager (AM)
+internal inline ee_civ_mgr *player_get_civ_mgr(const ee_player *pl) { return FIELD(pl, OF(PL, 0xB90), ee_civ_mgr *); } // +0xB90 a computer player's
+internal inline uint8_t *player_get_b98(const ee_player *pl) { return FIELD(pl, OF(PL, 0xB98), uint8_t *); }    // +0xB98 (PLB98: not known)
+internal inline int player_get_difficulty(const ee_player *pl) { return FIELD(pl, OF(PL, 0xBA4), int); }      // +0xBA4 0 easy, 1 medium, 2 hard
+internal inline void player_set_difficulty(ee_player *pl, int v) { FIELD(pl, OF(PL, 0xBA4), int) = v; }
+// the price percent with Cheat (AdjustCost 0x430FBD): easy +0xD48 (int), medium +0xBB4 (float), hard +0xD4C (int)
+internal inline float player_get_cost_medium(const ee_player *pl) { return FIELD(pl, OF(PL, 0xBB4), float); }
+internal inline void player_set_cost_medium(ee_player *pl, float v) { FIELD(pl, OF(PL, 0xBB4), float) = v; }
+internal inline int player_get_cost_easy(const ee_player *pl) { return FIELD(pl, OF(PL, 0xD48), int); }
+internal inline void player_set_cost_easy(ee_player *pl, int v) { FIELD(pl, OF(PL, 0xD48), int) = v; }
+internal inline int player_get_cost_hard(const ee_player *pl) { return FIELD(pl, OF(PL, 0xD4C), int); }
+internal inline void player_set_cost_hard(ee_player *pl, int v) { FIELD(pl, OF(PL, 0xD4C), int) = v; }
+internal inline float player_get_citizen_share(const ee_player *pl) { return FIELD(pl, OF(PL, 0xBDC), float); } // +0xBDC of the cap (0.45)
+internal inline void player_set_citizen_share(ee_player *pl, float v) { FIELD(pl, OF(PL, 0xBDC), float) = v; }
+internal inline int player_get_pop_cap(const ee_player *pl) { return FIELD(pl, OF(PL, 0xCCC), int); }         // +0xCCC its own cap (vf31)
+internal inline void player_set_pop_cap(ee_player *pl, int v) { FIELD(pl, OF(PL, 0xCCC), int) = v; }
+// attacks (the AI settings table, 0x431697): chances in percent, minutes, the next attack's game time
+internal inline void player_set_attack_on_contact(ee_player *pl, int v) { FIELD(pl, OF(PL, 0xCD8), int) = v; }   // +0xCD8
+internal inline void player_set_attack_for_resources(ee_player *pl, int v) { FIELD(pl, OF(PL, 0xCDC), int) = v; } // +0xCDC
+internal inline void player_set_attack_revenge(ee_player *pl, int v) { FIELD(pl, OF(PL, 0xCE0), int) = v; }      // +0xCE0
+internal inline void player_set_attack_max(ee_player *pl, int v) { FIELD(pl, OF(PL, 0xCFC), int) = v; }          // +0xCFC between attacks
+internal inline void player_set_attack_min(ee_player *pl, int v) { FIELD(pl, OF(PL, 0xD00), int) = v; }          // +0xD00
+internal inline void player_set_first_attack_max(ee_player *pl, int v) { FIELD(pl, OF(PL, 0xD28), int) = v; }    // +0xD28
+internal inline void player_set_first_attack_min(ee_player *pl, int v) { FIELD(pl, OF(PL, 0xD2C), int) = v; }    // +0xD2C
+internal inline void player_set_epoch_min(ee_player *pl, int v) { FIELD(pl, OF(PL, 0xD58), int) = v; }           // +0xD58 the epoch timer's minutes
+internal inline void player_set_epoch_max(ee_player *pl, int v) { FIELD(pl, OF(PL, 0xD5C), int) = v; }           // +0xD5C
+internal inline int player_get_dropoff_distance(const ee_player *pl) { return FIELD(pl, OF(PL, 0xE10), int); }   // +0xE10
+internal inline int player_get_attention(const ee_player *pl) { return FIELD(pl, OF(PL, 0xE20), int); }          // +0xE20 activities a period (+1)
+internal inline uint32_t player_get_next_attack(const ee_player *pl) { return FIELD(pl, OF(PL, 0xED8), uint32_t); } // +0xED8 game time
+internal inline void player_set_next_attack(ee_player *pl, uint32_t v) { FIELD(pl, OF(PL, 0xED8), uint32_t) = v; }
+// +0xEF4.. the AI toggles: Angreifen EF4, Aktiv EF9, Cheat EFB, Bauen EFC, Erkunden EFD, Sammeln EFF, Verteidigen F00,
+// Ignorieren F02 - and +0xEF5 first attack done, +0xEFA boats instead of fields (a water map with fish)
+internal inline uint8_t player_get_toggle(const ee_player *pl, int i) { return FIELD(pl, OF(PL, 0xEF4) + i, uint8_t); }
+internal inline uint8_t player_get_first_attack_done(const ee_player *pl) { return FIELD(pl, OF(PL, 0xEF5), uint8_t); }
+internal inline uint8_t player_get_boats_for_food(const ee_player *pl) { return FIELD(pl, OF(PL, 0xEFA), uint8_t); }
+internal inline uint8_t player_get_cheat(const ee_player *pl) { return FIELD(pl, OF(PL, 0xEFB), uint8_t); }
+internal inline void player_set_cheat(ee_player *pl, uint8_t v) { FIELD(pl, OF(PL, 0xEFB), uint8_t) = v; }
+internal inline uint8_t player_get_build(const ee_player *pl) { return FIELD(pl, OF(PL, 0xEFC), uint8_t); }
+internal inline void player_set_ignore(ee_player *pl, uint8_t v) { FIELD(pl, OF(PL, 0xF02), uint8_t) = v; }

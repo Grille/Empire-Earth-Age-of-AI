@@ -147,7 +147,7 @@ internal void __fastcall hook_rm_update(ee_resource_mgr *rm, void *edx, uint32_t
     static uint8_t dumped[16];   // bit0: 10 s snapshot taken, bit1: 60 s snapshot taken
     ee_player *pl = rm_player(rm);
     if (pl) {
-        unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
+        unsigned idx = (unsigned)player_get_index(pl) & 15;
         ctl_note_player(pl);
         if (g_settings_done[idx] != pl) {   // the personality first: its style (ai_style=1) is part of the settings
             g_settings_done[idx] = pl;
@@ -189,7 +189,7 @@ internal void __fastcall hook_rm_update(ee_resource_mgr *rm, void *edx, uint32_t
     rm_update(rm, now);
     if (pl && is_vanilla(pl)) vanilla_tick(pl, now);   // the game's own AI: only the mod's log lines (attack.c)
     else if (pl) { intel_tick(pl, now); econ_tick(pl, now); attack_tick(pl, now); assault_tick(pl, now); landing_tick(pl, now); navy_tick(pl, now);
-                wf_tick(pl, now); army_plan_tick(pl, (unsigned)FIELD(pl, PL_INDEX, int) & 15, now); }
+                wf_tick(pl, now); army_plan_tick(pl, (unsigned)player_get_index(pl) & 15, now); }
     if (pl) ecolog_tick(pl, now);
     if (pl) cz_tick(pl, now);
     if (pl) am_tick(pl, now);

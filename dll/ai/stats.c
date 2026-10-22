@@ -46,7 +46,7 @@ internal int st_shot_t(ee_unit_type *atd, uint8_t *ast, int api, ee_unit_type *t
     int r = (int)(d + 0.5f);
     return r < 1 ? 1 : r;
 }
-internal int st_pidx(ee_unit *u) { ee_player *o = unit_get_owner(u); return o ? FIELD(o, PL_INDEX, int) : 0; }
+internal int st_pidx(ee_unit *u) { ee_player *o = unit_get_owner(u); return o ? player_get_index(o) : 0; }
 internal int st_shot(ee_unit *a, ee_unit *t) {
     return st_shot_t(unit_get_type_data(a), unit_get_stats(a), st_pidx(a), unit_get_type_data(t),
                      unit_get_stats(t), st_pidx(t));

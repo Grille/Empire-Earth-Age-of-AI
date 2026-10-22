@@ -72,10 +72,10 @@ internal void eco_mines(ee_player *pl, struct eco_mines *c) {
     drops_cached(pl);
     unsigned pi = (unsigned)pidx(pl);
     int base_reg = -1;   // the base's continent
-    {   uint8_t *cm = FIELD(pl, OF(PL, 0xB90), uint8_t *), *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL;
+    {   ee_civ_mgr *cm = player_get_civ_mgr(pl); uint8_t *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL;
         int b[2] = { bm ? FIELD(bm, OF(BM, 0x12C), int) : -10000, bm ? FIELD(bm, OF(BM, 0x130), int) : -10000 };
         if (b[0] != -10000 && b[1] != -10000) base_reg = (short)map_area(b, 2); }
-    void **tb = FIELD(pl, OF(PL, 0xB50), void **), **te = FIELD(pl, OF(PL, 0xB54), void **);
+    void **tb = player_get_zones_begin(pl), **te = player_get_zones_end(pl);
     for (int t = 0; tb && tb + t < te && t < 256; t++) {
         uint8_t *town = tb[t];
         void **sb = town ? FIELD(town, OF(ZONE, 0x8), void **) : NULL, **se = town ? FIELD(town, OF(ZONE, 0xC), void **) : NULL;
@@ -167,9 +167,9 @@ internal void eco_food(ee_player *pl, ee_resource_mgr *rm, struct eco_food *f) {
         while (hb && h < he && *h != u) h++;
         if (!hb || h >= he) f->anNew30++;
     }
-    uint8_t *cm = FIELD(pl, OF(PL, 0xB90), uint8_t *), *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL;
+    ee_civ_mgr *cm = player_get_civ_mgr(pl); uint8_t *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL;
     int bx = bm ? FIELD(bm, OF(BM, 0x12C), int) : -10000, by = bm ? FIELD(bm, OF(BM, 0x130), int) : -10000;
-    void **zb = FIELD(pl, OF(PL, 0xB50), void **), **ze = FIELD(pl, OF(PL, 0xB54), void **);
+    void **zb = player_get_zones_begin(pl), **ze = player_get_zones_end(pl);
     for (int z = 0; zb && zb + z < ze && z < 256; z++) {
         uint8_t *zone = zb[z];
         void **sb = zone ? FIELD(zone, OF(ZONE, 0x8), void **) : NULL, **se = zone ? FIELD(zone, OF(ZONE, 0xC), void **) : NULL;
@@ -214,7 +214,7 @@ internal void ecolog_tick(ee_player *pl, uint32_t now) {
     unsigned idx = (unsigned)pidx(pl);
     if (now >= g_eco_t[idx] && now / 60000 == g_eco_t[idx] / 60000 && g_eco_t[idx]) return;
     g_eco_t[idx] = now ? now : 1;
-    void *cm = FIELD(pl, OF(PL, 0xB90), void *), *ump = cm ? FIELD(cm, OF(CM, 0x44), void *) : NULL;
+    void *cm = player_get_civ_mgr(pl), *ump = cm ? FIELD(cm, OF(CM, 0x44), void *) : NULL;
     ee_resource_mgr *rm = cm ? FIELD(cm, OF(CM, 0x38), ee_resource_mgr *) : NULL;
     int cit = 0, gat[7] = { 0 }, build = 0, walk = 0, att = 0, load = 0, other = 0, none = 0, idle0 = 0;
     for (int r = 0; rm && r < 7; r++) {   // the resource lists (deques): who gathers for which resource, list 0 idle

@@ -113,7 +113,7 @@ internal struct {
 internal uint16_t g_ws_types[16][G_TYPES_N];
 internal uint32_t g_ws_types_t;
 
-internal int pidx(void *p) { return (int)((unsigned)FIELD(p, PL_INDEX, int) & 15); }
+internal int pidx(void *p) { return (int)((unsigned)player_get_index(p) & 15); }
 internal int scenario_game(void) { return g_is_scenario != 0; }
 
 internal void set_stance(int from, int to, int s) {
@@ -266,7 +266,7 @@ internal void world_scan(uint32_t now) {
         g_ws.power[i] = 0; g_ws.soldiers[i] = g_ws.buildings[i] = g_ws.close[i] = g_ws.citizens[i] = g_ws.centers[i] = 0;
         g_ws.towers[i] = g_ws.walls[i] = 0;
         g_ws.bx[i] = -10000;
-        void *cm = g_players[i] ? FIELD(g_players[i], OF(PL, 0xB90), void *) : NULL;
+        void *cm = g_players[i] ? player_get_civ_mgr(g_players[i]) : NULL;
         uint8_t *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL;
         if (bm && FIELD(bm, OF(BM, 0x12C), int) != -10000) { g_ws.bx[i] = FIELD(bm, OF(BM, 0x12C), int); g_ws.by[i] = FIELD(bm, OF(BM, 0x130), int); }
     }
@@ -820,7 +820,7 @@ internal int peace_terms(int ai, int j, char *out, int cap) {
 
 // what AI ai would offer in a capitulation: a share of each resource by its caution and greed (out: [2..6])
 internal int capit_offer(ee_player *pl, int *out) {
-    int *stock = (int *)((uint8_t *)pl + PL_STOCK), total = 0;
+    int *stock = player_stock_at(pl), total = 0;
     float share = capit_share(pl);
     for (int r = 2; r < 7; r++) total += out[r] = stock[r] > 0 ? (int)((float)stock[r] * share) : 0;
     return total;
@@ -1020,7 +1020,7 @@ internal void diplo_situations(ee_player *pl, int ai, uint32_t now) {
 internal void promise_escrow(int ai, int take) {
     ee_player *pl = player_at(ai);
     if (!pl || g_escrow[ai] == take) return;
-    int *stock = (int *)((uint8_t *)pl + PL_STOCK), total = 0;
+    int *stock = player_stock_at(pl), total = 0;
     for (int r = 2; r < 7; r++) {
         int n = g_promise[ai][r];
         if (take && n > stock[r]) n = g_promise[ai][r] = stock[r] > 0 ? stock[r] : 0;
@@ -1036,7 +1036,7 @@ internal int pay_promise(int ai, int j, int *paid) {   // what was offered, as f
     if (paid) memset(paid, 0, 7 * sizeof *paid);
     promise_escrow(ai, 0);
     if (pl && pj) {
-        int *from = (int *)((uint8_t *)pl + PL_STOCK), *to = (int *)((uint8_t *)pj + PL_STOCK);
+        int *from = player_stock_at(pl), *to = player_stock_at(pj);
         for (int r = 2; r < 7; r++) {
             int n = g_promise[ai][r] < from[r] ? g_promise[ai][r] : from[r];
             if (n <= 0) continue;
@@ -1129,7 +1129,7 @@ internal int g_surrender = 1;
 internal uint32_t g_no_citizens_since[16];
 internal volatile LONG g_resign_queue;   // bit per player
 internal int citizen_trainable(ee_player *pl, int ai) {   // a Town Center/Capitol and enough to pay a citizen
-    int *stock = (int *)((uint8_t *)pl + PL_STOCK);
+    int *stock = player_stock_at(pl);
     if (g_ws.centers[ai] <= 0) return 0;
     for (int r = 2; r < 7; r++) {
         int c = unit_cost(pl, UT(CITIZEN), r);
@@ -1239,7 +1239,7 @@ internal void diplo_cancel_attacks(int ai, int j) {
     if (ai > 0 && ai < 16 && j > 0 && j < 16 && mod_ai(ai)) InterlockedOr(&g_cancel_queue[ai], 1 << j);
 }
 internal int attack_groups(ee_player *pl) {   // the attack commander's deque count
-    uint8_t *cbm = FIELD(pl, OF(PL, 0xB8C), uint8_t *), *cmd = cbm ? FIELD(cbm, OF(AM, 0x48), uint8_t *) : NULL;
+    uint8_t *cbm = player_get_combat_mgr(pl), *cmd = cbm ? FIELD(cbm, OF(AM, 0x48), uint8_t *) : NULL;
     return cmd ? FIELD(cmd, OF(AMCMD, 0x14), int) : -1;
 }
 
@@ -1299,7 +1299,7 @@ internal void diplo_safe_point(void) {
         if (!(q & (1 << i)) || !p || is_out(p)) continue;
         game_player_out(0, i);
         player_resign(p, 2);
-        if (g_log) { fprintf(g_log, "# surrender: P%d resigned (out %d)\n", i, FIELD(p, OF(PL, 0x467), uint8_t)); fflush(g_log); }
+        if (g_log) { fprintf(g_log, "# surrender: P%d resigned (out %d)\n", i, player_get_out(p)); fflush(g_log); }
     }
 }
 
@@ -1350,7 +1350,7 @@ internal void diplo_tick(ee_player *pl, unsigned ai, uint32_t now) {
     x_errors_show();   // strict parsing: a mistake in the texts at once
     hist_scan(now);    // the history up to date before anything is said (a betrayal: them.betrayals(me))
     reputation_pass(now);
-    if (FIELD(pl, OF(PL, 0x467), uint8_t)) {   // defeated: last words once
+    if (player_get_out(pl)) {   // defeated: last words once
         if (!g_sit.said_defeat[ai]) { g_sit.said_defeat[ai] = 1; persona_say(pl, L_DEFEATED, NULL, NULL); }
         return;
     }
@@ -1404,7 +1404,7 @@ internal void diplo_tick(ee_player *pl, unsigned ai, uint32_t now) {
                 tell_event(HE_BETRAYAL, j, (int)ai, g_betrayal_t[j][ai]);
             persona_say(pl, g_war_betrayal[ai][j] ? L_BETRAYED : L_WAR_DECLARED, pj, NULL);
             tell_event(0, 0, 0, 0);
-            void *cbm = FIELD(pl, OF(PL, 0xB8C), void *);
+            void *cbm = ((void *)player_get_combat_mgr(pl));
             if (cbm) revenge(cbm, pj);
             g_diplo_answers[ai]++;
             if (g_log) fprintf(g_log, "# diplomacy: P%u at %.1f min answers war: now enemy of P%d (stance %d)\n",
@@ -1660,7 +1660,7 @@ internal void victory_off_pass(void) {   // auto_victory=0, every pass between s
     if (!g_victory_off) return;
     for (int i = 1; i < nplayers(); i++) {   // the game's elimination: no units left
         void *p = player_at(i);
-        if (p && !is_out(p) && FIELD(p, OF(PL, 0xB14), int) < 1 && !(g_resign_queue & (1 << i))) {
+        if (p && !is_out(p) && player_get_objects(p) < 1 && !(g_resign_queue & (1 << i))) {
             if (g_log) fprintf(g_log, "# victory: P%d has no units left - out\n", i);
             InterlockedOr(&g_resign_queue, 1 << i);
         }
@@ -1684,7 +1684,7 @@ internal void __fastcall hook_resign(void *msg, void *edx) {
     int8_t from = (int8_t)FIELD(msg, OF(MSG_CHAT, 0xA), uint8_t);
     for (int i = 1; i < nplayers(); i++) {
         void *p = player_at(i);
-        if (p && FIELD(p, OF(PL, 0x464), int8_t) == from && !g_players[i] && !is_out(p) && (g_victory_off ? can_claim(i) : vassals_of(i))) {
+        if (p && player_get_msg_id(p) == from && !g_players[i] && !is_out(p) && (g_victory_off ? can_claim(i) : vassals_of(i))) {
             claim_victory(i, "resign");
             return;
         }
@@ -1709,10 +1709,10 @@ internal void __fastcall hook_ingame_chat(void *msg, void *edx) {
     int me = (int)local_player_index(), from = 0;
     void *pm = player_at(me);
     const char *text = FIELD(msg + OF(MSG_CHAT, 0x10), 4, const char *);
-    int refused = 0, local = pm && FIELD(pm, OF(PL, 0x464), int8_t) == (int8_t)FIELD(msg, OF(MSG_CHAT, 0xA), uint8_t);
+    int refused = 0, local = pm && player_get_msg_id(pm) == (int8_t)FIELD(msg, OF(MSG_CHAT, 0xA), uint8_t);
     for (int i = 1; text && !from && i < nplayers(); i++) {
         void *p = player_at(i);
-        if (p && !g_players[i] && FIELD(p, OF(PL, 0x464), int8_t) == (int8_t)FIELD(msg, OF(MSG_CHAT, 0xA), uint8_t)) from = i;
+        if (p && !g_players[i] && player_get_msg_id(p) == (int8_t)FIELD(msg, OF(MSG_CHAT, 0xA), uint8_t)) from = i;
     }
     if (from && text && victory_word(text))
         refused = !claim_victory(from, "the chat word");

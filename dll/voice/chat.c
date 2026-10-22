@@ -36,7 +36,7 @@ internal void chat_line(ee_player *pl, const char *text, int ms) {
     __attribute__((aligned(8))) uint8_t s[32];
     wstring_init(s);
     wstring_set(s, text);
-    ui_line(ui, (uint8_t *)pl + OF(PL, 0x438), (uint8_t *)pl + OF(PL, 0x24), s, ms);
+    ui_line(ui, player_color_at(pl), player_name_at(pl), s, ms);
     wstring_free(s);
 }
 
@@ -70,8 +70,8 @@ internal void chat_stance_line(ee_player *pl, int stance) {
     wstring_reserve(line, 0x400);
     resource_string(res, 0x7B71, verb);
     resource_string(res, stance ? 0x734A : 0x7349, word);
-    wstring_format(line, "%s %s %s", FIELD(pl, OF(PL, 0x28), void *), FIELD(verb, 4, void *), FIELD(word, 4, void *));
-    ui_line(ui, (uint8_t *)pl + OF(PL, 0x438), (uint8_t *)pl + OF(PL, 0x24), line, FIELD(opt, OF(GAMEDATA, 0x2CC), int));
+    wstring_format(line, "%s %s %s", ((void *)player_get_name(pl)), FIELD(verb, 4, void *), FIELD(word, 4, void *));
+    ui_line(ui, player_color_at(pl), player_name_at(pl), line, FIELD(opt, OF(GAMEDATA, 0x2CC), int));
     wstring_free(line);
     wstring_free(word);
     wstring_free(verb);
@@ -80,7 +80,7 @@ internal void chat_stance_line(ee_player *pl, int stance) {
 // a line of kind `kind` if chat is on and the cooldowns allow it; returns 1 if it was shown
 internal int ai_say(ee_player *pl, enum chat_kind kind, const char *fmt, ...) {
     if (!pl || (!g_chat && kind != CHAT_SAY)) return 0;
-    unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
+    unsigned idx = (unsigned)player_get_index(pl) & 15;
     uint32_t now = game_time();
     if (kind != CHAT_SAY) {
         uint32_t *kl = &g_chat_kind_last[idx][kind];
@@ -124,7 +124,7 @@ internal void chat_tick(ee_player *pl, unsigned idx, uint32_t now) {
     last_epoch[idx] = e;
     if (g_chat >= 2 && now / 300000 != last_status[idx] / 300000 && now >= 60000) {
         last_status[idx] = now;
-        int *stock = &FIELD(pl, OF(PL, 0xAF0), int);
+        int *stock = player_stock_at(pl);
         int cap = unit_limit(pl);
         ai_say(pl, CHAT_STATUS, "[ai] %.0f min: %d at home of %d cap; food %d wood %d stone %d gold %d iron %d",
                now / 60000.0, home_soldiers_now(pl), cap, stock[2], stock[3], stock[4], stock[5], stock[6]);

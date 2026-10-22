@@ -7,14 +7,9 @@
 #define RM_TARGET       OF(RM, 0x150)  // uint[7] desired gatherers
 #define RM_TIMERS       OF(RM, 0x16C)  // uint[5] next-run game times (ms)
 #define RM_INITIALIZED  OF(RM, 0x187)  // byte, timers are only reset while this is 0
-// EEPlayer / EEComputerPlayer
-#define PL_INDEX        OF(PL, 0x45C)
-#define PL_STOCK        OF(PL, 0xAF0)  // int[] resources, indexed by resource type
-#define PL_DIFFICULTY   OF(PL, 0xBA4)
-#define PL_CHEAT        OF(PL, 0xEFB)
-#define PL_TOGGLES      OF(PL, 0xEF4)  // AI toggle bytes 0xEF4..0xF05 (Aktiv, Cheat, Angreifen, ...)
-#define PL_TOGGLES_LEN  18
-#define PL_TECHTREE     OF(PL, 0x9D4)  // -> tech tree; +0x4E4 = current epoch index (0 = Prehistoric)
+// EEPlayer / EEComputerPlayer: its fields by name in objects.c (player_get_index(pl) ...)
+#define PL_TOGGLES_LEN  18             // the AI toggle bytes 0xEF4..0xF05 (player_get_toggle)
+// the tech tree (player_get_tech_tree): current epoch index (0 = Prehistoric)
 #define TT_EPOCH        OF(TT, 0x4E4)
 // EECPCivilizationManager (= rm->owner; main AI update 0x46E2C7)
 #define CM_PROJECT      OF(CM, 0x50)   // current construction project; new projects only start when NULL

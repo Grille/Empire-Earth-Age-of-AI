@@ -12,7 +12,7 @@ typedef struct ee_resource_mgr ee_resource_mgr; // RM: the AI's resource manager
 typedef struct ee_build_mgr ee_build_mgr;       // BM: the AI's build manager, CM +0x3C
 typedef struct ee_research_mgr ee_research_mgr; // RS: the AI's research manager, CM +0x40
 typedef struct ee_unit_mgr ee_unit_mgr;         // UM: the AI's unit manager, CM +0x44
-typedef struct ee_tech_tree ee_tech_tree;       // TT: a player's tech tree, PL_TECHTREE
+typedef struct ee_tech_tree ee_tech_tree;       // TT: a player's tech tree, player +0x9D4
 typedef struct ee_tech ee_tech;                 // TECH, TECHNODE, TECHCHILD: a tech tree node (EETechTreeNode)
 typedef struct ee_tech_data ee_tech_data;       // TECHDATA: a tech's data, TECH +0x8
 typedef struct ee_zone ee_zone;                 // ZONE: an AI town or resource zone

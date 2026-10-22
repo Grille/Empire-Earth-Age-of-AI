@@ -59,7 +59,7 @@ internal void cmd_seltest(char *out, const char *args) {
           r[3], g_sel_last_in, g_sel_last_out, msg[OF(MSG_SELECT, 0x134)], b ? (int)(e - b) : 0, g_big_selection);
     // carried out as the message does (EEMSelectUnits::vf10 -> 0x55B3FB on the player): the selected group (+0x9BC)
     ee_player *pl = game_players()[local_player_index()];
-    int *grp = pl ? FIELD(pl, OF(PL, 0x9BC), int *) : NULL;
+    int *grp = pl ? player_get_selected_group(pl) : NULL;
     if (grp) {
         player_select(pl, msg + OF(MSG_SELECT, 0x10));
         REPLY(", selected %u", group_count(grp));

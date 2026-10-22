@@ -134,7 +134,7 @@ internal void bk_refresh(ee_player *pl, unsigned pi) {   // the player's fortres
 }
 // citizen u is under fire: queued for the nearest fortress with room within 15 tiles - 1 if so
 internal int bk_shelter(ee_player *pl, ee_unit *u) {
-    unsigned pi = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
+    unsigned pi = (unsigned)player_get_index(pl) & 15;
     if (!g_bunkers || !g_bk[pi].nf) return 0;
     int ux = unit_get_x(u), uy = unit_get_y(u), best = -1, bd = 15 * 15 + 1;
     ee_unit *h = bk_walking_into(u);   // on its way into one of them already (the 4 s passes queued it again and again:
@@ -178,7 +178,7 @@ internal void bk_flush(ee_player *pl, unsigned pi, uint32_t now) {   // the queu
 }
 // builders for fortress b: the n nearest gathering citizens that aren't building it already
 internal int bk_builders(ee_player *pl, ee_unit *b, int n) {
-    void *cm = FIELD(pl, OF(PL, 0xB90), void *);
+    void *cm = player_get_civ_mgr(pl);
     ee_resource_mgr *rm = cm ? FIELD(cm, OF(CM, 0x38), ee_resource_mgr *) : NULL;
     int bx = unit_get_x(b), by = unit_get_y(b), have = 0, sent = 0;
     if (!rm) return 0;
@@ -223,7 +223,7 @@ internal void bk_build(ee_player *pl, unsigned pi, uint32_t now) {
                                     unit_get_x(g_bk[pi].all[k]), unit_get_y(g_bk[pi].all[k]));
         }
     }
-    void *cm = FIELD(pl, OF(PL, 0xB90), void *);
+    void *cm = player_get_civ_mgr(pl);
     uint8_t *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL, *rm = cm ? FIELD(cm, OF(CM, 0x38), uint8_t *) : NULL;
     if (!bm || !rm) return;
     int air = 0, cit = 0;
@@ -239,10 +239,10 @@ internal void bk_build(ee_player *pl, unsigned pi, uint32_t now) {
     // 350 wood (0x555710 also wants a free builder at that moment: it passed in 2 of 10 games before minute 20, the
     // game's own builders take the foundation up anyway)
     ee_unit_type *od = type_data(FORTRESS_TYPE);
-    ee_tech_tree *tt = FIELD(pl, PL_TECHTREE, ee_tech_tree *);
+    ee_tech_tree *tt = player_get_tech_tree(pl);
     ee_tech *tech = od && tt ? tech_lookup(tt, type_get_tech(od)) : NULL;
     int cost = tech && FIELD(tech, OF(TECH, 0x8), uint8_t *) ? FIELD(FIELD(tech, OF(TECH, 0x8), uint8_t *), OF(TECHDATA, 0x28), int) : 350;   // the cost lives in its tech (wood)
-    if (((int *)((uint8_t *)pl + PL_STOCK))[3] < cost) { g_bk[pi].need_wood = cost; return; }   // can't pay yet: saved for (bunker_reserve)
+    if ((player_stock_at(pl))[3] < cost) { g_bk[pi].need_wood = cost; return; }   // can't pay yet: saved for (bunker_reserve)
     // the drop site nearest the base point without a fortress within 10 tiles
     int bx = FIELD(bm, OF(BM, 0x12C), int), by = FIELD(bm, OF(BM, 0x130), int), d[2] = { 0, 0 }, bd = 0x7FFFFFFF;
     drops_cached(pl);
@@ -268,7 +268,7 @@ internal void bk_build(ee_player *pl, unsigned pi, uint32_t now) {
 }
 // the wood a fortress waits for, held back from unit training (as the fields' wood and a landing's transports)
 internal void bunker_reserve(ee_player *pl, int *reserve) {
-    if (g_bunkers && pl) reserve[3] += g_bk[(unsigned)FIELD(pl, PL_INDEX, int) & 15].need_wood;
+    if (g_bunkers && pl) reserve[3] += g_bk[(unsigned)player_get_index(pl) & 15].need_wood;
 }
 
 // RESERVE ([all] bunker_reserve, a mask of players, default all; the playtester: "another use is to amass units at
@@ -311,9 +311,9 @@ internal void bk_reserve_tick(ee_player *pl, unsigned pi, uint32_t now) {
         if (!g_bk[pi].shelter[k] && bk_held(fo) > 0 && raiders_near(pl, unit_get_x(fo), unit_get_y(fo), 20)) threat = k;
     }
     if (room <= 1 && threat < 0) {
-        void *cm2 = FIELD(pl, OF(PL, 0xB90), void *);
+        void *cm2 = player_get_civ_mgr(pl);
         uint8_t *bm = cm2 ? FIELD(cm2, OF(CM, 0x3C), uint8_t *) : NULL;
-        struct bk_free f = { pl, FIELD(pl, OF(PL, 0xB8C), uint8_t *), bm ? FIELD(bm, OF(BM, 0x12C), int) : 0, bm ? FIELD(bm, OF(BM, 0x130), int) : 0, 0, { 0 } };
+        struct bk_free f = { pl, player_get_combat_mgr(pl), bm ? FIELD(bm, OF(BM, 0x12C), int) : 0, bm ? FIELD(bm, OF(BM, 0x130), int) : 0, 0, { 0 } };
         if (!f.cm || !bm) return;
         grid_each(bk_free_unit, &f);
         int best = -1, space = 0;

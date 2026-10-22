@@ -51,7 +51,7 @@ internal void ex_scan(ee_player *pl, uint32_t now, int new_log) {
     unsigned cap = table_value(0x16);
     static ee_unit *seen[4096];
     int ns = 0;
-    void **zb = FIELD(pl, OF(PL, 0xB50), void **), **ze = FIELD(pl, OF(PL, 0xB54), void **);
+    void **zb = player_get_zones_begin(pl), **ze = player_get_zones_end(pl);
     for (int z = 0; zb && zb + z < ze && z < 256; z++) {
         uint8_t *zone = zb[z];
         void **sb = zone ? FIELD(zone, OF(ZONE, 0x8), void **) : NULL, **se = zone ? FIELD(zone, OF(ZONE, 0xC), void **) : NULL;
@@ -81,7 +81,7 @@ internal void ex_scan(ee_player *pl, uint32_t now, int new_log) {
         ee_unit_type *td = it.td;
         ee_player *o = unit_get_owner(u);
         if (!o || unit_get_hp(u) <= 0) continue;
-        int pi = FIELD(o, PL_INDEX, int), fam = type_get_family(td), t = type_get_id(td), x = unit_get_x(u), y = unit_get_y(u);
+        int pi = player_get_index(o), fam = type_get_family(td), t = type_get_id(td), x = unit_get_x(u), y = unit_get_y(u);
         if (pi <= 0 || pi >= 16) continue;
         if (is_transport(t)) { g_exs.tr[pi]++; continue; }
         if (x < 0) { if (is_citizen_type(t)) g_exs.aboard[pi]++; continue; }
@@ -136,7 +136,7 @@ internal void ex_scan(ee_player *pl, uint32_t now, int new_log) {
     }
 }
 internal int ex_home(ee_player *pl) {
-    uint8_t *cm = FIELD(pl, OF(PL, 0xB90), uint8_t *), *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL;
+    ee_civ_mgr *cm = player_get_civ_mgr(pl); uint8_t *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL;
     if (!bm || FIELD(bm, OF(BM, 0x12C), int) == -10000) return 0;
     return (int)area_id(FIELD(bm, OF(BM, 0x12C), int), FIELD(bm, OF(BM, 0x130), int), 2);
 }
@@ -158,7 +158,7 @@ internal void ex_log(ee_player *pl, unsigned idx, uint32_t now) {
     int pi = (int)idx;
     struct { int n, site[7], my[7], oth, drop, bld, cit, sold, tower; } k[EXC_N];
     memset(k, 0, sizeof k);
-    uint8_t *cm = FIELD(pl, OF(PL, 0xB90), uint8_t *), *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL;
+    ee_civ_mgr *cm = player_get_civ_mgr(pl); uint8_t *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL;
     int bx = FIELD(bm, OF(BM, 0x12C), int), by = FIELD(bm, OF(BM, 0x130), int), near_d = -1, near_m = 0, foe_s = 0, foe_b = 0, km = 0, am = 0;
     for (int j = 0; j < g_exs.n; j++) { am += g_exs.c[j].mn; km += g_exs.c[j].mexp[pi]; }   // the map's mines and those it has explored
     for (int j = 0; j < g_exs.n; j++) {
@@ -318,7 +318,7 @@ internal int expand_ship(ee_unit *u) {
 }
 internal int expand_refuses(uint8_t *sg, ee_unit *u) {
     ee_player *pl = FIELD(sg, OF(ASG, 0x190), void *);
-    unsigned pi = pl ? (unsigned)FIELD(pl, PL_INDEX, int) & 15 : 0;
+    unsigned pi = pl ? (unsigned)player_get_index(pl) & 15 : 0;
     struct ex_st *x = &g_xs[pi];
     if (!u || (!x->fphase && !x->active)) return 0;
     if (x->fphase) {
@@ -332,7 +332,7 @@ internal int expand_refuses(uint8_t *sg, ee_unit *u) {
     return 0;
 }
 internal int expand_has(ee_player *pl, ee_unit *u) {
-    struct ex_st *x = &g_xs[(unsigned)FIELD(pl, PL_INDEX, int) & 15];
+    struct ex_st *x = &g_xs[(unsigned)player_get_index(pl) & 15];
     for (int k = 0; x->fphase && k < x->npass; k++) if (x->pass[k].u == u) return 1;
     return 0;
 }
@@ -340,7 +340,7 @@ internal int expand_has(ee_player *pl, ee_unit *u) {
 // back from every unit order (econ.c train_budget, as a landing's transports) - the AI spends its stock as it comes,
 // and outposts were held up 5-10 minutes with "can't pay"
 internal void expand_reserve(ee_player *pl, int reserve[7]) {
-    unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
+    unsigned idx = (unsigned)player_get_index(pl) & 15;
     struct ex_st *x = &g_xs[idx];
     if (!EXPAND(idx) || g_landing_order) return;   // its own transport (and a landing's) spend it
     if (x->fphase == 1) {   // the transport it waits for (as landing_reserve)
@@ -353,7 +353,7 @@ internal void expand_reserve(ee_player *pl, int reserve[7]) {
 }
 internal int expand_leads(uint8_t *sg) {   // a subgroup holding the ferry's transport: its update skipped
     ee_player *pl = FIELD(sg, OF(ASG, 0x190), void *);
-    unsigned pi = pl ? (unsigned)FIELD(pl, PL_INDEX, int) & 15 : 0;
+    unsigned pi = pl ? (unsigned)player_get_index(pl) & 15 : 0;
     struct ex_st *x = &g_xs[pi];
     if (!x->fphase || !x->ship.u) return 0;
     for (uint8_t **r = FIELD(sg, OF(ASG, 0x54), uint8_t **); r && r < FIELD(sg, OF(ASG, 0x58), uint8_t **); r++)
@@ -471,12 +471,12 @@ internal void ex_pick_unit(ee_unit *u, void *ctx) {
         uint8_t *g = unit_get_goal(u);
         const char *gn = g ? rtti_name(g) : "";
         if (!strcmp(gn, "EEUGBuildRepair@@")) d += 400;   // builders last
-        if (!g && (EXPAND((unsigned)FIELD(p->pl, PL_INDEX, int) & 15) & 128)) d -= 2600;   // FOLLOW: the idle first
+        if (!g && (EXPAND((unsigned)player_get_index(p->pl) & 15) & 128)) d -= 2600;   // FOLLOW: the idle first
         if (!strcmp(gn, "EEUGGather@@")) {   // miners stay (the citizens off wood and food come back through the plan's goal)
             ee_unit *st = FIELD(g, OF(GOAL, 0x38), ee_unit *);
             int r = st && unit_get_type_data(st) ? unit_get_resource(st) : 0;
             if (r >= 4 && r <= 6) return;
-            if (r == 3 && (EXPAND((unsigned)FIELD(p->pl, PL_INDEX, int) & 15) & 16)) d -= 1300;   // EXTRA: wood first (it piles up on large maps)
+            if (r == 3 && (EXPAND((unsigned)player_get_index(p->pl) & 15) & 16)) d -= 1300;   // EXTRA: wood first (it piles up on large maps)
         }
         if (p->nc < 48) { p->c[p->nc] = u; p->cd[p->nc++] = d; }
     } else if (land_soldier(t) && is_soldier(td) && !is_ship_or_air(td) && !is_transport(t) && !is_siege(t) && !as_fighting(u) && p->ns < 48) {   // land soldiers only (a transport counted as one and got a part of its own load goal: _purecall)
@@ -492,7 +492,7 @@ internal int ex_take(ee_unit **u, int *d, int n) {   // the nearest left (index)
 // phase 1: a transport (its own, idle and empty, else trained), then the passengers
 internal float ex_sea_risk(ee_player *pl, struct ex_st *x, ee_unit_type *trtd, float hp);   // below
 internal void ex_ferry_ship(ee_player *pl, unsigned idx, struct ex_st *x, uint32_t now) {
-    void *cm = FIELD(pl, OF(PL, 0xB90), void *);
+    void *cm = player_get_civ_mgr(pl);
     ee_unit_mgr *um = cm ? FIELD(cm, OF(CM, 0x44), ee_unit_mgr *) : NULL;
     ee_unit *best = NULL;
     int bd = 0x7FFFFFFF, all = 0, nl = 0, nld = 0, no = 0;
@@ -524,7 +524,7 @@ internal void ex_ferry_ship(ee_player *pl, unsigned idx, struct ex_st *x, uint32
             // within seconds of coming in (6 minutes of "can't train" at minute 15-21 with 150-257 wood passing through)
             else if (EXPAND(idx) & 8) { x->ftrain_t = now + 2000; if (now - x->fsay_t < 30000) return; }
             x->fsay_t = now;
-            int *st = (int *)((uint8_t *)pl + PL_STOCK);
+            int *st = player_stock_at(pl);
             ex_say(idx, now, "%s a transport (type %d) - transports %d (landing's %d, loaded %d, other sea %d), landing phase %d, stock %d,%d,%d,%d,%d",
                    got ? "trains" : "can't train", tt, all, nl, nld, no, g_ld[idx].phase, st[2], st[3], st[4], st[5], st[6]);
         }
@@ -749,7 +749,7 @@ internal void ex_isle_unit(ee_unit *u, void *ctx) {
         else if (is_soldier(td) && !is_ship_or_air(td) && !is_transport(t) && e->ns < 32) e->s[e->ns++] = u;
         return;
     }
-    if (FIELD(o, PL_INDEX, int) <= 0 || !is_enemy(e->pl, o) || !seen_by(u, e->pl)) return;   // enemies seen near the outpost
+    if (player_get_index(o) <= 0 || !is_enemy(e->pl, o) || !seen_by(u, e->pl)) return;   // enemies seen near the outpost
     if (!is_soldier(td) && !is_citizen_type(type_get_id(td)) && !is_siege(type_get_id(td))) return;
     int d = (x - e->fx) * (x - e->fx) + (y - e->fy) * (y - e->fy);
     if (d > 14 * 14 || area_id(x, y, 2) != e->cont) return;
@@ -788,7 +788,7 @@ internal ee_unit *ex_free_mine(ee_player *pl, struct ex_st *x, int px, int py) {
     unsigned cap = table_value(0x16);
     ee_unit *best = NULL;
     int bd = 0x7FFFFFFF;
-    void **zb = FIELD(pl, OF(PL, 0xB50), void **), **ze = FIELD(pl, OF(PL, 0xB54), void **);
+    void **zb = player_get_zones_begin(pl), **ze = player_get_zones_end(pl);
     for (int z = 0; zb && zb + z < ze && z < 256; z++) {
         uint8_t *zone = zb[z];
         void **sb = zone ? FIELD(zone, OF(ZONE, 0x8), void **) : NULL, **se = zone ? FIELD(zone, OF(ZONE, 0xC), void **) : NULL;
@@ -835,7 +835,7 @@ internal void ex_forward(ee_player *pl, unsigned idx, struct ex_st *x, uint32_t 
     if (x->fwd_added) return;
     if (!x->forward) {
         struct intel *in = &g_intel[idx & 15];
-        uint8_t *cm = FIELD(pl, OF(PL, 0xB90), uint8_t *), *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL;
+        ee_civ_mgr *cm = player_get_civ_mgr(pl); uint8_t *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL;
         if (!bm) return;
         int bx = FIELD(bm, OF(BM, 0x12C), int), by = FIELD(bm, OF(BM, 0x130), int);
         float dh = 1e9f, dp = 1e9f;   // the enemy's known buildings nearest to home / to the outpost
@@ -967,7 +967,7 @@ internal void ex_outpost(ee_player *pl, unsigned idx, struct ex_st *x, uint32_t 
     // builders: 3 on the drop site (all while it is not finished), 2 on another; the rest gather once the drop site stands
     int want[EX_PROJ] = { 0 }, have[EX_PROJ] = { 0 }, nb = 0;
     for (int j = 0; j < x->nproj; j++) if (x->proj[j].state == 1) want[j] = x->proj[j].kind == XK_DROP ? (drop_ok ? 3 : 64) : 2;
-    ee_resource_mgr *rm = FIELD(FIELD(pl, OF(PL, 0xB90), uint8_t *), OF(CM, 0x38), ee_resource_mgr *);
+    ee_resource_mgr *rm = FIELD(player_get_civ_mgr(pl), OF(CM, 0x38), ee_resource_mgr *);
     for (int k = 0; k < e.nc; k++) {
         ee_unit *u = e.c[k];
         uint8_t *g = unit_get_goal(u);
@@ -1041,7 +1041,7 @@ internal const char *ex_follow_no(ee_player *pl, unsigned idx, float mine, float
 internal void ex_plan(ee_player *pl, unsigned idx, struct ex_st *x, uint32_t now) {
     static const char *last_why[16];
     const char *why = NULL;
-    uint8_t *cm = FIELD(pl, OF(PL, 0xB90), uint8_t *), *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL;
+    ee_civ_mgr *cm = player_get_civ_mgr(pl); uint8_t *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL;
     int bx = bm ? FIELD(bm, OF(BM, 0x12C), int) : -10000, by = bm ? FIELD(bm, OF(BM, 0x130), int) : -10000;
     unsigned hc = (unsigned)ex_home(pl);
     if (x->active) {   // more citizens: the drop site stands, no Town Center of its own there, slots left, trips left
@@ -1183,7 +1183,7 @@ internal void expand_new_game(void) {
 }
 internal void expand_tick(ee_player *pl, uint32_t now) {
     if (!pl) return;
-    unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
+    unsigned idx = (unsigned)player_get_index(pl) & 15;
     if (now < g_ex_log_t[idx]) g_ex_log_t[idx] = 0;   // a new game (also expand_new_game)
     if (now < g_ex_new_t) g_ex_new_t = 0;
     if (g_autotest && g_log && (!g_ex_new_t || now - g_ex_new_t >= 60000)) { g_ex_new_t = now ? now : 1; ex_scan(pl, now, 1); }   // once a game minute: # isl new

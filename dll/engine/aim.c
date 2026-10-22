@@ -316,7 +316,7 @@ internal int missile_damage(ee_unit *m, ee_unit *t) {
     uint8_t **rec = type_stats(pl, type_get_id(lc));
     float atk = rec && *rec ? FIELD(*rec, OF(USTAT, 0xD8), float) : 0;
     if (!(atk > 0)) return 0;
-    float bonus = attack_bonus(lc, tc, FIELD(pl, OF(PL, 0x45C), int), FIELD(tpl, OF(PL, 0x45C), int));
+    float bonus = attack_bonus(lc, tc, player_get_index(pl), player_get_index(tpl));
     float mult = damage_table()[ac + dc * 6] * bonus;
     if (!(mult > 0)) return 0;
     float d = mult * atk - FIELD(ts, OF(USTAT, 0xE0) + ac * 4, float);

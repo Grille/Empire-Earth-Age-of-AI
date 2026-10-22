@@ -37,7 +37,7 @@ internal void mf_scan(ee_player *pl, unsigned idx, uint32_t now) {
     m->t = now ? now : 1;
     memset(m->slots, 0, sizeof m->slots); memset(m->home_slots, 0, sizeof m->home_slots); memset(m->g, 0, sizeof m->g);
     m->far_r = 0;
-    uint8_t *cm = FIELD(pl, OF(PL, 0xB90), uint8_t *);
+    ee_civ_mgr *cm = player_get_civ_mgr(pl);
     ee_build_mgr *bm = cm ? FIELD(cm, OF(CM, 0x3C), ee_build_mgr *) : NULL;
     if (!bm || FIELD(bm, OF(BM, 0x12C), int) == -10000) return;
     int base[2] = { FIELD(bm, OF(BM, 0x12C), int), FIELD(bm, OF(BM, 0x130), int) };
@@ -46,7 +46,7 @@ internal void mf_scan(ee_player *pl, unsigned idx, uint32_t now) {
     drops_cached(pl);
     static ee_unit *seen[1024];
     int ns = 0, bd = 0x7FFFFFFF;
-    void **tb = FIELD(pl, OF(PL, 0xB50), void **), **te = FIELD(pl, OF(PL, 0xB54), void **);
+    void **tb = player_get_zones_begin(pl), **te = player_get_zones_end(pl);
     for (int t = 0; tb && tb + t < te && t < 256; t++) {
         uint8_t *zone = tb[t];
         void **sb = zone ? FIELD(zone, OF(ZONE, 0x8), void **) : NULL, **se = zone ? FIELD(zone, OF(ZONE, 0xC), void **) : NULL;
@@ -83,7 +83,7 @@ internal int mf_active(ee_player *pl, uint32_t now) {
 internal void mine_fill(ee_resource_mgr *rm) {
     ee_player *pl = rm_player(rm);
     if (!pl) return;
-    unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
+    unsigned idx = (unsigned)player_get_index(pl) & 15;
     uint32_t now = game_time();
     struct mf_st *m = &g_mf[idx];
     if (now < m->t) memset(m, 0, sizeof *m);   // a new game
@@ -91,9 +91,9 @@ internal void mine_fill(ee_resource_mgr *rm) {
     if (!(MINE_FILL(idx) & 1) || !mf_active(pl, now)) return;
     mf_scan(pl, idx, now);
     uint32_t *target = (uint32_t *)FIELD_AT(rm, RM_TARGET);
-    int *stock = (int *)((uint8_t *)pl + PL_STOCK), *demand = (int *)FIELD_AT(rm, RM_DEMAND), reserve[7];
+    int *stock = player_stock_at(pl), *demand = (int *)FIELD_AT(rm, RM_DEMAND), reserve[7];
     budget_reserve(pl, reserve);
-    int low = FIELD(pl, OF(PL, 0xCCC), int) < 120, gap = 0, want[7] = { 0 };
+    int low = player_get_pop_cap(pl) < 120, gap = 0, want[7] = { 0 };
     for (int r = 4; r < 7; r++) {
         want[r] = low ? m->home_slots[r] : m->slots[r];
         if (stock[r] - reserve[r] > 1500) want[r] = 0;   // piling up already (gold to 1600 unused): not this one
@@ -139,7 +139,7 @@ internal void mine_drops(ee_player *pl, unsigned idx, uint32_t now) {
     m->drop_t = now ? now : 1;
     mf_scan(pl, idx, now);
     if (!m->far_r) return;
-    uint8_t *cm = FIELD(pl, OF(PL, 0xB90), uint8_t *);
+    ee_civ_mgr *cm = player_get_civ_mgr(pl);
     ee_build_mgr *bm = cm ? FIELD(cm, OF(CM, 0x3C), ee_build_mgr *) : NULL;
     void *um = cm ? FIELD(cm, OF(CM, 0x44), void *) : NULL;
     if (!bm || !um || !ut_has(UT(B_SETTLEMENT)) || bq_has(bm, UT(B_SETTLEMENT)) || bq_has(bm, UT(X_SINGLE_PLAYER_SETTLEMENT))) return;

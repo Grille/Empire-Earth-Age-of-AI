@@ -461,7 +461,7 @@ internal void x_fn_scan_dir(void) {
 
 internal struct persona *persona_of(ee_player *pl) {
     if (!pl) return NULL;
-    int i = g_persona_of[(unsigned)FIELD(pl, PL_INDEX, int) & 15];
+    int i = g_persona_of[(unsigned)player_get_index(pl) & 15];
     return i >= 0 ? &g_personas[i] : NULL;
 }
 internal int trait(ee_player *pl, enum trait t) { struct persona *p = persona_of(pl); return p ? p->trait[t] : 50; }
@@ -707,12 +707,12 @@ internal void *__cdecl hook_player_color(unsigned idx) {
 // or a random one
 internal void persona_apply(ee_player *pl, unsigned idx, int pick);
 internal void persona_assign(ee_player *pl) {
-    unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
+    unsigned idx = (unsigned)player_get_index(pl) & 15;
     if (g_persona_assigned[idx]) return;
     g_persona_assigned[idx] = 1;
     if (!g_npersonas) return;
     int pick = persona_forced((int)idx);
-    const float *rgb = (const float *)((uint8_t *)pl + OF(PL, 0x438));
+    const float *rgb = (const float *)player_color_at(pl);
     for (int s = 0; s < 16 && pick < 0; s++) {
         const float *c = g_plan_persona[s] >= 0 ? color_rgb(g_plan_color[s]) : NULL;
         if (c && c[0] == rgb[0] && c[1] == rgb[1] && c[2] == rgb[2]) { pick = g_plan_persona[s]; g_plan_persona[s] = -1; }
@@ -728,11 +728,11 @@ internal void persona_apply(ee_player *pl, unsigned idx, int pick) {
     g_cfg_pl_on[idx] = 0;   // the last one's style (cmd_persona)
     struct persona *p = &g_personas[pick];
     if (g_ai_names && p->name[0])
-        wstring_set((uint8_t *)pl + OF(PL, 0x24), p->name);
+        wstring_set(player_name_at(pl), p->name);
     // its civilization's name as the game shows it: the UString at +0x488 (the text at +0x48C) - the database's own
     // name at +0x7AC stays (X.civilization_en)
     if (g_ai_names && p->civ[0] && player_civ(pl))
-        wstring_set((uint8_t *)pl + OF(PL, 0x488), p->civ);
+        wstring_set(player_civ_name_at(pl), p->civ);
     if (g_log) {
         fprintf(g_log, "# persona: P%u is %s (%s):", idx, p->file, p->name[0] ? p->name : "-");
         for (int t = 0; t < T_N; t++) fprintf(g_log, " %s %d", k_trait_keys[t], p->trait[t]);
@@ -773,7 +773,7 @@ internal void persona_apply(ee_player *pl, unsigned idx, int pick) {
 }
 
 internal const char *player_name(ee_player *pl) {
-    const char *s = pl ? FIELD(pl, OF(PL, 0x28), const char *) : NULL;
+    const char *s = pl ? player_get_name(pl) : NULL;
     return s ? s : "?";
 }
 // the player's civilization as the game shows it, in its language (+0x48C: "Karthago" - or a personality's
@@ -785,7 +785,7 @@ internal const char *player_civ_of(ee_player *pl, int en) {
 internal const char *player_civ(ee_player *pl) { return player_civ_of(pl, 0); }
 // the player's colour: its index 0..16 in the colour table (+0x438 holds the table entry's rgb) - -1: another one
 internal int player_color(ee_player *pl) {
-    const float *rgb = (const float *)((uint8_t *)pl + OF(PL, 0x438));
+    const float *rgb = (const float *)player_color_at(pl);
     for (int c = 0; c < 17; c++) {
         const float *t = color_rgb(c);
         if (t && t[0] == rgb[0] && t[1] == rgb[1] && t[2] == rgb[2]) return c;
@@ -816,7 +816,7 @@ internal int line_heard(ee_player *pl, enum line_kind k, ee_player *other) {
     ee_player *me = h < 16 ? game_players()[h] : NULL;
     if (!me || me == pl || k_lines[k].aud == A_ALL) return 1;
     if (k_lines[k].aud == A_NAME) return other == me;
-    return !FIELD(pl, OF(PL, 0x9E4) + h * 4, int) && !FIELD(me, OF(PL, 0x9E4) + (FIELD(pl, PL_INDEX, int) & 15) * 4, int);
+    return !player_get_stance(pl, h) && !player_get_stance(me, player_get_index(pl) & 15);
 }
 
 // say a line of situation k (other = them, third = enemy); returns 1 if said (heard or not: the situation is
@@ -841,8 +841,8 @@ internal void llm_talk_event(ee_player *pl, enum line_kind k, ee_player *other, 
 internal const char *g_say_instead;
 internal int persona_say(ee_player *pl, enum line_kind k, ee_player *other, ee_player *third) {
     struct persona *own = persona_of(pl);
-    if (!pl || !g_ai_talk || (FIELD(pl, OF(PL, 0x467), uint8_t) && k != L_DEFEATED && k != L_SURRENDER)) return 0;
-    unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
+    if (!pl || !g_ai_talk || (player_get_out(pl) && k != L_DEFEATED && k != L_SURRENDER)) return 0;
+    unsigned idx = (unsigned)player_get_index(pl) & 15;
     uint32_t now = game_time();
     if (g_say_instead) {
         const char *t = g_say_instead;
@@ -890,10 +890,10 @@ internal int persona_say(ee_player *pl, enum line_kind k, ee_player *other, ee_p
 // econ_tick) and goes with the first route after it.
 internal void persona_attack_launched(unsigned ai) { g_attack_news[ai & 15] = 1; }
 internal void persona_attack(ee_player *pl, ee_player *target) {
-    unsigned ai = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
+    unsigned ai = (unsigned)player_get_index(pl) & 15;
     if (!g_attack_news[ai]) return;
     g_attack_news[ai] = 0;
-    if (target) g_attack_sent[ai][FIELD(target, PL_INDEX, int) & 15] = game_time() ? game_time() : 1;
+    if (target) g_attack_sent[ai][player_get_index(target) & 15] = game_time() ? game_time() : 1;
     unsigned h = local_player_index();
     ee_player *me = h < 16 ? game_players()[h] : NULL;
     persona_say(pl, target && target == me ? L_ATTACK_THREAT : L_ATTACK, target, NULL);

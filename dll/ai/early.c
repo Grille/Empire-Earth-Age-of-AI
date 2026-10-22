@@ -38,7 +38,7 @@ internal void early_new_game(void) {
 
 internal int early_tower_type(ee_player *pl) { return tower_newest(pl); }   // the best tower it can build now (as defence_tick)
 internal int early_base(ee_player *pl, int *bx, int *by) {
-    void *cm = FIELD(pl, OF(PL, 0xB90), void *);
+    void *cm = player_get_civ_mgr(pl);
     uint8_t *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL;
     if (!bm || FIELD(bm, OF(BM, 0x12C), int) == -10000) return 0;
     *bx = FIELD(bm, OF(BM, 0x12C), int); *by = FIELD(bm, OF(BM, 0x130), int);
@@ -58,7 +58,7 @@ internal void early_towers_at(ee_player *pl, int x, int y, int r, int *fin, int 
     }
 }
 internal int early_core_on(ee_player *pl) {
-    unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
+    unsigned idx = (unsigned)player_get_index(pl) & 15;
     return EARLY(idx, early_towers) && current_epoch(pl) <= 1 && !is_vanilla(pl);
 }
 // core slot k: towards the front (0), on the citizens' side across it (1)
@@ -93,7 +93,7 @@ internal void early_slot(ee_player *pl, unsigned idx, int bx, int by, int k, int
 // a spot for a tower of the town's core (defence_spot, the queueing below): 0 when the core stands or none fits
 internal int early_core_spot(ee_player *pl, int type, int *ox, int *oy) {
     if (!pl || !early_core_on(pl)) return 0;
-    unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
+    unsigned idx = (unsigned)player_get_index(pl) & 15;
     int bx, by;
     if (!early_base(pl, &bx, &by)) return 0;
     uint32_t now = game_time();
@@ -132,9 +132,9 @@ internal void early_towers_tick(ee_player *pl, unsigned idx, uint32_t now) {
     st->tower_t = now ? now : 1;
     int bx, by;
     if (!early_base(pl, &bx, &by)) return;
-    void *cm = FIELD(pl, OF(PL, 0xB90), void *);
+    void *cm = player_get_civ_mgr(pl);
     ee_build_mgr *bm = cm ? FIELD(cm, OF(CM, 0x3C), ee_build_mgr *) : NULL;
-    int *stock = (int *)((uint8_t *)pl + PL_STOCK), type = early_tower_type(pl), e = current_epoch(pl);
+    int *stock = player_stock_at(pl), type = early_tower_type(pl), e = current_epoch(pl);
     if (type && !st->range) { ee_unit_type *td = type_data(type); st->range = td ? type_get_range(td) : 0; }
     int fin, all, x, y;
     early_towers_at(pl, bx, by, EARLY_DIST + 3, &fin, &all);
@@ -189,7 +189,7 @@ internal void early_bait(ee_player *pl, unsigned idx, uint32_t now) {
         float r, a;
         if (o == pl) {
             if (nc < 24 && defence_stats(u, &r, &a) && early_finished(u)) { cov[nc].x = unit_get_x(u); cov[nc].y = unit_get_y(u); cov[nc++].r = r; }
-        } else if (ne < 64 && o && FIELD(o, PL_INDEX, int) > 0 && is_soldier(td) && is_enemy(pl, o) && seen_by(u, pl)) {
+        } else if (ne < 64 && o && player_get_index(o) > 0 && is_soldier(td) && is_enemy(pl, o) && seen_by(u, pl)) {
             uint8_t *g = unit_get_goal(u);
             en[ne].u = u; en[ne].x = unit_get_x(u); en[ne].y = unit_get_y(u);
             en[ne++].t = g && goal_is_attack(g) ? FIELD(g, OF(GOAL, 0x30), ee_unit *) : NULL;
@@ -234,7 +234,7 @@ internal void early_range(ee_player *pl, unsigned idx, uint32_t now) {
     int e = current_epoch(pl);
     if (!EARLY(idx, early_army) || e < 1 || e > 3 || (st->range_t && now >= st->range_t && now - st->range_t < 60000)) return;
     st->range_t = now ? now : 1;
-    void *cm = FIELD(pl, OF(PL, 0xB90), void *), *um = cm ? FIELD(cm, OF(CM, 0x44), void *) : NULL;
+    void *cm = player_get_civ_mgr(pl), *um = cm ? FIELD(cm, OF(CM, 0x44), void *) : NULL;
     ee_build_mgr *bm = cm ? FIELD(cm, OF(CM, 0x3C), ee_build_mgr *) : NULL;
     if (!um || !bm) return;
     uint8_t *q = type_list(um, UT(B_ARCHERY_RANGE));
@@ -260,7 +260,7 @@ internal void early_tick(ee_player *pl, unsigned idx, uint32_t now) {
         copper_mode(pl) != 2) return;
     int bx = 0, by = 0, cf = 0, ca = 0, tf = 0, ta = 0;
     if (early_base(pl, &bx, &by)) { early_towers_at(pl, bx, by, EARLY_DIST + 3, &cf, &ca); early_towers_at(pl, bx, by, 20, &tf, &ta); }
-    int *stock = (int *)((uint8_t *)pl + PL_STOCK);
+    int *stock = player_stock_at(pl);
     fprintf(g_log, "# early: P%u at %u min: epoch %d, core towers %d/%d, towers %d/%d (finished/all), range %.1f, stone %d, "
             "queued %u, placed %u, builders %u, baits %u, militia refused %u, soldiers %d, account F%.0f W%.0f G%.0f I%.0f, epoch account F%.0f G%.0f I%.0f, food %d\n",
             idx, now / 60000, current_epoch(pl), cf, ca, tf, ta, st->range, stock[4], st->queued, st->placed, st->builders,

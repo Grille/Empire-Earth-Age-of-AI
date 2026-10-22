@@ -68,7 +68,7 @@ internal ee_unit *select_site(ee_resource_mgr *rm, int type, int need_drop, int 
     short ref_region = (short)map_area(ref_pos, 2);
     ee_unit *best = NULL;
     int best_d2 = 0x7FFFFFFF;
-    void **zb = FIELD(pl, OF(PL, 0xB50), void **), **ze = FIELD(pl, OF(PL, 0xB54), void **);
+    void **zb = player_get_zones_begin(pl), **ze = player_get_zones_end(pl);
     for (int z = 0; zb && zb + z < ze; z++) {
         ee_zone *zone = zb[z];
         if (!zone || (type != 2 && !FIELD(zone, OF(ZONE, 0x18), uint8_t))) continue;
@@ -100,7 +100,7 @@ internal ee_unit *select_site(ee_resource_mgr *rm, int type, int need_drop, int 
 internal int g_mine_choice = 1;
 internal struct { ee_player *pl; uint32_t t; int n; int d[64][3]; } g_drops[16];
 internal void drops_cached(ee_player *pl) {
-    unsigned pi = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
+    unsigned pi = (unsigned)player_get_index(pl) & 15;
     uint32_t now = game_time();
     if (g_drops[pi].pl != pl || now < g_drops[pi].t || now - g_drops[pi].t > 5000) {   // cached 5 s
         g_drops[pi].pl = pl; g_drops[pi].t = now;
@@ -109,7 +109,7 @@ internal void drops_cached(ee_player *pl) {
 }
 internal int nearest_drop(ee_player *pl, int x, int y, int food, int out[2]) {   // food: granaries count too
     drops_cached(pl);
-    unsigned pi = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
+    unsigned pi = (unsigned)player_get_index(pl) & 15;
     int best = 0x7FFFFFFF;
     for (int i = 0; i < g_drops[pi].n; i++) {
         int *d = g_drops[pi].d[i], dx = d[0] - x, dy = d[1] - y;
@@ -121,7 +121,7 @@ internal int nearest_drop(ee_player *pl, int x, int y, int food, int out[2]) {  
 internal void *refuse_danger(ee_resource_mgr *rm, void *site, int food, int res) {
     ee_player *pl = rm_player(rm);
     if (!site || !site_danger_res(pl, site, food, res)) return site;
-    g_site_refused[(unsigned)FIELD(pl, PL_INDEX, int) & 15]++;
+    g_site_refused[(unsigned)player_get_index(pl) & 15]++;
     return NULL;
 }
 // minecheck P type: every mine of that resource in P's zones and the first check of select_mine_near_drop that
@@ -130,13 +130,13 @@ internal void cmd_minecheck(char *out, const char *args) {
     int p = 0, type = 5;
     sscanf(args, "%d %d", &p, &type);
     ee_player *pl = p > 0 && p < 16 ? g_players[p] : NULL;
-    uint8_t *cm = pl ? FIELD(pl, OF(PL, 0xB90), uint8_t *) : NULL;
+    ee_civ_mgr *cm = pl ? player_get_civ_mgr(pl) : NULL;
     void *bm = cm ? FIELD(cm, OF(CM, 0x3C), void *) : NULL;
     if (!bm) { REPLY("error: no AI P%d\n", p); return; }
     drops_cached(pl);
     int nd = g_drops[p].n, (*d)[3] = g_drops[p].d;
     unsigned cap = table_value(0x16);
-    void **zb = FIELD(pl, OF(PL, 0xB50), void **), **ze = FIELD(pl, OF(PL, 0xB54), void **);
+    void **zb = player_get_zones_begin(pl), **ze = player_get_zones_end(pl);
     REPLY("P%d type %d, %d drop sites:", p, type, nd);
     for (int i = 0; i < nd; i++) REPLY(" %d,%d%s", d[i][0], d[i][1], d[i][2] ? "g" : "");
     REPLY("\n");
@@ -168,7 +168,7 @@ internal ee_unit *select_mine_near_drop(ee_resource_mgr *rm, int type, ee_unit *
     uint8_t *cm = FIELD(rm, RM_OWNER, uint8_t *);
     void *bm = cm ? FIELD(cm, OF(CM, 0x3C), void *) : NULL;
     if (!pl || !bm) return NULL;
-    unsigned pi = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
+    unsigned pi = (unsigned)player_get_index(pl) & 15;
     drops_cached(pl);
     int nd = g_drops[pi].n, (*d)[3] = g_drops[pi].d;
     unsigned cap = table_value(0x16);
@@ -176,7 +176,7 @@ internal ee_unit *select_mine_near_drop(ee_resource_mgr *rm, int type, ee_unit *
     if (unit) { int up[2] = { unit_get_x(unit), unit_get_y(unit) }; ref_region = (short)map_area(up, 2); }
     ee_unit *best = NULL;
     int best_d = 0x7FFFFFFF;
-    void **zb = FIELD(pl, OF(PL, 0xB50), void **), **ze = FIELD(pl, OF(PL, 0xB54), void **);
+    void **zb = player_get_zones_begin(pl), **ze = player_get_zones_end(pl);
     for (int z = 0; zb && zb + z < ze; z++) {
         ee_zone *zone = zb[z];
         if (!zone || !FIELD(zone, OF(ZONE, 0x18), uint8_t)) continue;
@@ -236,7 +236,7 @@ internal void *__fastcall hook_find_mine(ee_resource_mgr *rm, void *edx, int typ
     int base[2] = { FIELD(bm, OF(BM, 0x12C), int), FIELD(bm, OF(BM, 0x130), int) };
     if (base[0] == -10000) return r;   // no base point: the game ships everyone
     int home = (short)map_area(base, 2);
-    unsigned *n = g_oversea[(unsigned)FIELD(pl, PL_INDEX, int) & 15];
+    unsigned *n = g_oversea[(unsigned)player_get_index(pl) & 15];
     n[0]++;
     if (!r) return r;
     int pos[2] = { unit_get_x(r), unit_get_y(r) };
@@ -273,7 +273,7 @@ internal void *__fastcall hook_find_food(ee_resource_mgr *rm, void *edx, uintptr
         return s ? s : refuse_danger(rm, rm_find_food(rm, need_drop, near_base, unit), 1, 2);
     }
     ee_player *pl = rm_player(rm);
-    int r6 = pl ? FIELD(pl, OF(PL, 0xE10), int) : 6;
+    int r6 = pl ? player_get_dropoff_distance(pl) : 6;
     int max_d2 = (near_base & 0xFF) ? r6 * r6 * 4 : r6 * r6 * 36;   // same passes as the original
     ee_unit *r = select_site(rm, 2, (int)(need_drop & 0xFF), max_d2, unit);
     trace_site(rm, (near_base & 0xFF) ? "find_food(near)" : "find_food(far)", CALLER(), unit, r);
@@ -288,7 +288,7 @@ internal void list_filter(ee_resource_mgr *rm, uint8_t *v, int food) {
     void **b = v ? FIELD(v, 4, void **) : NULL, **e = v ? FIELD(v, 8, void **) : NULL, **w = b;
     if (!pl || !b || is_vanilla(pl)) return;   // a vanilla player: the game's list
     for (void **i = b; i < e; i++) {
-        if (site_danger(pl, *i, food)) { g_site_refused[(unsigned)FIELD(pl, PL_INDEX, int) & 15]++; continue; }
+        if (site_danger(pl, *i, food)) { g_site_refused[(unsigned)player_get_index(pl) & 15]++; continue; }
         *w++ = *i;
     }
     FIELD(v, 8, void **) = w;

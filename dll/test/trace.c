@@ -8,7 +8,7 @@ internal uint32_t g_trace_until_ms;
 internal int tracing(void *rm) {
     if (g_trace_player < 0) return 0;
     ee_player *pl = rm_player(rm);
-    if (!pl || (FIELD(pl, PL_INDEX, int) != g_trace_player)) return 0;
+    if (!pl || (player_get_index(pl) != g_trace_player)) return 0;
     return !g_trace_until_ms || game_time() < g_trace_until_ms;
 }
 
@@ -110,25 +110,25 @@ internal void *__fastcall tr_farms(ee_resource_mgr *rm, void *edx, uintptr_t n, 
 internal void *um_player(void *um) {
     for (int i = 0; i < 16; i++) {
         ee_player *pl = g_players[i];
-        void *cm = pl ? FIELD(pl, OF(PL, 0xB90), void *) : NULL;
+        void *cm = pl ? player_get_civ_mgr(pl) : NULL;
         if (cm && FIELD(cm, OF(CM, 0x44), void *) == um) return pl;
     }
     return NULL;
 }
 internal void stock_delta(char *buf, size_t cap, ee_player *pl, const int *before) {
     size_t n = strlen(buf);
-    snprintf(buf + n, cap - n, " spent(f,w,s,g,i)=%d,%d,%d,%d,%d", before[2] - FIELD(pl, PL_STOCK + 8, int),
-             before[3] - FIELD(pl, PL_STOCK + 12, int), before[4] - FIELD(pl, PL_STOCK + 16, int),
-             before[5] - FIELD(pl, PL_STOCK + 20, int), before[6] - FIELD(pl, PL_STOCK + 24, int));
+    snprintf(buf + n, cap - n, " spent(f,w,s,g,i)=%d,%d,%d,%d,%d", before[2] - player_get_stock(pl, 2),
+             before[3] - player_get_stock(pl, 3), before[4] - player_get_stock(pl, 4),
+             before[5] - player_get_stock(pl, 5), before[6] - player_get_stock(pl, 6));
 }
 internal int trace_pl(ee_player *pl) {
-    return pl && FIELD(pl, PL_INDEX, int) == g_trace_player && (!g_trace_until_ms || game_time() < g_trace_until_ms);
+    return pl && player_get_index(pl) == g_trace_player && (!g_trace_until_ms || game_time() < g_trace_until_ms);
 }
 
 // Called by econ.c's hook_train_units after every unit-training call.
 internal void trace_train(ee_player *pl, int *req, uintptr_t r, const int *before, const int *reserve) {
     if (!trace_pl(pl)) return;
-    if (!memcmp(before, (uint8_t *)pl + PL_STOCK, 7 * sizeof(int)) && r == 0) return;   // nothing happened
+    if (!memcmp(before, player_stock_at(pl), 7 * sizeof(int)) && r == 0) return;   // nothing happened
     char buf[300];
     snprintf(buf, sizeof buf, "train_units type=%d count=%d -> %u reserve_food=%d", req[0], req[1], (unsigned)r, reserve[2]);
     stock_delta(buf, sizeof buf, pl, before);
@@ -139,9 +139,9 @@ internal uintptr_t __fastcall tr_train_citizens(ee_unit_mgr *um, void *edx, uint
     (void)edx;
     ee_player *pl = um_player(um);
     int before[7];
-    if (pl) memcpy(before, (uint8_t *)pl + PL_STOCK, sizeof before);
+    if (pl) memcpy(before, player_stock_at(pl), sizeof before);
     uintptr_t r = um_train_citizens(um, a);
-    if (trace_pl(pl) && memcmp(before, (uint8_t *)pl + PL_STOCK, sizeof before)) {
+    if (trace_pl(pl) && memcmp(before, player_stock_at(pl), sizeof before)) {
         char buf[300];
         snprintf(buf, sizeof buf, "@%06x train_citizens arg=%u -> %u", (unsigned)CALLER(), (unsigned)a, (unsigned)r);
         stock_delta(buf, sizeof buf, pl, before);
@@ -202,7 +202,7 @@ internal uint32_t g_sync_dump0, g_sync_dump1;
 internal uint32_t sync_unit_hash(ee_unit *u) {
     ee_player *owner = unit_get_owner(u);
     ee_unit_type *td = unit_get_type_data(u);
-    uint32_t v[5] = { owner ? (uint32_t)(FIELD(owner, PL_INDEX, int) & 15) : 99u, td ? (uint32_t)type_get_id(td) : 0u,
+    uint32_t v[5] = { owner ? (uint32_t)(player_get_index(owner) & 15) : 99u, td ? (uint32_t)type_get_id(td) : 0u,
                       (uint32_t)unit_get_x(u), (uint32_t)unit_get_y(u), (uint32_t)unit_get_hp(u) }, h = 2166136261u;
     for (int i = 0; i < 5; i++) h = (h ^ v[i]) * 16777619u;
     return h;
@@ -216,7 +216,7 @@ internal void sync_unit_dump(ee_unit *u, void *ctx) {
     (void)ctx;
     ee_player *owner = unit_get_owner(u);
     ee_unit_type *td = unit_get_type_data(u);
-    fprintf(g_sync, "  u P%d type %d at %d,%d hp %d\n", owner ? FIELD(owner, PL_INDEX, int) & 15 : -1, td ? type_get_id(td) : -1,
+    fprintf(g_sync, "  u P%d type %d at %d,%d hp %d\n", owner ? player_get_index(owner) & 15 : -1, td ? type_get_id(td) : -1,
             unit_get_x(u), unit_get_y(u), unit_get_hp(u));
 }
 // the messages handed to the lockstep server (EEServer [0x91984C] vtable slot 6: (msg, 0xFF)): "  m <type> <caller>
@@ -249,7 +249,7 @@ internal void sync_step(void *phys) {   // after each step (control.c hook_phys_
     for (unsigned i = 1; i < n && i < 16; i++) {
         ee_player *pl = game_players()[i];
         if (!pl) continue;
-        for (int k = 0; k < 7 * 4; k++) h = (h ^ FIELD(pl, PL_STOCK + k, uint8_t)) * 16777619u;
+        for (int k = 0; k < 7 * 4; k++) h = (h ^ ((uint8_t *)player_stock_at(pl))[k]) * 16777619u;
     }
     struct sync_units su = { 0, 0 };
     grid_each(sync_unit, &su);

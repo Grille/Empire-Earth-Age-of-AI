@@ -43,7 +43,7 @@ internal ee_unit *food_animal(ee_player *pl, ee_resource_mgr *rm, ee_unit *u) {
     uint8_t *cm = FIELD(rm, RM_OWNER, uint8_t *);
     void *bm = cm ? FIELD(cm, OF(CM, 0x3C), void *) : NULL;
     if (!bm) return NULL;
-    unsigned pi = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
+    unsigned pi = (unsigned)player_get_index(pl) & 15;
     drops_cached(pl);
     short ur = 0;
     if (u) { int up[2] = { unit_get_x(u), unit_get_y(u) }; ur = (short)map_area(up, 2); }
@@ -75,14 +75,14 @@ internal ee_unit *food_bush(ee_player *pl, ee_resource_mgr *rm, ee_unit *u, int 
     if (!bm) return NULL;
     int base[2] = { FIELD(bm, OF(BM, 0x12C), int), FIELD(bm, OF(BM, 0x130), int) };
     if (base[0] == -10000 || base[1] == -10000) return NULL;
-    unsigned pi = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
+    unsigned pi = (unsigned)player_get_index(pl) & 15;
     drops_cached(pl);
     unsigned cap = table_value(0x16);
     short ur = 0;
     if (u) { int up[2] = { unit_get_x(u), unit_get_y(u) }; ur = (short)map_area(up, 2); }
     ee_unit *best = NULL;
     int bd = 0x7FFFFFFF;
-    void **zb = FIELD(pl, OF(PL, 0xB50), void **), **ze = FIELD(pl, OF(PL, 0xB54), void **);
+    void **zb = player_get_zones_begin(pl), **ze = player_get_zones_end(pl);
     for (int z = 0; zb && zb + z < ze && z < 256; z++) {
         uint8_t *zone = zb[z];
         void **sb = zone ? FIELD(zone, OF(ZONE, 0x8), void **) : NULL, **se = zone ? FIELD(zone, OF(ZONE, 0xC), void **) : NULL;
@@ -112,9 +112,9 @@ internal ee_unit *food_bush(ee_player *pl, ee_resource_mgr *rm, ee_unit *u, int 
 internal ee_unit *food_near_pick(ee_resource_mgr *rm, int near_base, ee_unit *unit) {
     ee_player *pl = rm_player(rm);
     if (!pl) return NULL;
-    unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
+    unsigned idx = (unsigned)player_get_index(pl) & 15;
     if (!(FOOD_PLAN(idx) & 4)) return NULL;
-    int r6 = FIELD(pl, OF(PL, 0xE10), int);
+    int r6 = player_get_dropoff_distance(pl);
     ee_unit *s = food_bush(pl, rm, unit, near_base ? r6 * r6 * 4 : r6 * r6 * 36);
     if (s) g_fd[idx].near_pick++;
     return s;
@@ -123,7 +123,7 @@ internal ee_unit *food_near_pick(ee_resource_mgr *rm, int near_base, ee_unit *un
 internal void food_hunt(ee_resource_mgr *rm) {
     ee_player *pl = rm_player(rm);
     if (!pl) return;
-    unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
+    unsigned idx = (unsigned)player_get_index(pl) & 15;
     if (!(FOOD_PLAN(idx) & 8) || current_epoch(pl) >= FARM_EPOCH) return;
     uint32_t *target = (uint32_t *)FIELD_AT(rm, RM_TARGET);
     int room = (int)target[2] - rm_count(rm, 2);
@@ -146,10 +146,10 @@ internal void food_hunt(ee_resource_mgr *rm) {
 internal void food_pull(ee_resource_mgr *rm) {
     ee_player *pl = rm_player(rm);
     if (!pl) return;
-    unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
+    unsigned idx = (unsigned)player_get_index(pl) & 15;
     if (!(FOOD_PLAN(idx) & 2)) return;
     uint32_t *target = (uint32_t *)FIELD_AT(rm, RM_TARGET);
-    int pre = current_epoch(pl) < FARM_EPOCH, moves = 0, dry = 0, r6 = FIELD(pl, OF(PL, 0xE10), int);
+    int pre = current_epoch(pl) < FARM_EPOCH, moves = 0, dry = 0, r6 = player_get_dropoff_distance(pl);
     while (moves < 4 && (int)target[2] - rm_count(rm, 2) >= 2) {
         int d = -1, best = 1;
         for (int t = 3; t < 7; t++) {
@@ -171,9 +171,9 @@ internal void food_pull(ee_resource_mgr *rm) {
 }
 // PLAN (econ_targets, before farms): the citizens' food and the real wood need
 internal void food_plan_needs(ee_player *pl, ee_resource_mgr *rm, int *need, const int *stock, const int *reserve) {
-    unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
+    unsigned idx = (unsigned)player_get_index(pl) & 15;
     if (!(FOOD_PLAN(idx) & 1)) return;
-    int wf = workforce(pl), want = (int)(FIELD(pl, OF(PL, 0xBDC), float) * (float)FIELD(pl, OF(PL, 0xCCC), int));
+    int wf = workforce(pl), want = (int)(player_get_citizen_share(pl) * (float)player_get_pop_cap(pl));
     if (copper_mode(pl) == 1 && want > g_min_workforce) want = g_min_workforce;   // the plan saves from there on
     int more = want - wf;
     if (more > 10) more = 10;
@@ -204,7 +204,7 @@ internal void food_camp(ee_player *pl, unsigned idx, uint32_t now) {
     if (now < g_camp[idx].t) memset(&g_camp[idx], 0, sizeof g_camp[idx]);
     if (g_camp[idx].n >= 2 || (g_camp[idx].t && now - g_camp[idx].t < 120000)) return;
     g_camp[idx].t = now ? now : 1;
-    uint8_t *cm = FIELD(pl, OF(PL, 0xB90), uint8_t *);
+    ee_civ_mgr *cm = player_get_civ_mgr(pl);
     ee_build_mgr *bm = cm ? FIELD(cm, OF(CM, 0x3C), ee_build_mgr *) : NULL;
     void *um = cm ? FIELD(cm, OF(CM, 0x44), void *) : NULL;
     if (!bm || !um || !ut_has(UT(B_SETTLEMENT)) || FIELD(bm, OF(BM, 0x12C), int) == -10000 || bq_has(bm, UT(B_SETTLEMENT)) || bq_has(bm, UT(X_SINGLE_PLAYER_SETTLEMENT))) return;
@@ -223,7 +223,7 @@ internal void food_camp(ee_player *pl, unsigned idx, uint32_t now) {
         if (!td || unit_get_resource(a) != 2 || unit_get_amount(a) <= 0 || type_get_category(td) != 0x11 || food_fierce(type_get_id(td))) continue;
         fx[n] = unit_get_x(a); fy[n] = unit_get_y(a); ff[n++] = unit_get_amount(a);
     }
-    void **zb = FIELD(pl, OF(PL, 0xB50), void **), **ze = FIELD(pl, OF(PL, 0xB54), void **);   // bushes
+    void **zb = player_get_zones_begin(pl), **ze = player_get_zones_end(pl);   // bushes
     for (int z = 0; zb && zb + z < ze && z < 256; z++) {
         void **sb = zb[z] ? FIELD(zb[z], OF(ZONE, 0x8), void **) : NULL, **se = zb[z] ? FIELD(zb[z], OF(ZONE, 0xC), void **) : NULL;
         for (int k = 0; sb && sb + k < se && k < 4096 && n < 512; k++) {
@@ -297,11 +297,11 @@ internal void food_install(const char *aimod_ini, const char *autotest_ini) {
 //   game's fishing boats came no sooner (0-1 until minute 20) - workers -7 to -11 at minute 30, the base AI's wins on
 //   Small Islands 2 -> 5 of 40. Fish comes too slowly to replace the fields; off.
 internal int food_fields_wait(ee_player *pl, ee_resource_mgr *rm) {
-    unsigned idx = (unsigned)FIELD(pl, PL_INDEX, int) & 15;
+    unsigned idx = (unsigned)player_get_index(pl) & 15;
     if (!(FOOD_PLAN(idx) & 16) || current_epoch(pl) < FARM_EPOCH) return 0;
-    int r6 = FIELD(pl, OF(PL, 0xE10), int);
+    int r6 = player_get_dropoff_distance(pl);
     if (food_bush(pl, rm, NULL, r6 * r6 * 36) || food_animal(pl, rm, NULL)) return 1;
-    if (!FIELD(pl, OF(PL, 0xEFA), uint8_t)) return 0;
+    if (!player_get_boats_for_food(pl)) return 0;
     int fish = 0, boats = 0;
     void **qb = FIELD(rm, OF(RM, 0x98), void **), **qe = FIELD(rm, OF(RM, 0x9C), void **);
     for (void **h = qb; qb && h < qe && h - qb < 4096; h++)

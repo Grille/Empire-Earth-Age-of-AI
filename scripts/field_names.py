@@ -14,7 +14,12 @@ import collections, glob, os, re, sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DLL = os.path.join(ROOT, 'dll')
 OBJECTS = os.path.join(DLL, 'game', 'api', 'objects.c')
-GETTER = re.compile(r'internal inline (.+?)\b(\w+_get_\w+)\(const \w+ \*\w+\) \{ return FIELD\(\w+, OF\((\w+), (0x[0-9A-F]+)\), (.+?)\); \}')
+LAYOUT = os.path.join(DLL, 'game', 'api', 'layout.h')
+# a getter; an indexed one reads OF(K, x) + i * stride (stride 1: + i)
+GETTER = re.compile(r'internal inline (.+?)\b(\w+_get_\w+)\(const \w+ \*\w+(, int \w+)?\) \{ return FIELD\(\w+, OF\((\w+), (0x[0-9A-F]+)\)'
+                    r'(?: \+ \w+(?: \* (\w+))?)?, (.+?)\); \}')
+SETTER = re.compile(r'internal inline void (\w+_set_\w+)\(\w+ \*\w+(, int \w+)?, (.+?) \w+\) \{ FIELD\(\w+, OF\((\w+), (0x[0-9A-F]+)\)'
+                    r'(?: \+ \w+(?: \* (\w+))?)?, (.+?)\) = \w+; \}')
 
 
 def calls(s, name):
@@ -47,11 +52,32 @@ def norm(t):
 
 
 def accessors():
-    """(KIND, offset) -> (getter, its type) as objects.c defines them"""
+    """(KIND, offset) -> (getter, its type, its index's stride or None) as objects.c defines them"""
     out = {}
-    for m in GETTER.finditer(open(OBJECTS, encoding='latin-1').read()):
-        out[(m.group(3), m.group(4))] = (m.group(2), norm(m.group(5)))
+    text = open(OBJECTS, encoding='latin-1').read()
+    for m in GETTER.finditer(text):
+        stride = int(m.group(6), 0) if m.group(6) else 1 if m.group(3) else None
+        out[(m.group(4), m.group(5))] = (m.group(2), norm(m.group(7)), stride)
+    for m in SETTER.finditer(text):   # a field only written: its would-be getter's name (a write uses _set_)
+        key = (m.group(4), m.group(5))
+        if key not in out:
+            stride = int(m.group(6), 0) if m.group(6) else 1 if m.group(2) else None
+            out[key] = (m.group(1).replace('_set_', '_get_'), norm(m.group(7)), stride)
     return out
+
+
+def aliases():
+    """layout.h's names for a field: NAME -> 'OF(KIND, offset)'"""
+    text = open(LAYOUT, encoding='latin-1').read()
+    return {m.group(1): m.group(2) for m in re.finditer(r'#define (\w+)\s+(OF\(\w+, 0x[0-9A-F]+\))', text)}
+
+
+NUMBER = re.compile(r'0x[0-9a-fA-F]+|\d+')
+
+
+def unparen(e):
+    e = e.strip()
+    return e[1:-1] if e.startswith('(') and e.endswith(')') and e[1:-1].count('(') == e[1:-1].count(')') else e
 
 
 def sources():
@@ -61,28 +87,48 @@ def sources():
             yield f, p
 
 
-def field_use(ar, kinds, table):
-    """the (KIND, offset) of a FIELD's arguments when it is one of kinds' with an accessor, else None"""
+def field_use(ar, kinds, table, alias):
+    """((KIND, offset), the index or None) of a FIELD's arguments when it is one of kinds' with an accessor, else None"""
     if len(ar) != 3:
         return None
-    m = re.match(r'OF\((\w+), (0x[0-9A-F]+)\)$', ar[1])
-    return (m.group(1), m.group(2)) if m and m.group(1) in kinds and (m.group(1), m.group(2)) in table else None
+    off = ar[1]
+    m = re.match(r'(\w+)\b(.*)$', off, re.S)
+    if m and m.group(1) in alias:   # layout.h's name for it (PL_INDEX)
+        off = alias[m.group(1)] + m.group(2)
+    m = re.match(r'OF\((\w+), (0x[0-9A-F]+)\)\s*(?:\+\s*(.+))?$', off, re.S)
+    if not m or m.group(1) not in kinds or (m.group(1), m.group(2)) not in table:
+        return None
+    key, rest, stride = (m.group(1), m.group(2)), (m.group(3) or '').strip(), table[(m.group(1), m.group(2))][2]
+    if stride is None:
+        return (key, None) if not rest else None
+    if not rest:
+        return key, '0'
+    if stride == 1:
+        return key, unparen(rest)
+    t = re.match(r'(.+?)\s*\*\s*(\w+)$', rest, re.S)
+    if t and NUMBER.fullmatch(t.group(2)) and int(t.group(2), 0) == stride and t.group(1).count('(') == t.group(1).count(')'):
+        return key, unparen(t.group(1))
+    if NUMBER.fullmatch(rest) and int(rest, 0) % stride == 0:
+        return key, str(int(rest, 0) // stride)
+    return None
 
 
 def rewrite(kinds):
-    table, changed = accessors(), {}
+    table, alias, changed = accessors(), aliases(), {}
     for f, p in sources():
         raw = open(p, 'rb').read().decode('latin-1')
         s = raw
-        while True:   # one use a pass, the last found: a FIELD inside another one's object goes first
+        while True:   # one use a pass, the last found: a FIELD inside another one's object or index goes first
             best = None
             for a, b, args in calls(s, 'FIELD'):
                 ar = split_args(args)
-                if field_use(ar, kinds, table) and not any(field_use(split_args(x), kinds, table) for _, _, x in calls(ar[0], 'FIELD')):
-                    best = (a, b, ar, table[field_use(ar, kinds, table)])
+                use = field_use(ar, kinds, table, alias)
+                if use and not any(field_use(split_args(x), kinds, table, alias) for _, _, x in calls(ar[0] + ' ' + ar[1], 'FIELD')):
+                    best = (a, b, ar, table[use[0]], use[1])
             if not best:
                 break
-            a, b, (obj, _, t), (name, typ) = best
+            a, b, (obj, _, t), (name, typ, _), idx = best
+            args = obj if idx is None else '%s, %s' % (obj, idx)
             rest, pre = s[b:], s[:a].rstrip()
             w = re.match(r'\s*=(?!=)\s*', rest)
             if w:   # FIELD(...) = v;  ->  kind_set_x(obj, v);
@@ -92,13 +138,13 @@ def rewrite(kinds):
                     sys.exit('%s:%d: written as %s, the setter takes %s - by hand' % (f, s[:a].count('\n') + 1, t, typ))
                 if norm(t) != typ:
                     val = '(%s)(%s)' % (typ, val)
-                s = s[:a] + '%s(%s, %s)' % (name.replace('_get_', '_set_'), obj, val) + rest[e:]
+                s = s[:a] + '%s(%s, %s)' % (name.replace('_get_', '_set_'), args, val) + rest[e:]
                 continue
             if re.match(r'\s*([-+*/|&^]=|<<=|>>=|\+\+|--)', rest) or (pre.endswith('&') and not pre.endswith('&&')) or pre.endswith(('++', '--')):
                 sys.exit('%s:%d: neither a read nor a plain write - by hand: %s' % (f, s[:a].count('\n') + 1, s[a:b + 4]))
             if norm(t) != typ and ('float' in (norm(t), typ) or 'double' in (norm(t), typ)):   # FIELD reinterprets, a cast converts
                 sys.exit('%s:%d: read as %s, the accessor gives %s - by hand: %s' % (f, s[:a].count('\n') + 1, t, typ, s[a:b]))
-            call = '%s(%s)' % (name, obj)
+            call = '%s(%s)' % (name, args)
             s = s[:a] + (call if norm(t) == typ else '((%s)%s)' % (t, call)) + s[b:]
         if s != raw:
             changed[f] = s
