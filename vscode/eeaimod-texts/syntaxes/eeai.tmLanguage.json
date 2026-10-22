@@ -442,12 +442,15 @@
       ]
     },
     {
-      "begin": "^\\s*([A-Za-z_]\\w*)\\s*(=)(?![=>])",
+      "begin": "^\\s*(?:(let)\\s+)?([A-Za-z_]\\w*)\\s*([-+*/]?=)(?![=>])",
       "beginCaptures": {
         "1": {
-          "name": "variable.other.assignment.eeaimod"
+          "name": "keyword.control.eeaimod"
         },
         "2": {
+          "name": "variable.other.assignment.eeaimod"
+        },
+        "3": {
           "name": "keyword.operator.assignment.eeaimod"
         }
       },
@@ -539,8 +542,8 @@
           "match": "\\bkind\\.[A-Za-z_][\\w.]*"
         },
         {
-          "name": "keyword.control.return.eeaimod",
-          "match": "\\breturn\\b"
+          "name": "keyword.control.eeaimod",
+          "match": "\\b(?:return|if|else|while|for|in|break|continue|let)\\b"
         },
         {
           "name": "storage.type.function.arrow.eeaimod",
@@ -548,7 +551,7 @@
         },
         {
           "name": "support.function.script.eeaimod",
-          "match": "\\b(?:wait_until|player|every|wait|for|cmd)\\b(?=\\s*\\()"
+          "match": "\\b(?:wait_until|trigger|disable|player|enable|every|after|wait|cmd)\\b(?=\\s*\\()"
         },
         {
           "name": "support.function.command.eeaimod",
@@ -606,7 +609,7 @@
         },
         {
           "name": "keyword.operator.eeaimod",
-          "match": "\\?\\?|<=|>=|==|!=|[-+*/<>?:]"
+          "match": "\\?\\?|\\.\\.|<=|>=|==|!=|[-+*/<>?:]"
         },
         {
           "name": "punctuation.separator.comma.eeaimod",
@@ -719,8 +722,8 @@
           "match": "\\bkind\\.[A-Za-z_][\\w.]*"
         },
         {
-          "name": "keyword.control.return.eeaimod",
-          "match": "\\breturn\\b"
+          "name": "keyword.control.eeaimod",
+          "match": "\\b(?:return|if|else|while|for|in|break|continue|let)\\b"
         },
         {
           "name": "storage.type.function.arrow.eeaimod",
@@ -728,7 +731,7 @@
         },
         {
           "name": "support.function.script.eeaimod",
-          "match": "\\b(?:wait_until|player|every|wait|for|cmd)\\b(?=\\s*\\()"
+          "match": "\\b(?:wait_until|trigger|disable|player|enable|every|after|wait|cmd)\\b(?=\\s*\\()"
         },
         {
           "name": "support.function.command.eeaimod",
@@ -786,7 +789,7 @@
         },
         {
           "name": "keyword.operator.eeaimod",
-          "match": "\\?\\?|<=|>=|==|!=|[-+*/<>?:]"
+          "match": "\\?\\?|\\.\\.|<=|>=|==|!=|[-+*/<>?:]"
         },
         {
           "name": "punctuation.separator.comma.eeaimod",
@@ -845,12 +848,15 @@
       },
       "patterns": [
         {
-          "begin": "^\\s*([A-Za-z_]\\w*)\\s*(=)(?![=>])",
+          "begin": "^\\s*(?:(let)\\s+)?([A-Za-z_]\\w*)\\s*([-+*/]?=)(?![=>])",
           "beginCaptures": {
             "1": {
-              "name": "variable.other.assignment.eeaimod"
+              "name": "keyword.control.eeaimod"
             },
             "2": {
+              "name": "variable.other.assignment.eeaimod"
+            },
+            "3": {
               "name": "keyword.operator.assignment.eeaimod"
             }
           },

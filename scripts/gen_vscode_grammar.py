@@ -66,7 +66,7 @@ expression = [
     {'name': 'invalid.illegal.unknown-unit-type.eeaimod', 'match': r'\bunit\.[A-Za-z_][\w.]*'},
     {'name': 'support.constant.unit-kind.eeaimod', 'match': r'\bkind\.(?:' + '|'.join(kind_ids) + r')\b(?!\.)'},   # docs/units.md
     {'name': 'invalid.illegal.unknown-unit-kind.eeaimod', 'match': r'\bkind\.[A-Za-z_][\w.]*'},
-    {'name': 'keyword.control.return.eeaimod', 'match': r'\breturn\b'},
+    {'name': 'keyword.control.eeaimod', 'match': r'\b(?:return|if|else|while|for|in|break|continue|let)\b'},
     {'name': 'storage.type.function.arrow.eeaimod', 'match': r'=>'},
     {'name': 'support.function.script.eeaimod', 'match': words(script_funcs) + r'(?=\s*\()'},   # scripts: wait, at, every ...
     {'name': 'support.function.command.eeaimod', 'match': words(commands) + r'(?=\s*\()'},   # scripts: the pipe's commands
@@ -83,16 +83,17 @@ expression = [
     {'name': 'variable.language.game-value.eeaimod', 'match': words(values) + r'(?!\.)'},
     {'name': 'constant.numeric.eeaimod', 'match': r'(?<![\w.])(?:\d+(?:\.\d+)?|\.\d+)(?:%|s\b|min\b)?'},   # 70% = 0.7, 20s, 19.5min
     {'name': 'invalid.illegal.operator.eeaimod', 'match': r'&&?|\|\|?|!(?!=)|%'},   # and, or, not - only the words; % only right after a number
-    {'name': 'keyword.operator.eeaimod', 'match': r'\?\?|<=|>=|==|!=|[-+*/<>?:]'},
+    {'name': 'keyword.operator.eeaimod', 'match': r'\?\?|\.\.|<=|>=|==|!=|[-+*/<>?:]'},   # ..: a for's range
     {'name': 'punctuation.separator.comma.eeaimod', 'match': ','},
     {'name': 'punctuation.parenthesis.eeaimod', 'match': r'[()]'},
     {'name': 'variable.other.eeaimod', 'match': r'[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*'},
 ]
 value = [{'include': '#comment'}, {'include': '#string'}, {'include': '#list'}, {'include': '#group'}, {'include': '#block'}] + expression
-# a statement (a script's, a function's block): name = value
+# a statement (a script's, a function's block): let name = value, name = value, name += value ...
 assignment = {
-    'begin': r'^\s*([A-Za-z_]\w*)\s*(=)(?![=>])',
-    'beginCaptures': {'1': {'name': 'variable.other.assignment.eeaimod'}, '2': {'name': 'keyword.operator.assignment.eeaimod'}},
+    'begin': r'^\s*(?:(let)\s+)?([A-Za-z_]\w*)\s*([-+*/]?=)(?![=>])',
+    'beginCaptures': {'1': {'name': 'keyword.control.eeaimod'}, '2': {'name': 'variable.other.assignment.eeaimod'},
+                      '3': {'name': 'keyword.operator.assignment.eeaimod'}},
     'end': r'$',
     'patterns': [{'include': '#value'}],
 }

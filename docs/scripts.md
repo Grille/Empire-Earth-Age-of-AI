@@ -7,7 +7,7 @@ bottom; waiting (`wait`, `wait_until`, `every`) lets the game go on until that g
 
 ```
 # Bombing: an airport at minute 19.5, fighters and bombers at 20, every 20 s they attack P3's town
-fighter = unit.a_strafe_fighter10_fokker_dr_1
+let fighter = unit.a_strafe_fighter10_fokker_dr_1
 defence(2, 0)
 wait_until(19.5min)
 spawn(2, unit.b_airport, 92, 56, 1)
@@ -26,11 +26,44 @@ One a line; `#` starts a comment.
 
 | Statement | |
 |---|---|
-| `name = value` | a variable (a name of letters, digits, `_`) - again later: a new value |
+| `let name = value` | a new variable (a name of letters, digits, `_`) - once in its block; known from there to the block's end |
+| `name = value` | a variable a `let` made gets a new value; `name += value`, `-=`, `*=`, `/=`: `name = name + value` ... |
 | `call(...)`, any expression | worked out, its value not kept |
+| `if c { ... } else if d { ... } else { ... }` | the first block whose condition holds (`else` on the `}`'s line or the next) |
+| `while c { ... }` | the block again and again while `c` holds |
+| `for i in 1..5 { ... }` | the block for every whole number from 1 to 5 (both in; none when the second is smaller); `for p in [2, 3, 5]`: for each item of a list |
+| `break`, `continue` | in a loop: out of it, or on to its next round |
 | `return value`, `return` | in a function's `{ }` body: what it hands back (nothing without one) |
 
-A line may go on while a `(`, `[` or `{` is open.
+A line may go on while a `(`, `[` or `{` is open; a block's `{` is on its statement's line. A condition is true as in
+an expression (a number not 0, a text not empty, a list, a player). A `let` in a block (an `if`'s, a loop's) is that
+block's own; a name is never made twice where it is seen - a `let` of a name of the code around, of the game (`epoch`)
+or of the script's functions (`wait`) is a mistake (a pipe command's name may be a variable: `let wave = {...}`).
+
+A loop that never waits holds the game: a script runs on the game's thread, and the game only goes on while it waits.
+A million rounds of its loops without a `wait` (counted, not timed - every PC stops at the same one) and the script
+stops: `a loop (line 12) ran 1000000 rounds without waiting`.
+
+```
+let row = 40
+while row < 50 {
+    spawn(3, unit.b_guard_tower_bronze, 51, row)
+    row += 3
+}
+for p in 2..5 {
+    for t in 2..5 {
+        if p == t { continue }
+        calloff(p, t)
+    }
+}
+let waves = 0
+while player(3).towers > 0 {       # every minute until P3's towers are gone, at most 10 times
+    wait(1min)
+    waves += 1
+    if waves > 10 { break }
+    spawn(2, unit.inf02_spearman, 70, 50, 10)
+}
+```
 
 ## Values
 
@@ -44,11 +77,11 @@ Everything the personalities' expressions have (numbers, `70%`, texts with `{pla
 | `kind.towers` | one of the game's families - every type of it, whatever the epoch ([units.md](units.md)): `p3.count(kind.towers)` |
 | `resource.gold`, `resource.all` | a resource: food, wood, stone, gold, iron (1..5), all (0) - `give(2, 500, resource.gold)` |
 | `(a, b) => value`, `(i) => { ... }`, `() => ...` | a function: one value after `=>`, or statements in `{ }` with `return` |
-| `player(3)` | player 3 - `p3 = player(3)` then `p3.towers`, `p3.soldiers` ... (the values of `them.` in the README) |
-| `vec(70, 50)` | a vector (2 to 4 numbers - a place in tiles): `home = vec(70, 50)` then `home.x`, `step(home).x`, `home + vec(5, 0)`, `home * 2`, `distance(home, there)` (the README's "Vectors"); as a command's argument its numbers one each: `spawn(2, unit.inf02_spearman, home, 10)` is `spawn 2 24 70 50 10` |
-| `{ x = 70, y = 50, units = 10 }` | a record (the README's "Records"): `wave = { at = vec(70, 50), units = 10 }` then `wave.at`, `wave.units`, `has(wave, "units")`; a comma after each member |
+| `player(3)` | player 3 - `let p3 = player(3)` then `p3.towers`, `p3.soldiers` ... (the values of `them.` in the README) |
+| `vec(70, 50)` | a vector (2 to 4 numbers - a place in tiles): `let home = vec(70, 50)` then `home.x`, `step(home).x`, `home + vec(5, 0)`, `home * 2`, `distance(home, there)` (the README's "Vectors"); as a command's argument its numbers one each: `spawn(2, unit.inf02_spearman, home, 10)` is `spawn 2 24 70 50 10` |
+| `{ x = 70, y = 50, units = 10 }` | a record (the README's "Records"): `let wave = { at = vec(70, 50), units = 10 }` then `wave.at`, `wave.units`, `has(wave, "units")`; a comma after each member |
 | `time` | the game time now, in seconds |
-| `stop` | what a `for` / `every` body returns to end it early |
+| `stop` | what an `every` body returns to end it early |
 | `"text \{x\}"` | `\{` `\}`: braces that are text, not a placeholder (also `\"` `\\` `\n`) |
 
 ## Functions
@@ -58,7 +91,6 @@ Everything the personalities' expressions have (numbers, `70%`, texts with `{pla
 | `wait(10s)` | the script waits that long (game time) |
 | `wait_until(t)` | the script waits until game time `t` (not at all if it is past) |
 | `every(step, from, until, f)` | `f(run)` at `from`, `from + step` ... up to `until` (inclusive) - `run` 1, 2, 3 ...; `return stop` ends it |
-| `for(a, b, f)` | `f(i)` for every whole `i` from `a` to `b` (both in); `return stop` ends it |
 | `player(n)` | player n as a value |
 | `cmd("texts eval 3 1 them.kills(me)")` | a command as written (for a text with spaces, quotes or braces) |
 | any pipe command | `spawn(2, unit.inf02_spearman, 70, 50, 10)`, `stats("engage", ...)`, `count(3)`, `save("zz_name")`: the command `spawn 2 24 70 50 10` - numbers as numbers, a type its number, a player its number, a text as it is. Its value is the reply's first line; a reply `error ...` is a mistake. Every command is logged `# setup: <command> -> <reply>` |
@@ -68,15 +100,15 @@ script may call).
 
 ## Functions and their names
 
-A function sees its parameters, the variables it sets, and those of the code around where it was made - those it
+A function sees its parameters, its own `let`s, and the names of the code around where it was made - those it
 reads, but never changes (`n = 2` in a function where `n` belongs to the code around it is a mistake: give it back
 with `return` instead). Everything runs in order, one thing after another: a function called later still finds the
-names around it as they are then. A function can be passed on (`for(1, 5, row)`), not handed back out of the function
-it was made in.
+names around it as they are then - also a `let` further down (a function made before it may call it). A function
+can be passed on (`every(10s, 0, 1min, row)`), not handed back out of the function it was made in.
 
 ```
-row = (y) => spawn(3, unit.b_guard_tower_bronze, 51, y)
-for(1, 3, (i) => row(40 + i * 3))         # towers at 51,43 51,46 51,49
+let row = (y) => spawn(3, unit.b_guard_tower_bronze, 51, y)
+for i in 1..3 { row(40 + i * 3) }         # towers at 51,43 51,46 51,49
 every(10s, 50s, 2min, (run) => {
     objs(3, unit.b_guard_tower_bronze)
     return run == 3 ? stop                 # three times, then on
@@ -89,7 +121,8 @@ What the scenario editor's triggers do, in the language - checked every 500 ms o
 also while the script waits and after it has ended:
 
 ```
-t = trigger({
+let p2 = player(2)
+let t = trigger({
     name = "wood for the poor",          # for the messages (else the statement's start)
     when = () => p2.wood < 100 and time > 10min,
     for = 5s,                            # true that long without a break first (default 0)
@@ -99,7 +132,7 @@ t = trigger({
         after(10s, () => chat(2, "Don't waste it."))
     },
 })
-other = trigger({ when = () => t.fired, run = () => disable(t) })
+let other = trigger({ when = () => t.fired, run = () => disable(t) })
 ```
 
 | | |

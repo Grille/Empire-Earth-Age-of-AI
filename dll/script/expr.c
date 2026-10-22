@@ -478,7 +478,7 @@ internal void x_missing(struct xctx *c, const char *who) {
 // levels - an expression, a primary, a unary operator: at most 24 deep together within one expression); depth: its
 // deepest path, itself included (a function's body counts on its own). line, at: where it starts in the source.
 enum { XN_NUM, XN_STR, XN_NAME, XN_CALL, XN_LIST, XN_NEG, XN_NOT, XN_MUL, XN_ADD, XN_CMP, XN_AND, XN_OR, XN_COAL, XN_COND,
-       XN_LAMBDA, XN_BLOCK, XN_ASSIGN, XN_RETURN, XN_MEMBER, XN_REC };
+       XN_LAMBDA, XN_BLOCK, XN_ASSIGN, XN_RETURN, XN_MEMBER, XN_REC, XN_LET, XN_IF, XN_WHILE, XN_FOR, XN_BREAK, XN_CONTINUE };
 struct xnode {
     unsigned char k, op, lvl, depth;
     int n_items;                 // a list's items, a call's arguments (all; the first 8 are used), a function's
@@ -487,7 +487,9 @@ struct xnode {
     double n;                    // a number
     const char *s;               // a name, a string's text (as a template: its {placeholders} filled when worked out)
     const char *at;              // where it starts in the source (a statement's text for the messages)
-    struct xnode *a, *b, *c;     // operands: a op b, c ? a : b (c the condition); a function's body; a value
+    struct xnode *a, *b, *c;     // operands: a op b, c ? a : b (c the condition); a function's body; a value;
+                                 // if c { a } else b (a block, or the next if); while c { a }; for s in a..b { c }
+                                 // (b NULL: in the list a)
     struct xnode **items;        // a list's items, a call's arguments, a function's parameters (names), statements
     const char *cs;              // a name that is a kind. or unit. constant: its text once looked up (its number in n)
 };
@@ -556,6 +558,12 @@ internal int xps_op(struct xps *p, const char *op) {
     p->s += n;
     return 1;
 }
+internal int x_word_reserved(const char *name) {   // a word of the language: no variable's or parameter's name
+    static const char *const k[] = { "true", "false", "return", "and", "or", "not", "let", "if", "else", "while", "for", "in",
+                                     "break", "continue" };
+    for (size_t i = 0; i < sizeof k / sizeof *k; i++) if (!lstrcmpiA(name, k[i])) return 1;
+    return 0;
+}
 internal void xps_expr(struct xps *p, struct xnode **out);
 internal void xps_block(struct xps *p, struct xnode **out);
 internal int xps_items_add(struct xps *p, uintptr_t **it, int *n, int *cap, struct xnode *x) {
@@ -601,6 +609,7 @@ internal void xps_primary(struct xps *p, struct xnode **out) {
         int n = 0, cap = 0;
         for (int i = 0; i < npn; i++) {
             for (int j = 0; j < i; j++) if (!strcmp(pn[i], pn[j])) { p->err = 1; p->why = "a parameter twice"; free(it); return; }
+            if (x_word_reserved(pn[i])) { p->err = 1; p->why = "a word of the language is no name"; free(it); return; }
             struct xnode *x = xn_new(p, XN_NAME, s);
             if (!x) { free(it); return; }
             x->s = _strdup(pn[i]);
@@ -717,6 +726,7 @@ internal void xps_primary(struct xps *p, struct xnode **out) {
     } else if ((*s >= '0' && *s <= '9') || (*s == '.' && s[1] >= '0' && s[1] <= '9')) {
         char *e;
         double n = strtod(s, &e);
+        if (e > s && e[-1] == '.' && *e == '.') e--;   // 1..5: the number is 1, .. a range's
         if (*e == '%') { n /= 100; e++; }   // 70% = 0.7
         else if (*e == 's' && !isalnum((unsigned char)e[1]) && e[1] != '_') e++;   // 20s: seconds
         else if (!strncmp(e, "min", 3) && !isalnum((unsigned char)e[3]) && e[3] != '_') { n *= 60; e += 3; }   // 19.5min
@@ -891,10 +901,49 @@ internal void xps_expr(struct xps *p, struct xnode **out) {   // c ? a : b, c ? 
     }
     if (!p->err && *out) XPTR(p, *out)->lvl++;   // the expression's level
 }
-// a statement: name = value, return [value], or an expression (a call)
+// a name at p->s (a variable's: letters, digits, _) into name; 0: none (must: a word of the language a mistake set)
+internal int xps_name(struct xps *p, char name[40], int must) {
+    xps_space(p);
+    const char *q = p->s;
+    if (!isalpha((unsigned char)*q) && *q != '_') return 0;
+    while (isalnum((unsigned char)*q) || *q == '_') q++;
+    if (q - p->s >= 40) { if (must) { p->err = 1; p->why = "a name over 39 characters"; } return 0; }
+    lstrcpynA(name, p->s, (int)(q - p->s) + 1);
+    if (x_word_reserved(name)) { if (must) { p->err = 1; p->why = "a word of the language is no name"; } return 0; }
+    p->s = q;
+    return 1;
+}
+internal void xps_stmt(struct xps *p, struct xnode **out);
+internal void xps_body(struct xps *p, struct xnode **out, const char *what) {   // a statement's { ... } on its line
+    xps_space(p);
+    if (*p->s != '{' || xps_newline_before(p)) { p->err = 1; p->why = what; return; }
+    xps_block(p, out);
+}
+// if c { ... } [else if ... | else { ... }] - at the if's condition
+internal void xps_if(struct xps *p, struct xnode **out, const char *at) {
+    struct xnode *c, *a, *b = NULL;
+    *out = NULL;
+    xps_expr(p, &c);
+    if (p->err) return;
+    xps_body(p, &a, "if <condition> { ... } - the { on the if's line");
+    if (p->err) return;
+    if (xps_word(p, "else")) {
+        const char *at2 = p->s;
+        if (xps_word(p, "if")) xps_if(p, &b, at2);
+        else xps_body(p, &b, "else { ... } or else if - the { on the else's line");
+        if (p->err) return;
+    }
+    struct xnode *o = xn_new(p, XN_IF, at);
+    if (!o) return;
+    o->c = c; o->a = a; o->b = b;
+    *out = XOFF(p, o);
+}
+// a statement: let name = value, name = value (+= -= *= /=), if, while, for, break, continue, return [value], or an
+// expression (a call)
 internal void xps_stmt(struct xps *p, struct xnode **out) {
     xps_space(p);
-    const char *at = p->s, *q = at;
+    const char *at = p->s;
+    char name[40];
     *out = NULL;
     if (xps_word(p, "return")) {
         struct xnode *v = NULL;
@@ -906,28 +955,70 @@ internal void xps_stmt(struct xps *p, struct xnode **out) {
         *out = XOFF(p, o);
         return;
     }
-    if (isalpha((unsigned char)*q) || *q == '_') {   // name = ...
-        while (isalnum((unsigned char)*q) || *q == '_') q++;
-        const char *r = q;
-        while (*r == ' ' || *r == '\t') r++;
-        if (*r == '=' && r[1] != '=' && r[1] != '>') {
-            char name[40];
-            if (q - at >= (int)sizeof name) { p->err = 1; p->why = "a name over 39 characters"; return; }
-            lstrcpynA(name, at, (int)(q - at) + 1);
-            if (!lstrcmpiA(name, "true") || !lstrcmpiA(name, "false") || !lstrcmpiA(name, "return") || !lstrcmpiA(name, "and") ||
-                !lstrcmpiA(name, "or") || !lstrcmpiA(name, "not")) { p->err = 1; p->why = "a word of the language is no name"; return; }
-            p->s = r + 1;
+    if (xps_word(p, "break") || xps_word(p, "continue")) {
+        struct xnode *o = xn_new(p, *at == 'b' || *at == 'B' ? XN_BREAK : XN_CONTINUE, at);
+        if (o) *out = XOFF(p, o);
+        return;
+    }
+    if (xps_word(p, "if")) { xps_if(p, out, at); return; }
+    if (xps_word(p, "while")) {
+        struct xnode *c, *a;
+        xps_expr(p, &c);
+        if (!p->err) xps_body(p, &a, "while <condition> { ... } - the { on the while's line");
+        if (p->err) return;
+        struct xnode *o = xn_new(p, XN_WHILE, at);
+        if (!o) return;
+        o->c = c; o->a = a;
+        *out = XOFF(p, o);
+        return;
+    }
+    if (xps_word(p, "for")) {   // for i in 1..5 { ... }, for x in list { ... }
+        struct xnode *a, *b = NULL, *c;
+        if (!xps_name(p, name, 1)) { if (!p->err) { p->err = 1; p->why = "for <name> in 1..5 { ... }, for <name> in <list> { ... }"; } return; }
+        if (!xps_word(p, "in")) { p->err = 1; p->why = "for <name> in 1..5 { ... }, for <name> in <list> { ... }"; return; }
+        xps_expr(p, &a);
+        if (!p->err && xps_op(p, "..")) xps_expr(p, &b);
+        if (!p->err) xps_body(p, &c, "for <name> in ... { ... } - the { on the for's line");
+        if (p->err) return;
+        struct xnode *o = xn_new(p, XN_FOR, at);
+        if (!o) return;
+        o->s = _strdup(name);
+        o->a = a; o->b = b; o->c = c;
+        *out = XOFF(p, o);
+        return;
+    }
+    int let = xps_word(p, "let");
+    const char *nm = p->s;
+    if (xps_name(p, name, let)) {   // [let] name = ..., name += ...
+        xps_space(p);
+        const char *r = p->s;
+        int op = r[1] == '=' && (*r == '+' || *r == '-' || *r == '*' || *r == '/') ? *r : 0;
+        if ((*r == '=' && r[1] != '=' && r[1] != '>') || op) {
+            if (let && op) { p->err = 1; p->why = "let name = value (a new variable has no value to add to)"; return; }
+            p->s = r + (op ? 2 : 1);
             struct xnode *v;
             xps_expr(p, &v);
             if (p->err) return;
-            struct xnode *o = xn_new(p, XN_ASSIGN, at);
+            if (op) {   // n += 2 is n = n + 2
+                struct xnode *x = xn_new(p, XN_NAME, nm);
+                if (!x) return;
+                x->s = _strdup(name);
+                x->lvl = 1;
+                v = xps_bin(p, op == '+' || op == '-' ? XN_ADD : XN_MUL, op, XOFF(p, x), v);
+                if (!v) return;
+            }
+            struct xnode *o = xn_new(p, let ? XN_LET : XN_ASSIGN, at);
             if (!o) return;
             o->s = _strdup(name);
             o->a = v;
             *out = XOFF(p, o);
             return;
         }
+        if (let) { p->err = 1; p->why = "let name = value"; return; }
+        p->s = nm;
     }
+    if (p->err) return;
+    if (let) { p->err = 1; p->why = "let name = value"; return; }
     xps_expr(p, out);
 }
 // statements, one a line, up to the block's } (brace) or the source's end (a script)
@@ -1065,18 +1156,30 @@ internal int x_par_count(const char *par) {   // a vars function's parameters "a
 // or with the wrong number of arguments, chance(70), a text compared with a number written as such ("12" == 12), a
 // variable of the code around a function changed in it. The names a function sees: its parameters, what its own
 // body and every body around it assign, the vars, the game's values.
-struct xscope { const struct xscope *up; const char *name[64]; int n; };
-internal int xsc_find(const struct xscope *s, const char *name, size_t len, int *own) {   // 1: there (*own: this scope's)
-    for (int level = 0; s; s = s->up, level++)
+// A scope: a function's (its parameters, its lets) or a block's inside it (blk: an if's, a loop's - the same function).
+// A let is known in its whole block from the start (a function made before it may call it later), but the code of
+// the same function reads it only after it (decl: passed).
+struct xscope { const struct xscope *up; const char *name[64]; int n; unsigned char decl[64]; int blk; };
+// 1: there (*own: the running function's - this scope or a block it is in), 2: the same function's, its let not passed yet
+internal int xsc_find(const struct xscope *s, const char *name, size_t len, int *own) {
+    for (int crossed = 0; s; s = s->up) {
         for (int i = 0; i < s->n; i++)
-            if (strlen(s->name[i]) == len && !strncmp(s->name[i], name, len)) { if (own) *own = !level; return 1; }
+            if (strlen(s->name[i]) == len && !strncmp(s->name[i], name, len)) {
+                if (own) *own = !crossed;
+                return !crossed && !s->decl[i] ? 2 : 1;
+            }
+        if (!s->blk) crossed = 1;
+    }
     return 0;
 }
 internal void xsc_add(struct xscope *s, const char *name) {
     for (int i = 0; i < s->n; i++) if (!strcmp(s->name[i], name)) return;
-    if (s->n < 64) s->name[s->n++] = name;
+    if (s->n < 64) { s->decl[s->n] = 1; s->name[s->n++] = name; }
 }
-struct xcheck { struct xctx *c; int script; const char *why; int line; char whybuf[120]; };
+internal void xsc_pass(struct xscope *s, const char *name) {   // its let reached
+    for (int i = 0; i < s->n; i++) if (!strcmp(s->name[i], name)) s->decl[i] = 1;
+}
+struct xcheck { struct xctx *c; int script; const char *why; int line; char whybuf[120]; int loops; };
 // a node's value as the old parser saw it while only reading: a number or a text written as such, nothing for the
 // rest - what "12" == 12 is caught with when a file is read
 struct xsv { int w, has_n, has_s; double n; };
@@ -1116,20 +1219,33 @@ internal int x_script_fn(const char *name);   // the script functions (wait, wai
 internal int x_name_known(const char *name);
 internal int xc_fail(struct xcheck *k, const struct xnode *n, const char *why) { k->why = why; k->line = n->line; return 0; }
 internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc);
-internal int x_check_body(struct xcheck *k, const struct xnode *body, struct xscope *sc) {   // a block: its names first
+// a new name (a let's, a for's): none it would hide - of this block, a block around it, the code around the function,
+// a value of the game's or the language's, a script function (in a script). A pipe command's may (wave, count): a
+// command is only called, and a variable of its name is what the code around means
+internal int x_check_new_name(struct xcheck *k, const struct xnode *n, const char *name, const struct xscope *sc) {
+    int own = 0;
+    if (xsc_find(sc, name, strlen(name), &own))
+        snprintf(k->whybuf, sizeof k->whybuf, own ? "%s is a name here already (one let a name)" :
+                 "%s is a name of the code around this function already - give this one another", name);
+    else if (k->script && (x_name_known(name) || !strcmp(name, "time") || !strcmp(name, "stop") || x_script_fn(name) >= 0))
+        snprintf(k->whybuf, sizeof k->whybuf, "%s is a name the language or the game has - give the variable another", name);
+    else return 1;
+    return xc_fail(k, n, k->whybuf);
+}
+internal int x_check_body(struct xcheck *k, const struct xnode *body, struct xscope *sc) {   // a block: its lets first
     if (!body || body->k != XN_BLOCK) return x_check(k, body, sc);
-    for (int i = 0; i < body->n_items; i++) {   // what it assigns - also what is used before (a function called later)
+    for (int i = 0; i < body->n_items; i++) {   // known in the whole block - a function made before may call one later
         const struct xnode *s = body->items[i];
-        if (s->k != XN_ASSIGN) continue;
-        int own = 0;
-        if (xsc_find(sc->up, s->s, strlen(s->s), &own)) {
-            snprintf(k->whybuf, sizeof k->whybuf, "%s belongs to the code around this function: read it here, don't change it", s->s);
-            return xc_fail(k, s, k->whybuf);
-        }
-        xsc_add(sc, s->s);
+        if (s->k != XN_LET) continue;
+        if (!x_check_new_name(k, s, s->s, sc)) return 0;
+        if (sc->n < 64) { sc->decl[sc->n] = 0; sc->name[sc->n++] = s->s; }
     }
     for (int i = 0; i < body->n_items; i++) if (!x_check(k, body->items[i], sc)) return 0;
     return 1;
+}
+internal int x_check_block(struct xcheck *k, const struct xnode *blk, const struct xscope *sc) {   // an if's, a loop's
+    struct xscope b = { sc, { 0 }, 0, { 0 }, 1 };
+    return x_check_body(k, blk, &b);
 }
 internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc) {
     if (!n) return 1;
@@ -1143,7 +1259,9 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
     }
     case XN_NAME: {
         size_t len = strcspn(n->s, ".");
-        if (xsc_find(sc, n->s, len, NULL)) return 1;   // a parameter or a variable (its members: diplo.c)
+        int f = xsc_find(sc, n->s, len, NULL);
+        if (f == 2) { snprintf(k->whybuf, sizeof k->whybuf, "%.*s is read before its let", (int)len, n->s); return xc_fail(k, n, k->whybuf); }
+        if (f) return 1;   // a parameter or a variable (its members: diplo.c)
         if (k->script && (!strcmp(n->s, "stop") || !strcmp(n->s, "time"))) return 1;
         if (k->script) {
             if (x_name_known(n->s)) return 1;
@@ -1154,14 +1272,43 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
         return 1;
     }
     case XN_LAMBDA: {
-        struct xscope s = { sc, { 0 }, 0 };
+        struct xscope s = { sc, { 0 }, 0, { 0 }, 0 };
         for (int i = 0; i < n->n_items; i++) xsc_add(&s, n->items[i]->s);
-        return x_check_body(k, n->a, &s);
+        int loops = k->loops;   // (a break in it is none of a loop around it)
+        k->loops = 0;
+        int ok = x_check_body(k, n->a, &s);
+        k->loops = loops;
+        return ok;
     }
     case XN_BLOCK: {   // a script's statements (its top)
         return x_check_body(k, n, sc);
     }
-    case XN_ASSIGN: return x_check(k, n->a, sc);
+    case XN_LET:
+        if (!x_check(k, n->a, sc)) return 0;   // (its own name not yet: let n = n + 1 is a mistake)
+        xsc_pass(sc, n->s);
+        return 1;
+    case XN_ASSIGN: {
+        int own = 0, f = xsc_find(sc, n->s, strlen(n->s), &own);
+        if (!f) snprintf(k->whybuf, sizeof k->whybuf, "%s = ...: no variable %s - let %s = ... makes one", n->s, n->s, n->s);
+        else if (!own) snprintf(k->whybuf, sizeof k->whybuf, "%s belongs to the code around this function: read it here, don't change it", n->s);
+        else if (f == 2) snprintf(k->whybuf, sizeof k->whybuf, "%s is set before its let", n->s);
+        else return x_check(k, n->a, sc);
+        return xc_fail(k, n, k->whybuf);
+    }
+    case XN_IF:
+        if (!x_check(k, n->c, sc) || !x_check_block(k, n->a, sc)) return 0;
+        return !n->b || (n->b->k == XN_IF ? x_check(k, n->b, sc) : x_check_block(k, n->b, sc));
+    case XN_WHILE: case XN_FOR: {
+        if (!x_check(k, n->k == XN_WHILE ? n->c : n->a, sc) || !x_check(k, n->b, sc)) return 0;
+        struct xscope b = { sc, { 0 }, 0, { 0 }, 1 };
+        if (n->k == XN_FOR) { if (!x_check_new_name(k, n, n->s, sc)) return 0; xsc_add(&b, n->s); }
+        k->loops++;
+        int ok = x_check_body(k, n->k == XN_WHILE ? n->a : n->c, &b);
+        k->loops--;
+        return ok;
+    }
+    case XN_BREAK: case XN_CONTINUE:
+        return k->loops ? 1 : xc_fail(k, n, n->k == XN_BREAK ? "break outside a loop" : "continue outside a loop");
     case XN_RETURN: return x_check(k, n->a, sc);
     case XN_MEMBER: return x_check(k, n->a, sc);   // f(a).x: a record's member or a vector's number (worked out: there?)
     case XN_REC:
@@ -1175,7 +1322,9 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
         if (f == 1 && a0.has_n && a0.n > 1) return xc_fail(k, n, "chance takes a probability, 0 to 1: chance(70%) or chance(0.7)");
         if (f) return 1;
         if (!strchr(name, '.')) {
-            if (xsc_find(sc, name, strlen(name), NULL)) return 1;   // a function in a variable
+            int v = xsc_find(sc, name, strlen(name), NULL);
+            if (v == 2) { snprintf(k->whybuf, sizeof k->whybuf, "%s is called before its let", name); return xc_fail(k, n, k->whybuf); }
+            if (v) return 1;   // a function in a variable
             int sf = k->script ? x_script_fn(name) : -1;
             if (sf >= 0) {
                 if (sf != nk) { snprintf(k->whybuf, sizeof k->whybuf, "%s takes %d argument%s", name, sf, sf == 1 ? "" : "s"); return xc_fail(k, n, k->whybuf); }
@@ -1231,8 +1380,12 @@ struct xframe { int n, keep; const char *name[XF_MAX]; struct xval val[XF_MAX]; 
 struct xfn { const struct xnode *lam; struct xframe *env; };   // a function value: its definition and where it was made
 // err: what is being worked out failed (its mistake told, or none: not an expression); why: what it was; f: the
 // frame of the function (or script) running; ret: a return given (its value in *retv); err_at: the statement it
-// failed in
-struct xe { struct xctx *c; int err; const char *why; struct xframe *f; int ret; struct xval *retv; const struct xnode *err_at; int kept; };
+// failed in; brk: a break (1) or continue (2) given, for the loop around; steps: loop rounds since it last waited
+struct xe { struct xctx *c; int err; const char *why; struct xframe *f; int ret; struct xval *retv; const struct xnode *err_at; int kept;
+            int brk; int steps; };
+// a loop that never waits holds the game (a script runs on its thread): this many rounds without a wait - of all
+// loops in it together, counted, not timed (every PC stops at the same one) - and it is a mistake
+#define X_LOOP_STEPS 1000000
 internal void xe(struct xe *e, const struct xnode *n, struct xval *v);
 internal void x_use(struct xe *e, const struct xval *v) {
     if (!v->miss[0]) return;
@@ -1381,7 +1534,7 @@ internal void x_nogame(struct xe *e, const char *name) {   // a game value or a 
 internal int x_body(struct xe *e, const char *src, struct xval *v) {
     const struct xunit *u = x_compiled(src);
     if (!u->ok) { xnothing(v); return 0; }
-    struct xe q = { e->c, 0, NULL, NULL, 0, NULL, NULL, 0 };
+    struct xe q = { e->c, 0, NULL, NULL, 0, NULL, NULL, 0, 0, 0 };
     int level = e->c->level;
     e->c->level = 0;
     xe(&q, u->root, v);
@@ -1547,9 +1700,9 @@ internal void x_call_value(struct xe *e, const struct xval *fv, const struct xva
     x_region_free(&tmp);
     free(nf);
 }
-// the script functions: wait(seconds), wait_until(time), every(step, from, until, f), for(from, to, f), player(n), cmd(text)
+// the script functions: wait(seconds), wait_until(time), every(step, from, until, f), player(n), cmd(text), the triggers'
 internal int x_script_fn(const char *name) {
-    static const struct { const char *n; int args; } k[] = { { "wait", 1 }, { "wait_until", 1 }, { "every", 4 }, { "for", 3 }, { "player", 1 }, { "cmd", 1 },
+    static const struct { const char *n; int args; } k[] = { { "wait", 1 }, { "wait_until", 1 }, { "every", 4 }, { "player", 1 }, { "cmd", 1 },
                                                              { "trigger", 1 }, { "after", 2 }, { "enable", 1 }, { "disable", 1 } };
     for (size_t i = 0; i < sizeof k / sizeof *k; i++) if (!strcmp(k[i].n, name)) return k[i].args;
     return -1;
@@ -1597,6 +1750,7 @@ internal int x_wait_until(struct xe *e, double t) {   // the script waits until 
     if (g_xt_in) { x_fail(e, "a trigger's run can't wait - after(5s, () => ...) does it later"); return 0; }
     if (!g_x_hooks.wait) { x_fail(e, "waiting only in a script"); return 0; }
     g_x_hooks.wait(t);
+    e->steps = 0;
     return 1;
 }
 // ===== TRIGGERS (scripts): t = trigger({ when = () => a condition, run = () => { ... }, loop = true, for = 5s, name =
@@ -1693,7 +1847,7 @@ internal int xt_call(const struct xval *fn, struct xval *out, const char *what, 
     c.found = 1;
     c.script = 1;
     c.top = who;
-    struct xe e = { &c, 0, NULL, NULL, 0, NULL, NULL, 0 };
+    struct xe e = { &c, 0, NULL, NULL, 0, NULL, NULL, 0, 0, 0 };
     g_x_last_fail[0] = 0;
     x_call_value(&e, fn, NULL, 0, out);
     if (!e.err) return 1;
@@ -1766,7 +1920,7 @@ internal void xe_script(struct xe *e, const char *name, const struct xval *a, in
         if (!g_x_host.object((int)xto_num(&a[0]), v)) x_fail(e, "player(%g): no such player", xto_num(&a[0]));
         return;
     }
-    int fi = !strcmp(name, "every") ? 3 : !strcmp(name, "for") ? 2 : -1;   // the function's place
+    int fi = !strcmp(name, "every") ? 3 : -1;   // the function's place
     for (int i = 0; i < na; i++) {
         if (i == fi) { if (a[i].kind != XV_FN) { x_fail(e, "%s(...): its last argument is a function - (i) => ...", name); return; } }
         else if (!x_numeric_ok(e, &a[i]) || !a[i].w) { if (!e->err) x_fail(e, "%s(...): a number where nothing is", name); return; }
@@ -1774,15 +1928,6 @@ internal void xe_script(struct xe *e, const char *name, const struct xval *a, in
     double now = g_x_hooks.now ? g_x_hooks.now() : 0;
     if (!strcmp(name, "wait")) { x_wait_until(e, now + a[0].n); return; }
     if (!strcmp(name, "wait_until")) { if (a[0].n > now) x_wait_until(e, a[0].n); return; }   // (past: no wait)
-    if (!strcmp(name, "for")) {   // for(from, to, f): f(i) for every whole i from..to, both ends in; stop ends it
-        for (double i = a[0].n; i <= a[1].n + 1e-9 && !e->err; i += 1) {
-            struct xval iv, r;
-            xnum(&iv, i);
-            x_call_value(e, &a[2], &iv, 1, &r);
-            if (!e->err && r.kind == XV_STOP) break;
-        }
-        return;
-    }
     // every(step, from, until, f): f(run) at from, from + step ... until (in); stop ends it
     if (!(a[0].n > 0)) { x_fail(e, "every(%g, ...): the step must be above 0", a[0].n); return; }
     for (int k = 1; !e->err; k++) {
@@ -1986,21 +2131,78 @@ internal void x_assign(struct xe *e, const char *name, const struct xval *v) {
     f->name[i] = name; f->val[i] = *v; f->own[i] = 1;
     e->c->fpn = f->name; e->c->fpv = f->val; e->c->fnp = f->n;
 }
-// a block's statements in order; a mistake ends it (err_at: the statement), a return too
+internal int x_loop_round(struct xe *e, const struct xnode *s) {   // a loop's next round: 0 the loop ends
+    if (e->brk == 1) { e->brk = 0; return 0; }
+    e->brk = 0;
+    if (e->err || e->ret) return 0;
+    if (++e->steps > X_LOOP_STEPS) {
+        x_fail(e, "a loop (line %d) ran %d rounds without waiting - wait(...) lets the game go on", s->line, X_LOOP_STEPS);
+        return 0;
+    }
+    return 1;
+}
+internal void x_exec(struct xe *e, const struct xnode *blk);
+internal void x_stmt(struct xe *e, const struct xnode *s) {
+    struct xval v;
+    switch (s->k) {
+    case XN_LET: case XN_ASSIGN: xe(e, s->a, &v); if (!e->err) x_assign(e, s->s, &v); break;
+    case XN_RETURN:
+        if (s->a) xe(e, s->a, e->retv ? e->retv : &v);
+        else if (e->retv) xnothing(e->retv);
+        e->ret = 1;
+        break;
+    case XN_BREAK: e->brk = 1; break;
+    case XN_CONTINUE: e->brk = 2; break;
+    case XN_IF:
+        for (; s; s = s->b && s->b->k == XN_IF ? s->b : NULL) {   // else if ...: the next if
+            xe(e, s->c, &v);
+            if (e->err) return;
+            if (xtrue(&v)) { x_exec(e, s->a); return; }
+            if (s->b && s->b->k != XN_IF) { x_exec(e, s->b); return; }
+        }
+        break;
+    case XN_WHILE:
+        do {
+            xe(e, s->c, &v);
+            if (e->err || !xtrue(&v)) break;
+            x_exec(e, s->a);
+        } while (x_loop_round(e, s));
+        break;
+    case XN_FOR: {   // for i in a..b: every whole number from a to b, both in; for x in l: each of l's items
+        struct xval a, b;
+        xe(e, s->a, &a);
+        if (e->err) return;
+        if (s->b) {
+            xe(e, s->b, &b);
+            if (e->err || !x_numeric_ok(e, &a) || !x_numeric_ok(e, &b)) return;
+            if (!a.w || !b.w) { x_fail(e, "for %s in a..b: a number where nothing is", s->s); return; }
+            for (double i = a.n; i <= b.n + 1e-9; i += 1) {
+                xnum(&v, i);
+                x_assign(e, s->s, &v);
+                if (!e->err) x_exec(e, s->c);
+                if (!x_loop_round(e, s)) break;
+            }
+            return;
+        }
+        if (a.kind) { x_fail(e, "for %s in ...: %s - a list, or a..b", s->s, a.kind == XV_FN ? "a function" : a.kind == XV_REC ? "a record" : a.kind == XV_VEC ? "a vector" : "stop"); return; }
+        for (int i = 0; i < xl_n(&a); i++) {
+            x_assign(e, s->s, xl_at(&a, i));
+            if (!e->err) x_exec(e, s->c);
+            if (!x_loop_round(e, s)) break;
+        }
+        break;
+    }
+    default: xe(e, s, &v); break;
+    }
+}
+// a block's statements in order; a mistake ends it (err_at: the statement), a return, a break or continue too
 internal void x_exec(struct xe *e, const struct xnode *blk) {
     struct xctx *c = e->c;
     const char *top = c->top;
-    for (int i = 0; i < blk->n_items && !e->err && !e->ret; i++) {
+    for (int i = 0; i < blk->n_items && !e->err && !e->ret && !e->brk; i++) {
         const struct xnode *s = blk->items[i];
-        struct xval v;
         c->top = s->at;   // the mistakes' messages show the statement
-        if (s->k == XN_ASSIGN) { xe(e, s->a, &v); if (!e->err) x_assign(e, s->s, &v); }
-        else if (s->k == XN_RETURN) {
-            if (s->a) xe(e, s->a, e->retv ? e->retv : &v);
-            else if (e->retv) xnothing(e->retv);
-            e->ret = 1;
-        }
-        else xe(e, s, &v);
+        x_stmt(e, s);
         if (e->err && !e->err_at) e->err_at = s;
     }
     c->top = top;
@@ -2193,7 +2395,7 @@ internal int x_eval(const char *src, struct xctx *c, struct xval *v) {   // its 
     if (top) c->top = src;
     if (!g_xr->busy++) x_region_reset(g_xr);   // the outermost: the last one's values are done with
     const struct xunit *u = x_compiled(src);
-    struct xe e = { c, 0, NULL, NULL, 0, NULL, NULL, 0 };
+    struct xe e = { c, 0, NULL, NULL, 0, NULL, NULL, 0, 0, 0 };
     xnothing(v);
     int level = c->level;   // its own levels (X_NEST)
     c->level = 0;
@@ -2228,8 +2430,8 @@ internal int x_syntax(const char *src, const char **why) {
     c.found = 1;   // no players looked up
     const struct xunit *u = x_compiled(src);
     if (!u->ok) { *why = u->why ? u->why : "not an expression"; return 0; }
-    struct xcheck k = { &c, 0, NULL, 0, "" };
-    struct xscope sc = { NULL, { 0 }, 0 };
+    struct xcheck k = { &c, 0, NULL, 0, "", 0 };
+    struct xscope sc = { NULL, { 0 }, 0, { 0 }, 0 };
     if (!x_check(&k, u->root, &sc)) { *why = k.why ? k.why : "not an expression"; return 0; }
     return 1;
 }

@@ -3,5 +3,11 @@
 # Before the fix in dll/engine/asg_queue.c about one game in ten stalled or crashed in the unit list (Continental,
 # map_size=1, 4 AIs, start_epoch=9, fall_back=15, the since removed attack_retreat=1, 60 min).
 every(150s, 6min, 60min, (run) => {
-    for(2, 5, (p) => for(2, 5, (t) => p == t ? 0 : calloff(p, t)))
+    for p in 2..5 {
+        for t in 2..5 {
+            if p != t {
+                calloff(p, t)
+            }
+        }
+    }
 })

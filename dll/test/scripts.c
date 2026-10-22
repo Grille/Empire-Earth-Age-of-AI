@@ -1,7 +1,7 @@
 // SCRIPTS (autotest setup=<file>[;<file>...]): scenario scripts in the text language (expr.c; docs/scripts.md) -
 // statements one a line, top to bottom, from 2 s game time: the pipe's commands as functions (spawn(3,
-// unit.b_guard_tower_bronze, 51, 44), stats("engage", ...)), variables, functions ((i) => ...), and the waiting ones:
-// wait(20s), wait_until(19.5min), every(20s, from, until, (run) => ...), for(1, 5, (i) => ...). Each script runs in
+// unit.b_guard_tower_bronze, 51, 44), stats("engage", ...)), variables (let), functions ((i) => ...), if, while, for,
+// and the waiting ones: wait(20s), wait_until(19.5min), every(20s, from, until, (run) => ...). Each script runs in
 // a fiber of its own on the game's thread: waiting hands the turn back to the game until that game second, so the
 // game never stops for a script and everything a script reads is the game as it is. Several scripts run side by side,
 // each in turn, always in the order given (the same game twice the same). Its values live in a region of its own.
@@ -73,8 +73,8 @@ internal int script_load(const char *path, char **text, struct xunit *u, const c
     if (!u->ok) { *why = u->why ? u->why : "not a script (a statement that is none, or nested too deep)"; *line = u->line; return 0; }
     struct xctx c = { 0 };
     c.found = 1;
-    struct xcheck k = { &c, 1, NULL, 0, "" };
-    struct xscope sc = { NULL, { 0 }, 0 };
+    struct xcheck k = { &c, 1, NULL, 0, "", 0 };
+    struct xscope sc = { NULL, { 0 }, 0, { 0 }, 0 };
     const char *f0 = g_x_check_file, *ph0 = g_x_check_ph, *par0 = g_x_check_par;
     const char *base = strrchr(path, '\\') ? strrchr(path, '\\') + 1 : strrchr(path, '/') ? strrchr(path, '/') + 1 : path;
     g_x_check_file = base; g_x_check_ph = NULL; g_x_check_par = NULL;
@@ -93,7 +93,7 @@ internal int script_run(const char *path, const struct xunit *u) {
     if (!top) return 0;
     top->keep = 1;
     struct xval rv;
-    struct xe e = { &c, 0, NULL, top, 0, &rv, NULL, 0 };
+    struct xe e = { &c, 0, NULL, top, 0, &rv, NULL, 0, 0, 0 };
     c.fpn = top->name; c.fpv = top->val; c.fnp = 0;
     g_x_last_fail[0] = 0;
     x_exec(&e, u->root);
