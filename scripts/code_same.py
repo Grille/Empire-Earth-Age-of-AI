@@ -63,13 +63,27 @@ def addr_names(d):
     return re.findall(r'"(\w+)"', tail) or None
 
 
-def functions(obj, names=None):
+def field_names(d):
+    """the field table's rows in their order (g_of's index), 'KIND offset': a row added or taken out moves the others'
+    index - the same row is the same field"""
+    h = next((p for p in ('game/api/raw/fields.h', 'game/api/fields.h', 'game/fields.h') if os.path.exists(os.path.join(d, p))), None)
+    if not h: return None
+    src = '#include "%s"\n#define CS_OF(k, x, ...) CSF k x ;\nCODE_SAME_FIELDS FIELDS(CS_OF)\n' % h
+    out = subprocess.run([CC, '-E', '-P', '-I', d, '-x', 'c', '-'], input=src, capture_output=True, text=True, cwd=d).stdout
+    tail = out[out.rfind('CODE_SAME_FIELDS'):]
+    return ['%s %s' % m for m in re.findall(r'CSF (\w+) (\w+) ;', tail)] or None
+
+
+def functions(obj, names=None, fields=None):
     secs, syms = coff(obj)
     def target(si, addend):   # what a reference points at, independent of the layout
         nm, secno, value, cls = syms[si]
         if names and nm == '_g_addr' and addend % 4 == 0 and 0 <= addend // 4 < len(names):
             return 'g_addr[%s]' % names[addend // 4]                     # an address by its name, wherever its row is
+        if fields and nm == '_g_of' and addend % 4 == 0 and 0 <= addend // 4 < len(fields):
+            return 'g_of[%s]' % fields[addend // 4]                      # a field's offset by its row
         if names and nm in ('_k_addr', '_k_addr_name'): return nm        # the tables themselves: in the rows' order
+        if fields and nm in ('_k_of', '_k_of_name'): return nm
         if secno <= 0: return nm                                          # outside: an import, another symbol
         sname, data, _ = secs[secno - 1]
         if sname.startswith('.rdata'):   # a constant (a string _.str.27 - numbered in the order they come): its bytes
@@ -97,7 +111,7 @@ def functions(obj, names=None):
                         t = target(rel[r], addend)
                         nm = syms[rel[r]][0]
                         # the instruction shows the field's value (the addend, or a pc-relative distance): masked
-                        ins = re.sub(r'(?<![\w+])-?0x[0-9a-fA-F]+(?=[(,\s]|$)', 'X', ins, count=0) if nm.startswith('.') or t.startswith('g_addr[') else ins
+                        ins = re.sub(r'(?<![\w+])-?0x[0-9a-fA-F]+(?=[(,\s]|$)', 'X', ins, count=0) if nm.startswith('.') or t.startswith(('g_addr[', 'g_of[')) else ins
                         ins += ' -> ' + t
                     out.append(ins)
                 fns[cur + ('#%d' % used[cur] if used[cur] > 1 else '')] = out
@@ -124,7 +138,9 @@ def main():
     compile_dir(new, os.path.join(WORK, 'new.o'))
     na, nb = addr_names(old), addr_names(new)
     if not na or not nb: na = nb = None   # an old tree without the names: by index, as before
-    a, b = functions(os.path.join(WORK, 'old.o'), na), functions(os.path.join(WORK, 'new.o'), nb)
+    fa, fb = field_names(old), field_names(new)
+    if not fa or not fb: fa = fb = None
+    a, b = functions(os.path.join(WORK, 'old.o'), na, fa), functions(os.path.join(WORK, 'new.o'), nb, fb)
     back = {v: k for k, v in same.items()}
     for k in b:   # a new name as the old one: both count as the same variable
         b[k] = [re.sub(r'-> (\S+)$', lambda m: '-> ' + back.get(m.group(1), m.group(1)), ln) for ln in b[k]]

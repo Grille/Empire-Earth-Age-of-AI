@@ -67,10 +67,10 @@ internal void am_bld(void *um, int type, int *have, int *busy) {
 }
 // soldiers the game wants: the unit manager's 14 request lists (um +0xC + i*0x14 deques of 16-byte {type, count, ..},
 // 256 a block - 0x4910BD), every entry but citizens
-internal int am_wishes(uint8_t *um) {
+internal int am_wishes(ee_unit_mgr *um) {
     int n = 0;
     for (int i = 0; i < 14; i++) {
-        uint8_t *dq = FIELD_AT(um, OF(UM, 0xC) + i * 0x14);
+        uint8_t *dq = um_requests_at(um, i);
         unsigned first = FIELD(dq, 0xC, unsigned), cnt = FIELD(dq, 0x10, unsigned), mapsz = FIELD(dq, 8, unsigned);
         int **map = FIELD(dq, 4, int **);
         for (unsigned k = 0; map && k < cnt && k < 512; k++) {
@@ -139,7 +139,7 @@ internal int navy_land(unsigned idx);   // navy.c
 // now and vis pays, else the strongest trainable that vis pays (substitute_soldier)
 internal int ap_type(ee_player *pl, unsigned idx, ee_unit_mgr *um, const int *vis) {
     for (int i = 0; i < 14; i++) {
-        uint8_t *dq = FIELD_AT(um, OF(UM, 0xC) + i * 0x14);
+        uint8_t *dq = um_requests_at(um, i);
         unsigned first = FIELD(dq, 0xC, unsigned), cnt = FIELD(dq, 0x10, unsigned), mapsz = FIELD(dq, 8, unsigned);
         int **map = FIELD(dq, 4, int **);
         for (unsigned k = 0; map && k < cnt && k < 512; k++) {
@@ -176,8 +176,8 @@ internal void army_plan_tick(ee_player *pl, unsigned idx, uint32_t now) {
     // the money is the navy's and the landings' - the first plan there (all of it) cost soldiers on Small Islands
     if (current_epoch(pl) < FARM_EPOCH || !cfg_of(pl)->budget || (!navy_land(idx) && !wfa)) return;
     ee_civ_mgr *cm = player_get_civ_mgr(pl);
-    ee_unit_mgr *um = cm ? FIELD(cm, OF(CM, 0x44), ee_unit_mgr *) : NULL;
-    ee_build_mgr *bm = cm ? FIELD(cm, OF(CM, 0x3C), ee_build_mgr *) : NULL;
+    ee_unit_mgr *um = cm ? cm_get_unit_mgr(cm) : NULL;
+    ee_build_mgr *bm = cm ? cm_get_build_mgr(cm) : NULL;
     if (!um || !bm) return;
     int *stock = player_stock_at(pl);
     if (plan & 9) {   // FLOAT (the 2-minute watch MIX reads too)
@@ -205,7 +205,7 @@ internal void army_plan_tick(ee_player *pl, unsigned idx, uint32_t now) {
             if (vis[r] > (int)g_bud[idx].mil[r]) vis[r] = (int)g_bud[idx].mil[r];
         }
         int cap = unit_limit(pl);
-        int room = cap - FIELD(um, OF(UM, 0x13C), int) - population(pl, 1, 0);
+        int room = cap - um_get_in_production(um) - population(pl, 1, 0);
         int goal = g_czp[idx].goal ? g_czp[idx].goal : um_citizens_wanted(um);
         int miss = goal - workforce(pl);
         int free = room - (miss > 0 ? miss : 0) - landing_room_reserve(pl) - navy_room_reserve(pl) - 2;
@@ -259,7 +259,7 @@ internal void ap_targets(ee_resource_mgr *rm) {
     int mn = a->fl[0][2];
     for (int k = 1; k < 12; k++) if (a->fl[k][2] < mn) mn = a->fl[k][2];
     if (mn < g_army_mix_food) return;
-    uint32_t *target = (uint32_t *)FIELD_AT(rm, RM_TARGET);
+    uint32_t *target = rm_target_at(rm);
     int floor_ = (int)target[2] * 2 / 3;
     if (g_czp[idx].feed > floor_) floor_ = g_czp[idx].feed;
     int moves = (int)target[2] - floor_;
@@ -293,9 +293,9 @@ internal void ap_owned(ee_player *pl, unsigned idx) {
         int t = type_get_id(it.td);
         if (unit_get_owner(it.u) == pl && unit_get_hp(it.u) > 0 && t >= 0 && t < 768) g_apo[idx][t] = 1;
     }
-    ee_civ_mgr *cm = player_get_civ_mgr(pl); uint8_t *um = cm ? FIELD(cm, OF(CM, 0x44), uint8_t *) : NULL;
+    ee_civ_mgr *cm = player_get_civ_mgr(pl); ee_unit_mgr *um = cm ? cm_get_unit_mgr(cm) : NULL;
     for (int i = 0; um && i < 14; i++) {
-        uint8_t *dq = FIELD_AT(um, OF(UM, 0xC) + i * 0x14);
+        uint8_t *dq = um_requests_at(um, i);
         unsigned first = FIELD(dq, 0xC, unsigned), cnt = FIELD(dq, 0x10, unsigned), mapsz = FIELD(dq, 8, unsigned);
         int **map = FIELD(dq, 4, int **);
         for (unsigned k = 0; map && k < cnt && k < 512; k++) {
@@ -332,14 +332,14 @@ internal int ap_upgrade_later(ee_player *pl, uint8_t *d) {
 }
 internal int ap_rs_has(ee_research_mgr *rs, int id) {   // in one of the research manager's epoch lists (rs +0x18 + e*0x10)
     for (int e = 0; e < 14; e++) {
-        int *b = FIELD(rs, OF(RS, 0x18) + e * 0x10, int *), *x = FIELD(rs, OF(RS, 0x1C) + e * 0x10, int *);
+        int *b = rs_get_epoch_begin(rs, e), *x = rs_get_epoch_end(rs, e);
         for (int *q = b; b && x > b && x - b < 512 && q < x; q++) if (*q == id) return 1;
     }
     return 0;
 }
 internal void ap_upgrades(ee_player *pl, unsigned idx) {
     ee_civ_mgr *cm = player_get_civ_mgr(pl);
-    ee_research_mgr *rs = cm ? FIELD(cm, OF(CM, 0x40), ee_research_mgr *) : NULL;
+    ee_research_mgr *rs = cm ? cm_get_research_mgr(cm) : NULL;
     ee_tech_tree *tt = player_get_tech_tree(pl);
     if (!rs || !tt) return;
     for (int id = 1000; id < 15000; id++) {
@@ -367,10 +367,10 @@ internal void ap_install(const char *aimod_ini, const char *autotest_ini) {
 // "# pool:" (autotest, minutes 30 and 50): the research manager's candidate techs (rs +8 vector) - id, researched /
 // available, category (+0x48), price, and the first effects (kind +0x20 / unit type +0x14 / attribute +0x2C)
 internal void am_pool_log(ee_player *pl, unsigned idx) {
-    ee_civ_mgr *cm = player_get_civ_mgr(pl); uint8_t *rs = cm ? FIELD(cm, OF(CM, 0x40), uint8_t *) : NULL;
+    ee_civ_mgr *cm = player_get_civ_mgr(pl); ee_research_mgr *rs = cm ? cm_get_research_mgr(cm) : NULL;
     ee_tech_tree *tt = player_get_tech_tree(pl);
     if (!rs || !tt) return;
-    int *b = FIELD(rs, OF(RS, 0x8), int *), *e = FIELD(rs, OF(RS, 0xC), int *);
+    int *b = rs_get_pool_begin(rs), *e = rs_get_pool_end(rs);
     EnterCriticalSection(&g_lock);
     fprintf(g_log, "# pool: P%u %d techs:", idx, b && e > b ? (int)(e - b) : 0);
     for (int *q = b; b && q < e && q - b < 300; q++) {
@@ -400,7 +400,7 @@ internal void am_tick(ee_player *pl, uint32_t now) {
     unsigned idx = (unsigned)player_get_index(pl) & 15;
     struct am_st *a = &g_am[idx];
     if (now < a->ts) memset(a, 0, sizeof *a);
-    ee_civ_mgr *cm = player_get_civ_mgr(pl); uint8_t *um = cm ? FIELD(cm, OF(CM, 0x44), uint8_t *) : NULL;
+    ee_civ_mgr *cm = player_get_civ_mgr(pl); ee_unit_mgr *um = cm ? cm_get_unit_mgr(cm) : NULL;
     if (!um) return;
     if (!a->ts || now - a->ts >= 5000) {   // the busy share: a sample every 5 s
         a->ts = now ? now : 1;
@@ -443,7 +443,7 @@ internal void am_tick(ee_player *pl, uint32_t now) {
     }
     int *st = player_stock_at(pl);
     int cap = unit_limit(pl);
-    int pop = population(pl, 1, 0), inprod = FIELD(um, OF(UM, 0x13C), int);
+    int pop = population(pl, 1, 0), inprod = um_get_in_production(um);
     struct am_min *m = &a->m;
     int res[7] = { 0 };
     if (!is_vanilla(pl)) am_reserve(pl, idx, res);

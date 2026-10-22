@@ -136,9 +136,9 @@ internal void ex_scan(ee_player *pl, uint32_t now, int new_log) {
     }
 }
 internal int ex_home(ee_player *pl) {
-    ee_civ_mgr *cm = player_get_civ_mgr(pl); uint8_t *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL;
-    if (!bm || FIELD(bm, OF(BM, 0x12C), int) == -10000) return 0;
-    return (int)area_id(FIELD(bm, OF(BM, 0x12C), int), FIELD(bm, OF(BM, 0x130), int), 2);
+    ee_civ_mgr *cm = player_get_civ_mgr(pl); ee_build_mgr *bm = cm ? cm_get_build_mgr(cm) : NULL;
+    if (!bm || bm_get_base_x(bm) == -10000) return 0;
+    return (int)area_id(bm_get_base_x(bm), bm_get_base_y(bm), 2);
 }
 // a continent's class for player pl (home: hc)
 internal int ex_class(ee_player *pl, const struct ex_cont *c, unsigned hc) {
@@ -158,8 +158,8 @@ internal void ex_log(ee_player *pl, unsigned idx, uint32_t now) {
     int pi = (int)idx;
     struct { int n, site[7], my[7], oth, drop, bld, cit, sold, tower; } k[EXC_N];
     memset(k, 0, sizeof k);
-    ee_civ_mgr *cm = player_get_civ_mgr(pl); uint8_t *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL;
-    int bx = FIELD(bm, OF(BM, 0x12C), int), by = FIELD(bm, OF(BM, 0x130), int), near_d = -1, near_m = 0, foe_s = 0, foe_b = 0, km = 0, am = 0;
+    ee_civ_mgr *cm = player_get_civ_mgr(pl); ee_build_mgr *bm = cm ? cm_get_build_mgr(cm) : NULL;
+    int bx = bm_get_base_x(bm), by = bm_get_base_y(bm), near_d = -1, near_m = 0, foe_s = 0, foe_b = 0, km = 0, am = 0;
     for (int j = 0; j < g_exs.n; j++) { am += g_exs.c[j].mn; km += g_exs.c[j].mexp[pi]; }   // the map's mines and those it has explored
     for (int j = 0; j < g_exs.n; j++) {
         struct ex_cont *c = &g_exs.c[j];
@@ -493,7 +493,7 @@ internal int ex_take(ee_unit **u, int *d, int n) {   // the nearest left (index)
 internal float ex_sea_risk(ee_player *pl, struct ex_st *x, ee_unit_type *trtd, float hp);   // below
 internal void ex_ferry_ship(ee_player *pl, unsigned idx, struct ex_st *x, uint32_t now) {
     void *cm = player_get_civ_mgr(pl);
-    ee_unit_mgr *um = cm ? FIELD(cm, OF(CM, 0x44), ee_unit_mgr *) : NULL;
+    ee_unit_mgr *um = cm ? cm_get_unit_mgr(cm) : NULL;
     ee_unit *best = NULL;
     int bd = 0x7FFFFFFF, all = 0, nl = 0, nld = 0, no = 0;
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
@@ -835,9 +835,9 @@ internal void ex_forward(ee_player *pl, unsigned idx, struct ex_st *x, uint32_t 
     if (x->fwd_added) return;
     if (!x->forward) {
         struct intel *in = &g_intel[idx & 15];
-        ee_civ_mgr *cm = player_get_civ_mgr(pl); uint8_t *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL;
+        ee_civ_mgr *cm = player_get_civ_mgr(pl); ee_build_mgr *bm = cm ? cm_get_build_mgr(cm) : NULL;
         if (!bm) return;
-        int bx = FIELD(bm, OF(BM, 0x12C), int), by = FIELD(bm, OF(BM, 0x130), int);
+        int bx = bm_get_base_x(bm), by = bm_get_base_y(bm);
         float dh = 1e9f, dp = 1e9f;   // the enemy's known buildings nearest to home / to the outpost
         for (int k = 0; k < in->n; k++) {
             struct intel_rec *e = &in->r[k];
@@ -967,7 +967,7 @@ internal void ex_outpost(ee_player *pl, unsigned idx, struct ex_st *x, uint32_t 
     // builders: 3 on the drop site (all while it is not finished), 2 on another; the rest gather once the drop site stands
     int want[EX_PROJ] = { 0 }, have[EX_PROJ] = { 0 }, nb = 0;
     for (int j = 0; j < x->nproj; j++) if (x->proj[j].state == 1) want[j] = x->proj[j].kind == XK_DROP ? (drop_ok ? 3 : 64) : 2;
-    ee_resource_mgr *rm = FIELD(player_get_civ_mgr(pl), OF(CM, 0x38), ee_resource_mgr *);
+    ee_resource_mgr *rm = cm_get_resource_mgr(player_get_civ_mgr(pl));
     for (int k = 0; k < e.nc; k++) {
         ee_unit *u = e.c[k];
         uint8_t *g = unit_get_goal(u);
@@ -1041,8 +1041,8 @@ internal const char *ex_follow_no(ee_player *pl, unsigned idx, float mine, float
 internal void ex_plan(ee_player *pl, unsigned idx, struct ex_st *x, uint32_t now) {
     static const char *last_why[16];
     const char *why = NULL;
-    ee_civ_mgr *cm = player_get_civ_mgr(pl); uint8_t *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL;
-    int bx = bm ? FIELD(bm, OF(BM, 0x12C), int) : -10000, by = bm ? FIELD(bm, OF(BM, 0x130), int) : -10000;
+    ee_civ_mgr *cm = player_get_civ_mgr(pl); ee_build_mgr *bm = cm ? cm_get_build_mgr(cm) : NULL;
+    int bx = bm ? bm_get_base_x(bm) : -10000, by = bm ? bm_get_base_y(bm) : -10000;
     unsigned hc = (unsigned)ex_home(pl);
     if (x->active) {   // more citizens: the drop site stands, no Town Center of its own there, slots left, trips left
         if (!x->drop_ok || x->trips >= g_ex_trips || (x->trip_t && now - x->trip_t < 120000) || (x->foe_t && now - x->foe_t < 60000)) return;   // not into a fight

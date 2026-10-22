@@ -162,13 +162,13 @@ internal void __fastcall hook_rm_update(ee_resource_mgr *rm, void *edx, uint32_t
         // them for the scenario bug - wrong; the real cause is the scenario flag, see hook_cp_update.)
         static uint8_t fixed[16];
         if (now >= 5000) fixed[idx] = 0;
-        void *cm = FIELD(rm, RM_OWNER, void *);
+        void *cm = rm_get_owner(rm);
         if (now < 2000 && !fixed[idx]) {
             fixed[idx] = 1;
             uint8_t *flags[3] = {
-                (uint8_t *)cm + CM_SETUP_DONE,
-                (uint8_t *)FIELD(cm, CM_BUILD_MGR, void *) + BM_INITIALIZED,
-                (uint8_t *)FIELD(cm, CM_RESEARCH_MGR, void *) + RS_INITIALIZED,
+                cm_setup_done_at(cm),
+                bm_initialized_at(cm_get_build_mgr(cm)),
+                rs_initialized_at(cm_get_research_mgr(cm)),
             };
             if (g_log) {
                 EnterCriticalSection(&g_lock);

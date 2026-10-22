@@ -209,11 +209,11 @@ internal void settings_apply(ee_player *pl) {
         ee_civ_mgr *cm = player_get_civ_mgr(pl);
         uint32_t now = game_time();
         if (cm) {
-            uint32_t t = FIELD(cm, OF(CM, 0x58), uint32_t);
+            uint32_t t = cm_get_timer(cm, 0);
             uint32_t lo = now + (uint32_t)c->epoch_min * 60000u, hi = now + (uint32_t)c->epoch_max * 60000u;
             if (t < lo || t > hi) {
                 int span = c->epoch_max - c->epoch_min + 1, idx = player_get_index(pl);
-                FIELD(cm, OF(CM, 0x58), uint32_t) = lo + (uint32_t)((idx * 7) % span) * 60000u;
+                cm_set_timer(cm, 0, lo + (uint32_t)((idx * 7) % span) * 60000u);
             }
         }
     }

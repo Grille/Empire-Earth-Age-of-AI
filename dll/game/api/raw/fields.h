@@ -121,6 +121,7 @@
     O(CM, 0x40, 0x40, 0x40) /* b */ \
     O(CM, 0x44, 0x44, 0x44) /* c */ \
     O(CM, 0x48, 0x48, 0x48) /* c */ \
+    O(CM, 0x4C, 0x4C, 0x4C) /* b: between +0x48 and +0x50, unchanged (0x46D209 reads it: the player) */ \
     O(CM, 0x50, 0x50, 0x50) /* c */ \
     O(CM, 0x58, 0x58, 0x58) /* v */ \
     O(CM, 0x74, 0x74, 0x78) /* c: its file's code (+4 from 0x74) */ \
@@ -234,6 +235,10 @@
     O(MAP, 0x181730, 0x181730, 0x19564C) /* c */ \
     O(MOUSE, 0x4, 0x4, 0x4) /* c */ \
     O(MOUSE, 0x8, 0x8, 0x8) /* c */ \
+    O(MOUSE, 0x14, 0x14, 0x14) /* s: as the 2017 update (were rows of RM, which this is not: not checked in AoC) */ \
+    O(MOUSE, 0x18, 0x18, 0x18) /* s: as the 2017 update (were rows of RM, which this is not: not checked in AoC) */ \
+    O(MOUSE, 0x1C, 0x1C, 0x1C) /* s: as the 2017 update (were rows of RM, which this is not: not checked in AoC) */ \
+    O(MOUSE, 0x20, 0x20, 0x20) /* s: as the 2017 update (were rows of RM, which this is not: not checked in AoC) */ \
     O(MOUSE, 0xA4, 0xA4, 0xA4) /* c */ \
     O(MSG_CHAT, 0xA, 0xA, 0xA) /* b */ \
     O(MSG_CHAT, 0x10, 0x10, 0x10) /* c */ \
@@ -260,7 +265,6 @@
     O(PL, 0x1C, 0x1C, 0x1C) /* c */ \
     O(PL, 0x24, 0x24, 0x24) /* c */ \
     O(PL, 0x28, 0x28, 0x28) /* b */ \
-    O(PL, 0x4C, 0x4C, 0x4C) /* b */ \
     O(PL, 0x438, 0x438, 0x438) /* c */ \
     O(PL, 0x45C, 0x45C, 0x45C) /* c */ \
     O(PL, 0x464, 0x464, 0x464) /* b */ \
@@ -314,12 +318,6 @@
     O(PLB98, 0x2D, 0x2D, 0x2D) /* c: read through a player's +0xB98 */ \
     O(PLSTATS, 0x1C, 0x1C, 0x1C) /* b */ \
     O(PLSTATS, 0x20, 0x20, 0x20) /* b */ \
-    O(RM, 0x4, 0x4, 0x4) /* c: its file's code (the resource manager) */ \
-    O(RM, 0x8, 0x8, 0x8) /* c: its file's code (the resource manager) */ \
-    O(RM, 0x14, 0x14, 0x14) /* c: its file's code (the resource manager) */ \
-    O(RM, 0x18, 0x18, 0x18) /* c: its file's code (the resource manager) */ \
-    O(RM, 0x1C, 0x1C, 0x1C) /* c: its file's code (the resource manager) */ \
-    O(RM, 0x20, 0x20, 0x20) /* c: its file's code (the resource manager) */ \
     O(RM, 0x88, 0x88, 0x88) /* c: its file's code (the resource manager) */ \
     O(RM, 0x8C, 0x8C, 0x8C) /* c: its file's code (the resource manager) */ \
     O(RM, 0x98, 0x98, 0x98) /* c: its file's code (the resource manager) */ \

@@ -32,7 +32,7 @@ Several sessions may work in this tree at the same time - see Git below.
   `GA(SIZE_GOAL_BUILD)` - never a literal address, slot or size in the code. The game objects' fields likewise live
   in `raw/fields.h`, by kind and the 2017 update's offset (`OF(UNIT, 0x1C)`; a field not in the table doesn't build;
   the runtime library's layouts - deque, vector, string - stay plain numbers), read by name through `objects.c`:
-  `unit_get_x(u)`, `unit_set_behaviour(u, b)` (a setter only where the mod writes) - moved over: UNIT, TD (type_get_id(td)), PL (player_get_index(pl), player_get_stock(pl, r)); the other kinds
+  `unit_get_x(u)`, `unit_set_behaviour(u, b)` (a setter only where the mod writes) - moved over: UNIT, TD (type_get_id(td)), PL (player_get_index(pl), player_get_stock(pl, r)), the AI managers CM, RM, BM, UM, RS (rm_list_at(rm, r)), MOUSE; the other kinds
   still `FIELD(pl, OF(PL, 0x9D4), void *)`, until each has its accessors (then OF / FIELD only in game/api/). Two columns:
   the 2017 update and Art of Conquest (not ready: tested in AoC only since 2026-10-21 - test runs play it,
   `EE_GAME_DIR=<its folder>`, docs/testing.md). A new row needs both: `scripts/port_addrs.py` /
@@ -47,7 +47,7 @@ Several sessions may work in this tree at the same time - see Git below.
   (`patch_place(hook_place)` - a hook with other parameters doesn't build), and the patches of the game's code. GA, GF
   and GL only in game/api/ (scripts/layers.py; elsewhere add a wrapper, an accessor or an installer); a kind not typed
   yet is `void *`. `scripts/addr_sort.py` moves the rows into the file their use calls for (the build checks it). A
-  change there must keep the machine code (`scripts/code_same.py`, which compares the table by name) or, where it
+  change there must keep the machine code (`scripts/code_same.py`, which compares the address and field tables by name) or, where it
   can't, play the same game (the same game_seed, the logs compared).
 - The engine loads every DLL in the game folder: never leave copies of DLLs there (a stray dinput copy crashed it).
 - The game reads the personality files from `config/aimod_ai/` (`ai_dir` in the user's aimod.ini): a change to

@@ -55,7 +55,7 @@ internal inline uint8_t *game_window(void) { return *(uint8_t **)GA(G_GAME_WINDO
 internal inline uint8_t *rasterizer(void) { return *(uint8_t **)GA(G_RASTERIZER); }
 internal inline int screen_index(void) { return *(int *)GA(G_SCREEN); }
 internal inline void *ui_manager(void) { return *(void **)GA(G_UI_MANAGER); }
-internal inline uint8_t *game_mouse(void) { return *(uint8_t **)GA(G_MOUSE); }
+internal inline ee_mouse *game_mouse(void) { return *(ee_mouse **)GA(G_MOUSE); }
 internal inline int game_res_w(void) { return *(int *)GA(G_GAME_RES_W); }
 internal inline int game_res_h(void) { return *(int *)GA(G_GAME_RES_H); }
 internal inline uint8_t *fullscreen_var(void) { return (uint8_t *)GA(G_FULLSCREEN); }
@@ -208,7 +208,7 @@ internal inline uint8_t *input_mouse(void) { uint8_t **p = *(uint8_t ***)GA(IMP_
 internal inline uint8_t *input_keyboard(void) { uint8_t **p = *(uint8_t ***)GA(IMP_IS_KEYBOARD); return p ? *p : NULL; }
 // the mouse's position kept in its range, its update (the original of display.c's hook)
 internal inline void mouse_clamp(void *m) { ((void (__thiscall *)(void *))GA(FN_MOUSE_CLAMP))(m); }
-internal inline void mouse_update(void *m) { ((void (__thiscall *)(void *))GA(FN_MOUSE_UPDATE))(m); }
+internal inline void mouse_update(ee_mouse *m) { ((void (__thiscall *)(void *))GA(FN_MOUSE_UPDATE))(m); }
 // a resolution switch (the original of display.c's editor hooks), the editor's main form built
 internal inline void set_resolution(int w, int h, int force, int flag) { ((void (__stdcall *)(int, int, int, int))GA(FN_SET_RESOLUTION))(w, h, force, flag); }
 internal inline void *editor_form(void *form, void *owner) { return GF(FN_EDITOR_FORM)(form, owner); }
@@ -379,7 +379,7 @@ internal inline int um_citizens_wanted(ee_unit_mgr *um) { return GF(FN_UM_CITIZE
 // the shore an idle transport unloads at (the original of landing.c's hook)
 internal inline int shore_to_unload(void *mgr, ee_unit *transport) { return GF(FN_SHORE_TO_UNLOAD)(mgr, transport); }
 // the fishing boat type of a player (the original of navy.c's hook)
-internal inline int fish_type(void *o) { return GF(FN_FISH_TYPE)(o); }
+internal inline int fish_type(ee_civ_mgr *cm) { return GF(FN_FISH_TYPE)(cm); }
 
 // THE RESOURCE MANAGER'S SEARCHES (the originals of sites.c's hooks; arguments as the game passes them)
 internal inline ee_unit *rm_find_mine(ee_resource_mgr *rm, uintptr_t type, ee_unit *unit, uintptr_t rev) {

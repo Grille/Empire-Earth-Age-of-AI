@@ -83,9 +83,9 @@ internal int ms_land_soldier(ee_unit *u, ee_unit_type *td) {
 internal int ms_base(ee_player *pl, int *bx, int *by) {   // an AI's (a human player's +0xB90 is no computer manager: garbage)
     int i = pl ? player_get_index(pl) & 15 : 0;
     if (!pl || !(g_players[i] || is_vanilla_idx(i))) return 0;
-    ee_civ_mgr *cm = player_get_civ_mgr(pl); uint8_t *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL;
-    if (!bm || FIELD(bm, OF(BM, 0x12C), int) == -10000) return 0;
-    *bx = FIELD(bm, OF(BM, 0x12C), int); *by = FIELD(bm, OF(BM, 0x130), int);
+    ee_civ_mgr *cm = player_get_civ_mgr(pl); ee_build_mgr *bm = cm ? cm_get_build_mgr(cm) : NULL;
+    if (!bm || bm_get_base_x(bm) == -10000) return 0;
+    *bx = bm_get_base_x(bm); *by = bm_get_base_y(bm);
     return 1;
 }
 internal int ms_d2(int x0, int y0, int x1, int y1) { return (x1 - x0) * (x1 - x0) + (y1 - y0) * (y1 - y0); }

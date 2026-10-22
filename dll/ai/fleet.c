@@ -219,8 +219,8 @@ internal void fl_scan(ee_player *pl, unsigned idx) {
     s->ne = s->nev = s->nec = s->nb = s->nbl = s->nd = s->ned = s->ntw = 0; s->eb = 0;
     f->n = 0; f->ndz = 0;
     void *cm = player_get_civ_mgr(pl);
-    uint8_t *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL;
-    int hx = bm ? FIELD(bm, OF(BM, 0x12C), int) : 0, hy = bm ? FIELD(bm, OF(BM, 0x130), int) : 0, bd = 0x7FFFFFFF;
+    ee_build_mgr *bm = cm ? cm_get_build_mgr(cm) : NULL;
+    int hx = bm ? bm_get_base_x(bm) : 0, hy = bm ? bm_get_base_y(bm) : 0, bd = 0x7FFFFFFF;
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
         ee_unit_type *td = it.td;
@@ -708,7 +708,7 @@ internal void fl_rally_tower(ee_player *pl, unsigned idx, struct fleet *m, uint3
     if (m->rcover || m->rally_towers >= 3 || (m->tower_t && now >= m->tower_t && now - m->tower_t < 120000) || !g_fs.nd) return;
     m->tower_t = now ? now : 1;
     void *cm = player_get_civ_mgr(pl);
-    ee_build_mgr *bm = cm ? FIELD(cm, OF(CM, 0x3C), ee_build_mgr *) : NULL;
+    ee_build_mgr *bm = cm ? cm_get_build_mgr(cm) : NULL;
     if (!bm) return;
     if (tower_queued(bm)) return;
     int ttype = tower_newest(pl);
@@ -1193,7 +1193,7 @@ internal void fl_build(ee_player *pl, unsigned idx, struct fleet *m, uint32_t no
     for (int q = 0; q < 8; q++) recent += m->bring_t[q] && now >= m->bring_t[q] && now - m->bring_t[q] < 90000;
     if (t <= 0 || m->shelter || g_nv_own[idx].war + recent >= t || !g_nv_own[idx].docks_built || bk_room(pl) <= 0) return;
     void *cm = player_get_civ_mgr(pl);
-    ee_unit_mgr *um = cm ? FIELD(cm, OF(CM, 0x44), ee_unit_mgr *) : NULL;
+    ee_unit_mgr *um = cm ? cm_get_unit_mgr(cm) : NULL;
     int type = um ? navy_fleet_type(pl, idx) : 0;
     if (!type) return;
     int *stock = player_stock_at(pl), before[7];

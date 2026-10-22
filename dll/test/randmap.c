@@ -138,7 +138,7 @@ internal void randmap_ai_toggles(ee_player *pl) {
         if (cm) cm_set_epoch_time(cm, now, 0);   // the epoch attempt, drawn anew
         if (!player_get_first_attack_done(pl)) cp_schedule_attack(pl, now);   // the first attack
         if (g_log) fprintf(g_log, "# vanilla: P%d difficulty %d - first epoch attempt at %.1f min, first attack at %.1f min\n", idx,
-                           g_rm.v_difficulty, cm ? FIELD(cm, OF(CM, 0x58), uint32_t) / 60000.0 : -1.0, player_get_next_attack(pl) / 60000.0);
+                           g_rm.v_difficulty, cm ? cm_get_timer(cm, 0) / 60000.0 : -1.0, player_get_next_attack(pl) / 60000.0);
     }
     if (g_log) {   // the cheat as the game will apply it: AdjustCost (vf27) on a price of 1000
         int cost = cp_adjust_cost(pl, 1000);
@@ -155,7 +155,7 @@ internal void randmap_ai_toggles(ee_player *pl) {
         int span = g_rm.epoch_max - g_rm.epoch_min + 1;
         uint32_t delay = (uint32_t)(g_rm.epoch_min + (idx * 7) % (span > 0 ? span : 1)) * 60000u;
         ee_civ_mgr *cm = player_get_civ_mgr(pl);
-        if (cm) FIELD(cm, OF(CM, 0x58), uint32_t) = game_time() + delay;
+        if (cm) cm_set_timer(cm, 0, game_time() + delay);
         if (g_log) fprintf(g_log, "# test epoch timer: P%d %d-%d min, first attempt at %.1f min\n", idx,
                            g_rm.epoch_min, g_rm.epoch_max, (game_time() + delay) / 60000.0);
     }

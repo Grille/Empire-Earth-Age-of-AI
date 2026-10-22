@@ -160,7 +160,7 @@ internal inline int patch_editor_form(editor_form_hook h) { return patch_call(GA
 // the windowed mode's input (display.c): the mouse's update (its 4 calls), the cooperative level of Low-Level Engine's
 // input (push 5 -> push 6, exclusive -> non-exclusive: the mouse's Resume and the device setup), no minimize on focus
 // loss (je -> jmp)
-typedef void (__fastcall *mouse_update_hook)(uint8_t *m, void *edx);
+typedef void (__fastcall *mouse_update_hook)(ee_mouse *m, void *edx);
 internal inline int patch_mouse_update(mouse_update_hook h, int *of) { return patch_calls(PATCH_LIST(MOUSE_UPDATE_SITES), GA(FN_MOUSE_UPDATE), (void *)h, of); }
 internal inline int patch_input_coop(HMODULE lle) {
     uint8_t *b = (uint8_t *)lle;
@@ -342,7 +342,7 @@ typedef uintptr_t (__fastcall *train_units_hook)(ee_unit_mgr *um, void *edx, int
 internal inline int patch_train_units(train_units_hook h, int *of) { return patch_calls(PATCH_LIST(TRAIN_SITES), GA(FN_TRAIN_UNITS), (void *)h, of); }
 typedef int (__fastcall *citizens_wanted_hook)(ee_unit_mgr *um, void *edx);
 internal inline int patch_citizens_wanted(citizens_wanted_hook h) { return patch_call(GA(CALL_CITIZENS_WANTED), GA(FN_UM_CITIZENS_WANTED), (void *)h); }
-typedef int (__fastcall *fish_type_hook)(void *o, void *edx);
+typedef int (__fastcall *fish_type_hook)(ee_civ_mgr *cm, void *edx);
 internal inline int patch_fish_type(fish_type_hook h, int *of) {
     const uint32_t sites[2] = { GA(CALL_FISH_TYPE_1), GA(CALL_FISH_TYPE_2) };
     return patch_calls(sites, 2, GA(FN_FISH_TYPE), (void *)h, of);

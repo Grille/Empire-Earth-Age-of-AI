@@ -72,8 +72,8 @@ internal void eco_mines(ee_player *pl, struct eco_mines *c) {
     drops_cached(pl);
     unsigned pi = (unsigned)pidx(pl);
     int base_reg = -1;   // the base's continent
-    {   ee_civ_mgr *cm = player_get_civ_mgr(pl); uint8_t *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL;
-        int b[2] = { bm ? FIELD(bm, OF(BM, 0x12C), int) : -10000, bm ? FIELD(bm, OF(BM, 0x130), int) : -10000 };
+    {   ee_civ_mgr *cm = player_get_civ_mgr(pl); ee_build_mgr *bm = cm ? cm_get_build_mgr(cm) : NULL;
+        int b[2] = { bm ? bm_get_base_x(bm) : -10000, bm ? bm_get_base_y(bm) : -10000 };
         if (b[0] != -10000 && b[1] != -10000) base_reg = (short)map_area(b, 2); }
     void **tb = player_get_zones_begin(pl), **te = player_get_zones_end(pl);
     for (int t = 0; tb && tb + t < te && t < 256; t++) {
@@ -127,7 +127,7 @@ internal void eco_food(ee_player *pl, ee_resource_mgr *rm, struct eco_food *f) {
     memset(f, 0, sizeof *f);
     if (!rm) return;
     drops_cached(pl);
-    uint8_t *list = FIELD_AT(rm, RM_LISTS + 2 * 0x14);
+    uint8_t *list = rm_list_at(rm, 2);
     for (unsigned k = 0, first = FIELD(list, 0xC, unsigned), n = FIELD(list, 0x10, unsigned); k < n && k < 1024; k++) {
         ee_unit *u = deque_at(list, first + k);
         ee_unit_type *td = u ? unit_get_type_data(u) : NULL;
@@ -144,7 +144,7 @@ internal void eco_food(ee_player *pl, ee_resource_mgr *rm, struct eco_food *f) {
             if (st && type_get_category(st) == 0x11) f->fh++; else f->fx++;
         }
     }
-    void **hb = FIELD(rm, OF(RM, 0x88), void **), **he = FIELD(rm, OF(RM, 0x8C), void **);
+    void **hb = rm_get_hunt_begin(rm), **he = rm_get_hunt_end(rm);
     for (void **h = hb; hb && h < he && h - hb < 4096; h++) {
         ee_unit *a = *h;
         if (!a || !unit_get_valid(a) || unit_get_amount(a) <= 0) continue;
@@ -153,7 +153,7 @@ internal void eco_food(ee_player *pl, ee_resource_mgr *rm, struct eco_food *f) {
         if (d2 <= 225) f->hl15++;
         if (d2 <= 900) f->hl30++;
     }
-    void **qb = FIELD(rm, OF(RM, 0x98), void **), **qe = FIELD(rm, OF(RM, 0x9C), void **);
+    void **qb = rm_get_fish_begin(rm), **qe = rm_get_fish_end(rm);
     for (void **h = qb; qb && h < qe && h - qb < 4096; h++)
         if (*h && unit_get_amount(*h) > 0) { f->fish++; f->fishF += unit_get_amount(*h); }
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
@@ -167,8 +167,8 @@ internal void eco_food(ee_player *pl, ee_resource_mgr *rm, struct eco_food *f) {
         while (hb && h < he && *h != u) h++;
         if (!hb || h >= he) f->anNew30++;
     }
-    ee_civ_mgr *cm = player_get_civ_mgr(pl); uint8_t *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL;
-    int bx = bm ? FIELD(bm, OF(BM, 0x12C), int) : -10000, by = bm ? FIELD(bm, OF(BM, 0x130), int) : -10000;
+    ee_civ_mgr *cm = player_get_civ_mgr(pl); ee_build_mgr *bm = cm ? cm_get_build_mgr(cm) : NULL;
+    int bx = bm ? bm_get_base_x(bm) : -10000, by = bm ? bm_get_base_y(bm) : -10000;
     void **zb = player_get_zones_begin(pl), **ze = player_get_zones_end(pl);
     for (int z = 0; zb && zb + z < ze && z < 256; z++) {
         uint8_t *zone = zb[z];
@@ -181,7 +181,7 @@ internal void eco_food(ee_player *pl, ee_resource_mgr *rm, struct eco_food *f) {
             if (bx != -10000 && dx * dx + dy * dy < g_site_max_dist * g_site_max_dist) { f->fsN20++; f->fsF20 += unit_get_amount(st); }
         }
     }
-    void *um = cm ? FIELD(cm, OF(CM, 0x44), void *) : NULL;
+    void *um = cm ? cm_get_unit_mgr(cm) : NULL;
     uint8_t *fq = type_list(um, UT(B_FARM));
     for (unsigned k = 0, first = fq ? FIELD(fq, 0xC, unsigned) : 0, n = fq ? FIELD(fq, 0x10, unsigned) : 0; k < n && k < 512; k++) {
         ee_unit *fl = deque_at(fq, first + k), *b = fl ? unit_get_physics(fl) : NULL;
@@ -214,11 +214,11 @@ internal void ecolog_tick(ee_player *pl, uint32_t now) {
     unsigned idx = (unsigned)pidx(pl);
     if (now >= g_eco_t[idx] && now / 60000 == g_eco_t[idx] / 60000 && g_eco_t[idx]) return;
     g_eco_t[idx] = now ? now : 1;
-    void *cm = player_get_civ_mgr(pl), *ump = cm ? FIELD(cm, OF(CM, 0x44), void *) : NULL;
-    ee_resource_mgr *rm = cm ? FIELD(cm, OF(CM, 0x38), ee_resource_mgr *) : NULL;
+    void *cm = player_get_civ_mgr(pl), *ump = cm ? cm_get_unit_mgr(cm) : NULL;
+    ee_resource_mgr *rm = cm ? cm_get_resource_mgr(cm) : NULL;
     int cit = 0, gat[7] = { 0 }, build = 0, walk = 0, att = 0, load = 0, other = 0, none = 0, idle0 = 0;
     for (int r = 0; rm && r < 7; r++) {   // the resource lists (deques): who gathers for which resource, list 0 idle
-        uint8_t *list = FIELD_AT(rm, RM_LISTS + r * 0x14);
+        uint8_t *list = rm_list_at(rm, r);
         for (unsigned k = 0, first = FIELD(list, 0xC, unsigned), n = FIELD(list, 0x10, unsigned); k < n && k < 1024; k++) {
             ee_unit *u = deque_at(list, first + k);
             if (!u || unit_get_hp(u) <= 0) continue;
@@ -277,7 +277,7 @@ internal void ecolog_tick(ee_player *pl, uint32_t now) {
             "fo=%d fh=%d ff=%d fb=%d fx=%d hl=%d hlF=%d hl15=%d hl30=%d an=%d an30=%d anF30=%d anNew30=%d fsN=%d fsF=%d fsN20=%d fsF20=%d fish=%d fishF=%d fld=%d fldOK=%d\n",
             idx, now / 60000, cit, gat[2], gat[3], gat[4], gat[5], gat[6], gat[0], build, walk, att, load, other, none, idle0,
             army_size(pl), population(pl, 1, 0),
-            unit_limit(pl), ump ? FIELD(ump, OF(UM, 0x13C), int) : -1,
+            unit_limit(pl), ump ? um_get_in_production(ump) : -1,
             d->n, d->town, d->near_, d->far_, d->army, d->bld, d->ship, d->air, d->unk, is_vanilla(pl) ? 0u : g_site_refused[idx],
             sp->tc, sp->tcF, sp->ts, sp->tsF, sp->tsX, mn.n[4], mn.slots[4], mn.g[4], mn.far_[4], mn.n[5], mn.slots[5], mn.g[5],
             mn.far_[5], mn.n[6], mn.slots[6], mn.g[6], mn.far_[6], mn.nd[4], mn.nd[5], mn.nd[6],

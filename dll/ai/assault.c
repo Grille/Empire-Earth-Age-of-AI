@@ -251,10 +251,10 @@ internal void assault_tick(ee_player *pl, uint32_t now) {
     if (now - a->last < 2000) return;
     a->last = now;
     void *cm = player_get_civ_mgr(pl);
-    uint8_t *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL;
+    ee_build_mgr *bm = cm ? cm_get_build_mgr(cm) : NULL;
     uint8_t *cbm = player_get_combat_mgr(pl), *cmd = cbm ? FIELD(cbm, OF(AM, 0x48), uint8_t *) : NULL;
-    if (!cmd || !bm || FIELD(bm, OF(BM, 0x12C), int) == -10000) { a->phase = 0; a->ntaken = 0; return; }
-    int bx = FIELD(bm, OF(BM, 0x12C), int), by = FIELD(bm, OF(BM, 0x130), int);
+    if (!cmd || !bm || bm_get_base_x(bm) == -10000) { a->phase = 0; a->ntaken = 0; return; }
+    int bx = bm_get_base_x(bm), by = bm_get_base_y(bm);
     unsigned hc = cont_at(bx, by);
     // the army: land subgroups of the groups on one target (the one with the most members)
     uint8_t *dq = cmd + 4;

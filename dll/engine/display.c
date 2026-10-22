@@ -939,10 +939,10 @@ internal void resume_if_suspended(uint8_t *d, DWORD *last) {
 // which Refresh takes just before this hook) - down now, up 3 updates later. The device is never acquired
 // (the window is never in front), so no real input interferes.
 internal volatile LONG g_vm_x = -1, g_vm_y = -1, g_vm_button = -1, g_vm_step, g_vm_clicks;
-internal void virtual_mouse(uint8_t *m, int frozen) {
+internal void virtual_mouse(ee_mouse *m, int frozen) {
     if (g_vm_x >= 0 && !frozen) {
-        FIELD(m, OF(MOUSE, 0x4), float) = (float)g_vm_x;
-        FIELD(m, OF(MOUSE, 0x8), float) = (float)g_vm_y;
+        mouse_set_x(m, (float)g_vm_x);
+        mouse_set_y(m, (float)g_vm_y);
         mouse_clamp(m);
     }
     uint8_t *ms = is_mouse();
@@ -961,8 +961,8 @@ internal void virtual_mouse(uint8_t *m, int frozen) {
     }
 }
 
-internal void window_mouse_in(uint8_t *m, int frozen, uint8_t *win, HWND hwnd);
-internal void window_mouse(uint8_t *m, int frozen) {
+internal void window_mouse_in(ee_mouse *m, int frozen, uint8_t *win, HWND hwnd);
+internal void window_mouse(ee_mouse *m, int frozen) {
     uint8_t *win = game_window();
     HWND hwnd = win ? FIELD(win, OF(E_WINDOW, 0x0), HWND) : NULL;
     if (!hwnd) return;
@@ -973,7 +973,7 @@ internal void window_mouse(uint8_t *m, int frozen) {
     dpi_leave(dpi);
 }
 
-internal void window_mouse_in(uint8_t *m, int frozen, uint8_t *win, HWND hwnd) {
+internal void window_mouse_in(ee_mouse *m, int frozen, uint8_t *win, HWND hwnd) {
     POINT pt, c;
     RECT rc;
     if (!GetCursorPos(&pt) || !GetClientRect(hwnd, &rc) || rc.right < 2 || rc.bottom < 2) return;
@@ -1003,18 +1003,18 @@ internal void window_mouse_in(uint8_t *m, int frozen, uint8_t *win, HWND hwnd) {
     if (gw < 2 || gh < 2) return;
     RECT v = view_rect(&rc, (int)gw, (int)gh);   // borderless: the image may have bars
     if (v.right - v.left < 2 || v.bottom - v.top < 2) return;
-    FIELD(m, OF(MOUSE, 0x4), float) = (float)(c.x - v.left) * (float)gw / (float)(v.right - v.left - 1);
-    FIELD(m, OF(MOUSE, 0x8), float) = (float)(c.y - v.top) * (float)gh / (float)(v.bottom - v.top - 1);
+    mouse_set_x(m, (float)(c.x - v.left) * (float)gw / (float)(v.right - v.left - 1));
+    mouse_set_y(m, (float)(c.y - v.top) * (float)gh / (float)(v.bottom - v.top - 1));
     mouse_clamp(m);
     InterlockedIncrement(&g_mouse_updates);
 }
 
-internal void __fastcall hook_mouse_update(uint8_t *m, void *edx) {
+internal void __fastcall hook_mouse_update(ee_mouse *m, void *edx) {
     (void)edx;
-    uint8_t frozen = FIELD(m, OF(MOUSE, 0xA4), uint8_t);
-    FIELD(m, OF(MOUSE, 0xA4), uint8_t) = 1;   // the original then only reads the wheel
+    uint8_t frozen = mouse_get_frozen(m);
+    mouse_set_frozen(m, 1);   // the original then only reads the wheel
     mouse_update(m);
-    FIELD(m, OF(MOUSE, 0xA4), uint8_t) = frozen;
+    mouse_set_frozen(m, frozen);
     window_mouse(m, frozen);
 }
 
@@ -1684,10 +1684,10 @@ internal void cmd_ddinfo(char *out, const char *args) {
     }
     REPLY("windowed present: %ld frames, %ld failed; back buffer before ShowScene: %ld samples, %ld lit of 1024 avg, lock failed %ld\n",
           g_present_frames, g_present_fail, g_lit_frames, g_lit_frames ? g_lit_samples / g_lit_frames : 0, g_lock_fail);
-    uint8_t *rm = game_mouse(), *ms = is_mouse();
-    if (rm) REPLY("mouse: game cursor %.1f,%.1f of x %.0f..%.0f y %.0f..%.0f, updates %ld, unacquired %ld, reacquired %ld, "
-                  "device %s, resumed by us %ld, subclassed %p\n", FIELD(rm, OF(RM, 0x4), float), FIELD(rm, OF(RM, 0x8), float), FIELD(rm, OF(RM, 0x18), float),
-                  FIELD(rm, OF(RM, 0x1C), float), FIELD(rm, OF(RM, 0x20), float), FIELD(rm, OF(RM, 0x14), float), g_mouse_updates, g_mouse_unacq,
+    ee_mouse *gm = game_mouse(); uint8_t *ms = is_mouse();
+    if (gm) REPLY("mouse: game cursor %.1f,%.1f of x %.0f..%.0f y %.0f..%.0f, updates %ld, unacquired %ld, reacquired %ld, "
+                  "device %s, resumed by us %ld, subclassed %p\n", mouse_get_x(gm), mouse_get_y(gm), mouse_get_x_min(gm),
+                  mouse_get_x_max(gm), mouse_get_y_min(gm), mouse_get_y_max(gm), g_mouse_updates, g_mouse_unacq,
                   g_mouse_reacq, ms ? (FIELD(ms, OF(E_MOUSE, 0x4), uint8_t) ? "suspended" : "active") : "-", g_input_resumes, (void *)g_subclassed);
     {
         LARGE_INTEGER f;

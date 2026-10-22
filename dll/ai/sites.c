@@ -55,10 +55,10 @@ internal int drop_dist(int (*d)[3], int nd, int x, int y, int food) {
 // type 2 = food (forage sites, zone activity ignored like the original), 4..6 = mines.
 internal ee_unit *select_site(ee_resource_mgr *rm, int type, int need_drop, int max_d2, ee_unit *unit) {
     ee_player *pl = rm_player(rm);
-    uint8_t *cm = FIELD(rm, RM_OWNER, uint8_t *);
-    void *bm = cm ? FIELD(cm, OF(CM, 0x3C), void *) : NULL;
+    ee_civ_mgr *cm = rm_get_owner(rm);
+    void *bm = cm ? cm_get_build_mgr(cm) : NULL;
     if (!pl || !bm) return NULL;
-    int base[2] = { FIELD(bm, OF(BM, 0x12C), int), FIELD(bm, OF(BM, 0x130), int) };
+    int base[2] = { bm_get_base_x(bm), bm_get_base_y(bm) };
     if (base[0] == -10000 || base[1] == -10000) return NULL;
     int lim = g_site_max_dist * g_site_max_dist;
     if (max_d2 <= 0 || max_d2 > lim) max_d2 = lim;
@@ -131,7 +131,7 @@ internal void cmd_minecheck(char *out, const char *args) {
     sscanf(args, "%d %d", &p, &type);
     ee_player *pl = p > 0 && p < 16 ? g_players[p] : NULL;
     ee_civ_mgr *cm = pl ? player_get_civ_mgr(pl) : NULL;
-    void *bm = cm ? FIELD(cm, OF(CM, 0x3C), void *) : NULL;
+    void *bm = cm ? cm_get_build_mgr(cm) : NULL;
     if (!bm) { REPLY("error: no AI P%d\n", p); return; }
     drops_cached(pl);
     int nd = g_drops[p].n, (*d)[3] = g_drops[p].d;
@@ -165,8 +165,8 @@ internal void cmd_minecheck(char *out, const char *args) {
 // not_region: a continent (region class 2) whose mines don't count, -1 none (overseas_mines)
 internal ee_unit *select_mine_near_drop(ee_resource_mgr *rm, int type, ee_unit *unit, int not_region) {
     ee_player *pl = rm_player(rm);
-    uint8_t *cm = FIELD(rm, RM_OWNER, uint8_t *);
-    void *bm = cm ? FIELD(cm, OF(CM, 0x3C), void *) : NULL;
+    ee_civ_mgr *cm = rm_get_owner(rm);
+    void *bm = cm ? cm_get_build_mgr(cm) : NULL;
     if (!pl || !bm) return NULL;
     unsigned pi = (unsigned)player_get_index(pl) & 15;
     drops_cached(pl);
@@ -231,9 +231,9 @@ internal void *__fastcall hook_find_mine(ee_resource_mgr *rm, void *edx, int typ
     uintptr_t caller = CALLER();
     ee_unit *r = find_mine_pick(rm, type, unit, rev, caller);
     ee_player *pl = rm_player(rm);
-    uint8_t *cm = FIELD(rm, RM_OWNER, uint8_t *), *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL;
+    ee_civ_mgr *cm = rm_get_owner(rm); ee_build_mgr *bm = cm ? cm_get_build_mgr(cm) : NULL;
     if (mine_site(caller) != 5 || !pl || !bm) return r;
-    int base[2] = { FIELD(bm, OF(BM, 0x12C), int), FIELD(bm, OF(BM, 0x130), int) };
+    int base[2] = { bm_get_base_x(bm), bm_get_base_y(bm) };
     if (base[0] == -10000) return r;   // no base point: the game ships everyone
     int home = (short)map_area(base, 2);
     unsigned *n = g_oversea[(unsigned)player_get_index(pl) & 15];
@@ -255,7 +255,7 @@ internal void *find_mine_pick(ee_resource_mgr *rm, int type, ee_unit *unit, uint
     }
     if (in_leftover_pass(caller) && type >= 2 && type < 7) {
         // leftover pass: only mines whose resource actually needs more workers
-        int have = FIELD(rm, RM_LISTS + type * 0x14 + 0x10, int), want = ((int *)FIELD_AT(rm, RM_TARGET))[type];
+        int have = FIELD(rm_list_at(rm, type), 0x10, int), want = ((int *)rm_target_at(rm))[type];
         if (have >= want) { trace_site(rm, "find_mine(leftover, not needed)", caller, unit, NULL); return NULL; }
     }
     ee_unit *r = select_site(rm, type, 0, 0, unit);

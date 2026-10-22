@@ -91,12 +91,12 @@ internal void cmd_rlist(char *out, const char *args) {
     int p = atoi(args);
     ee_player *pl = (p >= 0 && p < 16) ? g_players[p] : NULL;
     void *cm = pl ? player_get_civ_mgr(pl) : NULL;
-    uint8_t *rs = cm ? FIELD(cm, OF(CM, 0x40), uint8_t *) : NULL, *tt = pl ? ((uint8_t *)player_get_tech_tree(pl)) : NULL;
+    ee_research_mgr *rs = cm ? cm_get_research_mgr(cm) : NULL; uint8_t *tt = pl ? ((uint8_t *)player_get_tech_tree(pl)) : NULL;
     if (!rs || !tt) { REPLY("error: no AI player %d\n", p); return; }
-    int cur = FIELD(rs, OF(RS, 0x114), int);
+    int cur = rs_get_current(rs);
     REPLY("P%d research epoch %d\n", p, cur);
     for (int e = -1; e <= 13; e++) {   // -1: the list at +8
-        int *b = FIELD(rs, OF(RS, 0x18) + e * 0x10, int *), *en = FIELD(rs, OF(RS, 0x1C) + e * 0x10, int *);
+        int *b = rs_get_epoch_begin(rs, e), *en = rs_get_epoch_end(rs, e);
         if (!b || en <= b || en - b > 500) continue;
         REPLY("list %d:", e);
         for (int *q = b; q < en; q++) {
@@ -229,7 +229,7 @@ internal void cmd_train(char *out, const char *args) {
     int p = 0, type = 0, count = 1;
     sscanf(args, "%d %d %d", &p, &type, &count);
     ee_player *pl = (p > 0 && p < 16) ? g_players[p] : NULL;
-    void *cm = pl ? player_get_civ_mgr(pl) : NULL, *um = cm ? FIELD(cm, OF(CM, 0x44), void *) : NULL;
+    void *cm = pl ? player_get_civ_mgr(pl) : NULL, *um = cm ? cm_get_unit_mgr(cm) : NULL;
     if (!um || type <= 0) { REPLY("error: train P type [count] (AI player)\n"); return; }
     int req[4] = { type, count, 0, 0 };
     unsigned got = 0;
@@ -294,7 +294,7 @@ internal void cmd_bqueue(char *out, const char *args) {
     int p = atoi(args);
     ee_player *pl = (p >= 0 && p < 16) ? g_players[p] : NULL;
     void *cm = pl ? player_get_civ_mgr(pl) : NULL;
-    ee_build_mgr *bm = cm ? FIELD(cm, OF(CM, 0x3C), ee_build_mgr *) : NULL;
+    ee_build_mgr *bm = cm ? cm_get_build_mgr(cm) : NULL;
     if (!bm) { REPLY("error: no AI player %d\n", p); return; }
     for (int e = 0; e < 14; e++) {
         int *ent = bq_entry(bm, e, 0);
@@ -732,7 +732,7 @@ internal void cmd_aigroup(char *out, const char *args) {
     if (sscanf(args, "%d %d %d", &p, &x, &y) < 3) x = y = -1;
     int nodef = strstr(args, "nodef") != NULL;   // aigroup P [x y] [nodef]: not a defence
     ee_player *pl = p > 0 && p < 16 ? g_players[p] : NULL;
-    uint8_t *cm = pl ? player_get_combat_mgr(pl) : NULL, *cmd = cm ? FIELD(cm, OF(CM, 0x48), uint8_t *) : NULL;
+    uint8_t *cm = pl ? player_get_combat_mgr(pl) : NULL, *cmd = cm ? FIELD(cm, OF(AM, 0x48), uint8_t *) : NULL;
     if (!cmd) { REPLY("error: aigroup P [x y] - no AI player %d\n", p); return; }
     static struct ag_scan s;
     memset(&s, 0, sizeof s);

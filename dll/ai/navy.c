@@ -212,9 +212,9 @@ struct nv_bld { int x[16][64], y[16][64], n[16]; };
 internal void navy_detect(ee_player *pl, unsigned idx, uint32_t now) {
     static struct nv_bld b;
     void *cm = player_get_civ_mgr(pl);
-    uint8_t *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL, *map = game_map();
+    ee_build_mgr *bm = cm ? cm_get_build_mgr(cm) : NULL; uint8_t *map = game_map();
     uint8_t *grid = map ? FIELD(map, G_UNIT_GRID_OFS, uint8_t *) : NULL;
-    unsigned hc = bm ? area_id(FIELD(bm, OF(BM, 0x12C), int), FIELD(bm, OF(BM, 0x130), int), 2) : 0;
+    unsigned hc = bm ? area_id(bm_get_base_x(bm), bm_get_base_y(bm), 2) : 0;
     if (!hc || !grid) return;
     memset(b.n, 0, sizeof b.n);
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
@@ -783,7 +783,7 @@ internal void navy_docks(ee_player *pl, unsigned idx, uint32_t now) {
         if (f > want) want = f;
     }
     void *cm = player_get_civ_mgr(pl);
-    ee_build_mgr *bm = cm ? FIELD(cm, OF(CM, 0x3C), ee_build_mgr *) : NULL;
+    ee_build_mgr *bm = cm ? cm_get_build_mgr(cm) : NULL;
     if (!bm || !ut_has(UT(B_DOCK)) || w->docks >= want || w->docks_built < w->docks || bm_queued(bm, UT(B_DOCK))) return;
     if (!can_build(pl, UT(B_DOCK))) return;
     bm_request(bm, UT(B_DOCK));
@@ -800,10 +800,10 @@ internal void navy_docks(ee_player *pl, unsigned idx, uint32_t now) {
 // highest tech) the player has available by its tech record's own test (landing.c ld_type_avail: an upgraded line's
 // old type is not available any more), every epoch; none available: the game's pick.
 internal int g_fish_boat = 1;
-internal int __fastcall hook_fish_type(void *o, void *edx) {
+internal int __fastcall hook_fish_type(ee_civ_mgr *o, void *edx) {
     (void)edx;
     int t = fish_type(o);
-    ee_player *pl = o ? FIELD(o, OF(PL, 0x4C), void *) : NULL;
+    ee_player *pl = o ? cm_get_player(o) : NULL;
     if (!g_fish_boat || !pl || !((void *)player_get_tech_tree(pl)) || is_vanilla(pl)) return t;
     int best = 0, bt = 0;
     for (int b = 0; b < G_TYPES_N; b++) {

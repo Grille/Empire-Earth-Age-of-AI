@@ -153,3 +153,85 @@ internal inline uint8_t player_get_cheat(const ee_player *pl) { return FIELD(pl,
 internal inline void player_set_cheat(ee_player *pl, uint8_t v) { FIELD(pl, OF(PL, 0xEFB), uint8_t) = v; }
 internal inline uint8_t player_get_build(const ee_player *pl) { return FIELD(pl, OF(PL, 0xEFC), uint8_t); }
 internal inline void player_set_ignore(ee_player *pl, uint8_t v) { FIELD(pl, OF(PL, 0xF02), uint8_t) = v; }
+
+// A CIVILIZATION MANAGER (EECPCivilizationManager, a computer player's +0xB90; Update 0x46E2C7): the AI's managers
+internal inline uint8_t *cm_get_plan(const ee_civ_mgr *cm) { return FIELD(cm, OF(CM, 0x8), uint8_t *); }     // +0x8 the build plan's list
+internal inline ee_resource_mgr *cm_get_resource_mgr(const ee_civ_mgr *cm) { return FIELD(cm, OF(CM, 0x38), ee_resource_mgr *); } // +0x38
+internal inline ee_build_mgr *cm_get_build_mgr(const ee_civ_mgr *cm) { return FIELD(cm, OF(CM, 0x3C), ee_build_mgr *); }          // +0x3C
+internal inline ee_research_mgr *cm_get_research_mgr(const ee_civ_mgr *cm) { return FIELD(cm, OF(CM, 0x40), ee_research_mgr *); } // +0x40
+internal inline ee_unit_mgr *cm_get_unit_mgr(const ee_civ_mgr *cm) { return FIELD(cm, OF(CM, 0x44), ee_unit_mgr *); }             // +0x44
+internal inline void *cm_get_wall_mgr(const ee_civ_mgr *cm) { return FIELD(cm, OF(CM, 0x48), void *); }       // +0x48 EECPWallManager
+internal inline ee_player *cm_get_player(const ee_civ_mgr *cm) { return FIELD(cm, OF(CM, 0x4C), ee_player *); } // +0x4C its player
+internal inline void *cm_get_project(const ee_civ_mgr *cm) { return FIELD(cm, OF(CM, 0x50), void *); }        // +0x50 the construction project (NULL: a new one may start)
+// +0x58 uint32_t[CM_TIMERS_N] game times: 0 next epoch, 1 building count check, 2 military buildings (31 s), 3 build
+// (0x46E51E), 4 (0x46E817), 5 (59 s)
+internal inline uint32_t *cm_timers_at(const ee_civ_mgr *cm) { return (uint32_t *)FIELD_AT(cm, OF(CM, 0x58)); }
+internal inline uint32_t cm_get_timer(const ee_civ_mgr *cm, int i) { return FIELD(cm, OF(CM, 0x58) + i * 4, uint32_t); }
+internal inline void cm_set_timer(ee_civ_mgr *cm, int i, uint32_t v) { FIELD(cm, OF(CM, 0x58) + i * 4, uint32_t) = v; }
+// +0x74.. flag bytes (CM_FLAGS_LEN): +0x75 the one-time setup done, +0x76 a request for the epoch's techs is out, the
+// attention's activities +0x7A (0: request the epoch's techs), +0x7B (4: the build manager's pass), +0x7C (5); +0x78 not
+// known
+internal inline uint8_t cm_get_flag(const ee_civ_mgr *cm, int i) { return FIELD(cm, OF(CM, 0x74) + i, uint8_t); }
+internal inline uint8_t *cm_setup_done_at(const ee_civ_mgr *cm) { return (uint8_t *)FIELD_AT(cm, OF(CM, 0x75)); }
+internal inline uint8_t cm_get_request_out(const ee_civ_mgr *cm) { return FIELD(cm, OF(CM, 0x76), uint8_t); }
+internal inline void cm_set_request_out(ee_civ_mgr *cm, uint8_t v) { FIELD(cm, OF(CM, 0x76), uint8_t) = v; }
+internal inline uint8_t cm_get_unknown_78(const ee_civ_mgr *cm) { return FIELD(cm, OF(CM, 0x78), uint8_t); }
+internal inline uint8_t cm_get_att_epoch_techs(const ee_civ_mgr *cm) { return FIELD(cm, OF(CM, 0x7A), uint8_t); }
+internal inline uint8_t cm_get_att_build(const ee_civ_mgr *cm) { return FIELD(cm, OF(CM, 0x7B), uint8_t); }
+internal inline uint8_t cm_get_att_7c(const ee_civ_mgr *cm) { return FIELD(cm, OF(CM, 0x7C), uint8_t); }
+
+// A RESOURCE MANAGER (EECPResourceManager, CM +0x38; constructor/serializer 0x489F76 / 0x48C5B2)
+internal inline void **rm_get_hunt_begin(const ee_resource_mgr *rm) { return FIELD(rm, OF(RM, 0x88), void **); } // +0x88 the animals to hunt
+internal inline void **rm_get_hunt_end(const ee_resource_mgr *rm) { return FIELD(rm, OF(RM, 0x8C), void **); }
+internal inline void **rm_get_fish_begin(const ee_resource_mgr *rm) { return FIELD(rm, OF(RM, 0x98), void **); } // +0x98 the fish
+internal inline void **rm_get_fish_end(const ee_resource_mgr *rm) { return FIELD(rm, OF(RM, 0x9C), void **); }
+// +0xA4 7 unit lists by resource (2 food .. 6 iron), deques 0x14 apart: their gatherers
+internal inline uint8_t *rm_list_at(const ee_resource_mgr *rm, int r) { return (uint8_t *)FIELD_AT(rm, OF(RM, 0xA4) + r * 0x14); }
+internal inline ee_civ_mgr *rm_get_owner(const ee_resource_mgr *rm) { return FIELD(rm, OF(RM, 0x130), ee_civ_mgr *); } // +0x130
+internal inline int *rm_demand_at(const ee_resource_mgr *rm) { return (int *)FIELD_AT(rm, OF(RM, 0x134)); }   // +0x134 int[7] still needed
+internal inline int rm_get_demand(const ee_resource_mgr *rm, int r) { return FIELD(rm, OF(RM, 0x134) + r * 4, int); }
+internal inline uint32_t *rm_target_at(const ee_resource_mgr *rm) { return (uint32_t *)FIELD_AT(rm, OF(RM, 0x150)); } // +0x150 uint[7] gatherers wanted
+internal inline uint32_t rm_get_target(const ee_resource_mgr *rm, int r) { return FIELD(rm, OF(RM, 0x150) + r * 4, uint32_t); }
+internal inline uint32_t rm_get_timer(const ee_resource_mgr *rm, int i) { return FIELD(rm, OF(RM, 0x16C) + i * 4, uint32_t); } // +0x16C uint[5] next runs (game time)
+internal inline uint8_t rm_get_initialized(const ee_resource_mgr *rm) { return FIELD(rm, OF(RM, 0x187), uint8_t); } // +0x187 (the timers reset while 0)
+internal inline uint8_t rm_get_att_188(const ee_resource_mgr *rm) { return FIELD(rm, OF(RM, 0x188), uint8_t); }  // +0x188 the attention's activity 1
+
+// A BUILD MANAGER (EECPBuildManager, CM +0x3C; Update 0x468540)
+// +0x4 14 queues by epoch, deques 0x14 apart of {type, x, y}; the placement area follows at +0x11C
+internal inline uint8_t *bm_queue_at(const ee_build_mgr *bm, int e) { return (uint8_t *)FIELD_AT(bm, OF(BM, 0x4) + e * 0x14); }
+internal inline int bm_get_base_x(const ee_build_mgr *bm) { return FIELD(bm, OF(BM, 0x12C), int); }         // +0x12C its base (-10000: none yet)
+internal inline int bm_get_base_y(const ee_build_mgr *bm) { return FIELD(bm, OF(BM, 0x130), int); }         // +0x130
+internal inline ee_civ_mgr *bm_get_owner(const ee_build_mgr *bm) { return FIELD(bm, OF(BM, 0x134), ee_civ_mgr *); } // +0x134
+internal inline ee_player *bm_get_player(const ee_build_mgr *bm) { return FIELD(bm, OF(BM, 0x138), ee_player *); }  // +0x138
+internal inline uint8_t *bm_initialized_at(const ee_build_mgr *bm) { return (uint8_t *)FIELD_AT(bm, OF(BM, 0x148)); } // +0x148 the build lists set up (0x465E4F while 0)
+
+// A UNIT MANAGER (EECPUnitManager, CM +0x44; Update 0x490AD6)
+// +0xC 14 request lists, deques 0x14 apart of 16-byte entries {type, count, ..}
+internal inline uint8_t *um_requests_at(const ee_unit_mgr *um, int i) { return (uint8_t *)FIELD_AT(um, OF(UM, 0xC) + i * 0x14); }
+internal inline ee_player *um_get_player(const ee_unit_mgr *um) { return FIELD(um, OF(UM, 0x134), ee_player *); } // +0x134
+internal inline int um_get_in_production(const ee_unit_mgr *um) { return FIELD(um, OF(UM, 0x13C), int); }   // +0x13C units in production (0x49014F adds)
+internal inline uint8_t um_get_att_140(const ee_unit_mgr *um) { return FIELD(um, OF(UM, 0x140), uint8_t); }  // +0x140 the attention's activity 3
+
+// A RESEARCH MANAGER (EECPResearchManager, CM +0x40)
+internal inline int *rs_get_pool_begin(const ee_research_mgr *rs) { return FIELD(rs, OF(RS, 0x8), int *); }  // +0x8 the techs it may research (ids)
+internal inline int *rs_get_pool_end(const ee_research_mgr *rs) { return FIELD(rs, OF(RS, 0xC), int *); }
+internal inline void rs_set_pool_end(ee_research_mgr *rs, int *e) { FIELD(rs, OF(RS, 0xC), int *) = e; }
+// +0x18 14 lists by epoch, 0x10 apart: {begin, end} of tech ids
+internal inline int *rs_get_epoch_begin(const ee_research_mgr *rs, int e) { return FIELD(rs, OF(RS, 0x18) + e * 0x10, int *); }
+internal inline int *rs_get_epoch_end(const ee_research_mgr *rs, int e) { return FIELD(rs, OF(RS, 0x1C) + e * 0x10, int *); }
+internal inline int rs_get_current(const ee_research_mgr *rs) { return FIELD(rs, OF(RS, 0x114), int); }      // +0x114 what it researches now
+internal inline uint8_t *rs_initialized_at(const ee_research_mgr *rs) { return (uint8_t *)FIELD_AT(rs, OF(RS, 0x118)); } // +0x118 the schedule set up (while 0)
+internal inline uint8_t rs_get_att_random(const ee_research_mgr *rs) { return FIELD(rs, OF(RS, 0x11A), uint8_t); } // +0x11A the attention's activity 2 (random research)
+
+// THE GAME'S MOUSE (game_mouse(): the cursor in the game's coordinates)
+internal inline float mouse_get_x(const ee_mouse *m) { return FIELD(m, OF(MOUSE, 0x4), float); }            // +0x4
+internal inline void mouse_set_x(ee_mouse *m, float v) { FIELD(m, OF(MOUSE, 0x4), float) = v; }
+internal inline float mouse_get_y(const ee_mouse *m) { return FIELD(m, OF(MOUSE, 0x8), float); }            // +0x8
+internal inline void mouse_set_y(ee_mouse *m, float v) { FIELD(m, OF(MOUSE, 0x8), float) = v; }
+internal inline float mouse_get_y_max(const ee_mouse *m) { return FIELD(m, OF(MOUSE, 0x14), float); }       // +0x14
+internal inline float mouse_get_x_min(const ee_mouse *m) { return FIELD(m, OF(MOUSE, 0x18), float); }       // +0x18
+internal inline float mouse_get_x_max(const ee_mouse *m) { return FIELD(m, OF(MOUSE, 0x1C), float); }       // +0x1C
+internal inline float mouse_get_y_min(const ee_mouse *m) { return FIELD(m, OF(MOUSE, 0x20), float); }       // +0x20
+// +0xA4 frozen: the update then only reads the wheel
+internal inline uint8_t mouse_get_frozen(const ee_mouse *m) { return FIELD(m, OF(MOUSE, 0xA4), uint8_t); }
+internal inline void mouse_set_frozen(ee_mouse *m, uint8_t v) { FIELD(m, OF(MOUSE, 0xA4), uint8_t) = v; }

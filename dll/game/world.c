@@ -10,8 +10,8 @@ internal uint32_t game_time(void) {
 }
 
 internal ee_player *rm_player(ee_resource_mgr *rm) {
-    void *owner = FIELD(rm, RM_OWNER, void *);
-    return owner ? FIELD(owner, OF(PL, 0x4C), void *) : NULL;
+    ee_civ_mgr *owner = rm_get_owner(rm);
+    return owner ? cm_get_player(owner) : NULL;
 }
 
 // RTTI class name of a polymorphic object (MSVC: vtable[-1] -> complete object locator, +0xC type

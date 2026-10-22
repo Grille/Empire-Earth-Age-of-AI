@@ -399,8 +399,8 @@ internal void ld_home_scan(ee_player *pl) {
     g_ld_home.pl = pl; g_ld_home.nb = g_ld_home.ne = 0;
     grid_each(as_home_unit, &g_ld_home);
     void *cm = player_get_civ_mgr(pl);
-    uint8_t *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL;
-    unsigned hc = bm ? area_id(FIELD(bm, OF(BM, 0x12C), int), FIELD(bm, OF(BM, 0x130), int), 2) : 0;
+    ee_build_mgr *bm = cm ? cm_get_build_mgr(cm) : NULL;
+    unsigned hc = bm ? area_id(bm_get_base_x(bm), bm_get_base_y(bm), 2) : 0;
     if (!hc) return;
     int n = 0;
     for (int b = 0; b < g_ld_home.nb; b++)
@@ -1936,10 +1936,10 @@ internal void landing_tick(ee_player *pl, uint32_t now) {
     }
     l->last = now;
     void *cm = player_get_civ_mgr(pl);
-    uint8_t *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL;
-    ee_unit_mgr *um = cm ? FIELD(cm, OF(CM, 0x44), ee_unit_mgr *) : NULL;
+    ee_build_mgr *bm = cm ? cm_get_build_mgr(cm) : NULL;
+    ee_unit_mgr *um = cm ? cm_get_unit_mgr(cm) : NULL;
     uint8_t *cbm = player_get_combat_mgr(pl), *cmd = cbm ? FIELD(cbm, OF(AM, 0x48), uint8_t *) : NULL;
-    if (!cmd || !bm || !um || FIELD(bm, OF(BM, 0x12C), int) == -10000) { if (l->phase) ld_release(pi, "no base", now); return; }
+    if (!cmd || !bm || !um || bm_get_base_x(bm) == -10000) { if (l->phase) ld_release(pi, "no base", now); return; }
     uint8_t *dq = cmd + 4;
     unsigned first = FIELD(dq, 0xC, unsigned), cnt = FIELD(dq, 0x10, unsigned);
     {   // subgroups the game deleted meanwhile (never read a stored one without this)

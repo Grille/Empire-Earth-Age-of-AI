@@ -38,9 +38,9 @@ internal void mf_scan(ee_player *pl, unsigned idx, uint32_t now) {
     memset(m->slots, 0, sizeof m->slots); memset(m->home_slots, 0, sizeof m->home_slots); memset(m->g, 0, sizeof m->g);
     m->far_r = 0;
     ee_civ_mgr *cm = player_get_civ_mgr(pl);
-    ee_build_mgr *bm = cm ? FIELD(cm, OF(CM, 0x3C), ee_build_mgr *) : NULL;
-    if (!bm || FIELD(bm, OF(BM, 0x12C), int) == -10000) return;
-    int base[2] = { FIELD(bm, OF(BM, 0x12C), int), FIELD(bm, OF(BM, 0x130), int) };
+    ee_build_mgr *bm = cm ? cm_get_build_mgr(cm) : NULL;
+    if (!bm || bm_get_base_x(bm) == -10000) return;
+    int base[2] = { bm_get_base_x(bm), bm_get_base_y(bm) };
     short hr = (short)map_area(base, 2);
     unsigned cap = table_value(0x16);
     drops_cached(pl);
@@ -90,8 +90,8 @@ internal void mine_fill(ee_resource_mgr *rm) {
     memset(m->add, 0, sizeof m->add);
     if (!(MINE_FILL(idx) & 1) || !mf_active(pl, now)) return;
     mf_scan(pl, idx, now);
-    uint32_t *target = (uint32_t *)FIELD_AT(rm, RM_TARGET);
-    int *stock = player_stock_at(pl), *demand = (int *)FIELD_AT(rm, RM_DEMAND), reserve[7];
+    uint32_t *target = rm_target_at(rm);
+    int *stock = player_stock_at(pl), *demand = rm_demand_at(rm), reserve[7];
     budget_reserve(pl, reserve);
     int low = player_get_pop_cap(pl) < 120, gap = 0, want[7] = { 0 };
     for (int r = 4; r < 7; r++) {
@@ -140,8 +140,8 @@ internal void mine_drops(ee_player *pl, unsigned idx, uint32_t now) {
     mf_scan(pl, idx, now);
     if (!m->far_r) return;
     ee_civ_mgr *cm = player_get_civ_mgr(pl);
-    ee_build_mgr *bm = cm ? FIELD(cm, OF(CM, 0x3C), ee_build_mgr *) : NULL;
-    void *um = cm ? FIELD(cm, OF(CM, 0x44), void *) : NULL;
+    ee_build_mgr *bm = cm ? cm_get_build_mgr(cm) : NULL;
+    void *um = cm ? cm_get_unit_mgr(cm) : NULL;
     if (!bm || !um || !ut_has(UT(B_SETTLEMENT)) || bq_has(bm, UT(B_SETTLEMENT)) || bq_has(bm, UT(X_SINGLE_PLAYER_SETTLEMENT))) return;
     uint8_t *q = type_list(um, UT(B_SETTLEMENT));   // one being built: wait for it
     for (unsigned k = 0, f = q ? FIELD(q, 0xC, unsigned) : 0, n = q ? FIELD(q, 0x10, unsigned) : 0; k < n; k++) {

@@ -6,16 +6,16 @@ internal void log_state(void *rm, const char *phase, uint32_t now) {
     fprintf(g_log, "%u,%d,%s,%d,%d", now, player_get_index(pl), phase,
             player_get_difficulty(pl), player_get_cheat(pl));
     for (int i = 0; i < 7; i++) fprintf(g_log, ",%d", player_get_stock(pl, i));
-    for (int i = 0; i < 7; i++) fprintf(g_log, ",%d", FIELD(rm, RM_DEMAND + i * 4, int));
-    for (int i = 0; i < 7; i++) fprintf(g_log, ",%u", FIELD(rm, RM_TARGET + i * 4, uint32_t));
-    for (int i = 0; i < 7; i++) fprintf(g_log, ",%u", FIELD(rm, RM_LISTS + i * 0x14 + 0x10, uint32_t));
-    fprintf(g_log, ",%d", FIELD(rm, RM_INITIALIZED, uint8_t));
-    for (int i = 0; i < 5; i++) fprintf(g_log, ",%u", FIELD(rm, RM_TIMERS + i * 4, uint32_t));
-    void *cm = FIELD(rm, RM_OWNER, void *);
-    fprintf(g_log, ",%p", FIELD(cm, CM_PROJECT, void *));
-    for (int i = 0; i < CM_TIMERS_N; i++) fprintf(g_log, ",%u", FIELD(cm, CM_TIMERS + i * 4, uint32_t));
+    for (int i = 0; i < 7; i++) fprintf(g_log, ",%d", rm_get_demand(rm, i));
+    for (int i = 0; i < 7; i++) fprintf(g_log, ",%u", rm_get_target(rm, i));
+    for (int i = 0; i < 7; i++) fprintf(g_log, ",%u", FIELD(rm_list_at(rm, i), 0x10, uint32_t));
+    fprintf(g_log, ",%d", rm_get_initialized(rm));
+    for (int i = 0; i < 5; i++) fprintf(g_log, ",%u", rm_get_timer(rm, i));
+    void *cm = rm_get_owner(rm);
+    fprintf(g_log, ",%p", cm_get_project(cm));
+    for (int i = 0; i < CM_TIMERS_N; i++) fprintf(g_log, ",%u", cm_get_timer(cm, i));
     fputc(',', g_log);
-    for (int i = 0; i < CM_FLAGS_LEN; i++) fprintf(g_log, "%02x", FIELD(cm, CM_FLAGS + i, uint8_t));
+    for (int i = 0; i < CM_FLAGS_LEN; i++) fprintf(g_log, "%02x", cm_get_flag(cm, i));
     fputc(',', g_log);
     for (int i = 0; i < PL_TOGGLES_LEN; i++) fprintf(g_log, "%02x", player_get_toggle(pl, i));
     fprintf(g_log, ",%d\n", FIELD(((void *)player_get_tech_tree(pl)), TT_EPOCH, int));

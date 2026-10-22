@@ -21,7 +21,7 @@ internal void dump_region(FILE *f, const char *tag, const void *p, uint32_t len)
 
 internal void dump_player(void *rm, uint32_t now) {
     ee_player *pl = rm_player(rm);
-    void *cm = FIELD(rm, RM_OWNER, void *);
+    void *cm = rm_get_owner(rm);
     if (!pl || !cm || !g_dump_dir[0] || !g_mem_dumps) return;
     char path[MAX_PATH];
     static unsigned run;   // distinguishes several games within one session (game times repeat)

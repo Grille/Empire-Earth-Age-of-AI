@@ -16,6 +16,7 @@ typedef struct ee_tech_tree ee_tech_tree;       // TT: a player's tech tree, pla
 typedef struct ee_tech ee_tech;                 // TECH, TECHNODE, TECHCHILD: a tech tree node (EETechTreeNode)
 typedef struct ee_tech_data ee_tech_data;       // TECHDATA: a tech's data, TECH +0x8
 typedef struct ee_zone ee_zone;                 // ZONE: an AI town or resource zone
+typedef struct ee_mouse ee_mouse;               // MOUSE: the game cursor, [G_MOUSE] (RTSMouse)
 
 // the game's UString (passed by value to some of its functions)
 struct ustring { uint8_t raw[16]; };

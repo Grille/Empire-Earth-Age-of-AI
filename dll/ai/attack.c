@@ -806,7 +806,7 @@ internal void citizens_safety(ee_resource_mgr *rm) {   // before the citizen ass
     int mus = muster_rally(idx, &rx, &ry), sheltered = 0;
     if (g_bunkers || g_bk_res) bk_refresh(pl, idx);
     for (int r = 0; r < 7; r++) {
-        uint8_t *list = FIELD_AT(rm, RM_LISTS + r * 0x14);
+        uint8_t *list = rm_list_at(rm, r);
         for (unsigned k = 0, first = FIELD(list, 0xC, unsigned), cnt = FIELD(list, 0x10, unsigned); k < cnt; k++) {
             ee_unit *u = deque_at(list, first + k);
             uint8_t *goal = u ? unit_get_goal(u) : NULL;
@@ -905,13 +905,13 @@ internal void citizens_safety(ee_resource_mgr *rm) {   // before the citizen ass
             if (k == 4 && !other[0]) lstrcpynA(other, gd, sizeof other);
         }
         {   // the population as the buildings' start check sees it (0x624DF8: cap vf31 < population (1, 0) + the unit -> wait)
-            void *cmp = player_get_civ_mgr(pl), *ump = cmp ? FIELD(cmp, OF(ASGU, 0x44), void *) : NULL;
+            ee_civ_mgr *cmp = player_get_civ_mgr(pl); void *ump = cmp ? cm_get_unit_mgr(cmp) : NULL;
             uint8_t *v0 = player_get_list_begin(pl), *v1 = player_get_list_end(pl);
             fprintf(g_log, "# popcheck: P%u at %.1f min: cap %d, population %d (with production %d, list +0x18 %d), +0xB10 %d, +0xB1C %d +0xB20 %d, limit %d, AI's in production %d; ordered with no room by call site 46cce6/490cac/490e12/490f1f/490fa9/mod: %u/%u/%u/%u/%u/%u\n",
                     idx, now / 60000.0, unit_limit(pl),
                     population(pl, 0, 0), population(pl, 1, 0),
                     v0 && v1 ? (int)((v1 - v0) / 4) : -1, player_get_pop_b10(pl), player_get_pop_b1c(pl), player_get_pop_b20(pl), pop_limit_setting(),
-                    ump ? FIELD(ump, OF(UM, 0x13C), int) : -1, g_noroom[idx][0], g_noroom[idx][1], g_noroom[idx][2], g_noroom[idx][3], g_noroom[idx][4], g_noroom[idx][5]);
+                    ump ? um_get_in_production(ump) : -1, g_noroom[idx][0], g_noroom[idx][1], g_noroom[idx][2], g_noroom[idx][3], g_noroom[idx][4], g_noroom[idx][5]);
         }
         fprintf(g_log, "# doing: P%u at %.1f min (list: gather/build/walk/nothing):%s; all citizens: gather %d build %d walk %d attack %d other %d (%s) none %d\n",
                 idx, now / 60000.0, b, all[0], all[1], all[2], all[3], all[4], other, all[5]);
@@ -970,7 +970,7 @@ internal struct { uint32_t last_try, factory_req; unsigned trained, failed, no_f
 // Entry i of the build manager's queue for epoch e (bm +4 + e*0x14: deque of {type, x, y}, 0x155 per block), NULL
 // past the end. 14 queues (epochs 0..13); the placement area follows at +0x11C.
 internal int *bq_entry(ee_build_mgr *bm, int e, unsigned i) {
-    uint8_t *dq = FIELD_AT(bm, OF(BM, 0x4) + e * 0x14);
+    uint8_t *dq = bm_queue_at(bm, e);
     unsigned first = FIELD(dq, 0xC, unsigned), n = FIELD(dq, 0x10, unsigned), msz = FIELD(dq, 8, unsigned);
     uint8_t **map = FIELD(dq, 4, uint8_t **);
     if (e < 0 || e >= 14 || i >= n || !map || !msz || first >= msz * 0x155 || n > msz * 0x155) return NULL;
@@ -1014,7 +1014,7 @@ internal void siege_train(ee_player *pl, unsigned pi, int have, uint32_t now) {
         // 0,0 = it picks the place) every 3 s (0x468540); 0x468C37 appends an entry. Queue a Siege Factory.
         g_siege_train[pi].no_factory++;
         void *cm = player_get_civ_mgr(pl);
-        ee_build_mgr *bm = cm ? FIELD(cm, OF(CM, 0x3C), ee_build_mgr *) : NULL;
+        ee_build_mgr *bm = cm ? cm_get_build_mgr(cm) : NULL;
         int e = current_epoch(pl);
         if (bm && e >= 0 && e < 14 && ut_has(UT(B_SIEGE_FACTORY)) && !bq_has(bm, UT(B_SIEGE_FACTORY)) &&
             (!g_siege_train[pi].factory_req || now - g_siege_train[pi].factory_req >= 300000)) {
@@ -1026,7 +1026,7 @@ internal void siege_train(ee_player *pl, unsigned pi, int have, uint32_t now) {
         }
         return;
     }
-    void *cm = player_get_civ_mgr(pl), *um = cm ? FIELD(cm, OF(CM, 0x44), void *) : NULL;
+    void *cm = player_get_civ_mgr(pl), *um = cm ? cm_get_unit_mgr(cm) : NULL;
     if (!um) return;
     int epoch = current_epoch(pl) + 1;   // tech tree epoch 0 = Prehistoric; tech ids count from 1
     for (size_t k = 0; k < sizeof k_siege_types / sizeof *k_siege_types; k++) {

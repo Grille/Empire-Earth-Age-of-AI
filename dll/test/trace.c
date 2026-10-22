@@ -111,7 +111,7 @@ internal void *um_player(void *um) {
     for (int i = 0; i < 16; i++) {
         ee_player *pl = g_players[i];
         void *cm = pl ? player_get_civ_mgr(pl) : NULL;
-        if (cm && FIELD(cm, OF(CM, 0x44), void *) == um) return pl;
+        if (cm && cm_get_unit_mgr(cm) == um) return pl;
     }
     return NULL;
 }

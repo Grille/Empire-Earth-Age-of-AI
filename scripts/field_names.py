@@ -20,6 +20,9 @@ GETTER = re.compile(r'internal inline (.+?)\b(\w+_get_\w+)\(const \w+ \*\w+(, in
                     r'(?: \+ \w+(?: \* (\w+))?)?, (.+?)\); \}')
 SETTER = re.compile(r'internal inline void (\w+_set_\w+)\(\w+ \*\w+(, int \w+)?, (.+?) \w+\) \{ FIELD\(\w+, OF\((\w+), (0x[0-9A-F]+)\)'
                     r'(?: \+ \w+(?: \* (\w+))?)?, (.+?)\) = \w+; \}')
+# a field's address (an array or a structure inside the object): FIELD_AT, cast to its type
+AT = re.compile(r'internal inline (.+?)\b(\w+_at)\(const \w+ \*\w+(, int \w+)?\) \{ return (?:\(.+?\))?FIELD_AT\(\w+, '
+                r'OF\((\w+), (0x[0-9A-F]+)\)(?: \+ \w+(?: \* (\w+))?)?\); \}')
 
 
 def calls(s, name):
@@ -63,6 +66,15 @@ def accessors():
         if key not in out:
             stride = int(m.group(6), 0) if m.group(6) else 1 if m.group(2) else None
             out[key] = (m.group(1).replace('_set_', '_get_'), norm(m.group(7)), stride)
+    return out
+
+
+def addresses():
+    """(KIND, offset) -> (the _at accessor, its result type, its index's stride or None): a field's address"""
+    out = {}
+    for m in AT.finditer(open(OBJECTS, encoding='latin-1').read()):
+        stride = int(m.group(6), 0) if m.group(6) else 1 if m.group(3) else None
+        out[(m.group(4), m.group(5))] = (m.group(2), norm(m.group(1)), stride)
     return out
 
 
@@ -114,7 +126,7 @@ def field_use(ar, kinds, table, alias):
 
 
 def rewrite(kinds):
-    table, alias, changed = accessors(), aliases(), {}
+    table, at, alias, changed = accessors(), addresses(), aliases(), {}
     for f, p in sources():
         raw = open(p, 'rb').read().decode('latin-1')
         s = raw
@@ -146,6 +158,24 @@ def rewrite(kinds):
                 sys.exit('%s:%d: read as %s, the accessor gives %s - by hand: %s' % (f, s[:a].count('\n') + 1, t, typ, s[a:b]))
             call = '%s(%s)' % (name, args)
             s = s[:a] + (call if norm(t) == typ else '((%s)%s)' % (t, call)) + s[b:]
+        while True:   # FIELD_AT(obj, OF(K, x) [+ i * stride]) -> kind_x_at(obj[, i]); its cast to the result type goes
+            best = None
+            for a, b, args in calls(s, 'FIELD_AT'):
+                ar = split_args(args)
+                use = len(ar) == 2 and field_use(ar + ['-'], kinds, at, alias)
+                if use:
+                    best = (a, b, ar[0], at[use[0]], use[1])
+            if not best:
+                break
+            a, b, obj, (name, typ, _), idx = best
+            call = '%s(%s)' % (name, obj if idx is None else '%s, %s' % (obj, idx))
+            cast = re.search(r'\((?:const )?(\w+ \*)\)\s*$', s[:a])
+            if cast and norm(cast.group(1)) == typ:
+                s = s[:cast.start()] + call + s[b:]
+            elif typ == 'uint8_t *':
+                s = s[:a] + call + s[b:]
+            else:   # FIELD_AT gave a uint8_t *
+                s = s[:a] + '((uint8_t *)%s)' % call + s[b:]
         if s != raw:
             changed[f] = s
     for f, s in changed.items():

@@ -267,8 +267,8 @@ internal void world_scan(uint32_t now) {
         g_ws.towers[i] = g_ws.walls[i] = 0;
         g_ws.bx[i] = -10000;
         void *cm = g_players[i] ? player_get_civ_mgr(g_players[i]) : NULL;
-        uint8_t *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL;
-        if (bm && FIELD(bm, OF(BM, 0x12C), int) != -10000) { g_ws.bx[i] = FIELD(bm, OF(BM, 0x12C), int); g_ws.by[i] = FIELD(bm, OF(BM, 0x130), int); }
+        ee_build_mgr *bm = cm ? cm_get_build_mgr(cm) : NULL;
+        if (bm && bm_get_base_x(bm) != -10000) { g_ws.bx[i] = bm_get_base_x(bm); g_ws.by[i] = bm_get_base_y(bm); }
     }
     memset(g_ws.close_by, 0, sizeof g_ws.close_by);
     grid_each(ws_unit, NULL);

@@ -40,8 +40,8 @@ internal int food_fierce(int t) { return t == UT(RES_TIGER) || t == UT(RES_WOLF)
 // a free animal to hunt for unit u (NULL: the best for any): within food_hunt_range tiles of a non-granary drop site, food left,
 // not fierce, under 3 hunters, explored, the unit's continent, no enemy near, no known towers on the way
 internal ee_unit *food_animal(ee_player *pl, ee_resource_mgr *rm, ee_unit *u) {
-    uint8_t *cm = FIELD(rm, RM_OWNER, uint8_t *);
-    void *bm = cm ? FIELD(cm, OF(CM, 0x3C), void *) : NULL;
+    ee_civ_mgr *cm = rm_get_owner(rm);
+    void *bm = cm ? cm_get_build_mgr(cm) : NULL;
     if (!bm) return NULL;
     unsigned pi = (unsigned)player_get_index(pl) & 15;
     drops_cached(pl);
@@ -70,10 +70,10 @@ internal ee_unit *food_animal(ee_player *pl, ee_resource_mgr *rm, ee_unit *u) {
 }
 // the free bush nearest to a food drop site (NEAR), within max_d2 of the base; NULL: none
 internal ee_unit *food_bush(ee_player *pl, ee_resource_mgr *rm, ee_unit *u, int max_d2) {
-    uint8_t *cm = FIELD(rm, RM_OWNER, uint8_t *);
-    void *bm = cm ? FIELD(cm, OF(CM, 0x3C), void *) : NULL;
+    ee_civ_mgr *cm = rm_get_owner(rm);
+    void *bm = cm ? cm_get_build_mgr(cm) : NULL;
     if (!bm) return NULL;
-    int base[2] = { FIELD(bm, OF(BM, 0x12C), int), FIELD(bm, OF(BM, 0x130), int) };
+    int base[2] = { bm_get_base_x(bm), bm_get_base_y(bm) };
     if (base[0] == -10000 || base[1] == -10000) return NULL;
     unsigned pi = (unsigned)player_get_index(pl) & 15;
     drops_cached(pl);
@@ -125,9 +125,9 @@ internal void food_hunt(ee_resource_mgr *rm) {
     if (!pl) return;
     unsigned idx = (unsigned)player_get_index(pl) & 15;
     if (!(FOOD_PLAN(idx) & 8) || current_epoch(pl) >= FARM_EPOCH) return;
-    uint32_t *target = (uint32_t *)FIELD_AT(rm, RM_TARGET);
+    uint32_t *target = rm_target_at(rm);
     int room = (int)target[2] - rm_count(rm, 2);
-    uint8_t *dq = FIELD_AT(rm, RM_LISTS);   // list 0: idle
+    uint8_t *dq = rm_list_at(rm, 0);   // list 0: idle
     for (unsigned k = FIELD(dq, 0x10, unsigned), first = FIELD(dq, 0xC, unsigned); k-- > 0 && room > 0; ) {
         ee_unit *u = deque_at(dq, first + k);
         if (!u || unit_get_hp(u) <= 0 || unit_get_frozen(u) || unit_get_ai_held(u) || unit_get_busy(u)) continue;
@@ -148,7 +148,7 @@ internal void food_pull(ee_resource_mgr *rm) {
     if (!pl) return;
     unsigned idx = (unsigned)player_get_index(pl) & 15;
     if (!(FOOD_PLAN(idx) & 2)) return;
-    uint32_t *target = (uint32_t *)FIELD_AT(rm, RM_TARGET);
+    uint32_t *target = rm_target_at(rm);
     int pre = current_epoch(pl) < FARM_EPOCH, moves = 0, dry = 0, r6 = player_get_dropoff_distance(pl);
     while (moves < 4 && (int)target[2] - rm_count(rm, 2) >= 2) {
         int d = -1, best = 1;
@@ -178,8 +178,8 @@ internal void food_plan_needs(ee_player *pl, ee_resource_mgr *rm, int *need, con
     int more = want - wf;
     if (more > 10) more = 10;
     if (more > 0) need[2] += 50 * more;
-    void *cm = FIELD(rm, RM_OWNER, void *);
-    ee_build_mgr *bm = cm ? FIELD(cm, OF(CM, 0x3C), ee_build_mgr *) : NULL;
+    void *cm = rm_get_owner(rm);
+    ee_build_mgr *bm = cm ? cm_get_build_mgr(cm) : NULL;
     int queued = 0, nq = 0;
     for (int e = 0; bm && e <= current_epoch(pl) && e < 14 && nq < 3; e++)
         for (unsigned i = 0; nq < 3; i++) {
@@ -205,16 +205,16 @@ internal void food_camp(ee_player *pl, unsigned idx, uint32_t now) {
     if (g_camp[idx].n >= 2 || (g_camp[idx].t && now - g_camp[idx].t < 120000)) return;
     g_camp[idx].t = now ? now : 1;
     ee_civ_mgr *cm = player_get_civ_mgr(pl);
-    ee_build_mgr *bm = cm ? FIELD(cm, OF(CM, 0x3C), ee_build_mgr *) : NULL;
-    void *um = cm ? FIELD(cm, OF(CM, 0x44), void *) : NULL;
-    if (!bm || !um || !ut_has(UT(B_SETTLEMENT)) || FIELD(bm, OF(BM, 0x12C), int) == -10000 || bq_has(bm, UT(B_SETTLEMENT)) || bq_has(bm, UT(X_SINGLE_PLAYER_SETTLEMENT))) return;
+    ee_build_mgr *bm = cm ? cm_get_build_mgr(cm) : NULL;
+    void *um = cm ? cm_get_unit_mgr(cm) : NULL;
+    if (!bm || !um || !ut_has(UT(B_SETTLEMENT)) || bm_get_base_x(bm) == -10000 || bq_has(bm, UT(B_SETTLEMENT)) || bq_has(bm, UT(X_SINGLE_PLAYER_SETTLEMENT))) return;
     uint8_t *q = type_list(um, UT(B_SETTLEMENT));
     for (unsigned k = 0, f = q ? FIELD(q, 0xC, unsigned) : 0, n = q ? FIELD(q, 0x10, unsigned) : 0; k < n; k++) {
         ee_unit *b = deque_at(q, f + k), *st = b ? unit_get_physics(b) : NULL;
         if (b && unit_get_hp(b) > 0 && (!st || !unit_get_finished(st))) return;
     }
     if (!can_build(pl, UT(B_SETTLEMENT))) return;
-    int bx = FIELD(bm, OF(BM, 0x12C), int), by = FIELD(bm, OF(BM, 0x130), int);
+    int bx = bm_get_base_x(bm), by = bm_get_base_y(bm);
     static int fx[512], fy[512], ff[512];
     int n = 0;
     for (struct grid_it it = grid_it_box(bx, by, 30, 1); grid_it_next(&it) && n < 512; ) {   // animals
@@ -303,16 +303,16 @@ internal int food_fields_wait(ee_player *pl, ee_resource_mgr *rm) {
     if (food_bush(pl, rm, NULL, r6 * r6 * 36) || food_animal(pl, rm, NULL)) return 1;
     if (!player_get_boats_for_food(pl)) return 0;
     int fish = 0, boats = 0;
-    void **qb = FIELD(rm, OF(RM, 0x98), void **), **qe = FIELD(rm, OF(RM, 0x9C), void **);
+    void **qb = rm_get_fish_begin(rm), **qe = rm_get_fish_end(rm);
     for (void **h = qb; qb && h < qe && h - qb < 4096; h++)
         if (*h && unit_get_amount(*h) > 0) fish += unit_get_amount(*h);
     if (fish < 3000) return 0;
-    uint8_t *list = FIELD_AT(rm, RM_LISTS + 2 * 0x14);
+    uint8_t *list = rm_list_at(rm, 2);
     for (unsigned k = 0, first = FIELD(list, 0xC, unsigned), n = FIELD(list, 0x10, unsigned); k < n && k < 1024; k++) {
         ee_unit *u = deque_at(list, first + k); ee_unit_type *td = u ? unit_get_type_data(u) : NULL;
         if (td && unit_get_hp(u) > 0 && type_get_family(td) == 22) boats++;
     }
-    int short_ = (int)FIELD(rm, RM_TARGET + 2 * 4, uint32_t) - rm_count(rm, 2);
+    int short_ = (int)rm_get_target(rm, 2) - rm_count(rm, 2);
     return !(boats >= 8 && short_ >= 4);
 }
 internal void food_new_game(void) { memset(g_fd, 0, sizeof g_fd); memset(g_camp, 0, sizeof g_camp); }

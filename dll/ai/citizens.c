@@ -72,7 +72,7 @@ internal void cz_budget_note(ee_player *pl, unsigned idx, const int *req, const 
 internal void cz_sample(ee_player *pl, unsigned idx) {
     struct cz_st *z = &g_cz[idx];
     ee_civ_mgr *cm = player_get_civ_mgr(pl);
-    ee_unit_mgr *um = cm ? FIELD(cm, OF(CM, 0x44), ee_unit_mgr *) : NULL;
+    ee_unit_mgr *um = cm ? cm_get_unit_mgr(cm) : NULL;
     if (!um) return;
     cz_types(pl);
     int idle = 0;
@@ -91,7 +91,7 @@ internal void cz_sample(ee_player *pl, unsigned idx) {
         }
     }
     int cap = unit_limit(pl);
-    int room = cap - FIELD(um, OF(UM, 0x13C), int) - population(pl, 1, 0);
+    int room = cap - um_get_in_production(um) - population(pl, 1, 0);
     int wanted = um_citizens_wanted(um), have = um_citizens(um);
     z->wanted = wanted; z->have = have; z->room = room; z->cap = cap;
     if (!idle) return;
@@ -101,7 +101,7 @@ internal void cz_sample(ee_player *pl, unsigned idx) {
     else if ((ut_has(UT(CITIZEN)) && um_pending(um, UT(CITIZEN))) || (ut_has(UT(FEMALE_CITIZEN)) && um_pending(um, UT(FEMALE_CITIZEN))))   // the game asks vf32 (can pay one) before 0x49014F: food short, else the budget
         r = player_get_stock(pl, 2) < unit_cost(pl, UT(CITIZEN), 2) ? &z->m.pfood : &z->m.pbud;
     else if ((ut_has(UT(CITIZEN)) && um_in_production(um, UT(CITIZEN))) || (ut_has(UT(FEMALE_CITIZEN)) && um_in_production(um, UT(FEMALE_CITIZEN)))) r = &z->m.batch;
-    else if (!FIELD(um, OF(UM, 0x140), uint8_t)) r = &z->m.att;
+    else if (!um_get_att_140(um)) r = &z->m.att;
     else r = &z->m.rest;
     *r += (unsigned)idle;
 }
@@ -117,8 +117,8 @@ internal void cz_tick(ee_player *pl, uint32_t now) {
     if (now / 60000 != z->min) {
         if (z->m.prod || z->calls) {
             ee_civ_mgr *cm = player_get_civ_mgr(pl);
-            ee_resource_mgr *rm = cm ? FIELD(cm, OF(CM, 0x38), ee_resource_mgr *) : NULL;
-            int fw = rm ? rm_count(rm, 2) : 0, ft = rm ? FIELD(rm, RM_TARGET + 8, int) : 0;
+            ee_resource_mgr *rm = cm ? cm_get_resource_mgr(cm) : NULL;
+            int fw = rm ? rm_count(rm, 2) : 0, ft = rm ? ((int)rm_get_target(rm, 2)) : 0;
             EnterCriticalSection(&g_lock);
             fprintf(g_log, "# cit: P%u at %u min: prod %u cit %u other %u idle %u | cap %u target %u pfood %u pbud %u batch %u att %u rest %u | "
                     "req %u blocked %u (food %u epoch %u reserve %u) trained %u | wanted %d have %d room %d cap %d | food %d fw %d ft %d wf %d "
@@ -171,7 +171,7 @@ internal int wf_cap_wanted(unsigned idx, int n);         // below: workforce_pla
 // finished producers of citizens (Town Center, Capitol)
 internal int cz_producers(ee_player *pl) {
     ee_civ_mgr *cm = player_get_civ_mgr(pl);
-    ee_unit_mgr *um = cm ? FIELD(cm, OF(CM, 0x44), ee_unit_mgr *) : NULL;
+    ee_unit_mgr *um = cm ? cm_get_unit_mgr(cm) : NULL;
     int n = 0;
     if (!um) return 0;
     cz_types(pl);
@@ -215,9 +215,9 @@ internal void cz_targets(ee_resource_mgr *rm) {
     g_czp[idx].goal = g_czp[idx].feed = g_czp[idx].extra = 0;
     if (!(plan & 3) || current_epoch(pl) < FARM_EPOCH) return;
     ee_civ_mgr *cm = player_get_civ_mgr(pl);
-    ee_unit_mgr *um = cm ? FIELD(cm, OF(CM, 0x44), ee_unit_mgr *) : NULL;
+    ee_unit_mgr *um = cm ? cm_get_unit_mgr(cm) : NULL;
     if (!um) return;
-    uint32_t *target = (uint32_t *)FIELD_AT(rm, RM_TARGET);
+    uint32_t *target = rm_target_at(rm);
     int wf = workforce(pl), game = um_citizens_wanted(um);
     g_czp[idx].game = game;
     struct mf_st *m = &g_mf[idx];
@@ -261,7 +261,7 @@ internal void cz_targets(ee_resource_mgr *rm) {
 internal int __fastcall hook_cit_wanted(ee_unit_mgr *um, void *edx) {
     (void)edx;
     int n = um_citizens_wanted(um);
-    ee_player *pl = FIELD(um, OF(UM, 0x134), void *);
+    ee_player *pl = ((void *)um_get_player(um));
     if (!pl || is_vanilla(pl)) return n;
     unsigned idx = (unsigned)player_get_index(pl) & 15;
     int fresh = game_time() >= g_czp[idx].t && game_time() - g_czp[idx].t <= 15000;
@@ -354,10 +354,10 @@ internal void wf_targets(ee_resource_mgr *rm) {
     w->cap = 0;
     if (!(plan & 3) || current_epoch(pl) < FARM_EPOCH || w->n < WF_N) return;
     ee_civ_mgr *cm = player_get_civ_mgr(pl);
-    ee_unit_mgr *um = cm ? FIELD(cm, OF(CM, 0x44), ee_unit_mgr *) : NULL;
+    ee_unit_mgr *um = cm ? cm_get_unit_mgr(cm) : NULL;
     if (!um) return;
     uint32_t now = game_time();
-    uint32_t *target = (uint32_t *)FIELD_AT(rm, RM_TARGET);
+    uint32_t *target = rm_target_at(rm);
     struct mf_st *m = &g_mf[idx];
     mf_scan(pl, idx, now);
     void *fq = type_list(um, UT(B_FARM));
@@ -409,7 +409,7 @@ internal void wf_log(ee_player *pl, unsigned idx, unsigned min) {
     struct wf_st *w = &g_wf[idx & 15];
     ee_civ_mgr *cm = player_get_civ_mgr(pl);
     ee_tech_tree *tt = player_get_tech_tree(pl);
-    ee_resource_mgr *rm = cm ? FIELD(cm, OF(CM, 0x38), ee_resource_mgr *) : NULL;
+    ee_resource_mgr *rm = cm ? cm_get_resource_mgr(cm) : NULL;
     if (!rm) return;
     int rs = 0;
     for (int id = 1000; tt && id < 15000; id++) {
@@ -421,7 +421,7 @@ internal void wf_log(ee_player *pl, unsigned idx, unsigned min) {
     rs -= w->rs0;
     EnterCriticalSection(&g_lock);
     fprintf(g_log, "# wf: P%u at %u min: spent %d need %d have %d target %d stock %d | cap %d metal %d food %d asked %d given %d held %u "
-            "moved %u thrift %u | idle %d | rsch %d\n", idx, min, w->spent, w->need, rm_count(rm, 3), FIELD(rm, RM_TARGET + 12, int),
+            "moved %u thrift %u | idle %d | rsch %d\n", idx, min, w->spent, w->need, rm_count(rm, 3), ((int)rm_get_target(rm, 3)),
             player_get_stock(pl, 3), w->cap, w->metal, w->food, w->asked, w->given, w->held, w->moved, w->thrift, rm_count(rm, 0), rs);
     LeaveCriticalSection(&g_lock);
     w->held = w->moved = w->thrift = 0;

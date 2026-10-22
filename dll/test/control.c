@@ -157,14 +157,14 @@ internal void cmd_status(char *out) {
             player_get_citizen_share(pl));
         for (int r = 2; r < 7; r++) REPLY("%d%s", (player_stock_at(pl))[r], r < 6 ? "," : "");
         void *cm = player_get_civ_mgr(pl);
-        void *rm = cm ? FIELD(cm, OF(CM, 0x38), void *) : NULL;
+        void *rm = cm ? cm_get_resource_mgr(cm) : NULL;
         if (rm) {
             REPLY(" workers=");
-            for (int r = 2; r < 7; r++) REPLY("%d%s", FIELD(rm, RM_LISTS + r * 0x14 + 0x10, int), r < 6 ? "," : "");
+            for (int r = 2; r < 7; r++) REPLY("%d%s", FIELD(rm_list_at(rm, r), 0x10, int), r < 6 ? "," : "");
             REPLY(" targets=");
-            for (int r = 2; r < 7; r++) REPLY("%u%s", ((uint32_t *)((uint8_t *)FIELD_AT(rm, RM_TARGET)))[r], r < 6 ? "," : "");
+            for (int r = 2; r < 7; r++) REPLY("%u%s", rm_target_at(rm)[r], r < 6 ? "," : "");
             REPLY(" demand=");
-            for (int r = 2; r < 7; r++) REPLY("%d%s", ((int *)((uint8_t *)FIELD_AT(rm, RM_DEMAND)))[r], r < 6 ? "," : "");
+            for (int r = 2; r < 7; r++) REPLY("%d%s", rm_demand_at(rm)[r], r < 6 ? "," : "");
         }
         REPLY("\n");
     }
@@ -221,8 +221,8 @@ internal void cmd_foodcheck(char *out, const char *args) {
     ee_player *pl = (p >= 0 && p < 16) ? g_players[p] : NULL;
     void *cm = pl ? player_get_civ_mgr(pl) : NULL;
     if (!cm) { REPLY("error: no AI player %d\n", p); return; }
-    void *bm = FIELD(cm, OF(CM, 0x3C), void *);
-    int base[2] = { FIELD(bm, OF(BM, 0x12C), int), FIELD(bm, OF(BM, 0x130), int) };
+    void *bm = cm_get_build_mgr(cm);
+    int base[2] = { bm_get_base_x(bm), bm_get_base_y(bm) };
     int r = player_get_dropoff_distance(pl);
     short base_region = (short)map_area(base, 2);
     unsigned cap = table_value(0x16);
@@ -285,11 +285,11 @@ internal void cmd_units(char *out, const char *args) {
     int p = atoi(args);
     ee_player *pl = (p >= 0 && p < 16) ? g_players[p] : NULL;
     void *cm = pl ? player_get_civ_mgr(pl) : NULL;
-    ee_resource_mgr *rm = cm ? FIELD(cm, OF(CM, 0x38), ee_resource_mgr *) : NULL;
+    ee_resource_mgr *rm = cm ? cm_get_resource_mgr(cm) : NULL;
     if (!rm) { REPLY("error: no AI player %d\n", p); return; }
     static const char *names[7] = { "list0", "list1", "food", "wood", "stone", "gold", "iron" };
     for (int i = 0; i < 7; i++) {
-        uint8_t *dq = FIELD_AT(rm, RM_LISTS + i * 0x14);
+        uint8_t *dq = rm_list_at(rm, i);
         unsigned first = FIELD(dq, 0xC, unsigned), n = FIELD(dq, 0x10, unsigned);
         if (!n) continue;
         REPLY("%s: %u units\n", names[i], n);

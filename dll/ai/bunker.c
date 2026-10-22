@@ -179,11 +179,11 @@ internal void bk_flush(ee_player *pl, unsigned pi, uint32_t now) {   // the queu
 // builders for fortress b: the n nearest gathering citizens that aren't building it already
 internal int bk_builders(ee_player *pl, ee_unit *b, int n) {
     void *cm = player_get_civ_mgr(pl);
-    ee_resource_mgr *rm = cm ? FIELD(cm, OF(CM, 0x38), ee_resource_mgr *) : NULL;
+    ee_resource_mgr *rm = cm ? cm_get_resource_mgr(cm) : NULL;
     int bx = unit_get_x(b), by = unit_get_y(b), have = 0, sent = 0;
     if (!rm) return 0;
     for (int r = 0; r < 7; r++) {   // already on it
-        uint8_t *list = FIELD_AT(rm, RM_LISTS + r * 0x14);
+        uint8_t *list = rm_list_at(rm, r);
         for (unsigned k = 0, first = FIELD(list, 0xC, unsigned), cnt = FIELD(list, 0x10, unsigned); k < cnt; k++) {
             ee_unit *u = deque_at(list, first + k); uint8_t *g = u ? unit_get_goal(u) : NULL;
             if (g && !strcmp(rtti_name(g), "EEUGBuildRepair@@") && FIELD(g, OF(GOAL, 0x3C), ee_unit *) == b) have++;
@@ -193,7 +193,7 @@ internal int bk_builders(ee_player *pl, ee_unit *b, int n) {
         ee_unit *best = NULL;
         int bd = 0x7FFFFFFF;
         for (int r = 2; r < 7; r++) {
-            uint8_t *list = FIELD_AT(rm, RM_LISTS + r * 0x14);
+            uint8_t *list = rm_list_at(rm, r);
             for (unsigned k = 0, first = FIELD(list, 0xC, unsigned), cnt = FIELD(list, 0x10, unsigned); k < cnt; k++) {
                 ee_unit *u = deque_at(list, first + k);
                 if (!citizen_free(u, 0)) continue;
@@ -224,14 +224,14 @@ internal void bk_build(ee_player *pl, unsigned pi, uint32_t now) {
         }
     }
     void *cm = player_get_civ_mgr(pl);
-    uint8_t *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL, *rm = cm ? FIELD(cm, OF(CM, 0x38), uint8_t *) : NULL;
+    ee_build_mgr *bm = cm ? cm_get_build_mgr(cm) : NULL; ee_resource_mgr *rm = cm ? cm_get_resource_mgr(cm) : NULL;
     if (!bm || !rm) return;
     int air = 0, cit = 0;
     for (int q = 1; q < 16 && !air; q++) {
         void *o = st_player(q);
         air = o && o != pl && is_enemy(pl, o) && current_epoch(o) >= 9 && e >= 9;
     }
-    for (int t = 0; t < 7; t++) cit += FIELD(rm, RM_LISTS + t * 0x14 + 0x10, int);
+    for (int t = 0; t < 7; t++) cit += FIELD(rm_list_at(rm, t), 0x10, int);
     int want = air || bk_hurt_recent(pi, 0, 0, 10000, 120000) >= 3 ? (cit >= 40 ? 2 : 1) : 0;
     if (g_bk_res >> pi & 1 && bk_room(pl) <= 5 && want < 1) want = 1;   // the reserve: near the population cap
     g_bk[pi].need_wood = 0;
@@ -244,7 +244,7 @@ internal void bk_build(ee_player *pl, unsigned pi, uint32_t now) {
     int cost = tech && FIELD(tech, OF(TECH, 0x8), uint8_t *) ? FIELD(FIELD(tech, OF(TECH, 0x8), uint8_t *), OF(TECHDATA, 0x28), int) : 350;   // the cost lives in its tech (wood)
     if ((player_stock_at(pl))[3] < cost) { g_bk[pi].need_wood = cost; return; }   // can't pay yet: saved for (bunker_reserve)
     // the drop site nearest the base point without a fortress within 10 tiles
-    int bx = FIELD(bm, OF(BM, 0x12C), int), by = FIELD(bm, OF(BM, 0x130), int), d[2] = { 0, 0 }, bd = 0x7FFFFFFF;
+    int bx = bm_get_base_x(bm), by = bm_get_base_y(bm), d[2] = { 0, 0 }, bd = 0x7FFFFFFF;
     drops_cached(pl);
     for (int i = 0; i < g_drops[pi].n; i++) {
         int *p = g_drops[pi].d[i], dd = (p[0] - bx) * (p[0] - bx) + (p[1] - by) * (p[1] - by), held_near = 0;
@@ -312,8 +312,8 @@ internal void bk_reserve_tick(ee_player *pl, unsigned pi, uint32_t now) {
     }
     if (room <= 1 && threat < 0) {
         void *cm2 = player_get_civ_mgr(pl);
-        uint8_t *bm = cm2 ? FIELD(cm2, OF(CM, 0x3C), uint8_t *) : NULL;
-        struct bk_free f = { pl, player_get_combat_mgr(pl), bm ? FIELD(bm, OF(BM, 0x12C), int) : 0, bm ? FIELD(bm, OF(BM, 0x130), int) : 0, 0, { 0 } };
+        ee_build_mgr *bm = cm2 ? cm_get_build_mgr(cm2) : NULL;
+        struct bk_free f = { pl, player_get_combat_mgr(pl), bm ? bm_get_base_x(bm) : 0, bm ? bm_get_base_y(bm) : 0, 0, { 0 } };
         if (!f.cm || !bm) return;
         grid_each(bk_free_unit, &f);
         int best = -1, space = 0;

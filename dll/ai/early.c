@@ -39,9 +39,9 @@ internal void early_new_game(void) {
 internal int early_tower_type(ee_player *pl) { return tower_newest(pl); }   // the best tower it can build now (as defence_tick)
 internal int early_base(ee_player *pl, int *bx, int *by) {
     void *cm = player_get_civ_mgr(pl);
-    uint8_t *bm = cm ? FIELD(cm, OF(CM, 0x3C), uint8_t *) : NULL;
-    if (!bm || FIELD(bm, OF(BM, 0x12C), int) == -10000) return 0;
-    *bx = FIELD(bm, OF(BM, 0x12C), int); *by = FIELD(bm, OF(BM, 0x130), int);
+    ee_build_mgr *bm = cm ? cm_get_build_mgr(cm) : NULL;
+    if (!bm || bm_get_base_x(bm) == -10000) return 0;
+    *bx = bm_get_base_x(bm); *by = bm_get_base_y(bm);
     return 1;
 }
 internal int early_finished(ee_unit *u) { ee_unit *bs = unit_get_physics(u); return bs && unit_get_finished(bs); }
@@ -133,7 +133,7 @@ internal void early_towers_tick(ee_player *pl, unsigned idx, uint32_t now) {
     int bx, by;
     if (!early_base(pl, &bx, &by)) return;
     void *cm = player_get_civ_mgr(pl);
-    ee_build_mgr *bm = cm ? FIELD(cm, OF(CM, 0x3C), ee_build_mgr *) : NULL;
+    ee_build_mgr *bm = cm ? cm_get_build_mgr(cm) : NULL;
     int *stock = player_stock_at(pl), type = early_tower_type(pl), e = current_epoch(pl);
     if (type && !st->range) { ee_unit_type *td = type_data(type); st->range = td ? type_get_range(td) : 0; }
     int fin, all, x, y;
@@ -234,8 +234,8 @@ internal void early_range(ee_player *pl, unsigned idx, uint32_t now) {
     int e = current_epoch(pl);
     if (!EARLY(idx, early_army) || e < 1 || e > 3 || (st->range_t && now >= st->range_t && now - st->range_t < 60000)) return;
     st->range_t = now ? now : 1;
-    void *cm = player_get_civ_mgr(pl), *um = cm ? FIELD(cm, OF(CM, 0x44), void *) : NULL;
-    ee_build_mgr *bm = cm ? FIELD(cm, OF(CM, 0x3C), ee_build_mgr *) : NULL;
+    void *cm = player_get_civ_mgr(pl), *um = cm ? cm_get_unit_mgr(cm) : NULL;
+    ee_build_mgr *bm = cm ? cm_get_build_mgr(cm) : NULL;
     if (!um || !bm) return;
     uint8_t *q = type_list(um, UT(B_ARCHERY_RANGE));
     for (unsigned k = 0, f = q ? FIELD(q, 0xC, unsigned) : 0, n = q ? FIELD(q, 0x10, unsigned) : 0; k < n; k++) {
