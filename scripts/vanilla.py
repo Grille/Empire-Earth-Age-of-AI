@@ -6,10 +6,11 @@ Per side: kills, losses (units), razed (enemy buildings destroyed), lost (own bu
 warships afloat / ships lost / ships sunk / fishing food (last '# navy:' line, water maps), the mod's landings ashore.
 usage: python scripts/vanilla.py [-v] logs...      (-v: one line per game)"""
 import csv, re, sys
+from logs import open_log, log_paths
 from collections import defaultdict
 
 def load(path):
-    txt = open(path, errors='replace').read()
+    txt = open_log(path).read()
     lines = [l for l in txt.splitlines() if not l.startswith('#')]
     rows, hdr = [], None
     for r in csv.reader(lines):
@@ -46,7 +47,7 @@ keys = ('alive', 'kills', 'losses', 'razed', 'lost', 'workers', 'epoch', 'soldie
 verbose = '-v' in sys.argv
 tot = {'M': defaultdict(float), 'V': defaultdict(float)}; cnt = {'M': 0, 'V': 0}
 diffs = defaultdict(list); wins = {'M': 0, 'V': 0, 'draw': 0}; decided = []
-for path in [a for a in sys.argv[1:] if a != '-v']:
+for path in log_paths([a for a in sys.argv[1:] if a != '-v']):
     g = load(path)
     if not g: print('  skipped (no vanilla line or no rows):', path); continue
     players, van, over = g
@@ -62,7 +63,7 @@ for path in [a for a in sys.argv[1:] if a != '-v']:
             cnt[v] += 1
             for k in keys: tot[v][k] += s[k]
     if verbose:
-        tag = re.search(r'_van[0-9_]+_(.+)\.csv$', path)
+        tag = re.search(r'_van[0-9_]+_(.+)\.csv(?:\.gz)?$', path)
         print('  %-24s V=%s %s  ' % (tag.group(1) if tag else path[-30:], ''.join(map(str, sorted(van))),
               'over %.0f' % over if over is not None else 'end    ') +
               '  '.join('%s %s' % (k, '/'.join('%.0f' % (sum(s[k] for s in side[v]) / len(side[v])) for v in 'MV'))

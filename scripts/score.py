@@ -3,10 +3,11 @@
 # 1 buildings lost, 2 buildings destroyed, 3 units killed, 4 units lost, 5 conversions).
 # File names: autotest_<stamp>_suite<id>_<variant>_<map>.csv
 import csv, re, sys
+from logs import open_log, log_paths
 from collections import defaultdict
 
 def load(path):
-    lines = [l for l in open(path, errors='replace') if not l.startswith('#')]
+    lines = [l for l in open_log(path) if not l.startswith('#')]
     rows, hdr = [], None
     for r in csv.reader(lines):
         if r and r[0] == 'time_ms':
@@ -15,7 +16,7 @@ def load(path):
             rows.append(dict(zip(hdr, r)))
     end = max((int(r['time_ms']) for r in rows), default=0)
     battle, result = {}, {}
-    for l in open(path, errors='replace'):
+    for l in open_log(path):
         g = re.match(r'# autotest: game over at ([0-9.]+) min:(.*)', l)
         if g:   # +0xA30 per player: 1 won, 2 lost
             result = {int(k[1:]): int(v) for k, v in (x.split('=') for x in g.group(2).split())}
@@ -46,8 +47,8 @@ def load(path):
 
 quiet = '-q' in sys.argv     # averages only
 runs = defaultdict(dict)
-for path in sys.argv[1:]:
-    m = re.search(r'_suite[0-9_]+_([^_]+)_(.+)\.csv$', path)
+for path in log_paths(sys.argv[1:]):
+    m = re.search(r'_suite[0-9_]+_([^_]+)_(.+)\.csv(?:\.gz)?$', path)
     if not m:
         continue
     variant, mapname = m.group(1), m.group(2)

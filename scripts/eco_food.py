@@ -7,6 +7,7 @@ fields (fld/fldOK); mines with a drop site within 12 tiles - their slots (6 each
 With -base NAME: paired differences (same seed and seat) of the mod's epoch-up minute, workers and mine gatherers.
 usage: python scripts/eco_food.py [-base NAME] [-mins 5,10,20,30,60] [-keys k1,k2] "work/autotest_*_ab-*.csv" """
 import csv, glob, re, sys
+from logs import open_log, log_paths
 from collections import defaultdict
 
 args = sys.argv[1:]
@@ -17,10 +18,10 @@ def opt(name, default):
 base = opt('-base', None)
 MINS = [int(x) for x in opt('-mins', '5,10,15,20,30,40,60').split(',')]
 KEYS = opt('-keys', 'workers,gF,fo,fh,ff,fb,fx,idle,stF,stW,stG,stI,epoch,hl30,an30,anNew30,fsF,fld,fldOK,mslots,mg,mfar,mnd').split(',')
-paths = [p for a in args for p in (glob.glob(a) if any(c in a for c in '*?') else [a])]
+paths = log_paths(args)
 
 def load(path):
-    txt = open(path, errors='replace').read()
+    txt = open_log(path).read()
     m = re.search(r'^# vanilla: players ([\d ]+) play', txt, re.M)
     if not m: return None
     van = {int(x) for x in m.group(1).split()}
@@ -66,7 +67,7 @@ def load(path):
 
 data = defaultdict(dict)
 for path in paths:
-    m = re.search(r'_ab-(.+?)-(c\d-\w+?)-r(\d+)v(\d+)\.csv$', path)
+    m = re.search(r'_ab-(.+?)-(c\d-\w+?)-r(\d+)v(\d+)\.csv(?:\.gz)?$', path)
     if not m: continue
     g = load(path)
     if g: data[(m.group(1), m.group(2))][(int(m.group(3)), int(m.group(4)))] = g

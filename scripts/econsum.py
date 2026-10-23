@@ -2,15 +2,16 @@
 # soldiers trained, and mean gather rate / drop distance of mines (from "# gather" lines).
 # usage: python scripts/econsum.py [-m minute] log.csv...   (variant = the tag between _suiteSTAMP_ and _Map)
 import sys, re, collections
+from logs import open_log, log_paths
 args = sys.argv[1:]
 M = 55
 if args[:1] == ['-m']: M, args = int(args[1]), args[2:]
 V = collections.defaultdict(lambda: collections.defaultdict(list))
-for path in args:
+for path in log_paths(args):
     m = re.search(r'_suite\d+_\d+_([^_]+)_', path)
     v = m[1] if m else path
     trained = collections.Counter()
-    for ln in open(path, errors='replace'):
+    for ln in open_log(path):
         if ln.startswith('# spend: P') and f' at {M} min' in ln:
             inc = re.search(r'income F(-?\d+) W(-?\d+) S(-?\d+) G(-?\d+) I(-?\d+)', ln)
             if inc:

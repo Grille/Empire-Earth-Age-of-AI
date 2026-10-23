@@ -65,6 +65,8 @@ Several sessions may work in this tree at the same time - see Git below.
   other; slot 0 shares the game folder and refuses while the player's game runs. `DLL=<path>` plays your own build
   without installing it. Tests use the shipped `config/aimod.ini` and `config/aimod_ai/`, never the user's own.
 - Setup scripts (`scenarios/*.eeai`, `scripts/*.eeai`): docs/scripts.md. The control pipe: `scripts/eectl.py`.
+- A run's log is `work/autotest_*.csv.gz` (gzipped: `zgrep`, `zcat`; a script reads it through `scripts/logs.py`);
+  logs older than 7 days, or over 10 GB, are deleted (`scripts/work_prune.ps1`) - one to keep goes into `work/keep/`.
 - Without `game_seed` a random map is a different game every run. A/B results need many seeds (docs/testing.md).
 - A change to the text engine or to which line is chosen: run `texts corpus` before and after in the same game
   (docs/testing.md "Text engine comparison") - the results must be identical unless the change is meant to differ.

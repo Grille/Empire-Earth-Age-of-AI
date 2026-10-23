@@ -8,6 +8,7 @@ names, no underscores), e.g. ctlSe5, flSe5, fmSe5, bothSe5: the variant is the p
 usage: python scripts/fleet_ab.py [-strip n] -ctl ctl -h2h fl,fm -both both "work/autotest_*_h2h2026..._*.csv" ...
 """
 import sys, re, glob, collections, math
+from logs import open_log, log_paths
 args = sys.argv[1:]
 def opt(name, default):
     if name in args:
@@ -51,12 +52,12 @@ def metrics(txt, p):
     m['alive'] = 0 if re.search(r'^# .*P%d (?:is out|defeated)' % p, txt, re.M) else 1
     return m
 for pat in args:
-    for f in sorted(glob.glob(pat)):
-        mm = re.search(r'_(?:h2h|suite)\d+_\d+_([A-Za-z]+?)([SL]e\d+)_[^_]+-r(\d+)\.csv$', f)
+    for f in log_paths([pat]):
+        mm = re.search(r'_(?:h2h|suite)\d+_\d+_([A-Za-z]+?)([SL]e\d+)_[^_]+-r(\d+)\.csv(?:\.gz)?$', f)
         if not mm: continue
         var, mp, seed = mm.group(1), mm.group(2), int(mm.group(3))
         if STRIP: var = var[STRIP:]   # -strip n: a run prefix of n letters dropped (rounds with other seeds pooled)
-        txt = open(f, errors='replace').read()
+        txt = open_log(f).read()
         crashes[var + mp] += txt.count('\n# exception')
         unfinished[var + mp] += not (('# autotest: reached' in txt) or ('game over' in txt))
         runs[(var, mp, seed)] = {p: metrics(txt, p) for p in (2, 3)}

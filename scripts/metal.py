@@ -13,6 +13,7 @@ soldiers at 60, and the wins (mod won / base AI won).
 usage: python scripts/metal.py [-base NAME] [-v] "work/autotest_*_ab-<name>-*.csv" ...
        python scripts/metal.py -h2h "work/autotest_*_h2h<stamp>_<name>_*.csv"   (variant players B - the others A per game)"""
 import glob, re, sys
+from logs import open_log, log_paths
 from collections import defaultdict
 
 args = sys.argv[1:]
@@ -24,7 +25,7 @@ base = opt('-base', None)
 h2h = '-h2h' in args
 verbose = '-v' in args
 args = [a for a in args if a not in ('-v', '-h2h')]
-paths = [p for a in args for p in (glob.glob(a) if any(c in a for c in '*?') else [a])]
+paths = log_paths(args)
 B = 'cit inf rng cav sie oth wsh boat air ep up7 tech tower wall mbl bld unk none'.split()
 LINES = 'inf rng cav sie oth wsh boat air'.split()
 METAL = re.compile(r'^# metal: P(\d+) at (\d+) min: inc (.*?) \| stock (.*?) \|(.*?)\| army (.*?) \| foe (.*?) \| save (\d+)/(\d+) gi ([\d.]+) refused (\d+) \| gi ([\d.]+) navy ([\d.]+) \| plan (.*)$', re.M)
@@ -36,7 +37,7 @@ def at(r, mi):
     return r[max(ks)] if ks else None
 
 def load(path):
-    txt = open(path, errors='replace').read()
+    txt = open_log(path).read()
     m = re.search(r'^# vanilla: players ([\d ]+) play', txt, re.M)
     van = {int(x) for x in m.group(1).split()} if m else set()
     vp = re.search(r'^# variant: players (\d+) play B', txt, re.M)
@@ -120,7 +121,7 @@ if h2h:
 
 data = defaultdict(dict)
 for path in paths:
-    m = re.search(r'_ab-(.+?)-(c\d-\w+?)-r(\d+)v(\d+)\.csv$', path)
+    m = re.search(r'_ab-(.+?)-(c\d-\w+?)-r(\d+)v(\d+)\.csv(?:\.gz)?$', path)
     if not m: continue
     g = load(path)
     if g: data[(m.group(1), m.group(2))][(int(m.group(3)), int(m.group(4)))] = g

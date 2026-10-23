@@ -12,6 +12,7 @@ side's home island (# isl home_foe: the most at a 5-minute sample, and the sampl
 income (F+W+S+G+I) and its citizens ashore at the last # isl sample.
 usage: python scripts/islands.py [-base NAME] [-v] "work/autotest_*_ab-<name>-*.csv" ..."""
 import csv, glob, re, sys
+from logs import open_log, log_paths
 from collections import defaultdict
 
 args = sys.argv[1:]
@@ -22,7 +23,7 @@ def opt(name, default):
 base = opt('-base', None)
 verbose = '-v' in args
 args = [a for a in args if a != '-v']
-paths = [p for a in args for p in (glob.glob(a) if any(c in a for c in '*?') else [a])]
+paths = log_paths(args)
 MINS = (10, 20, 30, 45, 60)
 CL = ('home', 'own', 'contest', 'enemy', 'ally', 'empty')
 
@@ -41,7 +42,7 @@ def parse_isl(s):
     return out
 
 def load(path):
-    txt = open(path, errors='replace').read()
+    txt = open_log(path).read()
     m = re.search(r'^# vanilla: players ([\d ]+) play', txt, re.M)
     if not m: return None
     van = {int(x) for x in m.group(1).split()}
@@ -122,7 +123,7 @@ def load(path):
 
 data = defaultdict(dict)
 for path in paths:
-    m = re.search(r'_ab-(.+?)-(c\d-\w+?)-r(\d+)v(\d+)\.csv$', path)
+    m = re.search(r'_ab-(.+?)-(c\d-\w+?)-r(\d+)v(\d+)\.csv(?:\.gz)?$', path)
     if not m: continue
     g = load(path)
     if g: data[(m.group(1), m.group(2))][(int(m.group(3)), int(m.group(4)))] = g

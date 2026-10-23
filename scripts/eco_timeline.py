@@ -6,6 +6,7 @@ every 10 min: gathered food/wood/stone/gold/iron, citizens, army, units lost) an
 citizens by goal, trained and lost, town centres training.
 usage: python scripts/eco_timeline.py [-step N] [-games] logs..."""
 import csv, re, sys
+from logs import open_log, log_paths
 from collections import defaultdict
 
 STEP = 5
@@ -15,7 +16,7 @@ per_game = '-games' in args
 args = [a for a in args if a != '-games']
 
 def load(path):
-    txt = open(path, errors='replace').read()
+    txt = open_log(path).read()
     m = re.search(r'^# vanilla: players ([\d ]+) play', txt, re.M)
     if not m: return None
     van = {int(x) for x in m.group(1).split()}
@@ -92,7 +93,7 @@ ngames = 0
 dead = {'M': [], 'V': []}
 dead_lost = []   # the mod's deaths in the games it resigned
 nsurr = 0
-for path in args:
+for path in log_paths(args):
     g = load(path)
     if not g: continue
     ser, van, deaths, surr = g; ngames += 1

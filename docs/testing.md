@@ -64,8 +64,10 @@ powershell -ExecutionPolicy Bypass -File scripts/run_test.ps1 -Save newgame.ees 
 ```
 
 - **The game's own settings.** With the mod's `dinput.dll` in the game folder (dll/dinput/eesettings.c - the game's registry settings in a file) every run reads a copy of `-Settings` (env `SETTINGS`, default `config/test/eesettings.ini`: a player's settings of 2026-10-19 without the personal values, sound and music off) as `work/settings_slot<n>.ini` - not the player's `eesettings.ini`, not the registry; the log says `# game settings: <file>`. So tests no longer depend on the player's options (animal herds, scroll speed, the engine's tick rates ...), and nothing is muted. Checked 2026-10-19: the registry byte for byte unchanged after a run and after 2 parallel slots. Without the dinput.dll (`# game settings: registry ...`): sound and music are muted in the registry for the run and restored afterwards (a backup in `work/` covers interrupted runs). `-Mute:$false`: the player's own settings.
-- The log is moved to `work/autotest_<stamp><tag>.csv`. Logs older than 2 days go, then the oldest while all of them
-  hold more than 20 GB, and a slot's dumps older than 2 days (`scripts/work_prune.ps1`, started by run_test at most
+- The log is moved to `work/autotest_<stamp><tag>.csv.gz`, gzipped (~7 times smaller; `zgrep`, `zcat`, `less`). The
+  scripts read logs through `scripts/logs.py` (`open_log`, `log_paths`): gzipped or not, and a pattern ending in
+  `.csv` finds the `.csv.gz` too - the usage lines' patterns work as they are. Logs older than 7 days go, then the oldest while all of them
+  hold more than 10 GB, and a slot's dumps older than 7 days (`scripts/work_prune.ps1`, started by run_test at most
   once an hour; `EEAIMOD_KEEP_DAYS`, `EEAIMOD_KEEP_GB`; `-WhatIf` lists them; `work/prune.log`). Parallel A/B runs
   wrote 30 GB a day: 77 GB of logs had piled up by 2026-10-23. A log to keep goes into `work/keep/`; the player's
   `play_*.csv` are never deleted.

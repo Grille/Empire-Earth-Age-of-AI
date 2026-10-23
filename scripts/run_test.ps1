@@ -339,8 +339,22 @@ public static class SuspendedStart {
 }
 $stamp = Get-Date -Format "yyyyMMdd_HHmmss"
 $dest = "$repo\work\autotest_${stamp}$(if ($Slot) { "_s$Slot" })${Tag}.csv"
-if (Test-Path "$sdir\aimod_econ.csv") { Move-Item "$sdir\aimod_econ.csv" $dest }
-# old logs and dumps go (scripts/work_prune.ps1: older than 2 days, or over 20 GB), at most once an hour - on its own,
+if (Test-Path "$sdir\aimod_econ.csv") {
+    Move-Item "$sdir\aimod_econ.csv" $dest
+    # gzipped: ~7 times smaller (scripts/logs.py reads both; zgrep, zcat). Should it fail, the plain log stays
+    $in = $out = $z = $null
+    try {
+        $in = [System.IO.File]::OpenRead($dest); $out = [System.IO.File]::Create("$dest.gz")
+        $z = New-Object System.IO.Compression.GZipStream($out, [System.IO.Compression.CompressionLevel]::Optimal)
+        $in.CopyTo($z); $z.Dispose(); $out.Dispose(); $in.Dispose(); $z = $out = $in = $null
+        Remove-Item $dest; $dest = "$dest.gz"
+    } catch {
+        foreach ($st in $z, $out, $in) { if ($st) { $st.Dispose() } }
+        Remove-Item "$dest.gz" -ErrorAction SilentlyContinue
+        "warning: the log not gzipped: $_"
+    }
+}
+# old logs and dumps go (scripts/work_prune.ps1: older than 7 days, or over 10 GB), at most once an hour - on its own,
 # so this run's line comes now
 Start-Process powershell -WindowStyle Hidden -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File',
               "`"$PSScriptRoot\work_prune.ps1`"", '-Hourly', '-Quiet'

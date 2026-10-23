@@ -9,6 +9,7 @@ request lists); kills - losses, razed (enemy buildings), lost (own), wins.
 With -base NAME: paired differences (same seed and seat) of the mod's side against that variant.
 usage: python scripts/milspend.py [-base NAME] "work/autotest_*_ab-*.csv" """
 import glob, re, sys
+from logs import open_log, log_paths
 from collections import defaultdict
 
 args = sys.argv[1:]
@@ -17,14 +18,14 @@ def opt(name, default):
         i = args.index(name); v = args[i + 1]; del args[i:i + 2]; return v
     return default
 base = opt('-base', None)
-paths = [p for a in args for p in (glob.glob(a) if any(c in a for c in '*?') else [a])]
+paths = log_paths(args)
 MIL = re.compile(r'^# mil: P(\d+) at (\d+) min: stock (.*?) \| acc (.*?) \| sold (\d+) siege (\d+) ships (\d+) air (\d+) value (-?\d+) \| '
                  r'bld (.*?) busy (\d+)/(\d+) \| towers (\d+) walls (\d+) \| tech (\d+) up7 (\d+)(?: cost \d+)? \| wish (-?\d+) pop (-?\d+) cap (-?\d+) room (-?\d+) \| '
                  r'calls (\d+) asked (\d+) trained (\d+) budget (\d+) poor (\d+) room (\d+) game (\d+) subs (\d+)(?: \| short (.*?) \| res (.*?))?(?: \| plan float (.*?) fill (\d+) bld (\d+)(?: mix (\d+))?)?$', re.M)
 MINS = (20, 30, 45, 60)
 
 def load(path):
-    txt = open(path, errors='replace').read()
+    txt = open_log(path).read()
     m = re.search(r'^# vanilla: players ([\d ]+) play', txt, re.M)
     if not m: return None
     van = {int(x) for x in m.group(1).split()}
@@ -84,7 +85,7 @@ def load(path):
 
 data = defaultdict(dict)
 for path in paths:
-    m = re.search(r'_ab-(.+?)-(c\d-\w+?)-r(\d+)v(\d+)\.csv$', path)
+    m = re.search(r'_ab-(.+?)-(c\d-\w+?)-r(\d+)v(\d+)\.csv(?:\.gz)?$', path)
     if not m: continue
     g = load(path)
     if g: data[(m.group(1), m.group(2))][(int(m.group(3)), int(m.group(4)))] = g

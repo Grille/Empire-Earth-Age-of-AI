@@ -21,5 +21,5 @@ for r in $(seq $((SEED0 + 1)) $((SEED0 + REPEAT))); do
     done
 done
 jobs_wait
-venv/Scripts/python.exe scripts/vanilla.py work/autotest_*_van${STAMP}_${NAME}-*.csv
+venv/Scripts/python.exe scripts/vanilla.py work/autotest_*_van${STAMP}_${NAME}-*.csv*
 echo VANILLA DONE $STAMP

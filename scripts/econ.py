@@ -2,15 +2,16 @@
 # workers per resource (F food, W wood, S stone, G gold, I iron; idle = not assigned), plus the 5-minute army lines.
 # usage: python scripts/econ.py [-s minutes] log.csv...
 import csv, sys, re
+from logs import open_log, log_paths
 
 def main():
     args = sys.argv[1:]
     step = 5
     if args[:1] == ['-s']: step, args = int(args[1]), args[2:]
-    for path in args:
+    for path in log_paths(args):
         print('==', path)
         rows, army = {}, {}
-        with open(path, newline='', errors='replace') as f:
+        with open_log(path, newline='') as f:
             lines = f.read().splitlines()
         hdr = None
         for ln in lines:

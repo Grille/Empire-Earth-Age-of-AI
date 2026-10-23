@@ -8,6 +8,7 @@ up to where the variant changes something) - paired differences, mean and standa
 usage: python scripts/seacontrol.py [-v] [-ctl f0] "work/autotest_*_suite<stamp>_*_seaop-r*.csv" ...
 """
 import sys, re, glob, math, collections
+from logs import open_log, log_paths
 args = sys.argv[1:]
 VERBOSE = '-v' in args
 if VERBOSE: args.remove('-v')
@@ -70,11 +71,11 @@ def run_metrics(txt):
 runs = {}   # (variant, map, seed) -> metrics
 groups = collections.OrderedDict()
 for pat in args:
-    for f in sorted(glob.glob(pat)):
-        mm = re.search(r'_(?:h2h|suite)(?:\d{8}_\d{4}|[A-Za-z0-9]+)_([A-Za-z0-9]+?)([SL]e\d+)?_[^_]+-r(\d+)\.csv$', f)
+    for f in log_paths([pat]):
+        mm = re.search(r'_(?:h2h|suite)(?:\d{8}_\d{4}|[A-Za-z0-9]+)_([A-Za-z0-9]+?)([SL]e\d+)?_[^_]+-r(\d+)\.csv(?:\.gz)?$', f)
         if mm: var, mp, seed = mm.group(1), mm.group(2) or '', int(mm.group(3))
-        else: var, mp, seed = re.sub(r'^.*autotest_\d+_\d+(_s\d+)?_?', '', f).replace('.csv', ''), '', 0
-        r = run_metrics(open(f, errors='replace').read())
+        else: var, mp, seed = re.sub(r'^.*autotest_\d+_\d+(_s\d+)?_?', '', f).replace('.gz', '').replace('.csv', ''), '', 0
+        r = run_metrics(open_log(f).read())
         if not r: print('no # sea: lines:', f); continue
         runs[(var, mp, seed)] = r
         groups.setdefault(var + mp, []).append((seed, r))

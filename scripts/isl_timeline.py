@@ -10,15 +10,16 @@ first (the other side's drop site on another island, none of its own). The failu
 mod; counted over the games the mod did not win.
 usage: python scripts/isl_timeline.py [-v] "work/autotest_*_ab-<name>-*.csv" ..."""
 import re, sys, glob
+from logs import open_log, log_paths
 from collections import defaultdict
 
 args = sys.argv[1:]
 verbose = '-v' in args
-paths = [p for a in args if a != '-v' for p in (glob.glob(a) if any(c in a for c in '*?') else [a])]
+paths = log_paths([a for a in args if a != '-v'])
 MINS = (10, 20, 30, 45, 60, 75)
 
 def load(path):
-    txt = open(path, errors='replace').read()
+    txt = open_log(path).read()
     m = re.search(r'^# vanilla: players ([\d ]+) play', txt, re.M)
     if not m: return None
     van = {int(x) for x in m.group(1).split()}
@@ -93,7 +94,7 @@ def load(path):
 
 data = defaultdict(list)
 for path in paths:
-    m = re.search(r'_ab-(.+?)-(c\d-\w+?)-r(\d+)v(\d+)\.csv$', path)
+    m = re.search(r'_ab-(.+?)-(c\d-\w+?)-r(\d+)v(\d+)\.csv(?:\.gz)?$', path)
     if not m: continue
     g = load(path)
     if g: data[(m.group(1), m.group(2))].append((path, g))

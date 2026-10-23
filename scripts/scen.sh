@@ -20,5 +20,5 @@ for v in "$@"; do
     done
 done
 jobs_wait
-venv/Scripts/python.exe scripts/score.py -q work/autotest_*_suite${STAMP}_*.csv
+venv/Scripts/python.exe scripts/score.py -q work/autotest_*_suite${STAMP}_*.csv*
 echo SCEN DONE $STAMP

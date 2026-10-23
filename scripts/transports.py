@@ -9,6 +9,7 @@ with how many, their seconds together and the longest (a stall still open at the
 transport (landing / ferry / game); the watchdog's steps (transport_watchdog=1); the landings sailed and ashore.
 usage: python scripts/transports.py [-v] logs...      (-v: each stall of the kinds lost / partly / unload)"""
 import re, sys, collections
+from logs import open_log, log_paths
 
 STALL = re.compile(r'# tw: P(\d+) at ([\d.]+) min: (\w+) transport (\w+) (stalls|still) in (\w+) (\d+) s at (\d+),(\d+) goal (\S+) aboard (\d+)'
                    r'(?: pending (\d+) \(board (\d+), idle (\d+), no goal (\d+), other (\d+), gone (\d+)\))?')
@@ -31,7 +32,7 @@ def run(path, verbose):
     end_min = 0.0
     dog_drop = dog_kick = 0
     sailed = ashore = 0
-    for ln in open(path, encoding='utf-8', errors='replace'):
+    for ln in open_log(path, encoding='utf-8'):
         if not ln.startswith('#'): continue
         m = MIN.search(ln)
         if m: end_min = max(end_min, float(m.group(1)))
@@ -58,7 +59,7 @@ def run(path, verbose):
 
 def main():
     verbose = '-v' in sys.argv
-    files = [a for a in sys.argv[1:] if a != '-v']
+    files = log_paths([a for a in sys.argv[1:] if a != '-v'])
     tot = collections.defaultdict(lambda: [0, 0, 0])
     for f in files:
         done, dd, dk, sailed, ashore = run(f, verbose)
@@ -70,7 +71,7 @@ def main():
         cols = ' '.join('%s %d/%ds/max %ds' % (k, by[k][0], by[k][1], by[k][2]) for k in main_kinds)
         other = sum(v[0] for k, v in by.items() if k not in main_kinds)
         print('%-28s %s other %d | open at end %d | watchdog let go %d, kicked %d | landings sailed %d ashore %d'
-              % (f.replace('\\', '/').split('/')[-1][-28:], cols, other, sum(1 for s in done if s.get('open')), dd, dk, sailed, ashore))
+              % (f.replace('\\', '/').split('/')[-1].removesuffix('.gz')[-28:], cols, other, sum(1 for s in done if s.get('open')), dd, dk, sailed, ashore))
         if verbose:
             for s in done:
                 if s['kind'] in ('lost', 'partly', 'unload'):

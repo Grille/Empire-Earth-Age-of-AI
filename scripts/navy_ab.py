@@ -6,11 +6,12 @@ warships by role (F frigates, L battleships, A galleys/catapult ships, S attack 
 looks) and lost / sunk by role at the end (T transports).
 usage: python scripts/navy_ab.py [-split|-mix] "work/*_suite..._<variant>_*.csv" ..."""
 import sys, re, glob, collections, math
+from logs import open_log, log_paths
 groups = collections.OrderedDict()
 split = '-split' in sys.argv
 mix = '-mix' in sys.argv
 for pat in [a for a in sys.argv[1:] if a not in ('-split', '-mix')]:
-    for f in sorted(glob.glob(pat)):
+    for f in log_paths([pat]):
         m = re.search(r'_suite\d+_\d+_([^_]+)_', f)
         groups.setdefault(m.group(1) if m else f, []).append(f)
 def avg(v): return sum(v) / len(v) if v else 0.0
@@ -25,7 +26,7 @@ for g, files in groups.items():
     rows = collections.defaultdict(list)
     crash = ends = 0
     for f in files:
-        txt = open(f, errors='replace').read()
+        txt = open_log(f).read()
         crash += txt.count('\n# exception')
         ends += ('# autotest: reached' in txt) or ('game over' in txt)
         battle = {int(a): [int(x) for x in b.split()] for a, b in re.findall(r'^# battle: P(\d+) at \d+ min: (.*)', txt, re.M)}

@@ -13,6 +13,7 @@ lost, soldiers alive at 60 / 75 (land + siege, # mil), warships at the end, sunk
 usage: python scripts/cover.py [-base NAME] "work/autotest_*_ab-<name>-*.csv" ...
        python scripts/cover.py -h2h "work/autotest_*_h2h<stamp>_<name>_*.csv"   (variant players B - the others A per game)"""
 import glob, re, sys
+from logs import open_log, log_paths
 from collections import defaultdict
 
 args = sys.argv[1:]
@@ -23,7 +24,7 @@ def opt(name, default):
 base = opt('-base', None)
 h2h = '-h2h' in args
 args = [a for a in args if a not in ('-h2h',)]
-paths = [p for a in args for p in (glob.glob(a) if any(c in a for c in '*?') else [a])]
+paths = log_paths(args)
 CVD = re.compile(r'^# cvd: P(\d+) at ([\d.]+) min: (\w)(\d+) val (\d+) hp (\d+) \| eng (-?\d+) ([\d.]+) \| loc (\d+) \| tower (\d) near (\d+) \| '
                  r'low ([\d.]+) quiet (\d) \| hosp (-?\d+) dock (-?\d+) \| held (\d) \| by P(\d+)$', re.M)
 COV = re.compile(r'^# cover: P(\d+) at (\d+) min: mil ([\d.]+) dmg ([\d.]+) quiet ([\d.]+) \| heal hosp (\d+) dock (\d+) other (\d+) \| '
@@ -35,7 +36,7 @@ def at(r, mi):
     return r[max(ks)] if ks else None
 
 def load(path):
-    txt = open(path, errors='replace').read()
+    txt = open_log(path).read()
     m = re.search(r'^# vanilla: players ([\d ]+) play', txt, re.M)
     van = {int(x) for x in m.group(1).split()} if m else set()
     vp = re.search(r'^# variant: players (\d+) play B', txt, re.M)
@@ -136,7 +137,7 @@ if h2h:
 
 data = defaultdict(dict)
 for path in paths:
-    m = re.search(r'_ab-(.+?)-(c\d-\w+?)-r(\d+)v(\d+)\.csv$', path)
+    m = re.search(r'_ab-(.+?)-(c\d-\w+?)-r(\d+)v(\d+)\.csv(?:\.gz)?$', path)
     if not m: continue
     g = load(path)
     if g: data[(m.group(1), m.group(2))][(int(m.group(3)), int(m.group(4)))] = g

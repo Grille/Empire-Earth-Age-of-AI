@@ -1,13 +1,14 @@
 # Summarize an aimod_econ.csv: per player, one line per interval with stock, workers per resource, targets, epoch.
 # usage: python summarize.py <csv> [interval_minutes=2]
 import csv, sys
+from logs import open_log, log_paths
 
-path = sys.argv[1]
+path = log_paths(sys.argv[1:2])[0]
 step = float(sys.argv[2]) * 60000 if len(sys.argv) > 2 else 120000
 RES = ['food', 'wood', 'stone', 'gold', 'iron']   # types 2..6 (mine order unverified)
 
 rows = []
-with open(path, newline='') as f:
+with open_log(path, newline='') as f:
     lines = [l for l in f if not l.startswith('#')]
 hdr = None
 for r in csv.reader(lines):

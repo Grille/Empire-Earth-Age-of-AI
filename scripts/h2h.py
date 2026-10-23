@@ -2,10 +2,11 @@
 # others (A) - survival, soldiers (last '# army:' line), kills, losses, razed buildings, epoch, workers; then the mean
 # of the per-game differences B - A with its standard error (paired: map, seed and length are the same for both).
 import csv, re, sys
+from logs import open_log, log_paths
 from collections import defaultdict
 
 def load(path):
-    lines = [l for l in open(path, errors='replace') if not l.startswith('#')]
+    lines = [l for l in open_log(path) if not l.startswith('#')]
     rows, hdr = [], None
     for r in csv.reader(lines):
         if r and r[0] == 'time_ms':
@@ -14,7 +15,7 @@ def load(path):
             rows.append(dict(zip(hdr, r)))
     end = max((int(r['time_ms']) for r in rows), default=0)
     battle, army, bset = {}, {}, None
-    for l in open(path, errors='replace'):
+    for l in open_log(path):
         m = re.match(r'# variant: players (\d+)', l)
         if m: bset = {int(c) for c in m.group(1)}
         m = re.match(r'# battle: P(\d+) at \d+ min: (.*)', l)
@@ -36,12 +37,12 @@ def load(path):
 
 keys = ('alive', 'soldiers', 'kills', 'losses', 'razed', 'epoch', 'workers')
 diffs = defaultdict(list); tot = {'A': defaultdict(float), 'B': defaultdict(float)}; cnt = {'A': 0, 'B': 0}
-for path in sys.argv[1:]:
+for path in log_paths(sys.argv[1:]):
     players, bset = load(path)
     if not bset or not players: print('  skipped (no variant line):', path); continue
     g = {'A': [s for p, s in players.items() if p not in bset], 'B': [s for p, s in players.items() if p in bset]}
     if not g['A'] or not g['B']: continue
-    tag = re.search(r'_h2h[0-9_]+_(.+)\.csv$', path)
+    tag = re.search(r'_h2h[0-9_]+_(.+)\.csv(?:\.gz)?$', path)
     print('  %-28s B=%s  ' % (tag.group(1) if tag else path, ''.join(map(str, sorted(bset)))) + '  '.join(
         '%s %s' % (k, '/'.join('%.0f' % (sum(s[k] for s in g[v]) / len(g[v])) for v in 'AB'))
         for k in ('alive', 'soldiers', 'kills', 'losses')), '(A/B, alive x1)')

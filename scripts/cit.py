@@ -8,6 +8,7 @@ without a drop site (mnd), soldiers, the mod's stone+gold+iron income (# spend) 
 With -base NAME: paired differences (same seed and seat) against that variant.
 usage: python scripts/cit.py [-base NAME] "work/autotest_*_ab-*.csv" """
 import csv, glob, re, sys
+from logs import open_log, log_paths
 from collections import defaultdict
 
 args = sys.argv[1:]
@@ -16,12 +17,12 @@ def opt(name, default):
         i = args.index(name); v = args[i + 1]; del args[i:i + 2]; return v
     return default
 base = opt('-base', None)
-paths = [p for a in args for p in (glob.glob(a) if any(c in a for c in '*?') else [a])]
+paths = log_paths(args)
 PH = (('E', 0, 10), ('M', 10, 30), ('L', 30, 61))
 RS = ('cap', 'target', 'pfood', 'pbud', 'batch', 'att', 'rest')
 
 def load(path):
-    txt = open(path, errors='replace').read()
+    txt = open_log(path).read()
     m = re.search(r'^# vanilla: players ([\d ]+) play', txt, re.M)
     if not m: return None
     van = {int(x) for x in m.group(1).split()}
@@ -89,7 +90,7 @@ def load(path):
 
 data = defaultdict(dict)
 for path in paths:
-    m = re.search(r'_ab-(.+?)-(c\d-\w+?)-r(\d+)v(\d+)\.csv$', path)
+    m = re.search(r'_ab-(.+?)-(c\d-\w+?)-r(\d+)v(\d+)\.csv(?:\.gz)?$', path)
     if not m: continue
     g = load(path)
     if g: data[(m.group(1), m.group(2))][(int(m.group(3)), int(m.group(4)))] = g

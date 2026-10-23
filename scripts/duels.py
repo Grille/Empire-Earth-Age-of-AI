@@ -1,8 +1,9 @@
 """duels.py: the duel logs of scripts/duels.sh - the estimate at the start, both sides over time, when it ended.
 usage: python scripts/duels.py work/autotest_*_duel_*.csv"""
 import re,sys,glob
-for f in sys.argv[1:]:
-    L=open(f,encoding='latin1').read().split('\n')
+from logs import open_log, log_paths
+for f in log_paths(sys.argv[1:]):
+    L=open_log(f, encoding='latin1').read().split('\n')
     rows=[]
     k=0
     for l in L:

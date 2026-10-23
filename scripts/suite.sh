@@ -28,5 +28,5 @@ EOF2
     done
 done
 jobs_wait
-venv/Scripts/python.exe scripts/score.py ${QUIET:+-q} work/autotest_*_suite${STAMP}_*.csv
+venv/Scripts/python.exe scripts/score.py ${QUIET:+-q} work/autotest_*_suite${STAMP}_*.csv*
 echo SUITE DONE $STAMP

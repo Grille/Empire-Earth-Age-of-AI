@@ -1,11 +1,12 @@
 # Epoch advances per AI: game minute of each new epoch and the delay after the planned attempt (cm_t_epoch).
 # usage: python scripts/epochs.py log.csv...
 import sys, collections
+from logs import open_log, log_paths
 delays = []
-for path in sys.argv[1:]:
+for path in log_paths(sys.argv[1:]):
     hdr, prev = None, {}
     out = collections.defaultdict(list)
-    for ln in open(path, errors='replace'):
+    for ln in open_log(path):
         if ln.startswith('#'): continue
         if ln.startswith('time_ms'): hdr = ln.strip().split(','); continue
         if not hdr: continue

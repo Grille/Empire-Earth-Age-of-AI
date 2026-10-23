@@ -12,6 +12,7 @@ tiles apart), the subgroups' orders (moves / attacks) a minute, TETHER's skipped
 usage: python scripts/mass.py [-base NAME] "work/autotest_*_ab-*.csv"      python scripts/mass.py -h2h "work/*_h2h*_name_*.csv"
        python scripts/mass.py -states "work/autotest_*_ab-*.csv" """
 import glob, os, re, sys
+from logs import open_log, log_paths
 from collections import defaultdict
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -24,7 +25,7 @@ base = opt('-base', None)
 h2h = '-h2h' in args
 states = '-states' in args
 args = [a for a in args if a not in ('-h2h', '-states')]
-paths = [p for a in args for p in (glob.glob(a) if any(c in a for c in '*?') else [a])]
+paths = log_paths(args)
 MASS = re.compile(r'^# mass: P(\d+) at (\d+) min: sold ([\d.]+) iso ([\d.]+) away ([\d.]+) isoaway ([\d.]+) eng ([\d.]+) engiso ([\d.]+) \| '
                   r'sg ([\d.]+) out ([\d.]+) asg ([\d.]+) strag ([\d.]+) \| died (\d+) iso (\d+) away (\d+) isoaway (\d+) outn (\d+) \| '
                   r'held (\d+) released (\d+) refused (\d+) holding (-?\d+) \| waits (\d+) waited (\d+) goes (\d+)$', re.M)
@@ -62,10 +63,10 @@ CLS = ('form', 'march', 'fight', 'other')
 if states:
     tot = defaultdict(lambda: defaultdict(float))
     for path in paths:
-        m = re.search(r'_ab-(.+?)-(c\d-\w+?)-r(\d+)v(\d+)\.csv$', path)
+        m = re.search(r'_ab-(.+?)-(c\d-\w+?)-r(\d+)v(\d+)\.csv(?:\.gz)?$', path)
         if not m: continue
         van = int(m.group(4))
-        for x in M2.finditer(open(path, errors='replace').read()):
+        for x in M2.finditer(open_log(path).read()):
             t = tot[(m.group(1), m.group(2), 'V' if int(x.group(1)) == van else 'M')]
             t['mins'] += 1
             for c, g in zip(CLS, x.groups()[2:6]):
@@ -91,7 +92,7 @@ if states:
 if h2h:
     side = {'A': [], 'B': []}; d = defaultdict(list)
     for path in paths:
-        txt = open(path, errors='replace').read()
+        txt = open_log(path).read()
         m = re.search(r'^# variant: players (\d+)', txt, re.M)
         ms = mass_of(txt)
         if not m or not ms: continue
@@ -110,9 +111,9 @@ exec(_src[:_src.index('keys = (')], _ns)
 vload = _ns['load']
 data = defaultdict(dict)
 for path in paths:
-    m = re.search(r'_ab-(.+?)-(c\d-\w+?)-r(\d+)v(\d+)\.csv$', path)
+    m = re.search(r'_ab-(.+?)-(c\d-\w+?)-r(\d+)v(\d+)\.csv(?:\.gz)?$', path)
     if not m: continue
-    txt = open(path, errors='replace').read()
+    txt = open_log(path).read()
     v = vload(path); ms = mass_of(txt)
     if not v or not ms: continue
     players, van, over = v

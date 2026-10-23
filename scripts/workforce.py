@@ -12,6 +12,7 @@ With -base NAME: paired differences (same seed and seat) of the mod's side again
 razed, wins.
 usage: python scripts/workforce.py [-base NAME] [-v] "work/autotest_*_ab-<name>-*.csv" """
 import glob, re, sys
+from logs import open_log, log_paths
 from collections import defaultdict
 
 args = sys.argv[1:]
@@ -22,7 +23,7 @@ def opt(name, default):
 base = opt('-base', None)
 verbose = '-v' in args
 if verbose: args.remove('-v')
-paths = [p for a in args for p in (glob.glob(a) if any(c in a for c in '*?') else [a])]
+paths = log_paths(args)
 MINS = (15, 30, 45, 60, 75)
 ECO = re.compile(r'^# eco: P(\d+) at (\d+) min: cit=(\d+) gF=(\d+) gW=(\d+) gS=(\d+) gG=(\d+) gI=(\d+) .*?soldiers=(\d+) pop=(\d+) cap=(\d+)', re.M)
 MIL = re.compile(r'^# mil: P(\d+) at (\d+) min: stock (.*?) \| acc (.*?) \| sold (\d+) siege (\d+) ships (\d+) air (\d+) value -?\d+ \| '
@@ -36,7 +37,7 @@ def at(r, mi):
     return r[max(ks)] if ks else None
 
 def load(path):
-    txt = open(path, errors='replace').read()
+    txt = open_log(path).read()
     m = re.search(r'^# vanilla: players ([\d ]+) play', txt, re.M)
     van = {int(x) for x in m.group(1).split()} if m else set()
     vp = re.search(r'^# autotest: variant_players=(\d+)', txt, re.M)
@@ -106,7 +107,7 @@ def load(path):
 
 data = defaultdict(dict)
 for path in paths:
-    m = re.search(r'_ab-(.+?)-(c\d-\w+?)-r(\d+)v(\d+)\.csv$', path)
+    m = re.search(r'_ab-(.+?)-(c\d-\w+?)-r(\d+)v(\d+)\.csv(?:\.gz)?$', path)
     if not m: continue
     g = load(path)
     if g: data[(m.group(1), m.group(2))][(int(m.group(3)), int(m.group(4)))] = g

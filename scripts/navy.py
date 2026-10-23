@@ -10,6 +10,7 @@ usage:
 The factor alone is not the damage: damage = attack x class table (1 almost everywhere) x factor - armour (per
 attacker class), at least 1."""
 import re, sys, os
+from logs import open_log, log_paths
 from collections import defaultdict
 
 here = os.path.dirname(os.path.abspath(__file__))
@@ -23,7 +24,7 @@ def name(t):
     return NAMES.get(t, '?%d' % t)
 
 def read_types(path):
-    txt = open(path, encoding='utf-8', errors='replace').read()
+    txt = open_log(path, encoding='utf-8').read()
     T = {}
     for m in re.finditer(r'T (\d+) fam (\d+) cat (\d+) kind (\d+) cls (\d+) hp (\d+) att (\d+) rng ([\d.]+) min ([\d.]+) area ([\d.]+) rel (\d+) tech (\d+)(?: cost (\d+) (\d+) (\d+) (\d+) (\d+))?(?: \| hp \d+ att [\d.]+ rng [\d.]+ spd ([\d.]+) arm ([\d. ]+))?', txt):
         g = m.groups()
@@ -83,7 +84,7 @@ def cmd_types(path):
 def runs(paths, verbose):
     groups = defaultdict(list)
     for p in paths:
-        txt = open(p, encoding='utf-8', errors='replace').read()
+        txt = open_log(p, encoding='utf-8').read()
         m = re.search(r'# random map: "([^"]+)" size \d+, \d+ AIs \(\w+\), start epoch (\d+)', txt)
         grp = '%s e%s' % (m.group(1), m.group(2)) if m else os.path.basename(p)
         per = defaultdict(dict)   # P -> minute -> fields
@@ -154,4 +155,4 @@ if __name__ == '__main__':
         cmd_types(a[1])
     else:
         v = '-v' in a
-        runs([x for x in a if x != '-v'], v)
+        runs(log_paths([x for x in a if x != '-v']), v)

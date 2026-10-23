@@ -3,11 +3,12 @@
 # |target change| between consecutive post_targets rows, 5 s apart).
 # usage: python scripts/churn.py log.csv...
 import csv, sys, re, collections
+from logs import open_log, log_paths
 V = collections.defaultdict(lambda: [0, 0, 0.0])   # leaves, target moves, AI-minutes
-for path in sys.argv[1:]:
+for path in log_paths(sys.argv[1:]):
     m = re.search(r'_suite\d+_\d+_([^_]+)_', path); v = m[1] if m else path
     hdr, last, lastt, span = None, {}, {}, {}
-    for ln in open(path, errors='replace'):
+    for ln in open_log(path):
         if ln.startswith('#'): continue
         if ln.startswith('time_ms'): hdr = ln.strip().split(','); continue
         if not hdr: continue

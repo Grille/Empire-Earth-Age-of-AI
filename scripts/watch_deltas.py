@@ -1,13 +1,14 @@
 # Group the "# watch" lines of an eeaimod log into value deltas per code path.
 # usage: python watch_deltas.py <csv> [initial_value]
 import re, sys
+from logs import open_log, log_paths
 from collections import defaultdict
 
-path = sys.argv[1]
+path = log_paths(sys.argv[1:2])[0]
 prev = int(sys.argv[2]) if len(sys.argv) > 2 else None
 rx = re.compile(r'^# watch \w+: after eip=(\w+) value=(\d+) thread=\d+ stack:(.*)$')
 spend, gain = defaultdict(lambda: [0, 0]), defaultdict(lambda: [0, 0])
-for line in open(path, errors='replace'):
+for line in open_log(path):
     m = rx.match(line)
     if not m:
         continue

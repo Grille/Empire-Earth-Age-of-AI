@@ -5,15 +5,16 @@ the base variant, the differences. Columns: games, mod won / vanilla won, kills 
 (# eco), its epoch at the end; d* = paired difference to base (same seed and seat; standard error).
 usage: python scripts/eco_ablate.py [-base NAME] "work/autotest_*_van*_ab-*.csv"   (tags ab-<variant>-c<cheat>-<map>-r<seed>v<seat>)"""
 import csv, glob, re, sys
+from logs import open_log, log_paths
 from collections import defaultdict
 
 args = sys.argv[1:]
 base = 'base'
 if '-base' in args: i = args.index('-base'); base = args[i + 1]; del args[i:i + 2]
-paths = [p for a in args for p in (glob.glob(a) if any(c in a for c in '*?') else [a])]
+paths = log_paths(args)
 
 def load(path):
-    txt = open(path, errors='replace').read()
+    txt = open_log(path).read()
     m = re.search(r'^# vanilla: players ([\d ]+) play', txt, re.M)
     if not m: return None
     van = {int(x) for x in m.group(1).split()}
@@ -45,7 +46,7 @@ def load(path):
 
 data = defaultdict(dict)   # (variant, cond) -> {(seed, seat): result}
 for path in paths:
-    m = re.search(r'_ab-(.+?)-(c\d-\w+?)-r(\d+)v(\d+)\.csv$', path)
+    m = re.search(r'_ab-(.+?)-(c\d-\w+?)-r(\d+)v(\d+)\.csv(?:\.gz)?$', path)
     if not m: continue
     g = load(path)
     if g: data[(m.group(1), m.group(2))][(int(m.group(3)), int(m.group(4)))] = g

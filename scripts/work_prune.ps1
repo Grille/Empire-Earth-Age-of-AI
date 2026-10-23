@@ -1,14 +1,15 @@
 # Keeps the test output in the repository's work\ from growing without end: run_test.ps1 calls it after archiving a
 # log (at most once an hour, -Quiet), by hand: powershell -File scripts/work_prune.ps1 [-WhatIf]. Parallel A/B runs
 # wrote 30 GB of logs a day (2026-10-23: 54,000 logs, 77 GB, none ever deleted).
-#   the test logs (autotest_*.csv, slot<n>_left_*.csv): older than -Days (env EEAIMOD_KEEP_DAYS, default 2) deleted,
-#     then the oldest until they hold less than -GB together (env EEAIMOD_KEEP_GB, default 20) - an A/B is scored
-#     right after its runs, so a day's logs are plenty; a log to keep for longer goes into work\keep\
+#   the test logs (autotest_*.csv.gz - older ones plain -, slot<n>_left_*.csv): older than -Days (env
+#     EEAIMOD_KEEP_DAYS, default 7) deleted, then the oldest until they hold less than -GB together (env
+#     EEAIMOD_KEEP_GB, default 10; gzipped, a day of parallel A/Bs is ~4.4 GB) - an A/B is scored right after its
+#     runs, a week is history enough; a log to keep for longer goes into work\keep\
 #   a slot's dumps (work\slot<n>\aimod_dumps\*, the tests' only - the player's game folder keeps its own): older
 #     than -Days
 # Never touched: work\keep\, play_*.csv (the player's own games' logs), everything else in work\.
-param([double]$Days = $(if ($env:EEAIMOD_KEEP_DAYS) { [double]$env:EEAIMOD_KEEP_DAYS } else { 2 }),
-      [double]$GB = $(if ($env:EEAIMOD_KEEP_GB) { [double]$env:EEAIMOD_KEEP_GB } else { 20 }),
+param([double]$Days = $(if ($env:EEAIMOD_KEEP_DAYS) { [double]$env:EEAIMOD_KEEP_DAYS } else { 7 }),
+      [double]$GB = $(if ($env:EEAIMOD_KEEP_GB) { [double]$env:EEAIMOD_KEEP_GB } else { 10 }),
       [switch]$Hourly, [switch]$Quiet, [switch]$WhatIf)
 $work = Join-Path (Resolve-Path "$PSScriptRoot\..").Path "work"
 if (-not (Test-Path $work)) { exit 0 }
@@ -18,7 +19,7 @@ if (-not $WhatIf) { Set-Content $stamp (Get-Date -Format s) }   # first: runners
 $before = (Get-Date).AddDays(-$Days)
 $gone = @()
 # a log a running game still writes is in its slot's folder, never here: everything here is finished
-$logs = @(Get-ChildItem $work -File -Filter *.csv | Where-Object { $_.Name -like 'autotest_*' -or $_.Name -like 'slot*_left_*' } |
+$logs = @(Get-ChildItem $work -File -Filter *.csv* | Where-Object { $_.Name -like 'autotest_*' -or $_.Name -like 'slot*_left_*' } |
           Sort-Object LastWriteTime)
 $old = @($logs | Where-Object { $_.LastWriteTime -lt $before })
 $gone += $old

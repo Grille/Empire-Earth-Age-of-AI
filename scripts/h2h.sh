@@ -17,5 +17,5 @@ for r in $(seq $((SEED0 + 1)) $((SEED0 + REPEAT))); do
     job -Save newgame.ees -TimeoutSec $((MIN * 12 + 120)) -Tag "_h2h${STAMP}_${NAME}_${SCEN}-r$r" -IniExtra "$ini"
 done
 jobs_wait
-venv/Scripts/python.exe scripts/h2h.py work/autotest_*_h2h${STAMP}_*.csv
+venv/Scripts/python.exe scripts/h2h.py work/autotest_*_h2h${STAMP}_*.csv*
 echo H2H DONE $STAMP
