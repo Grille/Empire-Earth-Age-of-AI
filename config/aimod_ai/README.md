@@ -80,6 +80,7 @@ scripts (.rmv, .tai), where `#` is the preprocessor's (`#define`, `#include`): a
 | Value | Meaning |
 |---|---|
 | `"text"` | A string. `\"` is a quote, `\\` a backslash, `\n` a line break, `\{` `\}` braces that are text (no placeholder). `'text'` works too. |
+| `@"text"` | A verbatim string, as C#'s: no escapes and no placeholders - a `\` and a `{` are text, `""` is a quote. For paths: `@"Data\Scenarios\x.scn"` |
 | `85`, `0.5` | A number |
 | `["a", "b", "c"]` | A list: its items, nothing else. Said - as a line, in a `{placeholder}` - it is one of them, at random; `pick(l)` takes one in an expression. `len`, `first`, `item`, `contains`, `map_range` and the filters (`count`, `kills`) see all of them. A comma after the last item is fine. |
 | `allied ? "Welcome back."` | A condition without `:` - nothing when it doesn't hold |

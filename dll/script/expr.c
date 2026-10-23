@@ -240,6 +240,8 @@ internal void x_var_add(const char *b, size_t n) { if (n && n < 40 && g_xvn_n < 
 // preprocessor's: #define, #include)
 internal int x_comment(const char *s) { return s[0] == '/' && s[1] == '/'; }
 #define X_HASH_WHY "# - a comment starts with // (as in the game's own scripts)"
+internal int x_string_at(const char *s);
+internal int x_string(const char *s, char *out, int cap, const char **end, const char **why);
 // the lines "name(a, b) =" of a file, and "name =" outside its records - a record too (its members: name.key) unless
 // the program reads it itself (lines, personality ...: g_x_host.code_record)
 internal void x_fn_scan(const char *text) {
@@ -259,10 +261,10 @@ internal void x_fn_scan(const char *text) {
             }
         }
         for (const char *q = s; *q && *q != '\n' && !x_comment(q); q++) {   // the line's braces, strings left out
-            if (*q == '"' || *q == '\'') {
-                char c = *q;
-                for (q++; *q && *q != c && *q != '\n'; q++) if (*q == '\\' && q[1]) q++;
-                if (*q != c) break;
+            if (x_string_at(q)) {
+                const char *e, *why;
+                if (x_string(q, NULL, 0, &e, &why) < 0) break;
+                q = e - 1;
             } else if (*q == '{') depth++;
             else if (*q == '}' && depth) depth--;
         }
@@ -437,17 +439,33 @@ internal const char *xtext_of(const struct xval *v) {   // its text, whole (in t
 
 // a string literal at s (" or '): its text into out (cap bytes) - escapes undone, {braces} kept as written (an
 // expression's quotes are its own there); *end after the closing quote. Returns the length, -1 on a mistake (*why).
-// out NULL, cap 0: only checked.
+// out NULL, cap 0: only checked. A verbatim string @"..." (as C#'s: a path, @"Data\Scenarios\x.scn") has neither
+// escapes nor placeholders - a \ and a { are text - and "" for a quote in it.
 #define X_LBRACE '\x01'   // \{ and \} in a string: braces that are text, not a placeholder (x_fill writes them)
 #define X_RBRACE '\x02'
+internal int x_string_at(const char *s) { return *s == '"' || *s == '\'' || (*s == '@' && s[1] == '"'); }   // a string starts
 internal int x_string(const char *s, char *out, int cap, const char **end, const char **why) {
-    char q0 = *s, q = 0;
+    if (*s == '@') {   // verbatim
+        int o = 0;
+        for (s += 2;; s++) {
+            char c = *s;
+            if (!c || c == '\n' || c == '\r') { *why = "a string without its closing quote"; return -1; }
+            if (c == '"' && s[1] != '"') { if (cap > 0) out[o < cap ? o : cap - 1] = 0; *end = s + 1; return o; }
+            if (c == '"') s++;   // "": a quote
+            else if (c == '{') c = X_LBRACE;
+            else if (c == '}') c = X_RBRACE;
+            if (o < cap - 1) out[o++] = c;
+        }
+    }
+    char q0 = *s, q = 0, raw = 0;
     int o = 0, depth = 0;
     for (s++;; s++) {
         char c = *s;
         if (!c || c == '\n' || c == '\r') { *why = depth ? "a { without its }" : "a string without its closing quote"; return -1; }
         if (depth) {   // in {braces}: an expression, kept as written
-            if (q) { if (c == q) q = 0; else if (c == '\\' && s[1] && s[1] != '\n') { if (o < cap - 1) out[o++] = c; c = *++s; } }
+            if (raw) { if (c == '"' && s[1] == '"') { if (o < cap - 1) out[o++] = c; c = *++s; } else if (c == '"') q = raw = 0; }
+            else if (q) { if (c == q) q = 0; else if (c == '\\' && s[1] && s[1] != '\n') { if (o < cap - 1) out[o++] = c; c = *++s; } }
+            else if (c == '@' && s[1] == '"') { if (o < cap - 1) out[o++] = c; c = *++s; q = raw = 1; }
             else if (c == '"' || c == '\'') q = c;
             else if (c == '{') depth++;
             else if (c == '}') depth--;
@@ -649,7 +667,7 @@ internal void xps_primary(struct xps *p, struct xnode **out) {
         p->par--;
         if (!p->err && !xps_op(p, ")")) p->err = 1;
         if (p->err) return;
-    } else if (*s == '"' || *s == '\'') {   // a string: its text, a template (filled when worked out)
+    } else if (x_string_at(s)) {   // a string: its text, a template (filled when worked out)
         const char *e, *why, *q;
         if (x_string(s, NULL, 0, &e, &why) < 0) { p->err = 1; return; }   // (the file check tells it: tl_value)
         size_t span = (size_t)(e - s);   // the source's length: its text is no longer
@@ -657,7 +675,7 @@ internal void xps_primary(struct xps *p, struct xnode **out) {
         // stays a mistake)
         for (q = e; p->par; ) {
             while (*q == ' ' || *q == '\t' || *q == '\n' || *q == '\r') q++;
-            if (*q != '"' && *q != '\'') break;
+            if (!x_string_at(q)) break;
             const char *e2;
             if (x_string(q, NULL, 0, &e2, &why) < 0) { p->err = 1; return; }
             span += (size_t)(e2 - q);
@@ -2895,15 +2913,23 @@ internal const char *x_close(const char *s);
 // written as a share by itself: 50% in an expression is only another way to write 0.5.
 // A choice in front of a format must be in ( ): {(a ? 1 : 0):%} - written {a ? 1 : 0:%} the format reads as the 0's
 // only (likewise {a ?? b:%}); *choice: a ? or ?? outside brackets before the format's ':'
+// a string in an expression's source, s at its start (x_string_at), up to lim: its closing quote; lim when it isn't
+// closed before (\" inside, or a verbatim one's "")
+internal const char *x_quote_end(const char *s, const char *lim) {
+    if (*s == '@') {
+        for (s += 2; s < lim; s++) if (*s == '"') { if (s + 1 < lim && s[1] == '"') s++; else return s; }
+        return lim;
+    }
+    char q = *s;
+    for (s++; s < lim && *s != q; s++) if (*s == '\\' && s + 1 < lim) s++;
+    return s;
+}
 internal int x_fmt_at(const char *s, int n, int *choice) {   // the format's ':' in s[0..n), -1: none
     int depth = 0, q = 0;
     *choice = 0;
     for (int i = 0; i < n; i++) {
         char ch = s[i];
-        if (ch == '"' || ch == '\'') {   // a string: to its closing quote (\" inside)
-            for (i++; i < n && s[i] != ch; i++) if (s[i] == '\\' && i + 1 < n) i++;
-            continue;
-        }
+        if (x_string_at(s + i)) { i = (int)(x_quote_end(s + i, s + n) - s); continue; }   // a string: to its closing quote
         if (ch == '(' || ch == '[' || ch == '{') depth++;
         else if (ch == ')' || ch == ']' || ch == '}') depth--;
         else if (depth) ;
@@ -2966,9 +2992,8 @@ internal int x_fills_ok(const char *text, const char **why, struct xcheck *k, st
 internal const char *x_close(const char *s) {
     int d = 0;
     for (; *s; s++) {
-        if (*s == '"' || *s == '\'') {
-            char q = *s;
-            for (s++; *s && *s != q; s++) if (*s == '\\' && s[1]) s++;
+        if (x_string_at(s)) {
+            s = x_quote_end(s, s + strlen(s));
             if (!*s) return NULL;
             continue;
         }
@@ -3042,7 +3067,7 @@ internal int x_plain_strings(const char *src, void (*fn)(const char *text, void 
     const char *e, *why;
     int n = 0;
     while (*src == ' ') src++;
-    if (*src == '"' || *src == '\'') {
+    if (x_string_at(src)) {
         if (x_string(src, t, sizeof t, &e, &why) >= 0) { while (*e == ' ') e++; if (!*e) { fn(t, arg); n++; } }
         return n;
     }
@@ -3052,11 +3077,11 @@ internal int x_plain_strings(const char *src, void (*fn)(const char *text, void 
         const char *b = s;
         int d = 0;
         for (; *s && (d || (*s != ',' && *s != ']')); s++) {
-            if (*s == '"' || *s == '\'') { if (x_string(s, t, sizeof t, &e, &why) < 0) return n; s = e - 1; }
+            if (x_string_at(s)) { if (x_string(s, t, sizeof t, &e, &why) < 0) return n; s = e - 1; }
             else if (*s == '(' || *s == '[' || *s == '{') d++;
             else if (*s == ')' || *s == ']' || *s == '}') d--;
         }
-        if ((*b == '"' || *b == '\'') && x_string(b, t, sizeof t, &e, &why) >= 0) {
+        if (x_string_at(b) && x_string(b, t, sizeof t, &e, &why) >= 0) {
             while (*e == ' ') e++;
             if (e == s) { fn(t, arg); n++; }
         }
@@ -3109,7 +3134,7 @@ internal int x_fold(const char *r, char *t, int cap) {
     if (par) s++;
     for (;;) {
         while (*s == ' ') s++;
-        if (*s != '"' && *s != '\'') break;
+        if (!x_string_at(s)) break;
         int k = x_string(s, t + o, cap - o, &e, &why);
         if (k < 0) return 0;
         o += k;
@@ -3137,7 +3162,7 @@ internal void tl_value(struct tlex *l, struct tval *v, int rec) {
         else if (x_comment(l->s)) { while (*l->s && *l->s != '\n') l->s++; continue; }
         else if (c == '#') { tl_error(l, X_HASH_WHY); free(r); return; }
         else if (c == ';') { tl_error(l, "; - a comment starts with //"); free(r); return; }
-        else if (c == '"' || c == '\'') {   // a string, copied as written
+        else if (x_string_at(l->s)) {   // a string, copied as written
             const char *e, *why;
             if (x_string(l->s, NULL, 0, &e, &why) < 0) { tl_error(l, why); free(r); return; }
             size_t len = (size_t)(e - l->s);
@@ -3252,7 +3277,7 @@ internal void tfile_parse(const char *file, const char *text, tfile_fn fn, void 
                 v.kind = TV_EXPR;
                 const char *b = ++l.s, *e, *why;
                 while (*l.s && *l.s != ')' && *l.s != '\n')
-                    if (*l.s == '"' || *l.s == '\'') { if (x_string(l.s, NULL, 0, &e, &why) < 0) break; l.s = e; }
+                    if (x_string_at(l.s)) { if (x_string(l.s, NULL, 0, &e, &why) < 0) break; l.s = e; }
                     else l.s++;
                 if (*l.s != ')') { tl_error(&l, "a ) missing"); }
                 else {

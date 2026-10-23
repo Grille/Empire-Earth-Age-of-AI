@@ -55,6 +55,7 @@ def words(ws):
 
 player = r'\b(?:me|them|enemy|lord)(?:\.lord)*'   # a player: them.lord.lord ...
 expression = [
+    {'include': '#string_verbatim'},   # @"a\path": before the plain one
     {'include': '#string'},   # strings in an expression, also inside {...}: their own {placeholders} nest
     {'include': '#string_single'},
     {'name': 'support.constant.epoch.eeaimod', 'match': r'\bepoch\.(?:' + '|'.join(epochs) + r')\b(?!\.)'},
@@ -91,7 +92,7 @@ expression = [
     {'name': 'punctuation.parenthesis.eeaimod', 'match': r'[()]'},
     {'name': 'variable.other.eeaimod', 'match': r'[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*'},
 ]
-value = [{'include': '#comment'}, {'include': '#string'}, {'include': '#list'}, {'include': '#group'}, {'include': '#block'}] + expression
+value = [{'include': '#comment'}, {'include': '#string_verbatim'}, {'include': '#string'}, {'include': '#list'}, {'include': '#group'}, {'include': '#block'}] + expression
 # a statement (a script's, a function's block): let name = value, name = value, name += value ...
 assignment = {
     'begin': r'^\s*(?:(let)\s+)?([A-Za-z_]\w*)\s*([-+*/]?=)(?![=>])',
@@ -181,6 +182,15 @@ grammar = {
             # {x:%} {x:.1%} {x:.2}: the format, after a ':' right before the }
             'patterns': [{'include': '#placeholder'},
                          {'name': 'constant.other.placeholder-format.eeaimod', 'match': r':\s*(?:\.[0-6])?%?\s*(?=\})'}] + expression,
+        },
+        # @"folder\file": no escapes, no placeholders, "" a quote
+        'string_verbatim': {
+            'begin': '@"',
+            'beginCaptures': {'0': {'name': 'punctuation.definition.string.begin.eeaimod'}},
+            'end': r'"(?!")|$',
+            'endCaptures': {'0': {'name': 'punctuation.definition.string.end.eeaimod'}},
+            'name': 'string.quoted.double.verbatim.eeaimod',
+            'patterns': [{'name': 'constant.character.escape.eeaimod', 'match': '""'}],
         },
         'string_single': {
             'begin': "'",

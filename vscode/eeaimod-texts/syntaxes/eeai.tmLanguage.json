@@ -484,6 +484,9 @@
           "include": "#comment"
         },
         {
+          "include": "#string_verbatim"
+        },
+        {
           "include": "#string"
         },
         {
@@ -494,6 +497,9 @@
         },
         {
           "include": "#block"
+        },
+        {
+          "include": "#string_verbatim"
         },
         {
           "include": "#string"
@@ -684,6 +690,9 @@
           "match": ":\\s*(?:\\.[0-6])?%?\\s*(?=\\})"
         },
         {
+          "include": "#string_verbatim"
+        },
+        {
           "include": "#string"
         },
         {
@@ -818,6 +827,27 @@
         {
           "name": "variable.other.eeaimod",
           "match": "[A-Za-z_]\\w*(?:\\.[A-Za-z_]\\w*)*"
+        }
+      ]
+    },
+    "string_verbatim": {
+      "begin": "@\"",
+      "beginCaptures": {
+        "0": {
+          "name": "punctuation.definition.string.begin.eeaimod"
+        }
+      },
+      "end": "\"(?!\")|$",
+      "endCaptures": {
+        "0": {
+          "name": "punctuation.definition.string.end.eeaimod"
+        }
+      },
+      "name": "string.quoted.double.verbatim.eeaimod",
+      "patterns": [
+        {
+          "name": "constant.character.escape.eeaimod",
+          "match": "\"\""
         }
       ]
     },

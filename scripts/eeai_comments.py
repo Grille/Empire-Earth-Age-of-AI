@@ -9,6 +9,15 @@ import sys
 
 def string_end(line, i):
     """the index after the string starting at line[i], or -1 (not closed on its line)"""
+    if line[i] == ord('@'):   # verbatim: no escapes, "" a quote
+        i += 2
+        while i < len(line) and line[i] not in b'\r\n':
+            if line[i] == ord('"'):
+                if line[i + 1:i + 2] != b'"':
+                    return i + 1
+                i += 1
+            i += 1
+        return -1
     q0, q, depth = line[i], None, 0
     i += 1
     while i < len(line):
@@ -42,7 +51,7 @@ def convert_line(line):
     i = 0
     while i < len(line):
         c = line[i]
-        if c in b'"\'':
+        if c in b'"\'' or line[i:i + 2] == b'@"':
             e = string_end(line, i)
             if e < 0:
                 return line, False   # (a mistake the reader tells: left as it is)
