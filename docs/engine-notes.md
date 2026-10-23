@@ -925,6 +925,29 @@ writes the header and the lump container and parses terrain. Strings are length-
   with the NUL, then the bytes. Checked: all 37 saves and 10 scenarios read to the lump's last byte and write back
   byte for byte - 447 players (351 computer), 63977 simple and 30093 complex units, every goal tag but 11, sub
   group kinds 0-6.
+- The other lumps (2026-10-23; layouts with addresses in EEScnEdit's `Data/*Lump.cs`, `Data/Triggers`, `Data/Terrain`):
+  2 seed u32 (world +0x54); 3 camera: a GE3DPoint, the focus (its z is a height, not the zoom); 4 terrain, EEMap::vf3
+  0x5138C9: i32 width, i32 height, u32 player slots, the tiles in diamond rows (N = w + h rows; row r covers x from
+  lo to hi of an N-wide grid, lo counting down from h - 1 to 0 and hi up from h to N - 1, each staying one row, then
+  turning back - 2wh + w + h tiles), each {float, 2 bytes per player slot rounded up to 4, u32 n doppelgangers (u8
+  complex, u32 unit id, i32 player, complex: transformation, type id and 29 more bytes)}, then GETerrainMesh::Save
+  (width, height, per tile cell u8 texture + u8, per point - one row more, held two rows - float height + u8, u32
+  seed) and EEMap's +0x181734, +0x181730, +0x181740; 6 triggers, EEScenarioManager vf3 0x5A4ACA: triggers (name,
+  description, flags, condition bindings {bool not, u32 join, u32 id}, effect bindings {u32 delay, u32 kind, u32
+  id}), conditions and effects - one class each (EESMCondition 0x5AB0E4, EESMEffect 0x5AF9EC: the kind is a field,
+  no tags) -, objects, areas (index 0 / 0-1 built in, not saved), queued and start effects, id counters, the time,
+  7 scenario texts, dialogs, the language file and the chat buffer; 7 EEPWorldHelper vf3 0x53FEB8: teams, wonders,
+  time of day, water level, zoom, population limit, game speed, 4 flags, town / herd id counters, the chat lines
+  {kind, sender, colour, text, ms} and 2 interface bytes; 10 EEEffectManager vf3 0x4FC803: next id, effects by
+  class tag on EEEffect + a 2D or 3D base (16 classes in the samples, ~45 in the code), a u32 list; 11
+  EEPCalamityHelper: calamities and EEContagionManager's spreads (empty in every sample). Checked: every lump of all
+  37 saves and 10 scenarios reads to its last byte and writes back byte for byte; in test slots an autosave
+  rewritten from the parsed lumps played its 2 minutes exactly as the original (same log), and triggertst.scn with
+  the trigger renamed and off, the camera moved and P1's stance to P2 set to enemy loaded with exactly that (`trig
+  list`, `camera`, `diplo`).
+- Pipe pitfall (2026-10-23): `camera` sent while a game is still loading crashes the game in the mod (eeaimod.dll
+  +0xAB04E reads [map]+0x1816FC with no map yet; the load then returns to the main menu) - wait for `status` to show
+  game time before asking for the camera.
 - Triggers: name, description, bools active/looping/fired/active in cinematic, u32 conditions-true-for,
   u32 seconds true, u32 id, then condition and effect bindings. Runtime, conditions and effects: docs/triggers.md.
 
