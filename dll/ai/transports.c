@@ -384,7 +384,7 @@ internal int tw_load_split(ee_player *pl, ee_unit **tr, int nt, ee_unit **us, in
             }
             if (!unit_goal(t, g, 0, TW_PREPARE_TO_MOVE)) continue;   // refused: deleted, no parts from it
         }
-        gfx_mark(GFX_ORDER_ON, t, goal_get_meeting_ship_x(g), goal_get_meeting_ship_y(g), player_get_index(pl));   // where it goes, as the game's circles
+        gfx_mark(GFX_ORDER_AT, NULL, goal_get_meeting_ship_x(g), goal_get_meeting_ship_y(g), player_get_index(pl));   // where it goes: the game's yellow circle (with the transport: purple, its load order's colour)
         for (int i = 0; i < n; i++) given += unit_goal(list[i], goal_load_part(g), 0, TW_PREPARE_TO_MOVE);
         (*used)++;
     }

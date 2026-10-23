@@ -76,7 +76,7 @@ internal inline const char *edit_text(void *edit) { return ((const char *(__this
 // A COMMAND'S CIRCLES (transports.c): the graphical effects' kinds by their ids (FN_GFX_KIND's records; the same in
 // both builds) - what the code that draws them shows them for
 enum gfx_kind {
-    GFX_ORDER_ON = 0xB8,       // the yellow circle at a unit's goal, drawn with the unit (FN_ORDER_MARKS, per unit)
+    GFX_ORDER_ON = 0xB8,       // the circle at a unit's goal, drawn with the unit (FN_ORDER_MARKS, per unit): coloured by the unit's order - yellow for an unload, purple for a load (seen)
     GFX_ORDER_ATTACK = 0xB9,   // the attack-ground command's (FN_ORDER_MARKS)
     GFX_ORDER_AT = 0xBA,       // the yellow circle at a goal, no unit (FN_ORDER_MARKS: one for the group)
     GFX_CLICK = 0xD1,          // the click confirmation on the ground (the mouse click, 0x404A26; 0x663138)

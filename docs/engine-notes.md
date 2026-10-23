@@ -545,8 +545,9 @@ conditions, 162 states with their ids) were dumped by a helper, not kept in the 
     (state 12001, 0x5DB641) calls it last with how 0xBB at 0x5DCDBD: a 0xB8 at each transport's goal - the "3 circles
     where one ship goes" with one goal for all. The unload Execute's own call (0x4BF997) is in its move branch only.
   - The mod's split and spread (transports.c) take the click confirmation away and give each transport its own
-    yellow circle: the unload's spread runs in that 0x5DCDBD call before the circles are drawn; the load draws a 0xB8
-    with each transport at its meeting point (the split bypasses the load Execute, which drew none of its own).
+    yellow circle: the unload's spread runs in that 0x5DCDBD call before the circles are drawn; the load draws a 0xBA
+    at each transport's meeting point (the split bypasses the load Execute; a 0xB8 with the transport came out purple -
+    the colour seems to follow the unit's order: yellow for its unload).
 
 ## Resource manager details
 
