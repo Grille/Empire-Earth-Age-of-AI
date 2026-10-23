@@ -5,17 +5,18 @@ internal inline ee_setup_slot *setup_slot_at(const ee_setup *setup, int i) { ret
 internal inline uint8_t *setup_map_name_at(const ee_setup *setup) { return (uint8_t *)FIELD_AT(setup, SETUP_MAP_NAME); } // a UString
 internal inline int setup_get_mode(const ee_setup *setup) { return FIELD(setup, SETUP_MODE, int); } // 0 random map, 1 scenario, 2 saved game, 3 editor test, 4 campaign
 internal inline void setup_set_mode(ee_setup *setup, int v) { FIELD(setup, SETUP_MODE, int) = v; }
-internal inline void setup_set_unknown_3d4(ee_setup *setup, int v) { FIELD(setup, SETUP_0x3D4, int) = v; }
+internal inline void setup_set_speed(ee_setup *setup, int v) { FIELD(setup, SETUP_SPEED, int) = v; }
 internal inline void setup_set_map_scale(ee_setup *setup, int v) { FIELD(setup, SETUP_MAP_SCALE, int) = v; }   // 1 Small ..
 internal inline void setup_set_start_epoch(ee_setup *setup, int v) { FIELD(setup, SETUP_START_EPOCH, int) = v; }
 internal inline void setup_set_end_epoch(ee_setup *setup, int v) { FIELD(setup, SETUP_END_EPOCH, int) = v; }
-internal inline void setup_set_map_size(ee_setup *setup, int v) { FIELD(setup, SETUP_MAP_SIZE, int) = v; }
-internal inline void setup_set_unknown_3ec(ee_setup *setup, int v) { FIELD(setup, SETUP_0x3EC, int) = v; }
+internal inline void setup_set_variant(ee_setup *setup, int v) { FIELD(setup, SETUP_VARIANT, int) = v; }   // the game variant (0x8CF52C's list)
+internal inline void setup_set_resources(ee_setup *setup, int v) { FIELD(setup, SETUP_RESOURCES, int) = v; }
 internal inline void setup_set_unit_limit(ee_setup *setup, int v) { FIELD(setup, SETUP_UNIT_LIMIT, int) = v; }
-internal inline void setup_set_unknown_3f4(ee_setup *setup, int v) { FIELD(setup, SETUP_0x3F4, int) = v; }
+internal inline void setup_set_wonders(ee_setup *setup, int v) { FIELD(setup, SETUP_WONDERS, int) = v; }
 internal inline void setup_set_difficulty(ee_setup *setup, int v) { FIELD(setup, SETUP_DIFFICULTY, int) = v; }
 internal inline void setup_set_unknown_3fc(ee_setup *setup, int v) { FIELD(setup, SETUP_0x3FC, int) = v; }
-// +0x400 .. +0x403 four flag bytes (the random map setup's 1, 0, 0, 1)
+// +0x400.. option bytes (the registry's Game Options): victory allowed, lock teams, lock speed, reveal map, cheat codes,
+// record game, custom civs
 internal inline void setup_set_flag(ee_setup *setup, int i, uint8_t v) { FIELD(setup, SETUP_FLAGS + i, uint8_t) = v; }
 // a slot: +0 its type (1 human, 0 computer, 4 closed), +0x20 the player's index, +0x24 its colour, +0x28 team,
 // +0x2C citizens, +0x34 flags; +0x4 (3), +0x1C, +0x30 (0) not known

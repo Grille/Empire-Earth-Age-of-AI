@@ -6,7 +6,7 @@
 //   +0x3A8 UString map script name ("Continental"), +0x3D8 mode (0 random map), +0x3DC map size (0 Tiny, 1 Small,
 //   2 Medium, 3 Large, 4 Huge, 5 Gigantic - the setup copy 0x524B.. clamps it below 6, default 1; 0x524E1F turns it into
 //   42/58/75/105/160/220 and the map script's IsLargeMap etc. pick "<map> Large.rmv"), +0x3E0 start epoch (14 = random),
-//   +0x3E4 end epoch (13 = Nano), +0x3E8 an option index (checked against the list at 0x8CF52C - NOT the map size: until
+//   +0x3E4 end epoch (13 = Nano), +0x3E8 the game variant (the registry's Game Variant, checked against the list at 0x8CF52C - NOT the map size: until
 //   2026-10-20 map_size wrote it and every test map was Small), +0x3F0 unit limit, +0x3F4 wonders for victory, +0x3F8
 //   difficulty (1 medium), +0x400 option bytes.
 //   Map seed: world (0x91977C) +0x54.
@@ -94,14 +94,14 @@ internal void randmap_rewrite(ee_setup *setup) {
         slot_set_unknown_30(slot, 0);
         slot_set_flags(slot, i == 0 ? 0x75010001u : 0x77010000u);
     }
-    setup_set_unknown_3d4(setup, 1);
+    setup_set_speed(setup, 1);
     setup_set_map_scale(setup, g_rm.scale);   // the map size (1 Small: what every test map was before map_scale)
     setup_set_start_epoch(setup, g_rm.start_epoch);
     setup_set_end_epoch(setup, 13);
-    setup_set_map_size(setup, g_rm.size);
-    setup_set_unknown_3ec(setup, 3);
+    setup_set_variant(setup, g_rm.size);
+    setup_set_resources(setup, 3);
     setup_set_unit_limit(setup, g_rm.unit_limit);
-    setup_set_unknown_3f4(setup, 3);
+    setup_set_wonders(setup, 3);
     setup_set_difficulty(setup, g_rm.difficulty);
     // the AIs' difficulty: their set-up (0x431697) copies the global 0x918C14 (set by the game options messages,
     // EEMFullGameOptions 0x4B642F, which a load-game start never sends - the setup's +0x3F8 alone left medium)

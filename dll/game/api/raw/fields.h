@@ -428,15 +428,15 @@
     O(SERVER_RATE_MIN, 0x1B8, 0x1B8) /* c: NESynchronousServer::TuneForSlowCPU (port_dll.py) */ \
     O(SERVER_RATE, 0x1FB, 0x1FB) /* c: NESynchronousServer::TuneForSlowCPU (port_dll.py) */ \
     O(SETUP_MAP_NAME, 0x3A8, 0x3A8) /* c: the setup copy 0x524B8F and FN_GAME_START */ \
-    O(SETUP_0x3D4, 0x3D4, 0x3D4) /* c: the setup copy 0x524B8F and FN_GAME_START */ \
+    O(SETUP_SPEED, 0x3D4, 0x3D4) /* c: the setup copy 0x524B8F and FN_GAME_START; the registry's "Game Speed" (Game Options, the options loader 0x52A19A at +4) */ \
     O(SETUP_MODE, 0x3D8, 0x3D8) /* c: the setup copy 0x524B8F and FN_GAME_START */ \
-    O(SETUP_MAP_SCALE, 0x3DC, 0x3DC) /* c: the setup copy 0x524B8F and FN_GAME_START */ \
+    O(SETUP_MAP_SCALE, 0x3DC, 0x3DC) /* c: the setup copy 0x524B8F and FN_GAME_START; the registry's "Map Size" (Game Options, the options loader 0x52A19A at +4) */ \
     O(SETUP_START_EPOCH, 0x3E0, 0x3E0) /* c: the setup copy 0x524B8F and FN_GAME_START */ \
     O(SETUP_END_EPOCH, 0x3E4, 0x3E4) /* c: the setup copy 0x524B8F and FN_GAME_START */ \
-    O(SETUP_MAP_SIZE, 0x3E8, 0x3E8) /* c: the setup copy 0x524B8F and FN_GAME_START */ \
-    O(SETUP_0x3EC, 0x3EC, 0x3EC) /* c: the setup copy 0x524B8F and FN_GAME_START */ \
+    O(SETUP_VARIANT, 0x3E8, 0x3E8) /* c: the setup copy 0x524B8F and FN_GAME_START; the registry's "Game Variant" (Game Options, the options loader 0x52A19A at +4) */ \
+    O(SETUP_RESOURCES, 0x3EC, 0x3EC) /* c: the setup copy 0x524B8F and FN_GAME_START; the registry's "Starting Resources" (Game Options, the options loader 0x52A19A at +4) */ \
     O(SETUP_UNIT_LIMIT, 0x3F0, 0x3F0) /* c: the setup copy 0x524B8F and FN_GAME_START */ \
-    O(SETUP_0x3F4, 0x3F4, 0x3F4) /* c: the setup copy 0x524B8F and FN_GAME_START */ \
+    O(SETUP_WONDERS, 0x3F4, 0x3F4) /* c: the setup copy 0x524B8F and FN_GAME_START; the registry's "Wonders For Victory" (Game Options, the options loader 0x52A19A at +4) */ \
     O(SETUP_DIFFICULTY, 0x3F8, 0x3F8) /* c: the setup copy 0x524B8F and FN_GAME_START */ \
     O(SETUP_0x3FC, 0x3FC, 0x3FC) /* c: the setup copy 0x524B8F and FN_GAME_START */ \
     O(SETUP_FLAGS, 0x400, 0x400) /* c: the setup copy 0x524B8F and FN_GAME_START */ \
