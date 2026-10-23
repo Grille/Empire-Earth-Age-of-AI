@@ -367,7 +367,8 @@ vf26 members and route released, vf12, the group's reference) frees nothing twic
 - **Reload in play:** the stats record (unit +0x34) is the player's own record of the type (= 0x492969 on player
   +0x874); its +0x138 (int, ms) is the reload in use - starts as type +0x50C, the scenario editor's class attribute
   "reload time" (set/add/sub, whole ms) changes it (reloadtime.scn: class+1 12000 -> 12001). After a shot the unit's
-  counter +0x2A0 is set from it (0x60AB08 and others); +0x2FC counts down to the next shot. The unit attribute
+  counter +0x2A0 is set from it (0x60AB08 and others); +0x2A0 is what counts down to the next shot (+0x2FC is the
+  time an animation has been paused, with the flag +0x337: EEUnitClass::vf47 adds to it, 0x5EFD6D clears it). The unit attribute
   "reload time +" (set/add %) changes the unit's own +0x2A0: unit=1000% 1120 -> 117790 (about 10 x the class 12000),
   the artillery then fired less than 4 times in 84 s instead of every 12.3 s; small changes (+1, =10) show nothing.
   The game refills +0x2A0 from the class value (spawn, some attack states).
@@ -894,21 +895,26 @@ physics/movement models EEP 107/49, interface EEUI 819/31, scenario EES 611/12, 
 
 ## Scenario / save file format (.scn / .ees)
 
-From the author's earlier C# project EEScnEdit (GitHub, `EEScnEdit/Headers`, `EEScnEdit/Data`), which reads and
-writes the header and the lump container and parses terrain. Strings are length-prefixed.
+The author's C# project EEScnEdit (GitHub; `EEScnEdit/Headers`, `EEScnEdit/Data`) reads and writes every part of
+the 2017 update's format 0.231, each class naming the game function it mirrors - the field-by-field reference;
+these notes give the layout, what is known of the fields and how it was checked. Strings are length-prefixed.
 
-- Header: u32 size (of the rest of the file), name, description, u32 major + u32 minor **version** (0.231 in every
-  file here; candidate for telling EE and AoC files apart; the reader 0x53F496 refuses major 0 with minor < 0xC5,
-  0x5414D4 a file newer than the exe's own [0x82C90C]/[0x82C910]), player names, date, u8, 16 x PlayerHeader,
-  Settings, campaign name, scenario name, u32, u8, forced name, u32, u32 n + n x u32 lump types, scenario texts,
-  u32 system uptime.
-- PlayerHeader: u8, u8, bool shared line of sight, u32 flags, name, float, u32 id, u32 color, u32 team,
-  u32 starting citizens - the same order as the in-memory game setup slots (+0x20 index, +0x24 color,
-  +0x28 team, +0x2C citizens, +0x34 flags).
-- Settings: u8 x3, u32 game speed, u32, u32 game variant, u32 map size, u32 start epoch, u32 end epoch,
-  u32 resources, u32 unit limit, u32 wonders for victory, u32 AI difficulty, bools victory allowed, lock teams,
-  lock speed, reveal map, cheats, u8, custom civs, u8 - matches setup +0x3D8.. (mode, epochs, map size, limit,
-  difficulty).
+- Header: u32 size (of the rest of the file), name, description, u32 major + u32 minor **version** (0.231 in the
+  2017 update's files, 0.248-0.250 in Art of Conquest's; the reader 0x53F496 refuses major 0 with minor < 0xC5,
+  0x5414D4 a file newer than the exe's own [0x82C90C]/[0x82C910]), player names, date, u32 +0x4E4, the game setup
+  (EEGameOptions, load 0x52501A, save 0x525538), campaign name, scenario name, u32 setup +0x3FC, u8 setup +0x409 (1
+  in campaign scenarios; set, it turns the civilization timer off, 0x524EBB), forced name, u32 +0x4E8 (the players
+  in the game with the world, [0x918E8C]), u32 n + n x u32 lump types, scenario texts, u32 +0x4EC system uptime.
+- The setup: 16 slots of 0x38 bytes, each u32 +0 type (1 human, 0 computer, 4 closed; 2, 3 occur), name, float
+  +0x1C, u32 +0x20 index, +0x24 colour, +0x28 team, +0x2C citizens, u8 +0x34 +0x35 +0x36 (+0x36 1 at reset); then
+  u32 game speed +0x3D4, mode +0x3D8 (0 random map, 1 scenario, 2 saved game, 3 editor test, 4 campaign), game
+  variant, map size, start epoch, end epoch, resources, unit limit, wonders for victory, AI difficulty, bools
+  victory allowed, lock teams, lock speed, reveal map (+0x400..+0x403), cheats +0x404, record game +0x405, custom
+  civs +0x406, u8 +0x408. Named after the registry options loader 0x52A19A, which has the same fields 4 bytes later:
+  by it map size is +0x3DC and +0x3E8 the game variant (fields.h's SETUP_MAP_SIZE 0x3E8 and SETUP_DIFFICULTY 0x3F8
+  disagree). The old EEScnEdit header (and these notes before 2026-10-23) cut the slots 3 bytes off - each
+  "PlayerHeader" began with the previous slot's +0x34..+0x36, so its "shared line of sight" was the previous
+  slot's +0x36.
 - Lumps are LowLevelEngine.dll's FSChunk (decomp/dll/LowLevelEngine/10020000.c:1435 LoadChunkHeader /
   SaveChunkHeader): u32 major, u32 minor version (the file's), i32 type - the FSPersistent class id, the object
   made by FSPersistentList::CreateDefaultPersistent (an unknown one: error 3) - u32 size (< 0x80000000), then size
@@ -998,8 +1004,79 @@ writes the header and the lump container and parses terrain. Strings are length-
 - Pipe pitfall (2026-10-23, fixed): `camera` sent while a game was still loading crashed the game in the mod (its
   readout took the map size from [map]+0x1816FC with no map yet, eeaimod.dll +0xAB04E; the load then returned to the
   main menu). It answers `error: no map` now, in the menus too.
-- Triggers: name, description, bools active/looping/fired/active in cinematic, u32 conditions-true-for,
-  u32 seconds true, u32 id, then condition and effect bindings. Runtime, conditions and effects: docs/triggers.md.
+- Naming the fields (2026-10-23, EEScnEdit's field names and comments say which source for each): the exe's
+  out-of-sync dumps print most fields with an English label ("OUT OF SYNCH DUMP"; EEComplexUnit::vf17 0x5EB579, each
+  EEUG* goal's vf5, EECalamity vf5 0x4A7DD3, ...), and many persist calls carry a save label (16 for EEPlayer, e.g.
+  "EEPlayer-PopLimit", "EEPlayer-SharedLOSFlag"; RTSPlayer, EETechTree, EECivilization, EEGroup) - the cheapest
+  source. Unit states register their names with their ids at 0x6110xx (`0x618E11(name, id)`, 151 states: 2013
+  CheckRange, 2015 LookForEnemies, 2021 WaitForReload, 2024 ShouldIFollowEnemyUnit, 4002 RepairBuilding, 4004
+  GatherResource, 4005 AddResourceToStorage, 6002 UnitRotting, 8000 PrepareToMove, 9000 GetNextMoveWaypoint ...).
+  Every trigger, condition, effect and object has a serial Id (not its index; the scenario manager's +0x220..+0x22C
+  hold the highest given); a trigger's +0x54 is one.
+- What the fields are, beyond fields.h (unit offsets): references +0x1C0 / +0x1E0 a projectile's shooter type and
+  shooter, +0x1CC / +0x1D0 chain parent / child (gate pieces, an airport's runways), +0x1D4 home airport, +0x1D8 / +0x70
+  container / contained units (+0x1D8 saved only if the container's type has +0x54C), +0x1DC attacker, +0x1E4 / +0xB8
+  leader / followers (herd animals), +0x1E8 the action (its +0x24), +0x1F8 gather site, +0x200 herd; lists +0x4C
+  production queue, +0x58 a citizen's build queue (count +0x68), +0xD0 the trigger's unit variables 1-3; +0x174
+  scale, +0x178 frame, +0x17C angular velocity, +0x188 orientation, +0x118..+0x120 / +0x214 an anchor point and
+  heading (follow-enemy state, auto-target search 0x61AC11; a projectile's launch point), +0x1A4/+0x1A8 collision
+  tile, +0x220 bob phase (ships rock, helicopters hover), +0x238 velocity, +0x260 animation, +0x264 / +0x268 physics
+  action / order; counters +0x274 builders, +0x318 attackers on it, +0x332 kills; timers +0x27C production left,
+  +0x2A8 rotting, +0x2AC auto-target scan (reset to type +0x564), +0x2B8 a citizen's work timer, +0x240 / +0x310 /
+  +0x314 a herd animal's growth, next wander, next growth; +0x2A4 free capacity (type +0x54C minus the passengers'
+  +0x558); +0x284 garrison level; cloaking +0x339 cloakable (type +0x60E), +0x33A cloaked (no enemy within type
+  +0x590), +0x218 opacity; gates +0x270 direction 1..4, +0x228 opening 0..1, +0x33C locked, +0x33D tint with the
+  colour +0x1AC. A path waypoint is 20 bytes: point, path length there and at the previous one. 0x4A156E finds a
+  unit's queued path request - the load re-queues one that isn't saved as done. Goal base: +0x8 state id (5000 by
+  default), +0x14 serial (the global 0x9424D8, saved with every player), +0x10 created, +0xC started.
+- Players: +0x458 next unit id (id = index << 24 + it), +0x460 unit count (recounted on load), +0x466 has a vision
+  map (0 only for the world), +0xA44 the 10 trigger variables, +0xB0C a vestigial pop limit (house / town center 50,
+  hero 5 by type +0x594; kept, never read), +0xB10 population, +0xB14 objects, +0xB18 citizen-training buildings
+  (toggles techs 1028 / 1053), +0xB3F shared line of sight (both players' flags needed), +0x7AC the civilization's
+  name from the setup, +0x868 EEPPatrolGroups, +0x468 EECivilization (purchased upgrades, points, max points),
+  +0x7E0 EEHerd (world only: kind, leader, herd id = the misc lump's counter, members, size; update 0x49E158 from
+  EEPlayer::vf37, births 0x49EB14), +0x7C0 EEWUnitsOffMapInfo (units in airports / fortresses / transports with the
+  time they left the map), +0x8AC walls and towers, +0x900 wonders, +0x928 minimap alerts (EEPPlayerEvent, at most
+  15: 1 attacked / converted, 2 text, 3 flare), +0xAB8 / +0xACC tribute sent / received, +0xA3C height attack bonus,
+  +0xA40 the heal wonder's timer, +0xB44 left the game, +0xB47 civ upgrades purchased. EEPlayerStatistics +0x300
+  the end time; only series 12-16 keep a history ({value, game time}). Tech tree: +0x4E4 current, +0x4E8 start,
+  +0x4EC end epoch, +0x4F0 epochs after the start before wonder techs; per epoch +0x48 researches counted towards
+  the advance; entries {id, researched, obsolete, scenario-editor obsoleted}. EEAirTrafficControl +0x18 / +0x1C max
+  / used cargo.
+- Computer players: each setting's dbcpbehavior record (0x38 bytes at 0x8CFA84 + n x 0x38: +0xC val1, +0x18 val2,
+  +0x2C fval) is in EEScnEdit's ComputerAI comment table (171 saved entries). 0x431141 is the deathmatch test (game
+  type 4) - many settings come as pairs. First attack = random(+0xD2C..+0xD28) + +0xD04 x players, times a
+  difficulty factor (+0xD08 / +0xD0C, deathmatch +0xC80..), clamped +0xD24..+0xD20; interval = random(+0xD00..
+  +0xCFC) + +0xBC4 x players, times +0xCEC / +0xCF0, clamped +0xCF8..+0xCF4; group size random between +0xCE8 and
+  +0xCE4 % (defence +0xD54 / +0xD50 %, 0x495569; deathmatch scaled by +0xBE0 until game time +0xEEC). +0xE2C..
+  +0xE4C per-activity minimum stocks (0x43F66F), +0xE24 / +0xE28 lead times before the next attack / epoch
+  attempt. Defence manager (combat manager +0x4C, ctor 0x474556): +0x38 next update every 8 s (staggered by player),
+  +0x3C unit refresh, +0x40 naval check every +0xCBC min, +0x48 active; a defence entry refills after +0xE98..
+  (deathmatch +0xEA4.., a human ally's place +0xCC0..), so records 114+ are misnamed in dbcpbehavior; record 121
+  (+0xEC8..) is the overseas expansion interval (0x4311F0 -> +0xEF0). Combat manager +0x58 / +0x5C next group /
+  sub group id, +0x60 attack now; personnel requests expire after 10 min (+0x34), their ids (+0x3C) are what sub
+  groups (+0x188) and the exploration manager store; a sub group's id +0x1A0, state +0x1D0 (1000 / 2001 / 3000 /
+  6002). Hit by a player (EEComputerPlayer::vf33): +0xEE0 time, +0xEF8 / +0xEF7 enable the defence for 60 s;
+  EEPlayer::vf33 adds the damage per attacker at +0xA70[i] and sets strategy +0xA28 = 2. The air favourite pick
+  0x4305BD logs +0xBA8 (the land type) into +0xB70 - a game bug. Saved oddly: +0xEDC absolute, +0xEF6 cleared;
+  not saved at all (0x431697 refills them): +0xC70, +0xC74..C88, +0xD10..D1C, +0xD68/D6C, +0xD98/+0xE50,
+  +0xDD0/+0xE88, +0xE14, +0xE1C, +0xE90, +0xEC8..ED0. All 351 sample computer players play medium.
+- The other lumps: EEPhysics +0x2C timer running (messages 0x404 on, 0x402/0x403 off; the loop steps only then),
+  +0x50 / +0x54 / +0x58 step interval s / ms / rate (0x553663), +0x5C steps counted, +0x68 stop the thread (0x401),
+  +0x90 day/night timer (with +0xE0 on, 0x547B6B advances the time of day), +0xBC..+0xC8 sums and counts giving
+  +0xD8 / +0xDC the average ms of work per step / between steps (sent to the lockstep server, TuneForSlowCPU),
+  +0xE3..+0xE5 the multiplayer civilization timer (warnings at 240 / 270 s, EEMCivTimerExpired at 300 s; off in
+  scenarios and with setup +0x409), +0xE6 game over; the 8 network values are named by their persist strings
+  (NemmMessage, NescCt, NescPt, NescommCt, NescommLast, sNessLastCt, NessCt, NessPt). Scenario manager: +0x214 the
+  500 ms trigger timer (0x5A1ED2), +0x208 / +0x20C / +0x235 a scripted camera move (0x5A4F23), +0x236 the editor's
+  show-IDs switch; effect +0x14 / +0x28 name / description, +0x16C saved only past minor 0x29, +0x193 past 0x13;
+  EESMArea's rectangle is a GERectangle {top, left, right, bottom}, +0x68 / +0x69 rectangle / point given, +0x5C
+  type (0 rectangle, 1 region, 2 player shape), +0x60 a tile cache step stamp (rebuilt every 3000 steps), +0x64 its
+  EEAIArea. Terrain mesh: cell byte +3 water info (non-zero water), point byte +8 colour table index; EEMap
+  +0x181734 the base terrain. Doppelgangers keep hit points (a resource's amount | bit 31), animation, scale and
+  tile as last seen. EEEffect +0x1C id, +0x24 / +0x28 grid cell; the manager's +0x14 list = effect ids to delete.
+  Clouds drift at a randomly wandering speed (environment +0x34..+0x3C), updated every 5000 ms x game speed; up to
+  3 storms. Misc lump: the main game screen's +0x5E2 lights the scenario information button (Change Text sets it).
 
 ## Display
 

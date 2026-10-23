@@ -195,10 +195,11 @@ game data). A word in a type's place that is no identifier is an error naming it
 venv/Scripts/python scripts/eectl.py <command>
 ```
 
-Asking a game that is still loading: wait until `status` shows a game time above 0 before other commands - `camera`
-sent during the load crashes the game in the mod (no map yet; docs/engine-notes.md, "Pipe pitfall"). A script that
-polls a slot should end with `quit` and run as its own task: a poll left running after its caller gave up keeps
-sending commands to whatever game next takes that slot (2026-10-23: two loads in a row crashed that way).
+Asking a game that is still loading: wait until `status` shows a game time above 0 before other commands - during
+the load most commands have no map to work on (`camera` crashed the game there until aed5917, it answers `error: no
+map` now; docs/engine-notes.md, "Pipe pitfall"). A script that polls a slot should end with `quit` and run as its own
+task: a poll left running after its caller gave up keeps sending commands to whatever game next takes that slot
+(2026-10-23: two loads in a row crashed that way).
 
 | Command | |
 |---|---|
