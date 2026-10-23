@@ -1,0 +1,12 @@
+// The player's load over several transports (dll/ai/transports.c, transport_split): Small Islands (map seed 101),
+// P1's island - 3 copper transports off its south shore, 25 macemen inland; at 0.5 min `transports load` shares them
+// out as a load command with all of them selected does; at 3 min each transport's passengers aboard.
+// [autotest] transport_meeting=0: the game's own meeting points (the constructor's) for comparison.
+wait_until(0.2min)
+spawn(1, unit.s03_copper_transport, 30, 53, 3)
+spawn(1, unit.inf03_maceman, 22, 40, 25)
+wait_until(0.5min)
+cmd("transports load 1 26 49 10")
+wait_until(3min)
+cmd("transports id 1")
+cmd("count 1")

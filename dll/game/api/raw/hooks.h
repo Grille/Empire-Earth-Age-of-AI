@@ -77,9 +77,11 @@
     D(VT_ASG_LAND, 0x00826CA8, 0x0083AD7C)                                    /* EECPASGLand */ \
     D(VT_ASG_SEA, 0x00826F10, 0x0083AFEC) \
     D(VT_ASG_SEA_TRANSPORT, 0x008270F8, 0x0083B1D8) \
+    D(VT_MSG_LOAD, 0x00824E00, 0x00838DDC)                                   /* EEMLoadTransport */ \
     D(START_VTBL_EXEC, 0x008285D8, 0x0083D2A0) \
     D(VT_RESIGN, 0x00828820, 0x0083D4E8) \
     D(VT_PAY_TRIBUTE, 0x008289C0, 0x0083D688) \
+    D(VT_MSG_UNLOAD, 0x00828AC4, 0x0083D78C)                                 /* EEMUnloadTransport */ \
     D(VT_INGAME_CHAT, 0x0082936C, 0x0083E0BC) \
     D(VTBL_PHYS_STEP, 0x0082CB7C, 0x00842324)                                 /* EEPhysics vtable slot 8: one simulation step */ \
     D(VTS_TECH_RESEARCHED, 0x00830874, 0x00846168)                            /* EETechTreeNode::vf6's vtable slot */ \
@@ -93,7 +95,7 @@
     D(SLOT_SERVER_SEND, 6, 6)           /* [G_SERVER] (EEServer, EEClient): thiscall(net, message, 0xFF) */ \
     D(SLOT_ROUTE_COST, 1, 1)            /* VT_ROUTE_PLANNER: FN_ROUTE_COST */ \
     D(SLOT_ASGU_SCORE, 2, 2)            /* ASGU_VTABLES */ \
-    D(SLOT_MSG_EXECUTE, 10, 10)         /* VT_PAY_TRIBUTE, VT_INGAME_CHAT, VT_RESIGN: the message's Execute */ \
+    D(SLOT_MSG_EXECUTE, 10, 10)         /* VT_PAY_TRIBUTE, VT_INGAME_CHAT, VT_RESIGN, VT_MSG_LOAD, VT_MSG_UNLOAD: the message's Execute */ \
     D(SLOT_UNIT_RELEASE, 13, 13)        /* VT_COMPLEX_UNIT */ \
     D(SLOT_ASG_STATS, 20, 20)           /* the attack subgroups: FN_ASG_STATS, VT_ASG_LAND's FN_ASG_LAND_STATS */ \
     D(SLOT_CP_ADD_RESOURCE, 18, 18)     /* VT_COMPUTER_PLAYER: FN_CP_ADD_RESOURCE (econ.c's hook; AoC as before) */ \

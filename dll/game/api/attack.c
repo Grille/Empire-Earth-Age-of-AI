@@ -72,6 +72,7 @@ internal inline void strategy_set_unknown_40(ee_strategy *s, uint8_t v) { FIELD(
 
 // FUNCTIONS
 internal inline unsigned group_count(void *grp) { return ((unsigned (__thiscall *)(void *))(*(void ***)grp)[GA(SLOT_GROUP_COUNT)])(grp); }
+internal inline ee_unit *group_get(void *grp, unsigned i) { return ((ee_unit *(__thiscall *)(void *, unsigned))(*(void ***)grp)[GA(SLOT_GROUP_GET)])(grp, i); }
 // the combat manager (player +0xB8C) answers an attack by target (the game's revenge attack)
 internal inline void revenge(ee_combat_mgr *combat_mgr, ee_player *target) { GF(FN_REVENGE)(combat_mgr, target); }
 

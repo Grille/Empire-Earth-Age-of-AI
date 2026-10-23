@@ -18,6 +18,16 @@ internal inline ee_unit *goal_get_holder(const ee_goal *g) { return FIELD(g, GOA
 // counts them, a passenger leaves it by boarding, by a new order or by CannotReachContainer
 internal inline ee_unit **goal_get_pending_begin(const ee_goal *g) { return FIELD(g, GOAL_ARGS + 0x8, ee_unit **); }
 internal inline ee_unit **goal_get_pending_end(const ee_goal *g) { return FIELD(g, GOAL_ARGS + 0xC, ee_unit **); }
+// a load goal's meeting point, tiles: the transport's +0x54, its passengers' +0x5C - set by its constructor (the
+// transport class's vf56: EEUCNavalTransport's toward the first passenger), read by HaveReachedRendezvousPoint
+internal inline void goal_set_meeting(ee_goal *g, int sx, int sy, int px, int py) {
+    FIELD(g, GOAL_ARGS + 0x34, int) = sx; FIELD(g, GOAL_ARGS + 0x38, int) = sy;
+    FIELD(g, GOAL_ARGS + 0x3C, int) = px; FIELD(g, GOAL_ARGS + 0x40, int) = py;
+}
+internal inline int goal_get_meeting_ship_x(const ee_goal *g) { return FIELD(g, GOAL_ARGS + 0x34, int); }
+internal inline int goal_get_meeting_ship_y(const ee_goal *g) { return FIELD(g, GOAL_ARGS + 0x38, int); }
+internal inline int goal_get_meeting_x(const ee_goal *g) { return FIELD(g, GOAL_ARGS + 0x3C, int); }
+internal inline int goal_get_meeting_y(const ee_goal *g) { return FIELD(g, GOAL_ARGS + 0x40, int); }
 // an unload goal (goal_is_unload): the water tiles +0x24 / +0x2C, the point to unload at +0x34, the reach (squared)
 internal inline int goal_get_water_x(const ee_goal *g) { return FIELD(g, GOAL_ARGS + 0x4, int); }
 internal inline int goal_get_water_y(const ee_goal *g) { return FIELD(g, GOAL_ARGS + 0x8, int); }
@@ -59,6 +69,8 @@ internal inline void *goal_move_alloc(void) { return game_new(GA(SIZE_GOAL_MOVE)
 internal inline ee_goal *goal_part(ee_goal *goal) { return ((ee_goal *(__thiscall *)(void *))(*(void ***)goal)[GA(SLOT_GOAL_PART)])(goal); }
 // a load goal's passenger u no longer awaited - the game's own when a passenger takes another order: only if u is in
 // nothing (+0x1D8) and the holder's goal is a load goal, then u leaves that goal's pending passengers (if there)
+// u into a load goal under way: one more pending passenger (if not there yet), as the player's load command adds to it
+internal inline void goal_add_passenger(ee_goal *goal, ee_unit *u) { GF(FN_LOAD_ADD)(goal, u); }
 internal inline void goal_drop_passenger(ee_goal *goal, ee_unit *u) { ((void (__thiscall *)(void *, void *))(*(void ***)goal)[GA(SLOT_GOAL_DROP)])(goal, u); }
 // may the goal be handed to the unit (the original of attack.c's hook_goal_cast)
 internal inline char goal_fits(ee_goal *goal, void *unit) { return GF(FN_GOAL_FBA_CHECK)(goal, unit); }

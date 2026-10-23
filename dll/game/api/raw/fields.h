@@ -74,6 +74,8 @@
 //   MSG_CHAT     the in-game chat message (EEMInGameChat)
 //   MSG_SELECT   the select message (EEMSelectUnits)
 //   MSG_START    the game start message (EEMStartLoading)
+//   MSG_LOAD     the load-into-a-transport message (EEMLoadTransport)
+//   MSG_UNLOAD   the unload message (EEMUnloadTransport)
 //   NATIVECHAT   the object of FN_NATIVE_CHAT
 //   UIFORM       the UI manager's current form
 //   UISCREEN     a single-player menu screen (EEUIESP*)
@@ -218,6 +220,8 @@
     O(MSG_SELECT_SELECTION, 0x10, 0x10) /* b */ \
     O(MSG_SELECT_IDS, 0x14, 0x14) /* b */ \
     O(MSG_SELECT_FLAG, 0x134, 0x134) /* c */ \
+    O(MSG_LOAD_TRANSPORT, 0x10, 0x10) /* c: its Execute's reads (both builds) */ \
+    O(MSG_LOAD_UNIT, 0x14, 0x14) /* c: its Execute's reads (both builds) */ \
     O(MSG_START_SEED, 0x14, 0x14) /* c */ \
     O(MSG_TRIBUTE_FOOD, 0x10, 0x10) /* c */ \
     O(MSG_TRIBUTE_GOLD, 0x14, 0x14) /* c */ \
@@ -225,6 +229,8 @@
     O(MSG_TRIBUTE_STONE, 0x1C, 0x1C) /* c */ \
     O(MSG_TRIBUTE_WOOD, 0x20, 0x20) /* c */ \
     O(MSG_TRIBUTE_TO, 0x24, 0x24) /* v */ \
+    O(MSG_UNLOAD_X, 0x14, 0x14) /* c: its Execute's reads (both builds) */ \
+    O(MSG_UNLOAD_Y, 0x18, 0x18) /* c: its Execute's reads (both builds) */ \
     O(NATIVECHAT_PLAYER, 0x20, 0x20) /* s */ \
     O(PHYS_SEED, 0x18, 0x18) /* c */ \
     O(PHYS_STEP, 0x80, 0x80) /* c */ \
@@ -477,6 +483,7 @@
     O(TD_RELOAD, 0x50C, 0x210) /* c: the type data's constructors */ \
     O(TD_ATTACK, 0x510, 0x214) /* c: the type data's constructors */ \
     O(TD_TRANSPORT_CAPACITY, 0x54C, 0x24C) /* c: the type data's constructors */ \
+    O(TD_TRANSPORT_SIZE, 0x558, 0x258) /* c: 2 votes, the shift of its neighbours */ \
     O(TD_GARRISON_CAPACITY, 0x550, 0x250) /* c: the type data's constructors */ \
     O(TD_HP, 0x55C, 0x25C) /* c: the type data's constructors */ \
     O(TD_MISSILE_DELAY, 0x588, 0x288) /* c: the type data's constructors */ \
@@ -547,6 +554,7 @@
     O(UNIT_MATRIX, 0x130, 0x130) /* b: the unit's matrix (GETransformation), its +0x4 .. +0x2C between fields of the same shift */ \
     O(UNIT_ATTACKER_TYPE, 0x1C0, 0x1C0) /* c */ \
     O(UNIT_CHAIN, 0x1CC, 0x1CC) /* c */ \
+    O(UNIT_HOLDER, 0x1D8, 0x1D8) /* c */ \
     O(UNIT_AI_STATE, 0x1E8, 0x1E8) /* c */ \
     O(UNIT_GOAL, 0x1EC, 0x1EC) /* c */ \
     O(UNIT_GOAL_OBJECT, 0x1F0, 0x1F0) /* c */ \
@@ -556,6 +564,7 @@
     O(UNIT_PRODUCING, 0x25C, 0x260) /* c */ \
     O(UNIT_FLIGHT_MS, 0x28C, 0x290) /* c */ \
     O(UNIT_RELOAD, 0x2A0, 0x2A4) /* c */ \
+    O(UNIT_ROOM, 0x2A4, 0x2A8) /* c: 2 votes, UNIT_RELOAD's shift */ \
     O(UNIT_FROZEN, 0x33B, 0x347) /* c */ \
     O(UNIT_FINISHED, 0x340, 0x34C) /* c */ \
     O(UNIT_AI_HELD, 0x341, 0x34D) /* c */ \

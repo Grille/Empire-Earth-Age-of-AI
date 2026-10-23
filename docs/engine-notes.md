@@ -515,6 +515,23 @@ conditions, 162 states with their ids) were dumped by a helper, not kept in the 
   (B), but soldiers +0.35 (se 1.76), kills -1.68 (se 1.30), losses +0.32 (se 1.28), razed -0.15 (se 0.15) - no gain
   in the games' outcome, so it stays off. No .tai edit needed for it (an edited .tai probably breaks the multiplayer
   checksum, 0x5381A3).
+- The player's load command, EEMLoadTransport (vtable 0x824E00, made by the UI at 0x404xxx: type 0x67, +0x10 the
+  clicked transport's id = its object's +0x24, +0x14 a unit's id or -1), Execute 0x4B9446: the player by the
+  message's sender byte (0x52E6EF), -1 = the player's selection (player +0x9BC, EEGroup: slot 6 count, slot 5 the i-th
+  unit), the transport's type vf63 0x60A1FE splits them into those it may carry (each unit alone: +0x335, +0x250
+  flags, not inside anything (+0x1D8), not on water, the class's vf60 0x609095: its family +0x4B4 against the unit
+  type's flags +0x601..+0x604) and the rest; a new load goal (0x61487F) for the transport, or the units added to the
+  one under way (0x613277 -> 0x61321D each); each unit its part (goal vf4), state 8000; the rest walk to the meeting
+  point in groups. No room check: every unit goes to the one transport, those beyond its room are turned back at its
+  side (ContainerIsFull -> BumpExtraLoadableUnits; the room left is the transport's +0x2A4, a unit takes its type's
+  +0x558). The meeting point (goal +0x54 the transport's tile, +0x5C the units'; HaveReachedRendezvousPoint) comes
+  from the transport class's vf56 (EEUCNavalTransport 0x6072E3) toward the first of the units; when the region map
+  (0x412F4C) gives the transport's tile and that unit's the same value it is the transport's own tile for both - a
+  transport 2-4 tiles off the beach then waits there, the units can't reach it and drop out (seen: 0 of 10 aboard).
+  The unload command EEMUnloadTransport (0x828AC4, Execute 0x4BF756; +0x14/+0x18 the tile) gives the selected group one
+  unload goal at that tile. The mod's transport_split / transport_unload_spread (dll/ai/transports.c) hook both
+  Executes. The unit id (+0x24, player in bits 24..31) finds the unit back through 0x53B889 on G_GAME_STATE (its
+  handle's +0x30).
 
 ## Resource manager details
 

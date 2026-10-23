@@ -87,6 +87,12 @@ internal inline void *game_new(size_t n) { return GF(FN_NEW)(n); }
 internal inline unsigned table_value(int key) { return GF(FN_TABLE_VALUE)((void *)GA(G_TABLE_VALUES), key); }
 // the player object of a player index (the game state's, humans too)
 internal inline ee_player *game_player(int index) { return GF(FN_GAME_PLAYER)((void *)GA(G_GAME_STATE), index); }
+// the unit of an id (a message's: the player in bits 24..31) - its handle's +0x30, as EEMLoadTransport finds its
+// transport; NULL unknown
+internal inline ee_unit *unit_by_id(unsigned id) {
+    ee_unit *h = GF(FN_UNIT_BY_ID)((void *)GA(G_GAME_STATE), id);
+    return h ? FIELD(h, UNIT_PHYSICS, ee_unit *) : NULL;
+}
 // the stance of player index from towards to (the game's own change, with its message)
 internal inline void game_set_stance(int from, int to, int stance) { GF(FN_SET_STANCE)((void *)GA(G_GAME_STATE), from, to, stance); }
 // player index out of the game (the resign's first step)

@@ -22,6 +22,7 @@ internal inline int type_get_tech(const ee_unit_type *td) { return FIELD(td, TD_
 internal inline int type_get_reload(const ee_unit_type *td) { return FIELD(td, TD_RELOAD, int); }         // +0x50C base reload time (ms)
 internal inline int type_get_attack(const ee_unit_type *td) { return FIELD(td, TD_ATTACK, int); }         // +0x510 base attack
 internal inline int type_get_transport_capacity(const ee_unit_type *td) { return FIELD(td, TD_TRANSPORT_CAPACITY, int); } // +0x54C (0 for soldiers)
+internal inline int type_get_transport_size(const ee_unit_type *td) { return FIELD(td, TD_TRANSPORT_SIZE, int); }   // +0x558 the room it takes aboard (the load goal's vf33 sums it)
 internal inline int type_get_garrison_capacity(const ee_unit_type *td) { return FIELD(td, TD_GARRISON_CAPACITY, int); }  // +0x550
 internal inline int type_get_hp(const ee_unit_type *td) { return FIELD(td, TD_HP, int); }             // +0x55C base hit points
 internal inline int type_get_missile_delay(const ee_unit_type *td) { return FIELD(td, TD_MISSILE_DELAY, int); }  // +0x588 missile delay time
@@ -54,6 +55,10 @@ internal inline void unit_fire(void *cls, ee_unit *u) { GF(FN_FIRE)(cls, u); }
 internal inline int is_projectile_class(const void *pc) { return *(const uintptr_t *)pc == GA(VT_PROJECTILE); }
 internal inline int is_missile_class(const void *pc) { return *(const uintptr_t *)pc == GA(VT_MISSILE); }
 // the unit's type told that the unit got a goal (EEUnitClass's vtable, as the game's own goal assignment does)
+// may the transport (of this type) carry the unit: its family against the unit type's board flags (EEUCTransport only)
+internal inline char type_can_carry(ee_unit_type *td, ee_unit *transport, ee_unit *u) {
+    return ((char (__thiscall *)(void *, void *, void *))(*(void ***)td)[GA(SLOT_TYPE_CAN_CARRY)])(td, transport, u);
+}
 internal inline void type_goal_assigned(ee_unit_type *td, ee_unit *u) { ((void (__thiscall *)(void *, void *))(*(void ***)td)[GA(SLOT_TYPE_ASSIGN)])(td, u); }
 
 // HOOKS

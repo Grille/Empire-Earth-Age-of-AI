@@ -9,7 +9,8 @@ internal inline ee_player *unit_get_owner(const ee_unit *u) { return FIELD(u, UN
 internal inline int unit_get_x(const ee_unit *u) { return FIELD(u, UNIT_X, int); }                   // +0x1C tile x (-10000: off the map)
 internal inline int unit_get_y(const ee_unit *u) { return FIELD(u, UNIT_Y, int); }                   // +0x20 tile y
 internal inline ivec2 unit_get_tile(const ee_unit *u) { return iv2(unit_get_x(u), unit_get_y(u)); }
-// +0x24: not known - the test opponent keeps it beside the pointer, to tell a reused unit object from the one before
+// +0x24 its id: the player in bits 24..31 (a load message names its transport by it, unit_by_id finds it back) - the
+// test opponent keeps it beside the pointer, to tell a reused unit object from the one before
 internal inline int unit_get_serial(const ee_unit *u) { return FIELD(u, UNIT_SERIAL, int); }
 internal inline uint8_t unit_get_released(const ee_unit *u) { return FIELD(u, UNIT_RELEASED, uint8_t); }    // +0x2A back in the pool (vf12 sets it)
 internal inline uint8_t unit_get_valid(const ee_unit *u) { return FIELD(u, UNIT_VALID, uint8_t); }       // +0x2B mIsValid
@@ -36,6 +37,7 @@ internal inline vec3 unit_get_pos(const ee_unit *u) {
 internal inline ee_unit_type *unit_get_attacker_type(const ee_unit *u) { return FIELD(u, UNIT_ATTACKER_TYPE, ee_unit_type *); } // +0x1C0 a projectile's: the attack's type data
 // +0x1CC: the next of a chain from +0x30 - its last is what a BuildRepair goal holds (0x60BAD0)
 internal inline ee_unit *unit_get_chain(const ee_unit *u) { return FIELD(u, UNIT_CHAIN, ee_unit *); }
+internal inline void *unit_get_holder(const ee_unit *u) { return FIELD(u, UNIT_HOLDER, void *); }   // +0x1D8 set while inside a transport or building (EEUCTransport::vf63: none may board)
 internal inline ee_ai_state *unit_get_ai_state(const ee_unit *u) { return FIELD(u, UNIT_AI_STATE, ee_ai_state *); } // +0x1E8 its script state (AISTATE)
 // the state's id (the .tai state names' numbers: Idle 5000, WaitForPassengers 12010 ... - engine-notes.md), 0 without one
 internal inline unsigned unit_ai_state_id(const ee_unit *u) { ee_ai_state *s = unit_get_ai_state(u); return s ? FIELD(s, AISTATE_ID, unsigned) : 0; }
@@ -48,6 +50,7 @@ internal inline float unit_get_speed(const ee_unit *u) { return FIELD(u, UNIT_SP
 internal inline int unit_get_producing(const ee_unit *u) { return FIELD(u, UNIT_PRODUCING, int); }          // +0x25C what a building makes now
 internal inline int unit_get_flight_ms(const ee_unit *u) { return FIELD(u, UNIT_FLIGHT_MS, int); }          // +0x28C a missile's climb left (ms)
 internal inline int unit_get_reload(const ee_unit *u) { return FIELD(u, UNIT_RELOAD, int); }            // +0x2A0 its own reload (ms, 0: its class's)
+internal inline int unit_get_room(const ee_unit *u) { return FIELD(u, UNIT_ROOM, int); }                // +0x2A4 a transport's room left (EEUGLoadTransport::vf34; full below 1)
 internal inline uint8_t unit_get_frozen(const ee_unit *u) { return FIELD(u, UNIT_FROZEN, uint8_t); }     // +0x33B frozen (the scenario effect)
 internal inline uint8_t unit_get_finished(const ee_unit *u) { return FIELD(u, UNIT_FINISHED, uint8_t); }   // +0x340 on a building's +0x30: built
 // +0x341: held by the AI (EEComputerPlayer vf19 sets it; cleared when the AI takes the unit for an attack)

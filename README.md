@@ -251,6 +251,15 @@ Settings in `aimod.ini`:
 - `[general] big_selection=1` (default): double-clicking a unit (all of its kind on screen) or dragging a box selected
   at most 63 units - with a large army only a part. Now up to about 240, as many as the game's selection message
   can carry; the message keeps its format, so it should stay compatible in multiplayer.
+- `[general] transport_split=1` (default): units right-clicked onto a transport with several transports selected.
+  The game sent every unit to the clicked transport alone - the first 10 boarded, the rest were turned back at its
+  side, and the other transports got nothing. Now the units are shared out: each selected transport takes the
+  nearest units it can carry while it has room, and gets a meeting point at the beach of its own (the game's was
+  often the transport's own tile out at sea, so the units could not reach it, or the same spot for two transports).
+  Units without room keep what they did. With one transport selected the game's own command runs.
+- `[general] transport_unload_spread=1` (default): several loaded transports told to unload at one spot all headed
+  for that one tile; each now gets its own tile on that beach, a few tiles apart, and they land side by side.
+  Both run inside the game's simulation like the original commands: in multiplayer every PC needs the same settings.
 - `[sound] clamp_channels=1` (default): the "Max Number Of Sounds" slider goes to 200%, which asks for 32 sound
   channels, but the sound mixer has only 16 on current Windows. Sounds put on the 16 missing channels were silent,
   and a looping one (unit movement such as the U-boats', ambience) stayed stuck there and never played again -

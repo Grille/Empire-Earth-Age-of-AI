@@ -28,6 +28,12 @@ internal inline uint8_t *select_msg_selection_at(const ee_msg *msg) { return (ui
 internal inline uint32_t *select_msg_get_ids_begin(const ee_msg *msg) { return FIELD(msg, MSG_SELECT_IDS, uint32_t *); }
 internal inline uint32_t *select_msg_get_ids_end(const ee_msg *msg) { return FIELD(msg, MSG_SELECT_IDS + 0x4, uint32_t *); }
 internal inline uint8_t select_msg_get_flag(const ee_msg *msg) { return FIELD(msg, MSG_SELECT_FLAG, uint8_t); }
+// a load into a transport (EEMLoadTransport): the transport's id +0x10, a unit's +0x14 (-1: the player's selection)
+internal inline unsigned load_msg_get_transport(const ee_msg *msg) { return FIELD(msg, MSG_LOAD_TRANSPORT, unsigned); }
+internal inline int load_msg_get_unit(const ee_msg *msg) { return FIELD(msg, MSG_LOAD_UNIT, int); }
+// an unload (EEMUnloadTransport): the tile clicked +0x14, +0x18 (the selected transports' unload point)
+internal inline int unload_msg_get_x(const ee_msg *msg) { return FIELD(msg, MSG_UNLOAD_X, int); }
+internal inline int unload_msg_get_y(const ee_msg *msg) { return FIELD(msg, MSG_UNLOAD_Y, int); }
 // the game start (EEMStartLoading): +0x14 the game's seed
 internal inline unsigned start_msg_get_seed(const ee_msg *msg) { return FIELD(msg, MSG_START_SEED, unsigned); }
 internal inline void start_msg_set_seed(ee_msg *msg, unsigned v) { FIELD(msg, MSG_START_SEED, unsigned) = v; }
@@ -37,6 +43,8 @@ internal inline void start_msg_set_seed(ee_msg *msg, unsigned v) { FIELD(msg, MS
 internal inline void msg_resign(ee_msg *msg) { GF(FN_RESIGN)(msg); }
 internal inline void msg_pay_tribute(ee_msg *msg) { GF(FN_PAY_TRIBUTE)(msg); }
 internal inline void msg_ingame_chat(ee_msg *msg) { GF(FN_INGAME_CHAT)(msg); }
+internal inline void msg_load(ee_msg *msg) { GF(FN_MSG_LOAD)(msg); }
+internal inline void msg_unload(ee_msg *msg) { GF(FN_MSG_UNLOAD)(msg); }
 internal inline void *msg_chat_init(void *mem, void *wide_text) { return GF(FN_CHAT_MSG_CTOR)(mem, wide_text); }
 internal inline void server_send_all(ee_server *net, void *msg) {
     ((void (__thiscall *)(void *, void *, int))(*(void ***)net)[GA(SLOT_SERVER_SEND)])(net, msg, 0xFF);
@@ -72,6 +80,9 @@ typedef void (__thiscall *msg_hook)(ee_msg *msg);
 internal inline int patch_msg_pay_tribute(msg_hook h) { return patch_vtable(GA(VT_PAY_TRIBUTE), GA(SLOT_MSG_EXECUTE), GA(FN_PAY_TRIBUTE), (void *)h); }
 internal inline int patch_msg_ingame_chat(msg_hook h) { return patch_vtable(GA(VT_INGAME_CHAT), GA(SLOT_MSG_EXECUTE), GA(FN_INGAME_CHAT), (void *)h); }
 internal inline int patch_msg_resign(msg_hook h) { return patch_vtable(GA(VT_RESIGN), GA(SLOT_MSG_EXECUTE), GA(FN_RESIGN), (void *)h); }
+// the load and unload commands (transports.c)
+internal inline int patch_msg_load(msg_hook h) { return patch_vtable(GA(VT_MSG_LOAD), GA(SLOT_MSG_EXECUTE), GA(FN_MSG_LOAD), (void *)h); }
+internal inline int patch_msg_unload(msg_hook h) { return patch_vtable(GA(VT_MSG_UNLOAD), GA(SLOT_MSG_EXECUTE), GA(FN_MSG_UNLOAD), (void *)h); }
 // the game start message's execution (its vtable slot 10: it seeds the simulation's generator)
 typedef void (__thiscall *start_exec_hook)(ee_msg *msg);
 internal inline int patch_start_exec(start_exec_hook h) { return patch_code32(GA(START_VTBL_EXEC), GA(START_EXEC), (uint32_t)(uintptr_t)h); }

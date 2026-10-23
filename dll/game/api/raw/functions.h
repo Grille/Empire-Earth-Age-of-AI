@@ -103,8 +103,10 @@
     F(FN_BUILD_WALL, void, __thiscall, (void *, int *, int *, int, char), 0x00497C3F, 0x0049D05F) \
     F(FN_VECTOR_SIZE, unsigned, __thiscall, (void *), 0x004A670A, 0x0047C428) \
     F(FN_INGAME_CHAT, void, __thiscall, (void *), 0x004B78C7, 0x004BFDD2) \
+    F(FN_MSG_LOAD, void, __thiscall, (void *), 0x004B9446, 0x004C1B79)        /* EEMLoadTransport's Execute */ \
     F(FN_PAY_TRIBUTE, void, __thiscall, (void *), 0x004BA6BE, 0x004C315B) \
     F(FN_RESIGN, void, __thiscall, (void *), 0x004BB906, 0x004C44BB) \
+    F(FN_MSG_UNLOAD, void, __thiscall, (void *), 0x004BF756, 0x004C8615)      /* EEMUnloadTransport's Execute */ \
     /* EEMSelectUnits: thiscall(msg, rect, type, 0x4E) */ \
     F(FN_SELECT_MSG_INIT, void, __thiscall, (void *, void *, int, int), 0x004BD072, 0x004C5D7F) \
     F(FN_SEL_PACK, unsigned, __cdecl, (void *, uint32_t, uint8_t *), 0x004BD15A, 0x004C5E67) \
@@ -127,6 +129,8 @@
     F(FN_GAME_PLAYER_OUT, void, __thiscall, (void *, int, int), 0x0052E2B7, 0x005391F2) \
     F(FN_SITE_GATHERERS, unsigned, __thiscall, (void *, void *), 0x0052E5F7, 0x00539532) \
     F(FN_GAME_PLAYER, void *, __thiscall, (void *, int), 0x0052E6EF, 0x00539670) /* thiscall(G_GAME_STATE, index) */ \
+    /* thiscall(G_GAME_STATE, id): a unit's handle by its id (the player in bits 24..31), its +0x30 the unit; NULL unknown */ \
+    F(FN_UNIT_BY_ID, ee_unit *, __thiscall, (void *, unsigned), 0x0053B889, 0x0054804F) \
     F(FN_SAVE_GAME, int, __cdecl, (void *, int, int, struct ustring), 0x00540ACA, 0x0054D066) \
     F(FN_PHYS_STEP, void, __thiscall, (void *), 0x00546C63, 0x00553082) \
     /* thiscall(player, type, 0x20, 0): can train or build one now */ \
@@ -174,6 +178,8 @@
     F(FN_BUILD_GOAL, void *, __thiscall, (void *, void *, void *, int), 0x0060BAD0, 0x0061E164) \
     /* thiscall(goal 0xFBA object, unit) (0x5ED24B) */ \
     F(FN_GOAL_FBA_CHECK, char, __thiscall, (void *, void *), 0x0060FE7E, 0x006226CF) \
+    /* thiscall(load goal, unit): the unit into its pending passengers (if not there), as EEMLoadTransport adds to a load under way */ \
+    F(FN_LOAD_ADD, void, __thiscall, (void *, void *), 0x0061321D, 0x00625AB4) \
     /* EEUGLoadTransport: new 0x68 */ \
     F(FN_GOAL_LOAD_CTOR, void *, __thiscall, (void *, void *, void *, int), 0x0061487F, 0x00627286) \
     /* new 0x38 */ \
@@ -239,7 +245,9 @@
     D(SLOT_UNIT_LIMIT, 31, 31)          /* EEPlayer: int thiscall(player, 0), the unit limit (FN_GAME_LIMIT) */ \
     D(RVA_MIX_CHANNELS, 0x52AC, 0x52AC)       /* Miles Sound System Mixer.dll: its channels, a vector of 8 bytes each */ \
     D(RVA_MIX_MAX_CHANNELS, 0x5320, 0x5320)   /* int: the most channels it gives */ \
-    D(SLOT_GROUP_COUNT, 6, 6)           /* the selected group (player +0x9BC): unsigned thiscall(group); AoC not checked */ \
+    D(SLOT_GROUP_GET, 5, 5)             /* the selected group: ee_unit *thiscall(group, i) (EEGroup, both builds: 16 slots, its vector +0x24) */ \
+    D(SLOT_GROUP_COUNT, 6, 6)           /* the selected group (player +0x9BC): unsigned thiscall(group) (EEGroup, both builds) */ \
+    D(SLOT_TYPE_CAN_CARRY, 60, 61)      /* EEUCTransport: char thiscall(type data, transport, unit) - its family against the unit type's board flags (0x609095; AoC put a stub at 60) */ \
     D(SIZE_PAUSE_ACTION, 0xC, 0xC)      /* EEAUserPauseGame: vtable, refcount, byte */ \
     D(SIZE_KEY_SCROLL, 0x10, 0x10)      /* EEUIEKeyboardScroll: vtable, refcount, 0, direction */ \
     D(SIZE_CHEAT_MSG, 0x18, 0x18)       /* FN_CHEAT_MSG_CTOR */ \

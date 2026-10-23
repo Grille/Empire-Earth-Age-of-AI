@@ -22,6 +22,7 @@ internal void cmd_calloff(char *out, const char *args);
 internal void cmd_vistrack(char *out, const char *args);
 internal void cmd_terrain(char *out, const char *args);
 internal void cmd_board(char *out, const char *args);
+internal void cmd_transports(char *out, const char *args);
 internal void cmd_bunker(char *out, const char *args);
 internal void cmd_firerate(char *out, const char *args);
 internal void cmd_targets(char *out, const char *args);
@@ -353,6 +354,7 @@ internal void execute(const char *cmd, char *out) {
     else if (!strcmp(verb, "vistrack")) cmd_vistrack(out, args);
     else if (!strcmp(verb, "terrain")) cmd_terrain(out, args);
     else if (!strcmp(verb, "board")) cmd_board(out, args);
+    else if (!strcmp(verb, "transports")) cmd_transports(out, args);
     else if (!strcmp(verb, "bunker")) cmd_bunker(out, args);
     else if (!strcmp(verb, "firerate")) cmd_firerate(out, args);
     else if (!strcmp(verb, "targets")) cmd_targets(out, args);
