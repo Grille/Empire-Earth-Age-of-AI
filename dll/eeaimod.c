@@ -40,6 +40,7 @@ internal void autotest_first_tick(ee_player *pl);
 internal void settings_apply(ee_player *pl);
 internal void econ_tick(ee_player *pl, uint32_t now);
 internal void persona_new_game(ee_setup *setup);
+internal void scripts_new_game(ee_setup *setup);   // test/scripts.c
 internal void persona_assign(ee_player *pl);
 internal void diplo_new_game(void);
 internal void chat_new_game(void);
@@ -282,6 +283,7 @@ internal char __thiscall hook_game_start(void *state, ee_setup *setup, void *p2)
     // crashed in world_scan on a stale g_players entry for a slot the new game has no AI in
     memset(g_players, 0, sizeof g_players);
     memset(g_settings_done, 0, sizeof g_settings_done);
+    scripts_new_game(setup);   // a test's scripts: their game.setup blocks choose for the planning below
     persona_new_game(setup);   // personalities and their colours, before the game creates the players
     diplo_new_game();
     chat_new_game();
@@ -437,6 +439,7 @@ internal void x_host_install(void) {
     g_x_host.root_kind = x_root_kind;
     g_x_host.fn_kind = x_fn_kind;
     g_x_host.member = x_obj_member_of;
+    g_x_host.set = x_obj_set;
     g_ini_eval = x_const_eval;
 }
 

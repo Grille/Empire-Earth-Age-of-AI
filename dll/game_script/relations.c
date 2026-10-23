@@ -88,7 +88,7 @@ internal void x_players(struct xctx *c) {   // who is who: the context's players
 internal int x_alive(int j) { return player_at(j) && !is_out(player_at(j)); }
 internal void *x_lord(void *p) { return p && g_lord[pidx(p)] ? player_at(g_lord[pidx(p)]) : NULL; }
 // THE KINDS OF OBJECTS (script/host.h): a player, the game
-enum { XK_PLAYER = 1, XK_GAME };
+enum { XK_PLAYER = 1, XK_GAME, XK_SLOT };
 internal void x_player(struct xval *v, void *p, const char *who) {   // a player as a value: its name, itself
     if (!p) { xnothing(v); lstrcpynA(v->miss, who, sizeof v->miss); return; }   // who isn't there: to be checked
     xstr(v, *player_name(p) && *player_name(p) != '?' ? player_name(p) : "the player");   // a test's idle human has no name
@@ -424,15 +424,25 @@ internal int x_method_of(struct xctx *c, void *pa, const char *who, const char *
 // game's. The kind of what each gives where the check can know it (p.lord.towers, game.players[1].towers)
 internal struct x_kmember g_xk_player[N_XMEMBERS];
 internal const struct x_kmember k_xk_game[] = {
-    { "time", -1, -1, X_ANY },                       // the game time in seconds (a script's time)
-    { "minutes", -1, -1, X_ANY },                    // in whole minutes
-    { "players", -1, -1, X_LIST_OF + XK_PLAYER },    // every player, in or out: game.players[3] is player 3
-    { "player", 1, 1, XK_PLAYER },                   // game.player(3)
-    { "timer", 2, 2, X_ANY },                        // game.timer(20s, () => ...): every 20 s from now on (expr.c TIMER)
+    { "time", -1, -1, X_ANY, 0 },                       // the game time in seconds (a script's time)
+    { "minutes", -1, -1, X_ANY, 0 },                    // in whole minutes
+    { "players", -1, -1, X_LIST_OF + XK_PLAYER, 0 },    // every player, in or out: game.players[3] is player 3
+    { "player", 1, 1, XK_PLAYER, 0 },                   // game.player(3)
+    { "timer", 2, 2, X_ANY, 0 },                        // game.timer(20s, () => ...): every 20 s from now on (expr.c TIMER)
+    { "setup", 1, 1, X_ANY, 0 },                        // game.setup(() => ...): before the game starts (SETUP below)
+    { "slots", -1, -1, X_LIST_OF + XK_SLOT, 0 },        // the players to be, by number: game.slots[2]
+    { "slot", 1, 1, XK_SLOT, 0 },                       // game.slot(2)
 };
-internal struct x_kind g_xkinds[2] = {
+internal const struct x_kmember k_xk_slot[] = {
+    { "number", -1, -1, X_ANY, 0 },                     // the player it becomes
+    { "human", -1, -1, X_ANY, 0 },                      // 1: a human's (0 a computer's)
+    { "persona", -1, -1, X_ANY, 1 },                    // its personality (a computer's): persona.fuchs - its file
+    { "color", -1, -1, X_ANY, 1 },                      // its colour: color.red, or (a computer's) rgb(40, 200, 120)
+};
+internal struct x_kind g_xkinds[3] = {
     { "player", 1, g_xk_player, N_XMEMBERS },
     { "game", 0, k_xk_game, (int)(sizeof k_xk_game / sizeof *k_xk_game) },
+    { "slot", 1, k_xk_slot, (int)(sizeof k_xk_slot / sizeof *k_xk_slot) },
 };
 internal const struct x_kind *x_kind_of(int k) {
     if (k == XK_PLAYER && !g_xk_player[0].name)
@@ -444,7 +454,7 @@ internal const struct x_kind *x_kind_of(int k) {
             g_xk_player[i].amax = (signed char)(rel ? n : m->kind == XM_FILTER ? 1 : -1);
             g_xk_player[i].result = (short)(m->kind == XM_LINK ? XK_PLAYER : X_ANY);
         }
-    return k >= XK_PLAYER && k <= XK_GAME ? &g_xkinds[k - 1] : NULL;
+    return k >= XK_PLAYER && k <= XK_SLOT ? &g_xkinds[k - 1] : NULL;
 }
 internal int x_root_kind(const char *name) {   // me, them, enemy, lord: players; game
     if (!strcmp(name, "me") || !strcmp(name, "them") || !strcmp(name, "enemy") || !strcmp(name, "lord")) return XK_PLAYER;
@@ -463,8 +473,86 @@ internal PRINTF_LIKE(2, 3) void x_host_fail(struct xctx *c, const char *fmt, ...
     c->failed++;
     c->missed = 1;
 }
+// SETUP: a script's game.setup(() => ...) blocks run at the game's start before the players are made (test/scripts.c
+// scripts_new_game, a new game only) - g_x_setup the game start's setup meanwhile, NULL else. There game.slots are the
+// players to be (by number: the human and computer slots in order) and only they: a slot's persona and colour are set
+// for persona_new_game, which plans with them (voice/persona.c g_setup_persona, g_setup_color)
+internal ee_setup *g_x_setup;
+internal int x_slot_index(int number) {   // the setup slot of player number, -1 none
+    for (int s = 0, n = 0; g_x_setup && s < 16; s++) {
+        int t = slot_get_type(setup_slot_at(g_x_setup, s));
+        if ((t == 0 || t == 1) && ++n == number) return s;
+    }
+    return -1;
+}
+internal void x_slot(struct xval *v, int number) {
+    char t[16];
+    wsprintfA(t, "slot %d", number);
+    xstr(v, t);
+    v->obj = number + 1;
+    v->okind = XK_SLOT;
+}
+internal int x_slot_member(struct xctx *c, const struct xval *o, const char *name, struct xval *v) {
+    int number = o->obj - 1, s = x_slot_index(number);
+    if (s < 0) { x_host_fail(c, "slot %d: only in game.setup (before the game starts)", number); return 1; }
+    int human = slot_get_type(setup_slot_at(g_x_setup, s)) == 1;
+    if (!strcmp(name, "number")) xnum(v, number);
+    else if (!strcmp(name, "human")) xnum(v, human);
+    else if (!strcmp(name, "persona")) { if (g_setup_persona[number] >= 0) xstr(v, g_personas[g_setup_persona[number]].file); }
+    else if (!strcmp(name, "color")) {
+        const struct pcolor *pc = &g_setup_color[number];
+        if (pc->idx == -1) { double d[3] = { pc->rgb[0], pc->rgb[1], pc->rgb[2] }; xvec(v, d, 3); }
+        else {
+            int k = pc->idx >= 0 ? pc->idx : slot_get_color(setup_slot_at(g_x_setup, s));
+            if (k >= 0 && k < 17) xdual(v, k + 1, color_name(k));
+        }
+    } else return 0;
+    return 1;
+}
+// slot.persona = persona.fuchs, slot.color = color.red / rgb(40, 200, 120): for this game's planning (a computer's
+// personality and colour; a human's colour one of the game's)
+internal int x_obj_set(struct xctx *c, const struct xval *o, const char *name, const struct xval *v) {
+    int number = o->obj - 1, s = o->okind == XK_SLOT ? x_slot_index(number) : -1;
+    if (s < 0) { x_host_fail(c, "%s.%s = ...: only in game.setup (before the game starts)", o->okind == XK_SLOT ? "slot" : "it", name); return 0; }
+    int human = slot_get_type(setup_slot_at(g_x_setup, s)) == 1;
+    if (setup_get_mode(g_x_setup) != 0) { x_host_fail(c, "slot %d.%s: personalities and their colours are planned in random-map games only", number, name); return 0; }
+    if (!human && is_vanilla_idx(number)) { x_host_fail(c, "slot %d.%s: player %d plays the game's own AI (vanilla) - its name and colour the game's", number, name, number); return 0; }
+    if (!strcmp(name, "persona")) {
+        int i = v->has_s && !v->has_n ? persona_find(v->s) : -1;
+        if (human) { x_host_fail(c, "slot %d.persona: a human's - a personality is a computer's", number); return 0; }
+        if (i < 0) { x_host_fail(c, "slot %d.persona = %.40s: no personality - persona.<its file> (aimod_ai)", number, xtext_of(v)); return 0; }
+        g_setup_persona[number] = i;
+        return 1;
+    }
+    if (!strcmp(name, "color")) {
+        if (v->kind == XV_VEC && v->vn == 3 && !human) {
+            struct pcolor pc = { -1, { (float)v->vc[0], (float)v->vc[1], (float)v->vc[2] } };
+            for (int k = 0; k < 3; k++) if (!(v->vc[k] >= 0 && v->vc[k] <= 1)) { x_host_fail(c, "slot %d.color: rgb(r, g, b) of 0 to 255 each", number); return 0; }
+            g_setup_color[number] = pc;
+            return 1;
+        }
+        int k = v->has_n && !v->kind && !v->ln ? (int)v->n - 1 : -1;
+        if (k < 0 || k >= 17 || (double)(k + 1) != v->n) {
+            x_host_fail(c, "slot %d.color = %.40s: color.<name>%s", number, xtext_of(v), human ? " (a human's: one of the game's)" : " or rgb(r, g, b)");
+            return 0;
+        }
+        if (human) slot_set_color(setup_slot_at(g_x_setup, s), k);   // the game gives a human its slot's
+        else { g_setup_color[number].idx = k; }
+        return 1;
+    }
+    return 0;
+}
 // o.name, o.name(a ...) (expr.c x_obj_member: a member of its kind, its arguments counted)
 internal int x_obj_member_of(struct xctx *c, const struct xval *o, const char *name, const struct xval *a, int na, struct xval *v) {
+    if (o->okind == XK_SLOT) return x_slot_member(c, o, name, v);
+    if (o->okind == XK_GAME && g_x_setup && strcmp(name, "slots") && strcmp(name, "slot")) {
+        x_host_fail(c, "game.%s: not before the game starts - game.setup has game.slots, game.slot(n)", name);
+        return 1;
+    }
+    if (o->okind == XK_GAME && !g_x_setup && (!strcmp(name, "slots") || !strcmp(name, "slot"))) {
+        x_host_fail(c, "game.%s: only in game.setup (before the game starts) - game.players after", name);
+        return 1;
+    }
     if (o->okind == XK_PLAYER) {
         void *p = player_at(o->obj - 1);
         const struct xmember *m = x_find_member(name, (int)strlen(name));
@@ -486,6 +574,18 @@ internal int x_obj_member_of(struct xctx *c, const struct xval *o, const char *n
         const char *why = "game.timer(step, f): a time - 20s";
         if (!c->script) x_host_fail(c, "game.timer: only in a script");
         else if (!a[0].w || !a[0].has_n || a[0].ln || !x_timer_make(c, a[0].n, &a[1], v, &why)) x_host_fail(c, "%s", why);
+    } else if (!strcmp(name, "setup")) {   // (its blocks ran at the game's start - here, in their place, nothing)
+    } else if (!strcmp(name, "slots")) {
+        int n = 0;
+        while (x_slot_index(n + 1) >= 0) n++;
+        struct xval *it = n > 0 ? x_alloc((size_t)n * sizeof *it) : NULL;
+        if (!it) return 1;
+        for (int j = 1; j <= n; j++) x_slot(&it[j - 1], j);
+        v->it = it; v->ln = v->w = n;
+    } else if (!strcmp(name, "slot")) {
+        double n = xto_num(&a[0]);
+        if (!a[0].has_n || (double)(int)n != n || x_slot_index((int)n) < 0) x_host_fail(c, "game.slot(%.40s): no such player", xtext_of(&a[0]));
+        else x_slot(v, (int)n);
     } else if (!strcmp(name, "players")) {
         int n = nplayers() - 1;
         struct xval *it = n > 0 ? x_alloc((size_t)n * sizeof *it) : NULL;

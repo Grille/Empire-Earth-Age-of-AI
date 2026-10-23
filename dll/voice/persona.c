@@ -616,11 +616,22 @@ internal const char *player_civ(ee_player *pl);   // its civilization as the gam
 // or none (idx -2)
 struct pcolor { int idx; float rgb[3]; };
 internal const float *pc_rgb(const struct pcolor *c) { return c->idx >= 0 ? color_rgb(c->idx) : c->idx == -1 ? c->rgb : NULL; }
+// a script's game.setup (game_script/relations.c SETUP) - by player number, before persona_new_game plans: its
+// personality (-1 none) and colour (idx -2 none) for this game
+internal int g_setup_persona[16];
+internal struct pcolor g_setup_color[16];
+internal void persona_setup_clear(void) { for (int i = 0; i < 16; i++) { g_setup_persona[i] = -1; g_setup_color[i].idx = -2; } }
+internal int persona_find(const char *file) {   // a personality by its file's name (fuchs), -1 none
+    for (int i = 0; i < g_npersonas; i++) if (!lstrcmpiA(g_personas[i].file, file)) return i;
+    return -1;
+}
+internal const char *persona_file_of(const char *file) { int i = persona_find(file); return i < 0 ? NULL : g_personas[i].file; }
 internal int g_plan_persona[16];   // by setup slot, planned at the game start (-1 none)
 internal struct pcolor g_plan_color[16];
 internal int g_color_human[17], g_ai_color_n, g_ai_color_k;   // for hook_player_color
 internal struct pcolor g_ai_colors[16];
 internal int persona_forced(int player) {
+    if (player >= 0 && player < 16 && g_setup_persona[player] >= 0) return g_setup_persona[player];   // a script's setup's
     for (int i = 0; i < g_npersonas && player >= 0 && player < 16 && g_persona_force[player][0]; i++)
         if (!lstrcmpiA(g_personas[i].file, g_persona_force[player])) return i;
     return -1;
@@ -708,12 +719,12 @@ internal void persona_new_game(ee_setup *setup) {
     // multiplayer: no planning here (each PC would pick on its own, and the colours are the lobby's) - the
     // personalities are picked at the AIs' first updates from the game generator, the same on every PC
     if (!g_npersonas || setup_get_mode(setup) != 0 || g_mp) return;
-    int used[17] = { 0 }, player = 0;
+    int used[17] = { 0 }, player = 0, player_of[16] = { 0 };
     for (int s = 0; s < 16; s++) {
         ee_setup_slot *slot = setup_slot_at(setup, s);
         int type = slot_get_type(slot), c = slot_get_color(slot);
         if (type != 0 && type != 1) continue;
-        player++;
+        player_of[s] = ++player;
         if (type == 1) { if (c >= 0 && c < 17) used[c] = 1; continue; }
         if (is_vanilla_idx(player)) continue;   // a vanilla player: the game's name and colour
         int pick = persona_forced(player);
@@ -731,6 +742,7 @@ internal void persona_new_game(ee_setup *setup) {
             struct persona *p = &g_personas[g_plan_persona[s]];
             struct pcolor c = { -2, { 0, 0, 0 } };
             int own = slot_get_color(setup_slot_at(setup, s));
+            if (g_setup_color[player_of[s] & 15].idx != -2) c = g_setup_color[player_of[s] & 15];   // a script's setup's
             for (int k = 0; k < nfav[s] && c.idx == -2; k++) if (!pc_taken(&fav[s][k], used)) c = fav[s][k];
             if (c.idx == -2 && pass == 0) continue;
             if (c.idx == -2 && own >= 0 && own < 17 && !used[own]) c.idx = own;

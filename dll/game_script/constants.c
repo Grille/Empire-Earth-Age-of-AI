@@ -8,7 +8,14 @@ internal const char *const k_epoch_const[15] = { "prehistoric", "stone", "copper
 internal const char *const k_resource_const[5] = { "food", "wood", "stone", "gold", "iron" };
 // 0: no constant, 1: one, 2: one that stays the same - kept in the parsed tree (kind.towers, unit.citizen once the
 // game's types are there: filters must be quick, AI code)
+internal const char *persona_file_of(const char *file);   // voice/persona.c
 internal int ee_constant(const char *name, struct xval *v) {
+    if (!_strnicmp(name, "persona.", 8)) {   // persona.fuchs: a personality by its file (aimod_ai\fuchs.eeai) - its name
+        const char *f = persona_file_of(name + 8);
+        if (!f) return 0;
+        xstr(v, f);
+        return 1;
+    }
     if (!_strnicmp(name, "color.", 6)) {   // color.red: a colour's number 1..17, as X.color has it
         int k = isalpha((unsigned char)name[6]) ? color_index(name + 6) : -1;
         if (k < 0) return 0;

@@ -113,8 +113,7 @@ internal void WINAPI script_fiber(void *arg) {
     s->done = 1;
     for (;;) SwitchToFiber(g_main_fiber);
 }
-// every game tick from 2 s on (autotest_tick): each script that waits no longer goes on until it waits again
-internal void run_setup(uint32_t now) {
+internal void scripts_load(void) {   // setup=a.eeai;b.eeai: each read and checked, once (its fiber: run_setup)
     if (g_nscripts < 0) {
         g_nscripts = 0;
         x_triggers_reset();
@@ -131,14 +130,48 @@ internal void run_setup(uint32_t now) {
                 continue;
             }
             log_line("# setup: %s\n", s->path);
-            if (!g_main_fiber) g_main_fiber = IsThreadAFiber() ? GetCurrentFiber() : ConvertThreadToFiber(NULL);
-            s->fiber = g_main_fiber ? CreateFiber(1 << 20, script_fiber, s) : NULL;
-            if (!s->fiber) { log_line("# setup: %s: no fiber - not run\n", s->path); continue; }
             s->reg.busy = 1;   // its evaluations never start its region afresh
             g_nscripts++;
         }
     }
+}
+// THE GAME'S START (eeaimod.c hook_game_start, before the personalities are planned): the scripts read, and in a new
+// game their game.setup blocks run (game_script/relations.c SETUP) - a loaded game's ran when it began (the setup's
+// mode 2; a test's random map is a load of newgame.ees, its mode 0 again by now - randmap.c). A mistake there ends
+// that script
+internal void scripts_new_game(ee_setup *setup) {
+    persona_setup_clear();
+    if (!g_autotest || !g_setup_path[0]) return;
+    scripts_load();
+    if (setup_get_mode(setup) == 2) return;
+    g_x_setup = setup;
+    for (int i = 0; i < g_nscripts; i++) {
+        struct script *s = &g_scripts[i];
+        struct xctx c = { 0 };
+        c.found = 1;
+        c.script = 1;
+        struct xregion *r0 = g_xr;
+        g_xr = &s->reg;
+        g_x_last_fail[0] = 0;
+        int ok = x_setup_run(&s->u, &c);
+        g_xr = r0;
+        if (ok) continue;
+        s->done = 1;
+        log_line("# setup: %s: game.setup stopped - %s\n", s->path, g_x_last_fail[0] ? g_x_last_fail : "not worked out");
+    }
+    g_x_setup = NULL;
+}
+// every game tick from 2 s on (autotest_tick): each script that waits no longer goes on until it waits again
+internal void run_setup(uint32_t now) {
+    scripts_load();
     g_script_now = now;
+    for (int i = 0; i < g_nscripts; i++) {   // their fibers on this thread (the game's start may be another's)
+        struct script *s = &g_scripts[i];
+        if (s->done || s->fiber) continue;
+        if (!g_main_fiber) g_main_fiber = IsThreadAFiber() ? GetCurrentFiber() : ConvertThreadToFiber(NULL);
+        s->fiber = g_main_fiber ? CreateFiber(1 << 20, script_fiber, s) : NULL;
+        if (!s->fiber) { s->done = 1; log_line("# setup: %s: no fiber - not run\n", s->path); }
+    }
     for (int i = 0; i < g_nscripts; i++) {
         struct script *s = &g_scripts[i];
         if (s->done || !s->fiber || now < s->wake) continue;

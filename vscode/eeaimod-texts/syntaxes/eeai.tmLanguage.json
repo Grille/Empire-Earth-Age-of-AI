@@ -589,7 +589,7 @@
         },
         {
           "name": "variable.language.game-value.eeaimod",
-          "match": "\\bgame\\.\\b(?:minutes|players|player|timer|time)\\b|\\bgame\\b(?![.\\w(])"
+          "match": "\\bgame\\.\\b(?:minutes|players|player|timer|setup|slots|time|slot)\\b|\\bgame\\b(?![.\\w(])"
         },
         {
           "name": "invalid.illegal.unknown-member.eeaimod",
@@ -777,7 +777,7 @@
         },
         {
           "name": "variable.language.game-value.eeaimod",
-          "match": "\\bgame\\.\\b(?:minutes|players|player|timer|time)\\b|\\bgame\\b(?![.\\w(])"
+          "match": "\\bgame\\.\\b(?:minutes|players|player|timer|setup|slots|time|slot)\\b|\\bgame\\b(?![.\\w(])"
         },
         {
           "name": "invalid.illegal.unknown-member.eeaimod",

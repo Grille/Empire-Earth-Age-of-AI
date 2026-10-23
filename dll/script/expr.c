@@ -480,7 +480,7 @@ internal void x_missing(struct xctx *c, const char *who) {
 // deepest path, itself included (a function's body counts on its own). line, at: where it starts in the source.
 enum { XN_NUM, XN_STR, XN_NAME, XN_CALL, XN_LIST, XN_NEG, XN_NOT, XN_MUL, XN_ADD, XN_CMP, XN_AND, XN_OR, XN_COAL, XN_COND,
        XN_LAMBDA, XN_BLOCK, XN_ASSIGN, XN_RETURN, XN_MEMBER, XN_REC, XN_LET, XN_IF, XN_WHILE, XN_FOR, XN_BREAK, XN_CONTINUE,
-       XN_INDEX, XN_MCALL };
+       XN_INDEX, XN_MCALL, XN_SETM };
 struct xnode {
     unsigned char k, op, lvl, depth;
     int n_items;                 // a list's items, a call's arguments (all; the first 8 are used), a function's
@@ -1059,6 +1059,33 @@ internal void xps_stmt(struct xps *p, struct xnode **out) {
     if (p->err) return;
     if (let) { p->err = 1; p->why = "let name = value"; return; }
     xps_expr(p, out);
+    if (p->err || !*out) return;
+    const char *r = p->s;   // an object's member set: slot.persona = ..., game.slots[2].color = ...
+    while (*r == ' ' || *r == '\t') r++;
+    if (*r != '=' || r[1] == '=') return;
+    struct xnode *t = XPTR(p, *out), *obj, *v;
+    char member[40];
+    const char *dot = t->k == XN_NAME ? strrchr(t->s, '.') : NULL;
+    if (t->k == XN_MEMBER) { obj = t->a; lstrcpynA(member, t->s, sizeof member); }
+    else if (dot && dot - t->s < 40) {   // a.b.c = ...: the object a.b
+        char head[40];
+        lstrcpynA(head, t->s, (int)(dot - t->s) + 1);
+        lstrcpynA(member, dot + 1, sizeof member);
+        const char *at0 = t->at;
+        struct xnode *h = xn_new(p, XN_NAME, at0);
+        if (!h) return;
+        h->s = _strdup(head);
+        h->lvl = 1;
+        obj = XOFF(p, h);
+    } else { p->err = 1; p->why = "= sets a variable (name = ...) or an object's member (slot.persona = ...)"; return; }
+    p->s = r + 1;
+    xps_expr(p, &v);
+    if (p->err) return;
+    struct xnode *o = xn_new(p, XN_SETM, at);
+    if (!o) return;
+    o->a = obj; o->b = v;
+    o->s = _strdup(member);
+    *out = XOFF(p, o);
 }
 // statements, one a line, up to the block's } (brace) or the source's end (a script)
 internal void xps_stmts(struct xps *p, struct xnode **out, int brace, const char *at) {
@@ -1367,15 +1394,27 @@ internal int x_check_new_name(struct xcheck *k, const struct xnode *n, const cha
     else return 1;
     return xc_fail(k, n, k->whybuf);
 }
+// a script's game.setup(() => ...) - a statement at its top: run before the game starts (the host's SETUP), where
+// none of the script's names is yet - its function sees none of them
+internal int x_is_setup(const struct xnode *s) {
+    return s->k == XN_CALL && !strcmp(s->s, "game.setup") && s->n_items == 1 && s->items[0]->k == XN_LAMBDA && !s->items[0]->n_items;
+}
 internal int x_check_body(struct xcheck *k, const struct xnode *body, struct xscope *sc) {   // a block: its lets first
     if (!body || body->k != XN_BLOCK) return x_check(k, body, sc);
+    if (k->script && !sc->up && !sc->blk)   // the script's top: its setup blocks, on their own
+        for (int i = 0; i < body->n_items; i++) {
+            if (!x_is_setup(body->items[i])) continue;
+            struct xscope none = { NULL, { 0 }, 0, { 0 }, 0, { 0 } };
+            if (!x_check(k, body->items[i]->items[0], &none)) return 0;
+        }
     for (int i = 0; i < body->n_items; i++) {   // known in the whole block - a function made before may call one later
         const struct xnode *s = body->items[i];
         if (s->k != XN_LET) continue;
         if (!x_check_new_name(k, s, s->s, sc)) return 0;
         if (sc->n < 64) { sc->decl[sc->n] = 0; sc->name[sc->n++] = s->s; }
     }
-    for (int i = 0; i < body->n_items; i++) if (!x_check(k, body->items[i], sc)) return 0;
+    for (int i = 0; i < body->n_items; i++)
+        if (!(k->script && !sc->up && !sc->blk && x_is_setup(body->items[i])) && !x_check(k, body->items[i], sc)) return 0;
     return 1;
 }
 internal int x_check_block(struct xcheck *k, const struct xnode *blk, const struct xscope *sc) {   // an if's, a loop's
@@ -1462,6 +1501,18 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
     }
     case XN_BREAK: case XN_CONTINUE:
         return k->loops ? 1 : xc_fail(k, n, n->k == XN_BREAK ? "break outside a loop" : "continue outside a loop");
+    case XN_SETM: {   // slot.persona = ...: a member its kind lets be set (a kind known)
+        if (!x_check(k, n->a, sc) || !x_check(k, n->b, sc)) return 0;
+        int a = x_skind(k, n->a, sc);
+        if (!a) return 1;
+        const struct x_kmember *m = a & X_LIST_OF ? NULL : x_kind_member(a, n->s);
+        char t[100];
+        if (a & X_LIST_OF) snprintf(k->whybuf, sizeof k->whybuf, ".%s = ...: a list of %s - one of them: [1].%s", n->s, x_kind_name(a), n->s);
+        else if (!m) { x_kind_list(a, t, sizeof t); snprintf(k->whybuf, sizeof k->whybuf, ".%s = ...: a %s has no %s - its members: %s", n->s, x_kind_name(a), n->s, t); }
+        else if (!m->set) snprintf(k->whybuf, sizeof k->whybuf, ".%s = ...: a %s's %s can't be set", n->s, x_kind_name(a), n->s);
+        else return 1;
+        return xc_fail(k, n, k->whybuf);
+    }
     case XN_RETURN: return x_check(k, n->a, sc);
     case XN_MEMBER: case XN_MCALL: case XN_INDEX: {   // f(a).x, l[1].name(...): an object's - of a kind known - checked
         if (!x_check(k, n->a, sc) || !x_check(k, n->b, sc)) return 0;
@@ -1513,6 +1564,8 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
             }
         }
         const char *dot = strrchr(name, '.');
+        if (k->script && !strcmp(name, "game.setup"))   // (one at the script's top is checked there, not here)
+            return xc_fail(k, n, "game.setup(() => { ... }): a statement at the script's top (its function runs before the game starts)");
         if (k->script && dot) {   // p.opinion(q), game.player(2): a method of its kind (a variable of no kind known: when it runs)
             int known, r = x_path_kind(k, n, name, (size_t)(dot - name), sc, &known);
             if (r < 0) return 0;
@@ -2478,6 +2531,18 @@ internal void x_stmt(struct xe *e, const struct xnode *s) {
         break;
     case XN_BREAK: e->brk = 1; break;
     case XN_CONTINUE: e->brk = 2; break;
+    case XN_SETM: {   // o.name = value: a member its kind lets be set, by the host
+        struct xval o;
+        xe(e, s->a, &o);
+        if (!e->err) x_use(e, &o);
+        if (!e->err) xe(e, s->b, &v);
+        if (e->err) return;
+        if (!o.obj || !o.w) { x_fail(e, ".%s = ...: %.40s is no object", s->s, xtext_of(&o)); return; }
+        const struct x_kmember *m = x_kind_member(o.okind, s->s);
+        if (!m || !m->set) { x_fail(e, ".%s = ...: a %s's %s can't be set", s->s, x_kind_name(o.okind), s->s); return; }
+        if (!g_x_host.set(e->c, &o, s->s, &v)) { e->c->missed = 0; e->err = 1; e->why = "a mistake while working it out"; }   // (told)
+        break;
+    }
     case XN_IF:
         for (; s; s = s->b && s->b->k == XN_IF ? s->b : NULL) {   // else if ...: the next if
             xe(e, s->c, &v);
@@ -2531,6 +2596,28 @@ internal void x_exec(struct xe *e, const struct xnode *blk) {
         if (e->err && !e->err_at) e->err_at = s;
     }
     c->top = top;
+}
+// a script's game.setup blocks (x_is_setup), each worked out now in a frame of its own (test/scripts.c, at the game's
+// start); 0: a mistake in one (told - the rest not run)
+internal int x_setup_run(const struct xunit *u, struct xctx *c) {
+    for (int i = 0; u->root && i < u->root->n_items; i++) {
+        const struct xnode *s = u->root->items[i], *lam;
+        if (!x_is_setup(s)) continue;
+        lam = s->items[0];
+        struct xframe *f = calloc(1, sizeof *f);
+        if (!f) return 0;
+        struct xval rv;
+        struct xe e = { c, 0, NULL, f, 0, &rv, NULL, 0, 0, 0 };
+        c->fpn = f->name; c->fpv = f->val; c->fnp = 0;
+        c->top = s->at;
+        xnothing(&rv);
+        if (lam->a->k == XN_BLOCK) x_exec(&e, lam->a);
+        else xe(&e, lam->a, &rv);
+        c->fpn = NULL; c->fpv = NULL; c->fnp = 0;
+        free(f);
+        if (e.err) return 0;
+    }
+    return 1;
 }
 // a op b with a vector among them (into a): + - two vectors of as many numbers, number by number; * a vector and a
 // number (either side), / a vector by a number - anything else a mistake, nothing guessed

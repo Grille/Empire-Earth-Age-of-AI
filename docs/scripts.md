@@ -93,7 +93,8 @@ is its name (`"{p}"`), it equals only itself (`game.players[2] == player(2)`).
 
 | Kind | |
 |---|---|
-| `game` | the game: `game.time` (seconds), `game.minutes`, `game.players` (every player, in or out - `game.players[3]` is player 3), `game.player(3)`, `game.timer(20s, f)` ("Timers" below) |
+| `game` | the game: `game.time` (seconds), `game.minutes`, `game.players` (every player, in or out - `game.players[3]` is player 3), `game.player(3)`, `game.timer(20s, f)` ("Timers" below), `game.setup(f)`, `game.slots` ("Before the game starts") |
+| slot | a player to be, in `game.setup`: `s.number`, `s.human`, `s.persona`, `s.color` (the last two set) |
 | player | `player(3)`, `game.player(3)`, `game.players[3]`, `me`/`them` in the texts: every value of `them.` in the README (`p.towers`, `p.epoch`, `p.lord` - a player again), its relations as methods (`p.opinion(q)`, `p.kills(q, 10)`), `p.count(kind.towers)`; as a command's argument its number (`spawn(p, ...)`) |
 
 ```
@@ -196,6 +197,36 @@ game.timer(20s, () => {
 ```
 
 `every(step, from, until, f)` is the waiting form: the script itself goes from one run to the next.
+
+## Before the game starts
+
+`game.setup(() => { ... })`, a statement at the script's top, runs before the game starts - when the game makes its
+players, before the personalities and colours are planned - in a new game only (a saved game's ran when it began).
+The rest of the script runs from 2 s as always; the setup's statement is nothing there. Its function sees none of the
+script's names (they don't exist yet) - only its own `let`s, and the players to be:
+
+| | |
+|---|---|
+| `game.slots`, `game.slot(2)` | the players to be by number (the human and computer slots in order) - only here; `game.players` after |
+| `s.number`, `s.human` | the player it becomes; 1: a human's |
+| `s.persona = persona.fuchs` | a computer's personality: `persona.<its file>` (aimod_ai\fuchs.eeai) - an unknown one a mistake when the file is read |
+| `s.color = color.red`, `= rgb(40, 200, 120)` | its colour: one of the game's, or (a computer's) its own |
+
+```
+game.setup(() => {
+    game.slot(2).persona = persona.fuchs
+    game.slot(3).color = rgb(40, 200, 120)
+    for s in game.slots {
+        if not s.human and s.number > 3 {
+            s.persona = persona.haendler
+        }
+    }
+})
+```
+
+A mistake there (a human's personality, a vanilla player's, a scenario game - personalities are planned in random-map
+games) ends that script before the game starts: `# setup: <file>: game.setup stopped - ...`. Test runs read their
+scripts at the game's start now (setup=...); a dry run leaves the setup out.
 
 ## Several scripts side by side
 
