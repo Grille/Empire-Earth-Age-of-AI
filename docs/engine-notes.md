@@ -932,7 +932,7 @@ physics/movement models EEP 107/49, interface EEUI 819/31, scenario EES 611/12, 
 - Comparing the two decompilations as text misses code (2026-10-23, the save format's diff): stream calls inside
   long wrapped if-chains drop out - EEComputerPlayer::vf9 looked unchanged, its machine code has 7 more stream calls
   (157 vs 162 in the text). Compare the machine code's calls instead (`call [reg+0x74/0x7C/0x90/0x94/0x8C]`, the
-  constants, `cmp [ebp+0xC], 0xNN` version tests): EEScnEdit session scratchpad `aoc\aseq.py`, `tree2.py` (walks a
+  constants, `cmp [ebp+0xC], 0xNN` version tests): `scripts/stream_diff.py` (side by side, or --tree: a
   save tree through port_addrs' pairs). AoC's decompilation shows import calls as `(*(code *)&LAB_xxxxxxxx_N)`
   (GE3DPoint::Save [0x837374], GETransformation::Save [0x837704], GE3DLine::Save [0x837738]), and
   EEComputerPlayer::vf6 0x42FD50 (52 KB) doesn't decompile - read it as machine code.
