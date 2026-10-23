@@ -340,5 +340,9 @@ public static class SuspendedStart {
 $stamp = Get-Date -Format "yyyyMMdd_HHmmss"
 $dest = "$repo\work\autotest_${stamp}$(if ($Slot) { "_s$Slot" })${Tag}.csv"
 if (Test-Path "$sdir\aimod_econ.csv") { Move-Item "$sdir\aimod_econ.csv" $dest }
+# old logs and dumps go (scripts/work_prune.ps1: older than 2 days, or over 20 GB), at most once an hour - on its own,
+# so this run's line comes now
+Start-Process powershell -WindowStyle Hidden -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File',
+              "`"$PSScriptRoot\work_prune.ps1`"", '-Hourly', '-Quiet'
 # one line with all of it: the scripts that run many games show only this one (scripts/jobs.sh)
 "finished in $secs s real time (started in $started s), exit code $($p.ExitCode)$(if ($why) { " ($why)" }), log: $dest"
