@@ -23,8 +23,8 @@ def xtable(name):   # diplo.c k_xmembers / k_xglobals: (name, kind)
     return re.findall(r'\{ "(\w+)", (XM_\w+),', body)
 members = xtable('k_xmembers')
 globals_ = [n for n, k in xtable('k_xglobals')]
-member_names = [n for n, k in members if k not in ('XM_REL', 'XM_FILTER')]
-relations = [n for n, k in members if k in ('XM_REL', 'XM_FILTER')]   # called: A.kills(B), A.count(kind.towers)
+member_names = [n for n, k in members if k not in ('XM_REL', 'XM_FILTER', 'XM_DO')]
+relations = [n for n, k in members if k in ('XM_REL', 'XM_FILTER', 'XM_DO')]   # called: A.kills(B), A.count(kind.towers), p.win()
 game_members = re.findall(r'\{ "(\w+)", ', re.search(r'k_xk_game\[\] = \{(.*?)\n\};', diplo, re.S).group(1))   # game.time ...
 # without a player: the globals (opinion, at_war, allied among them: mine with them), my epoch and traits (me.)
 bare = globals_ + ['epoch'] + \

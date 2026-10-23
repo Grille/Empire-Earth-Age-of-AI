@@ -52,6 +52,10 @@ internal void script_command(const char *cmd, char *reply, int cap) {
     fflush(g_log);
     LeaveCriticalSection(&g_lock);
 }
+internal int script_did(const char *what) {   // an effect (relations.c x_did): logged, then done
+    log_line("# setup: %s\n", what);
+    return 0;
+}
 internal char *script_read(const char *path) {
     FILE *f = fopen(path, "rb");
     if (!f) return NULL;
@@ -177,7 +181,7 @@ internal void run_setup(uint32_t now) {
         if (s->done || !s->fiber || now < s->wake) continue;
         struct xregion *r0 = g_xr;
         g_xr = &s->reg;
-        g_x_hooks.now = script_now; g_x_hooks.wait = script_wait; g_x_hooks.command = script_command;
+        g_x_hooks.now = script_now; g_x_hooks.wait = script_wait; g_x_hooks.command = script_command; g_x_hooks.did = script_did;
         g_cur_script = s;
         SwitchToFiber(s->fiber);
         g_cur_script = NULL;
@@ -187,11 +191,13 @@ internal void run_setup(uint32_t now) {
 }
 // the triggers' turn: at every safe point between the simulation's steps (control.c hook_sim_receive, where the pipe's
 // commands run too) - several a game second, so their 500 ms checks hold; the scripts' own turns (an AI's update,
-// about one a game second) would make it one a second. No waiting there (a trigger's run has after's)
+// about one a game second) would make it one a second. No waiting there (a trigger's run has after's). The scripts'
+// wins and defeats are carried out here too (relations.c x_effects_flush: the game's resign path wants this point)
 internal void script_triggers(uint32_t now) {
+    x_effects_flush();
     if (g_nscripts <= 0 || now < 2000) return;
     if (now > g_script_now) g_script_now = now;
-    g_x_hooks.now = script_now; g_x_hooks.command = script_command;
+    g_x_hooks.now = script_now; g_x_hooks.command = script_command; g_x_hooks.did = script_did;
     x_triggers_tick(g_script_now / 1000.0);
     memset(&g_x_hooks, 0, sizeof g_x_hooks);
 }
@@ -210,6 +216,10 @@ internal void dry_command(const char *cmd, char *reply, int cap) {
     fprintf(g_dry_out, "%u %s\n", (unsigned)(g_dry_now * 1000.0 + 0.5), cmd);
     lstrcpynA(reply, "ok", cap);
 }
+internal int dry_did(const char *what) {   // an effect: written as a command is, not done
+    fprintf(g_dry_out, "%u %s\n", (unsigned)(g_dry_now * 1000.0 + 0.5), what);
+    return 1;
+}
 internal void cmd_script(char *out, const char *args) {
     char file[MAX_PATH], dst[MAX_PATH];
     if (sscanf(args, "dryrun %259s %259s", file, dst) != 2) { REPLY("error: usage: script dryrun <file> <out>\n"); return; }
@@ -225,7 +235,7 @@ internal void cmd_script(char *out, const char *args) {
     g_xr = &reg;
     g_dry_now = 2.0;
     __typeof__(g_x_hooks) h0 = g_x_hooks;   // (a script may run this: its own are back after)
-    g_x_hooks.now = dry_now; g_x_hooks.wait = dry_wait; g_x_hooks.command = dry_command;
+    g_x_hooks.now = dry_now; g_x_hooks.wait = dry_wait; g_x_hooks.command = dry_command; g_x_hooks.did = dry_did;
     static struct xtrig keep_t[XT_MAX];   // a game's own triggers set aside meanwhile: the dry run has none but its own
     static struct xafter keep_a[XA_MAX];
     int nt = g_xt_n, na = g_xa_n;

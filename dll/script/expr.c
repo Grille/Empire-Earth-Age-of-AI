@@ -115,8 +115,12 @@ internal struct xvars g_vars_sys;   // mod/system.eeai vars (texts.c)
 internal int x_fill(char *out, int cap, const char *tmpl, struct xctx *c);
 #include "script/host.h"   // what the language asks the program it runs in (the game: eeaimod.c x_host_install)
 // a script's world (test/scripts.c, the script runner): the game's time in seconds, waiting until a game second (the script's
-// fiber yields to the game), a pipe command run with its reply
-internal struct { double (*now)(void); void (*wait)(double until); void (*command)(const char *cmd, char *reply, int cap); } g_x_hooks;
+// fiber yields to the game), a pipe command run with its reply, an effect on the game told (p.win(), p.gold = 500 - the
+// host's: 1 only told, as a dry run's, 0 to be done)
+internal struct {
+    double (*now)(void); void (*wait)(double until); void (*command)(const char *cmd, char *reply, int cap);
+    int (*did)(const char *what);
+} g_x_hooks;
 
 // THE VALUES' REGIONS: their texts and lists, in chunks. The shared one (the lines, prompts, settings) starts afresh
 // with the outermost evaluation (x_eval, x_fill from outside): what a caller reads of a value it got lives until the
@@ -557,6 +561,7 @@ internal int xps_op(struct xps *p, const char *op) {
     xps_space(p);
     size_t n = strlen(op);
     if (strncmp(p->s, op, n)) return 0;
+    if (n == 1 && strchr("+-*/", *op) && p->s[1] == '=') return 0;   // p.gold += 100: the statement's, not an operator
     p->s += n;
     return 1;
 }
@@ -1060,9 +1065,10 @@ internal void xps_stmt(struct xps *p, struct xnode **out) {
     if (let) { p->err = 1; p->why = "let name = value"; return; }
     xps_expr(p, out);
     if (p->err || !*out) return;
-    const char *r = p->s;   // an object's member set: slot.persona = ..., game.slots[2].color = ...
+    const char *r = p->s;   // an object's member set: slot.persona = ..., game.slots[2].color = ..., p.gold += 100
     while (*r == ' ' || *r == '\t') r++;
-    if (*r != '=' || r[1] == '=') return;
+    int op = r[1] == '=' && (*r == '+' || *r == '-' || *r == '*' || *r == '/') ? *r : 0;
+    if (!op && (*r != '=' || r[1] == '=')) return;
     struct xnode *t = XPTR(p, *out), *obj, *v;
     char member[40];
     const char *dot = t->k == XN_NAME ? strrchr(t->s, '.') : NULL;
@@ -1078,9 +1084,10 @@ internal void xps_stmt(struct xps *p, struct xnode **out) {
         h->lvl = 1;
         obj = XOFF(p, h);
     } else { p->err = 1; p->why = "= sets a variable (name = ...) or an object's member (slot.persona = ...)"; return; }
-    p->s = r + 1;
+    p->s = r + (op ? 2 : 1);
     xps_expr(p, &v);
     if (p->err) return;
+    if (op && !(v = xps_bin(p, op == '+' || op == '-' ? XN_ADD : XN_MUL, op, *out, v))) return;   // p.gold = p.gold + 100
     struct xnode *o = xn_new(p, XN_SETM, at);
     if (!o) return;
     o->a = obj; o->b = v;

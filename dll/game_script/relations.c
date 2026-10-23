@@ -10,7 +10,9 @@
 // a number and words (mod/system.eeai opinion1..5): "hostile" in a text. Nothing where a value doesn't apply (a relation
 // with oneself, a war that isn't, a player who isn't there).
 // The tables also make the documentation: scripts/gen_eeai_readme.py writes them into aimod_ai\README.md.
-enum { XM_PLAYER, XM_LINK, XM_REL, XM_FILTER };   // a player's own, a player (them.lord), A.<relation>(B), A.count(filter)
+// A script's player also does things (XM_DO): p.win(), p.war(q) - and its stock may be set: p.gold = 500 (SCRIPTS' EFFECTS
+// below); a text changes nothing.
+enum { XM_PLAYER, XM_LINK, XM_REL, XM_FILTER, XM_DO };   // a player's own, a player (them.lord), A.<relation>(B), A.count(filter), an effect
 struct xmember { const char *name; int kind; const char *doc; };
 internal const struct xmember k_xmembers[] = {
     { "name", XM_PLAYER, "its name - the same as the player itself in a text: {them} = {them.name}" },
@@ -37,7 +39,7 @@ internal const struct xmember k_xmembers[] = {
     { "loyalty", XM_PLAYER, "" }, { "pride", XM_PLAYER, "" }, { "greed", XM_PLAYER, "" }, { "forgiveness", XM_PLAYER, "" },
     { "caution", XM_PLAYER, "" }, { "talk", XM_PLAYER, "" },
     { "lord", XM_LINK, "its lord, the player it capitulated to - a player: them.lord.name, lord == them; nothing when it has none" },
-    { "food", XM_PLAYER, "its stock - another's too (the AI's spies): them.gold" },
+    { "food", XM_PLAYER, "its stock - another's too (the AI's spies): them.gold; a script sets it: p.gold = 500, p.food += 100" },
     { "wood", XM_PLAYER, "" }, { "stone", XM_PLAYER, "" }, { "gold", XM_PLAYER, "" }, { "iron", XM_PLAYER, "" },
     { "stock", XM_PLAYER, "the five resources together - to scale amounts: them.tribute(me) > me.stock / 2" },
     { "opinion", XM_REL, "-100..100: what A thinks of B - in a text in words: hostile, unfriendly, indifferent, friendly, trusting (round(opinion): the number). An AI's opinion; a human's of an AI is a guess from what the AI did to them (war, a betrayal, peace, tribute, a refusal, their losses), nothing of another human" },
@@ -54,6 +56,10 @@ internal const struct xmember k_xmembers[] = {
     { "in_town", XM_REL, "1 when A's army is in B's town: its soldiers have stayed near B's base for a while (an AI's base)" },
     { "attack_minutes", XM_REL, "minutes since A's last attack wave set out against B - nothing if none (an AI's waves)" },
     { "kills", XM_REL, "B's units and buildings A has destroyed - (B, minutes): in the last minutes (whole minutes, the current one counts); a filter last picks which, as count's: unit.<identifier>, kind.<kind>, a list of them - or one of mod/units.eeai's lists (units, army, airforce, marine, military, civilians, buildings): them.kills(me, units), me.kills(them, 10, kind.tank), them.kills(me, 20, buildings)" },
+    { "win", XM_DO, "a script's: p.win() - the player is victorious, as a scenario's Victory: the game is over, the others lose" },
+    { "lose", XM_DO, "a script's: p.lose() - the player is defeated, as a scenario's Defeat" },
+    { "war", XM_DO, "a script's: A.war(B) - A treats B as an enemy (one way, as the game's stances: B's towards A stays; an AI may change its mind later)" },
+    { "ally", XM_DO, "a script's: A.ally(B) - A treats B as an ally (one way)" },
 };
 #define N_XMEMBERS (int)(sizeof k_xmembers / sizeof *k_xmembers)
 internal const struct xmember k_xglobals[] = {
@@ -249,7 +255,7 @@ internal int x_builtin(struct xctx *c, const char *name, struct xval *v) {
     if (dot) {   // <player>.<member>
         void *p = x_path(c, name, (int)(dot - name), &ok, who);
         const struct xmember *m = ok ? x_find_member(dot + 1, (int)strlen(dot + 1)) : NULL;
-        if (!m || m->kind == XM_REL || m->kind == XM_FILTER) return 0;   // a relation needs its other player: them.opinion(me)
+        if (!m || m->kind == XM_REL || m->kind == XM_FILTER || m->kind == XM_DO) return 0;   // a relation needs its other player: them.opinion(me)
         if (!p) { x_missing(c, who); xnothing(v); return 1; }   // lord.soldiers without a lord
         if (m->kind == XM_LINK) { x_player(v, x_lord(p), name); return 1; }   // them.lord: a player, to be checked
         x_member(p, m, v);
@@ -309,7 +315,7 @@ internal int x_name_valid(const char *name) {
         s += k;
     }
     const struct xmember *m = x_find_member(dot + 1, (int)strlen(dot + 1));
-    return m && m->kind != XM_REL;
+    return m && m->kind != XM_REL && m->kind != XM_DO;
 }
 // a filter of unit types: unit.<identifier>, kind.<kind> (each type of that family) or a list of them, nested too -
 // any of them: into sel (set, not cleared); 0: something else in it (a mistake, told)
@@ -419,6 +425,12 @@ internal int x_method_of(struct xctx *c, void *pa, const char *who, const char *
     return 1;
 }
 
+internal int x_stock_index(const char *name) {   // food .. iron: the stock's index (2..6), -1 none
+    static const char *const res[5] = { "food", "wood", "stone", "gold", "iron" };
+    for (int k = 0; k < 5; k++) if (!strcmp(name, res[k])) return k + 2;
+    return -1;
+}
+
 // THE KINDS' TABLES (script/host.h: the check reads them, x_kmember): a player's - its k_xmembers, a value, a player
 // (lord) or a method (a relation: its other player, (B, minutes), kills (B, minutes, filter); count(filter)); the
 // game's. The kind of what each gives where the check can know it (p.lord.towers, game.players[1].towers)
@@ -449,10 +461,12 @@ internal const struct x_kind *x_kind_of(int k) {
         for (int i = 0; i < N_XMEMBERS; i++) {
             const struct xmember *m = &k_xmembers[i];
             int rel = m->kind == XM_REL, n = !strcmp(m->name, "kills") ? 3 : x_windowed(m->name) ? 2 : 1;
+            int act = m->kind == XM_DO ? !strcmp(m->name, "war") || !strcmp(m->name, "ally") : -1;   // its other player
             g_xk_player[i].name = m->name;
-            g_xk_player[i].amin = (signed char)(rel || m->kind == XM_FILTER ? 1 : -1);
-            g_xk_player[i].amax = (signed char)(rel ? n : m->kind == XM_FILTER ? 1 : -1);
+            g_xk_player[i].amin = (signed char)(rel || m->kind == XM_FILTER ? 1 : act);
+            g_xk_player[i].amax = (signed char)(rel ? n : m->kind == XM_FILTER ? 1 : act);
             g_xk_player[i].result = (short)(m->kind == XM_LINK ? XK_PLAYER : X_ANY);
+            g_xk_player[i].set = (signed char)(x_stock_index(m->name) >= 0);
         }
     return k >= XK_PLAYER && k <= XK_SLOT ? &g_xkinds[k - 1] : NULL;
 }
@@ -509,9 +523,61 @@ internal int x_slot_member(struct xctx *c, const struct xval *o, const char *nam
     } else return 0;
     return 1;
 }
+// SCRIPTS' EFFECTS: what a script's player does - p.win(), p.lose(), p.war(q), p.ally(q) - and its stock set (p.gold =
+// 500). Each is told first (g_x_hooks.did: the log; a dry run's only told). A stance and a stock change at once - the
+// stock written as the scenario's Set-Attribute does, without the AI's demand noticing; a win or a defeat waits for the
+// next point between the simulation's steps (x_effects_flush, test/scripts.c script_triggers), where the game's own
+// resign runs: as the scenario's Victory / Defeat (docs/triggers.md "2 Player")
+internal int g_x_outcome[16];   // [player]: 1 wins, 2 loses - to be carried out
+internal int x_did(struct xctx *c, const char *what) {   // 1: only told (or not a script's: a mistake, told)
+    if (!c->script) { x_host_fail(c, "%s: a script's - a text changes nothing", what); return 1; }
+    return g_x_hooks.did && g_x_hooks.did(what);
+}
+internal void x_player_do(struct xctx *c, int i, const char *name, const struct xval *a, int na, struct xval *v) {
+    void *p = player_at(i);
+    char t[80];
+    xnothing(v);
+    if (!p || is_out(p)) { x_host_fail(c, "player %d.%s(): not in the game", i, name); return; }
+    if (!na) {   // win, lose
+        wsprintfA(t, "player %d.%s()", i, name);
+        if (!x_did(c, t)) g_x_outcome[i] = name[0] == 'w' ? 1 : 2;
+        return;
+    }
+    void *q = x_player_of(&a[0]);
+    if (!q || q == p) { x_host_fail(c, "player %d.%s(%.40s): %s", i, name, xtext_of(&a[0]), q ? "itself" : "not a player"); return; }
+    int j = pidx(q), s = name[0] == 'w';   // 1 enemy, 0 allied
+    wsprintfA(t, "player %d.%s(player %d)", i, name, j);
+    if (!x_did(c, t) && stance_of(p, j) != s) set_stance(i, j, s);
+}
+internal void x_effects_flush(void) {
+    for (int i = 1; i < 16; i++) {
+        int w = g_x_outcome[i];
+        g_x_outcome[i] = 0;
+        void *p = w ? player_at(i) : NULL;
+        if (!p || is_out(p)) continue;
+        player_resign(p, w);         // its result (1 victorious, 2 defeated), the game's chat line
+        game_player_out(w == 1, i);  // the map revealed, the game's end checked
+    }
+}
+internal int x_player_set(struct xctx *c, const struct xval *o, const char *name, const struct xval *v) {
+    int i = o->obj - 1, r = x_stock_index(name);
+    void *p = player_at(i);
+    char t[80];
+    if (r < 0) return 0;
+    if (!p || is_out(p)) { x_host_fail(c, "player %d.%s = ...: not in the game", i, name); return 0; }
+    if (!v->has_n || v->ln || v->kind || !(v->n >= 0 && v->n <= 1e9) || v->n != (double)(long)v->n) {
+        x_host_fail(c, "player %d.%s = %.40s: a stock is a whole number, 0 or more - round(...)", i, name, xtext_of(v));
+        return 0;
+    }
+    wsprintfA(t, "player %d.%s = %ld", i, name, (long)v->n);
+    if (!x_did(c, t)) player_stock_at(p)[r] = (int)v->n;
+    return c->script;
+}
+
 // slot.persona = persona.fuchs, slot.color = color.red / rgb(40, 200, 120): for this game's planning (a computer's
 // personality and colour; a human's colour one of the game's)
 internal int x_obj_set(struct xctx *c, const struct xval *o, const char *name, const struct xval *v) {
+    if (o->okind == XK_PLAYER) return x_player_set(c, o, name, v);
     int number = o->obj - 1, s = o->okind == XK_SLOT ? x_slot_index(number) : -1;
     if (s < 0) { x_host_fail(c, "%s.%s = ...: only in game.setup (before the game starts)", o->okind == XK_SLOT ? "slot" : "it", name); return 0; }
     int human = slot_get_type(setup_slot_at(g_x_setup, s)) == 1;
@@ -560,6 +626,7 @@ internal int x_obj_member_of(struct xctx *c, const struct xval *o, const char *n
         if (m->kind == XM_PLAYER) x_member(p, m, v);
         else if (m->kind == XM_LINK) x_player(v, x_lord(p), "lord");
         else if (m->kind == XM_FILTER) x_count_of(c, p, "player", name, &a[0], v);
+        else if (m->kind == XM_DO) x_player_do(c, o->obj - 1, name, a, na, v);
         else x_method_of(c, p, "player", name, m, a, na, v);
         return 1;
     }

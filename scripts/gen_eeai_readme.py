@@ -39,7 +39,7 @@ situations = '\n'.join(t)
 def members(table):
     body = re.search(r'internal const struct xmember %s\[\] = \{(.*?)\n\};' % table, diplo, re.S).group(1)
     return re.findall(r'\{ "(\w+)", (XM_\w+), ((?:"(?:[^"\\]|\\.)*"\s*)+)\}', body)
-kinds = {'XM_PLAYER': [], 'XM_LINK': [], 'XM_REL': [], 'XM_FILTER': []}
+kinds = {'XM_PLAYER': [], 'XM_LINK': [], 'XM_REL': [], 'XM_FILTER': [], 'XM_DO': []}   # XM_DO: a script's effects (docs/scripts.md), not a text's
 for name, kind, doc in members('k_xmembers'):
     kinds[kind].append((name, c_string(doc)))
 def table(rows, prefix, head, suffix=''):

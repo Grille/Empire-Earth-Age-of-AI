@@ -28,6 +28,7 @@ One a line; `#` starts a comment.
 |---|---|
 | `let name = value` | a new variable (a name of letters, digits, `_`) - once in its block; known from there to the block's end |
 | `name = value` | a variable a `let` made gets a new value; `name += value`, `-=`, `*=`, `/=`: `name = name + value` ... |
+| `p.gold = value`, `p.gold += value` | an object's member that may be set ("Objects") |
 | `call(...)`, any expression | worked out, its value not kept |
 | `if c { ... } else if d { ... } else { ... }` | the first block whose condition holds (`else` on the `}`'s line or the next) |
 | `while c { ... }` | the block again and again while `c` holds |
@@ -95,7 +96,7 @@ is its name (`"{p}"`), it equals only itself (`game.players[2] == player(2)`).
 |---|---|
 | `game` | the game: `game.time` (seconds), `game.minutes`, `game.players` (every player, in or out - `game.players[3]` is player 3), `game.player(3)`, `game.timer(20s, f)` ("Timers" below), `game.setup(f)`, `game.slots` ("Before the game starts") |
 | slot | a player to be, in `game.setup`: `s.number`, `s.human`, `s.persona`, `s.color` (the last two set) |
-| player | `player(3)`, `game.player(3)`, `game.players[3]`, `me`/`them` in the texts: every value of `them.` in the README (`p.towers`, `p.epoch`, `p.lord` - a player again), its relations as methods (`p.opinion(q)`, `p.kills(q, 10)`), `p.count(kind.towers)`; as a command's argument its number (`spawn(p, ...)`) |
+| player | `player(3)`, `game.player(3)`, `game.players[3]`, `me`/`them` in the texts: every value of `them.` in the README (`p.towers`, `p.epoch`, `p.lord` - a player again), its relations as methods (`p.opinion(q)`, `p.kills(q, 10)`), `p.count(kind.towers)`; as a command's argument its number (`spawn(p, ...)`). What it does below |
 
 ```
 let p2 = game.player(2)
@@ -110,6 +111,18 @@ The check knows what a variable is from its `let` (`let p = player(2)`, a `for` 
 a member its kind hasn't (`p.towerz`), a method without its `( )` or with the wrong number of arguments, a member of
 a list (`game.players.towers`), another kind put into it (`p = game`) - each a mistake when the file is read, with
 the members it has. A function's parameter is of no kind known: its members are checked when it runs.
+
+A player does things - a script's, a text changes nothing:
+
+| | |
+|---|---|
+| `p.gold = 500`, `p.food += 100` | its stock (`food`, `wood`, `stone`, `gold`, `iron`): a whole number, 0 or more (`round(p.wood * 1.5)`) - written directly, as a scenario's Set-Attribute does |
+| `p.war(q)`, `p.ally(q)` | p treats q as an enemy / an ally - one way, as the game's stances are (q's towards p stays: `q.war(p)` too for a war of both); an AI may change its mind later |
+| `p.win()`, `p.lose()` | as a scenario's Victory / Defeat, at the end of the game's step: a win is the game's end, the others lose |
+
+Each is logged (`# setup: player 2.gold = 500`); in a dry run it is only written to `<out>`, as a command is. A
+player out of the game, a stock of `10.5` or `-5`, `p.war(p)` stop the script; `p.name = ...` (not to be set) is a
+mistake when the file is read.
 
 ## Functions
 
