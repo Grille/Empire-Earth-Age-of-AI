@@ -2,7 +2,7 @@
 // A file: "name = value" lines - a name the file's lines use (or, for a few names, what the file is about), records
 // "lines = { key = value, ... }" (a comma after each entry; the keys the code reads - another record is the file's
 // own name, its entries name.key), include("pack_base.eeai"),
-// register_personality() - and comments from # to the line's end (outside a string). A value is an expression - over
+// register_personality() - and comments from // to the line's end (outside a string). A value is an expression - over
 // several lines while a ( [ or { is open:
 //   "text"                          a string; \" \\ \n escapes. {expressions} in it - {them} -
 //                                   {opinion > 30 ? "friend" : "stranger"}: the quotes inside the braces are the
@@ -236,6 +236,10 @@ internal int x_check_par_has(const char *s, int n) {
 internal char g_xvn[256][40];
 internal int g_xvn_n;
 internal void x_var_add(const char *b, size_t n) { if (n && n < 40 && g_xvn_n < 256) lstrcpynA(g_xvn[g_xvn_n++], b, (int)n + 1); }
+// a comment: // to the line's end, as in the game's own scripts (.rmv, .tai) - a # is a mistake (the game's # is a
+// preprocessor's: #define, #include)
+internal int x_comment(const char *s) { return s[0] == '/' && s[1] == '/'; }
+#define X_HASH_WHY "# - a comment starts with // (as in the game's own scripts)"
 // the lines "name(a, b) =" of a file, and "name =" outside its records - a record too (its members: name.key) unless
 // the program reads it itself (lines, personality ...: g_x_host.code_record)
 internal void x_fn_scan(const char *text) {
@@ -254,7 +258,7 @@ internal void x_fn_scan(const char *text) {
                 if (e[1 + strspn(e + 1, " \t")] != '{' || !g_x_host.code_record(nm)) x_var_add(b, n);
             }
         }
-        for (const char *q = s; *q && *q != '\n' && *q != '#'; q++) {   // the line's braces, strings left out
+        for (const char *q = s; *q && *q != '\n' && !x_comment(q); q++) {   // the line's braces, strings left out
             if (*q == '"' || *q == '\'') {
                 char c = *q;
                 for (q++; *q && *q != c && *q != '\n'; q++) if (*q == '\\' && q[1]) q++;
@@ -536,7 +540,7 @@ internal struct xnode *xn_new(struct xps *p, int k, const char *at) {
 // the nodes live in p->mem, which moves as it grows: they are kept as offsets (+1, 0 none) while parsing
 #define XOFF(p, n) ((n) ? (struct xnode *)((char *)(n) - (p)->mem + 1) : NULL)
 #define XPTR(p, o) ((o) ? (struct xnode *)((p)->mem + (uintptr_t)(o) - 1) : NULL)
-// spaces, line breaks and comments (# to the line's end); nl: whether a line break was among them
+// spaces, line breaks and comments (// to the line's end); nl: whether a line break was among them
 internal void xps_space(struct xps *p) {
     const char *b = p->s;
     int nl = 0;
@@ -544,7 +548,8 @@ internal void xps_space(struct xps *p) {
         char c = *p->s;
         if (c == ' ' || c == '\t' || c == '\r') p->s++;
         else if (c == '\n') { nl = 1; p->s++; }
-        else if (c == '#') { while (*p->s && *p->s != '\n') p->s++; }
+        else if (x_comment(p->s)) { while (*p->s && *p->s != '\n') p->s++; }
+        else if (c == '#' && !p->err) { p->err = 1; p->why = X_HASH_WHY; break; }
         else break;
     }
     if (p->s != b) { p->nl = nl; p->nl_pos = p->s; }
@@ -3078,7 +3083,8 @@ internal void tl_blank(struct tlex *l, int lines) {   // spaces; with lines: lin
         char c = *l->s;
         if (c == ' ' || c == '\t' || c == '\r') l->s++;
         else if (lines && c == '\n') { l->line++; l->s++; }
-        else if (lines && c == '#') while (*l->s && *l->s != '\n') l->s++;
+        else if (lines && x_comment(l->s)) while (*l->s && *l->s != '\n') l->s++;
+        else if (lines && c == '#') { tl_error(l, X_HASH_WHY); while (*l->s && *l->s != '\n') l->s++; }
         else return;
     }
 }
@@ -3128,8 +3134,9 @@ internal void tl_value(struct tlex *l, struct tval *v, int rec) {
         if (!c || (c == '\n' && !depth) || (rec && !depth && (c == ',' || c == '}'))) break;
         if (c == '\n' && tl_key_line(l->s + 1)) { l->line++; l->s++; break; }   // the next key: depth tells
         if (c == '\n' || c == '\r' || c == '\t') { if (c == '\n') l->line++; l->s++; c = ' '; }
-        else if (c == '#') { while (*l->s && *l->s != '\n') l->s++; continue; }
-        else if (c == ';') { tl_error(l, "; - a comment starts with #"); free(r); return; }
+        else if (x_comment(l->s)) { while (*l->s && *l->s != '\n') l->s++; continue; }
+        else if (c == '#') { tl_error(l, X_HASH_WHY); free(r); return; }
+        else if (c == ';') { tl_error(l, "; - a comment starts with //"); free(r); return; }
         else if (c == '"' || c == '\'') {   // a string, copied as written
             const char *e, *why;
             if (x_string(l->s, NULL, 0, &e, &why) < 0) { tl_error(l, why); free(r); return; }
@@ -3182,7 +3189,8 @@ internal int tl_stop_line(const char *t) {
 }
 internal int tl_line_end(struct tlex *l, const char *what) {   // nothing more on the line but a comment; 0: a mistake told
     tl_blank(l, 0);
-    if (*l->s == '#') while (*l->s && *l->s != '\n') l->s++;
+    if (x_comment(l->s)) while (*l->s && *l->s != '\n') l->s++;
+    if (*l->s == '#') { tl_error(l, X_HASH_WHY); return 0; }
     if (*l->s && *l->s != '\n') { tl_error(l, what); return 0; }
     return 1;
 }
@@ -3231,7 +3239,7 @@ internal void tfile_parse(const char *file, const char *text, tfile_fn fn, void 
         } else if (*l.s == '[') {
             tl_error(&l, "a [section]: the files have records now - lines = { greeting = ... }");
         } else if (*l.s == ';') {
-            tl_error(&l, "; - a comment starts with #");
+            tl_error(&l, "; - a comment starts with //");
         } else {
             char key[160];
             int n = 0;

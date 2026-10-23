@@ -1,5 +1,5 @@
-# repairs under fire from afar: P2's Town Center (Continental 101, 74,52) damaged, 3 of P1's Bronze Cannons 12 tiles
-# away - beyond the old 8 tiles, inside their range + 3
+// repairs under fire from afar: P2's Town Center (Continental 101, 74,52) damaged, 3 of P1's Bronze Cannons 12 tiles
+// away - beyond the old 8 tiles, inside their range + 3
 
 wait_until(0.05min)
 diplo(1, 2, 1)

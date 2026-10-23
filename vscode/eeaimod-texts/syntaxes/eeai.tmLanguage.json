@@ -470,11 +470,11 @@
       "patterns": [
         {
           "name": "comment.line.eeaimod",
-          "match": "#.*$"
+          "match": "//.*$"
         },
         {
           "name": "invalid.illegal.comment.eeaimod",
-          "match": ";.*$"
+          "match": "[;#].*$"
         }
       ]
     },

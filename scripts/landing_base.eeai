@@ -1,4 +1,4 @@
-# a forward base (reference save): P2 given 60 machine gunners at home, 5 transports and resources - 10 citizens along build towers, barracks, town center, hospital, factory
+// a forward base (reference save): P2 given 60 machine gunners at home, 5 transports and resources - 10 citizens along build towers, barracks, town center, hospital, factory
 
 wait_until(75.8min)
 give(2, 4000, resource.all)

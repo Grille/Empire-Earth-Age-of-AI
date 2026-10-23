@@ -1,4 +1,4 @@
-# exit test: saved, then the game closed its own way (WM_CLOSE) - the teardown the autotest never runs
+// exit test: saved, then the game closed its own way (WM_CLOSE) - the teardown the autotest never runs
 
 wait_until(77min)
 save("zz_exit2")

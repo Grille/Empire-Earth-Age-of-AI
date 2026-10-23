@@ -1,4 +1,4 @@
-# AI personality for eeaimod - the format and every key: _template.eeai.
+// AI personality for eeaimod - the format and every key: _template.eeai.
 register_personality()
 
 personality = {
@@ -12,29 +12,29 @@ personality = {
     forgiveness = 40%,
     caution = 50%,
     talk = 50%,
-    # for the AI voice ([llm] in aimod.ini): who this is, in a few words
+    // for the AI voice ([llm] in aimod.ini): who this is, in a few words
     character = "An honourable knight bound by his word: formal, solemn, courteous even to enemies, never breaks an oath.",
 }
 
 style = {
-    # EXPERIMENTAL - only with ai_style=1 in aimod.ini (default off: every AI plays the same, tested way).
-    # The same keys as in aimod.ini; they replace the difficulty's values for this AI. Game defaults for
-    # comparison (medium difficulty): first attack 20-40 min, then every 20-25 min; instant attacks on
-    # contact 0%, for resources 0%, as revenge 10%; home_guard_share 35%, military_income_share 40%.
+    // EXPERIMENTAL - only with ai_style=1 in aimod.ini (default off: every AI plays the same, tested way).
+    // The same keys as in aimod.ini; they replace the difficulty's values for this AI. Game defaults for
+    // comparison (medium difficulty): first attack 20-40 min, then every 20-25 min; instant attacks on
+    // contact 0%, for resources 0%, as revenge 10%; home_guard_share 35%, military_income_share 40%.
     attack_revenge = 50%,
     home_guard_share = 40%,
 }
 
-# the knight weighs a foe by his strength - and spares the one who cannot stand
+// the knight weighs a foe by his strength - and spares the one who cannot stand
 worthy = them.strength > me.strength
 outmatched = them.strength * 2 < me.strength
-# a word given and broken: theirs, and his own shame
+// a word given and broken: theirs, and his own shame
 oathbreaker = them.betrayals(me) > 0
 my_shame = me.betrayals(them) > 0
-# blood between us: more than a skirmish
+// blood between us: more than a skirmish
 my_fallen = them.kills(me, units) > many_dead
 their_fallen = me.kills(them, units) > many_dead
-# a long bond - only where we are allied (nothing otherwise)
+// a long bond - only where we are allied (nothing otherwise)
 old_bond = me.alliance_minutes(them) > 30
 
 lines = {
@@ -99,7 +99,7 @@ lines = {
         "My honour forbids me to stand beside {enemy}, {them}.",
         "As long as {enemy} is your ally, {them}, my sword stays drawn.",
     ],
-    # enemy is my own ally here
+    // enemy is my own ally here
     block_refuse_own = [
         me.alliance_minutes(enemy) > 30 and chance(60%) ? "{enemy} and I have stood together a long time, {them}. I will not break that bond for your peace.",
     ] ?? [
@@ -147,7 +147,7 @@ lines = {
         "You are silent, {them}? Then I fight alone.",
         "Your silence is answer enough, {them}.",
     ],
-    # said while still allied: alliance_minutes holds, my_shame is an earlier betrayal
+    // said while still allied: alliance_minutes holds, my_shame is an earlier betrayal
     betray = [
         my_shame ? [
             "Again I break my word to you, {them}. God forgive me - I will not forgive myself.",

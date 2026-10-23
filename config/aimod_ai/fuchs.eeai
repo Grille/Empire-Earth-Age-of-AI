@@ -1,4 +1,4 @@
-# AI personality for eeaimod - the format and every key: _template.eeai.
+// AI personality for eeaimod - the format and every key: _template.eeai.
 register_personality()
 
 personality = {
@@ -12,15 +12,15 @@ personality = {
     forgiveness = 50%,
     caution = 45%,
     talk = 55%,
-    # for the AI voice ([llm] in aimod.ini): who this is, in a few words
+    // for the AI voice ([llm] in aimod.ini): who this is, in a few words
     character = "A scheming princess, charming and polite on the surface, cold and calculating beneath; enjoys hints and veiled threats.",
 }
 
 style = {
-    # EXPERIMENTAL - only with ai_style=1 in aimod.ini (default off: every AI plays the same, tested way).
-    # The same keys as in aimod.ini; they replace the difficulty's values for this AI. Game defaults for
-    # comparison (medium difficulty): first attack 20-40 min, then every 20-25 min; instant attacks on
-    # contact 0%, for resources 0%, as revenge 10%; home_guard_share 35%, military_income_share 40%.
+    // EXPERIMENTAL - only with ai_style=1 in aimod.ini (default off: every AI plays the same, tested way).
+    // The same keys as in aimod.ini; they replace the difficulty's values for this AI. Game defaults for
+    // comparison (medium difficulty): first attack 20-40 min, then every 20-25 min; instant attacks on
+    // contact 0%, for resources 0%, as revenge 10%; home_guard_share 35%, military_income_share 40%.
     first_attack_min = 18,
     first_attack_max = 30,
     attack_on_contact = 20%,
@@ -28,10 +28,10 @@ style = {
     attack_revenge = 30%,
 }
 
-# Livia weighs everyone by their use to her: a pawn to be moved, a rival to be handled with care
+// Livia weighs everyone by their use to her: a pawn to be moved, a rival to be handled with care
 pawn = them.strength * 2 < me.strength
 rival = me.strength * 2 < them.strength
-# blood between us: more than a skirmish
+// blood between us: more than a skirmish
 my_dead = them.kills(me, units) > many_dead
 their_dead = me.kills(them, units) > many_dead
 

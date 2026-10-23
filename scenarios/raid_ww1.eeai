@@ -1,7 +1,7 @@
-# Continental seed 101, 2 AIs, start epoch 9 (World War I, base ini start_epoch=9): P3 base ~38,38.
-# Raiders at P3's citizens: at minute 12 P2 gets 6 doughboys (204), at 16 two Mk V tanks (153), at the edge of P3's
-# base; every 20 s they attack the nearest enemy that they can hurt within 30 tiles (stats engage), citizens included.
-# The militia question: fight back, or run (tanks are faster than citizens)? Measure P3's workers and losses.
+// Continental seed 101, 2 AIs, start epoch 9 (World War I, base ini start_epoch=9): P3 base ~38,38.
+// Raiders at P3's citizens: at minute 12 P2 gets 6 doughboys (204), at 16 two Mk V tanks (153), at the edge of P3's
+// base; every 20 s they attack the nearest enemy that they can hurt within 30 tiles (stats engage), citizens included.
+// The militia question: fight back, or run (tanks are faster than citizens)? Measure P3's workers and losses.
 
 defence(2, 0)
 wait_until(12min)

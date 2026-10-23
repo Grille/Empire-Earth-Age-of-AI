@@ -1,7 +1,7 @@
-# Continental seed 101, 2 AIs, start epoch 3: P2 base ~80,52, P3 base ~40,42.
-# A focused tower cluster for P3 on the direct line, ~12 tiles in front of its base; open ground around it.
+// Continental seed 101, 2 AIs, start epoch 3: P2 base ~80,52, P3 base ~40,42.
+// A focused tower cluster for P3 on the direct line, ~12 tiles in front of its base; open ground around it.
 
-# Armies: P2 attacks with a real force, P3 has a few defenders next to its towers.
+// Armies: P2 attacks with a real force, P3 has a few defenders next to its towers.
 spawn(3, unit.b_guard_tower_bronze, 51, 44)
 spawn(3, unit.b_guard_tower_bronze, 53, 47)
 spawn(3, unit.b_guard_tower_bronze, 51, 49)

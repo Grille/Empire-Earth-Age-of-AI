@@ -1,7 +1,7 @@
-# Continental seed 101, 2 AIs, start epoch 3 (Bronze): P2 base ~80,52, P3 base ~40,42.
-# A hopeless fight at home: P3 builds for 15 minutes; P2 (no defence layout) gets about 90 units at minute 15 and
-# attacks from minute 16-18 (base ini). The muster question: does gathering and striking once (or fleeing) leave P3
-# more than defending piece by piece? A/B "off:muster=0" vs "on:".
+// Continental seed 101, 2 AIs, start epoch 3 (Bronze): P2 base ~80,52, P3 base ~40,42.
+// A hopeless fight at home: P3 builds for 15 minutes; P2 (no defence layout) gets about 90 units at minute 15 and
+// attacks from minute 16-18 (base ini). The muster question: does gathering and striking once (or fleeing) leave P3
+// more than defending piece by piece? A/B "off:muster=0" vs "on:".
 
 defence(2, 0)
 wait_until(15min)

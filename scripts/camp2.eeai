@@ -1,5 +1,5 @@
-# hold the town, a camp that plays like the user's: P1 camps 15-18 tiles west of P2's Town Center (85,49) at minute 12,
-# gets reinforcements every 2 minutes, pushes into the town every 4 (charge) and pulls back after a minute (move)
+// hold the town, a camp that plays like the user's: P1 camps 15-18 tiles west of P2's Town Center (85,49) at minute 12,
+// gets reinforcements every 2 minutes, pushes into the town every 4 (charge) and pulls back after a minute (move)
 
 wait_until(0.05min)
 diplo(1, 2, 1)

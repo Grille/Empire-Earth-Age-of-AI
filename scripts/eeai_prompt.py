@@ -21,7 +21,7 @@ def prompt_texts(root):
     while not t.startswith('}', i):
         line_end = t.index('\n', i)
         s = t[i:line_end].strip()
-        if not s or s.startswith('#'):
+        if not s or s.startswith('//'):
             i = line_end + 1; continue
         key, rest = s.split(' = ', 1)
         j = t.index(' = ', i) + 3

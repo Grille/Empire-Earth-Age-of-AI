@@ -1,4 +1,4 @@
-# the sea held (reference save): P1 (the player) has 7 U-boats and 6 strafing Fokkers before its coast; P2 a big landing with 4 frigates and 2 cruisers (zz variant without them: it waits and calls off)
+// the sea held (reference save): P1 (the player) has 7 U-boats and 6 strafing Fokkers before its coast; P2 a big landing with 4 frigates and 2 cruisers (zz variant without them: it waits and calls off)
 
 wait_until(75.8min)
 give(2, 4000, resource.all)

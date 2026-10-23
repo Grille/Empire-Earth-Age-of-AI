@@ -1,5 +1,5 @@
-# hold the town (defence.c hold_town): at minute 12 P1's army camps 15-18 tiles west of P2's Town Center (85,49):
-# 5 artillery (range 12), 10 machine gunners, 4 tanks - P2's units lost/killed (battle lines) with hold_town 1 / 0
+// hold the town (defence.c hold_town): at minute 12 P1's army camps 15-18 tiles west of P2's Town Center (85,49):
+// 5 artillery (range 12), 10 machine gunners, 4 tanks - P2's units lost/killed (battle lines) with hold_town 1 / 0
 
 wait_until(0.05min)
 diplo(1, 2, 1)

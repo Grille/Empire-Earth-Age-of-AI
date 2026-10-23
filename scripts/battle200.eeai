@@ -1,6 +1,6 @@
-# 200 v 200 (Continental 101, tiny, start epoch 3, unit_limit=1500, quit_minutes=5): P2 at 44,43 (60 machine gunners, 60
-# doughboys, 40 Mk V, 20 artillery, 20 AT guns), P3 at 76,40 (80 doughboys, 50 machine gunners, 40 A7V, 30 trench mortars);
-# both engage every 15 s; stats bench 1000/2000 at 0.6, stats fight with each type's share every 6 s (scripts/battle.py)
+// 200 v 200 (Continental 101, tiny, start epoch 3, unit_limit=1500, quit_minutes=5): P2 at 44,43 (60 machine gunners, 60
+// doughboys, 40 Mk V, 20 artillery, 20 AT guns), P3 at 76,40 (80 doughboys, 50 machine gunners, 40 A7V, 30 trench mortars);
+// both engage every 15 s; stats bench 1000/2000 at 0.6, stats fight with each type's share every 6 s (scripts/battle.py)
 
 wait_until(0.1min)
 spawn(2, unit.inf10_machine_gun, 44, 40, 50)

@@ -156,8 +156,8 @@ grammar = {
         {'include': '#value'},
     ],
     'repository': {
-        'comment': {'patterns': [{'name': 'comment.line.eeaimod', 'match': r'#.*$'},
-                                 {'name': 'invalid.illegal.comment.eeaimod', 'match': r';.*$'}]},   # comments start with # only
+        'comment': {'patterns': [{'name': 'comment.line.eeaimod', 'match': r'//.*$'},
+                                 {'name': 'invalid.illegal.comment.eeaimod', 'match': r'[;#].*$'}]},   # comments start with // only (the game's style)
         'value': {'patterns': value},
         # "text {placeholder or expression} \n"
         'string': {

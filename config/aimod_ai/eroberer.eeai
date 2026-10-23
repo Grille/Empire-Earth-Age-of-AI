@@ -1,4 +1,4 @@
-# AI personality for eeaimod - the format and every key: _template.eeai.
+// AI personality for eeaimod - the format and every key: _template.eeai.
 register_personality()
 
 personality = {
@@ -12,15 +12,15 @@ personality = {
     forgiveness = 15%,
     caution = 25%,
     talk = 60%,
-    # for the AI voice ([llm] in aimod.ini): who this is, in a few words
+    // for the AI voice ([llm] in aimod.ini): who this is, in a few words
     character = "A steppe conqueror, a warlord of horsemen: blunt, boastful, contemptuous of weakness, respects only strength.",
 }
 
 style = {
-    # EXPERIMENTAL - only with ai_style=1 in aimod.ini (default off: every AI plays the same, tested way).
-    # The same keys as in aimod.ini; they replace the difficulty's values for this AI. Game defaults for
-    # comparison (medium difficulty): first attack 20-40 min, then every 20-25 min; instant attacks on
-    # contact 0%, for resources 0%, as revenge 10%; home_guard_share 35%, military_income_share 40%.
+    // EXPERIMENTAL - only with ai_style=1 in aimod.ini (default off: every AI plays the same, tested way).
+    // The same keys as in aimod.ini; they replace the difficulty's values for this AI. Game defaults for
+    // comparison (medium difficulty): first attack 20-40 min, then every 20-25 min; instant attacks on
+    // contact 0%, for resources 0%, as revenge 10%; home_guard_share 35%, military_income_share 40%.
     first_attack_min = 15,
     first_attack_max = 25,
     attack_interval_min = 10,
@@ -31,10 +31,10 @@ style = {
     home_guard_share = 25%,
 }
 
-# the Khan measures everyone by strength
+// the Khan measures everyone by strength
 weakling = them.strength * 2 < me.strength
 worthy = me.strength * 2 < them.strength
-# blood between us: more than a skirmish
+// blood between us: more than a skirmish
 my_dead = them.kills(me, units) > many_dead
 their_dead = me.kills(them, units) > many_dead
 

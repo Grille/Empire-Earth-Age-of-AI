@@ -1,9 +1,9 @@
-# Sea opponent (dll/test/testopp.c): the idle human P1 plays a human-like navy against the AI P2 on an island map - a
-# build-up of warships in 3 groups (raiders on the fishing boats and the coast, the main fleet hunting the AI's
-# warships when stronger, a patrol on the sea lane against transports), landings with transports, a home guard.
-# Base e.g. "random_map=Small Islands,map_size=0,ai_count=1,seed=101,start_epoch=5" (also Large Islands, e9), 60 min;
-# variants by [autotest] keys: seaop_level=1|2|3 (weak / medium / strong, default 2), seaop_landings=0|1,
-# seaop_start=<minute of the first ships>. Score with scripts/seacontrol.py (the "# sea:" lines).
+// Sea opponent (dll/test/testopp.c): the idle human P1 plays a human-like navy against the AI P2 on an island map - a
+// build-up of warships in 3 groups (raiders on the fishing boats and the coast, the main fleet hunting the AI's
+// warships when stronger, a patrol on the sea lane against transports), landings with transports, a home guard.
+// Base e.g. "random_map=Small Islands,map_size=0,ai_count=1,seed=101,start_epoch=5" (also Large Islands, e9), 60 min;
+// variants by [autotest] keys: seaop_level=1|2|3 (weak / medium / strong, default 2), seaop_landings=0|1,
+// seaop_start=<minute of the first ships>. Score with scripts/seacontrol.py (the "# sea:" lines).
 
 seaop("start", 2)
 wait_until(10min)

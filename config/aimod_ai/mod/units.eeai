@@ -1,14 +1,14 @@
-# mod/units.eeai - the groups of units and buildings the texts count with: them.kills(me, units),
-# me.kills(them, 20, buildings), them.count(military). A layer of mod/computer.eeai and mod/prompt.eeai, so every
-# personality has these names (its own of the same name come first: a personality may count its army otherwise).
-#
-# A group is a list of kind.<kind> (one of the game's families, every epoch's types: kind.towers),
-# unit.<identifier> (one type) and other groups - any of them counts. The identifiers and kinds: docs/units.md
-# (the retail game's; a data mod's types are read from the game) and README.md in this folder. Where a family
-# mixes what a group means to tell apart - kind.ship has the warships, the transports and the fishing boats -
-# the group names the types one by one.
+// mod/units.eeai - the groups of units and buildings the texts count with: them.kills(me, units),
+// me.kills(them, 20, buildings), them.count(military). A layer of mod/computer.eeai and mod/prompt.eeai, so every
+// personality has these names (its own of the same name come first: a personality may count its army otherwise).
+//
+// A group is a list of kind.<kind> (one of the game's families, every epoch's types: kind.towers),
+// unit.<identifier> (one type) and other groups - any of them counts. The identifiers and kinds: docs/units.md
+// (the retail game's; a data mod's types are read from the game) and README.md in this folder. Where a family
+// mixes what a group means to tell apart - kind.ship has the warships, the transports and the fishing boats -
+// the group names the types one by one.
 
-# soldiers on land: infantry, cavalry, archers, siege, tanks, mechs, priests and prophets, heroes
+// soldiers on land: infantry, cavalry, archers, siege, tanks, mechs, priests and prophets, heroes
 army = [kind.tank, kind.tank_strong, kind.anti_tank, kind.land_aa, kind.artillery, kind.siege, kind.ram, kind.machines,
         kind.medieval_field_weapon, kind.human, kind.human_sword, kind.human_spear, kind.human_archer, kind.human_musket,
         kind.human_machine_gun, kind.spear_thrower, kind.viking, kind.elite_guard, kind.lancer, kind.curiassier,
@@ -16,10 +16,10 @@ army = [kind.tank, kind.tank_strong, kind.anti_tank, kind.land_aa, kind.artiller
         kind.priest, kind.hero, kind.mech_minotaur, kind.mech_medium, kind.mech_zeus, kind.mech_cyclops,
         kind.mech_underwater, unit.mech_apollo]
 
-# aircraft, helicopters and balloons, the flying mechs
+// aircraft, helicopters and balloons, the flying mechs
 airforce = [kind.aircraft, kind.bomber, kind.atomic_bomber, kind.helicopter, unit.mech_ares, unit.mech_ares_ii]
 
-# warships, submarines, carriers and transports - not the fishing boats (civilians)
+// warships, submarines, carriers and transports - not the fishing boats (civilians)
 marine = [kind.ship_galley, kind.battleship, kind.submarine, kind.aircraft_carrier,
           unit.s02_stone_frigate_war_raft, unit.s03_copper_frigate, unit.s04_bronze_frigate, unit.s04_bronze_catapult_ship,
           unit.s05_byzantine_frigate, unit.s06_middle_age_frigate, unit.s06_middle_age_catapult_ship,
@@ -31,11 +31,11 @@ marine = [kind.ship_galley, kind.battleship, kind.submarine, kind.aircraft_carri
 
 military = [army, airforce, marine]
 
-# citizens and fishing boats
+// citizens and fishing boats
 civilians = [kind.citizen, unit.s02_fishing_boat_stone, unit.s04_fishing_boat_bronze, unit.s08_fishing_boat_imperial,
              unit.s11_fishing_boat_modern, unit.s13_digital_fishing_boat]
 
 units = [military, civilians]
 
-# every building: houses, workshops, town centres, wonders, towers, walls, anti-aircraft sites
+// every building: houses, workshops, town centres, wonders, towers, walls, anti-aircraft sites
 buildings = [kind.building, kind.towers, kind.walls, kind.aa_building]

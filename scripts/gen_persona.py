@@ -6,6 +6,7 @@ import glob
 import os
 import re
 from eeai_prompt import prompt_texts
+from eeai_comments import convert_line
 
 root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 def src(name):
@@ -37,7 +38,7 @@ out = []
 w = out.append
 w('# _template.eeai - a template for a new AI personality (eeaimod). Not a personality itself: its')
 w('# register_personality() below is commented out. Copy it to a new name in this folder (e.g. seefahrer.eeai), take')
-w('# the # from register_personality(), fill it in, and the AIs of the next game may get it (picked at random, a')
+w('# the // from register_personality(), fill it in, and the AIs of the next game may get it (picked at random, a')
 w('# matching colour first).')
 w('#')
 w('# Each situation below gets a line: a string, or a list of them (one at random), with conditions if you like:')
@@ -107,6 +108,7 @@ w('# its placeholders are there. For example:')
 w('#prompt = {')
 w('#    nature = "You speak in short, proud sentences.",')
 w('#}')
+out = [convert_line(o.encode('utf-8'))[0].decode('utf-8') for o in out]   # the comments: # written above, // in the file
 path = os.path.join(root, 'config', 'aimod_ai', '_template.eeai')
 open(path, 'w', encoding='utf-8', newline='\n').write('\n'.join(out) + '\n')
 print(path, len(lines), 'situations')

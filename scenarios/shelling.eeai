@@ -1,8 +1,8 @@
-# Continental seed 101, 2 AIs, start epoch 9 (World War I, base ini start_epoch=9): P2 base ~80,52, P3 base ~38,38.
-# Shelling (the playtester: citizens gather wood under his artillery): at minute 15 P2 gets 4 field artillery (101:
-# range 14, area 1.75) and 6 machine gunners (121) at 56,44, the edge of P3's base; every 20 s the artillery attacks
-# whatever of P3's is nearest to it within 15 tiles of 40,40, the machine gunners the nearest enemy within 30 tiles
-# (stats engage). Do P3's citizens keep away (citizen_threats)? Measure P3's workers, losses.
+// Continental seed 101, 2 AIs, start epoch 9 (World War I, base ini start_epoch=9): P2 base ~80,52, P3 base ~38,38.
+// Shelling (the playtester: citizens gather wood under his artillery): at minute 15 P2 gets 4 field artillery (101:
+// range 14, area 1.75) and 6 machine gunners (121) at 56,44, the edge of P3's base; every 20 s the artillery attacks
+// whatever of P3's is nearest to it within 15 tiles of 40,40, the machine gunners the nearest enemy within 30 tiles
+// (stats engage). Do P3's citizens keep away (citizen_threats)? Measure P3's workers, losses.
 
 defence(2, 0)
 wait_until(15min)

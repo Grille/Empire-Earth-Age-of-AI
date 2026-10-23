@@ -1,8 +1,8 @@
-# Continental seed 101, 2 AIs, start epoch 9 (World War I, base ini start_epoch=9): P2 base ~80,52, P3 base ~38,38.
-# Bombing: at minute 19.5 P2 gets an airport (66) at 92,56, at 20 25 aircraft of type 71 (the player's 25 on the reference save; 72 is a fighter: it hits aircraft only) and 4 bombers (79: 135 a hit, area 1.5); every
-# 20 s they attack whatever of P3's is nearest to them within 15 tiles of 40,40 (stats engage ... T tx ty) - they go
-# back to the airport to refuel on their own. Does AA built ahead (aa_ahead) save P3's town? Measure P3's buildings
-# lost, losses, workers, and the aircraft left.
+// Continental seed 101, 2 AIs, start epoch 9 (World War I, base ini start_epoch=9): P2 base ~80,52, P3 base ~38,38.
+// Bombing: at minute 19.5 P2 gets an airport (66) at 92,56, at 20 25 aircraft of type 71 (the player's 25 on the reference save; 72 is a fighter: it hits aircraft only) and 4 bombers (79: 135 a hit, area 1.5); every
+// 20 s they attack whatever of P3's is nearest to them within 15 tiles of 40,40 (stats engage ... T tx ty) - they go
+// back to the airport to refuel on their own. Does AA built ahead (aa_ahead) save P3's town? Measure P3's buildings
+// lost, losses, workers, and the aircraft left.
 
 defence(2, 0)
 wait_until(19.5min)

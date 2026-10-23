@@ -1,5 +1,5 @@
-# Continental seed 101, 2 AIs, start epoch 3: P2 base ~80,52, P3 base ~40,42.
-# Same-era defences: a cluster of 5 bronze guard towers (range 5) in front of P3; P2 brings 6 catapults (range 7).
+// Continental seed 101, 2 AIs, start epoch 3: P2 base ~80,52, P3 base ~40,42.
+// Same-era defences: a cluster of 5 bronze guard towers (range 5) in front of P3; P2 brings 6 catapults (range 7).
 
 spawn(3, unit.b_guard_tower_bronze, 51, 44)
 spawn(3, unit.b_guard_tower_bronze, 53, 47)

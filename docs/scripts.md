@@ -6,7 +6,7 @@ expressions, plus statements, variables, functions and the pipe's commands. It r
 bottom; waiting (`wait`, `wait_until`, `every`) lets the game go on until that game time. The runner: `dll/test/scripts.c`.
 
 ```
-# Bombing: an airport at minute 19.5, fighters and bombers at 20, every 20 s they attack P3's town
+// Bombing: an airport at minute 19.5, fighters and bombers at 20, every 20 s they attack P3's town
 let fighter = unit.a_strafe_fighter10_fokker_dr_1
 defence(2, 0)
 wait_until(19.5min)
@@ -22,7 +22,7 @@ every(0.33min, 20.10min, 33.96min, (run) => {
 
 ## Statements
 
-One a line; `#` starts a comment.
+One a line; `//` starts a comment, as in the game's own scripts (.rmv, .tai) - a `#` is a mistake.
 
 | Statement | |
 |---|---|
@@ -59,7 +59,7 @@ for p in 2..5 {
     }
 }
 let waves = 0
-while player(3).towers > 0 {       # every minute until P3's towers are gone, at most 10 times
+while player(3).towers > 0 {       // every minute until P3's towers are gone, at most 10 times
     wait(1min)
     waves += 1
     if waves > 10 { break }
@@ -148,12 +148,12 @@ not handed back out of the function it was made in (nor put into a variable of t
 
 ```
 let row = (y) => spawn(3, unit.b_guard_tower_bronze, 51, y)
-for i in 1..3 { row(40 + i * 3) }         # towers at 51,43 51,46 51,49
+for i in 1..3 { row(40 + i * 3) }         // towers at 51,43 51,46 51,49
 let checks = 0
 every(10s, 50s, 2min, (run) => {
     objs(3, unit.b_guard_tower_bronze)
-    checks += 1                            # the script's own: 3 after it
-    return run == 3 ? stop                 # three times, then on
+    checks += 1                            // the script's own: 3 after it
+    return run == 3 ? stop                 // three times, then on
 })
 ```
 
@@ -165,10 +165,10 @@ also while the script waits and after it has ended:
 ```
 let p2 = player(2)
 let t = trigger({
-    name = "wood for the poor",          # for the messages (else the statement's start)
+    name = "wood for the poor",          // for the messages (else the statement's start)
     when = () => p2.wood < 100 and time > 10min,
-    for = 5s,                            # true that long without a break first (default 0)
-    loop = false,                        # fires once, then it is off (true: again whenever it holds)
+    for = 5s,                            // true that long without a break first (default 0)
+    loop = false,                        // fires once, then it is off (true: again whenever it holds)
     run = () => {
         give(2, 500, resource.wood)
         after(10s, () => chat(2, "Don't waste it."))
@@ -203,7 +203,7 @@ let counter = 0
 game.timer(20s, () => {
     counter += 1
     if counter >= 10 {
-        return stop                    # ten times, then no more
+        return stop                    // ten times, then no more
     }
     spawn(2, unit.inf02_spearman, 70, 50, counter)
 })

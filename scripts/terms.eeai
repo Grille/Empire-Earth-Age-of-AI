@@ -1,4 +1,4 @@
-# peace terms: P1 (human) declares war on P2 (haendler, pride 30 = 90 s), then pays and offers peace
+// peace terms: P1 (human) declares war on P2 (haendler, pride 30 = 90 s), then pays and offers peace
 
 wait_until(1min)
 diplo(1, 2, 1)

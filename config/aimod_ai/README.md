@@ -43,7 +43,7 @@ personality = {
     character = "A sea captain: dry humour, proud of her fleet, keeps her word.",
 }
 
-# a name of the file's own, for its lines
+// a name of the file's own, for its lines
 friend = opinion > 30% ? "old friend" : "captain"
 
 lines = {
@@ -73,7 +73,8 @@ A file is made of `name = value` lines, one a line:
 - **`include("pack_base.eeai")`** names files whose lines, names and keys the personality builds on (see below);
   **`register_personality()`** makes the file a personality.
 
-A comment runs from `#` to the end of the line, also after a value (not inside a string). A value is an
+A comment runs from `//` to the end of the line, also after a value (not inside a string) - as in the game's own
+scripts (.rmv, .tai), where `#` is the preprocessor's (`#define`, `#include`): a `#` is a mistake. A value is an
 **expression**; it may go over several lines while a `(`, `[` or `{` is open:
 
 | Value | Meaning |
@@ -172,22 +173,22 @@ the AI's decisions what to say should stay the same in every language).
 angry = ["Go away.", "You again?"]
 
 lines = {
-    # nothing unless the condition holds - a list leaves it out
+    // nothing unless the condition holds - a list leaves it out
     greeting = [allied ? "Good to see you, ally.", "Hello, {them}."],
 
-    # one or the other
+    // one or the other
     winning = opinion > 0 ? "Let us stay friends." : "You are next, {them}.",
 
-    # the angry lines when they hate it, else the friendly ones
+    // the angry lines when they hate it, else the friendly ones
     tribute_thanks = [opinion < -50% ? angry] ?? ["Thank you!", "Most generous."],
 
-    # a list in a list: each of its items counts as one (here a third each)
+    // a list in a list: each of its items counts as one (here a third each)
     peace_refuse = ["No.", angry],
 
-    # now and then
+    // now and then
     epoch_up = [chance(30%) ? "Progress, finally.", "A new age begins."],
 
-    # one situation, told apart by how I stand with them: someone else has won
+    // one situation, told apart by how I stand with them: someone else has won
     other_victory = lord == them ? "Long live {them}, my lord!" : allied ? "We won together, {them}!" : "Enjoy it while it lasts.",
 }
 ```
@@ -600,7 +601,7 @@ are in `mod/computer.eeai`; a personality that writes one of them in its own `de
 
 ```
 decide = {
-    # a fox: an alliance as soon as anyone gets ahead - and with the strongest when it can
+    // a fox: an alliance as soon as anyone gets ahead - and with the strongest when it can
     seek_ally = enemy and enemy.strength > me.strength,
     ally_score = them.rank == 1 ? 100% : opinion,
 }

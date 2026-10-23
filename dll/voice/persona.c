@@ -839,7 +839,7 @@ internal int persona_has_name(const struct persona *p, const char *name) {
     char t[XVAL_CAP];
     for (const char *s = p->name; s && *s && !f.hit; ) {
         const char *e, *why;
-        if (*s == '#') { while (*s && *s != '\n') s++; continue; }
+        if (x_comment(s)) { while (*s && *s != '\n') s++; continue; }
         if (*s != '"' && *s != '\'') { s++; continue; }
         if (x_string(s, t, sizeof t, &e, &why) < 0) break;
         name_find_one(t, &f);

@@ -1,4 +1,4 @@
-# chat filter + name matching (P2 eroberer, P3 haendler, P4 ritter; the observer P1 is allied with all)
+// chat filter + name matching (P2 eroberer, P3 haendler, P4 ritter; the observer P1 is allied with all)
 
 wait_until(1min)
 llm("filter", 3, 3)

@@ -1,4 +1,4 @@
-# AI personality for eeaimod - the format and every key: _template.eeai.
+// AI personality for eeaimod - the format and every key: _template.eeai.
 register_personality()
 
 personality = {
@@ -12,15 +12,15 @@ personality = {
     forgiveness = 80%,
     caution = 15%,
     talk = 90%,
-    # for the AI voice ([llm] in aimod.ini): who this is, in a few words
+    // for the AI voice ([llm] in aimod.ini): who this is, in a few words
     character = "A loud, hot-headed tribal chieftain who loves a brawl: shouts, laughs, insults, forgets a grudge as fast as he picks one.",
 }
 
 style = {
-    # EXPERIMENTAL - only with ai_style=1 in aimod.ini (default off: every AI plays the same, tested way).
-    # The same keys as in aimod.ini; they replace the difficulty's values for this AI. Game defaults for
-    # comparison (medium difficulty): first attack 20-40 min, then every 20-25 min; instant attacks on
-    # contact 0%, for resources 0%, as revenge 10%; home_guard_share 35%, military_income_share 40%.
+    // EXPERIMENTAL - only with ai_style=1 in aimod.ini (default off: every AI plays the same, tested way).
+    // The same keys as in aimod.ini; they replace the difficulty's values for this AI. Game defaults for
+    // comparison (medium difficulty): first attack 20-40 min, then every 20-25 min; instant attacks on
+    // contact 0%, for resources 0%, as revenge 10%; home_guard_share 35%, military_income_share 40%.
     first_attack_min = 12,
     first_attack_max = 20,
     attack_interval_min = 8,
@@ -30,14 +30,14 @@ style = {
     home_guard_share = 20%,
 }
 
-# Brann sizes everyone up for a brawl
+// Brann sizes everyone up for a brawl
 pushover = them.strength * 2 < me.strength
 big_one = me.strength * 2 < them.strength
-# a proper brawl: blood on both sides
+// a proper brawl: blood on both sides
 good_fight = me.kills(them, units) > many_dead / 2 and them.kills(me, units) > many_dead / 2
-# his tally - he counts every head he knocks
+// his tally - he counts every head he knocks
 my_tally = me.kills(them, units) > many_dead
-# only where we are at war (nothing otherwise)
+// only where we are at war (nothing otherwise)
 long_war = me.war_minutes(them) > 30
 
 lines = {

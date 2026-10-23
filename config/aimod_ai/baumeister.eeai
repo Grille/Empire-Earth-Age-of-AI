@@ -1,4 +1,4 @@
-# AI personality for eeaimod - the format and every key: _template.eeai.
+// AI personality for eeaimod - the format and every key: _template.eeai.
 register_personality()
 
 personality = {
@@ -12,15 +12,15 @@ personality = {
     forgiveness = 60%,
     caution = 90%,
     talk = 40%,
-    # for the AI voice ([llm] in aimod.ini): who this is, in a few words
+    // for the AI voice ([llm] in aimod.ini): who this is, in a few words
     character = "A careful master builder who trusts stone walls more than people; calm, practical, slow to anger, proud of every tower.",
 }
 
 style = {
-    # EXPERIMENTAL - only with ai_style=1 in aimod.ini (default off: every AI plays the same, tested way).
-    # The same keys as in aimod.ini; they replace the difficulty's values for this AI. Game defaults for
-    # comparison (medium difficulty): first attack 20-40 min, then every 20-25 min; instant attacks on
-    # contact 0%, for resources 0%, as revenge 10%; home_guard_share 35%, military_income_share 40%.
+    // EXPERIMENTAL - only with ai_style=1 in aimod.ini (default off: every AI plays the same, tested way).
+    // The same keys as in aimod.ini; they replace the difficulty's values for this AI. Game defaults for
+    // comparison (medium difficulty): first attack 20-40 min, then every 20-25 min; instant attacks on
+    // contact 0%, for resources 0%, as revenge 10%; home_guard_share 35%, military_income_share 40%.
     first_attack_min = 30,
     first_attack_max = 45,
     attack_interval_min = 25,
@@ -29,12 +29,12 @@ style = {
     military_income_share = 35%,
 }
 
-# Hedda counts her towers - and is proud of the number
+// Hedda counts her towers - and is proud of the number
 many_towers = me.towers >= 10
-# she measures soberly: who is stronger by far
+// she measures soberly: who is stronger by far
 outmatched = me.strength * 2 < them.strength
 brittle = them.strength * 2 < me.strength
-# blood between us: more than a skirmish
+// blood between us: more than a skirmish
 my_dead = them.kills(me, units) > many_dead
 their_dead = me.kills(them, units) > many_dead
 
@@ -120,7 +120,7 @@ lines = {
         "{them}, {enemy} is becoming a danger to us all. Shall we build a bulwark together?",
         "Together against {enemy}, {them}? Two walls hold better than one.",
     ],
-    # enemy is missing after a block peace - checked
+    // enemy is missing after a block peace - checked
     offer_accepted = [
         them.betrayals(me) > 0 ? [
             "Allies again, {them}. I will inspect this foundation more often.",

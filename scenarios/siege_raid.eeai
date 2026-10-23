@@ -1,7 +1,7 @@
-# Continental seed 101, 2 AIs, start epoch 3 (Bronze): P2 base ~80,52, P3 base ~38,38 (tower line ~48,34-46).
-# Counter-siege test: P3 builds its defences for 12 minutes and gets 8 spearmen; then P2 gets 4 catapults with a
-# small escort (4 spearmen) just outside the tower range - its siege controller shells P3's towers.
-# A/B: "nocs:counter_siege=0" vs "cs:".
+// Continental seed 101, 2 AIs, start epoch 3 (Bronze): P2 base ~80,52, P3 base ~38,38 (tower line ~48,34-46).
+// Counter-siege test: P3 builds its defences for 12 minutes and gets 8 spearmen; then P2 gets 4 catapults with a
+// small escort (4 spearmen) just outside the tower range - its siege controller shells P3's towers.
+// A/B: "nocs:counter_siege=0" vs "cs:".
 
 defence(2, 0)
 wait_until(12min)

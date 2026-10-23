@@ -1,5 +1,5 @@
-# the reference save with a camp that plays like the user's: P1's camp near 108,75 gets reinforcements every 2
-# minutes, pushes into P3's town every 4 (charge) and pulls back after a minute (move); P2 and P3 attack at once
+// the reference save with a camp that plays like the user's: P1's camp near 108,75 gets reinforcements every 2
+// minutes, pushes into P3's town every 4 (charge) and pulls back after a minute (move); P2 and P3 attack at once
 
 wait_until(75.9min)
 attacknow(3)

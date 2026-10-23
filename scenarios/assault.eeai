@@ -1,7 +1,7 @@
-# Continental seed 101, 2 AIs, start epoch 3 (Bronze): P2 base ~80,52, P3 base ~40,42.
-# A defence test: P3 builds its defences (towers, walls) for 15 minutes; P2 doesn't use the defence layout and gets a
-# big army at minute 15 to attack with (first attacks from minute 16-18 via the base ini).
-# A/B: "def:" (P3 uses the layout) vs "nodef:defence_layout=0" (nobody does).
+// Continental seed 101, 2 AIs, start epoch 3 (Bronze): P2 base ~80,52, P3 base ~40,42.
+// A defence test: P3 builds its defences (towers, walls) for 15 minutes; P2 doesn't use the defence layout and gets a
+// big army at minute 15 to attack with (first attacks from minute 16-18 via the base ini).
+// A/B: "def:" (P3 uses the layout) vs "nodef:defence_layout=0" (nobody does).
 
 defence(2, 0)
 wait_until(15min)

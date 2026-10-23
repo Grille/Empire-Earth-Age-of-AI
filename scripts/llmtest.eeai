@@ -1,4 +1,4 @@
-# llm.c test (with a mock or a real server): AI lines in the model's words, chat answers
+// llm.c test (with a mock or a real server): AI lines in the model's words, chat answers
 
 llm()
 wait_until(1min)
