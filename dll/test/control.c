@@ -62,6 +62,7 @@ internal void cmd_chat(char *out, const char *args);
 internal void cmd_say(char *out, const char *args);
 internal void cmd_chatme(char *out, const char *args);
 internal void cmd_trig(char *out, const char *args);
+internal void cmd_explored(char *out, const char *args);
 internal void cmd_stats(char *out, const char *args);
 internal void cmd_diplo(char *out, const char *args);
 internal void cmd_persona(char *out, const char *args);
@@ -334,6 +335,7 @@ internal void execute(const char *cmd, char *out) {
     else if (!strcmp(verb, "texts")) cmd_texts(out, args);
     else if (!strcmp(verb, "units")) cmd_units(out, args);
     else if (!strcmp(verb, "foodcheck")) cmd_foodcheck(out, args);
+    else if (!strcmp(verb, "explored")) cmd_explored(out, args);
     else if (!strcmp(verb, "costs")) cmd_costs(out, args);
     else if (!strcmp(verb, "threat")) cmd_threat(out, args);
     else if (!strcmp(verb, "nullmember")) cmd_nullmember(out, args);

@@ -12,7 +12,7 @@
 //   Map seed: world (0x91977C) +0x54.
 // Ini keys: random_map=<script name>, map_scale (tiny|small|medium|large|huge|gigantic or 0..5, default small - the
 //   real map size), map_size (the old key: the +0x3E8 index, kept so old test commands play the same maps), ai_count (1..7), start_epoch, seed, teams=ffa|pairs,
-//   citizens, unit_limit (500), difficulty (easy|medium|hard or 0..2: the setup's +0x3F8 and 0x918C14, every AI's +0xBA4 - the
+//   citizens, unit_limit (500), reveal_map (0/1, default 1: the setup's reveal map), difficulty (easy|medium|hard or 0..2: the setup's +0x3F8 and 0x918C14, every AI's +0xBA4 - the
 //   menu's AI difficulty; default medium). AI toggles at their first update: ai_cheat (0/1), ai_ignore (Ignorieren 0/1).
 // VANILLA PLAYERS (game/players.c is_vanilla): vanilla_players=<digits>, and for them only vanilla_difficulty (as difficulty)
 //   and vanilla_cheat (0/1, on top of ai_cheat). The game's cheat (EEComputerPlayer vf27 0x430FBD, AdjustCost): with
@@ -31,7 +31,8 @@ internal struct {
     int epoch_min, epoch_max;  // test-only epoch timer in minutes (0 = game setting)
     int difficulty;            // the setup's (every AI), 0..2
     int v_difficulty, v_cheat; // the vanilla players' own (-1: as the others)
-} g_rm = { "", 0, 1, 3, 0, 0, 0, 5, 500, -1, -1, 0, 0, 1, -1, -1 };
+    int reveal;                // the setup's reveal map (+0x403: every player starts with the map explored; fog stays)
+} g_rm = { "", 0, 1, 3, 0, 0, 0, 5, 500, -1, -1, 0, 0, 1, -1, -1, 1 };
 internal const char *const k_rm_scale[6] = { "tiny", "small", "medium", "large", "huge", "gigantic" };
 
 internal int difficulty_key(const char *ini, const char *key, int def) {   // easy|medium|hard or 0..2
@@ -54,6 +55,7 @@ internal void randmap_load(const char *ini) {
     g_rm.scale = 1;
     for (int k = 0; k < 6; k++) if (!lstrcmpiA(sc, k_rm_scale[k])) g_rm.scale = k;
     if (sc[0] >= '0' && sc[0] <= '5' && !sc[1]) g_rm.scale = sc[0] - '0';
+    g_rm.reveal = ini_int("autotest", "reveal_map", 1, ini) != 0;
     g_rm.ais = ini_int("autotest", "ai_count", 3, ini);
     if (g_rm.ais < 1) g_rm.ais = 1;
     if (g_rm.ais > 7) g_rm.ais = 7;
@@ -107,7 +109,7 @@ internal void randmap_rewrite(ee_setup *setup) {
     // EEMFullGameOptions 0x4B642F, which a load-game start never sends - the setup's +0x3F8 alone left medium)
     *difficulty_var() = g_rm.difficulty;
     setup_set_unknown_3fc(setup, 0);
-    setup_set_flag(setup, 0, 1); setup_set_flag(setup, 1, 0); setup_set_flag(setup, 2, 0); setup_set_flag(setup, 3, 1);
+    setup_set_flag(setup, 0, 1); setup_set_flag(setup, 1, 0); setup_set_flag(setup, 2, 0); setup_set_flag(setup, 3, (uint8_t)g_rm.reveal);
     *game_type_var() = 0;   // game type: random map
     ee_world *world = game_world();
     if (world && g_rm.seed) world_set_seed(world, (unsigned)g_rm.seed);
@@ -166,7 +168,7 @@ internal void randmap_ai_toggles(ee_player *pl) {
     // freezes the game), and allied with every AI so the AIs fight each other and the game can't end in
     // the human's defeat.
     player_set_civ_chosen(human, 1);
-    player_set_explore_all(human, 1);   // the watching human sees the whole map (AIs still have to explore)
+    player_set_explore_all(human, 1);   // the watching human sees the whole map (the AIs know every map object anyway)
     set_diplomacy(human, pl, 0, 0);
     set_diplomacy(pl, human, 0, 0);
     if (g_log) fprintf(g_log, "# random map: P%d allied with human P%d\n", player_get_index(pl), player_get_index(human));

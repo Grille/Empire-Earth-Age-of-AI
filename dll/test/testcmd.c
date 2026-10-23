@@ -5,6 +5,16 @@
 // stay with their feature.
 
 // ---- from econ.c ----
+// explored <player>: how many of the map's objects the player has explored (the game's own test, FN_EXPLORED) - the
+// setup's reveal map (randmap.c reveal_map) explores them all at the start, its fog stays
+internal void cmd_explored(char *out, const char *args) {
+    int p = atoi(args), n = 0, seen = 0;
+    ee_player *pl = (p >= 0 && p < (int)game_player_count()) ? game_players()[p] : NULL;
+    if (!pl) { REPLY("error: no player %d\n", p); return; }
+    for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) { n++; seen += explored_by(it.u, pl) != 0; }
+    REPLY("P%d explored %d of %d map objects (explore all %d)\n", p, seen, n, player_get_explore_all(pl));
+}
+
 // epochup P: player P - any, the tests' idle human too - gets its next epoch at once, unpaid (FN_EPOCH_NEXT: the tech
 // tree's epoch, its event and what becomes available; the epoch tech itself stays unresearched - FN_TECH_GRANT refuses
 // epoch techs, category 3). For epoch_pacing=follow's test: the human ahead at a set minute.
