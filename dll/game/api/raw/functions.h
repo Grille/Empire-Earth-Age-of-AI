@@ -113,6 +113,10 @@
     F(FN_DAMAGE_POINTS, int, __thiscall, (void *, int, unsigned), 0x004D291F, 0x004D84EC) \
     /* thiscall(G_BONUS_TABLE, weapon kind, target type data, attacker, target player) */ \
     F(FN_ATTACK_BONUS, float, __thiscall, (void *, int, void *, int, int), 0x004D5F2C, 0x004DBE44) \
+    /* thiscall([G_GFX_EFFECTS], unit or 0, float pos[3], kind, int *handle, 0): a graphical effect added (0: done) */ \
+    F(FN_GFX_ADD, int, __thiscall, (void *, void *, float *, void *, int *, int), 0x004FB6D4, 0x00506038) \
+    F(FN_GFX_GET, uint8_t *, __thiscall, (void *, int), 0x004FBE3E, 0x00506852)   /* thiscall([G_GFX_EFFECTS], handle): NULL gone */ \
+    F(FN_GFX_REMOVE, int, __thiscall, (void *, int), 0x004FBEB2, 0x005068C6)      /* thiscall([G_GFX_EFFECTS], handle) */ \
     F(FN_MOUSE_CLAMP, void, __thiscall, (void *), 0x00510DAD, 0x0051B31C) \
     F(FN_MOUSE_UPDATE, void, __thiscall, (void *), 0x00510E5D, 0x0051B3CC) \
     /* thiscall on G_CAMERA (float dx, float dy) */ \
@@ -206,6 +210,8 @@
     F(FN_QUEUE_ACTION, void, __thiscall, (void *, void *), 0x0066192F, 0x00678F79) \
     /* thiscall(ui [G_UI], colour, name, line, ms, 0): a chat or system line */ \
     F(FN_UI_LINE, void, __thiscall, (void *, void *, void *, void *, int, int), 0x00661E91, 0x006794C6) \
+    /* cdecl(float pos[3], unit or 0): a click's circle on the ground at pos (its height the map's) or on the unit, for the player on this PC */ \
+    F(FN_MARK_AT, void, __cdecl, (float *, void *), 0x00663138, 0x0067A644) \
     F(FN_NEW, void *, __cdecl, (size_t), 0x00683718, 0x0069D178)              /* the game's operator new */ \
     D(IAT_RESOURCE_STRING, 0x0082319C, 0x00837198)                            /* the game's string resource (a language entry) */ \
     D(IAT_WSTRING_CTOR, 0x008231A4, 0x008371A0)                               /* UWideString::UWideString() */ \

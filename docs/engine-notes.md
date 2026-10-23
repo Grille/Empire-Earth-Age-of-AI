@@ -531,7 +531,17 @@ conditions, 162 states with their ids) were dumped by a helper, not kept in the 
   The unload command EEMUnloadTransport (0x828AC4, Execute 0x4BF756; +0x14/+0x18 the tile) gives the selected group one
   unload goal at that tile. The mod's transport_split / transport_unload_spread (dll/ai/transports.c) hook both
   Executes. The unit id (+0x24, player in bits 24..31) finds the unit back through 0x53B889 on G_GAME_STATE (its
-  handle's +0x30).
+  handle's +0x30). The sender byte (+0xA) is the player's +0x464, not its index.
+- A command's yellow circle: the mouse click (EEAMouseClick::vf3, 0x403CF1) draws it itself on the clicking PC, before
+  the message runs, at 0x404A26: the effect 0xD3 on the unit clicked or 0xD1 on the ground (0x404C83 maps the id to
+  its record), FN 0x4FB6D4 on the graphical effects [0x918E1C] (thiscall(unit or 0, float pos[3], kind, int *handle,
+  0)), then the effect (0x4FBE3E by handle) +0x2D = 1, +0x20 = the player who sees it (+0x45C), +0x2E = 0. 0x663138
+  (pos, unit or 0) does the same for the player on this PC. An effect goes by its handle through 0x4FBEB2 (the area
+  effects end theirs so); 0x4FBE3E gives NULL once it is gone (it fades). The unload Execute calls 0x4B12A2 (the
+  circles at a group's goals, for the sender) only in its move branch - a group with a loaded transport takes the
+  other (state 12001), so an unload shows the click's circle alone. The mod's split and spread take the click's
+  circle away and draw one where each transport goes (on the commanding player's PC; effects are no simulation state,
+  the click's are drawn on one PC only too).
 
 ## Resource manager details
 

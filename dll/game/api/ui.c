@@ -73,6 +73,13 @@ internal inline void mouse_update(ee_mouse *m) { GF(FN_MOUSE_UPDATE)(m); }
 // the UI manager's current form, an edit box's text, the settings saved to the registry (as the options screens do)
 internal inline ee_ui_form *ui_current_form(void *uim) { return ((ee_ui_form *(__thiscall *)(void *))*(void **)GA(IAT_UIM_FORM))(uim); }
 internal inline const char *edit_text(void *edit) { return ((const char *(__thiscall *)(void *, unsigned long))*(void **)GA(IAT_EDIT_GET_TEXT))(edit, 0); }
+// A COMMAND'S CIRCLES (transports.c): graphical effects by handle - added (the original of the click's hook), gone
+// already (they fade) or taken away (as the game's area effects end theirs); a click's circle on a tile's centre for the
+// player on this PC (only this PC's own command's: it draws for the PC's player)
+internal inline int gfx_add(void *fx, void *on, float *pos, void *kind, int *handle, int arg) { return GF(FN_GFX_ADD)(fx, on, pos, kind, handle, arg); }
+internal inline int gfx_alive(int handle) { return GF(FN_GFX_GET)(*(void **)GA(G_GFX_EFFECTS), handle) != NULL; }
+internal inline void gfx_remove(int handle) { if (gfx_alive(handle)) GF(FN_GFX_REMOVE)(*(void **)GA(G_GFX_EFFECTS), handle); }
+internal inline void mark_tile(int x, int y) { float p[3] = { (float)x + 0.5f, (float)y + 0.5f, 0.0f }; GF(FN_MARK_AT)(p, NULL); }
 
 // HOOKS
 // the camera's scroll action (camera.c), and its timer's period: push 25 (AoC 10) ms -> value
@@ -108,6 +115,10 @@ internal inline int patch_sp_buttons(void *const hooks[6], void *orig[6]) {
 // the editor's main form built (display.c)
 typedef void *(__thiscall *editor_form_hook)(void *form, void *owner);
 internal inline int patch_editor_form(editor_form_hook h) { return patch_call(GA(SITE_EDITOR_FORM), GA(FN_EDITOR_FORM), (void *)h); }
+// a command's circle (transports.c): the mouse click's one effect (on: the unit clicked, its id +0x24; NULL the ground)
+typedef int (__thiscall *click_mark_hook)(void *fx, void *on, float *pos, void *kind, int *handle, int arg);
+internal inline int patch_click_mark(click_mark_hook h) { return patch_call(GA(CALL_CLICK_MARK), GA(FN_GFX_ADD), (void *)h); }
+internal inline int click_mark_on_id(const void *on) { return FIELD(on, UNIT_SERIAL, int); }
 // the players' colours (voice/persona.c)
 typedef void *(__cdecl *player_color_hook)(unsigned idx);
 internal inline int patch_player_color(player_color_hook h) { return patch_call(GA(CALL_PLAYER_COLOR), GA(FN_COLOR_RGB), (void *)h); }

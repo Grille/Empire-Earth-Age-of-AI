@@ -3,6 +3,7 @@
 // exe build, k_exe_builds' order). A hooked function the mod also calls is in functions.h.
 
 #define ADDRS_HOOKS(F, D) \
+    D(CALL_CLICK_MARK, 0x00404A26, 0x0040416B)                                /* EEAMouseClick::vf3's FN_GFX_ADD: the command's circle */ \
     D(SITE_SCROLL_TIMER, 0x004050C2, 0x00404734)                              /* operand of push 0x19 (timer period in ms) */ \
     D(CALL_CP_UPDATE, 0x0042F3CD, 0x0042CDD1) \
     D(CALL_TRAIN_CITIZENS, 0x00430740, 0x0042E23C)                            /* a call of FN_TRAIN_CITIZENS */ \

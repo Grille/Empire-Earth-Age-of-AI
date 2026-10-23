@@ -34,6 +34,17 @@ internal inline int load_msg_get_unit(const ee_msg *msg) { return FIELD(msg, MSG
 // an unload (EEMUnloadTransport): the tile clicked +0x14, +0x18 (the selected transports' unload point)
 internal inline int unload_msg_get_x(const ee_msg *msg) { return FIELD(msg, MSG_UNLOAD_X, int); }
 internal inline int unload_msg_get_y(const ee_msg *msg) { return FIELD(msg, MSG_UNLOAD_Y, int); }
+// the two made by hand in zeroed memory, the fields their Executes read (transports.c's test: executed, never sent; from: the sender's player_get_msg_id)
+internal inline void load_msg_make(ee_msg *msg, int from, unsigned transport, int unit) {
+    FIELD(msg, MSG_CHAT_FROM, uint8_t) = (uint8_t)from;
+    FIELD(msg, MSG_LOAD_TRANSPORT, unsigned) = transport;
+    FIELD(msg, MSG_LOAD_UNIT, int) = unit;
+}
+internal inline void unload_msg_make(ee_msg *msg, int from, int x, int y) {
+    FIELD(msg, MSG_CHAT_FROM, uint8_t) = (uint8_t)from;
+    FIELD(msg, MSG_UNLOAD_X, int) = x;
+    FIELD(msg, MSG_UNLOAD_Y, int) = y;
+}
 // the game start (EEMStartLoading): +0x14 the game's seed
 internal inline unsigned start_msg_get_seed(const ee_msg *msg) { return FIELD(msg, MSG_START_SEED, unsigned); }
 internal inline void start_msg_set_seed(ee_msg *msg, unsigned v) { FIELD(msg, MSG_START_SEED, unsigned) = v; }

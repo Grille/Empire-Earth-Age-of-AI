@@ -34,6 +34,7 @@
     D(G_DIFFICULTY, 0x00918C14, 0x00931654)                                   /* the AIs' difficulty (the setup's) */ \
     D(G_CAMERA, 0x00918CD0, 0x00931710)                                       /* EECameraControl; +0x78/+0x7C/+0x80 look-at x/y/z (tiles), +0xE0 zoom */ \
     D(G_SCROLL_SPEED, 0x00918DB0, 0x009317F0)                                 /* float */ \
+    D(G_GFX_EFFECTS, 0x00918E1C, 0x0093185C)                                  /* the graphical effects (a command's circles): handle -> effect */ \
     D(G_SM_MGR, 0x00918E24, 0x00931864)                                       /* the scenario manager */ \
     D(G_LOCAL_PLAYER, 0x00918E84, 0x009318C4)                                 /* int: index of the player on this PC (the human in single player) */ \
     D(G_CHEATS_ON, 0x00918E9A, 0x009318DA) \

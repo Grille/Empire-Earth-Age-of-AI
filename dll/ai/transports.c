@@ -236,6 +236,8 @@ internal void tw_tick(ee_player *pl, uint32_t now) {
 // east coast 90 of 90 (81); unloading the 25 at one tile of another island, all ashore 0.4 minutes after the order
 // (one tile for all, transport_unload_spread=0: 0.6-0.8).
 internal int g_tw_split = 1, g_tw_spread = 1, g_tw_meet = 1;   // g_tw_meet: [autotest] transport_meeting=0 keeps the game's meeting points
+internal int g_tw_click_mark, g_tw_click_on = -1;   // this PC's last click circle: its effect, the unit's id (hook_click_mark)
+internal ivec2 g_tw_click_at;
 internal int ld_tile_free(ivec2 p);                       // landing.c
 internal unsigned ocean_near(ivec2 p, int r, ivec2 *w);   // landing.c
 
@@ -348,7 +350,7 @@ internal int tw_load_split(ee_player *pl, ee_unit **tr, int nt, ee_unit **us, in
     }
     static ee_unit *list[1024];
     ivec2 meet[16];
-    int nmeet = 0, moved = 0;
+    int nmeet = 0, moved = 0, mine = player_get_index(pl) == (int)local_player_index();
     *used = 0;
     for (int k = 0; k < nt; k++) {   // then the goals
         if (!m[k]) continue;
@@ -382,12 +384,29 @@ internal int tw_load_split(ee_player *pl, ee_unit **tr, int nt, ee_unit **us, in
             }
             if (!unit_goal(t, g, 0, TW_PREPARE_TO_MOVE)) continue;   // refused: deleted, no parts from it
         }
+        if (mine && goal_get_meeting_ship_x(g) >= 0) mark_tile(goal_get_meeting_ship_x(g), goal_get_meeting_ship_y(g));   // this PC's player's command: where it goes
         for (int i = 0; i < n; i++) given += unit_goal(list[i], goal_load_part(g), 0, TW_PREPARE_TO_MOVE);
         (*used)++;
     }
     if (g_log) fprintf(g_log, "# tw: P%d at %.2f min: load - %d units over %d of %d transports (%d meeting points moved apart), %d without room\n", player_get_index(pl),
                        game_time() / 60000.0, given, *used, nt, moved, nu - given);
     return given;
+}
+// The mouse click's circle (this PC's, drawn at the click, before the command's message runs): the last one, its
+// handle, the unit clicked's id (-1: the ground) and the tile. The load split and the unload spread take it away where
+// they draw a circle where each transport goes (this PC's player's command: the circles are drawn for it).
+internal int __thiscall hook_click_mark(void *fx, void *on, float *pos, void *kind, int *handle, int arg) {
+    int r = gfx_add(fx, on, pos, kind, handle, arg);
+    g_tw_click_mark = !r && handle ? *handle : 0;
+    g_tw_click_on = g_tw_click_mark && on ? click_mark_on_id(on) : -1;
+    g_tw_click_at = pos ? iv2((int)pos[0], (int)pos[1]) : iv2(-1, -1);
+    return r;
+}
+internal void tw_click_mark_off(ee_player *pl, int on, ivec2 at) {
+    if (!g_tw_click_mark || g_tw_click_on != on || player_get_index(pl) != (int)local_player_index()) return;
+    if (on < 0 && (g_tw_click_at.x != at.x || g_tw_click_at.y != at.y)) return;
+    gfx_remove(g_tw_click_mark);
+    g_tw_click_mark = 0;
 }
 internal void __thiscall hook_msg_load(ee_msg *msg) {
     ee_player *pl = g_tw_split && load_msg_get_unit(msg) == -1 ? game_player(msg_get_from(msg)) : NULL;
@@ -406,7 +425,7 @@ internal void __thiscall hook_msg_load(ee_msg *msg) {
         us[nu++] = u;
     }
     if (nt < 2 || !nu) { msg_load(msg); return; }   // one transport: the game's own command
-    tw_load_split(pl, tr, nt, us, nu, &used);
+    if (tw_load_split(pl, tr, nt, us, nu, &used)) tw_click_mark_off(pl, (int)load_msg_get_transport(msg), iv2(-1, -1));
 }
 
 // pl's transports tr[nt] (with an unload goal each, units aboard) each to its own tile near p (sorted here: nearest p
@@ -433,23 +452,29 @@ internal void __thiscall hook_msg_unload(ee_msg *msg) {
     void *grp = pl ? player_get_selected_group(pl) : NULL;
     if (!grp) return;
     ee_unit *tr[16];
-    ivec2 at[16];
+    ivec2 at[16], p = iv2(unload_msg_get_x(msg), unload_msg_get_y(msg));
     int nt = 0;
     for (unsigned i = 0, n = group_count(grp); i < n && nt < 16; i++) {
         ee_unit *t = group_get(grp, i);
         ee_goal *g = tw_carrier(pl, t) ? unit_get_goal(t) : NULL;
         if (g && goal_is_unload(g) && units_inside(t) > 0) tr[nt++] = t;
     }
-    if (nt >= 2) tw_unload_spread(pl, tr, nt, iv2(unload_msg_get_x(msg), unload_msg_get_y(msg)), at);
+    if (nt < 2 || !tw_unload_spread(pl, tr, nt, p, at)) return;
+    tw_click_mark_off(pl, -1, p);   // the click's circle: one where each transport lands instead
+    if (player_get_index(pl) == (int)local_player_index())
+        for (int k = 0; k < nt; k++) mark_tile(at[k].x, at[k].y);
 }
 
 // pipe `transports load P x y [r]`: P's transports and land units within r tiles (default 15) of x, y shared out as the
 // load command does (the transports and units of a selection); `transports unload P x y [r]`: P's loaded transports
 // within r of x, y unload at x, y as the game's command gives it (one tile), then each its own; `transports id P`:
-// each of P's transports, its +0x24 as an id found back (the id a load message names)
+// each of P's transports, its +0x24 as an id found back (the id a load message names). `transports order load|unload
+// P x y [r]`: the same units selected (the select command's own step) and the command's message executed as a
+// right-click's is (the hooks, the game's Execute: the circles too) - load onto the transport nearest x, y.
 internal void cmd_transports(char *out, const char *args) {
     char what[16] = "";
-    int p = 0, x = 0, y = 0, r = 15;
+    int p = 0, x = 0, y = 0, r = 15, order = !strncmp(args, "order ", 6);
+    if (order) args += 6;
     if (sscanf(args, "%15s %d %d %d %d", what, &p, &x, &y, &r) < 2) { REPLY("transports load|unload P x y [r] | id P\n"); return; }
     ee_player *pl = p > 0 && p < 16 ? game_players()[p] : NULL;
     ee_map *map = game_map();
@@ -486,6 +511,32 @@ internal void cmd_transports(char *out, const char *args) {
         if (!strcmp(what, "load") && (is_soldier(it.td) || is_citizen_type(type_get_id(it.td))) && !unit_get_holder(u) && nu < 1024) us[nu++] = u;
     }
     if (!strcmp(what, "id")) return;
+    if (order && nt && (nu || strcmp(what, "load"))) {
+        static uint32_t ids[1040];
+        static __attribute__((aligned(8))) uint8_t mem[0x40];
+        unsigned n = 0, first = 0;
+        for (int k = 0; k < nt; k++) {
+            if (strcmp(what, "load") && units_inside(tr[k]) <= 0) continue;
+            int d = ivec2_dist2(unit_get_tile(tr[k]), c);
+            if (!n || d < ivec2_dist2(unit_get_tile(unit_by_id(ids[first])), c)) first = n;
+            ids[n++] = (uint32_t)unit_get_serial(tr[k]);
+        }
+        for (int i = 0; i < nu; i++) ids[n++] = (uint32_t)unit_get_serial(us[i]);
+        uint32_t *sel[3] = { NULL, ids, ids + n };   // a select message's selection: its ids at +4 .. +8
+        player_select(pl, sel);
+        void *grp = player_get_selected_group(pl);
+        memset(mem, 0, sizeof mem);
+        ee_msg *msg = (ee_msg *)mem;
+        if (!strcmp(what, "load")) { load_msg_make(msg, player_get_msg_id(pl), ids[first], -1); hook_msg_load(msg); }
+        else { unload_msg_make(msg, player_get_msg_id(pl), x, y); hook_msg_unload(msg); }
+        REPLY("%s by P%d (this PC's P%u): %u selected, %u in the group;", what, p, local_player_index(), n, grp ? group_count(grp) : 0);
+        for (int k = 0; k < nt; k++) {
+            const char *gn = tw_goal_name(unit_get_goal(tr[k]));
+            REPLY(" %06x %.*s;", tw_id(tr[k]), tw_goal_len(gn), gn);
+        }
+        REPLY("\n");
+        return;
+    }
     if (!strcmp(what, "load")) {
         if (!nt || !nu) { REPLY("%d transports, %d units near %d,%d\n", nt, nu, x, y); return; }
         int given = tw_load_split(pl, tr, nt, us, nu, &used);
@@ -527,7 +578,8 @@ internal void tw_install(const char *aimod_ini, const char *autotest_ini) {
         g_tw_spread = ini_int("autotest", "transport_unload_spread", g_tw_spread, autotest_ini);
         g_tw_meet = ini_int("autotest", "transport_meeting", 1, autotest_ini);
     }
-    int hl = g_tw_split ? patch_msg_load(hook_msg_load) : 0, hu = g_tw_spread ? patch_msg_unload(hook_msg_unload) : 0;
-    if (g_log) fprintf(g_log, "# tw: the player's load split %d (hook %s), unload spread %d (hook %s)\n", g_tw_split, g_tw_split ? (hl ? "ok" : "FAILED") : "-",
-                       g_tw_spread, g_tw_spread ? (hu ? "ok" : "FAILED") : "-");
+    int hc = g_tw_split || g_tw_spread ? patch_click_mark(hook_click_mark) : 0;
+    int hl = g_tw_split ? patch_msg_load(hook_msg_load) + hc : 0, hu = g_tw_spread ? patch_msg_unload(hook_msg_unload) + hc : 0;
+    if (g_log) fprintf(g_log, "# tw: the player's load split %d (hooks %s), unload spread %d (hooks %s)\n", g_tw_split, g_tw_split ? (hl == 2 ? "ok" : "FAILED") : "-",
+                       g_tw_spread, g_tw_spread ? (hu == 2 ? "ok" : "FAILED") : "-");
 }

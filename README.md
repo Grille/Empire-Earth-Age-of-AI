@@ -256,9 +256,11 @@ Settings in `aimod.ini`:
   side, and the other transports got nothing. Now the units are shared out: each selected transport takes the
   nearest units it can carry while it has room, and gets a meeting point at the beach of its own (the game's was
   often the transport's own tile out at sea, so the units could not reach it, or the same spot for two transports).
-  Units without room keep what they did. With one transport selected the game's own command runs.
+  Units without room keep what they did. With one transport selected the game's own command runs. The yellow
+  circle shows where each transport goes, one per transport (the game's was a single one on the transport clicked).
 - `[general] transport_unload_spread=1` (default): several loaded transports told to unload at one spot all headed
-  for that one tile; each now gets its own tile on that beach, a few tiles apart, and they land side by side.
+  for that one tile; each now gets its own tile on that beach, a few tiles apart, and they land side by side - a
+  yellow circle on each one's tile instead of the one at the clicked spot.
   Both run inside the game's simulation like the original commands: in multiplayer every PC needs the same settings.
 - `[sound] clamp_channels=1` (default): the "Max Number Of Sounds" slider goes to 200%, which asks for 32 sound
   channels, but the sound mixer has only 16 on current Windows. Sounds put on the 16 missing channels were silent,
