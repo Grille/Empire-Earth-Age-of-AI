@@ -58,8 +58,9 @@ copied into player fields by 0x431697:
 | +0xD30/+0xD34/+0xD38 | attack group % easy/medium/hard |
 | +0xCD8/+0xCDC/+0xCE0 | instant attack chance on contact / for resources / revenge |
 | +0xED8 | next attack time, scheduled by 0x43DD2F |
-| +0xEF5 | first attack done |
-| +0xD58/+0xD5C | epoch timer min/max (SetNextEpochAdvanceTime 0x46DE8C) |
+| +0xEF5 | the AI's first update done (0x43F91A schedules everything once, then sets it) |
+| +0xF05 | first attack done: set when 0x43DD2F draws the next attack from the interval (airports wait for it) |
+| +0xD5C/+0xD58 | epoch timer min/max (SetNextEpochAdvanceTime 0x46DE8C draws random(+0xD5C, +0xD58)) |
 
 **Scenario bug:** the scenario branch of the game start sets 0x918819. Several AI routines (attack timing 0x431141,
 0x472427, 0x49400D, ...) then skip their planning. The mod clears the byte only while EEComputerPlayer::Update runs.

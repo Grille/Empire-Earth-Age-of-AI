@@ -269,17 +269,17 @@
     O(PL_FIRST_ATTACK_MIN, 0xD2C, 0xD64) /* b */ \
     O(PL_COST_EASY, 0xD48, 0xD80) /* c */ \
     O(PL_COST_HARD, 0xD4C, 0xD84) /* c */ \
-    O(PL_EPOCH_MIN, 0xD58, 0xD90) /* b */ \
-    O(PL_EPOCH_MAX, 0xD5C, 0xD94) /* b */ \
+    O(PL_EPOCH_MAX, 0xD58, 0xD90) /* c: the epoch timer's draw, random(+0xD5C, +0xD58) (0x46DE8C) */ \
+    O(PL_EPOCH_MIN, 0xD5C, 0xD94) /* c */ \
     O(PL_DROPOFF_DISTANCE, 0xE10, 0xE4C) /* c */ \
     O(PL_ATTENTION, 0xE20, 0xE5C) /* v */ \
     O(PL_NEXT_ATTACK, 0xED8, 0xF28) /* c */ \
     O(PL_TOGGLES, 0xEF4, 0xF44) /* b */ \
-    O(PL_FIRST_ATTACK_DONE, 0xEF5, 0xF45) /* c */ \
     O(PL_BOATS_FOR_FOOD, 0xEFA, 0xF4A) /* c */ \
     O(PL_CHEAT, 0xEFB, 0xF4B) /* c */ \
     O(PL_BUILD, 0xEFC, 0xF4C) /* b */ \
     O(PL_IGNORE, 0xF02, 0xF52) /* c */ \
+    O(PL_FIRST_ATTACK_DONE, 0xF05, 0xF55) /* c: set when 0x43DD2F draws the next attack from the interval (+0xEF5 is the first update's flag, 0x43F91A) */ \
     O(PLB98_ATT, 0x2D, 0x2D) /* c: read through a player's +0xB98 */ \
     O(PLSTATS_LISTS, 0x1C, 0x1C) /* b */ \
     O(RM_HUNT, 0x88, 0x88) /* c: its file's code (the resource manager) */ \

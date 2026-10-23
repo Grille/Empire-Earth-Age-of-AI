@@ -58,14 +58,14 @@ internal inline void player_set_attack_max(ee_player *pl, int v) { FIELD(pl, PL_
 internal inline void player_set_attack_min(ee_player *pl, int v) { FIELD(pl, PL_ATTACK_MIN, int) = v; }          // +0xD00
 internal inline void player_set_first_attack_max(ee_player *pl, int v) { FIELD(pl, PL_FIRST_ATTACK_MAX, int) = v; }    // +0xD28
 internal inline void player_set_first_attack_min(ee_player *pl, int v) { FIELD(pl, PL_FIRST_ATTACK_MIN, int) = v; }    // +0xD2C
-internal inline void player_set_epoch_min(ee_player *pl, int v) { FIELD(pl, PL_EPOCH_MIN, int) = v; }           // +0xD58 the epoch timer's minutes
-internal inline void player_set_epoch_max(ee_player *pl, int v) { FIELD(pl, PL_EPOCH_MAX, int) = v; }           // +0xD5C
+internal inline void player_set_epoch_min(ee_player *pl, int v) { FIELD(pl, PL_EPOCH_MIN, int) = v; }           // +0xD5C the epoch timer's minutes
+internal inline void player_set_epoch_max(ee_player *pl, int v) { FIELD(pl, PL_EPOCH_MAX, int) = v; }           // +0xD58
 internal inline int player_get_dropoff_distance(const ee_player *pl) { return FIELD(pl, PL_DROPOFF_DISTANCE, int); }   // +0xE10
 internal inline int player_get_attention(const ee_player *pl) { return FIELD(pl, PL_ATTENTION, int); }          // +0xE20 activities a period (+1)
 internal inline uint32_t player_get_next_attack(const ee_player *pl) { return FIELD(pl, PL_NEXT_ATTACK, uint32_t); } // +0xED8 game time
 internal inline void player_set_next_attack(ee_player *pl, uint32_t v) { FIELD(pl, PL_NEXT_ATTACK, uint32_t) = v; }
 // +0xEF4.. the AI toggles: Angreifen EF4, Aktiv EF9, Cheat EFB, Bauen EFC, Erkunden EFD, Sammeln EFF, Verteidigen F00,
-// Ignorieren F02 - and +0xEF5 first attack done, +0xEFA boats instead of fields (a water map with fish)
+// Ignorieren F02 - and +0xEF5 the first update done (0x43F91A), +0xF05 the first attack done, +0xEFA boats instead of fields (a water map with fish)
 internal inline uint8_t player_get_toggle(const ee_player *pl, int i) { return FIELD(pl, PL_TOGGLES + i, uint8_t); }
 internal inline uint8_t player_get_first_attack_done(const ee_player *pl) { return FIELD(pl, PL_FIRST_ATTACK_DONE, uint8_t); }
 internal inline uint8_t player_get_boats_for_food(const ee_player *pl) { return FIELD(pl, PL_BOATS_FOR_FOOD, uint8_t); }

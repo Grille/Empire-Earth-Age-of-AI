@@ -17,10 +17,10 @@
 //   alone, without the catch-up (econ.c hook_epoch_catch_up); rush and follow are econ.c's (the attempt moved up,
 //   follow's hold, both with the catch-up). independent: meant to weigh when the next epoch pays off - for now the
 //   timer with the catch-up (the default: what timer was before it lost the catch-up).
-// Epoch timer: SetNextEpochAdvanceTime (0x46DE8C) draws player+0xD58..+0xD5C minutes (x difficulty factor).
+// Epoch timer: SetNextEpochAdvanceTime (0x46DE8C) draws player+0xD5C (min)..+0xD58 (max) minutes (x difficulty factor).
 // Attacks (copied from the AI settings table by 0x431697): first attack min/max minutes +0xD2C/+0xD28,
-//   minutes between attacks min/max +0xD00/+0xCFC (next attack time +0xED8, scheduled by 0x43DD2F; +0xEF5 =
-//   first attack done), attack group size percent easy/medium/hard +0xD30/+0xD34/+0xD38 (0x43103F),
+//   minutes between attacks min/max +0xD00/+0xCFC (next attack time +0xED8, scheduled by 0x43DD2F; +0xF05 =
+//   first attack done: set when it draws from the interval), attack group size percent easy/medium/hard +0xD30/+0xD34/+0xD38 (0x43103F),
 //   immediate-attack chances in percent: on contact with an enemy +0xCD8, to take resources +0xCDC,
 //   revenge +0xCE0.
 
