@@ -87,6 +87,23 @@ Everything the personalities' expressions have (numbers, `70%`, texts with `{pla
 | `stop` | what an `every` body returns to end it early |
 | `"text \{x\}"` | `\{` `\}`: braces that are text, not a placeholder (also `\"` `\\` `\n`) |
 
+## Types
+
+Every value has a type the check works out when the file is read - nothing to write for it: a variable has its
+`let`'s. `int` (`5`, `p.gold`, `game.minutes`), `float` (`5.0`, `.72`, `70%`, `20s`, `game.time`, an opinion), `bool`
+(`true`, `a > b`, `p.alive`), `text`, `vec2` .. `vec4`, `epoch`, `color`, `unit type` (`unit.x`, `kind.x`), lists of
+one of them, records, functions, triggers, and the game's objects (player, game, slot).
+
+- An int goes where a float belongs, never the other way: `let n = 5` then `n = n * 1.5` is a mistake - `int(...)`
+  (toward 0), `round`, `floor`, `ceil` make an int. `/` always gives a float (`7 / 2` is 3.5).
+- `+ - * /` take numbers (and vectors): `epoch + 1`, `"a" * 2`, `p.name - 1` are mistakes.
+- Compared are values of one type - an int with a float too: `p.epoch >= epoch.middle`, but `p.epoch == 5` is a
+  mistake (`int(p.epoch) == 5`).
+- `p.gold = 10.5` (a float in an int's place), `l[1.5]`, `v.z` of a `vec2`, `t.foo` of a trigger: mistakes.
+
+Where a type can't be told (a function's parameter, a record's member), the value is checked when it is worked out,
+as before.
+
 ## Objects
 
 The game's things are objects, each of a kind: a value (`p.towers`) or a method (`p.opinion(q)`) by name. Its text

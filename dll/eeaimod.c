@@ -446,6 +446,8 @@ internal void x_host_install(void) {
     g_x_host.fn_kind = x_fn_kind;
     g_x_host.member = x_obj_member_of;
     g_x_host.set = x_obj_set;
+    g_x_host.const_type = x_const_type;
+    g_x_host.name_type = x_name_type;
     g_ini_eval = x_const_eval;
 }
 

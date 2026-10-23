@@ -425,6 +425,36 @@ internal int x_method_of(struct xctx *c, void *pa, const char *who, const char *
     return 1;
 }
 
+// THE TYPES (script/host.h) of a player's members, of the game's values and of the constants - what the check knows
+internal int x_member_type(const char *n) {
+    static const char *const ints[] = { "soldiers", "citizens", "population", "buildings", "towers", "walls", "count", "centers",
+                                        "strength", "rank", "vassals", "allies", "enemies", "food", "wood", "stone", "gold", "iron",
+                                        "stock", "betrayals", "refusals", "ignored", "tribute", "near", "kills" };
+    static const char *const bools[] = { "alive", "human", "at_war", "allied", "hostile", "in_town" };
+    for (size_t i = 0; i < sizeof ints / sizeof *ints; i++) if (!strcmp(n, ints[i])) return XT_INT;
+    for (size_t i = 0; i < sizeof bools / sizeof *bools; i++) if (!strcmp(n, bools[i])) return XT_BOOL;
+    for (int t = 0; t < T_N; t++) if (!strcmp(n, k_trait_keys[t])) return XT_FLOAT;   // a share: 60%
+    if (!strcmp(n, "opinion")) return XT_FLOAT;   // -100%..100%
+    if (!strcmp(n, "name")) return XT_TEXT;
+    if (!strcmp(n, "civilization") || !strcmp(n, "civilization_en")) return XT_TEXT | X_NULLABLE;   // none chosen
+    if (!strcmp(n, "epoch")) return XT_EPOCH;
+    if (!strcmp(n, "color")) return XT_COLOR;
+    if (!strcmp(n, "lord")) return XK_PLAYER | X_NULLABLE;
+    if (!strcmp(n, "war_minutes") || !strcmp(n, "alliance_minutes") || !strcmp(n, "attack_minutes")) return XT_INT | X_NULLABLE;
+    return X_ANY;   // (win, lose, war, ally: an effect, no value)
+}
+internal int x_name_type(const char *name) {   // a name of its own: the game's values, mine without me.
+    if (!strcmp(name, "minutes") || !strcmp(name, "players") || !strcmp(name, "population_limit") || !strcmp(name, "max_population")) return XT_INT;
+    if (!strcmp(name, "language")) return XT_TEXT;
+    if (!strcmp(name, "offer_minutes")) return XT_FLOAT;
+    if (!strcmp(name, "llm_equal") || !strcmp(name, "llm_constrained")) return XT_BOOL;
+    if (!strcmp(name, "opinion") || !strcmp(name, "at_war") || !strcmp(name, "allied") || x_mine(name)) return x_member_type(name);
+    return X_ANY;
+}
+internal int x_const_type(const char *name) {   // persona.x, color.x, resource.x, kind.x, unit.x, epoch.x
+    return !_strnicmp(name, "persona.", 8) ? XT_TEXT : !_strnicmp(name, "color.", 6) ? XT_COLOR : !_strnicmp(name, "resource.", 9) ? XT_INT :
+           !_strnicmp(name, "kind.", 5) || !_strnicmp(name, "unit.", 5) ? XT_UTYPE : !_strnicmp(name, "epoch.", 6) ? XT_EPOCH : X_ANY;
+}
 internal int x_stock_index(const char *name) {   // food .. iron: the stock's index (2..6), -1 none
     static const char *const res[5] = { "food", "wood", "stone", "gold", "iron" };
     for (int k = 0; k < 5; k++) if (!strcmp(name, res[k])) return k + 2;
@@ -436,19 +466,19 @@ internal int x_stock_index(const char *name) {   // food .. iron: the stock's in
 // game's. The kind of what each gives where the check can know it (p.lord.towers, game.players[1].towers)
 internal struct x_kmember g_xk_player[N_XMEMBERS];
 internal const struct x_kmember k_xk_game[] = {
-    { "time", -1, -1, X_ANY, 0 },                       // the game time in seconds (a script's time)
-    { "minutes", -1, -1, X_ANY, 0 },                    // in whole minutes
+    { "time", -1, -1, XT_FLOAT, 0 },                    // the game time in seconds (a script's time)
+    { "minutes", -1, -1, XT_INT, 0 },                   // in whole minutes
     { "players", -1, -1, X_LIST_OF + XK_PLAYER, 0 },    // every player, in or out: game.players[3] is player 3
     { "player", 1, 1, XK_PLAYER, 0 },                   // game.player(3)
-    { "timer", 2, 2, X_ANY, 0 },                        // game.timer(20s, () => ...): every 20 s from now on (expr.c TIMER)
+    { "timer", 2, 2, XT_TRIG, 0 },                      // game.timer(20s, () => ...): every 20 s from now on (expr.c TIMER)
     { "setup", 1, 1, X_ANY, 0 },                        // game.setup(() => ...): before the game starts (SETUP below)
     { "slots", -1, -1, X_LIST_OF + XK_SLOT, 0 },        // the players to be, by number: game.slots[2]
     { "slot", 1, 1, XK_SLOT, 0 },                       // game.slot(2)
 };
 internal const struct x_kmember k_xk_slot[] = {
-    { "number", -1, -1, X_ANY, 0 },                     // the player it becomes
-    { "human", -1, -1, X_ANY, 0 },                      // 1: a human's (0 a computer's)
-    { "persona", -1, -1, X_ANY, 1 },                    // its personality (a computer's): persona.fuchs - its file
+    { "number", -1, -1, XT_INT, 0 },                    // the player it becomes
+    { "human", -1, -1, XT_BOOL, 0 },                    // a human's (else a computer's)
+    { "persona", -1, -1, XT_TEXT | X_NULLABLE, 1 },     // its personality (a computer's): persona.fuchs - its file
     { "color", -1, -1, X_ANY, 1 },                      // its colour: color.red, or (a computer's) rgb(40, 200, 120)
 };
 internal struct x_kind g_xkinds[3] = {
@@ -465,7 +495,7 @@ internal const struct x_kind *x_kind_of(int k) {
             g_xk_player[i].name = m->name;
             g_xk_player[i].amin = (signed char)(rel || m->kind == XM_FILTER ? 1 : act);
             g_xk_player[i].amax = (signed char)(rel ? n : m->kind == XM_FILTER ? 1 : act);
-            g_xk_player[i].result = (short)(m->kind == XM_LINK ? XK_PLAYER : X_ANY);
+            g_xk_player[i].result = (short)x_member_type(m->name);
             g_xk_player[i].set = (signed char)(x_stock_index(m->name) >= 0);
         }
     return k >= XK_PLAYER && k <= XK_SLOT ? &g_xkinds[k - 1] : NULL;

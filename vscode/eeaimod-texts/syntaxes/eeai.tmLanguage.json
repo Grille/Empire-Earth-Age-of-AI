@@ -561,7 +561,7 @@
         },
         {
           "name": "support.function.command.eeaimod",
-          "match": "\\b(?:nullmember|scrolltest|attacknow|continent|drawcount|foodcheck|gridcheck|minecheck|spawnline|textstate|watchtech|watchtype|asgtrace|camtrace|canbuild|firerate|sndstate|vistrack|aigroup|attacks|basemap|calloff|defence|epochup|landing|persona|seltest|sndchan|targets|terrain|textlog|wmclose|bqueue|bunker|camera|charge|chatme|ddinfo|ddpoke|resume|script|status|threat|topbar|board|build|costs|count|diplo|drops|found|intel|pause|rlist|seaop|sites|spawn|speed|stats|techs|texts|tinfo|train|turbo|uinfo|units|watch|army|chat|give|hurt|move|navy|objs|ping|plan|quit|save|tech|trig|wave|aim|llm|say|vis)\\b(?=\\s*\\()"
+          "match": "\\b(?:nullmember|scrolltest|transports|attacknow|continent|drawcount|foodcheck|gridcheck|minecheck|spawnline|textstate|watchtech|watchtype|asgtrace|camtrace|canbuild|explored|firerate|sndstate|vistrack|aigroup|attacks|basemap|calloff|defence|epochup|landing|persona|seltest|sndchan|targets|terrain|textlog|wmclose|bqueue|bunker|camera|charge|chatme|ddinfo|ddpoke|resume|script|status|threat|topbar|board|build|costs|count|diplo|drops|found|intel|pause|rlist|seaop|sites|spawn|speed|stats|techs|texts|tinfo|train|turbo|uinfo|units|watch|army|chat|give|hurt|move|navy|objs|ping|plan|quit|save|tech|trig|wave|aim|llm|say|vis)\\b(?=\\s*\\()"
         },
         {
           "name": "constant.language.script.eeaimod",
@@ -569,7 +569,7 @@
         },
         {
           "name": "support.function.eeaimod",
-          "match": "\\b(?:map_range|contains|distance|chance|number|first|floor|round|item|log2|pick|abs|has|len|max|min|rgb|rnd|str|vec)\\b(?=\\s*\\()"
+          "match": "\\b(?:map_range|contains|distance|chance|number|first|floor|round|ceil|item|log2|pick|abs|has|int|len|max|min|rgb|rnd|str|vec)\\b(?=\\s*\\()"
         },
         {
           "name": "constant.language.boolean.eeaimod",
@@ -752,7 +752,7 @@
         },
         {
           "name": "support.function.command.eeaimod",
-          "match": "\\b(?:nullmember|scrolltest|attacknow|continent|drawcount|foodcheck|gridcheck|minecheck|spawnline|textstate|watchtech|watchtype|asgtrace|camtrace|canbuild|firerate|sndstate|vistrack|aigroup|attacks|basemap|calloff|defence|epochup|landing|persona|seltest|sndchan|targets|terrain|textlog|wmclose|bqueue|bunker|camera|charge|chatme|ddinfo|ddpoke|resume|script|status|threat|topbar|board|build|costs|count|diplo|drops|found|intel|pause|rlist|seaop|sites|spawn|speed|stats|techs|texts|tinfo|train|turbo|uinfo|units|watch|army|chat|give|hurt|move|navy|objs|ping|plan|quit|save|tech|trig|wave|aim|llm|say|vis)\\b(?=\\s*\\()"
+          "match": "\\b(?:nullmember|scrolltest|transports|attacknow|continent|drawcount|foodcheck|gridcheck|minecheck|spawnline|textstate|watchtech|watchtype|asgtrace|camtrace|canbuild|explored|firerate|sndstate|vistrack|aigroup|attacks|basemap|calloff|defence|epochup|landing|persona|seltest|sndchan|targets|terrain|textlog|wmclose|bqueue|bunker|camera|charge|chatme|ddinfo|ddpoke|resume|script|status|threat|topbar|board|build|costs|count|diplo|drops|found|intel|pause|rlist|seaop|sites|spawn|speed|stats|techs|texts|tinfo|train|turbo|uinfo|units|watch|army|chat|give|hurt|move|navy|objs|ping|plan|quit|save|tech|trig|wave|aim|llm|say|vis)\\b(?=\\s*\\()"
         },
         {
           "name": "constant.language.script.eeaimod",
@@ -760,7 +760,7 @@
         },
         {
           "name": "support.function.eeaimod",
-          "match": "\\b(?:map_range|contains|distance|chance|number|first|floor|round|item|log2|pick|abs|has|len|max|min|rgb|rnd|str|vec)\\b(?=\\s*\\()"
+          "match": "\\b(?:map_range|contains|distance|chance|number|first|floor|round|ceil|item|log2|pick|abs|has|int|len|max|min|rgb|rnd|str|vec)\\b(?=\\s*\\()"
         },
         {
           "name": "constant.language.boolean.eeaimod",

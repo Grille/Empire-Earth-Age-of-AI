@@ -757,13 +757,16 @@ internal void xps_primary(struct xps *p, struct xnode **out) {
         char *e;
         double n = strtod(s, &e);
         if (e > s && e[-1] == '.' && *e == '.') e--;   // 1..5: the number is 1, .. a range's
-        if (*e == '%') { n /= 100; e++; }   // 70% = 0.7
-        else if (*e == 's' && !isalnum((unsigned char)e[1]) && e[1] != '_') e++;   // 20s: seconds
-        else if (!strncmp(e, "min", 3) && !isalnum((unsigned char)e[3]) && e[3] != '_') { n *= 60; e += 3; }   // 19.5min
+        int fl = 0;   // written as a float: 5.0, .72, 1e3 - or with a unit: 70% (0.7), 20s, 19.5min (seconds)
+        for (const char *q = s; q < e && !(s[0] == '0' && (s[1] == 'x' || s[1] == 'X')); q++) fl |= *q == '.' || *q == 'e' || *q == 'E';
+        if (*e == '%') { n /= 100; e++; fl = 1; }   // 70% = 0.7
+        else if (*e == 's' && !isalnum((unsigned char)e[1]) && e[1] != '_') { e++; fl = 1; }   // 20s: seconds
+        else if (!strncmp(e, "min", 3) && !isalnum((unsigned char)e[3]) && e[3] != '_') { n *= 60; e += 3; fl = 1; }   // 19.5min
         p->s = e;
         o = xn_new(p, XN_NUM, s);
         if (!o) return;
         o->n = n;
+        o->op = (unsigned char)(fl ? 'f' : 'i');   // its type: a float or an int (the check's)
         o = XOFF(p, o);
     } else if (isalpha((unsigned char)*s) || *s == '_') {
         char name[40];
@@ -775,6 +778,7 @@ internal void xps_primary(struct xps *p, struct xnode **out) {
             o = xn_new(p, XN_NUM, s - n);
             if (!o) return;
             o->n = !lstrcmpiA(name, "true");
+            o->op = 'b';   // a bool
             o = XOFF(p, o);
         } else {
             xps_space(p);
@@ -1239,7 +1243,8 @@ internal int x_fn_id(const char *name, int na) {
            !lstrcmpiA(name, "map_range") && na == 3 ? 11 : !lstrcmpiA(name, "str") && na == 1 ? 12 :
            !lstrcmpiA(name, "number") && na == 1 ? 13 : !lstrcmpiA(name, "log2") && na == 1 ? 14 : !lstrcmpiA(name, "pick") && na == 1 ? 15 :
            !lstrcmpiA(name, "vec") && na >= 2 && na <= 4 ? 16 : !lstrcmpiA(name, "rgb") && na == 3 ? 17 :
-           !lstrcmpiA(name, "distance") && na == 2 ? 18 : !lstrcmpiA(name, "has") && na == 2 ? 19 : 0;
+           !lstrcmpiA(name, "distance") && na == 2 ? 18 : !lstrcmpiA(name, "has") && na == 2 ? 19 :
+           !lstrcmpiA(name, "int") && na == 1 ? 20 : !lstrcmpiA(name, "ceil") && na == 1 ? 21 : 0;
 }
 internal int x_par_count(const char *par) {   // a vars function's parameters "a,b)": how many
     int want = *par == ')' ? 0 : 1;
@@ -1343,6 +1348,14 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
 // WHAT A VALUE IS, as far as the check knows (a script's): a kind of the host's objects, X_LIST_OF one, or X_ANY. A
 // path a.b.c (up to upto): its head's - a variable's from its let, the host's own (game) - and each member's: one its
 // kind hasn't, or a method without ( ), a mistake (-1, told in k). *known: its head is a variable or the host's
+internal const char *xty_name(int t, char *buf, int cap);
+// a member of the language's own types: a vector's x, y, z, w; a trigger's on, fired - its type, -1 none
+internal int xt_own_member(int t, const char *m) {
+    int vn = t == XT_VEC2 ? 2 : t == XT_VEC3 ? 3 : t == XT_VEC4 ? 4 : 0;
+    if (vn && m[0] && !m[1] && strchr("xyzw", m[0]) && strchr("xyzw", m[0]) - "xyzw" < vn) return XT_FLOAT;
+    if (t == XT_TRIG) return !strcmp(m, "on") ? XT_BOOL : !strcmp(m, "fired") ? XT_INT : -1;
+    return -1;
+}
 internal int x_path_kind(struct xcheck *k, const struct xnode *n, const char *s, size_t upto, const struct xscope *sc, int *known) {
     size_t hn = strcspn(s, "."), at;
     char m[40];
@@ -1357,8 +1370,19 @@ internal int x_path_kind(struct xcheck *k, const struct xnode *n, const char *s,
         if (at + 1 + sn > upto) sn = upto - at - 1;
         if (sn >= sizeof m) return X_ANY;
         lstrcpynA(m, seg, (int)sn + 1);
+        kind &= ~X_NULLABLE;   // (a member of what may be null: told later, when null is checked for)
         if (kind & X_LIST_OF) {
-            snprintf(k->whybuf, sizeof k->whybuf, "%.*s: a list of %s - one of them: [1].%s", (int)(at + 1 + sn), s, x_kind_name(kind), m);
+            char t[40];
+            snprintf(k->whybuf, sizeof k->whybuf, "%.*s: a list of %s - one of them: [1].%s", (int)(at + 1 + sn), s, xty_name(X_TBASE(kind), t, sizeof t), m);
+            xc_fail(k, n, k->whybuf);
+            return -1;
+        }
+        if (kind >= XT_INT) {   // the language's own: a vector's x, y, z, w; a trigger's on; a record's (not known yet)
+            int own = xt_own_member(kind, m);
+            if (kind == XT_REC) return X_ANY;
+            if (own >= 0) { kind = own; at += 1 + sn; continue; }
+            char t[40];
+            snprintf(k->whybuf, sizeof k->whybuf, "%.*s: a %s has no %s", (int)(at + 1 + sn), s, xty_name(kind, t, sizeof t), m);
             xc_fail(k, n, k->whybuf);
             return -1;
         }
@@ -1376,24 +1400,102 @@ internal int x_path_kind(struct xcheck *k, const struct xnode *n, const char *s,
     }
     return at >= upto ? kind : X_ANY;
 }
-internal int x_skind(struct xcheck *k, const struct xnode *n, const struct xscope *sc) {
+// a type's name for the messages: int, list of player, player? ...
+internal const char *xty_name(int t, char *buf, int cap) {
+    static const char *const own[] = { "int", "float", "bool", "text", "vec2", "vec3", "vec4", "epoch", "color", "unit type",
+                                       "function", "record", "trigger", "stop" };
+    int b = X_TBASE(t);
+    const char *n = !b ? "value" : b < XT_INT ? x_kind_name(b) : b - XT_INT < (int)(sizeof own / sizeof *own) ? own[b - XT_INT] : "value";
+    snprintf(buf, (size_t)cap, "%s%s%s", t & X_LIST_OF ? "list of " : "", n, t & X_NULLABLE ? "?" : "");
+    return buf;
+}
+internal int xt_numeric(int t) { return t == XT_INT || t == XT_FLOAT; }
+// a value of type from where one of type to belongs: the same, an int for a float (widened), a T for a T? - not known
+// either way: yes (worked out then)
+internal int xt_fits(int to, int from) {
+    if (!to || !from || to == from) return 1;
+    if (to == XT_FLOAT && from == XT_INT) return 1;
+    if (to & X_NULLABLE) return xt_fits(to & ~X_NULLABLE, from & ~X_NULLABLE);
+    if (from & X_NULLABLE) return xt_fits(to, from & ~X_NULLABLE);   // (nullables are checked later: step 3)
+    if ((to & X_LIST_OF) && (from & X_LIST_OF)) return !X_TBASE(to) || !X_TBASE(from) || xt_fits(X_TBASE(to), X_TBASE(from));
+    return 0;
+}
+// the type of a or b (?:, ??): the same, a float for an int and a float, else not known
+internal int xt_join(int a, int b) {
+    if (a == b) return a;
+    if (xt_numeric(a & ~X_NULLABLE) && xt_numeric(b & ~X_NULLABLE)) return XT_FLOAT | ((a | b) & X_NULLABLE);
+    return X_ANY;
+}
+internal int x_stype(struct xcheck *k, const struct xnode *n, const struct xscope *sc);
+// a builtin's result (x_fn_id f) from its arguments' types
+internal int xt_builtin(struct xcheck *k, const struct xnode *n, int f, const struct xscope *sc) {
+    int a0 = n->n_items ? x_stype(k, n->items[0], sc) : X_ANY, r = a0;
+    switch (f) {
+    case 1: case 10: case 19: return XT_BOOL;                     // chance, contains, has
+    case 2:                                                        // min, max: their numbers'
+        for (int i = 1; i < n->n_items; i++) r = xt_join(r, x_stype(k, n->items[i], sc));
+        return xt_numeric(r) ? r : X_ANY;
+    case 3: return xt_numeric(a0) ? a0 : X_ANY;                   // abs
+    case 4: case 6: case 7: case 20: case 21: return XT_INT;      // round, floor, len, int, ceil
+    case 5: case 14: case 18: return XT_FLOAT;                    // rnd, log2, distance
+    case 8: case 9: case 15: return a0 & X_LIST_OF ? (X_TBASE(a0) ? X_TBASE(a0) | X_NULLABLE : X_ANY) : f == 15 ? a0 : X_ANY;   // first, item, pick
+    case 11: r = n->n_items > 2 ? x_stype(k, n->items[2], sc) : X_ANY; return r & X_LIST_OF ? X_TBASE(r) : X_ANY;   // map_range
+    case 12: return XT_TEXT;                                       // str
+    case 13: return XT_FLOAT | X_NULLABLE;                         // number: nothing for a text that is none
+    case 16: return n->n_items == 2 ? XT_VEC2 : n->n_items == 3 ? XT_VEC3 : XT_VEC4;   // vec
+    case 17: return XT_VEC3;                                       // rgb
+    default: return X_ANY;
+    }
+}
+// WHAT A VALUE IS, worked out when the file is read (a script's): host.h's types - X_ANY where it can't be told
+internal int x_stype(struct xcheck *k, const struct xnode *n, const struct xscope *sc) {
     if (!n || !k->script) return X_ANY;
-    int known, r, a;
+    int known, r, a, b;
     const struct x_kmember *m;
     switch (n->k) {
-    case XN_NAME: r = x_path_kind(k, n, n->s, strlen(n->s), sc, &known); return r < 0 ? X_ANY : r;
+    case XN_NUM: return n->op == 'b' ? XT_BOOL : n->op == 'f' ? XT_FLOAT : n->op == 'i' ? XT_INT : X_ANY;
+    case XN_STR: return XT_TEXT;
+    case XN_LAMBDA: return XT_FN;
+    case XN_REC: return XT_REC;
+    case XN_LIST:   // its items' type when they have one
+        r = n->n_items ? x_stype(k, n->items[0], sc) : X_ANY;
+        for (int i = 1; i < n->n_items && r; i++) { a = x_stype(k, n->items[i], sc); r = r == a ? r : xt_numeric(r) && xt_numeric(a) ? XT_FLOAT : X_ANY; }
+        return r & X_LIST_OF ? X_LIST_OF : X_LIST_OF | r;   // (a list in a list: its items are the list's)
+    case XN_NAME: {
+        size_t len = strcspn(n->s, ".");
+        int var = xsc_find(sc, n->s, len, NULL) != 0;
+        if (!var && !n->s[len] && !strcmp(n->s, "time")) return XT_FLOAT;   // the script's: game seconds
+        if (!var && !n->s[len] && !strcmp(n->s, "stop")) return XT_STOP;
+        if (!var && (r = g_x_host.const_type(n->s)) != X_ANY) return r;   // unit.x, epoch.middle, color.red
+        if (!var && !n->s[len] && (r = g_x_host.name_type(n->s)) != X_ANY) return r;   // minutes, epoch
+        r = x_path_kind(k, n, n->s, strlen(n->s), sc, &known);
+        return r < 0 ? X_ANY : r;
+    }
     case XN_CALL: {
         const char *dot = strrchr(n->s, '.');
+        int f = x_fn_id(n->s, n->n_items < 8 ? n->n_items : 8);
+        if (f && !xsc_find(sc, n->s, strlen(n->s), NULL)) return xt_builtin(k, n, f, sc);
         if (!dot) return x_script_fn(n->s) >= 0 ? g_x_host.fn_kind(n->s) : X_ANY;   // player(2)
         r = x_path_kind(k, n, n->s, (size_t)(dot - n->s), sc, &known);
-        m = r > 0 ? x_kind_member(r, dot + 1) : NULL;
+        m = r > 0 && r < XT_INT ? x_kind_member(r, dot + 1) : NULL;
         return m && m->amin >= 0 ? m->result : X_ANY;
     }
     case XN_MEMBER: case XN_MCALL:
-        m = x_kind_member(x_skind(k, n->a, sc), n->s);
+        a = x_stype(k, n->a, sc);
+        if (n->k == XN_MEMBER && a >= XT_INT && xt_own_member(a, n->s) >= 0) return xt_own_member(a, n->s);   // v.x, t.on
+        m = a > 0 && a < XT_INT ? x_kind_member(a, n->s) : NULL;
         return m && (m->amin >= 0) == (n->k == XN_MCALL) ? m->result : X_ANY;
-    case XN_INDEX: a = x_skind(k, n->a, sc); return a & X_LIST_OF ? a & 0xFF : X_ANY;
-    case XN_COND: case XN_COAL: a = x_skind(k, n->a, sc); return n->b && x_skind(k, n->b, sc) == a ? a : X_ANY;
+    case XN_INDEX: a = x_stype(k, n->a, sc); return a & X_LIST_OF ? X_TBASE(a) : X_ANY;
+    case XN_COND: return n->b ? xt_join(x_stype(k, n->a, sc), x_stype(k, n->b, sc)) : X_ANY;   // (no else: nothing)
+    case XN_COAL: a = x_stype(k, n->a, sc); b = x_stype(k, n->b, sc); return xt_join(a & ~X_NULLABLE, b);
+    case XN_NEG: a = x_stype(k, n->a, sc); return xt_numeric(a) || (a >= XT_VEC2 && a <= XT_VEC4) ? a : X_ANY;
+    case XN_ADD: case XN_MUL:   // int with int an int (but / a float), a float in it a float; a vector's own
+        a = x_stype(k, n->a, sc); b = x_stype(k, n->b, sc);
+        if (a >= XT_VEC2 && a <= XT_VEC4) return a;
+        if (b >= XT_VEC2 && b <= XT_VEC4) return b;
+        if (!xt_numeric(a) || !xt_numeric(b)) return X_ANY;
+        return a == XT_INT && b == XT_INT && n->op != '/' ? XT_INT : XT_FLOAT;
+    case XN_CMP: case XN_AND: case XN_OR: case XN_NOT: return XT_BOOL;
     default: return X_ANY;
     }
 }
@@ -1497,7 +1599,7 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
     }
     case XN_LET:
         if (!x_check(k, n->a, sc)) return 0;   // (its own name not yet: let n = n + 1 is a mistake)
-        xsc_pass(sc, n->s, x_skind(k, n->a, sc));
+        xsc_pass(sc, n->s, x_stype(k, n->a, sc));   // its type: its value's
         return 1;
     case XN_ASSIGN: {
         int f = xsc_find(sc, n->s, strlen(n->s), NULL);   // (the code around's too: set in its own frame)
@@ -1505,10 +1607,11 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
         else if (f == 2) snprintf(k->whybuf, sizeof k->whybuf, "%s is set before its let", n->s);
         else {
             if (!x_check(k, n->a, sc)) return 0;
-            int kv = xsc_kind(sc, n->s, strlen(n->s)), kr = x_skind(k, n->a, sc);
-            if (!kv || !kr || kv == kr) return 1;   // a kind it has from its let: another known one can't go in
-            snprintf(k->whybuf, sizeof k->whybuf, "%s is a %s%s (its let) - a %s%s can't go in", n->s,
-                     kv & X_LIST_OF ? "list of " : "", x_kind_name(kv), kr & X_LIST_OF ? "list of " : "", x_kind_name(kr));
+            int kv = xsc_kind(sc, n->s, strlen(n->s)), kr = x_stype(k, n->a, sc);
+            if (xt_fits(kv, kr)) return 1;   // a type it has from its let: another can't go in (an int a float can't)
+            char tv[40], tr[40];
+            snprintf(k->whybuf, sizeof k->whybuf, "%s is a%s %s (its let) - a%s %s can't go in%s", n->s, strchr("aeiou", *xty_name(kv, tv, sizeof tv)) ? "n" : "", tv,
+                     strchr("aeiou", *xty_name(kr, tr, sizeof tr)) ? "n" : "", tr, kv == XT_INT && kr == XT_FLOAT ? " - int(...), round(...)" : "");
         }
         return xc_fail(k, n, k->whybuf);
     }
@@ -1521,8 +1624,9 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
         if (n->k == XN_FOR) {   // its name: a list's items' kind (for p in game.players: a player)
             if (!x_check_new_name(k, n, n->s, sc)) return 0;
             xsc_add(&b, n->s);
-            int lk = n->b ? X_ANY : x_skind(k, n->a, sc);
-            b.kind[0] = (short)(lk & X_LIST_OF ? lk & 0xFF : X_ANY);
+            int lk = n->b ? X_ANY : x_stype(k, n->a, sc);   // a range's: an int from ints, else a float
+            if (n->b) { int ta = x_stype(k, n->a, sc), tb = x_stype(k, n->b, sc); b.kind[0] = (short)(ta == XT_INT && tb == XT_INT ? XT_INT : xt_numeric(ta) && xt_numeric(tb) ? XT_FLOAT : X_ANY); }
+            else b.kind[0] = (short)(lk & X_LIST_OF ? X_TBASE(lk) : X_ANY);
         }
         k->loops++;
         int ok = x_check_body(k, n->k == XN_WHILE ? n->a : n->c, &b);
@@ -1533,13 +1637,19 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
         return k->loops ? 1 : xc_fail(k, n, n->k == XN_BREAK ? "break outside a loop" : "continue outside a loop");
     case XN_SETM: {   // slot.persona = ...: a member its kind lets be set (a kind known)
         if (!x_check(k, n->a, sc) || !x_check(k, n->b, sc)) return 0;
-        int a = x_skind(k, n->a, sc);
-        if (!a) return 1;
-        const struct x_kmember *m = a & X_LIST_OF ? NULL : x_kind_member(a, n->s);
-        char t[100];
-        if (a & X_LIST_OF) snprintf(k->whybuf, sizeof k->whybuf, ".%s = ...: a list of %s - one of them: [1].%s", n->s, x_kind_name(a), n->s);
+        int a = x_stype(k, n->a, sc) & ~X_NULLABLE;
+        if (!a || a == XT_REC) return 1;
+        const struct x_kmember *m = a & X_LIST_OF || a >= XT_INT ? NULL : x_kind_member(a, n->s);
+        char t[100], tv[40], tm[40];
+        int tr = x_stype(k, n->b, sc);
+        if (a & X_LIST_OF) snprintf(k->whybuf, sizeof k->whybuf, ".%s = ...: a %s - one of them: [1].%s", n->s, xty_name(a, tv, sizeof tv), n->s);
+        else if (a >= XT_INT) snprintf(k->whybuf, sizeof k->whybuf, ".%s = ...: a %s has no members to set", n->s, xty_name(a, tv, sizeof tv));
         else if (!m) { x_kind_list(a, t, sizeof t); snprintf(k->whybuf, sizeof k->whybuf, ".%s = ...: a %s has no %s - its members: %s", n->s, x_kind_name(a), n->s, t); }
         else if (!m->set) snprintf(k->whybuf, sizeof k->whybuf, ".%s = ...: a %s's %s can't be set", n->s, x_kind_name(a), n->s);
+        else if (!xt_fits(m->result, tr))   // p.gold = 10.5: an int's place
+            snprintf(k->whybuf, sizeof k->whybuf, ".%s = ...: a %s's %s is a%s %s - a%s %s can't go in%s", n->s, x_kind_name(a), n->s,
+                     strchr("aeiou", *xty_name(m->result, tm, sizeof tm)) ? "n" : "", tm, strchr("aeiou", *xty_name(tr, tv, sizeof tv)) ? "n" : "", tv,
+                     m->result == XT_INT && tr == XT_FLOAT ? " - int(...), round(...)" : "");
         else return 1;
         return xc_fail(k, n, k->whybuf);
     }
@@ -1547,15 +1657,23 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
     case XN_MEMBER: case XN_MCALL: case XN_INDEX: {   // f(a).x, l[1].name(...): an object's - of a kind known - checked
         if (!x_check(k, n->a, sc) || !x_check(k, n->b, sc)) return 0;
         for (int i = 0; i < n->n_items; i++) if (!x_check(k, n->items[i], sc)) return 0;
-        int a = x_skind(k, n->a, sc);
-        if (!a) return 1;   // (a record, a vector, not known: worked out, there?)
+        int a = x_stype(k, n->a, sc) & ~X_NULLABLE;
+        char ta[40];
+        if (!a || a == XT_REC) return 1;   // (not known, a record: worked out, there?)
         if (n->k == XN_INDEX) {
-            if (a & X_LIST_OF) return 1;
-            snprintf(k->whybuf, sizeof k->whybuf, "[...]: a %s is no list", x_kind_name(a));
+            int ti = x_stype(k, n->b, sc);
+            if (!(a & X_LIST_OF)) snprintf(k->whybuf, sizeof k->whybuf, "[...]: a %s is no list", xty_name(a, ta, sizeof ta));
+            else if (ti && ti != XT_INT) snprintf(k->whybuf, sizeof k->whybuf, "[...]: a list's item is l[an int] - not a %s%s", xty_name(ti, ta, sizeof ta), ti == XT_FLOAT ? " (int(...), round(...))" : "");
+            else return 1;
             return xc_fail(k, n, k->whybuf);
         }
         if (a & X_LIST_OF) {
-            snprintf(k->whybuf, sizeof k->whybuf, ".%s: a list of %s - one of them: [1].%s", n->s, x_kind_name(a), n->s);
+            snprintf(k->whybuf, sizeof k->whybuf, ".%s: a %s - one of them: [1].%s", n->s, xty_name(a, ta, sizeof ta), n->s);
+            return xc_fail(k, n, k->whybuf);
+        }
+        if (a >= XT_INT && n->k == XN_MEMBER && xt_own_member(a, n->s) >= 0) return 1;
+        if (a >= XT_INT) {
+            snprintf(k->whybuf, sizeof k->whybuf, ".%s: a %s has no %s", n->s, xty_name(a, ta, sizeof ta), n->s);
             return xc_fail(k, n, k->whybuf);
         }
         if (n->k == XN_MCALL) return x_check_method(k, n, a, n->s, n->n_items);
@@ -1623,7 +1741,17 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
             return xc_fail(k, n, "a list where one number belongs - pick(l) for one of its items, \"{l}\" in a text");
         if (n->k == XN_ADD && ((n->a && n->a->k == XN_STR) || (n->b && n->b->k == XN_STR)))
             return xc_fail(k, n, "+ adds numbers - a text is built in its string: \"Age: {epoch}\", \"{a}{b}\"");
-        return x_check(k, n->a, sc) && x_check(k, n->b, sc);
+        if (!x_check(k, n->a, sc) || !x_check(k, n->b, sc)) return 0;
+        for (int i = 0; i < 2; i++) {   // each side a number (or a vector): an epoch, a text, a player is none
+            int t = x_stype(k, i ? n->b : n->a, sc) & ~X_NULLABLE;
+            char tn[40];
+            if (!t || xt_numeric(t) || (t >= XT_VEC2 && t <= XT_VEC4) || (i && !n->b)) continue;
+            snprintf(k->whybuf, sizeof k->whybuf, "%c: a%s %s is no number%s", n->k == XN_NEG ? '-' : n->op ? n->op : '+',
+                     strchr("aeiou", *xty_name(t, tn, sizeof tn)) ? "n" : "", tn,
+                     t == XT_EPOCH || t == XT_COLOR ? " - int(...) for its number" : t == XT_TEXT ? " (a text is built in its string: \"{a}{b}\")" : "");
+            return xc_fail(k, n, k->whybuf);
+        }
+        return 1;
     case XN_CMP: {
         if ((n->a && n->a->k == XN_LIST) || (n->b && n->b->k == XN_LIST))
             return xc_fail(k, n, "a list compared - contains(l, x) for one of its items");
@@ -1634,7 +1762,16 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
             k->c->failed++;
             return xc_fail(k, n, "a mistake while working it out");
         }
-        return 1;
+        int ta = x_stype(k, n->a, sc) & ~X_NULLABLE, tb = x_stype(k, n->b, sc) & ~X_NULLABLE;   // both known: of one type
+        int order = n->op != '=' && n->op != '!';
+        if (!ta || !tb || (xt_numeric(ta) && xt_numeric(tb)) || (ta == tb && !(order && (ta == XT_BOOL || ta >= XT_FN || ta < XT_INT || (ta & X_LIST_OF)))))
+            return 1;
+        char tn[40], tm[40];
+        snprintf(k->whybuf, sizeof k->whybuf, "a%s %s %s a%s %s%s", strchr("aeiou", *xty_name(ta, tn, sizeof tn)) ? "n" : "", tn,
+                 ta == tb ? "has no order - compared with" : "compared with", strchr("aeiou", *xty_name(tb, tm, sizeof tm)) ? "n" : "", tm,
+                 ta == XT_EPOCH || tb == XT_EPOCH ? " - epoch.middle, or int(epoch) for its number" :
+                 ta == XT_COLOR || tb == XT_COLOR ? " - color.red, or int(color) for its number" : "");
+        return xc_fail(k, n, k->whybuf);
     }
     default:
         return x_check(k, n->c, sc) && x_check(k, n->a, sc) && x_check(k, n->b, sc);
@@ -2343,7 +2480,7 @@ internal void xe_call(struct xe *e, const struct xnode *n, struct xval *v) {
         x_fail(e, "chance(%g): a probability is 0 to 1 - chance(70%%) or chance(0.7)", a[0].n);
         return;
     }
-    if (f && (f <= 6 || f == 14))   // the number functions: numbers (or nothing) only
+    if (f && (f <= 6 || f == 14 || f >= 20))   // the number functions: numbers (or nothing) only
         for (int i = 0; i < na; i++) if (!x_numeric_ok(e, &a[i])) return;
     if (f == 9 ? !x_numeric_ok(e, &a[1]) : f == 11 && !x_numeric_ok(e, &a[0])) return;
     if (f == 14 && !(xto_num(&a[0]) > 0)) { x_fail(e, "log2(%g): only of a number above 0", xto_num(&a[0])); return; }
@@ -2462,6 +2599,8 @@ internal void xe_call(struct xe *e, const struct xnode *n, struct xval *v) {
         xnum(v, hit);
     }
     else if (f == 14) xnum(v, det_log2f((float)xto_num(&a[0])));   // the same bits on every PC (base/math.c)
+    else if (f == 20) xnum(v, (double)(long long)xto_num(&a[0]));   // int(x): toward 0 (int(-2.5) -2), int(epoch) its number
+    else if (f == 21) { double x = xto_num(&a[0]), r = (double)(long long)x; xnum(v, r < x ? r + 1 : r); }   // ceil(1.2) 2
     else xnum(v, x_rnd01(e->c) * (na ? xto_num(&a[0]) : 1));   // rnd(n): 0 <= x < n, rnd(): 0 <= x < 1
 }
 // a list: its items, a list in it its items in its place; a mistake in an item (told) leaves it out, so does

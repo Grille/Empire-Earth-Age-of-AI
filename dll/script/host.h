@@ -9,6 +9,12 @@
 // The check reads them when a file is read (p.towerz a mistake there), the working out asks member() and set()
 #define X_ANY 0
 #define X_LIST_OF 0x100
+// THE TYPES the check knows (a value's, as far as it can tell when a file is read): X_ANY not known, 1..63 a kind of
+// the host's objects, from XT_INT the language's own; + X_LIST_OF a list of them, + X_NULLABLE or null (T?)
+enum { XT_INT = 64, XT_FLOAT, XT_BOOL, XT_TEXT, XT_VEC2, XT_VEC3, XT_VEC4, XT_EPOCH, XT_COLOR, XT_UTYPE, XT_FN, XT_REC,
+       XT_TRIG, XT_STOP };
+#define X_NULLABLE 0x200
+#define X_TBASE(t) ((t) & 0xFF)   // without list and null
 struct x_kmember { const char *name; signed char amin, amax; short result; signed char set; };
 struct x_kind { const char *name; int numbered; const struct x_kmember *m; int n; };   // numbered: a command takes its number
 struct x_host {
@@ -34,6 +40,8 @@ struct x_host {
     int (*member)(struct xctx *c, const struct xval *o, const char *name, const struct xval *a, int na, struct xval *v);
     // o.name = v (a member it may set - checked): 0 not set (the mistake told)
     int (*set)(struct xctx *c, const struct xval *o, const char *name, const struct xval *v);
+    int (*const_type)(const char *name);   // a constant's type (unit.x: XT_UTYPE, epoch.middle: XT_EPOCH), X_ANY not known
+    int (*name_type)(const char *name);    // a name of its own that is a value (minutes, epoch, opinion): its type
 };
 internal int xh_value(struct xctx *c, const char *name, struct xval *v) { (void)c; (void)name; (void)v; return 0; }
 internal int xh_name(const char *name) { (void)name; return 0; }
@@ -53,4 +61,5 @@ internal int xh_set(struct xctx *c, const struct xval *o, const char *name, cons
     (void)c; (void)o; (void)name; (void)v; return 0;
 }
 internal struct x_host g_x_host = { xh_value, xh_name, xh_name, xh_method, xh_object, xh_constant, xh_rnd, xh_rnd, xh_scan,
-                                  xh_placeholders, xh_name, xh_name, xh_kind, xh_name, xh_name, xh_member, xh_set };
+                                  xh_placeholders, xh_name, xh_name, xh_kind, xh_name, xh_name, xh_member, xh_set, xh_name,
+                                  xh_name };
