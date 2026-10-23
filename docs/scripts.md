@@ -26,7 +26,7 @@ One a line; `//` starts a comment, as in the game's own scripts (.rmv, .tai) - a
 
 | Statement | |
 |---|---|
-| `let name = value` | a new variable (a name of letters, digits, `_`) - once in its block; known from there to the block's end |
+| `let name = value` | a new variable (a name of letters, digits, `_`) - once in its block; known from there to the block's end; `let name: float = value` with its type ("Types") |
 | `name = value` | a variable a `let` made gets a new value; `name += value`, `-=`, `*=`, `/=`: `name = name + value` ... |
 | `p.gold = value`, `p.gold += value` | an object's member that may be set ("Objects") |
 | `call(...)`, any expression | worked out, its value not kept |
@@ -78,7 +78,7 @@ Everything the personalities' expressions have (numbers, `70%`, texts with `{pla
 | `unit.b_guard_tower_bronze` | a unit or building type - its number and its identifier ([units.md](units.md)) |
 | `kind.towers` | one of the game's families - every type of it, whatever the epoch ([units.md](units.md)): `p3.count(kind.towers)` |
 | `resource.gold`, `resource.all` | a resource: food, wood, stone, gold, iron (1..5), all (0) - `give(2, 500, resource.gold)` |
-| `(a, b) => value`, `(i) => { ... }`, `() => ...` | a function: one value after `=>`, or statements in `{ }` with `return` |
+| `(a: int, b: float) => value`, `(i: int) => { ... }`, `() => ...` | a function: one value after `=>`, or statements in `{ }` with `return` - its parameters with their types ("Types") |
 | `player(3)`, `game` | objects - "Objects" below |
 | `l[2]` | a list's item, from 1 (`l[0]`, one past its end: a mistake) |
 | `vec(70, 50)` | a vector (2 to 4 numbers - a place in tiles): `let home = vec(70, 50)` then `home.x`, `step(home).x`, `home + vec(5, 0)`, `home * 2`, `distance(home, there)` (the README's "Vectors"); as a command's argument its numbers one each: `spawn(2, unit.inf02_spearman, home, 10)` is `spawn 2 24 70 50 10` |
@@ -101,8 +101,15 @@ one of them, records, functions, triggers, and the game's objects (player, game,
   mistake (`int(p.epoch) == 5`).
 - `p.gold = 10.5` (a float in an int's place), `l[1.5]`, `v.z` of a `vec2`, `t.foo` of a trigger: mistakes.
 
-Where a type can't be told (a function's parameter, a record's member), the value is checked when it is worked out,
-as before.
+Written where it can't be told - a function's parameters: `let f = (pos: vec3, id: int) => ...`. A function handed to
+`every` has its `run` from there (`(run) => ...` is an int; `(run: text)` a mistake), the others take none. A `let`
+may say its own: `let n: float = 5` (then `n = n * 1.5` fits), `let names: [text] = []`, `let l: player? = p.lord`.
+The types by name: `int`, `float`, `bool`, `text`, `vec2` .. `vec4`, `epoch`, `color`, `unit_type`, `function`,
+`record`, `trigger`, `player`, `game`, `slot`; `[T]` a list of them, `T?` one or null. A call of a function a `let`
+made is checked against its parameters: their count and types (`f(2.5)` for an `x: int` is a mistake).
+
+Where a type still can't be told (a record's member, what a function gives back), the value is checked when it is
+worked out, as before.
 
 ## Objects
 
@@ -164,7 +171,7 @@ order, one thing after another: a function called later still finds the names ar
 not handed back out of the function it was made in (nor put into a variable of the code around).
 
 ```
-let row = (y) => spawn(3, unit.b_guard_tower_bronze, 51, y)
+let row = (y: int) => spawn(3, unit.b_guard_tower_bronze, 51, y)
 for i in 1..3 { row(40 + i * 3) }         // towers at 51,43 51,46 51,49
 let checks = 0
 every(10s, 50s, 2min, (run) => {

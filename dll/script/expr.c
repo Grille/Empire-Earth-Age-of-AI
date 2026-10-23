@@ -606,8 +606,26 @@ internal int xps_items_add(struct xps *p, uintptr_t **it, int *n, int *cap, stru
     (*it)[(*n)++] = (uintptr_t)x;
     return 1;
 }
-// "(a, b) =>" at s: a function's head - its parameters' names (at most 8) and where its body starts; NULL: none
-internal const char *xps_lambda_head(const char *s, char names[8][24], int *n) {
+// A TYPE as written (name: type): int, float, bool, text, vec2..vec4, epoch, color, unit_type, function, record,
+// trigger, a kind of the host's objects (player); [T] a list of them, T? or null - its code (host.h), -1 none such
+internal int x_type_named(const char *t) {
+    static const char *const own[] = { "int", "float", "bool", "text", "vec2", "vec3", "vec4", "epoch", "color", "unit_type",
+                                       "function", "record", "trigger" };
+    size_t n = strlen(t);
+    int flags = 0;
+    if (n && t[n - 1] == '?') { flags |= X_NULLABLE; n--; }
+    char b[32];
+    if (n > 2 && t[0] == '[' && t[n - 1] == ']') { flags |= X_LIST_OF; t++; n -= 2; }
+    if (!n || n >= sizeof b) return -1;
+    lstrcpynA(b, t, (int)n + 1);
+    if (strchr(b, '[') || strchr(b, ']') || strchr(b, '?')) return -1;   // (a list of lists, [T?]: not yet)
+    for (size_t i = 0; i < sizeof own / sizeof *own; i++) if (!strcmp(b, own[i])) return (XT_INT + (int)i) | flags;
+    for (int k = 1; k < XT_INT; k++) { const struct x_kind *kd = g_x_host.kind(k); if (kd && !strcmp(kd->name, b)) return k | flags; }
+    return -1;
+}
+// "(a, b) =>" at s: a function's head - its parameters' names (at most 8), each one's type as written after a ':'
+// ("" none), and where its body starts; NULL: none
+internal const char *xps_lambda_head(const char *s, char names[8][24], char types[8][32], int *n) {
     *n = 0;
     s++;
     while (*s == ' ' || *s == '\t' || *s == '\n' || *s == '\r') s++;
@@ -616,7 +634,17 @@ internal const char *xps_lambda_head(const char *s, char names[8][24], int *n) {
         int k = 0;
         while ((isalnum((unsigned char)*s) || *s == '_') && k < 23) names[*n][k++] = *s++;
         names[*n][k] = 0;
-        if (isalnum((unsigned char)*s) || *s == '_' || *s == '.' || ++*n > 8) return NULL;
+        if (isalnum((unsigned char)*s) || *s == '_' || *s == '.' || *n >= 8) return NULL;
+        types[*n][0] = 0;
+        while (*s == ' ' || *s == '\t') s++;
+        if (*s == ':') {   // its type
+            for (s++; *s == ' ' || *s == '\t'; s++) {}
+            k = 0;
+            while ((isalnum((unsigned char)*s) || strchr("_[]?", *s)) && *s && k < 31) types[*n][k++] = *s++;
+            types[*n][k] = 0;
+            if (!k) return NULL;
+        }
+        ++*n;
         while (*s == ' ' || *s == '\t' || *s == '\n' || *s == '\r') s++;
         if (*s == ',') { s++; while (*s == ' ' || *s == '\t' || *s == '\n' || *s == '\r') s++; continue; }
         break;
@@ -630,19 +658,27 @@ internal void xps_primary(struct xps *p, struct xnode **out) {
     xps_space(p);
     const char *s = p->s;
     struct xnode *o = NULL;
-    char pn[8][24];
+    char pn[8][24], pt[8][32];
     int npn;
     const char *body;
     *out = NULL;
-    if (*s == '(' && (body = xps_lambda_head(s, pn, &npn)) != NULL) {   // a function: (a, b) => value, or => { ... }
+    if (*s == '(' && (body = xps_lambda_head(s, pn, pt, &npn)) != NULL) {   // a function: (a: int, b) => value, or => { ... }
         uintptr_t *it = NULL;
         int n = 0, cap = 0;
         for (int i = 0; i < npn; i++) {
             for (int j = 0; j < i; j++) if (!strcmp(pn[i], pn[j])) { p->err = 1; p->why = "a parameter twice"; free(it); return; }
             if (x_word_reserved(pn[i])) { p->err = 1; p->why = "a word of the language is no name"; free(it); return; }
+            int ty = pt[i][0] ? x_type_named(pt[i]) : X_ANY;
+            if (ty < 0) {
+                p->err = 1;
+                p->why = "an unknown type - int, float, bool, text, vec2, vec3, vec4, epoch, color, unit_type, function, record, trigger, player, game, slot; [T] a list, T? or null";
+                free(it);
+                return;
+            }
             struct xnode *x = xn_new(p, XN_NAME, s);
             if (!x) { free(it); return; }
             x->s = _strdup(pn[i]);
+            x->n = ty;   // its type (the check's), X_ANY none written
             if (!xps_items_add(p, &it, &n, &cap, XOFF(p, x))) { free(it); return; }
         }
         p->s = body;
@@ -1060,8 +1096,22 @@ internal void xps_stmt(struct xps *p, struct xnode **out) {
     }
     int let = xps_word(p, "let");
     const char *nm = p->s;
-    if (xps_name(p, name, let)) {   // [let] name = ..., name += ...
+    if (xps_name(p, name, let)) {   // [let] name [: type] = ..., name += ...
         xps_space(p);
+        int ty = X_ANY;
+        if (let && *p->s == ':') {   // let n: float = 5 - its type as written
+            char t[32];
+            int k = 0;
+            for (p->s++; *p->s == ' ' || *p->s == '\t'; p->s++) {}
+            while ((isalnum((unsigned char)*p->s) || strchr("_[]?", *p->s)) && *p->s && k < 31) t[k++] = *p->s++;
+            t[k] = 0;
+            if ((ty = x_type_named(t)) < 0) {
+                p->err = 1;
+                p->why = "let name: type = ... - an unknown type (int, float, bool, text, vec2, vec3, vec4, epoch, color, unit_type, function, record, trigger, player, game, slot; [T] a list, T? or null)";
+                return;
+            }
+            xps_space(p);
+        }
         const char *r = p->s;
         int op = r[1] == '=' && (*r == '+' || *r == '-' || *r == '*' || *r == '/') ? *r : 0;
         if ((*r == '=' && r[1] != '=' && r[1] != '>') || op) {
@@ -1082,6 +1132,7 @@ internal void xps_stmt(struct xps *p, struct xnode **out) {
             if (!o) return;
             o->s = _strdup(name);
             o->a = v;
+            o->n = ty;   // a let's type as written (X_ANY: its value's)
             *out = XOFF(p, o);
             return;
         }
@@ -1280,7 +1331,7 @@ internal void x_kind_list(int kind, char *t, int cap) {
 // A let is known in its whole block from the start (a function made before it may call it later), but the code of
 // the same function reads it only after it (decl: passed).
 // kind: what a name's value is as far as the check knows (host.h: X_ANY, a kind of the host's objects - from its let)
-struct xscope { const struct xscope *up; const char *name[64]; int n; unsigned char decl[64]; int blk; short kind[64]; };
+struct xscope { const struct xscope *up; const char *name[64]; int n; unsigned char decl[64]; int blk; short kind[64]; const struct xnode *fn[64]; };
 // 1: there (*own: the running function's - this scope or a block it is in), 2: the same function's, its let not passed yet
 internal int xsc_find(const struct xscope *s, const char *name, size_t len, int *own) {
     for (int crossed = 0; s; s = s->up) {
@@ -1297,15 +1348,25 @@ internal void xsc_add(struct xscope *s, const char *name) {
     for (int i = 0; i < s->n; i++) if (!strcmp(s->name[i], name)) return;
     if (s->n < 64) { s->decl[s->n] = 1; s->name[s->n++] = name; }
 }
-internal void xsc_pass(struct xscope *s, const char *name, int kind) {   // its let reached: what it is
-    for (int i = 0; i < s->n; i++) if (!strcmp(s->name[i], name)) { s->decl[i] = 1; s->kind[i] = (short)kind; }
+internal void xsc_pass(struct xscope *s, const char *name, int kind, const struct xnode *fn) {   // its let reached: what it is
+    for (int i = 0; i < s->n; i++) if (!strcmp(s->name[i], name)) { s->decl[i] = 1; s->kind[i] = (short)kind; s->fn[i] = fn; }
+}
+// the function a variable holds as far as the check knows (its let's (a, b) => ..., not set since): NULL not known
+internal const struct xnode *xsc_fn(const struct xscope *s, const char *name, size_t len) {
+    for (; s; s = s->up)
+        for (int i = 0; i < s->n; i++) if (strlen(s->name[i]) == len && !strncmp(s->name[i], name, len)) return s->fn[i];
+    return NULL;
+}
+internal void xsc_fn_set(const struct xscope *s, const char *name, const struct xnode *fn) {   // (a variable set anew)
+    for (; s; s = s->up)
+        for (int i = 0; i < s->n; i++) if (!strcmp(s->name[i], name)) { ((struct xscope *)s)->fn[i] = fn; return; }
 }
 internal int xsc_kind(const struct xscope *s, const char *name, size_t len) {
     for (; s; s = s->up)
         for (int i = 0; i < s->n; i++) if (strlen(s->name[i]) == len && !strncmp(s->name[i], name, len)) return s->kind[i];
     return X_ANY;
 }
-struct xcheck { struct xctx *c; int script; const char *why; int line; char whybuf[200]; int loops; };
+struct xcheck { struct xctx *c; int script; const char *why; int line; char whybuf[200]; int loops; int ctx; };
 // a node's value as the old parser saw it while only reading: a number or a text written as such, nothing for the
 // rest - what "12" == 12 is caught with when a file is read
 struct xsv { int w, has_n, has_s; double n; };
@@ -1536,7 +1597,7 @@ internal int x_check_body(struct xcheck *k, const struct xnode *body, struct xsc
     if (k->script && !sc->up && !sc->blk)   // the script's top: its setup blocks, on their own
         for (int i = 0; i < body->n_items; i++) {
             if (!x_is_setup(body->items[i])) continue;
-            struct xscope none = { NULL, { 0 }, 0, { 0 }, 0, { 0 } };
+            struct xscope none = { NULL, { 0 }, 0, { 0 }, 0, { 0 }, { 0 } };
             if (!x_check(k, body->items[i]->items[0], &none)) return 0;
         }
     for (int i = 0; i < body->n_items; i++) {   // known in the whole block - a function made before may call one later
@@ -1550,7 +1611,7 @@ internal int x_check_body(struct xcheck *k, const struct xnode *body, struct xsc
     return 1;
 }
 internal int x_check_block(struct xcheck *k, const struct xnode *blk, const struct xscope *sc) {   // an if's, a loop's
-    struct xscope b = { sc, { 0 }, 0, { 0 }, 1, { 0 } };
+    struct xscope b = { sc, { 0 }, 0, { 0 }, 1, { 0 }, { 0 } };
     return x_check_body(k, blk, &b);
 }
 internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc) {
@@ -1583,15 +1644,29 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
         return 1;
     }
     case XN_LAMBDA: {
-        struct xscope s = { sc, { 0 }, 0, { 0 }, 0, { 0 } };
+        struct xscope s = { sc, { 0 }, 0, { 0 }, 0, { 0 }, { 0 } };
         for (int i = 0; i < n->n_items; i++) {   // its parameters: none hides a name around it either
-            if (!x_check_new_name(k, n->items[i], n->items[i]->s, sc)) return 0;
-            xsc_add(&s, n->items[i]->s);
+            const struct xnode *pi = n->items[i];
+            if (!x_check_new_name(k, pi, pi->s, sc)) return 0;
+            int ty = (int)pi->n ? (int)pi->n : k->ctx;   // its type: as written, else where the function goes (every's run)
+            if (!ty && k->script) {   // a script's: written where nothing tells it
+                snprintf(k->whybuf, sizeof k->whybuf, "%s: a parameter's type - (%s: int) => ... (int, float, text, player ...)", pi->s, pi->s);
+                return xc_fail(k, pi, k->whybuf);
+            }
+            if ((int)pi->n && k->ctx && !xt_fits((int)pi->n, k->ctx)) {   // every's run as a text
+                char a[40], b[40];
+                snprintf(k->whybuf, sizeof k->whybuf, "%s: %s - it gets a%s %s here", pi->s, xty_name((int)pi->n, a, sizeof a),
+                         strchr("aeiou", *xty_name(k->ctx, b, sizeof b)) ? "n" : "", b);
+                return xc_fail(k, pi, k->whybuf);
+            }
+            xsc_add(&s, pi->s);
+            if (s.n) s.kind[s.n - 1] = (short)ty;
         }
-        int loops = k->loops;   // (a break in it is none of a loop around it)
-        k->loops = 0;
+        int loops = k->loops, ctx = k->ctx;   // (a break in it is none of a loop around it; a function in it has no context)
+        k->loops = k->ctx = 0;
         int ok = x_check_body(k, n->a, &s);
         k->loops = loops;
+        k->ctx = ctx;
         return ok;
     }
     case XN_BLOCK: {   // a script's statements (its top)
@@ -1599,7 +1674,16 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
     }
     case XN_LET:
         if (!x_check(k, n->a, sc)) return 0;   // (its own name not yet: let n = n + 1 is a mistake)
-        xsc_pass(sc, n->s, x_stype(k, n->a, sc));   // its type: its value's
+        {
+            int tw = (int)n->n, tv = x_stype(k, n->a, sc);   // its type: as written (let n: float = 5), else its value's
+            if (!xt_fits(tw, tv)) {
+                char a[40], b[40];
+                snprintf(k->whybuf, sizeof k->whybuf, "let %s: %s = ...: a%s %s can't go in%s", n->s, xty_name(tw, a, sizeof a),
+                         strchr("aeiou", *xty_name(tv, b, sizeof b)) ? "n" : "", b, tw == XT_INT && tv == XT_FLOAT ? " - int(...), round(...)" : "");
+                return xc_fail(k, n, k->whybuf);
+            }
+            xsc_pass(sc, n->s, tw ? tw : tv, n->a && n->a->k == XN_LAMBDA ? n->a : NULL);
+        }
         return 1;
     case XN_ASSIGN: {
         int f = xsc_find(sc, n->s, strlen(n->s), NULL);   // (the code around's too: set in its own frame)
@@ -1608,6 +1692,7 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
         else {
             if (!x_check(k, n->a, sc)) return 0;
             int kv = xsc_kind(sc, n->s, strlen(n->s)), kr = x_stype(k, n->a, sc);
+            xsc_fn_set(sc, n->s, NULL);   // the function it holds: not known any more (set in an if, a loop ...)
             if (xt_fits(kv, kr)) return 1;   // a type it has from its let: another can't go in (an int a float can't)
             char tv[40], tr[40];
             snprintf(k->whybuf, sizeof k->whybuf, "%s is a%s %s (its let) - a%s %s can't go in%s", n->s, strchr("aeiou", *xty_name(kv, tv, sizeof tv)) ? "n" : "", tv,
@@ -1620,7 +1705,7 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
         return !n->b || (n->b->k == XN_IF ? x_check(k, n->b, sc) : x_check_block(k, n->b, sc));
     case XN_WHILE: case XN_FOR: {
         if (!x_check(k, n->k == XN_WHILE ? n->c : n->a, sc) || !x_check(k, n->b, sc)) return 0;
-        struct xscope b = { sc, { 0 }, 0, { 0 }, 1, { 0 } };
+        struct xscope b = { sc, { 0 }, 0, { 0 }, 1, { 0 }, { 0 } };
         if (n->k == XN_FOR) {   // its name: a list's items' kind (for p in game.players: a player)
             if (!x_check_new_name(k, n, n->s, sc)) return 0;
             xsc_add(&b, n->s);
@@ -1689,8 +1774,14 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
         for (int i = 0; i < n->n_items; i++) if (!x_check(k, n->items[i]->a, sc)) return 0;
         return 1;
     case XN_CALL: {
-        for (int i = 0; i < n->n_items; i++) if (!x_check(k, n->items[i], sc)) return 0;   // the arguments first
         const char *name = n->s;
+        for (int i = 0; i < n->n_items; i++) {   // the arguments first - every's function gets its parameter's type: (run) => ...
+            int ctx = k->ctx;
+            if (k->script && !strcmp(name, "every") && i == n->n_items - 1 && !xsc_find(sc, name, strlen(name), NULL)) k->ctx = XT_INT;
+            int ok = x_check(k, n->items[i], sc);
+            k->ctx = ctx;
+            if (!ok) return 0;
+        }
         int nk = n->n_items < 8 ? n->n_items : 8, f = x_fn_id(name, nk);
         struct xsv a0 = nk ? xsv_of(n->items[0]) : (struct xsv){ 0, 0, 0, 0 };
         if (f == 1 && a0.has_n && a0.n > 1) return xc_fail(k, n, "chance takes a probability, 0 to 1: chance(70%) or chance(0.7)");
@@ -1698,6 +1789,22 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
         if (!strchr(name, '.')) {
             int v = xsc_find(sc, name, strlen(name), NULL);
             if (v == 2) { snprintf(k->whybuf, sizeof k->whybuf, "%s is called before its let", name); return xc_fail(k, n, k->whybuf); }
+            const struct xnode *fd = v ? xsc_fn(sc, name, strlen(name)) : NULL;
+            if (fd && k->script) {   // a function a let made: its parameters' count and types
+                if (fd->n_items != n->n_items) {
+                    snprintf(k->whybuf, sizeof k->whybuf, "%s takes %d argument%s", name, fd->n_items, fd->n_items == 1 ? "" : "s");
+                    return xc_fail(k, n, k->whybuf);
+                }
+                for (int i = 0; i < n->n_items; i++) {
+                    int tp = (int)fd->items[i]->n, ta = x_stype(k, n->items[i], sc);
+                    char a[40], b[40];
+                    if (xt_fits(tp, ta)) continue;
+                    snprintf(k->whybuf, sizeof k->whybuf, "%s(...): its %s is a%s %s - a%s %s can't go in%s", name, fd->items[i]->s,
+                             strchr("aeiou", *xty_name(tp, a, sizeof a)) ? "n" : "", a, strchr("aeiou", *xty_name(ta, b, sizeof b)) ? "n" : "", b,
+                             tp == XT_INT && ta == XT_FLOAT ? " - int(...), round(...)" : "");
+                    return xc_fail(k, n, k->whybuf);
+                }
+            }
             if (v) return 1;   // a function in a variable
             int sf = k->script ? x_script_fn(name) : -1;
             if (sf >= 0) {
@@ -3039,8 +3146,8 @@ internal int x_syntax(const char *src, const char **why) {
     c.found = 1;   // no players looked up
     const struct xunit *u = x_compiled(src);
     if (!u->ok) { *why = u->why ? u->why : "not an expression"; return 0; }
-    struct xcheck k = { &c, 0, NULL, 0, "", 0 };
-    struct xscope sc = { NULL, { 0 }, 0, { 0 }, 0, { 0 } };
+    struct xcheck k = { &c, 0, NULL, 0, "", 0, 0 };
+    struct xscope sc = { NULL, { 0 }, 0, { 0 }, 0, { 0 }, { 0 } };
     if (!x_check(&k, u->root, &sc)) { *why = k.why ? k.why : "not an expression"; return 0; }
     return 1;
 }
