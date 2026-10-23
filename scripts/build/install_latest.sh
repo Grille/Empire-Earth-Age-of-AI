@@ -8,7 +8,7 @@
 # installs again afterwards (HEAD then, whatever came meanwhile). Log: local/work/install.log.
 # usage: sh scripts/build/install_latest.sh       (normally the hook's)
 cd "$(dirname "$0")/../.." || exit 1
-mkdir -p work
+mkdir -p local/work
 L=local/work/install.lock
 touch local/work/install.pending
 if ! mkdir "$L" 2>/dev/null; then   # one runs: it picks the pending one up - unless it died (its pid gone)
