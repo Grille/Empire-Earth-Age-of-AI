@@ -50,6 +50,7 @@
     D(SITE_SIM_WAIT, 0x005533C5, 0x005614D6) \
     D(CALL_EPOCH_CATCH_UP, 0x0055A5B5, 0x00569633)                            /* its one call: EEPlayer::vf41, a human reached an epoch */ \
     D(EXIT_CONFIRM_AT, 0x005D0B2C, 0x005E1438) \
+    D(CALL_UNLOAD_MARKS, 0x005DCDBD, 0x005ED592)                              /* the group's unload order (0x5DB641): FN_ORDER_MARKS */ \
     D(CALL_GOAL_FBA_CHECK, 0x005ED9BF, 0x005FBA9C)                            /* in 0x5ED24B: FN_GOAL_FBA_CHECK on a dynamic_cast, unchecked */ \
     D(AT_GOAL_SET_READ, 0x005F0634, 0x005FE8DA) \
     D(CALL_GOALSET_ASK, 0x005F0FFA, 0x005FF364) \

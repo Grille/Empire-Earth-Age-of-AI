@@ -73,13 +73,40 @@ internal inline void mouse_update(ee_mouse *m) { GF(FN_MOUSE_UPDATE)(m); }
 // the UI manager's current form, an edit box's text, the settings saved to the registry (as the options screens do)
 internal inline ee_ui_form *ui_current_form(void *uim) { return ((ee_ui_form *(__thiscall *)(void *))*(void **)GA(IAT_UIM_FORM))(uim); }
 internal inline const char *edit_text(void *edit) { return ((const char *(__thiscall *)(void *, unsigned long))*(void **)GA(IAT_EDIT_GET_TEXT))(edit, 0); }
-// A COMMAND'S CIRCLES (transports.c): graphical effects by handle - added (the original of the click's hook), gone
-// already (they fade) or taken away (as the game's area effects end theirs); a click's circle on a tile's centre for the
-// player on this PC (only this PC's own command's: it draws for the PC's player)
+// A COMMAND'S CIRCLES (transports.c): the graphical effects' kinds by their ids (FN_GFX_KIND's records; the same in
+// both builds) - what the code that draws them shows them for
+enum gfx_kind {
+    GFX_ORDER_ON = 0xB8,       // the yellow circle at a unit's goal, drawn with the unit (FN_ORDER_MARKS, per unit)
+    GFX_ORDER_ATTACK = 0xB9,   // the attack-ground command's (FN_ORDER_MARKS)
+    GFX_ORDER_AT = 0xBA,       // the yellow circle at a goal, no unit (FN_ORDER_MARKS: one for the group)
+    GFX_CLICK = 0xD1,          // the click confirmation on the ground (the mouse click, 0x404A26; 0x663138)
+    GFX_CLICK_ON = 0xD3,       // the click confirmation on the unit clicked
+    GFX_GOAL_0 = 0x60, GFX_GOAL_1 = 0x62, GFX_GOAL_2 = 0xD2,   // the selected units' goal markers (the graphical goal
+    GFX_GOAL_3 = 0xD4, GFX_GOAL_4 = 0xD5, GFX_GOAL_5 = 0xD6,   // manager 0x4FCDF9, its six kinds 0..5: 0x4FCB50)
+};
+enum { ORDER_MARKS_GOALS = 0xBB };   // FN_ORDER_MARKS' how: a GFX_ORDER_ON at each unit's goal (the group's unload's)
+// graphical effects by handle - added (the original of the click's hook), gone already (they fade) or taken away (as
+// the game's area effects end theirs); a command's circles as the game draws them (every PC, seen by owner - a player
+// index): of kind k with the unit on at a tile's centre on the ground, or at each of a group's units' goals
 internal inline int gfx_add(void *fx, void *on, float *pos, void *kind, int *handle, int arg) { return GF(FN_GFX_ADD)(fx, on, pos, kind, handle, arg); }
 internal inline int gfx_alive(int handle) { return GF(FN_GFX_GET)(*(void **)GA(G_GFX_EFFECTS), handle) != NULL; }
 internal inline void gfx_remove(int handle) { if (gfx_alive(handle)) GF(FN_GFX_REMOVE)(*(void **)GA(G_GFX_EFFECTS), handle); }
-internal inline void mark_tile(int x, int y) { float p[3] = { (float)x + 0.5f, (float)y + 0.5f, 0.0f }; GF(FN_MARK_AT)(p, NULL); }
+internal inline void gfx_mark(enum gfx_kind k, ee_unit *on, int x, int y, int owner) {
+    void *fx = *(void **)GA(G_GFX_EFFECTS), *rec = GF(FN_GFX_KIND)((unsigned)k);
+    ee_map *map = game_map();
+    unsigned n = map ? map_get_size(map) : 0;
+    if (!fx || !rec || x < 0 || y < 0 || (unsigned)x >= n || (unsigned)y >= n) return;
+    ee_tile *t = map_get_tiles(map)[(unsigned)y * n + (unsigned)x];
+    float pos[3] = { (float)x + 0.5f, (float)y + 0.5f, t && tile_get_height(t) > 0.0f ? tile_get_height(t) : 0.0f };
+    int h = 0;
+    GF(FN_GFX_ADD)(fx, on, pos, rec, &h, 0);
+    ee_gfx *e = h ? GF(FN_GFX_GET)(fx, h) : NULL;
+    if (!e) return;
+    FIELD(e, GFX_SHOWN, uint8_t) = 1;
+    FIELD(e, GFX_OWNER, int) = owner;
+    FIELD(e, GFX_0x2E, uint8_t) = 0;
+}
+internal inline void order_marks(void *grp, void *on, int owner, int how, unsigned goal) { GF(FN_ORDER_MARKS)(grp, on, owner, how, goal); }
 
 // HOOKS
 // the camera's scroll action (camera.c), and its timer's period: push 25 (AoC 10) ms -> value
@@ -119,6 +146,9 @@ internal inline int patch_editor_form(editor_form_hook h) { return patch_call(GA
 typedef int (__thiscall *click_mark_hook)(void *fx, void *on, float *pos, void *kind, int *handle, int arg);
 internal inline int patch_click_mark(click_mark_hook h) { return patch_call(GA(CALL_CLICK_MARK), GA(FN_GFX_ADD), (void *)h); }
 internal inline int click_mark_on_id(const void *on) { return FIELD(on, UNIT_SERIAL, int); }
+// the group's unload order's circles (transports.c: the spread comes first)
+typedef void (__cdecl *order_marks_hook)(void *grp, void *on, int owner, int how, unsigned goal);
+internal inline int patch_unload_marks(order_marks_hook h) { return patch_call(GA(CALL_UNLOAD_MARKS), GA(FN_ORDER_MARKS), (void *)h); }
 // the players' colours (voice/persona.c)
 typedef void *(__cdecl *player_color_hook)(unsigned idx);
 internal inline int patch_player_color(player_color_hook h) { return patch_call(GA(CALL_PLAYER_COLOR), GA(FN_COLOR_RGB), (void *)h); }

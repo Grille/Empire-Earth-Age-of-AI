@@ -532,16 +532,21 @@ conditions, 162 states with their ids) were dumped by a helper, not kept in the 
   unload goal at that tile. The mod's transport_split / transport_unload_spread (dll/ai/transports.c) hook both
   Executes. The unit id (+0x24, player in bits 24..31) finds the unit back through 0x53B889 on G_GAME_STATE (its
   handle's +0x30). The sender byte (+0xA) is the player's +0x464, not its index.
-- A command's yellow circle: the mouse click (EEAMouseClick::vf3, 0x403CF1) draws it itself on the clicking PC, before
-  the message runs, at 0x404A26: the effect 0xD3 on the unit clicked or 0xD1 on the ground (0x404C83 maps the id to
-  its record), FN 0x4FB6D4 on the graphical effects [0x918E1C] (thiscall(unit or 0, float pos[3], kind, int *handle,
-  0)), then the effect (0x4FBE3E by handle) +0x2D = 1, +0x20 = the player who sees it (+0x45C), +0x2E = 0. 0x663138
-  (pos, unit or 0) does the same for the player on this PC. An effect goes by its handle through 0x4FBEB2 (the area
-  effects end theirs so); 0x4FBE3E gives NULL once it is gone (it fades). The unload Execute calls 0x4B12A2 (the
-  circles at a group's goals, for the sender) only in its move branch - a group with a loaded transport takes the
-  other (state 12001), so an unload shows the click's circle alone. The mod's split and spread take the click's
-  circle away and draw one where each transport goes (on the commanding player's PC; effects are no simulation state,
-  the click's are drawn on one PC only too).
+- A command's markers are graphical effects (ids: game/api/ui.c's enum gfx_kind; 0x404C83 maps an id to its record):
+  - The click confirmation: the mouse click (EEAMouseClick::vf3, 0x403CF1) draws it itself on the clicking PC, before
+    the message runs, at 0x404A26 - 0xD3 on the unit clicked or 0xD1 on the ground - through 0x4FB6D4 on the graphical
+    effects [0x918E1C] (thiscall(unit or 0, float pos[3], kind, int *handle, 0); its result is no success flag, the
+    handle tells), then the effect (0x4FBE3E by handle) +0x2D = 1, +0x20 = the player who sees it (+0x45C), +0x2E = 0.
+    0x663138 (pos, unit or 0) draws the same for the player on this PC. An effect goes by its handle through 0x4FBEB2
+    (the area effects end theirs so); 0x4FBE3E gives NULL once it is gone (it fades).
+  - The yellow circles: 0x4B12A2 (cdecl(group, 0, owner, how, 0), in the simulation on every PC, seen by the owner) at
+    the group's units' goals - 0xB8 one with each unit at its goal, 0xBA one at the goal without a unit, 0xB9 the
+    attack-ground's. Called by the orders' Executes and by the group's hand-out of its goal (0x5DD463); the unload's
+    (state 12001, 0x5DB641) calls it last with how 0xBB at 0x5DCDBD: a 0xB8 at each transport's goal - the "3 circles
+    where one ship goes" with one goal for all. The unload Execute's own call (0x4BF997) is in its move branch only.
+  - The mod's split and spread (transports.c) take the click confirmation away and give each transport its own
+    yellow circle: the unload's spread runs in that 0x5DCDBD call before the circles are drawn; the load draws a 0xB8
+    with each transport at its meeting point (the split bypasses the load Execute, which drew none of its own).
 
 ## Resource manager details
 

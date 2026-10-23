@@ -28,6 +28,7 @@ typedef struct ee_asg_target ee_asg_target;     // ASG_TARGET_REC: a subgroup's 
 typedef struct ee_map ee_map;                   // MAP: the map, [G_MAP] (EEMap)
 typedef struct ee_tile ee_tile;                 // TILE: a map tile
 typedef struct ee_grid ee_grid;                 // GRID: the map's unit grid, MAP +0x181724
+typedef struct ee_gfx ee_gfx;                   // GFX: a graphical effect (a command's circle), FN_GFX_GET
 typedef struct ee_grid_cell ee_grid_cell;       // GRIDCELL: a cell of the unit grid (16 bytes)
 typedef struct ee_unit_vis ee_unit_vis;         // SITEOWN: a unit's visibility record, its +0x14
 typedef struct ee_asgu_info ee_asgu_info;       // ASGUINFO: what FN_ASGU_SCORE scores

@@ -43,6 +43,7 @@
 //   TTREC        the tech tree's epoch records, TT + 8 + epoch * 0x54
 //   EPOCHTECHS   G_EPOCH_TECHS' records
 //   EFFECT       G_EFFECTS' records
+//   GFX          a graphical effect (a command's circle), [G_GFX_EFFECTS] by its handle (FN_GFX_GET)
 //   ZONE         an AI town or resource zone
 //   SITEOWN      a unit's visibility record, its +0x14 (a site's: its ownership flag too)
 //   CMLIST       the civilization manager's list nodes
@@ -149,6 +150,9 @@
     O(EFFECT_NEW_TYPE, 0x18, 0x18) /* v: the tech tree code's reads (unchanged) */ \
     O(EFFECT_KIND, 0x20, 0x20) /* v: the tech tree code's reads (unchanged) */ \
     O(EFFECT_ATTR, 0x2C, 0x2C) /* v: the tech tree code's reads (unchanged) */ \
+    O(GFX_OWNER, 0x20, 0x20) /* c: 0x663138's writes (both builds; FN_ORDER_MARKS' the same): the player index that sees it */ \
+    O(GFX_SHOWN, 0x2D, 0x2D) /* c: 0x663138's writes (both builds; FN_ORDER_MARKS' the same), 1 */ \
+    O(GFX_0x2E, 0x2E, 0x2E) /* c: 0x663138's writes (both builds; FN_ORDER_MARKS' the same), 0 */ \
     O(EPOCHTECHS_IDS, 0x4, 0x4) /* v: the tech tree code's reads (unchanged) */ \
     O(EPOCHTECHS_COUNT, 0x8, 0x8) /* v: the tech tree code's reads (unchanged) */ \
     O(E_DSTATE_DEVICE, 0x1C, 0x1C) /* c */ \

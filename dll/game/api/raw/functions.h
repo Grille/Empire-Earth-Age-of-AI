@@ -8,6 +8,7 @@
     /* thiscall (tile x, tile y): set target + queue (only if tile valid) */ \
     F(FN_CAMACT_SET, void, __thiscall, (void *, int, int), 0x00401F3E, 0x00401EE0) \
     F(FN_EXPLORED, char, __thiscall, (void *, void *), 0x00404A8A, 0x004042E2) /* thiscall(site+0x14 object, player) -> bool */ \
+    F(FN_GFX_KIND, void *, __cdecl, (unsigned), 0x00404C83, 0x0040432F)      /* a graphical effect's record by its id (enum gfx_kind) */ \
     F(FN_SAVE_ACTION_CTOR, void *, __thiscall, (void *, void *, int, struct ustring), 0x00404FA1, 0x00404613) \
     F(FN_SCROLL_EXECUTE, void, __thiscall, (void *), 0x004050FC, 0x0040478E) \
     /* point from int x, y (the task location's point) */ \
@@ -102,6 +103,8 @@
     /* thiscall(wall manager, int from[2], int to[2], type, char) */ \
     F(FN_BUILD_WALL, void, __thiscall, (void *, int *, int *, int, char), 0x00497C3F, 0x0049D05F) \
     F(FN_VECTOR_SIZE, unsigned, __thiscall, (void *), 0x004A670A, 0x0047C428) \
+    /* cdecl(group, 0, owner (a player's +0x45C), how (0xBB: a GFX_ORDER_ON circle at each unit's goal), 0): a command's circles */ \
+    F(FN_ORDER_MARKS, void, __cdecl, (void *, void *, int, int, unsigned), 0x004B12A2, 0x004B86CD) \
     F(FN_INGAME_CHAT, void, __thiscall, (void *), 0x004B78C7, 0x004BFDD2) \
     F(FN_MSG_LOAD, void, __thiscall, (void *), 0x004B9446, 0x004C1B79)        /* EEMLoadTransport's Execute */ \
     F(FN_PAY_TRIBUTE, void, __thiscall, (void *), 0x004BA6BE, 0x004C315B) \
@@ -115,7 +118,7 @@
     F(FN_ATTACK_BONUS, float, __thiscall, (void *, int, void *, int, int), 0x004D5F2C, 0x004DBE44) \
     /* thiscall([G_GFX_EFFECTS], unit or 0, float pos[3], kind, int *handle, 0): a graphical effect added (0: done) */ \
     F(FN_GFX_ADD, int, __thiscall, (void *, void *, float *, void *, int *, int), 0x004FB6D4, 0x00506038) \
-    F(FN_GFX_GET, uint8_t *, __thiscall, (void *, int), 0x004FBE3E, 0x00506852)   /* thiscall([G_GFX_EFFECTS], handle): NULL gone */ \
+    F(FN_GFX_GET, ee_gfx *, __thiscall, (void *, int), 0x004FBE3E, 0x00506852)   /* thiscall([G_GFX_EFFECTS], handle): NULL gone */ \
     F(FN_GFX_REMOVE, int, __thiscall, (void *, int), 0x004FBEB2, 0x005068C6)      /* thiscall([G_GFX_EFFECTS], handle) */ \
     F(FN_MOUSE_CLAMP, void, __thiscall, (void *), 0x00510DAD, 0x0051B31C) \
     F(FN_MOUSE_UPDATE, void, __thiscall, (void *), 0x00510E5D, 0x0051B3CC) \
@@ -210,8 +213,6 @@
     F(FN_QUEUE_ACTION, void, __thiscall, (void *, void *), 0x0066192F, 0x00678F79) \
     /* thiscall(ui [G_UI], colour, name, line, ms, 0): a chat or system line */ \
     F(FN_UI_LINE, void, __thiscall, (void *, void *, void *, void *, int, int), 0x00661E91, 0x006794C6) \
-    /* cdecl(float pos[3], unit or 0): a click's circle on the ground at pos (its height the map's) or on the unit, for the player on this PC */ \
-    F(FN_MARK_AT, void, __cdecl, (float *, void *), 0x00663138, 0x0067A644) \
     F(FN_NEW, void *, __cdecl, (size_t), 0x00683718, 0x0069D178)              /* the game's operator new */ \
     D(IAT_RESOURCE_STRING, 0x0082319C, 0x00837198)                            /* the game's string resource (a language entry) */ \
     D(IAT_WSTRING_CTOR, 0x008231A4, 0x008371A0)                               /* UWideString::UWideString() */ \

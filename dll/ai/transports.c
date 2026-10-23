@@ -350,7 +350,7 @@ internal int tw_load_split(ee_player *pl, ee_unit **tr, int nt, ee_unit **us, in
     }
     static ee_unit *list[1024];
     ivec2 meet[16];
-    int nmeet = 0, moved = 0, mine = player_get_index(pl) == (int)local_player_index();
+    int nmeet = 0, moved = 0;
     *used = 0;
     for (int k = 0; k < nt; k++) {   // then the goals
         if (!m[k]) continue;
@@ -384,7 +384,7 @@ internal int tw_load_split(ee_player *pl, ee_unit **tr, int nt, ee_unit **us, in
             }
             if (!unit_goal(t, g, 0, TW_PREPARE_TO_MOVE)) continue;   // refused: deleted, no parts from it
         }
-        if (mine && goal_get_meeting_ship_x(g) >= 0) mark_tile(goal_get_meeting_ship_x(g), goal_get_meeting_ship_y(g));   // this PC's player's command: where it goes
+        gfx_mark(GFX_ORDER_ON, t, goal_get_meeting_ship_x(g), goal_get_meeting_ship_y(g), player_get_index(pl));   // where it goes, as the game's circles
         for (int i = 0; i < n; i++) given += unit_goal(list[i], goal_load_part(g), 0, TW_PREPARE_TO_MOVE);
         (*used)++;
     }
@@ -392,12 +392,13 @@ internal int tw_load_split(ee_player *pl, ee_unit **tr, int nt, ee_unit **us, in
                        game_time() / 60000.0, given, *used, nt, moved, nu - given);
     return given;
 }
-// The mouse click's circle (this PC's, drawn at the click, before the command's message runs): the last one, its
-// handle, the unit clicked's id (-1: the ground) and the tile. The load split and the unload spread take it away where
-// they draw a circle where each transport goes (this PC's player's command: the circles are drawn for it).
+// The mouse click's confirmation (this PC's, drawn at the click, before the command's message runs; GFX_CLICK,
+// GFX_CLICK_ON): the last one, its handle, the unit clicked's id (-1: the ground) and the tile. The load split and the
+// unload spread take it away - the yellow circles where each transport goes say it (this PC's player's command).
 internal int __thiscall hook_click_mark(void *fx, void *on, float *pos, void *kind, int *handle, int arg) {
+    if (handle) *handle = 0;   // (its result isn't a success flag: the handle says whether it was drawn)
     int r = gfx_add(fx, on, pos, kind, handle, arg);
-    g_tw_click_mark = !r && handle ? *handle : 0;
+    g_tw_click_mark = handle && *handle && gfx_alive(*handle) ? *handle : 0;
     g_tw_click_on = g_tw_click_mark && on ? click_mark_on_id(on) : -1;
     g_tw_click_at = pos ? iv2((int)pos[0], (int)pos[1]) : iv2(-1, -1);
     return r;
@@ -446,11 +447,15 @@ internal int tw_unload_spread(ee_player *pl, ee_unit **tr, int nt, ivec2 p, ivec
                        p.x, p.y, nt, spread);
     return spread;
 }
-internal void __thiscall hook_msg_unload(ee_msg *msg) {
-    msg_unload(msg);
-    ee_player *pl = g_tw_spread ? game_player(msg_get_from(msg)) : NULL;
-    void *grp = pl ? player_get_selected_group(pl) : NULL;
-    if (!grp) return;
+// The unload command: the Execute gives the selected group its unload goal at the clicked tile, the group hands it to
+// its transports (0x5DB641) and draws a yellow circle at each one's goal (FN_ORDER_MARKS, CALL_UNLOAD_MARKS) - the
+// spread comes in between, so each circle is at its transport's own tile. Should the circles' call not come, the
+// spread follows the Execute (no circles then).
+internal ee_msg *g_tw_unload_msg;   // the unload command being executed
+internal int g_tw_unload_done;      // ... its spread done
+internal void tw_unload_group(ee_msg *msg, void *grp) {
+    ee_player *pl = game_player(msg_get_from(msg));
+    if (!pl || !grp) return;
     ee_unit *tr[16];
     ivec2 at[16], p = iv2(unload_msg_get_x(msg), unload_msg_get_y(msg));
     int nt = 0;
@@ -459,10 +464,20 @@ internal void __thiscall hook_msg_unload(ee_msg *msg) {
         ee_goal *g = tw_carrier(pl, t) ? unit_get_goal(t) : NULL;
         if (g && goal_is_unload(g) && units_inside(t) > 0) tr[nt++] = t;
     }
-    if (nt < 2 || !tw_unload_spread(pl, tr, nt, p, at)) return;
-    tw_click_mark_off(pl, -1, p);   // the click's circle: one where each transport lands instead
-    if (player_get_index(pl) == (int)local_player_index())
-        for (int k = 0; k < nt; k++) mark_tile(at[k].x, at[k].y);
+    g_tw_unload_done = 1;
+    if (nt >= 2 && tw_unload_spread(pl, tr, nt, p, at)) tw_click_mark_off(pl, -1, p);   // the click's confirmation: the circles say it
+}
+internal void __cdecl hook_unload_marks(void *grp, void *on, int owner, int how, unsigned goal) {
+    if (g_tw_unload_msg && !g_tw_unload_done) tw_unload_group(g_tw_unload_msg, grp);
+    order_marks(grp, on, owner, how, goal);
+}
+internal void __thiscall hook_msg_unload(ee_msg *msg) {
+    g_tw_unload_msg = msg;
+    g_tw_unload_done = 0;
+    msg_unload(msg);
+    g_tw_unload_msg = NULL;
+    ee_player *pl = g_tw_unload_done ? NULL : game_player(msg_get_from(msg));
+    if (pl) tw_unload_group(msg, player_get_selected_group(pl));
 }
 
 // pipe `transports load P x y [r]`: P's transports and land units within r tiles (default 15) of x, y shared out as the
@@ -579,7 +594,7 @@ internal void tw_install(const char *aimod_ini, const char *autotest_ini) {
         g_tw_meet = ini_int("autotest", "transport_meeting", 1, autotest_ini);
     }
     int hc = g_tw_split || g_tw_spread ? patch_click_mark(hook_click_mark) : 0;
-    int hl = g_tw_split ? patch_msg_load(hook_msg_load) + hc : 0, hu = g_tw_spread ? patch_msg_unload(hook_msg_unload) + hc : 0;
+    int hl = g_tw_split ? patch_msg_load(hook_msg_load) + hc : 0, hu = g_tw_spread ? patch_msg_unload(hook_msg_unload) + patch_unload_marks(hook_unload_marks) + hc : 0;
     if (g_log) fprintf(g_log, "# tw: the player's load split %d (hooks %s), unload spread %d (hooks %s)\n", g_tw_split, g_tw_split ? (hl == 2 ? "ok" : "FAILED") : "-",
-                       g_tw_spread, g_tw_spread ? (hu == 2 ? "ok" : "FAILED") : "-");
+                       g_tw_spread, g_tw_spread ? (hu == 3 ? "ok" : "FAILED") : "-");
 }
