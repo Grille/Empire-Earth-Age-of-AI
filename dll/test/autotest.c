@@ -5,8 +5,30 @@ internal struct { int skip_intro, scenario_mode, turbo, game_seed; double quit_m
 
 #include "test/randmap.c"
 
+// A slot's DDrawCompat log: DDrawCompat (as ddraw.dll) writes DDrawCompat-<exe>[n].log beside the exe, n the first one
+// no running game holds - its name says nothing of the slot, and the log nothing of the process. The game holds its own
+// open, so it is found among this process's file handles and named in the mod's log; run_test.ps1 moves it into the
+// slot's folder once the game has ended (the game folder keeps only the player's). By the first tick ddraw is loaded.
+internal void slot_ddrawcompat_log(void) {
+    static int done;
+    if (!g_slot || done) return;
+    done = 1;
+    WCHAR w[MAX_PATH];
+    for (uintptr_t h = 4; h < 0x10000; h += 4) {   // handle values are multiples of 4; another kind is no disk file
+        if (GetFileType((HANDLE)h) != FILE_TYPE_DISK) continue;
+        DWORD n = GetFinalPathNameByHandleW((HANDLE)h, w, MAX_PATH, 0);
+        const WCHAR *b = n && n < MAX_PATH ? wcsrchr(w, L'\\') : NULL;
+        if (!b || _wcsnicmp(b + 1, L"DDrawCompat-", 12) || _wcsicmp(w + n - 4, L".log")) continue;
+        char a[MAX_PATH * 2];
+        const WCHAR *p = wcsncmp(w, L"\\\\?\\", 4) ? w : w + 4;   // the \\?\ GetFinalPathNameByHandle puts first
+        if (WideCharToMultiByte(CP_ACP, 0, p, -1, a, sizeof a, NULL, NULL)) log_line("# slot: ddrawcompat log %s\n", a);
+        return;
+    }
+}
+
 internal void autotest_first_tick(ee_player *pl) {
     if (g_autotest) randmap_ai_toggles(pl);
+    slot_ddrawcompat_log();
 }
 
 internal void load_autotest(const char *ini) {

@@ -337,6 +337,12 @@ public static class SuspendedStart {
     Remove-Item "$sdir\aimod_autotest.ini" -Confirm:$false -ErrorAction SilentlyContinue
     if (-not (Other-Runners)) { Restore-Sound }   # the last slot running restores the player's sound
 }
+# the game's DDrawCompat log (DDrawCompat-<exe>[n].log in the game folder, its name in the DLL's log: test/autotest.c)
+# into the slot's folder - the game folder keeps the player's. -LiteralPath: the brackets of [n] are no wildcard
+if ($Slot -and (Test-Path "$sdir\aimod_econ.csv")) {
+    $dc = Select-String -Path "$sdir\aimod_econ.csv" -Pattern '^# slot: ddrawcompat log (.+)$' | Select-Object -First 1
+    if ($dc) { Move-Item -LiteralPath $dc.Matches[0].Groups[1].Value "$sdir\ddrawcompat.log" -Force -ErrorAction SilentlyContinue }
+}
 $stamp = Get-Date -Format "yyyyMMdd_HHmmss"
 $dest = "$repo\local\work\autotest_${stamp}$(if ($Slot) { "_s$Slot" })${Tag}.csv"
 if (Test-Path "$sdir\aimod_econ.csv") {
