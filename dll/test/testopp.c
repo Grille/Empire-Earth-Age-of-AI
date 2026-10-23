@@ -1,7 +1,7 @@
 // SEA OPPONENT (tests only; docs/testing.md "Sea opponent", docs/navy.md stage 3 measurement): the idle human slot P1
 // plays a navy the way the playtester does on an island map, so an AI's navy can be measured against what a human
 // does - not only against another AI's (AIs are weak at sea; a 1-3 ship AI fleet holds nothing). Started by the setup
-// line "seaop start <ai> [level]" (scenarios/seaop.eeai), off otherwise; nothing here runs in normal play.
+// line "seaop start <ai> [level]" (tests/scenarios/seaop.eeai), off otherwise; nothing here runs in normal play.
 // - War: P1 and the AI are made enemies at once (the test maps ally the idle human with every AI) - at 2 s, before the
 //   AI's navy_detect (10 s) looks for enemies across the water.
 // - Build-up (spawned - P1 has no economy): warships at its docks on a schedule like a human's, a few early, most by
@@ -40,7 +40,7 @@
 // - Home: P1's island keeps a guard of the AI's soldier types (6 / 10 / 14, 2 more every 30 s) and 2 towers of the
 //   AI's tower type, which attack the AI's land units on P1's island - a human defends, and an idle base would end
 //   the test at the first landing.
-// - Log, every minute: "# sea: P1 vs P<ai> at <m> min (<level>): key=value ..." (scripts/seacontrol.py), and lines
+// - Log, every minute: "# sea: P1 vs P<ai> at <m> min (<level>): key=value ..." (scripts/results/seacontrol.py), and lines
 //   for the waves. Counts from diplo.c's kills by pair (g_kills, g_nv_boat_kills, g_nv_lost_type: with one AI every
 //   loss of the AI's at sea is P1's doing); the AI's citizens killed while P1 has no soldier on the AI's land and no
 //   AI land unit is on P1's island count as killed by ships.

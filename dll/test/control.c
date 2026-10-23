@@ -716,7 +716,7 @@ internal DWORD WINAPI gameover_watch(LPVOID unused) {
 }
 
 // The pipe (peek/poke/spawn/give... - a command on one PC of a multiplayer game desyncs it) only under autotest or
-// with aimod.ini [general] control_pipe=1 (scripts/eectl.py, the MCP server scripts/ee_mcp.py on a normal game).
+// with aimod.ini [general] control_pipe=1 (scripts/test/eectl.py, the MCP server scripts/test/ee_mcp.py on a normal game).
 internal void ctl_start(int pipe) {
     ctl_log("sim loop hook %s", patch_sim_loop() ? "ok" : "FAILED");
     if (g_autotest) CloseHandle(CreateThread(NULL, 0, gameover_watch, NULL, 0, NULL));

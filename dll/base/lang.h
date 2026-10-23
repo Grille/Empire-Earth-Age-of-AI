@@ -3,7 +3,7 @@
 // internal: a function or variable at file level that only this DLL sees (C's static there: internal linkage - the
 // DLL is one translation unit, so it is every part's, but no other module's). C gives static a second meaning
 // inside a function - a variable that keeps its value between calls - and there it stays static. The build holds
-// the line (scripts/style.py): static at file level, internal inside a function are refused.
+// the line (scripts/build/style.py): static at file level, internal inside a function are refused.
 #define internal static
 
 // a function that takes a printf format: the compiler checks its calls' arguments against the format, as it does

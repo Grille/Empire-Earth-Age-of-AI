@@ -1,5 +1,5 @@
 // THE EXE BUILDS THE MOD KNOWS (exe.c tells which one runs): their columns in raw/tables.c's tables, in this order.
-// Art of Conquest's column: scripts/port_addrs.py. Not ready: the player's game runs without the mod, a test run plays it (game_build).
+// Art of Conquest's column: scripts/re/port_addrs.py. Not ready: the player's game runs without the mod, a test run plays it (game_build).
 #define ADDR_BUILDS 2
 internal const struct exe_build { uint32_t hash; const char *name; int ready; } k_exe_builds[ADDR_BUILDS] = {
     { 0x4FB6A479, "ee", 1 },    // the 2017 update (GOG, Steam, empireearth.eu Vanilla)

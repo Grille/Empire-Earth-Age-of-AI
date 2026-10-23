@@ -1,0 +1,27 @@
+{
+  "name": "eeaimod-texts",
+  "displayName": "eeaimod texts",
+  "description": "Highlighting for the eeaimod text files (.eeai): personalities, mod/computer.eeai, mod/prompt.eeai, mod/system.eeai - records, keys, strings, placeholders, expressions - and the setup scripts (tests/scenarios, tests/probes): statements, functions, commands",
+  "version": "0.11.0",
+  "publisher": "eeaimod",
+  "license": "MIT",
+  "engines": { "vscode": "^1.60.0" },
+  "categories": ["Programming Languages"],
+  "contributes": {
+    "languages": [
+      {
+        "id": "eeai",
+        "aliases": ["eeaimod texts"],
+        "extensions": [".eeai"],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "eeai",
+        "scopeName": "source.eeai",
+        "path": "./syntaxes/eeai.tmLanguage.json"
+      }
+    ]
+  }
+}

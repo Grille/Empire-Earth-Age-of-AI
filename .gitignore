@@ -1,31 +1,18 @@
-# Third-party toolchains and environments (see README "Setup")
-/tools/
-/venv/
+# Everything of this machine's that isn't the project's own (README "Setup"): local/
+#   work/         build output of install.sh, test logs and slots, caches
+#   scratch/      notes and leftovers
+#   tools/ venv/  the toolchains (llvm-mingw, Ghidra, JDK) and the Python environment
+#   games/ee/ games/aoc/  derived from the games' copyrighted files - regenerate locally, never commit: the Ghidra
+#                 projects and C dumps, files extracted from data.ssa / Language.dll, the AI settings tables
+#   game_dir.txt  the game folder when the repository is somewhere else (scripts/game_dir.sh, run_test.ps1)
+/local/
 __pycache__/
 *.pyc
 
-# Derived from the game's copyrighted files - regenerate locally, never commit:
-# Ghidra C dump and project of Empire Earth.exe
-/decomp/
-/ghidra_proj/
-# files extracted from data.ssa / Language.dll
-/data/
-/strings_de.json
-/cpbehavior_annotated.txt
-# AI settings tables generated from the game's dbcpbehavior.dat
-/mod/*.dat
+# never committed wherever they are: the game's files and the build
 *.exe
 *.ees
 *.scn
-
-# Build output and test results
 /dll/*.dll
-/work/
 *.csv
 *.png
-
-# Art of Conquest analysis workspace (derived from EE-AOC.exe)
-/aoc/
-
-# the game folder when the repository is somewhere else (scripts/game_dir.sh, run_test.ps1)
-/game_dir.txt

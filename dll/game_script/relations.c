@@ -9,7 +9,7 @@
 // me.opinion(enemy)) - and opinion, at_war, allied alone: the speaker's with them (me.opinion(them)). An opinion is
 // a number and words (mod/system.eeai opinion1..5): "hostile" in a text. Nothing where a value doesn't apply (a relation
 // with oneself, a war that isn't, a player who isn't there).
-// The tables also make the documentation: scripts/gen_eeai_readme.py writes them into aimod_ai\README.md.
+// The tables also make the documentation: scripts/build/gen_eeai_readme.py writes them into aimod_ai\README.md.
 // A script's player also does things (XM_DO): p.win(), p.war(q) - and its stock may be set: p.gold = 500 (SCRIPTS' EFFECTS
 // below); a text changes nothing.
 enum { XM_PLAYER, XM_LINK, XM_REL, XM_FILTER, XM_DO };   // a player's own, a player (them.lord), A.<relation>(B), A.count(filter), an effect

@@ -230,7 +230,7 @@ internal void tw_tick(ee_player *pl, uint32_t now) {
 // Unload: the game's command first (every unit's order as it gives them), then each loaded transport its own beach
 // tile near the clicked one - on that land, at the sea it sails, free, 4 tiles from the others' (3 when the beach is
 // short) - the nearest transport the nearest tile.
-// Measured (2026-10-23, scripts/transport_split.eeai and two variants: Small Islands map seed 1, P1's island, 3 copper
+// Measured (2026-10-23, tests/probes/transport_split.eeai and two variants: Small Islands map seed 1, P1's island, 3 copper
 // transports 2-4 tiles off a beach, 25 macemen inland, through the pipe's `transports`): aboard after 2.5 minutes 75 of
 // 75 in 3 runs (the game's meeting points, transport_meeting=0: 60 - the transport 4 tiles off took none), off the
 // east coast 90 of 90 (81); unloading the 25 at one tile of another island, all ashore 0.4 minutes after the order

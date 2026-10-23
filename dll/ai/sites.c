@@ -169,7 +169,7 @@ internal ee_unit *select_mine_near_drop(ee_resource_mgr *rm, int type, ee_unit *
 // the leftover pass after it (run only while idle ones are left) - idle until the next. Art of Conquest (0x48F3F5)
 // ships only citizens connected to home and not to the mine. Here that search gets only a mine on another continent
 // (region class 2, as the searches compare) than the base, none if there is none. Counted for every player (the
-// game's own AI too): "# overseas mines:" with the islands log. Measured (scenarios/islands.eeai, 60 min, 36 seeds x 2
+// game's own AI too): "# overseas mines:" with the islands log. Measured (tests/scenarios/islands.eeai, 60 min, 36 seeds x 2
 // AIs, on - off): Small Islands e5 citizens +4.2 (se 2.5), home miners +3.1 (1.7), income +659 (1017); Large Islands e9
 // citizens +2.3 (1.1), home miners +1.7 (1.3), income +25 (536); kills, losses, epochs within noise - a small gain
 // within 2 standard errors, on since it costs nothing (2026-10-21, the user).

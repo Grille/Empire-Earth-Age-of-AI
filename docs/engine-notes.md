@@ -120,7 +120,7 @@ Unit grid [[0x9183BC]+0x181724]: +4 cells of 16 bytes {?, begin, end, cap} holdi
 | +0x60 | unit id (lookup 0x4111F6) |
 
 Type data (0x9418A0[type]): +0x4B4 family (2 building, 29 fortress, 5/6 units), +0x4B8 type id, +0x420 range,
-+0x460 line of sight, +0x510 attack, +0x55C hit points, +0x540 influence. Type names: `data/db/converteroutput.log`.
++0x460 line of sight, +0x510 attack, +0x55C hit points, +0x540 influence. Type names: `local/games/ee/data/db/converteroutput.log`.
 Guard towers 47, 461..466; AA 145/147; town center 35; house 37; citizen 32.
 
 Unit list (all units, projectiles and the PathPoint markers 223 of attack routes, sorted by tile x): unit +8 -> node
@@ -174,7 +174,7 @@ vf26 members and route released, vf12, the group's reference) frees nothing twic
   at a WW1 tower x3, the tower at artillery x0.12, a Mk V at machine gunners x2, machine gunner at machine gunner
   x2.1). Stats record (per player and type, 0x492969 on player +0x874): +0xD8 attack, +0xE0.. armour (floats),
   +0x138 reload ms and +0x144 max hp (ints), +0x9C range, +0xA0 area. dll/ai/stats.c computes it (`stats` command).
-  In fights a shot takes the reload plus about 2 s (duels, scripts/duels.sh: machine gunners with a 1 s reload
+  In fights a shot takes the reload plus about 2 s (duels, scripts/test/duels.sh: machine gunners with a 1 s reload
   fired every 3.3-5.1 s, Mk V tanks with 4 s every 4.6-7.1 s).
 - Area damage (0x61DAE6, stats +0xA0 = radius in tiles): every unit within the radius of the hit (the tiles around,
   0x4039AC; alive, 0x631A09) takes the same formula as the target - full damage, no fall-off; own units only with the
@@ -213,7 +213,7 @@ vf26 members and route released, vf12, the group's reference) frees nothing twic
 - Typedata ([0x9418A0][type]) slot 13 (+0x34): thiscall(GETransformation *, player, 0, 0) -> object, +8 != 0 on
   success, +0x30 the EEUnit. GETransformation: 4x4 floats, position at +0xC/+0x1C/+0x2C. Called directly from
   outside the editor (z = 0, no further setup) the unit crashes the renderer (unit +0x130).
-- Type ids and names: `data/db/converteroutput.log`. Walls 467-472, gates 294/442-444/454/473, guard towers
+- Type ids and names: `local/games/ee/data/db/converteroutput.log`. Walls 467-472, gates 294/442-444/454/473, guard towers
   47/461-466.
 
 ## Simulation pacing
@@ -282,7 +282,7 @@ vf26 members and route released, vf12, the group's reference) frees nothing twic
 - The game saves its AI managers itself (EECP*Manager persist functions: build, civilization, research, resource,
   unit, wall). dll/persist.c keeps the mod's own state in <save>.aimod next to it (only used while the .ees still
   has the size and write time recorded in it; format 2: each block with a layout hash of its definition,
-  scripts/persist_layout.py -> dll/persist_layout.h at every build - a block of another layout is skipped, a
+  scripts/build/persist_layout.py -> dll/persist_layout.h at every build - a block of another layout is skipped, a
   format-1 file ignored).
 - The exe flags all its sections as data (0xC0000040, copy protection): find code by the section name `.text`.
 
@@ -351,7 +351,7 @@ vf26 members and route released, vf12, the group's reference) frees nothing twic
 - **Idle loaded transports are unloaded** by the game's unit code (0x483E10: cargo, no order or a finished one,
   0x42C49A at 0x483E24 finds land next to it -> EEUGUnloadTransport at its own tile). A landing's transports are
   excluded (hook at 0x483E24) and wait on open water. Another unload source: 0x445AAD (attack subgroup code).
-- **Building types** (data/db/converteroutput.log, "Object(value):N ... Name:b  ..."): Barracks 34, Town Center 35, Dock 36,
+- **Building types** (local/games/ee/data/db/converteroutput.log, "Object(value):N ... Name:b  ..."): Barracks 34, Town Center 35, Dock 36,
   House 37, Temple 39, Capitol 41, Settlement 43, Archery Range 54, University 60, Hospital 62, Siege Factory 63,
   Stable 64, Navy Yard 65, Airport 66, Tank Factory 68, Cyber Factory 69, Fortress 672; towers 47, 461-466.
 - **Unit fields named** (the game's out-of-sync dump EEComplexUnit::vf17 0x5EB579 prints them; type = unit +0x2C,
@@ -415,12 +415,12 @@ vf26 members and route released, vf12, the group's reference) frees nothing twic
 ## Data files
 
 - `Data\data.ssa`: "rass" archive. Each file is "PK01" + u32 size + 4 bytes, then a PKWARE DCL stream (decoder:
-  `scripts/blast.py`, extractor: `scripts/extract_all.py`). Loose files under `Data\` override the archive.
+  `scripts/re/blast.py`, extractor: `scripts/re/extract_all.py`). Loose files under `Data\` override the archive.
 - `.scn`/`.ees` (one format: a save is a scenario further on; github.com EEScnEdit has the header's fields): u32 the
   size of the rest of the file, a header (names, players, settings) with the lump table - u32 count, then the lumps'
   types in file order (both the save and the scenario here: 1, 2, 4, 3, 6, 10, 12, 5, 7, 8, 11; 9 never) - then the
   lumps back to back to the end: u32 major, u32 minor version, u32 type, u32 size, size bytes (raw, or "PK01" +
-  u32 size + u32 + a DCL stream - `scripts/unpack_save.py`; details and what each type is in "Scenario / save file
+  u32 size + u32 + a DCL stream - `scripts/re/unpack_save.py`; details and what each type is in "Scenario / save file
   format" below). 4 is the terrain, 5 the player data with the units (the big ones).
   Room for the mod's own (2026-10-22, the reference save at 75.8 min, played to 77): a lump of type 100 appended
   after the last one and not listed in the table is never read - the game plays exactly as from the unchanged copy,
@@ -437,8 +437,8 @@ vf26 members and route released, vf12, the group's reference) frees nothing twic
   frequency; 28103/28104/28106 min military buildings per difficulty) - which explains why the attack timing
   measured on medium (every 20-25 min) differs from the 14-17 min noted in ai-analysis.md. Help texts: string
   28500 + id.
-- Object/unit type names: `data/db/converteroutput.log` (from the data files).
-- Language.dll string table: `scripts/strtab.py`. The statistics names are 31201.., the AI settings names 28000..
+- Object/unit type names: `local/games/ee/data/db/converteroutput.log` (from the data files).
+- Language.dll string table: `scripts/re/strtab.py`. The statistics names are 31201.., the AI settings names 28000..
   All 12 languages' sources: github.com/EE-modders/localized-text (`Game/<lang>/EE/Language.rc`).
 - Globals used by community DLLs (EE-modders Reborn-DLL / Stats / Discord, same 1.04 build "2002.09.12.v2.00" at
   0x8A9030; AoC has its version string at 0x8BF570): game data loaded [0x917BB8] (unit limit at +0x2EC), map /
@@ -454,7 +454,7 @@ vf26 members and route released, vf12, the group's reference) frees nothing twic
 ## Unit AI scripts (.tai)
 
 Each unit type's behaviour is a state machine from `Data\Unit AI Scripts\<name>.tai` (extracted copies:
-`data/unit ai scripts/`, git-ignored). Read from the code (2026-10-23), not yet tried in a game; the name tables (241
+`local/games/ee/data/unit ai scripts/`, git-ignored). Read from the code (2026-10-23), not yet tried in a game; the name tables (241
 conditions, 162 states with their ids) were dumped by a helper, not kept in the repo.
 - Which file: dbobjects.dat's record +0xEC (e.g. "Sea Transport"), copied by the EEUnitClass ctor 0x61C35B to class+8;
   0x61D37B -> 0x619AC0 parses it into class+0x370 (Idle, 5000, always added). Parsed once per process, cached by
@@ -497,7 +497,7 @@ conditions, 162 states with their ids) were dumped by a helper, not kept in the 
   LoadIntoContainer 12000, UnloadTransport 12001, PickedUpLoadableUnits 12003, WaitForPassengers 12010,
   WaitForTransport 12011, CannotReachContainer 12012. SetState 0x5EFCF0 (`unit_set_state`) is what every order
   ends with (8000; the mod had it as "unit_say").
-  Two ways a transport hangs, read from the code; logged (dll/ai/transports.c, `transport_log=1`, scripts/transports.py)
+  Two ways a transport hangs, read from the code; logged (dll/ai/transports.c, `transport_log=1`, scripts/results/transports.py)
   in 72 island games (2026-10-23, Small Islands large, Copper Age, 3-4 AIs, 45 min): the first is common, the second
   never happened. (1) WaitForPassengers for ever while no pending passenger is coming: in 24 games 106 such waits,
   13322 s together (about 9 minutes of transport time a game), the longest 664 s, some until the game's end or until
@@ -821,7 +821,7 @@ same way; all its engine DLLs (Low-Level Engine, DX7HRDisplay, Default, Language
   projectile's family check reads +0x4B4 in the base, +0x1B8 in AoC). An offset table can be generated by pairing
   matched functions.
 
-### The addresses (scripts/port_addrs.py, 2026-10-21)
+### The addresses (scripts/re/port_addrs.py, 2026-10-21)
 
 All of the address table's 403 addresses (rows and list entries) have an AoC value - its second column. The script pairs the
 exes' functions: 11222 by the same code with the addresses masked, then their callees (most callers agreeing), the
@@ -859,7 +859,7 @@ Each row is checked another way (the same instruction, the callers agreeing, the
   timer `push 0xA` at 0x404733; the velocities are globals 0x8E5BE4 / 0x8E5BE0. camera.c does either build's way
   in either build ([camera] scroll = game | ee | aoc).
 
-### The objects' fields (scripts/port_fields.py, 2026-10-21)
+### The objects' fields (scripts/re/port_fields.py, 2026-10-21)
 
 The mod reads ~3600 fields: 442 (kind, offset) pairs in dll/game/api/raw/fields.h, with AoC's column. Found per class: in its
 methods (vtable slots and what they call with `this` in ecx) aligned with every number masked, [this + X] in the base
@@ -867,7 +867,7 @@ reads [this + Y] in AoC (the AI's save/load serializer, EEComputerPlayer::vf6, n
 offsets of all paired code (any object) for structures without methods, accepted only where they agree with a
 neighbouring field's shift. 98 fields moved (the engine DLLs' objects none, below).
 That wasn't enough: the first AoC test games (below) crashed on fields of objects with few virtual functions, taken as
-kept for lack of a vote, or voted by other objects' reads. scripts/port_check.py checks every row in its object's own
+kept for lack of a vote, or voted by other objects' reads. scripts/re/port_check.py checks every row in its object's own
 code instead: the source file's (bounded by the static initializers Ghidra names `<Class>_persist_`), or through the
 pointer that reaches it (a unit's +0x34, a player's +0xB98), or the type data's constructors - 311 of the 442 rows
 now rest on that. It found the build manager +0x24 from 0x12C (the owner 0x138 -> 0x15C: the placement hook read a
@@ -914,14 +914,14 @@ citizens by minute 20-30 and trained armies, about as in the 2017 update's game 
 | land route planner vtable / step cost | 0x825CC4 / 0x4141E8 | 0x839C70 / 0x410074 |
 | EEASaveGame / EEAUserPauseGame vtable | 0x825084 / 0x830E94 | 0x839060 / 0x846790 |
 
-`scripts/vtables.py` (with `EE_EXE=<exe>`) prints vtables and slots for any class.
+`scripts/re/vtables.py` (with `EE_EXE=<exe>`) prints vtables and slots for any class.
 
-### The engine DLLs (scripts/port_dll.py, 2026-10-21)
+### The engine DLLs (scripts/re/port_dll.py, 2026-10-21)
 
 AoC ships its own builds of the DLLs the mod reaches into: Low-Level Engine (AoC's is the older, Aug 2002; the base's
 Sep 2002), DX7HRDisplay / DX7HRTnLDisplay (the base's from 2001) and the Miles mixer. They export their C++ classes by
 name (Low-Level Engine 4427 names in both), so the script pairs functions by name first (Ghidra's lists of each build:
-decomp/dll/, aoc/decomp/dll/), then like the exes. Found:
+local/games/ee/decomp/dll/, local/games/aoc/decomp/dll/), then like the exes. Found:
 - The objects' fields are the same in both: GEWindow, ISMouse, GEText, GEFont, SESoundManager and its nodes have
   byte-identical code (only placed elsewhere); DX7Rasterizer (+0x20 per-screen state, +0x6C), DX7Screen, DX7Surface
   and the per-screen state (+0x2A8 .. +0x338) read the same offsets in every paired function of both display DLLs.
@@ -933,7 +933,7 @@ decomp/dll/, aoc/decomp/dll/), then like the exes. Found:
   [G_MOUSE]: position floats +4/+8, frozen +0xA4) - the kind MOUSE now; the same in AoC (FN_MOUSE_CLAMP and
   FN_MOUSE_UPDATE have the same code).
 
-### What AoC changed in the code (scripts/diff_exes.py)
+### What AoC changed in the code (scripts/re/diff_exes.py)
 
 Of the 6030 functions both exes name via RTTI (`Class::vfN`), 5654 (94%) have the same size; 376 changed.
 By subsystem (same/changed): computer player EECP 408/70, AI framework/pathfinding EEAI 127/13, units EEU 336/73,
@@ -948,7 +948,7 @@ physics/movement models EEP 107/49, interface EEUI 819/31, scenario EES 611/12, 
 - Comparing the two decompilations as text misses code (2026-10-23, the save format's diff): stream calls inside
   long wrapped if-chains drop out - EEComputerPlayer::vf9 looked unchanged, its machine code has 7 more stream calls
   (157 vs 162 in the text). Compare the machine code's calls instead (`call [reg+0x74/0x7C/0x90/0x94/0x8C]`, the
-  constants, `cmp [ebp+0xC], 0xNN` version tests): `scripts/stream_diff.py` (side by side, or --tree: a
+  constants, `cmp [ebp+0xC], 0xNN` version tests): `scripts/re/stream_diff.py` (side by side, or --tree: a
   save tree through port_addrs' pairs). AoC's decompilation shows import calls as `(*(code *)&LAB_xxxxxxxx_N)`
   (GE3DPoint::Save [0x837374], GETransformation::Save [0x837704], GE3DLine::Save [0x837738]), and
   EEComputerPlayer::vf6 0x42FD50 (52 KB) doesn't decompile - read it as machine code.
@@ -976,7 +976,7 @@ these notes give the layout, what is known of the fields and how it was checked.
   setup; fields.h's SETUP_* rows named so since 3bc195a; the stream order by the sample values). The old EEScnEdit header (and these notes before 2026-10-23) cut the slots 3 bytes off - each
   "PlayerHeader" began with the previous slot's +0x34..+0x36, so its "shared line of sight" was the previous
   slot's +0x36.
-- Lumps are LowLevelEngine.dll's FSChunk (decomp/dll/LowLevelEngine/10020000.c:1435 LoadChunkHeader /
+- Lumps are LowLevelEngine.dll's FSChunk (local/games/ee/decomp/dll/LowLevelEngine/10020000.c:1435 LoadChunkHeader /
   SaveChunkHeader): u32 major, u32 minor version (the file's), i32 type - the FSPersistent class id, the object
   made by FSPersistentList::CreateDefaultPersistent (an unknown one: error 3) - u32 size (< 0x80000000), then size
   bytes. 0x54020B makes the save's objects, one per type in file order, 0x54075F writes them; the load 0x5414D4

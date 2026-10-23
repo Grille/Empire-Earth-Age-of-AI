@@ -281,7 +281,7 @@ internal int cz_visible_food(ee_player *pl, unsigned idx, const int *stock, int 
 // The playtester: citizens are needed to fill every mine, a lack of them should not be the limit - nor should an
 // oversized, wood-heavy workforce starve the army; workers on wood beyond what is spent are waste.
 // Measured first (the shipped build against the base AI at hard, unit limit 1500 = a cap of 505 each, 75 min, Small
-// Islands Large / Tournament Islands Huge / Large Islands Huge, 40 games a cell; scripts/workforce.py): at minute 60
+// Islands Large / Tournament Islands Huge / Large Islands Huge, 40 games a cell; scripts/results/workforce.py): at minute 60
 // the mod's AI had 170-227 citizens (the base AI 122), 31-63 of them idle (3-14), 68-107 on wood (61-68) with
 // 8400-14900 wood in stock (3400-7600) - 22000-29000 wood came in over minutes 30-60, 14000-17000 were spent - and
 // 35-62 soldiers (70-81); it had trained 116-148 soldiers by then (238-279), with 3.5-4.5 land production buildings

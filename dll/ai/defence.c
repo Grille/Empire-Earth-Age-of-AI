@@ -780,10 +780,10 @@ internal void muster(ee_player *pl, unsigned idx, uint32_t now) {
 // the enemy: the home soldiers pull back to 6 tiles beyond the base, away from the enemy, and Guard there (held
 // where they stood, the artillery shelled them: 15 of 15 lost in 1.5 minutes). 1.3 x the enemy or more: a sortie -
 // all Aggressive, each attacks its nearest enemy, together (then 60 s before the next). No enemy near: Aggressive.
-// scripts/camp.eeai (8 artillery, 16 machine gunners, 6 tanks camped 15-18 tiles from P2's Town Center, P2 with 12
+// tests/probes/camp.eeai (8 artillery, 16 machine gunners, 6 tanks camped 15-18 tiles from P2's Town Center, P2 with 12
 // machine gunners of its own), 6 pairs: P2 lost 22 vs 31 units, killed 21 vs 26, the camp kept 11 vs 7 of 30 -
 // fewer losses, but the camp (within the towers' support there) survives more often. A camp that plays like the
-// user's (scripts/camp2.eeai: reinforced every 2 minutes, pushing in every 4 and pulling back): 5 pairs, P2 killed
+// user's (tests/probes/camp2.eeai: reinforced every 2 minutes, pushing in every 4 and pulling back): 5 pairs, P2 killed
 // 27 vs 36, lost 51 vs 59, kept 4 vs 17 citizens and its Town Center 2 vs 5 times, the camp grew to 53 vs 46 - pulled
 // back, they leave the town to the pushes. Off.
 internal struct { int holding; uint32_t sortie_t; unsigned holds, sorties, set; } g_hold_st[16];
@@ -1077,7 +1077,7 @@ internal void defence_install(const char *aimod_ini, const char *autotest_ini) {
 // them up while the town is actively bombed is nearly impossible"): from World War I, once an enemy is there too, AA
 // stands before any aircraft come - an AA building at each of the first aa_ahead_buildings (3) drop sites nearest the
 // base point that has none within 7 tiles, and 2 AA units; enemy aircraft seen anywhere count (half of them, they fly
-// fast), and the most seen is kept 10 minutes instead of 5. scenarios/bombing.eeai (10 seeds, P3 reactive vs ahead): 25
+// fast), and the most seen is kept 10 minutes instead of 5. tests/scenarios/bombing.eeai (10 seeds, P3 reactive vs ahead): 25
 // aircraft and 4 bombers - workers 36 vs 52, buildings lost 4.3 vs 1.2, losses 25 vs 19; 12 aircraft (they did little
 // harm) - workers 65 vs 57: the guns cost a little where the air threat stays small.
 internal const struct { enum ut_name type; int epoch; } k_aa_units[] = {

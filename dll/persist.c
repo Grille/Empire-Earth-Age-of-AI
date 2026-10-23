@@ -15,7 +15,7 @@
 // other layouts just starts fresh for those). All times inside are game times, which the save restores.
 // Layout: the size alone let a struct changed to the same size through (fields reordered, int <-> float) - its
 // bytes became other values. Each block carries a hash of its variable's definition, the structs it names and the
-// macros of its sizes (scripts/persist_layout.py -> persist_layout.h, run by build.sh). Files of format 1 (no
+// macros of its sizes (scripts/build/persist_layout.py -> persist_layout.h, run by build.sh). Files of format 1 (no
 // layout word: the saves made before it) are read as they always were, blocks matched by tag and size only.
 internal int g_persist = 1;   // aimod.ini [general] save_state
 internal const struct { const char *tag; void *p; size_t n; } k_blocks[] = {

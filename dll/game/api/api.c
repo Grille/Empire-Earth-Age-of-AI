@@ -5,7 +5,7 @@
 // hooks.c the patches of the game's code that are about no object. types.h names the objects' types (one place: they
 // point at each other). raw/ is the module's inside: the addresses and offsets per exe build (builds.h, functions.h,
 // hooks.h, data.h, fields.h, editor_layout.h) and tables.c, which makes them tables, GA, GF, GL and the fields' names -
-// nothing raw/ defines is used outside game/api/, and game/api/ uses only base/ (scripts/layers.py). exe.c finds the
+// nothing raw/ defines is used outside game/api/, and game/api/ uses only base/ (scripts/build/layers.py). exe.c finds the
 // running build (game_build, build_is) and takes its column; api_log tells the start's log what is missing.
 //
 // FIELDS: kind_get_x(obj) reads a field, kind_set_x(obj, v) writes one (only those the mod writes), kind_x_at(obj) its
@@ -15,7 +15,7 @@
 // FUNCTIONS: the game's functions as plain C functions over types.h's objects - explored_by(site, pl) instead of
 // GF(FN_EXPLORED)(FIELD(site, UNIT_VIS, void *), pl) - and its data as accessors; raw/functions.h has their
 // addresses and raw signatures. Each wrapper is the call itself: inlined, the machine code is the same as GF's
-// (scripts/code_same.py).
+// (scripts/build/code_same.py).
 // HOOKS: for each hooked function the type of its hook and the installer. A hook stands in for the game's function at
 // its calls (patch_call: the call instruction redirected, only while it still calls that function) or in its class's
 // vtable (patch_vtable: only while the slot still holds it); it calls the original through the function's wrapper

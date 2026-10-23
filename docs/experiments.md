@@ -11,7 +11,7 @@ assault + assault_outmatched, attack_retreat (= army_mass 4), the navy_mix switc
 maps switched army_plan on (39, from the Middle Ages) and explains why mine_fill does not gain there.
 
 Numbers: d = with - without, paired by seed and seat, standard error in brackets; kl = kills - losses per game; "cheat" =
-the base AI at hard with its 50% prices. Map names as in `scripts/isl_ablate.sh`: `cont` Continental e0 Small, `coL`
+the base AI at hard with its 50% prices. Map names as in `scripts/test/isl_ablate.sh`: `cont` Continental e0 Small, `coL`
 Continental Large (Middle Ages, unit limit 1500), `si5` Small Islands Small, `siL` Small Islands Large, `tiH`
 Tournament Islands Huge, `liH` Large Islands Huge.
 
@@ -362,20 +362,20 @@ personality feature, not a failed experiment.
 
 ## What to run next
 
-All against the shipped build (fall_back 7) as the base, `scripts/isl_ablate.sh`, both cheats, 20 seeds x both seats
+All against the shipped build (fall_back 7) as the base, `scripts/test/isl_ablate.sh`, both cheats, 20 seeds x both seats
 (40 games a cell), score after `ISL_ABLATE DONE` with the scorer named. A variants file has one `name|keys` line per
 variant; the base line is `fb7base|` (empty keys = shipped). New names each run.
 
 | # | Variant lines | MAPS | Scorer | Look for |
 |---|---|---|---|---|
-| 1 | `fbm24|metal_plan=24,metal_fleet_pct=250,metal_fleet_min=20` | `siL tiH liH si5` | `scripts/metal.py -base fb7base`, `cover.py` | kl with the cheat (was -27 / -19 on siL / tiH), warships and ships lost; then h2h `h2h.sh 75 late "random_map=Small Islands,seed=101,map_scale=large,unit_limit=2500,ai_count=4,start_epoch=5,difficulty=hard" "v_metal_plan=24"` (was ships lost +8.5) |
-| 2 | `fbap7|army_plan=7`, `fbwf4|workforce_plan=4` | `coL cont` | `scripts/milspend.py`, `metal.py`, `h2h.py` | soldiers and losses together (army_plan h2h losses was +14.4); then h2h Continental `map_size=1` with `v_army_plan=7` |
-| 3 | `fbms1|army_mass=1`, `fbms65|army_mass=65`, `fbms144|army_mass=144` | `cont coL` | `scripts/mass.py`, `cover.py` | cheat kills (was -17); whether GATHER and fall_back hold the same units at cross purposes (`# cover` held / refused) |
-| 4 | `fbnm|navy_mix=1` (removed since) | `siL tiH liH si5` | `scripts/navy_ab.py -mix`, `cover.py` | warships by role, sunk - lost, kl; then the `seaop` scenario |
-| 5 | `fbea|early_army=1` | `cont` | `scripts/eco_food.py` / economy log | citizens killed, workers 20/30/60, wins without the cheat (was 3 vs 8) |
+| 1 | `fbm24|metal_plan=24,metal_fleet_pct=250,metal_fleet_min=20` | `siL tiH liH si5` | `scripts/results/metal.py -base fb7base`, `cover.py` | kl with the cheat (was -27 / -19 on siL / tiH), warships and ships lost; then h2h `h2h.sh 75 late "random_map=Small Islands,seed=101,map_scale=large,unit_limit=2500,ai_count=4,start_epoch=5,difficulty=hard" "v_metal_plan=24"` (was ships lost +8.5) |
+| 2 | `fbap7|army_plan=7`, `fbwf4|workforce_plan=4` | `coL cont` | `scripts/results/milspend.py`, `metal.py`, `h2h.py` | soldiers and losses together (army_plan h2h losses was +14.4); then h2h Continental `map_size=1` with `v_army_plan=7` |
+| 3 | `fbms1|army_mass=1`, `fbms65|army_mass=65`, `fbms144|army_mass=144` | `cont coL` | `scripts/results/mass.py`, `cover.py` | cheat kills (was -17); whether GATHER and fall_back hold the same units at cross purposes (`# cover` held / refused) |
+| 4 | `fbnm|navy_mix=1` (removed since) | `siL tiH liH si5` | `scripts/results/navy_ab.py -mix`, `cover.py` | warships by role, sunk - lost, kl; then the `seaop` scenario |
+| 5 | `fbea|early_army=1` | `cont` | `scripts/results/eco_food.py` / economy log | citizens killed, workers 20/30/60, wins without the cheat (was 3 vs 8) |
 | 6 | `fbme|militia_estimate=1`, `fbcp2|copper_plan=2,epoch_share=60%` | `cont coL` / `cont` | `cover.py`, economy log | citizens killed, kl |
-| 7 | after 1 and the sea_held fix: `fbx185|expand_islands=185,metal_plan=24,workforce_plan=3` | `siL tiH liH si5` | `scripts/islands.py`, `metal.py` | og60 (outposts still standing at 60), G+I, kl |
-| 8 | after 4: `fblb|landing_bombard=1` | `siL tiH liH` | `scripts/landings.py` | ashore, razed, ships lost |
+| 7 | after 1 and the sea_held fix: `fbx185|expand_islands=185,metal_plan=24,workforce_plan=3` | `siL tiH liH si5` | `scripts/results/islands.py`, `metal.py` | og60 (outposts still standing at 60), G+I, kl |
+| 8 | after 4: `fblb|landing_bombard=1` | `siL tiH liH` | `scripts/results/landings.py` | ashore, razed, ships lost |
 
 Run 1 and 2 first: they test the clearest claim of this review - that the "more soldiers, more losses" failures were
 the waste fall_back removed. If both still lose, the problem is elsewhere (how the army picks fights before they are
@@ -386,11 +386,11 @@ lost, not after), and 3-5 drop in priority.
 Every REMOVE and RETEST key above, run again on the build of c69d4c3 (fall_back 7 shipped, the call-off crash fixed),
 each on top of the shipped defaults, paired by seed and seat against the shipped build (variant `rb`, no keys): the
 base AI at hard with and without its cheat, 20 seeds x both seats = 40 games a cell (80 where the first 40 were close:
-seeds 21-40 added), `game_seed` 1-40, 8 games at a time, the run's own DLL. Maps as in `scripts/isl_ablate.sh`
+seeds 21-40 added), `game_seed` 1-40, 8 games at a time, the run's own DLL. Maps as in `scripts/test/isl_ablate.sh`
 (`cont` `co9` `coL` `si5` `si9` `siL` `tiH` `liH`); each key on the maps where it can act. 10,379 games against the base AI and 480 head-to-head, no stall.
 Scored with a paired scorer (per cell: d kills - losses (se), kills, losses, wins, soldiers, warships, workers at the
 end; "ALL" = the mean over every pair of the key, a rough summary across maps of different scales). Head-to-heads
-(`scripts/h2h.sh`, 4 AIs, 40 games, B - A per game): Small Islands Large (`map_scale=large,unit_limit=2500,start_epoch=5`,
+(`scripts/test/h2h.sh`, 4 AIs, 40 games, B - A per game): Small Islands Large (`map_scale=large,unit_limit=2500,start_epoch=5`,
 75 min), Continental Large (the same keys, 75 min), Continental e0 Small (`map_size=0,start_epoch=0`, 60 min).
 
 Noise check: the base rerun on 4 maps x both cheats x 4 seeds (64 games) played 62 games identically, 2 parted late
@@ -465,8 +465,8 @@ maps" below.
 Unmeasured: `assault` / `hold_town` / `attack_retreat` / `safe_sites` / `idle_citizen_slack` have no `v_` key, so no
 head-to-head; `metal_plan` 4 alone (it only acts with 1); the FIX FIRST keys and the low-priority retests
 (`militia_estimate`, `copper_plan=2`, `landing_bombard`, `expand_islands`) were not run; 2v2 maps (siL2) not run.
-Logs: work/autotest_*_vanrm00[1-7]_ab-<name>-c<cheat>-<map>-r<seed>v<seat>.csv (names `rb`, `rbchk`, `rm*`, `rt*`),
-head-to-heads work/autotest_*_h2h20261022_1[23]*_h<name>_late-r*.csv.
+Logs: local/work/autotest_*_vanrm00[1-7]_ab-<name>-c<cheat>-<map>-r<seed>v<seat>.csv (names `rb`, `rbchk`, `rm*`, `rt*`),
+head-to-heads local/work/autotest_*_h2h20261022_1[23]*_h<name>_late-r*.csv.
 
 ### Why mine_fill and army_plan lose on the small maps (2026-10-22)
 
@@ -477,8 +477,8 @@ The mechanisms, the refinements tried and their numbers: docs/economy.md "Mines 
 | `mine_fill=7` | it builds a gold stock with the woodcutters (wood income -17 to -36% by minute 30); on the large maps the stock becomes soldiers before the war (5th soldier lost at minute 33-44) and the wood piles later; on the small ones gold already lies unused (600-2400), wood is the limit, the war comes at minute 19-25 with the cheat. The population cap adds to it but does not decide (small maps at cap 500: Continental gains, Small Islands not; large maps at cap 171 still gain) | SPENT (pile 500: no change, 150: large maps -43 / -59 against 7), FED (no change), PEACE (small maps no better, Small Islands Large head-to-head +27 instead of +67) | **off** (the user's call: +12 to +80 on the large maps against -6 to -7 on Small Islands with the cheat and -12 in the Continental e0 head-to-head); none of the three kept |
 | `army_plan=7` | Continental e0 is a tower game: 19 of the mod's 28 soldiers lost die under enemy towers (Continental Large 4 of 104); 7's Copper Age soldiers add 6 losses, 5 under towers; head-to-head +18 lost, 13 under towers, -16.8 (4.4); the same at cap 500 | ENOUGH (army 3x the enemy's), TOWERS (half the last losses under towers): no change | **on, 39** = 7 + 32 LATE (from the Middle Ages): Continental e0 and the islands identical to before, Continental Large wins 35 -> 61 of 80, e9 55 -> 65, base AI's wins with the cheat 66 -> 60 / 55 -> 43, head-to-head Continental Large +46.0 (17.5) |
 
-Logs: work/autotest_*_van{mf00[1-3],mg001,mh00[12]}_ab-<name>-...csv - `mb` the shipped build again (played the old `rb`
+Logs: local/work/autotest_*_van{mf00[1-3],mg001,mh00[12]}_ab-<name>-...csv - `mb` the shipped build again (played the old `rb`
 games identically: 31 of 32 checked, one tiH cheat game parted late), `mm15` / `mm15p` / `mm31` / `mp15` the mine
 refinements, `ma39` / `mt39` / `ml39` the army ones, `cb` / `cm7` / `ca7` the maps at the other population cap (map
 names `si5u si9u contu co9u` with unit_limit 1500, `siLd liHd coLd` with the default); head-to-heads
-work/autotest_*_h2h20261022_{18,19,20}*_h{ap7e,mfpC,mf7u,ap7u,ap39e,ap39L,mp15C,mp15S}_late-r*.csv.
+local/work/autotest_*_h2h20261022_{18,19,20}*_h{ap7e,mfpC,mf7u,ap7u,ap39e,ap39L,mp15C,mp15S}_late-r*.csv.

@@ -1,4 +1,4 @@
-// WHAT THE AI SAYS AND ASKS ITS PERSONALITY: the one door from ai/ to voice/ (scripts/layers.py). The situations it
+// WHAT THE AI SAYS AND ASKS ITS PERSONALITY: the one door from ai/ to voice/ (scripts/build/layers.py). The situations it
 // has a line for, its debug chat, its personality's traits and decisions, diplomacy's system lines and the language
 // model's turns - declared here, made in voice/ (persona.c, chat.c, texts.c, llm.c).
 

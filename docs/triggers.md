@@ -7,7 +7,7 @@ fields of triggers, conditions, effects, objects and areas (raw/fields.h, both b
 (conditions, objects, areas, player attributes and specs), a trigger's update, an effect queued or run; the editor's
 lists as enums (`enum sm_*`, named as the editor shows them: categories and each one's actions, condition types,
 compares, player specs and attributes, unit and class attributes, tasks, stances, calamities, AI toggles, object tests).
-Checked against the 38 campaign scenarios (2026-10-23, unpacked from Data\Campaigns\*.ssa with scripts/extract_all.py
+Checked against the 38 campaign scenarios (2026-10-23, unpacked from Data\Campaigns\*.ssa with scripts/re/extract_all.py
 and dumped with `trig`): 2008 triggers, 4091 conditions, 7457 effects, 3617 objects, 1205 areas, the getters 0
 mismatches; every action of every category occurs, and every value the fields hold is in its list - but for the
 calamity, whose ids are dbcalamity.dat's records (the powers after the prophets' 12 occur too), the graphic effect
@@ -449,7 +449,7 @@ Guesses are marked as guesses. Not run in game: the armour bug and the "Any Reso
 
 ## EE 1.04 trigger effects: categories 2..6 (Player, Trigger, Media, Game, AI)
 
-Sources: static disassembly plus the Ghidra export `decomp/*.c`. The editor field names come from the
+Sources: static disassembly plus the Ghidra export `local/games/ee/decomp/*.c`. The editor field names come from the
 `EESETSET*::vf2` (dialog -> effect) and `vf5` (layout) functions. "pl" = EEPlayer*, "cp" = EEComputerPlayer*,
 "cm" = combat manager `[cp+0xB8C]`. Everything is thiscall unless marked otherwise. Guesses are marked (guess).
 

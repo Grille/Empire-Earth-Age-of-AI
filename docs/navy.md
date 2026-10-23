@@ -20,10 +20,10 @@ The playtester's notes on this plan:
   (long range, high attack, x1 against them), so the whole fleet must keep away from coastal siege and towers.
 
 Tools:
-- `navy types A B [all]` / `navy table` (pipe or setup). `scripts/navy_types.eeai` dumps every type and the hit
+- `navy types A B [all]` / `navy table` (pipe or setup). `tests/probes/navy_types.eeai` dumps every type and the hit
   table into the log.
-- `scripts/navy.py types <log>` builds the role table below.
-- `# navy:` log lines (autotest, every 2 minutes per AI) and `scripts/navy.py <logs>` for the baseline.
+- `scripts/results/navy.py types <log>` builds the role table below.
+- `# navy:` log lines (autotest, every 2 minutes per AI) and `scripts/results/navy.py <logs>` for the baseline.
 
 ## 1. Ship roles from the game's data
 
@@ -200,8 +200,8 @@ From the code, via a read-only research pass. Addresses are in the decomp.
 
 ## 3. Baseline (shipped config, 2 AIs, seed 101 map, 6 game seeds, 60 minutes, 2026-10-18)
 
-Run with `REPEAT=6 sh scripts/scen.sh 60 islands "random_map=<map>,map_size=0,ai_count=2,seed=101,start_epoch=<e>" "nv..:"`,
-then `python scripts/navy.py work/autotest_*_suite20261018_214[1-5]_nv*.csv`. All 24 runs finished with no
+Run with `REPEAT=6 sh scripts/test/scen.sh 60 islands "random_map=<map>,map_size=0,ai_count=2,seed=101,start_epoch=<e>" "nv..:"`,
+then `python scripts/results/navy.py local/work/autotest_*_suite20261018_214[1-5]_nv*.csv`. All 24 runs finished with no
 crash and no game decided. Values are per AI averages:
 
 | | Small Isl. e5 | Large Isl. e5 | Small Isl. e9 | Large Isl. e9 |
@@ -254,7 +254,7 @@ What the baseline shows:
 - **Unit substitution** skips every water family (above).
 
 Result (shipped config, 2 AIs, seed 101 map, 12 game seeds, 60 min; HEAD 325e4fb vs stage 0; per AI;
-`scripts/navy.py`, score.py):
+`scripts/results/navy.py`, score.py):
 
 | | Small Isl. e5 | Large Isl. e5 | Small Isl. e9 | Large Isl. e9 | Continental e5 (6) |
 |---|---|---|---|---|---|
@@ -307,7 +307,7 @@ Built (dll/ai/navy.c, econ.c; `[all] navy=1`, `navy_share=25%`):
   1.6-2.1. Frigates first, by the RPS vote - and it still asks 300-750 times an hour for ships the account can't
   pay yet (iron).
 
-Result (shipped config, 2 AIs, seed 101 map, 60 min, same DLL, `scripts/navy_ab.py` on the `# navy:` / `# battle:`
+Result (shipped config, 2 AIs, seed 101 map, 60 min, same DLL, `scripts/results/navy_ab.py` on the `# navy:` / `# battle:`
 lines; per AI; std. error in docs/testing.md):
 
 | navy 0 -> 1, both AIs, 20 seeds | Small Isl. e5 | Large Isl. e5 | Small Isl. e9 | Large Isl. e9 | Continental e5 (6) |
@@ -391,7 +391,7 @@ under `navy_fleet=2`, docs/experiments.md):
     what the game asked for and what was trained, and the changed / skipped / payable-next counts.
   - The 2-minute `# navy:` line has the warships, lost and sunk by role for every AI (diplo.c counts navy kills by
     type).
-  - Score with `scripts/navy_ab.py [-mix]`.
+  - Score with `scripts/results/navy_ab.py [-mix]`.
 
 What it did: about 45% of the ships it trained were another type than the game asked for. On Small Islands e5,
 fewer galleys and more frigates and battleships.
@@ -508,7 +508,7 @@ What the fleet did, Small/Large Islands e5/e9:
   identical between builds: checked at 3 seeds x 2 maps, and the code is unchanged with the fleet off.
 - Two scores: *seat* is the fleet AI minus the same seat in the control game. *DiD* is (fleet AI - other) minus
   the same difference in the control game.
-- Scored with `scripts/fleet_ab.py -strip 1 -ctl ctl -h2h fl,fm,fr`. Per game; std. error in brackets; 32 games
+- Scored with `scripts/results/fleet_ab.py -strip 1 -ctl ctl -h2h fl,fm,fr`. Per game; std. error in brackets; 32 games
   per map:
 
 | fleet AI, seat (DiD) | Small e5 | Small e9 | Large e5 | Large e9 | all 128 |
@@ -558,11 +558,11 @@ is missing:
 
 Measuring an AI's navy against another AI's is weak evidence: both have 1-3 warships, and nobody holds any water. The
 playtester builds 20+ ships early on an island map and uses them. dll/test/testopp.c (test code, started by the setup line
-in `scenarios/seaop.eeai`) plays that with the idle P1 against one AI: a scheduled build-up (medium: 3 ships at minute
+in `tests/scenarios/seaop.eeai`) plays that with the idle P1 against one AI: a scheduled build-up (medium: 3 ships at minute
 5, 16 by 20, at most 22, losses replaced), raiders on the fishing boats and the coast, a main fleet that hunts the
 AI's warships when it is 1.2 times stronger and retreats when weaker, a patrol on the sea lane against transports,
 two landings with transports, honest sight (9 tiles around its own units). How to run it and the log: docs/testing.md
-"Sea opponent". Score: `python scripts/seacontrol.py -ctl f0 <logs>`.
+"Sea opponent". Score: `python scripts/results/seacontrol.py -ctl f0 <logs>`.
 
 **Baseline** (HEAD 5868f55, medium opponent, 1 AI, seed 101 map, 60 min, game seeds 1-10 per cell; n0 = navy=0, f0 =
 shipped (navy account, the game's sea groups), f1 = navy_fleet=1; per game, std. error in brackets):
@@ -658,7 +658,7 @@ Built (dll/ai/navy.c, dll/ai/fleet.c, econ.c, diplo.c; `[all] navy_fleet=2`, `[a
   adds `target built refused | haven x,y sheltering/split/one fleet (n times) | forces ... | lost by force ... | by
   task ... | kills W B T C Bd O`. Kills are counted by the ships' targets when the unit dies (diplo.c hook_kill_stat
   -> fleet_kill, fleet_lost).
-- `scripts/fleet_ab.py` columns `wmax` (most warships), `fcit` / `fkill` (citizens / everything the led fleet killed).
+- `scripts/results/fleet_ab.py` columns `wmax` (most warships), `fcit` / `fkill` (citizens / everything the led fleet killed).
 
 **Head-to-head against the control AI** (one AI `v_navy_fleet=2`, both with the navy account; Small/Large Islands
 e5/e9, seed 101 map, 60 min, game seeds 1-32, each game paired with the control game of its seed; fleet_ab.py; std.

@@ -2,7 +2,7 @@
 
 The benchmark (docs/testing.md "Against the base-game AI"): the base game's AI at hard with its Cheat (every price
 50%). The mod's AI won 0 of 158 games. The economy log (`# eco:`, `# death:`, dll/test/ecolog.c) and the ablations
-(scripts/eco_ablate.sh) gave the diagnosis on Continental (Prehistoric start):
+(scripts/test/eco_ablate.sh) gave the diagnosis on Continental (Prehistoric start):
 
 - no soldier until minute ~22, so 1-6 Clubmen and Rock Throwers killed 39-48 citizens a game at the town;
 - the citizens were sent against them as militia 40-63 times a game, and they lost;
@@ -84,7 +84,7 @@ re-measurement above.
   Continental it clearly wins: with the cheat the base AI's wins drop from 12 to 4 of 40, kills - losses goes +32, and
   8 fewer citizens die; without the cheat the base AI never wins (6 -> 0) and 14 fewer citizens die. On the islands
   (epoch 5 starts) the games are identical. Head-to-head against the control AI (build e120a6c,
-  `REPEAT=24 sh scripts/h2h.sh 60 late "random_map=Continental,seed=101,map_size=1,ai_count=4,start_epoch=0"
+  `REPEAT=24 sh scripts/test/h2h.sh 60 late "random_map=Continental,seed=101,map_size=1,ai_count=4,start_epoch=0"
   "v_early_towers=1,v_tower_bait=1,v_early_militia=1"`, 24 games, 48 AIs a side), B - A per game: alive +0.08
   (0.04), kills +6.9 (5.1), losses -9.3 (5.6), workers +4.8 (2.1), soldiers +1.4 (2.1), epoch -0.08 (0.06). No
   regression.
@@ -104,7 +104,7 @@ re-measurement above.
 The playtester: hunting is the first step and herds should be taken fast; farms only when wild food runs low (in
 late starts too: herds, forage, fish first); every mine the AI can get hold of filled, the home island's always.
 Measured first with the economy log (`# eco:` fo / fh / ff / fb, the hunt list, animals, forage, fields, mines
-without a drop site; `scripts/eco_food.py`), base AI at hard, 60 min, game_seed 1-20 x both seats:
+without a drop site; `scripts/results/eco_food.py`), base AI at hard, 60 min, game_seed 1-20 x both seats:
 
 - **Food sources.** Continental e0: the mod's AI had 9-11 food gatherers (the base AI 10-21), 7-9 of them at bushes,
   1-2 hunters (the base AI 3-5). Forage is the main wild food (bushes of 2500, ~10000-16000 food within 30 tiles of
@@ -172,7 +172,7 @@ citizens wanted (0x48EDDB: player +0xBDC x cap, 45% - 75 of a cap of 166) less t
 maps). 0x49014F hands them round-robin to every finished Town Center / Capitol. A citizen takes ~28 s of a producer.
 
 **Measured** (`# cit:` once a minute, autotest: per producer and second training a citizen / something else / nothing,
-and why nothing; `scripts/cit.py`). Base AI at hard, 60 min, 20 seeds x both seats. Producer time idle and the main
+and why nothing; `scripts/results/cit.py`). Base AI at hard, 60 min, 20 seeds x both seats. Producer time idle and the main
 reason (mod; minutes 10-30 / 30-60):
 
 | Map | cheat | idle 10-30 | why | idle 30-60 | why |
@@ -227,7 +227,7 @@ defence capability". citizen_plan brought more workers and +700..+2000 stone/gol
 
 **Measured** (`# mil:` once a minute, autotest, both sides: stock, military account, reserve, army and its value,
 production buildings and their busy share, towers, walls, techs, the game's unit wishes, the military orders and why
-they were refused; `scripts/milspend.py`). Base AI at hard, 60 min, 20 seeds x both seats, mod (M) / base AI (V) at 60
+they were refused; `scripts/results/milspend.py`). Base AI at hard, 60 min, 20 seeds x both seats, mod (M) / base AI (V) at 60
 min; refused = the mod's military orders the budget refused from minute 20 (wood / gold / iron short):
 
 | Map | cheat | army M / V | value M / V | production bld M / V | busy M / V | towers M / V | stock M / V | refused (W/G/I short) |
@@ -284,7 +284,7 @@ against the force it knows, and never feeds single soldiers into a fight - reinf
 **Measured** (`# mass:` once a minute, autotest, both sides, sampled every 5 s: land soldiers alone - 2 or fewer own
 within 6 tiles -, away from the base - 25+ tiles -, in a fight; the land attack subgroups out and their stragglers -
 12+ tiles from their subgroup's middle -; the land soldiers killed - alone, away, outnumbered 2:1 within 8 tiles;
-`scripts/mass.py`). Base AI at hard, Continental e0, 60 min, 20 seeds x both seats, the mod's AI as shipped:
+`scripts/results/mass.py`). Base AI at hard, Continental e0, 60 min, 20 seeds x both seats, the mod's AI as shipped:
 
 | | cheat | soldiers | alone | alone and away | stragglers | killed | killed alone | killed away | alone and away | outnumbered |
 |---|---|---|---|---|---|---|---|---|---|---|
@@ -337,7 +337,7 @@ failures (docs/ai-analysis.md); forward bases / rally points on islands once the
 
 ### The attack as one front (2026-10-20)
 
-**Measured first** (`# mass2:` once a minute, autotest, both sides; `scripts/mass.py -states`): the land subgroups'
+**Measured first** (`# mass2:` once a minute, autotest, both sides; `scripts/results/mass.py -states`): the land subgroups'
 members by state (forming, marching 2000s, fighting 3000s, other), their stragglers (12+ tiles from the middle) at
 home - the replacements -, ahead of the middle (away from the base) and behind it; the fronts (out subgroups 20+
 tiles from each other); the subgroups' orders (vf57, moves / attacks); and where the land soldiers that die stood -
@@ -408,7 +408,7 @@ The playtester: "work every resource node on the home island fast, then expand t
 prioritise, later everything it can get hold of"; "a lone mining camp with a few citizens on an empty island won't
 hold: a few towers and even barracks for reinforcement are needed".
 
-**Measured** (`# isl:` every 5 minutes, autotest, both sides; `scripts/islands.py`). Base AI at hard, 60 min, map seed
+**Measured** (`# isl:` every 5 minutes, autotest, both sides; `scripts/results/islands.py`). Base AI at hard, 60 min, map seed
 101, 20 seeds x both seats. The land continents by what they are to each player (home, own, contest, enemy, ally - the
 tests' idle human -, empty), their mines (stone + gold + iron sites of the zones; trees are no zone sites) and the
 player's miners there:
@@ -490,7 +490,7 @@ islands, and taking islands towards the enemy is part of the game; overexpanding
 island won't hold"); he takes an island near the enemy and moves the military there, the far home island becomes the
 economic hub - but a forward base with open flanks lets the enemy sneak into the undefended heart, so only with sea
 control. Every test map so far was Small (`map_size` wrote the wrong setup field; docs/testing.md "Large island maps"):
-`map_scale` and `scripts/isl_ablate.sh` now play Small Islands Large (`siL`, 4 free islands), Tournament Islands Huge
+`map_scale` and `scripts/test/isl_ablate.sh` now play Small Islands Large (`siL`, 4 free islands), Tournament Islands Huge
 (`tiH`, 5), Large Islands Huge (`liH`, 3) at unit limit 1500 (500 a player), 75 minutes, and Small Islands Large 2v2
 (`siL2`, 2500), next to the old Small maps `si5` / `ti5` (60 minutes).
 
@@ -521,7 +521,7 @@ seen`, the shipped build); the sites' "explored"
 flag the old pick read is set for every AI from the start (`# isl ... known mines` 100% at minute 1) - an honest count
 (intel.c's looked-at cells) shows 5 of 35 mines known at minute 20 on Small Islands Large, 9 at 30.
 
-**What fails first** (`scripts/isl_timeline.py`, the first of four events per game the mod did not win: the enemy has
+**What fails first** (`scripts/results/isl_timeline.py`, the first of four events per game the mod did not win: the enemy has
 a drop site on another island and the mod none, the enemy army 3x the mod's (20+), 5+ enemy soldiers on the mod's home
 island, 3+ enemy warships in its waters and fewer of its own; the shipped build `lgA`, 40 games a cell):
 
@@ -624,7 +624,7 @@ The playtester: citizens are needed to fill every mine, a lack of them should no
 oversized, wood-heavy workforce starve the army; workers on wood beyond what is spent are waste.
 
 **Measured** (the shipped build `lgA` against the base AI at hard, unit limit 1500 = cap 505 each, 75 min, 40 games a
-cell; `scripts/workforce.py`, the `# wf:` line). At minute 60 without the cheat (siL / tiH / liH), mod against base AI:
+cell; `scripts/results/workforce.py`, the `# wf:` line). At minute 60 without the cheat (siL / tiH / liH), mod against base AI:
 
 | | mod | base AI |
 |---|---|---|
@@ -649,7 +649,7 @@ walking citizen's reach) and its forest was cut back, so the extra citizens stoo
 or cut wood nobody spent.
 
 **Why so few soldiers:** every soldier needs gold or iron (Middle Ages: Long Sword / Pikeman 30 iron, Long Bow 30
-gold, Knight 60 gold, warships 125-250; data/db/dbtechtree.dat). The gold and iron are spent the moment they come in.
+gold, Knight 60 gold, warships 125-250; local/games/ee/data/db/dbtechtree.dat). The gold and iron are spent the moment they come in.
 On the islands the navy account holds part of them. Techs took little: the researched techs' gold + iron from the
 start epoch on is 1000-1500 a game (`# wf ... rsch`). The game's requests are for gold-heavy units (Knights, Cavalry
 Archers, Cuirassiers), and the budget saves 90 s for them (substitute_wait) while the gold goes elsewhere. So the
@@ -707,7 +707,7 @@ good alternative; the AI never cheats. "Workforce into army" found the army on t
 
 **Measured** (`# metal:` every 5 minutes, both sides: income since the start, every payment by what it bought - from the
 tech paid, so units, research and buildings apart -, the army alive by line, the enemy soldiers the mod knows by line,
-the time the budget saved for a refused unit, the gold + iron in stock and in the navy account; `scripts/metal.py`).
+the time the budget saved for a refused unit, the gold + iron in stock and in the navy account; `scripts/results/metal.py`).
 The build without changes (`mtB0`) against the base AI at hard, 40 games a cell, gold + iron by minute 60, mod / base AI:
 
 | Map | cheat | G+I income | share on warships | land soldiers' share | saving (G+I in stock then) | G+I stock | soldiers 60 |
@@ -791,7 +791,7 @@ sneaks past to the home economy; the outposts must hold.
 the sea (`sea_held`) and its land army is at least 1.5 x the enemy army it knows; a guard of at least 4; a ring of four
 towers instead of two; the idle citizens board first. Measured as 185 (1 + 8 EARLY + 16 EXTRA + 32 MORE + 128), 249
 (+ 64 FORWARD), the old 57 for reference, 185 with `workforce_plan=1` (CAP), and 185 with `metal_plan=24` (FLEET 150%,
-12 + CALM). Paired with `mtB0` (d = with - without, standard error; og = miners on other islands, `scripts/islands.py`;
+12 + CALM). Paired with `mtB0` (d = with - without, standard error; og = miners on other islands, `scripts/results/islands.py`;
 foe = the most enemy soldiers seen on the home island at a 5-minute sample):
 
 | Variant | Map | cheat | games | d kills - losses | d soldiers 60 | d G+I by 60 | d og30 / og60 | d foe | mod / base AI won |
@@ -838,7 +838,7 @@ What the game does (pipe tests on the idle player's units, Middle Ages): a Hospi
 ~4 tiles of its centre at once, 3 hit points a second (a Long Sword 100 -> 400 in 100 s; 5 tiles away nothing); a
 Dock repairs the ships within ~3 tiles, 2 a second each; nothing else regains hit points.
 
-**Measured** (`# cvd` / `# cover`, autotest, both sides; `scripts/cover.py`): for every military unit killed its base
+**Measured** (`# cvd` / `# cover`, autotest, both sides; `scripts/results/cover.py`): for every military unit killed its base
 price (F+W+S+G+I, no cheat), the fight estimate when it took its target (stats.c st_ratio, own and allied fighters
 within 10 tiles against the enemy's and the enemy defences covering the spot - all units, not only those seen), how
 long it had been below half its hit points and whether it then had a quiet moment (no enemy fighter within ~8-16
@@ -931,7 +931,7 @@ their centre below 1) - and no other group on the same target fights on stronger
 called off (the game's call-off at the safe point, `g_cancel_why` "attack (fall back: given up)", as attack_retreat)
 and the next attack is due within 5 minutes. Logged: `# cover: ... breaks off ... - gives its attack up` / `- home, no
 cover near`, `# cover: ... its attack on P<t> ends - g of n units gave up ...`; the minute line counts `gave`, `home`,
-`ended` (scripts/cover.py).
+`ended` (scripts/results/cover.py).
 
 Measured (base AI at hard, both cheats, 20 seeds x both seats = 40 games a cell, paired by seed with the shipped 7 -
 `fe7`; `fe15` = 15, `fe15b3` = 15 with `fall_back_breaks=3`, `fe7r` = 7 with `attack_retreat=1`; the WW1 starts are

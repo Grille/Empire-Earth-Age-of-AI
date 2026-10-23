@@ -1,7 +1,7 @@
 // THE DISPLAY (the engine DLLs' rasterizer, screens, surfaces, window, input devices, texts and fonts): fields,
 // functions.
 
-// FIELDS (AoC ships its own builds of the engine DLLs - scripts/port_dll.py)
+// FIELDS (AoC ships its own builds of the engine DLLs - scripts/re/port_dll.py)
 // the rasterizer (DX7Rasterizer): its per-screen states +0x20[screen], +0x6C[0] the device state (its +0x1C the device)
 internal inline ee_screen_state *ras_get_screen_state(const ee_rasterizer *ras, unsigned screen) { return FIELD(ras, E_RAS_SCREEN_STATES, ee_screen_state **)[screen]; }
 internal inline ee_screen_state **ras_get_screen_states(const ee_rasterizer *ras) { return FIELD(ras, E_RAS_SCREEN_STATES, ee_screen_state **); }

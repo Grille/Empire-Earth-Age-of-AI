@@ -159,7 +159,7 @@ internal inline int patch_shore_to_unload(shore_to_unload_hook h) { return patch
 internal inline int patch_exit_confirm(void (__cdecl *h)(void)) { return patch_code32(GA(EXIT_CONFIRM_AT), GA(FN_EXIT_CONFIRM), (uint32_t)(uintptr_t)h); }
 
 // The editor layout for any resolution from 800x600 up: Art of Conquest's 1024x768 values (generated from a
-// comparison of both exes, scripts/layout_diff.py + gen_editor_layout.py), each moved with the screen size the way
+// comparison of both exes, scripts/re/layout_diff.py + gen_editor_layout.py), each moved with the screen size the way
 // AoC moved it from EE's 800x600: anchored right/bottom, stretched, or centred. Computed when the editor is entered.
 #define N_LAYOUT (sizeof k_editor_layout / sizeof *k_editor_layout)
 internal uint32_t g_layout_consts[N_LAYOUT];

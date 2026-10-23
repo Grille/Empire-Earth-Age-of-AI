@@ -1,6 +1,6 @@
 # Scripts (test scenarios)
 
-A test run's `setup=<file>` (autotest, `run_test.ps1 -IniExtra "setup=scenarios/bombing.eeai"` - relative to the repository) is a script in
+A test run's `setup=<file>` (autotest, `run_test.ps1 -IniExtra "setup=tests/scenarios/bombing.eeai"` - relative to the repository) is a script in
 the text language of the personalities ([config/aimod_ai/README.md](../config/aimod_ai/README.md)): the same
 expressions, plus statements, variables, functions and the pipe's commands. It runs from 2 s game time, top to
 bottom; waiting (`wait`, `wait_until`, `every`) lets the game go on until that game time. The runner: `dll/test/scripts.c`.
@@ -269,7 +269,7 @@ scripts at the game's start now (setup=...); a dry run leaves the setup out.
 
 `setup=a.eeai;b.eeai` (`;` - `run_test.ps1` splits its ini arguments at commas): each runs on its own, in turn, always
 in the order given. A script waits only for itself: two things that repeat at different steps (a fight measured every
-3 s, orders every 12 s) are two scripts (`scripts/duels.sh`).
+3 s, orders every 12 s) are two scripts (`scripts/test/duels.sh`).
 
 ## Mistakes
 

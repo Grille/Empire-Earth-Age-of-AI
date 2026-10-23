@@ -142,10 +142,10 @@ peace or alliances. With the mod:
   [`config/aimod_ai/README.md`](config/aimod_ai/README.md), which goes into the folder with the files. A mistake is
   logged with the file and line and only that key is skipped; `strict_parsing=1` in aimod.ini shows every mistake
   at once (for whoever writes texts).
-- **Editing them in VS Code:** [`vscode/eeaimod-texts`](vscode/eeaimod-texts) highlights the `.eeai`
+- **Editing them in VS Code:** [`extensions/eeaimod-texts`](extensions/eeaimod-texts) highlights the `.eeai`
   files - records, keys, strings, placeholders, expressions; an unknown key, situation or epoch name shows as an
-  error. `python scripts/pack_vscode.py`, then `code --install-extension work/eeaimod-texts.vsix`
-  and reload the window. The grammar takes the names from the DLL's sources (`scripts/gen_vscode_grammar.py`).
+  error. `python scripts/build/pack_vscode.py`, then `code --install-extension local/work/eeaimod-texts.vsix`
+  and reload the window. The grammar takes the names from the DLL's sources (`scripts/build/gen_vscode_grammar.py`).
 - **Play style** (experimental, `ai_style=1`, off by default): a personality can also change how its AI plays
   (attack timing, army share, home guard). Off, every AI plays the same, tested way.
 
@@ -291,10 +291,10 @@ POSIX shell (Git Bash).
 git clone <this repo> eeaimod     # anywhere; inside the game folder (<game>/_aimod) needs no setting
 cd eeaimod
 # elsewhere: name the game folder (or set EE_GAME_DIR) - the tests and the install use it
-echo "X:/Games/Empire Earth Gold/Empire Earth" > game_dir.txt
-# unpack llvm-mingw to tools/llvm-mingw (or set CC=/path/to/i686-w64-mingw32-clang)
+echo "X:/Games/Empire Earth Gold/Empire Earth" > local/game_dir.txt
+# unpack llvm-mingw to local/tools/llvm-mingw (or set CC=/path/to/i686-w64-mingw32-clang)
 sh dll/build.sh            # -> dll/eeaimod.dll
-sh scripts/install.sh      # the committed build into the game folder (reserves it: waits until no game runs)
+sh scripts/build/install.sh      # the committed build into the game folder (reserves it: waits until no game runs)
 ```
 
 The DLL is a single translation unit: `dll/eeaimod.c` includes the other `.c` files, one folder per part (Project layout).
@@ -305,32 +305,33 @@ Everything below is only needed for reverse engineering and automated tests.
 
 | Tool | Where | Used for |
 |---|---|---|
-| llvm-mingw | `tools/llvm-mingw` | building the DLL |
-| Python 3.12+ | `venv/` (`python -m venv venv`, `venv/Scripts/pip install -r requirements.txt`) | analysis and test scripts |
-| Ghidra 12 + JDK 21 | `tools/ghidra12`, `tools/jdk21` | decompiling the game |
+| llvm-mingw | `local/tools/llvm-mingw` | building the DLL |
+| Python 3.12+ | `local/venv` (`python -m venv local/venv`, `local/venv/Scripts/pip install -r requirements.txt`) | analysis and test scripts |
+| Ghidra 12 + JDK 21 | `local/tools/ghidra12`, `local/tools/jdk21` | decompiling the game |
 
-None of these, and nothing derived from the game's files, are in the repository (see `.gitignore`).
+None of these, and nothing derived from the game's files, are in the repository: they live in `local/` (git-ignored -
+`work/` the test logs and builds, `tools/`, `venv/`, `games/ee/` and `games/aoc/` what is taken from each game).
 Generate them locally:
 
 ```sh
-# function names from the game's RTTI (vtables) -> work/names.tsv
-mkdir -p work && venv/Scripts/python scripts/rtti_names.py work/names.tsv
-# full decompilation to decomp/<address>.c + decomp/functions.tsv (takes a while)
-cp "../Empire Earth.exe" work/EE.exe
-tools/ghidra12/support/analyzeHeadless ghidra_proj EE -import work/EE.exe \
-    -scriptPath ghidra_scripts -postScript ExportDecomp.java "$(pwd)/decomp"
-# the same for each engine DLL (scripts/port_dll.py; Art of Conquest's into aoc/decomp/dll/ from its folder)
-tools/ghidra12/support/analyzeHeadless ghidra_proj DLL_LowLevelEngine -import "../Low-Level Engine.dll" \
-    -scriptPath ghidra_scripts -postScript ExportDecomp.java "$(pwd)/decomp/dll/LowLevelEngine"
-# string table of the German Language.dll -> strings_de.json
-venv/Scripts/python scripts/strtab.py "../Language.dll"
+# function names from the game's RTTI (vtables) -> local/work/names.tsv
+mkdir -p local/work && local/venv/Scripts/python scripts/re/rtti_names.py local/work/names.tsv
+# full decompilation to local/games/ee/decomp/<address>.c + local/games/ee/decomp/functions.tsv (takes a while)
+cp "../Empire Earth.exe" local/work/EE.exe
+local/tools/ghidra12/support/analyzeHeadless local/games/ee/ghidra_proj EE -import local/work/EE.exe \
+    -scriptPath scripts/re/ghidra -postScript ExportDecomp.java "$(pwd)/local/games/ee/decomp"
+# the same for each engine DLL (scripts/re/port_dll.py; Art of Conquest's into local/games/aoc/decomp/dll/ from its folder)
+local/tools/ghidra12/support/analyzeHeadless local/games/ee/ghidra_proj DLL_LowLevelEngine -import "../Low-Level Engine.dll" \
+    -scriptPath scripts/re/ghidra -postScript ExportDecomp.java "$(pwd)/local/games/ee/decomp/dll/LowLevelEngine"
+# string table of the German Language.dll -> local/games/ee/strings_de.json
+local/venv/Scripts/python scripts/re/strtab.py "../Language.dll"
 ```
 
 Helpers working on the dump and the exe:
-- `scripts/fn.sh <hex>`: print a decompiled function.
-- `scripts/refs.py <hex>`: list calls, jumps and pointers to an address.
-- `scripts/disp.py <hex>`: find instructions using a displacement or offset.
-- `scripts/pdis.py <hex>`: disassemble at an address.
+- `scripts/re/fn.sh <hex>`: print a decompiled function.
+- `scripts/re/refs.py <hex>`: list calls, jumps and pointers to an address.
+- `scripts/re/disp.py <hex>`: find instructions using a displacement or offset.
+- `scripts/re/pdis.py <hex>`: disassemble at an address.
 
 [docs/engine-notes.md](docs/engine-notes.md) collects the verified addresses and data layouts.
 The community's projects at [EE-modders](https://github.com/EE-modders) are a good second source (the game's
@@ -343,13 +344,13 @@ runs at the same speed are byte-identical, which makes A/B tests exact; random m
 those are compared over several runs. See [docs/testing.md](docs/testing.md).
 
 ```sh
-# one 75-minute AI-vs-AI game on a random map, logs to work/autotest_<stamp>_<tag>.csv
-powershell -ExecutionPolicy Bypass -File scripts/run_test.ps1 -Save newgame.ees -Tag _try \
+# one 75-minute AI-vs-AI game on a random map, logs to local/work/autotest_<stamp>_<tag>.csv
+powershell -ExecutionPolicy Bypass -File scripts/test/run_test.ps1 -Save newgame.ees -Tag _try \
     -IniExtra "random_map=Continental,ai_count=3,seed=101,avoid_towers=1"
 # the 4-map suite for several variants, scored per variant
-sh scripts/suite.sh 50 "base:" "smart:avoid_towers=1"
+sh scripts/test/suite.sh 50 "base:" "smart:avoid_towers=1"
 # talk to the running game
-venv/Scripts/python scripts/eectl.py status | army 2 | diplo | persona | say 2 Hello | quit
+local/venv/Scripts/python scripts/test/eectl.py status | army 2 | diplo | persona | say 2 Hello | quit
 ```
 
 ## Project layout
@@ -387,13 +388,22 @@ dll/              the mod (C), one translation unit: eeaimod.c includes every pa
                     they call), trace.c call tracing, ecolog.c the economy log
   dinput/           eesettings.c: dinput.dll, the game's settings in eesettings.ini instead of the registry
 config/           aimod.ini and the aimod_ai personalities, shipped to players
-scenarios/        setup scripts (docs/scripts.md) that turn a save into a test scenario (attacks, sieges, raids)
-scripts/          test runner, suite, log analysis, control client, MCP server, RE helpers
-                    gen_units.py + dat_read.py: docs/units.md and dll/game/unit_names.h from the game data
-                    (the community DB editor's field layouts and English strings, downloaded into dats/);
-                    gen_cmd_verbs.py: dll/test/cmd_verbs.h; text_engine_cases.txt: the text engine comparison's cases
-ghidra_scripts/   Ghidra headless script that names and decompiles the exe
-mod/              generator for a tuned dbcpbehavior.dat (AI settings table; superseded by aimod.ini)
+tests/            what the tests run: scenarios/ the setup scripts (docs/scripts.md) that turn a save into a test
+                  scenario (attacks, sieges, raids), probes/ the one-off setups of single measurements, config/
+                  autotest.ini and the test configs, text_engine_cases.txt the text engine comparison's cases
+scripts/          game_dir.py / .sh: where the game is (every script's)
+  build/          the build's checks and generators (layers.py, style.py, addr_sort.py, persist_layout.py,
+                  gen_cmd_verbs.py, gen_*.py for the docs and the grammar), code_same.py, install.sh
+  test/           run_test.ps1 and the runners on top of it (suite.sh, scen.sh, h2h.sh, vanilla.sh, jobs.sh),
+                  reserve.sh, eectl.py the control client, ee_mcp.py the MCP server, work_prune.ps1
+  results/        the log readers and scorers (score.py, h2h.py, vanilla.py ...; logs.py opens the gzipped logs)
+  re/             reverse engineering: the exe and dump helpers, port_*.py for Art of Conquest, gen_units.py +
+                  dat_read.py (docs/units.md and dll/game/unit_names.h from the game data: the community DB editor's
+                  field layouts and English strings, downloaded into local/games/ee/dats/), make_cpbehavior.py (a
+                  tuned dbcpbehavior.dat; superseded by aimod.ini), ghidra/ the headless script that names and
+                  decompiles the exe
+extensions/       eeaimod-texts: the VS Code extension for the .eeai files
+local/            git-ignored: this machine's tools, test output and what is derived from the games (Setup)
 docs/             engine notes, AI analysis, testing guide, units.md (every type: id, identifier, stats),
                   scripts.md (the setup scripts)
 ```

@@ -1,17 +1,17 @@
 // THE TABLES BEHIND GA, GF, GL AND THE FIELDS' NAMES - game/api/'s own: the rest of the code uses the accessors, wrappers and
-// installers of the module's object files (unit.c, player.c ...), and FIELD (layout.h; scripts/layers.py). Every address the mod uses in
+// installers of the module's object files (unit.c, player.c ...), and FIELD (layout.h; scripts/build/layers.py). Every address the mod uses in
 // Empire Earth.exe and every field offset it reads, by name, with its value in each exe build the mod knows - one
 // column per k_exe_builds entry (builds.h), in that order. game_build (exe.c) finds the running build, addr_select and
 // fields_select take its column when the DLL loads: GA(NAME) is the address, GF(NAME) the function there, typed by its
 // row, GL(NAME) a list of addresses (its count: sizeof GL(NAME) / sizeof *GL(NAME)), a field's name (UNIT_HP) its
 // offset. Another build - Art of Conquest, another release, a patched exe - is one more hash and one more value per
-// row (scripts/port_addrs.py, port_fields.py).
+// row (scripts/re/port_addrs.py, port_fields.py).
 // The address names: FN_ a function, CALL_ a call (patched), SITE_/CODE_ an instruction or operand, G_ data, VT_ a
 // vtable, VTS_ a vtable slot's address, SLOT_ a vtable slot's index (a class may have gained a virtual function),
 // SIZE_ an object's size, IAT_ an import slot, RVA_ a place in an engine DLL (0: the build hasn't got it). Tables of
 // their own for one build: editor_layout.h (generated for the 2017 update: hooks.c apply_editor_layout only there).
 
-// The address rows by who uses them (scripts/addr_sort.py keeps them there, the build checks it): functions.h what
+// The address rows by who uses them (scripts/build/addr_sort.py keeps them there, the build checks it): functions.h what
 // the module calls, hooks.h what it patches (the files' HOOKS, hooks.c), data.h the game's data it reads; one table of the
 // three. F(name, return type, calling convention, (parameters), value per build): a function; D(name, value per
 // build): an address or a number; L(name, count, (values of build 1), (values of build 2) ...): a list.
@@ -25,7 +25,7 @@
 // numbers that aren't addresses: SLOT_ a virtual function's index in its class's vtable (patch_vtable, a call through
 // the vtable; slot 0, the deleting destructor in both builds, stays a plain 0), SIZE_ the size of a game object the
 // mod makes itself (FN_NEW, then its constructor), RVA_ a place in an engine DLL relative to its base - each build
-// ships its own DLLs (scripts/port_dll.py); what the DLLs export is taken by name instead. A patch there checks the
+// ships its own DLLs (scripts/re/port_dll.py); what the DLLs export is taken by name instead. A patch there checks the
 // bytes first: a DLL from elsewhere is left alone.
 #define ADDR_NUMBERS(D) ADDR_NUMBERS_FUNCTIONS(D) ADDR_NUMBERS_HOOKS(D)
 

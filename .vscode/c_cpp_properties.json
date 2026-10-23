@@ -2,7 +2,7 @@
     "configurations": [
         {
             "name": "eeaimod",
-            "compilerPath": "${workspaceFolder}/tools/llvm-mingw/bin/i686-w64-mingw32-clang.exe",
+            "compilerPath": "${workspaceFolder}/local/tools/llvm-mingw/bin/i686-w64-mingw32-clang.exe",
             "intelliSenseMode": "windows-clang-x86",
             "cStandard": "gnu17",
             "includePath": ["${workspaceFolder}/dll"],

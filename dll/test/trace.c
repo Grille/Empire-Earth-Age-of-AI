@@ -1,6 +1,6 @@
 // Assignment trace (autotest ini: trace_player=<n>, optional trace_until_min=<m>): logs the resource
 // manager's site searches and gather orders for one AI player as "# T ..." lines. All hooked functions
-// are __thiscall on the EECPResourceManager. Call sites found with scripts/refs.py. Included by eeaimod.c.
+// are __thiscall on the EECPResourceManager. Call sites found with scripts/re/refs.py. Included by eeaimod.c.
 
 internal int g_trace_player = -1;
 internal uint32_t g_trace_until_ms;

@@ -1,5 +1,5 @@
 #!/bin/sh
-# Builds eeaimod.dll (32-bit) with llvm-mingw (tools/llvm-mingw, or set CC to another i686 mingw compiler).
+# Builds eeaimod.dll (32-bit) with llvm-mingw (local/tools/llvm-mingw, or set CC to another i686 mingw compiler).
 # usage: sh build.sh [install]   - "install" also copies the DLL into the game folder (scripts/game_dir.sh).
 # -mstackrealign: the game calls our hooks with a 4-byte aligned stack; vectorized code (movdqa to the stack)
 # would crash without it.
@@ -13,19 +13,19 @@
 # --exclude-all-symbols: the DLL exports nothing (without an export list mingw exports every name without static -
 # dxguid's 1370 GUIDs and a few hooks; nothing looks them up: the hooks are reached by patched addresses)
 cd "$(dirname "$0")"
-CC=${CC:-../tools/llvm-mingw/bin/i686-w64-mingw32-clang}
+CC=${CC:-../local/tools/llvm-mingw/bin/i686-w64-mingw32-clang}
 # the layout hashes of the saved-game blocks (persist.c): persist_layout.h, kept in git for a build without Python
-PY=../venv/Scripts/python.exe
+PY=${PY:-../local/venv/Scripts/python.exe}   # install.sh: the repository's, for its clean copy
 [ -x "$PY" ] || PY=$(command -v python3 || command -v python)
-# the folders' rules (which part may use which: scripts/layers.py) - a use across them fails the build
-# and the C style the compiler leaves open (scripts/style.py: int* a, b - only a is a pointer); the editor's view of
-# the one translation unit (scripts/gen_editor_context.py: what each part sees before it, for VS Code's C/C++)
-if [ -n "$PY" ]; then "$PY" ../scripts/persist_layout.py && "$PY" ../scripts/gen_cmd_verbs.py && "$PY" ../scripts/layers.py --quiet && "$PY" ../scripts/addr_sort.py --check && "$PY" ../scripts/style.py && "$PY" ../scripts/gen_editor_context.py || exit 1
-else echo "no Python: persist_layout.h and cmd_verbs.h left as they are, the folders' rules unchecked (scripts/persist_layout.py after changing a saved variable, gen_cmd_verbs.py after a new pipe command)"; fi
+# the folders' rules (which part may use which: scripts/build/layers.py) - a use across them fails the build
+# and the C style the compiler leaves open (scripts/build/style.py: int* a, b - only a is a pointer); the editor's view of
+# the one translation unit (scripts/build/gen_editor_context.py: what each part sees before it, for VS Code's C/C++)
+if [ -n "$PY" ]; then "$PY" ../scripts/build/persist_layout.py && "$PY" ../scripts/build/gen_cmd_verbs.py && "$PY" ../scripts/build/layers.py --quiet && "$PY" ../scripts/build/addr_sort.py --check && "$PY" ../scripts/build/style.py && "$PY" ../scripts/build/gen_editor_context.py || exit 1
+else echo "no Python: persist_layout.h and cmd_verbs.h left as they are, the folders' rules unchecked (scripts/build/persist_layout.py after changing a saved variable, gen_cmd_verbs.py after a new pipe command)"; fi
 "$CC" -O2 -mstackrealign -fno-strict-aliasing -Wall -Wextra -Wformat=2 -Wstrict-prototypes -Wimplicit-fallthrough -Wvla -Wshadow -shared -static -I. -o eeaimod.dll eeaimod.c -lgdi32 -ldxguid -lwinmm -lwinhttp -Wl,--image-base,0x6E000000 -Wl,--exclude-all-symbols || exit 1
 # dinput.dll (optional): the game's settings in eesettings.ini instead of the registry (dinput/eesettings.c)
 "$CC" -O2 -Wall -Wextra -Wformat=2 -Wstrict-prototypes -Wimplicit-fallthrough -Wvla -Wshadow -shared -static -o dinput.dll dinput/eesettings.c dinput/eesettings.def -ladvapi32 -luser32 || exit 1
-if [ "$1" = install ]; then   # the working tree's build (scripts/install.sh: the committed one) into the game folder
+if [ "$1" = install ]; then   # the working tree's build (scripts/build/install.sh: the committed one) into the game folder
     REPO="$(cd .. && pwd)"; . ../scripts/game_dir.sh   # GAME
     cp eeaimod.dll "$GAME/eeaimod.dll" && echo "installed to $GAME/eeaimod.dll"
     # another program's dinput.dll is never replaced (then the settings simply stay in the registry)

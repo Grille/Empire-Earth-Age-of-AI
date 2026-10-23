@@ -1,4 +1,4 @@
-// ECONOMY AND CITIZEN-LOSS LOG (autotest only; scripts/eco_timeline.py, docs/testing.md "Against the base-game AI"):
+// ECONOMY AND CITIZEN-LOSS LOG (autotest only; scripts/results/eco_timeline.py, docs/testing.md "Against the base-game AI"):
 // the same lines for the mod's AIs and the vanilla players, so their economies can be laid side by side. Nothing
 // here acts on the game - it only reads.
 // "# eco: P<i> at <m> min: k=v ..." every game minute: citizens on the map by what they do (their goal +0x1EC:

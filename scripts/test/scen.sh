@@ -1,0 +1,24 @@
+#!/bin/sh
+# A/B test on a built scenario: a base map plus a setup file (control-pipe commands run at 2 s, e.g. spawn).
+# usage: sh scripts/test/scen.sh <minutes> <scenario> "<base ini keys>" <variant>...   (variant = name:ini,keys)
+#   scenario = tests/scenarios/<scenario>.txt; REPEAT=n (default 5) runs with game_seed 1..n per variant; JOBS=n: n games
+#   at a time (scripts/test/jobs.sh).
+# e.g. sh scripts/test/scen.sh 30 towers_on_path "random_map=Continental,map_size=0,ai_count=2,seed=101,start_epoch=3" \
+#          "old:attack_leash=0,attack_weak_spot_radius=25,avoid_towers_margin=3" "new:"
+cd "$(dirname "$0")/../.."
+. scripts/test/jobs.sh
+MIN=$1; SCEN=$2; BASE=$3; shift 3
+REPEAT=${REPEAT:-5}
+[ -f "tests/scenarios/$SCEN.eeai" ] || { echo "no tests/scenarios/$SCEN.eeai"; exit 1; }
+STAMP=$(date +%Y%m%d_%H%M)
+for v in "$@"; do
+    name=${v%%:*}; extra=${v#*:}
+    for r in $(seq 1 $REPEAT); do
+        ini="$BASE,teams=ffa,ai_cheat=0,ai_ignore=1,headless=1,turbo=1,quit_minutes=$MIN,game_seed=$r,setup=tests/scenarios/$SCEN.eeai"
+        [ -n "$extra" ] && ini="$ini,$extra"
+        job -Save newgame.ees -TimeoutSec $((MIN * 12 + 120)) -Tag "_suite${STAMP}_${name}_${SCEN}-r$r" -IniExtra "$ini"
+    done
+done
+jobs_wait
+local/venv/Scripts/python.exe scripts/results/score.py -q local/work/autotest_*_suite${STAMP}_*.csv*
+echo SCEN DONE $STAMP
