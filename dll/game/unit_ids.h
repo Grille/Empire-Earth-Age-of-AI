@@ -76,7 +76,7 @@ internal int ut_in(int t, const enum ut_name *set, int n) {   // t one of the na
 // scenario objects too - the Missile Base and castle walls, the Sampson (a siege-family melee unit) - so towers, walls
 // and gates are still built from their named lines; only transports and fishing boats, one per epoch by their tech
 // record's test (landing.c ld_type_avail), are chosen by their class.
-enum { CLS_LAND = 5, CLS_CITIZEN = 6, CLS_TRANSPORT = 18, CLS_FISHING_BOAT = 22, CLS_GATE = 25 };
+enum { CLS_LAND = 5, CLS_CITIZEN = 6, CLS_LAND_TRANSPORT = 16, CLS_AIR_TRANSPORT = 17, CLS_TRANSPORT = 18, CLS_FISHING_BOAT = 22, CLS_GATE = 25 };
 enum {
     UTR_TOWER = 1,          // family towers (the guard towers, the Missile Base)
     UTR_WALL = 2,           // family walls: walls, gates, barbed wire, the castle pieces

@@ -1,0 +1,12 @@
+// The player's load onto one transport (dll/ai/transports.c, transport_split: one transport too): Small Islands (map
+// seed 1), P1's island - one copper transport 2-4 tiles off its south shore, 25 macemen inland; at 0.5 min `transports
+// order load` (the units right-clicked onto it): 10 board, the other 15 keep what they did (the game sent all 25 and
+// turned 15 back at its side; its meeting point was the transport's own tile out at sea). [autotest]
+// transport_split=0: the game's own command.
+wait_until(0.2min)
+spawn(1, unit.s03_copper_transport, 30, 53, 1)
+spawn(1, unit.inf03_maceman, 22, 40, 25)
+wait_until(0.5min)
+cmd("transports order load 1 26 49 10")
+wait_until(3min)
+cmd("transports id 1")

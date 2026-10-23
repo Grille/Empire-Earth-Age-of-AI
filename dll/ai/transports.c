@@ -222,14 +222,18 @@ internal void tw_tick(ee_player *pl, uint32_t now) {
 // units aboard (the landing's finding, ld_run_in). Both run in the simulation on every PC (the selection is the
 // game's, kept in step by the select messages), so the mod's split decides the same everywhere - in multiplayer only
 // while every PC has the same settings, like the rest of the mod.
-// Load: with two or more transports selected (or the clicked one and one more), the units are shared out - the
+// The transports: every class that carries (the data's "unit type", TD_FAMILY) - the ships (18), the helicopters
+// (17), on land the cargo truck, the staff car, the siege towers and the Trojan Horse (16); not the aircraft carriers
+// (planes) nor the buildings.
+// Load: the units right-clicked onto a transport are shared out over it and the other selected transports - the
 // transports nearest the units first, each takes its nearest units that it can carry (the game's own test, its
 // type's vf60) while its room lasts (its room left +0x2A4, less what its load under way still awaits; a unit's size
 // its type's +0x558); each gets a load goal of its own (one under way gets the units added, as the game does), with a
-// meeting point of its own where the game's fails (tw_load_split). Units that find no room keep what they did.
-// Unload: the game's command first (every unit's order as it gives them), then each loaded transport its own beach
-// tile near the clicked one - on that land, at the sea it sails, free, 4 tiles from the others' (3 when the beach is
-// short) - the nearest transport the nearest tile.
+// meeting point of its own where the game's fails (a ship's, tw_load_split). Units that find no room keep what they
+// did - with one transport too (the game sent them all, those beyond its room were turned back at its side).
+// Unload: the game's command first (every unit's order as it gives them), then each loaded transport its own tile
+// near the clicked one - on that land, free, 4 tiles from the others' (3 when there is little room), a ship's at the
+// sea it sails - the nearest transport the nearest tile.
 // Measured (2026-10-23, tests/probes/transport_split.eeai and two variants: Small Islands map seed 1, P1's island, 3 copper
 // transports 2-4 tiles off a beach, 25 macemen inland, through the pipe's `transports`): aboard after 2.5 minutes 75 of
 // 75 in 3 runs (the game's meeting points, transport_meeting=0: 60 - the transport 4 tiles off took none), off the
@@ -241,22 +245,27 @@ internal ivec2 g_tw_click_at;
 internal int ld_tile_free(ivec2 p);                       // landing.c
 internal unsigned ocean_near(ivec2 p, int r, ivec2 *w);   // landing.c
 
-internal int tw_carrier(ee_player *pl, ee_unit *u) {   // pl's transport afloat
+enum { TW_SEA, TW_LAND, TW_AIR };
+internal int tw_kind(ee_unit *u) {   // a transport's: by its class (TW_SEA ...), -1 none
     ee_unit_type *td = u ? unit_get_type_data(u) : NULL;
-    return td && is_transport(type_get_id(td)) && unit_get_owner(u) == pl && unit_get_hp(u) > 0 && unit_get_x(u) >= 0;
+    int c = td ? type_get_family(td) : 0;
+    return c == CLS_TRANSPORT ? TW_SEA : c == CLS_LAND_TRANSPORT ? TW_LAND : c == CLS_AIR_TRANSPORT ? TW_AIR : -1;
+}
+internal int tw_carrier(ee_player *pl, ee_unit *u) {   // pl's transport on the map
+    return tw_kind(u) >= 0 && unit_get_owner(u) == pl && unit_get_hp(u) > 0 && unit_get_x(u) >= 0;
 }
 internal int tw_dist2(ee_unit *a, ee_unit *b) { return ivec2_dist2(unit_get_tile(a), unit_get_tile(b)); }
 internal int tw_size(ee_unit *u) { int s = type_get_transport_size(unit_get_type_data(u)); return s > 0 ? s : 1; }
 
-// a beach tile near p for transport k: on land cont, at its sea ocean, free, gap tiles from the others' at[0..k-1] (4,
-// else 3), the nearest p within reach; 0 none
-internal int tw_beach(ivec2 p, unsigned cont, unsigned ocean, const ivec2 *at, int k, int reach, ivec2 *o) {
+// an unload tile near p for transport k of kind: on land cont, free, gap tiles from the others' at[0..k-1] (4, else
+// 3), a ship's on the beach of its sea ocean; the nearest p within reach; 0 none
+internal int tw_beach(ivec2 p, unsigned cont, int kind, unsigned ocean, const ivec2 *at, int k, int reach, ivec2 *o) {
     for (int gap = 4; gap >= 3; gap--)
         for (int d = 0; d <= reach; d++)
             for (int dx = -d; dx <= d; dx++)
                 for (int dy = -d; dy <= d; dy += (abs(dx) == d || !d ? 1 : 2 * d)) {
                     ivec2 q = iv2(p.x + dx, p.y + dy);
-                    int ok = area_id(q, 2) == cont && !area_id(q, 1) && ocean_near(q, 2, NULL) == ocean && ld_tile_free(q);
+                    int ok = area_id(q, 2) == cont && !area_id(q, 1) && (kind != TW_SEA || ocean_near(q, 2, NULL) == ocean) && ld_tile_free(q);
                     for (int j = 0; j < k && ok; j++) ok = abs(q.x - at[j].x) >= gap || abs(q.y - at[j].y) >= gap;
                     if (ok) { *o = q; return 1; }
                 }
@@ -315,8 +324,8 @@ internal int tw_meeting(ee_unit *t, ee_unit **list, int n, const ivec2 *meet, in
 }
 
 // the units us[nu] shared out over pl's transports tr[nt] (sorted here: nearest the units first): *used the transports
-// given units; the units given. Two or more loading: each new load a meeting point of its own - the game's (the
-// transport class's vf56) is the transport's own tile when it finds the units' region the same as its own (a copper
+// given units; the units given. A ship's new load a meeting point of its own - the game's (EEUCNavalTransport's
+// vf56) is the transport's own tile when it finds the units' region the same as its own (a copper
 // transport 2 tiles off the beach: its 10 units walked to its tile, could not reach it and dropped out - 0 aboard, the
 // same with one transport alone) and one beside the other's for units of one group (2 transports: 9 and 6 of 10 aboard)
 internal int tw_load_split(ee_player *pl, ee_unit **tr, int nt, ee_unit **us, int nu, int *used) {
@@ -327,7 +336,7 @@ internal int tw_load_split(ee_player *pl, ee_unit **tr, int nt, ee_unit **us, in
         for (int j = i; j > 0 && ivec2_dist2(unit_get_tile(tr[j]), c) < ivec2_dist2(unit_get_tile(tr[j - 1]), c); j--) { ee_unit *t = tr[j]; tr[j] = tr[j - 1]; tr[j - 1] = t; }
     static signed char owner[1024];   // the transport each unit goes to, -1 none
     memset(owner, -1, (size_t)nu);
-    int m[16] = { 0 }, loading = 0, given = 0;
+    int m[16] = { 0 }, given = 0;
     for (int k = 0; k < nt; k++) {   // first who goes where
         ee_unit *t = tr[k];
         ee_unit_type *ttd = unit_get_type_data(t);
@@ -346,7 +355,6 @@ internal int tw_load_split(ee_player *pl, ee_unit **tr, int nt, ee_unit **us, in
             if (best < 0) break;
             owner[best] = (signed char)k; room -= tw_size(us[best]); m[k]++;
         }
-        loading += m[k] > 0;
     }
     static ee_unit *list[1024];
     ivec2 meet[16];
@@ -364,7 +372,7 @@ internal int tw_load_split(ee_player *pl, ee_unit **tr, int nt, ee_unit **us, in
             uint8_t *vec[4] = { 0, (uint8_t *)list, (uint8_t *)(list + n), (uint8_t *)(list + n) };
             void *mem = goal_load_alloc();
             if (!mem || !(g = goal_load_init(mem, t, vec))) continue;
-            if (loading >= 2 && g_tw_meet) {   // the game's meeting point while its units' tile is at their beach and apart from the others', else the mod's
+            if (g_tw_meet && tw_kind(t) == TW_SEA) {   // a ship: the game's meeting point while its units' tile is at their beach and apart from the others', else the mod's
                 ivec2 beach, water, at = tw_land_by(iv2(goal_get_meeting_x(g), goal_get_meeting_y(g)), area_id(unit_get_tile(list[0]), 2));
                 int ok = at.x >= 0;
                 for (int j = 0; j < nmeet && ok; j++) ok = abs(at.x - meet[j].x) >= 4 || abs(at.y - meet[j].y) >= 4;
@@ -425,22 +433,24 @@ internal void __thiscall hook_msg_load(ee_msg *msg) {
         if (unit_get_owner(u) != pl || unit_get_hp(u) <= 0 || unit_get_x(u) < 0 || unit_get_holder(u) || nu >= 1024) continue;
         us[nu++] = u;
     }
-    if (nt < 2 || !nu) { msg_load(msg); return; }   // one transport: the game's own command
+    if (!nu) { msg_load(msg); return; }
     if (tw_load_split(pl, tr, nt, us, nu, &used)) tw_click_mark_off(pl, (int)load_msg_get_transport(msg), iv2(-1, -1));
 }
 
 // pl's transports tr[nt] (with an unload goal each, units aboard) each to its own tile near p (sorted here: nearest p
-// first; at[] their tiles); the transports sent elsewhere than p
-internal int tw_unload_spread(ee_player *pl, ee_unit **tr, int nt, ivec2 p, ivec2 *at) {
+// first), apart from the taken tiles at[0..taken-1] too (another group's of the same command); their tiles at[taken
+// ..]; the transports sent elsewhere than p
+internal int tw_unload_spread(ee_player *pl, ee_unit **tr, int nt, ivec2 p, ivec2 *at, int taken) {
     unsigned cont = area_id(p, 2);
     if (!cont) return 0;   // not a tile on land: as the game gave it
     for (int i = 1; i < nt; i++)
         for (int j = i; j > 0 && ivec2_dist2(unit_get_tile(tr[j]), p) < ivec2_dist2(unit_get_tile(tr[j - 1]), p); j--) { ee_unit *t = tr[j]; tr[j] = tr[j - 1]; tr[j - 1] = t; }
     int spread = 0;
     for (int k = 0; k < nt; k++) {
-        if (!tw_beach(p, cont, area_id(unit_get_tile(tr[k]), 1), at, k, 8 + 2 * nt, &at[k])) at[k] = p;
-        if (at[k].x == p.x && at[k].y == p.y) continue;   // its tile is the clicked one: the game's goal stays
-        ee_goal *g = goal_unload(tr[k], at[k].x, at[k].y, 0);
+        ivec2 *o = &at[taken + k];
+        if (!tw_beach(p, cont, tw_kind(tr[k]), area_id(unit_get_tile(tr[k]), 1), at, taken + k, 8 + 2 * (taken + nt), o)) *o = p;
+        if (o->x == p.x && o->y == p.y) continue;   // its tile is the clicked one: the game's goal stays
+        ee_goal *g = goal_unload(tr[k], o->x, o->y, 0);
         spread += g && unit_goal(tr[k], g, 0, TW_PREPARE_TO_MOVE);
     }
     if (g_log) fprintf(g_log, "# tw: P%d at %.2f min: unload at %d,%d - %d transports, %d sent to their own tile\n", player_get_index(pl), game_time() / 60000.0,
@@ -449,34 +459,40 @@ internal int tw_unload_spread(ee_player *pl, ee_unit **tr, int nt, ivec2 p, ivec
 }
 // The unload command: the Execute gives the selected group its unload goal at the clicked tile, the group hands it to
 // its transports (0x5DB641) and draws a yellow circle at each one's goal (FN_ORDER_MARKS, CALL_UNLOAD_MARKS) - the
-// spread comes in between, so each circle is at its transport's own tile. Should the circles' call not come, the
-// spread follows the Execute (no circles then).
+// spread comes in between, so each circle is at its transport's own tile. The Execute makes a group of each kind of
+// the selection (helicopters, trucks, ships ...: one hand-out each), so the tiles taken are kept for the command.
+// Should no circles' call come, the spread follows the Execute (no circles then).
 internal ee_msg *g_tw_unload_msg;   // the unload command being executed
-internal int g_tw_unload_done;      // ... its spread done
+internal int g_tw_unload_groups;    // ... its groups spread
+internal ivec2 g_tw_unload_at[64];  // ... the tiles taken
+internal int g_tw_unload_taken;
 internal void tw_unload_group(ee_msg *msg, void *grp) {
     ee_player *pl = game_player(msg_get_from(msg));
     if (!pl || !grp) return;
     ee_unit *tr[16];
-    ivec2 at[16], p = iv2(unload_msg_get_x(msg), unload_msg_get_y(msg));
-    int nt = 0;
-    for (unsigned i = 0, n = group_count(grp); i < n && nt < 16; i++) {
+    ivec2 p = iv2(unload_msg_get_x(msg), unload_msg_get_y(msg));
+    int nt = 0, taken = g_tw_unload_taken;
+    for (unsigned i = 0, n = group_count(grp); i < n && nt < 16 && taken + nt < 64; i++) {
         ee_unit *t = group_get(grp, i);
         ee_goal *g = tw_carrier(pl, t) ? unit_get_goal(t) : NULL;
         if (g && goal_is_unload(g) && units_inside(t) > 0) tr[nt++] = t;
     }
-    g_tw_unload_done = 1;
-    if (nt >= 2 && tw_unload_spread(pl, tr, nt, p, at)) tw_click_mark_off(pl, -1, p);   // the click's confirmation: the circles say it
+    g_tw_unload_groups++;
+    if (!nt) return;
+    g_tw_unload_taken += nt;
+    if (nt == 1 && !taken) { g_tw_unload_at[0] = p; return; }   // one transport (so far): the game's tile, kept for the next groups
+    if (tw_unload_spread(pl, tr, nt, p, g_tw_unload_at, taken)) tw_click_mark_off(pl, -1, p);   // the click's confirmation: the circles say it
 }
 internal void __cdecl hook_unload_marks(void *grp, void *on, int owner, int how, unsigned goal) {
-    if (g_tw_unload_msg && !g_tw_unload_done) tw_unload_group(g_tw_unload_msg, grp);
+    if (g_tw_unload_msg) tw_unload_group(g_tw_unload_msg, grp);
     order_marks(grp, on, owner, how, goal);
 }
 internal void __thiscall hook_msg_unload(ee_msg *msg) {
     g_tw_unload_msg = msg;
-    g_tw_unload_done = 0;
+    g_tw_unload_groups = g_tw_unload_taken = 0;
     msg_unload(msg);
     g_tw_unload_msg = NULL;
-    ee_player *pl = g_tw_unload_done ? NULL : game_player(msg_get_from(msg));
+    ee_player *pl = g_tw_unload_groups ? NULL : game_player(msg_get_from(msg));
     if (pl) tw_unload_group(msg, player_get_selected_group(pl));
 }
 
@@ -571,7 +587,7 @@ internal void cmd_transports(char *out, const char *args) {
             ee_goal *g = goal_unload(tr[k], x, y, 0);
             if (g && unit_goal(tr[k], g, 0, TW_PREPARE_TO_MOVE)) tr[n++] = tr[k];
         }
-        int s = n >= 2 && g_tw_spread ? tw_unload_spread(pl, tr, n, c, at) : 0;
+        int s = n >= 2 && g_tw_spread ? tw_unload_spread(pl, tr, n, c, at, 0) : 0;
         REPLY("%d loaded transports, %d sent to their own tile:", n, s);
         for (int k = 0; k < n && n >= 2; k++) REPLY(" %06x %d aboard -> %d,%d;", tw_id(tr[k]), units_inside(tr[k]), at[k].x, at[k].y);
         REPLY("\n");

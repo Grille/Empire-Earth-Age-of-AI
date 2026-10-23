@@ -1,0 +1,16 @@
+// The player's load and unload with helicopters and cargo trucks (dll/ai/transports.c, every transport class: 17 and
+// 16 beside the ships): Small Islands (map seed 1), P1's island - 2 Chinooks (10 each) and 2 cargo trucks (4 each)
+// beside 22 macemen (and the start's own units near); at 0.5 min `transports order load` (all of them selected, the units right-clicked onto the
+// transport nearest 26,43), at 3 min `transports order unload` at 22,48 on the same island. Late Modern start
+// (start_epoch=12) so the types are the player's own.
+wait_until(0.2min)
+cmd("spawn 1 376 30 42 2")   // Chinooks (the name a_helicopterxprt12_chinook_transport_12 reads as no statement)
+cmd("spawn 1 215 30 46 2")   // cargo trucks
+spawn(1, unit.inf03_maceman, 22, 40, 22)
+wait_until(0.5min)
+cmd("transports order load 1 26 43 8")
+wait_until(3min)
+cmd("transports id 1")
+cmd("transports order unload 1 22 48 14")
+wait_until(5min)
+cmd("transports id 1")
