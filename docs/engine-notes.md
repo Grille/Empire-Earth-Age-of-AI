@@ -444,6 +444,55 @@ vf26 members and route released, vf12, the group's reference) frees nothing twic
   camera pitch 0x9183C8, FOV 0x91328C. EE vs AoC: byte at 0x401000 is 0xE8 in EE, 0x55 in AoC
   (Empire-Earth-Library). Their hooks (version string 0x5D16F2, FPS 0x64E29E, game start entry 0x5360CA,
   resolution immediates 0x537523.., 0x538B38.., 0x65FAC9.., 0x6601E6..) don't overlap ours.
+- `rmvparse.exe` in the game folder is Stainless's map-script checker ("%s (%d) : ERROR, ..." messages), but it
+  prints nothing and exits 3 on the intact scripts as well, so it is of no use as it is. The game itself says nothing
+  about a broken .rmv: a pasted path after `#define (Is2Players, ...)` in Common Conditions.rmv made every
+  two-player random map end during map generation (exit 3).
+
+## Unit AI scripts (.tai)
+
+Each unit type's behaviour is a state machine from `Data\Unit AI Scripts\<name>.tai` (extracted copies:
+`data/unit ai scripts/`, git-ignored). Read from the code (2026-10-23), not yet tried in a game; the name tables (241
+conditions, 162 states with their ids) were dumped by a helper, not kept in the repo.
+- Which file: dbobjects.dat's record +0xEC (e.g. "Sea Transport"), copied by the EEUnitClass ctor 0x61C35B to class+8;
+  0x61D37B -> 0x619AC0 parses it into class+0x370 (Idle, 5000, always added). Parsed once per process, cached by
+  name in the map 0x941878. Found through FSPath::FindFile on [0x91978C] ("Unit AI Scripts\<name>.tai"), the path
+  every data file takes, so a loose file should override the archive (not tried). 0x5381A3 checksums the .tai files
+  with Db\*.dat, Models and the DLLs - most likely the multiplayer version check: changed .tai files probably split
+  a multiplayer game.
+- Parser 0x619B9D (tokens 0x617AD1, comments 0x617B42): `#include("X.tai")` parses X at that point into the same
+  map (no guard: a circular include never ends); `State { line... }`, a line `Cond` / `anyof(a,b)` / `allof(a,b)`
+  followed by `true(S)`, `false(S)` or `remove()`. A single `/` starts a comment to the end of the line, the newline
+  with it - a comment right after a token joins it to the next line. Nothing is ever reported: an unknown condition
+  is id 0 (always false), an unknown state state 0 (no action), a missing file or include skipped, and **a space
+  after a comma inside anyof(/allof( silently ends the whole file** (an empty token stops the loop, 0x619CF3; the
+  shipped files have none).
+- A state defined twice is merged (0x618ED9): lines are appended in file order, except that a line of one bare
+  condition (or anyof(X)) replaces an earlier one-condition line of the same condition in its place, and `X remove()`
+  deletes it; lines of several conditions and allof(X) always append. Hence fishing boat.tai's allof line before
+  the include: the first matching line wins.
+- Running: tick 0x5F0F7E (from 0x547E1A), the current state at unit+0x1E8. State evaluate 0x619FF5 takes the first
+  line that returns nonzero (line 0x618CCB: allof/anyof short-circuit, a missing branch is 0 - a `true(X)` line whose
+  condition is false falls through); no line taken = the state again next tick (Idle every 350 ms); one transition a
+  tick. States are actions: entering one runs it once (class vf+0x74, base 0x61AD41, else the goal's vf+0x40).
+  Conditions ask the unit's goal first (vf+0x64), then the class switch 0x61B677, else false; a goal that answers
+  while +0x1EC != +0x1F0 pops (0x5EE965). SetState 0x5EFCF0 with an id the script lacks leaves a NULL state: the unit
+  freezes.
+- Idle (0x61B05B) keeps the unit's goal; without one it registers the unit as idle (0x917D00). PrepareToMove goes
+  Idle after the goal's retries. UnderAttack (2018) is entered from EEUnit::TakeDamage 0x617423 only from Idle and
+  only if the script has it; CheckRange from outside only when an EEUGAttackUnit is retargeted (0x62CD12).
+  ObstacleDetected: unit+0x20C set, or standing still 3-5 s (+0x248 vs 4000 x rnd(0.75, 1.25)). CanIMove: speed >
+  0.1. MovePreparationComplete: unit+0x33E (path ready, set 0x4A2BA0) and waypoints +0x8C > 0.
+- Transports (transport.tai, load container.tai, sea transport.tai): NoMoreLoadableUnitsToPickUp (EEUGLoadContainer
+  vf64 0x613C20) = full or the pending passengers (goal+0x20) none; HaveReachedRendezvousPoint distance <= 1.0 to
+  goal+0x54 (transport) / +0x5C (passenger); WaitForPassengers (0x6137C7) only idles, no time limit. A passenger
+  leaves the pending set by loading, by a new order (0x613992) or by CannotReachContainer (0x6137B8, only when both
+  it and the transport have no waypoints left). Two ways a transport hangs, from the code (not yet seen in a game):
+  a passenger that went Idle keeping its goal (its repath failed) stays pending and the transport waits for ever;
+  RepathAroundObstacle false(Idle) leaves a blocked transport in Idle with its unload goal and its passengers aboard
+  (no Idle lines in the transport scripts, and with a goal it is not registered as idle) until something orders it
+  again. Damage doesn't stop a transport (no UnderAttack state), and Advance's NoMoreLoadableUnitsToPickUp line
+  doesn't cut an unload trip short (the unload goal doesn't answer it).
 
 ## Resource manager details
 
