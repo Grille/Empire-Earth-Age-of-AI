@@ -546,12 +546,13 @@ conditions, 162 states with their ids) were dumped by a helper, not kept in the 
     where one ship goes" with one goal for all. The unload Execute's own call (0x4BF997) is in its move branch only.
   - The mod's split and spread (transports.c) take the click confirmation away and give each transport its own
     yellow circle: the unload's spread runs in that 0x5DCDBD call before the circles are drawn; the load draws a 0xBA
-    with each transport at its meeting point (the split bypasses the load Execute).
+    at each transport's meeting point (the split bypasses the load Execute): drawn without a unit (with the transport it
+    was drawn on the transport), then given the size vf12 gives a transport (below).
   - These circles are EEE3DCommandConfirmation (type 0x41 of 0x4FB6D4; vf12 0x4E2855): its record's +0x60 picks the
     colour - 0 by the unit's order (its goal there a location: by the tile; else the unit's goal +0x1EC an unload: the
     yellow 0x8D2380, otherwise 0x8D2360 - purple, seen with a load), 1-4 a fixed one (0xBA: yellow) - and its size and
     time (+0x74, +0x78 from the record's +0x1C, +0x18) are scaled by the unit's type +0x464; without a unit they stay
-    the record's, and a 0xBA ended before it had grown (seen). EEEffect::vf9 ends an effect at once whose +0x2D is set
+    the record's, and a 0xBA ended before it had grown (seen). vf12 runs once, in 0x4FB6D4 (its slot 12 call). EEEffect::vf9 ends an effect at once whose +0x2D is set
     and whose +0x20 isn't this PC's player index.
 
 ## Resource manager details

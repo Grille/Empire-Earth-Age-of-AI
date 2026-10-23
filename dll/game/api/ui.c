@@ -78,7 +78,7 @@ internal inline const char *edit_text(void *edit) { return ((const char *(__this
 enum gfx_kind {
     GFX_ORDER_ON = 0xB8,       // the circle at a unit's goal, drawn with the unit (FN_ORDER_MARKS, per unit); its colour the unit's order's - yellow an unload, else purple (seen with a load)
     GFX_ORDER_ATTACK = 0xB9,   // the attack-ground command's (FN_ORDER_MARKS)
-    GFX_ORDER_AT = 0xBA,       // the yellow circle at a goal (FN_ORDER_MARKS: one for the group); with a unit its size and time scaled by the unit's (without: it ends before it is grown, seen)
+    GFX_ORDER_AT = 0xBA,       // the yellow circle at a goal (FN_ORDER_MARKS: one for the group); with a unit it is drawn on the unit (seen), its size scaled by the unit's - without, the record's size ends it before it is grown (seen): gfx_mark sizes it
     GFX_CLICK = 0xD1,          // the click confirmation on the ground (the mouse click, 0x404A26; 0x663138)
     GFX_CLICK_ON = 0xD3,       // the click confirmation on the unit clicked
     GFX_GOAL_0 = 0x60, GFX_GOAL_1 = 0x62, GFX_GOAL_2 = 0xD2,   // the selected units' goal markers (the graphical goal
@@ -87,11 +87,13 @@ enum gfx_kind {
 enum { ORDER_MARKS_GOALS = 0xBB };   // FN_ORDER_MARKS' how: a GFX_ORDER_ON at each unit's goal (the group's unload's)
 // graphical effects by handle - added (the original of the click's hook), gone already (they fade) or taken away (as
 // the game's area effects end theirs); a command's circles as the game draws them (every PC, seen by owner - a player
-// index): of kind k with the unit on at a tile's centre on the ground, or at each of a group's units' goals
+// index): of kind k at a tile's centre on the ground, or at each of a group's units' goals
 internal inline int gfx_add(void *fx, void *on, float *pos, void *kind, int *handle, int arg) { return GF(FN_GFX_ADD)(fx, on, pos, kind, handle, arg); }
 internal inline int gfx_alive(int handle) { return GF(FN_GFX_GET)(*(void **)GA(G_GFX_EFFECTS), handle) != NULL; }
 internal inline void gfx_remove(int handle) { if (gfx_alive(handle)) GF(FN_GFX_REMOVE)(*(void **)GA(G_GFX_EFFECTS), handle); }
-internal inline void gfx_mark(enum gfx_kind k, ee_unit *on, int x, int y, int owner) {
+// - sized as for a unit of type size_of (NULL: the record's own size): drawn without the unit (with one it is drawn on
+// the unit, coloured by its order), then the size the effect's set-up (vf12, run once in FN_GFX_ADD) gives a unit's
+internal inline void gfx_mark(enum gfx_kind k, const ee_unit_type *size_of, int x, int y, int owner) {
     void *fx = *(void **)GA(G_GFX_EFFECTS), *rec = GF(FN_GFX_KIND)((unsigned)k);
     ee_map *map = game_map();
     unsigned n = map ? map_get_size(map) : 0;
@@ -99,9 +101,14 @@ internal inline void gfx_mark(enum gfx_kind k, ee_unit *on, int x, int y, int ow
     ee_tile *t = map_get_tiles(map)[(unsigned)y * n + (unsigned)x];
     float pos[3] = { (float)x + 0.5f, (float)y + 0.5f, t && tile_get_height(t) > 0.0f ? tile_get_height(t) : 0.0f };
     int h = 0;
-    GF(FN_GFX_ADD)(fx, on, pos, rec, &h, 0);
+    GF(FN_GFX_ADD)(fx, NULL, pos, rec, &h, 0);
     ee_gfx *e = h ? GF(FN_GFX_GET)(fx, h) : NULL;
     if (!e) return;
+    if (size_of) {
+        float s = FIELD(size_of, TD_MARK_SIZE, float) * 1.25f;   // vf12's factor (0x827588)
+        FIELD(e, GFX_SIZE, float) *= s;
+        FIELD(e, GFX_SIZE_2, float) = s;
+    }
     FIELD(e, GFX_SHOWN, uint8_t) = 1;
     FIELD(e, GFX_OWNER, int) = owner;
     FIELD(e, GFX_0x2E, uint8_t) = 0;

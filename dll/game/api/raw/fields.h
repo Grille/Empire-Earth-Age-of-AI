@@ -153,6 +153,8 @@
     O(GFX_OWNER, 0x20, 0x20) /* c: 0x663138's writes (both builds; FN_ORDER_MARKS' the same): the player index that sees it */ \
     O(GFX_SHOWN, 0x2D, 0x2D) /* c: 0x663138's writes (both builds; FN_ORDER_MARKS' the same), 1 */ \
     O(GFX_0x2E, 0x2E, 0x2E) /* c: 0x663138's writes (both builds; FN_ORDER_MARKS' the same), 0 */ \
+    O(GFX_SIZE, 0x74, 0x74) /* c: EEE3DCommandConfirmation vf12 (port_fields 9 votes): the record's +0x1C, x the unit's TD_MARK_SIZE x 1.25 */ \
+    O(GFX_SIZE_2, 0x78, 0x78) /* c: EEE3DCommandConfirmation vf12 (port_fields 5 votes): the record's +0x18, with a unit its TD_MARK_SIZE x 1.25 */ \
     O(EPOCHTECHS_IDS, 0x4, 0x4) /* v: the tech tree code's reads (unchanged) */ \
     O(EPOCHTECHS_COUNT, 0x8, 0x8) /* v: the tech tree code's reads (unchanged) */ \
     O(E_DSTATE_DEVICE, 0x1C, 0x1C) /* c */ \
@@ -478,6 +480,7 @@
     O(TD_0x42C, 0x42C, 0x130) /* c: the type data's constructors */ \
     O(TD_0x430, 0x430, 0x134) /* c: the type data's constructors */ \
     O(TD_ACCEL, 0x438, 0x13C) /* c: the type data's constructors */ \
+    O(TD_MARK_SIZE, 0x464, 0x168) /* c: EEE3DCommandConfirmation vf12's read (0x4E28E9 / AoC 0x4E9F49) - a circle's scale for the unit (float) */ \
     O(TD_FAMILY, 0x4B4, 0x1B8) /* c */ \
     O(TD_ID, 0x4B8, 0x1BC) /* c */ \
     O(TD_DAMAGE_CLASS, 0x4C0, 0x1C4) /* c: the type data's constructors */ \
