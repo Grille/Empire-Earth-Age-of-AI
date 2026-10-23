@@ -994,9 +994,9 @@ writes the header and the lump container and parses terrain. Strings are length-
   rewritten from the parsed lumps played its 2 minutes exactly as the original (same log), and triggertst.scn with
   the trigger renamed and off, the camera moved and P1's stance to P2 set to enemy loaded with exactly that (`trig
   list`, `camera`, `diplo`).
-- Pipe pitfall (2026-10-23): `camera` sent while a game is still loading crashes the game in the mod (eeaimod.dll
-  +0xAB04E reads [map]+0x1816FC with no map yet; the load then returns to the main menu) - wait for `status` to show
-  game time before asking for the camera.
+- Pipe pitfall (2026-10-23, fixed): `camera` sent while a game was still loading crashed the game in the mod (its
+  readout took the map size from [map]+0x1816FC with no map yet, eeaimod.dll +0xAB04E; the load then returned to the
+  main menu). It answers `error: no map` now, in the menus too.
 - Triggers: name, description, bools active/looping/fired/active in cinematic, u32 conditions-true-for,
   u32 seconds true, u32 id, then condition and effect bindings. Runtime, conditions and effects: docs/triggers.md.
 
