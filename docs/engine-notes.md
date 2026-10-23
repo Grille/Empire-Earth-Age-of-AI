@@ -487,14 +487,34 @@ conditions, 162 states with their ids) were dumped by a helper, not kept in the 
   0.1. MovePreparationComplete: unit+0x33E (path ready, set 0x4A2BA0) and waypoints +0x8C > 0.
 - Transports (transport.tai, load container.tai, sea transport.tai): NoMoreLoadableUnitsToPickUp (EEUGLoadContainer
   vf64 0x613C20) = full or the pending passengers (goal+0x20) none; HaveReachedRendezvousPoint distance <= 1.0 to
-  goal+0x54 (transport) / +0x5C (passenger); WaitForPassengers (0x6137C7) only idles, no time limit. A passenger
-  leaves the pending set by loading, by a new order (0x613992) or by CannotReachContainer (0x6137B8, only when both
-  it and the transport have no waypoints left). Two ways a transport hangs, from the code (not yet seen in a game):
-  a passenger that went Idle keeping its goal (its repath failed) stays pending and the transport waits for ever;
-  RepathAroundObstacle false(Idle) leaves a blocked transport in Idle with its unload goal and its passengers aboard
-  (no Idle lines in the transport scripts, and with a goal it is not registered as idle) until something orders it
-  again. Damage doesn't stop a transport (no UnderAttack state), and Advance's NoMoreLoadableUnitsToPickUp line
-  doesn't cut an unload trip short (the unload goal doesn't answer it).
+  goal+0x54 (transport) / +0x5C (passenger); WaitForPassengers (0x6137C7) only idles, no time limit. The pending
+  passengers are a std::vector in the load goal at +0x20 (begin +0x28, end +0x2C; vf33 sums their types' +0x558, vf34
+  the transport's +0x2A4). A passenger leaves the pending set by loading, by CannotReachContainer (0x6137B8, only when
+  both it and the transport have no waypoints left) or by the load goal's vf19 0x613992(unit) (AoC 0x626229, the same
+  slot): if the unit is in nothing (+0x1D8 = 0) and the holder's current goal is a load goal, it is erased there.
+  State ids (the table 0x618E11, 162 names; unit+0x1E8 -> +0x24, the same in AoC): Idle 5000, ReacquireGoal 5001,
+  PrepareToMove 8000, GetNextMoveWaypoint 9000, RepathAroundObstacle 9002, TurnToUnitFacing 9006, Advance 10003,
+  LoadIntoContainer 12000, UnloadTransport 12001, PickedUpLoadableUnits 12003, WaitForPassengers 12010,
+  WaitForTransport 12011, CannotReachContainer 12012. SetState 0x5EFCF0 (`unit_set_state`) is what every order
+  ends with (8000; the mod had it as "unit_say").
+  Two ways a transport hangs, read from the code; logged (dll/ai/transports.c, `transport_log=1`, scripts/transports.py)
+  in 72 island games (2026-10-23, Small Islands large, Copper Age, 3-4 AIs, 45 min): the first is common, the second
+  never happened. (1) WaitForPassengers for ever while no pending passenger is coming: in 24 games 106 such waits,
+  13322 s together (about 9 minutes of transport time a game), the longest 664 s, some until the game's end or until
+  the transport sank. The passengers were mostly the game's own crossings' (not the landing's: it gives its load goals
+  again every 30 s), standing Idle *without any goal* (not with their board goal, as guessed from the code), or off
+  on another order (an attack, a move) - the vf19 erase did not happen for them. (2) RepathAroundObstacle false(Idle)
+  leaving a blocked transport Idle with its unload goal and passengers aboard: 0 in 72 games. Damage doesn't stop a
+  transport (no UnderAttack state), and Advance's NoMoreLoadableUnitsToPickUp line doesn't cut an unload trip short
+  (the unload goal doesn't answer it).
+  The mod's watchdog (`transport_watchdog`, default 0): after 30 s in WaitForPassengers the pending passengers that
+  aren't coming (dead, inside something, no goal, another order, idle with the board goal) are let go through vf19;
+  a transport Idle 20 s with its unload and passengers aboard gets PrepareToMove (at most 3 times). Measured: the
+  waits for nobody fell from 13322 to 3511 s (24 games, the same seeds), the transports let go sail on within
+  25-140 s; head-to-head (48 games, 4 AIs, two with it, `v_transport_watchdog`): those waits 10224 s (A) vs 3821 s
+  (B), but soldiers +0.35 (se 1.76), kills -1.68 (se 1.30), losses +0.32 (se 1.28), razed -0.15 (se 0.15) - no gain
+  in the games' outcome, so it stays off. No .tai edit needed for it (an edited .tai probably breaks the multiplayer
+  checksum, 0x5381A3).
 
 ## Resource manager details
 

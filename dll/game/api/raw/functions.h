@@ -164,7 +164,7 @@
     F(FN_EXIT_CONFIRM, void, __cdecl, (void), 0x005D0B4F, 0x005E145B) \
     F(FN_UNIT_RELEASE, void, __thiscall, (void *), 0x005ED71E, 0x005FB7FB) \
     /* thiscall(unit, 0x1F51) - as the assignment does after the order */ \
-    F(FN_UNIT_SAY, void, __thiscall, (void *, int), 0x005EFCF0, 0x005FDFA5) \
+    F(FN_UNIT_SET_STATE, void, __thiscall, (void *, int), 0x005EFCF0, 0x005FDFA5) \
     F(FN_SET_GOAL, void, __thiscall, (void *, void *, char, int), 0x005F05BD, 0x005FE863) /* thiscall(unit, goal, 0, 0) */ \
     /* EEUCMissile vf42, thiscall(class, missile, aim) - ret 8, the aim unused */ \
     F(FN_MISSILE_LAUNCH, int, __thiscall, (void *, void *, float *), 0x00606109, 0x0061799B) \
@@ -232,6 +232,7 @@
 #define ADDR_NUMBERS_FUNCTIONS(D) \
     D(SLOT_TECH_AVAILABLE, 1, 1)        /* EETechTreeNode: char thiscall(tech) */ \
     D(SLOT_GOAL_PART, 4, 4)             /* EEUGLoadTransport: a unit's part of the load goal */ \
+    D(SLOT_GOAL_DROP, 19, 19)           /* EEUGLoadContainer: thiscall(goal, unit) - the unit out of its holder's load goal's pending passengers (0x613992; AoC 0x626229, the same code) */ \
     D(SLOT_UNIT_DAMAGE, 28, 29)         /* EEUnit: thiscall(unit, attacker, damage, its player index, 1) - an attack's hit points (0x61E0B2); AoC put a stub (ret 4) at 28 */ \
     D(SLOT_TYPE_ASSIGN, 29, 29)         /* EEUnitClass: thiscall(type data, unit), as the game's goal assignment */ \
     D(SLOT_PLAYER_HUMAN, 29, 29)        /* EEPlayer: char thiscall(player) - human (EEHumanPlayer's returns 1; FN_HUMAN_EPOCH's test) */ \

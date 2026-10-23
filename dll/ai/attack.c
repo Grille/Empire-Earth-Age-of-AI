@@ -538,7 +538,7 @@ internal int army_size(ee_player *pl) {
 // where no other known defence reaches. The siege moves there and attacks; idle soldiers (1.5 per siege
 // weapon, at least 4) guard the firing position instead of charging in.
 // Orders are given like the subgroup's (EECPAttackSubGroup::vf57 0x45CBEA): unit 0x5F05BD(goal, append, 0),
-// 0x5EFCF0(priority), typedata slot 29 (unit). Goals: EEUGAttackUnit (new 0x40, ctor 0x60AD45(attacker, target,
+// 0x5EFCF0(state: 0x1F40 PrepareToMove), typedata slot 29 (unit). Goals: EEUGAttackUnit (new 0x40, ctor 0x60AD45(attacker, target,
 // 1)), EEUGLocation (new 0x38, ctor 0x614CE6(float xy[2], 1, 1, 0, 0.0, 0, 0); +0x20/+0x24 = xy).
 internal struct {
     int tx, ty, ttype, px, py; uint32_t last; unsigned logged;
@@ -563,14 +563,14 @@ internal ee_unit *unit_at(int x, int y, int type) {
 
 // 0 = refused (dead, off the map, or +0x33B): the goal is deleted then (its vf0, as the game's callers do) - the
 // caller must not touch it any more (a load goal: no parts from it)
-internal int unit_goal(ee_unit *u, ee_goal *goal, int append, int prio) {
+internal int unit_goal(ee_unit *u, ee_goal *goal, int append, unsigned state) {
     if (!goal) return 0;
     if (unit_get_hp(u) <= 0 || unit_get_x(u) == -10000 || ((char)unit_get_frozen(u))) {
         ((void (__thiscall *)(void *, int))(*(void ***)goal)[0])(goal, 1);
         return 0;
     }
     unit_set_goal(u, goal, append, 0);
-    unit_say(u, prio);
+    unit_set_state(u, state);
     ee_unit_type *td = unit_get_type_data(u);
     type_goal_assigned(td, u);
     return 1;
@@ -760,7 +760,7 @@ internal int site_danger_res(ee_player *pl, ee_unit *site, int food, int res) { 
 }
 internal int site_danger(ee_player *pl, ee_unit *site, int food) { return site_danger_res(pl, site, food, food ? 2 : -1); }
 internal ee_goal *goal_move(float x, float y);
-internal int unit_goal(ee_unit *u, ee_goal *goal, int append, int prio);
+internal int unit_goal(ee_unit *u, ee_goal *goal, int append, unsigned state);
 internal int muster_rally(unsigned idx, float *x, float *y);   // defence.c: the rally point while the base is overrun
 internal struct { unsigned sent; } g_cit_stats[16];
 internal unsigned g_repair_refused[16];   // repair orders refused at buildings under attack (hook_repair_goal)

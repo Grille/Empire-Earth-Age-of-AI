@@ -79,6 +79,9 @@ internal void cover_install(const char *aimod_ini, const char *autotest_ini);
 internal void expand_tick(ee_player *pl, uint32_t now);   // expand.c: other islands
 internal void expand_new_game(void);
 internal void expand_install(const char *aimod_ini, const char *autotest_ini);
+internal void tw_tick(ee_player *pl, uint32_t now);   // transports.c: the transports' script states (a test's log)
+internal void tw_new_game(void);
+internal void tw_install(const char *aimod_ini, const char *autotest_ini);
 internal void ap_new_game(void);
 internal void mt_new_game(void);   // metal.c
 internal void army_plan_tick(ee_player *pl, unsigned idx, uint32_t now);
@@ -192,6 +195,7 @@ internal void __thiscall hook_rm_update(ee_resource_mgr *rm, uint32_t now) {
     if (pl) mass_tick(pl, now);
     if (pl) cover_tick(pl, now);
     if (pl) expand_tick(pl, now);
+    if (pl) tw_tick(pl, now);
     g_rm_seen = 1;
     autotest_tick(now);
 }
@@ -307,6 +311,7 @@ internal char __thiscall hook_game_start(void *state, ee_setup *setup, void *p2)
     mass_new_game();
     cover_new_game();
     expand_new_game();
+    tw_new_game();
     ap_new_game();
     mt_new_game();
     defence_new_game();
@@ -351,6 +356,7 @@ internal char __thiscall hook_game_start(void *state, ee_setup *setup, void *p2)
 #include "ai/fleet.c"
 #include "ai/mass.c"
 #include "ai/expand.c"
+#include "ai/transports.c"
 #include "ai/metal.c"
 #include "ai/cover.c"
 #include "persist.c"
@@ -541,6 +547,7 @@ internal void install(HMODULE self) {
     mass_install(g_aimod_ini, g_autotest ? g_ini : NULL);
     cover_install(g_aimod_ini, g_autotest ? g_ini : NULL);
     expand_install(g_aimod_ini, g_autotest ? g_ini : NULL);
+    tw_install(g_aimod_ini, g_autotest ? g_ini : NULL);
     attack_install(g_aimod_ini, g_autotest ? g_ini : NULL);
     landing_install(g_aimod_ini, g_autotest ? g_ini : NULL);
     navy_install(g_aimod_ini, g_autotest ? g_ini : NULL);

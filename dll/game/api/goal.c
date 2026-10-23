@@ -14,6 +14,10 @@ internal inline ee_unit *goal_get_site(const ee_goal *g) { return FIELD(g, GOAL_
 internal inline ee_unit *goal_get_building(const ee_goal *g) { return FIELD(g, GOAL_ARGS + 0x1C, ee_unit *); } // +0x3C
 // a load goal (goal_is_load): the transport or building to board
 internal inline ee_unit *goal_get_holder(const ee_goal *g) { return FIELD(g, GOAL_HOLDER, ee_unit *); }   // +0x50
+// a load goal: the passengers still to come (a std::vector at +0x20: begin +0x28, end +0x2C) - NoMoreLoadableUnitsToPickUp
+// counts them, a passenger leaves it by boarding, by a new order or by CannotReachContainer
+internal inline ee_unit **goal_get_pending_begin(const ee_goal *g) { return FIELD(g, GOAL_ARGS + 0x8, ee_unit **); }
+internal inline ee_unit **goal_get_pending_end(const ee_goal *g) { return FIELD(g, GOAL_ARGS + 0xC, ee_unit **); }
 // an unload goal (goal_is_unload): the water tiles +0x24 / +0x2C, the point to unload at +0x34, the reach (squared)
 internal inline int goal_get_water_x(const ee_goal *g) { return FIELD(g, GOAL_ARGS + 0x4, int); }
 internal inline int goal_get_water_y(const ee_goal *g) { return FIELD(g, GOAL_ARGS + 0x8, int); }
@@ -53,6 +57,9 @@ internal inline void *goal_unload_alloc(void) { return game_new(GA(SIZE_GOAL_UNL
 internal inline void *goal_move_alloc(void) { return game_new(GA(SIZE_GOAL_MOVE)); }
 // a load goal's part the units walk into (the goal's vtable)
 internal inline ee_goal *goal_part(ee_goal *goal) { return ((ee_goal *(__thiscall *)(void *))(*(void ***)goal)[GA(SLOT_GOAL_PART)])(goal); }
+// a load goal's passenger u no longer awaited - the game's own when a passenger takes another order: only if u is in
+// nothing (+0x1D8) and the holder's goal is a load goal, then u leaves that goal's pending passengers (if there)
+internal inline void goal_drop_passenger(ee_goal *goal, ee_unit *u) { ((void (__thiscall *)(void *, void *))(*(void ***)goal)[GA(SLOT_GOAL_DROP)])(goal, u); }
 // may the goal be handed to the unit (the original of attack.c's hook_goal_cast)
 internal inline char goal_fits(ee_goal *goal, void *unit) { return GF(FN_GOAL_FBA_CHECK)(goal, unit); }
 // a goal set's answer for the unit (the original of landing.c's hook)

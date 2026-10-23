@@ -191,13 +191,13 @@ internal unsigned g_goalset_null;
 internal int __thiscall hook_goalset_ask(void *set, ee_unit *unit, int *out) {
     if (!set) {
         if (g_log && g_goalset_null++ < 10) fprintf(g_log, "# engine guard: a unit's goal set gone after its goal was dropped - the default set\n");
-        unit_say(unit, 5000);
+        unit_set_state(unit, 5000);
         return 0;
     }
     int r = goalset_ask(set, unit, out);
     if (r == 1 && out && !*out) {
         if (g_log && g_goalset_null++ < 10) fprintf(g_log, "# engine guard: a unit's goal set ended without a next one - the default set\n");
-        unit_say(unit, 5000);
+        unit_set_state(unit, 5000);
         return 0;
     }
     return r;
@@ -207,7 +207,7 @@ internal int __thiscall hook_goalset_ask(void *set, ee_unit *unit, int *out) {
 // games. That load goes through a thunk (8B 8E E8 01 00 00 -> E8 thunk, 90): no set, the default one first.
 __attribute__((used)) void goalset_fix(ee_unit *unit) {
     if (g_log && g_goalset_null++ < 10) fprintf(g_log, "# engine guard: a unit without a goal set given a goal - the default set\n");
-    unit_say(unit, 5000);
+    unit_set_state(unit, 5000);
 }
 __attribute__((naked, used)) void goalset_read_thunk(void) {
     __asm__("cmpl $0, 0x1e8(%esi)\n\t"

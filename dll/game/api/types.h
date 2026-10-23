@@ -8,6 +8,7 @@ typedef struct ee_unit ee_unit;                 // UNIT: a unit, building or res
 typedef struct ee_unit_type ee_unit_type;       // TD: a unit type's data (EEUnitClass)
 typedef struct ee_unit_stats ee_unit_stats;     // USTAT: a unit type's values for one player, a unit's +0x34
 typedef struct ee_goal ee_goal;                 // GOAL: a unit's goal (EEUnitGoal)
+typedef struct ee_ai_state ee_ai_state;         // AISTATE: a unit's script state, its +0x1E8
 typedef struct ee_civ_mgr ee_civ_mgr;           // CM: the AI's civilization manager, player +0xB90
 typedef struct ee_resource_mgr ee_resource_mgr; // RM: the AI's resource manager, CM +0x38
 typedef struct ee_build_mgr ee_build_mgr;       // BM: the AI's build manager, CM +0x3C

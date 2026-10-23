@@ -19,6 +19,7 @@
 //   TD           a unit type's data, G_TYPES[type] and a unit's +0x2C (EEUnitClass, EEUC*)
 //   USTAT        a unit type's per-player values, a unit's +0x34 (range, attack ...)
 //   GOAL         a unit's goal, its +0x1EC (EEUnitGoal, EEUG*)
+//   AISTATE      a unit's script state, its +0x1E8 (a state of its .tai, engine-notes.md "Unit AI scripts")
 //   CM           the AI's civilization manager, player +0xB90 (EECPCivilizationManager)
 //   RM           the AI's resource manager (EECPResourceManager)
 //   BM           the AI's build manager, CM +0x3C
@@ -89,6 +90,7 @@
     O(AG_SUBGROUPS, 0x8, 0x8) /* c */ \
     O(AG_TARGET_UNIT, 0x44, 0x44) /* b */ \
     O(AG_TARGET, 0x48, 0x48) /* b */ \
+    O(AISTATE_ID, 0x24, 0x24) /* c: the state's id, read by every condition through a unit's +0x1E8 */ \
     O(AM_COMMANDER, 0x48, 0x48) /* c */ \
     O(AM_0x4C, 0x4C, 0x4C) /* b */ \
     O(AM_0x62, 0x62, 0x62) /* v */ \
@@ -545,6 +547,7 @@
     O(UNIT_MATRIX, 0x130, 0x130) /* b: the unit's matrix (GETransformation), its +0x4 .. +0x2C between fields of the same shift */ \
     O(UNIT_ATTACKER_TYPE, 0x1C0, 0x1C0) /* c */ \
     O(UNIT_CHAIN, 0x1CC, 0x1CC) /* c */ \
+    O(UNIT_AI_STATE, 0x1E8, 0x1E8) /* c */ \
     O(UNIT_GOAL, 0x1EC, 0x1EC) /* c */ \
     O(UNIT_GOAL_OBJECT, 0x1F0, 0x1F0) /* c */ \
     O(UNIT_BEHAVIOUR, 0x208, 0x208) /* c */ \

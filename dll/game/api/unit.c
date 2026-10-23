@@ -36,6 +36,9 @@ internal inline vec3 unit_get_pos(const ee_unit *u) {
 internal inline ee_unit_type *unit_get_attacker_type(const ee_unit *u) { return FIELD(u, UNIT_ATTACKER_TYPE, ee_unit_type *); } // +0x1C0 a projectile's: the attack's type data
 // +0x1CC: the next of a chain from +0x30 - its last is what a BuildRepair goal holds (0x60BAD0)
 internal inline ee_unit *unit_get_chain(const ee_unit *u) { return FIELD(u, UNIT_CHAIN, ee_unit *); }
+internal inline ee_ai_state *unit_get_ai_state(const ee_unit *u) { return FIELD(u, UNIT_AI_STATE, ee_ai_state *); } // +0x1E8 its script state (AISTATE)
+// the state's id (the .tai state names' numbers: Idle 5000, WaitForPassengers 12010 ... - engine-notes.md), 0 without one
+internal inline unsigned unit_ai_state_id(const ee_unit *u) { ee_ai_state *s = unit_get_ai_state(u); return s ? FIELD(s, AISTATE_ID, unsigned) : 0; }
 internal inline ee_goal *unit_get_goal(const ee_unit *u) { return FIELD(u, UNIT_GOAL, ee_goal *); }   // +0x1EC its goal (GOAL)
 internal inline ee_goal *unit_get_goal_object(const ee_unit *u) { return FIELD(u, UNIT_GOAL_OBJECT, ee_goal *); } // +0x1F0 the goal object (0x5ED24B casts it)
 internal inline void *unit_get_behaviour(const ee_unit *u) { return FIELD(u, UNIT_BEHAVIOUR, void *); }    // +0x208 its behaviour (behaviour_table())
@@ -63,8 +66,9 @@ internal inline void unit_aim(ee_unit *u, ee_unit **target, float *aim, void *ze
 // is the map object explored by pl (a site's +0x14: its map object)
 internal inline char explored_by(ee_unit *site, ee_player *pl) { return GF(FN_EXPLORED)(FIELD(site, UNIT_VIS, void *), pl); }
 
-// the unit says sound (an answer to an order: 0x1F51 "building")
-internal inline void unit_say(ee_unit *u, int sound) { GF(FN_UNIT_SAY)(u, sound); }
+// the unit's script state set (SetState: its .tai state by id - engine-notes.md "Unit AI scripts"; entered, it runs once):
+// 8000 PrepareToMove after every order, 5000 Idle, 0x1F51 MoveToRepairSite (the game's builder order)
+internal inline void unit_set_state(ee_unit *u, unsigned state) { GF(FN_UNIT_SET_STATE)(u, (int)state); }
 // the unit's goal set (the unit takes it over); append: after its current one, prio: the order's priority
 internal inline void unit_set_goal(ee_unit *u, ee_goal *goal, int append, int prio) {
     GF(FN_SET_GOAL)(u, goal, (char)append, prio);
