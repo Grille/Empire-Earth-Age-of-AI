@@ -939,7 +939,7 @@ physics/movement models EEP 107/49, interface EEUI 819/31, scenario EES 611/12, 
 
 ## Scenario / save file format (.scn / .ees)
 
-The author's C# project EEScnEdit (GitHub; `EEScnEdit/Headers`, `EEScnEdit/Data`) reads and writes every part of
+The author's C# project EEScnEdit (GitHub; the library `EEScnLib/Headers`, `EEScnLib/Data`, the WinForms editor `EEScnEdit`) reads and writes every part of
 the 2017 update's format 0.231, each class naming the game function it mirrors - the field-by-field reference;
 these notes give the layout, what is known of the fields and how it was checked. Strings are length-prefixed.
 
@@ -1011,7 +1011,7 @@ these notes give the layout, what is known of the fields and how it was checked.
   the AI's state. Checked 2026-10-23: this framing reads all 37 saves and 10 scenarios up to the first unit (always
   at 0xAD0E of the lump, player 0's name "World"), the first unit's type ids plausible (337, 301, 338).
 - The player lump decoded to the end (2026-10-23; the field-by-field layout with every function's address is
-  EEScnEdit's `Data/Player/*.cs`): units come in two classes only - the u8 after the type id picks it on load
+  EEScnLib's `Data/Player/*.cs`): units come in two classes only - the u8 after the type id picks it on load
   (EEPlayer::vf12 0x558CDD; the type data's vf14 0x61E7BA would build the class of type +0x4B0, a mismatch is read
   into a thrown-away object): 0 EEUnit (EEUnit::vf11 0x616EBF: RTSUnit 0x628E8E's tile x, y, id +0x24, u8 +0x28, 0,
   u8 +0x2B valid, then +0x38 resource type, hit points / the type's maximum, +0x40 amount, 0 - 31 bytes; families
@@ -1026,7 +1026,7 @@ these notes give the layout, what is known of the fields and how it was checked.
   with the NUL, then the bytes. Checked: all 37 saves and 10 scenarios read to the lump's last byte and write back
   byte for byte - 447 players (351 computer), 63977 simple and 30093 complex units, every goal tag but 11, sub
   group kinds 0-6.
-- The other lumps (2026-10-23; layouts with addresses in EEScnEdit's `Data/*Lump.cs`, `Data/Triggers`, `Data/Terrain`):
+- The other lumps (2026-10-23; layouts with addresses in EEScnLib's `Data/*Lump.cs`, `Data/Triggers`, `Data/Terrain`):
   2 seed u32 (world +0x54); 3 camera: a GE3DPoint, the focus (its z is a height, not the zoom); 4 terrain, EEMap::vf3
   0x5138C9: i32 width, i32 height, u32 player slots, the tiles in diamond rows (N = w + h rows; row r covers x from
   lo to hi of an N-wide grid, lo counting down from h - 1 to 0 and hi up from h to N - 1, each staying one row, then
