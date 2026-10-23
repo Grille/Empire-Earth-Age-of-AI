@@ -912,6 +912,13 @@ physics/movement models EEP 107/49, interface EEUI 819/31, scenario EES 611/12, 
 - Movement models (EEPMNaval/Helicopter/Land/Airplane/SubmergedNaval) and unit classes changed most outside the AI.
   Caution: where a base class gained virtual functions the vfN numbering shifts, so EEUnitClass/EEComplexUnit
   "changes" are partly numbering artifacts and need matching by code, not by name.
+- Comparing the two decompilations as text misses code (2026-10-23, the save format's diff): stream calls inside
+  long wrapped if-chains drop out - EEComputerPlayer::vf9 looked unchanged, its machine code has 7 more stream calls
+  (157 vs 162 in the text). Compare the machine code's calls instead (`call [reg+0x74/0x7C/0x90/0x94/0x8C]`, the
+  constants, `cmp [ebp+0xC], 0xNN` version tests): EEScnEdit session scratchpad `aoc\aseq.py`, `tree2.py` (walks a
+  save tree through port_addrs' pairs). AoC's decompilation shows import calls as `(*(code *)&LAB_xxxxxxxx_N)`
+  (GE3DPoint::Save [0x837374], GETransformation::Save [0x837704], GE3DLine::Save [0x837738]), and
+  EEComputerPlayer::vf6 0x42FD50 (52 KB) doesn't decompile - read it as machine code.
 
 ## Scenario / save file format (.scn / .ees)
 
@@ -927,12 +934,13 @@ these notes give the layout, what is known of the fields and how it was checked.
   in the game with the world, [0x918E8C]), u32 n + n x u32 lump types, scenario texts, u32 +0x4EC system uptime.
 - The setup: 16 slots of 0x38 bytes, each u32 +0 type (1 human, 0 computer, 4 closed; 2, 3 occur), name, float
   +0x1C, u32 +0x20 index, +0x24 colour, +0x28 team, +0x2C citizens, u8 +0x34 +0x35 +0x36 (+0x36 1 at reset); then
-  u32 game speed +0x3D4, mode +0x3D8 (0 random map, 1 scenario, 2 saved game, 3 editor test, 4 campaign), game
-  variant, map size, start epoch, end epoch, resources, unit limit, wonders for victory, AI difficulty, bools
-  victory allowed, lock teams, lock speed, reveal map (+0x400..+0x403), cheats +0x404, record game +0x405, custom
-  civs +0x406, u8 +0x408. Named after the registry options loader 0x52A19A, which has the same fields 4 bytes later:
-  by it map size is +0x3DC and +0x3E8 the game variant (fields.h's SETUP_MAP_SIZE 0x3E8 and SETUP_DIFFICULTY 0x3F8
-  disagree). The old EEScnEdit header (and these notes before 2026-10-23) cut the slots 3 bytes off - each
+  in stream order u32 game speed, mode (0 random map, 1 scenario, 2 saved game, 3 editor test, 4 campaign), game
+  variant (0 / 2 in the samples), map size (0..2), start epoch (0, 9), end epoch (13 = the default), resources, unit
+  limit, wonders for victory, AI difficulty, bools victory allowed, lock teams, lock speed, reveal map, cheats,
+  record game, custom civs, u8 - the stream isn't the memory order: in the setup speed +0x3D4, mode +0x3D8, map size
+  +0x3DC, epochs +0x3E0 / +0x3E4, variant +0x3E8, resources +0x3EC, unit limit +0x3F0, wonders +0x3F4, difficulty
+  +0x3F8, the bools +0x400..+0x406 (by the registry options loader 0x52A19A, whose object sits 4 bytes off the
+  setup; fields.h's SETUP_* rows named so since 3bc195a; the stream order by the sample values). The old EEScnEdit header (and these notes before 2026-10-23) cut the slots 3 bytes off - each
   "PlayerHeader" began with the previous slot's +0x34..+0x36, so its "shared line of sight" was the previous
   slot's +0x36.
 - Lumps are LowLevelEngine.dll's FSChunk (decomp/dll/LowLevelEngine/10020000.c:1435 LoadChunkHeader /
@@ -1024,6 +1032,25 @@ these notes give the layout, what is known of the fields and how it was checked.
 - Pipe pitfall (2026-10-23, fixed): `camera` sent while a game was still loading crashed the game in the mod (its
   readout took the map size from [map]+0x1816FC with no map yet, eeaimod.dll +0xAB04E; the load then returned to the
   main menu). It answers `error: no map` now, in the menus too.
+- Art of Conquest's files (2026-10-23): AoC writes 0.250; its loaders test every minor from 0xE8 to 0xFA, so it went
+  through 0.232 .. 0.250 (its campaign scenarios are 0.248, 0.249 and 0.250, its tutorials still 0.231). Only lumps
+  5, 7, 8 and 10 changed (AoC addresses): EEPlayer::vf9 0x569C46 adds after the rest u32 +0xAE8 (0.233+), 5 i32
+  +0xB50 (0.241+), 5 i32 +0xB64 (0.242+), i32 +0xB78 (0.245+), u32 +0xAEC (0.246+), and writes 4 air traffic
+  controls and a 15-epoch tech tree (both counted in the stream); EEComplexUnit::vf11 0x5F417E adds a u32 to each
+  production queue entry (0.248+) and at the end u32 +0x328 (0.232+), u8 +0x355 and u32 +0x358 (0.235+), u16 +0x35C
+  (0.243+), float +0x250 (0.244+), u32 +0x32C (0.245+); EEUGAttackUnit a u8 +0x40, the Crusaders' special attack
+  (0.238+); EEComputerPlayer: the build, research and unit managers' per-epoch lists become 15 (0.234+), the defence
+  manager adds u32 +0x48 (0.237+) and +0x4C (0.240+), the settings 4 i32 +0xF14 +0xF1C +0xF18 +0xF20 (0.232+), i32
+  +0xEB8 +0xDFC (0.236+), u32 +0xBE8 (0.237+); attack sub group kinds 9 spaceship, 10 space transport, 11 space
+  fighter (EECPAttackGroup::vf1 0x456CC8); EEPWorldHelper a u8 +0x3B after the herd counter (0.239+); EEPhysics a u8
+  +0xE8 before the network values (0.250); effects 50 EEE2DBattlefieldAmbient, 51 EEE3DCitizenBeam, 52
+  EEE3DEnergyWall (rewritten in 0.250), 53 EEE3DDamageVent, 70 EEE3DScreenFlash, 71 EEE3DEnergyWave, and a field
+  more at the end of 6/7 EEE2DImpact (0.245+), 62 EEEDamagedEffect (0.249+), 64 EEE3DTracerBeam (0.250). EEScnEdit
+  reads both (each lump's version picks the fields). Checked: every lump and the header of 86 2017-update files and
+  41 AoC files (26 campaign scenarios, the AoC install's saves and scenarios) round-trip byte for byte; an AoC
+  autosave (0.250, 7 players, 1595 units) rewritten from the parsed lumps played its 2 minutes in an AoC test slot
+  exactly as the original (same log). Not in any file, from the code alone: the production queue's second value,
+  sub group kinds 9-11, effects 51, 53, 64, 70, 71 and the energy wall's older layout.
 - Naming the fields (2026-10-23, EEScnEdit's field names and comments say which source for each): the exe's
   out-of-sync dumps print most fields with an English label ("OUT OF SYNCH DUMP"; EEComplexUnit::vf17 0x5EB579, each
   EEUG* goal's vf5, EECalamity vf5 0x4A7DD3, ...), and many persist calls carry a save label (16 for EEPlayer, e.g.
